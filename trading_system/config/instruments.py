@@ -1,11 +1,12 @@
-"""标的配置（设计 §2.1 标的与数据源矩阵）。
+"""标的配置（设计 §2.1 标的与数据源矩阵，加密侧改 Hyperliquid）。
 
-先支持：BTC 永续（Binance）+ CL/BZ 期货（CME GLBX）。
+先支持：BTC 永续（Hyperliquid）+ CL/BZ 期货（CME GLBX）。
 连续合约警告（风险 R7）：信号标的（如 CL.v.0）≠ 下单标的（当前主力单月合约），
 执行须经 signal_instrument → exec_instrument 滚动映射（阶段4 定规则）。
 
 恒仓极性标的（hold26 正域，在册）：L_max ≈ 1.0–1.3x
-    ⟹ BTC 主仓现货或 1x 永续逐仓（adapter 级表达见 broker_config.py）。
+    ⟹ BTC 主仓 1x 逐仓——HL 杠杆 per-position 下单时指定，
+    约束在 LeverageGovernor 层钳制（见 broker_config.hyperliquid_config）。
 """
 
 from __future__ import annotations
@@ -39,12 +40,12 @@ class InstrumentSpec:
 INSTRUMENTS: dict[str, InstrumentSpec] = {
     "BTC": InstrumentSpec(
         key="BTC",
-        instrument_id="BTCUSDT-PERP.BINANCE",
+        instrument_id="BTC-USD-PERP.HYPERLIQUID",
         price_precision=1,
-        maint_margin_rate=0.05,
+        maint_margin_rate=0.05,  # TODO(阶段4): 从 HL instrument margin_maint 读
         bar_floor="1m",  # 1s 床位待 checkpoint 序列化（风险 R3）
         trading_mode="fusion_tr",  # 在册全史最优 +4298%
-        notes="恒仓极性 ⟹ 1x 永续逐仓（hold26 正域）",
+        notes="恒仓极性 ⟹ 1x 逐仓（hold26 正域）；HL 无 1s K线，1s 床位走 trades→INTERNAL",
     ),
     "CL": InstrumentSpec(
         key="CL",
@@ -74,10 +75,49 @@ def make_instrument(spec: InstrumentSpec) -> Instrument:
     InstrumentProvider 从 venue 拉取，本函数仅服务回测 venue 装配。
     """
     if spec.key == "BTC":
-        return TestInstrumentProvider.btcusdt_perp_binance()
+        return _hyperliquid_btc_perp(spec)
     if spec.key in ("CL", "BZ"):
         return _glbx_future(spec)
     raise KeyError(f"未注册标的: {spec.key}")
+
+
+def _hyperliquid_btc_perp(spec: InstrumentSpec) -> CryptoPerpetual:
+    """Hyperliquid BTC-USD-PERP（回测装配）。
+
+    实盘 definitions 由 HyperliquidInstrumentProvider 从 venue 拉取——本构造
+    仅服务回测，精度/费率与 venue 实值的偏差在阶段4 对账时收口（不可混表）。
+    HL 费率（L0 文档值，待 L2）：maker 0.01% / taker 0.035%（基础档）。
+    """
+    from decimal import Decimal
+
+    from nautilus_trader.model.currencies import BTC, USDC
+    from nautilus_trader.model.instruments import CryptoPerpetual
+    from nautilus_trader.model.objects import Money
+
+    return CryptoPerpetual(
+        instrument_id=InstrumentId(symbol=Symbol("BTC-USD-PERP"), venue=Venue("HYPERLIQUID")),
+        raw_symbol=Symbol("BTC"),
+        base_currency=BTC,
+        quote_currency=USDC,  # HL 保证金/结算货币 USDC
+        settlement_currency=USDC,
+        is_inverse=False,
+        price_precision=spec.price_precision,
+        price_increment=Price(10 ** -spec.price_precision, spec.price_precision),
+        size_precision=5,  # HL BTC szDecimals=5
+        size_increment=Quantity.from_str("0.00001"),
+        max_quantity=Quantity.from_str("10000"),
+        min_quantity=Quantity.from_str("0.00001"),
+        max_notional=None,
+        min_notional=Money(10.00, USDC),
+        max_price=Price.from_str("1000000.0"),
+        min_price=Price.from_str("0.1"),
+        margin_init=Decimal("0.10"),
+        margin_maint=Decimal(str(spec.maint_margin_rate)),
+        maker_fee=Decimal("0.0001"),
+        taker_fee=Decimal("0.00035"),
+        ts_event=0,
+        ts_init=0,
+    )
 
 
 def _glbx_future(spec: InstrumentSpec) -> FuturesContract:

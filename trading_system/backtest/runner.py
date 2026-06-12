@@ -39,7 +39,9 @@ from trading_system.strategy.chanlun_strategy import ChanlunStrategy, ChanlunStr
 DEFAULT_DATA = REPO_ROOT / ".cache" / "BZ_1min_2024_raw.parquet"
 
 
-def build_engine(enable_orders: bool, log_level: str) -> tuple[BacktestEngine, object]:
+def build_engine(
+    enable_orders: bool, log_level: str, db_path: str | None = None,
+) -> tuple[BacktestEngine, object]:
     spec = INSTRUMENTS["BZ"]
     instrument = make_instrument(spec)
 
@@ -68,6 +70,7 @@ def build_engine(enable_orders: bool, log_level: str) -> tuple[BacktestEngine, o
             trading_mode=spec.trading_mode,
             enable_orders=enable_orders,
             maint_margin_rate=spec.maint_margin_rate,
+            db_path=db_path,
         ),
     )
     engine.add_strategy(strategy)
@@ -80,13 +83,16 @@ def main() -> int:
     parser.add_argument("--bars", type=int, default=30_000, help="最大 bar 数（0=全量）")
     parser.add_argument("--enable-orders", action="store_true", help="开启下单（阶段3形态）")
     parser.add_argument("--log-level", default="WARNING", help="Nautilus 日志级别")
+    parser.add_argument("--db", default=None, help="SQLite 持久化路径（信号/订单/bar缓存/快照）")
     args = parser.parse_args()
 
     if not args.data.exists():
         print(f"数据文件不存在: {args.data}", file=sys.stderr)
         return 1
 
-    engine, (instrument, bar_type, spec) = build_engine(args.enable_orders, args.log_level)
+    engine, (instrument, bar_type, spec) = build_engine(
+        args.enable_orders, args.log_level, db_path=args.db,
+    )
 
     print(f"加载数据: {args.data}（max_bars={args.bars or '全量'}）")
     bars = load_parquet_bars(

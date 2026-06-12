@@ -60,11 +60,11 @@ class MakerOptimizer:
 
     # ── 意图入口 ────────────────────────────────────────────────
 
-    def place(self, side: str, quantity: float, anchor_price: float) -> bool:
-        """挂限价单。返回是否接受（PENDING 占用时拒绝——不排队不追）。"""
+    def place(self, side: str, quantity: float, anchor_price: float) -> str | None:
+        """挂限价单。返回 client_order_id；PENDING 占用时返回 None（不排队不追）。"""
         if self._state is not MakerState.IDLE:
             self.skip_count += 1
-            return False
+            return None
         order = self._executor.build_limit_order(
             side=side, quantity=quantity, limit_price=anchor_price,
         )
@@ -77,7 +77,7 @@ class MakerOptimizer:
             alert_time=self._strategy.clock.utc_now() + self._timeout,
             callback=self._on_timeout,
         )
-        return True
+        return str(order.client_order_id)
 
     # ── 定时器 ──────────────────────────────────────────────────
 

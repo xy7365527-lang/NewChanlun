@@ -74,7 +74,23 @@ class ChanlunBridge:
 
         定点→浮点只在此边界发生一次（Price.as_double()）。
         """
-        ts = bar.ts_event
+        return self.feed_ohlc(
+            bar.ts_event,
+            bar.open.as_double(),
+            bar.high.as_double(),
+            bar.low.as_double(),
+            bar.close.as_double(),
+        )
+
+    def feed_ohlc(
+        self, ts_event_ns: int, open_: float, high: float, low: float, close: float,
+    ) -> FeedResult:
+        """裸 OHLC 入口（恢复重放用——persistence.BarCache 不构造 Nautilus Bar）。
+
+        与 feed() 共享同一守卫路径：watermark/gap/dup 语义完全一致，
+        重放与实时之间不存在第二套时间逻辑。
+        """
+        ts = ts_event_ns
         if self._watermark_ns is not None:
             if ts < self._watermark_ns:
                 raise RuntimeError(
@@ -88,12 +104,7 @@ class ChanlunBridge:
                 self._bar_interval_ns = ts - self._watermark_ns
             elif ts - self._watermark_ns > self._bar_interval_ns:
                 self._gap_count += 1  # 只记录不填充
-        self._orch.process_bar(
-            bar.open.as_double(),
-            bar.high.as_double(),
-            bar.low.as_double(),
-            bar.close.as_double(),
-        )
+        self._orch.process_bar(open_, high, low, close)
         self._bar_index += 1
         self._ts_to_index.append(ts)
         self._watermark_ns = ts

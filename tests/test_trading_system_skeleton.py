@@ -99,6 +99,131 @@ class TestChanlunBridge:
         assert bridge.bar_count == 3    # 不填充
 
 
+class TestPersistence:
+    def _make_db(self, tmp_path):
+        from trading_system.persistence import TradingDatabase
+
+        return TradingDatabase(tmp_path / "test.db")
+
+    def test_bar_cache_roundtrip_and_dedup(self, tmp_path):
+        from trading_system.persistence import BarCache
+
+        with self._make_db(tmp_path) as db:
+            cache = BarCache(db, commit_interval=2)
+            cache.append("BTC-USD-PERP.HYPERLIQUID", 1000, 1, 2, 0.5, 1.5, 10)
+            cache.append("BTC-USD-PERP.HYPERLIQUID", 2000, 1.5, 2.5, 1, 2, 20)
+            cache.append("BTC-USD-PERP.HYPERLIQUID", 2000, 9, 9, 9, 9, 99)  # dup ts 忽略
+            cache.flush()
+            rows = list(cache.iter_bars("BTC-USD-PERP.HYPERLIQUID"))
+            assert len(rows) == 2
+            assert rows[1][4] == 2  # close 保留首次写入值（dup 被忽略）
+            assert cache.last_ts("BTC-USD-PERP.HYPERLIQUID") == 2000
+
+    def test_crash_recovery_replay_matches_snapshot(self, tmp_path):
+        """关键场景：崩溃→重启→缓存重放→结构与崩溃前快照一致。"""
+        import math
+
+        from trading_system.persistence import BarCache, EngineStateStore
+        from trading_system.strategy.signal_bridge import ChanlunBridge
+
+        iid = "BZ.GLBX"
+        with self._make_db(tmp_path) as db:
+            cache = BarCache(db)
+            store = EngineStateStore(db)
+
+            # 第一段生命：喂 500 根合成波动 bar，同步缓存，停机前快照
+            bridge1 = ChanlunBridge()
+            m = 60_000_000_000
+            for i in range(500):
+                px = 100 + 10 * math.sin(i / 7) + 3 * math.sin(i / 3)
+                o, c = px, px + math.sin(i)
+                h, l = max(o, c) + 0.5, min(o, c) - 0.5
+                bridge1.feed_ohlc((i + 1) * m, o, h, l, c)
+                cache.append(iid, (i + 1) * m, o, h, l, c)
+            cache.flush()
+            store.save_snapshot(iid, bridge1)
+            snap_before = bridge1.structure_snapshot()
+
+            # 崩溃 → 新进程：新 bridge 从缓存重放，守卫对账
+            bridge2 = ChanlunBridge()
+            n = store.recover(bridge2, cache, iid)
+            assert n == 500
+            assert bridge2.structure_snapshot() == snap_before
+            assert bridge2.watermark_ns == bridge1.watermark_ns
+
+    def test_recovery_mismatch_fails_fast(self, tmp_path):
+        """缓存缺损（水位线落后于快照）→ RecoveryMismatch，禁止继续交易。"""
+        from trading_system.persistence import BarCache, EngineStateStore
+        from trading_system.persistence.engine_state import RecoveryMismatch
+        from trading_system.strategy.signal_bridge import ChanlunBridge
+
+        iid = "BZ.GLBX"
+        m = 60_000_000_000
+        with self._make_db(tmp_path) as db:
+            cache = BarCache(db)
+            store = EngineStateStore(db)
+            bridge1 = ChanlunBridge()
+            for i in range(10):
+                bridge1.feed_ohlc((i + 1) * m, 100, 101, 99, 100.5)
+                if i < 5:  # 模拟缓存只写了一半（缺损）
+                    cache.append(iid, (i + 1) * m, 100, 101, 99, 100.5)
+            cache.flush()
+            store.save_snapshot(iid, bridge1)
+            with pytest.raises(RecoveryMismatch, match="缺损"):
+                store.recover(ChanlunBridge(), cache, iid)
+
+    def test_trade_journal_signal_and_order_lifecycle(self, tmp_path):
+        from trading_system.persistence import TradeJournal
+        from trading_system.strategy.signal_bridge import ChanlunSignal
+
+        with self._make_db(tmp_path) as db:
+            j = TradeJournal(db)
+            sig = ChanlunSignal(
+                action="BUY", level=1, notional_frac=1.0, price=100.0,
+                kind="type1", reason="test", bar_index=42, ts_event_ns=1000,
+            )
+            j.log_signal("BZ.GLBX", sig)
+            j.log_order_placed("O-1", 1000, "BZ.GLBX", "BUY", 2.0, 100.0)
+            j.log_fill("O-1", 2000, 99.9, 2.0)
+            j.commit()
+            status = db.conn.execute(
+                "SELECT status FROM orders WHERE client_order_id='O-1'",
+            ).fetchone()[0]
+            assert status == "FILLED"
+            assert db.conn.execute("SELECT COUNT(*) FROM signals").fetchone()[0] == 1
+
+
+class TestDataFeedRouting:
+    def test_crypto_routes_to_hyperliquid(self):
+        from trading_system.data.feed_abstraction import FeedRole, feed_for
+
+        spec = feed_for("crypto", FeedRole.REALTIME)
+        assert spec.name == "Hyperliquid WS"
+        assert spec.nautilus_adapter == "nautilus_trader.adapters.hyperliquid"
+
+    def test_hyperliquid_no_exchange_1s(self):
+        """HL 无交易所侧 1s K线（adapter 源码核对）——1s 走 tick→INTERNAL。"""
+        from trading_system.data.feed_abstraction import Granularity, supports
+
+        assert not supports("HYPERLIQUID", Granularity.SEC_1, realtime=True)
+        assert supports("HYPERLIQUID", Granularity.TICK, realtime=True)
+
+    def test_alphavantage_not_realtime(self):
+        """AV 无推送能力——实时粒度声明为空（防声明膨胀）。"""
+        from trading_system.data.feed_abstraction import FEEDS
+
+        assert FEEDS["ALPHAVANTAGE"].realtime_granularities == ()
+        assert FEEDS["ALPHAVANTAGE"].nautilus_adapter is None
+
+    def test_hyperliquid_adapter_importable(self):
+        """1.228.0 官方 HL adapter 存在且配置类可构造（testnet）。"""
+        from trading_system.config.broker_config import hyperliquid_config
+
+        data_cfg, exec_cfg = hyperliquid_config(testnet=True)
+        assert type(data_cfg).__name__ == "HyperliquidDataClientConfig"
+        assert type(exec_cfg).__name__ == "HyperliquidExecClientConfig"
+
+
 class TestLmtOnly:
     def test_market_order_forbidden(self):
         """非 LIMIT 订单 submit 前抛异常（fail-fast，不是过滤）。"""

@@ -19,6 +19,7 @@ from nautilus_trader.trading.strategy import Strategy
 from trading_system.execution.leverage_calculator import LeverageCalculator
 from trading_system.execution.lmt_executor import LmtExecutor
 from trading_system.execution.maker_optimizer import MakerOptimizer
+from trading_system.persistence import BarCache, EngineStateStore, TradeJournal, TradingDatabase
 from trading_system.strategy.signal_bridge import ChanlunBridge, FeedResult
 
 
@@ -39,6 +40,8 @@ class ChanlunStrategyConfig(StrategyConfig, frozen=True):
     enable_orders: bool = False  # 阶段1只读；阶段3+置True
     order_timeout_secs: int = 60  # maker 在册判决：≤60s 撤单不追价
     maint_margin_rate: float = 0.10  # mm；阶段3从 Instrument.margin_maint 读
+    # ── 持久化（None=关闭，回测默认；实盘必开）──
+    db_path: str | None = None  # SQLite 文件路径（persistence.TradingDatabase）
 
 
 class ChanlunStrategy(Strategy):
@@ -65,6 +68,16 @@ class ChanlunStrategy(Strategy):
         self.lmt: LmtExecutor | None = None  # on_start 创建（需要 order_factory）
         self.maker: MakerOptimizer | None = None
         self._signal_count = 0
+        # ── 持久化（可选）──
+        self.db: TradingDatabase | None = None
+        self.journal: TradeJournal | None = None
+        self.bar_cache: BarCache | None = None
+        self.engine_state: EngineStateStore | None = None
+        if config.db_path:
+            self.db = TradingDatabase(config.db_path)
+            self.journal = TradeJournal(self.db)
+            self.bar_cache = BarCache(self.db)
+            self.engine_state = EngineStateStore(self.db)
 
     # ── 生命周期 ────────────────────────────────────────────────
 
@@ -93,10 +106,20 @@ class ChanlunStrategy(Strategy):
         if result is not FeedResult.ACCEPTED:
             return  # 重叠丢弃（已计数）
 
+        if self.bar_cache is not None:  # 崩溃重放数据源（批量提交）
+            self.bar_cache.append(
+                str(self.config.instrument_id), bar.ts_event,
+                bar.open.as_double(), bar.high.as_double(),
+                bar.low.as_double(), bar.close.as_double(),
+                bar.volume.as_double(),
+            )
+
         signals = self.bridge.drain_signals()
         for sig in signals:
             self._signal_count += 1
             self.log.info(f"[信号] {sig.action} L{sig.level} @{sig.price:.4f} {sig.reason}")
+            if self.journal is not None:
+                self.journal.log_signal(str(self.config.instrument_id), sig)
             if self.config.enable_orders:
                 self._execute_signal(sig, bar)
 
@@ -125,24 +148,38 @@ class ChanlunStrategy(Strategy):
         )
         if qty <= 0:
             return
-        self.maker.place(side=sig.action, quantity=qty, anchor_price=sig.price)
+        order_id = self.maker.place(side=sig.action, quantity=qty, anchor_price=sig.price)
+        if order_id is not None and self.journal is not None:
+            self.journal.log_order_placed(
+                order_id, sig.ts_event_ns, str(self.config.instrument_id),
+                sig.action, qty, sig.price, reason=sig.reason,
+            )
 
     # ── 订单事件路由 ────────────────────────────────────────────
 
     def on_order_filled(self, event: OrderFilled) -> None:
         if self.maker is not None:
             self.maker.on_filled(event)
+        if self.journal is not None:
+            self.journal.log_fill(
+                str(event.client_order_id), event.ts_event,
+                event.last_px.as_double(), event.last_qty.as_double(),
+            )
         # TODO(阶段2): stream.confirm_fill(intent_id, fill_price, fill_qty, bar)
         #   —— 影子账本只在成交确认时更新（设计判决二：venue 是真账本）。
 
     def on_order_canceled(self, event: OrderCanceled) -> None:
         if self.maker is not None:
             self.maker.on_canceled(event)
+        if self.journal is not None:
+            self.journal.log_cancel(str(event.client_order_id))
         # TODO(阶段2): stream.reject_intent(intent_id) —— 撤单=意图作废，不追价。
 
     def on_order_rejected(self, event: OrderRejected) -> None:
         if self.maker is not None:
             self.maker.on_rejected(event)
+        if self.journal is not None:
+            self.journal.log_reject(str(event.client_order_id))
 
     def on_stop(self) -> None:
         self.cancel_all_orders(self.config.instrument_id)
@@ -152,3 +189,9 @@ class ChanlunStrategy(Strategy):
             f"signals={self._signal_count} gaps={self.bridge.gap_count} "
             f"dups={self.bridge.dup_count} structure={snap}"
         )
+        if self.db is not None:
+            if self.bar_cache is not None:
+                self.bar_cache.flush()
+            if self.engine_state is not None and self.bridge.bar_count > 0:
+                self.engine_state.save_snapshot(str(self.config.instrument_id), self.bridge)
+            self.db.close()
