@@ -52,6 +52,41 @@ class TestLeverageCalculator:
         with pytest.raises(ValueError):
             LeverageCalculator(maint_margin_rate=1.5)
 
+    def test_short_osc_phase_uses_zg(self):
+        """[镜像推导] 空头 OSC 相位 P_neg_short = ZG（结构否定=三买）。"""
+        calc = LeverageCalculator(maint_margin_rate=0.10)
+        # price=100, ZG=110 → D_struct = (110-100)/100 = 0.10 → L_max = 5.0
+        r = calc.compute_short(price=100.0, zd=90.0, zg=110.0)
+        assert r.d_struct == pytest.approx(0.10)
+        assert r.l_max == pytest.approx(5.0)
+
+    def test_short_down_move_phase_uses_zd(self):
+        """[镜像推导] MOVE↓ 锁定相 P_neg_short = 新中枢 ZD。"""
+        calc = LeverageCalculator(maint_margin_rate=0.10)
+        r = calc.compute_short(
+            price=100.0, zd=105.0, zg=120.0, phase_is_down_move=True
+        )
+        assert r.d_struct == pytest.approx(0.05)
+        assert r.l_max == pytest.approx(1.0 / 0.15)
+
+    def test_short_price_above_p_neg_floors_at_mm(self):
+        """价格已升破 P_neg_short：D_struct=0，仅 mm 兜底（多头侧镜像）。"""
+        calc = LeverageCalculator(maint_margin_rate=0.05)
+        r = calc.compute_short(price=120.0, zd=90.0, zg=110.0)
+        assert r.d_struct == 0.0
+        assert r.l_max == pytest.approx(20.0)
+
+    def test_short_mirror_symmetry_with_long(self):
+        """镜像对称：价格映射 p ↦ 200−p 下空头 L_max = 多头 L_max。
+
+        多头 (c=100, P_neg=ZD=90) 与空头 (c=100, P_neg=ZG=110) 的结构
+        距离相等 ⇒ 同一 L_max——杠杆三元组定理1 公式极性无关的可执行面。
+        """
+        calc = LeverageCalculator(maint_margin_rate=0.10)
+        long_r = calc.compute(price=100.0, zd=90.0, zg=95.0)
+        short_r = calc.compute_short(price=100.0, zd=105.0, zg=110.0)
+        assert long_r.l_max == pytest.approx(short_r.l_max)
+
 
 class TestChanlunBridge:
     def _bar(self, ts_ns: int, px: float = 100.0):

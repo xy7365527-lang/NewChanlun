@@ -52,7 +52,7 @@ def friction_face(trades: list, closes: list, side: float) -> dict:
     n = len(closes)
     dshares = [0.0] * (n + 1)
     dcash = [0.0] * (n + 1)
-    for (_lad, eb, ep, xb, xp, sh, _w, _dfr, _part, _reason) in trades:
+    for (_lad, eb, ep, xb, xp, sh, _w, _dfr, _part, _reason, _pol) in trades:
         dshares[eb] += sh
         dshares[xb] -= sh
         dcash[eb] -= sh * ep * (1 + side)

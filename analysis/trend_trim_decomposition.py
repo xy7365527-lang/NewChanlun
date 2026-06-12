@@ -174,7 +174,7 @@ def main() -> None:
             for lad, ts in by_lad.items():
                 ts.sort(key=lambda t: t[1])  # entry_bar
                 for idx, t in enumerate(ts):
-                    (_, eb, ep, xb, xp, sh, w, dfr, part, reason) = t
+                    (_, eb, ep, xb, xp, sh, w, dfr, part, reason, _pol) = t
                     if reason != "sellpt":
                         continue
                     # 下一次同层回复入场

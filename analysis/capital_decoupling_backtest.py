@@ -84,7 +84,7 @@ def analyze(res: dict, closes, years) -> dict:
 
     dshares = [0.0] * (n + 1)
     dcash = [0.0] * (n + 1)
-    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason) in trades:
+    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason, _pol) in trades:
         dshares[eb] += sh
         dshares[xb] -= sh
         dcash[eb] -= sh * ep
@@ -140,7 +140,7 @@ def analyze(res: dict, closes, years) -> dict:
 
     by_ladder: dict = {}
     reason_counts: dict[str, int] = {}
-    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason) in trades:
+    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason, _pol) in trades:
         reason_counts[reason] = reason_counts.get(reason, 0) + 1
         d = by_ladder.setdefault(lad, {"n": 0, "pnl_cash": 0.0, "wins": 0,
                                        "w_sum": 0.0, "held": 0})

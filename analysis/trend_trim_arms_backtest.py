@@ -74,7 +74,7 @@ def analyze(res: dict, closes, years) -> dict:
     strat_pct = (res["final_nav"] / 100_000.0 - 1) * 100
     dshares = [0.0] * (n + 1)
     dcash = [0.0] * (n + 1)
-    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason) in trades:
+    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason, _pol) in trades:
         dshares[eb] += sh
         dshares[xb] -= sh
         dcash[eb] -= sh * ep

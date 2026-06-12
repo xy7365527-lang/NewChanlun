@@ -146,7 +146,7 @@ def analyze(res: dict, closes, years) -> dict:
     dshares = [0.0] * (n + 1)
     dcash = [0.0] * (n + 1)
     dfric = [0.0] * (n + 1)  # 摩擦面额外现金流（每侧 FRICTION_SIDE）
-    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason) in trades:
+    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason, _pol) in trades:
         dshares[eb] += sh
         dshares[xb] -= sh
         dcash[eb] -= sh * ep
@@ -216,7 +216,7 @@ def analyze(res: dict, closes, years) -> dict:
     by_ladder: dict = {}
     reason_counts: dict[str, int] = {}
     osc_pnl_by_ladder: dict[int, float] = {}
-    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason) in trades:
+    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason, _pol) in trades:
         reason_counts[reason] = reason_counts.get(reason, 0) + 1
         pnl = sh * (xp - ep)
         if reason.startswith("osc_"):
