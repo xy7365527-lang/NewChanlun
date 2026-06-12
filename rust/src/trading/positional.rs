@@ -280,6 +280,29 @@ pub struct PositionalResult {
     pub nest_lead_bars_sum: u64,
     /// 领先样本数（nest_lead_bars_sum 的分母）。
     pub nest_lead_n: u64,
+    // ── 统一递归 voice FSM（fusion_v）观测面（其余模式恒零）──
+    /// Φ(k)=MoveUp 有效驻留 bar 数（freeze_up ∧ ¬R4 出口；停削窗口本体）。
+    pub freeze_up_bars_by_ladder: [u64; MAX_LADDER],
+    /// Φ(k)=MoveDown 有效驻留 bar 数（freeze_dn ∧ ¬R4 镜像出口；停回补窗口）。
+    pub freeze_dn_bars_by_ladder: [u64; MAX_LADDER],
+    /// R4 多侧出口窗口驻留（freeze_up 内新中枢已形成 ⇒ 短差词汇重开；
+    /// 049:54 后半"新中枢形成后短差恢复"；U3c 可观测量）。
+    pub r4_up_exit_bars_by_ladder: [u64; MAX_LADDER],
+    /// R4 镜像出口窗口驻留（freeze_dn 内新中枢已形成 ⇒ 回补词汇重开；
+    /// 049:54 镜像 [镜像推导]；U3m 可观测量）。
+    pub r4_dn_exit_bars_by_ladder: [u64; MAX_LADDER],
+    /// R4 多侧出口窗口内实际发生的削减次数（出口现金面归因分子）。
+    pub n_r4_up_trims_by_ladder: [u64; MAX_LADDER],
+    /// R4 镜像出口窗口内实际发生的回补次数。
+    pub n_r4_dn_restores_by_ladder: [u64; MAX_LADDER],
+    /// T2W 锁存武装次数（R18：confirmed type1 动作被门拒 ⇒ 第二翻转窗口
+    /// 武装；053:28 二分定理）。双侧合计。
+    pub n_t2w_arms_by_ladder: [u64; MAX_LADDER],
+    /// T2W 触发次数（R19：武装后 confirmed type2 同侧到达 ∧ 门放行）。
+    /// 侧别归因见 trade 行 exit_reason ∈ {"t2w_sell"} / 回复计数。
+    pub n_t2w_fires_by_ladder: [u64; MAX_LADDER],
+    /// T2W 否定次数（R20：close 越过锁存 extreme ⇒ 清锁存；086:80 镜像）。
+    pub n_t2w_negates_by_ladder: [u64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
@@ -496,6 +519,19 @@ pub enum PolarityMode {
         /// 成本门（38课程式无振幅经济门——LOU 逐字）。
         seq38_sub: bool,
     },
+    /// v4：统一递归 voice FSM（fusion_v；`unified_voice.rs`；
+    /// `analysis/unified_recursive_voice_fsm_design.md` v2 §10 Phase 1）。
+    /// **零概念开关**——唯一参数 = a0（磁带粒度）。所有在册 flag 轴换成
+    /// 走势结构自动读数：Φ 三值化（freeze_d 极性协变递归传导，275号同构）、
+    /// R4 双侧 49:54 出口、R14 默认落点 Gated（全层，M7-a 普适形态）、
+    /// nest 双侧恒开（027课程序定理）、统一 osc 三门恒开（35:30/93:26/
+    /// 49:68）、R18-20 T2W 第二翻转窗口（053:28/086:80）。
+    /// 在册 Fusion 路径零接触（新入口，GH2 先例）。
+    /// 三 bool = 消融臂（诊断工具非部署开关，M 系列同款）：
+    /// fusion_v = 全 true；fusion_v_nor4 关 R4 双侧出口；fusion_v_flat
+    /// 削减落点回 Flat（Gated 义务门消融）；fusion_v_self freeze 仅自层
+    /// （递归传导消融）。
+    UnifiedVoice { r4_exit: bool, gated_landing: bool, anc_freeze: bool },
 }
 
 impl PolarityMode {
@@ -581,6 +617,26 @@ impl PolarityMode {
             "cycle45" => Some(PolarityMode::Cycle45),
             "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
+            "fusion_v" => Some(PolarityMode::UnifiedVoice {
+                r4_exit: true,
+                gated_landing: true,
+                anc_freeze: true,
+            }),
+            "fusion_v_nor4" => Some(PolarityMode::UnifiedVoice {
+                r4_exit: false,
+                gated_landing: true,
+                anc_freeze: true,
+            }),
+            "fusion_v_flat" => Some(PolarityMode::UnifiedVoice {
+                r4_exit: true,
+                gated_landing: false,
+                anc_freeze: true,
+            }),
+            "fusion_v_self" => Some(PolarityMode::UnifiedVoice {
+                r4_exit: true,
+                gated_landing: true,
+                anc_freeze: false,
+            }),
             "fusion" => fusion(true, true, false),
             "fusion_t" => fusion(true, false, false),
             "fusion_s" => fusion(false, true, false),
@@ -762,6 +818,11 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
+    if let PolarityMode::UnifiedVoice { r4_exit, gated_landing, anc_freeze } = mode {
+        return super::unified_voice::run_unified_voice(
+            tape, floor_ladder, r4_exit, gated_landing, anc_freeze,
+        );
+    }
     if let PolarityMode::Fusion {
         trend_hold,
         counter_sub,
@@ -832,15 +893,15 @@ pub fn run_positional(
                 sig.sell1.get(k)
             }
             PolarityMode::Hold26 { sell_t1_only: false } => sig.sell_any.get(k),
-            PolarityMode::Fusion { .. } => {
-                unreachable!("Fusion 在入口已分派到 run_fusion")
+            PolarityMode::Fusion { .. } | PolarityMode::UnifiedVoice { .. } => {
+                unreachable!("Fusion/UnifiedVoice 在入口已分派")
             }
         };
         let exit_reason = match mode {
             PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => "sell1",
             PolarityMode::Hold26 { sell_t1_only: false } => "sellpt",
-            PolarityMode::Fusion { .. } => {
-                unreachable!("Fusion 在入口已分派到 run_fusion")
+            PolarityMode::Fusion { .. } | PolarityMode::UnifiedVoice { .. } => {
+                unreachable!("Fusion/UnifiedVoice 在入口已分派")
             }
         };
 
@@ -920,8 +981,8 @@ pub fn run_positional(
                 (PolarityMode::Hold26 { .. }, LayerState::Armed { .. }) => {
                     unreachable!("Hold26 无 ARMED 相位——confirmed 事件直接消费")
                 }
-                (PolarityMode::Fusion { .. }, _) => {
-                    unreachable!("Fusion 在入口已分派到 run_fusion")
+                (PolarityMode::Fusion { .. }, _) | (PolarityMode::UnifiedVoice { .. }, _) => {
+                    unreachable!("Fusion/UnifiedVoice 在入口已分派")
                 }
                 // Pending（两模式共用）：卖点@k 取消（该买点起始的走势已被
                 // 宣告结束）；否则重试入场。

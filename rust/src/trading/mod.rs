@@ -30,6 +30,7 @@ pub mod positional;
 pub mod positional_fusion;
 pub mod recursive_position;
 pub mod unified_osc;
+pub mod unified_voice;
 pub mod runner;
 pub mod tape;
 #[cfg(test)]
