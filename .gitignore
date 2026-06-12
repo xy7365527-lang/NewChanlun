@@ -68,6 +68,9 @@ rust/target/
 analysis/data_cache/
 analysis/charts/
 
+# newchan_rust wheel shadow 安装（.so 二进制 + __pycache__，可由 maturin 重建）
+analysis/_p0p1/_nr_shadow/
+
 # Analysis 运行日志（运行时产物，不入库）
 analysis/logs/
 *.log
