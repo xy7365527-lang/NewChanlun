@@ -58,13 +58,18 @@ from organic_fugue_rust_check import pack_tape  # noqa: E402
 from organic_signals import compute_organic_signals  # noqa: E402
 
 DATA_DIR = ROOT / "analysis" / "data_cache"
-OUT_JSON = DATA_DIR / "multi_level_fugue_backtest.json"
-OUT_MD = DATA_DIR / "multi_level_fugue_tables.md"
+# BT_OUT_SUFFIX：多进程并行跑不同标的时隔离输出文件（避免 read-modify-write 竞态）
+_SUF = os.environ.get("BT_OUT_SUFFIX", "")
+OUT_JSON = DATA_DIR / f"multi_level_fugue_backtest{_SUF}.json"
+OUT_MD = DATA_DIR / f"multi_level_fugue_tables{_SUF}.md"
 
 SYMBOLS = [s.strip().upper()
            for s in os.environ.get("BT_SYMBOLS", "OKLO").split(",")]
-FLOORS = [LADDER_SEG, LADDER_MOVE]          # 2=segment 对照 / 3=move(L1) 主配置
-VARIANTS = ["V0", "V1", "V2of"]
+# 2=segment 对照 / 3=move(L1) 主配置；env 可缩小矩阵（期货跑 floor=2 单轴）
+FLOORS = [int(x) for x in os.environ.get(
+    "BT_FLOORS", f"{LADDER_SEG},{LADDER_MOVE}").split(",")]
+VARIANTS = [v.strip()
+            for v in os.environ.get("BT_VARIANTS", "V0,V1,V2of").split(",")]
 
 LADDER_NAMES = ["bar", "bi", "segment", "move(L1)"] + [
     f"recL{k - 2}" for k in range(4, 11)]

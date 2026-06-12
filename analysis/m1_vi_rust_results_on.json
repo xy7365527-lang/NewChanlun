@@ -223,5 +223,1139 @@
     "e_seconds": 3555.5,
     "i_signal_seconds": 10121.7,
     "i_seconds": 10130.3
+  },
+  "GC": {
+    "n_bars": 5544556,
+    "bh": 257.3457,
+    "first": 1218.4,
+    "last": 4353.9,
+    "floor": "bar",
+    "maneuver_ratio": 0.1,
+    "E": {
+      "metrics": {
+        "n": 13,
+        "win_rate": 61.53846153846154,
+        "compound": 257.8870191242327,
+        "sharpe": 0.6315801774887553,
+        "max_dd": -27.604566574299994,
+        "profit_factor": 5.529,
+        "n_with_cr": 0
+      },
+      "excess": 0.5413,
+      "by_year": {
+        "2010": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": 7.18,
+          "win_rate": 50.0
+        },
+        "2011": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": 15.94,
+          "win_rate": 50.0
+        },
+        "2012": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -21.48,
+          "win_rate": 0.0
+        },
+        "2013": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 20.61,
+          "win_rate": 100.0
+        },
+        "2019": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 23.58,
+          "win_rate": 100.0
+        },
+        "2020": {
+          "n": 2,
+          "wins": 0,
+          "return_pct": -1.55,
+          "win_rate": 0.0
+        },
+        "2021": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 49.56,
+          "win_rate": 100.0
+        },
+        "2024": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 23.89,
+          "win_rate": 100.0
+        },
+        "2025": {
+          "n": 2,
+          "wins": 2,
+          "return_pct": 34.9,
+          "win_rate": 100.0
+        }
+      }
+    },
+    "variants": {
+      "I": {
+        "stop_mode": "none",
+        "floor": "bar",
+        "metrics": {
+          "n": 2791,
+          "win_rate": 53.923324973127905,
+          "compound": -42.45082161981827,
+          "sharpe": -0.02428663129695093,
+          "max_dd": -61.353180654636674,
+          "profit_factor": 0.925,
+          "n_with_cr": 2791
+        },
+        "excess": -299.7965,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -142979.3,
+            "n_short_diffs": 254833,
+            "slice_net_gain": -142979.3
+          },
+          "bi": {
+            "recovered_cash": -2680.3,
+            "n_short_diffs": 25029,
+            "slice_net_gain": -2680.3
+          },
+          "segment": {
+            "recovered_cash": 5663.1,
+            "n_short_diffs": 6115,
+            "slice_net_gain": 5663.1
+          }
+        },
+        "ladder_attribution": {
+          "segment": 2430,
+          "move(L1)": 361
+        },
+        "addon_2buy_marks": 3,
+        "n_core_stops": 0,
+        "n_voice_stops": 0
+      },
+      "I_stopA": {
+        "stop_mode": "A",
+        "floor": "bar",
+        "metrics": {
+          "n": 3255,
+          "win_rate": 53.60983102918587,
+          "compound": -45.20932756678666,
+          "sharpe": -0.02291786390854124,
+          "max_dd": -63.47953678260534,
+          "profit_factor": 0.934,
+          "n_with_cr": 3255
+        },
+        "excess": -302.555,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -139347.8,
+            "n_short_diffs": 246721,
+            "slice_net_gain": -139347.8
+          },
+          "bi": {
+            "recovered_cash": -710.6,
+            "n_short_diffs": 24366,
+            "slice_net_gain": -710.6
+          },
+          "segment": {
+            "recovered_cash": 4262.8,
+            "n_short_diffs": 5256,
+            "slice_net_gain": 4262.8
+          }
+        },
+        "ladder_attribution": {
+          "segment": 2803,
+          "move(L1)": 452
+        },
+        "addon_2buy_marks": 3,
+        "n_core_stops": 283,
+        "n_voice_stops": 0
+      },
+      "I_stopB": {
+        "stop_mode": "B",
+        "floor": "bar",
+        "metrics": {
+          "n": 3255,
+          "win_rate": 53.60983102918587,
+          "compound": -45.313753635240005,
+          "sharpe": -0.02299846109024719,
+          "max_dd": -63.50582803478044,
+          "profit_factor": 0.934,
+          "n_with_cr": 3255
+        },
+        "excess": -302.6595,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -139347.8,
+            "n_short_diffs": 246721,
+            "slice_net_gain": -139347.8
+          },
+          "bi": {
+            "recovered_cash": -636.5,
+            "n_short_diffs": 24365,
+            "slice_net_gain": -636.5
+          },
+          "segment": {
+            "recovered_cash": 3999.3,
+            "n_short_diffs": 5214,
+            "slice_net_gain": 3999.3
+          }
+        },
+        "ladder_attribution": {
+          "segment": 2803,
+          "move(L1)": 452
+        },
+        "addon_2buy_marks": 3,
+        "n_core_stops": 283,
+        "n_voice_stops": 8
+      }
+    },
+    "e_seconds": 3448.1,
+    "i_signal_seconds": 13879.4,
+    "i_seconds": 13884.4
+  },
+  "CL": {
+    "n_bars": 5528156,
+    "bh": 28.196,
+    "first": 70.4,
+    "last": 90.25,
+    "floor": "bar",
+    "maneuver_ratio": 0.1,
+    "E": {
+      "metrics": {
+        "n": 18,
+        "win_rate": 44.44444444444444,
+        "compound": -12.997563950921654,
+        "sharpe": 0.14672551472249057,
+        "max_dd": -82.66059364520655,
+        "profit_factor": 1.634,
+        "n_with_cr": 0
+      },
+      "excess": -41.1936,
+      "by_year": {
+        "2010": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": 9.74,
+          "win_rate": 50.0
+        },
+        "2011": {
+          "n": 3,
+          "wins": 1,
+          "return_pct": -25.69,
+          "win_rate": 33.3
+        },
+        "2014": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -33.72,
+          "win_rate": 0.0
+        },
+        "2015": {
+          "n": 3,
+          "wins": 0,
+          "return_pct": -36.55,
+          "win_rate": 0.0
+        },
+        "2016": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 79.38,
+          "win_rate": 100.0
+        },
+        "2018": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -58.31,
+          "win_rate": 0.0
+        },
+        "2020": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": 128.67,
+          "win_rate": 50.0
+        },
+        "2021": {
+          "n": 3,
+          "wins": 3,
+          "return_pct": 66.56,
+          "win_rate": 100.0
+        },
+        "2022": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": -10.95,
+          "win_rate": 50.0
+        }
+      }
+    },
+    "variants": {
+      "I": {
+        "stop_mode": "none",
+        "floor": "bar",
+        "metrics": {
+          "n": 2680,
+          "win_rate": 53.88059701492537,
+          "compound": -92.33342898851855,
+          "sharpe": -0.04442506721462825,
+          "max_dd": -97.20802371588302,
+          "profit_factor": 0.86,
+          "n_with_cr": 2680
+        },
+        "excess": -120.5295,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -340062.5,
+            "n_short_diffs": 255687,
+            "slice_net_gain": -340062.5
+          },
+          "bi": {
+            "recovered_cash": 2568.0,
+            "n_short_diffs": 23310,
+            "slice_net_gain": 2568.0
+          },
+          "segment": {
+            "recovered_cash": 4289.2,
+            "n_short_diffs": 6174,
+            "slice_net_gain": 4289.2
+          }
+        },
+        "ladder_attribution": {
+          "segment": 2322,
+          "move(L1)": 358
+        },
+        "addon_2buy_marks": 5,
+        "n_core_stops": 0,
+        "n_voice_stops": 0
+      },
+      "I_stopA": {
+        "stop_mode": "A",
+        "floor": "bar",
+        "metrics": {
+          "n": 4214,
+          "win_rate": 48.97959183673469,
+          "compound": -86.75134797826813,
+          "sharpe": -0.023378919723511277,
+          "max_dd": -97.28406715381946,
+          "profit_factor": 0.932,
+          "n_with_cr": 4211
+        },
+        "excess": -114.9474,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -339536.8,
+            "n_short_diffs": 233052,
+            "slice_net_gain": -339536.8
+          },
+          "bi": {
+            "recovered_cash": 7815.8,
+            "n_short_diffs": 21714,
+            "slice_net_gain": 7815.8
+          },
+          "segment": {
+            "recovered_cash": -13735.7,
+            "n_short_diffs": 3952,
+            "slice_net_gain": -13735.7
+          }
+        },
+        "ladder_attribution": {
+          "segment": 3633,
+          "move(L1)": 581
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 1129,
+        "n_voice_stops": 0
+      },
+      "I_stopB": {
+        "stop_mode": "B",
+        "floor": "bar",
+        "metrics": {
+          "n": 4214,
+          "win_rate": 48.88467014712862,
+          "compound": -86.7513533629498,
+          "sharpe": -0.02206082213685915,
+          "max_dd": -97.51552839046855,
+          "profit_factor": 0.934,
+          "n_with_cr": 4211
+        },
+        "excess": -114.9474,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -342190.9,
+            "n_short_diffs": 232276,
+            "slice_net_gain": -342190.9
+          },
+          "bi": {
+            "recovered_cash": 13185.0,
+            "n_short_diffs": 21464,
+            "slice_net_gain": 13185.0
+          },
+          "segment": {
+            "recovered_cash": -13128.8,
+            "n_short_diffs": 3714,
+            "slice_net_gain": -13128.8
+          }
+        },
+        "ladder_attribution": {
+          "segment": 3633,
+          "move(L1)": 581
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 1129,
+        "n_voice_stops": 148
+      }
+    },
+    "e_seconds": 19.9,
+    "i_signal_seconds": 63.1,
+    "i_seconds": 67.7
+  },
+  "ZN": {
+    "n_bars": 5132971,
+    "bh": -9.7416,
+    "first": 120.9375,
+    "last": 109.15625,
+    "floor": "bar",
+    "maneuver_ratio": 0.1,
+    "E": {
+      "metrics": {
+        "n": 14,
+        "win_rate": 42.857142857142854,
+        "compound": -8.21344643480002,
+        "sharpe": -0.10577831404408329,
+        "max_dd": -17.995075569176443,
+        "profit_factor": 0.757,
+        "n_with_cr": 0
+      },
+      "excess": 1.5282,
+      "by_year": {
+        "2010": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": 0.56,
+          "win_rate": 50.0
+        },
+        "2011": {
+          "n": 2,
+          "wins": 2,
+          "return_pct": 9.83,
+          "win_rate": 100.0
+        },
+        "2013": {
+          "n": 2,
+          "wins": 0,
+          "return_pct": -7.41,
+          "win_rate": 0.0
+        },
+        "2018": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": 6.54,
+          "win_rate": 50.0
+        },
+        "2019": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 1.14,
+          "win_rate": 100.0
+        },
+        "2021": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -9.77,
+          "win_rate": 0.0
+        },
+        "2022": {
+          "n": 3,
+          "wins": 0,
+          "return_pct": -8.9,
+          "win_rate": 0.0
+        },
+        "2023": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 1.35,
+          "win_rate": 100.0
+        }
+      }
+    },
+    "variants": {
+      "I": {
+        "stop_mode": "none",
+        "floor": "bar",
+        "metrics": {
+          "n": 1160,
+          "win_rate": 26.120689655172413,
+          "compound": -99.78458159973054,
+          "sharpe": -0.44287241415757334,
+          "max_dd": -99.78766930365245,
+          "profit_factor": 0.08,
+          "n_with_cr": 1160
+        },
+        "excess": -90.043,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -601920.3,
+            "n_short_diffs": 288248,
+            "slice_net_gain": -601920.3
+          },
+          "bi": {
+            "recovered_cash": 10521.3,
+            "n_short_diffs": 13154,
+            "slice_net_gain": 10521.3
+          },
+          "segment": {
+            "recovered_cash": 2546.0,
+            "n_short_diffs": 3124,
+            "slice_net_gain": 2546.0
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1003,
+          "move(L1)": 157
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 0,
+        "n_voice_stops": 0
+      },
+      "I_stopA": {
+        "stop_mode": "A",
+        "floor": "bar",
+        "metrics": {
+          "n": 1248,
+          "win_rate": 26.36217948717949,
+          "compound": -99.76231189147106,
+          "sharpe": -0.49817526719245614,
+          "max_dd": -99.76571879869896,
+          "profit_factor": 0.088,
+          "n_with_cr": 1248
+        },
+        "excess": -90.0207,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -595762.7,
+            "n_short_diffs": 283941,
+            "slice_net_gain": -595762.7
+          },
+          "bi": {
+            "recovered_cash": 10360.1,
+            "n_short_diffs": 12977,
+            "slice_net_gain": 10360.1
+          },
+          "segment": {
+            "recovered_cash": 2208.8,
+            "n_short_diffs": 2870,
+            "slice_net_gain": 2208.8
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1070,
+          "move(L1)": 178
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 32,
+        "n_voice_stops": 0
+      },
+      "I_stopB": {
+        "stop_mode": "B",
+        "floor": "bar",
+        "metrics": {
+          "n": 1248,
+          "win_rate": 26.36217948717949,
+          "compound": -99.76231189147106,
+          "sharpe": -0.49817526719245614,
+          "max_dd": -99.76571879869896,
+          "profit_factor": 0.088,
+          "n_with_cr": 1248
+        },
+        "excess": -90.0207,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -595762.7,
+            "n_short_diffs": 283941,
+            "slice_net_gain": -595762.7
+          },
+          "bi": {
+            "recovered_cash": 10360.1,
+            "n_short_diffs": 12977,
+            "slice_net_gain": 10360.1
+          },
+          "segment": {
+            "recovered_cash": 2208.8,
+            "n_short_diffs": 2870,
+            "slice_net_gain": 2208.8
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1070,
+          "move(L1)": 178
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 32,
+        "n_voice_stops": 0
+      }
+    },
+    "e_seconds": 15.4,
+    "i_signal_seconds": 31.2,
+    "i_seconds": 35.7
+  },
+  "DX": {
+    "n_bars": 2046008,
+    "bh": 4.0843,
+    "first": 96.1,
+    "last": 100.025,
+    "floor": "bar",
+    "maneuver_ratio": 0.1,
+    "E": {
+      "metrics": {
+        "n": 10,
+        "win_rate": 30.0,
+        "compound": 7.042119634102906,
+        "sharpe": 0.13809993461117642,
+        "max_dd": -7.583162162415566,
+        "profit_factor": 1.718,
+        "n_with_cr": 0
+      },
+      "excess": 2.9578,
+      "by_year": {
+        "2019": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 0.67,
+          "win_rate": 100.0
+        },
+        "2020": {
+          "n": 4,
+          "wins": 1,
+          "return_pct": 8.53,
+          "win_rate": 25.0
+        },
+        "2022": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -0.82,
+          "win_rate": 0.0
+        },
+        "2023": {
+          "n": 3,
+          "wins": 0,
+          "return_pct": -2.95,
+          "win_rate": 0.0
+        },
+        "2025": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 1.79,
+          "win_rate": 100.0
+        }
+      }
+    },
+    "variants": {
+      "I": {
+        "stop_mode": "none",
+        "floor": "bar",
+        "metrics": {
+          "n": 1144,
+          "win_rate": 53.93356643356644,
+          "compound": -21.783325405052935,
+          "sharpe": -0.06472884079615834,
+          "max_dd": -22.5885325900542,
+          "profit_factor": 0.813,
+          "n_with_cr": 1144
+        },
+        "excess": -25.8676,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -24127.4,
+            "n_short_diffs": 87633,
+            "slice_net_gain": -24127.4
+          },
+          "bi": {
+            "recovered_cash": -754.5,
+            "n_short_diffs": 8568,
+            "slice_net_gain": -754.5
+          },
+          "segment": {
+            "recovered_cash": -1509.9,
+            "n_short_diffs": 2833,
+            "slice_net_gain": -1509.9
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1003,
+          "move(L1)": 141
+        },
+        "addon_2buy_marks": 1,
+        "n_core_stops": 0,
+        "n_voice_stops": 0
+      },
+      "I_stopA": {
+        "stop_mode": "A",
+        "floor": "bar",
+        "metrics": {
+          "n": 1179,
+          "win_rate": 53.859202714164546,
+          "compound": -23.254622096850042,
+          "sharpe": -0.06602370860333485,
+          "max_dd": -24.044682912184744,
+          "profit_factor": 0.809,
+          "n_with_cr": 1179
+        },
+        "excess": -27.3389,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -23799.3,
+            "n_short_diffs": 86684,
+            "slice_net_gain": -23799.3
+          },
+          "bi": {
+            "recovered_cash": -392.1,
+            "n_short_diffs": 8482,
+            "slice_net_gain": -392.1
+          },
+          "segment": {
+            "recovered_cash": -506.9,
+            "n_short_diffs": 2708,
+            "slice_net_gain": -506.9
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1030,
+          "move(L1)": 149
+        },
+        "addon_2buy_marks": 1,
+        "n_core_stops": 16,
+        "n_voice_stops": 0
+      },
+      "I_stopB": {
+        "stop_mode": "B",
+        "floor": "bar",
+        "metrics": {
+          "n": 1179,
+          "win_rate": 53.859202714164546,
+          "compound": -23.254622096850042,
+          "sharpe": -0.06602370860333485,
+          "max_dd": -24.044682912184744,
+          "profit_factor": 0.809,
+          "n_with_cr": 1179
+        },
+        "excess": -27.3389,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -23799.3,
+            "n_short_diffs": 86684,
+            "slice_net_gain": -23799.3
+          },
+          "bi": {
+            "recovered_cash": -392.1,
+            "n_short_diffs": 8482,
+            "slice_net_gain": -392.1
+          },
+          "segment": {
+            "recovered_cash": -506.9,
+            "n_short_diffs": 2708,
+            "slice_net_gain": -506.9
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1030,
+          "move(L1)": 149
+        },
+        "addon_2buy_marks": 1,
+        "n_core_stops": 16,
+        "n_voice_stops": 0
+      }
+    },
+    "e_seconds": 6.4,
+    "i_signal_seconds": 15.6,
+    "i_seconds": 17.2
+  },
+  "BRN": {
+    "n_bars": 2418059,
+    "bh": 87.3773,
+    "first": 50.94,
+    "last": 95.45,
+    "floor": "bar",
+    "maneuver_ratio": 0.1,
+    "E": {
+      "metrics": {
+        "n": 17,
+        "win_rate": 47.05882352941176,
+        "compound": 60.395038178756245,
+        "sharpe": 0.23667795212792803,
+        "max_dd": -65.90869025520001,
+        "profit_factor": 2.092,
+        "n_with_cr": 0
+      },
+      "excess": -26.9823,
+      "by_year": {
+        "2019": {
+          "n": 4,
+          "wins": 3,
+          "return_pct": 0.22,
+          "win_rate": 75.0
+        },
+        "2020": {
+          "n": 3,
+          "wins": 2,
+          "return_pct": 34.77,
+          "win_rate": 66.7
+        },
+        "2021": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 38.39,
+          "win_rate": 100.0
+        },
+        "2022": {
+          "n": 5,
+          "wins": 0,
+          "return_pct": -28.67,
+          "win_rate": 0.0
+        },
+        "2023": {
+          "n": 2,
+          "wins": 1,
+          "return_pct": -4.06,
+          "win_rate": 50.0
+        },
+        "2024": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -16.21,
+          "win_rate": 0.0
+        },
+        "2025": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 49.63,
+          "win_rate": 100.0
+        }
+      }
+    },
+    "variants": {
+      "I": {
+        "stop_mode": "none",
+        "floor": "bar",
+        "metrics": {
+          "n": 1329,
+          "win_rate": 50.41384499623778,
+          "compound": -99.23685060517215,
+          "sharpe": -0.14984296171052022,
+          "max_dd": -99.26188963285483,
+          "profit_factor": 0.562,
+          "n_with_cr": 1329
+        },
+        "excess": -186.6142,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -612264.2,
+            "n_short_diffs": 111734,
+            "slice_net_gain": -612264.2
+          },
+          "bi": {
+            "recovered_cash": -30731.8,
+            "n_short_diffs": 10507,
+            "slice_net_gain": -30731.8
+          },
+          "segment": {
+            "recovered_cash": -12656.5,
+            "n_short_diffs": 3341,
+            "slice_net_gain": -12656.5
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1152,
+          "move(L1)": 177
+        },
+        "addon_2buy_marks": 3,
+        "n_core_stops": 0,
+        "n_voice_stops": 0
+      },
+      "I_stopA": {
+        "stop_mode": "A",
+        "floor": "bar",
+        "metrics": {
+          "n": 2090,
+          "win_rate": 46.459330143540676,
+          "compound": -100.00315807750133,
+          "sharpe": -0.08379435428046557,
+          "max_dd": -100.01144199661654,
+          "profit_factor": 0.664,
+          "n_with_cr": 2089
+        },
+        "excess": -187.3805,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -509747.4,
+            "n_short_diffs": 100698,
+            "slice_net_gain": -509747.4
+          },
+          "bi": {
+            "recovered_cash": -24448.7,
+            "n_short_diffs": 9758,
+            "slice_net_gain": -24448.7
+          },
+          "segment": {
+            "recovered_cash": -21268.8,
+            "n_short_diffs": 2187,
+            "slice_net_gain": -21268.8
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1803,
+          "move(L1)": 287
+        },
+        "addon_2buy_marks": 3,
+        "n_core_stops": 560,
+        "n_voice_stops": 0
+      },
+      "I_stopB": {
+        "stop_mode": "B",
+        "floor": "bar",
+        "metrics": {
+          "n": 2090,
+          "win_rate": 46.36363636363636,
+          "compound": -100.00383808528798,
+          "sharpe": -0.07640800018491432,
+          "max_dd": -100.01338319661453,
+          "profit_factor": 0.685,
+          "n_with_cr": 2089
+        },
+        "excess": -187.3811,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -486989.0,
+            "n_short_diffs": 98992,
+            "slice_net_gain": -486989.0
+          },
+          "bi": {
+            "recovered_cash": -26329.8,
+            "n_short_diffs": 9543,
+            "slice_net_gain": -26329.8
+          },
+          "segment": {
+            "recovered_cash": -17255.9,
+            "n_short_diffs": 1964,
+            "slice_net_gain": -17255.9
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1803,
+          "move(L1)": 287
+        },
+        "addon_2buy_marks": 3,
+        "n_core_stops": 560,
+        "n_voice_stops": 98
+      }
+    },
+    "e_seconds": 7.5,
+    "i_signal_seconds": 20.5,
+    "i_seconds": 22.5
+  },
+  "6E": {
+    "n_bars": 5498417,
+    "bh": 3.5308,
+    "first": 0.8379420144126026,
+    "last": 0.8675284115554784,
+    "floor": "bar",
+    "maneuver_ratio": 0.1,
+    "E": {
+      "metrics": {
+        "n": 13,
+        "win_rate": 30.76923076923077,
+        "compound": 13.530337082334931,
+        "sharpe": 0.15440014232951074,
+        "max_dd": -14.13044272871887,
+        "profit_factor": 1.493,
+        "n_with_cr": 0
+      },
+      "excess": 9.9995,
+      "by_year": {
+        "2010": {
+          "n": 2,
+          "wins": 0,
+          "return_pct": -10.72,
+          "win_rate": 0.0
+        },
+        "2011": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 18.08,
+          "win_rate": 100.0
+        },
+        "2012": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 10.29,
+          "win_rate": 100.0
+        },
+        "2015": {
+          "n": 2,
+          "wins": 0,
+          "return_pct": -4.78,
+          "win_rate": 0.0
+        },
+        "2017": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -3.1,
+          "win_rate": 0.0
+        },
+        "2018": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 8.82,
+          "win_rate": 100.0
+        },
+        "2019": {
+          "n": 1,
+          "wins": 1,
+          "return_pct": 13.26,
+          "win_rate": 100.0
+        },
+        "2022": {
+          "n": 2,
+          "wins": 0,
+          "return_pct": -7.9,
+          "win_rate": 0.0
+        },
+        "2023": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -5.18,
+          "win_rate": 0.0
+        },
+        "2025": {
+          "n": 1,
+          "wins": 0,
+          "return_pct": -1.67,
+          "win_rate": 0.0
+        }
+      }
+    },
+    "variants": {
+      "I": {
+        "stop_mode": "none",
+        "floor": "bar",
+        "metrics": {
+          "n": 2252,
+          "win_rate": 47.7797513321492,
+          "compound": -99.03550949990317,
+          "sharpe": -0.1379720485725074,
+          "max_dd": -99.04835355702693,
+          "profit_factor": 0.344,
+          "n_with_cr": 2252
+        },
+        "excess": -102.5664,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -427480.2,
+            "n_short_diffs": 258951,
+            "slice_net_gain": -427480.2
+          },
+          "bi": {
+            "recovered_cash": -448.8,
+            "n_short_diffs": 23927,
+            "slice_net_gain": -448.8
+          },
+          "segment": {
+            "recovered_cash": 4562.9,
+            "n_short_diffs": 5733,
+            "slice_net_gain": 4562.9
+          }
+        },
+        "ladder_attribution": {
+          "segment": 1948,
+          "move(L1)": 304
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 0,
+        "n_voice_stops": 0
+      },
+      "I_stopA": {
+        "stop_mode": "A",
+        "floor": "bar",
+        "metrics": {
+          "n": 2423,
+          "win_rate": 47.9983491539414,
+          "compound": -98.77518460382227,
+          "sharpe": -0.14445177563320907,
+          "max_dd": -98.791495390619,
+          "profit_factor": 0.378,
+          "n_with_cr": 2423
+        },
+        "excess": -102.306,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -402671.7,
+            "n_short_diffs": 254587,
+            "slice_net_gain": -402671.7
+          },
+          "bi": {
+            "recovered_cash": 1475.5,
+            "n_short_diffs": 23528,
+            "slice_net_gain": 1475.5
+          },
+          "segment": {
+            "recovered_cash": 6477.0,
+            "n_short_diffs": 5342,
+            "slice_net_gain": 6477.0
+          }
+        },
+        "ladder_attribution": {
+          "segment": 2077,
+          "move(L1)": 346
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 79,
+        "n_voice_stops": 0
+      },
+      "I_stopB": {
+        "stop_mode": "B",
+        "floor": "bar",
+        "metrics": {
+          "n": 2423,
+          "win_rate": 47.9983491539414,
+          "compound": -98.7600816790738,
+          "sharpe": -0.14405854201900462,
+          "max_dd": -98.77659359053499,
+          "profit_factor": 0.38,
+          "n_with_cr": 2423
+        },
+        "excess": -102.2909,
+        "fsm_contribution": {
+          "bar": {
+            "recovered_cash": -400543.5,
+            "n_short_diffs": 254180,
+            "slice_net_gain": -400543.5
+          },
+          "bi": {
+            "recovered_cash": 990.5,
+            "n_short_diffs": 23508,
+            "slice_net_gain": 990.5
+          },
+          "segment": {
+            "recovered_cash": 6051.0,
+            "n_short_diffs": 5340,
+            "slice_net_gain": 6051.0
+          }
+        },
+        "ladder_attribution": {
+          "segment": 2077,
+          "move(L1)": 346
+        },
+        "addon_2buy_marks": 4,
+        "n_core_stops": 79,
+        "n_voice_stops": 5
+      }
+    },
+    "e_seconds": 18.5,
+    "i_signal_seconds": 57.7,
+    "i_seconds": 62.6
   }
 }

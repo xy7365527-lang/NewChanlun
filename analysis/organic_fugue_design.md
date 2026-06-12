@@ -307,6 +307,13 @@ R_cand = type1 买放宽为 candidate；R_nested = candidate type1 买 ∧ buy_a
 | RIDE→REV | 同 T1 触发，**门恒开**（master 是最高声部，u(k) 不存在；其卖点本身就是全局衰竭判定） | cost>0：MASTER_CLOSE（清仓，全 voice 腿强制回补）；earning：OPEN_REV(entry 级)（§5.6） |
 | REV→RIDE | master 为 IDLE 语义：等待下一次 ARM（现行 _FLAT 逻辑） | — |
 
+> **532号修正（2026-06-10，已结算）**：RIDE→REV 行的"同 T1 触发"单轴声明被
+> OKLO+QQQ 双标的数据否证——master 出场从 sell1（confirmed type1 卖）扩展到
+> 38课三触发携带独立大额负贡献（Δ(O1v)−Δ(O1)：OKLO −562.5pp / QQQ −39.0pp）。
+> master 出场判定与 voice 反向腿触发是两个概念：master 保持 sell1，voice 保留
+> 三触发（其正增量未确立，regime 依赖）。拆解位：OrganicConfig.master_seg_end。
+> 见 `.chanlun/genealogy/settled/532-seg-end-trigger-axis-split.md`。
+
 止损（stop_mode A/B）语义不变，作用于账本层，与 LOU 正交。
 
 ### 5.3 FatigueMonitor
