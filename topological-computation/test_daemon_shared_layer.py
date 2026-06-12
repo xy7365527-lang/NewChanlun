@@ -7,7 +7,7 @@ import types
 
 import pytest
 
-from daemon import TopologicalDaemon
+from daemon import TopologicalDaemon, _setup_shared_layer
 from engine import Edge, EdgeType, Graph, Vertex
 
 
@@ -119,8 +119,8 @@ def test_require_chain_raises_when_shared_layer_init_fails(monkeypatch) -> None:
     _install_shared_layer_modules(monkeypatch, _FailingSharedLayer)
 
     with pytest.raises(RuntimeError, match="SharedLayer init failed"):
-        TopologicalDaemon(
-            graph=_small_graph(),
-            settlement_threshold=99,
+        _setup_shared_layer(
             require_chain=True,
+            instance_id="test-instance",
+            daemon=object(),
         )
