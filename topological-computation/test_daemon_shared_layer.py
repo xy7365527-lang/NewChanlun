@@ -42,9 +42,11 @@ class _FakeCrossInstanceSync:
 
 def _install_shared_layer_modules(monkeypatch, shared_layer_cls) -> None:
     chain_pkg = types.ModuleType("chain")
+    chain_pkg.__path__ = []
     ipfs_mod = types.ModuleType("chain.ipfs_client")
     ipfs_mod.IPFSClient = _FakeIPFSClient
     swarm_pkg = types.ModuleType("swarm")
+    swarm_pkg.__path__ = []
     shared_mod = types.ModuleType("swarm.shared_layer")
     shared_mod.SharedLayer = shared_layer_cls
     cross_mod = types.ModuleType("swarm.cross_instance")
@@ -67,14 +69,41 @@ def _small_graph() -> Graph:
 
 def test_shared_layer_step_without_new_settlements_does_not_crash(monkeypatch) -> None:
     """SharedLayer enabled steps must pass an empty settlement delta, not crash."""
-    _install_shared_layer_modules(monkeypatch, _FakeSharedLayer)
-    daemon = TopologicalDaemon(
-        graph=_small_graph(),
-        settlement_threshold=99,
-        require_chain=True,
+    graph = _small_graph()
+    log = types.SimpleNamespace(
+        beta_1_after=0,
+        delta_beta_1=0,
+        operation="walk",
+        position="A",
+        encounter=None,
     )
+    engine = types.SimpleNamespace(
+        run_step=lambda: log,
+        k_active=graph,
+        k_full=graph,
+        terrain={},
+        position="A",
+    )
+    daemon = object.__new__(TopologicalDaemon)
+    daemon.total_steps = 0
+    daemon.k_active = graph
+    daemon.k_full = graph
+    daemon.terrain = {}
+    daemon.engine = engine
+    daemon.snet_activation = None
+    daemon.settlement = types.SimpleNamespace(settled_cycles=[])
+    daemon._persist = None
+    daemon._shared_layer = object()
+    daemon._beta_1_history = []
+    daemon._cumulative_delta_beta_1 = 0
+    daemon._local_f_history = []
     settlement_events: list[list] = []
 
+    monkeypatch.setattr(daemon, "_write_snet_cooccurrence_blocks", lambda: None)
+    monkeypatch.setattr(daemon, "_is_locally_crystallized", lambda: False)
+    monkeypatch.setattr(daemon, "_should_check_gaps", lambda: False)
+    monkeypatch.setattr(daemon, "_fire", lambda event, *args: None)
+    monkeypatch.setattr(daemon, "_is_significant", lambda step_log: False)
     monkeypatch.setattr(daemon, "_write_traversal_position", lambda log: None)
     monkeypatch.setattr(daemon, "_write_graph_delta", lambda log, vids, edges: None)
     monkeypatch.setattr(daemon, "_write_settlement_event", settlement_events.append)
