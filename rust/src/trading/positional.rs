@@ -1,0 +1,650 @@
+//! positional — 多级别仓位分层（positional fugue，26/44课直接形式化）。
+//!
+//! 设计：`analysis/positional_fugue_design.md`（D1-D9 决断表 + 预注册判据 P1-P3）。
+//!
+//! 与 runner.rs（单体 master）的范畴差：不是"一个 FSM 拿全仓"，是
+//! "每个 BSP 承载层一个独立 45课二元 FSM，各拿涌现配额"。
+//!   - 入场：buy1@k 布防 + 次级别区间套确认（与在册 master 逐字同构，per-layer 化）；
+//!   - 出场：sell1@k 只清**本层**股数（44课："不可能按30分钟操作，一见1分钟
+//!     顶背驰就全部扔掉"）；
+//!   - 配额：w_k = θ_k / Σ_j θ_j，θ_k = DepthRef 因果滚动 P50 中枢相对振幅
+//!     （26课"级别的意义基本只和买卖量有关" + 38课"历史上某级别平均震荡幅度"
+//!     ——配额从结构涌现，零预设百分比；常数复用在册 SUB_COST_Q/
+//!     SUB_COST_MIN_OBS/DEPTH_REF_WINDOW，零新参数）；
+//!   - 层间：无级联清仓、无消息传递（27课区间套定理：大级别转折结构上必然
+//!     伴随各级别自身卖点——低级别层在自己的事件流里自然获知）。
+//!
+//! 会计不变量：NAV = pool + Σ_k shares_k×c；bar 内出场/入场都是现金↔股数的
+//! 等价转换（close 单一成交价），NAV 在 bar 内不因交易而变 ⇒ 阶段 2 用
+//! 阶段 1 后的 NAV 快照定目标金额是严格的。
+//!
+//! run_organic 路径零接触（O0≡P5 守卫面不受影响）。
+
+use super::center_book::CenterBook;
+use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
+use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
+use super::tape::SignalTape;
+use super::types::{FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, SUB_EXPIRY};
+
+/// NAV 采样间隔（1min bar 口径 ≈ 1 日；分年 nats 分解的数据基础）。
+pub const EQUITY_SAMPLE_BARS: i64 = 1440;
+/// 防尘埃最小成交比例（D9：实际可成交 < 1%×目标金额 ⇒ 推迟而非开尘埃腿）。
+pub const MIN_FILL_FRAC: f64 = 0.01;
+
+/// 层 FSM 状态（45课持股/持币二元循环的 per-layer 形态 + 资金推迟态）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum LayerState {
+    /// 持币：等待本级别 buy1。
+    Flat,
+    /// 布防：buy1@k 已现，等待次级别区间套确认（在册 master ARMED 同构）。
+    Armed { arm_bar: i64 },
+    /// 确认已成立但资金不可用（pool 不足）——推迟入场（D7/D9）。
+    /// sell1@k 取消（该买点起始的走势类型已被宣告结束）。
+    Pending { confirm_bar: i64 },
+    /// 持股：本层股数 + 入场快照。
+    Long {
+        entry_bar: i64,
+        entry_price: f64,
+        shares: f64,
+        weight: f64,
+        deferred_bars: i64,
+        partial: bool,
+    },
+}
+
+/// 层级 trade 记录（每层每个持股周期一条；股数守恒：进出同股数）。
+#[derive(Debug, Clone)]
+pub struct LayerTrade {
+    pub ladder: u8,
+    pub entry_bar: i64,
+    pub entry_price: f64,
+    pub exit_bar: i64,
+    pub exit_price: f64,
+    pub shares: f64,
+    /// 入场时刻的涌现配额 w_k（归因/诊断）。
+    pub weight_at_entry: f64,
+    /// 确认 bar → 实际入场 bar 的推迟（0 = 当 bar 成交）。
+    pub deferred_bars: i64,
+    /// 实际成交 < 目标金额（pool 部分充足）。
+    pub partial: bool,
+    /// "sell1" | "eod"。
+    pub exit_reason: &'static str,
+}
+
+#[derive(Debug, Default)]
+pub struct PositionalResult {
+    pub trades: Vec<LayerTrade>,
+    /// (bar, nav) 采样（含末 bar）。
+    pub equity: Vec<(i64, f64)>,
+    pub final_nav: f64,
+    pub n_entries_by_ladder: [u64; MAX_LADDER],
+    pub n_exits_by_ladder: [u64; MAX_LADDER],
+    pub held_bars_by_ladder: [u64; MAX_LADDER],
+    /// ARMED 期 sell1 撤防数。
+    pub n_disarms_by_ladder: [u64; MAX_LADDER],
+    /// PENDING 期 sell1 取消数（资金始终未释放、买点过期）。
+    pub n_pending_cancels_by_ladder: [u64; MAX_LADDER],
+    /// 确认成立但 θ_k 无参照（warm-up/级别未统计涌现）的入场跳过数。
+    pub n_noref_skips_by_ladder: [u64; MAX_LADDER],
+    /// 部分成交入场数。
+    pub n_partial_by_ladder: [u64; MAX_LADDER],
+    /// 推迟发生数（确认 bar 资金不足进入 Pending）。
+    pub n_deferred_by_ladder: [u64; MAX_LADDER],
+}
+
+/// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
+/// （级别的统计涌现性，D2）。ladder 升序累加（确定性求和序）。
+fn theta_weights(
+    depth_ref: &DepthRef,
+    floor_ladder: usize,
+) -> ([Option<f64>; MAX_LADDER], f64) {
+    let mut thetas: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
+    let mut total = 0.0f64;
+    for (k, slot) in thetas.iter_mut().enumerate().take(MAX_LADDER).skip(floor_ladder) {
+        if let Some(t) = depth_ref.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
+            if t > 0.0 && t.is_finite() {
+                *slot = Some(t);
+                total += t;
+            }
+        }
+    }
+    (thetas, total)
+}
+
+fn nav_of(layers: &[LayerState; MAX_LADDER], cash: f64, c: f64, floor: usize) -> f64 {
+    let mut v = cash;
+    for layer in layers.iter().take(MAX_LADDER).skip(floor) {
+        if let LayerState::Long { shares, .. } = layer {
+            v += shares * c;
+        }
+    }
+    v
+}
+
+/// 仓位极性模式——v1 否证（BTC L2：P1 ✗ −3.32 nats / P3 ✗ +152%）后从
+/// 26课:34 字面回读出的范畴对立：
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolarityMode {
+    /// v1：每层独立 45课持股/持币循环，**从持币开始**——buy1@k 布防 +
+    /// 区间套确认入场，sell1@k 清层。否证形态保留（生成史 + 对照基线）：
+    /// θ 配额是预留制，高层 FLAT 期配额闲置 = 结构性现金拖累。
+    Cycle45,
+    /// v2：26课恒仓——"本ID的仓位是一直不变的……根据不同级别的卖点把仓位
+    /// 减少，买点的时候又回复原来的数量，但绝对不加仓"（026:34 逐字）。
+    /// 振荡围绕**满仓**：slice 默认持有；confirmed 卖点@k 削减本层 slice，
+    /// confirmed 买点@k 回复（任何买点都是买点——26课）。每 slice 周期内
+    /// 股数守恒（卖出 = 周期买入的全部股数）。confirmed 已含次级别完成
+    /// 判定（四案收敛）⇒ 直接消费，无 ARMED 相位。
+    Hold26 {
+        /// 卖点词汇：true = 仅 type1（VLs1 先例）；false = 任意卖点（26课字面）。
+        sell_t1_only: bool,
+    },
+}
+
+impl PolarityMode {
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "cycle45" => Some(PolarityMode::Cycle45),
+            "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
+            "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
+            _ => None,
+        }
+    }
+}
+
+/// 主入口。floor_ladder ∈ [FIRST_BSP_LADDER, MAX_LADDER)。
+pub fn run_positional(
+    tape: &SignalTape,
+    floor_ladder: usize,
+    mode: PolarityMode,
+) -> Result<PositionalResult, String> {
+    if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
+        return Err(format!(
+            "positional fugue 要求 floor_ladder ∈ [{FIRST_BSP_LADDER}, {MAX_LADDER})\
+             （BSP 承载层）；floor_ladder={floor_ladder}"
+        ));
+    }
+    if !tape.has_bsp_events() {
+        return Err("positional fugue 要求事件磁带（bsp_events 全空）".to_string());
+    }
+
+    let n = tape.bars.len();
+    let mut res = PositionalResult::default();
+    let mut layers: [LayerState; MAX_LADDER] = [LayerState::Flat; MAX_LADDER];
+    let mut pool = INITIAL_CAPITAL;
+    let mut book = CenterBook::new();
+    let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
+
+    for i in 0..n {
+        let sig = &tape.bars[i];
+        let c = sig.close;
+
+        // ── 市场性质：中枢账本 + 振幅参照（与持仓状态无关，事件 bar 驱动）──
+        if let Some(evrows) = sig.bsp_events.as_deref() {
+            for lad in FIRST_BSP_LADDER..MAX_LADDER {
+                book.ingest(lad, &evrows[lad], true, None);
+            }
+            depth_ref.observe(&book, c);
+        }
+
+        // 卖点谓词（模式词汇）：Cycle45/Hold26_t1 = type1 卖；Hold26 = 任意
+        // confirmed 卖点（26课"根据不同级别的卖点把仓位减少"）。
+        let sell_hit = |k: usize| match mode {
+            PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => {
+                sig.sell1.get(k)
+            }
+            PolarityMode::Hold26 { sell_t1_only: false } => sig.sell_any.get(k),
+        };
+        let exit_reason = match mode {
+            PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => "sell1",
+            PolarityMode::Hold26 { sell_t1_only: false } => "sellpt",
+        };
+
+        // ── 阶段 1：出场（全层先于入场——卖点释放的资金当 bar 可供买点）──
+        for k in floor_ladder..MAX_LADDER {
+            if let LayerState::Long {
+                entry_bar,
+                entry_price,
+                shares,
+                weight,
+                deferred_bars,
+                partial,
+            } = layers[k]
+            {
+                res.held_bars_by_ladder[k] += 1;
+                if sell_hit(k) {
+                    pool += shares * c;
+                    res.trades.push(LayerTrade {
+                        ladder: k as u8,
+                        entry_bar,
+                        entry_price,
+                        exit_bar: i as i64,
+                        exit_price: c,
+                        shares,
+                        weight_at_entry: weight,
+                        deferred_bars,
+                        partial,
+                        exit_reason,
+                    });
+                    res.n_exits_by_ladder[k] += 1;
+                    layers[k] = LayerState::Flat;
+                }
+            }
+        }
+
+        // ── 阶段 2：布防/确认/入场。NAV 快照在出场后取一次（bar 内交易是
+        //    现金↔股数等价转换，NAV 不变 ⇒ 快照严格）。ladder 降序——大级别
+        //    优先拿配额（26课大级别大资金；同 bar 竞争 pool 的确定性序，D7）──
+        let bar_nav = nav_of(&layers, pool, c, floor_ladder);
+        let (thetas, theta_total) = theta_weights(&depth_ref, floor_ladder);
+        for k in (floor_ladder..MAX_LADDER).rev() {
+            match (mode, layers[k]) {
+                // ── Cycle45（v1，否证形态保留）──
+                (PolarityMode::Cycle45, LayerState::Flat) => {
+                    if sig.buy1.get(k) {
+                        layers[k] = LayerState::Armed { arm_bar: i as i64 };
+                    }
+                }
+                (PolarityMode::Cycle45, LayerState::Armed { arm_bar }) => {
+                    // 区间套确认：次级别任意买点（[0, k) 任一层）；超时 fallback
+                    // 入场（在册 master ARMED 逐字同构，per-layer 化）。
+                    let sub_mask = (1u16 << k) - 1;
+                    let confirmed = sig.buy_any.0 & sub_mask != 0
+                        || (i as i64 - arm_bar) > SUB_EXPIRY;
+                    if confirmed {
+                        layers[k] = enter_or_defer(
+                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
+                            &mut pool, &mut res,
+                        );
+                    } else if sig.sell1.get(k) {
+                        res.n_disarms_by_ladder[k] += 1;
+                        layers[k] = LayerState::Flat;
+                    }
+                }
+                // ── Hold26（v2，26课恒仓）：confirmed 买点@k 直接回复 slice
+                //    （四案收敛：confirmed 已含次级别完成判定，再确认=纯延迟；
+                //    26课"任何的买点都是买点"）──
+                (PolarityMode::Hold26 { .. }, LayerState::Flat) => {
+                    if sig.buy_any.get(k) {
+                        layers[k] = enter_or_defer(
+                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
+                            &mut pool, &mut res,
+                        );
+                    }
+                }
+                (PolarityMode::Hold26 { .. }, LayerState::Armed { .. }) => {
+                    unreachable!("Hold26 无 ARMED 相位——confirmed 事件直接消费")
+                }
+                // Pending（两模式共用）：卖点@k 取消（该买点起始的走势已被
+                // 宣告结束）；否则重试入场。
+                (_, LayerState::Pending { confirm_bar }) => {
+                    if sell_hit(k) {
+                        res.n_pending_cancels_by_ladder[k] += 1;
+                        layers[k] = LayerState::Flat;
+                    } else {
+                        layers[k] = enter_or_defer(
+                            k, confirm_bar, i as i64, c, bar_nav, &thetas, theta_total,
+                            &mut pool, &mut res,
+                        );
+                    }
+                }
+                (_, LayerState::Long { .. }) => {}
+            }
+        }
+
+        // ── NAV 采样（入场后口径——bar 内 NAV 不变，与快照等值）──
+        if i as i64 % EQUITY_SAMPLE_BARS == 0 || i == n - 1 {
+            res.equity.push((i as i64, bar_nav));
+        }
+    }
+
+    // ── eod：全层强平（与在册 eod_close 同语义）──
+    let last_close = tape.bars[n - 1].close;
+    for k in floor_ladder..MAX_LADDER {
+        if let LayerState::Long {
+            entry_bar,
+            entry_price,
+            shares,
+            weight,
+            deferred_bars,
+            partial,
+        } = layers[k]
+        {
+            pool += shares * last_close;
+            res.trades.push(LayerTrade {
+                ladder: k as u8,
+                entry_bar,
+                entry_price,
+                exit_bar: n as i64 - 1,
+                exit_price: last_close,
+                shares,
+                weight_at_entry: weight,
+                deferred_bars,
+                partial,
+                exit_reason: "eod",
+            });
+            res.n_exits_by_ladder[k] += 1;
+            layers[k] = LayerState::Flat;
+        }
+    }
+    res.final_nav = pool;
+    Ok(res)
+}
+
+/// 入场尝试（ARMED 确认 bar 或 PENDING 重试 bar），返回新层状态。
+/// θ_k 无参照 ⇒ 跳过（配额未定义，回 FLAT 并计数——不静默给默认值，D2）；
+/// pool 可成交 < MIN_FILL_FRAC×目标 ⇒ Pending 推迟（D7/D9）；否则成交
+/// min(w_k×NAV, pool)，部分成交计数。
+#[allow(clippy::too_many_arguments)]
+fn enter_or_defer(
+    k: usize,
+    confirm_bar: i64,
+    bar: i64,
+    c: f64,
+    bar_nav: f64,
+    thetas: &[Option<f64>; MAX_LADDER],
+    theta_total: f64,
+    pool: &mut f64,
+    res: &mut PositionalResult,
+) -> LayerState {
+    let Some(theta_k) = thetas[k] else {
+        res.n_noref_skips_by_ladder[k] += 1;
+        return LayerState::Flat;
+    };
+    debug_assert!(theta_total > 0.0, "θ_k 有定义 ⇒ total > 0");
+    let w = theta_k / theta_total;
+    let want = w * bar_nav;
+    let cash = want.min(*pool);
+    if cash < want * MIN_FILL_FRAC || !(c > 0.0) {
+        if bar == confirm_bar {
+            res.n_deferred_by_ladder[k] += 1;
+        }
+        return LayerState::Pending { confirm_bar };
+    }
+    *pool -= cash;
+    let partial = cash < want * (1.0 - 1e-12);
+    if partial {
+        res.n_partial_by_ladder[k] += 1;
+    }
+    res.n_entries_by_ladder[k] += 1;
+    LayerState::Long {
+        entry_bar: bar,
+        entry_price: c,
+        shares: cash / c,
+        weight: w,
+        deferred_bars: bar - confirm_bar,
+        partial,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::trading::tape::BarSig;
+    use crate::trading::types::{BspClass, BspEvent, LadderMask};
+
+    fn bar(close: f64) -> BarSig {
+        BarSig { close, max_ladder: 5, ..Default::default() }
+    }
+
+    /// 带中枢锚的 candidate 事件——喂 CenterBook/DepthRef 参照集（不触发交易）。
+    fn anchor_ev(cs: i64, zd: f64, zg: f64) -> BspEvent {
+        BspEvent {
+            class: BspClass::Sell1,
+            seg_idx: 0,
+            confirmed: false,
+            cs: Some(cs),
+            zd: Some(zd),
+            zg: Some(zg),
+            price: 0.0,
+        }
+    }
+
+    fn with_anchor(mut b: BarSig, lad: usize, cs: i64, zd: f64, zg: f64) -> BarSig {
+        let rows = b
+            .bsp_events
+            .get_or_insert_with(|| Box::new(<[Vec<BspEvent>; MAX_LADDER]>::default()));
+        rows[lad].push(anchor_ev(cs, zd, zg));
+        b
+    }
+
+    fn buy1(mut b: BarSig, lad: usize) -> BarSig {
+        b.buy1 = LadderMask(b.buy1.0 | (1 << lad));
+        b
+    }
+
+    fn sub_confirm(mut b: BarSig, lad: usize) -> BarSig {
+        b.buy_any = LadderMask(b.buy_any.0 | (1 << lad));
+        b
+    }
+
+    fn sell1(mut b: BarSig, lad: usize) -> BarSig {
+        b.sell1 = LadderMask(b.sell1.0 | (1 << lad));
+        b
+    }
+
+    /// 头部喂 ladder 2/4 各 SUB_COST_MIN_OBS 个参照中枢（θ₂=1%、θ₄=3%，
+    /// c=100 口径）——之后 w₂=0.25、w₄=0.75。
+    fn warmup_bars() -> Vec<BarSig> {
+        let mut bars = Vec::new();
+        for j in 0..SUB_COST_MIN_OBS as i64 {
+            let b = with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0);
+            bars.push(with_anchor(b, 4, 100 + j, 50.0, 53.0));
+        }
+        bars
+    }
+
+    #[test]
+    fn weights_emerge_from_amplitude_share() {
+        let mut bars = warmup_bars();
+        // buy1@2 → 次级别确认（bi=1）→ 入场 w=0.25
+        bars.push(buy1(bar(100.0), 2));
+        bars.push(sub_confirm(bar(100.0), 1));
+        bars.push(bar(100.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert_eq!(r.n_entries_by_ladder[2], 1);
+        let tr = &r.trades[0];
+        assert!((tr.weight_at_entry - 0.25).abs() < 1e-12, "w₂ = 1%/(1%+3%) = 0.25");
+        assert!((tr.shares - 0.25 * INITIAL_CAPITAL / 100.0).abs() < 1e-9);
+        assert_eq!(tr.exit_reason, "eod");
+    }
+
+    #[test]
+    fn layers_exit_independently_lesson44() {
+        // 双层持股，sell1@2 只清层 2，层 4 持有到 eod——44课级别错配禁令。
+        let mut bars = warmup_bars();
+        bars.push(buy1(buy1(bar(100.0), 2), 4));
+        bars.push(sub_confirm(bar(100.0), 1)); // 同时确认两层（bi 是双方次级别）
+        bars.push(sell1(bar(110.0), 2));
+        bars.push(bar(120.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert_eq!(r.n_entries_by_ladder[2], 1);
+        assert_eq!(r.n_entries_by_ladder[4], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        let t4: Vec<_> = r.trades.iter().filter(|t| t.ladder == 4).collect();
+        assert_eq!(t2[0].exit_reason, "sell1");
+        assert_eq!(t2[0].exit_price, 110.0);
+        assert_eq!(t4[0].exit_reason, "eod", "段级 sell1 无权清 recL2 配额");
+        assert_eq!(t4[0].exit_price, 120.0);
+        // 股数守恒：层 4 进出同股数
+        assert!((t4[0].shares - 0.75 * INITIAL_CAPITAL / 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn noref_skip_when_theta_undefined() {
+        // 无参照集（零 warm-up）：buy1@2 确认后配额未定义 → 跳过并计数。
+        let bars = vec![
+            with_anchor(bar(100.0), 2, 1, 50.0, 51.0), // 1 个参照 < min_obs
+            buy1(bar(100.0), 2),
+            sub_confirm(bar(100.0), 1),
+            bar(100.0),
+        ];
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert_eq!(r.n_entries_by_ladder[2], 0);
+        assert_eq!(r.n_noref_skips_by_ladder[2], 1);
+        assert_eq!(r.final_nav, INITIAL_CAPITAL);
+    }
+
+    #[test]
+    fn pool_starvation_defers_then_fills_after_exit() {
+        // 层 2 先满配额入场（仅层 2 有 θ ⇒ w₂=1.0 全仓），层 4 warm-up 后
+        // buy1@4 确认 → pool 空 → Pending；层 2 sell1 释放资金 → 层 4 入场。
+        let mut bars = Vec::new();
+        for j in 0..SUB_COST_MIN_OBS as i64 {
+            bars.push(with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0));
+        }
+        bars.push(buy1(bar(100.0), 2));
+        bars.push(sub_confirm(bar(100.0), 1)); // 层 2 全仓入场
+        for j in 0..SUB_COST_MIN_OBS as i64 {
+            bars.push(with_anchor(bar(100.0), 4, 100 + j, 50.0, 53.0));
+        }
+        bars.push(buy1(bar(100.0), 4));
+        bars.push(sub_confirm(bar(100.0), 1)); // 层 4 确认但 pool=0 → Pending
+        bars.push(sell1(bar(100.0), 2)); // 层 2 出场释放 → 层 4 同 bar 入场
+        bars.push(bar(100.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert_eq!(r.n_entries_by_ladder[2], 1);
+        assert_eq!(r.n_deferred_by_ladder[4], 1, "确认 bar 资金不足 → 推迟");
+        assert_eq!(r.n_entries_by_ladder[4], 1, "层 2 出场释放后入场");
+        let t4 = r.trades.iter().find(|t| t.ladder == 4).unwrap();
+        assert!(t4.deferred_bars > 0);
+        // 层 4 配额 w=0.75 但 pool 只有层 2 回笼的全部 → min(0.75×NAV, NAV) = 0.75×NAV
+        assert!((t4.weight_at_entry - 0.75).abs() < 1e-12);
+    }
+
+    #[test]
+    fn pending_cancelled_by_sell1() {
+        let mut bars = Vec::new();
+        for j in 0..SUB_COST_MIN_OBS as i64 {
+            bars.push(with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0));
+        }
+        bars.push(buy1(bar(100.0), 2));
+        bars.push(sub_confirm(bar(100.0), 1)); // 层 2 全仓
+        for j in 0..SUB_COST_MIN_OBS as i64 {
+            bars.push(with_anchor(bar(100.0), 4, 100 + j, 50.0, 53.0));
+        }
+        bars.push(buy1(bar(100.0), 4));
+        bars.push(sub_confirm(bar(100.0), 1)); // 层 4 Pending（pool 空）
+        bars.push(sell1(bar(100.0), 4)); // 层 4 的卖点先到 → 取消
+        bars.push(bar(100.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert_eq!(r.n_pending_cancels_by_ladder[4], 1);
+        assert_eq!(r.n_entries_by_ladder[4], 0);
+    }
+
+    #[test]
+    fn armed_disarms_on_sell1() {
+        let mut bars = warmup_bars();
+        bars.push(buy1(bar(100.0), 2));
+        bars.push(sell1(bar(100.0), 2)); // 确认未到，sell1 撤防
+        bars.push(bar(100.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert_eq!(r.n_disarms_by_ladder[2], 1);
+        assert_eq!(r.n_entries_by_ladder[2], 0);
+    }
+
+    #[test]
+    fn expiry_fallback_entry() {
+        // 次级别确认不来 → SUB_EXPIRY 超时入场（在册 master 同构）。
+        let mut bars = warmup_bars();
+        bars.push(buy1(bar(100.0), 2));
+        for _ in 0..(SUB_EXPIRY + 2) {
+            bars.push(bar(100.0));
+        }
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert_eq!(r.n_entries_by_ladder[2], 1);
+    }
+
+    #[test]
+    fn nav_conservation_round_trip() {
+        // 入场→出场价格不变 ⇒ NAV 守恒（零摩擦口径的会计自检）。
+        let mut bars = warmup_bars();
+        bars.push(buy1(bar(100.0), 2));
+        bars.push(sub_confirm(bar(100.0), 1));
+        bars.push(sell1(bar(100.0), 2));
+        bars.push(bar(100.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r = run_positional(&t, 2, PolarityMode::Cycle45).unwrap();
+        assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9);
+    }
+
+    fn sellpt(mut b: BarSig, lad: usize) -> BarSig {
+        b.sell_any = LadderMask(b.sell_any.0 | (1 << lad));
+        b
+    }
+
+    #[test]
+    fn hold26_slices_oscillate_around_full() {
+        // 26课恒仓：买点直接回复 slice（无 ARMED），卖点只削减本层。
+        let mut bars = warmup_bars();
+        bars.push(sub_confirm(sub_confirm(bar(100.0), 2), 4)); // 买点@2 @4
+        bars.push(sellpt(bar(110.0), 2)); // 卖点@2 → 削层2，层4 持有
+        bars.push(sub_confirm(bar(105.0), 2)); // 买点@2 → 回复
+        bars.push(bar(120.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r =
+            run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: false }).unwrap();
+        assert_eq!(r.n_entries_by_ladder[2], 2, "削减后买点回复");
+        assert_eq!(r.n_entries_by_ladder[4], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 110.0);
+        assert_eq!(t2[1].exit_reason, "eod");
+        let t4: Vec<_> = r.trades.iter().filter(|t| t.ladder == 4).collect();
+        assert_eq!(t4.len(), 1, "层4 不被层2 卖点触及");
+        assert_eq!(t4[0].exit_reason, "eod");
+        // 周期股数守恒：层2 第一周期进出同股数（@100 买 @110 卖全清）
+        assert!((t2[0].shares - 0.25 * INITIAL_CAPITAL / 100.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn hold26_t1_vocabulary_ignores_non_t1_sells() {
+        let mut bars = warmup_bars();
+        bars.push(sub_confirm(bar(100.0), 2));
+        bars.push(sellpt(bar(110.0), 2)); // 任意卖点置位但非 type1
+        bars.push(bar(120.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r =
+            run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: true }).unwrap();
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2[0].exit_reason, "eod", "hold26_t1 只认 type1 卖点");
+    }
+
+    #[test]
+    fn hold26_pending_when_pool_dry_cancelled_by_sellpt() {
+        // 层2 全仓占满（仅层2 有 θ）→ 层4 warm-up 后买点 Pending →
+        // 层4 卖点取消（买点起始走势已结束）。
+        let mut bars = Vec::new();
+        for j in 0..SUB_COST_MIN_OBS as i64 {
+            bars.push(with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0));
+        }
+        bars.push(sub_confirm(bar(100.0), 2)); // 层2 w=1.0 全仓
+        for j in 0..SUB_COST_MIN_OBS as i64 {
+            bars.push(with_anchor(bar(100.0), 4, 100 + j, 50.0, 53.0));
+        }
+        bars.push(sub_confirm(bar(100.0), 4)); // 层4 买点，pool 空 → Pending
+        bars.push(sellpt(bar(100.0), 4)); // 层4 卖点 → 取消
+        bars.push(bar(100.0));
+        let t = SignalTape { bars, ..Default::default() };
+        let r =
+            run_positional(&t, 2, PolarityMode::Hold26 { sell_t1_only: false }).unwrap();
+        assert_eq!(r.n_deferred_by_ladder[4], 1);
+        assert_eq!(r.n_pending_cancels_by_ladder[4], 1);
+        assert_eq!(r.n_entries_by_ladder[4], 0);
+    }
+
+    #[test]
+    fn floor_guard_rejects_bar_level() {
+        let t = SignalTape { bars: vec![bar(100.0)], ..Default::default() };
+        assert!(run_positional(&t, 0, PolarityMode::Cycle45).is_err());
+        assert!(run_positional(&t, 2, PolarityMode::Cycle45).is_err(), "事件磁带全空也拒绝");
+    }
+}

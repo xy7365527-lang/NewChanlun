@@ -1853,12 +1853,73 @@ fn run_recursive_rust(
     Ok(out.into())
 }
 
+/// 多级别仓位分层回测（positional fugue，2026-06-12 任务）。独立入口——
+/// 与单体 master（run_organic）是不同仓位范畴（N 个独立 45课 FSM 各拿
+/// 涌现配额 vs 一个 FSM 拿全仓）；run_organic 路径零接触（O0≡P5 守卫
+/// 自动满足）。设计：`analysis/positional_fugue_design.md`。
+/// mode ∈ {"cycle45"（v1 每层独立45课循环，否证基线）,
+///         "hold26"（26课恒仓：任意卖点削减/任意买点回复）,
+///         "hold26_t1"（卖点词汇收窄为 type1）}。
+#[pyfunction]
+#[pyo3(signature = (tape, floor_ladder = 2, mode = "hold26"))]
+fn run_positional_rust(
+    py: Python<'_>,
+    tape: &PyOrganicTape,
+    floor_ladder: usize,
+    mode: &str,
+) -> PyResult<PyObject> {
+    use pyo3::types::PyDict;
+    use trading::positional::{run_positional, PolarityMode};
+    let pm = PolarityMode::parse(mode).ok_or_else(|| {
+        pyo3::exceptions::PyValueError::new_err(format!("非法 mode: {mode:?}"))
+    })?;
+    let res = run_positional(&tape.inner, floor_ladder, pm)
+        .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    let out = PyDict::new(py);
+    // trade 行 = (ladder, entry_bar, entry_price, exit_bar, exit_price,
+    //             shares, weight_at_entry, deferred_bars, partial, exit_reason)
+    let trades: Vec<(u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str)> = res
+        .trades
+        .iter()
+        .map(|t| {
+            (
+                t.ladder,
+                t.entry_bar,
+                t.entry_price,
+                t.exit_bar,
+                t.exit_price,
+                t.shares,
+                t.weight_at_entry,
+                t.deferred_bars,
+                t.partial,
+                t.exit_reason,
+            )
+        })
+        .collect();
+    out.set_item("trades", trades)?;
+    out.set_item("equity", res.equity.clone())?;
+    out.set_item("final_nav", res.final_nav)?;
+    out.set_item("n_entries_by_ladder", res.n_entries_by_ladder.to_vec())?;
+    out.set_item("n_exits_by_ladder", res.n_exits_by_ladder.to_vec())?;
+    out.set_item("held_bars_by_ladder", res.held_bars_by_ladder.to_vec())?;
+    out.set_item("n_disarms_by_ladder", res.n_disarms_by_ladder.to_vec())?;
+    out.set_item(
+        "n_pending_cancels_by_ladder",
+        res.n_pending_cancels_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_noref_skips_by_ladder", res.n_noref_skips_by_ladder.to_vec())?;
+    out.set_item("n_partial_by_ladder", res.n_partial_by_ladder.to_vec())?;
+    out.set_item("n_deferred_by_ladder", res.n_deferred_by_ladder.to_vec())?;
+    Ok(out.into())
+}
+
 /// Python 模块定义。
 #[pymodule]
 fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyOrganicTape>()?;
     m.add_function(wrap_pyfunction!(run_organic_rust, m)?)?;
     m.add_function(wrap_pyfunction!(run_recursive_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(run_positional_rust, m)?)?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;
