@@ -1,0 +1,86 @@
+{
+ "27182": {
+  "volume": 2650000.0,
+  "last": 0.237,
+  "bid": null,
+  "ask": null,
+  "close": 0.22
+ },
+ "27205": {
+  "volume": 2100000.0,
+  "last": 0.243,
+  "bid": null,
+  "ask": null,
+  "close": 0.226
+ },
+ "26218": {
+  "volume": 300000.0,
+  "last": 0.248,
+  "bid": null,
+  "ask": null,
+  "close": 0.231
+ },
+ "28935": {
+  "volume": 2765000.0,
+  "last": 0.112,
+  "bid": null,
+  "ask": null,
+  "close": 0.099
+ },
+ "13249": {
+  "volume": 117415000.0,
+  "last": 0.15,
+  "bid": null,
+  "ask": null,
+  "close": 0.139
+ },
+ "13134": {
+  "volume": 370000.0,
+  "last": 0.161,
+  "bid": null,
+  "ask": null,
+  "close": 0.148
+ },
+ "15728": {
+  "volume": 8575000.0,
+  "last": 0.015,
+  "bid": null,
+  "ask": null,
+  "close": 0.011
+ },
+ "29794": {
+  "volume": 3460000.0,
+  "last": 0.365,
+  "bid": null,
+  "ask": null,
+  "close": 0.32
+ },
+ "13443": {
+  "volume": 0.0,
+  "last": null,
+  "bid": null,
+  "ask": null,
+  "close": 0.104
+ },
+ "29726": {
+  "volume": 7240000.0,
+  "last": 0.219,
+  "bid": null,
+  "ask": null,
+  "close": 0.185
+ },
+ "13160": {
+  "volume": 249580000.0,
+  "last": 0.236,
+  "bid": null,
+  "ask": null,
+  "close": 0.194
+ },
+ "29978": {
+  "volume": 0.0,
+  "last": null,
+  "bid": null,
+  "ask": null,
+  "close": 0.2
+ }
+}
