@@ -1927,6 +1927,14 @@ fn run_positional_rust(
     out.set_item("n_noref_skips_by_ladder", res.n_noref_skips_by_ladder.to_vec())?;
     out.set_item("n_partial_by_ladder", res.n_partial_by_ladder.to_vec())?;
     out.set_item("n_deferred_by_ladder", res.n_deferred_by_ladder.to_vec())?;
+    out.set_item(
+        "n_trend_div_exits_by_ladder",
+        res.n_trend_div_exits_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_gate41_blocks_by_ladder",
+        res.n_gate41_blocks_by_ladder.to_vec(),
+    )?;
     // Fusion（B+C 合体）观测面（legacy 模式恒零）
     out.set_item("n_trend_holds_by_ladder", res.n_trend_holds_by_ladder.to_vec())?;
     out.set_item("n_sub_opens_by_ladder", res.n_sub_opens_by_ladder.to_vec())?;

@@ -68,7 +68,7 @@ use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult,
-    EQUITY_SAMPLE_BARS,
+    TrendAxisOpts, EQUITY_SAMPLE_BARS,
 };
 use super::tape::SignalTape;
 use super::types::{
@@ -206,6 +206,7 @@ pub(crate) fn run_fusion(
     trend_hold: bool,
     counter_sub: bool,
     capital_decoupled: bool,
+    opts: TrendAxisOpts,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -227,6 +228,21 @@ pub(crate) fn run_fusion(
         return Err(
             "capital_decoupled（C 轴回补义务专款）要求 counter_sub——专款的\
              唯一对象是短差回补义务（049:64），无 C 轴即无对象，显式拒绝"
+                .to_string(),
+        );
+    }
+    if opts.any() && !trend_hold {
+        return Err(
+            "TrendAxisOpts（41课衰竭门/49课:54 背驰出场/49课:60 三买起点）\
+             是 T 轴的修饰子——无 trend_hold 即无对象，显式拒绝"
+                .to_string(),
+        );
+    }
+    if opts.gate41 && !tape.has_div_events() {
+        return Err(
+            "gate41（41课:22 大级别未衰竭门）要求背驰磁带（div_events 全空）\
+             ——衰竭证据 = 父层向下背驰事件（41课:28\"没有进入背驰段，就\
+             不能操作\"），缺行即判据无数据基础（不静默降级为纯方向门）"
                 .to_string(),
         );
     }
@@ -262,6 +278,10 @@ pub(crate) fn run_fusion(
     let tflips: &[(i64, u8, bool)] = tape.trend_flips.as_deref().unwrap_or(&[]);
     let mut tflip_ptr = 0usize;
     let mut trend_state: [bool; MAX_LADDER] = [false; MAX_LADDER];
+    // gate41：层 k 当前方向 run 内是否已现向下背驰（衰竭证据）。dir 翻转清零。
+    let mut down_exhaust: [bool; MAX_LADDER] = [false; MAX_LADDER];
+    // b3_start：三买窗口锚（confirmed Buy3 的中枢 cs）。None = 窗口关闭。
+    let mut b3_anchor: [Option<i64>; MAX_LADDER] = [None; MAX_LADDER];
 
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
@@ -273,6 +293,12 @@ pub(crate) fn run_fusion(
         while flip_ptr < flips.len() && flips[flip_ptr].0 == i as i64 {
             let (_, lad, dir) = flips[flip_ptr];
             dir_state[lad as usize] = Some(dir);
+            // 方向 run 重置 ⇒ 上一 run 的衰竭证据失效（gate41 状态）。
+            down_exhaust[lad as usize] = false;
+            // 049:60 三买窗口：dir 翻 Down = 向上离开失败的结构证据 ⇒ 关窗。
+            if dir == Direction::Down {
+                b3_anchor[lad as usize] = None;
+            }
             flip_ptr += 1;
         }
         while tflip_ptr < tflips.len() && tflips[tflip_ptr].0 == i as i64 {
@@ -293,9 +319,71 @@ pub(crate) fn run_fusion(
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
 
-        // 层 k 趋势相（49课:52"中枢向上移动" = kind==Trend ∧ dir==Up）。
-        let in_trend =
-            |k: usize| trend_hold && trend_state[k] && dir_state[k] == Some(Direction::Up);
+        // gate41 衰竭证据 / b3 窗口的事件流更新（在相位判定之前——同 bar
+        // 事件即时生效，与 dir/trend 行的翻转语义一致）。
+        if opts.gate41 && sig.div_events.is_some() {
+            for lad in 0..MAX_LADDER {
+                if devrows[lad].iter().any(|d| d.direction == Direction::Down) {
+                    down_exhaust[lad] = true;
+                }
+            }
+        }
+        if opts.b3_start {
+            if sig.bsp_events.is_some() {
+                for lad in 0..MAX_LADDER {
+                    let mut new_b3: Option<i64> = None;
+                    let mut max_cs: Option<i64> = None;
+                    for e in &evrows[lad] {
+                        if let Some(cs) = e.cs {
+                            max_cs = Some(max_cs.map_or(cs, |m| m.max(cs)));
+                        }
+                        if e.confirmed && e.class == BspClass::Buy3 {
+                            if let Some(cs) = e.cs {
+                                new_b3 = Some(new_b3.map_or(cs, |m| m.max(cs)));
+                            }
+                        }
+                    }
+                    if let Some(b) = new_b3 {
+                        b3_anchor[lad] = Some(b); // 049:60 三买 ⇒ 开窗
+                    }
+                    if let (Some(anchor), Some(m)) = (b3_anchor[lad], max_cs) {
+                        if m > anchor {
+                            b3_anchor[lad] = None; // 新中枢出现 ⇒ 回到震荡相
+                        }
+                    }
+                }
+            }
+            // 049:42/46：三买后向上走势出现背驰/盘背 ⇒ 离开段衰竭，关窗
+            //（独立于 bsp 行——背驰事件可单独到达）。
+            if sig.div_events.is_some() {
+                for lad in 0..MAX_LADDER {
+                    if b3_anchor[lad].is_some()
+                        && devrows[lad].iter().any(|d| d.direction == Direction::Up)
+                    {
+                        b3_anchor[lad] = None;
+                    }
+                }
+            }
+        }
+
+        // 层 k 趋势相（49课:52"中枢向上移动"）。两分量：
+        //   kind 直读 = trend_state（17课 ≥2 同向中枢）∧ dir==Up（在册 fusion_t）；
+        //   b3 窗口 = 049:60 三买后新中枢前（kind 判据的结构滞后区，b3_start）。
+        // raw = 未过 41课门的相位；gate41 在 raw 之上叠加大级别未衰竭否决。
+        let in_trend_raw = |k: usize| {
+            trend_hold
+                && ((trend_state[k] && dir_state[k] == Some(Direction::Up))
+                    || (opts.b3_start && b3_anchor[k].is_some()))
+        };
+        let gate41_pass = |k: usize| {
+            if !opts.gate41 {
+                return true;
+            }
+            let p = k + 1;
+            // 41课:22：父层向下且未衰竭 ⇒ 层 k 向上参与 = 刀口舔血，否决。
+            !(p < MAX_LADDER && dir_state[p] == Some(Direction::Down) && !down_exhaust[p])
+        };
+        let in_trend = |k: usize| in_trend_raw(k) && gate41_pass(k);
 
         // ── 阶段 A：层级出场 / 44课铰链 / 回补（资金释放先于一切入场；
         //    回补义务在本阶段处理 ⇒ 对 pool 的优先权高于阶段 C 新入场）──
@@ -352,12 +440,22 @@ pub(crate) fn run_fusion(
                     }
                 }
             } else if sig.sell_any.get(k) {
-                if tp {
+                // 049:54 背驰出场：趋势相内 type1（趋势顶背驰词汇）⇒ 全抛
+                // （"这个级别的走势类型完成"）；其余卖点停削（049:60"中途
+                // 不参与短差"）。div_exit 关闭时趋势相一律停削（在册行为）。
+                let div_exit_hit = tp && opts.div_exit && sig.sell1.get(k);
+                if tp && !div_exit_hit {
                     // 049:52 趋势相停削（"那种中枢完成后的向上移动时的差价
                     // 是不能做的，中枢向上移动时，就应该满仓"）。
                     res.n_trend_holds_by_ladder[k] += 1;
                 } else {
-                    // hold26 在册削减（震荡相：上减——26课/49课二相的震荡侧）。
+                    if div_exit_hit {
+                        res.n_trend_div_exits_by_ladder[k] += 1;
+                    } else if in_trend_raw(k) {
+                        // tp 为假而 raw 为真 ⇒ 唯一否决者是 41课门（观测）。
+                        res.n_gate41_blocks_by_ladder[k] += 1;
+                    }
+                    // hold26 在册削减（震荡相：上减）∨ 049:54 趋势顶背驰全抛。
                     pool += shares * c;
                     res.trades.push(LayerTrade {
                         ladder: k as u8,
@@ -369,7 +467,7 @@ pub(crate) fn run_fusion(
                         weight_at_entry: weight,
                         deferred_bars,
                         partial,
-                        exit_reason: "sellpt",
+                        exit_reason: if div_exit_hit { "trend_div" } else { "sellpt" },
                     });
                     res.n_exits_by_ladder[k] += 1;
                     layers[k] = LayerState::Flat;
@@ -612,73 +710,33 @@ mod tests {
         assert_eq!(SUB_FRICTION_RT, d.sub_friction_rt, "摩擦参数与 OrganicConfig 默认漂移");
     }
 
+    /// 测试构造捷径：trend_opts 全默认的 Fusion。
+    fn fz(trend_hold: bool, counter_sub: bool, decoupled: bool) -> PolarityMode {
+        PolarityMode::Fusion {
+            trend_hold,
+            counter_sub,
+            decoupled,
+            trend_opts: TrendAxisOpts::default(),
+        }
+    }
+
     #[test]
     fn parse_and_guards() {
-        assert_eq!(
-            PolarityMode::parse("fusion"),
-            Some(PolarityMode::Fusion {
-                trend_hold: true,
-                counter_sub: true,
-                decoupled: false
-            })
-        );
-        assert_eq!(
-            PolarityMode::parse("fusion_t"),
-            Some(PolarityMode::Fusion {
-                trend_hold: true,
-                counter_sub: false,
-                decoupled: false
-            })
-        );
-        assert_eq!(
-            PolarityMode::parse("fusion_s"),
-            Some(PolarityMode::Fusion {
-                trend_hold: false,
-                counter_sub: true,
-                decoupled: false
-            })
-        );
-        assert_eq!(
-            PolarityMode::parse("fusion_e"),
-            Some(PolarityMode::Fusion {
-                trend_hold: true,
-                counter_sub: true,
-                decoupled: true
-            })
-        );
-        assert_eq!(
-            PolarityMode::parse("fusion_se"),
-            Some(PolarityMode::Fusion {
-                trend_hold: false,
-                counter_sub: true,
-                decoupled: true
-            })
-        );
+        assert_eq!(PolarityMode::parse("fusion"), Some(fz(true, true, false)));
+        assert_eq!(PolarityMode::parse("fusion_t"), Some(fz(true, false, false)));
+        assert_eq!(PolarityMode::parse("fusion_s"), Some(fz(false, true, false)));
+        assert_eq!(PolarityMode::parse("fusion_e"), Some(fz(true, true, true)));
+        assert_eq!(PolarityMode::parse("fusion_se"), Some(fz(false, true, true)));
         let bars = warmup34();
         // Fusion{false,false} = Hold26 冗余表示 ⇒ 拒绝
         let t = SignalTape { bars: warmup34(), ..Default::default() };
-        assert!(run_positional(
-            &t,
-            2,
-            PolarityMode::Fusion { trend_hold: false, counter_sub: false, decoupled: false }
-        )
-        .is_err());
+        assert!(run_positional(&t, 2, fz(false, false, false)).is_err());
         // decoupled 无 counter_sub = 专款无对象 ⇒ 拒绝
         let td = SignalTape { bars: warmup34(), ..Default::default() };
-        assert!(run_positional(
-            &td,
-            2,
-            PolarityMode::Fusion { trend_hold: true, counter_sub: false, decoupled: true }
-        )
-        .is_err());
+        assert!(run_positional(&td, 2, fz(true, false, true)).is_err());
         // trend_hold 无 trend/dir 行 ⇒ 拒绝
         let t2 = SignalTape { bars: warmup34(), ..Default::default() };
-        assert!(run_positional(
-            &t2,
-            2,
-            PolarityMode::Fusion { trend_hold: true, counter_sub: false, decoupled: false }
-        )
-        .is_err());
+        assert!(run_positional(&t2, 2, fz(true, false, false)).is_err());
         // counter_sub 无 div 磁带 ⇒ 拒绝（warmup34 不带 div 行时）
         let no_div: Vec<BarSig> = bars
             .into_iter()
@@ -688,10 +746,62 @@ mod tests {
             })
             .collect();
         let t3 = SignalTape { bars: no_div, ..Default::default() };
+        assert!(run_positional(&t3, 2, fz(false, true, false)).is_err());
+    }
+
+    #[test]
+    fn parse_trend_axis_modes_and_guards() {
+        let opt = |g: bool, d: bool, b: bool| PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts { gate41: g, div_exit: d, b3_start: b },
+        };
+        assert_eq!(PolarityMode::parse("fusion_tg"), Some(opt(true, false, false)));
+        assert_eq!(PolarityMode::parse("fusion_td"), Some(opt(false, true, false)));
+        assert_eq!(PolarityMode::parse("fusion_tb"), Some(opt(false, false, true)));
+        assert_eq!(PolarityMode::parse("fusion_tgb"), Some(opt(true, false, true)));
+        assert_eq!(PolarityMode::parse("fusion_tgdb"), Some(opt(true, true, true)));
+        // 乱序/重复/非法字符 ⇒ None
+        assert_eq!(PolarityMode::parse("fusion_tdg"), None);
+        assert_eq!(PolarityMode::parse("fusion_tgg"), None);
+        assert_eq!(PolarityMode::parse("fusion_tx"), None);
+        // opts 无 trend_hold = 修饰子无对象 ⇒ 拒绝
+        let t = SignalTape { bars: warmup34(), ..Default::default() };
         assert!(run_positional(
-            &t3,
+            &t,
             2,
-            PolarityMode::Fusion { trend_hold: false, counter_sub: true, decoupled: false }
+            PolarityMode::Fusion {
+                trend_hold: false,
+                counter_sub: true,
+                decoupled: false,
+                trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
+            }
+        )
+        .is_err());
+        // gate41 无 div 磁带 ⇒ 拒绝（衰竭证据无数据基础）
+        let no_div: Vec<BarSig> = warmup34()
+            .into_iter()
+            .map(|mut b| {
+                b.div_events = None;
+                b
+            })
+            .collect();
+        let t2 = SignalTape {
+            bars: no_div,
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t2,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
+            }
         )
         .is_err());
     }
@@ -1061,5 +1171,171 @@ mod tests {
             pool += t.shares * (t.exit_price - t.entry_price);
         }
         assert!((pool - r.final_nav).abs() < 1e-9);
+    }
+
+    // ───────────────── T 轴严格化（TrendAxisOpts）─────────────────
+
+    /// θ₂ 参照 warm-up（首 bar 带空 div 行——gate41/b3 测试的磁带能力前提）。
+    fn warmup2() -> Vec<BarSig> {
+        (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| {
+                let b = with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0);
+                if j == 0 { with_empty_div(b) } else { b }
+            })
+            .collect()
+    }
+
+    /// type1 卖点：sell1 + sell_any 双 mask（真实磁带中 type1 必同置 any 行）。
+    fn s1pt(mut b: BarSig, lad: usize) -> BarSig {
+        b.sell1 = LadderMask(b.sell1.0 | (1 << lad));
+        sellpt(b, lad)
+    }
+
+    /// 带中枢锚的 confirmed 事件（b3 窗口测试：Buy3 开窗 / 大 cs 事件关窗）。
+    fn ev_cs(class: BspClass, cs: i64) -> BspEvent {
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed: true,
+            cs: Some(cs),
+            zd: Some(50.0),
+            zg: Some(51.0),
+            price: 0.0,
+        }
+    }
+
+    #[test]
+    fn gate41_blocks_bear_rally_hold_until_parent_exhausts() {
+        // 41课:22：层2 趋势相∧Up，父层3 dir==Down 未衰竭 ⇒ 停削被否决
+        // （卖点照常削减）；父层向下背驰出现后 ⇒ 停削恢复。
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2)); // 入场 @100
+        bars.push(sellpt(bar(110.0), 2)); // bar w+1：门否决 → 削减 @110
+        bars.push(buypt(bar(100.0), 2)); // bar w+2：回复 @100
+        bars.push(with_div(bar(95.0), 3, div_ev(Direction::Down))); // 父层衰竭
+        bars.push(sellpt(bar(120.0), 2)); // bar w+4：停削恢复
+        bars.push(bar(120.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_tg",
+            Some(vec![(0, 2, Direction::Up), (0, 3, Direction::Down)]),
+            Some(vec![(0, 2, true)]),
+        );
+        assert_eq!(r.n_gate41_blocks_by_ladder[2], 1, "未衰竭期卖点被门放行削减");
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1, "衰竭后停削恢复");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 110.0);
+        assert_eq!(t2[1].exit_reason, "eod", "第二周期持有穿越（@120 收口）");
+        // 100000×1.10 ×（120/100）= 132000
+        assert!((r.final_nav - 132_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    #[test]
+    fn gate41_passes_when_parent_dir_up_or_undefined() {
+        // 父层无方向数据 / 父层向上 ⇒ 门放行（41课约束只在"方向相反"时定义）。
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(110.0), 2)); // 父层 dir 未定义 → 停削成立
+        bars.push(bar(110.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_tg",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![(0, 2, true)]),
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1);
+        assert_eq!(r.n_gate41_blocks_by_ladder[2], 0);
+    }
+
+    #[test]
+    fn div_exit_full_exit_on_type1_in_trend() {
+        // 049:54：趋势相内非 t1 卖点停削；t1（趋势顶背驰词汇）⇒ 全抛
+        // （exit_reason="trend_div"），"这个级别的走势类型完成"。
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(110.0), 2)); // 非 t1 → 停削
+        bars.push(s1pt(bar(120.0), 2)); // t1 → 全抛 @120
+        bars.push(bar(130.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_td",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![(0, 2, true)]),
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1);
+        assert_eq!(r.n_trend_div_exits_by_ladder[2], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2[0].exit_reason, "trend_div");
+        assert_eq!(t2[0].exit_price, 120.0);
+        assert!((r.final_nav - 120_000.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn b3_window_holds_first_departure_until_new_center() {
+        // 049:60：confirmed Buy3 开窗（kind 仍盘整 ⇒ trend_state=false 的
+        // 首次离开段也停削）；新中枢事件（cs > 锚）⇒ 关窗回到震荡相削减。
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(with_ev(bar(102.0), 2, ev_cs(BspClass::Buy3, 1000)));
+        bars.push(sellpt(bar(110.0), 2)); // 窗口内 → 停削
+        bars.push(with_anchor(bar(112.0), 2, 1001, 108.0, 112.0)); // 新中枢
+        bars.push(sellpt(bar(111.0), 2)); // 关窗 → 削减 @111
+        bars.push(bar(111.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_tb",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]), // trend_state 恒 false——窗口独立于 kind 直读
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1, "三买窗口停削");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 111.0, "新中枢后恢复削减");
+        assert!((r.final_nav - 111_000.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn b3_window_closes_on_up_divergence() {
+        // 049:42/46：三买后向上走势出现背驰/盘背 ⇒ 离开段衰竭，关窗。
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(with_ev(bar(102.0), 2, ev_cs(BspClass::Buy3, 1000)));
+        bars.push(with_div(bar(115.0), 2, div_ev(Direction::Up))); // 盘背顶
+        bars.push(sellpt(bar(113.0), 2)); // 关窗 → 削减
+        bars.push(bar(113.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_tb",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 0);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 113.0);
+    }
+
+    #[test]
+    fn b3_window_closes_on_dir_flip_down() {
+        // dir 翻 Down = 向上离开失败的结构证据 ⇒ 关窗。
+        let w = SUB_COST_MIN_OBS as i64;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(with_ev(bar(102.0), 2, ev_cs(BspClass::Buy3, 1000)));
+        bars.push(bar(101.0)); // bar w+2：dir 翻 Down（行注入）
+        bars.push(sellpt(bar(99.0), 2)); // 关窗 → 削减
+        bars.push(bar(99.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_tb",
+            Some(vec![(0, 2, Direction::Up), (w + 2, 2, Direction::Down)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 0);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 99.0);
     }
 }

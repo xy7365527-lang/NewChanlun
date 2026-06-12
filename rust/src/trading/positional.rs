@@ -93,6 +93,10 @@ pub struct PositionalResult {
     // ── Fusion（B+C 合体）观测面；legacy 模式恒零（positional_fusion.rs）──
     /// 趋势相停削数（49课:52 满仓——本层卖点在趋势相不削减）。
     pub n_trend_holds_by_ladder: [u64; MAX_LADDER],
+    /// 049:54 趋势顶背驰全抛数（div_exit：趋势相内 sell1@k ⇒ 出清本层）。
+    pub n_trend_div_exits_by_ladder: [u64; MAX_LADDER],
+    /// 41课衰竭门拒绝停削数（父层向下未衰竭 ⇒ 趋势相不成立，卖点照常削减）。
+    pub n_gate41_blocks_by_ladder: [u64; MAX_LADDER],
     /// 层内 C 短差开（53课次级别卖证据全抛本层 slice）。
     pub n_sub_opens_by_ladder: [u64; MAX_LADDER],
     /// 短差回补（k−1 镜像买证据，"如数接回"——含推迟后补完）。
@@ -146,6 +150,37 @@ fn nav_of(layers: &[LayerState; MAX_LADDER], cash: f64, c: f64, floor: usize) ->
     v
 }
 
+/// T 轴（趋势相停削）严格化选项——趋势态停削机制研究任务（2026-06-12，
+/// hold26 L3"牛市 α 6/6 全负"开放轴 1 + fusion 判决 §5.4 F5 修复）。
+/// 三选项独立可消融（VLg 负交互先例 ⇒ 组合臂预注册）；全 false = 在册
+/// fusion_t 逐字行为（在册判决零漂移由构造保证）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TrendAxisOpts {
+    /// g — 41课:22 衰竭门："如果一个小级别的买卖点和大级别的走势方向相反，
+    /// 而该大级别走势没有任何衰竭，这时候参与小级别买卖点，就意味着要冒着
+    /// 大级别走势延续的风险"。父层（k+1）dir==Down 且本方向 run 内无向下
+    /// 背驰事件（未衰竭，41课:28"没有进入背驰段，就不能操作"）⇒ 层 k
+    /// 趋势相不成立（bear rally 停削漏出的修复——F5 否证 −0.13~−0.23 nats）。
+    pub gate41: bool,
+    /// d — 49课:54 背驰出场："如果这个中枢完成的向上移动出现背驰，就要把
+    /// 所有筹码抛出，因为这个级别的走势类型完成"。趋势相内 sell1@k
+    /// （type1 = 趋势顶背驰词汇）⇒ 全抛本层（exit_reason="trend_div"），
+    /// 其余卖点仍停削（049:60"中途不参与短差"）。
+    pub div_exit: bool,
+    /// b — 49课:60 三买起点："在中枢第三类买点后持股直到新中枢出现继续
+    /// 中枢震荡操作，中途不参与短差"。confirmed Buy3@k ⇒ 开三买窗口
+    /// （覆盖 kind 尚为盘整、第二中枢未结算的首次离开段——17课 kind 判据
+    /// 的结构性滞后区）；窗口关闭 = 新中枢事件（事件 cs > 锚 cs）∨ 向上
+    /// 背驰/盘背@k（049:42/46）∨ dir 翻 Down。
+    pub b3_start: bool,
+}
+
+impl TrendAxisOpts {
+    pub fn any(self) -> bool {
+        self.gate41 || self.div_exit || self.b3_start
+    }
+}
+
 /// 仓位极性模式——v1 否证（BTC L2：P1 ✗ −3.32 nats / P3 ✗ +152%）后从
 /// 26课:34 字面回读出的范畴对立：
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -182,41 +217,69 @@ pub enum PolarityMode {
     ///   合法读法，优劣由回测裁决（fusion 负交互机械根因 = pool 耦合，
     ///   `hold26_counterseg_fusion_results.md` §3.3/§5.2）。
     ///   decoupled ∧ ¬counter_sub 无对象（专款只属于短差义务）⇒ 入口拒绝。
-    Fusion { trend_hold: bool, counter_sub: bool, decoupled: bool },
+    /// - `trend_opts`：T 轴严格化三选项（41课衰竭门 / 49课:54 背驰出场 /
+    ///   49课:60 三买起点），见 `TrendAxisOpts`。要求 trend_hold（T 轴的
+    ///   修饰子，无 T 轴即无对象）⇒ 入口拒绝。
+    Fusion {
+        trend_hold: bool,
+        counter_sub: bool,
+        decoupled: bool,
+        trend_opts: TrendAxisOpts,
+    },
 }
 
 impl PolarityMode {
     pub fn parse(s: &str) -> Option<Self> {
+        let fusion = |trend_hold: bool, counter_sub: bool, decoupled: bool| {
+            Some(PolarityMode::Fusion {
+                trend_hold,
+                counter_sub,
+                decoupled,
+                trend_opts: TrendAxisOpts::default(),
+            })
+        };
         match s {
             "cycle45" => Some(PolarityMode::Cycle45),
             "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
-            "fusion" => Some(PolarityMode::Fusion {
-                trend_hold: true,
-                counter_sub: true,
-                decoupled: false,
-            }),
-            "fusion_t" => Some(PolarityMode::Fusion {
-                trend_hold: true,
-                counter_sub: false,
-                decoupled: false,
-            }),
-            "fusion_s" => Some(PolarityMode::Fusion {
-                trend_hold: false,
-                counter_sub: true,
-                decoupled: false,
-            }),
-            "fusion_e" => Some(PolarityMode::Fusion {
-                trend_hold: true,
-                counter_sub: true,
-                decoupled: true,
-            }),
-            "fusion_se" => Some(PolarityMode::Fusion {
-                trend_hold: false,
-                counter_sub: true,
-                decoupled: true,
-            }),
-            _ => None,
+            "fusion" => fusion(true, true, false),
+            "fusion_t" => fusion(true, false, false),
+            "fusion_s" => fusion(false, true, false),
+            "fusion_e" => fusion(true, true, true),
+            "fusion_se" => fusion(false, true, true),
+            // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
+            other => {
+                let rest = other.strip_prefix("fusion_t")?;
+                if rest.is_empty() {
+                    unreachable!("fusion_t 已由上方臂覆盖")
+                }
+                let mut opts = TrendAxisOpts::default();
+                let mut last_rank = 0u8;
+                for ch in rest.chars() {
+                    let rank = match ch {
+                        'g' => 1,
+                        'd' => 2,
+                        'b' => 3,
+                        _ => return None,
+                    };
+                    if rank <= last_rank {
+                        return None; // 乱序/重复 ⇒ 非法模式串
+                    }
+                    last_rank = rank;
+                    match ch {
+                        'g' => opts.gate41 = true,
+                        'd' => opts.div_exit = true,
+                        'b' => opts.b3_start = true,
+                        _ => unreachable!(),
+                    }
+                }
+                Some(PolarityMode::Fusion {
+                    trend_hold: true,
+                    counter_sub: false,
+                    decoupled: false,
+                    trend_opts: opts,
+                })
+            }
         }
     }
 }
@@ -227,13 +290,14 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
-    if let PolarityMode::Fusion { trend_hold, counter_sub, decoupled } = mode {
+    if let PolarityMode::Fusion { trend_hold, counter_sub, decoupled, trend_opts } = mode {
         return super::positional_fusion::run_fusion(
             tape,
             floor_ladder,
             trend_hold,
             counter_sub,
             decoupled,
+            trend_opts,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
