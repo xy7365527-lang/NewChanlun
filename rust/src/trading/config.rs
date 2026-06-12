@@ -297,6 +297,20 @@ pub struct OrganicConfig {
     /// 零参数零标的依赖——白名单消除候选 H1。
     /// false = 在册 P5 行为（O0≡P5 零接触面）。
     pub osc_candidate_freeze: bool,
+    /// H2 力度收敛门（osc 白名单消除任务 2026-06-12，设计预注册
+    /// analysis/h2_strength_convergence_design.md）：osc 开腿前比较锚中枢
+    /// 最近两次**向上离开段力度**（excursion = H1 窗口内 max(c) − 当时 ZG
+    /// ——力度=价格振幅在册口径的直读，复用 H1 窗口机器零 surfacing）。
+    /// 原文依据：49课行38"中枢震荡都是逐步收敛的……如果继续是中枢震荡，
+    /// 后面的向下离开力度一定比前一个小。当然，还有些特殊的中枢震荡，会
+    /// 出现扩张的情况……最终形成第三类卖点"；行52"用中枢震荡力度判断的
+    /// 方法，完全可以避开"。判据（零参数，开腿时刻只读历史）：(1) 向上
+    /// 力度历史 <2 条 ⇒ 拒（新生保守默认：无"震荡依旧"证据）；(2) 最近
+    /// > 前次 ⇒ 拒（扩张 ⇒ 三类点预警）；(3) 收敛 ⇒ 放行。判据时点 =
+    /// 开腿时刻本身——覆盖 H1 candidate 窗口的"窗口前"盲区（533号 BRN
+    /// 裁决：负域僵尸主体开在 candidate 出现之前）。只挡开腿，闭腿零接触
+    /// （僵尸腿教训）。false = 在册 P5 行为（O0≡P5 零接触面）。
+    pub osc_strength_gate: bool,
     // ── 有机扩展轴（v2） ──
     pub rev_mode: bool,
     pub sub_anchor: SubAnchor,
@@ -594,6 +608,7 @@ impl Default for OrganicConfig {
             osc_l41_gate: false,
             osc_domain: OscDomain::Any,
             osc_candidate_freeze: false,
+            osc_strength_gate: false,
             rev_mode: false,
             sub_anchor: SubAnchor::Off,
             tranche: false,
@@ -1095,6 +1110,25 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             osc_candidate_freeze: true,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
+        // h2：力度收敛门（H1 判决后的下一步——533号 BRN 裁决：负域僵尸主体
+        // 开在 candidate 窗口出现**之前**，H1 结构性覆盖不到；H2 判据时点
+        // = 开腿时刻本身，只读已完成的历史离开段力度，恰好覆盖"窗口前"
+        // 盲区）。预注册判据（h2_strength_convergence_design.md §5，任一
+        // 不满足按对应轴否证）：(1) 时序靶：基线僵尸尾部腿开腿 bar 被 H2
+        // 拒绝率 ≥50%；(2) 负域 BTC/CL/ES Δosc 缩减 ≥50%；(3) OKLO 保护
+        // （h1h2 组合）Δosc(h1h2 vs h1) ≥ −10K；(4) 腿消灭 vs 延迟双指标
+        // （腿数 + 尾部亏损等量缩减）。
+        "V2oa25_ht_h2" => Some(OrganicConfig {
+            osc_strength_gate: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
+        // h1h2：组合（"H1 管离开后、H2 管离开前"——研究 §5 预注册执行序；
+        // 判据3 否证时预案 = H1(正域)/H2(负域) 对偶单边轴并集）。
+        "V2oa25_ht_h1h2" => Some(OrganicConfig {
+            osc_candidate_freeze: true,
+            osc_strength_gate: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
         // ── 38课位置分支移植（2026-06-11 任务；审计 §4e 唯一缺失项；
         //    基线 = V2oa25_ht。Sequence38 子腿 L2 全正（OKLO+10.2/BRN+4.1pp）
         //    后的主腿判决位——三臂分解组合的两条轴 ──
@@ -1456,6 +1490,34 @@ mod tests {
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
         let normalized = OrganicConfig { osc_candidate_freeze: false, ..cfg };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
+    }
+
+    #[test]
+    fn h2_variants_single_axis_on_ht() {
+        // 默认/在册基线 osc_strength_gate=false（O0≡P5 零接触面——
+        // 49课行38/52 力度收敛门严格形式在变体层开启，h1 同先例）
+        assert!(!OrganicConfig::default().osc_strength_gate);
+        let base = variant("V2oa25_ht").unwrap();
+        assert!(!base.osc_strength_gate);
+        // h2 只动 osc_strength_gate 一轴——其余字段与 V2oa25_ht 逐位相同
+        let cfg = variant("V2oa25_ht_h2").unwrap();
+        assert!(cfg.osc_strength_gate && cfg.osc_mode && !cfg.osc_candidate_freeze);
+        assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
+        let normalized = OrganicConfig { osc_strength_gate: false, ..cfg };
+        assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
+        // h1h2 = h1 ∪ h2（各自归一化另一轴后与单轴变体逐位相同）
+        let combo = variant("V2oa25_ht_h1h2").unwrap();
+        assert!(combo.osc_candidate_freeze && combo.osc_strength_gate);
+        let as_h1 = OrganicConfig { osc_strength_gate: false, ..combo.clone() };
+        assert_eq!(
+            format!("{as_h1:?}"),
+            format!("{:?}", variant("V2oa25_ht_h1").unwrap())
+        );
+        let as_h2 = OrganicConfig { osc_candidate_freeze: false, ..combo };
+        assert_eq!(
+            format!("{as_h2:?}"),
+            format!("{:?}", variant("V2oa25_ht_h2").unwrap())
+        );
     }
 
     #[test]

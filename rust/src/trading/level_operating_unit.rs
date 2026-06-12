@@ -24,7 +24,7 @@
 //! 全部 T4b 路径依赖 D3 磁带行（dir_row/run_anchor）——行缺失时 `tranche=true`
 //! 配置在 runner 入口被 capability guard 拒绝。
 
-use super::center_book::CenterBook;
+use super::center_book::{CenterBook, UpStrengthVerdict};
 use super::config::{
     OrganicConfig, OscDomain, RevClose, RevCycle, RevCycleClose, SubAnchor, SubMode,
     ThetaMode,
@@ -1245,6 +1245,33 @@ impl VoiceUnit {
                         {
                             counters.n_osc_cf_rejects += 1;
                             counters.osc_cf_reject_log.push((k as u8, bar));
+                        }
+                        // ── H2 力度收敛门（osc_strength_gate，49课行38/52）：
+                        // 锚中枢最近两次向上离开段力度（H1 窗口 excursion
+                        // 直读）非收敛 ⇒ 拒开。历史 <2 条 = 新生保守默认
+                        // （无"震荡依旧"证据）；最近 > 前次 = 扩张 ⇒ 三类点
+                        // 预警（行38"还有些特殊的中枢震荡，会出现扩张的情况
+                        // ……最终形成第三类卖点"）。判据时点 = 开腿时刻，
+                        // 只读已完成历史段——覆盖 H1 的"窗口前"盲区（533号
+                        // BRN 裁决）。H1 检查之后（设计 §4 链序）；只挡开腿，
+                        // 闭腿路径零接触。──
+                        else if cfg.osc_strength_gate
+                            && book.up_strength_verdict(k, lc.seg_start)
+                                != UpStrengthVerdict::Converged
+                        {
+                            match book.up_strength_verdict(k, lc.seg_start) {
+                                UpStrengthVerdict::Newborn => {
+                                    counters.n_osc_sg_newborn_rejects += 1;
+                                    counters.osc_sg_reject_log.push((k as u8, bar, 0));
+                                }
+                                UpStrengthVerdict::Expanding => {
+                                    counters.n_osc_sg_expand_rejects += 1;
+                                    counters.osc_sg_reject_log.push((k as u8, bar, 1));
+                                }
+                                UpStrengthVerdict::Converged => unreachable!(
+                                    "外层条件已排除 Converged——到达即 bug"
+                                ),
+                            }
                         }
                         // ── 41课门（osc_l41_gate，域腿形态）：直接父级别（k+1）
                         // 向上走势无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整

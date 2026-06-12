@@ -13,6 +13,17 @@ use super::types::*;
 use crate::buysellpoint::{BspKind, Side};
 use crate::stroke::Direction;
 
+/// H2 力度收敛门的三态判据读数（49课行38；`up_strength_verdict`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpStrengthVerdict {
+    /// 向上离开段力度历史 <2 条——无"震荡依旧"证据，保守拒开。
+    Newborn,
+    /// 最近一次力度 > 前一次——扩张，三类点预警，拒开。
+    Expanding,
+    /// 最近 ≤ 前次——"中枢震荡逐步收敛"成立，放行。
+    Converged,
+}
+
 /// 存活中枢快照（账本视角的"最后已知中枢"）。
 #[derive(Debug, Clone, Copy)]
 pub struct LiveCenter {
@@ -44,6 +55,18 @@ pub struct CenterBook {
     /// 接管）或新中枢形成（cs 变化）解除。每个新离开段（新 seg_idx 的
     /// candidate 事件）重新置位——逐段窗口语义。
     pending_departure: [Option<(i64, Side)>; MAX_LADDER],
+    /// H2（osc_strength_gate，49课行38）：未决**向上**离开段窗口内的运行
+    /// max excursion（max(c) − 当时 ZG——力度 = 价格振幅在册口径对离开段
+    /// 的直读，零 surfacing）。仅 Side::Buy 窗口有意义；窗口置位时重置为
+    /// NEG_INFINITY。中枢延伸时 ZG 取当下值（已推入的历史记录不回溯修订）。
+    pending_excursion: [f64; MAX_LADDER],
+    /// H2：per-center 向上离开段力度历史 (锚中枢 seg_start, [前次, 最近], 条数)。
+    /// 环形容量 2——49课行38"后面的向下离开力度一定比前一个小"是相邻两次
+    /// 比较的字面（扩窗即引入参数，须回原文重审——设计预注册边界 (b)）。
+    /// **仅价格否定的窗口推入**（回试跌回边界内 = "如果继续是中枢震荡"的
+    /// 完成样本）；中枢死亡/新中枢解除的窗口不推入——该离开段终结了中枢，
+    /// 不属于"继续是中枢震荡"的序列（行38 判据的参照系内生于震荡序列本身）。
+    up_strength: [Option<(i64, [f64; 2], u8)>; MAX_LADDER],
     /// 禁令窗口置位次数（G3 可观测性：candidate 离开段事件数）。
     pub cf_windows: u64,
     /// 禁令窗口价格否定次数（回试跌回边界内解冻数；与 cf_windows 之差 =
@@ -159,6 +182,9 @@ impl CenterBook {
                 // 重新置位窗口。
                 if ev.class.kind() == BspKind::Type3 {
                     self.pending_departure[ladder] = Some((cs, ev.class.side()));
+                    // H2：新窗口 excursion 归零位（运行 max 从无穷小起，
+                    // 同 bar 的 negate 驱动即折入当 bar close）。
+                    self.pending_excursion[ladder] = f64::NEG_INFINITY;
                     self.cf_windows += 1;
                 }
                 // H1：新中枢形成（cs 变化）⇒ 旧中枢的未决离开段窗口解除
@@ -185,13 +211,64 @@ impl CenterBook {
             lc.seg_start, cs,
             "pending_departure 与 last 中枢不一致——ingest 的清除路径有缺口"
         );
+        // H2：向上离开段力度观测（excursion = max(c) − 当时 ZG）。NaN ZG
+        // 比较恒 false ⇒ 不更新（同窗口否定的 NaN 语义——生产磁带恒非 None）。
+        if side == Side::Buy {
+            let exc = c - lc.zg;
+            if exc > self.pending_excursion[ladder] {
+                self.pending_excursion[ladder] = exc;
+            }
+        }
         let negated = match side {
             Side::Buy => c < lc.zg,
             Side::Sell => c > lc.zd,
         };
         if negated {
+            // H2：价格否定 = 回试跌回边界内 = "继续是中枢震荡"——本次向上
+            // 离开段完成，力度推入 per-center 历史。Buy 侧否定（c < ZG）必经
+            // 上方 excursion 更新 ⇒ 推入值恒有限（最差为本 bar 的 c − ZG < 0，
+            // 设计预注册边界 (a) 的"单 bar 越界"退化形态，按原值记录）。
+            if side == Side::Buy {
+                self.push_up_strength(ladder, cs, self.pending_excursion[ladder]);
+            }
             self.pending_departure[ladder] = None;
             self.cf_negations += 1;
+        }
+    }
+
+    /// H2：向上离开段力度推入 per-center 环形历史（容量 2）。锚中枢变更
+    /// （cs 不匹配）即重开历史——历史与中枢同生命周期，无跨中枢继承。
+    fn push_up_strength(&mut self, ladder: usize, cs: i64, strength: f64) {
+        match &mut self.up_strength[ladder] {
+            Some((s, hist, len)) if *s == cs => {
+                if *len < 2 {
+                    hist[*len as usize] = strength;
+                    *len += 1;
+                } else {
+                    hist[0] = hist[1];
+                    hist[1] = strength;
+                }
+            }
+            slot => *slot = Some((cs, [strength, 0.0], 1)),
+        }
+    }
+
+    /// H2 力度收敛门判据（osc_strength_gate，开腿时刻只读——不等任何未来
+    /// 事件，49课行52"用中枢震荡力度判断的方法，完全可以避开"的当下形式）：
+    /// - 该锚中枢向上力度历史 <2 条 ⇒ Newborn（新生保守默认：行38"逐步
+    ///   收敛"语义下无"震荡依旧"证据）；
+    /// - 最近一次 > 前一次 ⇒ Expanding（行38 扩张 ⇒ 三类点预警）；
+    /// - 最近 ≤ 前次 ⇒ Converged（放行）。
+    pub fn up_strength_verdict(&self, ladder: usize, cs: i64) -> UpStrengthVerdict {
+        match self.up_strength[ladder] {
+            Some((s, hist, len)) if s == cs && len >= 2 => {
+                if hist[1] > hist[0] {
+                    UpStrengthVerdict::Expanding
+                } else {
+                    UpStrengthVerdict::Converged
+                }
+            }
+            _ => UpStrengthVerdict::Newborn,
         }
     }
 
@@ -343,6 +420,87 @@ mod tests {
         // 回到 ZD 之上 → 否定解冻
         book.negate_pending_departure(2, 1.2);
         assert!(!book.has_pending_departure(2));
+    }
+
+    #[test]
+    fn h2_up_strength_lifecycle() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // 零历史 → Newborn（新生保守默认）
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Newborn);
+        // 第一次向上离开：窗口内 excursion 峰值 0.5（c=2.5），价格否定推入
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        book.negate_pending_departure(2, 2.5);
+        book.negate_pending_departure(2, 1.9); // 否定 → 推入 0.5
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Newborn); // 仅1条
+        // 第二次离开力度 0.3 < 0.5 → 收敛放行
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        book.negate_pending_departure(2, 2.3);
+        book.negate_pending_departure(2, 1.8);
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Converged);
+        // 第三次离开力度 0.9 > 0.3（环形最近两次比较）→ 扩张拒开
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        book.negate_pending_departure(2, 2.9);
+        book.negate_pending_departure(2, 1.5);
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Expanding);
+    }
+
+    #[test]
+    fn h2_excursion_uses_current_zg() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        book.negate_pending_departure(2, 3.0); // exc = 1.0（ZG=2.0）
+        // 中枢延伸 ZG → 2.5：后续 excursion 相对当下 ZG（当下性声明）
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.5)], true, None);
+        book.negate_pending_departure(2, 3.2); // exc = 0.7 < 1.0 不更新
+        book.negate_pending_departure(2, 2.4); // c < 2.5 否定 → 推入 1.0
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.5)], true, None);
+        book.negate_pending_departure(2, 3.4); // exc = 0.9 < 1.0
+        book.negate_pending_departure(2, 2.0); // 推入 0.9 → 收敛
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Converged);
+    }
+
+    #[test]
+    fn h2_death_dismissed_window_not_recorded() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        book.negate_pending_departure(2, 2.5);
+        // confirmed Buy3 杀中枢 → 窗口解除但不推入（离开段终结中枢，
+        // 不是"继续是中枢震荡"的样本）
+        book.ingest(2, &[ev(BspClass::Buy3, true, 10, 1.0, 2.0)], true, None);
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Newborn);
+    }
+
+    #[test]
+    fn h2_new_center_resets_history() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        for c_peak in [2.9, 2.3] {
+            book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+            book.negate_pending_departure(2, c_peak);
+            book.negate_pending_departure(2, 1.5);
+        }
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Converged);
+        // 新中枢（cs=20）→ 历史与中枢同生命周期，新锚查询回 Newborn
+        book.ingest(2, &[ev(BspClass::Sell1, true, 20, 3.0, 4.0)], true, None);
+        assert_eq!(book.up_strength_verdict(2, 20), UpStrengthVerdict::Newborn);
+    }
+
+    #[test]
+    fn h2_sell_side_window_not_recorded() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // 向下离开窗口（candidate Sell3）价格否定——不进向上力度历史
+        // （设计 §2 方向声明：只比较向上离开段序列）
+        book.ingest(2, &[ev(BspClass::Sell3, false, 10, 1.0, 2.0)], true, None);
+        book.negate_pending_departure(2, 0.5);
+        book.negate_pending_departure(2, 1.2);
+        book.ingest(2, &[ev(BspClass::Sell3, false, 10, 1.0, 2.0)], true, None);
+        book.negate_pending_departure(2, 0.7);
+        book.negate_pending_departure(2, 1.3);
+        assert_eq!(book.up_strength_verdict(2, 10), UpStrengthVerdict::Newborn);
     }
 
     #[test]

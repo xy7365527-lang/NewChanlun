@@ -395,6 +395,13 @@ pub struct Counters {
     pub n_cf_windows: u64,
     /// H1 禁令窗口价格否定次数（CenterBook.cf_negations 终值拷贝）。
     pub n_cf_negations: u64,
+    /// H2 力度收敛门（osc_strength_gate）：新生保守默认拒开数——锚中枢
+    /// 向上离开段力度历史 <2 条，无"震荡依旧"证据（49课行38"逐步收敛"
+    /// 语义）。与扩张拒因分计（两种拒因机制不同，必须可分离裁决——G3）。
+    pub n_osc_sg_newborn_rejects: u64,
+    /// H2 力度收敛门：扩张拒开数——最近一次向上离开力度 > 前一次
+    /// （49课行38 扩张 ⇒ 三类点预警）。
+    pub n_osc_sg_expand_rejects: u64,
     pub n_rev_attempts: u64,
     pub n_rev_gate_rejects: u64,
     pub n_rev_frozen_rejects: u64,
@@ -610,6 +617,11 @@ pub struct Counters {
     /// 逐事件观测（G3——区分腿消灭与腿延迟的数据基础；l41/domain 日志
     /// 同构）。仅 osc_candidate_freeze 变体非空。lib.rs 单独 marshal（list）。
     pub osc_cf_reject_log: Vec<(u8, i64)>,
+    /// H2 力度收敛门拒开逐事件日志 (ladder, bar, reason)：reason 0 = 新生
+    /// 保守默认 / 1 = 扩张拒开（双拒因逐事件可分离——预注册判据1 时序靶
+    /// 的数据基础：reject log ∩ 基线僵尸尾部腿 sell_bar，H1 探针方法在册）。
+    /// 仅 osc_strength_gate 变体非空。lib.rs 单独 marshal（list）。
+    pub osc_sg_reject_log: Vec<(u8, i64, u8)>,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
@@ -759,6 +771,8 @@ impl Counters {
             ("n_osc_cf_rejects", self.n_osc_cf_rejects),
             ("n_cf_windows", self.n_cf_windows),
             ("n_cf_negations", self.n_cf_negations),
+            ("n_osc_sg_newborn_rejects", self.n_osc_sg_newborn_rejects),
+            ("n_osc_sg_expand_rejects", self.n_osc_sg_expand_rejects),
         ]
     }
 }

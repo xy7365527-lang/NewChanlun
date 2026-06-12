@@ -1742,6 +1742,9 @@ fn run_organic_rust(
     )?;
     // H1 candidate 冻结拒开逐事件 (ladder, bar) 日志（osc_candidate_freeze）
     counters.set_item("osc_cf_reject_log", res.counters.osc_cf_reject_log.clone())?;
+    // H2 力度收敛门拒开逐事件 (ladder, bar, reason 0=新生/1=扩张) 日志
+    // （osc_strength_gate——预注册判据1 时序靶的数据基础）
+    counters.set_item("osc_sg_reject_log", res.counters.osc_sg_reject_log.clone())?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;
