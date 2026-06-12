@@ -2180,18 +2180,21 @@ fn run_positional_rust(
         res.n_nrf_noref_rejects_by_ladder.to_vec(),
     )?;
     out.set_item(
-        "n_nrf_busy_skips_by_ladder",
-        res.n_nrf_busy_skips_by_ladder.to_vec(),
-    )?;
-    out.set_item(
         "n_nrf_floor_stops_by_ladder",
         res.n_nrf_floor_stops_by_ladder.to_vec(),
     )?;
+    out.set_item("n_nrf_flips_by_ladder", res.n_nrf_flips_by_ladder.to_vec())?;
     out.set_item(
-        "n_nrf_dust_skips_by_ladder",
-        res.n_nrf_dust_skips_by_ladder.to_vec(),
+        "n_nrf_root_flips_by_ladder",
+        res.n_nrf_root_flips_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nrf_deep_fires_by_ladder",
+        res.n_nrf_deep_fires_by_ladder.to_vec(),
     )?;
     out.set_item("nrf_depth_bars", res.nrf_depth_bars.to_vec())?;
+    out.set_item("nrf_phys_long_bars", res.nrf_phys_long_bars)?;
+    out.set_item("nrf_phys_short_bars", res.nrf_phys_short_bars)?;
     Ok(out.into())
 }
 

@@ -314,15 +314,24 @@ pub struct PositionalResult {
     pub n_nrf_cost_rejects_by_ladder: [u64; MAX_LADDER],
     /// θ 参照不可定义拒数（warm-up 保守拒绝，按子层）。
     pub n_nrf_noref_rejects_by_ladder: [u64; MAX_LADDER],
-    /// 槽占用拒数（一层一 voice——结构终止，按子层）。
-    pub n_nrf_busy_skips_by_ladder: [u64; MAX_LADDER],
     /// floor 触底数（k−1 < floor——存在论终止（笔=a0），按父层）。
     pub n_nrf_floor_stops_by_ladder: [u64; MAX_LADDER],
-    /// 防尘埃拒开数（可成交 < MIN_FILL_FRAC×目标金额，按层）。
-    pub n_nrf_dust_skips_by_ladder: [u64; MAX_LADDER],
-    /// 并发深度直方图：同时 Open 槽数 = d 的 bar 计数（stretto 并发读数，
-    /// d 为索引）。
+    /// 尾 voice 翻转数（confirmed 走势完美 ⇒ 平旧开新；同一笔物理交易在
+    /// 父层 = 短差腿闭/开——双层记账的核心机制读数，按层）。
+    pub n_nrf_flips_by_ladder: [u64; MAX_LADDER],
+    /// 根翻转数（v3 第23环：根走势完美 ⇒ 全链清算 + 立即按新势方向满仓
+    /// 重建根——出场=翻转=新建仓；按重建层计数）。
+    pub n_nrf_root_flips_by_ladder: [u64; MAX_LADDER],
+    /// 递归区间套深触发数（v3 第14环：触发证据来自 k−2 或更低层——经
+    /// 同侧 candidate 链下探所得；j=k−1 直接证据不计入。按窗口层 k）。
+    pub n_nrf_deep_fires_by_ladder: [u64; MAX_LADDER],
+    /// 链深度直方图：活跃链长 = d 的 bar 计数（stretto 并发读数，d 为索引）。
     pub nrf_depth_bars: [u64; MAX_LADDER],
+    /// 物理持股 bar 数（长根链满暴露——暴露的唯一真值；层视图 held_bars
+    /// 是会计身份计数，视图间不可加）。
+    pub nrf_phys_long_bars: u64,
+    /// 物理真实空头 bar 数（v3 空根链满暴露相位；1x 逐仓 [镜像推导]）。
+    pub nrf_phys_short_bars: u64,
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层

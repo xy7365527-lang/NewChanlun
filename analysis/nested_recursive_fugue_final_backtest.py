@@ -70,46 +70,28 @@ def analyze(res: dict, closes, years) -> dict:
     trades = res["trades"]
     strat_pct = (res["final_nav"] / 100_000.0 - 1) * 100
 
-    dshares = [0.0] * (n + 1)
-    dcash = [0.0] * (n + 1)
-    for (lad, eb, ep, xb, xp, sh, w, dfr, part, reason, pol) in trades:
-        if pol == "long":
-            dshares[eb] += sh
-            dshares[xb] -= sh
-            dcash[eb] -= sh * ep
-            dcash[xb] += sh * xp
-        else:
-            dshares[eb] -= sh
-            dshares[xb] += sh
-            dcash[eb] += sh * ep
-            dcash[xb] -= sh * xp
-    nav = [0.0] * n
-    shares = 0.0
-    pool = 100_000.0
+    # v2 双层记账：trade 行是层视图账（同一笔物理持仓的多级别身份并存，
+    # 视图间 P&L 不可加）——物理 NAV 唯一真值 = 引擎 equity 序列
+    # （phys.nav 逐采样落盘，EQUITY_SAMPLE_BARS=1440 ≈ 日采样）。
+    equity = res["equity"]
+    assert abs(equity[-1][1] - res["final_nav"]) < 1e-3, \
+        f"equity 末值漂移：{equity[-1][1]} ≠ {res['final_nav']}"
     peak = mdd = 0.0
     yearly: dict[str, dict] = {}
-    prev_expo = 0.0
-    for i in range(n):
-        shares += dshares[i]
-        pool += dcash[i]
-        nav[i] = pool + shares * closes[i]
-        peak = max(peak, nav[i])
+    prev_b, prev_nav = None, None
+    for (b, nav_i) in equity:
+        peak = max(peak, nav_i)
         if peak > 0:
-            mdd = min(mdd, nav[i] / peak - 1.0)
-        if years is not None and i >= 1 and nav[i] > 0 and nav[i - 1] > 0:
-            y = yearly.setdefault(str(years[i]),
-                                  {"bh_log": 0.0, "strat_log": 0.0,
-                                   "exp_sum": 0.0, "bars": 0})
-            y["bh_log"] += math.log(closes[i] / closes[i - 1])
-            y["strat_log"] += math.log(nav[i] / nav[i - 1])
-            y["exp_sum"] += prev_expo
-            y["bars"] += 1
-        prev_expo = shares * closes[i] / nav[i] if nav[i] > 0 else 0.0
-    assert abs(nav[-1] - res["final_nav"]) < 1e-3, \
-        f"NAV 重建漂移：{nav[-1]} ≠ {res['final_nav']}（双极性现金流分派有 bug）"
+            mdd = min(mdd, nav_i / peak - 1.0)
+        if years is not None and prev_nav is not None and nav_i > 0 \
+                and prev_nav > 0:
+            y = yearly.setdefault(str(years[min(b, n - 1)]),
+                                  {"bh_log": 0.0, "strat_log": 0.0})
+            y["bh_log"] += math.log(closes[min(b, n - 1)]
+                                    / closes[min(prev_b, n - 1)])
+            y["strat_log"] += math.log(nav_i / prev_nav)
+        prev_b, prev_nav = b, nav_i
     for y in yearly.values():
-        y["exposure"] = round(y["exp_sum"] / max(1, y["bars"]), 4)
-        del y["exp_sum"]
         for k in ("bh_log", "strat_log"):
             y[k] = round(y[k], 4)
 
@@ -144,9 +126,9 @@ def analyze(res: dict, closes, years) -> dict:
             "cascades": res["n_nrf_cascade_closes_by_ladder"],
             "cost_rejects": res["n_nrf_cost_rejects_by_ladder"],
             "noref_rejects": res["n_nrf_noref_rejects_by_ladder"],
-            "busy_skips": res["n_nrf_busy_skips_by_ladder"],
             "floor_stops": res["n_nrf_floor_stops_by_ladder"],
-            "dust_skips": res["n_nrf_dust_skips_by_ladder"],
+            "flips": res["n_nrf_flips_by_ladder"],
+            "phys_long_bars": res["nrf_phys_long_bars"],
             "depth_bars": res["nrf_depth_bars"],
             "nest_arms": res["n_nest_arms_by_ladder"],
             "nest_fire_sell": res["n_nest_fire_sell_by_ladder"],
@@ -173,7 +155,6 @@ def prereg(a: dict, bh_pct: float) -> dict:
                            (depth_bars[2] if len(depth_bars) > 2 else 0) > 0],
         "N3_termination": {"cost": sum(c["cost_rejects"]),
                            "noref": sum(c["noref_rejects"]),
-                           "busy": sum(c["busy_skips"]),
                            "floor": sum(c["floor_stops"])},
         "N4_liquidations": sum(c["liquidations"]),
     }
@@ -215,6 +196,7 @@ def run_symbol(sym: str) -> dict:
           f"mdd={a['mdd_pct']}% trades={a['n_trades']} "
           f"roots={sum(a['nrf_counters']['root_entries'])} "
           f"spawns={sum(a['nrf_counters']['spawns'])} "
+          f"flips={sum(a['nrf_counters']['flips'])} "
           f"liq={pr['N4_liquidations']} P1={pr['P1_ge_bh'][2]}",
           flush=True)
     return {"symbol": sym, "n_bars": n, "tape_fp": fp,
