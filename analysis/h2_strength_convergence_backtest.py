@@ -111,6 +111,8 @@ def run_cell(rtape, variant: str, years, bh: float, n_bars: int) -> tuple[dict, 
             "n_osc_sg_expand_rejects": c.get("n_osc_sg_expand_rejects"),
             "n_cf_windows": c.get("n_cf_windows"),
             "n_cf_negations": c.get("n_cf_negations"),
+            "n_sg_records": c.get("n_sg_records"),
+            "n_sg_pairs": c.get("n_sg_pairs"),
         },
         "osc_legs": leg_stats(legs),
         "elapsed_s": round(el, 3),
@@ -226,6 +228,7 @@ def process_symbol(symbol: str) -> None:
               f" 尾10%亏={o['tail10_loss']:+12.2f}"
               f" sg拒(新生/扩张)={co['n_osc_sg_newborn_rejects']}"
               f"/{co['n_osc_sg_expand_rejects']}"
+              f" 力度样本/可比对={co['n_sg_records']}/{co['n_sg_pairs']}"
               f" cf拒={co['n_osc_cf_rejects']}"
               f" [{pack['elapsed_s']:.2f}s]", flush=True)
 

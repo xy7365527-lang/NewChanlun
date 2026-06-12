@@ -1295,6 +1295,8 @@ pub fn run_organic(
     // G3 可观测性：窗口数与拒开数分离裁决腿消灭/腿延迟）。
     run.counters.n_cf_windows = run.book.cf_windows;
     run.counters.n_cf_negations = run.book.cf_negations;
+    run.counters.n_sg_records = run.book.sg_records;
+    run.counters.n_sg_pairs = run.book.sg_pairs;
     res.counters = run.counters;
     if diag {
         res.center_amp_log = depth_ref.take_log();

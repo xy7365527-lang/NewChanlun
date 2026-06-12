@@ -402,6 +402,12 @@ pub struct Counters {
     /// H2 力度收敛门：扩张拒开数——最近一次向上离开力度 > 前一次
     /// （49课行38 扩张 ⇒ 三类点预警）。
     pub n_osc_sg_expand_rejects: u64,
+    /// H2 力度历史推入总数（CenterBook.sg_records 终值拷贝——Buy 侧价格
+    /// 否定数 = 完成的向上离开段样本数）。
+    pub n_sg_records: u64,
+    /// H2 力度历史达到可比对（len 1→2）的中枢数（CenterBook.sg_pairs 终值
+    /// 拷贝——判据参照系非空性读数：=0 ⇒ 收敛/扩张分支结构性不可达）。
+    pub n_sg_pairs: u64,
     pub n_rev_attempts: u64,
     pub n_rev_gate_rejects: u64,
     pub n_rev_frozen_rejects: u64,
@@ -773,6 +779,8 @@ impl Counters {
             ("n_cf_negations", self.n_cf_negations),
             ("n_osc_sg_newborn_rejects", self.n_osc_sg_newborn_rejects),
             ("n_osc_sg_expand_rejects", self.n_osc_sg_expand_rejects),
+            ("n_sg_records", self.n_sg_records),
+            ("n_sg_pairs", self.n_sg_pairs),
         ]
     }
 }

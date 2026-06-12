@@ -72,6 +72,13 @@ pub struct CenterBook {
     /// 禁令窗口价格否定次数（回试跌回边界内解冻数；与 cf_windows 之差 =
     /// 由死亡/新中枢解除或持续到结束的窗口数）。
     pub cf_negations: u64,
+    /// H2 力度历史推入总数（= Buy 侧价格否定数——每次推入即一条完成的
+    /// 向上离开段样本；与 cf_negations 之差 = Sell 侧否定数）。
+    pub sg_records: u64,
+    /// H2 力度历史达到可比对（len 1→2 跃迁）的中枢数——判据参照系
+    /// 非空性的直接读数：=0 ⇒ "同中枢两次完成向上离开段"在该磁带上
+    /// 是空集，收敛/扩张分支结构性不可达。
+    pub sg_pairs: u64,
     /// 中枢生死/边界事件版本号（SizeAllocator 重算门控）。
     pub version: u64,
 }
@@ -239,11 +246,15 @@ impl CenterBook {
     /// H2：向上离开段力度推入 per-center 环形历史（容量 2）。锚中枢变更
     /// （cs 不匹配）即重开历史——历史与中枢同生命周期，无跨中枢继承。
     fn push_up_strength(&mut self, ladder: usize, cs: i64, strength: f64) {
+        self.sg_records += 1;
         match &mut self.up_strength[ladder] {
             Some((s, hist, len)) if *s == cs => {
                 if *len < 2 {
                     hist[*len as usize] = strength;
                     *len += 1;
+                    if *len == 2 {
+                        self.sg_pairs += 1;
+                    }
                 } else {
                     hist[0] = hist[1];
                     hist[1] = strength;
