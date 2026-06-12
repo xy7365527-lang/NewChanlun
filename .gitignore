@@ -77,3 +77,6 @@ analysis/logs/
 
 # Playwright MCP 临时日志
 .playwright-mcp/
+
+# NautilusTrader 上游克隆（独立 git 仓库，不作为子模块入库）
+/nautilus_trader/
