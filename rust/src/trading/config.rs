@@ -983,6 +983,17 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             osc_domain: OscDomain::ConsolidationOnly,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
+        // scco：sc×co 双轴组合（2026-06-12 任务；sc/co 单轴判决后的正交性
+        // 验证位）。sc 与 co 作用面正交：co 限制开腿对象域（趋势走势的中枢
+        // 从定义上不开 osc），sc 收紧闭腿出口（盘整域内开出的腿在中枢上移
+        // 时立即回补——僵尸残腿消灭）。预注册判据：BTC/GC/ES 上 scco ≥ sc
+        // （co 额外消除趋势域开腿）；BRN 上 scco > co（sc 对盘整域内僵尸
+        // 残腿也有效）；理想情况十标的全正不需要白名单。
+        "V2oa25_ht_scco" => Some(OrganicConfig {
+            osc_shift_close: true,
+            osc_domain: OscDomain::ConsolidationOnly,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
         // ── 38课位置分支移植（2026-06-11 任务；审计 §4e 唯一缺失项；
         //    基线 = V2oa25_ht。Sequence38 子腿 L2 全正（OKLO+10.2/BRN+4.1pp）
         //    后的主腿判决位——三臂分解组合的两条轴 ──
@@ -1250,6 +1261,29 @@ mod tests {
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
         let normalized = OrganicConfig { osc_shift_close: false, ..cfg };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
+    }
+
+    #[test]
+    fn scco_variant_dual_axis_on_ht() {
+        // scco 恰动两轴（sc + co）——归一化两轴后与 V2oa25_ht 逐位相同
+        let base = variant("V2oa25_ht").unwrap();
+        let cfg = variant("V2oa25_ht_scco").unwrap();
+        assert!(cfg.osc_shift_close && cfg.osc_mode);
+        assert_eq!(cfg.osc_domain, OscDomain::ConsolidationOnly);
+        assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
+        let normalized = OrganicConfig {
+            osc_shift_close: false,
+            osc_domain: OscDomain::Any,
+            ..cfg.clone()
+        };
+        assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
+        // 与两个单轴变体的关系：scco = sc ∪ co（各自归一化另一轴后相等）
+        let sc = variant("V2oa25_ht_sc").unwrap();
+        let co = variant("V2oa25_ht_co").unwrap();
+        let as_sc = OrganicConfig { osc_domain: OscDomain::Any, ..cfg.clone() };
+        assert_eq!(format!("{as_sc:?}"), format!("{sc:?}"));
+        let as_co = OrganicConfig { osc_shift_close: false, ..cfg };
+        assert_eq!(format!("{as_co:?}"), format!("{co:?}"));
     }
 
     #[test]
