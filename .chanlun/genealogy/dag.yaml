@@ -2605,10 +2605,10 @@ nodes:
   type: 概念分离
   file: settled/534-nested-recursion-accounting-semantics.md
 - id: '535'
-  title: 趋势内震荡短差的词汇之争——049:54 规定操作 vs 牛市赤字证据（窗口×词汇耦合）
-  status: 生成态
-  type: 矛盾上浮（预注册 escalate 分支触发）
-  file: pending/535-osc-phase-vocabulary-coupling.md
+  title: 趋势内震荡短差的词汇之争——049:54 规定操作 vs 牛市赤字证据（消解：26:80 单边上扬豁免条款）
+  status: 已结算
+  type: 矛盾上浮（预注册 escalate 分支触发）→ 消解（源不完备伪影）+ 语法记录
+  file: settled/535-osc-phase-vocabulary-coupling.md
 edges:
   depends_on:
   - from: '136'
