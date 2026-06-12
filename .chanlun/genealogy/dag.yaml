@@ -2599,6 +2599,11 @@ nodes:
   status: 已结算
   type: 概念分离
   file: settled/533-structure-lags-price-spectrum.md
+- id: '534'
+  title: 嵌套递归的会计语义——独立暴露 vs 降成本短差（结算：49课二相的概念分离）
+  status: 已结算
+  type: 概念分离
+  file: settled/534-nested-recursion-accounting-semantics.md
 edges:
   depends_on:
   - from: '136'
@@ -7211,6 +7216,10 @@ edges:
   - target: '105'
     by: '116'
     scope: partial:过强声明修正，方向意图保留
+  - from: '534'
+    to: '231'
+  - from: '534'
+    to: '533'
 genealogy:
   settled:
   - '420'
