@@ -169,6 +169,15 @@ pub struct PositionalResult {
     pub n_route_weak_rejects: [u64; MAX_LADDER],
     /// ③ 参照不可定义拒（该层从未有 dir==Up 的存活中枢）。
     pub n_route_weak_noref: [u64; MAX_LADDER],
+    /// H1 candidate 冻结拒（h1_freeze；锚层未决 candidate type3 离开段 ⇒
+    /// 走势方向未定不开——osc_candidate_freeze 在册判据下沉，按级别 j）。
+    pub n_route_h1_freezes: [u64; MAX_LADDER],
+    /// Sequence38 子腿（seq38_sub；38课:36 程式）观测面：开腿数。
+    pub n_seq38_opens_by_ladder: [u64; MAX_LADDER],
+    /// Seq38 闭腿三岔归因：盘背买 / 不破第一段低点×次级别确认 / 新下跌背驰。
+    pub n_seq38_consbuy_closes_by_ladder: [u64; MAX_LADDER],
+    pub n_seq38_nobreak_closes_by_ladder: [u64; MAX_LADDER],
+    pub n_seq38_newdiv_closes_by_ladder: [u64; MAX_LADDER],
     /// 路由选中数（按级别 j；选中 ≠ 开腿——触发判据另查）。
     pub n_route_selected_by_level: [u64; MAX_LADDER],
     /// 全塔拒绝数（无满足级别 ⇒ 恒仓吃趋势，053:34）。
@@ -343,7 +352,10 @@ pub enum OscRouting {
     /// 三门合取递归路由：①¬in_trend(j)（049:52）× ②θ_q(j) 过振幅门
     /// （035:30，H4 逐字）× ③强震荡（093:26）。strong_gate=false =
     /// U−③ 消融臂（预注册判据 P5：③是本架构唯一新词汇，必须单独消融）。
-    Unified { strong_gate: bool },
+    /// h1_freeze = H1 candidate 冻结门下沉（osc_candidate_freeze 在册判据
+    /// 逐字：锚层存在未决 candidate type3 离开段 ⇒ 走势方向未定 ⇒ 不开
+    /// osc 腿；全量普适组合 2026-06-12 任务预注册，仅 fusion_btra*f 臂）。
+    Unified { strong_gate: bool, h1_freeze: bool },
 }
 
 /// 停削时钟的层级作用域——anc 祖先趋势豁免（26:80 下沉，
@@ -473,6 +485,16 @@ pub enum PolarityMode {
         /// （S1-S4 判决 §2.4/边界条件④ 预注册）。拒与 short_anc_gate
         /// 组合（消融对照臂 = btr，不混 anc 门）。
         short_ghost: bool,
+        /// Sequence38 子腿声部下沉（38课:36 + 答疑:296 段间盘整背驰严格
+        /// 形式；全量普适组合 2026-06-12 任务预注册，仅 fusion_btra*q 臂）。
+        /// 驱动 counter_sub 同款 SubOut 载具（全抛/如数接回/44课铰链/
+        /// 049:52 满仓义务 = 载具级规则共享），开闭词汇按 38课程式：
+        /// 开 = 本级别∨次级别盘背卖；闭三岔 = 盘背买 ∨ 不破第一段低点×
+        /// 次级别确认 ∨ 新下跌背驰。与 counter_sub 互斥（同一载具）；
+        /// 翻空白名单层 slice 由双向词汇独占 ⇒ q 仅非白名单层激活。
+        /// 与 LOU 在册差分（声明）：单层不递归、无 earning 相位拒、无
+        /// 成本门（38课程式无振幅经济门——LOU 逐字）。
+        seq38_sub: bool,
     },
 }
 
@@ -492,6 +514,7 @@ impl PolarityMode {
                 short_mask: 0,
                 short_anc_gate: false,
                 short_ghost: false,
+                seq38_sub: false,
             })
         };
         // 统一配置 U：fusion_t 基座 + 相位递归路由 osc 层。
@@ -501,7 +524,7 @@ impl PolarityMode {
                 counter_sub: false,
                 decoupled: false,
                 trend_opts: TrendAxisOpts::default(),
-                osc: OscRouting::Unified { strong_gate },
+                osc: OscRouting::Unified { strong_gate, h1_freeze: false },
                 phase_clock: false,
                 r2_gate: false,
                 trend_scope: TrendScope::SelfLayer,
@@ -509,6 +532,7 @@ impl PolarityMode {
                 short_mask: 0,
                 short_anc_gate: false,
                 short_ghost: false,
+                seq38_sub: false,
             })
         };
         // P6 相位机：fusion_p = 相位机基座配对臂（research §6 P6，osc=Off）；
@@ -530,6 +554,7 @@ impl PolarityMode {
                 short_mask: 0,
                 short_anc_gate: false,
                 short_ghost: false,
+                seq38_sub: false,
             })
         };
         // anc 祖先趋势豁免（26:80 下沉；slow_bull 调研 §6 预注册两臂）：
@@ -549,6 +574,7 @@ impl PolarityMode {
                 short_mask: 0,
                 short_anc_gate: false,
                 short_ghost: false,
+                seq38_sub: false,
             })
         };
         match s {
@@ -566,9 +592,9 @@ impl PolarityMode {
             "hold26_anc" => anc(TrendScope::Ancestor),
             "fusion_ta" => anc(TrendScope::SelfOrAncestor),
             "fusion_p" => phase(OscRouting::Off, false),
-            "fusion_pu" => phase(OscRouting::Unified { strong_gate: true }, false),
+            "fusion_pu" => phase(OscRouting::Unified { strong_gate: true, h1_freeze: false }, false),
             "fusion_pr" => phase(OscRouting::Off, true),
-            "fusion_pur" => phase(OscRouting::Unified { strong_gate: true }, true),
+            "fusion_pur" => phase(OscRouting::Unified { strong_gate: true, h1_freeze: false }, true),
             "fusion_tr" => Some(PolarityMode::Fusion {
                 trend_hold: true,
                 counter_sub: false,
@@ -582,6 +608,7 @@ impl PolarityMode {
                 short_mask: 0,
                 short_anc_gate: false,
                 short_ghost: false,
+                seq38_sub: false,
             }),
             // 区间套正向定位两臂（027课程序定理；fusion_tn = t 基座 + nest，
             // fusion_trn = tr 基座 + nest——在册最优 fusion_tr 的最小差分）。
@@ -598,30 +625,60 @@ impl PolarityMode {
                 short_mask: 0,
                 short_anc_gate: false,
                 short_ghost: false,
+                seq38_sub: false,
             }),
             // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
             other => {
                 // 双向条件轴 S1-S4 [镜像推导]：fusion_btr_s{digits} =
-                // fusion_tr 基座 + 置位层卖点翻空/买点翻多；fusion_btra_s =
-                // 加镜像 anc 窗口门（开空 iff ∃j>k Trend∧Down）。digits 每
-                // 字符一层，升序无重复，∈ [2,4]——S3 尾部风险界：≥5
-                // （recL3+）空头默认禁用（GC recL4 −0.806 单窗口反例）。
-                let btr = other
-                    .strip_prefix("fusion_btran_s")
-                    // 全量普适组合（2026-06-12 任务预注册）：btra 双向基座 +
-                    // 区间套正向定位（nest = 同一买卖点的更早时间坐标）。
-                    .map(|d| (d, true, false, true))
-                    .or_else(|| {
-                        other.strip_prefix("fusion_btra_s").map(|d| (d, true, false, false))
-                    })
-                    .or_else(|| {
-                        // 纯回复门消融臂（Gated 态，不开空）。
-                        other.strip_prefix("fusion_btrg_s").map(|d| (d, false, true, false))
-                    })
-                    .or_else(|| {
-                        other.strip_prefix("fusion_btr_s").map(|d| (d, false, false, false))
-                    });
-                if let Some((digits, anc_gate, ghost, nest)) = btr {
+                // fusion_tr 基座 + 置位层卖点翻空/买点翻多；fusion_btrg_s =
+                // 纯回复门消融臂（Gated 态，不开空）；fusion_btra{mods}_s =
+                // 加镜像 anc 窗口门（开空 iff ∃j>k Trend∧Down）+ 全量普适
+                // 组合模块集 mods ⊆ {n,u,f,q}（规范序 n<u<f<q，2026-06-12
+                // 任务预注册消融矩阵）：n = 区间套正向定位；u = 统一 osc 层
+                // （H4 振幅门②的承载臂）；f = H1 candidate 冻结（要求 u
+                // ——无 osc 载体即无对象，f 无 u 为非法串）；q = Sequence38
+                // 子腿声部。digits 每字符一层，升序无重复，∈ [2,4]——
+                // S3 尾部风险界：≥5（recL3+）空头默认禁用（GC recL4
+                // −0.806 单窗口反例）。
+                if let Some(rest) = other.strip_prefix("fusion_btr") {
+                    let Some((variant, digits)) = rest.split_once("_s") else {
+                        return None;
+                    };
+                    let (anc_gate, ghost, mods) = if variant.is_empty() {
+                        (false, false, "")
+                    } else if variant == "g" {
+                        (false, true, "")
+                    } else if let Some(m) = variant.strip_prefix('a') {
+                        (true, false, m)
+                    } else {
+                        return None;
+                    };
+                    let (mut nest, mut osc_u, mut h1, mut q38) =
+                        (false, false, false, false);
+                    let mut last_rank = 0u8;
+                    for ch in mods.chars() {
+                        let rank = match ch {
+                            'n' => 1,
+                            'u' => 2,
+                            'f' => 3,
+                            'q' => 4,
+                            _ => return None,
+                        };
+                        if rank <= last_rank {
+                            return None; // 乱序/重复 ⇒ 非法模式串
+                        }
+                        last_rank = rank;
+                        match ch {
+                            'n' => nest = true,
+                            'u' => osc_u = true,
+                            'f' => h1 = true,
+                            'q' => q38 = true,
+                            _ => unreachable!(),
+                        }
+                    }
+                    if h1 && !osc_u {
+                        return None; // H1 无 osc 载体即无对象 ⇒ 非法串
+                    }
                     if digits.is_empty() {
                         return None; // 空白名单 = fusion_tr 冗余表示
                     }
@@ -640,7 +697,11 @@ impl PolarityMode {
                         counter_sub: false,
                         decoupled: false,
                         trend_opts: TrendAxisOpts::default(),
-                        osc: OscRouting::Off,
+                        osc: if osc_u {
+                            OscRouting::Unified { strong_gate: true, h1_freeze: h1 }
+                        } else {
+                            OscRouting::Off
+                        },
                         phase_clock: false,
                         r2_gate: true,
                         trend_scope: TrendScope::SelfLayer,
@@ -648,6 +709,7 @@ impl PolarityMode {
                         short_mask: mask,
                         short_anc_gate: anc_gate,
                         short_ghost: ghost,
+                        seq38_sub: q38,
                     });
                 }
                 let rest = other.strip_prefix("fusion_t")?;
@@ -687,6 +749,7 @@ impl PolarityMode {
                     short_mask: 0,
                     short_anc_gate: false,
                     short_ghost: false,
+                    seq38_sub: false,
                 })
             }
         }
@@ -712,6 +775,7 @@ pub fn run_positional(
         short_mask,
         short_anc_gate,
         short_ghost,
+        seq38_sub,
     } = mode
     {
         return super::positional_fusion::run_fusion(
@@ -729,6 +793,7 @@ pub fn run_positional(
             short_mask,
             short_anc_gate,
             short_ghost,
+            seq38_sub,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {

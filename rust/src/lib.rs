@@ -1987,6 +1987,21 @@ fn run_positional_rust(
     out.set_item("n_route_amp_noref", res.n_route_amp_noref.to_vec())?;
     out.set_item("n_route_weak_rejects", res.n_route_weak_rejects.to_vec())?;
     out.set_item("n_route_weak_noref", res.n_route_weak_noref.to_vec())?;
+    // H1 candidate 冻结 + Sequence38 子腿观测面（全量普适组合 2026-06-12）
+    out.set_item("n_route_h1_freezes", res.n_route_h1_freezes.to_vec())?;
+    out.set_item("n_seq38_opens_by_ladder", res.n_seq38_opens_by_ladder.to_vec())?;
+    out.set_item(
+        "n_seq38_consbuy_closes_by_ladder",
+        res.n_seq38_consbuy_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_seq38_nobreak_closes_by_ladder",
+        res.n_seq38_nobreak_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_seq38_newdiv_closes_by_ladder",
+        res.n_seq38_newdiv_closes_by_ladder.to_vec(),
+    )?;
     out.set_item(
         "n_route_selected_by_level",
         res.n_route_selected_by_level.to_vec(),
