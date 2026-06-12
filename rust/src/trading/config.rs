@@ -257,6 +257,18 @@ pub struct OrganicConfig {
     /// 保持卖出状态直到边界触线（更低处）或 master 清算。false = 在册 P5
     /// 行为（死亡即市价回补，O0≡P5 零接触面）。
     pub osc_sell3_no_recover: bool,
+    /// 中枢上移出口（僵尸腿消灭任务 2026-06-12）：新中枢形成且新 ZD > 锚中枢
+    /// ZG（中枢向上移动）⇒ osc 空腿立即回补。原文依据：49课"中枢向上移动时
+    /// 就应该满仓"——震荡短差赌的是回 ZD，中枢整体上移 = 该赌注结构性失败，
+    /// 继续持有即僵尸腿（在册诊断：type3 confirmed 在单边趋势中回抽不发生 ⇒
+    /// 出口2不触发，僵尸腿最终归宿 = master 强平，占总亏 62-82%）。本出口
+    /// 补的正是 type3 出口失效的情况——这是原文要求的结构性出口，不是外加门。
+    /// 方向对称声明（声明=能力）：osc 腿构造性 short-only（开腿条件
+    /// c ≥ ZG ∧ sub_sell），"下降趋势 osc 多腿"在类型层不存在，对称分支
+    /// （中枢下移→平多）无承载对象。
+    /// false = 在册 P5 行为（O0≡P5 零接触面——默认值锚定 P5 逐字，与
+    /// osc_sell3_no_recover 同先例：原文严格形式在变体层开启）。
+    pub osc_shift_close: bool,
     /// 41课门（域腿形态，osc 加门任务 2026-06-11）：osc 开腿前检查直接父级别
     /// （ladder+1）向上走势衰竭状态——相邻同向（Up）段创新高 ∧ 当前段窗口内
     /// 无盘整背驰 = 上涨趋势未完 = 拒开逆向短差。原文依据：41课"大级别走势
@@ -516,6 +528,7 @@ impl Default for OrganicConfig {
             osc_mode: true,
             osc_buy_sub: false,
             osc_sell3_no_recover: false,
+            osc_shift_close: false,
             osc_l41_gate: false,
             osc_domain: OscDomain::Any,
             rev_mode: false,
@@ -937,6 +950,18 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             osc_sell3_no_recover: true,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
+        // sc：中枢上移出口（僵尸腿消灭任务 2026-06-12）。osc 闭腿在册只有
+        // ZD 触线（正常兑现）与 master 强平（僵尸腿最终归宿）；type3 强闭
+        // （出口2）在单边趋势中回抽不发生 ⇒ 不触发。本出口 = 49课"中枢向上
+        // 移动时就应该满仓"——新中枢 ZD > 锚中枢 ZG ⇒ 旧中枢的 osc 空腿
+        // 立即回补（中枢向上移动 = 回 ZD 赌注结构性失败）。预注册判据：
+        // BTC/GC/ES 僵尸腿被消灭 → osc 亏损减少；OKLO/BRN 正常腿不受影响
+        // （中枢不移动 = 出口不触发）；十标的不需要白名单——同一逻辑在
+        // 所有 regime 自适应。
+        "V2oa25_ht_sc" => Some(OrganicConfig {
+            osc_shift_close: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
         // o41：osc 域腿加 41课门（跑输 BH 根因任务 2026-06-11：BTC/GC/ES 凶手
         // = osc 腿在强趋势中逆向卖出 → 价格不回 ZD → 中枢死亡 → 高位强制买回；
         // 41课门在册只挂 REV 腿，osc 开腿无门）。判据 = rev_l41_gate 同形
@@ -1209,6 +1234,21 @@ mod tests {
         assert!(cfg.osc_mode && !cfg.osc_l41_gate);
         assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
         let normalized = OrganicConfig { osc_domain: OscDomain::Any, ..cfg };
+        assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
+    }
+
+    #[test]
+    fn sc_variant_single_axis_on_ht() {
+        // 默认/在册基线 osc_shift_close=false（O0≡P5 零接触面——原文严格
+        // 形式在变体层开启，osc_sell3_no_recover 同先例）
+        assert!(!OrganicConfig::default().osc_shift_close);
+        let base = variant("V2oa25_ht").unwrap();
+        assert!(!base.osc_shift_close);
+        // sc 只动 osc_shift_close 一轴——其余字段与 V2oa25_ht 逐位相同
+        let cfg = variant("V2oa25_ht_sc").unwrap();
+        assert!(cfg.osc_shift_close && cfg.osc_mode);
+        assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
+        let normalized = OrganicConfig { osc_shift_close: false, ..cfg };
         assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 

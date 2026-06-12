@@ -372,6 +372,7 @@ impl SubLou {
                     LegAnchor::Center {
                         cs: Some(lc.seg_start),
                         boundary,
+                        zg: None,
                         kind: AnchorKind::Bsp(BspKind::Type1),
                     },
                     self.side(),
@@ -1051,13 +1052,26 @@ impl VoiceUnit {
         // anchor 是 Copy——复制快照规避 open_slot 借用与 close_diff &mut 冲突
         match ledger.open_slot(okey).map(|l| l.anchor) {
             Some(anchor) => match anchor {
-                LegAnchor::Center { cs, boundary, .. } => {
+                LegAnchor::Center { cs, boundary, zg, .. } => {
                     let o_dead = cs.is_some_and(|s| book.is_dead(k, s));
                     let sub_buy = k >= 1 && rows.buy_any.get(k - 1);
                     // 49课方向判据：只有三卖（向下终结）触发"不能回补"；
                     // 三买（向上终结）按"中枢向上移动时就应该满仓"立即回补。
                     let o_dead_down = cfg.osc_sell3_no_recover
                         && cs.is_some_and(|s| book.is_dead_down(k, s));
+                    // ── 出口1：中枢向上移动（osc_shift_close，49课"中枢向上
+                    // 移动时就应该满仓"）——本层新中枢形成（alive.seg_start
+                    // 晚于锚 cs）且新中枢 ZD > 锚中枢 ZG ⇒ 旧中枢的震荡空腿
+                    // 立即回补。补的是 type3 出口（中枢死亡强闭）在单边趋势中
+                    // 失效的情况：回抽不发生 ⇒ confirmed type3 不来 ⇒ 锚中枢
+                    // 不死 ⇒ 腿僵尸化（最终归宿 master 强平）。中枢上移是
+                    // CenterBook.last 覆盖事件（无需 type3），出口在结构层
+                    // 而非确认层。NaN 边界（zd/zg 缺失）比较恒 false——拒触发。
+                    let shifted_up = cfg.osc_shift_close
+                        && book.alive(k).is_some_and(|lc| {
+                            cs.is_some_and(|s| lc.seg_start > s)
+                                && zg.is_some_and(|g| lc.zd > g)
+                        });
                     if o_dead && !o_dead_down {
                         ledger.close_diff(okey, c, bar); // 中枢死亡 → 强制回补
                     } else if boundary.is_some_and(|b| c <= b)
@@ -1065,6 +1079,9 @@ impl VoiceUnit {
                     {
                         ledger.close_diff(okey, c, bar);
                         counters.n_osc_zd_close += 1;
+                    } else if shifted_up {
+                        ledger.close_diff(okey, c, bar); // 中枢上移 → 满仓回补
+                        counters.n_osc_shift_close += 1;
                     } else if o_dead_down {
                         // 49课严格形式：三卖后不能回补——保持卖出状态，
                         // 回补只在更低处（旧 ZD 触线）或 master 清算时发生。
@@ -1125,6 +1142,7 @@ impl VoiceUnit {
                             LegAnchor::Center {
                                 cs: Some(lc.seg_start),
                                 boundary: Some(lc.zd),
+                                zg: Some(lc.zg),
                                 kind: AnchorKind::Osc,
                             },
                         ) {
@@ -1377,6 +1395,7 @@ impl VoiceUnit {
                     Some((cs, zd, _)) => LegAnchor::Center {
                         cs: Some(cs),
                         boundary: Some(zd),
+                        zg: None,
                         kind: AnchorKind::Bsp(BspKind::Type1),
                     },
                     None => LegAnchor::SegmentScale,
@@ -1622,7 +1641,7 @@ impl VoiceUnit {
             frac_of(k),
             c,
             bar,
-            LegAnchor::Center { cs: anchor_cs, boundary: zd_line, kind: akind },
+            LegAnchor::Center { cs: anchor_cs, boundary: zd_line, zg: None, kind: akind },
         ) {
             counters.n_rev_open += 1;
             match kind {
@@ -2177,7 +2196,7 @@ mod tests {
             0.5,
             10.0,
             0,
-            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), kind: AnchorKind::Osc },
+            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
         ));
         // 段终结触发（confirmed Sell1）
         fx.evs[2] = vec![ev(BspClass::Sell1, true)];
@@ -2192,6 +2211,88 @@ mod tests {
         // osc 槽仍开放（v1 的"先 CLOSE_OSC"在 v2 没有代码位）
         assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some());
         assert!(fx.ledger.open_slot(SlotKey::rev(2, 2)).is_some());
+    }
+
+    /// 出口1（osc_shift_close）：中枢向上移动（新中枢 ZD > 锚中枢 ZG）⇒
+    /// 旧中枢 osc 空腿立即回补（49课"中枢向上移动时就应该满仓"）。
+    /// 僵尸场景再现：价格不回 ZD（无触线）、锚中枢未死（无 type3 确认）——
+    /// 在册行为是腿悬挂至 master 强平；本出口在结构层闭腿。
+    #[test]
+    fn osc_shift_close_kills_zombie_leg() {
+        let mut fx = Fixture::new();
+        let cfg = OrganicConfig { osc_shift_close: true, ..OrganicConfig::default() };
+        // 锚中枢 cs=1 [9.0, 9.5]，osc 空腿挂锚（zg 快照 = 9.5）
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        assert!(fx.ledger.open_diff(
+            SlotKey::osc(2),
+            0.5,
+            10.0,
+            0,
+            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
+        ));
+        // 新中枢 cs=5 [10.0, 11.0] 形成——新 ZD 10.0 > 锚 ZG 9.5 = 中枢向上移动
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 5, 10.0, 11.0)], true, None);
+        let mut v = VoiceUnit::new(2);
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        // c=10.5：不触旧 ZD（9.0）、锚中枢未死——僵尸条件成立
+        v.step(
+            &cfg, &rows, &[], 10.5, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none(), "中枢上移必须回补");
+        assert_eq!(fx.counters.n_osc_shift_close, 1);
+        assert_eq!(fx.counters.n_osc_zd_close, 0);
+    }
+
+    /// 出口1负控（判据边界）：新中枢形成但 ZD ≤ 锚 ZG（横向/重叠移动）⇒
+    /// 不是"中枢向上移动"，出口不触发——OKLO/BRN 正常腿不受影响的微观基础。
+    #[test]
+    fn osc_shift_close_ignores_overlapping_center() {
+        let mut fx = Fixture::new();
+        let cfg = OrganicConfig { osc_shift_close: true, ..OrganicConfig::default() };
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        assert!(fx.ledger.open_diff(
+            SlotKey::osc(2),
+            0.5,
+            10.0,
+            0,
+            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
+        ));
+        // 新中枢 [9.2, 9.8]：ZD 9.2 ≤ 锚 ZG 9.5 ⇒ 与旧中枢重叠，非上移
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 5, 9.2, 9.8)], true, None);
+        let mut v = VoiceUnit::new(2);
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some(), "重叠中枢不触发出口");
+        assert_eq!(fx.counters.n_osc_shift_close, 0);
+    }
+
+    /// 出口1负控（O0≡P5 零接触面）：开关关时同一上移场景不闭腿——
+    /// 在册行为逐位保持。
+    #[test]
+    fn osc_shift_close_off_preserves_p5_behavior() {
+        let mut fx = Fixture::new();
+        let cfg = OrganicConfig::default(); // osc_shift_close=false
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        assert!(fx.ledger.open_diff(
+            SlotKey::osc(2),
+            0.5,
+            10.0,
+            0,
+            LegAnchor::Center { cs: Some(1), boundary: Some(9.0), zg: Some(9.5), kind: AnchorKind::Osc },
+        ));
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 5, 10.0, 11.0)], true, None);
+        let mut v = VoiceUnit::new(2);
+        let rows = empty_rows(&fx.evs, &fx.devs);
+        v.step(
+            &cfg, &rows, &[], 10.5, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_some(), "开关关 = 在册行为");
+        assert_eq!(fx.counters.n_osc_shift_close, 0);
     }
 
     /// 38课循环：进入（宿主趋势态）→ 卖点开 → 次级别买点闭 → 同窗口再开 →

@@ -1140,6 +1140,7 @@ pub fn run_organic(
                             LegAnchor::Center {
                                 cs: e.cs,
                                 boundary: e.zg,
+                                zg: None,
                                 kind: AnchorKind::Bsp(e.class.kind()),
                             },
                         );

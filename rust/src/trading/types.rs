@@ -318,6 +318,11 @@ pub enum LegAnchor {
     Center {
         cs: Option<i64>,
         boundary: Option<f64>,
+        /// 锚中枢上沿（ZG）。仅 osc 腿携带（中枢上移出口 osc_shift_close 的
+        /// 比较基准——"新中枢 ZD > 锚中枢 ZG"需要开腿时刻的旧 ZG 快照，
+        /// CenterBook.last 被新中枢覆盖后旧边界不可回溯）。非 osc 腿恒 None
+        /// （main 腿 boundary 本身即 ZG；rev/sub 腿无此出口概念）。
+        zg: Option<f64>,
         #[allow(dead_code)]
         kind: AnchorKind,
     },
@@ -370,6 +375,10 @@ pub struct Counters {
     pub n_open_gate_rejects: u64,
     pub n_osc_open: u64,
     pub n_osc_zd_close: u64,
+    /// 中枢上移出口（osc_shift_close）：新中枢 ZD > 锚中枢 ZG（中枢向上移动，
+    /// 49课"中枢向上移动时就应该满仓"）触发的 osc 空腿回补数——僵尸腿
+    /// （价格不回 ZD、type3 确认不来）的结构性出口（reason 编码 center_shift_close）。
+    pub n_osc_shift_close: u64,
     /// 49课严格形式（osc_sell3_no_recover）：锚中枢死亡后不回补的持有 bar 数。
     pub n_osc_dead_holds: u64,
     /// 41课门（域腿，osc_l41_gate）：父级别上行无衰竭被拒的 osc 开腿尝试数。
@@ -718,6 +727,7 @@ impl Counters {
             ("n_ledger_sell_noops", self.n_ledger_sell_noops),
             ("n_ledger_buy_noops", self.n_ledger_buy_noops),
             ("n_osc_domain_rejects", self.n_osc_domain_rejects),
+            ("n_osc_shift_close", self.n_osc_shift_close),
         ]
     }
 }
