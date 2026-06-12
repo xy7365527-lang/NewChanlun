@@ -1740,6 +1740,8 @@ fn run_organic_rust(
         "osc_domain_reject_log",
         res.counters.osc_domain_reject_log.clone(),
     )?;
+    // H1 candidate 冻结拒开逐事件 (ladder, bar) 日志（osc_candidate_freeze）
+    counters.set_item("osc_cf_reject_log", res.counters.osc_cf_reject_log.clone())?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;

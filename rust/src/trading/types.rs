@@ -387,6 +387,14 @@ pub struct Counters {
     /// 时域外不开的 osc 触发点数（对象域定义而非点态门——计数的是"趋势走势
     /// 中本不存在的操作对象"被在册定义误触发的次数）。
     pub n_osc_domain_rejects: u64,
+    /// H1 candidate 冻结（osc_candidate_freeze）：49课禁令窗口（candidate
+    /// 离开段未决）内被拒的 osc 开腿触发点数。
+    pub n_osc_cf_rejects: u64,
+    /// H1 禁令窗口置位次数（CenterBook.cf_windows 终值拷贝——candidate
+    /// 离开段事件数，G3 可观测性：窗口数与拒开数分离裁决腿消灭/腿延迟）。
+    pub n_cf_windows: u64,
+    /// H1 禁令窗口价格否定次数（CenterBook.cf_negations 终值拷贝）。
+    pub n_cf_negations: u64,
     pub n_rev_attempts: u64,
     pub n_rev_gate_rejects: u64,
     pub n_rev_frozen_rejects: u64,
@@ -598,6 +606,10 @@ pub struct Counters {
     /// （l41 日志同构）。仅 osc_domain=ConsolidationOnly 变体非空。
     /// lib.rs 单独 marshal（list）。
     pub osc_domain_reject_log: Vec<(u8, i64)>,
+    /// H1 candidate 冻结拒开逐事件日志 (ladder, bar)：禁令窗口内拦截的
+    /// 逐事件观测（G3——区分腿消灭与腿延迟的数据基础；l41/domain 日志
+    /// 同构）。仅 osc_candidate_freeze 变体非空。lib.rs 单独 marshal（list）。
+    pub osc_cf_reject_log: Vec<(u8, i64)>,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
@@ -744,6 +756,9 @@ impl Counters {
             ("n_ledger_cost_noref_rejects", self.n_ledger_cost_noref_rejects),
             ("n_osc_domain_rejects", self.n_osc_domain_rejects),
             ("n_osc_shift_close", self.n_osc_shift_close),
+            ("n_osc_cf_rejects", self.n_osc_cf_rejects),
+            ("n_cf_windows", self.n_cf_windows),
+            ("n_cf_negations", self.n_cf_negations),
         ]
     }
 }

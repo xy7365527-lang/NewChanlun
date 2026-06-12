@@ -1117,6 +1117,21 @@ impl VoiceUnit {
                             counters.n_osc_domain_rejects += 1;
                             counters.osc_domain_reject_log.push((k as u8, bar));
                         }
+                        // ── H1 candidate 冻结（osc_candidate_freeze，49课
+                        // 禁令窗口）：锚中枢存在未决离开段（candidate type3
+                        // 出现且价格未回边界内）⇒ 不开。49课行52"中枢完成后
+                        // 的向上移动时的差价是不能做的"，行68 当下判据 =
+                        // 次级别走势离开即启动窗口（不等 confirmed——在册
+                        // is_frozen 挂 confirmed Buy3，单边趋势中回抽不发生
+                        // ⇒ 永不触发 ⇒ 僵尸腿全在窗口内开出）。窗口是状态
+                        // 范畴（candidate 未决期间恒成立），先于点态门；
+                        // 只挡开腿——闭腿路径（Some(anchor) 分支）零接触。──
+                        else if cfg.osc_candidate_freeze
+                            && book.has_pending_departure(k)
+                        {
+                            counters.n_osc_cf_rejects += 1;
+                            counters.osc_cf_reject_log.push((k as u8, bar));
+                        }
                         // ── 41课门（osc_l41_gate，域腿形态）：直接父级别（k+1）
                         // 向上走势无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整
                         // 背驰）⇒ 拒开逆向短差——强趋势中价格不回 ZD，中枢死亡

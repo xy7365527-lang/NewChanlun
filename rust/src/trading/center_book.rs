@@ -32,6 +32,23 @@ pub struct CenterBook {
     dead_down: [Option<HashSet<i64>>; MAX_LADDER],
     /// ladder → 冻结中枢 seg_start（Python `frozen`；hard_type3 buy 置位）。
     frozen: [Option<i64>; MAX_LADDER],
+    /// ladder → 未决离开段 (锚中枢 seg_start, 离开方向 side)——49课禁令窗口
+    /// （H1 candidate 冻结，2026-06-12 任务）。
+    ///
+    /// 49课行52："中枢完成后的向上移动时的差价是不能做的"；行68 给出当下
+    /// 判据——次级别走势**离开**中枢（candidate 三类买卖点出现）即启动
+    /// "向上移动"语义，不需要等回抽确认（confirmed type3）。candidate
+    /// type3 事件置位本窗口；窗口由价格回中枢否定（`negate_pending_departure`，
+    /// 49课行52 前提"前提是中枢震荡依旧"的对称否定——回试跌回边界内 =
+    /// 仍是中枢震荡）、中枢死亡（confirmed type3，现行 frozen/dead 语义
+    /// 接管）或新中枢形成（cs 变化）解除。每个新离开段（新 seg_idx 的
+    /// candidate 事件）重新置位——逐段窗口语义。
+    pending_departure: [Option<(i64, Side)>; MAX_LADDER],
+    /// 禁令窗口置位次数（G3 可观测性：candidate 离开段事件数）。
+    pub cf_windows: u64,
+    /// 禁令窗口价格否定次数（回试跌回边界内解冻数；与 cf_windows 之差 =
+    /// 由死亡/新中枢解除或持续到结束的窗口数）。
+    pub cf_negations: u64,
     /// 中枢生死/边界事件版本号（SizeAllocator 重算门控）。
     pub version: u64,
 }
@@ -89,6 +106,11 @@ impl CenterBook {
                 if hard_type3 && ev.class.side() == Side::Buy {
                     self.frozen[ladder] = Some(cs);
                 }
+                // H1：中枢死亡 ⇒ 该中枢的未决离开段窗口解除（confirmed
+                // type3 的 dead/frozen 语义接管，窗口对象已不存在）。
+                if self.pending_departure[ladder].is_some_and(|(p, _)| p == cs) {
+                    self.pending_departure[ladder] = None;
+                }
             } else if !dead.contains(&cs) {
                 // Python 元组比较 (cs, zd, zg)；zd/zg 为 Option<f64>，
                 // Python None==None 与 float== 语义由 Option<f64> 等值精确对应。
@@ -130,8 +152,53 @@ impl CenterBook {
                         self.frozen[ladder] = None;
                     }
                 }
+                // H1（49课行68）：candidate type3 = 次级别走势离开中枢——
+                // 禁令窗口置位。confirmed type3 不走本分支（上方 kill 分支），
+                // 故此处 kind==Type3 必为 candidate。每个新离开段（事件流
+                // 按 (kind,side,seg_idx,confirmed) 去重，新 seg_idx 重发）
+                // 重新置位窗口。
+                if ev.class.kind() == BspKind::Type3 {
+                    self.pending_departure[ladder] = Some((cs, ev.class.side()));
+                    self.cf_windows += 1;
+                }
+                // H1：新中枢形成（cs 变化）⇒ 旧中枢的未决离开段窗口解除
+                // （frozen 解除同构——窗口挂在锚中枢上，锚已被覆盖）。
+                else if self.pending_departure[ladder].is_some_and(|(p, _)| p != cs) {
+                    self.pending_departure[ladder] = None;
+                }
             }
         }
+    }
+
+    /// H1 禁令窗口的价格否定（每 bar 驱动，市场性质——与持仓/配置无关）。
+    ///
+    /// 49课行52 的前提是"中枢震荡依旧"：向上离开段（candidate Buy3）在
+    /// 价格回到 ZG 之下时被否定（回试跌回中枢 = 仍是中枢震荡，三买不成立
+    /// ——38课答疑"能回到中枢就不是第三类买点"）；向下离开段（candidate
+    /// Sell3）对称地在价格回到 ZD 之上时被否定。边界取 last 中枢的当前
+    /// 边界（中枢延伸时随之更新）。NaN 边界比较恒 false ⇒ 不否定（保守
+    /// 方向，与 osc 开腿 NaN 语义同构——生产磁带 zd/zg 恒非 None）。
+    pub fn negate_pending_departure(&mut self, ladder: usize, c: f64) {
+        let Some((cs, side)) = self.pending_departure[ladder] else { return };
+        let Some(lc) = self.last[ladder] else { return };
+        debug_assert_eq!(
+            lc.seg_start, cs,
+            "pending_departure 与 last 中枢不一致——ingest 的清除路径有缺口"
+        );
+        let negated = match side {
+            Side::Buy => c < lc.zg,
+            Side::Sell => c > lc.zd,
+        };
+        if negated {
+            self.pending_departure[ladder] = None;
+            self.cf_negations += 1;
+        }
+    }
+
+    /// H1 禁令窗口查询：该层存在未被否定的 candidate 离开段（49课行52
+    /// "中枢完成后的向上移动时的差价是不能做的"——窗口内 osc 不开腿）。
+    pub fn has_pending_departure(&self, ladder: usize) -> bool {
+        self.pending_departure[ladder].is_some()
     }
 
     /// 该层最后已知中枢（Python `last_center.get(k)`——注意：**不查 dead**，
@@ -235,5 +302,57 @@ mod tests {
         book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
         assert!(book.alive(2).is_some());
         assert!(!book.is_frozen(2));
+    }
+
+    #[test]
+    fn h1_candidate_departure_window_lifecycle() {
+        let mut book = CenterBook::new();
+        // 中枢形成 → 无窗口
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        assert!(!book.has_pending_departure(2));
+        // candidate Buy3（向上离开）→ 窗口置位（49课行68）
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        assert!(book.has_pending_departure(2));
+        assert_eq!(book.cf_windows, 1);
+        // 价格仍在 ZG 之上 → 窗口保持
+        book.negate_pending_departure(2, 2.5);
+        assert!(book.has_pending_departure(2));
+        // 回试跌回 ZG 下 → 否定解冻（"能回到中枢就不是第三类买点"）
+        book.negate_pending_departure(2, 1.9);
+        assert!(!book.has_pending_departure(2));
+        assert_eq!(book.cf_negations, 1);
+        // 新离开段（新 seg_idx 的 candidate 事件）→ 重新置位
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        assert!(book.has_pending_departure(2));
+        // confirmed Buy3（中枢死亡）→ 窗口解除，dead/frozen 语义接管
+        book.ingest(2, &[ev(BspClass::Buy3, true, 10, 1.0, 2.0)], true, None);
+        assert!(!book.has_pending_departure(2));
+        assert!(book.is_frozen(2));
+    }
+
+    #[test]
+    fn h1_sell_side_departure_negated_above_zd() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        // candidate Sell3（向下离开）→ 窗口置位
+        book.ingest(2, &[ev(BspClass::Sell3, false, 10, 1.0, 2.0)], true, None);
+        assert!(book.has_pending_departure(2));
+        // 价格仍在 ZD 之下 → 保持
+        book.negate_pending_departure(2, 0.8);
+        assert!(book.has_pending_departure(2));
+        // 回到 ZD 之上 → 否定解冻
+        book.negate_pending_departure(2, 1.2);
+        assert!(!book.has_pending_departure(2));
+    }
+
+    #[test]
+    fn h1_new_center_clears_window() {
+        let mut book = CenterBook::new();
+        book.ingest(2, &[ev(BspClass::Sell1, true, 10, 1.0, 2.0)], true, None);
+        book.ingest(2, &[ev(BspClass::Buy3, false, 10, 1.0, 2.0)], true, None);
+        assert!(book.has_pending_departure(2));
+        // 新中枢形成（cs 变化）→ 旧锚窗口解除
+        book.ingest(2, &[ev(BspClass::Sell1, true, 20, 3.0, 4.0)], true, None);
+        assert!(!book.has_pending_departure(2));
     }
 }

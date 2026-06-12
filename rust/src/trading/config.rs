@@ -285,6 +285,18 @@ pub struct OrganicConfig {
     /// trend_flips 磁带行直接消费——17课趋势定义 ≥2 同向中枢的引擎读数）。
     /// Any = 在册 P5 行为（O0≡P5 零接触面）。
     pub osc_domain: OscDomain,
+    /// H1 candidate 冻结（osc 白名单消除任务 2026-06-12）：candidate 离开段
+    /// 未决期间 osc 不开腿。原文依据：49课行52"中枢完成后的向上移动时的
+    /// 差价是不能做的……前提是中枢震荡依旧"；行68 给出当下判据——次级别
+    /// 走势**离开**中枢即启动"向上移动"语义（candidate type3，不等回抽
+    /// 确认）。在册缺口：is_frozen 挂 confirmed Buy3，单边趋势中回抽不发生
+    /// ⇒ candidate 永不确认 ⇒ 禁令窗口内开腿门恒开（僵尸腿全在此窗口开出，
+    /// 在册诊断：尾部强平腿占总亏 62-82%）。解冻 = 价格回边界内（买侧
+    /// c<ZG / 卖侧 c>ZD——38课答疑"能回到中枢就不是第三类买点"）、中枢
+    /// 死亡或新中枢形成。**只挡开腿，永不挡闭腿**（僵尸腿教训）。纯结构
+    /// 零参数零标的依赖——白名单消除候选 H1。
+    /// false = 在册 P5 行为（O0≡P5 零接触面）。
+    pub osc_candidate_freeze: bool,
     // ── 有机扩展轴（v2） ──
     pub rev_mode: bool,
     pub sub_anchor: SubAnchor,
@@ -547,6 +559,7 @@ impl Default for OrganicConfig {
             osc_shift_close: false,
             osc_l41_gate: false,
             osc_domain: OscDomain::Any,
+            osc_candidate_freeze: false,
             rev_mode: false,
             sub_anchor: SubAnchor::Off,
             tranche: false,
@@ -1034,6 +1047,19 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             osc_domain: OscDomain::ConsolidationOnly,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
+        // h1：candidate 冻结（osc 白名单消除任务 2026-06-12——零参数内生
+        // 判据消除 per-asset 白名单）。49课行52/60/68：禁令窗口从次级别
+        // 走势离开中枢（candidate type3）开始，不等 confirmed；窗口内 osc
+        // 不开腿；价格回边界内（回试跌回 = 仍是中枢震荡）解冻。预注册判据
+        // （任一不满足即 H1 否证）：(1) OKLO Δosc ≈ +105K（僵尸尾部 3 腿
+        // 占总亏 62% 被窗口拦截）；(2) 正域 OKLO/BRN 不恶化（对照：co 在
+        // OKLO 恶化）；(3) 负域 BTC/CL/ES osc 亏损大幅缩减。机制差异 vs
+        // co：co 删整个趋势态域（深回调盈利腿陪葬），h1 只删离开段未决
+        // 窗口（震荡标的窗口被回试快速否定 ⇒ 盈利腿保留）。
+        "V2oa25_ht_h1" => Some(OrganicConfig {
+            osc_candidate_freeze: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
         // ── 38课位置分支移植（2026-06-11 任务；审计 §4e 唯一缺失项；
         //    基线 = V2oa25_ht。Sequence38 子腿 L2 全正（OKLO+10.2/BRN+4.1pp）
         //    后的主腿判决位——三臂分解组合的两条轴 ──
@@ -1324,6 +1350,21 @@ mod tests {
         assert_eq!(format!("{as_sc:?}"), format!("{sc:?}"));
         let as_co = OrganicConfig { osc_shift_close: false, ..cfg };
         assert_eq!(format!("{as_co:?}"), format!("{co:?}"));
+    }
+
+    #[test]
+    fn h1_variant_single_axis_on_ht() {
+        // 默认/在册基线 osc_candidate_freeze=false（O0≡P5 零接触面——
+        // 49课禁令窗口严格形式在变体层开启，sc/o3s 同先例）
+        assert!(!OrganicConfig::default().osc_candidate_freeze);
+        let base = variant("V2oa25_ht").unwrap();
+        assert!(!base.osc_candidate_freeze);
+        // h1 只动 osc_candidate_freeze 一轴——其余字段与 V2oa25_ht 逐位相同
+        let cfg = variant("V2oa25_ht_h1").unwrap();
+        assert!(cfg.osc_candidate_freeze && cfg.osc_mode);
+        assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
+        let normalized = OrganicConfig { osc_candidate_freeze: false, ..cfg };
+        assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
     #[test]

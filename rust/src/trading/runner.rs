@@ -698,6 +698,12 @@ pub fn run_organic(
             // 振幅参照观测（市场性质，与持仓状态无关；边界变化才记录）。
             depth_ref.observe(&run.book, c);
         }
+        // ── H1 禁令窗口价格否定（每 bar，市场性质——窗口由 candidate 事件
+        //    置位、由价格回边界内否定，否定是逐 bar 价格事件，不能只在事件
+        //    bar 驱动；ingest 之后 ⇒ 同 bar 新窗口用当 bar close 即检）──
+        for lad in FIRST_BSP_LADDER..MAX_LADDER {
+            run.book.negate_pending_departure(lad, c);
+        }
 
         // ── FatigueGate（v2 点态：rev_gate 时每 bar 每承载层驱动——清空路径(1)
         //    创新高判定是逐 bar 价格事件，不能沿用 v1 的"仅事件 bar"调用门控）──
@@ -1245,6 +1251,10 @@ pub fn run_organic(
     }
 
     let mut res = run.res;
+    // H1 禁令窗口生命周期计数（CenterBook 内部置位/否定 → 终值拷贝；
+    // G3 可观测性：窗口数与拒开数分离裁决腿消灭/腿延迟）。
+    run.counters.n_cf_windows = run.book.cf_windows;
+    run.counters.n_cf_negations = run.book.cf_negations;
     res.counters = run.counters;
     if diag {
         res.center_amp_log = depth_ref.take_log();
