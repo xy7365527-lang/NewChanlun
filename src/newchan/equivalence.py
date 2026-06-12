@@ -317,7 +317,7 @@ def make_ratio_kline(
 
         offset = pd.tseries.frequencies.to_offset(freq)
         sub_idx = sub_a.index.intersection(sub_b.index)
-        start = target_idx.min()
+        start = target_idx.min() - offset
         end_exclusive = target_idx.max() + offset
         sub_idx = sub_idx[(sub_idx >= start) & (sub_idx < end_exclusive)]
         sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
