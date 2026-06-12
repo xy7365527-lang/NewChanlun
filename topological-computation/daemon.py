@@ -247,6 +247,66 @@ class GapInfo:
     search_query: str
 
 
+def _setup_shared_layer(
+    *,
+    require_chain: bool,
+    instance_id: str,
+    daemon,
+) -> tuple[object | None, object | None]:
+    """Initialize SharedLayer/CrossInstanceSync with require-chain semantics."""
+    # Optional IPFS/swarm dependencies are loaded lazily so --no-chain and tests
+    # can run without requiring the shared-layer stack at module import time.
+    try:
+        from chain.ipfs_client import IPFSClient
+        from swarm.shared_layer import SharedLayer
+        from swarm.cross_instance import CrossInstanceSync
+    except ImportError as e:
+        if require_chain:
+            raise RuntimeError(
+                "SharedLayer 依赖缺失 (chain.ipfs_client / swarm.shared_layer)。"
+                "本地实例默认上链，不允许作为孤例运行。"
+            ) from e
+        return None, None
+
+    ipfs = IPFSClient()
+    if not ipfs.is_available():
+        if require_chain:
+            raise RuntimeError(
+                "IPFS daemon 不可用 — SharedLayer 未启用。"
+                "本地实例默认上链，不允许作为孤例运行。"
+                "启动 IPFS daemon 或使用 --no-chain 显式选择孤立模式。"
+            )
+        print(
+            "Plan C: IPFS daemon 不可用 — SharedLayer 未启用 (--no-chain)",
+            file=sys.stderr,
+        )
+        return None, None
+
+    try:
+        shared_layer = SharedLayer(ipfs)
+        cross_instance_sync = CrossInstanceSync(
+            shared_layer=shared_layer,
+            instance_id=instance_id,
+            daemon=daemon,
+        )
+    except Exception as e:
+        if require_chain:
+            raise RuntimeError(f"SharedLayer init failed: {e}") from e
+        print(
+            f"Plan C: SharedLayer init failed ({e}), "
+            f"degrading to no shared layer",
+            file=sys.stderr,
+        )
+        return None, None
+
+    print(
+        f"Plan C: SharedLayer IPFS backend enabled "
+        f"(api={ipfs.api_url})",
+        file=sys.stderr,
+    )
+    return shared_layer, cross_instance_sync
+
+
 class TopologicalDaemon:
     """逢亮 — autonomous topological entity."""
 
@@ -421,52 +481,11 @@ class TopologicalDaemon:
         self._last_snet_active_snapshot: set[str] = set()
 
         # Plan C: SharedLayer via IPFS（不降级到本地）
-        self._shared_layer: SharedLayer | None = None
-        self._cross_instance_sync: CrossInstanceSync | None = None
-        try:
-            from chain.ipfs_client import IPFSClient
-            from swarm.shared_layer import SharedLayer
-            from swarm.cross_instance import CrossInstanceSync
-            ipfs = IPFSClient()
-            if ipfs.is_available():
-                try:
-                    self._shared_layer = SharedLayer(ipfs)
-                    self._cross_instance_sync = CrossInstanceSync(
-                        shared_layer=self._shared_layer,
-                        instance_id=self._instance_id,
-                        daemon=self,
-                    )
-                    print(
-                        f"Plan C: SharedLayer IPFS backend enabled "
-                        f"(api={ipfs.api_url})",
-                        file=sys.stderr,
-                    )
-                except (TimeoutError, OSError, Exception) as e:
-                    self._shared_layer = None
-                    self._cross_instance_sync = None
-                    print(
-                        f"Plan C: SharedLayer init failed ({e}), "
-                        f"degrading to no shared layer",
-                        file=sys.stderr,
-                    )
-            elif require_chain:
-                raise RuntimeError(
-                    "IPFS daemon 不可用 — SharedLayer 未启用。"
-                    "本地实例默认上链，不允许作为孤例运行。"
-                    "启动 IPFS daemon 或使用 --no-chain 显式选择孤立模式。"
-                )
-            else:
-                print(
-                    "Plan C: IPFS daemon 不可用 — SharedLayer 未启用 (--no-chain)",
-                    file=sys.stderr,
-                )
-        except ImportError:
-            if require_chain:
-                raise RuntimeError(
-                    "SharedLayer 依赖缺失 (chain.ipfs_client / swarm.shared_layer)。"
-                    "本地实例默认上链，不允许作为孤例运行。"
-                )
-            pass
+        self._shared_layer, self._cross_instance_sync = _setup_shared_layer(
+            require_chain=require_chain,
+            instance_id=self._instance_id,
+            daemon=self,
+        )
 
         # 401号修复：清除已有的 encounter memory 节点（脚印不是宝藏）
         # 保留 settlement 和 residue memory 节点，移除 encounter 类型
@@ -1278,9 +1297,11 @@ class TopologicalDaemon:
         # Use count-based diff (O(1)) instead of set-based diff (O(E))
         # Graph.add_edge appends to _edges list, so new edges are always at tail
         _need_diff = self._persist or self._shared_layer is not None
+        new_settled: list = []
         if _need_diff:
             pre_vid_count = len(self.k_full._vertices)
             pre_edge_count = len(self.k_full._edges)
+            pre_settled_count = len(self.settlement.settled_cycles)
             pre_vid_keys = set(self.k_full._vertices.keys())  # snapshot: mutable Graph needs copy
             # Track K_active vertex statuses to detect fold state changes
             pre_active_statuses = {
@@ -1297,6 +1318,9 @@ class TopologicalDaemon:
         # Sync S_net from engine (traversal co-occurrence writeback may have updated it)
         if self.snet_activation is not None and self.snet_activation.s_net is not self.snet:
             self.snet = self.snet_activation.s_net
+
+        if _need_diff:
+            new_settled = self.settlement.settled_cycles[pre_settled_count:]
 
         # S_net → block topology: write new co-occurrence edges as material layer blocks
         self._write_snet_cooccurrence_blocks()

@@ -226,6 +226,26 @@ def _hourly_ohlcv(prices: list[float], start: str = "2024-01-01") -> pd.DataFram
     )
 
 
+def _minute_ohlcv(
+    prices: list[float],
+    start: str = "2024-01-01",
+    freq: str = "min",
+) -> pd.DataFrame:
+    """从 close 列表生成分钟级 OHLCV。"""
+    n = len(prices)
+    idx = pd.date_range(start, periods=n, freq=freq)
+    return pd.DataFrame(
+        {
+            "open": prices,
+            "high": [p + 1 for p in prices],
+            "low": [p - 1 for p in prices],
+            "close": prices,
+            "volume": [10] * n,
+        },
+        index=idx,
+    )
+
+
 class TestMakeRatioKlineSubFreq:
     """子频率聚合路径测试。"""
 
@@ -284,6 +304,78 @@ class TestMakeRatioKlineSubFreq:
             df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
         )
         assert len(ratio) == 2
+
+    def test_sub_freq_output_is_limited_to_target_window(self):
+        """子频率数据覆盖更长窗口时，输出只保留 df_a/df_b 的目标窗口。"""
+        df_a = _ohlcv([100, 110], start="2024-01-02")
+        df_b = _ohlcv([50, 55], start="2024-01-02")
+
+        sub_prices_a = [100 + i for i in range(96)]
+        sub_prices_b = [50 + i * 0.5 for i in range(96)]
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert list(ratio.index) == list(df_a.index.intersection(df_b.index))
+
+    def test_sub_freq_uses_full_final_target_window(self):
+        """最后一根目标K线必须使用完整目标周期内的子频率数据。"""
+        df_a = _ohlcv([100, 110], start="2024-01-02")
+        df_b = _ohlcv([50, 55], start="2024-01-02")
+
+        sub_prices_a = [100.0] * 96
+        sub_prices_a[71] = 200.0  # 2024-01-03 23:00，属于最后一根目标日线
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv([50.0] * 96, start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert ratio["high"].iloc[-1] == pytest.approx(4.0)
+        assert ratio["close"].iloc[-1] == pytest.approx(4.0)
+
+    def test_sub_freq_uses_full_first_right_labeled_target_window(self):
+        """月末等右标目标K线必须包含标签之前的完整子频率窗口。"""
+        target_idx = pd.date_range("2024-01-31", periods=2, freq="ME")
+        df_a = pd.DataFrame(
+            {"open": [100, 110], "high": [100, 110], "low": [100, 110],
+             "close": [100, 110], "volume": [1000, 1000]},
+            index=target_idx,
+        )
+        df_b = pd.DataFrame(
+            {"open": [50, 55], "high": [50, 55], "low": [50, 55],
+             "close": [50, 55], "volume": [1000, 1000]},
+            index=target_idx,
+        )
+
+        sub_idx = pd.date_range("2024-01-01", periods=60, freq="D")
+        sub_prices_a = [100.0] * 60
+        sub_prices_a[14] = 200.0  # 2024-01-15，属于 2024-01-31 月线窗口
+        sub_a = pd.DataFrame(
+            {"open": sub_prices_a, "high": sub_prices_a, "low": sub_prices_a,
+             "close": sub_prices_a, "volume": [10] * 60},
+            index=sub_idx,
+        )
+        sub_b = pd.DataFrame(
+            {"open": [50.0] * 60, "high": [50.0] * 60, "low": [50.0] * 60,
+             "close": [50.0] * 60, "volume": [10] * 60},
+            index=sub_idx,
+        )
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert ratio["high"].iloc[0] == pytest.approx(4.0)
+
+    def test_sub_freq_infers_exact_15min_target_frequency(self):
+        """未显式 target_freq 时，15min 目标不应被静默聚合成 30min。"""
+        df_a = _minute_ohlcv([100, 101, 102, 103], freq="15min")
+        df_b = _minute_ohlcv([50, 50, 50, 50], freq="15min")
+        sub_a = _minute_ohlcv(list(range(100, 160)), freq="min")
+        sub_b = _minute_ohlcv([50.0] * 60, freq="min")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert list(ratio.index) == list(df_a.index.intersection(df_b.index))
 
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""
