@@ -553,12 +553,33 @@ pub fn run_organic(
                     .to_string(),
             );
         }
-    } else if cfg.ledger_sell_t1_only {
+    } else if cfg.ledger_sell_t1_only || cfg.ledger_domain_gate || cfg.ledger_cost_gate {
         return Err(
-            "ledger_sell_t1_only 仅定义于 voice_mode=Ledger 路径（FSM 路径
-             不消费该位——声明=能力，显式拒绝）"
+            "ledger_sell_t1_only/ledger_domain_gate/ledger_cost_gate 仅定义于
+             voice_mode=Ledger 路径（FSM 路径不消费这些位——声明=能力，显式拒绝）"
                 .to_string(),
         );
+    }
+    if cfg.ledger_domain_gate && !tape.has_trend_rows() {
+        return Err(
+            "ledger_domain_gate（有门的账本对象域门）要求磁带 trend_flips 行
+             （趋势态）——域判据 = 该层尾 move kind==Consolidation，无行即无
+             kind 可读（不提供方向行代理降级：方向 ≠ 趋势，17课趋势定义是
+             ≥2 同向中枢；osc_domain 同先例）"
+                .to_string(),
+        );
+    }
+    if cfg.ledger_cost_gate
+        && !(cfg.theta_cost_k > 0.0
+            && cfg.theta_cost_k.is_finite()
+            && cfg.friction_rt > 0.0
+            && cfg.friction_rt.is_finite())
+    {
+        return Err(format!(
+            "ledger_cost_gate（35课成本门）要求 theta_cost_k/friction_rt 为
+             正有限数；theta_cost_k={} friction_rt={}",
+            cfg.theta_cost_k, cfg.friction_rt
+        ));
     }
     if cfg.osc_sell3_no_recover && !cfg.osc_mode {
         return Err(
@@ -995,10 +1016,13 @@ pub fn run_organic(
                 move |k: usize| -> f64 { if structure { alloc_frac[k] } else { level_frac } };
             let pos = run.pos.as_mut().expect("LONG ⇒ pos 存在");
 
-            // ── 账本 voice（voice_mode=Ledger，2026-06-11 并发赋格最小实验）──
+            // ── 账本 voice（voice_mode=Ledger，2026-06-11 并发赋格最小实验；
+            //    2026-06-12 门层补全：VL 实验开放轴2"有门的账本"）──
             // voice@k 的唯一状态 = 腿槽占用（资源状态）；每个 confirmed BSP
-            // 直接饱和执行：Sell@k 且槽空 → 卖出 frac_k（清 slice），Buy@k
-            // 且槽开 → 买回（填 slice）。无相位过滤、无锚比较、无门谓词。
+            // 直接饱和执行：Sell@k 且槽空且门开 → 卖出 frac_k（清 slice），
+            // Buy@k 且槽开 → 买回（填 slice）。无相位过滤、无锚比较、无配对
+            // 记忆——门是无消费记忆的结构谓词（deep_think §13 判别标准），
+            // 只挡开腿：闭腿是义务（38课卖了必须买回，osc 僵尸腿教训）。
             // 同 bar 多事件按磁带序（ladder 升序、层内事件序）确定性消费。
             // master 出场时 close_position 的强制清腿在册逻辑自动覆盖账本槽。
             if cfg.voice_mode == VoiceMode::Ledger {
@@ -1014,6 +1038,42 @@ pub fn run_organic(
                                     continue;
                                 }
                                 if pos.open_slot(key).is_none() {
+                                    // 对象域门：该层尾 move kind==Trend ⇒ 38课
+                                    // 震荡短差的操作对象不存在（对象域状态范畴，
+                                    // 非点态拦截——osc_domain 判决第五例同构）。
+                                    if cfg.ledger_domain_gate
+                                        && *rows
+                                            .trend_row
+                                            .expect("guard: ledger_domain_gate ⇒ trend 行存在")
+                                            .get(ladder)
+                                            .expect("ladder < MAX_LADDER")
+                                    {
+                                        run.counters.n_ledger_domain_rejects += 1;
+                                        continue;
+                                    }
+                                    // 成本门（35课）：θ_q < k×friction ⇒ 级别
+                                    // 配额归零（声部经济生命周期，设计 §5.4）。
+                                    if cfg.ledger_cost_gate {
+                                        use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
+                                        let dr = rows.depth.expect(
+                                            "ledger_cost_gate ⇒ DepthRef（runner 恒提供）",
+                                        );
+                                        match dr.theta(ladder, None, SUB_COST_Q, SUB_COST_MIN_OBS)
+                                        {
+                                            Some(theta_q) => {
+                                                if theta_q
+                                                    < cfg.theta_cost_k * cfg.friction_rt
+                                                {
+                                                    run.counters.n_ledger_cost_rejects += 1;
+                                                    continue;
+                                                }
+                                            }
+                                            None => {
+                                                run.counters.n_ledger_cost_noref_rejects += 1;
+                                                continue;
+                                            }
+                                        }
+                                    }
                                     if pos.open_diff(
                                         key,
                                         frac_of(ladder),
@@ -1273,6 +1333,130 @@ mod ledger_voice_tests {
         assert_eq!(r.counters.n_ledger_opens, 1);
         assert_eq!(r.counters.n_ledger_sell_noops, 0);
         assert_eq!(r.counters.n_ledger_closes, 1);
+    }
+
+    /// 带 cs/zd/zg 锚的事件（candidate=账本 voice 不消费，但喂 CenterBook/
+    /// DepthRef——成本门参照集的合成数据源）。
+    fn ev_anchor(class: BspClass, confirmed: bool, cs: i64, zd: f64, zg: f64) -> BspEvent {
+        BspEvent { class, seg_idx: 0, confirmed, cs: Some(cs), zd: Some(zd), zg: Some(zg), price: 0.0 }
+    }
+
+    #[test]
+    fn ledger_domain_gate_rejects_in_trend_opens_in_consolidation_never_blocks_close() {
+        // bar2 趋势态 Sell → 域拒；bar3 翻盘整 Sell → 开；bar4 翻回趋势 Buy
+        // → 闭腿不被门挡（卖了必须买回）。
+        let mut t = entry_tape(vec![
+            bar_ev(110.0, 2, ev(BspClass::Sell1, true)),
+            bar_ev(112.0, 2, ev(BspClass::Sell1, true)),
+            bar_ev(105.0, 2, ev(BspClass::Buy1, true)),
+        ]);
+        t.trend_flips = Some(vec![(0, 2, true), (3, 2, false), (4, 2, true)]);
+        let cfg = variant("VLd").unwrap();
+        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        assert_eq!(r.counters.n_ledger_domain_rejects, 1, "bar2 趋势态拒开");
+        assert_eq!(r.counters.n_ledger_opens, 1, "bar3 盘整态开腿");
+        assert_eq!(r.counters.n_ledger_closes, 1, "bar4 趋势态闭腿不受门约束");
+        assert_eq!(r.trades[0].n_short_diffs, 1);
+    }
+
+    #[test]
+    fn ledger_domain_gate_requires_trend_rows() {
+        let t = entry_tape(vec![bar_ev(110.0, 2, ev(BspClass::Sell1, true))]);
+        let cfg = variant("VLd").unwrap();
+        assert!(run_organic(&t, 2, &cfg, StopMode::None, false).is_err());
+    }
+
+    #[test]
+    fn ledger_cost_gate_noref_then_warmup_pass_and_thin_amp_reject() {
+        // 阶段1：零参照 Sell → noref 保守拒；阶段2：10 个 1% 振幅中枢
+        // （candidate 事件喂参照集，账本不消费）后 Sell → θ_q=1% ≥
+        // 2×10bps=0.2% → 开；Buy 闭。
+        let mut tail = vec![bar_ev(110.0, 2, ev(BspClass::Sell1, true))];
+        for j in 0..10 {
+            tail.push(bar_ev(
+                100.0,
+                2,
+                ev_anchor(BspClass::Buy1, false, 10 + j, 50.0, 51.0),
+            ));
+        }
+        tail.push(bar_ev(110.0, 2, ev(BspClass::Sell1, true)));
+        tail.push(bar_ev(105.0, 2, ev(BspClass::Buy1, true)));
+        let t = entry_tape(tail);
+        let cfg = variant("VLc").unwrap();
+        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        assert_eq!(r.counters.n_ledger_cost_noref_rejects, 1, "warm-up 期保守拒绝");
+        assert_eq!(r.counters.n_ledger_cost_rejects, 0);
+        assert_eq!(r.counters.n_ledger_opens, 1, "参照足量且振幅达标 → 开");
+        assert_eq!(r.counters.n_ledger_closes, 1);
+
+        // 振幅塌缩组：10 个 0.01% 振幅中枢 → θ_q < 0.2% → 成本拒。
+        let mut tail2 = vec![];
+        for j in 0..10 {
+            tail2.push(bar_ev(
+                100.0,
+                2,
+                ev_anchor(BspClass::Buy1, false, 10 + j, 50.0, 50.01),
+            ));
+        }
+        tail2.push(bar_ev(110.0, 2, ev(BspClass::Sell1, true)));
+        let t2 = entry_tape(tail2);
+        let r2 = run_organic(&t2, 2, &cfg, StopMode::None, false).unwrap();
+        assert_eq!(r2.counters.n_ledger_cost_rejects, 1, "θ_q=0.01% < 0.2% 配额归零");
+        assert_eq!(r2.counters.n_ledger_opens, 0);
+    }
+
+    #[test]
+    fn ledger_voices_independent_slots_and_attribution() {
+        // 双声部隔离：entry@4（active=[2,3]），Sell@2 与 Sell@3 各开各槽，
+        // Buy@2 只闭 voice2 的腿——voice3 持腿到 eod 强平。归因按
+        // py_key（main 腿 = ladder）分离。
+        let mut arm = bar(100.0);
+        arm.buy1 = LadderMask(1 << 4);
+        arm.max_ladder = 4;
+        let mut confirm = bar(100.0);
+        confirm.buy_any = LadderMask(1 << 3);
+        confirm.max_ladder = 4;
+        let mut both = bar(110.0);
+        let mut rows: Box<[Vec<BspEvent>; MAX_LADDER]> = Box::default();
+        rows[2].push(ev(BspClass::Sell1, true));
+        rows[3].push(ev(BspClass::Sell1, true));
+        both.bsp_events = Some(rows);
+        both.max_ladder = 4;
+        let t = SignalTape {
+            bars: vec![
+                arm,
+                confirm,
+                both,
+                bar_ev(105.0, 2, ev(BspClass::Buy1, true)),
+                bar(108.0),
+            ],
+            ..Default::default()
+        };
+        let cfg = variant("VL").unwrap();
+        let r = run_organic(&t, 2, &cfg, StopMode::None, false).unwrap();
+        assert_eq!(r.counters.n_ledger_opens, 2, "两声部同 bar 各自开腿");
+        assert_eq!(r.counters.n_ledger_closes, 1, "Buy@2 只闭 voice2");
+        // 归因分离：py_key=2（voice2 信号闭，@110→@105 盈利）与
+        // py_key=3（voice3 eod 强平 @110→@108）各一条，现金独立。
+        let by_key: std::collections::BTreeMap<i64, (f64, u64)> = r
+            .leg_contribution
+            .iter()
+            .map(|&(k, cash, n)| (k, (cash, n)))
+            .collect();
+        assert_eq!(by_key[&2].1, 1);
+        assert_eq!(by_key[&3].1, 1);
+        assert!(by_key[&2].0 > 0.0, "voice2 兑现为正");
+        assert!(by_key[&3].0 > 0.0, "voice3 强平价 108 < 110 仍为正但独立记账");
+        assert!((by_key[&2].0 - by_key[&3].0).abs() > 1e-9, "两声部现金独立非混表");
+    }
+
+    #[test]
+    fn ledger_gate_bits_rejected_on_fsm_path() {
+        let t = entry_tape(vec![bar_ev(110.0, 2, ev(BspClass::Sell1, true))]);
+        let orphan = OrganicConfig { ledger_domain_gate: true, ..OrganicConfig::default() };
+        assert!(run_organic(&t, 2, &orphan, StopMode::None, false).is_err());
+        let orphan2 = OrganicConfig { ledger_cost_gate: true, ..OrganicConfig::default() };
+        assert!(run_organic(&t, 2, &orphan2, StopMode::None, false).is_err());
     }
 
     #[test]

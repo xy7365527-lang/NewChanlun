@@ -474,6 +474,22 @@ pub struct OrganicConfig {
     /// 教训的镜像——Sell2/Sell3 是结构内确认/中枢离开点，在强趋势中开腿
     /// 是纯打断）。仅 voice_mode=Ledger 路径消费（guard 强制）。
     pub ledger_sell_t1_only: bool,
+    /// 有门的账本——对象域门（2026-06-12 并发赋格门层任务；VL 实验开放轴2，
+    /// deep_think §15 门层补全）。开腿前提 = 该层尾 move kind==Consolidation
+    /// （trend_row[k]==false）：38课震荡短差的操作对象是确立中枢内的反复震荡，
+    /// 趋势走势中该对象从定义上不存在（osc_domain=ConsolidationOnly 同范畴
+    /// ——对象域状态范畴，判决：对象域胜点态门第五例）。VL 裸账本 OKLO
+    /// −1146pp 的死因（强趋势中噪声短差失血）的直接修复位。闭腿不受门约束
+    /// （卖了必须买回——僵尸腿教训）。需要 trend_flips 磁带行（runner guard）。
+    /// 仅 voice_mode=Ledger 路径消费。
+    pub ledger_domain_gate: bool,
+    /// 有门的账本——成本门（35课："交易成本+交易误差相对波幅不够小的级别，
+    /// 长期操作没有意义"）。开腿前提 = 该层典型中枢振幅 θ_q（DepthRef 因果
+    /// 滚动中位数，零前瞻）≥ theta_cost_k × friction_rt——振幅不足的级别
+    /// 配额自动归零（设计 §5.4"比值不足者配额为 0（声部不开）"的逐 bar
+    /// 实现 = 声部的经济生命周期）。参照不可定义 ⇒ 保守拒绝并独立计数
+    /// （sub_cost_gate 同构）。仅 voice_mode=Ledger 路径消费。
+    pub ledger_cost_gate: bool,
 }
 
 /// 成本门 θ_q 的分位数（中位数 = 该层"典型"中枢振幅；35课判据是级别的
@@ -573,6 +589,8 @@ impl Default for OrganicConfig {
             entry_min_ladder: 0,
             voice_mode: VoiceMode::Fsm,
             ledger_sell_t1_only: false,
+            ledger_domain_gate: false,
+            ledger_cost_gate: false,
         }
     }
 }
@@ -733,6 +751,28 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
         // VL−VLs1 差额 = 卖侧词汇宽度的独立因果。
         "VLs1" => Some(OrganicConfig {
             ledger_sell_t1_only: true,
+            ..variant("VL").expect("VL 在上方注册")
+        }),
+        // ── 有门的账本消融矩阵（2026-06-12 并发赋格门层任务；基线 = VL 裸
+        // 账本（00 格在册：OKLO −1146pp / BRN +24pp）。门 = 无消费记忆的
+        // 结构谓词（deep_think §13 判别标准），只挡开腿不挡闭腿。
+        // 预注册判据（OKLO）：VLg > VL ⇒ 门层携带信息（修复量 = Δ）；
+        // VLg ≥ V2oa25 ⇒ "voice=有门的账本"形态确认（FSM 相位是冗余缓存）；
+        // VL < VLg < V2oa25 ⇒ 信息主要在门，残差 = 相位的不可消除部分。──
+        // VLd：仅对象域门（趋势态不开短差——OKLO 死因的单因修复位）。
+        "VLd" => Some(OrganicConfig {
+            ledger_domain_gate: true,
+            ..variant("VL").expect("VL 在上方注册")
+        }),
+        // VLc：仅成本门（35课振幅/摩擦——级别配额归零的经济生命周期）。
+        "VLc" => Some(OrganicConfig {
+            ledger_cost_gate: true,
+            ..variant("VL").expect("VL 在上方注册")
+        }),
+        // VLg：双门（有门的账本完整形态）。
+        "VLg" => Some(OrganicConfig {
+            ledger_domain_gate: true,
+            ledger_cost_gate: true,
             ..variant("VL").expect("VL 在上方注册")
         }),
         // V2oa25C38：38课循环 voice（2026-06-11 任务）。基线 = V2oa25 默认门；

@@ -577,6 +577,19 @@ pub struct Counters {
     pub n_ledger_sell_noops: u64,
     /// 槽空的 Buy 事件 no-op（"满仓者二买无事可做"读数，26课恒仓推论）。
     pub n_ledger_buy_noops: u64,
+    // ── 有门的账本（2026-06-12 并发赋格门层任务；VL 实验开放轴2 +
+    //    deep_think §15 门层补全。门 = 无消费记忆的结构谓词，只挡开腿——
+    //    闭腿是义务（38课卖了必须买回，osc 僵尸腿教训），永不被门挡）──
+    /// 对象域门拒开：该层尾 move kind==Trend ⇒ 38课震荡短差的操作对象
+    /// （确立中枢内的反复震荡）不存在（osc_domain 判决同范畴：对象域
+    /// 状态范畴，非点态拦截）。
+    pub n_ledger_domain_rejects: u64,
+    /// 成本门拒开（35课）：该层典型中枢振幅 θ_q < theta_cost_k×friction_rt
+    /// ——级别配额自动归零（声部经济生命周期，设计 §5.4）。
+    pub n_ledger_cost_rejects: u64,
+    /// 成本门拒开（参照不可定义）：DepthRef 无参照集（warm-up 样本不足），
+    /// 保守拒绝（"不静默放行"先例，sub_cost_gate 同构）。
+    pub n_ledger_cost_noref_rejects: u64,
     /// 41课域腿门拒开逐事件日志 (ladder, bar)：regime 分段统计的数据基础
     /// （拦截率/盈亏按牛熊震荡阶段分解——2026-06-11 追加质询）。仅
     /// osc_l41_gate 变体非空（门关恒空表）。lib.rs 单独 marshal（list）。
@@ -726,6 +739,9 @@ impl Counters {
             ("n_ledger_closes", self.n_ledger_closes),
             ("n_ledger_sell_noops", self.n_ledger_sell_noops),
             ("n_ledger_buy_noops", self.n_ledger_buy_noops),
+            ("n_ledger_domain_rejects", self.n_ledger_domain_rejects),
+            ("n_ledger_cost_rejects", self.n_ledger_cost_rejects),
+            ("n_ledger_cost_noref_rejects", self.n_ledger_cost_noref_rejects),
             ("n_osc_domain_rejects", self.n_osc_domain_rejects),
             ("n_osc_shift_close", self.n_osc_shift_close),
         ]

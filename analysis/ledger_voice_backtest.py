@@ -50,10 +50,14 @@ OUT_JSON = DATA_DIR / "ledger_voice_backtest.json"
 SYMBOLS = [s.strip().upper()
            for s in os.environ.get("BT_SYMBOLS", "OKLO").split(",")]
 FLOOR = int(os.environ.get("BT_FLOOR", str(LADDER_SEG)))
-VARIANTS = ["V2oa25", "O0", "VL", "VLs1"]
+# 2026-06-12 门层补全（VL 实验开放轴2"有门的账本"）：VLd=对象域门 /
+# VLc=成本门(35课) / VLg=双门。预注册判据见 config.rs 变体注册注释。
+VARIANTS = ["V2oa25", "O0", "VL", "VLs1", "VLd", "VLc", "VLg"]
 
 LEDGER_KEYS = ("n_ledger_opens", "n_ledger_closes",
-               "n_ledger_sell_noops", "n_ledger_buy_noops")
+               "n_ledger_sell_noops", "n_ledger_buy_noops",
+               "n_ledger_domain_rejects", "n_ledger_cost_rejects",
+               "n_ledger_cost_noref_rejects")
 FSM_KEYS = ("n_rev_open", "n_rev_close_t5", "n_rev_zd_close",
             "n_rev_l41_rejects", "n_rev_depth_rejects",
             "n_osc_open", "n_close_normal", "n_open_gate_rejects")
@@ -104,10 +108,13 @@ def process_symbol(symbol: str, prev: dict | None = None) -> dict:
 
     t0 = time.time()
     dir_flips: list = []
+    trend_flips: list = []  # 域门（VLd/VLg）的趋势态行；在册臂零行为变化
     tape = compute_organic_signals(opens, highs, lows, closes,
-                                   dir_flips=dir_flips)
+                                   dir_flips=dir_flips,
+                                   trend_flips=trend_flips)
     sig_s = time.time() - t0
-    print(f"  信号层 {sig_s:.1f}s  D3 翻转 {len(dir_flips):,}", flush=True)
+    print(f"  信号层 {sig_s:.1f}s  D3 翻转 {len(dir_flips):,}"
+          f"  趋势翻转 {len(trend_flips):,}", flush=True)
 
     fp = {"bsp": sum(len(s.bsp_events[l]) for s in tape if s.bsp_events
                      for l in range(11)),
@@ -118,7 +125,7 @@ def process_symbol(symbol: str, prev: dict | None = None) -> dict:
         raise SystemExit(f"磁带指纹不匹配：在册 {prev['tape_fp']} vs 本次 {fp}"
                          f"——引擎/信号层语义已变，先核对引擎变更。")
 
-    rtape = pack_tape(tape, dir_flips=dir_flips)
+    rtape = pack_tape(tape, dir_flips=dir_flips, trend_flips=trend_flips)
 
     out = prev if prev is not None else {}
     out.update({"n_bars": n, "bh": round(bh, 2), "years": years,
@@ -147,6 +154,9 @@ def process_symbol(symbol: str, prev: dict | None = None) -> dict:
               f" | ledger o/c/sn/bn={c['n_ledger_opens']}/"
               f"{c['n_ledger_closes']}/{c['n_ledger_sell_noops']}/"
               f"{c['n_ledger_buy_noops']}"
+              f" 门拒 d/c/nr={c.get('n_ledger_domain_rejects', 0)}/"
+              f"{c.get('n_ledger_cost_rejects', 0)}/"
+              f"{c.get('n_ledger_cost_noref_rejects', 0)}"
               f" | 短差 n={po['n']} wr={po['win_rate']}"
               f" p50={po['p50']}"
               f" [{pack['elapsed_s']:.2f}s]", flush=True)
