@@ -26,11 +26,14 @@ pub mod fatigue_gate;
 pub mod ledger;
 pub mod level_operating_unit;
 pub mod master;
+pub mod nested_fugue;
 pub mod positional;
 pub mod positional_fusion;
 pub mod recursive_position;
 pub mod unified_osc;
 pub mod unified_voice;
+pub mod axiom_voice;
+pub mod dual_voice;
 pub mod runner;
 pub mod tape;
 #[cfg(test)]

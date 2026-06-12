@@ -293,6 +293,36 @@ pub struct PositionalResult {
     pub n_t2w_fires_by_ladder: [u64; MAX_LADDER],
     /// T2W 否定次数（R20：close 越过锁存 extreme ⇒ 清锁存；086:80 镜像）。
     pub n_t2w_negates_by_ladder: [u64; MAX_LADDER],
+    // ── 双书独立逐仓 voice（fusion_vd/vdn）观测面（其余模式恒零）──
+    /// 空头书独立开仓数（θ 配额逐仓——非翻转断面，与 n_flip_shorts 互斥）。
+    pub n_dual_short_opens_by_ladder: [u64; MAX_LADDER],
+    /// 空头书开仓门拦截数（MoveUp 满仓义务窗口 ∨ r2 位置门）。
+    pub n_dual_short_open_blocks_by_ladder: [u64; MAX_LADDER],
+    /// 同级别双书共存 bar 数（多头书 Long ∧ 空头书 Short——非净额合并的
+    /// 核心新现象，m>N 承载位可观测面）。
+    pub dual_both_held_bars_by_ladder: [u64; MAX_LADDER],
+    // ── 嵌套递归赋格（nrf；`nested_fugue.rs`）观测面；其余模式恒零 ──
+    /// 根 voice 入场数（按入场层——最高 θ 涌现层分布即根的爬升轨迹）。
+    pub n_nrf_root_entries_by_ladder: [u64; MAX_LADDER],
+    /// 子 voice spawn 数（按子层；区间套递归 = voice 诞生的直接计数）。
+    pub n_nrf_spawns_by_ladder: [u64; MAX_LADDER],
+    /// 027:25 否定平仓数（价格越过 spawn 时 candidate 极值，按层）。
+    pub n_nrf_negate_closes_by_ladder: [u64; MAX_LADDER],
+    /// 级联回收数（父腿平仓 ⇒ 子树前提消失，按被回收子层）。
+    pub n_nrf_cascade_closes_by_ladder: [u64; MAX_LADDER],
+    /// 35课成本门拒 spawn 数（θ_q(sub) < k×friction——经济终止，按子层）。
+    pub n_nrf_cost_rejects_by_ladder: [u64; MAX_LADDER],
+    /// θ 参照不可定义拒数（warm-up 保守拒绝，按子层）。
+    pub n_nrf_noref_rejects_by_ladder: [u64; MAX_LADDER],
+    /// 槽占用拒数（一层一 voice——结构终止，按子层）。
+    pub n_nrf_busy_skips_by_ladder: [u64; MAX_LADDER],
+    /// floor 触底数（k−1 < floor——存在论终止（笔=a0），按父层）。
+    pub n_nrf_floor_stops_by_ladder: [u64; MAX_LADDER],
+    /// 防尘埃拒开数（可成交 < MIN_FILL_FRAC×目标金额，按层）。
+    pub n_nrf_dust_skips_by_ladder: [u64; MAX_LADDER],
+    /// 并发深度直方图：同时 Open 槽数 = d 的 bar 计数（stretto 并发读数，
+    /// d 为索引）。
+    pub nrf_depth_bars: [u64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
@@ -523,6 +553,35 @@ pub enum PolarityMode {
     /// anc_freeze = 唯一消融臂（诊断工具非部署开关）：fusion_v = true；
     /// fusion_v_self freeze 仅自层（递归传导消融）。
     UnifiedVoice { anc_freeze: bool },
+    /// v5：公理演绎统一 voice FSM（fusion_va；`axiom_voice.rs`；
+    /// `analysis/unified_voice_axiom_derivation.md`）。FSM = 五条公理各自
+    /// 自我否定后的扬弃之总和——零消融参数（编排者方法论定型：回测=证伪
+    /// 检验非发现检验）。Φ 中枢账本相位（049:52 自层义务）× 26:80 豁免域
+    /// settled-tail-kind（535 定理映射）双窗口、Osc 短差=配对闭环（锚 ZD
+    /// 几何接回，049:64）、44课铰链升级、成本门 k_cost≡1（θ 因果均值）、
+    /// 翻转落点恒零暴露。
+    AxiomVoice,
+    /// v6：嵌套递归赋格（nrf；`nested_fugue.rs`；2026-06-12 编排者任务
+    /// "逐仓独立头寸和递归区间套是同一件事"）。区间套递归 = voice spawn
+    /// 的时序机制：父层反向 candidate 武装窗口 × 次级别第一证据触发 ⇒
+    /// **父仓不动**，在 k−1 开方向交替的独立逐仓头寸（35课立体性；概念链
+    /// 第14/18/19/20/22环）；每层 voice 生命周期 = 该层走势完美（confirmed
+    /// 反向词汇）；否定 = 破 candidate 极值（027:25 逆否，级联回收子树）；
+    /// 递归终止 = floor（77-78课）∨ 35课成本门 ∨ 槽占用。零概念 flag——
+    /// 唯一经验参数 = a0。
+    NestedRecursive,
+    /// v7：双书独立逐仓 voice + 区间套链式递归（fusion_vd/vn/vdn；
+    /// `dual_voice.rs`；2026-06-12 任务的分离读法——与 nrf 合一读法
+    /// 同源分岔，回测裁决）。fusion_v 基座两正交轴，2×2 消融：
+    /// - `dual_book`：每级别多头书（LayerState）+ 空头书独立逐仓并立，
+    ///   非净额合并——卖点同 bar 驱动多头出清 ∧ 空头按 θ 配额开空
+    ///   （翻转断面 M=N 让位于配额对称），同级别多空可共存
+    ///   （`bidirectional_nested_accounting.md` v2 §4.1 m>N 承载位补全）；
+    /// - `nest_deep`：区间套链式贯通（0027:11"反复进行下去直到最低级别"
+    ///   字面）——∀ 中间层窗口同侧活动 ∧ bi 层翻转沿（a0 端最低结构
+    ///   词汇）才触发，替换一层截断（k−1 任意证据）。
+    /// (false,false) = fusion_v bit-exact 守卫臂（不暴露 parse，仅单测）。
+    DualVoice { dual_book: bool, nest_deep: bool },
 }
 
 impl PolarityMode {
@@ -608,6 +667,11 @@ impl PolarityMode {
             "cycle45" => Some(PolarityMode::Cycle45),
             "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
+            "fusion_va" => Some(PolarityMode::AxiomVoice),
+            "nrf" => Some(PolarityMode::NestedRecursive),
+            "fusion_vd" => Some(PolarityMode::DualVoice { dual_book: true, nest_deep: false }),
+            "fusion_vn" => Some(PolarityMode::DualVoice { dual_book: false, nest_deep: true }),
+            "fusion_vdn" => Some(PolarityMode::DualVoice { dual_book: true, nest_deep: true }),
             "fusion_v" => Some(PolarityMode::UnifiedVoice { anc_freeze: true }),
             "fusion_v_self" => Some(PolarityMode::UnifiedVoice { anc_freeze: false }),
             "fusion" => fusion(true, true, false),
@@ -791,6 +855,15 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
+    if mode == PolarityMode::AxiomVoice {
+        return super::axiom_voice::run_axiom_voice(tape, floor_ladder);
+    }
+    if mode == PolarityMode::NestedRecursive {
+        return super::nested_fugue::run_nested_fugue(tape, floor_ladder);
+    }
+    if let PolarityMode::DualVoice { dual_book, nest_deep } = mode {
+        return super::dual_voice::run_dual_voice(tape, floor_ladder, dual_book, nest_deep);
+    }
     if let PolarityMode::UnifiedVoice { anc_freeze } = mode {
         return super::unified_voice::run_unified_voice(tape, floor_ladder, anc_freeze);
     }
@@ -864,15 +937,23 @@ pub fn run_positional(
                 sig.sell1.get(k)
             }
             PolarityMode::Hold26 { sell_t1_only: false } => sig.sell_any.get(k),
-            PolarityMode::Fusion { .. } | PolarityMode::UnifiedVoice { .. } => {
-                unreachable!("Fusion/UnifiedVoice 在入口已分派")
+            PolarityMode::Fusion { .. }
+            | PolarityMode::UnifiedVoice { .. }
+            | PolarityMode::AxiomVoice
+            | PolarityMode::NestedRecursive
+            | PolarityMode::DualVoice { .. } => {
+                unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
             }
         };
         let exit_reason = match mode {
             PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => "sell1",
             PolarityMode::Hold26 { sell_t1_only: false } => "sellpt",
-            PolarityMode::Fusion { .. } | PolarityMode::UnifiedVoice { .. } => {
-                unreachable!("Fusion/UnifiedVoice 在入口已分派")
+            PolarityMode::Fusion { .. }
+            | PolarityMode::UnifiedVoice { .. }
+            | PolarityMode::AxiomVoice
+            | PolarityMode::NestedRecursive
+            | PolarityMode::DualVoice { .. } => {
+                unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
             }
         };
 
@@ -952,8 +1033,12 @@ pub fn run_positional(
                 (PolarityMode::Hold26 { .. }, LayerState::Armed { .. }) => {
                     unreachable!("Hold26 无 ARMED 相位——confirmed 事件直接消费")
                 }
-                (PolarityMode::Fusion { .. }, _) | (PolarityMode::UnifiedVoice { .. }, _) => {
-                    unreachable!("Fusion/UnifiedVoice 在入口已分派")
+                (PolarityMode::Fusion { .. }, _)
+                | (PolarityMode::UnifiedVoice { .. }, _)
+                | (PolarityMode::AxiomVoice, _)
+                | (PolarityMode::NestedRecursive, _)
+                | (PolarityMode::DualVoice { .. }, _) => {
+                    unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
                 }
                 // Pending（两模式共用）：卖点@k 取消（该买点起始的走势已被
                 // 宣告结束）；否则重试入场。

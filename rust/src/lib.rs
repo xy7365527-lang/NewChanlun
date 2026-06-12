@@ -2099,6 +2099,19 @@ fn run_positional_rust(
     out.set_item("n_t2w_arms_by_ladder", res.n_t2w_arms_by_ladder.to_vec())?;
     out.set_item("n_t2w_fires_by_ladder", res.n_t2w_fires_by_ladder.to_vec())?;
     out.set_item("n_t2w_negates_by_ladder", res.n_t2w_negates_by_ladder.to_vec())?;
+    // 双书独立逐仓 voice（fusion_vd/vdn）观测面（其余模式恒零）
+    out.set_item(
+        "n_dual_short_opens_by_ladder",
+        res.n_dual_short_opens_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_dual_short_open_blocks_by_ladder",
+        res.n_dual_short_open_blocks_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "dual_both_held_bars_by_ladder",
+        res.dual_both_held_bars_by_ladder.to_vec(),
+    )?;
     // 双向条件轴 S1-S4（fusion_btr/fusion_btra）观测面（其余模式恒零）
     out.set_item("n_flip_shorts_by_ladder", res.n_flip_shorts_by_ladder.to_vec())?;
     out.set_item("n_short_covers_by_ladder", res.n_short_covers_by_ladder.to_vec())?;
@@ -2144,6 +2157,41 @@ fn run_positional_rust(
         "gate_held_bars_by_ladder",
         res.gate_held_bars_by_ladder.to_vec(),
     )?;
+    // 嵌套递归赋格（nrf）观测面（其余模式恒零）
+    out.set_item(
+        "n_nrf_root_entries_by_ladder",
+        res.n_nrf_root_entries_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_nrf_spawns_by_ladder", res.n_nrf_spawns_by_ladder.to_vec())?;
+    out.set_item(
+        "n_nrf_negate_closes_by_ladder",
+        res.n_nrf_negate_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nrf_cascade_closes_by_ladder",
+        res.n_nrf_cascade_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nrf_cost_rejects_by_ladder",
+        res.n_nrf_cost_rejects_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nrf_noref_rejects_by_ladder",
+        res.n_nrf_noref_rejects_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nrf_busy_skips_by_ladder",
+        res.n_nrf_busy_skips_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nrf_floor_stops_by_ladder",
+        res.n_nrf_floor_stops_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nrf_dust_skips_by_ladder",
+        res.n_nrf_dust_skips_by_ladder.to_vec(),
+    )?;
+    out.set_item("nrf_depth_bars", res.nrf_depth_bars.to_vec())?;
     Ok(out.into())
 }
 

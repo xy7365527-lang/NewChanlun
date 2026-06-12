@@ -109,6 +109,17 @@ impl DepthRef {
         Some(amps[rank - 1])
     }
 
+    /// 该层 θ 因果均值（035:30"平均的买卖点间波幅"字面泛函——公理5 工位
+    /// 钉死；fusion_va 成本门消费）。样本集空 ⇒ None（未定义短路拒绝：
+    /// 资格是需证据的存在谓词，053:26——min_obs=1 零参数）。
+    pub fn theta_mean(&self, ladder: usize) -> Option<f64> {
+        let buf = &self.bufs[ladder];
+        if buf.is_empty() {
+            return None;
+        }
+        Some(buf.iter().map(|(_, a)| *a).sum::<f64>() / buf.len() as f64)
+    }
+
     /// 调研日志（每中枢一行最终振幅）——lib.rs diag marshal 消费。
     pub fn take_log(&mut self) -> Vec<(u8, i64, f64)> {
         self.log_idx.clear();
