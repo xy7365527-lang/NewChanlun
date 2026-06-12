@@ -319,6 +319,21 @@ class TestMakeRatioKlineSubFreq:
 
         assert list(ratio.index) == list(df_a.index.intersection(df_b.index))
 
+    def test_sub_freq_uses_full_final_target_window(self):
+        """最后一根目标K线必须使用完整目标周期内的子频率数据。"""
+        df_a = _ohlcv([100, 110], start="2024-01-02")
+        df_b = _ohlcv([50, 55], start="2024-01-02")
+
+        sub_prices_a = [100.0] * 96
+        sub_prices_a[71] = 200.0  # 2024-01-03 23:00，属于最后一根目标日线
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv([50.0] * 96, start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert ratio["high"].iloc[-1] == pytest.approx(4.0)
+        assert ratio["close"].iloc[-1] == pytest.approx(4.0)
+
     def test_sub_freq_infers_exact_15min_target_frequency(self):
         """未显式 target_freq 时，15min 目标不应被静默聚合成 30min。"""
         df_a = _minute_ohlcv([100, 101, 102, 103], freq="15min")
