@@ -1,0 +1,250 @@
+{
+  "edges": {
+    "fx_eu": {
+      "name": "FX:EUR/USD",
+      "bar_count": 61722,
+      "date_range": [
+        "2016-01-03 23:00:00",
+        "2026-06-05 20:00:00"
+      ],
+      "sigma": "UP",
+      "move_kind": "trend",
+      "move_direction": "up",
+      "move_settled": false,
+      "max_level": 3,
+      "last_price": 1.1527,
+      "seconds": 0.04
+    },
+    "fx_jp": {
+      "name": "FX:JPY/USD",
+      "bar_count": 61706,
+      "date_range": [
+        "2016-01-03 23:00:00",
+        "2026-06-05 20:00:00"
+      ],
+      "sigma": "UP",
+      "move_kind": "trend",
+      "move_direction": "up",
+      "move_settled": false,
+      "max_level": 2,
+      "last_price": 160.21789633902108,
+      "seconds": 0.06
+    },
+    "fx_cn": {
+      "name": "FX:CNH/USD",
+      "bar_count": 40373,
+      "date_range": [
+        "2016-01-04 02:00:00",
+        "2026-06-05 20:00:00"
+      ],
+      "sigma": "DOWN",
+      "move_kind": "trend",
+      "move_direction": "down",
+      "move_settled": false,
+      "max_level": 2,
+      "last_price": 6.787,
+      "seconds": 0.02
+    },
+    "eu_p": {
+      "name": "EU:P/M",
+      "bar_count": 6684,
+      "date_range": [
+        "2025-03-11 00:00:00",
+        "2026-06-05 20:00:00"
+      ],
+      "sigma": "FLAT",
+      "move_kind": "consolidation",
+      "move_direction": "up",
+      "move_settled": false,
+      "max_level": 2,
+      "last_price": 6006.0,
+      "seconds": 0.0
+    },
+    "jp_p": {
+      "name": "JP:P/M",
+      "bar_count": 61500,
+      "date_range": [
+        "2016-01-03 23:00:00",
+        "2026-06-05 20:00:00"
+      ],
+      "sigma": "UP",
+      "move_kind": "trend",
+      "move_direction": "up",
+      "move_settled": false,
+      "max_level": 2,
+      "last_price": 63820.0,
+      "seconds": 0.04
+    },
+    "cn_p": {
+      "name": "CN:P/M*",
+      "bar_count": 1023,
+      "date_range": [
+        "2026-06-02 13:53:00",
+        "2026-06-08 15:00:00"
+      ],
+      "sigma": "DOWN",
+      "move_kind": "trend",
+      "move_direction": "down",
+      "move_settled": false,
+      "max_level": 2,
+      "last_price": 4682.6,
+      "seconds": 0.0
+    },
+    "cn_c": {
+      "name": "CN:C/M*",
+      "bar_count": 1096,
+      "date_range": [
+        "2026-06-05 01:05:00",
+        "2026-06-09 00:51:00"
+      ],
+      "sigma": "DOWN",
+      "move_kind": "trend",
+      "move_direction": "down",
+      "move_settled": false,
+      "max_level": 2,
+      "last_price": 588.9,
+      "seconds": 0.0
+    },
+    "cn_au": {
+      "name": "CN:Au*",
+      "bar_count": 1096,
+      "date_range": [
+        "2026-06-05 01:06:00",
+        "2026-06-09 00:51:00"
+      ],
+      "sigma": "DOWN",
+      "move_kind": "trend",
+      "move_direction": "down",
+      "move_settled": false,
+      "max_level": 2,
+      "last_price": 952.08,
+      "seconds": 0.0
+    },
+    "us_r": {
+      "name": "US:R/M",
+      "bar_count": 241890,
+      "date_range": [
+        "2023-12-11 14:30:00",
+        "2026-06-05 19:59:00"
+      ],
+      "sigma": "FLAT",
+      "move_kind": "consolidation",
+      "move_direction": "up",
+      "move_settled": false,
+      "max_level": 3,
+      "last_price": 96.8,
+      "seconds": 0.15
+    },
+    "us_c": {
+      "name": "US:C/M",
+      "bar_count": 241890,
+      "date_range": [
+        "2023-12-11 14:30:00",
+        "2026-06-05 19:59:00"
+      ],
+      "sigma": "FLAT",
+      "move_kind": "consolidation",
+      "move_direction": "down",
+      "move_settled": false,
+      "max_level": 3,
+      "last_price": 29.24,
+      "seconds": 0.11
+    },
+    "oil": {
+      "name": "Oil:C->P",
+      "bar_count": 790075,
+      "date_range": [
+        "2024-01-01 23:00:00",
+        "2026-06-04 23:59:00"
+      ],
+      "sigma": "FLAT",
+      "move_kind": "consolidation",
+      "move_direction": "down",
+      "move_settled": false,
+      "max_level": 3,
+      "last_price": 92.97,
+      "seconds": 0.53
+    },
+    "au": {
+      "name": "Au:C<->M",
+      "bar_count": 851433,
+      "date_range": [
+        "2024-01-01 23:00:00",
+        "2026-06-05 20:59:00"
+      ],
+      "sigma": "UP",
+      "move_kind": "trend",
+      "move_direction": "up",
+      "move_settled": false,
+      "max_level": 3,
+      "last_price": 4353.9,
+      "seconds": 0.65
+    },
+    "us_p": {
+      "name": "US:P/M",
+      "bar_count": 852022,
+      "date_range": [
+        "2024-01-01 23:00:00",
+        "2026-06-04 23:59:00"
+      ],
+      "sigma": "UP",
+      "move_kind": "trend",
+      "move_direction": "up",
+      "move_settled": false,
+      "max_level": 3,
+      "last_price": 7573.5,
+      "seconds": 0.62
+    }
+  },
+  "summary": {
+    "engine": "newchan_rust.RecursiveOrchestrator (max_levels=6, stroke_mode=wide)",
+    "epistemic_level": "L2/L3 (真实多标的多分辨率)",
+    "total_seconds": 2.2,
+    "us_configuration": {
+      "sigma_p": "UP",
+      "sigma_c": "FLAT",
+      "sigma_r": "FLAT",
+      "complete": true
+    },
+    "layer0_settlement": {
+      "fx_edges": {
+        "fx_eu": "up",
+        "fx_jp": "up",
+        "fx_cn": "down"
+      },
+      "fx_settled": {
+        "fx_eu": false,
+        "fx_jp": false,
+        "fx_cn": false
+      },
+      "synchronized_break_candidate": false
+    },
+    "c_path": {
+      "au_last": 4353.9,
+      "oil_last": 92.97,
+      "omega_gold_oil": 46.83123588254275,
+      "omega_direction": "up",
+      "au_sigma": "UP",
+      "oil_sigma": "FLAT"
+    },
+    "partial_economies": {
+      "EU": {
+        "P": "FLAT",
+        "C": null,
+        "R": null
+      },
+      "JP": {
+        "P": "UP",
+        "C": null,
+        "R": null
+      },
+      "CN_explore": {
+        "P": "DOWN",
+        "C": "DOWN",
+        "Au": "DOWN",
+        "note": "窗口仅 ~1 周（~1k bar），不足涌现最高级别，L0/L1 探索读数"
+      }
+    }
+  },
+  "partial": false
+}

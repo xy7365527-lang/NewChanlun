@@ -33,17 +33,13 @@ databento 均无源（已验证），用日线代理另行处理。
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
-from datetime import datetime
+from dataclasses import dataclass
 from pathlib import Path
 
-from newchan.orchestrator.recursive import (
-    RecursiveOrchestrator,
-    RecursiveOrchestratorSnapshot,
-)
+import newchan_rust
+
 from newchan.topology.config_space import Configuration, WalkDirection
 from newchan.topology.graph import Vertex
-from newchan.types import Bar
 
 _DATA_DIR = Path(__file__).resolve().parents[3] / "analysis" / "data_cache"
 
@@ -163,17 +159,6 @@ def _load_series(filename: str, window_bars: int | None = None) -> _Series:
     )
 
 
-def _parse_dt(s: str) -> datetime:
-    """解析 UTC tz-aware 或裸日期字符串。"""
-    core = s.split("+")[0].strip()
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(core, fmt)
-        except ValueError:
-            continue
-    return datetime.strptime(core[:19], "%Y-%m-%d %H:%M:%S")
-
-
 def _direction_to_sigma(direction: str, kind: str) -> WalkDirection:
     """最高级别走势 (kind, direction) → σ ∈ WalkDirection。
 
@@ -204,30 +189,29 @@ class EdgeReading:
 
 
 def _run_recursive(name: str, s: _Series) -> EdgeReading:
-    """对一条边序列跑 RecursiveOrchestrator，提取最高级别走势 → EdgeReading。"""
-    orch = RecursiveOrchestrator(stream_id=name, max_levels=6, stroke_mode="wide")
-    snap: RecursiveOrchestratorSnapshot | None = None
+    """对一条边序列跑 Rust RecursiveOrchestrator，提取最高级别走势 → EdgeReading。
+
+    引擎为 ``newchan_rust.RecursiveOrchestrator``（逐位等价 Python 版，~23×）。
+    Python O(N²) 流式引擎对 1min 量级（852k bar）不可行，故 1min 跨国管线必须用
+    Rust 引擎。Rust 接口为查询式：``process_bar(o,h,l,c)`` 逐 bar 驱动，
+    ``current_moves()`` / ``current_recursive()`` 读出结构化结果。
+
+    走势 move 元组结构（``rust/src/lib.rs:469``，固定 8 元素）：
+    ``(kind, direction, seg_start, seg_end, zs_start, zs_end, zs_count, settled)``。
+    """
+    orch = newchan_rust.RecursiveOrchestrator(max_levels=6, stroke_mode="wide")
     n = len(s.closes)
     for i in range(n):
-        snap = orch.process_bar(
-            Bar(
-                ts=_parse_dt(s.dates[i]),
-                open=s.opens[i],
-                high=s.highs[i],
-                low=s.lows[i],
-                close=s.closes[i],
-            )
-        )
-    assert snap is not None
-    moves = snap.move_snapshot.moves
+        orch.process_bar(s.opens[i], s.highs[i], s.lows[i], s.closes[i])
+    moves = orch.current_moves()
     if moves:
-        m = moves[-1]
-        kind, direction, settled = m.kind, m.direction, m.settled
+        head = moves[-1][0]
+        kind, direction, settled = head[0], head[1], head[7]
     else:
         kind, direction, settled = "none", "none", False
     max_level = 1
-    for rs in snap.recursive_snapshots:
-        max_level = max(max_level, rs.level_id)
+    for entry in orch.current_recursive():
+        max_level = max(max_level, entry[0])
     return EdgeReading(
         name=name,
         bar_count=n,

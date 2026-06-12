@@ -23,10 +23,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import multiprocessing as mp
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -37,15 +36,10 @@ for _p in (str(ROOT), str(ROOT / "src")):
         sys.path.insert(0, _p)
 
 from analysis.k4_1min_rust_lib import (  # noqa: E402
-    EDGES,
     GAMMA_EDGES,
+    MONEY_ANCHOR,
     USER_EDGE_MAP,
-    VERTEX_FILES,
-    EdgeDailySigma,
-    _worker_rust,
-    build_ratio_for_edge,
-    load_edge_cache,
-    load_series,
+    compute_or_load_edge_sigmas,
 )
 
 REPORT_PATH = ROOT / "analysis" / "k4_config_transition_matrix_1min.md"
@@ -145,60 +139,22 @@ def main() -> None:
     ap.add_argument("--procs", type=int, default=6)
     args = ap.parse_args()
 
+    # 27 态版叙述/meta 硬编码黄金锚（GC）。DX/6E 锚是 anchor-aware 6 维脚本的职责。
+    if MONEY_ANCHOR != "GC":
+        raise SystemExit(
+            f"27 态版仅支持 GC 锚（报告与 meta 硬编码黄金锚），当前 "
+            f"K4_MONEY_ANCHOR={MONEY_ANCHOR}。DX/6E 锚请用 anchor-aware 的 "
+            f"k4_config_transition_matrix_1min_6d.py。"
+        )
     t_start = time.time()
     print("=" * 64)
     print("  1min a0 K4 配置转换矩阵（Rust 引擎）")
     print("=" * 64)
 
-    # ── 加载顶点序列（一次读一个文件，内存约束）──
-    print("\n[1/5] 加载顶点 1min 序列（逐文件）...", flush=True)
-    series = {}
-    for v, fn in VERTEX_FILES.items():
-        s = load_series(fn)
-        series[v] = s
-        print(f"  {v} = {s.symbol:8s}  {len(s.c):>11,} bars  "
-              f"{np.datetime64(int(s.ts[0]), 's')}..{np.datetime64(int(s.ts[-1]), 's')}",
-              flush=True)
-
-    # ── 构造六条边对数包络比价 ──
-    print("\n[2/5] 构造六条边对数包络比价 ...", flush=True)
-    ratios = {}
-    for edge in EDGES:
-        rb = build_ratio_for_edge(edge, series)
-        if args.years > 0:
-            # 对齐 UTC 日边界：消除 datetime.now() 秒级漂移导致同日多次运行 n_bars
-            # 不一致、cache resume 永久 miss（codex 异质审查问题6）。
-            cutoff = (int(datetime.now(timezone.utc).timestamp())
-                      - args.years * 365 * 86400) // 86400 * 86400
-            mask = rb.ts >= cutoff
-            rb = type(rb)(
-                name=rb.name, ts=rb.ts[mask], day=rb.day[mask],
-                o=rb.o[mask], h=rb.h[mask], l=rb.l[mask], c=rb.c[mask],
-            )
-        ratios[edge[0]] = rb
-        print(f"  {rb.name:5s} {len(rb.c):>11,} bars  "
-              f"{np.datetime64(int(rb.ts[0]), 's')}..{np.datetime64(int(rb.ts[-1]), 's')}",
-              flush=True)
-
-    # ── 六边并行 Rust 缠论递归（resume：单边落盘，崩溃不丢已完成边）──
-    print(f"\n[3/5] 六边 Rust 缠论递归（procs={args.procs}，resume 可用）...", flush=True)
-    edge_results: dict[str, EdgeDailySigma] = {}
-    todo = []
-    for rb in ratios.values():
-        cached = load_edge_cache(rb.name, args.years)
-        if cached is not None and cached.n_bars == len(rb.c):
-            edge_results[rb.name] = cached
-            print(f"  {rb.name:5s} resumed: {cached.n_bars:>11,} bars, "
-                  f"{len(cached.days)} days, max_lvl=L{cached.max_level}", flush=True)
-        else:
-            todo.append((rb.name, rb.day, rb.o, rb.h, rb.l, rb.c, 6, args.years))
-    if todo:
-        ctx = mp.get_context("spawn")
-        with ctx.Pool(processes=args.procs) as pool:
-            for r in pool.imap_unordered(_worker_rust, todo):
-                edge_results[r.name] = r
-                print(f"  {r.name:5s} done: {r.n_bars:>11,} bars, {len(r.days)} days, "
-                      f"max_lvl=L{r.max_level}, {r.elapsed:.0f}s", flush=True)
+    # ── 加载/比价/六边并行 Rust 递归（resume，lib 共用函数 DRY）──
+    edge_results = compute_or_load_edge_sigmas(
+        years=args.years, procs=args.procs, verbose=True
+    )
 
     # ── 组装逐日 Γ + 转换矩阵 ──
     print("\n[4/5] 组装逐日 Γ=(σ_P,σ_C,σ_R) 并统计转换矩阵 ...", flush=True)

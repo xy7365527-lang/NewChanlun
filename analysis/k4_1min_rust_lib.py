@@ -33,6 +33,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -56,12 +57,26 @@ from analysis.k4_1min_lib import (  # noqa: E402
     log_envelope_ratio,
 )
 
-# ── 顶点 → 数据文件（GC 货币锚版，分歧见模块头注） ──────────────────
+# ── 货币锚可配置（env K4_MONEY_ANCHOR，默认 GC）──────────────────────
+#   GC：黄金锚（历史默认，σ_M=相对黄金）— 数据 2012-2026 ≈13.6 年
+#   DX：美元指数锚（正典 M，528/529 编排者裁决 A；σ_M=相对美元）— 数据 2018-2026 ≈8 年
+#   6E：欧元汇率锚（USD6E，美元强度代理）— 数据 2018-2026
+# cache key 含 anchor（edge_cache_path），不同锚的边缓存物理隔离，杜绝错误 resume。
+ANCHOR_FILES: dict[str, str] = {
+    "GC": "gc_1m_databento_10y.json",
+    "DX": "dx_1m_databento_10y.json",
+    "6E": "usd6e_1m_databento_10y.json",
+}
+MONEY_ANCHOR: str = os.environ.get("K4_MONEY_ANCHOR", "GC").upper()
+if MONEY_ANCHOR not in ANCHOR_FILES:
+    raise SystemExit(f"K4_MONEY_ANCHOR={MONEY_ANCHOR!r} 非法，可选 {list(ANCHOR_FILES)}")
+
+# ── 顶点 → 数据文件（M 随 anchor，分歧见模块头注 + 528/529 裁决 A）──────
 VERTEX_FILES: dict[str, str] = {
-    "P": "es_1m_databento_10y.json",  # 生产资本
-    "M": "gc_1m_databento_10y.json",  # 货币/价值锚（黄金）
-    "C": "cl_1m_databento_10y.json",  # 商品（油，压平进 C 顶点）
-    "R": "zn_1m_databento_10y.json",  # 10年国债（≡利率，R 代理）
+    "P": "es_1m_databento_10y.json",   # 生产资本
+    "M": ANCHOR_FILES[MONEY_ANCHOR],   # 货币锚（GC/DX/6E，见上）
+    "C": "cl_1m_databento_10y.json",   # 商品（油，压平进 C 顶点）
+    "R": "zn_1m_databento_10y.json",   # 10年国债（≡利率，R 代理）
 }
 
 # K4 六条边：分子/分母（顶点键）
@@ -187,9 +202,9 @@ EDGE_CACHE_DIR = ROOT / "analysis" / "data_cache"
 
 
 def edge_cache_path(name: str, years: int) -> Path:
-    """单边 σ 结果 cache 路径（years 区分数据范围，避免错误 resume）。"""
+    """单边 σ 结果 cache 路径（anchor + years 区分，避免不同锚/范围错误 resume）。"""
     safe = name.replace("/", "_")
-    return EDGE_CACHE_DIR / f"_k4edge_{safe}_y{years}.json"
+    return EDGE_CACHE_DIR / f"_k4edge_{MONEY_ANCHOR}_{safe}_y{years}.json"
 
 
 def dump_edge_cache(r: EdgeDailySigma, years: int) -> None:
@@ -239,3 +254,67 @@ def build_ratio_for_edge(
     """按边定义构造对数包络比价（复用 k4_1min_lib.log_envelope_ratio）。"""
     name, num, den = edge
     return log_envelope_ratio(series[num], series[den], name)
+
+
+def compute_or_load_edge_sigmas(
+    years: int = 0, procs: int = 6, *, verbose: bool = True
+) -> dict[str, "EdgeDailySigma"]:
+    """加载顶点 1min 序列 → 6 条边对数包络比价 → 并行 Rust 缠论递归（resume+缓存）。
+
+    返回 {edge_name: EdgeDailySigma}。当前 MONEY_ANCHOR 决定 M 顶点与 cache key，
+    不同锚的缓存物理隔离（edge_cache_path 含 anchor），杜绝错误 resume。
+    27 态版与 6 维版共用本函数（DRY）。
+    """
+    import multiprocessing as mp
+    from datetime import datetime, timezone
+
+    if verbose:
+        print(f"[1/3] 加载顶点 1min 序列（anchor={MONEY_ANCHOR}, M={VERTEX_FILES['M']}）...",
+              flush=True)
+    series = {}
+    for v, fn in VERTEX_FILES.items():
+        s = load_series(fn)
+        series[v] = s
+        if verbose:
+            print(f"  {v} = {s.symbol:8s}  {len(s.c):>11,} bars  "
+                  f"{np.datetime64(int(s.ts[0]), 's')}..{np.datetime64(int(s.ts[-1]), 's')}",
+                  flush=True)
+
+    if verbose:
+        print("[2/3] 构造六条边对数包络比价 ...", flush=True)
+    ratios = {}
+    for edge in EDGES:
+        rb = build_ratio_for_edge(edge, series)
+        if years > 0:
+            # 对齐 UTC 日边界：消除 datetime.now() 秒级漂移导致 cache resume 永久 miss。
+            cutoff = (int(datetime.now(timezone.utc).timestamp())
+                      - years * 365 * 86400) // 86400 * 86400
+            mask = rb.ts >= cutoff
+            rb = type(rb)(name=rb.name, ts=rb.ts[mask], day=rb.day[mask],
+                          o=rb.o[mask], h=rb.h[mask], l=rb.l[mask], c=rb.c[mask])
+        ratios[edge[0]] = rb
+        if verbose:
+            print(f"  {rb.name:5s} {len(rb.c):>11,} bars", flush=True)
+
+    if verbose:
+        print(f"[3/3] 六边 Rust 缠论递归（procs={procs}，resume 可用）...", flush=True)
+    edge_results: dict[str, EdgeDailySigma] = {}
+    todo = []
+    for rb in ratios.values():
+        cached = load_edge_cache(rb.name, years)
+        if cached is not None and cached.n_bars == len(rb.c):
+            edge_results[rb.name] = cached
+            if verbose:
+                print(f"  {rb.name:5s} resumed: {cached.n_bars:>11,} bars, "
+                      f"{len(cached.days)} days, max_lvl=L{cached.max_level}", flush=True)
+        else:
+            todo.append((rb.name, rb.day, rb.o, rb.h, rb.l, rb.c, 6, years))
+    if todo:
+        ctx = mp.get_context("spawn")
+        with ctx.Pool(processes=procs) as pool:
+            for r in pool.imap_unordered(_worker_rust, todo):
+                edge_results[r.name] = r
+                if verbose:
+                    print(f"  {r.name:5s} done: {r.n_bars:>11,} bars, {len(r.days)} days, "
+                          f"max_lvl=L{r.max_level}, {r.elapsed:.0f}s", flush=True)
+    return edge_results
