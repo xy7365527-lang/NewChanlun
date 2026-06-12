@@ -2025,6 +2025,33 @@ fn run_positional_rust(
     out.set_item("n_osc_restore_defer_bars", res.n_osc_restore_defer_bars)?;
     out.set_item("osc_net_cash_by_ladder", res.osc_net_cash_by_ladder.to_vec())?;
     out.set_item("osc_net_cash_at_level", res.osc_net_cash_at_level.to_vec())?;
+    // ── P6 相位机观测面（fusion_p/fusion_pu；其余模式恒零）──
+    out.set_item(
+        "n_phase_up_opens_by_ladder",
+        res.n_phase_up_opens_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_phase_up_settle_closes_by_ladder",
+        res.n_phase_up_settle_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_phase_up_div_closes_by_ladder",
+        res.n_phase_up_div_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_phase_up_dir_closes_by_ladder",
+        res.n_phase_up_dir_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_phase_dn_opens_by_ladder",
+        res.n_phase_dn_opens_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_phase_dn_closes_by_ladder",
+        res.n_phase_dn_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item("phase_up_bars_by_ladder", res.phase_up_bars_by_ladder.to_vec())?;
+    out.set_item("phase_dn_bars_by_ladder", res.phase_dn_bars_by_ladder.to_vec())?;
     Ok(out.into())
 }
 

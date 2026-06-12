@@ -289,6 +289,13 @@ impl CenterBook {
         self.pending_departure[ladder].is_some()
     }
 
+    /// P6 相位机 candidate 先行读法（049:68 离开即启动移动语义；research
+    /// §5.1"candidate 先行、confirmed 校正"——价格否定即校正）：未决离开段
+    /// 方向。Buy = candidate MOVE↑ 窗口，Sell = candidate MOVE↓ 窗口。
+    pub fn pending_departure_side(&self, ladder: usize) -> Option<Side> {
+        self.pending_departure[ladder].map(|(_, s)| s)
+    }
+
     /// 该层最后已知中枢（Python `last_center.get(k)`——注意：**不查 dead**，
     /// 存活判定由调用方组合 `is_dead`，与 Python 调用面逐字一致）。
     pub fn last(&self, ladder: usize) -> Option<LiveCenter> {

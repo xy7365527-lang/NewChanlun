@@ -89,7 +89,7 @@ use super::center_book::{CenterBook, LiveCenter};
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::DepthRef;
 use super::positional::{LayerState, LayerTrade, PositionalResult};
-use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
+use super::positional_fusion::{PhaseView, SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::BarSig;
 use super::types::{FIRST_BSP_LADDER, MAX_LADDER};
 use crate::stroke::Direction;
@@ -157,14 +157,17 @@ impl OscLayer {
         &self,
         k: usize,
         strong_gate: bool,
-        phase_up: &dyn Fn(usize) -> bool,
+        phase: &dyn Fn(usize) -> PhaseView,
         book: &CenterBook,
         depth_ref: &DepthRef,
         res: &mut PositionalResult,
     ) -> Option<(usize, LiveCenter)> {
         for j in k..MAX_LADDER {
-            // ① 相位门（不过 ⇒ 上移，049:44/026:183 递归形式）
-            if phase_up(j) {
+            // ① 相位门：osc 词汇的对象域 = OSC 相位（049:52 前提"中枢震荡
+            // 依旧"；MOVE↓ 同拒——049:40 不参与下跌）。不过 ⇒ 上移
+            // （049:44/026:183 递归形式）。KindDir 时钟下 ≠Osc ⟺ ==MoveUp，
+            // 与在册 phase_up 布尔行为逐位等值。
+            if phase(j) != PhaseView::Osc {
                 res.n_route_phase_skips[j] += 1;
                 continue;
             }
@@ -221,7 +224,7 @@ impl OscLayer {
         bar: i64,
         sig: &BarSig,
         strong_gate: bool,
-        phase_up: &dyn Fn(usize) -> bool,
+        phase: &dyn Fn(usize) -> PhaseView,
         book: &CenterBook,
         depth_ref: &DepthRef,
         layers: &[LayerState; MAX_LADDER],
@@ -230,7 +233,7 @@ impl OscLayer {
     ) {
         debug_assert!(self.outs[k].is_none(), "调用前提：层 k 无在外腿");
         let LayerState::Long { shares, .. } = layers[k] else { return };
-        let Some((j, lc)) = self.route(k, strong_gate, phase_up, book, depth_ref, res)
+        let Some((j, lc)) = self.route(k, strong_gate, phase, book, depth_ref, res)
         else {
             return;
         };
@@ -272,7 +275,7 @@ impl OscLayer {
         c: f64,
         bar: i64,
         sig: &BarSig,
-        phase_up: &dyn Fn(usize) -> bool,
+        phase: &dyn Fn(usize) -> PhaseView,
         book: &CenterBook,
         layers: &mut [LayerState; MAX_LADDER],
         pool: &mut f64,
@@ -289,8 +292,9 @@ impl OscLayer {
             self.outs[k] = Some(osc);
             res.n_osc_sell3_vetos_by_ladder[k] += 1;
         }
-        // 1. 趋势相满仓义务（j 层相位翻趋势 ⇒ 对象域消失，强制回补）
-        if !osc.dead_down && phase_up(osc.alad) {
+        // 1. 趋势相满仓义务（j 层相位翻 MOVE↑ ⇒ 对象域消失，强制回补，
+        //    049:52；MOVE↓ 不强制——"不能回补"方向由 dead_down latch 承载）
+        if !osc.dead_down && phase(osc.alad) == PhaseView::MoveUp {
             if self.try_restore(k, c, bar, pool, layers, res) {
                 res.n_osc_phase_restores_by_ladder[k] += 1;
             }
@@ -302,7 +306,7 @@ impl OscLayer {
         //    （`if tp {回补} else if sell {升级}`）——049:52 趋势相停削语义
         //    下 k 卖点无响应（既不削也不升级）。上移腿（alad>k）在 k 趋势相
         //    内被 k 卖点升级出清 = 绕过停削的旁路，禁止（与基座零接触矛盾）。
-        if sig.sell_any.get(k) && !phase_up(k) {
+        if sig.sell_any.get(k) && phase(k) != PhaseView::MoveUp {
             let LayerState::Long { entry_bar, entry_price, weight, deferred_bars, partial, .. } =
                 layers[k]
             else {
@@ -326,7 +330,7 @@ impl OscLayer {
             self.outs[k] = None;
             return;
         }
-        if sig.sell_any.get(k) && phase_up(k) {
+        if sig.sell_any.get(k) && phase(k) == PhaseView::MoveUp {
             // k 趋势相内 k 卖点对在外腿的停削抑制（可观测：上移腿在 k 趋势
             // 中本会被铰链旁路出清的事件数）。
             res.n_osc_trend_hold_sells_by_ladder[k] += 1;

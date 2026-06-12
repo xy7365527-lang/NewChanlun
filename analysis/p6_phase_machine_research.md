@@ -103,9 +103,17 @@ osc 开腿词汇仅在 Φ(j)=OSC 合法；MOVE↑/MOVE↓ 均上扫（[49:44] �
 - MOVE↓ 的"不回补"强读法（[49:52] 对位置回补的禁令延伸到 k 层买点回复）**不在 P6**：
   hold26 买点回复词汇零接触（"其余全同"条款）；列开放轴。
 
-**candidate 先行读法的处置**：research §5.1 提及"candidate 先行、confirmed 校正"；本实装取
-confirmed-only（在册 b3_start 同构；candidate 可撤销，校正语义需独立设计）。代价 = 确认滞后
-吃掉窗口前沿（533 三层谱型固有暴露窗），declared 近似列偏差登记。
+**candidate 先行读法（实装采纳，非近似）**：confirmed-only 读法盖不住真实失血窗口——U 的
+osc 腿主要开在 candidate 离开段与确认滞后区：Buy3 确认到达时锚中枢已被杀（CenterBook
+confirmed type3 = Terminated{Up}），alive=None，osc 在 [confirm(Buy3), settle(C′)] 反而
+无对象可开；真正的失血区是 [departure(candidate), confirm(Buy3)]（533 三层谱型）。
+research §5.1 明文"Buy3(C)（candidate 先行、confirmed 校正）"，且引擎已有现成机制：
+CenterBook `pending_departure` 窗口（H1 在册实装）——candidate type3 置位（[49:68] 离开即
+启动"向上移动"语义，不等回抽确认）、价格回中枢否定（38 课答疑"能回到中枢就不是第三类
+买点"= "校正"的引擎形式）、中枢死亡/新中枢解除。⇒ **MOVE↑ 有效窗口 = candidate 离开窗口
+（Buy 侧 pending_departure，可被价格否定）∪ confirmed Buy3 锁定区间 [Buy3, settle(C′)]**；
+MOVE↓ 镜像（Sell 侧窗口 ∪ confirmed Sell3 锁定）。代价声明：candidate 窗口内停削对假离开
+（最终被否定的窗口）也生效——这是 49:68 当下读法的固有成本，由回测裁决。
 
 ## 3. 与在册失效案例的对账
 

@@ -169,6 +169,25 @@ pub struct PositionalResult {
     pub osc_net_cash_by_ladder: [f64; MAX_LADDER],
     /// osc 短差净现金（按路由层 j——P4"上移腿净亏"直读）。
     pub osc_net_cash_at_level: [f64; MAX_LADDER],
+    // ── P6 相位机（fusion_p/fusion_pu）观测面；其余模式恒零 ──
+    /// →MOVE↑ 锁定转移数（confirmed Buy3 锚定，049:60/62）。
+    pub n_phase_up_opens_by_ladder: [u64; MAX_LADDER],
+    /// MOVE↑→OSC：新中枢结算关（049:54"新中枢的形成"/049:60"直到新中枢出现"）。
+    pub n_phase_up_settle_closes_by_ladder: [u64; MAX_LADDER],
+    /// MOVE↑→OSC：向上背驰/盘背事件关（049:54/42——EXIT 全抛强读法一期不
+    /// 启用，相位翻 OSC 后卖点词汇近似承载出场）。
+    pub n_phase_up_div_closes_by_ladder: [u64; MAX_LADDER],
+    /// MOVE↑→OSC：dir 翻 Down 结构兜底关（b3_start 在册同构）。
+    pub n_phase_up_dir_closes_by_ladder: [u64; MAX_LADDER],
+    /// →MOVE↓ 锁定转移数（confirmed Sell3，049:52"不能回补"+049:40）。
+    pub n_phase_dn_opens_by_ladder: [u64; MAX_LADDER],
+    /// MOVE↓→OSC 关（settle/向下背驰/dir 翻 Up 合计——038:36 镜像）。
+    pub n_phase_dn_closes_by_ladder: [u64; MAX_LADDER],
+    /// MOVE↑ 有效驻留 bar 数（含 candidate 离开窗口——停削窗口大小，
+    /// 与 kind×dir 窗口直接可比的 P6 核心机制读数）。
+    pub phase_up_bars_by_ladder: [u64; MAX_LADDER],
+    /// MOVE↓ 有效驻留 bar 数（含 candidate 窗口）。
+    pub phase_dn_bars_by_ladder: [u64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
@@ -287,12 +306,22 @@ pub enum PolarityMode {
     ///   `unified_osc.rs`）。要求 trend_hold（U 定义在 fusion_t 基座上）、
     ///   拒 counter_sub（同层 slice 双在外冲突未定义）、拒 trend_opts
     ///   （未预注册组合）⇒ 入口拒绝。Off = 在册行为零接触。
+    /// - `phase_clock`：P6 相位机时钟（2026-06-12 任务；
+    ///   `analysis/p6_phase_machine_research.md`）。停削窗口与 osc ①门从
+    ///   kind×dir 行（049:52 的超集近似，research v2 §2.2 错位定理）同步
+    ///   切换为 49课相位区间：MOVE↑ = candidate 离开窗口（049:68 当下读法，
+    ///   价格回中枢否定 = "校正"）∪ confirmed Buy3 锁定区间
+    ///   [Buy3(C), settle(C′)]（049:60 逐字）；MOVE↓ 镜像（038:36）。
+    ///   kind 行零消费（错位时钟退役）。要求 trend_hold（时钟的对象是停削
+    ///   窗口）、拒 counter_sub/trend_opts（未预注册；b3_start 被相位机
+    ///   收编）⇒ 入口拒绝。false = 在册 kind×dir 时钟零接触。
     Fusion {
         trend_hold: bool,
         counter_sub: bool,
         decoupled: bool,
         trend_opts: TrendAxisOpts,
         osc: OscRouting,
+        phase_clock: bool,
     },
 }
 
@@ -305,6 +334,7 @@ impl PolarityMode {
                 decoupled,
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Off,
+                phase_clock: false,
             })
         };
         // 统一配置 U：fusion_t 基座 + 相位递归路由 osc 层。
@@ -315,6 +345,19 @@ impl PolarityMode {
                 decoupled: false,
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Unified { strong_gate },
+                phase_clock: false,
+            })
+        };
+        // P6 相位机：fusion_p = 相位机基座配对臂（research §6 P6，osc=Off）；
+        // fusion_pu = 相位机基座 + 统一 osc 层（双侧同步——一个时钟修两侧）。
+        let phase = |osc: OscRouting| {
+            Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc,
+                phase_clock: true,
             })
         };
         match s {
@@ -329,6 +372,8 @@ impl PolarityMode {
             "fusion_u" => unified(true),
             // U−③ 消融臂（预注册 P5：93:26 强震荡门是唯一新词汇，单独消融）
             "fusion_uw" => unified(false),
+            "fusion_p" => phase(OscRouting::Off),
+            "fusion_pu" => phase(OscRouting::Unified { strong_gate: true }),
             // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
             other => {
                 let rest = other.strip_prefix("fusion_t")?;
@@ -361,6 +406,7 @@ impl PolarityMode {
                     decoupled: false,
                     trend_opts: opts,
                     osc: OscRouting::Off,
+                    phase_clock: false,
                 })
             }
         }
@@ -373,8 +419,14 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
-    if let PolarityMode::Fusion { trend_hold, counter_sub, decoupled, trend_opts, osc } =
-        mode
+    if let PolarityMode::Fusion {
+        trend_hold,
+        counter_sub,
+        decoupled,
+        trend_opts,
+        osc,
+        phase_clock,
+    } = mode
     {
         return super::positional_fusion::run_fusion(
             tape,
@@ -384,6 +436,7 @@ pub fn run_positional(
             decoupled,
             trend_opts,
             osc,
+            phase_clock,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {

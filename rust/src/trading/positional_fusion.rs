@@ -65,6 +65,7 @@
 
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
+use crate::buysellpoint::Side;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, OscRouting,
@@ -84,6 +85,40 @@ use crate::stroke::Direction;
 /// pub(crate)：统一配置 U 的②振幅门（unified_osc.rs）逐字消费同常数。
 pub(crate) const SUB_COST_K: f64 = 2.0;
 pub(crate) const SUB_FRICTION_RT: f64 = 0.001;
+
+/// osc 层消费的相位三值视图（`unified_osc` 接口；P6 任务，
+/// `analysis/p6_phase_machine_research.md`）。
+///
+/// 三个消费点：路由①门拒 `≠Osc`（049:52 前提"中枢震荡依旧" + 049:40
+/// 不参与下跌——MOVE↓ 也上扫）、在外腿满仓义务 `==MoveUp`（049:52）、
+/// 44课铰链抑制 `==MoveUp`（停削语义对在外腿成立）。
+///
+/// KindDir 时钟（在册 fusion_t/fusion_u）映射：trend×dir==Up → MoveUp，
+/// 否则 Osc（无 MoveDown）——该映射下 `≠Osc ⟺ ==MoveUp`，三个消费点与
+/// 在册 phase_up 布尔行为逐位等值（零漂移由构造保证，非守卫分支）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PhaseView {
+    Osc,
+    MoveUp,
+    MoveDown,
+}
+
+/// P6 相位机的锁定相位（confirmed 转移）。candidate 离开窗口由 CenterBook
+/// `pending_departure` 承载（049:68 当下读法 + 价格回中枢否定 = "校正"），
+/// 锁定相位 ∪ candidate 窗口 = 有效相位（`run_fusion` 的 phase_view 闭包）。
+/// 初始 Osc：中枢尚未存在时无 MOVE 区间可言——停削不成立、osc 开腿由对象
+/// 存在性检查把关（trend_state 初始 false 同构）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LayerPhase {
+    Osc,
+    /// confirmed Buy3 锁定（锚 = 被三买终结的中枢 cs，049:60/62）。出口 =
+    /// 新中枢结算（alive.seg_start > anchor，049:54）/ 向上背驰事件
+    /// （049:54/42——EXIT 全抛强读法一期不启用）/ dir 翻 Down（结构兜底，
+    /// b3_start 在册同构）。
+    MoveUp { anchor_cs: i64 },
+    /// confirmed Sell3 锁定——镜像（038:36；049:52"不能回补"+049:40）。
+    MoveDown { anchor_cs: i64 },
+}
 
 /// 层内 C 短差的在外态（44课铰链：身份未决——回补=短差 / k 级卖点=减仓）。
 #[derive(Debug, Clone, Copy)]
@@ -216,6 +251,7 @@ pub(crate) fn run_fusion(
     capital_decoupled: bool,
     opts: TrendAxisOpts,
     osc_routing: OscRouting,
+    phase_clock: bool,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -255,13 +291,46 @@ pub(crate) fn run_fusion(
                 .to_string(),
         );
     }
-    if trend_hold && !(tape.has_trend_rows() && tape.has_dir_rows()) {
+    if trend_hold && !phase_clock && !(tape.has_trend_rows() && tape.has_dir_rows()) {
         return Err(
             "trend_hold（49课:52 二相停削）要求磁带 trend_flips + dir_flips 行\
              ——趋势相判据 = kind==Trend ∧ dir==Up（17课趋势定义），无行即\
              判据无数据基础（不提供方向行单独代理降级：方向 ≠ 趋势）"
                 .to_string(),
         );
+    }
+    if phase_clock {
+        // P6 相位机守卫（声明=能力；p6_phase_machine_research.md §5）。
+        if !trend_hold {
+            return Err(
+                "phase_clock（P6 相位机时钟）的对象是停削窗口——无 trend_hold \
+                 即无对象，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if counter_sub {
+            return Err(
+                "phase_clock × counter_sub 未预注册（P6 配对臂'其余全同'条款），\
+                 显式拒绝"
+                    .to_string(),
+            );
+        }
+        if opts.any() {
+            return Err(
+                "phase_clock × TrendAxisOpts 未预注册——b3_start 三买窗口已被\
+                 相位机收编（MOVE↑ 锁定转移），gate41/div_exit 组合未预注册，\
+                 显式拒绝"
+                    .to_string(),
+            );
+        }
+        if !(tape.has_dir_rows() && tape.has_div_events()) {
+            return Err(
+                "phase_clock（P6 相位机）要求磁带 dir_flips 行 + 背驰磁带——\
+                 MOVE 区间的方向兜底出口与背驰出口缺行即判据无数据基础；\
+                 kind 行零消费故不要求（错位时钟退役，research v2 §2.2）"
+                    .to_string(),
+            );
+        }
     }
     if counter_sub && !tape.has_div_events() {
         return Err(
@@ -299,8 +368,8 @@ pub(crate) fn run_fusion(
                     .to_string(),
             );
         }
-        // ①相位门与③参照需要 trend+dir 行——trend_hold 守卫已强制，此处
-        // 不重复（U 的 trend_hold 恒真）。
+        // ①相位门与③参照所需磁带行由时钟对应守卫强制：KindDir ⇒ trend+dir
+        // 行（trend_hold 守卫）；phase_clock ⇒ dir+div 行（相位机守卫）。
     }
 
     let n = tape.bars.len();
@@ -328,6 +397,8 @@ pub(crate) fn run_fusion(
     let mut down_exhaust: [bool; MAX_LADDER] = [false; MAX_LADDER];
     // b3_start：三买窗口锚（confirmed Buy3 的中枢 cs）。None = 窗口关闭。
     let mut b3_anchor: [Option<i64>; MAX_LADDER] = [None; MAX_LADDER];
+    // P6 相位机锁定相位（phase_clock；candidate 窗口在 CenterBook）。
+    let mut phi: [LayerPhase; MAX_LADDER] = [LayerPhase::Osc; MAX_LADDER];
 
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
@@ -344,6 +415,22 @@ pub(crate) fn run_fusion(
             // 049:60 三买窗口：dir 翻 Down = 向上离开失败的结构证据 ⇒ 关窗。
             if dir == Direction::Down {
                 b3_anchor[lad as usize] = None;
+            }
+            // P6 相位机：方向翻转 = MOVE 锁定区间的结构兜底出口（无新中枢、
+            // 无背驰事件而方向已翻 ⇒ 区间不得悬置；b3_start 同构）。
+            if phase_clock {
+                let l = lad as usize;
+                match (phi[l], dir) {
+                    (LayerPhase::MoveUp { .. }, Direction::Down) => {
+                        phi[l] = LayerPhase::Osc;
+                        res.n_phase_up_dir_closes_by_ladder[l] += 1;
+                    }
+                    (LayerPhase::MoveDown { .. }, Direction::Up) => {
+                        phi[l] = LayerPhase::Osc;
+                        res.n_phase_dn_closes_by_ladder[l] += 1;
+                    }
+                    _ => {}
+                }
             }
             flip_ptr += 1;
         }
@@ -369,6 +456,69 @@ pub(crate) fn run_fusion(
         // 中枢，翻落即冻结快照；市场性质，与持仓无关）。
         if osc_on {
             osc_layer.observe_refs(&book, &dir_state);
+        }
+
+        // ── P6 相位机（phase_clock；市场性质，事件 bar 即时生效——与 dir/
+        //    trend 行翻转语义一致）。更新序：candidate 窗口价格否定（049:68
+        //    当下读法的"校正"——回试跌回中枢 = 仍是中枢震荡）→ confirmed
+        //    Buy3/Sell3 锁定转移 → settle(C′) 关 → 背驰关 ──
+        if phase_clock {
+            for lad in FIRST_BSP_LADDER..MAX_LADDER {
+                book.negate_pending_departure(lad, c);
+                if sig.bsp_events.is_some() {
+                    for e in &evrows[lad] {
+                        if !e.confirmed {
+                            continue;
+                        }
+                        let Some(cs) = e.cs else { continue };
+                        match e.class {
+                            BspClass::Buy3 => {
+                                phi[lad] = LayerPhase::MoveUp { anchor_cs: cs };
+                                res.n_phase_up_opens_by_ladder[lad] += 1;
+                            }
+                            BspClass::Sell3 => {
+                                phi[lad] = LayerPhase::MoveDown { anchor_cs: cs };
+                                res.n_phase_dn_opens_by_ladder[lad] += 1;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                // settle(C′)：锚中枢已被 confirmed type3 终结，存活中枢
+                // seg_start 单调 ⇒ alive > anchor 即新中枢结算（049:54/60
+                // "直到新中枢出现"）。陈旧确认（锁定时 C′ 已在）同 bar 即关
+                // ——自校正，不产生悬置区间。
+                match phi[lad] {
+                    LayerPhase::MoveUp { anchor_cs } => {
+                        if book.alive(lad).is_some_and(|lc| lc.seg_start > anchor_cs) {
+                            phi[lad] = LayerPhase::Osc;
+                            res.n_phase_up_settle_closes_by_ladder[lad] += 1;
+                        } else if sig.div_events.is_some()
+                            && devrows[lad].iter().any(|d| d.direction == Direction::Up)
+                        {
+                            // 049:54 移动背驰 / 049:42 盘背 ⇒ MOVE↑ 终结
+                            //（EXIT 全抛强读法一期不启用——相位翻 OSC 后由
+                            // 卖点词汇近似承载出场，research §5.1 在册声明）。
+                            phi[lad] = LayerPhase::Osc;
+                            res.n_phase_up_div_closes_by_ladder[lad] += 1;
+                        }
+                    }
+                    LayerPhase::MoveDown { anchor_cs } => {
+                        if book.alive(lad).is_some_and(|lc| lc.seg_start > anchor_cs) {
+                            phi[lad] = LayerPhase::Osc;
+                            res.n_phase_dn_closes_by_ladder[lad] += 1;
+                        } else if sig.div_events.is_some()
+                            && devrows[lad]
+                                .iter()
+                                .any(|d| d.direction == Direction::Down)
+                        {
+                            phi[lad] = LayerPhase::Osc;
+                            res.n_phase_dn_closes_by_ladder[lad] += 1;
+                        }
+                    }
+                    LayerPhase::Osc => {}
+                }
+            }
         }
 
         // gate41 衰竭证据 / b3 窗口的事件流更新（在相位判定之前——同 bar
@@ -418,14 +568,53 @@ pub(crate) fn run_fusion(
             }
         }
 
-        // 层 k 趋势相（49课:52"中枢向上移动"）。两分量：
+        // 相位三值视图（osc 层 + phase_clock 停削的共用时钟）：
+        //   KindDir 时钟 = trend_state（17课 ≥2 同向中枢）∧ dir==Up → MoveUp，
+        //     否则 Osc（在册 fusion_t/fusion_u 行为，无 MoveDown）；
+        //   相位机时钟 = 锁定相位 phi ∪ candidate 离开窗口（049:68 当下读法，
+        //     pending_departure Buy 侧 = MOVE↑ / Sell 侧 = MOVE↓）。
+        let phase_view = |k: usize| -> PhaseView {
+            if phase_clock {
+                match phi[k] {
+                    LayerPhase::MoveUp { .. } => PhaseView::MoveUp,
+                    LayerPhase::MoveDown { .. } => PhaseView::MoveDown,
+                    LayerPhase::Osc => match book.pending_departure_side(k) {
+                        Some(Side::Buy) => PhaseView::MoveUp,
+                        Some(Side::Sell) => PhaseView::MoveDown,
+                        None => PhaseView::Osc,
+                    },
+                }
+            } else if trend_state[k] && dir_state[k] == Some(Direction::Up) {
+                PhaseView::MoveUp
+            } else {
+                PhaseView::Osc
+            }
+        };
+        // 相位驻留观测（每 bar，有效相位口径——含 candidate 窗口；P6 机制
+        // 可观测性：停削窗口大小与 kind×dir 窗口直接可比）。
+        if phase_clock {
+            for lad in FIRST_BSP_LADDER..MAX_LADDER {
+                match phase_view(lad) {
+                    PhaseView::MoveUp => res.phase_up_bars_by_ladder[lad] += 1,
+                    PhaseView::MoveDown => res.phase_dn_bars_by_ladder[lad] += 1,
+                    PhaseView::Osc => {}
+                }
+            }
+        }
+        // 层 k 趋势相（49课:52"中枢向上移动"）。KindDir 时钟两分量：
         //   kind 直读 = trend_state（17课 ≥2 同向中枢）∧ dir==Up（在册 fusion_t）；
         //   b3 窗口 = 049:60 三买后新中枢前（kind 判据的结构滞后区，b3_start）。
-        // raw = 未过 41课门的相位；gate41 在 raw 之上叠加大级别未衰竭否决。
+        // 相位机时钟：停削窗口 = 有效 MOVE↑（与 osc ①门同一时钟——双侧同步，
+        // P6 任务的核心条款）。raw = 未过 41课门的相位；gate41 在 raw 之上
+        // 叠加大级别未衰竭否决（phase_clock 下 opts 已拒，gate41 恒放行）。
         let in_trend_raw = |k: usize| {
             trend_hold
-                && ((trend_state[k] && dir_state[k] == Some(Direction::Up))
-                    || (opts.b3_start && b3_anchor[k].is_some()))
+                && if phase_clock {
+                    phase_view(k) == PhaseView::MoveUp
+                } else {
+                    (trend_state[k] && dir_state[k] == Some(Direction::Up))
+                        || (opts.b3_start && b3_anchor[k].is_some())
+                }
         };
         let gate41_pass = |k: usize| {
             if !opts.gate41 {
@@ -436,11 +625,6 @@ pub(crate) fn run_fusion(
             !(p < MAX_LADDER && dir_state[p] == Some(Direction::Down) && !down_exhaust[p])
         };
         let in_trend = |k: usize| in_trend_raw(k) && gate41_pass(k);
-        // U 的①相位门时钟：纯结构读数（trend_state ∧ dir==Up，049:52），
-        // 不叠加 trend_opts 修饰（U 守卫已拒 opts，与 in_trend_raw 在 U 的
-        // 定义域内逐位等值——独立闭包是声明边界，不是行为分叉）。
-        let phase_up =
-            |k: usize| trend_state[k] && dir_state[k] == Some(Direction::Up);
 
         // ── 阶段 A：层级出场 / 44课铰链 / 回补（资金释放先于一切入场；
         //    回补义务在本阶段处理 ⇒ 对 pool 的优先权高于阶段 C 新入场）──
@@ -456,7 +640,7 @@ pub(crate) fn run_fusion(
                 // ── 统一配置 U：osc 在外腿出口集（满仓义务/铰链/回补，
                 //    unified_osc::step_exit；与 subs 互斥由入口守卫保证）──
                 osc_layer.step_exit(
-                    k, c, i as i64, sig, &phase_up, &book, &mut layers, &mut pool,
+                    k, c, i as i64, sig, &phase_view, &book, &mut layers, &mut pool,
                     &mut res,
                 );
             } else if let Some(sub) = subs[k] {
@@ -593,7 +777,7 @@ pub(crate) fn run_fusion(
                     continue;
                 }
                 osc_layer.try_open(
-                    k, c, i as i64, sig, osc_strong, &phase_up, &book, &depth_ref,
+                    k, c, i as i64, sig, osc_strong, &phase_view, &book, &depth_ref,
                     &layers, &mut pool, &mut res,
                 );
             }
@@ -802,6 +986,7 @@ mod tests {
             decoupled,
             trend_opts: TrendAxisOpts::default(),
             osc: OscRouting::Off,
+            phase_clock: false,
         }
     }
 
@@ -813,6 +998,7 @@ mod tests {
             decoupled: false,
             trend_opts: TrendAxisOpts::default(),
             osc: OscRouting::Unified { strong_gate },
+            phase_clock: false,
         }
     }
 
@@ -853,6 +1039,7 @@ mod tests {
             decoupled: false,
             trend_opts: TrendAxisOpts { gate41: g, div_exit: d, b3_start: b },
             osc: OscRouting::Off,
+            phase_clock: false,
         };
         assert_eq!(PolarityMode::parse("fusion_tg"), Some(opt(true, false, false)));
         assert_eq!(PolarityMode::parse("fusion_td"), Some(opt(false, true, false)));
@@ -874,6 +1061,7 @@ mod tests {
                 decoupled: false,
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
                 osc: OscRouting::Off,
+                phase_clock: false,
             }
         )
         .is_err());
@@ -900,6 +1088,7 @@ mod tests {
                 decoupled: false,
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
                 osc: OscRouting::Off,
+                phase_clock: false,
             }
         )
         .is_err());
@@ -1455,6 +1644,7 @@ mod tests {
                 decoupled: false,
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Unified { strong_gate: true },
+                phase_clock: false,
             }
         )
         .is_err());
@@ -1474,6 +1664,7 @@ mod tests {
                 decoupled: false,
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Unified { strong_gate: true },
+                phase_clock: false,
             }
         )
         .is_err());
@@ -1493,6 +1684,7 @@ mod tests {
                 decoupled: false,
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
                 osc: OscRouting::Unified { strong_gate: true },
+                phase_clock: false,
             }
         )
         .is_err());
@@ -1763,5 +1955,232 @@ mod tests {
         );
         assert_eq!(r.n_osc_opens_by_ladder[2], 0);
         assert!(r.n_route_amp_rejects[2] >= 1, "②拒可观测");
+    }
+
+    // ───────────────── P6 相位机（fusion_p/fusion_pu）─────────────────
+
+    /// 带中枢锚的 candidate 事件（P6：candidate 离开窗口 = 049:68 当下读法）。
+    fn cand_cs(class: BspClass, cs: i64) -> BspEvent {
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed: false,
+            cs: Some(cs),
+            zd: Some(50.0),
+            zg: Some(51.0),
+            price: 0.0,
+        }
+    }
+
+    /// P6 测试捷径：phase_clock 臂（trend_flips 不需要——kind 行零消费）。
+    fn run_phase(bars: Vec<BarSig>, mode: &str) -> PositionalResult {
+        run_with_rows(bars, mode, Some(vec![(0, 2, Direction::Up)]), None)
+    }
+
+    #[test]
+    fn parse_fusion_p_modes_and_guards() {
+        let fp = |osc: OscRouting| PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc,
+            phase_clock: true,
+        };
+        assert_eq!(PolarityMode::parse("fusion_p"), Some(fp(OscRouting::Off)));
+        assert_eq!(
+            PolarityMode::parse("fusion_pu"),
+            Some(fp(OscRouting::Unified { strong_gate: true }))
+        );
+        // phase_clock × counter_sub 未预注册 ⇒ 拒
+        let t = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Off,
+                phase_clock: true,
+            }
+        )
+        .is_err());
+        // phase_clock × trend_opts（b3 已被收编）⇒ 拒
+        let t2 = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t2,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts { b3_start: true, ..Default::default() },
+                osc: OscRouting::Off,
+                phase_clock: true,
+            }
+        )
+        .is_err());
+        // 缺 div 磁带（背驰出口无数据基础）⇒ 拒
+        let no_div: Vec<BarSig> = warmup34()
+            .into_iter()
+            .map(|mut b| {
+                b.div_events = None;
+                b
+            })
+            .collect();
+        let t3 = SignalTape {
+            bars: no_div,
+            dir_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(&t3, 2, PolarityMode::parse("fusion_p").unwrap()).is_err());
+        // 缺 dir 行（方向兜底出口无数据基础）⇒ 拒
+        let t4 = SignalTape { bars: warmup34(), ..Default::default() };
+        assert!(run_positional(&t4, 2, PolarityMode::parse("fusion_p").unwrap()).is_err());
+        // kind 行不要求：trend_flips=None 合法运行（错位时钟退役的能力面）
+        let t5 = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(&t5, 2, PolarityMode::parse("fusion_p").unwrap()).is_ok());
+    }
+
+    /// candidate 离开窗口停削（049:68 当下读法）；价格回中枢否定 = "校正"
+    /// ⇒ 削减恢复（38课答疑"能回到中枢就不是第三类买点"）。
+    #[test]
+    fn fusion_p_candidate_departure_stops_trim_until_negated() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2)); // 入场 @100（1000 股）
+        bars.push(with_ev(bar(100.0), 2, cand_cs(BspClass::Buy3, anchor_cs))); // 离开窗口
+        bars.push(sellpt(bar(110.0), 2)); // 窗口内 → 停削
+        bars.push(bar(45.0)); // c < ZG=51 ⇒ 价格否定关窗
+        bars.push(sellpt(bar(108.0), 2)); // 削减恢复 @108
+        bars.push(bar(108.0));
+        let r = run_phase(bars, "fusion_p");
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1, "candidate 窗口停削");
+        assert!(r.phase_up_bars_by_ladder[2] >= 2, "MOVE↑ 有效驻留可观测");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 108.0, "否定后削减恢复");
+        assert!((r.final_nav - 108_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    /// confirmed Buy3 锁定 MOVE↑（价格否定不再适用），直到新中枢结算
+    /// （049:60"在中枢第三类买点后持股直到新中枢出现"逐字）。
+    #[test]
+    fn fusion_p_confirmed_buy3_locks_until_new_center_settles() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(with_ev(bar(102.0), 2, ev_cs(BspClass::Buy3, anchor_cs))); // 锁定
+        bars.push(bar(45.0)); // 价格回落不解锁（锁定区间无价格否定词汇）
+        bars.push(sellpt(bar(110.0), 2)); // 仍 MOVE↑ → 停削
+        bars.push(with_anchor(bar(112.0), 2, anchor_cs + 1000, 108.0, 112.0)); // C′ 结算
+        bars.push(sellpt(bar(111.0), 2)); // OSC 恢复 → 削减 @111
+        bars.push(bar(111.0));
+        let r = run_phase(bars, "fusion_p");
+        assert_eq!(r.n_phase_up_opens_by_ladder[2], 1, "锁定转移可观测");
+        assert_eq!(r.n_phase_up_settle_closes_by_ladder[2], 1, "settle(C′) 关");
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 111.0);
+        assert!((r.final_nav - 111_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    /// MOVE↑ 锁定区间的背驰出口（049:54——相位翻 OSC，卖点词汇承载出场）。
+    #[test]
+    fn fusion_p_locked_moveup_closes_on_up_divergence() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(with_ev(bar(102.0), 2, ev_cs(BspClass::Buy3, anchor_cs)));
+        bars.push(with_div(bar(115.0), 2, div_ev(Direction::Up))); // 移动背驰
+        bars.push(sellpt(bar(113.0), 2)); // OSC → 削减 @113
+        bars.push(bar(113.0));
+        let r = run_phase(bars, "fusion_p");
+        assert_eq!(r.n_phase_up_div_closes_by_ladder[2], 1, "背驰关可观测");
+        assert_eq!(r.n_trend_holds_by_ladder[2], 0);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_price, 113.0);
+    }
+
+    /// MOVE↓（confirmed Sell3）：削减照常（hold26 逐字——熊市 α 承载面
+    /// 零接触；"不回补"强读法不在 P6，研究文档 §2 在册声明）。
+    #[test]
+    fn fusion_p_movedown_keeps_trim() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(with_ev(bar(95.0), 2, ev_cs(BspClass::Sell3, anchor_cs))); // MOVE↓
+        bars.push(sellpt(bar(90.0), 2)); // 削减照常 @90
+        bars.push(bar(90.0));
+        let r = run_phase(bars, "fusion_p");
+        assert_eq!(r.n_phase_dn_opens_by_ladder[2], 1);
+        assert!(r.phase_dn_bars_by_ladder[2] >= 1);
+        assert_eq!(r.n_trend_holds_by_ladder[2], 0, "MOVE↓ 不停削");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 90.0);
+    }
+
+    /// 双侧同步核心：candidate 离开窗口内 osc ①门拒开（第一段 MOVE↑ 被
+    /// 逐出 osc 窗口——U 否证根因的修复面）；窗口否定后同词汇放行。
+    #[test]
+    fn fusion_pu_osc_blocked_in_candidate_window_admits_after_negation() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2)); // 1000 股 @100
+        bars.push(with_ev(bar(100.0), 2, cand_cs(BspClass::Buy3, anchor_cs)));
+        bars.push(sellpt(bar(100.0), 1)); // 窗口内：①拒 → 全塔无候选 → 不开
+        bars.push(bar(45.0)); // 价格否定关窗
+        bars.push(sellpt(bar(100.0), 1)); // OSC：c≥ZG ∧ sub_sell → 开腿
+        bars.push(bar(50.0)); // ZD 触线 → 回补
+        bars.push(bar(60.0));
+        let r = run_phase(bars, "fusion_pu");
+        assert!(r.n_route_phase_skips[2] >= 1, "①门拒可观测（MOVE↑ 窗口）");
+        assert_eq!(r.n_osc_opens_by_ladder[2], 1, "仅窗口外的尝试开腿");
+        assert_eq!(r.n_osc_zd_restores_by_ladder[2], 1);
+        assert!((r.osc_net_cash_by_ladder[2] - 50_000.0).abs() < 1e-6);
+        assert!((r.final_nav - 110_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    /// 双侧同步核心：在外腿遇 candidate 离开（移动启动）⇒ 满仓义务立即
+    /// 回补——"osc 腿在移动段卖切片失血"的修复面（kind 行做不到：kind
+    /// 在第一段移动尚未翻 Trend）。
+    #[test]
+    fn fusion_pu_phase_restore_on_candidate_departure() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(100.0), 1)); // OSC 相开腿 @100
+        bars.push(with_ev(bar(95.0), 2, cand_cs(BspClass::Buy3, anchor_cs))); // 移动启动
+        bars.push(bar(110.0));
+        let r = run_phase(bars, "fusion_pu");
+        assert_eq!(r.n_osc_opens_by_ladder[2], 1);
+        assert_eq!(r.n_osc_phase_restores_by_ladder[2], 1, "满仓义务在移动启动 bar 接回");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "osc_diff");
+        assert_eq!(t2[1].entry_price, 95.0);
+        // 1000×(100−95) 短差 + 1000×(110−100) 持有 = +15000
+        assert!((r.final_nav - 115_000.0).abs() < 1e-6, "nav={}", r.final_nav);
     }
 }
