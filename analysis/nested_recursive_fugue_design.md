@@ -359,3 +359,18 @@ quota_k = amp_k·gate_k / Σ_j amp_j·gate_j   （归一化；Σ=0 ⇒ 全部归
    补 47/53课锚定、14条差异表、子腿严格形式、master 级别配额门状态机、O0≡P5 守卫、原文张力
    §7；删除草稿"候选 A/B/C 待决断"形态——配额主方案收敛为 §2.4 振幅加权，A 降为消融对照臂）。
    未改任何代码与定义。
+
+---
+
+## 8. 实装与判决记录（2026-06-12 回填，L2）
+
+本设计存在两条并行实现线，分别覆盖不同机制轴，均已回测判决：
+
+| 线 | 实现 | 覆盖轴 | 判决 |
+|----|------|--------|------|
+| organic（commit 77c21889a9） | `entry_voice` + `SubMode::CounterSeg`（§2.3 子腿严格形式逐字落地：k−1 BSP 事件、无中枢域前置、符号交替塔、35课成本门）+ `Sizing::Structure`（§2.4 配额 B） | E（44课级别门 voice 形态）/ S（嵌套子腿）/ Q（涌现配额） | E 双标的否证、Q 全局默认否证、S 机制确认经济条件化、**E×S×Q OKLO 正交互 +2301%（探索性）**、递归深度结构涌现确认（BTC depth2=288） |
+| positional（`positional.rs`） | per-level 槽 + PolarityMode（§3 master 级别门；hold26 = 26课恒仓极性） | master 纵向轴 | cycle45 否证（暴露坍缩）→ **hold26 BTC +1247% P3 成立**（首个"N重>单级别最优"L2 正证据） |
+
+完整判决：`analysis/nested_recursive_fugue_results.md`。§5/§6 原计划的
+MasterQuota/ExitScope 形态被 hold26 极性判决吸收（恒仓 trim/restore 即其
+正确形式）；合流方向（hold26 × CounterSeg 子腿）见判决文档 §5.3。
