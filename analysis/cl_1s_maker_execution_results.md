@@ -118,6 +118,10 @@ BH = −20.9%，零摩擦 = −3.84%。行 = f_fill（bps/侧，maker 成交摩�
    top-of-book 队列长，1s 信号价挂单的真实成交率可能远低于 66%——需要
    MBP-10/MBO 数据或实盘 paper trading 才能把本判决从 L0-模型升到 L2。
    若真实 fr <60%，IBKR maker 连相对 alpha 也丢失。
+   **后续闭合（2026-06-12，maker_fill_rate_feasibility.md）**：OHLCV 可验证
+   上下界（touch/cross）已界定区间端点——挂单 30-60s 下队列末位下界
+   66.6%/74.4% 已过相对 alpha 前沿，本缺口的"前沿是否可达"部分升 L2；
+   区间内落点（队列位置）仍 L0 需 MBP-10。
    **成本探针（databento metadata.get_cost，2026-06-12 实测）**：CL.v.0
    MBP-10 全年同窗 ≈$103、单月样本 ≈$5.9、MBO 单月 ≈$3.9——L2 升级路径
    无采购阻塞，可从单月 MBP-10 重放起步。
