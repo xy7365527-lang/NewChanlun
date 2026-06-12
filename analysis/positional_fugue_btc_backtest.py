@@ -67,6 +67,10 @@ def analyze(res: dict, closes, years, windows) -> dict:
         nav[i] = pool + shares * closes[i]
     assert abs(nav[-1] - res["final_nav"]) < 1e-3, \
         f"NAV 重建漂移：{nav[-1]} ≠ {res['final_nav']}"
+    peak = mdd = 0.0
+    for v in nav:
+        peak = max(peak, v)
+        mdd = min(mdd, v / peak - 1.0)
 
     yearly: dict[str, dict] = {}
     shares = 0.0
@@ -132,6 +136,7 @@ def analyze(res: dict, closes, years, windows) -> dict:
 
     return {
         "strat_pct": round(strat_pct, 1),
+        "mdd_pct": round(mdd * 100, 1),
         "n_trades": len(trades),
         "yearly": yearly,
         "regime": {"bull": bull, "bear": bear, "range": range_},
