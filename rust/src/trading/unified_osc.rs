@@ -260,9 +260,11 @@ impl OscLayer {
     /// 出口集（阶段 A：层 k 有在外腿时每 bar 调用；一 bar 一动作）。
     ///
     /// 优先序：三卖 latch 更新 → 趋势相满仓义务（049:52，counter_sub 先例
-    /// 同序）→ 44课铰链（本层卖点升级出清）→ 回补触发集（死亡>ZD>sc>k买
-    /// >义务遗留，LOU 出口序同构）。dead_down 下回补通道收窄为
-    /// ZD 触线/义务遗留（049:52"不能回补"，铰链/eod 是卖侧出口不受限）。
+    /// 同序；相位查路由层 alad——出口跟随锚）→ 44课铰链（本层卖点升级出清，
+    /// 前提 ¬in_trend(k)——k 趋势相内 k 卖点无响应，049:52 停削语义对在外
+    /// 腿同样成立）→ 回补触发集（死亡>ZD>sc>k买>义务遗留，LOU 出口序
+    /// 同构）。dead_down 下回补通道收窄为 ZD 触线/义务遗留（049:52"不能
+    /// 回补"，铰链/eod 是卖侧出口不受限）。
     #[allow(clippy::too_many_arguments)]
     pub fn step_exit(
         &mut self,
@@ -295,8 +297,12 @@ impl OscLayer {
             return;
         }
         // 2. 44课铰链：本层 k 级卖点先到 ⇒ 升级为减仓出清（身份事后授予，
-        //    记账以实际变现点 = 卖出 bar close；hinge_escalate 在册同构）
-        if sig.sell_any.get(k) {
+        //    记账以实际变现点 = 卖出 bar close；hinge_escalate 在册同构）。
+        //    前提 ¬in_trend(k)：counter_sub 在册铰链只在 ¬tp(k) 分支可达
+        //    （`if tp {回补} else if sell {升级}`）——049:52 趋势相停削语义
+        //    下 k 卖点无响应（既不削也不升级）。上移腿（alad>k）在 k 趋势相
+        //    内被 k 卖点升级出清 = 绕过停削的旁路，禁止（与基座零接触矛盾）。
+        if sig.sell_any.get(k) && !phase_up(k) {
             let LayerState::Long { entry_bar, entry_price, weight, deferred_bars, partial, .. } =
                 layers[k]
             else {
@@ -319,6 +325,11 @@ impl OscLayer {
             layers[k] = LayerState::Flat;
             self.outs[k] = None;
             return;
+        }
+        if sig.sell_any.get(k) && phase_up(k) {
+            // k 趋势相内 k 卖点对在外腿的停削抑制（可观测：上移腿在 k 趋势
+            // 中本会被铰链旁路出清的事件数）。
+            res.n_osc_trend_hold_sells_by_ladder[k] += 1;
         }
         // 3. 回补触发集（归因按优先序：死亡 > ZD > sc > k买 > 义务遗留）
         let dead = book.is_dead(osc.alad, osc.cs);

@@ -2015,6 +2015,10 @@ fn run_positional_rust(
     )?;
     out.set_item("n_osc_escalates_by_ladder", res.n_osc_escalates_by_ladder.to_vec())?;
     out.set_item(
+        "n_osc_trend_hold_sells_by_ladder",
+        res.n_osc_trend_hold_sells_by_ladder.to_vec(),
+    )?;
+    out.set_item(
         "n_osc_sell3_vetos_by_ladder",
         res.n_osc_sell3_vetos_by_ladder.to_vec(),
     )?;

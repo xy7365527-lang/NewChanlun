@@ -155,8 +155,12 @@ pub struct PositionalResult {
     pub n_osc_kbuy_restores_by_ladder: [u64; MAX_LADDER],
     pub n_osc_phase_restores_by_ladder: [u64; MAX_LADDER],
     pub n_osc_due_restores_by_ladder: [u64; MAX_LADDER],
-    /// 44课铰链升级出清数（本层卖点先到，身份事后授予为减仓）。
+    /// 44课铰链升级出清数（本层卖点先到，身份事后授予为减仓；前提
+    /// ¬in_trend(k)——counter_sub 在册铰链可达性同构）。
     pub n_osc_escalates_by_ladder: [u64; MAX_LADDER],
+    /// k 趋势相内 k 卖点对在外腿的停削抑制数（049:52——升级旁路被堵的
+    /// 可观测面）。
+    pub n_osc_trend_hold_sells_by_ladder: [u64; MAX_LADDER],
     /// 三卖否决 latch 置位数（049:52"不能回补"）。
     pub n_osc_sell3_vetos_by_ladder: [u64; MAX_LADDER],
     /// osc 回补义务因资金不足推迟的 bar 数。

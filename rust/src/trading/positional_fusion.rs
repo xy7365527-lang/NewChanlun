@@ -1715,6 +1715,36 @@ mod tests {
         assert!((r.final_nav - 110_000.0).abs() < 1e-6);
     }
 
+    /// 铰链可达性 = ¬in_trend(k)（counter_sub 在册同构）：上移腿在 k 趋势
+    /// 相内不被 k 卖点升级出清——049:52 停削语义对在外腿同样成立（升级
+    /// 旁路被堵，事件计入 n_osc_trend_hold_sells）。
+    #[test]
+    fn fusion_u_hinge_blocked_in_k_trend_phase() {
+        let mut bars: Vec<BarSig> = (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| {
+                let b = with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0);
+                with_anchor(b, 3, 100 + j, 50.0, 53.0)
+            })
+            .collect();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(100.0), 2)); // 停削 + 上移开腿（j=3）
+        bars.push(sellpt(bar(110.0), 2)); // k 趋势相内再现 k 卖点 → 抑制
+        bars.push(bar(110.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up), (0, 3, Direction::Up)]),
+            Some(vec![(0, 2, true)]),
+        );
+        assert_eq!(r.n_osc_upshift_opens_by_ladder[2], 1);
+        assert_eq!(r.n_osc_escalates_by_ladder[2], 0, "趋势相内升级旁路被堵");
+        assert!(r.n_osc_trend_hold_sells_by_ladder[2] >= 1, "抑制事件可观测");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2[0].exit_reason, "eod", "腿悬置至 eod（以卖出点记账）");
+        assert_eq!(t2[0].exit_price, 100.0);
+    }
+
     /// ②振幅门：θ_q < k×friction ⇒ 拒开（H4 逐字；035:30）。
     #[test]
     fn fusion_u_amp_gate_rejects_thin_level() {
