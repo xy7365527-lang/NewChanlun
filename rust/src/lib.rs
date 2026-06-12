@@ -1898,25 +1898,28 @@ fn run_positional_rust(
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
     let out = PyDict::new(py);
     // trade 行 = (ladder, entry_bar, entry_price, exit_bar, exit_price,
-    //             shares, weight_at_entry, deferred_bars, partial, exit_reason)
-    let trades: Vec<(u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str)> = res
-        .trades
-        .iter()
-        .map(|t| {
-            (
-                t.ladder,
-                t.entry_bar,
-                t.entry_price,
-                t.exit_bar,
-                t.exit_price,
-                t.shares,
-                t.weight_at_entry,
-                t.deferred_bars,
-                t.partial,
-                t.exit_reason,
-            )
-        })
-        .collect();
+    //             shares, weight_at_entry, deferred_bars, partial, exit_reason,
+    //             polarity)。polarity ∈ {"long","short"}：Short 行现金流镜像
+    //             （开空收 proceeds / 平空付买回款），NAV 重建按此分派符号。
+    let trades: Vec<(u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str, &'static str)> =
+        res.trades
+            .iter()
+            .map(|t| {
+                (
+                    t.ladder,
+                    t.entry_bar,
+                    t.entry_price,
+                    t.exit_bar,
+                    t.exit_price,
+                    t.shares,
+                    t.weight_at_entry,
+                    t.deferred_bars,
+                    t.partial,
+                    t.exit_reason,
+                    t.polarity.as_str(),
+                )
+            })
+            .collect();
     out.set_item("trades", trades)?;
     out.set_item("equity", res.equity.clone())?;
     out.set_item("final_nav", res.final_nav)?;
@@ -2055,6 +2058,56 @@ fn run_positional_rust(
     out.set_item(
         "n_r2_pos_blocks_by_ladder",
         res.n_r2_pos_blocks_by_ladder.to_vec(),
+    )?;
+    // anc 祖先趋势豁免（hold26_anc/fusion_ta）观测面（slow_bull P7；其余恒零）
+    out.set_item(
+        "n_anc_exempt_blocks_by_ladder",
+        res.n_anc_exempt_blocks_by_ladder.to_vec(),
+    )?;
+    out.set_item("anc_up_bars_by_ladder", res.anc_up_bars_by_ladder.to_vec())?;
+    // 区间套正向定位（fusion_tn/fusion_trn）观测面（其余模式恒零）
+    out.set_item("n_nest_arms_by_ladder", res.n_nest_arms_by_ladder.to_vec())?;
+    out.set_item(
+        "n_nest_fire_sell_by_ladder",
+        res.n_nest_fire_sell_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_nest_fire_buy_by_ladder",
+        res.n_nest_fire_buy_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_nest_breaks_by_ladder", res.n_nest_breaks_by_ladder.to_vec())?;
+    out.set_item("nest_lead_bars_sum", res.nest_lead_bars_sum)?;
+    out.set_item("nest_lead_n", res.nest_lead_n)?;
+    // 双向条件轴 S1-S4（fusion_btr/fusion_btra）观测面（其余模式恒零）
+    out.set_item("n_flip_shorts_by_ladder", res.n_flip_shorts_by_ladder.to_vec())?;
+    out.set_item("n_short_covers_by_ladder", res.n_short_covers_by_ladder.to_vec())?;
+    out.set_item(
+        "n_short_moveup_covers_by_ladder",
+        res.n_short_moveup_covers_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_short_trend_holds_by_ladder",
+        res.n_short_trend_holds_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_short_r2_blocks_by_ladder",
+        res.n_short_r2_blocks_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_short_anc_rejects_by_ladder",
+        res.n_short_anc_rejects_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_short_liquidations_by_ladder",
+        res.n_short_liquidations_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "short_held_bars_by_ladder",
+        res.short_held_bars_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "short_net_cash_by_ladder",
+        res.short_net_cash_by_ladder.to_vec(),
     )?;
     Ok(out.into())
 }

@@ -69,12 +69,12 @@ use crate::buysellpoint::Side;
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, OscRouting,
-    PositionalResult, TrendAxisOpts, EQUITY_SAMPLE_BARS,
+    PositionalResult, TrendAxisOpts, TrendScope, EQUITY_SAMPLE_BARS,
 };
 use super::tape::SignalTape;
 use super::unified_osc::{OscLayer, OscOut};
 use super::types::{
-    BspClass, BspEvent, DivEvent, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
+    BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
 };
 use crate::divergence::DivKind;
 use crate::stroke::Direction;
@@ -136,6 +136,46 @@ struct SubOut {
     escrow: f64,
 }
 
+/// 区间套正向定位窗口（nest_forward；027课精确大转折点寻找程序定理）。
+///
+/// 武装 = 本级别 candidate Type1/Type3 事件（= "本级别进入背驰段后"/
+/// 38:258"第三类买卖对盘整结束的确认，最终也要看其内部结构的背驰"）；
+/// 触发 = 次级别（k−1）第一个同侧证据（"到次级别去寻找背驰点"——chan99/
+/// 0027:19）；否定 = 价格越过 candidate 极值（027:25"只要没有打破背驰段，
+/// 就要密切注意"的逆否：打破即作废）。
+#[derive(Debug, Clone, Copy)]
+struct NestWin {
+    /// candidate 事件端点价（背驰段极值；卖窗取 max 刷新 / 买窗取 min）。
+    extreme: f64,
+    /// candidate 锚中枢（confirmed 配对回填 lead 统计用；type1 可无锚）。
+    cs: Option<i64>,
+}
+
+/// 次级别证据（区间套正向定位的触发词汇）。`sub = k−1`：
+/// BSP 承载层（≥ FIRST_BSP_LADDER）= 任意同侧 BSP 事件 ∨ 同侧背驰事件
+/// （candidate 亦可——区间套递归"将该过程反复进行下去"的一层截断读法：
+/// 次级别 candidate = 次级别已进入背驰段）；bi 层（无事件流）= 本 bar
+/// 方向翻转沿（SC 先例：dir 行是 bi 层唯一结构通道；用沿不用态——态在
+/// 下跌语境恒真，会使窗口武装即触发退化为纯 candidate 消费）。
+fn nest_sub_evidence(
+    sub: usize,
+    side: Side,
+    evs: &[BspEvent],
+    devs: &[DivEvent],
+    flip_edge: Option<Direction>,
+) -> bool {
+    if sub >= FIRST_BSP_LADDER {
+        evs.iter().any(|e| e.class.side() == side)
+            || devs.iter().any(|d| d.side() == side)
+    } else {
+        let want = match side {
+            Side::Sell => Direction::Down,
+            Side::Buy => Direction::Up,
+        };
+        flip_edge == Some(want)
+    }
+}
+
 /// 层内短差开（先卖）谓词——`SubMode::CounterSeg` 开腿三岔镜像的 Short 侧
 /// 逐字复刻（confirmed Sell1 ∨ 盘背卖；type2/3 不在开腿词汇——震荡型）。
 fn sub_open_trigger(evs: &[BspEvent], devs: &[DivEvent]) -> bool {
@@ -176,8 +216,14 @@ fn nav_fusion(
         if oscs[k].is_some() {
             continue;
         }
-        if let LayerState::Long { shares, .. } = layers[k] {
-            v += shares * c;
+        match layers[k] {
+            LayerState::Long { shares, .. } => v += shares * c,
+            // 空头层权益 = margin + units×(B_s − c)（虚拟逐仓，会计文档
+            // §4.3 NAV 恒等式的逐仓口径；浮亏可为负——强平在阶段 C 收口）。
+            LayerState::Short { entry_price, units, margin, .. } => {
+                v += margin + units * (entry_price - c);
+            }
+            _ => {}
         }
     }
     v
@@ -228,6 +274,7 @@ fn try_restore(
         deferred_bars,
         partial,
         exit_reason: "sub_diff",
+        polarity: Polarity::Long,
     });
     layers[k] = LayerState::Long {
         entry_bar: bar,
@@ -253,6 +300,10 @@ pub(crate) fn run_fusion(
     osc_routing: OscRouting,
     phase_clock: bool,
     r2_gate: bool,
+    trend_scope: TrendScope,
+    nest_forward: bool,
+    short_mask: u16,
+    short_anc_gate: bool,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -349,6 +400,91 @@ pub(crate) fn run_fusion(
             return Err("r2_gate × TrendAxisOpts 未预注册，显式拒绝".to_string());
         }
     }
+    if nest_forward {
+        // 区间套正向定位守卫（027课程序定理；仅预注册 fusion_tn/fusion_trn
+        // 两臂——t 基座 ± r2 位置门）。
+        if !trend_hold {
+            return Err(
+                "nest_forward（区间套正向定位）替换的是 hold26 削减/回复词汇\
+                 的触发时机，预注册基座 = fusion_t（trend_hold）——其余基座\
+                 组合未预注册，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if counter_sub || opts.any() || osc_routing != OscRouting::Off || phase_clock {
+            return Err(
+                "nest_forward 仅预注册 fusion_tn/fusion_trn 两臂——与 \
+                 counter_sub/TrendAxisOpts/osc/phase_clock 的合取未预注册，\
+                 显式拒绝"
+                    .to_string(),
+            );
+        }
+        if !(tape.has_div_events() && tape.has_dir_rows()) {
+            return Err(
+                "nest_forward 要求背驰磁带 + dir_flips 行——次级别证据词汇 = \
+                 k−1 BSP 事件 ∨ k−1 背驰事件 ∨ bi 层方向翻转沿（SC 先例：bi \
+                 层无事件流时方向行是唯一通道），缺行即词汇残缺"
+                    .to_string(),
+            );
+        }
+    }
+    if trend_scope != TrendScope::SelfLayer {
+        // anc 祖先趋势豁免守卫（26:80 下沉；slow_bull 调研 §6 仅预注册
+        // hold26_anc/fusion_ta 两臂——其余轴合取未预注册，显式拒绝）。
+        if !trend_hold {
+            return Err(
+                "trend_scope（anc 祖先趋势豁免，26:80）是停削时钟的作用域\
+                 ——无 trend_hold 即无对象，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if phase_clock {
+            return Err(
+                "trend_scope × phase_clock 未预注册——anc 判据定义在 KindDir \
+                 行（17课 ≥2 同向中枢），相位机时钟 kind 行零消费，两时钟\
+                 合取无预注册语义，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if counter_sub || opts.any() || r2_gate || osc_routing != OscRouting::Off || nest_forward
+        {
+            return Err(
+                "trend_scope（anc）仅预注册 hold26_anc/fusion_ta 两臂\
+                 （slow_bull §6）——与 counter_sub/TrendAxisOpts/r2_gate/osc/\
+                 nest_forward 的合取未预注册，显式拒绝"
+                    .to_string(),
+            );
+        }
+    }
+    if short_mask != 0 {
+        // 双向条件轴 S1-S4 守卫 [镜像推导]（声明=能力；会计文档 §8 +
+        // slow_bull §7.6）。仅预注册 fusion_tr 基座合取（探针2 对照臂）。
+        if !(trend_hold && r2_gate) {
+            return Err(
+                "short_mask（双向条件轴）仅预注册 fusion_tr 基座（trend_hold \
+                 ∧ r2_gate——探针2 的对照臂口径）；其它基座合取未预注册，\
+                 显式拒绝"
+                    .to_string(),
+            );
+        }
+        if counter_sub || opts.any() || phase_clock || osc_routing != OscRouting::Off
+            || trend_scope != TrendScope::SelfLayer || nest_forward || capital_decoupled
+        {
+            return Err(
+                "short_mask × {counter_sub/TrendAxisOpts/phase_clock/osc/\
+                 trend_scope/nest_forward/decoupled} 合取未预注册，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if short_mask & !0b11100u16 != 0 {
+            return Err(
+                "short_mask 位必须 ⊆ {2,3,4}（segment/move/recL2）——S3 尾部\
+                 风险界：高层（≥recL3）空头默认禁用（GC recL4 因果空头单窗口 \
+                 −0.806 nats 反例，slow_bull §7.6）；非 BSP 承载层无卖点词汇"
+                    .to_string(),
+            );
+        }
+    }
     if counter_sub && !tape.has_div_events() {
         return Err(
             "counter_sub（层内 C 短差）要求背驰磁带（div_events 全空）——\
@@ -416,6 +552,12 @@ pub(crate) fn run_fusion(
     let mut b3_anchor: [Option<i64>; MAX_LADDER] = [None; MAX_LADDER];
     // P6 相位机锁定相位（phase_clock；candidate 窗口在 CenterBook）。
     let mut phi: [LayerPhase; MAX_LADDER] = [LayerPhase::Osc; MAX_LADDER];
+    // 区间套正向定位窗口（nest_forward；其余模式恒 None = 在册零接触）。
+    let mut nest_sell: [Option<NestWin>; MAX_LADDER] = [None; MAX_LADDER];
+    let mut nest_buy: [Option<NestWin>; MAX_LADDER] = [None; MAX_LADDER];
+    // 正向触发 → 事后 confirmed 配对（lead 统计）：(ladder, 卖侧?, cs) → fire_bar。
+    let mut nest_fired: std::collections::HashMap<(usize, bool, i64), i64> =
+        std::collections::HashMap::new();
 
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
@@ -423,10 +565,13 @@ pub(crate) fn run_fusion(
     for i in 0..n {
         let sig = &tape.bars[i];
         let c = sig.close;
+        // bi 层方向翻转沿（本 bar；nest_forward 次级别证据的 bi 通道）。
+        let mut flip_edge: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
 
         while flip_ptr < flips.len() && flips[flip_ptr].0 == i as i64 {
             let (_, lad, dir) = flips[flip_ptr];
             dir_state[lad as usize] = Some(dir);
+            flip_edge[lad as usize] = Some(dir);
             // 方向 run 重置 ⇒ 上一 run 的衰竭证据失效（gate41 状态）。
             down_exhaust[lad as usize] = false;
             // 049:60 三买窗口：dir 翻 Down = 向上离开失败的结构证据 ⇒ 关窗。
@@ -538,6 +683,88 @@ pub(crate) fn run_fusion(
             }
         }
 
+        // ── 区间套正向定位（nest_forward；市场性质，与持仓无关）。更新序：
+        //    ① 打破否定（027:25"只要没有打破背驰段"的逆否——价格越过
+        //    candidate 极值 ⇒ 窗口作废）→ ② 本级别 Type1/Type3 事件
+        //    （candidate 武装/刷新；confirmed 到达 ⇒ 窗口让位基线掩码路径
+        //    + lead 配对回填）→ ③ 次级别第一个同侧证据 ⇒ 正向触发
+        //    （chan99/0027:19"本级别进入背驰段后，到次级别去寻找背驰点"；
+        //    038:258"涨的时候一旦进入背驰的区间套里，就要陆续走"）──
+        let mut nf_sell = [false; MAX_LADDER];
+        let mut nf_buy = [false; MAX_LADDER];
+        if nest_forward {
+            for k in FIRST_BSP_LADDER..MAX_LADDER {
+                // ① 打破背驰段 ⇒ 作废（卖窗：创新高；买窗：创新低）。
+                if nest_sell[k].is_some_and(|w| c > w.extreme) {
+                    nest_sell[k] = None;
+                    res.n_nest_breaks_by_ladder[k] += 1;
+                }
+                if nest_buy[k].is_some_and(|w| c < w.extreme) {
+                    nest_buy[k] = None;
+                    res.n_nest_breaks_by_ladder[k] += 1;
+                }
+                // ② Type1（背驰段 proper）/Type3（38:258 内部结构确认）事件。
+                //    Type2 不在对象域：其 confirmed 是同 bar 价格比较，无
+                //    时间等待 ⇒ 无滞后可消。
+                if sig.bsp_events.is_some() {
+                    for e in &evrows[k] {
+                        let sellside = match e.class {
+                            BspClass::Sell1 | BspClass::Sell3 => true,
+                            BspClass::Buy1 | BspClass::Buy3 => false,
+                            BspClass::Sell2 | BspClass::Buy2 => continue,
+                        };
+                        let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                        if e.confirmed {
+                            *win = None;
+                            if let Some(cs) = e.cs {
+                                if let Some(fb) = nest_fired.remove(&(k, sellside, cs)) {
+                                    res.nest_lead_bars_sum += (i as i64 - fb) as u64;
+                                    res.nest_lead_n += 1;
+                                }
+                            }
+                        } else {
+                            let ext = win.map_or(e.price, |w| {
+                                if sellside {
+                                    w.extreme.max(e.price)
+                                } else {
+                                    w.extreme.min(e.price)
+                                }
+                            });
+                            let cs = e.cs.or(win.and_then(|w| w.cs));
+                            *win = Some(NestWin { extreme: ext, cs });
+                            res.n_nest_arms_by_ladder[k] += 1;
+                        }
+                    }
+                }
+                // ③ 次级别证据触发（一次性：触发即清窗，等下一个 candidate）。
+                let sub = k - 1;
+                if let Some(w) = nest_sell[k] {
+                    if nest_sub_evidence(
+                        sub, Side::Sell, &evrows[sub], &devrows[sub], flip_edge[sub],
+                    ) {
+                        nf_sell[k] = true;
+                        nest_sell[k] = None;
+                        res.n_nest_fire_sell_by_ladder[k] += 1;
+                        if let Some(cs) = w.cs {
+                            nest_fired.insert((k, true, cs), i as i64);
+                        }
+                    }
+                }
+                if let Some(w) = nest_buy[k] {
+                    if nest_sub_evidence(
+                        sub, Side::Buy, &evrows[sub], &devrows[sub], flip_edge[sub],
+                    ) {
+                        nf_buy[k] = true;
+                        nest_buy[k] = None;
+                        res.n_nest_fire_buy_by_ladder[k] += 1;
+                        if let Some(cs) = w.cs {
+                            nest_fired.insert((k, false, cs), i as i64);
+                        }
+                    }
+                }
+            }
+        }
+
         // gate41 衰竭证据 / b3 窗口的事件流更新（在相位判定之前——同 bar
         // 事件即时生效，与 dir/trend 行的翻转语义一致）。
         if opts.gate41 && sig.div_events.is_some() {
@@ -624,15 +851,40 @@ pub(crate) fn run_fusion(
         // 相位机时钟：停削窗口 = 有效 MOVE↑（与 osc ①门同一时钟——双侧同步，
         // P6 任务的核心条款）。raw = 未过 41课门的相位；gate41 在 raw 之上
         // 叠加大级别未衰竭否决（phase_clock 下 opts 已拒，gate41 恒放行）。
+        // anc 豁免窗口（26:80"更大级别的单边上扬"）：∃ j > k 祖先层
+        // kind==Trend ∧ dir==Up（17课 ≥2 同向中枢 = 中枢序列单调上移的引擎
+        // 直读）。单调性打破（祖先 trend 翻落或 dir 翻 Down）⇒ 窗口即关，
+        // 削减恢复（35:16"第N个中枢不再高于第N-1个才可说上涨结束"）。
+        let anc_up = |k: usize| {
+            ((k + 1)..MAX_LADDER)
+                .any(|j| trend_state[j] && dir_state[j] == Some(Direction::Up))
+        };
+        // 自层 KindDir 窗口（在册 fusion_t；b3 窗口是其结构滞后区补丁）。
+        let self_up = |k: usize| {
+            (trend_state[k] && dir_state[k] == Some(Direction::Up))
+                || (opts.b3_start && b3_anchor[k].is_some())
+        };
         let in_trend_raw = |k: usize| {
             trend_hold
                 && if phase_clock {
                     phase_view(k) == PhaseView::MoveUp
                 } else {
-                    (trend_state[k] && dir_state[k] == Some(Direction::Up))
-                        || (opts.b3_start && b3_anchor[k].is_some())
+                    match trend_scope {
+                        TrendScope::SelfLayer => self_up(k),
+                        TrendScope::Ancestor => anc_up(k),
+                        TrendScope::SelfOrAncestor => self_up(k) || anc_up(k),
+                    }
                 }
         };
+        // anc 豁免窗口驻留观测（市场性质逐 bar；P7 occupancy 对齐——
+        // 与调研 §1.4 E 桶占比直接可比；SelfLayer 恒零 = 在册零接触）。
+        if trend_scope != TrendScope::SelfLayer {
+            for lad in floor_ladder..MAX_LADDER {
+                if anc_up(lad) {
+                    res.anc_up_bars_by_ladder[lad] += 1;
+                }
+            }
+        }
         let gate41_pass = |k: usize| {
             if !opts.gate41 {
                 return true;
@@ -658,6 +910,30 @@ pub(crate) fn run_fusion(
                 dir_state[k] != Some(Direction::Down)
             };
             in_domain && book.alive(k).is_some_and(|lc| !(c >= lc.zg))
+        };
+        // ── 双向条件轴 S1-S4 谓词 [镜像推导]（short_mask=0 不可达）──
+        // 镜像 anc 窗口（fusion_btra；S2 条件化形式）：∃ j > k 祖先层
+        // kind==Trend ∧ dir==Down（26:80 豁免下沉的空头镜像）。
+        let anc_down = |k: usize| {
+            ((k + 1)..MAX_LADDER)
+                .any(|j| trend_state[j] && dir_state[j] == Some(Direction::Down))
+        };
+        // MoveDown 相（KindDir 时钟的 38:36 对称延拓：trend ∧ dir==Down）。
+        // 49:52 镜像"中枢向下移动应满空仓、停止回补"——P6 MoveDown 相位的
+        // 空头侧消费者（会计文档 §2.5）。
+        let in_movedown = |k: usize| {
+            trend_state[k] && dir_state[k] == Some(Direction::Down)
+        };
+        // 空侧 R2 回补位置门（049:64"在下方如数接回"镜像——P7 回复侧
+        // 位置门获得对象）：震荡相中买点回补要求 c ≤ ZD（中枢下方）；
+        // 上行段（dir==Up）回补不拦截（逃命语义，多头侧 dir≠Down 镜像）。
+        // NaN ZD 比较恒 false ⇒ 拦截（保守方向同构）。
+        let short_r2_blocked = |k: usize| {
+            if !r2_gate {
+                return false;
+            }
+            let in_domain = dir_state[k] != Some(Direction::Up);
+            in_domain && book.alive(k).is_some_and(|lc| !(c <= lc.zd))
         };
 
         // ── 阶段 A：层级出场 / 44课铰链 / 回补（资金释放先于一切入场；
@@ -700,6 +976,7 @@ pub(crate) fn run_fusion(
                         deferred_bars,
                         partial,
                         exit_reason: "hinge_escalate",
+                        polarity: Polarity::Long,
                     });
                     res.n_sub_escalates_by_ladder[k] += 1;
                     res.n_exits_by_ladder[k] += 1;
@@ -721,15 +998,22 @@ pub(crate) fn run_fusion(
                         }
                     }
                 }
-            } else if sig.sell_any.get(k) {
+            } else if sig.sell_any.get(k) || nf_sell[k] {
                 // 049:54 背驰出场：趋势相内 type1（趋势顶背驰词汇）⇒ 全抛
                 // （"这个级别的走势类型完成"）；其余卖点停削（049:60"中途
                 // 不参与短差"）。div_exit 关闭时趋势相一律停削（在册行为）。
+                // nest_forward：正向触发与 confirmed 掩码同词汇地位（区间套
+                // 正向定位 = 同一卖点的更早时间坐标，非新卖点类别）。
                 let div_exit_hit = tp && opts.div_exit && sig.sell1.get(k);
                 if tp && !div_exit_hit {
                     // 049:52 趋势相停削（"那种中枢完成后的向上移动时的差价
                     // 是不能做的，中枢向上移动时，就应该满仓"）。
                     res.n_trend_holds_by_ladder[k] += 1;
+                    // anc 豁免拦截归因（P7）：自层判据为假 ⇒ 本次拦截纯由
+                    // 祖先窗口触发（= 调研 §1.4 E0 桶的实装对应物）。
+                    if trend_scope != TrendScope::SelfLayer && !self_up(k) {
+                        res.n_anc_exempt_blocks_by_ladder[k] += 1;
+                    }
                 } else if r2_blocked(k) {
                     // P7 R2 位置门：震荡相非高位（c < ZG(k)）卖点不削减
                     // （049:52 位置分量——"在中枢上方仓位减少"）。
@@ -753,10 +1037,44 @@ pub(crate) fn run_fusion(
                         weight_at_entry: weight,
                         deferred_bars,
                         partial,
-                        exit_reason: if div_exit_hit { "trend_div" } else { "sellpt" },
+                        exit_reason: if div_exit_hit {
+                            "trend_div"
+                        } else if !sig.sell_any.get(k) {
+                            // 纯正向触发（confirmed 掩码未置位）——区间套定位
+                            // 归因。nest_forward=false 时 nf_sell 恒 false ⇒
+                            // 本分支不可达，在册 "sellpt" 零漂移。
+                            "nest_sell"
+                        } else {
+                            "sellpt"
+                        },
+                        polarity: Polarity::Long,
                     });
                     res.n_exits_by_ladder[k] += 1;
                     layers[k] = LayerState::Flat;
+                    // ── 双向条件轴 [镜像推导]：白名单层翻转断面（会计文档
+                    //    §5.2 四步序的 ②平多→③开空；①子腿 cascade settle
+                    //    无对象——counter_sub 被守卫拒绝，subs[k] 恒 None）。
+                    //    M = N 同股数定理（26:34 单位数量纲）：units = 平多
+                    //    股数；1x 虚拟逐仓 margin = units×c = 平多所得 ⇒
+                    //    翻转 bar pool 净流转 0（断面无渗漏）。同 bar 同价、
+                    //    会计分两行 trade（段归属核算硬要求，不可合并）。──
+                    if short_mask & (1 << k) != 0 {
+                        if short_anc_gate && !anc_down(k) {
+                            // fusion_btra：镜像 anc 窗口外削减照常、不开空。
+                            res.n_short_anc_rejects_by_ladder[k] += 1;
+                        } else {
+                            let margin = shares * c;
+                            pool -= margin;
+                            layers[k] = LayerState::Short {
+                                entry_bar: i as i64,
+                                entry_price: c,
+                                units: shares,
+                                weight,
+                                margin,
+                            };
+                            res.n_flip_shorts_by_ladder[k] += 1;
+                        }
+                    }
                 }
             }
         }
@@ -828,7 +1146,9 @@ pub(crate) fn run_fusion(
         for k in (floor_ladder..MAX_LADDER).rev() {
             match layers[k] {
                 LayerState::Flat => {
-                    if sig.buy_any.get(k) {
+                    // nest_forward：正向买触发与 confirmed 买掩码同词汇地位
+                    // （回复侧镜像——次级别第一个买证据 = 买点精确坐标）。
+                    if sig.buy_any.get(k) || nf_buy[k] {
                         layers[k] = enter_or_defer(
                             k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
                             &mut pool, &mut res,
@@ -836,7 +1156,7 @@ pub(crate) fn run_fusion(
                     }
                 }
                 LayerState::Pending { confirm_bar } => {
-                    if sig.sell_any.get(k) {
+                    if sig.sell_any.get(k) || nf_sell[k] {
                         res.n_pending_cancels_by_ladder[k] += 1;
                         layers[k] = LayerState::Flat;
                     } else {
@@ -850,6 +1170,68 @@ pub(crate) fn run_fusion(
                     unreachable!("Fusion 无 ARMED 相位——confirmed 事件直接消费")
                 }
                 LayerState::Long { .. } => {}
+                // ── 双向条件轴 [镜像推导]：空头层出口集（short_mask 层
+                //    专属——其余模式不可达）。优先序：逐仓强平（物理事件）
+                //    → MoveUp 强制平空（49:52 满仓义务镜像：空头前提消失）
+                //    → 买点回补（MoveDown 停回补 / 空侧 R2 位置门拦截）。
+                //    平空 = 层权益→现金等价转换（NAV 不变 ⇒ bar_nav 快照
+                //    严格）；翻多走在册 enter_or_defer 配额流程（断面对偶）──
+                LayerState::Short { entry_bar, entry_price, units, weight, margin } => {
+                    res.short_held_bars_by_ladder[k] += 1;
+                    let equity_k = margin + units * (entry_price - c);
+                    let mut cover = |exit_price: f64,
+                                     exit_reason: &'static str,
+                                     pool: &mut f64,
+                                     res: &mut PositionalResult| {
+                        // 1x 逐仓：损失上界 = margin（强平价记账 ⇒ 现金
+                        // 流出恰为全部 margin，逐 trade 重建零渗漏）。
+                        *pool += margin + units * (entry_price - exit_price);
+                        res.short_net_cash_by_ladder[k] +=
+                            units * (entry_price - exit_price);
+                        res.trades.push(LayerTrade {
+                            ladder: k as u8,
+                            entry_bar,
+                            entry_price,
+                            exit_bar: i as i64,
+                            exit_price,
+                            shares: units,
+                            weight_at_entry: weight,
+                            deferred_bars: 0,
+                            partial: false,
+                            exit_reason,
+                            polarity: Polarity::Short,
+                        });
+                        res.n_exits_by_ladder[k] += 1;
+                    };
+                    if equity_k <= 0.0 {
+                        // 虚拟逐仓强平：1x 解析强平价 = 2×entry_price
+                        // （margin = units×entry_price 的 equity=0 解）。
+                        cover(2.0 * entry_price, "short_liquidated", &mut pool, &mut res);
+                        res.n_short_liquidations_by_ladder[k] += 1;
+                        layers[k] = LayerState::Flat;
+                    } else if in_trend(k) {
+                        cover(c, "cover_moveup", &mut pool, &mut res);
+                        res.n_short_moveup_covers_by_ladder[k] += 1;
+                        layers[k] = enter_or_defer(
+                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
+                            &mut pool, &mut res,
+                        );
+                    } else if sig.buy_any.get(k) {
+                        if in_movedown(k) {
+                            // 49:52 镜像：中枢向下移动时应满空仓、停回补。
+                            res.n_short_trend_holds_by_ladder[k] += 1;
+                        } else if short_r2_blocked(k) {
+                            res.n_short_r2_blocks_by_ladder[k] += 1;
+                        } else {
+                            cover(c, "cover_buypt", &mut pool, &mut res);
+                            res.n_short_covers_by_ladder[k] += 1;
+                            layers[k] = enter_or_defer(
+                                k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
+                                &mut pool, &mut res,
+                            );
+                        }
+                    }
+                }
             }
         }
 
@@ -862,6 +1244,39 @@ pub(crate) fn run_fusion(
     //    以实际变现点记账（身份悬置为 eod，铰链未及裁决）──
     let last_close = tape.bars[n - 1].close;
     for k in floor_ladder..MAX_LADDER {
+        // 双向条件轴：空头层 eod 收口（按市价平空；末 bar 跳穿逐仓界则按
+        // 强平价记账——与阶段 C 强平同一会计口径）。
+        if let LayerState::Short { entry_bar, entry_price, units, weight, margin } =
+            layers[k]
+        {
+            let equity_k = margin + units * (entry_price - last_close);
+            let (exit_price, exit_reason) = if equity_k <= 0.0 {
+                (2.0 * entry_price, "short_liquidated")
+            } else {
+                (last_close, "eod")
+            };
+            pool += margin + units * (entry_price - exit_price);
+            res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
+            if exit_reason == "short_liquidated" {
+                res.n_short_liquidations_by_ladder[k] += 1;
+            }
+            res.trades.push(LayerTrade {
+                ladder: k as u8,
+                entry_bar,
+                entry_price,
+                exit_bar: n as i64 - 1,
+                exit_price,
+                shares: units,
+                weight_at_entry: weight,
+                deferred_bars: 0,
+                partial: false,
+                exit_reason,
+                polarity: Polarity::Short,
+            });
+            res.n_exits_by_ladder[k] += 1;
+            layers[k] = LayerState::Flat;
+            continue;
+        }
         let LayerState::Long { entry_bar, entry_price, shares, weight, deferred_bars, partial } =
             layers[k]
         else {
@@ -891,6 +1306,7 @@ pub(crate) fn run_fusion(
             deferred_bars,
             partial,
             exit_reason: "eod",
+            polarity: Polarity::Long,
         });
         res.n_exits_by_ladder[k] += 1;
         layers[k] = LayerState::Flat;
@@ -1026,6 +1442,10 @@ mod tests {
             osc: OscRouting::Off,
             phase_clock: false,
             r2_gate: false,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: false,
+            short_mask: 0,
+            short_anc_gate: false,
         }
     }
 
@@ -1039,6 +1459,10 @@ mod tests {
             osc: OscRouting::Unified { strong_gate },
             phase_clock: false,
             r2_gate: false,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: false,
+            short_mask: 0,
+            short_anc_gate: false,
         }
     }
 
@@ -1081,6 +1505,10 @@ mod tests {
             osc: OscRouting::Off,
             phase_clock: false,
             r2_gate: false,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: false,
+            short_mask: 0,
+            short_anc_gate: false,
         };
         assert_eq!(PolarityMode::parse("fusion_tg"), Some(opt(true, false, false)));
         assert_eq!(PolarityMode::parse("fusion_td"), Some(opt(false, true, false)));
@@ -1104,6 +1532,10 @@ mod tests {
                 osc: OscRouting::Off,
                 phase_clock: false,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -1132,6 +1564,10 @@ mod tests {
                 osc: OscRouting::Off,
                 phase_clock: false,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -1181,6 +1617,343 @@ mod tests {
         assert_eq!(r.n_trend_holds_by_ladder[2], 0);
         assert_eq!(r.trades[0].exit_reason, "sellpt");
         assert_eq!(r.trades[0].exit_price, 90.0);
+    }
+
+    // ════════════════════════════════════════════════════════
+    // 区间套正向定位（nest_forward；fusion_tn/fusion_trn）
+    // ════════════════════════════════════════════════════════
+
+    /// candidate 事件构造（价格可控——背驰段极值）。
+    fn cand(class: BspClass, cs: i64, price: f64) -> BspEvent {
+        BspEvent {
+            class,
+            seg_idx: 0,
+            confirmed: false,
+            cs: Some(cs),
+            zd: Some(50.0),
+            zg: Some(51.0),
+            price,
+        }
+    }
+
+    /// 层3 θ 参照 warmup + 首 bar 空 div 行（nest 守卫的磁带能力满足）。
+    fn nest_warmup() -> Vec<BarSig> {
+        (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| {
+                let b = with_anchor(bar(100.0), 3, 10 + j, 50.0, 51.0);
+                if j == 0 {
+                    with_empty_div(b)
+                } else {
+                    b
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn nest_parse_and_guards() {
+        let nm = |r2: bool| PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc: OscRouting::Off,
+            phase_clock: false,
+            r2_gate: r2,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: true,
+            short_mask: 0,
+            short_anc_gate: false,
+        };
+        assert_eq!(PolarityMode::parse("fusion_tn"), Some(nm(false)));
+        assert_eq!(PolarityMode::parse("fusion_trn"), Some(nm(true)));
+        // 无 div 行 ⇒ 拒绝（次级别证据词汇残缺）
+        let no_div: Vec<BarSig> = nest_warmup()
+            .into_iter()
+            .map(|mut b| {
+                b.div_events = None;
+                b
+            })
+            .collect();
+        let t = SignalTape {
+            bars: no_div,
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(&t, 2, nm(false)).is_err());
+        // × counter_sub 未预注册 ⇒ 拒绝
+        let t2 = SignalTape {
+            bars: nest_warmup(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t2,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Off,
+                phase_clock: false,
+                r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: true,
+                short_mask: 0,
+                short_anc_gate: false,
+            }
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn nest_fires_on_sub_evidence_before_confirmed() {
+        // 层3 candidate Sell1 武装 → 次级别(2)第一个卖事件触发削减——
+        // confirmed 永不到达（区间套正向定位 vs 等右侧确认的核心差分）。
+        let mut bars = nest_warmup();
+        bars.push(buypt(bar(100.0), 3)); // 入场 @100
+        bars.push(with_ev(bar(100.0), 3, cand(BspClass::Sell1, 99, 200.0))); // 武装
+        bars.push(with_ev(bar(98.0), 2, ev(BspClass::Sell1))); // 次级别证据 → 触发
+        bars.push(bar(98.0));
+        let r = run_with_rows(bars, "fusion_tn", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_nest_fire_sell_by_ladder[3], 1, "次级别证据正向触发");
+        let t3: Vec<_> =
+            r.trades.iter().filter(|t| t.ladder == 3 && t.exit_reason != "eod").collect();
+        assert_eq!(t3.len(), 1);
+        assert_eq!(t3[0].exit_reason, "nest_sell", "归因为区间套触发");
+        assert_eq!(t3[0].exit_price, 98.0, "在证据 bar 削减，不等 confirmed");
+    }
+
+    #[test]
+    fn nest_break_negates_window() {
+        // 027:25"只要没有打破背驰段"的逆否：价格越过 candidate 极值 ⇒ 作废，
+        // 其后次级别证据不触发。
+        let mut bars = nest_warmup();
+        bars.push(buypt(bar(100.0), 3));
+        bars.push(with_ev(bar(100.0), 3, cand(BspClass::Sell1, 99, 105.0))); // extreme=105
+        bars.push(bar(110.0)); // 打破 → 作废
+        bars.push(with_ev(bar(110.0), 2, ev(BspClass::Sell1))); // 证据迟到，窗口已亡
+        bars.push(bar(110.0));
+        let r = run_with_rows(bars, "fusion_tn", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_nest_fire_sell_by_ladder[3], 0, "打破后不触发");
+        assert!(r.n_nest_breaks_by_ladder[3] >= 1);
+        assert_eq!(
+            r.trades.iter().filter(|t| t.ladder == 3 && t.exit_reason != "eod").count(),
+            0,
+            "持仓不被已作废窗口削减"
+        );
+    }
+
+    #[test]
+    fn nest_buy_fires_entry() {
+        // 回复侧镜像：candidate Buy1 武装 → 次级别买证据 ⇒ 回复入场
+        // （不等 confirmed 买掩码）。
+        let mut bars = nest_warmup();
+        bars.push(buypt(bar(100.0), 3)); // 入场
+        bars.push(sellpt(bar(100.0), 3)); // confirmed 卖掩码削减 → Flat
+        bars.push(with_ev(bar(95.0), 3, cand(BspClass::Buy1, 99, 90.0))); // 买窗 extreme=90
+        bars.push(with_ev(bar(95.0), 2, ev(BspClass::Buy1))); // 次级别买证据 → 回复
+        bars.push(bar(95.0));
+        let r = run_with_rows(bars, "fusion_tn", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_nest_fire_buy_by_ladder[3], 1);
+        assert_eq!(r.n_entries_by_ladder[3], 2, "削减后由正向定位回复");
+    }
+
+    #[test]
+    fn nest_lead_pairing_on_late_confirmed() {
+        // 正向触发领先量测量：confirmed 同 (class,cs) 事后到达 ⇒ 配对回填。
+        let mut bars = nest_warmup();
+        bars.push(buypt(bar(100.0), 3));
+        bars.push(with_ev(bar(100.0), 3, cand(BspClass::Sell1, 99, 200.0)));
+        bars.push(with_ev(bar(98.0), 2, ev(BspClass::Sell1))); // fire bar = b
+        bars.push(bar(98.0));
+        bars.push(with_ev(
+            bar(97.0),
+            3,
+            BspEvent { confirmed: true, ..cand(BspClass::Sell1, 99, 97.0) },
+        )); // confirmed @ b+2
+        bars.push(bar(97.0));
+        let r = run_with_rows(bars, "fusion_tn", Some(vec![]), Some(vec![]));
+        assert_eq!(r.nest_lead_n, 1);
+        assert_eq!(r.nest_lead_bars_sum, 2, "正向触发领先 confirmed 2 bar");
+    }
+
+    #[test]
+    fn nest_off_zero_intrusion() {
+        // fusion_t 在同一磁带上 nest 计数恒零、行为与在册一致（候选事件
+        // 存在但 nest_forward=false ⇒ 全部路径不可达）。
+        let mut bars = nest_warmup();
+        bars.push(buypt(bar(100.0), 3));
+        bars.push(with_ev(bar(100.0), 3, cand(BspClass::Sell1, 99, 200.0)));
+        bars.push(with_ev(bar(98.0), 2, ev(BspClass::Sell1)));
+        bars.push(bar(98.0));
+        let r = run_with_rows(bars, "fusion_t", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_nest_fire_sell_by_ladder[3], 0);
+        assert_eq!(r.n_nest_arms_by_ladder[3], 0);
+        assert_eq!(
+            r.trades.iter().filter(|t| t.ladder == 3 && t.exit_reason != "eod").count(),
+            0,
+            "无 confirmed 掩码 ⇒ 在册行为不削减"
+        );
+    }
+
+    /// anc 测试构造捷径：hold26_anc / fusion_ta（其余轴全关）+ 单轴变体。
+    fn anc_mode_with(
+        scope: TrendScope,
+        trend_hold: bool,
+        counter_sub: bool,
+        r2_gate: bool,
+    ) -> PolarityMode {
+        PolarityMode::Fusion {
+            trend_hold,
+            counter_sub,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc: OscRouting::Off,
+            phase_clock: false,
+            r2_gate,
+            trend_scope: scope,
+            nest_forward: false,
+            short_mask: 0,
+            short_anc_gate: false,
+        }
+    }
+
+    fn anc_mode(scope: TrendScope) -> PolarityMode {
+        anc_mode_with(scope, true, false, false)
+    }
+
+    #[test]
+    fn parse_anc_modes_and_guards() {
+        assert_eq!(
+            PolarityMode::parse("hold26_anc"),
+            Some(anc_mode(TrendScope::Ancestor))
+        );
+        assert_eq!(
+            PolarityMode::parse("fusion_ta"),
+            Some(anc_mode(TrendScope::SelfOrAncestor))
+        );
+        // 在册模式 trend_scope 恒 SelfLayer（零接触守卫）
+        assert_eq!(
+            PolarityMode::parse("fusion_t"),
+            Some(anc_mode_with(TrendScope::SelfLayer, true, false, false))
+        );
+        // anc × 未预注册轴 ⇒ 拒绝
+        let reject = |m: PolarityMode| {
+            let t = SignalTape {
+                bars: warmup34(),
+                dir_flips: Some(vec![]),
+                trend_flips: Some(vec![]),
+                ..Default::default()
+            };
+            assert!(run_positional(&t, 2, m).is_err());
+        };
+        // 无 trend_hold = 时钟无对象
+        reject(anc_mode_with(TrendScope::Ancestor, false, true, false));
+        // × counter_sub 未预注册
+        reject(anc_mode_with(TrendScope::Ancestor, true, true, false));
+        // × r2_gate 未预注册
+        reject(anc_mode_with(TrendScope::SelfOrAncestor, true, false, true));
+        // anc 要求 trend/dir 行（trend_hold 既有守卫覆盖）
+        let t = SignalTape { bars: warmup34(), ..Default::default() };
+        assert!(run_positional(&t, 2, anc_mode(TrendScope::Ancestor)).is_err());
+    }
+
+    #[test]
+    fn anc_ancestor_trend_suppresses_self_layer_trim() {
+        // 层2 自层震荡（无 trend 行置位），祖先层3 kind==Trend ∧ dir==Up
+        // ⇒ hold26_anc 豁免层2 卖点削减（26:80 下沉）；fusion_t 不豁免。
+        let mk_bars = || -> Vec<BarSig> {
+            let mut bars: Vec<BarSig> = (0..SUB_COST_MIN_OBS as i64)
+                .map(|j| with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0))
+                .collect();
+            bars.push(buypt(bar(100.0), 2)); // 入场 @100
+            bars.push(sellpt(bar(110.0), 2)); // 祖先趋势中 → 豁免
+            bars.push(bar(120.0));
+            bars
+        };
+        let rows_dir = Some(vec![(0i64, 3u8, Direction::Up)]);
+        let rows_trend = Some(vec![(0i64, 3u8, true)]);
+        let r =
+            run_with_rows(mk_bars(), "hold26_anc", rows_dir.clone(), rows_trend.clone());
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1, "祖先趋势 ⇒ 层2 停削");
+        assert_eq!(
+            r.n_anc_exempt_blocks_by_ladder[2], 1,
+            "自层判据为假 ⇒ 纯 anc 豁免拦截（P7 归因）"
+        );
+        assert!(r.anc_up_bars_by_ladder[2] > 0, "豁免窗口驻留可观测");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2[0].exit_reason, "eod", "豁免后持有到尾（无削减 trade）");
+        // 对照：fusion_t 自层时钟看不到祖先 ⇒ 正常削减
+        let rf = run_with_rows(mk_bars(), "fusion_t", rows_dir, rows_trend);
+        assert_eq!(rf.n_trend_holds_by_ladder[2], 0);
+        assert_eq!(rf.n_anc_exempt_blocks_by_ladder[2], 0, "在册模式 anc 计数恒零");
+        assert_eq!(rf.trades[0].exit_reason, "sellpt");
+    }
+
+    #[test]
+    fn anc_monotonicity_break_resumes_trim() {
+        // 祖先单调性打破（层3 dir 翻 Down）⇒ 豁免窗口关，削减恢复
+        // （35:16"第N个中枢不再高于第N-1个才可说上涨结束"的引擎读出）。
+        let mut bars: Vec<BarSig> = (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0))
+            .collect();
+        bars.push(buypt(bar(100.0), 2)); // 入场 @100
+        bars.push(sellpt(bar(110.0), 2)); // 窗口内 → 豁免
+        bars.push(sellpt(bar(108.0), 2)); // 窗口已关 → 削减 @108
+        bars.push(bar(108.0));
+        let entry_bar = SUB_COST_MIN_OBS as i64;
+        let r = run_with_rows(
+            bars,
+            "hold26_anc",
+            Some(vec![(0, 3, Direction::Up), (entry_bar + 2, 3, Direction::Down)]),
+            Some(vec![(0, 3, true)]),
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 108.0, "单调性打破 ⇒ 恢复削减");
+        assert!((r.final_nav - 108_000.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn anc_bear_ancestor_keeps_trim_and_ta_unions_self() {
+        // 熊市零接触（P4 承载面）：祖先 kind==Trend ∧ dir==Down 不豁免。
+        let mut bars: Vec<BarSig> = (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0))
+            .collect();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(90.0), 2));
+        bars.push(bar(80.0));
+        let r = run_with_rows(
+            bars,
+            "hold26_anc",
+            Some(vec![(0, 3, Direction::Down)]),
+            Some(vec![(0, 3, true)]),
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 0, "下行祖先趋势不豁免");
+        assert_eq!(r.trades[0].exit_reason, "sellpt");
+        // fusion_ta 并集：自层趋势（祖先无）⇒ 仍停削（49:52 字面保留）；
+        // 且自层为真时 anc 归因计数不增（P7 口径：纯祖先拦截）。
+        let mut bars2: Vec<BarSig> = (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0))
+            .collect();
+        bars2.push(buypt(bar(100.0), 2));
+        bars2.push(sellpt(bar(110.0), 2));
+        bars2.push(bar(120.0));
+        let r2 = run_with_rows(
+            bars2,
+            "fusion_ta",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![(0, 2, true)]),
+        );
+        assert_eq!(r2.n_trend_holds_by_ladder[2], 1, "自层窗口在并集中保留");
+        assert_eq!(r2.n_anc_exempt_blocks_by_ladder[2], 0, "自层真 ⇒ 非 anc 归因");
     }
 
     #[test]
@@ -1689,6 +2462,10 @@ mod tests {
                 osc: OscRouting::Unified { strong_gate: true },
                 phase_clock: false,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -1710,6 +2487,10 @@ mod tests {
                 osc: OscRouting::Unified { strong_gate: true },
                 phase_clock: false,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -1731,6 +2512,10 @@ mod tests {
                 osc: OscRouting::Unified { strong_gate: true },
                 phase_clock: false,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -2033,6 +2818,10 @@ mod tests {
             osc,
             phase_clock: true,
             r2_gate: false,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: false,
+            short_mask: 0,
+            short_anc_gate: false,
         };
         assert_eq!(PolarityMode::parse("fusion_p"), Some(fp(OscRouting::Off)));
         assert_eq!(
@@ -2056,6 +2845,10 @@ mod tests {
                 osc: OscRouting::Off,
                 phase_clock: true,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -2076,6 +2869,10 @@ mod tests {
                 osc: OscRouting::Off,
                 phase_clock: true,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -2245,6 +3042,10 @@ mod tests {
             osc,
             phase_clock: phase,
             r2_gate: true,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: false,
+            short_mask: 0,
+            short_anc_gate: false,
         };
         assert_eq!(PolarityMode::parse("fusion_tr"), Some(mk(false, OscRouting::Off)));
         assert_eq!(PolarityMode::parse("fusion_pr"), Some(mk(true, OscRouting::Off)));
@@ -2270,6 +3071,10 @@ mod tests {
                 osc: OscRouting::Off,
                 phase_clock: false,
                 r2_gate: true,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -2291,6 +3096,10 @@ mod tests {
                 osc: OscRouting::Off,
                 phase_clock: false,
                 r2_gate: true,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             }
         )
         .is_err());
@@ -2354,5 +3163,206 @@ mod tests {
         let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
         assert_eq!(t2[0].exit_reason, "sellpt");
         assert_eq!(t2[0].exit_price, 45.0);
+    }
+
+    // ════════ 双向条件轴 S1-S4（fusion_btr/fusion_btra）[镜像推导] ════════
+    use crate::trading::types::Polarity;
+
+    #[test]
+    fn parse_btr_modes_and_guards() {
+        // fusion_btr_s34 = fusion_tr 基座 + 层{3,4} 翻空白名单（S1/S3 BTC 臂）
+        let Some(PolarityMode::Fusion {
+            trend_hold, r2_gate, short_mask, short_anc_gate, counter_sub, ..
+        }) = PolarityMode::parse("fusion_btr_s34")
+        else {
+            panic!("fusion_btr_s34 必须可解析")
+        };
+        assert!(trend_hold && r2_gate && !counter_sub);
+        assert_eq!(short_mask, 0b11000);
+        assert!(!short_anc_gate);
+        // fusion_btra_s24 = 加镜像 anc 窗口门（S2/S4 CL 臂的条件化变体）
+        let Some(PolarityMode::Fusion { short_mask: m2, short_anc_gate: g2, .. }) =
+            PolarityMode::parse("fusion_btra_s24")
+        else {
+            panic!("fusion_btra_s24 必须可解析")
+        };
+        assert_eq!(m2, 0b10100);
+        assert!(g2);
+        // S3 尾部风险界：≥recL3（ladder 5）禁用；非法串全 None
+        assert_eq!(PolarityMode::parse("fusion_btr_s5"), None);
+        assert_eq!(PolarityMode::parse("fusion_btr_s45"), None);
+        assert_eq!(PolarityMode::parse("fusion_btr_s1"), None);
+        assert_eq!(PolarityMode::parse("fusion_btr_s"), None);
+        assert_eq!(PolarityMode::parse("fusion_btr_s43"), None); // 乱序
+        assert_eq!(PolarityMode::parse("fusion_btr_s33"), None); // 重复
+        // 守卫：short_mask 仅 fusion_tr 基座合取预注册
+        let t = SignalTape { bars: warmup34(), ..Default::default() };
+        let bad = PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc: OscRouting::Off,
+            phase_clock: false,
+            r2_gate: false, // 缺 r2 ⇒ 非 fusion_tr 基座
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: false,
+            short_mask: 0b10000,
+            short_anc_gate: false,
+        };
+        assert!(run_positional(&t, 2, bad).is_err());
+    }
+
+    /// 翻转断面往返（§5.2 四步序 + 数字推演同构）：卖点平多+开空两行 trade、
+    /// 买点平空+翻多；1x 逐仓 margin = 平多所得 ⇒ 断面 pool 净流转 0。
+    #[test]
+    fn flip_short_on_sellpt_then_cover_on_buypt() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4)); // 层4 入场 w=0.75 → 750 股
+        bars.push(sellpt(bar(110.0), 4)); // 翻空断面：平多@110 + 开空 750u@110
+        bars.push(buypt(bar(45.0), 4)); // c=45 ≤ ZD(50) ⇒ 回补放行 + 翻多
+        bars.push(bar(45.0));
+        let r = run_with_rows(bars, "fusion_btr_s4", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_flip_shorts_by_ladder[4], 1);
+        assert_eq!(r.n_short_covers_by_ladder[4], 1);
+        let t4: Vec<_> = r.trades.iter().filter(|t| t.ladder == 4).collect();
+        assert_eq!(t4.len(), 3, "平多 + 空头腿 + 翻多eod 三行（段归属不可合并）");
+        assert_eq!(t4[0].polarity, Polarity::Long);
+        assert_eq!((t4[0].entry_price, t4[0].exit_price), (100.0, 110.0));
+        assert_eq!(t4[1].polarity, Polarity::Short);
+        assert_eq!((t4[1].entry_price, t4[1].exit_price), (110.0, 45.0));
+        assert_eq!(t4[1].exit_reason, "cover_buypt");
+        assert_eq!(t4[1].shares, t4[0].shares, "M = N 同股数定理（26:34）");
+        assert_eq!(t4[2].polarity, Polarity::Long);
+        // 会计核验：750×(110−100) 多头段 + 750×(110−45) 空头段
+        let expect = INITIAL_CAPITAL + 750.0 * 10.0 + 750.0 * 65.0;
+        assert!((r.final_nav - expect).abs() < 1e-6, "{} ≠ {expect}", r.final_nav);
+        assert!((r.short_net_cash_by_ladder[4] - 750.0 * 65.0).abs() < 1e-9);
+    }
+
+    /// 非白名单层零接触：层3 卖点照旧削减驻 Flat（在册 {+Q,0}），仅层4 翻空。
+    #[test]
+    fn non_whitelist_layer_keeps_inbook_flat() {
+        let mut bars = warmup34();
+        bars.push(buypt(buypt(bar(100.0), 3), 4));
+        bars.push(sellpt(sellpt(bar(110.0), 3), 4));
+        bars.push(bar(110.0));
+        let r = run_with_rows(bars, "fusion_btr_s4", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_flip_shorts_by_ladder[4], 1);
+        assert_eq!(r.n_flip_shorts_by_ladder[3], 0, "层3 不在白名单——零接触");
+        let t3: Vec<_> = r.trades.iter().filter(|t| t.ladder == 3).collect();
+        assert!(t3.iter().all(|t| t.polarity == Polarity::Long));
+    }
+
+    /// MoveDown 相停回补（49:52 镜像满空仓义务）+ MoveUp 强制平空翻多
+    /// （满仓义务——空头前提消失）。
+    #[test]
+    fn movedown_blocks_cover_moveup_forces_cover() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4)); // bar w
+        bars.push(sellpt(bar(110.0), 4)); // bar w+1：翻空
+        bars.push(buypt(bar(45.0), 4)); // bar w+2：MoveDown ⇒ 停回补
+        bars.push(bar(60.0)); // bar w+3：MoveUp ⇒ 强制平空 + 翻多
+        bars.push(bar(60.0));
+        let dirs = vec![
+            (w + 2, 4u8, Direction::Down),
+            (w + 3, 4u8, Direction::Up),
+        ];
+        let trends = vec![(w + 2, 4u8, true)];
+        let r = run_with_rows(bars, "fusion_btr_s4", Some(dirs), Some(trends));
+        assert_eq!(r.n_short_trend_holds_by_ladder[4], 1, "MoveDown 停回补");
+        assert_eq!(r.n_short_moveup_covers_by_ladder[4], 1, "MoveUp 强制平空");
+        let s4: Vec<_> = r
+            .trades
+            .iter()
+            .filter(|t| t.ladder == 4 && t.polarity == Polarity::Short)
+            .collect();
+        assert_eq!(s4[0].exit_reason, "cover_moveup");
+        assert_eq!(s4[0].exit_price, 60.0);
+    }
+
+    /// 空侧 R2 回补位置门（049:64 镜像：c > ZD ⇒ 买点不回补——P7 回复侧
+    /// 位置门获得对象）。
+    #[test]
+    fn short_r2_gate_blocks_cover_above_zd() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(sellpt(bar(110.0), 4)); // 翻空
+        bars.push(buypt(bar(60.0), 4)); // c=60 > ZD(50) ⇒ 拦截
+        bars.push(buypt(bar(45.0), 4)); // c=45 ≤ ZD ⇒ 放行
+        bars.push(bar(45.0));
+        let r = run_with_rows(bars, "fusion_btr_s4", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_short_r2_blocks_by_ladder[4], 1);
+        assert_eq!(r.n_short_covers_by_ladder[4], 1);
+        let s4 = r
+            .trades
+            .iter()
+            .find(|t| t.ladder == 4 && t.polarity == Polarity::Short)
+            .unwrap();
+        assert_eq!(s4.exit_price, 45.0, "回补成交在位置门放行的低位 bar");
+    }
+
+    /// 虚拟逐仓强平：1x 解析强平价 = 2×B_s；损失上界 = margin（pool 现金
+    /// 流出恰为全部 margin，逐 trade 重建零渗漏）。
+    #[test]
+    fn short_liquidation_caps_loss_at_margin() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4)); // 750 股
+        bars.push(sellpt(bar(110.0), 4)); // 翻空 @110，margin=82500
+        bars.push(bar(250.0)); // 击穿 2×110=220 ⇒ 强平
+        bars.push(bar(250.0));
+        let r = run_with_rows(bars, "fusion_btr_s4", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_short_liquidations_by_ladder[4], 1);
+        let s4 = r
+            .trades
+            .iter()
+            .find(|t| t.ladder == 4 && t.polarity == Polarity::Short)
+            .unwrap();
+        assert_eq!(s4.exit_reason, "short_liquidated");
+        assert_eq!(s4.exit_price, 220.0, "强平价 = 2×B_s（1x 解析解）");
+        // NAV：25000 现金 + 多头段利得 7500 已含在 margin 中被空头亏光
+        // = 100000 + 750×10 − 82500 = 25000
+        assert!((r.final_nav - 25_000.0).abs() < 1e-6, "{}", r.final_nav);
+        assert!((r.short_net_cash_by_ladder[4] + 82_500.0).abs() < 1e-9);
+    }
+
+    /// fusion_btra：镜像 anc 窗口门——∄祖先 Trend∧Down ⇒ 削减照常不开空；
+    /// ∃ ⇒ 开空（26:80 豁免下沉的空头镜像，S2 条件化形式）。
+    #[test]
+    fn btra_anc_gate_conditions_flip() {
+        let w = SUB_COST_MIN_OBS as i64;
+        // 臂一：无祖先 Down 趋势 ⇒ 拒开空，层留 Flat（在册削减驻留）
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(sellpt(bar(110.0), 4));
+        bars.push(bar(110.0));
+        let r = run_with_rows(bars, "fusion_btra_s4", Some(vec![]), Some(vec![]));
+        assert_eq!(r.n_short_anc_rejects_by_ladder[4], 1);
+        assert_eq!(r.n_flip_shorts_by_ladder[4], 0);
+        // 臂二：祖先层5 Trend∧Down ⇒ 开空
+        let mut bars2 = warmup34();
+        bars2.push(buypt(bar(100.0), 4));
+        bars2.push(sellpt(bar(110.0), 4));
+        bars2.push(bar(110.0));
+        let dirs = vec![(w, 5u8, Direction::Down)];
+        let trends = vec![(w, 5u8, true)];
+        let r2 = run_with_rows(bars2, "fusion_btra_s4", Some(dirs), Some(trends));
+        assert_eq!(r2.n_flip_shorts_by_ladder[4], 1);
+        assert_eq!(r2.n_short_anc_rejects_by_ladder[4], 0);
+    }
+
+    /// 翻转断面会计无渗漏：同价开平往返 ⇒ NAV 守恒（零摩擦语法前提）。
+    #[test]
+    fn flip_round_trip_nav_conservation() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(sellpt(bar(100.0), 4)); // 同价翻空
+        bars.push(buypt(bar(100.0), 4)); // 同价翻多（c=100 > ZD…r2 拦截？）
+        bars.push(bar(100.0));
+        // c=100 > ZD(50) ⇒ 空侧 R2 拦截回补——本测试验证的是断面本身的
+        // 会计守恒，eod 收口同价平空：NAV 必须回到初始。
+        let r = run_with_rows(bars, "fusion_btr_s4", Some(vec![]), Some(vec![]));
+        assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "{}", r.final_nav);
     }
 }

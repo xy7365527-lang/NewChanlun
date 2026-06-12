@@ -185,13 +185,20 @@ impl Run {
     /// Python `_close` 逐字（含 total_shares≤0 早退、插入序清腿、round 语义）。
     fn close_position(&mut self, bar: i64, price: f64, reason: &str) {
         let Some(mut pos) = self.pos.take() else {
+            // 合法幂等路径：eod 收口对 FLAT 状态无条件调用。
             self.reset_flat();
             return;
         };
-        if self.entry_price <= 0.0 || pos.total_shares <= 0.0 {
-            self.reset_flat();
-            return;
-        }
+        // P0 修复（双向会计体系 §8.0：v2 §4.1 ④ 在册静默 bug）：持仓存在而
+        // shares/entry_price 非正 = 违规态，静默早退会吞掉 trade 行与
+        // realized——fail-fast 替代（带错结构继续回测的数字不可信）。
+        assert!(
+            self.entry_price > 0.0 && pos.total_shares > 0.0,
+            "close_position 违规态：entry_price={} total_shares={}（bar={bar} reason={reason}）\
+             ——持仓存在但数量/价格非正，上游状态机有 bug",
+            self.entry_price,
+            pos.total_shares,
+        );
         for key in pos.open_keys() {
             pos.close_diff(key, price, bar);
         }

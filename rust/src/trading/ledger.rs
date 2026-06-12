@@ -348,6 +348,129 @@ impl OrganicLedger {
     }
 }
 
+/// ShortBook — 空头书 [镜像推导]（双向会计体系 §2.2，
+/// `analysis/bidirectional_nested_accounting.md`）。
+///
+/// **单相单律**（§2.4 非对称定理，L0）：
+/// - 无相变变体：空头损失无界（c→∞）⇒ "负成本免费持仓"不动点不存在——
+///   多头 `LedgerPhase::EarningShares` 在空头侧 L0 不可构造，类型不可表示。
+/// - 无金额守恒变体：空头开仓是保证金担保的负债创设，"卖 V 买 V 增单位"
+///   算术在空头侧符号反转且与负债机制不符（与在册 `open_sub` 对
+///   EarningShares×Long 的拒绝同根源，ledger.rs `open_sub` docstring）。
+/// - 唯一守恒律 = 张数守恒：腿利润 π ⇒ proceeds_basis += π/units
+///   （方向协变公式 basis ← basis − d·π/units 在 d = −1 的面，§2.3）。
+///
+/// 空头书内的降成本腿恒为 **DiffSide::Long**（先买后卖——反弹段低买高卖），
+/// `open_sub` 不带 side 参数：「空头书内只有 Long 循环」类型层表达。
+///
+/// `cumulative_recovered` = 纯观测量（载体条件相 cumulative_recovered ≥
+/// posted_margin 的读数位；该相的会计后果被 31 课禁加仓否决 ⇒ 不进类型系统，
+/// §2.4 载体条件相条款）。
+#[derive(Debug)]
+pub struct ShortBook {
+    /// 空头单位数 U（合约张数/借出股数），恒为正。
+    pub units: f64,
+    /// 开空均价 B_s（多头 cost_basis 的极性镜像）：单位收入基，越高越有利。
+    pub proceeds_basis: f64,
+    /// 已实现短差利润累计（观测量，不驱动任何状态转移）。
+    pub cumulative_recovered: f64,
+    /// 开放腿，插入序存储（OrganicLedger 同纪律）。
+    legs: Vec<(SlotKey, OpenLeg)>,
+    /// 闭合腿（报告归因）。
+    pub completed: Vec<(SlotKey, ClosedCycle)>,
+    pub n_open_rejects_zero: u32,
+}
+
+impl ShortBook {
+    pub fn new(open_price: f64, units: f64) -> Self {
+        ShortBook {
+            units,
+            proceeds_basis: open_price,
+            cumulative_recovered: 0.0,
+            legs: Vec::new(),
+            completed: Vec::new(),
+            n_open_rejects_zero: 0,
+        }
+    }
+
+    pub fn open_slot(&self, key: SlotKey) -> Option<&OpenLeg> {
+        self.legs.iter().find(|(k, _)| *k == key).map(|(_, leg)| leg)
+    }
+
+    pub fn open_keys(&self) -> Vec<SlotKey> {
+        self.legs.iter().map(|(k, _)| *k).collect()
+    }
+
+    /// 开降成本腿（反弹起点先买）。空头书内腿恒 DiffSide::Long——无 side
+    /// 参数（类型层穷尽，§2.2）。预算上界 = 在册 open_sub 同语义（调用方
+    /// 保证 shares ≤ units——子腿名义 ≤ 父腿名义，嵌套守恒极性无关 §4.2）。
+    pub fn open_sub(
+        &mut self,
+        key: SlotKey,
+        shares: f64,
+        buy_price: f64,
+        anchor: LegAnchor,
+    ) -> bool {
+        if self.open_slot(key).is_some() {
+            return false;
+        }
+        if shares <= 0.0 {
+            self.n_open_rejects_zero += 1;
+            return false;
+        }
+        self.legs.push((
+            key,
+            OpenLeg {
+                cycle: OpenCycle { shares, open_price: buy_price },
+                law: ConservationLaw::ShareConserving,
+                anchor,
+                side: DiffSide::Long,
+            },
+        ));
+        true
+    }
+
+    /// 闭腿（反弹顶卖出/再开空）。协变公式：π ⇒ B_s += π/U
+    /// （basis ← basis − d·π/units，d = −1）。张数守恒：units 不动。
+    pub fn close_diff(&mut self, key: SlotKey, sell_price: f64) {
+        let Some(pos_idx) = self.legs.iter().position(|(k, _)| *k == key) else {
+            return;
+        };
+        if sell_price <= 0.0 {
+            return;
+        }
+        let (_, leg) = self.legs.remove(pos_idx);
+        debug_assert!(
+            leg.side == DiffSide::Long && leg.law == ConservationLaw::ShareConserving,
+            "ShortBook 腿恒 Long×ShareConserving（open_sub 构造保证），到达即 bug"
+        );
+        let closed = ClosedCycle {
+            shares: leg.cycle.shares,
+            sell_price,
+            buy_price: leg.cycle.open_price,
+        };
+        let profit = closed.profit();
+        self.cumulative_recovered += profit;
+        if self.units > 0.0 {
+            // d = −1：basis −= (−1)·π/U = basis + π/U（风险解除方向 = ∞，
+            // 无不动点——B_s 单调上移不触发任何相变，§2.4）。
+            self.proceeds_basis += profit / self.units;
+        }
+        self.completed.push((key, closed));
+    }
+}
+
+/// 带极性的账本（双向会计体系 §2.1 裁决：双账本极性分离，物理净额执行）。
+///
+/// 在 `OrganicLedger` 上加符号位被禁止——`total_shares` 允许负值 + 下游
+/// `max(0,·)` 截断 = 降成本提款机 bug 的精确同型（符号污染）。类型层分离
+/// 使污染编译不可达；多头书 = 在册类型逐字零改动（O0≡P5 零接触）。
+#[derive(Debug)]
+pub enum DirectionalBook {
+    Long(OrganicLedger),
+    Short(ShortBook),
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -473,6 +596,68 @@ mod tests {
         assert!(led.phase.is_earning());
         assert!(!led.add_entry_tranche(10_000.0, 5.0));
         assert_eq!(led.undeployed_cash, 50_000.0); // 拒绝不动现金
+    }
+
+    // ── ShortBook（双向会计 §8.2 测试 1/3：协变公式两极性 + 镜像对称）──
+
+    #[test]
+    fn covariant_formula_both_polarities() {
+        // 同一笔短差利润 π=500、units=100：多头 basis 下移 5，空头 basis
+        // 上移 5——basis ← basis − d·π/units 的两个极性面（§2.3）。
+        let mut long = OrganicLedger::new(100.0, 100.0, 0.5, false);
+        assert!(long.open_diff(SlotKey::osc(2), 0.5, 110.0, 1, anchor()));
+        long.close_diff(SlotKey::osc(2), 100.0, 2); // Short 腿：卖110买100
+        assert_eq!(long.phase.cost_basis(), 95.0); // 100 − (+1)·500/100
+
+        let mut short = ShortBook::new(100.0, 100.0);
+        assert!(short.open_sub(SlotKey::osc(2), 50.0, 100.0, anchor()));
+        short.close_diff(SlotKey::osc(2), 110.0); // Long 腿：买100卖110，π=500
+        assert_eq!(short.proceeds_basis, 105.0); // 100 − (−1)·500/100
+        assert_eq!(short.units, 100.0); // 张数守恒
+        assert_eq!(short.cumulative_recovered, 500.0);
+    }
+
+    #[test]
+    fn short_book_mirror_symmetry() {
+        // 镜像对称（§8.2 测试3）：价格序列镜像（p ↦ 200−p）下，空头书的
+        // basis 移动量 = 多头书移动量取反、realized 轨迹相等。
+        let mut long = OrganicLedger::new(100.0, 100.0, 1.0, false);
+        assert!(long.open_diff(SlotKey::osc(3), 0.3, 112.0, 1, anchor()));
+        long.close_diff(SlotKey::osc(3), 104.0, 2); // π = 0.3×100×8 = 240
+        let d_long = 100.0 - long.phase.cost_basis();
+
+        let mut short = ShortBook::new(100.0, 100.0);
+        // 镜像磁带：卖112↦买88、买回104↦卖回96（200−p）
+        assert!(short.open_sub(SlotKey::osc(3), 30.0, 88.0, anchor()));
+        short.close_diff(SlotKey::osc(3), 96.0); // π = 30×8 = 240
+        let d_short = short.proceeds_basis - 100.0;
+        assert_eq!(d_long, d_short, "basis 移动量镜像相等（方向相反由字段语义承载）");
+        assert_eq!(long.cumulative_recovered, short.cumulative_recovered);
+    }
+
+    #[test]
+    fn short_book_has_no_phase_transition() {
+        // 非对称定理（§2.4）：任意大利润不触发任何相变——B_s 单调上移
+        // 无不动点；显式豁免清单：空头侧相变事件数恒 0（类型上无相可变）。
+        let mut short = ShortBook::new(1.0, 100.0);
+        assert!(short.open_sub(SlotKey::osc(2), 100.0, 1.0, anchor()));
+        short.close_diff(SlotKey::osc(2), 10.0); // π = 900 ≫ basis×units
+        assert_eq!(short.proceeds_basis, 10.0); // 1 + 900/100，继续单调上移
+        assert!(short.open_sub(SlotKey::osc(2), 100.0, 10.0, anchor()));
+        short.close_diff(SlotKey::osc(2), 20.0); // 再开再闭——单相永续
+        assert_eq!(short.proceeds_basis, 20.0);
+        assert_eq!(short.units, 100.0);
+    }
+
+    #[test]
+    fn short_book_rejects_zero_and_occupied() {
+        let mut short = ShortBook::new(100.0, 100.0);
+        assert!(!short.open_sub(SlotKey::osc(2), 0.0, 100.0, anchor()));
+        assert_eq!(short.n_open_rejects_zero, 1);
+        assert!(short.open_sub(SlotKey::osc(2), 10.0, 100.0, anchor()));
+        assert!(!short.open_sub(SlotKey::osc(2), 10.0, 99.0, anchor()));
+        short.close_diff(SlotKey::osc(2), 0.0); // 非正价 no-op
+        assert!(short.open_slot(SlotKey::osc(2)).is_some());
     }
 
     #[test]

@@ -20,7 +20,7 @@ use crate::stroke::Direction;
 
 /// 单 bar 信号。布尔行压缩为位掩码；事件行 Option<Box<…>> 表达稀疏性
 /// （绝大多数 bar 无事件，None ⇔ Python 共享单例 NO_LADDER_EVENTS）。
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct BarSig {
     pub close: f64,
     pub buy1: LadderMask,

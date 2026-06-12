@@ -369,6 +369,39 @@ impl LedgerPhase {
     }
 }
 
+/// 持仓极性（双向会计体系，`analysis/bidirectional_nested_accounting.md` §2.1）。
+///
+/// **不复用 `DiffSide`**（436号命名纪律）：DiffSide = 腿循环次序词汇
+/// （先卖后买/先买后卖），Polarity = 持仓极性词汇（净暴露符号）。混用即把
+/// 循环次序与暴露符号折叠——正是净额等价定理警告的混淆（多头宿主内的
+/// DiffSide::Short 腿与空头持仓是不同范畴的对象）。
+///
+/// 全部 Short 侧机制 = [镜像推导]（L0 无原文锚，84:316 条件性否定在册，
+/// 编排者决断 + 探针2 L2 条件轴裁决；090号标注义务）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Polarity {
+    Long,
+    Short,
+}
+
+impl Polarity {
+    /// 方向协变系数 d ∈ {+1, −1}（传导公式 basis ← basis − d·π/units）。
+    pub fn d(self) -> f64 {
+        match self {
+            Polarity::Long => 1.0,
+            Polarity::Short => -1.0,
+        }
+    }
+
+    /// 报告投影（trade 行导出）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Polarity::Long => "long",
+            Polarity::Short => "short",
+        }
+    }
+}
+
 /// 计数器：Python 字符串 dict 的结构体化（拼错键名 = 编译错误）。
 /// 前 18 个字段与 Python `run_organic` counters 逐键对应；其后为 v2 新增可观测面。
 #[derive(Debug, Default, Clone)]

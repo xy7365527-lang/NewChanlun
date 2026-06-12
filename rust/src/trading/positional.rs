@@ -24,7 +24,7 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::tape::SignalTape;
-use super::types::{FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, SUB_EXPIRY};
+use super::types::{Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER, SUB_EXPIRY};
 
 /// NAV 采样间隔（1min bar 口径 ≈ 1 日；分年 nats 分解的数据基础）。
 pub const EQUITY_SAMPLE_BARS: i64 = 1440;
@@ -50,6 +50,20 @@ pub(crate) enum LayerState {
         deferred_bars: i64,
         partial: bool,
     },
+    /// 持空 [镜像推导]（双向条件轴 S1-S4，fusion_btr 白名单层专属；
+    /// `analysis/bidirectional_nested_accounting.md` §5 翻转断面）。
+    /// 1x 虚拟逐仓：margin = units × entry_price 在开空 bar 从 pool 锁定
+    /// （= 同 bar 平多所得，M = N 同股数定理 ⇒ 翻转 bar pool 净流转为 0）。
+    /// 层权益 = margin + units × (entry_price − c)；权益 ≤ 0 即逐仓强平
+    /// （1x 解析强平价 = 2 × entry_price）。非白名单模式不可达（构造点
+    /// 全部以 short_mask 守卫——在册路径零接触）。
+    Short {
+        entry_bar: i64,
+        entry_price: f64,
+        units: f64,
+        weight: f64,
+        margin: f64,
+    },
 }
 
 /// 层级 trade 记录（每层每个持股周期一条；股数守恒：进出同股数）。
@@ -69,6 +83,10 @@ pub struct LayerTrade {
     pub partial: bool,
     /// "sell1" | "eod"。
     pub exit_reason: &'static str,
+    /// 持仓极性（双向会计 v2 §4.1 ④(iv)：trade 行方向字段）。在册全部
+    /// 路径恒 Long；Short 行的现金流语义镜像（开空收 proceeds/平空付
+    /// 买回款），NAV 重建方按此字段分派符号。
+    pub polarity: Polarity,
 }
 
 #[derive(Debug, Default)]
@@ -191,6 +209,53 @@ pub struct PositionalResult {
     /// P7 R2 位置门拦截数（震荡相非高位卖点不削减，049:52 位置分量；
     /// fusion_tr/fusion_pr/fusion_pur，其余模式恒零）。
     pub n_r2_pos_blocks_by_ladder: [u64; MAX_LADDER],
+    /// anc 豁免拦截数（hold26_anc/fusion_ta；slow_bull P7）：停削拦截中
+    /// **自层 KindDir 判据为假**、纯祖先窗口（∃j>k Trend∧Up）触发的次数
+    /// ——与调研 §1.4 E0 豁免桶（fusion_t 残余）直接可比，其余模式恒零。
+    pub n_anc_exempt_blocks_by_ladder: [u64; MAX_LADDER],
+    /// anc 豁免窗口驻留 bar 数（∃j>k Trend∧Up 成立的 bar，逐层；与持仓
+    /// 无关的市场性质读数——P7 occupancy 对齐，其余模式恒零）。
+    pub anc_up_bars_by_ladder: [u64; MAX_LADDER],
+    // ── 双向条件轴 S1-S4（fusion_btr/fusion_btra）观测面 [镜像推导]；
+    //    其余模式恒零（short_mask=0 全部路径不可达）──
+    /// 卖点削减→翻空开仓数（白名单层，翻转断面 §5.2 第③步）。
+    pub n_flip_shorts_by_ladder: [u64; MAX_LADDER],
+    /// 买点平空→翻多数（翻转断面对偶面，exit_reason="cover_buypt"）。
+    pub n_short_covers_by_ladder: [u64; MAX_LADDER],
+    /// MoveUp 相强制平空数（49:52 满仓义务镜像——空头前提消失，
+    /// exit_reason="cover_moveup"）。
+    pub n_short_moveup_covers_by_ladder: [u64; MAX_LADDER],
+    /// MoveDown 相停回补拦截数（49:52 镜像"中枢向下移动应满空仓"——
+    /// P6 MoveDown 相位获得空头侧消费者，会计文档 §2.5）。
+    pub n_short_trend_holds_by_ladder: [u64; MAX_LADDER],
+    /// 空侧 R2 回补位置门拦截数（c > ZD 时买点不回补——049:64"在下方
+    /// 如数接回"镜像 = P7 回复侧位置门获得对象，会计文档 §8.1 (d)）。
+    pub n_short_r2_blocks_by_ladder: [u64; MAX_LADDER],
+    /// 镜像 anc 门拒开空数（fusion_btra：∄j>k Trend∧Down ⇒ 削减照常
+    /// 但不开空，层留 Flat）。
+    pub n_short_anc_rejects_by_ladder: [u64; MAX_LADDER],
+    /// 虚拟逐仓强平数（层权益击穿 0；强平价 = 2×entry_price 记账）。
+    pub n_short_liquidations_by_ladder: [u64; MAX_LADDER],
+    /// 持空 bar 数。
+    pub short_held_bars_by_ladder: [u64; MAX_LADDER],
+    /// 空头腿已实现净现金（Σ units×(B_s − exit)；空头 alpha 的会计读数）。
+    pub short_net_cash_by_ladder: [f64; MAX_LADDER],
+    // ── 区间套正向定位（fusion_tn/fusion_trn；027课程序定理 + 038:258
+    //    "一旦进入背驰的区间套里就要陆续走"）观测面；其余模式恒零 ──
+    /// 窗口武装数（candidate Type1/Type3 事件，逐层逐侧合计）。
+    pub n_nest_arms_by_ladder: [u64; MAX_LADDER],
+    /// 卖侧正向触发数（candidate@k × 次级别 k−1 第一个卖侧证据）。
+    pub n_nest_fire_sell_by_ladder: [u64; MAX_LADDER],
+    /// 买侧正向触发数（镜像）。
+    pub n_nest_fire_buy_by_ladder: [u64; MAX_LADDER],
+    /// 背驰段打破否定数（027课"只要没有打破背驰段"——价格越过 candidate
+    /// 极值 ⇒ 窗口作废，正向定位不触发）。
+    pub n_nest_breaks_by_ladder: [u64; MAX_LADDER],
+    /// 正向触发领先 confirmed 的 bar 数合计（同 (class,cs) 的 confirmed
+    /// 事件事后到达时配对回填；confirmed 永不到达的触发不计入）。
+    pub nest_lead_bars_sum: u64,
+    /// 领先样本数（nest_lead_bars_sum 的分母）。
+    pub nest_lead_n: u64,
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
@@ -266,6 +331,27 @@ pub enum OscRouting {
     Unified { strong_gate: bool },
 }
 
+/// 停削时钟的层级作用域——anc 祖先趋势豁免（26:80 下沉，
+/// `analysis/slow_bull_vs_bh_research.md` §4/§6 预注册）。
+///
+/// 026:80："如果有更大级别的单边上扬，短线的可以不必坚持小转大的原则"
+/// ——豁免判据是**祖先层**的走势结构读数：∃ j > k: kind(j)==Trend ∧
+/// dir(j)==Up（17课趋势定义 ≥2 同向中枢 = 中枢序列单调上移的引擎直读）。
+/// 层级局部、无年度 regime 标签（GDX 否证合规）、无前视、无 per-asset 参数、
+/// 零新磁带依赖（trend_flips/dir_flips 行已在）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TrendScope {
+    /// 在册：层 k 自身 kind==Trend ∧ dir==Up（049:52 自层窗口，fusion_t）。
+    #[default]
+    SelfLayer,
+    /// hold26_anc（M1 主臂）：纯祖先窗口 ∃j>k Trend∧Up **替换**自层判据
+    /// （26:80 下沉——慢牛标的 recL2 失血的对象域恰是"自层震荡但祖先
+    /// 趋势"，调研 §1.4 E0 桶 ES −0.517 nats）。
+    Ancestor,
+    /// fusion_ta（M3 对照臂）：自层 ∨ 祖先（049:52 ∪ 026:80 全字面并集）。
+    SelfOrAncestor,
+}
+
 /// 仓位极性模式——v1 否证（BTC L2：P1 ✗ −3.32 nats / P3 ✗ +152%）后从
 /// 26课:34 字面回读出的范畴对立：
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -327,6 +413,21 @@ pub enum PolarityMode {
     ///   回复侧位置门（c≤ZD 才回，049:64"在下方如数接回"）不在本轴——
     ///   P7 预注册为削减侧最小差分，回复侧列开放轴。要求 trend_hold、
     ///   拒 counter_sub/trend_opts（未预注册）⇒ 入口拒绝。
+    /// - `trend_scope`：anc 祖先趋势豁免（26:80 下沉，slow_bull 调研 §4/§6
+    ///   预注册）。停削时钟的层级作用域：SelfLayer = 在册自层窗口；
+    ///   Ancestor = hold26_anc（∃j>k Trend∧Up 替换自层）；SelfOrAncestor =
+    ///   fusion_ta（自层 ∨ 祖先全字面）。非 SelfLayer 要求 trend_hold
+    ///   （时钟无对象）、拒 counter_sub/trend_opts/osc/phase_clock/r2_gate
+    ///   （仅 M1/M3 两臂预注册）⇒ 入口拒绝。SelfLayer = 在册行为零接触。
+    /// - `nest_forward`：区间套正向定位（027课精确大转折点寻找程序定理 +
+    ///   038:258"不是等真跌了才问卖不卖，而是涨的时候一旦进入背驰的区间套
+    ///   里，就要陆续走"）。candidate Type1/Type3 事件武装窗口（= 本级别
+    ///   进入背驰段/回试段），次级别（k−1）第一个同侧证据（BSP 事件 ∨
+    ///   背驰事件；k−1=bi 层无事件流时用方向翻转沿，SC 先例）即触发削减/
+    ///   回复——不等本级别 confirmed。否定 = 价格越过 candidate 极值
+    ///   （027课"只要没有打破背驰段"的逆否）。confirmed 基线路径不动
+    ///   （nest 触发与掩码触发是 ∨ 关系）⇒ false 时在册行为零接触。
+    ///   仅预注册 fusion_tn（t 基座）/fusion_trn（tr 基座）两臂。
     Fusion {
         trend_hold: bool,
         counter_sub: bool,
@@ -335,6 +436,19 @@ pub enum PolarityMode {
         osc: OscRouting,
         phase_clock: bool,
         r2_gate: bool,
+        trend_scope: TrendScope,
+        nest_forward: bool,
+        /// 双向条件轴 S1-S4 [镜像推导]（fusion_btr_s{digits}；
+        /// `analysis/bidirectional_nested_accounting.md` §8 +
+        /// `slow_bull_vs_bh_research.md` §7.6）。per-层准入门：置位层的
+        /// 卖点削减升格为翻空（{+Q,0} → {+Q,−Q} 极性对称延拓），买点
+        /// 平空翻多（翻转断面）。0 = 在册行为零接触。位 ⊆ [2,5)：
+        /// S3 尾部风险界 ⇒ 高层（≥recL3）空头禁用（GC recL4 −0.806 反例）。
+        /// 仅预注册 fusion_tr 基座合取（探针2 对照臂口径）。
+        short_mask: u16,
+        /// 镜像 anc 窗口门（fusion_btra）：开空 iff ∃j>k Trend∧Down
+        /// （26:80 豁免下沉的空头镜像；S2 预注册条件化形式）。
+        short_anc_gate: bool,
     },
 }
 
@@ -349,6 +463,10 @@ impl PolarityMode {
                 osc: OscRouting::Off,
                 phase_clock: false,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             })
         };
         // 统一配置 U：fusion_t 基座 + 相位递归路由 osc 层。
@@ -361,6 +479,10 @@ impl PolarityMode {
                 osc: OscRouting::Unified { strong_gate },
                 phase_clock: false,
                 r2_gate: false,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             })
         };
         // P6 相位机：fusion_p = 相位机基座配对臂（research §6 P6，osc=Off）；
@@ -377,6 +499,28 @@ impl PolarityMode {
                 osc,
                 phase_clock: true,
                 r2_gate,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
+            })
+        };
+        // anc 祖先趋势豁免（26:80 下沉；slow_bull 调研 §6 预注册两臂）：
+        // hold26_anc = M1 主臂（纯祖先窗口替换自层）；fusion_ta = M3 对照臂
+        // （自层 ∨ 祖先全字面）。其余轴全关（仅此二臂预注册）。
+        let anc = |scope: TrendScope| {
+            Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Off,
+                phase_clock: false,
+                r2_gate: false,
+                trend_scope: scope,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
             })
         };
         match s {
@@ -391,6 +535,8 @@ impl PolarityMode {
             "fusion_u" => unified(true),
             // U−③ 消融臂（预注册 P5：93:26 强震荡门是唯一新词汇，单独消融）
             "fusion_uw" => unified(false),
+            "hold26_anc" => anc(TrendScope::Ancestor),
+            "fusion_ta" => anc(TrendScope::SelfOrAncestor),
             "fusion_p" => phase(OscRouting::Off, false),
             "fusion_pu" => phase(OscRouting::Unified { strong_gate: true }, false),
             "fusion_pr" => phase(OscRouting::Off, true),
@@ -403,9 +549,65 @@ impl PolarityMode {
                 osc: OscRouting::Off,
                 phase_clock: false,
                 r2_gate: true,
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: false,
+                short_mask: 0,
+                short_anc_gate: false,
+            }),
+            // 区间套正向定位两臂（027课程序定理；fusion_tn = t 基座 + nest，
+            // fusion_trn = tr 基座 + nest——在册最优 fusion_tr 的最小差分）。
+            "fusion_tn" | "fusion_trn" => Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Off,
+                phase_clock: false,
+                r2_gate: s == "fusion_trn",
+                trend_scope: TrendScope::SelfLayer,
+                nest_forward: true,
+                short_mask: 0,
+                short_anc_gate: false,
             }),
             // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
             other => {
+                // 双向条件轴 S1-S4 [镜像推导]：fusion_btr_s{digits} =
+                // fusion_tr 基座 + 置位层卖点翻空/买点翻多；fusion_btra_s =
+                // 加镜像 anc 窗口门（开空 iff ∃j>k Trend∧Down）。digits 每
+                // 字符一层，升序无重复，∈ [2,4]——S3 尾部风险界：≥5
+                // （recL3+）空头默认禁用（GC recL4 −0.806 单窗口反例）。
+                let btr = other
+                    .strip_prefix("fusion_btra_s")
+                    .map(|d| (d, true))
+                    .or_else(|| other.strip_prefix("fusion_btr_s").map(|d| (d, false)));
+                if let Some((digits, anc_gate)) = btr {
+                    if digits.is_empty() {
+                        return None; // 空白名单 = fusion_tr 冗余表示
+                    }
+                    let mut mask = 0u16;
+                    let mut last = 0u32;
+                    for ch in digits.chars() {
+                        let lad = ch.to_digit(10)?;
+                        if !(2..=4).contains(&lad) || lad <= last {
+                            return None; // 越界/乱序/重复 ⇒ 非法模式串
+                        }
+                        last = lad;
+                        mask |= 1 << lad;
+                    }
+                    return Some(PolarityMode::Fusion {
+                        trend_hold: true,
+                        counter_sub: false,
+                        decoupled: false,
+                        trend_opts: TrendAxisOpts::default(),
+                        osc: OscRouting::Off,
+                        phase_clock: false,
+                        r2_gate: true,
+                        trend_scope: TrendScope::SelfLayer,
+                        nest_forward: false,
+                        short_mask: mask,
+                        short_anc_gate: anc_gate,
+                    });
+                }
                 let rest = other.strip_prefix("fusion_t")?;
                 if rest.is_empty() {
                     unreachable!("fusion_t 已由上方臂覆盖")
@@ -438,6 +640,10 @@ impl PolarityMode {
                     osc: OscRouting::Off,
                     phase_clock: false,
                     r2_gate: false,
+                    trend_scope: TrendScope::SelfLayer,
+                    nest_forward: false,
+                    short_mask: 0,
+                    short_anc_gate: false,
                 })
             }
         }
@@ -458,6 +664,10 @@ pub fn run_positional(
         osc,
         phase_clock,
         r2_gate,
+        trend_scope,
+        nest_forward,
+        short_mask,
+        short_anc_gate,
     } = mode
     {
         return super::positional_fusion::run_fusion(
@@ -470,6 +680,10 @@ pub fn run_positional(
             osc,
             phase_clock,
             r2_gate,
+            trend_scope,
+            nest_forward,
+            short_mask,
+            short_anc_gate,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
@@ -545,6 +759,7 @@ pub fn run_positional(
                         deferred_bars,
                         partial,
                         exit_reason,
+                        polarity: Polarity::Long,
                     });
                     res.n_exits_by_ladder[k] += 1;
                     layers[k] = LayerState::Flat;
@@ -612,6 +827,9 @@ pub fn run_positional(
                     }
                 }
                 (_, LayerState::Long { .. }) => {}
+                (_, LayerState::Short { .. }) => {
+                    unreachable!("Short 仅 fusion_btr 白名单层可达（已在入口分派）")
+                }
             }
         }
 
@@ -645,6 +863,7 @@ pub fn run_positional(
                 deferred_bars,
                 partial,
                 exit_reason: "eod",
+                polarity: Polarity::Long,
             });
             res.n_exits_by_ladder[k] += 1;
             layers[k] = LayerState::Flat;

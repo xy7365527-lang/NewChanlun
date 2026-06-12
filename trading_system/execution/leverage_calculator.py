@@ -66,6 +66,47 @@ class LeverageCalculator:
             max_quantity=0.0,
         )
 
+    def compute_short(
+        self,
+        price: float,
+        zd: float,
+        zg: float,
+        nesting_depth: int = 1,
+        phase_is_down_move: bool = False,
+    ) -> LeverageResult:
+        """空头侧 L_max [镜像推导]（双向会计体系 §6.1 P_neg 镜像表 +
+        五定理镜像核验，analysis/bidirectional_nested_accounting.md）。
+
+        公式不变：L_max = 1/(D_struct + mm)；距离反向：
+            D_struct_short = (P_neg_short − c)/c + θ_q·(j−1)
+
+        P_neg_short 选择（镜像表）：
+            MOVE↓ 锁定相 → P_neg_short = 新中枢 ZD（phase_is_down_move=True；
+                          结构否定 = 回抽升破新中枢下沿）
+            OSC   相位   → P_neg_short = 中枢 ZG（结构否定 = 第三类买点）
+        MOVE↑ 相无定义：空头名义在 MOVE↑ 相应已为 0（49:52 满仓义务镜像），
+        残余空头持仓 = 违规态——调用方相位路由不得在 MOVE↑ 相调用本方法。
+
+        单调性镜像（定理3）：中枢下移中 ZD/ZG 单调下行 ⇒ P_neg_short 单调
+        非升 = 距离对空头单调改善；升级负债镜像（定理4）：级别升级 ⇒ 高级别
+        ZG 更高 = 对空头更远 ⇒ D_struct 跳大 ⇒ 补保证金义务同向收紧。
+        """
+        if price <= 0:
+            raise ValueError(f"非法价格: {price}")
+        p_neg = zd if phase_is_down_move else zg
+        # 结构止损在价格上方；价格已破 P_neg_short（c ≥ p_neg）时距离为 0
+        # ⟹ 仅 mm 项兜底（与多头侧 max(0,·) 同构）
+        d_struct = max(0.0, (p_neg - price) / price) + self._theta_q * (
+            nesting_depth - 1
+        )
+        l_max = 1.0 / (d_struct + self._mm)
+        return LeverageResult(
+            d_struct=d_struct,
+            l_max=l_max,
+            max_notional=0.0,
+            max_quantity=0.0,
+        )
+
     def max_quantity(
         self,
         equity: float,

@@ -91,7 +91,7 @@ use super::depth_ref::DepthRef;
 use super::positional::{LayerState, LayerTrade, PositionalResult};
 use super::positional_fusion::{PhaseView, SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::BarSig;
-use super::types::{FIRST_BSP_LADDER, MAX_LADDER};
+use super::types::{Polarity, FIRST_BSP_LADDER, MAX_LADDER};
 use crate::stroke::Direction;
 
 /// osc 腿在外态（层 k 的 slice 已按 j 层节奏卖出，等待回补/升级裁决）。
@@ -323,6 +323,7 @@ impl OscLayer {
                 deferred_bars,
                 partial,
                 exit_reason: "osc_escalate",
+                polarity: Polarity::Long,
             });
             res.n_osc_escalates_by_ladder[k] += 1;
             res.n_exits_by_ladder[k] += 1;
@@ -405,6 +406,7 @@ impl OscLayer {
             deferred_bars,
             partial,
             exit_reason: "osc_diff",
+            polarity: Polarity::Long,
         });
         layers[k] = LayerState::Long {
             entry_bar: bar,
