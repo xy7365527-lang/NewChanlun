@@ -1,0 +1,330 @@
+{
+ "n_bars": 230000,
+ "n_pairs": 746,
+ "wasted_buys": 1189,
+ "ignored_sells": 1286,
+ "all": {
+  "n": 746,
+  "fly_rate": 50.3,
+  "win_rate": 48.9,
+  "avg_diff": -0.0219,
+  "avg_gap_bars": 161.4,
+  "med_gap_bars": 91
+ },
+ "same_center": {
+  "n": 171,
+  "fly_rate": 48.5,
+  "win_rate": 49.7,
+  "avg_diff": -0.0761,
+  "avg_gap_bars": 34.6,
+  "med_gap_bars": 32
+ },
+ "cross_center": {
+  "n": 575,
+  "fly_rate": 50.8,
+  "win_rate": 48.7,
+  "avg_diff": -0.0058,
+  "avg_gap_bars": 199.1,
+  "med_gap_bars": 142
+ },
+ "cross_center_buy_newer": {
+  "n": 550,
+  "fly_rate": 51.6,
+  "win_rate": 48.0,
+  "avg_diff": -0.0058,
+  "avg_gap_bars": 207.4,
+  "med_gap_bars": 154
+ },
+ "by_kind": {
+  "type1->type1": {
+   "n": 123,
+   "fly_rate": 21.1,
+   "win_rate": 78.9,
+   "avg_diff": 0.8803,
+   "avg_gap_bars": 345.6,
+   "med_gap_bars": 294
+  },
+  "type1->type3": {
+   "n": 324,
+   "fly_rate": 67.9,
+   "win_rate": 31.5,
+   "avg_diff": -0.4119,
+   "avg_gap_bars": 138.7,
+   "med_gap_bars": 64
+  },
+  "type3->type1": {
+   "n": 280,
+   "fly_rate": 39.6,
+   "win_rate": 58.9,
+   "avg_diff": 0.1149,
+   "avg_gap_bars": 101.6,
+   "med_gap_bars": 59
+  },
+  "type3->type3": {
+   "n": 19,
+   "fly_rate": 94.7,
+   "win_rate": 5.3,
+   "avg_diff": -1.227,
+   "avg_gap_bars": 238.5,
+   "med_gap_bars": 186
+  }
+ },
+ "sell_kind_dist": {
+  "type3": 299,
+  "type1": 447
+ },
+ "buy_kind_dist": {
+  "type1": 403,
+  "type3": 343
+ },
+ "worst8": [
+  {
+   "sell": {
+    "bar": 217831,
+    "close": 55.2536,
+    "kind": "type1",
+    "side": "sell",
+    "seg_idx": 14110,
+    "center": 14102,
+    "zd": 53.18,
+    "zg": 53.61,
+    "bp_price": 56.44,
+    "bp_bar_idx": 118497,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 217859,
+    "close": 63.57,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 14111,
+    "center": 14102,
+    "zd": 53.18,
+    "zg": 53.61,
+    "bp_price": 54.74,
+    "bp_bar_idx": 118501
+   },
+   "diff": -8.316400000000002,
+   "gap_bars": 28,
+   "same_center": true,
+   "buy_center_newer": false
+  },
+  {
+   "sell": {
+    "bar": 128486,
+    "close": 32.41,
+    "kind": "type3",
+    "side": "sell",
+    "seg_idx": 8166,
+    "center": 8160,
+    "zd": 32.75,
+    "zg": 33.09,
+    "bp_price": 32.44,
+    "bp_bar_idx": 67266,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 128812,
+    "close": 38.8346,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 8187,
+    "center": 8163,
+    "zd": 32.14,
+    "zg": 32.48,
+    "bp_price": 35.4,
+    "bp_bar_idx": 67432
+   },
+   "diff": -6.424600000000005,
+   "gap_bars": 326,
+   "same_center": false,
+   "buy_center_newer": true
+  },
+  {
+   "sell": {
+    "bar": 135137,
+    "close": 38.1,
+    "kind": "type3",
+    "side": "sell",
+    "seg_idx": 8594,
+    "center": 8585,
+    "zd": 40.505,
+    "zg": 40.85,
+    "bp_price": 38.96,
+    "bp_bar_idx": 71100,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 135519,
+    "close": 43.9752,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 8615,
+    "center": 8591,
+    "zd": 38.17,
+    "zg": 39.4,
+    "bp_price": 39.82,
+    "bp_bar_idx": 71298
+   },
+   "diff": -5.8751999999999995,
+   "gap_bars": 382,
+   "same_center": false,
+   "buy_center_newer": true
+  },
+  {
+   "sell": {
+    "bar": 205893,
+    "close": 39.6013,
+    "kind": "type1",
+    "side": "sell",
+    "seg_idx": 13278,
+    "center": 13266,
+    "zd": 39.76,
+    "zg": 39.94,
+    "bp_price": 39.72,
+    "bp_bar_idx": 111434,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 205990,
+    "close": 44.68,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 13285,
+    "center": 13277,
+    "zd": 39.55,
+    "zg": 39.72,
+    "bp_price": 45.28,
+    "bp_bar_idx": 111478
+   },
+   "diff": -5.078699999999998,
+   "gap_bars": 97,
+   "same_center": false,
+   "buy_center_newer": true
+  },
+  {
+   "sell": {
+    "bar": 206285,
+    "close": 44.18,
+    "kind": "type1",
+    "side": "sell",
+    "seg_idx": 13306,
+    "center": 13300,
+    "zd": 47.42,
+    "zg": 47.75,
+    "bp_price": 44.79,
+    "bp_bar_idx": 111659,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 206496,
+    "close": 49.07,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 13319,
+    "center": 13305,
+    "zd": 43.6,
+    "zg": 44.79,
+    "bp_price": 48.63,
+    "bp_bar_idx": 111808
+   },
+   "diff": -4.890000000000001,
+   "gap_bars": 211,
+   "same_center": false,
+   "buy_center_newer": true
+  },
+  {
+   "sell": {
+    "bar": 176349,
+    "close": 18.16,
+    "kind": "type1",
+    "side": "sell",
+    "seg_idx": 11301,
+    "center": 11296,
+    "zd": 18.41,
+    "zg": 18.7,
+    "bp_price": 18.34,
+    "bp_bar_idx": 94584,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 176542,
+    "close": 22.23,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 11313,
+    "center": 11307,
+    "zd": 18.37,
+    "zg": 18.7,
+    "bp_price": 20.75,
+    "bp_bar_idx": 94690
+   },
+   "diff": -4.07,
+   "gap_bars": 193,
+   "same_center": false,
+   "buy_center_newer": true
+  },
+  {
+   "sell": {
+    "bar": 69907,
+    "close": 15.61,
+    "kind": "type1",
+    "side": "sell",
+    "seg_idx": 4450,
+    "center": 4442,
+    "zd": 15.77,
+    "zg": 15.89,
+    "bp_price": 15.62,
+    "bp_bar_idx": 35819,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 70141,
+    "close": 19.5201,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 4463,
+    "center": 4456,
+    "zd": 15.72,
+    "zg": 15.86,
+    "bp_price": 18.35,
+    "bp_bar_idx": 35912
+   },
+   "diff": -3.9101,
+   "gap_bars": 234,
+   "same_center": false,
+   "buy_center_newer": true
+  },
+  {
+   "sell": {
+    "bar": 82952,
+    "close": 22.07,
+    "kind": "type1",
+    "side": "sell",
+    "seg_idx": 5270,
+    "center": 5262,
+    "zd": 22.15,
+    "zg": 22.3,
+    "bp_price": 22.1,
+    "bp_bar_idx": 42985,
+    "n_same_bar_sells": 1
+   },
+   "buy": {
+    "bar": 83300,
+    "close": 25.76,
+    "kind": "type3",
+    "side": "buy",
+    "seg_idx": 5287,
+    "center": 5269,
+    "zd": 21.93,
+    "zg": 22.08,
+    "bp_price": 24.68,
+    "bp_bar_idx": 43149
+   },
+   "diff": -3.6900000000000013,
+   "gap_bars": 348,
+   "same_center": false,
+   "buy_center_newer": true
+  }
+ ]
+}

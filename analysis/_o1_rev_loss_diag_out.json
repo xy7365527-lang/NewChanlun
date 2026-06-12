@@ -1,0 +1,35 @@
+{
+ "symbol": "QQQ",
+ "master": {
+  "P5": {
+   "n": 510,
+   "time_in_mkt_pct": 61.2,
+   "compound_pct": 108.2,
+   "mean_pnl_pct": 0.151,
+   "win_rate": 64.1,
+   "reentry_higher_pct": 47.5,
+   "whipsaw_log_sum": 0.3443,
+   "whipsaw_compound_pct": 41.1
+  },
+  "O1": {
+   "n": 1774,
+   "time_in_mkt_pct": 30.2,
+   "compound_pct": 27.8,
+   "mean_pnl_pct": 0.015,
+   "win_rate": 51.4,
+   "reentry_higher_pct": 48.8,
+   "whipsaw_log_sum": 0.7271,
+   "whipsaw_compound_pct": 106.9
+  },
+  "O1v": {
+   "n": 510,
+   "time_in_mkt_pct": 61.2,
+   "compound_pct": 66.8,
+   "mean_pnl_pct": 0.108,
+   "win_rate": 63.3,
+   "reentry_higher_pct": 47.5,
+   "whipsaw_log_sum": 0.3443,
+   "whipsaw_compound_pct": 41.1
+  }
+ }
+}
