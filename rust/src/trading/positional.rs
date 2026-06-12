@@ -442,7 +442,10 @@ pub enum PolarityMode {
     ///   回复——不等本级别 confirmed。否定 = 价格越过 candidate 极值
     ///   （027课"只要没有打破背驰段"的逆否）。confirmed 基线路径不动
     ///   （nest 触发与掩码触发是 ∨ 关系）⇒ false 时在册行为零接触。
-    ///   仅预注册 fusion_tn（t 基座）/fusion_trn（tr 基座）两臂。
+    ///   预注册臂：fusion_tn（t 基座）/fusion_trn（tr 基座）/
+    ///   fusion_btran_s{digits}（btra 双向基座——全量普适组合，2026-06-12
+    ///   任务预注册：nest = 同一买卖点的更早时间坐标，与翻空/平空动作
+    ///   正交合取，卖侧 nf 触发沿翻转断面、买侧 nf 触发沿平空出口）。
     Fusion {
         trend_hold: bool,
         counter_sub: bool,
@@ -459,7 +462,8 @@ pub enum PolarityMode {
         /// 卖点削减升格为翻空（{+Q,0} → {+Q,−Q} 极性对称延拓），买点
         /// 平空翻多（翻转断面）。0 = 在册行为零接触。位 ⊆ [2,5)：
         /// S3 尾部风险界 ⇒ 高层（≥recL3）空头禁用（GC recL4 −0.806 反例）。
-        /// 仅预注册 fusion_tr 基座合取（探针2 对照臂口径）。
+        /// 仅预注册 fusion_tr 基座合取（探针2 对照臂口径）；× nest_forward
+        /// 仅 anc 门形态（fusion_btran_s{digits}，全量普适组合预注册）。
         short_mask: u16,
         /// 镜像 anc 窗口门（fusion_btra）：开空 iff ∃j>k Trend∧Down
         /// （26:80 豁免下沉的空头镜像；S2 预注册条件化形式）。
@@ -603,16 +607,21 @@ impl PolarityMode {
                 // 字符一层，升序无重复，∈ [2,4]——S3 尾部风险界：≥5
                 // （recL3+）空头默认禁用（GC recL4 −0.806 单窗口反例）。
                 let btr = other
-                    .strip_prefix("fusion_btra_s")
-                    .map(|d| (d, true, false))
+                    .strip_prefix("fusion_btran_s")
+                    // 全量普适组合（2026-06-12 任务预注册）：btra 双向基座 +
+                    // 区间套正向定位（nest = 同一买卖点的更早时间坐标）。
+                    .map(|d| (d, true, false, true))
                     .or_else(|| {
-                        // 纯回复门消融臂（Gated 态，不开空）。
-                        other.strip_prefix("fusion_btrg_s").map(|d| (d, false, true))
+                        other.strip_prefix("fusion_btra_s").map(|d| (d, true, false, false))
                     })
                     .or_else(|| {
-                        other.strip_prefix("fusion_btr_s").map(|d| (d, false, false))
+                        // 纯回复门消融臂（Gated 态，不开空）。
+                        other.strip_prefix("fusion_btrg_s").map(|d| (d, false, true, false))
+                    })
+                    .or_else(|| {
+                        other.strip_prefix("fusion_btr_s").map(|d| (d, false, false, false))
                     });
-                if let Some((digits, anc_gate, ghost)) = btr {
+                if let Some((digits, anc_gate, ghost, nest)) = btr {
                     if digits.is_empty() {
                         return None; // 空白名单 = fusion_tr 冗余表示
                     }
@@ -635,7 +644,7 @@ impl PolarityMode {
                         phase_clock: false,
                         r2_gate: true,
                         trend_scope: TrendScope::SelfLayer,
-                        nest_forward: false,
+                        nest_forward: nest,
                         short_mask: mask,
                         short_anc_gate: anc_gate,
                         short_ghost: ghost,

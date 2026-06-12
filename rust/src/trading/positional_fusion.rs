@@ -402,8 +402,9 @@ pub(crate) fn run_fusion(
         }
     }
     if nest_forward {
-        // 区间套正向定位守卫（027课程序定理；仅预注册 fusion_tn/fusion_trn
-        // 两臂——t 基座 ± r2 位置门）。
+        // 区间套正向定位守卫（027课程序定理；预注册臂：fusion_tn/fusion_trn
+        // ——t 基座 ± r2 位置门；fusion_btran_s{digits}——btra 双向基座，
+        // 全量普适组合 2026-06-12，nest × short 形态由 short_mask 守卫管）。
         if !trend_hold {
             return Err(
                 "nest_forward（区间套正向定位）替换的是 hold26 削减/回复词汇\
@@ -469,11 +470,19 @@ pub(crate) fn run_fusion(
             );
         }
         if counter_sub || opts.any() || phase_clock || osc_routing != OscRouting::Off
-            || trend_scope != TrendScope::SelfLayer || nest_forward || capital_decoupled
+            || trend_scope != TrendScope::SelfLayer || capital_decoupled
         {
             return Err(
                 "short_mask × {counter_sub/TrendAxisOpts/phase_clock/osc/\
-                 trend_scope/nest_forward/decoupled} 合取未预注册，显式拒绝"
+                 trend_scope/decoupled} 合取未预注册，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if nest_forward && !(short_anc_gate && !short_ghost) {
+            return Err(
+                "short_mask × nest_forward 仅预注册 anc 门形态\
+                 （fusion_btran_s{digits}，全量普适组合 2026-06-12）——\
+                 btr 无 anc / btrg ghost 与 nest 的合取未预注册，显式拒绝"
                     .to_string(),
             );
         }
@@ -1232,14 +1241,26 @@ pub(crate) fn run_fusion(
                             k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
                             &mut pool, &mut res,
                         );
-                    } else if sig.buy_any.get(k) {
+                    } else if sig.buy_any.get(k) || nf_buy[k] {
+                        // nest_forward：正向买触发与 confirmed 买掩码同词汇
+                        // 地位（区间套定位 = 同一买点的更早时间坐标）——
+                        // 平空出口与 Flat 回复侧对称消费（fusion_btran_s*；
+                        // nest_forward=false 时 nf_buy 恒 false ⇒ 在册
+                        // "cover_buypt" 零漂移）。MoveDown 停回补 / 空侧
+                        // R2 门对两种触发一视同仁（门在词汇之后）。
                         if in_movedown(k) {
                             // 49:52 镜像：中枢向下移动时应满空仓、停回补。
                             res.n_short_trend_holds_by_ladder[k] += 1;
                         } else if short_r2_blocked(k) {
                             res.n_short_r2_blocks_by_ladder[k] += 1;
                         } else {
-                            cover(c, "cover_buypt", &mut pool, &mut res);
+                            let reason = if sig.buy_any.get(k) {
+                                "cover_buypt"
+                            } else {
+                                // 纯正向触发（confirmed 掩码未置位）——归因。
+                                "cover_nest"
+                            };
+                            cover(c, reason, &mut pool, &mut res);
                             res.n_short_covers_by_ladder[k] += 1;
                             layers[k] = enter_or_defer(
                                 k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
@@ -3481,5 +3502,94 @@ mod tests {
         // 会计守恒，eod 收口同价平空：NAV 必须回到初始。
         let r = run_with_rows(bars, "fusion_btr_s4", Some(vec![]), Some(vec![]));
         assert!((r.final_nav - INITIAL_CAPITAL).abs() < 1e-9, "{}", r.final_nav);
+    }
+
+    // ════════ 全量普适组合（fusion_btran_s{digits}；2026-06-12 预注册）════════
+
+    #[test]
+    fn parse_btran_and_guards() {
+        // fusion_btran_s34 = btra 双向基座 + 区间套正向定位（nest×short
+        // 唯一预注册形态：anc 门 ∧ ¬ghost）。
+        let Some(PolarityMode::Fusion {
+            trend_hold, r2_gate, short_mask, short_anc_gate, short_ghost,
+            nest_forward, ..
+        }) = PolarityMode::parse("fusion_btran_s34")
+        else {
+            panic!("fusion_btran_s34 必须可解析")
+        };
+        assert!(trend_hold && r2_gate && short_anc_gate && nest_forward);
+        assert!(!short_ghost);
+        assert_eq!(short_mask, 0b11000);
+        // 非法串：空白名单 / S3 界 / 乱序
+        assert_eq!(PolarityMode::parse("fusion_btran_s"), None);
+        assert_eq!(PolarityMode::parse("fusion_btran_s5"), None);
+        assert_eq!(PolarityMode::parse("fusion_btran_s43"), None);
+        // 守卫：nest × short 仅 anc 门形态预注册——btr（无 anc）+ nest 拒
+        let mk = |anc: bool, ghost: bool| PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc: OscRouting::Off,
+            phase_clock: false,
+            r2_gate: true,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: true,
+            short_mask: 0b10000,
+            short_anc_gate: anc,
+            short_ghost: ghost,
+        };
+        let t = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(&t, 2, mk(false, false)).is_err(), "btr+nest 未预注册");
+        assert!(run_positional(&t, 2, mk(false, true)).is_err(), "btrg+nest 未预注册");
+        assert!(run_positional(&t, 2, mk(true, false)).is_ok(), "btran 形态放行");
+    }
+
+    /// 全量组合行为：nest 卖触发沿翻转断面开空（nest_sell 行 + 翻空），
+    /// nest 买触发沿平空出口回补翻多（cover_nest 行）——nest 与翻空/平空
+    /// 动作正交合取（nest = 同一买卖点的更早时间坐标，词汇地位对称）。
+    #[test]
+    fn btran_nest_sell_flips_short_and_nest_buy_covers() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 3)); // 层3 入场 @100
+        bars.push(with_ev(bar(100.0), 3, cand(BspClass::Sell1, 99, 200.0))); // 武装卖窗
+        bars.push(with_ev(bar(98.0), 2, ev(BspClass::Sell1))); // 次级别证据 → nest 削减 + 翻空
+        bars.push(with_ev(bar(60.0), 3, cand(BspClass::Buy1, 88, 40.0))); // 武装买窗
+        bars.push(with_ev(bar(45.0), 2, ev(BspClass::Buy1))); // 次级别证据 → 平空（c≤ZD 放行）+ 翻多
+        bars.push(bar(45.0));
+        // 祖先层5 Trend∧Down 全程 ⇒ 镜像 anc 开空窗口开
+        let dirs = vec![(w, 5u8, Direction::Down)];
+        let trends = vec![(w, 5u8, true)];
+        let r = run_with_rows(bars.clone(), "fusion_btran_s34", Some(dirs), Some(trends));
+        assert_eq!(r.n_nest_fire_sell_by_ladder[3], 1, "nest 卖窗正向触发");
+        assert_eq!(r.n_flip_shorts_by_ladder[3], 1, "nest 削减沿翻转断面开空");
+        assert_eq!(r.n_nest_fire_buy_by_ladder[3], 1, "nest 买窗正向触发");
+        assert_eq!(r.n_short_covers_by_ladder[3], 1, "nest 买触发平空");
+        let t3: Vec<_> = r.trades.iter().filter(|t| t.ladder == 3).collect();
+        assert_eq!(t3.len(), 3, "平多 + 空头腿 + 翻多eod 三行");
+        assert_eq!(t3[0].polarity, Polarity::Long);
+        assert_eq!(t3[0].exit_reason, "nest_sell");
+        assert_eq!((t3[0].entry_price, t3[0].exit_price), (100.0, 98.0));
+        assert_eq!(t3[1].polarity, Polarity::Short);
+        assert_eq!(t3[1].exit_reason, "cover_nest", "纯正向触发平空归因");
+        assert_eq!((t3[1].entry_price, t3[1].exit_price), (98.0, 45.0));
+        assert_eq!(t3[1].shares, t3[0].shares, "M = N 同股数定理（26:34）");
+        assert_eq!(t3[2].polarity, Polarity::Long, "平空翻多回复");
+        // 零接触差分：同磁带 fusion_btra_s34（无 nest）——confirmed 掩码
+        // 从未置位 ⇒ 不削减不翻空，nest 计数恒零。
+        let r2 = run_with_rows(
+            bars,
+            "fusion_btra_s34",
+            Some(vec![(w, 5u8, Direction::Down)]),
+            Some(vec![(w, 5u8, true)]),
+        );
+        assert_eq!(r2.n_nest_fire_sell_by_ladder[3], 0);
+        assert_eq!(r2.n_flip_shorts_by_ladder[3], 0);
     }
 }
