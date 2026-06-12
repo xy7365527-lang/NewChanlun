@@ -2052,6 +2052,10 @@ fn run_positional_rust(
     )?;
     out.set_item("phase_up_bars_by_ladder", res.phase_up_bars_by_ladder.to_vec())?;
     out.set_item("phase_dn_bars_by_ladder", res.phase_dn_bars_by_ladder.to_vec())?;
+    out.set_item(
+        "n_r2_pos_blocks_by_ladder",
+        res.n_r2_pos_blocks_by_ladder.to_vec(),
+    )?;
     Ok(out.into())
 }
 

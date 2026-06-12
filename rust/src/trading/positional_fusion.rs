@@ -252,6 +252,7 @@ pub(crate) fn run_fusion(
     opts: TrendAxisOpts,
     osc_routing: OscRouting,
     phase_clock: bool,
+    r2_gate: bool,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -330,6 +331,22 @@ pub(crate) fn run_fusion(
                  kind 行零消费故不要求（错位时钟退役，research v2 §2.2）"
                     .to_string(),
             );
+        }
+    }
+    if r2_gate {
+        // P7 R2 位置门守卫（535 号裁决实验；research §2.3/§6 P7 预注册）。
+        if !trend_hold {
+            return Err(
+                "r2_gate（P7 R2 位置门）定义在二相基座的震荡相削减词汇上——\
+                 无 trend_hold 即无对象，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if counter_sub {
+            return Err("r2_gate × counter_sub 未预注册，显式拒绝".to_string());
+        }
+        if opts.any() {
+            return Err("r2_gate × TrendAxisOpts 未预注册，显式拒绝".to_string());
         }
     }
     if counter_sub && !tape.has_div_events() {
@@ -625,6 +642,23 @@ pub(crate) fn run_fusion(
             !(p < MAX_LADDER && dir_state[p] == Some(Direction::Down) && !down_exhaust[p])
         };
         let in_trend = |k: usize| in_trend_raw(k) && gate41_pass(k);
+        // P7 R2 位置门（049:52"在中枢上方仓位减少"——震荡相削减的位置分量）：
+        // 域 = 震荡相精确（phase_clock ⇒ Φ(k)=OSC；KindDir ⇒ dir≠Down——
+        // 熊市削减保留，位置门对象是中枢震荡非下行段，049:40 映射声明；
+        // ¬tp 由调用位置保证）。无存活中枢 ⇒ 位置词汇无对象，卖点回退出场
+        // 语义不拦截（049:54）。NaN ZG 比较恒 false ⇒ 拦截（保守方向，
+        // CenterBook NaN 纪律同构）。回复侧位置门不在本轴（P7 最小差分）。
+        let r2_blocked = |k: usize| {
+            if !r2_gate {
+                return false;
+            }
+            let in_domain = if phase_clock {
+                phase_view(k) == PhaseView::Osc
+            } else {
+                dir_state[k] != Some(Direction::Down)
+            };
+            in_domain && book.alive(k).is_some_and(|lc| !(c >= lc.zg))
+        };
 
         // ── 阶段 A：层级出场 / 44课铰链 / 回补（资金释放先于一切入场；
         //    回补义务在本阶段处理 ⇒ 对 pool 的优先权高于阶段 C 新入场）──
@@ -696,6 +730,10 @@ pub(crate) fn run_fusion(
                     // 049:52 趋势相停削（"那种中枢完成后的向上移动时的差价
                     // 是不能做的，中枢向上移动时，就应该满仓"）。
                     res.n_trend_holds_by_ladder[k] += 1;
+                } else if r2_blocked(k) {
+                    // P7 R2 位置门：震荡相非高位（c < ZG(k)）卖点不削减
+                    // （049:52 位置分量——"在中枢上方仓位减少"）。
+                    res.n_r2_pos_blocks_by_ladder[k] += 1;
                 } else {
                     if div_exit_hit {
                         res.n_trend_div_exits_by_ladder[k] += 1;
@@ -987,6 +1025,7 @@ mod tests {
             trend_opts: TrendAxisOpts::default(),
             osc: OscRouting::Off,
             phase_clock: false,
+            r2_gate: false,
         }
     }
 
@@ -999,6 +1038,7 @@ mod tests {
             trend_opts: TrendAxisOpts::default(),
             osc: OscRouting::Unified { strong_gate },
             phase_clock: false,
+            r2_gate: false,
         }
     }
 
@@ -1040,6 +1080,7 @@ mod tests {
             trend_opts: TrendAxisOpts { gate41: g, div_exit: d, b3_start: b },
             osc: OscRouting::Off,
             phase_clock: false,
+            r2_gate: false,
         };
         assert_eq!(PolarityMode::parse("fusion_tg"), Some(opt(true, false, false)));
         assert_eq!(PolarityMode::parse("fusion_td"), Some(opt(false, true, false)));
@@ -1062,6 +1103,7 @@ mod tests {
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
                 osc: OscRouting::Off,
                 phase_clock: false,
+                r2_gate: false,
             }
         )
         .is_err());
@@ -1089,6 +1131,7 @@ mod tests {
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
                 osc: OscRouting::Off,
                 phase_clock: false,
+                r2_gate: false,
             }
         )
         .is_err());
@@ -1645,6 +1688,7 @@ mod tests {
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Unified { strong_gate: true },
                 phase_clock: false,
+                r2_gate: false,
             }
         )
         .is_err());
@@ -1665,6 +1709,7 @@ mod tests {
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Unified { strong_gate: true },
                 phase_clock: false,
+                r2_gate: false,
             }
         )
         .is_err());
@@ -1685,6 +1730,7 @@ mod tests {
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
                 osc: OscRouting::Unified { strong_gate: true },
                 phase_clock: false,
+                r2_gate: false,
             }
         )
         .is_err());
@@ -1986,6 +2032,7 @@ mod tests {
             trend_opts: TrendAxisOpts::default(),
             osc,
             phase_clock: true,
+            r2_gate: false,
         };
         assert_eq!(PolarityMode::parse("fusion_p"), Some(fp(OscRouting::Off)));
         assert_eq!(
@@ -2008,6 +2055,7 @@ mod tests {
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Off,
                 phase_clock: true,
+                r2_gate: false,
             }
         )
         .is_err());
@@ -2027,6 +2075,7 @@ mod tests {
                 trend_opts: TrendAxisOpts { b3_start: true, ..Default::default() },
                 osc: OscRouting::Off,
                 phase_clock: true,
+                r2_gate: false,
             }
         )
         .is_err());
@@ -2182,5 +2231,128 @@ mod tests {
         assert_eq!(t2[1].entry_price, 95.0);
         // 1000×(100−95) 短差 + 1000×(110−100) 持有 = +15000
         assert!((r.final_nav - 115_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    // ───────────────── P7 R2 位置门（fusion_tr/fusion_pr/fusion_pur）─────────────────
+
+    #[test]
+    fn parse_r2_modes_and_guards() {
+        let mk = |phase: bool, osc: OscRouting| PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc,
+            phase_clock: phase,
+            r2_gate: true,
+        };
+        assert_eq!(PolarityMode::parse("fusion_tr"), Some(mk(false, OscRouting::Off)));
+        assert_eq!(PolarityMode::parse("fusion_pr"), Some(mk(true, OscRouting::Off)));
+        assert_eq!(
+            PolarityMode::parse("fusion_pur"),
+            Some(mk(true, OscRouting::Unified { strong_gate: true }))
+        );
+        // r2 × counter_sub 未预注册 ⇒ 拒
+        let t = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Off,
+                phase_clock: false,
+                r2_gate: true,
+            }
+        )
+        .is_err());
+        // r2 × trend_opts 未预注册 ⇒ 拒
+        let t2 = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t2,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
+                osc: OscRouting::Off,
+                phase_clock: false,
+                r2_gate: true,
+            }
+        )
+        .is_err());
+    }
+
+    /// R2 位置门（kind 时钟）：震荡相非高位（c < ZG）卖点不削减；高位恢复
+    /// 削减（049:52"在中枢上方仓位减少"位置分量）。
+    #[test]
+    fn fusion_tr_blocks_low_position_trim_allows_high() {
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2)); // 入场（中枢 50/51）
+        bars.push(sellpt(bar(50.5), 2)); // c < ZG=51 ⇒ 拦截
+        bars.push(sellpt(bar(55.0), 2)); // c ≥ 51 ⇒ 削减 @55
+        bars.push(bar(55.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_tr",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]), // kind 恒 false ⇒ 全程震荡相
+        );
+        assert_eq!(r.n_r2_pos_blocks_by_ladder[2], 1, "低位卖点被位置门拦截");
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 55.0);
+    }
+
+    /// R2 位置门域排除熊市腿（kind 时钟 dir==Down）：低位卖点照常削减
+    /// （位置门对象 = 中枢震荡非下行段，049:40 映射声明——熊市 α 零接触）。
+    #[test]
+    fn fusion_tr_bear_leg_trims_freely_below_zg() {
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(45.0), 2)); // dir==Down ⇒ 域外，削减 @45
+        bars.push(bar(45.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_tr",
+            Some(vec![(0, 2, Direction::Down)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_r2_pos_blocks_by_ladder[2], 0);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_price, 45.0);
+    }
+
+    /// P6×P7 合取（fusion_pr）：OSC 相低位拦截/高位放行；MOVE↓（Sell3 杀锚
+    /// ⇒ 无存活中枢 = 位置词汇无对象）低位卖点回退出场语义照常削减。
+    #[test]
+    fn fusion_pr_osc_gate_and_movedown_fallback() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(50.5), 2)); // Φ=OSC ∧ c<ZG ⇒ 拦截
+        bars.push(with_ev(bar(48.0), 2, ev_cs(BspClass::Sell3, anchor_cs))); // MOVE↓
+        bars.push(sellpt(bar(45.0), 2)); // 锚已死无存活中枢 ⇒ 不拦截，削减 @45
+        bars.push(bar(45.0));
+        let r = run_phase(bars, "fusion_pr");
+        assert_eq!(r.n_r2_pos_blocks_by_ladder[2], 1);
+        assert_eq!(r.n_phase_dn_opens_by_ladder[2], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "sellpt");
+        assert_eq!(t2[0].exit_price, 45.0);
     }
 }

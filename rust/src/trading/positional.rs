@@ -188,6 +188,9 @@ pub struct PositionalResult {
     pub phase_up_bars_by_ladder: [u64; MAX_LADDER],
     /// MOVE↓ 有效驻留 bar 数（含 candidate 窗口）。
     pub phase_dn_bars_by_ladder: [u64; MAX_LADDER],
+    /// P7 R2 位置门拦截数（震荡相非高位卖点不削减，049:52 位置分量；
+    /// fusion_tr/fusion_pr/fusion_pur，其余模式恒零）。
+    pub n_r2_pos_blocks_by_ladder: [u64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
@@ -315,6 +318,15 @@ pub enum PolarityMode {
     ///   kind 行零消费（错位时钟退役）。要求 trend_hold（时钟的对象是停削
     ///   窗口）、拒 counter_sub/trend_opts（未预注册；b3_start 被相位机
     ///   收编）⇒ 入口拒绝。false = 在册 kind×dir 时钟零接触。
+    /// - `r2_gate`：P7 R2 位置门（535 号裁决实验；research v2 §2.3/§6 P7
+    ///   预注册）。震荡相削减加位置分量——049:52"在中枢上方仓位减少"字面：
+    ///   卖点削减要求 c ≥ ZG(k)（本层存活中枢上沿）。域 = 震荡相精确
+    ///   （phase_clock ⇒ Φ(k)=OSC；KindDir ⇒ ¬in_trend ∧ dir≠Down——熊市
+    ///   削减保留，位置门对象是中枢震荡非下行段，049:40 映射声明）；
+    ///   无存活中枢 ⇒ 位置词汇无对象，卖点回退出场语义不拦截（049:54）。
+    ///   回复侧位置门（c≤ZD 才回，049:64"在下方如数接回"）不在本轴——
+    ///   P7 预注册为削减侧最小差分，回复侧列开放轴。要求 trend_hold、
+    ///   拒 counter_sub/trend_opts（未预注册）⇒ 入口拒绝。
     Fusion {
         trend_hold: bool,
         counter_sub: bool,
@@ -322,6 +334,7 @@ pub enum PolarityMode {
         trend_opts: TrendAxisOpts,
         osc: OscRouting,
         phase_clock: bool,
+        r2_gate: bool,
     },
 }
 
@@ -335,6 +348,7 @@ impl PolarityMode {
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Off,
                 phase_clock: false,
+                r2_gate: false,
             })
         };
         // 统一配置 U：fusion_t 基座 + 相位递归路由 osc 层。
@@ -346,11 +360,15 @@ impl PolarityMode {
                 trend_opts: TrendAxisOpts::default(),
                 osc: OscRouting::Unified { strong_gate },
                 phase_clock: false,
+                r2_gate: false,
             })
         };
         // P6 相位机：fusion_p = 相位机基座配对臂（research §6 P6，osc=Off）；
         // fusion_pu = 相位机基座 + 统一 osc 层（双侧同步——一个时钟修两侧）。
-        let phase = |osc: OscRouting| {
+        // P7 R2 位置门（535 号裁决实验）：fusion_tr = kind 时钟×位置门
+        // （P7 proper）；fusion_pr = 相位机×位置门（P6×P7 合取基座）；
+        // fusion_pur = 合取 + 统一 osc 层（完整层 0，research §5.1）。
+        let phase = |osc: OscRouting, r2_gate: bool| {
             Some(PolarityMode::Fusion {
                 trend_hold: true,
                 counter_sub: false,
@@ -358,6 +376,7 @@ impl PolarityMode {
                 trend_opts: TrendAxisOpts::default(),
                 osc,
                 phase_clock: true,
+                r2_gate,
             })
         };
         match s {
@@ -372,8 +391,19 @@ impl PolarityMode {
             "fusion_u" => unified(true),
             // U−③ 消融臂（预注册 P5：93:26 强震荡门是唯一新词汇，单独消融）
             "fusion_uw" => unified(false),
-            "fusion_p" => phase(OscRouting::Off),
-            "fusion_pu" => phase(OscRouting::Unified { strong_gate: true }),
+            "fusion_p" => phase(OscRouting::Off, false),
+            "fusion_pu" => phase(OscRouting::Unified { strong_gate: true }, false),
+            "fusion_pr" => phase(OscRouting::Off, true),
+            "fusion_pur" => phase(OscRouting::Unified { strong_gate: true }, true),
+            "fusion_tr" => Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Off,
+                phase_clock: false,
+                r2_gate: true,
+            }),
             // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
             other => {
                 let rest = other.strip_prefix("fusion_t")?;
@@ -407,6 +437,7 @@ impl PolarityMode {
                     trend_opts: opts,
                     osc: OscRouting::Off,
                     phase_clock: false,
+                    r2_gate: false,
                 })
             }
         }
@@ -426,6 +457,7 @@ pub fn run_positional(
         trend_opts,
         osc,
         phase_clock,
+        r2_gate,
     } = mode
     {
         return super::positional_fusion::run_fusion(
@@ -437,6 +469,7 @@ pub fn run_positional(
             trend_opts,
             osc,
             phase_clock,
+            r2_gate,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
