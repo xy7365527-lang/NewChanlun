@@ -1913,6 +1913,29 @@ fn run_positional_rust(
     out.set_item("n_noref_skips_by_ladder", res.n_noref_skips_by_ladder.to_vec())?;
     out.set_item("n_partial_by_ladder", res.n_partial_by_ladder.to_vec())?;
     out.set_item("n_deferred_by_ladder", res.n_deferred_by_ladder.to_vec())?;
+    // Fusion（B+C 合体）观测面（legacy 模式恒零）
+    out.set_item("n_trend_holds_by_ladder", res.n_trend_holds_by_ladder.to_vec())?;
+    out.set_item("n_sub_opens_by_ladder", res.n_sub_opens_by_ladder.to_vec())?;
+    out.set_item("n_sub_restores_by_ladder", res.n_sub_restores_by_ladder.to_vec())?;
+    out.set_item(
+        "n_sub_kbuy_restores_by_ladder",
+        res.n_sub_kbuy_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_sub_escalates_by_ladder", res.n_sub_escalates_by_ladder.to_vec())?;
+    out.set_item(
+        "n_sub_phase_closes_by_ladder",
+        res.n_sub_phase_closes_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_sub_cost_rejects_by_ladder",
+        res.n_sub_cost_rejects_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_sub_noref_rejects_by_ladder",
+        res.n_sub_noref_rejects_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_sub_restore_defer_bars", res.n_sub_restore_defer_bars)?;
+    out.set_item("sub_net_cash_by_ladder", res.sub_net_cash_by_ladder.to_vec())?;
     Ok(out.into())
 }
 

@@ -27,6 +27,7 @@ pub mod ledger;
 pub mod level_operating_unit;
 pub mod master;
 pub mod positional;
+pub mod positional_fusion;
 pub mod recursive_position;
 pub mod runner;
 pub mod tape;

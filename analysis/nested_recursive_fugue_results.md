@@ -99,10 +99,11 @@
 2. **voice 轴（横向短差 + 嵌套子腿）**：44课分层短差与 CounterSeg 子腿的
    有效域 = 震荡/深回调 regime（38课原文预言三连）；OKLO E×S×Q 正交互
    待跨标的复验。
-3. **合流方向**（未实施，留给编排者裁决）：hold26 的 per-level trim 窗口
-   内挂 CounterSeg 子腿（trim 期间的反向段内反向段）——把两线在同一架构
-   中合并，即用户原话的完整形态：顶层恒仓（positional）+ 反向窗口嵌套
-   短差（fugue）。前置条件 = OKLO 正交互在第二标的复现。
+3. **合流方向**（已实施，2026-06-12 判决见
+   `hold26_counterseg_fusion_results.md`）：合取臂否证为全局默认（F3 正
+   交互仅 OKLO——本节预言的"OKLO 正交互跨标的复现"前置条件在 BTC/CL 上
+   失败，镜像第二例）；趋势停削单轴（fusion_t）三标的全胜 hold26
+   （BTC +4174.6% = 3×BH，探索性），成为 positional 新基座候选。
 
 ## 结果包（六要素）
 

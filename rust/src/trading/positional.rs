@@ -33,7 +33,7 @@ pub const MIN_FILL_FRAC: f64 = 0.01;
 
 /// 层 FSM 状态（45课持股/持币二元循环的 per-layer 形态 + 资金推迟态）。
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum LayerState {
+pub(crate) enum LayerState {
     /// 持币：等待本级别 buy1。
     Flat,
     /// 布防：buy1@k 已现，等待次级别区间套确认（在册 master ARMED 同构）。
@@ -90,11 +90,32 @@ pub struct PositionalResult {
     pub n_partial_by_ladder: [u64; MAX_LADDER],
     /// 推迟发生数（确认 bar 资金不足进入 Pending）。
     pub n_deferred_by_ladder: [u64; MAX_LADDER],
+    // ── Fusion（B+C 合体）观测面；legacy 模式恒零（positional_fusion.rs）──
+    /// 趋势相停削数（49课:52 满仓——本层卖点在趋势相不削减）。
+    pub n_trend_holds_by_ladder: [u64; MAX_LADDER],
+    /// 层内 C 短差开（53课次级别卖证据全抛本层 slice）。
+    pub n_sub_opens_by_ladder: [u64; MAX_LADDER],
+    /// 短差回补（k−1 镜像买证据，"如数接回"——含推迟后补完）。
+    pub n_sub_restores_by_ladder: [u64; MAX_LADDER],
+    /// 本层 k 级买点通道的回补（26课"任何的买点都是买点"）。
+    pub n_sub_kbuy_restores_by_ladder: [u64; MAX_LADDER],
+    /// 44课铰链恶化升级（本层卖点先到 ⇒ 短差卖出升级为减仓出清）。
+    pub n_sub_escalates_by_ladder: [u64; MAX_LADDER],
+    /// 趋势相开始强制回补（49课:52 满仓义务）。
+    pub n_sub_phase_closes_by_ladder: [u64; MAX_LADDER],
+    /// 35课成本门拒开（θ_q(k−1) < k×friction）。
+    pub n_sub_cost_rejects_by_ladder: [u64; MAX_LADDER],
+    /// 成本门参照不可定义拒开（warm-up，保守拒绝不静默放行）。
+    pub n_sub_noref_rejects_by_ladder: [u64; MAX_LADDER],
+    /// 回补义务因 pool 不足推迟的 bar 数（D7 推迟同构）。
+    pub n_sub_restore_defer_bars: u64,
+    /// 层内短差净现金（Σ 卖出所得 − 接回成本；降成本的会计读数）。
+    pub sub_net_cash_by_ladder: [f64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
 /// （级别的统计涌现性，D2）。ladder 升序累加（确定性求和序）。
-fn theta_weights(
+pub(crate) fn theta_weights(
     depth_ref: &DepthRef,
     floor_ladder: usize,
 ) -> ([Option<f64>; MAX_LADDER], f64) {
@@ -139,6 +160,18 @@ pub enum PolarityMode {
         /// 卖点词汇：true = 仅 type1（VLs1 先例）；false = 任意卖点（26课字面）。
         sell_t1_only: bool,
     },
+    /// v3：B+C 合体（hold26 × CounterSeg 合流，2026-06-12 任务；
+    /// `positional_fusion.rs`）。基座 = Hold26 任意卖点词汇；两轴独立可消融
+    /// （VLg 负交互先例 ⇒ 交互项预注册）：
+    /// - `trend_hold`：49课:52 二相——"中枢向上移动时，就应该满仓，这才是
+    ///   最正确的仓位"。层 k 趋势相（尾 move kind==Trend ∧ dir==Up——17课
+    ///   趋势定义 ≥2 同向中枢的引擎直读）⇒ 本层卖点停削；震荡相 ⇒ 在册削减。
+    /// - `counter_sub`：层内 C 短差——53课:34"参与其中的买卖，用的都是低级别
+    ///   的买卖点" + 49课:64"在中枢上方全部抛出筹码，在下方如数接回"。
+    ///   震荡相中 k−1 级卖证据全抛本层 slice，k−1 买证据如数接回；
+    ///   44课:44 铰链：卖出不预声明身份——本层卖点先到 = 升级为减仓（出清），
+    ///   买回证据先到 = 短差（回补）。
+    Fusion { trend_hold: bool, counter_sub: bool },
 }
 
 impl PolarityMode {
@@ -147,6 +180,9 @@ impl PolarityMode {
             "cycle45" => Some(PolarityMode::Cycle45),
             "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
+            "fusion" => Some(PolarityMode::Fusion { trend_hold: true, counter_sub: true }),
+            "fusion_t" => Some(PolarityMode::Fusion { trend_hold: true, counter_sub: false }),
+            "fusion_s" => Some(PolarityMode::Fusion { trend_hold: false, counter_sub: true }),
             _ => None,
         }
     }
@@ -158,6 +194,14 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
+    if let PolarityMode::Fusion { trend_hold, counter_sub } = mode {
+        return super::positional_fusion::run_fusion(
+            tape,
+            floor_ladder,
+            trend_hold,
+            counter_sub,
+        );
+    }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
             "positional fugue 要求 floor_ladder ∈ [{FIRST_BSP_LADDER}, {MAX_LADDER})\
@@ -194,10 +238,16 @@ pub fn run_positional(
                 sig.sell1.get(k)
             }
             PolarityMode::Hold26 { sell_t1_only: false } => sig.sell_any.get(k),
+            PolarityMode::Fusion { .. } => {
+                unreachable!("Fusion 在入口已分派到 run_fusion")
+            }
         };
         let exit_reason = match mode {
             PolarityMode::Cycle45 | PolarityMode::Hold26 { sell_t1_only: true } => "sell1",
             PolarityMode::Hold26 { sell_t1_only: false } => "sellpt",
+            PolarityMode::Fusion { .. } => {
+                unreachable!("Fusion 在入口已分派到 run_fusion")
+            }
         };
 
         // ── 阶段 1：出场（全层先于入场——卖点释放的资金当 bar 可供买点）──
@@ -275,6 +325,9 @@ pub fn run_positional(
                 (PolarityMode::Hold26 { .. }, LayerState::Armed { .. }) => {
                     unreachable!("Hold26 无 ARMED 相位——confirmed 事件直接消费")
                 }
+                (PolarityMode::Fusion { .. }, _) => {
+                    unreachable!("Fusion 在入口已分派到 run_fusion")
+                }
                 // Pending（两模式共用）：卖点@k 取消（该买点起始的走势已被
                 // 宣告结束）；否则重试入场。
                 (_, LayerState::Pending { confirm_bar }) => {
@@ -336,7 +389,7 @@ pub fn run_positional(
 /// pool 可成交 < MIN_FILL_FRAC×目标 ⇒ Pending 推迟（D7/D9）；否则成交
 /// min(w_k×NAV, pool)，部分成交计数。
 #[allow(clippy::too_many_arguments)]
-fn enter_or_defer(
+pub(crate) fn enter_or_defer(
     k: usize,
     confirm_bar: i64,
     bar: i64,
