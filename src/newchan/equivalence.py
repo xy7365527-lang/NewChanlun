@@ -249,6 +249,8 @@ def _infer_target_freq(idx: pd.DatetimeIndex) -> str | None:
     """从 DatetimeIndex 推断目标频率标签。"""
     if len(idx) < 2:
         return None
+    if idx.freq is not None:
+        return idx.freqstr
     try:
         inferred = pd.infer_freq(idx)
     except ValueError:
