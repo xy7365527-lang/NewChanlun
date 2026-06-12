@@ -64,6 +64,13 @@ pub(crate) enum LayerState {
         weight: f64,
         margin: f64,
     },
+    /// 纯回复门驻留（fusion_btrg 消融臂——S1-S4 判决开放轴④的载体）。
+    /// 持币（平多所得已入 pool、零市场暴露），但回复词汇受与 Short 完全
+    /// 同款的门（MoveUp 强制回复 / 买点 + MoveDown 停回复 + 空侧 R2 门）。
+    /// 存在论：把双向臂的"空头暴露"分量摘除、保留"回复时点门"分量——
+    /// btrg ≈ btr ⇒ 双向增量主体是回复门；btr ≫ btrg ⇒ 空头暴露独占
+    /// 增量 = bear 段下跌直接收割。仅 short_ghost 模式可达。
+    Gated { entry_bar: i64, weight: f64 },
 }
 
 /// 层级 trade 记录（每层每个持股周期一条；股数守恒：进出同股数）。
@@ -240,6 +247,14 @@ pub struct PositionalResult {
     pub short_held_bars_by_ladder: [u64; MAX_LADDER],
     /// 空头腿已实现净现金（Σ units×(B_s − exit)；空头 alpha 的会计读数）。
     pub short_net_cash_by_ladder: [f64; MAX_LADDER],
+    /// 纯回复门消融臂（fusion_btrg）：进 Gated 驻留数（其余模式恒零）。
+    pub n_gate_enters_by_ladder: [u64; MAX_LADDER],
+    /// Gated → 买点回复数（门放行后 enter_or_defer）。
+    pub n_gate_restores_by_ladder: [u64; MAX_LADDER],
+    /// Gated → MoveUp 强制回复数（49:52 满仓义务——与 Short 同款出口）。
+    pub n_gate_moveup_restores_by_ladder: [u64; MAX_LADDER],
+    /// Gated 驻留 bar 数（与 short_held_bars 对照 = 消融可比性读数）。
+    pub gate_held_bars_by_ladder: [u64; MAX_LADDER],
     // ── 区间套正向定位（fusion_tn/fusion_trn；027课程序定理 + 038:258
     //    "一旦进入背驰的区间套里就要陆续走"）观测面；其余模式恒零 ──
     /// 窗口武装数（candidate Type1/Type3 事件，逐层逐侧合计）。
@@ -449,6 +464,11 @@ pub enum PolarityMode {
         /// 镜像 anc 窗口门（fusion_btra）：开空 iff ∃j>k Trend∧Down
         /// （26:80 豁免下沉的空头镜像；S2 预注册条件化形式）。
         short_anc_gate: bool,
+        /// 纯回复门消融臂（fusion_btrg）：白名单层卖点削减后进 Gated
+        /// （持币 + 回复门）而非开空——分离空头暴露与回复时点门两机制
+        /// （S1-S4 判决 §2.4/边界条件④ 预注册）。拒与 short_anc_gate
+        /// 组合（消融对照臂 = btr，不混 anc 门）。
+        short_ghost: bool,
     },
 }
 
@@ -467,6 +487,7 @@ impl PolarityMode {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             })
         };
         // 统一配置 U：fusion_t 基座 + 相位递归路由 osc 层。
@@ -483,6 +504,7 @@ impl PolarityMode {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             })
         };
         // P6 相位机：fusion_p = 相位机基座配对臂（research §6 P6，osc=Off）；
@@ -503,6 +525,7 @@ impl PolarityMode {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             })
         };
         // anc 祖先趋势豁免（26:80 下沉；slow_bull 调研 §6 预注册两臂）：
@@ -521,6 +544,7 @@ impl PolarityMode {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             })
         };
         match s {
@@ -553,6 +577,7 @@ impl PolarityMode {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }),
             // 区间套正向定位两臂（027课程序定理；fusion_tn = t 基座 + nest，
             // fusion_trn = tr 基座 + nest——在册最优 fusion_tr 的最小差分）。
@@ -568,6 +593,7 @@ impl PolarityMode {
                 nest_forward: true,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }),
             // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
             other => {
@@ -578,9 +604,15 @@ impl PolarityMode {
                 // （recL3+）空头默认禁用（GC recL4 −0.806 单窗口反例）。
                 let btr = other
                     .strip_prefix("fusion_btra_s")
-                    .map(|d| (d, true))
-                    .or_else(|| other.strip_prefix("fusion_btr_s").map(|d| (d, false)));
-                if let Some((digits, anc_gate)) = btr {
+                    .map(|d| (d, true, false))
+                    .or_else(|| {
+                        // 纯回复门消融臂（Gated 态，不开空）。
+                        other.strip_prefix("fusion_btrg_s").map(|d| (d, false, true))
+                    })
+                    .or_else(|| {
+                        other.strip_prefix("fusion_btr_s").map(|d| (d, false, false))
+                    });
+                if let Some((digits, anc_gate, ghost)) = btr {
                     if digits.is_empty() {
                         return None; // 空白名单 = fusion_tr 冗余表示
                     }
@@ -606,6 +638,7 @@ impl PolarityMode {
                         nest_forward: false,
                         short_mask: mask,
                         short_anc_gate: anc_gate,
+                        short_ghost: ghost,
                     });
                 }
                 let rest = other.strip_prefix("fusion_t")?;
@@ -644,6 +677,7 @@ impl PolarityMode {
                     nest_forward: false,
                     short_mask: 0,
                     short_anc_gate: false,
+                    short_ghost: false,
                 })
             }
         }
@@ -668,6 +702,7 @@ pub fn run_positional(
         nest_forward,
         short_mask,
         short_anc_gate,
+        short_ghost,
     } = mode
     {
         return super::positional_fusion::run_fusion(
@@ -684,6 +719,7 @@ pub fn run_positional(
             nest_forward,
             short_mask,
             short_anc_gate,
+            short_ghost,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
@@ -829,6 +865,9 @@ pub fn run_positional(
                 (_, LayerState::Long { .. }) => {}
                 (_, LayerState::Short { .. }) => {
                     unreachable!("Short 仅 fusion_btr 白名单层可达（已在入口分派）")
+                }
+                (_, LayerState::Gated { .. }) => {
+                    unreachable!("Gated 仅 fusion_btrg 消融臂可达（已在入口分派）")
                 }
             }
         }

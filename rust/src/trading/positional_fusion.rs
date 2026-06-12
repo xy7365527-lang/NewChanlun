@@ -304,6 +304,7 @@ pub(crate) fn run_fusion(
     nest_forward: bool,
     short_mask: u16,
     short_anc_gate: bool,
+    short_ghost: bool,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -473,6 +474,13 @@ pub(crate) fn run_fusion(
             return Err(
                 "short_mask × {counter_sub/TrendAxisOpts/phase_clock/osc/\
                  trend_scope/nest_forward/decoupled} 合取未预注册，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if short_ghost && short_anc_gate {
+            return Err(
+                "short_ghost（纯回复门消融臂）的对照臂 = fusion_btr——与 \
+                 short_anc_gate 合取未预注册（消融不混 anc 门），显式拒绝"
                     .to_string(),
             );
         }
@@ -1059,7 +1067,15 @@ pub(crate) fn run_fusion(
                     //    翻转 bar pool 净流转 0（断面无渗漏）。同 bar 同价、
                     //    会计分两行 trade（段归属核算硬要求，不可合并）。──
                     if short_mask & (1 << k) != 0 {
-                        if short_anc_gate && !anc_down(k) {
+                        if short_ghost {
+                            // fusion_btrg 消融臂：持币 + 回复门驻留——把
+                            // 空头暴露分量摘除，保留回复时点门分量。
+                            layers[k] = LayerState::Gated {
+                                entry_bar: i as i64,
+                                weight,
+                            };
+                            res.n_gate_enters_by_ladder[k] += 1;
+                        } else if short_anc_gate && !anc_down(k) {
                             // fusion_btra：镜像 anc 窗口外削减照常、不开空。
                             res.n_short_anc_rejects_by_ladder[k] += 1;
                         } else {
@@ -1225,6 +1241,33 @@ pub(crate) fn run_fusion(
                         } else {
                             cover(c, "cover_buypt", &mut pool, &mut res);
                             res.n_short_covers_by_ladder[k] += 1;
+                            layers[k] = enter_or_defer(
+                                k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
+                                &mut pool, &mut res,
+                            );
+                        }
+                    }
+                }
+                // ── 纯回复门消融臂（fusion_btrg）：Gated 出口集与 Short
+                //    逐句同款（in_trend 强制回复 / 买点 + MoveDown 停回复 +
+                //    空侧 R2 门）——唯一差分 = 无空头暴露（持币零市场风险，
+                //    无强平路径）。拦截计数复用 n_short_trend_holds/
+                //    n_short_r2_blocks（GH2 可比性守卫的同名读数）──
+                LayerState::Gated { weight: _, .. } => {
+                    res.gate_held_bars_by_ladder[k] += 1;
+                    if in_trend(k) {
+                        res.n_gate_moveup_restores_by_ladder[k] += 1;
+                        layers[k] = enter_or_defer(
+                            k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
+                            &mut pool, &mut res,
+                        );
+                    } else if sig.buy_any.get(k) {
+                        if in_movedown(k) {
+                            res.n_short_trend_holds_by_ladder[k] += 1;
+                        } else if short_r2_blocked(k) {
+                            res.n_short_r2_blocks_by_ladder[k] += 1;
+                        } else {
+                            res.n_gate_restores_by_ladder[k] += 1;
                             layers[k] = enter_or_defer(
                                 k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
                                 &mut pool, &mut res,
@@ -1446,6 +1489,7 @@ mod tests {
             nest_forward: false,
             short_mask: 0,
             short_anc_gate: false,
+            short_ghost: false,
         }
     }
 
@@ -1463,6 +1507,7 @@ mod tests {
             nest_forward: false,
             short_mask: 0,
             short_anc_gate: false,
+            short_ghost: false,
         }
     }
 
@@ -1509,6 +1554,7 @@ mod tests {
             nest_forward: false,
             short_mask: 0,
             short_anc_gate: false,
+            short_ghost: false,
         };
         assert_eq!(PolarityMode::parse("fusion_tg"), Some(opt(true, false, false)));
         assert_eq!(PolarityMode::parse("fusion_td"), Some(opt(false, true, false)));
@@ -1536,6 +1582,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -1568,6 +1615,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -1664,6 +1712,7 @@ mod tests {
             nest_forward: true,
             short_mask: 0,
             short_anc_gate: false,
+            short_ghost: false,
         };
         assert_eq!(PolarityMode::parse("fusion_tn"), Some(nm(false)));
         assert_eq!(PolarityMode::parse("fusion_trn"), Some(nm(true)));
@@ -1704,6 +1753,7 @@ mod tests {
                 nest_forward: true,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -1819,6 +1869,7 @@ mod tests {
             nest_forward: false,
             short_mask: 0,
             short_anc_gate: false,
+            short_ghost: false,
         }
     }
 
@@ -2466,6 +2517,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -2491,6 +2543,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -2516,6 +2569,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -2822,6 +2876,7 @@ mod tests {
             nest_forward: false,
             short_mask: 0,
             short_anc_gate: false,
+            short_ghost: false,
         };
         assert_eq!(PolarityMode::parse("fusion_p"), Some(fp(OscRouting::Off)));
         assert_eq!(
@@ -2849,6 +2904,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -2873,6 +2929,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -3046,6 +3103,7 @@ mod tests {
             nest_forward: false,
             short_mask: 0,
             short_anc_gate: false,
+            short_ghost: false,
         };
         assert_eq!(PolarityMode::parse("fusion_tr"), Some(mk(false, OscRouting::Off)));
         assert_eq!(PolarityMode::parse("fusion_pr"), Some(mk(true, OscRouting::Off)));
@@ -3075,6 +3133,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -3100,6 +3159,7 @@ mod tests {
                 nest_forward: false,
                 short_mask: 0,
                 short_anc_gate: false,
+                short_ghost: false,
             }
         )
         .is_err());
@@ -3209,6 +3269,7 @@ mod tests {
             nest_forward: false,
             short_mask: 0b10000,
             short_anc_gate: false,
+            short_ghost: false,
         };
         assert!(run_positional(&t, 2, bad).is_err());
     }
@@ -3350,6 +3411,62 @@ mod tests {
         let r2 = run_with_rows(bars2, "fusion_btra_s4", Some(dirs), Some(trends));
         assert_eq!(r2.n_flip_shorts_by_ladder[4], 1);
         assert_eq!(r2.n_short_anc_rejects_by_ladder[4], 0);
+    }
+
+    /// 纯回复门消融臂（fusion_btrg）：卖点削减进 Gated（持币不开空），
+    /// 出口判据与 Short 同款——MoveDown 停回复 + c≤ZD 放行回复。
+    #[test]
+    fn btrg_gates_restore_without_short_exposure() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4)); // bar w：入场 750 股
+        bars.push(sellpt(bar(110.0), 4)); // bar w+1：削减 → Gated（不开空）
+        bars.push(buypt(bar(45.0), 4)); // bar w+2：MoveDown ⇒ 停回复
+        bars.push(buypt(bar(45.0), 4)); // bar w+3：门放行（c≤ZD）⇒ 回复
+        bars.push(bar(45.0));
+        let dirs = vec![(w + 2, 4u8, Direction::Down), (w + 3, 4u8, Direction::Up)];
+        // bar w+2 trend∧Down = MoveDown 拦截；w+3 dir 翻 Up（非 trend ⇒
+        // 非 MoveUp 强制，r2 in_domain=dir==Up 不拦 ⇒ 买点正常回复）
+        let trends = vec![(w + 2, 4u8, true), (w + 3, 4u8, false)];
+        let r = run_with_rows(bars, "fusion_btrg_s4", Some(dirs), Some(trends));
+        assert_eq!(r.n_gate_enters_by_ladder[4], 1);
+        assert_eq!(r.n_flip_shorts_by_ladder[4], 0, "消融臂零空头暴露");
+        assert_eq!(r.n_short_trend_holds_by_ladder[4], 1, "MoveDown 拦截同款计数");
+        assert_eq!(r.n_gate_restores_by_ladder[4], 1);
+        assert!(r.trades.iter().all(|t| t.polarity == Polarity::Long));
+        // 会计：多头段 750×10 + 持币穿越下跌 + @45 回复（无空头收割）
+        let t4: Vec<_> = r.trades.iter().filter(|t| t.ladder == 4).collect();
+        assert_eq!(t4.len(), 2, "削减行 + 回复eod 行（无空头腿）");
+        assert!((r.final_nav - (INITIAL_CAPITAL + 7_500.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn btrg_parse_and_guards() {
+        let Some(PolarityMode::Fusion { short_mask, short_ghost, short_anc_gate, .. }) =
+            PolarityMode::parse("fusion_btrg_s34")
+        else {
+            panic!("fusion_btrg_s34 必须可解析")
+        };
+        assert_eq!(short_mask, 0b11000);
+        assert!(short_ghost && !short_anc_gate);
+        assert_eq!(PolarityMode::parse("fusion_btrg_s5"), None);
+        // ghost × anc_gate 合取拒绝（守卫）
+        let t = SignalTape { bars: warmup34(), ..Default::default() };
+        let bad = PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc: OscRouting::Off,
+            phase_clock: false,
+            r2_gate: true,
+            trend_scope: TrendScope::SelfLayer,
+            nest_forward: false,
+            short_mask: 0b10000,
+            short_anc_gate: true,
+            short_ghost: true,
+        };
+        assert!(run_positional(&t, 2, bad).is_err());
     }
 
     /// 翻转断面会计无渗漏：同价开平往返 ⇒ NAV 守恒（零摩擦语法前提）。

@@ -2109,6 +2109,20 @@ fn run_positional_rust(
         "short_net_cash_by_ladder",
         res.short_net_cash_by_ladder.to_vec(),
     )?;
+    // 纯回复门消融臂（fusion_btrg）观测面（其余模式恒零）
+    out.set_item("n_gate_enters_by_ladder", res.n_gate_enters_by_ladder.to_vec())?;
+    out.set_item(
+        "n_gate_restores_by_ladder",
+        res.n_gate_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_gate_moveup_restores_by_ladder",
+        res.n_gate_moveup_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "gate_held_bars_by_ladder",
+        res.gate_held_bars_by_ladder.to_vec(),
+    )?;
     Ok(out.into())
 }
 
