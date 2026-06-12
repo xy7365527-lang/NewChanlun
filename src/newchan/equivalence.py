@@ -249,23 +249,13 @@ def _infer_target_freq(idx: pd.DatetimeIndex) -> str | None:
     """从 DatetimeIndex 推断目标频率标签。"""
     if len(idx) < 2:
         return None
+    inferred = pd.infer_freq(idx)
+    if inferred is not None:
+        return inferred
     median_delta = pd.Series(idx).diff().dropna().median()
-    seconds = median_delta.total_seconds()
-    if seconds <= 120:
-        return "1min"
-    if seconds <= 600:
-        return "5min"
-    if seconds <= 1800:
-        return "30min"
-    if seconds <= 5400:
-        return "1h"
-    if seconds <= 18000:
-        return "4h"
-    if seconds <= 100800:
-        return "1D"
-    if seconds <= 604800:
-        return "1W"
-    return "1ME"
+    if pd.isna(median_delta) or median_delta <= pd.Timedelta(0):
+        return None
+    return pd.tseries.frequencies.to_offset(median_delta).freqstr
 
 
 def _aggregate_ratio_to_kline(
@@ -308,8 +298,13 @@ def make_ratio_kline(
 
     概念溯源：[旧缠论:隐含] 比价K线构造
     """
+    target_idx = df_a.index.intersection(df_b.index)
     if sub_a is not None and sub_b is not None:
+        if target_idx.empty:
+            return _make_ratio_kline_naive(df_a, df_b)
         sub_idx = sub_a.index.intersection(sub_b.index)
+        start, end = target_idx.min(), target_idx.max()
+        sub_idx = sub_idx[(sub_idx >= start) & (sub_idx <= end)]
         sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
         ratio = sa["close"] / sb["close"]
         volume = sa["volume"] if "volume" in sa.columns else None
@@ -323,7 +318,8 @@ def make_ratio_kline(
             )
             return _make_ratio_kline_naive(df_a, df_b)
 
-        return _aggregate_ratio_to_kline(ratio, volume, freq)
+        aggregated = _aggregate_ratio_to_kline(ratio, volume, freq)
+        return aggregated.reindex(target_idx).dropna(subset=["open"])
 
     warnings.warn(
         "make_ratio_kline: no sub-frequency data provided, "
