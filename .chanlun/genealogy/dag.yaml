@@ -2144,9 +2144,9 @@ nodes:
 - id: '429'
   title: 元观察——v229-swarm（Phase 1.5 dialogue_ingest + Phase 2 ARTICULATE 实装 + 持久化溯源断裂
     + scan 状态不可观测模式 + 蜂群节奏分析）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/429-meta-observation-v229-swarm.md
+  file: settled/429-meta-observation-v229-swarm.md
 - id: '430'
   title: 元观察——v230-swarm（全面实装轮：384号L2强否定 + 396号已结算确认 + JSONL重复bug修复 + 依赖链断裂全resolved
     + 历时性/共时性区分候选）
@@ -5418,6 +5418,10 @@ edges:
     to: '231'
   - from: '533'
     to: '532'
+  - from: '534'
+    to: '231'
+  - from: '534'
+    to: '533'
   triggered:
   - from: '005'
     to: 005a
@@ -7216,26 +7220,8 @@ edges:
   - target: '105'
     by: '116'
     scope: partial:过强声明修正，方向意图保留
-  - from: '534'
-    to: '231'
-  - from: '534'
-    to: '533'
 genealogy:
   settled:
   - '420'
   - '421'
   - '422'
-'429':
-  status: 已结算
-  type: meta-rule
-  file: settled/429-meta-observation-v229-swarm.md
-  depends_on:
-  - '428'
-  - '427'
-  - '218'
-  - '137'
-  - 090
-  - '275'
-  - '425'
-  tensions_with:
-  - '425'
