@@ -10,18 +10,22 @@
 //! | 在册 flag 轴 | fusion_v 替代读数 | 原文锚 |
 //! |-------------|------------------|--------|
 //! | trend_hold / trend_scope | freeze_d 递归传导：freeze_up(k) = self_up(k) ∨ anc_up(k)（275号局部依赖展开式；26:80 豁免下沉） | 049:52 / 026:80 |
-//! | （无——v1 缺失） | R4 双侧出口：freeze 内新中枢形成 ⇒ 短差词汇局部重开 | 049:54 后半（双侧） |
-//! | short_mask / short_ghost | R14 默认落点 Gated 全层（方向承诺+零暴露；M7-a 普适形态。真实空头=载体×部署层白名单，不入 FSM） | 038:36 镜像 [镜像推导] |
-//! | nest_forward | 恒开（candidate 武装+次级别证据触发，双侧） | 027课 / 038:258 |
+//! | short_mask / short_ghost | R14 字面翻空全层（卖点确认 ⇒ voice LONG→SHORT 真实开空，概念链第19环字面实现："走势终完美对涨跌都成立 ⇒ 永远有方向"） | 038:36 镜像 [镜像推导] |
+//! | nest_forward | 恒开（candidate 武装+次级别证据触发，双侧——翻空时点 = 区间套定位，不等 confirmed） | 027课 / 038:258 |
 //! | osc / h1_freeze | 统一 osc 三门恒开（相位/振幅/g2 强弱 + 49:68 candidate 冻结——Δf 6/8 非负在册） | 035:30 / 093:26 / 049:68 |
 //! | r2_gate | 双侧位置门恒开，域 = Φ(k)==Osc（削减@c≥ZG / 回补@c≤ZD） | 049:52 / 049:64 |
 //! | （无） | R18-20 T2W 第二翻转窗口（confirmed type1 被门拒 ⇒ 锁存；type2 同侧 ∧ 门放行 ⇒ 重试；越极值 ⇒ 清） | 053:28 / 086:80 |
 //!
+//! R4（49:54 双侧出口）已删除——概念链审计（`analysis/
+//! unified_voice_from_concept_chain.md`）判定其为链外机制（从走势终完美
+//! 的概念运动推不出来），且 L3 6/8 为负（BTC −963pp）。删除后 Φ 直读
+//! freeze，无出口分支。
+//!
 //! ## Φ 三值化（公共读数——矛盾2 的承载）
 //!
 //! ```text
-//! phi(k) = MoveUp   if freeze_up(k) ∧ ¬r4_up_exit(k)
-//!          MoveDown if freeze_dn(k) ∧ ¬r4_dn_exit(k)   [镜像推导]
+//! phi(k) = MoveUp   if freeze_up(k)
+//!          MoveDown if freeze_dn(k)   [镜像推导]
 //!          Osc      otherwise
 //! ```
 //!
@@ -30,39 +34,35 @@
 //! r2 双侧门域（==Osc）。MoveUp 优先于 MoveDown（多头书的满仓义务优先，
 //! 049:52；自层与祖先层读数冲突时保护多头侧）。
 //!
-//! ## R4 出口的锚语义
+//! ## 翻转 = 会计断面（cascade settle 四步序）
 //!
-//! freeze 上升沿冻结当时存活中枢 seg_start 为锚（无存活中枢 ⇒ i64::MIN）；
-//! 出口开 iff 存活中枢 seg_start > 锚（新中枢已形成）∧ 无 candidate 离开
-//! 窗口（049:68 当下读法——离开中 = 中枢移动 proper，不做短差）。中枢
-//! 移动段（旧中枢死、新中枢未成）alive=None ⇒ 出口关，逐字对应"中枢
-//! 向上移动时就应该满仓"；新中枢成 ⇒ 出口开，逐字对应"新中枢形成后
-//! 围绕新中枢的短差恢复"。freeze 下降沿清锚。
-//!
-//! ## 翻转 = 会计断面（cascade settle 的 fusion_v 退化形态）
-//!
-//! Gated 落点无新书 ⇒ 四步序退化为 ②平旧（削减 trade 行，实际变现价）
-//! → 落点 Gated；①子树结算由 osc step_exit 铰链承载（osc 在外时主层
-//! 卖点先到 = hinge escalate，044:44 在册）；③开新/④子腿重开在 Gated
-//! 形态无对象。M=N 的回复侧 = enter_or_defer 重配额（hold26 在册同款）。
+//! 卖点确认（confirmed 掩码 ∨ nest 正向触发 ∨ T2W 第二窗口）且门放行 ⇒
+//! ②平旧（削减 trade 行，实际变现价）→ ③开新（同 bar 同价开空，M = N
+//! 同股数定理：units = 平多股数，26:34 单位数量纲；1x 虚拟逐仓 margin =
+//! units×c = 平多所得 ⇒ 翻转 bar pool 净流转 0，断面无渗漏）。①子树
+//! 结算由 osc step_exit 铰链承载（osc 在外时主层卖点先到 = hinge
+//! escalate，044:44 在册；翻转分支前置守卫保证翻转 bar 本层无在外子
+//! voice）；④子腿重开：空头书的子 voice 短差与 fusion_btr 在册同款
+//! 不承载（osc try_open 的 Long 要求自然排除）。买点确认 ⇒ 镜像断面
+//! （平空 → enter_or_defer 翻多重配额）。翻空仓位 = 该级别配额全量
+//! （概念链第15环：级别 = 操作量——M = N 即该级别在册全量）。
 //!
 //! ## 诚实声明（090号）
 //!
 //! - 杠杆三元组（L_max = 1/(D_struct+mm)）**不在本实装**——设计 v2
 //!   Phase 1 范围外（逐 bar D_struct 影子价格是独立工程），列开放轴。
-//! - 真实空头/认沽载体**不在本实装**——载体选择是部署层动作（026:36），
-//!   FSM 统一落点 Gated（任务条款："期权是载体选择不是 FSM 逻辑"）。
+//! - 空头载体 = 1x 虚拟逐仓（fusion_btr 在册会计，强平价 2×entry）；
+//!   认沽期权等真实载体选择是部署层动作（026:36），不入 FSM。
 //! - R18 的"candidate 永不 confirmed（小转大 orphan）"武装支未实装——
 //!   第一形态仅门拒支；orphan 支列开放轴（M13-e 判据先裁决可达性）。
 
 use super::center_book::CenterBook;
-use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
     enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult,
     EQUITY_SAMPLE_BARS,
 };
-use super::positional_fusion::{PhaseView, SUB_COST_K, SUB_FRICTION_RT};
+use super::positional_fusion::PhaseView;
 use super::tape::SignalTape;
 use super::unified_osc::{OscLayer, OscOut};
 use super::types::{
@@ -99,8 +99,9 @@ fn nest_sub_evidence(
     }
 }
 
-/// NAV：pool + 各层在市股数（Gated 层贡献 0——现金已在 pool；osc 在外腿
-/// 所得已在 pool ⇒ 跳过股数计值。fusion_v 无 Short/SubOut）。
+/// NAV：pool + 各层在市权益（osc 在外腿所得已在 pool ⇒ 跳过股数计值；
+/// 空头层权益 = margin + units×(B_s − c)，虚拟逐仓口径——会计文档 §4.3
+/// NAV 恒等式；浮亏可为负，强平在阶段 C 收口。fusion_v 无 SubOut）。
 fn nav_v(
     layers: &[LayerState; MAX_LADDER],
     oscs: &[Option<OscOut>; MAX_LADDER],
@@ -113,8 +114,12 @@ fn nav_v(
         if oscs[k].is_some() {
             continue;
         }
-        if let LayerState::Long { shares, .. } = layers[k] {
-            v += shares * c;
+        match layers[k] {
+            LayerState::Long { shares, .. } => v += shares * c,
+            LayerState::Short { entry_price, units, margin, .. } => {
+                v += margin + units * (entry_price - c);
+            }
+            _ => {}
         }
     }
     v
@@ -122,15 +127,12 @@ fn nav_v(
 
 /// 主入口（`PolarityMode::UnifiedVoice` 经 `run_positional` 分派至此）。
 /// 零 flag——磁带能力是统一配置的前提（全词汇要求，缺行即拒绝）。
-/// 三 bool 仅为预注册消融臂（U3c/M7-a 失败语义的定位工具；部署形态
-/// fusion_v 恒全 true）：r4_exit = R4 双侧出口；gated_landing = R14
-/// 削减落点 Gated（false ⇒ Flat 对照）；anc_freeze = freeze 递归传导
-/// （false ⇒ 仅自层对照）。
+/// anc_freeze 是唯一预注册消融臂（freeze 递归传导，false ⇒ 仅自层
+/// 对照；部署形态 fusion_v 恒 true）。R4/Gated 两轴已删除——前者链外
+/// 机制（L3 6/8 负），后者被字面翻空替代，无"翻空还是 Gated"的选择。
 pub(crate) fn run_unified_voice(
     tape: &SignalTape,
     floor_ladder: usize,
-    r4_exit_on: bool,
-    gated_landing: bool,
     anc_freeze: bool,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
@@ -179,12 +181,6 @@ pub(crate) fn run_unified_voice(
     let mut nest_fired: std::collections::HashMap<(usize, bool, i64), i64> =
         std::collections::HashMap::new();
 
-    // R4 出口锚（freeze 上升沿冻结；None = 窗口未武装）。
-    let mut r4_up_anchor: [Option<i64>; MAX_LADDER] = [None; MAX_LADDER];
-    let mut r4_dn_anchor: [Option<i64>; MAX_LADDER] = [None; MAX_LADDER];
-    let mut freeze_up_prev: [bool; MAX_LADDER] = [false; MAX_LADDER];
-    let mut freeze_dn_prev: [bool; MAX_LADDER] = [false; MAX_LADDER];
-
     // T2W 锁存（extreme = 被拒 type1 的事件价；R20 越极值清）。
     let mut t2w_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
     let mut t2w_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
@@ -210,7 +206,7 @@ pub(crate) fn run_unified_voice(
         }
 
         // ── 市场性质：中枢账本 + 振幅参照 + osc ③门参照 + candidate 离开
-        //    窗口的价格否定（049:68 当下读法——R4 出口与 osc h1 共用）──
+        //    窗口的价格否定（049:68 当下读法——osc h1 消费）──
         if let Some(evrows) = sig.bsp_events.as_deref() {
             for lad in FIRST_BSP_LADDER..MAX_LADDER {
                 book.ingest(lad, &evrows[lad], true, None);
@@ -307,45 +303,11 @@ pub(crate) fn run_unified_voice(
             if anc_freeze { (k..MAX_LADDER).any(self_dn) } else { self_dn(k) }
         };
 
-        // ── R4 出口锚维护（freeze 沿检测；上升沿冻结锚，下降沿清）──
-        for k in floor_ladder..MAX_LADDER {
-            let fu = freeze_up(k);
-            if fu && !freeze_up_prev[k] {
-                r4_up_anchor[k] =
-                    Some(book.alive(k).map_or(i64::MIN, |lc| lc.seg_start));
-            } else if !fu {
-                r4_up_anchor[k] = None;
-            }
-            freeze_up_prev[k] = fu;
-            let fd = freeze_dn(k);
-            if fd && !freeze_dn_prev[k] {
-                r4_dn_anchor[k] =
-                    Some(book.alive(k).map_or(i64::MIN, |lc| lc.seg_start));
-            } else if !fd {
-                r4_dn_anchor[k] = None;
-            }
-            freeze_dn_prev[k] = fd;
-        }
-        let r4_up_exit = |k: usize| {
-            r4_exit_on
-                && r4_up_anchor[k].is_some_and(|a| {
-                    book.alive(k).is_some_and(|lc| lc.seg_start > a)
-                        && !book.has_pending_departure(k)
-                })
-        };
-        let r4_dn_exit = |k: usize| {
-            r4_exit_on
-                && r4_dn_anchor[k].is_some_and(|a| {
-                    book.alive(k).is_some_and(|lc| lc.seg_start > a)
-                        && !book.has_pending_departure(k)
-                })
-        };
-
         // ── Φ 三值化（公共读数；MoveUp 优先 = 多头书满仓义务优先）──
         let phi = |k: usize| -> PhaseView {
-            if freeze_up(k) && !r4_up_exit(k) {
+            if freeze_up(k) {
                 PhaseView::MoveUp
-            } else if freeze_dn(k) && !r4_dn_exit(k) {
+            } else if freeze_dn(k) {
                 PhaseView::MoveDown
             } else {
                 PhaseView::Osc
@@ -357,12 +319,6 @@ pub(crate) fn run_unified_voice(
                 PhaseView::MoveUp => res.freeze_up_bars_by_ladder[k] += 1,
                 PhaseView::MoveDown => res.freeze_dn_bars_by_ladder[k] += 1,
                 PhaseView::Osc => {}
-            }
-            if freeze_up(k) && r4_up_exit(k) {
-                res.r4_up_exit_bars_by_ladder[k] += 1;
-            }
-            if freeze_dn(k) && r4_dn_exit(k) {
-                res.r4_dn_exit_bars_by_ladder[k] += 1;
             }
         }
 
@@ -459,8 +415,13 @@ pub(crate) fn run_unified_voice(
                     t2w_sell[k] = Some(t2w_sell[k].map_or(px, |x| x.max(px)));
                 }
             } else {
-                // 削减（hold26 在册）→ R14 默认落点 Gated（方向承诺 d=−1、
-                // 市场暴露 0；三组活跃义务在阶段 C 的 Gated 分支消费）。
+                // 翻转断面（②平旧→③开新；概念链第19环字面实现：卖点
+                // 确认 ⇒ voice LONG→SHORT）。M = N 同股数定理：units =
+                // 平多股数（26:34 单位数量纲）；1x 虚拟逐仓 margin =
+                // units×c = 平多所得 ⇒ 翻转 bar pool 净流转 0（断面无
+                // 渗漏）。同 bar 同价、会计分两行 trade（段归属核算硬
+                // 要求，不可合并）。翻空时点 = 触发词汇本身（nest 正向
+                // 触发先于 confirmed 到达 ⇒ 区间套定位的时间坐标）。
                 pool += shares * c;
                 let reason = if sig.sell_any.get(k) {
                     "sellpt"
@@ -471,9 +432,6 @@ pub(crate) fn run_unified_voice(
                 };
                 if reason == "t2w_sell" {
                     res.n_t2w_fires_by_ladder[k] += 1;
-                }
-                if r4_up_exit(k) {
-                    res.n_r4_up_trims_by_ladder[k] += 1;
                 }
                 res.trades.push(LayerTrade {
                     ladder: k as u8,
@@ -489,14 +447,16 @@ pub(crate) fn run_unified_voice(
                     polarity: Polarity::Long,
                 });
                 res.n_exits_by_ladder[k] += 1;
-                if gated_landing {
-                    layers[k] = LayerState::Gated { entry_bar: i as i64, weight };
-                    res.n_gate_enters_by_ladder[k] += 1;
-                } else {
-                    // 消融对照（fusion_v_flat）：落点 Flat——Gated 三组
-                    // 义务门（MoveDown 停回补/R2 c≤ZD/MoveUp 强制）摘除。
-                    layers[k] = LayerState::Flat;
-                }
+                let margin = shares * c;
+                pool -= margin;
+                layers[k] = LayerState::Short {
+                    entry_bar: i as i64,
+                    entry_price: c,
+                    units: shares,
+                    weight,
+                    margin,
+                };
+                res.n_flip_shorts_by_ladder[k] += 1;
                 t2w_sell[k] = None;
             }
         }
@@ -545,17 +505,49 @@ pub(crate) fn run_unified_voice(
                     unreachable!("fusion_v 无 ARMED 相位——confirmed 事件直接消费")
                 }
                 LayerState::Long { .. } => {}
-                LayerState::Short { .. } => {
-                    unreachable!("fusion_v 无线性空头书——R14 默认落点 Gated")
-                }
-                // ── Gated（d=−1 逻辑态的零暴露执行形态）：三组活跃义务
-                //    （R15/R16 + MoveDown 停回复 + 空侧 R2 门）──
-                LayerState::Gated { weight: _, .. } => {
-                    res.gate_held_bars_by_ladder[k] += 1;
+                // ── 空头书出口集（翻转断面的对偶面）。优先序：逐仓强平
+                //    （物理事件）→ MoveUp 强制平空翻多（49:52 满仓义务
+                //    镜像：空头前提消失）→ 买点回补翻多（MoveDown 停
+                //    回补 / 空侧 R2 位置门 + T2W 第二窗口）──
+                LayerState::Short { entry_bar, entry_price, units, weight, margin } => {
+                    res.short_held_bars_by_ladder[k] += 1;
+                    let equity_k = margin + units * (entry_price - c);
+                    let cover = |exit_price: f64,
+                                 exit_reason: &'static str,
+                                 pool: &mut f64,
+                                 res: &mut PositionalResult| {
+                        // 1x 逐仓：损失上界 = margin（强平价记账 ⇒ 现金
+                        // 流出恰为全部 margin，逐 trade 重建零渗漏）。
+                        *pool += margin + units * (entry_price - exit_price);
+                        res.short_net_cash_by_ladder[k] +=
+                            units * (entry_price - exit_price);
+                        res.trades.push(LayerTrade {
+                            ladder: k as u8,
+                            entry_bar,
+                            entry_price,
+                            exit_bar: i as i64,
+                            exit_price,
+                            shares: units,
+                            weight_at_entry: weight,
+                            deferred_bars: 0,
+                            partial: false,
+                            exit_reason,
+                            polarity: Polarity::Short,
+                        });
+                        res.n_exits_by_ladder[k] += 1;
+                    };
                     let t2w_bfire = t2w_buy[k].is_some() && conf_buy2(k);
-                    if phi(k) == PhaseView::MoveUp {
-                        // R16：Φ 翻回 MoveUp ⇒ 强制回复（049:52 满仓义务）。
-                        res.n_gate_moveup_restores_by_ladder[k] += 1;
+                    if equity_k <= 0.0 {
+                        // 虚拟逐仓强平：1x 解析强平价 = 2×entry_price
+                        // （margin = units×entry_price 的 equity=0 解）。
+                        cover(2.0 * entry_price, "short_liquidated", &mut pool, &mut res);
+                        res.n_short_liquidations_by_ladder[k] += 1;
+                        layers[k] = LayerState::Flat;
+                        t2w_buy[k] = None;
+                    } else if phi(k) == PhaseView::MoveUp {
+                        // R16：Φ 翻回 MoveUp ⇒ 强制平空翻多（049:52）。
+                        cover(c, "cover_moveup", &mut pool, &mut res);
+                        res.n_short_moveup_covers_by_ladder[k] += 1;
                         layers[k] = enter_or_defer(
                             k, i as i64, i as i64, c, bar_nav, &thetas, theta_total,
                             &mut pool, &mut res,
@@ -583,13 +575,19 @@ pub(crate) fn run_unified_voice(
                                     Some(t2w_buy[k].map_or(px, |x| x.min(px)));
                             }
                         } else {
-                            res.n_gate_restores_by_ladder[k] += 1;
-                            if !sig.buy_any.get(k) && !nf_buy[k] {
+                            // 镜像断面：平空 → enter_or_defer 翻多重配额。
+                            let reason = if sig.buy_any.get(k) {
+                                "cover_buypt"
+                            } else if nf_buy[k] {
+                                "cover_nest"
+                            } else {
+                                "cover_t2w"
+                            };
+                            if reason == "cover_t2w" {
                                 res.n_t2w_fires_by_ladder[k] += 1;
                             }
-                            if r4_dn_exit(k) {
-                                res.n_r4_dn_restores_by_ladder[k] += 1;
-                            }
+                            cover(c, reason, &mut pool, &mut res);
+                            res.n_short_covers_by_ladder[k] += 1;
                             layers[k] = enter_or_defer(
                                 k, i as i64, i as i64, c, bar_nav, &thetas,
                                 theta_total, &mut pool, &mut res,
@@ -597,6 +595,9 @@ pub(crate) fn run_unified_voice(
                             t2w_buy[k] = None;
                         }
                     }
+                }
+                LayerState::Gated { .. } => {
+                    unreachable!("fusion_v 无 Gated——字面翻空替代（概念链第19环）")
                 }
             }
         }
@@ -606,11 +607,39 @@ pub(crate) fn run_unified_voice(
         }
     }
 
-    // ── eod：全层收口（Gated 无遗留账务——现金已在削减 bar 入 pool；
-    //    osc 在外腿悬置收口，所得已在 pool）──
+    // ── eod：全层收口（空头层按市价平空，末 bar 跳穿逐仓界则按强平价
+    //    记账——与阶段 C 强平同一会计口径；osc 在外腿悬置收口，所得已
+    //    在 pool）──
     let last_close = tape.bars[n - 1].close;
     for k in floor_ladder..MAX_LADDER {
-        if let LayerState::Gated { .. } = layers[k] {
+        if let LayerState::Short { entry_bar, entry_price, units, weight, margin } =
+            layers[k]
+        {
+            let equity_k = margin + units * (entry_price - last_close);
+            let (exit_price, exit_reason) = if equity_k <= 0.0 {
+                (2.0 * entry_price, "short_liquidated")
+            } else {
+                (last_close, "eod")
+            };
+            pool += margin + units * (entry_price - exit_price);
+            res.short_net_cash_by_ladder[k] += units * (entry_price - exit_price);
+            if exit_reason == "short_liquidated" {
+                res.n_short_liquidations_by_ladder[k] += 1;
+            }
+            res.trades.push(LayerTrade {
+                ladder: k as u8,
+                entry_bar,
+                entry_price,
+                exit_bar: n as i64 - 1,
+                exit_price,
+                shares: units,
+                weight_at_entry: weight,
+                deferred_bars: 0,
+                partial: false,
+                exit_reason,
+                polarity: Polarity::Short,
+            });
+            res.n_exits_by_ladder[k] += 1;
             layers[k] = LayerState::Flat;
             continue;
         }
@@ -649,6 +678,7 @@ pub(crate) fn run_unified_voice(
 
 #[cfg(test)]
 mod tests {
+    use super::super::config::SUB_COST_MIN_OBS;
     use super::super::positional::{run_positional, PolarityMode};
     use super::*;
     use crate::trading::tape::BarSig;
@@ -707,9 +737,9 @@ mod tests {
             .collect()
     }
 
-    /// 部署形态（全 true）。
+    /// 部署形态。
     fn full_v() -> PolarityMode {
-        PolarityMode::UnifiedVoice { r4_exit: true, gated_landing: true, anc_freeze: true }
+        PolarityMode::UnifiedVoice { anc_freeze: true }
     }
 
     fn run_v(
@@ -730,29 +760,12 @@ mod tests {
     fn parse_fusion_v() {
         assert_eq!(PolarityMode::parse("fusion_v"), Some(full_v()));
         assert_eq!(
-            PolarityMode::parse("fusion_v_nor4"),
-            Some(PolarityMode::UnifiedVoice {
-                r4_exit: false,
-                gated_landing: true,
-                anc_freeze: true
-            })
-        );
-        assert_eq!(
-            PolarityMode::parse("fusion_v_flat"),
-            Some(PolarityMode::UnifiedVoice {
-                r4_exit: true,
-                gated_landing: false,
-                anc_freeze: true
-            })
-        );
-        assert_eq!(
             PolarityMode::parse("fusion_v_self"),
-            Some(PolarityMode::UnifiedVoice {
-                r4_exit: true,
-                gated_landing: true,
-                anc_freeze: false
-            })
+            Some(PolarityMode::UnifiedVoice { anc_freeze: false })
         );
+        // 已删除的消融臂（R4 链外机制 / Gated 落点）不再可解析。
+        assert_eq!(PolarityMode::parse("fusion_v_nor4"), None);
+        assert_eq!(PolarityMode::parse("fusion_v_flat"), None);
     }
 
     #[test]
@@ -778,30 +791,62 @@ mod tests {
     }
 
     #[test]
-    fn trim_lands_in_gated_and_restores_on_buy() {
-        // R14 默认落点：削减后 Gated（非 Flat）；买点回复（R15 门放行）。
+    fn trim_flips_short_and_covers_on_buy() {
+        // R14 字面翻空：卖点确认 ⇒ LONG→SHORT 真实开空（概念链第19环）；
+        // 买点确认 ⇒ 平空翻多（镜像断面）。空头腿在下跌段挣钱。
         let mut bars = warmup(2);
         bars.push(buypt(bar(100.0), 2)); // 入场 @100
-        bars.push(sellpt(bar(100.0), 2)); // 削减（Osc 相、c=100≥ZG=51）→ Gated
-        bars.push(buypt(bar(40.0), 2)); // 买点 @40 ≤ ZD=50 → 回复
+        bars.push(sellpt(bar(100.0), 2)); // 削减（Osc 相、c=100≥ZG=51）→ 开空 @100
+        bars.push(buypt(bar(40.0), 2)); // 买点 @40 ≤ ZD=50 → 平空翻多
         bars.push(bar(40.0));
         let r = run_v(bars, vec![], vec![]);
-        assert_eq!(r.n_gate_enters_by_ladder[2], 1, "削减落点 Gated");
-        assert_eq!(r.n_gate_restores_by_ladder[2], 1, "买点回复");
+        assert_eq!(r.n_flip_shorts_by_ladder[2], 1, "削减翻空");
+        assert_eq!(r.n_short_covers_by_ladder[2], 1, "买点平空翻多");
         assert_eq!(r.n_entries_by_ladder[2], 2);
+        // 空头腿净现金 = units×(100−40) > 0（下跌段直接收割）。
+        assert!(r.short_net_cash_by_ladder[2] > 0.0);
+        let sh: Vec<_> = r
+            .trades
+            .iter()
+            .filter(|t| t.ladder == 2 && t.polarity == Polarity::Short)
+            .collect();
+        assert_eq!(sh.len(), 1);
+        assert_eq!(sh[0].exit_reason, "cover_buypt");
     }
 
     #[test]
-    fn gated_restore_blocked_above_zd() {
+    fn short_cover_blocked_above_zd() {
         // R15 空侧位置门：Osc 相中 c > ZD ⇒ 回补拦截（049:64 镜像）。
         let mut bars = warmup(2);
         bars.push(buypt(bar(100.0), 2));
-        bars.push(sellpt(bar(100.0), 2)); // → Gated
-        bars.push(buypt(bar(80.0), 2)); // 80 > ZD=50 ⇒ 拦截
+        bars.push(sellpt(bar(100.0), 2)); // → Short @100
+        bars.push(buypt(bar(80.0), 2)); // 80 > ZD=50 ⇒ 拦截（继续持空）
         bars.push(bar(80.0));
         let r = run_v(bars, vec![], vec![]);
         assert_eq!(r.n_short_r2_blocks_by_ladder[2], 1, "ZD 上方回补拦截");
-        assert_eq!(r.n_gate_restores_by_ladder[2], 0);
+        assert_eq!(r.n_short_covers_by_ladder[2], 0);
+    }
+
+    #[test]
+    fn short_liquidates_at_2x_entry() {
+        // 1x 虚拟逐仓强平：c ≥ 2×entry ⇒ 层权益 ≤ 0，按强平价 2×entry
+        // 记账（损失上界 = margin，确认滞后的结构税有界化）。
+        let mut bars = warmup(2);
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(100.0), 2)); // → Short @100，强平价 200
+        bars.push(bar(230.0)); // 跳穿强平界
+        bars.push(bar(230.0));
+        let r = run_v(bars, vec![], vec![]);
+        assert_eq!(r.n_short_liquidations_by_ladder[2], 1);
+        let sh: Vec<_> = r
+            .trades
+            .iter()
+            .filter(|t| t.ladder == 2 && t.polarity == Polarity::Short)
+            .collect();
+        assert_eq!(sh.len(), 1);
+        assert_eq!(sh[0].exit_price, 200.0, "强平价 = 2×entry");
+        // 全 margin 蒸发：NAV = 0（损失有界 = margin）。
+        assert!(r.final_nav.abs() < 1e-6);
     }
 
     #[test]
@@ -812,8 +857,6 @@ mod tests {
         bars.push(sellpt(bar(110.0), 2)); // 祖先 freeze ⇒ 停削
         bars.push(bar(110.0));
         let w = SUB_COST_MIN_OBS as i64;
-        // 行注入在 warmup 后（锚 cs 在 warmup 期间递增——freeze 上升沿若在
-        // warmup 内，新锚会立即满足 R4 出口判据，污染停削断言）。
         let r = run_v(
             bars,
             vec![(w + 1, 3, Direction::Up)],
@@ -828,24 +871,24 @@ mod tests {
     }
 
     #[test]
-    fn movedown_blocks_restore_until_flip() {
-        // MoveDown 停回补（49:52 镜像）：freeze_dn 中买点拦截；翻 Osc 后回复。
+    fn movedown_blocks_cover_until_flip() {
+        // MoveDown 停回补（49:52 镜像）：freeze_dn 中买点拦截（满空仓
+        // 义务）；翻 Osc 后平空翻多。
         let mut bars = warmup(2);
         bars.push(buypt(bar(100.0), 2)); // 入场
-        bars.push(sellpt(bar(90.0), 2)); // MoveDown 中卖点削减放行（逃命）→ Gated
-        bars.push(buypt(bar(40.0), 2)); // freeze_dn ⇒ 停回补
-        bars.push(buypt(bar(40.0), 2)); // 翻 Osc（行注入）⇒ 回复 @40≤ZD
+        bars.push(sellpt(bar(90.0), 2)); // MoveDown 中卖点削减放行（逃命）→ Short @90
+        bars.push(buypt(bar(40.0), 2)); // freeze_dn ⇒ 停回补（持空吃下跌）
+        bars.push(buypt(bar(40.0), 2)); // 翻 Osc（行注入）⇒ 平空翻多 @40≤ZD
         bars.push(bar(40.0));
         let w = SUB_COST_MIN_OBS as i64;
-        // freeze_dn 上升沿在 warmup 后（锚污染规避同 freeze_up 测试）。
         let r = run_v(
             bars,
             vec![(w, 2, Direction::Down)],
             vec![(w, 2, true), (w + 3, 2, false)],
         );
         assert_eq!(r.n_short_trend_holds_by_ladder[2], 1, "MoveDown 停回补");
-        assert_eq!(r.n_gate_restores_by_ladder[2], 1, "翻 Osc 后回复");
-        // MoveDown 中削减不被停削/位置门拦（多头逃命语义）。
+        assert_eq!(r.n_short_covers_by_ladder[2], 1, "翻 Osc 后平空翻多");
+        // MoveDown 中削减不被停削/位置门拦（多头逃命语义）→ 翻空。
         let t2: Vec<_> = r
             .trades
             .iter()
@@ -853,34 +896,8 @@ mod tests {
             .collect();
         assert_eq!(t2.len(), 1);
         assert_eq!(t2[0].exit_price, 90.0);
-    }
-
-    #[test]
-    fn r4_exit_reopens_trim_on_new_center() {
-        // R4 多侧出口：freeze_up 进入时锚=中枢 cs=10..；新中枢（cs 更大）
-        // 形成 ⇒ 出口开 ⇒ 削减词汇重开（049:54 后半）。
-        let mut bars = warmup(2);
-        bars.push(buypt(bar(100.0), 2)); // 入场（Osc 相——行在 w+1 注入）
-        bars.push(sellpt(bar(100.0), 2)); // freeze_up ⇒ 停削
-        // 新中枢出现（cs=900 > 锚）⇒ R4 出口开。
-        bars.push(with_anchor(bar(100.0), 2, 900, 50.0, 51.0));
-        bars.push(sellpt(bar(100.0), 2)); // 出口窗口内削减放行
-        bars.push(bar(100.0));
-        let w = SUB_COST_MIN_OBS as i64;
-        let r = run_v(
-            bars,
-            vec![(w + 1, 2, Direction::Up)],
-            vec![(w + 1, 2, true)],
-        );
-        assert_eq!(r.n_trend_holds_by_ladder[2], 1, "出口前停削");
-        assert_eq!(r.n_r4_up_trims_by_ladder[2], 1, "出口窗口内削减");
-        let t2: Vec<_> = r
-            .trades
-            .iter()
-            .filter(|t| t.ladder == 2 && t.exit_reason == "sellpt")
-            .collect();
-        assert_eq!(t2.len(), 1, "R4 出口削减成交");
-        assert!(r.r4_up_exit_bars_by_ladder[2] >= 1);
+        // 空头腿 @90→@40：净现金为正（MoveDown 持空 = 下跌段收割）。
+        assert!(r.short_net_cash_by_ladder[2] > 0.0);
     }
 
     #[test]
@@ -949,14 +966,17 @@ mod tests {
     }
 
     #[test]
-    fn nav_conservation_with_gated() {
-        // Gated 期 NAV = pool（现金已变现）；逐 trade 重建与 final_nav 一致。
+    fn nav_accounting_through_flip() {
+        // 翻转断面会计：翻转 bar pool 净流转 0（M=N，margin = 平多所得）；
+        // 持空期价格上涨 = 空头浮亏，eod 平空兑现。
         let mut bars = warmup(2);
-        bars.push(buypt(bar(100.0), 2));
-        bars.push(sellpt(bar(110.0), 2)); // 削减 @110 → Gated
-        bars.push(bar(120.0)); // Gated 期价格上涨不影响 NAV
+        bars.push(buypt(bar(100.0), 2)); // 1000 股 @100
+        bars.push(sellpt(bar(110.0), 2)); // 平多 @110（+10000）→ 开空 @110
+        bars.push(bar(120.0)); // 空头浮亏 −10000
         bars.push(bar(120.0));
         let r = run_v(bars, vec![], vec![]);
-        assert!((r.final_nav - 110_000.0).abs() < 1e-6, "Gated 持币 NAV 守恒");
+        // 110000（平多后）− 10000（空头腿 110→120）= 100000。
+        assert!((r.final_nav - 100_000.0).abs() < 1e-6, "翻转断面 NAV 守恒");
+        assert!((r.short_net_cash_by_ladder[2] + 10_000.0).abs() < 1e-6);
     }
 }

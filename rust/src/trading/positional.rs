@@ -285,16 +285,6 @@ pub struct PositionalResult {
     pub freeze_up_bars_by_ladder: [u64; MAX_LADDER],
     /// Φ(k)=MoveDown 有效驻留 bar 数（freeze_dn ∧ ¬R4 镜像出口；停回补窗口）。
     pub freeze_dn_bars_by_ladder: [u64; MAX_LADDER],
-    /// R4 多侧出口窗口驻留（freeze_up 内新中枢已形成 ⇒ 短差词汇重开；
-    /// 049:54 后半"新中枢形成后短差恢复"；U3c 可观测量）。
-    pub r4_up_exit_bars_by_ladder: [u64; MAX_LADDER],
-    /// R4 镜像出口窗口驻留（freeze_dn 内新中枢已形成 ⇒ 回补词汇重开；
-    /// 049:54 镜像 [镜像推导]；U3m 可观测量）。
-    pub r4_dn_exit_bars_by_ladder: [u64; MAX_LADDER],
-    /// R4 多侧出口窗口内实际发生的削减次数（出口现金面归因分子）。
-    pub n_r4_up_trims_by_ladder: [u64; MAX_LADDER],
-    /// R4 镜像出口窗口内实际发生的回补次数。
-    pub n_r4_dn_restores_by_ladder: [u64; MAX_LADDER],
     /// T2W 锁存武装次数（R18：confirmed type1 动作被门拒 ⇒ 第二翻转窗口
     /// 武装；053:28 二分定理）。双侧合计。
     pub n_t2w_arms_by_ladder: [u64; MAX_LADDER],
@@ -520,18 +510,19 @@ pub enum PolarityMode {
         seq38_sub: bool,
     },
     /// v4：统一递归 voice FSM（fusion_v；`unified_voice.rs`；
-    /// `analysis/unified_recursive_voice_fsm_design.md` v2 §10 Phase 1）。
+    /// `analysis/unified_recursive_voice_fsm_design.md` v2 §10 Phase 1 +
+    /// 概念链修正 2026-06-12：删 R4（链外机制，L3 6/8 负）+ 字面翻空
+    /// 替代 Gated（概念链第19环："走势终完美对涨跌都成立 ⇒ 卖点翻空
+    /// 买点翻多 ⇒ 永远有方向"）。
     /// **零概念开关**——唯一参数 = a0（磁带粒度）。所有在册 flag 轴换成
     /// 走势结构自动读数：Φ 三值化（freeze_d 极性协变递归传导，275号同构）、
-    /// R4 双侧 49:54 出口、R14 默认落点 Gated（全层，M7-a 普适形态）、
+    /// R14 字面翻空全层（M=N 同股数翻转断面，1x 虚拟逐仓）、
     /// nest 双侧恒开（027课程序定理）、统一 osc 三门恒开（35:30/93:26/
     /// 49:68）、R18-20 T2W 第二翻转窗口（053:28/086:80）。
     /// 在册 Fusion 路径零接触（新入口，GH2 先例）。
-    /// 三 bool = 消融臂（诊断工具非部署开关，M 系列同款）：
-    /// fusion_v = 全 true；fusion_v_nor4 关 R4 双侧出口；fusion_v_flat
-    /// 削减落点回 Flat（Gated 义务门消融）；fusion_v_self freeze 仅自层
-    /// （递归传导消融）。
-    UnifiedVoice { r4_exit: bool, gated_landing: bool, anc_freeze: bool },
+    /// anc_freeze = 唯一消融臂（诊断工具非部署开关）：fusion_v = true；
+    /// fusion_v_self freeze 仅自层（递归传导消融）。
+    UnifiedVoice { anc_freeze: bool },
 }
 
 impl PolarityMode {
@@ -617,26 +608,8 @@ impl PolarityMode {
             "cycle45" => Some(PolarityMode::Cycle45),
             "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
-            "fusion_v" => Some(PolarityMode::UnifiedVoice {
-                r4_exit: true,
-                gated_landing: true,
-                anc_freeze: true,
-            }),
-            "fusion_v_nor4" => Some(PolarityMode::UnifiedVoice {
-                r4_exit: false,
-                gated_landing: true,
-                anc_freeze: true,
-            }),
-            "fusion_v_flat" => Some(PolarityMode::UnifiedVoice {
-                r4_exit: true,
-                gated_landing: false,
-                anc_freeze: true,
-            }),
-            "fusion_v_self" => Some(PolarityMode::UnifiedVoice {
-                r4_exit: true,
-                gated_landing: true,
-                anc_freeze: false,
-            }),
+            "fusion_v" => Some(PolarityMode::UnifiedVoice { anc_freeze: true }),
+            "fusion_v_self" => Some(PolarityMode::UnifiedVoice { anc_freeze: false }),
             "fusion" => fusion(true, true, false),
             "fusion_t" => fusion(true, false, false),
             "fusion_s" => fusion(false, true, false),
@@ -818,10 +791,8 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
-    if let PolarityMode::UnifiedVoice { r4_exit, gated_landing, anc_freeze } = mode {
-        return super::unified_voice::run_unified_voice(
-            tape, floor_ladder, r4_exit, gated_landing, anc_freeze,
-        );
+    if let PolarityMode::UnifiedVoice { anc_freeze } = mode {
+        return super::unified_voice::run_unified_voice(tape, floor_ladder, anc_freeze);
     }
     if let PolarityMode::Fusion {
         trend_hold,

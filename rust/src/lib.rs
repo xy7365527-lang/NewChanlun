@@ -2096,19 +2096,6 @@ fn run_positional_rust(
     // 统一递归 voice FSM（fusion_v）观测面（其余模式恒零）
     out.set_item("freeze_up_bars_by_ladder", res.freeze_up_bars_by_ladder.to_vec())?;
     out.set_item("freeze_dn_bars_by_ladder", res.freeze_dn_bars_by_ladder.to_vec())?;
-    out.set_item(
-        "r4_up_exit_bars_by_ladder",
-        res.r4_up_exit_bars_by_ladder.to_vec(),
-    )?;
-    out.set_item(
-        "r4_dn_exit_bars_by_ladder",
-        res.r4_dn_exit_bars_by_ladder.to_vec(),
-    )?;
-    out.set_item("n_r4_up_trims_by_ladder", res.n_r4_up_trims_by_ladder.to_vec())?;
-    out.set_item(
-        "n_r4_dn_restores_by_ladder",
-        res.n_r4_dn_restores_by_ladder.to_vec(),
-    )?;
     out.set_item("n_t2w_arms_by_ladder", res.n_t2w_arms_by_ladder.to_vec())?;
     out.set_item("n_t2w_fires_by_ladder", res.n_t2w_fires_by_ladder.to_vec())?;
     out.set_item("n_t2w_negates_by_ladder", res.n_t2w_negates_by_ladder.to_vec())?;
