@@ -2589,6 +2589,16 @@ nodes:
   status: 已结算
   type: 概念分离
   file: settled/532-seg-end-trigger-axis-split.md
+- id: '533'
+  title: 结构滞后于价格的三层判据时效谱型——confirmed（不可达）→candidate（滞后）→价格事件（即时）
+  status: 已结算
+  type: 概念分离
+  file: settled/533-structure-lags-price-spectrum.md
+- id: '533'
+  title: 结构滞后于价格的三层判据时效谱型——confirmed（不可达）→ candidate（滞后）→ 价格事件（即时）
+  status: 已结算
+  type: 概念分离
+  file: settled/533-structure-lags-price-spectrum.md
 edges:
   depends_on:
   - from: '136'
@@ -5393,8 +5403,16 @@ edges:
     to: '230'
   - from: '532'
     to: '267'
+  - from: '533'
+    to: '231'
+  - from: '533'
+    to: '532'
   - from: '532'
     to: '525'
+  - from: '533'
+    to: '231'
+  - from: '533'
+    to: '532'
   triggered:
   - from: '005'
     to: 005a
