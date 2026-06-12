@@ -1876,7 +1876,11 @@ fn run_recursive_rust(
 /// 自动满足）。设计：`analysis/positional_fugue_design.md`。
 /// mode ∈ {"cycle45"（v1 每层独立45课循环，否证基线）,
 ///         "hold26"（26课恒仓：任意卖点削减/任意买点回复）,
-///         "hold26_t1"（卖点词汇收窄为 type1）}。
+///         "hold26_t1"（卖点词汇收窄为 type1）,
+///         "fusion"/"fusion_t"/"fusion_s"/"fusion_e"/"fusion_se"/"fusion_t{gdb}"
+///         （B+C 合体家族）,
+///         "fusion_u"（统一配置 U：fusion_t 基座 + 相位递归路由 osc 层，
+///          2026-06-12 任务）, "fusion_uw"（U−③ 强震荡门消融臂，预注册 P5）}。
 #[pyfunction]
 #[pyo3(signature = (tape, floor_ladder = 2, mode = "hold26"))]
 fn run_positional_rust(
@@ -1962,6 +1966,61 @@ fn run_positional_rust(
         res.n_sub_pool_topup_by_ladder.to_vec(),
     )?;
     out.set_item("sub_net_cash_by_ladder", res.sub_net_cash_by_ladder.to_vec())?;
+    // 统一配置 U（fusion_u）观测面（P3 机制可观测性；其余模式恒零）
+    out.set_item("n_osc_opens_by_ladder", res.n_osc_opens_by_ladder.to_vec())?;
+    out.set_item(
+        "n_osc_upshift_opens_by_ladder",
+        res.n_osc_upshift_opens_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_osc_open_at_level", res.n_osc_open_at_level.to_vec())?;
+    out.set_item("n_osc_out_bars_by_ladder", res.n_osc_out_bars_by_ladder.to_vec())?;
+    out.set_item(
+        "n_osc_up_out_bars_by_ladder",
+        res.n_osc_up_out_bars_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_route_phase_skips", res.n_route_phase_skips.to_vec())?;
+    out.set_item("n_route_no_center", res.n_route_no_center.to_vec())?;
+    out.set_item("n_route_amp_rejects", res.n_route_amp_rejects.to_vec())?;
+    out.set_item("n_route_amp_noref", res.n_route_amp_noref.to_vec())?;
+    out.set_item("n_route_weak_rejects", res.n_route_weak_rejects.to_vec())?;
+    out.set_item("n_route_weak_noref", res.n_route_weak_noref.to_vec())?;
+    out.set_item(
+        "n_route_selected_by_level",
+        res.n_route_selected_by_level.to_vec(),
+    )?;
+    out.set_item("n_route_exhausted", res.n_route_exhausted)?;
+    out.set_item(
+        "n_osc_zd_restores_by_ladder",
+        res.n_osc_zd_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_osc_death_restores_by_ladder",
+        res.n_osc_death_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_osc_shift_restores_by_ladder",
+        res.n_osc_shift_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_osc_kbuy_restores_by_ladder",
+        res.n_osc_kbuy_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_osc_phase_restores_by_ladder",
+        res.n_osc_phase_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item(
+        "n_osc_due_restores_by_ladder",
+        res.n_osc_due_restores_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_osc_escalates_by_ladder", res.n_osc_escalates_by_ladder.to_vec())?;
+    out.set_item(
+        "n_osc_sell3_vetos_by_ladder",
+        res.n_osc_sell3_vetos_by_ladder.to_vec(),
+    )?;
+    out.set_item("n_osc_restore_defer_bars", res.n_osc_restore_defer_bars)?;
+    out.set_item("osc_net_cash_by_ladder", res.osc_net_cash_by_ladder.to_vec())?;
+    out.set_item("osc_net_cash_at_level", res.osc_net_cash_at_level.to_vec())?;
     Ok(out.into())
 }
 

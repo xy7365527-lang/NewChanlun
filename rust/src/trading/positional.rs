@@ -119,6 +119,52 @@ pub struct PositionalResult {
     pub n_sub_pool_topup_by_ladder: [u64; MAX_LADDER],
     /// 层内短差净现金（Σ 卖出所得 − 接回成本；降成本的会计读数）。
     pub sub_net_cash_by_ladder: [f64; MAX_LADDER],
+    // ── 统一配置 U（fusion_u：相位递归路由 osc 层）观测面；其余模式恒零。
+    //    全部 n_route_* 计数共享调用方预滤条件"本 bar sell_any≠0"
+    //    （unified_osc::route docstring）──
+    /// osc 开腿数（按宿主层 k）。
+    pub n_osc_opens_by_ladder: [u64; MAX_LADDER],
+    /// 上移开腿数（路由层 j > 宿主层 k）。
+    pub n_osc_upshift_opens_by_ladder: [u64; MAX_LADDER],
+    /// osc 开腿数（按路由层 j——P3"各级别路由计数 n_route(j)"）。
+    pub n_osc_open_at_level: [u64; MAX_LADDER],
+    /// 在外 bar 数（按宿主层；P3 槽占用率分子之一）。
+    pub n_osc_out_bars_by_ladder: [u64; MAX_LADDER],
+    /// 上移腿在外 bar 数（P3"上移腿独立槽占用率"）。
+    pub n_osc_up_out_bars_by_ladder: [u64; MAX_LADDER],
+    /// ① 相位门跳过数（按被跳过级别 j——趋势相上移的逐级读数）。
+    pub n_route_phase_skips: [u64; MAX_LADDER],
+    /// 对象不存在（j 层无存活中枢——非门拒，基底缺位）。
+    pub n_route_no_center: [u64; MAX_LADDER],
+    /// ② 振幅门拒（θ_q(j) < k×friction）。
+    pub n_route_amp_rejects: [u64; MAX_LADDER],
+    /// ② 参照不可定义拒（warm-up 保守拒绝，不静默放行）。
+    pub n_route_amp_noref: [u64; MAX_LADDER],
+    /// ③ 强震荡门拒（当前震荡脱离前上涨最后中枢区间 = 弱震荡，093:26）。
+    pub n_route_weak_rejects: [u64; MAX_LADDER],
+    /// ③ 参照不可定义拒（该层从未有 dir==Up 的存活中枢）。
+    pub n_route_weak_noref: [u64; MAX_LADDER],
+    /// 路由选中数（按级别 j；选中 ≠ 开腿——触发判据另查）。
+    pub n_route_selected_by_level: [u64; MAX_LADDER],
+    /// 全塔拒绝数（无满足级别 ⇒ 恒仓吃趋势，053:34）。
+    pub n_route_exhausted: u64,
+    /// 回补归因（一 bar 一动作，优先序见 unified_osc::step_exit）。
+    pub n_osc_zd_restores_by_ladder: [u64; MAX_LADDER],
+    pub n_osc_death_restores_by_ladder: [u64; MAX_LADDER],
+    pub n_osc_shift_restores_by_ladder: [u64; MAX_LADDER],
+    pub n_osc_kbuy_restores_by_ladder: [u64; MAX_LADDER],
+    pub n_osc_phase_restores_by_ladder: [u64; MAX_LADDER],
+    pub n_osc_due_restores_by_ladder: [u64; MAX_LADDER],
+    /// 44课铰链升级出清数（本层卖点先到，身份事后授予为减仓）。
+    pub n_osc_escalates_by_ladder: [u64; MAX_LADDER],
+    /// 三卖否决 latch 置位数（049:52"不能回补"）。
+    pub n_osc_sell3_vetos_by_ladder: [u64; MAX_LADDER],
+    /// osc 回补义务因资金不足推迟的 bar 数。
+    pub n_osc_restore_defer_bars: u64,
+    /// osc 短差净现金（按宿主层 k）。
+    pub osc_net_cash_by_ladder: [f64; MAX_LADDER],
+    /// osc 短差净现金（按路由层 j——P4"上移腿净亏"直读）。
+    pub osc_net_cash_at_level: [f64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
@@ -181,6 +227,19 @@ impl TrendAxisOpts {
     }
 }
 
+/// 统一配置 U 的 osc 层开关（相位递归路由，2026-06-12 任务；
+/// `unified_osc.rs` 模块 docstring 为完整原文锚定）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OscRouting {
+    /// 无 osc 层（在册 fusion 家族全部形态——零接触退化面）。
+    #[default]
+    Off,
+    /// 三门合取递归路由：①¬in_trend(j)（049:52）× ②θ_q(j) 过振幅门
+    /// （035:30，H4 逐字）× ③强震荡（093:26）。strong_gate=false =
+    /// U−③ 消融臂（预注册判据 P5：③是本架构唯一新词汇，必须单独消融）。
+    Unified { strong_gate: bool },
+}
+
 /// 仓位极性模式——v1 否证（BTC L2：P1 ✗ −3.32 nats / P3 ✗ +152%）后从
 /// 26课:34 字面回读出的范畴对立：
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -220,11 +279,16 @@ pub enum PolarityMode {
     /// - `trend_opts`：T 轴严格化三选项（41课衰竭门 / 49课:54 背驰出场 /
     ///   49课:60 三买起点），见 `TrendAxisOpts`。要求 trend_hold（T 轴的
     ///   修饰子，无 T 轴即无对象）⇒ 入口拒绝。
+    /// - `osc`：统一配置 U 的 osc 层（相位递归路由，2026-06-12 任务；
+    ///   `unified_osc.rs`）。要求 trend_hold（U 定义在 fusion_t 基座上）、
+    ///   拒 counter_sub（同层 slice 双在外冲突未定义）、拒 trend_opts
+    ///   （未预注册组合）⇒ 入口拒绝。Off = 在册行为零接触。
     Fusion {
         trend_hold: bool,
         counter_sub: bool,
         decoupled: bool,
         trend_opts: TrendAxisOpts,
+        osc: OscRouting,
     },
 }
 
@@ -236,6 +300,17 @@ impl PolarityMode {
                 counter_sub,
                 decoupled,
                 trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Off,
+            })
+        };
+        // 统一配置 U：fusion_t 基座 + 相位递归路由 osc 层。
+        let unified = |strong_gate: bool| {
+            Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Unified { strong_gate },
             })
         };
         match s {
@@ -247,6 +322,9 @@ impl PolarityMode {
             "fusion_s" => fusion(false, true, false),
             "fusion_e" => fusion(true, true, true),
             "fusion_se" => fusion(false, true, true),
+            "fusion_u" => unified(true),
+            // U−③ 消融臂（预注册 P5：93:26 强震荡门是唯一新词汇，单独消融）
+            "fusion_uw" => unified(false),
             // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
             other => {
                 let rest = other.strip_prefix("fusion_t")?;
@@ -278,6 +356,7 @@ impl PolarityMode {
                     counter_sub: false,
                     decoupled: false,
                     trend_opts: opts,
+                    osc: OscRouting::Off,
                 })
             }
         }
@@ -290,7 +369,9 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
-    if let PolarityMode::Fusion { trend_hold, counter_sub, decoupled, trend_opts } = mode {
+    if let PolarityMode::Fusion { trend_hold, counter_sub, decoupled, trend_opts, osc } =
+        mode
+    {
         return super::positional_fusion::run_fusion(
             tape,
             floor_ladder,
@@ -298,6 +379,7 @@ pub fn run_positional(
             counter_sub,
             decoupled,
             trend_opts,
+            osc,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {

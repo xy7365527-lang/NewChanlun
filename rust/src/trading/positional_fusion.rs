@@ -67,10 +67,11 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::positional::{
-    enter_or_defer, theta_weights, LayerState, LayerTrade, PositionalResult,
-    TrendAxisOpts, EQUITY_SAMPLE_BARS,
+    enter_or_defer, theta_weights, LayerState, LayerTrade, OscRouting,
+    PositionalResult, TrendAxisOpts, EQUITY_SAMPLE_BARS,
 };
 use super::tape::SignalTape;
+use super::unified_osc::{OscLayer, OscOut};
 use super::types::{
     BspClass, BspEvent, DivEvent, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER,
 };
@@ -80,8 +81,9 @@ use crate::stroke::Direction;
 /// 35课成本门参数——逐字复用 `OrganicConfig` 默认（sub_cost_k=2.0,
 /// sub_friction_rt=0.001；231号零新参数纪律；单测
 /// `cost_gate_constants_match_organic_defaults` 守护漂移）。
-const SUB_COST_K: f64 = 2.0;
-const SUB_FRICTION_RT: f64 = 0.001;
+/// pub(crate)：统一配置 U 的②振幅门（unified_osc.rs）逐字消费同常数。
+pub(crate) const SUB_COST_K: f64 = 2.0;
+pub(crate) const SUB_FRICTION_RT: f64 = 0.001;
 
 /// 层内 C 短差的在外态（44课铰链：身份未决——回补=短差 / k 级卖点=减仓）。
 #[derive(Debug, Clone, Copy)]
@@ -120,10 +122,12 @@ fn sub_close_trigger(evs: &[BspEvent], devs: &[DivEvent]) -> bool {
 }
 
 /// NAV：pool + 专款 + 各层在市股数（短差在外的层其价值是现金——耦合模式
-/// 在 pool、解耦模式在该层 escrow；两种表示 NAV 恒等）。
+/// 在 pool、解耦模式在该层 escrow；两种表示 NAV 恒等。U 的 osc 在外腿
+/// 同理：所得已在 pool——耦合资金语义 escrow≡0，跳过股数计值）。
 fn nav_fusion(
     layers: &[LayerState; MAX_LADDER],
     subs: &[Option<SubOut>; MAX_LADDER],
+    oscs: &[Option<OscOut>; MAX_LADDER],
     cash: f64,
     c: f64,
     floor: usize,
@@ -132,6 +136,9 @@ fn nav_fusion(
     for k in floor..MAX_LADDER {
         if let Some(sub) = subs[k] {
             v += sub.escrow;
+            continue;
+        }
+        if oscs[k].is_some() {
             continue;
         }
         if let LayerState::Long { shares, .. } = layers[k] {
@@ -200,6 +207,7 @@ fn try_restore(
 }
 
 /// 主入口（`PolarityMode::Fusion` 经 `run_positional` 分派至此）。
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_fusion(
     tape: &SignalTape,
     floor_ladder: usize,
@@ -207,6 +215,7 @@ pub(crate) fn run_fusion(
     counter_sub: bool,
     capital_decoupled: bool,
     opts: TrendAxisOpts,
+    osc_routing: OscRouting,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -262,6 +271,37 @@ pub(crate) fn run_fusion(
                 .to_string(),
         );
     }
+    if osc_routing != OscRouting::Off {
+        // 统一配置 U 的定义域守卫（fusion_u/fusion_uw）：U := fusion_t 基座
+        // + 相位递归路由 osc 层（research §3.2）。基座之外的组合未预注册，
+        // 显式拒绝（声明=能力）。
+        if !trend_hold {
+            return Err(
+                "OscRouting::Unified 定义在 fusion_t 基座上（049:52 二相停削\
+                 ——①相位门与基座共用同一趋势相时钟）；trend_hold=false 组合\
+                 未预注册，显式拒绝"
+                    .to_string(),
+            );
+        }
+        if counter_sub {
+            return Err(
+                "OscRouting::Unified 与 counter_sub 互斥——两机制都全抛本层\
+                 slice（同一笔筹码不能同时按两种节奏在外），组合未定义，\
+                 显式拒绝"
+                    .to_string(),
+            );
+        }
+        if opts.any() {
+            return Err(
+                "OscRouting::Unified × TrendAxisOpts 组合未预注册（U 的基座 = \
+                 fusion_t 逐字，T 轴严格化臂在册判决均为否证/近 no-op），\
+                 显式拒绝"
+                    .to_string(),
+            );
+        }
+        // ①相位门与③参照需要 trend+dir 行——trend_hold 守卫已强制，此处
+        // 不重复（U 的 trend_hold 恒真）。
+    }
 
     let n = tape.bars.len();
     let mut res = PositionalResult::default();
@@ -270,6 +310,12 @@ pub(crate) fn run_fusion(
     let mut pool = INITIAL_CAPITAL;
     let mut book = CenterBook::new();
     let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
+    // 统一配置 U 的 osc 层（Off 时恒空——fusion_t 在册路径零接触退化）。
+    let mut osc_layer = OscLayer::new();
+    let (osc_on, osc_strong) = match osc_routing {
+        OscRouting::Off => (false, false),
+        OscRouting::Unified { strong_gate } => (true, strong_gate),
+    };
 
     // D3/趋势滚动状态（runner.rs 同构：稀疏翻转行 → 逐 bar 视图）。
     let flips: &[(i64, u8, Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
@@ -318,6 +364,12 @@ pub(crate) fn run_fusion(
             sig.bsp_events.as_deref().unwrap_or(&empty_evs);
         let devrows: &[Vec<DivEvent>; MAX_LADDER] =
             sig.div_events.as_deref().unwrap_or(&empty_devs);
+
+        // ③门参照刷新（093:26"上涨的最后一个中枢"——dir==Up 期间跟随存活
+        // 中枢，翻落即冻结快照；市场性质，与持仓无关）。
+        if osc_on {
+            osc_layer.observe_refs(&book, &dir_state);
+        }
 
         // gate41 衰竭证据 / b3 窗口的事件流更新（在相位判定之前——同 bar
         // 事件即时生效，与 dir/trend 行的翻转语义一致）。
@@ -384,6 +436,11 @@ pub(crate) fn run_fusion(
             !(p < MAX_LADDER && dir_state[p] == Some(Direction::Down) && !down_exhaust[p])
         };
         let in_trend = |k: usize| in_trend_raw(k) && gate41_pass(k);
+        // U 的①相位门时钟：纯结构读数（trend_state ∧ dir==Up，049:52），
+        // 不叠加 trend_opts 修饰（U 守卫已拒 opts，与 in_trend_raw 在 U 的
+        // 定义域内逐位等值——独立闭包是声明边界，不是行为分叉）。
+        let phase_up =
+            |k: usize| trend_state[k] && dir_state[k] == Some(Direction::Up);
 
         // ── 阶段 A：层级出场 / 44课铰链 / 回补（资金释放先于一切入场；
         //    回补义务在本阶段处理 ⇒ 对 pool 的优先权高于阶段 C 新入场）──
@@ -395,7 +452,14 @@ pub(crate) fn run_fusion(
             };
             res.held_bars_by_ladder[k] += 1;
             let tp = in_trend(k);
-            if let Some(sub) = subs[k] {
+            if osc_layer.outs[k].is_some() {
+                // ── 统一配置 U：osc 在外腿出口集（满仓义务/铰链/回补，
+                //    unified_osc::step_exit；与 subs 互斥由入口守卫保证）──
+                osc_layer.step_exit(
+                    k, c, i as i64, sig, &phase_up, &book, &mut layers, &mut pool,
+                    &mut res,
+                );
+            } else if let Some(sub) = subs[k] {
                 if tp {
                     // 049:52 满仓义务：趋势相开始 ⇒ 强制回补（对象域消失）。
                     if try_restore(k, c, i as i64, &mut pool, &mut layers, &mut subs, &mut res)
@@ -518,9 +582,26 @@ pub(crate) fn run_fusion(
             }
         }
 
+        // ── 阶段 B'：统一配置 U 的 osc 开腿（相位递归路由——三门合取找
+        //    第一个合法级别 j，触发判据 c≥ZG(j)∧sub_sell(j−1)；先卖后买，
+        //    股数→现金等价转换 ⇒ NAV 不变，阶段 C 快照不受先后影响）。
+        //    sell_any≠0 预滤：无任何次级别卖证据的 bar 任何层都不可能触发
+        //    开腿（纯性能预滤，路由计数共享此条件——n_route_* 字段声明）──
+        if osc_on && sig.sell_any.0 != 0 {
+            for k in floor_ladder..MAX_LADDER {
+                if osc_layer.outs[k].is_some() {
+                    continue;
+                }
+                osc_layer.try_open(
+                    k, c, i as i64, sig, osc_strong, &phase_up, &book, &depth_ref,
+                    &layers, &mut pool, &mut res,
+                );
+            }
+        }
+
         // ── 阶段 C：入场/回复（hold26 同构：confirmed 买点直接消费，无
         //    ARMED；ladder 降序——大级别优先拿配额）──
-        let bar_nav = nav_fusion(&layers, &subs, pool, c, floor_ladder);
+        let bar_nav = nav_fusion(&layers, &subs, &osc_layer.outs, pool, c, floor_ladder);
         let (thetas, theta_total) = theta_weights(&depth_ref, floor_ladder);
         for k in (floor_ladder..MAX_LADDER).rev() {
             match layers[k] {
@@ -564,13 +645,15 @@ pub(crate) fn run_fusion(
         else {
             continue;
         };
-        let (exit_bar, exit_price, sh) = match subs[k] {
-            Some(sub) => {
+        let (exit_bar, exit_price, sh) = match (subs[k], osc_layer.outs[k]) {
+            (Some(sub), _) => {
                 // 义务在 eod 悬置收口 ⇒ 专款释放（耦合模式 escrow=0）。
                 pool += sub.escrow;
                 (sub.sell_bar, sub.sell_price, sub.shares)
             }
-            None => {
+            // U 的 osc 在外腿悬置收口（所得已在 pool，铰链未及裁决）。
+            (None, Some(osc)) => (osc.sell_bar, osc.sell_price, osc.shares),
+            (None, None) => {
                 pool += shares * last_close;
                 (n as i64 - 1, last_close, shares)
             }
@@ -590,6 +673,7 @@ pub(crate) fn run_fusion(
         res.n_exits_by_ladder[k] += 1;
         layers[k] = LayerState::Flat;
         subs[k] = None;
+        osc_layer.outs[k] = None;
     }
     res.final_nav = pool;
     Ok(res)
@@ -710,13 +794,25 @@ mod tests {
         assert_eq!(SUB_FRICTION_RT, d.sub_friction_rt, "摩擦参数与 OrganicConfig 默认漂移");
     }
 
-    /// 测试构造捷径：trend_opts 全默认的 Fusion。
+    /// 测试构造捷径：trend_opts 全默认、无 osc 层的 Fusion。
     fn fz(trend_hold: bool, counter_sub: bool, decoupled: bool) -> PolarityMode {
         PolarityMode::Fusion {
             trend_hold,
             counter_sub,
             decoupled,
             trend_opts: TrendAxisOpts::default(),
+            osc: OscRouting::Off,
+        }
+    }
+
+    /// 测试构造捷径：统一配置 U（fusion_u/fusion_uw）。
+    fn fu(strong_gate: bool) -> PolarityMode {
+        PolarityMode::Fusion {
+            trend_hold: true,
+            counter_sub: false,
+            decoupled: false,
+            trend_opts: TrendAxisOpts::default(),
+            osc: OscRouting::Unified { strong_gate },
         }
     }
 
@@ -756,6 +852,7 @@ mod tests {
             counter_sub: false,
             decoupled: false,
             trend_opts: TrendAxisOpts { gate41: g, div_exit: d, b3_start: b },
+            osc: OscRouting::Off,
         };
         assert_eq!(PolarityMode::parse("fusion_tg"), Some(opt(true, false, false)));
         assert_eq!(PolarityMode::parse("fusion_td"), Some(opt(false, true, false)));
@@ -776,6 +873,7 @@ mod tests {
                 counter_sub: true,
                 decoupled: false,
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
+                osc: OscRouting::Off,
             }
         )
         .is_err());
@@ -801,6 +899,7 @@ mod tests {
                 counter_sub: false,
                 decoupled: false,
                 trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
+                osc: OscRouting::Off,
             }
         )
         .is_err());
@@ -1337,5 +1436,302 @@ mod tests {
         let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
         assert_eq!(t2[0].exit_reason, "sellpt");
         assert_eq!(t2[0].exit_price, 99.0);
+    }
+
+    // ───────────────── 统一配置 U（fusion_u：相位递归路由）─────────────────
+
+    #[test]
+    fn parse_fusion_u_modes_and_guards() {
+        assert_eq!(PolarityMode::parse("fusion_u"), Some(fu(true)));
+        assert_eq!(PolarityMode::parse("fusion_uw"), Some(fu(false)));
+        // !trend_hold × osc 层（counter_sub=true 绕过 Hold26 冗余守卫）⇒ 拒
+        let t = SignalTape { bars: warmup34(), ..Default::default() };
+        assert!(run_positional(
+            &t,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: false,
+                counter_sub: true,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Unified { strong_gate: true },
+            }
+        )
+        .is_err());
+        // counter_sub × osc 层（同层 slice 双在外）⇒ 拒
+        let t2 = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t2,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: false,
+                trend_opts: TrendAxisOpts::default(),
+                osc: OscRouting::Unified { strong_gate: true },
+            }
+        )
+        .is_err());
+        // trend_opts × osc 层（未预注册组合）⇒ 拒
+        let t3 = SignalTape {
+            bars: warmup34(),
+            dir_flips: Some(vec![]),
+            trend_flips: Some(vec![]),
+            ..Default::default()
+        };
+        assert!(run_positional(
+            &t3,
+            2,
+            PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+                trend_opts: TrendAxisOpts { gate41: true, ..Default::default() },
+                osc: OscRouting::Unified { strong_gate: true },
+            }
+        )
+        .is_err());
+    }
+
+    /// ③参照不可定义（该层从未 dir==Up）⇒ 全塔拒绝 ⇒ 逐位退化为 fusion_t
+    /// （P2"最坏应退化为不开"的构造性验证）。
+    #[test]
+    fn fusion_u_degenerates_to_fusion_t_when_routing_rejects() {
+        let mk = || {
+            let mut bars = warmup2();
+            bars.push(buypt(bar(100.0), 2));
+            bars.push(sellpt(bar(100.0), 1)); // 次级别卖证据（触发面非空）
+            bars.push(bar(110.0));
+            bars
+        };
+        let u = run_with_rows(mk(), "fusion_u", Some(vec![]), Some(vec![]));
+        let ft = run_with_rows(mk(), "fusion_t", Some(vec![]), Some(vec![]));
+        assert_eq!(u.n_osc_opens_by_ladder[2], 0);
+        assert!(u.n_route_weak_noref[2] >= 1, "③参照不可定义保守拒");
+        assert!(u.n_route_exhausted >= 1, "全塔拒绝可观测");
+        assert!((u.final_nav - ft.final_nav).abs() < 1e-9, "退化面 NAV 恒等");
+    }
+
+    /// 本层震荡相三门全过 ⇒ 在宿主层开腿；ZD 触线兑现（L0 定理）。
+    #[test]
+    fn fusion_u_opens_home_level_and_zd_restores() {
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2)); // 1000 股 @100（w₂=1.0）
+        bars.push(sellpt(bar(100.0), 1)); // 开腿：c=100 ≥ ZG=51 ∧ sub_sell
+        bars.push(bar(50.0)); // ZD=50 触线 → 回补
+        bars.push(bar(60.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_osc_opens_by_ladder[2], 1);
+        assert_eq!(r.n_osc_open_at_level[2], 1, "宿主层路由（j==k）");
+        assert_eq!(r.n_osc_upshift_opens_by_ladder[2], 0);
+        assert_eq!(r.n_osc_zd_restores_by_ladder[2], 1);
+        assert!((r.osc_net_cash_by_ladder[2] - 50_000.0).abs() < 1e-6);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "osc_diff");
+        assert_eq!(t2[0].exit_price, 100.0);
+        assert_eq!(t2[1].entry_price, 50.0, "接回点重锚");
+        // 100000 + 1000×(100−50) 短差 + 1000×(60−100) 持有 = 110000
+        assert!((r.final_nav - 110_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    /// 宿主层趋势相 ⇒ ①门上移，j=k+1 三门过 ⇒ 上移开腿（H3 重路由的
+    /// 递归形式；同 bar 本层卖点停削与上移开腿并行）。
+    #[test]
+    fn fusion_u_routes_upward_when_home_in_trend() {
+        let mut bars: Vec<BarSig> = (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| {
+                let b = with_anchor(bar(100.0), 2, 10 + j, 50.0, 51.0);
+                with_anchor(b, 3, 100 + j, 50.0, 53.0)
+            })
+            .collect();
+        bars.push(buypt(bar(100.0), 2)); // 250 股 @100（w₂=0.25）
+        bars.push(sellpt(bar(100.0), 2)); // k=2 卖点：停削 + j=3 的 sub 证据
+        bars.push(bar(50.0)); // ZD(3)=50 触线 → 回补
+        bars.push(bar(50.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up), (0, 3, Direction::Up)]),
+            Some(vec![(0, 2, true)]), // 层2 趋势相
+        );
+        assert_eq!(r.n_trend_holds_by_ladder[2], 1, "基座停削零接触");
+        assert!(r.n_route_phase_skips[2] >= 1, "①门上移可观测");
+        assert_eq!(r.n_osc_opens_by_ladder[2], 1);
+        assert_eq!(r.n_osc_upshift_opens_by_ladder[2], 1);
+        assert_eq!(r.n_osc_open_at_level[3], 1, "路由层 j=3");
+        assert!(r.n_osc_up_out_bars_by_ladder[2] >= 1, "上移腿槽占用可观测");
+        assert!((r.osc_net_cash_at_level[3] - 12_500.0).abs() < 1e-6);
+        // 250×(100−50) 短差对冲了 250×(50−100) 持有损失 ⇒ NAV 守恒
+        assert!((r.final_nav - 100_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    /// 全塔趋势 ⇒ 不开 osc，恒仓吃趋势（053:34）——与 fusion_t 逐位恒等。
+    #[test]
+    fn fusion_u_full_tower_trend_holds_like_fusion_t() {
+        let mk = || {
+            let mut bars = warmup2();
+            bars.push(buypt(bar(100.0), 2));
+            bars.push(sellpt(bar(110.0), 1));
+            bars.push(bar(120.0));
+            bars
+        };
+        let dirs: Vec<(i64, u8, Direction)> =
+            (2..MAX_LADDER as u8).map(|l| (0, l, Direction::Up)).collect();
+        let trends: Vec<(i64, u8, bool)> =
+            (2..MAX_LADDER as u8).map(|l| (0, l, true)).collect();
+        let u = run_with_rows(mk(), "fusion_u", Some(dirs.clone()), Some(trends.clone()));
+        let ft = run_with_rows(mk(), "fusion_t", Some(dirs), Some(trends));
+        assert_eq!(u.n_osc_opens_by_ladder[2], 0);
+        assert!(u.n_route_exhausted >= 1);
+        assert!((u.final_nav - ft.final_nav).abs() < 1e-9);
+        assert!((u.final_nav - 120_000.0).abs() < 1e-6, "恒仓吃趋势");
+    }
+
+    /// ③强震荡门：当前中枢整体跌落前上涨最后中枢区间之下 = 弱震荡拒开
+    /// （093:26）；fusion_uw（U−③ 消融臂）同磁带放行——P5 的机制隔离。
+    #[test]
+    fn fusion_u_weak_oscillation_rejected_uw_admits() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let mk = || {
+            let mut bars = warmup2(); // ref 随 dir==Up 冻结于 (50,51)
+            bars.push(with_anchor(bar(100.0), 2, 2000, 30.0, 40.0)); // 跌落中枢
+            bars.push(buypt(bar(100.0), 2));
+            bars.push(sellpt(bar(100.0), 1));
+            bars.push(bar(100.0));
+            bars
+        };
+        let rows = || {
+            (
+                Some(vec![(0, 2, Direction::Up), (w, 2, Direction::Down)]),
+                Some(vec![]),
+            )
+        };
+        let (d, t) = rows();
+        let u = run_with_rows(mk(), "fusion_u", d, t);
+        assert_eq!(u.n_osc_opens_by_ladder[2], 0);
+        assert!(u.n_route_weak_rejects[2] >= 1, "弱震荡拒可观测");
+        let (d2, t2) = rows();
+        let uw = run_with_rows(mk(), "fusion_uw", d2, t2);
+        assert_eq!(uw.n_osc_opens_by_ladder[2], 1, "③关闭后同磁带放行");
+    }
+
+    /// 三卖否决（049:52"一旦出现第三类卖点，就不能回补了"）：锚中枢被
+    /// confirmed Sell3 终结后 k 级买点不再回补，仅 ZD 触线（更低处）兑现。
+    #[test]
+    fn fusion_u_sell3_veto_blocks_kbuy_until_zd() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let anchor_cs = 10 + w - 1; // warmup2 最后一个中枢
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(100.0), 1)); // 开腿
+        bars.push(with_ev(bar(80.0), 2, ev_cs(BspClass::Sell3, anchor_cs)));
+        bars.push(buypt(bar(70.0), 2)); // k 买点——否决期不回补
+        bars.push(bar(50.0)); // ZD 触线 → 兑现
+        bars.push(bar(50.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_osc_sell3_vetos_by_ladder[2], 1);
+        assert_eq!(r.n_osc_kbuy_restores_by_ladder[2], 0, "否决期 k 买点不回补");
+        assert_eq!(r.n_osc_death_restores_by_ladder[2], 0, "三卖死亡不触发死亡回补");
+        assert_eq!(r.n_osc_zd_restores_by_ladder[2], 1, "更低处兑现");
+        assert!((r.osc_net_cash_by_ladder[2] - 50_000.0).abs() < 1e-6);
+    }
+
+    /// sc 中枢上移出口（049:54）：新中枢 ZD > 锚 ZG ⇒ 立即回补。
+    #[test]
+    fn fusion_u_shift_close_on_center_upmove() {
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(100.0), 1)); // 开腿（锚 zg=51）
+        bars.push(with_anchor(bar(100.0), 2, 3000, 60.0, 70.0)); // 新 ZD=60 > 51
+        bars.push(bar(100.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_osc_shift_restores_by_ladder[2], 1);
+        assert!((r.final_nav - 100_000.0).abs() < 1e-6, "同价往返 NAV 守恒");
+    }
+
+    /// 趋势相满仓义务（049:52）：路由层翻入趋势相 ⇒ 强制回补。
+    #[test]
+    fn fusion_u_phase_restore_on_trend_start() {
+        let w = SUB_COST_MIN_OBS as i64;
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(100.0), 1)); // 开腿（j=2）
+        bars.push(bar(95.0)); // bar w+2：层2 趋势相起点（行注入）→ 强制回补
+        bars.push(bar(110.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![(w + 2, 2, true)]),
+        );
+        assert_eq!(r.n_osc_phase_restores_by_ladder[2], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2[0].exit_reason, "osc_diff");
+        assert_eq!(t2[1].entry_price, 95.0, "满仓义务在触发 bar 接回");
+        // 1000×(100−95) 短差 + 1000×(110−100) 持有 = +15000
+        assert!((r.final_nav - 115_000.0).abs() < 1e-6, "nav={}", r.final_nav);
+    }
+
+    /// 44课铰链：osc 在外 + 本层卖点 ⇒ 升级为减仓出清（变现价 = 短差卖出价，
+    /// 身份事后授予——hinge_escalate 同构）。
+    #[test]
+    fn fusion_u_hinge_escalates_on_k_sellpt() {
+        let mut bars = warmup2();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(110.0), 1)); // 开腿 @110
+        bars.push(sellpt(bar(120.0), 2)); // 本层卖点 → 升级出清
+        bars.push(bar(130.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_osc_escalates_by_ladder[2], 1);
+        let t2: Vec<_> = r.trades.iter().filter(|t| t.ladder == 2).collect();
+        assert_eq!(t2.len(), 1);
+        assert_eq!(t2[0].exit_reason, "osc_escalate");
+        assert_eq!(t2[0].exit_price, 110.0);
+        assert!((r.final_nav - 110_000.0).abs() < 1e-6);
+    }
+
+    /// ②振幅门：θ_q < k×friction ⇒ 拒开（H4 逐字；035:30）。
+    #[test]
+    fn fusion_u_amp_gate_rejects_thin_level() {
+        // θ₂ = 0.01% < 2×0.1% ⇒ ②拒；全塔无其它候选 ⇒ 不开。
+        let mut bars: Vec<BarSig> = (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| with_anchor(bar(100.0), 2, 10 + j, 50.0, 50.01))
+            .collect();
+        bars.push(buypt(bar(100.0), 2));
+        bars.push(sellpt(bar(100.0), 1));
+        bars.push(bar(100.0));
+        let r = run_with_rows(
+            bars,
+            "fusion_u",
+            Some(vec![(0, 2, Direction::Up)]),
+            Some(vec![]),
+        );
+        assert_eq!(r.n_osc_opens_by_ladder[2], 0);
+        assert!(r.n_route_amp_rejects[2] >= 1, "②拒可观测");
     }
 }
