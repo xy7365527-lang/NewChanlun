@@ -2584,6 +2584,11 @@ nodes:
   status: 已结算
   type: 矛盾发现
   file: settled/531-gamma-delta-1m-resolution-invariance.md
+- id: '532'
+  title: 38课段终结判定的单轴性被数据质询——master 出场语义与 voice REV 腿的概念分离
+  status: 已结算
+  type: 概念分离
+  file: settled/532-seg-end-trigger-axis-split.md
 edges:
   depends_on:
   - from: '136'
@@ -5386,6 +5391,10 @@ edges:
     to: '527'
   - from: '531'
     to: '230'
+  - from: '532'
+    to: '267'
+  - from: '532'
+    to: '525'
   triggered:
   - from: '005'
     to: 005a
