@@ -305,12 +305,6 @@ def make_ratio_kline(
     if sub_a is not None and sub_b is not None:
         if target_idx.empty:
             return _make_ratio_kline_naive(df_a, df_b)
-        sub_idx = sub_a.index.intersection(sub_b.index)
-        start, end = target_idx.min(), target_idx.max()
-        sub_idx = sub_idx[(sub_idx >= start) & (sub_idx <= end)]
-        sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
-        ratio = sa["close"] / sb["close"]
-        volume = sa["volume"] if "volume" in sa.columns else None
 
         freq = target_freq or _infer_target_freq(df_a.index)
         if freq is None:
@@ -320,6 +314,15 @@ def make_ratio_kline(
                 stacklevel=2,
             )
             return _make_ratio_kline_naive(df_a, df_b)
+
+        offset = pd.tseries.frequencies.to_offset(freq)
+        sub_idx = sub_a.index.intersection(sub_b.index)
+        start = target_idx.min()
+        end_exclusive = target_idx.max() + offset
+        sub_idx = sub_idx[(sub_idx >= start) & (sub_idx < end_exclusive)]
+        sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
+        ratio = sa["close"] / sb["close"]
+        volume = sa["volume"] if "volume" in sa.columns else None
 
         aggregated = _aggregate_ratio_to_kline(ratio, volume, freq)
         return aggregated.reindex(target_idx).dropna(subset=["open"])
