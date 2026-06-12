@@ -1935,6 +1935,10 @@ fn run_positional_rust(
         res.n_sub_noref_rejects_by_ladder.to_vec(),
     )?;
     out.set_item("n_sub_restore_defer_bars", res.n_sub_restore_defer_bars)?;
+    out.set_item(
+        "n_sub_pool_topup_by_ladder",
+        res.n_sub_pool_topup_by_ladder.to_vec(),
+    )?;
     out.set_item("sub_net_cash_by_ladder", res.sub_net_cash_by_ladder.to_vec())?;
     Ok(out.into())
 }

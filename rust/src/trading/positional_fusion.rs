@@ -46,8 +46,22 @@
 //! 短差卖出 = 股数→现金的等价转换（卖出 bar close 单一成交价，现金入
 //! pool）；接回 = 现金→同股数。trade 行的 exit_bar/exit_price 恒为实际
 //! 变现点 ⇒ 逐 trade 行重建 NAV 与 final_nav 逐位一致（回测脚本 assert）。
-//! 回补义务因 pool 不足推迟时逐 bar 重试（D7 推迟同构），且回补在阶段 A
+//! 回补义务因资金不足推迟时逐 bar 重试（D7 推迟同构），且回补在阶段 A
 //! 处理（先于一切新入场）——义务优先于配额（osc 僵尸腿判决：闭腿是义务）。
+//!
+//! ## C 轴资金解耦（capital_decoupled，fusion_e/fusion_se）
+//!
+//! 在册 fusion 判决的负交互机械根因 = 资金池耦合：T 轴满仓占资 ⇒ C 轴回补
+//! 义务推迟暴涨（BTC 133K → 874K bar，6.6×），推迟期被迫空仓追价
+//! （`hold26_counterseg_fusion_results.md` §3.3）。解耦 = **earmark**：
+//! 短差卖出所得不入共享池，锁定为该层回补专款——049:64"如数接回"义务语义
+//! 的资金面物理化（义务资金不可被其它层新入场挪用；优先权从"bar 内阶段 A
+//! 先于阶段 C"升级为"跨 bar 不可挪用"）。53课:34"该级别能容纳的资金量……
+//! 以后再说"留白区的资金语义之一，与耦合臂同为原文合法读法，回测裁决。
+//! 资金守恒：escrow 计入 NAV（nav_fusion）；回补先专款后池（追价 deficit
+//! 由池补差，topup 观测）；义务消灭点（铰链升级/eod）专款释放入池。
+//! 统一代数 `可用 = escrow + pool`：耦合臂 escrow≡0 ⇒ 行为逐位同旧
+//! （在册判决零漂移由构造保证，非守卫分支）。
 
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
@@ -76,8 +90,13 @@ struct SubOut {
     shares: f64,
     sell_bar: i64,
     sell_price: f64,
-    /// 回补触发已发生但 pool 不足 ⇒ 逐 bar 重试（D7 推迟同构）。
+    /// 回补触发已发生但资金不足 ⇒ 逐 bar 重试（D7 推迟同构）。
     restore_due: bool,
+    /// 回补义务专款（capital_decoupled：卖出所得 earmark 不入共享池，
+    /// 049:64"如数接回"义务语义的资金面物理化——义务资金不可被其它层
+    /// 新入场挪用）。耦合模式恒 0（所得直接入 pool）⇒ 下游全部资金公式
+    /// 以 escrow + pool 统一书写，escrow=0 时逐位退化为耦合行为。
+    escrow: f64,
 }
 
 /// 层内短差开（先卖）谓词——`SubMode::CounterSeg` 开腿三岔镜像的 Short 侧
@@ -100,7 +119,8 @@ fn sub_close_trigger(evs: &[BspEvent], devs: &[DivEvent]) -> bool {
             .any(|d| d.kind == DivKind::Consolidation && d.direction == Direction::Down)
 }
 
-/// NAV：pool + 各层在市股数（短差在外的层其价值已是 pool 现金）。
+/// NAV：pool + 专款 + 各层在市股数（短差在外的层其价值是现金——耦合模式
+/// 在 pool、解耦模式在该层 escrow；两种表示 NAV 恒等）。
 fn nav_fusion(
     layers: &[LayerState; MAX_LADDER],
     subs: &[Option<SubOut>; MAX_LADDER],
@@ -110,7 +130,8 @@ fn nav_fusion(
 ) -> f64 {
     let mut v = cash;
     for k in floor..MAX_LADDER {
-        if subs[k].is_some() {
+        if let Some(sub) = subs[k] {
+            v += sub.escrow;
             continue;
         }
         if let LayerState::Long { shares, .. } = layers[k] {
@@ -135,7 +156,8 @@ fn try_restore(
 ) -> bool {
     let sub = subs[k].expect("调用前提：subs[k] 为 Some");
     let cost = sub.shares * c;
-    if cost > *pool {
+    // 统一资金代数：可用 = 专款 + 池（耦合 escrow=0 ⇒ 判据/扣减逐位同旧）。
+    if cost > sub.escrow + *pool {
         subs[k] = Some(SubOut { restore_due: true, ..sub });
         res.n_sub_restore_defer_bars += 1;
         return false;
@@ -146,7 +168,12 @@ fn try_restore(
         unreachable!("sub 在外 ⇒ 本层恒 Long（sub 生命周期内层不变迁）")
     };
     debug_assert!((shares - sub.shares).abs() < 1e-12, "全抛/如数接回 ⇒ 股数恒等");
-    *pool -= cost;
+    // 先专款后池：escrow > cost ⇒ 盈余入池（差价利润释放为自由资金）；
+    // escrow < cost ⇒ 池补差（追价 regime，topup 观测）。
+    if sub.escrow > 0.0 && cost > sub.escrow {
+        res.n_sub_pool_topup_by_ladder[k] += 1;
+    }
+    *pool += sub.escrow - cost;
     res.sub_net_cash_by_ladder[k] += sub.shares * sub.sell_price - cost;
     res.trades.push(LayerTrade {
         ladder: k as u8,
@@ -178,6 +205,7 @@ pub(crate) fn run_fusion(
     floor_ladder: usize,
     trend_hold: bool,
     counter_sub: bool,
+    capital_decoupled: bool,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -192,6 +220,13 @@ pub(crate) fn run_fusion(
         return Err(
             "Fusion{trend_hold:false, counter_sub:false} 是 Hold26 的冗余表示\
              ——声明=能力，显式拒绝（Recursive base_frac=1 先例）"
+                .to_string(),
+        );
+    }
+    if capital_decoupled && !counter_sub {
+        return Err(
+            "capital_decoupled（C 轴回补义务专款）要求 counter_sub——专款的\
+             唯一对象是短差回补义务（049:64），无 C 轴即无对象，显式拒绝"
                 .to_string(),
         );
     }
@@ -281,7 +316,9 @@ pub(crate) fn run_fusion(
                     }
                 } else if sig.sell_any.get(k) {
                     // 044:44 铰链恶化升级：本层卖点先到 ⇒ 短差卖出升级为
-                    // 减仓（出清）。现金已在卖出 bar 入 pool——只改记账身份。
+                    // 减仓（出清）。回补义务消灭 ⇒ 专款释放入池（耦合模式
+                    // escrow=0，现金已在卖出 bar 入 pool）——只改记账身份。
+                    pool += sub.escrow;
                     res.trades.push(LayerTrade {
                         ladder: k as u8,
                         entry_bar,
@@ -365,12 +402,19 @@ pub(crate) fn run_fusion(
                     }
                     Some(_) => {}
                 }
-                pool += shares * c;
+                // 卖出所得：耦合 ⇒ 入共享池（自由资金）；解耦 ⇒ 锁定为
+                // 本层回补专款（earmark，不可被其它层新入场挪用）。
+                let proceeds = shares * c;
+                let escrow = if capital_decoupled { proceeds } else { 0.0 };
+                if !capital_decoupled {
+                    pool += proceeds;
+                }
                 subs[k] = Some(SubOut {
                     shares,
                     sell_bar: i as i64,
                     sell_price: c,
                     restore_due: false,
+                    escrow,
                 });
                 res.n_sub_opens_by_ladder[k] += 1;
             }
@@ -423,7 +467,11 @@ pub(crate) fn run_fusion(
             continue;
         };
         let (exit_bar, exit_price, sh) = match subs[k] {
-            Some(sub) => (sub.sell_bar, sub.sell_price, sub.shares),
+            Some(sub) => {
+                // 义务在 eod 悬置收口 ⇒ 专款释放（耦合模式 escrow=0）。
+                pool += sub.escrow;
+                (sub.sell_bar, sub.sell_price, sub.shares)
+            }
             None => {
                 pool += shares * last_close;
                 (n as i64 - 1, last_close, shares)
@@ -568,15 +616,43 @@ mod tests {
     fn parse_and_guards() {
         assert_eq!(
             PolarityMode::parse("fusion"),
-            Some(PolarityMode::Fusion { trend_hold: true, counter_sub: true })
+            Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: false
+            })
         );
         assert_eq!(
             PolarityMode::parse("fusion_t"),
-            Some(PolarityMode::Fusion { trend_hold: true, counter_sub: false })
+            Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false
+            })
         );
         assert_eq!(
             PolarityMode::parse("fusion_s"),
-            Some(PolarityMode::Fusion { trend_hold: false, counter_sub: true })
+            Some(PolarityMode::Fusion {
+                trend_hold: false,
+                counter_sub: true,
+                decoupled: false
+            })
+        );
+        assert_eq!(
+            PolarityMode::parse("fusion_e"),
+            Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: true
+            })
+        );
+        assert_eq!(
+            PolarityMode::parse("fusion_se"),
+            Some(PolarityMode::Fusion {
+                trend_hold: false,
+                counter_sub: true,
+                decoupled: true
+            })
         );
         let bars = warmup34();
         // Fusion{false,false} = Hold26 冗余表示 ⇒ 拒绝
@@ -584,7 +660,15 @@ mod tests {
         assert!(run_positional(
             &t,
             2,
-            PolarityMode::Fusion { trend_hold: false, counter_sub: false }
+            PolarityMode::Fusion { trend_hold: false, counter_sub: false, decoupled: false }
+        )
+        .is_err());
+        // decoupled 无 counter_sub = 专款无对象 ⇒ 拒绝
+        let td = SignalTape { bars: warmup34(), ..Default::default() };
+        assert!(run_positional(
+            &td,
+            2,
+            PolarityMode::Fusion { trend_hold: true, counter_sub: false, decoupled: true }
         )
         .is_err());
         // trend_hold 无 trend/dir 行 ⇒ 拒绝
@@ -592,7 +676,7 @@ mod tests {
         assert!(run_positional(
             &t2,
             2,
-            PolarityMode::Fusion { trend_hold: true, counter_sub: false }
+            PolarityMode::Fusion { trend_hold: true, counter_sub: false, decoupled: false }
         )
         .is_err());
         // counter_sub 无 div 磁带 ⇒ 拒绝（warmup34 不带 div 行时）
@@ -607,7 +691,7 @@ mod tests {
         assert!(run_positional(
             &t3,
             2,
-            PolarityMode::Fusion { trend_hold: false, counter_sub: true }
+            PolarityMode::Fusion { trend_hold: false, counter_sub: true, decoupled: false }
         )
         .is_err());
     }
@@ -840,6 +924,124 @@ mod tests {
         let r = run(bars, "fusion_s");
         assert!(r.n_sub_restore_defer_bars >= 1, "资金不足推迟计数");
         assert_eq!(r.n_sub_restores_by_ladder[4], 1, "义务最终补完");
+    }
+
+    /// 防挪用 warmup：θ₃=1%、θ₄=3% 双参照（解耦/耦合对照测试共用）。
+    fn warmup_dual() -> Vec<BarSig> {
+        (0..SUB_COST_MIN_OBS as i64)
+            .map(|j| {
+                let b = with_anchor(bar(100.0), 3, 10 + j, 50.0, 51.0);
+                let b = with_anchor(b, 4, 100 + j, 50.0, 53.0);
+                if j == 0 { with_empty_div(b) } else { b }
+            })
+            .collect()
+    }
+
+    /// 防挪用核心对照：sub 在外期间其它层入场吃池 → 回补触发。
+    /// 耦合臂：卖出所得已被 L3 入场挪用 ⇒ 推迟（在册负交互的机械形态）；
+    /// 解耦臂：专款不可挪用 ⇒ 立即回补、零推迟。同一磁带，唯一变量=资金语义。
+    #[test]
+    fn decoupled_escrow_prevents_misappropriation() {
+        let mk = || {
+            let mut bars = warmup_dual();
+            bars.push(buypt(bar(100.0), 4)); // L4 750股，pool=25000
+            bars.push(with_ev(bar(110.0), 3, ev(BspClass::Sell1))); // sub 开（所得 82500）
+            bars.push(buypt(bar(100.0), 3)); // L3 入场吃池
+            bars.push(with_ev(bar(108.0), 3, ev(BspClass::Buy1))); // 回补触发 @108
+            bars.push(bar(108.0)); // 重试 bar
+            bars.push(bar(95.0)); // 耦合臂在此才补完
+            bars.push(bar(95.0));
+            bars
+        };
+        let coupled = run(mk(), "fusion_s");
+        let dec = run(mk(), "fusion_se");
+        // 耦合：cost 81000 > pool 80625（L3 拿走 26875）⇒ 推迟两 bar，@95 补完
+        assert!(coupled.n_sub_restore_defer_bars >= 2, "耦合臂应推迟（在册形态）");
+        assert_eq!(coupled.n_sub_restores_by_ladder[4], 1);
+        // 解耦：escrow 82500 ≥ cost 81000 ⇒ @108 立即回补，零推迟零补差
+        assert_eq!(dec.n_sub_restore_defer_bars, 0, "专款兜底 ⇒ 义务零推迟");
+        assert_eq!(dec.n_sub_restores_by_ladder[4], 1);
+        assert_eq!(dec.n_sub_pool_topup_by_ladder[4], 0);
+        let t4: Vec<_> = dec.trades.iter().filter(|t| t.ladder == 4).collect();
+        assert_eq!(t4[1].entry_price, 108.0, "解耦臂在触发 bar 接回（重锚 @108）");
+        // 短差净现金：解耦 +1500（110→108）> 耦合 +11250（110→95）？否——
+        // 耦合臂推迟反而以更低价接回。解耦消除的是义务风险（追价敞口），
+        // 不保证单笔更优——此处只验证机制，优劣由回测裁决。
+        assert!((dec.sub_net_cash_by_ladder[4] - 1500.0).abs() < 1e-6);
+    }
+
+    /// 追价补差：回补价 > 卖出价 ⇒ 专款不足，池补差 + topup 观测。
+    #[test]
+    fn decoupled_topup_on_price_chase() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4)); // 750股，pool=25000
+        bars.push(with_ev(bar(110.0), 3, ev(BspClass::Sell1))); // escrow=82500
+        bars.push(with_ev(bar(112.0), 3, ev(BspClass::Buy1))); // cost=84000 追价
+        bars.push(bar(112.0));
+        let r = run(bars, "fusion_se");
+        assert_eq!(r.n_sub_restores_by_ladder[4], 1);
+        assert_eq!(r.n_sub_pool_topup_by_ladder[4], 1, "deficit 1500 由池补差");
+        assert!((r.sub_net_cash_by_ladder[4] + 1500.0).abs() < 1e-6);
+        // NAV = 100000 − 750×(112−110) + 750×(112−100) 持仓增值
+        assert!((r.final_nav - 107_500.0).abs() < 1e-6);
+    }
+
+    /// 池不约束时解耦与耦合 NAV 恒等（escrow 只改资金归属不改现金流）。
+    #[test]
+    fn decoupled_equals_coupled_when_pool_unbinding() {
+        let mk = || {
+            let mut bars = warmup34();
+            bars.push(buypt(bar(100.0), 4));
+            bars.push(with_ev(bar(110.0), 3, ev(BspClass::Sell1)));
+            bars.push(with_ev(bar(105.0), 3, ev(BspClass::Buy1)));
+            bars.push(bar(105.0));
+            bars
+        };
+        let coupled = run(mk(), "fusion_s");
+        let dec = run(mk(), "fusion_se");
+        assert!((coupled.final_nav - dec.final_nav).abs() < 1e-9);
+        assert!((dec.final_nav - 107_500.0).abs() < 1e-6);
+        assert_eq!(dec.n_sub_pool_topup_by_ladder[4], 0, "105 < 110 ⇒ 专款盈余入池");
+    }
+
+    /// 义务消灭点释放专款：铰链升级（本层卖点）⇒ escrow 入池，NAV 同耦合臂。
+    #[test]
+    fn decoupled_escrow_released_on_hinge_escalate() {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(with_ev(bar(110.0), 3, ev(BspClass::Sell1)));
+        bars.push(sellpt(bar(120.0), 4));
+        bars.push(bar(130.0));
+        let r = run(bars, "fusion_se");
+        assert_eq!(r.n_sub_escalates_by_ladder[4], 1);
+        assert!((r.final_nav - 107_500.0).abs() < 1e-6, "变现价恒为短差卖出价 110");
+    }
+
+    /// eod 悬置收口释放专款 + 价格不变往返 NAV 守恒（解耦版会计自检）。
+    #[test]
+    fn decoupled_nav_conservation_and_eod_release() {
+        // 组1：sub 在外至 eod ⇒ 专款释放，final_nav 含 escrow。
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(with_ev(bar(110.0), 3, ev(BspClass::Sell1)));
+        bars.push(bar(115.0)); // 无回补词汇 ⇒ 悬置
+        let r = run(bars, "fusion_se");
+        // pool 25000 + escrow 82500 = 107500（750×10 已变现）
+        assert!((r.final_nav - 107_500.0).abs() < 1e-6);
+        // 组2：价格不变完整往返 ⇒ NAV 守恒 + trade 行重建一致。
+        let mut bars2 = warmup34();
+        bars2.push(buypt(bar(100.0), 4));
+        bars2.push(with_ev(bar(100.0), 3, ev(BspClass::Sell1)));
+        bars2.push(with_ev(bar(100.0), 3, ev(BspClass::Buy1)));
+        bars2.push(sellpt(bar(100.0), 4));
+        bars2.push(bar(100.0));
+        let r2 = run(bars2, "fusion_se");
+        assert!((r2.final_nav - INITIAL_CAPITAL).abs() < 1e-9);
+        let mut pool = INITIAL_CAPITAL;
+        for t in &r2.trades {
+            pool += t.shares * (t.exit_price - t.entry_price);
+        }
+        assert!((pool - r2.final_nav).abs() < 1e-9);
     }
 
     #[test]

@@ -107,8 +107,12 @@ pub struct PositionalResult {
     pub n_sub_cost_rejects_by_ladder: [u64; MAX_LADDER],
     /// 成本门参照不可定义拒开（warm-up，保守拒绝不静默放行）。
     pub n_sub_noref_rejects_by_ladder: [u64; MAX_LADDER],
-    /// 回补义务因 pool 不足推迟的 bar 数（D7 推迟同构）。
+    /// 回补义务因资金不足推迟的 bar 数（D7 推迟同构；decoupled 下判据 =
+    /// escrow + pool 不足，专款兜底后仅追价 deficit 仍可推迟）。
     pub n_sub_restore_defer_bars: u64,
+    /// 解耦回补中专款不足、由共享池补差的次数（追价 regime 观测——
+    /// 回补成本 > 卖出所得 ⇔ 买回价 > 卖出价）。耦合模式恒零。
+    pub n_sub_pool_topup_by_ladder: [u64; MAX_LADDER],
     /// 层内短差净现金（Σ 卖出所得 − 接回成本；降成本的会计读数）。
     pub sub_net_cash_by_ladder: [f64; MAX_LADDER],
 }
@@ -171,7 +175,14 @@ pub enum PolarityMode {
     ///   震荡相中 k−1 级卖证据全抛本层 slice，k−1 买证据如数接回；
     ///   44课:44 铰链：卖出不预声明身份——本层卖点先到 = 升级为减仓（出清），
     ///   买回证据先到 = 短差（回补）。
-    Fusion { trend_hold: bool, counter_sub: bool },
+    /// - `decoupled`：C 轴资金解耦（earmark）——短差卖出所得不入共享池，
+    ///   锁定为该层回补专款（049:64"如数接回"义务语义的资金面物理化：
+    ///   义务资金不可被其它层新入场挪用）。53课"该级别能容纳的资金量……
+    ///   以后再说"留白区的一种资金语义，与耦合臂（在册判决基线）同为
+    ///   合法读法，优劣由回测裁决（fusion 负交互机械根因 = pool 耦合，
+    ///   `hold26_counterseg_fusion_results.md` §3.3/§5.2）。
+    ///   decoupled ∧ ¬counter_sub 无对象（专款只属于短差义务）⇒ 入口拒绝。
+    Fusion { trend_hold: bool, counter_sub: bool, decoupled: bool },
 }
 
 impl PolarityMode {
@@ -180,9 +191,31 @@ impl PolarityMode {
             "cycle45" => Some(PolarityMode::Cycle45),
             "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
-            "fusion" => Some(PolarityMode::Fusion { trend_hold: true, counter_sub: true }),
-            "fusion_t" => Some(PolarityMode::Fusion { trend_hold: true, counter_sub: false }),
-            "fusion_s" => Some(PolarityMode::Fusion { trend_hold: false, counter_sub: true }),
+            "fusion" => Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: false,
+            }),
+            "fusion_t" => Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: false,
+                decoupled: false,
+            }),
+            "fusion_s" => Some(PolarityMode::Fusion {
+                trend_hold: false,
+                counter_sub: true,
+                decoupled: false,
+            }),
+            "fusion_e" => Some(PolarityMode::Fusion {
+                trend_hold: true,
+                counter_sub: true,
+                decoupled: true,
+            }),
+            "fusion_se" => Some(PolarityMode::Fusion {
+                trend_hold: false,
+                counter_sub: true,
+                decoupled: true,
+            }),
             _ => None,
         }
     }
@@ -194,12 +227,13 @@ pub fn run_positional(
     floor_ladder: usize,
     mode: PolarityMode,
 ) -> Result<PositionalResult, String> {
-    if let PolarityMode::Fusion { trend_hold, counter_sub } = mode {
+    if let PolarityMode::Fusion { trend_hold, counter_sub, decoupled } = mode {
         return super::positional_fusion::run_fusion(
             tape,
             floor_ladder,
             trend_hold,
             counter_sub,
+            decoupled,
         );
     }
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
