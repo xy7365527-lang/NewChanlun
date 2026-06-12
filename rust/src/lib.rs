@@ -1745,6 +1745,18 @@ fn run_organic_rust(
     // H2 力度收敛门拒开逐事件 (ladder, bar, reason 0=新生/1=扩张) 日志
     // （osc_strength_gate——预注册判据1 时序靶的数据基础）
     counters.set_item("osc_sg_reject_log", res.counters.osc_sg_reject_log.clone())?;
+    // H4 滚动振幅准入拒开逐事件 (ladder, bar, reason 0=noref/1=振幅不足) 日志
+    // （osc_amp_gate——时序靶探针与 G3 双拒因分离的数据基础）
+    counters.set_item(
+        "osc_amp_reject_log",
+        res.counters.osc_amp_reject_log.clone(),
+    )?;
+    // H3 级别上移开腿逐事件 (槽层 ladder, bar) 日志（osc_domain=TrendUpshift
+    // ——重路由 vs 删除裁决的时序探针数据基础）
+    counters.set_item(
+        "osc_upshift_open_log",
+        res.counters.osc_upshift_open_log.clone(),
+    )?;
     out.set_item("counters", counters)?;
     out.set_item("rev_attempts_by_ladder", res.rev_attempts_by_ladder.to_vec())?;
     out.set_item("rev_opens_by_ladder", res.rev_opens_by_ladder.to_vec())?;
@@ -1787,7 +1799,9 @@ fn run_organic_rust(
                             (
                                 (
                                     r.slot.py_key(),
-                                    r.slot.leg_kind(),
+                                    // H3 上移腿投影为 "osc_up"（回测按腿分解上移腿
+                                    // 盈亏）；非 H3 变体 upshift 恒 false ⇒ 逐位不变
+                                    if r.upshift { "osc_up" } else { r.slot.leg_kind() },
                                     r.sell_bar,
                                     r.sell_price,
                                     r.buy_bar,

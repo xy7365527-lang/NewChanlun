@@ -78,6 +78,10 @@ pub struct LegTrace {
     pub shares_delta: f64,
     pub cost_basis_before: f64,
     pub cost_basis_after: f64,
+    /// H3 级别上移腿（AnchorKind::OscUp）——diag 导出时 leg_kind 投影为
+    /// "osc_up"（回测按腿分解上移腿盈亏的数据基础）。非 H3 变体恒 false
+    /// ⇒ 导出逐位不变（O0≡P5 零接触面）。
+    pub upshift: bool,
 }
 
 /// 共享仓位账本。字段对应 Python `OrganicLedger`（cost_basis+earning 折叠为
@@ -335,6 +339,10 @@ impl OrganicLedger {
                 shares_delta,
                 cost_basis_before: cb_before,
                 cost_basis_after: cb_after,
+                upshift: matches!(
+                    leg.anchor,
+                    LegAnchor::Center { kind: AnchorKind::OscUp, .. }
+                ),
             });
         }
     }

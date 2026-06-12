@@ -1147,6 +1147,19 @@ impl VoiceUnit {
     /// 域腿子循环 T3/T4（P5 逐字，从 step 尾块原样抽出——Single/Cycle38 两模式
     /// 共用；C2 正交：osc 不在任何相位/循环变体内）。
     #[allow(clippy::too_many_arguments)]
+    /// H4 滚动振幅准入判定（osc_amp_gate，纯读零副作用）：锚层典型中枢
+    /// 相对振幅 θ_q（DepthRef 因果滚动 P50）≥ theta_cost_k × friction_rt
+    /// ⇒ 准入。参照不可定义（warm-up，θ_q=None）⇒ 不准入（保守拒绝，
+    /// 拒因归因在调用方）。
+    fn osc_amp_admitted(cfg: &OrganicConfig, rows: &BarRows, k: usize) -> bool {
+        use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
+        let dr = rows.depth.expect(
+            "osc_amp_gate ⇒ 调用方必提供 DepthRef（capability，runner 恒提供）",
+        );
+        dr.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS)
+            .is_some_and(|theta_q| theta_q >= cfg.theta_cost_k * cfg.friction_rt)
+    }
+
     fn step_osc(
         &mut self,
         cfg: &OrganicConfig,
@@ -1166,15 +1179,20 @@ impl VoiceUnit {
         // anchor 是 Copy——复制快照规避 open_slot 借用与 close_diff &mut 冲突
         match ledger.open_slot(okey).map(|l| l.anchor) {
             Some(anchor) => match anchor {
-                LegAnchor::Center { cs, boundary, zg, .. } => {
-                    let o_dead = cs.is_some_and(|s| book.is_dead(k, s));
-                    let sub_buy = k >= 1 && rows.buy_any.get(k - 1);
+                LegAnchor::Center { cs, boundary, zg, kind } => {
+                    // H3 锚层解码（osc_domain=TrendUpshift）：OscUp 腿锚在
+                    // k+1 层中枢——全部出口判据（死亡/边界 sub_buy/上移出口）
+                    // 跟随锚层运行（出口跟随锚，不跟随槽）。非上移腿
+                    // alad==k 逐位不变（O0≡P5 零接触面）。
+                    let alad = if kind == AnchorKind::OscUp { k + 1 } else { k };
+                    let o_dead = cs.is_some_and(|s| book.is_dead(alad, s));
+                    let sub_buy = alad >= 1 && rows.buy_any.get(alad - 1);
                     // 49课方向判据：只有三卖（向下终结）触发"不能回补"；
                     // 三买（向上终结）按"中枢向上移动时就应该满仓"立即回补。
                     let o_dead_down = cfg.osc_sell3_no_recover
-                        && cs.is_some_and(|s| book.is_dead_down(k, s));
+                        && cs.is_some_and(|s| book.is_dead_down(alad, s));
                     // ── 出口1：中枢向上移动（osc_shift_close，49课"中枢向上
-                    // 移动时就应该满仓"）——本层新中枢形成（alive.seg_start
+                    // 移动时就应该满仓"）——锚层新中枢形成（alive.seg_start
                     // 晚于锚 cs）且新中枢 ZD > 锚中枢 ZG ⇒ 旧中枢的震荡空腿
                     // 立即回补。补的是 type3 出口（中枢死亡强闭）在单边趋势中
                     // 失效的情况：回抽不发生 ⇒ confirmed type3 不来 ⇒ 锚中枢
@@ -1182,7 +1200,7 @@ impl VoiceUnit {
                     // CenterBook.last 覆盖事件（无需 type3），出口在结构层
                     // 而非确认层。NaN 边界（zd/zg 缺失）比较恒 false——拒触发。
                     let shifted_up = cfg.osc_shift_close
-                        && book.alive(k).is_some_and(|lc| {
+                        && book.alive(alad).is_some_and(|lc| {
                             cs.is_some_and(|s| lc.seg_start > s)
                                 && zg.is_some_and(|g| lc.zd > g)
                         });
@@ -1208,102 +1226,187 @@ impl VoiceUnit {
                 ),
             },
             None => {
-                if let Some(lc) = book.alive(k) {
-                    let sub_sell = k >= 1 && rows.sell_any.get(k - 1);
-                    if !book.is_frozen(k) && k >= 1 && c >= lc.zg && sub_sell {
-                        // ── osc 操作域（osc_domain=ConsolidationOnly，操作对象
-                        // 定义严格化）：38课中枢震荡操作的隐含前提是盘整走势
-                        // （价格在确立中枢内反复震荡）；锚中枢所在走势（本层
-                        // 尾 move，trend_row[k]）kind==Trend ⇒ 操作对象不存在，
-                        // 不开（49课"中枢向上移动时就应该满仓"；26课"单边上扬
-                        // 走势，短线最好别做"）。域判定先于一切点态门——对象
-                        // 不存在时门无可拦截之物。──
-                        let in_domain = match cfg.osc_domain {
-                            OscDomain::Any => true,
-                            OscDomain::ConsolidationOnly => {
-                                !rows.trend_row.expect(
-                                    "osc_domain=ConsolidationOnly ⇒ 调用方必提供\
-                                     趋势态行（capability，runner guard 恒拒缺行）",
-                                )[k]
-                            }
-                        };
-                        if !in_domain {
-                            counters.n_osc_domain_rejects += 1;
-                            counters.osc_domain_reject_log.push((k as u8, bar));
+                // ── H3 级别上移分流（osc_domain=TrendUpshift，26课行183
+                // "最好别按1分钟弄，5分钟甚至更长都可以"）：趋势态下 osc
+                // 操作级别整体上移到 k+1——触发判据/锚/出口全按 k+1 级别
+                // 中枢运行（操作级别上移是整个操作的级别上移，不是 k 层
+                // 信号挂 k+1 床位）。趋势态下 k 层永不开（重路由不是
+                // fallback）；k+1 越塔顶/无中枢/无触发 ⇒ 自然不开（机制
+                // 预测：负域浅回调在 k+1 无信号）。盘整态走 k 层原路径
+                // （ConsolidationOnly 放行分支同语义）。──
+                let upshift = cfg.osc_domain == OscDomain::TrendUpshift
+                    && rows.trend_row.expect(
+                        "osc_domain=TrendUpshift ⇒ 调用方必提供趋势态行\
+                         （capability，runner guard 恒拒缺行）",
+                    )[k];
+                if upshift {
+                    if k + 1 < MAX_LADDER {
+                        self.try_open_osc_at(
+                            cfg, rows, book, c, bar, ledger, frac_of, counters, k + 1,
+                            true,
+                        );
+                    }
+                } else {
+                    self.try_open_osc_at(
+                        cfg, rows, book, c, bar, ledger, frac_of, counters, k, false,
+                    );
+                }
+            }
+        }
+    }
+
+    /// osc 开腿尝试（锚层参数化——H3 级别上移重构，2026-06-12）。
+    ///
+    /// `alad` = 锚层（本层路径 alad==k 逐位不变——O0≡P5 零接触面；H3 上移
+    /// 路径 alad==k+1）。`upshift` = H3 重路由路径标记（锚 kind=OscUp +
+    /// 路径归属计数）。触发判据/全部门链（域/H4/H1/H2/41课）以 alad 为参：
+    /// 门的对象是开腿的锚中枢，锚在哪层门就查哪层（定义一致性，非可选）。
+    /// 量 = frac_of(槽层 k)：量是物理归属（k 层声部的份额），上移改变操作
+    /// 节奏不改资金归属（44课禁令对象=响应量错配非物理归属在册）。
+    #[allow(clippy::too_many_arguments)]
+    fn try_open_osc_at(
+        &mut self,
+        cfg: &OrganicConfig,
+        rows: &BarRows,
+        book: &CenterBook,
+        c: f64,
+        bar: i64,
+        ledger: &mut OrganicLedger,
+        frac_of: &dyn Fn(usize) -> f64,
+        counters: &mut Counters,
+        alad: usize,
+        upshift: bool,
+    ) {
+        let k = self.ladder;
+        let okey = SlotKey::osc(k);
+        if let Some(lc) = book.alive(alad) {
+            let sub_sell = alad >= 1 && rows.sell_any.get(alad - 1);
+            if !book.is_frozen(alad) && alad >= 1 && c >= lc.zg && sub_sell {
+                // ── osc 操作域（osc_domain=ConsolidationOnly，操作对象
+                // 定义严格化）：38课中枢震荡操作的隐含前提是盘整走势
+                // （价格在确立中枢内反复震荡）；锚中枢所在走势（本层
+                // 尾 move，trend_row[k]）kind==Trend ⇒ 操作对象不存在，
+                // 不开（49课"中枢向上移动时就应该满仓"；26课"单边上扬
+                // 走势，短线最好别做"）。域判定先于一切点态门——对象
+                // 不存在时门无可拦截之物。H3 上移路径恒域内（趋势态
+                // 本身就是重路由条件，调用点已分流）；TrendUpshift 本层
+                // 路径到达此处必为盘整态（显式判定保持不变式自证）。──
+                let in_domain = upshift
+                    || match cfg.osc_domain {
+                        OscDomain::Any => true,
+                        OscDomain::ConsolidationOnly | OscDomain::TrendUpshift => {
+                            !rows.trend_row.expect(
+                                "osc_domain≠Any ⇒ 调用方必提供趋势态行\
+                                 （capability，runner guard 恒拒缺行）",
+                            )[alad]
                         }
-                        // ── H1 candidate 冻结（osc_candidate_freeze，49课
-                        // 禁令窗口）：锚中枢存在未决离开段（candidate type3
-                        // 出现且价格未回边界内）⇒ 不开。49课行52"中枢完成后
-                        // 的向上移动时的差价是不能做的"，行68 当下判据 =
-                        // 次级别走势离开即启动窗口（不等 confirmed——在册
-                        // is_frozen 挂 confirmed Buy3，单边趋势中回抽不发生
-                        // ⇒ 永不触发 ⇒ 僵尸腿全在窗口内开出）。窗口是状态
-                        // 范畴（candidate 未决期间恒成立），先于点态门；
-                        // 只挡开腿——闭腿路径（Some(anchor) 分支）零接触。──
-                        else if cfg.osc_candidate_freeze
-                            && book.has_pending_departure(k)
-                        {
-                            counters.n_osc_cf_rejects += 1;
-                            counters.osc_cf_reject_log.push((k as u8, bar));
+                    };
+                if !in_domain {
+                    counters.n_osc_domain_rejects += 1;
+                    counters.osc_domain_reject_log.push((alad as u8, bar));
+                }
+                // ── H4 滚动振幅准入（osc_amp_gate，38课行32+35课
+                // 行30）：锚层典型中枢相对振幅 θ_q（DepthRef 因果
+                // 滚动 P50，50中枢窗，零前瞻）< theta_cost_k ×
+                // friction_rt ⇒ "成本相对波幅不够小"，该级别该时段
+                // osc 不准入（38课"选择历史上某级别平均震荡幅度
+                // 最大的"的运行时形式——结构量替代回测盈亏符号
+                // 白名单）。准入是域范畴（级别×时段可操作性），
+                // 排在对象域之后、逐中枢时机门（H1/H2/41课）之前。
+                // 参照不可定义（warm-up）⇒ 保守拒绝独立计数
+                // （sub_cost_gate 先例）。只挡开腿，闭腿零接触。──
+                else if cfg.osc_amp_gate && !Self::osc_amp_admitted(cfg, rows, alad) {
+                    // 拒因归因（双拒因可分离——G3；H2 同构：条件
+                    // 纯读，块内重读归因）
+                    use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
+                    let dr = rows.depth.expect(
+                        "osc_amp_gate ⇒ 调用方必提供 DepthRef\
+                         （capability，runner 恒提供）",
+                    );
+                    match dr.theta(alad, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
+                        Some(_) => {
+                            counters.n_osc_amp_rejects += 1;
+                            counters.osc_amp_reject_log.push((alad as u8, bar, 1));
                         }
-                        // ── H2 力度收敛门（osc_strength_gate，49课行38/52）：
-                        // 锚中枢最近两次向上离开段力度（H1 窗口 excursion
-                        // 直读）非收敛 ⇒ 拒开。历史 <2 条 = 新生保守默认
-                        // （无"震荡依旧"证据）；最近 > 前次 = 扩张 ⇒ 三类点
-                        // 预警（行38"还有些特殊的中枢震荡，会出现扩张的情况
-                        // ……最终形成第三类卖点"）。判据时点 = 开腿时刻，
-                        // 只读已完成历史段——覆盖 H1 的"窗口前"盲区（533号
-                        // BRN 裁决）。H1 检查之后（设计 §4 链序）；只挡开腿，
-                        // 闭腿路径零接触。──
-                        else if cfg.osc_strength_gate
-                            && book.up_strength_verdict(k, lc.seg_start)
-                                != UpStrengthVerdict::Converged
-                        {
-                            match book.up_strength_verdict(k, lc.seg_start) {
-                                UpStrengthVerdict::Newborn => {
-                                    counters.n_osc_sg_newborn_rejects += 1;
-                                    counters.osc_sg_reject_log.push((k as u8, bar, 0));
-                                }
-                                UpStrengthVerdict::Expanding => {
-                                    counters.n_osc_sg_expand_rejects += 1;
-                                    counters.osc_sg_reject_log.push((k as u8, bar, 1));
-                                }
-                                UpStrengthVerdict::Converged => unreachable!(
-                                    "外层条件已排除 Converged——到达即 bug"
-                                ),
-                            }
+                        None => {
+                            counters.n_osc_amp_noref_rejects += 1;
+                            counters.osc_amp_reject_log.push((alad as u8, bar, 0));
                         }
-                        // ── 41课门（osc_l41_gate，域腿形态）：直接父级别（k+1）
-                        // 向上走势无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整
-                        // 背驰）⇒ 拒开逆向短差——强趋势中价格不回 ZD，中枢死亡
-                        // 后高位强制买回是结构性亏损（49课"中枢向上移动时就应该
-                        // 满仓"）。判据/越界语义同 rev_l41_gate（up_unexhausted
-                        // 对 k+1 ≥ MAX_LADDER 返回 false 放行）。──
-                        else if cfg.osc_l41_gate
-                            && rows
-                                .l41
-                                .expect(
-                                    "osc_l41_gate ⇒ 调用方必提供 TrendExhaustion\
-                                     （capability，runner 恒提供）",
-                                )
-                                .up_unexhausted(k + 1)
-                        {
-                            counters.n_osc_l41_rejects += 1;
-                            counters.osc_l41_reject_log.push((k as u8, bar));
-                        } else if ledger.open_diff(
-                            okey,
-                            frac_of(k),
-                            c,
-                            bar,
-                            LegAnchor::Center {
-                                cs: Some(lc.seg_start),
-                                boundary: Some(lc.zd),
-                                zg: Some(lc.zg),
-                                kind: AnchorKind::Osc,
-                            },
-                        ) {
-                            counters.n_osc_open += 1;
+                    }
+                }
+                // ── H1 candidate 冻结（osc_candidate_freeze，49课
+                // 禁令窗口）：锚中枢存在未决离开段（candidate type3
+                // 出现且价格未回边界内）⇒ 不开。49课行52"中枢完成后
+                // 的向上移动时的差价是不能做的"，行68 当下判据 =
+                // 次级别走势离开即启动窗口（不等 confirmed——在册
+                // is_frozen 挂 confirmed Buy3，单边趋势中回抽不发生
+                // ⇒ 永不触发 ⇒ 僵尸腿全在窗口内开出）。窗口是状态
+                // 范畴（candidate 未决期间恒成立），先于点态门；
+                // 只挡开腿——闭腿路径（Some(anchor) 分支）零接触。──
+                else if cfg.osc_candidate_freeze && book.has_pending_departure(alad) {
+                    counters.n_osc_cf_rejects += 1;
+                    counters.osc_cf_reject_log.push((alad as u8, bar));
+                }
+                // ── H2 力度收敛门（osc_strength_gate，49课行38/52）：
+                // 锚中枢最近两次向上离开段力度（H1 窗口 excursion
+                // 直读）非收敛 ⇒ 拒开。历史 <2 条 = 新生保守默认
+                // （无"震荡依旧"证据）；最近 > 前次 = 扩张 ⇒ 三类点
+                // 预警（行38"还有些特殊的中枢震荡，会出现扩张的情况
+                // ……最终形成第三类卖点"）。判据时点 = 开腿时刻，
+                // 只读已完成历史段——覆盖 H1 的"窗口前"盲区（533号
+                // BRN 裁决）。H1 检查之后（设计 §4 链序）；只挡开腿，
+                // 闭腿路径零接触。──
+                else if cfg.osc_strength_gate
+                    && book.up_strength_verdict(alad, lc.seg_start)
+                        != UpStrengthVerdict::Converged
+                {
+                    match book.up_strength_verdict(alad, lc.seg_start) {
+                        UpStrengthVerdict::Newborn => {
+                            counters.n_osc_sg_newborn_rejects += 1;
+                            counters.osc_sg_reject_log.push((alad as u8, bar, 0));
                         }
+                        UpStrengthVerdict::Expanding => {
+                            counters.n_osc_sg_expand_rejects += 1;
+                            counters.osc_sg_reject_log.push((alad as u8, bar, 1));
+                        }
+                        UpStrengthVerdict::Converged => unreachable!(
+                            "外层条件已排除 Converged——到达即 bug"
+                        ),
+                    }
+                }
+                // ── 41课门（osc_l41_gate，域腿形态）：锚层直接父级别（alad+1）
+                // 向上走势无衰竭迹象（相邻 Up 段创新高 ∧ 段窗口内无盘整
+                // 背驰）⇒ 拒开逆向短差——强趋势中价格不回 ZD，中枢死亡
+                // 后高位强制买回是结构性亏损（49课"中枢向上移动时就应该
+                // 满仓"）。判据/越界语义同 rev_l41_gate（up_unexhausted
+                // 对 alad+1 ≥ MAX_LADDER 返回 false 放行）。──
+                else if cfg.osc_l41_gate
+                    && rows
+                        .l41
+                        .expect(
+                            "osc_l41_gate ⇒ 调用方必提供 TrendExhaustion\
+                             （capability，runner 恒提供）",
+                        )
+                        .up_unexhausted(alad + 1)
+                {
+                    counters.n_osc_l41_rejects += 1;
+                    counters.osc_l41_reject_log.push((alad as u8, bar));
+                } else if ledger.open_diff(
+                    okey,
+                    frac_of(k),
+                    c,
+                    bar,
+                    LegAnchor::Center {
+                        cs: Some(lc.seg_start),
+                        boundary: Some(lc.zd),
+                        zg: Some(lc.zg),
+                        kind: if upshift { AnchorKind::OscUp } else { AnchorKind::Osc },
+                    },
+                ) {
+                    counters.n_osc_open += 1;
+                    if upshift {
+                        counters.n_osc_upshift_open += 1;
+                        counters.osc_upshift_open_log.push((k as u8, bar));
                     }
                 }
             }
@@ -4127,6 +4230,91 @@ mod tests {
         assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
     }
 
+    /// H4 滚动振幅准入（osc_amp_gate）：参照不可定义保守拒 → 振幅不足拒
+    /// → 振幅达标放行；闭腿路径零接触（只挡开腿）。
+    #[test]
+    fn osc_amp_gate_noref_thin_then_pass_close_untouched() {
+        let cfg = OrganicConfig { osc_amp_gate: true, ..OrganicConfig::default() };
+        let open_ev = ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5);
+
+        // 阶段1：DepthRef 空参照（warm-up）⇒ noref 保守拒
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[open_ev.clone()], true, None);
+        let dr = DepthRef::new(50);
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 1);
+            rows.depth = Some(&dr);
+            v.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 0);
+        assert_eq!(fx.counters.n_osc_amp_noref_rejects, 1, "warm-up 期保守拒绝");
+        assert_eq!(fx.counters.osc_amp_reject_log, vec![(2, 1, 0)]);
+
+        // 阶段2：10 个 0.01% 振幅中枢喂参照 ⇒ θ_q < 2×10bps ⇒ 振幅不足拒
+        let feed = |amps: &[(i64, f64, f64)]| {
+            let mut dr = DepthRef::new(50);
+            let mut feed_book = CenterBook::new();
+            for &(cs, zd, zg) in amps {
+                feed_book.ingest(2, &[ev_anchored(BspClass::Sell1, true, cs, zd, zg)], true, None);
+                dr.observe(&feed_book, 100.0);
+            }
+            dr
+        };
+        let thin: Vec<(i64, f64, f64)> =
+            (0..10).map(|j| (10 + j, 50.0, 50.01)).collect();
+        let dr_thin = feed(&thin);
+        let mut fx2 = Fixture::new();
+        fx2.book.ingest(2, &[open_ev.clone()], true, None);
+        let mut v2 = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx2.evs, &fx2.devs);
+            rows.sell_any = LadderMask(1 << 1);
+            rows.depth = Some(&dr_thin);
+            v2.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx2.ledger, &fx2.book, &fx2.gate, 4,
+                &|_| 0.5, &mut fx2.counters,
+            );
+        }
+        assert_eq!(fx2.counters.n_osc_open, 0);
+        assert_eq!(fx2.counters.n_osc_amp_rejects, 1, "θ_q=0.01% < 0.2% 不准入");
+        assert_eq!(fx2.counters.osc_amp_reject_log, vec![(2, 1, 1)]);
+
+        // 阶段3：10 个 1% 振幅中枢 ⇒ θ_q=1% ≥ 0.2% ⇒ 准入开腿；
+        // 闭腿（ZD 触线）不过门——只挡开腿
+        let wide: Vec<(i64, f64, f64)> =
+            (0..10).map(|j| (10 + j, 50.0, 51.0)).collect();
+        let dr_wide = feed(&wide);
+        let mut fx3 = Fixture::new();
+        fx3.book.ingest(2, &[open_ev], true, None);
+        let mut v3 = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx3.evs, &fx3.devs);
+            rows.sell_any = LadderMask(1 << 1);
+            rows.depth = Some(&dr_wide);
+            v3.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx3.ledger, &fx3.book, &fx3.gate, 4,
+                &|_| 0.5, &mut fx3.counters,
+            );
+        }
+        assert_eq!(fx3.counters.n_osc_open, 1, "振幅达标 → 准入");
+        {
+            let mut rows = empty_rows(&fx3.evs, &fx3.devs);
+            // 闭腿 bar 不喂 depth——闭腿路径不读门（读了会 panic capability expect）
+            rows.depth = None;
+            v3.step(
+                &cfg, &rows, &[], 9.0, 2, &mut fx3.ledger, &fx3.book, &fx3.gate, 4,
+                &|_| 0.5, &mut fx3.counters,
+            );
+        }
+        assert_eq!(fx3.counters.n_osc_zd_close, 1, "闭腿零接触");
+        assert!(fx3.ledger.open_slot(SlotKey::osc(2)).is_none());
+    }
+
     #[test]
     fn osc_l41_gate_rejects_while_parent_up_trend_unexhausted() {
         // 41课域腿门：父级别（k+1=3）相邻 Up 段创新高且无盘整背驰 ⇒ osc 拒开；
@@ -4255,6 +4443,141 @@ mod tests {
         rows.trend_row = Some(&trow);
         v.step(
             &cfg, &rows, &[], 9.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
+            &|_| 0.5, &mut fx.counters,
+        );
+        assert_eq!(fx.counters.n_osc_zd_close, 1);
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
+    }
+
+    #[test]
+    fn trend_upshift_reroutes_open_to_parent_center() {
+        // H3 级别上移：趋势态下 osc 重路由到 k+1 层中枢——触发判据
+        // （c≥ZG(k+1)∧sub_sell(k)）、锚（k+1 中枢快照、kind=OscUp）全部
+        // 按 k+1 级别；k 层中枢即使满足触发条件也不开（趋势态 k 层永不开）。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(3, &[ev_anchored(BspClass::Sell1, true, 7, 19.0, 19.5)], true, None);
+        let cfg = OrganicConfig {
+            osc_domain: OscDomain::TrendUpshift,
+            ..OrganicConfig::default()
+        };
+        let mut trow = [false; MAX_LADDER];
+        trow[2] = true; // 本层趋势态 ⇒ 重路由
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            // 上移后次级别 = k：sub_sell 读 sell_any[2]（同时设 [1] 证明
+            // k 层判据不被消费——k 层触发要的是 sell_any[1]）
+            rows.sell_any = LadderMask((1 << 2) | (1 << 1));
+            rows.trend_row = Some(&trow);
+            v.step(
+                &cfg, &rows, &[], 19.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 1);
+        assert_eq!(fx.counters.n_osc_upshift_open, 1);
+        assert_eq!(fx.counters.osc_upshift_open_log, vec![(2, 1)]);
+        assert_eq!(fx.counters.n_osc_domain_rejects, 0); // 重路由非删除
+        let leg = fx.ledger.open_slot(SlotKey::osc(2)).expect("上移腿占 k 层槽");
+        assert!(matches!(
+            leg.anchor,
+            LegAnchor::Center {
+                cs: Some(7),
+                boundary: Some(b),
+                zg: Some(g),
+                kind: AnchorKind::OscUp,
+            } if b == 19.0 && g == 19.5
+        ));
+    }
+
+    #[test]
+    fn trend_upshift_no_parent_center_stays_flat() {
+        // 趋势态 k+1 无中枢 ⇒ 自然不开（机制预测：负域浅回调在 k+1 无
+        // 信号）；k 层中枢满足触发条件也不开——重路由不是 fallback。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        let cfg = OrganicConfig {
+            osc_domain: OscDomain::TrendUpshift,
+            ..OrganicConfig::default()
+        };
+        let mut trow = [false; MAX_LADDER];
+        trow[2] = true;
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask((1 << 2) | (1 << 1)); // k 层触发条件齐备
+            rows.trend_row = Some(&trow);
+            v.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 0);
+        assert_eq!(fx.counters.n_osc_upshift_open, 0);
+        assert!(fx.ledger.open_slot(SlotKey::osc(2)).is_none());
+    }
+
+    #[test]
+    fn trend_upshift_consolidation_keeps_home_level() {
+        // 盘整态维持 k 层原路径（ConsolidationOnly 放行分支同语义）——
+        // 锚 kind=Osc、boundary=k 层 ZD，upshift 计数零。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        let cfg = OrganicConfig {
+            osc_domain: OscDomain::TrendUpshift,
+            ..OrganicConfig::default()
+        };
+        let trow = [false; MAX_LADDER]; // 盘整态
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 1); // k 层次级别卖点
+            rows.trend_row = Some(&trow);
+            v.step(
+                &cfg, &rows, &[], 9.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_open, 1);
+        assert_eq!(fx.counters.n_osc_upshift_open, 0);
+        let leg = fx.ledger.open_slot(SlotKey::osc(2)).expect("k 层腿");
+        assert!(matches!(
+            leg.anchor,
+            LegAnchor::Center { kind: AnchorKind::Osc, boundary: Some(b), .. } if b == 9.0
+        ));
+    }
+
+    #[test]
+    fn trend_upshift_leg_closes_on_parent_boundary() {
+        // 上移腿的出口跟随锚层：ZD 触线判据用 k+1 中枢边界（19.0），
+        // k 层中枢边界（9.0）不被消费。
+        let mut fx = Fixture::new();
+        fx.book.ingest(2, &[ev_anchored(BspClass::Sell1, true, 1, 9.0, 9.5)], true, None);
+        fx.book.ingest(3, &[ev_anchored(BspClass::Sell1, true, 7, 19.0, 19.5)], true, None);
+        let cfg = OrganicConfig {
+            osc_domain: OscDomain::TrendUpshift,
+            ..OrganicConfig::default()
+        };
+        let mut trow = [false; MAX_LADDER];
+        trow[2] = true;
+        let mut v = VoiceUnit::new(2);
+        {
+            let mut rows = empty_rows(&fx.evs, &fx.devs);
+            rows.sell_any = LadderMask(1 << 2);
+            rows.trend_row = Some(&trow);
+            v.step(
+                &cfg, &rows, &[], 19.6, 1, &mut fx.ledger, &fx.book, &fx.gate, 4,
+                &|_| 0.5, &mut fx.counters,
+            );
+        }
+        assert_eq!(fx.counters.n_osc_upshift_open, 1);
+        // c=19.0 触 k+1 层 ZD ⇒ 回补（k 层 ZD=9.0 远在下方——若闭腿误用
+        // k 层边界本步不会触发）
+        let mut rows = empty_rows(&fx.evs, &fx.devs);
+        rows.trend_row = Some(&trow);
+        v.step(
+            &cfg, &rows, &[], 19.0, 2, &mut fx.ledger, &fx.book, &fx.gate, 4,
             &|_| 0.5, &mut fx.counters,
         );
         assert_eq!(fx.counters.n_osc_zd_close, 1);

@@ -238,6 +238,18 @@ pub enum OscDomain {
     /// 38课严格域：仅锚中枢所在走势（本层尾 move）kind==Consolidation
     /// 时开腿；kind==Trend ⇒ 不开。需要 trend_flips 磁带行（runner guard）。
     ConsolidationOnly,
+    /// H3 级别上移（26课行183"最好别按1分钟弄，5分钟甚至更长都可以"，
+    /// osc 白名单消除任务 2026-06-12）：盘整态 = ConsolidationOnly 同语义
+    /// （k 层域内正常开）；趋势态 = **重路由而非删除**——osc 操作级别整体
+    /// 上移到 k+1（触发判据 c≥ZG(k+1)∧sub_sell(k)、锚中枢、ZD 边界、死亡
+    /// 出口全部按 k+1 层中枢运行；腿仍占 k 层 osc 槽、用 frac_of(k)——
+    /// 量是物理归属，上移改变操作节奏不改资金归属，44课禁令对象=响应量
+    /// 错配非物理归属在册）。趋势态下 k 层永不开（重路由不是 fallback）；
+    /// k+1 无 alive 中枢/无触发 ⇒ 自然不开（机制预测：负域浅回调在 k+1
+    /// 无信号）。单级上移（预注册判据内定理，不递归）；上移路径不查 k+1
+    /// 层 trend_row（预注册无此判据——边界条件在结果文档声明）。
+    /// 需要 trend_flips 磁带行（runner guard）。
+    TrendUpshift,
 }
 
 /// 有机赋格 v2 配置。P5 继承轴默认值 = P5 逐字（V0≡P5 守卫的基线锚定）。
@@ -311,6 +323,22 @@ pub struct OrganicConfig {
     /// 裁决：负域僵尸主体开在 candidate 出现之前）。只挡开腿，闭腿零接触
     /// （僵尸腿教训）。false = 在册 P5 行为（O0≡P5 零接触面）。
     pub osc_strength_gate: bool,
+    /// H4 滚动振幅准入（osc 白名单消除任务 2026-06-12，fallback 方向）：
+    /// osc 开腿前提 = 锚层典型中枢相对振幅 θ_q（DepthRef 因果滚动中位数，
+    /// window=DEPTH_REF_WINDOW 个中枢/min_obs=SUB_COST_MIN_OBS/q=SUB_COST_Q，
+    /// 零前瞻）≥ theta_cost_k × friction_rt。原文依据：38课行32"选择一组
+    /// 历史上某级别平均震荡幅度最大的股票，不断操作下去，这样的效果更好"
+    /// ——震荡幅度是事前可读的结构量选股条款；35课行30"级别越小，平均的
+    /// 买卖点间波幅也越小……不足以让交易成本、交易误差等相对买卖点间波幅
+    /// 足够小，这样的操作，从长期的角度看，是没有意义的"——准入下限 =
+    /// k 倍往返摩擦。与 θ 深度门（theta_mode，逐腿锚振幅判深度）不同：
+    /// 本门判"该标的该层该时段适不适合做 osc 短差"（级别×时段可操作性，
+    /// sub_cost_gate/ledger_cost_gate 的 osc 准入形态——同判据同常数）。
+    /// 判据从回测盈亏符号（白名单，不可在线不可证伪）换成结构量×物理
+    /// 摩擦（事前可读）。参照不可定义（warm-up）⇒ 保守拒绝独立计数
+    /// （"不静默放行"先例）。只挡开腿，闭腿零接触（僵尸腿教训）。
+    /// false = 在册 P5 行为（O0≡P5 零接触面）。
+    pub osc_amp_gate: bool,
     // ── 有机扩展轴（v2） ──
     pub rev_mode: bool,
     pub sub_anchor: SubAnchor,
@@ -609,6 +637,7 @@ impl Default for OrganicConfig {
             osc_domain: OscDomain::Any,
             osc_candidate_freeze: false,
             osc_strength_gate: false,
+            osc_amp_gate: false,
             rev_mode: false,
             sub_anchor: SubAnchor::Off,
             tranche: false,
@@ -1129,6 +1158,37 @@ pub fn variant(name: &str) -> Option<OrganicConfig> {
             osc_strength_gate: true,
             ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
         }),
+        // h4：滚动振幅准入（H2 否证关闭后的 fallback 轴——研究 §4 H4，
+        // 38课行32+35课行30）。判据 = 锚层典型中枢相对振幅 θ_q（DepthRef
+        // 因果滚动 P50，50中枢窗/min_obs=10，零前瞻）≥ theta_cost_k ×
+        // friction_rt（默认 2×10bps=0.2%）——结构量×物理摩擦替代回测盈亏
+        // 符号白名单。预注册判据（任一不满足按对应轴否证）：(1) 负域
+        // BTC/CL/ES osc 亏损缩减 ≥50%；(2) 正域 OKLO 不恶化（OKLO 振幅
+        // P50≈0.93% ≫ 0.2% 门槛，门应近零拦截）；(3) 零摩擦口径下 BRN
+        // （振幅 P50≈0.10% < 门槛）osc 腿大减是判据的诚实后果而非否证——
+        // BRN 零摩擦 osc 盈利在 10bps 真实摩擦下是否存活由腿均盈利 vs
+        // 摩擦水平裁决（35课语义：振幅不足的级别长期操作没有意义）；
+        // (4) 双拒因（noref/thin）逐事件可分离（G3）。
+        "V2oa25_ht_h4" => Some(OrganicConfig {
+            osc_amp_gate: true,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
+        // h3：级别上移（osc 白名单消除任务 2026-06-12——26课行183"最好别
+        // 按1分钟弄，5分钟甚至更长都可以"）。趋势态下 osc 重路由到 k+1 层
+        // 中枢（删除→重路由：co 的趋势态判据 + 26课的级别上移响应）。
+        // 机制差异 vs co：co 在趋势态删腿（深回调盈利腿陪葬，OKLO 恶化
+        // 在册）；h3 在趋势态换床位——正域深回调在 k+1 级别中枢仍触发
+        // （盈利腿保留且单腿振幅更大），负域浅回调在 k+1 无信号（自然
+        // 不开）。预注册判据（研究 §4 H3，任一不满足按对应轴否证）：
+        // (1) 正域 OKLO/BRN 不恶化（h3 ≥ co 的正域表现——盈利腿经 k+1
+        // 通道保留）；(2) 负域 BTC/CL/ES osc 亏损大幅缩减（量级对照 co）；
+        // (3) 风险预注册：k+1 中枢稀疏 ⇒ 腿数大减（n_osc_upshift_open
+        // 可观测）——若正域收益被频率损失吃掉（OKLO h3 < h1）按增强轴
+        // 否证；(4) G1 全域判据：五标的全部 ≥ 基线（不需要白名单）。
+        "V2oa25_ht_h3" => Some(OrganicConfig {
+            osc_domain: OscDomain::TrendUpshift,
+            ..variant("V2oa25_ht").expect("V2oa25_ht 在上方注册")
+        }),
         // ── 38课位置分支移植（2026-06-11 任务；审计 §4e 唯一缺失项；
         //    基线 = V2oa25_ht。Sequence38 子腿 L2 全正（OKLO+10.2/BRN+4.1pp）
         //    后的主腿判决位——三臂分解组合的两条轴 ──
@@ -1518,6 +1578,26 @@ mod tests {
             format!("{as_h2:?}"),
             format!("{:?}", variant("V2oa25_ht_h2").unwrap())
         );
+    }
+
+    #[test]
+    fn h4_variant_single_axis_on_ht() {
+        // 默认/在册基线 osc_amp_gate=false（O0≡P5 零接触面——38课行32
+        // 滚动振幅准入在变体层开启，h1/h2 同先例）
+        assert!(!OrganicConfig::default().osc_amp_gate);
+        let base = variant("V2oa25_ht").unwrap();
+        assert!(!base.osc_amp_gate);
+        // h4 只动 osc_amp_gate 一轴——其余字段与 V2oa25_ht 逐位相同
+        let cfg = variant("V2oa25_ht_h4").unwrap();
+        assert!(cfg.osc_amp_gate && cfg.osc_mode);
+        assert!(!cfg.osc_candidate_freeze && !cfg.osc_strength_gate);
+        // 门槛常数沿用在册预注册值（theta_cost_k=2.0 × friction_rt=10bps
+        // = 0.2% 相对振幅下限——ledger_cost_gate 同对常数）
+        assert_eq!(cfg.theta_cost_k, 2.0);
+        assert_eq!(cfg.friction_rt, 0.001);
+        assert_eq!(cfg.exit_mode, ExitMode::HoldTrend);
+        let normalized = OrganicConfig { osc_amp_gate: false, ..cfg };
+        assert_eq!(format!("{normalized:?}"), format!("{base:?}"));
     }
 
     #[test]

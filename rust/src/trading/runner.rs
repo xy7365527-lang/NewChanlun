@@ -392,12 +392,13 @@ pub fn run_organic(
                 .to_string(),
         );
     }
-    if cfg.osc_domain == OscDomain::ConsolidationOnly && !tape.has_trend_rows() {
+    if cfg.osc_domain != OscDomain::Any && !tape.has_trend_rows() {
         return Err(
-            "osc_domain=ConsolidationOnly（osc 操作域严格化）要求磁带
-             trend_flips 行（趋势态）——域判据 = 锚中枢所在层尾 move
-             kind==Consolidation，无行即无 kind 可读（不提供方向行代理
-             降级：方向 ≠ 趋势，17课趋势定义是 ≥2 同向中枢；Cycle38 同先例）"
+            "osc_domain=ConsolidationOnly/TrendUpshift（osc 操作域严格化/
+             H3 级别上移）要求磁带 trend_flips 行（趋势态）——域判据 =
+             锚中枢所在层尾 move kind，无行即无 kind 可读（不提供方向行
+             代理降级：方向 ≠ 趋势，17课趋势定义是 ≥2 同向中枢；Cycle38
+             同先例）"
                 .to_string(),
         );
     }
@@ -616,6 +617,25 @@ pub fn run_organic(
     {
         return Err(format!(
             "ledger_cost_gate（35课成本门）要求 theta_cost_k/friction_rt 为
+             正有限数；theta_cost_k={} friction_rt={}",
+            cfg.theta_cost_k, cfg.friction_rt
+        ));
+    }
+    if cfg.osc_amp_gate && !cfg.osc_mode {
+        return Err(
+            "osc_amp_gate（H4 滚动振幅准入，38课行32+35课）仅定义于 osc_mode
+             路径——osc 腿不存在时该位无消费者（声明=能力，显式拒绝）"
+                .to_string(),
+        );
+    }
+    if cfg.osc_amp_gate
+        && !(cfg.theta_cost_k > 0.0
+            && cfg.theta_cost_k.is_finite()
+            && cfg.friction_rt > 0.0
+            && cfg.friction_rt.is_finite())
+    {
+        return Err(format!(
+            "osc_amp_gate（H4 滚动振幅准入）要求 theta_cost_k/friction_rt 为
              正有限数；theta_cost_k={} friction_rt={}",
             cfg.theta_cost_k, cfg.friction_rt
         ));

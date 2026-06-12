@@ -307,6 +307,11 @@ pub enum CenterEvent {
 pub enum AnchorKind {
     Bsp(BspKind),
     Osc,
+    /// H3 级别上移腿（osc_domain=TrendUpshift，26课行183）：osc 腿锚定
+    /// **槽层+1** 的中枢（趋势态下操作级别整体上移）。锚层 = 槽层+1 是
+    /// 类型化编码——单级上移是 H3 预注册判据的内定理，任意层锚不可表示。
+    /// 闭腿路径凭此变体把全部出口判据（死亡/边界/上移出口）切到 k+1 层。
+    OscUp,
 }
 
 /// 腿锚点。rev 腿"无中枢锚"是独立变体——"带中枢锚的 rev 腿"不可表示（E5 编码）。
@@ -314,7 +319,8 @@ pub enum AnchorKind {
 pub enum LegAnchor {
     /// osc/main 腿：锚定中枢快照。boundary = 触线回补价（osc=ZD）或开腿锚（main=ZG）。
     /// main 腿在 center_gate=False 下 cs 可为 None（Python None==None 等值保真）。
-    /// kind = 锚来源（trace 归因的字段基础，v1R §2.7 注；当前 trace 未输出）。
+    /// kind = 锚来源——H3 起被消费：闭腿路径凭 OscUp 解码锚层（k+1），
+    /// diag trace 凭其投影 leg_kind="osc_up"。
     Center {
         cs: Option<i64>,
         boundary: Option<f64>,
@@ -323,7 +329,6 @@ pub enum LegAnchor {
         /// CenterBook.last 被新中枢覆盖后旧边界不可回溯）。非 osc 腿恒 None
         /// （main 腿 boundary 本身即 ZG；rev/sub 腿无此出口概念）。
         zg: Option<f64>,
-        #[allow(dead_code)]
         kind: AnchorKind,
     },
     /// rev 腿：段尺度，无中枢锚（§4b：价格已离开中枢）。
@@ -408,6 +413,19 @@ pub struct Counters {
     /// H2 力度历史达到可比对（len 1→2）的中枢数（CenterBook.sg_pairs 终值
     /// 拷贝——判据参照系非空性读数：=0 ⇒ 收敛/扩张分支结构性不可达）。
     pub n_sg_pairs: u64,
+    /// H4 滚动振幅准入（osc_amp_gate，38课行32+35课）：该层典型中枢相对
+    /// 振幅 θ_q（DepthRef 因果滚动中位数）< theta_cost_k × friction_rt
+    /// 被拒的 osc 开腿触发点数——"成本相对波幅不够小"的级别×时段不准入。
+    pub n_osc_amp_rejects: u64,
+    /// H4 滚动振幅准入：参照不可定义拒开数——warm-up 期（已观测中枢
+    /// < min_obs）保守拒绝（sub_cost_gate"不静默放行"先例，独立计数）。
+    pub n_osc_amp_noref_rejects: u64,
+    /// H3 级别上移（osc_domain=TrendUpshift，26课行183）：趋势态下重路由
+    /// 到 k+1 层中枢成功开出的 osc 腿数（同时计入 n_osc_open——上移腿
+    /// 也是 osc 腿；本计数是路径归属）。"自然不开"（k+1 无中枢/无触发）
+    /// 不计数——否定事件无时点；删腿参照用同磁带 co 变体的
+    /// n_osc_domain_rejects（趋势态 k 层触发点数）。
+    pub n_osc_upshift_open: u64,
     pub n_rev_attempts: u64,
     pub n_rev_gate_rejects: u64,
     pub n_rev_frozen_rejects: u64,
@@ -628,6 +646,16 @@ pub struct Counters {
     /// 的数据基础：reject log ∩ 基线僵尸尾部腿 sell_bar，H1 探针方法在册）。
     /// 仅 osc_strength_gate 变体非空。lib.rs 单独 marshal（list）。
     pub osc_sg_reject_log: Vec<(u8, i64, u8)>,
+    /// H4 滚动振幅准入拒开逐事件日志 (ladder, bar, reason)：reason 0 =
+    /// 参照不可定义（warm-up 保守拒绝）/ 1 = 振幅不足（θ_q < k×friction）。
+    /// 双拒因逐事件可分离（G3；sg 日志同构——时序靶探针数据基础）。
+    /// 仅 osc_amp_gate 变体非空。lib.rs 单独 marshal（list）。
+    pub osc_amp_reject_log: Vec<(u8, i64, u8)>,
+    /// H3 级别上移开腿逐事件日志 (槽层 ladder, bar)：上移腿时序定位
+    /// （与基线僵尸尾部腿 sell_bar 对账——重路由 vs 删除裁决的探针数据
+    /// 基础，H1/H2 探针方法在册）。仅 TrendUpshift 变体非空。
+    /// lib.rs 单独 marshal（list）。
+    pub osc_upshift_open_log: Vec<(u8, i64)>,
     // ── REV 腿逐腿日志（trade_behavior 行为分解，2026-06-11 任务）──
     // 仅 rev_paired 路径产出（legacy 腿无 kind/锚概念——声明=能力）。
     // PyO3 不可见：py_items 与 lib.rs marshal 均不含 → 在册对账面零侵入。
@@ -781,6 +809,9 @@ impl Counters {
             ("n_osc_sg_expand_rejects", self.n_osc_sg_expand_rejects),
             ("n_sg_records", self.n_sg_records),
             ("n_sg_pairs", self.n_sg_pairs),
+            ("n_osc_amp_rejects", self.n_osc_amp_rejects),
+            ("n_osc_amp_noref_rejects", self.n_osc_amp_noref_rejects),
+            ("n_osc_upshift_open", self.n_osc_upshift_open),
         ]
     }
 }
