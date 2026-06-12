@@ -249,7 +249,10 @@ def _infer_target_freq(idx: pd.DatetimeIndex) -> str | None:
     """从 DatetimeIndex 推断目标频率标签。"""
     if len(idx) < 2:
         return None
-    inferred = pd.infer_freq(idx)
+    try:
+        inferred = pd.infer_freq(idx)
+    except ValueError:
+        inferred = None
     if inferred is not None:
         return inferred
     median_delta = pd.Series(idx).diff().dropna().median()
