@@ -59,7 +59,9 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
+use super::positional::{
+    theta_weights, ClearanceMode, LayerTrade, PositionalResult, RegimeGate, EQUITY_SAMPLE_BARS,
+};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::SignalTape;
 use super::types::{
@@ -284,9 +286,14 @@ fn unwind_to(
 }
 
 /// 主入口（`PolarityMode::NestedRecursive` 经 `run_positional` 分派至此）。
+///
+/// `clearance` 选择 C 清仓判据（539号开放轴）：`V4` = θ 棘轮层合取（在册
+/// 基座）；`ConstitutiveThroughput` = A′ 合取选层 + R6′ regime 门。其余
+/// §1-§8 会计规则两形态逐字相同。
 pub(crate) fn run_nested_fugue(
     tape: &SignalTape,
     floor_ladder: usize,
+    clearance: ClearanceMode,
 ) -> Result<PositionalResult, String> {
     if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&floor_ladder) {
         return Err(format!(
@@ -301,6 +308,18 @@ pub(crate) fn run_nested_fugue(
         return Err(
             "nested_fugue 要求背驰磁带 + dir_flips 行——区间套次级别证据词汇 = \
              BSP ∨ 背驰事件 ∨ bi 层方向翻转沿（027课程序定理），缺行即词汇残缺"
+                .to_string(),
+        );
+    }
+    // 构成性贯通的 R6′ regime 门读 trend_state（17课走势完全分类）——缺
+    // trend_flips 行则 regime 判据残缺（fail-fast，非静默退化为恒盘整）。
+    // V4 不读 trend_state ⟹ 不要求该行（在册基座 bit-exact）。
+    if matches!(clearance, ClearanceMode::ConstitutiveThroughput { .. }) && !tape.has_trend_rows()
+    {
+        return Err(
+            "nrf_ct（构成性贯通）要求磁带 trend_flips 行——R6′ regime 门 = \
+             清仓层走势类型（17课趋势完全分类：趋势-type1 清仓 / 盘整-type1 \
+             回中枢不清），缺行即 regime 判据残缺"
                 .to_string(),
         );
     }
@@ -322,6 +341,16 @@ pub(crate) fn run_nested_fugue(
     let flips: &[(i64, u8, Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
     let mut flip_ptr = 0usize;
 
+    // 趋势态滚动状态（R6′ regime 门；稀疏翻转行 → 逐 bar 视图，runner.rs
+    // 同构）。trend_state[k] ⟺ 第 k 层尾 move kind==Trend（17课趋势定义
+    // ≥2 同向中枢）；初值 false=盘整（warm-up 期保守不清仓）。V4 不读它。
+    let tflips: &[(i64, u8, bool)] = tape.trend_flips.as_deref().unwrap_or(&[]);
+    let mut tflip_ptr = 0usize;
+    let mut trend_state: [bool; MAX_LADDER] = [false; MAX_LADDER];
+    // 方向滚动状态（R6′ AncestorDown 门：dir_flips → 持久逐 bar 视图，
+    // 区别于按 bar 重置的 flip_edge）。初值 None=方向未知（不证实向下）。
+    let mut dir_state: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
 
@@ -334,7 +363,15 @@ pub(crate) fn run_nested_fugue(
         while flip_ptr < flips.len() && flips[flip_ptr].0 == bar {
             let (_, lad, dir) = flips[flip_ptr];
             flip_edge[lad as usize] = Some(dir);
+            dir_state[lad as usize] = Some(dir); // 持久（anc 镜像门）
             flip_ptr += 1;
+        }
+        // 趋势态滚动推进（翻转行 bar 升序；同 bar 翻转当 bar 可见——与
+        // 走势完成事件时间口径一致）。
+        while tflip_ptr < tflips.len() && tflips[tflip_ptr].0 == bar {
+            let (_, lad, is_trend) = tflips[tflip_ptr];
+            trend_state[lad as usize] = is_trend;
+            tflip_ptr += 1;
         }
 
         // 市场性质：中枢账本 + 振幅参照。
@@ -456,17 +493,36 @@ pub(crate) fn run_nested_fugue(
             }
         }
 
-        // ── C. 清仓（§6 三条件合取：① confirmed **背驰**@top（Sell1 =
-        //    趋势顶背驰词汇，type2/3 不是背驰）∧ ② 背驰已被区间套递归
-        //    确认（located 记忆未被破极值否定）⇒ ③ 全链级联解栈回现金。
-        //    其余一切卖点走 E 降成本（§9）——清仓极少发生（十年量级）──
+        // ── C. 清仓（§6；其余卖点走 E 降成本 §9——清仓极少发生）。两形态
+        //    （539号开放轴，由 `clearance` 选择）：
+        //    · V4：confirmed Sell1@top（趋势顶背驰，type2/3 不是背驰）∧
+        //      located@top（区间套递归确认未被破极值否定），top = θ 棘轮
+        //      累积层。诊断 §4：棘轮 + 同层合取把频率钉死（CL=OKLO=3）。
+        //    · 构成性贯通：**A′ 合取选层** top* = max{k≥floor : sell1[k] ∧
+        //      located[k]}（层由两半共现决定——解耦 θ 棘轮、区别 v5 的
+        //      located 单独选层；located 作独立合取项 R5′）；**R6′ regime
+        //      门** trend_state[top*]（17课走势完全分类：趋势-type1 = 趋势
+        //      衰竭清仓 / 盘整-type1 = 中枢震荡回中枢不清）。──
         if !acted && !chain.is_empty() {
-            if let Some(top) = top {
-                if sig.sell1.get(top) && located_sell[top].is_some() {
-                    unwind_to(0, bar, c, c, "sellpt", &mut chain, &mut free, &mut n_base, &mut res);
-                    located_sell = [None; MAX_LADDER];
-                    acted = true;
+            let fire = match clearance {
+                ClearanceMode::V4 => {
+                    top.is_some_and(|t| sig.sell1.get(t) && located_sell[t].is_some())
                 }
+                ClearanceMode::ConstitutiveThroughput { regime } => (floor_ladder..MAX_LADDER)
+                    .rev()
+                    .find(|&k| sig.sell1.get(k) && located_sell[k].is_some())
+                    .is_some_and(|tc| match regime {
+                        // 走势类型门：top* 层走势是趋势（盘整-type1 回中枢不清）。
+                        RegimeGate::TopLevelTrend => trend_state[tc],
+                        // anc 镜像门：∃ 更大级别 j>top* 趋势且向下（证实大势转下）。
+                        RegimeGate::AncestorDown => ((tc + 1)..MAX_LADDER)
+                            .any(|j| trend_state[j] && dir_state[j] == Some(Direction::Down)),
+                    }),
+            };
+            if fire {
+                unwind_to(0, bar, c, c, "sellpt", &mut chain, &mut free, &mut n_base, &mut res);
+                located_sell = [None; MAX_LADDER];
+                acted = true;
             }
         }
 
@@ -643,10 +699,18 @@ pub(crate) fn run_nested_fugue(
 
 #[cfg(test)]
 mod tests {
-    use super::super::positional::{run_positional, PolarityMode};
+    use super::super::positional::{run_positional, ClearanceMode, PolarityMode, RegimeGate};
     use super::*;
     use crate::trading::tape::BarSig;
     use crate::trading::types::LadderMask;
+
+    const V4: PolarityMode = PolarityMode::NestedRecursive { clearance: ClearanceMode::V4 };
+    const CT: PolarityMode = PolarityMode::NestedRecursive {
+        clearance: ClearanceMode::ConstitutiveThroughput { regime: RegimeGate::TopLevelTrend },
+    };
+    const CT_ANC: PolarityMode = PolarityMode::NestedRecursive {
+        clearance: ClearanceMode::ConstitutiveThroughput { regime: RegimeGate::AncestorDown },
+    };
 
     fn bar(close: f64) -> BarSig {
         BarSig { close, max_ladder: 5, ..Default::default() }
@@ -726,17 +790,45 @@ mod tests {
         run_positional(&t, 2, PolarityMode::parse("nrf").unwrap()).unwrap()
     }
 
+    /// 构成性贯通（nrf_ct 走势类型门）：磁带带 trend_flips 行；
+    /// trend_state[lad] 在 `flip_bar` 起置为 is_trend（regime 门读数）。
+    fn run_ct(bars: Vec<BarSig>, trend_flips: Vec<(i64, u8, bool)>) -> PositionalResult {
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(Vec::new()),
+            trend_flips: Some(trend_flips),
+            ..Default::default()
+        };
+        run_positional(&t, 2, CT).unwrap()
+    }
+
+    /// 构成性贯通（nrf_ct_anc anc 镜像门）：带 trend_flips + dir_flips 行
+    /// （anc 门读 ∃j>top* trend∧down）。
+    fn run_ct_anc(
+        bars: Vec<BarSig>,
+        trend_flips: Vec<(i64, u8, bool)>,
+        dir_flips: Vec<(i64, u8, Direction)>,
+    ) -> PositionalResult {
+        let t = SignalTape {
+            bars,
+            dir_flips: Some(dir_flips),
+            trend_flips: Some(trend_flips),
+            ..Default::default()
+        };
+        run_positional(&t, 2, CT_ANC).unwrap()
+    }
+
     #[test]
     fn parse_and_guards() {
-        assert_eq!(PolarityMode::parse("nrf"), Some(PolarityMode::NestedRecursive));
+        assert_eq!(PolarityMode::parse("nrf"), Some(V4));
+        assert_eq!(PolarityMode::parse("nrf_ct"), Some(CT));
+        assert_eq!(PolarityMode::parse("nrf_ct_anc"), Some(CT_ANC));
         let t = SignalTape {
             bars: vec![with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None))],
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, PolarityMode::NestedRecursive)
-            .unwrap_err()
-            .contains("背驰磁带"));
+        assert!(run_positional(&t, 2, V4).unwrap_err().contains("背驰磁带"));
         let t2 = SignalTape {
             bars: vec![with_empty_div(with_ev(
                 bar(100.0),
@@ -746,9 +838,20 @@ mod tests {
             dir_flips: None,
             ..Default::default()
         };
-        assert!(run_positional(&t2, 2, PolarityMode::NestedRecursive)
-            .unwrap_err()
-            .contains("dir_flips"));
+        assert!(run_positional(&t2, 2, V4).unwrap_err().contains("dir_flips"));
+        // nrf_ct 能力守卫：缺 trend_flips 行 ⇒ R6′ regime 门判据残缺 ⇒ Err
+        // （fail-fast，非静默退化为恒盘整不清仓）。
+        let t3 = SignalTape {
+            bars: vec![with_empty_div(with_ev(
+                bar(100.0),
+                3,
+                ev_full(BspClass::Buy1, true, 100.0, None),
+            ))],
+            dir_flips: Some(Vec::new()),
+            trend_flips: None,
+            ..Default::default()
+        };
+        assert!(run_positional(&t3, 2, CT).unwrap_err().contains("trend_flips"));
     }
 
     #[test]
@@ -848,6 +951,101 @@ mod tests {
         // NAV = 子回补@103（250 股，capital 26000 剩 250×1 = 250 利润）
         //     + 根 750+250 = 1000 股 ×103 = 103_000 + 250。
         assert!((r.final_nav - 103_250.0).abs() < 1e-6, "final={}", r.final_nav);
+    }
+
+    /// CT 清仓场景骨架（与 liquidation_only 同构）：root@4 + nest 卖@4 武装
+    /// → 次级别证据@3 ⇒ located@4 → confirmed Sell1@4（A′ 选层 top*=4）。
+    fn ct_clearance_bars() -> Vec<BarSig> {
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4));
+        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
+        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None)));
+        bars.push(sell1pt(bar(103.0), 4)); // sell1[4] ∧ located[4] ⇒ A′ top*=4
+        bars.push(bar(103.0));
+        bars
+    }
+
+    #[test]
+    fn ct_regime_gate_trend_liquidates() {
+        // R6′ regime 门：top*=4 层走势是**趋势**（trend_state[4]=true）⇒
+        // 趋势-type1 顶背驰 = 趋势衰竭 ⇒ 清仓（与 v4 同 NAV，门放行）。
+        let r = run_ct(ct_clearance_bars(), vec![(0, 4, true)]);
+        let root = r.trades.iter().find(|t| t.ladder == 4).unwrap();
+        assert_eq!(root.exit_reason, "sellpt", "趋势-type1 ⇒ 清仓");
+        assert_eq!(r.n_nrf_cascade_closes_by_ladder[3], 1, "子随级联结算");
+        assert!(r.nrf_depth_bars[0] > 0, "清仓后回 Idle");
+        assert!((r.final_nav - 103_250.0).abs() < 1e-6, "final={}", r.final_nav);
+    }
+
+    #[test]
+    fn ct_regime_gate_consolidation_blocks() {
+        // R6′ regime 门：top*=4 层走势是**盘整**（trend_state[4]=false——
+        // trend_flips 空，初值盘整）⇒ 盘整-type1 = 中枢震荡回中枢 ⇒ **不
+        // 清仓**。sell1@4 是 top 层 confirmed 卖（sell_any）⇒ 落到 E 降成本
+        // spawn 子空@3（§9"其他卖点全部走E"）——根永不被清。
+        let r = run_ct(ct_clearance_bars(), vec![]);
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "盘整-type1 ⇒ regime 门拦截，永不清仓"
+        );
+        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "盘整中 sell1@top 走 E 降成本");
+        let root = r.trades.iter().find(|t| t.ladder == 4).unwrap();
+        assert_eq!(root.exit_reason, "eod", "根持有至 eod（未清仓）");
+    }
+
+    #[test]
+    fn ct_anc_no_ancestor_down_blocks() {
+        // R6′ anc 镜像门：top*=4，无更大级别 j>4 趋势且向下 ⇒ **不清仓**
+        // （强牛无大势转下，堵踏空）。即使 top*=4 自身是趋势（走势类型门
+        // 会放行），anc 门仍拦截——这是 anc 门 vs 走势类型门的判别点。
+        let r = run_ct_anc(ct_clearance_bars(), vec![(0, 4, true)], vec![]);
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "无更大级别向下 ⇒ anc 门拦截清仓（堵踏空）"
+        );
+        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "改走 E 降成本");
+    }
+
+    #[test]
+    fn ct_anc_ancestor_down_liquidates() {
+        // R6′ anc 镜像门：注入更大级别 5 = 趋势(trend)∧向下(Down) ⇒ 大势
+        // 转下证实 ⇒ top*=4 清仓（保避险）。
+        let r = run_ct_anc(
+            ct_clearance_bars(),
+            vec![(0, 5, true)],            // trend_state[5]=Trend
+            vec![(0, 5, Direction::Down)], // dir_state[5]=Down
+        );
+        let root = r.trades.iter().find(|t| t.ladder == 4).unwrap();
+        assert_eq!(root.exit_reason, "sellpt", "更大级别向下证实 ⇒ 清仓");
+        assert_eq!(r.n_nrf_cascade_closes_by_ladder[3], 1, "子随级联结算");
+    }
+
+    #[test]
+    fn ct_anc_ancestor_up_blocks() {
+        // anc 门方向严格性：更大级别 5 是趋势但**向上**（强牛）⇒ 不证实
+        // 向下 ⇒ 不清仓（这正是 anc 门堵 OKLO 踏空的机制）。
+        let r = run_ct_anc(
+            ct_clearance_bars(),
+            vec![(0, 5, true)],
+            vec![(0, 5, Direction::Up)], // 向上 ⇒ 不证实向下
+        );
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "更大级别向上（强牛）⇒ anc 门拦截（堵踏空）"
+        );
+    }
+
+    #[test]
+    fn ct_regime_gate_flip_to_consolidation_blocks_mid_run() {
+        // 趋势态翻转可见性：trend_state[4] 在 bar 0 起为趋势，但在 clearance
+        // bar 前翻转为盘整 ⇒ 门按翻转后的盘整态拦截清仓（滚动状态推进正确）。
+        // clearance bar = 索引 (warmup 10 + buypt/candidate/evidence 3) = 13。
+        let flip_to_consol = vec![(0, 4, true), (13, 4, false)];
+        let r = run_ct(ct_clearance_bars(), flip_to_consol);
+        assert!(
+            r.trades.iter().all(|t| t.exit_reason != "sellpt"),
+            "clearance bar 处已翻盘整 ⇒ 不清仓"
+        );
     }
 
     #[test]

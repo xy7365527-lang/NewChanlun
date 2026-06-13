@@ -442,6 +442,39 @@ pub enum TrendScope {
     SelfOrAncestor,
 }
 
+/// NRF 清仓判据（C 规则）的参照系——539号开放轴的两个形态。
+///
+/// v4（在册基座，bit-exact）与构成性贯通（A′ 合取选层 + regime 门）是同一
+/// 嵌套递归会计的两种**清仓选层 + 门控**，其余 §1-§8 会计规则逐字相同。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClearanceMode {
+    /// v4：`sell1[top] ∧ located_sell[top]`，`top = θ 棘轮累积层`
+    /// （`depth_ref.theta(k).is_some()` 的最高层）。诊断
+    /// （`cl_clearance_diagnosis.md §4`）：棘轮单调攀高 + 同层同 bar 合取
+    /// 把清仓频率钉死（CL=OKLO=3，与波动率脱钩）。在册 P1 3/8 最优基座。
+    V4,
+    /// 构成性贯通（539号 A′ + R6′，本任务实装）：**A′ 合取选层**
+    /// `top* = max{k≥floor : sell1[k] ∧ located_sell[k]}`，存在即候选清仓
+    /// ——层由**两半共现**决定（解耦 v4 θ 棘轮、区别 v5 的 located 单独
+    /// 选层），located 仍是独立合取项（R5′ 可质询）。`regime` 选 R6′ 门形态。
+    ConstitutiveThroughput { regime: RegimeGate },
+}
+
+/// R6′ regime 门形态（539号 §3.2；A′ 选出 top* 后是否清仓的判据）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RegimeGate {
+    /// 走势类型门（任务 body 形式）：`trend_state[top*] == Trend`
+    /// （17课走势完全分类）——清仓层走势是**趋势**且 type1 背驰才清仓；
+    /// **盘整**中的 type1 是中枢震荡（回中枢，不清）。L3 否证（强牛子趋势
+    /// 顶 = 趋势-type1，门放行 ⇒ 复现 v5 踏空，OKLO −635pp）。
+    TopLevelTrend,
+    /// anc 镜像门（539 R6′ 原形式，hold26_anc 的镜像）：清仓 ⟺
+    /// `∃ j > top* : trend_state[j] ∧ dir_state[j] == Down`——仅当**更大
+    /// 级别上下文证实向下**（趋势且向下）时清仓。强牛无更大级别向下 ⇒ 不
+    /// 清仓（堵踏空）；深崩更大级别转下 ⇒ 清仓（保避险）。
+    AncestorDown,
+}
+
 /// 仓位极性模式——v1 否证（BTC L2：P1 ✗ −3.32 nats / P3 ✗ +152%）后从
 /// 26课:34 字面回读出的范畴对立：
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -588,8 +621,9 @@ pub enum PolarityMode {
     /// 第14/18/19/20/22环）；每层 voice 生命周期 = 该层走势完美（confirmed
     /// 反向词汇）；否定 = 破 candidate 极值（027:25 逆否，级联回收子树）；
     /// 递归终止 = floor（77-78课）∨ 35课成本门 ∨ 槽占用。零概念 flag——
-    /// 唯一经验参数 = a0。
-    NestedRecursive,
+    /// 唯一经验参数 = a0。清仓判据由 `clearance` 选择（v4 棘轮 vs 构成性
+    /// 贯通 A′+regime 门；539号开放轴）——其余会计规则两形态逐字相同。
+    NestedRecursive { clearance: ClearanceMode },
     /// v7：双书独立逐仓 voice + 区间套链式递归（fusion_vd/vn/vdn；
     /// `dual_voice.rs`；2026-06-12 任务的分离读法——与 nrf 合一读法
     /// 同源分岔，回测裁决）。fusion_v 基座两正交轴，2×2 消融：
@@ -688,7 +722,17 @@ impl PolarityMode {
             "hold26" => Some(PolarityMode::Hold26 { sell_t1_only: false }),
             "hold26_t1" => Some(PolarityMode::Hold26 { sell_t1_only: true }),
             "fusion_va" => Some(PolarityMode::AxiomVoice),
-            "nrf" => Some(PolarityMode::NestedRecursive),
+            "nrf" => Some(PolarityMode::NestedRecursive { clearance: ClearanceMode::V4 }),
+            "nrf_ct" => Some(PolarityMode::NestedRecursive {
+                clearance: ClearanceMode::ConstitutiveThroughput {
+                    regime: RegimeGate::TopLevelTrend,
+                },
+            }),
+            "nrf_ct_anc" => Some(PolarityMode::NestedRecursive {
+                clearance: ClearanceMode::ConstitutiveThroughput {
+                    regime: RegimeGate::AncestorDown,
+                },
+            }),
             "fusion_vd" => Some(PolarityMode::DualVoice { dual_book: true, nest_deep: false }),
             "fusion_vn" => Some(PolarityMode::DualVoice { dual_book: false, nest_deep: true }),
             "fusion_vdn" => Some(PolarityMode::DualVoice { dual_book: true, nest_deep: true }),
@@ -878,8 +922,8 @@ pub fn run_positional(
     if mode == PolarityMode::AxiomVoice {
         return super::axiom_voice::run_axiom_voice(tape, floor_ladder);
     }
-    if mode == PolarityMode::NestedRecursive {
-        return super::nested_fugue::run_nested_fugue(tape, floor_ladder);
+    if let PolarityMode::NestedRecursive { clearance } = mode {
+        return super::nested_fugue::run_nested_fugue(tape, floor_ladder, clearance);
     }
     if let PolarityMode::DualVoice { dual_book, nest_deep } = mode {
         return super::dual_voice::run_dual_voice(tape, floor_ladder, dual_book, nest_deep);
@@ -960,7 +1004,7 @@ pub fn run_positional(
             PolarityMode::Fusion { .. }
             | PolarityMode::UnifiedVoice { .. }
             | PolarityMode::AxiomVoice
-            | PolarityMode::NestedRecursive
+            | PolarityMode::NestedRecursive { .. }
             | PolarityMode::DualVoice { .. } => {
                 unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
             }
@@ -971,7 +1015,7 @@ pub fn run_positional(
             PolarityMode::Fusion { .. }
             | PolarityMode::UnifiedVoice { .. }
             | PolarityMode::AxiomVoice
-            | PolarityMode::NestedRecursive
+            | PolarityMode::NestedRecursive { .. }
             | PolarityMode::DualVoice { .. } => {
                 unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
             }
@@ -1056,7 +1100,7 @@ pub fn run_positional(
                 (PolarityMode::Fusion { .. }, _)
                 | (PolarityMode::UnifiedVoice { .. }, _)
                 | (PolarityMode::AxiomVoice, _)
-                | (PolarityMode::NestedRecursive, _)
+                | (PolarityMode::NestedRecursive { .. }, _)
                 | (PolarityMode::DualVoice { .. }, _) => {
                     unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
                 }
