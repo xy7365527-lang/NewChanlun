@@ -208,6 +208,7 @@ def compute_organic_signals(
     opens: list[float], highs: list[float], lows: list[float], closes: list[float],
     dir_flips: list | None = None,
     trend_flips: list | None = None,
+    require_settled: bool = False,
 ) -> list[BarSignalI]:
     """Rust 引擎驱动的 I 磁带 + bsp_events + div_events + up_move_settled。
 
@@ -234,9 +235,20 @@ def compute_organic_signals(
       ladder3（走势级）：`trend_last_move_kind`（move_epoch 门控 O(1)）；
       ladder≥4（递归层）：current_recursive mvs 尾元素 kind（cache-diff 门控）。
     消费方：rev_cycle=Cycle38（38课循环 voice 的宿主趋势态存续判据）。
+
+    require_settled（Piece 1 settle 门，默认 False=在册零漂移；编排者
+    2026-06-13 区间套架构 Level-0 candidate 侧）：传 True 时 Level-0 段
+    BSP（ladder3 走势级）的 confirmed 加「次级别走势(线段)已 settle」合取
+    前提——压制生长期 pending 伪背驰（OKLO 447K 消融：type2 29.6% 伪信号、
+    合计 7.4% 降级为 candidate；bsp_engine_sublevel_fix.md §7.3）。
+    有效域声明（formalization-validity-domain）：仅 ladder3 受影响——ladder2
+    笔全 confirmed ⟹ settle 门恒真无效；ladder≥4 递归层不开门（严格走势类型
+    本就来自级别，§9.1）。settle on ⟹ candidate 事件入流（去重键含 confirmed）
+    ⟹ tape_fp 必漂移（有意修正，非 bug），需独立 baseline。
     """
     n = len(closes)
-    orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS)
+    orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS,
+                                   require_settled_subseg=require_settled)
 
     bar_dn = PHLevelState.make(top2_only=True); bar_up = PHLevelState.make(top2_only=True)
     bi_dn = PHLevelState.make(top2_only=True); bi_up = PHLevelState.make(top2_only=True)
