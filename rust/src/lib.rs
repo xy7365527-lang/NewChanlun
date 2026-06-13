@@ -2195,6 +2195,13 @@ fn run_positional_rust(
     out.set_item("nrf_depth_bars", res.nrf_depth_bars.to_vec())?;
     out.set_item("nrf_phys_long_bars", res.nrf_phys_long_bars)?;
     out.set_item("nrf_phys_short_bars", res.nrf_phys_short_bars)?;
+    out.set_item(
+        "n_nrf_earning_adds_by_ladder",
+        res.n_nrf_earning_adds_by_ladder.to_vec(),
+    )?;
+    out.set_item("nrf_earning_units", res.nrf_earning_units)?;
+    out.set_item("nrf_short_earning_hits", res.nrf_short_earning_hits)?;
+    out.set_item("nrf_shrink_units", res.nrf_shrink_units)?;
     Ok(out.into())
 }
 

@@ -327,11 +327,22 @@ pub struct PositionalResult {
     pub n_nrf_deep_fires_by_ladder: [u64; MAX_LADDER],
     /// 链深度直方图：活跃链长 = d 的 bar 计数（stretto 并发读数，d 为索引）。
     pub nrf_depth_bars: [u64; MAX_LADDER],
-    /// 物理持股 bar 数（长根链满暴露——暴露的唯一真值；层视图 held_bars
-    /// 是会计身份计数，视图间不可加）。
+    /// 物理持股 bar 数（链上多头在手单位 > 0；v4 不清仓原则下 ≈ 链活跃
+    /// bar 数——根始终持有 N−m）。
     pub nrf_phys_long_bars: u64,
-    /// 物理真实空头 bar 数（v3 空根链满暴露相位；1x 逐仓 [镜像推导]）。
+    /// 空头视图在手 bar 数（链上空头 voice 在手单位 > 0 的 bar）。
     pub nrf_phys_short_bars: u64,
+    /// earning 增仓事件数（按增仓 voice 层；§7 cost_pool ≤ 0 后纯利润
+    /// 在买点买入 Δ，N 重定基 N′ = N + Δ）。
+    pub n_nrf_earning_adds_by_ladder: [u64; MAX_LADDER],
+    /// earning 累计增仓单位数。
+    pub nrf_earning_units: f64,
+    /// 空头 earning 命中数（§7 声明对称，但挣负股数 L0 构造性不可表示
+    /// ——在册结算优先；命中时现金沉淀 capital 不增仓，本计数器观测）。
+    pub nrf_short_earning_hits: u64,
+    /// 亏损回补缩水累计单位数（资金守恒：买不回的单位 = 亏损的物理
+    /// 形式，N 重定基 N′ = N − δ——earning 重定基的镜像）。
+    pub nrf_shrink_units: f64,
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
