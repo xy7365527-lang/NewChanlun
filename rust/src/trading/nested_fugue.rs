@@ -1,4 +1,4 @@
-//! nested_fugue — 嵌套递归赋格 v4（严格会计体系；mode = "nrf"）。
+//! nested_fugue — 嵌套递归赋格 v5（清仓参照系修复；mode = "nrf"）。
 //!
 //! 设计规格：`docs/nested_fugue_accounting.md`（2026-06-12 编排者）。
 //! 核心修正（对 v2/v3 的否定）：**卖点不清仓——绝大多数卖点只是降成本
@@ -6,6 +6,28 @@
 //! 次）。这是"平多≠开空"的终极形式。** v2 的 C 规则（根完美→全链清算）
 //! 摧毁了嵌套递归；v3 的根翻转（字面翻空）已被八标的 L3 否证（P1 2/8，
 //! BTC 强平归零，见 `analysis/nrf_v3_root_flip_recursive_nest.md`）。
+//!
+//! ## v5 修复（清仓参照系；`analysis/cl_clearance_diagnosis.md`）
+//!
+//! v4 在深崩域（CL +2.7% vs v2 +221.5%）坍塌的双机制根因被 L2 定位：
+//! **修复A（清仓参照系解耦棘轮）**：v4 的清仓参照层 `top` =「历史累积
+//! ≥10 中枢的最高阶梯」是单调攀高的**棘轮**，叠加「confirmed Sell1@top ∧
+//! located 同层同 bar」合取，把 CL（5.5M bar 高波动）的清仓频率压死在
+//! 3 次（与单边强牛 OKLO 相同）——波动率信号被棘轮稀疏性淹没。v5 改为
+//! `top* = max{ k ≥ floor : located_sell[k] 活跃 }`（当前正在走势完美的
+//! 最高级别），清仓 ⟺ confirmed Sell1@top*（located 由 top* 定义蕴含）。
+//! 「走势终完美对**当前**走势成立，不是历史棘轮」⇒ 清仓频率成为波动率的
+//! **涌现函数**（高波动 ⇒ 高级别下跌走势频繁完美 ⇒ located 频繁在高层
+//! 活跃 ⇒ 清仓多；单边强牛 ⇒ 高级别完美罕见 ⇒ 清仓少），零 per-asset
+//! 参数。入场层 `top`（棘轮 θ 涌现层）与清仓 `top*` 分离（诊断下游推论 3）。
+//! **修复B（清仓后 root 真正重置）**：清仓后 located + nest 区间套窗口全清
+//! ——「旧走势完美 = 结束，新走势独立 = 从 a0 重新涌现」。chain 已由
+//! unwind_to(0) 归零（root 树重置），v5 补全区间套状态归零，使新树不继承
+//! 旧走势的 candidate 窗口。修复A 让清仓频繁化 ⇒ F 频繁在棘轮 top 重入
+//! ⇒ 恢复高级别重涌现（v2 的 alpha 源：清仓→root→爬到 recL3）。**不重置
+//! depth_ref**——级别涌现是市场性质（因果），重置会使 root 落到 floor 层
+//! （最低层最快累积 10 中枢）⇒ 递归深度归零，与 B 的目标（recL3 重涌现）
+//! 自相矛盾。
 //!
 //! ## 会计规则（规格 §1-§8 的实装映射）
 //!
@@ -25,9 +47,10 @@
 //!    递归证据）。confirmed 同侧清窗保证两词汇不同 bar 碰撞。
 //! 5. **递归嵌套**（§5）：空头子在手 m 释放 m2 给多头孙（物理 = capital
 //!    买入 m2 股）；孙平仓所得回流子 capital。任意深度同律。
-//! 6. **清仓**（§6/§9）：仅 confirmed sell@top（top = 当前最高 θ 涌现层）
-//!    触发全链解栈回现金；根自身层 < top 的 confirmed 卖 = 降成本 spawn。
-//!    根在最高涌现层时其 nest 定位卖（candidate，走势未完美）= 降成本，
+//! 6. **清仓**（§6/§9；v5 修复A/B）：仅 confirmed sell@top*（top* = 当前
+//!    located 活跃最高级别，**非** v4 棘轮累积层）触发全链解栈回现金 +
+//!    区间套窗口归零（新树从 a0 重涌现）；root 自身层 < top* 的 confirmed
+//!    卖 = 降成本 spawn。频率随波动率涌现（深崩域多清、单边强牛少清）。
 //!    confirmed 卖（走势完美）= 清仓——§9"其他卖点全部走E"自动成立。
 //! 7. **earning**（§7）：cost_pool ≤ 0 后回补纯利润在买点买入 Δ =
 //!    excess/c，N 重定基。空头侧"挣负股数"L0 构造性不可表示（在册结算
@@ -46,8 +69,8 @@
 //!
 //! A. 强平兜底（尾空头 capital + u×(basis−c) ≤ 0 ⇒ 1x 逐仓解析强平）
 //! B. 否定扫描（根→尾第一个破 027:25 极值线 ⇒ 该层及以深解栈）
-//! C. 清仓（§6 合取：confirmed Sell1@top（背驰词汇）∧ 区间套定位记忆
-//!    未失效 ⇒ 全链解栈——极少发生）
+//! C. 清仓（v5：confirmed Sell1@top*（top* = 当前 located 活跃最高级别）
+//!    ⇒ 全链解栈 + 区间套状态归零——频率随波动率涌现）
 //! D. 尾回补（非根尾的 confirmed 反向点@own-level ⇒ 平子+父回满+earning）
 //! E. spawn（尾的 nest 定位反向点@own-level ∨ 根尾非 top 的 confirmed 卖
 //!    ⇒ 释放 θ 配额 m 给子；终止 = floor ∨ 35课成本门）
@@ -419,7 +442,8 @@ pub(crate) fn run_nested_fugue(
             }
         }
 
-        // 当前最高 θ 涌现层（C 清仓判据层 + F 入场层）。
+        // 当前最高 θ 涌现层（v5：仅 F 入场层；C 清仓改用 located 活跃
+        // 最高层 top*——修复A 把清仓参照系从棘轮累积层解耦）。
         let top = (floor_ladder..MAX_LADDER)
             .rev()
             .find(|&k| depth_ref.theta(k, None, SUB_COST_Q, SUB_COST_MIN_OBS).is_some());
@@ -456,15 +480,26 @@ pub(crate) fn run_nested_fugue(
             }
         }
 
-        // ── C. 清仓（§6 三条件合取：① confirmed **背驰**@top（Sell1 =
-        //    趋势顶背驰词汇，type2/3 不是背驰）∧ ② 背驰已被区间套递归
-        //    确认（located 记忆未被破极值否定）⇒ ③ 全链级联解栈回现金。
-        //    其余一切卖点走 E 降成本（§9）——清仓极少发生（十年量级）──
+        // ── C. 清仓（v5 修复A：参照系 = 当前正在走势完美的最高级别
+        //    top* = max{ k ≥ floor : located_sell[k] 活跃 }，**非** v4 的
+        //    棘轮累积层 top。清仓 ⟺ confirmed **背驰** Sell1@top*（located
+        //    已由 top* 定义蕴含——「背驰已被区间套递归确认」）⇒ 全链级联
+        //    解栈回现金。频率随结构涌现自然分化（高波动标的高级别下跌走势
+        //    频繁完美 ⇒ 清仓多；单边强牛高级别完美罕见 ⇒ 清仓少）。其余
+        //    一切卖点走 E 降成本（§9）。
+        //    修复B：清仓后 located + nest 区间套窗口全清——旧走势完美即
+        //    结束，新树从 a0 重涌现（root 真正重置：chain 已空 + 区间套
+        //    状态归零）；depth_ref 不重置（级别涌现是市场因果性质）──
         if !acted && !chain.is_empty() {
-            if let Some(top) = top {
-                if sig.sell1.get(top) && located_sell[top].is_some() {
+            let top_clear = (floor_ladder..MAX_LADDER)
+                .rev()
+                .find(|&k| located_sell[k].is_some());
+            if let Some(tc) = top_clear {
+                if sig.sell1.get(tc) {
                     unwind_to(0, bar, c, c, "sellpt", &mut chain, &mut free, &mut n_base, &mut res);
                     located_sell = [None; MAX_LADDER];
+                    nest_sell = [None; MAX_LADDER];
+                    nest_buy = [None; MAX_LADDER];
                     acted = true;
                 }
             }
@@ -830,15 +865,16 @@ mod tests {
     }
 
     #[test]
-    fn liquidation_only_at_top_emergence_perfection() {
-        // §6 三条件合取：confirmed Sell1@top(=4)（背驰词汇）∧ 区间套
-        // 定位记忆在场（nf_sell[4] 已触发未被破极值）⇒ 清仓（全链解栈）；
-        // 这是唯一的清仓途径——子空随级联结算。
+    fn liquidation_at_top_clear_located_level() {
+        // v5 修复A：清仓参照系 = 当前 located 活跃最高级别 top*（=4）。
+        // confirmed Sell1@4（背驰词汇）∧ located_sell[4] 在场（nf_sell[4]
+        // 已触发未被破极值）⇒ top*=4 ∧ sell1[4] ⇒ 清仓（全链解栈）；
+        // 子空随级联结算。
         let mut bars = warmup34();
         bars.push(buypt(bar(100.0), 4));
         bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
         bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, true, 0.0, None))); // nf@4 ⇒ located
-        bars.push(sell1pt(bar(103.0), 4)); // 最高涌现级别 confirmed 背驰
+        bars.push(sell1pt(bar(103.0), 4)); // top* 层 confirmed 背驰
         bars.push(bar(103.0));
         let r = run(bars);
         let root = r.trades.iter().find(|t| t.ladder == 4).unwrap();
@@ -848,6 +884,27 @@ mod tests {
         // NAV = 子回补@103（250 股，capital 26000 剩 250×1 = 250 利润）
         //     + 根 750+250 = 1000 股 ×103 = 103_000 + 250。
         assert!((r.final_nav - 103_250.0).abs() < 1e-6, "final={}", r.final_nav);
+    }
+
+    #[test]
+    fn liquidation_fires_below_ratchet_top_at_located_level() {
+        // v5 修复A 的核心解耦：棘轮 top=4（warmup34 喂满层 3/4），但
+        // located 只到层 3（证据@2 触发 nf_sell[3]）。v4 会检查 sell1@top=4
+        // 而 located_sell[4]=None ⇒ 永不清仓；v5 检查 top*=3（最高 located）
+        // ∧ sell1[3] ⇒ 清仓。这是「清仓频率随结构涌现」的最小复现：
+        // 当前完美级别（3）低于历史棘轮（4）时，v5 仍按当前级别清仓。
+        let mut bars = warmup34();
+        bars.push(buypt(bar(100.0), 4)); // 根@4（棘轮 top=4）
+        bars.push(with_ev(bar(105.0), 3, ev_full(BspClass::Sell1, false, 110.0, None))); // 武装 nest_sell[3]
+        bars.push(with_ev(bar(104.0), 2, ev_full(BspClass::Sell1, true, 0.0, None))); // 证据@2 ⇒ nf_sell[3] ⇒ located[3]
+        bars.push(sell1pt(bar(103.0), 3)); // 层 3 confirmed 背驰（< 棘轮 top=4）
+        bars.push(bar(103.0));
+        let r = run(bars);
+        assert!(
+            r.trades.iter().any(|t| t.exit_reason == "sellpt"),
+            "v5：top*=3（located 最高层）∧ sell1[3] ⇒ 清仓（v4 因 located[4]=None 不清）"
+        );
+        assert!(r.nrf_depth_bars[0] > 0, "清仓后回 Idle");
     }
 
     #[test]

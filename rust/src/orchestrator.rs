@@ -351,6 +351,8 @@ fn seg_views(segs: &[Segment]) -> Vec<SegView> {
             low: s.low,
             i0: s.i0,
             i1: s.i1,
+            // 次级别走势完成判定 = 线段已被破坏（confirmed，第65课）。require_settled 时读。
+            settled: s.confirmed,
         })
         .collect()
 }
@@ -403,12 +405,70 @@ fn level_zs_price_views(zss: &[LevelZhongshu]) -> Vec<ZsPriceView> {
 // ════════════════════════════════════════════════════════════
 
 /// 一个递归级别快照（结构化部分）。对应 Python `RecursiveLevelSnapshot` 的
-/// level_id/zhongshus/moves 字段。
+/// level_id/zhongshus/moves 字段 + 递归层买卖点（Piece 2，2026-06-13）。
 #[derive(Debug, Clone)]
 pub struct LevelSnapshot {
     pub level_id: i64,
     pub zhongshus: Vec<LevelZhongshu>,
     pub moves: Vec<Move>,
+    /// 本递归级别（level≥2）的买卖点。次级别走势 = 下级 Move（严格走势类型，非线段）。
+    /// 编排者 2026-06-13 区间套架构「Level 1+ confirmed」侧——`level_buysellpoints` 产出，
+    /// 提升自 `c_segment_verify::level_bsps`（per_level_bsp.py 复刻）为生产路径。
+    pub buysellpoints: Vec<BuySellPoint>,
+}
+
+/// 递归级别（level≥2）买卖点：次级别走势 = 下级 Move（i0=first_seg_s0/i1=last_seg_s1，
+/// component-index 跨度作 duration，521号拓扑代理力度），中枢 = LevelZhongshu
+/// （seg_start=comp_start/seg_end=comp_end/break_seg=break_comp），df_macd=None。
+/// 生产路径，逐字复刻 `c_segment_verify::level_bsps`（该处保留为差分对照）。
+/// SegView.settled = Move.settled（下级走势是否完成）；递归层不开 require_settled
+/// （strictness 来自级别本身 = 严格走势类型，编排者区间套架构 Level 1+ confirmed 侧）。
+fn level_buysellpoints(
+    prev_moves: &[Move],
+    zss: &[LevelZhongshu],
+    moves: &[Move],
+    level_id: i64,
+) -> Vec<BuySellPoint> {
+    let segs: Vec<SegView> = prev_moves
+        .iter()
+        .map(|m| SegView {
+            direction: m.direction,
+            high: m.high,
+            low: m.low,
+            i0: m.first_seg_s0,
+            i1: m.last_seg_s1,
+            settled: m.settled,
+        })
+        .collect();
+    let zsv: Vec<ZsView> = zss
+        .iter()
+        .map(|z| ZsView {
+            zd: z.zd,
+            zg: z.zg,
+            seg_start: z.comp_start,
+            seg_end: z.comp_end,
+            settled: z.settled,
+        })
+        .collect();
+    let zs_break: Vec<(bool, BreakDir, i64)> = zss
+        .iter()
+        .map(|z| (z.settled, z.break_direction, z.break_comp))
+        .collect();
+    let mvv: Vec<MoveView> = moves
+        .iter()
+        .map(|m| MoveView {
+            kind: m.kind,
+            direction: m.direction,
+            seg_start: m.seg_start,
+            seg_end: m.seg_end,
+            zs_start: m.zs_start,
+            zs_end: m.zs_end,
+            zs_count: m.zs_count,
+            settled: m.settled,
+        })
+        .collect();
+    let divs = divergences_from_moves_v1(&segs, &zsv, &mvv, level_id, None);
+    buysellpoints_from_level(&segs, &zsv, &zs_break, &mvv, &divs, level_id, false)
 }
 
 /// 级别递归引擎。移植自 `recursive_level_engine.RecursiveLevelEngine`。
@@ -416,6 +476,8 @@ struct LevelEngine {
     level_id: i64,
     prev_zhongshus: Vec<LevelZhongshu>,
     prev_moves: Vec<Move>,
+    /// 本级别买卖点缓存（短路键未变时复用，Piece 2）。
+    prev_buysellpoints: Vec<BuySellPoint>,
     last_move_key: Option<MoveTailKey>,
 }
 
@@ -425,11 +487,13 @@ impl LevelEngine {
             level_id,
             prev_zhongshus: Vec::new(),
             prev_moves: Vec::new(),
+            prev_buysellpoints: Vec::new(),
             last_move_key: None,
         }
     }
 
-    /// 消费下级 moves，产生本级 zhongshus + moves。移植自 `process_move_snapshot`。
+    /// 消费下级 moves，产生本级 zhongshus + moves + buysellpoints。移植自 `process_move_snapshot`。
+    /// `in_moves` = 下级 moves（= 本级次级别走势，BSP 检测的「segment」载体，Piece 2）。
     fn process(&mut self, in_moves: &[Move]) -> LevelSnapshot {
         let key = move_tail_key(in_moves);
         if self.last_move_key.as_ref() == Some(&key) {
@@ -437,6 +501,7 @@ impl LevelEngine {
                 level_id: self.level_id,
                 zhongshus: self.prev_zhongshus.clone(),
                 moves: self.prev_moves.clone(),
+                buysellpoints: self.prev_buysellpoints.clone(),
             };
         }
         self.last_move_key = Some(key);
@@ -460,13 +525,18 @@ impl LevelEngine {
         let pv = level_zs_price_views(&curr_zhongshus);
         let curr_moves = attach_persistence(&curr_moves, &pv);
 
+        // Piece 2：本级别买卖点（次级别走势 = in_moves = 下级走势类型）。
+        let curr_bsps = level_buysellpoints(in_moves, &curr_zhongshus, &curr_moves, self.level_id);
+
         self.prev_zhongshus = curr_zhongshus.clone();
         self.prev_moves = curr_moves.clone();
+        self.prev_buysellpoints = curr_bsps.clone();
 
         LevelSnapshot {
             level_id: self.level_id,
             zhongshus: curr_zhongshus,
             moves: curr_moves,
+            buysellpoints: curr_bsps,
         }
     }
 }
@@ -575,6 +645,9 @@ pub struct RecursiveOrchestrator {
     /// 增量路径开关 = enable_bsp ∧ ¬enable_macd（背驰纯结构性，per-move 有界回溯）。
     /// enable_macd 时回退全量 `compute_bsps`（macd 背驰依赖原始 bar，不在增量器有效域）。
     use_inc_bsp: bool,
+    /// 次级别走势 settle 合取门（编排者 2026-06-13）：level-1 BSP confirmed 合取 anchor
+    /// 段 `Segment.confirmed`（走势已完成）。默认 false（在册口径，逐位等价 Python）。
+    require_settled_subseg: bool,
     /// 增量背驰（per-move 窗口重算，消除 divergences_from_moves_v1 每变化 O(n_seg) 段遍历）。
     inc_seg_div: IncrementalSegDivergences,
     /// 增量买卖点（IncrementalSegBsp：无状态 binary-search 窗口，对易变 div/move/中枢尾鲁棒）。
@@ -619,6 +692,7 @@ impl RecursiveOrchestrator {
         new_raw_gap_min: i64,
         enable_macd_divergence: bool,
         enable_bsp: bool,
+        require_settled_subseg: bool,
     ) -> Self {
         RecursiveOrchestrator {
             bi: BiEngine::new(stroke_mode, min_strict_sep, reset_dir_on_fractal, new_raw_gap_min),
@@ -639,8 +713,9 @@ impl RecursiveOrchestrator {
             last_move_key: None,
             last_bsp_key: None,
             use_inc_bsp: enable_bsp && !enable_macd_divergence,
+            require_settled_subseg,
             inc_seg_div: IncrementalSegDivergences::new(),
-            inc_bsp: IncrementalSegBsp::new(1),
+            inc_bsp: IncrementalSegBsp::new(1, require_settled_subseg),
             prev_bsps: Vec::new(),
             seg_view_mirror: Vec::new(),
             seg_view_synced: 0,
@@ -794,6 +869,7 @@ impl RecursiveOrchestrator {
                 low: s.low,
                 i0: s.i0,
                 i1: s.i1,
+                settled: s.confirmed,
             });
         }
         self.seg_view_synced = sc;
@@ -889,7 +965,15 @@ impl RecursiveOrchestrator {
 
         let divs =
             divergences_from_moves_v1(&segs, &zss, &mvs, self.level_id, macd_ctx.as_ref());
-        buysellpoints_from_level(&segs, &zss, &zsb, &mvs, &divs, self.level_id)
+        buysellpoints_from_level(
+            &segs,
+            &zss,
+            &zsb,
+            &mvs,
+            &divs,
+            self.level_id,
+            self.require_settled_subseg,
+        )
     }
 
     /// 走势 settle delta —— 返回自上次以来**新结算**的走势（diff_moves 的 MoveSettleV1 等价集）。

@@ -299,6 +299,10 @@ const BSP_SRC_MARGIN: i64 = 256;
 #[derive(Debug, Clone)]
 pub struct IncrementalSegBsp {
     level_id: i64,
+    /// 次级别走势（线段）settle 合取门（编排者 2026-06-13）：require_settled 时
+    /// BSP confirmed 合取 anchor 段 `Segment.confirmed`（走势已完成，第65课），压制
+    /// pending 生长期伪背驰（§3，B2 未覆盖的 pending 侧）。默认 false（在册口径）。
+    require_settled: bool,
     /// seg_idx < stable_anchor 的 bsp（永久固定，按 seg_idx 升序）。
     stable_bsps: Vec<BuySellPoint>,
     stable_anchor: i64,
@@ -311,9 +315,10 @@ pub struct IncrementalSegBsp {
 }
 
 impl IncrementalSegBsp {
-    pub fn new(level_id: i64) -> Self {
+    pub fn new(level_id: i64, require_settled: bool) -> Self {
         IncrementalSegBsp {
             level_id,
+            require_settled,
             stable_bsps: Vec::new(),
             stable_anchor: 0,
             div_done: 0,
@@ -393,7 +398,7 @@ impl IncrementalSegBsp {
             if div.kind != DivKind::Trend || div.seg_c_end < self.stable_anchor {
                 continue;
             }
-            if let Some(bp) = build_type1_bsp(div, segs, zss, moves, self.level_id) {
+            if let Some(bp) = build_type1_bsp(div, segs, zss, moves, self.level_id, self.require_settled) {
                 tail_type1.push(bp);
             }
         }
@@ -409,7 +414,7 @@ impl IncrementalSegBsp {
             .collect();
         let mut tail_type2: Vec<BuySellPoint> = Vec::new();
         for t1 in stable_t1.iter().chain(tail_type1.iter()) {
-            if let Some(bp) = build_type2_bsp(t1, segs, moves, self.level_id, &lookup_find) {
+            if let Some(bp) = build_type2_bsp(t1, segs, moves, self.level_id, &lookup_find, self.require_settled) {
                 tail_type2.push(bp);
             }
         }
@@ -424,7 +429,7 @@ impl IncrementalSegBsp {
                 continue;
             }
             if let Some(bp) =
-                build_type3_bsp(&zss[zi], break_dir, break_seg, segs, moves, self.level_id, &lookup_find)
+                build_type3_bsp(&zss[zi], break_dir, break_seg, segs, moves, self.level_id, &lookup_find, self.require_settled)
             {
                 tail_type3.push(bp);
             }
@@ -523,6 +528,7 @@ mod incremental_tests {
                 low: s.low,
                 i0: s.i0,
                 i1: s.i1,
+                settled: s.confirmed,
             })
             .collect()
     }

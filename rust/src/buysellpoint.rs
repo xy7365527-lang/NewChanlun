@@ -167,12 +167,15 @@ pub(crate) fn find_assoc_trend_move(moves: &[MoveView], center_idx: usize, n_zho
 }
 
 /// 第一类买卖点检测。移植自 `_detect_type1`。
+/// `require_settled`：confirmed 合取背驰 C 段（次级别走势）已 settle——压制 pending
+/// 生长期伪背驰（§3）。默认 false（在册口径，逐位等价 Python）。
 fn detect_type1(
     segs: &[SegView],
     zss: &[ZsView],
     moves: &[MoveView],
     divergences: &[Divergence],
     level_id: i64,
+    require_settled: bool,
 ) -> Vec<BuySellPoint> {
     let mut result: Vec<BuySellPoint> = Vec::new();
     for div in divergences {
@@ -194,14 +197,19 @@ fn detect_type1(
 
         let mut price = 0.0;
         let mut bar_idx: i64 = 0;
+        let mut seg_settled = false;
         if seg_idx >= 0 && (seg_idx as usize) < segs.len() {
             let seg = &segs[seg_idx as usize];
             price = if side == Side::Buy { seg.low } else { seg.high };
             bar_idx = seg.i1 as i64;
+            seg_settled = seg.settled;
         }
 
         // candidate-fix: confirmed = 面积比 force_c/force_a ≤ 阈值（力竭确认）。
-        let confirmed = div.force_a > 0.0 && div.force_c / div.force_a <= TYPE1_CONFIRM_RATIO;
+        // require_settled: 合取 C 段（次级别走势）已 settle（走势完成，非生长中）。
+        let confirmed = div.force_a > 0.0
+            && div.force_c / div.force_a <= TYPE1_CONFIRM_RATIO
+            && (!require_settled || seg_settled);
 
         result.push(BuySellPoint {
             kind: BspKind::Type1,
@@ -237,14 +245,17 @@ fn make_type2_point(
     lookup: &MoveLookup,
     moves: &[MoveView],
     level_id: i64,
+    require_settled: bool,
 ) -> BuySellPoint {
     let assoc = lookup.find(seg_idx);
     let price = if side == Side::Buy { seg.low } else { seg.high };
-    let confirmed = if side == Side::Buy {
+    // require_settled: 合取回试段（次级别回试走势）已 settle（回试走势完成，非生长中）。
+    let geom = if side == Side::Buy {
         price >= t1.price // 回调不创新低
     } else {
         price <= t1.price // 反弹不创新高
     };
+    let confirmed = geom && (!require_settled || seg.settled);
     BuySellPoint {
         kind: BspKind::Type2,
         side,
@@ -270,6 +281,7 @@ fn detect_type2(
     lookup: &MoveLookup,
     moves: &[MoveView],
     level_id: i64,
+    require_settled: bool,
 ) -> Vec<BuySellPoint> {
     let mut result: Vec<BuySellPoint> = Vec::new();
     for t1 in type1 {
@@ -292,6 +304,7 @@ fn detect_type2(
                     lookup,
                     moves,
                     level_id,
+                    require_settled,
                 ));
             }
             Side::Sell => {
@@ -313,6 +326,7 @@ fn detect_type2(
                     lookup,
                     moves,
                     level_id,
+                    require_settled,
                 ));
             }
         }
@@ -331,8 +345,11 @@ fn make_type3_point(
     moves: &[MoveView],
     level_id: i64,
     confirmed: bool,
+    require_settled: bool,
 ) -> BuySellPoint {
     let assoc = lookup.find(seg_idx);
+    // require_settled: 合取回抽段（次级别回抽走势）已 settle（回抽走势完成，非生长中）。
+    let confirmed = confirmed && (!require_settled || seg.settled);
     BuySellPoint {
         kind: BspKind::Type3,
         side,
@@ -362,6 +379,7 @@ fn detect_type3(
     lookup: &MoveLookup,
     moves: &[MoveView],
     level_id: i64,
+    require_settled: bool,
 ) -> Vec<BuySellPoint> {
     let mut result: Vec<BuySellPoint> = Vec::new();
     for (zi, zs) in zss.iter().enumerate() {
@@ -396,11 +414,13 @@ fn detect_type3(
             crate::zhongshu::BreakDir::Up if pullback_seg.low > zs.zg => {
                 result.push(make_type3_point(
                     zs, pullback, pullback_seg, Side::Buy, lookup, moves, level_id, confirmed,
+                    require_settled,
                 ));
             }
             crate::zhongshu::BreakDir::Down if pullback_seg.high < zs.zd => {
                 result.push(make_type3_point(
                     zs, pullback, pullback_seg, Side::Sell, lookup, moves, level_id, confirmed,
+                    require_settled,
                 ));
             }
             _ => {}
@@ -436,12 +456,13 @@ pub fn buysellpoints_from_level(
     moves: &[MoveView],
     divergences: &[Divergence],
     level_id: i64,
+    require_settled: bool,
 ) -> Vec<BuySellPoint> {
     let lookup = MoveLookup::build(moves, segs.len());
 
-    let type1 = detect_type1(segs, zss, moves, divergences, level_id);
-    let mut type2 = detect_type2(&type1, segs, &lookup, moves, level_id);
-    let mut type3 = detect_type3(zss, zs_break, segs, &lookup, moves, level_id);
+    let type1 = detect_type1(segs, zss, moves, divergences, level_id, require_settled);
+    let mut type2 = detect_type2(&type1, segs, &lookup, moves, level_id, require_settled);
+    let mut type3 = detect_type3(zss, zs_break, segs, &lookup, moves, level_id, require_settled);
     detect_overlap(&mut type2, &mut type3);
 
     // sorted(type1 + type2 + type3, key=seg_idx)，稳定排序复刻 Python `sorted`。
@@ -465,6 +486,7 @@ pub(crate) fn build_type1_bsp(
     zss: &[ZsView],
     moves: &[MoveView],
     level_id: i64,
+    require_settled: bool,
 ) -> Option<BuySellPoint> {
     let assoc_mi = find_assoc_trend_move(moves, div.center_idx, zss.len())?;
     let assoc = &moves[assoc_mi];
@@ -473,12 +495,16 @@ pub(crate) fn build_type1_bsp(
     let seg_idx = div.seg_c_end;
     let mut price = 0.0;
     let mut bar_idx: i64 = 0;
+    let mut seg_settled = false;
     if seg_idx >= 0 && (seg_idx as usize) < segs.len() {
         let seg = &segs[seg_idx as usize];
         price = if side == Side::Buy { seg.low } else { seg.high };
         bar_idx = seg.i1 as i64;
+        seg_settled = seg.settled;
     }
-    let confirmed = div.force_a > 0.0 && div.force_c / div.force_a <= TYPE1_CONFIRM_RATIO;
+    let confirmed = div.force_a > 0.0
+        && div.force_c / div.force_a <= TYPE1_CONFIRM_RATIO
+        && (!require_settled || seg_settled);
     Some(BuySellPoint {
         kind: BspKind::Type1,
         side,
@@ -508,6 +534,7 @@ pub(crate) fn build_type2_bsp(
     moves: &[MoveView],
     level_id: i64,
     lookup_find: impl Fn(i64) -> Option<usize>,
+    require_settled: bool,
 ) -> Option<BuySellPoint> {
     let (callback, side) = match t1.side {
         Side::Buy => {
@@ -523,7 +550,8 @@ pub(crate) fn build_type2_bsp(
     };
     let seg = &segs[callback as usize];
     let price = if side == Side::Buy { seg.low } else { seg.high };
-    let confirmed = if side == Side::Buy { price >= t1.price } else { price <= t1.price };
+    let geom = if side == Side::Buy { price >= t1.price } else { price <= t1.price };
+    let confirmed = geom && (!require_settled || seg.settled);
     let assoc = lookup_find(callback);
     Some(BuySellPoint {
         kind: BspKind::Type2,
@@ -552,6 +580,7 @@ pub(crate) fn build_type3_bsp(
     moves: &[MoveView],
     level_id: i64,
     lookup_find: impl Fn(i64) -> Option<usize>,
+    require_settled: bool,
 ) -> Option<BuySellPoint> {
     if break_seg < 0 || break_seg >= segs.len() as i64 {
         return None;
@@ -564,7 +593,8 @@ pub(crate) fn build_type3_bsp(
     let pullback = find_next_seg_by_direction(segs, break_seg + 1, opposite)?;
     let pullback_seg = &segs[pullback as usize];
     let continuation = find_next_seg_by_direction(segs, pullback + 1, break_direction);
-    let confirmed = continuation.is_some();
+    // require_settled: 合取回抽段（次级别回抽走势）已 settle。
+    let confirmed = continuation.is_some() && (!require_settled || pullback_seg.settled);
     let side = match break_dir {
         crate::zhongshu::BreakDir::Up if pullback_seg.low > zs.zg => Side::Buy,
         crate::zhongshu::BreakDir::Down if pullback_seg.high < zs.zd => Side::Sell,
@@ -611,6 +641,8 @@ pub(crate) fn build_type3_bsp(
 #[derive(Debug, Clone)]
 pub struct IncrementalBsp {
     level_id: i64,
+    /// 次级别走势 settle 合取门（编排者 2026-06-13）。bi 级笔全 confirmed ⟹ 恒真无效。
+    require_settled: bool,
     /// seg_idx < stable_anchor 的 bsp（永久固定，按 seg_idx 升序）。
     stable_bsps: Vec<BuySellPoint>,
     /// 已 finalize 的段边界（单调前进）。
@@ -638,9 +670,10 @@ const SAFE_WINDOW: i64 = 256;
 const SRC_MARGIN: i64 = 256;
 
 impl IncrementalBsp {
-    pub fn new(level_id: i64) -> Self {
+    pub fn new(level_id: i64, require_settled: bool) -> Self {
         IncrementalBsp {
             level_id,
+            require_settled,
             stable_bsps: Vec::new(),
             stable_anchor: 0,
             seg_to_move: Vec::new(),
@@ -843,7 +876,7 @@ impl IncrementalBsp {
         zss: &[ZsView],
         moves: &[MoveView],
     ) -> Option<BuySellPoint> {
-        build_type1_bsp(div, segs, zss, moves, self.level_id)
+        build_type1_bsp(div, segs, zss, moves, self.level_id, self.require_settled)
     }
 
     /// 单 type1 构造 type2（委托 build_type2_bsp，用增量 lookup）。
@@ -853,7 +886,7 @@ impl IncrementalBsp {
         segs: &[SegView],
         moves: &[MoveView],
     ) -> Option<BuySellPoint> {
-        build_type2_bsp(t1, segs, moves, self.level_id, |s| self.lookup_find(s))
+        build_type2_bsp(t1, segs, moves, self.level_id, |s| self.lookup_find(s), self.require_settled)
     }
 
     /// 单中枢构造 type3（委托 build_type3_bsp，用增量 lookup）。
@@ -867,7 +900,7 @@ impl IncrementalBsp {
     ) -> Option<BuySellPoint> {
         build_type3_bsp(zs, break_dir, break_seg, segs, moves, self.level_id, |s| {
             self.lookup_find(s)
-        })
+        }, self.require_settled)
     }
 
     /// 当前全量买卖点（逐位等价于 `buysellpoints_from_level`）。
@@ -878,5 +911,104 @@ impl IncrementalBsp {
     /// 已 finalize 的段边界（seg_idx < stable_anchor 的 bsp 永久固定 + confirmed 终态确定）。
     pub fn stable_anchor(&self) -> i64 {
         self.stable_anchor
+    }
+}
+
+// ════════════════════════════════════════════════════════════
+// require_settled 合取门测试（编排者 2026-06-13：次级别走势完成判定）
+// ════════════════════════════════════════════════════════════
+#[cfg(test)]
+mod require_settled_tests {
+    use super::*;
+    use crate::divergence::{DivDir, DivKind, Divergence};
+    use crate::stroke::Direction;
+    use crate::zhongshu::BreakDir;
+
+    fn seg(direction: Direction, high: f64, low: f64, settled: bool) -> SegView {
+        SegView { direction, high, low, i0: 0, i1: 0, settled }
+    }
+
+    fn trend_move() -> MoveView {
+        MoveView {
+            kind: crate::moves::MoveKind::Trend,
+            direction: Direction::Down,
+            seg_start: 0,
+            seg_end: 3,
+            zs_start: 0,
+            zs_end: 0,
+            zs_count: 2,
+            settled: true,
+        }
+    }
+
+    fn zs() -> ZsView {
+        ZsView { zd: 100.0, zg: 110.0, seg_start: 0, seg_end: 2, settled: true }
+    }
+
+    /// type1：背驰 C 段（seg_c_end=3）未 settle → require_settled 翻 confirmed 为 false。
+    #[test]
+    fn type1_settled_gate_flips_confirmed() {
+        let zss = vec![zs()];
+        let moves = vec![trend_move()];
+        // 4 段：0..2 + C 段 seg_c_end=3（底背驰买点，anchor=segs[3]）。
+        let mut segs = vec![
+            seg(Direction::Down, 120.0, 110.0, true),
+            seg(Direction::Up, 118.0, 108.0, true),
+            seg(Direction::Down, 112.0, 100.0, true),
+            seg(Direction::Down, 105.0, 90.0, false), // C 段：生长中（未 settle）
+        ];
+        // 力竭背驰：force_c/force_a ≤ 0.9 → 基线 confirmed=true。
+        let div = Divergence {
+            kind: DivKind::Trend,
+            direction: DivDir::Bottom,
+            level_id: 1,
+            seg_a_start: 0,
+            seg_a_end: 0,
+            seg_c_start: 3,
+            seg_c_end: 3,
+            center_idx: 0,
+            force_a: 10.0,
+            force_c: 5.0,
+            confirmed: true,
+            dif_peak_a: 0.0,
+            dif_peak_c: 0.0,
+            hist_peak_a: 0.0,
+            hist_peak_c: 0.0,
+        };
+        let base = build_type1_bsp(&div, &segs, &zss, &moves, 1, false).unwrap();
+        assert!(base.confirmed, "基线（require_settled=false）应 confirmed=true");
+        let gated = build_type1_bsp(&div, &segs, &zss, &moves, 1, true).unwrap();
+        assert!(!gated.confirmed, "C 段未 settle ⟹ require_settled 应 confirmed=false");
+        // C 段 settle 后：门放行。
+        segs[3].settled = true;
+        let gated2 = build_type1_bsp(&div, &segs, &zss, &moves, 1, true).unwrap();
+        assert!(gated2.confirmed, "C 段 settle 后 require_settled 应放行 confirmed=true");
+    }
+
+    /// type3：回抽段未 settle → require_settled 翻 confirmed 为 false。
+    #[test]
+    fn type3_settled_gate_flips_confirmed() {
+        let z = zs();
+        // 0..2 中枢；3 向上突破；4 向下回抽(low>zg=110 → 三买)；5 向上延续(confirmed 基线)。
+        let mut segs = vec![
+            seg(Direction::Down, 120.0, 100.0, true),
+            seg(Direction::Up, 118.0, 105.0, true),
+            seg(Direction::Down, 112.0, 102.0, true),
+            seg(Direction::Up, 130.0, 115.0, true), // break up, break_seg=3
+            seg(Direction::Down, 125.0, 112.0, false), // 回抽 low=112>zg=110，生长中
+            seg(Direction::Up, 135.0, 120.0, true),    // 延续 → confirmed 基线 true
+        ];
+        let lk = |_s: i64| None;
+        let base =
+            build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, false).unwrap();
+        assert_eq!(base.side, Side::Buy);
+        assert!(base.confirmed, "基线应 confirmed=true（有延续段）");
+        let gated =
+            build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, true).unwrap();
+        assert!(!gated.confirmed, "回抽段未 settle ⟹ require_settled 应 confirmed=false");
+        segs[4].settled = true;
+        let gated2 =
+            build_type3_bsp(&z, BreakDir::Up, 3, &segs, &[], 1, lk, true).unwrap();
+        assert!(gated2.confirmed, "回抽段 settle 后 require_settled 应放行");
     }
 }

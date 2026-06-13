@@ -63,6 +63,7 @@ fn level_bsps(
             low: m.low,
             i0: m.first_seg_s0,
             i1: m.last_seg_s1,
+            settled: m.settled, // 递归层次级别走势 = 下级 Move，settle 取 Move.settled
         })
         .collect();
     let zs_views: Vec<ZsView> = zss
@@ -93,7 +94,7 @@ fn level_bsps(
         })
         .collect();
     let divs = divergences_from_moves_v1(&segs, &zs_views, &move_views, level_id, None);
-    buysellpoints_from_level(&segs, &zs_views, &zs_break, &move_views, &divs, level_id)
+    buysellpoints_from_level(&segs, &zs_views, &zs_break, &move_views, &divs, level_id, false)
 }
 
 /// (kind, confirmed) 计数。
@@ -132,6 +133,7 @@ fn bi_zhongshu_bsps(orch: &RecursiveOrchestrator) -> Vec<BuySellPoint> {
             low: s.low,
             i0: s.i0,
             i1: s.i1,
+            settled: s.confirmed, // 笔全 confirmed
         })
         .collect();
     let zss: Vec<ZsView> = zhongshus
@@ -162,7 +164,7 @@ fn bi_zhongshu_bsps(orch: &RecursiveOrchestrator) -> Vec<BuySellPoint> {
         })
         .collect();
     let divs = divergences_from_moves_v1(&segs, &zss, &mvs, 1, None);
-    buysellpoints_from_level(&segs, &zss, &zsb, &mvs, &divs, 1)
+    buysellpoints_from_level(&segs, &zss, &zsb, &mvs, &divs, 1, false)
 }
 
 #[test]
@@ -172,7 +174,7 @@ fn c_segment_oklo_447k_per_level_bsp() {
     assert_eq!(bars.len(), 447_739, "OKLO 447K 全时段");
 
     // 生产同口径配置（fugue_version_i.py: max_levels=8，其余 PyO3 默认）。
-    let mut orch = RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true);
+    let mut orch = RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true, false);
     for b in &bars {
         orch.process_bar(b[0], b[1], b[2], b[3]);
     }
@@ -257,7 +259,7 @@ fn c_segment_oklo_447k_tranche_side_split() {
     let bars = load_ohlc();
     assert_eq!(bars.len(), 447_739, "OKLO 447K 全时段");
 
-    let mut orch = RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true);
+    let mut orch = RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true, false);
     for b in &bars {
         orch.process_bar(b[0], b[1], b[2], b[3]);
     }
@@ -329,4 +331,180 @@ fn c_segment_oklo_447k_tranche_side_split() {
         buy1_ladders.contains(&4),
         "tranche 解锁需 ladder4 出现 confirmed type1 buy（旧恒空），实际 buy1_ladders={buy1_ladders:?}"
     );
+}
+
+// ════════════════════════════════════════════════════════════
+// require_settled 合取门 OKLO 447K 消融（编排者 2026-06-13）：
+// Level-0 段 BSP confirmed 加「次级别走势(线段)已 settle」前提——压制 §3 pending
+// 生长期伪背驰。本测试逐 bar 驱动两遍（flag off=在册基线 / on=settle 门），统计
+// level-1（ladder3）BSP 的存在数与 confirmed 数（按 type）。门只改 confirmed 不改
+// 存在 ⟹ 总数恒等，confirmed 差 = 生长段上的伪 confirmed（候选化）。
+// 运行：cargo test --release require_settled_oklo -- --ignored --nocapture
+// ════════════════════════════════════════════════════════════
+fn count_by_kind_conf(bsps: &[BuySellPoint]) -> BTreeMap<(&'static str, bool), usize> {
+    let mut c: BTreeMap<(&'static str, bool), usize> = BTreeMap::new();
+    for b in bsps {
+        *c.entry((b.kind.as_str(), b.confirmed)).or_insert(0) += 1;
+    }
+    c
+}
+
+/// 流式逐 bar 收集「曾经 confirmed」的 BSP 事件键 (kind, side, seg_idx)——复刻交易层
+/// `current_buysellpoints()` 逐 bar 消费 + (kind,side,seg_idx) 去重的口径。settle 门的
+/// 真实效应在**流式瞬态**（§3 pending 生长期伪背驰），不在终态快照（终态只剩 settled
+/// 存活者，门对其 no-op）。bsp_epoch 门控：仅 BSP 重算时扫描。
+fn stream_confirmed_events(
+    bars: &[[f64; 4]],
+    require_settled: bool,
+) -> std::collections::HashSet<(u8, bool, i64)> {
+    use std::collections::HashSet;
+    let mut orch =
+        RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true, require_settled);
+    let mut seen: HashSet<(u8, bool, i64)> = HashSet::new();
+    let mut last_epoch = orch.bsp_epoch();
+    let mut first = true;
+    for b in bars {
+        orch.process_bar(b[0], b[1], b[2], b[3]);
+        let ep = orch.bsp_epoch();
+        if first || ep != last_epoch {
+            first = false;
+            last_epoch = ep;
+            for bp in orch.buysellpoints() {
+                if bp.confirmed {
+                    let kind = match bp.kind {
+                        BspKind::Type1 => 1u8,
+                        BspKind::Type2 => 2u8,
+                        BspKind::Type3 => 3u8,
+                    };
+                    let side = matches!(bp.side, crate::buysellpoint::Side::Buy);
+                    seen.insert((kind, side, bp.seg_idx));
+                }
+            }
+        }
+    }
+    seen
+}
+
+#[test]
+#[ignore = "长测试：OKLO 447K 全量逐 bar ×2（settle 门 off/on）流式，显式运行"]
+fn require_settled_oklo_447k_ablation() {
+    let bars = load_ohlc();
+    assert_eq!(bars.len(), 447_739, "OKLO 447K 全时段");
+
+    let base = stream_confirmed_events(&bars, false);
+    let gated = stream_confirmed_events(&bars, true);
+
+    // 门单调收紧：gated ⊆ base（settle 门只移除 confirmed，不新增）。
+    assert!(
+        gated.is_subset(&base),
+        "settle 门应单调收紧（gated ⊆ base）：|base|={} |gated|={}",
+        base.len(),
+        gated.len()
+    );
+
+    let by_kind = |s: &std::collections::HashSet<(u8, bool, i64)>, k: u8| -> usize {
+        s.iter().filter(|(kind, _, _)| *kind == k).count()
+    };
+    let mut report = String::from("{\n  \"observable\": \"streaming_first_confirmed_events\",\n");
+    report.push_str(&format!("  \"n_bars\": {},\n", bars.len()));
+    report.push_str("  \"level1_ladder3\": {\n");
+    for (kc, name) in [(1u8, "type1"), (2u8, "type2"), (3u8, "type3")] {
+        let b = by_kind(&base, kc);
+        let g = by_kind(&gated, kc);
+        let pseudo = b.saturating_sub(g);
+        let rate = if b > 0 { pseudo as f64 / b as f64 } else { 0.0 };
+        report.push_str(&format!(
+            "    \"{name}\": {{ \"confirmed_events_base\": {b}, \"confirmed_events_gated\": {g}, \
+             \"pseudo_on_growing\": {pseudo}, \"pseudo_frac\": {rate:.4} }},\n"
+        ));
+        println!(
+            "{name}: confirmed_events base={b} gated={g} 伪信号(生长段瞬态)={pseudo} ({:.1}%)",
+            rate * 100.0
+        );
+    }
+    let tb = base.len();
+    let tg = gated.len();
+    report.push_str(&format!(
+        "    \"all_base\": {tb}, \"all_gated\": {tg}, \"all_pseudo\": {}, \"all_pseudo_frac\": {:.4}\n",
+        tb.saturating_sub(tg),
+        if tb > 0 { (tb - tg) as f64 / tb as f64 } else { 0.0 }
+    ));
+    report.push_str("  }\n}\n");
+    println!(
+        "合计 confirmed 事件: base={tb} gated={tg} 伪信号={} ({:.1}%)",
+        tb.saturating_sub(tg),
+        if tb > 0 { (tb - tg) as f64 / tb as f64 * 100.0 } else { 0.0 }
+    );
+
+    let out = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../analysis/data_cache/require_settled_OKLO.json"
+    ));
+    fs::write(out, &report).expect("写 require_settled 消融结果失败");
+    println!("已落盘: {}", out.display());
+
+    let _ = count_by_kind_conf(&[]); // 终态快照口径（门对终态 no-op，瞬态本性，保留对照工具）
+}
+
+// ════════════════════════════════════════════════════════════
+// Piece 2（编排者 2026-06-13）：递归层 BSP（level≥2）OKLO 447K 稀疏度 + 生产路径
+// 等价守卫。orchestrator.recursive()[i].buysellpoints（生产路径，level_buysellpoints）
+// 应逐位等价于 level_bsps（本文件适配器）。稀疏度验证区间套消费假设。
+// 运行：cargo test --release recursive_bsp_oklo -- --ignored --nocapture
+// ════════════════════════════════════════════════════════════
+#[test]
+#[ignore = "长测试：OKLO 447K 递归层 BSP 稀疏度 + 生产路径等价守卫"]
+fn recursive_bsp_oklo_447k_sparsity() {
+    let bars = load_ohlc();
+    assert_eq!(bars.len(), 447_739, "OKLO 447K 全时段");
+
+    let mut orch = RecursiveOrchestrator::new(8, "wide", 5, false, 3, false, true, false);
+    for b in &bars {
+        orch.process_bar(b[0], b[1], b[2], b[3]);
+    }
+
+    let snaps = orch.recursive().to_vec();
+    let l1_moves = orch.moves().to_vec();
+    let mut report = String::from("{\n  \"observable\": \"recursive_layer_bsp_final_snapshot\",\n");
+    report.push_str(&format!("  \"n_bars\": {},\n", bars.len()));
+    report.push_str(&format!("  \"n_recursive_levels\": {},\n", snaps.len()));
+    report.push_str("  \"levels\": {\n");
+    for (i, snap) in snaps.iter().enumerate() {
+        let prev_moves: &[Move] = if i == 0 { &l1_moves } else { &snaps[i - 1].moves };
+        let adapter = level_bsps(prev_moves, &snap.zhongshus, &snap.moves, snap.level_id);
+        assert_eq!(
+            snap.buysellpoints.len(), adapter.len(),
+            "level {} 生产路径 BSP 数 {} ≠ 适配器 {}",
+            snap.level_id, snap.buysellpoints.len(), adapter.len()
+        );
+        for (a, b) in snap.buysellpoints.iter().zip(adapter.iter()) {
+            assert_eq!(a.kind, b.kind, "level {} kind", snap.level_id);
+            assert_eq!(a.side, b.side, "level {} side", snap.level_id);
+            assert_eq!(a.seg_idx, b.seg_idx, "level {} seg_idx", snap.level_id);
+            assert_eq!(a.confirmed, b.confirmed, "level {} confirmed", snap.level_id);
+            assert_eq!(a.price.to_bits(), b.price.to_bits(), "level {} price", snap.level_id);
+        }
+        let cc = count_by_kind_conf(&snap.buysellpoints);
+        let cf = |k: &str| *cc.get(&(k, true)).unwrap_or(&0);
+        let conf_total = cf("type1") + cf("type2") + cf("type3");
+        report.push_str(&format!(
+            "    \"ladder{}_L{}\": {{ \"n_moves\": {}, \"n_zhongshus\": {}, \"bsp_total\": {}, \
+             \"confirmed\": {{ \"type1\": {}, \"type2\": {}, \"type3\": {} }}, \"confirmed_total\": {} }},\n",
+            snap.level_id + 2, snap.level_id, snap.moves.len(), snap.zhongshus.len(),
+            snap.buysellpoints.len(), cf("type1"), cf("type2"), cf("type3"), conf_total
+        ));
+        println!(
+            "ladder{}_L{}: moves={} zhongshus={} bsp_total={} confirmed(t1={} t2={} t3={})=共{}",
+            snap.level_id + 2, snap.level_id, snap.moves.len(), snap.zhongshus.len(),
+            snap.buysellpoints.len(), cf("type1"), cf("type2"), cf("type3"), conf_total
+        );
+    }
+    report.push_str("    \"_note\": \"生产路径 orch.recursive().buysellpoints 已等价守卫通过\"\n");
+    report.push_str("  }\n}\n");
+    let out = Path::new(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../analysis/data_cache/recursive_bsp_OKLO.json"
+    ));
+    fs::write(out, &report).expect("写 recursive_bsp 结果失败");
+    println!("已落盘: {}（生产路径等价守卫通过）", out.display());
 }

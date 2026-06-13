@@ -73,7 +73,7 @@ impl IncrementalBiZhongshuBsp {
             zhongshu: IncrementalBiZhongshu::new(),
             moves: IncrementalMoves::new(),
             divs: IncrementalDivergences::new(),
-            bsp: IncrementalBsp::new(level_id),
+            bsp: IncrementalBsp::new(level_id, false), // 笔级全 confirmed ⟹ settle 门无效
             move_views: Vec::new(),
             prev_closed_views: 0,
             zviews: Vec::new(),
@@ -99,13 +99,14 @@ impl IncrementalBiZhongshuBsp {
         low: f64,
         direction: Direction,
     ) {
-        // 1. 笔 SegView（append-only）。
+        // 1. 笔 SegView（append-only）。笔此处全 confirmed ⟹ settled=true（settle 门无效）。
         self.segs.push(SegView {
             direction,
             high,
             low,
             i0,
             i1,
+            settled: true,
         });
         // 2. 笔中枢增量（anchor=i0/i1，复刻 zhongshu_from_strokes）。
         self.zhongshu.push_confirmed(high, low, i0, i1);
@@ -401,6 +402,7 @@ mod differential_tests {
                 low,
                 i0,
                 i1,
+                settled: true, // 笔全 confirmed
             })
             .collect();
         let zss: Vec<ZsView> = zhongshus
@@ -431,7 +433,7 @@ mod differential_tests {
             .iter()
             .map(|z| (z.settled, z.break_direction, z.break_seg))
             .collect();
-        buysellpoints_from_level(&segs, &zss, &zs_break, &mvs, &divs, level_id)
+        buysellpoints_from_level(&segs, &zss, &zs_break, &mvs, &divs, level_id, false)
     }
 
     fn assert_bsp_eq(inc: &[BuySellPoint], full: &[BuySellPoint], prefix: usize) {

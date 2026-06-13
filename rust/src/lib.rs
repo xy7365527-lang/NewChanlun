@@ -465,6 +465,9 @@ fn to_seg_views(segments: &[SegInput]) -> Vec<divergence::SegView> {
             low: *low,
             i0: *i0,
             i1: *i1,
+            // 此 Python 批量入口的段元组不携带 confirmed ⟹ 不支持 require_settled
+            // （下方调用恒传 false）；settled=true 使合取门即便误开也为 no-op。
+            settled: true,
         })
         .collect()
 }
@@ -658,7 +661,7 @@ fn buysellpoints_from_level(
         )
         .collect();
 
-    buysellpoint::buysellpoints_from_level(&segs, &zss, &zs_break, &mvs, &divs, level_id)
+    buysellpoint::buysellpoints_from_level(&segs, &zss, &zs_break, &mvs, &divs, level_id, false)
         .iter()
         .map(bsp_to_tuple)
         .collect()
@@ -883,6 +886,7 @@ impl PyRecursiveOrchestrator {
         new_raw_gap_min = 3,
         enable_macd_divergence = false,
         enable_bsp = true,
+        require_settled_subseg = false,
     ))]
     fn new(
         max_levels: i64,
@@ -892,6 +896,7 @@ impl PyRecursiveOrchestrator {
         new_raw_gap_min: i64,
         enable_macd_divergence: bool,
         enable_bsp: bool,
+        require_settled_subseg: bool,
     ) -> Self {
         PyRecursiveOrchestrator {
             inner: orchestrator::RecursiveOrchestrator::new(
@@ -902,6 +907,7 @@ impl PyRecursiveOrchestrator {
                 new_raw_gap_min,
                 enable_macd_divergence,
                 enable_bsp,
+                require_settled_subseg,
             ),
             inc_bz: None,
             inc_pushed: 0,
@@ -1035,6 +1041,7 @@ impl PyRecursiveOrchestrator {
                 low: s.low,
                 i0: s.i0,
                 i1: s.i1,
+                settled: s.confirmed, // 笔此处全 confirmed ⟹ settle 门恒真无效（require_settled=false）
             })
             .collect();
         let zss: Vec<divergence::ZsView> = zhongshus
@@ -1065,7 +1072,7 @@ impl PyRecursiveOrchestrator {
             .iter()
             .map(|z| (z.settled, z.break_direction, z.break_seg))
             .collect();
-        buysellpoint::buysellpoints_from_level(&segs, &zss, &zs_break, &mvs, &divs, level_id)
+        buysellpoint::buysellpoints_from_level(&segs, &zss, &zs_break, &mvs, &divs, level_id, false)
             .iter()
             .map(bsp_to_tuple)
             .collect()

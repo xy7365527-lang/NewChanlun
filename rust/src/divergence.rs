@@ -60,6 +60,13 @@ pub struct SegView {
     pub low: f64,
     pub i0: usize,
     pub i1: usize,
+    /// 该段所代表的「次级别走势」是否已完成（线段已被后续线段破坏，`Segment.confirmed`，
+    /// 第65课线段分解定理「线段破坏的充要条件就是被另一线段破坏」）。
+    /// `require_settled` 模式下作为 BSP `confirmed` 的合取前提（编排者 2026-06-13：a₀=线段
+    /// 让 segment=次级别走势在形式上成立，但 segment 的生成≠走势完成——用未 settle 的
+    /// 生长中线段判 BSP = 伪信号，正是 §3 生长期 C 段伪背驰的源头，B2 未覆盖的 pending 侧）。
+    /// 非 require_settled 路径不读此字段（背驰检测只用 direction/high/low/i0/i1）。
+    pub settled: bool,
 }
 
 /// 背驰检测所需的最小中枢视图。
