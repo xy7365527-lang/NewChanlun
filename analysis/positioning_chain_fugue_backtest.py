@@ -5,11 +5,15 @@ min_trade_ladder** 模拟区间套（结果是 regime 函数）。固定参数�
 区间套（第14环）是操作层级由**走势结构动态决定**（定位链顶层 source_ladder），
 非外部 floor。
 
-实装：`rust/src/trading/positioning_chain_fugue.rs`。2026-06-14 编排者"他某种意义上
-是必然递归的，你来实装，严格实装"——把 located 武装从**自下而上**（要求全层同时
-对齐 ⇒ source 坍缩到 segment 92-95%）改为**自上而下级联**（nf@k 触发 ⇒ 级联武装
-[segment..=k] 全层，source=k = 最高有 located 的层）。与 URS 唯一构成性差异：操作层
-= source = 级联链顶。双侧定位链（卖侧出场 + 买侧入场）。零参数——无 min_trade_ladder。
+实装：`rust/src/trading/positioning_chain_fugue.rs`。2026-06-14 编排者"那你打算怎么办？"
+→"我去实装"（pending_locate 时序重构）——旧"自上而下级联"对**每个** k≥segment 的
+nf 武装 located ⇒ segment（k=2）candidate 频繁 + 其 a0 confirm 频繁 ⇒ nf[2] 抢先武装
+source=2 ⇒ 坍缩到 segment 91-96%。重构：**pending（高级别势）只在 k≥move(L1)=3
+注册，segment 仅作 confirm 工具**——最高 active pending@S(≥3) 经低级别 confirm（递归
+到 a0，含 segment）⇒ 级联武装 [segment..=S]，source=S。segment 单独反转不武装 located
+⇒ source 永不坍缩到 segment（引擎 prove_chain 强制 source>segment，违反即 panic）。
+与 URS 唯一构成性差异：操作层 = source = pending confirm 链顶。双侧定位链（卖侧出场 +
+买侧入场）。零参数——无 min_trade_ladder。
 
 ══════════════ 必然性检验（验收标准——先于回测，L0/L2）══════════════
 
@@ -21,9 +25,9 @@ min_trade_ladder** 模拟区间套（结果是 regime 函数）。固定参数�
 ⇒ 8 标的真实数据跑通**无 panic** = N1∧N2∧N3 在 ~25M bar 上成立（L2 必然性验证）。
 守恒律（§8.1）每 bar assert，违反即 panic = 会计正确性 L2 验证。
 
-  N_dist（源分布——级联是否起作用）：entry/spawn 的 source 分布。自下而上坍缩到
-     segment 92-95%；自上而下应上移（src_levels 覆盖多层 ∧ segment 占比下降）。
-     注：高级别 candidate 本就稀少 ⇒ segment 仍可能占多数（级联不凭空造高 source）。
+  N_dist（源分布——pending_locate 是否消除坍缩）：entry/spawn 的 source 分布。
+     旧"自上而下级联"坍缩到 segment 91-96%；pending_locate 应使 segment 占比 = 0
+     （prove_chain 强制 source>segment ⇒ 任何 segment 入场即 panic ⇒ 跑通即 0%）。
 
 脚本侧逻辑验证（消费 res，证明 source 驱动操作）：
   N4（source 决定操作量）：spawn 量 = parent.units × θ_source（构造保证；脚本

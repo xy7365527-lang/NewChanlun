@@ -5,6 +5,77 @@
 > 层级由**走势结构动态决定**（定位链顶层 source_ladder），非外部 floor。本任务实装
 > 零参数的定位链驱动引擎，先做**必然性检验**（验收标准），后跑回测（有效域读数）。
 
+---
+
+## pending_locate 时序重构（2026-06-14 最新——坍缩消除）
+
+> 编排者"那你打算怎么办？"→"我去实装"。下方"自下而上→自上而下"章节记录的
+> **source 坍缩到 segment 91-96%** 被本次重构**结构性消除**（保留作谱系）。
+
+### 坍缩根因（精确）
+
+旧"自上而下级联"对**每个** k≥segment 的 nf（candidate@k ∧ rec_sub_evidence(k−1)）
+武装 located。问题在 **segment（k=2）**：segment candidate 频繁 + 其 a0 confirm
+频繁 ⇒ `nf[2]` 抢先武装 source=2 ⇒ `chain_source` 取最高 located 时只有 source=2
+⇒ 坍缩。"时序反了"的精确形式 = segment 的瞬时 nf 抢在高级别 candidate 形成前操作。
+
+### 重构（先势后定位）
+
+- **pending（高级别势）= 高级别 candidate（k ≥ move(L1)=3）持续记忆**（`nest_*`
+  窗口承载，破极值否定）。**segment（k=2）不注册 pending——非势源**。
+- **confirm（低级别定位）= `rec_sub_evidence(S−1)` 递归到 a0**（含 segment + bi），
+  级别恒 < S（区间套：低定位高）。
+- **located 武装 = 最高 active pending@S(≥3) 经 confirm ⇒ 级联 [segment..=S]，
+  source=S**。segment 单独反转**只作 confirm 证据**，不武装 located。
+- `prove_chain` 加硬断言 `source > FIRST_BSP_LADDER`——**任何 segment 入场即 panic**。
+
+### 必然性检验（验收标准，全 PASS）
+
+| 检验 | 形式 | 结果 |
+|------|------|------|
+| N1 完整链 | 每操作 [segment..=S] 全 located | PASS（无 panic）|
+| N2 因果 | arm_bar ≤ 操作 bar | PASS |
+| N3 链顶一致 | source_ladder==s ∧ direction 一致 | PASS |
+| **N_collapse** | **source > segment 恒成立** | **PASS（prove_chain 强制）** |
+| 守恒 | §8.1 Σunits=N_base 每 bar | PASS |
+
+单测 11/11 通过（新增 `segment_candidate_alone_no_entry` +
+`high_pending_with_segment_confirm_cascades_to_flip`）。
+
+### source 分布（坍缩消除的硬证据，L2）
+
+| 标的 | 旧 segment/move | 新 entry source（segment=0） | 新 spawn source |
+|------|----------------|------------------------------|-----------------|
+| CL | 467 / 31（94%） | move(L1) 92 / recL2 2 | — |
+| BRN | 107 / 11（91%） | move(L1) 23 / recL2 1 | move(L1) 1 |
+| ES | 607 / 25（96%） | move(L1) 84 / recL2 4 | move(L1) 1150 |
+
+**segment 占比 91-96% → 0%**（结构性，非统计）。`deep_fires` 2500-3000 =
+segment/a0 大量充当 confirm 工具定位高级别 pending（区间套"低定位高"运作证据）。
+
+### 1s a0 双粒度验证（L2，旧记忆"1s 救不了坍缩"被推翻）
+
+CL1MO 1s（577K bar）+ 同源 1min 桶：均 `entry_seg% = 0.0`，`collapse_persists_1s
+= false`，maxsrc=3，无 panic。pending_locate 跨 a0 粒度消除坍缩
+（旧 `project_pcf_1s_a0_source_collapse` 记录 1s 85.6% 坍缩，本重构归零）。
+
+### 回测（有效域读数，非验收标准）
+
+| 标的 | BH | pcf | P1 | ΔURS |
+|------|-----|-----|----|----|
+| CL | +28.2% | +161.9% | ✓ | +157.2pp |
+| BRN | +87.4% | +59.4% | ✗ | +2.9pp |
+| ES | +594.3% | +183.6% | ✗ | −304.8pp（强牛踏空）|
+
+P1 1/3（CL 正域）。regime 分裂仍在（ES 长牛 = BH 域，与 nrf v4 等历史一致）。
+**回测非验收标准**——验收 = 必然性检验（已全 PASS）+ 坍缩消除（已结构性达成）。
+开放轴：pending confirm 时序消除了 source 坍缩，但 regime 依赖（强牛踏空）是
+**入场-出场 source 绑定的有效域问题**，正交于坍缩——待后续 regime 门控轴。
+
+---
+
+## 【谱系：上一版自下而上→自上而下，坍缩结论保留】
+
 ## 结论
 
 **必然性检验 PASS（验收标准），回测 = regime 函数（有效域读数，非验收标准）。**
@@ -243,3 +314,121 @@ v1 诊断 source 坍缩归因于"完整链高层罕见同时成立（链断）"�
   根因从"机制"精确到"candidate 频率结构"。**语法记录候选**：located 驱动的层选择
   在 1min a0 上无法稳定锚定高级别操作（与 E\*/棘轮/固定 floor 并列已探明机制，
   URS 的 E\* + 最高 θ 层仍在册最优）。
+
+---
+
+# v3：1s a0 检验——source 坍缩跨 a0 细粒度持续（细化方向否证）
+
+> 编排者 2026-06-14"我们的 nautilus 有这个框架，在这个框架下搞就行了"+"严格实现"。
+> 任务：用 1s a0 跑 pcf 引擎，验证 source_ladder 分布是否不再坍缩到 segment。
+> 上游：v2 边界条件①——"若改 a0 粒度 ⇒ 高级别 candidate 相对更频繁 ⇒ source 可能
+> 上移 ⇒ 本'segment 坍缩'结论限 1min a0"。**注意方向**：边界条件①设想的是**更粗**
+> 周期（candidate 变频繁）；本任务测的是**更细**（1s，candidate 变更稀疏），是边界
+> 条件①的相反方向——直接否证"细化 a0 打破坍缩"（任务动机假设）。
+> 脚本 `analysis/pcf_1s_a0_backtest.py`；数据 `{cl,brn,es}_1s_databento_1y.json`
+> （23M bar，免费档 databento ohlcv-1s）。引擎零改动（mode="pcf" 复用，新数据接入层）。
+
+## 结论
+
+**必然性检验 PASS 3/3（验收标准）；source 坍缩在 1s a0 上持续——merged(entry+spawn)
+segment 占比 85.1/86.5/85.6%，三标的全 ≥85%，落在 v2 的 1min 带（83-87%）内。
+细化 a0（1min→1s）不打破坍缩，任务动机假设否证。**
+
+## 对照构造（唯一变量 = a0）
+
+同一 1s 序列 → (a) 1s 塔（a0=1s）；(b) 1min 桶塔（墙钟分钟桶聚合，同源同窗）。两臂
+mode="pcf"、floor=FIRST_BSP_LADDER（segment，结构常量）、require_settled=True——逐字
+同 v2 在册口径。标的：CL/BRN（v1/v2 油链正域）、ES（强牛负域）。
+
+## 必然性检验（验收标准）：PASS 3/3
+
+23M bar（CL 5.96M + BRN 5.30M + ES 11.77M）1s a0 跑通**无 panic** ⇒ N1（完整级联链）
+∧ N2（因果）∧ N3（链顶一致）∧ 守恒（§8.1 每 bar）在 1s a0 上成立（L2 运行时证明）。
+1s 塔 maxsrc=5（recL3，src_levels 覆盖 segment→recL3）⇒ source 动态选层有效。
+
+## source 分布对照表（核心产出）
+
+| 标的 | n_1s | seg%(1s) | seg%(1min桶) | Δseg | maxsrc 1s / 1min | recL2+ 1s / 1min | roots/spawns/sellpt(1s) |
+|------|-----:|--------:|------------:|----:|:----------------|:----------------|:----------------------|
+| CL1Y | 5.96M | **85.1** | 77.4 | +7.7 | recL3 / recL2 | 32 / 3 | 2662 / 22 / 707 |
+| BRN1Y | 5.30M | **86.5** | 89.0 | −2.5 | recL3 / recL2 | 32 / 2 | 3200 / 1 / 760 |
+| ES1Y | 11.77M | **85.6** | 91.3 | −5.7 | recL3 / move(L1) | 4 / 0 | 404 / 0 / 120 |
+
+（seg% = merged entry+spawn 中 segment 层占比；v2 在册 1min 为 83-87%。）
+
+## 决定性 L2 发现：a0 细化延伸尾部但不改主体——坍缩跨 a0 粒度
+
+1. **稳健结论（定性结构不变）**：三标的 1s 全部 ≥85% segment。叠加 v2 的 1min 结论
+   （83-87%）+ 本轮 1min 桶塔对照（77-91%），现有 **1min、1s 两个 a0 点**均坍缩
+   ⇒ source 坍缩到 segment 是 **candidate 频率结构在 ≤1min 细粒度上的必然**，不限
+   单一 1min a0。有效域从"1min a0"扩展到"1min 及更细 a0"。
+
+2. **Δseg 符号不稳定（净效应在噪声内）**：CL +7.7（1s 更重）/ BRN −2.5 / ES −5.7
+   （1s 略缓解）；冒烟 CL1MO Δseg=−6.6（缓解）但年度 CL1Y=+7.7（加重）——**同标的
+   月度→年度符号翻转**。⇒ a0 对 segment 占比的净效应是噪声级，**不能声称"1s 缓解"
+   也不能声称"1s 加重"**（严格性：避免声明膨胀）。唯一稳健的是主体占比 ~85% 不变。
+
+3. **尾部延伸（绝对计数，非占比）**：1s 塔 maxsrc 一致上移到 recL3（vs 1min 桶塔
+   move(L1)/recL2），recL2+ 绝对计数显著增加（CL 3→32，ES 0→4）。⇒ 1s 多涌现层
+   （urs_1s PR3 的 lid4/lid5）**确实产出了更高 source 的操作**，但占比上仍被
+   segment（~85%）淹没。**分布尾部延伸 ≠ 分布主体上移**——区间套理想（高级别精确
+   定位为主）在 1s a0 上同样未达成。
+
+## 回测（L2 有效域读数，非验收）
+
+| 标的 | BH% | 1s strat0% | 1s stratF%（含摩擦） | 1min桶 strat0% |
+|------|----:|----------:|-------------------:|--------------:|
+| CL1Y | −20.9 | −24.9 | **−90.6** | −37.4 |
+| BRN1Y | −22.7 | −66.3 | **−115.6** | −38.7 |
+| ES1Y | +23.2 | +17.6 | **−13.8** | +13.2 |
+
+- **零摩擦三标的全跑输 BH；含摩擦三标的全深度负**（−90.6/−115.6/−13.8%）。秒级摩擦
+  伪影 + segment churn 双重——与 CL 秒级 a0 判决（盈亏平衡 0.58bps < taker 下限）在册
+  一致，第 N 次加固"1s 非操作床位"。
+- 油链正域（v1/v2 的 1min pcf {BRN,CL} 超 BH）在 1s 塔上**坍塌为负**——正域是 1min
+  特定窗口的 regime 函数，非 a0 不变量（同源同窗 1min 桶塔亦负，排除窗口混杂）。
+
+## 边界条件（结论翻转条件）
+
+1. **方向限定（关键）**：本任务否证的是 **细化** a0（1min→1s）打破坍缩。v2 边界条件①
+   特指 **粗化** a0（1min→30min/日线，candidate 变频繁方向）——**仍开放，未触及**。
+   细化（candidate 变稀疏）与粗化（变频繁）不可互推。若粗化 a0 下 source 上移到主体，
+   "坍缩跨 a0 必然"收窄为"坍缩在 ≤1min 细粒度必然"。
+2. 三标的均单年窗口（L2/L3 边缘）；CL/BRN bear 年、ES bull+回调。三 regime 同向
+   （坍缩持续）⇒ regime 非坍缩结论的混杂变量。但 Δseg 符号的标的依赖未在更多标的
+   验证（QQQ/BTC 1s 未拉）。
+3. 含摩擦口径用 maker 单侧 friction（CL/BRN 1bps、ES 0.5bps）；若实际执行 rebate
+   为正，含摩擦数字上移——但零摩擦已跑输 BH，rebate 不改 P1 符号。
+
+## 下游推论
+
+- **细化 a0 解决坍缩这条路关闭**：与 nest 覆盖率 1s 判决（覆盖率细化否证）、CL 秒级
+  判决（1s 非操作床位）三次加固同向——1s 的价值在观测/确认链时序（区间套跨塔耦合，
+  仍是开放轴），不在整塔替换的操作层选择。
+- **pcf 层选择轴在 1s 上仍无法稳定锚定高级别**：v1（自下而上）/v2（自上而下）/v3
+  （细化 a0）三路夹逼——located 驱动的层选择跨机制方向、跨 a0 细粒度均坍 segment。
+  URS 的 E\* + 最高 θ 层仍在册最优。
+- **唯一未关闭的层选择开放轴 = 粗化 a0**（边界条件①原指方向）+ candidate 武装分离
+  intent/confirm（v2 边界条件②）。
+
+## 谱系引用
+
+- pcf v1/v2（本文件上文）：v3 = 沿 a0 轴的第三次否证（v1 机制方向、v2 武装方向、
+  v3 细化 a0 方向均坍 segment）。
+- 539号 A′（`project_constitutive_throughput_falsified`）：located 驱动层选择踏空族，
+  v3 经"1s 仍坍 segment + 含摩擦 churn 全负"延伸。
+- 1s a0 nest 覆盖率判决（`1s_a0_nest_coverage_results.md`）：覆盖率细化否证同根——
+  "a0 细化只把操作床位推上高打破层，不改各层 nest 存活率"，本轮"不改 source 主体"同构。
+- CL 秒级 a0 判决 + CL 秒级 maker 执行判决：1s 非操作床位第 N 次加固（含摩擦全负）。
+- 形式化有效域规则：本判决 **L2/L3 边缘**（三标的 23M bar 真实数据，含否定性结果；
+  有效域从 1min 扩展到 ≤1min 细粒度，粗化方向明确标注未触及——避免有效域膨胀）。
+
+## 影响声明
+
+- 新增 `analysis/pcf_1s_a0_backtest.py`（1s 数据接入 + 1s/1min桶对照回测）、
+  `analysis/data_cache/pcf_1s_{CL1Y,BRN1Y,ES1Y}.json` + `pcf_1s_summary.json`、本章节。
+- **零引擎/在册改动**：positioning_chain_fugue.rs（mode="pcf"）未触碰；信号层/会计层
+  零接触；v1/v2 在册数字零接触；URS/nif/其余引擎零接触。
+- 数据复用既有 `{cl,brn,es}_1s_databento_1y.json`（gitignored，免费档）。
+- 认识论等级：必然性检验 = L2（23M bar 1s a0 运行时证明）；坍缩持续 = L2/L3（三标的
+  否定性结果，有效域边界沿 a0 细化方向收窄）。
