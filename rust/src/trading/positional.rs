@@ -343,6 +343,9 @@ pub struct PositionalResult {
     /// 亏损回补缩水累计单位数（资金守恒：买不回的单位 = 亏损的物理
     /// 形式，N 重定基 N′ = N − δ——earning 重定基的镜像）。
     pub nrf_shrink_units: f64,
+    /// 森林最大活跃子数（unified_necessity 专属，其余模式恒 0）——N1 实证读数：
+    /// >1 = 同一父长出多 child = 森林（栈不可能）。
+    pub nrf_max_children: u64,
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
@@ -668,6 +671,14 @@ pub enum PolarityMode {
     ///   词汇）才触发，替换一层截断（k−1 任意证据）。
     /// (false,false) = fusion_v bit-exact 守卫臂（不暴露 parse，仅单测）。
     DualVoice { dual_book: bool, nest_deep: bool },
+    /// 统一必然性引擎（unn；`unified_necessity.rs`；2026-06-14 编排者"严格验证
+    /// 必然性……然后严格实装，绝不允许近似"）。把分散在 URS/iso/nif/pcf 的 8 条
+    /// 必然性（概念运动链 N1-N8）**叠加到一个引擎**：森林（N1）+ per-voice acted
+    /// （N2）+ type2 接入（N3）+ 纯成本门无 floor（N4）+ 级联 pending_locate（N5/N6，
+    /// 仅根 F/C）+ E 自层 nf 不被 pending 门控（N7）+ 双层会计守恒（N8）。同一区间套
+    /// confirm fire 两路消费（540号）：级联 located 链 → 根 F/C；逐层 nf → 任意 voice
+    /// 的 E 降成本。8 个 prove 函数 violation = panic（验收标准，非回测）。零操作参数。
+    UnifiedNecessity,
 }
 
 impl PolarityMode {
@@ -758,6 +769,7 @@ impl PolarityMode {
             "urs" => Some(PolarityMode::UnifiedRecursive),
             "pcf" => Some(PolarityMode::PositioningChain),
             "iso" => Some(PolarityMode::Isolated),
+            "unn" => Some(PolarityMode::UnifiedNecessity),
             "rnf" => Some(PolarityMode::RecursiveNested),
             "nrf_ct" => Some(PolarityMode::NestedRecursive {
                 clearance: ClearanceMode::ConstitutiveThroughput {
@@ -976,6 +988,9 @@ pub fn run_positional(
     if mode == PolarityMode::Isolated {
         return super::isolated_fugue::run_isolated_fugue(tape, floor_ladder);
     }
+    if mode == PolarityMode::UnifiedNecessity {
+        return super::unified_necessity::run_unified_necessity(tape, floor_ladder);
+    }
     if let PolarityMode::NestedInterval { min_trade_ladder } = mode {
         return super::nested_interval_fugue::run_nested_interval_fugue(
             tape,
@@ -1072,10 +1087,11 @@ pub fn run_positional(
             | PolarityMode::UnifiedRecursive
             | PolarityMode::PositioningChain
             | PolarityMode::Isolated
+            | PolarityMode::UnifiedNecessity
             | PolarityMode::NestedInterval { .. }
             | PolarityMode::RecursiveNested
             | PolarityMode::DualVoice { .. } => {
-                unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/NestedInterval/DualVoice 在入口已分派")
+                unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/UnifiedNecessity/NestedInterval/DualVoice 在入口已分派")
             }
         };
         let exit_reason = match mode {
@@ -1088,10 +1104,11 @@ pub fn run_positional(
             | PolarityMode::UnifiedRecursive
             | PolarityMode::PositioningChain
             | PolarityMode::Isolated
+            | PolarityMode::UnifiedNecessity
             | PolarityMode::NestedInterval { .. }
             | PolarityMode::RecursiveNested
             | PolarityMode::DualVoice { .. } => {
-                unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/NestedInterval/DualVoice 在入口已分派")
+                unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/UnifiedNecessity/NestedInterval/DualVoice 在入口已分派")
             }
         };
 
@@ -1178,10 +1195,11 @@ pub fn run_positional(
                 | (PolarityMode::UnifiedRecursive, _)
                 | (PolarityMode::PositioningChain, _)
                 | (PolarityMode::Isolated, _)
+                | (PolarityMode::UnifiedNecessity, _)
                 | (PolarityMode::NestedInterval { .. }, _)
                 | (PolarityMode::RecursiveNested, _)
                 | (PolarityMode::DualVoice { .. }, _) => {
-                    unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/NestedInterval/DualVoice 在入口已分派")
+                    unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/UnifiedNecessity/NestedInterval/DualVoice 在入口已分派")
                 }
                 // Pending（两模式共用）：卖点@k 取消（该买点起始的走势已被
                 // 宣告结束）；否则重试入场。

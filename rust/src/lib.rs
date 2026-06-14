@@ -2209,6 +2209,7 @@ fn run_positional_rust(
     out.set_item("nrf_earning_units", res.nrf_earning_units)?;
     out.set_item("nrf_short_earning_hits", res.nrf_short_earning_hits)?;
     out.set_item("nrf_shrink_units", res.nrf_shrink_units)?;
+    out.set_item("nrf_max_children", res.nrf_max_children)?;
     Ok(out.into())
 }
 

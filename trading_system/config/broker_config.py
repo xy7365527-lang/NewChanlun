@@ -49,8 +49,15 @@ def hyperliquid_config(testnet: bool = True):
     """Hyperliquid data + exec 客户端配置（加密永续域）。
 
     返回 (HyperliquidDataClientConfig, HyperliquidExecClientConfig)。
-    私钥不经本函数传递——adapter 自行从 HYPERLIQUID_PK / HYPERLIQUID_TESTNET_PK
-    环境变量读取（按 environment 选取），代码零接触凭据。
+
+    L2 验证收口（2026-06-12，hl_verify_nautilus.py mainnet 实测）：
+    - 私钥显式从 HYPERLIQUID_PRIVATE_KEY 传入——adapter 默认读 HYPERLIQUID_PK /
+      HYPERLIQUID_TESTNET_PK，与本机变量名不匹配，缺省路径会静默拿不到凭据；
+    - instrument_provider 必须 load_all=True，否则 cache 无 instrument，
+      策略 on_start 拿不到合约定义（默认 load_all=False 是验证中第一个失败点）；
+    - 订单附带 Nautilus builder code（硬编码，零费归因）——账户须一次性
+      approveBuilderFee('0x0c8d970c462726e014ad36f6c5a63e99db48a8e7', '0%')，
+      已对主钱包执行（可撤销）。未批准时所有订单被拒。
 
     恒仓极性表达（在册判决，hold26 正域 L_max≈1.0–1.3x）：
         HL 杠杆是 per-position 设置（下单时指定，非账户级预设）；
@@ -61,22 +68,42 @@ def hyperliquid_config(testnet: bool = True):
         HyperliquidDataClientConfig,
         HyperliquidExecClientConfig,
     )
+    from nautilus_trader.config import InstrumentProviderConfig
     from nautilus_trader.core.nautilus_pyo3 import HyperliquidEnvironment
 
     env = HyperliquidEnvironment.TESTNET if testnet else HyperliquidEnvironment.MAINNET
-    data_cfg = HyperliquidDataClientConfig(environment=env)
-    exec_cfg = HyperliquidExecClientConfig(environment=env)
+    provider = InstrumentProviderConfig(load_all=True)
+    data_cfg = HyperliquidDataClientConfig(environment=env, instrument_provider=provider)
+    exec_cfg = HyperliquidExecClientConfig(
+        environment=env,
+        private_key=os.environ.get("HYPERLIQUID_PRIVATE_KEY"),
+        instrument_provider=provider,
+    )
     return data_cfg, exec_cfg
 
 
-def databento_live_config() -> dict:
-    """Databento Live 行情配置（期货域实时，CME bundle）。
+def databento_live_config(instrument_ids: list[str] | None = None):
+    """Databento Live 行情配置（期货域实时，GLBX.MDP3）。
 
-    TODO(阶段4): 实装为 DatabentoDataClientConfig(api_key=..., ...)
-    （adapter 已在 1.228.0 内置，LiveDataClientConfig 子类已确认存在）。
+    返回 DatabentoDataClientConfig。api_key 不经本函数传递——adapter 自行从
+    DATABENTO_API_KEY 环境变量读取（与 Hyperliquid 同纪律，代码零接触凭据）。
+
+    口径钉死：use_exchange_as_venue=False ⟹ instrument_id 形如 "ESM6.GLBX"，
+    与历史 catalog（databento_catalog.py，loader 默认 GLBX venue）一致。
+    注意此参数两处 API 默认值相反（loader=False / live=True），必须显式对齐。
+
+    instrument_ids: 启动时请求 definition 并允许订阅的标的，如 ["ESM6.GLBX"]。
+    adapter 要求所有待订阅标的在 client 配置中预先声明。
     """
-    api_key = os.environ.get("DATABENTO_API_KEY", "")
-    return {"api_key": api_key}
+    from nautilus_trader.adapters.databento import DatabentoDataClientConfig
+    from nautilus_trader.model.identifiers import InstrumentId
+
+    if not os.environ.get("DATABENTO_API_KEY"):
+        raise EnvironmentError("DATABENTO_API_KEY 缺失（检查仓库根 .env 或 shell 环境）")
+    return DatabentoDataClientConfig(
+        instrument_ids=[InstrumentId.from_str(i) for i in (instrument_ids or [])],
+        use_exchange_as_venue=False,
+    )
 
 
 def validate_credentials(cfg: dict, required: list[str]) -> None:

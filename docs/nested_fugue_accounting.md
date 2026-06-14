@@ -190,3 +190,89 @@ N' = N + Δ
 - 每个voice level可以对应一个独立的逐仓position
 - 或者用净额+内部记账（如果交易所不支持同标的多仓位）
 - Hyperliquid支持同标的多个逐仓position吗？需要确认
+
+## 11. 审计修正（2026-06-13，有效域标注）
+
+> 来源：`analysis/accounting_duality_audit.md`（会计双重性审计，L0，6 维度对抗核验）。
+> 性质：**代码（`nested_fugue.rs`）正确，本规格 §1-§8 的四条无条件声明是 26课理想化口径
+> 未覆盖逆境分支 = 声明膨胀（090号）。修规格向代码看齐，不修代码。** 原 §1-§10 保留
+> （谱系），下表标注有效域。审计判决：D1 存一次/D6 递归守恒 = CONFORMS（双重性核心正确）；
+> D2/D4/D5 = GAP；D3 = DIVERGES。
+
+### 11.1 §8.3 恒等式 child.P&L ≡ father.cost_reduction —— GAP
+
+无条件恒等**仅在 {盈利 ∧ shortfall=0（满额回补）∧ cost_pool 足}成立**。一般情形 child.P&L
+分裂为**四去向**（唯一物理量 leftover = capital − u_back×c）：
+
+```
+child.P&L ≡ cost_pool_reduce（降成本）+ earning_excess（N增,池竭后）− shortfall_loss（亏损,N减）+ free沉淀
+```
+
+- 盈利+池竭：超额走 earning（N 重定基），不进 cost_reduction。
+- 亏损（c>basis）：leftover=0 ⇒ cost_reduction=0；亏损物化为 **shortfall 单位永久缩水**
+  （`n_base −= shortfall`），**不是负 cost_reduction**（cost_pool 单调不增）。
+
+**双重性的时间结构**：§8.3"双视图一致"仅在 voice **关闭时刻**成立；存活期父子各持**不完整**
+视图（父 cost_pool 未降、子 capital 冻结）。
+
+### 11.2 §1 N 恒定 —— DIVERGES（N_base 双向重定基）
+
+§1"N 建仓后恒定，只 earning 增"与代码 `n_base −= shortfall`（亏损回补 N **减**，line 220）
+冲突。**N_base ≡ 运行态在手单位聚合**（双向重定基：earning N+Δ / 亏损 N−δ，代码 doc line 12-13
+"镜像"），**非建仓常数**。§1"恒定"应读作"不主动加仓"（26课语义），非"数量不可变"。
+§8.1 守恒守卫验的是"记账两侧一致"（防单边记账 bug），**不**验"N=建仓常数恒仓"。
+
+### 11.3 §7 earning 多空对称 —— GAP（构造不对称）
+
+§7"多空完全对称"= **金额守恒/极性翻转对称 ∧ 资本化构造不对称**：
+- 多头父 earning：`parent.units += dq`（增股，可构造）。
+- 空头父 earning：**L0 构造性不可表示**（"挣负股数"——空头均价 ≤0 后继续盈利需持负数量股）。
+  代码仅 `nrf_short_earning_hits += 1`（计数），不增 units（line 247-259）。
+- 解除条件：换**凸性载体**（期权，`project_put_option_short_earning`）。
+
+### 11.4 §8.4 NAV 未实现 P&L —— GAP（方向不对称递延）
+
+§8.4"每 bar 含未实现 P&L"仅多头逐市；空头取**冻结 capital**（非逐市），未实现 (basis−c)×units
+**递延到回补**。误差**双向**：空头浮盈→equity 低估；空头浮亏→equity 高估。界 = `(−Σu×basis,
+Σu×basis]`，受 1x 逐仓强平守卫单边上封，回补时双通道（leftover 盈/shrink 亏）归零。终态
+final_nav 正确（全回补后）；GAP 是逐 bar 口径。**nav 的 capital 形式是物理单真值**（空头持
+现金无独立 MtM 负债）——修复方向是改本 §8.4 措辞，非改 nav()。
+
+### 11.5 对分阶段推进（Phase 2-5）的下游约束
+
+- **Phase 3（逐仓嵌套/双层记账）**：D1+D6 CONFORMS ⇒ 地基稳固，可建。
+- **Phase 5（earning）**：D4 ⇒ 空头 earning 线性载体撞 L0 墙。按代码现实（仅多头父增仓）或换期权载体。
+- **Phase 2（多空对称）**："一套逻辑多空镜像"成立于守恒/极性层（D1/D6），**不**成立于 earning/N
+  重定基层（D3/D4）。须分层：守恒层对称 ∧ earning 层构造不对称。
+
+## 12. Phase 3 实装记录（2026-06-14，逐仓声部森林）
+
+> §11.5 预告"Phase 3 逐仓嵌套 D1+D6 CONFORMS ⇒ 地基稳固，可建"。已建：
+> `rust/src/trading/isolated_fugue.rs`（mode = "iso"）。
+
+**实装范围**：把 v4(`nested_fugue.rs`)/URS(`unified_recursive.rs`) 的 voice **栈**
+（每级别至多一个 voice、链尾操作、全局 `acted` 互斥）升级为 voice **森林**：
+
+1. **per-voice acted**（`acted_bar`，去全局互斥）——同 bar 多 level/多 voice 独立操作。
+2. **Type2 接入区间套窗口**（`e.class.side()` 归侧，删 `Sell2|Buy2 => continue`）——
+   中枢回测确认词汇（概念链第12环）经 located/nf 触发 spawn。
+3. **VoiceLedger 森林**（root 可多 child，`child_voice_ids: Vec`）——会计原语
+   （`close_voice` 短/多分支）逐字复用 `pop_tail`（§11 审计 CONFORMS），只从链尾
+   访问改为 id 寻址 + 树**后序**遍历。孤儿不可能定理：父仅经后序 `close_voice`
+   关闭 ⇒ 子必先关 ⇒ 无孤儿 ⇒ 无需 reparent。
+4. **逐 level 独立 BSP 消费**（改动1 推论）。
+
+清仓（§6）= URS E* 涌现归属层 sell_any ∧ 递归确认 ⇒ cascade 全树回现金。
+
+**验证（认识论等级标注）**：
+- L0/L1：335 单测全过（含 12 个 iso 单测：森林多 child、同 bar 多 voice 回补、
+  三层守恒、Type2 武装、earning 重定基）。会计正确性独立 code-review = PASS
+  （守恒 §8.1 / 孤儿不可能 / NAV 连续 / per-voice 互斥全 VERIFIED）。
+- **L3**（8 标的真实数据 ~25M bars）：**零守恒违反**（§8.1 守卫全程未 Err）⇒ 森林
+  会计在真实数据上鲁棒。**P1（≥BH）= 1/8**（仅 OKLO）；**iso ≻ urs 6/8**
+  （BTC +549pp，清仓回现金 > URS 翻转 churn）；**iso ≺ v4 5/8**（v4 仍最强基座）。
+  报告：`analysis/isolated_fugue_forest_verdict.md`。
+- **否定性发现**：用户前提"没吃到信号 → 森林吃更多 → 更赚"**未被证实**——iso 仅
+  3/8 比 urs 多吃信号（R_capture），且多吃的 ES/GC 既不跑赢 BH 也不跑赢 v4。
+  **信号捕获与 alpha 正交**——"12 信号丢失机制"被修 ≠ alpha（栈纪律是特征非 bug；
+  参 §11 + `project_shared_position_fugue` L2 否证）。

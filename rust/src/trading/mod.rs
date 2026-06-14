@@ -31,6 +31,7 @@ pub mod nested_fugue;
 pub mod nested_interval_fugue;
 pub mod positioning_chain_fugue;
 pub mod recursive_nested_fugue;
+pub mod unified_necessity;
 pub mod unified_recursive;
 pub mod positional;
 pub mod positional_fusion;

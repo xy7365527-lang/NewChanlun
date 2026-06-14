@@ -31,6 +31,9 @@
 | SQLite 持久化 | ✅ bars=30000 / signals=68 / orders=62（60撤+2成，与 maker 计数器逐项一致）/ 快照 1 |
 | **崩溃恢复** | ✅ 新进程从 BarCache 重放 30000 根 → 结构与崩溃前快照逐项一致，守卫未抛 |
 | Hyperliquid adapter | ✅ 1.228.0 官方内置，testnet 配置类构造通过 |
+| **Databento 历史→catalog（路A）** | ✅ ES 1min 一个月（30,120 bar）+ definition 去重 → ParquetDataCatalog（`.cache/nautilus_catalog`，instrument `ESM6.GLBX` 精度2） |
+| **BacktestNode 消费 catalog** | ✅ `catalog_smoke.py`：30,120/30,120 bar 送达 `BarCounter.on_bar()` |
+| **Databento Live 接入** | ✅ gateway 认证 + ESM6/CLN6 definition 加载 + 双路 1min 订阅接受；on_bar 收数因 CME 周末闭市（周五17:00 ET后运行）待开盘时段复验：`live/databento_live_runner.py --duration 180` |
 
 ## 结构
 
@@ -46,7 +49,8 @@ trading_system/
 ├── data/
 │   ├── DATA_SOURCES.md        # 实时数据源选型评估（HL/Databento/IBKR/AV 四源矩阵）
 │   ├── feed_abstraction.py    # 统一数据抽象：域→源路由 + 能力声明（防声明膨胀）
-│   ├── databento_loader.py    # 路A: DBN→catalog(TODO) / 路B: parquet数组→Bar(已实现)
+│   ├── databento_loader.py    # 路A: DBN→catalog（委托 databento_catalog）/ 路B: parquet数组→Bar
+│   ├── databento_catalog.py   # 路A CLI: API拉取(费用守卫)→DBN缓存→definition去重→catalog→验证
 │   └── bar_aggregator.py      # INTERNAL 1s 聚合 BarType（HL 无交易所 1s K线判决）
 ├── persistence/               # SQLite：崩溃恢复 + 审计（与 Nautilus 自有持久化分工见 __init__）
 │   ├── database.py            # 连接管理 + schema（WAL）
@@ -56,8 +60,11 @@ trading_system/
 ├── config/
 │   ├── instruments.py         # BTC-USD-PERP.HYPERLIQUID / CL / BZ 注册表
 │   └── broker_config.py       # IBKR paper / Hyperliquid testnet / Databento（环境变量）
+├── strategy/bar_counter.py    # 数据管线冒烟空策略（回测/实盘共用，只计数不下单）
 ├── backtest/runner.py         # BacktestEngine 入口（--db 开持久化）
-└── live/runner.py             # TradingNode 骨架（阶段4）
+├── backtest/catalog_smoke.py  # BacktestNode × DBN catalog 消费端验证
+├── live/runner.py             # TradingNode 骨架（阶段4）
+└── live/databento_live_runner.py  # Databento Live 数据流冒烟（数据-only node，定时停机）
 ```
 
 ## Hyperliquid 调研结论（adapter 源码逐字核对）
