@@ -1,0 +1,267 @@
+{
+ "symbol": "CL",
+ "instrument_id": "CL.GLBX",
+ "n_bars": 5528156,
+ "bh_pct": 28.2,
+ "bh_mdd_pct": -94.0,
+ "max_bars": null,
+ "unn": {
+  "strat_pct": 132.4,
+  "mdd_pct": -55.7,
+  "n_trades": 2259,
+  "exit_reasons": {
+   "negate": 531,
+   "recover": 1723,
+   "cascade": 4,
+   "eod": 1
+  },
+  "yearly": null,
+  "by_ladder": {
+   "segment/short": {
+    "n": 2222,
+    "pnl_cash": 11979.0,
+    "wins": 858,
+    "avg_held_bars": 159.0
+   },
+   "move(L1)/long": {
+    "n": 36,
+    "pnl_cash": 61327.0,
+    "wins": 1,
+    "avg_held_bars": 132915.0
+   },
+   "recL2/long": {
+    "n": 1,
+    "pnl_cash": -614.0,
+    "wins": 0,
+    "avg_held_bars": 306.0
+   }
+  },
+  "nrf_counters": {
+   "root_entries": [
+    0,
+    0,
+    0,
+    36,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "spawns": [
+    0,
+    0,
+    2049,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "negates": [
+    0,
+    0,
+    495,
+    35,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "cascades": [
+    0,
+    0,
+    4,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "cost_rejects": [
+    0,
+    0,
+    4030,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "noref_rejects": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "floor_stops": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "flips": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "phys_long_bars": 4758946,
+   "depth_bars": [
+    742911,
+    4500542,
+    232758,
+    39010,
+    9769,
+    2330,
+    436,
+    195,
+    205,
+    0,
+    0
+   ],
+   "nest_arms": [
+    0,
+    0,
+    0,
+    8112,
+    361,
+    33,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_fire_sell": [
+    0,
+    0,
+    0,
+    2729,
+    160,
+    17,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_fire_buy": [
+    0,
+    0,
+    0,
+    2790,
+    163,
+    15,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_breaks": [
+    0,
+    0,
+    0,
+    1842,
+    38,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "liquidations": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "short_net_cash": [
+    0.0,
+    0.0,
+    11979.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "short_held_bars": [
+    0,
+    0,
+    354190,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "nrf_max_children": 7,
+  "_timing": {
+   "signals_s": 88.0,
+   "engine_s": 37.2
+  }
+ },
+ "P1_ge_bh": true,
+ "P0_pipeline_verify": {
+  "status": "PASS",
+  "checks": {
+   "strat_pct": 132.4,
+   "mdd_pct": -55.7,
+   "n_trades": 2259
+  },
+  "mismatches": {}
+ },
+ "architecture": "NautilusTrader=数据回放+生命周期；unn=on_stop批量(tape消费);P&L来自unn账本非NT portfolio;LMT-only(批量不下单)"
+}
