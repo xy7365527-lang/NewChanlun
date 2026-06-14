@@ -2630,10 +2630,10 @@ nodes:
   type: 概念发现
   file: settled/539-clearance-criterion-regime-gating-open-axis.md
 - id: '540'
-  title: 递归结构的同一-差异双重性——线段=次级别走势类型（同一/压缩视图，057:26）∧ 走势类型有内部结构中枢+背驰+完美（差异/展开视图，065:180）；构造用压缩侧（线段重叠成中枢）、确认用展开侧（走势类型做BSP确认）；不可坍缩（坍缩=v5踏空，L3否证）；引擎递归结构无构造性错误；Scheme
-    A（走势类型↔中枢=经络）vs Scheme B（高级别重划笔线段=外貌）非bit-exact；537号信号层双重性的结构层同构
+  title: 递归结构的同一-差异双重性（根谱系，536/537/538的共同根源）——线段=次级别走势类型（同一/压缩视图，057:26）∧ 走势类型有内部结构中枢+背驰+完美（差异/展开视图，065:180）；构造用压缩侧、确认用展开侧；不可坍缩（坍缩=v5踏空，L3否证）；引擎递归结构无构造性错误（升跌完备性93-100%）；Scheme
+    A（走势类型↔中枢=经络）vs Scheme B（高级别重划笔线段=外貌）非bit-exact；递归两方向（构造↑压缩=信号层/区间套↓展开=操作层/BSP=交汇点candidate压缩/confirmed展开）
   status: 已结算
-  type: 概念发现
+  type: 概念发现（根谱系/统一原理）
   file: settled/540-recursive-structure-identity-difference-duality.md
 edges:
   depends_on:
@@ -5470,7 +5470,7 @@ edges:
   - from: '540'
     to: '526'
   - from: '540'
-    to: '536'
+    to: '525'
   triggered:
   - from: '005'
     to: 005a
@@ -5515,6 +5515,12 @@ edges:
     to: '020'
   - from: '063'
     to: '062'
+  - from: '540'
+    to: '536'
+  - from: '540'
+    to: '537'
+  - from: '540'
+    to: '538'
   negates:
   - from: '064'
     to: '062'
@@ -7205,6 +7211,9 @@ edges:
     - '540'
   - between:
     - 029
+    - '540'
+  - between:
+    - '537'
     - '540'
   tensions_with:
   - between:
