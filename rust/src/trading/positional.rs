@@ -627,6 +627,30 @@ pub enum PolarityMode {
     /// 统一递归系统（从概念链 23 环直接翻译；清仓层 = E* 涌现归属，
     /// 零 flag——无 ClearanceMode 选项、无 regime 门、无白名单）。
     UnifiedRecursive,
+    /// 区间套定位链驱动赋格（pcf；`positioning_chain_fugue.rs`；2026-06-14 任务
+    /// "那你要实现啊"）。与 URS 唯一构成性差异：**操作层 = source = 完整 located
+    /// 链（a0→S）的顶层**——废除 URS 的 E\* 爬升（dir/anchor）+ `top`（最高 θ 层）
+    /// 两个独立部件，层选择 ≡ 链确认（合一）。入场要求完整买链、出场对齐入场
+    /// source、降成本 spawn 在 source<voice.ladder 时（次级别反转）。零参数（无
+    /// min_trade_ladder、无操作 floor——floor_ladder 仅作结构递归基）。区别于
+    /// 539号已否证 A′（单层 located 选层 ⇒ 踏空）：整条链 + 入场-出场 source 绑定。
+    PositioningChain,
+    /// 逐仓独立声部森林（iso；`isolated_fugue.rs`；2026-06-14 任务）。
+    /// 把 v4/URS 的 voice **栈**（每级别至多一个 voice、链尾操作、全局 `acted`
+    /// 互斥）升级为 voice **森林**（`VoiceLedger` 树，root 可多 child）：
+    /// per-voice acted（去全局互斥）+ Type2 接入区间套窗口 + 树形隔离会计
+    /// （守恒律 §8.1/§8.3 每 bar 守卫）+ 逐 level 独立 BSP 消费。清仓层 = URS
+    /// E* 涌现归属（cascade 全树回现金，§6）。零 flag——唯一参数 = a0。
+    Isolated,
+    /// 区间套递归赋格（nif；`nested_interval_fugue.rs`；2026-06-14 任务
+    /// "改 BSP 消费规则——按级别分层消费"）。URS 的构成性推广：加
+    /// `min_trade_ladder` 交易 floor（势在 < min_trade_ladder 的级别不存在，
+    /// 第16环成本门=递归终止的结构形态）。三层改动：① segment 级别不独立开仓
+    /// （F/E/C 落点 ≥ min_trade_ladder，低层 BSP 仅参与区间套定位）；② 仓位集中
+    /// 高级别 + 区间套定位（F 最高 θ 涌现层满仓 + nf 定位，E θ 配额）；③ 出场
+    /// 对齐 E* 涌现层（≥根入场级别）反向 BSP，低级别反向 → E 降成本非平仓。
+    /// 退化定理：`min_trade_ladder = FIRST_BSP_LADDER` ⇒ bit-exact = URS。
+    NestedInterval { min_trade_ladder: usize },
     /// 递归嵌套多重赋格（"平多≠开空"推到极限；`recursive_nested_fugue.rs`）。
     /// 与 v4/URS 唯一构成性差异：**根永不平多**（除 EOD）——根层及以下一切卖点
     /// = 开空（降成本 spawn 子空），全部 regime 适应来自子空存活/死亡的净暴露
@@ -732,6 +756,8 @@ impl PolarityMode {
             "fusion_va" => Some(PolarityMode::AxiomVoice),
             "nrf" => Some(PolarityMode::NestedRecursive { clearance: ClearanceMode::V4 }),
             "urs" => Some(PolarityMode::UnifiedRecursive),
+            "pcf" => Some(PolarityMode::PositioningChain),
+            "iso" => Some(PolarityMode::Isolated),
             "rnf" => Some(PolarityMode::RecursiveNested),
             "nrf_ct" => Some(PolarityMode::NestedRecursive {
                 clearance: ClearanceMode::ConstitutiveThroughput {
@@ -796,6 +822,15 @@ impl PolarityMode {
             }),
             // T 轴严格化臂：fusion_t + {g,d,b} 子集（规范序 g<d<b，不重复）。
             other => {
+                // 区间套递归赋格 nif{N}：N = min_trade_ladder（交易 floor）∈
+                // [FIRST_BSP_LADDER, MAX_LADDER)。nif{FIRST_BSP_LADDER} = URS 退化。
+                if let Some(d) = other.strip_prefix("nif") {
+                    let lad = d.parse::<usize>().ok()?;
+                    if !(FIRST_BSP_LADDER..MAX_LADDER).contains(&lad) {
+                        return None; // 越界级别（含 < segment / ≥ 顶层）非法
+                    }
+                    return Some(PolarityMode::NestedInterval { min_trade_ladder: lad });
+                }
                 // 双向条件轴 S1-S4 [镜像推导]：fusion_btr_s{digits} =
                 // fusion_tr 基座 + 置位层卖点翻空/买点翻多；fusion_btrg_s =
                 // 纯回复门消融臂（Gated 态，不开空）；fusion_btra{mods}_s =
@@ -935,6 +970,19 @@ pub fn run_positional(
     if mode == PolarityMode::UnifiedRecursive {
         return super::unified_recursive::run_unified_recursive(tape, floor_ladder);
     }
+    if mode == PolarityMode::PositioningChain {
+        return super::positioning_chain_fugue::run_positioning_chain_fugue(tape, floor_ladder);
+    }
+    if mode == PolarityMode::Isolated {
+        return super::isolated_fugue::run_isolated_fugue(tape, floor_ladder);
+    }
+    if let PolarityMode::NestedInterval { min_trade_ladder } = mode {
+        return super::nested_interval_fugue::run_nested_interval_fugue(
+            tape,
+            floor_ladder,
+            min_trade_ladder,
+        );
+    }
     if mode == PolarityMode::RecursiveNested {
         return super::recursive_nested_fugue::run_recursive_nested_fugue(tape, floor_ladder);
     }
@@ -1022,9 +1070,12 @@ pub fn run_positional(
             | PolarityMode::AxiomVoice
             | PolarityMode::NestedRecursive { .. }
             | PolarityMode::UnifiedRecursive
+            | PolarityMode::PositioningChain
+            | PolarityMode::Isolated
+            | PolarityMode::NestedInterval { .. }
             | PolarityMode::RecursiveNested
             | PolarityMode::DualVoice { .. } => {
-                unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
+                unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/NestedInterval/DualVoice 在入口已分派")
             }
         };
         let exit_reason = match mode {
@@ -1035,9 +1086,12 @@ pub fn run_positional(
             | PolarityMode::AxiomVoice
             | PolarityMode::NestedRecursive { .. }
             | PolarityMode::UnifiedRecursive
+            | PolarityMode::PositioningChain
+            | PolarityMode::Isolated
+            | PolarityMode::NestedInterval { .. }
             | PolarityMode::RecursiveNested
             | PolarityMode::DualVoice { .. } => {
-                unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
+                unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/NestedInterval/DualVoice 在入口已分派")
             }
         };
 
@@ -1122,9 +1176,12 @@ pub fn run_positional(
                 | (PolarityMode::AxiomVoice, _)
                 | (PolarityMode::NestedRecursive { .. }, _)
                 | (PolarityMode::UnifiedRecursive, _)
+                | (PolarityMode::PositioningChain, _)
+                | (PolarityMode::Isolated, _)
+                | (PolarityMode::NestedInterval { .. }, _)
                 | (PolarityMode::RecursiveNested, _)
                 | (PolarityMode::DualVoice { .. }, _) => {
-                    unreachable!("Fusion/UnifiedVoice/NestedRecursive/DualVoice 在入口已分派")
+                    unreachable!("Fusion/UnifiedVoice/NestedRecursive/UnifiedRecursive/Isolated/NestedInterval/DualVoice 在入口已分派")
                 }
                 // Pending（两模式共用）：卖点@k 取消（该买点起始的走势已被
                 // 宣告结束）；否则重试入场。
