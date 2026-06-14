@@ -27,6 +27,8 @@ pub mod ledger;
 pub mod level_operating_unit;
 pub mod master;
 pub mod nested_fugue;
+pub mod recursive_nested_fugue;
+pub mod unified_recursive;
 pub mod positional;
 pub mod positional_fusion;
 pub mod recursive_position;

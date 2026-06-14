@@ -71,33 +71,36 @@ use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
 /// 区间套窗口（candidate 武装/刷新极值、confirmed 同侧清窗、破极值否定）。
+///
+/// 可见性 `pub(super)`：`unified_recursive` 复用同一会计原语（§1-§8 的正确
+/// 翻译，无概念差异）——逻辑零改动，bit-exact 由本文件 test 套件守卫。
 #[derive(Debug, Clone, Copy)]
-struct Win {
-    extreme: f64,
+pub(super) struct Win {
+    pub(super) extreme: f64,
 }
 
 /// 链上一个 voice（一个级别的会计视图）。
 #[derive(Debug, Clone, Copy)]
-struct Voice {
-    ladder: usize,
-    dir: Polarity,
+pub(super) struct Voice {
+    pub(super) ladder: usize,
+    pub(super) dir: Polarity,
     /// 在手单位（多 = 持股；空 = 未回补敞口）。Σ 链上在手 = N_base。
-    units: f64,
+    pub(super) units: f64,
     /// 相位开仓均价（视图 P&L 锚；earning 增仓时加权更新）。
-    basis: f64,
+    pub(super) basis: f64,
     /// 成本池（§7 earning 判据：回补利润递减，≤0 后纯利润）。
-    cost_pool: f64,
+    pub(super) cost_pool: f64,
     /// 空头 voice 在手现金（= 父层卖出所得 = 回补弹药；多头恒 0）。
-    capital: f64,
+    pub(super) capital: f64,
     /// 相位开仓 bar。
-    entry_bar: i64,
+    pub(super) entry_bar: i64,
     /// 出生相否定线（spawn 时 candidate 极值，027:25）；confirmed 出生无。
-    negate_line: Option<f64>,
+    pub(super) negate_line: Option<f64>,
 }
 
 /// 物理 NAV（单一真值）：自由现金 + 多头在手×价 + 空头在手现金。
 /// 空头视图的未实现 P&L 在回补时以缩水/剩余现金形式物化（存一次）。
-fn nav(chain: &[Voice], free: f64, c: f64) -> f64 {
+pub(super) fn nav(chain: &[Voice], free: f64, c: f64) -> f64 {
     let mut v = free;
     for x in chain {
         match x.dir {
@@ -109,7 +112,7 @@ fn nav(chain: &[Voice], free: f64, c: f64) -> f64 {
 }
 
 /// 次级别证据（区间套触发词汇）。
-fn sub_evidence(
+pub(super) fn sub_evidence(
     sub: usize,
     side: Side,
     evs: &[BspEvent],
@@ -131,7 +134,7 @@ fn sub_evidence(
 /// （j = FIRST_BSP_LADDER−1 = bi 层，词汇 = 方向翻转沿）。任何一层出现
 /// 同侧直接证据即触发——终止条件仅 a0 ∨ 找到证据（任务裁决"递归到底"；
 /// 武装窗口链门控读法在真实数据上域空已被否证）。返回证据层。
-fn rec_sub_evidence(
+pub(super) fn rec_sub_evidence(
     start: usize,
     side: Side,
     evrows: &[Vec<BspEvent>; MAX_LADDER],
@@ -145,7 +148,7 @@ fn rec_sub_evidence(
 }
 
 /// 结算一个 voice 的当前相位（trade 行 + 计数）。返回该相位视图 P&L。
-fn settle_phase(
+pub(super) fn settle_phase(
     v: &Voice,
     exit_bar: i64,
     exit_price: f64,
@@ -188,7 +191,7 @@ fn settle_phase(
 /// `at_point`：本次解栈是否发生在 confirmed 买卖点（earning 增仓的
 /// 时机约束，§7"必须在买点"）；cascade/negate/liq 路径为 false。
 #[allow(clippy::too_many_arguments)]
-fn pop_tail(
+pub(super) fn pop_tail(
     bar: i64,
     px: f64,
     c: f64,
@@ -262,7 +265,7 @@ fn pop_tail(
 /// 附庸不是我的附庸"的会计形式）。g 层 trade 行用 g_price/reason，
 /// 以深子孙用市价 c、reason="cascade"。
 #[allow(clippy::too_many_arguments)]
-fn unwind_to(
+pub(super) fn unwind_to(
     g: usize,
     bar: i64,
     g_price: f64,
