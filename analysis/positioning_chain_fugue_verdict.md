@@ -29,18 +29,31 @@
   source=S**。segment 单独反转**只作 confirm 证据**，不武装 located。
 - `prove_chain` 加硬断言 `source > FIRST_BSP_LADDER`——**任何 segment 入场即 panic**。
 
+### 压缩-展开时序（540号双重性显式化——编排者"压缩和展开也是有时序的"）
+
+540号根谱系：递归两方向 = **构造↑压缩（信号层）/ 区间套↓展开（操作层）/ BSP =
+交汇点**（011号同一递归两遍历）。pending_locate 是其操作化，时序**不可颠倒**：
+- **压缩↑**：BSP 引擎从低级别构造高级别 candidate ⇒ pending 注册，记 `compress_bar`
+  （candidate 首现 = 压缩完成 bar）。
+- **展开↓**：高级别 pending 经 `rec_sub_evidence` 向下找低级别 confirm ⇒ `confirm_bar`。
+- **运行时强制**：`compress_bar ≤ confirm_bar ≤ 操作 bar`（结构 `if let Some(p)=nest[k]`
+  保证 confirm 只匹配已注册 pending ∧ `prove_chain` + confirm 点数据断言双重证明）。
+  从旧版的**隐式控制流时序**升格为**显式运行时不变量**（spec-execution-gap：声明=能力）。
+
 ### 必然性检验（验收标准，全 PASS）
 
 | 检验 | 形式 | 结果 |
 |------|------|------|
 | N1 完整链 | 每操作 [segment..=S] 全 located | PASS（无 panic）|
-| N2 因果 | arm_bar ≤ 操作 bar | PASS |
+| N2 因果 | confirm_bar ≤ 操作 bar | PASS |
 | N3 链顶一致 | source_ladder==s ∧ direction 一致 | PASS |
 | **N_collapse** | **source > segment 恒成立** | **PASS（prove_chain 强制）** |
+| **N_time（540）** | **compress_bar ≤ confirm_bar ≤ op（压缩↑先于展开↓）** | **PASS（~11M bar 无 panic）** |
 | 守恒 | §8.1 Σunits=N_base 每 bar | PASS |
 
-单测 11/11 通过（新增 `segment_candidate_alone_no_entry` +
-`high_pending_with_segment_confirm_cascades_to_flip`）。
+单测 12/12 通过（新增 `segment_candidate_alone_no_entry` +
+`high_pending_with_segment_confirm_cascades_to_flip` +
+`prove_chain_rejects_inverted_time_order`[#should_panic 时序颠倒拦截]）。
 
 ### source 分布（坍缩消除的硬证据，L2）
 

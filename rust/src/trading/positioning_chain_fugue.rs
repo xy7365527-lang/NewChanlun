@@ -30,6 +30,21 @@
 //! segment 的 `nf[2]` 抢先武装 source=2。重构后 segment 退出势源，时序回正：
 //! pending（高级别势）持续等待 → confirm（低级别定位）兑现 ⇒ source=高级别。
 //!
+//! ## 压缩-展开时序（540号递归双重性的操作化——编排者 2026-06-14 洞察）
+//!
+//! "压缩和展开也是有时序的，跟会计学一样"。540号根谱系：递归两方向 = **构造↑
+//! 压缩（信号层）/ 区间套↓展开（操作层）/ BSP = 交汇点**（011号同一递归两遍历）。
+//! pending_locate 是这个时序的严格表达，**不可颠倒**：
+//!   - **压缩↑**（信号层 buysellpoint.rs）：低级别 K 线递归构造出高级别背驰/突破
+//!     candidate（BSP event，confirmed=false）⇒ `nest_*` 窗口注册 pending，记录
+//!     `since_bar` = candidate 首现 bar = **压缩完成 bar**。
+//!   - **展开↓**（操作层本引擎）：高级别 pending 经 `rec_sub_evidence` 向下找
+//!     低级别 confirm（递归到 a0）⇒ 兑现 `confirm_bar`。
+//!   - **时序不变量**（运行时强制，违反即 panic）：`compress_bar ≤ confirm_bar
+//!     ≤ 操作 bar`。confirm 只能匹配**已注册**的 pending（`if let Some(p)=nest[k]`
+//!     结构保证 ∧ `prove_chain` 数据断言双重证明）——压缩必先于展开，展开必先于
+//!     操作。同 bar 合法（candidate event 内压缩已完成），但展开早于压缩 = panic。
+//!
 //! ## 级联不变量（必然性检验的运行时基础）
 //!
 //! `located`（任一侧）非空时**恒为连续前缀** `[FIRST_BSP_LADDER..=S]`，且全层**统一
@@ -89,7 +104,7 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice, Win};
+use super::nested_fugue::{nav, pop_tail, rec_sub_evidence, unwind_to, Voice};
 use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::SignalTape;
@@ -97,24 +112,36 @@ use super::types::{BspClass, BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INI
 use crate::buysellpoint::Side;
 use crate::stroke::Direction;
 
+/// pending 窗口（高级别 candidate 持续记忆——540号压缩侧↑的载体）。
+///
+/// 替代 nested_fugue 的共享 `Win`——pcf 增 `since_bar`（压缩完成 bar）以显式记录
+/// 540号压缩-展开时序。candidate 首现（信号层压缩完成）时 `since_bar = bar`；
+/// 极值刷新（同一 pending 持续）时 **since_bar 保留首现值**（压缩起始不变）。
+#[derive(Debug, Clone, Copy)]
+struct Pending {
+    extreme: f64,
+    since_bar: i64,
+}
+
 /// pending_locate 兑现条目（编排者 pending_locate 方案的核心数据结构）。
 ///
-/// 用户方案的 `PendingLocate{source_ladder, direction, extreme, arm_bar}`：
-/// pending（高级别 candidate 持续记忆）由 `nest_*` 窗口承载（candidate 在场即
-/// pending 在场，破极值否定 = pending 失效）；**confirm（低级别定位）兑现后**写入
-/// `located`，此结构即"已定位的 pending 请求"。
+/// pending（高级别 candidate 持续记忆）由 `nest_*` 窗口（`Pending`）承载；
+/// **confirm（低级别定位）兑现后**写入 `located`，此结构即"已定位的 pending 请求"。
 ///   - `source_ladder` = pending 的级别（≥ FIRST_BSP_LADDER+1，必然性检验1）。
 ///     级联不变量下，一条链内全层 source_ladder 统一 = 链顶 S。
 ///   - `direction` = pending 方向（卖侧出场链 / 买侧入场链）。located_sell/located_buy
 ///     分数组下方向由数组隐含，此字段为自描述 + 必然性检验的显式载体。
 ///   - `extreme` = 027:25 否定线（价格破之则定位失效）。级联下全层统一 = 源层极值。
-///   - `arm_bar` = 本层 confirm 兑现 bar（链龄诊断 + 因果必然性检验）。
+///   - `compress_bar` = 压缩↑完成 bar（高级别 candidate 首现 = 信号层构造完成）。
+///   - `confirm_bar` = 展开↓兑现 bar（低级别 confirm = 操作层定位完成）。
+///     540号时序：`compress_bar ≤ confirm_bar`（prove_chain 强制——压缩必先于展开）。
 #[derive(Debug, Clone, Copy)]
 struct PendingLocate {
     extreme: f64,
     source_ladder: usize,
     direction: Side,
-    arm_bar: i64,
+    compress_bar: i64,
+    confirm_bar: i64,
 }
 
 /// pending confirm 兑现的级联武装（第14环严格形式）：最高 active pending@source
@@ -133,11 +160,16 @@ fn cascade_arm(
     dir: Side,
     source: usize,
     extreme: f64,
-    bar: i64,
+    compress_bar: i64,
+    confirm_bar: i64,
 ) {
     debug_assert!(
         source > FIRST_BSP_LADDER,
         "pending 只在 move(L1) 及以上注册（segment 非势源）；source={source}"
+    );
+    debug_assert!(
+        compress_bar <= confirm_bar,
+        "540号压缩-展开时序违反：压缩 bar {compress_bar} > 展开 bar {confirm_bar}（展开早于压缩）"
     );
     for slot in located.iter_mut().take(source + 1).skip(FIRST_BSP_LADDER) {
         let overwrite = slot.map_or(true, |e| source >= e.source_ladder);
@@ -146,7 +178,8 @@ fn cascade_arm(
                 extreme,
                 source_ladder: source,
                 direction: dir,
-                arm_bar: bar,
+                compress_bar,
+                confirm_bar,
             });
         }
     }
@@ -166,12 +199,13 @@ fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> 
 /// 必然性检验1：建仓 source > segment）。F/C/D/E 每个操作点调用——违反即 panic。
 /// 消费 `PendingLocate` 全字段（声明=能力——故非声明膨胀）。
 ///
-/// 四项独立证明（与 `chain_source` 重算，非循环——证明级联不变量在操作点成立）：
+/// 五项独立证明（与 `chain_source` 重算，非循环——证明级联不变量在操作点成立）：
 /// ① `source > FIRST_BSP_LADDER`（segment 非势源——必然性检验1）；
 /// ② located[s] 在场且 `source_ladder == s ∧ direction == dir`（s 是链顶，级联统
-///    一 source/方向正确）；③ `arm_bar ≤ bar`（因果：链在操作前 confirm，无未来
-///    定位）；④ `[FIRST_BSP_LADDER..=s]` 全 located（级联连续前缀——"没有定位链
-///    的交易 = bug"的逐操作硬断言）。
+///    一 source/方向正确）；③ **540号压缩-展开时序** `compress_bar ≤ confirm_bar
+///    ≤ bar`（压缩↑必先于展开↓，展开↓必不晚于操作——因果 + 时序不颠倒）；
+///    ④ `[FIRST_BSP_LADDER..=s]` 全 located（级联连续前缀——"没有定位链的交易 =
+///    bug"的逐操作硬断言）。
 fn prove_chain(
     located: &[Option<PendingLocate>; MAX_LADDER],
     dir: Side,
@@ -181,7 +215,7 @@ fn prove_chain(
 ) {
     assert!(
         s > FIRST_BSP_LADDER,
-        "必然性违反@bar {bar} {op}：source={s} ≤ segment={FIRST_BSP_LADDER}（segment 非势源，pending_locate 检验1）"
+        "必然性违反@bar {bar} {op}：source={s} ≤ segment={FIRST_BSP_LADDER}(segment 非势源，pending_locate 检验1)"
     );
     let top = located[s].unwrap_or_else(|| {
         panic!("必然性违反@bar {bar} {op}：source={s} 无 located 条目（无定位链的操作=bug）")
@@ -195,10 +229,16 @@ fn prove_chain(
         top.direction, dir,
         "必然性违反@bar {bar} {op}：located[{s}].direction 与操作方向不一致（链方向错配）"
     );
+    // 540号压缩-展开时序：压缩↑（candidate 首现）≤ 展开↓（confirm 兑现）≤ 操作。
     assert!(
-        top.arm_bar <= bar,
-        "必然性违反@bar {bar} {op}：located[{s}].arm_bar={} > bar（未来武装，因果违反）",
-        top.arm_bar
+        top.compress_bar <= top.confirm_bar,
+        "540号时序违反@bar {bar} {op}：located[{s}] 压缩 bar {} > 展开 bar {}（展开早于压缩，时序颠倒）",
+        top.compress_bar, top.confirm_bar
+    );
+    assert!(
+        top.confirm_bar <= bar,
+        "必然性违反@bar {bar} {op}：located[{s}].confirm_bar={} > bar（未来武装，因果违反）",
+        top.confirm_bar
     );
     for k in FIRST_BSP_LADDER..=s {
         assert!(
@@ -245,8 +285,8 @@ pub(crate) fn run_positioning_chain_fugue(
     // pending 窗口（双侧；高级别 candidate 武装、confirmed 清窗、破极值否定）。
     // **仅在 move(L1) 及以上（k ≥ PENDING_LO）维护**——segment 非势源。
     const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
-    let mut nest_sell: [Option<Win>; MAX_LADDER] = [None; MAX_LADDER];
-    let mut nest_buy: [Option<Win>; MAX_LADDER] = [None; MAX_LADDER];
+    let mut nest_sell: [Option<Pending>; MAX_LADDER] = [None; MAX_LADDER];
+    let mut nest_buy: [Option<Pending>; MAX_LADDER] = [None; MAX_LADDER];
     // 双侧区间套定位链（pending confirm 兑现后的链；卖侧出场链 + 买侧入场链）。
     let mut located_sell: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
     let mut located_buy: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
@@ -287,8 +327,9 @@ pub(crate) fn run_positioning_chain_fugue(
         //
         // segment（k=FIRST_BSP_LADDER）**不维护 pending**——其 BSP/翻转仅作
         // rec_sub_evidence 的低级别 confirm 证据（高级别 pending 由它定位）。
-        let mut confirm_sell: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
-        let mut confirm_buy: [Option<f64>; MAX_LADDER] = [None; MAX_LADDER];
+        // confirm_*[k] = (源层极值, 压缩 bar since_bar)——展开↓兑现携带压缩↑时点。
+        let mut confirm_sell: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
+        let mut confirm_buy: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         for k in PENDING_LO..MAX_LADDER {
             if nest_sell[k].is_some_and(|w| c > w.extreme) {
                 nest_sell[k] = None;
@@ -309,24 +350,34 @@ pub(crate) fn run_positioning_chain_fugue(
                     if e.confirmed {
                         *win = None;
                     } else {
-                        let ext = win.map_or(e.price, |w| {
-                            if sellside {
+                        // 压缩↑：candidate 首现注册 since_bar=bar；极值刷新（同一
+                        // pending 持续）保留首现 since_bar（压缩起始不变）。
+                        let (ext, since) = win.map_or((e.price, bar), |w| {
+                            let ext = if sellside {
                                 w.extreme.max(e.price)
                             } else {
                                 w.extreme.min(e.price)
-                            }
+                            };
+                            (ext, w.since_bar)
                         });
-                        *win = Some(Win { extreme: ext });
+                        *win = Some(Pending { extreme: ext, since_bar: since });
                         res.n_nest_arms_by_ladder[k] += 1;
                     }
                 }
             }
-            // 第14环：confirm 从 k−1 递归下探至 a0（含 segment + bi）。confirm
+            // 第14环展开↓：confirm 从 k−1 递归下探至 a0（含 segment + bi）。confirm
             // 层 < k−1 ⇒ 深定位。pending 持续 ⇒ confirm 任意 bar 兑现（先势后定位）。
+            // 540号时序：confirm 只在 `Some(w)`（pending 已注册）时触发 ∧ w.since_bar
+            // ≤ bar（压缩↑必先于展开↓——结构 + 数据断言双重证明，不可颠倒）。
             let sub = k - 1;
             if let Some(w) = nest_sell[k] {
                 if let Some(j) = rec_sub_evidence(sub, Side::Sell, evrows, devrows, &flip_edge) {
-                    confirm_sell[k] = Some(w.extreme);
+                    assert!(
+                        w.since_bar <= bar,
+                        "540号时序违反@bar {bar}：confirm_sell[{k}] 压缩 bar {} > 展开 bar（展开早于压缩）",
+                        w.since_bar
+                    );
+                    confirm_sell[k] = Some((w.extreme, w.since_bar));
                     nest_sell[k] = None;
                     res.n_nest_fire_sell_by_ladder[k] += 1;
                     if j < sub {
@@ -336,7 +387,12 @@ pub(crate) fn run_positioning_chain_fugue(
             }
             if let Some(w) = nest_buy[k] {
                 if let Some(j) = rec_sub_evidence(sub, Side::Buy, evrows, devrows, &flip_edge) {
-                    confirm_buy[k] = Some(w.extreme);
+                    assert!(
+                        w.since_bar <= bar,
+                        "540号时序违反@bar {bar}：confirm_buy[{k}] 压缩 bar {} > 展开 bar（展开早于压缩）",
+                        w.since_bar
+                    );
+                    confirm_buy[k] = Some((w.extreme, w.since_bar));
                     nest_buy[k] = None;
                     res.n_nest_fire_buy_by_ladder[k] += 1;
                     if j < sub {
@@ -351,11 +407,11 @@ pub(crate) fn run_positioning_chain_fugue(
         //    按 source 降序施加，保证最高 source 先占位（高 source 优先）。
         //    **segment 无 confirm_* 条目 ⇒ source 永不坍缩到 segment。**──
         for k in (PENDING_LO..MAX_LADDER).rev() {
-            if let Some(ext) = confirm_sell[k] {
-                cascade_arm(&mut located_sell, Side::Sell, k, ext, bar);
+            if let Some((ext, since)) = confirm_sell[k] {
+                cascade_arm(&mut located_sell, Side::Sell, k, ext, since, bar);
             }
-            if let Some(ext) = confirm_buy[k] {
-                cascade_arm(&mut located_buy, Side::Buy, k, ext, bar);
+            if let Some((ext, since)) = confirm_buy[k] {
+                cascade_arm(&mut located_buy, Side::Buy, k, ext, since, bar);
             }
         }
         // 破极值否定（027:25）：级联统一极值 ⇒ 整链同破（清空或不变，连续前缀
@@ -703,21 +759,24 @@ mod tests {
         // pending confirm 级联：confirm@4 ⇒ 武装 [2,3,4] 全层（含 located[segment]
         // 被高级别覆盖），统一极值 110/source=4/dir=Sell。
         let mut loc: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
-        cascade_arm(&mut loc, Side::Sell, 4, 110.0, 7);
+        // 压缩 bar=5（candidate 首现）≤ 展开 bar=7（confirm 兑现）。
+        cascade_arm(&mut loc, Side::Sell, 4, 110.0, 5, 7);
         for k in [2usize, 3, 4] {
             let e = loc[k].expect("级联武装 [2..4] 全层");
             assert_eq!(e.source_ladder, 4, "全层统一 source=链顶 4（含 segment 被覆盖）");
             assert_eq!(e.extreme, 110.0, "全层统一极值=源层 027:25 否定线");
             assert_eq!(e.direction, Side::Sell);
-            assert_eq!(e.arm_bar, 7);
+            assert_eq!(e.compress_bar, 5, "压缩↑ bar 全层统一");
+            assert_eq!(e.confirm_bar, 7, "展开↓ bar 全层统一");
+            assert!(e.compress_bar <= e.confirm_bar, "540号时序：压缩必先于展开");
         }
         assert!(loc[5].is_none(), "源层之上不武装");
         // 高 source 优先：低级别 confirm@3（ext 90）不降级既有 source=4。
-        cascade_arm(&mut loc, Side::Sell, 3, 90.0, 8);
+        cascade_arm(&mut loc, Side::Sell, 3, 90.0, 6, 8);
         assert_eq!(loc[2].unwrap().source_ladder, 4, "低 source 不降级（高 source 主导）");
         assert_eq!(loc[2].unwrap().extreme, 110.0, "极值仍为源层 4");
         // 更高 source@6（ext 200）⇒ 覆盖全部 [2..6] 为统一 6/200（含原 [2,3,4]）。
-        cascade_arm(&mut loc, Side::Sell, 6, 200.0, 9);
+        cascade_arm(&mut loc, Side::Sell, 6, 200.0, 7, 9);
         for k in 2usize..=6 {
             let e = loc[k].expect("更高级联覆盖 [2..6]");
             assert_eq!(e.source_ladder, 6, "更高 source 统一覆盖");
@@ -725,16 +784,34 @@ mod tests {
         }
     }
 
+    /// 540号压缩-展开时序：prove_chain 拒绝展开早于压缩（compress_bar > confirm_bar）
+    /// 的颠倒链——时序不变量的运行时强制（assert 非 debug_assert，release 也生效）。
+    #[test]
+    #[should_panic(expected = "540号时序违反")]
+    fn prove_chain_rejects_inverted_time_order() {
+        let mut loc: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
+        for k in [2usize, 3] {
+            loc[k] = Some(PendingLocate {
+                extreme: 100.0,
+                source_ladder: 3,
+                direction: Side::Sell,
+                compress_bar: 10, // 压缩↑ bar 晚于展开↓ bar = 颠倒
+                confirm_bar: 5,
+            });
+        }
+        prove_chain(&loc, Side::Sell, 3, 20, "test-inverted");
+    }
+
     #[test]
     fn chain_source_finds_highest_located() {
         // chain_source = 最高有 located 的层（级联保证连续前缀，source ≥ 3）。
         let mut loc: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
         assert_eq!(chain_source(&loc), None, "空 ⇒ 无链");
-        cascade_arm(&mut loc, Side::Sell, 4, 110.0, 0);
+        cascade_arm(&mut loc, Side::Sell, 4, 110.0, 0, 0);
         assert_eq!(chain_source(&loc), Some(4), "级联 [2..4] ⇒ 链顶=4");
         // 关键区分：单独高级别 pending（无需中间层独立 candidate）即给出高 source。
         let mut loc2: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
-        cascade_arm(&mut loc2, Side::Sell, 6, 150.0, 0);
+        cascade_arm(&mut loc2, Side::Sell, 6, 150.0, 0, 0);
         assert_eq!(chain_source(&loc2), Some(6), "高级别单独 pending 级联 ⇒ source=6 不坍缩");
     }
 
