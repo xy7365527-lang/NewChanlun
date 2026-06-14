@@ -319,6 +319,11 @@ pub(crate) fn run_positioning_chain_fugue(
         let sell_source = chain_source(&located_sell, &dir_state, Direction::Down);
         let buy_source = chain_source(&located_buy, &dir_state, Direction::Up);
 
+        // 会计必然性（§8.2 存一次 / §8.4 bar 内连续核心）：同价 c 的一切操作
+        // （A-F）是现金↔股数↔voice 的**价值中性**转换——操作前后 NAV(同 c) 必相等
+        // （价值只在 bar 间价格变动时改变，非操作时）。违反即双写 / 凭空增减 = bug。
+        let nav_pre_ops = nav(&chain, free, c);
+
         // ── A. 强平兜底（尾空头 1x 逐仓解析强平）──
         let mut acted = false;
         if let Some(tail) = chain.last().copied() {
@@ -515,6 +520,14 @@ pub(crate) fn run_positioning_chain_fugue(
                 }
             }
         }
+
+        // ── 会计必然性 #4（bar 内价值中性）：操作后 NAV(同 c) == 操作前 ──
+        let nav_post_ops = nav(&chain, free, c);
+        assert!(
+            (nav_pre_ops - nav_post_ops).abs() <= 1e-6 * nav_pre_ops.abs().max(1.0),
+            "会计必然性违反@bar {bar}：操作非价值中性 NAV {nav_pre_ops}→{nav_post_ops}\
+             （同价 c 操作必须现金↔股数等价，§8.2 存一次 / §8.4 bar 内连续）"
+        );
 
         // ── 全局不变量（§8.1）：Σ 链上在手单位 = N_base。守恒 violation = panic
         //    （任务裁决：会计 bug 必须立即 abort，不静默吞错）。──
