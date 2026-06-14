@@ -5,20 +5,25 @@ min_trade_ladder** 模拟区间套（结果是 regime 函数）。固定参数�
 区间套（第14环）是操作层级由**走势结构动态决定**（定位链顶层 source_ladder），
 非外部 floor。
 
-实装：`rust/src/trading/positioning_chain_fugue.rs`。与 URS 唯一构成性差异：
-操作层 = source = 完整 located 链（a0→S）的顶层。废除 URS 的 E\*（dir/anchor
-爬升）+ top（最高 θ 层）两个独立部件，层选择 ≡ 链确认（合一）。双侧定位链
-（卖侧出场 + 买侧入场，URS 仅卖侧）。零参数——无 min_trade_ladder、无操作 floor。
+实装：`rust/src/trading/positioning_chain_fugue.rs`。2026-06-14 编排者"他某种意义上
+是必然递归的，你来实装，严格实装"——把 located 武装从**自下而上**（要求全层同时
+对齐 ⇒ source 坍缩到 segment 92-95%）改为**自上而下级联**（nf@k 触发 ⇒ 级联武装
+[segment..=k] 全层，source=k = 最高有 located 的层）。与 URS 唯一构成性差异：操作层
+= source = 级联链顶。双侧定位链（卖侧出场 + 买侧入场）。零参数——无 min_trade_ladder。
 
 ══════════════ 必然性检验（验收标准——先于回测，L0/L2）══════════════
 
 引擎内 `prove_chain` 在 F/C/D/E 每个操作点运行时证明（违反即 panic）：
-  N1（完整链）：每个操作的 source 对应一条 [segment..=S] 全 located ∧ a0 翻转的
-     完整定位链——"没有定位链的交易 = bug"的逐操作硬断言。
-  N2（因果）：located.arm_bar ≤ 操作 bar（链在操作前形成，无未来定位）。
-  N3（链顶一致）：located[s].source_ladder == s（refresh_sources 正确）。
+  N1（完整链）：每个操作的 source 对应一条 [segment..=S] 全 located 的连续前缀
+     （级联构造保证）——"没有定位链的交易 = bug"的逐操作硬断言。
+  N2（因果）：located.arm_bar ≤ 操作 bar（链在操作前级联，无未来定位）。
+  N3（链顶一致）：located[s].source_ladder == s（级联统一 source 正确）。
 ⇒ 8 标的真实数据跑通**无 panic** = N1∧N2∧N3 在 ~25M bar 上成立（L2 必然性验证）。
 守恒律（§8.1）每 bar assert，违反即 panic = 会计正确性 L2 验证。
+
+  N_dist（源分布——级联是否起作用）：entry/spawn 的 source 分布。自下而上坍缩到
+     segment 92-95%；自上而下应上移（src_levels 覆盖多层 ∧ segment 占比下降）。
+     注：高级别 candidate 本就稀少 ⇒ segment 仍可能占多数（级联不凭空造高 source）。
 
 脚本侧逻辑验证（消费 res，证明 source 驱动操作）：
   N4（source 决定操作量）：spawn 量 = parent.units × θ_source（构造保证；脚本
@@ -30,7 +35,7 @@ min_trade_ladder** 模拟区间套（结果是 regime 函数）。固定参数�
 
 P1（对比）：pcf ≥ BH 逐标的 + 对比 URS 基线（缓存 urs_<SYM>.json）。
    **回测结果不是验收标准**（编排者：必然性检验才是）——P1 是有效域读数。
-ΔURS：strat_pcf − strat_urs；定位 source 链驱动 vs E\* 爬升的差异。
+ΔURS：strat_pcf − strat_urs；定位 source 链驱动 vs URS 涌现层爬升的差异。
 
 谱系（强制——与 539号已否证 A′ 区分）：A′ 单层 located 选清仓层 ⇒ 强牛踏空
    （L3 否证，project_constitutive_throughput_falsified）。pcf 要求整条链 +

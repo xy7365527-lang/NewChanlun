@@ -1,31 +1,43 @@
 //! positioning_chain_fugue — 区间套定位链驱动赋格（mode = "pcf"）。
 //!
-//! 设计源头：编排者 2026-06-14"那你要实现啊"——把 `nested_interval_fugue` 的
-//! **固定 `min_trade_ladder`** 替换为**走势结构动态决定的操作层级**。固定参数
-//! 不是区间套；区间套（第14环）是高级别买卖点由**低级别精确定位**，操作层级
-//! 由定位链自身的顶层（source_ladder）决定，而非外部 floor 参数。
+//! 设计源头：编排者 2026-06-14"那你要实现啊" → 2026-06-14"他某种意义上是
+//! 必然递归的，你来实装，严格实装"。把 `nested_interval_fugue` 的**固定
+//! `min_trade_ladder`** 替换为**走势结构动态决定的操作层级**。固定参数不是
+//! 区间套；区间套（第14环）是高级别买卖点由**低级别精确定位**——这是**从上
+//! 往下**的方向（高级别 candidate 必然出现 ⇒ 级联武装下面所有层 ⇒ 低级别
+//! confirm ⇒ 在 confirm 层执行），不是从下往上的概率对齐。
+//!
+//! ## 自下而上（已否定）vs 自上而下（本实装）
+//!
+//! **自下而上（旧 chain_source，已删）**：每层独立检测 candidate，链成立要求
+//! `located[FIRST_BSP..=S]` **全部同时** Some（从底连续向上）。所有层同时对齐
+//! 是概率事件——层越多越难 ⇒ source 坍缩到 segment（92-95%）。这不是区间套。
+//!
+//! **自上而下（本实装）**：第13环（走势终完美是全称命题）保证高级别 candidate
+//! **必然**出现；第14环（区间套）是高级别由低级别**级联**定位。当 ladder=k 的
+//! nf 触发（candidate@k 被次级别 confirm），**级联武装** `located[FIRST_BSP..=k]`
+//! 全层，source_ladder=k。链的完整性由级联**构造保证**，非概率对齐。source =
+//! 最高有 located 的层（链顶）= 该次反转被区间套定位到的最高级别。
+//!
+//! ## 级联不变量（必然性检验的运行时基础）
+//!
+//! `located`（任一侧）非空时**恒为连续前缀** `[FIRST_BSP..=S]`，且全层**统一
+//! 极值 E（源层 027:25 否定线）+ 统一 source_ladder=S**。由两条构造规则保证：
+//!   ① **级联写统一极值**：nf@k 触发 ⇒ `[FIRST_BSP..=k]` 全写源层 k 的极值。
+//!   ② **高 source 优先**：仅当新 source ≥ 既有 source 时覆盖（高级别反转主导，
+//!      不被后来的低级别 candidate 降级）。
+//! ⇒ 破极值（`c > E`，统一极值）**整链同破**（清空或不变，无逐层断裂）。
+//! ⇒ `∀k∈[FIRST_BSP..=S] located[k].source_ladder == S`（链顶一致，无需重算）。
 //!
 //! ## 与 URS（unified_recursive）的唯一构成性差异：层选择机制
 //!
 //! | 机制 | URS | PCF（本引擎） |
 //! |------|-----|--------------|
-//! | 入场层 | `top` = 最高 θ 涌现层（与定位链无关） | `buy_source` = 完整买链 a0→S 的顶层 S |
-//! | 出场层 | `E*` = dir/anchor 爬升（独立部件） | `sell_source` = 完整卖链 a0→S 的顶层 S |
+//! | 入场层 | `top` = 最高 θ 涌现层（与定位链无关） | `buy_source` = 级联链顶 S |
+//! | 出场层 | `E*` = dir/anchor 爬升（独立部件） | `sell_source` = 级联链顶 S |
 //! | 降成本/出场分界 | E\* vs floor | `source` ≷ `voice.ladder`（势在该层之上=出场，之下=降成本） |
-//! | located 角色 | 仅卖侧；E\* 选层后 `recursive_confirmed` 校验 | 双侧；source **即**链顶，层选择=链确认（合一） |
+//! | located 武装方向 | 自下而上（全层同时对齐） | **自上而下级联**（高 candidate 级联武装下层） |
 //! | 操作参数 | floor_ladder（结构常量） | **零**（source 由链动态产出，无 min_trade_ladder） |
-//!
-//! ## 区间套定位链（第14环的严格形式）
-//!
-//! 一条**完整定位链**（卖侧，目标方向 Down）= ① bi 层（a0）方向已翻 Down
-//! （`dir_state[FIRST_BSP_LADDER-1] == Down`，递归基）∧ ② located_sell 从
-//! segment（FIRST_BSP_LADDER）起**连续**武装到某顶层 S（`located_sell[FIRST_BSP
-//! ..=S]` 全 Some）。链顶 S = **source_ladder** = 该次反转被区间套精确定位到的
-//! 最高级别。买侧镜像（目标 Up，`c < extreme` 破极值）。
-//!
-//! `LocatedEntry.source_ladder` 逐 bar 维护为**所属连续链的顶层**（`refresh_sources`
-//! 在 located 更新后重算——链随高层逐次确认而向上生长，source 动态上移）。不变量
-//! （必然性检验项）：`∀k located[k].source_ladder == max{S≥k : [k..=S] 全 located}`。
 //!
 //! ## 操作语义（source 驱动，第13/14/15/16/17/23环）
 //!
@@ -71,66 +83,49 @@ use crate::stroke::Direction;
 
 /// 区间套定位记忆条目（编排者任务的核心数据结构）。
 ///
-/// 替代 URS 的 `Option<f64>`（仅极值）。`source_ladder` = 该 located 所属**连续
-/// 定位链的顶层**（动态维护，`refresh_sources`）——记录"从哪个高级别 candidate
-/// 定位下来的"。`arm_bar` = 本层 located 最近一次触发 bar（链龄诊断 + 必然性检验）。
+/// 替代 URS 的 `Option<f64>`（仅极值）。`source_ladder` = 级联该层的源层（=
+/// 触发级联的高级别 candidate 所在层）——记录"从哪个高级别 candidate 定位
+/// 下来的"。级联不变量下，一条链内全层 source_ladder 统一 = 链顶 S。
+/// `arm_bar` = 本层 located 最近一次级联 bar（链龄诊断 + 因果必然性检验）。
 #[derive(Debug, Clone, Copy)]
 struct LocatedEntry {
-    /// 极值价格（027:25 否定线；价格破之则定位失效）。
+    /// 极值价格（027:25 否定线；价格破之则定位失效）。级联下全层统一 = 源层极值。
     extreme: f64,
-    /// 所属连续链顶层 = source_ladder（第14环：高级别反转的精确定位级别）。
+    /// 级联源层 = source_ladder（第14环：高级别反转的精确定位级别）。
     source_ladder: usize,
-    /// 武装 bar（本层 located 最近触发时点）。
+    /// 级联 bar（本层 located 最近触发时点）。
     arm_bar: i64,
 }
 
-/// 重算每条连续定位链的 source_ladder = 链顶（located 更新后调用）。
+/// 自上而下级联武装（第14环的严格形式）：nf@source 触发 ⇒ 级联武装
+/// `located[FIRST_BSP_LADDER..=source]` 全层，统一极值 = 源层 027:25 否定线，
+/// 统一 source_ladder=source。
 ///
-/// 链随高层逐次确认向上生长（segment 先翻、recL2 后翻 ⇒ source 从 segment 上移到
-/// recL2）⇒ source 必须每 bar 重算而非武装时冻结。不变量：连续 run [lo..=top] 内
-/// 所有条目 source_ladder == top（必然性检验项，`refresh` 后由构造保证）。
-fn refresh_sources(located: &mut [Option<LocatedEntry>; MAX_LADDER]) {
-    let mut k = FIRST_BSP_LADDER;
-    while k < MAX_LADDER {
-        if located[k].is_some() {
-            let mut top = k;
-            while top + 1 < MAX_LADDER && located[top + 1].is_some() {
-                top += 1;
-            }
-            for slot in located.iter_mut().take(top + 1).skip(k) {
-                if let Some(e) = slot {
-                    e.source_ladder = top;
-                }
-            }
-            k = top + 1;
-        } else {
-            k += 1;
+/// **高 source 优先**（级联不变量 ②）：仅当 source ≥ 既有 source_ladder（或该层
+/// 空）时覆盖——高级别反转主导，不被后来的低级别 candidate 降级。多个 nf 同 bar
+/// 触发时由调用方按 source 降序施加，保证最高 source 先占位。
+fn cascade_arm(
+    located: &mut [Option<LocatedEntry>; MAX_LADDER],
+    source: usize,
+    extreme: f64,
+    bar: i64,
+) {
+    for slot in located.iter_mut().take(source + 1).skip(FIRST_BSP_LADDER) {
+        let overwrite = slot.map_or(true, |e| source >= e.source_ladder);
+        if overwrite {
+            *slot = Some(LocatedEntry { extreme, source_ladder: source, arm_bar: bar });
         }
     }
 }
 
-/// 完整定位链的 source_ladder（链顶 S）：① a0(bi) 方向已翻向目标侧（递归基）
-/// ∧ ② located 从 FIRST_BSP_LADDER 起连续武装。返回链顶 S（= 该侧区间套精确
-/// 定位到的最高级别），无完整链返回 None。
+/// 级联链顶 S（自上而下）= 最高有 located 的层。级联不变量保证 located 非空时
+/// 恒为连续前缀 `[FIRST_BSP_LADDER..=S]` ⇒ 找到最高层即得完整链顶，无需检查
+/// a0 翻转或逐层连续性（旧自下而上 chain_source 的两个前置已被级联构造吸收）。
 ///
 /// 这是 PCF 的唯一层选择机制——替代 URS 的 `root_emergent_ladder`(E\*) +
 /// `top`(最高 θ 层) 两个独立部件。层选择 ≡ 链确认（合一）。
-fn chain_source(
-    located: &[Option<LocatedEntry>; MAX_LADDER],
-    dir_state: &[Option<Direction>; MAX_LADDER],
-    want: Direction,
-) -> Option<usize> {
-    if dir_state[FIRST_BSP_LADDER - 1] != Some(want) {
-        return None; // 递归基：a0 未翻向目标侧 ⇒ 链不成立
-    }
-    if located[FIRST_BSP_LADDER].is_none() {
-        return None; // 链底（segment）缺失 ⇒ 链不从 a0 起
-    }
-    let mut top = FIRST_BSP_LADDER;
-    while top + 1 < MAX_LADDER && located[top + 1].is_some() {
-        top += 1;
-    }
-    Some(top)
+fn chain_source(located: &[Option<LocatedEntry>; MAX_LADDER]) -> Option<usize> {
+    (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
 }
 
 /// 必然性检验（第14环严格形式的**运行时证明**）：证明一个操作的 source 是一条
@@ -138,10 +133,10 @@ fn chain_source(
 /// （必然性检验不通过 = bug，不静默）。消费 `LocatedEntry.source_ladder/arm_bar`
 /// （声明=能力——这两字段的唯一消费者，故非声明膨胀）。
 ///
-/// 三项独立证明（与 `chain_source` 重算，非循环）：① located[s] 在场且
-/// `source_ladder == s`（s 是链顶，`refresh_sources` 正确）；② `arm_bar ≤ bar`
-/// （因果：链在操作前武装，无未来定位）；③ `[FIRST_BSP_LADDER..=s]` 全 located
-/// （从 a0 到 source 的完整链——"没有定位链的交易 = bug"的逐操作硬断言）。
+/// 三项独立证明（与 `chain_source` 重算，非循环——证明级联不变量在操作点成立）：
+/// ① located[s] 在场且 `source_ladder == s`（s 是链顶，级联统一 source 正确）；
+/// ② `arm_bar ≤ bar`（因果：链在操作前级联，无未来定位）；③ `[FIRST_BSP_LADDER
+/// ..=s]` 全 located（级联连续前缀——"没有定位链的交易 = bug"的逐操作硬断言）。
 fn prove_chain(located: &[Option<LocatedEntry>; MAX_LADDER], s: usize, bar: i64, op: &str) {
     let top = located[s].unwrap_or_else(|| {
         panic!("必然性违反@bar {bar} {op}：source={s} 无 located 条目（无定位链的操作=bug）")
@@ -184,8 +179,8 @@ pub(crate) fn run_positioning_chain_fugue(
     if !(tape.has_div_events() && tape.has_dir_rows()) {
         return Err(
             "positioning_chain_fugue 要求背驰磁带 + dir_flips 行——区间套次级别证据词汇 = \
-             BSP ∨ 背驰事件 ∨ bi 层方向翻转沿（027课程序定理）；链底递归基读 \
-             dir_state（a0 方向），缺 dir_flips 行即判据残缺"
+             BSP ∨ 背驰事件 ∨ bi 层方向翻转沿（027课程序定理）；nf 触发的递归基证据读 \
+             flip_edge（a0 方向翻转沿），缺 dir_flips 行即判据残缺"
                 .to_string(),
         );
     }
@@ -207,8 +202,8 @@ pub(crate) fn run_positioning_chain_fugue(
 
     let flips: &[(i64, u8, Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
     let mut flip_ptr = 0usize;
-    // 方向滚动状态（链底递归基 a0 方向；dir_flips → 逐 bar 持久视图）。
-    let mut dir_state: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+    // a0（bi 层）方向翻转沿（rec_sub_evidence 的递归基证据词汇）。自上而下级联
+    // 不再需要持久 dir_state——链的方向由触发级联的 nf 侧别（nf_sell/nf_buy）携带。
 
     let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
     let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
@@ -222,7 +217,6 @@ pub(crate) fn run_positioning_chain_fugue(
         while flip_ptr < flips.len() && flips[flip_ptr].0 == bar {
             let (_, lad, dir) = flips[flip_ptr];
             flip_edge[lad as usize] = Some(dir);
-            dir_state[lad as usize] = Some(dir);
             flip_ptr += 1;
         }
 
@@ -297,27 +291,31 @@ pub(crate) fn run_positioning_chain_fugue(
             }
         }
 
-        // 区间套定位链更新（双侧；nf 触发置 located、破极值清、refresh source）。
-        for k in FIRST_BSP_LADDER..MAX_LADDER {
+        // ── 自上而下级联武装（第14环严格形式）：nf@k 触发 ⇒ 级联武装
+        //    [FIRST_BSP..=k] 全层（统一源层极值 + source=k）。按 source 降序施加，
+        //    保证最高 source 先占位（高 source 优先，不被低级别降级）。──
+        for k in (FIRST_BSP_LADDER..MAX_LADDER).rev() {
             if let Some(ext) = nf_sell[k] {
-                located_sell[k] = Some(LocatedEntry { extreme: ext, source_ladder: k, arm_bar: bar });
-            }
-            if located_sell[k].is_some_and(|e| c > e.extreme) {
-                located_sell[k] = None;
+                cascade_arm(&mut located_sell, k, ext, bar);
             }
             if let Some(ext) = nf_buy[k] {
-                located_buy[k] = Some(LocatedEntry { extreme: ext, source_ladder: k, arm_bar: bar });
+                cascade_arm(&mut located_buy, k, ext, bar);
+            }
+        }
+        // 破极值否定（027:25）：级联统一极值 ⇒ 整链同破（清空或不变，连续前缀
+        // 不变量保持）。卖侧 c>extreme、买侧 c<extreme。
+        for k in FIRST_BSP_LADDER..MAX_LADDER {
+            if located_sell[k].is_some_and(|e| c > e.extreme) {
+                located_sell[k] = None;
             }
             if located_buy[k].is_some_and(|e| c < e.extreme) {
                 located_buy[k] = None;
             }
         }
-        refresh_sources(&mut located_sell);
-        refresh_sources(&mut located_buy);
 
-        // 双侧链顶 source（PCF 唯一层选择机制）。
-        let sell_source = chain_source(&located_sell, &dir_state, Direction::Down);
-        let buy_source = chain_source(&located_buy, &dir_state, Direction::Up);
+        // 双侧链顶 source（PCF 唯一层选择机制 = 最高有 located 的层）。
+        let sell_source = chain_source(&located_sell);
+        let buy_source = chain_source(&located_buy);
 
         // 会计必然性（§8.2 存一次 / §8.4 bar 内连续核心）：同价 c 的一切操作
         // （A-F）是现金↔股数↔voice 的**价值中性**转换——操作前后 NAV(同 c) 必相等
@@ -649,43 +647,62 @@ mod tests {
     }
 
     #[test]
-    fn refresh_sources_propagates_chain_top() {
-        // 连续链 [2,3,4] ⇒ 全部 source=4；孤立 located[6] ⇒ source=6（自身）。
+    fn cascade_arm_fills_chain_downward() {
+        // 自上而下级联：nf@4 ⇒ 武装 [2,3,4] 全层，统一极值 110/source=4。
         let mut loc: [Option<LocatedEntry>; MAX_LADDER] = [None; MAX_LADDER];
-        for k in [2usize, 3, 4, 6] {
-            loc[k] = Some(LocatedEntry { extreme: 100.0, source_ladder: k, arm_bar: 0 });
+        cascade_arm(&mut loc, 4, 110.0, 7);
+        for k in [2usize, 3, 4] {
+            let e = loc[k].expect("级联武装 [2..4] 全层");
+            assert_eq!(e.source_ladder, 4, "全层统一 source=链顶 4");
+            assert_eq!(e.extreme, 110.0, "全层统一极值=源层 027:25 否定线");
+            assert_eq!(e.arm_bar, 7);
         }
-        refresh_sources(&mut loc);
-        assert_eq!(loc[2].unwrap().source_ladder, 4, "链 [2,3,4] 顶=4");
-        assert_eq!(loc[3].unwrap().source_ladder, 4);
-        assert_eq!(loc[4].unwrap().source_ladder, 4);
-        assert_eq!(loc[6].unwrap().source_ladder, 6, "孤立 located[6] source=自身");
-        // 链断（[2,3] gap [5]）：[2,3]→3，[5]→5。
-        let mut loc2: [Option<LocatedEntry>; MAX_LADDER] = [None; MAX_LADDER];
-        for k in [2usize, 3, 5] {
-            loc2[k] = Some(LocatedEntry { extreme: 100.0, source_ladder: k, arm_bar: 0 });
+        assert!(loc[5].is_none(), "源层之上不武装");
+        // 高 source 优先：低级别 nf@3（ext 90）不降级既有 source=4。
+        cascade_arm(&mut loc, 3, 90.0, 8);
+        assert_eq!(loc[2].unwrap().source_ladder, 4, "低 source 不降级（高 source 主导）");
+        assert_eq!(loc[2].unwrap().extreme, 110.0, "极值仍为源层 4");
+        // 更高 source@6（ext 200）⇒ 覆盖全部 [2..6] 为统一 6/200（含原 [2,3,4]）。
+        cascade_arm(&mut loc, 6, 200.0, 9);
+        for k in 2usize..=6 {
+            let e = loc[k].expect("更高级联覆盖 [2..6]");
+            assert_eq!(e.source_ladder, 6, "更高 source 统一覆盖");
+            assert_eq!(e.extreme, 200.0);
         }
-        refresh_sources(&mut loc2);
-        assert_eq!(loc2[2].unwrap().source_ladder, 3, "断链 [2,3] 顶=3");
-        assert_eq!(loc2[5].unwrap().source_ladder, 5);
     }
 
     #[test]
-    fn chain_source_requires_a0_and_contiguity() {
+    fn chain_source_finds_highest_located() {
+        // 自上而下 chain_source = 最高有 located 的层（级联保证连续前缀）。
         let mut loc: [Option<LocatedEntry>; MAX_LADDER] = [None; MAX_LADDER];
-        let mut dir: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
-        // located [2,3,4] 但 bi(a0) 未翻 Down ⇒ None。
-        for k in [2usize, 3, 4] {
-            loc[k] = Some(LocatedEntry { extreme: 100.0, source_ladder: k, arm_bar: 0 });
-        }
-        refresh_sources(&mut loc);
-        assert_eq!(chain_source(&loc, &dir, Direction::Down), None, "a0 未翻 ⇒ 链不成立");
-        dir[FIRST_BSP_LADDER - 1] = Some(Direction::Down);
-        assert_eq!(chain_source(&loc, &dir, Direction::Down), Some(4), "a0 翻 ∧ 连续 [2..4] ⇒ source=4");
-        // segment(2) 缺失 ⇒ 链不从 a0 起 ⇒ None。
-        loc[2] = None;
-        refresh_sources(&mut loc);
-        assert_eq!(chain_source(&loc, &dir, Direction::Down), None, "链底 segment 缺 ⇒ None");
+        assert_eq!(chain_source(&loc), None, "空 ⇒ 无链");
+        cascade_arm(&mut loc, 4, 110.0, 0);
+        assert_eq!(chain_source(&loc), Some(4), "级联 [2..4] ⇒ 链顶=4（无需 a0 翻转检查）");
+        // 关键区分：单独高级别 candidate（无需中间层独立 candidate）即给出高 source——
+        // 这是自上而下相对自下而上的本质差异（旧版需 [2,3,4] 全独立对齐）。
+        let mut loc2: [Option<LocatedEntry>; MAX_LADDER] = [None; MAX_LADDER];
+        cascade_arm(&mut loc2, 6, 150.0, 0);
+        assert_eq!(chain_source(&loc2), Some(6), "高级别单独 candidate 级联 ⇒ source=6 不坍缩");
+    }
+
+    /// 自上而下本质检验：**只**武装高级别 candidate@4（无 2/3 独立 candidate），
+    /// bi 向下翻 ⇒ nf@4 触发 ⇒ 级联 [2,3,4] ⇒ source=4 ≥ root.ladder ⇒ 翻转。
+    /// 自下而上旧版会因 located[2]/[3] 缺独立 candidate 而链断（source 坍缩）。
+    #[test]
+    fn high_candidate_alone_cascades_to_flip() {
+        let (mut bars, mut flips) = full_bull_entry(); // 根入场@source=4
+        // 仅武装 nest_sell@4（高级别单独 candidate，无 2/3）。
+        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
+        bars.push(bar(104.0)); // bi 翻 Down ⇒ nf@4 ⇒ 级联 [2,3,4] source=4
+        let sell_ev_bar = bars.len() as i64 - 1;
+        bars.push(sellanypt(bar(102.0), 4));
+        bars.push(bar(102.0));
+        flips.push((sell_ev_bar, 1, Direction::Down));
+        let r = run(bars, flips);
+        assert_eq!(
+            r.n_nrf_root_flips_by_ladder[3], 1,
+            "高级别单独 candidate 级联到 source=4 ≥ root.ladder=4 ⇒ 翻转（自上而下）"
+        );
     }
 
     /// 构造完整买链 [2,3,4] + bi-up ⇒ 根在 source=4 满仓入场。
@@ -708,10 +725,16 @@ mod tests {
     fn root_enters_at_buy_chain_source() {
         let (bars, flips) = full_bull_entry();
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "完整买链 [2..4] ⇒ 根入场@source=4");
-        // 满仓：units = free/c（入场 bar c=96）。
+        assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "买链级联到 source=4 ⇒ 根入场@source=4");
+        // 满仓恒仓（价格无关不变量）：shares × entry_price == 全部初始资金。
+        // 自上而下无 a0 门 ⇒ nf 在 candidate 同 bar 经 sub-level 买证据即触发入场。
         let entry = r.trades.iter().find(|t| t.polarity == Polarity::Long).unwrap();
-        assert!((entry.shares - INITIAL_CAPITAL / 96.0).abs() < 1e-6, "满仓恒仓");
+        assert!(
+            (entry.shares * entry.entry_price - INITIAL_CAPITAL).abs() < 1e-6,
+            "满仓恒仓（全部资金入场）shares={} px={}",
+            entry.shares,
+            entry.entry_price
+        );
     }
 
     #[test]

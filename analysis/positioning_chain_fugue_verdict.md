@@ -157,3 +157,89 @@ type1 的 **seg_idx 全不同（2162 个不同走势，0 个同走势重发）**
   URS/nif/其余引擎（新入口 GH2 先例，零接触）。守恒 violation = panic（任务裁决）。
 - 认识论等级：必然性检验 = L2（25M bar 运行时证明）；回测 = L2/L3（8 标的，
   否定性结果——source 链驱动层选择轴关闭，有效域边界收窄）。
+
+---
+
+# v2：自上而下级联武装（编排者 2026-06-14"他某种意义上是必然递归的，你来实装，严格实装"）
+
+## 上游诊断（编排者）
+
+v1（上文）的 located 武装是**自下而上**：`chain_source` 要求 `located[segment]` 在场
++ 从底连续向上（`located[FIRST_BSP..=S]` 全 Some）。所有层**同时**对齐是概率事件，
+层越多越难 ⇒ source 坍缩到 segment。编排者裁决：区间套是**从上往下**的（第14环——
+高级别买卖点由低级别精确定位），必然递归而非概率对齐。
+
+## 实装（v1 → v2 的唯一改动：located 武装方向）
+
+| 部件 | v1（自下而上，已删） | v2（自上而下级联） |
+|------|---------------------|-------------------|
+| 武装 | nf@k 触发置 `located[k]`（单层）+ `refresh_sources` 重算链顶 | nf@k 触发 `cascade_arm`：级联武装 `located[FIRST_BSP..=k]` 全层 |
+| 极值 | 各层独立极值 | **统一极值** = 源层 k 的 027:25 否定线 |
+| source | `chain_source` 要求 a0 翻转 + 从底连续 | `chain_source` = 最高有 located 的层（级联保证连续前缀） |
+| 不变量 | refresh 后连续 run 内 source 一致 | located 非空恒为连续前缀 `[FIRST_BSP..=S]`，统一 E/source=S |
+
+**级联不变量两条构造规则**：① 级联写统一极值（整链同破，无逐层断裂）；② 高 source
+优先（仅 source≥既有时覆盖，不被低级别 candidate 降级）。⇒ `prove_chain` 三项断言
+（链顶一致/因果/连续链）由构造恒成立，是不变量的运行时证明而非补丁。
+
+单测 10/10 通过（新增 `cascade_arm_fills_chain_downward` / `chain_source_finds_highest_located`
+/ `high_candidate_alone_cascades_to_flip`——证明**单独高级别 candidate** 即级联出高
+source，无需中间层独立对齐）。全量 lib 352/352 通过。
+
+## 必然性检验（验收标准）：PASS 8/8
+
+8 标的 ~25M bar 跑通**无 panic** ⇒ N1（完整级联链）∧ N2（因果）∧ N3（链顶一致）
+∧ 守恒（§8.1 每 bar）全成立。`src_levels` 3-4（覆盖 segment/move/recL2/recL3）⇒
+source 动态选层（非固定 floor 钉死单层）。
+
+## 回测（L2 有效域读数，非验收）
+
+| 标的 | pcf% | BH% | P1 | ΔURS | entry seg% | spawns |
+|------|------|-----|----|----|-----------|--------|
+| OKLO | −44.7 | +307.1 | ✗ | −366.6 | 83% | 12707 |
+| QQQ | +126.9 | +174.6 | ✗ | −39.3 | 86% | 35 |
+| BRN | +103.6 | +87.4 | **✓** | **+47.1** | 85% | 7408 |
+| DX | −3.8 | +4.1 | ✗ | −8.2 | 85% | 0 |
+| ES | +176.9 | +594.3 | ✗ | −311.5 | 87% | 3315 |
+| GC | +128.0 | +257.3 | ✗ | −117.0 | 85% | 8732 |
+| CL | +93.0 | +28.2 | **✓** | **+88.3** | 84% | 28652 |
+| BTC | +372.3 | +1380.4 | ✗ | −177.6 | 87% | 61210 |
+
+- **P1 = 2/8 = {BRN, CL}（油链）**；ΔURS>0 = 2/8 同集；与 v1 同正域、与 nrf v4/scco
+  跨引擎一致（regime 函数）。
+
+## 决定性 L2 发现：根因从"链断"精确到"高级别 candidate 稀缺"
+
+v1 诊断 source 坍缩归因于"完整链高层罕见同时成立（链断）"。v2 用级联**移除了同时
+对齐要求**——单个高级别 candidate 即可级联出高 source（单测 `high_candidate_alone`
+证明）。结果：**source 仍 83-87% 落在 segment**（v1 ≈92-95%，改善 ~10pp 但未破坍缩）。
+
+⇒ **根因被精确隔离**：不是自下而上的对齐机制，而是**高级别 candidate 本身稀缺**
+（高级别 BSP 罕见）⇒ 多数入场/降成本时刻只有 segment candidate 活着 ⇒ 级联只能把
+高 candidate **向下**填充，**不能凭空制造高 source**。两版（自下而上 v1 / 自上而下 v2）
+夹逼出更强结论：**1min a0 上 source 坍缩到 segment 是 candidate 频率结构的必然，
+与武装方向无关**。
+
+新死因 = 降成本 churn（非清仓踏空）：spawns 巨量（OKLO 12707/BTC 61210），sellpt 少
+（OKLO 41）⇒ source 绑定**确实堵住了清仓踏空**（sellpt 少），但"低于 source 的 BSP
+触发 spawn"在低级别 candidate 频繁时无限 spawn = churn 失血。与 539号 A′ 同族（同
+踏空家族，不同显形：A′ 过度清仓 / pcf 降成本 churn）。
+
+## 边界条件（结论翻转条件）
+
+- 若改 a0 粒度（更粗周期）⇒ 高级别 candidate 相对更频繁 ⇒ source 可能上移 ⇒ 本
+  "segment 坍缩是 candidate 频率必然"结论限 1min a0（未在粗周期检验——开放轴）。
+- 若 located 改由 **candidate 武装（nest arm）** 而非 nf 触发武装 ⇒ 高 candidate 不需
+  次级别 confirm 即占 source ∧ 牛市中买 located 持久（价格上行不破低点极值）⇒ source
+  可能持续高。但这分离"intent（candidate）"与"confirm（nf）"，需为操作加独立 confirm
+  闸门（当前操作纯 source 门控）——是**开放轴**，非本次实装（用户精确指向 nf 赋值点）。
+- 若降成本加层级配额上限 / 频率门 ⇒ 可能减 churn——但引入参数（违零参数原则）。
+
+## 谱系引用
+
+- 539号 A′（`project_constitutive_throughput_falsified`）：单层 located 选层踏空——
+  pcf v2 经"级联仍坍 segment + 降成本 churn"到达同族踏空结局，A′ 死因延伸。
+- 本任务（自上而下级联）= v1（自下而上）的否定之否定：移除对齐要求后坍缩仍在 ⇒
+  根因从"机制"精确到"candidate 频率结构"。**语法记录候选**：located 驱动的层选择
+  在 1min a0 上无法稳定锚定高级别操作（与 E\*/棘轮/固定 floor 并列已探明机制，
+  URS 的 E\* + 最高 θ 层仍在册最优）。
