@@ -2609,6 +2609,32 @@ nodes:
   status: 已结算
   type: 矛盾上浮（预注册 escalate 分支触发）→ 消解（源不完备伪影）+ 语法记录
   file: settled/535-osc-phase-vocabulary-coupling.md
+- id: '536'
+  title: 递归方法论的辩证发展——包含/重叠→结构作为递归不变量的量变→质变（分型/特征序列/中枢是同一方法的递归质变，非方法论断裂）
+  status: 已结算
+  type: 概念发现
+  file: settled/536-recursive-methodology-dialectical-development.md
+- id: '537'
+  title: 信号层同一-差异双重性——线段=次级别走势（同一段价格运动）但走势是否完成需特征序列确认（差异）；BSP 检测必须同时消费相邻两层，不能用一个代理另一个（534号会计双重性的对偶面）
+  status: 已结算
+  type: 概念发现
+  file: settled/537-bsp-signal-identity-difference-duality.md
+- id: '538'
+  title: 嵌套递归赋格会计双重性——同一笔物理交易父级别=降成本/子级别=独立头寸（存一次两视图读，537号信号层双重性的对偶面）+ 资金守恒是递归嵌套的解锁条件
+  status: 已结算
+  type: 概念发现
+  file: settled/538-nested-fugue-accounting-doubleview-capital-unlock.md
+- id: '539'
+  title: 清仓判据的 regime 门控开放轴——NRF v5（换参照层）L3 否证；正确方向=恢复次级别确认作独立事件闸门（A′）+ 更大级别向下证实门（R6′）两正交分支；区间套是定位框架但内含事件确认（第27课）
+  status: 已结算
+  type: 概念发现
+  file: settled/539-clearance-criterion-regime-gating-open-axis.md
+- id: '540'
+  title: 递归结构的同一-差异双重性——线段=次级别走势类型（同一/压缩视图，057:26）∧ 走势类型有内部结构中枢+背驰+完美（差异/展开视图，065:180）；构造用压缩侧（线段重叠成中枢）、确认用展开侧（走势类型做BSP确认）；不可坍缩（坍缩=v5踏空，L3否证）；引擎递归结构无构造性错误；Scheme
+    A（走势类型↔中枢=经络）vs Scheme B（高级别重划笔线段=外貌）非bit-exact；537号信号层双重性的结构层同构
+  status: 已结算
+  type: 概念发现
+  file: settled/540-recursive-structure-identity-difference-duality.md
 edges:
   depends_on:
   - from: '136'
@@ -5427,6 +5453,24 @@ edges:
     to: '231'
   - from: '534'
     to: '533'
+  - from: '536'
+    to: '526'
+  - from: '536'
+    to: '525'
+  - from: '537'
+    to: '534'
+  - from: '537'
+    to: '526'
+  - from: '537'
+    to: '536'
+  - from: '538'
+    to: '534'
+  - from: '539'
+    to: '537'
+  - from: '540'
+    to: '526'
+  - from: '540'
+    to: '536'
   triggered:
   - from: '005'
     to: 005a
@@ -7111,6 +7155,57 @@ edges:
   - between:
     - '026'
     - '529'
+  - between:
+    - '006'
+    - '536'
+  - between:
+    - '001'
+    - '536'
+  - between:
+    - '002'
+    - '536'
+  - between:
+    - '003'
+    - '536'
+  - between:
+    - '525'
+    - '537'
+  - between:
+    - '003'
+    - '537'
+  - between:
+    - 029
+    - '537'
+  - between:
+    - '533'
+    - '537'
+  - between:
+    - '231'
+    - '538'
+  - between:
+    - '526'
+    - '538'
+  - between:
+    - '534'
+    - '539'
+  - between:
+    - '533'
+    - '539'
+  - between:
+    - '526'
+    - '539'
+  - between:
+    - '534'
+    - '537'
+  - between:
+    - '534'
+    - '540'
+  - between:
+    - '003'
+    - '540'
+  - between:
+    - 029
+    - '540'
   tensions_with:
   - between:
     - '007'
@@ -7202,6 +7297,15 @@ edges:
   - between:
     - '178'
     - '476'
+  - between:
+    - '526'
+    - '536'
+  - between:
+    - '526'
+    - '537'
+  - between:
+    - '526'
+    - '540'
   negated_by:
   - target: '032'
     by: 088
