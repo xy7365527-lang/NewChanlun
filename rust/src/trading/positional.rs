@@ -346,11 +346,6 @@ pub struct PositionalResult {
     /// 森林最大活跃子数（unified_necessity 专属，其余模式恒 0）——N1 实证读数：
     /// >1 = 同一父长出多 child = 森林（栈不可能）。
     pub nrf_max_children: u64,
-    // ── B 规则：否定线触发 = 势减弱 ⇒ 加速降成本对冲（unn 专属，其余模式恒 0；
-    //    编排者 2026-06-15 删观测态——否定≠买卖点，势减弱的必然响应是次级别对冲
-    //    降成本，非离场踏空。根保持原方向不清仓，翻转只在 type1 买卖点，第11环）──
-    /// 根多头否定 ⇒ 次级别 spawn 子空头降成本对冲计数（按根层；替代观测态回现金）。
-    pub n_nrf_negate_hedges_by_ladder: [u64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
