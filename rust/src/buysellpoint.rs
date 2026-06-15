@@ -449,6 +449,171 @@ pub(crate) fn detect_overlap(type2: &mut [BuySellPoint], type3: &mut [BuySellPoi
 /// 从某一递归层级的走势结构中识别所有买卖点。移植自 `buysellpoints_from_level`。
 ///
 /// `zs_break`：与 `zss` 等长的 (settled, break_direction, break_seg) 列表（type3 用）。
+// ════════════════════════════════════════════════════════════════════════════
+// 信号层运行时证明（走势终完美的直接推论；violation = panic = 验收标准失败）
+//
+// 这些 prove 验证**信号层**不变量（买卖点 / 形态学结构），不验证交易层（voice / 会计）。
+// 与交易层 N1-N8（unified_necessity.rs）分层：N* 验证操作语义守恒，S* 验证信号产出结构。
+//
+// ## 编排者裁决（2026-06-15）：S11 在 **located 势源流**检验，不在 raw candidate 流
+//
+// raw confirmed type1 流系统性**不交替**（8 标的全失败，CL 29072/37002=78.6%、
+// BRN 14996/18988=79.0%、QQQ 6166/7631=80.8%；`necessity_check_three_layers.py` 缓存）。
+// 这**不是实现 bug**，是 candidate/located 概念分离：
+//   - raw type1 只兑现 T12 的"背驰"维度（振幅）——背驰候选（势源候选）。
+//   - "方向反转"维度需 027:25 否定线过滤后的 **located 势源**才兑现（走势完美点）。
+//   - ~79% raw type1 是下跌途中不断刷新低点的连续底背驰候选，走势未完美（候选被否定线否定）。
+// 故 S11（T14 首尾相连）在 located 势源流（驱动根 F/C 操作的走势完美点）检验——这些由根操作
+// 状态机保证严格交替（long→flip short→flip long），是 T14 的必然性。raw candidate 不交替是
+// 正常的（signal_layer_duality / bsp_gap_root_cause 谱系）。
+//
+// ## S9（T15 买<卖）= ~ 状态 ⇒ 观测计数（非 panic）
+//
+// T15（买点价<前卖点价）doc 标注 ~ 状态：located 流稀疏（CL 7 个根操作），根翻空顶背驰未必
+// 高于入场价（regime 依赖）。按 formalization-validity-domain.md（~ 不声明为 ✓），S9 记
+// `n_s9_violations` 观测计数，不 panic——否则是把 ~ 声明为 ✓（声明膨胀）。
+//
+// ## 覆盖空间（T16 全称命题递归实例化）：信号层 prove 在每个级别上运行
+//
+// A0 对所有级别同时实例化 ⇒ 在 FIRST_BSP（segment）成立必在所有更高 ladder 成立。
+// S5/S6 在 a0（bi 层）构造守卫（每 bar）；S7 per-level（buysellpoints_from_level，递归层）；
+// S12 per-bar per-ladder（unn step）；S11/S9 在 located 势源流（根操作驱动，带 source ladder）。
+// ════════════════════════════════════════════════════════════════════════════
+
+/// **S7（T8 线段=第一个有势走势 + T9 中枢=势耗尽结构投影）运行时证明**：每个中枢区间
+/// 良序（ZD ≤ ZG——三段以上重叠区间是中枢存在的充要，T9）；线段 / 中枢 / 走势的跨度
+/// 与高低良序（i0 ≤ i1、low ≤ high、seg_start ≤ seg_end）。ZD>ZG = 无重叠 = 非中枢 =
+/// 形态学 bug；low>high / 跨度逆序 = 线段构造 bug。在 `buysellpoints_from_level` 末尾按
+/// level 调用（递归层 per-ladder 覆盖）。violation = panic。
+///
+/// 注：线段方向交替（S7 严格"多笔涌现方向"）由 segment 引擎构造保证（67/71/77/78 课古怪
+/// 线段处理后输出仍交替，谱系 001-degenerate-segment）；此处验证跨度 / 区间良序（确定为真
+/// 且有信息——guard 形态学构造），不重复断言构造内蕴的交替。
+pub fn prove_s7_morphology(segs: &[SegView], zss: &[ZsView], moves: &[MoveView], level_id: i64) {
+    for (i, sg) in segs.iter().enumerate() {
+        assert!(
+            sg.i0 <= sg.i1,
+            "S7(T8) 违反@level {level_id} 线段 {i}：i0={} > i1={}（线段 bar 跨度逆序）",
+            sg.i0, sg.i1
+        );
+        assert!(
+            sg.low <= sg.high,
+            "S7(T8) 违反@level {level_id} 线段 {i}：low={} > high={}（线段高低逆序）",
+            sg.low, sg.high
+        );
+    }
+    for (i, zs) in zss.iter().enumerate() {
+        assert!(
+            zs.zd <= zs.zg,
+            "S7(T9) 违反@level {level_id} 中枢 {i}：ZD={} > ZG={}（中枢必为重叠区间，无重叠=非中枢）",
+            zs.zd, zs.zg
+        );
+        assert!(
+            zs.seg_start <= zs.seg_end,
+            "S7(T9) 违反@level {level_id} 中枢 {i}：seg_start={} > seg_end={}（中枢段跨度逆序）",
+            zs.seg_start, zs.seg_end
+        );
+    }
+    for (i, mv) in moves.iter().enumerate() {
+        assert!(
+            mv.seg_start <= mv.seg_end,
+            "S7(T8) 违反@level {level_id} 走势 {i}：seg_start={} > seg_end={}（走势段跨度逆序）",
+            mv.seg_start, mv.seg_end
+        );
+    }
+}
+
+/// **S12（T13 三类买卖点=中枢生命周期三阶段）运行时证明——消费侧（unn step 每 bar 每
+/// ladder）**：任何带中枢锚（cs/zd/zg）的 BSP 事件其区间良序（ZD ≤ ZG，T9）。
+///
+/// 分层说明：`type2/3 ⇒ 必有中枢锚`是**生成侧**不变量（build_type2/3_bsp 恒设
+/// center_seg_start），在 `buysellpoints_from_level` 检验——引擎**消费侧**契约容许 tape
+/// 传 cs=None 的最小事件（marshalling 仅约束 cs⇒zd,zg 同在；N3 单测 fixture 用 cs=None
+/// 的最小 type2 验证窗口武装）。把生成不变量强加到消费侧 = 分层错位。故消费侧仅验
+/// cs⇒ZD≤ZG（带锚事件区间良序），type2/3 锚定在生成侧验。violation = panic。
+pub fn prove_s12_center(
+    kind: BspKind,
+    cs: Option<i64>,
+    zd: Option<f64>,
+    zg: Option<f64>,
+    ladder: usize,
+    bar: i64,
+) {
+    // cs 存在 ⇒ zd/zg 必同在（marshalling 契约）且区间良序（T9 中枢=重叠区间）。
+    let _ = cs;
+    if let (Some(d), Some(g)) = (zd, zg) {
+        assert!(
+            d <= g,
+            "S12(T9) 违反@bar {bar} ladder {ladder} {}：中枢锚 ZD={d} > ZG={g}（中枢生命周期阶段须锚良序中枢）",
+            kind.as_str()
+        );
+    }
+}
+
+/// 信号层 located 势源滚动状态（S11/S9 的运行时载体）。编排者裁决：located 流非 raw
+/// candidate 流。挂在 unn 引擎核心，每个根操作（F 入场 / C 翻转 / C 翻多）推进。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SigLocatedState {
+    /// 最近一个 located 势源根操作的 side（S11 交替）。None=未发生。
+    pub last_side: Option<Side>,
+    /// 最近一个 located sell 势源根操作的 price（S9：随后 buy 应更低，T15）。
+    pub last_sell_price: Option<f64>,
+    /// 最近一个 located buy 势源根操作的 price（S9 正向：随后 sell 应更高）。
+    pub last_buy_price: Option<f64>,
+    /// 已记录的 located 势源根操作数（观测）。
+    pub n_ops: u64,
+    /// S9（T15 ~ 状态）观测违反计数：located buy≥前 sell 或 sell≤前 buy。非 panic。
+    pub n_s9_violations: u64,
+}
+
+/// **S11（T14 买卖点首尾相连）panic-prove + S9（T15 买<卖）观测**：located 势源
+/// （027:25 否定线过滤后驱动根 F/C 操作的走势完美点）严格交替 buy/sell（S11 panic）；
+/// 价格 zigzag（S9 观测计数，~ 状态非 panic）。每个根操作调用 (side, price, source)。
+///
+/// 编排者裁决（2026-06-15）：S11 在 located 势源流检验，**不在 raw candidate 流**——raw
+/// confirmed type1 系统性不交替（8 标的 79%）是 candidate/located 概念分离（背驰候选 ≠
+/// 走势完美点，signal_layer_duality 谱系），非 bug。located 势源的交替才是 T14 必然性
+/// （T3：完美即反向新势开端 ⇒ 卖后必买 / 买后必卖）。
+pub fn prove_s11_s9_located(
+    state: &mut SigLocatedState,
+    side: Side,
+    price: f64,
+    source: usize,
+    bar: i64,
+) {
+    // S11（T14）：located 势源严格交替——两连续同向 = 两走势完美点无中间反向 = 走势未完美。
+    // violation = panic（编排者裁决：located 流的交替是 T14 必然性）。
+    if let Some(prev) = state.last_side {
+        assert!(
+            prev != side,
+            "S11(T14) 违反@bar {bar} source {source}：连续两个同向 located 势源（{prev:?}）\
+             ——走势完美点必首尾相连（T3 完美即反向新势开端）；located 流（非 raw candidate）应交替"
+        );
+    }
+    // S9（T15 ~ 状态）：located buy < 前 sell（卖在顶⇒回落买在更低）/ sell > 前 buy。
+    // 观测计数非 panic（T15 ~ 状态：根翻空顶背驰 regime 依赖，formalization-validity-domain.md）。
+    match side {
+        Side::Sell => {
+            if let Some(bp) = state.last_buy_price {
+                if !(price > bp) {
+                    state.n_s9_violations += 1;
+                }
+            }
+            state.last_sell_price = Some(price);
+        }
+        Side::Buy => {
+            if let Some(sp) = state.last_sell_price {
+                if !(price < sp) {
+                    state.n_s9_violations += 1;
+                }
+            }
+            state.last_buy_price = Some(price);
+        }
+    }
+    state.last_side = Some(side);
+    state.n_ops += 1;
+}
+
 pub fn buysellpoints_from_level(
     segs: &[SegView],
     zss: &[ZsView],
@@ -465,12 +630,29 @@ pub fn buysellpoints_from_level(
     let mut type3 = detect_type3(zss, zs_break, segs, &lookup, moves, level_id, require_settled);
     detect_overlap(&mut type2, &mut type3);
 
+    // S7（T8/T9）：信号层形态学结构良序运行时证明（中枢区间 / 线段跨度，violation=panic）。
+    prove_s7_morphology(segs, zss, moves, level_id);
+
     // sorted(type1 + type2 + type3, key=seg_idx)，稳定排序复刻 Python `sorted`。
     let mut all: Vec<BuySellPoint> = Vec::with_capacity(type1.len() + type2.len() + type3.len());
     all.extend(type1);
     all.extend(type2);
     all.extend(type3);
     all.sort_by_key(|bp| bp.seg_idx);
+
+    // S12（T13）生成侧：type2（中枢回测确认）/ type3（中枢突破回试）是中枢生命周期阶段
+    // ⇒ 必锚中枢（build_type2/3_bsp 恒设 center_seg_start）。type2/3 无锚 = 中枢生命周期
+    // 结构破损。violation = panic（生成侧——真实 BSP 生成的不变量，非引擎消费侧契约）。
+    for bp in &all {
+        if matches!(bp.kind, BspKind::Type2 | BspKind::Type3) {
+            assert!(
+                bp.center_seg_start.is_some(),
+                "S12(T13) 违反@level {level_id} seg {}：{} 无中枢锚（中枢生命周期阶段必锚中枢）",
+                bp.seg_idx,
+                bp.kind.as_str()
+            );
+        }
+    }
     all
 }
 

@@ -302,6 +302,14 @@ pub(super) fn close_voice(
                 let u_back = units.min(capital / c);
                 let leftover = capital - u_back * c;
                 let shortfall = units - u_back;
+                // **A4（T38 N_base 双向重定基——亏损侧 N−δ）运行时证明**：u_back=min(units,
+                // capital/c)≤units ⇒ shortfall=units−u_back≥0（单位永久缩水 δ≥0，非负——T15
+                // 破极值否定亏损物化为 N−δ，非负 cost_reduction）。双向重定基：父 units +u_back
+                // 与 n_base −shortfall 同源一笔（防单边记账）。violation = panic。
+                assert!(
+                    shortfall >= -1e-9 * units.max(1.0),
+                    "A4(T38) 违反@bar {bar}：亏损重定基 shortfall={shortfall} < 0（u_back 应 ≤ units，N−δ 的 δ≥0）"
+                );
                 voices[p].units += u_back;
                 *n_base -= shortfall;
                 res.nrf_shrink_units += shortfall;
@@ -313,6 +321,14 @@ pub(super) fn close_voice(
                     if at_point && voices[p].dir == Polarity::Long {
                         // §7 earning：纯利润在买点买入 Δ，N 重定基；basis 加权。
                         let dq = excess / c;
+                        // **A4（T38 N_base 双向重定基——earning 侧 N+Δ）运行时证明**：cost_pool≤0
+                        // 后纯利润 excess>0（上方 `if excess>0` 守卫）∧ c>0 ⇒ dq>0（增正股数 +Δ，
+                        // T36 多头 earning 可构造）。双向重定基：父 units +dq 与 n_base +dq 同源
+                        // 一笔（同一 dq，防单边记账）。violation = panic。
+                        assert!(
+                            dq > 0.0 && dq.is_finite(),
+                            "A4(T38) 违反@bar {bar}：earning 重定基 dq={dq} 非正/非有限（cost≤0 后纯利润买入 Δ 应 >0）"
+                        );
                         let pu = voices[p].units;
                         voices[p].basis = (voices[p].basis * pu + excess) / (pu + dq);
                         voices[p].units += dq;

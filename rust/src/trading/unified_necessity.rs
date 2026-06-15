@@ -118,7 +118,9 @@ use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMP
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::{BarSig, SignalTape};
 use super::types::{BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
-use crate::buysellpoint::{BspKind, Side};
+use crate::buysellpoint::{
+    prove_s11_s9_located, prove_s12_center, BspKind, SigLocatedState, Side,
+};
 use crate::stroke::Direction;
 
 /// pending 势源下界（N5/N6）：move(L1)。segment（=FIRST_BSP_LADDER）非势源——
@@ -226,6 +228,21 @@ fn prove_t14_root_flip(voices: &[VoiceLedger], rid: usize, old_dir: Polarity, un
     assert_eq!(
         roots, 1,
         "T14 违反@bar {bar}：翻转后 {roots} 个 active root（in-place flip 应保持单根，N1）"
+    );
+}
+
+/// **A5（T30 根级别涌现=会计重组，N 不变）运行时证明**：根 voice 涌现归属级别向上
+/// 单调升级（`root_emergent_ladder` relabel）是**会计重组**（重新读数）——A3 禁止加仓
+/// ⇒ 不触发物理交易 ⇒ units 与 NAV 不变。violation（relabel 改了 units/NAV = 把重组
+/// 误作加仓）= panic。
+fn prove_a5_relabel(units_post: f64, units_pre: f64, nav_post: f64, nav_pre: f64, bar: i64) {
+    assert!(
+        (units_post - units_pre).abs() <= 1e-9 * units_pre.max(1.0),
+        "A5(T30) 违反@bar {bar}：根级别涌现重组改变了 units（{units_pre}→{units_post}）——重组是重新读数非加仓（A3）"
+    );
+    assert!(
+        (nav_post - nav_pre).abs() <= 1e-4 * nav_pre.abs().max(1.0),
+        "A5(T30) 违反@bar {bar}：根级别涌现重组改变了 NAV（{nav_pre}→{nav_post}）——会计重组价值中性（无物理交易）"
     );
 }
 
@@ -510,6 +527,8 @@ pub(crate) struct UnnStreamCore {
     anchor_state: [i64; MAX_LADDER],
     // N4 累计观测（prove_n4 在 eod 反证 floor_stop 恒 0）。
     max_children_seen: usize,
+    // 信号层 located 势源流证明状态（S11 交替 panic + S9 价格观测；编排者裁决 located 非 raw）。
+    sig_state: SigLocatedState,
     // 空事件行（无事件 bar 复用——与批量同一引用语义，零分配漂移）。
     empty_evs: [Vec<BspEvent>; MAX_LADDER],
     empty_devs: [Vec<DivEvent>; MAX_LADDER],
@@ -544,6 +563,7 @@ impl UnnStreamCore {
             dir_state: [None; MAX_LADDER],
             anchor_state: [-1; MAX_LADDER],
             max_children_seen: 0,
+            sig_state: SigLocatedState::default(),
             empty_evs: Default::default(),
             empty_devs: Default::default(),
             cur_bar: 0,
@@ -573,6 +593,11 @@ impl UnnStreamCore {
         // 市场性质：中枢账本 + 振幅参照。
         if let Some(evrows) = sig.bsp_events.as_deref() {
             for lad in FIRST_BSP_LADDER..MAX_LADDER {
+                // S12（T13/T9）：信号层每个 BSP 事件中枢锚良序运行时证明（per-bar per-ladder
+                // 覆盖空间——FIRST_BSP 成立必在所有更高 ladder 成立，T16）。violation=panic。
+                for e in &evrows[lad] {
+                    prove_s12_center(e.class.kind(), e.cs, e.zd, e.zg, lad, bar);
+                }
                 self.book.ingest(lad, &evrows[lad], true, None);
             }
             self.depth_ref.observe(&self.book, c);
@@ -799,7 +824,17 @@ impl UnnStreamCore {
                 &self.dir_state, &self.anchor_state, max_l,
             );
             if re > self.voices[rid].ladder {
+                // A5（T30 涌现=会计重组）：relabel 前后 units/NAV 快照对比（重组非加仓）。
+                let units_pre_re = self.voices[rid].units;
+                let nav_pre_re = nav(&self.voices, self.free, c);
                 self.voices[rid].ladder = re; // 会计重组：无物理交易，units/NAV 不变
+                prove_a5_relabel(
+                    self.voices[rid].units,
+                    units_pre_re,
+                    nav(&self.voices, self.free, c),
+                    nav_pre_re,
+                    bar,
+                );
             }
             let root_ladder = self.voices[rid].ladder;
             let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
@@ -829,6 +864,9 @@ impl UnnStreamCore {
                                 self.located_sell = [None; MAX_LADDER];
                                 acted_ids.push(rid);
                                 prove_t14_root_flip(&self.voices, rid, Polarity::Long, m, bar);
+                                // S11（T14 首尾相连）+ S9（T15）：located 势源根操作流（卖=翻空）
+                                // 严格交替 + 价格 zigzag（编排者裁决：located 流非 raw candidate）。
+                                prove_s11_s9_located(&mut self.sig_state, Side::Sell, c, s, bar);
                                 cleared = true;
                             } else if single_root {
                                 // 根在结构基底（root_ladder == FIRST_BSP_LADDER）⇒ 无更低子级别。
@@ -870,6 +908,9 @@ impl UnnStreamCore {
                             self.located_buy = [None; MAX_LADDER];
                             acted_ids.push(rid);
                             prove_t14_root_flip(&self.voices, rid, Polarity::Short, m, bar);
+                            // S11（T14 首尾相连）+ S9（T15）：located 势源根操作流（买=翻多）
+                            // 严格交替 + 价格 zigzag（编排者裁决：located 流非 raw candidate）。
+                            prove_s11_s9_located(&mut self.sig_state, Side::Buy, c, s, bar);
                             cleared = true;
                         }
                     }
@@ -969,6 +1010,9 @@ impl UnnStreamCore {
                         self.res.n_nrf_root_entries_by_ladder[s] += 1;
                         self.res.n_entries_by_ladder[s] += 1;
                         self.located_buy = [None; MAX_LADDER];
+                        // S11（T14 首尾相连）+ S9（T15）：located 势源根操作流（买=入场，走势完美
+                        // 序列起点）严格交替 + 价格 zigzag（编排者裁决：located 流非 raw candidate）。
+                        prove_s11_s9_located(&mut self.sig_state, Side::Buy, c, s, bar);
                     }
                 }
             }
@@ -1045,6 +1089,14 @@ impl UnnStreamCore {
         prove_n4_cost_gate(&self.res);
         // N1 观测（非 panic）：记录最大子数（>1 = 森林实证）。
         self.res.nrf_max_children = self.max_children_seen as u64;
+        // S9（T15 ~ 状态）观测：located 势源价格 zigzag 违反计数（非 panic——~ 状态不声明为
+        // ✓，formalization-validity-domain.md）。n_s9_violations=0 ⇒ located 流经验满足 T15。
+        if self.sig_state.n_ops > 0 {
+            eprintln!(
+                "[信号层 located 势源观测] n_ops={} S9(T15)违反={}（S11 交替已 panic 守卫；S9 ~状态观测）",
+                self.sig_state.n_ops, self.sig_state.n_s9_violations
+            );
+        }
     }
 
     /// 已累计 trade 数（lib.rs push_bar 切出本 bar 新增）。

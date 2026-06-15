@@ -119,6 +119,23 @@ pub fn build_stroke(
     highs: &[f64],
     lows: &[f64],
 ) -> Stroke {
+    // **S6（T7 笔=两个相反分型连接，最小方向单元）运行时证明**：每笔起止分型方向相反
+    // （一顶一底）∧ 方向与端点一致（底→顶=Up、顶→底=Down）。同类分型间不构成笔（无方向，
+    // T7：相邻两相反分型之间的连接 = 一段单向运动）。violation = panic。
+    assert!(
+        start.kind != cand.kind,
+        "S6(T7) 违反@i0 {} i1 {}：笔的起止分型同类（{:?}→{:?}）——笔必连接相反分型（一顶一底）",
+        start.idx, cand.idx, start.kind, cand.kind
+    );
+    debug_assert!(
+        match direction {
+            Direction::Up => start.kind == FractalKind::Bottom && cand.kind == FractalKind::Top,
+            Direction::Down => start.kind == FractalKind::Top && cand.kind == FractalKind::Bottom,
+        },
+        "S6(T7) 方向与端点不一致：{direction:?} 但 {:?}→{:?}",
+        start.kind,
+        cand.kind
+    );
     let i0 = start.idx;
     let i1 = cand.idx;
     Stroke {
