@@ -55,10 +55,15 @@
 //!
 //! ## 每 bar 优先序（同 bar；A→F；§1-§8 会计 = 森林 close_voice 复用，bit-exact iso）
 //!
-//! A 强平兜底（逐空头 voice）→ B 否定扫描（逐 voice 破 027:25）→ C 根清仓/翻转
-//! （pending_locate 卖链 source≥root.ladder ∧ type1 背驰，N5/N6）→ D 回补（逐非根
-//! voice 自层走势完美）→ E 降成本 spawn（逐 voice 自层 nf，N7；纯成本门 N4）→
-//! F 根入场（森林空，pending_locate 买链 source，N6）。
+//! A 强平兜底（逐空头 voice）→ B 否定扫描（子 voice 关+cascade；**单根 T1 永远在场
+//! in-place 翻转**——破 027:25=反向走势确认 stop-and-reverse，第21环）→ C 根清仓/翻转
+//! （pending_locate 卖/买链 source≥re ∧ type1 背驰，N5/N6 + T5/T14 双向 in-place）→
+//! D 回补（逐非根 voice 自层走势完美）→ E 降成本 spawn（逐 voice 自层 nf，N7；纯成本
+//! 门 N4；根空头叶节点跳过）→ F 根入场（森林空，最高 buy1 层，T2 去 pending 门控）。
+//!
+//! T14/T1/T5/A5（双向 + 永远在场 + 涌现 + 会计重组）：根 in-place 长↔空翻转（C type1
+//! 背驰 ∨ B 否定 stop-and-reverse），除清仓/EOD/2x强平外永远有方向（roots≈1）。根空头
+//! 用 MtM nav（capital−units×c，外部市场负债）⇒ 翻转/否定/平仓同价 c 守恒且真实兑现。
 //!
 //! ## 验收标准：8 个 prove 函数（非回测）
 //!
@@ -647,7 +652,9 @@ impl UnnStreamCore {
             }
         }
 
-        // ── B. 否定扫描（逐活跃 voice：破 027:25 极值线 ⇒ 关该 voice + 子树）──
+        // ── B. 否定扫描（逐活跃 voice：破 027:25 极值线）。子 voice ⇒ 关 + cascade；
+        //    **单根 ⇒ T1 永远在场内 in-place 翻转**（破 027:25 = 走势否定 = 反向走势确认
+        //    ⇒ stop-and-reverse，不回现金；除清仓/EOD/2x强平外永远有方向，第21环）──
         let snap: Vec<usize> = (0..self.voices.len()).collect();
         for &id in &snap {
             if matches!(self.voices[id].status, VoiceStatus::Closed) {
@@ -658,8 +665,47 @@ impl UnnStreamCore {
                 Polarity::Short => c > line,
                 Polarity::Long => c < line,
             });
-            if broke {
-                let lad = v.ladder;
+            if !broke {
+                continue;
+            }
+            let lad = v.ladder;
+            let is_root = v.parent.is_none();
+            let single = self.voices.iter().filter(|x| !matches!(x.status, VoiceStatus::Closed)).count() == 1;
+            if is_root && single {
+                // T1 永远在场内（第21环 否定=反向走势确认）：根 in-place 翻转（MtM 守恒）。
+                let m = self.voices[id].units;
+                match self.voices[id].dir {
+                    Polarity::Long => {
+                        // 破低否定 ⇒ 翻空（做空下跌）：free+=m×c 卖多；capital=m×c 空收。
+                        settle(&mut self.voices, id, bar, c, "negflip_short", &mut self.res);
+                        self.free += m * c;
+                        self.voices[id].dir = Polarity::Short;
+                        self.voices[id].basis = c;
+                        self.voices[id].capital = m * c;
+                        self.voices[id].cost_pool = m * c;
+                        self.voices[id].entry_bar = bar;
+                        // 保留被破线 L 作枢轴（stop-and-reverse）：空头否定 = c>L（价反扑过低）
+                        // ⇒ 翻回多。避免卡死单向无界亏损；无摩擦回测下绕 L 的 whipsaw 守恒无损。
+                        self.voices[id].acted_bar = bar;
+                    }
+                    Polarity::Short => {
+                        // 破高否定 ⇒ 翻多（做多上涨）：cover+rebuy，free+=cap−2×m×c；units=m 恒。
+                        let cap = self.voices[id].capital;
+                        settle(&mut self.voices, id, bar, c, "negflip_long", &mut self.res);
+                        self.free += cap - 2.0 * m * c;
+                        self.voices[id].dir = Polarity::Long;
+                        self.voices[id].basis = c;
+                        self.voices[id].capital = 0.0;
+                        self.voices[id].cost_pool = m * c;
+                        self.voices[id].entry_bar = bar;
+                        // 保留枢轴线 L：多头否定 = c<L（价跌破高）⇒ 翻回空（stop-and-reverse）。
+                        self.voices[id].acted_bar = bar;
+                    }
+                }
+                self.res.n_nrf_root_flips_by_ladder[lad] += 1;
+                acted_ids.push(id);
+            } else {
+                // 子 voice（或带活跃子的根）⇒ 关闭 + cascade（保留原会计）。
                 close_voice(id, bar, c, c, "negate", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
                 self.res.n_nrf_negate_closes_by_ladder[lad] += 1;
                 acted_ids.push(id);
@@ -678,7 +724,8 @@ impl UnnStreamCore {
         let mut cleared = false;
         let root_id = self.voices
             .iter()
-            .position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none() && v.units > 0.0);
+            .position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none() && v.units > 0.0
+                && v.acted_bar != bar); // B 已 T1 否定翻转本 bar ⇒ C 跳过（N2 防双动）
         if let Some(rid) = root_id {
             let root_dir = self.voices[rid].dir;
             // T5/A5 会计重组（root_emergent_ladder 向上单调升级，纯 relabel）。
@@ -1193,6 +1240,22 @@ mod tests {
         assert!(r.trades.iter().any(|t| t.exit_reason == "flip_short"), "长腿记 trade");
         assert!(r.trades.iter().any(|t| t.exit_reason == "flip_long"), "空腿记 trade（下跌 P&L 归因）");
         assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "N8 守恒跑通 final_nav={}", r.final_nav);
+    }
+
+    #[test]
+    fn t1_root_negate_flips_in_place() {
+        // T1 永远在场内：根 long@4（F 入场设 negate=located_buy[4].extreme=86）破低
+        // （c<86）⇒ B 否定 in-place 翻空（stop-and-reverse），**不回现金**。验证
+        // negflip_short trade 腿 + 无 "negate" close（根永远在场）+ N8 守恒跑通。
+        let (mut bars, flips) = full_bull_entry(); // root long@4, negate_line=86
+        bars.push(bar(85.0)); // c=85 < 86 ⇒ 否定 ⇒ T1 in-place 翻空
+        bars.push(bar(84.0));
+        let r = run(bars, flips);
+        assert!(r.trades.iter().any(|t| t.exit_reason == "negflip_short"),
+            "T1：根破低否定 in-place 翻空（记长腿 negflip_short）");
+        assert!(r.trades.iter().all(|t| t.exit_reason != "negate"),
+            "根否定非 close（永远在场，不回现金）");
+        assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "N8 守恒 final_nav={}", r.final_nav);
     }
 
     #[test]
