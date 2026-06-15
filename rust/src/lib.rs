@@ -2219,6 +2219,17 @@ fn positional_result_to_dict<'py>(
     out.set_item("nrf_short_earning_hits", res.nrf_short_earning_hits)?;
     out.set_item("nrf_shrink_units", res.nrf_shrink_units)?;
     out.set_item("nrf_max_children", res.nrf_max_children)?;
+    // T1⊥A8 扬弃（观测态）观测面（137号 make-decision-observable）。
+    out.set_item(
+        "n_nrf_negate_observes_by_ladder",
+        res.n_nrf_negate_observes_by_ladder.to_vec(),
+    )?;
+    out.set_item("nrf_observe_bars", res.nrf_observe_bars)?;
+    out.set_item("nrf_max_observe_dur", res.nrf_max_observe_dur)?;
+    out.set_item(
+        "n_nrf_observe_reentries_by_ladder",
+        res.n_nrf_observe_reentries_by_ladder.to_vec(),
+    )?;
     Ok(out)
 }
 
