@@ -135,6 +135,10 @@ const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
 struct Pending {
     extreme: f64,
     since_bar: i64,
+    /// N7 自层 fire（nf，供 E 降成本）是否已触发——每个 candidate 仅 fire 一次。
+    /// located 严格确认（②compress<confirm）要求窗口存活到后续 bar，故 nf **不消费**
+    /// 窗口（仅置此标志防重复 spawn）；窗口由 located 确认或破极值否定消费。
+    fired_nf: bool,
 }
 
 /// pending confirm 兑现条目（N5/N6 的载体；级联后一条链内全层 source_ladder 统一）。
@@ -161,7 +165,9 @@ fn cascade_arm(
     confirm_bar: i64,
 ) {
     debug_assert!(source >= PENDING_LO, "pending 只在 move(L1) 及以上注册；source={source}");
-    debug_assert!(compress_bar <= confirm_bar, "540号时序：压缩 {compress_bar} > 展开 {confirm_bar}");
+    // ② 后续走势验证（第29课:52/54）：compress < confirm 严格小于——同 bar 武装即确认
+    //    = 无后续走势 = 伪确认（degenerate located 死因）。调用点 `since_bar < bar` 保证。
+    debug_assert!(compress_bar < confirm_bar, "第29课:52/54+540号严格时序：压缩 {compress_bar} ≥ 展开 {confirm_bar}（同 bar/逆序确认=无后续走势验证=伪确认）");
     for slot in located.iter_mut().take(source + 1).skip(FIRST_BSP_LADDER) {
         let overwrite = slot.map_or(true, |e| source >= e.source_ladder);
         if overwrite {
@@ -181,6 +187,55 @@ fn cascade_arm(
 /// top）的合一替代——层选择 ≡ 链确认。
 fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> {
     (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
+}
+
+/// **区间套严格证据（located 确认——C 翻转/清仓 + F 入场专用）**。
+///
+/// 修复三处偏离缠师原文之 ①+③（`analysis/buysellpoint_necessity_vs_canon.md`；
+/// 编排者 2026-06-15 裁决：按原文收紧 located 确认，此前 `nested_fugue.rs:133-148`
+/// 共享的 `rec_sub_evidence`"任一层证据即触发"在 unn 的 located 路径上不达正典）：
+///
+/// - **① 低三个级别以上（第64课:65 区间套定理）**：候选层 k 向下递归，合格命中层
+///   `j ≤ k−3`（递归深度 `k−j ≥ 3`）。`rec_sub_evidence` 从 `k−1` 找第一个证据就停
+///   （可低一级即触发，bar 23688 即停在 move(L1)=3 深度 1）——本函数排除过浅的
+///   `k−1`/`k−2` 命中，从 `k−3` 起向下搜索。ladder↔级别映射：recL2(k=4) 向下三级 =
+///   move(L1)→segment→bi(1)，故 `k−3 ≥ bi=FIRST_BSP−1`（边界条件：映射 1:1，若引擎
+///   ladder 与缠师级别非 1:1 需 source-auditor 重核）。
+/// - **③ 逐级第一类（第29课:396"所有买点…都要下次级别以下找第一类"）**：每个被搜索
+///   的 BSP 承载层（`≥ FIRST_BSP`）只认同侧 **type1 背驰**——type2/type3、裸背驰事件
+///   不算 confirm 证据。a0(bi 层 = `FIRST_BSP−1`)用方向翻转沿（第64课"确定到一个
+///   时间、价格的点"——笔级转折是区间套的终点）。
+///
+/// 返回最深合格命中层（`Some(j)`，`j ≤ k−3`）；`None` = 区间套未达 3 级 type1 定位
+/// ⇒ located 不武装 ⇒ 该卖/买点只能走 E 降成本（§9），不触发 C/F。
+/// 时序判据 ②（compress<confirm 后续走势）在调用点强制（`since_bar < bar`），非本函数。
+fn rec_sub_evidence_strict(
+    k: usize,
+    side: Side,
+    evrows: &[Vec<BspEvent>; MAX_LADDER],
+    flip_edge: &[Option<Direction>; MAX_LADDER],
+) -> Option<usize> {
+    let bi = FIRST_BSP_LADDER - 1;
+    // ① 低三级以上：最浅合格命中层 = k−3（深度 3）；k<3 或 k−3<bi 无 3 级递归空间。
+    let hi = k.checked_sub(3)?;
+    if hi < bi {
+        return None;
+    }
+    let want = match side {
+        Side::Sell => Direction::Down,
+        Side::Buy => Direction::Up,
+    };
+    // 从 k−3 向下逐级（k−1/k−2 过浅排除，第64课）；③ 只认 type1（BSP 承载层）/
+    // bi 翻转沿（定位到点）。返回最深合格层。
+    (bi..=hi).rev().find(|&j| {
+        if j >= FIRST_BSP_LADDER {
+            evrows[j]
+                .iter()
+                .any(|e| e.class.kind() == BspKind::Type1 && e.class.side() == side)
+        } else {
+            flip_edge[j] == Some(want)
+        }
+    })
 }
 
 /// **根 voice 涌现归属级别 E\*（T5/A5 第20环"根=最高涌现级别"）**：根的操作级别
@@ -330,8 +385,8 @@ fn prove_chain(
     assert_eq!(top.source_ladder, s, "N5 违反@bar {bar} {op}：located[{s}].source_ladder≠{s}（链顶不一致）");
     assert_eq!(top.direction, dir, "N5 违反@bar {bar} {op}：located[{s}].direction 方向错配");
     assert!(
-        top.compress_bar <= top.confirm_bar,
-        "N6 违反@bar {bar} {op}：540号压缩 {} > 展开 {}（展开早于压缩，时序颠倒）",
+        top.compress_bar < top.confirm_bar,
+        "N6 违反@bar {bar} {op}：第29课:52/54+540号 压缩 {} ≥ 展开 {}（同 bar/逆序确认=无后续走势验证=伪确认，degenerate located）",
         top.compress_bar, top.confirm_bar
     );
     assert!(
@@ -661,11 +716,11 @@ impl UnnStreamCore {
                     if e.confirmed {
                         *win = None; // confirmed 同侧让位（本 bar 走 confirmed 路径）
                     } else {
-                        let (ext, since) = win.map_or((e.price, bar), |w| {
+                        let (ext, since, fired) = win.map_or((e.price, bar, false), |w| {
                             let ext = if sellside { w.extreme.max(e.price) } else { w.extreme.min(e.price) };
-                            (ext, w.since_bar) // 压缩起始不变（540号）
+                            (ext, w.since_bar, w.fired_nf) // 压缩起始 + nf 标志保留（540号）
                         });
-                        *win = Some(Pending { extreme: ext, since_bar: since });
+                        *win = Some(Pending { extreme: ext, since_bar: since, fired_nf: fired });
                         self.res.n_nest_arms_by_ladder[k] += 1;
                     }
                     if e.class.kind() == BspKind::Type2 {
@@ -675,36 +730,65 @@ impl UnnStreamCore {
             }
             // 第14环展开↓：confirm 从 k−1 递归下探至 a0（含 segment + bi）。
             let sub = k - 1;
-            if let Some(w) = self.nest_sell[k] {
+            if let Some(mut w) = self.nest_sell[k] {
+                // N7 自层 fire（供 E 降成本，§9"绝大多数卖点只是降成本"）：loose 次级别
+                // 证据，每 candidate 仅 fire 一次（fired_nf）——**不消费窗口**，留给 located
+                // 等待后续走势（②）。三处偏离修复只收紧 located（C/F），E 行为不变。
                 if let Some(j) = rec_sub_evidence(sub, Side::Sell, evrows, devrows, flip_edge) {
                     assert!(
                         w.since_bar <= bar,
                         "N6 违反@bar {bar}：confirm_sell[{k}] 压缩 {} > 展开（展开早于压缩）",
                         w.since_bar
                     );
-                    confirm_sell[k] = Some((w.extreme, w.since_bar));
-                    nf_sell[k] = Some(w.extreme); // N7：自层 fire（供 E）
-                    self.nest_sell[k] = None;
-                    self.res.n_nest_fire_sell_by_ladder[k] += 1;
-                    if j < sub {
-                        self.res.n_nrf_deep_fires_by_ladder[k] += 1;
+                    if !w.fired_nf {
+                        nf_sell[k] = Some(w.extreme);
+                        w.fired_nf = true;
+                        self.res.n_nest_fire_sell_by_ladder[k] += 1;
+                        if j < sub {
+                            self.res.n_nrf_deep_fires_by_ladder[k] += 1;
+                        }
                     }
                 }
+                // located/cascade（N5/N6，供 C 翻转/清仓 + F 入场）：严格区间套确认
+                // （rec_sub_evidence_strict ①低三级 ③逐级type1 + ②compress<confirm 后续
+                // 走势）。命中 ⇒ 武装 located 并消费窗口；否则窗口持续（等待后续走势）。
+                // bar 23688 同 bar 浅证据翻空在此被拦（since==bar ⇒ since<bar 假）。
+                if w.since_bar < bar
+                    && rec_sub_evidence_strict(k, Side::Sell, evrows, flip_edge).is_some()
+                {
+                    confirm_sell[k] = Some((w.extreme, w.since_bar));
+                    self.nest_sell[k] = None;
+                } else {
+                    self.nest_sell[k] = Some(w);
+                }
             }
-            if let Some(w) = self.nest_buy[k] {
+            if let Some(mut w) = self.nest_buy[k] {
+                // N7 自层 fire（供 E 降成本）：loose，每 candidate 一次，不消费窗口（同卖侧）。
                 if let Some(j) = rec_sub_evidence(sub, Side::Buy, evrows, devrows, flip_edge) {
                     assert!(
                         w.since_bar <= bar,
                         "N6 违反@bar {bar}：confirm_buy[{k}] 压缩 {} > 展开（展开早于压缩）",
                         w.since_bar
                     );
-                    confirm_buy[k] = Some((w.extreme, w.since_bar));
-                    nf_buy[k] = Some(w.extreme); // N7：自层 fire（供 E）
-                    self.nest_buy[k] = None;
-                    self.res.n_nest_fire_buy_by_ladder[k] += 1;
-                    if j < sub {
-                        self.res.n_nrf_deep_fires_by_ladder[k] += 1;
+                    if !w.fired_nf {
+                        nf_buy[k] = Some(w.extreme);
+                        w.fired_nf = true;
+                        self.res.n_nest_fire_buy_by_ladder[k] += 1;
+                        if j < sub {
+                            self.res.n_nrf_deep_fires_by_ladder[k] += 1;
+                        }
                     }
+                }
+                // located/cascade（N5/N6，供 F 入场 + C 翻多）：严格区间套确认
+                // （①低三级 ③逐级type1 + ②compress<confirm）。不达严格 ⇒ 无 located
+                // ⇒ 1买点只走 E/不入场（第64课"低三级以上逐级第一类买点"建仓判据）。
+                if w.since_bar < bar
+                    && rec_sub_evidence_strict(k, Side::Buy, evrows, flip_edge).is_some()
+                {
+                    confirm_buy[k] = Some((w.extreme, w.since_bar));
+                    self.nest_buy[k] = None;
+                } else {
+                    self.nest_buy[k] = Some(w);
                 }
             }
         }
@@ -808,11 +892,48 @@ impl UnnStreamCore {
             let root_ladder = self.voices[rid].ladder;
             let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
             let single_root = active_count == 1;
+            // ── 诊断（env UNN_DBG_QQQ）：根空头持仓期间，本层 raw type1 买点为何不触发 C 翻多 ──
+            if std::env::var_os("UNN_DBG_QQQ").is_some()
+                && root_dir == Polarity::Short
+                && sig.buy1.get(root_ladder)
+            {
+                let bs = buy_source;
+                let chain_reaches = bs.is_some_and(|s| s >= root_ladder);
+                let buy1_at_src = bs.is_some_and(|s| sig.buy1.get(s));
+                let chain: Vec<(usize, usize)> = (FIRST_BSP_LADDER..MAX_LADDER)
+                    .filter(|&k| self.located_buy[k].is_some())
+                    .map(|k| (k, self.located_buy[k].unwrap().source_ladder))
+                    .collect();
+                eprintln!(
+                    "[C-noflip bar={bar}] root SHORT@ladder{root_ladder} raw_buy1@{root_ladder}=T \
+                     | buy_source={bs:?} s>=root_ladder={chain_reaches} buy1@source={buy1_at_src} \
+                     single_root={single_root} | located_buy链(层,源)={chain:?}"
+                );
+            }
             match root_dir {
                 Polarity::Long => {
                     if let Some(s) = sell_source {
                         if s >= root_ladder && sig.sell1.get(s) {
                             prove_chain(&self.located_sell, Side::Sell, s, bar, "C-flip/clear");
+                            // ── 诊断（env UNN_DBG_QQQ）：C 翻空触发点完整 located 链 + 次级别证据层 ──
+                            if std::env::var_os("UNN_DBG_QQQ").is_some() {
+                                let chain: Vec<(usize, usize, i64, i64)> = (FIRST_BSP_LADDER..MAX_LADDER)
+                                    .filter(|&k| self.located_sell[k].is_some())
+                                    .map(|k| {
+                                        let e = self.located_sell[k].unwrap();
+                                        (k, e.source_ladder, e.compress_bar, e.confirm_bar)
+                                    })
+                                    .collect();
+                                let ev_layer = rec_sub_evidence(s - 1, Side::Sell, evrows, devrows, flip_edge);
+                                let top_ext = self.located_sell[s].unwrap().extreme;
+                                eprintln!(
+                                    "[C-FLIP-SHORT bar={bar}] sell_source={s} root_ladder={root_ladder} \
+                                     sell1@{s}={} sell_any@{s}={} single_root={single_root} top_extreme={top_ext:.2} \
+                                     | located_sell链(层,源,压缩bar,确认bar)={chain:?} \
+                                     | 次级别证据层(s-1={})={ev_layer:?}",
+                                    sig.sell1.get(s), sig.sell_any.get(s), s - 1
+                                );
+                            }
                             if single_root && root_ladder > FIRST_BSP_LADDER {
                                 // T14 根翻空：长→空 in-place。卖多 free+=m×c；空头收 capital=m×c。
                                 // 根空头 MtM：nav_pre=free+m×c（多）→ nav_post=free'+（capital−m×c）
@@ -923,6 +1044,14 @@ impl UnnStreamCore {
                 // voice 不可兼容两套口径（短父 spawn 长子在 MtM 下破坏守恒 +m×c）。故根空头
                 // 不 spawn（有效域边界：T8 多空嵌套降成本只在多头相/子空头层，根空头相纯翻转）。
                 if is_root && dir == Polarity::Short {
+                    // ── 诊断（env UNN_DBG_QQQ）：根空头持仓期间自层买点 → E 为何不 spawn ──
+                    if std::env::var_os("UNN_DBG_QQQ").is_some() && sig.buy1.get(ladder) {
+                        eprintln!(
+                            "[E-skip bar={bar}] root SHORT@ladder{ladder} raw_buy1=T nf_buy@{ladder}={} \
+                             — E spawn 跳过（T8 根空头叶节点，根空头相不嵌套降成本；买点本应走 C 翻多）",
+                            nf_buy[ladder].is_some()
+                        );
+                    }
                     continue;
                 }
                 let (nf_trigger, confirmed_root) = match dir {
@@ -1416,5 +1545,66 @@ mod tests {
         flips.push((sell_ev_bar, 1, Direction::Down));
         let r = run(bars, flips);
         assert!(r.n_nest_arms_by_ladder[4] >= 1, "N3：Type2 计入武装（非 continue 跳过）");
+    }
+
+    // ════════════ 三处偏离修复验证（analysis/buysellpoint_necessity_vs_canon.md）════════════
+
+    #[test]
+    fn fix1_strict_evidence_depth_floor() {
+        // ① 低三个级别以上（第64课:65）：rec_sub_evidence_strict 命中层必须 ≤ k−3。
+        let mut evrows: [Vec<BspEvent>; MAX_LADDER] = Default::default();
+        let flip: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+        // k=5：type1@4（k−1 深度1）+ type1@3（k−2 深度2），无 ≤k−3=2 证据 ⇒ 不命中。
+        evrows[4].push(ev_full(BspClass::Sell1, false, 0.0, None));
+        evrows[3].push(ev_full(BspClass::Sell1, false, 0.0, None));
+        assert_eq!(
+            rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), None,
+            "证据仅深度 1/2 <3 级 ⇒ 低三级以上未满足（rec_sub_evidence 低一级即停被拦）"
+        );
+        // 补 type1@2（k−3=2 深度3）⇒ 命中最深合格层。
+        evrows[2].push(ev_full(BspClass::Sell1, false, 0.0, None));
+        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), Some(2), "深度 3 命中");
+        // k=4：低三级落到 bi(1)，需方向翻转沿（第64课"确定到一个时间、价格的点"）。
+        assert_eq!(rec_sub_evidence_strict(4, Side::Sell, &evrows, &flip), None, "k=4 无 bi 翻转沿 ⇒ 不命中");
+        let mut flip2 = flip;
+        flip2[1] = Some(Direction::Down);
+        assert_eq!(rec_sub_evidence_strict(4, Side::Sell, &evrows, &flip2), Some(1), "k=4 bi 翻转沿 ⇒ 命中（定位到点）");
+        // k=3（move L1）：k−3=0 < bi=1，无 3 级递归空间 ⇒ None。
+        assert_eq!(rec_sub_evidence_strict(3, Side::Sell, &evrows, &flip2), None, "k=3 无低三级空间");
+    }
+
+    #[test]
+    fn fix3_strict_evidence_type1_only() {
+        // ③ 逐级第一类（第29课:396"都要下次级别以下找第一类"）：只认 type1，type2/3 不算。
+        let mut evrows: [Vec<BspEvent>; MAX_LADDER] = Default::default();
+        let flip: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+        evrows[2].push(ev_full(BspClass::Sell1, false, 0.0, None)); // type1@k−3=2
+        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), Some(2), "type1@k−3 ⇒ 命中");
+        evrows[2].clear();
+        evrows[2].push(ev_full(BspClass::Sell2, false, 0.0, None));
+        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), None, "type2 不算 confirm 证据");
+        evrows[2].clear();
+        evrows[2].push(ev_full(BspClass::Sell3, false, 0.0, None));
+        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), None, "type3 不算 confirm 证据");
+    }
+
+    #[test]
+    fn fix2_same_bar_no_degenerate_located() {
+        // ② 后续走势验证（第29课:52/54）：candidate 首现与 confirm 同 bar（compress==confirm）
+        //   = degenerate located = 伪确认 ⇒ 不武装 located ⇒ 即便 sell1@4 + bi 翻 Down 也不翻空
+        //   （bar 23688 同 bar 浅证据翻空的死因在此被拦——与 type1_full_chain_flips_root 的
+        //   1-bar gap 翻空形成对照）。
+        let (mut bars, mut flips) = full_bull_entry(); // root long@4
+        // 同 bar：arm nest_sell@4（Sell1 candidate）+ sell1@4 + bi 翻 Down（compress==confirm）。
+        bars.push(sell1pt(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)), 4));
+        let same_bar = bars.len() as i64 - 1;
+        bars.push(bar(104.0));
+        flips.push((same_bar, 1, Direction::Down)); // bi down 与 arm 同 bar
+        let r = run(bars, flips);
+        assert_eq!(
+            r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
+            "同 bar confirm（degenerate located）被拦 ⇒ 不翻空（compress==confirm 伪确认）"
+        );
+        assert!(r.nrf_phys_long_bars > 0, "根保持多头（无伪确认翻空）");
     }
 }
