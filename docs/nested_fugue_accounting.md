@@ -7,7 +7,11 @@
 
 - **N_base**：根voice的运行态在手单位聚合。建仓时 N_base = 建仓股数。**"恒定"读作"不主动加仓"**
   （26课"一开始就买够不加仓"的语义），**非"数量不可变"**：N_base 双向重定基——earning 阶段
-  N_base += Δ（挣股数），亏损回补阶段 N_base −= shortfall（单位永久缩水）。详见 §11.2（DIVERGES）。
+  N_base += Δ（挣股数），亏损回补阶段 N_base −= shortfall（该 shortfall 单位永久缩水，但 N_base
+  总量可经后续 earning 回升——双向，非单调）。详见 §11.2（DIVERGES）。
+  - **符号约定**：下文 §2-§8 中裸符号 **N** 为 N_base 的简写（指代当前运行态基准值）；**N′** 表示
+    重定基后的新 N_base 值；**M** 为单次操作股数，26课同股数进出语义下 M = N_base。守恒律与全局
+    不变量（§2/§5/§8.1）显式写 N_base；局部操作流（如 `N → N-m`）用简写 N。
 - **voice**：递归赋格的一个声部。每个voice有独立的级别、方向、生命周期。
 - **根voice**：最高涌现级别的voice。建仓=根voice诞生。只有根voice走势完美时才清仓。
 
@@ -40,7 +44,7 @@ status: 活跃
 
 ### 守恒律守卫
 ```
-assert father.shares + child.units == N  // 股数守恒
+assert father.shares + child.units == N_base  // 股数守恒（记账两侧一致，见 §8.1）
 assert total_NAV不变  // 一笔交易不改变总价值
 ```
 
@@ -118,6 +122,9 @@ voice拓扑: root(k) → root(k+1) ⊃ {child(k) = 原root}
 驱动），voice升级不触发物理交易 ⇒ N_base 守恒。Σ(所有活跃voice.units) 在重组前后逐位相等。
 代码层面对应归属层（涌现级别）的动态锚定（参 §12 改动3"root 可多 child"森林结构）。
 
+> **来源标注**：本段为 A5 新增的结构性声明，依据 §12 森林结构与 A5 条目，**非 §11 审计直接覆盖项**
+> （§11 的 D1-D6 未对 voice 升级作判决）。性质为对会计结构在级别涌现下行为的补充说明。
+
 ## 5. 递归嵌套——子voice做降成本
 
 子voice（级别k-1，持空）在运行期间，如果k-2级别出现买点（反弹）：
@@ -139,15 +146,16 @@ voice拓扑: root(k) → root(k+1) ⊃ {child(k) = 原root}
 
 ### 守恒律
 ```
-assert father.shares + child.units + grandchild.units == N
-// 总股数在递归链上守恒
+assert father.shares + child.units + grandchild.units == N_base
+// 总股数在递归链上守恒（记账两侧一致，见 §8.1）
 ```
 
 ## 6. 不清仓原则
 
-- 根voice在建仓后持有N股，**永不清零**——除非最高涌现级别走势完美（十年1-2次）
+- 根voice在建仓后持有 N_base 股，**不主动清零**（N_base 可因亏损回补缩水，但不主动归零——
+  "不清零"约束的是主动归零行为，非 N_base 数量不变）——除非最高涌现级别走势完美（十年1-2次）
 - 根voice在段级/L1/L2卖点时只做降成本（释放部分给子voice），不清仓
-- "清仓"=N→0，只在以下条件同时满足时发生：
+- "清仓"=N_base→0（主动全平），只在以下条件同时满足时发生：
   1. 最高涌现级别（recL3/recL4）的confirmed背驰
   2. 背驰已被区间套递归确认
   3. 全链子voice级联清算后
@@ -159,7 +167,7 @@ assert father.shares + child.units + grandchild.units == N
 ```
 cost_basis ≤ 0 → 仓位免费 → 后续降成本产生的现金=纯利润
 ```
-纯利润可以用来增加N（挣股数）——但M=N（新增的股数也参与后续的同股数进出），这增加了递归的资本基础。
+纯利润可以用来增加 N_base（挣股数）——同股数进出原则下 M = N_base（新增的股数也参与后续的同股数进出），这增加了递归的资本基础。
 
 ### earning增仓的精确会计
 
