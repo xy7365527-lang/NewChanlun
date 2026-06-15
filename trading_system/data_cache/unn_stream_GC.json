@@ -1,0 +1,260 @@
+{
+ "symbol": "GC",
+ "instrument_id": "GC.GLBX",
+ "n_bars": 5544556,
+ "bh_pct": 257.3,
+ "bh_mdd_pct": -45.6,
+ "max_bars": null,
+ "unn_stream": {
+  "strat_pct": 213.2,
+  "mdd_pct": -21.1,
+  "n_trades": 306,
+  "exit_reasons": {
+   "negate": 128,
+   "recover": 176,
+   "cascade": 1,
+   "eod": 1
+  },
+  "yearly": null,
+  "by_ladder": {
+   "segment/short": {
+    "n": 254,
+    "pnl_cash": 5288.0,
+    "wins": 107,
+    "avg_held_bars": 126.0
+   },
+   "move(L1)/long": {
+    "n": 49,
+    "pnl_cash": 190620.0,
+    "wins": 1,
+    "avg_held_bars": 84979.0
+   },
+   "recL2/long": {
+    "n": 3,
+    "pnl_cash": -1277.0,
+    "wins": 0,
+    "avg_held_bars": 3799.0
+   }
+  },
+  "nrf_counters": {
+   "root_entries": [
+    0,
+    0,
+    0,
+    49,
+    3,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "spawns": [
+    0,
+    0,
+    81,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "negates": [
+    0,
+    0,
+    77,
+    48,
+    3,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "cascades": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "cost_rejects": [
+    0,
+    0,
+    5325,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "noref_rejects": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "floor_stops": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "flips": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "phys_long_bars": 4152138,
+   "depth_bars": [
+    1369180,
+    4144971,
+    28995,
+    1179,
+    231,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_arms": [
+    0,
+    0,
+    0,
+    8614,
+    421,
+    34,
+    2,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_fire_sell": [
+    0,
+    0,
+    0,
+    2780,
+    185,
+    14,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_fire_buy": [
+    0,
+    0,
+    0,
+    2974,
+    206,
+    19,
+    1,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_breaks": [
+    0,
+    0,
+    0,
+    2010,
+    23,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "liquidations": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "short_net_cash": [
+    0.0,
+    0.0,
+    5288.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "short_held_bars": [
+    0,
+    0,
+    32046,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "nrf_max_children": 3,
+  "_n_pushed_trades": 305
+ },
+ "P1_ge_bh": false,
+ "bit_exact_vs_batch": {
+  "status": "PASS",
+  "n_keys": 8,
+  "mismatches": {}
+ },
+ "architecture": "NautilusTrader BacktestEngine 逐bar回放 → on_bar(StreamingSignalReader.process_bar → UnnStream.push_bar) → on_stop(finish); 信号层+引擎层两侧流式; bit-exact vs 批量"
+}

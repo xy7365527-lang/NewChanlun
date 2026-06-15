@@ -207,7 +207,8 @@ def main() -> int:
 
     print(f"加载 {sym}（max_bars={args.bars or '全量'}）...")
     t0 = time.time()
-    bars, opens, highs, lows, closes = load_bars(sym, bar_type, spec.price_precision, max_bars)
+    bars, opens, highs, lows, closes = load_bars(
+        sym, bar_type, spec.price_precision, max_bars, instrument.size_precision)
     bh_pct = (closes[-1] / closes[0] - 1) * 100
     bh_dd = bh_mdd(closes) * 100
     print(f"  {len(bars):,} Bar  {time.time() - t0:.1f}s  BH={bh_pct:+.1f}% BH_MDD={bh_dd:.1f}%")

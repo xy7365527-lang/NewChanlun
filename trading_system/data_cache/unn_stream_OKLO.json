@@ -1,0 +1,265 @@
+{
+ "symbol": "OKLO",
+ "instrument_id": "OKLO.XNAS",
+ "n_bars": 447738,
+ "bh_pct": 307.1,
+ "bh_mdd_pct": -76.8,
+ "max_bars": null,
+ "unn_stream": {
+  "strat_pct": 15.5,
+  "mdd_pct": -55.9,
+  "n_trades": 277,
+  "exit_reasons": {
+   "negate": 73,
+   "cascade": 1,
+   "recover": 203
+  },
+  "yearly": null,
+  "by_ladder": {
+   "segment/short": {
+    "n": 266,
+    "pnl_cash": 25902.0,
+    "wins": 118,
+    "avg_held_bars": 164.0
+   },
+   "move(L1)/long": {
+    "n": 8,
+    "pnl_cash": -18685.0,
+    "wins": 0,
+    "avg_held_bars": 21960.0
+   },
+   "move(L1)/short": {
+    "n": 1,
+    "pnl_cash": 649.0,
+    "wins": 1,
+    "avg_held_bars": 1341.0
+   },
+   "recL2/long": {
+    "n": 2,
+    "pnl_cash": -7969.0,
+    "wins": 0,
+    "avg_held_bars": 11206.0
+   }
+  },
+  "nrf_counters": {
+   "root_entries": [
+    0,
+    0,
+    0,
+    8,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "spawns": [
+    0,
+    0,
+    259,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "negates": [
+    0,
+    0,
+    63,
+    8,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "cascades": [
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "cost_rejects": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "noref_rejects": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "floor_stops": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "flips": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "phys_long_bars": 196545,
+   "depth_bars": [
+    249647,
+    163644,
+    26729,
+    5257,
+    2177,
+    284,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_arms": [
+    0,
+    0,
+    0,
+    760,
+    35,
+    3,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_fire_sell": [
+    0,
+    0,
+    0,
+    250,
+    15,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_fire_buy": [
+    0,
+    0,
+    0,
+    258,
+    19,
+    2,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "nest_breaks": [
+    0,
+    0,
+    0,
+    165,
+    1,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "liquidations": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ],
+   "short_net_cash": [
+    0.0,
+    0.0,
+    25902.0,
+    649.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "short_held_bars": [
+    0,
+    0,
+    43569,
+    1341,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "nrf_max_children": 4,
+  "_n_pushed_trades": 277
+ },
+ "P1_ge_bh": false,
+ "bit_exact_vs_batch": {
+  "status": "PASS",
+  "n_keys": 8,
+  "mismatches": {}
+ },
+ "architecture": "NautilusTrader BacktestEngine 逐bar回放 → on_bar(StreamingSignalReader.process_bar → UnnStream.push_bar) → on_stop(finish); 信号层+引擎层两侧流式; bit-exact vs 批量"
+}

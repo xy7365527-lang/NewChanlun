@@ -83,7 +83,8 @@ BASELINE_DIR = REPO_ROOT / "analysis" / "data_cache"
 # ════════════════════════ 数据加载（Databento JSON → Bar）════════════════════════
 
 def load_bars(sym: str, bar_type: BarType, price_precision: int,
-              max_bars: int | None) -> tuple[list[Bar], list, list, list, list]:
+              max_bars: int | None,
+              size_precision: int = 0) -> tuple[list[Bar], list, list, list, list]:
     """analysis Databento JSON → 清洗后 OHLC 数组 + list[Bar]（路 B 构造器）。
 
     返回 (bars, opens, highs, lows, closes)。bars 与裸数组**结构等价**：
@@ -94,6 +95,10 @@ def load_bars(sym: str, bar_type: BarType, price_precision: int,
     bar index = 隐式时间轴」），NT 时间戳仅作回放排序装置。用合成戳而非截断原始
     dates，规避 load_ohlc 中间删行（nan/≤0/spike-revert，如 BRN）导致的日期错位——
     错位会破坏 bit-exact 却不报错（声明膨胀）。volume=0 同理（unn 不消费 volume）。
+
+    size_precision：volume Quantity 精度必须 == instrument.size_precision（NT Bar 不变量）。
+    期货/股票 size_precision=0（lot_size 精度 0）；BTC CryptoPerpetual=5（HL szDecimals）。
+    由调用方从 instrument.size_precision 传入——volume=0 不被 unn 消费，仅满足 NT 装配。
     """
     path = SYMBOL_FILES[sym]
     opens, highs, lows, closes, _years = load_ohlc(path)  # 唯一清洗真相源
@@ -109,7 +114,7 @@ def load_bars(sym: str, bar_type: BarType, price_precision: int,
          "volume": [0.0] * n},
         index=idx,
     )
-    bars = bars_from_dataframe(df, bar_type, price_precision)
+    bars = bars_from_dataframe(df, bar_type, price_precision, size_precision)
     return bars, opens, highs, lows, closes
 
 
@@ -262,7 +267,7 @@ def main() -> int:
     print(f"加载 {sym} 数据（max_bars={args.bars or '全量'}）...")
     t0 = time.time()
     bars, opens, highs, lows, closes = load_bars(
-        sym, bar_type, spec.price_precision, max_bars,
+        sym, bar_type, spec.price_precision, max_bars, instrument.size_precision,
     )
     bh_pct = (closes[-1] / closes[0] - 1) * 100
     bh_dd = bh_mdd(closes) * 100
