@@ -55,32 +55,54 @@
 //!
 //! ## 每 bar 优先序（同 bar；A→F；§1-§8 会计 = 森林 close_voice 复用，bit-exact iso）
 //!
-//! A 强平兜底（逐空头 voice）→ B 否定扫描（子 voice 关+cascade；**根否定 ⇒ 回现金 +
-//! 观测态**——T1⊥A8 扬弃，否定线=停损=资本保全 A8，非字面 stop-and-reverse）→ C 根
-//! 清仓/翻转（pending_locate 卖/买链 source≥re ∧ type1 背驰，N5/N6 + T5/T14 双向 in-place）→
-//! D 回补（逐非根 voice 自层走势完美）→ E 降成本 spawn（逐 voice 自层 nf，N7；纯成本
-//! 门 N4；根空头叶节点跳过）→ F 根入场（森林空，最高 buy1 层；观测态 ⇒ 持仓态重建）。
+//! A 强平兜底（逐空头 voice）→ B 否定扫描（**根多头否定 ⇒ 次级别 spawn 子空头降成本
+//! 对冲**，根保持原向不清仓——否定线=势减弱信号≠买卖点；子否定 ⇒ 回补返父=势恢复；
+//! 根空头否定 ⇒ T8 叶节点无操作）→ C 根清仓/翻转（**仅** type1 背驰 confirmed +
+//! pending_locate 卖/买链 source≥re，N5/N6 + T5/T14 双向 in-place——翻转只在买卖点，第11环）→
+//! D 回补（逐非根 voice 自层走势完美=势恢复）→ E 降成本 spawn（逐 voice 自层 nf，N7；纯
+//! 成本门 N4；根空头叶节点跳过）→ F 根入场（森林空，最高 buy1 层，N5-gated）。
 //!
-//! ## T1⊥A8 扬弃（观测态——覆盖映射的分歧点；df752ea6e4 字面 T1 经验否证后的辩证解）
+//! ## B 规则：否定线触发 = 势减弱 ⇒ 加速降成本对冲（编排者 2026-06-15；删观测态）
 //!
-//! 字面 T1（永远持仓、否定→in-place 翻转不回现金）⊥ A8（否定线=停损=资本保全）：
-//! df752ea6e4 强制永远在场 ⇒ 上行 regime 根被迫无避险做空 ⇒ CL−56.7%/BRN−136.6%
-//! 破产（whipsaw stop-and-reverse）。**扬弃**（Aufhebung，089号）三环节：
-//!   - **否定**：T1 不是字面永远持仓——根否定 ⇒ `close_voice` 回现金（A8 资本保全，
-//!     否定线先于保证金线）。删除 B 规则 in-place 翻转。
-//!   - **保留**：引擎不离场——观测态下信号层照常更新（nest 窗口/cascade located/BSP
-//!     检测全跑），step 不 early-return（A→F + N1-N8 prove 照常）。
-//!   - **提升**：在场 = 跟踪走势 + 在买卖点操作（含回现金的观测态）。观测态遇下一个
-//!     F-eligible confirmed BSP（buy1@located 链顶）⇒ 同 bar 重新建仓（F 路径，从最高
-//!     可介入级别入场，N5-gated；非裸入场）。
+//! 观测态（6faf4ec45a：根否定 ⇒ 回现金 + 观测态）被否定——它把"否定线"误读为"停损/
+//! 买卖点"。否定线触发**不是**走势完美/买卖点，只是"势在减弱"的信号。势减弱的必然响应
+//! 不是离场（踏空），而是在次级别对冲降成本。必然性推导链：
+//!   1. 势减弱（否定线触发）⇒ 次级别反向运动增强（第13环全称）。
+//!   2. 次级别反向运动 = 次级别卖点（第11环）。
+//!   3. 次级别卖点 ⇒ 子 voice 开空 = 降成本（第17环 + 第22环）。
+//!   4. 子 voice 的 P&L ≡ 父 voice 的降成本额（守恒律，§8.3）。
+//!   5. 势恢复 ⇒ 次级别走势完美 ⇒ 子 voice 回补 ⇒ 父 voice 继续（第2环；D 规则）。
+//!   6. 势耗尽 ⇒ 同级别买卖点（type1 背驰）出现 ⇒ 翻转（第11环；C 规则）。
 //!
-//! **覆盖映射分歧层**：T1⊥A8 处覆盖空间从一层（持仓）分裂为两层（持仓 ∥ 观测）。
-//! 观测态 = 后否定的现金等待态（≠ 初始未入场态——observing 标记区分）。持续时长
-//! 有限（走势终完美 ⇒ buy1@located 必现），`prove_t1_aufheben` 守卫"无 BSP 不建仓"。
+//! ⇒ B 规则（根多头否定）= 自层降成本 spawn（N7，`try_spawn_cost_gated` 子空@ladder−1），
+//! 触发器是否定线（=located 级联链 027:25 极值）穿越——否定线被**重新归类**为自层势源，
+//! 非离场触发。根**保持原方向不清仓**。**翻转只在买卖点**（C 的 type1 背驰，第11环）。
 //!
-//! T14/T5/A5（双向翻转 + 涌现 + 会计重组）：C 规则 type1 背驰（走势完美"十年1-2次"）根
-//! in-place 长↔空翻转（**保留**——type1 翻转非 whipsaw 死因，与 B 否定停损相位区分）。
-//! 根空头用 MtM nav（capital−units×c，外部市场负债）⇒ 翻转/平仓同价 c 守恒且真实兑现。
+//! **认识论等级（formalization-validity-domain.md 强制标注）**：B 与 E 的差异不可抹去——
+//! E 的触发 `nf_sell` 经 `rec_sub_evidence` 次级别**背驰结构确认**（链第2步"次级别卖点"
+//! 的严格形式）；B 的触发只是否定线**价格穿越**（located 链结构破，非背驰确认）。故链第
+//! 1→2 步（否定线穿越 ⟹ 次级别卖点）是 **L2 必然（第13环全称的有效域内），非 L0 纯代数
+//! 必然**——B 是对次级别卖点的"预期"（anticipation），E 是"确认"。两者互补（B 价格穿越
+//! 抢先 + E 背驰确认补强），非等价替代。链第3步（次级别卖点 ⇒ spawn）受 N4 成本门约束：
+//! θ(sub)<friction ∨ θ=None 时合法终止（第16环），此场景 B 退化为裸暴露至 C type1——
+//! 此为 N4 有效域边界（L2 内的合法中断，非 L0 全称失效）。
+//!
+//! ## T1（不主动以避险/否定回现金）：降成本对冲实现，非字面翻转（df752ea6e4 破产的真解）
+//!
+//! df752ea6e4 让"永远在场"= 否定 ⇒ in-place 翻空（每个否定都 stop-and-reverse），whipsaw
+//! 破产（CL−56.7%/BRN−136.6%）。观测态（6faf4ec45a）改为否定 ⇒ 回现金，避免破产但踏空
+//! （P1=0/8）。真解：否定 ⇒ **降成本对冲**（根不动、子对冲），翻转保留给 type1（"十年 1-2
+//! 次"，§6 走势完美）。森林"非空→空"**只经 A 强平**（C 只 in-place 翻转不清仓；clear-at-base
+//! 结构上不可达 root_ladder≥PENDING_LO>FIRST_BSP，已升 `unreachable!()`），**绝不经 B 否定
+//! 回现金**——`prove_t1_no_voluntary_exit` 守卫（无观测态残留）。**精确声明**：T1 = "不主动
+//! 以避险/否定回现金"（转变命题），**非**"任意 bar 有仓位"（强平后/入场前有合法有限空仓
+//! gap）。三次扬弃同一矛盾：翻转(破产) → 现金(踏空) → 对冲(恒仓降成本)。
+//!
+//! T14/T5/A5（双向翻转 + 涌现 + 会计重组）：C 规则 type1 背驰根 in-place 长↔空翻转（**保留**——
+//! type1 翻转非 whipsaw 死因，与 B 否定降成本相位区分）。根空头用 MtM nav（capital−units×c，
+//! 外部市场负债）⇒ 翻转/平仓同价 c 守恒且真实兑现。**根空头是叶节点**（T8：MtM⊥子空头
+//! frozen，短父 spawn 长子破守恒 +m×c）⇒ 根空头否定无对冲（有效域边界：降成本只在多头相/
+//! 子空头层）。
 //!
 //! ## 验收标准：8 个 prove 函数（非回测）
 //!
@@ -359,20 +381,20 @@ fn prove_n8_conservation(
     );
 }
 
-/// **T1⊥A8 扬弃（观测态）运行时证明**：观测态 = 覆盖映射在 T1⊥A8 处的分歧层
-/// （持仓 ∥ 观测）。两支判据（每 bar 末，F 之后）：
-/// ① **引擎不停**（保留）：观测态不 early-return ⇒ step 全程 A→F + N1-N8 prove 照常跑、
-///    nest/located 窗口持续维护——结构性保证，到达本断言即证（无需额外断言）。
-/// ② **即时重建**（提升）：若 bar 起处于观测态且本 bar F-eligible（buy_source ∧
-///    buy1@s ∧ units>0），则 bar 末必已离开观测态（`still_observing==false`，F 重建仓）。
-///    violation = "有 BSP 不建仓"——A8 资本保全退化为永久空仓 ⇒ T1 在场性丢失。
-/// violation = panic（make-decision-observable，137号）。
-fn prove_t1_aufheben(was_observing: bool, f_eligible: bool, still_observing: bool, bar: i64) {
-    if was_observing && f_eligible {
+/// **T1（不主动以避险/否定回现金）运行时证明**：删观测态后，森林从"持仓"转"空仓"
+/// （非空→空）只能经**强平（A，资本被市场被动吃掉）**——`root_cashed_out` = 本 bar A
+/// 关闭了根（C 只 in-place 翻转不清仓，root_ladder≥PENDING_LO>FIRST_BSP，clear-at-base
+/// 不可达已升为 `unreachable!()`）。若森林非空→空但根未被强平 ⇒ 观测态/否定回现金残留
+/// （T1 在场性被违背）。violation = panic（137号）。
+/// **诚实声明（no-patch.md 声明膨胀禁止）**：函数证明的是**转变命题**（exits-are-guarded：
+/// 唯一合法离场是被动强平），**不是**正命题"任意 bar 有仓位"——强平后/初始入场前有合法的
+/// 有限空仓 gap（等待 F 重建仓）。"永远在场"的精确形式 = "不主动以避险/否定回现金"。
+fn prove_t1_no_voluntary_exit(was_active: bool, is_active: bool, root_cashed_out: bool, bar: i64) {
+    if was_active && !is_active {
         assert!(
-            !still_observing,
-            "T1⊥A8 违反@bar {bar}：观测态 F-eligible（buy_source ∧ buy1@s）但 bar 末仍观测中\
-             （有 BSP 不建仓——A8 资本保全退化为永久空仓，T1 在场性丢失）"
+            root_cashed_out,
+            "T1 违反@bar {bar}：森林非空→空 但根未经强平离场\
+             （否定→现金的观测态残留？B 应降成本对冲不清仓根，翻转只在买卖点）"
         );
     }
 }
@@ -488,10 +510,6 @@ pub(crate) struct UnnStreamCore {
     anchor_state: [i64; MAX_LADDER],
     // N4 累计观测（prove_n4 在 eod 反证 floor_stop 恒 0）。
     max_children_seen: usize,
-    // T1⊥A8 扬弃（观测态）：根否定后回现金避险态。覆盖映射在 T1⊥A8 处的分歧层——
-    // observing=true 区分"后否定的现金等待态"（≠ 初始未入场的 observing=false）。
-    observing: bool,
-    observe_since: i64, // 进入观测态的 bar（重建仓时 duration = bar − observe_since）。
     // 空事件行（无事件 bar 复用——与批量同一引用语义，零分配漂移）。
     empty_evs: [Vec<BspEvent>; MAX_LADDER],
     empty_devs: [Vec<DivEvent>; MAX_LADDER],
@@ -526,8 +544,6 @@ impl UnnStreamCore {
             dir_state: [None; MAX_LADDER],
             anchor_state: [-1; MAX_LADDER],
             max_children_seen: 0,
-            observing: false,
-            observe_since: -1,
             empty_evs: Default::default(),
             empty_devs: Default::default(),
             cur_bar: 0,
@@ -676,6 +692,10 @@ impl UnnStreamCore {
         let nav_pre = nav(&self.voices, self.free, c);
         // N2：本 bar 操作过的 voice id（去全局互斥的运行时证明）。
         let mut acted_ids: Vec<usize> = Vec::new();
+        // T1（永远在场）入口快照：森林"非空→空"只能经强平/清仓（A/C 设 root_cashed_out），
+        // 否定（B）改为降成本对冲不清仓根——prove_t1_always_positioned 守卫无观测态残留。
+        let was_active = self.voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
+        let mut root_cashed_out = false;
 
         // ── A. 强平兜底（逐活跃空头 voice；per-voice——强平某 voice 不阻断其他）──
         let snap: Vec<usize> = (0..self.voices.len()).collect();
@@ -686,46 +706,74 @@ impl UnnStreamCore {
             let v = &self.voices[id];
             if v.capital + v.units * (v.basis - c) <= 0.0 {
                 let lad = v.ladder;
+                let is_root = v.parent.is_none();
                 let b = 2.0 * v.basis;
                 close_voice(id, bar, b, c, "liq", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
                 self.res.n_short_liquidations_by_ladder[lad] += 1;
+                if is_root {
+                    root_cashed_out = true; // 根空头被市场强平 ⇒ 森林清空（T1：被动资本保全）
+                }
                 acted_ids.push(id);
             }
         }
 
-        // ── B. 否定扫描（逐活跃 voice：破 027:25 极值线）。T1⊥A8 扬弃：
-        //    **根否定 ⇒ close_voice 回现金（A8 资本保全：否定线=停损，先于保证金线）
-        //    + 进入观测态**（覆盖映射分歧层；删除字面 T1 in-place 翻转——df752ea6e4
-        //    CL−56%/BRN−136% 破产死因）。子 voice 否定 ⇒ 关闭返父（根存活，非观测态）──
+        // ── B. 否定扫描（逐活跃 voice：破 027:25 极值线 = 势减弱信号≠买卖点）。
+        //    必然性推导链（编排者 2026-06-15）：势减弱（否定线触发，第13环全称）⇒ 次级别
+        //    反向运动 = 次级别卖点（第11环）⇒ 子 voice 开空 = 降成本（第17/22环）⇒ 子 P&L
+        //    ≡ 父降成本额（守恒律 §8.3）。三分支：
+        //    · 根多头否定 ⇒ 次级别 spawn 子空头降成本对冲（≡ E 自层 N7），根**保持多头不
+        //      清仓**（否定≠走势完美，翻转留给 C 的 type1，第11环）。否定线一次性消费
+        //      （离散穿越事件）；子空头继承之作 027:25 stop（价复上越则 D/B 回补=势恢复）。
+        //    · 子 voice 否定 ⇒ 对冲赌注失败 = 势恢复 ⇒ 回补返父（cascade 关子树，第2环）。
+        //    · 根空头否定 ⇒ T8 叶节点（MtM⊥frozen 守恒）⇒ 无操作，留待 A 强平 ∨ C type1
+        //      买点翻多（有效域边界：降成本只在多头相/子空头层）。──
         let snap: Vec<usize> = (0..self.voices.len()).collect();
         for &id in &snap {
             if matches!(self.voices[id].status, VoiceStatus::Closed) {
                 continue;
             }
-            let v = &self.voices[id];
-            let broke = v.negate_line.is_some_and(|line| match v.dir {
-                Polarity::Short => c > line,
-                Polarity::Long => c < line,
+            let dir = self.voices[id].dir;
+            let lad = self.voices[id].ladder;
+            let is_root = self.voices[id].parent.is_none();
+            let line = self.voices[id].negate_line;
+            let broke = line.is_some_and(|l| match dir {
+                Polarity::Short => c > l,
+                Polarity::Long => c < l,
             });
             if !broke {
                 continue;
             }
-            let lad = v.ladder;
-            let is_root = v.parent.is_none();
-            if is_root {
-                // T1⊥A8 扬弃（否定→现金+观测）：根否定 = 走势否定 = 停损（A8）⇒ close_voice
-                // cascade 关全树回现金（多头根 free+=units×c；空头根 MtM free+=capital−units×c）。
-                // 进入观测态：引擎继续跟踪走势（保留），等待 F-eligible BSP 重建仓（提升）。
-                close_voice(id, bar, c, c, "negate_observe", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
-                self.observing = true;
-                self.observe_since = bar;
-                self.res.n_nrf_negate_observes_by_ladder[lad] += 1;
-                acted_ids.push(id);
-            } else {
-                // 子 voice 否定 ⇒ 关闭 + cascade 返父（根存活在场，非观测态）。
-                close_voice(id, bar, c, c, "negate", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
-                self.res.n_nrf_negate_closes_by_ladder[lad] += 1;
-                acted_ids.push(id);
+            match (is_root, dir) {
+                (true, Polarity::Long) => {
+                    // 加速降成本：次级别 spawn 子空头对冲。根保持多头、不清仓。
+                    // **否定线一次性消费**：否定线 = located 链 027:25 极值，**破线 = 该结构
+                    // 被否定 ⇒ 线作废**（穿越是离散事件，非持续条件；成功与否均消费——避免
+                    // sustained-below 每 bar 重复武装）。子空头继承之作 027:25 stop（line>c）。
+                    // **N7（自层）**：prove_n7(lad,lad) 断言触发是自层（否定线属本 voice），
+                    //   但**不**断言 B≡E——B 触发是价格穿越（L2 anticipation），E 是 nf_sell
+                    //   背驰确认（结构确认）。**有效域**：cost-gate 拒绝（θ<friction ∨ θ=None，
+                    //   N4 第16环）时 spawn 失败 ⇒ 根退化为裸暴露至 C type1——L2 内合法中断。
+                    self.voices[id].negate_line = None;
+                    prove_n7_spawn_self_level(lad, lad, bar);
+                    if try_spawn_cost_gated(id, bar, c, line, &self.depth_ref, &mut self.voices, &mut self.res) {
+                        self.voices[id].acted_bar = bar;
+                        self.res.n_nrf_negate_hedges_by_ladder[lad] += 1;
+                        acted_ids.push(id);
+                    }
+                }
+                (true, Polarity::Short) => {
+                    // T8 叶节点：根空头不 spawn（MtM⊥frozen 破守恒）⇒ 否定无操作，不清仓
+                    // 不翻转（留待 A 强平 ∨ C type1 买点翻多）。
+                }
+                (false, _) => {
+                    // 子 voice 否定 = 自身对冲赌注失败 ⇒ 回补返父（cascade 关子树）。语义按
+                    // 递归层方向区分：Short 子否定（c>line=价复上越）= 父势恢复（第2步/D 同向）；
+                    // Long 孙否定（c<line=价下破）= 祖 Short 父势续（§5 递归对侧，非"势恢复"）。
+                    // 两者会计同构（close_voice 逐层传播返父），方向语义相反。
+                    close_voice(id, bar, c, c, "negate", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                    self.res.n_nrf_negate_closes_by_ladder[lad] += 1;
+                    acted_ids.push(id);
+                }
             }
         }
 
@@ -782,12 +830,17 @@ impl UnnStreamCore {
                                 acted_ids.push(rid);
                                 prove_t14_root_flip(&self.voices, rid, Polarity::Long, m, bar);
                                 cleared = true;
-                            } else if single_root && root_ladder == FIRST_BSP_LADDER {
-                                // 根在结构基底 ⇒ 无更低子级别 ⇒ 清仓到现金（cascade 全树）。
-                                close_voice(rid, bar, c, c, "sellpt", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
-                                self.located_sell = [None; MAX_LADDER];
-                                acted_ids.push(rid);
-                                cleared = true;
+                            } else if single_root {
+                                // 根在结构基底（root_ladder == FIRST_BSP_LADDER）⇒ 无更低子级别。
+                                // **结构上不可达**：F 入场 prove_chain 硬断言 s≥PENDING_LO=
+                                // FIRST_BSP_LADDER+1，T5 relabel 只单调上升 ⇒ root_ladder 恒
+                                // >FIRST_BSP_LADDER ⇒ 上一 if 必命中。升 unreachable!() 把"不可达"
+                                // 从注释声明提为运行时断言（防 PENDING_LO 漂移；no-patch.md：死
+                                // 防御分支静默设 root_cashed_out 会掩盖 T1 违反，故不静默保留）。
+                                unreachable!(
+                                    "C-clear-at-base@bar {bar}：root_ladder={root_ladder}==FIRST_BSP_LADDER \
+                                     但 N5 保证 root_ladder≥PENDING_LO>FIRST_BSP（PENDING_LO 漂移？）"
+                                );
                             }
                             // else 多 voice ⇒ C no-op（子先 D 回补）。
                         }
@@ -884,22 +937,16 @@ impl UnnStreamCore {
         // ── F. 根入场（森林空 ∧ 未清仓本 bar）：买链 source S（pending_locate，N5/N6）
         //    ∧ sig.buy1[S]（type1 底背驰=走势完美建仓）⇒ 在 S 层满仓开多（26课恒仓，
         //    第23环；source S 决定根入场级别，入场后由 root_emergent_ladder 涌现升级 T5）。
-        //    ★ T1⊥A8 扬弃（提升）：F 同时承载初始入场 + **观测态 ⇒ 持仓态重建仓**——
-        //    观测态（B 否定后的现金等待态）遇 F-eligible BSP 即同 bar 重建仓（清 observing）。
-        //    **保持 N5 门控**（buy_source = located 级联链顶 ≥ move(L1)），不实装裸入场——
-        //    后者 ⊥ N5（segment 非势源，prove_chain 硬断言 s≥PENDING_LO；裸扫描入场 = 539 号
-        //    A′ 解耦踏空轴 constitutive_throughput_falsified）。观测态重建仓"不需 pending_locate"
-        //    指不需 C 式翻转链（根已在场的清仓/翻转）——而非绕过 F 的 N5 入场门：从零开始
-        //    入场恰是 F 的 located_buy 链（从最高可介入级别进入，与初始入场同路径）。──
+        //    F 承载初始入场 + 强平后重建仓（删观测态：强平/EOD 后森林空，遇 F-eligible
+        //    buy1@located 链顶即重建）。**保持 N5 门控**（buy_source = located 级联链顶
+        //    ≥ move(L1)），不实装裸入场——后者 ⊥ N5（segment 非势源，prove_chain 硬断言
+        //    s≥PENDING_LO；裸扫描入场 = 539 号 A′ 解耦踏空轴 constitutive_throughput_falsified）。──
         let any_active = self.voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
-        let was_observing = self.observing; // F 决策前的观测态（prove_t1_aufheben 用）
-        let mut f_eligible = false;
         if !cleared && !any_active {
             if let Some(s) = buy_source {
                 if sig.buy1.get(s) {
                     let units = self.free / c;
                     if units > 0.0 && units.is_finite() {
-                        f_eligible = true;
                         prove_chain(&self.located_buy, Side::Buy, s, bar, "F-entry");
                         let line = self.located_buy[s].map(|e| e.extreme);
                         self.voices.push(VoiceLedger {
@@ -922,20 +969,10 @@ impl UnnStreamCore {
                         self.res.n_nrf_root_entries_by_ladder[s] += 1;
                         self.res.n_entries_by_ladder[s] += 1;
                         self.located_buy = [None; MAX_LADDER];
-                        if self.observing {
-                            // 观测态 ⇒ 持仓态转移（T1 提升的在场性兑现）：清观测标记 +
-                            // 记重建仓 + 更新有限持续时长读数（bar − observe_since）。
-                            let dur = (bar - self.observe_since).max(0) as u64;
-                            self.res.nrf_max_observe_dur = self.res.nrf_max_observe_dur.max(dur);
-                            self.res.n_nrf_observe_reentries_by_ladder[s] += 1;
-                            self.observing = false;
-                        }
                     }
                 }
             }
         }
-        // T1⊥A8 扬弃运行时证明：观测态 F-eligible ⇒ 必已重建仓（无 BSP 不建仓）。
-        prove_t1_aufheben(was_observing, f_eligible, self.observing, bar);
 
         // ── 必然性运行时证明（每 bar；violation = panic = 验收标准失败）──
         prove_n2_per_voice(&acted_ids, bar);
@@ -945,11 +982,10 @@ impl UnnStreamCore {
 
         // 观测：森林规模 + 物理暴露 + 各层视图持有 bar 计数。
         let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
+        // T1（不主动以避险/否定回现金）：删观测态后，森林非空→空只经 A 强平（root_cashed_out），
+        // 绝不经 B 否定回现金（B 改为降成本对冲不清仓根）。violation = 观测态残留 = panic。
+        prove_t1_no_voluntary_exit(was_active, active_count > 0, root_cashed_out, bar);
         self.res.nrf_depth_bars[active_count.min(MAX_LADDER - 1)] += 1;
-        // T1⊥A8 扬弃：观测态 bar 计数（bar 末仍 observing = 后否定的现金等待态）。
-        if self.observing {
-            self.res.nrf_observe_bars += 1;
-        }
         let mut long_units = 0.0;
         let mut short_units = 0.0;
         for v in self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)) {
@@ -1002,11 +1038,6 @@ impl UnnStreamCore {
                     root_id, last_bar, c_last, c_last, "eod", false,
                     &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res,
                 );
-            } else if self.observing {
-                // T1⊥A8 扬弃：数据在观测态中结束（走势完美/BSP 未在样本内出现）⇒ 补记
-                // 该段持续时长（有限性读数完整覆盖——重建仓未发生时 duration 仅在此捕获）。
-                let dur = (last_bar - self.observe_since).max(0) as u64;
-                self.res.nrf_max_observe_dur = self.res.nrf_max_observe_dur.max(dur);
             }
         }
         self.res.final_nav = self.free;
@@ -1283,34 +1314,24 @@ mod tests {
     }
 
     #[test]
-    fn t1_aufheben_negate_observes_then_reenters() {
-        // T1⊥A8 扬弃（观测态）：根 long@4（F 入场设 negate=located_buy[4].extreme=86）破低
-        // （c<86）⇒ B 否定 **回现金 + 观测态**（A8 资本保全，**非** in-place 翻空）。
-        // 然后再武装买链 + buy1@4 ⇒ F **重新建仓**（观测态 ⇒ 持仓态，T1 提升的在场性）。
-        let (mut bars, mut flips) = full_bull_entry(); // root long@4, negate_line=86
-        bars.push(bar(85.0)); // c=85 < 86 ⇒ B 否定 ⇒ 回现金 + observing
-        bars.push(bar(84.0)); // 观测态持续（价继续下行，无 buy1 ⇒ 留现金避险 A8）
-        // ── 观测态重建仓：重新武装买链 @3/4（极值 82/80）+ segment@2 confirm 证据 ──
-        let mut b = with_ev(bar(83.0), 2, buy1_ev(81.0));
-        b = with_ev(b, 3, buy1_ev(82.0));
-        b = with_ev(b, 4, buy1_ev(80.0));
-        bars.push(b);
-        bars.push(buy1pt(bar(84.0), 4)); // buy1@4 + bi-up ⇒ confirm_buy[3,4] ⇒ located ⇒ F 重建
-        let reentry_ev = bars.len() as i64 - 1;
-        bars.push(bar(85.0));
-        flips.push((reentry_ev, 1, Direction::Up));
+    fn t1_negate_spawns_cost_reduction_hedge_root_stays() {
+        // 删观测态：根 long@4（F 入场设 negate=located_buy[4].extreme=86）破低（c<86）⇒
+        // B 否定 = 势减弱信号 ⇒ **次级别 spawn 子空头降成本对冲**（第13/11/17/22环必然链），
+        // 根**保持多头不清仓、不翻转**（翻转只在 type1 买卖点，C 规则）。永远在场。
+        let (mut bars, flips) = full_bull_entry(); // root long@4, negate_line=86
+        bars.push(bar(85.0)); // c=85 < 86 ⇒ B 否定 ⇒ 次级别 spawn 子空@3（降成本对冲）
+        bars.push(bar(84.0)); // 根仍多头在场（子空头降成本，非回现金）
         let r = run(bars, flips);
-        // 扬弃否定：根否定回现金（negate_observe close），无字面 in-place 翻转腿。
-        assert!(r.n_nrf_negate_observes_by_ladder.iter().sum::<u64>() >= 1,
-            "T1⊥A8：根否定 ⇒ 回现金 + 观测态（A8 资本保全）");
-        assert!(r.trades.iter().any(|t| t.exit_reason == "negate_observe"),
-            "根否定记 negate_observe close（回现金，非 stop-and-reverse）");
-        assert!(r.trades.iter().all(|t| t.exit_reason != "negflip_short" && t.exit_reason != "negflip_long"),
-            "扬弃：删除字面 T1 in-place 翻转腿");
-        // 扬弃提升：观测态 ⇒ 持仓态重建仓 + 观测态有限持续。
-        assert!(r.n_nrf_observe_reentries_by_ladder.iter().sum::<u64>() >= 1,
-            "T1 提升：观测态遇 F-eligible BSP ⇒ 重新建仓（在场性兑现）");
-        assert!(r.nrf_observe_bars >= 1, "观测态 bar 计数 >0（后否定现金等待态）");
+        // 否定 ⇒ 降成本对冲（非回现金，非翻转，非清仓）。
+        assert!(r.n_nrf_negate_hedges_by_ladder.iter().sum::<u64>() >= 1,
+            "根否定 ⇒ 次级别 spawn 子空头降成本对冲（势减弱≠买卖点）");
+        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "子空头降成本 spawn@3（次级别 = root.ladder−1）");
+        // 根保持多头、不清仓、不翻转：无 sellpt/flip/negate_observe 腿。
+        assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"
+            && t.exit_reason != "flip_short" && t.exit_reason != "negate_observe"),
+            "否定不清仓不翻转（翻转只在 type1 买卖点，C 规则；删观测态回现金）");
+        // 永远在场：物理多头 bar 数覆盖否定后（根没清，子空头在降成本）。
+        assert!(r.nrf_phys_long_bars >= 1, "根保持多头在场（永远有仓位，否定后仍持仓）");
         assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "N8 守恒 final_nav={}", r.final_nav);
     }
 

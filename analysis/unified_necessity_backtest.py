@@ -78,6 +78,7 @@ def necessity(a: dict, res: dict) -> dict:
     root_ent = res["n_nrf_root_entries_by_ladder"]
     spawns = res["n_nrf_spawns_by_ladder"]
     flips = res["n_nrf_root_flips_by_ladder"]
+    negate_hedges = res["n_nrf_negate_hedges_by_ladder"]
     floor_stops = sum(res["n_nrf_floor_stops_by_ladder"])
     entry_levels = [k for k in range(len(root_ent)) if root_ent[k] > 0]
     spawn_levels = [k for k in range(len(spawns)) if spawns[k] > 0]
@@ -90,6 +91,11 @@ def necessity(a: dict, res: dict) -> dict:
         "N_source_dynamic": len(set(entry_levels) | set(spawn_levels)),
         "flips_by_ladder": [(k, flips[k]) for k in range(len(flips)) if flips[k] > 0],
         "sellpt_clear": a["exit_reasons"].get("sellpt", 0),
+        # B 规则：否定线触发 = 势减弱 ⇒ 加速降成本对冲（根多头否定 ⇒ 次级别 spawn 子空头，
+        # 根不清仓；删观测态）。total_negate_hedges = B 机制在真实数据上的激活计数。
+        "total_negate_hedges": sum(negate_hedges),
+        "negate_hedge_levels": [(k, LADDER_NAMES.get(k, str(k)), negate_hedges[k])
+                                for k in range(len(negate_hedges)) if negate_hedges[k] > 0],
         "total_root_entries": sum(root_ent),
         "total_spawns": sum(spawns),
         "deep_fires": sum(res["n_nrf_deep_fires_by_ladder"]),
@@ -128,6 +134,7 @@ def run_symbol(sym: str) -> dict:
     print(f"[{sym}][unn] {time.time() - t1:.1f}s strat={a['strat_pct']:+.1f}% "
           f"mdd={a['mdd_pct']}% trades={a['n_trades']} "
           f"roots={nec['total_root_entries']} spawns={nec['total_spawns']} "
+          f"neg_hedges={nec['total_negate_hedges']} "
           f"maxkids={nec['N1_forest_max_children']} floor_stops={nec['N4_floor_stops']} "
           f"sellpt={nec['sellpt_clear']} src_lvls={nec['N_source_dynamic']} "
           f"P1={p1} ΔURS={d_urs} Δpcf={d_pcf}pp", flush=True)
@@ -169,6 +176,7 @@ def main() -> None:
                 "floor_stops": out["necessity"]["N4_floor_stops"],
                 "roots": out["necessity"]["total_root_entries"],
                 "spawns": out["necessity"]["total_spawns"],
+                "neg_hedges": out["necessity"]["total_negate_hedges"],
                 "sellpt": out["necessity"]["sellpt_clear"],
             })
         (DATA_DIR / "unn_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=1))

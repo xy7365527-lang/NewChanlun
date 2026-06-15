@@ -346,16 +346,11 @@ pub struct PositionalResult {
     /// 森林最大活跃子数（unified_necessity 专属，其余模式恒 0）——N1 实证读数：
     /// >1 = 同一父长出多 child = 森林（栈不可能）。
     pub nrf_max_children: u64,
-    // ── T1⊥A8 扬弃（观测态；unn 专属，其余模式恒 0）——覆盖映射在 T1⊥A8 处的
-    //    分歧层（持仓∥观测）。否定→现金（A8 资本保全）替代字面 T1 in-place 翻转 ──
-    /// 根否定 ⇒ 回现金进入观测态计数（按否定层；替代 B 规则 in-place 翻转）。
-    pub n_nrf_negate_observes_by_ladder: [u64; MAX_LADDER],
-    /// 观测态累计 bar 数（回现金等待 F-eligible BSP 重新建仓的 bar 总数）。
-    pub nrf_observe_bars: u64,
-    /// 观测态最大持续时长（bar）——有限性观测读数（走势终完美 ⇒ BSP 必现 ⇒ 有限）。
-    pub nrf_max_observe_dur: u64,
-    /// 观测态 ⇒ 持仓态重新建仓计数（F 在观测态中触发，按重建层；T1 提升的在场性）。
-    pub n_nrf_observe_reentries_by_ladder: [u64; MAX_LADDER],
+    // ── B 规则：否定线触发 = 势减弱 ⇒ 加速降成本对冲（unn 专属，其余模式恒 0；
+    //    编排者 2026-06-15 删观测态——否定≠买卖点，势减弱的必然响应是次级别对冲
+    //    降成本，非离场踏空。根保持原方向不清仓，翻转只在 type1 买卖点，第11环）──
+    /// 根多头否定 ⇒ 次级别 spawn 子空头降成本对冲计数（按根层；替代观测态回现金）。
+    pub n_nrf_negate_hedges_by_ladder: [u64; MAX_LADDER],
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层
