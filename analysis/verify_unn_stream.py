@@ -37,46 +37,9 @@ sys.path.insert(0, str(ROOT / "analysis"))
 import newchan_rust as nr  # noqa: E402
 
 from fugue_v2_full_backtest import SYMBOL_FILES, load_ohlc  # noqa: E402
-from fugue_version_i import MAX_LADDER  # noqa: E402
 from nested_recursive_fugue_final_backtest import FLOOR  # noqa: E402
 from organic_fugue_rust_check import pack_tape  # noqa: E402
-from organic_signals import compute_organic_signals  # noqa: E402
-
-
-def _mask(rows) -> int:
-    """bool 元组 → 11 位掩码（与 pack_tape.mask 逐字一致）。"""
-    m = 0
-    for k, v in enumerate(rows):
-        if v:
-            m |= 1 << k
-    return m
-
-
-def push_signal(stream: "nr.UnnStream", s, flip_rows: list) -> list:
-    """单 BarSignalI → UnnStream.push_bar 字段（与 pack_tape 列式 marshal 逐位同源）。
-
-    bsp_rows 行 = (lad, kind, side, seg_idx, confirmed, cs, zd, zg, price)
-      ← pack_tape bsp_flat 去掉首列 bar（流式单 bar 内隐含）。
-    div_rows 行 = (lad, kind, direction, seg_idx, fa, fc, price)
-      ← pack_tape div_flat 同构（跳过 event[2]=side，与 from_columns 一致）。
-    up_settled = mask if s.up_move_settled else 0（pack_tape 同款短路）。
-    """
-    bsp_rows: list = []
-    if s.bsp_events:
-        for lad in range(MAX_LADDER):
-            for e in s.bsp_events[lad]:
-                bsp_rows.append((lad, e[0], e[1], e[2], bool(e[3]), e[4], e[5], e[6], e[7]))
-    div_rows: list = []
-    if s.div_events:
-        for lad in range(MAX_LADDER):
-            for d in s.div_events[lad]:
-                div_rows.append((lad, d[0], d[1], d[3], d[4], d[5], d[6]))
-    up = _mask(s.up_move_settled) if s.up_move_settled else 0
-    return stream.push_bar(
-        s.close, _mask(s.buy1), _mask(s.sell1), _mask(s.sell_any),
-        _mask(s.buy_any), up, s.max_ladder, bool(s.type2_buy),
-        bsp_rows, div_rows, flip_rows,
-    )
+from organic_signals import compute_organic_signals, push_signal  # noqa: E402
 
 
 def compare(sym: str, batch: dict, stream: dict, stream_new_trades: list, n_bars: int) -> bool:

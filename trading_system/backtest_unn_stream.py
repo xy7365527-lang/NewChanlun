@@ -64,8 +64,7 @@ import newchan_rust as nr  # noqa: E402
 
 from nested_recursive_fugue_final_backtest import FLOOR, analyze, bh_mdd  # noqa: E402
 from organic_fugue_rust_check import pack_tape  # noqa: E402
-from organic_signals import StreamingSignalReader, compute_organic_signals  # noqa: E402
-from verify_unn_stream import push_signal  # noqa: E402（BarSignalI → push_bar marshal 单一真相源）
+from organic_signals import StreamingSignalReader, compute_organic_signals, push_signal  # noqa: E402
 
 from trading_system.backtest_unn import load_bars  # noqa: E402（复用 Databento→Bar 加载）
 from trading_system.config.instruments import INSTRUMENTS, make_instrument  # noqa: E402

@@ -75,6 +75,8 @@ from per_level_bsp import BI_ZHONGSHU_LEVEL_ID  # noqa: E402
 __all__ = [
     "compute_organic_signals",
     "compute_i_signals_rust_events",
+    "StreamingSignalReader",
+    "push_signal",
 ]
 
 
@@ -512,3 +514,54 @@ def compute_organic_signals(
 # 兼容别名：interval_nesting_reverse_backtest 原函数名（磁带超集，
 # 旧消费路径 bsp_events/布尔逐位不变）。
 compute_i_signals_rust_events = compute_organic_signals
+
+
+# ════════════════════════════════════════════════════════════
+# 信号层 → unn 流式引擎 marshal（StreamingSignalReader 的配套）
+# ════════════════════════════════════════════════════════════
+
+def _ladder_mask(rows) -> int:
+    """bool 元组 → 11 位掩码（与 organic_fugue_rust_check.pack_tape.mask 逐字一致）。"""
+    m = 0
+    for k, v in enumerate(rows):
+        if v:
+            m |= 1 << k
+    return m
+
+
+def push_signal(stream: "R.UnnStream", sig: BarSignalI, flip_rows: list) -> list:
+    """单 BarSignalI → `newchan_rust.UnnStream.push_bar`（unn 流式引擎逐 bar 消费）。
+
+    535号边界B：unn 定义域 = SignalTape，本函数把信号层 BarSignalI 拆为 push_bar 平坦
+    字段（PyO3 无法直接接收 Python dataclass 的嵌套字段，故 Python 侧解构、Rust 侧收
+    平坦行——单一真相源）。与批量 `pack_tape` 列式 marshal **逐位同源**（bit-exact 前提）：
+      bsp_rows 行 = (lad, kind, side, seg_idx, confirmed, cs, zd, zg, price)
+        ← pack_tape bsp_flat 去掉首列 bar（流式单 bar 内隐含）。
+      div_rows 行 = (lad, kind, direction, seg_idx, fa, fc, price)
+        ← pack_tape div_flat 同构（跳过 event[2]=side，与 from_columns 一致）。
+      up_settled = mask if up_move_settled else 0（pack_tape 同款短路）。
+
+    用法（NautilusTrader on_bar；StreamingSignalReader + UnnStream）：
+        sig = reader.process_bar(i, o, h, low, c)
+        flip_rows = [(lad, d) for (_b, lad, d) in dir_flips[n_before:]]  # 本 bar 新增
+        new_trades = push_signal(stream, sig, flip_rows)
+
+    返回本 bar **新增** trade 行（push_bar 直传：entry 时空、exit/翻转时配对）。
+    """
+    bsp_rows: list = []
+    if sig.bsp_events:
+        for lad in range(MAX_LADDER):
+            for e in sig.bsp_events[lad]:
+                bsp_rows.append((lad, e[0], e[1], e[2], bool(e[3]), e[4], e[5], e[6], e[7]))
+    div_rows: list = []
+    if sig.div_events:
+        for lad in range(MAX_LADDER):
+            for d in sig.div_events[lad]:
+                div_rows.append((lad, d[0], d[1], d[3], d[4], d[5], d[6]))
+    up = _ladder_mask(sig.up_move_settled) if sig.up_move_settled else 0
+    return stream.push_bar(
+        sig.close, _ladder_mask(sig.buy1), _ladder_mask(sig.sell1),
+        _ladder_mask(sig.sell_any), _ladder_mask(sig.buy_any),
+        up, sig.max_ladder, bool(sig.type2_buy),
+        bsp_rows, div_rows, flip_rows,
+    )

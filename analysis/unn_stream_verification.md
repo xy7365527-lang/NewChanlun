@@ -76,8 +76,9 @@ NautilusTrader BacktestEngine 逐 bar 回放 → `on_bar`(process_bar → push_b
 - **改**：`rust/src/trading/unified_necessity.rs`（提取 `UnnStreamCore` struct + step/
   finish/snapshot/accessors；`run_unified_necessity` 重写为共享 step 的批量封装）；
   `rust/src/lib.rs`（导出 `UnnStream` pyclass；提取 `positional_result_to_dict` 复用）；
-  `analysis/organic_signals.py`（提取 `StreamingSignalReader`，`compute_organic_signals`
-  改薄封装）。
+  `analysis/organic_signals.py`（提取 `StreamingSignalReader` + `push_signal` 正式 API
+  ——信号层 BarSignalI → `UnnStream` 流式 marshal，单一真相源；`compute_organic_signals`
+  改薄封装）。on_bar 形态：`sig = reader.process_bar(...); push_signal(stream, sig, flips)`。
 - **新增**：`analysis/verify_unn_stream.py`（Rust 流式≡批量 bit-exact 验证）；
   `trading_system/backtest_unn_stream.py`（NT 真流式回测 + bit-exact 对账）。
 - **未改**：缠论引擎核心（RecursiveOrchestrator）；unn 会计/必然性逻辑（step 逐字搬运）；
