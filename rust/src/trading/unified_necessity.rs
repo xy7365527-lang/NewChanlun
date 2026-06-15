@@ -135,10 +135,14 @@ const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
 struct Pending {
     extreme: f64,
     since_bar: i64,
-    /// N7 自层 fire（nf，供 E 降成本）是否已触发——每个 candidate 仅 fire 一次。
-    /// located 严格确认（②compress<confirm）要求窗口存活到后续 bar，故 nf **不消费**
-    /// 窗口（仅置此标志防重复 spawn）；窗口由 located 确认或破极值否定消费。
-    fired_nf: bool,
+    /// **区间套递归到底的 confirmation frontier**（下一个待 type1 确认的级别；初始
+    /// = k−1）。每出现同侧 type1@frontier 即下探一级，直到 cost-gate floor
+    /// （theta<friction）⇒ located 确认完成。区间套是**时序**的——各级 type1 逐级在
+    /// 后续 bar 出现（同 bar 相邻级 type1 共现率 ~1%，单 bar 链不可行；第64课"递归
+    /// 定位到一个时间、价格的点"本就是跨 bar 收敛）⇒ frontier 跨 bar 累积。
+    /// confirm@floor 时同一 fire 两路（header §32）：confirm_*[k]（cascade→C/F，N5）+
+    /// nf_*[k]（自层→E，N7）；C/E 由 sig.sell1/buy1[k] 区分（type1→C，type2/3→E）。
+    frontier: usize,
 }
 
 /// pending confirm 兑现条目（N5/N6 的载体；级联后一条链内全层 source_ladder 统一）。
@@ -189,53 +193,28 @@ fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> 
     (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
 }
 
-/// **区间套严格证据（located 确认——C 翻转/清仓 + F 入场专用）**。
-///
-/// 修复三处偏离缠师原文之 ①+③（`analysis/buysellpoint_necessity_vs_canon.md`；
-/// 编排者 2026-06-15 裁决：按原文收紧 located 确认，此前 `nested_fugue.rs:133-148`
-/// 共享的 `rec_sub_evidence`"任一层证据即触发"在 unn 的 located 路径上不达正典）：
-///
-/// - **① 低三个级别以上（第64课:65 区间套定理）**：候选层 k 向下递归，合格命中层
-///   `j ≤ k−3`（递归深度 `k−j ≥ 3`）。`rec_sub_evidence` 从 `k−1` 找第一个证据就停
-///   （可低一级即触发，bar 23688 即停在 move(L1)=3 深度 1）——本函数排除过浅的
-///   `k−1`/`k−2` 命中，从 `k−3` 起向下搜索。ladder↔级别映射：recL2(k=4) 向下三级 =
-///   move(L1)→segment→bi(1)，故 `k−3 ≥ bi=FIRST_BSP−1`（边界条件：映射 1:1，若引擎
-///   ladder 与缠师级别非 1:1 需 source-auditor 重核）。
-/// - **③ 逐级第一类（第29课:396"所有买点…都要下次级别以下找第一类"）**：每个被搜索
-///   的 BSP 承载层（`≥ FIRST_BSP`）只认同侧 **type1 背驰**——type2/type3、裸背驰事件
-///   不算 confirm 证据。a0(bi 层 = `FIRST_BSP−1`)用方向翻转沿（第64课"确定到一个
-///   时间、价格的点"——笔级转折是区间套的终点）。
-///
-/// 返回最深合格命中层（`Some(j)`，`j ≤ k−3`）；`None` = 区间套未达 3 级 type1 定位
-/// ⇒ located 不武装 ⇒ 该卖/买点只能走 E 降成本（§9），不触发 C/F。
-/// 时序判据 ②（compress<confirm 后续走势）在调用点强制（`since_bar < bar`），非本函数。
-fn rec_sub_evidence_strict(
-    k: usize,
-    side: Side,
-    evrows: &[Vec<BspEvent>; MAX_LADDER],
-    flip_edge: &[Option<Direction>; MAX_LADDER],
-) -> Option<usize> {
-    let bi = FIRST_BSP_LADDER - 1;
-    // ① 低三级以上：最浅合格命中层 = k−3（深度 3）；k<3 或 k−3<bi 无 3 级递归空间。
-    let hi = k.checked_sub(3)?;
-    if hi < bi {
-        return None;
+/// **区间套递归到底的成本门（第16/35课）**：层 f 的势是否可测且幅度 ≥ 成本
+/// （`theta(f) ≥ SUB_COST_K×friction`）。`rec_sub_evidence`"找第一个证据就停"被替换为
+/// "递归到成本门终止"——逐级下探直到 `cost_gate_open` 关闭（编排者 2026-06-15 修正：
+/// 第64课"低三级以上"是**最低要求**，严格形式是**递归到成本门终止**）。bi/bar 层
+/// （`f < FIRST_BSP`）无中枢势 ⇒ 门关 = 递归底。
+fn cost_gate_open(depth_ref: &DepthRef, f: usize) -> bool {
+    if f < FIRST_BSP_LADDER {
+        return false;
     }
-    let want = match side {
-        Side::Sell => Direction::Down,
-        Side::Buy => Direction::Up,
-    };
-    // 从 k−3 向下逐级（k−1/k−2 过浅排除，第64课）；③ 只认 type1（BSP 承载层）/
-    // bi 翻转沿（定位到点）。返回最深合格层。
-    (bi..=hi).rev().find(|&j| {
-        if j >= FIRST_BSP_LADDER {
-            evrows[j]
-                .iter()
-                .any(|e| e.class.kind() == BspKind::Type1 && e.class.side() == side)
-        } else {
-            flip_edge[j] == Some(want)
-        }
-    })
+    match depth_ref.theta(f, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
+        Some(tq) => tq >= SUB_COST_K * SUB_FRICTION_RT,
+        None => false, // 势不可测 ⇒ 成本门关（递归底）
+    }
+}
+
+/// **逐级第一类（第29课:396"所有买点…都要下次级别以下找第一类"）**：层 j 是否有
+/// 同侧 type1 背驰。type2/type3、裸背驰事件不算——每级 type1 = 该级走势完美 = 该级
+/// voice 可闭合（不跳级，否则中间级别 voice 会计状态未确认）。
+fn has_type1(evrows: &[Vec<BspEvent>; MAX_LADDER], j: usize, side: Side) -> bool {
+    evrows[j]
+        .iter()
+        .any(|e| e.class.kind() == BspKind::Type1 && e.class.side() == side)
 }
 
 /// **根 voice 涌现归属级别 E\*（T5/A5 第20环"根=最高涌现级别"）**：根的操作级别
@@ -716,11 +695,11 @@ impl UnnStreamCore {
                     if e.confirmed {
                         *win = None; // confirmed 同侧让位（本 bar 走 confirmed 路径）
                     } else {
-                        let (ext, since, fired) = win.map_or((e.price, bar, false), |w| {
+                        let (ext, since, frontier) = win.map_or((e.price, bar, k - 1), |w| {
                             let ext = if sellside { w.extreme.max(e.price) } else { w.extreme.min(e.price) };
-                            (ext, w.since_bar, w.fired_nf) // 压缩起始 + nf 标志保留（540号）
+                            (ext, w.since_bar, w.frontier) // 压缩起始 + frontier 保留（540号）
                         });
-                        *win = Some(Pending { extreme: ext, since_bar: since, fired_nf: fired });
+                        *win = Some(Pending { extreme: ext, since_bar: since, frontier });
                         self.res.n_nest_arms_by_ladder[k] += 1;
                     }
                     if e.class.kind() == BspKind::Type2 {
@@ -728,64 +707,45 @@ impl UnnStreamCore {
                     }
                 }
             }
-            // 第14环展开↓：confirm 从 k−1 递归下探至 a0（含 segment + bi）。
-            let sub = k - 1;
+            // 第14环展开↓：located frontier 从 k−1 递归下探到 cost-gate floor。
             if let Some(mut w) = self.nest_sell[k] {
-                // N7 自层 fire（供 E 降成本，§9"绝大多数卖点只是降成本"）：loose 次级别
-                // 证据，每 candidate 仅 fire 一次（fired_nf）——**不消费窗口**，留给 located
-                // 等待后续走势（②）。三处偏离修复只收紧 located（C/F），E 行为不变。
-                if let Some(j) = rec_sub_evidence(sub, Side::Sell, evrows, devrows, flip_edge) {
-                    assert!(
-                        w.since_bar <= bar,
-                        "N6 违反@bar {bar}：confirm_sell[{k}] 压缩 {} > 展开（展开早于压缩）",
-                        w.since_bar
-                    );
-                    if !w.fired_nf {
-                        nf_sell[k] = Some(w.extreme);
-                        w.fired_nf = true;
-                        self.res.n_nest_fire_sell_by_ladder[k] += 1;
-                        if j < sub {
-                            self.res.n_nrf_deep_fires_by_ladder[k] += 1;
-                        }
-                    }
-                }
-                // located/cascade（N5/N6，供 C 翻转/清仓 + F 入场）：严格区间套确认
-                // （rec_sub_evidence_strict ①低三级 ③逐级type1 + ②compress<confirm 后续
-                // 走势）。命中 ⇒ 武装 located 并消费窗口；否则窗口持续（等待后续走势）。
-                // bar 23688 同 bar 浅证据翻空在此被拦（since==bar ⇒ since<bar 假）。
-                if w.since_bar < bar
-                    && rec_sub_evidence_strict(k, Side::Sell, evrows, flip_edge).is_some()
+                // located 区间套递归到底（N5/N6）：frontier 从 k−1 逐级下探，每出现同侧
+                // type1 即降一级（区间套递归，不跳级），直到 cost-gate floor（theta<friction）
+                // ⇒ 区间套确认完成。①每级 type1（has_type1）②递归到底（cost_gate_open）
+                // ③后续走势（compress<confirm）。时序累积——type1 逐级在后续 bar 出现。
+                while cost_gate_open(&self.depth_ref, w.frontier)
+                    && has_type1(evrows, w.frontier, Side::Sell)
                 {
+                    w.frontier -= 1;
+                }
+                // confirm@floor：同一 fire 两路（header §32）——confirm_sell[k]（cascade→C/F，
+                // N5）+ nf_sell[k]（自层→E，N7）。floor 处候选即定位点（seg/move 振幅<摩擦
+                // 时递归终止于候选层）。C/E 由 sig.sell1[source] 区分（type1→C 翻转/清仓，
+                // type2/3→E 降成本，§9）；C 在 E 之前（同 bar 互斥，cleared 跳过 E）。
+                if !cost_gate_open(&self.depth_ref, w.frontier) && w.since_bar < bar {
                     confirm_sell[k] = Some((w.extreme, w.since_bar));
+                    nf_sell[k] = Some(w.extreme);
+                    self.res.n_nest_fire_sell_by_ladder[k] += 1;
                     self.nest_sell[k] = None;
                 } else {
-                    self.nest_sell[k] = Some(w);
+                    self.nest_sell[k] = Some(w); // frontier 推进/停留，窗口跨 bar 持续
                 }
             }
             if let Some(mut w) = self.nest_buy[k] {
-                // N7 自层 fire（供 E 降成本）：loose，每 candidate 一次，不消费窗口（同卖侧）。
-                if let Some(j) = rec_sub_evidence(sub, Side::Buy, evrows, devrows, flip_edge) {
-                    assert!(
-                        w.since_bar <= bar,
-                        "N6 违反@bar {bar}：confirm_buy[{k}] 压缩 {} > 展开（展开早于压缩）",
-                        w.since_bar
-                    );
-                    if !w.fired_nf {
-                        nf_buy[k] = Some(w.extreme);
-                        w.fired_nf = true;
-                        self.res.n_nest_fire_buy_by_ladder[k] += 1;
-                        if j < sub {
-                            self.res.n_nrf_deep_fires_by_ladder[k] += 1;
-                        }
-                    }
-                }
-                // located/cascade（N5/N6，供 F 入场 + C 翻多）：严格区间套确认
-                // （①低三级 ③逐级type1 + ②compress<confirm）。不达严格 ⇒ 无 located
-                // ⇒ 1买点只走 E/不入场（第64课"低三级以上逐级第一类买点"建仓判据）。
-                if w.since_bar < bar
-                    && rec_sub_evidence_strict(k, Side::Buy, evrows, flip_edge).is_some()
+                // located 区间套递归到底（N5/N6，供 F 入场 + C 翻多）：frontier 下探，每出现
+                // 同侧 type1 降一级，直到 cost-gate floor ⇒ 确认完成（①每级type1 ②递归到底
+                // ③后续走势；时序累积，同卖侧）。
+                while cost_gate_open(&self.depth_ref, w.frontier)
+                    && has_type1(evrows, w.frontier, Side::Buy)
                 {
+                    w.frontier -= 1;
+                }
+                // confirm@floor：同一 fire 两路——confirm_buy[k]（cascade→F/C）+ nf_buy[k]
+                // （自层→E，空头子降成本）。F/C 另由 sig.buy1[source] 门控该级 type1。
+                if !cost_gate_open(&self.depth_ref, w.frontier) && w.since_bar < bar {
                     confirm_buy[k] = Some((w.extreme, w.since_bar));
+                    nf_buy[k] = Some(w.extreme);
+                    self.res.n_nest_fire_buy_by_ladder[k] += 1;
                     self.nest_buy[k] = None;
                 } else {
                     self.nest_buy[k] = Some(w);
@@ -1353,19 +1313,31 @@ mod tests {
         run_positional(&t, 2, UNN).unwrap()
     }
 
-    /// 构造完整买 pending [3,4] + segment/a0 confirm + buy1@4 ⇒ 根在 source=4 满仓入场。
+    /// 构造时序区间套买链 ⇒ 根在 source=4 满仓入场（编排者 2026-06-15：递归到底，逐级
+    /// type1）。candidate@4 武装 → type1 买@3（frontier 3→2）→ type1 买@2 + buy1@4
+    /// （frontier 2→1 = cost-gate floor）⇒ located@4 ⇒ F 入场@4。各级 type1 在后续 bar
+    /// 逐级出现（时序区间套，非同 bar）。
     fn full_bull_entry() -> (Vec<BarSig>, Vec<(i64, u8, Direction)>) {
         let mut bars = warmup234();
-        // 武装 nest_buy@3/4（买侧 pending，极值 88/86）。segment@2 Buy1 作 confirm 证据。
-        let mut b = with_ev(bar(95.0), 2, ev_full(BspClass::Buy1, false, 90.0, None));
-        b = with_ev(b, 3, ev_full(BspClass::Buy1, false, 88.0, None));
-        b = with_ev(b, 4, ev_full(BspClass::Buy1, false, 86.0, None));
+        bars.push(with_ev(bar(95.0), 4, ev_full(BspClass::Buy1, false, 86.0, None))); // arm nest_buy@4, frontier=3
+        bars.push(with_ev(bar(96.0), 3, ev_full(BspClass::Buy1, false, 0.0, None))); // type1 买@3 → frontier 3→2
+        let mut b = buy1pt(bar(97.0), 4); // buy1@4（C/F type1 建仓词汇）
+        b = with_ev(b, 2, ev_full(BspClass::Buy1, false, 0.0, None)); // type1 买@2 → frontier 2→1 floor ⇒ confirm@4
         bars.push(b);
-        // confirm bar：bi 向上翻 ⇒ rec_sub_evidence(Buy) ⇒ confirm_buy[3,4] ⇒ located。
-        bars.push(buy1pt(bar(96.0), 4)); // buy1@4（type1 底背驰建仓词汇）
         let evidence_bar = bars.len() as i64 - 1;
-        bars.push(bar(97.0));
+        bars.push(bar(98.0));
         (bars, vec![(evidence_bar, 1, Direction::Up)])
+    }
+
+    /// 在 root long@4 之后追加时序卖链 ⇒ located_sell@4 确认（type1 卖@3 → type1 卖@2
+    /// + sell1@4，递归到 cost-gate floor）⇒ C 翻空@4。
+    fn append_sell_chain_at4(bars: &mut Vec<BarSig>) {
+        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // arm nest_sell@4, frontier=3
+        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3 → frontier 3→2
+        let mut b = sell1pt(bar(103.0), 4); // sell1@4（C type1 翻空词汇）
+        b = with_ev(b, 2, ev_full(BspClass::Sell1, false, 0.0, None)); // type1 卖@2 → floor ⇒ confirm@4
+        bars.push(b);
+        bars.push(bar(102.0));
     }
 
     #[test]
@@ -1434,40 +1406,30 @@ mod tests {
 
     #[test]
     fn type1_full_chain_flips_root() {
-        // C（§6 type1 背驰 + 完整级联 + T14 根翻空）：sell1@4 ∧ 卖链 source=4 ≥
-        // root.ladder=4 ∧ 单根 ⇒ 根**in-place 翻空@4**（长→空 MtM，非旧式子空@3）。
-        // ★ 仅武装 nest_sell@4（confirm 靠 sell1 同 bar 的 bi-down 触发 ⇒ 保持单根）。
-        let (mut bars, mut flips) = full_bull_entry();
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // 仅 arm @4
-        bars.push(sell1pt(bar(104.0), 4)); // sell1@4（type1 背驰）∧ bi 翻 Down ⇒ confirm@4 ⇒ source=4
-        let sell_ev_bar = bars.len() as i64 - 1;
-        bars.push(bar(102.0));
-        flips.push((sell_ev_bar, 1, Direction::Down));
+        // C（§6 type1 + 区间套递归到底 + T14 根翻空）：root long@4 后时序卖链
+        // （type1 卖@3 → type1 卖@2，递归到 cost-gate floor）⇒ located_sell@4 ∧ sell1@4
+        // ∧ 单根 ⇒ in-place 翻空@4（长→空 MtM）。
+        let (mut bars, flips) = full_bull_entry();
+        append_sell_chain_at4(&mut bars);
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_root_flips_by_ladder[4], 1, "type1@4 完整链 ∧ 单根 ⇒ in-place 翻空@4");
-        // 翻空相记长腿 trade（flip_short），翻空后根为空头（eod 关闭记空腿）。
+        assert_eq!(r.n_nrf_root_flips_by_ladder[4], 1, "type1@4 + 区间套递归到底 ∧ 单根 ⇒ in-place 翻空@4");
         assert!(r.trades.iter().any(|t| t.exit_reason == "flip_short"), "翻空记长腿 trade");
         assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "翻转非清仓");
     }
 
     #[test]
     fn bidir_root_flip_long_short_long() {
-        // T14 双向循环：根 long@4 →(type1 卖@4)→ in-place 翻空@4 →(下跌)→(type1 买@4)
-        // → in-place 翻多@4。验证两次翻转 + N8 守恒（prove_n8 每 bar 跑通无 panic）+
-        // 根空头 MtM（下跌相利润沉淀 ⇒ final_nav 反映 104→86 下跌捕获）。
-        let (mut bars, mut flips) = full_bull_entry(); // root long@4
-        // ── 翻空：arm sell@4（极值 110）+ sell1@4 + bi-down ⇒ flip 长→空@4 ──
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(sell1pt(bar(104.0), 4));
-        let sell_ev = bars.len() as i64 - 1;
-        flips.push((sell_ev, 1, Direction::Down));
-        bars.push(bar(90.0)); // 下跌相（空头盈利；c<110 不破否定线）
-        // ── 翻多：arm buy@4（Buy1 极值 80）+ buy1@4 + bi-up ⇒ confirm_buy@4 ⇒ flip 空→长@4 ──
-        bars.push(with_ev(bar(85.0), 4, ev_full(BspClass::Buy1, false, 80.0, None)));
-        bars.push(buy1pt(bar(86.0), 4));
-        let buy_ev = bars.len() as i64 - 1;
-        flips.push((buy_ev, 1, Direction::Up));
-        bars.push(bar(88.0));
+        // T14 双向循环：root long@4 →(时序卖链)→ in-place 翻空@4 →(时序买链)→
+        // in-place 翻多@4。验证两次翻转 + N8 守恒 + 根空头 MtM（下跌相利润沉淀）。
+        let (mut bars, flips) = full_bull_entry(); // root long@4
+        append_sell_chain_at4(&mut bars); // → 翻空@4（价跌到 102）
+        // ── 翻多：下跌相后时序买链 ⇒ located_buy@4 ∧ buy1@4 ⇒ flip 空→长@4 ──
+        bars.push(with_ev(bar(90.0), 4, ev_full(BspClass::Buy1, false, 80.0, None))); // arm nest_buy@4
+        bars.push(with_ev(bar(91.0), 3, ev_full(BspClass::Buy1, false, 0.0, None))); // type1 买@3 → frontier 3→2
+        let mut b = buy1pt(bar(92.0), 4);
+        b = with_ev(b, 2, ev_full(BspClass::Buy1, false, 0.0, None)); // type1 买@2 → floor ⇒ confirm
+        bars.push(b);
+        bars.push(bar(93.0));
         let r = run(bars, flips);
         assert!(r.n_nrf_root_flips_by_ladder[4] >= 2, "两次 in-place 翻转@4（长→空→长）");
         assert!(r.trades.iter().any(|t| t.exit_reason == "flip_short"), "长腿记 trade");
@@ -1497,19 +1459,13 @@ mod tests {
 
     #[test]
     fn n1_forest_multiple_children() {
-        // N1：根@4 在两个不同 bar 各响应一个 nf 卖 ⇒ 长出两个 child@3（栈不可能）。
-        let (mut bars, mut flips) = full_bull_entry();
-        // 第一次 nf 卖@4。
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
+        // N1：根@4 在两个不同 bar 各响应一个自层 confirmed 卖（sell_any@4，E confirmed_root
+        // 路径，§9）⇒ 长出两个 child@3（栈不可能——栈只吃一个）。
+        let (mut bars, flips) = full_bull_entry();
+        bars.push(sellanypt(bar(105.0), 4)); // 根自层卖 ⇒ E spawn child@3 (#1)
         bars.push(bar(104.0));
-        let e1 = bars.len() as i64 - 1;
-        // 价格回落不破 110；第二次 nf 卖@4（新 pending）。
-        bars.push(with_ev(bar(106.0), 4, ev_full(BspClass::Sell1, false, 112.0, None)));
+        bars.push(sellanypt(bar(106.0), 4)); // 根自层卖（新 bar）⇒ E spawn child@3 (#2)
         bars.push(bar(105.0));
-        let e2 = bars.len() as i64 - 1;
-        bars.push(bar(105.0));
-        flips.push((e1, 1, Direction::Down));
-        flips.push((e2, 1, Direction::Down));
         let r = run(bars, flips);
         assert!(r.n_nrf_spawns_by_ladder[3] >= 2, "森林：根长出 ≥2 child@3（栈只吃一个）");
         assert!(r.nrf_max_children >= 2, "N1 实证：max_children≥2");
@@ -1547,63 +1503,37 @@ mod tests {
         assert!(r.n_nest_arms_by_ladder[4] >= 1, "N3：Type2 计入武装（非 continue 跳过）");
     }
 
-    // ════════════ 三处偏离修复验证（analysis/buysellpoint_necessity_vs_canon.md）════════════
+    // ════════════ 区间套递归到底（时序）修复验证（编排者 2026-06-15）════════════
 
     #[test]
-    fn fix1_strict_evidence_depth_floor() {
-        // ① 低三个级别以上（第64课:65）：rec_sub_evidence_strict 命中层必须 ≤ k−3。
-        let mut evrows: [Vec<BspEvent>; MAX_LADDER] = Default::default();
-        let flip: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
-        // k=5：type1@4（k−1 深度1）+ type1@3（k−2 深度2），无 ≤k−3=2 证据 ⇒ 不命中。
-        evrows[4].push(ev_full(BspClass::Sell1, false, 0.0, None));
-        evrows[3].push(ev_full(BspClass::Sell1, false, 0.0, None));
+    fn located_chain_breaks_if_level_skipped() {
+        // 区间套不跳级（每级 type1 = 该级走势完美 = 该级 voice 可闭合）：root long@4 后
+        // 只给 type1 卖@2（跳过 @3）+ sell1@4 ⇒ frontier 卡在 move L1(3)（type1@3 缺）⇒
+        // 无 located ⇒ 不翻空（中间级别未确认不能跳过）。
+        let (mut bars, flips) = full_bull_entry();
+        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // arm@4 frontier=3
+        let mut b = sell1pt(bar(104.0), 4);
+        b = with_ev(b, 2, ev_full(BspClass::Sell1, false, 0.0, None)); // 跳过 @3，只 type1@2
+        bars.push(b);
+        bars.push(bar(103.0));
+        let r = run(bars, flips);
         assert_eq!(
-            rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), None,
-            "证据仅深度 1/2 <3 级 ⇒ 低三级以上未满足（rec_sub_evidence 低一级即停被拦）"
+            r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
+            "跳过 type1@3 ⇒ frontier 卡在 move L1 ⇒ 无 located ⇒ 不翻空（区间套不跳级）"
         );
-        // 补 type1@2（k−3=2 深度3）⇒ 命中最深合格层。
-        evrows[2].push(ev_full(BspClass::Sell1, false, 0.0, None));
-        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), Some(2), "深度 3 命中");
-        // k=4：低三级落到 bi(1)，需方向翻转沿（第64课"确定到一个时间、价格的点"）。
-        assert_eq!(rec_sub_evidence_strict(4, Side::Sell, &evrows, &flip), None, "k=4 无 bi 翻转沿 ⇒ 不命中");
-        let mut flip2 = flip;
-        flip2[1] = Some(Direction::Down);
-        assert_eq!(rec_sub_evidence_strict(4, Side::Sell, &evrows, &flip2), Some(1), "k=4 bi 翻转沿 ⇒ 命中（定位到点）");
-        // k=3（move L1）：k−3=0 < bi=1，无 3 级递归空间 ⇒ None。
-        assert_eq!(rec_sub_evidence_strict(3, Side::Sell, &evrows, &flip2), None, "k=3 无低三级空间");
-    }
-
-    #[test]
-    fn fix3_strict_evidence_type1_only() {
-        // ③ 逐级第一类（第29课:396"都要下次级别以下找第一类"）：只认 type1，type2/3 不算。
-        let mut evrows: [Vec<BspEvent>; MAX_LADDER] = Default::default();
-        let flip: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
-        evrows[2].push(ev_full(BspClass::Sell1, false, 0.0, None)); // type1@k−3=2
-        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), Some(2), "type1@k−3 ⇒ 命中");
-        evrows[2].clear();
-        evrows[2].push(ev_full(BspClass::Sell2, false, 0.0, None));
-        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), None, "type2 不算 confirm 证据");
-        evrows[2].clear();
-        evrows[2].push(ev_full(BspClass::Sell3, false, 0.0, None));
-        assert_eq!(rec_sub_evidence_strict(5, Side::Sell, &evrows, &flip), None, "type3 不算 confirm 证据");
     }
 
     #[test]
     fn fix2_same_bar_no_degenerate_located() {
-        // ② 后续走势验证（第29课:52/54）：candidate 首现与 confirm 同 bar（compress==confirm）
-        //   = degenerate located = 伪确认 ⇒ 不武装 located ⇒ 即便 sell1@4 + bi 翻 Down 也不翻空
-        //   （bar 23688 同 bar 浅证据翻空的死因在此被拦——与 type1_full_chain_flips_root 的
-        //   1-bar gap 翻空形成对照）。
-        let (mut bars, mut flips) = full_bull_entry(); // root long@4
-        // 同 bar：arm nest_sell@4（Sell1 candidate）+ sell1@4 + bi 翻 Down（compress==confirm）。
+        // ② 后续走势验证（第29课:52/54）：同 bar 武装 + sell1@4，无时序逐级 type1 链
+        //   ⇒ frontier 不下探 ⇒ 不武装 located ⇒ 不翻空（degenerate located 被拦，bar 23688）。
+        let (mut bars, flips) = full_bull_entry(); // root long@4
         bars.push(sell1pt(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)), 4));
-        let same_bar = bars.len() as i64 - 1;
         bars.push(bar(104.0));
-        flips.push((same_bar, 1, Direction::Down)); // bi down 与 arm 同 bar
         let r = run(bars, flips);
         assert_eq!(
             r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
-            "同 bar confirm（degenerate located）被拦 ⇒ 不翻空（compress==confirm 伪确认）"
+            "同 bar 武装无后续走势逐级 type1 链 ⇒ 不翻空（伪确认被拦）"
         );
         assert!(r.nrf_phys_long_bars > 0, "根保持多头（无伪确认翻空）");
     }
