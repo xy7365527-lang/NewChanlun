@@ -110,6 +110,29 @@
 //!
 //! 每条必然性有对应 prove，violation = panic。8 标的真实数据跑通无 panic ⇒ 8 条
 //! 必然性在 ~25M bar 上 L2 成立。回测是有效域读数，**不是验收标准**（编排者裁决）。
+//!
+//! ## 螺旋扩展（T₄₇–T₅₁，`docs/necessity_derivation.md` §8 对数螺旋覆盖空间）
+//!
+//! 在 A₀–A₄ 之上追加建模公理 A₅（尺度比 λ 恒定，L2 可证伪），R₃ 自相似实体化为对数螺旋。
+//! 螺旋三坐标：角向 φ（唯一奇点 φ=0=背驰∧手性翻转）/ 径向 r=λ^k（级别=圈数）/ 手性 ε（多/空）。
+//!
+//! - **T₄₇ 角向唯一奇点 → 无第四类 BSP**：所有 BSP 都是某级别的 φ=0，type1/2/3 是同一 φ=0 的
+//!   径向投影深度分类（`buysellpoint.rs` 只产 type1/2/3，构造无 type4）。✓（角向定域）。
+//! - **T₄₈ 径向 σ-不变 → 守恒律建于股数**：守恒量必是径向尺度变换 σ 的不变量 = 股数（units，
+//!   纯计数）；NAV 含价格 ×c 随径向标度，非跨级别守恒量。`prove_n8` 守 Σunits=N_base（σ-不变）
+//!   + 同价 NAV 中性（径向冻结特例）——**已满足，几何确认现状正确**。✓。
+//! - **T₄₉ confirm 向心回溯**：高级别 candidate 的 confirm 沿 φ=0 母线**向心回溯已 settle 的
+//!   内圈 type1**（t_j<t_K，过去），非前向窗口等待（读法A 几何错误）。**本次实装**：
+//!   `helix_centripetal_confirm` 替代旧前向 frontier 累积——展开恒等式 Δt∝λʲ⁻¹(λ−1)>0 ⟹ 内圈
+//!   type1 必在 candidate 之过去（`project_recl2_confirm_breakpoint_temporal` 418/418 时序错配
+//!   13694 bar 前）。母线逐圈贯通（嵌套：末段 sub-component 在外层之内）⇒ confirm。✓（向心）。
+//! - **T₅₀ 操作频率径向标度律**：f(k)∝λ^{−k}——清仓（最外圈 K）∝λ^{−K} 罕见，降成本（内圈 k）
+//!   ∝λ^{−k} 频繁。定性单调核 A₅-独立（观测），指数律 λ^{−k} 是 L2 可证伪（`prove_t50_radial_scaling`
+//!   eod 观测，非 panic——~ 状态，formalization-validity-domain.md）。~。
+//! - **T₅₁ 手性翻转定域 + 莫比乌斯残余**：手性 ε 只在 φ=0 翻转 ⟹ located 流严格交替（`prove_s11`
+//!   panic 守卫，✓）；方向覆盖是莫比乌斯丛无全局截面 ⟹ **根恒多 = 拓扑必然**（非实装选择，
+//!   `debug_assert_eq!(dir, Long)` 系列保留——它是对的）。T₂₄/T₃₆/T₄₁/T₄₆ 4 条永久残余 =
+//!   同一莫比乌斯残余的四投影，**只能换维不能在 ℝ₊ 载体内闭合**（不实装为 ✓，接受为拓扑残余）。
 
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
@@ -130,20 +153,18 @@ use crate::stroke::Direction;
 const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
 
 /// pending 窗口（高级别 candidate 持续记忆——540号压缩侧↑载体）。`since_bar` =
-/// candidate 首现 bar（压缩完成）；极值刷新时保留首现值（压缩起始不变）。
+/// candidate 首现 bar（压缩完成 = φ→0 的外圈 (λ^k, φ→0)）；极值刷新时保留首现值
+/// （压缩起始不变）。
+/// **T49（confirm 向心回溯，§8.1 读法C）**：candidate@k 出现后**不再前向逐 bar 累积
+/// frontier**，而是当下沿 φ=0 母线**向心回溯已 settle 的内圈 type1**
+/// （`helix_centripetal_confirm`）——内圈 type1 必在 candidate 之过去（展开恒等式
+/// Δt∝λʲ⁻¹(λ−1)>0 ⟹ t_j<t_K），故 confirm 无 frontier 跨 bar 状态。前向窗口（旧
+/// frontier 累积）是几何错误（读法A，`project_recl2_confirm_breakpoint_temporal`
+/// 418/418 时序错配：内圈末段 type1 平均 13694 bar 前，前向够不着）。
 #[derive(Debug, Clone, Copy)]
 struct Pending {
     extreme: f64,
     since_bar: i64,
-    /// **区间套递归到底的 confirmation frontier**（下一个待 type1 确认的级别；初始
-    /// = k−1）。每出现同侧 type1@frontier 即下探一级，直到结构基底 FIRST_BSP_LADDER
-    /// （frontier 降破 FIRST_BSP，含 segment 全级确认）⇒ located 确认完成。成本门（第16环）
-    /// 不参与此处——confirm 是第14环区间套认知。区间套是**时序**的——各级 type1 逐级在
-    /// 后续 bar 出现（同 bar 相邻级 type1 共现率 ~1%，单 bar 链不可行；第64课"递归
-    /// 定位到一个时间、价格的点"本就是跨 bar 收敛）⇒ frontier 跨 bar 累积。
-    /// confirm@floor 时同一 fire 两路（header §32）：confirm_*[k]（cascade→C/F，N5）+
-    /// nf_*[k]（自层→E，N7）；C/E 由 sig.sell1/buy1[k] 区分（type1→C，type2/3→E）。
-    frontier: usize,
 }
 
 /// pending confirm 兑现条目（N5/N6 的载体；级联后一条链内全层 source_ladder 统一）。
@@ -194,13 +215,46 @@ fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> 
     (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
 }
 
-/// **逐级第一类（第29课:396"所有买点…都要下次级别以下找第一类"）**：层 j 是否有
-/// 同侧 type1 背驰。type2/type3、裸背驰事件不算——每级 type1 = 该级走势完美 = 该级
-/// voice 可闭合（不跳级，否则中间级别 voice 会计状态未确认）。
-fn has_type1(evrows: &[Vec<BspEvent>; MAX_LADDER], j: usize, side: Side) -> bool {
-    evrows[j]
-        .iter()
-        .any(|e| e.class.kind() == BspKind::Type1 && e.class.side() == side)
+/// 升序 bar 序列中 ≤ `ub` 的最大值（向心回溯：内圈末段 sub-component 的 settle bar）。
+/// `type1_hist[j][side]` 按 bar 升序 append（step 单调推进）⇒ `partition_point` 二分。
+fn latest_le(hist: &[i64], ub: i64) -> Option<i64> {
+    let cnt = hist.partition_point(|&b| b <= ub);
+    (cnt > 0).then(|| hist[cnt - 1])
+}
+
+/// **T49（confirm 向心回溯，§8.1 读法C / 第29课:396"归根结底都是第一类"）**：
+/// candidate@k（压缩完成 bar=`since`，外圈 (λ^k, φ=0)）的母线纤维
+/// `p⁻¹(0) ∩ {λʲ : FIRST_BSP_LADDER ≤ j < k}` 是否**逐圈贯通**——沿 φ=0 母线**向心**从
+/// k−1 逐圈到结构基底 FIRST_BSP_LADDER，每内圈 j 检验**已 settle 的同侧 type1**
+/// （settle bar ≤ 外层 settle bar，**嵌套**：末段 sub-component 在外层走势之内——构成
+/// 这段走势的末段 move(L1) 的 settle bar、该 move(L1) 的末段 segment 的 settle bar……
+/// 直到底）。这是回溯**已发生**的内圈 type1（展开恒等式 Δt∝λʲ⁻¹(λ−1)>0 ⟹ tʲ<t_K，
+/// 内圈在 candidate 之过去），**非前向等待**（读法A 几何错误）。手性 ε 全程一致（同
+/// `side`）。成本门（第16环）只约束 spawn 不约束此处区间套认知（编排者 2026-06-15：
+/// 第14环 confirm 与第16环成本门分离）⇒ 递归到结构基底 FIRST_BSP_LADDER（含 segment）。
+/// 返回母线是否逐圈贯通（贯通 ⇒ confirm@k）。
+fn helix_centripetal_confirm(
+    type1_hist: &[[Vec<i64>; 2]; MAX_LADDER],
+    k: usize,
+    side: Side,
+    since: i64,
+) -> bool {
+    let si = match side {
+        Side::Sell => 0,
+        Side::Buy => 1,
+    };
+    // 嵌套上界：candidate@k 在 since 完美；末段内圈在其之内（settle bar ≤ since）。
+    let mut upper = since;
+    for j in (FIRST_BSP_LADDER..k).rev() {
+        match latest_le(&type1_hist[j][si], upper) {
+            // 向心一圈：取内圈 j ≤ upper 的最近 type1（末段 sub-component settle bar），
+            // 下一更深内圈须在此 settle bar 之前（嵌套——更深末段在更浅末段之内）。
+            Some(b) => upper = b,
+            // 母线断：内圈 j 无已 settle 的同侧 type1（≤ upper）⇒ 区间套不贯通（不跳级）。
+            None => return false,
+        }
+    }
+    true // 逐圈贯通到 FIRST_BSP_LADDER（含 segment 结构基底）⇒ 区间套确认完成
 }
 
 /// **根 voice 涌现归属级别 E\*（T5/A5 第20环"根=最高涌现级别"）**：根的操作级别
@@ -471,6 +525,30 @@ fn prove_n4_cost_gate(res: &PositionalResult) {
     );
 }
 
+/// **T50（操作频率径向标度律，§8.3 螺旋扩展）运行时观测（eod，~ 状态）**：展开恒等式
+/// Δt(k)∝λ^k（一圈弧长∝半径 r=λ^k）⟹ 级别 k 的 φ=0 事件（confirm/操作）频率
+/// `f(k)∝λ^{−k}` 随级别指数衰减。清仓（最外圈 K，∝λ^{−K}）极罕见，降成本（内圈 k≪K，
+/// ∝λ^{−k}）频繁，比值 = λ^{K−k}（指数级）。**A₅ 依赖度分裂**：① 定性核（f(k) 随 k 单调
+/// 递减 ⟹ 最外圈比内圈罕见）只需 t∝r 单调（**A₅-独立**）；② 指数律 λ^{−k} 的**定量**形式
+/// 需 A₅（λ 恒定），是 **L2 可证伪预测**（测各级 confirm 间隔比≈λ）。**~ 状态**
+/// （formalization-validity-domain.md：不声明为 ✓、**不 panic**——否则把 L2 可证伪定量律
+/// 误作 L0 不变量；与 S9 同范式：标度律是回测/L2 读数，非每 bar 验收不变量）。返回**定性
+/// 单调性局部违反计数**（fire(k) > fire(k−1) 的层数，观测非 panic）。
+fn prove_t50_radial_scaling(res: &PositionalResult) -> u64 {
+    // f(k) = 各级别 confirm fire 频率（向心 confirm 兑现点，per ladder）。
+    let fire: [u64; MAX_LADDER] = std::array::from_fn(|k| {
+        res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k]
+    });
+    // A₅-独立定性核：candidate 层 [PENDING_LO, MAX) 的 fire(k) 随 k 非增（高层比低层罕见）。
+    let mut violations = 0u64;
+    for k in (PENDING_LO + 1)..MAX_LADDER {
+        if fire[k] > fire[k - 1] {
+            violations += 1; // 高层 fire 多于相邻低层 = 标度律定性序局部违反（观测）
+        }
+    }
+    violations
+}
+
 /// 成本门动态 spawn（N4 第16环）：父 voice 释放 θ_sub 配额给子 voice@sub=parent.ladder−1。
 /// **无 floor 参数**——终止纯由成本门：`theta(sub)=None`（势不可测=不存在，递归基 bi）∨
 /// `theta(sub) < SUB_COST_K×friction`（势幅度<成本）。`floor_stop` 计数器**恒不增**
@@ -564,6 +642,11 @@ pub(crate) struct UnnStreamCore {
     // 级联定位链（卖侧出场链 + 买侧入场链）。
     located_sell: [Option<PendingLocate>; MAX_LADDER],
     located_buy: [Option<PendingLocate>; MAX_LADDER],
+    // T49（confirm 向心回溯）：每级 type1 settle 历史（bar 升序 append；[Sell,Buy] 双侧）。
+    // 向心 confirm 沿 φ=0 母线回溯已 settle 的内圈 type1（`helix_centripetal_confirm`）——
+    // 内圈 type1 在 candidate 之过去（展开恒等式 Δt∝λʲ⁻¹(λ−1)>0），故需 settle 历史
+    // （前向窗口不需历史但前向是几何错误）。a0/bi 层无 BSP 事件 ⇒ 索引 [FIRST_BSP, MAX) 有效。
+    type1_hist: [[Vec<i64>; 2]; MAX_LADDER],
     // 方向/段锚滚动状态（T5 根级别涌现 E\* 读数；iso 同构 dir_state/anchor_state）。
     dir_state: [Option<Direction>; MAX_LADDER],
     anchor_state: [i64; MAX_LADDER],
@@ -602,6 +685,7 @@ impl UnnStreamCore {
             nest_buy: [None; MAX_LADDER],
             located_sell: [None; MAX_LADDER],
             located_buy: [None; MAX_LADDER],
+            type1_hist: Default::default(),
             dir_state: [None; MAX_LADDER],
             anchor_state: [-1; MAX_LADDER],
             max_children_seen: 0,
@@ -681,11 +765,11 @@ impl UnnStreamCore {
                     if e.confirmed {
                         *win = None; // confirmed 同侧让位（本 bar 走 confirmed 路径）
                     } else {
-                        let (ext, since, frontier) = win.map_or((e.price, bar, k - 1), |w| {
+                        let (ext, since) = win.map_or((e.price, bar), |w| {
                             let ext = if sellside { w.extreme.max(e.price) } else { w.extreme.min(e.price) };
-                            (ext, w.since_bar, w.frontier) // 压缩起始 + frontier 保留（540号）
+                            (ext, w.since_bar) // 压缩起始保留（540号；frontier 已删——T49 向心回溯无跨 bar 累积）
                         });
-                        *win = Some(Pending { extreme: ext, since_bar: since, frontier });
+                        *win = Some(Pending { extreme: ext, since_bar: since });
                         self.res.n_nest_arms_by_ladder[k] += 1;
                     }
                     if e.class.kind() == BspKind::Type2 {
@@ -693,54 +777,58 @@ impl UnnStreamCore {
                     }
                 }
             }
-            // 第14环展开↓：located frontier 从 k−1 递归下探到结构基底 FIRST_BSP_LADDER。
-            if let Some(mut w) = self.nest_sell[k] {
-                // located 区间套递归到底（N5/N6，第14环认知）：frontier 从 k−1 逐级下探，每出现
-                // 同侧 type1 即降一级（区间套递归，不跳级），递归基 = FIRST_BSP_LADDER（segment
-                // 结构基底；bi/bar 层无 BSP 事件，evrows 索引下界=FIRST_BSP）。frontier 降破
-                // FIRST_BSP（含 segment 在内全级 type1 确认）⇒ 区间套确认完成。
-                // **成本门（第16环）只约束 spawn 操作（try_spawn_cost_gated），不约束此处认知**
-                // ——confirm 是区间套认知，无条件递归到结构基底（编排者 2026-06-15：第16环约束
-                // 操作不约束认知；第14环 confirm 与第16环成本门分离）。①每级 type1（has_type1）
-                // ②递归到结构基底 ③后续走势（compress<confirm）。时序累积——type1 逐级在后续 bar 出现。
-                while w.frontier >= FIRST_BSP_LADDER && has_type1(evrows, w.frontier, Side::Sell) {
-                    w.frontier -= 1;
-                }
-                // confirm@floor：frontier < FIRST_BSP_LADDER（区间套含 segment 全级确认到底）。
-                // 同一 fire 两路（header §32）——confirm_sell[k]（cascade→C/F，N5）+ nf_sell[k]
-                // （自层→E，N7）。C/E 由 sig.sell1[source] 区分（type1→C 翻转/清仓，
-                // type2/3→E 降成本，§9）；C 在 E 之前（同 bar 互斥，cleared 跳过 E）。
-                if w.frontier < FIRST_BSP_LADDER && w.since_bar < bar {
+            // ── 第14环展开↓ confirm（T49 向心回溯，§8.1 读法C；替代旧前向 frontier 累积）──
+            //    candidate@k（外圈 (λ^k, φ=0)）出现后，沿 φ=0 母线**向心**逐圈 k−1…FIRST_BSP
+            //    检验**已 settle 的内圈 type1**（嵌套：末段 sub-component 在外层之内）。内圈
+            //    type1 在 candidate 之过去（展开恒等式 Δt∝λʲ⁻¹(λ−1)>0），**非前向等待**
+            //    （旧 frontier 前向累积 = 读法A 几何错误，project_recl2_confirm_breakpoint_temporal
+            //    418/418 时序错配）。成本门（第16环）只约束 spawn 不约束此处区间套认知
+            //    （编排者 2026-06-15）⇒ helix_centripetal_confirm 递归到结构基底 FIRST_BSP_LADDER。
+            //    母线逐圈贯通 ∧ since<bar（②后续走势，第29课:52/54）⇒ confirm@k。同一 fire 两路
+            //    （header §32）：confirm_*[k]（cascade→C/F，N5）+ nf_*[k]（自层→E，N7）；C/E 由
+            //    sig.sell1/buy1[source] 区分（type1→C，type2/3→E，§9）；C 在 E 之前（cleared 跳 E）。
+            if let Some(w) = self.nest_sell[k] {
+                let confirmed = w.since_bar < bar
+                    && helix_centripetal_confirm(&self.type1_hist, k, Side::Sell, w.since_bar);
+                if confirmed {
                     confirm_sell[k] = Some((w.extreme, w.since_bar));
                     nf_sell[k] = Some(w.extreme);
                     self.res.n_nest_fire_sell_by_ladder[k] += 1;
                     self.nest_sell[k] = None;
-                } else {
-                    self.nest_sell[k] = Some(w); // frontier 推进/停留，窗口跨 bar 持续
                 }
+                // else：母线未贯通（内圈缺已 settle type1）∨ since==bar（无后续走势，待下一 bar
+                //       当下感知）⇒ 窗口跨 bar 持续（直到 confirm ∨ 破极值否定清窗）。
             }
-            if let Some(mut w) = self.nest_buy[k] {
-                // located 区间套递归到底（N5/N6，供 F 入场 + C 翻多）：frontier 从 k−1 下探，每出现
-                // 同侧 type1 降一级，递归基 = FIRST_BSP_LADDER（结构基底）⇒ frontier 降破 FIRST_BSP
-                // ⇒ 确认完成（①每级 type1 ②递归到结构基底 ③后续走势；时序累积，同卖侧）。
-                // 成本门（第16环）只约束 spawn 操作，不约束此处区间套认知（第14环，同卖侧）。
-                while w.frontier >= FIRST_BSP_LADDER && has_type1(evrows, w.frontier, Side::Buy) {
-                    w.frontier -= 1;
-                }
-                // confirm@floor：frontier < FIRST_BSP_LADDER。同一 fire 两路——confirm_buy[k]
-                // （cascade→F/C）+ nf_buy[k]（自层→E，空头子降成本）。F/C 另由 sig.buy1[source]
-                // 门控该级 type1。
-                if w.frontier < FIRST_BSP_LADDER && w.since_bar < bar {
+            if let Some(w) = self.nest_buy[k] {
+                let confirmed = w.since_bar < bar
+                    && helix_centripetal_confirm(&self.type1_hist, k, Side::Buy, w.since_bar);
+                if confirmed {
                     confirm_buy[k] = Some((w.extreme, w.since_bar));
                     nf_buy[k] = Some(w.extreme);
                     self.res.n_nest_fire_buy_by_ladder[k] += 1;
                     self.nest_buy[k] = None;
-                } else {
-                    self.nest_buy[k] = Some(w);
                 }
             }
         }
         prove_n3_type2(type2_seen, type2_handled, bar);
+
+        // ── T49：记录本 bar 各层 type1 settle（向心回溯历史；bar 升序 append）。在 confirm
+        //    之后记录——本 bar type1（bar=cur）相对所有 since<bar 的 candidate 在**未来**，
+        //    不被本 bar 向心消费（向心只取 settle bar ≤ since 的内圈过去 type1）；供后续 bar
+        //    的 candidate 回溯。borrow：evs 借 sig（不借 self），self.type1_hist 可变借不冲突。──
+        if let Some(evs) = sig.bsp_events.as_deref() {
+            for (j, hist_j) in self.type1_hist.iter_mut().enumerate().take(MAX_LADDER).skip(FIRST_BSP_LADDER) {
+                for e in &evs[j] {
+                    if e.class.kind() == BspKind::Type1 {
+                        let si = match e.class.side() {
+                            Side::Sell => 0,
+                            Side::Buy => 1,
+                        };
+                        hist_j[si].push(bar);
+                    }
+                }
+            }
+        }
 
         // ── 级联武装 located（N5：confirm@k → cascade [FIRST_BSP..=k]，高 source
         //    优先；按 source 降序施加）。仅供根 F/C 消费——E 用 nf_*（N7）──
@@ -1155,6 +1243,23 @@ impl UnnStreamCore {
                 self.sig_state.n_ops, self.sig_state.n_s9_violations
             );
         }
+        // ── T50（操作频率径向标度律，§8.3，~ 状态）观测：f(k)∝λ^{−k}——清仓（最外圈∝λ^{−K}）
+        //    比降成本（内圈∝λ^{−k}）罕见。定性单调核 A₅-独立（观测违反计数），指数律 λ^{−k}
+        //    定量是 L2 可证伪（各级 fire 间隔比≈λ）；非 panic（formalization-validity-domain.md）──
+        let fires: Vec<u64> = (FIRST_BSP_LADDER..MAX_LADDER)
+            .map(|k| self.res.n_nest_fire_sell_by_ladder[k] + self.res.n_nest_fire_buy_by_ladder[k])
+            .collect();
+        let total_fires: u64 = fires.iter().sum();
+        if total_fires > 0 {
+            let t50_viol = prove_t50_radial_scaling(&self.res);
+            let flips: u64 = self.res.n_nrf_root_flips_by_ladder.iter().sum();
+            let spawns: u64 = self.res.n_nrf_spawns_by_ladder.iter().sum();
+            eprintln!(
+                "[T50 径向标度律观测] confirm fire/层[{FIRST_BSP_LADDER}..{MAX_LADDER})={fires:?} \
+                 单调违反={t50_viol} | 根翻转(最外圈∝λ^-K)={flips} 降成本spawn(内圈∝λ^-k)={spawns}\
+                （定性核高层罕见；λ 指数律 L2 可证伪，~状态非panic）"
+            );
+        }
     }
 
     /// 已累计 trade 数（lib.rs push_bar 切出本 bar 新增）。
@@ -1277,13 +1382,16 @@ mod tests {
         b
     }
 
-    /// θ 参照预热（层 2/3/4 各 SUB_COST_MIN_OBS 个锚）。
+    /// θ 参照预热（层 2/3/4 各 SUB_COST_MIN_OBS 个锚）。**T49**：用 Type2（非 type1）预热
+    /// ——center_book.ingest 对非 confirmed-type3 事件 kind-无关（Formed/Extended 同样预热
+    /// θ），但 Type2 **不污染 type1_hist**（向心 confirm 只取 type1 settle 历史）⇒ 区间套
+    /// 不跳级的负样本测试（`located_chain_breaks_if_level_skipped`）可在干净 type1 历史上验证。
     fn warmup234() -> Vec<BarSig> {
         let mut bars = Vec::new();
         for j in 0..SUB_COST_MIN_OBS as i64 {
-            let mut b = with_ev(bar(100.0), 2, ev_full(BspClass::Sell1, false, 0.0, Some(1 + j)));
-            b = with_ev(b, 3, ev_full(BspClass::Sell1, false, 0.0, Some(10 + j)));
-            b = with_ev(b, 4, ev_full(BspClass::Sell1, false, 0.0, Some(100 + j)));
+            let mut b = with_ev(bar(100.0), 2, ev_full(BspClass::Sell2, false, 0.0, Some(1 + j)));
+            b = with_ev(b, 3, ev_full(BspClass::Sell2, false, 0.0, Some(10 + j)));
+            b = with_ev(b, 4, ev_full(BspClass::Sell2, false, 0.0, Some(100 + j)));
             let rows = b.bsp_events.as_deref_mut().unwrap();
             rows[2][0].zd = Some(50.0);
             rows[2][0].zg = Some(50.5);
@@ -1301,29 +1409,31 @@ mod tests {
         run_positional(&t, 2, UNN).unwrap()
     }
 
-    /// 构造时序区间套买链 ⇒ 根在 source=4 满仓入场（编排者 2026-06-15：递归到底，逐级
-    /// type1）。candidate@4 武装 → type1 买@3（frontier 3→2）→ type1 买@2 + buy1@4
-    /// （frontier 2→1 破 FIRST_BSP 结构基底）⇒ located@4 ⇒ F 入场@4。各级 type1 在后续 bar
-    /// 逐级出现（时序区间套，非同 bar）。
+    /// 构造**向心**区间套买链（T49 读法C）⇒ 根在 source=4 满仓入场。内圈 type1 在 candidate
+    /// 之**过去**（已 settle，展开恒等式：内圈在过去）：先 type1 买@2（最内圈，最早 settle）、
+    /// type1 买@3（move L1），后 candidate@4 出现（since），再 buy1@4 触发向心 confirm（母线
+    /// [2,3] 嵌套贯通，settle bar ≤ since）⇒ located@4 ⇒ F 入场@4。**非前向逐级出现**——内圈
+    /// type1 早于 candidate（与旧前向构造相反，T49 几何）。
     fn full_bull_entry() -> (Vec<BarSig>, Vec<(i64, u8, Direction)>) {
         let mut bars = warmup234();
-        bars.push(with_ev(bar(95.0), 4, ev_full(BspClass::Buy1, false, 86.0, None))); // arm nest_buy@4, frontier=3
-        bars.push(with_ev(bar(96.0), 3, ev_full(BspClass::Buy1, false, 0.0, None))); // type1 买@3 → frontier 3→2
-        let mut b = buy1pt(bar(97.0), 4); // buy1@4（C/F type1 建仓词汇）
-        b = with_ev(b, 2, ev_full(BspClass::Buy1, false, 0.0, None)); // type1 买@2 → frontier 2→1 破 FIRST_BSP ⇒ confirm@4
+        bars.push(with_ev(bar(94.0), 2, buy1_ev(0.0))); // type1 买@2（最内圈，最早 settle，过去）
+        bars.push(with_ev(bar(95.0), 3, buy1_ev(0.0))); // type1 买@3（move L1，settle 晚于@2，仍过去）
+        bars.push(with_ev(bar(96.0), 4, ev_full(BspClass::Buy1, false, 86.0, None))); // candidate@4 armed (since)
+        let b = buy1pt(bar(97.0), 4); // 下一 bar：since<bar ∧ 向心母线 [2,3] 贯通 ⇒ confirm@4 ⇒ F 入场@4
         bars.push(b);
         let evidence_bar = bars.len() as i64 - 1;
         bars.push(bar(98.0));
         (bars, vec![(evidence_bar, 1, Direction::Up)])
     }
 
-    /// 在 root long@4 之后追加时序卖链 ⇒ located_sell@4 确认（type1 卖@3 → type1 卖@2
-    /// + sell1@4，递归到结构基底 FIRST_BSP）⇒ C 翻空@4。
+    /// 在 root long@4 之后追加**向心**卖链（T49）⇒ located_sell@4 确认。内圈 type1 卖@2、@3
+    /// 在 candidate 之过去（已 settle），后 candidate@4 卖出现 + sell1@4 ⇒ 向心 confirm@4
+    /// （母线 [2,3] 嵌套贯通）⇒ C 翻空@4。
     fn append_sell_chain_at4(bars: &mut Vec<BarSig>) {
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // arm nest_sell@4, frontier=3
-        bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3 → frontier 3→2
-        let mut b = sell1pt(bar(103.0), 4); // sell1@4（C type1 翻空词汇）
-        b = with_ev(b, 2, ev_full(BspClass::Sell1, false, 0.0, None)); // type1 卖@2 → 破 FIRST_BSP ⇒ confirm@4
+        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（最内圈，过去）
+        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3（move L1，过去）
+        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // candidate@4 armed (since)
+        let b = sell1pt(bar(103.0), 4); // 下一 bar：向心母线贯通 ⇒ confirm@4 ⇒ C 翻空@4
         bars.push(b);
         bars.push(bar(102.0));
     }
@@ -1411,12 +1521,12 @@ mod tests {
         // in-place 翻多@4。验证两次翻转 + N8 守恒 + 根空头 MtM（下跌相利润沉淀）。
         let (mut bars, flips) = full_bull_entry(); // root long@4
         append_sell_chain_at4(&mut bars); // → 翻空@4（价跌到 102）
-        // ── 翻多：下跌相后时序买链 ⇒ located_buy@4 ∧ buy1@4 ⇒ flip 空→长@4 ──
-        bars.push(with_ev(bar(90.0), 4, ev_full(BspClass::Buy1, false, 80.0, None))); // arm nest_buy@4
-        bars.push(with_ev(bar(91.0), 3, ev_full(BspClass::Buy1, false, 0.0, None))); // type1 买@3 → frontier 3→2
-        let mut b = buy1pt(bar(92.0), 4);
-        b = with_ev(b, 2, ev_full(BspClass::Buy1, false, 0.0, None)); // type1 买@2 → floor ⇒ confirm
-        bars.push(b);
+        // ── 翻多：下跌相后**向心**买链（T49）⇒ located_buy@4 ∧ buy1@4 ⇒ flip 空→长@4 ──
+        //    内圈 type1 买@2、@3 在 candidate 之过去（已 settle），后 candidate@4 + buy1@4。
+        bars.push(with_ev(bar(89.0), 2, buy1_ev(0.0))); // type1 买@2（最内圈，过去）
+        bars.push(with_ev(bar(90.0), 3, buy1_ev(0.0))); // type1 买@3（move L1，过去）
+        bars.push(with_ev(bar(91.0), 4, ev_full(BspClass::Buy1, false, 80.0, None))); // candidate@4 armed
+        bars.push(buy1pt(bar(92.0), 4)); // 向心母线贯通 ⇒ confirm@4 ⇒ flip 空→长@4
         bars.push(bar(93.0));
         let r = run(bars, flips);
         assert!(r.n_nrf_root_flips_by_ladder[4] >= 2, "两次 in-place 翻转@4（长→空→长）");
@@ -1495,33 +1605,35 @@ mod tests {
 
     #[test]
     fn located_chain_breaks_if_level_skipped() {
-        // 区间套不跳级（每级 type1 = 该级走势完美 = 该级 voice 可闭合）：root long@4 后
-        // 只给 type1 卖@2（跳过 @3）+ sell1@4 ⇒ frontier 卡在 move L1(3)（type1@3 缺）⇒
-        // 无 located ⇒ 不翻空（中间级别未确认不能跳过）。
+        // 区间套不跳级（T49 向心：母线须逐圈贯通）：root long@4 后向心卖链**跳过 @3**——只给
+        // type1 卖@2 在过去（无 type1 卖@3，warmup 用 Type2 ⇒ type1_hist[3][sell] 干净）+
+        // candidate@4 + sell1@4 ⇒ 向心回溯在内圈 @3 找不到已 settle type1 ⇒ 母线断 ⇒ 无
+        // located ⇒ 不翻空（不跳级——中间级别走势未完美不能跳过）。
         let (mut bars, flips) = full_bull_entry();
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // arm@4 frontier=3
-        let mut b = sell1pt(bar(104.0), 4);
-        b = with_ev(b, 2, ev_full(BspClass::Sell1, false, 0.0, None)); // 跳过 @3，只 type1@2
-        bars.push(b);
-        bars.push(bar(103.0));
+        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（过去），跳过 @3
+        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // candidate@4 armed
+        bars.push(sell1pt(bar(103.0), 4)); // 向心回溯 @3 缺已 settle type1 ⇒ 母线断 ⇒ 不 confirm
+        bars.push(bar(102.0));
         let r = run(bars, flips);
         assert_eq!(
             r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
-            "跳过 type1@3 ⇒ frontier 卡在 move L1 ⇒ 无 located ⇒ 不翻空（区间套不跳级）"
+            "向心回溯内圈 @3 缺已 settle type1 ⇒ 母线断 ⇒ 无 located ⇒ 不翻空（区间套不跳级）"
         );
     }
 
     #[test]
     fn fix2_same_bar_no_degenerate_located() {
-        // ② 后续走势验证（第29课:52/54）：同 bar 武装 + sell1@4，无时序逐级 type1 链
-        //   ⇒ frontier 不下探 ⇒ 不武装 located ⇒ 不翻空（degenerate located 被拦，bar 23688）。
+        // ② 后续走势验证（第29课:52/54）：candidate@4 与 sell1@4 同 bar（since==bar），即使内圈
+        //   type1 卖@2/@3 在过去已贯通母线，向心 confirm 的 `since < bar` 守卫仍拦截（无后续走势
+        //   bar = 无 ② 验证）⇒ 不武装 located ⇒ 不翻空（degenerate located 被拦）。
         let (mut bars, flips) = full_bull_entry(); // root long@4
-        bars.push(sell1pt(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)), 4));
-        bars.push(bar(104.0));
+        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（过去）
+        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3（过去）
+        bars.push(sell1pt(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)), 4)); // candidate@4 + sell1@4 同 bar，无后续 bar
         let r = run(bars, flips);
         assert_eq!(
             r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
-            "同 bar 武装无后续走势逐级 type1 链 ⇒ 不翻空（伪确认被拦）"
+            "candidate@4 与 sell1@4 同 bar（since==bar）⇒ 向心 confirm `since<bar` 拦截 ⇒ 不翻空（伪确认）"
         );
         assert!(r.nrf_phys_long_bars > 0, "根保持多头（无伪确认翻空）");
     }
