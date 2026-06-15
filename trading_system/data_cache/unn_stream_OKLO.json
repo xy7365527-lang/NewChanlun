@@ -1,53 +1,24 @@
 {
  "symbol": "OKLO",
  "instrument_id": "OKLO.XNAS",
- "n_bars": 447738,
- "bh_pct": 307.1,
- "bh_mdd_pct": -76.8,
- "max_bars": null,
+ "n_bars": 200000,
+ "bh_pct": 107.0,
+ "bh_mdd_pct": -71.8,
+ "max_bars": 200000,
  "unn_stream": {
-  "strat_pct": 15.5,
-  "mdd_pct": -55.9,
-  "n_trades": 277,
-  "exit_reasons": {
-   "negate": 73,
-   "cascade": 1,
-   "recover": 203
-  },
+  "strat_pct": 0.0,
+  "mdd_pct": 0.0,
+  "n_trades": 0,
+  "exit_reasons": {},
   "yearly": null,
-  "by_ladder": {
-   "segment/short": {
-    "n": 266,
-    "pnl_cash": 25902.0,
-    "wins": 118,
-    "avg_held_bars": 164.0
-   },
-   "move(L1)/long": {
-    "n": 8,
-    "pnl_cash": -18685.0,
-    "wins": 0,
-    "avg_held_bars": 21960.0
-   },
-   "move(L1)/short": {
-    "n": 1,
-    "pnl_cash": 649.0,
-    "wins": 1,
-    "avg_held_bars": 1341.0
-   },
-   "recL2/long": {
-    "n": 2,
-    "pnl_cash": -7969.0,
-    "wins": 0,
-    "avg_held_bars": 11206.0
-   }
-  },
+  "by_ladder": {},
   "nrf_counters": {
    "root_entries": [
     0,
     0,
     0,
-    8,
-    2,
+    0,
+    0,
     0,
     0,
     0,
@@ -58,8 +29,8 @@
    "spawns": [
     0,
     0,
-    259,
-    1,
+    0,
+    0,
     0,
     0,
     0,
@@ -71,9 +42,9 @@
    "negates": [
     0,
     0,
-    63,
-    8,
-    2,
+    0,
+    0,
+    0,
     0,
     0,
     0,
@@ -84,7 +55,7 @@
    "cascades": [
     0,
     0,
-    1,
+    0,
     0,
     0,
     0,
@@ -146,14 +117,14 @@
     0,
     0
    ],
-   "phys_long_bars": 196545,
+   "phys_long_bars": 0,
    "depth_bars": [
-    249647,
-    163644,
-    26729,
-    5257,
-    2177,
-    284,
+    200000,
+    0,
+    0,
+    0,
+    0,
+    0,
     0,
     0,
     0,
@@ -164,9 +135,9 @@
     0,
     0,
     0,
-    760,
-    35,
-    3,
+    325,
+    18,
+    1,
     0,
     0,
     0,
@@ -177,9 +148,9 @@
     0,
     0,
     0,
-    250,
-    15,
-    1,
+    106,
+    6,
+    0,
     0,
     0,
     0,
@@ -190,9 +161,9 @@
     0,
     0,
     0,
-    258,
-    19,
-    2,
+    105,
+    12,
+    1,
     0,
     0,
     0,
@@ -203,8 +174,8 @@
     0,
     0,
     0,
-    165,
-    1,
+    187,
+    3,
     0,
     0,
     0,
@@ -228,8 +199,8 @@
    "short_net_cash": [
     0.0,
     0.0,
-    25902.0,
-    649.0,
+    0.0,
+    0.0,
     0.0,
     0.0,
     0.0,
@@ -241,8 +212,8 @@
    "short_held_bars": [
     0,
     0,
-    43569,
-    1341,
+    0,
+    0,
     0,
     0,
     0,
@@ -252,8 +223,8 @@
     0
    ]
   },
-  "nrf_max_children": 4,
-  "_n_pushed_trades": 277
+  "nrf_max_children": 0,
+  "_n_pushed_trades": 0
  },
  "P1_ge_bh": false,
  "bit_exact_vs_batch": {

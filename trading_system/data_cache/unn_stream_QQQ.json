@@ -6,27 +6,38 @@
  "bh_mdd_pct": -25.6,
  "max_bars": null,
  "unn_stream": {
-  "strat_pct": 127.1,
+  "strat_pct": 166.9,
   "mdd_pct": -22.8,
-  "n_trades": 89,
+  "n_trades": 20,
   "exit_reasons": {
-   "negate": 39,
-   "recover": 49,
+   "recover": 19,
    "eod": 1
   },
   "yearly": null,
   "by_ladder": {
    "segment/short": {
-    "n": 84,
-    "pnl_cash": -1686.0,
-    "wins": 29,
-    "avg_held_bars": 100.0
-   },
-   "move(L1)/long": {
-    "n": 5,
-    "pnl_cash": 125200.0,
+    "n": 1,
+    "pnl_cash": 259.0,
     "wins": 1,
-    "avg_held_bars": 136458.0
+    "avg_held_bars": 29.0
+   },
+   "move(L1)/short": {
+    "n": 15,
+    "pnl_cash": -608.0,
+    "wins": 5,
+    "avg_held_bars": 995.0
+   },
+   "recL2/short": {
+    "n": 3,
+    "pnl_cash": -3737.0,
+    "wins": 2,
+    "avg_held_bars": 21198.0
+   },
+   "recL3/long": {
+    "n": 1,
+    "pnl_cash": 164087.0,
+    "wins": 1,
+    "avg_held_bars": 727100.0
    }
   },
   "nrf_counters": {
@@ -34,7 +45,7 @@
     0,
     0,
     0,
-    5,
+    1,
     0,
     0,
     0,
@@ -46,9 +57,9 @@
    "spawns": [
     0,
     0,
-    34,
-    0,
-    0,
+    1,
+    15,
+    3,
     0,
     0,
     0,
@@ -59,8 +70,8 @@
    "negates": [
     0,
     0,
-    35,
-    4,
+    0,
+    0,
     0,
     0,
     0,
@@ -85,8 +96,8 @@
    "cost_rejects": [
     0,
     0,
-    1148,
-    0,
+    28,
+    1,
     0,
     0,
     0,
@@ -134,13 +145,13 @@
     0,
     0
    ],
-   "phys_long_bars": 677184,
+   "phys_long_bars": 727072,
    "depth_bars": [
-    45741,
-    673971,
-    8214,
-    104,
-    0,
+    929,
+    666994,
+    42563,
+    16644,
+    900,
     0,
     0,
     0,
@@ -165,9 +176,9 @@
     0,
     0,
     0,
-    481,
-    29,
-    1,
+    621,
+    10,
+    0,
     0,
     0,
     0,
@@ -178,9 +189,9 @@
     0,
     0,
     0,
-    533,
-    35,
-    5,
+    682,
+    23,
+    1,
     0,
     0,
     0,
@@ -191,9 +202,9 @@
     0,
     0,
     0,
-    373,
-    6,
-    0,
+    85,
+    36,
+    5,
     0,
     0,
     0,
@@ -216,9 +227,9 @@
    "short_net_cash": [
     0.0,
     0.0,
-    -1686.0,
-    0.0,
-    0.0,
+    259.0,
+    -608.0,
+    -3737.0,
     0.0,
     0.0,
     0.0,
@@ -229,9 +240,9 @@
    "short_held_bars": [
     0,
     0,
-    8422,
-    0,
-    0,
+    29,
+    14928,
+    63594,
     0,
     0,
     0,
@@ -240,8 +251,8 @@
     0
    ]
   },
-  "nrf_max_children": 2,
-  "_n_pushed_trades": 88
+  "nrf_max_children": 3,
+  "_n_pushed_trades": 19
  },
  "P1_ge_bh": false,
  "bit_exact_vs_batch": {
