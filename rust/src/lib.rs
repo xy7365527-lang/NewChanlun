@@ -1896,13 +1896,22 @@ fn run_positional_rust(
     floor_ladder: usize,
     mode: &str,
 ) -> PyResult<PyObject> {
-    use pyo3::types::PyDict;
     use trading::positional::{run_positional, PolarityMode};
     let pm = PolarityMode::parse(mode).ok_or_else(|| {
         pyo3::exceptions::PyValueError::new_err(format!("非法 mode: {mode:?}"))
     })?;
     let res = run_positional(&tape.inner, floor_ladder, pm)
         .map_err(pyo3::exceptions::PyValueError::new_err)?;
+    Ok(positional_result_to_dict(py, &res)?.into())
+}
+
+/// `PositionalResult` → PyDict（`run_positional_rust` + `UnnStream.finish` 复用，
+/// 保证流式 finish 与批量同结构 ⇒ Python 端逐键 bit-exact 比对成立）。
+fn positional_result_to_dict<'py>(
+    py: Python<'py>,
+    res: &trading::positional::PositionalResult,
+) -> PyResult<pyo3::Bound<'py, pyo3::types::PyDict>> {
+    use pyo3::types::PyDict;
     let out = PyDict::new(py);
     // trade 行 = (ladder, entry_bar, entry_price, exit_bar, exit_price,
     //             shares, weight_at_entry, deferred_bars, partial, exit_reason,
@@ -2210,7 +2219,176 @@ fn run_positional_rust(
     out.set_item("nrf_short_earning_hits", res.nrf_short_earning_hits)?;
     out.set_item("nrf_shrink_units", res.nrf_shrink_units)?;
     out.set_item("nrf_max_children", res.nrf_max_children)?;
-    Ok(out.into())
+    Ok(out)
+}
+
+/// 流式统一必然性引擎（mode="unn"；535号边界B：push_bar 收 BarSig）。
+///
+/// 与批量 `run_positional_rust(mode="unn")` **共享 `UnnStreamCore::step/finish`** ⇒
+/// 逐 bar 累积的 `finish()` 结果与批量逐位等价（bit-exact 由构造保证，非对齐努力）。
+/// 用法（NautilusTrader on_bar 逐 bar 驱动）：
+///   s = UnnStream(floor_ladder=2)
+///   for bar: signals = s.push_bar(close, buy1, ..., bsp_rows, div_rows, flip_rows)
+///   result = s.finish()   # 与 run_positional_rust 同结构 dict
+#[pyclass(name = "UnnStream")]
+struct PyUnnStream {
+    core: trading::unified_necessity::UnnStreamCore,
+}
+
+#[pymethods]
+impl PyUnnStream {
+    #[new]
+    #[pyo3(signature = (floor_ladder = 2))]
+    fn new(floor_ladder: usize) -> PyResult<Self> {
+        let core = trading::unified_necessity::UnnStreamCore::new(floor_ladder)
+            .map_err(pyo3::exceptions::PyValueError::new_err)?;
+        Ok(Self { core })
+    }
+
+    /// 逐 bar 推送。事件行无 bar 字段（本 bar 内）：
+    ///   bsp_rows 行 = (ladder, kind, side, seg_idx, confirmed, cs, zd, zg, price)；
+    ///   div_rows 行 = (ladder, kind, direction, seg_idx, force_a, force_c, price)；
+    ///   flip_rows 行 = (ladder, "up"/"down")（本 bar 方向翻转沿，a0 端证据）。
+    /// 布尔 = 11 位掩码（Python `sum(1<<k …)`）。返回本 bar **新增** trade 行
+    /// （与 `run_positional_rust` trades 同 11 元组格式；entry 时空、exit/翻转时配对）。
+    /// fail-fast 与 `from_columns` 同口径（close 非有限 / cs 缺 zd-zg / 非法枚举 / 越界）。
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    #[pyo3(signature = (close, buy1, sell1, sell_any, buy_any, up_settled, max_ladder,
+                        type2_buy, bsp_rows, div_rows, flip_rows))]
+    fn push_bar(
+        &mut self,
+        close: f64,
+        buy1: u16,
+        sell1: u16,
+        sell_any: u16,
+        buy_any: u16,
+        up_settled: u16,
+        max_ladder: u8,
+        type2_buy: bool,
+        bsp_rows: Vec<(u8, String, String, i64, bool, Option<i64>, Option<f64>, Option<f64>, f64)>,
+        div_rows: Vec<(u8, String, String, i64, f64, f64, f64)>,
+        flip_rows: Vec<(u8, String)>,
+    ) -> PyResult<Vec<(u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str, &'static str)>> {
+        use trading::tape::BarSig;
+        use trading::types::{BspClass, BspEvent as TBspEvent, DivEvent as TDivEvent, LadderMask, MAX_LADDER};
+        if !close.is_finite() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "close 含非有限值——NaN 必须在数据清洗期删除（T7 纪律）",
+            ));
+        }
+        let mut sig = BarSig {
+            close,
+            buy1: LadderMask(buy1),
+            sell1: LadderMask(sell1),
+            sell_any: LadderMask(sell_any),
+            buy_any: LadderMask(buy_any),
+            max_ladder,
+            type2_buy,
+            up_move_settled: LadderMask(up_settled),
+            ..Default::default()
+        };
+        for (lad, kind, side, seg_idx, confirmed, cs, zd, zg, price) in bsp_rows {
+            let lad_us = lad as usize;
+            if lad_us >= MAX_LADDER {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "bsp 事件 ladder 越界: {lad}"
+                )));
+            }
+            if cs.is_some() && (zd.is_none() || zg.is_none()) {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "bsp 事件 cs 存在而 zd/zg 缺失（ladder {lad}）——CenterBook 算术前提"
+                )));
+            }
+            let class = BspClass::from_parts(parse_bsp_kind(&kind)?, parse_side(&side)?);
+            sig.bsp_events
+                .get_or_insert_with(|| Box::new(<[Vec<TBspEvent>; MAX_LADDER]>::default()))
+                [lad_us]
+                .push(TBspEvent { class, seg_idx, confirmed, cs, zd, zg, price });
+        }
+        for (lad, kind, direction, seg_idx, force_a, force_c, price) in div_rows {
+            let lad_us = lad as usize;
+            if lad_us >= MAX_LADDER {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "div 事件 ladder 越界: {lad}"
+                )));
+            }
+            let dkind = match kind.as_str() {
+                "trend" => divergence::DivKind::Trend,
+                "consolidation" => divergence::DivKind::Consolidation,
+                _ => {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "非法 div kind: {kind:?}"
+                    )))
+                }
+            };
+            let dir = match direction.as_str() {
+                "up" => Direction::Up,
+                "down" => Direction::Down,
+                _ => {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "非法 div direction: {direction:?}"
+                    )))
+                }
+            };
+            sig.div_events
+                .get_or_insert_with(|| Box::new(<[Vec<TDivEvent>; MAX_LADDER]>::default()))
+                [lad_us]
+                .push(TDivEvent { kind: dkind, direction: dir, seg_idx, force_a, force_c, price });
+        }
+        // flip_edge（本 bar）：从 flip_rows 构造（批量从 flips 数组按 bar 切，语义同）。
+        let mut flip_edge: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+        for (lad, dir) in flip_rows {
+            let lad_us = lad as usize;
+            if lad_us >= MAX_LADDER {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "flip 行 ladder 越界: {lad}"
+                )));
+            }
+            let d = match dir.as_str() {
+                "up" => Direction::Up,
+                "down" => Direction::Down,
+                _ => {
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "非法 flip 方向: {dir:?}"
+                    )))
+                }
+            };
+            flip_edge[lad_us] = Some(d);
+        }
+        let before = self.core.n_trades();
+        self.core.step(&sig, &flip_edge);
+        let new_trades = self.core.trades()[before..]
+            .iter()
+            .map(|t| {
+                (
+                    t.ladder,
+                    t.entry_bar,
+                    t.entry_price,
+                    t.exit_bar,
+                    t.exit_price,
+                    t.shares,
+                    t.weight_at_entry,
+                    t.deferred_bars,
+                    t.partial,
+                    t.exit_reason,
+                    t.polarity.as_str(),
+                )
+            })
+            .collect();
+        Ok(new_trades)
+    }
+
+    /// 状态快照: (cur_bar, nav, long_units, short_units, n_active_voices)。
+    fn snapshot(&self) -> (i64, f64, f64, f64, usize) {
+        self.core.snapshot()
+    }
+
+    /// 收尾（eod cascade 关根 + N4 反证）并返回完整结果 dict（与
+    /// `run_positional_rust(mode="unn")` 同结构）。幂等。
+    fn finish(&mut self, py: Python<'_>) -> PyResult<PyObject> {
+        self.core.finish();
+        Ok(positional_result_to_dict(py, self.core.result())?.into())
+    }
 }
 
 /// Python 模块定义。
@@ -2220,6 +2398,7 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_organic_rust, m)?)?;
     m.add_function(wrap_pyfunction!(run_recursive_rust, m)?)?;
     m.add_function(wrap_pyfunction!(run_positional_rust, m)?)?;
+    m.add_class::<PyUnnStream>()?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;

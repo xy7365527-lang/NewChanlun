@@ -204,6 +204,255 @@ def _level_bsps_with_divs(prev_moves: list, level_zhongshus: list,
 # 信号层主函数
 # ════════════════════════════════════════════════════════════
 
+class StreamingSignalReader:
+    """compute_organic_signals 循环体的逐 bar 流式形态（NautilusTrader on_bar 驱动）。
+
+    与批量 compute_organic_signals **共享 process_bar**（批量 = for 循环调 process_bar）
+    ⇒ 逐 bar 产出的 BarSignalI 与批量逐位等价。bit-exact 由 append-only 前缀冻结保证：
+    第 i 根 bar 产出的 BarSignalI[i] 与 dir_flips/trend_flips 中 bar==i 的行，在该 bar
+    处理完后永久冻结（i_signals 永不回填、所有 seen-set 单调、epoch/cache-diff 门控只读
+    "自上次以来的新增"）——这正是流式 bit-exact 的充要条件。
+
+    与 Rust 端 `UnnStreamCore`（批量 run_unified_necessity 与流式 UnnStream 共享 step）
+    方法论同构：信号层与引擎层两侧都把"批量 for 循环体"提取为外部可逐 bar 驱动的步进。
+
+    dir_flips/trend_flips：调用方传入的收集器 list（本类 append，bar 升序）；None =
+    零行为变化（磁带逐位不变）。require_settled：Piece 1 settle 门（见
+    compute_organic_signals docstring）。
+    """
+
+    def __init__(self, dir_flips: list | None = None,
+                 trend_flips: list | None = None,
+                 require_settled: bool = False) -> None:
+        self.orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS,
+                                            require_settled_subseg=require_settled)
+        self.bar_dn = PHLevelState.make(top2_only=True)
+        self.bar_up = PHLevelState.make(top2_only=True)
+        self.bi_dn = PHLevelState.make(top2_only=True)
+        self.bi_up = PHLevelState.make(top2_only=True)
+        self.last_stroke_n = 0
+        # ladder2/3 事件 seen 已下沉 Rust delta 接口（take_* 系列）；递归层保留 Python seen
+        self.level_seen: dict[int, set] = {}
+        self.div_seen: dict[int, set] = {}        # ladder → 背驰事件去重
+        self.settled_seen: dict[int, set] = {}    # ladder → settled move 身份键
+        self.max_ladder = LADDER_SEG
+        self.level_cache: dict[int, tuple] = {}
+        self.last_rec_epoch: int = -1
+        self.last_trend_epoch: int = -1
+        # ── D3 方向行收集状态（dir_flips 非 None 时启用）──
+        self.dir_flips = dir_flips
+        self.d3 = dir_flips is not None
+        self.last_dir: list = [None] * MAX_LADDER     # ladder → 最后已知方向
+        self.prev_p1: float | None = None             # ladder1 笔 p1 差分
+        self.last_move_epoch_d3: int = -1
+        # ── 趋势态行收集状态（trend_flips 非 None 时启用；38课循环 voice）──
+        self.trend_flips = trend_flips
+        self.t3 = trend_flips is not None
+        self.last_kind: list = [None] * MAX_LADDER
+        self.last_move_epoch_t3: int = -1
+
+    def _d3_flip(self, bar: int, ladder: int, dirn: str | None) -> None:
+        if dirn is not None and dirn != self.last_dir[ladder]:
+            self.last_dir[ladder] = dirn
+            self.dir_flips.append((bar, ladder, dirn))
+
+    def _t3_flip(self, bar: int, ladder: int, kind: str | None) -> None:
+        if kind is not None and kind != self.last_kind[ladder]:
+            self.last_kind[ladder] = kind
+            self.trend_flips.append((bar, ladder, kind == "trend"))
+
+    def process_bar(self, i: int, o: float, h: float, low: float, c: float) -> BarSignalI:
+        """单 bar 步进（= compute_organic_signals 原 for 循环体，逐字）。
+
+        返回本 bar BarSignalI；dir_flips/trend_flips 中 bar==i 的行已 append 到收集器。
+        """
+        # 对象状态用别名（修改经引用传播到 self）；跨 bar 标量用 self.（避免写回遗漏）。
+        orch = self.orch
+        bar_dn = self.bar_dn
+        bar_up = self.bar_up
+        bi_dn = self.bi_dn
+        bi_up = self.bi_up
+        level_seen = self.level_seen
+        div_seen = self.div_seen
+        settled_seen = self.settled_seen
+        level_cache = self.level_cache
+        orch.process_bar(o, h, low, c)
+        ev_by_ladder: dict[int, list] = {}    # 级别隔离：每 ladder 独立事件流
+        div_by_ladder: dict[int, list] = {}
+        up_settled = [False] * MAX_LADDER
+
+        # ── ladder0 bar：close PH（每 bar）──
+        bar_buy_r1, bar_buy_nr1 = bar_dn.detect_settle(bar_dn.tree.update(c))
+        bar_sell_r1, bar_sell_nr1 = bar_up.detect_settle(bar_up.tree.update(-c))
+        bar_buy = bar_buy_r1 or bar_buy_nr1
+        bar_sell = bar_sell_r1 or bar_sell_nr1
+
+        # ── ladder1 bi PH + ladder2 笔中枢事件/背驰：仅 stroke 计数增长时 ──
+        bi_buy = False; bi_sell = False
+        seg_buy1 = seg_sell1 = seg_sell_any = seg_buy_any = False
+        sc = orch.stroke_count()
+        if sc > self.last_stroke_n:
+            d1: str | None = None
+            for p1 in orch.strokes_p1_since(self.last_stroke_n):
+                if self.d3:
+                    if self.prev_p1 is not None:
+                        d1 = "up" if p1 > self.prev_p1 else "down"
+                    self.prev_p1 = p1
+                if p1 > 0:
+                    r1d, nr1d = bi_dn.detect_settle(bi_dn.tree.update(p1))
+                    r1u, nr1u = bi_up.detect_settle(bi_up.tree.update(-p1))
+                    if r1d or nr1d:
+                        bi_buy = True
+                    if r1u or nr1u:
+                        bi_sell = True
+            self.last_stroke_n = sc
+            if self.d3:
+                self._d3_flip(i, LADDER_BI, d1)
+                self._d3_flip(i, LADDER_SEG,
+                              orch.bi_zhongshu_last_move_dir(BI_ZHONGSHU_LEVEL_ID))
+            if self.t3:
+                self._t3_flip(i, LADDER_SEG,
+                              orch.bi_zhongshu_last_move_kind(BI_ZHONGSHU_LEVEL_ID))
+            # BSP 事件流：delta 接口（事件 seen 下沉 Rust + 尾窗扫描）。
+            seg_buy1, seg_sell1, seg_sell_any, seg_buy_any, evs2 = \
+                orch.take_bi_zhongshu_bsp_events(BI_ZHONGSHU_LEVEL_ID)
+            if evs2:
+                ev_by_ladder[LADDER_SEG] = evs2
+            # 背驰事件流：delta 接口（同上；_scan_div_events 保留为 direction→side 映射器）
+            dl2 = _scan_div_events(
+                orch.take_bi_zhongshu_div_events(BI_ZHONGSHU_LEVEL_ID),
+                div_seen.setdefault(LADDER_SEG, set()))
+            if dl2:
+                div_by_ladder[LADDER_SEG] = dl2
+            # 差分守卫：布尔导出必须与 Rust delta 接口（旧语义逐位移植）一致
+            rb = orch.bi_zhongshu_new_signals(BI_ZHONGSHU_LEVEL_ID)
+            if rb != (seg_buy1, seg_sell1, seg_sell_any, seg_buy_any):
+                raise RuntimeError(
+                    f"差分守卫失败@bar{i} ladder2: events布尔="
+                    f"{(seg_buy1, seg_sell1, seg_sell_any, seg_buy_any)} rust={rb}")
+
+        # ── ladder3 走势级：bsp_epoch 门控 marshal + 事件/背驰扫描 + 差分守卫 ──
+        l1_buy1 = l1_sell1 = l1_sell_any = l1_buy_any = False
+        epoch = orch.bsp_epoch()
+        if epoch != self.last_trend_epoch:
+            self.last_trend_epoch = epoch
+            # BSP 事件流：delta 接口（ladder2 同款）
+            l1_buy1, l1_sell1, l1_sell_any, l1_buy_any, evs3 = \
+                orch.take_trend_bsp_events()
+            if evs3:
+                ev_by_ladder[LADDER_MOVE] = evs3
+            # 背驰：delta 接口（与引擎内部 BSP 同源同步点）
+            dl3 = _scan_div_events(
+                orch.take_trend_div_events(),
+                div_seen.setdefault(LADDER_MOVE, set()))
+            if dl3:
+                div_by_ladder[LADDER_MOVE] = dl3
+        # D3 ladder3：move_epoch 门控的尾 move 方向读数（O(1)）
+        if self.d3:
+            me = orch.move_epoch()
+            if me != self.last_move_epoch_d3:
+                self.last_move_epoch_d3 = me
+                self._d3_flip(i, LADDER_MOVE, orch.trend_last_move_dir())
+        # 趋势态 ladder3：同 move_epoch 门控的尾 move kind 读数（O(1)）
+        if self.t3:
+            me_t = orch.move_epoch()
+            if me_t != self.last_move_epoch_t3:
+                self.last_move_epoch_t3 = me_t
+                self._t3_flip(i, LADDER_MOVE, orch.trend_last_move_kind())
+        # 走势级 move settle（O(1) delta 接口；move_epoch 未变返回空）
+        settled_mvs = orch.take_move_settle_events()
+        if settled_mvs:
+            sseen3 = settled_seen.setdefault(LADDER_MOVE, set())
+            up_settled[LADDER_MOVE] = _new_settled_up_moves(
+                [m[0] for m in settled_mvs], sseen3)
+        rt = orch.trend_new_signals(BI_ZHONGSHU_LEVEL_ID)
+        type2_buy = rt[4]
+        if rt[:4] != (l1_buy1, l1_sell1, l1_sell_any, l1_buy_any):
+            raise RuntimeError(
+                f"差分守卫失败@bar{i} ladder3: events布尔="
+                f"{(l1_buy1, l1_sell1, l1_sell_any, l1_buy_any)} rust={rt[:4]}")
+
+        # ── I 分层磁带 ──
+        buy1 = [False] * MAX_LADDER
+        sell1 = [False] * MAX_LADDER
+        sell_any = [False] * MAX_LADDER
+        buy_any = [False] * MAX_LADDER
+        sell_any[LADDER_BAR] = bar_sell; buy_any[LADDER_BAR] = bar_buy
+        sell_any[LADDER_BI] = bi_sell; buy_any[LADDER_BI] = bi_buy
+        buy1[LADDER_SEG] = seg_buy1; sell1[LADDER_SEG] = seg_sell1
+        sell_any[LADDER_SEG] = seg_sell_any; buy_any[LADDER_SEG] = seg_buy_any
+        buy1[LADDER_MOVE] = l1_buy1; sell1[LADDER_MOVE] = l1_sell1
+        sell_any[LADDER_MOVE] = l1_sell_any; buy_any[LADDER_MOVE] = l1_buy_any
+
+        # ── 递归层（ladder≥4）：recursive_epoch 门控 + 状态 diff 门控 ──
+        rec_epoch = orch.recursive_epoch()
+        if rec_epoch != self.last_rec_epoch:
+            self.last_rec_epoch = rec_epoch
+            recursive = orch.current_recursive()
+            level_moves_map = {lid: mvs for (lid, _z, mvs) in recursive}
+            moves_l1 = None
+            for (lid, zhs, mvs) in recursive:
+                ladder = lid + 2
+                if ladder >= MAX_LADDER:
+                    continue
+                if ladder > self.max_ladder:
+                    self.max_ladder = ladder
+                cache_key = (tuple(zhs), tuple(mvs))
+                if level_cache.get(lid) == cache_key:
+                    continue
+                level_cache[lid] = cache_key
+                if lid - 1 == 1:
+                    if moves_l1 is None:
+                        moves_l1 = orch.current_moves()
+                    prev = moves_l1
+                else:
+                    prev = level_moves_map.get(lid - 1, [])
+                seen = level_seen.get(lid)
+                if seen is None:
+                    seen = set(); level_seen[lid] = seen
+                bsps_l, div_rows_l = _level_bsps_with_divs(prev, zhs, mvs, lid)
+                b1, s1, sa, ba, evl = _scan_events_rust(bsps_l, seen)
+                buy1[ladder] = b1; sell1[ladder] = s1
+                sell_any[ladder] = sa; buy_any[ladder] = ba
+                if evl:
+                    ev_by_ladder[ladder] = evl
+                dl = _scan_div_events(
+                    div_rows_l, div_seen.setdefault(ladder, set()))
+                if dl:
+                    div_by_ladder[ladder] = dl
+                sseen_l = settled_seen.setdefault(ladder, set())
+                up_settled[ladder] = _new_settled_up_moves(
+                    [m[0] for m in mvs], sseen_l)
+                # D3 递归层：尾 move 方向（cache-diff 门控——方向变化 ⊆ cache 变化）
+                if self.d3 and mvs:
+                    self._d3_flip(i, ladder, mvs[-1][0][1])
+                # 趋势态递归层：尾 move kind（同一 cache-diff 门控，门控完备同理）
+                if self.t3 and mvs:
+                    self._t3_flip(i, ladder, mvs[-1][0][0])
+
+        if ev_by_ladder:
+            rows = [()] * MAX_LADDER
+            for lad, evl in ev_by_ladder.items():
+                rows[lad] = tuple(evl)
+            bsp_events = tuple(rows)
+        else:
+            bsp_events = NO_LADDER_EVENTS
+        if div_by_ladder:
+            drows = [()] * MAX_LADDER
+            for lad, dvl in div_by_ladder.items():
+                drows[lad] = tuple(dvl)
+            div_events = tuple(drows)
+        else:
+            div_events = NO_LADDER_DIVS
+        ums = tuple(up_settled) if any(up_settled) else NO_UP_SETTLED
+        return BarSignalI(
+            close=c, buy1=tuple(buy1), sell1=tuple(sell1),
+            sell_any=tuple(sell_any), buy_any=tuple(buy_any),
+            max_ladder=self.max_ladder, type2_buy=type2_buy,
+            bsp_events=bsp_events, div_events=div_events,
+            up_move_settled=ums)
+
+
 def compute_organic_signals(
     opens: list[float], highs: list[float], lows: list[float], closes: list[float],
     dir_flips: list | None = None,
@@ -246,241 +495,17 @@ def compute_organic_signals(
     本就来自级别，§9.1）。settle on ⟹ candidate 事件入流（去重键含 confirmed）
     ⟹ tape_fp 必漂移（有意修正，非 bug），需独立 baseline。
     """
+    reader = StreamingSignalReader(dir_flips=dir_flips, trend_flips=trend_flips,
+                                   require_settled=require_settled)
     n = len(closes)
-    orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS,
-                                   require_settled_subseg=require_settled)
-
-    bar_dn = PHLevelState.make(top2_only=True); bar_up = PHLevelState.make(top2_only=True)
-    bi_dn = PHLevelState.make(top2_only=True); bi_up = PHLevelState.make(top2_only=True)
-    last_stroke_n = 0
-
-    # ladder2/3 事件 seen 已下沉 Rust delta 接口（take_* 系列）；递归层保留 Python seen
-    level_seen: dict[int, set] = {}
-    div_seen: dict[int, set] = {}        # ladder → 背驰事件去重
-    settled_seen: dict[int, set] = {}    # ladder → settled move 身份键
-
-    max_ladder = LADDER_SEG
-    level_cache: dict[int, tuple] = {}
-    last_rec_epoch: int = -1
-    last_trend_epoch: int = -1
-
-    # ── D3 方向行收集状态（dir_flips 非 None 时启用）──
-    d3 = dir_flips is not None
-    last_dir: list = [None] * MAX_LADDER     # ladder → 最后已知方向
-    prev_p1: float | None = None             # ladder1 笔 p1 差分
-    last_move_epoch_d3: int = -1
-
-    def _d3_flip(bar: int, ladder: int, dirn: str | None) -> None:
-        if dirn is not None and dirn != last_dir[ladder]:
-            last_dir[ladder] = dirn
-            dir_flips.append((bar, ladder, dirn))
-
-    # ── 趋势态行收集状态（trend_flips 非 None 时启用；38课循环 voice）──
-    t3 = trend_flips is not None
-    last_kind: list = [None] * MAX_LADDER
-    last_move_epoch_t3: int = -1
-
-    def _t3_flip(bar: int, ladder: int, kind: str | None) -> None:
-        if kind is not None and kind != last_kind[ladder]:
-            last_kind[ladder] = kind
-            trend_flips.append((bar, ladder, kind == "trend"))
-
     i_signals: list[BarSignalI] = []
     last_progress = 0
-
     for i in range(n):
-        c = closes[i]
-        orch.process_bar(opens[i], highs[i], lows[i], c)
-        ev_by_ladder: dict[int, list] = {}    # 级别隔离：每 ladder 独立事件流
-        div_by_ladder: dict[int, list] = {}
-        up_settled = [False] * MAX_LADDER
-
-        # ── ladder0 bar：close PH（每 bar）──
-        bar_buy_r1, bar_buy_nr1 = bar_dn.detect_settle(bar_dn.tree.update(c))
-        bar_sell_r1, bar_sell_nr1 = bar_up.detect_settle(bar_up.tree.update(-c))
-        bar_buy = bar_buy_r1 or bar_buy_nr1
-        bar_sell = bar_sell_r1 or bar_sell_nr1
-
-        # ── ladder1 bi PH + ladder2 笔中枢事件/背驰：仅 stroke 计数增长时 ──
-        bi_buy = False; bi_sell = False
-        seg_buy1 = seg_sell1 = seg_sell_any = seg_buy_any = False
-        sc = orch.stroke_count()
-        if sc > last_stroke_n:
-            d1: str | None = None
-            for p1 in orch.strokes_p1_since(last_stroke_n):
-                if d3:
-                    if prev_p1 is not None:
-                        d1 = "up" if p1 > prev_p1 else "down"
-                    prev_p1 = p1
-                if p1 > 0:
-                    r1d, nr1d = bi_dn.detect_settle(bi_dn.tree.update(p1))
-                    r1u, nr1u = bi_up.detect_settle(bi_up.tree.update(-p1))
-                    if r1d or nr1d:
-                        bi_buy = True
-                    if r1u or nr1u:
-                        bi_sell = True
-            last_stroke_n = sc
-            if d3:
-                _d3_flip(i, LADDER_BI, d1)
-                _d3_flip(i, LADDER_SEG,
-                         orch.bi_zhongshu_last_move_dir(BI_ZHONGSHU_LEVEL_ID))
-            if t3:
-                _t3_flip(i, LADDER_SEG,
-                         orch.bi_zhongshu_last_move_kind(BI_ZHONGSHU_LEVEL_ID))
-            # BSP 事件流：delta 接口（事件 seen 下沉 Rust + 尾窗扫描）。
-            # 旧形态"全量 marshal O(B)/次"在期货长序列上是 O(S×B) 主导项
-            # （BRN 1.2M profile：marshal+扫描 ~95% wall），delta 后 O(新事件)/次。
-            # 逐位等价于 _scan_events_rust(current_..._inc(), seg_seen)（等价性
-            # 证明见 Rust take_new_events docstring；BRN/OKLO 磁带差分守卫复核）。
-            seg_buy1, seg_sell1, seg_sell_any, seg_buy_any, evs2 = \
-                orch.take_bi_zhongshu_bsp_events(BI_ZHONGSHU_LEVEL_ID)
-            if evs2:
-                ev_by_ladder[LADDER_SEG] = evs2
-            # 背驰事件流：delta 接口（同上；_scan_div_events 保留为 direction→side
-            # 格式映射器，其 seen 对已去重输入恒未命中）
-            dl2 = _scan_div_events(
-                orch.take_bi_zhongshu_div_events(BI_ZHONGSHU_LEVEL_ID),
-                div_seen.setdefault(LADDER_SEG, set()))
-            if dl2:
-                div_by_ladder[LADDER_SEG] = dl2
-            # 差分守卫：布尔导出必须与 Rust delta 接口（旧语义逐位移植）一致
-            rb = orch.bi_zhongshu_new_signals(BI_ZHONGSHU_LEVEL_ID)
-            if rb != (seg_buy1, seg_sell1, seg_sell_any, seg_buy_any):
-                raise RuntimeError(
-                    f"差分守卫失败@bar{i} ladder2: events布尔="
-                    f"{(seg_buy1, seg_sell1, seg_sell_any, seg_buy_any)} rust={rb}")
-
-        # ── ladder3 走势级：bsp_epoch 门控 marshal + 事件/背驰扫描 + 差分守卫 ──
-        l1_buy1 = l1_sell1 = l1_sell_any = l1_buy_any = False
-        epoch = orch.bsp_epoch()
-        if epoch != last_trend_epoch:
-            last_trend_epoch = epoch
-            # BSP 事件流：delta 接口（ladder2 同款；消除每-epoch 全量
-            # current_buysellpoints() marshal + Python 全量扫描的残留 O(N²) 项，
-            # CL 2.5M profile 实测两项 ~5.1s 且随 B 二次增长）。逐位等价于
-            # _scan_events_rust(current_buysellpoints(), trend_seen)（等价性
-            # 证明见 Rust take_trend_bsp_events docstring）。
-            l1_buy1, l1_sell1, l1_sell_any, l1_buy_any, evs3 = \
-                orch.take_trend_bsp_events()
-            if evs3:
-                ev_by_ladder[LADDER_MOVE] = evs3
-            # 背驰：delta 接口（与引擎内部 BSP 同源同步点；_scan_div_events
-            # 保留为 direction→side 格式映射器，其 seen 对已去重输入恒未命中）
-            dl3 = _scan_div_events(
-                orch.take_trend_div_events(),
-                div_seen.setdefault(LADDER_MOVE, set()))
-            if dl3:
-                div_by_ladder[LADDER_MOVE] = dl3
-        # D3 ladder3：move_epoch 门控的尾 move 方向读数（O(1)）
-        if d3:
-            me = orch.move_epoch()
-            if me != last_move_epoch_d3:
-                last_move_epoch_d3 = me
-                _d3_flip(i, LADDER_MOVE, orch.trend_last_move_dir())
-        # 趋势态 ladder3：同 move_epoch 门控的尾 move kind 读数（O(1)）
-        if t3:
-            me_t = orch.move_epoch()
-            if me_t != last_move_epoch_t3:
-                last_move_epoch_t3 = me_t
-                _t3_flip(i, LADDER_MOVE, orch.trend_last_move_kind())
-        # 走势级 move settle（O(1) delta 接口；move_epoch 未变返回空）
-        settled_mvs = orch.take_move_settle_events()
-        if settled_mvs:
-            sseen3 = settled_seen.setdefault(LADDER_MOVE, set())
-            up_settled[LADDER_MOVE] = _new_settled_up_moves(
-                [m[0] for m in settled_mvs], sseen3)
-        rt = orch.trend_new_signals(BI_ZHONGSHU_LEVEL_ID)
-        type2_buy = rt[4]
-        if rt[:4] != (l1_buy1, l1_sell1, l1_sell_any, l1_buy_any):
-            raise RuntimeError(
-                f"差分守卫失败@bar{i} ladder3: events布尔="
-                f"{(l1_buy1, l1_sell1, l1_sell_any, l1_buy_any)} rust={rt[:4]}")
-
-        # ── I 分层磁带 ──
-        buy1 = [False] * MAX_LADDER
-        sell1 = [False] * MAX_LADDER
-        sell_any = [False] * MAX_LADDER
-        buy_any = [False] * MAX_LADDER
-        sell_any[LADDER_BAR] = bar_sell; buy_any[LADDER_BAR] = bar_buy
-        sell_any[LADDER_BI] = bi_sell; buy_any[LADDER_BI] = bi_buy
-        buy1[LADDER_SEG] = seg_buy1; sell1[LADDER_SEG] = seg_sell1
-        sell_any[LADDER_SEG] = seg_sell_any; buy_any[LADDER_SEG] = seg_buy_any
-        buy1[LADDER_MOVE] = l1_buy1; sell1[LADDER_MOVE] = l1_sell1
-        sell_any[LADDER_MOVE] = l1_sell_any; buy_any[LADDER_MOVE] = l1_buy_any
-
-        # ── 递归层（ladder≥4）：recursive_epoch 门控 + 状态 diff 门控 ──
-        rec_epoch = orch.recursive_epoch()
-        if rec_epoch != last_rec_epoch:
-            last_rec_epoch = rec_epoch
-            recursive = orch.current_recursive()
-            level_moves_map = {lid: mvs for (lid, _z, mvs) in recursive}
-            moves_l1 = None
-            for (lid, zhs, mvs) in recursive:
-                ladder = lid + 2
-                if ladder >= MAX_LADDER:
-                    continue
-                if ladder > max_ladder:
-                    max_ladder = ladder
-                cache_key = (tuple(zhs), tuple(mvs))
-                if level_cache.get(lid) == cache_key:
-                    continue
-                level_cache[lid] = cache_key
-                if lid - 1 == 1:
-                    if moves_l1 is None:
-                        moves_l1 = orch.current_moves()
-                    prev = moves_l1
-                else:
-                    prev = level_moves_map.get(lid - 1, [])
-                seen = level_seen.get(lid)
-                if seen is None:
-                    seen = set(); level_seen[lid] = seen
-                bsps_l, div_rows_l = _level_bsps_with_divs(prev, zhs, mvs, lid)
-                b1, s1, sa, ba, evl = _scan_events_rust(bsps_l, seen)
-                buy1[ladder] = b1; sell1[ladder] = s1
-                sell_any[ladder] = sa; buy_any[ladder] = ba
-                if evl:
-                    ev_by_ladder[ladder] = evl
-                dl = _scan_div_events(
-                    div_rows_l, div_seen.setdefault(ladder, set()))
-                if dl:
-                    div_by_ladder[ladder] = dl
-                sseen_l = settled_seen.setdefault(ladder, set())
-                up_settled[ladder] = _new_settled_up_moves(
-                    [m[0] for m in mvs], sseen_l)
-                # D3 递归层：尾 move 方向（cache-diff 门控——方向变化 ⊆ cache 变化）
-                if d3 and mvs:
-                    _d3_flip(i, ladder, mvs[-1][0][1])
-                # 趋势态递归层：尾 move kind（同一 cache-diff 门控，门控完备同理）
-                if t3 and mvs:
-                    _t3_flip(i, ladder, mvs[-1][0][0])
-
-        if ev_by_ladder:
-            rows = [()] * MAX_LADDER
-            for lad, evl in ev_by_ladder.items():
-                rows[lad] = tuple(evl)
-            bsp_events = tuple(rows)
-        else:
-            bsp_events = NO_LADDER_EVENTS
-        if div_by_ladder:
-            drows = [()] * MAX_LADDER
-            for lad, dvl in div_by_ladder.items():
-                drows[lad] = tuple(dvl)
-            div_events = tuple(drows)
-        else:
-            div_events = NO_LADDER_DIVS
-        ums = tuple(up_settled) if any(up_settled) else NO_UP_SETTLED
-        i_signals.append(BarSignalI(
-            close=c, buy1=tuple(buy1), sell1=tuple(sell1),
-            sell_any=tuple(sell_any), buy_any=tuple(buy_any),
-            max_ladder=max_ladder, type2_buy=type2_buy,
-            bsp_events=bsp_events, div_events=div_events,
-            up_move_settled=ums))
-
+        i_signals.append(reader.process_bar(i, opens[i], highs[i], lows[i], closes[i]))
         if i - last_progress >= 200_000:
             print(f"    [{i / n * 100:5.1f}%] organic signal bar {i:,}/{n:,}",
                   flush=True)
             last_progress = i
-
     return i_signals
 
 

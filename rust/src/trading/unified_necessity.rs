@@ -70,9 +70,9 @@ use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::isolated_fugue::{close_voice, nav, VoiceLedger, VoiceStatus};
 use super::nested_fugue::rec_sub_evidence;
-use super::positional::{theta_weights, PositionalResult, EQUITY_SAMPLE_BARS};
+use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
-use super::tape::SignalTape;
+use super::tape::{BarSig, SignalTape};
 use super::types::{BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
 use crate::buysellpoint::{BspKind, Side};
 use crate::stroke::Direction;
@@ -375,75 +375,83 @@ fn try_spawn_cost_gated(
     }
 }
 
-/// 主入口（`PolarityMode::UnifiedNecessity` 经 `run_positional` 分派至此）。零参数
-/// （`floor_ladder` 仅作结构递归基断言 = FIRST_BSP_LADDER，非操作 floor——N4）。
-pub(crate) fn run_unified_necessity(
-    tape: &SignalTape,
-    floor_ladder: usize,
-) -> Result<PositionalResult, String> {
-    if floor_ladder != FIRST_BSP_LADDER {
-        return Err(format!(
-            "unified_necessity 是零操作参数引擎：floor_ladder 仅作结构递归基 = \
-             FIRST_BSP_LADDER={FIRST_BSP_LADDER}（N4 纯成本门，无操作 floor）；得 {floor_ladder}"
-        ));
-    }
-    if !tape.has_bsp_events() {
-        return Err("unified_necessity 要求事件磁带（bsp_events 全空）".to_string());
-    }
-    if !(tape.has_div_events() && tape.has_dir_rows()) {
-        return Err(
-            "unified_necessity 要求背驰磁带 + dir_flips 行——区间套次级别证据词汇 = \
-             BSP ∨ 背驰事件 ∨ bi 层方向翻转沿（027课程序定理）；confirm 递归基证据读 \
-             flip_edge（a0 方向翻转沿），缺 dir_flips 行即判据残缺"
-                .to_string(),
-        );
-    }
-
-    let n = tape.bars.len();
-    let mut res = PositionalResult::default();
-    let mut voices: Vec<VoiceLedger> = Vec::new();
-    let mut free = INITIAL_CAPITAL;
-    let mut n_base = 0.0f64;
-    let mut book = CenterBook::new();
-    let mut depth_ref = DepthRef::new(DEPTH_REF_WINDOW);
-
+/// 流式 unn 引擎核心（535号边界B：push_bar 收 BarSig = unn 定义域 SignalTape 的单元）。
+/// VoiceLedger 是 `pub(super)` ⇒ 流式核心必须在 trading 模块内；lib.rs 仅 PyO3 包装。
+/// 批量 `run_unified_necessity` 与流式 `UnnStream` **共享同一个 `step` 方法** ⇒ bit-exact
+/// 是构造性保证（非两份代码对齐——同一段循环体被外部驱动；no-patch.md：不是补丁，
+/// 是把原 for 循环体原样提取为可逐 bar 推进的方法）。
+pub(crate) struct UnnStreamCore {
+    res: PositionalResult,
+    voices: Vec<VoiceLedger>,
+    free: f64,
+    n_base: f64,
+    book: CenterBook,
+    depth_ref: DepthRef,
     // pending 窗口（双侧，k ≥ PENDING_LO；segment 非势源）。
-    let mut nest_sell: [Option<Pending>; MAX_LADDER] = [None; MAX_LADDER];
-    let mut nest_buy: [Option<Pending>; MAX_LADDER] = [None; MAX_LADDER];
+    nest_sell: [Option<Pending>; MAX_LADDER],
+    nest_buy: [Option<Pending>; MAX_LADDER],
     // 级联定位链（卖侧出场链 + 买侧入场链）。
-    let mut located_sell: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
-    let mut located_buy: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
-
-    let flips: &[(i64, u8, Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
-    let mut flip_ptr = 0usize;
-
-    let empty_evs: [Vec<BspEvent>; MAX_LADDER] = Default::default();
-    let empty_devs: [Vec<DivEvent>; MAX_LADDER] = Default::default();
-
+    located_sell: [Option<PendingLocate>; MAX_LADDER],
+    located_buy: [Option<PendingLocate>; MAX_LADDER],
     // N4 累计观测（prove_n4 在 eod 反证 floor_stop 恒 0）。
-    let mut max_children_seen = 0usize;
+    max_children_seen: usize,
+    // 空事件行（无事件 bar 复用——与批量同一引用语义，零分配漂移）。
+    empty_evs: [Vec<BspEvent>; MAX_LADDER],
+    empty_devs: [Vec<DivEvent>; MAX_LADDER],
+    // 流式驱动状态：下一个要 push 的 bar index（= 已 push bar 数）。
+    cur_bar: i64,
+    last_close: f64,
+    finished: bool,
+}
 
-    for i in 0..n {
-        let sig = &tape.bars[i];
-        let c = sig.close;
-        let bar = i as i64;
-
-        let mut flip_edge: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
-        while flip_ptr < flips.len() && flips[flip_ptr].0 == bar {
-            let (_, lad, dir) = flips[flip_ptr];
-            flip_edge[lad as usize] = Some(dir);
-            flip_ptr += 1;
+impl UnnStreamCore {
+    /// 初始化（零参数引擎；floor_ladder 仅作结构递归基断言 = FIRST_BSP_LADDER，N4）。
+    /// 注：tape 级 capability guard（has_bsp/div/dir）是批量入口专属——流式无完整
+    /// tape 可查，capability 由调用方逐 bar 传事件结构保证（push_bar 总传事件行）。
+    pub(crate) fn new(floor_ladder: usize) -> Result<Self, String> {
+        if floor_ladder != FIRST_BSP_LADDER {
+            return Err(format!(
+                "unified_necessity 是零操作参数引擎：floor_ladder 仅作结构递归基 = \
+                 FIRST_BSP_LADDER={FIRST_BSP_LADDER}（N4 纯成本门，无操作 floor）；得 {floor_ladder}"
+            ));
         }
+        Ok(Self {
+            res: PositionalResult::default(),
+            voices: Vec::new(),
+            free: INITIAL_CAPITAL,
+            n_base: 0.0,
+            book: CenterBook::new(),
+            depth_ref: DepthRef::new(DEPTH_REF_WINDOW),
+            nest_sell: [None; MAX_LADDER],
+            nest_buy: [None; MAX_LADDER],
+            located_sell: [None; MAX_LADDER],
+            located_buy: [None; MAX_LADDER],
+            max_children_seen: 0,
+            empty_evs: Default::default(),
+            empty_devs: Default::default(),
+            cur_bar: 0,
+            last_close: f64::NAN,
+            finished: false,
+        })
+    }
+
+    /// 单 bar 推进（= 原 `run_unified_necessity` for 循环体，逐字——批量/流式共享）。
+    /// `flip_edge` = 本 bar 方向翻转沿（批量由 flips 数组按 bar 切出；流式由 push_bar
+    /// 从 flip_rows 构造）。每 bar 优先序 A→F + 必然性 prove（violation=panic）。
+    pub(crate) fn step(&mut self, sig: &BarSig, flip_edge: &[Option<Direction>; MAX_LADDER]) {
+        let bar = self.cur_bar;
+        let c = sig.close;
+        self.last_close = c;
 
         // 市场性质：中枢账本 + 振幅参照。
         if let Some(evrows) = sig.bsp_events.as_deref() {
             for lad in FIRST_BSP_LADDER..MAX_LADDER {
-                book.ingest(lad, &evrows[lad], true, None);
+                self.book.ingest(lad, &evrows[lad], true, None);
             }
-            depth_ref.observe(&book, c);
+            self.depth_ref.observe(&self.book, c);
         }
-        let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&empty_evs);
-        let devrows: &[Vec<DivEvent>; MAX_LADDER] = sig.div_events.as_deref().unwrap_or(&empty_devs);
+        let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&self.empty_evs);
+        let devrows: &[Vec<DivEvent>; MAX_LADDER] = sig.div_events.as_deref().unwrap_or(&self.empty_devs);
 
         // ── pending 窗口维护（双侧，k ≥ PENDING_LO）：① 破极值否定 → ② candidate
         //    武装（N3：type2 经 side() 同等武装，无 continue）/ confirmed 清窗 →
@@ -457,13 +465,13 @@ pub(crate) fn run_unified_necessity(
         let mut type2_seen = 0u64;
         let mut type2_handled = 0u64;
         for k in PENDING_LO..MAX_LADDER {
-            if nest_sell[k].is_some_and(|w| c > w.extreme) {
-                nest_sell[k] = None;
-                res.n_nest_breaks_by_ladder[k] += 1;
+            if self.nest_sell[k].is_some_and(|w| c > w.extreme) {
+                self.nest_sell[k] = None;
+                self.res.n_nest_breaks_by_ladder[k] += 1;
             }
-            if nest_buy[k].is_some_and(|w| c < w.extreme) {
-                nest_buy[k] = None;
-                res.n_nest_breaks_by_ladder[k] += 1;
+            if self.nest_buy[k].is_some_and(|w| c < w.extreme) {
+                self.nest_buy[k] = None;
+                self.res.n_nest_breaks_by_ladder[k] += 1;
             }
             if sig.bsp_events.is_some() {
                 for e in &evrows[k] {
@@ -475,7 +483,7 @@ pub(crate) fn run_unified_necessity(
                         Side::Sell => true,
                         Side::Buy => false,
                     };
-                    let win = if sellside { &mut nest_sell[k] } else { &mut nest_buy[k] };
+                    let win = if sellside { &mut self.nest_sell[k] } else { &mut self.nest_buy[k] };
                     if e.confirmed {
                         *win = None; // confirmed 同侧让位（本 bar 走 confirmed 路径）
                     } else {
@@ -484,7 +492,7 @@ pub(crate) fn run_unified_necessity(
                             (ext, w.since_bar) // 压缩起始不变（540号）
                         });
                         *win = Some(Pending { extreme: ext, since_bar: since });
-                        res.n_nest_arms_by_ladder[k] += 1;
+                        self.res.n_nest_arms_by_ladder[k] += 1;
                     }
                     if e.class.kind() == BspKind::Type2 {
                         type2_handled += 1; // 武装 ∨ confirmed 清窗——两路均处理（无 continue）
@@ -493,8 +501,8 @@ pub(crate) fn run_unified_necessity(
             }
             // 第14环展开↓：confirm 从 k−1 递归下探至 a0（含 segment + bi）。
             let sub = k - 1;
-            if let Some(w) = nest_sell[k] {
-                if let Some(j) = rec_sub_evidence(sub, Side::Sell, evrows, devrows, &flip_edge) {
+            if let Some(w) = self.nest_sell[k] {
+                if let Some(j) = rec_sub_evidence(sub, Side::Sell, evrows, devrows, flip_edge) {
                     assert!(
                         w.since_bar <= bar,
                         "N6 违反@bar {bar}：confirm_sell[{k}] 压缩 {} > 展开（展开早于压缩）",
@@ -502,15 +510,15 @@ pub(crate) fn run_unified_necessity(
                     );
                     confirm_sell[k] = Some((w.extreme, w.since_bar));
                     nf_sell[k] = Some(w.extreme); // N7：自层 fire（供 E）
-                    nest_sell[k] = None;
-                    res.n_nest_fire_sell_by_ladder[k] += 1;
+                    self.nest_sell[k] = None;
+                    self.res.n_nest_fire_sell_by_ladder[k] += 1;
                     if j < sub {
-                        res.n_nrf_deep_fires_by_ladder[k] += 1;
+                        self.res.n_nrf_deep_fires_by_ladder[k] += 1;
                     }
                 }
             }
-            if let Some(w) = nest_buy[k] {
-                if let Some(j) = rec_sub_evidence(sub, Side::Buy, evrows, devrows, &flip_edge) {
+            if let Some(w) = self.nest_buy[k] {
+                if let Some(j) = rec_sub_evidence(sub, Side::Buy, evrows, devrows, flip_edge) {
                     assert!(
                         w.since_bar <= bar,
                         "N6 违反@bar {bar}：confirm_buy[{k}] 压缩 {} > 展开（展开早于压缩）",
@@ -518,10 +526,10 @@ pub(crate) fn run_unified_necessity(
                     );
                     confirm_buy[k] = Some((w.extreme, w.since_bar));
                     nf_buy[k] = Some(w.extreme); // N7：自层 fire（供 E）
-                    nest_buy[k] = None;
-                    res.n_nest_fire_buy_by_ladder[k] += 1;
+                    self.nest_buy[k] = None;
+                    self.res.n_nest_fire_buy_by_ladder[k] += 1;
                     if j < sub {
-                        res.n_nrf_deep_fires_by_ladder[k] += 1;
+                        self.res.n_nrf_deep_fires_by_ladder[k] += 1;
                     }
                 }
             }
@@ -532,63 +540,63 @@ pub(crate) fn run_unified_necessity(
         //    优先；按 source 降序施加）。仅供根 F/C 消费——E 用 nf_*（N7）──
         for k in (PENDING_LO..MAX_LADDER).rev() {
             if let Some((ext, since)) = confirm_sell[k] {
-                cascade_arm(&mut located_sell, Side::Sell, k, ext, since, bar);
+                cascade_arm(&mut self.located_sell, Side::Sell, k, ext, since, bar);
             }
             if let Some((ext, since)) = confirm_buy[k] {
-                cascade_arm(&mut located_buy, Side::Buy, k, ext, since, bar);
+                cascade_arm(&mut self.located_buy, Side::Buy, k, ext, since, bar);
             }
         }
         // 破极值否定（027:25）：级联统一极值 ⇒ 整链同破。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
-            if located_sell[k].is_some_and(|e| c > e.extreme) {
-                located_sell[k] = None;
+            if self.located_sell[k].is_some_and(|e| c > e.extreme) {
+                self.located_sell[k] = None;
             }
-            if located_buy[k].is_some_and(|e| c < e.extreme) {
-                located_buy[k] = None;
+            if self.located_buy[k].is_some_and(|e| c < e.extreme) {
+                self.located_buy[k] = None;
             }
         }
-        prove_n5_cascade(&located_sell, bar, "sell");
-        prove_n5_cascade(&located_buy, bar, "buy");
+        prove_n5_cascade(&self.located_sell, bar, "sell");
+        prove_n5_cascade(&self.located_buy, bar, "buy");
 
-        let sell_source = chain_source(&located_sell);
-        let buy_source = chain_source(&located_buy);
+        let sell_source = chain_source(&self.located_sell);
+        let buy_source = chain_source(&self.located_buy);
 
         // N8 价值守恒入口快照。
-        let nav_pre = nav(&voices, free, c);
+        let nav_pre = nav(&self.voices, self.free, c);
         // N2：本 bar 操作过的 voice id（去全局互斥的运行时证明）。
         let mut acted_ids: Vec<usize> = Vec::new();
 
         // ── A. 强平兜底（逐活跃空头 voice；per-voice——强平某 voice 不阻断其他）──
-        let snap: Vec<usize> = (0..voices.len()).collect();
+        let snap: Vec<usize> = (0..self.voices.len()).collect();
         for &id in &snap {
-            if matches!(voices[id].status, VoiceStatus::Closed) || voices[id].dir != Polarity::Short {
+            if matches!(self.voices[id].status, VoiceStatus::Closed) || self.voices[id].dir != Polarity::Short {
                 continue;
             }
-            let v = &voices[id];
+            let v = &self.voices[id];
             if v.capital + v.units * (v.basis - c) <= 0.0 {
                 let lad = v.ladder;
                 let b = 2.0 * v.basis;
-                close_voice(id, bar, b, c, "liq", false, &mut voices, &mut free, &mut n_base, &mut res);
-                res.n_short_liquidations_by_ladder[lad] += 1;
+                close_voice(id, bar, b, c, "liq", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                self.res.n_short_liquidations_by_ladder[lad] += 1;
                 acted_ids.push(id);
             }
         }
 
         // ── B. 否定扫描（逐活跃 voice：破 027:25 极值线 ⇒ 关该 voice + 子树）──
-        let snap: Vec<usize> = (0..voices.len()).collect();
+        let snap: Vec<usize> = (0..self.voices.len()).collect();
         for &id in &snap {
-            if matches!(voices[id].status, VoiceStatus::Closed) {
+            if matches!(self.voices[id].status, VoiceStatus::Closed) {
                 continue;
             }
-            let v = &voices[id];
+            let v = &self.voices[id];
             let broke = v.negate_line.is_some_and(|line| match v.dir {
                 Polarity::Short => c > line,
                 Polarity::Long => c < line,
             });
             if broke {
                 let lad = v.ladder;
-                close_voice(id, bar, c, c, "negate", false, &mut voices, &mut free, &mut n_base, &mut res);
-                res.n_nrf_negate_closes_by_ladder[lad] += 1;
+                close_voice(id, bar, c, c, "negate", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                self.res.n_nrf_negate_closes_by_ladder[lad] += 1;
                 acted_ids.push(id);
             }
         }
@@ -598,27 +606,27 @@ pub(crate) fn run_unified_necessity(
         //    §9）∧ prove_chain ⇒ 翻转（森林单根 ∧ root.ladder>segment）∨ 清仓（root@segment
         //    或多 voice 时 no-op，子先 D 回补）──
         let mut cleared = false;
-        let root_id = voices
+        let root_id = self.voices
             .iter()
             .position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none() && v.units > 0.0);
         if let Some(rid) = root_id {
-            let root_ladder = voices[rid].ladder;
+            let root_ladder = self.voices[rid].ladder;
             if let Some(s) = sell_source {
                 if s >= root_ladder && sig.sell1.get(s) {
-                    prove_chain(&located_sell, Side::Sell, s, bar, "C-clear/flip");
-                    let active_count = voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
+                    prove_chain(&self.located_sell, Side::Sell, s, bar, "C-clear/flip");
+                    let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
                     let single_root = active_count == 1;
-                    let flip_line = located_sell[s].map(|e| e.extreme);
+                    let flip_line = self.located_sell[s].map(|e| e.extreme);
                     if single_root && root_ladder > FIRST_BSP_LADDER {
                         // 翻转 = 降成本 m=N 特例（子空@root.ladder−1，携 located 极值否定线）。
                         // 时序（编排者）：父释放现金 → 子用现金开空（不可反序）。
-                        let m = voices[rid].units;
+                        let m = self.voices[rid].units;
                         let sub = root_ladder - 1;
                         let cash_released = m * c;
-                        voices[rid].units -= m;
-                        voices[rid].refresh_status(); // husk（PendingRecovery）
-                        let child_id = voices.len();
-                        voices.push(VoiceLedger {
+                        self.voices[rid].units -= m;
+                        self.voices[rid].refresh_status(); // husk（PendingRecovery）
+                        let child_id = self.voices.len();
+                        self.voices.push(VoiceLedger {
                             ladder: sub,
                             dir: Polarity::Short,
                             units: m,
@@ -633,16 +641,16 @@ pub(crate) fn run_unified_necessity(
                             realized_pnl: 0.0,
                             acted_bar: bar,
                         });
-                        voices[rid].children.push(child_id);
-                        res.n_nrf_root_flips_by_ladder[sub] += 1;
-                        res.n_entries_by_ladder[sub] += 1;
-                        located_sell = [None; MAX_LADDER];
+                        self.voices[rid].children.push(child_id);
+                        self.res.n_nrf_root_flips_by_ladder[sub] += 1;
+                        self.res.n_entries_by_ladder[sub] += 1;
+                        self.located_sell = [None; MAX_LADDER];
                         acted_ids.push(rid);
                         cleared = true;
                     } else if single_root && root_ladder == FIRST_BSP_LADDER {
                         // 根已在结构基底 ⇒ 无更低子级别 ⇒ 清仓到现金（cascade 全树）。
-                        close_voice(rid, bar, c, c, "sellpt", false, &mut voices, &mut free, &mut n_base, &mut res);
-                        located_sell = [None; MAX_LADDER];
+                        close_voice(rid, bar, c, c, "sellpt", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                        self.located_sell = [None; MAX_LADDER];
                         acted_ids.push(rid);
                         cleared = true;
                     }
@@ -655,19 +663,19 @@ pub(crate) fn run_unified_necessity(
         // ── D. 回补（逐活跃非根 voice：自层 confirmed 反向词汇 = 走势完美 ⇒ 隔离
         //    平仓返父。自层信号——不查全局链，N7 邻接）──
         if !cleared {
-            let snap: Vec<usize> = (0..voices.len()).collect();
+            let snap: Vec<usize> = (0..self.voices.len()).collect();
             for &id in &snap {
-                if !voices[id].can_act(bar) || voices[id].parent.is_none() {
+                if !self.voices[id].can_act(bar) || self.voices[id].parent.is_none() {
                     continue;
                 }
-                let v = &voices[id];
+                let v = &self.voices[id];
                 let perfected = match v.dir {
                     Polarity::Short => sig.buy_any.get(v.ladder),
                     Polarity::Long => sig.sell_any.get(v.ladder),
                 };
                 if perfected {
-                    voices[id].acted_bar = bar;
-                    close_voice(id, bar, c, c, "recover", true, &mut voices, &mut free, &mut n_base, &mut res);
+                    self.voices[id].acted_bar = bar;
+                    close_voice(id, bar, c, c, "recover", true, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
                     acted_ids.push(id);
                 }
             }
@@ -677,14 +685,14 @@ pub(crate) fn run_unified_necessity(
         //    ⇒ 释放 θ 配额给子 voice。**不查全局 located 链、不 prove_chain**——
         //    触发层 == voice 层（prove_n7）。N4 纯成本门终止）──
         if !cleared {
-            let snap: Vec<usize> = (0..voices.len()).collect();
+            let snap: Vec<usize> = (0..self.voices.len()).collect();
             for &id in &snap {
-                if !voices[id].can_act(bar) {
+                if !self.voices[id].can_act(bar) {
                     continue;
                 }
-                let dir = voices[id].dir;
-                let ladder = voices[id].ladder;
-                let is_root = voices[id].parent.is_none();
+                let dir = self.voices[id].dir;
+                let ladder = self.voices[id].ladder;
+                let is_root = self.voices[id].parent.is_none();
                 let (nest_fired, confirmed_root) = match dir {
                     // 根自层 confirmed 卖（C 未消费的一切卖点，§9"其他卖点走E"）；
                     // 非根多 voice 仅 nf 自层定位触发（grandchild 递归同律）。
@@ -694,8 +702,8 @@ pub(crate) fn run_unified_necessity(
                 if nest_fired.is_some() || confirmed_root {
                     // N7：触发是自层（nf@ladder ∨ 根 sell_any@ladder）——证明触发层==voice 层。
                     prove_n7_spawn_self_level(ladder, ladder, bar);
-                    if try_spawn_cost_gated(id, bar, c, nest_fired, &depth_ref, &mut voices, &mut res) {
-                        voices[id].acted_bar = bar;
+                    if try_spawn_cost_gated(id, bar, c, nest_fired, &self.depth_ref, &mut self.voices, &mut self.res) {
+                        self.voices[id].acted_bar = bar;
                         acted_ids.push(id);
                     }
                 }
@@ -705,20 +713,20 @@ pub(crate) fn run_unified_necessity(
         // ── F. 根入场（森林空 ∧ 未清仓本 bar）：买链 source S（pending_locate，N6）
         //    ∧ sig.buy1[S]（type1 底背驰=走势完美建仓）⇒ 在 S 层满仓开多（26课恒仓，
         //    第23环；source S 决定根级别 = 出场绑定级别）──
-        let any_active = voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
+        let any_active = self.voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
         if !cleared && !any_active {
             if let Some(s) = buy_source {
                 if sig.buy1.get(s) {
-                    let units = free / c;
+                    let units = self.free / c;
                     if units > 0.0 && units.is_finite() {
-                        prove_chain(&located_buy, Side::Buy, s, bar, "F-entry");
-                        let line = located_buy[s].map(|e| e.extreme);
-                        voices.push(VoiceLedger {
+                        prove_chain(&self.located_buy, Side::Buy, s, bar, "F-entry");
+                        let line = self.located_buy[s].map(|e| e.extreme);
+                        self.voices.push(VoiceLedger {
                             ladder: s,
                             dir: Polarity::Long,
                             units,
                             basis: c,
-                            cost_pool: free,
+                            cost_pool: self.free,
                             capital: 0.0,
                             entry_bar: bar,
                             negate_line: line,
@@ -728,11 +736,11 @@ pub(crate) fn run_unified_necessity(
                             realized_pnl: 0.0,
                             acted_bar: bar,
                         });
-                        n_base = units;
-                        free = 0.0;
-                        res.n_nrf_root_entries_by_ladder[s] += 1;
-                        res.n_entries_by_ladder[s] += 1;
-                        located_buy = [None; MAX_LADDER];
+                        self.n_base = units;
+                        self.free = 0.0;
+                        self.res.n_nrf_root_entries_by_ladder[s] += 1;
+                        self.res.n_entries_by_ladder[s] += 1;
+                        self.located_buy = [None; MAX_LADDER];
                     }
                 }
             }
@@ -740,50 +748,146 @@ pub(crate) fn run_unified_necessity(
 
         // ── 必然性运行时证明（每 bar；violation = panic = 验收标准失败）──
         prove_n2_per_voice(&acted_ids, bar);
-        let nav_post = nav(&voices, free, c);
-        prove_n8_conservation(&voices, n_base, nav_pre, nav_post, bar);
-        max_children_seen = max_children_seen.max(prove_n1_forest(&voices, bar));
+        let nav_post = nav(&self.voices, self.free, c);
+        prove_n8_conservation(&self.voices, self.n_base, nav_pre, nav_post, bar);
+        self.max_children_seen = self.max_children_seen.max(prove_n1_forest(&self.voices, bar));
 
         // 观测：森林规模 + 物理暴露 + 各层视图持有 bar 计数。
-        let active_count = voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
-        res.nrf_depth_bars[active_count.min(MAX_LADDER - 1)] += 1;
+        let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
+        self.res.nrf_depth_bars[active_count.min(MAX_LADDER - 1)] += 1;
         let mut long_units = 0.0;
         let mut short_units = 0.0;
-        for v in voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)) {
+        for v in self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)) {
             match v.dir {
                 Polarity::Long => long_units += v.units,
                 Polarity::Short => short_units += v.units,
             }
-            res.held_bars_by_ladder[v.ladder] += 1;
+            self.res.held_bars_by_ladder[v.ladder] += 1;
             if v.dir == Polarity::Short {
-                res.short_held_bars_by_ladder[v.ladder] += 1;
+                self.res.short_held_bars_by_ladder[v.ladder] += 1;
             }
         }
         if long_units > 0.0 {
-            res.nrf_phys_long_bars += 1;
+            self.res.nrf_phys_long_bars += 1;
         }
         if short_units > 0.0 {
-            res.nrf_phys_short_bars += 1;
+            self.res.nrf_phys_short_bars += 1;
         }
 
-        if bar % EQUITY_SAMPLE_BARS == 0 || i + 1 == n {
-            res.equity.push((bar, nav(&voices, free, c)));
+        // equity 采样（周期点；末 bar 由 finish 补——复现批量 `|| i+1==n` 的 OR 语义）。
+        if bar % EQUITY_SAMPLE_BARS == 0 {
+            self.res.equity.push((bar, nav(&self.voices, self.free, c)));
         }
+        self.cur_bar += 1;
     }
 
-    // eod：cascade 关闭根（单根不变量 ⇒ 关根即清全森林）。
-    if let Some(root_id) = voices.iter().position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none()) {
-        let c_last = tape.bars.last().map_or(f64::NAN, |b| b.close);
-        let last_bar = (n as i64) - 1;
-        close_voice(root_id, last_bar, c_last, c_last, "eod", false, &mut voices, &mut free, &mut n_base, &mut res);
+    /// 收尾（eod cascade 关根 + N4 反证 + N1 观测）。幂等（重复调用零效果）。
+    /// 末 bar equity 补采样复现批量 `|| i+1==n`（仅当 step 未在周期点采过）。
+    pub(crate) fn finish(&mut self) {
+        if self.finished {
+            return;
+        }
+        self.finished = true;
+        if self.cur_bar > 0 {
+            let last_bar = self.cur_bar - 1;
+            let c_last = self.last_close;
+            // 末 bar 补采样（step 仅采周期点；批量 OR 语义 = 末 bar 必采一次）。
+            if last_bar % EQUITY_SAMPLE_BARS != 0 {
+                self.res
+                    .equity
+                    .push((last_bar, nav(&self.voices, self.free, c_last)));
+            }
+            // eod：cascade 关闭根（单根不变量 ⇒ 关根即清全森林）。
+            if let Some(root_id) = self
+                .voices
+                .iter()
+                .position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none())
+            {
+                close_voice(
+                    root_id, last_bar, c_last, c_last, "eod", false,
+                    &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res,
+                );
+            }
+        }
+        self.res.final_nav = self.free;
+        // ── N4（成本门动态，eod 反证）：floor_stop 计数器恒 0 ⇒ 无固定 floor 终止 ──
+        prove_n4_cost_gate(&self.res);
+        // N1 观测（非 panic）：记录最大子数（>1 = 森林实证）。
+        self.res.nrf_max_children = self.max_children_seen as u64;
     }
-    res.final_nav = free;
 
-    // ── N4（成本门动态，eod 反证）：floor_stop 计数器恒 0 ⇒ 无固定 floor 终止 ──
-    prove_n4_cost_gate(&res);
-    // N1 观测（非 panic）：记录最大子数（>1 = 森林实证）。
-    res.nrf_max_children = max_children_seen as u64;
-    Ok(res)
+    /// 已累计 trade 数（lib.rs push_bar 切出本 bar 新增）。
+    pub(crate) fn n_trades(&self) -> usize {
+        self.res.trades.len()
+    }
+
+    /// trade 全表只读（lib.rs marshal 本 bar 增量）。
+    pub(crate) fn trades(&self) -> &[LayerTrade] {
+        &self.res.trades
+    }
+
+    /// 结果只读（lib.rs finish → dict）。
+    pub(crate) fn result(&self) -> &PositionalResult {
+        &self.res
+    }
+
+    /// 状态快照：(cur_bar, nav, long_units, short_units, n_active)。nav 用末 close。
+    pub(crate) fn snapshot(&self) -> (i64, f64, f64, f64, usize) {
+        let c = self.last_close;
+        let navv = nav(&self.voices, self.free, c);
+        let mut long_u = 0.0;
+        let mut short_u = 0.0;
+        let mut active = 0usize;
+        for v in self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)) {
+            active += 1;
+            match v.dir {
+                Polarity::Long => long_u += v.units,
+                Polarity::Short => short_u += v.units,
+            }
+        }
+        (self.cur_bar, navv, long_u, short_u, active)
+    }
+
+    /// 消费核心取出结果（批量入口 move out）。
+    pub(crate) fn into_result(self) -> PositionalResult {
+        self.res
+    }
+}
+
+/// 批量主入口（`PolarityMode::UnifiedNecessity` 经 `run_positional` 分派至此）。
+/// 与流式 `UnnStreamCore` 共享 `step`/`finish` ⇒ bit-exact 由构造保证。零参数
+/// （`floor_ladder` 仅作结构递归基断言 = FIRST_BSP_LADDER，非操作 floor——N4）。
+pub(crate) fn run_unified_necessity(
+    tape: &SignalTape,
+    floor_ladder: usize,
+) -> Result<PositionalResult, String> {
+    if !tape.has_bsp_events() {
+        return Err("unified_necessity 要求事件磁带（bsp_events 全空）".to_string());
+    }
+    if !(tape.has_div_events() && tape.has_dir_rows()) {
+        return Err(
+            "unified_necessity 要求背驰磁带 + dir_flips 行——区间套次级别证据词汇 = \
+             BSP ∨ 背驰事件 ∨ bi 层方向翻转沿（027课程序定理）；confirm 递归基证据读 \
+             flip_edge（a0 方向翻转沿），缺 dir_flips 行即判据残缺"
+                .to_string(),
+        );
+    }
+    let mut core = UnnStreamCore::new(floor_ladder)?;
+    let flips: &[(i64, u8, Direction)] = tape.dir_flips.as_deref().unwrap_or(&[]);
+    let mut flip_ptr = 0usize;
+    let n = tape.bars.len();
+    for i in 0..n {
+        let bar = i as i64;
+        let mut flip_edge: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+        while flip_ptr < flips.len() && flips[flip_ptr].0 == bar {
+            let (_, lad, dir) = flips[flip_ptr];
+            flip_edge[lad as usize] = Some(dir);
+            flip_ptr += 1;
+        }
+        core.step(&tape.bars[i], &flip_edge);
+    }
+    core.finish();
+    Ok(core.into_result())
 }
 
 #[cfg(test)]
