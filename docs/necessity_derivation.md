@@ -77,10 +77,12 @@
 
 "当前代码"以统一引擎 `unified_necessity.rs` 为基准（URS/iso/nif/pcf 的严格扬弃）。
 
-### 0.5 既有 8 个 prove 守卫 ↔ 定理映射
+### 0.5 prove 守卫 ↔ 定理映射
 
-| `prove`（`unified_necessity.rs`） | 守卫的定理 | 概念环 |
-|----------------------------------|-----------|--------|
+**交易层（`unified_necessity.rs`，N1-N8，每 bar / 每操作 panic）**：
+
+| `prove` | 守卫的定理 | 概念环 |
+|---------|-----------|--------|
 | N1 逐仓独立森林 | T₃₉（递归链守恒）+ T₄₂（孤儿不可能）+ T₂₂/T₂₃（赋格/嵌套） | 20 |
 | N2 per-voice 独立操作 | T₂₁（并发=级别同时性） | 18 |
 | N3 全三类 BSP 消费 | T₁₃（三类买卖点） | 12 |
@@ -89,6 +91,28 @@
 | N6 先势后定位时序 | T₂₉（压缩→展开时序） | 14 + 540 |
 | N7 降成本不需 pending | T₂₀（降成本=voice 内部操作） | 17 |
 | N8 双层会计守恒 | T₃₃/T₃₄/T₃₅/T₃₇/T₃₈/T₃₉（双层记账 + 守恒律） | 22 |
+
+**信号层（buysellpoint/fractal/stroke/bi_engine，S5-S12，信号产出结构）**：
+
+| `prove` | 守卫的定理 | 位置 / 有效域 |
+|---------|-----------|--------------|
+| S5 包含处理先于分型 | T₆（分型=三K极值） | `bi_engine::update_fractals` 非包含 assert（a0，release-active 有牙）；fractal 互斥=定义自洽 |
+| S6 笔=相反分型 | T₇（笔=最小方向单元） | `stroke::build_stroke`（a0，panic） |
+| S7 形态学构造良序 | T₈/T₉（regression guard） | `prove_s7_morphology`（递归层）+ build_type1/3 中枢 ZD≤ZG（增量层 O(1)）；非 T8/T9 的 L2 验证 |
+| S11 走势完美点首尾相连 | T₁₄（**located 流 ✓** / raw ~） | `prove_s11_s9_located`（located 势源流交替 panic；raw 候选不交替非 bug） |
+| S9 买<卖价格 zigzag | T₁₅（~ 经验确认） | `prove_s11_s9_located` 观测计数（located 流仍违反~50%，非 panic） |
+| S12 三类中枢锚 | T₁₃（中枢生命周期） | `prove_s12_center`（消费侧 cs⇒ZD≤ZG）+ buysellpoints_from_level（生成侧 type2/3⇒锚） |
+
+**会计层（isolated_fugue/unified_necessity，A4-A5，每操作 panic）**：
+
+| `prove` | 守卫的定理 | 位置 |
+|---------|-----------|------|
+| A4 双向重定基方向 | T₃₈（earning +Δ>0 / 亏损 −δ≥0） | `close_voice`（守恒由 N8 兜底，A4 守方向/sign） |
+| A5 涌现重组 N 不变 | T₃₀（重组非加仓） | `prove_a5_relabel`（units/NAV 不变）+ root_emergent 单调性 assert（release-active） |
+
+> 注：A3（T₃₇ child.P&L≡cost_reduction）的字面恒等是有条件的（§11.1），其无条件严格形式 =
+> NAV 价值中性（T₃₅），已由 N8 守卫，不另设 prove。T₄₀（M=N 同股数翻转）由 `prove_t14_root_flip`
+> 的 units_pre/units_post 比对共生覆盖（非独立 prove）。
 
 ### 0.6 定理依赖结构（无环 DAG）
 
@@ -286,9 +310,19 @@ type1；② 反向后回测原中枢确认新方向 = type2；③ 突破中枢�
 开端 = 反向走势起点 = 买点候选。故每个卖点同时是买点候选，反之亦然。由 A₁（无无运动
 间隙），相邻 BSP 之间无空隙。故 BSP 首尾相连。□
 
-【环 2+11+23｜prove —｜状态 ~】a0 层成立，但实装依赖信号层 BSP 完整生成。
-**差距**：高级别 type1 卖链罕见完整级联 ⟹ 高级别出场点稀疏（pcf 踏空-避免机制，非首尾
-相连的否定，谱系 `project_bsp_gap_root_cause`）。
+【环 2+11+23｜prove **S11** `prove_s11_s9_located`（buysellpoint.rs）｜状态 ~（raw）/ ✓（located）】
+**编排者裁决（2026-06-15）：T14 须区分两个流，二者状态不同**：
+- **raw candidate 流 = ~（不成立，非 bug）**：raw confirmed type1 流系统性**不交替**（8 标的
+  79%：CL 78.6%/BRN 79.0%/QQQ 80.8%）。这是 candidate/located 概念分离——raw type1 只兑现
+  T12 的"背驰"维度（振幅），"方向反转"维度需 027:25 否定线过滤后的 **located 势源**才兑现
+  （谱系 `project_signal_layer_duality` / `project_bsp_gap_root_cause`：~79% 是下跌途中刷新低点
+  的连续底背驰候选，走势未完美被否定线否定）。
+- **located 势源流 = ✓（必然性）**：经否定线过滤后驱动根 F/C 操作的走势完美点流**严格交替**
+  buy/sell（根操作状态机内蕴约束：long→flip short→flip long）。`prove_s11_s9_located` 对该流
+  panic 守卫——实测 CL n_ops=7 / BRN n_ops=12 零 S11 panic（与操作层 `prove_t14_root_flip`
+  同源，25M bar 已验）。此即 T14 的精确有效域：**走势完美点（located）首尾相连**，非 raw 候选。
+**差距**：高级别 type1 卖链罕见完整级联 ⟹ located 流稀疏（高级别出场点稀疏，pcf 踏空-避免
+机制）；T14 升 ✓ 仅对 located 流，raw 流保持 ~。
 
 ### 定理 T₁₅（买点价 < 前一卖点价）
 
@@ -300,10 +334,14 @@ type1；② 反向后回测原中枢确认新方向 = type2；③ 突破中枢�
 卖点价：则上涨完美后未真正回落，势未真正耗尽，与"上涨走势完美"（T₂）矛盾。故买点价 <
 前卖点价。□
 
-【环 1+10｜prove —｜状态 ~】引擎不显式校验该不等式（非前置守卫）。**027:25 否定线**
-处理违反情形：若回补价 > 卖出价（破极值），negate 扫描（B）关闭 voice ⟹ leftover=0 ⟹
-cost_reduction=0。亏损分支物化为 `n_base -= shortfall`（单位永久缩水），非负
-cost_reduction（谱系 `project_nrf_v4_strict_accounting`）。
+【环 1+10｜prove **S9** `prove_s11_s9_located`（观测计数，非 panic）｜状态 ~（经验确认）】
+`prove_s11_s9_located` 对 located 势源流记 `n_s9_violations` 观测计数（非 panic）。
+**否定性结果（L2）**：价格 zigzag（买<前卖/卖>前买）**即使在 located 流也违反 ~50%**
+（CL 5/6、BRN 6/11）——根翻空发生在走势完美点，与"翻空价高于入场"无必然关系（regime
+依赖）。故 T15 是真 ~ 状态（即使 located 流），S9 设观测计数非 panic
+（formalization-validity-domain.md：~ 不声明为 ✓；若 panic 会使 BRN 崩溃）。
+旧 027:25 否定线已删除（commit 705959f8f5），S9 不再由否定线代理处理。亏损分支仍物化为
+`n_base -= shortfall`（A4/T38 守卫，谱系 `project_nrf_v4_strict_accounting`）。
 
 ### 定理 T₁₆（级别 = 递归层次，每层完整形态学）
 
@@ -314,9 +352,19 @@ cost_reduction（谱系 `project_nrf_v4_strict_accounting`）。
 走势终完美"。由 T₆–T₁₃，"走势终完美"必然产出该级别的完整形态学 + 背驰 + 三类买卖点。
 故每个级别独立拥有完整结构。级别 = 全称命题的递归实例。□
 
-【环 13｜prove —｜状态 ✓】`bsp_events: [Vec<BspEvent>; MAX_LADDER]`（per-ladder 独立），
-`FIRST_BSP_LADDER..MAX_LADDER` 全层消费（谱系 `project_bsp_sublevel_settled_gate`）。
-缠师原文：第 17/20–22 课。
+【环 13｜prove **S12** `prove_s12_center`（per-bar per-ladder）｜状态 ✓（有效域分割）】
+`bsp_events: [Vec<BspEvent>; MAX_LADDER]`（per-ladder 独立），`FIRST_BSP_LADDER..MAX_LADDER`
+全层消费（谱系 `project_bsp_sublevel_settled_gate`）。S12 在 unn step 每 bar 每 ladder 对每个
+BSP 事件验中枢锚良序（cs⇒ZD≤ZG）。
+**有效域诚实标注（信号层 prove 覆盖空间，formalization-validity-domain.md）**：
+- **a0 层（bi）运行时守卫**：S5/T6（bi_engine 非包含 assert）、S6/T7（build_stroke 相反分型）
+  仅在 a0 笔构造时 release-active。
+- **高级别（L2+）形态学**：分型顶底交替由 `segment_layers.rs` 递归引擎**构造保证**（非独立
+  panic 守卫）——T16 全称命题的高级别实例有效域 = 构造保证，非运行时验证。
+- **per-level/per-ladder 运行时守卫**：S7（中枢/线段良序，regression guard，ZD≤ZG 由
+  zhongshu:134 结构保证）、S12（中枢锚良序）。
+故 T16 ✓ 的有效域 = a0 运行时守卫 ∪ 高级别构造保证 ∪ per-ladder BSP 结构守卫；非"每层独立
+panic 验证全形态学"。缠师原文：第 17/20–22 课。
 
 ---
 
@@ -665,7 +713,10 @@ T₃₄ 每 bar 守卫覆盖（不区分深度）。实测 max_children ∈ [1,7
 开启。由 T₃₄ 守恒，翻转单位数不变（M = N）。由 T₁₄，新走势买卖点在 a0 层首尾相连，等待
 极短。□
 
-【环 §4+环22｜prove —｜状态 ✓】C 根翻转 m=N 特例（line 620-649）：父释放现金 m×c →
+【环 §4+环22｜prove **T14 共生覆盖** `prove_t14_root_flip`｜状态 ✓（共生）】M=N 由
+`prove_t14_root_flip` 的 `units_pre==units_post` 比对**共生覆盖**（非独立 prove；§0.5 注）。
+若未来新增翻转路径未调 `prove_t14_root_flip`，M=N 静默失守——当前所有翻转路径均调用。
+C 根翻转 m=N 特例（line 620-649）：父释放现金 m×c →
 子空@root.ladder−1 用现金开空，携 located 极值否定线。时序：父释放现金 → 子用现金开空
 （不可反序）。缠师原文：第 26 课"34"单位数量纲。
 
