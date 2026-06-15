@@ -177,6 +177,12 @@
 //!   `helix_centripetal_confirm` 向心回溯读 candidate 之过去的内圈 type1，第93课"区间套定位"）。
 //!   **无新 prove**——T54 = 540 双重性，已由 T49（`helix_centripetal_confirm` 向心）+ `prove_chain`
 //!   （因果链 compress≤confirm≤bar）覆盖。✓（文档定理化）。
+//! - **T55 比价关系（chan99 §22 / 第72/73课）→ 纤维积 E_S×E_R + 群 D∞×D∞**：比价走势（标的/大盘
+//!   比率，满足 A₀）有自己的螺旋；操作 = 标的螺旋与比价螺旋的 φ=0 **同时**成立（双线定位 = 纤维积
+//!   上 (0,0) 母线交点）。三个独立系统失败率相乘 ⟹ **独立 ⟹ 直积** D∞×D∞。**M2 选股层，未接入
+//!   step**（用户裁决"代码先写等 M2 接入"）——`prove_t55_dual_line_observe` 是**观测型**（统计独立
+//!   性，非 panic；独立性 L2/L3 经验非 L0）。派生推论（双线定位/手性独立/比价慢变量/独立性=直积）+
+//!   穷尽性见 `necessity_derivation.md` §10。
 
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
@@ -659,6 +665,77 @@ fn prove_t50_radial_scaling(res: &PositionalResult) -> u64 {
         }
     }
     violations
+}
+
+// ═══════════ T55 比价关系（M2 选股层，未接入 step；observation 型）═══════════
+// **认识论位置（用户裁决 2026-06-15）**：比价是选股正则化（M2）的内容，是另一层——T55 定理化
+// + prove 先写，**不接入现有引擎（M1）的操作流程**，等 M2 阶段接入。prove 是**观测型**（统计
+// 验证，非 panic）——双线定位的独立性是 L2/L3 经验性质（regime 依赖），非 L0 每 bar 不变量
+// （formalization-validity-domain.md：不把经验性质误作 panic 守卫；与 prove_t50/S9 同范式）。
+//
+// **缠师原文（一级权威）**：chan99 §22「任何一个股票都不是独立的，在整个股票市场中，处在一定
+// 的比价关系中，这个比价关系的变动，也可以构成一个买卖系统，这个买卖系统是和市场资金的流向
+// 相关的」+ 第72/73课「基本面、比价关系、技术面三个独立系统」（独立 ⟹ 失败率相乘 ⟹ 直积）。
+
+/// T55 比价双线定位观测（M2 未接入；`#[allow(dead_code)]` = 用户裁决"代码先写，等 M2 接入"）。
+/// 比价走势（标的/大盘 比率，满足 A₀ → 自己的螺旋 E_R）的 φ=0 与标的螺旋 E_S 的 φ=0 在纤维积
+/// E_S×E_R 上的双线定位（同时 φ=0）+ 独立性观测（派生 T55-d：独立 ⟹ joint≈marginal 乘积）。
+#[allow(dead_code)]
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct T55Observation {
+    /// 标的螺旋 φ=0（走势完美）数。
+    pub n_target_fire: u64,
+    /// 比价螺旋 φ=0 数（M2 接入：比价走势 confirm fire）。
+    pub n_ratio_fire: u64,
+    /// 双线定位数：标的 φ=0 ∧ 比价 φ=0（窗口内同时性）= 纤维积 E_S×E_R 上 (0,0) 母线交点。
+    pub n_dual_line: u64,
+    /// 观测总 bar 数。
+    pub total_bars: u64,
+}
+
+#[allow(dead_code)]
+impl T55Observation {
+    /// **独立性比**（派生 T55-d：三个独立系统失败率相乘 ⟺ 直积 D∞×D∞）：
+    /// `joint_rate / (marginal_target × marginal_ratio) = n_dual×total / (n_target×n_ratio)`。
+    /// ≈1 ⟹ 两螺旋**独立**（直积成立，失败率相乘，比价加信息）；≫1 ⟹ 正相关（比价非独立，
+    /// 退化为单螺旋——标的与大盘同涨同跌，比价走势平凡）；≈0 ⟹ 负相关（对冲/独立行情）。
+    /// 返回 None 若任一边界（无 fire / 零 bar）。
+    pub(crate) fn independence_ratio(&self) -> Option<f64> {
+        if self.total_bars == 0 || self.n_target_fire == 0 || self.n_ratio_fire == 0 {
+            return None;
+        }
+        Some((self.n_dual_line as f64 * self.total_bars as f64)
+            / (self.n_target_fire as f64 * self.n_ratio_fire as f64))
+    }
+}
+
+/// **T55（比价关系，chan99 §22 / 第72/73课）观测**：标的螺旋 φ=0 流（`target_fires`）与比价
+/// 螺旋 φ=0 流（`ratio_fires`，M2 接入 = 比价走势 confirm fire）的**双线定位**（同时 φ=0，纤维积
+/// E_S×E_R 上 (0,0) 交点）+ 独立性。`window` = 同时性容差（bar）。**未接入 step**（M2-pending）——
+/// 由 M2 选股层用真实比价走势 fire 流调用。**observation 型不 panic**（独立性 L2/L3 经验，非 L0）。
+#[allow(dead_code)]
+fn prove_t55_dual_line_observe(
+    target_fires: &[i64],
+    ratio_fires: &[i64],
+    window: i64,
+    total_bars: i64,
+) -> T55Observation {
+    // 双线定位：每个标的 φ=0 是否有比价 φ=0 在 ±window 内（纤维积 (0,0) 母线同时性）。
+    // ratio_fires 升序 ⇒ partition_point 二分窗口边界。
+    let mut n_dual = 0u64;
+    for &tb in target_fires {
+        let lo = ratio_fires.partition_point(|&rb| rb < tb - window);
+        let hi = ratio_fires.partition_point(|&rb| rb <= tb + window);
+        if hi > lo {
+            n_dual += 1; // 标的 φ=0 与比价 φ=0 同时 ⇒ 双线定位
+        }
+    }
+    T55Observation {
+        n_target_fire: target_fires.len() as u64,
+        n_ratio_fire: ratio_fires.len() as u64,
+        n_dual_line: n_dual,
+        total_bars: total_bars.max(0) as u64,
+    }
 }
 
 // ═══════════ T2/T4 定义层保证（无运行时 prove，编排者 2026-06-15）═══════════
@@ -1790,6 +1867,24 @@ mod tests {
         append_sell_chain_at4(&mut bars);
         let r = run(bars, flips);
         assert!(r.n_nrf_root_flips_by_ladder[4] >= 1, "级联连接结合律下翻转正常（T53 守卫零 panic）");
+    }
+
+    #[test]
+    fn t55_dual_line_observation_discriminates() {
+        // T55 比价双线定位观测（M2 未接入，合成 L1 管线验证）：判别相关/不相关两螺旋。
+        // ① 完全重合（标的=比价 fire）⇒ 双线定位满 + 独立性比 ≫1（正相关 = 比价非独立退化）。
+        let corr = prove_t55_dual_line_observe(&[10, 20, 30], &[10, 20, 30], 0, 1000);
+        assert_eq!(corr.n_dual_line, 3, "完全重合 ⇒ 3 个双线定位");
+        assert!(corr.independence_ratio().unwrap() > 10.0, "正相关 ⇒ 独立性比 ≫1（比价退化为单螺旋）");
+        // ② 错开（window=0 不命中）⇒ 零双线定位（两螺旋 φ=0 不同时）。
+        let disj = prove_t55_dual_line_observe(&[10, 20, 30], &[15, 25, 35], 0, 1000);
+        assert_eq!(disj.n_dual_line, 0, "φ=0 错开 ⇒ 零双线定位");
+        assert_eq!(disj.independence_ratio(), Some(0.0), "无同时性 ⇒ 独立性比 0（负相关/对冲）");
+        // ③ 窗口容差：±5 内命中 ⇒ 双线定位（纤维积 (0,0) 母线邻域同时性）。
+        let win = prove_t55_dual_line_observe(&[10, 20, 30], &[12, 22, 32], 5, 1000);
+        assert_eq!(win.n_dual_line, 3, "±5 窗口内 ⇒ 3 个双线定位");
+        // ④ 边界：任一流空 ⇒ 独立性比 None（无定义）。
+        assert_eq!(prove_t55_dual_line_observe(&[], &[10], 0, 100).independence_ratio(), None);
     }
 
     #[test]
