@@ -682,7 +682,7 @@ pub fn buysellpoints_from_level(
     // 阶段 ⇒ 必锚中枢（build_type2/3_bsp 恒设 center_seg_start）。type2/3 无锚 = 中枢生命周期
     // 结构破损。**这是 T4/T10「走势类型=中枢数量=径向圈数」判别量的结构前提守卫**——中枢锚
     // 可数性是中枢数量可数的基础（趋势≥2/盘整1）。violation = panic（生成侧——真实 BSP 生成的
-    // 不变量，非引擎消费侧契约；消费侧 prove_t4_classification 仅 make-observable 分类完备）。
+    // 不变量，非引擎消费侧契约；消费侧分类完备由 BspKind enum 三变体编译期穷尽保证 = 定义层，无 prove_t4）。
     for bp in &all {
         if matches!(bp.kind, BspKind::Type2 | BspKind::Type3) {
             assert!(

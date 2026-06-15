@@ -121,14 +121,19 @@
 //! A₀–A₄ 上追加建模公理 A₅（尺度比 λ 恒定，L2 可证伪），R₃ 自相似实体化为对数螺旋。
 //!
 //! - **T₂ 走势完美三坐标合一**：φ→0(背驰 candidate)∧settle(径向中枢闭合=内圈 type1 已 settle
-//!   母线贯通)∧ε(方向)**三坐标同时**——`prove_t2_perfection_triaxis`（confirm fire 处 panic）。
-//!   单独 settle≠完美（`project_ph_settle_usage_boundary`）。✓（三坐标显式守卫）。**赋格**：
-//!   confirm = 外圈 candidate 声部与内圈已 settle type1 声部在 φ=0 母线**相位共现**（stretto）。
+//!   母线贯通)∧ε(方向)**三坐标同时** = confirm fire 的**定义**（`confirmed = since<bar ∧ helix`，
+//!   helix 母线贯通 ⟹ 内圈同侧 type1 历史非空）。三坐标合一由 confirm 构造**定义层保证**——
+//!   不设运行时 prove（旧 `prove_t2_perfection_triaxis` 的三断言全被 fire 门 `since<bar∧helix`
+//!   逻辑蕴含 = 重言，永不 fire，已删）。单独 settle≠完美（`project_ph_settle_usage_boundary`）。
+//!   **赋格**：confirm = 外圈 candidate 声部与内圈已 settle type1 声部在 φ=0 母线**相位共现**（stretto）。
 //! - **T₄/T₁₀ 走势完全分类无第四类**：判别量 = 径向圈数 = 中枢数量（趋势≥2/盘整1，赋格声部
-//!   跨圈数）。`prove_t4_classification`（BSP 处 panic：分类穷尽 + type2/3 必有中枢锚）。✓（分类
-//!   完备）。趋向维(斜率)DivEvent 无段端点**不可达**（T₁₁ 投影缺口的代码证据）——不强加伪判据。
-//! - **T₄₇ 角向唯一奇点 → 无第四类 BSP**：type1/2/3 是同一 φ=0 的径向投影深度（prove_t4 显式
-//!   守卫无 type4）。✓。
+//!   跨圈数）。分类完备由 `BspKind` enum（Type1/2/3 三变体）**编译期穷尽**保证 = 定义层 ✓——不设
+//!   运行时 prove（旧 `prove_t4_classification` 的 `matches!(kind, Type1|Type2|Type3)` 对三变体
+//!   enum 永真 = 重言，已删）。type2/3 中枢锚（径向圈数判别量前提）由 `prove_s12_center`（消费侧，
+//!   line 804）+ 生成侧 `buysellpoints_from_level` 守卫。趋向维(斜率)DivEvent 无段端点**不可达**
+//!   （T₁₁ 投影缺口的代码证据）——不强加伪判据。
+//! - **T₄₇ 角向唯一奇点 → 无第四类 BSP**：type1/2/3 是同一 φ=0 的径向投影深度（`BspKind` enum
+//!   三变体编译期穷尽 = 定义层无 type4）。✓。
 //! - **T₄₈ 径向 σ-不变 → 守恒律建于股数**：`prove_n8` 守 Σunits（σ-不变）+ NAV 中性（径向冻结）。✓。
 //! - **T₄₉ confirm 向心回溯**：`helix_centripetal_confirm` 沿 φ=0 母线**向心回溯已 settle 内圈
 //!   type1**（t_j<t_K 过去），非前向等待（读法A 几何错误，`project_recl2_confirm_breakpoint_temporal`
@@ -137,19 +142,21 @@
 //! - **T₅₀ 操作频率径向标度律 f(k)∝λ^{−k}**：清仓(最外圈 K)∝λ^{−K} 罕见 / 降成本(内圈)∝λ^{−k}
 //!   频繁。定性单调核 A₅-独立（`prove_t50_radial_scaling` eod 观测），λ 指数律 L2 可证伪——~
 //!   （非 panic，formalization-validity-domain.md：不把 L2 定量律误作 L0 不变量）。
-//! - **T₅₁ 手性 τ + 莫比乌斯：T₂₄/T₃₆/T₄₁/T₄₆ 的 ✓ 语义 ∧ 有效域边界**（编排者 2026-06-15
-//!   裁决细化）：方向覆盖 p_dir 是莫比乌斯丛（asymmetry P11，ℝ₊ 载体无**全局连续**截面）。但
-//!   莫比乌斯带有**分段截面在奇点切换**——手性 ε 在每个 φ=0 **时序翻转**（located 流交替，
-//!   `prove_s11` 守卫）= T14 根 in-place 长↔空翻转（已实装，本文件 C 规则）+ 赋格子声部方向
-//!   交替（`child_dir=父反向`）。故：
-//!   - **T₂₄ 多空对称 = 莫比乌斯分段截面（时序 ε 翻转），✓=实装事实**（`prove_t14_root_flip`
-//!     守 M=N 翻转 + S11 located 交替；T14 根翻空 + 赋格子声部双向已实装）；**无全局连续截面 =
-//!     有效域边界**（不能"同时"多空，只能时序分段——这是对称的正确形式，非缺陷）。
-//!   - **T₃₆/T₄₁/T₄₆ 同理**：✓=实装事实（空头 earning 不增 units 由 A4 守卫；零强平/零破产 =
-//!     1x 逐仓 capital 有界构造 + T49 时序正确 + 26.9M bar L2 零 panic）；莫比乌斯∞残余 =
-//!     有效域边界（全 regime/裸空 L0 不可无条件闭合，强平兜底 A 保留作数值终局）。
+//! - **T₅₁ 手性 τ：T₂₄/T₃₆/T₄₁/T₄₆ 干净 ✓（无条件）**（编排者 2026-06-15 裁决）：手性 ε 在
+//!   每个 φ=0 **时序翻转**（located 流交替，`prove_s11` 守卫）= T14 根 in-place 长↔空翻转（已
+//!   实装，本文件 C 规则）+ 赋格子声部方向交替（`child_dir=父反向`）。多空对称 = 时序分段交替，
+//!   这是对称的**正确形式**（由 T14 实装），不是"无全局连续截面的残余"——时序翻转就是对称本身。故：
+//!   - **T₂₄ 多空对称 ✓**（`prove_t14_root_flip` 守 M=N 翻转 + S11 located 交替；T14 根翻空 +
+//!     赋格子声部双向已实装）。
+//!   - **T₃₆ earning 构造不对称 ✓**：不对称是**定理内容**——多头 earning 可构造（A4 守卫 dq>0）+
+//!     空头"挣负股数"L0 不可构造（N8 守恒保护，代码正确地不给空头增 units）。正确实装，非缺陷。
+//!   - **T₄₁/T₄₆ 零强平/零破产 ✓（无条件 L0）**：A₀ 走势终完美（公理）⟹ 空头押注的下跌走势
+//!     **必然完美**（底背驰买点）⟹ T49 向心回溯在正确 φ=0 时点 confirm ⟹ C 在买点 in-place
+//!     翻多消费空头（C 规则 Polarity::Short 分支，`prove_chain` "C-flipback"）。空头**必然先在
+//!     买点被 C 消费**——这是 A₀ 的逻辑推论（L0，不依赖 regime），不是"regime 依赖的有效域边界"。
+//!     强平兜底 A（c≥2×basis）保留为纯数值终局（浮点/边界情况），概念上不可达（C 必先消费）。
 //!   注：`debug_assert_eq!(dir, Long)` 仅在 nested_fugue v4 旧引擎（根恒多）；**unn 的 close_voice
-//!   支持空头根 MtM**（root 经 T14 可翻空），无此 assert——上一版本头注此处与代码不符，本次修正。
+//!   支持空头根 MtM**（root 经 T14 可翻空），无此 assert。
 
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
@@ -566,67 +573,21 @@ fn prove_t50_radial_scaling(res: &PositionalResult) -> u64 {
     violations
 }
 
-/// **T2（走势必然完美——螺旋三坐标合一 / 赋格相位共现）运行时证明**：走势完美点
-/// （φ=0 角向奇点）不是单一布尔，而是螺旋**三坐标同时到达**——① 角向 φ→0（背驰，nest
-/// candidate 力度衰竭后**有后续走势**展开：`since<bar`，第29课:52/54）；② 径向 settle
-/// （该圈中枢闭合 = 内圈 type1 已 settle，`helix_centripetal_confirm` 母线逐圈贯通）；
-/// ③ 手性 ε（方向：向心回溯消费的内圈同侧 type1 历史非空，确认手性一致）。**单独 settle
-/// ≠ 走势完美**（`project_ph_settle_usage_boundary`：settle 是 candidate 层必要条件，非充分
-/// 确认）。confirm fire 当且仅当三坐标同时成立——本守卫在 fire 处断言三者全真（fire 但
-/// 某坐标缺失 = 把 settle/背驰单独误作完美）= panic（137号 make-decision-observable，把
-/// "三坐标本性"从注释提为运行时断言）。**赋格视角**：confirm = 外圈声部（candidate@k）与
-/// 内圈声部（已 settle 的内圈 type1）在 φ=0 母线**相位共现**（向心回溯 T49）——主题（走势
-/// 终完美）在内圈声部已先演奏（过去），外圈声部 confirm 时向心回溯它（嵌套赋格的 stretto）。
-fn prove_t2_perfection_triaxis(
-    helix_through: bool,
-    si_hist_nonempty: bool,
-    since: i64,
-    bar: i64,
-    side: Side,
-    k: usize,
-) {
-    // ① 角向 φ→0 后有后续走势（since<bar）——φ=0 是行程终点，其后必有展开（A₁ 无静止）。
-    assert!(
-        since < bar,
-        "T2 违反@bar {bar} ladder {k} {side:?}：confirm fire 但 since={since}≥bar（角向 φ=0 无后续走势=伪完美，第29课:52/54）"
-    );
-    // ② 径向 settle：helix 母线逐圈贯通（每内圈 type1 已 settle ⇒ 该圈中枢闭合，径向坐标）。
-    assert!(
-        helix_through,
-        "T2 违反@bar {bar} ladder {k} {side:?}：confirm fire 但 helix 母线未贯通（径向 settle 坐标缺失——单独背驰≠走势完美，ph_settle_usage_boundary）"
-    );
-    // ③ 手性 ε：向心回溯的内圈同侧 type1 历史非空（手性方向坐标——φ=0 处 ε 翻转的前提）。
-    assert!(
-        si_hist_nonempty,
-        "T2 违反@bar {bar} ladder {k} {side:?}：confirm fire 但同侧 type1 历史空（手性 ε 坐标缺失——向心回溯应消费内圈同手性 type1）"
-    );
-}
-
-/// **T4/T10（走势完全分类无第四类——角向唯一奇点 T47 / 赋格声部跨圈数）运行时证明
-/// （消费侧 make-observable）**：走势完全分类为 {趋势, 盘整}，无第三类——方向二值（上/下，
-/// 一维价格轴 R1）× 中枢数量 ∈ {1=盘整, ≥2=趋势}。判别量 = 径向圈数 = 中枢数量（T10；
-/// §8.2 螺旋裁定）。本守卫消费侧显式化"BSP 类型穷尽 kind∈{Type1,Type2,Type3}"（中枢生命
-/// 周期三阶段 T13 = 角向唯一奇点 φ=0 的三种径向投影深度 T47，无第四类）——137号
-/// make-decision-observable：把分类完备性提为运行时锚点（BspKind enum 编译期保证变体集，
-/// 未来新增变体在此 catch）。
-/// **分层契约（`prove_s12_center` doc）**：① 分类完备 = 此处消费侧 make-observable；②
-/// **中枢锚（T10 径向圈数=中枢数量判别量的结构前提）= 生成侧** `buysellpoints_from_level`
-/// （type2/3 必有 center_seg_start，panic）+ `prove_s7_morphology`（中枢区间良序）——消费侧
-/// **容忍 cs=None 最小事件**（N3 fixture），把生成不变量强加消费侧 = 分层错位（编排者契约
-/// 明确禁止）。③ **趋向维（斜率）不可达**：DivEvent 只透传 force_a/force_c（MACD 面积 = 力量
-/// 振幅投影）+ direction + 单锚 seg_idx，**无段端点** ⟹ 趋向（dφ/ds 斜率）数据流缺失（T11
-/// 永久投影缺口的代码证据，`project_signal_layer_duality`）——不强加伪斜率判据（formalization-
-/// validity-domain：数据不可达时诚实标注 > 声明膨胀）。violation（第四类 BSP）= panic。
-/// **赋格视角**：走势类型 = 赋格声部跨越的圈数（趋势 = 多圈多中枢声部叠加 stretto，盘整 =
-/// 单圈单中枢），中枢数量 = 径向坐标差。
-fn prove_t4_classification(kind: BspKind, k: usize, bar: i64) {
-    // 分类穷尽（无第四类——make-decision-observable：T4 完全分类 / T47 角向唯一奇点的
-    // 运行时锚点。enum 编译期保证当前变体集；显式断言守未来扩展 + 使"无第四类"可观测）。
-    assert!(
-        matches!(kind, BspKind::Type1 | BspKind::Type2 | BspKind::Type3),
-        "T4 违反@bar {bar} ladder {k}：BSP 类型 {kind:?} ∉ {{Type1,Type2,Type3}}（走势分类出现第四类——T4 完全分类破 / T47 角向第二奇点）"
-    );
-}
+// ═══════════ T2/T4 定义层保证（无运行时 prove，编排者 2026-06-15）═══════════
+// 旧 `prove_t2_perfection_triaxis` / `prove_t4_classification` 是**重言型构造守卫**
+// （三断言/`matches!` 被构造逻辑蕴含，对任何输入永真，永不 fire）——保留它们 = 用永不
+// fire 的 assert 假装运行时验证（声明膨胀）。两条推论由**定义层**保证，故删 prove：
+//
+// **T2（走势完美三坐标合一）**：confirm fire 的判据 `confirmed = since<bar ∧ helix`
+//   （step 中 confirm 触发处）**就是**三坐标合一——① 角向 φ→0（since<bar，背驰后有后续走势，
+//   第29课:52/54）；② 径向 settle（helix 母线逐圈贯通，每内圈 type1 已 settle）；③ 手性 ε
+//   （helix 贯通 ⟹ 最内圈 FIRST_BSP 同侧 type1 历史非空，向心回溯消费同手性，k≥PENDING_LO
+//   保证 helix 循环必经 FIRST_BSP 一圈）。三坐标合一是 confirm 的**构造定义**，无独立于 fire
+//   门的运行时不变量可验 ⇒ 定义层 ✓，不设 prove。单独 settle≠完美（project_ph_settle_usage_boundary）。
+// **T4/T10（走势完全分类无第四类）**：`BspKind` enum 只有 {Type1,Type2,Type3} 三变体
+//   （buysellpoint.rs:26）⇒ 分类完备由**编译期穷尽**保证（类型层 = 定义层 ✓）。type2/3 中枢锚
+//   （T10 径向圈数判别量的结构前提）由 `prove_s12_center`（消费侧，step 中每 BSP 事件）+ 生成侧
+//   `buysellpoints_from_level` 守卫；趋向维斜率 DivEvent 无段端点不可达（T11 投影缺口，不强加伪判据）。
 
 /// 成本门动态 spawn（N4 第16环）：父 voice 释放 θ_sub 配额给子 voice@sub=parent.ladder−1。
 /// **无 floor 参数**——终止纯由成本门：`theta(sub)=None`（势不可测=不存在，递归基 bi）∨
@@ -801,10 +762,10 @@ impl UnnStreamCore {
                 // S12（T13/T9）：信号层每个 BSP 事件中枢锚良序运行时证明（per-bar per-ladder
                 // 覆盖空间——FIRST_BSP 成立必在所有更高 ladder 成立，T16）。violation=panic。
                 for e in &evrows[lad] {
+                    // S12（T13/T9 中枢锚良序）+ T4/T10/T47（走势完全分类无第四类）：BspKind enum
+                    // 三变体编译期穷尽 = 分类完备定义层 ✓（无 prove_t4，见上"T2/T4 定义层保证"）；
+                    // type2/3 中枢锚（径向圈数判别量）由本 prove_s12_center + 生成侧 buysellpoints_from_level。
                     prove_s12_center(e.class.kind(), e.cs, e.zd, e.zg, lad, bar);
-                    // T4/T10/T47：走势完全分类（无第四类，角向唯一奇点 make-observable）。
-                    // 中枢锚（径向圈数判别量）在生成侧 buysellpoints_from_level 守卫（分层）。
-                    prove_t4_classification(e.class.kind(), lad, bar);
                 }
                 self.book.ingest(lad, &evrows[lad], true, None);
             }
@@ -873,13 +834,9 @@ impl UnnStreamCore {
                 let helix = helix_centripetal_confirm(&self.type1_hist, k, Side::Sell, w.since_bar);
                 let confirmed = w.since_bar < bar && helix;
                 if confirmed {
-                    // T2 走势完美三坐标合一：φ→0(since<bar 后续走势) ∧ settle(helix 母线贯通)
-                    // ∧ ε 手性(最内圈 FIRST_BSP 同侧 type1 历史非空——向心回溯消费的同手性)。
-                    prove_t2_perfection_triaxis(
-                        helix,
-                        !self.type1_hist[FIRST_BSP_LADDER][0].is_empty(),
-                        w.since_bar, bar, Side::Sell, k,
-                    );
+                    // T2 三坐标合一 = confirm 的构造定义：φ→0(since<bar 后续走势) ∧ settle(helix
+                    // 母线贯通) ∧ ε 手性(helix 贯通 ⟹ 最内圈 FIRST_BSP 同侧 type1 历史非空)——
+                    // 定义层 ✓，无 prove_t2（见上"T2/T4 定义层保证"）。
                     confirm_sell[k] = Some((w.extreme, w.since_bar));
                     nf_sell[k] = Some(w.extreme);
                     self.res.n_nest_fire_sell_by_ladder[k] += 1;
@@ -892,12 +849,7 @@ impl UnnStreamCore {
                 let helix = helix_centripetal_confirm(&self.type1_hist, k, Side::Buy, w.since_bar);
                 let confirmed = w.since_bar < bar && helix;
                 if confirmed {
-                    // T2 走势完美三坐标合一（买侧 si=1）。
-                    prove_t2_perfection_triaxis(
-                        helix,
-                        !self.type1_hist[FIRST_BSP_LADDER][1].is_empty(),
-                        w.since_bar, bar, Side::Buy, k,
-                    );
+                    // T2 三坐标合一 = confirm 的构造定义（买侧 si=1）——定义层 ✓，无 prove_t2。
                     confirm_buy[k] = Some((w.extreme, w.since_bar));
                     nf_buy[k] = Some(w.extreme);
                     self.res.n_nest_fire_buy_by_ladder[k] += 1;
