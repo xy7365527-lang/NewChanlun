@@ -480,15 +480,19 @@ pub(crate) fn detect_overlap(type2: &mut [BuySellPoint], type3: &mut [BuySellPoi
 // S12 per-bar per-ladder（unn step）；S11/S9 在 located 势源流（根操作驱动，带 source ladder）。
 // ════════════════════════════════════════════════════════════════════════════
 
-/// **S7（T8 线段=第一个有势走势 + T9 中枢=势耗尽结构投影）运行时证明**：每个中枢区间
-/// 良序（ZD ≤ ZG——三段以上重叠区间是中枢存在的充要，T9）；线段 / 中枢 / 走势的跨度
-/// 与高低良序（i0 ≤ i1、low ≤ high、seg_start ≤ seg_end）。ZD>ZG = 无重叠 = 非中枢 =
-/// 形态学 bug；low>high / 跨度逆序 = 线段构造 bug。在 `buysellpoints_from_level` 末尾按
-/// level 调用（递归层 per-ladder 覆盖）。violation = panic。
+/// **S7 形态学构造-一致性守卫（regression guard，非 T8/T9 全部内容）**：中枢区间良序
+/// （ZD ≤ ZG）+ 线段/中枢/走势跨度与高低良序（i0 ≤ i1、low ≤ high、seg_start ≤ seg_end）。
 ///
-/// 注：线段方向交替（S7 严格"多笔涌现方向"）由 segment 引擎构造保证（67/71/77/78 课古怪
-/// 线段处理后输出仍交替，谱系 001-degenerate-segment）；此处验证跨度 / 区间良序（确定为真
-/// 且有信息——guard 形态学构造），不重复断言构造内蕴的交替。
+/// **有效域诚实标注（formalization-validity-domain.md）**：这些不变量由各形态学引擎**构造
+/// 保证**——ZD≤ZG 由 `zhongshu::scan_zhongshu_range` 的 `if zg<=zd { skip }`（只在重叠时
+/// 建中枢）结构性保证；i0≤i1/low≤high 由 segment 引擎保证。故本守卫在当前正确代码上是
+/// **L0 regression guard**（捕获未来引擎重构破坏构造保证，可触发——区别于 fractal 互斥的
+/// 代数恒真无牙），**非** T8/T9 的 L2 验证。T8 的非平凡内容（势在 FIRST_BSP_LADDER 涌现）
+/// 由 `prove_chain`（source≥PENDING_LO）验证；T9 的"走势完美⟹中枢存在"由 move/level 引擎
+/// 构造（中枢数量 ≥1）。线段方向交替由 segment 引擎构造（67/71/77/78 课古怪线段处理后仍
+/// 交替，谱系 001-degenerate-segment）。在 `buysellpoints_from_level` 末尾按 level 调用
+/// （递归层）；增量路径 ladder2/3 的中枢 ZD≤ZG 由 build_type1/3_bsp 的 O(1) 守卫覆盖。
+/// violation = panic。
 pub fn prove_s7_morphology(segs: &[SegView], zss: &[ZsView], moves: &[MoveView], level_id: i64) {
     for (i, sg) in segs.iter().enumerate() {
         assert!(
@@ -673,6 +677,9 @@ pub(crate) fn build_type1_bsp(
     let assoc_mi = find_assoc_trend_move(moves, div.center_idx, zss.len())?;
     let assoc = &moves[assoc_mi];
     let zs = &zss[div.center_idx];
+    // S7/S12（T9 中枢=重叠区间）增量路径覆盖：type1 锚中枢 ZD≤ZG（O(1)，regression guard，
+    // 覆盖 IncrementalBsp/IncrementalSegBsp——prove_s7_morphology 仅全量路径调用）。
+    assert!(zs.zd <= zs.zg, "S7/S12(T9) 违反 type1@level {level_id}：中枢 ZD={} > ZG={}", zs.zd, zs.zg);
     let side = if div.direction == DivDir::Bottom { Side::Buy } else { Side::Sell };
     let seg_idx = div.seg_c_end;
     let mut price = 0.0;
@@ -767,6 +774,8 @@ pub(crate) fn build_type3_bsp(
     if break_seg < 0 || break_seg >= segs.len() as i64 {
         return None;
     }
+    // S7/S12（T9 中枢=重叠区间）增量路径覆盖：type3 锚中枢 ZD≤ZG（O(1)，regression guard）。
+    assert!(zs.zd <= zs.zg, "S7/S12(T9) 违反 type3@level {level_id}：中枢 ZD={} > ZG={}", zs.zd, zs.zg);
     let (opposite, break_direction) = match break_dir {
         crate::zhongshu::BreakDir::Up => (Direction::Down, Direction::Up),
         crate::zhongshu::BreakDir::Down => (Direction::Up, Direction::Down),

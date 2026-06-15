@@ -50,12 +50,15 @@ pub fn classify_fractal(
 ) -> Option<Fractal> {
     let is_top = h_curr > h_prev && h_curr > h_next && l_curr > l_prev && l_curr > l_next;
     let is_bottom = l_curr < l_prev && l_curr < l_next && h_curr < h_prev && h_curr < h_next;
-    // **S5（T6 分型=三K线极值，最小转折结构）运行时证明**：中间 K 线不可同时为顶分型
-    // （高于两侧）和底分型（低于两侧）——三K极值互斥（h_curr>h_prev ∧ h_curr<h_prev 矛盾）。
-    // 分型是笔/线段/中枢的递归原子（T6/T7）；定义破损 = 信号层形态学崩溃。violation = panic。
+    // **S5（T6）顶/底分型互斥——定义自洽守卫（非 T6 全部内容）**：中间 K 线不可同时为顶
+    // 分型和底分型。注：严格不等下此式代数恒真（h_curr>h_prev ∧ h_curr<h_prev 矛盾）⇒ 此
+    // assert 是分型定义的局部自洽检查，**不**编码 T6 的实质前提。T6 的非平凡内容（"相邻两K
+    // 线范围互含则方向不可辨，必须先合并"，docs:180）= **包含处理先于分型判定**，在
+    // `bi_engine::update_fractals` 对三根 merged bar 的非包含 assert 验证（那才是 T6 的运行时
+    // prove，release-active）。
     assert!(
         !(is_top && is_bottom),
-        "S5(T6) 违反@idx {idx}：中间 K 线同时为顶分型和底分型（三K极值互斥矛盾——分型定义破损）"
+        "S5(T6) 违反@idx {idx}：中间 K 线同时为顶分型和底分型（分型定义自洽破损）"
     );
     if is_top {
         return Some(Fractal {

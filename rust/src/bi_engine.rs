@@ -323,6 +323,21 @@ impl BiEngine {
             self.last_confirmed_m = m;
         }
 
+        // **S5（T6 分型前提=包含处理先于分型判定）运行时证明**：分型判定的三根 merged bar
+        // 相邻两两**非包含**（incremental_merge 已把包含关系合并为 staircase——T6"相邻两K线
+        // 范围互含则方向不可辨，必须先合并"，docs/necessity_derivation.md:180）。包含残留 =
+        // 合并 bug ⇒ 错误分型污染笔/线段/中枢/走势/BSP 全递归层。包含语义同 incremental_merge
+        // （本文件 line 244）。violation = panic（这是 T6 的非平凡内容；fractal.rs 的顶/底互斥
+        // assert 是定义一致性，此处才验包含处理）。
+        let non_inclusive = |ah: f64, al: f64, bh: f64, bl: f64| {
+            !((ah >= bh && al <= bl) || (bh >= ah && bl <= al))
+        };
+        assert!(
+            non_inclusive(self.m_highs[m - 3], self.m_lows[m - 3], self.m_highs[m - 2], self.m_lows[m - 2])
+                && non_inclusive(self.m_highs[m - 2], self.m_lows[m - 2], self.m_highs[m - 1], self.m_lows[m - 1]),
+            "S5(T6) 违反@merged {}：分型三根 merged bar 存在包含残留（合并未完成，包含处理 bug）",
+            m - 2
+        );
         let new_pending = classify_fractal(
             self.m_highs[m - 3],
             self.m_highs[m - 2],

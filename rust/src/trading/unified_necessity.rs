@@ -207,7 +207,9 @@ fn root_emergent_ladder(
     {
         lad += 1;
     }
-    debug_assert!(lad >= root_ladder, "T5：涌现层 {lad} < 入场层 {root_ladder}（爬升应单调非降）");
+    // **A5/T30 单调性运行时证明（release-active）**：根涌现层单调非降（爬升只升不降）。
+    // 升 assert!（原 debug_assert! release 失效，GAP-C）——T30 核心命题须 release 守卫。
+    assert!(lad >= root_ladder, "A5(T30) 违反：根涌现层 {lad} < 入场层 {root_ladder}（爬升应单调非降，relabel 不可降级）");
     lad
 }
 
@@ -242,8 +244,10 @@ fn prove_a5_relabel(units_post: f64, units_pre: f64, nav_post: f64, nav_pre: f64
         (units_post - units_pre).abs() <= 1e-9 * units_pre.max(1.0),
         "A5(T30) 违反@bar {bar}：根级别涌现重组改变了 units（{units_pre}→{units_post}）——重组是重新读数非加仓（A3）"
     );
+    // relabel 无物理交易 ⇒ NAV 必**严格**不变（收紧容差 1e-4→1e-9，GAP-C：relabel 非交易，
+    // 不应有交易级舍入；区别于 prove_n8 的 1e-4 容差——后者守真实操作的现金流）。
     assert!(
-        (nav_post - nav_pre).abs() <= 1e-4 * nav_pre.abs().max(1.0),
+        (nav_post - nav_pre).abs() <= 1e-9 * nav_pre.abs().max(1.0),
         "A5(T30) 违反@bar {bar}：根级别涌现重组改变了 NAV（{nav_pre}→{nav_post}）——会计重组价值中性（无物理交易）"
     );
 }
