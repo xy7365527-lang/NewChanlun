@@ -2219,12 +2219,6 @@ fn positional_result_to_dict<'py>(
     out.set_item("nrf_short_earning_hits", res.nrf_short_earning_hits)?;
     out.set_item("nrf_shrink_units", res.nrf_shrink_units)?;
     out.set_item("nrf_max_children", res.nrf_max_children)?;
-    // B 规则：否定线触发 = 势减弱 ⇒ 加速降成本对冲（137号 make-decision-observable；
-    // 删观测态，根多头否定 ⇒ 次级别 spawn 子空头对冲计数，根不清仓，翻转留给 type1）。
-    out.set_item(
-        "n_nrf_negate_hedges_by_ladder",
-        res.n_nrf_negate_hedges_by_ladder.to_vec(),
-    )?;
     Ok(out)
 }
 
