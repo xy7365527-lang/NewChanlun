@@ -568,11 +568,25 @@ pub struct SigLocatedState {
     pub n_ops: u64,
     /// S9（T15 ~ 状态）观测违反计数：located buy≥前 sell 或 sell≤前 buy。非 panic。
     pub n_s9_violations: u64,
+    /// **T11 势角向趋向维（dφ/ds）**：上个 located 完美点 (price, bar)，算相邻完美点的
+    /// 价格-时间斜率 = 势的陡峭度（趋向）。势三维度量在操作层（located 流）齐全：手性 ε
+    /// （side 交替 S11）× 力量（price 振幅 S9）× 趋向（本斜率）。背驰**信号层单独**只 MACD
+    /// 面积力量维（趋向 dif_peak 需全链 MACD = 管线扩展点，当前 dif_peak=0）；势的趋向维由
+    /// located 流斜率度量（操作层，观测非 panic）。
+    pub last_op_price: Option<f64>,
+    pub last_op_bar: Option<i64>,
+    /// 上个相邻完美点的势趋向 |斜率|（趋向衰减观测基准）。
+    pub last_trend_slope: Option<f64>,
+    /// T11 势趋向维观测数 + 趋向衰减次数（|当前斜率|<|上个| = 势趋向衰减 = 背驰趋向维的
+    /// 操作层显现：势减速 ⟹ 走势完美临近）。观测非 panic（regime 依赖）。
+    pub n_trend_obs: u64,
+    pub n_trend_decel: u64,
 }
 
-/// **S11（T14 买卖点首尾相连）panic-prove + S9（T15 买<卖）观测**：located 势源
-/// （027:25 否定线过滤后驱动根 F/C 操作的走势完美点）严格交替 buy/sell（S11 panic）；
-/// 价格 zigzag（S9 观测计数，~ 状态非 panic）。每个根操作调用 (side, price, source)。
+/// **S11（T14 首尾相连）panic + S9（T15 买<卖）观测 + T11（势角向趋向维 dφ/ds）观测**：
+/// located 势源（驱动根 F/C 操作的走势完美点）严格交替 buy/sell（S11 panic）；价格 zigzag
+/// （S9 观测计数，~ 非 panic）；势趋向维 = 相邻完美点价格-时间斜率（T11 观测，操作层势三维
+/// 度量的角向分量）。每个根操作调用 (side, price, source, bar)。
 ///
 /// 编排者裁决（2026-06-15）：S11 在 located 势源流检验，**不在 raw candidate 流**——raw
 /// confirmed type1 系统性不交替（8 标的 79%）是 candidate/located 概念分离（背驰候选 ≠
@@ -614,6 +628,26 @@ pub fn prove_s11_s9_located(
             state.last_buy_price = Some(price);
         }
     }
+    // ── T11 势角向趋向维（dφ/ds）观测：相邻 located 完美点的价格-时间斜率 = 势陡峭度 ──
+    // 势三维度量在操作层齐全：手性 ε（side 交替，S11 上方 panic）× 力量（price 振幅，S9）×
+    // 趋向（本斜率）。这是 T11「背驰=势的自我度量」在螺旋三坐标的完整兑现——背驰（信号层）是
+    // 力量维 MACD 面积，势的趋向维（角向 dφ/ds）由 located 流斜率度量（操作层），方向维由手性
+    // 交替。趋向衰减（|当前斜率|<|上个|）= 背驰趋向维在操作层的体现（势减速 ⟹ 完美临近）。观测
+    // 非 panic（regime 依赖，formalization-validity-domain：趋向衰减不无条件成立）。
+    if let (Some(pp), Some(pb)) = (state.last_op_price, state.last_op_bar) {
+        if bar > pb {
+            let slope = ((price - pp) / (bar - pb) as f64).abs(); // 势趋向维（角向 dφ/ds 代理）
+            state.n_trend_obs += 1;
+            if let Some(prev) = state.last_trend_slope {
+                if slope < prev {
+                    state.n_trend_decel += 1; // 势趋向衰减（背驰趋向维操作层显现）
+                }
+            }
+            state.last_trend_slope = Some(slope);
+        }
+    }
+    state.last_op_price = Some(price);
+    state.last_op_bar = Some(bar);
     state.last_side = Some(side);
     state.n_ops += 1;
 }
@@ -644,14 +678,16 @@ pub fn buysellpoints_from_level(
     all.extend(type3);
     all.sort_by_key(|bp| bp.seg_idx);
 
-    // S12（T13）生成侧：type2（中枢回测确认）/ type3（中枢突破回试）是中枢生命周期阶段
-    // ⇒ 必锚中枢（build_type2/3_bsp 恒设 center_seg_start）。type2/3 无锚 = 中枢生命周期
-    // 结构破损。violation = panic（生成侧——真实 BSP 生成的不变量，非引擎消费侧契约）。
+    // S12（T13）+ T4/T10 生成侧：type2（中枢回测确认）/ type3（中枢突破回试）是中枢生命周期
+    // 阶段 ⇒ 必锚中枢（build_type2/3_bsp 恒设 center_seg_start）。type2/3 无锚 = 中枢生命周期
+    // 结构破损。**这是 T4/T10「走势类型=中枢数量=径向圈数」判别量的结构前提守卫**——中枢锚
+    // 可数性是中枢数量可数的基础（趋势≥2/盘整1）。violation = panic（生成侧——真实 BSP 生成的
+    // 不变量，非引擎消费侧契约；消费侧 prove_t4_classification 仅 make-observable 分类完备）。
     for bp in &all {
         if matches!(bp.kind, BspKind::Type2 | BspKind::Type3) {
             assert!(
                 bp.center_seg_start.is_some(),
-                "S12(T13) 违反@level {level_id} seg {}：{} 无中枢锚（中枢生命周期阶段必锚中枢）",
+                "S12(T13)/T4(T10) 违反@level {level_id} seg {}：{} 无中枢锚（中枢生命周期阶段必锚中枢——径向圈数判别量前提）",
                 bp.seg_idx,
                 bp.kind.as_str()
             );
