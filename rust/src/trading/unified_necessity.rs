@@ -133,18 +133,6 @@
 //!   panic 守卫，✓）；方向覆盖是莫比乌斯丛无全局截面 ⟹ **根恒多 = 拓扑必然**（非实装选择，
 //!   `debug_assert_eq!(dir, Long)` 系列保留——它是对的）。T₂₄/T₃₆/T₄₁/T₄₆ 4 条永久残余 =
 //!   同一莫比乌斯残余的四投影，**只能换维不能在 ℝ₊ 载体内闭合**（不实装为 ✓，接受为拓扑残余）。
-//! - **T₅₂ 成本门上界（空头不强平，§8.4 会计度量闭合）**：莫比乌斯手性残余（空头方向无全局
-//!   截面）在 ℝ₊ 载体内的会计度量约束——空头反向暴露 `units × current_adverse ≤ INITIAL_CAPITAL`
-//!   （`current_adverse = max(0, c−basis)`）。**本次实装** `prove_t52_short_adverse`（每 bar 观测，
-//!   ~ 状态非 panic：临近上界 ratio>0.8 计入预警，finish 汇总；走势终完美保证买点平仓——A 强平
-//!   c≥2×basis 硬终局，T52 是其前软监视；ratio>100%=强牛 regime 根空头超界=539号有效域读数，
-//!   硬 panic 会把 L2 可证伪 regime 读数误作 L0 不变量）。~。
-//! - **T₅₃ 成本门下界∧上界联合定 m**：空头子 voice 仓位量由**两个成本门**夹定——下界 = θ(sub)>
-//!   friction（势幅度>成本，N4 递归门）∧ 上界 = INITIAL_CAPITAL/(θ(sub)×c)（最大反向幅度约束）。
-//!   `max_adverse_move(sub) = θ(sub)×c`（中枢相对振幅 → 绝对价格幅度 = 该级别走势反向运动典型
-//!   幅度）。**本次实装** `try_spawn_cost_gated` 空头子 `m = m_quota.min(INITIAL_CAPITAL/(tq×c))`
-//!   + `prove_t53_short_upper_bound`（spawn panic 守卫）。仅约束空头子（多头亏损有界 m×c，根翻空
-//!   保持 units=n_base 同股数 M=N 不经此路径）。✓（spawn 上界结构性保证空头诞生时不强平）。
 
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
@@ -561,60 +549,6 @@ fn prove_t50_radial_scaling(res: &PositionalResult) -> u64 {
     violations
 }
 
-/// **T53（成本门下界∧上界联合定 m，§8.4 会计度量闭合 / 莫比乌斯手性残余）运行时证明**：
-/// 空头子 voice 的仓位量 m 由**两个成本门**夹定——下界 = θ(sub)>friction（势幅度>成本，
-/// N4 递归门，决定是否 spawn）∧ 上界 = INITIAL_CAPITAL/(θ(sub)×c)（最大反向幅度约束，
-/// 空头不被典型反向走势 θ 强平）。`max_adverse_move(sub)` = 该级别中枢相对振幅 θ(sub)
-/// （`depth_ref.theta` 返回 (zg−zd)/c）×c = **绝对价格幅度**（该级别走势反向运动的典型
-/// 幅度）。m = min(配额下界, capital/max_adverse 上界)。violation（m 超上界）= panic
-/// （make-decision-observable，137号）。**仅 Short 校验**——多头子亏损有界（m×c，非反向
-/// 无限），无上界约束；根翻空保持 units=n_base（T14 同股数 M=N），不经此路径。
-fn prove_t53_short_upper_bound(child_dir: Polarity, m: f64, theta_sub: f64, c: f64, bar: i64) {
-    if child_dir != Polarity::Short {
-        return;
-    }
-    // 中枢相对振幅 θ(sub) → 绝对价格幅度（该级别反向运动典型幅度）。
-    let max_adverse = theta_sub * c;
-    let upper = INITIAL_CAPITAL / max_adverse;
-    assert!(
-        m <= upper * (1.0 + 1e-9),
-        "T53 违反@bar {bar}：空头 m={m} > 成本门上界 INITIAL_CAPITAL/(θ×c)={upper}\
-         （θ(sub)={theta_sub} c={c} max_adverse={max_adverse}）——典型反向幅度 θ 即耗尽\
-         初始资本=强平，违反空头不强平上界（T52/T53）"
-    );
-}
-
-/// **T52（成本门上界：空头不强平，§8.4 会计度量闭合 / 莫比乌斯手性残余）运行时观测
-/// （每 bar，~ 状态非 panic）**：空头 voice 的反向暴露受初始资本约束——`units ×
-/// current_adverse ≤ INITIAL_CAPITAL`，其中 `current_adverse = max(0, c − basis)`
-/// （价格逆空头方向上行的绝对幅度）。**不 panic**（走势终完美保证空头最终在买点平仓——
-/// A 强平是 c≥2×basis 的硬会计终局，T52 是其**之前**的软监视）：① 接近上界（ratio>0.8）
-/// 计入预警（finish 汇总，临近强平）；② T53 spawn 上界已结构性保证空头诞生时
-/// units×θ×c ≤ INITIAL_CAPITAL（典型反向幅度 θ 内不强平）。**为何不 panic**：莫比乌斯
-/// 手性残余（T51/T24/T36/T41/T46）⇒ 空头方向在 ℝ₊ 载体内无全局截面，根空头暴露在强牛
-/// regime 可超 INITIAL_CAPITAL（539号有效域读数）；硬 panic 会把 L2 可证伪的 regime 读数
-/// 误作 L0 不变量（formalization-validity-domain.md）。返回本 bar 触及预警阈值的空头数 +
-/// 最大 ratio（finish 汇总观测）。
-fn prove_t52_short_adverse(voices: &[VoiceLedger], c: f64, _bar: i64) -> (u64, f64) {
-    let mut near = 0u64;
-    let mut max_ratio = 0.0_f64;
-    for v in voices
-        .iter()
-        .filter(|v| !matches!(v.status, VoiceStatus::Closed) && v.dir == Polarity::Short)
-    {
-        let adverse = (c - v.basis).max(0.0); // 逆空头上行的绝对价格幅度
-        let exposure = v.units * adverse;
-        let ratio = exposure / INITIAL_CAPITAL;
-        if ratio > max_ratio {
-            max_ratio = ratio;
-        }
-        if ratio > 0.8 {
-            near += 1; // 临近强平（c→2×basis）——finish 汇总，不每 bar eprintln（25M bar 防刷屏）
-        }
-    }
-    (near, max_ratio)
-}
-
 /// 成本门动态 spawn（N4 第16环）：父 voice 释放 θ_sub 配额给子 voice@sub=parent.ladder−1。
 /// **无 floor 参数**——终止纯由成本门：`theta(sub)=None`（势不可测=不存在，递归基 bi）∨
 /// `theta(sub) < SUB_COST_K×friction`（势幅度<成本）。`floor_stop` 计数器**恒不增**
@@ -643,35 +577,23 @@ fn try_spawn_cost_gated(
             res.n_nrf_cost_rejects_by_ladder[sub] += 1; // N4：势幅度<成本（势消失）
             false
         }
-        Some(tq) => {
+        Some(_) => {
             // m = 父在手 × θ_sub/θ_total（53课配额；高级别势大→大仓位，第15环）。
             // θ_total 跨 [FIRST_BSP, MAX)——所有结构承载层（无操作 floor）。
             let (thetas, theta_total) = theta_weights(depth_ref, FIRST_BSP_LADDER);
             let w = thetas[sub].map(|t| t / theta_total);
             let m_quota = w.map_or(0.0, |w| p_units * w);
-            let child_dir = match p_dir {
-                Polarity::Long => Polarity::Short,
-                Polarity::Short => Polarity::Long,
-            };
-            // ── T53（成本门**上界**：capital/max_adverse）：空头子 voice 的仓位量 m 由
-            //    min(下界,上界) 夹定。下界 = 配额 m_quota（θ>friction 已在上方门控=N4 下界）；
-            //    上界 = INITIAL_CAPITAL/(θ(sub)×c)——θ(sub)=tq 是中枢相对振幅，×c 得绝对反向
-            //    幅度（max_adverse_move）。空头被强平当 units×adverse≥capital ⇒ 用 INITIAL_
-            //    CAPITAL 作可承受上限 ⇒ m ≤ INITIAL_CAPITAL/(tq×c)。多头子无上界（亏损有界
-            //    m×c，非反向无限）⇒ 保留原 capital 可用性约束 m_quota.min(p_capital/c)。──
-            let m = match child_dir {
-                Polarity::Short => {
-                    let max_adverse = tq * c; // 中枢振幅（相对 tq）→ 绝对价格幅度
-                    let upper = INITIAL_CAPITAL / max_adverse; // 成本门上界
-                    m_quota.min(upper) // min(下界配额, 上界 capital/max_adverse) ← T53
-                }
-                Polarity::Long => m_quota.min(p_capital / c), // capital 可用性约束（非反向上界）
+            let m = match p_dir {
+                Polarity::Long => m_quota,
+                Polarity::Short => m_quota.min(p_capital / c),
             };
             if !(m > 0.0 && m.is_finite()) {
                 return false;
             }
-            // T53：m ≤ min(下界,上界) 运行时证明（spawn 时；上界仅约束空头子，多头 no-op）。
-            prove_t53_short_upper_bound(child_dir, m, tq, c, bar);
+            let child_dir = match p_dir {
+                Polarity::Long => Polarity::Short,
+                Polarity::Short => Polarity::Long,
+            };
             let child = VoiceLedger {
                 ladder: sub,
                 dir: child_dir,
@@ -730,10 +652,6 @@ pub(crate) struct UnnStreamCore {
     anchor_state: [i64; MAX_LADDER],
     // N4 累计观测（prove_n4 在 eod 反证 floor_stop 恒 0）。
     max_children_seen: usize,
-    // T52（成本门上界，§8.4）累计观测：临近强平(ratio>0.8)的空头 voice-bar 数 + 最大暴露
-    // ratio（units×adverse/INITIAL_CAPITAL）。finish 汇总（~状态非 panic）。
-    t52_near_bars: u64,
-    t52_max_ratio: f64,
     // 信号层 located 势源流证明状态（S11 交替 panic + S9 价格观测；编排者裁决 located 非 raw）。
     sig_state: SigLocatedState,
     // 空事件行（无事件 bar 复用——与批量同一引用语义，零分配漂移）。
@@ -771,8 +689,6 @@ impl UnnStreamCore {
             dir_state: [None; MAX_LADDER],
             anchor_state: [-1; MAX_LADDER],
             max_children_seen: 0,
-            t52_near_bars: 0,
-            t52_max_ratio: 0.0,
             sig_state: SigLocatedState::default(),
             empty_evs: Default::default(),
             empty_devs: Default::default(),
@@ -1247,13 +1163,6 @@ impl UnnStreamCore {
         let nav_post = nav(&self.voices, self.free, c);
         prove_n8_conservation(&self.voices, self.n_base, nav_pre, nav_post, bar);
         self.max_children_seen = self.max_children_seen.max(prove_n1_forest(&self.voices, bar));
-        // T52（成本门上界，§8.4 会计度量闭合，~状态观测非 panic）：空头反向暴露
-        // units×current_adverse ≤ INITIAL_CAPITAL；临近上界(>0.8)计入预警（finish 汇总）。
-        // 走势终完美保证买点平仓（A 强平 c≥2×basis 硬终局，T52 软监视其前）；不 panic
-        // ——莫比乌斯手性残余强牛 regime 暴露可超界（539号有效域读数，非 L0 不变量）。
-        let (t52_near, t52_ratio) = prove_t52_short_adverse(&self.voices, c, bar);
-        self.t52_near_bars += t52_near;
-        self.t52_max_ratio = self.t52_max_ratio.max(t52_ratio);
 
         // 观测：森林规模 + 物理暴露 + 各层视图持有 bar 计数。
         let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
@@ -1349,18 +1258,6 @@ impl UnnStreamCore {
                 "[T50 径向标度律观测] confirm fire/层[{FIRST_BSP_LADDER}..{MAX_LADDER})={fires:?} \
                  单调违反={t50_viol} | 根翻转(最外圈∝λ^-K)={flips} 降成本spawn(内圈∝λ^-k)={spawns}\
                 （定性核高层罕见；λ 指数律 L2 可证伪，~状态非panic）"
-            );
-        }
-        // ── T52（成本门上界，§8.4 会计度量闭合，~状态）观测：空头反向暴露
-        //    units×adverse ≤ INITIAL_CAPITAL；max ratio>1 = 强牛 regime 根空头超界（莫比乌斯
-        //    手性残余有效域读数）。T53 spawn 上界已结构性保证空头诞生时 ≤ INITIAL_CAPITAL──
-        if self.t52_max_ratio > 0.0 {
-            eprintln!(
-                "[T52 成本门上界观测] 空头反向暴露 max ratio={:.1}%（units×adverse/INITIAL_CAPITAL）\
-                 临近强平(>80%)voice-bar数={} | T53 spawn 上界已保证空头诞生时 m≤INITIAL_CAPITAL/(θ×c)\
-                （走势终完美保证买点平仓；A 强平 c≥2×basis 硬终局，T52 软监视；ratio>100%=强牛超界，\
-                 莫比乌斯手性残余有效域读数，~状态非panic）",
-                self.t52_max_ratio * 100.0, self.t52_near_bars
             );
         }
     }
@@ -1739,76 +1636,5 @@ mod tests {
             "candidate@4 与 sell1@4 同 bar（since==bar）⇒ 向心 confirm `since<bar` 拦截 ⇒ 不翻空（伪确认）"
         );
         assert!(r.nrf_phys_long_bars > 0, "根保持多头（无伪确认翻空）");
-    }
-
-    // ════════════ T52/T53 成本门上界（空头不强平，§8.4）单元验证 ════════════
-
-    /// 构造一个空头 voice（直接测 prove 函数；test 模块在 super 内可建 VoiceLedger）。
-    fn short_voice(ladder: usize, units: f64, basis: f64) -> VoiceLedger {
-        VoiceLedger {
-            ladder,
-            dir: Polarity::Short,
-            units,
-            basis,
-            cost_pool: units * basis,
-            capital: units * basis,
-            entry_bar: 0,
-            negate_line: None,
-            status: VoiceStatus::Active,
-            parent: Some(0),
-            children: Vec::new(),
-            realized_pnl: 0.0,
-            acted_bar: 0,
-        }
-    }
-
-    #[test]
-    fn t53_upper_bound_within_passes() {
-        // T53：m ≤ INITIAL_CAPITAL/(θ×c) 上界内 ⇒ 不 panic。θ=0.02(2% 相对振幅)，c=100
-        // ⇒ max_adverse=2.0 ⇒ upper=100000/2=50000。m=40000<upper ⇒ 通过（多头子 no-op）。
-        prove_t53_short_upper_bound(Polarity::Short, 40_000.0, 0.02, 100.0, 0);
-        prove_t53_short_upper_bound(Polarity::Long, 1e12, 0.02, 100.0, 0); // 多头无上界（no-op）
-    }
-
-    #[test]
-    #[should_panic(expected = "T53 违反")]
-    fn t53_upper_bound_exceeded_panics() {
-        // T53：m > INITIAL_CAPITAL/(θ×c)=50000（θ=0.02,c=100）⇒ panic（典型反向幅度即强平）。
-        prove_t53_short_upper_bound(Polarity::Short, 60_000.0, 0.02, 100.0, 0);
-    }
-
-    #[test]
-    fn t52_adverse_exposure_ratio_and_near_count() {
-        // T52：units×current_adverse/INITIAL_CAPITAL。两个空头：
-        //   ① units=1000, basis=100, c=150 ⇒ adverse=50 ⇒ 暴露=50000 ⇒ ratio=0.5（<0.8 不预警）
-        //   ② units=2000, basis=100, c=150 ⇒ adverse=50 ⇒ 暴露=100000 ⇒ ratio=1.0（>0.8 预警，超界）
-        let voices = vec![short_voice(3, 1000.0, 100.0), short_voice(2, 2000.0, 100.0)];
-        let (near, max_ratio) = prove_t52_short_adverse(&voices, 150.0, 0);
-        assert_eq!(near, 1, "仅 voice②(ratio=1.0>0.8) 计入预警");
-        assert!((max_ratio - 1.0).abs() < 1e-9, "max ratio=1.0（voice②）, 得 {max_ratio}");
-    }
-
-    #[test]
-    fn t52_price_below_basis_no_adverse() {
-        // T52：c<basis（价格顺空头下行=盈利）⇒ adverse=max(0,c−basis)=0 ⇒ 暴露 0 ⇒ 不预警。
-        let voices = vec![short_voice(3, 1e9, 100.0)];
-        let (near, max_ratio) = prove_t52_short_adverse(&voices, 80.0, 0);
-        assert_eq!(near, 0, "价格顺空头下行无反向暴露");
-        assert_eq!(max_ratio, 0.0, "adverse=0 ⇒ ratio=0");
-    }
-
-    #[test]
-    fn t53_spawn_short_child_bound_holds_end_to_end() {
-        // T53 端到端：N7 路径 spawn 空头子@3（root long@4 自层 confirmed 卖）⇒ try_spawn_cost_gated
-        // 对空头子施加上界 m≤INITIAL_CAPITAL/(θ×c) + prove_t53 panic 守卫。跑通无 panic ⇒ T53 成立。
-        let (mut bars, mut flips) = full_bull_entry();
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(sellanypt(bar(104.0), 4)); // sell_any@4（非 type1）⇒ E 降成本 spawn 子空@3
-        let sell_ev_bar = bars.len() as i64 - 1;
-        bars.push(bar(104.0));
-        flips.push((sell_ev_bar, 1, Direction::Down));
-        let r = run(bars, flips);
-        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "空头子@3 spawn（T53 上界夹定 m，prove 无 panic）");
-        assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "N8 守恒 final_nav={}", r.final_nav);
     }
 }
