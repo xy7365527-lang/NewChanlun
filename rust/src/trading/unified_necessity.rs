@@ -120,7 +120,9 @@ use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMP
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::{BarSig, SignalTape};
 use super::types::{BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
-use crate::buysellpoint::{BspKind, Side};
+use crate::buysellpoint::{
+    prove_s11_s9_located, prove_s12_center, BspKind, SigLocatedState, Side,
+};
 use crate::stroke::Direction;
 
 /// pending 势源下界（N5/N6）：move(L1)。segment（=FIRST_BSP_LADDER）非势源——
@@ -228,6 +230,21 @@ fn prove_t14_root_flip(voices: &[VoiceLedger], rid: usize, old_dir: Polarity, un
     assert_eq!(
         roots, 1,
         "T14 违反@bar {bar}：翻转后 {roots} 个 active root（in-place flip 应保持单根，N1）"
+    );
+}
+
+/// **A5（T30 根级别涌现=会计重组，N 不变）运行时证明**：根 voice 涌现归属级别向上
+/// 单调升级（`root_emergent_ladder` relabel）是**会计重组**（重新读数）——A3 禁止加仓
+/// ⇒ 不触发物理交易 ⇒ units 与 NAV 不变。violation（relabel 改了 units/NAV = 把重组
+/// 误作加仓）= panic。
+fn prove_a5_relabel(units_post: f64, units_pre: f64, nav_post: f64, nav_pre: f64, bar: i64) {
+    assert!(
+        (units_post - units_pre).abs() <= 1e-9 * units_pre.max(1.0),
+        "A5(T30) 违反@bar {bar}：根级别涌现重组改变了 units（{units_pre}→{units_post}）——重组是重新读数非加仓（A3）"
+    );
+    assert!(
+        (nav_post - nav_pre).abs() <= 1e-4 * nav_pre.abs().max(1.0),
+        "A5(T30) 违反@bar {bar}：根级别涌现重组改变了 NAV（{nav_pre}→{nav_post}）——会计重组价值中性（无物理交易）"
     );
 }
 
@@ -390,15 +407,33 @@ fn prove_n8_conservation(
 /// `unreachable!()`），E/D 只在子树内流转不动根，F 只建仓。故森林"非空→空"**只能经 A 强平
 /// （被动会计终局，c≥2×basis 1x 逐仓 capital 耗尽）**——`root_liquidated` 标记本 bar A 关闭了
 /// 根。强平→空仓→下一个 BSP→F 重建仓（从最高可介入级别，N5-gated），空仓期间是被动等待
-/// （非引擎选择）。violation = **引擎主动制造空仓**（否定线/观测态残留）= panic（137号）。
-fn prove_t1_no_voluntary_exit(was_active: bool, is_active: bool, root_liquidated: bool, bar: i64) {
+/// （非引擎选择）。两支判据（编排者裁决 2026-06-15 细化）：
+/// ① **被动空仓**：森林"非空→空"⟹ `root_liquidated`（A 强平）。非强平致空仓 = 引擎主动清仓
+///    （否定线/观测态残留）= violation。强平后到下一个 BSP 之间的空仓是正常被动等待。
+/// ② **立即重建**：若本 bar 森林空 ∧ **F-eligible**（buy_source ∧ buy1@s ∧ free>0，有买点+
+///    资本）但 bar 末仍空（`f_eligible_but_empty`）⇒ violation（引擎本应建仓但没建——强平后
+///    应在下一个 confirmed BSP 从区间套最高可介入级别立即重建仓）。注：无资本（free≤0，破产）
+///    或无 located 级联买点时 F 不 eligible，被动空仓正常，非 violation。
+/// violation = panic（137号 make-decision-observable）。
+fn prove_t1_no_voluntary_exit(
+    was_active: bool,
+    is_active: bool,
+    root_liquidated: bool,
+    f_eligible_but_empty: bool,
+    bar: i64,
+) {
     if was_active && !is_active {
         assert!(
             root_liquidated,
-            "T1 违反@bar {bar}：森林非空→空 但根未被市场强平（引擎主动清仓？否定线/观测态\
+            "T1①违反@bar {bar}：森林非空→空 但根未被市场强平（引擎主动清仓？否定线/观测态\
              残留——引擎应只在买卖点主动操作，主动清仓违反第23环恒仓）"
         );
     }
+    assert!(
+        !f_eligible_but_empty,
+        "T1②违反@bar {bar}：森林空 ∧ F-eligible 买点（buy_source ∧ buy1 ∧ free>0）但未重建仓\
+         （引擎本应建仓但没建——强平后应在下一个 confirmed BSP 立即重建仓）"
+    );
 }
 
 /// **N4（成本门终止递归，第16环）**：递归终止纯由成本门——`floor_stop` 计数器恒 0
@@ -510,6 +545,8 @@ pub(crate) struct UnnStreamCore {
     anchor_state: [i64; MAX_LADDER],
     // N4 累计观测（prove_n4 在 eod 反证 floor_stop 恒 0）。
     max_children_seen: usize,
+    // 信号层 located 势源流证明状态（S11 交替 panic + S9 价格观测；编排者裁决 located 非 raw）。
+    sig_state: SigLocatedState,
     // 空事件行（无事件 bar 复用——与批量同一引用语义，零分配漂移）。
     empty_evs: [Vec<BspEvent>; MAX_LADDER],
     empty_devs: [Vec<DivEvent>; MAX_LADDER],
@@ -544,6 +581,7 @@ impl UnnStreamCore {
             dir_state: [None; MAX_LADDER],
             anchor_state: [-1; MAX_LADDER],
             max_children_seen: 0,
+            sig_state: SigLocatedState::default(),
             empty_evs: Default::default(),
             empty_devs: Default::default(),
             cur_bar: 0,
@@ -573,6 +611,11 @@ impl UnnStreamCore {
         // 市场性质：中枢账本 + 振幅参照。
         if let Some(evrows) = sig.bsp_events.as_deref() {
             for lad in FIRST_BSP_LADDER..MAX_LADDER {
+                // S12（T13/T9）：信号层每个 BSP 事件中枢锚良序运行时证明（per-bar per-ladder
+                // 覆盖空间——FIRST_BSP 成立必在所有更高 ladder 成立，T16）。violation=panic。
+                for e in &evrows[lad] {
+                    prove_s12_center(e.class.kind(), e.cs, e.zd, e.zg, lad, bar);
+                }
                 self.book.ingest(lad, &evrows[lad], true, None);
             }
             self.depth_ref.observe(&self.book, c);
@@ -746,7 +789,17 @@ impl UnnStreamCore {
                 &self.dir_state, &self.anchor_state, max_l,
             );
             if re > self.voices[rid].ladder {
+                // A5（T30 涌现=会计重组）：relabel 前后 units/NAV 快照对比（重组非加仓）。
+                let units_pre_re = self.voices[rid].units;
+                let nav_pre_re = nav(&self.voices, self.free, c);
                 self.voices[rid].ladder = re; // 会计重组：无物理交易，units/NAV 不变
+                prove_a5_relabel(
+                    self.voices[rid].units,
+                    units_pre_re,
+                    nav(&self.voices, self.free, c),
+                    nav_pre_re,
+                    bar,
+                );
             }
             let root_ladder = self.voices[rid].ladder;
             let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
@@ -775,6 +828,9 @@ impl UnnStreamCore {
                                 self.located_sell = [None; MAX_LADDER];
                                 acted_ids.push(rid);
                                 prove_t14_root_flip(&self.voices, rid, Polarity::Long, m, bar);
+                                // S11（T14 首尾相连）+ S9（T15）：located 势源根操作流（卖=翻空）
+                                // 严格交替 + 价格 zigzag（编排者裁决：located 流非 raw candidate）。
+                                prove_s11_s9_located(&mut self.sig_state, Side::Sell, c, s, bar);
                                 cleared = true;
                             } else if single_root {
                                 // 根在结构基底（root_ladder == FIRST_BSP_LADDER）⇒ 无更低子级别。
@@ -815,6 +871,9 @@ impl UnnStreamCore {
                             self.located_buy = [None; MAX_LADDER];
                             acted_ids.push(rid);
                             prove_t14_root_flip(&self.voices, rid, Polarity::Short, m, bar);
+                            // S11（T14 首尾相连）+ S9（T15）：located 势源根操作流（买=翻多）
+                            // 严格交替 + 价格 zigzag（编排者裁决：located 流非 raw candidate）。
+                            prove_s11_s9_located(&mut self.sig_state, Side::Buy, c, s, bar);
                             cleared = true;
                         }
                     }
@@ -889,6 +948,13 @@ impl UnnStreamCore {
         //    located 级联链顶 ≥ move(L1)），不实装裸入场——后者 ⊥ N5（segment 非势源，
         //    prove_chain 硬断言 s≥PENDING_LO；裸扫描入场 = 539 号 constitutive_throughput_falsified）。──
         let any_active = self.voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
+        // T1② 立即重建判据：森林空 ∧ F-eligible（buy_source ∧ buy1@s ∧ free>0 有买点+资本）⇒
+        // F 必入场。f_eligible 在 F 入场前判定；若 eligible 但 F 后仍空 ⇒ 漏建仓（prove_t1②）。
+        let f_eligible = !cleared
+            && !any_active
+            && buy_source.is_some_and(|s| sig.buy1.get(s))
+            && self.free > 0.0
+            && (self.free / c).is_finite();
         if !cleared && !any_active {
             if let Some(s) = buy_source {
                 if sig.buy1.get(s) {
@@ -915,6 +981,9 @@ impl UnnStreamCore {
                         self.res.n_nrf_root_entries_by_ladder[s] += 1;
                         self.res.n_entries_by_ladder[s] += 1;
                         self.located_buy = [None; MAX_LADDER];
+                        // S11（T14 首尾相连）+ S9（T15）：located 势源根操作流（买=入场，走势完美
+                        // 序列起点）严格交替 + 价格 zigzag（编排者裁决：located 流非 raw candidate）。
+                        prove_s11_s9_located(&mut self.sig_state, Side::Buy, c, s, bar);
                     }
                 }
             }
@@ -928,10 +997,15 @@ impl UnnStreamCore {
 
         // 观测：森林规模 + 物理暴露 + 各层视图持有 bar 计数。
         let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
-        // T1（不主动清仓，第23环恒仓）：删否定线 + 观测态后引擎无主动清仓路径（C in-place
-        // 翻转，E/D 只动子树）⇒ 森林非空→空只能经 A 强平（被动，root_liquidated）。violation =
-        // 引擎主动制造空仓（否定线/观测态残留）= panic。强平后空仓是被动等待，F 下一 BSP 重建。
-        prove_t1_no_voluntary_exit(was_active, active_count > 0, root_liquidated, bar);
+        // T1（不主动清仓，第23环恒仓）：①森林非空→空只经 A 强平（被动 root_liquidated），非强平
+        // 致空仓=引擎主动清仓=否定线/观测态残留；②强平后空仓 ∧ F-eligible 买点但未重建=漏建仓。
+        prove_t1_no_voluntary_exit(
+            was_active,
+            active_count > 0,
+            root_liquidated,
+            f_eligible && active_count == 0, // F-eligible 但 bar 末仍空 = 漏建仓（应永远 false）
+            bar,
+        );
         self.res.nrf_depth_bars[active_count.min(MAX_LADDER - 1)] += 1;
         let mut long_units = 0.0;
         let mut short_units = 0.0;
@@ -992,6 +1066,14 @@ impl UnnStreamCore {
         prove_n4_cost_gate(&self.res);
         // N1 观测（非 panic）：记录最大子数（>1 = 森林实证）。
         self.res.nrf_max_children = self.max_children_seen as u64;
+        // S9（T15 ~ 状态）观测：located 势源价格 zigzag 违反计数（非 panic——~ 状态不声明为
+        // ✓，formalization-validity-domain.md）。n_s9_violations=0 ⇒ located 流经验满足 T15。
+        if self.sig_state.n_ops > 0 {
+            eprintln!(
+                "[信号层 located 势源观测] n_ops={} S9(T15)违反={}（S11 交替已 panic 守卫；S9 ~状态观测）",
+                self.sig_state.n_ops, self.sig_state.n_s9_violations
+            );
+        }
     }
 
     /// 已累计 trade 数（lib.rs push_bar 切出本 bar 新增）。

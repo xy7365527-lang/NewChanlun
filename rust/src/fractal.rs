@@ -48,14 +48,23 @@ pub fn classify_fractal(
     l_next: f64,
     idx: usize,
 ) -> Option<Fractal> {
-    if h_curr > h_prev && h_curr > h_next && l_curr > l_prev && l_curr > l_next {
+    let is_top = h_curr > h_prev && h_curr > h_next && l_curr > l_prev && l_curr > l_next;
+    let is_bottom = l_curr < l_prev && l_curr < l_next && h_curr < h_prev && h_curr < h_next;
+    // **S5（T6 分型=三K线极值，最小转折结构）运行时证明**：中间 K 线不可同时为顶分型
+    // （高于两侧）和底分型（低于两侧）——三K极值互斥（h_curr>h_prev ∧ h_curr<h_prev 矛盾）。
+    // 分型是笔/线段/中枢的递归原子（T6/T7）；定义破损 = 信号层形态学崩溃。violation = panic。
+    assert!(
+        !(is_top && is_bottom),
+        "S5(T6) 违反@idx {idx}：中间 K 线同时为顶分型和底分型（三K极值互斥矛盾——分型定义破损）"
+    );
+    if is_top {
         return Some(Fractal {
             idx,
             kind: FractalKind::Top,
             price: h_curr,
         });
     }
-    if l_curr < l_prev && l_curr < l_next && h_curr < h_prev && h_curr < h_next {
+    if is_bottom {
         return Some(Fractal {
             idx,
             kind: FractalKind::Bottom,
