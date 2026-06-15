@@ -157,6 +157,26 @@
 //!     强平兜底 A（c≥2×basis）保留为纯数值终局（浮点/边界情况），概念上不可达（C 必先消费）。
 //!   注：`debug_assert_eq!(dir, Long)` 仅在 nested_fugue v4 旧引擎（根恒多）；**unn 的 close_voice
 //!   支持空头根 MtM**（root 经 T14 可翻空），无此 assert。
+//!
+//! ## 缺瓦定理 T52/T53/T54（第33/36/91/93课，`necessity_derivation.md` §9）
+//!
+//! 三条原概念运动链（23 环）未显式化的缠师定理，补入螺旋+赋格统一框架：
+//! - **T52 走势多义性（第33课）→ 覆盖空间多重提升 + 区间套规范固定**：同一走势完美（φ=0）
+//!   在覆盖空间有**多个合法提升**（级别塔 [FIRST_BSP..=S]，第33课"多义性都与中枢有关"）；
+//!   区间套 = **规范固定**（在塔顶 S 选定唯一提升 = "真正的路只有一条"）。`prove_t52_gauge_fix`
+//!   守 fiber 全层共享同一 (compress,confirm) = 单一区间套 confirm 事件折叠整个多义性（非随意
+//!   per-level patch）；与 prove_chain（守 source_ladder 统一+时序）互补不重叠。**赋格**：多义性
+//!   = 同一主题在多声部可演奏，规范固定 = 选定塔顶声部主奏。✓。
+//! - **T53 走势连接结合律（第36课）→ 级联 fold 顺序无关**：A+B+C=(A+B)+C=A+(B+C)。`cascade_arm`
+//!   级联（走势连接）的 fold 不依赖施加顺序——`prove_t53_connection_assoc` 验降序 fold（actual）
+//!   == 升序 re-fold（max 结合/交换）。第36课"无论怎么组合都不违反理论"= 结合律操作形式。**赋格**：
+//!   stretto 声部叠入顺序不改变合成和声。✓。
+//! - **T54 两重表里关系（第91/93课）→ 540 压缩↔展开双重性**：走势的**表**（级别 k 当前形态）
+//!   由**里**（递归子结构）构造（第91课"要 5min 改变 (1,1)→(1,0)，至少要 1min 出现 (1,0)/(-1,1)"
+//!   = 表由里驱动）。**压缩↑**（里→表，"走势从小级别不断积累而来"，第36课）/ **展开↓**（表→里，
+//!   `helix_centripetal_confirm` 向心回溯读 candidate 之过去的内圈 type1，第93课"区间套定位"）。
+//!   **无新 prove**——T54 = 540 双重性，已由 T49（`helix_centripetal_confirm` 向心）+ `prove_chain`
+//!   （因果链 compress≤confirm≤bar）覆盖。✓（文档定理化）。
 
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
@@ -192,7 +212,8 @@ struct Pending {
 }
 
 /// pending confirm 兑现条目（N5/N6 的载体；级联后一条链内全层 source_ladder 统一）。
-#[derive(Debug, Clone, Copy)]
+/// `PartialEq`：T53（连接结合律）逐 slot 比较升序/降序 fold 结果（顺序无关验证）。
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct PendingLocate {
     extreme: f64,
     source_ladder: usize,
@@ -448,6 +469,41 @@ fn prove_chain(
     }
 }
 
+/// **T52（走势多义性，第33课 → 覆盖空间多重提升 + 区间套规范固定）**：同一段走势的走势
+/// 完美（φ=0）在覆盖空间有**多个合法提升**（级别塔 `[FIRST_BSP_LADDER..=S]`——第33课"任何
+/// 走势可有很多不同释义，都与中枢有关"；第36课结合律 A=A5-1+…=A30-1+… 同一走势的多级别
+/// 分解）。区间套 = **规范固定**（gauge fixing）：在塔顶 S 选定唯一一个提升作为操作分解
+/// （覆盖映射 p 把整塔折叠为一个 base 读法 = "真正的路只有一条"，第33课）。规范固定的精确
+/// 形式 = **整个 fiber 由同一个区间套 confirm 事件确定**（统一 `(compress_bar, confirm_bar)`），
+/// 非逐层随意拼接（"对中枢延伸数量限制即可消除多义性"，第33课 = 单一 gauge）。`prove_chain`
+/// 守 `source_ladder` 统一 + 时序（N5/N6）；本 prove 守 **(compress, confirm) 统一** = 规范是
+/// **一个** confirm 折叠整个多义性而非随意 per-level patch（与 prove_chain 不重叠——后者不验
+/// (compress,confirm) 跨层统一）。**赋格**：多义性 = 同一主题"走势终完美"在多个声部（级别）
+/// 可演奏；规范固定 = 选定塔顶声部为主奏（根 voice 的级别）。violation = panic。
+fn prove_t52_gauge_fix(located: &[Option<PendingLocate>; MAX_LADDER], s: usize, bar: i64, op: &str) {
+    let top = located[s]
+        .unwrap_or_else(|| panic!("T52 违反@bar {bar} {op}：塔顶 source={s} 无 located（区间套规范不存在）"));
+    let gauge = (top.compress_bar, top.confirm_bar);
+    for k in FIRST_BSP_LADDER..=s {
+        let e = located[k].unwrap_or_else(|| {
+            panic!("T52 违反@bar {bar} {op}：多义性塔 [{FIRST_BSP_LADDER}..={s}] 层 {k} 缺提升（fiber 断）")
+        });
+        assert_eq!(
+            (e.compress_bar, e.confirm_bar), gauge,
+            "T52 违反@bar {bar} {op}：fiber 层 {k} (compress,confirm)=({},{}) ≠ 塔顶 gauge ({},{})\
+             ——规范未固定（多义性被逐层随意拼接，非同一区间套 confirm 事件折叠整个 fiber）",
+            e.compress_bar, e.confirm_bar, gauge.0, gauge.1
+        );
+    }
+    // 多义性可数（观测；S>FIRST_BSP_LADDER ⇒ ≥2 合法提升 = 覆盖空间多重提升非平凡）。连续塔
+    // 由 prove_n5_cascade 守（此处不重复 panic——避免重言；仅 debug 观测 fiber 高度 = 塔高）。
+    debug_assert_eq!(
+        (FIRST_BSP_LADDER..=s).filter(|&k| located[k].is_some()).count(),
+        s - FIRST_BSP_LADDER + 1,
+        "T52@bar {bar} {op}：fiber 高度 ≠ 塔高（连续性由 prove_n5_cascade 守）"
+    );
+}
+
 /// **N5（级联结构，每 bar 后置）**：located 非空 ⇒ 连续前缀 `[FIRST_BSP..=S]` 且每层
 /// `source_ladder ≥ k`（自上而下——源在本层或更高；自下而上独立武装会出现
 /// `source_ladder < k`）。violation = panic。
@@ -468,6 +524,38 @@ fn prove_n5_cascade(located: &[Option<PendingLocate>; MAX_LADDER], bar: i64, sid
         for k in (s + 1)..MAX_LADDER {
             assert!(located[k].is_none(), "N5 违反@bar {bar} {side}：源层 {s} 之上层 {k} 有 located（非前缀）");
         }
+    }
+}
+
+/// **T53（走势类型连接结合律，第36课）**：A+B+C=(A+B)+C=A+(B+C)，A/B/C 级别可不同。
+/// 区间套级联（`cascade_arm` = 走势连接：把各级别 confirm 提升组合成一个 located 塔）的 fold
+/// **不依赖施加顺序**——actual 降序施加本 bar confirm（高 source 优先），独立**升序**重 fold
+/// 得**同一** located 塔（每层 source = 覆盖它的最大 source，max 结合/交换 ⇒ 顺序无关）。
+/// 第36课"无论你怎么组合，都不会出现违反本ID理论的情况"= 连接结合律的操作形式。验证：升序
+/// `re-fold(pre, confirms)` == actual `post`（逐 slot 完整 `PendingLocate`）。violation
+/// （顺序依赖 = 结合律破）= panic。**与 prove_n5_cascade 不重叠**——后者验单次 fold 结果的
+/// 结构（连续前缀），本 prove 验**两序 fold 等价**（结合律本身，非结构）。**赋格**：连接结合
+/// = stretto 声部叠入顺序不改变合成的和声（外圈先入 vs 内圈先入得同一塔）。
+fn prove_t53_connection_assoc(
+    pre: &[Option<PendingLocate>; MAX_LADDER],
+    confirms: &[Option<(f64, i64)>; MAX_LADDER],
+    dir: Side,
+    bar: i64,
+    post: &[Option<PendingLocate>; MAX_LADDER],
+) {
+    let mut alt = *pre; // 独立升序 re-fold（actual 用降序；max 结合/交换 ⇒ 应得同一塔）
+    for k in PENDING_LO..MAX_LADDER {
+        if let Some((ext, since)) = confirms[k] {
+            cascade_arm(&mut alt, dir, k, ext, since, bar);
+        }
+    }
+    for k in FIRST_BSP_LADDER..MAX_LADDER {
+        assert!(
+            alt[k] == post[k],
+            "T53 违反@bar {bar} {dir:?}：级联连接非结合——层 {k} 升序 fold={:?} ≠ 降序 fold={:?}\
+             （走势连接顺序依赖，第36课 (A+B)+C≠A+(B+C)）",
+            alt[k], post[k]
+        );
     }
 }
 
@@ -879,6 +967,9 @@ impl UnnStreamCore {
 
         // ── 级联武装 located（N5：confirm@k → cascade [FIRST_BSP..=k]，高 source
         //    优先；按 source 降序施加）。仅供根 F/C 消费——E 用 nf_*（N7）──
+        // T53（连接结合律）：fold 前快照，fold 后验降序==升序（顺序无关，第36课）。
+        let pre_sell = self.located_sell;
+        let pre_buy = self.located_buy;
         for k in (PENDING_LO..MAX_LADDER).rev() {
             if let Some((ext, since)) = confirm_sell[k] {
                 cascade_arm(&mut self.located_sell, Side::Sell, k, ext, since, bar);
@@ -887,6 +978,9 @@ impl UnnStreamCore {
                 cascade_arm(&mut self.located_buy, Side::Buy, k, ext, since, bar);
             }
         }
+        // T53：本 bar confirm 级联连接的结合律（降序 fold == 升序 fold；破极值前比较）。
+        prove_t53_connection_assoc(&pre_sell, &confirm_sell, Side::Sell, bar, &self.located_sell);
+        prove_t53_connection_assoc(&pre_buy, &confirm_buy, Side::Buy, bar, &self.located_buy);
         // 破极值否定（027:25）：级联统一极值 ⇒ 整链同破。
         for k in FIRST_BSP_LADDER..MAX_LADDER {
             if self.located_sell[k].is_some_and(|e| c > e.extreme) {
@@ -998,6 +1092,8 @@ impl UnnStreamCore {
                     if let Some(s) = sell_source {
                         if s >= root_ladder && sig.sell1.get(s) {
                             prove_chain(&self.located_sell, Side::Sell, s, bar, "C-flip/clear");
+                            // T52：操作分解的区间套规范固定（fiber 由同一 confirm 折叠，第33课）。
+                            prove_t52_gauge_fix(&self.located_sell, s, bar, "C-flip/clear");
                             // ── 诊断（env UNN_DBG_QQQ）：C 翻空触发点完整 located 链 + 次级别证据层 ──
                             if std::env::var_os("UNN_DBG_QQQ").is_some() {
                                 let chain: Vec<(usize, usize, i64, i64)> = (FIRST_BSP_LADDER..MAX_LADDER)
@@ -1063,6 +1159,8 @@ impl UnnStreamCore {
                     if let Some(s) = buy_source {
                         if single_root && s >= root_ladder && sig.buy1.get(s) {
                             prove_chain(&self.located_buy, Side::Buy, s, bar, "C-flipback");
+                            // T52：操作分解的区间套规范固定（fiber 由同一 confirm 折叠，第33课）。
+                            prove_t52_gauge_fix(&self.located_buy, s, bar, "C-flipback");
                             let m = self.voices[rid].units;
                             let cap = self.voices[rid].capital;
                             // 记空腿 trade（翻空相→翻多相完成；下跌 P&L 归因到此腿）。
@@ -1177,6 +1275,8 @@ impl UnnStreamCore {
                     let units = self.free / c;
                     if units > 0.0 && units.is_finite() {
                         prove_chain(&self.located_buy, Side::Buy, s, bar, "F-entry");
+                        // T52：入场分解的区间套规范固定（fiber 由同一 confirm 折叠，第33课）。
+                        prove_t52_gauge_fix(&self.located_buy, s, bar, "F-entry");
                         self.voices.push(VoiceLedger {
                             ladder: s,
                             dir: Polarity::Long,
@@ -1668,6 +1768,58 @@ mod tests {
             r.n_nrf_root_flips_by_ladder.iter().sum::<u64>(), 0,
             "向心回溯内圈 @3 缺已 settle type1 ⇒ 母线断 ⇒ 无 located ⇒ 不翻空（区间套不跳级）"
         );
+    }
+
+    #[test]
+    fn t52_gauge_fix_multilevel_tower() {
+        // T52（第33课 走势多义性 → 区间套规范固定）：full_bull_entry 在 source=4 入场，located
+        // 塔 [2..=4]（≥3 个合法提升 = 覆盖空间多重提升非平凡）；F-entry 处 prove_t52_gauge_fix
+        // 守 fiber 全层共享同一 (compress,confirm)（单一区间套 confirm 折叠整个多义性，非 per-level
+        // patch）。跑通（无 panic）即 T52 在多提升塔上成立——规范由区间套确定非随意。
+        let (bars, flips) = full_bull_entry();
+        let r = run(bars, flips);
+        assert_eq!(r.n_nrf_root_entries_by_ladder[4], 1, "多提升塔顶 S=4 规范固定 ⇒ 入场@4（第33课）");
+    }
+
+    #[test]
+    fn t53_connection_assoc_holds_through_cascade() {
+        // T53（第36课 连接结合律 A+B+C=(A+B)+C=A+(B+C)）：prove_t53_connection_assoc 每 bar 验
+        // 降序 fold（actual 高 source 优先）== 升序 re-fold（max 结合/交换）。双向翻转循环（多次
+        // 级联连接）跑通无 panic ⇒ 走势连接顺序无关（"无论怎么组合都不违反理论"，第36课）。
+        let (mut bars, flips) = full_bull_entry();
+        append_sell_chain_at4(&mut bars);
+        let r = run(bars, flips);
+        assert!(r.n_nrf_root_flips_by_ladder[4] >= 1, "级联连接结合律下翻转正常（T53 守卫零 panic）");
+    }
+
+    #[test]
+    #[should_panic(expected = "T52 违反")]
+    fn t52_fires_on_nonuniform_gauge() {
+        // 反证 prove_t52 **非重言**（no-patch-mentality：可证伪守卫，区别于已删的 prove_t2/t4
+        // 重言型）：构造 (compress,confirm) **非统一**的 located 塔（层2/3 gauge=(5,9)，塔顶=(7,9)）
+        // ⇒ 规范未固定 ⇒ 必 panic。这是真实 bug 类（cascade_arm 前缀部分写入致 fiber 拼接非单一
+        // confirm）的检出能力证明。
+        let mut located: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
+        let e = |compress, confirm| Some(PendingLocate {
+            extreme: 100.0, source_ladder: 4, direction: Side::Buy, compress_bar: compress, confirm_bar: confirm,
+        });
+        located[2] = e(5, 9);
+        located[3] = e(5, 9);
+        located[4] = e(7, 9); // 塔顶 gauge=(7,9) ≠ 层2/3 (5,9) ⇒ T52 fire
+        prove_t52_gauge_fix(&located, 4, 100, "test");
+    }
+
+    #[test]
+    #[should_panic(expected = "T53 违反")]
+    fn t53_fires_on_order_dependent_fold() {
+        // 反证 prove_t53 **非重言**：confirm@4 的升序 re-fold 武装 [2..=4](source=4)，但喂入空
+        // post（模拟顺序依赖的非结合 fold bug）⇒ 升序 fold ≠ 降序 fold ⇒ 必 panic。证明 T53
+        // 守卫能检出级联连接的结合律破坏（非逻辑永真）。
+        let pre: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER];
+        let mut confirms: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
+        confirms[4] = Some((100.0, 5)); // since=5 < bar=100（cascade_arm 时序断言满足）
+        let post: [Option<PendingLocate>; MAX_LADDER] = [None; MAX_LADDER]; // 故意错：≠ re-fold
+        prove_t53_connection_assoc(&pre, &confirms, Side::Buy, 100, &post);
     }
 
     #[test]
