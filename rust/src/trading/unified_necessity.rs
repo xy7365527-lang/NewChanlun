@@ -48,7 +48,7 @@
 //!
 //! - **pending 势源**（N5/N6）：仅 `k ≥ PENDING_LO = FIRST_BSP_LADDER+1 = move(L1)`
 //!   注册 pending（segment 非势源——`project_pcf_pending_locate_collapse_fix`：segment
-//!   抢先武装 ⇒ source 坍缩 85-91%；segment 仅作 `rec_sub_evidence` 的 confirm 证据）。
+//!   抢先武装 ⇒ source 坍缩 85-91%；segment 仅作 `helix_centripetal_confirm` 向心回溯的结构基底证据）。
 //! - **降成本 spawn 目标**（N4）：任意 `theta(k) ≥ friction` 的层；递归基 = bi（a0）
 //!   层 `theta(bi)=None`（`depth_ref` 只观测 `[FIRST_BSP_LADDER, MAX)`）⇒ 成本门**自然**
 //!   终止于 segment，**无需 floor 参数**。segment@2 是合法降成本目标（势可测）。
@@ -86,8 +86,9 @@
 //! | A 强平 | 1x 逐仓 capital 耗尽（c≥2×basis，会计终局非走势操作；市场被动机制） | N8/第22环（1x 逐仓有界亏损） |
 //!
 //! 只有这五种事件改变 voice 状态。没有否定线。没有观测态。每个 voice 从买点诞生（F/E spawn），
-//! 在买卖点操作（C/D/E），由买卖点或 1x 逐仓会计终局（A）离场。**E/D 的次级别/子级别卖买点经
-//! `rec_sub_evidence` 背驰结构确认**（非价格穿越）——这是第11环"买卖点"的严格形式。
+//! 在买卖点操作（C/D/E），由买卖点或 1x 逐仓会计终局（A）离场。**E 的次级别卖点经自层 `nf_*`
+//! fire（`helix_centripetal_confirm` 向心确认）、D 的子级别买点经自层 `buy_any`/`sell_any` 走势完美
+//! 确认**（非价格穿越）——这是第11环"买卖点"的严格形式。
 //!
 //! ## T1（不主动清仓，第23环恒仓）：引擎只在买卖点主动操作，市场强平是被动例外
 //!
@@ -188,19 +189,26 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::isolated_fugue::{close_voice, nav, settle, VoiceLedger, VoiceStatus};
-use super::nested_fugue::rec_sub_evidence;
 use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
 use super::tape::{BarSig, SignalTape};
-use super::types::{BspEvent, DivEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
+use super::types::{BspEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
 use crate::buysellpoint::{
     prove_s11_s9_located, prove_s12_center, BspKind, SigLocatedState, Side,
 };
 use crate::stroke::Direction;
 
 /// pending 势源下界（N5/N6）：move(L1)。segment（=FIRST_BSP_LADDER）非势源——
-/// 仅作 `rec_sub_evidence` 的低级别 confirm 证据。
+/// 仅作 `helix_centripetal_confirm` 向心回溯的低级别 confirm 证据（结构基底）。
 const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
+
+/// **角向基本域大小（T58，h²³=σ 中 "23"）**：一个完整走势（φ:0→0）内部展开为概念运动
+/// 链的 23 个辩证扬弃环节（`docs/concept_movement_chain.md`），= ⟨h⟩/⟨σ⟩ ≅ ℤ/23 角向商
+/// 的阶（`docs/spiral_exhaustive_enumeration.md` §0.1）。粗粒化为 14 概念类（§4 双粒度）。
+/// **认识论（formalization-validity-domain.md）**：定性"角向基本域有限"= L0（R₂ 链闭合的
+/// 拓扑事实）；"23"具体值 = **A-链建模约定**（链切分选择），非运行时不变量——故本常量只
+/// 进入观测/标注（T58 报告），**不作 panic 判据**（否则把建模约定误作 L0 守卫）。
+const N_CONCEPT_RINGS: u64 = 23;
 
 /// pending 窗口（高级别 candidate 持续记忆——540号压缩侧↑载体）。`since_bar` =
 /// candidate 首现 bar（压缩完成 = φ→0 的外圈 (λ^k, φ→0)）；极值刷新时保留首现值
@@ -667,6 +675,114 @@ fn prove_t50_radial_scaling(res: &PositionalResult) -> u64 {
     violations
 }
 
+// ═══════════ 单螺旋 D∞ 基础不变量（T56–T59，§8.3 螺旋四对称的完成）═══════════
+// 来源：`docs/spiral_exhaustive_enumeration.md`——反向推算 D∞ 独立不变量 N=58，识别 4 条基础
+// 不变量（生成元定义关系 + 商尺度）此前未定理化（gap=4）。本节 4 个 prove 守这 4 条在引擎
+// 运行时的可观测签名。**认识论（formalization-validity-domain.md）**：T56–T59 主体是 L0
+// （群论/共形几何，部分 A₅/A-链条件）+ L3 实测 corroboration；故 prove 取**混合范式**——
+// 真正可证伪的**结构不变量**用 panic 守（T56 segment 无角向圈、T58 fire⟹arm 生命周期），
+// 经验/L0-几何性质用**观测计数**（与 prove_t50/T55/S9 同范式，非 panic，不把建模约定/regime
+// 依赖误作每 bar L0 守卫）。
+
+/// **T56（角径全纯 h²³=σ，§8.3 螺旋 / 细胞 {φ,r}）运行时证明（eod）**：绕一圈角向
+/// （φ:0→0，confirm fire）⟺ 升一级径向（r↦λr，σ 作用）——"走势完美后新势在更高级别涌现"
+/// （T₃+T₃₀）的精确量化（一圈 = 一级，不多不少）。**结构可证伪 panic**：角向奇点 φ=0
+/// （confirm fire）只承载于**势源径向层** k≥PENDING_LO=move(L1)——segment（FIRST_BSP_LADDER）
+/// 是径向塔基（h 的角向行程从 move(L1) 起算），**不承载角向圈**。若 segment 层出现 confirm
+/// fire ⇒ 角向圈载体下沉到塔基 = h²³=σ 的径向起算点错位 = panic。**观测**：confirm fire 在
+/// 径向塔上覆盖的层数（= holonomy 在径向的像大小，一圈角向投影一级径向）。返回该覆盖层数。
+/// **赋格**：主题演奏完一遍（绕一圈）= 移高一个八度（升一级 σ）——stretto 八度移位的几何根。
+fn prove_t56_angular_radial_holonomy(res: &PositionalResult) -> u64 {
+    // 结构 panic：segment（径向塔基）层无角向圈（confirm fire）——h²³=σ 的角向起算点 = move(L1)。
+    let seg_fire = res.n_nest_fire_sell_by_ladder[FIRST_BSP_LADDER]
+        + res.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER];
+    assert_eq!(
+        seg_fire, 0,
+        "T56 违反：segment(FIRST_BSP={FIRST_BSP_LADDER}) 层出现 {seg_fire} 个 confirm fire\
+         （角向圈 φ=0 下沉到径向塔基——h²³=σ 角向起算点应在 move(L1)≥{PENDING_LO}，segment 仅作\
+         向心回溯结构基底，非角向圈载体）"
+    );
+    // 观测：角向圈在径向塔上的像（有 confirm fire 的径向层数 = 一圈角向↦一级径向的覆盖）。
+    (PENDING_LO..MAX_LADDER)
+        .filter(|&k| res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k] > 0)
+        .count() as u64
+}
+
+/// **T57（手性-角向反演 τhτ⁻¹=h⁻¹，§8.3 螺旋 / 细胞 {φ,ε}）运行时观测（eod，~ 状态）**：
+/// 手性翻转反转角向推进方向 ⟹ 下跌走势的角向行程是上涨走势行程的**镜像时间反演**；located
+/// 卖点流 = located 买点流的镜像（相位互补）。手性在每个 φ=0 翻转的**严格交替**由 S11
+/// （`prove_s11_s9_located` panic）守——T57 不重复守交替，而是观测**镜像平衡**：卖侧角向圈
+/// （confirm fire sell）与买侧角向圈（confirm fire buy）的逐层对称性。**~ 状态非 panic**
+/// （formalization-validity-domain.md）：镜像的**机制对称**由构造保证（卖/买侧同一 confirm
+/// 回路），但镜像的**计数平衡**是 regime 依赖的经验量（强趋势单边 ⟹ 一侧 fire 远多——
+/// `project_nrf_v4_strict_accounting`），非 L0 每 bar 不变量。返回逐层镜像失衡层数（sell/buy
+/// fire 一侧为 0 而另一侧非 0 的层数 = 单边角向行程，镜像在该层退化的观测）。**赋格**：倒影
+/// 对位（al rovescio）——主题的镜像倒影是合法对位声部（多空 = 主题与其倒影）。
+fn prove_t57_chirality_mirror(res: &PositionalResult) -> u64 {
+    let mut one_sided = 0u64;
+    for k in PENDING_LO..MAX_LADDER {
+        let s = res.n_nest_fire_sell_by_ladder[k];
+        let b = res.n_nest_fire_buy_by_ladder[k];
+        // 镜像退化：该径向层只有一侧角向圈（单边行程，τ 镜像在该层无对应像——regime 依赖观测）。
+        if (s == 0) != (b == 0) {
+            one_sided += 1;
+        }
+    }
+    one_sided
+}
+
+/// **T58（角向基本域 = 23 辩证环节，ℤ/23 商，§8.3 螺旋 / 细胞 {φ}）运行时证明（eod）**：
+/// 一个完整走势（φ:0→0）内部展开为概念运动链的 23 个扬弃环节（`N_CONCEPT_RINGS`），ℤ/23ℤ
+/// = ⟨h⟩/⟨σ⟩ 角向商，每级别（T₁₆ 全称命题递归实例）独立成立。**"23"是 A-链建模约定**（非
+/// L0 运行时量，见 `N_CONCEPT_RINGS` 注），故不作 23 的字面 panic 判据。**结构可证伪 panic**：
+/// 23 环链中可运行时观测的子链 = **生命周期 arm→…→fire 在每个级别闭合**——任一级别 k 出现
+/// confirm fire（角向圈闭合 φ=0）必先经 arm（角向圈起始）：`fire[k]>0 ⟹ arms[k]>0`。
+/// fire-without-arm = 角向圈无起点直接闭合 = 23 环链在该级别断裂 = panic。**这非重言**：
+/// arm/fire 是独立计数器（arm 在 candidate 武装时增，fire 在 `since_bar<bar ∧ helix` 时增——
+/// 跨 bar，原理上可分离）。**观测**：链生命周期活跃的级别数（fire>0 的级别 = 23 环在多少个
+/// 径向级别上完成了至少一周）。返回该活跃级别数。**赋格**：一个完整主题陈述 = 23 个动机的
+/// 固定序列（基本域 = 一个主题长度）。
+fn prove_t58_angular_basic_domain(res: &PositionalResult) -> u64 {
+    let mut active_levels = 0u64;
+    for k in PENDING_LO..MAX_LADDER {
+        let fire = res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k];
+        if fire > 0 {
+            // 结构 panic：角向圈闭合（fire）必先有角向圈起始（arm）——23 环链在该级别不断裂。
+            assert!(
+                res.n_nest_arms_by_ladder[k] > 0,
+                "T58 违反：级别 {k} 有 {fire} 个 confirm fire（角向圈 φ=0 闭合）但 arms=0\
+                 （角向圈无起始直接闭合——23 环辩证链在该级别断裂，扬弃序列缺 arm 起点）"
+            );
+            active_levels += 1;
+        }
+    }
+    active_levels
+}
+
+/// **T59（尺度不变性 σ 自相似，§8.3 螺旋 / 细胞 {r}）运行时观测（eod，~ 状态 + L3
+/// corroboration）**：径向 σ-塔自相似（R₃：σ W_form σ⁻¹ = W_form）⟹ 不同级别的走势结构
+/// **同构**——细化 a0 只是 σ⁻¹ 平移整塔，不改变塔的结构类型（"分辨率不可约"，
+/// `project_1min_resolution_irreducible` / `project_pcf_1s_a0_source_collapse` L3 实测）。
+/// 运行时签名 = **不同径向级别的走势类型（结构活性）分布一致**：每个**结构活跃**级别
+/// （有 arm）都展现同构的角向生命周期（arm→fire），无某级别富结构而相邻级别退化为纯持仓。
+/// **~ 状态非 panic**（formalization-validity-domain.md）：自相似是 L0 几何 + L3 经验
+/// corroboration（否证未发生，缩小有效域），逐层同构的精确度是 regime/标的依赖（震荡 vs 强
+/// 趋势塔高不同），非 L0 每 bar 不变量。返回**自相似退化层数**——有 arm（角向圈起始）却
+/// 永不 fire（角向圈从不闭合）的级别数（该级别结构类型与能闭合的级别不同 = 尺度不变局部退化
+/// 观测）。**赋格**：主题在任何八度同构——升降八度不产生新主题（octave equivalence）。
+fn prove_t59_scale_invariance(res: &PositionalResult) -> u64 {
+    let mut degenerate = 0u64;
+    for k in PENDING_LO..MAX_LADDER {
+        let armed = res.n_nest_arms_by_ladder[k] > 0;
+        let fired = res.n_nest_fire_sell_by_ladder[k] + res.n_nest_fire_buy_by_ladder[k] > 0;
+        // 自相似退化：该级别有角向圈起始（arm）却从不闭合（fire）——结构类型与能闭合级别不同。
+        if armed && !fired {
+            degenerate += 1;
+        }
+    }
+    degenerate
+}
+
 // ═══════════ T55 比价关系（M2 选股层，未接入 step；observation 型）═══════════
 // **认识论位置（用户裁决 2026-06-15）**：比价是选股正则化（M2）的内容，是另一层——T55 定理化
 // + prove 先写，**不接入现有引擎（M1）的操作流程**，等 M2 阶段接入。prove 是**观测型**（统计
@@ -861,7 +977,6 @@ pub(crate) struct UnnStreamCore {
     sig_state: SigLocatedState,
     // 空事件行（无事件 bar 复用——与批量同一引用语义，零分配漂移）。
     empty_evs: [Vec<BspEvent>; MAX_LADDER],
-    empty_devs: [Vec<DivEvent>; MAX_LADDER],
     // 流式驱动状态：下一个要 push 的 bar index（= 已 push bar 数）。
     cur_bar: i64,
     last_close: f64,
@@ -896,7 +1011,6 @@ impl UnnStreamCore {
             max_children_seen: 0,
             sig_state: SigLocatedState::default(),
             empty_evs: Default::default(),
-            empty_devs: Default::default(),
             cur_bar: 0,
             last_close: f64::NAN,
             finished: false,
@@ -937,11 +1051,10 @@ impl UnnStreamCore {
             self.depth_ref.observe(&self.book, c);
         }
         let evrows: &[Vec<BspEvent>; MAX_LADDER] = sig.bsp_events.as_deref().unwrap_or(&self.empty_evs);
-        let devrows: &[Vec<DivEvent>; MAX_LADDER] = sig.div_events.as_deref().unwrap_or(&self.empty_devs);
 
         // ── pending 窗口维护（双侧，k ≥ PENDING_LO）：① 破极值否定 → ② candidate
         //    武装（N3：type2 经 side() 同等武装，无 continue）/ confirmed 清窗 →
-        //    ③ confirm 触发（rec_sub_evidence 递归到 a0，含 segment）。
+        //    ③ confirm 触发（helix_centripetal_confirm 向心回溯到 a0，含 segment）。
         //    confirm@k → nf_*[k]（自层 fire，供 E，N7）+ confirm_*[k]（供级联，N5）──
         let mut confirm_sell: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
         let mut confirm_buy: [Option<(f64, i64)>; MAX_LADDER] = [None; MAX_LADDER];
@@ -1146,24 +1259,6 @@ impl UnnStreamCore {
             let root_ladder = self.voices[rid].ladder;
             let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
             let single_root = active_count == 1;
-            // ── 诊断（env UNN_DBG_QQQ）：根空头持仓期间，本层 raw type1 买点为何不触发 C 翻多 ──
-            if std::env::var_os("UNN_DBG_QQQ").is_some()
-                && root_dir == Polarity::Short
-                && sig.buy1.get(root_ladder)
-            {
-                let bs = buy_source;
-                let chain_reaches = bs.is_some_and(|s| s >= root_ladder);
-                let buy1_at_src = bs.is_some_and(|s| sig.buy1.get(s));
-                let chain: Vec<(usize, usize)> = (FIRST_BSP_LADDER..MAX_LADDER)
-                    .filter(|&k| self.located_buy[k].is_some())
-                    .map(|k| (k, self.located_buy[k].unwrap().source_ladder))
-                    .collect();
-                eprintln!(
-                    "[C-noflip bar={bar}] root SHORT@ladder{root_ladder} raw_buy1@{root_ladder}=T \
-                     | buy_source={bs:?} s>=root_ladder={chain_reaches} buy1@source={buy1_at_src} \
-                     single_root={single_root} | located_buy链(层,源)={chain:?}"
-                );
-            }
             match root_dir {
                 Polarity::Long => {
                     if let Some(s) = sell_source {
@@ -1171,25 +1266,6 @@ impl UnnStreamCore {
                             prove_chain(&self.located_sell, Side::Sell, s, bar, "C-flip/clear");
                             // T52：操作分解的区间套规范固定（fiber 由同一 confirm 折叠，第33课）。
                             prove_t52_gauge_fix(&self.located_sell, s, bar, "C-flip/clear");
-                            // ── 诊断（env UNN_DBG_QQQ）：C 翻空触发点完整 located 链 + 次级别证据层 ──
-                            if std::env::var_os("UNN_DBG_QQQ").is_some() {
-                                let chain: Vec<(usize, usize, i64, i64)> = (FIRST_BSP_LADDER..MAX_LADDER)
-                                    .filter(|&k| self.located_sell[k].is_some())
-                                    .map(|k| {
-                                        let e = self.located_sell[k].unwrap();
-                                        (k, e.source_ladder, e.compress_bar, e.confirm_bar)
-                                    })
-                                    .collect();
-                                let ev_layer = rec_sub_evidence(s - 1, Side::Sell, evrows, devrows, flip_edge);
-                                let top_ext = self.located_sell[s].unwrap().extreme;
-                                eprintln!(
-                                    "[C-FLIP-SHORT bar={bar}] sell_source={s} root_ladder={root_ladder} \
-                                     sell1@{s}={} sell_any@{s}={} single_root={single_root} top_extreme={top_ext:.2} \
-                                     | located_sell链(层,源,压缩bar,确认bar)={chain:?} \
-                                     | 次级别证据层(s-1={})={ev_layer:?}",
-                                    sig.sell1.get(s), sig.sell_any.get(s), s - 1
-                                );
-                            }
                             if single_root && root_ladder > FIRST_BSP_LADDER {
                                 // T14 根翻空：长→空 in-place。卖多 free+=m×c；空头收 capital=m×c。
                                 // 根空头 MtM：nav_pre=free+m×c（多）→ nav_post=free'+（capital−m×c）
@@ -1302,18 +1378,11 @@ impl UnnStreamCore {
                 // voice 不可兼容两套口径（短父 spawn 长子在 MtM 下破坏守恒 +m×c）。故根空头
                 // 不 spawn（有效域边界：T8 多空嵌套降成本只在多头相/子空头层，根空头相纯翻转）。
                 if is_root && dir == Polarity::Short {
-                    // ── 诊断（env UNN_DBG_QQQ）：根空头持仓期间自层买点 → E 为何不 spawn ──
-                    if std::env::var_os("UNN_DBG_QQQ").is_some() && sig.buy1.get(ladder) {
-                        eprintln!(
-                            "[E-skip bar={bar}] root SHORT@ladder{ladder} raw_buy1=T nf_buy@{ladder}={} \
-                             — E spawn 跳过（T8 根空头叶节点，根空头相不嵌套降成本；买点本应走 C 翻多）",
-                            nf_buy[ladder].is_some()
-                        );
-                    }
+                    // T8 根空头叶节点：根空头相不嵌套降成本（买点走 C 翻多，非 E）。
                     continue;
                 }
                 let (nf_trigger, confirmed_root) = match dir {
-                    // 触发 = 自层次级别卖点（nf@ladder 经 rec_sub_evidence 背驰确认，第11环
+                    // 触发 = 自层次级别卖点（nf@ladder 经 helix_centripetal_confirm 向心确认，第11环
                     // 买卖点严格形式）∨ 根自层 confirmed 卖（§9"其他卖点走E"）。非根多 voice
                     // 仅 nf 自层触发（grandchild 递归同律）。删否定线后 nf 仅作触发判据，不再
                     // 传作子 negate_line（子 voice 纯买卖点驱动）。
@@ -1486,6 +1555,21 @@ impl UnnStreamCore {
                 （定性核高层罕见；λ 指数律 L2 可证伪，~状态非panic）"
             );
         }
+        // ── T56–T59（单螺旋 D∞ 基础不变量，§8.3 / spiral_exhaustive_enumeration.md，eod）──
+        //    T56/T58 含结构 panic（segment 无角向圈 / fire⟹arm 生命周期），T57/T59 观测（~）。
+        let t56_radial = prove_t56_angular_radial_holonomy(&self.res); // panic: segment 无 fire
+        let t57_one_sided = prove_t57_chirality_mirror(&self.res); // 观测：镜像退化层
+        let t58_active = prove_t58_angular_basic_domain(&self.res); // panic: fire⟹arm
+        let t59_degenerate = prove_t59_scale_invariance(&self.res); // 观测：自相似退化层
+        if total_fires > 0 {
+            eprintln!(
+                "[T56-T59 单螺旋 D∞ 基础不变量观测] \
+                 T56 角径全纯 h²³=σ: 角向圈覆盖径向层数={t56_radial}（一圈↦一级；segment 无 fire ✓panic守）| \
+                 T57 手性镜像 τhτ⁻¹=h⁻¹: 镜像退化(单边)层={t57_one_sided}（~regime依赖，S11守交替）| \
+                 T58 角向基本域 {N_CONCEPT_RINGS}环: 生命周期活跃层={t58_active}（fire⟹arm ✓panic守）| \
+                 T59 尺度不变 σ自相似: 退化(arm无fire)层={t59_degenerate}（~L0几何+L3实测corroboration）"
+            );
+        }
     }
 
     /// 已累计 trade 数（lib.rs push_bar 切出本 bar 新增）。
@@ -1536,11 +1620,13 @@ pub(crate) fn run_unified_necessity(
     if !tape.has_bsp_events() {
         return Err("unified_necessity 要求事件磁带（bsp_events 全空）".to_string());
     }
-    if !(tape.has_div_events() && tape.has_dir_rows()) {
+    if !tape.has_dir_rows() {
         return Err(
-            "unified_necessity 要求背驰磁带 + dir_flips 行——区间套次级别证据词汇 = \
-             BSP ∨ 背驰事件 ∨ bi 层方向翻转沿（027课程序定理）；confirm 递归基证据读 \
-             flip_edge（a0 方向翻转沿），缺 dir_flips 行即判据残缺"
+            "unified_necessity 要求 dir_flips 行——T49 向心 confirm（helix_centripetal_confirm）的\
+             递归基证据读 flip_edge（a0 方向翻转沿），缺 dir_flips 行即判据残缺。注：div_events \
+             不再是必然性输入——T49 向心回溯用 type1 settle 历史（type1_hist，由 bsp_events 构造），\
+             非前向 rec_sub_evidence 背驰证据；批量入口对 div_events 的要求已删（消除声明膨胀，\
+             与流式孪生入口 UnnStreamCore 对齐——后者本就不查 div_events）"
                 .to_string(),
         );
     }
@@ -1586,11 +1672,6 @@ mod tests {
         b
     }
 
-    fn with_empty_div(mut b: BarSig) -> BarSig {
-        b.div_events.get_or_insert_with(Box::default);
-        b
-    }
-
     fn buy1pt(mut b: BarSig, lad: usize) -> BarSig {
         b.buy1 = LadderMask(b.buy1.0 | (1 << lad));
         b.buy_any = LadderMask(b.buy_any.0 | (1 << lad));
@@ -1625,7 +1706,7 @@ mod tests {
             rows[3][0].zg = Some(51.0);
             rows[4][0].zd = Some(50.0);
             rows[4][0].zg = Some(53.0);
-            bars.push(if j == 0 { with_empty_div(b) } else { b });
+            bars.push(b);
         }
         bars
     }
@@ -1667,16 +1748,17 @@ mod tests {
     #[test]
     fn parse_and_guards() {
         assert_eq!(PolarityMode::parse("unn"), Some(UNN));
-        // 缺背驰磁带 ⇒ Err。
+        // 缺事件磁带（bsp_events 全空）⇒ Err。
         let t = SignalTape {
-            bars: vec![with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None))],
+            bars: vec![bar(100.0)],
             dir_flips: Some(Vec::new()),
             ..Default::default()
         };
-        assert!(run_positional(&t, 2, UNN).unwrap_err().contains("背驰磁带"));
-        // 缺 dir_flips ⇒ Err。
+        assert!(run_positional(&t, 2, UNN).unwrap_err().contains("bsp_events"));
+        // 缺 dir_flips ⇒ Err（div_events 不再是必然性输入——T49 向心回溯用 type1_hist，
+        // 仅 dir_flips 是 confirm 递归基证据，故守卫只查 has_dir_rows）。
         let t2 = SignalTape {
-            bars: vec![with_empty_div(with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None)))],
+            bars: vec![with_ev(bar(100.0), 3, ev_full(BspClass::Buy1, true, 100.0, None))],
             dir_flips: None,
             ..Default::default()
         };
@@ -1932,5 +2014,47 @@ mod tests {
             "candidate@4 与 sell1@4 同 bar（since==bar）⇒ 向心 confirm `since<bar` 拦截 ⇒ 不翻空（伪确认）"
         );
         assert!(r.nrf_phys_long_bars > 0, "根保持多头（无伪确认翻空）");
+    }
+
+    // ════════════ T56–T59 单螺旋 D∞ 基础不变量（spiral_exhaustive_enumeration.md）════════════
+
+    #[test]
+    fn t56_t58_basic_invariants_hold_on_full_chain() {
+        // 正向：T56–T59 在真实区间套链上零 panic + 观测签名正确。full_bull_entry 在 source=4
+        // 产生 confirm fire（角向圈 φ=0 闭合），先经 candidate@4 武装（arm）。
+        let (bars, flips) = full_bull_entry();
+        let r = run(bars, flips);
+        let radial = prove_t56_angular_radial_holonomy(&r); // 不 panic（segment 无角向圈）
+        let active = prove_t58_angular_basic_domain(&r); // 不 panic（fire⟹arm 生命周期）
+        assert_eq!(
+            r.n_nest_fire_sell_by_ladder[FIRST_BSP_LADDER] + r.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER],
+            0, "T56：segment(径向塔基) 无角向圈 confirm fire"
+        );
+        assert!(radial >= 1, "T56：confirm fire 覆盖 ≥1 径向层（一圈角向↦一级径向，h²³=σ）");
+        assert!(active >= 1, "T58：≥1 级别完成 arm→fire 生命周期（23环辩证链闭合）");
+        // T57/T59 观测型（~ regime 依赖）不 panic，返回退化层计数。
+        let _ = prove_t57_chirality_mirror(&r);
+        let _ = prove_t59_scale_invariance(&r);
+    }
+
+    #[test]
+    #[should_panic(expected = "T56 违反")]
+    fn t56_fires_on_segment_angular_cycle() {
+        // 反证 prove_t56 **非重言**（no-patch-mentality，区别于已删的 prove_t2/t4 重言型）：构造
+        // segment(FIRST_BSP=径向塔基) 层出现 confirm fire ⇒ 角向圈 φ=0 下沉到塔基 = h²³=σ 角向
+        // 起算点错位 ⇒ 必 panic。真实 bug 类（fire 计数误下沉到 segment）检出能力证明。
+        let mut res = PositionalResult::default();
+        res.n_nest_fire_buy_by_ladder[FIRST_BSP_LADDER] = 1;
+        prove_t56_angular_radial_holonomy(&res);
+    }
+
+    #[test]
+    #[should_panic(expected = "T58 违反")]
+    fn t58_fires_on_lifecycle_break() {
+        // 反证 prove_t58 **非重言**：某势源层 fire>0 但 arms=0（角向圈无起始直接闭合 = 23环辩证
+        // 链在该级别断裂）⇒ 必 panic。arm/fire 是独立计数器（跨 bar，原理上可分离）⇒ 守卫可证伪。
+        let mut res = PositionalResult::default();
+        res.n_nest_fire_sell_by_ladder[PENDING_LO] = 1; // fire 但 arms[PENDING_LO]=0
+        prove_t58_angular_basic_domain(&res);
     }
 }
