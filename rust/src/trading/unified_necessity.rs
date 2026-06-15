@@ -136,8 +136,9 @@ struct Pending {
     extreme: f64,
     since_bar: i64,
     /// **区间套递归到底的 confirmation frontier**（下一个待 type1 确认的级别；初始
-    /// = k−1）。每出现同侧 type1@frontier 即下探一级，直到 cost-gate floor
-    /// （theta<friction）⇒ located 确认完成。区间套是**时序**的——各级 type1 逐级在
+    /// = k−1）。每出现同侧 type1@frontier 即下探一级，直到结构基底 FIRST_BSP_LADDER
+    /// （frontier 降破 FIRST_BSP，含 segment 全级确认）⇒ located 确认完成。成本门（第16环）
+    /// 不参与此处——confirm 是第14环区间套认知。区间套是**时序**的——各级 type1 逐级在
     /// 后续 bar 出现（同 bar 相邻级 type1 共现率 ~1%，单 bar 链不可行；第64课"递归
     /// 定位到一个时间、价格的点"本就是跨 bar 收敛）⇒ frontier 跨 bar 累积。
     /// confirm@floor 时同一 fire 两路（header §32）：confirm_*[k]（cascade→C/F，N5）+
@@ -191,21 +192,6 @@ fn cascade_arm(
 /// top）的合一替代——层选择 ≡ 链确认。
 fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> {
     (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
-}
-
-/// **区间套递归到底的成本门（第16/35课）**：层 f 的势是否可测且幅度 ≥ 成本
-/// （`theta(f) ≥ SUB_COST_K×friction`）。`rec_sub_evidence`"找第一个证据就停"被替换为
-/// "递归到成本门终止"——逐级下探直到 `cost_gate_open` 关闭（编排者 2026-06-15 修正：
-/// 第64课"低三级以上"是**最低要求**，严格形式是**递归到成本门终止**）。bi/bar 层
-/// （`f < FIRST_BSP`）无中枢势 ⇒ 门关 = 递归底。
-fn cost_gate_open(depth_ref: &DepthRef, f: usize) -> bool {
-    if f < FIRST_BSP_LADDER {
-        return false;
-    }
-    match depth_ref.theta(f, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
-        Some(tq) => tq >= SUB_COST_K * SUB_FRICTION_RT,
-        None => false, // 势不可测 ⇒ 成本门关（递归底）
-    }
 }
 
 /// **逐级第一类（第29课:396"所有买点…都要下次级别以下找第一类"）**：层 j 是否有
@@ -707,22 +693,24 @@ impl UnnStreamCore {
                     }
                 }
             }
-            // 第14环展开↓：located frontier 从 k−1 递归下探到 cost-gate floor。
+            // 第14环展开↓：located frontier 从 k−1 递归下探到结构基底 FIRST_BSP_LADDER。
             if let Some(mut w) = self.nest_sell[k] {
-                // located 区间套递归到底（N5/N6）：frontier 从 k−1 逐级下探，每出现同侧
-                // type1 即降一级（区间套递归，不跳级），直到 cost-gate floor（theta<friction）
-                // ⇒ 区间套确认完成。①每级 type1（has_type1）②递归到底（cost_gate_open）
-                // ③后续走势（compress<confirm）。时序累积——type1 逐级在后续 bar 出现。
-                while cost_gate_open(&self.depth_ref, w.frontier)
-                    && has_type1(evrows, w.frontier, Side::Sell)
-                {
+                // located 区间套递归到底（N5/N6，第14环认知）：frontier 从 k−1 逐级下探，每出现
+                // 同侧 type1 即降一级（区间套递归，不跳级），递归基 = FIRST_BSP_LADDER（segment
+                // 结构基底；bi/bar 层无 BSP 事件，evrows 索引下界=FIRST_BSP）。frontier 降破
+                // FIRST_BSP（含 segment 在内全级 type1 确认）⇒ 区间套确认完成。
+                // **成本门（第16环）只约束 spawn 操作（try_spawn_cost_gated），不约束此处认知**
+                // ——confirm 是区间套认知，无条件递归到结构基底（编排者 2026-06-15：第16环约束
+                // 操作不约束认知；第14环 confirm 与第16环成本门分离）。①每级 type1（has_type1）
+                // ②递归到结构基底 ③后续走势（compress<confirm）。时序累积——type1 逐级在后续 bar 出现。
+                while w.frontier >= FIRST_BSP_LADDER && has_type1(evrows, w.frontier, Side::Sell) {
                     w.frontier -= 1;
                 }
-                // confirm@floor：同一 fire 两路（header §32）——confirm_sell[k]（cascade→C/F，
-                // N5）+ nf_sell[k]（自层→E，N7）。floor 处候选即定位点（seg/move 振幅<摩擦
-                // 时递归终止于候选层）。C/E 由 sig.sell1[source] 区分（type1→C 翻转/清仓，
+                // confirm@floor：frontier < FIRST_BSP_LADDER（区间套含 segment 全级确认到底）。
+                // 同一 fire 两路（header §32）——confirm_sell[k]（cascade→C/F，N5）+ nf_sell[k]
+                // （自层→E，N7）。C/E 由 sig.sell1[source] 区分（type1→C 翻转/清仓，
                 // type2/3→E 降成本，§9）；C 在 E 之前（同 bar 互斥，cleared 跳过 E）。
-                if !cost_gate_open(&self.depth_ref, w.frontier) && w.since_bar < bar {
+                if w.frontier < FIRST_BSP_LADDER && w.since_bar < bar {
                     confirm_sell[k] = Some((w.extreme, w.since_bar));
                     nf_sell[k] = Some(w.extreme);
                     self.res.n_nest_fire_sell_by_ladder[k] += 1;
@@ -732,17 +720,17 @@ impl UnnStreamCore {
                 }
             }
             if let Some(mut w) = self.nest_buy[k] {
-                // located 区间套递归到底（N5/N6，供 F 入场 + C 翻多）：frontier 下探，每出现
-                // 同侧 type1 降一级，直到 cost-gate floor ⇒ 确认完成（①每级type1 ②递归到底
-                // ③后续走势；时序累积，同卖侧）。
-                while cost_gate_open(&self.depth_ref, w.frontier)
-                    && has_type1(evrows, w.frontier, Side::Buy)
-                {
+                // located 区间套递归到底（N5/N6，供 F 入场 + C 翻多）：frontier 从 k−1 下探，每出现
+                // 同侧 type1 降一级，递归基 = FIRST_BSP_LADDER（结构基底）⇒ frontier 降破 FIRST_BSP
+                // ⇒ 确认完成（①每级 type1 ②递归到结构基底 ③后续走势；时序累积，同卖侧）。
+                // 成本门（第16环）只约束 spawn 操作，不约束此处区间套认知（第14环，同卖侧）。
+                while w.frontier >= FIRST_BSP_LADDER && has_type1(evrows, w.frontier, Side::Buy) {
                     w.frontier -= 1;
                 }
-                // confirm@floor：同一 fire 两路——confirm_buy[k]（cascade→F/C）+ nf_buy[k]
-                // （自层→E，空头子降成本）。F/C 另由 sig.buy1[source] 门控该级 type1。
-                if !cost_gate_open(&self.depth_ref, w.frontier) && w.since_bar < bar {
+                // confirm@floor：frontier < FIRST_BSP_LADDER。同一 fire 两路——confirm_buy[k]
+                // （cascade→F/C）+ nf_buy[k]（自层→E，空头子降成本）。F/C 另由 sig.buy1[source]
+                // 门控该级 type1。
+                if w.frontier < FIRST_BSP_LADDER && w.since_bar < bar {
                     confirm_buy[k] = Some((w.extreme, w.since_bar));
                     nf_buy[k] = Some(w.extreme);
                     self.res.n_nest_fire_buy_by_ladder[k] += 1;
@@ -1315,14 +1303,14 @@ mod tests {
 
     /// 构造时序区间套买链 ⇒ 根在 source=4 满仓入场（编排者 2026-06-15：递归到底，逐级
     /// type1）。candidate@4 武装 → type1 买@3（frontier 3→2）→ type1 买@2 + buy1@4
-    /// （frontier 2→1 = cost-gate floor）⇒ located@4 ⇒ F 入场@4。各级 type1 在后续 bar
+    /// （frontier 2→1 破 FIRST_BSP 结构基底）⇒ located@4 ⇒ F 入场@4。各级 type1 在后续 bar
     /// 逐级出现（时序区间套，非同 bar）。
     fn full_bull_entry() -> (Vec<BarSig>, Vec<(i64, u8, Direction)>) {
         let mut bars = warmup234();
         bars.push(with_ev(bar(95.0), 4, ev_full(BspClass::Buy1, false, 86.0, None))); // arm nest_buy@4, frontier=3
         bars.push(with_ev(bar(96.0), 3, ev_full(BspClass::Buy1, false, 0.0, None))); // type1 买@3 → frontier 3→2
         let mut b = buy1pt(bar(97.0), 4); // buy1@4（C/F type1 建仓词汇）
-        b = with_ev(b, 2, ev_full(BspClass::Buy1, false, 0.0, None)); // type1 买@2 → frontier 2→1 floor ⇒ confirm@4
+        b = with_ev(b, 2, ev_full(BspClass::Buy1, false, 0.0, None)); // type1 买@2 → frontier 2→1 破 FIRST_BSP ⇒ confirm@4
         bars.push(b);
         let evidence_bar = bars.len() as i64 - 1;
         bars.push(bar(98.0));
@@ -1330,12 +1318,12 @@ mod tests {
     }
 
     /// 在 root long@4 之后追加时序卖链 ⇒ located_sell@4 确认（type1 卖@3 → type1 卖@2
-    /// + sell1@4，递归到 cost-gate floor）⇒ C 翻空@4。
+    /// + sell1@4，递归到结构基底 FIRST_BSP）⇒ C 翻空@4。
     fn append_sell_chain_at4(bars: &mut Vec<BarSig>) {
         bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // arm nest_sell@4, frontier=3
         bars.push(with_ev(bar(104.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3 → frontier 3→2
         let mut b = sell1pt(bar(103.0), 4); // sell1@4（C type1 翻空词汇）
-        b = with_ev(b, 2, ev_full(BspClass::Sell1, false, 0.0, None)); // type1 卖@2 → floor ⇒ confirm@4
+        b = with_ev(b, 2, ev_full(BspClass::Sell1, false, 0.0, None)); // type1 卖@2 → 破 FIRST_BSP ⇒ confirm@4
         bars.push(b);
         bars.push(bar(102.0));
     }
