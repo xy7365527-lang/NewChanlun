@@ -141,16 +141,31 @@ impl VoiceLedger {
     }
 }
 
-/// 物理 NAV（单一真值）：自由现金 + 活跃多头在手×价 + 活跃空头在手现金。
+/// 物理 NAV（单一真值）：自由现金 + 活跃多头在手×价 + 活跃空头净值。
 ///
-/// 可见性 `pub(super)`：`unified_necessity` 复用森林 NAV（同一物理单真值口径，
-/// §8.4 审计 CONFORMS——空头持冻结 capital 无独立 MtM 负债）。
+/// 可见性 `pub(super)`：`unified_necessity` 复用森林 NAV（同一物理单真值口径）。
+///
+/// 空头净值口径分两类（§8.4 审计有效域边界 + T14 根翻空扩展）：
+/// - **子空头**（parent=Some）= 内部负债（父吸收，§5 递归）⇒ 冻结 capital。
+///   有效域 = 父吸收 liability 的瞬时降成本子空：回补/否定时 δ 缩水由父 units
+///   吸收，units 欠款在父子间内部抵消，故不独立 MtM（§8.4 "空头持冻结 capital
+///   无独立 MtM 负债" 的精确有效域）。iso 全部空头属此类（根恒多）⇒ iso bit-exact。
+/// - **根空头**（parent=None，T14 根翻空后）= 外部市场负债 ⇒ MtM = capital−units×c。
+///   根无父吸收 liability，frozen 会使 cash 平仓返还全部 capital = 下跌利润丢失
+///   （短头对）/亏损不计（短头错）= "只赚不赔"提款机 bug。MtM 使根空头的翻转/
+///   否定/清仓/EOD 全部同价 c 守恒且真实兑现 P&L。
 pub(super) fn nav(voices: &[VoiceLedger], free: f64, c: f64) -> f64 {
     let mut v = free;
     for x in voices.iter().filter(|x| x.is_active()) {
         match x.dir {
             Polarity::Long => v += x.units * c,
-            Polarity::Short => v += x.capital,
+            Polarity::Short => {
+                v += if x.parent.is_none() {
+                    x.capital - x.units * c
+                } else {
+                    x.capital
+                };
+            }
         }
     }
     v
@@ -190,7 +205,11 @@ fn recursive_confirmed(
 }
 
 /// 结算一个 voice 的当前相位（trade 行 + 计数 + realized_pnl）。返回视图 P&L。
-fn settle(
+///
+/// 可见性 `pub(super)`：`unified_necessity` 在根 in-place 翻转时复用——翻转结算前一
+/// 相（长腿/空腿）的 trade 行，但**不**改 free/units/capital（settle 纯记账观测）⇒
+/// 翻转的 NAV 守恒仍由翻转处的 free/capital 现金流保证（settle 对 N8 中性）。
+pub(super) fn settle(
     voices: &mut [VoiceLedger],
     id: usize,
     exit_bar: i64,
@@ -264,9 +283,16 @@ pub(super) fn close_voice(
     let capital = voices[id].capital;
     match voices[id].parent {
         None => {
-            // 根弹出：在手变现回 free，N_base 归零（清仓/EOD）。
-            debug_assert_eq!(dir, Polarity::Long, "根恒多头（无根翻转）");
-            *free += units * c + capital;
+            // 根弹出：在手变现回 free，N_base 归零（清仓/否定/EOD；T14 删根恒多）。
+            match dir {
+                // 多头根：卖出在手 units×c（多头 capital≡0 ⇒ 与旧式 units×c+capital
+                // 逐字等价；iso 永不创建空头根 ⇒ 本改动对 iso bit-exact）。
+                Polarity::Long => *free += units * c + capital,
+                // 空头根（T14 根翻空后；外部市场负债 MtM）：买回 units×c 平空，余
+                // capital−units×c 回 free（= 空头真实兑现 P&L；与 nav() 根空头 MtM
+                // 口径一致 ⇒ 同价 c 下 step 内 NAV 守恒，非"只赚不赔"冻结）。
+                Polarity::Short => *free += capital - units * c,
+            }
             *n_base = 0.0;
         }
         Some(p) => match dir {

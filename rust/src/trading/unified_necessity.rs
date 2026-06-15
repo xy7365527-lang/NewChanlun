@@ -68,7 +68,7 @@
 use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
-use super::isolated_fugue::{close_voice, nav, VoiceLedger, VoiceStatus};
+use super::isolated_fugue::{close_voice, nav, settle, VoiceLedger, VoiceStatus};
 use super::nested_fugue::rec_sub_evidence;
 use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
 use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
@@ -133,6 +133,56 @@ fn cascade_arm(
 /// top）的合一替代——层选择 ≡ 链确认。
 fn chain_source(located: &[Option<PendingLocate>; MAX_LADDER]) -> Option<usize> {
     (FIRST_BSP_LADDER..MAX_LADDER).rev().find(|&k| located[k].is_some())
+}
+
+/// **根 voice 涌现归属级别 E\*（T5/A5 第20环"根=最高涌现级别"）**：根的操作级别
+/// 随走势向更高级别发展而向上生长——这是**会计重组**（重新读数），不触发物理交易
+/// （A5"voice 升级=会计重组不是加仓"）。从 `root_ladder` 起，只要更高一层 `lad+1`
+/// 的方向与根同向（多头根爬 Up，空头根爬 Down）且其段锚晚于（或等于）根入场，
+/// 即向上爬一层。`iso` 的 `root_emergent_ladder` 的双向扩展（iso 仅 Up，因根恒多）。
+fn root_emergent_ladder(
+    root_ladder: usize,
+    root_entry_bar: i64,
+    root_dir: Polarity,
+    dir_state: &[Option<Direction>; MAX_LADDER],
+    anchor_state: &[i64; MAX_LADDER],
+    max_l: usize,
+) -> usize {
+    let want = match root_dir {
+        Polarity::Long => Direction::Up,
+        Polarity::Short => Direction::Down,
+    };
+    let mut lad = root_ladder;
+    while lad + 1 < max_l
+        && dir_state[lad + 1] == Some(want)
+        && anchor_state[lad + 1] >= root_entry_bar
+    {
+        lad += 1;
+    }
+    debug_assert!(lad >= root_ladder, "T5：涌现层 {lad} < 入场层 {root_ladder}（爬升应单调非降）");
+    lad
+}
+
+/// **T14（根多空对称翻转，第21环）+ A5（会计重组）运行时证明**：根就地翻转后
+/// ① 极性反转（dir ≠ old_dir，§21 卖点翻空/买点翻多）；② 森林仍单根（in-place flip
+/// 不增删 voice ⇒ rid 仍是唯一 active root，N1）；③ units 守恒（flip 不改 units ⇒
+/// n_base 不变，A2/§8.1）。NAV 价值中性（MtM 根空头）由 step 末 prove_n8 守卫。
+/// violation = panic（make-decision-observable，137号）。
+fn prove_t14_root_flip(voices: &[VoiceLedger], rid: usize, old_dir: Polarity, units_pre: f64, bar: i64) {
+    assert_ne!(
+        voices[rid].dir, old_dir,
+        "T14 违反@bar {bar}：根就地翻转后极性未反转（dir 仍 {old_dir:?}）"
+    );
+    assert!(
+        (voices[rid].units - units_pre).abs() <= 1e-9 * units_pre.max(1.0),
+        "T14 违反@bar {bar}：根翻转改变了 units（{units_pre}→{}，同股数翻转 M=N 破，A10）",
+        voices[rid].units
+    );
+    let roots = voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none()).count();
+    assert_eq!(
+        roots, 1,
+        "T14 违反@bar {bar}：翻转后 {roots} 个 active root（in-place flip 应保持单根，N1）"
+    );
 }
 
 // ════════════════════ 必然性运行时证明（验收标准；violation = panic）════════════════════
@@ -393,6 +443,9 @@ pub(crate) struct UnnStreamCore {
     // 级联定位链（卖侧出场链 + 买侧入场链）。
     located_sell: [Option<PendingLocate>; MAX_LADDER],
     located_buy: [Option<PendingLocate>; MAX_LADDER],
+    // 方向/段锚滚动状态（T5 根级别涌现 E\* 读数；iso 同构 dir_state/anchor_state）。
+    dir_state: [Option<Direction>; MAX_LADDER],
+    anchor_state: [i64; MAX_LADDER],
     // N4 累计观测（prove_n4 在 eod 反证 floor_stop 恒 0）。
     max_children_seen: usize,
     // 空事件行（无事件 bar 复用——与批量同一引用语义，零分配漂移）。
@@ -426,6 +479,8 @@ impl UnnStreamCore {
             nest_buy: [None; MAX_LADDER],
             located_sell: [None; MAX_LADDER],
             located_buy: [None; MAX_LADDER],
+            dir_state: [None; MAX_LADDER],
+            anchor_state: [-1; MAX_LADDER],
             max_children_seen: 0,
             empty_evs: Default::default(),
             empty_devs: Default::default(),
@@ -442,6 +497,16 @@ impl UnnStreamCore {
         let bar = self.cur_bar;
         let c = sig.close;
         self.last_close = c;
+
+        // 方向/段锚滚动状态（T5 根级别涌现 E\* 的读数载体；当 bar 翻转沿更新）。
+        for lad in 0..MAX_LADDER {
+            if let Some(d) = flip_edge[lad] {
+                self.dir_state[lad] = Some(d);
+                self.anchor_state[lad] = bar;
+            }
+        }
+        // 涌现爬升上界（承载层 + 1，封顶 MAX_LADDER）。
+        let max_l = (sig.max_ladder as usize + 1).min(MAX_LADDER);
 
         // 市场性质：中枢账本 + 振幅参照。
         if let Some(evrows) = sig.bsp_events.as_deref() {
@@ -601,61 +666,96 @@ impl UnnStreamCore {
             }
         }
 
-        // ── C. 根清仓/翻转（N5/N6 + §6 + 第23环）：根长持，卖链 source S ≥ root.ladder
-        //    ∧ sig.sell1[S]（type1 背驰=走势完美，§6"十年 1-2 次"；type2/3 落 E 降成本
-        //    §9）∧ prove_chain ⇒ 翻转（森林单根 ∧ root.ladder>segment）∨ 清仓（root@segment
-        //    或多 voice 时 no-op，子先 D 回补）──
+        // ── C. 根清仓/翻转（N5/N6 + §6 + 第21/23环 + T5/T14 双向）──
+        //    T5/A5 会计重组：先按走势涌现把根级别向上重组（root_emergent_ladder，
+        //      monotone relabel，纯会计无物理交易 ⇒ units/NAV 不变 ⇒ N8/A2 安全）。
+        //    多头根：卖链 source S ≥ re ∧ sig.sell1[S]（type1 走势完美，§6"十年 1-2 次"；
+        //      type2/3 落 E §9）∧ prove_chain ⇒ 单根时**翻空 in-place**（长→空，T14，
+        //      MtM 守恒）∨ 清仓到现金（root@segment——root_ladder≥PENDING_LO 故罕见）。
+        //    空头根（T14 翻空后）：买链 source S ≥ re ∧ sig.buy1[S]（type1 底背驰）
+        //      ∧ prove_chain ⇒ 单根时**翻多 in-place**（空→长，cover+rebuy 守恒）。
+        //    多 voice（根有降成本子）⇒ C no-op，子先经 D 独立回补（逐仓不 collapse）。
         let mut cleared = false;
         let root_id = self.voices
             .iter()
             .position(|v| !matches!(v.status, VoiceStatus::Closed) && v.parent.is_none() && v.units > 0.0);
         if let Some(rid) = root_id {
+            let root_dir = self.voices[rid].dir;
+            // T5/A5 会计重组（root_emergent_ladder 向上单调升级，纯 relabel）。
+            let re = root_emergent_ladder(
+                self.voices[rid].ladder, self.voices[rid].entry_bar, root_dir,
+                &self.dir_state, &self.anchor_state, max_l,
+            );
+            if re > self.voices[rid].ladder {
+                self.voices[rid].ladder = re; // 会计重组：无物理交易，units/NAV 不变
+            }
             let root_ladder = self.voices[rid].ladder;
-            if let Some(s) = sell_source {
-                if s >= root_ladder && sig.sell1.get(s) {
-                    prove_chain(&self.located_sell, Side::Sell, s, bar, "C-clear/flip");
-                    let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
-                    let single_root = active_count == 1;
-                    let flip_line = self.located_sell[s].map(|e| e.extreme);
-                    if single_root && root_ladder > FIRST_BSP_LADDER {
-                        // 翻转 = 降成本 m=N 特例（子空@root.ladder−1，携 located 极值否定线）。
-                        // 时序（编排者）：父释放现金 → 子用现金开空（不可反序）。
-                        let m = self.voices[rid].units;
-                        let sub = root_ladder - 1;
-                        let cash_released = m * c;
-                        self.voices[rid].units -= m;
-                        self.voices[rid].refresh_status(); // husk（PendingRecovery）
-                        let child_id = self.voices.len();
-                        self.voices.push(VoiceLedger {
-                            ladder: sub,
-                            dir: Polarity::Short,
-                            units: m,
-                            basis: c,
-                            cost_pool: cash_released,
-                            capital: cash_released,
-                            entry_bar: bar,
-                            negate_line: flip_line,
-                            status: VoiceStatus::Active,
-                            parent: Some(rid),
-                            children: Vec::new(),
-                            realized_pnl: 0.0,
-                            acted_bar: bar,
-                        });
-                        self.voices[rid].children.push(child_id);
-                        self.res.n_nrf_root_flips_by_ladder[sub] += 1;
-                        self.res.n_entries_by_ladder[sub] += 1;
-                        self.located_sell = [None; MAX_LADDER];
-                        acted_ids.push(rid);
-                        cleared = true;
-                    } else if single_root && root_ladder == FIRST_BSP_LADDER {
-                        // 根已在结构基底 ⇒ 无更低子级别 ⇒ 清仓到现金（cascade 全树）。
-                        close_voice(rid, bar, c, c, "sellpt", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
-                        self.located_sell = [None; MAX_LADDER];
-                        acted_ids.push(rid);
-                        cleared = true;
+            let active_count = self.voices.iter().filter(|v| !matches!(v.status, VoiceStatus::Closed)).count();
+            let single_root = active_count == 1;
+            match root_dir {
+                Polarity::Long => {
+                    if let Some(s) = sell_source {
+                        if s >= root_ladder && sig.sell1.get(s) {
+                            prove_chain(&self.located_sell, Side::Sell, s, bar, "C-flip/clear");
+                            let flip_line = self.located_sell[s].map(|e| e.extreme);
+                            if single_root && root_ladder > FIRST_BSP_LADDER {
+                                // T14 根翻空：长→空 in-place。卖多 free+=m×c；空头收 capital=m×c。
+                                // 根空头 MtM：nav_pre=free+m×c（多）→ nav_post=free'+（capital−m×c）
+                                // =（free+m×c）+0 ⇒ NAV 守恒。units=m 不变 ⇒ Σunits=N_base（A2）。
+                                let m = self.voices[rid].units;
+                                // 记长腿 trade（入场→翻空相完成；settle 纯观测，不动现金）。
+                                settle(&mut self.voices, rid, bar, c, "flip_short", &mut self.res);
+                                self.free += m * c;
+                                self.voices[rid].dir = Polarity::Short;
+                                self.voices[rid].basis = c;
+                                self.voices[rid].capital = m * c;
+                                self.voices[rid].cost_pool = m * c;
+                                self.voices[rid].entry_bar = bar; // 空头相起点（涌现读数锚）
+                                self.voices[rid].negate_line = flip_line; // 027:25：破高=短头错
+                                self.voices[rid].acted_bar = bar;
+                                self.res.n_nrf_root_flips_by_ladder[root_ladder] += 1;
+                                self.located_sell = [None; MAX_LADDER];
+                                acted_ids.push(rid);
+                                prove_t14_root_flip(&self.voices, rid, Polarity::Long, m, bar);
+                                cleared = true;
+                            } else if single_root && root_ladder == FIRST_BSP_LADDER {
+                                // 根在结构基底 ⇒ 无更低子级别 ⇒ 清仓到现金（cascade 全树）。
+                                close_voice(rid, bar, c, c, "sellpt", false, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
+                                self.located_sell = [None; MAX_LADDER];
+                                acted_ids.push(rid);
+                                cleared = true;
+                            }
+                            // else 多 voice ⇒ C no-op（子先 D 回补）。
+                        }
                     }
-                    // else：多 voice（root 有降成本子）⇒ C no-op，子先经 D 独立回补，
-                    // 根稍后在单根时翻（逐仓独立，不 collapse）。
+                }
+                Polarity::Short => {
+                    // T14 买点翻多：空→长 in-place（恒仓 m 不变；下跌利润沉淀 free）。
+                    // cover m@c + 重新做多 m@c ⇒ free += capital−2×m×c。根空头 MtM：
+                    // nav_pre=free+（capital−m×c）→ nav_post=free'+m×c=free+capital−m×c ⇒ 守恒。
+                    if let Some(s) = buy_source {
+                        if single_root && s >= root_ladder && sig.buy1.get(s) {
+                            prove_chain(&self.located_buy, Side::Buy, s, bar, "C-flipback");
+                            let m = self.voices[rid].units;
+                            let cap = self.voices[rid].capital;
+                            let line = self.located_buy[s].map(|e| e.extreme);
+                            // 记空腿 trade（翻空相→翻多相完成；下跌 P&L 归因到此腿）。
+                            settle(&mut self.voices, rid, bar, c, "flip_long", &mut self.res);
+                            self.free += cap - 2.0 * m * c;
+                            self.voices[rid].dir = Polarity::Long;
+                            self.voices[rid].basis = c;
+                            self.voices[rid].capital = 0.0;
+                            self.voices[rid].cost_pool = m * c;
+                            self.voices[rid].entry_bar = bar; // 多头相起点
+                            self.voices[rid].negate_line = line; // 027:25：破低=多头错
+                            self.voices[rid].acted_bar = bar;
+                            self.res.n_nrf_root_flips_by_ladder[root_ladder] += 1;
+                            self.located_buy = [None; MAX_LADDER];
+                            acted_ids.push(rid);
+                            prove_t14_root_flip(&self.voices, rid, Polarity::Short, m, bar);
+                            cleared = true;
+                        }
+                    }
                 }
             }
         }
@@ -693,6 +793,13 @@ impl UnnStreamCore {
                 let dir = self.voices[id].dir;
                 let ladder = self.voices[id].ladder;
                 let is_root = self.voices[id].parent.is_none();
+                // T14×T8 会计张力：根空头是叶节点（不嵌套降成本）。根空头用 MtM-external
+                // 会计（外部市场负债），而降成本子空头用 frozen-internal（父吸收）——同一
+                // voice 不可兼容两套口径（短父 spawn 长子在 MtM 下破坏守恒 +m×c）。故根空头
+                // 不 spawn（有效域边界：T8 多空嵌套降成本只在多头相/子空头层，根空头相纯翻转）。
+                if is_root && dir == Polarity::Short {
+                    continue;
+                }
                 let (nest_fired, confirmed_root) = match dir {
                     // 根自层 confirmed 卖（C 未消费的一切卖点，§9"其他卖点走E"）；
                     // 非根多 voice 仅 nf 自层定位触发（grandchild 递归同律）。
@@ -710,9 +817,15 @@ impl UnnStreamCore {
             }
         }
 
-        // ── F. 根入场（森林空 ∧ 未清仓本 bar）：买链 source S（pending_locate，N6）
+        // ── F. 根入场（森林空 ∧ 未清仓本 bar）：买链 source S（pending_locate，N5/N6）
         //    ∧ sig.buy1[S]（type1 底背驰=走势完美建仓）⇒ 在 S 层满仓开多（26课恒仓，
-        //    第23环；source S 决定根级别 = 出场绑定级别）──
+        //    第23环；source S 决定根入场级别，入场后由 root_emergent_ladder 涌现升级 T5）。
+        //    ★ T1 边界（no-workaround）：F **保持 N5 门控**（buy_source = located 级联链顶
+        //    ≥ move(L1)），不实装任务字面的"F 不被 pending 门控 / 从 segment 建仓"——后者
+        //    ⊥ N5（segment 非势源，prove_chain 硬断言 s≥PENDING_LO；裸扫描入场 = 539 号
+        //    A′ 解耦踏空轴 constitutive_throughput_falsified）。T1"永远在场"由 T14 根翻转
+        //    维持（根 flip 不回现金），非靠裸入场。N5-gated F 已满足 T1 真实意图（从最高
+        //    located 级别入场）。空仓 window 仅在 B 否定/罕见清仓后 + a0 初始化前。──
         let any_active = self.voices.iter().any(|v| !matches!(v.status, VoiceStatus::Closed));
         if !cleared && !any_active {
             if let Some(s) = buy_source {
@@ -1041,11 +1154,9 @@ mod tests {
 
     #[test]
     fn type1_full_chain_flips_root() {
-        // C（§6 type1 背驰 + 完整级联）：sell1@4 ∧ 卖链 source=4 ≥ root.ladder=4 ∧
-        // 单根 ⇒ 翻转为子空@3（N5/N6 prove_chain + N1 森林）。
-        // ★ 仅武装 nest_sell@4（无 @3 同 bar 事件——@3 事件会作 @4 的次级别证据使
-        //   confirm 提前 fire ⇒ E 降成本 spawn 子@3 ⇒ 多 voice ⇒ C 翻转被 single_root
-        //   守卫拦截，子先 D 回补。confirm 靠 sell1 同 bar 的 bi-down 触发 ⇒ 保持单根）。
+        // C（§6 type1 背驰 + 完整级联 + T14 根翻空）：sell1@4 ∧ 卖链 source=4 ≥
+        // root.ladder=4 ∧ 单根 ⇒ 根**in-place 翻空@4**（长→空 MtM，非旧式子空@3）。
+        // ★ 仅武装 nest_sell@4（confirm 靠 sell1 同 bar 的 bi-down 触发 ⇒ 保持单根）。
         let (mut bars, mut flips) = full_bull_entry();
         bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None))); // 仅 arm @4
         bars.push(sell1pt(bar(104.0), 4)); // sell1@4（type1 背驰）∧ bi 翻 Down ⇒ confirm@4 ⇒ source=4
@@ -1053,8 +1164,35 @@ mod tests {
         bars.push(bar(102.0));
         flips.push((sell_ev_bar, 1, Direction::Down));
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_root_flips_by_ladder[3], 1, "type1@4 完整链 ∧ 单根 ⇒ 翻转子空@3");
+        assert_eq!(r.n_nrf_root_flips_by_ladder[4], 1, "type1@4 完整链 ∧ 单根 ⇒ in-place 翻空@4");
+        // 翻空相记长腿 trade（flip_short），翻空后根为空头（eod 关闭记空腿）。
+        assert!(r.trades.iter().any(|t| t.exit_reason == "flip_short"), "翻空记长腿 trade");
         assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "翻转非清仓");
+    }
+
+    #[test]
+    fn bidir_root_flip_long_short_long() {
+        // T14 双向循环：根 long@4 →(type1 卖@4)→ in-place 翻空@4 →(下跌)→(type1 买@4)
+        // → in-place 翻多@4。验证两次翻转 + N8 守恒（prove_n8 每 bar 跑通无 panic）+
+        // 根空头 MtM（下跌相利润沉淀 ⇒ final_nav 反映 104→86 下跌捕获）。
+        let (mut bars, mut flips) = full_bull_entry(); // root long@4
+        // ── 翻空：arm sell@4（极值 110）+ sell1@4 + bi-down ⇒ flip 长→空@4 ──
+        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
+        bars.push(sell1pt(bar(104.0), 4));
+        let sell_ev = bars.len() as i64 - 1;
+        flips.push((sell_ev, 1, Direction::Down));
+        bars.push(bar(90.0)); // 下跌相（空头盈利；c<110 不破否定线）
+        // ── 翻多：arm buy@4（Buy1 极值 80）+ buy1@4 + bi-up ⇒ confirm_buy@4 ⇒ flip 空→长@4 ──
+        bars.push(with_ev(bar(85.0), 4, ev_full(BspClass::Buy1, false, 80.0, None)));
+        bars.push(buy1pt(bar(86.0), 4));
+        let buy_ev = bars.len() as i64 - 1;
+        flips.push((buy_ev, 1, Direction::Up));
+        bars.push(bar(88.0));
+        let r = run(bars, flips);
+        assert!(r.n_nrf_root_flips_by_ladder[4] >= 2, "两次 in-place 翻转@4（长→空→长）");
+        assert!(r.trades.iter().any(|t| t.exit_reason == "flip_short"), "长腿记 trade");
+        assert!(r.trades.iter().any(|t| t.exit_reason == "flip_long"), "空腿记 trade（下跌 P&L 归因）");
+        assert!(r.final_nav.is_finite() && r.final_nav > 0.0, "N8 守恒跑通 final_nav={}", r.final_nav);
     }
 
     #[test]
