@@ -27,6 +27,15 @@
             "command": ".claude/hooks/agent-team-bootstrap.sh"
           }
         ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-start-fable5.sh"
+          }
+        ]
       }
     ],
     "PreCompact": [
