@@ -6,27 +6,53 @@
  "bh_mdd_pct": -78.8,
  "max_bars": null,
  "unn_stream": {
-  "strat_pct": 270.9,
-  "mdd_pct": -44.2,
-  "n_trades": 1085,
+  "strat_pct": 51.0,
+  "mdd_pct": -62.8,
+  "n_trades": 91,
   "exit_reasons": {
-   "negate": 272,
-   "recover": 812,
+   "flip_short": 6,
+   "flip_long": 6,
+   "recover": 73,
+   "cascade": 5,
    "eod": 1
   },
   "yearly": null,
   "by_ladder": {
+   "segment/long": {
+    "n": 14,
+    "pnl_cash": 68.0,
+    "wins": 7,
+    "avg_held_bars": 105.0
+   },
    "segment/short": {
-    "n": 1073,
-    "pnl_cash": -6215.0,
-    "wins": 393,
-    "avg_held_bars": 134.0
+    "n": 5,
+    "pnl_cash": -330.0,
+    "wins": 2,
+    "avg_held_bars": 305.0
    },
    "move(L1)/long": {
-    "n": 12,
-    "pnl_cash": 168220.0,
+    "n": 8,
+    "pnl_cash": 6327.0,
+    "wins": 5,
+    "avg_held_bars": 14639.0
+   },
+   "move(L1)/short": {
+    "n": 57,
+    "pnl_cash": 7938.0,
+    "wins": 26,
+    "avg_held_bars": 3041.0
+   },
+   "recL2/short": {
+    "n": 6,
+    "pnl_cash": -12006.0,
+    "wins": 2,
+    "avg_held_bars": 30316.0
+   },
+   "recL3/long": {
+    "n": 1,
+    "pnl_cash": 44924.0,
     "wins": 1,
-    "avg_held_bars": 166512.0
+    "avg_held_bars": 2145330.0
    }
   },
   "nrf_counters": {
@@ -34,7 +60,7 @@
     0,
     0,
     0,
-    12,
+    1,
     0,
     0,
     0,
@@ -46,9 +72,9 @@
    "spawns": [
     0,
     0,
-    993,
-    0,
-    0,
+    19,
+    53,
+    6,
     0,
     0,
     0,
@@ -59,8 +85,8 @@
    "negates": [
     0,
     0,
-    261,
-    11,
+    0,
+    0,
     0,
     0,
     0,
@@ -72,7 +98,7 @@
    "cascades": [
     0,
     0,
-    0,
+    5,
     0,
     0,
     0,
@@ -85,7 +111,7 @@
    "cost_rejects": [
     0,
     0,
-    1717,
+    164,
     0,
     0,
     0,
@@ -134,16 +160,16 @@
     0,
     0
    ],
-   "phys_long_bars": 1990341,
+   "phys_long_bars": 2261242,
    "depth_bars": [
-    419913,
-    1882634,
-    92663,
-    18909,
-    3109,
-    742,
-    54,
-    34,
+    25966,
+    2215470,
+    125818,
+    49630,
+    1174,
+    0,
+    0,
+    0,
     0,
     0,
     0
@@ -165,9 +191,9 @@
     0,
     0,
     0,
-    1231,
-    77,
-    7,
+    1671,
+    55,
+    3,
     0,
     0,
     0,
@@ -178,9 +204,9 @@
     0,
     0,
     0,
-    1202,
-    95,
-    7,
+    1640,
+    80,
+    4,
     0,
     0,
     0,
@@ -191,9 +217,9 @@
     0,
     0,
     0,
-    981,
-    10,
-    1,
+    138,
+    47,
+    8,
     0,
     0,
     0,
@@ -216,9 +242,9 @@
    "short_net_cash": [
     0.0,
     0.0,
-    -6215.0,
-    0.0,
-    0.0,
+    -330.0,
+    7938.0,
+    -12006.0,
     0.0,
     0.0,
     0.0,
@@ -229,9 +255,9 @@
    "short_held_bars": [
     0,
     0,
-    143250,
-    0,
-    0,
+    1525,
+    173358,
+    181896,
     0,
     0,
     0,
@@ -240,10 +266,10 @@
     0
    ]
   },
-  "nrf_max_children": 6,
-  "_n_pushed_trades": 1084
+  "nrf_max_children": 3,
+  "_n_pushed_trades": 90
  },
- "P1_ge_bh": true,
+ "P1_ge_bh": false,
  "bit_exact_vs_batch": {
   "status": "PASS",
   "n_keys": 8,

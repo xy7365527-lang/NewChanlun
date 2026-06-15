@@ -6,19 +6,26 @@
  "bh_mdd_pct": -16.8,
  "max_bars": null,
  "unn_stream": {
-  "strat_pct": 1.5,
-  "mdd_pct": -4.6,
-  "n_trades": 1,
+  "strat_pct": 7.9,
+  "mdd_pct": -12.7,
+  "n_trades": 8,
   "exit_reasons": {
+   "recover": 7,
    "eod": 1
   },
   "yearly": null,
   "by_ladder": {
-   "recL2/long": {
+   "recL2/short": {
+    "n": 7,
+    "pnl_cash": 3755.0,
+    "wins": 5,
+    "avg_held_bars": 26002.0
+   },
+   "recL3/long": {
     "n": 1,
-    "pnl_cash": 1466.0,
+    "pnl_cash": 4126.0,
     "wins": 1,
-    "avg_held_bars": 227047.0
+    "avg_held_bars": 2043970.0
    }
   },
   "nrf_counters": {
@@ -26,8 +33,8 @@
     0,
     0,
     0,
-    0,
     1,
+    0,
     0,
     0,
     0,
@@ -40,7 +47,7 @@
     0,
     0,
     0,
-    0,
+    7,
     0,
     0,
     0,
@@ -77,9 +84,9 @@
    "cost_rejects": [
     0,
     0,
-    0,
-    26,
-    0,
+    65,
+    55,
+    5,
     0,
     0,
     0,
@@ -126,12 +133,12 @@
     0,
     0
    ],
-   "phys_long_bars": 227048,
+   "phys_long_bars": 2043971,
    "depth_bars": [
-    1818960,
-    227048,
-    0,
-    0,
+    2037,
+    1934487,
+    36955,
+    72529,
     0,
     0,
     0,
@@ -157,9 +164,9 @@
     0,
     0,
     0,
-    978,
-    61,
-    7,
+    1361,
+    43,
+    4,
     0,
     0,
     0,
@@ -170,9 +177,9 @@
     0,
     0,
     0,
-    1032,
-    62,
-    4,
+    1429,
+    47,
+    3,
     0,
     0,
     0,
@@ -183,8 +190,8 @@
     0,
     0,
     0,
-    2116,
-    63,
+    102,
+    50,
     4,
     0,
     0,
@@ -210,7 +217,7 @@
     0.0,
     0.0,
     0.0,
-    0.0,
+    3755.0,
     0.0,
     0.0,
     0.0,
@@ -223,7 +230,7 @@
     0,
     0,
     0,
-    0,
+    182013,
     0,
     0,
     0,
@@ -232,10 +239,10 @@
     0
    ]
   },
-  "nrf_max_children": 0,
-  "_n_pushed_trades": 0
+  "nrf_max_children": 2,
+  "_n_pushed_trades": 7
  },
- "P1_ge_bh": false,
+ "P1_ge_bh": true,
  "bit_exact_vs_batch": {
   "status": "PASS",
   "n_keys": 8,
