@@ -82,13 +82,13 @@
 //! | F 建仓 | 买点（located_buy 链顶 source ∧ buy1 type1 底背驰） | 第11环 + 第23环（恒仓满仓） |
 //! | E 降成本 spawn | 持仓期间次级别卖点（nf_sell@ladder 背驰确认 ∨ 根 confirmed 卖） | 第17环 + 第22环 |
 //! | C 平仓/翻转 | 同级别 type1 卖点（sell1@source ∧ located 链 N5/N6） | 第11环 + 第21环 + 第14环 |
-//! | D 回补 | 子 voice 子级别买点（buy_any@ladder 走势完美） | 第2环 + 第11环 |
+//! | D 回补 | 子 voice 子级别买点（nf_buy/nf_sell@ladder 向心确认；与 E 对称） | 第2环 + 第11环 + 第14环 |
 //! | A 强平 | 1x 逐仓 capital 耗尽（c≥2×basis，会计终局非走势操作；市场被动机制） | N8/第22环（1x 逐仓有界亏损） |
 //!
 //! 只有这五种事件改变 voice 状态。没有否定线。没有观测态。每个 voice 从买点诞生（F/E spawn），
-//! 在买卖点操作（C/D/E），由买卖点或 1x 逐仓会计终局（A）离场。**E 的次级别卖点经自层 `nf_*`
-//! fire（`helix_centripetal_confirm` 向心确认）、D 的子级别买点经自层 `buy_any`/`sell_any` 走势完美
-//! 确认**（非价格穿越）——这是第11环"买卖点"的严格形式。
+//! 在买卖点操作（C/D/E），由买卖点或 1x 逐仓会计终局（A）离场。**E 的次级别卖点与 D 的子级别买点
+//! 经自层 `nf_*` fire（`helix_centripetal_confirm` 向心确认，对称）**（非价格穿越，非 raw
+//! candidate）——这是第11环"买卖点"的严格形式。E/D 对称性见下方 D 段注释（2026-06-16 裁决）。
 //!
 //! ## T1（不主动清仓，第23环恒仓）：引擎只在买卖点主动操作，市场强平是被动例外
 //!
@@ -572,6 +572,53 @@ fn prove_n7_spawn_self_level(trigger_ladder: usize, voice_ladder: usize, bar: i6
     assert_eq!(
         trigger_ladder, voice_ladder,
         "N7 违反@bar {bar}：降成本 spawn 触发层 {trigger_ladder} ≠ voice 层 {voice_ladder}（E 借用了更高级别 pending_locate，非自层走势）"
+    );
+}
+
+/// **自层 counter-direction 走势完美 fire（D 回补 / E 降成本 spawn 共用单一标准，第11环 + N7）**：
+/// voice 自层（`ladder`）的**反方向** helix-confirmed nf fire——多头查自层**卖点**走势完美
+/// （`nf_sell[ladder]`）、空头查自层**买点**走势完美（`nf_buy[ladder]`）。D（子 voice 回补返父）
+/// 与 E（父 voice 释配额 spawn 反向子）**共用此函数** ⇒ "同一标准"由构造保证（symbol-level
+/// 对称）。`nf_*` = `helix_centripetal_confirm` 向心确认（第11环买卖点严格形式），**非 raw**
+/// `sig.*_any`（任意 candidate，含未确认 type2/3）。
+/// **层边界（N5/N6）**：`nf_*` 仅在 `[PENDING_LO, MAX)` 兑现（confirm 循环跳过 segment——
+/// `nf_*[FIRST_BSP_LADDER]` 恒 None：segment 非势源，无角向圈/无向心 confirm，T56）。故
+/// segment 层 voice（ladder=FIRST_BSP_LADDER）自层 counter fire 恒 false——E 不 spawn（sub=bi
+/// θ=None 本就终止）、D 不独立回补（只经父 cascade close 或 A 强平离场）。这是递归基的自然
+/// 终止边界，非缺陷（与 E 在 segment 不 spawn 同构）。
+fn self_level_counter_fire(
+    dir: Polarity,
+    ladder: usize,
+    nf_sell: &[Option<f64>; MAX_LADDER],
+    nf_buy: &[Option<f64>; MAX_LADDER],
+) -> bool {
+    match dir {
+        Polarity::Long => nf_sell[ladder].is_some(),  // 多头：自层卖点走势完美（counter）⇒ E spawn 空子 / D 回补
+        Polarity::Short => nf_buy[ladder].is_some(),  // 空头：自层买点走势完美（counter）⇒ E spawn 多子 / D 回补
+    }
+}
+
+/// **D/E 对称性（自层 counter nf = 同一标准，第11环走势完美严格形式）运行时证明**：D 回补与
+/// E 降成本 spawn 必用**同一触发标准**——`self_level_counter_fire`（voice 自层反方向 helix-
+/// confirmed nf fire），**非 raw** `sig.*_any`。修复史（2026-06-16）：D 原用 `sig.buy_any/
+/// sell_any`（raw 任意买卖点）而 E 用 `nf_*`（向心确认）= located/raw 混用不对称 + 声明膨胀
+/// （header 声称 D "走势完美确认"实为 raw candidate）。本 prove 守 D 实际触发值 == E 标准——
+/// D 若退回 raw（`buy_any≠nf_buy` 的 bar）即 panic。与 `prove_n7_spawn_self_level` 同范式
+/// （make-decision-observable，137号；D 实现漂移时可 fire ⇒ 非已删 prove_t2/t4 的类型层重言）。
+fn prove_d_symmetric(
+    dir: Polarity,
+    ladder: usize,
+    d_trigger: bool,
+    nf_sell: &[Option<f64>; MAX_LADDER],
+    nf_buy: &[Option<f64>; MAX_LADDER],
+    bar: i64,
+) {
+    let e_standard = self_level_counter_fire(dir, ladder, nf_sell, nf_buy);
+    assert_eq!(
+        d_trigger, e_standard,
+        "D/E 对称违反@bar {bar}：D 回补触发 {d_trigger} ≠ E 自层 counter nf 标准 {e_standard}\
+         （dir={dir:?} ladder={ladder}）——D 必与 E 同标准（nf_*[ladder] 向心确认走势完美），\
+         非 raw sig.*_any（located/raw 混用=声明膨胀，第11环买卖点严格形式）"
     );
 }
 
@@ -1333,8 +1380,15 @@ impl UnnStreamCore {
             }
         }
 
-        // ── D. 回补（逐活跃非根 voice：自层 confirmed 反向词汇 = 走势完美 ⇒ 隔离
-        //    平仓返父。自层信号——不查全局链，N7 邻接）──
+        // ── D. 回补（逐活跃非根 voice：自层**向心确认**反向词汇 = 走势完美 ⇒ 隔离
+        //    平仓返父。与 E spawn **对称**——both 用 `nf_*[ladder]`（helix_centripetal_confirm
+        //    向心确认，第14环），**非** raw `buy_any/sell_any`。对称性必然性（编排者裁决
+        //    2026-06-16）：E 用向心确认开子空头/降成本 spawn，D 必须用同等向心确认回补——
+        //    否则"卖点→买点"可能不构成完整下跌段（raw `any` 含**未向心确认** candidate，
+        //    价格可能未到底就回补；强牛 regime 下 raw 买点频繁触发 ⇒ 子空头在高于开空价的
+        //    回调点过早回补 ⇒ 亏损）。**诚实声明**（no-patch.md）：`nf` 含 type1/2/3
+        //    （N3 同等武装），对称化的实质是**要求向心确认**（母线贯通 a0 + since<bar 后续
+        //    走势），**非**排除 type3。自层信号——不查全局链，N7 邻接（触发层==voice 层）。──
         if !cleared {
             let snap: Vec<usize> = (0..self.voices.len()).collect();
             for &id in &snap {
@@ -1342,11 +1396,19 @@ impl UnnStreamCore {
                     continue;
                 }
                 let v = &self.voices[id];
+                // D 回补触发 = 自层 counter nf 走势完美（向心确认，与 E 同标准 `self_level_counter_fire`；
+                // 非 raw `sig.*_any`——修复 2026-06-16 located/raw 混用不对称 + 声明膨胀）。
                 let perfected = match v.dir {
-                    Polarity::Short => sig.buy_any.get(v.ladder),
-                    Polarity::Long => sig.sell_any.get(v.ladder),
+                    Polarity::Short => nf_buy[v.ladder].is_some(),
+                    Polarity::Long => nf_sell[v.ladder].is_some(),
                 };
+                // D/E 对称守卫（用户裁决 2026-06-16）：D 实际触发值必 == E 自层 counter nf 标准
+                // （`prove_d_symmetric`）——D 若退回 raw sig.*_any 即 panic（regression guard，
+                // make-decision-observable，137号；逐 voice 验，非仅 perfected 时）。
+                prove_d_symmetric(v.dir, v.ladder, perfected, &nf_sell, &nf_buy, bar);
                 if perfected {
+                    // N7：D 回补触发层==voice 层（nf@v.ladder 自层向心确认，与 E 对称）。
+                    prove_n7_spawn_self_level(v.ladder, v.ladder, bar);
                     self.voices[id].acted_bar = bar;
                     close_voice(id, bar, c, c, "recover", true, &mut self.voices, &mut self.free, &mut self.n_base, &mut self.res);
                     acted_ids.push(id);
@@ -1374,13 +1436,15 @@ impl UnnStreamCore {
                     // T8 根空头叶节点：根空头相不嵌套降成本（买点走 C 翻多，非 E）。
                     continue;
                 }
-                let (nf_trigger, confirmed_root) = match dir {
-                    // 触发 = 自层次级别卖点（nf@ladder 经 helix_centripetal_confirm 向心确认，第11环
-                    // 买卖点严格形式）∨ 根自层 confirmed 卖（§9"其他卖点走E"）。非根多 voice
-                    // 仅 nf 自层触发（grandchild 递归同律）。删否定线后 nf 仅作触发判据，不再
-                    // 传作子 negate_line（子 voice 纯买卖点驱动）。
-                    Polarity::Long => (nf_sell[ladder].is_some(), is_root && sig.sell_any.get(ladder)),
-                    Polarity::Short => (nf_buy[ladder].is_some(), false),
+                // E 自层 counter nf 触发 = D 回补**同标准**（`self_level_counter_fire`：多头查
+                // nf_sell[ladder]、空头查 nf_buy[ladder]，helix_centripetal_confirm 向心确认，第11环
+                // 买卖点严格形式，非 raw candidate）——symbol-level 对称由共用此函数构造保证。
+                let nf_trigger = self_level_counter_fire(dir, ladder, &nf_sell, &nf_buy);
+                // confirmed_root：根多头自层 confirmed 卖（§9"其他卖点走E"）——**根专属**（D 跳过根
+                // voice），不在 D/E 对称范围内（D 不作用于根，故 confirmed_root 无 D 对偶）。
+                let confirmed_root = match dir {
+                    Polarity::Long => is_root && sig.sell_any.get(ladder),
+                    Polarity::Short => false,
                 };
                 if nf_trigger || confirmed_root {
                     // N7：触发是自层（nf@ladder ∨ 根 sell_any@ladder）——证明触发层==voice 层。
