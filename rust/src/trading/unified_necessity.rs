@@ -80,7 +80,7 @@
 //! | 操作 | 触发（买卖点） | 必然性环 |
 //! |------|---------------|---------|
 //! | F 建仓 | 买点（located_buy 链顶 source ∧ buy1 type1 底背驰） | 第11环 + 第23环（恒仓满仓） |
-//! | E 降成本 spawn | 持仓期间次级别卖点（nf_sell@ladder 背驰确认 ∨ 根 confirmed 卖） | 第17环 + 第22环 |
+//! | E 降成本 spawn | 持仓期间自层 counter 走势完美（nf_sell/nf_buy@ladder 向心确认；与 D 同标准，无 raw） | 第17环 + 第22环 |
 //! | C 平仓/翻转 | 同级别 type1 卖点（sell1@source ∧ located 链 N5/N6） | 第11环 + 第21环 + 第14环 |
 //! | D 回补 | 子 voice 子级别买点（nf_buy/nf_sell@ladder 向心确认；与 E 对称） | 第2环 + 第11环 + 第14环 |
 //! | A 强平 | 1x 逐仓 capital 耗尽（c≥2×basis，会计终局非走势操作；市场被动机制） | N8/第22环（1x 逐仓有界亏损） |
@@ -566,8 +566,9 @@ fn prove_t53_connection_assoc(
 }
 
 /// **N7（降成本不需 pending，第17环）**：E spawn 的触发是 voice **自层** 走势结构
-/// （nf@voice.ladder ∨ 根自层 confirmed 卖），非全局 located 链、未经 `prove_chain`。
-/// violation（触发层 ≠ voice 层 = 借用更高级别 pending）= panic。
+/// （nf@voice.ladder 向心确认 counter 走势完美，**无 raw**——根多头 E 原 `confirmed_root`
+/// = `sig.sell_any` raw 残余已删，根多头与子 voice 全路径统一 nf），非全局 located 链、
+/// 未经 `prove_chain`。violation（触发层 ≠ voice 层 = 借用更高级别 pending）= panic。
 fn prove_n7_spawn_self_level(trigger_ladder: usize, voice_ladder: usize, bar: i64) {
     assert_eq!(
         trigger_ladder, voice_ladder,
@@ -575,12 +576,15 @@ fn prove_n7_spawn_self_level(trigger_ladder: usize, voice_ladder: usize, bar: i6
     );
 }
 
-/// **自层 counter-direction 走势完美 fire（D 回补 / E 降成本 spawn 共用单一标准，第11环 + N7）**：
+/// **自层 counter-direction 走势完美 fire（D 回补 / E 降成本 spawn 的单一标准规范，第11环 + N7）**：
 /// voice 自层（`ladder`）的**反方向** helix-confirmed nf fire——多头查自层**卖点**走势完美
-/// （`nf_sell[ladder]`）、空头查自层**买点**走势完美（`nf_buy[ladder]`）。D（子 voice 回补返父）
-/// 与 E（父 voice 释配额 spawn 反向子）**共用此函数** ⇒ "同一标准"由构造保证（symbol-level
-/// 对称）。`nf_*` = `helix_centripetal_confirm` 向心确认（第11环买卖点严格形式），**非 raw**
-/// `sig.*_any`（任意 candidate，含未确认 type2/3）。
+/// （`nf_sell[ladder]`）、空头查自层**买点**走势完美（`nf_buy[ladder]`）。**全路径统一规范**
+/// （2026-06-16 raw 残余清除）：D（子 voice 回补返父）、E（父 voice 释配额 spawn 反向子）、
+/// **根多头 E**（原 `confirmed_root = is_root ∧ sig.sell_any` raw 残余，本次删除）三条操作路径
+/// **全部**锚定此函数——D/E 调用点用内联 gate 表达，`prove_self_level_symmetric` 守内联 gate
+/// == 本规范（漂移回 raw 即 panic，137号 make-decision-observable）。`nf_*` =
+/// `helix_centripetal_confirm` 向心确认（第11环买卖点严格形式 = φ=0 走势完美），**非 raw**
+/// `sig.*_any`（任意 candidate——缺 T2 settle 维度的向心贯通，含未确认 type2/3，≠ φ=0）。
 /// **层边界（N5/N6）**：`nf_*` 仅在 `[PENDING_LO, MAX)` 兑现（confirm 循环跳过 segment——
 /// `nf_*[FIRST_BSP_LADDER]` 恒 None：segment 非势源，无角向圈/无向心 confirm，T56）。故
 /// segment 层 voice（ladder=FIRST_BSP_LADDER）自层 counter fire 恒 false——E 不 spawn（sub=bi
@@ -598,27 +602,32 @@ fn self_level_counter_fire(
     }
 }
 
-/// **D/E 对称性（自层 counter nf = 同一标准，第11环走势完美严格形式）运行时证明**：D 回补与
-/// E 降成本 spawn 必用**同一触发标准**——`self_level_counter_fire`（voice 自层反方向 helix-
-/// confirmed nf fire），**非 raw** `sig.*_any`。修复史（2026-06-16）：D 原用 `sig.buy_any/
-/// sell_any`（raw 任意买卖点）而 E 用 `nf_*`（向心确认）= located/raw 混用不对称 + 声明膨胀
-/// （header 声称 D "走势完美确认"实为 raw candidate）。本 prove 守 D 实际触发值 == E 标准——
-/// D 若退回 raw（`buy_any≠nf_buy` 的 bar）即 panic。与 `prove_n7_spawn_self_level` 同范式
-/// （make-decision-observable，137号；D 实现漂移时可 fire ⇒ 非已删 prove_t2/t4 的类型层重言）。
-fn prove_d_symmetric(
+/// **自层 counter 操作对称性（D/E 全路径 == 单一 nf 规范，第11环走势完美严格形式）运行时证明**：
+/// D 回补、E 降成本 spawn（含根多头 E）的内联 gate 必 == `self_level_counter_fire` 规范——
+/// voice 自层反方向 helix-confirmed nf fire（φ=0 走势完美），**非 raw** `sig.*_any`。修复史：
+/// (1) 2026-06-16 D 原用 `sig.buy_any/sell_any`（raw 任意买卖点）而 E 用 `nf_*`（向心确认）=
+/// located/raw 混用不对称 + 声明膨胀；(2) 本次（`confirmed_root` 清除）E 根多头原 `is_root ∧
+/// sig.sell_any` raw 残余删除 ⇒ D / E / 根 E **全路径**统一 nf。**全路径守卫**：调用点（D 段 +
+/// E 段）各传内联 gate `op_trigger`，本 prove 守 `op_trigger == 规范`——任一路径漂移回 raw
+/// （`sig.*_any ≠ nf_*` 的 bar）即 panic。**非重言**（与已删 prove_t2/t4 的类型层重言不同）：
+/// 内联 gate 是独立于本规范函数的代码表达，gate 引入 raw 条件时本 prove fire
+/// （make-decision-observable，137号回归防护——若 gate 直接调用本规范函数则退化为重言，故
+/// 调用点保留独立内联表达，使"无 raw"成为运行时可观测而非永真断言）。
+fn prove_self_level_symmetric(
     dir: Polarity,
     ladder: usize,
-    d_trigger: bool,
+    op_trigger: bool,
     nf_sell: &[Option<f64>; MAX_LADDER],
     nf_buy: &[Option<f64>; MAX_LADDER],
     bar: i64,
 ) {
-    let e_standard = self_level_counter_fire(dir, ladder, nf_sell, nf_buy);
+    let standard = self_level_counter_fire(dir, ladder, nf_sell, nf_buy);
     assert_eq!(
-        d_trigger, e_standard,
-        "D/E 对称违反@bar {bar}：D 回补触发 {d_trigger} ≠ E 自层 counter nf 标准 {e_standard}\
-         （dir={dir:?} ladder={ladder}）——D 必与 E 同标准（nf_*[ladder] 向心确认走势完美），\
-         非 raw sig.*_any（located/raw 混用=声明膨胀，第11环买卖点严格形式）"
+        op_trigger, standard,
+        "自层 counter 对称违反@bar {bar}：操作内联 gate {op_trigger} ≠ self_level_counter_fire \
+         规范 {standard}（dir={dir:?} ladder={ladder}）——D/E（含根多头 E）必用单一 nf 标准\
+         （nf_*[ladder] 向心确认 φ=0 走势完美），非 raw sig.*_any（raw 缺 settle 维度 ≠ 走势\
+         完美 = 声明膨胀，第11环买卖点严格形式）"
     );
 }
 
@@ -1396,16 +1405,16 @@ impl UnnStreamCore {
                     continue;
                 }
                 let v = &self.voices[id];
-                // D 回补触发 = 自层 counter nf 走势完美（向心确认，与 E 同标准 `self_level_counter_fire`；
-                // 非 raw `sig.*_any`——修复 2026-06-16 located/raw 混用不对称 + 声明膨胀）。
+                // D 回补触发 = 自层 counter nf 走势完美（向心确认 φ=0，与 E 同规范
+                // `self_level_counter_fire`；非 raw `sig.*_any`）。内联 gate（独立表达，
+                // 与 E 段对称）⇒ `prove_self_level_symmetric` 守它 == 规范（非重言回归防护）。
                 let perfected = match v.dir {
                     Polarity::Short => nf_buy[v.ladder].is_some(),
                     Polarity::Long => nf_sell[v.ladder].is_some(),
                 };
-                // D/E 对称守卫（用户裁决 2026-06-16）：D 实际触发值必 == E 自层 counter nf 标准
-                // （`prove_d_symmetric`）——D 若退回 raw sig.*_any 即 panic（regression guard，
-                // make-decision-observable，137号；逐 voice 验，非仅 perfected 时）。
-                prove_d_symmetric(v.dir, v.ladder, perfected, &nf_sell, &nf_buy, bar);
+                // 全路径对称守卫（D 支）：D 内联 gate 必 == self_level_counter_fire 规范——
+                // D 若退回 raw sig.*_any 即 panic（regression guard，137号；逐 voice 验，非仅 fire 时）。
+                prove_self_level_symmetric(v.dir, v.ladder, perfected, &nf_sell, &nf_buy, bar);
                 if perfected {
                     // N7：D 回补触发层==voice 层（nf@v.ladder 自层向心确认，与 E 对称）。
                     prove_n7_spawn_self_level(v.ladder, v.ladder, bar);
@@ -1416,9 +1425,10 @@ impl UnnStreamCore {
             }
         }
 
-        // ── E. 降成本 spawn（N7：逐活跃 voice，自层 nf fire ∨ 根自层 confirmed 卖
-        //    ⇒ 释放 θ 配额给子 voice。**不查全局 located 链、不 prove_chain**——
-        //    触发层 == voice 层（prove_n7）。N4 纯成本门终止）──
+        // ── E. 降成本 spawn（N7：逐活跃 voice，自层 counter nf fire ⇒ 释放 θ 配额给子
+        //    voice。**不查全局 located 链、不 prove_chain**——触发层 == voice 层（prove_n7）。
+        //    N4 纯成本门终止。**无 raw**：根多头 E 原 `confirmed_root = sig.sell_any` 残余已删，
+        //    根多头与子 voice、与 D 全路径统一用 `self_level_counter_fire`（向心确认 φ=0））──
         if !cleared {
             let snap: Vec<usize> = (0..self.voices.len()).collect();
             for &id in &snap {
@@ -1436,18 +1446,20 @@ impl UnnStreamCore {
                     // T8 根空头叶节点：根空头相不嵌套降成本（买点走 C 翻多，非 E）。
                     continue;
                 }
-                // E 自层 counter nf 触发 = D 回补**同标准**（`self_level_counter_fire`：多头查
-                // nf_sell[ladder]、空头查 nf_buy[ladder]，helix_centripetal_confirm 向心确认，第11环
-                // 买卖点严格形式，非 raw candidate）——symbol-level 对称由共用此函数构造保证。
-                let nf_trigger = self_level_counter_fire(dir, ladder, &nf_sell, &nf_buy);
-                // confirmed_root：根多头自层 confirmed 卖（§9"其他卖点走E"）——**根专属**（D 跳过根
-                // voice），不在 D/E 对称范围内（D 不作用于根，故 confirmed_root 无 D 对偶）。
-                let confirmed_root = match dir {
-                    Polarity::Long => is_root && sig.sell_any.get(ladder),
-                    Polarity::Short => false,
+                // E 触发 = 自层 counter nf 走势完美（向心确认 φ=0，与 D 同规范）。内联 gate
+                // （独立表达，与 D 段对称：多头查 nf_sell[ladder]、空头查 nf_buy[ladder]）——
+                // `confirmed_root` raw 残余已删（根多头不再读 sig.sell_any）。§9 type2/3 走 E
+                // 由 nf 向心确认承载（N3 同等武装 type2/3），type1 走 C 由上游 cleared 拦截，
+                // type1/type2/3 分流**不变**——差异仅 E 现要求 type2/3 也向心确认（非 raw）。
+                let e_trigger = match dir {
+                    Polarity::Long => nf_sell[ladder].is_some(),
+                    Polarity::Short => nf_buy[ladder].is_some(),
                 };
-                if nf_trigger || confirmed_root {
-                    // N7：触发是自层（nf@ladder ∨ 根 sell_any@ladder）——证明触发层==voice 层。
+                // 全路径对称守卫（E 支）：E 内联 gate 必 == self_level_counter_fire 规范——
+                // E 若退回 raw sig.*_any（如重引 confirmed_root）即 panic（137号回归防护）。
+                prove_self_level_symmetric(dir, ladder, e_trigger, &nf_sell, &nf_buy, bar);
+                if e_trigger {
+                    // N7：触发是自层（nf@ladder 向心确认）——证明触发层==voice 层。
                     prove_n7_spawn_self_level(ladder, ladder, bar);
                     if try_spawn_cost_gated(id, bar, c, &self.depth_ref, &mut self.voices, &mut self.res) {
                         self.voices[id].acted_bar = bar;
@@ -1718,11 +1730,6 @@ mod tests {
         b
     }
 
-    fn sellanypt(mut b: BarSig, lad: usize) -> BarSig {
-        b.sell_any = LadderMask(b.sell_any.0 | (1 << lad));
-        b
-    }
-
     /// θ 参照预热（层 2/3/4 各 SUB_COST_MIN_OBS 个锚）。**T49**：用 Type2（非 type1）预热
     /// ——center_book.ingest 对非 confirmed-type3 事件 kind-无关（Formed/Extended 同样预热
     /// θ），但 Type2 **不污染 type1_hist**（向心 confirm 只取 type1 settle 历史）⇒ 区间套
@@ -1828,19 +1835,19 @@ mod tests {
 
     #[test]
     fn n7_sublevel_sell_spawns_cost_reduction() {
-        // N7：根@4 入场后，根自层卖 pending source=3（<4）⇒ 不清仓（source<root.ladder
-        // ∧ 非 type1@4 路径）；根层 confirmed 卖（sell_any@4 但 sell1@4 不置）⇒ E 降成本
-        // spawn 子空@3（自层 nf，不 prove_chain）。
-        let (mut bars, mut flips) = full_bull_entry();
-        // 武装 nest_sell@4（卖 pending），bi 翻 Down ⇒ confirm@4 ⇒ nf_sell[4] ⇒ E spawn@3。
-        // sell_any@4 但 **不** sell1@4 ⇒ C 不触发（type2/3 走 E，§9）。
-        bars.push(with_ev(bar(105.0), 4, ev_full(BspClass::Sell1, false, 110.0, None)));
-        bars.push(sellanypt(bar(104.0), 4)); // sell_any@4（非 type1）
-        let sell_ev_bar = bars.len() as i64 - 1;
+        // N7：根@4 入场后，自层**向心**卖链确认（type1 卖@2/@3 在 candidate 之过去 + type2
+        // candidate@4）⇒ nf_sell[4] 向心确认（母线 [3,2] 嵌套贯通）⇒ E 降成本 spawn 子空@3
+        // （自层 nf，不 prove_chain）。candidate@4 是 type2（sig.sell1@4 不置）⇒ C no-op
+        // （type2/3 走 E，§9）。**confirmed_root raw 残余已删**：E 用 nf_sell[4]（向心确认 φ=0），
+        // 非 raw sell_any@4——无内圈 type1 卖历史则 helix 母线不贯通、nf 不 fire、E 不 spawn。
+        let (mut bars, flips) = full_bull_entry(); // root long@4
+        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2（最内圈，过去）
+        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3（move L1，过去）
+        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell2, false, 110.0, Some(200)))); // type2 candidate@4（since）
+        bars.push(bar(104.0)); // 下一 bar：since<bar ∧ 向心母线 [3,2] 贯通 ⇒ confirm@4 ⇒ nf_sell[4]
         bars.push(bar(104.0));
-        flips.push((sell_ev_bar, 1, Direction::Down));
         let r = run(bars, flips);
-        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "N7：根自层卖 ⇒ E 降成本 spawn 子空@3");
+        assert_eq!(r.n_nrf_spawns_by_ladder[3], 1, "N7：根自层向心确认卖 ⇒ E 降成本 spawn 子空@3");
         assert!(r.trades.iter().all(|t| t.exit_reason != "sellpt"), "非清仓（type2/3 走 E）");
     }
 
@@ -1899,13 +1906,20 @@ mod tests {
 
     #[test]
     fn n1_forest_multiple_children() {
-        // N1：根@4 在两个不同 bar 各响应一个自层 confirmed 卖（sell_any@4，E confirmed_root
-        // 路径，§9）⇒ 长出两个 child@3（栈不可能——栈只吃一个）。
+        // N1：根@4 在两个不同 bar 各响应一个自层**向心确认**卖（type2 candidate@4 + 内圈
+        // type1 卖历史 ⇒ nf_sell[4]，E spawn 路径，§9）⇒ 长出两个 child@3（栈不可能——栈
+        // 只吃一个）。**confirmed_root raw 残余已删**：两次 spawn 均由 nf_sell[4] 向心确认
+        // （非 raw sell_any@4）——首段建内圈 type1 卖母线，两次 candidate@4 各触发一次 confirm。
         let (mut bars, flips) = full_bull_entry();
-        bars.push(sellanypt(bar(105.0), 4)); // 根自层卖 ⇒ E spawn child@3 (#1)
-        bars.push(bar(104.0));
-        bars.push(sellanypt(bar(106.0), 4)); // 根自层卖（新 bar）⇒ E spawn child@3 (#2)
-        bars.push(bar(105.0));
+        // 建内圈 type1 卖历史（向心 confirm 母线 [3,2] 基础，settle 在 candidate 之过去）。
+        bars.push(with_ev(bar(106.0), 2, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@2
+        bars.push(with_ev(bar(107.0), 3, ev_full(BspClass::Sell1, false, 0.0, None))); // type1 卖@3
+        // 第一次向心卖确认@4（type2，不置 sell1）⇒ E spawn child@3 (#1)。
+        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell2, false, 110.0, Some(200))));
+        bars.push(bar(104.0)); // confirm@4 ⇒ nf_sell[4] ⇒ spawn #1
+        // 第二次向心卖确认@4（重新武装 candidate，母线历史已在）⇒ E spawn child@3 (#2)。
+        bars.push(with_ev(bar(108.0), 4, ev_full(BspClass::Sell2, false, 110.0, Some(201))));
+        bars.push(bar(103.0)); // confirm@4 ⇒ nf_sell[4] ⇒ spawn #2
         let r = run(bars, flips);
         assert!(r.n_nrf_spawns_by_ladder[3] >= 2, "森林：根长出 ≥2 child@3（栈只吃一个）");
         assert!(r.nrf_max_children >= 2, "N1 实证：max_children≥2");
