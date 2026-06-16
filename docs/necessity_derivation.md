@@ -449,9 +449,19 @@ panic 验证全形态学"。缠师原文：第 17/20–22 课。
 操作是势的兑现，故操作量正比于势的大小。以振幅 θ 度量级别的势（T₁₁ 的力度投影），则
 分配给子级别的量按 θ 配额：`m = p_units × θ_sub/θ_total`。□
 
-【环 15｜prove —｜状态 ✓】`try_spawn_cost_gated`（`unified_necessity.rs:334-340`）：
-`m_quota = p_units × θ_sub/θ_total`，`theta_weights` 跨 `[FIRST_BSP, MAX)` 所有结构
-承载层。缠师原文：第 53 课配额（留白回测裁决，谱系 `project_notional_leverage_research`）。
+【环 15｜prove —｜状态 ⚠️ 必然性争议（2026-06-15 上浮）】`try_spawn_cost_gated`
+（`unified_necessity.rs:894-899`）：`m_quota = p_units × θ_sub/θ_total`，`theta_weights`
+（`positional.rs:374`）跨 `[FIRST_BSP, MAX)` 所有结构承载层。缠师原文：第 53 课配额
+（**留白回测裁决**，谱系 `project_notional_leverage_research`）。
+
+> **⚠️ 必然性争议**：本式的**全局-θ-归一化**与 **T₅₉（尺度不变/R₃ 自相似）+ T₄₈（units=σ-不变
+> Casimir）矛盾**——由 σ W σ⁻¹=W 可证 spawn 比例 f=m/p_units **必须级别无关（σ-不变常数）**，而
+> `θ_sub/θ_total` 即使 A₅-理想 θ_k=θ₀λᵏ 仍 = λ^sub/Σλᵏ **随级别变**（固定窗口不随 σ 平移），破 T59；
+> 且递归全局-θ 给 units(S−j)∝Πθ/θ_total^j ≠ θ_{S−j}，**连"势∝r"自身目标都不达成**。必然形式 =
+> **f = σ-不变常数**（"势∝r"下 = 1/λ，m=p_units/λ）。这是**定义冲突**（T18 文本 ⊥ T59 文本，非实现
+> bug），三读法（R1 几何 1/λ / R2 自由常数 / R3 保留作 L2 近似）待编排者裁决。详见诊断
+> `analysis/unn_theta_allocation_necessity_diagnosis.md` §3 + 上浮
+> `.chanlun/escalations/2026-06-15-theta-allocation-non-necessity.md`。**θ 规则未改**（待裁决）。
 
 ### 定理 T₁₉（成本门 = 递归终止）
 
@@ -464,7 +474,7 @@ friction`（势幅度 < 成本 = 势消失）⟹ 在 k 级别终止。非固定�
 不存在（不是"不划算"，是势在操作语义下消失）。故递归在 θ < f 处终止。又由 T₇，bi(a0) 是
 结构原子，其下无更细方向单元，`theta(bi) = None`（不可测）⟹ 自然终止。故递归基 = bi。□
 
-【环 16｜prove **N4** `prove_n4_cost_gate`（line 293）｜状态 ✓】`try_spawn_cost_gated`
+【环 16｜prove **N4** `prove_n4_cost_gate`（`unified_necessity.rs:638`）｜状态 ✓】`try_spawn_cost_gated`
 **无 floor 参数**：`theta(sub)=None → noref_reject`；`theta(sub) < SUB_COST_K×friction
 → cost_reject`。eod 反证 `floor_stop ≡ 0`，violation = panic。**对照**：iso/URS 有
 `floor_ladder` 硬终止（~），nif 有 `min_trade_ladder`（✗）。unn 是唯一纯成本门引擎。
@@ -480,9 +490,11 @@ friction`（势幅度 < 成本 = 势消失）⟹ 在 k 级别终止。非固定�
 的低级别走势完美，与"从最高级别定位入场"（T₂₈）是不同的级别遍历——降成本看的是 voice
 脚下，入场看的是全局顶层。故降成本不需外部 pending 链。□
 
-【环 17｜prove **N7** `prove_n7_spawn_self_level`（line 262）｜状态 ✓】E 降成本（line 684）
-用 voice 自层 `nf_*[voice.ladder]`，不查全局 located 链、不 `prove_chain`；守卫触发层 ==
-voice 层，violation（借更高级别 pending）= panic。**关键张力 N5⊥N7 见 T₄₃**。
+【环 17｜prove **N7** `prove_n7_spawn_self_level`（`unified_necessity.rs:571`）｜状态 ✓】E 降成本
+（`unified_necessity.rs:1357`）用 voice 自层 `nf_*[voice.ladder]`，不查全局 located 链、不 `prove_chain`；
+守卫触发层 == voice 层，violation（借更高级别 pending）= panic。**关键张力 N5⊥N7 见 T₄₃**。
+**T8 叶节点限制 `is_root && Short` 仅作用于根空头**（子空头正常递归 spawn 孙 voice 做多，
+2026-06-15 Q2 经验确认 BTC 42 个孙 voice）。
 
 ### 定理 T₂₁（并发 = 级别同时性）
 
@@ -553,8 +565,9 @@ root 先入（F），child 在 root 持仓中 spawn（E）= stretto。实测 max
 利用父级别之下的走势。父级别向上完美后，其下一级别走势向下（T₃ 新势反向）⟹ 子 voice
 做空。子的下一级别又反向 ⟹ 孙做多。故方向沿级别交替。□
 
-【环 22｜prove **N8**｜状态 ✓】`try_spawn_cost_gated`（line 344）：`child_dir = 父反向`；
+【环 22｜prove **N8**｜状态 ✓】`try_spawn_cost_gated`（`unified_necessity.rs:907`）：`child_dir = 父反向`；
 空头父释放受 `capital/c` 约束（资金守恒）。谱系 `project_bidirectional_accounting`。
+经验确认（BTC 2026-06-15）：父多→子空→孙多三代交替已涌现（root@4→子空@3→孙多@2）。
 
 ### 定理 T₂₆（操盘三阶段）
 
