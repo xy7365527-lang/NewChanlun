@@ -346,6 +346,27 @@ pub struct PositionalResult {
     /// 森林最大活跃子数（unified_necessity 专属，其余模式恒 0）——N1 实证读数：
     /// >1 = 同一父长出多 child = 森林（栈不可能）。
     pub nrf_max_children: u64,
+    // ── unn 螺旋 eod 观测（unified_necessity 专属，其余模式恒 0）。引擎纯函数：观测值
+    //    结构化进 res（与 nrf_max_children 一致），供下游 L2/L3 分析消费——不经 eprintln
+    //    库 I/O 副作用（formalization-validity-domain.md：~观测须可被结构化消费而非丢弃）──
+    /// T50 操作频率径向标度律（§8.3，~观测）：fire(k) 多于相邻低层的局部单调违反层数。
+    pub nrf_t50_monotone_violations: u64,
+    /// T56 角径全纯 h²³=σ：confirm fire 覆盖的径向层数（一圈角向↦一级径向）。
+    pub nrf_t56_radial_coverage: u64,
+    /// T57 手性镜像 τhτ⁻¹=h⁻¹（~regime 观测）：镜像退化（单边 fire）层数。
+    pub nrf_t57_onesided_layers: u64,
+    /// T58 角向基本域（23 环）：arm→fire 生命周期活跃的径向层数。
+    pub nrf_t58_active_levels: u64,
+    /// T59 尺度不变 σ 自相似（~观测）：有 arm 无 fire 的自相似退化层数。
+    pub nrf_t59_degenerate_layers: u64,
+    /// S9（T15 located 势源价格 zigzag，~观测）：located 操作流数。
+    pub sig_n_ops: u64,
+    /// S9（T15，~观测）：located 势源价格 zigzag 违反数（0 ⇒ 经验满足 T15）。
+    pub sig_n_s9_violations: u64,
+    /// T11 势趋向维（~观测）：趋向观测数。
+    pub sig_n_trend_obs: u64,
+    /// T11 势趋向维（~观测）：趋向衰减数（背驰趋向维操作层显现）。
+    pub sig_n_trend_decel: u64,
 }
 
 /// θ 配额表：对 [floor, MAX_LADDER) 各层取 DepthRef P50；Σ 只跨有定义的层

@@ -202,14 +202,6 @@ use crate::stroke::Direction;
 /// 仅作 `helix_centripetal_confirm` 向心回溯的低级别 confirm 证据（结构基底）。
 const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
 
-/// **角向基本域大小（T58，h²³=σ 中 "23"）**：一个完整走势（φ:0→0）内部展开为概念运动
-/// 链的 23 个辩证扬弃环节（`docs/concept_movement_chain.md`），= ⟨h⟩/⟨σ⟩ ≅ ℤ/23 角向商
-/// 的阶（`docs/spiral_exhaustive_enumeration.md` §0.1）。粗粒化为 14 概念类（§4 双粒度）。
-/// **认识论（formalization-validity-domain.md）**：定性"角向基本域有限"= L0（R₂ 链闭合的
-/// 拓扑事实）；"23"具体值 = **A-链建模约定**（链切分选择），非运行时不变量——故本常量只
-/// 进入观测/标注（T58 报告），**不作 panic 判据**（否则把建模约定误作 L0 守卫）。
-const N_CONCEPT_RINGS: u64 = 23;
-
 /// pending 窗口（高级别 candidate 持续记忆——540号压缩侧↑载体）。`since_bar` =
 /// candidate 首现 bar（压缩完成 = φ→0 的外圈 (λ^k, φ→0)）；极值刷新时保留首现值
 /// （压缩起始不变）。
@@ -732,9 +724,10 @@ fn prove_t57_chirality_mirror(res: &PositionalResult) -> u64 {
 }
 
 /// **T58（角向基本域 = 23 辩证环节，ℤ/23 商，§8.3 螺旋 / 细胞 {φ}）运行时证明（eod）**：
-/// 一个完整走势（φ:0→0）内部展开为概念运动链的 23 个扬弃环节（`N_CONCEPT_RINGS`），ℤ/23ℤ
+/// 一个完整走势（φ:0→0）内部展开为概念运动链的 23 个扬弃环节（`docs/concept_movement_chain.md`），ℤ/23ℤ
 /// = ⟨h⟩/⟨σ⟩ 角向商，每级别（T₁₆ 全称命题递归实例）独立成立。**"23"是 A-链建模约定**（非
-/// L0 运行时量，见 `N_CONCEPT_RINGS` 注），故不作 23 的字面 panic 判据。**结构可证伪 panic**：
+/// L0 运行时量——"23"是 A-链建模约定/链切分选择，见 `docs/spiral_exhaustive_enumeration.md` §0.1），
+/// 故不作 23 的字面 panic 判据。**结构可证伪 panic**：
 /// 23 环链中可运行时观测的子链 = **生命周期 arm→…→fire 在每个级别闭合**——任一级别 k 出现
 /// confirm fire（角向圈闭合 φ=0）必先经 arm（角向圈起始）：`fire[k]>0 ⟹ arms[k]>0`。
 /// fire-without-arm = 角向圈无起点直接闭合 = 23 环链在该级别断裂 = panic。**这非重言**：
@@ -1528,48 +1521,25 @@ impl UnnStreamCore {
         prove_n4_cost_gate(&self.res);
         // N1 观测（非 panic）：记录最大子数（>1 = 森林实证）。
         self.res.nrf_max_children = self.max_children_seen as u64;
-        // S9（T15 ~ 状态）观测：located 势源价格 zigzag 违反计数（非 panic——~ 状态不声明为
-        // ✓，formalization-validity-domain.md）。n_s9_violations=0 ⇒ located 流经验满足 T15。
-        if self.sig_state.n_ops > 0 {
-            eprintln!(
-                "[信号层 located 势源观测] n_ops={} S9(T15)违反={} | T11 势趋向维 obs={} 衰减={}\
-                （S11 交替 panic 守卫；S9/T11 ~观测——T11 势三维=手性ε×力量×趋向[本斜率]）",
-                self.sig_state.n_ops, self.sig_state.n_s9_violations,
-                self.sig_state.n_trend_obs, self.sig_state.n_trend_decel
-            );
-        }
-        // ── T50（操作频率径向标度律，§8.3，~ 状态）观测：f(k)∝λ^{−k}——清仓（最外圈∝λ^{−K}）
-        //    比降成本（内圈∝λ^{−k}）罕见。定性单调核 A₅-独立（观测违反计数），指数律 λ^{−k}
-        //    定量是 L2 可证伪（各级 fire 间隔比≈λ）；非 panic（formalization-validity-domain.md）──
-        let fires: Vec<u64> = (FIRST_BSP_LADDER..MAX_LADDER)
-            .map(|k| self.res.n_nest_fire_sell_by_ladder[k] + self.res.n_nest_fire_buy_by_ladder[k])
-            .collect();
-        let total_fires: u64 = fires.iter().sum();
-        if total_fires > 0 {
-            let t50_viol = prove_t50_radial_scaling(&self.res);
-            let flips: u64 = self.res.n_nrf_root_flips_by_ladder.iter().sum();
-            let spawns: u64 = self.res.n_nrf_spawns_by_ladder.iter().sum();
-            eprintln!(
-                "[T50 径向标度律观测] confirm fire/层[{FIRST_BSP_LADDER}..{MAX_LADDER})={fires:?} \
-                 单调违反={t50_viol} | 根翻转(最外圈∝λ^-K)={flips} 降成本spawn(内圈∝λ^-k)={spawns}\
-                （定性核高层罕见；λ 指数律 L2 可证伪，~状态非panic）"
-            );
-        }
-        // ── T56–T59（单螺旋 D∞ 基础不变量，§8.3 / spiral_exhaustive_enumeration.md，eod）──
-        //    T56/T58 含结构 panic（segment 无角向圈 / fire⟹arm 生命周期），T57/T59 观测（~）。
-        let t56_radial = prove_t56_angular_radial_holonomy(&self.res); // panic: segment 无 fire
-        let t57_one_sided = prove_t57_chirality_mirror(&self.res); // 观测：镜像退化层
-        let t58_active = prove_t58_angular_basic_domain(&self.res); // panic: fire⟹arm
-        let t59_degenerate = prove_t59_scale_invariance(&self.res); // 观测：自相似退化层
-        if total_fires > 0 {
-            eprintln!(
-                "[T56-T59 单螺旋 D∞ 基础不变量观测] \
-                 T56 角径全纯 h²³=σ: 角向圈覆盖径向层数={t56_radial}（一圈↦一级；segment 无 fire ✓panic守）| \
-                 T57 手性镜像 τhτ⁻¹=h⁻¹: 镜像退化(单边)层={t57_one_sided}（~regime依赖，S11守交替）| \
-                 T58 角向基本域 {N_CONCEPT_RINGS}环: 生命周期活跃层={t58_active}（fire⟹arm ✓panic守）| \
-                 T59 尺度不变 σ自相似: 退化(arm无fire)层={t59_degenerate}（~L0几何+L3实测corroboration）"
-            );
-        }
+        // ── eod 观测结构化（引擎纯函数）：S9/T11/T50/T56–T59 ~观测值写入 res（与 N1
+        //    nrf_max_children 一致），供下游 L2/L3 分析消费——**不经 eprintln 库 I/O 副作用**
+        //    （formalization-validity-domain.md：~观测须可被结构化消费而非丢弃；引擎是
+        //    tape→res 纯函数，呈现由调用方决定）。prove 的结构 panic 守卫无条件调用保留 ──
+        // S9（T15 located 势源价格 zigzag，~观测）+ T11 势趋向维（~观测）：sig_state → res。
+        // n_s9_violations=0 ⇒ located 流经验满足 T15；S11 交替由 prove_s11_s9_located panic 守。
+        self.res.sig_n_ops = self.sig_state.n_ops;
+        self.res.sig_n_s9_violations = self.sig_state.n_s9_violations;
+        self.res.sig_n_trend_obs = self.sig_state.n_trend_obs;
+        self.res.sig_n_trend_decel = self.sig_state.n_trend_decel;
+        // T50（操作频率径向标度律 f(k)∝λ^{−k}，§8.3，~观测）：定性单调核局部违反层数
+        // （高层 fire 多于相邻低层；无 fire 时恒 0）。λ 指数律定量 L2 可证伪——非 panic。
+        self.res.nrf_t50_monotone_violations = prove_t50_radial_scaling(&self.res);
+        // T56–T59（单螺旋 D∞ 基础不变量，§8.3 / spiral_exhaustive_enumeration.md）：
+        // T56/T58 含结构 panic 守卫（segment 无角向圈 / fire⟹arm 生命周期），T57/T59 ~观测。
+        self.res.nrf_t56_radial_coverage = prove_t56_angular_radial_holonomy(&self.res); // panic: segment 无 fire
+        self.res.nrf_t57_onesided_layers = prove_t57_chirality_mirror(&self.res); // ~观测：镜像退化层
+        self.res.nrf_t58_active_levels = prove_t58_angular_basic_domain(&self.res); // panic: fire⟹arm
+        self.res.nrf_t59_degenerate_layers = prove_t59_scale_invariance(&self.res); // ~观测：自相似退化层
     }
 
     /// 已累计 trade 数（lib.rs push_bar 切出本 bar 新增）。

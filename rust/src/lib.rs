@@ -2219,6 +2219,17 @@ fn positional_result_to_dict<'py>(
     out.set_item("nrf_short_earning_hits", res.nrf_short_earning_hits)?;
     out.set_item("nrf_shrink_units", res.nrf_shrink_units)?;
     out.set_item("nrf_max_children", res.nrf_max_children)?;
+    // unn 螺旋 eod ~观测（结构化输出，引擎纯函数；其余模式恒 0）——
+    // formalization-validity-domain.md：~观测须可被下游 L2/L3 结构化消费而非 eprintln 丢弃。
+    out.set_item("nrf_t50_monotone_violations", res.nrf_t50_monotone_violations)?;
+    out.set_item("nrf_t56_radial_coverage", res.nrf_t56_radial_coverage)?;
+    out.set_item("nrf_t57_onesided_layers", res.nrf_t57_onesided_layers)?;
+    out.set_item("nrf_t58_active_levels", res.nrf_t58_active_levels)?;
+    out.set_item("nrf_t59_degenerate_layers", res.nrf_t59_degenerate_layers)?;
+    out.set_item("sig_n_ops", res.sig_n_ops)?;
+    out.set_item("sig_n_s9_violations", res.sig_n_s9_violations)?;
+    out.set_item("sig_n_trend_obs", res.sig_n_trend_obs)?;
+    out.set_item("sig_n_trend_decel", res.sig_n_trend_decel)?;
     Ok(out)
 }
 
