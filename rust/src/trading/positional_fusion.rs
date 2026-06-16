@@ -86,6 +86,21 @@ use crate::stroke::Direction;
 pub(crate) const SUB_COST_K: f64 = 2.0;
 pub(crate) const SUB_FRICTION_RT: f64 = 0.001;
 
+/// 仓位分配 spawn 比例 f = m/p_units = 1/λ（σ-不变常数；编排者裁决 2026-06-16）。
+/// **裁决依据（读法A：势∝r 是公理）**：r 标记级别=递归深度=势能，「势∝r」是径向坐标 r
+/// 的**定义本身**（L0，信息增量为零，不可经验否定）⟹ 配额 = 子势/父势 = r_{k−1}/r_k =
+/// λ^{k−1}/λ^k = **1/λ**，几何强制 σ-不变（T48 units=σ-不变 Casimir + T59 自相似 σWσ⁻¹=W）。
+/// **替代**旧全局 θ_sub/θ_total 归一化（`theta_weights` 固定窗口 [FIRST_BSP,MAX) 不随 σ:k↦k+1
+/// 平移 ⇒ f 随级别变 ⇒ 破 T59；环15「必然性争议」+ escalation theta-allocation 裁决，未改前
+/// 第53课配额「留白」被「势∝r 公理」填补为 1/λ 形式）。
+/// **值 = 1/λ**：λ（级别尺度比，A₅）是涌现量（T50 Δt(k)∝λ^k），未独立测 ⇒ SUB_SPAWN_FRAC
+/// 作 leverage_triad 结算的**唯一自由度**（非违 231号零新参数——成本门 SUB_COST_K/FRICTION
+/// 仍复用 OrganicConfig 经验 θ；本常数是 leverage_triad「唯一自由度=顶层配额」的显式化）回测
+/// 扫描。初始 λ=2（二分递归默认）⟹ f=0.5；待全8标的回测扫描 + T50 涌现 λ 测量精化为
+/// f=1/λ_measured 的零自由度 R1 形式（扫得最优 f≈1/λ_emergent 则势∝r 公理获 L2 经验旁证）。
+/// pub(crate)：unn `try_spawn_cost_gated` 消费（角色B 配额比例；角色A 成本门仍用经验 θ）。
+pub(crate) const SUB_SPAWN_FRAC: f64 = 0.5;
+
 /// osc 层消费的相位三值视图（`unified_osc` 接口；P6 任务，
 /// `analysis/p6_phase_machine_research.md`）。
 ///

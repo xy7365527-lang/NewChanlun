@@ -440,28 +440,39 @@ panic 验证全形态学"。缠师原文：第 17/20–22 课。
 
 【环 14｜prove **N5/N6**｜状态 ✓】见 T₂₈/T₂₉。缠师原文：第 30 课区间套定位。
 
-### 定理 T₁₈（级别 = 操作量）
+### 定理 T₁₈（级别 = 操作量：配额 = 径向比 1/λ，σ-不变）
 
-**陈述**：操作量由级别的势的大小决定。降成本释放给子 voice 的量
-`m = p_units × θ_sub / θ_total`，其中 θ = 该级别振幅（势的度量）。
+**陈述**：操作量由级别的势的大小决定。**「势 ∝ r」是径向坐标 r 的定义本身**（r 标记级别 =
+递归深度 = 势能，L0 定义层，信息增量为零不可经验否定——编排者裁决 2026-06-16 读法A）。故降成本
+释放给子 voice（级别 k−1，内圈）的配额比例 f = m/p_units = 子势/父势 = r_{k−1}/r_k =
+**1/λ**（σ-不变常数，λ = 级别尺度比 r=λ^k）。`m = p_units × (1/λ)`。
 
-**证明**：由 D0.1，势 Φ 有大小。由 T₁₆，每级别有独立的势。高级别势大、低级别势小。
-操作是势的兑现，故操作量正比于势的大小。以振幅 θ 度量级别的势（T₁₁ 的力度投影），则
-分配给子级别的量按 θ 配额：`m = p_units × θ_sub/θ_total`。□
+**证明**：由 D0.1，势 Φ 有大小。由 T₁₆，每级别有独立的势。**「势 ∝ r」是 r 的定义**（径向坐标
+标记级别即势能）⟹ 操作量正比于 r。由 T₄₈（units = 唯一 σ-不变 Casimir）+ T₅₉（σ W σ⁻¹ = W
+自相似）⟹ spawn 算子与 σ 对易 ⟹ f_k = f_{k+1} ⟹ **f 级别无关（σ-不变常数）**（证明用 T₂₃ 自相似
+递归 + T₅₉ step-replication，**非** R₃-on-W_form——W_form 是形态学生成算子非配额算子，符号碰撞已
+避免）。势∝r ⟹ f = r_{k−1}/r_k = 1/λ（零自由度几何强制）。□
 
-【环 15｜prove —｜状态 ⚠️ 必然性争议（2026-06-15 上浮）】`try_spawn_cost_gated`
-（`unified_necessity.rs:894-899`）：`m_quota = p_units × θ_sub/θ_total`，`theta_weights`
-（`positional.rs:374`）跨 `[FIRST_BSP, MAX)` 所有结构承载层。缠师原文：第 53 课配额
-（**留白回测裁决**，谱系 `project_notional_leverage_research`）。
+【环 15｜prove **A4/N8**（spawn 后 Σunits 守恒，σ-不变配额不破守恒）｜状态 ✓（编排者裁决
+2026-06-16：读法A 势∝r 公理 ⟹ f=1/λ σ-不变）】`try_spawn_cost_gated`
+（`unified_necessity.rs:950-962`）：`m_quota = p_units × SUB_SPAWN_FRAC`（σ-不变常数 f=1/λ，
+`positional_fusion.rs:SUB_SPAWN_FRAC`），**替代**旧全局 `θ_sub/θ_total` 归一化。缠师原文：第 53
+课配额（原「留白回测裁决」**被「势∝r 公理」填补为 1/λ 形式**，值留经验，谱系
+`project_notional_leverage_research` / `project_leverage_triad_formalization` 唯一自由度）。
 
-> **⚠️ 必然性争议**：本式的**全局-θ-归一化**与 **T₅₉（尺度不变/R₃ 自相似）+ T₄₈（units=σ-不变
-> Casimir）矛盾**——由 σ W σ⁻¹=W 可证 spawn 比例 f=m/p_units **必须级别无关（σ-不变常数）**，而
-> `θ_sub/θ_total` 即使 A₅-理想 θ_k=θ₀λᵏ 仍 = λ^sub/Σλᵏ **随级别变**（固定窗口不随 σ 平移），破 T59；
-> 且递归全局-θ 给 units(S−j)∝Πθ/θ_total^j ≠ θ_{S−j}，**连"势∝r"自身目标都不达成**。必然形式 =
-> **f = σ-不变常数**（"势∝r"下 = 1/λ，m=p_units/λ）。这是**定义冲突**（T18 文本 ⊥ T59 文本，非实现
-> bug），三读法（R1 几何 1/λ / R2 自由常数 / R3 保留作 L2 近似）待编排者裁决。详见诊断
-> `analysis/unn_theta_allocation_necessity_diagnosis.md` §3 + 上浮
-> `.chanlun/escalations/2026-06-15-theta-allocation-non-necessity.md`。**θ 规则未改**（待裁决）。
+> **✓ 裁决（2026-06-16，读法A）**：旧式**全局-θ-归一化** ⊥ **T₅₉（σ 自相似）+ T₄₈（units σ-不变
+> Casimir）**——`θ_sub/θ_total` 固定窗口 [FIRST_BSP,MAX) 不随 σ:k↦k+1 平移 ⇒ f 随级别变破 T59
+> （即使 A₅-理想 θ_k=θ₀λᵏ 仍 = λ^sub/Σλᵏ 随 sub 变）。**编排者裁决**：「势∝r」是径向坐标 r 的
+> **定义**（公理，非可弃前提），故第53课「配额留白」被填补 ⟹ **f = 1/λ（σ-不变，几何强制）**。
+> 实装 `SUB_SPAWN_FRAC`（=1/λ 形式；值因 λ 涌现尺度比 A₅ 未独立测，作 leverage_triad 唯一自由度
+> 回测扫描，初始 λ=2 ⟹ f=0.5；待 T50 涌现 λ 测量精化为 f=1/λ_measured 零自由度 R1）。**成本门
+> （角色A，`depth_ref.theta`）保留经验 θ 不变**——势存在性判定需 L2 经验量（λ^k 恒正会使 N4 终止
+> 失效违 T19）。原三读法：R1（几何 1/λ）= 本裁决形式（值经验确定）；R2（自由常数）被「势∝r 公理」
+> 收紧（留白被填补，无独立自由度）；R3（保留 θ）被 090号声明膨胀禁。诊断
+> `analysis/unn_theta_allocation_necessity_diagnosis.md` §3 + escalation
+> `.chanlun/escalations/2026-06-15-theta-allocation-non-necessity.md`（**已裁决**）。
+> **有效域读数（L2，非验收）**：θ→1/λ 配额改变全标的 L3 读数（回测扫描 f 精化）；验收 = A4/N8
+> 守恒 prove 零 panic（σ-不变配额不破 Σunits=N_base，与 f 值无关）。
 
 ### 定理 T₁₉（成本门 = 递归终止）
 

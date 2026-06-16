@@ -189,8 +189,8 @@ use super::center_book::CenterBook;
 use super::config::{SUB_COST_MIN_OBS, SUB_COST_Q};
 use super::depth_ref::{DepthRef, DEPTH_REF_WINDOW};
 use super::isolated_fugue::{close_voice, nav, settle, VoiceLedger, VoiceStatus};
-use super::positional::{theta_weights, LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
-use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT};
+use super::positional::{LayerTrade, PositionalResult, EQUITY_SAMPLE_BARS};
+use super::positional_fusion::{SUB_COST_K, SUB_FRICTION_RT, SUB_SPAWN_FRAC};
 use super::tape::{BarSig, SignalTape};
 use super::types::{BspEvent, Polarity, FIRST_BSP_LADDER, INITIAL_CAPITAL, MAX_LADDER};
 use crate::buysellpoint::{
@@ -948,11 +948,15 @@ fn try_spawn_cost_gated(
             false
         }
         Some(_) => {
-            // m = 父在手 × θ_sub/θ_total（53课配额；高级别势大→大仓位，第15环）。
-            // θ_total 跨 [FIRST_BSP, MAX)——所有结构承载层（无操作 floor）。
-            let (thetas, theta_total) = theta_weights(depth_ref, FIRST_BSP_LADDER);
-            let w = thetas[sub].map(|t| t / theta_total);
-            let m_quota = w.map_or(0.0, |w| p_units * w);
+            // m = 父在手 × SUB_SPAWN_FRAC（配额比例 f=1/λ，σ-不变常数；编排者裁决 2026-06-16
+            // 「势∝r 是公理」⟹ f=子势/父势=r_{k−1}/r_k=1/λ 几何强制，零自由度形式）。
+            // **替代**旧全局 θ_sub/θ_total 归一化——后者固定窗口 [FIRST_BSP,MAX) 不随 σ:k↦k+1
+            // 平移 ⇒ f 随级别变 ⇒ 破 T59 σ-不变（T48 units Casimir + T59 σWσ⁻¹=W 要求 f 级别
+            // 无关；环15 必然性争议裁决 + escalation theta-allocation）。值 1/λ（涌现尺度比 A₅）
+            // 经回测扫描确定（53课留白被势∝r 公理填补为 1/λ 形式，leverage_triad 唯一自由度）。
+            // **成本门（上方 depth_ref.theta，角色A）仍用经验 θ 不变**——θ=None/θ<friction 的
+            // 势存在性判定本质需 L2 经验量（λ^k 恒正会使 N4 终止失效，违 T19）。
+            let m_quota = p_units * SUB_SPAWN_FRAC;
             let m = match p_dir {
                 Polarity::Long => m_quota,
                 Polarity::Short => m_quota.min(p_capital / c),
