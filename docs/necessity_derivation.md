@@ -124,6 +124,7 @@
 |---------|-----------|------|
 | A4 双向重定基方向 | T₃₈（earning +Δ>0 / 亏损 −δ≥0） | `close_voice`（守恒由 N8 兜底，A4 守方向/sign） |
 | A5 涌现重组 N 不变 | T₃₀（重组非加仓） | `prove_a5_relabel`（units/NAV 不变）+ root_emergent 单调性 assert（release-active） |
+| **配额 σ-不变** | **T₁₈×T₄₈×T₅₉**（spawn 配额 f=1/λ 级别无关；542号语法记录） | `prove_theta_sigma_invariant`（`try_spawn_cost_gated` spawn 点；守 `m_quota == sigma_invariant_quota(p_units)` = σ-不变规范，规范刻意**不取 sub** ⇒ 漂移回 θ_sub/θ_total 级别依赖分配即 panic。**补 542号缺瓦**：N8/A4 守 Σunits 守恒**不覆盖** σ-不变性——θ 归一化仍守恒却破 σ-不变，故须独立守卫。**非重言** `#[should_panic]` 反证 `theta_sigma_invariance_fires_on_level_dependent_quota`） |
 
 > 注：A3（T₃₇ child.P&L≡cost_reduction）的字面恒等是有条件的（§11.1），其无条件严格形式 =
 > NAV 价值中性（T₃₅），已由 N8 守卫，不另设 prove。T₄₀（M=N 同股数翻转）由 `prove_t14_root_flip`
@@ -453,12 +454,18 @@ panic 验证全形态学"。缠师原文：第 17/20–22 课。
 递归 + T₅₉ step-replication，**非** R₃-on-W_form——W_form 是形态学生成算子非配额算子，符号碰撞已
 避免）。势∝r ⟹ f = r_{k−1}/r_k = 1/λ（零自由度几何强制）。□
 
-【环 15｜prove **A4/N8**（spawn 后 Σunits 守恒，σ-不变配额不破守恒）｜状态 ✓（编排者裁决
-2026-06-16：读法A 势∝r 公理 ⟹ f=1/λ σ-不变）】`try_spawn_cost_gated`
-（`unified_necessity.rs:950-962`）：`m_quota = p_units × SUB_SPAWN_FRAC`（σ-不变常数 f=1/λ，
-`positional_fusion.rs:SUB_SPAWN_FRAC`），**替代**旧全局 `θ_sub/θ_total` 归一化。缠师原文：第 53
-课配额（原「留白回测裁决」**被「势∝r 公理」填补为 1/λ 形式**，值留经验，谱系
-`project_notional_leverage_research` / `project_leverage_triad_formalization` 唯一自由度）。
+【环 15｜prove **`prove_theta_sigma_invariant`（σ-不变性）+ A4/N8（守恒）**｜状态 ✓（编排者裁决
+2026-06-16：读法A 势∝r 公理 ⟹ f=1/λ σ-不变；542号语法记录）】`try_spawn_cost_gated`
+（`unified_necessity.rs`）：`m_quota = p_units × SUB_SPAWN_FRAC`（σ-不变常数 f=1/λ，
+`positional_fusion.rs:SUB_SPAWN_FRAC`），**替代**旧全局 `θ_sub/θ_total` 归一化。**两个范畴双守卫
+（542号缺瓦补全）**：① **σ-不变性**（f 级别无关）由 `prove_theta_sigma_invariant` 守——spawn 点
+断言 `m_quota == sigma_invariant_quota(p_units)`（规范刻意**不取 sub** ⇒ 漂移回 θ_sub/θ_total
+级别依赖分配即 panic，`#[should_panic]` 反证非重言）；② **守恒**（Σunits=N_base）由 A4/N8 守
+（与 f 值无关）。**关键区分**：N8 守恒**不覆盖** σ-不变性——θ 全局归一化仍守 Σunits 却使 f 随
+级别变（破 T59），故 542号原验收（仅引 A4/N8）有缺瓦，本 prove 补之（把「f 必须 σ-不变」从结算
+要求升为运行时可观测守卫，137号）。缠师原文：第 53 课配额（原「留白回测裁决」**被「势∝r 公理」
+填补为 1/λ 形式**，值留经验，谱系 `project_notional_leverage_research` /
+`project_leverage_triad_formalization` 唯一自由度）。
 
 > **✓ 裁决（2026-06-16，读法A）**：旧式**全局-θ-归一化** ⊥ **T₅₉（σ 自相似）+ T₄₈（units σ-不变
 > Casimir）**——`θ_sub/θ_total` 固定窗口 [FIRST_BSP,MAX) 不随 σ:k↦k+1 平移 ⇒ f 随级别变破 T59

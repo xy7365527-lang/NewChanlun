@@ -919,6 +919,40 @@ fn prove_t55_dual_line_observe(
 //   （T10 径向圈数判别量的结构前提）由 `prove_s12_center`（消费侧，step 中每 BSP 事件）+ 生成侧
 //   `buysellpoints_from_level` 守卫；趋向维斜率 DivEvent 无段端点不可达（T11 投影缺口，不强加伪判据）。
 
+/// **配额 σ-不变规范（T18×T48×T59，第15环 = 542号语法记录的运行时显式化）**：降成本释放给子
+/// voice 的配额 `m_quota = f × p_units`，比例 `f = m_quota/p_units` 必**级别无关**（σ-不变常数
+/// 1/λ）。**势∝r 是径向坐标 r 的定义本身**（L0，读法A 编排者裁决 2026-06-16，542号）⟹ f = 子势/
+/// 父势 = r_{sub}/r_{sub+1} = λ^{sub}/λ^{sub+1} = **1/λ**（几何强制零自由度）。σ-不变性由 **T48**
+/// （units = 唯一 σ-不变 Casimir）+ **T59**（σ W σ⁻¹ = W 自相似）+ **T23**（递归 step-replication）
+/// 强制：spawn 算子与 σ 对易 ⟹ f_k = f_{k+1}（542号证明基础修正：用 T23/T59 自相似递归，**非**
+/// R₃-on-W_form——W_form 是形态学生成算子非配额算子）。**关键**：本规范刻意**不取 `sub` 参数**——
+/// σ-不变性的精确编码 = 配额是父在手的级别无关函数（仅 `p_units`，不依赖 `sub`）。值
+/// `SUB_SPAWN_FRAC = 1/λ`（λ=2 初始 ⟹ 0.5；详 T18 头注 + 542号有效域分离）。
+fn sigma_invariant_quota(p_units: f64) -> f64 {
+    p_units * SUB_SPAWN_FRAC
+}
+
+/// **配额 σ-不变性运行时证明（T18×T48×T59，第15环；violation = panic）**：实际分配的 `m_quota`
+/// 必 == σ-不变规范 `sigma_invariant_quota(p_units)` —— 配额比例 f 级别无关。**本守卫的存在理由
+/// （N8/A4 守恒不覆盖 σ-不变性，542号验收缺瓦）**：旧 `θ_sub/θ_total` 全局归一化**仍守** Σunits =
+/// N_base（`prove_n8` 通过——配额怎么分总和不变），**却使 f 随级别变**（破 T59 σ-不变）。守恒
+/// （Σunits）与 σ-不变（f 级别无关）是**两个范畴**——542号验收引 N8/A4 守恒，但 N8 守前者与 f
+/// 值无关，**不守后者**；本 prove 补此缺瓦（把 542「f 必须 σ-不变」从结算要求升为运行时可观测
+/// 守卫，137号 make-decision-observable）。**非重言**（回归防护，同 `prove_self_level_symmetric`
+/// 范式）：调用点用**独立内联表达**计算 `m_quota`；规范 `sigma_invariant_quota` **不取 `sub`**
+/// （编码级别无关性）⇒ 若调用点漂移回 `sub`-依赖分配（如 `m_quota = p_units × θ[sub]/Σθ`），
+/// m_quota 必 ≠ 规范值 ⇒ panic（`theta_sigma_invariance_fires_on_level_dependent_quota` 反证）。
+fn prove_theta_sigma_invariant(m_quota: f64, p_units: f64, sub: usize, bar: i64) {
+    let canonical = sigma_invariant_quota(p_units);
+    assert!(
+        (m_quota - canonical).abs() <= 1e-9 * p_units.max(1.0),
+        "T18×T48×T59 违反@bar {bar}：spawn 配额 m_quota={m_quota} ≠ σ-不变规范 {canonical}\
+         （= p_units×SUB_SPAWN_FRAC=1/λ，级别无关；sub={sub}）——配额比例 f 随级别变\
+         （θ_sub/θ_total 全局归一化残余？规范刻意不取 sub ⇒ sub-依赖分配必 fire）破 T59 σ-不变\
+         （T48 units Casimir 要求 f 级别无关；N8 守 Σunits 守恒不覆盖此性质——θ 归一化仍守恒却破 σ-不变）"
+    );
+}
+
 /// 成本门动态 spawn（N4 第16环）：父 voice 释放 θ_sub 配额给子 voice@sub=parent.ladder−1。
 /// **无 floor 参数**——终止纯由成本门：`theta(sub)=None`（势不可测=不存在，递归基 bi）∨
 /// `theta(sub) < SUB_COST_K×friction`（势幅度<成本）。`floor_stop` 计数器**恒不增**
@@ -952,11 +986,19 @@ fn try_spawn_cost_gated(
             // 「势∝r 是公理」⟹ f=子势/父势=r_{k−1}/r_k=1/λ 几何强制，零自由度形式）。
             // **替代**旧全局 θ_sub/θ_total 归一化——后者固定窗口 [FIRST_BSP,MAX) 不随 σ:k↦k+1
             // 平移 ⇒ f 随级别变 ⇒ 破 T59 σ-不变（T48 units Casimir + T59 σWσ⁻¹=W 要求 f 级别
-            // 无关；环15 必然性争议裁决 + escalation theta-allocation）。值 1/λ（涌现尺度比 A₅）
-            // 经回测扫描确定（53课留白被势∝r 公理填补为 1/λ 形式，leverage_triad 唯一自由度）。
+            // 无关；环15 必然性争议裁决 + escalation theta-allocation 的 R1 裁决）。**认识论分层**
+            // （formalization-validity-domain.md，与 SUB_SPAWN_FRAC 定义注释一致，不声明膨胀）：
+            // ① **形式** f=1/λ 是 L0 必然（势∝r 定义 + σ-不变强制，零自由度）；② **值** λ=2
+            // （⟹f=0.5）是 A₅ 类**二分递归建模默认**——**非**经回测扫描确定（λ 尚未独立测量），
+            // 是 leverage_triad「唯一自由度=顶层配额」的占位，待 T50 涌现 λ 测量精化为 f=1/λ_measured
+            // 的零自由度 R1 终形（53课配额「留白」被「势∝r 公理」填补为 1/λ 形式，值留 A₅ 默认）。
             // **成本门（上方 depth_ref.theta，角色A）仍用经验 θ 不变**——θ=None/θ<friction 的
             // 势存在性判定本质需 L2 经验量（λ^k 恒正会使 N4 终止失效，违 T19）。
             let m_quota = p_units * SUB_SPAWN_FRAC;
+            // 配额 σ-不变守卫（T18×T48×T59，542号缺瓦补全）：m_quota 必 == σ-不变规范
+            // （p_units×1/λ，级别无关）——独立内联表达 ⇒ 漂移回 θ_sub/θ_total 级别依赖分配即
+            // panic（回归防护非重言；N8 守 Σunits 守恒不覆盖此 σ-不变性，故须独立守卫）。
+            prove_theta_sigma_invariant(m_quota, p_units, sub, bar);
             let m = match p_dir {
                 Polarity::Long => m_quota,
                 Polarity::Short => m_quota.min(p_capital / c),
@@ -2108,5 +2150,33 @@ mod tests {
         let mut res = PositionalResult::default();
         res.n_nest_fire_sell_by_ladder[PENDING_LO] = 1; // fire 但 arms[PENDING_LO]=0
         prove_t58_angular_basic_domain(&res);
+    }
+
+    // ════════════ 配额 σ-不变性（T18×T48×T59，542号缺瓦补全）════════════
+
+    #[test]
+    fn theta_sigma_invariant_holds_for_constant_quota() {
+        // 正向：σ-不变规范 = p_units × SUB_SPAWN_FRAC（级别无关常数）。任意级别 sub 同一
+        // p_units 得同一配额（f 跨级别恒定 = σ-不变）⇒ prove 零 panic。
+        let p_units = 100.0;
+        let m_quota = sigma_invariant_quota(p_units); // = p_units × 1/λ
+        // 同一 m_quota 在不同级别 sub 均满足规范（规范不取 sub ⇒ 级别无关）。
+        prove_theta_sigma_invariant(m_quota, p_units, 2, 10);
+        prove_theta_sigma_invariant(m_quota, p_units, 3, 10);
+        prove_theta_sigma_invariant(m_quota, p_units, 9, 10);
+        // 跨级别 f 恒定（σ-不变的定义）：sub=2 与 sub=9 配额比例相同。
+        assert!((sigma_invariant_quota(p_units) / p_units - SUB_SPAWN_FRAC).abs() < 1e-12);
+    }
+
+    #[test]
+    #[should_panic(expected = "σ-不变")]
+    fn theta_sigma_invariance_fires_on_level_dependent_quota() {
+        // 反证 prove_theta_sigma_invariant **非重言**（no-patch-mentality，同 t52/t56/t58 范式）：
+        // 构造**级别依赖**配额（模拟 θ_sub/θ_total 残余——sub=3 用 0.3×p_units ≠ σ-不变常数
+        // SUB_SPAWN_FRAC=0.5×p_units）⇒ m_quota ≠ 规范值 ⇒ 必 panic。证明守卫能检出 σ-不变性
+        // 破坏（theta_weights 回归），**N8 守恒不覆盖此类**（θ 归一化仍守 Σunits 却破 σ-不变）。
+        let p_units = 100.0;
+        let level_dependent_quota = p_units * 0.3; // sub=3 的 θ 归一化权重 ≠ SUB_SPAWN_FRAC
+        prove_theta_sigma_invariant(level_dependent_quota, p_units, 3, 100);
     }
 }

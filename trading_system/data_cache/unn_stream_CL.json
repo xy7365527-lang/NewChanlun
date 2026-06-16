@@ -1,51 +1,44 @@
 {
  "symbol": "CL",
  "instrument_id": "CL.GLBX",
- "n_bars": 5528156,
- "bh_pct": 28.2,
- "bh_mdd_pct": -94.0,
- "max_bars": null,
+ "n_bars": 500000,
+ "bh_pct": 38.3,
+ "bh_mdd_pct": -34.6,
+ "max_bars": 500000,
  "unn_stream": {
-  "strat_pct": 11.5,
-  "mdd_pct": -80.8,
-  "n_trades": 40,
+  "strat_pct": -4.7,
+  "mdd_pct": -5.4,
+  "n_trades": 13,
   "exit_reasons": {
-   "recover": 37,
-   "flip_short": 1,
-   "flip_long": 1,
+   "recover": 2,
+   "cascade": 10,
    "eod": 1
   },
   "yearly": null,
   "by_ladder": {
    "segment/short": {
-    "n": 6,
-    "pnl_cash": 511.0,
-    "wins": 4,
-    "avg_held_bars": 329.0
-   },
-   "move(L1)/long": {
-    "n": 8,
-    "pnl_cash": -2448.0,
-    "wins": 2,
-    "avg_held_bars": 2651.0
+    "n": 10,
+    "pnl_cash": -31772.0,
+    "wins": 0,
+    "avg_held_bars": 410336.0
    },
    "move(L1)/short": {
-    "n": 10,
-    "pnl_cash": -3929.0,
-    "wins": 2,
-    "avg_held_bars": 3274.0
+    "n": 1,
+    "pnl_cash": 1.0,
+    "wins": 1,
+    "avg_held_bars": 3028.0
    },
    "recL2/short": {
-    "n": 15,
-    "pnl_cash": -3499.0,
-    "wins": 10,
-    "avg_held_bars": 14148.0
-   },
-   "recL4/long": {
     "n": 1,
-    "pnl_cash": 16703.0,
+    "pnl_cash": 2.0,
     "wins": 1,
-    "avg_held_bars": 5424873.0
+    "avg_held_bars": 30717.0
+   },
+   "recL3/long": {
+    "n": 1,
+    "pnl_cash": 20268.0,
+    "wins": 1,
+    "avg_held_bars": 436545.0
    }
   },
   "nrf_counters": {
@@ -65,9 +58,9 @@
    "spawns": [
     0,
     0,
-    6,
-    16,
-    15,
+    10,
+    1,
+    1,
     0,
     0,
     0,
@@ -91,7 +84,7 @@
    "cascades": [
     0,
     0,
-    0,
+    10,
     0,
     0,
     0,
@@ -104,7 +97,7 @@
    "cost_rejects": [
     0,
     0,
-    49,
+    31,
     0,
     0,
     0,
@@ -153,28 +146,28 @@
     0,
     0
    ],
-   "phys_long_bars": 5440602,
+   "phys_long_bars": 436546,
    "depth_bars": [
     63454,
-    5281969,
-    140830,
-    39984,
-    163,
-    1756,
-    0,
-    0,
-    0,
-    0,
-    0
+    9482,
+    718,
+    729,
+    19635,
+    499,
+    452,
+    1569,
+    319,
+    1031,
+    402112
    ],
    "nest_arms": [
     0,
     0,
     0,
-    8112,
-    361,
-    33,
-    1,
+    718,
+    31,
+    2,
+    0,
     0,
     0,
     0,
@@ -184,9 +177,9 @@
     0,
     0,
     0,
-    3558,
-    122,
-    10,
+    327,
+    7,
+    1,
     0,
     0,
     0,
@@ -197,9 +190,9 @@
     0,
     0,
     0,
-    3664,
-    147,
-    12,
+    323,
+    11,
+    1,
     0,
     0,
     0,
@@ -210,10 +203,10 @@
     0,
     0,
     0,
-    203,
-    92,
-    11,
-    1,
+    16,
+    13,
+    0,
+    0,
     0,
     0,
     0,
@@ -235,9 +228,9 @@
    "short_net_cash": [
     0.0,
     0.0,
-    511.0,
-    -3929.0,
-    -3499.0,
+    -31772.0,
+    1.0,
+    2.0,
     0.0,
     0.0,
     0.0,
@@ -248,9 +241,9 @@
    "short_held_bars": [
     0,
     0,
-    1973,
-    32745,
-    212216,
+    4103373,
+    3028,
+    30717,
     0,
     0,
     0,
@@ -259,8 +252,8 @@
     0
    ]
   },
-  "nrf_max_children": 2,
-  "_n_pushed_trades": 39
+  "nrf_max_children": 11,
+  "_n_pushed_trades": 2
  },
  "P1_ge_bh": false,
  "bit_exact_vs_batch": {
