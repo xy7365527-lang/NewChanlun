@@ -157,21 +157,30 @@ mod tests {
 
     #[test]
     fn f_entry_builds_full_long_and_eod_conserves() {
-        // bar0：segment(2) type1 Buy confirmed + move(3) type1 Buy candidate。
+        // bar0：root_direction=Up（flip_edge[4]=Up，最高涌现走势上涨）+ L3 跌末（flip_edge[3]=Down，
+        // type1 buy 端点）+ segment(2) Buy1 confirmed + move(3) Buy1 candidate。
         // bar1：向心 confirm@3 + buy1@3 ⇒ F 建仓 @ move(L1)，全仓 Long（无硬编码拆分）。
+        //
+        // 缠论操盘语义（emergent_level_direction.md §5.4 + 用户裁决 2026-06-17）：
+        // 入场方向 polarity = f(root_direction)：f(Up)=Long, f(Down)=Short——
+        // root_direction 是最高涌现级别走势方向，BSP 触发只决定时机。
+        // 高级别 Up（L4 涨）+ 次级别底买点（L3 跌末 buy1）⇒ 顺势做多 Long @ L3。
         let mut core = FugueEngineCore::new(FIRST_BSP_LADDER).expect("floor=FIRST_BSP");
+        let mut flip0: [Option<Direction>; MAX_LADDER] = [None; MAX_LADDER];
+        flip0[3] = Some(Direction::Down); // L3 跌末（type1 buy 端点必然方向）
+        flip0[4] = Some(Direction::Up);   // L4 涨（root_direction=Up，顺势做多）
         core.step(
-            &mk_bar(100.0, 0, 0, 3, vec![(2, BspClass::Buy1, true, 100.0), (3, BspClass::Buy1, false, 100.0)]),
-            &NO_FLIP,
+            &mk_bar(100.0, 0, 0, 4, vec![(2, BspClass::Buy1, true, 100.0), (3, BspClass::Buy1, false, 100.0)]),
+            &flip0,
         );
-        core.step(&mk_bar(100.0, 1 << 3, 0, 3, vec![]), &NO_FLIP);
+        core.step(&mk_bar(100.0, 1 << 3, 0, 4, vec![]), &NO_FLIP);
         let (_, nav_after, long_u, short_u, _) = core.snapshot();
         // 满仓 total = 100000/100 = 1000 units，全 Long ⇒ long_u=1000、short_u=0。
         assert!((long_u - 1000.0).abs() < 1e-6, "满仓 1000 units 全 Long，得 {long_u}");
         assert_eq!(short_u, 0.0, "建仓后无空头（1/3 拆分是后续 τ 涌现，非建仓硬编码）");
         assert!((nav_after - INITIAL_CAPITAL).abs() < 1e-4, "F 建仓 NAV 中性");
         // flat 至 eod，同价进出 ⇒ final_nav = 初始资本。
-        core.step(&mk_bar(100.0, 0, 0, 3, vec![]), &NO_FLIP);
+        core.step(&mk_bar(100.0, 0, 0, 4, vec![]), &NO_FLIP);
         core.finish();
         assert!(
             (core.result().final_nav - INITIAL_CAPITAL).abs() < 1e-4,

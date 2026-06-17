@@ -291,46 +291,81 @@ impl OperateAxis for OperateEngine {
             }
         }
 
-        // ── F. 建仓（OP_ENTER，β±）：无仓 ∧ ε 对称双向入场——
-        // Long root：buy_source ∧ buy1 ⇒ 全仓 Long @s（ε=+1）。
-        // Short root：sell_source ∧ sell1 ⇒ 全仓 Short @s（ε=−1）。
-        // 买卖点首尾相连（缠论操盘）：卖点平多同时做空 / 买点平空同时做多。
+        // ── F. 建仓（OP_ENTER，β±）：F 入场方向 = f(root_direction)，BSP 信号决定时机 ──
+        //
+        // 修改（emergent_level_direction.md §5.4 + 用户裁决 2026-06-17）：
+        // 根方向是 H⁰ 涌现属性——从已涌现最高级别走势方向读取，不从 BSP 信号类型推断。
+        // 之前 sell_source→Short 在强 Up regime 中频繁踏空（ES −213% / GC −122%）——
+        // sell_source 在 Up regime 中是次级别顶背驰（走势结束=平多窗口），不是翻空信号。
+        //
+        // 缠论操盘核心：操作必须在 root 方向上（顺势）。BSP 信号只决定**时机**，方向由 root 决定。
+        //
+        // 入场矩阵（root_direction, 触发信号）：
+        // (Up,   buy_source)  → Long（顺势底入场：高级别上涨+次级别底买点）
+        // (Down, sell_source) → Short（顺势顶入场：高级别下跌+次级别顶卖点）
+        // (Up,   sell_source) → 不入场（强 Up regime 中的次级别顶=操作窗口而非翻空，避免踏空）
+        // (Down, buy_source)  → 不入场（强 Down regime 中的次级别底=操作窗口而非翻多，避免抄底）
+        // (None, _)           → 不入场（root 方向未涌现，行情启动前）
+        //
+        // BSP 端点方向断言（缠论 type1 BSP 必然性）：
+        // - Up root → 等 buy_source → s 级别方向必 Down（type1 buy 在 s 级别下跌末端）
+        // - Down root → 等 sell_source → s 级别方向必 Up（type1 sell 在 s 级别上涨末端）
         if !cleared && !self.has_position() {
-            // Long root 入场（buy_source 优先，信号强度按区间套链顶）
-            if let Some(s) = obs.buy_source() {
-                if h0.buy1(s) && self.free > 0.0 {
-                    let total = self.free / c;
-                    if total > 0.0 && total.is_finite() {
-                        prove_chain(obs.located_buy_chain(), Side::Buy, s, bar, "F-entry-long");
-                        prove_t52_gauge_fix(obs.located_buy_chain(), s, bar, "F-entry-long");
-                        add_at(&mut self.layers, s, total, Polarity::Long, &mut self.free, c, bar, &mut self.res);
-                        self.core_ladder = s;
-                        self.core_entry_bar = bar;
-                        self.core_polarity = Polarity::Long;
-                        self.n_base = total;
-                        self.res.n_entries_by_ladder[s] += 1;
-                        outcome.entered_buy_source = Some(s);
-                        prove_epsilon_symmetry(self.core_polarity, false, bar);
+            if let Some(root_dir) = h0.root_direction() {
+                // root 方向决定入场极性 + 时机信号侧 + s 级别方向断言值。
+                let (polarity, source_opt, source_side, expected_s_dir, reason) = match root_dir {
+                    Direction::Up => (
+                        Polarity::Long,
+                        obs.buy_source(),
+                        Side::Buy,
+                        Direction::Down,
+                        "F-entry-long",
+                    ),
+                    Direction::Down => (
+                        Polarity::Short,
+                        obs.sell_source(),
+                        Side::Sell,
+                        Direction::Up,
+                        "F-entry-short",
+                    ),
+                };
+                if let Some(s) = source_opt {
+                    let bsp_fire = match source_side {
+                        Side::Buy => h0.buy1(s),
+                        Side::Sell => h0.sell1(s),
+                    };
+                    if bsp_fire && self.free > 0.0 {
+                        let total = self.free / c;
+                        if total > 0.0 && total.is_finite() {
+                            let chain = match source_side {
+                                Side::Buy => obs.located_buy_chain(),
+                                Side::Sell => obs.located_sell_chain(),
+                            };
+                            prove_chain(chain, source_side, s, bar, reason);
+                            prove_t52_gauge_fix(chain, s, bar, reason);
+                            // prove_f_source_direction：s 级别方向必匹配 type1 BSP 端点（缠论必然性）。
+                            let entry_dir = h0.direction(s).unwrap_or_else(|| panic!(
+                                "prove_f_source_direction: F {polarity:?} 入场 source={s}@bar={bar} 应有方向态（type1 {source_side:?} 前提）"
+                            ));
+                            assert_eq!(entry_dir, expected_s_dir,
+                                "prove_f_source_dir@bar={bar}: source={s} 方向={entry_dir:?} 应={expected_s_dir:?}（root={root_dir:?}, type1 {source_side:?} 在 s 走势末端）");
+                            add_at(&mut self.layers, s, total, polarity, &mut self.free, c, bar, &mut self.res);
+                            self.core_ladder = s;
+                            self.core_entry_bar = bar;
+                            self.core_polarity = polarity;
+                            self.n_base = total;
+                            self.res.n_entries_by_ladder[s] += 1;
+                            match polarity {
+                                Polarity::Long => outcome.entered_buy_source = Some(s),
+                                Polarity::Short => outcome.entered_sell_source = Some(s),
+                            }
+                            prove_epsilon_symmetry(self.core_polarity, root_dir, bar);
+                        }
                     }
                 }
-            // Short root 入场（sell_source，仅当 Long root 信号不存在时）
-            } else if let Some(s) = obs.sell_source() {
-                if h0.sell1(s) && self.free > 0.0 {
-                    let total = self.free / c;
-                    if total > 0.0 && total.is_finite() {
-                        prove_chain(obs.located_sell_chain(), Side::Sell, s, bar, "F-entry-short");
-                        prove_t52_gauge_fix(obs.located_sell_chain(), s, bar, "F-entry-short");
-                        add_at(&mut self.layers, s, total, Polarity::Short, &mut self.free, c, bar, &mut self.res);
-                        self.core_ladder = s;
-                        self.core_entry_bar = bar;
-                        self.core_polarity = Polarity::Short;
-                        self.n_base = total;
-                        self.res.n_entries_by_ladder[s] += 1;
-                        outcome.entered_sell_source = Some(s);
-                        prove_epsilon_symmetry(self.core_polarity, true, bar);
-                    }
-                }
+                // BSP 时机不匹配 root 方向（如 root=Up 但只有 sell_source）⇒ 不入场（避免逆势踏空）。
             }
+            // root_direction=None ⇒ 不入场（行情未启动）。
         }
 
         // ── 必然性运行时证明（每 bar；violation = panic）──

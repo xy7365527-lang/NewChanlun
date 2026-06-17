@@ -36,6 +36,14 @@ pub trait MorphologyAxis {
     fn anchor(&self, ladder: usize) -> i64;
     /// 次级别 sub 的势幅度 θ（中枢/走势振幅参照，成本门 N4）。None=势不可测。
     fn theta(&self, sub: usize) -> Option<f64>;
+
+    /// 当前根方向：最高活跃级别的走势方向（默认实现，从高向低扫 direction()）。
+    /// 语义：root_dir = direction(r*(t))，r*(t) 是当前已涌现最高级别。
+    /// 返回 None 当且仅当所有级别均无已形成走势（通常是行情启动前几 bar）。
+    fn root_direction(&self) -> Option<Direction> {
+        let ceiling = self.emergent_ceiling();
+        (0..ceiling).rev().find_map(|k| self.direction(k))
+    }
 }
 
 /// **groupoid 观察轴**：信号确认（向心回溯 T49）+ 区间套定位（逆极限，§6B.4）。
