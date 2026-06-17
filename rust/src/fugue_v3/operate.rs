@@ -312,29 +312,22 @@ impl OperateAxis for OperateEngine {
         // - Down root → 等 sell_source → s 级别方向必 Up（type1 sell 在 s 级别上涨末端）
         if !cleared && !self.has_position() {
             if let Some(root_dir) = h0.root_direction() {
-                // root 方向决定入场极性 + 时机信号侧 + s 级别方向断言值。
-                let (polarity, source_opt, source_side, expected_s_dir, reason) = match root_dir {
-                    Direction::Up => (
-                        Polarity::Long,
-                        obs.buy_source(),
-                        Side::Buy,
-                        Direction::Down,
-                        "F-entry-long",
-                    ),
-                    Direction::Down => (
-                        Polarity::Short,
-                        obs.sell_source(),
-                        Side::Sell,
-                        Direction::Up,
-                        "F-entry-short",
-                    ),
+                // root 方向决定入场极性 + 时机信号侧（source 只定时机/层级，不定方向）。
+                let (polarity, source_opt, source_side, reason) = match root_dir {
+                    Direction::Up => (Polarity::Long, obs.buy_source(), Side::Buy, "F-entry-long"),
+                    Direction::Down => (Polarity::Short, obs.sell_source(), Side::Sell, "F-entry-short"),
                 };
                 if let Some(s) = source_opt {
                     let bsp_fire = match source_side {
                         Side::Buy => h0.buy1(s),
                         Side::Sell => h0.sell1(s),
                     };
-                    if bsp_fire && self.free > 0.0 {
+                    // 顺势确认门（nf 语义 prove_f_source_direction）：入场层 s 涌现方向必 == root。
+                    // source@s ⟹ s 曾向心 confirm（nf_buy→Up / nf_sell→Down），通常同向 root；
+                    // 陈旧 located（s 买点后又出卖点、价未破极值）使 emergent_dir[s] 暂逆 ⟹ 不入场
+                    // （等次级别真信号），非 panic——nf 语义下 source 级别方向非无条件必然（§5.4）。
+                    let aligned = h0.direction(s) == Some(root_dir);
+                    if bsp_fire && aligned && self.free > 0.0 {
                         let total = self.free / c;
                         if total > 0.0 && total.is_finite() {
                             let chain = match source_side {
@@ -343,12 +336,6 @@ impl OperateAxis for OperateEngine {
                             };
                             prove_chain(chain, source_side, s, bar, reason);
                             prove_t52_gauge_fix(chain, s, bar, reason);
-                            // prove_f_source_direction：s 级别方向必匹配 type1 BSP 端点（缠论必然性）。
-                            let entry_dir = h0.direction(s).unwrap_or_else(|| panic!(
-                                "prove_f_source_direction: F {polarity:?} 入场 source={s}@bar={bar} 应有方向态（type1 {source_side:?} 前提）"
-                            ));
-                            assert_eq!(entry_dir, expected_s_dir,
-                                "prove_f_source_dir@bar={bar}: source={s} 方向={entry_dir:?} 应={expected_s_dir:?}（root={root_dir:?}, type1 {source_side:?} 在 s 走势末端）");
                             add_at(&mut self.layers, s, total, polarity, &mut self.free, c, bar, &mut self.res);
                             self.core_ladder = s;
                             self.core_entry_bar = bar;

@@ -15,6 +15,7 @@
 //! | `prove_no_double_act` | per-layer 互斥 | L2 守恒 |
 //! | `prove_recursive_consistency` | 空头声部在合法势源层 [PENDING_LO, MAX) | L2 守恒 |
 
+use crate::stroke::Direction;
 use crate::trading::types::Polarity;
 
 use super::accounting::total_units_held;
@@ -105,17 +106,23 @@ pub fn prove_recursive_consistency(layers: &[Layer], bar: i64) {
     let _ = PENDING_LO; // 势源下界（sink 目标可下沉至 FIRST_BSP，允许在 FIRST_BSP）
 }
 
-/// **ε 对称性守卫**：F 建仓极性与入场信号匹配（Long root 来自 buy_source；Short root 来自 sell_source）。
-/// D∞ 群结构必然性：ε∈{±1} 是 F 的唯一参数，硬编码 ε=const 截断 D∞ 为 Z。
-pub fn prove_epsilon_symmetry(core_polarity: Polarity, entered_from_sell: bool, bar: i64) {
+/// **ε 对称性守卫**：F 入场极性与 root_direction 一致（root=Up→Long, root=Down→Short）。
+///
+/// 修改（emergent_level_direction.md §5.4 + 用户裁决 2026-06-17）：
+/// core_polarity = f(root_direction)，f(Up)=Long, f(Down)=Short——根方向是 H⁰ 涌现属性，
+/// 不从 BSP 信号类型推断。旧签名 `entered_from_sell` 被否定（sell_source ≠ 翻空，是 Up regime
+/// 中的次级别顶=平多窗口；ES/GC 强 Up regime 中按 sell_source→Short 踏空 −213%/−122%）。
+///
+/// D∞ 群结构必然性：ε∈{±1} 是 F 的唯一参数；硬编码 ε=const 截断 D∞ 为 Z；
+/// 从 root_direction 读 ε 是 H⁰ 涌现结构的直接消费，零自由度。
+pub fn prove_epsilon_symmetry(core_polarity: Polarity, root_dir: Direction, bar: i64) {
     let is_consistent = matches!(
-        (core_polarity, entered_from_sell),
-        (Polarity::Short, true) | (Polarity::Long, false)
+        (core_polarity, root_dir),
+        (Polarity::Long, Direction::Up) | (Polarity::Short, Direction::Down)
     );
     assert!(
         is_consistent,
-        "ε 对称性违反@bar {bar}：core_polarity={:?} 但 entered_from_sell={entered_from_sell}（ε 与信号方向不匹配）",
-        core_polarity
+        "ε 对称性违反@bar {bar}：core_polarity={core_polarity:?} 但 root_direction={root_dir:?}（应 Long⟺Up, Short⟺Down，f(root_dir)→polarity 同向）",
     );
 }
 

@@ -21,7 +21,7 @@ use crate::trading::types::MAX_LADDER;
 
 use super::axis::OperateAxis;
 use super::layer::FugueResult;
-use super::morphology::MorphologyBridge;
+use super::morphology::{MorphologyBridge, MorphologyState};
 use super::observe::ObserveBridge;
 use super::operate::OperateEngine;
 use super::FIRST_BSP_LADDER;
@@ -30,6 +30,8 @@ use super::FIRST_BSP_LADDER;
 pub struct FugueEngineCore {
     /// 信号层（H⁰ 形态学 + groupoid 向心 confirm 计算内聚；§6B.4 内在耦合不强拆）。
     signal: SignalState,
+    /// H⁰ 形态学持久方向态（nf 驱动涌现，跨 bar 持有；每 bar process 后 emerge）。
+    morph: MorphologyState,
     /// 信号层计数器累加器（finish 拷入 operate.res）。
     sig_res: SpiralResult,
     /// H¹ 操作引擎（D∞ word 处理器：层结构 + h/τ 原子）。
@@ -48,6 +50,7 @@ impl FugueEngineCore {
         }
         Ok(FugueEngineCore {
             signal: SignalState::new(),
+            morph: MorphologyState::new(),
             sig_res: SpiralResult::default(),
             operate: OperateEngine::new(),
             cur_bar: 0,
@@ -59,12 +62,16 @@ impl FugueEngineCore {
     pub fn step(&mut self, sig: &BarSig, flip_edge: &[Option<Direction>; MAX_LADDER]) {
         let bar = self.cur_bar;
 
-        // ── 1. 信号层 → 群事件帧（H⁰ 形态学 + groupoid 向心 confirm，§6B.4 内聚）──
+        // ── 1. 信号层 → 群事件帧（groupoid 向心 confirm nf fire + located 链，§6B.4 内聚）──
         let frame = self.signal.process(sig, flip_edge, bar, &mut self.sig_res);
 
-        // ── 2/3. 三轴桥接 + H¹ 步进（operate 通过 trait 读两轴）──
+        // ── 1b. H⁰ 方向涌现：从本 bar nf fire 翻转各级别走势方向（operate 步进**前**）──
+        // nf_sell[k]→Down / nf_buy[k]→Up（走势终完美翻转）；root_direction 取最高涌现级别。
+        self.morph.emerge(&frame, bar);
+
+        // ── 2/3. 三轴桥接 + H¹ 步进（operate 通过 trait 读两轴；方向来自 morph 涌现态）──
         let outcome = {
-            let morphology = MorphologyBridge::new(sig, &self.signal, &frame);
+            let morphology = MorphologyBridge::new(sig, &self.signal, &frame, &self.morph);
             let observe = ObserveBridge::new(&self.signal, &frame);
             self.operate.step(&morphology, &observe, bar, sig.close)
         };
