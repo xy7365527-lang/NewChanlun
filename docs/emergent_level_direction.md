@@ -305,6 +305,9 @@ H¹(D∞, ℝ₋) = ℝ，单生成元 Δr=−1。根方向 ε 是 H¹ 模「系
 
 > §6 是 L1（代码方案）。流式 vs 批量 bit-exact 由共享 `step/finish` 构造保证；fugue_v3 内部
 > 方向来源变更**不影响** spiral/unn（独立 SpiralState 实例，不碰 `signal.rs`/`spiral/engine.rs`）。
+>
+> **章节映射**（v1→v2）：代码注释中引用的「emergent_level_direction.md §5.4」是 v1 的实装方案章节，
+> 在 v2 中对应本节 §6（尤其 §6.2 D-GATE）；引用「§2.1/§2.2」（根方向涌现）对应 v2 §3。
 
 ### 6.1 实装定理（从 §2–§3 直接推出）
 
