@@ -1,8 +1,9 @@
 //! **H¹ 操作轴实装**（OperateAxis）：**D∞ word 处理器**——引擎不预设循环模式。
 //!
 //! 用户裁决（2026-06-17）：操作不是不变量，操作是**路径（D∞ 的 word）**。引擎只有 h/τ 两个原子，
-//! 每 bar 每级别读信号决定施加哪个：nf_sell[k]→τ 下沉（σ⁻¹∘τ）/ nf_buy[k]→τ 升回（σ∘τ）/
-//! 无信号→h（仓位不变）。「四步循环」是 sink 后接 recover 的**涌现序列**，不是状态机。
+//! 每 bar 每级别读信号决定施加哪个：nf_sell[k]→τ 下沉（σ⁻¹∘τ，子仓落 k−1）/
+//! nf_buy[k−1]→τ 升回（σ∘τ，k−1 子仓回 k；级别锚定修复见 D 步骤）/ 无信号→h（仓位不变）。
+//! 「四步循环」是 sink 后接 recover 的**涌现序列**，不是状态机。
 //!
 //! ## 核心仓 H⁰ 涌现（非硬编码字段）
 //! 每次 τ 只下沉 f=1/λ（1/3），顶层级别保留多数 ⟹ σ-塔自然分布：核心仓 = 顶层稀疏下沉的多数
@@ -234,9 +235,21 @@ impl OperateAxis for OperateEngine {
             }
         }
 
-        // ── D. recover（OP_REBUY，σ∘τ）：ε 对称信号分派——
-        // Long root：nf_buy[k] fire ⇒ 从 Short@k−1 升回 Long@k（期望子层=Short）。
-        // Short root：nf_sell[k] fire ⇒ 从 Long@k−1 升回 Short@k（期望子层=Long）。
+        // ── D. recover（OP_REBUY，σ∘τ）：ε 对称信号分派 + **级别锚定修复** ──
+        //
+        // 级别锚定修复（fugue_v3_sink_recover_level_anchoring.md + 用户裁决 2026-06-17）：
+        // recover 平的是 sub=k−1 层的子仓（sink 把它放在这里），触发应用**次级别 k−1 的买卖点**，
+        // 非本级别 k。子仓押注的是 k−1 级别一段走势，该走势结束 = k−1 级别 BSP。
+        // 旧 nf_buy[k]（高一级）在强趋势中稀疏一个数量级 ⟹ recover 死锁 ⟹ 子仓僵尸化
+        // （ES/GC/QQQ recover/sink=0，持有 100 万+ bar，牛市浮亏 100%+，吃尽反向亏损）。
+        // 缠论次级别降成本（17/26 课）：回补端用次级别买卖点，与减仓端同为次级别。
+        //
+        // 不对称（sink 仍用 nf_sell[k]，见 E 步骤）：sink 与 recover 是**两个不同主体**的操作——
+        // sink = 核心仓@k 高抛（看本级别顶背驰，缠师"大级别卖点附近高抛"，合理）；
+        // recover = 子仓@k−1 回补（看次级别 k−1 买卖点）。主体级别不同，故锚定级别不同。
+        //
+        // Long root：nf_buy[k−1] fire ⇒ 从 Short@k−1 升回 Long@k（期望子层=Short）。
+        // Short root：nf_sell[k−1] fire ⇒ 从 Long@k−1 升回 Short@k（期望子层=Long）。
         if !cleared {
             let parent_dir = self.core_polarity; // recover 期望子层 = flip(parent_dir)
             for k in PENDING_LO..MAX_LADDER {
@@ -244,9 +257,10 @@ impl OperateAxis for OperateEngine {
                 if self.layers[sub].units <= 0.0 || touched[k] || touched[sub] {
                     continue;
                 }
+                // 子仓物理在 sub=k−1 层 ⟹ 用**次级别 k−1** 买卖点触发回补（非本级别 k）。
                 let signal = match parent_dir {
-                    Polarity::Long => obs.nf_buy(k),
-                    Polarity::Short => obs.nf_sell(k),
+                    Polarity::Long => obs.nf_buy(sub),
+                    Polarity::Short => obs.nf_sell(sub),
                 };
                 if signal.is_some() && recover_chunk(&mut self.layers, k, parent_dir, &mut self.free, c, bar, &mut self.res) {
                     touched[k] = true;
