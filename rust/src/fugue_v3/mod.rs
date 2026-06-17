@@ -1,0 +1,110 @@
+//! 赋格引擎 v3（Fugue Engine v3）—— **D∞ word 处理器**。
+//!
+//! 设计文档：`docs/recursive_fugue_necessity_proof.md`（定理 RF）+
+//! `docs/spiral_physical_reinterpretation.md` v2（H⁰ 核心仓 / H¹ 机动仓 / D∞⋉ℝ）+
+//! `docs/orbit_enumeration_completeness.md`（D∞=⟨h,τ|τ²=e,τhτ⁻¹=h⁻¹⟩, σ=h²³）+
+//! `docs/operation_route_exhaustion.md`（Σ 字母表 + 双投影 + §7.4 操作→Σ 原子映射）。
+//!
+//! ## 核心：引擎不预设循环模式（用户裁决 2026-06-17）
+//! 四步循环（平多→开空→平空→做多）**只是多方视角的一个例子**——还有空方版本、会计双重性。
+//! 引擎的核心是 **D∞ word 处理器**：每 bar 每级别读信号 → 决定 **h**（走势推进）还是 **τ**
+//! （翻转）→ 更新仓位。任何操作序列都是 h 和 τ 的组合（D∞ 的 word），引擎**不硬编码**特定循环。
+//!
+//! ```text
+//! 每 bar 每级别 k：
+//!   nf_sell[k]  → τ（手性翻转）+ 减仓 1/3 到次级别 k−1（σ⁻¹∘τ 下沉，穿手性缝）
+//!   nf_buy[k]   → τ（翻转回来）+ 从次级别 k−1 回收 1/3（σ∘τ 升回）
+//!   无信号       → h（走势推进，仓位不变）
+//! ```
+//!
+//! ## 两投影（reinterp §1/§5：操作层 ⊥ 会计层）
+//! 每个操作同时有**两个投影**：
+//! - **操作投影**（D∞ 群作用于坐标 (φ,r,ε)）：τ 改 **direction**（ε 手性翻转）。
+//! - **会计投影**（系数模 M=units）：τ 改 **units**（1/3 在相邻级别间转移）。
+//! direction 与 units 正交（M ⊥ ε，reinterp §1.2）。
+//!
+//! ## 会计双重性（多方 / 空方）
+//! 同一个 τ 操作的会计随 direction 镜像（`accounting::reduce_at`/`add_at`）：
+//! - 多头层减仓 = 卖出（free += m·c）；空头层减仓 = 平空 cover（free −= m·c）。
+//! - 加多头 = 买入（free −= m·c）；加空头 = 开空（free += m·c）。
+//! 四者皆 NAV 中性（同价 c）。引擎不区分多/空方"视角"，只按 direction 施加双重会计。
+//!
+//! ## Layer = 五字段（无 CyclePhase——不硬编码四步相位）
+//! `Layer{ladder, direction, units, basis, entry_bar}`。无 Holding/ShortActive 相位机。核心仓 H⁰
+//! （2/3 恒持）**不是字段而是涌现**：每次 τ 只下沉 1/3（f=1/λ），顶层级别保留多数 ⟹ σ-塔自然
+//! 分布（核心仓 = 顶层稀疏下沉的多数 f∝λ⁻ᴷ；机动仓 = 内层频繁循环 f∝λ⁻ᵏ，T50）。
+//!
+//! ## Σ|units| 守恒（T48 Casimir）+ 手性交替观测（T24，regime 依赖非不变量）
+//! 每个 τ = reduce_at(源,|m|) + add_at(目标,|m|) 按**绝对值**转移 ⟹ **Σ|units| = n_base 严格守恒**
+//! （T48 σ-不变 Casimir，与方向无关）——`prove_conservation` 守此。相邻级别方向交替**不是不变量**：
+//! 建仓阶段（未出卖点触发 sink）各级别可同向做多（合法涌现），仅子级别承载下沉短差时才交替。
+//! `count_chiral_violations` 观测之（非 panic，137号 make-decision-observable）。
+//!
+//! ## 信号层复用（DRY，bit-exact 兼容）
+//! 复用 `crate::spiral::signal::{SignalState, GroupEventFrame}`（向心 confirm，T49）产
+//! `nf_sell[k]/nf_buy[k]`（enable_macd_divergence=True ⟹ type1 背驰按 MACD 面积判定）。
+//!
+//! ## 三轴分离（operation_route_exhaustion §6B；用户裁决 2026-06-17）
+//! H⁰（morphology）/ groupoid（observe）/ H¹（operate）通过 `axis.rs` trait 接口耦合，operate
+//! 不直接 reach into 信号层内部。分离边界 = operate ⊥ (morphology, observe)。
+//!
+//! ## 认识论等级（formalization-validity-domain）
+//! - D∞ word 处理器结构 / h·τ 群作用 / Σ|units| 守恒 / NAV 中性：**L0**（群论 + 守恒）。
+//! - 哪条 word 此刻发声（激活）/ 相邻级别是否交替（手性）：**L2 regime 依赖**（reinterp §2.2 RF-NR2）。
+//! - 回测 alpha：**L3**（真实数据，可否证；正/负域诚实报告）。
+//!
+//! ## gap（no-patch-mentality，保留不闭合）
+//! - G1（整数股数 f64 掩盖，NR-7：H²=(ℤ/2)² 整数量子化残余）。
+//! - G2（穿 ε=−1 做空载体：BTC 永续=真做空；现货退化平凡环路，§3.2）。
+//! - G3（confirm 向心 vs 前向延异，已 escalate：2026-06-15-confirm-arming-differance.md）。
+
+pub mod accounting;
+pub mod axis;
+pub mod cycle;
+pub mod engine;
+pub mod ffi;
+pub mod layer;
+pub mod morphology;
+pub mod observe;
+pub mod operate;
+pub mod prove;
+
+// 公开 API 再导出。
+pub use axis::{MorphologyAxis, ObserveAxis, OperateAxis, StepOutcome};
+pub use engine::FugueEngineCore;
+pub use ffi::{run_fugue_v3, PyFugueV3Stream};
+pub use layer::{FugueResult, Layer};
+pub use morphology::MorphologyBridge;
+pub use observe::ObserveBridge;
+pub use operate::OperateEngine;
+
+// ════════════════════════════ 常量 + 认识论标注 ════════════════════════════
+
+pub use crate::trading::positional::EQUITY_SAMPLE_BARS;
+pub use crate::trading::types::{FIRST_BSP_LADDER, INITIAL_CAPITAL, LADDER_MOVE, MAX_LADDER};
+
+/// pending 势源下界（N5/N6）：move(L1)。segment(=FIRST_BSP_LADDER) 非势源。**L0**（T28）。
+pub const PENDING_LO: usize = FIRST_BSP_LADDER + 1;
+
+/// 尺度比 λ。**值 L2**（reinterp §5.2：026:80「用其中的 1/3」⟹ λ=3）。
+pub const LAMBDA: f64 = 3.0;
+
+/// 单次 τ 转移配额 `f = 1/λ`（H¹ 系数，σ-不变唯一标量，T18×T48，542号）。
+/// **形式 L0**（势∝r ⟹ f=r_{k−1}/r_k=1/λ 几何强制，零自由度）；**值 L2**（λ=3 ⟹ 1/3，026:80）。
+pub const MOBILE_FRAC: f64 = 1.0 / LAMBDA;
+
+/// 成本门倍率（N4：θ < K×friction ⇒ 势幅度<成本，τ 不下沉）。**L2 不可消除**（势存在性需经验量）。
+pub const SUB_COST_K: f64 = 2.0;
+
+/// 单边往返摩擦率（N4 成本门基准）。**L2 不可消除**（ambient 市场摩擦）。
+pub const SUB_FRICTION_RT: f64 = 0.001;
+
+/// θ 分位（nearest-rank）。**L2**。
+pub const SUB_COST_Q: f64 = 0.5;
+
+/// θ 分位最小观测数（warm-up 保守拒绝下界）。**L2**。
+pub const SUB_COST_MIN_OBS: usize = 10;
+
+/// 强平阈值倍率（1x 逐仓：c ≥ SUB_LIQ_FACTOR×basis ⇒ 空头层清算）。**L2 设计缺口**
+/// （ambient 市场微结构，不可从群结构推导；与 spiral 同口径）。
+pub const SUB_LIQ_FACTOR: f64 = 2.0;
