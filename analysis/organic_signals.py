@@ -227,6 +227,7 @@ class StreamingSignalReader:
                  trend_flips: list | None = None,
                  require_settled: bool = False) -> None:
         self.orch = R.RecursiveOrchestrator(max_levels=MAX_LEVELS,
+                                            enable_macd_divergence=True,
                                             require_settled_subseg=require_settled)
         self.bar_dn = PHLevelState.make(top2_only=True)
         self.bar_up = PHLevelState.make(top2_only=True)

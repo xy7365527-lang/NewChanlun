@@ -971,7 +971,7 @@ fn try_spawn_cost_gated(
     let p_capital = voices[parent_id].capital;
     // N4：递归基 = bi(a0)。p_ladder == FIRST_BSP_LADDER ⇒ sub = bi 层，theta(bi)=None
     // ⇒ 下方 noref_reject 自然终止（无 floor 检查——纯成本门）。
-    let sub = p_ladder - 1;
+    let sub = if p_ladder <= 3 { p_ladder } else { p_ladder - 1 };
     match depth_ref.theta(sub, None, SUB_COST_Q, SUB_COST_MIN_OBS) {
         None => {
             res.n_nrf_noref_rejects_by_ladder[sub] += 1; // N4：势不可测=势不存在（递归终止）

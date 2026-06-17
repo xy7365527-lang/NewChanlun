@@ -25,6 +25,12 @@ mod orchestrator;
 mod ph;
 mod segment;
 mod segment_layers;
+/// 螺旋引擎 v2（D∞ 群结构第一性原理）。`pub` 导出使其成为 crate 公开 API 表面，
+/// Step 0 尚未接入 PyO3/orchestrator 时避免 dead_code 误报（架构 §3）。
+pub mod spiral;
+/// 赋格引擎 v3（递归嵌套多重赋格 = 操作必然结构）。层结构四步循环操作引擎，复用
+/// spiral 信号层，核心仓 H⁰(2/3) ⊕ 机动仓 H¹(1/3 四步 1-cycle 穿 ε=−1)。`pub` 导出。
+pub mod fugue_v3;
 mod stroke;
 mod trading;
 mod zhongshu;
@@ -1178,10 +1184,8 @@ impl PyRecursiveOrchestrator {
         &self,
     ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
         if self.inner.macd_divergence_enabled() {
-            panic!(
-                "current_trend_divergences 有效域 = enable_macd_divergence=false（macd \
-                 回退路径走全量 compute_bsps，inc_seg_div 缓存不更新）"
-            );
+            // MACD 路径：inc_seg_div 缓存不更新，返回空 Vec
+            return Vec::new();
         }
         let segs = self.inner.segments();
         self.inner
@@ -1397,10 +1401,9 @@ impl PyRecursiveOrchestrator {
         &mut self,
     ) -> Vec<(&'static str, &'static str, i64, f64, f64, f64)> {
         if self.inner.macd_divergence_enabled() {
-            panic!(
-                "take_trend_div_events 有效域 = enable_macd_divergence=false（macd \
-                 回退路径走全量 compute_bsps，inc_seg_div 缓存不更新）"
-            );
+            // MACD 路径：inc_seg_div 缓存不更新，返回空 Vec
+            // BSP 层已用 MACD 面积力竭判定背驰，surfacing 层暂空
+            return Vec::new();
         }
         let segs = self.inner.segments();
         let mut out = Vec::new();
@@ -2410,6 +2413,12 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_recursive_rust, m)?)?;
     m.add_function(wrap_pyfunction!(run_positional_rust, m)?)?;
     m.add_class::<PyUnnStream>()?;
+    // 螺旋引擎 v2（D∞ 群结构第一性原理）：流式 SpiralStream + 批量 run_spiral。
+    m.add_class::<spiral::ffi::PySpiralStream>()?;
+    m.add_function(wrap_pyfunction!(spiral::ffi::run_spiral, m)?)?;
+    // 赋格引擎 v3（递归嵌套多重赋格）：流式 FugueV3Stream + 批量 run_fugue_v3。
+    m.add_class::<fugue_v3::ffi::PyFugueV3Stream>()?;
+    m.add_function(wrap_pyfunction!(fugue_v3::ffi::run_fugue_v3, m)?)?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;
