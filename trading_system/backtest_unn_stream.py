@@ -95,6 +95,8 @@ class UnnStreamStrategy(Strategy):
         self._bar_i = 0
         self._new_trades: list = []        # push_bar 逐 bar 吐单累积
         self.result: dict | None = None
+        self.trades: list = []             # finish() 完整 trade 行（11 元组逐字落盘）
+        self.equity: list = []             # finish() equity 序列（采样 NAV，曲线拐点用）
         # 缓冲 OHLC：仅供 on_stop 后的批量 bit-exact 对账（不参与流式计算）。
         self._o: list[float] = []
         self._h: list[float] = []
@@ -133,6 +135,11 @@ class UnnStreamStrategy(Strategy):
         a["nrf_max_children"] = res.get("nrf_max_children", 0)
         a["_n_pushed_trades"] = len(self._new_trades)
         self.result = a
+        # 逐笔明细落盘（11 元组逐字，无虚构）+ equity 序列（曲线拐点分析用）。
+        # root/child 不由 trade 行携带——operational 角色由 (polarity, exit_reason)
+        # 刻画（recover/cascade=子 voice；eod/flip_*=根；liq=两者皆可，市场强平）。
+        self.trades = res["trades"]
+        self.equity = res["equity"]
         self.log.info(f"on_stop: 流式 finish（{self._bar_i:,} bar，{len(res['trades'])} 笔）")
 
 
@@ -219,7 +226,8 @@ def main() -> int:
     t0 = time.time()
     engine.run()
     print(f"  流式回放完成 {time.time() - t0:.1f}s")
-    stream_result = engine.trader.strategies()[0].result
+    strat = engine.trader.strategies()[0]
+    stream_result = strat.result
     if stream_result is None:
         print("流式未产出结果", file=sys.stderr)
         engine.dispose()
@@ -253,6 +261,17 @@ def main() -> int:
         "bit_exact_vs_batch": verify,
         "architecture": "NautilusTrader BacktestEngine 逐bar回放 → on_bar(StreamingSignalReader.process_bar"
                         " → UnnStream.push_bar) → on_stop(finish); 信号层+引擎层两侧流式; bit-exact vs 批量",
+        # ── 逐笔明细（11 元组逐字落盘，无虚构）──
+        # trade_schema 声明每个 trades 行的字段顺序与语义。root/child 不在行内：
+        # operational 角色由 (polarity, exit_reason) 推导——recover/cascade=子 voice；
+        # eod/flip_short/flip_long=根；liq=root|child 皆可（市场强平遍历所有活跃空头）。
+        # N1 守卫保证任一时刻至多一个 active root。长腿 root-vs-long-child 在行内不可分。
+        "trade_schema": ["ladder", "entry_bar", "entry_price", "exit_bar",
+                         "exit_price", "shares", "weight_at_entry", "deferred_bars",
+                         "partial", "exit_reason", "polarity"],
+        "trades": strat.trades,
+        "equity": strat.equity,   # [(bar, nav)] 采样序列（EQUITY_SAMPLE_BARS≈日采样）
+        "closes_first": closes[0], "closes_last": closes[-1],
     }
     (OUT_DIR / f"unn_stream_{sym}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
     print(f"\n结果写入 {OUT_DIR / f'unn_stream_{sym}.json'}")
