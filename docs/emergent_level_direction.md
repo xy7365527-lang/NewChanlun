@@ -314,36 +314,42 @@ H¹(D∞, ℝ₋) = ℝ，单生成元 Δr=−1。根方向 ε 是 H¹ 模「系
 | **R2** | `MorphologyBridge.direction(k)` 改读 `MorphologyState.emergent_dir[k]`（不再读 `signal.dir_state`=噪声） | D-NOISE（§2.3） |
 | **R3** | `MorphologyBridge.anchor(k)` 改读 `MorphologyState.dir_anchor[k]` | σ-ascend 一致性（§3.4） |
 | **R4** | `root_direction()` 保留降级查找（emergent_dir 单调，最高级别一旦确立不降级） | ROOT（§3.1） |
-| **R5** | **删除** F 入场 `entry_dir == expected_s_dir` 断言 | D-RETIRE（§6.2） |
-| **R6** | 保留 `prove_epsilon_symmetry`（root_dir ⟺ polarity） | C1 / ε 对称（§5.2） |
+| **R5** | F 入场 entry_dir 断言**退为 aligned 软门控**（`direction(s)==root_dir` 才入场，陈旧 located 致暂逆则不入场，非 panic） | D-GATE（§6.2） |
+| **R6** | 保留 `prove_epsilon_symmetry`（root_dir ⟺ polarity）为唯一 panic 级方向守卫 | C1 / ε 对称（§5.2） |
 
-### 6.2 entry_dir 断言的退化（定理 D-RETIRE）
+### 6.2 entry_dir 断言退为软对齐门控（定理 D-GATE）
 
-**定理 D-RETIRE（L0）**：旧 F 入场断言 `h0.direction(s) == expected_s_dir`（buy_source ⟹
-direction(s) 应为 Down，「type1 buy 在 s 下跌末端」）在内生方向下**必然 panic**，必须删除。
+**定理 D-GATE（L0）**：旧 F 入场断言 `h0.direction(s) == expected_s_dir`（buy_source ⟹
+direction(s) 应为 **Down**，「type1 buy 在 s 下跌末端」）在内生方向下**符号反转且不可作 panic**，
+应退为**软对齐门控**：`aligned := (h0.direction(s) == Some(root_dir))` 为入场前置，不满足则
+不入场（非 panic，等次级别真信号）。
 
-**证明**：
-1. F 做多触发 ⟸ root=Up ∧ buy_source=s。buy_source=s ⟹ located_buy[s] 链顶 ⟸ `nf_buy[s]`
-   曾 confirm（`chain_source`，`signal.rs:89`）。
-2. `nf_buy[s]` fire ⟹ `emergent_dir[s] = Up`（D-SIGNAL，§2.4）。
-3. located 链在 confirm 后**保留多个 bar**（直到 clear）；保留期内 `emergent_dir[s] = Up`。
-4. 旧断言要 `direction(s) = Down`，与 `emergent_dir[s] = Up` **直接矛盾** → panic。∎
+**证明（符号反转）**：
+1. buy_source=s ⟹ located_buy[s] 链顶 ⟸ `nf_buy[s]` 曾 confirm（`chain_source`，`signal.rs:89`）。
+2. `nf_buy[s]` fire ⟹ `emergent_dir[s] = Up`（D-SIGNAL，§2.4）——而非旧断言的 Down。
+3. 旧断言把「s 下跌末端」（type1 buy 的**几何位置**）误作「s 走势方向」；内生语义下 s 走势方向是
+   买点**之后**的方向 = Up（D-PHASE：终结即下一走势确立）。故正确对齐是 `direction(s)==Up==root`。∎
 
-**根因**：旧断言假设方向来自**独立外部源**（flip_edge），与 nf 做 L2 交叉验证。内生方向后
-`direction = nf 的函数`，断言退化为检查 nf 自洽（L0 同义反复，零信息），且与保留期方向冲突。
-删除是严格的：F 入场方向唯一来自 root_direction（P1），buy/sell_source 只决定**时机**
-（洞察「sell_source 只决定时机不决定方向」）。这不是删守卫降低严格性——是删一个在新语义下
-逻辑不可满足且零信息的断言，用 `prove_epsilon_symmetry`（C1，有结构信息）替代其守护职责。
+**为何软门控而非 panic（关键，避免误杀）**：`direction(s)==root` 在正常情况成立（buy_source ⟹
+emergent_dir[s]=Up=root），但存在**陈旧 located 例外**——`nf_buy[s]` confirm 后 located_buy[s]
+保留期内 s 级别又出 `nf_sell[s]`（`emergent_dir[s]→Down`），而价未破极值故 located 未 clear。
+此时 buy_source=s 仍有效但 `direction(s)=Down≠root`。这不是信号层 bug（located 链与 emergent_dir
+是两个合法机制，可暂时不同步），故**不可 panic**；正确处理是**不入场**（等次级别真信号）= 软门控。
+
+**结论**：F 入场前置 = `bsp_fire ∧ aligned`。方向唯一来自 root_direction（P1），source 只决定
+**时机/层级**（洞察「sell_source 只决定时机不决定方向」）；aligned 门控额外过滤陈旧 located 逆向
+窗口。`prove_epsilon_symmetry`（C1，root⟺polarity）是唯一 **panic 级**方向守卫（守 root→polarity
+映射的 D∞ ε 对称，零自由度）。
 
 ### 6.3 数据流（engine.rs 组装）
 
 ```text
 每 bar：
 1. signal.process(sig, flip_edge) → frame{ nf_sell, nf_buy, sell_source, buy_source, max_l }
-2. morph_state.update(&frame, bar)              ← R1：nf fire 内生翻转 emergent_dir（新增步骤）
-3. MorphologyBridge::new(sig, &signal, &frame, &morph_state)   ← R2/R3：direction/anchor 读 morph_state
+2. morph.emerge(&frame, bar)                     ← R1：nf fire 内生翻转 emergent_dir（新增步骤）
+3. MorphologyBridge::new(sig, &signal, &frame, &morph)   ← R2/R3：direction/anchor 读 morph 涌现态
    ObserveBridge::new(&signal, &frame)
-4. operate.step(&h0, &obs)                       ← R4/R5/R6：root_direction 决定方向，source 决定时机
+4. operate.step(&h0, &obs)                       ← R4/R5/R6：root_direction 决定方向，source+aligned 决定时机
 5. outcome.consumed → signal.clear_located_*
 ```
 
@@ -353,8 +359,9 @@ direction(s) 应为 Down，「type1 buy 在 s 下跌末端」）在内生方向�
 ### 6.4 边界条件（nf 同 bar 双向 fire）
 
 同级别 k 同 bar `nf_sell[k]` 与 `nf_buy[k]` 同时 fire（一个走势同 bar 既顶背驰又底背驰）按
-缠论定义不可能。`MorphologyState::update` 加 `debug_assert` 检测；若发生（信号层 bug），
-release 下 `nf_buy` 后处理（覆盖为 Up）——可观测而非静默（137号 make-decision-observable）。
+缠论定义不可能（实际 nf 在向心 confirm 中互斥）。`MorphologyState::emerge` 中 `nf_buy` 后处理
+（同 bar 共触则覆盖为 Up）——此情形不出现，故无歧义。`emerge` 循环范围 `PENDING_LO..MAX_LADDER`
+（nf 仅在势源层 fire，ladder<PENDING_LO 恒 `None`）。
 
 ---
 
@@ -408,8 +415,9 @@ release 下 `nf_buy` 后处理（覆盖为 Up）——可观测而非静默（13
    （D-SIGNAL），操作层只消费不产生（cd_ℚ=1）。
 3. **级别正交性 = 踏空免疫**（ORTH）：方向翻转算子 $T_k$ 只作用于级别 k，次级别背驰翻不动
    最高级别 → 强 Up regime 不踏空。这是 ES/GC 失败的群论解药。
-4. **entry_dir 断言退化删除**（D-RETIRE）：内生方向下该断言逻辑不可满足且零信息，删除并以
-   `prove_epsilon_symmetry`（C1）替代守护职责。
+4. **entry_dir 断言退为软对齐门控**（D-GATE）：旧断言符号反转（内生语义下应断言 direction(s)==root
+   而非反向），且因陈旧 located 例外不可作 panic，退为软门控（aligned 才入场，否则等真信号）；
+   `prove_epsilon_symmetry`（C1）是唯一 panic 级方向守卫。
 5. **六项实装**（R1–R6，§6.1），全部从 §2–§3 的 L0 定理推出，非补丁。
 
 ### 8.2 定义依据
@@ -426,7 +434,7 @@ release 下 `nf_buy` 后处理（覆盖为 Up）——可观测而非静默（13
 |------|---------|
 | 走势方向 = emergent_dir（nf 内生） | 若 nf fire 与走势终结不等价（信号层 confirm 机制 bug） |
 | ORTH 踏空免疫成立 | 若 `emergent_dir[r*]=None` 长期持续（强单边、r* 无底背驰）→ root 降级到次级别（§7.4 残余风险，待 L3） |
-| entry_dir 断言应删除 | 若方向恢复为独立外部源（flip_edge 改喂稳定走势方向，与 nf 解耦）→ 断言重获 L2 信息 |
+| entry_dir 退为软门控 | 若方向恢复为独立外部源（与 nf 解耦，喂稳定走势方向）→ 断言重获 L2 交叉验证信息，可升回 panic |
 | root 是 H⁰ 属性 | 若存在不经 H⁰ 信号层产生的方向变化（架构越权） |
 | 修复跑赢旧实装 | **未验证**——§7 修复是结构必然，但 L3 alpha 待 8 标的回测裁决（regime 依赖） |
 
@@ -438,8 +446,8 @@ release 下 `nf_buy` 后处理（覆盖为 Up）——可观测而非静默（13
    spiral/unn bit-exact 守恒。
 3. **`signal.dir_state` 对 fugue_v3 成死状态**：仍被 flip_edge 更新（spiral 需要），fugue_v3
    morphology 不再读。flip_edge 输入保留（签名不变，ffi 零改动）。
-4. **prove_epsilon_symmetry 升为唯一方向守卫**：F 入场不再有 entry_dir 断言，C1 由 ε 对称守卫
-   独家守护——任何 root_dir 与 polarity 错配立即 panic。
+4. **prove_epsilon_symmetry 是唯一 panic 级方向守卫**：F 入场 entry_dir 退为软门控（非 panic），
+   C1（root⟺polarity）由 ε 对称守卫独家 panic 守护——任何 root_dir 与 polarity 错配立即 panic。
 
 ### 8.5 谱系引用
 
@@ -458,11 +466,11 @@ release 下 `nf_buy` 后处理（覆盖为 Up）——可观测而非静默（13
 §3.2 级别正交性 + §7 踏空群论解剖）。
 
 **配套代码实装**（同 commit）：
-- `rust/src/fugue_v3/morphology.rs`：新增 `MorphologyState`（内生方向）+ Bridge direction/anchor 改源（R1/R2/R3）。
-- `rust/src/fugue_v3/engine.rs`：持有 `morph_state`，每 bar `update`（R1 数据流）。
-- `rust/src/fugue_v3/operate.rs`：删除 F 入场 entry_dir 断言（R5）。
-- `rust/src/fugue_v3/axis.rs`：root_direction 文档强化（R4，行为不变）。
-- `rust/src/fugue_v3/prove.rs`：prove_epsilon_symmetry 升为唯一方向守卫，注释更新（R6）。
+- `rust/src/fugue_v3/morphology.rs`：新增 `MorphologyState`（内生方向，`emerge` 每 bar nf 翻转）+ Bridge direction/anchor 改源（R1/R2/R3）。
+- `rust/src/fugue_v3/engine.rs`：持有 `morph`，每 bar `signal.process` 后 `morph.emerge`（R1 数据流）。
+- `rust/src/fugue_v3/operate.rs`：F 入场 entry_dir 断言退为 `aligned` 软门控（R5）。
+- `rust/src/fugue_v3/axis.rs`：`root_direction()` 默认实现（降级查找最高有方向级别，R4）。
+- `rust/src/fugue_v3/prove.rs`：`prove_epsilon_symmetry` 为唯一 panic 级方向守卫（R6）。
 
 **不修改**（保持正确）：
 - `signal.rs` / `spiral/engine.rs`（spiral/unn bit-exact 边界）。
