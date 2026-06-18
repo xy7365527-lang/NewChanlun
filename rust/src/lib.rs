@@ -31,6 +31,9 @@ pub mod spiral;
 /// 赋格引擎 v3（递归嵌套多重赋格 = 操作必然结构）。层结构四步循环操作引擎，复用
 /// spiral 信号层，核心仓 H⁰(2/3) ⊕ 机动仓 H¹(1/3 四步 1-cycle 穿 ε=−1)。`pub` 导出。
 pub mod fugue_v3;
+/// 统一递归算子 T（缠师第65课 `aₙ=f(aₙ₋₁)` 形式化）。`pub` 导出避免 dead_code 误报——
+/// 设计阶段脚手架，尚未接入 PyO3（文档 docs/unified_recursive_operator_T.md）。
+pub mod recursive_t;
 mod stroke;
 mod trading;
 mod zhongshu;
