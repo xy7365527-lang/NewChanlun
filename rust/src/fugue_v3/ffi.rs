@@ -235,7 +235,10 @@ impl PyFugueV3Stream {
     /// 收尾（eod 清仓 + 拷信号层计数器）并返回完整结果 dict。幂等。
     fn finish(&mut self, py: Python<'_>) -> PyResult<PyObject> {
         self.core.finish();
-        Ok(result_to_dict(py, self.core.result())?.into())
+        let d = result_to_dict(py, self.core.result())?;
+        // nf fire 明细（§6.6 阶段2 L2 对照）：行 = (bar, ladder, is_sell, price)。
+        d.set_item("nf_fires", self.core.nf_fires().to_vec())?;
+        Ok(d.into())
     }
 }
 
@@ -251,5 +254,8 @@ pub fn run_fugue_v3(py: Python<'_>, bars: Vec<BarTuple>, floor_ladder: usize) ->
         core.step(&sig, &flip_edge);
     }
     core.finish();
-    Ok(result_to_dict(py, core.result())?.into())
+    let d = result_to_dict(py, core.result())?;
+    // nf fire 明细（§6.6 阶段2 L2 对照）：行 = (bar, ladder, is_sell, price)。
+    d.set_item("nf_fires", core.nf_fires().to_vec())?;
+    Ok(d.into())
 }

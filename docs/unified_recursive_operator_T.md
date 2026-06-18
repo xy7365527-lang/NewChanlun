@@ -744,7 +744,19 @@ T 的步骤 a)（重叠）、b)（中枢计数）、d)（封装）全是**纯结
 自洽验证 T 形式不变性）：步骤 a 重叠→中枢（`center.rs`）、b 走势识别（`trend.rs`）、
 c 纯结构走势完美（`divergence.rs::judge_divergence`，第37课5条件 + 第64课类背驰退化，
 零 MACD）、d 封装（`operator.rs`）+ Tᵏ 驱动与 type1/2/3 涌现（`mod.rs`），27 单测绿。
-阶段2（与 v3 nf 对照实测纯拓扑替代率，L2）待启动。
+
+**阶段2 已完成**（2026-06-18，L3 交叉验证，报告 `analysis/T_vs_v3_comparison.md`）：8 标的
+（CL/BRN/DX/GC/ES/QQQ/BTC/OKLO）真实数据，T 纯结构买卖点 vs v3 nf fire（`run_recursive_t`
+a₀=线段 + `fugue_v3` nf 明细 instrumentation；对照轴=price 匹配，绕过合并/raw 坐标系陷阱）。
+bit-exact 守卫：nf_fires 明细逐 ladder 计数 == 现有缓存 `fire_*_by_ladder`（ES sell 5184/buy 4338 逐位一致）。
+**三大发现**：① **分层翻转（8/8 一致）**——move/L1 处 `nf≈2.1×T`（T 漏判方向），recL2 处
+`T≈2.7×nf`，recL3+ `T/nf≈5-15×`（v3 高层 nf 近零）。② **匹配率是 regime 函数**——move/L1
+匹配率随趋势强度从 0.77(DX 震荡)单调降至 0.21(OKLO +216% 强趋势)。③ **双向成因区分**：
+recL2+ 的 t_only **不是 T 误判**，是 §5.2 **bug-c**（σ-ascend 高层 nf 稀疏）的首个 L3 实证——
+T 在高层正常产出而 v3 nf 缺失，此处 T 优于 v3。**对阶段3 的指向**：加 MACD 的缺口**仅限
+move/L1 趋势市的 nf_only**（且需 L3 收益验证甄别 nf_only 是真买卖点还是趋势市过触发——开放轴）；
+recL2+ 禁止 MACD 修正（T 已优）。设计文档「仅在缺口处加 MACD」的"缺口"被定位为局部（move/L1
+趋势市），非全局。
 
 ---
 

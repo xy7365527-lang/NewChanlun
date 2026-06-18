@@ -38,6 +38,10 @@ pub struct FugueEngineCore {
     operate: OperateEngine,
     cur_bar: i64,
     finished: bool,
+    /// nf fire 明细 `(bar, ladder, is_sell, price)`——§6.6 阶段2 T/v3 L2 对照 instrumentation。
+    /// 纯观测：逐 bar 从 `frame.nf_sell/nf_buy[k] = Some(极值价)` 收集，与
+    /// `sig_res.n_fire_*_by_ladder` 计数**同源**（不改引擎行为，bit-exact 守卫不受影响）。
+    nf_fires: Vec<(i64, u8, bool, f64)>,
 }
 
 impl FugueEngineCore {
@@ -55,6 +59,7 @@ impl FugueEngineCore {
             operate: OperateEngine::new(),
             cur_bar: 0,
             finished: false,
+            nf_fires: Vec::new(),
         })
     }
 
@@ -68,6 +73,17 @@ impl FugueEngineCore {
         // ── 1b. H⁰ 方向涌现：从本 bar nf fire 翻转各级别走势方向（operate 步进**前**）──
         // nf_sell[k]→Down / nf_buy[k]→Up（走势终完美翻转）；root_direction 取最高涌现级别。
         self.morph.emerge(&frame, bar);
+
+        // ── 1c. nf fire 明细收集（§6.6 阶段2 L2 对照；纯观测，与 n_fire_*_by_ladder 同源）──
+        // frame.nf_sell/nf_buy[k] = Some(极值价) ⟺ 本 bar ladder k 逐层 nf fire（区间套触发）。
+        for k in FIRST_BSP_LADDER..MAX_LADDER {
+            if let Some(px) = frame.nf_sell[k] {
+                self.nf_fires.push((bar, k as u8, true, px));
+            }
+            if let Some(px) = frame.nf_buy[k] {
+                self.nf_fires.push((bar, k as u8, false, px));
+            }
+        }
 
         // ── 2/3. 三轴桥接 + H¹ 步进（operate 通过 trait 读两轴；方向来自 morph 涌现态）──
         let outcome = {
@@ -104,6 +120,11 @@ impl FugueEngineCore {
             res.n_fire_buy_by_ladder[k] = self.sig_res.n_fire_buy_by_ladder[k];
             res.n_breaks_by_ladder[k] = self.sig_res.n_breaks_by_ladder[k];
         }
+    }
+
+    /// nf fire 明细 `(bar, ladder, is_sell, price)`（§6.6 阶段2 L2 对照；纯观测）。
+    pub fn nf_fires(&self) -> &[(i64, u8, bool, f64)] {
+        &self.nf_fires
     }
 
     pub fn n_trades(&self) -> usize {
