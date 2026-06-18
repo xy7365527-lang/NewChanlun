@@ -4,8 +4,8 @@
 //! 核心原则（第65课 `aₙ=f(aₙ₋₁)`）：所有级别用同一套类型，级别差异只体现在
 //! `level` 字段与递归深度，不分叉类型。
 //!
-//! 注：本模块是 `recursive_t`（复用 nucleus 版）的并存对比实现——standalone 路线，
-//! 自造中枢/走势/背驰逻辑，不依赖 `crate::level`/`crate::moves`。两版用于 A/B 对比。
+//! 架构：standalone——自造中枢/走势/背驰逻辑，不依赖 `crate::level`/`crate::moves`/v3
+//! 任何现有引擎，验证 T 四步循环可独立于 v3 nucleus 自洽实现（第65课形式不变性）。
 
 /// 方向（向上 / 向下）。
 ///
@@ -176,12 +176,15 @@ pub struct RecursiveTree {
 }
 
 impl RecursiveTree {
-    /// 涌现上界 r*：已形成完整走势的最高级别（设计文档 §1.5 向上终止）。
-    /// = 最后一个产出了至少一个走势类型的级别索引 + 1；空塔返回 0。
+    /// 涌现上界 r*：已形成**完整走势**（终完美 completed）的最高级别（设计文档 §1.5）。
+    /// = 最后一个含至少一个 completed 走势的级别索引 + 1；空塔返回 0。
+    ///
+    /// 用 `completed` 而非「trends 非空」：一个级别可有生长中走势（completed=false）但
+    /// 尚未终完美（§1.5 局部不动点：M_k.confirmed=true 才冻结），这种级别不计入 r*。
     pub fn emergent_ceiling(&self) -> usize {
         self.levels
             .iter()
-            .rposition(|l| !l.trends.is_empty())
+            .rposition(|l| l.trends.iter().any(|t| t.completed))
             .map(|i| i + 1)
             .unwrap_or(0)
     }

@@ -28,12 +28,11 @@ fn overlaps(unit: &Unit, zd: f64, zg: f64) -> bool {
 ///
 /// 返回的 `Zhongshu.units` 索引相对于传入的 `units` 切片。
 ///
-/// 已知结构简化（standalone 版特性，A/B 对比项）：贪心扫描会把"离开前一中枢的
-/// 连接段"吸收为下一中枢的首单元，从而把下一中枢外缘 `DD` 拖低。因此只有当两中枢
-/// **真正分离**（`后中枢 DD > 前中枢 GG`）时才会被 `same_direction_step` 判为趋势的
-/// 一步；外缘重叠的相邻中枢按缠论视为盘整延伸（非趋势）。复用 nucleus 版
-/// （`crate::recursive_t`）经由已验证的 `moves_from_level_zhongshus` 处理连接段，
-/// 二者对连接段的处理差异正是两版对比的观察点之一。
+/// 已知结构简化：贪心扫描会把"离开前一中枢的连接段"吸收为下一中枢的首单元，从而把
+/// 下一中枢外缘 `DD` 拖低。因此只有当两中枢**真正分离**（`后中枢 DD > 前中枢 GG`）时
+/// 才会被 `same_direction_step` 判为趋势的一步；外缘重叠的相邻中枢按缠论视为盘整延伸
+/// （非趋势）。v3 nucleus 路线（`crate::level::moves_from_level_zhongshus`，src/level.rs）
+/// 对连接段的处理可作为后续对照精化的参考。
 pub fn find_centers(units: &[Unit], level: usize) -> Vec<Zhongshu> {
     let mut centers = Vec::new();
     let n = units.len();

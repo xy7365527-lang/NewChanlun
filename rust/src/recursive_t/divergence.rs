@@ -8,16 +8,19 @@
 //!
 //! ## 第37课趋势背驰5条件（`judge_trend_divergence` 全实装）
 //!
-//! 趋势 a+A+b+B+c 形式（A=首中枢，B=末中枢）：
+//! 趋势 a+A+b+B+c 形式，A、B 锚定**最后两个同级别中枢**（A=倒数第二中枢=背驰背景，
+//! B=末中枢；第24课「A 之前已有一个中枢，B 是另一个中枢」，≥3 中枢趋势同此）：
 //! 1. A、B 是同级别中枢 —— `zhongshus.len() ≥ 2`；
-//! 2. c 含对 B 的第三类买卖点 —— c 段回抽不破 B 的 ZG(上)/ZD(下)；
-//! 3. b 在级别上不大于 c —— b 段（A↔B 间）嵌套深度 ≤ c 段；
+//! 2. c 含对 B 的第三类买卖点 —— c 段回抽不破 B 的 ZG(上)/ZD(下)（守沿分量；「先离开」
+//!    由 4+5 回补，「第一次回抽」序数未单独编码——有效域边界）；
+//! 3. b 在级别上不大于 c —— b 段（A↔B 连接段）嵌套深度 ≤ c 段；
 //! 4. 上涨 c 创新高 / 下跌 c 创新低 —— c 段极值超越此前全部极值；
-//! 5. c 至少含 2 个次级别中枢 —— c 段嵌套深度和 ≥2（c 是次级别趋势）。
+//! 5. c 段含 ≥2 个次级别中枢 —— c 段嵌套深度和 ≥2（只验中枢计数，未验依次同向构成趋势）。
 //! + 第24课力度：c 段力度 < a 段（嵌套深度 / 类背驰振幅）。
 //!
 //! 条件 2/3/5 是 79% 伪背驰（buysellpoint.rs:460-465 v3 raw type1「下跌途中连续刷新低
 //! 的伪底背驰」）的结构滤网。基底层（a₀，无中枢嵌套）按第64课退化为类背驰（仅 1+4+力度）。
+//! 中枢锚定/守沿/中枢计数的有效域边界由对抗核验（6 验证者）确立，见 §6.7 决策记录。
 //!
 //! ## 力度的结构化度量（设计文档 §6.4 候选「中枢嵌套深度比较」）
 //!
@@ -106,11 +109,15 @@ fn judge_trend_divergence(t: &TrendType) -> Option<BSP> {
     if n_centers < 2 {
         return None;
     }
-    let first_center = &t.zhongshus[0];
+    // A = 倒数第二中枢（背驰背景，第24课「A 之前已有一个中枢，B 是这个大趋势的另一个
+    // 中枢」），B = 末中枢。对 ≥3 中枢趋势，背驰段必须锚定**最后两个中枢**（与已验证
+    // bit-exact 的 crate::divergence 的 indices[-2]/[-1] 一致）；旧首/末读法会把中间中枢
+    // 折进 b 段使其膨胀、系统性过严错杀（对抗核验 major）。2 中枢时 n-2=0，与旧行为一致。
+    let prev_center = &t.zhongshus[n_centers - 2];
     let last_center = &t.zhongshus[n_centers - 1];
 
-    // a 段：切片起点到首中枢末单元（含进入段 + 首中枢）。
-    let a_end = *first_center.units.last().unwrap();
+    // a 段：切片起点到倒数第二中枢末单元（进入段 + 累积至 A 的背驰背景，力度基准）。
+    let a_end = *prev_center.units.last().unwrap();
     let a_leg = &t.units[0..=a_end];
 
     // c 段：末中枢末单元之后。
@@ -143,20 +150,26 @@ fn judge_trend_divergence(t: &TrendType) -> Option<BSP> {
     // 结构滤网：单凭力度衰减（条件4+力度）= 背驰候选；加 2/3/5 = 走势完美。
     let has_nest = t.units.iter().any(|u| u.inner_zhongshu_count > 0);
     if has_nest {
-        // 条件2：c 含对 B（末中枢）的第三类买卖点——c 段回抽不破 B 的 ZG(上)/ZD(下)。
-        let has_type3 = c_leg.iter().any(|u| match t.direction {
-            Direction::Up => u.low > last_center.high, // 回抽守住中枢上沿 ZG = 类三买
-            Direction::Down => u.high < last_center.low, // 回抽守住中枢下沿 ZD = 类三卖
+        // 条件2：c 含对 B（末中枢）的第三类买卖点。完整 type3 = 先离开中枢、再回抽不破
+        // ZG/ZD。本条只校验「回抽守住中枢边沿」这一**守沿分量**（∃ 单元不破 ZG/ZD）；
+        // 「先离开」由条件4（c 创新高/新低）+ 条件5（c 含≥2 次级别中枢的离开走势）结构性
+        // 回补，「第一次回抽」严格序数（第38课）未单独编码——对抗核验 minor，记为有效域边界。
+        let c_holds_center_edge = c_leg.iter().any(|u| match t.direction {
+            Direction::Up => u.low > last_center.high, // 回抽不破中枢上沿 ZG
+            Direction::Down => u.high < last_center.low, // 回抽不破中枢下沿 ZD
         });
-        if !has_type3 {
+        if !c_holds_center_edge {
             return None;
         }
-        // 条件5：c 至少含 2 个次级别中枢（c 段嵌套深度和 ≥2 → c 是次级别趋势）。
+        // 条件5：c 段含 ≥2 个次级别(k-1)中枢（嵌套深度和 ≥2）。只校验中枢总数，不校验这
+        // 2 个中枢「依次同向构成单一次级别趋势」（需对 c 段重跑 find_centers，当前未实装）
+        // ——对抗核验 minor，避免声明膨胀（不声称「c 是次级别趋势」）。
         let c_nest: usize = c_leg.iter().map(|u| u.inner_zhongshu_count).sum();
         if c_nest < 2 {
             return None;
         }
-        // 条件3：b 在级别上不大于 c——b 段（A↔B 之间）嵌套深度 ≤ c 段。
+        // 条件3：b 在级别上不大于 c——b 段（倒数第二中枢 A ↔ 末中枢 B 之间的连接段）嵌套
+        // 深度 ≤ c 段。a_end 已锚定倒数第二中枢，故 ≥3 中枢时 b 段不再吞中间中枢。
         let b_start = a_end + 1;
         let b_endx = *last_center.units.first().unwrap(); // 末中枢首单元（不含）
         let b_nest: usize = if b_start < b_endx {
@@ -400,5 +413,41 @@ mod tests {
         let bsp = judge_divergence(&t).expect("类背驰应产一卖");
         assert_eq!(bsp.kind, BSPKind::Type1Sell);
         assert_eq!(bsp.price, 52.0);
+    }
+
+    /// ≥3 中枢趋势：A/B 与 b 段必须锚定**最后两个中枢**（A=倒数第二、B=末），不得吞中间
+    /// 中枢（对抗核验 major 回归）。中间中枢 z2 嵌套深（3×3=9）：旧首/末读法 b 段=z2 →
+    /// b_nest=9 > c_nest=4 → 系统性过严错杀；修复后 b 段=z2↔z3 连接段（空）→ b_nest=0 ≤ 4，
+    /// 5 条件全过正确产一卖。该路径在所有 2 中枢测试中零覆盖，是此前未暴露的有效域边界。
+    #[test]
+    fn 三中枢趋势_b段锚最后两中枢_不吞中间中枢() {
+        let mk = |low, high, s, e, d, nest| Unit {
+            high, low, start_bar: s, end_bar: e, direction: d, level: 2, inner_zhongshu_count: nest,
+        };
+        let units = vec![
+            mk(8.0, 22.0, 0, 1, Direction::Up, 2), // z1
+            mk(12.0, 18.0, 1, 2, Direction::Down, 2),
+            mk(10.0, 20.0, 2, 3, Direction::Up, 2),
+            mk(28.0, 42.0, 3, 4, Direction::Up, 3), // z2（中间中枢，嵌套深 3×3=9）
+            mk(32.0, 40.0, 4, 5, Direction::Down, 3),
+            mk(30.0, 41.0, 5, 6, Direction::Up, 3),
+            mk(48.0, 62.0, 6, 7, Direction::Up, 2), // z3（末中枢 B）
+            mk(52.0, 60.0, 7, 8, Direction::Down, 2),
+            mk(50.0, 61.0, 8, 9, Direction::Up, 2),
+            mk(63.0, 75.0, 9, 10, Direction::Up, 2), // c 段：离开 z3 向上，low=63 > ZG=60（守沿）
+            mk(70.0, 80.0, 10, 11, Direction::Up, 2), // c 创新高 80，c_nest=2+2=4
+        ];
+        let z1 = Zhongshu { high: 20.0, low: 10.0, gg: 22.0, dd: 8.0, units: vec![0, 1, 2], level: 2 };
+        let z2 = Zhongshu { high: 40.0, low: 30.0, gg: 42.0, dd: 28.0, units: vec![3, 4, 5], level: 2 };
+        let z3 = Zhongshu { high: 60.0, low: 50.0, gg: 62.0, dd: 48.0, units: vec![6, 7, 8], level: 2 };
+        let t = TrendType {
+            kind: TrendKind::UpTrend, zhongshus: vec![z1, z2, z3], units, level: 2,
+            direction: Direction::Up, completed: false, bsp: None,
+        };
+        // a 段=units[0..=5](entry+z1+z2) nest=15；b 段=z2↔z3 间(空) b_nest=0≤c_nest=4；
+        // c 创新高 80、守 ZG=60、力度 4<15 → 5 条件全过。
+        let bsp = judge_divergence(&t).expect("3 中枢趋势 b 段锚最后两中枢应产一卖");
+        assert_eq!(bsp.kind, BSPKind::Type1Sell);
+        assert_eq!(bsp.price, 80.0);
     }
 }

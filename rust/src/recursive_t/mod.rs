@@ -214,4 +214,79 @@ mod tests {
         let has_buy = l0.bsps.iter().any(|b| b.kind == BSPKind::Type1Buy && b.price == -45.0);
         assert!(has_buy, "下跌背驰应产生 -45.0 处一类买点");
     }
+
+    #[test]
+    fn emergent_ceiling_排除生长中走势() {
+        // §1.5：r* 用「完整走势(completed)」定义。一个级别只含生长中（completed=false）
+        // 走势 → 不计入 r*（修复 workflow bug#1：原先用「trends 非空」会误计入）。
+        let growing = TrendType {
+            kind: TrendKind::Consolidation,
+            zhongshus: vec![],
+            units: vec![],
+            level: 0,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
+        };
+        let tree = RecursiveTree {
+            levels: vec![TLevelOutput {
+                level: 0,
+                centers: vec![],
+                trends: vec![growing],
+                bsps: vec![],
+                next_units: vec![],
+            }],
+        };
+        assert_eq!(tree.emergent_ceiling(), 0, "生长中走势不计入 r*");
+    }
+
+    #[test]
+    fn apply_t_检测三类买点() {
+        // 中枢 [12,18]（段0-2），向上离开（段3 low=23>ZG=18），回抽守住 ZG（段4 low=20>18）
+        // → 三类买点 @ 回抽低点 20。
+        let units = vec![
+            bi(8.0, 22.0, 0, 1, Direction::Up),
+            bi(12.0, 18.0, 1, 2, Direction::Down),
+            bi(10.0, 16.0, 2, 3, Direction::Up),
+            bi(23.0, 35.0, 3, 4, Direction::Up),
+            bi(20.0, 28.0, 4, 5, Direction::Down),
+        ];
+        let out = apply_t(&units, 0);
+        let t3 = out.bsps.iter().find(|b| b.kind == BSPKind::Type3Buy);
+        assert!(t3.is_some(), "应检测到三类买点");
+        assert_eq!(t3.unwrap().price, 20.0);
+        assert_eq!(t3.unwrap().bar, 4);
+    }
+
+    #[test]
+    fn project_type2_次级别type1投影为本级type2() {
+        // 定律一：type2_k = 次级别(k-1) 同极性 type1 投影。level0 有两个 type1buy
+        // （bar10=构成本级底，bar20=次级别后续），level1 有 type1buy@bar10。
+        // 投影：level1 取 level0 中 bar>10 同极性首个 type1（bar20,price7）作 type2buy。
+        let mut levels = vec![
+            TLevelOutput {
+                level: 0,
+                centers: vec![],
+                trends: vec![],
+                next_units: vec![],
+                bsps: vec![
+                    BSP { kind: BSPKind::Type1Buy, bar: 10, price: 5.0, level: 0 },
+                    BSP { kind: BSPKind::Type1Buy, bar: 20, price: 7.0, level: 0 },
+                ],
+            },
+            TLevelOutput {
+                level: 1,
+                centers: vec![],
+                trends: vec![],
+                next_units: vec![],
+                bsps: vec![BSP { kind: BSPKind::Type1Buy, bar: 10, price: 5.0, level: 1 }],
+            },
+        ];
+        project_type2(&mut levels);
+        let t2 = levels[1].bsps.iter().find(|b| b.kind == BSPKind::Type2Buy);
+        assert!(t2.is_some(), "应投影出二类买点");
+        assert_eq!(t2.unwrap().bar, 20);
+        assert_eq!(t2.unwrap().price, 7.0);
+        assert_eq!(t2.unwrap().level, 1);
+    }
 }
