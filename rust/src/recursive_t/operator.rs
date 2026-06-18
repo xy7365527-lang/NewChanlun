@@ -6,17 +6,22 @@
 use super::center::find_centers;
 use super::divergence::judge_divergence;
 use super::trend::segment_into_trends;
-use super::types::{BSPKind, Direction, TLevelOutput, TrendType, Unit, Zhongshu, BSP};
+use super::types::{BSPKind, PerfectionMode, TLevelOutput, TrendType, Unit, Zhongshu, BSP};
 
 /// 步骤 d)：把一个终完美的走势类型封装为级别 k+1 的一根单元。
 ///
 /// 递归恒等式（谱系 540）：`Move(k) ≡ Level-(k+1) 的笔`。封装携带：
 /// - 区间 = 走势全部单元的 [min low, max high]；
 /// - 方向 = 走势方向（压缩视图）；
-/// - `inner_zhongshu_count` = 走势的中枢数（嵌套深度，供上级背驰判定，§6.4）。
+/// - `inner_zhongshu_count` = 走势的中枢数（嵌套深度，供上级背驰判定，§6.4）；
+/// - `area_pos`/`area_neg` = 走势全部单元的 MACD 面积之和（面积可加性，供上级 MACD 背驰）。
 fn encapsulate(t: &TrendType, next_level: usize) -> Unit {
     let high = t.units.iter().map(|u| u.high).fold(f64::MIN, f64::max);
     let low = t.units.iter().map(|u| u.low).fold(f64::MAX, f64::min);
+    // MACD 面积随 inner_zhongshu_count 一起求和上传（面积可加性，escalation 附录 + §6.6
+    // 定案）：上级单元的 MACD 面积 = 内含下级单元之和，递归层自然聚合（无 area 时恒 0）。
+    let area_pos = t.units.iter().map(|u| u.area_pos).sum();
+    let area_neg = t.units.iter().map(|u| u.area_neg).sum();
     Unit {
         high,
         low,
@@ -25,6 +30,8 @@ fn encapsulate(t: &TrendType, next_level: usize) -> Unit {
         direction: t.direction,
         level: next_level,
         inner_zhongshu_count: t.zhongshus.len(),
+        area_pos,
+        area_neg,
     }
 }
 
@@ -70,11 +77,11 @@ fn detect_type3(units: &[Unit], centers: &[Zhongshu], level: usize) -> Vec<BSP> 
 ///
 /// 1. 步骤a：`find_centers` → 中枢（绝对坐标）；
 /// 2. 步骤b：`segment_into_trends` → 走势类型实例（自包含切片，索引已重基）；
-/// 3. 步骤c：`judge_divergence` → type1 买卖点 + 终完美标记；
+/// 3. 步骤c：`judge_divergence`（`mode` 选纯结构 / AND / OR）→ type1 买卖点 + 终完美标记；
 ///    （被反向走势终结的中间走势也标记 completed，但无显式 type1 BSP）；
 /// 4. 步骤d：`encapsulate` 终完美走势 → `S_{k+1}`；
 /// 5. 伴随：`detect_type3` → type3 买卖点。
-pub fn apply_t(units: &[Unit], level: usize) -> TLevelOutput {
+pub fn apply_t(units: &[Unit], level: usize, mode: PerfectionMode) -> TLevelOutput {
     // 步骤 a
     let centers = find_centers(units, level);
     // 步骤 b
@@ -83,7 +90,7 @@ pub fn apply_t(units: &[Unit], level: usize) -> TLevelOutput {
     // 步骤 c：背驰判定 + 完成标记
     let n_groups = trends.len();
     for (gi, t) in trends.iter_mut().enumerate() {
-        if let Some(bsp) = judge_divergence(t) {
+        if let Some(bsp) = judge_divergence(t, mode) {
             t.bsp = Some(bsp);
             t.completed = true;
         } else if gi + 1 < n_groups {
@@ -116,7 +123,7 @@ pub fn apply_t(units: &[Unit], level: usize) -> TLevelOutput {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::recursive_t::types::TrendKind;
+    use crate::recursive_t::types::{Direction, TrendKind};
 
     fn bi(low: f64, high: f64, s: i64, e: i64, d: Direction) -> Unit {
         Unit::stroke(low, high, s, e, d)
@@ -139,7 +146,7 @@ mod tests {
     #[test]
     fn apply_t_识别两中枢一趋势一卖点() {
         let units = 上涨趋势八笔();
-        let out = apply_t(&units, 0);
+        let out = apply_t(&units, 0, PerfectionMode::Structural);
         assert_eq!(out.centers.len(), 2, "应识别 2 个中枢");
         assert_eq!(out.trends.len(), 1, "应识别 1 个走势类型");
         assert_eq!(out.trends[0].kind, TrendKind::UpTrend);
@@ -157,7 +164,7 @@ mod tests {
     #[test]
     fn apply_t_封装产出上级单元() {
         let units = 上涨趋势八笔();
-        let out = apply_t(&units, 0);
+        let out = apply_t(&units, 0, PerfectionMode::Structural);
         assert_eq!(out.next_units.len(), 1, "终完美趋势封装为 1 根上级单元");
         let up = &out.next_units[0];
         assert_eq!(up.level, 1);
@@ -173,7 +180,7 @@ mod tests {
     fn apply_t_是纯函数_不改输入() {
         let units = 上涨趋势八笔();
         let snapshot = units.clone();
-        let _ = apply_t(&units, 0);
+        let _ = apply_t(&units, 0, PerfectionMode::Structural);
         assert_eq!(units, snapshot, "apply_t 不得突变输入");
     }
 
@@ -189,6 +196,8 @@ mod tests {
             direction: d,
             level: 1,
             inner_zhongshu_count: nest,
+            area_pos: 0.0,
+            area_neg: 0.0,
         };
         let units = vec![
             mk(8.0, 22.0, 0, 1, Direction::Up, 3),
@@ -200,7 +209,7 @@ mod tests {
             mk(31.0, 39.0, 6, 7, Direction::Down, 2),
             mk(40.0, 60.0, 7, 8, Direction::Up, 2), // c 创新高，含 2 次级别中枢，弱于 a 段
         ];
-        let out = apply_t(&units, 1);
+        let out = apply_t(&units, 1, PerfectionMode::Structural);
         assert_eq!(out.level, 1);
         assert_eq!(out.centers.len(), 2);
         let sells: Vec<_> = out.bsps.iter().filter(|b| b.kind == BSPKind::Type1Sell).collect();

@@ -27,6 +27,34 @@ impl Direction {
     }
 }
 
+/// 走势完美（步骤c 背驰）判定模式。
+///
+/// 第24课：「用均线或MACD看背驰都是辅助性的……配合上中枢，那是 100% 绝对的。」
+/// 三模式实测对照（编排者 2026-06-18 裁决，escalation `2026-06-18-1752-t-stepc-macd-
+/// scope-vs-direction.md` §6.7 选项C「数据划线」）：纯结构 / 结构∧MACD / 结构∨MACD
+/// 三路**同数据同操作层**，唯一区别 = 步骤c 力度判据，由 L2/L3 回测甄别 MACD 收紧
+/// （AND）/放宽（OR）的有效域——OR放宽/AND收紧是有效域读数，非先验（formalization-
+/// validity-domain）。
+///
+/// 三模式共享**几何门 G**（≥2 中枢 + c 创新高/新低）。在 G 内（设计文档 §6.6 定案）：
+/// - `Structural`：G ∧ (F∧S)——纯结构（第37课条件2·3·5 + 结构力度衰减），现状。
+/// - `And`：G ∧ (F∧S) ∧ M——结构完美**且** MACD 面积衰减（收紧门，信号单调减）。
+/// - `Or`：G ∧ [(F∧S) ∨ M]——结构完美**或** MACD 面积衰减（放宽门，M 可绕过 F∧S，
+///   但**不可**绕过 G——BSP 价格/bar 锚定 c 段趋势极值，无创新高则无从定位一类买卖点）。
+///
+/// 其中 F=第37课条件2·3·5（结构滤网，仅 has_nest 时激活），S=结构力度衰减（嵌套
+/// 深度/振幅），M=MACD 面积衰减（C 段 < A 段，按方向 Σ 非负面积）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PerfectionMode {
+    /// 纯结构 5 条件（默认，§6.6 纯结构优先）。
+    #[default]
+    Structural,
+    /// 结构 ∧ MACD 面积衰减（收紧）。
+    And,
+    /// 结构 ∨ MACD 面积衰减（放宽）。
+    Or,
+}
+
 /// 单元（泛型，所有级别通用）。
 ///
 /// 递归恒等式（谱系 540）：级别 k 的一个完整走势类型 `Move(k)` ≡ 级别 k+1 的一根「笔」。
@@ -51,10 +79,26 @@ pub struct Unit {
     pub level: usize,
     /// 内部中枢数（嵌套深度，a₀ = 0）。
     pub inner_zhongshu_count: usize,
+    /// 本单元覆盖区间的 MACD **红柱（正 hist）累积面积**，约定 `≥0`。
+    ///
+    /// 步骤c MACD 面积背驰判据（`PerfectionMode::And`/`Or`）的输入。a₀ 层由调用方（ffi）
+    /// 经 `merged_to_raw` 转 raw bar 后用 `macd::macd_area_for_range` 注入；无 MACD 数据
+    /// 时为 `0.0`（退化为纯结构）。封装时随 `inner_zhongshu_count` 一起**求和上传**
+    /// （面积可加性：大走势 MACD 面积 = 内含小单元之和），故 level≥1 单元自然聚合。
+    pub area_pos: f64,
+    /// 本单元覆盖区间的 MACD **绿柱（负 hist）累积面积的绝对值**，约定 `≥0`。
+    ///
+    /// 与 `area_pos` 同源同步（注入/求和上传）。注入时取 `macd_area_for_range(...).area_neg`
+    /// 的绝对值——本模块统一用非负面积，方向由 `leg_macd_force` 按段所属趋势方向选取
+    /// （上涨段 Σarea_pos，下跌段 Σarea_neg），保住面积可加性 + 方向一致性。
+    pub area_neg: f64,
 }
 
 impl Unit {
-    /// 构造一根 a₀ 笔（level=0，无内部中枢）。
+    /// 构造一根 a₀ 笔（level=0，无内部中枢，无 MACD 面积）。
+    ///
+    /// `area_pos`/`area_neg` 默认 `0.0`（纯结构路径）。需 MACD 面积背驰判定时由调用方
+    /// 直接构造 `Unit { .., area_pos, area_neg }`（见 `ffi::run_recursive_t`）。
     pub fn stroke(low: f64, high: f64, start_bar: i64, end_bar: i64, direction: Direction) -> Unit {
         Unit {
             high,
@@ -64,6 +108,8 @@ impl Unit {
             direction,
             level: 0,
             inner_zhongshu_count: 0,
+            area_pos: 0.0,
+            area_neg: 0.0,
         }
     }
 }
