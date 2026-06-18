@@ -43,6 +43,7 @@
 
 pub mod center;
 pub mod divergence;
+pub mod ffi;
 pub mod operator;
 pub mod trend;
 pub mod types;

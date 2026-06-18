@@ -122,6 +122,18 @@ impl BSPKind {
             BSPKind::Type1Buy | BSPKind::Type2Buy | BSPKind::Type3Buy
         )
     }
+
+    /// 类型字符串（FFI / 对照用）。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            BSPKind::Type1Buy => "type1_buy",
+            BSPKind::Type1Sell => "type1_sell",
+            BSPKind::Type2Buy => "type2_buy",
+            BSPKind::Type2Sell => "type2_sell",
+            BSPKind::Type3Buy => "type3_buy",
+            BSPKind::Type3Sell => "type3_sell",
+        }
+    }
 }
 
 /// 买卖点（T 迭代的伴随不变量，不是独立信号）。

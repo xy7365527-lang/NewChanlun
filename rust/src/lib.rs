@@ -2422,6 +2422,7 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // 赋格引擎 v3（递归嵌套多重赋格）：流式 FugueV3Stream + 批量 run_fugue_v3。
     m.add_class::<fugue_v3::ffi::PyFugueV3Stream>()?;
     m.add_function(wrap_pyfunction!(fugue_v3::ffi::run_fugue_v3, m)?)?;
+    m.add_function(wrap_pyfunction!(recursive_t::ffi::run_recursive_t, m)?)?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;
