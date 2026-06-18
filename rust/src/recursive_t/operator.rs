@@ -48,7 +48,7 @@ fn detect_type3(units: &[Unit], centers: &[Zhongshu], level: usize) -> Vec<BSP> 
         if leave.low > c.high && pull.low > c.high {
             res.push(BSP {
                 kind: BSPKind::Type3Buy,
-                bar: pull.start_bar,
+                bar: pull.end_bar,
                 price: pull.low,
                 level,
             });
@@ -57,7 +57,7 @@ fn detect_type3(units: &[Unit], centers: &[Zhongshu], level: usize) -> Vec<BSP> 
         if leave.high < c.low && pull.high < c.low {
             res.push(BSP {
                 kind: BSPKind::Type3Sell,
-                bar: pull.start_bar,
+                bar: pull.end_bar,
                 price: pull.high,
                 level,
             });

@@ -256,7 +256,7 @@ mod tests {
         let t3 = out.bsps.iter().find(|b| b.kind == BSPKind::Type3Buy);
         assert!(t3.is_some(), "应检测到三类买点");
         assert_eq!(t3.unwrap().price, 20.0);
-        assert_eq!(t3.unwrap().bar, 4);
+        assert_eq!(t3.unwrap().bar, 5); // 回抽段(Down)低点在 end_bar=5（与 leg_extreme 约定一致）
     }
 
     #[test]
@@ -289,5 +289,24 @@ mod tests {
         assert_eq!(t2.unwrap().bar, 20);
         assert_eq!(t2.unwrap().price, 7.0);
         assert_eq!(t2.unwrap().level, 1);
+    }
+
+    #[test]
+    fn judge_divergence_空中枢不panic() {
+        // pub fn 边界（修复 workflow bug#5）：外部构造空 units 的中枢应返回 None 而非 panic。
+        use crate::recursive_t::divergence::judge_divergence;
+        let bad = TrendType {
+            kind: TrendKind::UpTrend,
+            zhongshus: vec![
+                Zhongshu { high: 20.0, low: 12.0, gg: 22.0, dd: 10.0, units: vec![], level: 1 },
+                Zhongshu { high: 48.0, low: 40.0, gg: 50.0, dd: 38.0, units: vec![], level: 1 },
+            ],
+            units: vec![bi(8.0, 22.0, 0, 1, Direction::Up)],
+            level: 1,
+            direction: Direction::Up,
+            completed: false,
+            bsp: None,
+        };
+        assert_eq!(judge_divergence(&bad), None, "空中枢应返回 None 不 panic");
     }
 }

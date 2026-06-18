@@ -116,6 +116,12 @@ fn judge_trend_divergence(t: &TrendType) -> Option<BSP> {
     let prev_center = &t.zhongshus[n_centers - 2];
     let last_center = &t.zhongshus[n_centers - 1];
 
+    // pub fn 边界防御：中枢按第17课须 ≥3 单元（find_centers 保证），但 pub API 不能因
+    // 外部构造空 units 的 Zhongshu 而 panic——返回 None 使「Option 永不 panic」契约诚实。
+    if prev_center.units.is_empty() || last_center.units.is_empty() {
+        return None;
+    }
+
     // a 段：切片起点到倒数第二中枢末单元（进入段 + 累积至 A 的背驰背景，力度基准）。
     let a_end = *prev_center.units.last().unwrap();
     let a_leg = &t.units[0..=a_end];
@@ -207,6 +213,9 @@ fn judge_consolidation_divergence(t: &TrendType) -> Option<BSP> {
         return None;
     }
     let center = &t.zhongshus[0];
+    if center.units.is_empty() {
+        return None; // pub fn 边界防御（同 judge_trend_divergence）。
+    }
     let enter_end = *center.units.last().unwrap();
     // 进入段 = 切片起点到中枢末单元；离开段 = 其后。
     if enter_end + 1 >= t.units.len() {

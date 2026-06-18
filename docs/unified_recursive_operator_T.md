@@ -740,8 +740,11 @@ T 的步骤 a)（重叠）、b)（中枢计数）、d)（封装）全是**纯结
 纯拓扑起点 = 在跑通纯拓扑的同时保留 MACD 对照，用否定性结果而非先验信念划线。
 
 **并行的下一步决策**（已裁决，记录备查）：A 先不实装 / B 启动阶段1迁移 / **C 异质审查** →
-裁决为**启动实装**（`rust/src/recursive_t/` 核心循环骨架已落地，步骤 a/b/d 复用 bit-exact
-纯函数 + 测试绿；步骤 c 纯结构判定 `is_trend_perfected` 待实装——按本节渐进路线阶段1）。
+裁决为**启动实装**。`rust/src/recursive_t/` 已落地 standalone 实现（不复用 v3 nucleus，
+自洽验证 T 形式不变性）：步骤 a 重叠→中枢（`center.rs`）、b 走势识别（`trend.rs`）、
+c 纯结构走势完美（`divergence.rs::judge_divergence`，第37课5条件 + 第64课类背驰退化，
+零 MACD）、d 封装（`operator.rs`）+ Tᵏ 驱动与 type1/2/3 涌现（`mod.rs`），27 单测绿。
+阶段2（与 v3 nf 对照实测纯拓扑替代率，L2）待启动。
 
 ---
 
