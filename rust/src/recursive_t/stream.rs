@@ -112,6 +112,9 @@ pub struct TFugueStreamCore {
     last_cs_segs: usize,
     /// 已投放 BSP 身份键 (kind_disc, merged_bar, level)（append-only diff，只增不改）。
     seen_bsps: HashSet<(u8, i64, usize)>,
+    /// 自下而上涌现升级开关（消融门）：`T_NO_EMERGENCE` 环境变量置位时关闭——用于 L3 A/B
+    /// 隔离 emergence-upgrade 的净效应（与 `BT_DUMP_TRADES`/`BT_SYMBOLS` 同类 eval 工具）。
+    emergence_enabled: bool,
 }
 
 impl TFugueStreamCore {
@@ -131,6 +134,7 @@ impl TFugueStreamCore {
             last_stroke_n: 0,
             last_cs_segs: 0,
             seen_bsps: HashSet::new(),
+            emergence_enabled: std::env::var("T_NO_EMERGENCE").is_err(),
         }
     }
 
@@ -151,8 +155,9 @@ impl TFugueStreamCore {
         }; // orch 借用在此释放
 
         // ── 自下而上涌现上界 → (ladder, 操作极性)：向上走势=做多归属 / 向下走势=做空归属。
-        //    写入 view.emergent_top，step 在 BSP 路由前据此把核心仓 relabel 升级归属（不等高级别 BSP）。──
-        if let Some((t_level, dir)) = emergent {
+        //    写入 view.emergent_top，step 在 BSP 路由前据此把核心仓 relabel 升级归属（不等高级别 BSP）。
+        //    消融门 `emergence_enabled`（T_NO_EMERGENCE）关闭时不写 ⟹ A/B 基线（退化为纯 BSP 驱动）。──
+        if let (true, Some((t_level, dir))) = (self.emergence_enabled, emergent) {
             let ladder = t_level + BASE_LADDER;
             if ladder < MAX_LADDER {
                 let pol = match dir {

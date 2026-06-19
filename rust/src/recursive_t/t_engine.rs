@@ -33,6 +33,10 @@
 //! ## 仓位递归（几何塔，由 sink sizing 自然涌现）
 //! sink 转移 = 父级 units/3 ⟹ 次级别 = 核心 1/3、次次级别 = 1/9 …… 相邻级别方向相反（手性交替，
 //! sink 穿 ε=−1）。高级别大仓吃趋势、低级别小仓做短差。
+//! 注（emergence 后）：手性交替仅在**连续占用段内**成立——`emergence_upgrade` 把核心 relabel
+//! 上移会留下 idle 间隙（如核心 4→7，留 5/6 idle），间隙两侧由 sink 填入的腿可同向
+//! （`max_chiral_same_dir` 观测之，非 panic）。故全局手性交替是**分段**不变量，非跨 idle 间隙的
+//! 全局不变量。
 //!
 //! ## 会计（单一共享 free 池，复用 `fugue_v3::accounting`）
 //! NAV = free + Σ_k sign(d_k)·u_k·c。每个 reduce_at/add_at 在同价 c 上 NAV 中性 ⟹ 总 NAV 逐 bar 守恒
@@ -43,7 +47,7 @@
 //! 多头 c≤basis/2 平掉；空头 c≥2·basis 爆仓。强平 → 该层归零现金。
 //!
 //! ## 认识论等级
-//! - sink/recover/flip 会计 NAV 中性 / 几何塔涌现 / 手性交替 / 区间套 top-down：**L0**；
+//! - sink/recover/flip 会计 NAV 中性 / 几何塔涌现 / 手性交替（连续占用段内）/ 区间套 top-down：**L0**；
 //! - sizing 1/3（MOBILE_FRAC）/ core 升降编排 / BSP fire 时机：**L2**；回测 alpha：**L3**（可否证）。
 
 use crate::trading::types::{Polarity, INITIAL_CAPITAL, LADDER_MOVE, MAX_LADDER};
@@ -212,6 +216,11 @@ impl TPositionEngine {
     /// 不变量复用 `ascend`：`cc = highest_active()` 是最高活跃层 ⟹ `target_ladder > cc` 必为
     /// idle，`ascend` 的「目标须 idle」断言自动满足。`highest_active = None`（全空）时无核心仓
     /// 可升，跳过——首仓仍由核心级 BSP `enter` 建立。
+    ///
+    /// 有效域上界：`target_ladder >= MAX_LADDER`（=11，即涌现 T-level ≥ 8）时跳过，核心停在原
+    /// ladder（stream 侧 `ladder < MAX_LADDER` 守卫同样不写 emergent_top）。8 标的 25M bar 实测
+    /// 涌现 T-level ≤ 5（ladder ≤ 8），**从未触达上界** ⟹ 此 cap 在当前数据有效域外（L2 读数，
+    /// 非无条件不变量；若未来数据触达 level 8，此处是静默丢弃升级，需补观测计数）。
     fn emergence_upgrade(&mut self, target_ladder: usize, target_dir: Polarity) {
         if target_ladder >= MAX_LADDER {
             return;
