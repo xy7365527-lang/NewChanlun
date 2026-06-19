@@ -35,9 +35,11 @@
 //!   注意：本引擎用 add/reduce（与 free 交换），故 Σ|units| **不**是 `sink_chunk` 那种相邻
 //!   级别转移的强守恒——`apply_bsp` 的平反向/建本向都改 Σ|units|，由 `n_base` 跟踪保持自洽。
 //!   这是用户「平反向建本向」字面（同股数翻转，谱系 M=N）的必然推论，不是 sink 下放。
-//! - **目标规模锚定 `base_unit`**：每个独立 BSP@k 都把 level k 校正到 `base_unit` 规模、向下
-//!   ×1/3 递减（每个 BSP 重建它级别及以下的几何塔）。`base_unit` 锚定入场时 `free/c`，仅在
-//!   重新入场时刷新。这是一个**会计选择**（见结果包边界条件）。
+//! - **翻转保持规模（M=N，谱系 26:34）+ 次级别 1/3**：BSP@k 命中已有仓位层 ⟹ 同股数翻转
+//!   （平掉多少建多少，规模守恒，忠实用户「平空→建多」字面）；命中空层（入场/涌现/强平重建）
+//!   ⟹ 用 `base_unit` 建仓。递归把次级别**空层**按本级实际规模 ×1/3 建仓（忠实「次级别=上级
+//!   1/3」），已有仓位的次级别翻转保持自身规模。`base_unit` 锚定入场 `free/c`。**会计选择**：
+//!   「翻转 M=N」与「严格 1/3 几何塔」在多 BSP 动态序列下不能同时严格成立（见结果包边界）。
 //! - **杠杆 / MtM 负债**：budget 不受 `free≥0` 约束（add_at(Long) 可使 free<0）——由 1x 逐仓
 //!   强平边界约束单层风险，是否爆仓（NAV<0）由 L3 回测裁决，非设计先验解决。
 //!
@@ -147,46 +149,50 @@ impl TPositionEngine {
         (navv, lu, su, active_voice_count(&self.layers))
     }
 
-    /// **核心算子 `apply_bsp`（纯 BSP 驱动，递归自我复制）**：把 level k 校正到 `target` 方向、
-    /// `budget` 规模，并递归触发次级别 k−1 的反向操作（规模 ×1/3）。
+    /// **核心算子 `apply_bsp`（纯 BSP 驱动，递归自我复制）**：把 level k 设为 `target` 方向，
+    /// 并递归触发次级别 k−1 的反向操作（规模 ×1/3）。
     ///
-    /// 三步（每个级别完全相同 = T 自我复制）：
-    /// 1. **平反向**：level k 若持 `flip(target)` ⟹ 全平回 free（用户「平空/平多」字面）。
-    /// 2. **建/校正本向**：level k 调整到 `budget` 规模、`target` 方向（多退少补，NAV 中性）。
-    /// 3. **递归触发次级别反向**：`apply_bsp(k−1, flip(target), budget·MOBILE_FRAC)`，逐级
-    ///    方向交替、规模 ×1/3，到塔底 BASE_LADDER 停（`k > BASE_LADDER` 才递归）。
+    /// 规模语义（M=N 翻转，谱系 26:34 同股数翻转定理）：
+    /// - **翻转**（level k 持反向）：平掉旧仓 + 同股数建本向（`actual = 旧 units`，规模守恒，
+    ///   忠实用户「平空/平多 → 然后建本向」字面——翻转不放大不缩小）；
+    /// - **同向**（level k 已 target）：保持（`actual = 当前 units`）；
+    /// - **空层**（入场塔顶 / 涌现新层 / 强平后重建）：用 `fallback` 建仓（`actual = fallback`）。
+    ///
+    /// 递归（次级别 = 本级 ×1/3）：`apply_bsp(k−1, flip(target), actual·MOBILE_FRAC)`——次级别
+    /// 若为空层则按本级实际规模 ×1/3 建仓（几何塔），若已有仓位则按 M=N 翻转保持自身规模。
     ///
     /// 守恒：每步 add/reduce 同步更新 `n_base`（≡ Σ|units|），NAV 中性（同价 c）。
-    fn apply_bsp(&mut self, k: usize, target: Polarity, budget: f64, bar: i64, c: f64) {
-        if k < BASE_LADDER || !(budget > 1e-12) || !budget.is_finite() || c <= 0.0 {
+    fn apply_bsp(&mut self, k: usize, target: Polarity, fallback: f64, bar: i64, c: f64) {
+        if k < BASE_LADDER || c <= 0.0 {
             return;
         }
 
-        // ── 1. 平反向（level k 持 flip(target)）──
         let cur = self.layers[k];
-        if cur.units > 1e-12 && cur.direction != target {
+        let actual: f64 = if cur.units > 1e-12 && cur.direction != target {
+            // 翻转（平反向 + 同股数建本向，M=N 规模守恒）
             reduce_at(&mut self.layers, k, cur.units, &mut self.free, c, bar, &mut self.res, "flip_close");
             self.n_base -= cur.units;
             self.res.n_cycle_closes_by_ladder[k] += 1;
-        }
+            add_at(&mut self.layers, k, cur.units, target, &mut self.free, c, bar, &mut self.res);
+            self.n_base += cur.units;
+            cur.units
+        } else if cur.units > 1e-12 {
+            // 已同向，保持
+            cur.units
+        } else if fallback > 1e-12 && fallback.is_finite() {
+            // 空层：用 fallback 建仓（入场塔顶 / 涌现新层 / 重建）
+            add_at(&mut self.layers, k, fallback, target, &mut self.free, c, bar, &mut self.res);
+            self.n_base += fallback;
+            fallback
+        } else {
+            0.0
+        };
 
-        // ── 2. 建/校正到 budget 规模、target 方向（平反向后 level k 必为空或同向）──
-        let have = if self.layers[k].units > 1e-12 { self.layers[k].units } else { 0.0 };
-        if budget > have + 1e-12 {
-            let m = budget - have;
-            add_at(&mut self.layers, k, m, target, &mut self.free, c, bar, &mut self.res);
-            self.n_base += m;
-        } else if have > budget + 1e-12 {
-            let m = have - budget;
-            reduce_at(&mut self.layers, k, m, &mut self.free, c, bar, &mut self.res, "trim");
-            self.n_base -= m;
-        }
-
-        // ── 3. 递归触发次级别反向（规模 ×1/3，方向 flip）──
-        if k > BASE_LADDER {
+        // ── 递归触发次级别反向（规模 = 本级实际 ×1/3，方向 flip）──
+        if k > BASE_LADDER && actual > 1e-12 {
             self.res.n_cycle_opens_by_ladder[k] += 1;
             self.res.cross_level_closures += 1;
-            self.apply_bsp(k - 1, flip(target), budget * MOBILE_FRAC, bar, c);
+            self.apply_bsp(k - 1, flip(target), actual * MOBILE_FRAC, bar, c);
         }
     }
 
