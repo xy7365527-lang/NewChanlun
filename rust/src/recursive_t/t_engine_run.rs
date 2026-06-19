@@ -62,6 +62,81 @@ fn jf(x: f64) -> String {
     }
 }
 
+/// **逐笔导出**（`BT_DUMP_TRADES=1` 门控；默认汇总契约不变）：序列化 trades(trade11) +
+/// equity + 按级别计数器，供 Python 诊断重建净敞口时间线（每 trade row = 一段 chunk 的
+/// [entry_bar, exit_bar) × shares × polarity，按极性求和即得任意 bar 的净 long/short units）。
+///
+/// schema 与 `t_fugue_*.json` 的 11 字段元组一致：
+/// `[ladder, entry_bar, entry_price, exit_bar, exit_price, shares, weight_at_entry,
+///   deferred_bars, partial, exit_reason, polarity]`。
+fn dump_trades_json(res: &FugueResult, sym: &str, mode: &str, n_bars: usize) -> String {
+    use crate::trading::types::Polarity;
+    let mut s = String::with_capacity(res.trades.len() * 64 + 1024);
+    s.push_str(&format!(
+        "{{\"symbol\":\"{sym}\",\"mode\":\"{mode}\",\"engine\":\"operation_self_replication\",\
+\"n_bars\":{n_bars},\"final_nav\":{},\"n_trades\":{},\
+\"trade_schema\":[\"ladder\",\"entry_bar\",\"entry_price\",\"exit_bar\",\"exit_price\",\
+\"shares\",\"weight_at_entry\",\"deferred_bars\",\"partial\",\"exit_reason\",\"polarity\"],\
+\"trades\":[",
+        jf(res.final_nav),
+        res.trades.len(),
+    ));
+    for (i, t) in res.trades.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        let pol = match t.polarity {
+            Polarity::Long => "long",
+            Polarity::Short => "short",
+        };
+        s.push_str(&format!(
+            "[{},{},{},{},{},{},{},{},{},\"{}\",\"{}\"]",
+            t.ladder,
+            t.entry_bar,
+            jf(t.entry_price),
+            t.exit_bar,
+            jf(t.exit_price),
+            jf(t.shares),
+            jf(t.weight_at_entry),
+            t.deferred_bars,
+            if t.partial { "true" } else { "false" },
+            t.exit_reason,
+            pol,
+        ));
+    }
+    s.push_str("],\"equity\":[");
+    for (i, &(b, v)) in res.equity.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(&format!("[{b},{}]", jf(v)));
+    }
+    // 真实净敞口时间线（bar, long_units, short_units）——magnitude 真值（非 trade 反推）。
+    s.push_str("],\"exposure_series\":[");
+    for (i, &(b, lu, su)) in res.exposure_series.iter().enumerate() {
+        if i > 0 {
+            s.push(',');
+        }
+        s.push_str(&format!("[{b},{},{}]", jf(lu), jf(su)));
+    }
+    // 按级别诊断计数器（入场/sink/recover/强平）。
+    let arr = |a: &[u64]| -> String {
+        a.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(",")
+    };
+    s.push_str(&format!(
+        "],\"n_entries_by_ladder\":[{}],\"n_cycle_opens_by_ladder\":[{}],\
+\"n_cycle_closes_by_ladder\":[{}],\"n_liquidations_by_ladder\":[{}],\
+\"phys_long_bars\":{},\"phys_short_bars\":{}}}",
+        arr(&res.n_entries_by_ladder),
+        arr(&res.n_cycle_opens_by_ladder),
+        arr(&res.n_cycle_closes_by_ladder),
+        arr(&res.n_liquidations_by_ladder),
+        res.phys_long_bars,
+        res.phys_short_bars,
+    ));
+    s
+}
+
 #[test]
 #[ignore = "重型全量回测，需 analysis/data_cache/*.json；显式 --ignored 运行"]
 fn t_engine_8x3() {
@@ -146,6 +221,14 @@ fn t_engine_8x3() {
                 n_bars,
             );
             std::fs::write(&out, json).unwrap_or_else(|e| panic!("写 {out:?} 失败: {e}"));
+
+            // 逐笔导出（BT_DUMP_TRADES=1 门控）：供 Python 诊断重建净敞口/churn。
+            if std::env::var("BT_DUMP_TRADES").is_ok() {
+                let tout = data_dir.join(format!("t_engine_{sym}_{}_trades.json", mode.as_str()));
+                let tjson = dump_trades_json(res, sym, mode.as_str(), n_bars);
+                std::fs::write(&tout, tjson).unwrap_or_else(|e| panic!("写 {tout:?} 失败: {e}"));
+                eprintln!("  [{sym}/{:>10}] 逐笔导出 → {tout:?}", mode.as_str());
+            }
 
             eprintln!(
                 "  [{sym}/{:>10}] strat={:+.1}% bh={:+.1}% trades={} long_bars={} short_bars={} mdd={:.1}% ({:.1}s)",

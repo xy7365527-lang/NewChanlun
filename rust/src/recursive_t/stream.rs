@@ -112,6 +112,8 @@ pub struct TFugueStreamCore {
     last_cs_segs: usize,
     /// 已投放 BSP 身份键 (kind_disc, merged_bar, level)（append-only diff，只增不改）。
     seen_bsps: HashSet<(u8, i64, usize)>,
+    /// 缓存的 T 涌现上界 r*（不重跑的 bar 沿用；涌现接管需要 ceiling 持续）。
+    cached_ceiling: usize,
 }
 
 impl TFugueStreamCore {
@@ -131,6 +133,7 @@ impl TFugueStreamCore {
             last_stroke_n: 0,
             last_cs_segs: 0,
             seen_bsps: HashSet::new(),
+            cached_ceiling: 0,
         }
     }
 
@@ -141,14 +144,15 @@ impl TFugueStreamCore {
     /// 新设计只需 buy/sell——删 root 后操作层无方向门/成本门/ascend（纯 BSP 驱动），故不再算
     /// 方向/锚/θ/ceiling/root（旧 root-based 设计的方向态残留）。
     fn rerun_and_diff(&mut self, view: &mut TSignalView) {
-        // ── 块内借 orch（segs+m2r）+ prefix，算 tree + bsp 列表（owned，块后释放借用）──
-        let bsps = {
+        // ── 块内借 orch（segs+m2r）+ prefix，算 tree + bsp 列表 + 涌现 ceiling（owned，块后释放）──
+        let (bsps, ceiling) = {
             let segs = self.orch.segments();
             let m2r = self.orch.merged_to_raw();
             let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg);
             let tree = iterate(a0, self.mode);
-            tree.all_bsps()
+            (tree.all_bsps(), tree.emergent_ceiling())
         }; // orch 借用在此释放
+        self.cached_ceiling = ceiling; // 涌现接管需要：ceiling 增长 = 新级别涌现
 
         // ── diff 新增 BSP（本 bar 新可见的买卖点；key 不依赖 m2r，块外安全）──
         for bsp in bsps {
@@ -198,7 +202,8 @@ impl TFugueStreamCore {
             }
         }
 
-        // 新设计无方向态缓存——不重跑的 bar view 为空（无新 BSP），重跑 bar view 已填 buy/sell。
+        // 涌现 ceiling 缓存沿用（不重跑的 bar 涌现态持续；重跑 bar 已更新 cached_ceiling）。
+        view.ceiling = self.cached_ceiling;
         let before = self.engine.n_trades();
         self.engine.step(&view, bar, c);
         self.cur_bar += 1;
