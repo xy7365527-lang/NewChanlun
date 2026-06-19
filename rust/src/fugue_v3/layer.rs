@@ -50,6 +50,9 @@ pub struct FugueResult {
     pub trades: Vec<LayerTrade>,
     /// (bar, nav) 采样（周期点 + 末 bar）。
     pub equity: Vec<(i64, f64)>,
+    /// (bar, long_units, short_units) 真实净敞口采样（与 equity 同采样点）。trade 行反推
+    /// 净敞口在 units 循环复用（add_at 回补保留 entry_bar）下会虚增量级——此为唯一真值源。
+    pub exposure_series: Vec<(i64, f64, f64)>,
     /// 末态 NAV（全清后的现金）。
     pub final_nav: f64,
 
