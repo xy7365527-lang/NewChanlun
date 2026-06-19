@@ -46,6 +46,9 @@
 //! - 步骤 c 走势完美：纯结构（`Structural`）= **L0 候选**（第37课5条件 + 嵌套深度）；
 //!   加 MACD（`And`/`Or`）= 度量剩余接入，收紧/放宽的有效域由 L2/L3 回测甄别（非先验）。
 
+pub mod backtest;
+#[cfg(test)]
+mod backtest_run;
 pub mod center;
 pub mod divergence;
 pub mod ffi;

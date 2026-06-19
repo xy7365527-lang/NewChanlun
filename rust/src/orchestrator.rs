@@ -1023,6 +1023,14 @@ impl RecursiveOrchestrator {
     pub fn segments(&self) -> &[Segment] {
         &self.prev_segments
     }
+    /// merged bar → raw bar 范围映射（`merged_to_raw[m] = (raw_start, raw_end)`）。
+    ///
+    /// 线段端点 `i0/i1` 是 K 线包含处理后的 **merged bar 坐标**；回测要把买卖点对齐到
+    /// raw OHLC（逐 bar MtM）须经此映射换算（记忆 `current_strokes_i1_merged_coord`）。
+    /// 透传 `bi.merged_to_raw()`——本就是 MACD 背驰路径（raw 索引对齐）所需的同一映射。
+    pub fn merged_to_raw(&self) -> &[(usize, usize)] {
+        self.bi.merged_to_raw()
+    }
     pub fn zhongshus(&self) -> &[Zhongshu] {
         self.inc_seg_zs.zhongshus()
     }

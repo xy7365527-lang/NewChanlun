@@ -19,6 +19,12 @@ pyo3 = { version = "0.23" }
 default = []
 extension-module = ["pyo3/extension-module"]
 
+# 仅测试期依赖：T 回测全量 runner 读取 analysis/data_cache/*.json（8 标的 OHLC）。
+# 放 dev-dependencies ⇒ cdylib（Python 扩展）构建不受影响，零运行时依赖膨胀。
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
 [profile.release]
 # 逐位等价硬约束：禁止任何会改变浮点约简顺序的优化。
 # Rust 默认不开启 fast-math（不存在 -ffast-math 等价），LLVM 的浮点重排
