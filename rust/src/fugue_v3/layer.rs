@@ -48,6 +48,12 @@ impl Layer {
 pub struct FugueResult {
     /// trade 行（trade11 契约，复用 `LayerTrade`）。
     pub trades: Vec<LayerTrade>,
+    /// **与 `trades` 平行的腿出生途径**（"entry"/"flip"/"sink"）。`trades[i]` 是某条腿的一次
+    /// 平仓事件，`trade_origins[i]` 标注该腿当初**如何建立**（途径 a 翻空核心 = "flip" /
+    /// 途径 b 次级别 sink 子腿 = "sink" / 入场建仓 = "entry"）。翻转版的 `exit_reason` 不能
+    /// 区分途径（flip 既平翻空核心也级联平子腿；reduce 既减核心也减子腿），出生途径必须显式
+    /// 标注。仅 T 翻转引擎（`TPositionEngine`）填充；其他引擎留空 vec（长度 0 ⟹ dump fallback "?"）。
+    pub trade_origins: Vec<&'static str>,
     /// (bar, nav) 采样（周期点 + 末 bar）。
     pub equity: Vec<(i64, f64)>,
     /// (bar, long_units, short_units) 真实净敞口采样（与 equity 同采样点）。trade 行反推

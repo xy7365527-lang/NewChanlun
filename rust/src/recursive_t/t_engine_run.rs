@@ -20,8 +20,10 @@
 use super::backtest::BacktestMode;
 use super::backtest_run::{load_clean_ohlc, SYMBOLS};
 use super::stream::TFugueStreamCore;
+use super::t_engine::BASE_LADDER;
 use crate::fugue_v3::layer::FugueResult;
 use crate::fugue_v3::INITIAL_CAPITAL;
+use crate::trading::types::MAX_LADDER;
 use std::path::PathBuf;
 
 /// 从 equity 采样曲线算最大回撤（%，正数）。
@@ -51,6 +53,9 @@ struct Row {
     long_bars: [u64; 3],
     short_bars: [u64; 3],
     max_dd: [f64; 3],
+    /// **每级别（ladder）独立已实现盈亏**（多尺度滤波器版核心产出：每个 LevelEngine 独立 Z₂
+    /// 翻转的累计 cash PnL = `mobile_realized_pnl_by_ladder[ladder]`），三模式各一份。
+    pnl_by_ladder: [[f64; MAX_LADDER]; 3],
 }
 
 /// f64 → JSON 数字（非有限值 → null）。
@@ -76,7 +81,8 @@ fn dump_trades_json(res: &FugueResult, sym: &str, mode: &str, n_bars: usize) -> 
         "{{\"symbol\":\"{sym}\",\"mode\":\"{mode}\",\"engine\":\"operation_self_replication\",\
 \"n_bars\":{n_bars},\"final_nav\":{},\"n_trades\":{},\
 \"trade_schema\":[\"ladder\",\"entry_bar\",\"entry_price\",\"exit_bar\",\"exit_price\",\
-\"shares\",\"weight_at_entry\",\"deferred_bars\",\"partial\",\"exit_reason\",\"polarity\"],\
+\"shares\",\"weight_at_entry\",\"deferred_bars\",\"partial\",\"exit_reason\",\"polarity\",\
+\"origin\"],\
 \"trades\":[",
         jf(res.final_nav),
         res.trades.len(),
@@ -89,8 +95,10 @@ fn dump_trades_json(res: &FugueResult, sym: &str, mode: &str, n_bars: usize) -> 
             Polarity::Long => "long",
             Polarity::Short => "short",
         };
+        // 第 12 字段：腿出生途径（与 trades 平行；T 翻转引擎填满，其他引擎空 ⟹ fallback "?"）。
+        let origin = res.trade_origins.get(i).copied().unwrap_or("?");
         s.push_str(&format!(
-            "[{},{},{},{},{},{},{},{},{},\"{}\",\"{}\"]",
+            "[{},{},{},{},{},{},{},{},{},\"{}\",\"{}\",\"{}\"]",
             t.ladder,
             t.entry_bar,
             jf(t.entry_price),
@@ -102,6 +110,7 @@ fn dump_trades_json(res: &FugueResult, sym: &str, mode: &str, n_bars: usize) -> 
             if t.partial { "true" } else { "false" },
             t.exit_reason,
             pol,
+            origin,
         ));
     }
     s.push_str("],\"equity\":[");
@@ -181,6 +190,7 @@ fn t_engine_8x3() {
             long_bars: [0; 3],
             short_bars: [0; 3],
             max_dd: [0.0; 3],
+            pnl_by_ladder: [[0.0; MAX_LADDER]; 3],
         };
 
         for (mi, mode) in BacktestMode::ALL.iter().enumerate() {
@@ -199,6 +209,7 @@ fn t_engine_8x3() {
             row.long_bars[mi] = res.phys_long_bars;
             row.short_bars[mi] = res.phys_short_bars;
             row.max_dd[mi] = dd;
+            row.pnl_by_ladder[mi] = res.mobile_realized_pnl_by_ladder;
 
             // 写汇总 JSON（操作层引擎口径，与 backtest.rs 的简化口径分开命名）。
             let out = data_dir.join(format!("t_engine_{sym}_{}.json", mode.as_str()));
@@ -206,7 +217,7 @@ fn t_engine_8x3() {
                 "{{\"symbol\":\"{}\",\"mode\":\"{}\",\"engine\":\"operation_self_replication\",\
 \"strat_pct\":{},\"bh_pct\":{},\"n_trades\":{},\"final_nav\":{},\"max_drawdown\":{},\
 \"phys_long_bars\":{},\"phys_short_bars\":{},\"max_concurrent_voices\":{},\
-\"max_chiral_same_dir\":{},\"n_bars\":{}}}",
+\"max_chiral_same_dir\":{},\"pnl_by_ladder\":[{}],\"n_bars\":{}}}",
                 sym,
                 mode.as_str(),
                 jf(strat),
@@ -218,6 +229,11 @@ fn t_engine_8x3() {
                 res.phys_short_bars,
                 res.max_concurrent_voices,
                 res.max_chiral_same_dir,
+                res.mobile_realized_pnl_by_ladder
+                    .iter()
+                    .map(|x| jf(*x))
+                    .collect::<Vec<_>>()
+                    .join(","),
                 n_bars,
             );
             std::fs::write(&out, json).unwrap_or_else(|e| panic!("写 {out:?} 失败: {e}"));
@@ -241,6 +257,14 @@ fn t_engine_8x3() {
                 dd,
                 tm.elapsed().as_secs_f64(),
             );
+            // 每级别独立盈亏明细（多尺度滤波器各 LevelEngine 的 cash 贡献；只列非零级别）。
+            let lvl_pnl: Vec<String> = (BASE_LADDER..MAX_LADDER)
+                .filter(|&k| res.mobile_realized_pnl_by_ladder[k].abs() > 1e-6)
+                .map(|k| format!("L{}={:+.0}", k - BASE_LADDER, res.mobile_realized_pnl_by_ladder[k]))
+                .collect();
+            if !lvl_pnl.is_empty() {
+                eprintln!("      └ 每级别独立盈亏: {}", lvl_pnl.join("  "));
+            }
         }
         rows.push(row);
     }
@@ -289,6 +313,36 @@ fn t_engine_8x3() {
             r.long_bars[2],
             r.short_bars[2],
         );
+    }
+    println!("================================================================\n");
+
+    // ── 每级别独立盈亏矩阵（多尺度滤波器核心产出：哪个尺度赚/亏一目了然）──
+    println!("===== 每级别（ladder）独立已实现盈亏（cash）8 标的 × 3 模式 =====");
+    println!(
+        "{:<6} {:>5} | {:>13} {:>13} {:>13}",
+        "标的", "Lvl", "Structural", "AND", "OR"
+    );
+    println!("{}", "-".repeat(60));
+    for r in &rows {
+        let mut any = false;
+        for k in BASE_LADDER..MAX_LADDER {
+            let p = [r.pnl_by_ladder[0][k], r.pnl_by_ladder[1][k], r.pnl_by_ladder[2][k]];
+            if p.iter().all(|x| x.abs() < 1e-6) {
+                continue;
+            }
+            any = true;
+            println!(
+                "{:<6} {:>5} | {:>+13.0} {:>+13.0} {:>+13.0}",
+                r.sym,
+                format!("L{}", k - BASE_LADDER),
+                p[0],
+                p[1],
+                p[2]
+            );
+        }
+        if any {
+            println!("{}", "·".repeat(60));
+        }
     }
     println!("================================================================\n");
 
