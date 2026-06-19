@@ -1286,6 +1286,10 @@ class TopologicalDaemon:
             pre_active_statuses = {
                 vid: v.status for vid, v in self.k_active.vertices.items()
             }
+        pre_settled_count = (
+            len(self.settlement.settled_cycles)
+            if self._shared_layer is not None else 0
+        )
 
         log = self.engine.run_step()
 
@@ -1386,6 +1390,10 @@ class TopologicalDaemon:
                     new_vids.add(vid)
             # New edges: tail slice (Graph.add_edge appends)
             new_edges_list = self.k_full._edges[pre_edge_count:]
+        new_settled = (
+            self.settlement.settled_cycles[pre_settled_count:]
+            if self._shared_layer is not None else []
+        )
 
         # Persist graph state changes (always, not just for significant events)
         if self._persist:
@@ -1539,11 +1547,13 @@ class TopologicalDaemon:
             "step": self.total_steps,
             "timestamp": now,
         }
-        block_hash = self._shared_layer.write_block(block)
-        self._cross_instance_sync.known_blocks.add(block_hash)
-
-        self._last_position_write_time = now
-        self._last_position_write_label = position_label
+        try:
+            block_hash = self._shared_layer.write_block(block)
+            self._cross_instance_sync.known_blocks.add(block_hash)
+            self._last_position_write_time = now
+            self._last_position_write_label = position_label
+        except Exception:
+            pass  # SharedLayer is optional; keep local traversal alive.
 
     def _write_graph_delta(self, log, new_vids: set[str], new_edges: set) -> None:
         """Write graph delta block to SharedLayer on significant events.

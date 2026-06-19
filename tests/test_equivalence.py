@@ -226,6 +226,26 @@ def _hourly_ohlcv(prices: list[float], start: str = "2024-01-01") -> pd.DataFram
     )
 
 
+def _freq_ohlcv(
+    prices: list[float],
+    start: str,
+    freq: str,
+) -> pd.DataFrame:
+    """从 close 列表生成指定频率 OHLCV。"""
+    n = len(prices)
+    idx = pd.date_range(start, periods=n, freq=freq)
+    return pd.DataFrame(
+        {
+            "open": prices,
+            "high": [p + 1 for p in prices],
+            "low": [p - 1 for p in prices],
+            "close": prices,
+            "volume": [100] * n,
+        },
+        index=idx,
+    )
+
+
 class TestMakeRatioKlineSubFreq:
     """子频率聚合路径测试。"""
 
@@ -284,6 +304,52 @@ class TestMakeRatioKlineSubFreq:
             df_a, df_b, sub_a=sub_a, sub_b=sub_b, target_freq="1D",
         )
         assert len(ratio) == 2
+
+    def test_sub_freq_output_reindexed_to_target_window(self):
+        """子频率缓冲窗口不得扩展目标 K 线范围。"""
+        df_a = _ohlcv([100, 110], start="2024-01-01")
+        df_b = _ohlcv([50, 55], start="2024-01-01")
+
+        sub_prices_a = [100 + i for i in range(72)]
+        sub_prices_b = [50 + i * 0.5 for i in range(72)]
+        sub_a = _hourly_ohlcv(sub_prices_a, start="2024-01-01")
+        sub_b = _hourly_ohlcv(sub_prices_b, start="2024-01-01")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert list(ratio.index) == list(df_a.index.intersection(df_b.index))
+        assert len(ratio) == 2
+
+    def test_sub_freq_infers_15min_target(self):
+        """15min 目标频率不得被宽阈值推断成 30min。"""
+        idx = pd.date_range("2024-01-01 09:30", periods=3, freq="15min")
+        df_a = pd.DataFrame(
+            {
+                "open": [100, 101, 102],
+                "high": [101, 102, 103],
+                "low": [99, 100, 101],
+                "close": [100, 101, 102],
+                "volume": [1000, 1000, 1000],
+            },
+            index=idx,
+        )
+        df_b = pd.DataFrame(
+            {
+                "open": [50, 50, 50],
+                "high": [51, 51, 51],
+                "low": [49, 49, 49],
+                "close": [50, 50, 50],
+                "volume": [1000, 1000, 1000],
+            },
+            index=idx,
+        )
+        sub_a = _freq_ohlcv([100 + i for i in range(45)], "2024-01-01 09:30", "min")
+        sub_b = _freq_ohlcv([50] * 45, "2024-01-01 09:30", "min")
+
+        ratio = make_ratio_kline(df_a, df_b, sub_a=sub_a, sub_b=sub_b)
+
+        assert list(ratio.index) == list(idx)
+        assert len(ratio) == 3
 
     def test_fallback_warns(self):
         """不提供子频率数据时发出 warning。"""

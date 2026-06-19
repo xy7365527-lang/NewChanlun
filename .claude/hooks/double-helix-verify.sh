@@ -84,8 +84,10 @@ if [ "$DIFF_HASH" != "$LAST_HASH" ]; then
 fi
 
 # ─── Gemini 验证 ───
-# 获取详细 diff（限制大小防止 token 爆炸）
-FULL_DIFF=$(git diff --cached 2>/dev/null | head -500)
+# 默认不外发原始 diff：仅发送 stat + 文件状态，避免 staged secret 泄露。
+DIFF_CONTEXT=$(printf 'Staged diff stat:\n%s\n\nStaged files:\n%s\n' \
+  "$STAGED_DIFF" \
+  "$(git diff --cached --name-status 2>/dev/null | head -200)")
 COMMIT_MSG=$(echo "$COMMAND" | grep -oP '(?<=-m\s["\x27]).*?(?=["\x27])' || echo "$COMMAND")
 
 # 获取最近的谱系上下文
@@ -97,7 +99,11 @@ if [ -d ".chanlun/genealogy/settled" ]; then
 fi
 
 # 调用 Gemini verify
-VERIFY_RESULT=$(PYTHONPATH=src "$PYTHON_BIN" -c "
+VERIFY_RESULT=$(
+HELIX_DIFF_CONTEXT="$DIFF_CONTEXT" \
+HELIX_COMMIT_MSG="$COMMIT_MSG" \
+HELIX_RECENT_SETTLED="$RECENT_SETTLED" \
+PYTHONPATH=src "$PYTHON_BIN" 2>/dev/null <<'PY' || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}'
 import os, sys, json
 
 # 检查 API key
@@ -109,16 +115,16 @@ if not api_key:
 try:
     from newchan.gemini.modes import decide
 
-    diff_text = '''$FULL_DIFF'''[:3000]
-    commit_msg = '''$COMMIT_MSG'''
-    recent = '''$RECENT_SETTLED'''
+    diff_text = os.environ.get("HELIX_DIFF_CONTEXT", "")[:3000]
+    commit_msg = os.environ.get("HELIX_COMMIT_MSG", "")
+    recent = os.environ.get("HELIX_RECENT_SETTLED", "")
 
     subject = f'双螺旋验证：git commit 一致性检查'
     context = f'''你是新缠论系统的 pre-commit 验证器。请检查以下 commit 是否与谱系/定义一致。
 
 Commit 消息: {commit_msg}
 
-Staged diff (前500行):
+Staged diff 摘要（stat + 文件状态；不含原始内容）:
 {diff_text}
 
 最近结算的谱系: {recent}
@@ -152,7 +158,8 @@ Staged diff (前500行):
 except Exception as e:
     # Gemini 不可达 → 052号相变：降级放行
     print(json.dumps({'hookSpecificOutput': {'hookEventName': 'PreToolUse', 'permissionDecision': 'allow', 'permissionDecisionReason': f'gemini-unreachable: {str(e)[:100]}'}}))
-" 2>/dev/null || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"script-error"}}')
+PY
+)
 
 # 解析结果
 DECISION=$(echo "$VERIFY_RESULT" | "$PYTHON_BIN" -c "import sys,json; d=json.load(sys.stdin); hso=d.get('hookSpecificOutput',{}); print(hso.get('permissionDecision','allow'))" 2>/dev/null || echo "allow")
@@ -164,16 +171,19 @@ if [ "$DECISION" = "deny" ]; then
   echo $((BLOCK_COUNT + 1)) > "$HELIX_COUNTER"
 
   # 输出矛盾对象
-  "$PYTHON_BIN" -c "
+  HELIX_REASON="$REASON" "$PYTHON_BIN" <<'PY'
 import json
+import os
+
+reason = os.environ.get("HELIX_REASON", "")
 print(json.dumps({
     'hookSpecificOutput': {
         'hookEventName': 'PreToolUse',
         'permissionDecision': 'deny',
-        'permissionDecisionReason': '''[双螺旋] Gemini 发现矛盾，commit 被拦截。\n\n矛盾对象:\n$REASON\n\n请修正后重新 commit。连续 block 3 次后自动熔断放行。'''
+        'permissionDecisionReason': f"[双螺旋] Gemini 发现矛盾，commit 被拦截。\n\n矛盾对象:\n{reason}\n\n请修正后重新 commit。连续 block 3 次后自动熔断放行。"
     }
 }, ensure_ascii=False))
-"
+PY
   exit 0
 fi
 

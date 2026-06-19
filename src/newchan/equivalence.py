@@ -251,21 +251,17 @@ def _infer_target_freq(idx: pd.DatetimeIndex) -> str | None:
         return None
     median_delta = pd.Series(idx).diff().dropna().median()
     seconds = median_delta.total_seconds()
-    if seconds <= 120:
-        return "1min"
-    if seconds <= 600:
-        return "5min"
-    if seconds <= 1800:
-        return "30min"
-    if seconds <= 5400:
-        return "1h"
-    if seconds <= 18000:
-        return "4h"
-    if seconds <= 100800:
-        return "1D"
-    if seconds <= 604800:
-        return "1W"
-    return "1ME"
+    freq_by_seconds = {
+        60: "1min",
+        300: "5min",
+        900: "15min",
+        1800: "30min",
+        3600: "1h",
+        14400: "4h",
+        86400: "1D",
+        604800: "1W",
+    }
+    return freq_by_seconds.get(int(seconds))
 
 
 def _aggregate_ratio_to_kline(
@@ -309,13 +305,11 @@ def make_ratio_kline(
     概念溯源：[旧缠论:隐含] 比价K线构造
     """
     if sub_a is not None and sub_b is not None:
+        target_idx = df_a.index.intersection(df_b.index)
         sub_idx = sub_a.index.intersection(sub_b.index)
-        sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
-        ratio = sa["close"] / sb["close"]
-        volume = sa["volume"] if "volume" in sa.columns else None
 
         freq = target_freq or _infer_target_freq(df_a.index)
-        if freq is None:
+        if freq is None or target_idx.empty:
             warnings.warn(
                 "make_ratio_kline: cannot infer target_freq from df_a, "
                 "falling back to naive OHLC division",
@@ -323,7 +317,18 @@ def make_ratio_kline(
             )
             return _make_ratio_kline_naive(df_a, df_b)
 
-        return _aggregate_ratio_to_kline(ratio, volume, freq)
+        if len(target_idx) >= 2:
+            target_step = pd.Series(target_idx).diff().dropna().median()
+            window_end = target_idx.max() + target_step
+            sub_idx = sub_idx[(sub_idx >= target_idx.min()) & (sub_idx < window_end)]
+        else:
+            sub_idx = sub_idx[sub_idx >= target_idx.min()]
+
+        sa, sb = sub_a.loc[sub_idx], sub_b.loc[sub_idx]
+        ratio = sa["close"] / sb["close"]
+        volume = sa["volume"] if "volume" in sa.columns else None
+        aggregated = _aggregate_ratio_to_kline(ratio, volume, freq)
+        return aggregated.reindex(target_idx).dropna(subset=["open"])
 
     warnings.warn(
         "make_ratio_kline: no sub-frequency data provided, "
