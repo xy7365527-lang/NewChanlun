@@ -2423,6 +2423,10 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<fugue_v3::ffi::PyFugueV3Stream>()?;
     m.add_function(wrap_pyfunction!(fugue_v3::ffi::run_fugue_v3, m)?)?;
     m.add_function(wrap_pyfunction!(recursive_t::ffi::run_recursive_t, m)?)?;
+    // 统一递归算子 T 流式赋格引擎（全 Rust 内聚：orchestrator + T 重跑 + 完整仓位）：
+    // 流式 TFugueStream（NT on_bar 驱动）+ 批量 run_t_fugue（共享 core，bit-exact）。
+    m.add_class::<recursive_t::ffi::PyTFugueStream>()?;
+    m.add_function(wrap_pyfunction!(recursive_t::ffi::run_t_fugue, m)?)?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;

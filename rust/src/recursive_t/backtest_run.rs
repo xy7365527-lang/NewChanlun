@@ -51,7 +51,7 @@ struct RawData {
 /// 1. 删除任一 OHLC 为 nan 或 ≤0 的 bar（污染 PH/MACD + 令价格阈值止损误触发）；
 /// 2. spike-and-revert 孤立坏 bar：close 相对前 bar 跳变 >50% 且后 bar 回到前 bar ±5%
 ///    内 → 数据源坏 tick（真实极端行情为连续跳变，不满足后 bar 回归合取）。
-fn load_clean_ohlc(path: &PathBuf) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+pub(crate) fn load_clean_ohlc(path: &PathBuf) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
     let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
     // Python json(allow_nan) 写出非标准字面量 NaN/Infinity（serde_json 硬拒）→ null。
     // 先 -Infinity 再 Infinity（前者是后者超集，避免残留 "-null"），最后 NaN。
@@ -119,7 +119,7 @@ fn load_clean_ohlc(path: &PathBuf) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
 }
 
 /// 8 标的（DEFAULT_SYMS，与 t_vs_v3_comparison.py 一致）→ 数据文件名。
-const SYMBOLS: [(&str, &str); 8] = [
+pub(crate) const SYMBOLS: [(&str, &str); 8] = [
     ("CL", "cl_1m_databento_10y.json"),
     ("BRN", "brn_1m_databento_10y.json"),
     ("DX", "dx_1m_databento_10y.json"),

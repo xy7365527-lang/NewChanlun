@@ -49,10 +49,14 @@
 pub mod backtest;
 #[cfg(test)]
 mod backtest_run;
+#[cfg(test)]
+mod t_engine_run;
 pub mod center;
 pub mod divergence;
 pub mod ffi;
 pub mod operator;
+pub mod stream;
+pub mod t_engine;
 pub mod trend;
 pub mod types;
 

@@ -10,8 +10,11 @@
 //! 纯结构定位，close 价格不污染 T 的拓扑构造（escalation 附录·坐标系陷阱）。
 
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
+use super::stream::TFugueStreamCore;
 use super::{iterate, Direction, PerfectionMode, Unit};
+use crate::fugue_v3::layer::FugueResult;
 
 /// 解析方向字符串。
 fn parse_dir(s: &str) -> Direction {
@@ -92,4 +95,133 @@ pub fn run_recursive_t(
         .iter()
         .map(|b| (b.kind.as_str().to_string(), b.bar, b.price, b.level))
         .collect()
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// T 算子流式赋格引擎（NautilusTrader on_bar 驱动；对标 FugueV3Stream）
+// ════════════════════════════════════════════════════════════════════════════
+
+/// trade11 契约（与 FugueV3Stream 逐字一致 ⇒ Python 分析层复用）：
+/// `(ladder, entry_bar, entry_price, exit_bar, exit_price, shares, weight_at_entry,
+///   deferred_bars, partial, exit_reason, polarity)`。
+type Trade11 = (u8, i64, f64, i64, f64, f64, f64, i64, bool, &'static str, &'static str);
+
+/// FugueResult → PyDict（PyTFugueStream.finish + run_t_fugue 共享）。
+///
+/// 只暴露 T 引擎**实际产出**的字段（no-patch-mentality 声明=能力）：trade11 + 守恒/操作计数。
+/// **不**含 n_arms/n_fire/n_breaks——那是 v3 spiral 信号层 nest 窗口计数，T standalone 不产
+/// （T 的信号是全塔 BSP diff，无向心 confirm 武装/破窗概念）。
+fn t_result_to_dict<'py>(py: Python<'py>, res: &FugueResult) -> PyResult<Bound<'py, PyDict>> {
+    let d = PyDict::new(py);
+    let trades: Vec<Trade11> = res
+        .trades
+        .iter()
+        .map(|t| {
+            (
+                t.ladder,
+                t.entry_bar,
+                t.entry_price,
+                t.exit_bar,
+                t.exit_price,
+                t.shares,
+                t.weight_at_entry,
+                t.deferred_bars,
+                t.partial,
+                t.exit_reason,
+                t.polarity.as_str(),
+            )
+        })
+        .collect();
+    d.set_item("trades", trades)?;
+    d.set_item("equity", res.equity.clone())?;
+    d.set_item("final_nav", res.final_nav)?;
+    d.set_item("n_entries_by_ladder", res.n_entries_by_ladder.to_vec())?;
+    d.set_item("n_core_clears_by_ladder", res.n_core_clears_by_ladder.to_vec())?;
+    d.set_item("n_cycle_opens_by_ladder", res.n_cycle_opens_by_ladder.to_vec())?;
+    d.set_item("n_cycle_closes_by_ladder", res.n_cycle_closes_by_ladder.to_vec())?;
+    d.set_item("n_liquidations_by_ladder", res.n_liquidations_by_ladder.to_vec())?;
+    d.set_item("n_cost_rejects_by_ladder", res.n_cost_rejects_by_ladder.to_vec())?;
+    d.set_item("n_noref_rejects_by_ladder", res.n_noref_rejects_by_ladder.to_vec())?;
+    d.set_item("mobile_realized_pnl_by_ladder", res.mobile_realized_pnl_by_ladder.to_vec())?;
+    d.set_item("cross_level_closures", res.cross_level_closures)?;
+    d.set_item("max_concurrent_voices", res.max_concurrent_voices)?;
+    d.set_item("max_chiral_same_dir", res.max_chiral_same_dir)?;
+    d.set_item("phys_long_bars", res.phys_long_bars)?;
+    d.set_item("phys_short_bars", res.phys_short_bars)?;
+    d.set_item("short_held_bars_by_ladder", res.short_held_bars_by_ladder.to_vec())?;
+    Ok(d)
+}
+
+/// T 算子流式赋格引擎（对标 `FugueV3Stream`）。
+///
+/// 与 FugueV3Stream 的范畴差：T standalone ⇒ 信号层 + 仓位层全 Rust 内聚，`push_bar` 只传 OHLC
+/// 4 个 float（FugueV3Stream 信号层在 Python，push_bar 收 11 个拆解字段）。`mode`：步骤c 走势
+/// 完美判定 Structural/And/Or（受控实验唯一变量）。
+#[pyclass(name = "TFugueStream")]
+pub struct PyTFugueStream {
+    core: TFugueStreamCore,
+}
+
+#[pymethods]
+impl PyTFugueStream {
+    #[new]
+    #[pyo3(signature = (mode=None))]
+    fn new(mode: Option<String>) -> Self {
+        let perfection = parse_mode(mode.as_deref());
+        PyTFugueStream { core: TFugueStreamCore::new(perfection) }
+    }
+
+    /// 逐 bar 推送 OHLC（NautilusTrader on_bar）。返回本 bar **新增** trade（trade11）。
+    fn push_bar(&mut self, o: f64, h: f64, l: f64, c: f64) -> Vec<Trade11> {
+        let n_new = self.core.push_bar(o, h, l, c);
+        let trades = &self.core.result().trades;
+        let start = trades.len().saturating_sub(n_new);
+        trades[start..]
+            .iter()
+            .map(|t| {
+                (
+                    t.ladder,
+                    t.entry_bar,
+                    t.entry_price,
+                    t.exit_bar,
+                    t.exit_price,
+                    t.shares,
+                    t.weight_at_entry,
+                    t.deferred_bars,
+                    t.partial,
+                    t.exit_reason,
+                    t.polarity.as_str(),
+                )
+            })
+            .collect()
+    }
+
+    /// 状态快照: (cur_bar, nav, long_units, short_units, n_active_voices)。
+    fn snapshot(&self) -> (i64, f64, f64, f64, usize) {
+        self.core.snapshot()
+    }
+
+    /// 收尾（eod 清仓 + final_nav）并返回完整结果 dict。幂等。
+    fn finish(&mut self, py: Python<'_>) -> PyResult<PyObject> {
+        self.core.finish();
+        let d = t_result_to_dict(py, self.core.result())?;
+        Ok(d.into())
+    }
+}
+
+/// 批量 T 流式赋格回测（与 `TFugueStream.finish` 同结构 dict）。共享 `TFugueStreamCore` ⇒
+/// 逐 bar 累积的 finish 与批量逐位等价（bit-exact 由构造保证）。
+///
+/// `bars`：`(open, high, low, close)` 序列（须已清洗，NaN/≤0 在数据层删除）。
+#[pyfunction]
+#[pyo3(signature = (bars, mode=None))]
+pub fn run_t_fugue(py: Python<'_>, bars: Vec<(f64, f64, f64, f64)>, mode: Option<String>) -> PyResult<PyObject> {
+    let perfection = parse_mode(mode.as_deref());
+    let mut core = TFugueStreamCore::new(perfection);
+    for (o, h, l, c) in bars {
+        core.push_bar(o, h, l, c);
+    }
+    core.finish();
+    let d = t_result_to_dict(py, core.result())?;
+    Ok(d.into())
 }
