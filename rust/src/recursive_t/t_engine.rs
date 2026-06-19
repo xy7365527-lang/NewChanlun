@@ -1,50 +1,49 @@
-//! **T 操作层引擎**（多尺度独立滤波器版：每涌现级别一个独立 Z₂ 状态机）。
+//! **T 操作层引擎**（多重赋格版：每涌现级别一个 Z₂ 状态机 + **跨级别耦合**齿轮咬合）。
 //!
-//! ## 本次重写（架构转变：单一 core 链顶 → 每级别独立滤波器）
-//! 上一版（4 状态翻转版）用 `core_ladder()`（最高占用 ladder = 链顶）把**全部**级别的反向
-//! BSP 汇聚到唯一一个 core 上做整仓 M=N 翻转（`flip_core` 平掉全塔 + 建等量反向核心），并通过
-//! 跨级别 `sink/recover` 做短差。后果（见记忆 `project_t_flip_vs_clear_verdict` /
-//! `project_t_short_close_level_mismatch`）：「一个 core 在 ladder 3 翻来翻去」+ 机械 1:1
-//! 多空对冲 ⟹ mdd 巨大、做空腿是亏损唯一来源。
+//! ## 本次重写（架构转变：N 个独立滤波器 → N 个耦合滤波器 / 多重赋格）
+//! 上一版（多尺度独立滤波器，commit 50f2235013）每个 ladder 一个 [`LevelEngine`]，**只响应
+//! 自己 ladder 的 BSP** 做整仓翻转，连相邻级别都不碰（275号局部依赖的极致）。问题：缠论的操作
+//! 是**跨级别耦合**的（齿轮咬合）——高级别持多时，低级别的"卖点翻空"不该是独立做空，而该是
+//! 高级别核心仓的**短差减仓**（H¹ 机动仓）。独立版丢失了这层耦合 ⟹ 低级别在高级别趋势腿里
+//! 机械翻空 = 逆势对冲（见记忆 `project_t_short_leg_regime_function`：做空腿是亏损唯一来源）。
 //!
-//! 本版彻底改为 **N 个独立的 Z₂ 滤波器**：每个 ladder 一个 [`LevelEngine`]，各自持有独立资金池
-//! /状态/持仓，**只响应自己 ladder 的 BSP** 做翻转。没有链顶集中、没有跨级别 sink/recover 耦合
-//! （275号局部依赖的极致：每级别只管自己的 BSP，连相邻级别都不碰）。
+//! 本版给每个 [`LevelEngine`] 加 **parent_state 耦合**：`LevelEngine[j]` 收到 BSP 时先看
+//! `LevelEngine[j+1]`（上级别）的状态，据此决定**翻转**还是**短差**。
 //!
-//! ## 每级别 = 一个 Z₂ 滤波器（3 态）
-//! `Empty`（未入场）/ `Long`（满多）/ `Short`（满空）。每个 `LevelEngine[k]` 独立运转：
-//! ```text
-//! Empty   --[buy@k]-->  Long      （首个 BSP 决定初始方向，用本级别分配资金建仓）
-//! Empty   --[sell@k]--> Short
-//! Long    --[sell@k]--> Short      （翻转：平多 + 用当前 NAV 全建反向空，永远在市场）
-//! Short   --[buy@k]-->  Long       （ε 镜像翻转）
-//! Long    --[buy@k]-->  Long       （同向 no-op）
-//! Short   --[sell@k]--> Short       （同向 no-op）
-//! ```
-//! 多尺度滤波器：ladder 低（笔/段/走势级）→ BSP 密集 → 高频翻转 = 短差；ladder 高（中枢套
-//! 中枢）→ BSP 稀疏 → 低频翻转 = 趋势腿。**短差不靠显式 sink**——由低 ladder 的高频独立翻转
-//! 自然涌现。总 PnL = Σ_k LevelEngine[k] 的已实现盈亏（`mobile_realized_pnl_by_ladder[k]`）。
+//! ## 耦合规则（齿轮咬合）
+//! `LevelEngine[j]` 的父级 = `LevelEngine[j+1]`（高 ladder = 高级别 = 核心仓侧）：
+//! - **父级持多（Long）**：j 卖点 → 不翻空，开**短差空**（1/3 父级 units，机动仓）；j 买点 → 平短差（回补归还）。
+//! - **父级持空（Short）**：j 买点 → 不翻多，开**短差多**（1/3 父级 units）；j 卖点 → 平短差。
+//! - **父级空仓（Empty）/ 顶层（无 j+1）**：j 正常独立翻转（无上级约束，用自己资金池）。
 //!
-//! ## 资金分配（平均分配，第一版；隔离为 `level_capital()` 便于迭代）
-//! 预分配 [`N_LEVEL_SLOTS`] 个槽位（ladder ∈ `[BASE_LADDER, MAX_LADDER)`），每槽
-//! `INITIAL_CAPITAL / N_LEVEL_SLOTS`。未涌现的 level 资金闲置在 `free` 中（计入 NAV，守恒诚实）。
-//! 总 NAV 初始 = `INITIAL_CAPITAL`。**有效域 L0**（资金分配是设计选择，非定理；加权 vs 平均的
-//! alpha 差异由 L3 回测甄别）。
+//! 这正是**四步循环**（每对相邻级别）：① 高级别买点→建核心多 → ② 次级别卖点→减仓 1/3 做空（短差）
+//! → ③ 次级别买点→平空回补 → ④ 高级别卖点→翻空（核心方向变）。每级别同时是其次级别的"核心"
+//! 和其父级的"机动仓"——递归嵌套 ⟹ 多重赋格。
 //!
-//! ## 单级别翻转会计（NAV 中性，永远在市场）
-//! 翻转 @ 价 c = `close`（平旧腿，record trade，free ← 当前 NAV）+ `open`（用全部 free 建反向）。
-//! 同价 c 下 NAV 中性（手算：close(Long) free+=u·c 抵消市值 −u·c；open(Short) free+=m·c 抵消
-//! 负债 −m·c）。units 量变（翻转用**当前 NAV**≠初始资金重建，盈亏累积改变 units）⟹ 全局
-//! Σ|units| **不守恒**（独立翻转池非 M=N），故不再 `prove_conservation`；保留更本质的 NAV 中性。
+//! ## 仓位递归（几何塔，由短差 sizing 自然涌现）
+//! 短差 units = **父级 units / 3**。⟹ 次级别机动仓 = 核心的 1/3，次次级别 = 1/9 …… 高级别大仓位
+//! 吃趋势、低级别小仓位做短差，**指数衰减的暴露几何塔自然涌现**（无需显式塔配额）。资金仍每槽
+//! 等额预分配（`level_capital()`，独立翻转模式用自己池），短差 sizing 锚在父级 units 上。
 //!
-//! ## 边界算子：1x 逐仓强平（每级别独立）
-//! 多头 c≤basis/2 平掉剩半（保护性平仓，NAV=cap/2）；空头 c≥2·basis 爆仓归零（NAV=0，该
-//! level 资金死光）。强平后 → Empty，下个 BSP 用剩余 free 重新入场（Empty 的唯一非首入来源）。
-//! 各级别强平互不影响（独立池）。
+//! ## 处理顺序：top-down（齿轮咬合方向）
+//! 独立版顺序无关（零耦合）。耦合后必须 **高 ladder 先更新**：`TPositionEngine::step` 从
+//! `MAX_LADDER-1` 降序处理，子级读到父级**本 bar 最新**状态 ⟹"高级别翻空时低级别跟着翻方向"。
+//!
+//! ## 会计（NAV 中性 ⟹ 守恒与 sizing 解耦）
+//! 每个 open/open_sized/close 在成交价 c 上 NAV 中性（做空 `free += m·c` 抵消负债 `−m·c`；
+//! 做多 `free −= m·c`）。⟹ **无论短差 sizing 取多少，总 NAV 逐 bar 守恒**（`prove_nav_neutral`
+//! 守），不需要跨级别现金搬运维持守恒。短差"借父级 1/3"= 借**size 参照**（units），损益落在 j 级
+//! 自己的 `free`（其闲置预分配资金 + 全局 NAV 隐式背书超额亏损 = "借"的物质实现）。
+//! 做空短差自融资（全额 1/3 父级）；做多短差需现金 ⟹ 受 j 级 `free` 上限约束（长/短资金非对称
+//! 是 L0 会计事实，见 `project_bidirectional_accounting`，非 bug）。units 量变（翻转用当前 NAV
+//! 重建）⟹ 全局 Σ|units| 不守恒，保留更本质的 NAV 中性。
+//!
+//! ## 边界算子：1x 逐仓强平（每级别独立，作用于任意持仓含短差腿）
+//! 多头 c≤basis/2 平掉剩半；空头 c≥2·basis 爆仓归零。强平后 → Empty，下个 BSP 重新进入耦合/独立逻辑。
 //!
 //! ## 认识论等级
-//! - Z₂ 状态机结构 / 翻转 NAV 中性 / 多尺度独立性：**L0**；
-//! - BSP fire 时机 / 平均分配 vs 加权：**L2**；回测 alpha：**L3**（独立滤波器叠加，可否证）。
+//! - Z₂ 状态机 / 翻转·短差 NAV 中性 / 几何塔由 sizing 涌现 / top-down 咬合：**L0**；
+//! - BSP fire 时机 / sizing 取 1/3 / 平均分配：**L2**；回测 alpha：**L3**（耦合叠加，可否证）。
 
 use crate::trading::types::{Polarity, INITIAL_CAPITAL, LADDER_MOVE, MAX_LADDER};
 
@@ -98,12 +97,17 @@ impl Z2 {
     }
 }
 
-/// **腿的出生途径**（诊断归因，与盈亏极性正交）。本版无跨级别 sink ⟹ 只有 `Entry`（首次入场
-/// /强平重入）与 `Flip`（翻转建仓）两种途径。dump 经 `trade_origins` 平行数组导出。
+/// **腿的出生途径**（诊断归因，与盈亏极性正交）。
+/// - `Entry`：独立模式首次入场（或强平重入）。
+/// - `Flip`：独立模式翻转建仓（平旧腿同价建反向）。
+/// - `Sink`：**短差机动仓**——父级持仓时反父向 BSP 开的 1/3 父级 units 对冲腿（耦合途径）。
+///
+/// dump 经 `trade_origins` 平行数组导出（layer.rs 契约："entry"/"flip"/"sink"）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LegOrigin {
     Entry,
     Flip,
+    Sink,
 }
 
 impl LegOrigin {
@@ -111,7 +115,17 @@ impl LegOrigin {
         match self {
             LegOrigin::Entry => "entry",
             LegOrigin::Flip => "flip",
+            LegOrigin::Sink => "sink",
         }
+    }
+}
+
+/// 极性翻转（短差方向 = 父级方向的反向；ε 镜像）。本地 helper（改动收敛在 t_engine）。
+#[inline]
+fn opp(p: Polarity) -> Polarity {
+    match p {
+        Polarity::Long => Polarity::Short,
+        Polarity::Short => Polarity::Long,
     }
 }
 
@@ -235,8 +249,49 @@ impl LevelEngine {
         self.origin = origin;
     }
 
-    /// 单级别步进：强平 → BSP 翻转/入场。返回本次新增 trade 数（诊断）。
-    fn step(&mut self, buy: bool, sell: bool, bar: i64, c: f64, res: &mut FugueResult) {
+    /// **开指定 units 仓**（短差机动仓用：`target_units` 锚在父级 units 的 1/3，非 `free/c`）。
+    /// NAV 中性双重会计。前提 state==Empty。长/短资金非对称（L0 会计事实，非 bug）：
+    /// - 做空自融资（收到 `m·c` 现金）⟹ 全额建 `target_units`；
+    /// - 做多需现金 `m·c` ⟹ 受本级别 `free` 上限约束（`m = min(target, free/c)`，超额则部分建仓）。
+    ///
+    /// 守恒与 sizing 解耦：无论 `target_units` 取多少，open 在价 c 上 NAV 中性，总 NAV 守恒。
+    fn open_sized(&mut self, dir: Polarity, target_units: f64, bar: i64, c: f64, origin: LegOrigin) {
+        debug_assert_eq!(self.state, Z2::Empty, "open_sized 前提：Empty");
+        if target_units <= 1e-12 || c <= 0.0 {
+            return;
+        }
+        let m = match dir {
+            // 做空自融资 ⟹ 全额；做多受现金约束 ⟹ cap 至 free/c。
+            Polarity::Short => target_units,
+            Polarity::Long => target_units.min(self.free / c),
+        };
+        if m <= 1e-12 || !m.is_finite() {
+            return;
+        }
+        match dir {
+            Polarity::Long => self.free -= m * c,
+            Polarity::Short => self.free += m * c,
+        }
+        self.units = m;
+        self.basis = c;
+        self.entry_bar = bar;
+        self.state = Z2::of(dir);
+        self.origin = origin;
+    }
+
+    /// 单级别步进：强平 → 父级状态分派（独立翻转 / 短差耦合）。
+    ///
+    /// `parent`：上级别（ladder j+1）的 `(方向, units)`——活跃时 `Some`，空仓/顶层 `None`。
+    /// `None` → 独立 Z₂ 翻转（自己资金池）；`Some` → 短差耦合（机动仓锚父级 1/3）。
+    fn step(
+        &mut self,
+        buy: bool,
+        sell: bool,
+        bar: i64,
+        c: f64,
+        parent: Option<(Polarity, f64)>,
+        res: &mut FugueResult,
+    ) {
         // ── A. 边界算子：1x 逐仓强平（独立）──
         if let Some(d) = self.state.direction() {
             if self.units > 1e-12 {
@@ -251,7 +306,15 @@ impl LevelEngine {
             }
         }
 
-        // ── B. BSP 翻转 / 入场（Z₂ 状态机）──
+        // ── B. 父级状态分派：独立翻转 / 短差耦合 ──
+        match parent {
+            None => self.step_independent(buy, sell, bar, c, res),
+            Some((pdir, punits)) => self.step_coupled(buy, sell, bar, c, pdir, punits, res),
+        }
+    }
+
+    /// **独立翻转**（无活跃父级：顶层 / 父级空仓）——3 态 Z₂，用自己资金池，永远在市场。
+    fn step_independent(&mut self, buy: bool, sell: bool, bar: i64, c: f64, res: &mut FugueResult) {
         match self.state {
             Z2::Empty => {
                 // 首个 BSP（或强平后重入）决定方向，用剩余 free 建仓。
@@ -284,6 +347,58 @@ impl LevelEngine {
                     res.n_core_clears_by_ladder[self.ladder] += 1;
                 }
                 // sell = 同向 no-op
+            }
+        }
+    }
+
+    /// **短差耦合**（活跃父级 `pdir`/`punits`）——本级别 = 父级核心仓的 H¹ 机动仓。
+    ///
+    /// 短差方向 = 反父向（`opp(pdir)`，ε 镜像）。reduce-BSP（反父向：父多→卖点 / 父空→买点）
+    /// 开短差（1/3 父级 units）；restore-BSP（同父向）平短差（回补归还）。父级主导 ⟹ 本级别
+    /// **不独立翻转**（不会建到父级量级的反向核心），只在 ±1/3 父级 units 间做机动短差。
+    fn step_coupled(
+        &mut self,
+        buy: bool,
+        sell: bool,
+        bar: i64,
+        c: f64,
+        pdir: Polarity,
+        punits: f64,
+        res: &mut FugueResult,
+    ) {
+        // reduce = 反父向 BSP（减仓信号）；restore = 同父向 BSP（回补信号）。
+        let (is_reduce, is_restore) = match pdir {
+            Polarity::Long => (sell, buy),  // 父多：卖点减仓、买点回补
+            Polarity::Short => (buy, sell), // 父空：买点减仓、卖点回补
+        };
+        let mobile_dir = opp(pdir); // 短差方向（反父向）
+
+        match self.state.direction() {
+            None => {
+                // 空仓 + reduce-BSP → 开短差机动仓（反父向，1/3 父级 units）。
+                if is_reduce {
+                    self.open_sized(mobile_dir, punits / 3.0, bar, c, LegOrigin::Sink);
+                    if self.state != Z2::Empty {
+                        res.n_cycle_opens_by_ladder[self.ladder] += 1;
+                    }
+                }
+                // restore-BSP 空仓 → no-op（不与父级同向 pyramid）。
+            }
+            Some(d) if d == mobile_dir => {
+                // 持反父向仓（短差机动仓）→ restore-BSP 平仓（回补归还父级）。
+                if is_restore {
+                    self.close(bar, c, "recover", res);
+                    res.n_cycle_closes_by_ladder[self.ladder] += 1;
+                }
+                // reduce-BSP 已 engaged → no-op。
+            }
+            Some(_) => {
+                // 持同父向仓（子先于父建仓的遗留独立 core）→ reduce-BSP 平仓减暴露
+                // （父级主导，不翻空），排空后回归纯短差循环。
+                if is_reduce {
+                    self.close(bar, c, "drain", res);
+                }
+                // restore-BSP 同父向 → no-op（不 pyramid）。
             }
         }
     }
@@ -402,13 +517,23 @@ impl TPositionEngine {
         self.last_close = c;
         let nav_pre = self.total_nav(c);
 
-        // ── BSP 分派：每个 ladder 的滤波器独立步进 ──
-        for k in 0..MAX_LADDER {
+        // ── BSP 分派：top-down（高 ladder 先更新 ⟹ 子级读父级本 bar 最新状态，齿轮咬合）──
+        for k in (0..MAX_LADDER).rev() {
             // 空槽位（ladder < BASE_LADDER，零资金）跳过——它们不会有 BSP 也无暴露。
             if self.levels[k].free <= 0.0 && self.levels[k].state == Z2::Empty {
                 continue;
             }
-            self.levels[k].step(view.buy[k], view.sell[k], bar, c, &mut self.res);
+            // 父级 = 上级别（ladder k+1）。活跃 → Some((方向, units))；空仓/顶层 → None（独立翻转）。
+            let parent = if k + 1 < MAX_LADDER {
+                let p = self.levels[k + 1];
+                match p.state.direction() {
+                    Some(d) if p.units > 1e-12 => Some((d, p.units)),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            self.levels[k].step(view.buy[k], view.sell[k], bar, c, parent, &mut self.res);
         }
 
         // ── 守卫：全局 NAV 中性（同价 c 全部操作前后中性）──
@@ -575,36 +700,71 @@ mod tests {
         assert_eq!(eng.levels[5].state, Z2::Long);
     }
 
-    // ──────────────── 多尺度独立性（核心新语义）────────────────
+    // ──────────────── 跨级别耦合（多重赋格核心新语义）────────────────
 
     #[test]
-    fn 多级别独立_不同ladder互不影响() {
-        // ladder 5 做多、ladder 4 做空、ladder 6 做多——三个独立滤波器同时持仓。
+    fn 耦合_父持多次级别卖点做短差不减父仓() {
+        // ladder6 核心多（父级空→独立），ladder5（子=ladder6）收卖点 → 开短差空 1/3 父级 units，
+        // 父级核心仓**不动**（短差是独立机动腿，净多头敞口 = 父 − 1/3父 = 2/3父 = 减仓 1/3）。
         let mut eng = TPositionEngine::new();
-        eng.step(&buy_view(5), 0, 100.0);
-        eng.step(&sell_view(4), 1, 100.0);
-        eng.step(&buy_view(6), 2, 100.0);
-        assert_eq!(eng.levels[5].state, Z2::Long);
-        assert_eq!(eng.levels[4].state, Z2::Short);
-        assert_eq!(eng.levels[6].state, Z2::Long);
-        // ladder 5 翻转不影响 ladder 4/6。
-        eng.step(&sell_view(5), 10, 100.0);
-        assert_eq!(eng.levels[5].state, Z2::Short, "ladder5 翻空");
-        assert_eq!(eng.levels[4].state, Z2::Short, "ladder4 不受影响");
-        assert_eq!(eng.levels[6].state, Z2::Long, "ladder6 不受影响");
+        eng.step(&buy_view(6), 0, 100.0); // ladder6 核心 Long
+        let u6 = eng.levels[6].units;
+        eng.step(&sell_view(5), 10, 100.0); // ladder5 短差空（父6持多）
+        assert!((eng.levels[6].units - u6).abs() < 1e-12, "父级核心仓不动");
+        assert_eq!(eng.levels[5].state, Z2::Short, "子级开短差空");
+        assert!((eng.levels[5].units - u6 / 3.0).abs() < 1e-9, "短差 = 1/3 父级 units");
         let (lu, su) = eng.exposure();
-        assert!(lu > 0.0 && su > 0.0, "多空并存（多尺度叠加）");
+        assert!((lu - u6).abs() < 1e-9 && (su - u6 / 3.0).abs() < 1e-9, "净敞口 2/3 父（减仓 1/3）");
     }
 
     #[test]
-    fn 多级别独立_次级别bsp不触发父级别() {
-        // ladder 5 做多，ladder 4 收到卖点——只翻转 ladder 4（入场空），ladder 5 不减仓（无跨级别 sink）。
+    fn 耦合_父持多次级别买点平短差回补() {
+        // 接上：ladder5 短差空后收买点 → 平短差（回补归还），降价盈利；父级核心仓不受短差循环影响。
         let mut eng = TPositionEngine::new();
-        eng.step(&buy_view(5), 0, 100.0);
-        let u5_before = eng.levels[5].units;
-        eng.step(&sell_view(4), 10, 110.0);
-        assert!((eng.levels[5].units - u5_before).abs() < 1e-12, "ladder5 持仓不动（无 sink 耦合）");
-        assert_eq!(eng.levels[4].state, Z2::Short, "ladder4 独立入场空");
+        eng.step(&buy_view(6), 0, 100.0);
+        eng.step(&sell_view(5), 10, 100.0); // 短差空 @100
+        eng.step(&buy_view(5), 20, 90.0); // 平短差 @90（父6仍持多）
+        assert_eq!(eng.levels[5].state, Z2::Empty, "短差回补归还 → 空仓");
+        let mob = eng.result().mobile_realized_pnl_by_ladder[5];
+        assert!(mob > 0.0, "短差空 100→90 降价回补盈利，得 {mob}");
+        assert_eq!(eng.levels[6].state, Z2::Long, "父级核心仓不受短差循环影响");
+    }
+
+    #[test]
+    fn 耦合_父空仓子独立翻转用自己资金池() {
+        // ladder5 父级（6）空 → 独立翻转（全仓，非 1/3 短差量级）。
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(5), 0, 100.0); // 独立 Long（父6空）
+        let full = eng.levels[5].units;
+        eng.step(&sell_view(5), 10, 110.0); // 独立翻空（全仓）
+        assert_eq!(eng.levels[5].state, Z2::Short, "父空 → 独立翻空");
+        assert!(eng.levels[5].units > full * 0.9, "独立翻转是全仓，非 1/3 短差");
+    }
+
+    #[test]
+    fn 耦合_父持多子同向遗留core被减仓不翻空() {
+        // 子先于父建仓（独立 Long），父后涌现持多 → 子收卖点 = 减仓排空（drain），**不翻空**
+        //（父级主导，子不建反向核心）。
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(5), 0, 100.0); // ladder5 独立 Long（父6空）
+        eng.step(&buy_view(6), 1, 100.0); // ladder6 涌现 Long → 成为 ladder5 的父
+        eng.step(&sell_view(5), 10, 100.0); // ladder5 同父向遗留 core + 卖点 → drain
+        assert_eq!(eng.levels[5].state, Z2::Empty, "遗留 core 被减仓排空，未翻空");
+        assert_eq!(eng.levels[6].state, Z2::Long, "父级不受影响");
+    }
+
+    #[test]
+    fn 耦合_四步循环完整齿轮咬合() {
+        // ① 高级别买点建核心多 → ② 次级别卖点减仓1/3做空 → ③ 次级别买点平空回补 → ④ 高级别卖点翻空。
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(6), 0, 100.0); // ① ladder6 核心 Long
+        assert_eq!(eng.levels[6].state, Z2::Long);
+        eng.step(&sell_view(5), 10, 105.0); // ② ladder5 短差空（1/3）
+        assert_eq!(eng.levels[5].state, Z2::Short);
+        eng.step(&buy_view(5), 20, 100.0); // ③ ladder5 平空回补
+        assert_eq!(eng.levels[5].state, Z2::Empty);
+        eng.step(&sell_view(6), 30, 120.0); // ④ ladder6 核心翻空（父级空→独立）
+        assert_eq!(eng.levels[6].state, Z2::Short, "核心仓翻空，方向变");
     }
 
     // ──────────────── 边界 / 守恒 ────────────────
@@ -648,14 +808,16 @@ mod tests {
     }
 
     #[test]
-    fn 总nav守恒_翻转不创造价值() {
-        // 多级别翻转后，同价 c 总 NAV 应等于价格驱动的真值（NAV 中性由 step 内 prove 守）。
+    fn 总nav守恒_短差耦合同价不创造价值() {
+        // 父级核心 + 子级短差开/平 + 核心翻转，全部同价 c=100 ⟹ 总 NAV 恒 = INITIAL
+        //（NAV 中性逐 bar 由 step 内 prove 守；守恒与短差 sizing 解耦）。
         let mut eng = TPositionEngine::new();
-        eng.step(&buy_view(5), 0, 100.0);
-        eng.step(&buy_view(4), 0, 100.0);
-        eng.step(&sell_view(5), 10, 100.0); // 同价翻转，NAV 不变
+        eng.step(&buy_view(6), 0, 100.0); // 核心多
+        eng.step(&sell_view(5), 5, 100.0); // 短差空（同价）
+        eng.step(&buy_view(5), 10, 100.0); // 平短差（同价）
+        eng.step(&sell_view(6), 15, 100.0); // 核心翻空（同价）
         let (navv, _, _, _) = eng.snapshot();
-        assert!((navv - INITIAL_CAPITAL).abs() < 1e-4, "同价翻转总 NAV 守恒，得 {navv}");
+        assert!((navv - INITIAL_CAPITAL).abs() < 1e-4, "同价耦合操作总 NAV 守恒，得 {navv}");
     }
 
     #[test]
