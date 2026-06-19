@@ -55,6 +55,33 @@ class _FakeSync:
         self.known_blocks: set[str] = set()
 
 
+class _FakeEngine:
+    def __init__(self, graph: Graph) -> None:
+        self.k_active = graph
+        self.k_full = graph
+        self.terrain: dict[tuple[str, str], str] = {}
+        self.position = "A"
+        self.logs: list[object] = []
+
+    def run_step(self) -> SimpleNamespace:
+        log = SimpleNamespace(
+            step=1,
+            operation="move",
+            position="A",
+            encounter=None,
+            f_value=0.0,
+            g_value=0.0,
+            beta_1_before=0,
+            beta_1_after=0,
+            delta_beta_1=0,
+            blocked=False,
+            vertices_active=2,
+            edges_active=1,
+        )
+        self.logs.append(log)
+        return log
+
+
 def _graph() -> Graph:
     graph = Graph()
     graph = graph.add_vertex(Vertex("A"))
@@ -70,6 +97,8 @@ def _daemon(monkeypatch) -> TopologicalDaemon:
 
 def test_shared_layer_step_without_new_settlement_does_not_crash(monkeypatch) -> None:
     daemon = _daemon(monkeypatch)
+    daemon.engine = _FakeEngine(daemon.k_active)
+    daemon.snet_activation = None
     daemon._shared_layer = _FakeSharedLayer()
     daemon._cross_instance_sync = _FakeSync()
 
