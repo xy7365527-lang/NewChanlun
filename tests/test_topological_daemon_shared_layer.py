@@ -10,7 +10,6 @@ from types import SimpleNamespace
 TOPO_DIR = Path(__file__).resolve().parents[1] / "topological-computation"
 sys.path.insert(0, str(TOPO_DIR))
 
-import daemon as daemon_module
 from daemon import TopologicalDaemon
 from engine import Edge, EdgeType, Graph, Vertex
 
@@ -90,15 +89,43 @@ def _graph() -> Graph:
     return graph
 
 
-def _daemon(monkeypatch) -> TopologicalDaemon:
-    monkeypatch.setattr(daemon_module, "TraversalCheckpoint", _NoopCheckpoint)
-    return TopologicalDaemon(graph=_graph(), seed=1, require_chain=False)
-
-
-def test_shared_layer_step_without_new_settlement_does_not_crash(monkeypatch) -> None:
-    daemon = _daemon(monkeypatch)
-    daemon.engine = _FakeEngine(daemon.k_active)
+def _daemon() -> TopologicalDaemon:
+    graph = _graph()
+    daemon = TopologicalDaemon.__new__(TopologicalDaemon)
+    daemon.k_active = graph
+    daemon.k_full = graph
+    daemon.settlement = SimpleNamespace(settled_cycles=[])
+    daemon.engine = _FakeEngine(graph)
+    daemon.terrain = {}
     daemon.snet_activation = None
+    daemon._persist = None
+    daemon.total_steps = 0
+    daemon.total_events = 0
+    daemon.total_gaps_detected = 0
+    daemon.event_log = []
+    daemon._callbacks = {"on_gap": [], "on_event": [], "on_feed": [], "on_step": []}
+    daemon._checkpoint = _NoopCheckpoint()
+    daemon._beta_1_history = []
+    daemon._local_f_history = []
+    daemon._cumulative_delta_beta_1 = 0.0
+    daemon._crystallization_count = 0
+    daemon._last_gap_check_step = 0
+    daemon._shared_layer = None
+    daemon._cross_instance_sync = None
+    daemon._last_position_write_time = 0.0
+    daemon._last_position_write_label = ""
+    daemon._last_graph_delta_write_time = 0.0
+    daemon._last_snet_write_time = 0.0
+    daemon._last_snet_active_snapshot = set()
+    daemon._instance_id = "test-instance"
+    daemon._session_id = "test-session"
+    daemon.concept_names = {}
+    daemon.peer_positions = {}
+    return daemon
+
+
+def test_shared_layer_step_without_new_settlement_does_not_crash() -> None:
+    daemon = _daemon()
     daemon._shared_layer = _FakeSharedLayer()
     daemon._cross_instance_sync = _FakeSync()
 
@@ -107,8 +134,8 @@ def test_shared_layer_step_without_new_settlement_does_not_crash(monkeypatch) ->
     assert daemon.total_steps == 1
 
 
-def test_shared_layer_position_write_failure_is_non_fatal(monkeypatch) -> None:
-    daemon = _daemon(monkeypatch)
+def test_shared_layer_position_write_failure_is_non_fatal() -> None:
+    daemon = _daemon()
     daemon._shared_layer = _FakeSharedLayer(fail=True)
     daemon._cross_instance_sync = _FakeSync()
 
