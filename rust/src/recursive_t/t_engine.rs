@@ -21,8 +21,10 @@
 //! ## 三个 τ 原子（不硬编码四步循环，四步是涌现序列）
 //! - **sink**（子级 j 收反父向 BSP，父级 P 活跃）：`reduce_at(P, m=u_P/3)` + `add_at(j, m, flip(d_P))`。
 //!   父级减 1/3，次级别开反向短差 m。Δexposure：父 u_P→2u_P/3，子 0→u_P/3 反向 ⟹ 净敞口 = 2/3 父 − 1/3 父。
-//! - **recover**（子级 j 收同父向 BSP，j 持反父向短差）：`reduce_at(j, m=u_j/3)` + `add_at(P, m, d_P)`。
-//!   次级别平 1/3 短差，升回父级。完整 sink→recover 净 free += 2m(c_sink − c_recover)（穿 ε=−1 降成本 alpha）。
+//! - **recover**（子级 j 收同父向 BSP，j 持反父向短差）：`reduce_at(j, m=u_j)` + `add_at(P, m, d_P)`。
+//!   次级别走势完成 ⇒ **整条短差一次性平清**（全量 m=u_j，非 1/3 配额；编排者裁决 2026-06-19 方案②，
+//!   543号开放轴#1：recover=次级别走势了结范畴，仅 t_engine，不动 operate.rs/542 σ-不变守卫），资金全额
+//!   升回父级 ⟹ 核心仓恢复 sink 前水平。空头短差高开低平的 realized pnl 即降成本 alpha。
 //! - **drain**（子级持**同父向**遗留仓，中间级别插入后出现）：反父向 BSP ⇒ `reduce_at(j, u_j/3)` 减暴露
 //!   （父级主导不翻转），排空后回归纯短差。
 //!
@@ -48,7 +50,8 @@
 //!
 //! ## 认识论等级
 //! - sink/recover/flip 会计 NAV 中性 / 几何塔涌现 / 手性交替（连续占用段内）/ 区间套 top-down：**L0**；
-//! - sizing 1/3（MOBILE_FRAC）/ core 升降编排 / BSP fire 时机：**L2**；回测 alpha：**L3**（可否证）。
+//! - sink sizing 1/3（MOBILE_FRAC）/ recover 全量了结（方案②）/ core 升降编排 / BSP fire 时机：**L2**；
+//!   回测 alpha：**L3**（可否证）。
 
 use crate::trading::types::{Polarity, INITIAL_CAPITAL, LADDER_MOVE, MAX_LADDER};
 
@@ -252,7 +255,11 @@ impl TPositionEngine {
         self.res.cross_level_closures += 1;
     }
 
-    /// **recover @ (sub→parent)**（σ∘τ，ε 对称）：次级别平短差 m=u_sub/3，升回父级 d_P 方向。
+    /// **recover @ (sub→parent)**（σ∘τ，ε 对称）：次级别走势完成 ⇒ **整条短差平清** m=u_sub（全量），
+    /// 资金全额升回父级 d_P 方向。编排者裁决 2026-06-19（方案②，543号开放轴#1）：次级别买点=次级别走势
+    /// **完成**（0/1 事件，非配额事件）⟹ 全量了结而非 σ-不变 1/3。这与 `fugue_v3::cycle::recover_chunk`
+    /// 的 σ-对称 1/3 配额**有意分歧**——本裁决仅作用于 t_engine（recover=了结范畴），不动 operate.rs/542
+    /// `prove_sigma_quota` 守卫。
     fn recover(&mut self, parent: usize, sub: usize, bar: i64, c: f64) {
         let pdir = self.layers[parent].direction;
         let mob = flip(pdir);
@@ -260,9 +267,8 @@ impl TPositionEngine {
         if !self.layers[sub].is_active() || self.layers[sub].direction != mob {
             return;
         }
-        let u_s = self.layers[sub].units;
-        let m = mobile_quota(u_s);
-        if !(m > 1e-12 && m.is_finite()) || m > u_s + 1e-9 {
+        let m = self.layers[sub].units; // 全量：次级别走势完成则整条短差平清（非 1/3 配额）
+        if !(m > 1e-12 && m.is_finite()) {
             return;
         }
         reduce_at(&mut self.layers, sub, m, &mut self.free, c, bar, &mut self.res, "recover");
@@ -563,17 +569,22 @@ mod tests {
     }
 
     #[test]
-    fn recover_父持多子买点平短差升回父级() {
+    fn recover_父持多子买点短差全平清升回父级() {
         let mut eng = TPositionEngine::new();
         eng.step(&buy_view(6), 0, 100.0);
+        let u6_core = eng.layers[6].units; // sink 前的核心仓
         eng.step(&sell_view(5), 10, 100.0); // sink：父6→2/3，子5 短差空 1/3
         let u6_after_sink = eng.layers[6].units;
         let u5_short = eng.layers[5].units;
-        eng.step(&buy_view(5), 20, 90.0); // 子级买点 → recover（平 1/3 短差，升回父级）
-        // 子级短差减 1/3。
-        assert!((eng.layers[5].units - u5_short * 2.0 / 3.0).abs() < 1e-6, "短差平掉 1/3");
-        // 父级升回 1/3 子级 units。
-        assert!(eng.layers[6].units > u6_after_sink, "父级升回");
+        eng.step(&buy_view(5), 20, 90.0); // 子级买点 → recover（整条短差平清，全量升回）
+        // 子级短差全平清（次级别走势完成，方案②全量了结）。
+        assert!(eng.layers[5].units < 1e-9, "短差全平清，得 {}", eng.layers[5].units);
+        // 父级全额升回：u6_after_sink + u5_short = 恢复 sink 前核心仓。
+        assert!(
+            (eng.layers[6].units - (u6_after_sink + u5_short)).abs() < 1e-6,
+            "父级全额升回核心仓"
+        );
+        assert!((eng.layers[6].units - u6_core).abs() < 1e-6, "核心仓恢复 sink 前水平");
         // 短差空 100→90 降价回补盈利。
         let mob = eng.result().mobile_realized_pnl_by_ladder[5];
         assert!(mob > 0.0, "短差降价回补盈利，得 {mob}");
