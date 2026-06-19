@@ -22,6 +22,8 @@
 //! 关键约束：
 //! - 同级别反向 BSP（持多遇卖点 / 持空遇买点）= **翻转**（不是清仓）。永远在市场。
 //! - 次级别短差逻辑**不变**（Full⇌Reduced，次级别 sink/recover）。
+//! - **翻转与次级别短差同 bar 可并存**：drive 先翻转核心（走势结束）再按新方向 sink/recover
+//!   （不同级别独立事件，互不排斥）。修复前翻转后 return 吞掉次级别短差 ⟹ sink 恒 0 笔。
 //! - ReducedLong 遇同级别卖点 → flip_core 一次性平 core(2/3 多)+子(1/3 空) 再建 U 空（M=N）。
 //! - 次级别 Sell 只在 Full 触发（Reduced 不二次减）；次级别 Buy 只在 Reduced 触发（回补）。
 //!
@@ -108,6 +110,33 @@ impl LevelState {
     }
 }
 
+/// **腿的出生途径**（诊断归因，与盈亏极性正交）。一条腿被平仓时产生一条 trade，该 trade 的盈亏
+/// 应归因于腿当初**如何建立**——而非如何平仓（`exit_reason`）。翻转版里 `exit_reason` 对途径不可分
+/// （flip 既平翻空核心又级联平 sink 子腿；reduce/eod/liq 同理），故必须显式跟踪出生途径。
+///
+/// - `Entry`：`try_enter` 全资金建核心（最初入场 / 强平后重入）。
+/// - `Flip`：`flip_core` 整仓翻转建的反向核心（**途径 a 核心翻空**的来源）。
+/// - `Sink`：`sink` 减 1/3 下放次级别建的子腿（**途径 b 次级别短差**的来源）。
+///
+/// recover 把子链 units 归还核心（非新腿）⟹ 不改核心 origin（核心保持其建立时的途径标签）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LegOrigin {
+    Entry,
+    Flip,
+    Sink,
+}
+
+impl LegOrigin {
+    /// dump 用字符串标签（与 `trade_origins` 平行数组一致）。
+    fn as_str(self) -> &'static str {
+        match self {
+            LegOrigin::Entry => "entry",
+            LegOrigin::Flip => "flip",
+            LegOrigin::Sink => "sink",
+        }
+    }
+}
+
 // ════════════════════════════ 本 bar 信号视图 ════════════════════════════
 
 /// 本 bar 信号视图（从 T 全塔 BSP diff 构造，stream 层填充）。
@@ -155,6 +184,9 @@ pub struct TPositionEngine {
     layers: Vec<Layer>,
     /// 每级别离散状态（操作投影，与 layers 一一对应）。
     states: [LevelState; MAX_LADDER],
+    /// 每级别**当前占用腿的出生途径**（与 states/layers 一一对应；诊断归因，见 `LegOrigin`）。
+    /// 建仓点（try_enter/flip_core/sink）写入，平仓点读出 push 到 `res.trade_origins`。
+    origin: [LegOrigin; MAX_LADDER],
     /// 统一现金池（NAV 中性双重会计的现金腿）。
     free: f64,
     /// 当前总持仓基数 Σ|units|（会计自洽锚；仅入场/强平/eod 改，翻转/sink/recover 守恒不改）。
@@ -176,6 +208,7 @@ impl TPositionEngine {
             res: FugueResult::default(),
             layers,
             states: [LevelState::Empty; MAX_LADDER],
+            origin: [LegOrigin::Entry; MAX_LADDER], // 占位（Empty 层 origin 无意义，建仓时覆写）
             free: INITIAL_CAPITAL,
             n_base: 0.0,
             last_close: f64::NAN,
@@ -232,6 +265,7 @@ impl TPositionEngine {
                     self.n_base += m;
                     self.res.n_entries_by_ladder[k] += 1;
                     self.states[k] = LevelState::full(t);
+                    self.origin[k] = LegOrigin::Entry; // 入场建仓
                 }
                 return;
             }
@@ -243,20 +277,25 @@ impl TPositionEngine {
     /// 分层 BSP 驱动状态机（已非 global_flat）。
     ///
     /// (1) **翻转**：core 及更高级别反向 BSP（持多遇卖点 / 持空遇买点）→ 整仓翻转到反方向
-    ///     （M=N，永远在市场，**非清仓**）。
-    /// (2) **次级别 sink/recover**：遍历占用层（高到低），match 状态 × 次级别 BSP（不变）。
+    ///     （M=N，永远在市场，**非清仓**）。翻转后**不 return**——继续 (2)。
+    /// (2) **次级别 sink/recover**：遍历占用层（高到低），match 状态 × 次级别 BSP。按当前
+    ///     core 方向处理（本 bar 已翻转则用新方向）；与 (1) 是不同级别独立事件，同 bar 可并存。
     fn drive(&mut self, view: &TSignalView, bar: i64, c: f64) {
-        // ── (1) 翻转（同级别 / 更高级别反向 BSP 优先于次级别短差）──
+        // ── (1) 翻转（同级别 / 更高级别反向 BSP）：走势结束，先翻转核心 ──
+        //     翻转与次级别短差是**不同级别的独立事件**：同级别卖点 = 走势终完美 → 整仓翻空；
+        //     次级别卖点 = 走势内回调 → 减仓短差。同一 bar 二者可并存（走势结束的同时内部回调）。
+        //     先翻转核心（走势结束优先级更高），**不 return**——翻转后 core 已是新方向，
+        //     次级别 sink/recover 在新方向下独立处理（互不排斥，修复前 return 吞掉次级别短差 ⟹ sink 恒 0）。
         if let Some(core) = self.core_ladder() {
             let d = self.states[core].direction().expect("core 占用必有方向");
             let reverse = (core..MAX_LADDER).any(|j| has_bsp(view, j, flip(d)));
             if reverse {
                 self.flip_core(core, flip(d), bar, c);
-                return; // 翻转后本 bar 结束（仍在市场，新方向）
+                // 不 return：继续进入 (2)，按翻转后的新 core 方向处理次级别短差。
             }
         }
 
-        // ── (2) 次级别 sink/recover（per-bar 互斥：每层每 bar 最多一次转移）──
+        // ── (2) 次级别 sink/recover（按当前 core 方向；本 bar 已翻转则用新方向；per-bar 互斥）──
         let mut acted = [false; MAX_LADDER];
         for k in (PENDING_LO..MAX_LADDER).rev() {
             let st = self.states[k];
@@ -298,7 +337,9 @@ impl TPositionEngine {
         for j in 0..self.layers.len() {
             let u = self.layers[j].units;
             if u > 1e-12 {
+                let o = self.origin[j]; // 被平腿的出生途径（reduce 前读，归因这条 trade）
                 reduce_at(&mut self.layers, j, u, &mut self.free, c, bar, &mut self.res, "flip");
+                self.res.trade_origins.push(o.as_str());
                 self.states[j] = LevelState::Empty;
                 total += u;
             }
@@ -306,6 +347,7 @@ impl TPositionEngine {
         if total > 1e-12 {
             add_at(&mut self.layers, k, total, new_dir, &mut self.free, c, bar, &mut self.res);
             self.states[k] = LevelState::full(new_dir);
+            self.origin[k] = LegOrigin::Flip; // 翻空/翻多核心（途径 a）
             self.res.n_core_clears_by_ladder[k] += 1; // 复用为翻转计数（观测）
         }
         // n_base 不变（reduce total + add total 守恒翻转）。
@@ -315,9 +357,12 @@ impl TPositionEngine {
     /// flip(d)），k → Reduced。复用 `sink_chunk`（含 σ-quota / cross-level 守卫）。返回成功否。
     fn sink(&mut self, k: usize, bar: i64, c: f64) -> bool {
         let d = self.states[k].direction().expect("sink 前提：k 占用");
+        let o_src = self.origin[k]; // sink 内 reduce_at(k) 的 trade 归因于源层（被减腿）
         if sink_chunk(&mut self.layers, k, &mut self.free, c, bar, &mut self.res) {
+            self.res.trade_origins.push(o_src.as_str());
             self.states[k] = LevelState::reduced(d);
             self.states[k - 1] = LevelState::full(flip(d));
+            self.origin[k - 1] = LegOrigin::Sink; // 下放子腿出生 = 次级别短差（途径 b）
             true
         } else {
             false
@@ -332,7 +377,9 @@ impl TPositionEngine {
         for j in (FIRST_BSP_LADDER..k).rev() {
             let u = self.layers[j].units;
             if u > 1e-12 {
+                let o = self.origin[j]; // 被回补的子腿出生途径
                 reduce_at(&mut self.layers, j, u, &mut self.free, c, bar, &mut self.res, "recover");
+                self.res.trade_origins.push(o.as_str());
                 self.states[j] = LevelState::Empty;
                 total += u;
             }
@@ -353,7 +400,9 @@ impl TPositionEngine {
         for k in 0..self.layers.len() {
             if self.layers[k].units > 1e-12 {
                 let u = self.layers[k].units;
+                let o = self.origin[k];
                 reduce_at(&mut self.layers, k, u, &mut self.free, c, bar, &mut self.res, reason);
+                self.res.trade_origins.push(o.as_str());
             }
             self.states[k] = LevelState::Empty;
         }
@@ -373,6 +422,7 @@ impl TPositionEngine {
                 Polarity::Long => c > 0.0 && c <= l.basis / SUB_LIQ_FACTOR,
             };
             if liquidate {
+                let o = self.origin[k];
                 let m = match l.direction {
                     Polarity::Short => {
                         liquidate_short(&mut self.layers, k, &mut self.free, c, bar, &mut self.res)
@@ -381,6 +431,7 @@ impl TPositionEngine {
                         liquidate_long(&mut self.layers, k, &mut self.free, c, bar, &mut self.res)
                     }
                 };
+                self.res.trade_origins.push(o.as_str());
                 self.n_base -= m;
                 self.states[k] = LevelState::Empty;
             }
@@ -446,6 +497,12 @@ impl TPositionEngine {
         }
         self.res.final_nav = self.free;
         self.res.max_concurrent_voices = self.max_concurrent_seen as u64;
+        // 严格对齐验收：每条 trade 必有且仅有一个出生途径标签（每个 reduce 点都已 push）。
+        assert_eq!(
+            self.res.trade_origins.len(),
+            self.res.trades.len(),
+            "trade_origins 与 trades 长度失配（漏标/多标出生途径）"
+        );
     }
 }
 
@@ -572,6 +629,27 @@ mod tests {
         assert_eq!(lu, 0.0);
         assert!((su - base).abs() < 1e-6, "更高级别卖点翻转建空");
         assert_eq!(eng.states[5], LevelState::FullShort);
+        assert!(!eng.global_flat());
+    }
+
+    #[test]
+    fn 翻转与次级别短差同bar并存() {
+        // 修复回归：同级别卖点@5（翻空）+ 次级别买点@4（翻空后新方向 Short 的反向 → sink 做多）
+        // 同一 bar 出现。修复前翻转 return 吞掉 sink（次级别短差恒 0）；修复后先翻 FullShort@5，
+        // 再按新方向 sink → ReducedShort@5 + FullLong@4。不同级别事件并存。
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(5), 0, 100.0); // FullLong@5 = 1000
+        let base = eng.n_base;
+        let mut v = TSignalView::empty();
+        v.sell[5] = true; // 同级别卖点 → 翻空
+        v.buy[4] = true; // 次级别买点 → 翻空后在 Short 方向下 sink 做多
+        eng.step(&v, 10, 110.0);
+        assert_eq!(eng.states[5], LevelState::ReducedShort, "翻空后次级别 sink → ReducedShort");
+        assert_eq!(eng.states[4], LevelState::FullLong, "次级别 sink 下放 FullLong");
+        let (_, lu, su, _) = eng.snapshot();
+        assert!((su - base * 2.0 / 3.0).abs() < 1e-6, "翻空核心剩 2/3 Short，得 {su}");
+        assert!((lu - base / 3.0).abs() < 1e-6, "次级别 1/3 Long，得 {lu}");
+        assert!((eng.n_base - base).abs() < 1e-6, "翻转+sink Σ 守恒");
         assert!(!eng.global_flat());
     }
 
