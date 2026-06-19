@@ -28,7 +28,7 @@ use crate::fugue_v3::layer::FugueResult;
 use crate::macd::OnlineMacdState;
 use crate::segment::{Segment, SegKind};
 use crate::stroke::Direction as StrokeDir;
-use crate::trading::types::MAX_LADDER;
+use crate::trading::types::{Polarity, MAX_LADDER};
 
 use super::iterate;
 use super::t_engine::{TPositionEngine, TSignalView, BASE_LADDER};
@@ -142,13 +142,26 @@ impl TFugueStreamCore {
     /// 方向/锚/θ/ceiling/root（旧 root-based 设计的方向态残留）。
     fn rerun_and_diff(&mut self, view: &mut TSignalView) {
         // ── 块内借 orch（segs+m2r）+ prefix，算 tree + bsp 列表（owned，块后释放）──
-        let bsps = {
+        let (bsps, emergent) = {
             let segs = self.orch.segments();
             let m2r = self.orch.merged_to_raw();
             let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg);
             let tree = iterate(a0, self.mode);
-            tree.all_bsps()
+            (tree.all_bsps(), tree.emergent_top())
         }; // orch 借用在此释放
+
+        // ── 自下而上涌现上界 → (ladder, 操作极性)：向上走势=做多归属 / 向下走势=做空归属。
+        //    写入 view.emergent_top，step 在 BSP 路由前据此把核心仓 relabel 升级归属（不等高级别 BSP）。──
+        if let Some((t_level, dir)) = emergent {
+            let ladder = t_level + BASE_LADDER;
+            if ladder < MAX_LADDER {
+                let pol = match dir {
+                    TDir::Up => Polarity::Long,
+                    TDir::Down => Polarity::Short,
+                };
+                view.emergent_top = Some((ladder, pol));
+            }
+        }
 
         // ── diff 新增 BSP（本 bar 新可见的买卖点；key 不依赖 m2r，块外安全）──
         for bsp in bsps {

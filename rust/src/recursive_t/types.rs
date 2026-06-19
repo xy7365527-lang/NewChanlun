@@ -247,6 +247,25 @@ impl RecursiveTree {
             .unwrap_or(0)
     }
 
+    /// 涌现上界单元的 `(level, 方向)`：最高已诞生上级单元的级别 + 该级别**最新单元方向**。
+    /// 空塔 / 无 completed 走势 → `None`。
+    ///
+    /// 自下而上仓位涌现（H¹ 升级归属）的结构信号：`emergent_ceiling` 只给级别，本方法额外
+    /// 给方向（= 最高 completed 级别**最后一个** completed 走势封装出的上级单元方向）。操作层
+    /// 据此把核心仓 relabel 到对应 ladder（仅当核心仓操作极性与该方向一致时）——**不依赖该
+    /// 级别 BSP fire**，故能在高级别买卖点尚未涌现时就让低级别仓位升级归属为高级别核心仓。
+    ///
+    /// 返回的 `level` = 最高 completed 级别 `i` + 1（封装恒等式 `Move(i)≡Level-(i+1) 笔`），
+    /// 与 `emergent_ceiling()` 数值一致；方向取 `levels[i].next_units` 最后一根（= 最新封装）。
+    pub fn emergent_top(&self) -> Option<(usize, Direction)> {
+        let i = self
+            .levels
+            .iter()
+            .rposition(|l| l.trends.iter().any(|t| t.completed))?;
+        let last = self.levels[i].next_units.last()?;
+        Some((last.level, last.direction))
+    }
+
     /// 收集全塔所有买卖点（含跨级 type2 投影）。
     pub fn all_bsps(&self) -> Vec<BSP> {
         self.levels.iter().flat_map(|l| l.bsps.iter().cloned()).collect()

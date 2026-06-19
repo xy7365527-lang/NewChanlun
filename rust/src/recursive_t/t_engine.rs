@@ -70,12 +70,19 @@ pub struct TSignalView {
     pub buy: [bool; MAX_LADDER],
     /// 本 bar 该 ladder 是否新增**任意**卖点。
     pub sell: [bool; MAX_LADDER],
+    /// 本 bar T 迭代**涌现上界**：`(ladder, 操作极性)`——最高已诞生上级单元的 ladder +
+    /// 其走势方向对应极性（向上走势=Long 归属 / 向下=Short 归属）。
+    ///
+    /// **自下而上仓位涌现**的信号：操作层据此把核心仓 relabel 升级归属到该 ladder（不新建仓），
+    /// 不必等该级别 BSP fire。`None` = 本 bar 无重跑或塔无 completed 走势（不触发升级）。
+    /// stream 层在段门控重跑时填充（涌现只随结构变化发生）。
+    pub emergent_top: Option<(usize, Polarity)>,
 }
 
 impl TSignalView {
     /// 空信号（无 BSP）。
     pub fn empty() -> Self {
-        TSignalView { buy: [false; MAX_LADDER], sell: [false; MAX_LADDER] }
+        TSignalView { buy: [false; MAX_LADDER], sell: [false; MAX_LADDER], emergent_top: None }
     }
 }
 
@@ -187,6 +194,34 @@ impl TPositionEngine {
         moved.ladder = to;
         self.layers[to] = moved;
         self.layers[from] = Layer::idle(from);
+    }
+
+    /// **emergence_upgrade（自下而上仓位涌现）**：T 迭代涌现出更高级别（低级别走势完成 →
+    /// 封装成上级单元）时，把核心仓 relabel 升级归属到涌现上界 `target_ladder`（= 复用
+    /// `ascend`，无新资金、NAV 中性），**不必等该级别 BSP fire**——这是「自下而上」的实现，
+    /// 补齐原引擎只有自上而下（区间套约束）的缺口。
+    ///
+    /// 缠论依据（第65课 `Move(k)≡Level-(k+1) 笔`）：你在低级别买点建的多头随走势发展，其低
+    /// 级别走势类型组成更高级别的笔/段；该多头**本就是**高级别核心仓的组成，故升级 = 同一笔
+    /// 仓位的级别重标定（relabel），非新建仓。
+    ///
+    /// 方向门控（H¹ 继承 + H⁰ 涌现方向校验）：仅当**核心仓操作极性 == 涌现走势方向对应极性**
+    /// 时升级（持多∧涌现向上 / 持空∧涌现向下）。逆涌现方向的仓位不归属于该结构（等 BSP 翻转），
+    /// 这才是「低级别同向走势组成高级别同向走势」的精确表达。
+    ///
+    /// 不变量复用 `ascend`：`cc = highest_active()` 是最高活跃层 ⟹ `target_ladder > cc` 必为
+    /// idle，`ascend` 的「目标须 idle」断言自动满足。`highest_active = None`（全空）时无核心仓
+    /// 可升，跳过——首仓仍由核心级 BSP `enter` 建立。
+    fn emergence_upgrade(&mut self, target_ladder: usize, target_dir: Polarity) {
+        if target_ladder >= MAX_LADDER {
+            return;
+        }
+        if let Some(cc) = self.highest_active() {
+            if self.layers[cc].direction == target_dir && cc < target_ladder {
+                self.ascend(cc, target_ladder);
+                self.res.n_emergence_upgrades += 1;
+            }
+        }
     }
 
     /// **sink @ (parent→sub)**（σ⁻¹∘τ）：父级减仓 m=u_P/3，次级别开 flip(d_P) 短差 m。父级真减仓（剩 2/3）。
@@ -309,6 +344,12 @@ impl TPositionEngine {
             }
         }
 
+        // ── A'. 自下而上仓位涌现升级（BSP 路由前：核心仓先骑乘涌现上界，本 bar 低级别 BSP
+        //         随后以升级后的高级别核心为父级 → 走 sink/recover 短差，而非被误判为核心翻转）──
+        if let Some((target_ladder, target_dir)) = view.emergent_top {
+            self.emergence_upgrade(target_ladder, target_dir);
+        }
+
         // ── B. BSP 路由：top-down（高 ladder 先，区间套约束自上而下）──
         for j in (0..MAX_LADDER).rev() {
             let b = view.buy[j];
@@ -423,6 +464,76 @@ mod tests {
         assert!(!eng.layers[5].is_active(), "原核心 5 已上移（idle）");
         assert_eq!(eng.layers[7].direction, Polarity::Long);
         assert!((eng.layers[7].units - u5).abs() < 1e-9, "ascend 仅 relabel，units 不变（无新资金）");
+    }
+
+    // ──────────────── 自下而上仓位涌现升级（emergence-upgrade）────────────────
+
+    /// 带涌现上界的信号视图（自下而上升级测试用）。
+    fn emergent_view(ladder: usize, dir: Polarity) -> TSignalView {
+        let mut v = TSignalView::empty();
+        v.emergent_top = Some((ladder, dir));
+        v
+    }
+
+    #[test]
+    fn 涌现升级_核心多头升到涌现ladder_方向一致() {
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(4), 0, 100.0); // 核心 Long@4（全仓）
+        let u4 = eng.layers[4].units;
+        // T 迭代涌现出更高级别（ladder 7，向上走势）→ 核心仓 relabel 升级归属，不等高级别 BSP。
+        eng.step(&emergent_view(7, Polarity::Long), 10, 105.0);
+        assert!(!eng.layers[4].is_active(), "原核心 4 已升级（idle）");
+        assert_eq!(eng.layers[7].direction, Polarity::Long, "核心归属到涌现 ladder 7");
+        assert!((eng.layers[7].units - u4).abs() < 1e-9, "升级仅 relabel，units 不变（不新建仓）");
+        assert_eq!(eng.result().n_emergence_upgrades, 1);
+        // NAV 中性：Long u4 @basis100，@105 ⟹ NAV = u4×105（升级不动钱）。
+        let (navv, lu, su, _) = eng.snapshot();
+        assert!((navv - u4 * 105.0).abs() < 1e-6, "升级 NAV 中性，得 {navv}");
+        assert!((lu - u4).abs() < 1e-9 && su == 0.0, "多头敞口不变");
+    }
+
+    #[test]
+    fn 涌现升级_方向不一致不升级() {
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(4), 0, 100.0); // 核心 Long@4
+        // 涌现向下走势（Short 归属）但核心持多 → 方向不一致，不升级（逆涌现方向不归属，等 BSP 翻转）。
+        eng.step(&emergent_view(7, Polarity::Short), 10, 105.0);
+        assert!(eng.layers[4].is_active(), "核心仍在原 ladder 4");
+        assert!(!eng.layers[7].is_active(), "涌现 ladder 7 未被占用");
+        assert_eq!(eng.result().n_emergence_upgrades, 0);
+    }
+
+    #[test]
+    fn 涌现升级_全空时no_op() {
+        let mut eng = TPositionEngine::new();
+        // 无核心仓时涌现信号不建仓（首仓仍由核心级 BSP enter 建立）。
+        eng.step(&emergent_view(7, Polarity::Long), 0, 100.0);
+        assert!(eng.layers.iter().all(|l| !l.is_active()), "全空，无仓可升");
+        assert_eq!(eng.result().n_emergence_upgrades, 0);
+    }
+
+    #[test]
+    fn 涌现升级_已在更高ladder不下移() {
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(8), 0, 100.0); // 核心 Long@8
+        // 涌现上界 ladder 6 < 核心 8 → 不下移（幂等：核心已足够高）。
+        eng.step(&emergent_view(6, Polarity::Long), 10, 105.0);
+        assert!(eng.layers[8].is_active(), "核心仍在 8");
+        assert!(!eng.layers[6].is_active(), "不下移到 6");
+        assert_eq!(eng.result().n_emergence_upgrades, 0);
+    }
+
+    #[test]
+    fn 涌现升级后低级别卖点变子级sink() {
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(4), 0, 100.0); // 核心 Long@4
+        eng.step(&emergent_view(8, Polarity::Long), 10, 100.0); // 升级到核心 Long@8
+        let u8 = eng.layers[8].units;
+        // 升级后低级别 5 卖点：以核心 8（Long）为父级 → sink（父减仓 1/3 + 5 开反向短差），非翻转。
+        eng.step(&sell_view(5), 20, 100.0);
+        assert_eq!(eng.layers[8].direction, Polarity::Long, "核心仍持多（非误判为翻转）");
+        assert!((eng.layers[8].units - u8 * 2.0 / 3.0).abs() < 1e-6, "父级真减仓到 2/3");
+        assert_eq!(eng.layers[5].direction, Polarity::Short, "次级别开反向短差（sink）");
     }
 
     // ──────────────── 子级 sink（父级真减仓，核心新语义）────────────────

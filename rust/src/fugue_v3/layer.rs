@@ -95,6 +95,8 @@ pub struct FugueResult {
     // ── 闭合 + 多声部观测 ──
     /// CrossLevel 闭合数（每次 τ 转移 Δr=−1）。
     pub cross_level_closures: u64,
+    /// 自下而上涌现升级数（emergence-upgrade）：核心仓随 T level 涌现 relabel 升级归属（NAV 中性）。
+    pub n_emergence_upgrades: u64,
     /// 最大并发活跃空头声部数（多声部 L6 实证）。
     pub max_concurrent_voices: u64,
     /// 最大并发相邻同向占用级别对数（T24 观测：建仓阶段合法；非建仓 regime 高值提示 word 路由 bug）。

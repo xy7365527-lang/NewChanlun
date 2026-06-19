@@ -265,6 +265,12 @@ fn t_engine_8x3() {
             if !lvl_pnl.is_empty() {
                 eprintln!("      └ 每级别独立盈亏: {}", lvl_pnl.join("  "));
             }
+            if res.n_emergence_upgrades > 0 {
+                eprintln!(
+                    "      └ 自下而上涌现升级: {} 次（核心仓随 level 涌现 relabel 升级归属，不等高级别 BSP）",
+                    res.n_emergence_upgrades
+                );
+            }
         }
         rows.push(row);
     }
