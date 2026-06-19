@@ -7,12 +7,16 @@
 //!
 //! ## 认识论等级（formalization-validity-domain）
 //!
-//! **L2**（真实数据，可否证）——但带两条有效域边界，回测数字不可直接用于实盘：
-//! 1. **batch 回测，非流式无未来函数**：T 在全历史 a₀ 上一次跑完，进入 a₀ 的线段都已
-//!    `confirmed && settled`。线段确认时刻 **晚于** 其端点 bar（区间套确认滞后，记忆
-//!    `interval_nesting_forward`），故在端点 raw bar 用 BSP.price 成交是**乐观**的
-//!    （look-ahead）。三模式**同口径**承担此偏差 ⇒ 模式间对比有效；绝对收益偏乐观。
-//! 2. **操作层简化**：见 [`apply_bsp`]——只做多、减仓不回补、向下趋势空仓。目的是隔离
+//! **L2**（真实数据，可否证）——但带有效域边界，回测数字不可直接用于实盘：
+//! 1. **成交价 = 成交 bar 的 close（价格维 look-ahead 已消除）**：`BSP.price` 是段端点
+//!    极值（type1=背驰/末段极值、type3=回抽段极值，见 `divergence.rs`/`operator.rs`）；
+//!    在端点用极值价成交 = 假设「恰好买在最低 / 卖在最高」= 未来函数。本版改用
+//!    `closes[raw_end]`（成交 bar 收盘可成交价），`BSP.price` 仅用于信号定位、不进成交。
+//! 2. **batch 回测，时间维确认滞后（残留 look-ahead）**：T 在全历史 a₀ 上一次跑完，
+//!    进入 a₀ 的线段都已 `confirmed && settled`。线段确认时刻 **晚于** 其端点 bar
+//!    （区间套确认滞后，记忆 `interval_nesting_forward`），但成交 bar 仍取端点 raw_end
+//!    ⇒ 实盘信号可见时刻更晚，绝对收益仍偏乐观。三模式**同口径** ⇒ 模式间对比有效。
+//! 3. **操作层简化**：见 [`apply_bsp`]——只做多、减仓不回补、向下趋势空仓。目的是隔离
 //!    步骤c 变量（用户指令「保持简单」），非最优交易策略。
 //!
 //! ## 坐标系（记忆 `current_strokes_i1_merged_coord`）
@@ -204,10 +208,13 @@ struct Position {
 /// - **向下趋势做空**：当前最高级别向下时只空仓观望。反手做空需 `TradeDir::Short` 单相
 ///   账本（记忆 `bidirectional_accounting`，原文 15 课认沽期权是唯一实操空头载体）。
 ///
-/// 返回本次产生的平仓 Trade（可能 0 笔）。`cash` 用 `&mut` 就地更新。
+/// `fill_price` = 成交 bar（raw_end）的 close —— 实际成交价（**非** `BSP.price` 段极值，
+/// 后者只定位信号；见模块头 L2 边界 1）。返回本次产生的平仓 Trade（可能 0 笔）；
+/// `cash` 用 `&mut` 就地更新。
 fn apply_bsp(
     bsp: &BSP,
     raw_bar: i64,
+    fill_price: f64,
     ceiling: usize,
     pos: &mut Option<Position>,
     cash: &mut f64,
@@ -216,13 +223,13 @@ fn apply_bsp(
     match (bsp.kind.is_buy(), pos.as_mut()) {
         // 买点 + 空仓 → 全额建多。
         (true, None) => {
-            if bsp.price > 0.0 && *cash > 0.0 {
-                let units = *cash / bsp.price;
+            if fill_price > 0.0 && *cash > 0.0 {
+                let units = *cash / fill_price;
                 *cash = 0.0;
                 *pos = Some(Position {
                     units,
                     base_units: units,
-                    entry_price: bsp.price,
+                    entry_price: fill_price,
                     entry_bar: raw_bar,
                     entry_kind: bsp.kind,
                     entry_level: bsp.level,
@@ -245,14 +252,14 @@ fn apply_bsp(
             if sell_units <= 0.0 {
                 return None;
             }
-            let pnl = sell_units * (bsp.price - p.entry_price);
-            *cash += sell_units * bsp.price;
+            let pnl = sell_units * (fill_price - p.entry_price);
+            *cash += sell_units * fill_price;
             p.units -= sell_units;
             let trade = Trade {
                 entry_bar: p.entry_bar,
                 exit_bar: raw_bar,
                 entry_price: p.entry_price,
-                exit_price: bsp.price,
+                exit_price: fill_price,
                 direction: TradeDir::Long,
                 units: sell_units,
                 pnl,
@@ -308,7 +315,7 @@ pub fn run_backtest(
     let n = closes.len();
     for i in 0..n {
         while ev_idx < events.len() && events[ev_idx].0 == i as i64 {
-            if let Some(t) = apply_bsp(&events[ev_idx].1, i as i64, ceiling, &mut pos, &mut cash) {
+            if let Some(t) = apply_bsp(&events[ev_idx].1, i as i64, closes[i], ceiling, &mut pos, &mut cash) {
                 trades.push(t);
             }
             ev_idx += 1;
@@ -327,8 +334,11 @@ pub fn run_backtest(
         }
     }
     // 末 bar 之后仍可能有 raw_bar 越界事件（merged_to_raw raw_end == n 边界），兜底处理。
+    // 成交价取末 bar close（与主循环 closes[i] 同口径——非 BSP.price 段极值）。
+    let last_bar = n.saturating_sub(1);
+    let last_fill = *closes.last().unwrap_or(&0.0);
     while ev_idx < events.len() {
-        if let Some(t) = apply_bsp(&events[ev_idx].1, (n.saturating_sub(1)) as i64, ceiling, &mut pos, &mut cash) {
+        if let Some(t) = apply_bsp(&events[ev_idx].1, last_bar as i64, last_fill, ceiling, &mut pos, &mut cash) {
             trades.push(t);
         }
         ev_idx += 1;
@@ -488,13 +498,13 @@ mod tests {
         let mut pos: Option<Position> = None;
         let mut cash = 1.0;
         let buy = BSP { kind: BSPKind::Type1Buy, bar: 0, price: 10.0, level: 0 };
-        let t0 = apply_bsp(&buy, 0, 1, &mut pos, &mut cash);
+        let t0 = apply_bsp(&buy, 0, 10.0, 1, &mut pos, &mut cash);
         assert!(t0.is_none(), "建仓不产平仓交易");
         assert!(pos.is_some());
         assert_eq!(cash, 0.0, "全额建多 cash 清零");
 
         let sell = BSP { kind: BSPKind::Type1Sell, bar: 5, price: 20.0, level: 0 };
-        let t1 = apply_bsp(&sell, 5, 1, &mut pos, &mut cash).expect("最高级别卖点清仓");
+        let t1 = apply_bsp(&sell, 5, 20.0, 1, &mut pos, &mut cash).expect("最高级别卖点清仓");
         assert_eq!(t1.exit_reason, "clear");
         // units = 1.0/10 = 0.1 股；pnl = 0.1 × (20−10) = 1.0。
         assert!((t1.units - 0.1).abs() < 1e-12);
@@ -509,11 +519,11 @@ mod tests {
         let mut pos: Option<Position> = None;
         let mut cash = 1.0;
         let buy = BSP { kind: BSPKind::Type1Buy, bar: 0, price: 10.0, level: 0 };
-        apply_bsp(&buy, 0, 2, &mut pos, &mut cash);
+        apply_bsp(&buy, 0, 10.0, 2, &mut pos, &mut cash);
         let base = pos.as_ref().unwrap().base_units; // 0.1
 
         let sell = BSP { kind: BSPKind::Type1Sell, bar: 5, price: 12.0, level: 0 };
-        let t = apply_bsp(&sell, 5, 2, &mut pos, &mut cash).expect("次级别减仓");
+        let t = apply_bsp(&sell, 5, 12.0, 2, &mut pos, &mut cash).expect("次级别减仓");
         assert_eq!(t.exit_reason, "trim");
         assert!((t.units - base / 3.0).abs() < 1e-12, "减 1/3 配额");
         assert!(pos.is_some(), "减仓后仍持仓");
