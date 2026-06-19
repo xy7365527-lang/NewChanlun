@@ -2,67 +2,75 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
+import textwrap
 from pathlib import Path
-from types import SimpleNamespace
 
 
 TOPO_DIR = Path(__file__).resolve().parents[1] / "topological-computation"
-sys.path.insert(0, str(TOPO_DIR))
+
+
+def _run_isolated_daemon_check(body: str) -> None:
+    script = f"""
+import sys
+from types import SimpleNamespace
+
+sys.path.insert(0, {str(TOPO_DIR)!r})
 
 from daemon import TopologicalDaemon
 from engine import Edge, EdgeType, Graph, Vertex
 
 
-class _NoopWriter:
-    def record(self, **_kwargs) -> None:
+class NoopWriter:
+    def record(self, **_kwargs):
         pass
 
-    def record_settlement(self, **_kwargs) -> None:
+    def record_settlement(self, **_kwargs):
         pass
 
 
-class _NoopCheckpoint:
-    def __init__(self, *_args, **_kwargs) -> None:
-        self.encounters = _NoopWriter()
-        self.settlements = _NoopWriter()
+class NoopCheckpoint:
+    def __init__(self):
+        self.encounters = NoopWriter()
+        self.settlements = NoopWriter()
 
-    def load_state(self) -> None:
+    def load_state(self):
         return None
 
-    def save_state(self, _state: dict) -> None:
+    def save_state(self, _state):
         pass
 
-    def close(self) -> None:
+    def close(self):
         pass
 
 
-class _FakeSharedLayer:
-    def __init__(self, *, fail: bool = False) -> None:
+class FakeSharedLayer:
+    def __init__(self, fail=False):
         self.fail = fail
-        self.blocks: list[dict] = []
+        self.blocks = []
 
-    def write_block(self, block: dict) -> str:
+    def write_block(self, block):
         if self.fail:
             raise TimeoutError("ipfs write timed out")
         self.blocks.append(block)
-        return f"fake-cid-{len(self.blocks)}"
+        return f"fake-cid-{{len(self.blocks)}}"
 
 
-class _FakeSync:
-    def __init__(self) -> None:
-        self.known_blocks: set[str] = set()
+class FakeSync:
+    def __init__(self):
+        self.known_blocks = set()
 
 
-class _FakeEngine:
-    def __init__(self, graph: Graph) -> None:
+class FakeEngine:
+    def __init__(self, graph):
         self.k_active = graph
         self.k_full = graph
-        self.terrain: dict[tuple[str, str], str] = {}
+        self.terrain = {{}}
         self.position = "A"
-        self.logs: list[object] = []
+        self.logs = []
 
-    def run_step(self) -> SimpleNamespace:
+    def run_step(self):
         log = SimpleNamespace(
             step=1,
             operation="move",
@@ -81,7 +89,7 @@ class _FakeEngine:
         return log
 
 
-def _graph() -> Graph:
+def make_graph():
     graph = Graph()
     graph = graph.add_vertex(Vertex("A"))
     graph = graph.add_vertex(Vertex("B"))
@@ -89,22 +97,22 @@ def _graph() -> Graph:
     return graph
 
 
-def _daemon() -> TopologicalDaemon:
-    graph = _graph()
+def make_daemon():
+    graph = make_graph()
     daemon = TopologicalDaemon.__new__(TopologicalDaemon)
     daemon.k_active = graph
     daemon.k_full = graph
     daemon.settlement = SimpleNamespace(settled_cycles=[])
-    daemon.engine = _FakeEngine(graph)
-    daemon.terrain = {}
+    daemon.engine = FakeEngine(graph)
+    daemon.terrain = {{}}
     daemon.snet_activation = None
     daemon._persist = None
     daemon.total_steps = 0
     daemon.total_events = 0
     daemon.total_gaps_detected = 0
     daemon.event_log = []
-    daemon._callbacks = {"on_gap": [], "on_event": [], "on_feed": [], "on_step": []}
-    daemon._checkpoint = _NoopCheckpoint()
+    daemon._callbacks = {{"on_gap": [], "on_event": [], "on_feed": [], "on_step": []}}
+    daemon._checkpoint = NoopCheckpoint()
     daemon._beta_1_history = []
     daemon._local_f_history = []
     daemon._cumulative_delta_beta_1 = 0.0
@@ -119,26 +127,35 @@ def _daemon() -> TopologicalDaemon:
     daemon._last_snet_active_snapshot = set()
     daemon._instance_id = "test-instance"
     daemon._session_id = "test-session"
-    daemon.concept_names = {}
-    daemon.peer_positions = {}
+    daemon.concept_names = {{}}
+    daemon.peer_positions = {{}}
     return daemon
 
 
+{textwrap.indent(body, "")}
+"""
+    subprocess.run([sys.executable, "-c", script], check=True, capture_output=True, text=True)
+
+
 def test_shared_layer_step_without_new_settlement_does_not_crash() -> None:
-    daemon = _daemon()
-    daemon._shared_layer = _FakeSharedLayer()
-    daemon._cross_instance_sync = _FakeSync()
-
-    daemon._step()
-
-    assert daemon.total_steps == 1
+    _run_isolated_daemon_check(
+        """
+daemon = make_daemon()
+daemon._shared_layer = FakeSharedLayer()
+daemon._cross_instance_sync = FakeSync()
+daemon._step()
+assert daemon.total_steps == 1
+"""
+    )
 
 
 def test_shared_layer_position_write_failure_is_non_fatal() -> None:
-    daemon = _daemon()
-    daemon._shared_layer = _FakeSharedLayer(fail=True)
-    daemon._cross_instance_sync = _FakeSync()
-
-    daemon._write_traversal_position(SimpleNamespace(operation="fold"))
-
-    assert daemon._last_position_write_label == ""
+    _run_isolated_daemon_check(
+        """
+daemon = make_daemon()
+daemon._shared_layer = FakeSharedLayer(fail=True)
+daemon._cross_instance_sync = FakeSync()
+daemon._write_traversal_position(SimpleNamespace(operation="fold"))
+assert daemon._last_position_write_label == ""
+"""
+    )
