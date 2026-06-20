@@ -1,30 +1,23 @@
-//! **T 操作层引擎**（双向耦合多重赋格版：单核心 + 区间套 sink/recover 短差执行层）。
+//! **T 操作层引擎**（flat：单核心 + 区间套 sink/recover 短差执行层，含次级别空头腿）。
 //!
-//! ## 本次重写（修正上一版 c06db11942 的耦合方向错误）
-//! 上一版用「子级开独立 short 腿、父级 units 不动」实现耦合——这是**错的**（用户裁决 2026-06-19）：
-//! 那让子级是独立仓位、父级不减仓，丢失了 sink 的本质。本版改为**正确的双向耦合**（= 已验证的
-//! ε 对称 sink/recover 几何塔，记忆 `project_t_operation_self_replication` 里 OKLO +382 的赢家
-//! 语义），照搬 `fugue_v3::cycle`/`accounting` 的验证会计，但用更简的编排（无 σ-ascend/root，单核心
-//! = 最高活跃级别，parent = 最近活跃祖先）。
+//! ## 架构状态（2026-06-20 编排者裁决：递归重写为正式方向）
+//! 本文件是**当前 flat 实现**：`layers: Vec<Layer>`（绝对 ladder 数组）+ 中央 `route_bsp`。它对
+//! T 算子递归的「模拟」会产生绝对/相对裂缝（三失效点：买<卖 / 891noop / 50%平空率）。**正式重构
+//! 方向是递归自相似架构**（每级别一个 T 实例、父子局部通信、级别涌现 spawn、空头绑回调走势节点）——
+//! 设计见 `docs/recursive_t_architecture_v2.md`。本 flat 引擎是该递归设计的退化特例（单实例多 ladder
+//! + 单 free 池），在递归落码前继续作为回测基线。
 //!
-//! ## 双向耦合（用户 5 点）
-//! 1. **父级减仓下放**：父级持多时子级卖点 ⇒ 父级**真减仓 1/3**（`reduce_at`），把这 1/3「下放」次级
-//!    别做空（`add_at` flip 方向）。父级仍持多（剩 2/3），不翻空。
-//! 2. **子级不独立翻转**：子级是父级核心仓的**短差执行层**（H¹ 机动仓），不是独立仓位——子级永远
-//!    不独立 enter/flip。
-//! 3. **双向**：信号自下而上涌现（BSP 在各 ladder 出现），操作约束自上而下（区间套：子级语义由
-//!    父级状态决定）。
-//! 4. **向上查父级**：子级收 BSP ⇒ 查最近活跃祖先 P。P 持多 ⇒ 子级卖点=sink 做空 / 买点=recover 回补；
-//!    P 持空 ⇒ 子级买点=sink 做多 / 卖点=recover 回补（ε 镜像）。
-//! 5. **只有最高涌现级别独立翻转**：无活跃祖先的级别（= 最高活跃，core）才 enter/flip；其余全是子级。
+//! ## 次级别短差 = 减仓 + 开反向空头（编排者裁决保留空头腿，2026-06-20）
+//! 曾有"sink=减仓到现金、删空头"的改动尝试——**已被编排者否定并回退**（原文第26课:34"先卖后买与
+//! 先买后卖效果一样"、27课:136-140"次级别对冲"支持次级别开空；−89.7% 穿仓是 flat 架构的绝对/相对
+//! 错配，不是"开了太多空头"，递归架构把空头绑回调走势节点即正确管理）。故 sink/recover 保留空头腿。
 //!
 //! ## 三个 τ 原子（不硬编码四步循环，四步是涌现序列）
 //! - **sink**（子级 j 收反父向 BSP，父级 P 活跃）：`reduce_at(P, m=u_P/3)` + `add_at(j, m, flip(d_P))`。
 //!   父级减 1/3，次级别开反向短差 m。Δexposure：父 u_P→2u_P/3，子 0→u_P/3 反向 ⟹ 净敞口 = 2/3 父 − 1/3 父。
 //! - **recover**（子级 j 收同父向 BSP，j 持反父向短差）：`reduce_at(j, m=u_j)` + `add_at(P, m, d_P)`。
 //!   次级别走势完成 ⇒ **整条短差一次性平清**（全量 m=u_j，非 1/3 配额；编排者裁决 2026-06-19 方案②，
-//!   543号开放轴#1：recover=次级别走势了结范畴，仅 t_engine，不动 operate.rs/542 σ-不变守卫），资金全额
-//!   升回父级 ⟹ 核心仓恢复 sink 前水平。空头短差高开低平的 realized pnl 即降成本 alpha。
+//!   543号开放轴#1），资金全额升回父级 ⟹ 核心仓恢复 sink 前水平。空头短差高开低平的 realized pnl 即降成本。
 //! - **drain**（子级持**同父向**遗留仓，中间级别插入后出现）：反父向 BSP ⇒ `reduce_at(j, u_j/3)` 减暴露
 //!   （父级主导不翻转），排空后回归纯短差。
 //!
@@ -34,16 +27,12 @@
 //!
 //! ## 仓位递归（几何塔，由 sink sizing 自然涌现）
 //! sink 转移 = 父级 units/3 ⟹ 次级别 = 核心 1/3、次次级别 = 1/9 …… 相邻级别方向相反（手性交替，
-//! sink 穿 ε=−1）。高级别大仓吃趋势、低级别小仓做短差。
-//! 注（emergence 后）：手性交替仅在**连续占用段内**成立——`emergence_upgrade` 把核心 relabel
-//! 上移会留下 idle 间隙（如核心 4→7，留 5/6 idle），间隙两侧由 sink 填入的腿可同向
-//! （`max_chiral_same_dir` 观测之，非 panic）。故全局手性交替是**分段**不变量，非跨 idle 间隙的
-//! 全局不变量。
+//! sink 穿 ε=−1）。注（emergence 后）：手性交替仅在**连续占用段内**成立——`emergence_upgrade` 把核心
+//! relabel 上移会留下 idle 间隙，间隙两侧由 sink 填入的腿可同向（`max_chiral_same_dir` 观测之，非 panic）。
 //!
 //! ## 会计（单一共享 free 池，复用 `fugue_v3::accounting`）
 //! NAV = free + Σ_k sign(d_k)·u_k·c。每个 reduce_at/add_at 在同价 c 上 NAV 中性 ⟹ 总 NAV 逐 bar 守恒
 //! （`prove_nav_neutral`）。Σ|units| 仅 enter/flip/clear/liq 改，sink/recover 只级间转移（守恒）。
-//! 单一 free（非上一版的每级别独立池）——sink/recover 的资金在级别间流动，单池是诚实建模。
 //!
 //! ## 边界算子：1x 逐仓强平（每层独立，作用于任意持仓含短差腿）
 //! 多头 c≤basis/2 平掉；空头 c≥2·basis 爆仓。强平 → 该层归零现金。
@@ -131,6 +120,66 @@ impl TStage {
 
 // ════════════════════════════ T 操作层引擎 ════════════════════════════
 
+/// **BSP 操作诊断**（纯观测，不改任何会计逻辑）：逐 BSP 路由后按操作类型计数 + 核心层
+/// units 变化，回答「卖点触发时引擎做了什么（sink 减1/3 / drain 减1/3 / flip 翻空）」。
+#[derive(Default, Clone, Copy)]
+pub struct BspOpDiag {
+    // ── 卖点信号 → 操作 ──
+    pub sell_sink: u64,    // 子级卖点→sink（父多真减仓1/3，下放次级别做空）= 正确短差
+    pub sell_drain: u64,   // 子级卖点→drain（减暴露1/3，不翻转）
+    pub sell_recover: u64, // 子级卖点→recover（父空，平空头短差升回）
+    pub sell_flip: u64,    // 核心卖点→clear_all("flip")+enter(Short) = 清全塔翻空
+    pub sell_ascend: u64,  // 核心卖点→ascend（核心持空，更高 ladder 卖点骑乘）
+    pub sell_enter: u64,   // 全空卖点→enter(Short) 首次建空
+    pub sell_noop: u64,    // 卖点 no-op（不 pyramid）
+    // ── 买点信号 → 操作（对照）──
+    pub buy_sink: u64,
+    pub buy_drain: u64,
+    pub buy_recover: u64,
+    pub buy_flip: u64,
+    pub buy_ascend: u64,
+    pub buy_enter: u64,
+    pub buy_noop: u64,
+    // ── 翻转细节（Q3：强牛做空）──
+    pub flip_from_long: u64, // 卖点翻空时原核心**持多**（强牛中清牛市多头→做空，亏损风险）
+    pub flip_from_short: u64, // 买点翻多时原核心持空
+    pub flip_long_units_cleared: f64, // 翻空累计清掉的多头 units（核心仓被全清的量）
+    // ── 核心层 units 变化（Q2）──
+    pub sink_core_reduced_units: f64, // sink 中父级=最高活跃层（核心）时减的 units 累计（=Σ u_core/3）
+    pub n_sink_on_core: u64, // sink 父级就是核心层的次数（核心被短差直接减1/3）
+
+    // ════ 「回来」诊断（编排者2026-06-20：卖是对的，问题在平空+做多）════
+    /// 信号层密度（Q2：买点是否缺失）：各 ladder 收到的买/卖信号数（= view.buy/sell[j]）。
+    pub buy_sig_by_ladder: [u64; MAX_LADDER],
+    pub sell_sig_by_ladder: [u64; MAX_LADDER],
+    /// 买点触发但**没 recover**（Q3：平了空就停 / 买点落在错误 level）：子级买点触发，
+    /// 但 j 不持反父向短差 ⇒ 无空可平、无量升回父级 ⇒ noop（不做多回来）。
+    pub buy_noop_no_short: u64,
+    /// sink→recover 间隔（Q1：空头短差持仓时长 bar）。`last_sink_bar` 是内部状态（各 ladder
+    /// 最近一次 sink 开空的 bar，-1=无）；recover 时累计 (recover_bar − sink_bar)。
+    last_sink_bar: [i64; MAX_LADDER],
+    pub recover_interval_sum: f64,
+    pub recover_interval_count: u64,
+    pub recover_interval_max: i64,
+    /// 仍未平的 sink 空头（Q4：开了空没买回 = 核心未恢复）：sink 计数 − recover 计数（运行末）。
+    /// 核心层 recover 升回的 units 累计（Q4：核心仓恢复量，对照 sink_core_reduced_units）。
+    pub recover_core_restored_units: f64,
+    pub n_recover_on_core: u64,
+
+    // ════ 真空期/敞口诊断（编排者2026-06-20：绝对值敞口,零真空,绩效=Σ|涨跌幅|）════
+    /// 各 bar 敞口态计数（四者和 = 总 bar 数）。真空 = 所有 layer units≈0（完全无方向）。
+    pub n_vacuum_bars: u64,     // long≈0 ∧ short≈0（完全无敞口）
+    pub n_long_only_bars: u64,  // long>0 ∧ short≈0
+    pub n_short_only_bars: u64, // long≈0 ∧ short>0
+    pub n_both_bars: u64,       // long>0 ∧ short>0（多空同时）
+    /// 首/末有敞口 bar（-1=从未）。建仓前的真空是 warmup，不算执行断链。
+    pub first_active_bar: i64,
+    pub last_active_bar: i64,
+    /// 首次建仓后最长连续真空 run（bar 数）+ 内部当前 run 计数。
+    pub max_vacuum_gap: i64,
+    cur_vacuum_run: i64,
+}
+
 /// T 操作层引擎（双向耦合：单核心 + 区间套 sink/recover 短差执行层 + 持仓三阶段会计）。
 ///
 /// `layers[k]` 是 ladder k 的净仓位（复用 `fugue_v3::Layer`：单一 direction，相邻级别方向相反）。
@@ -164,6 +213,14 @@ pub struct TPositionEngine {
     withdrawn: f64,
     /// EarningShares 阶段累计可增股数的纯利润（free 的子账：earning_cash ≤ free 不变量）。
     earning_cash: f64,
+    /// 增股数开关（诊断 A/B 用）：env `T_NO_EARNING` 置位 ⇒ false（deploy_earning no-op，纯利润留 free
+    /// 不买回 units）——量化增股数对收益的贡献（编排者 2026-06-20 任务3）。默认 true。
+    enable_earning: bool,
+    /// 三阶段总开关（基线 A/B）：env `T_NO_THREESTAGE` ⇒ false（退本金不触发，stage 永 CostReduction，
+    /// 无全仓切换/无增股数 ⇒ 与三阶段前基线 bit-identical）。默认 true。
+    enable_three_stage: bool,
+    /// BSP 操作诊断（纯观测，恒开，零逻辑影响）：逐 BSP 按操作类型计数 + 核心 units 变化。
+    op_diag: BspOpDiag,
 }
 
 impl Default for TPositionEngine {
@@ -187,11 +244,24 @@ impl TPositionEngine {
             campaign_entry_cost: f64::NAN,
             withdrawn: 0.0,
             earning_cash: 0.0,
+            enable_earning: std::env::var("T_NO_EARNING").is_err(), // 诊断 A/B：T_NO_EARNING 关增股数
+            enable_three_stage: std::env::var("T_NO_THREESTAGE").is_err(), // A/B：关三阶段=基线
+            op_diag: BspOpDiag {
+                last_sink_bar: [-1; MAX_LADDER],
+                first_active_bar: -1,
+                last_active_bar: -1,
+                ..BspOpDiag::default()
+            },
         }
     }
 
     pub fn result(&self) -> &FugueResult {
         &self.res
+    }
+
+    /// BSP 操作诊断快照（纯观测）。
+    pub fn op_diag(&self) -> BspOpDiag {
+        self.op_diag
     }
 
     pub fn n_trades(&self) -> usize {
@@ -255,8 +325,9 @@ impl TPositionEngine {
                                 .max(0.0) as u64;
                             self.res.max_core_gain_x1000 = self.res.max_core_gain_x1000.max(drop);
                         }
-                        if self.core_cost_basis <= 0.0 {
+                        if self.core_cost_basis <= 0.0 && self.enable_three_stage {
                             // 退本金：cost_basis 穿 0（点2，纯状态切换，无额外交易）。
+                            // T_NO_THREESTAGE 时不触发 ⇒ stage 永 CostReduction = 基线（cost_basis 仍记观测）。
                             self.stage = TStage::CapitalRecovered;
                             self.res.n_capital_recovered += 1;
                             self.try_withdraw_capital(c);
@@ -311,7 +382,7 @@ impl TPositionEngine {
     /// EarningShares 阶段在买点把 earning_cash 全额买成核心层（`core`）新 units（AmountConserving，
     /// Σ|units| 单调增）。NAV 中性（free→units·c）。
     fn deploy_earning(&mut self, core: usize, bar: i64, c: f64) {
-        if self.stage != TStage::EarningShares || c <= 0.0 {
+        if !self.enable_earning || self.stage != TStage::EarningShares || c <= 0.0 {
             return;
         }
         let cash = self.earning_cash.min(self.free.max(0.0));
@@ -326,6 +397,8 @@ impl TPositionEngine {
         add_at(&mut self.layers, core, q, Polarity::Long, &mut self.free, c, bar, &mut self.res);
         self.earning_cash -= q * c;
         self.res.n_earning_deploys += 1;
+        self.res.earning_units_added += q; // 量化：增股数累计加的 units（任务3）
+        self.res.earning_cash_deployed += q * c; // 量化：增股数累计部署的现金
     }
 
     /// campaign 结束（flip/clear/eod）：归还 withdrawn 到 free，重置三阶段状态。
@@ -472,9 +545,7 @@ impl TPositionEngine {
 
     /// **recover @ (sub→parent)**（σ∘τ，ε 对称）：次级别走势完成 ⇒ **整条短差平清** m=u_sub（全量），
     /// 资金全额升回父级 d_P 方向。编排者裁决 2026-06-19（方案②，543号开放轴#1）：次级别买点=次级别走势
-    /// **完成**（0/1 事件，非配额事件）⟹ 全量了结而非 σ-不变 1/3。这与 `fugue_v3::cycle::recover_chunk`
-    /// 的 σ-对称 1/3 配额**有意分歧**——本裁决仅作用于 t_engine（recover=了结范畴），不动 operate.rs/542
-    /// `prove_sigma_quota` 守卫。
+    /// **完成**（0/1 事件，非配额事件）⇒ 全量了结而非 σ-不变 1/3。
     fn recover(&mut self, parent: usize, sub: usize, bar: i64, c: f64) {
         let pdir = self.layers[parent].direction;
         let mob = flip(pdir);
@@ -490,18 +561,16 @@ impl TPositionEngine {
         reduce_at(&mut self.layers, sub, m, &mut self.free, c, bar, &mut self.res, "recover");
         add_at(&mut self.layers, parent, m, pdir, &mut self.free, c, bar, &mut self.res);
         self.res.n_cycle_closes_by_ladder[parent] += 1;
-        // 核算 sub reduce 的 realized：sub=反父向短差腿（父多→sub空）⇒ 短差单独算，**不入降成本**（点5）。
+        // 核算 sub reduce 的 realized：sub=反父向短差腿⇒ 短差单独算，**不入降成本**。
         self.account_reduce(mob, self.realized_total() - r0, c);
-        // ③ 增股数：EarningShares 阶段 recover = 买点（缠师"跌回来全补进去"），部署纯利润买更多核心 units。
+        // ③ 增股数：EarningShares 阶段 recover = 买点，部署纯利润买更多核心 units。
         if pdir == Polarity::Long {
             self.deploy_earning(parent, bar, c);
         }
     }
 
     /// **drain @ j**：子级持同父向遗留仓 → 反父向 BSP 减暴露 1/3（不翻转，父级主导）。
-    /// 三阶段重定义（设计文档 §5.2，读法 A）：drain 不再是死现金——其 realized 银行进 campaign：
-    /// CostReduction 阶段降 cost_basis（计入 realized_campaign），EarningShares 阶段入 earning_cash
-    /// 待下一买点（recover）增股数。
+    /// drain 的 realized 银行进 campaign：CostReduction 降 cost_basis，EarningShares 入 earning_cash。
     fn drain(&mut self, j: usize, bar: i64, c: f64) {
         let u = self.layers[j].units;
         let m = mobile_quota(u);
@@ -530,14 +599,48 @@ impl TPositionEngine {
                 if is_reduce {
                     // 反父向 BSP：sink（空/已是短差）或 drain（遗留同父向仓）。
                     if !self.layers[j].is_active() || self.layers[j].direction == mob {
+                        let p_is_core = self.highest_active() == Some(p);
+                        let m = mobile_quota(self.layers[p].units);
                         self.sink(p, j, bar, c);
+                        let opened = self.layers[j].is_active() && self.layers[j].direction == mob;
+                        let d = &mut self.op_diag;
+                        if is_buy { d.buy_sink += 1 } else { d.sell_sink += 1 }
+                        if opened {
+                            d.last_sink_bar[j] = bar;
+                        }
+                        if p_is_core {
+                            d.n_sink_on_core += 1;
+                            d.sink_core_reduced_units += m;
+                        }
                     } else {
                         self.drain(j, bar, c);
+                        if is_buy { self.op_diag.buy_drain += 1 } else { self.op_diag.sell_drain += 1 }
                     }
                 } else {
-                    // 同父向 BSP：recover（j 持短差则平 1/3 升回）；否则 no-op（不 pyramid）。
+                    // 同父向 BSP：recover（j 持短差则平整条升回父级）；否则 no-op（不 pyramid）。
                     if self.layers[j].is_active() && self.layers[j].direction == mob {
+                        let m = self.layers[j].units;
+                        let p_is_core = self.highest_active() == Some(p);
+                        let sb = self.op_diag.last_sink_bar[j];
                         self.recover(p, j, bar, c);
+                        let d = &mut self.op_diag;
+                        if is_buy { d.buy_recover += 1 } else { d.sell_recover += 1 }
+                        if sb >= 0 {
+                            let iv = bar - sb;
+                            d.recover_interval_sum += iv as f64;
+                            d.recover_interval_count += 1;
+                            d.recover_interval_max = d.recover_interval_max.max(iv);
+                            d.last_sink_bar[j] = -1;
+                        }
+                        if p_is_core {
+                            d.n_recover_on_core += 1;
+                            d.recover_core_restored_units += m;
+                        }
+                    } else if is_buy {
+                        self.op_diag.buy_noop += 1;
+                        self.op_diag.buy_noop_no_short += 1;
+                    } else {
+                        self.op_diag.sell_noop += 1
                     }
                 }
             }
@@ -545,18 +648,39 @@ impl TPositionEngine {
             None => {
                 let dir = if is_buy { Polarity::Long } else { Polarity::Short };
                 match self.highest_active() {
-                    None => self.enter(j, dir, bar, c), // 首次建仓
+                    None => {
+                        self.enter(j, dir, bar, c); // 首次建仓
+                        if is_buy { self.op_diag.buy_enter += 1 } else { self.op_diag.sell_enter += 1 }
+                    }
                     Some(cc) => {
                         let cdir = self.layers[cc].direction;
                         if dir == cdir {
                             // 同向：更高空 ladder ⇒ ascend 骑乘；同 ladder ⇒ no-op。
                             if j > cc && !self.layers[j].is_active() {
                                 self.ascend(cc, j);
+                                if is_buy { self.op_diag.buy_ascend += 1 } else { self.op_diag.sell_ascend += 1 }
+                            } else if is_buy {
+                                self.op_diag.buy_noop += 1
+                            } else {
+                                self.op_diag.sell_noop += 1
                             }
                         } else {
                             // 反向：核心翻转（走势终完美→新走势）——清全塔 + 同 ladder 反向 enter。
+                            // 诊断（观测）：翻转方向 + 清掉的多头 units（强牛中卖点翻空 = 清牛市多头做空）。
+                            let long_cleared = self.core_long_units();
                             self.clear_all(bar, c, "flip");
                             self.enter(j, dir, bar, c);
+                            let d = &mut self.op_diag;
+                            if is_buy {
+                                d.buy_flip += 1;
+                                d.flip_from_short += 1; // 原核心持空（cdir≠Long）
+                            } else {
+                                d.sell_flip += 1;
+                                if cdir == Polarity::Long {
+                                    d.flip_from_long += 1; // 卖点翻空且原核心持多 = 强牛做空风险
+                                    d.flip_long_units_cleared += long_cleared;
+                                }
+                            }
                         }
                     }
                 }
@@ -630,6 +754,13 @@ impl TPositionEngine {
         for j in (0..MAX_LADDER).rev() {
             let b = view.buy[j];
             let s = view.sell[j];
+            // 信号层密度（观测，Q2：各 ladder 买/卖信号数；冲突信号也计入，反映原始信号）。
+            if b {
+                self.op_diag.buy_sig_by_ladder[j] += 1;
+            }
+            if s {
+                self.op_diag.sell_sig_by_ladder[j] += 1;
+            }
             if b && s {
                 continue; // 同 bar 同 ladder 买卖冲突 → 跳过（歧义）
             }
@@ -650,6 +781,27 @@ impl TPositionEngine {
         }
         if short_u > 0.0 {
             self.res.phys_short_bars += 1;
+        }
+        // 真空期/敞口态（编排者：绝对值敞口,零真空）。四态互斥，和=总 bar。
+        let has_long = long_u > 1e-12;
+        let has_short = short_u > 1e-12;
+        let d = &mut self.op_diag;
+        match (has_long, has_short) {
+            (false, false) => d.n_vacuum_bars += 1,
+            (true, false) => d.n_long_only_bars += 1,
+            (false, true) => d.n_short_only_bars += 1,
+            (true, true) => d.n_both_bars += 1,
+        }
+        if has_long || has_short {
+            if d.first_active_bar < 0 {
+                d.first_active_bar = bar;
+            }
+            d.last_active_bar = bar;
+            d.cur_vacuum_run = 0;
+        } else if d.first_active_bar >= 0 {
+            // 首次建仓后的真空（执行断链候选）：累计连续 run，记最长。
+            d.cur_vacuum_run += 1;
+            d.max_vacuum_gap = d.max_vacuum_gap.max(d.cur_vacuum_run);
         }
         for l in &self.layers {
             if l.units > 1e-12 && l.direction == Polarity::Short {
@@ -821,11 +973,9 @@ mod tests {
         eng.step(&buy_view(6), 0, 100.0); // 核心 Long@6
         let u6 = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 100.0); // 子级 5 卖点（父6持多）→ sink
-        // 父级**真减仓** 1/3（关键：上一版错在父级不动）。
         assert!((eng.layers[6].units - u6 * 2.0 / 3.0).abs() < 1e-6, "父级减到 2/3，得 {}", eng.layers[6].units);
         assert_eq!(eng.layers[5].direction, Polarity::Short, "次级别开反向短差");
         assert!((eng.layers[5].units - u6 / 3.0).abs() < 1e-6, "短差 = 1/3 父级 units（下放）");
-        // 净多头敞口 = 2/3 父；空 = 1/3 父。
         let (lu, su) = exposure(&eng.layers);
         assert!((lu - u6 * 2.0 / 3.0).abs() < 1e-6 && (su - u6 / 3.0).abs() < 1e-6);
     }
@@ -834,32 +984,27 @@ mod tests {
     fn recover_父持多子买点短差全平清升回父级() {
         let mut eng = TPositionEngine::new();
         eng.step(&buy_view(6), 0, 100.0);
-        let u6_core = eng.layers[6].units; // sink 前的核心仓
-        eng.step(&sell_view(5), 10, 100.0); // sink：父6→2/3，子5 短差空 1/3
+        let u6_core = eng.layers[6].units;
+        eng.step(&sell_view(5), 10, 100.0);
         let u6_after_sink = eng.layers[6].units;
         let u5_short = eng.layers[5].units;
-        eng.step(&buy_view(5), 20, 90.0); // 子级买点 → recover（整条短差平清，全量升回）
-        // 子级短差全平清（次级别走势完成，方案②全量了结）。
+        eng.step(&buy_view(5), 20, 90.0);
         assert!(eng.layers[5].units < 1e-9, "短差全平清，得 {}", eng.layers[5].units);
-        // 父级全额升回：u6_after_sink + u5_short = 恢复 sink 前核心仓。
         assert!(
             (eng.layers[6].units - (u6_after_sink + u5_short)).abs() < 1e-6,
             "父级全额升回核心仓"
         );
         assert!((eng.layers[6].units - u6_core).abs() < 1e-6, "核心仓恢复 sink 前水平");
-        // 短差空 100→90 降价回补盈利。
         let mob = eng.result().mobile_realized_pnl_by_ladder[5];
         assert!(mob > 0.0, "短差降价回补盈利，得 {mob}");
     }
 
     #[test]
     fn 子级永不独立翻转_父持多子卖点是sink非独立做空() {
-        // 子级 5 在父级 6 持多时收卖点：必须是 sink（父级减仓），而非独立全仓做空。
         let mut eng = TPositionEngine::new();
         eng.step(&buy_view(6), 0, 100.0);
         let u6 = eng.layers[6].units;
         eng.step(&sell_view(5), 10, 100.0);
-        // 若是独立做空，子级 units 会是 free/c 量级（远大于 1/3 父级）；sink 则恰好 1/3 父级。
         assert!((eng.layers[5].units - u6 / 3.0).abs() < 1e-6, "子级短差恰 1/3 父级（非独立全仓）");
         assert!(eng.layers[6].units < u6, "父级被减仓（非独立做空时父级不动）");
     }
@@ -869,30 +1014,27 @@ mod tests {
     #[test]
     fn 四步循环_完整齿轮咬合() {
         let mut eng = TPositionEngine::new();
-        eng.step(&buy_view(6), 0, 100.0); // ① 高级别买点建核心多
+        eng.step(&buy_view(6), 0, 100.0);
         let u6 = eng.layers[6].units;
-        eng.step(&sell_view(5), 10, 105.0); // ② 次级别卖点 → 父减仓 1/3 + 次级别做空
+        eng.step(&sell_view(5), 10, 105.0);
         assert!((eng.layers[6].units - u6 * 2.0 / 3.0).abs() < 1e-6);
         assert_eq!(eng.layers[5].direction, Polarity::Short);
-        eng.step(&buy_view(5), 20, 100.0); // ③ 次级别买点 → recover 平空回补升回
+        eng.step(&buy_view(5), 20, 100.0);
         assert_eq!(eng.layers[6].direction, Polarity::Long, "核心仍持多");
-        eng.step(&sell_view(6), 30, 120.0); // ④ 高级别卖点 → 核心翻空
+        eng.step(&sell_view(6), 30, 120.0);
         assert_eq!(eng.layers[6].direction, Polarity::Short, "核心方向变");
     }
 
     #[test]
     fn 手性几何塔_相邻级别方向相反() {
-        // 核心 Long@6 → sink 到 5（Short）→ 5 作父 sink 到 4（Long）。塔：6 Long / 5 Short / 4 Long。
         let mut eng = TPositionEngine::new();
         eng.step(&buy_view(6), 0, 100.0);
-        eng.step(&sell_view(5), 10, 100.0); // 5 = flip(Long) = Short（父6多→卖点sink）
-        let u5_at_sink = eng.layers[5].units; // 4 从 5 sink 前，5 的 units
-        // 5 现持 Short；对 4 而言父级是 5（Short），4 买点 = 反父向(父空买点=减仓) → sink 做多。
+        eng.step(&sell_view(5), 10, 100.0);
+        let u5_at_sink = eng.layers[5].units;
         eng.step(&buy_view(4), 20, 100.0);
         assert_eq!(eng.layers[6].direction, Polarity::Long);
         assert_eq!(eng.layers[5].direction, Polarity::Short, "相邻反向");
         assert_eq!(eng.layers[4].direction, Polarity::Long, "手性交替");
-        // 几何塔：4 从 5 sink ⟹ u4 = u5(sink前)/3，u5 被减到 2/3（父级真减仓）。
         assert!((eng.layers[4].units - u5_at_sink / 3.0).abs() < 1e-6, "次次级别 = sink时次级别 1/3");
         assert!((eng.layers[5].units - u5_at_sink * 2.0 / 3.0).abs() < 1e-6, "次级别被次次级别 sink 减到 2/3");
     }
@@ -933,10 +1075,10 @@ mod tests {
     #[test]
     fn 短差空头价格翻倍爆仓() {
         let mut eng = TPositionEngine::new();
-        eng.step(&buy_view(6), 0, 100.0); // 核心多
-        eng.step(&sell_view(5), 10, 100.0); // 子5 短差空 @100
+        eng.step(&buy_view(6), 0, 100.0);
+        eng.step(&sell_view(5), 10, 100.0);
         assert_eq!(eng.layers[5].direction, Polarity::Short);
-        eng.step(&TSignalView::empty(), 20, 200.0); // c≥2×basis 短差空爆仓
+        eng.step(&TSignalView::empty(), 20, 200.0);
         assert_eq!(eng.res.n_liquidations_by_ladder[5], 1, "短差空腿强平");
         assert!(!eng.layers[5].is_active(), "短差归零");
     }
@@ -967,17 +1109,16 @@ mod tests {
 
     #[test]
     fn 三阶段_核心高位卖出降cost_basis_短差腿单独算() {
-        // 编排者裁决点1/点5：sink 高位卖核心 → realized 降 cost_basis；recover 平短差 → 单独算不入降成本。
         let mut eng = TPositionEngine::new();
-        eng.step(&buy_view(6), 0, 100.0); // cost_basis=100
+        eng.step(&buy_view(6), 0, 100.0);
         let cb0 = eng.cost_basis();
-        eng.step(&sell_view(5), 10, 150.0); // sink：父6 高位卖核心1/3@150 → realized=(150-100)×m 降 cost_basis
+        eng.step(&sell_view(5), 10, 150.0);
         let cb1 = eng.cost_basis();
         assert!(cb1 < cb0 - 1.0, "核心高位卖出降 cost_basis：{cb1} < {cb0}");
         assert_eq!(eng.stage(), TStage::CostReduction, "单次远未退本金");
         let sl0 = eng.result().short_leg_pnl;
-        eng.step(&buy_view(5), 20, 130.0); // recover：平短差空（短差腿 pnl）+ 回补核心
-        assert!((eng.cost_basis() - cb1).abs() < 1e-6, "recover 平短差**不改 cost_basis**（点5 短差腿单独算）");
+        eng.step(&buy_view(5), 20, 130.0);
+        assert!((eng.cost_basis() - cb1).abs() < 1e-6, "recover 平短差不改 cost_basis（短差腿单独算）");
         assert!((eng.result().short_leg_pnl - sl0).abs() > 1e-9, "短差腿 pnl 单独累计");
     }
 
@@ -1063,12 +1204,11 @@ mod tests {
         let mut eng = TPositionEngine::new();
         let (mut bar, p) = drive_to_earning(&mut eng);
         assert_eq!(eng.stage(), TStage::EarningShares, "已进增股数（全仓模式）");
-        // 开短差腿（sink）@p，再把价格推到 2.5×（逐仓下 c≥2×basis 会爆）。
         eng.step(&sell_view(5), bar, p);
         bar += 1;
         let short_opened = eng.layers[5].is_active() && eng.layers[5].direction == Polarity::Short;
         let liq_before = eng.res.n_liquidations_by_ladder[5];
-        eng.step(&TSignalView::empty(), bar, p * 2.5); // 全仓：核心多头主导 NAV>0，不连锁，短差腿存活
+        eng.step(&TSignalView::empty(), bar, p * 2.5);
         if short_opened {
             assert_eq!(
                 eng.res.n_liquidations_by_ladder[5], liq_before,

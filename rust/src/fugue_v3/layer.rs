@@ -106,6 +106,10 @@ pub struct FugueResult {
     pub n_campaign_resets: u64,
     /// 短差腿（Short reduce：做空→平空）累计已实现 pnl——**单独核算，不入降成本**（编排者裁决点5）。
     pub short_leg_pnl: f64,
+    /// 增股数累计加的 units（EarningShares deploy_earning Σq）——量化增股数对股数的实际效果（任务3）。
+    pub earning_units_added: f64,
+    /// 增股数累计部署的现金（Σq·c）——增股数贡献 ≈ earning_units_added×末价 − 此（vs 留现金 idle）。
+    pub earning_cash_deployed: f64,
 
     // ── 闭合 + 多声部观测 ──
     /// CrossLevel 闭合数（每次 τ 转移 Δr=−1）。

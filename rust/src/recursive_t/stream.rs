@@ -236,6 +236,11 @@ impl TFugueStreamCore {
         self.engine.result()
     }
 
+    /// BSP 操作诊断快照（纯观测：逐 BSP 操作类型计数 + 核心 units 变化）。
+    pub fn op_diag(&self) -> super::t_engine::BspOpDiag {
+        self.engine.op_diag()
+    }
+
     pub fn n_trades(&self) -> usize {
         self.engine.n_trades()
     }
