@@ -320,6 +320,16 @@ impl TRoot {
         (lu, su)
     }
 
+    /// 校验 TRef 有效并返回槽（driver 遍历链用，§1.3 防 ABA）。失效返回 None。
+    pub fn resolve_ref(&self, r: TRef) -> Option<usize> {
+        self.resolve(r)
+    }
+
+    /// 取槽位的 TRef（带当前 generation，driver 调 recover 用）。
+    pub fn ref_of(&self, slot: usize) -> TRef {
+        self.instances[slot].self_ref(slot)
+    }
+
     /// 校验 TRef 有效（generation 一致，§1.3 防 ABA）。失效返回 None。
     fn resolve(&self, r: TRef) -> Option<usize> {
         self.instances
@@ -529,9 +539,10 @@ impl TRoot {
         true
     }
 
-    /// **spawn**（最高级别走势完成 + 找到更大容器 ∧ 方向一致）：在涌现的更高走势 node 上建新父 T，
-    /// 当前 root 降为新父 child。**零现金零股数**（仓位来自后续升回，平凡 TW 中性，§2.4/§3.3）。
-    /// 返回新父槽。方向不一致 → 返回 None（调用方应走 flip，§3.5 第三态）。
+    /// **spawn = relabel 升格**（更高同向走势涌现，§4.3 + flat emergence_upgrade 已验证语义）：核心持仓
+    /// **整体迁到**更高走势 node 的新实例（units/basis/cost_basis/campaign/回调链全继承），老 root → dormant。
+    /// 核心骑上更高级别走势（相对级别升一层），**零现金流**（仓位身份迁移，同价 TW 中性）。返回新 root 槽。
+    /// 方向不一致（涌现反向 = 29课情况三）→ 返回 None（调用方应走 flip，§3.5 第三态）。
     pub fn spawn(&mut self, higher_node: TrendNode, c: f64, bar: i64) -> Option<usize> {
         let _ = bar;
         let root = self.root_slot?;
@@ -541,26 +552,34 @@ impl TRoot {
             return None;
         }
         let tw_pre = self.total_wealth(c);
+        let old = self.instances[root].clone();
         let new_slot = self.alloc_slot();
         {
             let np = &mut self.instances[new_slot];
             np.node = higher_node;
-            np.direction = new_dir;
-            np.units = 0.0; // 零股数（来自后续升回）
-            np.basis = f64::NAN;
-            np.cost_basis = f64::NAN;
-            np.phase = RecStage::CostReduction;
+            np.direction = old.direction;
+            np.units = old.units; // 持仓整体继承（relabel，非新建）
+            np.basis = old.basis;
+            np.cost_basis = old.cost_basis;
+            np.phase = old.phase;
+            np.notional_in = old.notional_in;
+            np.withdrawn = old.withdrawn;
+            np.earning = old.earning;
             np.lifecycle = TLifecycle::Active;
             np.parent = None;
-            np.notional_in = 0.0;
+            np.child = old.child; // 回调链继承
         }
-        let nref = self.instances[new_slot].self_ref(new_slot);
-        let rref = self.instances[root].self_ref(root);
-        self.instances[new_slot].child = Some(rref);
-        self.instances[root].parent = Some(nref);
+        // 老 root 的回调子 T（若有）parent 重指向新实例。
+        if let Some(cref) = old.child {
+            if let Some(cslot) = self.resolve(cref) {
+                let nref = self.instances[new_slot].self_ref(new_slot);
+                self.instances[cslot].parent = Some(nref);
+            }
+        }
+        self.dormant_instance(root);
         self.root_slot = Some(new_slot);
         self.n_spawns += 1;
-        self.prove_tw_neutral(tw_pre, c); // 零现金零股数，平凡中性
+        self.prove_tw_neutral(tw_pre, c); // 持仓同价迁移，TW 中性
         Some(new_slot)
     }
 
@@ -731,16 +750,31 @@ mod tests {
     // ──────────────── spawn / flip（base case）────────────────
 
     #[test]
-    fn spawn_涌现更高走势_零现金升回新父_方向一致() {
+    fn spawn_涌现更高走势_relabel继承持仓_方向一致() {
         let mut r = TRoot::new(100_000.0);
-        let p = r.enter(up_node(0, 10), 100.0, 0).unwrap();
+        let p = r.enter(up_node(5, 10), 100.0, 0).unwrap();
+        let u0 = r.instances[p].units;
         let tw = r.total_wealth(100.0);
-        // 涌现更高 Up 走势（方向一致）→ spawn 新父，root 降为 child。
+        // 涌现更高 Up 走势（start_bar 更早=包含 root，方向一致）→ spawn relabel 升格。
         let np = r.spawn(up_node(0, 20), 100.0, 20).unwrap();
-        assert_eq!(r.root_slot, Some(np), "新父成为 root");
-        assert!((r.instances[np].units).abs() < 1e-9, "新父零股数（来自后续升回）");
-        assert_eq!(r.instances[np].child, Some(r.instances[p].self_ref(p)), "原 root 降为 child");
-        assert!((r.total_wealth(100.0) - tw).abs() < 1e-9, "spawn 零现金 TW 中性");
+        assert_eq!(r.root_slot, Some(np), "新实例成为 root");
+        assert_ne!(np, p, "relabel 到新槽");
+        assert!((r.instances[np].units - u0).abs() < 1e-9, "持仓整体继承（relabel 非新建零仓）");
+        assert_eq!(r.instances[np].direction, Polarity::Long);
+        assert!(!r.instances[p].is_active(), "老 root → dormant");
+        assert!((r.total_wealth(100.0) - tw).abs() < 1e-9, "spawn relabel 零现金 TW 中性");
+    }
+
+    #[test]
+    fn spawn_继承回调链_子T_parent重指向() {
+        let mut r = TRoot::new(100_000.0);
+        let p = r.enter(up_node(5, 10), 100.0, 0).unwrap();
+        let child = r.sink(p, down_node(10, 15), 100.0, 10).unwrap(); // root 有回调子 T
+        let np = r.spawn(up_node(0, 20), 100.0, 20).unwrap();
+        // 回调链继承：新 root.child 指向原子 T，子 T.parent 重指向新 root。
+        assert!(r.instances[np].child.is_some(), "新 root 继承回调链");
+        assert_eq!(r.instances[child].parent.unwrap().slot, np, "子 T.parent 重指向新 root");
+        assert!(r.instances[child].is_active(), "子 T 短头存活");
     }
 
     #[test]
