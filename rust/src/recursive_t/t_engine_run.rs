@@ -271,6 +271,13 @@ fn t_engine_8x3() {
                     res.n_emergence_upgrades
                 );
             }
+            // 持仓三阶段观测（137号 make-decision-observable）：退本金触发/增股数部署/累计退本金。
+            // n_capital_recovered=0 ⇒ 三阶段在该标的有效域为空（退本金从未触发，回测 bit-identical 基线）。
+            eprintln!(
+                "      └ 三阶段: 退本金={} 增股数={} 翻转={} 降成本进度峰值={:.3}（=1.0⇒成本曾归0退本金）短差腿pnl={:.0}（单独算）",
+                res.n_capital_recovered, res.n_earning_deploys, res.n_campaign_resets,
+                res.max_core_gain_x1000 as f64 / 1000.0, res.short_leg_pnl
+            );
         }
         rows.push(row);
     }
@@ -353,4 +360,294 @@ fn t_engine_8x3() {
     println!("================================================================\n");
 
     assert!(!rows.is_empty(), "至少跑出一个标的");
+}
+
+/// **诊断（信号层结构 dump）**：跑 orchestrator → batch `iterate`，dump T 每个 level 的走势类型
+/// （UpTrend/DownTrend/Consolidation，含 completed）+ 中枢数 + BSP kind 分布。回答「核心层
+/// （lad6/7=level 3/4）卖点 fire 后同级别有没有产出下跌走势类型」。structural 模式（与
+/// trades.json 同口径）；batch 最终塔 = stream 最后一次 rerun 塔（同 segments，纯结构不读 MACD）。
+///
+/// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::t_engine_run::t_level_structure_dump -- --ignored --nocapture`
+#[test]
+#[ignore = "诊断: dump T per-level 结构（走势类型/中枢/BSP），BT_SYMBOLS 选标的"]
+fn t_level_structure_dump() {
+    use super::backtest::build_a0_from_segments;
+    use super::iterate;
+    use super::types::{BSPKind, PerfectionMode, TrendKind};
+    use crate::orchestrator::RecursiveOrchestrator;
+
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("analysis/data_cache");
+    let sym = std::env::var("BT_SYMBOLS").unwrap_or_else(|_| "BTC".into());
+    let file = SYMBOLS
+        .iter()
+        .find(|(s, _)| s.eq_ignore_ascii_case(&sym))
+        .map(|(_, f)| *f)
+        .unwrap_or_else(|| panic!("未知标的 {sym}"));
+    let path = data_dir.join(file);
+    let (o, h, l, c) = load_clean_ohlc(&path);
+    let n = c.len();
+    eprintln!("[{sym}] bars={n} 跑 orchestrator…");
+    let mut orch = RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false);
+    for i in 0..n {
+        orch.process_bar(o[i], h[i], l[i], c[i]);
+    }
+    let segs = orch.segments();
+    let m2r = orch.merged_to_raw();
+    let a0 = build_a0_from_segments(segs, m2r, &c);
+    eprintln!("[{sym}] confirmed&&settled 段(a0)={} 单元，iterate(structural)…", a0.len());
+    let tree = iterate(a0, PerfectionMode::Structural);
+
+    let disc = |k: BSPKind| -> usize {
+        match k {
+            BSPKind::Type1Buy => 0,
+            BSPKind::Type1Sell => 1,
+            BSPKind::Type2Buy => 2,
+            BSPKind::Type2Sell => 3,
+            BSPKind::Type3Buy => 4,
+            BSPKind::Type3Sell => 5,
+        }
+    };
+    let names = ["t1buy", "t1sell", "t2buy", "t2sell", "t3buy", "t3sell"];
+
+    eprintln!("\n===== T per-level 结构 dump ({sym}, structural) =====");
+    eprintln!(
+        "ceiling(最高完整走势级别 r*) = {}  总 level 数 = {}",
+        tree.emergent_ceiling(),
+        tree.levels.len()
+    );
+    for (k, lvl) in tree.levels.iter().enumerate() {
+        let ladder = k + BASE_LADDER;
+        let (mut up, mut down, mut cons) = (0u64, 0u64, 0u64);
+        let (mut upc, mut downc, mut consc) = (0u64, 0u64, 0u64);
+        for t in &lvl.trends {
+            match t.kind {
+                TrendKind::UpTrend => {
+                    up += 1;
+                    if t.completed {
+                        upc += 1
+                    }
+                }
+                TrendKind::DownTrend => {
+                    down += 1;
+                    if t.completed {
+                        downc += 1
+                    }
+                }
+                TrendKind::Consolidation => {
+                    cons += 1;
+                    if t.completed {
+                        consc += 1
+                    }
+                }
+            }
+        }
+        let mut bc = [0u64; 6];
+        for b in &lvl.bsps {
+            bc[disc(b.kind)] += 1;
+        }
+        let bsp_str: Vec<String> = (0..6)
+            .filter(|&i| bc[i] > 0)
+            .map(|i| format!("{}={}", names[i], bc[i]))
+            .collect();
+        eprintln!(
+            "level {k} (lad{ladder}): 走势 ↑Up={up}(完{upc}) ↓Down={down}(完{downc}) ↔Cons={cons}(完{consc}) | 中枢={} | BSP: {}",
+            lvl.centers.len(),
+            if bsp_str.is_empty() { "无".into() } else { bsp_str.join(" ") }
+        );
+    }
+    eprintln!("================================================\n");
+}
+
+/// **诊断（下跌走势背驰逐条件）**：对 lad6/lad5（level 3/2）的每个趋势走势（UpTrend/DownTrend）
+/// 重算第37课 5 条件（镜像 `judge_trend_divergence`），打印哪个条件 fail，对比上涨/下跌方向。
+/// 回答「为什么下跌走势在 lad6 从未产出 type1_buy」。
+///
+/// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::t_engine_run::t_downtrend_diagnosis -- --ignored --nocapture`
+#[test]
+#[ignore = "诊断: lad6/5 下跌走势逐条件背驰诊断"]
+fn t_downtrend_diagnosis() {
+    use super::backtest::build_a0_from_segments;
+    use super::divergence::judge_divergence;
+    use super::iterate;
+    use super::types::{Direction, PerfectionMode, TrendKind, Unit};
+    use crate::orchestrator::RecursiveOrchestrator;
+
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("analysis/data_cache");
+    let sym = std::env::var("BT_SYMBOLS").unwrap_or_else(|_| "BTC".into());
+    let file = SYMBOLS
+        .iter()
+        .find(|(s, _)| s.eq_ignore_ascii_case(&sym))
+        .map(|(_, f)| *f)
+        .unwrap_or_else(|| panic!("未知标的 {sym}"));
+    let (o, h, l, c) = load_clean_ohlc(&data_dir.join(file));
+    let n = c.len();
+    eprintln!("[{sym}] bars={n} 跑 orchestrator + iterate…");
+    let mut orch = RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false);
+    for i in 0..n {
+        orch.process_bar(o[i], h[i], l[i], c[i]);
+    }
+    let a0 = build_a0_from_segments(orch.segments(), orch.merged_to_raw(), &c);
+    let tree = iterate(a0, PerfectionMode::Structural);
+
+    fn leg_strength(units: &[Unit]) -> f64 {
+        let nest: usize = units.iter().map(|u| u.inner_zhongshu_count).sum();
+        if nest > 0 {
+            nest as f64
+        } else {
+            let hi = units.iter().map(|u| u.high).fold(f64::MIN, f64::max);
+            let lo = units.iter().map(|u| u.low).fold(f64::MAX, f64::min);
+            hi - lo
+        }
+    }
+    fn leg_ext(units: &[Unit], dir: Direction) -> f64 {
+        match dir {
+            Direction::Up => units.iter().map(|u| u.high).fold(f64::MIN, f64::max),
+            Direction::Down => units.iter().map(|u| u.low).fold(f64::MAX, f64::min),
+        }
+    }
+
+    for lvl_idx in [3usize, 2, 1] {
+        if lvl_idx >= tree.levels.len() {
+            continue;
+        }
+        let lvl = &tree.levels[lvl_idx];
+        eprintln!("\n===== level {lvl_idx} (lad{}) 趋势走势逐条件诊断 =====", lvl_idx + 3);
+        for (i, t) in lvl.trends.iter().enumerate() {
+            if !matches!(t.kind, TrendKind::UpTrend | TrendKind::DownTrend) {
+                continue;
+            }
+            let nc = t.zhongshus.len();
+            let dir = t.direction;
+            let actual = judge_divergence(t, PerfectionMode::Structural).map(|b| b.kind);
+            if nc < 2 {
+                eprintln!("  #{i} {:?} 中枢={nc} → 【条件1 FAIL: 中枢<2】实际={actual:?}", t.kind);
+                continue;
+            }
+            let prev_c = &t.zhongshus[nc - 2];
+            let last_c = &t.zhongshus[nc - 1];
+            if prev_c.units.is_empty() || last_c.units.is_empty() {
+                eprintln!("  #{i} {:?} 中枢空 units → FAIL", t.kind);
+                continue;
+            }
+            let a_end = *prev_c.units.last().unwrap();
+            let a_leg = &t.units[0..=a_end];
+            let c_start = *last_c.units.last().unwrap() + 1;
+            if c_start >= t.units.len() {
+                eprintln!(
+                    "  #{i} {:?} 中枢={nc} → 【无离开段c FAIL: c_start={c_start}>=len={}】实际={actual:?}",
+                    t.kind,
+                    t.units.len()
+                );
+                continue;
+            }
+            let c_leg = &t.units[c_start..];
+            let c_ext = leg_ext(c_leg, dir);
+            let prior_ext = leg_ext(&t.units[0..c_start], dir);
+            let cond4 = match dir {
+                Direction::Up => c_ext > prior_ext,
+                Direction::Down => c_ext < prior_ext,
+            };
+            let has_nest = t.units.iter().any(|u| u.inner_zhongshu_count > 0);
+            let (cond2, cond5_cnest, cond3) = if has_nest {
+                let c2 = c_leg.iter().any(|u| match dir {
+                    Direction::Up => u.low > last_c.high,
+                    Direction::Down => u.high < last_c.low,
+                });
+                let cn: usize = c_leg.iter().map(|u| u.inner_zhongshu_count).sum();
+                let b_start = a_end + 1;
+                let b_endx = *last_c.units.first().unwrap();
+                let bn: usize = if b_start < b_endx {
+                    t.units[b_start..b_endx].iter().map(|u| u.inner_zhongshu_count).sum()
+                } else {
+                    0
+                };
+                (Some(c2), Some(cn), Some(bn <= cn))
+            } else {
+                (None, None, None)
+            };
+            let sc = leg_strength(c_leg);
+            let sa = leg_strength(a_leg);
+            let decay = sc < sa;
+            // 找第一个 fail 的条件
+            let fail = if !cond4 {
+                "条件4(创新极值)"
+            } else if cond2 == Some(false) {
+                "条件2(回抽守沿)"
+            } else if cond5_cnest.map_or(false, |x| x < 2) {
+                "条件5(c段中枢<2)"
+            } else if cond3 == Some(false) {
+                "条件3(b级别>c)"
+            } else if !decay {
+                "力度未衰减"
+            } else {
+                "全过✓"
+            };
+            eprintln!(
+                "  #{i} {:?} 中枢={nc} c段{}单元 | 条件4创新极值={cond4}({c_ext:.0}vs{prior_ext:.0}) has_nest={has_nest} 条件2守沿={cond2:?} 条件5(c_nest)={cond5_cnest:?} 条件3={cond3:?} 力度衰减={decay}(c{sc:.1}/a{sa:.1}) | 首个FAIL={fail} | 实际={actual:?}",
+                t.kind, c_leg.len()
+            );
+        }
+    }
+}
+
+/// **诊断（全 BSP 列表 dump）**：dump T 全塔每个 BSP 的 `(level, kind, raw_bar, close_price, bsp_price)`
+/// 到 CSV，供 Python 在任意 bar 区间（如 BTC 69k→15k 大下跌）筛选买卖点分布。raw_bar 经
+/// `merged_to_raw[bsp.bar].1`（raw_end，BSP 可见时点）对齐 closes。structural 口径。
+///
+/// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::t_engine_run::t_bsp_dump -- --ignored --nocapture`
+#[test]
+#[ignore = "诊断: dump 全 BSP 列表到 CSV（level,kind,raw_bar,close,bsp_price）"]
+fn t_bsp_dump() {
+    use super::backtest::build_a0_from_segments;
+    use super::iterate;
+    use super::types::PerfectionMode;
+    use crate::orchestrator::RecursiveOrchestrator;
+
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("analysis/data_cache");
+    let sym = std::env::var("BT_SYMBOLS").unwrap_or_else(|_| "BTC".into());
+    let file = SYMBOLS
+        .iter()
+        .find(|(s, _)| s.eq_ignore_ascii_case(&sym))
+        .map(|(_, f)| *f)
+        .unwrap_or_else(|| panic!("未知标的 {sym}"));
+    let (o, h, l, c) = load_clean_ohlc(&data_dir.join(file));
+    let n = c.len();
+    eprintln!("[{sym}] bars={n} 跑 orchestrator + iterate…");
+    let mut orch = RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false);
+    for i in 0..n {
+        orch.process_bar(o[i], h[i], l[i], c[i]);
+    }
+    let m2r = orch.merged_to_raw().to_vec();
+    let a0 = build_a0_from_segments(orch.segments(), &m2r, &c);
+    let tree = iterate(a0, PerfectionMode::Structural);
+
+    let mut out = String::from("level,kind,raw_bar,close_price,bsp_price\n");
+    let mut count = 0usize;
+    for lvl in &tree.levels {
+        for b in &lvl.bsps {
+            let raw_bar = m2r.get(b.bar as usize).map(|&(_, e)| e).unwrap_or(0);
+            let close = c.get(raw_bar).copied().unwrap_or(0.0);
+            out.push_str(&format!(
+                "{},{},{},{:.1},{:.1}\n",
+                b.level,
+                b.kind.as_str(),
+                raw_bar,
+                close,
+                b.price
+            ));
+            count += 1;
+        }
+    }
+    let outpath = data_dir.join(format!("t_bsp_dump_{sym}.csv"));
+    std::fs::write(&outpath, out).unwrap_or_else(|e| panic!("写 {outpath:?} 失败: {e}"));
+    eprintln!("[{sym}] dump {count} 个 BSP → {outpath:?}");
 }

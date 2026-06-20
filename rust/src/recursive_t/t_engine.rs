@@ -99,12 +99,47 @@ impl Default for TSignalView {
     }
 }
 
+// ════════════════════════════ 持仓三阶段（缠师第31课，docs/three_stages_accounting_design.md）════════════════════════════
+
+/// T 引擎持仓成本三阶段（缠师第31课 line 24/28/36，过程—状态—过程）。
+///
+/// **不复用 `types.rs::LedgerPhase`（两变体）**——那被 `trading::ledger::OrganicLedger` 用于与 Python
+/// 的 P5 bit-exact 契约，加第三变体会破坏契约。T 引擎 standalone，定义自己的三变体（设计文档 §1.3 裁决）。
+///
+/// - `CostReduction`（① 降成本）：`realized_campaign < notional_in`。短差降成本，Σ|units| 守恒（恒仓，
+///   第31课"买入多少就是卖出多少不增加仓位"）。
+/// - `CapitalRecovered`（② 退本金）：`realized_campaign ≥ notional_in` 触发。把等于初始本金 K 的现金移出
+///   在险池（free→withdrawn），第31课"原来投入的资金就全部收回来了"。在 free 不足时停留本态逐步抽出。
+/// - `EarningShares`（③ 增股数）：本金已全额退出。纯利润买更多 units，Σ|units| 单调增（AmountConserving，
+///   第31课"卖出多少资金就买入多少资金……仓位是增加的"）。**单向不可逆**（OQ-9 定理）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TStage {
+    CostReduction,
+    CapitalRecovered,
+    EarningShares,
+}
+
+impl TStage {
+    pub fn as_u8(self) -> u8 {
+        match self {
+            TStage::CostReduction => 0,
+            TStage::CapitalRecovered => 1,
+            TStage::EarningShares => 2,
+        }
+    }
+}
+
 // ════════════════════════════ T 操作层引擎 ════════════════════════════
 
-/// T 操作层引擎（双向耦合：单核心 + 区间套 sink/recover 短差执行层）。
+/// T 操作层引擎（双向耦合：单核心 + 区间套 sink/recover 短差执行层 + 持仓三阶段会计）。
 ///
 /// `layers[k]` 是 ladder k 的净仓位（复用 `fugue_v3::Layer`：单一 direction，相邻级别方向相反）。
 /// `free` 是**单一共享现金池**（初始 = `INITIAL_CAPITAL`）——sink/recover 在级别间转移资金，单池诚实。
+///
+/// ## 三阶段会计（持仓成本状态机，设计文档 `docs/three_stages_accounting_design.md`）
+/// `notional_in`/`realized_campaign`/`withdrawn`/`earning_cash`/`stage` 跟踪当前 campaign（enter→clear）
+/// 的成本演化。守恒律从"NAV 中性"升级为"**总财富中性**"：`TW = free + Σ持仓 + withdrawn`——退本金把
+/// 现金移出在险池（free→withdrawn）使 in-system NAV 掉 K，但 TW 守恒（同价中性）。
 pub struct TPositionEngine {
     res: FugueResult,
     /// 每 ladder 一个净仓位（索引 = ladder）。idle 时 units=0。
@@ -113,6 +148,22 @@ pub struct TPositionEngine {
     free: f64,
     last_close: f64,
     max_concurrent_seen: usize,
+
+    // ── 持仓三阶段（缠师第31课）──
+    /// 当前阶段（enter 起 CostReduction，clear 重置）。
+    stage: TStage,
+    /// 本 campaign 投入本金（enter 时 = m·c；clear 重置 0）。
+    notional_in: f64,
+    /// 核心仓有效持仓成本 per share（缠师"成本"）。enter=入场价；每次**核心多头 reduce**（高位卖出）
+    /// 的 realized 直接 `core_cost_basis -= realized/remaining_long_units` 降成本（编排者裁决 2026-06-20
+    /// 点1）；**短差腿（Short reduce）盈亏单独算，不入此**（点5）。穿 0 触发退本金。clear=NaN。
+    core_cost_basis: f64,
+    /// 本 campaign 入场时的 core_cost_basis（= 入场价）——诊断降成本进度用。clear=NaN。
+    campaign_entry_cost: f64,
+    /// 已退本金（退本金阶段移出在险池的现金；clear 时归还 free）。
+    withdrawn: f64,
+    /// EarningShares 阶段累计可增股数的纯利润（free 的子账：earning_cash ≤ free 不变量）。
+    earning_cash: f64,
 }
 
 impl Default for TPositionEngine {
@@ -130,6 +181,12 @@ impl TPositionEngine {
             free: INITIAL_CAPITAL,
             last_close: f64::NAN,
             max_concurrent_seen: 0,
+            stage: TStage::CostReduction,
+            notional_in: 0.0,
+            core_cost_basis: f64::NAN,
+            campaign_entry_cost: f64::NAN,
+            withdrawn: 0.0,
+            earning_cash: 0.0,
         }
     }
 
@@ -141,9 +198,149 @@ impl TPositionEngine {
         self.res.trades.len()
     }
 
+    /// 当前阶段（三阶段会计观测）。
+    pub fn stage(&self) -> TStage {
+        self.stage
+    }
+
+    /// 三阶段会计快照: (stage, notional_in, withdrawn, earning_cash, core_cost_basis)。
+    pub fn stage_snapshot(&self) -> (TStage, f64, f64, f64, f64) {
+        (self.stage, self.notional_in, self.withdrawn, self.earning_cash, self.core_cost_basis)
+    }
+
+    /// 核心仓有效持仓成本（缠师"成本"，可<0）。无 campaign ⇒ NaN。
+    fn cost_basis(&self) -> f64 {
+        self.core_cost_basis
+    }
+
+    /// 核心多头 units（Σ 多头 units）。三阶段成本归属的"核心仓"（降成本分母 = reduce 后剩余多头）。
+    fn core_long_units(&self) -> f64 {
+        self.layers.iter().filter(|l| l.units > 1e-12 && l.direction == Polarity::Long).map(|l| l.units).sum()
+    }
+
+    /// 累计已实现 pnl（Σ mobile_realized_pnl_by_ladder）——realized 增量的来源。
+    fn realized_total(&self) -> f64 {
+        self.res.mobile_realized_pnl_by_ladder.iter().sum()
+    }
+
+    /// 总财富（free + Σ sign(d)·u·c + withdrawn）——三阶段守恒量（退本金把现金移出在险池，TW 守恒）。
+    fn total_wealth(&self, c: f64) -> f64 {
+        nav(&self.layers, self.free, c) + self.withdrawn
+    }
+
     /// 总 NAV（free + Σ sign(d)·u·c）。
     fn total_nav(&self, c: f64) -> f64 {
         nav(&self.layers, self.free, c)
+    }
+
+    // ──────────────── 三阶段会计（编排者裁决 2026-06-20）：reduce realized → cost_basis ────────────────
+
+    /// 核算一次 reduce_at 的 realized（编排者裁决点1/点5）。`dir` = 被减层方向，`realized` = 该 reduce
+    /// 的已实现 pnl（= (c−basis)×m）。
+    /// - **Long reduce（核心高位卖出）= 降成本主力**：`core_cost_basis -= realized / 剩余多头 units`。
+    ///   穿 0 ⇒ 退本金（CostReduction→CapitalRecovered，无额外交易，点2）。EarningShares 下入 earning_cash。
+    /// - **Short reduce（短差腿做空→平空）= 单独核算**（点5）：不入 cost_basis；只观测 + EarningShares 入弹药。
+    fn account_reduce(&mut self, dir: Polarity, realized: f64, c: f64) {
+        match dir {
+            Polarity::Long => match self.stage {
+                TStage::CostReduction => {
+                    let rem = self.core_long_units(); // reduce 后剩余多头（降成本分母）
+                    if rem > 1e-9 && self.core_cost_basis.is_finite() {
+                        self.core_cost_basis -= realized / rem;
+                        // 诊断：降成本进度（(entry−cost)/entry，=1 ⇒ 成本归0）。
+                        if self.campaign_entry_cost > 1e-9 {
+                            let drop = ((self.campaign_entry_cost - self.core_cost_basis)
+                                / self.campaign_entry_cost
+                                * 1000.0)
+                                .max(0.0) as u64;
+                            self.res.max_core_gain_x1000 = self.res.max_core_gain_x1000.max(drop);
+                        }
+                        if self.core_cost_basis <= 0.0 {
+                            // 退本金：cost_basis 穿 0（点2，纯状态切换，无额外交易）。
+                            self.stage = TStage::CapitalRecovered;
+                            self.res.n_capital_recovered += 1;
+                            self.try_withdraw_capital(c);
+                        }
+                    }
+                }
+                TStage::CapitalRecovered => self.try_withdraw_capital(c),
+                TStage::EarningShares => {
+                    if realized > 0.0 {
+                        self.earning_cash = (self.earning_cash + realized).min(self.free.max(0.0));
+                    }
+                }
+            },
+            Polarity::Short => {
+                // 短差腿单独核算（点5）：不入 cost_basis。
+                self.res.short_leg_pnl += realized;
+                if self.stage == TStage::EarningShares && realized > 0.0 {
+                    self.earning_cash = (self.earning_cash + realized).min(self.free.max(0.0));
+                }
+            }
+        }
+    }
+
+    /// **退本金**（缠师第31课"原来投入的资金就全部收回来了"）：把等于初始本金 K 的现金移出在险池
+    /// （free→withdrawn）。free 不足则抽出可得部分，停留 CapitalRecovered 待后续 free 补足；全额抽出
+    /// 后切 EarningShares（单向不可逆，OQ-9 定理）。TW 守恒（free→withdrawn 总财富不变）。
+    fn try_withdraw_capital(&mut self, _c: f64) {
+        let need = self.notional_in - self.withdrawn;
+        if need <= 1e-9 {
+            self.enter_earning();
+            return;
+        }
+        let w = need.min(self.free.max(0.0));
+        if w > 1e-12 {
+            self.withdrawn += w;
+            self.free -= w;
+            self.res.total_withdrawn += w;
+        }
+        if self.withdrawn >= self.notional_in - 1e-9 {
+            self.enter_earning();
+        }
+    }
+
+    /// 进入增股数阶段：本金已全退。后续 reduce 的 realized 经 account_reduce 累入 earning_cash。
+    fn enter_earning(&mut self) {
+        if self.stage != TStage::EarningShares {
+            self.stage = TStage::EarningShares;
+        }
+    }
+
+    /// **增股数部署**（缠师第31课 line 169"抛出后跌回来把抛出的钱全补进去，买回来数量一定多了"）：
+    /// EarningShares 阶段在买点把 earning_cash 全额买成核心层（`core`）新 units（AmountConserving，
+    /// Σ|units| 单调增）。NAV 中性（free→units·c）。
+    fn deploy_earning(&mut self, core: usize, bar: i64, c: f64) {
+        if self.stage != TStage::EarningShares || c <= 0.0 {
+            return;
+        }
+        let cash = self.earning_cash.min(self.free.max(0.0));
+        let q = cash / c;
+        if !(q > 1e-12 && q.is_finite()) {
+            return;
+        }
+        // core 必须空仓或已持多（add_at 层内单一方向不变量）。
+        if self.layers[core].is_active() && self.layers[core].direction != Polarity::Long {
+            return;
+        }
+        add_at(&mut self.layers, core, q, Polarity::Long, &mut self.free, c, bar, &mut self.res);
+        self.earning_cash -= q * c;
+        self.res.n_earning_deploys += 1;
+    }
+
+    /// campaign 结束（flip/clear/eod）：归还 withdrawn 到 free，重置三阶段状态。
+    /// 诊断：累计 campaign 重置次数（= 翻转/清仓数，每次重置清零 core_cost_basis）。
+    fn reset_campaign(&mut self) {
+        if self.notional_in > 1e-9 {
+            self.res.n_campaign_resets += 1;
+        }
+        self.free += self.withdrawn;
+        self.withdrawn = 0.0;
+        self.stage = TStage::CostReduction;
+        self.notional_in = 0.0;
+        self.core_cost_basis = f64::NAN;
+        self.campaign_entry_cost = f64::NAN;
+        self.earning_cash = 0.0;
     }
 
     /// 最高活跃级别（= 核心仓所在 ladder）。无活跃仓 → None。
@@ -166,19 +363,32 @@ impl TPositionEngine {
     // ──────────────── τ 原子（复用 accounting 会计）────────────────
 
     /// **enter**：核心级空仓首次建仓，用**全部 free** 建 `dir` 方向核心仓。
+    /// 三阶段：记 `notional_in = m·c`（本 campaign 投入本金），stage 重置 CostReduction。
     fn enter(&mut self, j: usize, dir: Polarity, bar: i64, c: f64) {
         if c <= 0.0 {
             return;
         }
+        // 新 campaign 起点：归还前一 campaign 残留的安全池本金到 free（如核心被强平未经 clear），
+        // 再用全部 free 建仓——recovered capital 自动复投到新 campaign（缠师"资金不断增加参与种类"）。
+        self.reset_campaign();
         let m = self.free / c;
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
+        let spent = m * c;
         add_at(&mut self.layers, j, m, dir, &mut self.free, c, bar, &mut self.res);
         self.res.n_entries_by_ladder[j] += 1;
+        // 三阶段 campaign 起点：投入本金 = 建仓现金，core_cost_basis = 入场价（仅多头吸筹 campaign 有
+        // 降成本语义；空头核心 cost_basis 仍记入场价但 Long-reduce 降成本对做空无意义，account_reduce 按
+        // 被减层方向分流）。
+        self.notional_in = spent;
+        self.core_cost_basis = c;
+        self.campaign_entry_cost = c;
+        self.stage = TStage::CostReduction;
+        self.earning_cash = 0.0;
     }
 
-    /// **clear_all**：全塔平仓到现金（flip 前 / eod）。
+    /// **clear_all**：全塔平仓到现金（flip 前 / eod）+ 归还退本金、重置三阶段 campaign。
     fn clear_all(&mut self, bar: i64, c: f64, reason: &'static str) {
         for k in 0..MAX_LADDER {
             let u = self.layers[k].units;
@@ -186,6 +396,8 @@ impl TPositionEngine {
                 reduce_at(&mut self.layers, k, u, &mut self.free, c, bar, &mut self.res, reason);
             }
         }
+        // campaign 结束：安全池本金归还 free（牛市结束清仓时连本带利都在 free），重置阶段。
+        self.reset_campaign();
     }
 
     /// **ascend**：核心仓 relabel 上移（from→to，to 须 idle）——骑乘最高涌现级别，无新资金（NAV 不变）。
@@ -249,10 +461,13 @@ impl TPositionEngine {
         if self.layers[sub].is_active() && self.layers[sub].direction != mob {
             return;
         }
+        let r0 = self.realized_total();
         reduce_at(&mut self.layers, parent, m, &mut self.free, c, bar, &mut self.res, "reduce");
         add_at(&mut self.layers, sub, m, mob, &mut self.free, c, bar, &mut self.res);
         self.res.n_cycle_opens_by_ladder[parent] += 1;
         self.res.cross_level_closures += 1;
+        // 核算父级 reduce 的 realized（父多=核心高位卖出降成本；父空=短差单独算）。
+        self.account_reduce(pdir, self.realized_total() - r0, c);
     }
 
     /// **recover @ (sub→parent)**（σ∘τ，ε 对称）：次级别走势完成 ⇒ **整条短差平清** m=u_sub（全量），
@@ -271,19 +486,32 @@ impl TPositionEngine {
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
+        let r0 = self.realized_total();
         reduce_at(&mut self.layers, sub, m, &mut self.free, c, bar, &mut self.res, "recover");
         add_at(&mut self.layers, parent, m, pdir, &mut self.free, c, bar, &mut self.res);
         self.res.n_cycle_closes_by_ladder[parent] += 1;
+        // 核算 sub reduce 的 realized：sub=反父向短差腿（父多→sub空）⇒ 短差单独算，**不入降成本**（点5）。
+        self.account_reduce(mob, self.realized_total() - r0, c);
+        // ③ 增股数：EarningShares 阶段 recover = 买点（缠师"跌回来全补进去"），部署纯利润买更多核心 units。
+        if pdir == Polarity::Long {
+            self.deploy_earning(parent, bar, c);
+        }
     }
 
     /// **drain @ j**：子级持同父向遗留仓 → 反父向 BSP 减暴露 1/3（不翻转，父级主导）。
+    /// 三阶段重定义（设计文档 §5.2，读法 A）：drain 不再是死现金——其 realized 银行进 campaign：
+    /// CostReduction 阶段降 cost_basis（计入 realized_campaign），EarningShares 阶段入 earning_cash
+    /// 待下一买点（recover）增股数。
     fn drain(&mut self, j: usize, bar: i64, c: f64) {
         let u = self.layers[j].units;
         let m = mobile_quota(u);
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
+        let jdir = self.layers[j].direction; // 同父向遗留仓（父多→j 多）⇒ Long-reduce 降成本
+        let r0 = self.realized_total();
         reduce_at(&mut self.layers, j, m, &mut self.free, c, bar, &mut self.res, "drain");
+        self.account_reduce(jdir, self.realized_total() - r0, c);
     }
 
     // ──────────────── BSP 路由（区间套 top-down）────────────────
@@ -342,19 +570,52 @@ impl TPositionEngine {
     pub fn step(&mut self, view: &TSignalView, bar: i64, price: f64) {
         let c = price;
         self.last_close = c;
-        let nav_pre = self.total_nav(c);
+        // 守恒量 = 总财富（free + Σ持仓 + withdrawn）：退本金把现金移出在险池，TW 守恒（NAV 不守恒）。
+        let tw_pre = self.total_wealth(c);
 
-        // ── A. 边界算子：1x 逐仓强平（每层独立）──
-        for k in 0..MAX_LADDER {
-            let l = self.layers[k];
-            if l.units > 1e-12 {
-                let liq = match l.direction {
-                    Polarity::Long => c > 0.0 && c <= l.basis / SUB_LIQ_FACTOR,
-                    Polarity::Short => c >= SUB_LIQ_FACTOR * l.basis,
-                };
-                if liq {
-                    reduce_at(&mut self.layers, k, l.units, &mut self.free, c, bar, &mut self.res, "liq");
-                    self.res.n_liquidations_by_ladder[k] += 1;
+        // ── A. 边界算子：保证金强平，**按三阶段切换模式**（编排者裁决 2026-06-20）。
+        //   强平 realized 也银行（损失抬高 cost_basis）。
+        //   - CostReduction/CapitalRecovered → **逐仓**（每层独立 basis×SUB_LIQ_FACTOR）：本金在险，
+        //     次级别短差亏损不侵蚀核心仓保证金（每层独立判，现状）。
+        //   - EarningShares → **全仓**（账户级共享保证金）：本金已退安全池（withdrawn），仓位由纯利润支撑，
+        //     仅账户净值（in-system NAV，不含 withdrawn）≤0 时连锁全平。1x 几何塔（核心多头 Σlong>Σshort
+        //     主导）下 NAV≥0 恒成立 ⟹ 此条几乎不触发 = 短差腿回撤被共享池吸收、不被单层提前止损（立于
+        //     不败使连锁爆仓风险可接受）。**有效域标注**：杠杆期货上账户级判据应为 NAV≤maintenance>0；
+        //     此处 NAV≤0 是 1x 现货口径（withdrawn 已隔离不作保证金，故连锁只损失利润不触本金）。
+        match self.stage {
+            TStage::EarningShares => {
+                // 全仓：账户级，所有层共享。in-system NAV≤0 ⇒ 连锁全平（principal 在 withdrawn 安全）。
+                if self.total_nav(c) <= 0.0 {
+                    for k in 0..MAX_LADDER {
+                        let kdir = self.layers[k].direction;
+                        let u = self.layers[k].units;
+                        if u > 1e-12 {
+                            let r0 = self.realized_total();
+                            reduce_at(&mut self.layers, k, u, &mut self.free, c, bar, &mut self.res, "liq_cross");
+                            self.res.n_liquidations_by_ladder[k] += 1;
+                            self.account_reduce(kdir, self.realized_total() - r0, c);
+                        }
+                    }
+                }
+                // 否则：不做任何 per-layer 强平（共享保证金吸收单层回撤）。
+            }
+            _ => {
+                // 逐仓：每层独立 basis 判（CostReduction / CapitalRecovered）。
+                for k in 0..MAX_LADDER {
+                    let l = self.layers[k];
+                    if l.units > 1e-12 {
+                        let liq = match l.direction {
+                            Polarity::Long => c > 0.0 && c <= l.basis / SUB_LIQ_FACTOR,
+                            Polarity::Short => c >= SUB_LIQ_FACTOR * l.basis,
+                        };
+                        if liq {
+                            let r0 = self.realized_total();
+                            reduce_at(&mut self.layers, k, l.units, &mut self.free, c, bar, &mut self.res, "liq");
+                            self.res.n_liquidations_by_ladder[k] += 1;
+                            // 强平 realized 按被平层方向核算（多头强平=亏损抬 cost_basis；空头腿强平=短差单独算）。
+                            self.account_reduce(l.direction, self.realized_total() - r0, c);
+                        }
+                    }
                 }
             }
         }
@@ -379,8 +640,8 @@ impl TPositionEngine {
             }
         }
 
-        // ── 守卫：全局 NAV 中性（同价 c 全部操作前后中性）──
-        prove_nav_neutral(nav_pre, self.total_nav(c), bar);
+        // ── 守卫：全局总财富中性（同价 c 全部操作前后中性；退本金 free→withdrawn 在 TW 内守恒）──
+        prove_nav_neutral(tw_pre, self.total_wealth(c), bar);
 
         // ── 观测 ──
         let (long_u, short_u) = exposure(&self.layers);
@@ -408,7 +669,8 @@ impl TPositionEngine {
         self.max_concurrent_seen = self.max_concurrent_seen.max(active_voice_count(&self.layers));
 
         if bar % EQUITY_SAMPLE_BARS == 0 {
-            self.res.equity.push((bar, self.total_nav(c)));
+            // 总财富（含已退本金的安全池）——退本金后 in-system NAV 会低估真实财富。
+            self.res.equity.push((bar, self.total_wealth(c)));
             self.res.exposure_series.push((bar, long_u, short_u));
         }
     }
@@ -418,13 +680,13 @@ impl TPositionEngine {
         if let Some(lb) = last_bar {
             let c_last = self.last_close;
             if lb % EQUITY_SAMPLE_BARS != 0 {
-                self.res.equity.push((lb, self.total_nav(c_last)));
+                self.res.equity.push((lb, self.total_wealth(c_last)));
                 let (lu, su) = exposure(&self.layers);
                 self.res.exposure_series.push((lb, lu, su));
             }
-            self.clear_all(lb, c_last, "eod");
+            self.clear_all(lb, c_last, "eod"); // clear_all → reset_campaign 归还 withdrawn 到 free
         }
-        // 全平后 free = 净值（所有仓位转现金）。
+        // 全平后 free = 净值（所有仓位转现金 + 已退本金归还）。
         self.res.final_nav = self.free;
         self.res.max_concurrent_voices = self.max_concurrent_seen as u64;
     }
@@ -688,5 +950,144 @@ mod tests {
         // 全平后所有层 idle。
         assert!(eng.layers.iter().all(|l| !l.is_active()), "收尾全平");
         assert!((eng.result().final_nav - INITIAL_CAPITAL).abs() < 1e-4, "同价全平 final_nav 守恒");
+    }
+
+    // ──────────────── 持仓三阶段（缠师第31课）────────────────
+
+    #[test]
+    fn 三阶段_建仓即降成本阶段_notional记本金() {
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(6), 0, 100.0); // 核心 Long@6，notional = INITIAL
+        assert_eq!(eng.stage(), TStage::CostReduction, "建仓即降成本阶段");
+        let (_, notional, withdrawn, _, cb) = eng.stage_snapshot();
+        assert!((notional - INITIAL_CAPITAL).abs() < 1e-6, "notional = 建仓本金");
+        assert!(withdrawn.abs() < 1e-9, "初始无 withdrawn");
+        assert!((cb - 100.0).abs() < 1e-6, "core_cost_basis = 入场价 100");
+    }
+
+    #[test]
+    fn 三阶段_核心高位卖出降cost_basis_短差腿单独算() {
+        // 编排者裁决点1/点5：sink 高位卖核心 → realized 降 cost_basis；recover 平短差 → 单独算不入降成本。
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(6), 0, 100.0); // cost_basis=100
+        let cb0 = eng.cost_basis();
+        eng.step(&sell_view(5), 10, 150.0); // sink：父6 高位卖核心1/3@150 → realized=(150-100)×m 降 cost_basis
+        let cb1 = eng.cost_basis();
+        assert!(cb1 < cb0 - 1.0, "核心高位卖出降 cost_basis：{cb1} < {cb0}");
+        assert_eq!(eng.stage(), TStage::CostReduction, "单次远未退本金");
+        let sl0 = eng.result().short_leg_pnl;
+        eng.step(&buy_view(5), 20, 130.0); // recover：平短差空（短差腿 pnl）+ 回补核心
+        assert!((eng.cost_basis() - cb1).abs() < 1e-6, "recover 平短差**不改 cost_basis**（点5 短差腿单独算）");
+        assert!((eng.result().short_leg_pnl - sl0).abs() > 1e-9, "短差腿 pnl 单独累计");
+    }
+
+    /// 核心随价格上涨、sink 高位卖出降 cost_basis 穿零 → 退本金 → 增股数（核心 units 增长）。
+    #[test]
+    fn 三阶段_核心高位卖出穿零退本金再增股数() {
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(6), 0, 100.0); // cost_basis=100, notional=100000, U=1000
+        let u0 = eng.layers[6].units;
+        let mut bar = 1;
+        let mut p = 100.0_f64;
+        let mut reached = false;
+        for _ in 0..30 {
+            p *= 1.4; // 价格持续上涨（强趋势）
+            eng.step(&sell_view(5), bar, p); // sink：高位卖核心 → realized 降 cost_basis
+            bar += 1;
+            eng.step(&buy_view(5), bar, p * 0.85); // recover：平短差(单独算) + 回补核心
+            bar += 1;
+            if eng.stage() == TStage::EarningShares {
+                reached = true;
+                break;
+            }
+        }
+        assert!(reached, "核心高位卖出降成本应穿零退本金，末态 {:?} cost_basis={}", eng.stage(), eng.cost_basis());
+        assert!(eng.result().n_capital_recovered >= 1, "退本金触发");
+        assert!(eng.withdrawn > 0.0, "本金移出安全池，得 {}", eng.withdrawn);
+        // 增股数：EarningShares 阶段继续 sink/recover → recover 买点 deploy_earning 买更多核心。
+        for _ in 0..10 {
+            p *= 1.2;
+            eng.step(&sell_view(5), bar, p);
+            bar += 1;
+            eng.step(&buy_view(5), bar, p * 0.85);
+            bar += 1;
+        }
+        assert!(eng.result().n_earning_deploys >= 1, "增股数部署至少一次");
+        assert!(eng.core_long_units() > u0 + 1e-6, "增股数后核心 units {} > 初始 {u0}", eng.core_long_units());
+    }
+
+    #[test]
+    fn 三阶段_总财富守恒_穿越全部阶段不创造价值() {
+        // 每 bar prove_nav_neutral(tw_pre, tw_post) 守卫总财富（含 withdrawn）；此处验证末态 + 收尾。
+        let mut eng = TPositionEngine::new();
+        eng.step(&buy_view(6), 0, 100.0);
+        let mut bar = 1;
+        let mut p = 100.0_f64;
+        for _ in 0..20 {
+            p *= 1.4;
+            eng.step(&sell_view(5), bar, p);
+            bar += 1;
+            eng.step(&buy_view(5), bar, p * 0.85);
+            bar += 1;
+        }
+        let tw = eng.total_wealth(p * 0.85);
+        assert!(tw > INITIAL_CAPITAL, "总财富增长（趋势+短差，非凭空），得 {tw}");
+        eng.finish(Some(bar)); // 收尾全平 + 归还 withdrawn
+        assert!(eng.layers.iter().all(|l| !l.is_active()), "收尾全平");
+        assert!(eng.withdrawn.abs() < 1e-9, "withdrawn 已归还");
+        assert!(eng.result().final_nav > INITIAL_CAPITAL, "最终财富 > 本金，得 {}", eng.result().final_nav);
+    }
+
+    /// 保证金模式耦合（编排者裁决 2026-06-20）：EarningShares 阶段切全仓——短差腿在 c≥2×basis
+    /// 不被单层强平（共享池吸收），区别于 CostReduction 逐仓（`短差空头价格翻倍爆仓` 测试会爆）。
+    /// 上涨序列驱动到 EarningShares（核心高位卖出降成本穿零退本金），返回 (last_bar, last_price)。
+    fn drive_to_earning(eng: &mut TPositionEngine) -> (i64, f64) {
+        eng.step(&buy_view(6), 0, 100.0);
+        let mut bar = 1;
+        let mut p = 100.0_f64;
+        for _ in 0..30 {
+            p *= 1.4;
+            eng.step(&sell_view(5), bar, p);
+            bar += 1;
+            eng.step(&buy_view(5), bar, p * 0.85);
+            bar += 1;
+            if eng.stage() == TStage::EarningShares {
+                break;
+            }
+        }
+        (bar, p)
+    }
+
+    #[test]
+    fn 三阶段_全仓模式_增股数阶段短差腿不单层强平() {
+        let mut eng = TPositionEngine::new();
+        let (mut bar, p) = drive_to_earning(&mut eng);
+        assert_eq!(eng.stage(), TStage::EarningShares, "已进增股数（全仓模式）");
+        // 开短差腿（sink）@p，再把价格推到 2.5×（逐仓下 c≥2×basis 会爆）。
+        eng.step(&sell_view(5), bar, p);
+        bar += 1;
+        let short_opened = eng.layers[5].is_active() && eng.layers[5].direction == Polarity::Short;
+        let liq_before = eng.res.n_liquidations_by_ladder[5];
+        eng.step(&TSignalView::empty(), bar, p * 2.5); // 全仓：核心多头主导 NAV>0，不连锁，短差腿存活
+        if short_opened {
+            assert_eq!(
+                eng.res.n_liquidations_by_ladder[5], liq_before,
+                "增股数阶段短差腿不单层强平（全仓共享池吸收，区别于逐仓 c≥2basis 爆仓）"
+            );
+            assert!(eng.layers[5].is_active(), "短差腿存活（未被逐仓止损）");
+        }
+    }
+
+    #[test]
+    fn 三阶段_flip重置campaign归还退本金() {
+        // 进入退本金后核心反向翻转：clear_all 归还 withdrawn，重置阶段。
+        let mut eng = TPositionEngine::new();
+        let (bar, p) = drive_to_earning(&mut eng);
+        assert_eq!(eng.stage(), TStage::EarningShares, "已进增股数");
+        assert!(eng.withdrawn > 0.0, "有退本金在安全池");
+        // 核心反向翻转（最高级别卖点）→ clear_all → reset_campaign。
+        eng.step(&sell_view(6), bar, p * 0.5);
+        assert_eq!(eng.stage(), TStage::CostReduction, "翻转后重置回降成本阶段");
+        assert!(eng.withdrawn.abs() < 1e-9, "退本金已归还 free");
     }
 }

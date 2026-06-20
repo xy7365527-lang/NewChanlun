@@ -92,6 +92,21 @@ pub struct FugueResult {
     /// 各层短差累计已实现现金（穿 ε=−1 τ 循环的净降成本，按层）。
     pub mobile_realized_pnl_by_ladder: [f64; MAX_LADDER],
 
+    // ── 持仓三阶段观测（T 引擎填充；其他引擎留 0，见 `recursive_t::t_engine::TStage`）──
+    /// 退本金触发次数（cost_basis 穿零、本金全额收回的 campaign 数）。
+    pub n_capital_recovered: u64,
+    /// 累计退出在险池的本金（"放到安全的地方"，立于不败之地）。
+    pub total_withdrawn: f64,
+    /// 增股数部署次数（EarningShares 阶段用纯利润买回更多 units 的次数）。
+    pub n_earning_deploys: u64,
+    /// 诊断：降成本进度峰值 ×1000 = max((entry_cost − core_cost_basis)/entry_cost)（=1000 ⇒ 成本曾归0
+    /// 可退本金；<1000 ⇒ 核心 reduce 降成本不及本金——编排者 2026-06-20 裁决后）。
+    pub max_core_gain_x1000: u64,
+    /// 诊断：campaign 重置次数（翻转/清仓，每次清零 core_cost_basis）——campaign 碎片化指标。
+    pub n_campaign_resets: u64,
+    /// 短差腿（Short reduce：做空→平空）累计已实现 pnl——**单独核算，不入降成本**（编排者裁决点5）。
+    pub short_leg_pnl: f64,
+
     // ── 闭合 + 多声部观测 ──
     /// CrossLevel 闭合数（每次 τ 转移 Δr=−1）。
     pub cross_level_closures: u64,
