@@ -12,6 +12,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use super::rec_stream::RecStream;
 use super::stream::TFugueStreamCore;
 use super::{iterate, Direction, PerfectionMode, Unit};
 use crate::fugue_v3::layer::FugueResult;
@@ -206,6 +207,63 @@ impl PyTFugueStream {
         self.core.finish();
         let d = t_result_to_dict(py, self.core.result())?;
         Ok(d.into())
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 递归 T 引擎流式（NautilusTrader on_bar 驱动；输出目标净敞口，NT 1:1 镜像执行）
+// ════════════════════════════════════════════════════════════════════════════
+
+/// **递归 T 流式引擎**（docs/recursive_t_architecture_v2.md，每级别一 T 实例 + 单根账本）。
+///
+/// 与 flat `PyTFugueStream` 的范畴差：递归版输出**目标净敞口**（signed units = long − short），
+/// 供 NT Strategy 1:1 镜像（NETTING）——引擎是位置权威（100k 模拟账本），NT 加真实撮合/滑点/
+/// 佣金（v2 §5.2：T step 降级为目标敞口，venue 是真账本）。`push_bar` 内部 process_bar→iterate→
+/// extract_chain→on_view，与 batch `rec_stream::RecStream` 共核 bit-exact。
+#[pyclass(name = "RecTStream")]
+pub struct PyRecStream {
+    core: RecStream,
+}
+
+#[pymethods]
+impl PyRecStream {
+    #[new]
+    #[pyo3(signature = (mode=None))]
+    fn new(mode: Option<String>) -> Self {
+        let perfection = parse_mode(mode.as_deref());
+        PyRecStream { core: RecStream::new(perfection) }
+    }
+
+    /// 逐 bar 推送 OHLC（NT on_bar）。返回**当前目标净敞口** signed units（long − short）。
+    /// NT Strategy 据此提单使净仓位 = 此值（delta = target − current）。
+    fn push_bar(&mut self, o: f64, h: f64, l: f64, c: f64) -> f64 {
+        self.core.push_bar(o, h, l, c);
+        let (lu, su) = self.core.driver().root().exposure();
+        lu - su
+    }
+
+    /// 目标净敞口（signed units，不推进 bar）。
+    fn target_net_units(&self) -> f64 {
+        let (lu, su) = self.core.driver().root().exposure();
+        lu - su
+    }
+
+    /// 快照: (cur_bar, engine_total_wealth, long_units, short_units, n_active_instances)。
+    fn snapshot(&self) -> (i64, f64, f64, f64, usize) {
+        let (bar, tw, n) = self.core.snapshot();
+        let (lu, su) = self.core.driver().root().exposure();
+        (bar, tw, lu, su, n)
+    }
+
+    /// 引擎内部模拟账本计数（对照 NT 真账本用）：(enter, sink, recover, spawn, flip, reruns)。
+    fn op_counts(&self) -> (u64, u64, u64, u64, u64, u64) {
+        let r = self.core.driver().root();
+        (r.n_enters, r.n_sinks, r.n_recovers, r.n_spawns, r.n_flips, self.core.n_reruns)
+    }
+
+    /// 收尾 → 引擎内部模拟 final_nav（对照 NT 真账本）。
+    fn finish(&mut self) -> f64 {
+        self.core.finish()
     }
 }
 

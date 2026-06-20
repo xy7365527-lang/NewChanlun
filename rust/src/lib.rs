@@ -2427,6 +2427,8 @@ fn newchan_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // 流式 TFugueStream（NT on_bar 驱动）+ 批量 run_t_fugue（共享 core，bit-exact）。
     m.add_class::<recursive_t::ffi::PyTFugueStream>()?;
     m.add_function(wrap_pyfunction!(recursive_t::ffi::run_t_fugue, m)?)?;
+    // 递归 T 引擎流式（NT on_bar 驱动，输出目标净敞口，NT 1:1 镜像执行）。
+    m.add_class::<recursive_t::ffi::PyRecStream>()?;
     m.add_class::<PyBiEngine>()?;
     m.add_class::<PyOnlineMacdState>()?;
     m.add_class::<PyRecursiveOrchestrator>()?;
