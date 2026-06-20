@@ -22,7 +22,7 @@
 //! 真树投影 + 回测收益 = 待实装 / L3。
 
 use super::rec_engine::{dir_to_polarity, flip_pol, TRoot, TrendNode};
-use super::types::{Direction, RecursiveTree, TrendKind};
+use super::types::{Direction, RecursiveTree, TrendKind, TrendType, Unit};
 
 /// 操作链中的一个走势节点（视图）。
 #[derive(Debug, Clone, Copy)]
@@ -149,16 +149,78 @@ impl RecDriver {
 
 // ════════════════════════════ iterate RecursiveTree → ChainView 适配器（下一步真树接入）════════════════════════════
 
-/// 从 iterate 的 `RecursiveTree` 投影出操作链视图。
+/// TrendType → 走势节点（区间 = units 首末 bar，价区 = units 极值）。
+fn trend_to_node(t: &TrendType) -> TrendNode {
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for u in &t.units {
+        lo = lo.min(u.low);
+        hi = hi.max(u.high);
+    }
+    let sb = t.units.first().map(|u| u.start_bar).unwrap_or(0);
+    let eb = t.units.last().map(|u| u.end_bar).unwrap_or(sb);
+    TrendNode::new(sb, eb, lo, hi, t.direction)
+}
+
+/// 封装 Unit（= 下级走势）→ 走势节点。
+fn unit_to_node(u: &Unit) -> TrendNode {
+    TrendNode::new(u.start_bar, u.end_bar, u.low, u.high, u.direction)
+}
+
+/// 在某级别 trends 中按 start_bar 找对应走势（encapsulate 跨级同坐标，operator.rs:28）。
+fn find_trend_by_start(trends: &[TrendType], start_bar: i64) -> Option<&TrendType> {
+    trends
+        .iter()
+        .find(|t| t.units.first().map(|u| u.start_bar) == Some(start_bar))
+}
+
+/// 从 iterate 的 `RecursiveTree` 投影出操作链视图（适配器，§3.2 自上而下）。
 ///
-/// **当前为占位骨架**（编排者：先合成视图测 driver 逻辑，本函数是"再接 iterate 真树"步骤）：
-/// 真实投影需从最高 completed 走势向下，逐层取「当前回调子走势」并判完成——这依赖对 `TrendType.units`
-/// 内回调段的识别（counter-trend 子走势）+ 完成判定（`completed` / 被下一段终结）。该投影的正确性是
-/// §8.6 前缀冻结假设的验收对象，留待下一步实装 + N4 节点重锚测试。
-pub fn extract_chain(_tree: &RecursiveTree) -> ChainView {
-    // TODO（下一步）：自顶向下走 levels，取最高 completed 走势为 chain[0]，逐层下钻当前回调子走势。
-    // 回调识别 = TrendType.units 中反父向的子走势段；完成 = 该子走势 completed 或被后续段终结。
-    ChainView::default()
+/// 算法：`chain[0]` = 最高级别当前走势（`levels.last().trends.last()`，core 骑乘）；逐层下钻——
+/// 取当前走势的**最后一段** `units.last()`：若反父向 = **当前回调**（子 T 持空的 node），入链并按
+/// `start_bar` 映射到下级 `TrendType` 继续下钻；若顺父向 = 顺势腿（属核心，无活跃回调）则停。回调
+/// 完成判定 = 映射到的下级走势 `completed`（完成 → driver recover）。
+///
+/// 节点身份 = `start_bar`（A1，跨重跑稳定，依赖 encapsulate 同坐标 + 前缀冻结，§8.6 N4 验收对象）。
+/// **L0 投影逻辑**；真实数据下节点身份稳定性 + 回测收益 = L2/L3 待验证。
+pub fn extract_chain(tree: &RecursiveTree) -> ChainView {
+    let levels = &tree.levels;
+    if levels.is_empty() {
+        return ChainView::default();
+    }
+    let top_k = levels.len() - 1;
+    let Some(top_trend) = levels[top_k].trends.last() else {
+        return ChainView::default();
+    };
+    let mut nodes = vec![ChainNode { node: trend_to_node(top_trend), completed: top_trend.completed }];
+
+    // 逐层下钻当前回调。
+    let mut cur_trend: &TrendType = top_trend;
+    let mut cur_level = top_k;
+    loop {
+        let Some(last_leg) = cur_trend.units.last() else { break };
+        // 最后一段顺父向 = 顺势腿（核心），无活跃回调 → 停。
+        if last_leg.direction == cur_trend.direction {
+            break;
+        }
+        // 反父向 = 当前回调。映射到下级 TrendType 取完成态 + 继续下钻。
+        let sub = if cur_level >= 1 {
+            find_trend_by_start(&levels[cur_level - 1].trends, last_leg.start_bar)
+        } else {
+            None // a0 笔层：回调是一根笔，无下级 TrendType
+        };
+        nodes.push(ChainNode {
+            node: unit_to_node(last_leg),
+            completed: sub.map(|t| t.completed).unwrap_or(false),
+        });
+        match sub {
+            Some(t) => {
+                cur_trend = t;
+                cur_level -= 1;
+            }
+            None => break,
+        }
+    }
+    ChainView::new(nodes)
 }
 
 /// 走势方向 → ChainNode 构造辅助（适配器/测试用）。
@@ -298,6 +360,112 @@ mod tests {
     }
 
     // ──────────────── 守恒（全程）────────────────
+
+    // ──────────────── extract_chain：iterate 真树投影 ────────────────
+
+    use crate::recursive_t::iterate;
+    use crate::recursive_t::types::{
+        PerfectionMode, RecursiveTree, TLevelOutput, TrendKind, TrendType, Unit,
+    };
+
+    fn u(lo: f64, hi: f64, s: i64, e: i64, d: Direction) -> Unit {
+        Unit::stroke(lo, hi, s, e, d)
+    }
+    fn mk_trend(dir: Direction, units: Vec<Unit>, completed: bool) -> TrendType {
+        TrendType {
+            kind: if dir == Direction::Up { TrendKind::UpTrend } else { TrendKind::DownTrend },
+            zhongshus: vec![],
+            units,
+            level: 0,
+            direction: dir,
+            completed,
+            bsp: None,
+        }
+    }
+
+    #[test]
+    fn extract_chain_iterate真树_上涨趋势末段顺势无回调() {
+        // 上涨趋势八笔（与 mod.rs 测试同构）：末段 笔8 Up = 顺势腿 → 无活跃回调 → chain len 1。
+        let a0 = vec![
+            u(8.0, 22.0, 0, 1, Direction::Up),
+            u(12.0, 18.0, 1, 2, Direction::Down),
+            u(10.0, 16.0, 2, 3, Direction::Up),
+            u(23.0, 35.0, 3, 4, Direction::Up),
+            u(32.0, 40.0, 4, 5, Direction::Down),
+            u(33.0, 42.0, 5, 6, Direction::Up),
+            u(31.0, 39.0, 6, 7, Direction::Down),
+            u(40.0, 45.0, 7, 8, Direction::Up),
+        ];
+        let tree = iterate(a0, PerfectionMode::Structural);
+        let v = extract_chain(&tree);
+        assert!(!v.is_empty(), "iterate 真树投影非空");
+        assert_eq!(v.nodes[0].node.direction, Direction::Up, "顶层 Up 走势");
+        assert_eq!(v.nodes.len(), 1, "末段顺势腿，无活跃回调");
+    }
+
+    #[test]
+    fn extract_chain_回调下钻两层() {
+        // 构造 2 级树：level1 Up 走势末段为 Down 回调 → 映射到 level0 Down 走势(completed)。
+        let l0 = TLevelOutput {
+            level: 0,
+            centers: vec![],
+            trends: vec![mk_trend(
+                Direction::Down,
+                vec![u(8.0, 18.0, 5, 7, Direction::Down), u(9.0, 15.0, 8, 9, Direction::Down)],
+                true,
+            )],
+            bsps: vec![],
+            next_units: vec![],
+        };
+        let l1 = TLevelOutput {
+            level: 1,
+            centers: vec![],
+            trends: vec![mk_trend(
+                Direction::Up,
+                vec![u(10.0, 20.0, 0, 4, Direction::Up), u(8.0, 18.0, 5, 9, Direction::Down)],
+                false,
+            )],
+            bsps: vec![],
+            next_units: vec![],
+        };
+        let tree = RecursiveTree { levels: vec![l0, l1] };
+        let v = extract_chain(&tree);
+        assert_eq!(v.nodes.len(), 2, "顶走势 + 一层回调");
+        assert_eq!(v.nodes[0].node.direction, Direction::Up, "顶层 Up");
+        assert_eq!(v.nodes[1].node.direction, Direction::Down, "回调反父向 Down");
+        assert_eq!(v.nodes[1].node.start_bar, 5, "回调节点 start_bar=5（跨级同坐标）");
+        assert!(v.nodes[1].completed, "回调映射到 level0 completed 走势 → 完成");
+    }
+
+    #[test]
+    fn extract_chain_空树() {
+        let tree = RecursiveTree { levels: vec![] };
+        assert!(extract_chain(&tree).is_empty());
+    }
+
+    // ──────────────── extract_chain + driver 端到端 ────────────────
+
+    #[test]
+    fn 端到端_iterate真树_driver消费不panic() {
+        // iterate 真树 → extract_chain → driver.on_view：守恒守卫逐操作 panic 验收，端到端零 panic。
+        let a0 = vec![
+            u(8.0, 22.0, 0, 1, Direction::Up),
+            u(12.0, 18.0, 1, 2, Direction::Down),
+            u(10.0, 16.0, 2, 3, Direction::Up),
+            u(23.0, 35.0, 3, 4, Direction::Up),
+            u(32.0, 40.0, 4, 5, Direction::Down),
+            u(33.0, 42.0, 5, 6, Direction::Up),
+            u(31.0, 39.0, 6, 7, Direction::Down),
+            u(40.0, 45.0, 7, 8, Direction::Up),
+        ];
+        let tree = iterate(a0, PerfectionMode::Structural);
+        let v = extract_chain(&tree);
+        let mut d = RecDriver::new(100_000.0);
+        d.on_view(&v, 40.0, 8); // 顶层 Up 走势 → enter 核心
+        assert!(d.root().root_slot().is_some(), "真树驱动建仓");
+        let fin = d.finish(40.0);
+        assert!(fin.is_finite() && fin > 0.0, "端到端 final_nav 有限");
+    }
 
     #[test]
     fn 全程tw中性_sink_recover_spawn_flip() {
