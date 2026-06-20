@@ -53,7 +53,7 @@ fn stroke_to_t_dir(d: StrokeDir) -> TDir {
 /// 流式/批量共享 `TFugueStreamCore` ⟹ 二者 bit-exact。Structural 模式不读 area，逐字不受影响。
 ///
 /// 过滤口径 `confirmed && kind==Settled`（与 batch / v3 zhongshu_from_segments 一致）。
-fn build_a0_fast(segs: &[Segment], m2r: &[(usize, usize)], prefix_pos: &[f64], prefix_neg: &[f64]) -> Vec<Unit> {
+pub(crate) fn build_a0_fast(segs: &[Segment], m2r: &[(usize, usize)], prefix_pos: &[f64], prefix_neg: &[f64]) -> Vec<Unit> {
     let n = prefix_pos.len().saturating_sub(1); // raw bar 数（prefix 长 n+1）
     segs.iter()
         .filter(|s| s.confirmed && s.kind == SegKind::Settled)
