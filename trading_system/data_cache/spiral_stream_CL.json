@@ -1,0 +1,197 @@
+{
+ "symbol": "CL",
+ "instrument_id": "CL.GLBX",
+ "n_bars": 5528156,
+ "bh_pct": 28.2,
+ "bh_mdd_pct": -94.0,
+ "max_bars": null,
+ "spiral": {
+  "strat_pct": -4.8,
+  "mdd_pct": -5.4,
+  "n_trades": 18,
+  "exit_reasons": {
+   "cascade": 13,
+   "liq": 1,
+   "recover": 3,
+   "eod": 1
+  },
+  "by_ladder": {
+   "segment/long": {
+    "n": 3,
+    "pnl_cash": 1.0,
+    "wins": 2,
+    "avg_held_bars": 7844.0
+   },
+   "segment/short": {
+    "n": 10,
+    "pnl_cash": -22480.0,
+    "wins": 0,
+    "avg_held_bars": 5438492.0
+   },
+   "move(L1)/short": {
+    "n": 1,
+    "pnl_cash": -53.0,
+    "wins": 0,
+    "avg_held_bars": 88474.0
+   },
+   "recL2/short": {
+    "n": 3,
+    "pnl_cash": 5.0,
+    "wins": 3,
+    "avg_held_bars": 2783.0
+   },
+   "recL4/long": {
+    "n": 1,
+    "pnl_cash": 14341.0,
+    "wins": 1,
+    "avg_held_bars": 5464701.0
+   }
+  },
+  "cross_level_closures": 20,
+  "max_children": 11,
+  "liquidations_by_ladder": [
+   0,
+   0,
+   0,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "spawns_by_ladder": [
+   0,
+   0,
+   13,
+   1,
+   3,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "root_entries_by_ladder": [
+   0,
+   0,
+   0,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "root_flips_by_ladder": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "cascade_closes_by_ladder": [
+   0,
+   0,
+   13,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "short_net_cash_by_ladder": [
+   0.0,
+   0.0,
+   -22480.0,
+   -53.0,
+   5.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "t50_monotone_violations": 0,
+  "t56_radial_coverage": 3,
+  "t57_onesided_layers": 0,
+  "t58_active_levels": 3,
+  "t59_degenerate_layers": 1
+ },
+ "P1_ge_bh": false,
+ "prove_panic": 0,
+ "part3_pclose_vs_unn": {
+  "bit_exact": false,
+  "trade_match": false,
+  "nav_match": false,
+  "bar_divergences": 8,
+  "spiral_strat_pct": -4.8,
+  "unn_strat_pct": -4.7,
+  "strat_delta": -0.1,
+  "liquidations_spiral": 1,
+  "liquidations_unn": 0,
+  "liquidations_delta": 1,
+  "short_spiral": {
+   "segment/short": {
+    "n": 10,
+    "wins": 0,
+    "pnl_cash": -22480.0
+   },
+   "move(L1)/short": {
+    "n": 1,
+    "wins": 0,
+    "pnl_cash": -53.0
+   },
+   "recL2/short": {
+    "n": 3,
+    "wins": 3,
+    "pnl_cash": 5.0
+   },
+   "_total_short": {
+    "n": 14,
+    "wins": 3,
+    "pnl_cash": -22528.0
+   }
+  },
+  "short_unn": {
+   "segment/short": {
+    "n": 10,
+    "wins": 0,
+    "pnl_cash": -22480.0
+   },
+   "move(L1)/short": {
+    "n": 1,
+    "wins": 1,
+    "pnl_cash": 1.0
+   },
+   "recL2/short": {
+    "n": 3,
+    "wins": 3,
+    "pnl_cash": 5.0
+   },
+   "_total_short": {
+    "n": 14,
+    "wins": 4,
+    "pnl_cash": -22474.0
+   }
+  },
+  "cross_level_closures": 20,
+  "note": "bit-exact ⇒ P-close（Δr=−1）是 unn 跨级别闭合的群论 re-description，非新机制；P&L/强平/空头胜负逐位恒等（表达力 L2，非 alpha L3）。"
+ },
+ "architecture": "单一 StreamingSignalReader 逐 bar → 同 sig 喂 UnnStream+SpiralStream；spiral 复用 unn CenterBook/DepthRef 成本门，群作用层（C ChiralSeam/E σ⁻¹∘τ/closure Δr=−1）为类型化路由 ⇒ bit-exact 由构造保证。"
+}

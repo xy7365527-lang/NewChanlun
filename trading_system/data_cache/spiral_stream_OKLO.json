@@ -1,0 +1,174 @@
+{
+ "symbol": "OKLO",
+ "instrument_id": "OKLO.XNAS",
+ "n_bars": 447738,
+ "bh_pct": 307.1,
+ "bh_mdd_pct": -76.8,
+ "max_bars": null,
+ "spiral": {
+  "strat_pct": 256.8,
+  "mdd_pct": -74.6,
+  "n_trades": 38,
+  "exit_reasons": {
+   "liq": 36,
+   "cascade": 1,
+   "eod": 1
+  },
+  "by_ladder": {
+   "segment/short": {
+    "n": 36,
+    "pnl_cash": -92854.0,
+    "wins": 0,
+    "avg_held_bars": 33192.0
+   },
+   "recL2/short": {
+    "n": 1,
+    "pnl_cash": -5577.0,
+    "wins": 0,
+    "avg_held_bars": 23452.0
+   },
+   "recL3/long": {
+    "n": 1,
+    "pnl_cash": 307984.0,
+    "wins": 1,
+    "avg_held_bars": 443409.0
+   }
+  },
+  "cross_level_closures": 37,
+  "max_children": 36,
+  "liquidations_by_ladder": [
+   0,
+   0,
+   36,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "spawns_by_ladder": [
+   0,
+   0,
+   36,
+   0,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "root_entries_by_ladder": [
+   0,
+   0,
+   0,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "root_flips_by_ladder": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "cascade_closes_by_ladder": [
+   0,
+   0,
+   0,
+   0,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "short_net_cash_by_ladder": [
+   0.0,
+   0.0,
+   -92854.0,
+   0.0,
+   -5577.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "t50_monotone_violations": 0,
+  "t56_radial_coverage": 3,
+  "t57_onesided_layers": 0,
+  "t58_active_levels": 3,
+  "t59_degenerate_layers": 0
+ },
+ "P1_ge_bh": false,
+ "prove_panic": 0,
+ "part3_pclose_vs_unn": {
+  "bit_exact": true,
+  "trade_match": true,
+  "nav_match": true,
+  "bar_divergences": 0,
+  "spiral_strat_pct": 256.8,
+  "unn_strat_pct": 256.8,
+  "strat_delta": 0.0,
+  "liquidations_spiral": 36,
+  "liquidations_unn": 36,
+  "liquidations_delta": 0,
+  "short_spiral": {
+   "segment/short": {
+    "n": 36,
+    "wins": 0,
+    "pnl_cash": -92854.0
+   },
+   "recL2/short": {
+    "n": 1,
+    "wins": 0,
+    "pnl_cash": -5577.0
+   },
+   "_total_short": {
+    "n": 37,
+    "wins": 0,
+    "pnl_cash": -98431.0
+   }
+  },
+  "short_unn": {
+   "segment/short": {
+    "n": 36,
+    "wins": 0,
+    "pnl_cash": -92854.0
+   },
+   "recL2/short": {
+    "n": 1,
+    "wins": 0,
+    "pnl_cash": -5577.0
+   },
+   "_total_short": {
+    "n": 37,
+    "wins": 0,
+    "pnl_cash": -98431.0
+   }
+  },
+  "cross_level_closures": 37,
+  "note": "bit-exact ⇒ P-close（Δr=−1）是 unn 跨级别闭合的群论 re-description，非新机制；P&L/强平/空头胜负逐位恒等（表达力 L2，非 alpha L3）。"
+ },
+ "architecture": "单一 StreamingSignalReader 逐 bar → 同 sig 喂 UnnStream+SpiralStream；spiral 复用 unn CenterBook/DepthRef 成本门，群作用层（C ChiralSeam/E σ⁻¹∘τ/closure Δr=−1）为类型化路由 ⇒ bit-exact 由构造保证。"
+}

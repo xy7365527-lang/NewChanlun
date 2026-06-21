@@ -2,10 +2,13 @@
 //!
 //! 第17课中枢递归定义：被至少三个连续次级别走势类型所重叠的部分。
 //! 设计文档 §1.3 步骤a：
-//! - 核心区间 `[ZD, ZG]` 由前两段定（编纂版口径）：`ZD = max(d_i, d_{i+1})`，
-//!   `ZG = min(g_i, g_{i+1})`，成立条件 `ZG > ZD`；
-//! - 第三段必须与核心区间重叠（满足「≥3 连续单元重叠」）；
+//! - 核心区间 `[ZD, ZG]` 由前三段定（第18课公式：`ZD = max(d1,d2,d3)`，
+//!   `ZG = min(g1,g2,g3)`，v3 nucleus `zhongshu_from_components` 口径），成立条件 `ZG > ZD`；
 //! - 外缘区间 `[DD, GG]` 由全部参与段定。
+//!
+//! c 段裁决（`docs/c_segment_attribution_reasoning.md`，编排者 2026-06-20 指示移植修复A）：
+//! 中枢终结后**跳过突破段（离开段/连接段）**再扫下一中枢（`i = last+2`，见 [`find_centers`]），
+//! 使连接段成为中枢间间隙 = 本走势 c 段，修复 c 段 79% 缺失（趋势背驰几乎从不完美）。
 //!
 //! 严格性标注（谱系 536）：重叠 = 区间交集 ∩，是**格运算**（lattice meet），不是
 //! 群运算。中枢是 k 级走势重叠涌现的**新对象**，不能用 σ-等变描述。
@@ -20,19 +23,25 @@ fn overlaps(unit: &Unit, zd: f64, zg: f64) -> bool {
 
 /// 步骤 a)：从级别 k 的单元序列识别全部中枢。
 ///
-/// 算法（贪心顺扫，设计文档 §1.3）：
-/// 1. 在位置 i 用前两段 `units[i], units[i+1]` 定核心区间 `[ZD, ZG]`；
-/// 2. 若 `ZG > ZD` 且第三段 `units[i+2]` 与核心重叠 → 中枢成立；
-/// 3. 向后延伸：后续单元只要与核心区间重叠就纳入该中枢；
-/// 4. 中枢终结于第一个不再重叠的单元，从该单元继续扫描下一个中枢。
+/// 算法（顺扫 + 跳过连接段，设计文档 §1.3 + c 段裁决 §5）：
+/// 1. 在位置 i 用**前三段** `units[i..=i+2]` 定核心区间 `[ZD, ZG]`（第18课公式）；
+/// 2. 若 `ZG > ZD` → 中枢成立；
+/// 3. 向后延伸：后续单元只要与核心区间重叠就纳入该中枢，终结于第一个不再重叠的单元 `last`；
+/// 4. **跳过突破段** `units[last+1]`（= 离开/连接段），从 `i = last+2` 扫描下一中枢。
 ///
 /// 返回的 `Zhongshu.units` 索引相对于传入的 `units` 切片。
 ///
-/// 已知结构简化：贪心扫描会把"离开前一中枢的连接段"吸收为下一中枢的首单元，从而把
-/// 下一中枢外缘 `DD` 拖低。因此只有当两中枢**真正分离**（`后中枢 DD > 前中枢 GG`）时
-/// 才会被 `same_direction_step` 判为趋势的一步；外缘重叠的相邻中枢按缠论视为盘整延伸
-/// （非趋势）。v3 nucleus 路线（`crate::level::moves_from_level_zhongshus`，src/level.rs）
-/// 对连接段的处理可作为后续对照精化的参考。
+/// **为何跳过突破段**（c 段裁决 `docs/c_segment_attribution_reasoning.md` §5，编排者
+/// 2026-06-20 指示）：旧实现 `i = last+1` 把"离开前一中枢的连接段"吸收为下一中枢首单元，
+/// 使 (a) 相邻中枢无间隙 → 走势离开段 c 恒空（趋势背驰几乎从不完美，79% 缺失）；
+/// (b) 连接段拖低下一中枢外缘 `DD` → 同向延续被 `same_direction_step` 误判为盘整延伸
+/// （实证4：BTC 牛市被折叠成一个大盘整）。`i = last+2` 让突破段成为中枢间间隙：c 段恢复
+/// 至 100%、外缘 `DD` 不再被污染（同向延续在外缘判据下正确合并）。第18课定理一原文：
+/// 「连接两个同级别中枢的必然是次级别以下级别的走势类型」——连接段不属任一中枢。
+///
+/// L2 实证（8 标的 structural，c 段 21%→100%、type1 250→1927/塔）：清仓频率是 regime
+/// 函数——震荡标的改善（CL −16%→+120% 反超 BH），最强牛市退化（BTC +1155%→+68% 踏空，
+/// ES −48pp）。结构正确独立于交易有效域（裁决 §8，formalization-validity-domain）。
 pub fn find_centers(units: &[Unit], level: usize) -> Vec<Zhongshu> {
     let mut centers = Vec::new();
     let n = units.len();
@@ -42,12 +51,11 @@ pub fn find_centers(units: &[Unit], level: usize) -> Vec<Zhongshu> {
 
     let mut i = 0usize;
     while i + 2 < n {
-        // 核心区间由前两段定（编纂版口径）。
-        let zd = units[i].low.max(units[i + 1].low);
-        let zg = units[i].high.min(units[i + 1].high);
-        let third_overlaps = overlaps(&units[i + 2], zd, zg);
+        // 核心区间由前三段定（第18课公式 ZD=max(d1,d2,d3)/ZG=min(g1,g2,g3)，v3 口径）。
+        let zd = units[i].low.max(units[i + 1].low).max(units[i + 2].low);
+        let zg = units[i].high.min(units[i + 1].high).min(units[i + 2].high);
 
-        if zg > zd && third_overlaps {
+        if zg > zd {
             // 中枢成立。向后延伸纳入后续重叠单元。
             let mut last = i + 2;
             while last + 1 < n && overlaps(&units[last + 1], zd, zg) {
@@ -76,7 +84,10 @@ pub fn find_centers(units: &[Unit], level: usize) -> Vec<Zhongshu> {
                 units: idxs,
                 level,
             });
-            i = last + 1;
+            // 跳过突破段（= 离开段/连接段，第18课定理一：连接两中枢的次级别以下走势，
+            // 不属任一中枢）→ 它成为中枢间的间隙 = 本走势 c 段；下一中枢从其后扫描，
+            // 故不污染下一中枢外缘 DD（同向延续在外缘判据下正确合并）。
+            i = last + 2;
         } else {
             i += 1;
         }

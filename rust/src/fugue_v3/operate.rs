@@ -22,7 +22,7 @@ use crate::stroke::Direction;
 use crate::trading::types::{Polarity, MAX_LADDER};
 
 use super::accounting::{
-    accrue_held_bars, active_voice_count, add_at, exposure, nav, reduce_at,
+    accrue_held_bars, active_voice_count, add_at, exposure, flip, nav, reduce_at,
 };
 use super::axis::{MorphologyAxis, ObserveAxis, OperateAxis, StepOutcome};
 use super::cycle::{liquidate_long, liquidate_short, recover_chunk, sink_chunk};
@@ -71,6 +71,22 @@ pub struct OperateEngine {
     core_polarity: Polarity,
     last_close: f64,
     max_concurrent_seen: usize,
+    // ── DBG（临时诊断，跑完 git checkout 还原）──
+    dbg_on: bool,
+    /// 受控实验开关：FUGUE_LONG_ONLY=1 ⇒ root 只做多（跳过 F-entry-short），
+    /// H¹ 短差 sink/recover 仍在 ⟹ 隔离「root 做空」对多头利润的 displacement。
+    force_long_only: bool,
+    dbg_snap_budget: i32,
+    dbg_core_ladder_hist: [u64; MAX_LADDER],
+    dbg_recover_attempt: [u64; MAX_LADDER],
+    dbg_recover_ok: [u64; MAX_LADDER],
+    dbg_rf_sub_is_core: [u64; MAX_LADDER],
+    dbg_rf_sub_empty: [u64; MAX_LADDER],
+    dbg_rf_sub_wrongdir: [u64; MAX_LADDER],
+    dbg_rf_parent_occ: [u64; MAX_LADDER],
+    dbg_rf_other: [u64; MAX_LADDER],
+    dbg_sink_ok: [u64; MAX_LADDER],
+    dbg_ascend: u64,
 }
 
 impl OperateEngine {
@@ -86,7 +102,38 @@ impl OperateEngine {
             core_polarity: Polarity::Long, // 无仓位时无意义，F 建仓时覆写
             last_close: f64::NAN,
             max_concurrent_seen: 0,
+            dbg_on: std::env::var("FUGUE_DBG").is_ok(),
+            force_long_only: std::env::var("FUGUE_LONG_ONLY").is_ok(),
+            dbg_snap_budget: 240,
+            dbg_core_ladder_hist: [0; MAX_LADDER],
+            dbg_recover_attempt: [0; MAX_LADDER],
+            dbg_recover_ok: [0; MAX_LADDER],
+            dbg_rf_sub_is_core: [0; MAX_LADDER],
+            dbg_rf_sub_empty: [0; MAX_LADDER],
+            dbg_rf_sub_wrongdir: [0; MAX_LADDER],
+            dbg_rf_parent_occ: [0; MAX_LADDER],
+            dbg_rf_other: [0; MAX_LADDER],
+            dbg_sink_ok: [0; MAX_LADDER],
+            dbg_ascend: 0,
         }
+    }
+
+    /// DBG 快照（临时诊断，跑完还原）。
+    fn dbg_snap(&mut self, bar: i64, tag: &str) {
+        if !self.dbg_on || self.dbg_snap_budget <= 0 {
+            return;
+        }
+        self.dbg_snap_budget -= 1;
+        let mut s = String::new();
+        for (i, l) in self.layers.iter().enumerate() {
+            if l.units > 1e-12 {
+                s.push_str(&format!("L{}={:?}:{:.1}@{:.1} ", i, l.direction, l.units, l.basis));
+            }
+        }
+        eprintln!(
+            "[DBG bar={} {}] core_ladder={} pol={:?} n_base={:.1} free={:.0} | {}",
+            bar, tag, self.core_ladder, self.core_polarity, self.n_base, self.free, s
+        );
     }
 
     fn has_position(&self) -> bool {
@@ -123,6 +170,46 @@ impl OperateEngine {
         }
         self.res.final_nav = self.free;
         self.res.max_concurrent_voices = self.max_concurrent_seen as u64;
+        self.dbg_report();
+    }
+
+    /// DBG 汇报（finish 末尾打印累积计数器；FUGUE_DBG 门控）。recover 失败分类 = 空头僵尸根因。
+    fn dbg_report(&self) {
+        if !self.dbg_on {
+            return;
+        }
+        let sum = |a: &[u64]| a.iter().sum::<u64>();
+        let att = sum(&self.dbg_recover_attempt);
+        let ok = sum(&self.dbg_recover_ok);
+        eprintln!("\n========== FUGUE_DBG 汇报（recover 失败=空头僵尸根因）==========");
+        eprintln!(
+            "recover 总: attempt={att} ok={ok} ({:.1}% 成功) | ascend={}",
+            if att > 0 { ok as f64 / att as f64 * 100.0 } else { 0.0 },
+            self.dbg_ascend
+        );
+        eprintln!(
+            "recover 失败分类: sub_is_core={} sub_empty={} sub_wrongdir={} parent_occ={} other={}",
+            sum(&self.dbg_rf_sub_is_core),
+            sum(&self.dbg_rf_sub_empty),
+            sum(&self.dbg_rf_sub_wrongdir),
+            sum(&self.dbg_rf_parent_occ),
+            sum(&self.dbg_rf_other),
+        );
+        eprintln!("按 ladder（attempt/ok/empty/wrongdir/parent_occ）:");
+        for k in 0..MAX_LADDER {
+            if self.dbg_recover_attempt[k] > 0 || self.dbg_core_ladder_hist[k] > 0 {
+                eprintln!(
+                    "  L{k}: rec_att={} ok={} empty={} wrongdir={} par_occ={} | core_bars={}",
+                    self.dbg_recover_attempt[k],
+                    self.dbg_recover_ok[k],
+                    self.dbg_rf_sub_empty[k],
+                    self.dbg_rf_sub_wrongdir[k],
+                    self.dbg_rf_parent_occ[k],
+                    self.dbg_core_ladder_hist[k],
+                );
+            }
+        }
+        eprintln!("================================================================\n");
     }
 
     pub fn result(&self) -> &FugueResult {
@@ -198,6 +285,8 @@ impl OperateAxis for OperateEngine {
                 self.layers[re] = Layer { ladder: re, ..core };
                 self.layers[self.core_ladder] = Layer::idle(self.core_ladder);
                 self.core_ladder = re;
+                self.dbg_ascend += 1;
+                self.dbg_snap(bar, "ascend");
             }
         }
 
@@ -248,10 +337,33 @@ impl OperateAxis for OperateEngine {
                     Polarity::Long => obs.nf_buy(k),
                     Polarity::Short => obs.nf_sell(k),
                 };
-                if signal.is_some() && recover_chunk(&mut self.layers, k, parent_dir, &mut self.free, c, bar, &mut self.res) {
+                if signal.is_none() {
+                    continue;
+                }
+                // ── DBG 分类（只读快照，recover_chunk 仍按原样调用一次，逻辑等价）──
+                self.dbg_recover_attempt[k] += 1;
+                let sub_l = self.layers[sub];
+                let par_l = self.layers[k];
+                let is_core = sub == self.core_ladder;
+                let expected = flip(parent_dir);
+                let ok = recover_chunk(&mut self.layers, k, parent_dir, &mut self.free, c, bar, &mut self.res);
+                if ok {
+                    self.dbg_recover_ok[k] += 1;
                     touched[k] = true;
                     touched[sub] = true;
                     acted.push(k);
+                } else if is_core {
+                    self.dbg_rf_sub_is_core[k] += 1;
+                } else if sub_l.units <= 1e-12 {
+                    self.dbg_rf_sub_empty[k] += 1;
+                } else if sub_l.direction != expected {
+                    self.dbg_rf_sub_wrongdir[k] += 1;
+                } else if par_l.units > 1e-12 && par_l.direction != flip(sub_l.direction) {
+                    self.dbg_rf_parent_occ[k] += 1;
+                    self.dbg_snap(bar, "recoverFAIL-parentOcc");
+                } else {
+                    self.dbg_rf_other[k] += 1;
+                    self.dbg_snap(bar, "recoverFAIL-other");
                 }
             }
         }
@@ -327,7 +439,9 @@ impl OperateAxis for OperateEngine {
                     // 陈旧 located（s 买点后又出卖点、价未破极值）使 emergent_dir[s] 暂逆 ⟹ 不入场
                     // （等次级别真信号），非 panic——nf 语义下 source 级别方向非无条件必然（§5.4）。
                     let aligned = h0.direction(s) == Some(root_dir);
-                    if bsp_fire && aligned && self.free > 0.0 {
+                    // long-only 受控：阻止 root 做空入场（H¹ sink/recover 短差不受影响）。
+                    let short_blocked = self.force_long_only && polarity == Polarity::Short;
+                    if bsp_fire && aligned && self.free > 0.0 && !short_blocked {
                         let total = self.free / c;
                         if total > 0.0 && total.is_finite() {
                             let chain = match source_side {
@@ -347,6 +461,7 @@ impl OperateAxis for OperateEngine {
                                 Polarity::Short => outcome.entered_sell_source = Some(s),
                             }
                             prove_epsilon_symmetry(self.core_polarity, root_dir, bar);
+                            self.dbg_snap(bar, "F-entry");
                         }
                     }
                 }
@@ -375,6 +490,9 @@ impl OperateAxis for OperateEngine {
         }
         accrue_held_bars(&mut self.res, &self.layers);
         self.max_concurrent_seen = self.max_concurrent_seen.max(active_voice_count(&self.layers));
+        if self.has_position() {
+            self.dbg_core_ladder_hist[self.core_ladder.min(MAX_LADDER - 1)] += 1;
+        }
 
         if bar % EQUITY_SAMPLE_BARS == 0 {
             self.res.equity.push((bar, nav(&self.layers, self.free, c)));

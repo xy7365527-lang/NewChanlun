@@ -249,3 +249,89 @@ fn t_backtest_8x3() {
 
     assert!(!rows.is_empty(), "至少跑出一个标的");
 }
+
+/// c 段恢复率 + type1 密度诊断（裁决 `docs/c_segment_attribution_reasoning.md` 验证）。
+///
+/// 逐级别统计：趋势走势数（≥2 中枢）/ 其中有非空离开段 c 的数 / type1 数。
+/// c 段判据复刻 `divergence.rs::judge_trend_divergence`：`c_start = 末中枢末单元+1`，
+/// `c_start < t.units.len()` ⟺ 离开段非空。
+///
+/// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::backtest_run::t_cseg_diagnostic -- --ignored --nocapture`
+#[test]
+#[ignore = "c段诊断，需 analysis/data_cache/*.json；显式 --ignored 运行"]
+fn t_cseg_diagnostic() {
+    use crate::recursive_t::iterate;
+    use crate::recursive_t::types::{BSPKind, PerfectionMode, TrendKind};
+
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("analysis/data_cache");
+
+    // 默认只跑 BTC（裁决标的）；BT_SYMBOLS 覆盖。
+    let only: Vec<String> = std::env::var("BT_SYMBOLS")
+        .ok()
+        .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        .unwrap_or_else(|| vec!["BTC".to_string()]);
+
+    for (sym, file) in SYMBOLS {
+        if !only.contains(&sym.to_uppercase()) {
+            continue;
+        }
+        let path = data_dir.join(file);
+        if !path.exists() {
+            eprintln!("[{sym}] 数据缺失 {path:?}，跳过");
+            continue;
+        }
+        let (o, h, l, c) = load_clean_ohlc(&path);
+        let n_bars = c.len();
+        let mut orch = RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false);
+        for i in 0..n_bars {
+            orch.process_bar(o[i], h[i], l[i], c[i]);
+        }
+        let segs: Vec<_> = orch.segments().to_vec();
+        let m2r: Vec<(usize, usize)> = orch.merged_to_raw().to_vec();
+        let a0 = build_a0_from_segments(&segs, &m2r, &c);
+        let tree = iterate(a0, PerfectionMode::Structural);
+
+        println!("\n===== [{sym}] c段恢复 + type1 密度（Structural）=====");
+        println!("bars={n_bars} segs={} r*={}", segs.len(), tree.emergent_ceiling());
+        println!(
+            "{:>5} {:>10} {:>12} {:>10} {:>10} {:>8} {:>8}",
+            "level", "n_trend≥2", "n_有c段", "c段率%", "n_type1", "t1_buy", "t1_sell"
+        );
+        let (mut tot_trend, mut tot_c, mut tot_t1) = (0usize, 0usize, 0usize);
+        for lvl in &tree.levels {
+            let mut n_trend = 0usize;
+            let mut n_c = 0usize;
+            for t in &lvl.trends {
+                if matches!(t.kind, TrendKind::UpTrend | TrendKind::DownTrend) && t.zhongshus.len() >= 2 {
+                    n_trend += 1;
+                    let last_c = t.zhongshus.last().unwrap();
+                    if let Some(&end) = last_c.units.last() {
+                        if end + 1 < t.units.len() {
+                            n_c += 1;
+                        }
+                    }
+                }
+            }
+            let n_t1 = lvl.bsps.iter().filter(|b| matches!(b.kind, BSPKind::Type1Buy | BSPKind::Type1Sell)).count();
+            let n_t1b = lvl.bsps.iter().filter(|b| b.kind == BSPKind::Type1Buy).count();
+            let n_t1s = lvl.bsps.iter().filter(|b| b.kind == BSPKind::Type1Sell).count();
+            let rate = if n_trend > 0 { 100.0 * n_c as f64 / n_trend as f64 } else { 0.0 };
+            println!(
+                "{:>5} {:>10} {:>12} {:>9.1}% {:>10} {:>8} {:>8}",
+                lvl.level, n_trend, n_c, rate, n_t1, n_t1b, n_t1s
+            );
+            tot_trend += n_trend;
+            tot_c += n_c;
+            tot_t1 += n_t1;
+        }
+        let tot_rate = if tot_trend > 0 { 100.0 * tot_c as f64 / tot_trend as f64 } else { 0.0 };
+        println!(
+            "{:>5} {:>10} {:>12} {:>9.1}% {:>10}",
+            "合计", tot_trend, tot_c, tot_rate, tot_t1
+        );
+        println!("c段缺失率 = {:.1}%（趋势走势中无离开段的占比）", 100.0 - tot_rate);
+    }
+}

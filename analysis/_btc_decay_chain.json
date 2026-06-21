@@ -1,0 +1,842 @@
+{
+  "seed_910416": {
+    "n_legs": 4,
+    "entry_price": 7961.17,
+    "total_shares": 27.12873,
+    "ladders": [
+      4
+    ],
+    "polarities": [
+      "long"
+    ],
+    "legs": [
+      [
+        4,
+        912114,
+        7961.17,
+        8064.63,
+        5.307795,
+        "reduce",
+        "long"
+      ],
+      [
+        4,
+        913194,
+        7961.17,
+        7759.91,
+        3.53853,
+        "reduce",
+        "long"
+      ],
+      [
+        4,
+        914167,
+        7961.17,
+        7073.71,
+        2.35902,
+        "reduce",
+        "long"
+      ],
+      [
+        4,
+        914789,
+        7484.1,
+        7369.51,
+        15.923385,
+        "flip",
+        "long"
+      ]
+    ]
+  },
+  "chain_from_910416": [
+    {
+      "lad": 4,
+      "entry_bar": 910416,
+      "exit_bar": 912114,
+      "entry_price": 7961.17,
+      "exit_price": 8064.63,
+      "shares": 5.307795,
+      "notional": 42805.4028,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 910416,
+      "exit_bar": 913194,
+      "entry_price": 7961.17,
+      "exit_price": 7759.91,
+      "shares": 3.53853,
+      "notional": 27458.6743,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 910416,
+      "exit_bar": 914167,
+      "entry_price": 7961.17,
+      "exit_price": 7073.71,
+      "shares": 2.35902,
+      "notional": 16687.0234,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 912114,
+      "exit_bar": 914664,
+      "entry_price": 7759.79,
+      "exit_price": 7283.23,
+      "shares": 11.205345,
+      "notional": 81611.1049,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 910416,
+      "exit_bar": 914789,
+      "entry_price": 7484.1,
+      "exit_price": 7369.51,
+      "shares": 15.923385,
+      "notional": 117347.545,
+      "reason": "flip",
+      "pol": "long"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 917503,
+      "entry_price": 7942.47,
+      "exit_price": 7942.47,
+      "shares": 1.930289,
+      "notional": 15331.2625,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 917503,
+      "entry_price": 7369.51,
+      "exit_price": 7942.47,
+      "shares": 5.790866,
+      "notional": 45993.7795,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 917503,
+      "exit_bar": 917929,
+      "entry_price": 7942.47,
+      "exit_price": 7835.06,
+      "shares": 1.930289,
+      "notional": 15123.9301,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 917929,
+      "entry_price": 7369.51,
+      "exit_price": 7835.06,
+      "shares": 3.860577,
+      "notional": 30247.8524,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 918112,
+      "entry_price": 7369.51,
+      "exit_price": 7848.67,
+      "shares": 2.573718,
+      "notional": 20200.2633,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 918244,
+      "entry_price": 7369.51,
+      "exit_price": 7706.29,
+      "shares": 1.715812,
+      "notional": 13222.5449,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 920193,
+      "entry_price": 7369.51,
+      "exit_price": 7918.69,
+      "shares": 1.143875,
+      "notional": 9057.9915,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 920800,
+      "entry_price": 7856.57,
+      "exit_price": 7909.36,
+      "shares": 5.028283,
+      "notional": 39770.5004,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 921098,
+      "entry_price": 7856.57,
+      "exit_price": 7842.35,
+      "shares": 3.352189,
+      "notional": 26289.0394,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 921787,
+      "entry_price": 7856.57,
+      "exit_price": 7642.72,
+      "shares": 2.234792,
+      "notional": 17079.8895,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 920800,
+      "exit_bar": 923347,
+      "entry_price": 7832.06,
+      "exit_price": 7837.78,
+      "shares": 10.615264,
+      "notional": 83200.1039,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 924245,
+      "entry_price": 7843.35,
+      "exit_price": 8030.41,
+      "shares": 5.028283,
+      "notional": 40379.1741,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 924245,
+      "exit_bar": 924641,
+      "entry_price": 8030.41,
+      "exit_price": 7991.72,
+      "shares": 5.028283,
+      "notional": 40184.6298,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 926456,
+      "entry_price": 7892.8,
+      "exit_price": 7956.84,
+      "shares": 5.028283,
+      "notional": 40009.2433,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 926456,
+      "exit_bar": 927300,
+      "entry_price": 7956.84,
+      "exit_price": 8538.35,
+      "shares": 5.028283,
+      "notional": 42933.2402,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 927570,
+      "entry_price": 8107.99,
+      "exit_price": 8723.3,
+      "shares": 5.028283,
+      "notional": 43863.2211,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 927678,
+      "entry_price": 8107.99,
+      "exit_price": 8651.92,
+      "shares": 3.352189,
+      "notional": 29002.8711,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 927763,
+      "entry_price": 8107.99,
+      "exit_price": 8638.32,
+      "shares": 2.234792,
+      "notional": 19304.8484,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 927570,
+      "exit_bar": 928082,
+      "entry_price": 8682.87,
+      "exit_price": 8688.43,
+      "shares": 10.615264,
+      "notional": 92229.9782,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 928351,
+      "entry_price": 8516.45,
+      "exit_price": 8765.7,
+      "shares": 5.028283,
+      "notional": 44076.4203,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 928351,
+      "exit_bar": 929202,
+      "entry_price": 8765.7,
+      "exit_price": 8758.78,
+      "shares": 5.028283,
+      "notional": 44041.6246,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 930828,
+      "entry_price": 8597.22,
+      "exit_price": 8541.57,
+      "shares": 5.028283,
+      "notional": 42949.4312,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 930828,
+      "exit_bar": 933156,
+      "entry_price": 8541.57,
+      "exit_price": 8238.55,
+      "shares": 5.028283,
+      "notional": 41425.7609,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 933473,
+      "entry_price": 8477.67,
+      "exit_price": 8256.83,
+      "shares": 5.028283,
+      "notional": 41517.6779,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 934568,
+      "exit_bar": 934568,
+      "entry_price": 8502.79,
+      "exit_price": 8502.79,
+      "shares": 1.371591,
+      "notional": 11662.3502,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 5,
+      "entry_bar": 917503,
+      "exit_bar": 934568,
+      "entry_price": 8477.67,
+      "exit_price": 8502.79,
+      "shares": 10.056566,
+      "notional": 85508.8688,
+      "reason": "recover",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 934568,
+      "entry_price": 8292.76,
+      "exit_price": 8502.79,
+      "shares": 4.114772,
+      "notional": 34987.0422,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 934568,
+      "exit_bar": 938225,
+      "entry_price": 8502.79,
+      "exit_price": 8522.55,
+      "shares": 0.914394,
+      "notional": 7792.9686,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 934568,
+      "exit_bar": 939199,
+      "entry_price": 8502.79,
+      "exit_price": 7969.9,
+      "shares": 0.609596,
+      "notional": 4858.4192,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 933473,
+      "exit_bar": 939487,
+      "entry_price": 8307.99,
+      "exit_price": 7914.67,
+      "shares": 7.923863,
+      "notional": 62714.7608,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 943641,
+      "entry_price": 8292.76,
+      "exit_price": 7784.03,
+      "shares": 2.743181,
+      "notional": 21353.0032,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 934568,
+      "exit_bar": 943883,
+      "entry_price": 7944.84,
+      "exit_price": 7936.05,
+      "shares": 3.962079,
+      "notional": 31443.257,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 943883,
+      "exit_bar": 943971,
+      "entry_price": 7936.05,
+      "exit_price": 7937.62,
+      "shares": 3.962079,
+      "notional": 31449.4775,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 934568,
+      "exit_bar": 944857,
+      "entry_price": 7942.44,
+      "exit_price": 7956.48,
+      "shares": 11.886236,
+      "notional": 94572.599,
+      "reason": "recover",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 945652,
+      "entry_price": 8062.68,
+      "exit_price": 7875.92,
+      "shares": 5.790866,
+      "notional": 45608.3973,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 945652,
+      "exit_bar": 945746,
+      "entry_price": 7875.92,
+      "exit_price": 7816.58,
+      "shares": 1.930289,
+      "notional": 15088.2584,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 946993,
+      "entry_price": 8062.68,
+      "exit_price": 7726.68,
+      "shares": 3.860577,
+      "notional": 29829.4431,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 947562,
+      "entry_price": 8062.68,
+      "exit_price": 7563.9,
+      "shares": 2.573718,
+      "notional": 19467.3456,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 945746,
+      "exit_bar": 948454,
+      "entry_price": 7816.58,
+      "exit_price": 7917.98,
+      "shares": 1.930289,
+      "notional": 15283.9897,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 949735,
+      "entry_price": 8062.68,
+      "exit_price": 7745.38,
+      "shares": 1.715812,
+      "notional": 13289.6159,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 945652,
+      "exit_bar": 949866,
+      "entry_price": 7766.75,
+      "exit_price": 7759.99,
+      "shares": 4.646991,
+      "notional": 36060.6037,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 945652,
+      "exit_bar": 950149,
+      "entry_price": 7766.75,
+      "exit_price": 7856.42,
+      "shares": 3.097994,
+      "notional": 24339.142,
+      "reason": "reduce",
+      "pol": "long"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 949866,
+      "exit_bar": 950792,
+      "entry_price": 7798.56,
+      "exit_price": 7910.31,
+      "shares": 7.744985,
+      "notional": 61265.2323,
+      "reason": "recover",
+      "pol": "short"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 945652,
+      "exit_bar": 950965,
+      "entry_price": 7846.5,
+      "exit_price": 7938.36,
+      "shares": 13.940974,
+      "notional": 110668.4704,
+      "reason": "recover",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 951725,
+      "entry_price": 7962.92,
+      "exit_price": 8102.17,
+      "shares": 5.790866,
+      "notional": 46918.5808,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 952896,
+      "entry_price": 7962.92,
+      "exit_price": 8156.07,
+      "shares": 3.860577,
+      "notional": 31487.1363,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 951725,
+      "exit_bar": 953210,
+      "entry_price": 8123.73,
+      "exit_price": 8281.49,
+      "shares": 9.651443,
+      "notional": 79928.3287,
+      "reason": "recover",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 953271,
+      "entry_price": 8139.9,
+      "exit_price": 8226.69,
+      "shares": 5.790866,
+      "notional": 47639.6594,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 953880,
+      "entry_price": 8139.9,
+      "exit_price": 8253.94,
+      "shares": 3.860577,
+      "notional": 31864.9709,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 953271,
+      "exit_bar": 954899,
+      "entry_price": 8226.69,
+      "exit_price": 8637.26,
+      "shares": 1.930289,
+      "notional": 16672.408,
+      "reason": "drain",
+      "pol": "long"
+    },
+    {
+      "lad": 4,
+      "entry_bar": 953880,
+      "exit_bar": 956002,
+      "entry_price": 8253.94,
+      "exit_price": 8757.39,
+      "shares": 3.860577,
+      "notional": 33808.5784,
+      "reason": "recover",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 956002,
+      "entry_price": 8345.73,
+      "exit_price": 8757.39,
+      "shares": 3.860577,
+      "notional": 33808.5784,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 3,
+      "entry_bar": 953271,
+      "exit_bar": 956390,
+      "entry_price": 8492.04,
+      "exit_price": 8939.99,
+      "shares": 7.721155,
+      "notional": 69027.0485,
+      "reason": "recover",
+      "pol": "long"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 956578,
+      "entry_price": 8642.86,
+      "exit_price": 9229.39,
+      "shares": 5.147436,
+      "notional": 47507.6943,
+      "reason": "reduce",
+      "pol": "short"
+    },
+    {
+      "lad": 7,
+      "entry_bar": 914789,
+      "exit_bar": 956814,
+      "entry_price": 8642.86,
+      "exit_price": 9082.04,
+      "shares": 3.431624,
+      "notional": 31166.1464,
+      "reason": "reduce",
+      "pol": "short"
+    }
+  ],
+  "reduce_recover_drain_frac_of_remaining": {
+    "flip": {
+      "n": 2,
+      "median": 1.0,
+      "mean": 1.0,
+      "p25": 1.0,
+      "p75": 1.0
+    },
+    "reduce": {
+      "n": 1235,
+      "median": 0.0611,
+      "mean": 0.1062,
+      "p25": 0.026,
+      "p75": 0.1475
+    },
+    "recover": {
+      "n": 570,
+      "median": 1.0,
+      "mean": 1.0,
+      "p25": 1.0,
+      "p75": 1.0
+    },
+    "drain": {
+      "n": 276,
+      "median": 0.3333,
+      "mean": 0.2499,
+      "p25": 0.094,
+      "p75": 0.3333
+    },
+    "liq": {
+      "n": 7,
+      "median": 1.0,
+      "mean": 1.0,
+      "p25": 1.0,
+      "p75": 1.0
+    }
+  },
+  "notional_decay": [
+    {
+      "win": [
+        910416,
+        950000
+      ],
+      "mid_price": 8712.0,
+      "max_shares": 15.923385,
+      "max_notional": 119172.22
+    },
+    {
+      "win": [
+        950000,
+        1000000
+      ],
+      "mid_price": 12351.0,
+      "max_shares": 9.651443,
+      "max_notional": 80306.22
+    },
+    {
+      "win": [
+        1000000,
+        1100000
+      ],
+      "mid_price": 10645.0,
+      "max_shares": 4.454783,
+      "max_notional": 52041.06
+    },
+    {
+      "win": [
+        1100000,
+        1300000
+      ],
+      "mid_price": 7280.0,
+      "max_shares": 2.803917,
+      "max_notional": 23338.88
+    },
+    {
+      "win": [
+        1300000,
+        1500000
+      ],
+      "mid_price": 7152.0,
+      "max_shares": 0.101168,
+      "max_notional": 1037.63
+    },
+    {
+      "win": [
+        1500000,
+        1806004
+      ],
+      "mid_price": 11482.0,
+      "max_shares": 0.000334,
+      "max_notional": 5.92
+    },
+    {
+      "win": [
+        1806004,
+        2000000
+      ],
+      "mid_price": 58142.0,
+      "max_shares": 2.9e-05,
+      "max_notional": 1.75
+    },
+    {
+      "win": [
+        2000000,
+        2218375
+      ],
+      "mid_price": 46720.0,
+      "max_shares": 1e-06,
+      "max_notional": 0.06
+    },
+    {
+      "win": [
+        2218375,
+        2400000
+      ],
+      "mid_price": 43539.0,
+      "max_shares": 1e-06,
+      "max_notional": 0.05
+    },
+    {
+      "win": [
+        2400000,
+        2627490
+      ],
+      "mid_price": 29617.0,
+      "max_shares": 0.0,
+      "max_notional": 0.0
+    }
+  ]
+}

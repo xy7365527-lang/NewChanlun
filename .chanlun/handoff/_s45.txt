@@ -1,0 +1,44 @@
+### 对账: Σ逐笔pnl=29629 vs (final_nav-10万)=29629 差=0
+
+### S4 多空总账
+  long  n=1955 cash=+60038
+  short n=2270 cash=-30410
+### S4 四象限(多空×盈亏)
+  long /亏 n=1511 cash=-47361
+  long /赚 n=444  cash=+107400
+  short/亏 n=1825 cash=-128251
+  short/赚 n=445  cash=+97841
+### S4 按(多空,reason)
+  short/reduce         n=1392 cash=-41558
+  short/drain          n=367  cash=-4665
+  long /liq            n=5    cash=-1550
+  long /flip           n=2    cash=-707
+  short/liq            n=7    cash=-11
+  long /eod            n=2    cash=+0
+  long /reduce         n=982  cash=+3628
+  long /drain          n=225  cash=+3715
+  short/recover        n=504  cash=+15825
+  long /recover        n=739  cash=+54951
+
+### S5 最大10笔亏损
+  L4 short reduce        b914789($9372)->b965043($10748) sh=3.940 pnl=-5422 org=?
+  L4 short reduce        b914789($11430)->b970959($12650) sh=3.016 pnl=-3679 org=?
+  L4 short reduce        b914789($9372)->b965100($10673) sh=2.627 pnl=-3417 org=?
+  L4 short reduce        b914789($7370)->b917503($7942) sh=5.791 pnl=-3318 org=?
+  L3 short reduce        b3480($4458)->b82009($5722) sh=2.529 pnl=-3198 org=?
+  L4 short reduce        b914789($8643)->b956578($9229) sh=5.147 pnl=-3019 org=?
+  L0 short recover       b926456($7957)->b927300($8538) sh=5.028 pnl=-2924 org=?
+  L4 short reduce        b914789($11604)->b991061($12976) sh=2.099 pnl=-2879 org=?
+  L3 short reduce        b3480($4458)->b80846($5196) sh=3.794 pnl=-2801 org=?
+  L3 short reduce        b3480($9432)->b153325($10825) sh=1.725 pnl=-2403 org=?
+### S5b 最大10笔盈利
+  L0 long  recover       b965043->b970813 pnl=+8079
+  L2 short reduce        b3480->b40830 pnl=+5772
+  L0 short recover       b912114->b914664 pnl=+5340
+  L0 long  recover       b11764->b20824 pnl=+5090
+  L0 short recover       b27106->b41901 pnl=+4322
+  L2 short reduce        b3480->b40887 pnl=+3830
+  L0 long  recover       b953271->b956390 pnl=+3459
+  L1 long  recover       b27051->b29322 pnl=+3324
+  L0 short recover       b933473->b939487 pnl=+3117
+  L2 long  reduce        b917503->b927570 pnl=+3094

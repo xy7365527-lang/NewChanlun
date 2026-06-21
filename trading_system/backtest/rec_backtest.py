@@ -148,7 +148,7 @@ def main() -> int:
     print(f"NT 真账本: 起始={INITIAL_CAPITAL:.0f} 期末={final_bal:.2f}  strat={strat_pct:+.2f}%")
     print(f"BH={bh_pct:+.2f}%  (closes[0]={closes[0]:.2f} → closes[-1]={closes[-1]:.2f})")
     print(f"策略: bars={strategy.n_bars} orders={strategy.n_orders} dups={strategy.n_dups}")
-    print(f"引擎操作(enter/sink/recover/spawn/promote/flip/reruns)={strategy.engine.op_counts()}")
+    print(f"引擎操作(enter/sink/recover/spawn/reruns)={strategy.engine.op_counts()}")
     tot = max(1, strategy.n_bars)
     print(
         f"敞口分布: 多={strategy.n_bars_long}({100*strategy.n_bars_long/tot:.1f}%) "

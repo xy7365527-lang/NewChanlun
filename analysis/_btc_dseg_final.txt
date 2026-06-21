@@ -1,0 +1,37 @@
+A) 全局 sum(per-trade pnl) = 29628.68  (final_nav=129628.63, 起始约100000)
+   按 exit_bar 时段的已实现 pnl:
+     2017-18 $3k-8k        : total=   +27317.79  long=   +44406.14  short=   -17088.36
+     2018-20 $6k-12k       : total=    +2432.86  long=   +22290.80  short=   -19857.94
+     2020-21升              : total=     -122.19  long=    -6659.16  short=    +6536.96
+     2021升至顶前              : total=       +0.23  long=       +0.68  short=       -0.46
+     ★下跌段69k->15k          : total=       -0.00  long=       +0.00  short=       -0.01
+     2022底之后               : total=       +0.00  long=       +0.00  short=       +0.00
+
+B) 各时段 trade shares 量级（在场仓位规模代理）:
+     2017-18 $3k-8k        : n= 653 max_sh=2.486919e+01 median=8.049600e-02
+     2018-20 $6k-12k       : n= 437 max_sh=1.592338e+01 median=1.592000e-02
+     2020-21升              : n= 694 max_sh=4.454783e+00 median=3.540000e-04
+     2021升至顶前              : n= 597 max_sh=2.900000e-05 median=0.000000e+00
+     ★下跌段69k->15k          : n= 639 max_sh=1.000000e-06 median=0.000000e+00
+     2022底之后               : n=1205 max_sh=0.000000e+00 median=0.000000e+00
+
+C) equity len=3213 exposure_series len=3213
+   采样步长~1440 bars/点; 段 index [1541,1917]
+   exposure_series 段内首元素样本: [2219040, 0.0, 3e-06]
+   exposure 段内: min=0.0000 max=2760480.0000 mean=829920.0000
+   equity: 顶时=[2219040, 129628.602174]  底时=[2760480, 129628.630692]  起始=[0, 100000.0]  末尾=[4625118, 129628.630693]
+
+D) 段内空头 trades=317
+   exit_reason: {'drain': 59, 'recover': 83, 'reduce': 175}
+   平仓时赢(exit<entry,跌着平=空头获利): 139笔  亏(exit>entry,涨着平): 177笔
+   赢笔平均持有=13084 bar, 亏笔平均持有=19059 bar
+   段内空头持有时长: median=8238 bar max=129973 (段长=541895)
+   段内持有最久的5笔空头:
+     lad6 eb=2357602(p43171) xb=2487575(p29913) held=129973 recover 赢
+     lad5 eb=2754639(p22783) xb=2869598(p22892) held=114959 recover 亏
+     lad5 eb=2754639(p22747) xb=2869097(p23379) held=114458 reduce 亏
+     lad5 eb=2754639(p20742) xb=2848077(p23144) held=93438 reduce 亏
+     lad5 eb=2754639(p20742) xb=2847979(p23210) held=93340 reduce 亏
+
+E) 段内多头 trades=322  赢(exit>entry,涨着平)=134 亏=188
+   段内多头 sum_pnl=0.0025  段内空头 sum_pnl=0.0025

@@ -1,0 +1,44 @@
+1) 全运行真实建仓事件 (n_entries_by_ladder=[0,0,0,2,2,0,...]):
+   flip: lad3 long eb=3206 ep=4021.0 xb=3480 sh=24.869188
+   flip: lad4 long eb=910416 ep=7484.1 xb=914789 sh=15.923385
+
+2) 仓位 units(shares) 几何衰减链（按建仓bar分窗，窗内最大shares=该期满仓规模）:
+   bar[       0-200000  ] ~price$    5680: max_units=2.486919e+01  (满仓notional$141256)
+   bar[  200000-400000  ] ~price$    7917: max_units=1.103003e+00  (满仓notional$8732)
+   bar[  400000-700000  ] ~price$    6905: max_units=1.617080e-01  (满仓notional$1117)
+   bar[  700000-1000000 ] ~price$    4704: max_units=1.592338e+01  (满仓notional$74903)
+   bar[ 1000000-1400000 ] ~price$    7280: max_units=4.454783e+00  (满仓notional$32431)
+   bar[ 1400000-1806004 ] ~price$   10245: max_units=2.122000e-03  (满仓notional$22)
+   bar[ 1806004-2000000 ] ~price$   58142: max_units=2.900000e-05  (满仓notional$2)
+   bar[ 2000000-2218375 ] ~price$   46720: max_units=1.000000e-06  (满仓notional$0)
+   bar[ 2218375-2350000 ] ~price$   49814: max_units=1.000000e-06  (满仓notional$0)
+   bar[ 2350000-2500000 ] ~price$   45861: max_units=1.000000e-06  (满仓notional$0)
+   bar[ 2500000-2760270 ] ~price$   21371: max_units=0.000000e+00  (满仓notional$0)
+   bar[ 2760270-3000000 ] ~price$   21792: max_units=0.000000e+00  (满仓notional$0)
+   bar[ 3000000-4625119 ] ~price$   97496: max_units=0.000000e+00  (满仓notional$0)
+
+3) 段内持有最久空头批次 lad6 entry_bar=2357602 的 units 链:
+   该批次总 units=0.000000e+00, leg数=8
+     xb=2360258 ep=43679.1 xp=43995.5 Δunits=0.000000e+00 reduce 亏
+     xb=2360705 ep=43609.3 xp=43277.4 Δunits=0.000000e+00 reduce 赢
+     xb=2367221 ep=43170.9 xp=37603.2 Δunits=0.000000e+00 reduce 赢
+     xb=2367234 ep=43170.9 xp=37424.6 Δunits=0.000000e+00 reduce 赢
+     xb=2369153 ep=43170.9 xp=38100.9 Δunits=0.000000e+00 reduce 赢
+     xb=2369429 ep=43170.9 xp=38820.7 Δunits=0.000000e+00 reduce 赢
+     xb=2437380 ep=43170.9 xp=40726.4 Δunits=0.000000e+00 reduce 赢
+     xb=2487575 ep=43170.9 xp=29912.8 Δunits=0.000000e+00 recover 赢
+
+4) 段内 short exposure 时间线 (exposure_series=[bar,long,short], 每~1440bar):
+         bar    price   long_exp  short_exp
+     2246400    57236   0.000000   0.000002
+     2304000    41728   0.000001   0.000000
+     2361600    40462   0.000001   0.000000
+     2419200    47101   0.000000   0.000001
+     2476800    34196   0.000000   0.000000
+     2534400    20507   0.000000   0.000000
+     2592000    22760   0.000000   0.000000
+     2649600    20090   0.000000   0.000000
+     2707200    19116   0.000000   0.000000
+   段内 long_exp:  min=0.000000 max=0.000001 mean=0.000000
+   段内 short_exp: min=0.000000 max=0.000003 mean=0.000000
+   (exposure=1.0 表示满仓; 段内最大 short_exp=0.000003 = 满仓的 0.0003%)

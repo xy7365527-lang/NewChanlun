@@ -1,0 +1,79 @@
+86|pub emergent_top: Option<(usize, Polarity)>,
+91|pub fn empty() -> Self {
+92|TSignalView { buy: [false; MAX_LADDER], sell: [false; MAX_LADDER], emergent_top:
+97|fn default() -> Self {
+106|/// `layers[k]` 是 ladder k 的净仓位（复用 `fugue_v3::Layer`：单一 direction，相邻级别方向相反）。
+119|fn default() -> Self {
+125|pub fn new() -> Self {
+136|pub fn result(&self) -> &FugueResult {
+140|pub fn n_trades(&self) -> usize {
+145|fn total_nav(&self, c: f64) -> f64 {
+150|fn highest_active(&self) -> Option<usize> {
+155|fn nearest_active_parent(&self, j: usize) -> Option<usize> {
+160|pub fn snapshot(&self) -> (f64, f64, f64, usize) {
+169|fn enter(&mut self, j: usize, dir: Polarity, bar: i64, c: f64) {
+182|fn clear_all(&mut self, bar: i64, c: f64, reason: &'static str) {
+194|fn ascend(&mut self, from: usize, to: usize) {
+224|/// ladder（stream 侧 `ladder < MAX_LADDER` 守卫同样不写 emergent_top）。8 标的 25M bar 实测
+227|fn emergence_upgrade(&mut self, target_ladder: usize, target_dir: Polarity) {
+232|if self.layers[cc].direction == target_dir && cc < target_ladder {
+240|fn sink(&mut self, parent: usize, sub: usize, bar: i64, c: f64) {
+242|let pdir = self.layers[parent].direction;
+248|// 子层方向相容（add_at 层内单一 direction 不变量）：sub 空 或 已是 mob 方向才可加。
+249|if self.layers[sub].is_active() && self.layers[sub].direction != mob {
+263|fn recover(&mut self, parent: usize, sub: usize, bar: i64, c: f64) {
+264|let pdir = self.layers[parent].direction;
+267|if !self.layers[sub].is_active() || self.layers[sub].direction != mob {
+280|fn drain(&mut self, j: usize, bar: i64, c: f64) {
+292|fn route_bsp(&mut self, j: usize, is_buy: bool, bar: i64, c: f64) {
+296|let pdir = self.layers[p].direction;
+304|if !self.layers[j].is_active() || self.layers[j].direction == mob {
+311|if self.layers[j].is_active() && self.layers[j].direction == mob {
+322|let cdir = self.layers[cc].direction;
+342|pub fn step(&mut self, view: &TSignalView, bar: i64, price: f64) {
+351|let liq = match l.direction {
+364|if let Some((target_ladder, target_dir)) = view.emergent_top {
+394|if l.units > 1e-12 && l.direction == Polarity::Short {
+403|if a.units > 1e-12 && b.units > 1e-12 && a.direction == b.direction {
+417|pub fn finish(&mut self, last_bar: Option<i64>) {
+437|fn buy_view(k: usize) -> TSignalView {
+443|fn sell_view(k: usize) -> TSignalView {
+452|fn 核心_首个买点全仓建多() {
+455|assert_eq!(eng.layers[6].direction, Polarity::Long);
+463|fn 核心_最高级别反向翻转清全塔() {
+467|assert_eq!(eng.layers[6].direction, Polarity::Short, "核心翻空");
+474|fn 核心_同向更高级别ascend骑乘上移() {
+480|assert_eq!(eng.layers[7].direction, Polarity::Long);
+487|fn emergent_view(ladder: usize, dir: Polarity) -> TSignalView {
+489|v.emergent_top = Some((ladder, dir));
+494|fn 涌现升级_核心多头升到涌现ladder_方向一致() {
+499|eng.step(&emergent_view(7, Polarity::Long), 10, 105.0);
+501|assert_eq!(eng.layers[7].direction, Polarity::Long, "核心归属到涌现 ladder 7");
+511|fn 涌现升级_方向不一致不升级() {
+515|eng.step(&emergent_view(7, Polarity::Short), 10, 105.0);
+522|fn 涌现升级_全空时no_op() {
+525|eng.step(&emergent_view(7, Polarity::Long), 0, 100.0);
+531|fn 涌现升级_已在更高ladder不下移() {
+535|eng.step(&emergent_view(6, Polarity::Long), 10, 105.0);
+542|fn 涌现升级后低级别卖点变子级sink() {
+545|eng.step(&emergent_view(8, Polarity::Long), 10, 100.0); // 升级到核心 Long@8
+549|assert_eq!(eng.layers[8].direction, Polarity::Long, "核心仍持多（非误判为翻转）");
+551|assert_eq!(eng.layers[5].direction, Polarity::Short, "次级别开反向短差（sink）");
+557|fn sink_父持多子卖点父级真减仓三分之一() {
+564|assert_eq!(eng.layers[5].direction, Polarity::Short, "次级别开反向短差");
+572|fn recover_父持多子买点短差全平清升回父级() {
+594|fn 子级永不独立翻转_父持多子卖点是sink非独立做空() {
+608|fn 四步循环_完整齿轮咬合() {
+614|assert_eq!(eng.layers[5].direction, Polarity::Short);
+616|assert_eq!(eng.layers[6].direction, Polarity::Long, "核心仍持多");
+618|assert_eq!(eng.layers[6].direction, Polarity::Short, "核心方向变");
+622|fn 手性几何塔_相邻级别方向相反() {
+630|assert_eq!(eng.layers[6].direction, Polarity::Long);
+631|assert_eq!(eng.layers[5].direction, Polarity::Short, "相邻反向");
+632|assert_eq!(eng.layers[4].direction, Polarity::Long, "手性交替");
+641|fn 总nav守恒_sink_recover同价不创造价值() {
+652|fn 空输入零操作守恒() {
+663|fn 核心多头强平到现金() {
+672|fn 短差空头价格翻倍爆仓() {
+676|assert_eq!(eng.layers[5].direction, Polarity::Short);
+683|fn 收尾全平到现金final_nav() {

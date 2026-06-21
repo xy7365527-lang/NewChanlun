@@ -1,0 +1,6218 @@
+{
+  "closes": {
+    "len": 4625119,
+    "min": 2817.0,
+    "max": 126114.5
+  },
+  "meta": {
+    "n_bars": 4625119,
+    "final_nav": 129628.630693,
+    "n_trades": 4225,
+    "schema": [
+      "ladder",
+      "entry_bar",
+      "entry_price",
+      "exit_bar",
+      "exit_price",
+      "shares",
+      "weight_at_entry",
+      "deferred_bars",
+      "partial",
+      "exit_reason",
+      "polarity",
+      "origin"
+    ]
+  },
+  "npy_trade_crosscheck": [
+    {
+      "entry_bar": 3206,
+      "entry_price": 4021.04,
+      "closes[entry_bar]": 4021.04,
+      "match": true
+    },
+    {
+      "entry_bar": 3480,
+      "entry_price": 4066.0,
+      "closes[entry_bar]": 4066.0,
+      "match": true
+    },
+    {
+      "entry_bar": 3480,
+      "entry_price": 4066.0,
+      "closes[entry_bar]": 4066.0,
+      "match": true
+    },
+    {
+      "entry_bar": 5430,
+      "entry_price": 4077.28,
+      "closes[entry_bar]": 4156.56,
+      "match": true
+    },
+    {
+      "entry_bar": 3480,
+      "entry_price": 4051.05,
+      "closes[entry_bar]": 4066.0,
+      "match": true
+    },
+    {
+      "entry_bar": 3480,
+      "entry_price": 4051.05,
+      "closes[entry_bar]": 4066.0,
+      "match": true
+    },
+    {
+      "entry_bar": 3480,
+      "entry_price": 4051.05,
+      "closes[entry_bar]": 4066.0,
+      "match": true
+    },
+    {
+      "entry_bar": 11764,
+      "entry_price": 4372.0,
+      "closes[entry_bar]": 4319.0,
+      "match": true
+    }
+  ],
+  "segment": {
+    "top_bar": 2218375,
+    "top_close": 69000.0,
+    "bottom_bar": 2760270,
+    "bottom_close": 15513.8,
+    "span_bars": 541895,
+    "next_68500_bar": 3435788
+  },
+  "exit_reason_global": {
+    "flip": 2,
+    "reduce": 2374,
+    "recover": 1243,
+    "drain": 592,
+    "liq": 12,
+    "eod": 2
+  },
+  "summary": {
+    "short_batches_touch_seg": 204,
+    "long_batches_touch_seg": 187,
+    "seg_short_batches": 183,
+    "seg_long_batches": 177,
+    "seg_short_pnl": 0.0,
+    "seg_long_pnl": 0.0,
+    "short_touch_pnl": -0.01,
+    "long_touch_pnl": 0.0
+  },
+  "held_full_short": [],
+  "top_short_by_shares": [
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 39451.88,
+      "polarity": "short",
+      "n_legs": 6,
+      "total_shares": 0.0,
+      "last_exit_bar": 2238375,
+      "batch_pnl": -0.02,
+      "legs": [
+        {
+          "exit_bar": 2234477,
+          "exit_price": 59497.51,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.02,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2234477,
+          "exit_price": 59497.51,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2235735,
+          "exit_price": 58152.57,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2236684,
+          "exit_price": 55984.3,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2237387,
+          "exit_price": 57418.0,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2238375,
+          "exit_price": 56607.84,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 51757.05,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2240374,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2239361,
+          "exit_price": 57751.01,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2240255,
+          "exit_price": 59106.52,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2240374,
+          "exit_price": 58865.5,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 54118.97,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2244063,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2244063,
+          "exit_price": 54312.88,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 55499.12,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2246592,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2246592,
+          "exit_price": 57106.66,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 54715.42,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2258280,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2257601,
+          "exit_price": 50905.12,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2258280,
+          "exit_price": 50497.98,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 53219.74,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2268074,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2268074,
+          "exit_price": 47940.09,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 50762.54,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2270568,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2269340,
+          "exit_price": 48759.84,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2270568,
+          "exit_price": 47963.02,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 49283.35,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2271310,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2271310,
+          "exit_price": 47007.45,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 48520.83,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2273432,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2273040,
+          "exit_price": 47002.85,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2273432,
+          "exit_price": 46672.55,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 47513.46,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2274370,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2274174,
+          "exit_price": 47577.22,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2274370,
+          "exit_price": 47048.96,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 47337.71,
+      "polarity": "short",
+      "n_legs": 5,
+      "total_shares": 0.0,
+      "last_exit_bar": 2279138,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2275668,
+          "exit_price": 46038.1,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2276601,
+          "exit_price": 46860.49,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2277047,
+          "exit_price": 48729.98,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2278427,
+          "exit_price": 49110.33,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2279138,
+          "exit_price": 48576.02,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 49621.92,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2285454,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2285454,
+          "exit_price": 50977.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    }
+  ],
+  "all_short_touch": [
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 39451.88,
+      "polarity": "short",
+      "n_legs": 6,
+      "total_shares": 0.0,
+      "last_exit_bar": 2238375,
+      "batch_pnl": -0.02,
+      "legs": [
+        {
+          "exit_bar": 2234477,
+          "exit_price": 59497.51,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.02,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2234477,
+          "exit_price": 59497.51,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2235735,
+          "exit_price": 58152.57,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2236684,
+          "exit_price": 55984.3,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2237387,
+          "exit_price": 57418.0,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2238375,
+          "exit_price": 56607.84,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 51757.05,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2240374,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2239361,
+          "exit_price": 57751.01,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2240255,
+          "exit_price": 59106.52,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2240374,
+          "exit_price": 58865.5,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 54118.97,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2244063,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2244063,
+          "exit_price": 54312.88,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 55499.12,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2246592,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2246592,
+          "exit_price": 57106.66,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 54715.42,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2258280,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2257601,
+          "exit_price": 50905.12,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2258280,
+          "exit_price": 50497.98,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 53219.74,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2268074,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2268074,
+          "exit_price": 47940.09,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 50762.54,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2270568,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2269340,
+          "exit_price": 48759.84,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2270568,
+          "exit_price": 47963.02,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 49283.35,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2271310,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2271310,
+          "exit_price": 47007.45,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 48520.83,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2273432,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2273040,
+          "exit_price": 47002.85,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2273432,
+          "exit_price": 46672.55,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 47513.46,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2274370,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2274174,
+          "exit_price": 47577.22,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2274370,
+          "exit_price": 47048.96,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 47337.71,
+      "polarity": "short",
+      "n_legs": 5,
+      "total_shares": 0.0,
+      "last_exit_bar": 2279138,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2275668,
+          "exit_price": 46038.1,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2276601,
+          "exit_price": 46860.49,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2277047,
+          "exit_price": 48729.98,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2278427,
+          "exit_price": 49110.33,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2279138,
+          "exit_price": 48576.02,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 49621.92,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2285454,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2285454,
+          "exit_price": 50977.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 50249.3,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2292866,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2286471,
+          "exit_price": 51270.02,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2288326,
+          "exit_price": 48037.47,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2292866,
+          "exit_price": 47111.49,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 1806004,
+      "entry_price": 48767.73,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2301413,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2301413,
+          "exit_price": 41658.2,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 7,
+      "entry_bar": 1919881,
+      "entry_price": 61267.26,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2258280,
+      "batch_pnl": 0.01,
+      "legs": [
+        {
+          "exit_bar": 2258280,
+          "exit_price": 50497.98,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.01,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2136152,
+      "entry_price": 63947.2,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2222938,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2222938,
+          "exit_price": 64481.11,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2136152,
+      "entry_price": 64173.65,
+      "polarity": "short",
+      "n_legs": 4,
+      "total_shares": 0.0,
+      "last_exit_bar": 2225876,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2223586,
+          "exit_price": 64809.33,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2224963,
+          "exit_price": 65836.83,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2225876,
+          "exit_price": 63948.14,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2225876,
+          "exit_price": 63948.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2136152,
+      "entry_price": 63990.47,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2228886,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2226454,
+          "exit_price": 61373.92,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2227269,
+          "exit_price": 60394.68,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2228886,
+          "exit_price": 59909.12,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2136152,
+      "entry_price": 62101.23,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2230858,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2230679,
+          "exit_price": 55963.67,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2230679,
+          "exit_price": 55963.67,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2230858,
+          "exit_price": 56325.17,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2136152,
+      "entry_price": 59625.78,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2232358,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2230898,
+          "exit_price": 56284.49,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2231736,
+          "exit_price": 57887.01,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2232358,
+          "exit_price": 58595.7,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2136152,
+      "entry_price": 58960.09,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2236766,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2236766,
+          "exit_price": 56085.62,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2251973,
+      "entry_price": 52060.92,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2257095,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2253904,
+          "exit_price": 49349.99,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2257095,
+          "exit_price": 51314.11,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2251973,
+      "entry_price": 51421.91,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2258606,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2258606,
+          "exit_price": 49058.73,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2258700,
+      "entry_price": 49684.38,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2258952,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2258952,
+          "exit_price": 50400.05,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2259698,
+      "entry_price": 49620.68,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2260249,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2260249,
+          "exit_price": 48437.24,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2260541,
+      "entry_price": 47790.4,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2263881,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2263881,
+          "exit_price": 49200.1,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2265408,
+      "entry_price": 48399.15,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2267939,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2267939,
+          "exit_price": 48289.03,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2286859,
+      "entry_price": 48549.05,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2290476,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2290476,
+          "exit_price": 47191.51,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2292272,
+      "entry_price": 46295.96,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2301413,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2300276,
+          "exit_price": 42935.27,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2301413,
+          "exit_price": 41658.2,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2301508,
+      "entry_price": 41565.22,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2301814,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2301814,
+          "exit_price": 42416.45,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2301970,
+      "entry_price": 41625.13,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2310910,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2308030,
+          "exit_price": 42864.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2309381,
+          "exit_price": 43552.47,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2310910,
+          "exit_price": 42558.54,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2301970,
+      "entry_price": 42308.71,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2316588,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2316588,
+          "exit_price": 42169.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2301970,
+      "entry_price": 42308.65,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2318504,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2318504,
+          "exit_price": 42275.0,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2301970,
+      "entry_price": 42258.17,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2321467,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2321467,
+          "exit_price": 38789.02,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2301970,
+      "entry_price": 41123.77,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2322234,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2322234,
+          "exit_price": 38442.01,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2322736,
+      "entry_price": 36492.51,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2323109,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2323109,
+          "exit_price": 35543.95,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2323167,
+      "entry_price": 35697.43,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2326327,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2326327,
+          "exit_price": 33595.25,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2326425,
+      "entry_price": 34819.92,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2326984,
+      "batch_pnl": -0.0,
+      "legs": [
+        {
+          "exit_bar": 2326984,
+          "exit_price": 36439.35,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2328853,
+      "entry_price": 37684.84,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2330654,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2330654,
+          "exit_price": 36608.95,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2338112,
+      "entry_price": 38777.81,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2338140,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2338140,
+          "exit_price": 38771.08,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2338112,
+      "entry_price": 38664.2,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2338880,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2338880,
+          "exit_price": 38376.7,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2342420,
+      "entry_price": 40429.83,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2343019,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2343019,
+          "exit_price": 41385.68,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2342420,
+      "entry_price": 41214.42,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2346055,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2346055,
+          "exit_price": 42778.37,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2342420,
+      "entry_price": 42142.97,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2348276,
+      "batch_pnl": -0.0,
+      "legs": [
+        {
+          "exit_bar": 2346834,
+          "exit_price": 44153.29,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2348276,
+          "exit_price": 43036.04,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2357179,
+      "entry_price": 42623.04,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2357403,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2357346,
+          "exit_price": 43439.97,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2357403,
+          "exit_price": 43565.8,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2357179,
+      "entry_price": 43305.34,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2360258,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2360224,
+          "exit_price": 43881.41,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2360258,
+          "exit_price": 43995.48,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 2357602,
+      "entry_price": 43679.13,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2360258,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2360258,
+          "exit_price": 43995.48,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 2357602,
+      "entry_price": 43609.26,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2360705,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2360705,
+          "exit_price": 43277.39,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 6,
+      "entry_bar": 2357602,
+      "entry_price": 43170.95,
+      "polarity": "short",
+      "n_legs": 6,
+      "total_shares": 0.0,
+      "last_exit_bar": 2487575,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2367221,
+          "exit_price": 37603.22,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2367234,
+          "exit_price": 37424.55,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2369153,
+          "exit_price": 38100.94,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2369429,
+          "exit_price": 38820.66,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2437380,
+          "exit_price": 40726.37,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2487575,
+          "exit_price": 29912.75,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 40740.96,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2382746,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2382746,
+          "exit_price": 40740.96,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 40317.0,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2386073,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2386073,
+          "exit_price": 38423.39,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 39909.8,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2387307,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2387307,
+          "exit_price": 37945.74,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 39373.52,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2389510,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2388063,
+          "exit_price": 38736.05,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2389455,
+          "exit_price": 42123.08,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2389510,
+          "exit_price": 42070.0,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 39213.64,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2399779,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2398814,
+          "exit_price": 39491.0,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2399779,
+          "exit_price": 40482.43,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 39601.26,
+      "polarity": "short",
+      "n_legs": 4,
+      "total_shares": 0.0,
+      "last_exit_bar": 2405825,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2400460,
+          "exit_price": 40950.0,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2401001,
+          "exit_price": 40648.11,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2403405,
+          "exit_price": 41700.67,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2405825,
+          "exit_price": 41172.35,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 42577.13,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2408066,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2408066,
+          "exit_price": 42275.94,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 43085.79,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2411611,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2411611,
+          "exit_price": 43954.99,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 43744.84,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2416055,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2413041,
+          "exit_price": 44417.99,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2416055,
+          "exit_price": 46100.0,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2382746,
+      "entry_price": 45472.61,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2422228,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2422228,
+          "exit_price": 44509.56,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2422319,
+      "entry_price": 44704.67,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2422734,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2422734,
+          "exit_price": 44962.68,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2422768,
+      "entry_price": 45119.04,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2423112,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2423112,
+          "exit_price": 46355.56,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2422768,
+      "entry_price": 45695.01,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2428757,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2427980,
+          "exit_price": 46633.22,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2428235,
+          "exit_price": 46706.47,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2428757,
+          "exit_price": 45839.5,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2422768,
+      "entry_price": 45868.1,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2430805,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2430805,
+          "exit_price": 43239.86,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2422768,
+      "entry_price": 45036.47,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2432926,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2432470,
+          "exit_price": 43569.97,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2432926,
+          "exit_price": 43187.01,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2422768,
+      "entry_price": 43613.54,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2437380,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2437380,
+          "exit_price": 40726.37,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2422768,
+      "entry_price": 42530.06,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2437783,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2437783,
+          "exit_price": 39789.27,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2437917,
+      "entry_price": 39673.45,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2438498,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2438498,
+          "exit_price": 40149.99,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2438789,
+      "entry_price": 40277.89,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2439671,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2439671,
+          "exit_price": 40078.32,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2438789,
+      "entry_price": 40536.49,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2441810,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2441810,
+          "exit_price": 39959.58,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2438789,
+      "entry_price": 40314.98,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2443812,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2443812,
+          "exit_price": 40455.85,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2438789,
+      "entry_price": 40269.82,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2449100,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2447786,
+          "exit_price": 40799.98,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2449100,
+          "exit_price": 41461.02,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2438789,
+      "entry_price": 41066.07,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2451193,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2451022,
+          "exit_price": 41643.77,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2451193,
+          "exit_price": 41510.99,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2458455,
+      "entry_price": 40620.0,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2459083,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2459083,
+          "exit_price": 38275.01,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2462045,
+      "entry_price": 40160.32,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2462598,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2462131,
+          "exit_price": 39903.29,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2462598,
+          "exit_price": 39485.29,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2462045,
+      "entry_price": 39781.25,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2463480,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2463480,
+          "exit_price": 38481.38,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2462045,
+      "entry_price": 39382.58,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2466638,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2466638,
+          "exit_price": 38468.35,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2462045,
+      "entry_price": 39137.69,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2469129,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2469129,
+          "exit_price": 38239.99,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2462045,
+      "entry_price": 38625.13,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2471034,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2470193,
+          "exit_price": 38943.96,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2471034,
+          "exit_price": 39646.49,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2462045,
+      "entry_price": 38853.3,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2471634,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2471634,
+          "exit_price": 39540.2,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2462045,
+      "entry_price": 39291.74,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2475582,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2475582,
+          "exit_price": 34402.99,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2475630,
+      "entry_price": 32929.11,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2480952,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2480952,
+          "exit_price": 28654.75,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2481002,
+      "entry_price": 28645.09,
+      "polarity": "short",
+      "n_legs": 16,
+      "total_shares": 0.0,
+      "last_exit_bar": 2502258,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2482415,
+          "exit_price": 28632.73,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2482836,
+          "exit_price": 30624.84,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2484799,
+          "exit_price": 28850.69,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2485262,
+          "exit_price": 29686.39,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2488970,
+          "exit_price": 30399.99,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2489397,
+          "exit_price": 30095.0,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2489708,
+          "exit_price": 30638.5,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2489962,
+          "exit_price": 29857.65,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2490702,
+          "exit_price": 29170.11,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2495128,
+          "exit_price": 29433.51,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2496269,
+          "exit_price": 30028.12,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2497517,
+          "exit_price": 30445.88,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2498295,
+          "exit_price": 29117.02,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2498795,
+          "exit_price": 29400.05,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2501727,
+          "exit_price": 29023.84,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2502258,
+          "exit_price": 29590.0,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2482206,
+      "entry_price": 29681.69,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2502258,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2502258,
+          "exit_price": 29590.0,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2502972,
+      "entry_price": 28882.37,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2504634,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2504634,
+          "exit_price": 28863.34,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2506493,
+      "entry_price": 29247.21,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2506565,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2506565,
+          "exit_price": 29262.72,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2507187,
+      "entry_price": 30337.78,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2507541,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2507541,
+          "exit_price": 30674.67,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2507631,
+      "entry_price": 30624.75,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2508418,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2508418,
+          "exit_price": 31647.4,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2507631,
+      "entry_price": 30201.12,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2511886,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2511886,
+          "exit_price": 29937.53,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2507631,
+      "entry_price": 30332.76,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2516909,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2513625,
+          "exit_price": 29395.32,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2516207,
+          "exit_price": 29621.38,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2516909,
+          "exit_price": 29944.73,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2507631,
+      "entry_price": 31198.64,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2518725,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2518725,
+          "exit_price": 29517.32,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2507631,
+      "entry_price": 30644.12,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2520247,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2519502,
+          "exit_price": 29898.06,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2520017,
+          "exit_price": 31117.98,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2520247,
+          "exit_price": 30253.48,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2507631,
+      "entry_price": 30569.55,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2522875,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2522875,
+          "exit_price": 29846.48,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2507631,
+      "entry_price": 30343.3,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2526049,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2524735,
+          "exit_price": 29276.68,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2526049,
+          "exit_price": 27364.48,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2527097,
+      "entry_price": 26287.24,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2527855,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2527855,
+          "exit_price": 24148.39,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2527913,
+      "entry_price": 23621.44,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2528600,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2528600,
+          "exit_price": 22284.41,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2528715,
+      "entry_price": 21123.79,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2530423,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2530423,
+          "exit_price": 21360.73,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 22351.45,
+      "polarity": "short",
+      "n_legs": 4,
+      "total_shares": 0.0,
+      "last_exit_bar": 2534990,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2531598,
+          "exit_price": 22380.87,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2531626,
+          "exit_price": 22413.01,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2532921,
+          "exit_price": 20309.33,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2534990,
+          "exit_price": 19283.69,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19663.37,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2536586,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2536586,
+          "exit_price": 19448.44,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19936.01,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2537268,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2537268,
+          "exit_price": 20074.28,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 20203.52,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2538030,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2538030,
+          "exit_price": 20437.81,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 20563.01,
+      "polarity": "short",
+      "n_legs": 4,
+      "total_shares": 0.0,
+      "last_exit_bar": 2542610,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2540303,
+          "exit_price": 20395.93,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2540548,
+          "exit_price": 20141.13,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2541419,
+          "exit_price": 19946.37,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2542610,
+          "exit_price": 20340.46,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 21165.81,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2545956,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2544424,
+          "exit_price": 21240.37,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2545884,
+          "exit_price": 21446.94,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2545956,
+          "exit_price": 21386.22,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 21119.01,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2549750,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2549437,
+          "exit_price": 21009.9,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2549750,
+          "exit_price": 20649.47,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 20848.25,
+      "polarity": "short",
+      "n_legs": 6,
+      "total_shares": 0.0,
+      "last_exit_bar": 2552188,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2549949,
+          "exit_price": 20282.12,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2549949,
+          "exit_price": 20282.12,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2550085,
+          "exit_price": 20322.33,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2550190,
+          "exit_price": 20340.64,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2550933,
+          "exit_price": 20033.45,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2552188,
+          "exit_price": 19076.99,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19431.29,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2553373,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2553373,
+          "exit_price": 19414.35,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19418.24,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2555182,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2555182,
+          "exit_price": 19202.99,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19360.64,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2558425,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2558425,
+          "exit_price": 19959.18,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19641.76,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2560207,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2559082,
+          "exit_price": 20232.62,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2560207,
+          "exit_price": 20188.19,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 20373.4,
+      "polarity": "short",
+      "n_legs": 5,
+      "total_shares": 0.0,
+      "last_exit_bar": 2568976,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2562850,
+          "exit_price": 21478.99,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2562994,
+          "exit_price": 21635.58,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2563414,
+          "exit_price": 21993.63,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2566939,
+          "exit_price": 20908.09,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2568976,
+          "exit_price": 19915.41,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19996.03,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2570277,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2569818,
+          "exit_price": 19902.6,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2569908,
+          "exit_price": 19872.69,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2570277,
+          "exit_price": 19442.53,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19614.45,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2570889,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2570889,
+          "exit_price": 19867.92,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 19677.22,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2571963,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2571538,
+          "exit_price": 19680.25,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2571823,
+          "exit_price": 20280.25,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2571963,
+          "exit_price": 20306.01,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 20607.45,
+      "polarity": "short",
+      "n_legs": 4,
+      "total_shares": 0.0,
+      "last_exit_bar": 2574979,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2573875,
+          "exit_price": 20912.28,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2574918,
+          "exit_price": 20687.99,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2574918,
+          "exit_price": 20687.99,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2574979,
+          "exit_price": 20685.5,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 20662.79,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2575821,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2575070,
+          "exit_price": 20572.43,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2575821,
+          "exit_price": 21258.37,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 20768.01,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2577969,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2577969,
+          "exit_price": 22225.51,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 21215.66,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2580070,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2580070,
+          "exit_price": 23356.24,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 22055.03,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2583285,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2583285,
+          "exit_price": 23122.96,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 22538.9,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2585659,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2584204,
+          "exit_price": 23408.18,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2584480,
+          "exit_price": 22589.17,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2585659,
+          "exit_price": 22181.93,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2531340,
+      "entry_price": 22217.82,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2586541,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2586541,
+          "exit_price": 22681.99,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2537887,
+      "entry_price": 20870.38,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2586541,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2586541,
+          "exit_price": 22681.99,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2586541,
+      "entry_price": 22681.99,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2587949,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2587949,
+          "exit_price": 21890.73,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2588030,
+      "entry_price": 21581.72,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2590079,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2590079,
+          "exit_price": 20967.19,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 21156.82,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2590689,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2590689,
+          "exit_price": 21118.13,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 21241.9,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2592021,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2591673,
+          "exit_price": 22710.74,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2591705,
+          "exit_price": 22754.63,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2592021,
+          "exit_price": 22758.9,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 21859.99,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2592338,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2592338,
+          "exit_price": 23124.86,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 23334.95,
+      "polarity": "short",
+      "n_legs": 5,
+      "total_shares": 0.0,
+      "last_exit_bar": 2597821,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2595912,
+          "exit_price": 24524.2,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2596307,
+          "exit_price": 23731.46,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2596367,
+          "exit_price": 23842.96,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2596405,
+          "exit_price": 23779.5,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2597821,
+          "exit_price": 23413.82,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 23352.73,
+      "polarity": "short",
+      "n_legs": 5,
+      "total_shares": 0.0,
+      "last_exit_bar": 2600477,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2598808,
+          "exit_price": 22890.63,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2598808,
+          "exit_price": 22890.63,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2599034,
+          "exit_price": 23048.38,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2599350,
+          "exit_price": 22890.58,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2600477,
+          "exit_price": 23130.9,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 23191.97,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2603233,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2603233,
+          "exit_price": 22534.91,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 22971.75,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2608047,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2607311,
+          "exit_price": 23099.88,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2607967,
+          "exit_price": 23298.73,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2608047,
+          "exit_price": 23330.19,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 23725.96,
+      "polarity": "short",
+      "n_legs": 4,
+      "total_shares": 0.0,
+      "last_exit_bar": 2616765,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2609662,
+          "exit_price": 23851.67,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2611687,
+          "exit_price": 23909.36,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2612889,
+          "exit_price": 24644.73,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2616765,
+          "exit_price": 24606.96,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 24149.07,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2618176,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2618176,
+          "exit_price": 24786.47,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 24128.06,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2619727,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2619727,
+          "exit_price": 24005.78,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 24114.92,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2623828,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2620979,
+          "exit_price": 24017.18,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2623828,
+          "exit_price": 22785.37,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2590570,
+      "entry_price": 23387.22,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2624448,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2624448,
+          "exit_price": 21408.82,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2596081,
+      "entry_price": 23822.02,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2624448,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2624448,
+          "exit_price": 21408.82,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2625111,
+      "entry_price": 21063.52,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2632031,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2632031,
+          "exit_price": 21714.98,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2632538,
+      "entry_price": 21540.79,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2633013,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2633013,
+          "exit_price": 21678.24,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2633365,
+      "entry_price": 21536.33,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2634147,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2634147,
+          "exit_price": 21409.64,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2634241,
+      "entry_price": 21428.86,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2634742,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2634742,
+          "exit_price": 20674.36,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2634796,
+      "entry_price": 20280.48,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2638644,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2638644,
+          "exit_price": 19840.23,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2639083,
+      "entry_price": 20246.75,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2640450,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2640450,
+          "exit_price": 19603.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2639083,
+      "entry_price": 20139.24,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2641356,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2641301,
+          "exit_price": 20234.67,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2641356,
+          "exit_price": 20278.36,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2639083,
+      "entry_price": 20077.83,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2643381,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2643381,
+          "exit_price": 19793.06,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2639083,
+      "entry_price": 20084.98,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2643728,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2643728,
+          "exit_price": 20084.48,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2639083,
+      "entry_price": 20043.87,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2645888,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2645888,
+          "exit_price": 19833.84,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2639083,
+      "entry_price": 19976.15,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2650173,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2650173,
+          "exit_price": 19924.35,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2639083,
+      "entry_price": 19626.28,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2652115,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2652115,
+          "exit_price": 19141.21,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2652115,
+      "entry_price": 19141.21,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2652251,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2652251,
+          "exit_price": 19380.46,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2653549,
+      "entry_price": 19203.16,
+      "polarity": "short",
+      "n_legs": 7,
+      "total_shares": 0.0,
+      "last_exit_bar": 2667871,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2653909,
+          "exit_price": 19374.31,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2654598,
+          "exit_price": 21180.66,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2654984,
+          "exit_price": 21186.82,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2656854,
+          "exit_price": 21610.53,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2659013,
+          "exit_price": 22416.15,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2663205,
+          "exit_price": 20135.47,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2667871,
+          "exit_price": 19687.93,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2653661,
+      "entry_price": 20453.26,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2667871,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2667871,
+          "exit_price": 19687.93,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2668261,
+      "entry_price": 19450.31,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2668724,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2668724,
+          "exit_price": 18456.3,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2668757,
+      "entry_price": 18476.4,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2669328,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2669328,
+          "exit_price": 18958.74,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2669604,
+      "entry_price": 19520.46,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2669720,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2669666,
+          "exit_price": 19549.35,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2669720,
+          "exit_price": 19494.8,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2669604,
+      "entry_price": 19390.34,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2670628,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2670628,
+          "exit_price": 19049.85,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2672610,
+      "entry_price": 18561.13,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2676926,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2674120,
+          "exit_price": 19342.26,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2675628,
+          "exit_price": 19113.97,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2676926,
+          "exit_price": 18966.4,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2672982,
+      "entry_price": 18817.01,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2676926,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2676926,
+          "exit_price": 18966.4,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2677053,
+      "entry_price": 19029.5,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2680963,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2680963,
+          "exit_price": 19039.37,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2681386,
+      "entry_price": 18712.17,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2682188,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2682188,
+          "exit_price": 19495.05,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2682529,
+      "entry_price": 19612.69,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2683172,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2683172,
+          "exit_price": 19353.98,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2685803,
+      "entry_price": 19410.88,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2686058,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2686058,
+          "exit_price": 19335.03,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2687815,
+      "entry_price": 19173.91,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2688948,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2688948,
+          "exit_price": 19158.71,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2689422,
+      "entry_price": 19457.52,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2690568,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2690568,
+          "exit_price": 19966.77,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2694234,
+      "entry_price": 19988.24,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2695281,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2695281,
+          "exit_price": 19444.02,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2695297,
+      "entry_price": 19456.22,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2695678,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2695678,
+          "exit_price": 19562.26,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2697106,
+      "entry_price": 19404.13,
+      "polarity": "short",
+      "n_legs": 7,
+      "total_shares": 0.0,
+      "last_exit_bar": 2705275,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2698001,
+          "exit_price": 19531.9,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2698040,
+          "exit_price": 19500.5,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2700947,
+          "exit_price": 19140.46,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2701959,
+          "exit_price": 19170.73,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2703981,
+          "exit_price": 19360.95,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2704522,
+          "exit_price": 19832.49,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2705275,
+          "exit_price": 19307.56,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2697156,
+      "entry_price": 19386.79,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2701006,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2701006,
+          "exit_price": 19121.42,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2701480,
+      "entry_price": 19062.61,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2705275,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2705275,
+          "exit_price": 19307.56,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2711109,
+      "entry_price": 19302.84,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2713348,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2713348,
+          "exit_price": 19143.35,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2714316,
+      "entry_price": 19046.5,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2718420,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2718420,
+          "exit_price": 19465.82,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2719029,
+      "entry_price": 19360.17,
+      "polarity": "short",
+      "n_legs": 7,
+      "total_shares": 0.0,
+      "last_exit_bar": 2728210,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2720061,
+          "exit_price": 19340.81,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2721276,
+          "exit_price": 20252.87,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2722285,
+          "exit_price": 20543.98,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2724484,
+          "exit_price": 20248.16,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2725517,
+          "exit_price": 20640.24,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2726854,
+          "exit_price": 20921.26,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2728210,
+          "exit_price": 20710.53,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2719053,
+      "entry_price": 19829.99,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2728210,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2728210,
+          "exit_price": 20710.53,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2728278,
+      "entry_price": 20648.93,
+      "polarity": "short",
+      "n_legs": 5,
+      "total_shares": 0.0,
+      "last_exit_bar": 2735961,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2728905,
+          "exit_price": 20478.16,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2730676,
+          "exit_price": 20594.5,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2735263,
+          "exit_price": 20770.1,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2735705,
+          "exit_price": 21073.94,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2735961,
+          "exit_price": 21341.08,
+          "shares": 0.0,
+          "reason": "drain",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2728278,
+      "entry_price": 21087.56,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2738089,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2738089,
+          "exit_price": 21262.63,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2728905,
+      "entry_price": 20478.16,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2734393,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2734393,
+          "exit_price": 20211.94,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 4,
+      "entry_bar": 2734708,
+      "entry_price": 20500.87,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2736077,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2736077,
+          "exit_price": 21365.93,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2738966,
+      "entry_price": 20992.65,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2739142,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2739142,
+          "exit_price": 20896.53,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2740777,
+      "entry_price": 19732.43,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2741519,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2741519,
+          "exit_price": 18298.42,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2741680,
+      "entry_price": 17797.01,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2743095,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2743095,
+          "exit_price": 15646.23,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2743567,
+      "entry_price": 17138.08,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2744310,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2744310,
+          "exit_price": 17450.29,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2745777,
+      "entry_price": 16707.63,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2748636,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2748636,
+          "exit_price": 16550.69,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2748739,
+      "entry_price": 16487.15,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2748984,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2748984,
+          "exit_price": 16081.16,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2749061,
+      "entry_price": 16163.1,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2749594,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2749594,
+          "exit_price": 16766.62,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2750564,
+      "entry_price": 16819.65,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2750728,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2750728,
+          "exit_price": 16698.96,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2751242,
+      "entry_price": 16933.52,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2751306,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2751306,
+          "exit_price": 17007.81,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 3,
+      "entry_bar": 2752489,
+      "entry_price": 16606.81,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2754506,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2754506,
+          "exit_price": 16698.48,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 16690.64,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2755009,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2755009,
+          "exit_price": 16800.24,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 16714.52,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2757619,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2755783,
+          "exit_price": 16603.85,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2756965,
+          "exit_price": 16653.38,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2757619,
+          "exit_price": 16720.03,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 16215.31,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2760259,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2760259,
+          "exit_price": 15796.44,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 16339.06,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2763036,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2762919,
+          "exit_price": 16392.29,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2762976,
+          "exit_price": 16478.92,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2763036,
+          "exit_price": 16469.95,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 16756.56,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2774680,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2774680,
+          "exit_price": 16930.33,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17052.04,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2780154,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2780154,
+          "exit_price": 17062.67,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17057.73,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2780895,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2780895,
+          "exit_price": 16985.16,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17037.04,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2784874,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2784874,
+          "exit_price": 17242.87,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17071.64,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2790235,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2790235,
+          "exit_price": 16995.09,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17098.42,
+      "polarity": "short",
+      "n_legs": 8,
+      "total_shares": 0.0,
+      "last_exit_bar": 2795914,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2790718,
+          "exit_price": 17152.62,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2791540,
+          "exit_price": 17870.7,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2793465,
+          "exit_price": 17814.46,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2793525,
+          "exit_price": 17808.19,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2793572,
+          "exit_price": 17801.43,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2795688,
+          "exit_price": 17006.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2795759,
+          "exit_price": 16999.85,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2795914,
+          "exit_price": 16965.13,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 16707.83,
+      "polarity": "short",
+      "n_legs": 3,
+      "total_shares": 0.0,
+      "last_exit_bar": 2813773,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2810636,
+          "exit_price": 16846.88,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2813586,
+          "exit_price": 16493.18,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        },
+        {
+          "exit_bar": 2813773,
+          "exit_price": 16559.09,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": 0.0,
+          "short_win": true
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17363.49,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2832367,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2832367,
+          "exit_price": 17429.64,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17433.69,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2834022,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2834022,
+          "exit_price": 18214.48,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 17514.32,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2835172,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2835172,
+          "exit_price": 18815.72,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 18515.25,
+      "polarity": "short",
+      "n_legs": 2,
+      "total_shares": 0.0,
+      "last_exit_bar": 2836838,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2836375,
+          "exit_price": 19323.19,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2836838,
+          "exit_price": 20927.44,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 19775.1,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2845394,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2845394,
+          "exit_price": 21079.26,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 20742.25,
+      "polarity": "short",
+      "n_legs": 4,
+      "total_shares": 0.0,
+      "last_exit_bar": 2848077,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2847760,
+          "exit_price": 23011.21,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2847923,
+          "exit_price": 23187.14,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2847979,
+          "exit_price": 23210.23,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        },
+        {
+          "exit_bar": 2848077,
+          "exit_price": 23143.73,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 22747.42,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2869097,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2869097,
+          "exit_price": 23378.8,
+          "shares": 0.0,
+          "reason": "reduce",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    },
+    {
+      "ladder": 5,
+      "entry_bar": 2754639,
+      "entry_price": 22783.07,
+      "polarity": "short",
+      "n_legs": 1,
+      "total_shares": 0.0,
+      "last_exit_bar": 2869598,
+      "batch_pnl": 0.0,
+      "legs": [
+        {
+          "exit_bar": 2869598,
+          "exit_price": 22891.8,
+          "shares": 0.0,
+          "reason": "recover",
+          "partial": false,
+          "pnl": -0.0,
+          "short_win": false
+        }
+      ]
+    }
+  ]
+}

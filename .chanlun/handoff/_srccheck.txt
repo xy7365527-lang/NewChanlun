@@ -1,0 +1,6 @@
+ref n=4625119 first=4261.48 last=63085.99
+type=dict
+keys=['opens', 'highs', 'lows', 'closes', 'volumes', 'dates', 'symbol']
+closes n=4625119 first=4261.48 last=63085.99
+match_len=True match_first=True match_last=True
+mid match=True

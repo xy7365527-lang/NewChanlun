@@ -235,8 +235,6 @@ pub struct TRoot {
     pub n_sinks: u64,
     pub n_recovers: u64,
     pub n_spawns: u64,
-    pub n_flips: u64,
-    pub n_promotes: u64,
     pub n_capital_recovered: u64,
     pub short_leg_pnl: f64,
 }
@@ -253,8 +251,6 @@ impl TRoot {
             n_sinks: 0,
             n_recovers: 0,
             n_spawns: 0,
-            n_flips: 0,
-            n_promotes: 0,
             n_capital_recovered: 0,
             short_leg_pnl: 0.0,
         }
@@ -589,87 +585,9 @@ impl TRoot {
         Some(new_slot)
     }
 
-    /// **promote（转折：回调子 T 升格为新核心，§9，编排者裁决 2026-06-20）**：顶级走势完成且涌现反向
-    /// 时——当前回调子 T 短头**已持新方向**（自回调启动 sink，§9.3 的 t1），故 relabel 它为新核心、清掉
-    /// 旧核心，**敞口连续零真空**（取代 clear_root 退化的"清+等待"）。子 T 升格建新 campaign，回调子链继承。
-    /// 返回新核心槽；无回调子 T 可升（退化边界，§9.5）→ None，调用方走 flip 反手。NAV/TW 中性
-    /// （旧核心清=现金、子 T relabel=仓位身份迁移零现金）。
-    pub fn promote(&mut self, new_node: TrendNode, c: f64, bar: i64) -> Option<usize> {
-        let _ = bar;
-        let old_root = self.root_slot?;
-        let child_ref = self.instances[old_root].child?;
-        let child_slot = self.resolve(child_ref)?;
-        if c <= 0.0 || !self.instances[child_slot].is_active() {
-            return None;
-        }
-        let tw_pre = self.total_wealth(c);
-        // 1. 旧核心 reduce 清到现金 + 归还其退本金份额。
-        let u_old = self.instances[old_root].units;
-        if u_old > EPS {
-            let mut free = self.free;
-            let realized = rec_reduce(&mut self.instances[old_root], u_old, &mut free, c);
-            self.free = free;
-            self.account_core_reduce(old_root, realized, c);
-        }
-        let w = self.instances[old_root].withdrawn;
-        self.free += w;
-        self.withdrawn_total -= w;
-        self.dormant_instance(old_root);
-        // 2. 回调子 T relabel 为新核心：骑 new_node, parent=None, 建新 campaign（原为短差腿）。
-        let (cu, cb) = {
-            let ch = &self.instances[child_slot];
-            (ch.units, ch.basis)
-        };
-        {
-            let ch = &mut self.instances[child_slot];
-            ch.node = new_node;
-            ch.parent = None;
-            ch.cost_basis = cb;
-            ch.notional_in = cu * cb;
-            ch.phase = RecStage::CostReduction;
-            ch.withdrawn = 0.0;
-            ch.earning = 0.0;
-        }
-        self.root_slot = Some(child_slot);
-        self.n_promotes += 1;
-        self.prove_tw_neutral(tw_pre, c);
-        Some(child_slot)
-    }
-
-    /// **flip（最高级别走势反转 → 反手，编排者裁决 2026-06-20 终裁：零 workaround）**：全树塌缩（§3.6）
-    /// + 反向 enter。**最高级别必须反手**（绩效=Σ\|涨跌幅\| 要求永远在市场有方向，§0.3）——删除 clear_root
-    /// （顶级"退出观望不反手"是 workaround）。顶级反转时：有回调子 T 在新方向 → `promote`（零真空）；
-    /// 无回调子 T → 本 `flip`（清+反向 enter）。子级（有 parent）反转亦走本方法。
-    /// 顺序不可换：(1) 全树清到现金 + 重置全树 campaign，(2) 根按新方向在 `new_node` enter（反原核心向）。
-    pub fn flip(&mut self, new_node: TrendNode, c: f64, bar: i64) -> Option<usize> {
-        self.root_slot?; // 无 root 不 flip
-        if c <= 0.0 {
-            return None;
-        }
-        let tw_pre = self.total_wealth(c);
-        // (1)+(2) 全树清到现金（所有活跃实例平掉；pending 由 units 承载，平掉即清）。
-        let mut free = self.free;
-        for inst in self.instances.iter_mut() {
-            if inst.lifecycle != TLifecycle::Dormant && inst.units > EPS {
-                rec_reduce(inst, inst.units, &mut free, c);
-            }
-        }
-        self.free = free;
-        // 归还全部 withdrawn 到 free（campaign 结束，连本带利在 free），重置全树。
-        self.free += self.withdrawn_total;
-        self.withdrawn_total = 0.0;
-        for slot in 0..self.instances.len() {
-            if self.instances[slot].lifecycle != TLifecycle::Dormant {
-                self.dormant_instance(slot);
-            }
-        }
-        self.root_slot = None;
-        // (3) 按新方向 enter。
-        self.n_flips += 1;
-        let r = self.enter(new_node, c, bar);
-        self.prove_tw_neutral(tw_pre, c);
-        r
-    }
+    // promote / flip 已删除（编排者裁决 C1，2026-06-20）：核心永不整仓翻空/翻转。
+    // 所有卖点 = 短差（sink），全量清仓只在最高级别超大卖点触发（第31课，留待实装）。
+    // 删 flip/reverse/Z₂——它们是"不消费 BSP 的走势跟随 workaround"。
 
     /// 把实例置 dormant（保留槽位 + generation，复活时由 alloc_slot ++）。
     fn dormant_instance(&mut self, slot: usize) {
@@ -840,45 +758,7 @@ mod tests {
         assert!(r.spawn(down_node(0, 20), 100.0, 20).is_none(), "反向涌现不 spawn（§3.5 第三态）");
     }
 
-    #[test]
-    fn flip_全树塌缩_平子T升回再反向enter() {
-        let mut r = TRoot::new(100_000.0);
-        let p = r.enter(up_node(0, 10), 100.0, 0).unwrap();
-        let _child = r.sink(p, down_node(10, 15), 100.0, 10).unwrap(); // 有子 T 短头
-        assert_eq!(r.n_active(), 2, "父核心 + 子 T 短");
-        // 最高级别反向走势 → flip 全树塌缩 + 反向建空。
-        let new_root = r.flip(down_node(15, 25), 100.0, 20).unwrap();
-        assert_eq!(r.n_active(), 1, "全树塌缩为单一新核心");
-        assert_eq!(r.instances[new_root].direction, Polarity::Short, "反向建空");
-        assert!((r.total_wealth(100.0) - 100_000.0).abs() < 1e-4, "flip 同价 TW 中性");
-    }
-
-    #[test]
-    fn promote_转折_回调子T升格新核心_零真空() {
-        let mut r = TRoot::new(100_000.0);
-        let p = r.enter(up_node(0, 10), 100.0, 0).unwrap();
-        let child = r.sink(p, down_node(10, 15), 100.0, 10).unwrap(); // 回调子 T 短头
-        let u_child = r.instances[child].units;
-        assert_eq!(r.n_active(), 2);
-        // 顶级反转（§9）→ promote：回调子 T 升格为新核心，旧核心清，敞口连续零真空。
-        let new_root = r.promote(down_node(15, 25), 100.0, 20).unwrap();
-        assert_eq!(new_root, child, "升格的是回调子 T（非新建）");
-        assert_eq!(r.root_slot(), Some(child));
-        assert_eq!(r.instances[child].direction, Polarity::Short, "新核心持空（回调短头方向）");
-        assert!((r.instances[child].units - u_child).abs() < 1e-9, "持仓连续（零真空，units 不变）");
-        assert!(r.instances[child].parent.is_none(), "升格为根（parent=None）");
-        assert!(!r.instances[p].is_active(), "旧核心清（dormant）");
-        assert_eq!(r.n_active(), 1, "单一新核心");
-        assert!((r.total_wealth(100.0) - 100_000.0).abs() < 1e-4, "promote TW 中性");
-        assert_eq!(r.n_promotes, 1);
-    }
-
-    #[test]
-    fn promote_无回调子T_返回None走flip反手() {
-        let mut r = TRoot::new(100_000.0);
-        let _p = r.enter(up_node(0, 10), 100.0, 0).unwrap(); // 无回调子 T
-        assert!(r.promote(down_node(10, 20), 100.0, 20).is_none(), "无回调子 T 不可 promote（driver 走 flip 反手）");
-    }
+    // flip/promote 测试已删（编排者裁决 C1：核心永不翻转，删 flip/promote）。
 
     #[test]
     fn 三阶段方向对称_空头核心低位平空降cost_basis() {

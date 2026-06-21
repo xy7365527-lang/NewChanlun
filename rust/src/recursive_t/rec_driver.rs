@@ -87,45 +87,27 @@ impl RecDriver {
         // ── 1. top 走势对齐（§3.5）──
         match self.root.root_slot() {
             None => {
-                self.root.enter(view.nodes[0].node, c, bar);
+                // 编排者裁决 C1：核心持多骑牛（永不翻空）。仅在最高走势上行（Up）时建**多**核心；
+                // 下行时不建（等上行/买点）——避免按 chain[0] 方向入场卡空（P3a bug：首入 down→100% 持空）。
+                if view.nodes[0].node.direction == Direction::Up {
+                    self.root.enter(view.nodes[0].node, c, bar);
+                }
             }
             Some(root) => {
                 let rnode = self.root.instance(root).node;
                 let rdir = self.root.instance(root).direction;
                 let d0 = view.nodes[0];
-                // 顶级变化判据 = start_bar **或** 方向不同（修复绝对/相对裂缝，编排者 2026-06-20）：
-                // r* 涨落致更高级别涌现时，新级别走势因封装恒等式共用同一 start_bar 但方向不同——
-                // 仅比 start_bar（§8.6）会误判"同节点"不更新 ⟹ 核心卡旧方向（82% 持空 vs chain[0] up 62%）。
-                // 加方向比对使**核心方向始终跟随最高级别走势方向**（走势方向决定操作方向）。
                 let d0_pol = dir_to_polarity(d0.node.direction);
-                if d0.node.start_bar != rnode.start_bar || d0_pol != rdir {
-                    if d0_pol == rdir {
-                        // 更高同向走势涌现（包含 root）→ spawn relabel 升格（核心骑趋势上行）。
-                        self.root.spawn(d0.node, c, bar);
-                    } else {
-                        // 顶级反向（§9.3 编排者终裁 2026-06-20：最高级别必须反手，零 workaround）：
-                        // 走势方向决定操作方向（§0.3 绩效=Σ|涨跌幅|，永远在市场有方向）。删 emergent 门控
-                        // （滞后 emergent_top 锚定致 −1069% 做空陷阱）+ clear_root（退出观望=workaround）。
-                        // 有回调子 T 在新方向 → promote 升格新核心（零真空）；无 → flip 全树塌缩 + 反向 enter。
-                        let new_dir = dir_to_polarity(d0.node.direction);
-                        let promotable = self
-                            .root
-                            .instance(root)
-                            .child
-                            .and_then(|cr| self.root.resolve_ref(cr))
-                            .map(|cs| self.root.instance(cs).direction == new_dir)
-                            .unwrap_or(false);
-                        if promotable {
-                            self.root.promote(d0.node, c, bar);
-                            // promote 后 root = 升格的子 T（已骑 new_node）；继续 reconcile 其回调链。
-                        } else {
-                            self.root.flip(d0.node, c, bar); // 反手：清全树 + 反向 enter
-                        }
-                    }
+                // 编排者裁决 C1（2026-06-20）：**核心永不整仓翻空**（删 flip/promote/Z₂）。
+                // 仅**同向**更高走势涌现 → spawn 骑乘上移（核心持多骑趋势）。
+                // 反向 chain[0]（最高走势下行）= 大回调，核心**不翻转**——由 sink 短差对冲（reconcile_chain），
+                // 全量清仓只在最高级别超大卖点触发（第31课，本版暂不实装超大卖点 → 核心骑到底）。
+                if d0_pol == rdir && d0.node.start_bar != rnode.start_bar {
+                    self.root.spawn(d0.node, c, bar);
                 }
             }
         }
-        // ── 2. 回调链逐层 reconcile（top 已对齐）──
+        // ── 2. 回调链逐层 reconcile：sink/recover 短差（C1：所有卖点=短差，无翻转）──
         self.reconcile_chain(view, c, bar);
     }
 
@@ -369,40 +351,18 @@ mod tests {
     }
 
     #[test]
-    fn top反向走势_promote回调子T升格_零真空() {
-        // §9（编排者裁决 2026-06-20）：顶级反转时回调子 T 短头已持新方向 → promote 升格为新核心
-        // （敞口连续零真空），取代 clear 退出观望。
+    fn top反向走势_核心不翻转持多骑趋势() {
+        // 编排者裁决 C1（2026-06-20）：核心永不整仓翻空（删 flip/promote）。最高走势反向（下行）=大回调，
+        // 核心持多不动（由 sink 短差对冲，全量清仓只在超大卖点）。修 82% 持空根因。
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
-        d.on_view(&view(&[up(0, 12, false), down(10, 12, false)]), 100.0, 12); // 回调子 T 短(down)
-        assert_eq!(d.root().n_active(), 2);
-        // top 变为反向（Down）走势 → 回调子 T（short,down）在新方向 → promote 升格。
-        d.on_view(&view(&[down(12, 20, false)]), 100.0, 20);
-        assert_eq!(d.root().n_active(), 1, "回调子 T 升格为单一新核心（零真空，无清仓等待）");
-        let nr = d.root().root_slot().unwrap();
-        assert_eq!(d.root().instance(nr).direction, Polarity::Short, "新核心持空（顺势 down）");
-        assert_eq!(d.root().n_promotes, 1);
-        assert_eq!(d.root().n_flips, 0, "有回调子 T → promote 非 flip");
-        assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "promote TW 中性");
-    }
-
-    #[test]
-    fn top反向无回调子T_flip反手() {
-        // §9.3 编排者终裁 2026-06-20（零 workaround）：顶级反转无回调子 T 可升 → flip 全树塌缩 + 反向
-        // enter（**最高级别必须反手**，删 clear_root 退出观望）。绩效=Σ|涨跌幅| 要求永远在市场有方向。
-        let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view(&[up(0, 10, false)]), 100.0, 10); // 仅核心，无回调子 T
-        assert_eq!(d.root().n_active(), 1);
-        d.on_view(&view(&[down(10, 20, false)]), 100.0, 20); // 顶反转，无回调先行 → flip 反手
-        assert_eq!(d.root().n_active(), 1, "flip 反手：清旧核心 + 反向 enter 新核心（零真空）");
-        assert_eq!(d.root().n_flips, 1);
-        assert_eq!(d.root().n_promotes, 0);
-        assert_eq!(
-            d.root().instance(d.root().root_slot().unwrap()).direction,
-            Polarity::Short,
-            "反手做空（顺势 down，不退出观望）"
-        );
-        assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "flip TW 中性");
+        let r0 = d.root().root_slot().unwrap();
+        assert_eq!(d.root().instance(r0).direction, Polarity::Long, "核心持多");
+        // 最高走势反向（Down）→ 核心**不翻转**（C1：无 flip）。
+        d.on_view(&view(&[down(10, 20, false)]), 100.0, 20);
+        assert_eq!(d.root().root_slot(), Some(r0), "核心槽不变（不翻空）");
+        assert_eq!(d.root().instance(r0).direction, Polarity::Long, "核心持多骑趋势，不翻空");
+        assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "TW 中性");
     }
 
     // ──────────────── 嵌套回调（自相似递归）────────────────

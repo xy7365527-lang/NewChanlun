@@ -1,0 +1,197 @@
+{
+ "symbol": "BTC",
+ "instrument_id": "BTC-USD-PERP.HYPERLIQUID",
+ "n_bars": 2000000,
+ "bh_pct": 766.8,
+ "bh_mdd_pct": -84.0,
+ "max_bars": 2000000,
+ "spiral": {
+  "strat_pct": 38.7,
+  "mdd_pct": -49.8,
+  "n_trades": 9677,
+  "exit_reasons": {
+   "liq": 102,
+   "cascade": 9572,
+   "recover": 2,
+   "eod": 1
+  },
+  "by_ladder": {
+   "segment/long": {
+    "n": 9561,
+    "pnl_cash": 0.0,
+    "wins": 7994,
+    "avg_held_bars": 678203.0
+   },
+   "segment/short": {
+    "n": 89,
+    "pnl_cash": -206757.0,
+    "wins": 0,
+    "avg_held_bars": 1347214.0
+   },
+   "move(L1)/short": {
+    "n": 24,
+    "pnl_cash": -0.0,
+    "wins": 0,
+    "avg_held_bars": 658002.0
+   },
+   "recL2/short": {
+    "n": 2,
+    "pnl_cash": -0.0,
+    "wins": 0,
+    "avg_held_bars": 726.0
+   },
+   "recL4/long": {
+    "n": 1,
+    "pnl_cash": 113784.0,
+    "wins": 1,
+    "avg_held_bars": 1876230.0
+   }
+  },
+  "cross_level_closures": 9678,
+  "max_children": 1001,
+  "liquidations_by_ladder": [
+   0,
+   0,
+   89,
+   13,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "spawns_by_ladder": [
+   0,
+   0,
+   9650,
+   24,
+   2,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "root_entries_by_ladder": [
+   0,
+   0,
+   0,
+   1,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "root_flips_by_ladder": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "cascade_closes_by_ladder": [
+   0,
+   0,
+   9561,
+   11,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "short_net_cash_by_ladder": [
+   0.0,
+   0.0,
+   -206757.0,
+   -0.0,
+   -0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "t50_monotone_violations": 0,
+  "t56_radial_coverage": 3,
+  "t57_onesided_layers": 0,
+  "t58_active_levels": 3,
+  "t59_degenerate_layers": 0
+ },
+ "P1_ge_bh": false,
+ "prove_panic": 0,
+ "part3_pclose_vs_unn": {
+  "bit_exact": false,
+  "trade_match": false,
+  "nav_match": true,
+  "bar_divergences": 41,
+  "spiral_strat_pct": 38.7,
+  "unn_strat_pct": 38.7,
+  "strat_delta": 0.0,
+  "liquidations_spiral": 102,
+  "liquidations_unn": 89,
+  "liquidations_delta": 13,
+  "short_spiral": {
+   "segment/short": {
+    "n": 89,
+    "wins": 0,
+    "pnl_cash": -206757.0
+   },
+   "move(L1)/short": {
+    "n": 24,
+    "wins": 0,
+    "pnl_cash": -0.0
+   },
+   "recL2/short": {
+    "n": 2,
+    "wins": 0,
+    "pnl_cash": -0.0
+   },
+   "_total_short": {
+    "n": 115,
+    "wins": 0,
+    "pnl_cash": -206757.0
+   }
+  },
+  "short_unn": {
+   "segment/short": {
+    "n": 89,
+    "wins": 0,
+    "pnl_cash": -206757.0
+   },
+   "move(L1)/short": {
+    "n": 24,
+    "wins": 9,
+    "pnl_cash": -0.0
+   },
+   "recL2/short": {
+    "n": 2,
+    "wins": 0,
+    "pnl_cash": -0.0
+   },
+   "_total_short": {
+    "n": 115,
+    "wins": 9,
+    "pnl_cash": -206757.0
+   }
+  },
+  "cross_level_closures": 9678,
+  "note": "P-close 已激活（闭合下沉到次级别 r=k−1，NR-1 否定同级别 σ=e 闭合）⇒ spiral 与 unn 行为分歧（非 bit-exact）：D 回补改读次级别 nf[k−1]，闭合时机改变 ⇒ 空头胜负/强平/P&L 偏离 unn 基线。这是 L3 行为差异（regime 依赖），非纯 L2 re-description。"
+ },
+ "architecture": "单一 StreamingSignalReader 逐 bar → 同 sig 喂 UnnStream+SpiralStream；spiral 复用 unn CenterBook/DepthRef 成本门，群作用层（C ChiralSeam/E σ⁻¹∘τ/closure Δr=−1）为类型化路由 ⇒ bit-exact 由构造保证。"
+}

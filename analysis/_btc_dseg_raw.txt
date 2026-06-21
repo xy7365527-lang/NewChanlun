@@ -1,0 +1,43 @@
+全局 shares: max=24.869188 min=0.000000 nonzero=1920/4225
+  long: n=1955 sum_sh=595.0913 max_sh=24.869188 nonzero=953
+  short: n=2270 sum_sh=563.6567 max_sh=11.205345 nonzero=967
+
+段内 entry trades: 639
+  long: n=322 sum_sh=0.000001 max_sh=0.000001
+  short: n=317 sum_sh=0.000006 max_sh=0.000001
+
+shares 最大的 10 笔:
+  lad3 long  eb=3206 ep=4021.0 xb=3480 xp=4066.0 sh=24.869188 flip
+  lad3 long  eb=11764 ep=4372.0 xb=20824 xp=4662.8 sh=17.500540 recover
+  lad4 long  eb=910416 ep=7484.1 xb=914789 xp=7369.5 sh=15.923385 flip
+  lad4 long  eb=945652 ep=7846.5 xb=950965 xp=7938.4 sh=13.940974 recover
+  lad3 long  eb=5430 ep=4077.3 xb=6867 xp=4039.1 sh=13.816216 recover
+  lad3 long  eb=24863 ep=4455.6 xb=25241 xp=4447.6 sh=13.816216 recover
+  lad4 long  eb=934568 ep=7942.4 xb=944857 xp=7956.5 sh=11.886236 recover
+  lad3 short eb=912114 ep=7759.8 xb=914664 xp=7283.2 sh=11.205345 recover
+  lad3 short eb=920800 ep=7832.1 xb=923347 xp=7837.8 sh=10.615264 recover
+  lad4 short eb=927570 ep=8682.9 xb=928082 xp=8688.4 sh=10.615264 recover
+
+段内 short shares 最大 8 笔:
+  lad4 eb=2301970 ep=41123.8 xb=2322234 xp=38442.0 sh=0.000001 recover
+  lad3 eb=2326425 ep=34819.9 xb=2326984 xp=36439.3 sh=0.000001 recover
+  lad3 eb=2328853 ep=37684.8 xb=2330654 xp=36608.9 sh=0.000001 recover
+  lad4 eb=2338112 ep=38664.2 xb=2338880 xp=38376.7 sh=0.000001 recover
+  lad4 eb=2342420 ep=42143.0 xb=2348276 xp=43036.0 sh=0.000001 recover
+  lad4 eb=2382746 ep=45472.6 xb=2422228 xp=44509.6 sh=0.000001 recover
+  lad3 eb=2251973 ep=52060.9 xb=2253904 xp=49350.0 sh=0.000000 drain
+  lad3 eb=2251973 ep=52060.9 xb=2257095 xp=51314.1 sh=0.000000 drain
+
+段内 long shares 最大 8 笔:
+  lad3 eb=2398814 ep=40411.6 xb=2407955 xp=42884.4 sh=0.000001 recover
+  lad3 eb=2222938 ep=64481.1 xb=2223293 xp=64626.6 sh=0.000000 recover
+  lad3 eb=2223586 ep=65028.3 xb=2225940 xp=63935.2 sh=0.000000 recover
+  lad3 eb=2228886 ep=59909.1 xb=2230011 xp=58322.8 sh=0.000000 recover
+  lad3 eb=2230679 ep=55963.7 xb=2230858 xp=56325.2 sh=0.000000 recover
+  lad3 eb=2231736 ep=58170.5 xb=2233687 xp=58683.5 sh=0.000000 recover
+  lad5 eb=2234477 ep=59497.5 xb=2234477 xp=59497.5 sh=0.000000 reduce
+  lad5 eb=2234477 ep=59497.5 xb=2235735 xp=58152.6 sh=0.000000 reduce
+
+header: phys_short_bars=4449513 phys_long_bars=4242381 n_bars=4625119
+n_entries_by_ladder=[0, 0, 0, 2, 2, 0, 0, 0, 0, 0, 0]
+n_liquidations_by_ladder=[0, 0, 0, 3, 3, 3, 0, 2, 1, 0, 0]

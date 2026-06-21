@@ -290,7 +290,7 @@ mod tests {
             "\n========== 递归 T 引擎 BTC 回测（structural）==========\n\
              bars={n} reruns={} ({:.1}s)\n\
              strat={strat:+.2}%  bh={bh:+.2}%  final_nav={fin:.2}\n\
-             操作: enter={} sink={} recover={} spawn={} flip={} 退本金={}\n\
+             操作: enter={} sink={} recover={} spawn={} 退本金={}\n\
              short_leg_pnl={:+.0}  期末活跃实例={}\n\
              chain[0]方向分布: up={}({:.1}%) down={}({:.1}%)\n\
              核心(root)方向: long={}({:.1}%) short={}({:.1}%)\n\
@@ -302,7 +302,6 @@ mod tests {
             r.n_sinks,
             r.n_recovers,
             r.n_spawns,
-            r.n_flips,
             r.n_capital_recovered,
             r.short_leg_pnl,
             r.n_active(),

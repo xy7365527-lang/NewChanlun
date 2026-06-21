@@ -1,0 +1,49 @@
+- [User Profile](user_profile.md) — UCL哲学生，缠论操盘手，卢麒元/毛/黑格尔/拉康框架，K4拓扑分析
+- [ω Research](project_omega_research.md) — 原油黄金纸实比研究，MCM'空转速度代理变量，TDA拓扑分析，regime断点检测，Δω美元信用溢价
+- [Trading Setup](trading_setup.md) — 持仓：2手BZ期货(均价$109) + 11手COIL Mar2027 C130(成本$1,752/手)。目标$227。凸性分析结论：现有C130(56x)优于新建仓位
+- [Mac Migration](mac_migration.md) — Windows→Mac迁移完成。cc_config/rtas/trading/academic/cowork_memory已部署到silencehan
+- [COIL Options Scan](reference_coil_scan.md) — 定时任务coil-convexity-scan每交易日01:00 BST自动拉TWS期权链算凸性
+- [Essay grounding](feedback_essay_course_materials.md) — 论文必须从课程材料内部产生，引用8-10+课程文献，不强加外部框架
+- [File write verify](feedback_file_write_verification.md) — task写文件后必须验证（get_file_info），VM路径不等于本地路径
+- [Rubric scoring](feedback_rubric_scoring.md) — 评分必须用真实课程评分标准，禁止自创维度
+- [Tutor RJ feedback](feedback_tutor_rj_dissertation.md) — RQ缩窄为Ørsted焦点，隐藏source-template方法，写典型HPS风格
+- [Dissertation genealogy](project_dissertation_genealogy.md) — 概念谱系：差异性接受、层级选择性吸收、深层吸收、构成性/调节性过滤器
+- [Dissertation status](project_dissertation_status.md) — HPSC0041全部WF完成，deAI清洁版ready，答辩准备pending
+- [Order pricing](feedback_order_pricing.md) — 只用LMT单（买MID/BID，卖MID/ASK），绝对禁止MKT单
+- [Chunk long tasks](feedback_chunk_long_tasks.md) — 长文件编辑分段，每步一改一验证，防冻结
+- [Dispatch as commander](feedback_dispatch_as_commander.md) — 分解→粒度→权重→波次，将军与工蜂模式
+- [DOCX editing rules](feedback_docx_editing_rules.md) — 每task一个fix，预建python脚本，PowerShell执行
+- [Python output pattern](feedback_python_output_pattern.md) — 不用stdout，写结果到文件再读取
+- [Crude oil options](project_crude_oil_options.md) — S3三腿+kicker方案，COIL/IPE执行规则，LMT only
+- [RTAS swarm](project_rtas_swarm.md) — L1 Dispatch→L2 CC Agent→L3 Workers三层架构，蜂群是矛盾显现机器
+- [TV Chanlun colors](reference_tv_chanlun_colors.md) — TV缠论指标颜色映射：蓝=笔，橙=线段，紫=趋势。bgColor 872064120=线段中枢，856729599=趋势中枢
+- [Options expiry rule](feedback_options_expiry.md) — 到期日=T_target上限+45天buffer，禁止贴着事件日
+- [Options selector redesign](feedback_options_selector_redesign.md) — Strike从缠论结构来不从期权数学来，agent只翻译不判断
+- [MU short trade](project_mu_short.md) — MU做空：日线2卖46%背驰，目标$311，Jul17到期，先平SI C79
+- [Chanlun stroke types](feedback_chanlun_stroke_types.md) — 只有两种笔：旧笔(严)和新笔(宽)。TV设置：宽笔+优化包含+严格延续
+- [Quant System Progress](project_quant_system_progress.md) — M1完整版赋格回测(QQQ+138%/BTC+486%超BH)，M2选股K4+ω，全市场端到端进行中
+- [Alpha Diagnosis](project_alpha_diagnosis.md) — 提款机bug修复后全面无alpha：纯信号≤BH，降成本负alpha源，挣股数有效域为空
+- [Use latest model](feedback_use_latest_model.md) — CC任务默认用claude-fable-5，不用4.8
+- [Recursive Regularization](project_recursive_regularization.md) — 递归正则化=区间套反向应用：每级别操作必须由次级别锚定，多重赋格是此递归的逐层应用
+- [K4 Fold Channel](project_k4_fold_channel_model.md) — K4折叠重构完成(529号)：M/P/C/R四顶点+Au/Oil折叠通道+81边图+跨国管线
+- [Todo Master](project_todo_master.md) — 全局待办清单：数据拉取→引擎优化→配置矩阵→闭合残差→Γ→Δ映射→跨国K4→递归分解树
+- [M3 Capital Flow](project_m3_capital_flow_milestone.md) — M3阶段目标：OU流量估计+宏观持仓表+跨国总拓扑，不阻塞M1/M2
+- [COT否证](project_cot_flow_falsified.md) — COT净持仓7/7不领先：滞后型(6E/ES)/同步型(GC)/独立型(CL)，流量proxy全失败
+- [Organic Fugue Session](project_session_organic_fugue.md) — 有机赋格v2全成果：引擎O(N)+配对诊断+递归正则化+Rust交易层+C段缺陷+北极星"吃到每一笔"
+- [C Segment Fix](project_c_segment_fix.md) — 引擎C段边界修复已完成（commit 5739ec4f等）：L2 type1=374/type2=360, L4=8/8
+- [Session2 Organic Fugue](project_session2_organic_fugue.md) — 40+实验→V2oa25_ht/scco矩阵(OKLO+1800%/BRN+599%/BTC+630%/CL+250%)，osc僵尸腿诊断+中枢上移出口，Seq38跨regime全正
+- [Recursive Nested Fugue](feedback_recursive_nested_fugue.md) — 多级别仓位=嵌套递归：反向线段=次级别操作对象，对上层=短差，并发非串行
+- [Session3 Fusion](project_session3_fusion.md) — B+C合流(BTC+4174%超BH3倍)，H1+636/H2否证，hold26 L3(4/8正域)，1s maker可行，嵌套递归形式化
+- [No Asset Specialization](feedback_no_asset_specialization.md) — 缠论不能被标的特化，per-asset配置=过拟合，regime切换必须从走势结构涌现
+- [Bidirectional Always In](feedback_bidirectional_always_in.md) — 缠论不是只做多，无论牛熊震荡都赚，绩效=Σ|涨跌幅|，永远在市场有方向，卖点=反手做空
+- [Concept Movement Chain](project_concept_movement.md) — 缠论《逻辑学》：走势终完美→23环概念自我否定→全部缠论元素，指导统一FSM，docs/concept_movement_chain.md
+- [Located Direction Discovery](project_located_direction_discovery.md) — 区间套located武装方向：自下而上(错)→自上而下(对)，但1min a0下candidate稀缺→source坍缩segment→需1s a0
+- [Necessity Accumulation](feedback_necessity_accumulation.md) — 纲领：必然性累积不被经验否定，回测只否定拼接方式，必然性验证是验收标准
+- [Session4 Strict Necessity](project_session4_strict_necessity.md) — 41条推论+群论穷尽+覆盖空间+区间套三偏离+1s非空1笔+信号层级别分布是下一轴
+- [Orbit Enumeration Duality](project_orbit_enumeration_duality.md) — H⁰=核心仓(2/3)+H¹=机动仓(1/3)，τ⊥减仓正交，cd_Q=1两层闭合，三轴级别间关系
+- [Session5 Spiral Reinterpretation](project_session5_spiral_reinterpretation.md) — 物理重诠释+辩证穷尽1188行+v2实装+segment修复+MACD+操作路线D∞word穷尽
+- [Emergent Direction](project_emergent_direction.md) — Root方向由涌现最高级别决定，四步跨级别循环+会计双重性，ε对称实装但需级别涌现门控
+- [Zombie Short Diagnosis](project_zombie_short_diagnosis.md) — 僵尸空头三路径(A根仓做空错/B高层sink回补难/C强平)，σ-ascend无关，伤害=regime函数
+- [NT Platform](reference_nautilus_trader.md) — 量化研究和生产平台=NautilusTrader(nt)，流式回测+实盘同代码
+- [BSP不消费教训](feedback_no_workaround_bsp_lesson.md) — 11281个BSP全丢弃→操作层全是workaround(promote/spawn/flip/chain)→消费BSP后全消失
+- [C段修复Regime](project_c_segment_fix_regime.md) — c段修复0%缺失+CL反超BH，完整引擎+13.6pp，子级做空腿失血但被长头抵消
