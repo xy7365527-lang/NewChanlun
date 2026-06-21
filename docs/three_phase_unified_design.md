@@ -21,6 +21,16 @@
 - **空头立于不败=认沽期权**：第15课:976（实操五粮液认沽038004）「把剩下的成本是0了……只持有成本是0的仓位等待第二波……绝对立于不败之地」+ :956「该权证风险极大，最终要变成废纸」（损失=权利金有界）。
 - **现状代码确证（L2）**：flat `t_engine.rs:105` `TStage` 已是 GLOBAL（`self.stage` + `core_cost_basis:209` + `core_long_units:288` 跨 ladder 汇聚）——**总体三阶段是 flat 的原始设计**；rec_engine.rs 改 per-instance（`RecStage` 每 TInstance:132 + `account_core_reduce` 取 slot:360 + 降本分母退化单实例:364）才是偏离 = §12 方向不对称根因。
 
+### 0.3 地基原则：绩效=Σ|涨跌幅|，永远在市场有方向（零真空）
+
+整个设计的地基是一条度量原则：**绩效 = Σ|涨跌幅|**——把每一段走势的绝对涨跌幅都吃到。
+推论（贯穿三层）：
+- **永远在市场，永远有方向**：走势向上就持多、向下就持空，**不存在空仓真空期**（空仓=丢失该段绩效）。这是 §9.3 `promote`（回调短头升格新核心，零真空）的存在论根据，也是「最高级别翻转=完全平仓+反手」（§4.2，不是平仓观望）的根据。
+- **方向跟着走势走**：核心方向锚定走势方向（操作层 A2：方向由所骑走势节点定，非 BSP 推断），不是择时进出。
+- **降成本是「在场」的副产品**：因为永远在场、永远来回短差，所以 Σ短差利润持续降低总体成本（三阶段的物质来源）。三阶段不是额外策略，是「永远在场吃绝对涨跌幅」的会计形式。
+
+> 这条原则解释了为什么「50% 空头不回补」是致命的：不回补 = 该段下跌后的上涨绩效丢失 + 空头被轧（负绩效）。零真空要求**任何一段走势都不能漏**，多→空→多必须完整闭合。
+
 ## 1. 三层架构与唯一焊接接口
 
 ```
@@ -97,6 +107,8 @@ fn account_campaign(&mut self, role: ReduceRole, realized: f64, c: f64) {
 - **降本分母 `core_units_on_spine()`**（对抗修正 #1）= 汇聚 `root_slot` 实例 + spawn relabel 链同身份实例的 units，**排除任何有 parent 的 sink 子 T**。移植 flat `core_long_units:288` 的跨 ladder 汇聚，泛化为跨实例 spine 汇聚，修复 rec_engine.rs:364 分母退化为单实例。
 - **方向无关**：`realized` 由 `rec_reduce` 按 direction 已算正确（Long=m(c−basis) / Short=m(basis−c)，:178-179），故 account_campaign 对多空核心**同一公式**降成本——这是 §12 不对称的根治（Short 不再落 short_leg_pnl 平铺）。
 - **TW 中性不破**（对抗验证 #1 confirmed）：cost_basis/phase 是**虚拟会计量，从不进 TW 公式**（`total_wealth` 只读 units/direction + withdrawn_total，:268-284）。字段上移对 TW 守恒零影响。
+
+**退本金结合买卖点（非纯阈值，编排者澄清）**：第31课:28「在股票达到 1 倍升幅附近找一个**大级别的卖点**出掉部分，把成本降为 0，原来投入的资金就全部收回来了」。`cost_basis≤0` 是退本金的**使能条件**，但执行须对齐一个**结构性卖点**（reduce 事件），不是「数值穿 0 就立刻 withdraw」的脱离市场结构的阈值平仓。落码含义：`try_withdraw` 由「跨 0 的那次 reduce（本就发生在卖点）」触发即自然对齐——但若未来加独立 withdraw 路径，必须门控在卖点，禁止纯价格阈值触发（与 §0.3「方向跟走势走」一致，杜绝择时化）。
 
 ## 4. 增股数两层（统一律 + Q2）
 
@@ -188,13 +200,56 @@ fn liquidate_boundary(&mut self, c, bar):
 5. promote:616 改 `settle_and_increment()`（全树清算 total_cash 反向建仓，u_new>u_old）。
 6. 强平模式选择器上移读 `self.campaign_phase`。
 7. `CarrierModel` trait + `SpotCarrier` 默认（bit-exact 守卫）。
+8. **`drain` 消融**：flat `t_engine.rs:574 drain`（子级持同父向遗留仓→反父向 BSP 减暴露 1/3）**不是独立操作，是三阶段缺失的 workaround**——它把「同父向仓位的减仓 realized」临时塞进 `account_reduce(jdir,…)` 自圆其说（:583）。总体三阶段落地后，任何 reduce 的 realized 都经唯一入口 `account_campaign(role,…)` 按 phase 分流（降成本/退本金/增股数），`drain` 退化为「核心 spine 上的一次 reduce（降成本）」或「腿 reduce（leg_pnl）」，无需独立分支。**drain 根因=三阶段没设计，非独立 bug**（删 drain，逻辑并入 account_campaign）。
 
 **开放矛盾（须 escalate / 已 escalate，落码前不得自决）**：
 - **§9.3 总结算反向腿 vs clear_root**：总结算增（§4.2 ④反向 enter）= 最高级别**反手做空**，与 `clear_root`（rec_engine:637「顶级=clear 不 flip，避 BTC −706%」）冲突 = §9.3 读法 A/B 未决（escalation `2026-06-20-t-macro-core-net-short-regime.md` + §11）。**未裁决前：总结算反向腿只对有 parent 的子级 flip 合法，顶级走 clear_root（不反手）**——即总结算增的「全量反手」在顶级被 §9.3 gated，会计结构（settle_and_increment）就绪但顶级反向方向待裁。
 - **现货空头 EarningShares 不可达**：`can_reach_earning(Short)==false`（现货）须声明有效域，不可补丁伪装（formalization-validity-domain）。期权载体的操作对象（认沽自身 K 线 vs 标的走势节点）= [[project_put_option_short_earning]] R1 缺口，载体层未定。
 - **SUB_LIQ_FACTOR=2.0 / MOBILE_FRAC=1/3** 无原文依据（§8.2/§8.3 开放轴），本重构不触及。
 
-## 9. 结果包六要素
+## 9. 完整洞察整合（本轮对话发生史）—— 三层 + 跨层
+
+本节把整轮对话的所有关键洞察无遗漏地归位到三层架构，标注解决处与谱系，确保不丢失。
+
+### 9.1 信号层（Layer 1，已解决）
+| 洞察 | 内容 | 解决处/依据 |
+|------|------|------|
+| **c段=实现错误非定义冲突** | 贪心中枢扫描（center.rs:79 `i=last+1`）把离开段 c 吸收进下一中枢 → cut_away → 77.6% 趋势无 c 段 → 趋势背驰判不出 → type1 全塔衰减。**第27课「两个中枢不可能共用一个次级走势」**证明这是扫描实现错误（连接段归属），不是定义矛盾。修复 `i=last+2` → c段缺失 79%→0%、type1 250→1927、**level3 type1_buy 0→2 涌现** | c段 escalation `2026-06-20-t-c-segment-connection-attribution.md`；[[project_c_segment_fix_regime]] |
+| **买卖信号方向对称** | `judge_trend_divergence` 全程 `t.direction` 参数化（创新高低/Type1Sell↔Type1Buy/守沿/ZG↔ZD），无 Long/Short 硬编码 | §12.1（divergence.rs:191-209/242-245） |
+
+### 9.2 操作层（Layer 2）
+| 洞察 | 内容 | 解决处/依据 |
+|------|------|------|
+| **绝对 ladder vs 相对级别的裂缝=病根** | flat 引擎用绝对 ladder 数组（固定级别槽），但走势级别是**相对涌现**的（r* 随数据涨落）。绝对/相对错配 ⟹ 空头绑绝对 ladder、平空落错 ladder、−89.7% 穿仓。这是 level 不匹配的根 | [[project_t_cross_level_coupling_falsified]]；v2 §0/§6 |
+| **T 算子自相似递归解决 level 匹配** | 每级别一个 T 实例**骑走势节点（TrendNode）**而非绝对 ladder，父子按走势节点身份（start_bar）通信，级别涌现=spawn。从坐标层消除绝对/相对裂缝 | v2 §1-§3；[[project_recursive_t_architecture_v2]] |
+| **promote 消除真空期** | 转折时回调短头（自 sink 已持新方向，t1）relabel 为新核心、旧核心清，**零真空**（绩效=Σ\|涨跌幅\| 要求，§0.3）。取代 flip（清+反向开仓）/clear（清+等待） | v2 §9.3 |
+| **多→空 与 空→多 应对称** | 信号方向无关 ⟹ 卖点翻空与买点翻多应完全对称 | v2 §11 |
+| **定义域对称但 base case 有效域不对称** | 缠论原文（37课条件4/29:52/27课区间套）+ T算子定义域（promote 方向无关）**对称**；最高级别 base case 有效域**不对称**=三重合取：**时间之矢**（做空反转已完成的过去结构/回补 construct 未涌现的未来结构）+ **无 return address**（顶级 parent=None，回补必为构造非返回）+ **regime 放大**（长牛回补载体 type1_buy@high 枯竭）。不对称是结构常量，破坏性是 regime 函数 | v2 §11.4-11.5 |
+
+### 9.3 会计层（Layer 3，本文核心）
+| 洞察 | 内容 | 解决处 |
+|------|------|------|
+| **三阶段会计只给多头是 50% 不回补根因** | account_reduce/account_core_reduce：Long→三阶段降成本立于不败；Short→short_leg_pnl 平铺。空头无降成本→永远逐仓可强平→牛市续涨中 recover 前被强平→不回补 | §12.3；本文 §3（镜像修复） |
+| **三阶段是总体性的（根账本，非 per-instance）** | cost_basis/phase 上移 TRoot；级别只决定买卖量（chan99:11）。§8.7「每实例独立」被推翻 | 本文 §0-§3 |
+| **reduce 的 realized 立刻计入降成本，短差腿 P&L 分开核算** | 每次 reduce 经 account_campaign：核心 spine reduce→立即降 cost_basis；短差腿（recover 子T）reduce→short_leg_pnl 单独算（点5）。role 由拓扑判 | 本文 §3 |
+| **退本金结合买卖点，非纯阈值** | cost_basis≤0 是使能条件，执行对齐大级别卖点（第31课:28），禁脱离市场结构的阈值平仓 | 本文 §3（weave） |
+| **增股数两层** | 持续增（各级别短差 EarningShares 同金额→更低价→更多 units，每次都发生）+ 总结算增（最高级别翻转全量平仓反手） | 本文 §4 |
+| **最高级别翻转=完全平仓+反手=总结算时刻** | 一次性结算全级别累积降成本+增股数+做空利润，全量反向建仓，u_new>u_old | 本文 §4.2（顶级反手被 §9.3 escalation gated） |
+| **次级别也能增股数** | EarningShares 阶段，各级别短差同金额 cash/c_now（c_now<c_sink）→更多 units，不需等最高级别平仓 | 本文 §4.1 |
+| **三阶段与逐仓/全仓耦合** | 阶段一（CostReduction/CapitalRecovered，本金在险）逐仓保护核心本金；退本金后（EarningShares，本金已退 withdrawn 隔离）全仓——单层回撤被利润缓冲吸收，**本金风险被消解**，只损利润不触本金 | 本文 §6 |
+| **期权=空头损失边界工具** | 现货裸空亏损无界→立于不败不可达；认沽期权损失=权利金有界→空头立于不败唯一可达载体（第15课:976/956） | 本文 §5 |
+| **标的通用** | 现货/期货/加密永续/期权四载体，会计结构统一进 TRoot，载体差异进 CarrierModel trait | 本文 §5 |
+
+### 9.4 跨层失效模式诊断
+| 失效 | 三失效点跨三层 |
+|------|------|
+| **50% 空头不回补** | (a) **买点缺失**=信号层（type1_buy@high 被 c段缺失+regime 打稀疏，翻回多触发器不来）；(b) **level 不匹配**=操作层（绝对 ladder vs 相对级别裂缝，平空落错级别）；(c) **量不够**=会计层（短差 1/3 不足以翻核心 + 空头三阶段缺失→被强平）。三失效点分属三层，须三层协同修复 |
+| **drain 根因=三阶段没设计** | drain（同父向减暴露 1/3）不是独立 bug，是三阶段缺失的 workaround；总体三阶段落地后并入 account_campaign（§8.8） |
+
+### 9.5 三层接口闭环（一句话）
+**信号层**产出方向对称的走势节点+买卖点 → **操作层**递归 T 实例骑走势节点、跟方向、promote 零真空、最高级别翻转完全平仓反手 → **会计层**所有 reduce 的 realized 经 `account_campaign` 汇聚总体 cost_basis、三阶段（降成本/退本金/增股数两层）、CarrierModel 载体差异。三层经 `view.nodes`（信号→操作）与 `account_campaign(role,realized,c)`（操作→会计）两个接口焊接，正交解耦。
+
+## 10. 结果包六要素
 
 - **结论**：三阶段会计上移到 TRoot 总体口径（cost_basis/phase/notional_in/earning_cash/direction），唯一焊接点 `account_campaign(role,realized,c)`（拓扑判 role，spine 汇聚降本分母），方向对称（多空核心同一降成本公式），增股数两层（持续增=各级别短差同金额/总结算增=最高级别翻转全量反手 u_new>u_old），四载体经 `CarrierModel` trait 统一（空头立于不败=载体函数，现货裸空不可达），逐仓/全仓由总体 phase 单向驱动。TInstance 瘦身为纯仓位身份。
 - **定义依据**：第31课:24/169（三阶段总体+成本穿0全局门+成本0前同股数不增仓）；chan99/0033:11（级别只决定量）/:21/:23（增股数两层+总结算）；第26课:34（恒仓+方向对称）；第15课:976/956（认沽立于不败+权利金损失边界）；flat t_engine.rs:105/203-289（GLOBAL 蓝本）。
