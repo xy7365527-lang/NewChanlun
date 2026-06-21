@@ -22,7 +22,7 @@
 //! 真树投影 + 回测收益 = 待实装 / L3。
 
 use super::rec_engine::{dir_to_polarity, flip_pol, TRoot, TrendNode};
-use super::types::{Direction, RecursiveTree, TrendKind, TrendType, Unit};
+use super::types::{BSPKind, Direction, RecursiveTree, TrendKind, TrendType, Unit};
 
 /// 操作链中的一个走势节点（视图）。
 #[derive(Debug, Clone, Copy)]
@@ -33,15 +33,29 @@ pub struct ChainNode {
     pub completed: bool,
 }
 
-/// 操作链视图：`nodes[0]` = 最高走势（core）；`nodes[i+1]` = `nodes[i]` 的当前回调子走势。
+/// 操作层消费的买卖点（BSP 消费重构，docs/bsp_consumption_redesign.md）：携 kind+level+price+bar。
+/// driver `route_bsp` 按 (kind, level vs core_level, 方向) 分层路由（本级别翻转/次级别齿轮短差）。
+#[derive(Debug, Clone, Copy)]
+pub struct ChainBsp {
+    pub kind: BSPKind,
+    pub level: usize,
+    pub price: f64,
+    pub bar: i64,
+}
+
+/// 操作链视图：`nodes[0]` = 最高走势（core，级别上下文 + sink 载体）；`bsps` = 操作触发器（分层消费）。
 #[derive(Debug, Clone, Default)]
 pub struct ChainView {
     pub nodes: Vec<ChainNode>,
+    /// BSP 消费重构：操作层消费对象（全 6 类，携级别）。core_level 之上不存在。
+    pub bsps: Vec<ChainBsp>,
+    /// 核心级别 = 最高涌现级别（levels.len()-1）；route_bsp 判 level vs core_level 分层。
+    pub core_level: usize,
 }
 
 impl ChainView {
     pub fn new(nodes: Vec<ChainNode>) -> Self {
-        ChainView { nodes }
+        ChainView { nodes, bsps: Vec::new(), core_level: 0 }
     }
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
@@ -240,7 +254,14 @@ pub fn extract_chain(tree: &RecursiveTree) -> ChainView {
             None => break,
         }
     }
-    ChainView::new(nodes)
+    // BSP 消费重构 P1：投影全级别 BSP（操作触发器）+ core_level。走势节点保留作级别上下文 + sink 载体。
+    let mut bsps = Vec::new();
+    for lvl in levels.iter() {
+        for b in &lvl.bsps {
+            bsps.push(ChainBsp { kind: b.kind, level: b.level, price: b.price, bar: b.bar });
+        }
+    }
+    ChainView { nodes, bsps, core_level: top_k }
 }
 
 /// 走势方向 → ChainNode 构造辅助（适配器/测试用）。
@@ -444,6 +465,10 @@ mod tests {
         assert!(!v.is_empty(), "iterate 真树投影非空");
         assert_eq!(v.nodes[0].node.direction, Direction::Up, "顶层 Up 走势");
         assert_eq!(v.nodes.len(), 1, "末段顺势腿，无活跃回调");
+        // BSP 消费重构 P1：core_level=最高级别；bsps 投影自全级别 levels[k].bsps（操作触发器）。
+        assert_eq!(v.core_level, tree.levels.len() - 1, "core_level=最高涌现级别");
+        let want_bsps: usize = tree.levels.iter().map(|l| l.bsps.len()).sum();
+        assert_eq!(v.bsps.len(), want_bsps, "投影全级别 BSP（P1：暴露给操作层，未消费）");
     }
 
     #[test]
