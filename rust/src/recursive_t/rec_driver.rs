@@ -139,6 +139,7 @@ impl RecDriver {
             match child {
                 Some(cslot) => {
                     // type1_buy@level（买点=平空+回补方向）→ recover 子归还；否则下钻检查子。
+                    // （试过子级别先行回补=更差 +132.6%<+621%，L2/L3 大亏——回补级别精化待裁，暂用本级别。）
                     if bsp_fires(view, level, true) {
                         if self.root.recover(cur, c, bar) && level < 10 {
                             self.recover_lvl[level] += 1;
@@ -334,7 +335,7 @@ mod tests {
         let u0 = d.root().instance(root).units;
         d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 110.0, 12); // sink@110
         assert_eq!(d.root().n_active(), 2);
-        // 同向 BSP@核心级别1（回调结束 type1_buy@1）@90 → recover 子归还核心。
+        // 本级别买点 type1_buy@1 @90 → recover 子归还核心。
         d.on_view(&view_b(&[up(0, 15, false)], vec![cb(BSPKind::Type1Buy, 1)], 1), 90.0, 15);
         assert_eq!(d.root().n_active(), 1, "子 T 平空升回");
         assert!((d.root().instance(root).units - u0).abs() < 1e-6, "核心恒仓恢复原股数");

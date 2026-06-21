@@ -18,9 +18,9 @@ use crate::segment::SegKind;
 use crate::trading::types::INITIAL_CAPITAL;
 
 use super::iterate;
-use super::rec_driver::{extract_chain, RecDriver};
+use super::rec_driver::{extract_chain, ChainBsp, RecDriver};
 use super::stream::build_a0_fast;
-use super::types::PerfectionMode;
+use super::types::{BSPKind, PerfectionMode};
 
 /// 诊断：BSPKind → 索引（0=t1buy 1=t1sell 2=t2buy 3=t2sell 4=t3buy 5=t3sell）。
 fn bsp_kind_idx(k: crate::recursive_t::types::BSPKind) -> u8 {
@@ -139,31 +139,38 @@ impl RecStream {
                 self.last_cs_segs = n_cs;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (view, new_bsps) = {
+                let (mut view, new_bsps) = {
                     let segs = self.orch.segments();
                     let m2r = self.orch.merged_to_raw();
                     let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg);
                     let tree = iterate(a0, self.mode);
-                    let bs: Vec<(i64, f64, usize, u8)> = tree
+                    let bs: Vec<(i64, f64, usize, BSPKind)> = tree
                         .all_bsps()
                         .into_iter()
-                        .map(|b| (b.bar, b.price, b.level, bsp_kind_idx(b.kind)))
+                        .map(|b| (b.bar, b.price, b.level, b.kind))
                         .collect();
                     (extract_chain(&tree), bs)
                 };
-                for (bb, bp, bl, bk) in new_bsps {
+                // **只消费本次重跑新 fire 的 BSP**（fresh），替换 view.bsps——根因修复：all_bsps 返回全历史
+                // 累积，bsp_fires 检查存在性会让 type1_sell/buy 一旦出现就永久触发→每次重跑机械 sink/recover。
+                let mut fresh: Vec<ChainBsp> = Vec::new();
+                for (bb, bp, bl, kind) in new_bsps {
+                    let bk = bsp_kind_idx(kind);
                     if self.bsp_seen.insert((bb, bl, bk)) {
                         self.bsp_counts[bk as usize] += 1;
                         if bl < 10 {
                             self.bsp_by_level[bl][bk as usize] += 1;
                         }
                         if bk == 0 {
-                            self.t1buy.push((bb, bp, bl)); // type1_buy → episode 用
+                            // 记**流式确认时点 bar**（= cur_bar），与 sink_bar/recover_bar 同坐标（非 BSP a0 段坐标）。
+                            self.t1buy.push((bar, bp, bl));
                         } else if bk == 1 {
-                            self.t1sell.push((bb, bp, bl)); // type1_sell → 做空卖点诊断
+                            self.t1sell.push((bar, bp, bl));
                         }
+                        fresh.push(ChainBsp { kind, level: bl, price: bp, bar: bb });
                     }
                 }
+                view.bsps = fresh; // sink/recover 只消费新 fire 的买卖点（非历史累积存在性）
                 self.n_reruns += 1;
                 // 诊断：记录本次 chain[0]（最高级别走势）方向。
                 self.last_c0 = match view.nodes.first().map(|n| n.node.direction) {
@@ -334,54 +341,44 @@ mod tests {
                 // ── per-level 短差 P&L（编排者 G1：低级别是否摩擦地板下噪声亏损）──
                 if sym == "BTC" {
                     let log = &s.driver().root().sink_recover_log;
-                    let (mut nl, mut pl, mut al) = ([0u64; 8], [0.0f64; 8], [0.0f64; 8]);
-                    for &(lvl, c1, c2, _low, realized) in log.iter() {
+                    let (mut nl, mut pl) = ([0u64; 8], [0.0f64; 8]);
+                    for &(lvl, _c1, _c2, _low, realized, _sb, _rb) in log.iter() {
                         if lvl < 8 {
                             nl[lvl] += 1;
                             pl[lvl] += realized;
-                            if c1 > 1e-9 {
-                                al[lvl] += ((c1 - c2) / c1).abs() * 100.0; // 相对振幅%（对比摩擦地板~1-2bps）
-                            }
                         }
                     }
-                    eprintln!("  [{sym}/{mode:?}] per-level短差 lvl(n/Σpnl/avg每笔/avg相对振幅%):");
+                    eprintln!("  [{sym}/{mode:?}] per-level短差 lvl(n/Σpnl/avg每笔):");
                     for lvl in 0..6 {
                         if nl[lvl] > 0 {
-                            eprintln!(
-                                "    L{lvl}: n={} Σpnl={:+.0} avg={:+.3} amp={:.4}%",
-                                nl[lvl],
-                                pl[lvl],
-                                pl[lvl] / nl[lvl] as f64,
-                                al[lvl] / nl[lvl] as f64
-                            );
+                            eprintln!("    L{lvl}: n={} Σpnl={:+.0} avg={:+.3}", nl[lvl], pl[lvl], pl[lvl] / nl[lvl] as f64);
                         }
                     }
-                    // 编排者：直接查每对 sink-recover 的开空价 vs 平空价。平得晚=c2>c1(价涨回才平=做空亏)。
-                    let (mut late, mut good) = (0u64, 0u64);
-                    let (mut dropped_but_late, mut never_dropped) = (0u64, 0u64);
-                    for &(_lvl, c1, c2, low, _r) in log.iter() {
-                        if c2 > c1 + 1e-9 {
-                            late += 1; // 平空价>开空价=做空亏（平得晚或开得早）
-                            if low < c1 - c1 * 0.003 {
-                                dropped_but_late += 1; // 期间跌过(low<c1)但平在高位=平得晚(错过低点,ep2式)
-                            } else {
-                                never_dropped += 1; // 期间几乎没跌(low≈c1)=开在底部
-                            }
+                    // ── 编排者做空 episode 表（ep2/ep5/ep8 式）：取亏损最大 20 对 ──
+                    let mut sorted: Vec<_> = log.clone();
+                    sorted.sort_by(|a, b| a.4.partial_cmp(&b.4).unwrap()); // realized 升序（最亏在前）
+                    eprintln!("\n  [{sym}/{mode:?}] 做空 episode 表（亏损最大 20 对）:");
+                    eprintln!("  ep|级别|开空价|平空价|期间最低|盈亏|区间买点数|最低买点|诊断");
+                    for (i, &(lvl, c1, c2, low, r, sb, rb)) in sorted.iter().take(20).enumerate() {
+                        // 区间 (sink_bar, recover_bar] 内的 type1_buy（全级别）。
+                        let buys: Vec<&(i64, f64, usize)> =
+                            s.t1buy.iter().filter(|(b, _, _)| *b > sb && *b <= rb).collect();
+                        let min_buy = buys.iter().map(|(_, p, _)| *p).fold(f64::INFINITY, f64::min);
+                        // 诊断：开在底(没跌) / 买点没消费(区间有低买点但平在高位,ep2式) / 平得晚(跌过但无低买点).
+                        let dropped = low < c1 - c1 * 0.003;
+                        let low_buy_unused = min_buy.is_finite() && min_buy < c2 - c2 * 0.003;
+                        let diag = if !dropped {
+                            "开在底(开空后没跌)"
+                        } else if low_buy_unused {
+                            "买点没消费(低买点未平,ep2式)"
                         } else {
-                            good += 1; // 平空价≤开空价=做空赚
-                        }
-                    }
-                    eprintln!(
-                        "  [{sym}/{mode:?}] sink-recover价格对: 总{} | 平价>开价(亏){}(其中跌过却平高位={} 没跌过={}) | 平价≤开价(赚){}",
-                        log.len(), late, dropped_but_late, never_dropped, good
-                    );
-                    eprintln!("  亏损对样本(开空c1/平空c2/期间最低low | c2−c1涨幅% | c1−low期间跌幅):");
-                    for &(lvl, c1, c2, low, realized) in log.iter().filter(|t| t.2 > t.1 + 1e-9).take(12) {
+                            "平得晚(跌过却平高位)"
+                        };
+                        let mb = if min_buy.is_finite() { format!("{min_buy:.0}") } else { "无".to_string() };
                         eprintln!(
-                            "    L{lvl} 开空={c1:.0} 平空={c2:.0} 最低={low:.0} | 平价高{:+.1}% | 期间跌过={:.0} realized={realized:.0} {}",
-                            100.0 * (c2 - c1) / c1,
-                            c1 - low,
-                            if low < c1 - c1 * 0.003 { "←跌过却平高位=平得晚(ep2式)" } else { "←没跌过=开在底" }
+                            "  {:2}|L{lvl}|{c1:.0}|{c2:.0}|{low:.0}|{r:+.0}|{}|{mb}|{diag}",
+                            i + 1,
+                            buys.len()
                         );
                     }
                 }

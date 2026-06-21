@@ -256,8 +256,9 @@ pub struct TRoot {
     pub diag_no_panic: bool,
     /// 诊断：首次 free 不足全状态 (level, core_units, Σshort_units, free, need, realized)。
     pub first_freeshort: Option<(usize, f64, f64, f64, f64, f64)>,
-    /// 诊断（编排者：查做空开得晚/平得晚）：每次 recover 记录 (level, c1开仓, c2平仓, low持仓极值, realized)。
-    pub sink_recover_log: Vec<(usize, f64, f64, f64, f64)>,
+    /// 诊断（编排者做空 episode 表）：每次 recover 记录
+    /// (level, c1开空, c2平空, low期间最低, realized盈亏, sink_bar, recover_bar)。
+    pub sink_recover_log: Vec<(usize, f64, f64, f64, f64, i64, i64)>,
 }
 
 impl TRoot {
@@ -579,6 +580,7 @@ impl TRoot {
         }
         let m_short = self.instances[child_slot].units; // 子树归还后，子恢复完整 units = sink 减出量 N
         let c1_sink = self.instances[child_slot].node.price_hi; // 诊断：子 T **原始开空价**（sink 设 c,c，不被孙搅动）
+        let sink_bar = self.instances[child_slot].node.start_bar; // 诊断：sink 时 bar（episode 区间起点）
         let low_since = self.instances[child_slot].low_since; // 诊断：持仓期间最低价（reduce 前抓）
         let clevel = self.instances[child_slot].level; // 诊断：子 T 级别
         let pdir = self.instances[parent_slot].direction;
@@ -595,7 +597,7 @@ impl TRoot {
             self.n_recover_win += 1;
         }
         // 诊断（编排者：查开得晚/平得晚）：记录 (子级别, c1开仓, c2平仓, low持仓极值, realized)。
-        self.sink_recover_log.push((clevel, c1_sink, c, low_since, realized));
+        self.sink_recover_log.push((clevel, c1_sink, c, low_since, realized, sink_bar, bar));
         // 父级升回，按 phase 分流。
         let phase = self.instances[parent_slot].phase;
         let mut q = match phase {
