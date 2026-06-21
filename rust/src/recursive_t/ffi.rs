@@ -255,15 +255,15 @@ impl PyRecStream {
         (bar, tw, lu, su, n)
     }
 
-    /// 引擎内部模拟账本计数：(enter, sink, recover, spawn, reruns)。
-    /// flip/promote/clear 已删（编排者裁决 C1：核心永不翻转，所有卖点=短差 sink）。
+    /// 引擎内部模拟账本计数：(enter, sink, recover, ascend+flip, reruns)。
+    /// flat 逻辑递归化（编排者裁决 2026-06-21）：spawn→ascend（relabel 升格）+ flip（核心翻转，无 C1）。
     fn op_counts(&self) -> (u64, u64, u64, u64, u64) {
         let r = self.core.driver().root();
         (
             r.n_enters,
             r.n_sinks,
             r.n_recovers,
-            r.n_spawns,
+            r.n_ascends + r.n_flips,
             self.core.n_reruns,
         )
     }

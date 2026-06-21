@@ -215,9 +215,14 @@ fn judge_trend_divergence(t: &TrendType, mode: PerfectionMode) -> Option<BSP> {
     })
 }
 
-/// **区间套 candidate**（编排者 2026-06-21）：c 段力度衰减检测——**不需完整背驰确认**（不查 structural
-/// 条件 2/3/5 + 创新高几何门），只需 ≥2 中枢 + c 段存在 + c 段 MACD 面积 < a 段（力度衰减）。
-/// 用于路由层：高级别 candidate 加持下，次级别 type1_sell fire 即可提前 sink（顶部附近，非等本级别完整确认）。
+/// **区间套 candidate（AND 模式，编排者 2026-06-21）**：背驰候选 = **结构 ∧ MACD 双确认**
+/// （`trend_structural_filter` F∧S 条件2/3/5+力度衰减 ∧ `macd_area_diverges` MACD 面积衰减）。
+/// **不含几何门 G（c 创新高）**——那是定位 BSP fire 的最终确认，candidate 是"c 段进行中接近顶"
+/// 的候选状态，顶部进行中尚未创新高确认。
+///
+/// AND 双确认过滤**假顶（ep5 式）**：结构可能说背驰但 MACD 不确认 → 非 candidate → 不做空
+/// （编排者：三模式解决 candidate 质量）。用于严格区间套级联：core_level AND candidate（接近顶）
+/// + 次级别递归 type1_sell 级联（confirm=最低级别完整确认，最快最接近顶）→ sink 在顶部附近。
 pub fn trend_candidate(t: &TrendType) -> bool {
     if !matches!(t.kind, TrendKind::UpTrend | TrendKind::DownTrend) {
         return false; // 仅趋势（盘整无 a/c 段力度对比）
@@ -238,7 +243,9 @@ pub fn trend_candidate(t: &TrendType) -> bool {
         return false; // c 段不存在（走势尚未离开末中枢）
     }
     let c_leg = &t.units[c_start..];
-    macd_area_diverges(a_leg, c_leg, t.direction) // c 段力度 < a 段（衰减 = candidate，顶部附近可判）
+    // AND 模式：结构 ∧ MACD 双确认（c 段力度 < a 段 ∧ 结构滤网 F∧S）。
+    trend_structural_filter(t, a_leg, c_leg, a_end, last_center)
+        && macd_area_diverges(a_leg, c_leg, t.direction)
 }
 
 /// 趋势背驰结构滤网 F∧S（几何门 G 已通过后）：第37课条件2·3·5（has_nest 时激活）+

@@ -18,7 +18,8 @@ use crate::segment::SegKind;
 use crate::trading::types::INITIAL_CAPITAL;
 
 use super::iterate;
-use super::rec_driver::{extract_chain, ChainBsp, RecDriver};
+use super::rec_driver::{extract_view, RecDriver};
+use super::rec_engine::{LevelView, MAX_LEVEL};
 use super::stream::build_a0_fast;
 use super::types::{BSPKind, PerfectionMode};
 
@@ -49,9 +50,6 @@ pub struct RecStream {
     last_stroke_n: usize,
     /// 重跑触发 key = (settled 段数, _)。第二位为区间套提前确认预留（当前回退=usize::MAX 固定）。
     last_trigger: (usize, usize),
-    /// 诊断（区间套路由）：candidate 任意级别 true 的重跑数 / 有 type1_sell fresh 的重跑数。
-    pub n_cand_true: u64,
-    pub n_subsell: u64,
     /// 重跑次数（性能 + 诊断）。
     pub n_reruns: u64,
     /// 诊断：chain[0]（最高级别走势）方向 bar 加权分布——定位 82% 持空根因（extract_chain vs 操作）。
@@ -92,8 +90,6 @@ impl RecStream {
             finished: false,
             last_stroke_n: 0,
             last_trigger: (0, usize::MAX),
-            n_cand_true: 0,
-            n_subsell: 0,
             n_reruns: 0,
             last_c0: 0,
             c0_up_bars: 0,
@@ -113,13 +109,7 @@ impl RecStream {
         }
     }
 
-    /// 诊断脚手架（编排者 panic 根因质询）：§8.1 free 不足兜底（同金额回补可用部分）跑完全程统计，
-    /// 非 §8.1 修复。用于查多重赋格下 free 不足的特征（盈利 vs 亏损短差），区分多级别耦合 vs C3。
-    pub fn set_diag_no_panic(&mut self) {
-        self.driver.root_mut().diag_no_panic = true;
-    }
-
-    /// 逐 bar 推送。段门控触发重跑 → extract_chain → driver.on_view（确认时点 close）。
+    /// 逐 bar 推送。段门控触发重跑 → extract_view → driver.on_view（确认时点 close）。
     pub fn push_bar(&mut self, o: f64, h: f64, l: f64, c: f64) {
         self.orch.process_bar(o, h, l, c);
         // 增量 MACD + pos/neg 前缀和（区间面积 O(1) 查表基础，与 flat 同源）。
@@ -133,6 +123,8 @@ impl RecStream {
 
         // 段门控（区间套提前确认，编排者 2026-06-21）：笔增长 → 触发 key=(settled 段数, 最后 candidate
         // 端点 ep1_i)。candidate 出现/c 段顶部移动 → key 变 → 重跑（**顶部附近**），不等 settled（回调底）。
+        // 每 bar 一个信号视图（无重跑=empty；重跑时填 nodes/emergent/fresh BSP）= flat：每 bar step。
+        let mut view = LevelView::empty();
         let sc = self.orch.strokes().len();
         if sc > self.last_stroke_n {
             self.last_stroke_n = sc;
@@ -146,11 +138,9 @@ impl RecStream {
                 self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (mut view, new_bsps) = {
+                let (v, new_bsps) = {
                     let segs = self.orch.segments();
                     let m2r = self.orch.merged_to_raw();
-                    // 区间套提前确认（含未确认段）试验=无效（未确认末段不产顶部 type1_sell，需 c 段背驰确认）
-                    // + 每笔重跑慢（reruns 6×）→ 回退 false。真正解需次级别（笔）分辨率，非塞未确认线段。
                     let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg, false);
                     let tree = iterate(a0, self.mode);
                     let bs: Vec<(i64, f64, usize, BSPKind)> = tree
@@ -158,11 +148,11 @@ impl RecStream {
                         .into_iter()
                         .map(|b| (b.bar, b.price, b.level, b.kind))
                         .collect();
-                    (extract_chain(&tree), bs)
+                    (extract_view(&tree), bs)
                 };
-                // **只消费本次重跑新 fire 的 BSP**（fresh），替换 view.bsps——根因修复：all_bsps 返回全历史
-                // 累积，bsp_fires 检查存在性会让 type1_sell/buy 一旦出现就永久触发→每次重跑机械 sink/recover。
-                let mut fresh: Vec<ChainBsp> = Vec::new();
+                view = v;
+                // **只消费本次重跑新 fire 的 BSP**（fresh）→ LevelView buy/sell per level（= flat
+                // TSignalView diff）。根因修复：all_bsps 全历史累积，存在性检查会机械触发；fresh 是本 bar diff。
                 for (bb, bp, bl, kind) in new_bsps {
                     let bk = bsp_kind_idx(kind);
                     if self.bsp_seen.insert((bb, bl, bk)) {
@@ -171,36 +161,33 @@ impl RecStream {
                             self.bsp_by_level[bl][bk as usize] += 1;
                         }
                         if bk == 0 {
-                            // 记**流式确认时点 bar**（= cur_bar），与 sink_bar/recover_bar 同坐标（非 BSP a0 段坐标）。
+                            // 记**流式确认时点 bar**（= cur_bar），同 sink/recover 坐标。
                             self.t1buy.push((bar, bp, bl));
                         } else if bk == 1 {
                             self.t1sell.push((bar, bp, bl));
                         }
-                        fresh.push(ChainBsp { kind, level: bl, price: bp, bar: bb });
+                        // fresh BSP → buy/sell（buy: bk 偶 0/2/4；sell: bk 奇 1/3/5，不分 type1/2/3）。
+                        if bl < MAX_LEVEL {
+                            if bk % 2 == 0 {
+                                view.buy[bl] = true;
+                            } else {
+                                view.sell[bl] = true;
+                            }
+                        }
                     }
                 }
-                view.bsps = fresh; // sink/recover 只消费新 fire 的买卖点（非历史累积存在性）
                 self.n_reruns += 1;
-                // 诊断（区间套路由）：candidate@core_level（最高级别）true + type1_sell@(core_level-1) fresh。
-                // sink core 触发=两者同时，故查 core_level 专用（非任意级别）。
-                let cl = view.core_level;
-                if view.candidate.get(cl).copied().unwrap_or(false) {
-                    self.n_cand_true += 1; // candidate@core_level（最高级别 c 段衰减）
-                }
-                if cl >= 1
-                    && view.bsps.iter().any(|b| b.level == cl - 1 && matches!(b.kind, BSPKind::Type1Sell))
-                {
-                    self.n_subsell += 1; // type1_sell@(core_level-1) fresh（次级别卖点）
-                }
-                // 诊断：记录本次 chain[0]（最高级别走势）方向。
-                self.last_c0 = match view.nodes.first().map(|n| n.node.direction) {
-                    Some(crate::recursive_t::types::Direction::Up) => 1,
-                    Some(crate::recursive_t::types::Direction::Down) => -1,
+                // 诊断：本次最高级别走势方向（emergent_top 极性）。
+                self.last_c0 = match view.emergent_top {
+                    Some((_, crate::trading::types::Polarity::Long)) => 1,
+                    Some((_, crate::trading::types::Polarity::Short)) => -1,
                     None => 0,
                 };
-                self.driver.on_view(&view, c, bar);
             }
         }
+        // 每 bar 调 on_bar（= flat step 每 bar）：强平每 bar 检查 + emergence/route_bsp 仅在 view 有
+        // BSP/emergent（重跑）时触发——empty view（无重跑）仅强平 + 守恒守卫，对照 flat step(empty)。
+        self.driver.on_view(&view, c, bar);
         // bar 加权 chain[0] 方向（持续到下次重跑）。
         match self.last_c0 {
             1 => self.c0_up_bars += 1,
@@ -209,7 +196,7 @@ impl RecStream {
         }
         // bar 加权核心(root)方向 + 净敞口符号 + 核心短头 episode 追踪。
         let root = self.driver.root();
-        let cur_dir: i8 = match root.root_slot() {
+        let cur_dir: i8 = match root.highest_active() {
             Some(rs) => match root.instance(rs).direction {
                 crate::trading::types::Polarity::Long => {
                     self.core_long_bars += 1;
@@ -237,7 +224,6 @@ impl RecStream {
             }
         }
         self.prev_core_dir = cur_dir;
-        self.driver.root_mut().update_lows(c); // 诊断：逐 bar 更新活跃短差腿持仓极值（查开得晚/平得晚）
         self.cur_bar += 1;
     }
 
@@ -334,7 +320,6 @@ mod tests {
             {
                 let t0 = std::time::Instant::now();
                 let mut s = RecStream::new(*mode);
-                s.set_diag_no_panic(); // §8.1 free 不足兜底（同金额回补）跑完全程——C3 亏损短差处理
                 for i in 0..n {
                     s.push_bar(o[i], h[i], l[i], c[i]);
                 }
@@ -344,67 +329,32 @@ mod tests {
                 spnl[mi] = r.short_leg_pnl;
                 nshort[mi] = 100.0 * s.net_short_bars as f64 / n.max(1) as f64;
                 sinks[mi] = r.n_sinks;
-                fshort[mi] = r.n_freeshort;
+                fshort[mi] = r.n_flips;
                 eprintln!(
-                    "[{sym:<5}/{:>10?}] strat={:+.1}% bh={:+.1}% sink={} recover={} short_pnl={:+.0} \
-                     net_short={:.1}% §8.1={} ({:.1}s)",
+                    "[{sym:<5}/{:>10?}] strat={:+.1}% bh={:+.1}% enter={} sink={} recover={} drain={} \
+                     flip={} ascend={} short_pnl={:+.0} net_short={:.1}% liq={} ({:.1}s)",
                     mode,
                     strat[mi],
                     bh,
+                    r.n_enters,
                     r.n_sinks,
                     r.n_recovers,
+                    r.n_drains,
+                    r.n_flips,
+                    r.n_ascends,
                     r.short_leg_pnl,
                     nshort[mi],
-                    r.n_freeshort,
+                    r.n_liquidations,
                     t0.elapsed().as_secs_f64()
                 );
-                // ── per-level 短差 P&L（编排者 G1：低级别是否摩擦地板下噪声亏损）──
+                // BTC per-level BSP fire 分布（buy/sell per level，诊断 flat 递归化后操作分布）。
                 if sym == "BTC" {
+                    let buys: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][0]).collect();
+                    let sells: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][1]).collect();
                     eprintln!(
-                        "  [{sym}/{mode:?}] reruns={} candidate_true={} subsell_fresh={}（区间套路由诊断）",
-                        s.n_reruns, s.n_cand_true, s.n_subsell
+                        "  [{sym}/{mode:?}] reruns={} t1buy_by_level={:?} t1sell_by_level={:?}",
+                        s.n_reruns, buys, sells
                     );
-                    let log = &s.driver().root().sink_recover_log;
-                    let (mut nl, mut pl) = ([0u64; 8], [0.0f64; 8]);
-                    for &(lvl, _c1, _c2, _low, realized, _sb, _rb) in log.iter() {
-                        if lvl < 8 {
-                            nl[lvl] += 1;
-                            pl[lvl] += realized;
-                        }
-                    }
-                    eprintln!("  [{sym}/{mode:?}] per-level短差 lvl(n/Σpnl/avg每笔):");
-                    for lvl in 0..6 {
-                        if nl[lvl] > 0 {
-                            eprintln!("    L{lvl}: n={} Σpnl={:+.0} avg={:+.3}", nl[lvl], pl[lvl], pl[lvl] / nl[lvl] as f64);
-                        }
-                    }
-                    // ── 编排者做空 episode 表（ep2/ep5/ep8 式）：取亏损最大 20 对 ──
-                    let mut sorted: Vec<_> = log.clone();
-                    sorted.sort_by(|a, b| a.4.partial_cmp(&b.4).unwrap()); // realized 升序（最亏在前）
-                    eprintln!("\n  [{sym}/{mode:?}] 做空 episode 表（亏损最大 20 对）:");
-                    eprintln!("  ep|级别|开空价|平空价|期间最低|盈亏|区间买点数|最低买点|诊断");
-                    for (i, &(lvl, c1, c2, low, r, sb, rb)) in sorted.iter().take(20).enumerate() {
-                        // 区间 (sink_bar, recover_bar] 内的 type1_buy（全级别）。
-                        let buys: Vec<&(i64, f64, usize)> =
-                            s.t1buy.iter().filter(|(b, _, _)| *b > sb && *b <= rb).collect();
-                        let min_buy = buys.iter().map(|(_, p, _)| *p).fold(f64::INFINITY, f64::min);
-                        // 诊断：开在底(没跌) / 买点没消费(区间有低买点但平在高位,ep2式) / 平得晚(跌过但无低买点).
-                        let dropped = low < c1 - c1 * 0.003;
-                        let low_buy_unused = min_buy.is_finite() && min_buy < c2 - c2 * 0.003;
-                        let diag = if !dropped {
-                            "开在底(开空后没跌)"
-                        } else if low_buy_unused {
-                            "买点没消费(低买点未平,ep2式)"
-                        } else {
-                            "平得晚(跌过却平高位)"
-                        };
-                        let mb = if min_buy.is_finite() { format!("{min_buy:.0}") } else { "无".to_string() };
-                        eprintln!(
-                            "  {:2}|L{lvl}|{c1:.0}|{c2:.0}|{low:.0}|{r:+.0}|{}|{mb}|{diag}",
-                            i + 1,
-                            buys.len()
-                        );
-                    }
                 }
                 assert!(fin.is_finite(), "[{sym}] final_nav 有限（NaN/Inf=会计 bug）");
             }
@@ -428,10 +378,10 @@ mod tests {
                 bh
             );
         }
-        println!("--- 做空腿 short_leg_pnl（S/A/O）+ net_short%（S）+ §8.1(S）---");
+        println!("--- 做空腿 short_leg_pnl（S/A/O）+ net_short%（S）+ flip(S）---");
         for (sym, _, _, spnl, nshort, sinks, fshort) in &rows {
             println!(
-                "{:<6} short_pnl S={:+.0} A={:+.0} O={:+.0} | net_short(S)={:.0}% sink(S)={} §8.1(S)={}",
+                "{:<6} short_pnl S={:+.0} A={:+.0} O={:+.0} | net_short(S)={:.0}% sink(S)={} flip(S)={}",
                 sym, spnl[0], spnl[1], spnl[2], nshort[0], sinks[0], fshort[0]
             );
         }
