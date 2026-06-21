@@ -46,6 +46,12 @@ pub struct RecStream {
     pub core_short_bars: u64,
     pub net_long_bars: u64,
     pub net_short_bars: u64,
+    /// 诊断（编排者回补质询）：全程 type1_buy 买点 (bar, price, level) dedup by bar；
+    /// 核心短头 episodes (entry_bar, entry_px, exit_bar, exit_px)——查做空后下跌段有无买点、是否被消费。
+    pub t1buy: Vec<(i64, f64, usize)>,
+    pub short_episodes: Vec<(i64, f64, i64, f64)>,
+    cur_short_entry: Option<(i64, f64)>,
+    prev_core_dir: i8,
 }
 
 impl RecStream {
@@ -71,6 +77,10 @@ impl RecStream {
             core_short_bars: 0,
             net_long_bars: 0,
             net_short_bars: 0,
+            t1buy: Vec::new(),
+            short_episodes: Vec::new(),
+            cur_short_entry: None,
+            prev_core_dir: 0,
         }
     }
 
@@ -99,13 +109,25 @@ impl RecStream {
             if n_cs != self.last_cs_segs {
                 self.last_cs_segs = n_cs;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
-                let view = {
+                // 诊断：同时捕获本树的 type1_buy 买点（回补质询）。
+                let (view, new_t1buys) = {
                     let segs = self.orch.segments();
                     let m2r = self.orch.merged_to_raw();
                     let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg);
                     let tree = iterate(a0, self.mode);
-                    extract_chain(&tree)
+                    let t1: Vec<(i64, f64, usize)> = tree
+                        .all_bsps()
+                        .into_iter()
+                        .filter(|b| matches!(b.kind, crate::recursive_t::types::BSPKind::Type1Buy))
+                        .map(|b| (b.bar, b.price, b.level))
+                        .collect();
+                    (extract_chain(&tree), t1)
                 };
+                for (bb, bp, bl) in new_t1buys {
+                    if !self.t1buy.iter().any(|(x, _, _)| *x == bb) {
+                        self.t1buy.push((bb, bp, bl));
+                    }
+                }
                 self.n_reruns += 1;
                 // 诊断：记录本次 chain[0]（最高级别走势）方向。
                 self.last_c0 = match view.nodes.first().map(|n| n.node.direction) {
@@ -122,20 +144,36 @@ impl RecStream {
             -1 => self.c0_down_bars += 1,
             _ => {}
         }
-        // bar 加权核心(root)方向 + 净敞口符号。
+        // bar 加权核心(root)方向 + 净敞口符号 + 核心短头 episode 追踪。
         let root = self.driver.root();
-        if let Some(rs) = root.root_slot() {
-            match root.instance(rs).direction {
-                crate::trading::types::Polarity::Long => self.core_long_bars += 1,
-                crate::trading::types::Polarity::Short => self.core_short_bars += 1,
-            }
-        }
+        let cur_dir: i8 = match root.root_slot() {
+            Some(rs) => match root.instance(rs).direction {
+                crate::trading::types::Polarity::Long => {
+                    self.core_long_bars += 1;
+                    1
+                }
+                crate::trading::types::Polarity::Short => {
+                    self.core_short_bars += 1;
+                    -1
+                }
+            },
+            None => 0,
+        };
         let (lu, su) = root.exposure();
         if lu - su > 1e-9 {
             self.net_long_bars += 1;
         } else if su - lu > 1e-9 {
             self.net_short_bars += 1;
         }
+        // 核心短头 episode：进空记 entry，离空记 exit（查做空后下跌段买点产出/消费）。
+        if cur_dir == -1 && self.prev_core_dir != -1 {
+            self.cur_short_entry = Some((bar, c));
+        } else if cur_dir != -1 && self.prev_core_dir == -1 {
+            if let Some((eb, ep)) = self.cur_short_entry.take() {
+                self.short_episodes.push((eb, ep, bar, c));
+            }
+        }
+        self.prev_core_dir = cur_dir;
         self.cur_bar += 1;
     }
 
@@ -251,8 +289,29 @@ mod tests {
             s.net_short_bars,
             100.0 * s.net_short_bars as f64 / n.max(1) as f64,
         );
-        // 诊断测试：final_nav 可为负（核心 flip 翻空在 BTC 牛市被轧 = 真实灾难结果，非 bug；
-        // TW 守恒守卫已全程零 panic 证会计正确）。只断言有限（NaN/Inf = 真 bug）。
+        // ── 回补质询诊断（编排者）：核心做空后下跌段产出的 type1_buy 买点 + 是否被消费 ──
+        eprintln!(
+            "\n── 回补质询：type1_buy 总数={}  核心短头 episodes={} ──",
+            s.t1buy.len(),
+            s.short_episodes.len()
+        );
+        eprintln!("episode | 做空@bar/px | 平@bar/px | 短头盈亏% | 区间内type1_buy数 | 区间最低买点px(vs做空px)");
+        for (i, (eb, ep, xb, xp)) in s.short_episodes.iter().take(12).enumerate() {
+            let buys_in: Vec<&(i64, f64, usize)> =
+                s.t1buy.iter().filter(|(b, _, _)| *b > *eb && *b <= *xb).collect();
+            let min_buy = buys_in.iter().map(|(_, p, _)| *p).fold(f64::INFINITY, f64::min);
+            let short_pnl = (ep - xp) / ep * 100.0; // 短头盈亏：平价<做空价=盈
+            eprintln!(
+                "  {i:2} | {eb}/{ep:.0} | {xb}/{xp:.0} | {short_pnl:+.1}% | {} | {}",
+                buys_in.len(),
+                if min_buy.is_finite() {
+                    format!("{:.0} ({}做空价)", min_buy, if min_buy < *ep { "低于" } else { "高于" })
+                } else {
+                    "无买点".to_string()
+                }
+            );
+        }
+        // 诊断测试：final_nav 可为负（做空在 BTC 牛市被轧 = 真实结果）。只断言有限（NaN/Inf = 真 bug）。
         assert!(fin.is_finite(), "final_nav 有限（NaN/Inf=会计 bug）；负值=策略灾难是合法 L3 观测");
     }
 }
