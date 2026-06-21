@@ -505,11 +505,17 @@ impl TRoot {
             return None;
         }
         let tw_pre = self.total_wealth(c);
-        // 父仓位减仓到现金，realized 降成本（方向对称）。
+        // 父仓位减仓到现金，realized 记账。
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[parent_slot], m, &mut free, c);
         self.free = free;
-        self.account_core_reduce(parent_slot, realized, c);
+        // 会计双重性（编排者 2026-06-21）：sink 的 reduce 面 realized 必须记账，不丢失——
+        // 父=核心（cost_basis 有限）→降成本；父=短差腿（cost_basis=NaN，子 sink 孙）→short_leg_pnl。
+        if self.instances[parent_slot].cost_basis.is_finite() {
+            self.account_core_reduce(parent_slot, realized, c);
+        } else {
+            self.account_leg_pnl(realized);
+        }
         // 建次级别（父级别−1）子 T，开反向仓 m（同股数）。载体 = 合成节点（反父向、价位 c）。
         let cb_dir = Direction::Down; // mob 固定 Short（卖点即方向）⟹ 子节点方向 Down
         let child_slot = self.alloc_slot();
