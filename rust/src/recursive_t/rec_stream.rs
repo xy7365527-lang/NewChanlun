@@ -210,6 +210,7 @@ impl RecStream {
             }
         }
         self.prev_core_dir = cur_dir;
+        self.driver.root_mut().update_lows(c); // 诊断：逐 bar 更新活跃短差腿持仓极值（查开得晚/平得晚）
         self.cur_bar += 1;
     }
 
@@ -263,10 +264,11 @@ mod tests {
         assert!((s.finish() - INITIAL_CAPITAL).abs() < 1e-6);
     }
 
-    /// 递归引擎 BTC 回测（L3 验证）：递归 vs flat 基线 vs BH。
+    /// 递归引擎 **8 标的 × 3 模式**回测（L3 验证）：vs flat 引擎（t_backtest_8x3）vs BH。
     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::rec_btc -- --ignored --nocapture`
+    /// `BT_SYMBOLS=CL,BTC` 过滤标的（默认全 8）。
     #[test]
-    #[ignore = "递归引擎 BTC 回测，需 analysis/data_cache/btc_1m_full.json"]
+    #[ignore = "递归引擎全量回测，需 analysis/data_cache/*.json"]
     fn rec_btc() {
         use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
         use std::path::PathBuf;
@@ -275,73 +277,116 @@ mod tests {
             .parent()
             .unwrap()
             .join("analysis/data_cache");
-        let (_sym, file) = SYMBOLS.iter().find(|(s, _)| *s == "BTC").unwrap();
-        let path = data_dir.join(file);
-        if !path.exists() {
-            eprintln!("[BTC] 数据缺失 {path:?}，跳过");
-            return;
-        }
-        let (o, h, l, c) = load_clean_ohlc(&path);
-        let n = c.len();
-        let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
-        eprintln!("\n========== 递归 T P3b BSP 触发：三模式 §8.1 panic 根因诊断 ==========");
-        eprintln!("bars={n}  BH={bh:+.2}%  （编排者质疑：Structural 卖点不可靠→做空亏→panic；AND 可靠→不 panic？）");
-        // 编排者 Q5：三模式对比（Structural 纯结构衰减 / And 结构∧MACD背驰 / Or 结构∨MACD）。
-        for mode in [PerfectionMode::Structural, PerfectionMode::And, PerfectionMode::Or] {
-            let t0 = std::time::Instant::now();
-            let mut s = RecStream::new(mode);
-            s.set_diag_no_panic(); // 诊断：free 不足兜底跑完全程，统计耦合特征（非 §8.1 修复）
-            for i in 0..n {
-                s.push_bar(o[i], h[i], l[i], c[i]);
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_default();
+
+        eprintln!("\n========== 递归 T 引擎 8 标的 × 3 模式回测（区间套递归归还修复后）==========");
+        // (sym, bh, strat[3], short_pnl[3], net_short%[3], sink[3], freeshort[3])
+        type Row = (String, f64, [f64; 3], [f64; 3], [f64; 3], [u64; 3], [u64; 3]);
+        let mut rows: Vec<Row> = Vec::new();
+
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
             }
-            let fin = s.finish();
-            let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
-            let r = s.driver().root();
-            let d = s.driver();
-            let zombies = r.n_sinks as i64 - r.n_recovers as i64;
-            let n_closed = (r.n_recover_loss + r.n_recover_win).max(1);
-            eprintln!(
-                "\n── 模式 {:?} ({:.1}s, reruns={}) ──\n\
-                 strat={strat:+.2}%  final_nav={fin:.0}\n\
-                 [Q1] enter={} sink={} recover={} spawn={}  [Q2]在场短差腿(sink−recover)={}\n\
-                 [Q4] short_leg_pnl={:+.0}  亏损recover={} 盈利recover={}  亏损率={:.1}%\n\
-                 [§8.1] free不足={}（其中短差盈利={}=多级别现金流耦合 / 亏损={}=C3）首次(lvl/core_u/Σshort_u/free/need/realized)={:?}\n\
-                 多重赋格 sink级别分布[L0..L9]={:?}\n\
-                 多重赋格 recover级别分布[L0..L9]={:?}\n\
-                 核心方向: long={:.1}% short={:.1}%  净敞口: long={:.1}% short={:.1}%\n\
-                 BSP产出: t1buy={} t1sell={}  按级别[lvl: t1b/t1s]:",
-                mode,
-                t0.elapsed().as_secs_f64(),
-                s.n_reruns,
-                r.n_enters,
-                r.n_sinks,
-                r.n_recovers,
-                r.n_spawns,
-                zombies,
-                r.short_leg_pnl,
-                r.n_recover_loss,
-                r.n_recover_win,
-                100.0 * r.n_recover_loss as f64 / n_closed as f64,
-                r.n_freeshort,
-                r.n_freeshort_profit,
-                r.n_freeshort - r.n_freeshort_profit,
-                r.first_freeshort,
-                &d.sink_lvl,
-                &d.recover_lvl,
-                100.0 * s.core_long_bars as f64 / n.max(1) as f64,
-                100.0 * s.core_short_bars as f64 / n.max(1) as f64,
-                100.0 * s.net_long_bars as f64 / n.max(1) as f64,
-                100.0 * s.net_short_bars as f64 / n.max(1) as f64,
-                s.bsp_counts[0],
-                s.bsp_counts[1],
-            );
-            for (lvl, row) in s.bsp_by_level.iter().enumerate() {
-                if row[0] > 0 || row[1] > 0 {
-                    eprintln!("    L{lvl}: {}/{}", row[0], row[1]);
+            let path = data_dir.join(file);
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失 {path:?}，跳过");
+                continue;
+            }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
+            let (mut strat, mut spnl, mut nshort) = ([0.0; 3], [0.0; 3], [0.0; 3]);
+            let (mut sinks, mut fshort) = ([0u64; 3], [0u64; 3]);
+            for (mi, mode) in [PerfectionMode::Structural, PerfectionMode::And, PerfectionMode::Or]
+                .iter()
+                .enumerate()
+            {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new(*mode);
+                s.set_diag_no_panic(); // §8.1 free 不足兜底（同金额回补）跑完全程——C3 亏损短差处理
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
                 }
+                let fin = s.finish();
+                strat[mi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                let r = s.driver().root();
+                spnl[mi] = r.short_leg_pnl;
+                nshort[mi] = 100.0 * s.net_short_bars as f64 / n.max(1) as f64;
+                sinks[mi] = r.n_sinks;
+                fshort[mi] = r.n_freeshort;
+                eprintln!(
+                    "[{sym:<5}/{:>10?}] strat={:+.1}% bh={:+.1}% sink={} recover={} short_pnl={:+.0} \
+                     net_short={:.1}% §8.1={} ({:.1}s)",
+                    mode,
+                    strat[mi],
+                    bh,
+                    r.n_sinks,
+                    r.n_recovers,
+                    r.short_leg_pnl,
+                    nshort[mi],
+                    r.n_freeshort,
+                    t0.elapsed().as_secs_f64()
+                );
+                // ── per-level 短差 P&L（编排者 G1：低级别是否摩擦地板下噪声亏损）──
+                if sym == "BTC" {
+                    let log = &s.driver().root().sink_recover_log;
+                    let (mut nl, mut pl, mut al) = ([0u64; 8], [0.0f64; 8], [0.0f64; 8]);
+                    for &(lvl, c1, c2, _low, realized) in log.iter() {
+                        if lvl < 8 {
+                            nl[lvl] += 1;
+                            pl[lvl] += realized;
+                            if c1 > 1e-9 {
+                                al[lvl] += ((c1 - c2) / c1).abs() * 100.0; // 相对振幅%（对比摩擦地板~1-2bps）
+                            }
+                        }
+                    }
+                    eprintln!("  [{sym}/{mode:?}] per-level短差 lvl(n/Σpnl/avg每笔/avg相对振幅%):");
+                    for lvl in 0..6 {
+                        if nl[lvl] > 0 {
+                            eprintln!(
+                                "    L{lvl}: n={} Σpnl={:+.0} avg={:+.3} amp={:.4}%",
+                                nl[lvl],
+                                pl[lvl],
+                                pl[lvl] / nl[lvl] as f64,
+                                al[lvl] / nl[lvl] as f64
+                            );
+                        }
+                    }
+                }
+                assert!(fin.is_finite(), "[{sym}] final_nav 有限（NaN/Inf=会计 bug）");
             }
-            assert!(fin.is_finite(), "final_nav 有限（NaN/Inf=会计 bug）；负值=策略灾难是合法 L3 观测");
+            rows.push((sym.to_string(), bh, strat, spnl, nshort, sinks, fshort));
         }
-        eprintln!("\n====================================================");
+
+        // ── 汇总矩阵 ──
+        println!("\n===== 递归 T 8×3 strat_pct 矩阵（区间套递归归还修复后）=====");
+        println!("{:<6} {:>12} {:>12} {:>12} {:>11}", "标的", "Structural", "AND", "OR", "BH");
+        for (sym, bh, strat, _, _, _, _) in &rows {
+            let mark = |x: f64| if x > *bh { "*" } else { " " }; // * = 超 BH
+            println!(
+                "{:<6} {:>+10.1}%{} {:>+10.1}%{} {:>+10.1}%{} {:>+10.1}%",
+                sym,
+                strat[0],
+                mark(strat[0]),
+                strat[1],
+                mark(strat[1]),
+                strat[2],
+                mark(strat[2]),
+                bh
+            );
+        }
+        println!("--- 做空腿 short_leg_pnl（S/A/O）+ net_short%（S）+ §8.1(S）---");
+        for (sym, _, _, spnl, nshort, sinks, fshort) in &rows {
+            println!(
+                "{:<6} short_pnl S={:+.0} A={:+.0} O={:+.0} | net_short(S)={:.0}% sink(S)={} §8.1(S)={}",
+                sym, spnl[0], spnl[1], spnl[2], nshort[0], sinks[0], fshort[0]
+            );
+        }
+        println!("======================================================\n");
+        assert!(!rows.is_empty(), "至少跑出一个标的");
     }
 }

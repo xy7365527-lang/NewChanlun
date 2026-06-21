@@ -142,6 +142,9 @@ pub struct TInstance {
     pub child: Option<TRef>,
     /// 仓位骑的走势**绝对级别**（核心=core_level，子=父级别−1）。reconcile 按此级别查区间套确认的 BSP。
     pub level: usize,
+    /// 诊断：持仓期间对仓位有利方向的极值 close（空头=最低价，多头=最高价；sink 时=开仓价，逐 bar 更新）。
+    /// 查做空"开得晚/平得晚"：空头理想平价≈low_since，c2−low_since=错过利润（平得晚程度）。
+    pub low_since: f64,
     pub lifecycle: TLifecycle,
     /// 代际（dormant 复活时++）。
     pub generation: u64,
@@ -162,6 +165,7 @@ impl TInstance {
             parent: None,
             child: None,
             level: 0,
+            low_since: f64::NAN,
             lifecycle: TLifecycle::Dormant,
             generation,
         }
@@ -252,6 +256,8 @@ pub struct TRoot {
     pub diag_no_panic: bool,
     /// 诊断：首次 free 不足全状态 (level, core_units, Σshort_units, free, need, realized)。
     pub first_freeshort: Option<(usize, f64, f64, f64, f64, f64)>,
+    /// 诊断（编排者：查做空开得晚/平得晚）：每次 recover 记录 (level, c1开仓, c2平仓, low持仓极值, realized)。
+    pub sink_recover_log: Vec<(usize, f64, f64, f64, f64)>,
 }
 
 impl TRoot {
@@ -274,6 +280,25 @@ impl TRoot {
             n_freeshort_profit: 0,
             diag_no_panic: false,
             first_freeshort: None,
+            sink_recover_log: Vec::new(),
+        }
+    }
+
+    /// 诊断（编排者）：逐 bar 更新所有活跃短差腿的持仓极值（空头→最低 close / 多头→最高 close）。
+    /// stream 每 bar 调，供 recover 时记录"期间最低价"判断做空开得晚/平得晚。
+    pub fn update_lows(&mut self, c: f64) {
+        for inst in self.instances.iter_mut() {
+            if inst.lifecycle != TLifecycle::Dormant
+                && inst.units > EPS
+                && inst.parent.is_some()
+                && inst.low_since.is_finite()
+            {
+                // 短差腿（有父）：空头记最低、多头记最高（对仓位有利方向的极值）。
+                inst.low_since = match inst.direction {
+                    Polarity::Short => inst.low_since.min(c),
+                    Polarity::Long => inst.low_since.max(c),
+                };
+            }
         }
     }
 
@@ -471,8 +496,9 @@ impl TRoot {
         if plevel == 0 {
             return None; // a0 笔层无更次级别可下放（递归 base case）
         }
-        let pdir = self.instances[parent_slot].direction;
-        let mob = flip_pol(pdir); // 子 T 方向 = 反父向（ε 对称：父多→子空 / 父空→子多）
+        // 编排者裁决（2026-06-21）：**耦合只看 BSP 类型不看方向字段**。type1_sell=做空方向 → sink 总是开空。
+        // 删 direction gate（不查父/核心方向）：卖点本身即方向，短差腿固定做空（Short）。
+        let mob = Polarity::Short; // type1_sell → 开空（卖点即方向，per-level 逆势 Long 腿 −30k 已消除）
         let u_p = self.instances[parent_slot].units;
         let m = quota(u_p);
         if !(m > EPS && m.is_finite()) || m > u_p + EPS {
@@ -485,7 +511,7 @@ impl TRoot {
         self.free = free;
         self.account_core_reduce(parent_slot, realized, c);
         // 建次级别（父级别−1）子 T，开反向仓 m（同股数）。载体 = 合成节点（反父向、价位 c）。
-        let cb_dir = if mob == Polarity::Long { Direction::Up } else { Direction::Down };
+        let cb_dir = Direction::Down; // mob 固定 Short（卖点即方向）⟹ 子节点方向 Down
         let child_slot = self.alloc_slot();
         let pref = self.instances[parent_slot].self_ref(parent_slot);
         {
@@ -493,6 +519,7 @@ impl TRoot {
             child.node = TrendNode::new(bar, bar, c, c, cb_dir);
             child.level = plevel - 1; // 次级别（区间套递归下钻一层）
             child.child = None;
+            child.low_since = c; // 诊断：持仓极值初始=开仓价
             child.lifecycle = TLifecycle::Active;
             child.parent = Some(pref);
             child.cost_basis = f64::NAN; // 短差腿不走核心降成本
@@ -528,8 +555,17 @@ impl TRoot {
         if c <= 0.0 || !self.instances[child_slot].is_active() {
             return false;
         }
-        let m_short = self.instances[child_slot].units; // 子 T 短头 units = 待回补同股数 N
+        // 递归归还子的整个子树（区间套关键）：子被"子 sink 孙"减过 units（U/3→2U/9），若只平子当前 units，
+        // 父回补不足 → core 每周期净减 → 净空头累积穿仓。先递归 recover 孙让子恢复完整 units，再平子归还父。
+        while self.instances[child_slot].child.is_some() {
+            if !self.recover(child_slot, c, bar) {
+                break;
+            }
+        }
+        let m_short = self.instances[child_slot].units; // 子树归还后，子恢复完整 units = sink 减出量 N
         let c1_sink = self.instances[child_slot].basis; // 诊断：子 T 开空价（sink 价 c1），reduce 后变 NaN 故先抓
+        let low_since = self.instances[child_slot].low_since; // 诊断：持仓期间极值（reduce 前抓）
+        let clevel = self.instances[child_slot].level; // 诊断：子 T 级别
         let pdir = self.instances[parent_slot].direction;
         let tw_pre = self.total_wealth(c);
         // 子 T 平空（cover）：realized = 高开低平降成本 alpha。
@@ -543,6 +579,8 @@ impl TRoot {
         } else if realized > EPS {
             self.n_recover_win += 1;
         }
+        // 诊断（编排者：查开得晚/平得晚）：记录 (子级别, c1开仓, c2平仓, low持仓极值, realized)。
+        self.sink_recover_log.push((clevel, c1_sink, c, low_since, realized));
         // 父级升回，按 phase 分流。
         let phase = self.instances[parent_slot].phase;
         let mut q = match phase {

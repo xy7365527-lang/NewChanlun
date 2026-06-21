@@ -23,7 +23,6 @@
 
 use super::rec_engine::{dir_to_polarity, TRoot, TrendNode};
 use super::types::{BSPKind, Direction, RecursiveTree, TrendKind, TrendType, Unit};
-use crate::trading::types::Polarity;
 
 /// BSP 触发判定（P3b 消费，C1 北极星：引擎消费买卖点而非走势结构）：视图 `bsps` 中该 `level`
 /// 是否存在 type1 买点（`want_buy`）/ 卖点。多核心 sink 由本级别 type1_sell 触发，子 T 平空 recover
@@ -127,21 +126,20 @@ impl RecDriver {
     /// **区间套递归消费 BSP**（编排者 2026-06-21：多重赋格=区间套递归应用的自然结果，非 N 个独立引擎并行）。
     ///
     /// 沿**活跃仓位链**（核心→子→孙…嵌套）下钻，每个仓位**只检查自己级别**的区间套确认 BSP——T 实例在
-    /// 操作时诞生（sink 创造次级别子）、recover 时归还（删除）。多声部=链的递归深度，自然涌现：
-    /// - **反向 BSP@仓位级别**（持多→type1_sell / 持空→type1_buy）且无子 → sink（reduce 自己 + 次级别开反向子）。
-    /// - **同向 BSP@仓位级别**（持多→type1_buy / 持空→type1_sell）且有子 → recover（子平仓归还自己，回调结束）。
-    ///   否则下钻到子，递归检查子的级别。
+    /// 操作时诞生（sink 创造次级别同向子）、recover 时归还（删除）。多声部=链的递归深度，自然涌现。
+    ///
+    /// **耦合只看 BSP 类型不看方向字段（编排者 2026-06-21）**：BSP 类型本身即方向——
+    /// - **type1_sell@level** 且无子 → sink（reduce 自己 + 次级别开空）。卖点即做空方向，不查持仓方向。
+    /// - **type1_buy@level** 且有子 → recover（子平空 + 回补，回调结束）。买点即平空/做多方向。否则下钻检查子。
     fn reconcile_recursive(&mut self, view: &ChainView, c: f64, bar: i64) {
         let Some(mut cur) = self.root.root_slot() else { return };
         loop {
-            let dir = self.root.instance(cur).direction;
             let level = self.root.instance(cur).level;
             let child = self.root.instance(cur).child.and_then(|r| self.root.resolve_ref(r));
             match child {
                 Some(cslot) => {
-                    // 同向 BSP@level（回调结束）→ recover 子归还；否则下钻检查子。
-                    let same_buy = dir == Polarity::Long; // 同向：持多→buy / 持空→sell
-                    if bsp_fires(view, level, same_buy) {
+                    // type1_buy@level（买点=平空+回补方向）→ recover 子归还；否则下钻检查子。
+                    if bsp_fires(view, level, true) {
                         if self.root.recover(cur, c, bar) && level < 10 {
                             self.recover_lvl[level] += 1;
                         }
@@ -150,15 +148,14 @@ impl RecDriver {
                     cur = cslot; // 下钻递归检查子
                 }
                 None => {
-                    // 反向 BSP@level（回调开始）→ sink 开次级别子；否则链终止。
-                    let reverse_buy = dir == Polarity::Short; // 反向：持多→sell / 持空→buy
-                    if bsp_fires(view, level, reverse_buy) {
+                    // type1_sell@level（卖点=减仓+开空方向）→ sink 开次级别做空子。
+                    if bsp_fires(view, level, false) {
                         match self.root.sink(cur, c, bar) {
                             Some(cslot) => {
                                 if level < 10 {
                                     self.sink_lvl[level] += 1;
                                 }
-                                cur = cslot; // 下钻到新子，继续区间套递归
+                                cur = cslot; // 下钻到新子，继续区间套递归加深
                             }
                             None => break,
                         }
@@ -389,14 +386,15 @@ mod tests {
     // ──────────────── 区间套递归（多声部=嵌套链的递归深度）────────────────
 
     #[test]
-    fn 区间套递归_嵌套子孙多声部() {
+    fn 区间套递归_嵌套子孙同向加深() {
         let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view_b(&[up(0, 10, false)], vec![], 2), 100.0, 10); // core enter level=2
-        // 区间套递归下钻：核心级别2 反向(type1_sell@2)→sink子(1)；子级别1 反向(type1_buy@1,空头反向)→sink孙(0)。
+        d.on_view(&view_b(&[up(0, 10, false)], vec![], 2), 100.0, 10); // core enter level=2 (Long)
+        // 同向加深：核心 Long → 所有短差反核心向（Short）。触发由核心方向定（type1_sell@各级别）。
+        // 核心级别2 type1_sell→sink子(L1 Short)；子级别1 type1_sell→sink孙(L0 Short，同向加深做空)。
         d.on_view(
             &view_b(
                 &[up(0, 14, false)],
-                vec![cb(BSPKind::Type1Sell, 2), cb(BSPKind::Type1Buy, 1)],
+                vec![cb(BSPKind::Type1Sell, 2), cb(BSPKind::Type1Sell, 1)],
                 2,
             ),
             100.0,
@@ -404,9 +402,9 @@ mod tests {
         );
         assert_eq!(d.root().n_active(), 3, "核心 + 子 + 孙（区间套递归三层嵌套）");
         let (lu, su) = d.root().exposure();
-        assert!(lu > 0.0 && su > 0.0, "多（核心+孙）与空（子）并存——ε 对称方向交替");
+        assert!(lu > 0.0 && su > 0.0, "多（核心）与空（子+孙同向加深做空）并存");
         assert_eq!(d.sink_lvl[2], 1, "核心级别2 sink 计数");
-        assert_eq!(d.sink_lvl[1], 1, "子级别1 递归 sink 计数");
+        assert_eq!(d.sink_lvl[1], 1, "子级别1 递归 sink 计数（同向加深）");
         assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "三层嵌套 TW 中性");
     }
 

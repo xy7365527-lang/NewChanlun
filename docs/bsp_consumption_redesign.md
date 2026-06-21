@@ -244,6 +244,25 @@ ep5/ep7 假做空源于裸走势方向触发的假反转。最简形式下**做�
 
 **待编排者裁的分叉**：子（回调对冲）归还父应由 **(A) 父级别 BSP**（父回调结束，当前实装，→ 做空晚平穿仓）还是 **(B) 子自己级别 BSP**（子走势完成，及时平，但触及"同一 type1_buy@子level 既是子完成归还 vs 子回调 sink 孙"的区间套语义歧义）？这是区间套递归 recover 触发级别的概念裁决。
 
+### 9.11 递归归还修复 + 纯 BSP 类型耦合（编排者 2026-06-21 连续裁决）
+
+编排者连续三个裁决，对应三个已有诊断直接修：
+
+**修复 1：recover 递归归还子树**（对应"子树未完整归还→core 净减"诊断）。
+- 病根：子 T 被"子 sink 孙"减过 units（U/3→2U/9），core recover 子时只回补子当前 units → core 每周期净减 → 净空头累积 → 牛市穿仓。
+- 修复：`recover(parent)` 先 `while child.child.is_some() { recover(child) }` 递归归还整个子树，子恢复完整 units，再平子归还父。
+- 结果：**BTC −238% → +502%**，净空头 72.6% → 0%，做空腿 short_leg_pnl −238 时代 → +56574（已跑验证）。
+
+**修复 2：删 direction gate，耦合纯 BSP 类型驱动**（对应"BSP 类型即方向"诊断）。
+- 病根：per-level 实测 ε 对称几何塔的逆势 Long 腿（L1=孙做多，在 core 回调下跌中做多）系统性亏 −30k，违反 §1.5 每级别正（L0 +15k / **L1 −30k** / L2 +62k，amp 0.28-0.43% 远超摩擦地板=否证 G1 摩擦噪声假设）。
+- 编排者裁决：**耦合只看 BSP 类型不看方向字段**——type1_sell=做空方向→sink（reduce+开空），type1_buy=平空/做多方向→recover（平空+回补）。删两处 direction gate：
+  - sink 的 `mob = flip_pol(core_dir)` → `mob = Polarity::Short`（固定做空，卖点即方向）。
+  - reconcile 的 `core_dir == Long/Short` 判 sink/recover → 固定 `type1_sell→sink / type1_buy→recover`。
+- 短差腿全部做空（同向加深），消除逆势 Long 腿。保留的方向判断是**会计必然**（非耦合 gate）：§8.1 `pdir2==Long`（多头回补需现金/空头收现金）+ recover 回补到父方向。
+- 未跑验证（编排者指示先不跑数据，逻辑修复基于已有诊断）。
+
+**当前形态**：core enter（上行 Long）→ type1_sell@级别→sink（reduce+次级别做空 Short）→ type1_buy@级别→recover（递归归还+回补）。core 持多骑牛永不翻空（C1），所有短差做空（纯 BSP 类型驱动）。89 测试绿。
+
 ## 10. 结果包六要素
 
 - **结论**：操作层重构为消费三类买卖点的**分层短差路由 + 齿轮耦合 + 滤波器**（编排者 C1：无 Z₂ 翻转）：核心持多骑趋势（H⁰）永不整仓翻空；**所有级别所有 type1_sell→sink（reduce 本层 1/3 + 次级别开空）、所有 type1_buy→recover（次级别平空 + 本层回补），同股数能量守恒；type2/3→加仓/确认；全量清仓只在最高级别超大卖点（月线+，第31课）**；每级别一带通滤波器提取本频率 \|涨跌幅\|，总 P&L=Σ 滤波器输出。**删走势跟随间接触发（chain/extract_chain/promote/emergent/clear_root）+ 删 flip/reverse/Z₂，保留齿轮（sink/recover），触发器从走势 completed 换成 BSP**。回补自动化（次级别 type1_buy 立即驱动齿轮 recover，修 ep13）。绩效=Σ\|涨跌幅\| = N 级别滤波器并联。**验收=每级别独立贡献正 \|涨跌幅\|**（§1.5）。
