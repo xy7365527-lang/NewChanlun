@@ -23,6 +23,15 @@
 
 use super::rec_engine::{dir_to_polarity, flip_pol, TRoot, TrendNode};
 use super::types::{BSPKind, Direction, RecursiveTree, TrendKind, TrendType, Unit};
+use crate::trading::types::Polarity;
+
+/// BSP 触发判定（P3b 消费，C1 北极星：引擎消费买卖点而非走势结构）：视图 `bsps` 中该 `level`
+/// 是否存在 type1 买点（`want_buy`）/ 卖点。多核心 sink 由本级别 type1_sell 触发，子 T 平空 recover
+/// 由子级别 type1_buy 触发（ε 对称：空核心 sink 用买点、recover 用卖点）。
+fn bsp_fires(view: &ChainView, level: usize, want_buy: bool) -> bool {
+    let kind = if want_buy { BSPKind::Type1Buy } else { BSPKind::Type1Sell };
+    view.bsps.iter().any(|b| b.level == level && b.kind == kind)
+}
 
 /// 操作链中的一个走势节点（视图）。
 #[derive(Debug, Clone, Copy)]
@@ -65,11 +74,28 @@ impl ChainView {
 /// 递归 T 驱动：包 `TRoot`，每次重跑用 `ChainView` reconcile TInstance 链。
 pub struct RecDriver {
     root: TRoot,
+    // ── P3b 诊断（编排者 panic 根因质询）──
+    /// sink 触发级别分布（哪个级别的 type1_sell 触发了减仓+开空）。
+    pub sink_lvl: [u64; 10],
+    /// recover 触发来源：BSP（子级别 type1_buy 平空点）vs node_gone（走势消失兜底）。
+    pub recover_bsp: u64,
+    pub recover_gone: u64,
+    /// BSP 卖点 fire 但 sink 未消费（次级别载体缺失）：want=None（当前回调链太浅，该级别不在链上）
+    /// vs want 存在但方向/完成态不符（有回调但非反父向未完成回调）。
+    pub sink_no_want: u64,
+    pub sink_want_bad: u64,
 }
 
 impl RecDriver {
     pub fn new(initial_capital: f64) -> Self {
-        RecDriver { root: TRoot::new(initial_capital) }
+        RecDriver {
+            root: TRoot::new(initial_capital),
+            sink_lvl: [0; 10],
+            recover_bsp: 0,
+            recover_gone: 0,
+            sink_no_want: 0,
+            sink_want_bad: 0,
+        }
     }
 
     pub fn root(&self) -> &TRoot {
@@ -111,34 +137,62 @@ impl RecDriver {
         self.reconcile_chain(view, c, bar);
     }
 
-    /// 自顶向下逐层 reconcile 回调子 T（按 start_bar 身份匹配）。
+    /// 自顶向下逐层 reconcile 回调子 T（**P3b：BSP 触发**，C1 北极星——引擎消费买卖点而非走势结构）。
+    ///
+    /// 每层 `cur`（相对级别 `my_level = core_level − depth`，子级别 `child_level = my_level − 1`）：
+    /// - **recover**（子 T 平空）：子级别 type1 平空点 fire（多核心→type1_buy / 空核心→type1_sell）**或**
+    ///   回调走势消失（node_gone 兜底，避免僵尸空头）。
+    /// - **sink**（建子 T 持空）：本级别 type1 卖点 fire（多核心→type1_sell / 空核心→type1_buy）且
+    ///   视图有反父向回调走势节点（次级别载体）。BSP fire 但无载体 → `sink_no_node`（未消费）。
     fn reconcile_chain(&mut self, view: &ChainView, c: f64, bar: i64) {
         let Some(mut cur) = self.root.root_slot() else { return };
         let mut depth = 0usize;
         loop {
             let cur_dir = self.root.instance(cur).direction;
+            let my_level = view.core_level.saturating_sub(depth);
+            let child_level = my_level.saturating_sub(1);
             let want = view.nodes.get(depth + 1).copied(); // cur 的回调应是这个
 
-            // (a) 现有回调子 T：完成/消失/换节点 → recover。
+            // (a) 现有回调子 T：子级别 BSP 平空点 fire（ε 对称）或 走势消失 → recover。
             if let Some(cref) = self.root.instance(cur).child {
                 if let Some(cslot) = self.root.resolve_ref(cref) {
                     let cnode = self.root.instance(cslot).node;
-                    let keep = want
-                        .map(|w| !w.completed && w.node.start_bar == cnode.start_bar)
-                        .unwrap_or(false);
-                    if !keep {
+                    // node_gone：视图无对应回调走势节点（完成/消失/换节点）= 走势层兜底。
+                    let node_gone = want
+                        .map(|w| w.completed || w.node.start_bar != cnode.start_bar)
+                        .unwrap_or(true);
+                    // recover BSP：多核心子 T 是空头，平空点 = type1_buy@child_level（ε 对称：空核心反之）。
+                    let recover_buy = cur_dir == Polarity::Long;
+                    let bsp_recover = bsp_fires(view, child_level, recover_buy);
+                    if bsp_recover || node_gone {
                         let pref = self.root.ref_of(cur);
-                        self.root.recover(pref, cref, c, bar);
+                        if self.root.recover(pref, cref, c, bar) {
+                            if bsp_recover {
+                                self.recover_bsp += 1;
+                            } else {
+                                self.recover_gone += 1;
+                            }
+                        }
                     }
                 }
                 // resolve 失败（ABA）：引用失效，视作无 child（孤儿，下一步可能 sink 新回调）。
             }
 
-            // (b) 无回调子 T 且视图有新回调（反父向、未完成）→ sink 建子 T。
+            // (b) 无回调子 T 且本级别 BSP 卖点 fire（多核心→type1_sell）→ sink 建子 T（次级别载体须存在）。
             if self.root.instance(cur).child.is_none() {
-                if let Some(w) = want {
-                    if !w.completed && dir_to_polarity(w.node.direction) == flip_pol(cur_dir) {
-                        self.root.sink(cur, w.node, c, bar);
+                // sink BSP：多核心卖点 = type1_sell@my_level（ε 对称：空核心 sink 用 type1_buy）。
+                let sink_buy = cur_dir == Polarity::Short;
+                if bsp_fires(view, my_level, sink_buy) {
+                    match want {
+                        Some(w) if !w.completed && dir_to_polarity(w.node.direction) == flip_pol(cur_dir) => {
+                            if self.root.sink(cur, w.node, c, bar).is_some() && my_level < 10 {
+                                self.sink_lvl[my_level] += 1;
+                            }
+                        }
+                        // BSP 卖点 fire 但有回调节点却非反父向未完成回调（方向/完成态不符）。
+                        Some(_) => self.sink_want_bad += 1,
+                        // BSP 卖点 fire 但当前回调链无该深度节点（链太浅，该级别不在当前回调链上）→ 载体缺失。
+                        None => self.sink_no_want += 1,
                     }
                 }
             }
@@ -272,6 +326,14 @@ mod tests {
     fn view(nodes: &[ChainNode]) -> ChainView {
         ChainView::new(nodes.to_vec())
     }
+    /// P3b：构造一个 type1 BSP 触发器（price/bar 不影响触发判定）。
+    fn cb(kind: BSPKind, level: usize) -> ChainBsp {
+        ChainBsp { kind, level, price: 0.0, bar: 0 }
+    }
+    /// P3b：带 BSP 触发器 + core_level 的视图（sink/recover 现由 BSP 触发，非走势结构）。
+    fn view_b(nodes: &[ChainNode], bsps: Vec<ChainBsp>, core_level: usize) -> ChainView {
+        ChainView { nodes: nodes.to_vec(), bsps, core_level }
+    }
     use crate::trading::types::Polarity;
 
     // ──────────────── 首仓 ────────────────
@@ -300,8 +362,8 @@ mod tests {
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
         let root = d.root().root_slot().unwrap();
         let u0 = d.root().instance(root).units;
-        // 视图新增一条回调下跌 node（反父向）→ sink。
-        d.on_view(&view(&[up(0, 12, false), down(10, 12, false)]), 100.0, 12);
+        // 视图新增一条回调下跌 node（反父向）+ 本级别 type1_sell BSP → sink（P3b BSP 触发）。
+        d.on_view(&view_b(&[up(0, 12, false), down(10, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 100.0, 12);
         assert_eq!(d.root().n_active(), 2, "root 核心 + 回调子 T");
         assert!((d.root().instance(root).units - u0 * 2.0 / 3.0).abs() < 1e-6, "父减到 2/3");
         let (_, su) = d.root().exposure();
@@ -314,10 +376,10 @@ mod tests {
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
         let root = d.root().root_slot().unwrap();
         let u0 = d.root().instance(root).units;
-        d.on_view(&view(&[up(0, 12, false), down(10, 12, false)]), 110.0, 12); // sink @110
+        d.on_view(&view_b(&[up(0, 12, false), down(10, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 110.0, 12); // sink @110
         assert_eq!(d.root().n_active(), 2);
-        // 回调完成（completed=true，底背驰 @90）→ recover。
-        d.on_view(&view(&[up(0, 15, false), down(10, 14, true)]), 90.0, 15);
+        // 子级别 type1_buy 平空点 fire（底背驰 @90）→ recover（P3b BSP 触发）。
+        d.on_view(&view_b(&[up(0, 15, false), down(10, 14, false)], vec![cb(BSPKind::Type1Buy, 0)], 1), 90.0, 15);
         assert_eq!(d.root().n_active(), 1, "回调完成，子 T 平空升回");
         assert!((d.root().instance(root).units - u0).abs() < 1e-6, "核心恒仓恢复原股数");
         assert!(d.root().short_leg_pnl > 0.0, "高开低平短差降成本");
@@ -328,10 +390,11 @@ mod tests {
         // 视图里回调 node 不再出现（被吸收）→ 也应 recover（keep=false）。
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
-        d.on_view(&view(&[up(0, 12, false), down(10, 12, false)]), 110.0, 12);
+        d.on_view(&view_b(&[up(0, 12, false), down(10, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 110.0, 12);
         assert_eq!(d.root().n_active(), 2);
-        d.on_view(&view(&[up(0, 15, false)]), 95.0, 15); // 回调 node 消失
+        d.on_view(&view(&[up(0, 15, false)]), 95.0, 15); // 回调 node 消失 → node_gone 兜底 recover（无需 BSP）
         assert_eq!(d.root().n_active(), 1, "回调消失 → recover");
+        assert_eq!(d.recover_gone, 1, "node_gone 兜底路径");
     }
 
     // ──────────────── spawn / flip（top 变化）────────────────
@@ -372,8 +435,13 @@ mod tests {
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
         // 三层链：root(Up) → 回调(Down,子T空) → 回调的回调(Up,孙T多)。
+        // P3b：每层 sink 由该层 type1 卖点触发——L2 type1_sell（多核心 sink）+ L1 type1_buy（空子核心 sink，ε 对称）。
         d.on_view(
-            &view(&[up(0, 14, false), down(10, 14, false), up(12, 14, false)]),
+            &view_b(
+                &[up(0, 14, false), down(10, 14, false), up(12, 14, false)],
+                vec![cb(BSPKind::Type1Sell, 2), cb(BSPKind::Type1Buy, 1)],
+                2,
+            ),
             100.0,
             14,
         );
@@ -496,13 +564,14 @@ mod tests {
     }
 
     #[test]
-    fn 全程tw中性_sink_recover_spawn_flip() {
+    fn 全程tw中性_sink_recover_spawn() {
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
-        d.on_view(&view(&[up(0, 12, false), down(10, 12, false)]), 120.0, 12);
-        d.on_view(&view(&[up(0, 15, false), down(10, 14, true)]), 100.0, 15);
+        // sink（type1_sell@1）→ recover（type1_buy@0）→ spawn（同向更高）→ 反向走势 C1 核心不翻转。
+        d.on_view(&view_b(&[up(0, 12, false), down(10, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 120.0, 12);
+        d.on_view(&view_b(&[up(0, 15, false), down(10, 14, false)], vec![cb(BSPKind::Type1Buy, 0)], 1), 100.0, 15);
         d.on_view(&view(&[up(0, 30, false)]), 130.0, 30); // spawn
-        d.on_view(&view(&[down(30, 40, false)]), 110.0, 40); // flip
+        d.on_view(&view(&[down(30, 40, false)]), 110.0, 40); // 反向走势：C1 核心不翻转（删 flip）
         let fin = d.finish(110.0);
         // 全程同价段内 TW 中性守卫已逐操作 panic 验收；末态 final_nav 有限且合理。
         assert!(fin.is_finite() && fin > 0.0, "final_nav 有限，得 {fin}");

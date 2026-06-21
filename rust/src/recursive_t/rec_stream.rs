@@ -71,6 +71,9 @@ pub struct RecStream {
     pub bsp_counts: [u64; 6],
     pub bsp_by_level: [[u64; 6]; 10], // [level][kind]
     bsp_seen: std::collections::HashSet<(i64, usize, u8)>,
+    /// 诊断（编排者 panic 根因质询）：每次重跑投影的回调链深度 view.nodes.len() 分布（0..=6+）。
+    /// 量化「牛市顺势 → 当前回调链几乎总是空（深度 1）→ sink 找不到次级别载体」。
+    pub chain_depth_hist: [u64; 7],
 }
 
 impl RecStream {
@@ -104,6 +107,7 @@ impl RecStream {
             bsp_counts: [0; 6],
             bsp_by_level: [[0; 6]; 10],
             bsp_seen: std::collections::HashSet::new(),
+            chain_depth_hist: [0; 7],
         }
     }
 
@@ -159,6 +163,7 @@ impl RecStream {
                     }
                 }
                 self.n_reruns += 1;
+                self.chain_depth_hist[view.nodes.len().min(6)] += 1; // 回调链深度分布（载体缺失诊断）
                 // 诊断：记录本次 chain[0]（最高级别走势）方向。
                 self.last_c0 = match view.nodes.first().map(|n| n.node.direction) {
                     Some(crate::recursive_t::types::Direction::Up) => 1,
@@ -277,95 +282,66 @@ mod tests {
         }
         let (o, h, l, c) = load_clean_ohlc(&path);
         let n = c.len();
-        let t0 = std::time::Instant::now();
-        let mut s = RecStream::new(PerfectionMode::Structural);
-        for i in 0..n {
-            s.push_bar(o[i], h[i], l[i], c[i]);
-        }
-        let fin = s.finish();
         let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
-        let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
-        let r = s.driver().root();
-        eprintln!(
-            "\n========== 递归 T 引擎 BTC 回测（structural）==========\n\
-             bars={n} reruns={} ({:.1}s)\n\
-             strat={strat:+.2}%  bh={bh:+.2}%  final_nav={fin:.2}\n\
-             操作: enter={} sink={} recover={} spawn={} 退本金={}\n\
-             short_leg_pnl={:+.0}  期末活跃实例={}\n\
-             chain[0]方向分布: up={}({:.1}%) down={}({:.1}%)\n\
-             核心(root)方向: long={}({:.1}%) short={}({:.1}%)\n\
-             净敞口符号: long={}({:.1}%) short={}({:.1}%) [对比chain0定位根因]\n\
-             ====================================================",
-            s.n_reruns,
-            t0.elapsed().as_secs_f64(),
-            r.n_enters,
-            r.n_sinks,
-            r.n_recovers,
-            r.n_spawns,
-            r.n_capital_recovered,
-            r.short_leg_pnl,
-            r.n_active(),
-            s.c0_up_bars,
-            100.0 * s.c0_up_bars as f64 / n.max(1) as f64,
-            s.c0_down_bars,
-            100.0 * s.c0_down_bars as f64 / n.max(1) as f64,
-            s.core_long_bars,
-            100.0 * s.core_long_bars as f64 / n.max(1) as f64,
-            s.core_short_bars,
-            100.0 * s.core_short_bars as f64 / n.max(1) as f64,
-            s.net_long_bars,
-            100.0 * s.net_long_bars as f64 / n.max(1) as f64,
-            s.net_short_bars,
-            100.0 * s.net_short_bars as f64 / n.max(1) as f64,
-        );
-        // ── BSP 产出清单（编排者 Q2：引擎消费哪些/未消费哪些）──
-        let bc = s.bsp_counts;
-        eprintln!(
-            "\n── BSP 产出清单（全 6 类，引擎实际消费=0，全部丢弃）──\n\
-             type1_buy={} type1_sell={} | type2_buy={} type2_sell={} | type3_buy={} type3_sell={}",
-            bc[0], bc[1], bc[2], bc[3], bc[4], bc[5]
-        );
-        eprintln!("按级别分布 [lvl: t1b/t1s/t2b/t2s/t3b/t3s]:");
-        for (lvl, row) in s.bsp_by_level.iter().enumerate() {
-            if row.iter().any(|&x| x > 0) {
-                eprintln!(
-                    "  L{lvl}: {}/{}/{}/{}/{}/{}",
-                    row[0], row[1], row[2], row[3], row[4], row[5]
-                );
+        eprintln!("\n========== 递归 T P3b BSP 触发：三模式 §8.1 panic 根因诊断 ==========");
+        eprintln!("bars={n}  BH={bh:+.2}%  （编排者质疑：Structural 卖点不可靠→做空亏→panic；AND 可靠→不 panic？）");
+        // 编排者 Q5：三模式对比（Structural 纯结构衰减 / And 结构∧MACD背驰 / Or 结构∨MACD）。
+        for mode in [PerfectionMode::Structural, PerfectionMode::And, PerfectionMode::Or] {
+            let t0 = std::time::Instant::now();
+            let mut s = RecStream::new(mode);
+            for i in 0..n {
+                s.push_bar(o[i], h[i], l[i], c[i]);
             }
-        }
-        // ── 回补质询诊断（编排者）：核心做空后下跌段产出的 type1_buy 买点 + 是否被消费 ──
-        eprintln!(
-            "\n── 回补质询：type1_buy 总数={}  核心短头 episodes={} ──",
-            s.t1buy.len(),
-            s.short_episodes.len()
-        );
-        eprintln!("ep|做空bar/px|最近type1_sell(bar/px/L)|平bar/px|短头盈亏%|区间t1buy数/最低买点");
-        for (i, (eb, ep, xb, xp)) in s.short_episodes.iter().take(14).enumerate() {
-            let buys_in: Vec<&(i64, f64, usize)> =
-                s.t1buy.iter().filter(|(b, _, _)| *b > *eb && *b <= *xb).collect();
-            let min_buy = buys_in.iter().map(|(_, p, _)| *p).fold(f64::INFINITY, f64::min);
-            let short_pnl = (ep - xp) / ep * 100.0;
-            let near_sell = s
-                .t1sell
-                .iter()
-                .filter(|(b, _, _)| (*b - *eb).abs() < 3000)
-                .min_by_key(|(b, _, _)| (*b - *eb).abs());
-            let sell_str = match near_sell {
-                Some((sb, sp, sl)) => format!("{sb}/{sp:.0}/L{sl}"),
-                None => "无".to_string(),
-            };
+            let fin = s.finish();
+            let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+            let r = s.driver().root();
+            let d = s.driver();
+            let zombies = r.n_sinks as i64 - r.n_recovers as i64;
+            let n_closed = (r.n_recover_loss + r.n_recover_win).max(1);
             eprintln!(
-                "{i:2}|{eb}/{ep:.0}|{sell_str}|{xb}/{xp:.0}|{short_pnl:+.1}%|{}个/{}",
-                buys_in.len(),
-                if min_buy.is_finite() {
-                    format!("{:.0}({}做空)", min_buy, if min_buy < *ep { "低于" } else { "高于" })
-                } else {
-                    "无".to_string()
-                }
+                "\n── 模式 {:?} ({:.1}s, reruns={}) ──\n\
+                 strat={strat:+.2}%  final_nav={fin:.0}\n\
+                 [Q1] enter={} sink={} recover={} spawn={}  [Q2]僵尸空头(sink−recover)={}\n\
+                 [Q4] short_leg_pnl={:+.0}  亏损recover={} 盈利recover={}  亏损率={:.1}%\n\
+                 [C3] §8.1 free不足panic次数={}（sink=0 故恒 0，C3 不重现）\n\
+                 [Q3] recover来源: BSP={} node_gone兜底={}  sink未消费: want=None(链太浅)={} want方向不符={}\n\
+                 回调链深度分布[len=0,1,2,3,4,5,6+]={:?}\n\
+                 sink级别分布[L0..L9]={:?}\n\
+                 核心方向: long={:.1}% short={:.1}%  净敞口: long={:.1}% short={:.1}%\n\
+                 BSP产出: t1buy={} t1sell={}  按级别[lvl: t1b/t1s]:",
+                mode,
+                t0.elapsed().as_secs_f64(),
+                s.n_reruns,
+                r.n_enters,
+                r.n_sinks,
+                r.n_recovers,
+                r.n_spawns,
+                zombies,
+                r.short_leg_pnl,
+                r.n_recover_loss,
+                r.n_recover_win,
+                100.0 * r.n_recover_loss as f64 / n_closed as f64,
+                r.n_freeshort,
+                d.recover_bsp,
+                d.recover_gone,
+                d.sink_no_want,
+                d.sink_want_bad,
+                &s.chain_depth_hist,
+                &d.sink_lvl,
+                100.0 * s.core_long_bars as f64 / n.max(1) as f64,
+                100.0 * s.core_short_bars as f64 / n.max(1) as f64,
+                100.0 * s.net_long_bars as f64 / n.max(1) as f64,
+                100.0 * s.net_short_bars as f64 / n.max(1) as f64,
+                s.bsp_counts[0],
+                s.bsp_counts[1],
             );
+            for (lvl, row) in s.bsp_by_level.iter().enumerate() {
+                if row[0] > 0 || row[1] > 0 {
+                    eprintln!("    L{lvl}: {}/{}", row[0], row[1]);
+                }
+            }
+            assert!(fin.is_finite(), "final_nav 有限（NaN/Inf=会计 bug）；负值=策略灾难是合法 L3 观测");
         }
-        // 诊断测试：final_nav 可为负（做空在 BTC 牛市被轧 = 真实结果）。只断言有限（NaN/Inf = 真 bug）。
-        assert!(fin.is_finite(), "final_nav 有限（NaN/Inf=会计 bug）；负值=策略灾难是合法 L3 观测");
+        eprintln!("\n====================================================");
     }
 }

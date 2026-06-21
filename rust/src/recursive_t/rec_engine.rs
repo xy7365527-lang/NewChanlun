@@ -237,6 +237,11 @@ pub struct TRoot {
     pub n_spawns: u64,
     pub n_capital_recovered: u64,
     pub short_leg_pnl: f64,
+    /// 诊断：recover 时短差腿亏损（realized<0，c2>c1 卖点失败）/ 盈利（realized>0）次数。
+    pub n_recover_loss: u64,
+    pub n_recover_win: u64,
+    /// 诊断哨兵：§8.1 free 不足（恒仓亏损短差同股数回补不可能）panic 触发次数（生产恒 0；>0 即 C3 显形）。
+    pub n_freeshort: u64,
 }
 
 impl TRoot {
@@ -253,6 +258,9 @@ impl TRoot {
             n_spawns: 0,
             n_capital_recovered: 0,
             short_leg_pnl: 0.0,
+            n_recover_loss: 0,
+            n_recover_win: 0,
+            n_freeshort: 0,
         }
     }
 
@@ -497,6 +505,7 @@ impl TRoot {
             return false;
         }
         let m_short = self.instances[child_slot].units; // 子 T 短头 units = 待回补同股数 N
+        let c1_sink = self.instances[child_slot].basis; // 诊断：子 T 开空价（sink 价 c1），reduce 后变 NaN 故先抓
         let pdir = self.instances[parent_slot].direction;
         let tw_pre = self.total_wealth(c);
         // 子 T 平空（cover）：realized = 高开低平降成本 alpha。
@@ -504,6 +513,12 @@ impl TRoot {
         let realized = rec_reduce(&mut self.instances[child_slot], m_short, &mut free, c);
         self.free = free;
         self.account_leg_pnl(realized); // 短差腿（方向对称：多核心→空腿 / 空核心→多腿）单独算，不入降成本
+        // 诊断（编排者 Q4）：短差盈亏符号。realized<0 = c2>c1（"回调"反而涨了）= 卖点失败 = 亏损短差。
+        if realized < -EPS {
+            self.n_recover_loss += 1;
+        } else if realized > EPS {
+            self.n_recover_win += 1;
+        }
         // 父级升回，按 phase 分流。
         let phase = self.instances[parent_slot].phase;
         let q = match phase {
@@ -519,11 +534,16 @@ impl TRoot {
             let pdir2 = self.instances[parent_slot].direction;
             if matches!(phase, RecStage::CostReduction | RecStage::CapitalRecovered)
                 && pdir2 == Polarity::Long
+                && self.free + EPS < q * c
             {
-                assert!(
-                    self.free + EPS >= q * c,
-                    "free 不足以同股数多头回补（结构检测 bug，§8.1）：free={} need={} c={}",
-                    self.free, q * c, c
+                // free 不足以同股数多头回补：c2>c1 亏损短差（恒仓 free≈0）= C3 显形（P3b 实测未触发，sink=0）。
+                self.n_freeshort += 1;
+                panic!(
+                    "free 不足以同股数多头回补（结构检测 bug，§8.1）：free={} need={} c={} c1_sink={}",
+                    self.free,
+                    q * c,
+                    c,
+                    c1_sink
                 );
             }
             let mut free = self.free;
