@@ -53,31 +53,47 @@ fn stroke_to_t_dir(d: StrokeDir) -> TDir {
 /// 流式/批量共享 `TFugueStreamCore` ⟹ 二者 bit-exact。Structural 模式不读 area，逐字不受影响。
 ///
 /// 过滤口径 `confirmed && kind==Settled`（与 batch / v3 zhongshu_from_segments 一致）。
-pub(crate) fn build_a0_fast(segs: &[Segment], m2r: &[(usize, usize)], prefix_pos: &[f64], prefix_neg: &[f64]) -> Vec<Unit> {
+/// `include_last_candidate`（编排者 2026-06-21 区间套提前确认）：true 时额外含**最后一个 candidate
+/// 线段**（c 段顶部附近、尚未 settled）——让操作点提前到顶部（settled 滞后到回调底=做空开在底根因）。
+/// batch/flat 路径传 false 保 bit-exact；递归引擎传 true。
+pub(crate) fn build_a0_fast(
+    segs: &[Segment],
+    m2r: &[(usize, usize)],
+    prefix_pos: &[f64],
+    prefix_neg: &[f64],
+    include_last_candidate: bool,
+) -> Vec<Unit> {
     let n = prefix_pos.len().saturating_sub(1); // raw bar 数（prefix 长 n+1）
-    segs.iter()
-        .filter(|s| s.confirmed && s.kind == SegKind::Settled)
-        .map(|s| {
-            // 段端点 merged → raw 区间 [raw_i0, raw_i1]（含端点），越界 clamp。
-            let raw_i0 = m2r.get(s.i0).map(|&(lo, _)| lo).unwrap_or(0).min(n.saturating_sub(1));
-            let raw_i1 = m2r.get(s.i1).map(|&(_, hi)| hi).unwrap_or(0).min(n.saturating_sub(1));
-            let (lo, hi) = if raw_i0 <= raw_i1 { (raw_i0, raw_i1) } else { (raw_i1, raw_i0) };
-            // 区间面积 = prefix[hi+1] − prefix[lo]（前缀和 O(1)）。
-            let area_pos = prefix_pos[hi + 1] - prefix_pos[lo];
-            let area_neg = prefix_neg[hi + 1] - prefix_neg[lo]; // 已存 |负 hist|，非负
-            Unit {
-                high: s.high,
-                low: s.low,
-                start_bar: s.i0 as i64,
-                end_bar: s.i1 as i64,
-                direction: stroke_to_t_dir(s.direction),
-                level: 0,
-                inner_zhongshu_count: 0,
-                area_pos,
-                area_neg,
-            }
-        })
-        .collect()
+    let seg_to_unit = |s: &Segment| -> Unit {
+        // 段端点 merged → raw 区间 [raw_i0, raw_i1]（含端点），越界 clamp。
+        let raw_i0 = m2r.get(s.i0).map(|&(lo, _)| lo).unwrap_or(0).min(n.saturating_sub(1));
+        let raw_i1 = m2r.get(s.i1).map(|&(_, hi)| hi).unwrap_or(0).min(n.saturating_sub(1));
+        let (lo, hi) = if raw_i0 <= raw_i1 { (raw_i0, raw_i1) } else { (raw_i1, raw_i0) };
+        // 区间面积 = prefix[hi+1] − prefix[lo]（前缀和 O(1)）。
+        let area_pos = prefix_pos[hi + 1] - prefix_pos[lo];
+        let area_neg = prefix_neg[hi + 1] - prefix_neg[lo]; // 已存 |负 hist|，非负
+        Unit {
+            high: s.high,
+            low: s.low,
+            start_bar: s.i0 as i64,
+            end_bar: s.i1 as i64,
+            direction: stroke_to_t_dir(s.direction),
+            level: 0,
+            inner_zhongshu_count: 0,
+            area_pos,
+            area_neg,
+        }
+    };
+    let mut a0: Vec<Unit> =
+        segs.iter().filter(|s| s.confirmed && s.kind == SegKind::Settled).map(&seg_to_unit).collect();
+    if include_last_candidate {
+        // 最后一个**未确认**段（confirmed=false=当前形成中=顶部附近，c 段刚走完尚未 settled）→ 提前定位转折点。
+        // finalize_last_segment 产的最后段 confirmed=false（kind 可能 Settled/Candidate），故按 confirmed 找。
+        if let Some(cand) = segs.iter().rev().find(|s| !s.confirmed) {
+            a0.push(seg_to_unit(cand));
+        }
+    }
+    a0
 }
 
 /// BSPKind → 去重判别 u8（seen-set 身份键）。
@@ -149,7 +165,7 @@ impl TFugueStreamCore {
         let (bsps, emergent) = {
             let segs = self.orch.segments();
             let m2r = self.orch.merged_to_raw();
-            let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg);
+            let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg, false); // batch：保 bit-exact
             let tree = iterate(a0, self.mode);
             (tree.all_bsps(), tree.emergent_top())
         }; // orch 借用在此释放

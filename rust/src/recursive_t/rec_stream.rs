@@ -47,7 +47,8 @@ pub struct RecStream {
     last_close: f64,
     finished: bool,
     last_stroke_n: usize,
-    last_cs_segs: usize,
+    /// 重跑触发 key = (settled 段数, _)。第二位为区间套提前确认预留（当前回退=usize::MAX 固定）。
+    last_trigger: (usize, usize),
     /// 重跑次数（性能 + 诊断）。
     pub n_reruns: u64,
     /// 诊断：chain[0]（最高级别走势）方向 bar 加权分布——定位 82% 持空根因（extract_chain vs 操作）。
@@ -87,7 +88,7 @@ impl RecStream {
             last_close: f64::NAN,
             finished: false,
             last_stroke_n: 0,
-            last_cs_segs: 0,
+            last_trigger: (0, usize::MAX),
             n_reruns: 0,
             last_c0: 0,
             c0_up_bars: 0,
@@ -125,24 +126,27 @@ impl RecStream {
         let bar = self.cur_bar;
         self.last_close = c;
 
-        // 段门控：笔增长 → 数 confirmed&&settled 段 → count 变则重跑。
+        // 段门控（区间套提前确认，编排者 2026-06-21）：笔增长 → 触发 key=(settled 段数, 最后 candidate
+        // 端点 ep1_i)。candidate 出现/c 段顶部移动 → key 变 → 重跑（**顶部附近**），不等 settled（回调底）。
         let sc = self.orch.strokes().len();
         if sc > self.last_stroke_n {
             self.last_stroke_n = sc;
-            let n_cs = self
-                .orch
-                .segments()
-                .iter()
-                .filter(|s| s.confirmed && s.kind == SegKind::Settled)
-                .count();
-            if n_cs != self.last_cs_segs {
-                self.last_cs_segs = n_cs;
+            let trig = {
+                let segs = self.orch.segments();
+                // 区间套提前确认试验回退（无效+每笔重跑慢）：触发回 settled count only。
+                let settled_n = segs.iter().filter(|s| s.confirmed && s.kind == SegKind::Settled).count();
+                (settled_n, usize::MAX)
+            };
+            if trig != self.last_trigger {
+                self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
                 let (mut view, new_bsps) = {
                     let segs = self.orch.segments();
                     let m2r = self.orch.merged_to_raw();
-                    let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg);
+                    // 区间套提前确认（含未确认段）试验=无效（未确认末段不产顶部 type1_sell，需 c 段背驰确认）
+                    // + 每笔重跑慢（reruns 6×）→ 回退 false。真正解需次级别（笔）分辨率，非塞未确认线段。
+                    let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg, false);
                     let tree = iterate(a0, self.mode);
                     let bs: Vec<(i64, f64, usize, BSPKind)> = tree
                         .all_bsps()
@@ -340,6 +344,7 @@ mod tests {
                 );
                 // ── per-level 短差 P&L（编排者 G1：低级别是否摩擦地板下噪声亏损）──
                 if sym == "BTC" {
+                    eprintln!("  [{sym}/{mode:?}] reruns={}", s.n_reruns);
                     let log = &s.driver().root().sink_recover_log;
                     let (mut nl, mut pl) = ([0u64; 8], [0.0f64; 8]);
                     for &(lvl, _c1, _c2, _low, realized, _sb, _rb) in log.iter() {
