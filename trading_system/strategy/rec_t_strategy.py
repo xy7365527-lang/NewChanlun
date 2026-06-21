@@ -98,9 +98,9 @@ class RecTStrategy(Strategy):
 
     def on_stop(self) -> None:
         self.close_all_positions(self.config.instrument_id)
-        ec = self.engine.op_counts()  # (enter, sink, recover, spawn, flip, reruns)
+        ec = self.engine.op_counts()  # (enter, sink, recover, spawn, promote, flip, clear, reruns)
         eng_nav = self.engine.finish()  # 引擎内部模拟 final_nav（对照 NT 真账本）
         self.log.info(
             f"RecTStrategy 停止: bars={self.n_bars} orders={self.n_orders} dups={self.n_dups} "
-            f"引擎操作(enter/sink/recover/spawn/flip/reruns)={ec} 引擎模拟final_nav={eng_nav:.2f}"
+            f"引擎操作(enter/sink/recover/spawn/promote/flip/clear/reruns)={ec} 引擎模拟final_nav={eng_nav:.2f}"
         )

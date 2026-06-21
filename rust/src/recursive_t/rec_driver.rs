@@ -81,12 +81,26 @@ impl RecDriver {
                 let d0 = view.nodes[0];
                 if d0.node.start_bar != rnode.start_bar {
                     if dir_to_polarity(d0.node.direction) == rdir {
-                        // 更高同向走势涌现（包含 root）→ spawn relabel 升格。
+                        // 更高同向走势涌现（包含 root）→ spawn relabel 升格（核心骑趋势上行）。
                         self.root.spawn(d0.node, c, bar);
                     } else {
-                        // 反向走势（29课情况三）→ flip 全树塌缩翻转。
-                        self.root.flip(d0.node, c, bar);
-                        // flip 后 root = 新核心（视图 top），继续 reconcile 其回调（通常本 bar 无）。
+                        // 顶级反向（转折，§9）：当前回调子 T 短头已持新方向 ⟹ **promote 升格为新核心**
+                        // （敞口连续零真空，§9.3）。无回调子 T 可升（退化边界 §9.5）→ clear_root 退出观望。
+                        let new_dir = dir_to_polarity(d0.node.direction);
+                        let promotable = self
+                            .root
+                            .instance(root)
+                            .child
+                            .and_then(|cr| self.root.resolve_ref(cr))
+                            .map(|cs| self.root.instance(cs).direction == new_dir)
+                            .unwrap_or(false);
+                        if promotable {
+                            self.root.promote(d0.node, c, bar);
+                            // promote 后 root = 升格的子 T（已骑 new_node）；继续 reconcile 其回调链。
+                        } else {
+                            self.root.clear_root(c, bar);
+                            return; // 退化：本重跑退出观望；下一重跑 root=None → enter 重新入场
+                        }
                     }
                 }
             }
@@ -328,17 +342,39 @@ mod tests {
     }
 
     #[test]
-    fn top反向走势_flip全树塌缩() {
+    fn top反向走势_promote回调子T升格_零真空() {
+        // §9（编排者裁决 2026-06-20）：顶级反转时回调子 T 短头已持新方向 → promote 升格为新核心
+        // （敞口连续零真空），取代 clear 退出观望。
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
-        d.on_view(&view(&[up(0, 12, false), down(10, 12, false)]), 100.0, 12); // 有回调子 T
+        d.on_view(&view(&[up(0, 12, false), down(10, 12, false)]), 100.0, 12); // 回调子 T 短(down)
         assert_eq!(d.root().n_active(), 2);
-        // top 变为反向（Down）走势 → flip 全树塌缩翻空。
+        // top 变为反向（Down）走势 → 回调子 T（short,down）在新方向 → promote 升格。
         d.on_view(&view(&[down(12, 20, false)]), 100.0, 20);
-        assert_eq!(d.root().n_active(), 1, "全树塌缩为单一新核心");
+        assert_eq!(d.root().n_active(), 1, "回调子 T 升格为单一新核心（零真空，无清仓等待）");
         let nr = d.root().root_slot().unwrap();
-        assert_eq!(d.root().instance(nr).direction, Polarity::Short, "翻空");
-        assert_eq!(d.root().n_flips, 1);
+        assert_eq!(d.root().instance(nr).direction, Polarity::Short, "新核心持空（顺势 down）");
+        assert_eq!(d.root().n_promotes, 1);
+        assert_eq!(d.root().n_clears, 0, "有回调子 T → promote 非 clear");
+        assert_eq!(d.root().n_flips, 0, "顶级不 flip");
+        assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "promote TW 中性");
+    }
+
+    #[test]
+    fn top反向无回调子T_clear退化退出观望() {
+        // §9.5 退化边界：顶级反转但无回调子 T 可升 → clear_root 退出观望（罕见，如缺口直接跳变）。
+        let mut d = RecDriver::new(100_000.0);
+        d.on_view(&view(&[up(0, 10, false)]), 100.0, 10); // 仅核心，无回调子 T
+        assert_eq!(d.root().n_active(), 1);
+        d.on_view(&view(&[down(10, 20, false)]), 100.0, 20); // 顶反转，无回调先行
+        assert_eq!(d.root().n_active(), 0, "无回调子 T → clear 退出观望");
+        assert!(d.root().root_slot().is_none(), "root=None");
+        assert_eq!(d.root().n_clears, 1);
+        assert_eq!(d.root().n_promotes, 0);
+        // 下一重跑重新入场（down 走势 → 顺势 short core）。
+        d.on_view(&view(&[down(10, 25, false)]), 100.0, 25);
+        assert_eq!(d.root().n_active(), 1, "下一重跑重新入场");
+        assert_eq!(d.root().instance(d.root().root_slot().unwrap()).direction, Polarity::Short);
     }
 
     // ──────────────── 嵌套回调（自相似递归）────────────────

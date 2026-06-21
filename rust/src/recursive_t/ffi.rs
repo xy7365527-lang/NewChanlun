@@ -255,10 +255,19 @@ impl PyRecStream {
         (bar, tw, lu, su, n)
     }
 
-    /// 引擎内部模拟账本计数（对照 NT 真账本用）：(enter, sink, recover, spawn, flip, reruns)。
-    fn op_counts(&self) -> (u64, u64, u64, u64, u64, u64) {
+    /// 引擎内部模拟账本计数：(enter, sink, recover, spawn, promote, flip, clear, reruns)。
+    fn op_counts(&self) -> (u64, u64, u64, u64, u64, u64, u64, u64) {
         let r = self.core.driver().root();
-        (r.n_enters, r.n_sinks, r.n_recovers, r.n_spawns, r.n_flips, self.core.n_reruns)
+        (
+            r.n_enters,
+            r.n_sinks,
+            r.n_recovers,
+            r.n_spawns,
+            r.n_promotes,
+            r.n_flips,
+            r.n_clears,
+            self.core.n_reruns,
+        )
     }
 
     /// 收尾 → 引擎内部模拟 final_nav（对照 NT 真账本）。
