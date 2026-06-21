@@ -677,3 +677,64 @@ emergent_dir 仍滞后为 Short → 门控**对称地**把核心锁死空头，�
 - **谱系引用**：解消 `project_t_flip_vs_clear_verdict`（flip/clear/promote 三态 + 本节 reverse-promote 第四维度=方向对称性）；`project_t_short_leg_regime_function`（做空腿亏损=本节"回补难"的 L3 显形，非"做空错"）；`project_t_cross_level_coupling_falsified` −89.7%（宏观无界空头=缺 §11.6-2 对称整翻条件）；`project_highest_level_sigma_frozen`（最高级别 σ 跨年冻结=时间之矢的 regime 观测量）；`project_interval_nesting_forward`（确认滞后阶梯=时间之矢的级别量化）；§9.8（emergent 门控做空陷阱=本节不对称的实测）。
 - **影响声明**：本节为设计推理（docs 新增 §11，13-agent 工作流综合 + 对抗验证），**未改任何代码**。落码含义：废弃 emergent 门控 + promote 整翻条件对称化（反向子 T 涌现到核心级别）+ bottom-up reverse-promote 聚合 + recover 守卫镜像（下一步实装，每步 NT 验证）。精化 §9.3（promote 须条件对称，非单信号整翻）+ §9.8（揭示做空陷阱的存在论根源）。
 - **影响声明（认识论等级）**：§11.2/§11.3 = **L0**（原文 + 源码逐字）；§11.4 时间之矢/无 return address = **L0 结构推论**（base case 内禀）；§11.4 regime 放大 + §11.5 后果幅度 = **L2**（BTC 实测 −1069%/+44.82%）；§11.6 修复闭合 = **L0 设计，L3 待验证**（不得假设闭合，§9.8 教训）。
+
+---
+
+## 12. 方向不对称逐行审计 —— "多→空做对，空→多做不到"的代码定位（编排者 2026-06-20）
+
+编排者收敛命题：**信号若方向无关，多→空与空→多就该对称。但 50% 空头不回补。逐行找代码里的方向不对称点。**
+逐行核验三层（HEAD，flat `t_engine.rs` + 递归 `rec_engine.rs`/`rec_driver.rs`）：
+
+### 12.1 信号检测层（divergence.rs）：严格对称 ✓
+
+`judge_divergence`/`judge_trend_divergence`（:149-216）对 UpTrend(卖点)/DownTrend(买点) **完全镜像**，无任一 `if-buy`/Long-Short 硬编码分支，全程 `t.direction` 参数化：
+- 创新高/低（:191-194）：`Up => c_ext > prior_ext` / `Down => c_ext < prior_ext`；
+- BSP 类型（:206-209）：`Up => Type1Sell` / `Down => Type1Buy`；
+- 守沿（:242-245）：`Up => u.low > center.high` / `Down => u.high < center.low`；
+- 结构滤网/MACD/leg_strength 均方向参数化。
+
+**结论：买点检测 = 卖点检测，严格镜像。编排者问题1 答案=对称，信号不是不对称源。**
+
+### 12.2 翻转/sink/recover 结构（route_bsp）：对称 ✓
+
+`route_bsp`（t_engine.rs:589-689）的方向处理镜像：
+- `is_reduce`（:595-598）：`Long => !is_buy` / `Short => is_buy`（父多卖点=减仓 / 父空买点=减仓，镜像）；
+- 翻转（:667-684）：`clear_all + enter`，`buy_flip`(空→多) 与 `sell_flip`(多→空) **双路径对称**；
+- sink/recover（:524-570）：`mob = flip(pdir)` 参数化，方向无关。
+- 递归引擎 `spawn`(:550-588)/`promote`(:595-635)/`enter`(:408-440) 同样方向无关（`dir_to_polarity(node.direction)`，无 Long/Short 分支）。
+
+**结论：翻转与短差结构对称。编排者问题2 答案=结构对称。**
+
+### 12.3 真不对称点：三阶段会计是多头独有（这是答案）
+
+**`account_reduce`（t_engine.rs:313-350）/ `account_core_reduce`（rec_engine.rs:359-384）方向分支根本不对称：**
+
+| | `Long` 分支 | `Short` 分支 |
+|---|---|---|
+| 会计 | 降成本（cost_basis -= realized/rem）→ 回本（CapitalRecovered, withdraw 本金到安全池）→ 挣股数（EarningShares） | `short_leg_pnl += realized` **平铺累加** |
+| 阶段推进 | 驱动全局 `stage` 三阶段 | **不推进任何阶段** |
+| 立于不败 | cost_basis≤0 ⟹ 本金已退、仓位由利润支撑、逐仓不再判 | **无降成本、本金永远在险** |
+
+附属不对称（同源）：
+- `core_long_units()`（t_engine.rs:288）：**只数 `direction==Long`** ⟹ 降成本分母对空头核心 = 0（空头降成本结构性除零，不可能）；
+- `deploy_earning`（t_engine.rs:567）：`if pdir == Polarity::Long` ⟹ **只多头部署利润挣股数**；
+- 短差子 T `cost_basis = f64::NAN`（rec_engine.rs:477）+ recover realized 落 `short_leg_pnl`（:512）；
+- **强平（t_engine.rs:731-734）**：`Long => c <= basis/SUB_LIQ_FACTOR` / `Short => c >= SUB_LIQ_FACTOR*basis`，形式镜像但**后果不对称**——多头降成本→回本→EarningShares 走全仓 `NAV≤0`（1x 几何塔几乎不触发，:706）=立于不败；**空头无降成本 ⟹ 永远逐仓 ⟹ 永远可强平**。
+
+### 12.4 根因：第15课认沽期权不对称的代码显形
+
+**50% 空头不回补 = 信号对称 + 翻转对称，但两处真不对称的叠加：**
+
+1. **信号 OUTPUT 密度不对称（非检测代码）**：空→多 翻转需**核心级别的买点**（type1_buy@high），而 type1_buy@high 稀疏（c段缺失 cut_away + 单调牛 regime，§11.4 + c段 escalation）⟹ 翻回多的触发器不来 ⟹ 短核心翻不回。多→空 翻转需 type1_sell@high，牛市充足 ⟹ 做空触发器常在。**检测代码对称，输出密度被 c段缺失+regime 打成不对称。**
+2. **三阶段会计不对称（§12.3）**：短核心等待翻回期间**无降成本/立于不败保护** ⟹ 永远逐仓可强平 ⟹ 牛市续涨（price↑）中空头差/空核心在 recover（反弹完成同父向 BSP）之前就被强平（closed at loss）⟹ recover 找不到活跃短差 ⟹ no-op（route_bsp:639-643 `buy_noop_no_short`）⟹ "不回补"。多头不会有此问题：牛市里多头降成本→立于不败→不被强平→活到被 recover/ride。
+
+**根因本质**：第31课三阶段（降成本→回本→挣股数）是构造性的**多头概念**——降成本=卖高买低降低持仓成本；挣股数=用利润买更多股。空头无对应物（"挣负股数作为自由仓位"不可表示）。这是**第15课认沽期权不对称**在代码里的显形（[[project_put_option_short_earning]] / [[project_earning_shares_empty_domain]]：空头"立于不败"需认沽期权=损失有界，不是同一个三阶段）。引擎把空头硬塞进多头三阶段、落为 `short_leg_pnl` 平铺累加器 ⟹ 空头永远不立于不败、永远可强平。
+
+### 12.5 结果包六要素（本节）
+
+- **结论**：多→空做对/空→多做不到，**不是信号检测不对称（divergence.rs 严格镜像 §12.1），也不是翻转/sink/recover 结构不对称（route_bsp 对称 §12.2）**，而是 (a) 信号 OUTPUT 密度不对称（type1_buy@high 被 c段缺失+regime 打稀疏，空→多 触发器不来）+ (b) 三阶段会计多头独有（account_reduce/account_core_reduce：Long 三阶段立于不败 / Short 平铺 short_leg_pnl，空头永远逐仓可强平）。50% 不回补 = 翻回触发器稀疏 + 短核心等待期无保护被强平。
+- **定义依据**：divergence.rs:191-209/242-245（信号镜像 L0）；t_engine.rs:313-350/288/567/731-734 + rec_engine.rs:359-384/477/512（会计不对称 L0 源码）；第31课三阶段（降成本/回本/挣股数为多头概念）；第15课认沽期权（空头立于不败需损失有界工具）。
+- **边界条件（结论翻转）**：(a) 若 type1_buy@high 不稀疏（震荡/熊 regime 或 c段修复后），空→多 触发器常在，不对称缩小；(b) 若空头会计补全镜像三阶段（空头降成本=买低卖高的对偶，立于不败用认沽期权口径），强平不对称消除——但 26:26 有限期资金取反 + 第15课认沽损失有界=空头三阶段须换载体（不是同一 cost_basis 公式）。
+- **下游推论**：(1) 修复非"让 promote 对称"（已对称），而是 (i) 恢复 type1_buy@high（c段修复，§11.4 已证 0→2）+ (ii) 空头会计补全立于不败口径（认沽期权载体，[[project_bidirectional_accounting]] 空头单相单律）+ (iii) 空头强平判据按降成本后的口径（而非裸 basis）；(2) §11.6 的 bottom-up reverse-promote 是 (i) 的实现；(3) 落码须每步 NT 验证。
+- **谱系引用**：[[project_put_option_short_earning]]（空头 earning 在凸性载体消解=认沽期权）；[[project_earning_shares_empty_domain]]（挣股数空头空有效域 0 笔）；[[project_bidirectional_accounting]]（双账本极性分离+空头单相单律非对称定理：earning 相 L0 不可构造）；[[project_t_short_leg_regime_function]]（做空腿=亏损唯一来源 L3）；c段 escalation（type1_buy@high=0 的 cut_away 传导）。
+- **影响声明**：本节为逐行代码诊断（docs 新增 §12），**未改任何代码**（编排者"停下所有代码工作"）。定位了三处方向相关代码（信号 divergence.rs / 路由 route_bsp / 会计 account_reduce），裁定不对称在**会计层（三阶段多头独有）+ 信号输出密度（type1_buy@high 稀疏）**，非检测/翻转结构。修复方向见下游推论，落码待编排者裁。
