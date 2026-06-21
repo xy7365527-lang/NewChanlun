@@ -71,9 +71,6 @@ pub struct RecStream {
     pub bsp_counts: [u64; 6],
     pub bsp_by_level: [[u64; 6]; 10], // [level][kind]
     bsp_seen: std::collections::HashSet<(i64, usize, u8)>,
-    /// 诊断（编排者 panic 根因质询）：每次重跑投影的回调链深度 view.nodes.len() 分布（0..=6+）。
-    /// 量化「牛市顺势 → 当前回调链几乎总是空（深度 1）→ sink 找不到次级别载体」。
-    pub chain_depth_hist: [u64; 7],
 }
 
 impl RecStream {
@@ -107,8 +104,13 @@ impl RecStream {
             bsp_counts: [0; 6],
             bsp_by_level: [[0; 6]; 10],
             bsp_seen: std::collections::HashSet::new(),
-            chain_depth_hist: [0; 7],
         }
+    }
+
+    /// 诊断脚手架（编排者 panic 根因质询）：§8.1 free 不足兜底（同金额回补可用部分）跑完全程统计，
+    /// 非 §8.1 修复。用于查多重赋格下 free 不足的特征（盈利 vs 亏损短差），区分多级别耦合 vs C3。
+    pub fn set_diag_no_panic(&mut self) {
+        self.driver.root_mut().diag_no_panic = true;
     }
 
     /// 逐 bar 推送。段门控触发重跑 → extract_chain → driver.on_view（确认时点 close）。
@@ -163,7 +165,6 @@ impl RecStream {
                     }
                 }
                 self.n_reruns += 1;
-                self.chain_depth_hist[view.nodes.len().min(6)] += 1; // 回调链深度分布（载体缺失诊断）
                 // 诊断：记录本次 chain[0]（最高级别走势）方向。
                 self.last_c0 = match view.nodes.first().map(|n| n.node.direction) {
                     Some(crate::recursive_t::types::Direction::Up) => 1,
@@ -289,6 +290,7 @@ mod tests {
         for mode in [PerfectionMode::Structural, PerfectionMode::And, PerfectionMode::Or] {
             let t0 = std::time::Instant::now();
             let mut s = RecStream::new(mode);
+            s.set_diag_no_panic(); // 诊断：free 不足兜底跑完全程，统计耦合特征（非 §8.1 修复）
             for i in 0..n {
                 s.push_bar(o[i], h[i], l[i], c[i]);
             }
@@ -301,12 +303,11 @@ mod tests {
             eprintln!(
                 "\n── 模式 {:?} ({:.1}s, reruns={}) ──\n\
                  strat={strat:+.2}%  final_nav={fin:.0}\n\
-                 [Q1] enter={} sink={} recover={} spawn={}  [Q2]僵尸空头(sink−recover)={}\n\
+                 [Q1] enter={} sink={} recover={} spawn={}  [Q2]在场短差腿(sink−recover)={}\n\
                  [Q4] short_leg_pnl={:+.0}  亏损recover={} 盈利recover={}  亏损率={:.1}%\n\
-                 [C3] §8.1 free不足panic次数={}（sink=0 故恒 0，C3 不重现）\n\
-                 [Q3] recover来源: BSP={} node_gone兜底={}  sink未消费: want=None(链太浅)={} want方向不符={}\n\
-                 回调链深度分布[len=0,1,2,3,4,5,6+]={:?}\n\
-                 sink级别分布[L0..L9]={:?}\n\
+                 [§8.1] free不足={}（其中短差盈利={}=多级别现金流耦合 / 亏损={}=C3）首次(lvl/core_u/Σshort_u/free/need/realized)={:?}\n\
+                 多重赋格 sink级别分布[L0..L9]={:?}\n\
+                 多重赋格 recover级别分布[L0..L9]={:?}\n\
                  核心方向: long={:.1}% short={:.1}%  净敞口: long={:.1}% short={:.1}%\n\
                  BSP产出: t1buy={} t1sell={}  按级别[lvl: t1b/t1s]:",
                 mode,
@@ -322,12 +323,11 @@ mod tests {
                 r.n_recover_win,
                 100.0 * r.n_recover_loss as f64 / n_closed as f64,
                 r.n_freeshort,
-                d.recover_bsp,
-                d.recover_gone,
-                d.sink_no_want,
-                d.sink_want_bad,
-                &s.chain_depth_hist,
+                r.n_freeshort_profit,
+                r.n_freeshort - r.n_freeshort_profit,
+                r.first_freeshort,
                 &d.sink_lvl,
+                &d.recover_lvl,
                 100.0 * s.core_long_bars as f64 / n.max(1) as f64,
                 100.0 * s.core_short_bars as f64 / n.max(1) as f64,
                 100.0 * s.net_long_bars as f64 / n.max(1) as f64,

@@ -1,12 +1,31 @@
 ---
 date: 2026-06-21
-status: 已撤回（FALSIFIED——编排者质疑后重做 panic 诊断：三模式 §8.1 panic=0，C3 前提不重现；真因是 sink=0 BSP 完全未消费）
-type: 概念层选择上浮（§8.1 同股数回补 fail-loud 假设被 BSP 消费证伪——卖点会失败）【前提已证伪】
-triggers: C1 裁决落码 P3b（BSP 触发 sink/recover）→ §8.1 panic（free=18522 < need=19394）【中间态偶发，重建不重现】
-relates: ['§8.1', 'C1', 'C3', '§9.8', '架构v2-§8-fail-loud']
+status: 待裁决（重新激活——多重赋格落码后 §8.1 真实重现 10 次，两机制：5 多级别现金流耦合 + 5 C3 亏损短差。但仅占 1.7% recover，主因是做空腿牛市亏损 regime）
+type: 概念层选择上浮（§8.1 同股数回补 free 不足——多级别现金流耦合 + 亏损短差，三读法待裁）
+triggers: 多重赋格落码（所有级别并行消费 BSP，sink 0→592）→ §8.1 panic（首次 free=23665 < need=27823，盈利短差耦合）
+relates: ['§8.1', 'C1', 'C3', '§9.8', '§9.9', '架构v2-§8-fail-loud']
 sources: ['第31课', '第26课:34', '第37课', '第29课:58']
-refs_memory: ['project_recursive_t_architecture_v2', 'project_t_short_leg_regime_function', 'project_zombie_short_diagnosis', 'feedback_bidirectional_always_in', 'project_earning_shares_empty_domain', 'project_t_multiscale_independent_filters', 'project_recl2_confirm_breakpoint_temporal', 'project_interval_nesting_forward']
+refs_memory: ['project_recursive_t_architecture_v2', 'project_t_short_leg_regime_function', 'project_zombie_short_diagnosis', 'feedback_bidirectional_always_in', 'project_earning_shares_empty_domain', 'project_t_multiscale_independent_filters', 'project_t_cross_level_coupling_falsified', 'project_t_operation_self_replication']
 ---
+
+## 更新 2（2026-06-21，多重赋格落码后 §8.1 真实重现）
+
+编排者裁决「所有级别并行消费 BSP（多重赋格），删 want gate + 单链下钻」落码后（扁平重构：`instance.child` 单链 → `TRoot.level_short[k]` 每级别短差），**sink 0→592 真正消费 BSP**（L0:319/L1:272/L2:1）。BTC 全量诊断（diag 兜底跑完）：
+
+- **§8.1 free 不足 = 10 次**（592 recover 的 1.7%），**两个机制**：
+  - **5 次 = 多级别现金流耦合（盈利短差 c2<c1 但 free 不足）**——非 C3。首次：lvl=0, core_units=18.79, Σshort=0, free=23665, need=27823, realized=+207（**盈利**）。根因：恒仓核心持仓占用财富（core 价值 ~97389 在持仓），free 现金不足以再买入回补。这是 [[project_t_cross_level_coupling_falsified]]「单一池放大」/[[project_t_operation_self_replication]]「几何塔 1x 强平级联」的显形。
+  - **5 次 = C3 原版（亏损短差 c2>c1）**——卖点失败。
+- 这两类合计 10 次（次要）。**主因是做空腿牛市系统性亏损**：short_leg_pnl=−21057，亏损率 55.7%（330 亏/262 盈），把纯持多 +1423% 拖到 +30.5%（< BH +1380%）。印证 [[project_t_short_leg_regime_function]] L3「做空腿=亏损唯一来源」。
+
+**三读法（C3 扩展，待编排者裁）**：(A) 同金额回补（free 不足时回补可用部分，核心恒仓被侵蚀；diag 兜底即此）/ (B) 杠杆（free 可负）/ (C) 修订 §8.1 假设。**新增维度**：5 次是盈利短差耦合（非卖点失败），所以不只是"卖点会失败"问题，还有"恒仓单一 free 池 + 多级别几何塔 → 现金流动性不足"的结构问题。
+
+**但 §8.1 是次要**（1.7%）。主矛盾是做空腿 regime（牛市亏损），需多标的 L3 确认（CL/DX 震荡 regime 可能盈利，[[project_t_operation_self_replication]] 正域）。
+
+---
+
+## 更新 1（已撤回 FALSIFIED → 已被更新 2 取代）
+
+⚠️ 更新 1 的"C3 falsified"基于 sink=0（P3b 单链下钻未消费 BSP）。多重赋格落码后 sink=592 真正消费，§8.1 真实重现（见更新 2）。故 C3 **重新激活**，但带新机制（多级别耦合）。原 falsified 节存档于下。
 
 ## ⚠️ 撤回（2026-06-21，编排者质疑后重做诊断）
 

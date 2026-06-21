@@ -201,7 +201,27 @@ ep5/ep7 假做空源于裸走势方向触发的假反转。最简形式下**做�
 **下一步方向（待编排者定，涉及架构 + 价值判断）**：
 - (A) **sink 由 BSP 直接触发，删 want gate**——子 T 骑"卖点确认后的次级别走势"（需构造载体，因卖点滞后于其标记的回调，须骑下一段）。这是真正"消费 BSP"。但触及**卖点确认滞后 vs 骑回调做空**的时序可行性（可能须 escalate）。
 - (B) **N 个独立级别引擎**（[[project_t_multiscale_independent_filters]]，commit 50f2235013）——每级别独立扫自己 BSP，不依赖单链下钻。但该版 L3 仅 2/8（CL,DX）。
-- P3b 重建 + 诊断字段保留（sink=0 故行为等价 P3a，+1423% 基线不破），diag_no_panic 脚手架已删（死代码）。
+
+### 9.9 多重赋格落码（编排者裁决：所有级别并行消费 BSP）+ BTC L3（2026-06-21）
+
+编排者裁决：「时序问题用区间套解决（不等最高级别确认）。删 extract_chain 走势节点 gate。所有级别并行消费 BSP——每级别 T 实例消费自己级别的 BSP，低级别不依赖高级别 sink 成功。这就是多重赋格。」
+
+**扁平重构**（commit 见下）：`instance.child` 单链嵌套 → `TRoot.level_short[k]` 每**绝对级别**一条对核心的短差腿。`sink(level,c,bar)`/`recover(level,c,bar)` level-keyed（载体=卖点自身合成节点，非 extract_chain 走势节点）。driver `reconcile_all_levels`：遍历 0..=core_level，每级别独立 type1_sell→sink / type1_buy→recover，**不单链下钻**。
+
+**BTC L3 三模式（diag 兜底跑完全程）**：
+
+| 指标 | 值（三模式相同） |
+|------|------|
+| strat | **+30.50%** << BH +1380% |
+| sink / recover | **592 / 592**（0→592 = BSP 真正被消费 ✓ 里程碑） |
+| sink 级别分布 | L0:319 / L1:272 / L2:1 |
+| short_leg_pnl | **−21057**（做空腿系统性亏损，亏损率 55.7%） |
+| 核心方向 / 净敞口 | long 99.9% / 净 long 95.8% short 4.2% |
+| §8.1 free 不足 | 10 次（5 盈利耦合 + 5 C3 亏损） |
+
+**结论**：(1) **多重赋格成功——BSP 从零消费到 sink/recover 592 次**，C1 北极星「消费买卖点」首次真正实现。(2) 但 BTC 牛市**做空腿系统性亏损**（−21057, 55.7% 亏损率）把纯持多 +1423% 拖到 +30.5%，印证 [[project_t_short_leg_regime_function]] L3「做空腿=亏损唯一来源」=做空有效域⊂非上行 regime。(3) **三模式收益完全相同**——MACD 门控（And/Or）不影响，因 type1 在 L0/L1 恒在，sink/recover 受 rerun 频率 + level_short gate 主导而非 BSP 选择性。(4) §8.1 free 不足 10 次（1.7%）真实但次要，两机制（多级别现金流耦合 5 + C3 亏损短差 5）= C3 重新激活（见 escalation 更新 2，三读法待裁）。
+
+**下一步（待编排者）**：①§8.1 三读法裁决（同金额/杠杆/修订假设）；②多标的 L3（8 标的三模式）验证做空腿是否 regime 函数（CL/DX 震荡可能盈利，[[project_t_operation_self_replication]] 正域）。诊断脚手架 diag_no_panic（默认 false，仅 rec_btc test 用兜底统计）保留——§8.1 生产路径（ffi）仍 fail-loud。
 
 ## 10. 结果包六要素
 
