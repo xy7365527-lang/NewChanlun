@@ -255,8 +255,9 @@ impl PyRecStream {
         (bar, tw, lu, su, n)
     }
 
-    /// 引擎内部模拟账本计数：(enter, sink, recover, spawn, promote, flip, clear, reruns)。
-    fn op_counts(&self) -> (u64, u64, u64, u64, u64, u64, u64, u64) {
+    /// 引擎内部模拟账本计数：(enter, sink, recover, spawn, promote, flip, reruns)。
+    /// clear 已删（编排者终裁 2026-06-20：最高级别必须反手，clear_root=workaround）。
+    fn op_counts(&self) -> (u64, u64, u64, u64, u64, u64, u64) {
         let r = self.core.driver().root();
         (
             r.n_enters,
@@ -265,7 +266,6 @@ impl PyRecStream {
             r.n_spawns,
             r.n_promotes,
             r.n_flips,
-            r.n_clears,
             self.core.n_reruns,
         )
     }

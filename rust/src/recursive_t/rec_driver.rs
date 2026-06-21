@@ -23,7 +23,6 @@
 
 use super::rec_engine::{dir_to_polarity, flip_pol, TRoot, TrendNode};
 use super::types::{Direction, RecursiveTree, TrendKind, TrendType, Unit};
-use crate::trading::types::Polarity;
 
 /// 操作链中的一个走势节点（视图）。
 #[derive(Debug, Clone, Copy)]
@@ -38,19 +37,11 @@ pub struct ChainNode {
 #[derive(Debug, Clone, Default)]
 pub struct ChainView {
     pub nodes: Vec<ChainNode>,
-    /// **涌现方向**（§9.4）：最高**已完成**走势方向（`tree.emergent_top()`，稳定信号）。
-    /// 核心方向的权威——顶级反转判据：chain[0] 反转**且** emergent_dir 也反转才是真转折；
-    /// chain[0] 反转但 emergent_dir 不变 = 回调/r\* 跳变伪转折（核心骑趋势不动，不 macro-short）。
-    /// `None`（无已完成走势，早期）→ 回退原行为（视 chain[0] 反转为真转折）。
-    pub emergent_dir: Option<Polarity>,
 }
 
 impl ChainView {
     pub fn new(nodes: Vec<ChainNode>) -> Self {
-        ChainView { nodes, emergent_dir: None }
-    }
-    pub fn with_emergent(nodes: Vec<ChainNode>, emergent_dir: Option<Polarity>) -> Self {
-        ChainView { nodes, emergent_dir }
+        ChainView { nodes }
     }
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
@@ -93,16 +84,10 @@ impl RecDriver {
                         // 更高同向走势涌现（包含 root）→ spawn relabel 升格（核心骑趋势上行）。
                         self.root.spawn(d0.node, c, bar);
                     } else {
-                        // 顶级反向：§9.4 区间套——真转折须次级别先确认上级后。**涌现方向**
-                        // （emergent_dir = 最高已完成走势方向）是该确认的稳定代理。chain[0]
-                        // 反转但 emergent_dir 仍 == 核心方向 = 回调/r\* 跳变伪转折 ⟹ 核心骑趋势
-                        // 不动（不 macro-short，§9 数据质询：裸 chain[0] 反转致 82% 时间持宏观空头）。
-                        let emergent_reversed = view.emergent_dir.map(|ed| ed != rdir).unwrap_or(true);
-                        if !emergent_reversed {
-                            return; // 涌现方向未变 → 伪转折，核心持仓不动；不 reconcile 错位回调链
-                        }
-                        // 涌现方向真反转（最高已完成走势翻向）→ 真转折（§9.3）：回调子 T 短头已持
-                        // 新方向 ⟹ promote 升格新核心（零真空）；无回调子 T 可升（§9.5 退化）→ clear_root。
+                        // 顶级反向（§9.3 编排者终裁 2026-06-20：最高级别必须反手，零 workaround）：
+                        // 走势方向决定操作方向（§0.3 绩效=Σ|涨跌幅|，永远在市场有方向）。删 emergent 门控
+                        // （滞后 emergent_top 锚定致 −1069% 做空陷阱）+ clear_root（退出观望=workaround）。
+                        // 有回调子 T 在新方向 → promote 升格新核心（零真空）；无 → flip 全树塌缩 + 反向 enter。
                         let new_dir = dir_to_polarity(d0.node.direction);
                         let promotable = self
                             .root
@@ -115,8 +100,7 @@ impl RecDriver {
                             self.root.promote(d0.node, c, bar);
                             // promote 后 root = 升格的子 T（已骑 new_node）；继续 reconcile 其回调链。
                         } else {
-                            self.root.clear_root(c, bar);
-                            return; // 退化：本重跑退出观望；下一重跑 root=None → enter 重新入场
+                            self.root.flip(d0.node, c, bar); // 反手：清全树 + 反向 enter
                         }
                     }
                 }
@@ -251,9 +235,7 @@ pub fn extract_chain(tree: &RecursiveTree) -> ChainView {
             None => break,
         }
     }
-    // 涌现方向（§9.4 稳定信号）：最高已完成走势方向 → 核心方向权威（顶级反转门控）。
-    let emergent_dir = tree.emergent_top().map(|(_, d)| dir_to_polarity(d));
-    ChainView::with_emergent(nodes, emergent_dir)
+    ChainView::new(nodes)
 }
 
 /// 走势方向 → ChainNode 构造辅助（适配器/测试用）。
@@ -281,9 +263,6 @@ mod tests {
     }
     fn view(nodes: &[ChainNode]) -> ChainView {
         ChainView::new(nodes.to_vec())
-    }
-    fn view_em(nodes: &[ChainNode], em: Polarity) -> ChainView {
-        ChainView::with_emergent(nodes.to_vec(), Some(em))
     }
     use crate::trading::types::Polarity;
 
@@ -377,60 +356,27 @@ mod tests {
         let nr = d.root().root_slot().unwrap();
         assert_eq!(d.root().instance(nr).direction, Polarity::Short, "新核心持空（顺势 down）");
         assert_eq!(d.root().n_promotes, 1);
-        assert_eq!(d.root().n_clears, 0, "有回调子 T → promote 非 clear");
-        assert_eq!(d.root().n_flips, 0, "顶级不 flip");
+        assert_eq!(d.root().n_flips, 0, "有回调子 T → promote 非 flip");
         assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "promote TW 中性");
     }
 
     #[test]
-    fn top反向无回调子T_clear退化退出观望() {
-        // §9.5 退化边界：顶级反转但无回调子 T 可升 → clear_root 退出观望（罕见，如缺口直接跳变）。
+    fn top反向无回调子T_flip反手() {
+        // §9.3 编排者终裁 2026-06-20（零 workaround）：顶级反转无回调子 T 可升 → flip 全树塌缩 + 反向
+        // enter（**最高级别必须反手**，删 clear_root 退出观望）。绩效=Σ|涨跌幅| 要求永远在市场有方向。
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view(&[up(0, 10, false)]), 100.0, 10); // 仅核心，无回调子 T
         assert_eq!(d.root().n_active(), 1);
-        d.on_view(&view(&[down(10, 20, false)]), 100.0, 20); // 顶反转，无回调先行
-        assert_eq!(d.root().n_active(), 0, "无回调子 T → clear 退出观望");
-        assert!(d.root().root_slot().is_none(), "root=None");
-        assert_eq!(d.root().n_clears, 1);
+        d.on_view(&view(&[down(10, 20, false)]), 100.0, 20); // 顶反转，无回调先行 → flip 反手
+        assert_eq!(d.root().n_active(), 1, "flip 反手：清旧核心 + 反向 enter 新核心（零真空）");
+        assert_eq!(d.root().n_flips, 1);
         assert_eq!(d.root().n_promotes, 0);
-        // 下一重跑重新入场（down 走势 → 顺势 short core）。
-        d.on_view(&view(&[down(10, 25, false)]), 100.0, 25);
-        assert_eq!(d.root().n_active(), 1, "下一重跑重新入场");
-        assert_eq!(d.root().instance(d.root().root_slot().unwrap()).direction, Polarity::Short);
-    }
-
-    // ──────────────── 涌现方向门控（§9.4 真转折 vs 伪转折）────────────────
-
-    #[test]
-    fn chain0反转但涌现方向不变_核心骑趋势不动_不macro_short() {
-        // §9 数据质询修复：BTC 牛市 chain[0]（最高当前趋势）含确认滞后/r* 跳变频繁反转，
-        // 裸反转致 82% 时间持宏观空头被轧。修复：emergent_dir（最高已完成走势,稳定）仍 Long
-        // ⟹ 回调伪转折,核心持多不动（不 flip/clear/promote 翻空）。
-        let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view_em(&[up(0, 10, false)], Polarity::Long), 100.0, 10);
-        let r0 = d.root().root_slot().unwrap();
-        let u0 = d.root().instance(r0).units;
-        // chain[0] 反转为 Down，但涌现方向（emergent_dir）仍 Long → 伪转折。
-        d.on_view(&view_em(&[down(10, 20, false)], Polarity::Long), 100.0, 20);
-        assert_eq!(d.root().root_slot(), Some(r0), "核心槽不变（不翻空）");
-        assert_eq!(d.root().instance(r0).direction, Polarity::Long, "核心持多骑趋势");
-        assert!((d.root().instance(r0).units - u0).abs() < 1e-9, "持仓不动");
-        assert_eq!(d.root().n_flips, 0);
-        assert_eq!(d.root().n_clears, 0);
-        assert_eq!(d.root().n_promotes, 0, "伪转折：无任何顶级反转操作");
-    }
-
-    #[test]
-    fn chain0反转且涌现方向反转_真转折促promote() {
-        // 对照：emergent_dir 也反转（最高已完成走势翻 Down）= 真转折 → promote/clear。
-        let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view_em(&[up(0, 10, false)], Polarity::Long), 100.0, 10);
-        d.on_view(&view_em(&[up(0, 12, false), down(10, 12, false)], Polarity::Long), 100.0, 12);
-        assert_eq!(d.root().n_active(), 2, "核心 + 回调子 T");
-        // chain[0] 反转 Down 且 emergent_dir 反转 Short → 真转折 → 回调子 T 升格。
-        d.on_view(&view_em(&[down(12, 20, false)], Polarity::Short), 100.0, 20);
-        assert_eq!(d.root().n_promotes, 1, "真转折 → promote");
-        assert_eq!(d.root().instance(d.root().root_slot().unwrap()).direction, Polarity::Short);
+        assert_eq!(
+            d.root().instance(d.root().root_slot().unwrap()).direction,
+            Polarity::Short,
+            "反手做空（顺势 down，不退出观望）"
+        );
+        assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "flip TW 中性");
     }
 
     // ──────────────── 嵌套回调（自相似递归）────────────────

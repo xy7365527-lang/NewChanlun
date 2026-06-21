@@ -236,7 +236,6 @@ pub struct TRoot {
     pub n_recovers: u64,
     pub n_spawns: u64,
     pub n_flips: u64,
-    pub n_clears: u64,
     pub n_promotes: u64,
     pub n_capital_recovered: u64,
     pub short_leg_pnl: f64,
@@ -255,7 +254,6 @@ impl TRoot {
             n_recovers: 0,
             n_spawns: 0,
             n_flips: 0,
-            n_clears: 0,
             n_promotes: 0,
             n_capital_recovered: 0,
             short_leg_pnl: 0.0,
@@ -356,31 +354,31 @@ impl TRoot {
 
     // ──────────────── 三阶段会计（per 实例，§4.1）────────────────
 
-    /// 核算一次核心仓 reduce 的 realized（父向 Long=降成本主力；Short=短差腿单独算，点5）。
+    /// 核算一次**核心 spine** reduce 的 realized（三阶段，**方向对称**，编排者 2026-06-20 零 workaround）：
+    /// realized 由 `rec_reduce` 按 direction 已算正确（Long=m(c−basis) 卖高 / Short=m(basis−c) 平低），
+    /// 多空核心**同一降成本公式**——删除 §12 的 Long 三阶段/Short 平铺不对称分支。降成本→退本金→增股数对多空一致。
+    /// 短差腿（recover 子 T）走 `account_leg_pnl`，不入此（点5：核心 vs 腿是拓扑角色区分，非方向）。
     fn account_core_reduce(&mut self, slot: usize, realized: f64, _c: f64) {
-        let dir = self.instances[slot].direction;
-        match dir {
-            Polarity::Long => {
-                let rem = self.instances[slot].units; // reduce 后剩余多头（降成本分母）
-                let inst = &mut self.instances[slot];
-                if rem > EPS && inst.cost_basis.is_finite() {
-                    inst.cost_basis -= realized / rem;
-                    if inst.cost_basis <= 0.0 && inst.phase == RecStage::CostReduction {
-                        inst.phase = RecStage::CapitalRecovered;
-                        self.n_capital_recovered += 1;
-                        self.try_withdraw(slot);
-                    }
-                } else if inst.phase == RecStage::CapitalRecovered {
-                    self.try_withdraw(slot);
-                } else if inst.phase == RecStage::EarningShares && realized > 0.0 {
-                    inst.earning = (inst.earning + realized).min(self.free.max(0.0));
-                }
+        let rem = self.instances[slot].units; // reduce 后剩余核心 units（降成本分母）
+        let inst = &mut self.instances[slot];
+        if rem > EPS && inst.cost_basis.is_finite() {
+            inst.cost_basis -= realized / rem;
+            if inst.cost_basis <= 0.0 && inst.phase == RecStage::CostReduction {
+                inst.phase = RecStage::CapitalRecovered;
+                self.n_capital_recovered += 1;
+                self.try_withdraw(slot);
             }
-            Polarity::Short => {
-                // 短差腿（子 T 平空）pnl 单独算，不入降成本（点5）。
-                self.short_leg_pnl += realized;
-            }
+        } else if inst.phase == RecStage::CapitalRecovered {
+            self.try_withdraw(slot);
+        } else if inst.phase == RecStage::EarningShares && realized > 0.0 {
+            inst.earning = (inst.earning + realized).min(self.free.max(0.0));
         }
+    }
+
+    /// 短差腿 pnl（recover 子 T 平差）单独核算（点5），不入核心降成本。**方向对称**（拓扑角色，非方向）：
+    /// 多头核心的空头短差腿 / 空头核心的多头短差腿，统一记 `short_leg_pnl`。
+    fn account_leg_pnl(&mut self, realized: f64) {
+        self.short_leg_pnl += realized;
     }
 
     /// 退本金：把 = 本金的现金移出在险池（free→withdrawn）。free 不足抽可得部分，停留②待补；
@@ -509,7 +507,7 @@ impl TRoot {
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[child_slot], m_short, &mut free, c);
         self.free = free;
-        self.account_core_reduce(child_slot, realized, c); // 子 T 是 Short → short_leg_pnl
+        self.account_leg_pnl(realized); // 短差腿（方向对称：多核心→空腿 / 空核心→多腿）单独算，不入降成本
         // 父级升回，按 phase 分流。
         let phase = self.instances[parent_slot].phase;
         let q = match phase {
@@ -520,11 +518,15 @@ impl TRoot {
             }
         };
         if q > EPS {
-            // §8.1 fail-loud：CostReduction 同股数回补 free 必须充足（回调终点<起点 ⟹ 卖价>买价）。
-            if matches!(phase, RecStage::CostReduction | RecStage::CapitalRecovered) {
+            // §8.1 fail-loud（方向感知，从定义推导，非硬编码不对称）：多头回补=买入需现金充足
+            // （回调终点<起点⟹卖价>买价）；空头回补=再做空收现金（free 增），无现金约束。
+            let pdir2 = self.instances[parent_slot].direction;
+            if matches!(phase, RecStage::CostReduction | RecStage::CapitalRecovered)
+                && pdir2 == Polarity::Long
+            {
                 assert!(
                     self.free + EPS >= q * c,
-                    "free 不足以同股数回补（结构检测 bug，§8.1）：free={} need={} c={}（回调终点应低于起点）",
+                    "free 不足以同股数多头回补（结构检测 bug，§8.1）：free={} need={} c={}",
                     self.free, q * c, c
                 );
             }
@@ -590,7 +592,7 @@ impl TRoot {
     /// **promote（转折：回调子 T 升格为新核心，§9，编排者裁决 2026-06-20）**：顶级走势完成且涌现反向
     /// 时——当前回调子 T 短头**已持新方向**（自回调启动 sink，§9.3 的 t1），故 relabel 它为新核心、清掉
     /// 旧核心，**敞口连续零真空**（取代 clear_root 退化的"清+等待"）。子 T 升格建新 campaign，回调子链继承。
-    /// 返回新核心槽；无回调子 T 可升（退化边界，§9.5）→ None，调用方走 clear_root。NAV/TW 中性
+    /// 返回新核心槽；无回调子 T 可升（退化边界，§9.5）→ None，调用方走 flip 反手。NAV/TW 中性
     /// （旧核心清=现金、子 T relabel=仓位身份迁移零现金）。
     pub fn promote(&mut self, new_node: TrendNode, c: f64, bar: i64) -> Option<usize> {
         let _ = bar;
@@ -634,42 +636,11 @@ impl TRoot {
         Some(child_slot)
     }
 
-    /// **clear_root（顶级走势完成/反转 → 退出观望，编排者裁决 2026-06-20，§8.4 已结算）**：
-    /// 顶级实例（parent=None）走势完成 ⟹ 清整条链到现金 + 归还 withdrawn + 重置全树 campaign +
-    /// `root_slot=None`。**不反向 enter**（顶级 = clear，不 flip——核心骑趋势到顶兑现退出，不在顶
-    /// 反手做空；避免宏观核心翻空在强牛被轧的 −706% 灾难）。下一走势由后续重跑重新 enter（granularity：
-    /// 从基级别重新入场，spawn 涌现升级）。flip 仅保留给有 parent 的子级实例（点1）。
-    pub fn clear_root(&mut self, c: f64, bar: i64) {
-        let _ = bar;
-        if self.root_slot.is_none() || c <= 0.0 {
-            return;
-        }
-        let tw_pre = self.total_wealth(c);
-        let mut free = self.free;
-        for inst in self.instances.iter_mut() {
-            if inst.lifecycle != TLifecycle::Dormant && inst.units > EPS {
-                rec_reduce(inst, inst.units, &mut free, c);
-            }
-        }
-        self.free = free;
-        self.free += self.withdrawn_total; // campaign 结束，连本带利归 free
-        self.withdrawn_total = 0.0;
-        for slot in 0..self.instances.len() {
-            if self.instances[slot].lifecycle != TLifecycle::Dormant {
-                self.dormant_instance(slot);
-            }
-        }
-        self.root_slot = None;
-        self.n_clears += 1;
-        self.prove_tw_neutral(tw_pre, c);
-    }
-
-    /// **flip（仅子级实例，点1）**（最高级别走势完成，无更大容器或涌现反向 = 29课情况三）：全树塌缩（§3.6）。
-    /// 编排者裁决 2026-06-20：**flip 仅发生在有 parent 的 T 实例**（次级别操作）；顶级（parent=None）
-    /// 走势反转走 `clear_root`（退出观望，不反向）。本方法保留为子级翻转能力（当前 driver 顶级反转
-    /// 路由到 clear_root，不调本方法——见 rec_driver）。
-    /// 顺序不可换：(1) 子实例按**旧方向**全量平空升回，(2) 清根到现金 + 重置全树 campaign，
-    /// (3) 根按新方向在 `new_node` enter。`new_node` 方向 = 反原核心向（翻转）。
+    /// **flip（最高级别走势反转 → 反手，编排者裁决 2026-06-20 终裁：零 workaround）**：全树塌缩（§3.6）
+    /// + 反向 enter。**最高级别必须反手**（绩效=Σ\|涨跌幅\| 要求永远在市场有方向，§0.3）——删除 clear_root
+    /// （顶级"退出观望不反手"是 workaround）。顶级反转时：有回调子 T 在新方向 → `promote`（零真空）；
+    /// 无回调子 T → 本 `flip`（清+反向 enter）。子级（有 parent）反转亦走本方法。
+    /// 顺序不可换：(1) 全树清到现金 + 重置全树 campaign，(2) 根按新方向在 `new_node` enter（反原核心向）。
     pub fn flip(&mut self, new_node: TrendNode, c: f64, bar: i64) -> Option<usize> {
         self.root_slot?; // 无 root 不 flip
         if c <= 0.0 {
@@ -903,10 +874,24 @@ mod tests {
     }
 
     #[test]
-    fn promote_无回调子T_返回None走clear退化() {
+    fn promote_无回调子T_返回None走flip反手() {
         let mut r = TRoot::new(100_000.0);
         let _p = r.enter(up_node(0, 10), 100.0, 0).unwrap(); // 无回调子 T
-        assert!(r.promote(down_node(10, 20), 100.0, 20).is_none(), "无回调子 T 不可 promote（退化边界）");
+        assert!(r.promote(down_node(10, 20), 100.0, 20).is_none(), "无回调子 T 不可 promote（driver 走 flip 反手）");
+    }
+
+    #[test]
+    fn 三阶段方向对称_空头核心低位平空降cost_basis() {
+        // 编排者终裁 2026-06-20（零 workaround，方向对称）：空头核心也降成本，镜像多头。
+        let mut r = TRoot::new(100_000.0);
+        let p = r.enter(down_node(0, 10), 100.0, 0).unwrap(); // Down 走势 → Short 核心
+        assert_eq!(r.instances[p].direction, Polarity::Short);
+        let cb0 = r.instances[p].cost_basis;
+        // 反弹（Up）回调 → sink：空头核心低位(50)平掉 1/3 → realized=m(basis−c)>0 降 cost_basis（镜像多头高卖）。
+        r.sink(p, up_node(10, 15), 50.0, 10).unwrap();
+        let cb1 = r.instances[p].cost_basis;
+        assert!(cb1 < cb0 - 1.0, "空头核心低位平空降 cost_basis：{cb1} < {cb0}（方向对称，非 short_leg_pnl 平铺）");
+        assert_eq!(r.instances[p].phase, RecStage::CostReduction);
     }
 
     // ──────────────── 三阶段 + 收尾守恒 ────────────────

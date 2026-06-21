@@ -151,18 +151,13 @@ recover（子 T 平空升回）时读**全局** `self.campaign_phase`（现状 r
 | 加密永续 | 可达 | 部分（同期货 + funding 流，正费率持空收 funding 降成本） | margin + funding |
 | 认沽期权(买方做空) | — | **可达**（损失界于权利金，015:956 变废纸=有限全损） | 期权天然损失上限 |
 
-**载体抽象**：新增 trait `CarrierModel`（rust/src/recursive_t/carrier.rs 新文件），无状态钩子 + 1 声明：
-```rust
-trait CarrierModel {
-    fn mtm(&self, d: Polarity, units: f64, c: f64) -> f64;       // 市值/负债(现状硬编码 :271-275)
-    fn realized(&self, d: Polarity, m: f64, basis: f64, c: f64) -> f64; // pnl(:178-179)
-    fn liquidation_bound(&self, inst: &TInstance) -> Option<f64>; // 现货long=0/现货short=None无界/期货=margin/认沽=权利金
-    fn carry(&self, d: Polarity, units: f64) -> f64;             // 永续 funding(默认0)
-    fn can_reach_earning(&self, d: Polarity) -> bool;            // ★声明:现货short=false,认沽=true,多头=true
-}
-```
-会计结构（降成本/退本金/增股数）载体无关只进 TRoot；载体差异全进 trait。默认 `SpotCarrier` 复现现状 bit-exact。
-**`can_reach_earning(Short)==false`（现货）时禁止把空头硬塞进 EarningShares 假装立于不败**（=§12.4 诊断的病），改为声明有效域：现货空头降成本 protect realized PnL，但不消除尾部无界风险。
+**载体抽象（零 workaround，编排者终裁 2026-06-20）**：三阶段会计对**所有方向、所有载体一律对称**——空头核心和多头核心走**完全相同**的降成本/退本金/增股数代码，**不加任何 `can_reach_earning` 之类的方向门控**（那是「声明空头不可达回避问题」的 workaround）。
+
+> **删除原 `can_reach_earning` 设计**：之前提议「`can_reach_earning(Short)==false` 禁止空头进 EarningShares」是回避问题的 workaround。正确做法：让空头三阶段对称地跑，**现货空头无界尾部风险若发生，体现在强平数据里（诊断信号）**——不预先 gate。如果空头被强平，说明 recover 没做对（买点没及时回补），是要修的真问题，不是要 gate 的对象。
+
+载体差异（未来扩展）可经一个无状态 trait 表达 mtm/realized/liquidation_bound/carry，默认 `SpotCarrier` = 现状硬编码（Long=+u·c/Short=−u·c）。但**载体 trait 不含任何方向可达性声明**——它只描述物理量（市值/pnl/强平线），不判定「能否立于不败」。认沽期权（损失界于权利金，015:956）是**未来可选载体**（提供空头损失上限），不是用来 gate 三阶段的判据。
+
+**本轮落码不引入 CarrierModel trait**（现货/加密 BTC 用现状硬编码 SpotCarrier 语义即可）——trait 是未来多载体扩展，非本轮零 workaround 修复的一部分。
 
 ## 6. 逐仓/全仓 vs 总体三阶段（Q4）—— 正交两层，不矛盾
 
