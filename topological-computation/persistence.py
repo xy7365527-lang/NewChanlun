@@ -5,9 +5,9 @@ file is replayed to reconstruct the Graph. K_full is append-only by nature,
 so JSONL is a natural fit — no updates, no deletes, just appends.
 
 Snapshot mechanism: periodically dump the full Graph state (vertices + edges)
-to a `.snapshot.jsonl` file, then truncate the incremental JSONL. On restart,
-load snapshot first, then replay any incremental records written after the
-snapshot. This prevents unbounded JSONL growth across restarts.
+to a `.snapshot.jsonl` file while preserving the append-only JSONL operation
+history. On restart, load snapshot first, then replay JSONL records so merge
+and provenance events can repair/complete the snapshot state.
 
 Pure Python, no external dependencies.
 """

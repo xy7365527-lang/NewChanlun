@@ -1286,6 +1286,10 @@ class TopologicalDaemon:
             pre_active_statuses = {
                 vid: v.status for vid, v in self.k_active.vertices.items()
             }
+        pre_settled_count = (
+            len(self.settlement.settled_cycles)
+            if self._shared_layer is not None else 0
+        )
 
         log = self.engine.run_step()
 
@@ -1327,6 +1331,10 @@ class TopologicalDaemon:
         # Track beta_1 history for crystallization detection
         self._beta_1_history.append(log.beta_1_after)
         self._cumulative_delta_beta_1 += abs(log.delta_beta_1)
+        new_settled = (
+            self.settlement.settled_cycles[pre_settled_count:]
+            if self._shared_layer is not None else []
+        )
 
         # Local f terrain tracking for adaptive traversal
         # Compute every 100 steps to avoid O(N*E) cost per step on large graphs
@@ -2050,11 +2058,12 @@ class TopologicalDaemon:
         )
 
     def close(self):
-        """Close persistence handle. Dump snapshot + truncate JSONL if persisting."""
+        """Close persistence handle. Dump snapshot while preserving JSONL history."""
         if hasattr(self, '_checkpoint'):
             self._checkpoint.save_state(extract_daemon_state(self))
             self._checkpoint.close()
-        # Snapshot: dump current k_full state, then truncate incremental JSONL
+        # Snapshot accelerates recovery, but the JSONL is the authoritative
+        # operation history needed to replay merges and provenance.
         if self._persist_path is not None:
             snapshot_p = PersistentKFull.snapshot_path_for(self._persist_path)
             try:
@@ -2063,13 +2072,11 @@ class TopologicalDaemon:
                     f"Snapshot dumped: {count} records to {snapshot_p}",
                     file=sys.stderr,
                 )
-                # Close JSONL handle before truncating
+                # Close JSONL handle before recovery reads it.
                 if self._persist:
                     self._persist.close()
-                # Truncate incremental JSONL — snapshot has the full state
-                self._persist_path.write_text("", encoding="utf-8")
                 print(
-                    f"JSONL truncated: {self._persist_path}",
+                    f"JSONL preserved: {self._persist_path}",
                     file=sys.stderr,
                 )
                 self._persist = None  # already closed
