@@ -29,7 +29,13 @@
 | **type2/type3 @ k** | 加仓/持有确认（中枢上移/破位，029:58）| h⁺ |
 | **最高级别超大卖点（月线+）** | **全量清仓**（一次性，第31课总结算）| 唯一全平触发 |
 
-**删除 flip/reverse/Z₂**：核心永远不整仓翻空（持多骑牛）；做空全在次级别短差（有界 1/3）；全量清仓只由超大级别卖点（campaign 顶）触发。这回到早期结晶（[[emergent-direction]] 四步循环 / [[recursive-nested-fugue]] 平多≠开空）。
+**删除 flip/reverse/Z₂**：核心永远不整仓翻空（持多骑牛）；做空全在次级别短差（有界 1/3）。这回到早期结晶（[[emergent-direction]] 四步循环 / [[recursive-nested-fugue]] 平多≠开空）。
+
+**零硬编码 · 完全自相似（编排者裁决 2026-06-20，纠正"最高级别特殊分支"）**：**每个 T 实例做完全一样的事**，route_bsp **不区分** BSP 级别==核心 vs <核心，**不硬编码全量清仓**：
+- `type1_sell @ 我的级别` → reduce 我的 units **归还父级** + 次级别开空。
+- `type1_buy @ 我的级别` → 次级别平空 + **从父级 recover** 回我的 units。
+- **最高级别的"父级" = root 现金池（TRoot.free）**——这不是特殊分支，是递归 base case（最高级别 reduce → 现金归 free）。
+- **全量清仓是涌现的，非 hardcode**：最高级别走势完成时，各层 reduce 逐层向上归还（最终归 free）= 全量退出的自然结果。route_bsp 里**没有** `if 最高级别 then 全量清仓`。
 
 ### 1.3 齿轮耦合：核心持仓（H⁰）+ 各级别减仓-回补短差（H¹），无翻转
 （[[project_t_multiscale_independent_filters]] / [[project_spiral_engine_v2_bitexact]] D∞ 群 + 编排者 C1 裁决）
@@ -170,6 +176,18 @@ ep5/ep7 假做空源于裸走势方向触发的假反转。最简形式下**做�
 **冲突待裁（近期裁决 vs 早期结晶，必须编排者裁决）：**
 - **C1（中心冲突）本级别翻转语义 —— 已裁决（编排者 2026-06-20）**：**所有级别所有卖点都是短差（reduce + 次级别开空），无 Z₂ 翻转、无整仓翻空**。核心持多骑趋势永不翻空；做空全在次级别有界短差；全量清仓只在最高级别超大卖点（月线+，第31课）。采纳早期结晶（四步循环/平多≠开空），废弃"整仓 Z₂ 翻空"。route_bsp 简化：type1_sell→sink / type1_buy→recover / 无 flip/reverse/Z₂。§1.2/§1.3/§9.1/§10 已据此更新。
 - **C2 配额 1/3 vs 无配额机制**：§9.3 "次级别短差 1/3"（MOBILE_FRAC，H¹ 机动仓）vs [[recursive-nested-fugue]] "父卖出释放现金=子开仓资本，**不需要配额分配机制**"。1/3 是 H⁰/H¹ 上同调导出（dim H¹=1）还是自由参数（违零参数）？须裁。
+
+### 9.8 P3 落码进度 + P3b 揭示的概念冲突（2026-06-20）
+
+**P3a（已提交 cc017e4e，验证里程碑）**：删 flip/promote（核心永不翻空，C1）+ enter 只在最高走势上行时建多核心。**BTC NT 真账本 +1423.44% vs BH +1380.38% 首次超 BH**（核心 99.9% 持多 / 0% 空，82% 持空灾难消除）。**caveat**：sink/recover 仍走势触发（仅 5 次）= 基本持多骑牛 buy-and-hold + 微短差，齿轮/多重赋格未充分激活。
+
+**P3b（BSP 驱动 sink/recover，已回退）**：把 sink/recover 改 BSP 触发（type1_sell@级别→sink / 同核心向 type1@子级别→recover）。**panic：§8.1 同股数回补 free 不足**（free=18522 < need=19394）。
+
+**揭示的概念冲突 C3（待裁）：恒仓 + 亏损短差 → 同股数回补不可能**。
+- 数学：恒仓下 free≈0（全在核心）。sink 在 c1 卖、recover 在 c2 买回同股数，需 `free_before_sink ≥ 2m(c2−c1)`。c2>c1（亏损短差：type1_buy 价高于 sink 的 type1_sell 价，即"回调"实际上行）⟹ 恒仓 free≈0 必不足 → §8.1 panic。
+- P3a（走势触发，5 次干净短差，c2<c1）未触发；P3b（BSP 触发，更多短差）命中亏损短差。
+- **冲突**：§8.1「同股数回补 free 充足=结构 bug fail-loud」假设短差必盈（回调终点<起点）；但 BSP 驱动的 type1_buy 可在 sink 价之上 fire（"回调"上行=亏损短差）。两读法：(A) **同金额回补**（亏损短差按可用现金回补更少 units，核心恒仓被该笔亏损侵蚀）；(B) **保持同股数 + 守卫放宽**（从核心价值/根池借，恒仓维持但 free 可负=杠杆）。涉及 §8.1 fail-loud 语义 + 三阶段同股数（CostReduction）vs 同金额（EarningShares）口径，须裁。
+- **注**：编排者 §11.6-3 已预警"recover fail-loud 守卫硬编码多头语义须按 direction 镜像"——C3 是其延伸（不仅镜像方向，还要处理亏损短差的同股数不可能）。
 
 ## 10. 结果包六要素
 
