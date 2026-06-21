@@ -22,6 +22,19 @@ use super::rec_driver::{extract_chain, RecDriver};
 use super::stream::build_a0_fast;
 use super::types::PerfectionMode;
 
+/// 诊断：BSPKind → 索引（0=t1buy 1=t1sell 2=t2buy 3=t2sell 4=t3buy 5=t3sell）。
+fn bsp_kind_idx(k: crate::recursive_t::types::BSPKind) -> u8 {
+    use crate::recursive_t::types::BSPKind::*;
+    match k {
+        Type1Buy => 0,
+        Type1Sell => 1,
+        Type2Buy => 2,
+        Type2Sell => 3,
+        Type3Buy => 4,
+        Type3Sell => 5,
+    }
+}
+
 /// 递归 T 流式核心（orchestrator + 重跑 + extract_chain + RecDriver，全 Rust 内聚）。
 pub struct RecStream {
     orch: RecursiveOrchestrator,
@@ -46,12 +59,18 @@ pub struct RecStream {
     pub core_short_bars: u64,
     pub net_long_bars: u64,
     pub net_short_bars: u64,
-    /// 诊断（编排者回补质询）：全程 type1_buy 买点 (bar, price, level) dedup by bar；
+    /// 诊断（编排者回补质询）：全程 type1_buy 买点 (bar, price, level) dedup；
     /// 核心短头 episodes (entry_bar, entry_px, exit_bar, exit_px)——查做空后下跌段有无买点、是否被消费。
     pub t1buy: Vec<(i64, f64, usize)>,
+    pub t1sell: Vec<(i64, f64, usize)>,
     pub short_episodes: Vec<(i64, f64, i64, f64)>,
     cur_short_entry: Option<(i64, f64)>,
     prev_core_dir: i8,
+    /// 诊断：全 6 类 BSP 产出计数（dedup by bar+level+kind）+ 按级别分布——查引擎消费/未消费哪些。
+    /// 索引: 0=t1buy 1=t1sell 2=t2buy 3=t2sell 4=t3buy 5=t3sell。
+    pub bsp_counts: [u64; 6],
+    pub bsp_by_level: [[u64; 6]; 10], // [level][kind]
+    bsp_seen: std::collections::HashSet<(i64, usize, u8)>,
 }
 
 impl RecStream {
@@ -78,9 +97,13 @@ impl RecStream {
             net_long_bars: 0,
             net_short_bars: 0,
             t1buy: Vec::new(),
+            t1sell: Vec::new(),
             short_episodes: Vec::new(),
             cur_short_entry: None,
             prev_core_dir: 0,
+            bsp_counts: [0; 6],
+            bsp_by_level: [[0; 6]; 10],
+            bsp_seen: std::collections::HashSet::new(),
         }
     }
 
@@ -109,23 +132,30 @@ impl RecStream {
             if n_cs != self.last_cs_segs {
                 self.last_cs_segs = n_cs;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
-                // 诊断：同时捕获本树的 type1_buy 买点（回补质询）。
-                let (view, new_t1buys) = {
+                // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
+                let (view, new_bsps) = {
                     let segs = self.orch.segments();
                     let m2r = self.orch.merged_to_raw();
                     let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg);
                     let tree = iterate(a0, self.mode);
-                    let t1: Vec<(i64, f64, usize)> = tree
+                    let bs: Vec<(i64, f64, usize, u8)> = tree
                         .all_bsps()
                         .into_iter()
-                        .filter(|b| matches!(b.kind, crate::recursive_t::types::BSPKind::Type1Buy))
-                        .map(|b| (b.bar, b.price, b.level))
+                        .map(|b| (b.bar, b.price, b.level, bsp_kind_idx(b.kind)))
                         .collect();
-                    (extract_chain(&tree), t1)
+                    (extract_chain(&tree), bs)
                 };
-                for (bb, bp, bl) in new_t1buys {
-                    if !self.t1buy.iter().any(|(x, _, _)| *x == bb) {
-                        self.t1buy.push((bb, bp, bl));
+                for (bb, bp, bl, bk) in new_bsps {
+                    if self.bsp_seen.insert((bb, bl, bk)) {
+                        self.bsp_counts[bk as usize] += 1;
+                        if bl < 10 {
+                            self.bsp_by_level[bl][bk as usize] += 1;
+                        }
+                        if bk == 0 {
+                            self.t1buy.push((bb, bp, bl)); // type1_buy → episode 用
+                        } else if bk == 1 {
+                            self.t1sell.push((bb, bp, bl)); // type1_sell → 做空卖点诊断
+                        }
                     }
                 }
                 self.n_reruns += 1;
@@ -289,25 +319,50 @@ mod tests {
             s.net_short_bars,
             100.0 * s.net_short_bars as f64 / n.max(1) as f64,
         );
+        // ── BSP 产出清单（编排者 Q2：引擎消费哪些/未消费哪些）──
+        let bc = s.bsp_counts;
+        eprintln!(
+            "\n── BSP 产出清单（全 6 类，引擎实际消费=0，全部丢弃）──\n\
+             type1_buy={} type1_sell={} | type2_buy={} type2_sell={} | type3_buy={} type3_sell={}",
+            bc[0], bc[1], bc[2], bc[3], bc[4], bc[5]
+        );
+        eprintln!("按级别分布 [lvl: t1b/t1s/t2b/t2s/t3b/t3s]:");
+        for (lvl, row) in s.bsp_by_level.iter().enumerate() {
+            if row.iter().any(|&x| x > 0) {
+                eprintln!(
+                    "  L{lvl}: {}/{}/{}/{}/{}/{}",
+                    row[0], row[1], row[2], row[3], row[4], row[5]
+                );
+            }
+        }
         // ── 回补质询诊断（编排者）：核心做空后下跌段产出的 type1_buy 买点 + 是否被消费 ──
         eprintln!(
             "\n── 回补质询：type1_buy 总数={}  核心短头 episodes={} ──",
             s.t1buy.len(),
             s.short_episodes.len()
         );
-        eprintln!("episode | 做空@bar/px | 平@bar/px | 短头盈亏% | 区间内type1_buy数 | 区间最低买点px(vs做空px)");
-        for (i, (eb, ep, xb, xp)) in s.short_episodes.iter().take(12).enumerate() {
+        eprintln!("ep|做空bar/px|最近type1_sell(bar/px/L)|平bar/px|短头盈亏%|区间t1buy数/最低买点");
+        for (i, (eb, ep, xb, xp)) in s.short_episodes.iter().take(14).enumerate() {
             let buys_in: Vec<&(i64, f64, usize)> =
                 s.t1buy.iter().filter(|(b, _, _)| *b > *eb && *b <= *xb).collect();
             let min_buy = buys_in.iter().map(|(_, p, _)| *p).fold(f64::INFINITY, f64::min);
-            let short_pnl = (ep - xp) / ep * 100.0; // 短头盈亏：平价<做空价=盈
+            let short_pnl = (ep - xp) / ep * 100.0;
+            let near_sell = s
+                .t1sell
+                .iter()
+                .filter(|(b, _, _)| (*b - *eb).abs() < 3000)
+                .min_by_key(|(b, _, _)| (*b - *eb).abs());
+            let sell_str = match near_sell {
+                Some((sb, sp, sl)) => format!("{sb}/{sp:.0}/L{sl}"),
+                None => "无".to_string(),
+            };
             eprintln!(
-                "  {i:2} | {eb}/{ep:.0} | {xb}/{xp:.0} | {short_pnl:+.1}% | {} | {}",
+                "{i:2}|{eb}/{ep:.0}|{sell_str}|{xb}/{xp:.0}|{short_pnl:+.1}%|{}个/{}",
                 buys_in.len(),
                 if min_buy.is_finite() {
-                    format!("{:.0} ({}做空价)", min_buy, if min_buy < *ep { "低于" } else { "高于" })
+                    format!("{:.0}({}做空)", min_buy, if min_buy < *ep { "低于" } else { "高于" })
                 } else {
-                    "无买点".to_string()
+                    "无".to_string()
                 }
             );
         }
