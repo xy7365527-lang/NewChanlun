@@ -49,6 +49,9 @@ pub struct RecStream {
     last_stroke_n: usize,
     /// 重跑触发 key = (settled 段数, _)。第二位为区间套提前确认预留（当前回退=usize::MAX 固定）。
     last_trigger: (usize, usize),
+    /// 诊断（区间套路由）：candidate 任意级别 true 的重跑数 / 有 type1_sell fresh 的重跑数。
+    pub n_cand_true: u64,
+    pub n_subsell: u64,
     /// 重跑次数（性能 + 诊断）。
     pub n_reruns: u64,
     /// 诊断：chain[0]（最高级别走势）方向 bar 加权分布——定位 82% 持空根因（extract_chain vs 操作）。
@@ -89,6 +92,8 @@ impl RecStream {
             finished: false,
             last_stroke_n: 0,
             last_trigger: (0, usize::MAX),
+            n_cand_true: 0,
+            n_subsell: 0,
             n_reruns: 0,
             last_c0: 0,
             c0_up_bars: 0,
@@ -176,6 +181,17 @@ impl RecStream {
                 }
                 view.bsps = fresh; // sink/recover 只消费新 fire 的买卖点（非历史累积存在性）
                 self.n_reruns += 1;
+                // 诊断（区间套路由）：candidate@core_level（最高级别）true + type1_sell@(core_level-1) fresh。
+                // sink core 触发=两者同时，故查 core_level 专用（非任意级别）。
+                let cl = view.core_level;
+                if view.candidate.get(cl).copied().unwrap_or(false) {
+                    self.n_cand_true += 1; // candidate@core_level（最高级别 c 段衰减）
+                }
+                if cl >= 1
+                    && view.bsps.iter().any(|b| b.level == cl - 1 && matches!(b.kind, BSPKind::Type1Sell))
+                {
+                    self.n_subsell += 1; // type1_sell@(core_level-1) fresh（次级别卖点）
+                }
                 // 诊断：记录本次 chain[0]（最高级别走势）方向。
                 self.last_c0 = match view.nodes.first().map(|n| n.node.direction) {
                     Some(crate::recursive_t::types::Direction::Up) => 1,
@@ -344,7 +360,10 @@ mod tests {
                 );
                 // ── per-level 短差 P&L（编排者 G1：低级别是否摩擦地板下噪声亏损）──
                 if sym == "BTC" {
-                    eprintln!("  [{sym}/{mode:?}] reruns={}", s.n_reruns);
+                    eprintln!(
+                        "  [{sym}/{mode:?}] reruns={} candidate_true={} subsell_fresh={}（区间套路由诊断）",
+                        s.n_reruns, s.n_cand_true, s.n_subsell
+                    );
                     let log = &s.driver().root().sink_recover_log;
                     let (mut nl, mut pl) = ([0u64; 8], [0.0f64; 8]);
                     for &(lvl, _c1, _c2, _low, realized, _sb, _rb) in log.iter() {

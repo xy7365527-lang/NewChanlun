@@ -215,6 +215,32 @@ fn judge_trend_divergence(t: &TrendType, mode: PerfectionMode) -> Option<BSP> {
     })
 }
 
+/// **区间套 candidate**（编排者 2026-06-21）：c 段力度衰减检测——**不需完整背驰确认**（不查 structural
+/// 条件 2/3/5 + 创新高几何门），只需 ≥2 中枢 + c 段存在 + c 段 MACD 面积 < a 段（力度衰减）。
+/// 用于路由层：高级别 candidate 加持下，次级别 type1_sell fire 即可提前 sink（顶部附近，非等本级别完整确认）。
+pub fn trend_candidate(t: &TrendType) -> bool {
+    if !matches!(t.kind, TrendKind::UpTrend | TrendKind::DownTrend) {
+        return false; // 仅趋势（盘整无 a/c 段力度对比）
+    }
+    let n_centers = t.zhongshus.len();
+    if n_centers < 2 {
+        return false; // 需 ≥2 中枢（a/c 段背景）
+    }
+    let prev_center = &t.zhongshus[n_centers - 2];
+    let last_center = &t.zhongshus[n_centers - 1];
+    if prev_center.units.is_empty() || last_center.units.is_empty() {
+        return false;
+    }
+    let a_end = *prev_center.units.last().unwrap();
+    let a_leg = &t.units[0..=a_end];
+    let c_start = *last_center.units.last().unwrap() + 1;
+    if c_start >= t.units.len() {
+        return false; // c 段不存在（走势尚未离开末中枢）
+    }
+    let c_leg = &t.units[c_start..];
+    macd_area_diverges(a_leg, c_leg, t.direction) // c 段力度 < a 段（衰减 = candidate，顶部附近可判）
+}
+
 /// 趋势背驰结构滤网 F∧S（几何门 G 已通过后）：第37课条件2·3·5（has_nest 时激活）+
 /// 第24课结构力度衰减。返回 `true` ⟺ 结构完美。`Or` 模式下 M 可绕过本滤网（但 G 不可）。
 ///

@@ -59,14 +59,21 @@ pub struct ChainView {
     pub bsps: Vec<ChainBsp>,
     /// 核心级别 = 最高涌现级别（levels.len()-1）；route_bsp 判 level vs core_level 分层。
     pub core_level: usize,
+    /// 区间套 candidate（编排者 2026-06-21）：`candidate[k]` = level_k 走势 c 段力度衰减（顶部附近，
+    /// 不需完整确认）。路由层：次级别 type1_sell fire + 本级别 candidate → 提前 sink（顶部）。
+    pub candidate: Vec<bool>,
 }
 
 impl ChainView {
     pub fn new(nodes: Vec<ChainNode>) -> Self {
-        ChainView { nodes, bsps: Vec::new(), core_level: 0 }
+        ChainView { nodes, bsps: Vec::new(), core_level: 0, candidate: Vec::new() }
     }
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty()
+    }
+    /// 区间套 candidate 查询：level_k 走势是否 c 段力度衰减（顶部附近）。
+    pub fn has_candidate(&self, level: usize) -> bool {
+        self.candidate.get(level).copied().unwrap_or(false)
     }
 }
 
@@ -149,8 +156,12 @@ impl RecDriver {
                     cur = cslot; // 下钻递归检查子
                 }
                 None => {
-                    // type1_sell@level（卖点=减仓+开空方向）→ sink 开次级别做空子。
-                    if bsp_fires(view, level, false) {
+                    // 区间套路由（编排者 2026-06-21）：**次级别(level-1) type1_sell fire + 本级别 candidate**
+                    // （c 段力度衰减）→ 提前 sink（在次级别 fire bar=顶部附近，非等本级别完整确认到回调底）。
+                    // 这让 sink 开空价 c≈顶部（次级别确认早于本级别），修「开在底」根因。
+                    let interval_nest =
+                        level >= 1 && bsp_fires(view, level - 1, false) && view.has_candidate(level);
+                    if interval_nest {
                         match self.root.sink(cur, c, bar) {
                             Some(cslot) => {
                                 if level < 10 {
@@ -254,7 +265,13 @@ pub fn extract_chain(tree: &RecursiveTree) -> ChainView {
             bsps.push(ChainBsp { kind: b.kind, level: b.level, price: b.price, bar: b.bar });
         }
     }
-    ChainView { nodes, bsps, core_level: top_k }
+    // 区间套 candidate（编排者 2026-06-21）：每级别当前走势 c 段力度衰减（顶部附近，不需完整确认）。
+    // 路由层用：次级别 type1_sell fire + 本级别 candidate → 提前 sink（顶部）。
+    let candidate: Vec<bool> = levels
+        .iter()
+        .map(|lvl| lvl.trends.last().map(crate::recursive_t::divergence::trend_candidate).unwrap_or(false))
+        .collect();
+    ChainView { nodes, bsps, core_level: top_k, candidate }
 }
 
 /// 走势方向 → ChainNode 构造辅助（适配器/测试用）。
@@ -288,8 +305,9 @@ mod tests {
         ChainBsp { kind, level, price: 0.0, bar: 0 }
     }
     /// P3b：带 BSP 触发器 + core_level 的视图（sink/recover 现由 BSP 触发，非走势结构）。
+    /// 区间套：candidate 全 true（sink 触发=次级别 type1_sell@(level-1) + 本级别 candidate）。
     fn view_b(nodes: &[ChainNode], bsps: Vec<ChainBsp>, core_level: usize) -> ChainView {
-        ChainView { nodes: nodes.to_vec(), bsps, core_level }
+        ChainView { nodes: nodes.to_vec(), bsps, core_level, candidate: vec![true; core_level + 1] }
     }
     use crate::trading::types::Polarity;
 
@@ -319,8 +337,8 @@ mod tests {
         d.on_view(&view_b(&[up(0, 10, false)], vec![], 1), 100.0, 10); // core enter level=1
         let root = d.root().root_slot().unwrap();
         let u0 = d.root().instance(root).units;
-        // 反向 BSP@核心级别1 → sink 次级别(0)子 T（区间套递归，载体=卖点非走势节点）。
-        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 100.0, 12);
+        // 区间套路由：次级别(0) type1_sell + 本级别(1) candidate → 核心(1) sink 子 T(0)。
+        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 0)], 1), 100.0, 12);
         assert_eq!(d.root().n_active(), 2, "核心 + 次级别子 T");
         assert!((d.root().instance(root).units - u0 * 2.0 / 3.0).abs() < 1e-6, "核心减到 2/3");
         let (_, su) = d.root().exposure();
@@ -333,7 +351,7 @@ mod tests {
         d.on_view(&view_b(&[up(0, 10, false)], vec![], 1), 100.0, 10);
         let root = d.root().root_slot().unwrap();
         let u0 = d.root().instance(root).units;
-        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 110.0, 12); // sink@110
+        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 0)], 1), 110.0, 12); // sink@110（次级别0卖点+本级别1candidate）
         assert_eq!(d.root().n_active(), 2);
         // 本级别买点 type1_buy@1 @90 → recover 子归还核心。
         d.on_view(&view_b(&[up(0, 15, false)], vec![cb(BSPKind::Type1Buy, 1)], 1), 90.0, 15);
@@ -347,7 +365,7 @@ mod tests {
         // 纯 BSP 驱动（删 node_gone 兜底）：无同向平空点 → 子 T 持有。
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view_b(&[up(0, 10, false)], vec![], 1), 100.0, 10);
-        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 110.0, 12);
+        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 0)], 1), 110.0, 12);
         assert_eq!(d.root().n_active(), 2);
         d.on_view(&view_b(&[up(0, 15, false)], vec![], 1), 95.0, 15); // 无 BSP
         assert_eq!(d.root().n_active(), 2, "无平空点，子 T 持有（纯 BSP 驱动）");
@@ -390,12 +408,11 @@ mod tests {
     fn 区间套递归_嵌套子孙同向加深() {
         let mut d = RecDriver::new(100_000.0);
         d.on_view(&view_b(&[up(0, 10, false)], vec![], 2), 100.0, 10); // core enter level=2 (Long)
-        // 同向加深：核心 Long → 所有短差反核心向（Short）。触发由核心方向定（type1_sell@各级别）。
-        // 核心级别2 type1_sell→sink子(L1 Short)；子级别1 type1_sell→sink孙(L0 Short，同向加深做空)。
+        // 区间套路由：核心(2) sink 用次级别(1) type1_sell + candidate[2]；子(1) sink 用次级别(0) type1_sell + candidate[1]。
         d.on_view(
             &view_b(
                 &[up(0, 14, false)],
-                vec![cb(BSPKind::Type1Sell, 2), cb(BSPKind::Type1Sell, 1)],
+                vec![cb(BSPKind::Type1Sell, 1), cb(BSPKind::Type1Sell, 0)],
                 2,
             ),
             100.0,
