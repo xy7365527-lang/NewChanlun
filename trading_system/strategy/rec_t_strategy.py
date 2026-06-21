@@ -49,6 +49,10 @@ class RecTStrategy(Strategy):
         self.n_orders = 0
         self.n_dups = 0
         self.last_target: float = 0.0
+        # 诊断（§9 质询）：敞口符号分布——验证"持有宏观空头"假说。
+        self.n_bars_short = 0
+        self.n_bars_long = 0
+        self.n_bars_flat = 0
 
     # ── 生命周期 ──────────────────────────────────────────────
 
@@ -75,6 +79,12 @@ class RecTStrategy(Strategy):
             bar.close.as_double(),
         )
         self.last_target = target
+        if target > 1e-9:
+            self.n_bars_long += 1
+        elif target < -1e-9:
+            self.n_bars_short += 1
+        else:
+            self.n_bars_flat += 1
         self._rebalance(target)
 
     def _rebalance(self, target_units: float) -> None:
@@ -100,7 +110,14 @@ class RecTStrategy(Strategy):
         self.close_all_positions(self.config.instrument_id)
         ec = self.engine.op_counts()  # (enter, sink, recover, spawn, promote, flip, clear, reruns)
         eng_nav = self.engine.finish()  # 引擎内部模拟 final_nav（对照 NT 真账本）
+        tot = max(1, self.n_bars)
         self.log.info(
             f"RecTStrategy 停止: bars={self.n_bars} orders={self.n_orders} dups={self.n_dups} "
             f"引擎操作(enter/sink/recover/spawn/promote/flip/clear/reruns)={ec} 引擎模拟final_nav={eng_nav:.2f}"
+        )
+        self.log.info(
+            f"敞口分布: 多={self.n_bars_long}({100*self.n_bars_long/tot:.1f}%) "
+            f"空={self.n_bars_short}({100*self.n_bars_short/tot:.1f}%) "
+            f"平={self.n_bars_flat}({100*self.n_bars_flat/tot:.1f}%) "
+            f"[空头占比高=持有宏观空头被牛市轧的直接证据]"
         )

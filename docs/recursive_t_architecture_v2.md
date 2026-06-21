@@ -538,6 +538,48 @@ t2: 反向成长为 L2 走势 → L3 的背驰确认 → L3 级转折坐实     
 - **影响声明**：本节为设计推理（docs 新增 §9），未改代码。落码含义：rec_engine `flip`→`promote` 重写 +
   `extract_chain` core 基级别入场（下一步实装，每步 NT 回测验证）。解消 §8.4，精化 §3.5/§3.6。
 
+### 9.8 L2 实测：promote + emergent 门控落码与"做空陷阱"否定性结果（2026-06-20）
+
+§9.5 落码后经 NautilusTrader BTC（4.6M bar，2017→2021，BH +1380%）逐步验证，产出**否定性结果**
+（缩小有效域，比确认更有价值——formalization-validity-domain L2）：
+
+| 模型 | 全量 strat | 敞口（多/空） | 操作 | 机制 |
+|------|-----------|--------------|------|------|
+| flip（旧 §3.6） | −708% | — | flip 12 | 宏观 L5 翻空持到下次 flip |
+| clear_root | −690% | — | clear 11 | clear 后在 chain[0]=反向重入宏观空 |
+| **promote（§9.3）** | −862% | 18/82% | promote 3/clear 9 | 回调短头升格为**宏观核心空头**，比 clear 轧得更狠 |
+| **+emergent 门控** | **−1069%** | 18.2/81.8% | flip/clear/promote≈0 | **做空陷阱**（见下）|
+
+**emergent 门控**（§9.4 落码）：核心方向权威 = `tree.emergent_top()`（最高**已完成**走势方向，稳定信号），
+顶级反转仅当 emergent_dir 也反转才是真转折；chain[0] 反转但 emergent_dir 不变 = 回调/r\* 跳变伪转折 →
+核心骑趋势不动。**300k 子集验证有效：93% 持多，+44.82%**（消除伪转折，flip/clear/promote=0）。
+
+**但全量 −1069%（做空陷阱，新揭示的 L2 机制）**：`emergent_top` 用最高**已完成**走势，在最高级别严重
+滞后（该走势跨年）。核心一旦在某次真转折翻空（emergent_dir→Short），牛市恢复时 chain[0] 转上但
+emergent_dir 仍滞后为 Short → 门控**对称地**把核心锁死空头，直到一个上涨走势在最高级别**完成**（要等
+数年）→ 81.8% 时间持宏观空头被牛市轧。300k 未遇真转折（核心始终多）故 +44%；全量遇转折后永久套牢。
+
+**根因质询（§9 promote 的有效域边界）**：三操作模型（flip/clear/promote）+ emergent 门控全失败，根因相同
+=**宏观核心一旦净做空即在牛市灾难**。对照 v3 operate.rs +901%（[[project_t_operation_self_replication]]）：
+其架构差异是**宏观核心从不净做空**（只多/平，root_direction 持多骑牛），净空头**只来自 1/3 sink 短差**
+（次级别回调，有界）。§9.3 的 promote（把空头子 T 升格为**宏观核心**）正是制造宏观净空头 = 灾难根源。
+
+**有效域结论**：emergent 门控有效域 = `emergent_top` 不严重滞后时（短/单调期，如 300k）；全域（长牛 + 中间
+真转折）失效。这是 emergent_top 在最高级别的**确认滞后**（区间套时序差 Q4，记忆阶梯 50000b，
+[[project_interval_nesting_forward]]）的直接后果——最高涌现级别无非滞后的转折信号（base case 内禀歧义 §9.5）。
+
+**未决（升 §10 待裁决轴）**：宏观核心应否净做空？两读法：
+- **读法 A（v3 同构）**：宏观核心只多/平，净空头只经 sink 短差（1/3，有界，[[project_t_short_leg_regime_function]]
+  做空腿=亏损唯一来源的跨标的二次确认）。代价：放弃真熊市（2018/2022）的宏观顺势做空。
+- **读法 B（§9.3 原文严格）**：26课:34 次级别必开空头 → 转折坐实时 promote 为宏观核心空（保留全做空能力）。
+  代价：最高级别确认滞后致做空陷阱（实测 −1069%）。
+- **张力**：读法 A 牺牲熊市顺势（有效域=非上行 regime），读法 B 牺牲牛市抗套牢——这是 regime 函数的又一显形
+  （非单一最优），非可由定义自决的实现细节 ⟹ 走 §9 再质询（编排者 item 4）。
+
+**影响声明（§9.8）**：rec_engine `promote` + n_promotes（commit 94881db）；rec_driver emergent 门控
+（ChainView.emergent_dir + 顶级反转门控）；rec_t_strategy/rec_backtest 敞口分布诊断。33 rust 测试绿。
+有效域 L2 标注：emergent 门控仅在 emergent_top 不滞后时有效，做空陷阱是全域否定性结果。
+
 ---
 
 ## 10. 结果包六要素
