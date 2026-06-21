@@ -356,6 +356,34 @@ mod tests {
                             );
                         }
                     }
+                    // 编排者：直接查每对 sink-recover 的开空价 vs 平空价。平得晚=c2>c1(价涨回才平=做空亏)。
+                    let (mut late, mut good) = (0u64, 0u64);
+                    let (mut dropped_but_late, mut never_dropped) = (0u64, 0u64);
+                    for &(_lvl, c1, c2, low, _r) in log.iter() {
+                        if c2 > c1 + 1e-9 {
+                            late += 1; // 平空价>开空价=做空亏（平得晚或开得早）
+                            if low < c1 - c1 * 0.003 {
+                                dropped_but_late += 1; // 期间跌过(low<c1)但平在高位=平得晚(错过低点,ep2式)
+                            } else {
+                                never_dropped += 1; // 期间几乎没跌(low≈c1)=开在底部
+                            }
+                        } else {
+                            good += 1; // 平空价≤开空价=做空赚
+                        }
+                    }
+                    eprintln!(
+                        "  [{sym}/{mode:?}] sink-recover价格对: 总{} | 平价>开价(亏){}(其中跌过却平高位={} 没跌过={}) | 平价≤开价(赚){}",
+                        log.len(), late, dropped_but_late, never_dropped, good
+                    );
+                    eprintln!("  亏损对样本(开空c1/平空c2/期间最低low | c2−c1涨幅% | c1−low期间跌幅):");
+                    for &(lvl, c1, c2, low, realized) in log.iter().filter(|t| t.2 > t.1 + 1e-9).take(12) {
+                        eprintln!(
+                            "    L{lvl} 开空={c1:.0} 平空={c2:.0} 最低={low:.0} | 平价高{:+.1}% | 期间跌过={:.0} realized={realized:.0} {}",
+                            100.0 * (c2 - c1) / c1,
+                            c1 - low,
+                            if low < c1 - c1 * 0.003 { "←跌过却平高位=平得晚(ep2式)" } else { "←没跌过=开在底" }
+                        );
+                    }
                 }
                 assert!(fin.is_finite(), "[{sym}] final_nav 有限（NaN/Inf=会计 bug）");
             }

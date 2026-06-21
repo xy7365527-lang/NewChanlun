@@ -413,7 +413,9 @@ impl TRoot {
         } else if inst.phase == RecStage::CapitalRecovered {
             self.try_withdraw(slot);
         } else if inst.phase == RecStage::EarningShares && realized > 0.0 {
-            inst.earning = (inst.earning + realized).min(self.free.max(0.0));
+            // 会计双重性（编排者 2026-06-21）：③阶段 realized 利润**无条件累积**入 earning 标签——
+            // realized 已由 rec_reduce 入 free，earning 是归属标签，不应因瞬时 free cap 截断丢失（破坏双重性）。
+            inst.earning += realized;
         }
     }
 
@@ -439,6 +441,13 @@ impl TRoot {
         }
         if self.instances[slot].withdrawn >= self.instances[slot].notional_in - EPS {
             self.instances[slot].phase = RecStage::EarningShares;
+        } else if self.instances[slot].units <= EPS {
+            // fail-loud（§8.1 镜像，编排者 2026-06-21）：仓位几乎全平但退本金未完成 = 降成本 gain
+            // 应已回 free 却不足 → 上游会计 bug（phase 会 stuck 在 CapitalRecovered 无法切③）。
+            panic!(
+                "退本金未完成但仓位已空（结构检测 bug，§8.1 镜像）：withdrawn={} notional_in={} free={}",
+                self.instances[slot].withdrawn, self.instances[slot].notional_in, self.free
+            );
         }
     }
 
@@ -569,8 +578,8 @@ impl TRoot {
             }
         }
         let m_short = self.instances[child_slot].units; // 子树归还后，子恢复完整 units = sink 减出量 N
-        let c1_sink = self.instances[child_slot].basis; // 诊断：子 T 开空价（sink 价 c1），reduce 后变 NaN 故先抓
-        let low_since = self.instances[child_slot].low_since; // 诊断：持仓期间极值（reduce 前抓）
+        let c1_sink = self.instances[child_slot].node.price_hi; // 诊断：子 T **原始开空价**（sink 设 c,c，不被孙搅动）
+        let low_since = self.instances[child_slot].low_since; // 诊断：持仓期间最低价（reduce 前抓）
         let clevel = self.instances[child_slot].level; // 诊断：子 T 级别
         let pdir = self.instances[parent_slot].direction;
         let tw_pre = self.total_wealth(c);
@@ -592,8 +601,9 @@ impl TRoot {
         let mut q = match phase {
             RecStage::CostReduction | RecStage::CapitalRecovered => m_short, // 同股数（恒仓回复）
             RecStage::EarningShares => {
-                let cash = self.instances[parent_slot].earning.min(self.free.max(0.0));
-                cash / c // 同金额（增股数）
+                // 会计双重性：全量部署 earning 弹药（同金额增股数），不因瞬时 free cap 截断 stranded。
+                // earning ≤ free 物理保证（③阶段利润在 free）；若 earning>free 则下方 §8.1 fail-loud 揭示上游 bug。
+                self.instances[parent_slot].earning / c
             }
         };
         if q > EPS {
