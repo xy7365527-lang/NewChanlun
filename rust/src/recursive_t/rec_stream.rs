@@ -37,6 +37,15 @@ pub struct RecStream {
     last_cs_segs: usize,
     /// 重跑次数（性能 + 诊断）。
     pub n_reruns: u64,
+    /// 诊断：chain[0]（最高级别走势）方向 bar 加权分布——定位 82% 持空根因（extract_chain vs 操作）。
+    last_c0: i8, // 1=up, -1=down, 0=none
+    pub c0_up_bars: u64,
+    pub c0_down_bars: u64,
+    /// 诊断：核心(root)方向 + 净敞口符号 bar 加权（区分核心方向错 vs sink/exposure 主导）。
+    pub core_long_bars: u64,
+    pub core_short_bars: u64,
+    pub net_long_bars: u64,
+    pub net_short_bars: u64,
 }
 
 impl RecStream {
@@ -55,6 +64,13 @@ impl RecStream {
             last_stroke_n: 0,
             last_cs_segs: 0,
             n_reruns: 0,
+            last_c0: 0,
+            c0_up_bars: 0,
+            c0_down_bars: 0,
+            core_long_bars: 0,
+            core_short_bars: 0,
+            net_long_bars: 0,
+            net_short_bars: 0,
         }
     }
 
@@ -91,8 +107,34 @@ impl RecStream {
                     extract_chain(&tree)
                 };
                 self.n_reruns += 1;
+                // 诊断：记录本次 chain[0]（最高级别走势）方向。
+                self.last_c0 = match view.nodes.first().map(|n| n.node.direction) {
+                    Some(crate::recursive_t::types::Direction::Up) => 1,
+                    Some(crate::recursive_t::types::Direction::Down) => -1,
+                    None => 0,
+                };
                 self.driver.on_view(&view, c, bar);
             }
+        }
+        // bar 加权 chain[0] 方向（持续到下次重跑）。
+        match self.last_c0 {
+            1 => self.c0_up_bars += 1,
+            -1 => self.c0_down_bars += 1,
+            _ => {}
+        }
+        // bar 加权核心(root)方向 + 净敞口符号。
+        let root = self.driver.root();
+        if let Some(rs) = root.root_slot() {
+            match root.instance(rs).direction {
+                crate::trading::types::Polarity::Long => self.core_long_bars += 1,
+                crate::trading::types::Polarity::Short => self.core_short_bars += 1,
+            }
+        }
+        let (lu, su) = root.exposure();
+        if lu - su > 1e-9 {
+            self.net_long_bars += 1;
+        } else if su - lu > 1e-9 {
+            self.net_short_bars += 1;
         }
         self.cur_bar += 1;
     }
@@ -182,6 +224,9 @@ mod tests {
              strat={strat:+.2}%  bh={bh:+.2}%  final_nav={fin:.2}\n\
              操作: enter={} sink={} recover={} spawn={} flip={} 退本金={}\n\
              short_leg_pnl={:+.0}  期末活跃实例={}\n\
+             chain[0]方向分布: up={}({:.1}%) down={}({:.1}%)\n\
+             核心(root)方向: long={}({:.1}%) short={}({:.1}%)\n\
+             净敞口符号: long={}({:.1}%) short={}({:.1}%) [对比chain0定位根因]\n\
              ====================================================",
             s.n_reruns,
             t0.elapsed().as_secs_f64(),
@@ -193,6 +238,18 @@ mod tests {
             r.n_capital_recovered,
             r.short_leg_pnl,
             r.n_active(),
+            s.c0_up_bars,
+            100.0 * s.c0_up_bars as f64 / n.max(1) as f64,
+            s.c0_down_bars,
+            100.0 * s.c0_down_bars as f64 / n.max(1) as f64,
+            s.core_long_bars,
+            100.0 * s.core_long_bars as f64 / n.max(1) as f64,
+            s.core_short_bars,
+            100.0 * s.core_short_bars as f64 / n.max(1) as f64,
+            s.net_long_bars,
+            100.0 * s.net_long_bars as f64 / n.max(1) as f64,
+            s.net_short_bars,
+            100.0 * s.net_short_bars as f64 / n.max(1) as f64,
         );
         // 诊断测试：final_nav 可为负（核心 flip 翻空在 BTC 牛市被轧 = 真实灾难结果，非 bug；
         // TW 守恒守卫已全程零 panic 证会计正确）。只断言有限（NaN/Inf = 真 bug）。

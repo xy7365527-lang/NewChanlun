@@ -79,8 +79,13 @@ impl RecDriver {
                 let rnode = self.root.instance(root).node;
                 let rdir = self.root.instance(root).direction;
                 let d0 = view.nodes[0];
-                if d0.node.start_bar != rnode.start_bar {
-                    if dir_to_polarity(d0.node.direction) == rdir {
+                // 顶级变化判据 = start_bar **或** 方向不同（修复绝对/相对裂缝，编排者 2026-06-20）：
+                // r* 涨落致更高级别涌现时，新级别走势因封装恒等式共用同一 start_bar 但方向不同——
+                // 仅比 start_bar（§8.6）会误判"同节点"不更新 ⟹ 核心卡旧方向（82% 持空 vs chain[0] up 62%）。
+                // 加方向比对使**核心方向始终跟随最高级别走势方向**（走势方向决定操作方向）。
+                let d0_pol = dir_to_polarity(d0.node.direction);
+                if d0.node.start_bar != rnode.start_bar || d0_pol != rdir {
+                    if d0_pol == rdir {
                         // 更高同向走势涌现（包含 root）→ spawn relabel 升格（核心骑趋势上行）。
                         self.root.spawn(d0.node, c, bar);
                     } else {
