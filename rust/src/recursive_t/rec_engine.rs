@@ -39,9 +39,6 @@ const MOBILE_FRAC: f64 = 1.0 / 3.0;
 /// NAV/TW 中性容差（同 accounting/prove 口径）。
 const EPS: f64 = 1e-9;
 
-/// 多重赋格最大级别数（绝对级别 0..MAX_LEVELS 各持一条对核心的短差腿，编排者 2026-06-21）。
-const MAX_LEVELS: usize = 16;
-
 // ════════════════════════════ 走势节点身份（A1：仓位骑节点，非绝对 ladder）════════════════════════════
 
 /// 走势节点身份。重锚键 = `start_bar`（依赖 iterate 的 append-only 前缀冻结使其稳定——§8.6 该性质
@@ -139,9 +136,12 @@ pub struct TInstance {
     pub withdrawn: f64,
     /// 本实例③阶段弹药份额（物理在 root.free）。
     pub earning: f64,
-    /// 短差腿的父核心引用（核心 parent=None）。多重赋格：核心可同时有多条级别短差腿，
-    /// 父→子关系由 `TRoot.level_short[k]` 索引（非单链 `child`，编排者 2026-06-21 扁平重构）。
     pub parent: Option<TRef>,
+    /// 当前回调对冲子 T（区间套递归嵌套：子骑父的次级别回调，ε 对称方向；编排者 2026-06-21）。
+    /// 至多一个活跃子——T 实例在操作时诞生（sink 创造）、recover 时归还（删除）。多声部=链的递归深度。
+    pub child: Option<TRef>,
+    /// 仓位骑的走势**绝对级别**（核心=core_level，子=父级别−1）。reconcile 按此级别查区间套确认的 BSP。
+    pub level: usize,
     pub lifecycle: TLifecycle,
     /// 代际（dormant 复活时++）。
     pub generation: u64,
@@ -160,6 +160,8 @@ impl TInstance {
             withdrawn: 0.0,
             earning: 0.0,
             parent: None,
+            child: None,
+            level: 0,
             lifecycle: TLifecycle::Dormant,
             generation,
         }
@@ -232,9 +234,6 @@ pub struct TRoot {
     instances: Vec<TInstance>,
     /// 当前最高涌现级别实例（核心，无父，持多骑牛）。None=全空。
     root_slot: Option<usize>,
-    /// 多重赋格：每**绝对级别** k 当前对核心的短差腿引用（编排者 2026-06-21）。所有级别并行——
-    /// type1_sell@k → `level_short[k]` 建空（核心减 quota），type1_buy@k → 平空升回核心。删单链 `child`。
-    level_short: [Option<TRef>; MAX_LEVELS],
     last_close: f64,
     // ── 观测计数（纯诊断）──
     pub n_enters: u64,
@@ -262,7 +261,6 @@ impl TRoot {
             withdrawn_total: 0.0,
             instances: Vec::new(),
             root_slot: None,
-            level_short: [None; MAX_LEVELS],
             last_close: f64::NAN,
             n_enters: 0,
             n_sinks: 0,
@@ -318,11 +316,6 @@ impl TRoot {
     }
     pub fn root_slot(&self) -> Option<usize> {
         self.root_slot
-    }
-    /// 多重赋格：绝对级别 k 当前是否有对核心的短差腿（driver reconcile 判 sink vs recover）。
-    /// 引用失效（ABA / 已 dormant）视作无短差。
-    pub fn has_level_short(&self, k: usize) -> bool {
-        self.level_short.get(k).copied().flatten().and_then(|r| self.resolve(r)).is_some()
     }
     pub fn instance(&self, slot: usize) -> &TInstance {
         &self.instances[slot]
@@ -426,8 +419,8 @@ impl TRoot {
 
     // ──────────────── τ 操作 ────────────────
 
-    /// **enter**（根首仓）：空树时在最高涌现走势 node 上用全部 free 建核心仓（方向 = node 方向）。
-    pub fn enter(&mut self, node: TrendNode, c: f64, bar: i64) -> Option<usize> {
+    /// **enter**（根首仓）：空树时在最高涌现走势 node（绝对级别 `level`）上用全部 free 建核心仓。
+    pub fn enter(&mut self, node: TrendNode, level: usize, c: f64, bar: i64) -> Option<usize> {
         let _ = bar;
         if self.root_slot.is_some() || c <= 0.0 {
             return None;
@@ -443,6 +436,8 @@ impl TRoot {
             let inst = &mut self.instances[slot];
             inst.node = node;
             inst.direction = dir;
+            inst.level = level;
+            inst.child = None;
             inst.lifecycle = TLifecycle::Active;
             inst.parent = None;
             inst.notional_in = m * c;
@@ -460,39 +455,44 @@ impl TRoot {
         Some(slot)
     }
 
-    /// **sink**（type1 卖点@绝对级别 `level` 触发，C1 北极星：直接消费 BSP，载体=卖点自身非走势节点）：
-    /// 核心减仓 m=quota 到现金 + 建级别-`level` 短差腿持空 m（同股数，方向反核心向）。返回短差槽。
-    /// 编排者 2026-06-21：所有级别并行 sink，`level_short[level]` 记账（删单链 child + 走势节点 gate）。
-    /// 载体节点合成（方向反核心向、价位 c）——卖点即做空载体，不依赖 extract_chain 投影的回调走势。
-    pub fn sink(&mut self, level: usize, c: f64, bar: i64) -> Option<usize> {
+    /// **sink**（区间套确认的反向 BSP@父级别触发，C1 北极星：直接消费 BSP，载体=卖点自身非走势节点）：
+    /// 父仓位（`parent_slot`，核心或子 T）减仓 m=quota 到现金 + 在**次级别**（父级别−1）建子 T 持反向仓 m
+    /// （同股数，ε 对称：父多→子空 / 父空→子多）。返回子 T 槽。编排者 2026-06-21：区间套递归嵌套——
+    /// 子 T 在操作时诞生（reduce 创造次级别仓位），骑父走势的次级别回调。载体合成（反父向、价位 c）。
+    pub fn sink(&mut self, parent_slot: usize, c: f64, bar: i64) -> Option<usize> {
         let _ = bar;
-        let parent_slot = self.root_slot?;
-        if c <= 0.0 || level >= MAX_LEVELS || !self.instances[parent_slot].is_active() {
+        if c <= 0.0 || !self.instances[parent_slot].is_active() {
             return None;
         }
-        if self.has_level_short(level) {
-            return None; // 该级别已有短差腿，recover 后才能再 sink（避免同级别叠加）
+        if self.instances[parent_slot].child.is_some() {
+            return None; // 已有活跃子 T（recover 后才能再 sink，避免叠加）
+        }
+        let plevel = self.instances[parent_slot].level;
+        if plevel == 0 {
+            return None; // a0 笔层无更次级别可下放（递归 base case）
         }
         let pdir = self.instances[parent_slot].direction;
-        let mob = flip_pol(pdir); // 短差腿方向 = 反核心向（核心 Long→空 / 核心 Short→多，ε 对称）
+        let mob = flip_pol(pdir); // 子 T 方向 = 反父向（ε 对称：父多→子空 / 父空→子多）
         let u_p = self.instances[parent_slot].units;
         let m = quota(u_p);
         if !(m > EPS && m.is_finite()) || m > u_p + EPS {
             return None;
         }
         let tw_pre = self.total_wealth(c);
-        // 核心减仓到现金，realized 降成本（方向对称）。
+        // 父仓位减仓到现金，realized 降成本（方向对称）。
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[parent_slot], m, &mut free, c);
         self.free = free;
         self.account_core_reduce(parent_slot, realized, c);
-        // 建级别-level 短差腿，开空 m（同股数）。载体 = 合成节点（反核心向、价位 c）= 卖点定义的做空。
+        // 建次级别（父级别−1）子 T，开反向仓 m（同股数）。载体 = 合成节点（反父向、价位 c）。
         let cb_dir = if mob == Polarity::Long { Direction::Up } else { Direction::Down };
         let child_slot = self.alloc_slot();
         let pref = self.instances[parent_slot].self_ref(parent_slot);
         {
             let child = &mut self.instances[child_slot];
             child.node = TrendNode::new(bar, bar, c, c, cb_dir);
+            child.level = plevel - 1; // 次级别（区间套递归下钻一层）
+            child.child = None;
             child.lifecycle = TLifecycle::Active;
             child.parent = Some(pref);
             child.cost_basis = f64::NAN; // 短差腿不走核心降成本
@@ -505,27 +505,24 @@ impl TRoot {
         rec_add(&mut self.instances[child_slot], m, mob, &mut free, c);
         self.free = free;
         let cref = self.instances[child_slot].self_ref(child_slot);
-        self.level_short[level] = Some(cref);
+        self.instances[parent_slot].child = Some(cref);
         self.n_sinks += 1;
         self.prove_tw_neutral(tw_pre, c);
         Some(child_slot)
     }
 
-    /// **recover**（type1 平空点@绝对级别 `level` 触发，底背驰）：级别-`level` 短差腿平仓
-    /// （realized=降成本 alpha 入 short_leg_pnl）+ 核心按 phase 升回（CostReduction 同股数 m /
-    /// EarningShares 同金额 earning/c = 增股数）。编排者 2026-06-21：父=核心（root_slot），子=level_short[level]。
+    /// **recover**（区间套确认的同向 BSP@父级别触发，回调结束）：父仓位（`parent_slot`）的子 T 平仓
+    /// （realized=降成本 alpha 入 short_leg_pnl）+ 父按 phase 升回（CostReduction 同股数 m /
+    /// EarningShares 同金额 earning/c = 增股数）。编排者 2026-06-21：子 = parent.child（区间套递归归还）。
     ///
-    /// §8.1：核心回补**全量同股数**（CostReduction），free 不足 = 结构 bug → fail-loud panic。
-    pub fn recover(&mut self, level: usize, c: f64, bar: i64) -> bool {
+    /// §8.1：父回补**全量同股数**（CostReduction），free 不足 = 结构 bug → fail-loud panic。
+    pub fn recover(&mut self, parent_slot: usize, c: f64, bar: i64) -> bool {
         let _ = bar;
-        if level >= MAX_LEVELS {
-            return false;
-        }
-        let (Some(parent_slot), Some(child_ref)) = (self.root_slot, self.level_short[level]) else {
-            return false; // 核心空 / 该级别无短差腿
+        let Some(child_ref) = self.instances[parent_slot].child else {
+            return false; // 无活跃子 T
         };
         let Some(child_slot) = self.resolve(child_ref) else {
-            self.level_short[level] = None; // ABA：引用失效，清账
+            self.instances[parent_slot].child = None; // ABA：引用失效，清账
             return false;
         };
         if c <= 0.0 || !self.instances[child_slot].is_active() {
@@ -567,16 +564,17 @@ impl TRoot {
                     self.n_freeshort_profit += 1; // 短差盈利却 free 不足 = 多级别现金流耦合（非 C3 亏损短差）
                 }
                 if self.first_freeshort.is_none() {
+                    let plevel = self.instances[parent_slot].level;
                     let core_u = self.instances[parent_slot].units;
                     let short_u = self.exposure().1;
-                    self.first_freeshort = Some((level, core_u, short_u, self.free, q * c, realized));
+                    self.first_freeshort = Some((plevel, core_u, short_u, self.free, q * c, realized));
                 }
                 if self.diag_no_panic {
                     q = (self.free / c).max(0.0); // 诊断脚手架：同金额兜底跑完全程（非 §8.1 修复）
                 } else {
                     panic!(
-                        "free 不足以同股数多头回补（结构检测 bug，§8.1）：level={} free={} need={} c={} c1_sink={} realized={}",
-                        level, self.free, q * c, c, c1_sink, realized
+                        "free 不足以同股数多头回补（结构检测 bug，§8.1）：plevel={} free={} need={} c={} c1_sink={} realized={}",
+                        self.instances[parent_slot].level, self.free, q * c, c, c1_sink, realized
                     );
                 }
             }
@@ -590,9 +588,9 @@ impl TRoot {
                 }
             }
         }
-        // 子 T 注销 → dormant（generation 保留，复活时++）+ 清级别短差账。
+        // 子 T 注销 → dormant（generation 保留，复活时++）+ 清父 child 链。
         self.dormant_instance(child_slot);
-        self.level_short[level] = None;
+        self.instances[parent_slot].child = None;
         self.n_recovers += 1;
         self.prove_tw_neutral(tw_pre, c);
         true
@@ -602,7 +600,7 @@ impl TRoot {
     /// **整体迁到**更高走势 node 的新实例（units/basis/cost_basis/campaign/回调链全继承），老 root → dormant。
     /// 核心骑上更高级别走势（相对级别升一层），**零现金流**（仓位身份迁移，同价 TW 中性）。返回新 root 槽。
     /// 方向不一致（涌现反向 = 29课情况三）→ 返回 None（调用方应走 flip，§3.5 第三态）。
-    pub fn spawn(&mut self, higher_node: TrendNode, c: f64, bar: i64) -> Option<usize> {
+    pub fn spawn(&mut self, higher_node: TrendNode, level: usize, c: f64, bar: i64) -> Option<usize> {
         let _ = bar;
         let root = self.root_slot?;
         let new_dir = dir_to_polarity(higher_node.direction);
@@ -617,6 +615,7 @@ impl TRoot {
             let np = &mut self.instances[new_slot];
             np.node = higher_node;
             np.direction = old.direction;
+            np.level = level; // 核心升级到更高涌现级别（区间套顶层上移）
             np.units = old.units; // 持仓整体继承（relabel，非新建）
             np.basis = old.basis;
             np.cost_basis = old.cost_basis;
@@ -626,14 +625,13 @@ impl TRoot {
             np.earning = old.earning;
             np.lifecycle = TLifecycle::Active;
             np.parent = None;
+            np.child = old.child; // 回调嵌套链继承
         }
-        // 多重赋格：所有级别短差腿的父核心 relabel → parent 重指向新核心（编排者 2026-06-21）。
-        let nref = self.instances[new_slot].self_ref(new_slot);
-        for k in 0..MAX_LEVELS {
-            if let Some(cref) = self.level_short[k] {
-                if let Some(cslot) = self.resolve(cref) {
-                    self.instances[cslot].parent = Some(nref);
-                }
+        // 老核心的回调子 T（若有）parent 重指向新核心（区间套递归链继承）。
+        if let Some(cref) = old.child {
+            if let Some(cslot) = self.resolve(cref) {
+                let nref = self.instances[new_slot].self_ref(new_slot);
+                self.instances[cslot].parent = Some(nref);
             }
         }
         self.dormant_instance(root);
@@ -671,7 +669,6 @@ impl TRoot {
                 }
             }
             self.root_slot = None;
-            self.level_short = [None; MAX_LEVELS];
         }
         self.last_close = c;
         self.free
@@ -700,8 +697,9 @@ mod tests {
     #[test]
     fn enter_首仓全仓建核心_tw中性() {
         let mut r = TRoot::new(100_000.0);
-        let slot = r.enter(up_node(0, 10), 100.0, 0).unwrap();
+        let slot = r.enter(up_node(0, 10), 3, 100.0, 0).unwrap();
         assert_eq!(r.instances[slot].direction, Polarity::Long);
+        assert_eq!(r.instances[slot].level, 3, "核心级别 = enter 传入");
         assert!((r.instances[slot].units - 1000.0).abs() < 1e-6, "全仓 1000 units");
         assert!((r.total_wealth(100.0) - 100_000.0).abs() < 1e-4, "建仓 TW 中性");
         assert_eq!(r.root_slot, Some(slot));
@@ -710,58 +708,55 @@ mod tests {
     #[test]
     fn enter_方向由走势node定_down走势建空() {
         let mut r = TRoot::new(100_000.0);
-        let slot = r.enter(down_node(0, 10), 100.0, 0).unwrap();
+        let slot = r.enter(down_node(0, 10), 2, 100.0, 0).unwrap();
         assert_eq!(r.instances[slot].direction, Polarity::Short, "Down 走势 → Short 核心（N2 方向由节点定）");
     }
 
-    // ──────────────── sink：子 T 骑回调持空（同股数）────────────────
+    // ──────────────── sink：区间套递归——子 T 骑次级别回调持反向仓（同股数）────────────────
 
     #[test]
-    fn sink_父持多_级别短差持空_同股数() {
+    fn sink_父持多_次级别子T持空_同股数() {
         let mut r = TRoot::new(100_000.0);
-        let p = r.enter(up_node(0, 10), 100.0, 0).unwrap();
+        let p = r.enter(up_node(0, 10), 2, 100.0, 0).unwrap();
         let u_p = r.instances[p].units;
-        // type1_sell@级别1 → sink：核心减 quota + 建级别-1 短差持空（载体=卖点，方向反核心向）。
-        let child = r.sink(1, 100.0, 10).unwrap();
-        // 核心减仓到 2/3。
+        // 反向 BSP@核心级别 → sink：核心减 quota + 在次级别(1)建子 T 持空（载体=卖点，方向反父向）。
+        let child = r.sink(p, 100.0, 10).unwrap();
         assert!((r.instances[p].units - u_p * 2.0 / 3.0).abs() < 1e-6, "核心减到 2/3");
-        // 短差腿持空 1/3（同股数 = 核心减出的 m）。
-        assert_eq!(r.instances[child].direction, Polarity::Short, "短差腿持空");
-        assert!((r.instances[child].units - u_p / 3.0).abs() < 1e-6, "同股数：短差 = 核心减出的 1/3");
-        // TW 中性。
+        assert_eq!(r.instances[child].direction, Polarity::Short, "子 T 持空");
+        assert_eq!(r.instances[child].level, 1, "子 T 在次级别（父级别−1）");
+        assert!((r.instances[child].units - u_p / 3.0).abs() < 1e-6, "同股数：子 T = 核心减出的 1/3");
         assert!((r.total_wealth(100.0) - 100_000.0).abs() < 1e-4, "sink TW 中性");
-        // 多重赋格：级别1 有短差腿，父子互指。
-        assert!(r.has_level_short(1) && r.instances[child].parent.is_some());
+        assert!(r.instances[p].child.is_some() && r.instances[child].parent.is_some());
     }
 
     #[test]
-    fn sink_同级别已有短差_拒绝重复() {
+    fn sink_已有子T拒绝重复_次级别可递归() {
         let mut r = TRoot::new(100_000.0);
-        r.enter(up_node(0, 10), 100.0, 0).unwrap();
-        assert!(r.sink(1, 100.0, 10).is_some(), "级别1 首次 sink");
-        assert!(r.sink(1, 100.0, 11).is_none(), "级别1 已有短差腿，拒绝重复 sink（recover 后才能再 sink）");
-        // 不同级别可并行 sink（多声部）。
-        assert!(r.sink(2, 100.0, 12).is_some(), "级别2 独立 sink（并行多声部）");
+        let p = r.enter(up_node(0, 10), 2, 100.0, 0).unwrap();
+        let child = r.sink(p, 100.0, 10).unwrap(); // 核心(2)→子(1)
+        assert!(r.sink(p, 100.0, 11).is_none(), "核心已有子 T，拒绝重复 sink（recover 后才能再 sink）");
+        // 子 T(1) 可递归 sink 到孙(0)（区间套下钻，多声部自然涌现）。
+        assert!(r.sink(child, 100.0, 12).is_some(), "子 T 递归 sink 到次次级别");
+        // 孙 T(0) 在 a0 笔层，无更次级别 → 递归 base case。
+        let gc = r.resolve(r.instances[child].child.unwrap()).unwrap();
+        assert_eq!(r.instances[gc].level, 0, "孙 T 在 a0 笔层");
+        assert!(r.sink(gc, 100.0, 13).is_none(), "a0 笔层无更次级别（base case）");
     }
 
-    // ──────────────── recover：子 T 平空升回（降成本）────────────────
+    // ──────────────── recover：子 T 平仓升回父（降成本）────────────────
 
     #[test]
     fn recover_回调完成_子T平空升回_降成本同股数() {
         let mut r = TRoot::new(100_000.0);
-        let p = r.enter(up_node(0, 10), 100.0, 0).unwrap();
+        let p = r.enter(up_node(0, 10), 2, 100.0, 0).unwrap();
         let u0 = r.instances[p].units;
-        let child = r.sink(1, 110.0, 10).unwrap(); // 核心高位(110)减仓+级别1开空@110
-        // 回调走势完成（底背驰）@90 < 起点110 → 短差腿平空(@90 降成本)+核心升回。
-        assert!(r.recover(1, 90.0, 20));
-        // 短差腿注销。
-        assert!(!r.instances[child].is_active(), "短差腿平空后 dormant");
-        // 父核心恒仓恢复（同股数：升回 = sink 减出的 m）。
+        let child = r.sink(p, 110.0, 10).unwrap(); // 核心高位(110)减仓+次级别开空@110
+        // 回调走势完成（底背驰）@90 < 起点110 → 子 T 平空(@90 降成本)+父升回。
+        assert!(r.recover(p, 90.0, 20));
+        assert!(!r.instances[child].is_active(), "子 T 平空后 dormant");
         assert!((r.instances[p].units - u0).abs() < 1e-6, "核心恒仓恢复原股数");
-        // 降成本 alpha：卖110买90，TW > 纯持有（现金价差留存）。@90 收尾 free 有结余。
         let nav90 = r.nav(90.0);
         assert!(nav90 > u0 * 90.0 + 1.0, "短差价差使 NAV 超纯持有（降成本）");
-        // 短差腿 pnl 记账（子 T Short 平空）。
         assert!(r.short_leg_pnl > 0.0, "高开低平短差腿盈利");
     }
 
@@ -770,24 +765,25 @@ mod tests {
     fn recover_free不足_fail_loud() {
         // §8.1：回调"终点高于起点"（卖90买110，非真回调）→ 同股数回补 free 不足 → panic。
         let mut r = TRoot::new(100_000.0);
-        r.enter(up_node(0, 10), 100.0, 0).unwrap();
-        r.sink(1, 90.0, 10).unwrap(); // 低位(90)减仓+级别1开空@90
+        let p = r.enter(up_node(0, 10), 2, 100.0, 0).unwrap();
+        r.sink(p, 90.0, 10).unwrap(); // 低位(90)减仓+次级别开空@90
         // 回补@200（终点>起点，非回调=亏损短差）：同股数回补需 m·200，远超 sink@90 回笼现金 → fail-loud。
-        r.recover(1, 200.0, 20);
+        r.recover(p, 200.0, 20);
     }
 
-    // ──────────────── spawn / flip（base case）────────────────
+    // ──────────────── spawn（核心升级，base case）────────────────
 
     #[test]
     fn spawn_涌现更高走势_relabel继承持仓_方向一致() {
         let mut r = TRoot::new(100_000.0);
-        let p = r.enter(up_node(5, 10), 100.0, 0).unwrap();
+        let p = r.enter(up_node(5, 10), 1, 100.0, 0).unwrap();
         let u0 = r.instances[p].units;
         let tw = r.total_wealth(100.0);
-        // 涌现更高 Up 走势（start_bar 更早=包含 root，方向一致）→ spawn relabel 升格。
-        let np = r.spawn(up_node(0, 20), 100.0, 20).unwrap();
+        // 涌现更高 Up 走势（start_bar 更早=包含 root，方向一致）→ spawn relabel 升格到级别 2。
+        let np = r.spawn(up_node(0, 20), 2, 100.0, 20).unwrap();
         assert_eq!(r.root_slot, Some(np), "新实例成为 root");
         assert_ne!(np, p, "relabel 到新槽");
+        assert_eq!(r.instances[np].level, 2, "核心升级到更高级别");
         assert!((r.instances[np].units - u0).abs() < 1e-9, "持仓整体继承（relabel 非新建零仓）");
         assert_eq!(r.instances[np].direction, Polarity::Long);
         assert!(!r.instances[p].is_active(), "老 root → dormant");
@@ -795,23 +791,23 @@ mod tests {
     }
 
     #[test]
-    fn spawn_继承级别短差_parent重指向() {
+    fn spawn_继承子T链_parent重指向() {
         let mut r = TRoot::new(100_000.0);
-        r.enter(up_node(5, 10), 100.0, 0).unwrap();
-        let child = r.sink(1, 100.0, 10).unwrap(); // 级别1 短差腿
-        let np = r.spawn(up_node(0, 20), 100.0, 20).unwrap();
-        // 多重赋格继承：核心 relabel，级别短差腿 parent 重指向新核心。
-        assert!(r.has_level_short(1), "spawn 后级别短差腿仍在");
-        assert_eq!(r.instances[child].parent.unwrap().slot, np, "短差腿 parent 重指向新核心");
-        assert!(r.instances[child].is_active(), "短差腿存活");
+        let p = r.enter(up_node(5, 10), 2, 100.0, 0).unwrap();
+        let child = r.sink(p, 100.0, 10).unwrap(); // 核心有回调子 T
+        let np = r.spawn(up_node(0, 20), 3, 100.0, 20).unwrap();
+        // 区间套递归链继承：核心 relabel，子 T parent 重指向新核心。
+        assert!(r.instances[np].child.is_some(), "spawn 继承回调子 T 链");
+        assert_eq!(r.instances[child].parent.unwrap().slot, np, "子 T parent 重指向新核心");
+        assert!(r.instances[child].is_active(), "子 T 存活");
     }
 
     #[test]
     fn spawn_涌现反向_返回None应走flip() {
         let mut r = TRoot::new(100_000.0);
-        let _p = r.enter(up_node(0, 10), 100.0, 0).unwrap();
+        let _p = r.enter(up_node(0, 10), 1, 100.0, 0).unwrap();
         // 涌现 Down 走势（反核心向）= 29课情况三 → spawn 拒绝（返回 None），调用方走 flip。
-        assert!(r.spawn(down_node(0, 20), 100.0, 20).is_none(), "反向涌现不 spawn（§3.5 第三态）");
+        assert!(r.spawn(down_node(0, 20), 2, 100.0, 20).is_none(), "反向涌现不 spawn（§3.5 第三态）");
     }
 
     // flip/promote 测试已删（编排者裁决 C1：核心永不翻转，删 flip/promote）。
@@ -820,12 +816,12 @@ mod tests {
     fn 三阶段方向对称_空头核心低位平空降cost_basis() {
         // 编排者终裁 2026-06-20（零 workaround，方向对称）：空头核心也降成本，镜像多头。
         let mut r = TRoot::new(100_000.0);
-        let p = r.enter(down_node(0, 10), 100.0, 0).unwrap(); // Down 走势 → Short 核心
+        let p = r.enter(down_node(0, 10), 2, 100.0, 0).unwrap(); // Down 走势 → Short 核心
         assert_eq!(r.instances[p].direction, Polarity::Short);
         let cb0 = r.instances[p].cost_basis;
-        // type1_buy@级别1（空头核心的 ε 对称卖点）→ sink：空头核心低位(50)平掉 1/3 → realized=m(basis−c)>0
-        // 降 cost_basis（镜像多头高卖），短差腿做多。
-        r.sink(1, 50.0, 10).unwrap();
+        // 反向 BSP（空头核心遇买点 ε 对称）→ sink：空头核心低位(50)平掉 1/3 → realized=m(basis−c)>0
+        // 降 cost_basis（镜像多头高卖），子 T 做多。
+        r.sink(p, 50.0, 10).unwrap();
         let cb1 = r.instances[p].cost_basis;
         assert!(cb1 < cb0 - 1.0, "空头核心低位平空降 cost_basis：{cb1} < {cb0}（方向对称，非 short_leg_pnl 平铺）");
         assert_eq!(r.instances[p].phase, RecStage::CostReduction);
@@ -836,9 +832,9 @@ mod tests {
     #[test]
     fn 三阶段_父核心高位卖出降cost_basis() {
         let mut r = TRoot::new(100_000.0);
-        let p = r.enter(up_node(0, 10), 100.0, 0).unwrap();
+        let p = r.enter(up_node(0, 10), 2, 100.0, 0).unwrap();
         let cb0 = r.instances[p].cost_basis;
-        r.sink(1, 150.0, 10).unwrap(); // 高位(150)卖核心 → realized 降 cost_basis
+        r.sink(p, 150.0, 10).unwrap(); // 高位(150)卖核心 → realized 降 cost_basis
         let cb1 = r.instances[p].cost_basis;
         assert!(cb1 < cb0 - 1.0, "高位卖出降 cost_basis：{cb1} < {cb0}");
         assert_eq!(r.instances[p].phase, RecStage::CostReduction, "单次远未退本金");
@@ -847,8 +843,8 @@ mod tests {
     #[test]
     fn 收尾全平_final_nav守恒() {
         let mut r = TRoot::new(100_000.0);
-        r.enter(up_node(0, 10), 100.0, 0).unwrap();
-        r.sink(1, 100.0, 10).unwrap();
+        let p = r.enter(up_node(0, 10), 2, 100.0, 0).unwrap();
+        r.sink(p, 100.0, 10).unwrap();
         let fin = r.finish(100.0);
         assert!((fin - 100_000.0).abs() < 1e-4, "同价收尾 final_nav 守恒");
         assert_eq!(r.n_active(), 0, "收尾全平");

@@ -104,7 +104,7 @@ impl RecDriver {
                 // 编排者裁决 C1：核心持多骑牛（永不翻空）。仅在最高走势上行（Up）时建**多**核心；
                 // 下行时不建（等上行/买点）——避免按 chain[0] 方向入场卡空（P3a bug：首入 down→100% 持空）。
                 if view.nodes[0].node.direction == Direction::Up {
-                    self.root.enter(view.nodes[0].node, c, bar);
+                    self.root.enter(view.nodes[0].node, view.core_level, c, bar);
                 }
             }
             Some(root) => {
@@ -113,41 +113,58 @@ impl RecDriver {
                 let d0 = view.nodes[0];
                 let d0_pol = dir_to_polarity(d0.node.direction);
                 // 编排者裁决 C1（2026-06-20）：**核心永不整仓翻空**（删 flip/promote/Z₂）。
-                // 仅**同向**更高走势涌现 → spawn 骑乘上移（核心持多骑趋势）。
-                // 反向 chain[0]（最高走势下行）= 大回调，核心**不翻转**——由各级别 sink 短差对冲，
-                // 全量清仓只在最高级别超大卖点触发（第31课，本版暂不实装超大卖点 → 核心骑到底）。
+                // 仅**同向**更高走势涌现 → spawn 骑乘上移（核心持多骑趋势，level 升到新最高级别）。
+                // 反向 chain[0]（最高走势下行）= 大回调，核心**不翻转**——由区间套递归 sink 短差对冲。
                 if d0_pol == rdir && d0.node.start_bar != rnode.start_bar {
-                    self.root.spawn(d0.node, c, bar);
+                    self.root.spawn(d0.node, view.core_level, c, bar);
                 }
             }
         }
-        // ── 2. 所有级别并行消费 BSP：每级别独立 sink/recover（C1 北极星 + 编排者 2026-06-21 多重赋格）──
-        self.reconcile_all_levels(view, c, bar);
+        // ── 2. 区间套递归消费 BSP：沿活跃仓位链下钻，每仓位检查自己级别的 BSP（编排者 2026-06-21）──
+        self.reconcile_recursive(view, c, bar);
     }
 
-    /// **所有级别并行消费 BSP**（多重赋格 = 多声部，编排者 2026-06-21；删单链下钻 + 走势节点 gate）。
+    /// **区间套递归消费 BSP**（编排者 2026-06-21：多重赋格=区间套递归应用的自然结果，非 N 个独立引擎并行）。
     ///
-    /// 遍历每个**绝对级别** k（0..=core_level），每级别独立检查自己的 type1 BSP——不依赖上级 sink 是否成功
-    /// （区间套解决时序：低级别卖点先 fire 先行动，不等最高级别确认）。低频高级别 + 高频低级别齿轮并行：
-    /// - **sink**（级别 k 无短差腿 + type1 卖点 fire）：多核心→type1_sell@k / 空核心→type1_buy@k（ε 对称）。
-    ///   核心减 quota + 建级别-k 短差（载体=卖点自身，非走势节点）。
-    /// - **recover**（级别 k 有短差腿 + type1 平空点 fire）：多核心→type1_buy@k / 空核心→type1_sell@k。
-    ///   级别-k 平空 + 核心升回。
-    fn reconcile_all_levels(&mut self, view: &ChainView, c: f64, bar: i64) {
-        let Some(core) = self.root.root_slot() else { return };
-        let core_dir = self.root.instance(core).direction; // 核心方向（持多骑牛）
-        for k in 0..=view.core_level.min(9) {
-            if self.root.has_level_short(k) {
-                // recover：平空点 fire（多核心→type1_buy@k / 空核心→type1_sell@k）。
-                let recover_buy = core_dir == Polarity::Long;
-                if bsp_fires(view, k, recover_buy) && self.root.recover(k, c, bar) {
-                    self.recover_lvl[k] += 1;
+    /// 沿**活跃仓位链**（核心→子→孙…嵌套）下钻，每个仓位**只检查自己级别**的区间套确认 BSP——T 实例在
+    /// 操作时诞生（sink 创造次级别子）、recover 时归还（删除）。多声部=链的递归深度，自然涌现：
+    /// - **反向 BSP@仓位级别**（持多→type1_sell / 持空→type1_buy）且无子 → sink（reduce 自己 + 次级别开反向子）。
+    /// - **同向 BSP@仓位级别**（持多→type1_buy / 持空→type1_sell）且有子 → recover（子平仓归还自己，回调结束）。
+    ///   否则下钻到子，递归检查子的级别。
+    fn reconcile_recursive(&mut self, view: &ChainView, c: f64, bar: i64) {
+        let Some(mut cur) = self.root.root_slot() else { return };
+        loop {
+            let dir = self.root.instance(cur).direction;
+            let level = self.root.instance(cur).level;
+            let child = self.root.instance(cur).child.and_then(|r| self.root.resolve_ref(r));
+            match child {
+                Some(cslot) => {
+                    // 同向 BSP@level（回调结束）→ recover 子归还；否则下钻检查子。
+                    let same_buy = dir == Polarity::Long; // 同向：持多→buy / 持空→sell
+                    if bsp_fires(view, level, same_buy) {
+                        if self.root.recover(cur, c, bar) && level < 10 {
+                            self.recover_lvl[level] += 1;
+                        }
+                        break; // 子已平，链到此
+                    }
+                    cur = cslot; // 下钻递归检查子
                 }
-            } else {
-                // sink：卖点 fire（多核心→type1_sell@k / 空核心→type1_buy@k）。
-                let sink_buy = core_dir == Polarity::Short;
-                if bsp_fires(view, k, sink_buy) && self.root.sink(k, c, bar).is_some() {
-                    self.sink_lvl[k] += 1;
+                None => {
+                    // 反向 BSP@level（回调开始）→ sink 开次级别子；否则链终止。
+                    let reverse_buy = dir == Polarity::Short; // 反向：持多→sell / 持空→buy
+                    if bsp_fires(view, level, reverse_buy) {
+                        match self.root.sink(cur, c, bar) {
+                            Some(cslot) => {
+                                if level < 10 {
+                                    self.sink_lvl[level] += 1;
+                                }
+                                cur = cslot; // 下钻到新子，继续区间套递归
+                            }
+                            None => break,
+                        }
+                    } else {
+                        break;
+                    }
                 }
             }
         }
@@ -299,43 +316,43 @@ mod tests {
     // ──────────────── 回调 sink / recover ────────────────
 
     #[test]
-    fn type1_sell触发sink_级别短差持空() {
+    fn type1_sell触发sink_次级别子T持空() {
         let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
+        d.on_view(&view_b(&[up(0, 10, false)], vec![], 1), 100.0, 10); // core enter level=1
         let root = d.root().root_slot().unwrap();
         let u0 = d.root().instance(root).units;
-        // type1_sell@级别1 → 级别1 sink（核心减 + 级别1 开空）。不需走势回调节点（删 want gate）。
-        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 2), 100.0, 12);
-        assert_eq!(d.root().n_active(), 2, "核心 + 级别1 短差腿");
+        // 反向 BSP@核心级别1 → sink 次级别(0)子 T（区间套递归，载体=卖点非走势节点）。
+        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 100.0, 12);
+        assert_eq!(d.root().n_active(), 2, "核心 + 次级别子 T");
         assert!((d.root().instance(root).units - u0 * 2.0 / 3.0).abs() < 1e-6, "核心减到 2/3");
         let (_, su) = d.root().exposure();
-        assert!((su - u0 / 3.0).abs() < 1e-6, "级别1 持空 1/3（同股数）");
+        assert!((su - u0 / 3.0).abs() < 1e-6, "子 T 持空 1/3（同股数）");
     }
 
     #[test]
-    fn type1_buy触发recover_级别短差升回() {
+    fn type1_buy触发recover_子T升回() {
         let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
+        d.on_view(&view_b(&[up(0, 10, false)], vec![], 1), 100.0, 10);
         let root = d.root().root_slot().unwrap();
         let u0 = d.root().instance(root).units;
-        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 2), 110.0, 12); // sink@110
+        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 110.0, 12); // sink@110
         assert_eq!(d.root().n_active(), 2);
-        // type1_buy@级别1（同级别平空点）@90 → 级别1 平空升回核心。
-        d.on_view(&view_b(&[up(0, 15, false)], vec![cb(BSPKind::Type1Buy, 1)], 2), 90.0, 15);
-        assert_eq!(d.root().n_active(), 1, "平空点 fire，级别1 平空升回");
+        // 同向 BSP@核心级别1（回调结束 type1_buy@1）@90 → recover 子归还核心。
+        d.on_view(&view_b(&[up(0, 15, false)], vec![cb(BSPKind::Type1Buy, 1)], 1), 90.0, 15);
+        assert_eq!(d.root().n_active(), 1, "子 T 平空升回");
         assert!((d.root().instance(root).units - u0).abs() < 1e-6, "核心恒仓恢复原股数");
         assert!(d.root().short_leg_pnl > 0.0, "高开低平短差降成本");
     }
 
     #[test]
-    fn 无平空点_级别短差持有不recover() {
-        // 纯 BSP 驱动（删 node_gone 兜底）：无 type1_buy 平空点 → 级别短差持有。
+    fn 无平空点_子T持有不recover() {
+        // 纯 BSP 驱动（删 node_gone 兜底）：无同向平空点 → 子 T 持有。
         let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
-        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 2), 110.0, 12);
+        d.on_view(&view_b(&[up(0, 10, false)], vec![], 1), 100.0, 10);
+        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 110.0, 12);
         assert_eq!(d.root().n_active(), 2);
-        d.on_view(&view(&[up(0, 15, false)]), 95.0, 15); // 无平空点
-        assert_eq!(d.root().n_active(), 2, "无平空点，级别短差持有（纯 BSP 驱动）");
+        d.on_view(&view_b(&[up(0, 15, false)], vec![], 1), 95.0, 15); // 无 BSP
+        assert_eq!(d.root().n_active(), 2, "无平空点，子 T 持有（纯 BSP 驱动）");
     }
 
     // ──────────────── spawn / flip（top 变化）────────────────
@@ -369,28 +386,28 @@ mod tests {
         assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "TW 中性");
     }
 
-    // ──────────────── 多重赋格（所有级别并行消费 BSP）────────────────
+    // ──────────────── 区间套递归（多声部=嵌套链的递归深度）────────────────
 
     #[test]
-    fn 多级别并行短差_多声部() {
+    fn 区间套递归_嵌套子孙多声部() {
         let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
-        // type1_sell@级别1 + 级别2 同时 fire → 两级别并行各自 sink（多声部，非单链下钻）。
+        d.on_view(&view_b(&[up(0, 10, false)], vec![], 2), 100.0, 10); // core enter level=2
+        // 区间套递归下钻：核心级别2 反向(type1_sell@2)→sink子(1)；子级别1 反向(type1_buy@1,空头反向)→sink孙(0)。
         d.on_view(
             &view_b(
                 &[up(0, 14, false)],
-                vec![cb(BSPKind::Type1Sell, 1), cb(BSPKind::Type1Sell, 2)],
+                vec![cb(BSPKind::Type1Sell, 2), cb(BSPKind::Type1Buy, 1)],
                 2,
             ),
             100.0,
             14,
         );
-        assert_eq!(d.root().n_active(), 3, "核心 + 级别1 + 级别2 短差腿（并行多声部）");
+        assert_eq!(d.root().n_active(), 3, "核心 + 子 + 孙（区间套递归三层嵌套）");
         let (lu, su) = d.root().exposure();
-        assert!(lu > 0.0 && su > 0.0, "多（核心）与空（两级别短差）并存");
-        assert_eq!(d.sink_lvl[1], 1, "级别1 sink 计数");
-        assert_eq!(d.sink_lvl[2], 1, "级别2 sink 计数");
-        assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "多声部 TW 中性");
+        assert!(lu > 0.0 && su > 0.0, "多（核心+孙）与空（子）并存——ε 对称方向交替");
+        assert_eq!(d.sink_lvl[2], 1, "核心级别2 sink 计数");
+        assert_eq!(d.sink_lvl[1], 1, "子级别1 递归 sink 计数");
+        assert!((d.root().total_wealth(100.0) - 100_000.0).abs() < 1e-4, "三层嵌套 TW 中性");
     }
 
     // ──────────────── 守恒（全程）────────────────
@@ -508,12 +525,12 @@ mod tests {
     #[test]
     fn 全程tw中性_sink_recover_spawn() {
         let mut d = RecDriver::new(100_000.0);
-        d.on_view(&view(&[up(0, 10, false)]), 100.0, 10);
-        // sink（type1_sell@1）→ recover（type1_buy@1 同级别）→ spawn（同向更高）→ 反向走势 C1 核心不翻转。
-        d.on_view(&view_b(&[up(0, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 2), 120.0, 12);
-        d.on_view(&view_b(&[up(0, 15, false)], vec![cb(BSPKind::Type1Buy, 1)], 2), 100.0, 15);
-        d.on_view(&view(&[up(0, 30, false)]), 130.0, 30); // spawn
-        d.on_view(&view(&[down(30, 40, false)]), 110.0, 40); // 反向走势：C1 核心不翻转（删 flip）
+        d.on_view(&view_b(&[up(5, 10, false)], vec![], 1), 100.0, 10); // core enter level=1 start_bar=5
+        // sink（反向 type1_sell@1）→ recover（同向 type1_buy@1）→ spawn（更高走势 level=2）→ 反向走势 C1 不翻转。
+        d.on_view(&view_b(&[up(5, 12, false)], vec![cb(BSPKind::Type1Sell, 1)], 1), 120.0, 12);
+        d.on_view(&view_b(&[up(5, 15, false)], vec![cb(BSPKind::Type1Buy, 1)], 1), 100.0, 15);
+        d.on_view(&view_b(&[up(0, 30, false)], vec![], 2), 130.0, 30); // spawn（start_bar 0≠5，升级 level 2）
+        d.on_view(&view_b(&[down(30, 40, false)], vec![], 2), 110.0, 40); // 反向走势：C1 核心不翻转（删 flip）
         let fin = d.finish(110.0);
         // 全程同价段内 TW 中性守卫已逐操作 panic 验收；末态 final_nav 有限且合理。
         assert!(fin.is_finite() && fin > 0.0, "final_nav 有限，得 {fin}");
