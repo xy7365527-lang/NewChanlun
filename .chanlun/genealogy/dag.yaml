@@ -2685,14 +2685,29 @@ nodes:
 - id: '549'
   title: relations.jsonl 沦为未实体化 LFS 指针——476号(append-only ⊥ long-running)张力的物质显形，冻结
     block-topology 映射管线
-  status: 生成态
+  status: settled
   type: 矛盾发现
-  file: pending/549-relations-jsonl-lfs-pointer-blocks-mapping.md
+  file: settled/549-relations-jsonl-lfs-pointer-blocks-mapping.md
 - id: '550'
   title: 谱系免疫两层架构——compact 使事件驱动快层静默，ceremony_scan 慢层批量补偿；delta_settled=0 是快层静默的可观测信号
   status: settled
   type: meta-rule
   file: settled/550-genealogy-immune-two-layer-compact-silence.md
+- id: '551'
+  title: ceremony 能指三重分叉（CC Swarm₀ / 逢亮持久实体 / RTAS 脱域抽取）+ 启动-hook 目录守卫不变量——禁止跨目录交叉触发
+  status: 生成态
+  type: 语法记录
+  file: pending/551-ceremony-triple-scission-and-startup-hook-directory-guard.md
+- id: '552'
+  title: anchor 趋势底仓解僵尸核心死锁——吃涨 L2 实证 + 三个半架构（多空双开多重赋格的第一次成立）
+  status: settled
+  type: 概念发现
+  file: settled/552-anchor-resolves-zombie-core-deadlock.md
+- id: '553'
+  title: cascade flip（核心翻转）L3 否证有效域空集——核心能动=翻空=毁 anchor 趋势底仓；滤波器比喻对称双吃终极目标 L3 否证（盈利来源=核心多腿吃趋势涨，非吃回调跌，Σ|振幅|上限不可达）
+  status: settled
+  type: 概念发现
+  file: settled/553-cascade-flip-falsified-symmetric-dual-eating-unreachable.md
 edges:
   depends_on:
   - from: '136'
@@ -5567,6 +5582,20 @@ edges:
     to: 069
   - from: '550'
     to: '075'
+  - from: '551'
+    to: 058
+  - from: '551'
+    to: '075'
+  - from: '551'
+    to: '136'
+  - from: '552'
+    to: '546'
+  - from: '552'
+    to: '547'
+  - from: '553'
+    to: '552'
+  - from: '553'
+    to: '547'
   triggered:
   - from: '005'
     to: 005a
@@ -5690,6 +5719,20 @@ edges:
   - from: '550'
     to: 隐含命题『事件驱动结构工位 = 谱系免疫的完整实现』——被证伪：autocompact 不是 skill 监听的事件 ⟹ 事件驱动快层在 compact
       期静默 ⟹ delta_settled=0 stagnation；谱系免疫的完整性依赖 ceremony_scan 慢层（文件系统扫描）的批量补偿
+  - from: '551'
+    to: 隐含命题『ceremony 是单一全局概念，可由一个启动 hook 统一触发』——被证伪：能指『ceremony』已覆盖三个存在论层级不同、绑定不同目录的所指；单一全局
+      hook 跨目录触发会(A)调错 ceremony、(B)与目标项目自带 hook 双触发
+  - from: '552'
+    to: 隐含命题『核心僵尸死锁只能靠 cascade 整翻解』——被否证：cascade 翻空在次级别卖点翻主力套牢(547)；正解是 anchor 让核心多腿不僵死、持多吃趋势，根本不翻空
+  - from: '553'
+    to: 隐含命题①『核心能动（cascade flip）是僵尸核心死锁的突破口』（546/547 路线隐含）——被证伪：cascade 让核心能动，但能动=翻空=毁
+      anchor 趋势底仓（OKLO +458.9→−106.6💥 穿仓）；隐含命题②『滤波器多空双开 ⟹ 吃每级别涨跌幅绝对值（对称双吃 Σ|振幅|）』（[[feedback_filter_bank_metaphor_prove]]
+      终极目标）——被证伪：both% 共存普遍但盈利不对称，盈利来源=核心多腿吃趋势涨，不是吃回调跌
+  - from: '553'
+    to: 隐含命题①『核心能动（cascade flip）是僵尸核心死锁的突破口』（546/547 路线隐含）——被证伪：cascade 让核心能动，但能动=翻空=毁
+      anchor 趋势底仓（OKLO +458.9→−106.6💥 穿仓）；隐含命题②『用 cascade 粗识别（emergent_top.completed）/
+      B 路全程持空 实现对称双吃』——被证伪：cascade 粗识别强牛误翻空、B 路全程持空强牛失血。**正确形式（每级别精确走势完成识别 + 切换）未试，不证伪「吃每级别涨跌幅绝对值」目标本身**（[[feedback_filter_bank_metaphor_prove]]
+      终极目标的可达性待 A 路检验）
   related:
   - between:
     - '001'
@@ -7404,6 +7447,54 @@ edges:
   - between:
     - '181'
     - '550'
+  - between:
+    - '003'
+    - '551'
+  - between:
+    - '042'
+    - '551'
+  - between:
+    - '173'
+    - '551'
+  - between:
+    - '548'
+    - '551'
+  - between:
+    - '539'
+    - '552'
+  - between:
+    - '545'
+    - '552'
+  - between:
+    - '546'
+    - '553'
+  - between:
+    - '545'
+    - '553'
+  - between:
+    - '539'
+    - '553'
+  - between:
+    - '553'
+    - 【memory】project_t_cross_level_coupling_falsified
+  - between:
+    - '553'
+    - 【memory】feedback_filter_bank_metaphor_prove
+  - between:
+    - '553'
+    - 【memory】project_t_flip_vs_clear_verdict
+  - between:
+    - '552'
+    - '553'
+  - between:
+    - '553'
+    - 【memory】project_recursive_t_architecture_v2
+  - between:
+    - 094
+    - '549'
+  - between:
+    - '476'
+    - '549'
   tensions_with:
   - between:
     - '007'
