@@ -335,3 +335,122 @@ fn t_cseg_diagnostic() {
         println!("c段缺失率 = {:.1}%（趋势走势中无离开段的占比）", 100.0 - tot_rate);
     }
 }
+
+/// 盘整走势（ConsolDown）"无离开段"根因诊断（编排者 2026-06-21）。
+///
+/// 复刻 `judge_consolidation_divergence` 的 no_leave 判据（`enter_end+1 >= len`），逐级别统计
+/// 盘整走势的：总数 / no_leave 数 / completed 数 / completed&&无bsp（被反向终结）数 /
+/// 是否末组（gi+1==n_groups）。并 dump 每级别第一个 no_leave 盘整的完整结构（units 长度、
+/// 中枢 units 范围、进入/离开段范围）——回答「L4 ConsolDown 全 no_leave 是 r* 边界生长中走势
+/// 还是 segment 切分 bug」。
+///
+/// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::backtest_run::t_consol_no_leave_diagnostic -- --ignored --nocapture`
+#[test]
+#[ignore = "盘整无离开段诊断，需 analysis/data_cache/*.json；显式 --ignored 运行"]
+fn t_consol_no_leave_diagnostic() {
+    use crate::recursive_t::iterate;
+    use crate::recursive_t::types::{Direction, PerfectionMode, TrendKind};
+
+    let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .join("analysis/data_cache");
+    let only: Vec<String> = std::env::var("BT_SYMBOLS")
+        .ok()
+        .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+        .unwrap_or_else(|| vec!["BTC".to_string()]);
+
+    for (sym, file) in SYMBOLS {
+        if !only.contains(&sym.to_uppercase()) {
+            continue;
+        }
+        let path = data_dir.join(file);
+        if !path.exists() {
+            eprintln!("[{sym}] 数据缺失 {path:?}，跳过");
+            continue;
+        }
+        let (o, h, l, c) = load_clean_ohlc(&path);
+        let n_bars = c.len();
+        let mut orch = RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false);
+        for i in 0..n_bars {
+            orch.process_bar(o[i], h[i], l[i], c[i]);
+        }
+        let segs: Vec<_> = orch.segments().to_vec();
+        let m2r: Vec<(usize, usize)> = orch.merged_to_raw().to_vec();
+        let a0 = build_a0_from_segments(&segs, &m2r, &c);
+        let tree = iterate(a0, PerfectionMode::Structural);
+
+        println!("\n===== [{sym}] 盘整无离开段诊断（batch 最终态，Structural）r*={} =====", tree.emergent_ceiling());
+        println!(
+            "{:>5} {:>8} {:>9} {:>10} {:>14} {:>9} {:>9}",
+            "level", "n_consol", "consolDn", "no_leave", "compl&&无bsp", "末组数", "中间数"
+        );
+        for lvl in &tree.levels {
+            let n_groups = lvl.trends.len();
+            let (mut n_consol, mut n_cd, mut n_no_leave) = (0usize, 0usize, 0usize);
+            let (mut n_compl_no_bsp, mut n_last, mut n_mid_no_leave) = (0usize, 0usize, 0usize);
+            let mut first_dump: Option<String> = None;
+            for (gi, t) in lvl.trends.iter().enumerate() {
+                if t.kind != TrendKind::Consolidation {
+                    continue;
+                }
+                n_consol += 1;
+                if t.direction != Direction::Down {
+                    continue;
+                }
+                n_cd += 1;
+                // 复刻 judge_consolidation_divergence：单中枢 + 非空 + enter_end+1>=len。
+                if t.zhongshus.len() != 1 {
+                    continue;
+                }
+                let center = &t.zhongshus[0];
+                if center.units.is_empty() {
+                    continue;
+                }
+                let enter_end = *center.units.last().unwrap();
+                let no_leave = enter_end + 1 >= t.units.len();
+                let is_last = gi + 1 == n_groups;
+                if no_leave {
+                    n_no_leave += 1;
+                    if t.completed && t.bsp.is_none() {
+                        n_compl_no_bsp += 1;
+                    }
+                    if is_last {
+                        n_last += 1;
+                    } else {
+                        n_mid_no_leave += 1;
+                    }
+                    if first_dump.is_none() {
+                        first_dump = Some(format!(
+                            "units.len={} 中枢units={:?}(first={} last={}) 进入段[0..={}] 离开段[{}..{}](空={}) \
+                             completed={} has_bsp={} gi={}/{} 末组={}",
+                            t.units.len(),
+                            center.units,
+                            center.units.first().unwrap(),
+                            enter_end,
+                            enter_end,
+                            enter_end + 1,
+                            t.units.len(),
+                            enter_end + 1 >= t.units.len(),
+                            t.completed,
+                            t.bsp.is_some(),
+                            gi,
+                            n_groups,
+                            is_last,
+                        ));
+                    }
+                }
+            }
+            println!(
+                "{:>5} {:>8} {:>9} {:>10} {:>14} {:>9} {:>9}",
+                lvl.level, n_consol, n_cd, n_no_leave, n_compl_no_bsp, n_last, n_mid_no_leave
+            );
+            if lvl.level >= 3 {
+                if let Some(d) = first_dump {
+                    println!("    L{} 首个 no_leave 盘整: {}", lvl.level, d);
+                }
+            }
+        }
+        println!("说明：'中间数'>0 ⟺ 存在中间盘整无离开段（segment bug）；'compl&&无bsp'>0 ⟺ 被反向终结标 completed。");
+    }
+}
