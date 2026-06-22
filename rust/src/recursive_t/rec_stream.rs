@@ -61,6 +61,21 @@ pub struct RecStream {
     pub core_short_bars: u64,
     pub net_long_bars: u64,
     pub net_short_bars: u64,
+    /// 诊断（编排者排查 2026-06-21）：核心(root highest_active)每 level 停留 bar + emergent_top 每 level
+    /// bar——查核心是否到最高涌现级别（net_short 62.7% 疑核心没到最高级别被低级别 BSP flip）。
+    pub core_level_bars: [u64; 9],
+    pub emergent_level_bars: [u64; 9],
+    last_emergent_level: i32, // -1=none
+    /// 诊断（编排者 2026-06-21）：最后一次重跑 tree 各级别走势类型分布——查 L4 type1_buy=0
+    /// 是否走势结构。[level][0=UpTrend,1=DownTrend,2=Consol-Up,3=Consol-Down]。
+    pub tree_trend_stats: [[u64; 4]; 9],
+    /// 诊断（编排者 2026-06-21，no_leave 根因）：跨重跑累加，逐级别 ConsolDown 切分性质——
+    /// 验证 no_leave 盘整是「末组生长中走势」还是「中间走势被切掉离开段（segment bug）」。
+    /// [level]: 0=ConsolDown总数 1=no_leave数 2=其中末组(gi+1==n_groups) 3=其中中间(gi+1<n,=segment bug)
+    ///          4=no_leave且completed(被反向终结=apply_t标记) 5=no_leave且completed且无bsp。
+    pub consoldn_split: [[u64; 6]; 9],
+    /// 每级别**首个** no_leave ConsolDown 的完整结构 dump（units 长度/中枢范围/进入离开段/completed/gi）。
+    pub first_no_leave_dump: [Option<String>; 9],
     /// 诊断（编排者回补质询）：全程 type1_buy 买点 (bar, price, level) dedup；
     /// 核心短头 episodes (entry_bar, entry_px, exit_bar, exit_px)——查做空后下跌段有无买点、是否被消费。
     pub t1buy: Vec<(i64, f64, usize)>,
@@ -98,6 +113,12 @@ impl RecStream {
             core_short_bars: 0,
             net_long_bars: 0,
             net_short_bars: 0,
+            core_level_bars: [0; 9],
+            emergent_level_bars: [0; 9],
+            last_emergent_level: -1,
+            tree_trend_stats: [[0; 4]; 9],
+            consoldn_split: [[0; 6]; 9],
+            first_no_leave_dump: Default::default(),
             t1buy: Vec::new(),
             t1sell: Vec::new(),
             short_episodes: Vec::new(),
@@ -138,19 +159,90 @@ impl RecStream {
                 self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (v, new_bsps) = {
+                let (v, new_bsps, trend_stats, cd_split, cd_dumps) = {
                     let segs = self.orch.segments();
                     let m2r = self.orch.merged_to_raw();
                     let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg, false);
                     let tree = iterate(a0, self.mode);
+                    use crate::recursive_t::types::{Direction, TrendKind};
+                    // 诊断（编排者 2026-06-21）：各级别走势类型分布（覆盖=最后一次重跑 tree）。
+                    let mut ts = [[0u64; 4]; 9];
+                    // no_leave 根因切分（复刻 judge_consolidation_divergence 判据）+ 首例结构 dump。
+                    let mut cds = [[0u64; 6]; 9];
+                    let mut dumps: [Option<String>; 9] = Default::default();
+                    for lvl_out in &tree.levels {
+                        let lv = lvl_out.level;
+                        if lv >= 9 {
+                            continue;
+                        }
+                        let n_groups = lvl_out.trends.len();
+                        for (gi, tr) in lvl_out.trends.iter().enumerate() {
+                            match (tr.kind, tr.direction) {
+                                (TrendKind::UpTrend, _) => ts[lv][0] += 1,
+                                (TrendKind::DownTrend, _) => ts[lv][1] += 1,
+                                (TrendKind::Consolidation, Direction::Up) => ts[lv][2] += 1,
+                                (TrendKind::Consolidation, Direction::Down) => ts[lv][3] += 1,
+                            }
+                            if tr.kind != TrendKind::Consolidation || tr.direction != Direction::Down {
+                                continue;
+                            }
+                            cds[lv][0] += 1; // ConsolDown 总数
+                            if tr.zhongshus.len() != 1 {
+                                continue;
+                            }
+                            let center = match tr.zhongshus.first() {
+                                Some(c) if !c.units.is_empty() => c,
+                                _ => continue,
+                            };
+                            let enter_end = *center.units.last().unwrap();
+                            if enter_end + 1 < tr.units.len() {
+                                continue; // 有离开段，非 no_leave
+                            }
+                            cds[lv][1] += 1; // no_leave
+                            let is_last = gi + 1 == n_groups;
+                            if is_last {
+                                cds[lv][2] += 1; // 末组（生长中走势）
+                            } else {
+                                cds[lv][3] += 1; // 中间走势无离开段（= segment 切分 bug 证据）
+                            }
+                            if tr.completed {
+                                cds[lv][4] += 1; // no_leave 却被标 completed
+                                if tr.bsp.is_none() {
+                                    cds[lv][5] += 1; // 被反向终结（apply_t line 96）标 completed 无 bsp
+                                }
+                            }
+                            if dumps[lv].is_none() {
+                                dumps[lv] = Some(format!(
+                                    "units.len={} 中枢units={:?} 进入段[0..={}] 离开段[{}..{}](空={}) completed={} has_bsp={} gi={}/{} 末组={}",
+                                    tr.units.len(), center.units, enter_end,
+                                    enter_end + 1, tr.units.len(), enter_end + 1 >= tr.units.len(),
+                                    tr.completed, tr.bsp.is_some(), gi, n_groups, is_last,
+                                ));
+                            }
+                        }
+                    }
                     let bs: Vec<(i64, f64, usize, BSPKind)> = tree
                         .all_bsps()
                         .into_iter()
                         .map(|b| (b.bar, b.price, b.level, b.kind))
                         .collect();
-                    (extract_view(&tree), bs)
+                    (extract_view(&tree), bs, ts, cds, dumps)
                 };
                 view = v;
+                // 累加全程（每次重跑 tree 的走势类型 + no_leave 切分），首例结构只记一次。
+                for lv in 0..9 {
+                    for i in 0..4 {
+                        self.tree_trend_stats[lv][i] += trend_stats[lv][i];
+                    }
+                    for i in 0..6 {
+                        self.consoldn_split[lv][i] += cd_split[lv][i];
+                    }
+                    if self.first_no_leave_dump[lv].is_none() {
+                        if let Some(d) = &cd_dumps[lv] {
+                            self.first_no_leave_dump[lv] = Some(d.clone());
+                        }
+                    }
+                }
                 // **只消费本次重跑新 fire 的 BSP**（fresh）→ LevelView buy/sell per level（= flat
                 // TSignalView diff）。根因修复：all_bsps 全历史累积，存在性检查会机械触发；fresh 是本 bar diff。
                 for (bb, bp, bl, kind) in new_bsps {
@@ -183,6 +275,10 @@ impl RecStream {
                     Some((_, crate::trading::types::Polarity::Short)) => -1,
                     None => 0,
                 };
+                self.last_emergent_level = match view.emergent_top {
+                    Some((lvl, _)) => lvl as i32,
+                    None => -1,
+                };
             }
         }
         // 每 bar 调 on_bar（= flat step 每 bar）：强平每 bar 检查 + emergence/route_bsp 仅在 view 有
@@ -194,19 +290,27 @@ impl RecStream {
             -1 => self.c0_down_bars += 1,
             _ => {}
         }
+        if self.last_emergent_level >= 0 && (self.last_emergent_level as usize) < 9 {
+            self.emergent_level_bars[self.last_emergent_level as usize] += 1;
+        }
         // bar 加权核心(root)方向 + 净敞口符号 + 核心短头 episode 追踪。
         let root = self.driver.root();
         let cur_dir: i8 = match root.highest_active() {
-            Some(rs) => match root.instance(rs).direction {
-                crate::trading::types::Polarity::Long => {
-                    self.core_long_bars += 1;
-                    1
+            Some(rs) => {
+                if rs < 9 {
+                    self.core_level_bars[rs] += 1; // 核心每 level 停留 bar（编排者排查）
                 }
-                crate::trading::types::Polarity::Short => {
-                    self.core_short_bars += 1;
-                    -1
+                match root.instance(rs).direction {
+                    crate::trading::types::Polarity::Long => {
+                        self.core_long_bars += 1;
+                        1
+                    }
+                    crate::trading::types::Polarity::Short => {
+                        self.core_short_bars += 1;
+                        -1
+                    }
                 }
-            },
+            }
             None => 0,
         };
         let (lu, su) = root.exposure();
@@ -277,6 +381,62 @@ mod tests {
         assert!((s.finish() - INITIAL_CAPITAL).abs() < 1e-6);
     }
 
+    /// **盘整 no_leave 根因诊断**（编排者 2026-06-21）：流式 BTC Structural，逐级别切分 ConsolDown
+    /// 的 no_leave 性质——验证「11784 个 L4 ConsolDown 全 no_leave」是 r* 边界生长中走势（末组、
+    /// 不标 completed）还是 segment 切掉离开段（中间走势）/被反向终结误标 completed。
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::rec_btc_consol_no_leave -- --ignored --nocapture`
+    #[test]
+    #[ignore = "盘整 no_leave 诊断，需 analysis/data_cache/btc_1m_full.json"]
+    fn rec_btc_consol_no_leave() {
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        for (sym, file) in SYMBOLS {
+            if sym != "BTC" {
+                continue;
+            }
+            let path = data_dir.join(file);
+            if !path.exists() {
+                eprintln!("[BTC] 数据缺失 {path:?}，跳过");
+                return;
+            }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let mut s = RecStream::new(PerfectionMode::Structural);
+            for i in 0..n {
+                s.push_bar(o[i], h[i], l[i], c[i]);
+            }
+            s.finish();
+            eprintln!(
+                "\n===== [BTC] 流式 ConsolDown no_leave 切分（Structural, bars={n} reruns={}）=====",
+                s.n_reruns
+            );
+            eprintln!(
+                "{:>5} {:>10} {:>10} {:>9} {:>10} {:>9} {:>12}",
+                "level", "ConsolDn", "no_leave", "末组", "中间BUG", "compl", "compl无bsp"
+            );
+            for lv in 0..6 {
+                let r = s.consoldn_split[lv];
+                eprintln!(
+                    "{:>5} {:>10} {:>10} {:>9} {:>10} {:>9} {:>12}",
+                    lv, r[0], r[1], r[2], r[3], r[4], r[5]
+                );
+            }
+            for lv in 0..6 {
+                if let Some(d) = &s.first_no_leave_dump[lv] {
+                    eprintln!("  L{lv} 首个 no_leave ConsolDown: {d}");
+                }
+            }
+            eprintln!(
+                "判读：'中间BUG'>0 ⟺ segment 切掉中间盘整离开段；'compl无bsp'>0 ⟺ no_leave 被反向终结误标 completed。"
+            );
+        }
+    }
+
     /// 递归引擎 **8 标的 × 3 模式**回测（L3 验证）：vs flat 引擎（t_backtest_8x3）vs BH。
     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::rec_btc -- --ignored --nocapture`
     /// `BT_SYMBOLS=CL,BTC` 过滤标的（默认全 8）。
@@ -332,7 +492,8 @@ mod tests {
                 fshort[mi] = r.n_flips;
                 eprintln!(
                     "[{sym:<5}/{:>10?}] strat={:+.1}% bh={:+.1}% enter={} sink={} recover={} drain={} \
-                     flip={} ascend={} short_pnl={:+.0} net_short={:.1}% liq={} ({:.1}s)",
+                     flip={} ascend={} short_pnl={:+.0} net_short={:.1}% liq={} | 三阶段 cap_rec={} earn={} \
+                     earn_u={:.1} gain={:.1}% ({:.1}s)",
                     mode,
                     strat[mi],
                     bh,
@@ -345,16 +506,126 @@ mod tests {
                     r.short_leg_pnl,
                     nshort[mi],
                     r.n_liquidations,
+                    r.n_capital_recovered,
+                    r.n_earning_deploys,
+                    r.earning_units_added,
+                    r.max_core_gain_x1000 as f64 / 10.0,
                     t0.elapsed().as_secs_f64()
                 );
-                // BTC per-level BSP fire 分布（buy/sell per level，诊断 flat 递归化后操作分布）。
+                // per-level 短差 P&L 验收（编排者方向 3：哪个级别短差赚/亏）。
+                let spnl_lvl: Vec<i64> = (0..6).map(|k| r.short_pnl_by_level[k] as i64).collect();
+                eprintln!("  [{sym:<5}/{mode:?}] short_pnl_by_level={:?}", spnl_lvl);
+                // ── prove 守卫族读数（L2：让数据告诉我们哪些不变量被违反，编排者 2026-06-21）──
+                // no_trigger=0 是 panic 守卫保证的（>0 早已 panic）；其余三项为观测计数。
+                let g = r.guards();
+                eprintln!(
+                    "  [{sym:<5}/{mode:?}] PROVE ops(bsp/emrg/eod)={:?} no_trigger={} | dir_mismatch={}/{} \
+                     | sink≠recover campaigns={}/{} 净失衡={} | neg_pnl campaigns={} by_level={:?}",
+                    &g.ops_by_trigger[..3],
+                    g.n_ops_without_trigger,
+                    g.n_dir_mismatch,
+                    g.n_dir_checks,
+                    g.n_sink_recover_imbalance,
+                    g.n_campaigns_checked,
+                    g.sink_recover_imbalance_total,
+                    g.n_neg_pnl_campaigns,
+                    &g.neg_pnl_by_level[..6.min(g.neg_pnl_by_level.len())],
+                );
                 if sym == "BTC" {
-                    let buys: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][0]).collect();
-                    let sells: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][1]).collect();
+                    use crate::trading::types::Polarity as Pol;
+                    // 编排者排查 2026-06-21：核心是否到最高涌现级别 + emergence_upgrade 调用/成功/跳过。
                     eprintln!(
-                        "  [{sym}/{mode:?}] reruns={} t1buy_by_level={:?} t1sell_by_level={:?}",
-                        s.n_reruns, buys, sells
+                        "  [{sym}/{mode:?}] emergence: attempts={} upgrades={} skipped_dir={} | n_flips={} n_ascends={}",
+                        r.n_emergence_attempts, r.n_emergence_upgrades, r.n_emergence_skipped_dir, r.n_flips, r.n_ascends
                     );
+                    let core_lvl: Vec<u64> = (0..9).map(|k| s.core_level_bars[k]).collect();
+                    let emg_lvl: Vec<u64> = (0..9).map(|k| s.emergent_level_bars[k]).collect();
+                    eprintln!("  [{sym}/{mode:?}] core_level_bars(核心停留)={core_lvl:?}");
+                    eprintln!("  [{sym}/{mode:?}] emergent_level_bars(涌现级别)={emg_lvl:?}");
+                    let trend_s: Vec<[u64; 4]> = (0..6).map(|k| s.tree_trend_stats[k]).collect();
+                    eprintln!("  [{sym}/{mode:?}] tree_trend_stats[Up,Down,ConsolUp,ConsolDown]/lvl={trend_s:?}");
+                    let consol_diag: Vec<[u64; 4]> = crate::recursive_t::divergence::CONSOL_DOWN_DIAG
+                        .with(|d| (0..6).map(|k| d.borrow()[k]).collect());
+                    eprintln!("  [{sym}/{mode:?}] ConsolDown判定[no_new_low,no_force,produced,no_leave]/lvl={consol_diag:?}");
+                    crate::recursive_t::divergence::CONSOL_DOWN_DIAG.with(|d| *d.borrow_mut() = [[0; 4]; 9]);
+                    eprintln!(
+                        "  [{sym}/{mode:?}] core_long_bars={} core_short_bars={} c0_up={} c0_down={}",
+                        s.core_long_bars, s.core_short_bars, s.c0_up_bars, s.c0_down_bars
+                    );
+                    // 核心 flip 序列：查低级别 ping-pong。
+                    let n_l2s = r.flip_log.iter().filter(|(_, f, t, _, _)| *f == Pol::Long && *t == Pol::Short).count();
+                    let n_s2l = r.flip_log.iter().filter(|(_, f, t, _, _)| *f == Pol::Short && *t == Pol::Long).count();
+                    let flip_by_lvl: Vec<usize> = r.flip_log.iter().map(|(_, _, _, j, _)| *j).collect();
+                    eprintln!(
+                        "  [{sym}/{mode:?}] flips={} (Long→Short={n_l2s} Short→Long={n_s2l}) 触发级别={flip_by_lvl:?}",
+                        r.flip_log.len()
+                    );
+                    let head: Vec<(i64, i8, usize)> = r.flip_log.iter().take(40)
+                        .map(|(b, _, t, j, _)| (*b, if *t == Pol::Long { 1i8 } else { -1 }, *j)).collect();
+                    eprintln!("  [{sym}/{mode:?}] flip序列前40 (bar,到向[1=L/-1=S],触发级别)={head:?}");
+                    // sink/recover 路由对称性（编排者排查：为什么 recover<sink）。
+                    let sink_lvl: Vec<u64> = (0..6).map(|k| r.sink_by_level[k]).collect();
+                    let recover_lvl: Vec<u64> = (0..6).map(|k| r.recover_by_level[k]).collect();
+                    eprintln!("  [{sym}/{mode:?}] sink_by_level={sink_lvl:?} recover_by_level={recover_lvl:?}");
+                    eprintln!(
+                        "  [{sym}/{mode:?}] 买点路由分类: recover={} noop(无短差浪费)={} sink(父空)={} core(核心级)={}",
+                        r.buy_recover, r.buy_noop, r.buy_sink, r.buy_core
+                    );
+                    let sells: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][1]).collect();
+                    let t1buy_lvl: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][0]).collect();
+                    eprintln!(
+                        "  [{sym}/{mode:?}] reruns={} t1sell_by_level={:?} t1buy_by_level={:?}",
+                        s.n_reruns, sells, t1buy_lvl
+                    );
+                    // 编排者 2026-06-21：type2/type3 买卖点（UpTrend 自身产买点 → 可 recover 短差空头，
+                    // 不需 DownTrend）。验收最高级别走势类型上的 type2/3 buy 数量。
+                    let t2buy: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][2]).collect();
+                    let t3buy: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][4]).collect();
+                    let t2sell: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][3]).collect();
+                    let t3sell: Vec<u64> = (0..6).map(|k| s.bsp_by_level[k][5]).collect();
+                    eprintln!(
+                        "  [{sym}/{mode:?}] t2buy_by_level={t2buy:?} t3buy_by_level={t3buy:?} | t2sell={t2sell:?} t3sell={t3sell:?}"
+                    );
+                    // 强平三阶段快照（编排者：查降成本/退本金保护 + 全仓 vs 逐仓）。
+                    eprintln!(
+                        "  [{sym}/{mode:?}] 强平三阶段快照(stage[0CostRed/1CapRec/2Earn],cost_basis,withdrawn,notional_in,nav)={:?}",
+                        r.liq_snapshot
+                    );
+                    // 强平 episode 表（编排者：查回补失败=空头没匹配买点被强平）。
+                    eprintln!(
+                        "  [{sym}/{mode:?}] 强平 episode（{}个）lv|开空bar|开空价|强平bar|强平价|空?|期间任意级别买点",
+                        r.liq_log.len()
+                    );
+                    for &(lv, eb, ep, lb, lp, short) in r.liq_log.iter() {
+                        // 期间 (开空bar, 强平bar] 任意级别 type1_buy（流式确认 bar 坐标）。
+                        let buys: Vec<(i64, f64, usize)> =
+                            s.t1buy.iter().filter(|(b, _, _)| *b > eb && *b <= lb).cloned().collect();
+                        let buy_lvls: Vec<usize> = buys.iter().map(|(_, _, l)| *l).collect();
+                        // 同级别买点（lv）是否 fire（高级别空头需同级别买点 recover）。
+                        let same_lvl = buys.iter().filter(|(_, _, l)| *l == lv).count();
+                        eprintln!(
+                            "    L{lv}|{eb}|{ep:.0}|{lb}|{lp:.0}|{}|{}个(同级别{})levels={:?}",
+                            if short { "空" } else { "多" },
+                            buys.len(),
+                            same_lvl,
+                            buy_lvls
+                        );
+                    }
+                    // 编排者诊断：L2/L3/L4 type1_buy 的 bar 分布（确认高级别空头持仓期间有无同级别买点）。
+                    for lvl in [2usize, 3, 4] {
+                        let buys: Vec<i64> =
+                            s.t1buy.iter().filter(|(_, _, l)| *l == lvl).map(|(b, _, _)| *b).collect();
+                        let first = buys.first().copied().unwrap_or(-1);
+                        let last = buys.last().copied().unwrap_or(-1);
+                        let head: Vec<i64> = buys.iter().take(8).copied().collect();
+                        eprintln!(
+                            "    L{lvl} type1_buy={}个 最早bar={} 最晚bar={} 前8={:?}",
+                            buys.len(),
+                            first,
+                            last,
+                            head
+                        );
+                    }
                 }
                 assert!(fin.is_finite(), "[{sym}] final_nav 有限（NaN/Inf=会计 bug）");
             }

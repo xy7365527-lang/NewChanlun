@@ -257,6 +257,11 @@ impl TFugueStreamCore {
         self.engine.op_diag()
     }
 
+    /// engine prove 守卫只读访问（验收报告/测试，与 rec_engine 对称）。
+    pub fn guards(&self) -> &super::prove_guards::ProveGuards {
+        self.engine.guards()
+    }
+
     pub fn n_trades(&self) -> usize {
         self.engine.n_trades()
     }

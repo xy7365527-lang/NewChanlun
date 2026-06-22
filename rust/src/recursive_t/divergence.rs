@@ -47,6 +47,14 @@ use super::types::{
     BSPKind, Direction, PerfectionMode, TrendKind, TrendType, Unit, Zhongshu, BSP,
 };
 
+// 诊断（编排者 2026-06-21）：盘整背驰 Down 失败原因计数（查 L4 ConsolDown type1_buy=0 根因）。
+// [level][0=no_new_low(离开不创新低), 1=no_force_decay(力度不衰减), 2=produced(产 type1_buy),
+//         3=no_leave(无离开段=走势未离开中枢=未完成)]。
+thread_local! {
+    pub static CONSOL_DOWN_DIAG: std::cell::RefCell<[[u64; 4]; 9]> =
+        const { std::cell::RefCell::new([[0; 4]; 9]) };
+}
+
 /// 一段单元的结构化力度。
 ///
 /// 优先用嵌套深度（下级中枢数之和）；若全段无内部中枢（a₀ 基底层）退化为几何振幅。
@@ -308,6 +316,7 @@ fn trend_structural_filter(
 }
 
 fn judge_consolidation_divergence(t: &TrendType, mode: PerfectionMode) -> Option<BSP> {
+    let diag_down = t.direction == Direction::Down && t.level < 9;
     if t.zhongshus.len() != 1 {
         return None;
     }
@@ -318,6 +327,9 @@ fn judge_consolidation_divergence(t: &TrendType, mode: PerfectionMode) -> Option
     let enter_end = *center.units.last().unwrap();
     // 进入段 = 切片起点到中枢末单元；离开段 = 其后。
     if enter_end + 1 >= t.units.len() {
+        if diag_down {
+            CONSOL_DOWN_DIAG.with(|d| d.borrow_mut()[t.level][3] += 1); // 无离开段（走势未离开中枢）
+        }
         return None;
     }
     let enter_leg = &t.units[0..=enter_end];
@@ -331,6 +343,9 @@ fn judge_consolidation_divergence(t: &TrendType, mode: PerfectionMode) -> Option
         Direction::Down => leave_ext < enter_ext,
     };
     if !new_extreme {
+        if diag_down {
+            CONSOL_DOWN_DIAG.with(|d| d.borrow_mut()[t.level][0] += 1); // 离开不创新低
+        }
         return None;
     }
 
@@ -338,7 +353,13 @@ fn judge_consolidation_divergence(t: &TrendType, mode: PerfectionMode) -> Option
     let structural = leg_strength(leave_leg) < leg_strength(enter_leg);
     let macd = macd_area_diverges(enter_leg, leave_leg, t.direction);
     if !combine_modes(structural, macd, mode) {
+        if diag_down {
+            CONSOL_DOWN_DIAG.with(|d| d.borrow_mut()[t.level][1] += 1); // 力度不衰减
+        }
         return None;
+    }
+    if diag_down {
+        CONSOL_DOWN_DIAG.with(|d| d.borrow_mut()[t.level][2] += 1); // 产 type1_buy
     }
 
     let kind = match t.direction {

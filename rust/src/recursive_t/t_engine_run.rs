@@ -279,6 +279,23 @@ fn t_engine_8x3() {
                 res.earning_cash_deployed, res.max_core_gain_x1000 as f64 / 1000.0,
                 res.short_leg_pnl, res.n_campaign_resets
             );
+            // ── prove 守卫族读数（L2，与 rec_engine 对称；no_trigger=0 由 panic 守卫保证）──
+            let g = core.guards();
+            eprintln!(
+                "  [{sym}/{:>10}] PROVE ops(bsp/emrg/eod)={:?} no_trigger={} | dir_mismatch={}/{} \
+                 | sink≠recover campaigns={}/{} 净失衡={} | neg_pnl campaigns={} by_level={:?}",
+                mode.as_str(),
+                &g.ops_by_trigger[..3],
+                g.n_ops_without_trigger,
+                g.n_dir_mismatch,
+                g.n_dir_checks,
+                g.n_sink_recover_imbalance,
+                g.n_campaigns_checked,
+                g.sink_recover_imbalance_total,
+                g.n_neg_pnl_campaigns,
+                // neg_pnl_by_level 索引=ladder（前 BASE_LADDER 格恒 0）；切 [BASE_LADDER..] 对齐 rec level 0-5。
+                &g.neg_pnl_by_level[BASE_LADDER..(BASE_LADDER + 6).min(g.neg_pnl_by_level.len())],
+            );
         }
         rows.push(row);
     }

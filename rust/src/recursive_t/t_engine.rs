@@ -51,6 +51,8 @@ use crate::fugue_v3::layer::{FugueResult, Layer};
 use crate::fugue_v3::prove::prove_nav_neutral;
 use crate::fugue_v3::{EQUITY_SAMPLE_BARS, SUB_LIQ_FACTOR};
 
+use super::prove_guards::{OpTrigger, ProveGuards};
+
 /// T level 0 在 ladder 空间的基准（= 走势级，move(L1)）。T level k ↦ ladder k + BASE_LADDER。
 pub const BASE_LADDER: usize = LADDER_MOVE;
 
@@ -221,6 +223,9 @@ pub struct TPositionEngine {
     enable_three_stage: bool,
     /// BSP 操作诊断（纯观测，恒开，零逻辑影响）：逐 BSP 按操作类型计数 + 核心 units 变化。
     op_diag: BspOpDiag,
+    /// prove 守卫族（编排者裁决 2026-06-21，与 rec_engine 对称）：BSP 触发归因（panic）+ sink/recover
+    /// 平衡 / per-level 短差 pnl / 核心方向匹配（观测计数）。见 `prove_guards.rs`。
+    guards: ProveGuards,
 }
 
 impl Default for TPositionEngine {
@@ -252,11 +257,17 @@ impl TPositionEngine {
                 last_active_bar: -1,
                 ..BspOpDiag::default()
             },
+            guards: ProveGuards::new(MAX_LADDER),
         }
     }
 
     pub fn result(&self) -> &FugueResult {
         &self.res
+    }
+
+    /// prove 守卫只读访问（验收报告/测试）。
+    pub fn guards(&self) -> &ProveGuards {
+        &self.guards
     }
 
     /// BSP 操作诊断快照（纯观测）。
@@ -404,6 +415,8 @@ impl TPositionEngine {
     /// campaign 结束（flip/clear/eod）：归还 withdrawn 到 free，重置三阶段状态。
     /// 诊断：累计 campaign 重置次数（= 翻转/清仓数，每次重置清零 core_cost_basis）。
     fn reset_campaign(&mut self) {
+        // campaign 终点（核心走势完成）：prove_sink_recover_balance + prove_per_level_pnl（观测）。
+        self.guards.campaign_end();
         if self.notional_in > 1e-9 {
             self.res.n_campaign_resets += 1;
         }
@@ -459,10 +472,14 @@ impl TPositionEngine {
         self.campaign_entry_cost = c;
         self.stage = TStage::CostReduction;
         self.earning_cash = 0.0;
+        // prove_bsp_triggers_operation（panic）+ campaign 起点基线。
+        self.guards.note_op("enter");
+        self.guards.campaign_start();
     }
 
     /// **clear_all**：全塔平仓到现金（flip 前 / eod）+ 归还退本金、重置三阶段 campaign。
     fn clear_all(&mut self, bar: i64, c: f64, reason: &'static str) {
+        self.guards.note_op("clear_all"); // prove_bsp_triggers_operation（panic）
         for k in 0..MAX_LADDER {
             let u = self.layers[k].units;
             if u > 1e-12 {
@@ -486,6 +503,7 @@ impl TPositionEngine {
         moved.ladder = to;
         self.layers[to] = moved;
         self.layers[from] = Layer::idle(from);
+        self.guards.note_op("ascend"); // prove_bsp_triggers_operation（panic；BSP 或 emergence 触发）
     }
 
     /// **emergence_upgrade（自下而上仓位涌现）**：T 迭代涌现出更高级别（低级别走势完成 →
@@ -510,6 +528,7 @@ impl TPositionEngine {
     /// 涌现 T-level ≤ 5（ladder ≤ 8），**从未触达上界** ⟹ 此 cap 在当前数据有效域外（L2 读数，
     /// 非无条件不变量；若未来数据触达 level 8，此处是静默丢弃升级，需补观测计数）。
     fn emergence_upgrade(&mut self, target_ladder: usize, target_dir: Polarity) {
+        self.guards.set_trigger(OpTrigger::Emergence); // 涌现是 ascend 的合法非 BSP 触发源
         if target_ladder >= MAX_LADDER {
             return;
         }
@@ -534,13 +553,23 @@ impl TPositionEngine {
         if self.layers[sub].is_active() && self.layers[sub].direction != mob {
             return;
         }
+        // 同资本 sizing（编排者裁决 2026-06-21，与 rec_engine 逐字一致保 bit-exact）：开空 units =
+        // reduce 释放的资本金额（m×parent.basis）在当前价 c 开空 = m×pb/c。价越高→同资本开的空头越少
+        // →牛市空头累积减轻。pb 须在 reduce 前捕获（reduce 零化时 basis=NaN）；分组 (m*pb)/c 与 rec 相同。
+        let pb = self.layers[parent].basis;
+        let short_u = if pb.is_finite() && pb > 1e-12 { m * pb / c } else { m };
+        if !(short_u > 1e-12 && short_u.is_finite()) {
+            return;
+        }
         let r0 = self.realized_total();
         reduce_at(&mut self.layers, parent, m, &mut self.free, c, bar, &mut self.res, "reduce");
-        add_at(&mut self.layers, sub, m, mob, &mut self.free, c, bar, &mut self.res);
+        add_at(&mut self.layers, sub, short_u, mob, &mut self.free, c, bar, &mut self.res);
         self.res.n_cycle_opens_by_ladder[parent] += 1;
         self.res.cross_level_closures += 1;
         // 核算父级 reduce 的 realized（父多=核心高位卖出降成本；父空=短差单独算）。
         self.account_reduce(pdir, self.realized_total() - r0, c);
+        self.guards.note_op("sink"); // prove_bsp_triggers_operation（panic）
+        self.guards.on_sink(); // prove_sink_recover_balance（campaign 内累计）
     }
 
     /// **recover @ (sub→parent)**（σ∘τ，ε 对称）：次级别走势完成 ⇒ **整条短差平清** m=u_sub（全量），
@@ -557,12 +586,25 @@ impl TPositionEngine {
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
+        // 同资本反算（编排者裁决 2026-06-21，与 rec_engine 逐字一致保 bit-exact）：平空释放名义资本 =
+        // m×sub.basis（= sink 时下放的核心资本）；归还核心 units = 该资本 / parent.basis ⟹ give = m×sb/pb
+        // （parent.basis 不变时 = m，恢复原股数；deploy_earning 降本后 give>m 按资本恢复）。sb 须在
+        // reduce(sub) 前捕获（reduce 零化 sub→basis=NaN）；分组 (m*sb)/pb 与 rec 相同。
+        let sb = self.layers[sub].basis;
+        let pb = self.layers[parent].basis;
+        let give = if pb.is_finite() && pb > 1e-12 { m * sb / pb } else { m };
+        if !(give > 1e-12 && give.is_finite()) {
+            return;
+        }
         let r0 = self.realized_total();
         reduce_at(&mut self.layers, sub, m, &mut self.free, c, bar, &mut self.res, "recover");
-        add_at(&mut self.layers, parent, m, pdir, &mut self.free, c, bar, &mut self.res);
+        add_at(&mut self.layers, parent, give, pdir, &mut self.free, c, bar, &mut self.res);
         self.res.n_cycle_closes_by_ladder[parent] += 1;
         // 核算 sub reduce 的 realized：sub=反父向短差腿⇒ 短差单独算，**不入降成本**。
-        self.account_reduce(mob, self.realized_total() - r0, c);
+        let realized = self.realized_total() - r0;
+        self.account_reduce(mob, realized, c);
+        self.guards.note_op("recover"); // prove_bsp_triggers_operation（panic）
+        self.guards.on_recover(sub, realized); // prove_sink_recover_balance + prove_per_level_pnl
         // ③ 增股数：EarningShares 阶段 recover = 买点，部署纯利润买更多核心 units。
         if pdir == Polarity::Long {
             self.deploy_earning(parent, bar, c);
@@ -580,13 +622,19 @@ impl TPositionEngine {
         let jdir = self.layers[j].direction; // 同父向遗留仓（父多→j 多）⇒ Long-reduce 降成本
         let r0 = self.realized_total();
         reduce_at(&mut self.layers, j, m, &mut self.free, c, bar, &mut self.res, "drain");
-        self.account_reduce(jdir, self.realized_total() - r0, c);
+        let realized = self.realized_total() - r0;
+        self.account_reduce(jdir, realized, c);
+        self.guards.note_op("drain"); // prove_bsp_triggers_operation（panic）
+        if jdir == Polarity::Short {
+            self.guards.on_short_pnl(j, realized); // prove_per_level_pnl（同向遗留短差腿平仓）
+        }
     }
 
     // ──────────────── BSP 路由（区间套 top-down）────────────────
 
     /// 单个 BSP（ladder j，is_buy）的路由：查父级 → 子级 sink/recover/drain；无父级 → 核心 enter/ascend/flip。
     fn route_bsp(&mut self, j: usize, is_buy: bool, bar: i64, c: f64) {
+        self.guards.set_trigger(OpTrigger::Bsp); // 本路由触发的所有原子操作归因 BSP
         match self.nearest_active_parent(j) {
             // ── 子级（有活跃祖先 P）：区间套约束，永不独立翻转 ──
             Some(p) => {
@@ -694,6 +742,7 @@ impl TPositionEngine {
     pub fn step(&mut self, view: &TSignalView, bar: i64, price: f64) {
         let c = price;
         self.last_close = c;
+        self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
         // 守恒量 = 总财富（free + Σ持仓 + withdrawn）：退本金把现金移出在险池，TW 守恒（NAV 不守恒）。
         let tw_pre = self.total_wealth(c);
 
@@ -717,7 +766,11 @@ impl TPositionEngine {
                             let r0 = self.realized_total();
                             reduce_at(&mut self.layers, k, u, &mut self.free, c, bar, &mut self.res, "liq_cross");
                             self.res.n_liquidations_by_ladder[k] += 1;
-                            self.account_reduce(kdir, self.realized_total() - r0, c);
+                            let realized = self.realized_total() - r0;
+                            self.account_reduce(kdir, realized, c);
+                            if kdir == Polarity::Short {
+                                self.guards.on_short_pnl(k, realized); // prove_per_level_pnl（强平空头腿）
+                            }
                         }
                     }
                 }
@@ -737,7 +790,11 @@ impl TPositionEngine {
                             reduce_at(&mut self.layers, k, l.units, &mut self.free, c, bar, &mut self.res, "liq");
                             self.res.n_liquidations_by_ladder[k] += 1;
                             // 强平 realized 按被平层方向核算（多头强平=亏损抬 cost_basis；空头腿强平=短差单独算）。
-                            self.account_reduce(l.direction, self.realized_total() - r0, c);
+                            let realized = self.realized_total() - r0;
+                            self.account_reduce(l.direction, realized, c);
+                            if l.direction == Polarity::Short {
+                                self.guards.on_short_pnl(k, realized); // prove_per_level_pnl（强平空头腿）
+                            }
                         }
                     }
                 }
@@ -773,6 +830,14 @@ impl TPositionEngine {
 
         // ── 守卫：全局总财富中性（同价 c 全部操作前后中性；退本金 free→withdrawn 在 TW 内守恒）──
         prove_nav_neutral(tw_pre, self.total_wealth(c), bar);
+
+        // ── prove_direction_matches_trend（观测）：核心方向应 = 最高走势类型方向 ──
+        // emergent_top 是本 bar 最高 completed 走势方向；highest_active 是核心仓方向。emergence_upgrade
+        // 的同向 gate 应使二者匹配——失配 = 核心被低级别 BSP flip / 逆涌现未升级（已知强牛违反）。
+        if let Some((_, edir)) = view.emergent_top {
+            let core_dir = self.highest_active().map(|cc| self.layers[cc].direction);
+            self.guards.check_direction(core_dir, edir);
+        }
 
         // ── 观测 ──
         let (long_u, short_u) = exposure(&self.layers);
@@ -836,6 +901,7 @@ impl TPositionEngine {
                 let (lu, su) = exposure(&self.layers);
                 self.res.exposure_series.push((lb, lu, su));
             }
+            self.guards.set_trigger(OpTrigger::Eod); // eod 是 clear_all 的合法非 BSP 触发源
             self.clear_all(lb, c_last, "eod"); // clear_all → reset_campaign 归还 withdrawn 到 free
         }
         // 全平后 free = 净值（所有仓位转现金 + 已退本金归还）。

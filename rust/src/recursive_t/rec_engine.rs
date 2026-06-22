@@ -28,6 +28,7 @@
 //! 数据结构/会计/守恒 = L0；route_bsp 行为对照 flat = L0（flat 已 L3 验证 CL+120%）；递归化后回测
 //! 收益复现 = L3（验收：与 flat 行为等价）。
 
+use super::prove_guards::{OpTrigger, ProveGuards};
 use super::types::Direction;
 use crate::fugue_v3::SUB_LIQ_FACTOR;
 use crate::trading::types::Polarity;
@@ -241,12 +242,39 @@ pub struct TRoot {
     pub n_flips: u64,
     pub n_ascends: u64,
     pub n_emergence_upgrades: u64,
+    /// 编排者排查 2026-06-21：emergence_upgrade 统计——核心低于涌现级别本可升级的次数 / 方向不匹配跳过。
+    pub n_emergence_attempts: u64,
+    pub n_emergence_skipped_dir: u64,
+    /// 核心 flip 序列（bar, from_dir, to_dir, j_level, is_buy）：查核心被低级别 BSP ping-pong。
+    pub flip_log: Vec<(i64, Polarity, Polarity, usize, bool)>,
+    /// 当前 bar（on_bar 每 bar 设，flip_log 用）。
+    pub cur_bar: i64,
+    /// 编排者排查 2026-06-21：sink/recover 路由对称性——per-level sink/recover + 买点路由分类
+    /// （查为什么 recover(1348)<sink(2671)：哪些买点没被消费为 recover）。
+    pub sink_by_level: [u64; MAX_LEVEL],
+    pub recover_by_level: [u64; MAX_LEVEL],
+    pub buy_recover: u64, // 父多+买点+j active Short → recover
+    pub buy_noop: u64,    // 父多+买点+j 无短差 → no-op（浪费的买点）
+    pub buy_sink: u64,    // 父空+买点 → sink（核心 Short 时减仓）
+    pub buy_core: u64,    // 核心级买点 → enter/ascend/flip
     pub n_liquidations: u64,
     pub n_capital_recovered: u64,
     pub n_earning_deploys: u64,
     pub short_leg_pnl: f64,
+    /// 短差腿 per-level realized（验收：哪个级别短差赚/亏，编排者 per-level P&L 追踪）。
+    pub short_pnl_by_level: [f64; MAX_LEVEL],
+    /// 强平 episode 诊断（编排者：查回补失败=空头没匹配买点被强平）：
+    /// (level, 开空节点起点 bar, 开空价 basis, 强平 bar, 强平价, 是否空头)。
+    pub liq_log: Vec<(usize, i64, f64, i64, f64, bool)>,
+    /// 诊断（编排者 2026-06-21）：强平时三阶段快照 (stage_id 0=CostRed/1=CapRec/2=Earn,
+    /// core_cost_basis, withdrawn, notional_in, nav)。查降成本/退本金保护是否生效 + 全仓 vs 逐仓。
+    pub liq_snapshot: Vec<(u8, f64, f64, f64, f64)>,
     pub earning_units_added: f64,
     pub max_core_gain_x1000: u64,
+
+    /// prove 守卫族（编排者裁决 2026-06-21）：BSP 触发归因（panic）+ sink/recover 平衡 / per-level
+    /// 短差 pnl / 核心方向匹配（观测计数）。见 `prove_guards.rs`。
+    guards: ProveGuards,
 }
 
 impl TRoot {
@@ -271,13 +299,32 @@ impl TRoot {
             n_flips: 0,
             n_ascends: 0,
             n_emergence_upgrades: 0,
+            n_emergence_attempts: 0,
+            n_emergence_skipped_dir: 0,
+            flip_log: Vec::new(),
+            cur_bar: 0,
+            sink_by_level: [0; MAX_LEVEL],
+            recover_by_level: [0; MAX_LEVEL],
+            buy_recover: 0,
+            buy_noop: 0,
+            buy_sink: 0,
+            buy_core: 0,
             n_liquidations: 0,
             n_capital_recovered: 0,
             n_earning_deploys: 0,
             short_leg_pnl: 0.0,
+            short_pnl_by_level: [0.0; MAX_LEVEL],
+            liq_log: Vec::new(),
+            liq_snapshot: Vec::new(),
             earning_units_added: 0.0,
             max_core_gain_x1000: 0,
+            guards: ProveGuards::new(MAX_LEVEL),
         }
+    }
+
+    /// prove 守卫只读访问（验收报告/测试）。
+    pub fn guards(&self) -> &ProveGuards {
+        &self.guards
     }
 
     // ──────────────── 守恒（根级别）────────────────
@@ -452,6 +499,8 @@ impl TRoot {
 
     /// campaign 结束（flip/clear/eod）：归还 withdrawn、重置三阶段（= flat reset_campaign）。
     fn reset_campaign(&mut self) {
+        // campaign 终点（核心走势完成）：prove_sink_recover_balance + prove_per_level_pnl（观测）。
+        self.guards.campaign_end();
         self.free += self.withdrawn;
         self.withdrawn = 0.0;
         self.stage = RecStage::CostReduction;
@@ -485,10 +534,14 @@ impl TRoot {
         self.stage = RecStage::CostReduction;
         self.earning_cash = 0.0;
         self.n_enters += 1;
+        // prove_bsp_triggers_operation（panic）+ campaign 起点基线。
+        self.guards.note_op("enter");
+        self.guards.campaign_start();
     }
 
     /// **clear_all**（= flat clear_all）：全塔平仓到现金 + reset_campaign。
     fn clear_all(&mut self, c: f64) {
+        self.guards.note_op("clear_all"); // prove_bsp_triggers_operation（panic）
         let mut free = self.free;
         for k in 0..MAX_LEVEL {
             let u = self.instances[k].units;
@@ -513,17 +566,25 @@ impl TRoot {
         self.instances[to] = moved;
         self.instances[from] = TInstance::idle(from);
         self.n_ascends += 1;
+        self.guards.note_op("ascend"); // prove_bsp_triggers_operation（panic；BSP 或 emergence 触发）
     }
 
     /// **emergence_upgrade**（= flat emergence_upgrade）：自下而上涌现，核心同向 → ascend 升级到 target。
+    /// ascend 逻辑 = flat 原版（同向 + cc<target_level 才 ascend）。计数为纯观测（编排者排查 2026-06-21）。
     fn emergence_upgrade(&mut self, target_level: usize, target_dir: Polarity, node: TrendNode) {
+        self.guards.set_trigger(OpTrigger::Emergence); // 涌现是 ascend 的合法非 BSP 触发源
         if target_level >= MAX_LEVEL {
             return;
         }
         if let Some(cc) = self.highest_active() {
-            if self.instances[cc].direction == target_dir && cc < target_level {
-                self.ascend(cc, target_level, node);
-                self.n_emergence_upgrades += 1;
+            if cc < target_level {
+                self.n_emergence_attempts += 1; // 核心低于涌现级别，本可升级
+                if self.instances[cc].direction == target_dir {
+                    self.ascend(cc, target_level, node);
+                    self.n_emergence_upgrades += 1;
+                } else {
+                    self.n_emergence_skipped_dir += 1; // 方向不匹配跳过（核心 dir != 涌现 dir）
+                }
             }
         }
     }
@@ -540,15 +601,29 @@ impl TRoot {
         if self.instances[sub].is_active() && self.instances[sub].direction != mob {
             return;
         }
+        // 同资本 sizing（编排者裁决 2026-06-21）：开空 units = reduce 释放的资本金额（m×parent.basis）
+        // 在当前价 c 开空 = m×pb/c。价越高→同资本开的空头越少→牛市空头累积减轻、全仓 NAV 不易被拖到 0。
+        // pb 必须在 reduce 前捕获（reduce 把 units 减到 ≤EPS 时会污染 basis=NaN）；表达式分组 (m*pb)/c
+        // 与 flat t_engine 逐字一致保 bit-exact。
+        let pb = self.instances[parent].basis;
+        let short_u = if pb.is_finite() && pb > 1e-12 { m * pb / c } else { m };
+        if !(short_u > 1e-12 && short_u.is_finite()) {
+            return;
+        }
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[parent], m, &mut free, c);
-        rec_add(&mut self.instances[sub], m, mob, &mut free, c);
+        rec_add(&mut self.instances[sub], short_u, mob, &mut free, c);
         self.free = free;
         self.instances[sub].node = sub_node;
         self.instances[sub].level = sub;
         self.account_reduce(pdir, realized, c);
         self.n_sinks += 1;
+        self.guards.note_op("sink"); // prove_bsp_triggers_operation（panic）
+        self.guards.on_sink(); // prove_sink_recover_balance（campaign 内累计）
+        if sub < MAX_LEVEL {
+            self.sink_by_level[sub] += 1; // 诊断：per-level sink
+        }
         self.prove_tw_neutral(tw_pre, c);
     }
 
@@ -564,16 +639,34 @@ impl TRoot {
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
+        // 同资本反算（编排者裁决 2026-06-21）：平空释放名义资本 = m×sub.basis（= sink 时下放的核心资本）；
+        // 归还核心 units = 该资本 / parent.basis ⟹ give = m×sb/pb。parent.basis 不变时 give=m（核心恢复原
+        // 股数），被 deploy_earning 降本后按资本恢复（give>m）。sb 须在 reduce(sub) 前捕获（reduce 零化
+        // sub→basis=NaN）；表达式分组 (m*sb)/pb 与 flat t_engine 逐字一致保 bit-exact。
+        let sb = self.instances[sub].basis;
+        let pb = self.instances[parent].basis;
+        let give = if pb.is_finite() && pb > 1e-12 { m * sb / pb } else { m };
+        if !(give > 1e-12 && give.is_finite()) {
+            return;
+        }
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[sub], m, &mut free, c);
-        rec_add(&mut self.instances[parent], m, pdir, &mut free, c);
+        rec_add(&mut self.instances[parent], give, pdir, &mut free, c);
         self.free = free;
         self.account_reduce(mob, realized, c);
+        if sub < MAX_LEVEL {
+            self.short_pnl_by_level[sub] += realized; // 短差腿 per-level（验收哪级别亏）
+        }
+        self.n_recovers += 1;
+        self.guards.note_op("recover"); // prove_bsp_triggers_operation（panic）
+        self.guards.on_recover(sub, realized); // prove_sink_recover_balance + prove_per_level_pnl
+        if sub < MAX_LEVEL {
+            self.recover_by_level[sub] += 1; // 诊断：per-level recover
+        }
         if pdir == Polarity::Long {
             self.deploy_earning(parent, c);
         }
-        self.n_recovers += 1;
         self.prove_tw_neutral(tw_pre, c);
     }
 
@@ -591,11 +684,16 @@ impl TRoot {
         self.free = free;
         self.account_reduce(jdir, realized, c);
         self.n_drains += 1;
+        self.guards.note_op("drain"); // prove_bsp_triggers_operation（panic）
+        if jdir == Polarity::Short {
+            self.guards.on_short_pnl(j, realized); // prove_per_level_pnl（同向遗留短差腿平仓）
+        }
         self.prove_tw_neutral(tw_pre, c);
     }
 
-    /// **route_bsp**（= flat route_bsp）：level j 的 BSP 分派。无 C1/candidate/方向 gate。
+    /// **route_bsp**（= flat route_bsp）：level j 的 BSP 分派。
     fn route_bsp(&mut self, j: usize, is_buy: bool, node: TrendNode, c: f64) {
+        self.guards.set_trigger(OpTrigger::Bsp); // 本路由触发的所有原子操作归因 BSP
         match self.nearest_active_parent(j) {
             // ── 子级（有活跃祖先 P）：区间套约束，永不独立翻转 ──
             Some(p) => {
@@ -607,6 +705,9 @@ impl TRoot {
                 };
                 if is_reduce {
                     // 反父向 BSP：sink（空/已是短差）或 drain（遗留同父向仓）。
+                    if is_buy {
+                        self.buy_sink += 1; // 诊断：父空+买点 → sink（减核心 Short）
+                    }
                     if !self.instances[j].is_active() || self.instances[j].direction == mob {
                         self.sink(p, j, node, c);
                     } else {
@@ -615,12 +716,20 @@ impl TRoot {
                 } else {
                     // 同父向 BSP：recover（j 持短差则平整条升回）；否则 no-op（不 pyramid）。
                     if self.instances[j].is_active() && self.instances[j].direction == mob {
+                        if is_buy {
+                            self.buy_recover += 1; // 诊断：父多+买点 → recover
+                        }
                         self.recover(p, j, c);
+                    } else if is_buy {
+                        self.buy_noop += 1; // 诊断：父多+买点+j 无短差 → no-op（浪费的买点）
                     }
                 }
             }
             // ── 核心级（无活跃祖先）：唯一独立翻转点 ──
             None => {
+                if is_buy {
+                    self.buy_core += 1; // 诊断：核心级买点 → enter/ascend/flip（不 recover）
+                }
                 let dir = if is_buy { Polarity::Long } else { Polarity::Short };
                 match self.highest_active() {
                     None => self.enter(j, dir, node, c), // 首次建仓
@@ -633,6 +742,8 @@ impl TRoot {
                             }
                         } else {
                             // 反向：核心翻转（走势终完美→新走势）——清全塔 + 同 level 反向 enter。
+                            // 诊断（编排者排查 2026-06-21）：核心 flip 序列(bar/from→to/触发 BSP 级别+买卖)。
+                            self.flip_log.push((self.cur_bar, cdir, dir, j, is_buy));
                             self.clear_all(c);
                             self.enter(j, dir, node, c);
                             self.n_flips += 1;
@@ -647,25 +758,36 @@ impl TRoot {
 
     /// 单 bar 操作步进（= flat step）：强平 → emergence_upgrade → route_bsp top-down。
     pub fn on_bar(&mut self, view: &LevelView, bar: i64, c: f64) {
-        let _ = bar;
+        self.cur_bar = bar;
         self.last_close = c;
+        self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
         let tw_pre = self.total_wealth(c);
 
         // ── A. 边界算子：保证金强平，按三阶段切换（= flat）──
         match self.stage {
             RecStage::EarningShares => {
-                // 全仓：账户级，in-system NAV≤0 ⇒ 连锁全平。
+                // 全仓：账户级，in-system NAV≤0 ⇒ 连锁全平。这是**账户级抵消**（核心多头利润 −
+                // 短差空头亏 = net），降成本立于不败的实现——逐仓 layer 独立会破坏抵消致短差翻倍亏 6×退化。
                 if self.nav(c) <= 0.0 {
+                    let nav_now = self.nav(c);
+                    self.liq_snapshot.push((2, self.core_cost_basis, self.withdrawn, self.notional_in, nav_now));
                     let mut free = self.free;
                     for k in 0..MAX_LEVEL {
                         let kdir = self.instances[k].direction;
                         let u = self.instances[k].units;
                         if u > 1e-12 {
+                            let entry_bar = self.instances[k].node.start_bar;
+                            let entry_basis = self.instances[k].basis;
+                            let is_short = kdir == Polarity::Short;
                             let realized = rec_reduce(&mut self.instances[k], u, &mut free, c);
                             self.free = free;
                             self.n_liquidations += 1;
                             self.account_reduce(kdir, realized, c);
+                            if is_short {
+                                self.guards.on_short_pnl(k, realized); // prove_per_level_pnl（强平空头腿）
+                            }
                             free = self.free;
+                            self.liq_log.push((k, entry_bar, entry_basis, bar, c, is_short));
                         }
                     }
                     self.free = free;
@@ -681,11 +803,25 @@ impl TRoot {
                             Polarity::Short => c >= SUB_LIQ_FACTOR * l.basis,
                         };
                         if liq {
+                            let sid = match self.stage {
+                                RecStage::CostReduction => 0,
+                                RecStage::CapitalRecovered => 1,
+                                RecStage::EarningShares => 2,
+                            };
+                            let nav_now = self.nav(c);
+                            self.liq_snapshot.push((sid, self.core_cost_basis, self.withdrawn, self.notional_in, nav_now));
+                            let entry_bar = l.node.start_bar;
+                            let entry_basis = l.basis;
+                            let is_short = l.direction == Polarity::Short;
                             let mut free = self.free;
                             let realized = rec_reduce(&mut self.instances[k], l.units, &mut free, c);
                             self.free = free;
                             self.n_liquidations += 1;
                             self.account_reduce(l.direction, realized, c);
+                            if is_short {
+                                self.guards.on_short_pnl(k, realized); // prove_per_level_pnl（强平空头腿）
+                            }
+                            self.liq_log.push((k, entry_bar, entry_basis, bar, c, is_short));
                         }
                     }
                 }
@@ -721,11 +857,20 @@ impl TRoot {
         }
 
         self.prove_tw_neutral(tw_pre, c);
+
+        // ── prove_direction_matches_trend（观测）：核心方向应 = 最高走势类型方向 ──
+        // emergent_top 是本 bar 最高 completed 走势方向；highest_active 是核心仓方向。emergence_upgrade
+        // 的同向 gate 应使二者匹配——失配 = 核心被低级别 BSP flip / 逆涌现未升级（已知强牛违反）。
+        if let Some((_, edir)) = view.emergent_top {
+            let core_dir = self.highest_active().map(|cc| self.instances[cc].direction);
+            self.guards.check_direction(core_dir, edir);
+        }
     }
 
     /// 收尾（全平到现金，归还 withdrawn）。返回 final_nav (= free)。
     pub fn finish(&mut self, c: f64) -> f64 {
         if c.is_finite() && c > 0.0 {
+            self.guards.set_trigger(OpTrigger::Eod); // eod 是 clear_all 的合法非 BSP 触发源
             self.clear_all(c);
         }
         self.free

@@ -55,6 +55,7 @@ pub mod center;
 pub mod divergence;
 pub mod ffi;
 pub mod operator;
+pub mod prove_guards;
 pub mod rec_driver;
 pub mod rec_engine;
 pub mod rec_stream;
