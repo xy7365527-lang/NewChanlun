@@ -2594,11 +2594,6 @@ nodes:
   status: 已结算
   type: 概念分离
   file: settled/533-structure-lags-price-spectrum.md
-- id: '533'
-  title: 结构滞后于价格的三层判据时效谱型——confirmed（不可达）→ candidate（滞后）→ 价格事件（即时）
-  status: 已结算
-  type: 概念分离
-  file: settled/533-structure-lags-price-spectrum.md
 - id: '534'
   title: 嵌套递归的会计语义——独立暴露 vs 降成本短差（结算：49课二相的概念分离）
   status: 已结算
@@ -2656,6 +2651,48 @@ nodes:
   status: 已结算
   type: 概念发现（语法记录 / 会计层 σ-等变约束）
   file: settled/542-spawn-allocation-sigma-invariant.md
+- id: '546'
+  title: enter 全空仓门 × 几何衰减不归零的『僵尸核心死锁』——campaign 走势边界从未重置，capture-early-then-preserve
+    的 regime 函数（熊市保本/牛市踏空）；独立于 545 号方向锚的相邻机制
+  status: settled
+  type: 概念发现
+  file: settled/546-enter-allspace-gate-geometric-decay-deadlock.md
+- id: '547'
+  title: cascade 级别错配——次级别卖点翻整个主力仓位：死锁与做空亏是同一错误判据的两端
+  status: settled
+  type: 概念发现
+  file: settled/547-cascade-level-misattribution.md
+- id: '543'
+  title: 操作 = path（D∞ word）≠ 硬编码循环模式
+  status: settled
+  type: 概念分离
+  file: settled/543-operation-as-word-not-hardcoded-cycle.md
+- id: '544'
+  title: T24 手性交替 L0 守卫降级为观测 + sink/recover 方向相容前提补齐
+  status: settled
+  type: 概念分离
+  file: settled/544-t24-chiral-overstrict-to-observation.md
+- id: '545'
+  title: emergent_top 判据震荡 —— 一个能指承载三重所指，方向锚所指已被否定却未移除
+  status: settled
+  type: 概念分离
+  file: settled/545-emergent-top-direction-anchor-instability.md
+- id: '548'
+  title: hook 双类型分离——bootstrap hook 行动指令注入（097 结构性例外）vs tool-拦截 hook 指令索引（097 纯化靶点）
+  status: settled
+  type: 语法记录
+  file: settled/548-hook-action-injection-vs-instruction-index.md
+- id: '549'
+  title: relations.jsonl 沦为未实体化 LFS 指针——476号(append-only ⊥ long-running)张力的物质显形，冻结
+    block-topology 映射管线
+  status: 生成态
+  type: 矛盾发现
+  file: pending/549-relations-jsonl-lfs-pointer-blocks-mapping.md
+- id: '550'
+  title: 谱系免疫两层架构——compact 使事件驱动快层静默，ceremony_scan 慢层批量补偿；delta_settled=0 是快层静默的可观测信号
+  status: settled
+  type: meta-rule
+  file: settled/550-genealogy-immune-two-layer-compact-silence.md
 edges:
   depends_on:
   - from: '136'
@@ -5502,6 +5539,34 @@ edges:
     to: '541'
   - from: '542'
     to: '538'
+  - from: '546'
+    to: '545'
+  - from: '547'
+    to: '545'
+  - from: '547'
+    to: '546'
+  - from: '548'
+    to: 097
+  - from: '548'
+    to: '407'
+  - from: '548'
+    to: '137'
+  - from: '548'
+    to: '042'
+  - from: '548'
+    to: 048
+  - from: '548'
+    to: 069
+  - from: '548'
+    to: '075'
+  - from: '549'
+    to: '476'
+  - from: '549'
+    to: '178'
+  - from: '550'
+    to: 069
+  - from: '550'
+    to: '075'
   triggered:
   - from: '005'
     to: 005a
@@ -5604,6 +5669,27 @@ edges:
     to: '401'
   - from: '480'
     to: '478'
+  - from: '546'
+    to: core-campaign-boundary-aligns-with-trend-recursion（隐含命题：『enter 全空仓门 + 几何衰减自然终止
+      campaign 边界 = 缠论走势完成边界』——被 BTC 实测证伪：campaign 边界 8.5 年从未触发，与走势递归脱钩）
+  - from: '547'
+    to: cascade-flip-on-any-cross-level-completion（隐含命题：『任何级联到核心仓位级别(e_level≥cc)的反向完成走势
+      = 核心反转信号』——被证伪：牛市大趋势 completed=false ⟹ emergent_top 必落次级别 ⟹ 用次级别卖点翻整个主力仓位）
+  - from: '548'
+    to: hook-purity-applies-uniformly（隐含命题：『097 的 hook 纯化—只阻断/放行、不做指令—统一适用于所有 hook
+      类型』——被证伪：SessionStart 无 tool 可拦截，其存在论职责本就是注入初始结构；042/048/407 三已结算先例证明 hook 注入正面格式行动指令一直合法，097
+      negates=[] 一个没否）
+  - from: '548'
+    to: 隐含命题『事件驱动结构工位 = 谱系免疫的完整实现』——被证伪：autocompact 不是 skill 监听的事件 ⟹ 事件驱动快层在 compact
+      期静默 ⟹ delta_settled=0 stagnation；谱系免疫的完整性依赖 ceremony_scan 慢层（文件系统扫描）的批量补偿
+  - from: '549'
+    to: 隐含命题『block-topology 映射管线（map_genealogy_to_blocks.py）随时可执行』——被证伪：relations.jsonl
+      是 134 字节 LFS 指针（LFS object 未 pull），read_all_relations 对其首行 `version https://git-lfs.github.com/spec/v1`
+      调 json.loads 必抛 JSONDecodeError；mapper Phase3 (_build_existing_keys→read_all_relations)
+      在 Phase2 已 write_meta 之后崩溃 = 部分损坏（meta.json 已加 531-547，relations 未写，脚本异常退出）
+  - from: '550'
+    to: 隐含命题『事件驱动结构工位 = 谱系免疫的完整实现』——被证伪：autocompact 不是 skill 监听的事件 ⟹ 事件驱动快层在 compact
+      期静默 ⟹ delta_settled=0 stagnation；谱系免疫的完整性依赖 ceremony_scan 慢层（文件系统扫描）的批量补偿
   related:
   - between:
     - '001'
@@ -7270,6 +7356,54 @@ edges:
   - between:
     - '527'
     - '542'
+  - between:
+    - '539'
+    - '546'
+  - between:
+    - '533'
+    - '546'
+  - between:
+    - '542'
+    - '546'
+  - between:
+    - '006'
+    - '546'
+  - between:
+    - '006'
+    - '547'
+  - between:
+    - '027'
+    - '548'
+  - between:
+    - 028
+    - '548'
+  - between:
+    - '407'
+    - '548'
+  - between:
+    - '137'
+    - '548'
+  - between:
+    - '074'
+    - '548'
+  - between:
+    - '181'
+    - '548'
+  - between:
+    - '424'
+    - '549'
+  - between:
+    - '407'
+    - '550'
+  - between:
+    - '137'
+    - '550'
+  - between:
+    - '074'
+    - '550'
+  - between:
+    - '181'
+    - '550'
   tensions_with:
   - between:
     - '007'
@@ -7370,6 +7504,9 @@ edges:
   - between:
     - '526'
     - '540'
+  - between:
+    - '178'
+    - '549'
   negated_by:
   - target: '032'
     by: 088
