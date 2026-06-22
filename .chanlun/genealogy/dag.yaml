@@ -2708,6 +2708,12 @@ nodes:
   status: settled
   type: 概念发现
   file: settled/553-cascade-flip-falsified-symmetric-dual-eating-unreachable.md
+- id: '554'
+  title: A 路 D_TOP 区间套精确切换 L3 否证——链坍缩，有效域≈空集 @ a0=segment（第27课区间套三必要条件在 1min a0=segment
+    真实数据几乎从不同时满足）
+  status: settled
+  type: 概念发现
+  file: settled/554-a-path-d-top-nested-precision-falsified-empty-domain.md
 edges:
   depends_on:
   - from: '136'
@@ -5596,6 +5602,10 @@ edges:
     to: '552'
   - from: '553'
     to: '547'
+  - from: '554'
+    to: '553'
+  - from: '554'
+    to: '545'
   triggered:
   - from: '005'
     to: 005a
@@ -5733,6 +5743,11 @@ edges:
       anchor 趋势底仓（OKLO +458.9→−106.6💥 穿仓）；隐含命题②『用 cascade 粗识别（emergent_top.completed）/
       B 路全程持空 实现对称双吃』——被证伪：cascade 粗识别强牛误翻空、B 路全程持空强牛失血。**正确形式（每级别精确走势完成识别 + 切换）未试，不证伪「吃每级别涨跌幅绝对值」目标本身**（[[feedback_filter_bank_metaphor_prove]]
       终极目标的可达性待 A 路检验）
+  - from: '554'
+    to: 553 号 A 路开放轴的隐含命题『区间套级联精度 > cascade 粗识别，能避免强牛误触发、吃到跌那一半』——被证伪：区间套 D_TOP 链
+      @ a0=segment 坍缩（n_a_path_switches 21/24 = 0），A 路退化为『anchor 锁核心 + 低级别空腿照常失血』混合态，比
+      OFF 和 ANCHOR 都差（仅 4/24 巧合 = OFF，15/24 偏离 >10pp）。精确识别『走势完成』@ a0=segment 在 1min
+      分辨率不可操作。
   related:
   - between:
     - '001'
@@ -7495,6 +7510,30 @@ edges:
   - between:
     - '476'
     - '549'
+  - between:
+    - '552'
+    - '554'
+  - between:
+    - '547'
+    - '554'
+  - between:
+    - '539'
+    - '554'
+  - between:
+    - '554'
+    - 【memory】project_t_cross_level_coupling_falsified
+  - between:
+    - '554'
+    - 【memory】project_pcf_1s_a0_source_collapse
+  - between:
+    - '554'
+    - 【memory】project_pcf_pending_locate_collapse_fix
+  - between:
+    - '554'
+    - 【memory】feedback_filter_bank_metaphor_prove
+  - between:
+    - '553'
+    - '554'
   tensions_with:
   - between:
     - '007'

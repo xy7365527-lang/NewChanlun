@@ -27,6 +27,7 @@ related:
   - '546'   # 僵尸核心死锁——本号否证其「cascade 是死锁突破口」隐含命题
   - '545'   # emergent_top 方向锚——A 路依赖精确顶部识别，cascade 粗识别已否证
   - '539'   # 清仓判据 regime 门控 / capture-early-then-preserve——cascade 翻空=该持多时清仓，同谱型
+  - '554'   # A 路 D_TOP L3 否证——本号 §五 A 路开放轴的 L3 裁决（区间套链 @ a0=segment 坍缩，有效域空集）
   - '【memory】project_t_cross_level_coupling_falsified'   # 逆势腿强牛穿仓——cascade 核心翻空 = 逆势腿在强牛被套同构
   - '【memory】feedback_filter_bank_metaphor_prove'        # 对称双吃假设的来源（终极目标）——本号否证两错误实现形式，不否证目标本身
   - '【memory】project_recursive_t_architecture_v2'        # T 引擎原始意图（每级别骑走势精确切换）= 对称双吃正确形式的来源
@@ -109,9 +110,9 @@ both%（多空腿同 bar 共存比例）全配置 **40–96%**（OKLO 71.9 / BTC
 |---|---|---|
 | anchor 单独（552） | 核心多腿不僵死、死扣吃涨 | **强牛 5/8 解踏空** ✓（有效域=强牛 regime，确证） |
 | + cascade 粗识别（本号） | 核心能动（emergent_top.completed 翻转）= 死锁突破口 | **L3 否证，有效域空集** ✗（粗识别能动=误翻空=毁底仓，确证） |
-| 对称双吃正确形式（A 路） | 每级别精确骑走势切换吃涨跌 | **未试，可达性待检验** |
+| 对称双吃正确形式（A 路） | 每级别精确骑走势切换吃涨跌 | **A 路 @ a0=segment 已 L3 否证（554，链坍缩）；可达性判决场移至 a0=stroke** |
 
-**这否证了 546/547 路线的隐含命题「cascade（粗识别能动）是死锁突破口」**：cascade 确实让核心能动（n_enters 4→78，546 Face A 解），但**这一粗识别实现**的能动方式 = 误翻空 = 毁 anchor 趋势底仓。**核心不需要「粗识别能动翻转」来解踏空——anchor 让核心死扣持多吃涨即是吃涨侧真解。** 吃跌侧的真解是对称双吃的正确形式（精确切换，§3.3），未试。
+**这否证了 546/547 路线的隐含命题「cascade（粗识别能动）是死锁突破口」**：cascade 确实让核心能动（n_enters 4→78，546 Face A 解），但**这一粗识别实现**的能动方式 = 误翻空 = 毁 anchor 趋势底仓。**核心不需要「粗识别能动翻转」来解踏空——anchor 让核心死扣持多吃涨即是吃涨侧真解。** 吃跌侧的真解是对称双吃的正确形式（精确切换，§3.3），A 路 @ a0=segment 已否证（554），未试形式仅剩 a0=stroke。
 
 ### 4.1 与 [[project_t_cross_level_coupling_falsified]] 同构
 cascade 核心翻空（强牛中把核心多腿翻成空）= cross_level 逆势空腿在强牛被套（−89.7%💥 穿仓）的同构。OKLO THREE-HALF −106.6💥 穿仓 = 同一「逆 regime 的核心翻空/逆势腿失血」机制。三例同族：cross_level 短差空腿逆强牛 / 552 anchor 多底仓逆震荡 / 553 cascade 核心翻空逆强牛——**不可减仓/逆 regime 的固定方向腿（或粗触发腿）在逆 regime 被套**，regime 结构税。**注意**：这三例都是「腿方向与 regime 不精确切换」——正是对称双吃正确形式（精确切换）要解决的同一问题，故它们否证的是「不切换/粗切换」实现，不是「双吃」目标。
@@ -124,22 +125,25 @@ A 路（涌现最高级别走势卖点翻核心，吃最高级别大跌，552 §
 2. **依赖精确顶部识别**：A 依赖把翻空精确压缩到「只在真正的大趋势顶部、强牛中永不误触发」。顶部识别依赖 545 emergent_top（completed 跨年滞后），而 **cascade 的粗识别已 L3 否证**（任何 completed 即翻 → 强牛误触发 → 毁底仓）。A 的正确实现 = 第27课区间套级联（次级别背驰逐级确认涌现最高级别完成），减滞后、提精度。
 3. **成败判据**：A 路成败取决于识别精度能否把翻空压缩到「只在真正顶部、强牛中零误触发」。**未实证**——这是 545 区间套级联减滞后的有效域问题。**A 路 = 对称双吃可达性的判决场**：A 成则对称双吃（至少核心级别）可达，A 败则确证「跌那一半即使精确识别也吃不到」（届时才可声称不可达）。本号不下否证结论，仅标注 A 路继承的风险（识别精度不足 → 退化为 cascade 粗识别 → 强牛误触发 → 毁底仓）。
 
+> **【554 号 L3 裁决，2026-06-22】** A 路本体实装成功（worktree 3cc8c49b7a，113 单测绿 bit-exact），但 **A 路 D_TOP @ a0=segment 已 L3 否证**（见 554）：区间套链全面坍缩（n_a_path_switches 21/24 = 0），A 路退化为「anchor 锁核心 + 低级别空腿照常失血」混合态，**比 OFF 和 ANCHOR 都差**（仅 4/24 = OFF，15/24 偏离 >10pp）；安全（无 OKLO 穿仓）来自瘫痪（核心 enter=1/flip=0）不是精度。强牛 A_PATH ≪ ANCHOR（BTC −1086pp / OKLO −285pp / ES −410pp）。根因 = 第27课区间套三必要条件（链贯通 ∧ 本级趋势 ∧ 力度衰减）在 1min a0=segment 真实数据几乎从不同时满足——精确识别「走势完成」@ a0=segment 不可操作。**否证的是形式（@ a0=segment 区间套精度），不是目标**（区分形式 vs 目标，遵守本号 §三已确立的声明边界）。**对称双吃可达性判决场从 A 路 @ a0=segment 移至 a0=stroke 更细尺度**（526 A0Source，呼应滤波器比喻；但 pcf 高层链坍缩可能结构性，前景不乐观，未测）。本号 §3.3「正确形式未试」中 A 路 @ a0=segment 这一形式已试且否证；仍未试的是 a0=stroke。
+
 ## 六、上游谱系
 - **552（anchor 吃涨 L3）**：THREE-HALF = anchor + cascade；cascade 毁的正是 552 的 anchor 趋势底仓。本号 = 552 三个半架构中 cascade 半步（粗识别形式）的 L3 否证。
 - **547（cascade 级别错配）**：547 级别归属修复在强牛中不足（§2.3）——修对「翻哪一级」，没修「强牛该不该翻」（=切换时机识别精度，539 regime 门控 / 第27课区间套）。
 - **546（僵尸核心死锁）**：本号否证其「cascade（粗识别能动）是死锁突破口」隐含命题——粗识别能动=误翻空=毁底仓。
-- **545（emergent_top 方向锚）**：A 路依赖精确顶部识别，cascade 粗识别已否证（§五）。
+- **545（emergent_top 方向锚）**：A 路依赖精确顶部识别，cascade 粗识别已否证（§五）；554 进一步确证 A 路 D_TOP @ a0=segment 区间套链坍缩。
 - **539（清仓判据 regime 门控 / capture-early-then-preserve）**：cascade 误翻空 = 该持多时清仓 = 539「该不该清仓是 regime 函数」的吃涨侧违反（粗识别下）。
+- **554（A 路 D_TOP L3 否证）**：本号 §五 A 路开放轴的 L3 裁决——区间套链 @ a0=segment 坍缩，有效域空集；吃跌三条路（B/cascade/A）全否证，未试仅剩 a0=stroke。
 - **memory**：[[project_recursive_t_architecture_v2]]（T 引擎原始意图——每级别骑走势精确切换=对称双吃正确形式的来源）/[[project_t_cross_level_coupling_falsified]]（逆势腿强牛穿仓同构）/[[feedback_filter_bank_metaphor_prove]]（对称双吃假设来源，本号否证两错误实现形式、不否证目标）/[[project_t_flip_vs_clear_verdict]]（做空腿强牛是亏损唯一来源，cascade 误翻空净负旁证）。
 
 ## 七、张力检查结论
-**无不可分层解决的矛盾，不新建张力记录。** cascade flip 否证与 552 anchor、546/547、cross_level 全部分层一致：cascade（粗识别形式）是 552 三个半架构中被切除的半步（topo_effect sever），其否证恰好坐实了 546/547 路线「粗识别能动是突破口」隐含命题的破产，与 anchor 真解（552 强牛 5/8）不冲突——anchor 单独即解吃涨侧，cascade 这一形式是反作用。对称双吃目标可达性（§三/§五）是**开放轴**（正确形式未试），非已结算矛盾，不上浮。A 路根本张力（§五）是开放轴风险标注。
+**无不可分层解决的矛盾，不新建张力记录。** cascade flip 否证与 552 anchor、546/547、cross_level 全部分层一致：cascade（粗识别形式）是 552 三个半架构中被切除的半步（topo_effect sever），其否证恰好坐实了 546/547 路线「粗识别能动是突破口」隐含命题的破产，与 anchor 真解（552 强牛 5/8）不冲突——anchor 单独即解吃涨侧，cascade 这一形式是反作用。对称双吃目标可达性（§三/§五）是**开放轴**（A 路 @ a0=segment 已由 554 否证，未试仅剩 a0=stroke），非已结算矛盾，不上浮。A 路根本张力（§五）是开放轴风险标注。
 
 ## 八、影响声明
 - **cascade flip（T_CASCADE_FLIP，emergent_top.completed 粗识别形式）有效域 L3 否证 = 空集**（8/8 ≤ anchor，OKLO 穿仓）。**确证。**
-- **对称双吃（Σ|振幅|）= 两错误实现形式 L3 否证**：(a) cascade 粗识别、(b) B 路全程持空。**目标本身未被否证**——正确形式（每级别骑走势精确切换，T 引擎原始意图 + 第27课区间套）未试，可达性待 A 路检验。**收回初稿「不可达」声明（声明膨胀，formalization-validity-domain 模式 3）。**
-- **死锁真解 = anchor 单独（552 强牛 5/8，吃涨侧确证）**；cascade 粗识别半步是反作用（净负）；吃跌侧真解 = 对称双吃正确形式（精确切换），未试。
-- **A 路 = 对称双吃可达性判决场**（§五，开放轴）：A 依赖精确顶部识别（545 区间套级联），成则可达、败则确证不可达。继承 cascade 否证的识别精度风险。
+- **对称双吃（Σ|振幅|）= 两错误实现形式 L3 否证**：(a) cascade 粗识别、(b) B 路全程持空。**目标本身未被否证**——正确形式（每级别骑走势精确切换，T 引擎原始意图 + 第27课区间套）；A 路 @ a0=segment 已 L3 否证（554），未试仅剩 a0=stroke，可达性待检验。**收回初稿「不可达」声明（声明膨胀，formalization-validity-domain 模式 3）。**
+- **死锁真解 = anchor 单独（552 强牛 5/8，吃涨侧确证）**；cascade 粗识别半步是反作用（净负）；吃跌侧真解 = 对称双吃正确形式（精确切换），A 路 @ a0=segment 否证（554），未试仅剩 a0=stroke。
+- **A 路 = 对称双吃可达性判决场**（§五，开放轴）：A 依赖精确顶部识别（545 区间套级联）；554 已裁决 A 路 D_TOP @ a0=segment 否证（链坍缩，有效域空集），判决场移至 a0=stroke 更细尺度。
 - 未改主树生产路径（全 worktree 分支 + flag OFF bit-exact，108 单测绿，commit 260dfc4545）。
 - **更新 552**：§六第3条 three-half matrix「进行中（bvmvyq3kb）」→「已 L3 否证（cascade 有效域空集 8/8，见 553）」；frontmatter level 同步；§三/四/八/七加 cascade 否证与「正确形式未试」标注。
 - **新增**：`.chanlun/genealogy/settled/553-cascade-flip-falsified-symmetric-dual-eating-unreachable.md`（本文件，文件名 unreachable 为初稿遗留，内容已收回「不可达」声明）。
