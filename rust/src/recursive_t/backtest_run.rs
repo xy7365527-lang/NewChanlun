@@ -14,7 +14,10 @@
 //! 笔/段参数（wide / min_strict_sep=5 / new_raw_gap_min=3）与 `t_vs_v3_comparison.py`
 //! 的 PyO3 默认一致 ⇒ a₀ 同源。
 
-use super::backtest::{build_a0_from_segments, result_to_json, run_backtest, BacktestMode};
+use super::backtest::{
+    build_a0_from_segments, build_a0_from_strokes, result_to_json, run_backtest, BacktestMode,
+};
+use super::types::A0Source;
 use crate::orchestrator::RecursiveOrchestrator;
 use serde::Deserialize;
 use std::path::PathBuf;
@@ -48,6 +51,10 @@ struct RawData {
     /// parallel-array schema 的逐 bar 日期串（如 "2025-04-01 00:00:00+00:00"）。bars-schema 无。
     #[serde(default)]
     dates: Vec<String>,
+    /// databento ohlcv schema 的逐 bar UTC 纳秒时间戳（如 1743465600000000000）。与 `dates`（字符串
+    /// 日期）互斥：databento 1s 导出仅有此列 → [`load_clean_ohlc_window_ns`] 用它做日期窗切片。
+    #[serde(default)]
+    timestamps_ns: Vec<i64>,
 }
 
 /// 加载 + 清洗 OHLC（逐位复刻 `fugue_v2_full_backtest.load_ohlc` 的清洗口径）。
@@ -203,6 +210,124 @@ pub(crate) fn load_clean_ohlc_window(
     }
 }
 
+/// `"YYYY-MM-DD"` → UTC 当日 00:00 的 Unix 纳秒（proleptic Gregorian，无 chrono 依赖）。
+///
+/// days_from_civil 复刻 Howard Hinnant 的 civil→days 算法（公有领域，整数精确，无浮点）。
+/// 用于 [`load_clean_ohlc_window_ns`] 把 ISO 日期窗换算成 `timestamps_ns` 的纳秒闭区间端点。
+fn iso_day_to_unix_ns(day: &str) -> i64 {
+    let parts: Vec<&str> = day.split('-').collect();
+    assert_eq!(parts.len(), 3, "日期格式应为 YYYY-MM-DD，得 `{day}`");
+    let y: i64 = parts[0].parse().unwrap_or_else(|_| panic!("年解析失败 `{day}`"));
+    let m: i64 = parts[1].parse().unwrap_or_else(|_| panic!("月解析失败 `{day}`"));
+    let d: i64 = parts[2].parse().unwrap_or_else(|_| panic!("日解析失败 `{day}`"));
+    assert!((1..=12).contains(&m), "月越界 `{day}`");
+    assert!((1..=31).contains(&d), "日越界 `{day}`");
+    // days_from_civil（Hinnant）：返回 1970-01-01 起的天数（可负）。
+    let yy = if m <= 2 { y - 1 } else { y };
+    let era = if yy >= 0 { yy } else { yy - 399 } / 400;
+    let yoe = yy - era * 400; // [0, 399]
+    let doy = (153 * (if m > 2 { m - 3 } else { m + 9 }) + 2) / 5 + d - 1; // [0, 365]
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // [0, 146096]
+    let days = era * 146097 + doe - 719468;
+    days * 86_400 * 1_000_000_000
+}
+
+/// 加载 + 清洗 OHLC，**先按 ISO 日期范围窗切片（基于 `timestamps_ns` 列）**。
+///
+/// [`load_clean_ohlc_window`] 的姊妹版：databento ohlcv-1s 导出有 `timestamps_ns`（UTC 纳秒）
+/// 而无 `dates` 字符串列 → 用纳秒戳切窗。判据：`start_ns <= timestamps_ns[i] < end_excl_ns`，
+/// 其中 `end_excl_ns` = `day_end` **次日** 00:00（即 `day_end` 当天**含**在窗内，闭区间语义与
+/// [`load_clean_ohlc_window`] 一致）。切片在清洗前完成（按原始 index），随后复用与
+/// [`load_clean_ohlc`] 完全相同的两遍清洗口径。窗为空 panic（fail-loud，no-patch）。
+pub(crate) fn load_clean_ohlc_window_ns(
+    path: &PathBuf,
+    day_start: &str,
+    day_end: &str,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
+    let text = text
+        .replace("-Infinity", "null")
+        .replace("Infinity", "null")
+        .replace("NaN", "null");
+    let raw: RawData = serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
+    drop(text);
+    assert!(
+        !raw.timestamps_ns.is_empty(),
+        "load_clean_ohlc_window_ns 需要 timestamps_ns 列做时间窗切片（{path:?} 无此列）"
+    );
+    assert!(day_start <= day_end, "窗口非法：day_start `{day_start}` > day_end `{day_end}`");
+    let n_raw = raw.closes.len();
+    assert_eq!(raw.timestamps_ns.len(), n_raw, "{path:?} timestamps_ns 与 closes 长度不一致");
+
+    let start_ns = iso_day_to_unix_ns(day_start);
+    // day_end 含当天 → 上界 = day_end 当天 23:59:59... < 次日 00:00（+1 天纳秒）。
+    let end_excl_ns = iso_day_to_unix_ns(day_end) + 86_400 * 1_000_000_000;
+    let nan = f64::NAN;
+
+    let mut o = Vec::new();
+    let mut h = Vec::new();
+    let mut l = Vec::new();
+    let mut c = Vec::new();
+    for i in 0..n_raw {
+        let ts = raw.timestamps_ns[i];
+        if ts < start_ns || ts >= end_excl_ns {
+            continue;
+        }
+        let oi = raw.opens.get(i).and_then(|x| *x).unwrap_or(nan);
+        let hi = raw.highs.get(i).and_then(|x| *x).unwrap_or(nan);
+        let li = raw.lows.get(i).and_then(|x| *x).unwrap_or(nan);
+        let ci = raw.closes.get(i).and_then(|x| *x).unwrap_or(nan);
+        if oi.is_nan() || hi.is_nan() || li.is_nan() || ci.is_nan() {
+            continue;
+        }
+        if oi <= 0.0 || hi <= 0.0 || li <= 0.0 || ci <= 0.0 {
+            continue;
+        }
+        o.push(oi);
+        h.push(hi);
+        l.push(li);
+        c.push(ci);
+    }
+    assert!(
+        !c.is_empty(),
+        "时间窗 [{day_start}, {day_end}] 在 {path:?} 内为空（切片口径错误，fail-loud）"
+    );
+
+    // 第二遍：spike-and-revert（与 load_clean_ohlc 同口径）。
+    let n = c.len();
+    let mut drop = vec![false; n];
+    for i in 1..n.saturating_sub(1) {
+        if (c[i] / c[i - 1] - 1.0).abs() > 0.5 && (c[i + 1] / c[i - 1] - 1.0).abs() < 0.05 {
+            drop[i] = true;
+        }
+    }
+    if drop.iter().any(|&d| d) {
+        let keep = |v: &[f64]| -> Vec<f64> {
+            v.iter().enumerate().filter(|(i, _)| !drop[*i]).map(|(_, &x)| x).collect()
+        };
+        (keep(&o), keep(&h), keep(&l), keep(&c))
+    } else {
+        (o, h, l, c)
+    }
+}
+
+/// `iso_day_to_unix_ns` 正确性（非 ignored，无数据依赖）：锚点 + 闰年 + 闭区间 end-excl 边界。
+/// 锚 1743465600000000000 = databento `cl_1s_databento_1mo.json` 首戳（2025-04-01 00:00 UTC，已对齐核验）。
+#[test]
+fn iso_day_to_unix_ns_锚点与边界() {
+    const NS_DAY: i64 = 86_400 * 1_000_000_000;
+    // 锚点（与真实 databento 首戳逐位一致）。
+    assert_eq!(iso_day_to_unix_ns("2025-04-01"), 1_743_465_600_000_000_000);
+    assert_eq!(iso_day_to_unix_ns("2026-05-29"), 1_780_012_800_000_000_000); // es_1s_2week 首戳
+    assert_eq!(iso_day_to_unix_ns("1970-01-01"), 0); // 纪元原点
+    // 相邻日恰差 1 天纳秒（end-excl = day_end + 1 天，闭区间语义的算术基础）。
+    assert_eq!(iso_day_to_unix_ns("2025-04-02") - iso_day_to_unix_ns("2025-04-01"), NS_DAY);
+    // 闰年 2 月：2024-02-29 存在，2024-03-01 = 2024-02-29 + 1 天。
+    assert_eq!(iso_day_to_unix_ns("2024-03-01") - iso_day_to_unix_ns("2024-02-29"), NS_DAY);
+    // 月/年跨界连续。
+    assert_eq!(iso_day_to_unix_ns("2025-01-01") - iso_day_to_unix_ns("2024-12-31"), NS_DAY);
+}
+
 /// 8 标的（DEFAULT_SYMS，与 t_vs_v3_comparison.py 一致）→ 数据文件名。
 pub(crate) const SYMBOLS: [(&str, &str); 8] = [
     ("CL", "cl_1m_databento_10y.json"),
@@ -241,6 +366,12 @@ fn t_backtest_8x3() {
         .ok()
         .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
         .unwrap_or_default();
+    // a₀ 来源 A/B 开关（`T_A0=stroke` 切笔底座，526号；默认 segment=线段基线，bit-exact）。
+    let a0_source = match std::env::var("T_A0").ok().as_deref() {
+        Some("stroke") | Some("bi") => A0Source::Stroke,
+        _ => A0Source::Segment,
+    };
+    eprintln!("[t_backtest_8x3] a₀ 来源 = {a0_source:?}");
 
     let mut rows: Vec<Row> = Vec::new();
 
@@ -263,10 +394,12 @@ fn t_backtest_8x3() {
             orch.process_bar(o[i], h[i], l[i], c[i]);
         }
         let segs: Vec<_> = orch.segments().to_vec();
+        let strokes: Vec<_> = orch.strokes().to_vec();
         let m2r: Vec<(usize, usize)> = orch.merged_to_raw().to_vec();
         let n_segs = segs.len();
         eprintln!(
-            "[{sym}] bars={n_bars} segs={n_segs} ({:.1}s) → 三模式回测…",
+            "[{sym}] bars={n_bars} segs={n_segs} strokes={} ({:.1}s) → 三模式回测…",
+            strokes.len(),
             t0.elapsed().as_secs_f64()
         );
 
@@ -282,7 +415,11 @@ fn t_backtest_8x3() {
 
         // a₀ 对三模式**完全相同**（PerfectionMode 只影响步骤c/iterate，不影响 a₀ 构造）
         // ⇒ 构造一次、clone 给每模式。这是「受控实验」前提的代码体现，且省 3× MACD 重算。
-        let a0_base = build_a0_from_segments(&segs, &m2r, &c);
+        // a0_source 决定线段（confirmed&&Settled）/ 笔（confirmed）底座（526号）。
+        let a0_base = match a0_source {
+            A0Source::Segment => build_a0_from_segments(&segs, &m2r, &c),
+            A0Source::Stroke => build_a0_from_strokes(&strokes, &m2r, &c),
+        };
 
         for (mi, mode) in BacktestMode::ALL.iter().enumerate() {
             let res = run_backtest(a0_base.clone(), *mode, &c, &m2r, n_segs);

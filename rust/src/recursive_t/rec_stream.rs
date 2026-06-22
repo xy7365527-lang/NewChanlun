@@ -21,7 +21,7 @@ use super::iterate;
 use super::rec_driver::{extract_view, RecDriver};
 use super::rec_engine::{LevelView, MAX_LEVEL};
 use super::stream::build_a0_fast;
-use super::types::{BSPKind, PerfectionMode};
+use super::types::{A0Source, BSPKind, PerfectionMode};
 
 /// 诊断：BSPKind → 索引（0=t1buy 1=t1sell 2=t2buy 3=t2sell 4=t3buy 5=t3sell）。
 fn bsp_kind_idx(k: crate::recursive_t::types::BSPKind) -> u8 {
@@ -40,6 +40,8 @@ fn bsp_kind_idx(k: crate::recursive_t::types::BSPKind) -> u8 {
 pub struct RecStream {
     orch: RecursiveOrchestrator,
     mode: PerfectionMode,
+    /// a₀ 来源（线段=默认 bit-exact / 笔=递归底座下移，526号）。决定门控计数口径与 build_a0 过滤。
+    a0_source: A0Source,
     driver: RecDriver,
     macd: OnlineMacdState,
     prefix_pos: Vec<f64>,
@@ -48,7 +50,8 @@ pub struct RecStream {
     last_close: f64,
     finished: bool,
     last_stroke_n: usize,
-    /// 重跑触发 key = (settled 段数, _)。第二位为区间套提前确认预留（当前回退=usize::MAX 固定）。
+    /// 重跑触发 key = (a₀ 单元数, _)。Segment=confirmed&&settled 段数 / Stroke=confirmed 笔数。
+    /// 第二位为区间套提前确认预留（当前回退=usize::MAX 固定）。
     last_trigger: (usize, usize),
     /// 重跑次数（性能 + 诊断）。
     pub n_reruns: u64,
@@ -91,11 +94,18 @@ pub struct RecStream {
 }
 
 impl RecStream {
+    /// a₀ 来源默认 `Segment`（保 bit-exact）。
     pub fn new(mode: PerfectionMode) -> Self {
+        Self::new_with_a0(mode, A0Source::Segment)
+    }
+
+    /// 显式指定 a₀ 来源（线段=基线 / 笔=递归底座下移，526号）。`new(mode)` 委托此构造默认 Segment。
+    pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source) -> Self {
         RecStream {
             // orch 配置与 flat stream / backtest_run 逐字一致（segments bit-exact）。
             orch: RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false),
             mode,
+            a0_source,
             driver: RecDriver::new(INITIAL_CAPITAL),
             macd: OnlineMacdState::new(12, 26, 9),
             prefix_pos: vec![0.0],
@@ -150,10 +160,18 @@ impl RecStream {
         if sc > self.last_stroke_n {
             self.last_stroke_n = sc;
             let trig = {
-                let segs = self.orch.segments();
-                // 区间套提前确认试验回退（无效+每笔重跑慢）：触发回 settled count only。
-                let settled_n = segs.iter().filter(|s| s.confirmed && s.kind == SegKind::Settled).count();
-                (settled_n, usize::MAX)
+                // a0_source 决定触发计数口径：Segment=confirmed&&settled 段 / Stroke=confirmed 笔。
+                // 区间套提前确认试验回退（无效+每笔重跑慢）：第二位固定 usize::MAX。
+                let count = match self.a0_source {
+                    A0Source::Segment => self
+                        .orch
+                        .segments()
+                        .iter()
+                        .filter(|s| s.confirmed && s.kind == SegKind::Settled)
+                        .count(),
+                    A0Source::Stroke => self.orch.strokes().iter().filter(|s| s.confirmed).count(),
+                };
+                (count, usize::MAX)
             };
             if trig != self.last_trigger {
                 self.last_trigger = trig;
@@ -161,8 +179,17 @@ impl RecStream {
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
                 let (v, new_bsps, trend_stats, cd_split, cd_dumps) = {
                     let segs = self.orch.segments();
+                    let strokes = self.orch.strokes();
                     let m2r = self.orch.merged_to_raw();
-                    let a0 = build_a0_fast(segs, m2r, &self.prefix_pos, &self.prefix_neg, false);
+                    let a0 = build_a0_fast(
+                        segs,
+                        strokes,
+                        m2r,
+                        &self.prefix_pos,
+                        &self.prefix_neg,
+                        self.a0_source,
+                        false,
+                    );
                     let tree = iterate(a0, self.mode);
                     use crate::recursive_t::types::{Direction, TrendKind};
                     // 诊断（编排者 2026-06-21）：各级别走势类型分布（覆盖=最后一次重跑 tree）。
@@ -381,6 +408,48 @@ mod tests {
         assert!((s.finish() - INITIAL_CAPITAL).abs() < 1e-6);
     }
 
+    /// **递归流式笔底座零 panic + 有限正 final_nav**（TW 守恒守卫每操作，a0=笔 526号）。
+    #[test]
+    fn 递归流式笔底座零panic() {
+        let mut s = RecStream::new_with_a0(PerfectionMode::Structural, A0Source::Stroke);
+        let mut price = 100.0;
+        let mut up = true;
+        for i in 0..600 {
+            if i % 20 == 0 {
+                up = !up;
+            }
+            price += if up { 1.0 } else { -0.8 };
+            let c = price;
+            s.push_bar(c - 0.1, c + 0.5, c - 0.5, c);
+        }
+        let fin = s.finish();
+        assert!(fin.is_finite() && fin > 0.0, "笔底座 final_nav 有限正，得 {fin}");
+    }
+
+    /// **递归流式 new 默认 = Segment 来源**：`new` ⟺ `new_with_a0(Segment)`（bit-exact final_nav + 重跑数）。
+    #[test]
+    fn 递归流式new默认等价segment来源() {
+        fn run(s: &mut RecStream) -> f64 {
+            let mut price = 100.0;
+            let mut up = true;
+            for i in 0..600 {
+                if i % 20 == 0 {
+                    up = !up;
+                }
+                price += if up { 1.0 } else { -0.8 };
+                let c = price;
+                s.push_bar(c - 0.1, c + 0.5, c - 0.5, c);
+            }
+            s.finish()
+        }
+        let mut a = RecStream::new(PerfectionMode::And);
+        let mut b = RecStream::new_with_a0(PerfectionMode::And, A0Source::Segment);
+        let fa = run(&mut a);
+        let fb = run(&mut b);
+        assert_eq!(fa, fb, "new 默认 Segment ⟺ new_with_a0(Segment)");
+        assert_eq!(a.n_reruns, b.n_reruns, "重跑数一致");
+    }
+
     /// **盘整 no_leave 根因诊断**（编排者 2026-06-21）：流式 BTC Structural，逐级别切分 ConsolDown
     /// 的 no_leave 性质——验证「11784 个 L4 ConsolDown 全 no_leave」是 r* 边界生长中走势（末组、
     /// 不标 completed）还是 segment 切掉离开段（中间走势）/被反向终结误标 completed。
@@ -440,6 +509,7 @@ mod tests {
     /// 递归引擎 **8 标的 × 3 模式**回测（L3 验证）：vs flat 引擎（t_backtest_8x3）vs BH。
     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::rec_btc -- --ignored --nocapture`
     /// `BT_SYMBOLS=CL,BTC` 过滤标的（默认全 8）。
+    /// `T_A0=stroke` 切 a₀=笔（递归底座下移，526号；默认 segment=线段基线）——A/B 对比级别增量。
     #[test]
     #[ignore = "递归引擎全量回测，需 analysis/data_cache/*.json"]
     fn rec_btc() {
@@ -454,8 +524,16 @@ mod tests {
             .ok()
             .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
             .unwrap_or_default();
+        // a₀ 来源 A/B 开关（默认 Segment=bit-exact 基线）。
+        let a0_source = match std::env::var("T_A0").ok().as_deref() {
+            Some("stroke") | Some("bi") => A0Source::Stroke,
+            _ => A0Source::Segment,
+        };
 
-        eprintln!("\n========== 递归 T 引擎 8 标的 × 3 模式回测（区间套递归归还修复后）==========");
+        eprintln!(
+            "\n========== 递归 T 引擎 8 标的 × 3 模式回测（a₀={:?}）==========",
+            a0_source
+        );
         // (sym, bh, strat[3], short_pnl[3], net_short%[3], sink[3], freeshort[3])
         type Row = (String, f64, [f64; 3], [f64; 3], [f64; 3], [u64; 3], [u64; 3]);
         let mut rows: Vec<Row> = Vec::new();
@@ -479,7 +557,7 @@ mod tests {
                 .enumerate()
             {
                 let t0 = std::time::Instant::now();
-                let mut s = RecStream::new(*mode);
+                let mut s = RecStream::new_with_a0(*mode, a0_source);
                 for i in 0..n {
                     s.push_bar(o[i], h[i], l[i], c[i]);
                 }
@@ -869,34 +947,44 @@ mod tests {
         assert!(!snaps.is_empty());
     }
 
-    /// **prove 守卫尺度不变性深度验证**（编排者 2026-06-22）：1s vs 1min 同标的同时段对照。
+    /// **prove 守卫尺度不变性 L3 交叉验证 + L4 触发探测**（编排者 2026-06-22）。
     ///
     /// ## 任务（观测分辨率维度，非操作床位）
-    /// 缠论级别递归 ≅ 多尺度滤波器组（小波 MRA）。提高采样率（1min→1s）让滤波器组分辨更细尺度，
-    /// 多出深层滤波器（lid4/lid5 涌现）。prove 守卫 = 滤波器组不变量的可执行形式，**应在新深层继续
-    /// 成立**。本测试验证：
-    /// 1. **滤波器层数对照**：1s vs 1min 最高涌现级别（highest_active 峰值）+ 各层走势组数（滤波器
-    ///    通带，tree_trend_stats 汇总）多几层。
-    /// 2. **4 panic 守卫尺度不变性**：sink_descends / sigma_quota / relabel_invariant /
-    ///    bsp_triggers_operation 在 1s 更深塔**零 fire**（进程跑完零 panic = 尺度不变性在更细尺度成立；
-    ///    这四个守卫已接入 rec_engine 操作热路径，违反即 panic 终止）。
-    /// 3. **radial_scaling（f∝λ⁻ᵏ）**：1s 是否在**更宽 k 范围**（更多层）继续几何递减
-    ///    （count_radial_scaling_violations on sink_by_level）。
-    /// 4. **sigma_quota（m=u/3 增益尺度不变）**：在新深层成立（sigma_quota panic 守卫零 fire 覆盖）。
+    /// 缠论级别递归 ≅ 多尺度滤波器组（小波 MRA）。prove 守卫 = 滤波器组不变量的可执行形式。
+    /// 方向1 已证 **L2**（CL 577k + BTC 1.2M 各 1 窗零 fire + 滤波器深度 +1）。本测试扩展三维度：
+    /// 1. **多标的（宽度）**：CL/BTC 加 **ES/BRN**——4 panic 守卫 + radial_scaling 每标的 1s **零 fire**。
+    /// 2. **多窗口（同标的稳定性）**：同 1s 文件切 ≥2 个 disjoint 日期窗——守卫跨窗口稳定 =
+    ///    regime 无关的结构断言（不是某段行情的偶然性质）。
+    /// 3. **L4 触发探测（核心突破）**：用更长窗口/更多行情反复的 1s（_1y 文件），看 `highest_active`
+    ///    是否涌现 **L4**。若 L4 涌现 → 验证 4 panic 守卫在 L4 仍零 fire（突破方向1 的 L3 有效域上界）。
+    ///    层数取决于行情反复次数非 bar 数（[[project_recursive_level_emergence]]）。
+    ///
+    /// ## 4 panic 守卫尺度不变性
+    /// sink_descends / sigma_quota / relabel_invariant / bsp_triggers_operation 已接入 rec_engine
+    /// 操作热路径，违反即 panic 终止。进程跑完零 panic = 这四个守卫在该尺度/窗口/层成立。
+    /// 若某守卫在 1s 深层 fire = 滤波器自相似的有效域边界（formalization-validity-domain，
+    /// **否定性结果比确认性结果更有价值**）——如实报告是哪个守卫/哪标的/哪窗口/哪层。
     ///
     /// ## 认识论等级
-    /// prove 守卫尺度不变性的**深度验证**（尺度维度）vs 8 标的 L3 的**宽度验证**（标的维度）。
-    /// 当前 **L2**（单标的 1s）。**不评估 1s 交易收益/alpha**——那是被否证的操作床位维度
-    /// （[[project_cl_1s_a0_verdict]]：秒级=纯观测分辨率非操作床位，0.58bps<taker 1.45bps）。
-    /// 若某 panic 守卫在 1s 深层 fire = 滤波器自相似的有效域边界（formalization-validity-domain，
-    /// 否定性结果比确认性结果更有价值）——如实报告是哪个守卫/哪层/哪 bar。
+    /// 多标的×多窗口零 fire = **L3**（标的维度 × 窗口维度交叉）。L4 涌现且守卫成立 = 有效域上界突破。
+    /// **不评估 1s 交易收益/alpha**——操作床位维度已否证（[[project_cl_1s_a0_verdict]]：0.58bps<taker 1.45bps）。
     ///
-    /// 跑法（先 CL 小数据控制内存，BT_1S_SYMBOLS=BTC 切 BTC）：
-    /// `cargo test --release recursive_t::rec_stream::tests::scale_invariance_1s -- --exact --ignored --nocapture`
+    /// ## 跑法（worktree：CHANLUN_DATA_DIR 指主仓库 data_cache 绝对路径）
+    /// 内存：大数据放最后，先中小。逐标的跑（避免一次性加载多个 GB 级文件）：
+    /// ```text
+    /// BT_1S_SYMBOLS=CL  cargo test --release scale_invariance_1s -- --ignored --nocapture  # 中小，含多窗
+    /// BT_1S_SYMBOLS=BTC cargo test --release scale_invariance_1s -- --ignored --nocapture  # 1.2M
+    /// BT_1S_SYMBOLS=BRN cargo test --release scale_invariance_1s -- --ignored --nocapture  # 262MB，L4 探测
+    /// BT_1S_SYMBOLS=ES  cargo test --release scale_invariance_1s -- --ignored --nocapture  # 657MB，最后跑
+    /// ```
+    /// L4 探测窗口大小由 `L4_DAYS`（默认 90 天，0=整文件全量）控制——长窗口更可能触发 L4，
+    /// 但 _1y 全量是 GB 级 + 数百万 bar，按需放大。
     #[test]
-    #[ignore = "1s prove 守卫尺度不变性验证，需 cl_1s_databento_1mo.json / btc_1s_2week.json"]
+    #[ignore = "1s prove 守卫尺度不变性 L3 交叉验证，需 analysis/data_cache 1s 文件 + CHANLUN_DATA_DIR"]
     fn scale_invariance_1s() {
-        use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window};
+        use crate::recursive_t::backtest_run::{
+            load_clean_ohlc, load_clean_ohlc_window, load_clean_ohlc_window_ns,
+        };
         use std::path::PathBuf;
         // 数据目录：默认 `<repo>/analysis/data_cache`；worktree 隔离运行时大 JSON 被 gitignore
         // 不在 worktree 内，用 CHANLUN_DATA_DIR 指向主仓库 data_cache（绝对路径）。
@@ -904,53 +992,148 @@ mod tests {
             Ok(d) => PathBuf::from(d),
             Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache"),
         };
-
-        // 标的选择（默认 CL：29MB/577k bar 小数据；BT_1S_SYMBOLS=BTC 切 81MB/2 周）。
         let which = std::env::var("BT_1S_SYMBOLS").unwrap_or_else(|_| "CL".to_string()).to_uppercase();
 
-        // (label, 1s 文件, 1min 对照文件 + 日期窗 [start,end] 闭区间（None=无 1min 对照）)
-        let cases: Vec<(&str, PathBuf, Option<(PathBuf, &str, &str)>)> = match which.as_str() {
+        // ── 单个验证运行（= 1 标的 × 1 尺度 × 1 窗口）──
+        // 切窗方式三态：FullFile（整文件，1s 小数据）/ WinNs（timestamps_ns 切窗，databento）/
+        // WinDates（dates 字符串切窗，btc_1m_full / 旧 1min 对照）。1min 对照仍用同窗对比深度。
+        enum Slice {
+            FullFile,
+            WinNs(&'static str, &'static str), // [day_start, day_end] 闭区间，基于 timestamps_ns
+            WinDates(&'static str, &'static str), // 基于 dates 列
+        }
+        struct Run {
+            label: String,
+            path_1s: PathBuf,
+            slice: Slice,
+            /// 1min 同窗对照（滤波器深度 Δ 对照）：(文件, day_start, day_end, dates?)。
+            cmp_1min: Option<(PathBuf, &'static str, &'static str, bool)>,
+        }
+
+        // L4 探测窗口开关：默认用各标的静态 ~3 个月窗（更多行情反复 → 更可能 L4）；
+        // L4_DAYS=0 → 整文件全量（_1y 是 GB 级 + 数百万 bar，按需）。静态端点 = 可审计。
+        let l4_full: bool = std::env::var("L4_DAYS").ok().and_then(|s| s.parse::<i64>().ok()) == Some(0);
+
+        let runs: Vec<Run> = match which.as_str() {
+            // ── CL：1mo 文件（577k/2025-04 整月）vs 1min 同窗 + 同文件切 2 子窗（多窗稳定性）──
             "CL" => vec![
-                // CL 1s 整月（2025-04-01..04-30）vs CL 1m 同窗（10y 文件切同区间）。
-                ("CL 1s 1mo", data_dir.join("cl_1s_databento_1mo.json"),
-                 Some((data_dir.join("cl_1m_databento_10y.json"), "2025-04-01", "2025-04-30"))),
+                Run { label: "CL 1s 1mo 全月".into(),
+                    path_1s: data_dir.join("cl_1s_databento_1mo.json"), slice: Slice::FullFile,
+                    cmp_1min: Some((data_dir.join("cl_1m_databento_10y.json"), "2025-04-01", "2025-04-30", true)) },
+                Run { label: "CL 1s 窗A(04-01..04-10)".into(),
+                    path_1s: data_dir.join("cl_1s_databento_1mo.json"),
+                    slice: Slice::WinNs("2025-04-01", "2025-04-10"), cmp_1min: None },
+                Run { label: "CL 1s 窗B(04-21..04-30)".into(),
+                    path_1s: data_dir.join("cl_1s_databento_1mo.json"),
+                    slice: Slice::WinNs("2025-04-21", "2025-04-30"), cmp_1min: None },
+                // L4 探测：CL 1y（5.96M，2024-06-02..2025-05-30）。默认 ~3 月窗，L4_DAYS=0 全量。
+                Run { label: format!("CL 1s 1y L4探测({})", if l4_full {"全量5.96M".into()} else {"窗2024-06-02..08-30".to_string()}),
+                    path_1s: data_dir.join("cl_1s_databento_1y.json"),
+                    slice: if l4_full { Slice::FullFile } else { Slice::WinNs("2024-06-02", "2024-08-30") },
+                    cmp_1min: None },
             ],
+            // ── BTC：2 周文件（1.2M）vs 1min 同窗 + 同文件切 2 子窗 ──
             "BTC" => vec![
-                // BTC 1s 2 周（2026-05-29..06-11）vs BTC 1m 同窗（btc_1m_full.json 切同区间）。
-                ("BTC 1s 2w", data_dir.join("btc_1s_2week.json"),
-                 Some((data_dir.join("btc_1m_full.json"), "2026-05-29", "2026-06-11"))),
+                Run { label: "BTC 1s 2w 全".into(),
+                    path_1s: data_dir.join("btc_1s_2week.json"), slice: Slice::FullFile,
+                    cmp_1min: Some((data_dir.join("btc_1m_full.json"), "2026-05-29", "2026-06-11", true)) },
+                Run { label: "BTC 1s 窗A(05-29..06-04)".into(),
+                    path_1s: data_dir.join("btc_1s_2week.json"),
+                    slice: Slice::WinDates("2026-05-29", "2026-06-04"), cmp_1min: None },
+                Run { label: "BTC 1s 窗B(06-05..06-11)".into(),
+                    path_1s: data_dir.join("btc_1s_2week.json"),
+                    slice: Slice::WinDates("2026-06-05", "2026-06-11"), cmp_1min: None },
             ],
-            other => panic!("BT_1S_SYMBOLS={other} 未知（支持 CL / BTC）"),
+            // ── ES：1y（11.76M/657MB，最大）。多窗 + L4 探测。整文件全量需 GB 级内存——放最后跑。──
+            "ES" => vec![
+                Run { label: "ES 1s 窗A(2025-06-12..06-30)".into(),
+                    path_1s: data_dir.join("es_1s_databento_1y.json"),
+                    slice: Slice::WinNs("2025-06-12", "2025-06-30"), cmp_1min: None },
+                Run { label: "ES 1s 窗B(2026-05-12..05-30)".into(),
+                    path_1s: data_dir.join("es_1s_databento_1y.json"),
+                    slice: Slice::WinNs("2026-05-12", "2026-05-30"), cmp_1min: None },
+                Run { label: format!("ES 1s 1y L4探测({})", if l4_full {"全量11.76M".into()} else {"窗2025-06-12..09-10".to_string()}),
+                    path_1s: data_dir.join("es_1s_databento_1y.json"),
+                    slice: if l4_full { Slice::FullFile } else { Slice::WinNs("2025-06-12", "2025-09-10") },
+                    cmp_1min: None },
+            ],
+            // ── BRN：1y（5.3M/262MB）。多窗 + L4 探测。──
+            "BRN" => vec![
+                Run { label: "BRN 1s 窗A(2024-06-02..06-30)".into(),
+                    path_1s: data_dir.join("brn_1s_databento_1y.json"),
+                    slice: Slice::WinNs("2024-06-02", "2024-06-30"), cmp_1min: None },
+                Run { label: "BRN 1s 窗B(2025-05-01..05-30)".into(),
+                    path_1s: data_dir.join("brn_1s_databento_1y.json"),
+                    slice: Slice::WinNs("2025-05-01", "2025-05-30"), cmp_1min: None },
+                Run { label: format!("BRN 1s 1y L4探测({})", if l4_full {"全量5.3M".into()} else {"窗2024-06-02..08-30".to_string()}),
+                    path_1s: data_dir.join("brn_1s_databento_1y.json"),
+                    slice: if l4_full { Slice::FullFile } else { Slice::WinNs("2024-06-02", "2024-08-30") },
+                    cmp_1min: None },
+            ],
+            other => panic!("BT_1S_SYMBOLS={other} 未知（支持 CL / BTC / ES / BRN）"),
         };
 
-        for (label, path_1s, cmp_1min) in &cases {
-            if !path_1s.exists() {
-                eprintln!("[{label}] 1s 数据缺失 {path_1s:?}，跳过");
+        // 汇总：每个 run 的 (label, n_bars, max_active_level, radial_viol_sink, radial_viol_bsp,
+        //                      n_ops_without_trigger) → L3 矩阵 + L4 判定。
+        let mut summary: Vec<(String, usize, usize, u64, u64, u64)> = Vec::new();
+
+        for run in &runs {
+            if !run.path_1s.exists() {
+                eprintln!("[{}] 1s 数据缺失 {:?}，跳过（no silent cap：明确报告跳了什么）", run.label, run.path_1s);
                 continue;
             }
-            // ── 跑 1s：完成 = 4 panic 守卫全程零 fire（尺度不变性核心交付）──
-            let (o, h, l, c) = load_clean_ohlc(path_1s);
+            // ── 加载 1s（按 slice 切窗）──
+            let (o, h, l, c) = match &run.slice {
+                Slice::FullFile => load_clean_ohlc(&run.path_1s),
+                Slice::WinNs(d0, d1) => load_clean_ohlc_window_ns(&run.path_1s, d0, d1),
+                Slice::WinDates(d0, d1) => load_clean_ohlc_window(&run.path_1s, d0, d1),
+            };
             let n = c.len();
+            let t0 = std::time::Instant::now();
             let r_1s = run_one_scale(&o, &h, &l, &c);
+            // 释放该 run 的大 OHLC（GB 级文件，下个 run 前回收）。
+            drop((o, h, l, c));
             eprintln!(
-                "\n========== prove 守卫尺度不变性：{label}（Structural, bars={n}）==========",
+                "\n========== prove 守卫尺度不变性：{}（Structural, bars={n}, {:.1}s）==========",
+                run.label, t0.elapsed().as_secs_f64()
             );
-            report_scale(&format!("{label} [1s 采样]"), n, &r_1s);
+            report_scale(&format!("{} [1s 采样]", run.label), n, &r_1s);
+            // L4 判定（核心突破探测）。
+            if r_1s.max_active_level >= 4 {
+                eprintln!(
+                    "  ★★ L4 涌现：最深活跃滤波器层={} ≥ 4 ⇒ 4 panic 守卫在 L4 仍零 fire（进程未 panic）\
+                     = 突破方向1 L2 的 L3 有效域上界 ★★",
+                    r_1s.max_active_level
+                );
+            } else {
+                eprintln!(
+                    "  · 最深活跃层={}（<4）：本窗行情反复不足以涌现 L4（层数~反复次数非 bar 数，546号/recursive_level_emergence）",
+                    r_1s.max_active_level
+                );
+            }
+            summary.push((
+                run.label.clone(), n, r_1s.max_active_level,
+                r_1s.radial_viol_sink, r_1s.radial_viol_bsp, r_1s.n_ops_without_trigger,
+            ));
 
-            // ── 跑 1min 同时段对照（若有）──
-            if let Some((p_1m, d0, d1)) = cmp_1min {
+            // ── 1min 同窗对照（滤波器深度 Δ；仅全月/全文件 run 有）──
+            if let Some((p_1m, d0, d1, by_dates)) = &run.cmp_1min {
                 if !p_1m.exists() {
-                    eprintln!("[{label}] 1min 对照缺失 {p_1m:?}，仅 1s");
+                    eprintln!("[{}] 1min 对照缺失 {:?}，仅 1s", run.label, p_1m);
                 } else {
-                    let (o2, h2, l2, c2) = load_clean_ohlc_window(p_1m, d0, d1);
+                    let (o2, h2, l2, c2) = if *by_dates {
+                        load_clean_ohlc_window(p_1m, d0, d1)
+                    } else {
+                        load_clean_ohlc_window_ns(p_1m, d0, d1)
+                    };
                     let n2 = c2.len();
                     let r_1m = run_one_scale(&o2, &h2, &l2, &c2);
-                    report_scale(&format!("{label} [1min 采样 窗={d0}..{d1}]"), n2, &r_1m);
-                    // ── 滤波器层数对照（尺度–频率关系：1s 更细尺度应多出深层滤波器）──
+                    drop((o2, h2, l2, c2));
+                    report_scale(&format!("{} [1min 采样 窗={d0}..{d1}]", run.label), n2, &r_1m);
                     eprintln!(
-                        "\n--- 滤波器组深度对照（{label}）：1s vs 1min ---\n\
+                        "\n--- 滤波器组深度对照（{}）：1s vs 1min ---\n\
                          采样比 1s/1min bar = {:.1}× | 最深活跃层 1s={} 1min={}（Δ={}）",
-                        n as f64 / n2.max(1) as f64,
+                        run.label, n as f64 / n2.max(1) as f64,
                         r_1s.max_active_level, r_1m.max_active_level,
                         r_1s.max_active_level as i64 - r_1m.max_active_level as i64,
                     );
@@ -966,6 +1149,31 @@ mod tests {
                 }
             }
         }
+
+        // ── L3 交叉验证汇总矩阵（标的×窗口；零 fire 即 L3 成立）──
+        eprintln!("\n========== L3 交叉验证汇总（{which}）：标的×窗口 prove 守卫读数 ==========");
+        eprintln!(
+            "{:<34} {:>9} {:>9} {:>12} {:>12} {:>12}",
+            "run", "bars", "最深层", "radial违(sink)", "radial违(bsp)", "no_trigger"
+        );
+        let mut any_fire = false;
+        let mut l4_seen = false;
+        for (label, n, maxlv, rvs, rvb, nt) in &summary {
+            if *rvs > 0 || *rvb > 0 || *nt > 0 {
+                any_fire = true;
+            }
+            if *maxlv >= 4 {
+                l4_seen = true;
+            }
+            eprintln!("{label:<34} {n:>9} {maxlv:>9} {rvs:>12} {rvb:>12} {nt:>12}");
+        }
+        eprintln!(
+            "\n判定（{which}）：4 panic 守卫零 fire = 进程跑完未 panic（隐式）；radial_scaling 违反层数 + \
+             no_trigger 见上表。\n  observation-count 守卫 fire⟺ 上表 radial违/no_trigger >0：{}；\
+             L4 涌现（最深层≥4）：{}。",
+            if any_fire { "★有 fire（有效域边界！如实报告）" } else { "无（尺度不变性成立）" },
+            if l4_seen { "★是（突破 L3 上界）" } else { "否（本批窗口塔深止于 L3）" },
+        );
     }
 
     /// 单标的单尺度跑通的 prove 守卫读数（[`scale_invariance_1s`] 汇总单元）。
