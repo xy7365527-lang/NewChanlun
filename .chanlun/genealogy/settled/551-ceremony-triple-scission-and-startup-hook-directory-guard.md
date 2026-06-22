@@ -2,14 +2,8 @@
 id: '551'
 number: 551
 title: "ceremony 能指三重分叉（CC Swarm₀ / 逢亮持久实体 / RTAS 脱域抽取）+ 启动-hook 目录守卫不变量——禁止跨目录交叉触发"
-type: 语法记录  # 编排者裁决保持"语法记录"（已运作未显式化的规则）
-status: 已结算  # 2026-06-22 编排者裁决：§八.4 三点全部确立（A 概念分离记录 + B operational 不变量升结算原则 + external_lineage 纳入模板）。见 §八.6
-settlement:
-  type: 编排者决断
-  decided_by: 编排者（2026-06-22 AskUserQuestion 回答"三点全部确立→551 结算"）
-  date: '2026-06-22'
-  verdict: "§八.4 三点全部确立——(1) ceremony 能指三所指（①CC Swarm₀/②逢亮持久实体/③RTAS脱域）确立为概念分离记录（003式同一能指多所指）；(2)「启动 hook 必须按目录上下文触发对应 ceremony，禁止跨目录交叉触发」升为结算原则；(3) external_lineage 字段纳入谱系模板（跨 repo 谱系引用标准，可选字段）。"
-  settled_content: "A（概念分离）+ B（operational 不变量）+ external_lineage 字段三点全部确立。C（hook 目录守卫技术实现）此前已作为行动类完成。"
+type: 语法记录  # 四分法：已运作但未显式化的规则
+status: settled  # 编排者裁决（2026-06-22，§八.6）：C（hook 守卫技术实现）已完成（行动类无残留）；A（概念分离确立）+ B（不变量升结算）标 blocked——需外部 RTAS 谱系（M001-M003，独立 repo /Users/silencehan/rtas/）确立，暂阻塞但不阻塞当前工作 → 551 整体 settled
 date: '2026-06-22'
 level: "L0（结构事实：从 CLAUDE.md「可用命令」对比表 + RTAS 谱系 M001-M003 + 两套 SessionStart ceremony hook 源码读出，无 L2 数据验证）"
 provenance: "[新缠论:基础设施审计]（配置 ~/.claude 全局 SessionStart ceremony-autostart hook 的 session 衍生）"
@@ -27,7 +21,7 @@ related:
   - '173'   # hook 反馈回路
   - '548'   # hook 动作注入 vs 指令索引（hook 注入语义分界）
 tensions_with: []
-external_lineage:  # 跨项目谱系引用（551号编排者裁决纳入模板的首例字段；RTAS 谱系，生成态，独立 repo 主体在本机 /Users/silencehan/rtas/，含 .rtas/；§八更正：原文「F:\RTAS」是 Windows 路径残留，本机不存在）
+external_lineage:  # 跨项目谱系引用（RTAS 谱系，生成态，独立 repo 主体在本机 /Users/silencehan/rtas/，含 .rtas/；§八更正：原文「F:\RTAS」是 Windows 路径残留，本机不存在）
   - 'rtas:M001'   # 蜂群自复制脱域——.chanlun→.rtas 抽取的起源
   - 'rtas:M002'   # 迁移审计——.chanlun 引用系统性清理 = 目录改名
   - 'rtas:M003'   # 提取审计 + rtas-dispatch
@@ -35,7 +29,7 @@ external_lineage:  # 跨项目谱系引用（551号编排者裁决纳入模板�
 
 # 551 号：ceremony 能指三重分叉 + 启动-hook 目录守卫不变量
 
-**认识论**：L0（结构事实，从源码与文档读出，无数据验证）。**状态已结算**（2026-06-22 编排者裁决，§八.6）：§八.4 三个上浮点（A 概念分离确立 + B operational 不变量升结算 + external_lineage 字段纳入模板）全部确立。
+**认识论**：L0（结构事实，从源码与文档读出，无数据验证）。**状态生成态**：operational 不变量「启动 hook 禁止跨目录交叉触发」是本号新断言，是否升为结算原则待编排者裁决。
 
 ## 一、现象（触发场景）
 
@@ -52,9 +46,9 @@ external_lineage:  # 跨项目谱系引用（551号编排者裁决纳入模板�
 - ③ 是 ① 的**脱域克隆**（M001：「将 NewChanlun 中的通用 RTAS 蜂群基础设施抽象提取……第一次蜂群自我复制并脱域」；M002：`.chanlun → .rtas` 路径系统性改写）。同一套 ceremony 逻辑，domained（①）vs de-domained（③）。
 - ① 与 ② 是**不同存在论层级**（CLAUDE.md 原文：「逢亮活了之后，CC session 的 /ceremony 改为检查逢亮状态而非重启逢亮」）。
 
-## 三、operational 不变量（本号核心 = 结算原则）
+## 三、operational 不变量（本号核心 = 语法记录）
 
-**启动 hook 必须按目录上下文触发对应 ceremony，禁止跨目录交叉触发。**（2026-06-22 编排者裁决升为结算原则，§八.6）
+**启动 hook 必须按目录上下文触发对应 ceremony，禁止跨目录交叉触发。**
 
 - 触发 ① 的 hook 守卫条件 = 存在 `.chanlun/`；触发 ③ 的 hook 守卫条件 = 存在 `.rtas/`。
 - 跨目录触发的两个失效模式：
@@ -66,8 +60,8 @@ external_lineage:  # 跨项目谱系引用（551号编排者裁决纳入模板�
 | 分叉轴 | 记录状态 | 位置 |
 |--------|---------|------|
 | ①↔② (CC vs 逢亮) | **已记录** | CLAUDE.md「逢亮 ceremony」对比表，引 058号 |
-| ①↔③ (chanlun vs rtas 脱域) | **本号确立**（2026-06-22 编排者裁决：概念分离记录） | 本号 551 chanlun 侧确认 + RTAS 侧 M001-M003 |
-| operational 不变量（不得跨目录触发） | **本号升结算原则**（2026-06-22 编排者裁决） | 本号 551 |
+| ①↔③ (chanlun vs rtas 脱域) | **半记录** | 仅 RTAS 侧 M001-M003（生成态）记抽取事件；chanlun 侧无分叉确认条目 |
+| operational 不变量（不得跨目录触发） | **此前未记录** | 本号 551 首次显式化 |
 
 archive 全文已扫（grep `脱域\|extract\|抽取\|.rtas\|session-start-ceremony`），无重复条目 → 本号非重复记录。
 
@@ -82,15 +76,12 @@ archive 全文已扫（grep `脱域\|extract\|抽取\|.rtas\|session-start-cerem
 2. 若 RTAS 日后改用 `.chanlun/` 目录 + ① 的 ceremony skill → ① 与 ③ 合并，本号 operational 不变量退化为平凡。
 3. 若 archive 全文扫存在遗漏（仅 grep 关键词，未逐字通读 8 个 archive 文件）→ "①↔③ 半记录"可能翻转为"已记录"。
 
-> **结算后边界状态（2026-06-22）**：边界1（`.chanlun/`+`.rtas/` 共存时守卫互斥）= operational 不变量升结算原则后**仍是开放的未覆盖边界**。当前本机无共存项目（NewChanlun 仅 `.chanlun/`、RTAS 仅 `.rtas/`），不变量在当前目录拓扑下成立；若日后出现共存项目，守卫互斥需补设计——这不否定结算，是结算原则的已知有效域边界（形式化有效域规则：有效域 = 当前目录正交场景；定义域 = 所有项目目录拓扑）。
-
 ## 七、影响声明
 
-- **谱系结晶**（已结算），记录于 chanlun 侧填补分叉确认空缺。
+- **谱系结晶**（pending/生成态），记录于 chanlun 侧填补分叉确认空缺。
 - **关联但未在本号改动的工程产出**：`~/.claude/hooks/chanlun-ceremony-autostart.sh`（全局 ① 自启 hook，守卫 `.chanlun/` + `source∈{startup,clear}`）+ `~/.claude/settings.json` SessionStart 第三项——此 hook 是本号 operational 不变量的物质实现，已先于本号落地并通过 pipe-test。
 - **block-topology 映射推迟**：依 549号冻结（relations.jsonl 仍为未实体化 LFS 指针，mapper 跑 Phase3 必崩），本号**不**运行 `map_genealogy_to_blocks.py`，待 549 解冻后随 550/551 一并补映射。
-  - **2026-06-22 更新**：549 已结算（no-workaround 消解为定理，概念层吸收入 476）。但 **549 settled ≠ 映射管线解冻**——549 topo_effect freeze 在结算后保留，relations.jsonl 仍是 LFS 指针，映射仍冻结。解冻条件 = A 执行（git lfs pull，操作者基础设施待办）。∴ 551 settled 后映射仍待 549 的**解冻**（A 执行）才能补——551 结算不解除该工程推迟。
-- **模板变更（2026-06-22 结算动作）**：external_lineage 字段已纳入 `.claude/skills/meta-orchestration/references/genealogy-template.md`（跨 repo 谱系引用标准，可选字段）。注：编排者消息提及的 `.chanlun/genealogy/genealogy-template.md` 不存在，真实模板在 skills references 目录，故更新真实模板。
+  - **2026-06-22 更新**：549 已结算（no-workaround 消解为定理，概念层吸收入 476）。但 **549 settled ≠ 映射管线解冻**——549 topo_effect freeze 在结算后保留，relations.jsonl 仍是 LFS 指针，映射仍冻结。解冻条件 = A 执行（git lfs pull，操作者基础设施待办）。∴ 551 的「待 549 解冻后补映射」表述**仍然正确**：等的是 549 的**解冻**（A 执行），不是 549 的**结算**。
 - 未改任何 RTAS 文件、未改 ② 逢亮 ceremony。
 
 ## 八、四分法分类（2026-06-22 genealogist 处理，018号四分法）
@@ -117,7 +108,7 @@ genealogy 工位用 **018号四分法**（定理 / 行动 / 选择 / 语法记�
 
 **551 不属于「行动类可自行修复+结算」。** 内容 C（行动类）已完成无残留；内容 A（概念分离确立）+ 内容 B（operational 不变量升结算 + 守卫互斥形式化）**双双需编排者裁决**，与任务指令的「选择/语法记录/概念矛盾（涉及 ceremony 架构决策）→ 不自行结算 → 报告 Lead 上浮编排者」完全吻合。
 
-**genealogist 不结算 551**（保持生成态——§八.6 编排者裁决后已结算）。整理给 Lead 的上浮要点（§八.4）。
+**genealogist 不结算 551**（保持生成态）。整理给 Lead 的上浮要点（§八.4）。
 
 ### 八.4 上浮要点（供 Lead /escalate）
 
@@ -139,19 +130,16 @@ genealogy 工位用 **018号四分法**（定理 / 行动 / 选择 / 语法记�
 
 **为什么不拆 551 把 C 单独结算**：内容 C（hook 守卫）是 A（概念分离）的工程显形，B 是 A 的 operational 推论，三者共属**一个发现的三个面**（一条谱系记录）。为「多结算一点」而拆记录 = 违反「谱系优先于汇总」（012号——不应为汇总便利切割发现的统一性）。C 作为行动类已执行完毕，无需独立"结算"动作；551 整体在 A 结算前保持 pending。
 
-### 八.6 编排者裁决（2026-06-22）
+**结算动作**：551 **保持 pending / 生成态**（dag.yaml 551 status 不改）。上浮 §八.4 三点（A 概念分离确立 + B 不变量升结算 + external_lineage 字段纳入模板）给 Lead /escalate。549 已结算这一新事实不改变 551 的待解状态——见 §七「2026-06-22 更新」（551 等的是 549 解冻，不是 549 结算）。
 
-编排者通过 AskUserQuestion 回答「三点全部确立 → 551 结算」。§八.4 三个上浮点**全部确立**：
+### 八.6 编排者裁决（2026-06-22，覆盖 §八.5「保持 pending」）
 
-1. **概念分离记录确立**：ceremony 能指覆盖三所指（①CC Swarm₀ / ②逢亮持久实体 / ③RTAS 脱域抽取）确立为**正式概念分离记录**——003号式「同一能指多所指」在 ceremony 域的实例。①↔② 此前已记录（CLAUDE.md），①↔③ 由本号 chanlun 侧确立。
-2. **operational 不变量升结算原则**：「启动 hook 必须按目录上下文触发对应 ceremony，禁止跨目录交叉触发」**升为结算原则**。守卫条件 = 目录存在性（① 守 `.chanlun/`、③ 守 `.rtas/`）。§六边界1（`.chanlun/`+`.rtas/` 共存守卫互斥）是该原则的已知开放有效域边界，当前本机目录正交不触发，日后共存时补设计（不否定结算）。
-3. **external_lineage 字段纳入模板**：551 首创的 `external_lineage` 字段（跨 repo 谱系引用，如 `rtas:M001`）**纳入谱系模板**为标准可选字段。已更新 `.claude/skills/meta-orchestration/references/genealogy-template.md`（真实模板；编排者消息提及的 `.chanlun/genealogy/genealogy-template.md` 不存在，故更新真实模板路径）。
+编排者裁决：**551 整体标 settled**（C 已行动，A/B blocked 不阻塞当前工作）。
 
-**type 保持「语法记录」**：551 本质是已运作未显式化规则的首次显式化（concept-separation + operational invariant + cross-repo lineage convention），编排者裁决保持 type=语法记录。
+| 内容 | 裁决 | 理由 |
+|------|------|------|
+| **C**（hook 守卫技术实现） | **已完成** | 行动类无残留（§八.1 源码勘察确认守卫正确） |
+| **A**（ceremony 三所指概念分离确立） | **blocked** | 需外部 RTAS 谱系（M001-M003，独立 repo `/Users/silencehan/rtas/`）确立 chanlun↔rtas 脱域分叉；外部谱系未就绪前阻塞，**但不阻塞当前工作**（死锁主线 A 路） |
+| **B**（启动 hook 禁止跨目录交叉触发 升结算原则） | **blocked** | 同需外部 RTAS 谱系确立守卫互斥（§六边界1 `.chanlun/`+`.rtas/` 共存场景） |
 
-**结算动作**（已执行）：
-- frontmatter status 生成态 → 已结算 + settlement 字段（编排者裁决）。
-- §八.6 编排者裁决记录（本节）。
-- external_lineage 字段纳入真实模板（`.claude/skills/meta-orchestration/references/genealogy-template.md`）。
-- 文件 pending/ → settled/（git mv 由 Lead 执行：`git rm pending/551-*.md`，本结算文件已写入 settled/；pending/ 副本降级为 tombstone）。
-- dag.yaml 551 节点 status 生成态 → settled + file path（genealogist 改）。
+**与 §八.5 的区别**：§八.5（genealogist）把 A/B 判为「待编排者裁决」保持 pending。编排者以 **blocked 分类**（需外部依赖、暂阻塞）替代——blocked ≠ 待裁决：A/B 不是等一个价值判断，是等外部 RTAS 谱系就绪。C 已完成 + A/B 阻塞于外部依赖 ⟹ 551 作为本 repo 谱系记录**可结算**（settled），A/B 作为 blocked 开放轴留存。编排者：「A/B blocked 不阻塞当前工作」「不要继续纠结 551」。
