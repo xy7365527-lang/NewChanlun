@@ -722,7 +722,6 @@ mod tests {
             cl: u64,       // 累计核心 Long bar（highest_active=Long）
             cs: u64,       // 累计核心 Short bar（主力做空 = 无 parent flip 到 Short）
             lv: f64,       // 边界处 多头市值 = long_units * c（核心+次级别多）
-            sv: f64,       // 边界处 空头市值 = short_units * c
             free: f64,     // 自由现金
             wd: f64,       // withdrawn（退本金，锁定不在险）
         }
@@ -748,7 +747,7 @@ mod tests {
                 for (j, v) in spl.iter_mut().enumerate() {
                     *v = root.short_pnl_by_level[j];
                 }
-                let (lu, su) = root.exposure();
+                let (lu, _) = root.exposure();
                 snaps.push(Snap {
                     bar: i,
                     tw: root.total_wealth(c[i]),
@@ -756,7 +755,6 @@ mod tests {
                     cl,
                     cs,
                     lv: lu * c[i],
-                    sv: su * c[i],
                     free: root.free(),
                     wd: root.withdrawn_total(),
                 });
