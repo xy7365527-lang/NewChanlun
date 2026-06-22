@@ -659,4 +659,293 @@ mod tests {
         println!("======================================================\n");
         assert!(!rows.is_empty(), "至少跑出一个标的");
     }
+
+    /// **BTC 牛熊段收益归因**（编排者 2026-06-21）：zigzag(40%反转)分牛熊段，逐段算引擎 TW 收益（MtM）
+    /// vs BH，段内短差 pnl + 强平落点（牛/熊段）。Structural 模式。诊断纯观测（不改引擎/不影响 bit-exact）。
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::btc_bull_bear_segments -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "BTC 牛熊段归因诊断，需 btc_1m_full.json"]
+    fn btc_bull_bear_segments() {
+        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        use std::path::PathBuf;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache/btc_1m_full.json");
+        if !path.exists() {
+            eprintln!("数据缺失 {path:?}");
+            return;
+        }
+        let (o, h, l, c) = load_clean_ohlc(&path);
+        let n = c.len();
+
+        // ── zigzag 分段（反转阈值 env ZZ，默认 0.40，BTC 巨幅摆动）→ 交替 峰/谷 pivot ──
+        let rev: f64 = std::env::var("ZZ").ok().and_then(|s| s.parse().ok()).unwrap_or(0.40);
+        let mut pivots: Vec<(usize, f64, bool)> = Vec::new(); // (bar, price, is_peak)
+        let (mut ext_bar, mut ext_price) = (0usize, c[0]);
+        let mut up = true; // BTC 2015 低位起步 → 先找峰
+        for i in 1..n {
+            if up {
+                if c[i] > ext_price {
+                    ext_price = c[i];
+                    ext_bar = i;
+                } else if c[i] < ext_price * (1.0 - rev) {
+                    pivots.push((ext_bar, ext_price, true));
+                    up = false;
+                    ext_price = c[i];
+                    ext_bar = i;
+                }
+            } else if c[i] < ext_price {
+                ext_price = c[i];
+                ext_bar = i;
+            } else if c[i] > ext_price * (1.0 + rev) {
+                pivots.push((ext_bar, ext_price, false));
+                up = true;
+                ext_price = c[i];
+                ext_bar = i;
+            }
+        }
+        // 段边界 = [0, pivot_bars..., n-1]
+        let mut bounds: Vec<usize> = vec![0];
+        for &(b, _, _) in &pivots {
+            bounds.push(b);
+        }
+        bounds.push(n - 1);
+        bounds.dedup();
+
+        // ── 跑 RecStream Structural，逐 bar 累计核心方向，边界记录快照（核心 vs 次级别分离）──
+        use crate::trading::types::Polarity;
+        struct Snap {
+            bar: usize,
+            tw: f64,
+            spl: [f64; 6], // short_pnl_by_level 累计（次级别短差腿 per-level）
+            cl: u64,       // 累计核心 Long bar（highest_active=Long）
+            cs: u64,       // 累计核心 Short bar（主力做空 = 无 parent flip 到 Short）
+            lv: f64,       // 边界处 多头市值 = long_units * c（核心+次级别多）
+            sv: f64,       // 边界处 空头市值 = short_units * c
+            free: f64,     // 自由现金
+            wd: f64,       // withdrawn（退本金，锁定不在险）
+        }
+        let mut s = RecStream::new(PerfectionMode::Structural);
+        let mut snaps: Vec<Snap> = Vec::new();
+        let (mut cl, mut cs) = (0u64, 0u64);
+        let mut bi = 0usize;
+        for i in 0..n {
+            s.push_bar(o[i], h[i], l[i], c[i]);
+            // 逐 bar 核心方向（highest_active 的 direction）：区分核心 Long/Short（主力方向）。
+            {
+                let root = s.driver().root();
+                if let Some(k) = root.highest_active() {
+                    match root.instance(k).direction {
+                        Polarity::Long => cl += 1,
+                        Polarity::Short => cs += 1,
+                    }
+                }
+            }
+            while bi < bounds.len() && bounds[bi] == i {
+                let root = s.driver().root();
+                let mut spl = [0.0; 6];
+                for (j, v) in spl.iter_mut().enumerate() {
+                    *v = root.short_pnl_by_level[j];
+                }
+                let (lu, su) = root.exposure();
+                snaps.push(Snap {
+                    bar: i,
+                    tw: root.total_wealth(c[i]),
+                    spl,
+                    cl,
+                    cs,
+                    lv: lu * c[i],
+                    sv: su * c[i],
+                    free: root.free(),
+                    wd: root.withdrawn_total(),
+                });
+                bi += 1;
+            }
+        }
+        let _ = s.finish();
+        let liq = s.driver().root().liq_log.clone();
+        let flips = s.driver().root().flip_log.clone(); // (bar, from, to, j_level, is_buy)
+
+        // ── 表1：核心方向（主力）vs 次级别短差总和 ──
+        eprintln!(
+            "\n===== BTC 牛熊段 核心(主力)vs次级别(短差) 归因（Structural, zigzag {:.0}%）=====",
+            rev * 100.0
+        );
+        eprintln!(
+            "{:>4} {:>8} {:>8} {:>9} {:>9} {:>8} {:>8} {:>7} {:>11} {:>5}",
+            "段", "起价", "止价", "引擎TW%", "BH%", "核心多%", "核心空%", "flip→S", "次级短差Σ", "强平"
+        );
+        for w in snaps.windows(2) {
+            let (a, b) = (&w[0], &w[1]);
+            let is_bull = c[b.bar] >= c[a.bar];
+            let eng = (b.tw / a.tw - 1.0) * 100.0;
+            let bh = (c[b.bar] / c[a.bar] - 1.0) * 100.0;
+            let segbars = ((b.cl + b.cs) - (a.cl + a.cs)).max(1);
+            let clp = 100.0 * (b.cl - a.cl) as f64 / segbars as f64;
+            let csp = 100.0 * (b.cs - a.cs) as f64 / segbars as f64;
+            let flip_s = flips
+                .iter()
+                .filter(|(fb, _, t, _, _)| {
+                    *fb > a.bar as i64 && *fb <= b.bar as i64 && *t == Polarity::Short
+                })
+                .count();
+            let seg_short: f64 = (0..6).map(|j| b.spl[j] - a.spl[j]).sum();
+            let nliq =
+                liq.iter().filter(|(_, _, _, lb, _, _)| *lb > a.bar as i64 && *lb <= b.bar as i64).count();
+            eprintln!(
+                "{:>4} {:>8.0} {:>8.0} {:>+8.1}% {:>+8.1}% {:>7.1}% {:>7.1}% {:>7} {:>+11.0} {:>5}",
+                if is_bull { "牛" } else { "熊" },
+                c[a.bar],
+                c[b.bar],
+                eng,
+                bh,
+                clp,
+                csp,
+                flip_s,
+                seg_short,
+                nliq
+            );
+        }
+
+        // ── 表2：各段 次级别短差 per-level P&L（sink/recover 空头腿 L0..L5）──
+        eprintln!("\n--- 各段 次级别短差 per-level（L0..L5，正=该级别短差段内赚）---");
+        eprintln!(
+            "{:>4} {:>8} {:>8} {:>9} {:>9} {:>9} {:>9} {:>9} {:>9}",
+            "段", "起价", "止价", "L0", "L1", "L2", "L3", "L4", "L5"
+        );
+        for w in snaps.windows(2) {
+            let (a, b) = (&w[0], &w[1]);
+            let is_bull = c[b.bar] >= c[a.bar];
+            let d: Vec<i64> = (0..6).map(|j| (b.spl[j] - a.spl[j]) as i64).collect();
+            eprintln!(
+                "{:>4} {:>8.0} {:>8.0} {:>9} {:>9} {:>9} {:>9} {:>9} {:>9}",
+                if is_bull { "牛" } else { "熊" },
+                c[a.bar],
+                c[b.bar],
+                d[0],
+                d[1],
+                d[2],
+                d[3],
+                d[4],
+                d[5]
+            );
+        }
+
+        // ── 表3：各段 资本结构（段首→段尾 暴露率，揭示熊段靠减仓避损还是主力做空）──
+        eprintln!("\n--- 各段 资本结构（多头市值/TW · 现金/TW · withdrawn退本金/TW，段首→段尾）---");
+        eprintln!(
+            "{:>4} {:>8} {:>8} {:>17} {:>17} {:>17}",
+            "段", "起价", "止价", "多头暴露%首→尾", "现金%首→尾", "退本金%首→尾"
+        );
+        for w in snaps.windows(2) {
+            let (a, b) = (&w[0], &w[1]);
+            let is_bull = c[b.bar] >= c[a.bar];
+            let pct = |v: f64, tw: f64| if tw.abs() > 1.0 { 100.0 * v / tw } else { 0.0 };
+            eprintln!(
+                "{:>4} {:>8.0} {:>8.0}  {:>6.1}→{:>6.1}  {:>6.1}→{:>6.1}  {:>6.1}→{:>6.1}",
+                if is_bull { "牛" } else { "熊" },
+                c[a.bar],
+                c[b.bar],
+                pct(a.lv, a.tw),
+                pct(b.lv, b.tw),
+                pct(a.free, a.tw),
+                pct(b.free, b.tw),
+                pct(a.wd, a.tw),
+                pct(b.wd, b.tw)
+            );
+        }
+
+        let bh_total = (c[n - 1] / c[0] - 1.0) * 100.0;
+        let eng_total = (snaps.last().unwrap().tw / snaps.first().unwrap().tw - 1.0) * 100.0;
+        let flip_s_total = flips.iter().filter(|(_, _, t, _, _)| *t == Polarity::Short).count();
+        eprintln!(
+            "\n全程 BH={:+.1}% 引擎TW={:+.1}% | 核心flip总数={}(→Short={}) 触发级别={:?} | 强平={}",
+            bh_total,
+            eng_total,
+            flips.len(),
+            flip_s_total,
+            flips.iter().filter(|(_, _, t, _, _)| *t == Polarity::Short).map(|(b, _, _, j, _)| (*b, *j)).collect::<Vec<_>>(),
+            liq.len()
+        );
+        assert!(!snaps.is_empty());
+    }
+
+    /// **2019后不再入场根因追踪**（编排者 2026-06-22）：采样核心 units 衰减 + free/withdrawn/stage +
+    /// enter/ascend/flip 累计 + buy 路由分类，定位「2018 做空赚完后引擎为何不再 enter 重新建仓」。
+    /// 关键判据：enter 仅在 highest_active()==None（全塔空仓）触发；若核心 units 几何衰减但永不 ≤EPS
+    /// → highest_active 恒 Some → enter 恒不触发 → free 闲置。
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::btc_no_reentry_trace -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "2019后不入场追踪，需 btc_1m_full.json"]
+    fn btc_no_reentry_trace() {
+        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        use std::path::PathBuf;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache/btc_1m_full.json");
+        if !path.exists() {
+            eprintln!("数据缺失 {path:?}");
+            return;
+        }
+        let (o, h, l, c) = load_clean_ohlc(&path);
+        let n = c.len();
+        // 关键 bar：熊1底 248736 + 2019 各点 + 各周期边界。
+        let key: std::collections::HashSet<usize> =
+            [248736usize, 250000, 267706, 300000, 400000, 694639, 971781, 1345277, 2218375]
+                .into_iter()
+                .collect();
+
+        let mut s = RecStream::new(PerfectionMode::Structural);
+        eprintln!("\n===== BTC 2019后不再入场 状态追踪（Structural）=====");
+        eprintln!(
+            "{:>9} {:>8} {:>4} {:>12} {:>4} {:>11} {:>11} {:>5} {:>4} {:>4} {:>4} {:>7} {:>6} {:>6} {:>8}",
+            "bar", "价", "核层", "核units", "活层", "free", "withdrawn", "stg", "ent", "asc",
+            "flp", "buyCore", "sink", "recov", "BSP累"
+        );
+        let mut units_dump: Vec<(usize, Vec<f64>)> = Vec::new();
+        for i in 0..n {
+            s.push_bar(o[i], h[i], l[i], c[i]);
+            if i % 200_000 == 0 || i == n - 1 || key.contains(&i) {
+                let r = s.driver().root();
+                let (hl, hu) = match r.highest_active() {
+                    Some(k) => (k as i64, r.instance(k).units),
+                    None => (-1, 0.0),
+                };
+                let stg = match r.stage().as_u8() {
+                    0 => "Cost",
+                    1 => "CapR",
+                    _ => "Earn",
+                };
+                eprintln!(
+                    "{:>9} {:>8.0} {:>4} {:>12.6} {:>4} {:>11.0} {:>11.0} {:>5} {:>4} {:>4} {:>4} {:>7} {:>6} {:>6} {:>8}",
+                    i, c[i], hl, hu, r.n_active(), r.free(), r.withdrawn_total(), stg,
+                    r.n_enters, r.n_ascends, r.n_flips, r.buy_core, r.n_sinks, r.n_recovers,
+                    s.bsp_counts.iter().sum::<u64>()
+                );
+                if key.contains(&i) {
+                    units_dump.push((i, (0..MAX_LEVEL).map(|k| r.instance(k).units).collect()));
+                }
+            }
+        }
+        let _ = s.finish();
+
+        // ── 关键 bar 各 level units（看核心几何衰减是否到 0 / 是否恢复）──
+        eprintln!("\n--- 关键 bar 各 level units（核心几何衰减，>EPS=1e-12 即'活着'阻止 enter）---");
+        eprintln!(
+            "{:>9} {:>8} {:>13} {:>13} {:>13} {:>13} {:>13} {:>13}",
+            "bar", "价", "L0", "L1", "L2", "L3", "L4", "L5"
+        );
+        for (b, u) in &units_dump {
+            eprintln!(
+                "{:>9} {:>8.0} {:>13.9} {:>13.9} {:>13.9} {:>13.9} {:>13.9} {:>13.9}",
+                b, c[*b], u[0], u[1], u[2], u[3], u[4], u[5]
+            );
+        }
+        eprintln!(
+            "\n判读：ent列在 248736 后是否不变=2018后零enter；核units衰减但>EPS=highest_active恒Some阻止enter；\
+             buyCore增长但ent不变=核心级买点走ascend/flip非enter；free大但锁不进市场。"
+        );
+    }
 }
