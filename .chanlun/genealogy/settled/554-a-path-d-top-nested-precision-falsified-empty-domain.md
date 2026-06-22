@@ -1,50 +1,70 @@
 ---
 id: '554'
 number: 554
-title: "A 路 D_TOP 区间套精确切换 L3 否证——链坍缩，有效域≈空集 @ a0=segment（第27课区间套三必要条件在 1min a0=segment 真实数据几乎从不同时满足）"
+title: "A 路 D_TOP 区间套精确切换 L3 否证——链坍缩，有效域≈空集 @ a0=segment（第27课区间套三必要条件在 1min a0=segment 真实数据几乎从不同时满足）【否证作废：见 555，链坍缩=实装错误 artifact 非市场性质】"
 type: 概念发现
-status: settled  # A 路 D_TOP L3 否证已结算（有效域≈空集 @ a0=segment）；a0=stroke 更细尺度未试（开放轴）
+status: settled  # ⚠️ 否证结论作废（实装错误）：链坍缩 21/24 = nest_chain_complete 检测对象错（各级别全局当前走势 vs cc 的 c 段钻取）的 artifact，非市场性质（见 555）。本文件保留为 v1 错误实装的 L3 artifact 记录（谱系优先于汇总，不抹发生史）；A 路 D_TOP 否证未定，待 c 段钻取正确实装重测。下文「市场多尺度异步=结构性不可达」声明已收回（见 §零）。
 date: '2026-06-22'
 settled_date: '2026-06-22'
-level: "A 路本体 = L0（rec_engine 最高级别区间套 D_TOP 精确切换 + anchor 条件门控 + 平空对称，worktree 3cc8c49b7a，113 单测绿 bit-exact）；A 路 D_TOP L3 否证 = L3（T_A_PATH_NESTED 8 标的 ×3 strat_pct，a0=segment，worktree wf_2f91805d-f6f-1，env 743s 全绿，OFF/ANCHOR 对照）；有效域 ≈ 空集 @ a0=segment（n_a_path_switches 21/24 cell = 0，其余 ≤1）"
-epistemological_level: "L3（8 标的 ×3 真实数据，a0=segment，否定性结果——D_TOP 区间套链 @ a0=segment 全面坍缩，有效域 ≈ 空集，formalization-validity-domain 有效域 ≪ 定义域第 N 例）。**否证的是『区间套 D_TOP 精确识别 @ a0=segment』这一形式的有效域**（≈ 空集），不是『对称双吃目标本身不可达』——区分形式（@ a0=segment 区间套精度）vs 目标（吃每级别涨跌幅绝对值）。a0=stroke 更细尺度（526 A0Source）未试，前景不乐观（pcf 高层链坍缩可能结构性），不声称可达、不声称全分辨率不可达。"
+# ⚠️ 全文「L3 否证 / 有效域≈空集 / 结构性不可达 / 根因=三必要条件不同时满足」结论均已被 555 收回——
+# 链坍缩是 v1 错误实装（检测对象错）的 artifact，不是市场性质。下文保留为 artifact 发生史记录，结论以 555 为准。
+level: "A 路本体 = L0（rec_engine 最高级别区间套 D_TOP 精确切换 + anchor 条件门控 + 平空对称，worktree 3cc8c49b7a，113 单测绿 bit-exact）；A 路 D_TOP「L3 否证」= **作废**（链坍缩 = 检测对象错 artifact，非市场性质，见 555）——原读数 = L3（T_A_PATH_NESTED 8 标的 ×3 strat_pct，a0=segment，worktree wf_2f91805d-f6f-1，env 743s 全绿，OFF/ANCHOR 对照）保留为 v1 错误实装 artifact 记录；A 路 D_TOP 否证未定，待 c 段钻取重测"
+epistemological_level: "⚠️ **本号 L3 否证结论已被 555 收回。** 原声明『区间套 D_TOP 精确识别 @ a0=segment 有效域≈空集，市场多尺度异步=结构性不可达』= **实装错误 artifact**（nest_chain_complete 检测对象 = 各级别全局当前走势 rec_driver.rs:102-105，非 cc 的 c 段钻取；异步无因果窗口上做几何内含检验 → 偶然满足概率极低 → 链坍缩 artifact）。这是 formalization-validity-domain 的**反面错误**：过早声明否定性结论（不可达）而未排除实装错误（夸大否定，no-patch-mentality 模式 1：没追问区间套严格形式）。**正确实装（沿 c 段窗向下递归钻取）重测前，A 路 D_TOP 否证未定。** 原 L3 数据（21/24 零切换、A_PATH≪ANCHOR）保留为 v1 错误实装 artifact 记录。"
 负责工位: "A 路本体实装 worktree 3cc8c49b7a（commit，113 单测绿）+ 8 标的 L3 后台 agent（wf_2f91805d-f6f-1，T_A_PATH_NESTED，743s 全绿）"
 provenance: "[新缠论:实装+八标的 L3 回测+诊断]"
 negation_source: homogeneous
 negation_form: separation
-negates: "553 号 A 路开放轴的隐含命题『区间套级联精度 > cascade 粗识别，能避免强牛误触发、吃到跌那一半』——被证伪：区间套 D_TOP 链 @ a0=segment 坍缩（n_a_path_switches 21/24 = 0），A 路退化为『anchor 锁核心 + 低级别空腿照常失血』混合态，比 OFF 和 ANCHOR 都差（仅 4/24 巧合 = OFF，15/24 偏离 >10pp）。精确识别『走势完成』@ a0=segment 在 1min 分辨率不可操作。"
+negates: "⚠️ 本 negates 声明已被 555 收回：原称『553 号 A 路开放轴隐含命题（区间套级联精度>cascade 粗识别，能避免强牛误触发、吃到跌那一半）被证伪』——实为 v1 错误实装的 artifact（检测对象错），不构成对该命题的有效否证。A 路 D_TOP 否证未定，待 c 段钻取重测。原文：『区间套 D_TOP 链 @ a0=segment 坍缩（n_a_path_switches 21/24 = 0），A 路退化为 anchor 锁核心 + 低级别空腿照常失血混合态，比 OFF 和 ANCHOR 都差』——数据真实，但因果归因（市场性质）作废。"
 topo_effect: "sever:T_A_PATH_NESTED-d-top-switch-path:downstream"
-# sever（分离型）：A 路 D_TOP 区间套精确切换路径与 anchor 趋势底仓本被当作可叠加的精度提升半步（553 §五开放轴：区间套级联减滞后提精度），
-# L3 暴露 D_TOP 链 @ a0=segment 全面坍缩（21/24 零切换）——切换路径退化为死代码，anchor 仍锁核心、低级别空腿仍失血。
-# 切断 D_TOP 区间套精确切换这一吃跌实现路径 @ a0=segment（有效域空集 → 净负，比 OFF/ANCHOR 都差）。
-# scope=downstream：被切断的是 D_TOP completed 精确识别 → 核心翻空切换整条链。
+# ⚠️ 本 topo_effect（sever D_TOP 切换路径）基于「链坍缩=市场性质」的错误归因——已被 555 修正。
+# 链坍缩是检测对象错的 artifact，D_TOP 切换路径不应被切断，应修正实装（c 段钻取）后重测。
 depends_on:
-  - '553'   # A 路设计开放轴——本号是 553 §五 A 路根本张力的 L3 裁决（区间套精度能否避强牛误触发）
-  - '545'   # emergent_top 方向锚不稳——A 路 D_TOP 顶部识别依赖 emergent_top，方向锚不稳是链坍缩的上游成因之一
+  - '553'   # A 路设计开放轴——本号是 553 §五 A 路根本张力的 L3 裁决（但裁决结论被 555 作废）
+  - '545'   # emergent_top 方向锚不稳——A 路 D_TOP 顶部识别依赖 emergent_top，检测对象错与方向锚同在 extract_view 链
 related:
-  - '552'   # anchor 吃涨 L3——A 路在 anchor 之上加 D_TOP 切换；坍缩后退化为 anchor 锁核心 + 低级别空腿失血混合态
-  - '547'   # cascade 级别错配——547 级别归属修对「翻哪一级」，A 路试图修「切换时机精度」，@ a0=segment 仍坍缩
-  - '539'   # 清仓判据 regime 门控——D_TOP 切换 = 顶部该翻空的精确识别，@ a0=segment 无法操作
+  - '555'   # 区间套递归保证定理 + 本号否证作废诊断——本号 L3 否证结论被 555 收回（实装错误 artifact）
+  - '552'   # anchor 吃涨 L3——A 路在 anchor 之上加 D_TOP 切换
+  - '547'   # cascade 级别错配——547 级别归属修对「翻哪一级」，本号检测对象错配同族（钻取窗口错）
+  - '539'   # 清仓判据 regime 门控——D_TOP 切换 = 顶部该翻空的精确识别
   - '【memory】project_t_cross_level_coupling_falsified'   # 低级别空腿强牛失血同构——A 路退化态的失血腿与之同族
-  - '【memory】project_pcf_1s_a0_source_collapse'          # 区间套链坍缩同构——pcf 高层 source 坍缩 = D_TOP 高层链坍缩同一结构性现象
-  - '【memory】project_pcf_pending_locate_collapse_fix'    # pending_locate 坍缩修复——坍缩的结构性根因诊断（前景不乐观的依据）
-  - '【memory】feedback_filter_bank_metaphor_prove'        # a0=stroke 更细尺度开放轴——滤波器比喻更细尺度可能让区间套链贯通更多层
+  - '【memory】project_pcf_1s_a0_source_collapse'          # 原引为「区间套链坍缩同构」——555 诊断后此类比作废（本号坍缩是实装错误，非 source 坍缩同构）
+  - '【memory】project_pcf_pending_locate_collapse_fix'    # 原引为坍缩结构性根因——555 诊断后作废
+  - '【memory】feedback_filter_bank_metaphor_prove'        # a0=stroke 更细尺度开放轴——555 后焦点改为 c 段钻取正确实装
 tensions_with: []
 ---
 
-# 554 号：A 路 D_TOP 区间套精确切换 L3 否证——链坍缩，有效域 ≈ 空集 @ a0=segment
+# 554 号：A 路 D_TOP 区间套精确切换 L3「否证」——【否证作废，见 555】
 
-**认识论**：A 路本体 L0（实装成功，113 单测绿 bit-exact）；**A 路 D_TOP L3 否证 = 有效域 ≈ 空集 @ a0=segment**（区间套链坍缩，n_a_path_switches 21/24 = 0）；这是 553 §五 A 路开放轴的 L3 裁决。**否证的是『区间套 D_TOP 精确识别 @ a0=segment』这一形式**，不是『对称双吃目标本身不可达』。a0=stroke 更细尺度未试（开放轴，前景不乐观）。
+> ⚠️ **本号 L3 否证结论已被 555 号收回。** 本文件保留为 **v1 错误实装的 L3 artifact 记录**（谱系优先于汇总 012，不抹发生史）。下文所有「L3 否证 / 有效域≈空集 / 市场多尺度异步=结构性不可达 / 根因=三必要条件不同时满足」均**不再成立**——链坍缩 21/24 = nest_chain_complete 检测对象错（各级别全局当前走势 vs cc 的 c 段钻取）的 artifact，**非市场性质**。**A 路 D_TOP 否证未定，待 c 段钻取正确实装重测**（见 555）。阅读下文请将「否证」读作「v1 错误实装的 artifact 读数」。
 
-## 一、背景：A 路本体实装成功，L3 回测否证
+## 零、否证作废（编排者诊断，2026-06-22，见 555）
 
-A 路本体（最高级别区间套 D_TOP 精确切换 + anchor 条件门控 + 平空对称）实装成功：worktree `3cc8c49b7a`，commit，113 单测绿，bit-exact。但 **L3 回测否证**。本号是 553 号 A 路开放轴（§五 A 路根本张力）的 L3 裁决。
+**编排者质疑**：区间套是**递归保证**的——cc 真背驰 ⟹ 以下所有级别都转折（第27课 L15）。既然递归保证，向下链怎么可能坍缩到 21/24=0？**质疑成立。**
+
+**诊断铁证**（555 §三）：
+- `rec_driver.rs:102-105` extract_view：`level_trends[k] = levels[k].trends.last()` = **各级别全局当前走势**（异步、任意相位），不是 cc 的 c 段向下钻取窗口。
+- `nest_chain_complete` 在这组**无因果关系的异步窗口**上做几何内含检验 → 偶然满足嵌套概率极低 → 链坍缩 **21/24 = artifact**。
+- 第27课 L11/L15：正确钻取是沿 cc 的 c 段窗向下递归约束（只在父窗内找**相应**背驰段），嵌套由「取自父窗内」**构造性保证**，不是事后几何检验。当前实装是**范畴错误**。
+- 数据结构缺口：encapsulate（operator.rs:18-37）把子 TrendType 压成扁平 Unit（types.rs:93-117），丢弃组成子走势引用，无父子链接。
+
+**收回的声明**：本号「市场多尺度异步=结构性不可达」（§五）= formalization-validity-domain 的**反面错误**（过早声明否定性结论而未排除实装错误，夸大否定）。**数据（21/24 零切换、A_PATH≪ANCHOR）真实，但因果归因作废。** A 路 D_TOP 否证未定，待 c 段钻取重测。**完整诊断与区间套递归保证定理见 555 号。**
+
+---
+
+> 以下 §一–§十为 **v1 错误实装的 artifact 发生史记录**（结论已被 555 收回，保留以存生成史）。
+
+**认识论（原，已收回）**：A 路本体 L0（实装成功，113 单测绿 bit-exact）；~~A 路 D_TOP L3 否证 = 有效域 ≈ 空集 @ a0=segment~~（实为检测对象错 artifact，见 §零）。
+
+## 一、背景：A 路本体实装成功，L3 回测【artifact】
+
+A 路本体（最高级别区间套 D_TOP 精确切换 + anchor 条件门控 + 平空对称）实装成功：worktree `3cc8c49b7a`，commit，113 单测绿，bit-exact。但 L3 回测产出链坍缩读数（**后诊断为检测对象错 artifact，见 §零**）。本号原为 553 号 A 路开放轴（§五 A 路根本张力）的 L3 裁决，裁决结论已作废。
 
 L3 数据：worktree `wf_2f91805d-f6f-1`，a0=segment，env `T_A_PATH_NESTED`，743s 全绿。
 
-## 二、L3 矩阵（A_PATH ON，Structural）+ 对照
+## 二、L3 矩阵（A_PATH ON，Structural）+ 对照【artifact 数据，真实保留】
 
 > 列：A_PATH S（A 路开启）/ OFF S（关闭）/ ANCHOR S（仅 552 anchor）/ BH。单位均为 %。
+> ⚠️ A_PATH 列是 v1 错误实装（检测对象错）下的读数——数据真实，但反映的是 artifact 行为（链坍缩 + 低级别空腿失血），不是 A 路正确形式的性能。
 
 | 标的 | regime | A_PATH S | OFF S | ANCHOR S | BH |
 |---|---|---:|---:|---:|---:|
@@ -57,94 +77,72 @@ L3 数据：worktree `wf_2f91805d-f6f-1`，a0=segment，env `T_A_PATH_NESTED`，
 | BRN | 震荡 | −25.2 | −9.8 | −30.8 | +87.4 |
 | DX | 震荡 | +0.8 | −1.0 | −10.5 | +4.1 |
 
-**n_a_path_switches：21/24 cell = 0，其余 ≤1。D_TOP 区间套链全面坍缩。**
+**n_a_path_switches：21/24 cell = 0，其余 ≤1。** ⚠️ 这个链坍缩 = 检测对象错的 artifact（§零），不是「D_TOP 区间套链全面坍缩」的市场性质。
 
-## 三、A 路 D_TOP L3 否证（四判据）
+## 三、四判据读数【artifact，结论作废】
 
-| 判据 | 内容 | L3 裁决 |
+> ⚠️ 下表「否证」均基于 v1 错误实装的 artifact 读数，结论已被 555 收回。保留以存发生史。
+
+| 判据 | 内容 | artifact 读数（结论作废） |
 |---|---|---|
-| 判据1 | 识别精度（D_TOP 能精确识别真顶部、强牛零误触发） | **否证**——强牛 A_PATH ≪ ANCHOR：BTC −1086pp / OKLO −285pp / ES −410pp / GC −163pp / QQQ −130pp |
-| 判据2 | 顶部翻空吃跌（cc 级别 short_pnl 显著为正） | **否证**——cc 级别 short_pnl ≈ 0，switches ≈ 0，无顶部翻空吃跌 |
-| 判据3 | 对称双吃（吃每级别涨跌幅绝对值） | **否证**——同判据2，跌那一半未吃到 |
-| 判据4 | 链贯通（D_TOP completed 切换链能在真实数据触发） | **确认坍缩**——21/24 零切换 |
+| 判据1 | 识别精度（D_TOP 能精确识别真顶部、强牛零误触发） | 强牛 A_PATH ≪ ANCHOR：BTC −1086pp / OKLO −285pp / ES −410pp / GC −163pp / QQQ −130pp（⚠️ artifact——检测对象错致切换从不触发） |
+| 判据2 | 顶部翻空吃跌（cc 级别 short_pnl 显著为正） | cc 级别 short_pnl ≈ 0，switches ≈ 0（⚠️ artifact——异步窗口几何内含偶满概率极低） |
+| 判据3 | 对称双吃（吃每级别涨跌幅绝对值） | 同判据2（⚠️ artifact） |
+| 判据4 | 链贯通（D_TOP completed 切换链能在真实数据触发） | 21/24 零切换（⚠️ artifact——检测对象错，非链不通；区间套递归保证向下链必通，见 555 §二） |
 
-**结论**：A 路 D_TOP（区间套精确切换 @ a0=segment）有效域 ≈ 空集（formalization-validity-domain：有效域 ≪ 定义域）。判据1 是关键——强牛标的 A_PATH 远不及 ANCHOR，证明 D_TOP 切换不仅没吃到跌，反而比纯 anchor 死扣还差。
+**原结论「有效域 ≈ 空集」作废**——正确实装（c 段钻取）下，区间套递归保证嵌套必通（555），不会坍缩。
 
-## 四、退化态修正（对抗审查关键）
+## 四、退化态【artifact，机制描述仍有诊断价值】
 
-**A 路退化不是干净的 ANCHOR 死扣。** 这是对抗审查的关键论点——若 A 路退化为干净 ANCHOR（链坍缩 = 切换从不触发 = 等价 ANCHOR），则 A_PATH 应 bit-exact 等于 ANCHOR。但矩阵显示 A_PATH ≠ ANCHOR 且远差于 ANCHOR。
+**A 路退化不是干净的 ANCHOR 死扣**（这一观察 v1 下成立、且对诊断有价值）：若纯瘫痪应 bit-exact 等于 ANCHOR，但矩阵显示 A_PATH ≠ ANCHOR 且远差于 ANCHOR。
 
-A 路退化态 = **「anchor 锁核心 + 低级别空腿照常失血」混合态**：
-- D_TOP 顶部切换链坍缩（21/24 零切换）→ 核心翻空从不触发 → 核心被 anchor 锁死（enter=1 / flip=0，瘫痪）；
-- 但低级别空腿（539/547 短差腿）**照常运作、照常失血**——强牛标的被低级别空腿放血。
+v1 退化态 = **「anchor 锁核心 + 低级别空腿照常失血」混合态**：
+- D_TOP 顶部切换链坍缩（⚠️ 因检测对象错，非市场性质）→ 核心翻空从不触发 → 核心被 anchor 锁死（enter=1 / flip=0，瘫痪）；
+- 但低级别空腿（539/547 短差腿）照常运作、照常失血——强牛标的被低级别空腿放血。
 
-证据（A_PATH vs OFF/ANCHOR 的偏离）：
-- **仅 4/24 巧合 = OFF**（若纯瘫痪应等于某基线）；
-- **15/24 偏离 >10pp**——A_PATH 既不等于 OFF 也不等于 ANCHOR，是第三种混合态；
-- 强牛 A_PATH 普遍劣于 ANCHOR（BTC +50.4 vs +1136.9、ES −11.9 vs +398.2、GC −11.3 vs +151.3、QQQ −21.6 vs +108.6）——anchor 的吃涨被低级别空腿失血侵蚀，而 D_TOP 切换又没补上吃跌。
+证据：仅 4/24 巧合 = OFF；15/24 偏离 >10pp（第三种混合态）；强牛 A_PATH 普遍劣于 ANCHOR。
 
-**安全（无 OKLO 穿仓 = 避 553 cascade −106.6💥）来自瘫痪，不是精度。** A 路确实避开了 cascade 的强牛穿仓（D_TOP 切换从不触发 → 不会像 cascade 那样误翻空毁底仓），但这一「安全」是核心被锁死（enter=1 / flip=0）的副产物，不是 D_TOP 精确识别的功劳。瘫痪的核心不会误翻空，也不会精确翻空——它根本不动。
+**安全（无 OKLO 穿仓）来自瘫痪，不是精度**——这一诊断**仍成立**（v1 下核心被锁死故不会误翻空），但「瘫痪」本身是检测对象错的后果（切换从不触发），修正实装后核心应能在真顶部翻空。
 
-## 五、根因（重大 L3 发现）：第27课区间套三必要条件 @ a0=segment 几乎从不同时满足
+## 五、~~根因~~【已收回——见 §零，真因是检测对象错】
 
-缠论第27课区间套定位（精确大转折点寻找程序）要求三个必要条件**同时满足**才确认「走势完成」：
+> ⚠️ **本节原结论「第27课区间套三必要条件 @ a0=segment 几乎从不同时满足 = 市场多尺度异步 = 结构性不可达」已被 555 收回。**
 
-1. **链贯通**：区间套自上而下逐级收窄，背驰段逐级确认贯通到精确点；
-2. **本级趋势**：被定位级别本身处于趋势（非盘整）；
-3. **力度衰减**：背驰（力度衰减）在被定位级别成立。
+原文（保留以存发生史）：缠论第27课区间套定位要求三条件同时满足（链贯通 ∧ 本级趋势 ∧ 力度衰减），本号曾声称这三条件「在 1min a0=segment 真实数据几乎从不同时满足」，并归因为市场多尺度异步的结构性性质。
 
-**在 1min a0=segment 真实数据上，这三个条件几乎从不同时满足。** n_a_path_switches 21/24 = 0 是这一坍缩的可观测后果：D_TOP completed（区间套链贯通到最高级别顶部）这一事件在该分辨率下几乎不发生。**精确识别「走势完成」@ a0=segment 在 1min 分辨率不可操作。D_TOP 有效域 ≈ 空集。**
+**真因（555）**：三条件「在错误检测对象（各级别全局当前走势，异步任意相位）上几乎从不同时满足」——但正确检测对象（沿 cc 的 c 段窗向下钻取的子走势）上，嵌套由「取自父窗内」**构造性保证**，三条件随父级背驰构造性满足，不会坍缩。**原与 [[project_pcf_1s_a0_source_collapse]]/[[project_pcf_pending_locate_collapse_fix]] 的「同一结构性现象」类比作废**——本号坍缩是实装错误的 artifact，pcf 坍缩另有其因（不在此类比内）。
 
-这与 [[project_pcf_1s_a0_source_collapse]]（pcf 高层 source 坍缩——高层 candidate 在时间上罕见，链坍缩 91-96%）和 [[project_pcf_pending_locate_collapse_fix]]（pending_locate 坍缩根因 = segment 瞬时 nf 抢先武装）是**同一结构性现象**：区间套链在高层 @ 当前分辨率坍缩。
+## 六、形式 vs 目标【部分保留】
 
-## 六、形式 vs 目标（声明边界，formalization-validity-domain）
+原区分（形式 @ a0=segment 区间套精度 vs 目标 对称双吃）仍是有效的认识论框架。但 555 后**进一步收缩**：本号连「@ a0=segment 这一形式被否证」也不成立——被否证的不是形式，是 **v1 错误实装**。正确形式（c 段钻取）@ a0=segment 未试。
 
-**否证的是形式，不是目标。** 编排者已在 553 纠正过「对称双吃不可达」的声明膨胀（formalization-validity-domain 模式 3：定义域=有效域假设）。本号严格遵守该边界：
+## 七、吃跌三条路【修正：A 路否证作废，回到「两路否证 + A 待重测」】
 
-- **被否证（确证）**：「区间套 D_TOP 精确识别 @ a0=segment」这一**实现形式**的有效域 ≈ 空集。这是与该形式定义域等大的 L3 验证（8 标的 ×3，21/24 零切换）。
-- **未被否证**：「对称双吃目标本身（吃每级别涨跌幅绝对值）」——区分形式（@ a0=segment 区间套精度）vs 目标。声称目标不可达需与目标定义域等大的验证，而目标在更细分辨率（a0=stroke）从未实装。
+> ⚠️ 原表称「吃跌三条路全否证」——A 路这一行作废（实装错误，非有效否证）。
 
-故本号声明：**A 路 D_TOP @ a0=segment 否证（有效域 ≈ 空集），不声称对称双吃目标在全分辨率不可达。**
-
-## 七、吃跌三条路全否证（吃涨 anchor 仍是死锁解确证部分）
-
-对称双吃「跌那一半」的三种实现形式，至此全部 L3 否证：
-
-| 路线 | 实现形式 | L3 否证 |
+| 路线 | 实现形式 | 状态 |
 |---|---|---|
-| B 递归 anchor | 深层空腿全程持空不切换 | 552 §八（BTC −87.4% / −45% 崩涨） |
-| cascade flip | emergent_top.completed 粗识别触发核心翻空 | 553（THREE-HALF 8/8 ≤ anchor，OKLO −106.6💥 穿仓） |
-| A 路 D_TOP | 最高级别区间套精确切换 @ a0=segment | **本号**（链坍缩 21/24 = 0，退化混合态比 OFF/ANCHOR 都差） |
+| B 递归 anchor | 深层空腿全程持空不切换 | L3 否证（552 §八，错误实现形式） |
+| cascade flip | emergent_top.completed 粗识别触发核心翻空 | L3 否证（553，错误实现形式） |
+| A 路 D_TOP | 最高级别区间套精确切换 @ a0=segment | ⚠️ **否证作废（v1 实装错误，检测对象错）；待 c 段钻取重测，否证未定**（555） |
 
-**吃涨侧 anchor 强牛 5/8（552）仍是死锁解的确证部分。** 三条吃跌路全否证不否定 552 anchor 吃涨的真解地位——吃涨侧（核心死扣持多）确证有效，吃跌侧（每级别精确骑下跌走势切换）@ 当前已试形式与分辨率全部否证。
+**吃涨侧 anchor 强牛 5/8（552）仍是死锁解的确证部分**（不受 554 作废影响）。吃跌侧：B/cascade 两错误形式否证，A 路正确实装（c 段钻取）未试。
 
-## 八、开放轴（吃跌最后未测）：a0=stroke 更细尺度
+## 八、~~开放轴 a0=stroke~~【焦点改为 c 段钻取正确实装，见 555 §四】
 
-唯一未测的吃跌路径 = **a0=stroke**（[[feedback_filter_bank_metaphor_prove]] / 526 号 A0Source，笔级底座）：
+原称 a0=stroke 是吃跌最后未测轴。**555 后焦点改变**：吃跌的下一步不是换更细尺度（a0=stroke），而是**修正检测对象**（c 段钻取，路径 A 窗口过滤 / 路径 B Unit 加 inner_trend）@ a0=segment 重测。a0=stroke 是修正实装后的可选进一步细化，不是当前焦点。
 
-- 笔级底座递归更深（recL 从 5-6 → 8-10 层），区间套链可能贯通更多层 → D_TOP 切换链可能不坍缩；
-- 呼应滤波器比喻：更细尺度 = 更高奈奎斯特观测分辨率，第27课三必要条件可能在更细尺度同时满足。
+## 九、张力检查结论【修正】
 
-**但前景不乐观**：pcf 内存诊断显示高层链坍缩可能是**结构性**的（[[project_pcf_1s_a0_source_collapse]]：1s 救不了 source 坍缩，ES 1s 11.77M bar seg_root 85.6% vs 同窗 1min 91.3%，85-91% 带；尺度不变性第二例——塔变高但高层 candidate 时间罕见不变）。若坍缩是结构性的（尺度不变），a0=stroke 也救不了 D_TOP 链。**未测，不下结论**——这是吃跌侧最后一根未测的轴。
+**无不可分层解决的矛盾，不新建张力记录。** 本号与 555 是 settle-correction 关系（555 修正本号的市场性质归因）。本号 v1 artifact 数据保留，结论以 555 为准。与 552/553/547 的分层关系中，原「A 路太严格→链坍缩」论点作废（坍缩是实装错误），但「检测对象/级别错配族」（547/555）的归类成立。
 
-## 九、张力检查结论
+## 十、影响声明【修正】
 
-**无不可分层解决的矛盾，不新建张力记录。** A 路 D_TOP 否证与 552 anchor、553 cascade、cross_level 全部分层一致：
-
-- 与 553 cascade 分层：cascade 粗识别强牛**误翻空毁底仓**（穿仓），A 路精确识别尝试反而**链坍缩从不切换**（瘫痪）——两个相反的失败模式，但同指向「@ a0=segment 切换时机识别不可操作」。cascade 太敏感（任何 completed 即翻），A 路太严格（三必要条件几乎从不同时满足）；中间没有可操作的精度窗口 @ a0=segment。
-- 与 552 anchor 分层：A 路退化态保留 anchor 锁核心，但叠加低级别空腿失血 → 比纯 anchor 差（sever：D_TOP 切换路径被切除，anchor 路径保留）。
-- 与 [[project_t_cross_level_coupling_falsified]] 同族：A 路退化态的低级别空腿失血 = 逆 regime 固定方向腿在强牛被套，regime 结构税。
-
-对称双吃目标可达性（a0=stroke，§八）是**开放轴**（未试），非已结算矛盾，不上浮。
-
-## 十、影响声明
-
-- **A 路 D_TOP（T_A_PATH_NESTED，最高级别区间套精确切换 @ a0=segment）有效域 L3 否证 = 空集**（n_a_path_switches 21/24 = 0，退化混合态比 OFF/ANCHOR 都差，强牛 A_PATH ≪ ANCHOR）。**确证。**
-- **A 路退化态 = 「anchor 锁核心 + 低级别空腿照常失血」混合态**（非干净 ANCHOR 死扣，4/24 = OFF，15/24 偏离 >10pp）；安全来自瘫痪（enter=1 / flip=0）不是精度。
-- **根因（重大 L3 发现）**：第27课区间套三必要条件（链贯通 ∧ 本级趋势 ∧ 力度衰减）在 1min a0=segment 真实数据几乎从不同时满足——精确识别「走势完成」@ a0=segment 不可操作。
-- **否证的是形式（@ a0=segment 区间套精度），不是目标（对称双吃）**——区分形式 vs 目标，遵守 553 编排者已确立的声明边界（formalization-validity-domain）。
-- **吃跌三条路全否证**：B 递归 anchor（552 §八）/ cascade flip（553）/ A 路 D_TOP（本号）。吃涨 anchor 强牛 5/8（552）仍是死锁解确证部分。
-- **开放轴**：a0=stroke（526 A0Source）更细尺度，呼应滤波器比喻——区间套链可能贯通更多层；但 pcf 高层链坍缩可能结构性（尺度不变），前景不乐观，未测。
-- 未改主树生产路径（全 worktree 分支 + flag，113 单测绿 bit-exact，worktree 3cc8c49b7a 本体 / wf_2f91805d-f6f-1 L3）。
-- **更新 553**：§五.3 成败判据「A 路 = 对称双吃可达性判决场，未实证」→「A 路 D_TOP @ a0=segment 已 L3 否证（链坍缩，有效域空集，见 554）；可达性判决场移至 a0=stroke 更细尺度」。
-- **新增**：`.chanlun/genealogy/settled/554-a-path-d-top-nested-precision-falsified-empty-domain.md`（本文件）。
+- ⚠️ **本号 L3 否证结论作废（实装错误 artifact，见 555）**：A 路 D_TOP「有效域 ≈ 空集 / 市场多尺度异步=结构性不可达」**收回**——链坍缩 21/24 = nest_chain_complete 检测对象错（各级别全局当前走势 vs cc 的 c 段钻取）的 artifact，非市场性质。
+- **A 路 D_TOP 否证未定**：待 c 段钻取正确实装（路径 A 窗口过滤 / 路径 B Unit 加 inner_trend）重测（555 §四）。
+- **本号保留为 v1 错误实装的 L3 artifact 记录**（谱系优先于汇总 012，不抹发生史）：数据（21/24 零切换、A_PATH≪ANCHOR）真实，因果归因作废。
+- **退化态机制描述（§四）仍有诊断价值**：v1 下「anchor 锁核心 + 低级别空腿失血」混合态、「安全来自瘫痪」——但「瘫痪」是检测对象错后果，非市场约束。
+- 吃跌三条路：B/cascade 两错误形式 L3 否证（确证），A 路 D_TOP 否证作废待重测；吃涨 anchor 强牛 5/8（552）不受影响。
+- 未改主树生产路径（全 worktree 分支 + flag，113 单测绿 bit-exact）。
+- **553 §五.3 的 554 引用块**：原指「A 路 D_TOP @ a0=segment 已 L3 否证」——应随 555 更新为「554 否证作废（实装错误），A 路 D_TOP 待 c 段钻取重测」。
+- **新增 555**：`.chanlun/genealogy/settled/555-nesting-recursive-guarantee-detection-object-misdiagnosis.md`（区间套递归保证定理 + 本号否证作废诊断）。

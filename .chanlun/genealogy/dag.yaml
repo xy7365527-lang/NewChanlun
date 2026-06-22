@@ -2714,6 +2714,12 @@ nodes:
   status: settled
   type: 概念发现
   file: settled/554-a-path-d-top-nested-precision-falsified-empty-domain.md
+- id: '555'
+  title: 区间套递归保证定理 + 554 否证作废诊断——nest_chain_complete 检测对象错（各级别全局当前走势 vs cc 的 c 段钻取）；554「市场多尺度异步=结构性不可达」收回，链坍缩
+    21/24 = 实装 artifact 非市场性质
+  status: settled
+  type: 概念发现
+  file: settled/555-nesting-recursive-guarantee-detection-object-misdiagnosis.md
 edges:
   depends_on:
   - from: '136'
@@ -5606,6 +5612,8 @@ edges:
     to: '553'
   - from: '554'
     to: '545'
+  - from: '555'
+    to: '554'
   triggered:
   - from: '005'
     to: 005a
@@ -5748,6 +5756,21 @@ edges:
       @ a0=segment 坍缩（n_a_path_switches 21/24 = 0），A 路退化为『anchor 锁核心 + 低级别空腿照常失血』混合态，比
       OFF 和 ANCHOR 都差（仅 4/24 巧合 = OFF，15/24 偏离 >10pp）。精确识别『走势完成』@ a0=segment 在 1min
       分辨率不可操作。
+  - from: '555'
+    to: 554 号『A 路 D_TOP 区间套精确识别 @ a0=segment 有效域≈空集，市场多尺度异步=结构性不可达』——被诊断为**实装错误的 artifact**：nest_chain_complete
+      检测对象 = 各级别全局当前走势（rec_driver.rs:102-105，异步任意相位），不是 cc 的 c 段向下钻取窗口；在无因果关系的异步窗口上做几何内含检验
+      → 偶然满足嵌套概率极低 → 链坍缩 21/24 = artifact，非市场多尺度异步的结构性性质。**554 的市场性质归因收回；A 路否证未定（待
+      c 段钻取正确实装重测）。**
+  - from: '554'
+    to: ⚠️ 本 negates 声明已被 555 收回：原称『553 号 A 路开放轴隐含命题（区间套级联精度>cascade 粗识别，能避免强牛误触发、吃到跌那一半）被证伪』——实为
+      v1 错误实装的 artifact（检测对象错），不构成对该命题的有效否证。A 路 D_TOP 否证未定，待 c 段钻取重测。原文：『区间套 D_TOP
+      链 @ a0=segment 坍缩（n_a_path_switches 21/24 = 0），A 路退化为 anchor 锁核心 + 低级别空腿照常失血混合态，比
+      OFF 和 ANCHOR 都差』——数据真实，但因果归因（市场性质）作废。
+  - from: '553'
+    to: 隐含命题①『核心能动（cascade flip）是僵尸核心死锁的突破口』（546/547 路线隐含）——被证伪：cascade 让核心能动，但能动=翻空=毁
+      anchor 趋势底仓（OKLO +458.9→−106.6💥 穿仓）；隐含命题②『用 cascade 粗识别（emergent_top.completed）/
+      B 路全程持空 实现对称双吃』——被证伪：cascade 粗识别强牛误翻空、B 路全程持空强牛失血。**正确形式（每级别精确走势完成识别 + 切换）未试，不证伪「吃每级别涨跌幅绝对值」目标本身**（[[feedback_filter_bank_metaphor_prove]]
+      终极目标的可达性待检验；A 路 D_TOP @ a0=segment v1 否证作废=实装错误，见 555）
   related:
   - between:
     - '001'
@@ -7534,6 +7557,27 @@ edges:
   - between:
     - '553'
     - '554'
+  - between:
+    - '547'
+    - '555'
+  - between:
+    - '545'
+    - '555'
+  - between:
+    - '555'
+    - 【memory】project_t_short_close_level_mismatch
+  - between:
+    - '555'
+    - 【memory】project_cascade_level_misattribution
+  - between:
+    - '555'
+    - 【memory】feedback_filter_bank_metaphor_prove
+  - between:
+    - '554'
+    - '555'
+  - between:
+    - '553'
+    - '555'
   tensions_with:
   - between:
     - '007'
