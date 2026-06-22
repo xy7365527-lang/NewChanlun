@@ -28,7 +28,9 @@
 //! 数据结构/会计/守恒 = L0；route_bsp 行为对照 flat = L0（flat 已 L3 验证 CL+120%）；递归化后回测
 //! 收益复现 = L3（验收：与 flat 行为等价）。
 
-use super::prove_guards::{OpTrigger, ProveGuards};
+use super::prove_guards::{
+    prove_relabel_invariant, prove_sigma_quota, prove_sink_descends, OpTrigger, ProveGuards,
+};
 use super::types::Direction;
 use crate::fugue_v3::SUB_LIQ_FACTOR;
 use crate::trading::types::Polarity;
@@ -560,11 +562,14 @@ impl TRoot {
             "ascend 目标 level {to} 非 idle（units={}）：核心上移不可覆盖活跃层",
             self.instances[to].units
         );
+        let (lu_pre, su_pre) = self.exposure(); // 移植守卫（A5）：relabel 前敞口快照。
         let mut moved = self.instances[from];
         moved.level = to;
         moved.node = node;
         self.instances[to] = moved;
         self.instances[from] = TInstance::idle(from);
+        let (lu_post, su_post) = self.exposure();
+        prove_relabel_invariant(lu_pre, su_pre, lu_post, su_post); // ascend 是级别重标定非加仓，敞口必不变。
         self.n_ascends += 1;
         self.guards.note_op("ascend"); // prove_bsp_triggers_operation（panic；BSP 或 emergence 触发）
     }
@@ -610,6 +615,9 @@ impl TRoot {
         if !(short_u > 1e-12 && short_u.is_finite()) {
             return;
         }
+        // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=u_P×MOBILE_FRAC。
+        prove_sink_descends(parent, sub, self.cur_bar);
+        prove_sigma_quota(m, u_p, sub, self.cur_bar);
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[parent], m, &mut free, c);
@@ -649,6 +657,8 @@ impl TRoot {
         if !(give > 1e-12 && give.is_finite()) {
             return;
         }
+        // 移植守卫（L0）：recover 升回与 sink 向心配对，同守 sub<parent（次级别走势完成升回父级）。
+        prove_sink_descends(parent, sub, self.cur_bar);
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[sub], m, &mut free, c);
@@ -678,6 +688,8 @@ impl TRoot {
             return;
         }
         let jdir = self.instances[j].direction;
+        // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=u_j×MOBILE_FRAC，级别无关）。
+        prove_sigma_quota(m, u, j, self.cur_bar);
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[j], m, &mut free, c);

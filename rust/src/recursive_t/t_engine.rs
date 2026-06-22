@@ -51,7 +51,9 @@ use crate::fugue_v3::layer::{FugueResult, Layer};
 use crate::fugue_v3::prove::prove_nav_neutral;
 use crate::fugue_v3::{EQUITY_SAMPLE_BARS, SUB_LIQ_FACTOR};
 
-use super::prove_guards::{OpTrigger, ProveGuards};
+use super::prove_guards::{
+    prove_relabel_invariant, prove_sigma_quota, prove_sink_descends, OpTrigger, ProveGuards,
+};
 
 /// T level 0 在 ladder 空间的基准（= 走势级，move(L1)）。T level k ↦ ladder k + BASE_LADDER。
 pub const BASE_LADDER: usize = LADDER_MOVE;
@@ -499,10 +501,13 @@ impl TPositionEngine {
             "ascend 目标 ladder {to} 非 idle（units={}）：核心上移不可覆盖活跃层",
             self.layers[to].units
         );
+        let (lu_pre, su_pre) = exposure(&self.layers); // 移植守卫（A5）：relabel 前敞口快照。
         let mut moved = self.layers[from];
         moved.ladder = to;
         self.layers[to] = moved;
         self.layers[from] = Layer::idle(from);
+        let (lu_post, su_post) = exposure(&self.layers);
+        prove_relabel_invariant(lu_pre, su_pre, lu_post, su_post); // ascend 是级别重标定非加仓，敞口必不变。
         self.guards.note_op("ascend"); // prove_bsp_triggers_operation（panic；BSP 或 emergence 触发）
     }
 
@@ -562,6 +567,9 @@ impl TPositionEngine {
             return;
         }
         let r0 = self.realized_total();
+        // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=u_P×MOBILE_FRAC。
+        prove_sink_descends(parent, sub, bar);
+        prove_sigma_quota(m, u_p, sub, bar);
         reduce_at(&mut self.layers, parent, m, &mut self.free, c, bar, &mut self.res, "reduce");
         add_at(&mut self.layers, sub, short_u, mob, &mut self.free, c, bar, &mut self.res);
         self.res.n_cycle_opens_by_ladder[parent] += 1;
@@ -597,6 +605,8 @@ impl TPositionEngine {
             return;
         }
         let r0 = self.realized_total();
+        // 移植守卫（L0）：recover 升回与 sink 向心配对，同守 sub<parent（次级别走势完成升回父级）。
+        prove_sink_descends(parent, sub, bar);
         reduce_at(&mut self.layers, sub, m, &mut self.free, c, bar, &mut self.res, "recover");
         add_at(&mut self.layers, parent, give, pdir, &mut self.free, c, bar, &mut self.res);
         self.res.n_cycle_closes_by_ladder[parent] += 1;
@@ -621,6 +631,8 @@ impl TPositionEngine {
         }
         let jdir = self.layers[j].direction; // 同父向遗留仓（父多→j 多）⇒ Long-reduce 降成本
         let r0 = self.realized_total();
+        // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=u_j×MOBILE_FRAC，级别无关）。
+        prove_sigma_quota(m, u, j, bar);
         reduce_at(&mut self.layers, j, m, &mut self.free, c, bar, &mut self.res, "drain");
         let realized = self.realized_total() - r0;
         self.account_reduce(jdir, realized, c);

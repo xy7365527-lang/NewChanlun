@@ -24,6 +24,7 @@
 //!   `project_t_cross_level_coupling_falsified`（深层级别短差灾难失血）。
 //! - `fugue_v3::prove::count_chiral_violations`（观测计数模式的先例）。
 
+use crate::fugue_v3::MOBILE_FRAC;
 use crate::trading::types::Polarity;
 
 /// 单个主动操作的触发源（`prove_bsp_triggers_operation`）。`step`/`on_bar` 每个执行段开头设定，
@@ -222,6 +223,130 @@ impl ProveGuards {
     }
 }
 
+// ════════════════════════════ 移植守卫（从 spiral / fugue_v3 prove 体系）════════════════════════════
+//
+// **必然性累积**（项目纲领）：旧引擎（`spiral` / `fugue_v3`）积累的 prove 守卫是 L0/L2 必然性的
+// 可执行形式，不该随引擎更替丢弃。本区把其中**在 T 引擎架构下真实成立**的不变量移植为 flat
+// （`t_engine`）+ rec（`rec_engine`）共享守卫。
+//
+// ## 有效域划定（formalization-validity-domain / no-patch-mentality）
+// T 引擎 = 「同资本转移（`short_u=m·pb/c` 非同股数）+ 稀疏 ladder 区间套（`nearest_active_parent`
+// 跨 idle 间隙）+ 三阶段会计（EarningShares 增股数）」。故旧守卫**不可硬塞**——需弱化或筛选：
+// - `Δr=−1`（spiral/fugue cross_level_closure）→ 弱化为 `sub<parent`（稀疏 ladder 下 Δr 不恒 −1）；
+// - `Σ|units|=n_base`（fugue conservation）→ **不移植**（同资本转移 + 增股数破坏股数守恒，
+//   守恒律已升级为 TW 中性，由 `prove_nav_neutral`/`prove_tw_neutral` 守，已有）；
+// - spiral 群关系（h²³=σ / τhτ⁻¹=h⁻¹）→ **不移植**（T 引擎无 D∞ 群代数表示，无对应物）。
+// 完整移植/跳过清单见 `docs/prove_guards_migration.md`。
+//
+// ## 两种模式（沿本模块既定范式）
+// - **panic 守卫**（L0 结构必然，违反=bug）：`prove_sink_descends` / `prove_sigma_quota` /
+//   `prove_relabel_invariant` —— 接入操作热路径，BTC 全程零 panic = 验收通过。
+// - **观测函数**（L2 regime 依赖，已知可违反）：`count_adjacent_same_dir` /
+//   `count_radial_scaling_violations` —— 计数非 panic（让数据划定有效域）。
+
+/// **σ⁻¹ 向心下沉（sink/recover 区间套，L0 结构）**：sink/recover 的次级别 `sub` 必严格低于
+/// 父级 `parent`（向心下沉，区间套 top-down）。
+///
+/// **移植来源**：spiral / fugue_v3 `prove_cross_level_closure`（`Δr=−1`）的**弱化版**。T 引擎是
+/// 稀疏 ladder（`nearest_active_parent` 跨 idle 间隙找父级），父子 `Δr` **不恒 = −1**（区间套可跨
+/// 多级），但 `sub < parent`（向心下沉方向）恒成立——这是 T 引擎保留的 L0 不变量。**非重言**：
+/// `sub ≥ parent`（同级别或逆向上浮）即 fire。
+pub fn prove_sink_descends(parent: usize, sub: usize, bar: i64) {
+    assert!(
+        sub < parent,
+        "向心下沉违反@bar {bar}：sink/recover 次级别 {sub} ≥ 父级 {parent}（区间套要求 sub<parent \
+         向心下沉；T 引擎稀疏 ladder 下 Δr 不恒 −1，但下沉方向 L0 不变）"
+    );
+}
+
+/// **σ-不变配额（T18×T48×T59，542号缺瓦，形式 L0）**：sink/drain 的减仓配额 `m` 必 ==
+/// `units × MOBILE_FRAC`（= 1/λ，级别无关）。
+///
+/// **移植来源**：spiral `prove_theta_sigma_invariant` + fugue_v3 `prove_sigma_quota`（542号）。
+/// **存在理由**：TW 中性（`prove_nav_neutral`）只守财富守恒，**不覆盖**配额的 σ-不变性（级别无关）
+/// ——级别依赖的 `m` 仍可 TW 中性却破 σ-不变。**非重言**：独立重算 `canonical = units × MOBILE_FRAC`
+/// （不取 `level`，编码级别无关性）⇒ 级别依赖配额必 fire。**作用域**：仅 sink/drain（配额操作）；
+/// recover 是次级别走势完成的**全量**了结（`m=u_sub`，非配额，方案② 543号），不调用本守卫。
+pub fn prove_sigma_quota(m: f64, units_before: f64, level: usize, bar: i64) {
+    let canonical = units_before * MOBILE_FRAC; // 独立表达：级别无关函数 u↦f·u
+    assert!(
+        (m - canonical).abs() <= 1e-9 * units_before.abs().max(1.0),
+        "σ-不变配额违反@bar {bar} level {level}：m={m} ≠ units×MOBILE_FRAC={canonical}\
+         （f={MOBILE_FRAC} 级别无关；级别依赖配额破 T59 σ-不变）"
+    );
+}
+
+/// **A5 relabel 不变量（ascend 骑乘，L0 会计）**：ascend 是核心仓 relabel（级别重标定，非加仓）
+/// ⇒ 总敞口 `(long_units, short_units)` 严格不变（NAV 与 ladder 标签无关，free 不动）。
+///
+/// **移植来源**：spiral `prove_a5_relabel`（relabel units/NAV 不变）。T 引擎 ascend = 把一个 layer
+/// 的内容从 index `from` 挪到 `to`（同 units/dir/basis），故敞口必不变。用敞口（非 NAV）表达 ⇒
+/// **不依赖价格**，relabel 的纯结构性更直接。**非重言**：relabel 误改 units（silent 覆盖活跃层、
+/// 当成加仓）即 fire。
+pub fn prove_relabel_invariant(lu_pre: f64, su_pre: f64, lu_post: f64, su_post: f64) {
+    assert!(
+        (lu_post - lu_pre).abs() <= 1e-9 * lu_pre.abs().max(1.0)
+            && (su_post - su_pre).abs() <= 1e-9 * su_pre.abs().max(1.0),
+        "A5 relabel 违反：ascend 改变了敞口 long {lu_pre}→{lu_post} / short {su_pre}→{su_post}\
+         （relabel 是级别重标定非加仓，敞口必不变）"
+    );
+}
+
+/// **方向对合 τ²=e（T 引擎 Z₂ 极性，L0 元性质）**：极性翻转两次复位（`f(f(p))==p`）。
+///
+/// **移植来源**：spiral `prove_tau_involution`（`τ²=e`）的 T 引擎形式。spiral 用 D∞ 群元素
+/// `GroupElement::tau()` 表达；T 引擎无群代数，方向系统是二值 `Polarity`，对合体现为 `flip` 的
+/// 自逆性。sink 下沉用 `flip(d_P)` 开短差、recover 用 `d_P` 升回——两次翻转回到核心方向，这条
+/// 往返闭合的代数基础就是 flip 对合。**非重言**（参数化）：传非对合函数即 fire。
+///
+/// 这是编译期已知的代数事实（`Polarity` 是 Z₂），故只在测试断言（不入每 bar 热路径），与 spiral
+/// 群关系守卫在测试调用同范式。
+pub fn assert_polarity_involution(f: impl Fn(Polarity) -> Polarity) {
+    for p in [Polarity::Long, Polarity::Short] {
+        assert_eq!(
+            f(f(p)),
+            p,
+            "方向对合违反：f(f({p:?})) ≠ {p:?}（τ²=e，Z₂ 极性翻转两次须复位）"
+        );
+    }
+}
+
+/// **手性交替观测（T24，L2 regime 依赖）**：相邻占用级别同向的对数。
+///
+/// **移植来源**：fugue_v3 `count_chiral_violations` + spiral `prove_t57_chirality_mirror`。几何塔由
+/// sink（穿 ε=−1 手性缝）下沉 ⇒ 相邻占用级别**应**手性交替（多空相间）。但 `emergence_upgrade`
+/// relabel 上移留下 idle 间隙，间隙两侧 sink 腿可同向 ⇒ **非不变量**（137号 make-decision-observable，
+/// 已知违反，故计数非 panic）。T 引擎已内联此逻辑（`res.max_chiral_same_dir`）；本函数形式化为可测
+/// 共享实现。`occupied[k]` = 级别 k 的占用方向（idle ⇒ `None`）。返回相邻都占用且同向的对数。
+pub fn count_adjacent_same_dir(occupied: &[Option<Polarity>]) -> usize {
+    let mut count = 0;
+    for k in 0..occupied.len().saturating_sub(1) {
+        if let (Some(a), Some(b)) = (occupied[k], occupied[k + 1]) {
+            if a == b {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// **径向标度律观测（T50，L2 regime 依赖）**：操作频率随级别 k 非增（高层比低层罕见，f∝λ⁻ᵏ）。
+///
+/// **移植来源**：spiral `prove_t50_radial_scaling`（`fire(k)` 随 k 非增）。几何塔 sink sizing =
+/// 父级 1/3 ⇒ 次级别 = 核心 1/3、次次级别 1/9……级别越高占用越稀疏，操作频率应随级别递减。
+/// **观测非 panic**：强趋势 regime 下高级别涌现频繁可局部违反（有效域读数）。`per_level[k]` = 级别
+/// k 的操作计数（如 `sink_by_level` / `n_cycle_opens_by_ladder`）。返回**局部违反层数**
+/// （`per_level[k] > per_level[k−1]` 的层数）。
+pub fn count_radial_scaling_violations(per_level: &[u64]) -> u64 {
+    let mut violations = 0;
+    for k in 1..per_level.len() {
+        if per_level[k] > per_level[k - 1] {
+            violations += 1;
+        }
+    }
+    violations
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -288,5 +413,78 @@ mod tests {
         g.check_direction(None, Polarity::Long); // 全空，不计
         assert_eq!(g.n_dir_checks, 3);
         assert_eq!(g.n_dir_mismatch, 1);
+    }
+
+    // ──────────────── 移植守卫：正向（不 panic）+ 反证（非重言，必 panic）────────────────
+
+    #[test]
+    fn sink_descends_向心下沉() {
+        prove_sink_descends(5, 4, 0); // 区间套相邻
+        prove_sink_descends(8, 2, 0); // 跨多级（稀疏 ladder，仍下沉）
+    }
+
+    #[test]
+    #[should_panic(expected = "向心下沉违反")]
+    fn sink_descends_逆向上浮_panic() {
+        // 反证非重言：sub ≥ parent（5≥4 上浮）必 fire——守 T 引擎稀疏 ladder 仍向心下沉。
+        prove_sink_descends(4, 5, 0);
+    }
+
+    #[test]
+    fn sigma_quota_规范配额() {
+        // 正向：m = units × MOBILE_FRAC（= units/3）不 panic。
+        prove_sigma_quota(30.0 * MOBILE_FRAC, 30.0, 4, 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "σ-不变配额违反")]
+    fn sigma_quota_级别依赖_panic() {
+        // 反证非重言：配额取 1/2（错误 f / 级别依赖）≠ 1/3 ⇒ 必 fire。
+        prove_sigma_quota(30.0 * 0.5, 30.0, 4, 0);
+    }
+
+    #[test]
+    fn relabel_invariant_敞口不变() {
+        // 正向：ascend relabel 前后敞口相同（仅 ladder 标签变）不 panic。
+        prove_relabel_invariant(100.0, 33.0, 100.0, 33.0);
+    }
+
+    #[test]
+    #[should_panic(expected = "A5 relabel 违反")]
+    fn relabel_invariant_敞口改变_panic() {
+        // 反证非重言：relabel 误改 long 敞口（100→133，当成加仓）⇒ 必 fire。
+        prove_relabel_invariant(100.0, 33.0, 133.0, 33.0);
+    }
+
+    #[test]
+    fn polarity_involution_flip对合() {
+        // 正向：T 引擎实际用的 flip（fugue_v3 accounting）是对合（τ²=e）。
+        use crate::fugue_v3::accounting::flip;
+        assert_polarity_involution(flip);
+    }
+
+    #[test]
+    #[should_panic(expected = "方向对合违反")]
+    fn polarity_involution_非对合_panic() {
+        // 反证非重言：恒映射到 Long 非对合（f(f(Short))=Long≠Short）⇒ 必 fire。
+        assert_polarity_involution(|_| Polarity::Long);
+    }
+
+    #[test]
+    fn adjacent_same_dir_交替零计数() {
+        // 多空相间（手性交替）⇒ 同向对 = 0。
+        let occ = [Some(Polarity::Long), Some(Polarity::Short), Some(Polarity::Long)];
+        assert_eq!(count_adjacent_same_dir(&occ), 0);
+        // 相邻同向（emergence 间隙两侧同向 sink 腿）⇒ 计数 1（观测，不 panic）。
+        let occ2 = [Some(Polarity::Long), Some(Polarity::Long), None];
+        assert_eq!(count_adjacent_same_dir(&occ2), 1);
+    }
+
+    #[test]
+    fn radial_scaling_单调递减零违反() {
+        // 几何塔频率随级别递减（100,33,11）⇒ 零违反。
+        assert_eq!(count_radial_scaling_violations(&[100, 33, 11]), 0);
+        // 高层频率反超低层（10,30）⇒ 1 个局部违反（强趋势 regime，观测）。
+        assert_eq!(count_radial_scaling_violations(&[10, 30]), 1);
     }
 }
