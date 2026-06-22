@@ -869,6 +869,229 @@ mod tests {
         assert!(!snaps.is_empty());
     }
 
+    /// **prove 守卫尺度不变性深度验证**（编排者 2026-06-22）：1s vs 1min 同标的同时段对照。
+    ///
+    /// ## 任务（观测分辨率维度，非操作床位）
+    /// 缠论级别递归 ≅ 多尺度滤波器组（小波 MRA）。提高采样率（1min→1s）让滤波器组分辨更细尺度，
+    /// 多出深层滤波器（lid4/lid5 涌现）。prove 守卫 = 滤波器组不变量的可执行形式，**应在新深层继续
+    /// 成立**。本测试验证：
+    /// 1. **滤波器层数对照**：1s vs 1min 最高涌现级别（highest_active 峰值）+ 各层走势组数（滤波器
+    ///    通带，tree_trend_stats 汇总）多几层。
+    /// 2. **4 panic 守卫尺度不变性**：sink_descends / sigma_quota / relabel_invariant /
+    ///    bsp_triggers_operation 在 1s 更深塔**零 fire**（进程跑完零 panic = 尺度不变性在更细尺度成立；
+    ///    这四个守卫已接入 rec_engine 操作热路径，违反即 panic 终止）。
+    /// 3. **radial_scaling（f∝λ⁻ᵏ）**：1s 是否在**更宽 k 范围**（更多层）继续几何递减
+    ///    （count_radial_scaling_violations on sink_by_level）。
+    /// 4. **sigma_quota（m=u/3 增益尺度不变）**：在新深层成立（sigma_quota panic 守卫零 fire 覆盖）。
+    ///
+    /// ## 认识论等级
+    /// prove 守卫尺度不变性的**深度验证**（尺度维度）vs 8 标的 L3 的**宽度验证**（标的维度）。
+    /// 当前 **L2**（单标的 1s）。**不评估 1s 交易收益/alpha**——那是被否证的操作床位维度
+    /// （[[project_cl_1s_a0_verdict]]：秒级=纯观测分辨率非操作床位，0.58bps<taker 1.45bps）。
+    /// 若某 panic 守卫在 1s 深层 fire = 滤波器自相似的有效域边界（formalization-validity-domain，
+    /// 否定性结果比确认性结果更有价值）——如实报告是哪个守卫/哪层/哪 bar。
+    ///
+    /// 跑法（先 CL 小数据控制内存，BT_1S_SYMBOLS=BTC 切 BTC）：
+    /// `cargo test --release recursive_t::rec_stream::tests::scale_invariance_1s -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "1s prove 守卫尺度不变性验证，需 cl_1s_databento_1mo.json / btc_1s_2week.json"]
+    fn scale_invariance_1s() {
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window};
+        use std::path::PathBuf;
+        // 数据目录：默认 `<repo>/analysis/data_cache`；worktree 隔离运行时大 JSON 被 gitignore
+        // 不在 worktree 内，用 CHANLUN_DATA_DIR 指向主仓库 data_cache（绝对路径）。
+        let data_dir = match std::env::var("CHANLUN_DATA_DIR") {
+            Ok(d) => PathBuf::from(d),
+            Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache"),
+        };
+
+        // 标的选择（默认 CL：29MB/577k bar 小数据；BT_1S_SYMBOLS=BTC 切 81MB/2 周）。
+        let which = std::env::var("BT_1S_SYMBOLS").unwrap_or_else(|_| "CL".to_string()).to_uppercase();
+
+        // (label, 1s 文件, 1min 对照文件 + 日期窗 [start,end] 闭区间（None=无 1min 对照）)
+        let cases: Vec<(&str, PathBuf, Option<(PathBuf, &str, &str)>)> = match which.as_str() {
+            "CL" => vec![
+                // CL 1s 整月（2025-04-01..04-30）vs CL 1m 同窗（10y 文件切同区间）。
+                ("CL 1s 1mo", data_dir.join("cl_1s_databento_1mo.json"),
+                 Some((data_dir.join("cl_1m_databento_10y.json"), "2025-04-01", "2025-04-30"))),
+            ],
+            "BTC" => vec![
+                // BTC 1s 2 周（2026-05-29..06-11）vs BTC 1m 同窗（btc_1m_full.json 切同区间）。
+                ("BTC 1s 2w", data_dir.join("btc_1s_2week.json"),
+                 Some((data_dir.join("btc_1m_full.json"), "2026-05-29", "2026-06-11"))),
+            ],
+            other => panic!("BT_1S_SYMBOLS={other} 未知（支持 CL / BTC）"),
+        };
+
+        for (label, path_1s, cmp_1min) in &cases {
+            if !path_1s.exists() {
+                eprintln!("[{label}] 1s 数据缺失 {path_1s:?}，跳过");
+                continue;
+            }
+            // ── 跑 1s：完成 = 4 panic 守卫全程零 fire（尺度不变性核心交付）──
+            let (o, h, l, c) = load_clean_ohlc(path_1s);
+            let n = c.len();
+            let r_1s = run_one_scale(&o, &h, &l, &c);
+            eprintln!(
+                "\n========== prove 守卫尺度不变性：{label}（Structural, bars={n}）==========",
+            );
+            report_scale(&format!("{label} [1s 采样]"), n, &r_1s);
+
+            // ── 跑 1min 同时段对照（若有）──
+            if let Some((p_1m, d0, d1)) = cmp_1min {
+                if !p_1m.exists() {
+                    eprintln!("[{label}] 1min 对照缺失 {p_1m:?}，仅 1s");
+                } else {
+                    let (o2, h2, l2, c2) = load_clean_ohlc_window(p_1m, d0, d1);
+                    let n2 = c2.len();
+                    let r_1m = run_one_scale(&o2, &h2, &l2, &c2);
+                    report_scale(&format!("{label} [1min 采样 窗={d0}..{d1}]"), n2, &r_1m);
+                    // ── 滤波器层数对照（尺度–频率关系：1s 更细尺度应多出深层滤波器）──
+                    eprintln!(
+                        "\n--- 滤波器组深度对照（{label}）：1s vs 1min ---\n\
+                         采样比 1s/1min bar = {:.1}× | 最深活跃层 1s={} 1min={}（Δ={}）",
+                        n as f64 / n2.max(1) as f64,
+                        r_1s.max_active_level, r_1m.max_active_level,
+                        r_1s.max_active_level as i64 - r_1m.max_active_level as i64,
+                    );
+                    eprintln!("{:>6} {:>14} {:>14} {:>10}", "level", "1s 通带(走势组)", "1min 通带", "1s 多出");
+                    for lv in 0..MAX_LEVEL {
+                        let p1s = r_1s.passbands[lv];
+                        let p1m = r_1m.passbands[lv];
+                        if p1s == 0 && p1m == 0 {
+                            continue;
+                        }
+                        eprintln!("{:>6} {:>14} {:>14} {:>+10}", lv, p1s, p1m, p1s as i64 - p1m as i64);
+                    }
+                }
+            }
+        }
+    }
+
+    /// 单标的单尺度跑通的 prove 守卫读数（[`scale_invariance_1s`] 汇总单元）。
+    struct ScaleResult {
+        /// 全程 highest_active() 峰值（= 最深活跃滤波器层；滤波器组深度）。
+        max_active_level: usize,
+        /// 各级别走势组累计数（≈ 滤波器通带：tree_trend_stats[Up+Down+ConsolUp+ConsolDown] 汇总）。
+        passbands: [u64; MAX_LEVEL],
+        /// sink_by_level（径向标度律 radial_scaling 的 per_level 输入）。
+        sink_by_level: [u64; MAX_LEVEL],
+        /// recover_by_level（对照）。
+        recover_by_level: [u64; MAX_LEVEL],
+        /// t1buy/t1sell per-level（BSP 频率随级别分布，radial_scaling 第二输入）。
+        bsp_by_level: [u64; MAX_LEVEL],
+        /// radial_scaling 局部违反层数（per_level[k]>per_level[k-1]）on sink_by_level。
+        radial_viol_sink: u64,
+        /// radial_scaling 局部违反层数 on bsp_by_level。
+        radial_viol_bsp: u64,
+        n_reruns: u64,
+        n_sinks: u64,
+        n_recovers: u64,
+        // ── 观测计数守卫（非 panic；L2 regime 读数）──
+        n_dir_mismatch: u64,
+        n_dir_checks: u64,
+        n_sink_recover_imbalance: u64,
+        n_campaigns_checked: u64,
+        n_neg_pnl_campaigns: u64,
+        ops_bsp: u64,
+        ops_emergence: u64,
+        ops_eod: u64,
+        n_ops_without_trigger: u64,
+    }
+
+    /// 喂全序列 → 跑完（4 panic 守卫零 fire 是隐式前提：fire 则此函数 panic 终止）→ 抽读数。
+    fn run_one_scale(o: &[f64], h: &[f64], l: &[f64], c: &[f64]) -> ScaleResult {
+        let n = c.len();
+        let mut s = RecStream::new(PerfectionMode::Structural);
+        let mut max_active = 0usize;
+        for i in 0..n {
+            s.push_bar(o[i], h[i], l[i], c[i]);
+            // 全程追踪最深活跃层（滤波器组深度）。
+            if let Some(k) = s.driver().root().highest_active() {
+                if k > max_active {
+                    max_active = k;
+                }
+            }
+        }
+        s.finish();
+        let r = s.driver().root();
+        let g = r.guards();
+
+        let mut passbands = [0u64; MAX_LEVEL];
+        for (lv, pb) in passbands.iter_mut().enumerate() {
+            // 走势组总数（Up+Down+ConsolUp+ConsolDown）= 该级别滤波器通带数。
+            *pb = s.tree_trend_stats[lv].iter().sum();
+        }
+        let mut sink_by_level = [0u64; MAX_LEVEL];
+        let mut recover_by_level = [0u64; MAX_LEVEL];
+        let mut bsp_by_level = [0u64; MAX_LEVEL];
+        for lv in 0..MAX_LEVEL {
+            sink_by_level[lv] = r.sink_by_level[lv];
+            recover_by_level[lv] = r.recover_by_level[lv];
+            // t1buy + t1sell（buy=idx0, sell=idx1）= 该级别 type1 BSP 频率。
+            bsp_by_level[lv] = s.bsp_by_level[lv][0] + s.bsp_by_level[lv][1];
+        }
+        ScaleResult {
+            max_active_level: max_active,
+            passbands,
+            radial_viol_sink: crate::recursive_t::prove_guards::count_radial_scaling_violations(
+                &sink_by_level,
+            ),
+            radial_viol_bsp: crate::recursive_t::prove_guards::count_radial_scaling_violations(
+                &bsp_by_level,
+            ),
+            sink_by_level,
+            recover_by_level,
+            bsp_by_level,
+            n_reruns: s.n_reruns,
+            n_sinks: r.n_sinks,
+            n_recovers: r.n_recovers,
+            n_dir_mismatch: g.n_dir_mismatch,
+            n_dir_checks: g.n_dir_checks,
+            n_sink_recover_imbalance: g.n_sink_recover_imbalance,
+            n_campaigns_checked: g.n_campaigns_checked,
+            n_neg_pnl_campaigns: g.n_neg_pnl_campaigns,
+            ops_bsp: g.ops_by_trigger[0],
+            ops_emergence: g.ops_by_trigger[1],
+            ops_eod: g.ops_by_trigger[2],
+            n_ops_without_trigger: g.n_ops_without_trigger,
+        }
+    }
+
+    /// 打印单尺度 prove 守卫读数（尺度不变性证据）。
+    fn report_scale(tag: &str, n_bars: usize, r: &ScaleResult) {
+        eprintln!(
+            "\n[{tag}] bars={n_bars} reruns={} | 最深活跃滤波器层={} sink={} recover={}",
+            r.n_reruns, r.max_active_level, r.n_sinks, r.n_recovers
+        );
+        // ① 4 panic 守卫：跑到这里 = sink_descends/sigma_quota/relabel_invariant 零 fire；
+        //    bsp_triggers_operation 由 n_ops_without_trigger==0 确认（panic 守卫下恒 0）。
+        eprintln!(
+            "  [PANIC 守卫尺度不变性] 进程零 panic ⇒ sink_descends/sigma_quota/relabel_invariant 全程成立 \
+             | bsp_triggers_operation: ops(bsp={} emrg={} eod={}) no_trigger={}（=0 即成立）",
+            r.ops_bsp, r.ops_emergence, r.ops_eod, r.n_ops_without_trigger
+        );
+        // ② radial_scaling（f∝λ⁻ᵏ）：违反层数（0=全程频率随级别非增，几何递减成立）。
+        eprintln!(
+            "  [radial_scaling f∝λ⁻ᵏ] sink_by_level 违反层数={} | type1_bsp_by_level 违反层数={}",
+            r.radial_viol_sink, r.radial_viol_bsp
+        );
+        let sbl: Vec<u64> = r.sink_by_level.to_vec();
+        let rbl: Vec<u64> = r.recover_by_level.to_vec();
+        let bbl: Vec<u64> = r.bsp_by_level.to_vec();
+        eprintln!("     sink_by_level    ={sbl:?}");
+        eprintln!("     recover_by_level ={rbl:?}");
+        eprintln!("     type1bsp_by_level={bbl:?}");
+        let pb: Vec<u64> = r.passbands.to_vec();
+        eprintln!("     滤波器通带(走势组)/lvl={pb:?}");
+        // ③ 观测计数守卫（L2 regime 读数，非 panic）。
+        eprintln!(
+            "  [观测计数 L2] dir_mismatch={}/{} sink≠recover campaigns={}/{} neg_pnl campaigns={}",
+            r.n_dir_mismatch, r.n_dir_checks, r.n_sink_recover_imbalance,
+            r.n_campaigns_checked, r.n_neg_pnl_campaigns
+        );
+    }
+
     /// **2019后不再入场根因追踪**（编排者 2026-06-22）：采样核心 units 衰减 + free/withdrawn/stage +
     /// enter/ascend/flip 累计 + buy 路由分类，定位「2018 做空赚完后引擎为何不再 enter 重新建仓」。
     /// 关键判据：enter 仅在 highest_active()==None（全塔空仓）触发；若核心 units 几何衰减但永不 ≤EPS

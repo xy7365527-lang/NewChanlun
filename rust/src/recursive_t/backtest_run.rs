@@ -31,7 +31,8 @@ struct RawBar {
     close: Option<f64>,
 }
 
-/// 数据文件（容忍两种 schema：parallel-array 或 bars；忽略 dates/symbol/...）。
+/// 数据文件（容忍两种 schema：parallel-array 或 bars；忽略 symbol/...）。`dates` 保留供
+/// 时间窗切片（[`load_clean_ohlc_window`]，1s vs 1min 同时段对照用）。
 #[derive(Deserialize, Default)]
 struct RawData {
     #[serde(default)]
@@ -44,6 +45,9 @@ struct RawData {
     closes: Vec<Option<f64>>,
     #[serde(default)]
     bars: Vec<RawBar>,
+    /// parallel-array schema 的逐 bar 日期串（如 "2025-04-01 00:00:00+00:00"）。bars-schema 无。
+    #[serde(default)]
+    dates: Vec<String>,
 }
 
 /// 加载 + 清洗 OHLC（逐位复刻 `fugue_v2_full_backtest.load_ohlc` 的清洗口径）。
@@ -101,6 +105,87 @@ pub(crate) fn load_clean_ohlc(path: &PathBuf) -> (Vec<f64>, Vec<f64>, Vec<f64>, 
     }
 
     // 第二遍：spike-and-revert（孤立坏 tick）。
+    let n = c.len();
+    let mut drop = vec![false; n];
+    for i in 1..n.saturating_sub(1) {
+        if (c[i] / c[i - 1] - 1.0).abs() > 0.5 && (c[i + 1] / c[i - 1] - 1.0).abs() < 0.05 {
+            drop[i] = true;
+        }
+    }
+    if drop.iter().any(|&d| d) {
+        let keep = |v: &[f64]| -> Vec<f64> {
+            v.iter().enumerate().filter(|(i, _)| !drop[*i]).map(|(_, &x)| x).collect()
+        };
+        (keep(&o), keep(&h), keep(&l), keep(&c))
+    } else {
+        (o, h, l, c)
+    }
+}
+
+/// 加载 + 清洗 OHLC，**先按日期范围窗切片**（1s vs 1min 同时段滤波器层数对照用）。
+///
+/// 仅 parallel-array schema（含 `dates`）支持窗口切片——切片在清洗**前**完成（按原始 index），
+/// 然后复用与 [`load_clean_ohlc`] 完全相同的两遍清洗口径（nan/≤0 + spike-and-revert）。
+/// 区间判据：`day_start <= dates[i][..10] <= day_end`（ISO 日期串字典序 = 时间序，闭区间）。
+/// `day_start`/`day_end` 形如 `"2025-04-01"`/`"2025-04-30"`。窗为空 panic（切片口径错误必须
+/// fail-loud，no-patch）。
+pub(crate) fn load_clean_ohlc_window(
+    path: &PathBuf,
+    day_start: &str,
+    day_end: &str,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, Vec<f64>) {
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("读取 {path:?} 失败: {e}"));
+    let text = text
+        .replace("-Infinity", "null")
+        .replace("Infinity", "null")
+        .replace("NaN", "null");
+    let raw: RawData = serde_json::from_str(&text).unwrap_or_else(|e| panic!("解析 {path:?} 失败: {e}"));
+    drop(text);
+    assert!(
+        raw.bars.is_empty(),
+        "load_clean_ohlc_window 仅支持 parallel-array schema（{path:?} 是 bars-schema，无 dates 列）"
+    );
+    assert!(
+        !raw.dates.is_empty(),
+        "load_clean_ohlc_window 需要 dates 列做时间窗切片（{path:?} 无 dates）"
+    );
+    assert!(day_start <= day_end, "窗口非法：day_start `{day_start}` > day_end `{day_end}`");
+    let nan = f64::NAN;
+    let n_raw = raw.closes.len();
+    assert_eq!(raw.dates.len(), n_raw, "{path:?} dates 与 closes 长度不一致");
+
+    // 切片（清洗前，按原始 index）：dates 日部分落入 [day_start, day_end] 闭区间。
+    let mut o = Vec::new();
+    let mut h = Vec::new();
+    let mut l = Vec::new();
+    let mut c = Vec::new();
+    for i in 0..n_raw {
+        let day = &raw.dates[i].get(..10).unwrap_or("");
+        if *day < day_start || *day > day_end {
+            continue;
+        }
+        let oi = raw.opens.get(i).and_then(|x| *x).unwrap_or(nan);
+        let hi = raw.highs.get(i).and_then(|x| *x).unwrap_or(nan);
+        let li = raw.lows.get(i).and_then(|x| *x).unwrap_or(nan);
+        let ci = raw.closes.get(i).and_then(|x| *x).unwrap_or(nan);
+        // 第一遍清洗：nan / ≤0。
+        if oi.is_nan() || hi.is_nan() || li.is_nan() || ci.is_nan() {
+            continue;
+        }
+        if oi <= 0.0 || hi <= 0.0 || li <= 0.0 || ci <= 0.0 {
+            continue;
+        }
+        o.push(oi);
+        h.push(hi);
+        l.push(li);
+        c.push(ci);
+    }
+    assert!(
+        !c.is_empty(),
+        "时间窗 [{day_start}, {day_end}] 在 {path:?} 内为空（切片口径错误，fail-loud）"
+    );
+
+    // 第二遍：spike-and-revert（与 load_clean_ohlc 同口径）。
     let n = c.len();
     let mut drop = vec![false; n];
     for i in 1..n.saturating_sub(1) {
