@@ -286,11 +286,18 @@ impl RecStream {
                             self.t1sell.push((bar, bp, bl));
                         }
                         // fresh BSP → buy/sell（buy: bk 偶 0/2/4；sell: bk 奇 1/3/5，不分 type1/2/3）。
+                        // 额外：type1（bk=0 买/1 卖 = 底/顶背驰=走势终完美）单独标记，供核心走势完成
+                        // 清仓（546号死锁解锁，与 flat stream 对称：同源 fresh 去重子集 ⇒ bit-exact）。
                         if bl < MAX_LEVEL {
                             if bk % 2 == 0 {
                                 view.buy[bl] = true;
                             } else {
                                 view.sell[bl] = true;
+                            }
+                            if bk == 0 {
+                                view.t1buy[bl] = true;
+                            } else if bk == 1 {
+                                view.t1sell[bl] = true;
                             }
                         }
                     }
@@ -448,6 +455,151 @@ mod tests {
         let fb = run(&mut b);
         assert_eq!(fa, fb, "new 默认 Segment ⟺ new_with_a0(Segment)");
         assert_eq!(a.n_reruns, b.n_reruns, "重跑数一致");
+    }
+
+    /// **rec≡flat bit-exact（含核心走势完成清仓路径，546号死锁解锁对称改的硬证据）**。
+    ///
+    /// 死锁修复（核心走势完成 type1背驰 → clear_all，独立于 flip）落在 flat（`step`）与 rec（`on_bar`）
+    /// 的**共享操作逻辑**，且触发信号（`t1buy`/`t1sell`）由 flat `stream` 与 rec `rec_stream` **同源
+    /// fresh 去重子集**填充。本测试断言：同一合成 OHLC 序列上 flat `TFugueStreamCore` 与 rec
+    /// `RecStream` 的 `final_nav` + `n_trades` **逐位一致**——即「绝对行为可变（新增清仓路径），但
+    /// rec≡flat 正确性判据保持」（区别于被否定的取向Y=单边改 rec 弃 bit-exact）。
+    #[test]
+    fn rec_flat_bit_exact_含走势完成清仓路径() {
+        use crate::recursive_t::stream::TFugueStreamCore;
+        // 强方向锯齿宏观趋势（每 ~700 bar 一上一下大幅反转）+ 中摆动 + 快锯齿 → 多级别塔 + 高层
+        // type1 背驰（核心走势完成 → 触发清仓路径）。两引擎共享 `iterate` 树 ⇒ 同结构/BSP/t1 标记，
+        // 逐位一致是对称改的判据。宏观三角波制造可完成的高级别趋势（光滑正弦不产高层 type1）。
+        fn synth(i: usize) -> (f64, f64, f64, f64) {
+            let t = i as f64;
+            let period = 700.0;
+            let phase = (t % period) / period; // 0..1
+            let tri = if phase < 0.5 { phase * 2.0 } else { 2.0 - phase * 2.0 }; // 0→1→0 三角波
+            let macro_trend = 70.0 * tri; // 强方向宏观趋势（升 → 降）
+            let mid = 12.0 * (t / 47.0).sin();
+            let micro = 3.5 * (t / 13.0).sin();
+            let c = 100.0 + macro_trend + mid + micro;
+            (c - 0.1, c + 0.6, c - 0.6, c)
+        }
+        for &mode in &[PerfectionMode::Structural, PerfectionMode::And, PerfectionMode::Or] {
+            let mut flat = TFugueStreamCore::new(mode);
+            let mut rec = RecStream::new(mode);
+            for i in 0..4200 {
+                let (o, h, l, c) = synth(i);
+                flat.push_bar(o, h, l, c);
+                rec.push_bar(o, h, l, c);
+            }
+            flat.finish();
+            let rec_nav = rec.finish();
+            assert_eq!(
+                flat.result().final_nav, rec_nav,
+                "rec≡flat final_nav 逐位一致（mode={mode:?}，对称改证据）"
+            );
+            // 走势完成清仓路径在两引擎触发次数逐位一致（不变量：IF 触发则对称触发）。
+            // 合成序列高层 type1 稀疏可能不触发新路径；新路径**确被触发的 bit-exact 硬证据**见
+            // `rec_flat_btc_bit_exact`（真实 BTC，clears>0 且 flat==rec）。
+            assert_eq!(
+                flat.n_trend_done_clears(), rec.driver().root().n_trend_done_clears,
+                "rec≡flat 走势完成清仓次数逐位一致（mode={mode:?}，新路径对称触发）"
+            );
+        }
+    }
+
+    /// **rec≡flat bit-exact 真实数据硬证据（走势完成清仓路径 clears>0，546号对称改判据）**。
+    ///
+    /// 合成序列高层 type1 稀疏不触发新路径；本测试在 BTC 1分钟全史上跑 flat `TFugueStreamCore` 与
+    /// rec `RecStream`，断言：(1) `final_nav` 逐位一致；(2) 走势完成清仓次数逐位一致且 **>0**
+    /// （新路径确被真实触发 ⇒ 对称改在新行为下仍 rec≡flat，区别于取向Y）。
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::rec_flat_btc_bit_exact -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "rec≡flat BTC bit-exact（走势完成路径 clears>0），需 btc_1m_full.json"]
+    fn rec_flat_btc_bit_exact() {
+        use crate::recursive_t::backtest_run::load_clean_ohlc;
+        use crate::recursive_t::stream::TFugueStreamCore;
+        use std::path::PathBuf;
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache/btc_1m_full.json");
+        if !path.exists() {
+            eprintln!("数据缺失 {path:?}");
+            return;
+        }
+        let (o, h, l, c) = load_clean_ohlc(&path);
+        let n = c.len();
+        let mut flat = TFugueStreamCore::new(PerfectionMode::Structural);
+        let mut rec = RecStream::new(PerfectionMode::Structural);
+        for i in 0..n {
+            flat.push_bar(o[i], h[i], l[i], c[i]);
+            rec.push_bar(o[i], h[i], l[i], c[i]);
+        }
+        flat.finish();
+        let rec_nav = rec.finish();
+        let flat_clears = flat.n_trend_done_clears();
+        let rec_clears = rec.driver().root().n_trend_done_clears;
+        eprintln!(
+            "BTC rec≡flat: flat_nav={} rec_nav={} | 走势完成清仓 flat={} rec={}",
+            flat.result().final_nav, rec_nav, flat_clears, rec_clears
+        );
+        assert_eq!(flat.result().final_nav, rec_nav, "rec≡flat final_nav 逐位一致（BTC，新路径活跃）");
+        assert_eq!(flat_clears, rec_clears, "rec≡flat 走势完成清仓次数逐位一致（BTC）");
+        assert!(flat_clears > 0, "走势完成清仓路径在 BTC 真实触发（clears>0 ⇒ bit-exact 覆盖新路径）");
+    }
+
+    /// **核心走势完成清仓单元（546号死锁解锁机制单测）**：构造核心 Long 后，喂该 level 的 type1 卖点
+    /// （顶背驰=上涨走势终完美）→ 引擎应 `clear_all` 到现金（highest_active=None），下一买点重建。
+    /// 直接驱动 `TRoot.on_bar`（不经 stream），隔离验证触发逻辑。
+    #[test]
+    fn 核心走势完成_type1卖点_清仓重建() {
+        use crate::recursive_t::rec_engine::{LevelView, TRoot, TrendNode};
+        use crate::recursive_t::types::Direction;
+        use crate::trading::types::Polarity;
+        let mut r = TRoot::new(100_000.0);
+        // 1) 核心级买点 → enter Long @ level 3。
+        let mut v = LevelView::empty();
+        v.buy[3] = true;
+        v.nodes[3] = Some(TrendNode::new(0, 10, 90.0, 110.0, Direction::Up));
+        r.on_bar(&v, 10, 100.0);
+        assert_eq!(r.highest_active(), Some(3), "核心建仓 @3");
+        assert_eq!(r.instance(3).direction, Polarity::Long);
+        let enters0 = r.n_enters;
+        // 2) 核心 level 的 type1 卖点（顶背驰）→ 走势完成 → clear_all 到现金。
+        let mut v2 = LevelView::empty();
+        v2.sell[3] = true;
+        v2.t1sell[3] = true; // type1（背驰=走势终完美）
+        v2.nodes[3] = Some(TrendNode::new(10, 20, 95.0, 130.0, Direction::Up));
+        r.on_bar(&v2, 20, 130.0);
+        assert_eq!(r.highest_active(), None, "核心走势完成 → 全平到现金（死锁解锁）");
+        assert!(!r.instance(3).is_active(), "level 3 清空");
+        assert_eq!(r.n_flips, 0, "走势完成是清仓非 flip（不反向 enter）");
+        // 3) 下一个买点 → enter 重建（highest_active 已 None ⇒ enter 路径激活）。
+        let mut v3 = LevelView::empty();
+        v3.buy[2] = true;
+        v3.nodes[2] = Some(TrendNode::new(20, 30, 120.0, 140.0, Direction::Up));
+        r.on_bar(&v3, 30, 135.0);
+        assert_eq!(r.highest_active(), Some(2), "下一买点 enter 重建 @2");
+        assert_eq!(r.n_enters, enters0 + 1, "n_enters 增长（死锁解除：重建路径激活）");
+    }
+
+    /// **非 type1 卖点不触发清仓**（走势完成判据严格性：仅 type1 背驰 = 走势终完美）：
+    /// 核心 Long 收到该 level 的 type2/3 卖点（非背驰）不应清仓——否则退化为过度交易。
+    #[test]
+    fn 核心非type1卖点_不清仓() {
+        use crate::recursive_t::rec_engine::{LevelView, TRoot, TrendNode};
+        use crate::recursive_t::types::Direction;
+        let mut r = TRoot::new(100_000.0);
+        let mut v = LevelView::empty();
+        v.buy[3] = true;
+        v.nodes[3] = Some(TrendNode::new(0, 10, 90.0, 110.0, Direction::Up));
+        r.on_bar(&v, 10, 100.0);
+        // 该 level 卖点但**非 type1**（t1sell 不置位）→ 核心级反向 BSP → flip（既有路径），非走势完成清仓。
+        let mut v2 = LevelView::empty();
+        v2.sell[3] = true; // sell 但 t1sell=false
+        v2.nodes[3] = Some(TrendNode::new(10, 20, 95.0, 130.0, Direction::Up));
+        r.on_bar(&v2, 20, 130.0);
+        // 走势完成路径未触发（t1sell=false）⇒ 走既有核心级反向 flip（highest_active 仍 Some=翻空后核心）。
+        assert!(r.highest_active().is_some(), "非 type1 卖点不走走势完成清仓（走既有 flip 路径）");
+        assert_eq!(r.n_flips, 1, "非 type1 反向 → flip（既有路径，未被走势完成清仓抢占）");
     }
 
     /// **盘整 no_leave 根因诊断**（编排者 2026-06-21）：流式 BTC Structural，逐级别切分 ConsolDown

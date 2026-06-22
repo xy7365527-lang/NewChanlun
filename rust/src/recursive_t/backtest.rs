@@ -29,7 +29,7 @@ use super::iterate;
 use super::types::{BSPKind, Direction, PerfectionMode, Unit, BSP};
 use crate::macd::{compute_macd_batch, macd_area_for_range};
 use crate::segment::{SegKind, Segment};
-use crate::stroke::Direction as StrokeDir;
+use crate::stroke::{Direction as StrokeDir, Stroke};
 
 /// 回测背驰判定模式（一对一映射 [`PerfectionMode`]，仅为回测出参/命名分离）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,6 +158,44 @@ pub fn build_a0_from_segments(
     let hist = compute_macd_batch(closes, 12, 26, 9).hist;
     segs.iter()
         .filter(|s| s.confirmed && s.kind == SegKind::Settled)
+        .map(|s| {
+            let raw_i0 = merged_to_raw[s.i0].0 as i64;
+            let raw_i1 = merged_to_raw[s.i1].1 as i64;
+            let area = macd_area_for_range(&hist, raw_i0, raw_i1);
+            Unit {
+                high: s.high,
+                low: s.low,
+                start_bar: s.i0 as i64,
+                end_bar: s.i1 as i64,
+                direction: conv_dir(s.direction),
+                level: 0,
+                inner_zhongshu_count: 0,
+                area_pos: area.area_pos,
+                area_neg: area.area_neg.abs(),
+            }
+        })
+        .collect()
+}
+
+/// 从**笔**序列构造 T 的 a₀ 单元（batch 路径，与 [`build_a0_from_segments`] 并列）。
+///
+/// 递归底座下移 a₀=笔（谱系 525/526，第65课 065:182「区别仅在 a0」）：过滤口径 `confirmed`
+/// ——笔无线段的 Settled 特征序列递归确认语义（bi.md:151「最后一笔始终 confirmed=False，直到
+/// 下一笔生成后才结算」），完成 = confirmed。单元构造（坐标/面积）与线段版逐字一致：笔端点
+/// i0/i1 与线段端点同为 merged bar 坐标（笔 i0/i1 = 分型中心 df_merged iloc，stroke.rs:27），
+/// 故 `merged_to_raw` 换算 + `macd_area_for_range` 注入口径不变——a₀ 来源差异仅在过滤口径。
+///
+/// 与 fast 流式 [`stream::build_a0_fast`]（`A0Source::Stroke`）同口径；batch 用
+/// `compute_macd_batch`（adjust=False EWM）而非 online MACD，故两路 area 路径不同（见模块头）。
+pub fn build_a0_from_strokes(
+    strokes: &[Stroke],
+    merged_to_raw: &[(usize, usize)],
+    closes: &[f64],
+) -> Vec<Unit> {
+    let hist = compute_macd_batch(closes, 12, 26, 9).hist;
+    strokes
+        .iter()
+        .filter(|s| s.confirmed)
         .map(|s| {
             let raw_i0 = merged_to_raw[s.i0].0 as i64;
             let raw_i1 = merged_to_raw[s.i1].1 as i64;

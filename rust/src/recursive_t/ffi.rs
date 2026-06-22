@@ -14,7 +14,7 @@ use pyo3::types::PyDict;
 
 use super::rec_stream::RecStream;
 use super::stream::TFugueStreamCore;
-use super::{iterate, Direction, PerfectionMode, Unit};
+use super::{iterate, A0Source, Direction, PerfectionMode, Unit};
 use crate::fugue_v3::layer::FugueResult;
 
 /// 解析方向字符串。
@@ -33,6 +33,16 @@ fn parse_mode(s: Option<&str>) -> PerfectionMode {
         Some("and") => PerfectionMode::And,
         Some("or") => PerfectionMode::Or,
         Some(other) => panic!("invalid perfection mode: {other:?} (expect structure/and/or)"),
+    }
+}
+
+/// 解析 a₀ 来源字符串（谱系 526）。默认（`None`）= `Segment`（保 bit-exact，现有 Python 调用不变）。
+/// "segment"/"seg" = 线段基线；"stroke"/"bi" = 笔（递归底座下移）。
+fn parse_a0(s: Option<&str>) -> A0Source {
+    match s {
+        None | Some("segment") | Some("seg") => A0Source::Segment,
+        Some("stroke") | Some("bi") => A0Source::Stroke,
+        Some(other) => panic!("invalid a0 source: {other:?} (expect segment/stroke)"),
     }
 }
 
@@ -166,10 +176,11 @@ pub struct PyTFugueStream {
 #[pymethods]
 impl PyTFugueStream {
     #[new]
-    #[pyo3(signature = (mode=None))]
-    fn new(mode: Option<String>) -> Self {
+    #[pyo3(signature = (mode=None, a0=None))]
+    fn new(mode: Option<String>, a0: Option<String>) -> Self {
         let perfection = parse_mode(mode.as_deref());
-        PyTFugueStream { core: TFugueStreamCore::new(perfection) }
+        let a0_source = parse_a0(a0.as_deref());
+        PyTFugueStream { core: TFugueStreamCore::new_with_a0(perfection, a0_source) }
     }
 
     /// 逐 bar 推送 OHLC（NautilusTrader on_bar）。返回本 bar **新增** trade（trade11）。
@@ -206,6 +217,9 @@ impl PyTFugueStream {
     fn finish(&mut self, py: Python<'_>) -> PyResult<PyObject> {
         self.core.finish();
         let d = t_result_to_dict(py, self.core.result())?;
+        // 递归塔结构普查（TV 谱 + r*）——L2 滤波器度量 P1/P2 结构面，与操作层 a₀ 同源。
+        d.set_item("tree_census", self.core.tree_census())?;
+        d.set_item("r_star_peak", self.core.max_levels_seen())?;
         Ok(d.into())
     }
 }
@@ -228,10 +242,11 @@ pub struct PyRecStream {
 #[pymethods]
 impl PyRecStream {
     #[new]
-    #[pyo3(signature = (mode=None))]
-    fn new(mode: Option<String>) -> Self {
+    #[pyo3(signature = (mode=None, a0=None))]
+    fn new(mode: Option<String>, a0: Option<String>) -> Self {
         let perfection = parse_mode(mode.as_deref());
-        PyRecStream { core: RecStream::new(perfection) }
+        let a0_source = parse_a0(a0.as_deref());
+        PyRecStream { core: RecStream::new_with_a0(perfection, a0_source) }
     }
 
     /// 逐 bar 推送 OHLC（NT on_bar）。返回**当前目标净敞口** signed units（long − short）。
@@ -278,15 +293,25 @@ impl PyRecStream {
 /// 逐 bar 累积的 finish 与批量逐位等价（bit-exact 由构造保证）。
 ///
 /// `bars`：`(open, high, low, close)` 序列（须已清洗，NaN/≤0 在数据层删除）。
+/// `a0`（可选）：a₀ 来源 "segment"（默认，bit-exact）/ "stroke"（递归底座下移，526号）。
 #[pyfunction]
-#[pyo3(signature = (bars, mode=None))]
-pub fn run_t_fugue(py: Python<'_>, bars: Vec<(f64, f64, f64, f64)>, mode: Option<String>) -> PyResult<PyObject> {
+#[pyo3(signature = (bars, mode=None, a0=None))]
+pub fn run_t_fugue(
+    py: Python<'_>,
+    bars: Vec<(f64, f64, f64, f64)>,
+    mode: Option<String>,
+    a0: Option<String>,
+) -> PyResult<PyObject> {
     let perfection = parse_mode(mode.as_deref());
-    let mut core = TFugueStreamCore::new(perfection);
+    let a0_source = parse_a0(a0.as_deref());
+    let mut core = TFugueStreamCore::new_with_a0(perfection, a0_source);
     for (o, h, l, c) in bars {
         core.push_bar(o, h, l, c);
     }
     core.finish();
     let d = t_result_to_dict(py, core.result())?;
+    // 递归塔结构普查（TV 谱 + r*）——L2 滤波器度量 P1/P2 结构面，与操作层 a₀ 同源（同 core）。
+    d.set_item("tree_census", core.tree_census())?;
+    d.set_item("r_star_peak", core.max_levels_seen())?;
     Ok(d.into())
 }

@@ -70,6 +70,12 @@ pub struct TSignalView {
     pub buy: [bool; MAX_LADDER],
     /// 本 bar 该 ladder 是否新增**任意**卖点。
     pub sell: [bool; MAX_LADDER],
+    /// 本 bar 该 ladder 是否新增 **type1 买点**（底背驰 = 下跌走势终完美）。
+    /// 走势完成信号（campaign 边界重定义，546号死锁解锁）：与 `buy` 同源去重的**子集**（仅 type1），
+    /// 故 flat/rec **bit-exact 对称**——同一结构完成事件在两引擎产同一标记（仅 ladder/level 索引偏移）。
+    pub t1buy: [bool; MAX_LADDER],
+    /// 本 bar 该 ladder 是否新增 **type1 卖点**（顶背驰 = 上涨走势终完美）。
+    pub t1sell: [bool; MAX_LADDER],
     /// 本 bar T 迭代**涌现上界**：`(ladder, 操作极性)`——最高已诞生上级单元的 ladder +
     /// 其走势方向对应极性（向上走势=Long 归属 / 向下=Short 归属）。
     ///
@@ -82,7 +88,13 @@ pub struct TSignalView {
 impl TSignalView {
     /// 空信号（无 BSP）。
     pub fn empty() -> Self {
-        TSignalView { buy: [false; MAX_LADDER], sell: [false; MAX_LADDER], emergent_top: None }
+        TSignalView {
+            buy: [false; MAX_LADDER],
+            sell: [false; MAX_LADDER],
+            t1buy: [false; MAX_LADDER],
+            t1sell: [false; MAX_LADDER],
+            emergent_top: None,
+        }
     }
 }
 
@@ -223,11 +235,16 @@ pub struct TPositionEngine {
     /// 三阶段总开关（基线 A/B）：env `T_NO_THREESTAGE` ⇒ false（退本金不触发，stage 永 CostReduction，
     /// 无全仓切换/无增股数 ⇒ 与三阶段前基线 bit-identical）。默认 true。
     enable_three_stage: bool,
+    /// 核心走势完成清仓开关（546号死锁解锁的 A/B 消融门，与 rec_engine 对称）：env
+    /// `T_NO_TREND_DONE_CLEAR` 置位 ⇒ false（走势完成不清仓 = 死锁基线），默认 true。
+    enable_trend_done_clear: bool,
     /// BSP 操作诊断（纯观测，恒开，零逻辑影响）：逐 BSP 按操作类型计数 + 核心 units 变化。
     op_diag: BspOpDiag,
     /// prove 守卫族（编排者裁决 2026-06-21，与 rec_engine 对称）：BSP 触发归因（panic）+ sink/recover
     /// 平衡 / per-level 短差 pnl / 核心方向匹配（观测计数）。见 `prove_guards.rs`。
     guards: ProveGuards,
+    /// 核心走势完成清仓次数（546号死锁解锁路径触发计数，纯观测，与 rec_engine 对称）。
+    pub n_trend_done_clears: u64,
 }
 
 impl Default for TPositionEngine {
@@ -253,6 +270,7 @@ impl TPositionEngine {
             earning_cash: 0.0,
             enable_earning: std::env::var("T_NO_EARNING").is_err(), // 诊断 A/B：T_NO_EARNING 关增股数
             enable_three_stage: std::env::var("T_NO_THREESTAGE").is_err(), // A/B：关三阶段=基线
+            enable_trend_done_clear: std::env::var("T_NO_TREND_DONE_CLEAR").is_err(), // A/B：关走势完成清仓=死锁基线
             op_diag: BspOpDiag {
                 last_sink_bar: [-1; MAX_LADDER],
                 first_active_bar: -1,
@@ -260,6 +278,7 @@ impl TPositionEngine {
                 ..BspOpDiag::default()
             },
             guards: ProveGuards::new(MAX_LADDER),
+            n_trend_done_clears: 0,
         }
     }
 
@@ -810,6 +829,28 @@ impl TPositionEngine {
                         }
                     }
                 }
+            }
+        }
+
+        // ── A''. 核心走势完成 → 主动清仓（campaign 边界重定义，546号死锁解锁；与 rec 对称）──
+        //   缠论依据（fengkong/chanlun-trading-system 退出条件 = 买入程序判断条件被否定 / 走势终完美）：
+        //   核心仓骑的走势在**该 level 顶/底背驰（type1）**完成 ⇒ 买入逻辑被否定 ⇒ 清仓到现金。
+        //   这是 enter 重建的**第三条路**，独立于 flip：clear_all → reset_campaign → highest_active None
+        //   ⇒ 死锁（核心 units 几何衰减永不归零 → highest_active 恒 Some → enter 永不触发）解除，
+        //   **下一个买点**经核心级 enter 重建（不在本 bar 反向 enter ⇒ 避免 545 做空陷阱）。
+        //   触发源 = type1 BSP（走势完成的可观测形式）⇒ guards 归因 Bsp。**不动 EPS、不动几何衰减**。
+        if let (true, Some(cc)) = (self.enable_trend_done_clear, self.highest_active()) {
+            let core_trend_done = match self.layers[cc].direction {
+                Polarity::Long => cc < MAX_LADDER && view.t1sell[cc], // 顶背驰：上涨核心走势终完美
+                Polarity::Short => cc < MAX_LADDER && view.t1buy[cc], // 底背驰：下跌核心走势终完美
+            };
+            if core_trend_done {
+                self.guards.set_trigger(OpTrigger::Bsp); // 走势完成 = type1 BSP 驱动（合法触发源）
+                self.clear_all(bar, c, "trend_done");
+                self.n_trend_done_clears += 1;
+                // 全平到现金 ⇒ TW 中性（同价 c）。本 bar 不再 route_bsp（等下一买点 enter 重建）。
+                prove_nav_neutral(tw_pre, self.total_wealth(c), bar);
+                return;
             }
         }
 

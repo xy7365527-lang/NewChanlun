@@ -193,6 +193,12 @@ pub struct LevelView {
     pub buy: [bool; MAX_LEVEL],
     /// 该 level 是否新增任意卖点（fresh）。
     pub sell: [bool; MAX_LEVEL],
+    /// 该 level 是否新增 **type1 买点**（底背驰 = 下跌走势终完美，fresh）。
+    /// 走势完成信号（campaign 边界重定义，546号死锁解锁）：与 `buy` 同源去重的**子集**（仅 type1）
+    /// ⇒ 与 flat `TSignalView::t1buy` **bit-exact 对称**（同一结构完成事件，仅 level/ladder 索引偏移）。
+    pub t1buy: [bool; MAX_LEVEL],
+    /// 该 level 是否新增 **type1 卖点**（顶背驰 = 上涨走势终完美，fresh）。
+    pub t1sell: [bool; MAX_LEVEL],
     /// 各 level 当前走势节点（enter/ascend/sink 骑节点用；None=该级无走势）。
     pub nodes: [Option<TrendNode>; MAX_LEVEL],
     /// T 迭代涌现上界 (level, 操作极性)——自下而上仓位涌现（= flat emergent_top）。None=本 bar 不升级。
@@ -204,6 +210,8 @@ impl LevelView {
         LevelView {
             buy: [false; MAX_LEVEL],
             sell: [false; MAX_LEVEL],
+            t1buy: [false; MAX_LEVEL],
+            t1sell: [false; MAX_LEVEL],
             nodes: [None; MAX_LEVEL],
             emergent_top: None,
         }
@@ -235,6 +243,9 @@ pub struct TRoot {
     earning_cash: f64,
     enable_earning: bool,
     enable_three_stage: bool,
+    /// 核心走势完成清仓开关（546号死锁解锁的 A/B 消融门）：env `T_NO_TREND_DONE_CLEAR` 置位 ⇒ false
+    /// （走势完成不清仓 = 死锁基线），默认 true。与 `T_NO_EMERGENCE` 等同类 eval 工具，flat/rec 对称。
+    enable_trend_done_clear: bool,
 
     // ── 观测计数（纯诊断）──
     pub n_enters: u64,
@@ -242,6 +253,8 @@ pub struct TRoot {
     pub n_recovers: u64,
     pub n_drains: u64,
     pub n_flips: u64,
+    /// 核心走势完成清仓次数（546号死锁解锁路径触发计数，纯观测）。
+    pub n_trend_done_clears: u64,
     pub n_ascends: u64,
     pub n_emergence_upgrades: u64,
     /// 编排者排查 2026-06-21：emergence_upgrade 统计——核心低于涌现级别本可升级的次数 / 方向不匹配跳过。
@@ -294,11 +307,13 @@ impl TRoot {
             earning_cash: 0.0,
             enable_earning: std::env::var("T_NO_EARNING").is_err(),
             enable_three_stage: std::env::var("T_NO_THREESTAGE").is_err(),
+            enable_trend_done_clear: std::env::var("T_NO_TREND_DONE_CLEAR").is_err(),
             n_enters: 0,
             n_sinks: 0,
             n_recovers: 0,
             n_drains: 0,
             n_flips: 0,
+            n_trend_done_clears: 0,
             n_ascends: 0,
             n_emergence_upgrades: 0,
             n_emergence_attempts: 0,
@@ -837,6 +852,28 @@ impl TRoot {
                         }
                     }
                 }
+            }
+        }
+
+        // ── A''. 核心走势完成 → 主动清仓（campaign 边界重定义，546号死锁解锁；与 flat 对称）──
+        //   缠论依据（fengkong/chanlun-trading-system 退出条件 = 买入程序判断条件被否定 / 走势终完美）：
+        //   核心仓骑的走势在**该 level 顶/底背驰（type1）**完成 ⇒ 买入逻辑被否定 ⇒ 清仓到现金。
+        //   enter 重建的**第三条路**，独立于 flip：clear_all → reset_campaign → highest_active None
+        //   ⇒ 死锁（核心 units 几何衰减永不归零 → highest_active 恒 Some → enter 永不触发，546号）解除，
+        //   **下一个买点**经核心级 enter 重建（不在本 bar 反向 enter ⇒ 避免 545 做空陷阱）。
+        //   触发源 = type1 BSP（走势完成的可观测形式）⇒ guards 归因 Bsp。**不动 EPS、不动几何衰减**。
+        if let (true, Some(cc)) = (self.enable_trend_done_clear, self.highest_active()) {
+            let core_trend_done = match self.instances[cc].direction {
+                Polarity::Long => cc < MAX_LEVEL && view.t1sell[cc], // 顶背驰：上涨核心走势终完美
+                Polarity::Short => cc < MAX_LEVEL && view.t1buy[cc], // 底背驰：下跌核心走势终完美
+            };
+            if core_trend_done {
+                self.guards.set_trigger(OpTrigger::Bsp); // 走势完成 = type1 BSP 驱动（合法触发源）
+                self.clear_all(c);
+                self.n_trend_done_clears += 1;
+                // 全平到现金 ⇒ TW 中性（同价 c）。本 bar 不再 route_bsp（等下一买点 enter 重建）。
+                self.prove_tw_neutral(tw_pre, c);
+                return;
             }
         }
 

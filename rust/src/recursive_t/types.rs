@@ -55,6 +55,28 @@ pub enum PerfectionMode {
     Or,
 }
 
+/// a₀（递归底座）来源（谱系 526 / 第65课 065:182「区别仅在 a0」）。
+///
+/// 第65课原文5：两者在递归形式上一样，`aₙ=f(aₙ₋₁)`，**唯一不同就是预先给出的 a₀**。
+/// 引擎的两个 a₀ 载体，二者都处于「a₀ 确认层」（526号），过滤口径不同：
+/// - `Segment`：a₀ = 线段序列，`confirmed && kind==Settled`——现状默认，保 bit-exact。
+///   Settled 是线段特有的**特征序列递归确认**语义（第67/71课）。
+/// - `Stroke`：a₀ = 笔序列，仅 `confirmed`——递归底座下移（级别数 5-6→8-10 的主因）。
+///   笔无 Settled 语义（bi.md:151「最后一笔始终 confirmed=False，直到下一笔生成后才结算」），
+///   完成口径 = confirmed（525号「完成在本级别图上可观测、不需下钻」第18课:24 +
+///   526号「a₀确认层=操作性意义」）。
+///
+/// 两层各自的级别增量必须**分别测量**（filter-spec 下游推论1）——故 a₀ 来源是可切换
+/// 参数（与 bar_spec 对称），能跑 a0=线段(基线) vs a0=笔(新) A/B 对比，非兼容垫片。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum A0Source {
+    /// a₀ = 线段序列（`confirmed && Settled` 过滤）——现状默认，保 bit-exact。
+    #[default]
+    Segment,
+    /// a₀ = 笔序列（`confirmed` 过滤）——递归底座下移（526号 / 第65课:182）。
+    Stroke,
+}
+
 /// 单元（泛型，所有级别通用）。
 ///
 /// 递归恒等式（谱系 540）：级别 k 的一个完整走势类型 `Move(k)` ≡ 级别 k+1 的一根「笔」。
