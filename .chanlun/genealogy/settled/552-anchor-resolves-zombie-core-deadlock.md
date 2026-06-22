@@ -3,11 +3,11 @@ id: '552'
 number: 552
 title: "anchor 趋势底仓解僵尸核心死锁——吃涨 L3 八标的实证（强牛解踏空 / 震荡是结构税）+ 三个半架构（多空双开多重赋格的第一次成立）"
 type: 概念发现
-status: settled  # 死锁解机制 + anchor 吃涨已结算（L3 八标的）；吃跌 B 否证、A 待（开放轴）
+status: settled  # 死锁解机制 + anchor 吃涨已结算（L3 八标的）；cascade 半步 L3 否证（见 553）；吃跌 A 待（开放轴）
 date: '2026-06-22'
 settled_date: '2026-06-22'
-level: "死锁解机制 = L0（rec_engine 行号）；anchor 吃涨 = L3（HOLD_ANCHOR 8 标的 ×3 strat_pct 交叉验证，OFF bit-exact 对照，108 单测绿，commit 486a391db3 @ worktree agent-ad3eb3b39639b8306）；anchor 吃涨有效域 = 强牛 regime ⊊ 全标的（震荡 regime 是结构税，非 bug）；B 递归 anchor 吃跌 = L3 否证（吃跌幅与吃涨幅互斥）；A 涌现最高级别卖点翻核心 = 待补；three-half（anchor+cascade）matrix = L3 进行中（bvmvyq3kb）"
-epistemological_level: "死锁解机制 = L0（逐字源码）；anchor 吃涨 = L3（八标的 ×3 真实数据，含否定性结果——震荡 3/8 恶化划定有效域边界）；B 路吃跌 = L3 否证（BTC 三 flag + 深度变体）；有效域 = 强牛 regime（5/8 解踏空）⊊ 全标的，震荡 regime（3/8）是结构税。**不声称 anchor 普适**（有效域膨胀禁止，formalization-validity-domain 模式 1/3）"
+level: "死锁解机制 = L0（rec_engine 行号）；anchor 吃涨 = L3（HOLD_ANCHOR 8 标的 ×3 strat_pct 交叉验证，OFF bit-exact 对照，108 单测绿，commit 486a391db3 @ worktree agent-ad3eb3b39639b8306）；anchor 吃涨有效域 = 强牛 regime ⊊ 全标的（震荡 regime 是结构税，非 bug）；B 递归 anchor 吃跌 = L3 否证（吃跌幅与吃涨幅互斥）；three-half（anchor+cascade）matrix = **已 L3 否证**（cascade flip 有效域空集 8/8 ≤ anchor，见 553，commit 260dfc4545）；A 涌现最高级别卖点翻核心 = 待补"
+epistemological_level: "死锁解机制 = L0（逐字源码）；anchor 吃涨 = L3（八标的 ×3 真实数据，含否定性结果——震荡 3/8 恶化划定有效域边界）；B 路吃跌 = L3 否证（BTC 三 flag + 深度变体）；cascade 半步 = L3 否证（three-half matrix，见 553）；有效域 = 强牛 regime（5/8 解踏空）⊊ 全标的，震荡 regime（3/8）是结构税。**不声称 anchor 普适**（有效域膨胀禁止，formalization-validity-domain 模式 1/3）"
 负责工位: "CC session d41059a8（死锁主线）+ 编排者深挖对话（2026-06-22）+ 8 标的 L3 后台 agent aaa6a98433eeb7c15"
 provenance: "[新缠论:实装+诊断+编排者裁决+八标的 L3 回测]"
 negation_source: homogeneous
@@ -24,12 +24,13 @@ depends_on:
 related:
   - '539'   # 清仓判据 regime 门控 + capture-early-then-preserve——anchor 震荡恶化 = 同一 regime 谱型的吃涨侧镜像（539 在 NRF 清仓维度 / 546 在重建维度 / 本号在底仓豁免维度）
   - '545'   # emergent_top 方向锚——A 路涌现最高级别识别滞后的来源
+  - '553'   # cascade flip L3 否证——本号三个半架构中 cascade 半步的否证（cascade 毁 anchor 底仓）
 tensions_with: []
 ---
 
 # 552 号：anchor 趋势底仓解僵尸核心死锁
 
-**认识论**：死锁解机制 L0；**anchor 吃涨 8 标的 L3 实证**（强牛 5/8 解踏空 / 震荡 3/8 结构税）；B 路吃跌 L3 否证；A 路吃跌待补。
+**认识论**：死锁解机制 L0；**anchor 吃涨 8 标的 L3 实证**（强牛 5/8 解踏空 / 震荡 3/8 结构税）；B 路吃跌 L3 否证；cascade 半步 L3 否证（553）；A 路吃跌待补。
 
 ## 一、死锁全图（编排者卡三天的问题）
 546 号僵尸核心死锁的本质 = **多空双开多重赋格（目的）从未实现**：核心多腿被 sink `quota=units/3` 几何衰减成 1e-6 僵尸，核心持多却吃不到大趋势（踏空），一直在「做空亏 vs 踏空」兜圈子（编排者：用 RTAS 前卡三天）。
@@ -88,14 +89,14 @@ anchor 吃涨机制 = 核心多腿（高涌现级别趋势底仓）吃高级别�
 
 ## 三、三个半架构（目的=吃所有级别涨跌幅绝对值）
 完整 = 每级别 [anchor 多腿吃涨 + 卖点翻空吃跌]，递归（=滤波器组多空双开，[[feedback_filter_bank_metaphor_prove]]）：
-1. **核心能动**（cascade `T_CASCADE_FLIP`，commit bdad6c8ab6）：打破僵尸核心恒占 highest_active，n_enters 4→78 = Face A（enter 全空仓门）解
+1. **核心能动**（cascade `T_CASCADE_FLIP`，commit bdad6c8ab6）：打破僵尸核心恒占 highest_active，n_enters 4→78 = Face A（enter 全空仓门）解。**但 L3 否证为净负反作用——本错误形式（emergent_top.completed 粗识别）在强牛中翻空=毁 anchor 底仓（见 553）。**
 2. **核心多腿不僵死**（anchor `HOLD_ANCHOR`）：吃涨已 **L3 八标的实证**（强牛 5/8）= Face B（recover 欠触发/几何衰减）解
 3. **次级别 sink 空腿**（已有）：吃次级别回调
-4. **级别归属**（547，commit 44f042877d）：cascade 翻主力只在 `e_level≥top_active_trend_level`（涌现最高级别本身完成），次级别卖点不翻主力走 sink
+4. **级别归属**（547，commit 44f042877d）：cascade 翻主力只在 `e_level≥top_active_trend_level`（涌现最高级别本身完成），次级别卖点不翻主力走 sink。**553 §2.3 暴露其在强牛中不足（最高活跃级别走势仍会 completed 误触发）。**
 
 ## 四、吃跌待补（两条都要，编排者 2026-06-22 裁决）
 - **A = 涌现最高级别走势卖点翻核心**（吃最高级别大跌）。最高级别是**涌现的**（`top_active_trend_level` 动态 L4→L5）。卡点 = 涌现最高级别走势 `completed` 跨年滞后（emergent_top 用 completed 过滤，545 号方向锚）。解 = **区间套级联**（次级别背驰确认涌现最高级别完成，减滞后），不违反 547（翻的仍是核心）。**辅——最高级别那次罕见。**
-- **B = 递归 anchor 到每级别空腿**（吃中间级别回调，如 BTC 2022 −51%，本质是中间级别 L4 下跌走势）。当前 anchor 只核心一层；B 递归到每级别 [anchor 多腿 + sink 空腿]。**主力——吃跌主体（曾期望）。** commit c67acc87ea（RECURSIVE_ANCHOR）+ 4fcfd2840d（变体2 深度门），recursive-anchor worktree。**已 L3 否证（见 §八）。**
+- **B = 递归 anchor 到每级别空腿**（吃中间级别回调，如 BTC 2022 −51%，本质是中间级别 L4 下跌走势）。当前 anchor 只核心一层；B 递归到每级别 [anchor 多腿 + sink 空腿]。**主力——吃跌主体（曾期望）。** commit c67acc87ea（RECURSIVE_ANCHOR）+ 4fcfd2840d（变体2 深度门），recursive-anchor worktree。**本错误形式（深层空腿全程持空）已 L3 否证（见 §八）；正确形式未试（见 553 §三）。**
 
 ## 五、张力检查 / 上游谱系
 
@@ -116,20 +117,21 @@ cross_level（commit 5f93000e11）的深层逆势腿在强牛 −89.7%💥 穿�
 ### 5.3 上游谱系
 - 546（僵尸核心死锁）/547（cascade 级别错配）：本号的死锁诊断前置。本号是 546 的 **split 解**（topo_effect）。
 - 545（emergent_top 方向锚）：A 路涌现最高级别识别滞后的来源。
+- 553（cascade flip L3 否证）：本号三个半架构中 cascade 半步的否证——cascade 能动=翻空=毁 anchor 底仓（净负反作用）。
 - [[feedback_filter_bank_metaphor_prove]]（滤波器多空双开=吃每级别涨跌幅）/[[project_deadlock_dual_open_target]]（memory 死锁全图）/[[project_cascade_level_misattribution]]（547）。
 
 ### 5.4 张力检查结论
 **无不可分层解决的矛盾，不新建张力记录。** anchor 与 539/546/cross_level 不冲突——三者是 capture-early-then-preserve / 「固定腿逆 regime 被套」同一 regime 谱型的不同维度显形，分层关系清晰（539 清仓 / 546 重建 / 552 底仓豁免 / cross_level 短差腿）。本号修正了与 539 的 link 标签错配（5.1），属回溯性 link 修复，非新矛盾。
 
 ## 六、开放轴（吃跌 A/B 待结算）
-1. **B 递归 anchor 有效域**：**已 L3 否证**（§八）——吃跌幅与吃涨幅互斥，B 路关闭。
-2. **A 区间套级联减滞后**（B 否证后的唯一吃跌路径）：cascade 卖点识别从 emergent_top.completed 改次级别背驰级联，提前翻涌现最高级别。A 不与吃涨互斥（吃涨在大趋势中、A 翻在大趋势完成后），但卡识别滞后。**待实装。**
-3. **three-half（anchor + cascade）matrix L3——cascade 与 anchor 是否冲突（A 路开放轴，进行中）**：后台 agent `bvmvyq3kb` 正在跑 anchor+cascade 联合 8 标的 ×3 matrix。**early sanity 显示 OKLO/DX 灾难**——提示 cascade（核心能动翻转）可能与 anchor（核心底仓死扣）冲突：cascade 要翻核心、anchor 要死扣核心，二者在同一核心仓位上语义对立。**标注为 A 路开放轴，待 three-half 完成确认**（OKLO/DX 灾难是否 = cascade 撕掉了 anchor 的底仓豁免）。未出最终结果，不声明 cascade+anchor 有效性。
-4. **入主树**：代码全 flag 控制（HOLD_ANCHOR/T_CASCADE_FLIP/RECURSIVE_ANCHOR，默认 OFF=bit-exact），在 worktree 分支，待 A/three-half 结果 + 编排者裁决入主树。
+1. **B 递归 anchor 有效域**：**本错误形式（深层空腿全程持空）已 L3 否证**（§八）——全程持空在强牛失血，吃跌幅与吃涨幅互斥。B 路这一实现关闭；「吃中间级别回调」目标的正确形式（每级别精确切换）未试（553 §三）。
+2. **A 区间套级联减滞后**（吃跌的唯一活路径）：cascade 卖点识别从 emergent_top.completed 改次级别背驰级联，提前翻涌现最高级别。A 不与吃涨互斥（吃涨在大趋势中、A 翻在大趋势完成后），但卡识别滞后。**待实装。**
+3. **three-half（anchor + cascade）matrix——cascade flip 已 L3 否证（cascade 有效域空集 8/8 ≤ anchor，见 553）**：后台 agent `aaa6a98433eeb7c15` 跑完 anchor+cascade 联合 8 标的 ×3 matrix（commit 260dfc4545）。**cascade flip（核心能动翻转）有效域 = 空集**——8/8 标的 THREE-HALF ≤ ANCHOR，OKLO +458.9→**−106.6💥 穿仓**（cascade 核心翻空毁 anchor 趋势底仓：long_pnl Σ +165815→+2195、short_pnl −108618）。**cascade 与 anchor 在同一核心仓位上语义对立**（cascade 要翻核心 / anchor 要死扣核心）——核心不需要「能动翻转」来解踏空，anchor 死扣持多即真解，cascade 这一粗识别实现是反作用（净负）。**注意：被否证的是 cascade 的 emergent_top.completed 粗识别实现形式，不是「核心在真正顶部翻空」目标本身——A 路（精确识别）是检验后者的下一步。** 详见 553 号。
+4. **入主树**：代码全 flag 控制（HOLD_ANCHOR/T_CASCADE_FLIP/RECURSIVE_ANCHOR，默认 OFF=bit-exact），在 worktree 分支，待 A 结果 + 编排者裁决入主树。cascade（T_CASCADE_FLIP）粗识别实现已 L3 否证，不入主树。
 
 ## 七、影响声明
-- 死锁吃涨已解（**anchor 8 标的 L3 实证，强牛 5/8 解踏空 / 震荡 3/8 结构税**，编排者卡三天问题在强牛 regime 的解）；吃跌 A 待 / B 否证。
-- **准确表述**：anchor 解的是「吃涨那一半」且仅在强牛 regime；震荡 regime 是结构税（不是 anchor 失败，是底仓豁免 sink 机制在震荡的对称后果）；吃跌 B 否证、A 待。**不是「死锁完全解」。**
+- 死锁吃涨已解（**anchor 8 标的 L3 实证，强牛 5/8 解踏空 / 震荡 3/8 结构税**，编排者卡三天问题在强牛 regime 的解）；吃跌 A 待 / B 否证 / cascade 半步否证（553）。
+- **准确表述**：anchor 解的是「吃涨那一半」且仅在强牛 regime；震荡 regime 是结构税（不是 anchor 失败，是底仓豁免 sink 机制在震荡的对称后果）；吃跌 B（全程持空形式）否证、A 待、cascade（粗识别形式）否证（553）。**不是「死锁完全解」。**
 - 未改主树生产路径（全 worktree 分支 + flag OFF bit-exact，108 单测绿）。
 - 修正与 539 的 link 标签错配（§5.1）。
 
@@ -141,4 +143,6 @@ cross_level（commit 5f93000e11）的深层逆势腿在强牛 −89.7%💥 穿�
 
 **二分锐利**：depth≥2 吃跌 ∧ 崩涨 / depth≤1 保涨 ∧ 不吃跌——**吃 2022 跌幅的深层持久空腿，正是在 2020-21 强牛失血、把核心翻空触发强平级联的那条深腿**。与 [[project_t_cross_level_coupling_falsified]]（深层逆势腿强牛 −89.7% 穿仓）同构 = regime 结构税，非可调参（恰 3 变体即停，否定干净）。flag OFF bit-exact，108 单测绿。
 
-**结论**：anchor 吃涨（HOLD_ANCHOR）= BTC 最优、且 8 标的 L3 强牛 5/8 解踏空（§二）。吃跌剩 **A 路**（涌现最高级别卖点翻核心，最高级别完成时翻——**不与吃涨互斥**，因吃涨在大趋势中、A 翻在大趋势完成后；但卡识别滞后）/ 或接受只吃涨。**下一步看 A（+ three-half cascade 联合 matrix bvmvyq3kb），B 路关闭。**
+> **B 路否证的精确范围**（接 553 修正）：B 路否证的是「深层空腿**全程持空不切换**」这一**错误实现形式**——空腿在 2022 吃到跌、却在 2020-21 强牛失血。它**不否证**「吃中间级别回调」这一目标本身；正确形式（每级别骑该级别走势、走势完成时精确切换）未试（见 553 §三）。
+
+**结论**：anchor 吃涨（HOLD_ANCHOR）= BTC 最优、且 8 标的 L3 强牛 5/8 解踏空（§二）。吃跌剩 **A 路**（涌现最高级别卖点翻核心，最高级别完成时翻——**不与吃涨互斥**，因吃涨在大趋势中、A 翻在大趋势完成后；但卡识别滞后）/ 或接受只吃涨。**下一步看 A，B 路（全程持空形式）与 cascade 半步（553 粗识别形式）关闭。**

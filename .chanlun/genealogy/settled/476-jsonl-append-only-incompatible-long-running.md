@@ -16,6 +16,8 @@ epistemological_level: L0
 negation_form: none
 negation_source: ""
 topo_effect: ""
+related:
+  - '549'   # 549 = 本号张力在 git-lfs 层的物质实例（relations.jsonl 沦为未实体化 LFS 指针）——本号抽象命题的本机具体显形；549 概念层吸收入本号（2026-06-22 结算）
 tensions_with:
   - '178'   # block topology 声明为 primary 存储，但 JSONL 实际仍是 primary——迁移断裂
 ---
@@ -82,6 +84,7 @@ daemon 长期运行
 - **423号候选5**（持久化边界模糊）→ 424号闭合了 S_net 侧 → 本号识别 K 侧残留
 - **401号**（轨迹 vs 产物）→ 止血了 memory 注入膨胀 → 但未止住 JSONL 架构本身的增长
 - **178号/347号**（block topology）→ 声明 block 为 primary → 运行时 JSONL 仍是实际 primary → 迁移断裂
+- **549号**（git-lfs 层物质实例，2026-06-22）→ 本号抽象命题（append-only ⊥ long-running）在 block-topology relations.jsonl 上的具体显形：长运行无界 append → relations.jsonl 膨胀至 125MB → 迁 git-lfs → 本地未 pull = 134 字节指针 → mapper 崩溃 + 部分损坏。549 经 no-workaround 结算后，其概念内容**吸收入本号**（549 = 476 的子记录 / 本机具体实例）。
 
 ## 27K/step memory vertex 退化的归属
 
@@ -108,10 +111,11 @@ daemon 长期运行
 - 423号候选5 的 K 侧残留被识别并记录
 - 与 178号/347号 存在张力（迁移断裂）——block topology 声明 primary 但运行时 JSONL 仍是实际 primary
 - 27K/step 退化标记为"止血后观测"，不创建独立谱系
+- **2026-06-22 反向引用追加**：549号（relations.jsonl 沦为 LFS 指针）经 no-workaround 结算，概念层吸收入本号，作为 children 记录——本号张力在 git-lfs 层的物质实例。
 
 ## 谱系关联
 
 related_records:
   parent: '423'   # 候选5 的来源（S_net + K 两侧持久化边界）
   siblings: ['424']   # S_net 侧的闭合
-  children: []   # persist-snapshot 工位实装后可能产出
+  children: ['549']   # 549号（2026-06-22）：本号张力在 git-lfs/relations.jsonl 层的物质实例，概念层吸收入本号

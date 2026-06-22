@@ -3,7 +3,7 @@ id: '551'
 number: 551
 title: "ceremony 能指三重分叉（CC Swarm₀ / 逢亮持久实体 / RTAS 脱域抽取）+ 启动-hook 目录守卫不变量——禁止跨目录交叉触发"
 type: 语法记录  # 四分法：已运作但未显式化的规则
-status: 生成态  # operational 不变量为新断言，待编排者裁决是否结算（§八 genealogist 四分法确认：需上浮，不自决）
+status: 生成态  # operational 不变量（B）+ 概念分离确立（A）+ external_lineage 字段（§八.4-3）为新断言，待编排者裁决；C（hook 守卫技术实现）已完成。§八.5 genealogist 二次确认：A+B+external_lineage 真需上浮（非可自决），551 整体保持 pending，不拆记录
 date: '2026-06-22'
 level: "L0（结构事实：从 CLAUDE.md「可用命令」对比表 + RTAS 谱系 M001-M003 + 两套 SessionStart ceremony hook 源码读出，无 L2 数据验证）"
 provenance: "[新缠论:基础设施审计]（配置 ~/.claude 全局 SessionStart ceremony-autostart hook 的 session 衍生）"
@@ -81,6 +81,7 @@ archive 全文已扫（grep `脱域\|extract\|抽取\|.rtas\|session-start-cerem
 - **谱系结晶**（pending/生成态），记录于 chanlun 侧填补分叉确认空缺。
 - **关联但未在本号改动的工程产出**：`~/.claude/hooks/chanlun-ceremony-autostart.sh`（全局 ① 自启 hook，守卫 `.chanlun/` + `source∈{startup,clear}`）+ `~/.claude/settings.json` SessionStart 第三项——此 hook 是本号 operational 不变量的物质实现，已先于本号落地并通过 pipe-test。
 - **block-topology 映射推迟**：依 549号冻结（relations.jsonl 仍为未实体化 LFS 指针，mapper 跑 Phase3 必崩），本号**不**运行 `map_genealogy_to_blocks.py`，待 549 解冻后随 550/551 一并补映射。
+  - **2026-06-22 更新**：549 已结算（no-workaround 消解为定理，概念层吸收入 476）。但 **549 settled ≠ 映射管线解冻**——549 topo_effect freeze 在结算后保留，relations.jsonl 仍是 LFS 指针，映射仍冻结。解冻条件 = A 执行（git lfs pull，操作者基础设施待办）。∴ 551 的「待 549 解冻后补映射」表述**仍然正确**：等的是 549 的**解冻**（A 执行），不是 549 的**结算**。
 - 未改任何 RTAS 文件、未改 ② 逢亮 ceremony。
 
 ## 八、四分法分类（2026-06-22 genealogist 处理，018号四分法）
@@ -114,3 +115,19 @@ genealogy 工位用 **018号四分法**（定理 / 行动 / 选择 / 语法记�
 1. **概念分离确立请求**：确认「ceremony 是三个所指（①CC Swarm₀ / ②逢亮持久实体 / ③RTAS 脱域）而非单一概念」是否作为结算的概念分离记录（003号式）。chanlun 侧此前无此分叉确认条目，本号填补。
 2. **operational 不变量升结算请求**：「启动 hook 必须按目录上下文触发对应 ceremony，禁止跨目录交叉触发」是否升为结算原则。若升，需附守卫互斥的形式化（当前仅 `.chanlun/` / `.rtas/` 目录存在性二选一，§六边界1指出二者共存时需重设计互斥——这是未覆盖的边界）。
 3. **external_lineage 新字段裁决**：551 首创 `external_lineage` 字段引用跨项目谱系（rtas:M001-M003），模板（genealogy-template.md）无此字段，全谱系仅 551 使用。是否将 `external_lineage` 纳入模板作为跨 repo 谱系引用的标准字段（跨项目谱系链的语法记录）。
+
+### 八.5 genealogist 二次确认（2026-06-22 结算扫描，549/551 联合处理）
+
+本次结算扫描重新审查 §八.4 三个上浮点是否真的不可自决（任务要求「尽量把可自决部分结算」），逐点验证：
+
+| 上浮点 | 自决性验证 | 结论 |
+|--------|-----------|------|
+| 1（概念分离确立） | 结构事实（三所指）L0 已确认（§二），但**「确立为正式概念分离记录」是概念层决断**。genealogist 职责表硬边界：「不决定概念分离」。不可自决。 | 真需上浮 |
+| 2（不变量升结算） | 可从 090/548 **部分**推出，但「是否升结算原则」+ §六边界1（`.chanlun/`+`.rtas/` 共存时守卫互斥）= 未覆盖架构选择，非纯定理演绎。不可自决。 | 真需上浮 |
+| 3（external_lineage 字段纳入模板） | 语法记录类（018号四分法明确语法记录走 /escalate）；模板修改影响全谱系标准，需编排者裁决。不可自决。 | 真需上浮 |
+
+**与 549 的对照（为什么 549 可自决、551 不可）**：549 的「选择」（A/B/C）被 no-workaround 这一**已结算的蜂群语法规则**消解为唯一定理（B/C 有损覆盖语法不合法 → A 唯一合法）。551 的 A/B/external_lineage **没有一条已结算规则能消解为唯一解**——概念分离的确立、不变量是否升格、模板字段标准化，都需要新的价值判断/语法确立，无现成规则可推。∴ 549 自决结算、551 真需上浮，二者分野严格清晰，非「能结算就结算」的随意。
+
+**为什么不拆 551 把 C 单独结算**：内容 C（hook 守卫）是 A（概念分离）的工程显形，B 是 A 的 operational 推论，三者共属**一个发现的三个面**（一条谱系记录）。为「多结算一点」而拆记录 = 违反「谱系优先于汇总」（012号——不应为汇总便利切割发现的统一性）。C 作为行动类已执行完毕，无需独立"结算"动作；551 整体在 A 结算前保持 pending。
+
+**结算动作**：551 **保持 pending / 生成态**（dag.yaml 551 status 不改）。上浮 §八.4 三点（A 概念分离确立 + B 不变量升结算 + external_lineage 字段纳入模板）给 Lead /escalate。549 已结算这一新事实不改变 551 的待解状态——见 §七「2026-06-22 更新」（551 等的是 549 解冻，不是 549 结算）。
