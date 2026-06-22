@@ -2,7 +2,7 @@
 
 **日期**：2026-06-21
 **改动文件**：`rust/src/recursive_t/prove_guards.rs`（新增 6 守卫 + 测试）、`t_engine.rs` / `rec_engine.rs`（对称接入）
-**认识论标注**：移植判定 = L0（架构定义推导）；BTC 零 panic 验收 = L2（真实单标的）。
+**认识论标注**：移植判定 = L0（架构定义推导）；BTC 零 panic 验收 = L2（真实单标的）→ **8 标的零 panic = L3**（2026-06-22 交叉验证，见 `docs/rec_t_8x3_l3_verification.md`）。
 
 ---
 
@@ -85,7 +85,7 @@ session4/5 在旧引擎（`spiral` / `fugue_v3`）积累了几十个 prove 守�
 | flat BTC 全量 | `BT_SYMBOLS=BTC … t_engine_8x3 --ignored` | ✅ **4,625,119 bar × 3 模式零 panic**（`no_trigger=0`，179s） |
 | rec BTC 全量 | `BT_SYMBOLS=BTC … rec_stream::tests::rec_btc --ignored` | ✅ **2 passed; 0 failed**（205s） |
 
-三个 panic 守卫（`sink_descends` / `sigma_quota` / `relabel_invariant`）在 460 万 bar 真实数据上**零 fire** = L0 不变量在 BTC 有效域内成立。
+三个 panic 守卫（`sink_descends` / `sigma_quota` / `relabel_invariant`）在 460 万 bar 真实数据上**零 fire** = L0 不变量在 BTC 有效域内成立。**2026-06-22 更新：8 标的 × 3 模式 ~1500 万 bar 全部零 panic = L3（有效域覆盖全 8 标的，否证测试未被否证；见 `docs/rec_t_8x3_l3_verification.md`）。**
 
 **bit-exact 保证（构造性）**：所有接入点只读——`prove_*` 是 `assert!`（不改状态）、`exposure()` 是 `&self` 只读求和存入局部变量，仅传给 assert。引擎状态演化逐字不变，回测数字不受影响（无需前后对比，代码层可验证）。
 
