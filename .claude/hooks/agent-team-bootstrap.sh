@@ -87,9 +87,17 @@ lines.append('- 运行时 team 实例：session 级别，每次 ceremony 自动�
 
 msg = '\n'.join(lines)
 
+# 通道修复（同 session-start-ceremony.sh）：team 重建指令是可执行行为内容，
+# 必须经 hookSpecificOutput.additionalContext 进入模型 context（systemMessage 只给用户横幅、
+# 不进 context、被 compact summary 的 "Resume directly" 压过 → 095/096 在 compact 后失效根因）。
 print(json.dumps({
     'continue': True,
     'suppressOutput': False,
-    'systemMessage': msg
+    'hookSpecificOutput': {
+        'hookEventName': 'SessionStart',
+        'additionalContext': msg
+    },
+    'systemMessage': '[Agent Team Bootstrap] 拓扑重建指令已注入 context（'
+                     + str(len(auto_agents)) + ' 结构工位 + ' + str(len(on_demand)) + ' 按需）'
 }, ensure_ascii=False))
 PYEOF

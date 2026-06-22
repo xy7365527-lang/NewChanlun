@@ -8,6 +8,9 @@
 
 set -euo pipefail
 
+# [运行时痕迹·可控 debug 开关 / 548号审计] flag 存在才记录调用，缺省零副作用零开销。
+# 启用审计：touch .chanlun/.hook-trace-enabled；关闭：rm 之。
+{ __ht="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"; [ -n "${__ht:-}" ] && [ -f "$__ht/.chanlun/.hook-trace-enabled" ] && printf '%s\t%s\tpid=%s\tagent=%s\n' "$(date -u +%FT%TZ)" "$(basename "${BASH_SOURCE[0]}")" "$$" "${CLAUDE_AGENT_NAME:-main}" >> "$__ht/.chanlun/.hook-trace.log"; } 2>/dev/null || true
 
 resolve_python() {
   local bin

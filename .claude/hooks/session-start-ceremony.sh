@@ -2,7 +2,16 @@
 # SessionStart Hook — 自动 ceremony（热启动 bootstrap）
 #
 # 每次会话开始时自动执行。扫描 session 文件和定义/谱系状态，
-# 生成差异报告注入系统消息，让 CC 直接进入蜂群循环。
+# 生成差异报告注入 hookSpecificOutput.additionalContext（可靠 context 通道，
+# 被 CC 包裹进 system-reminder 注入模型上下文；systemMessage 仅是用户可见提示，
+# 不可靠地进入模型 context——这是 compact 恢复后 ceremony 不自动触发的根因）。
+#
+# source=compact 分支：用 137号正面格式声明"第一个动作"，
+# 显式覆盖 compact summary 的 "resume directly" 软冲突。
+#
+# 边界（097号 hook 纯化）：SessionStart 本质只能注入 context（无 tool 可阻断/放行），
+# 注入运行时状态快照是其 bootstrap 设计目的，不是 097号否定的"提示/索引第四层"
+# （那是指向 skill 路径的 PostToolUse 索引，已删除并迁入 CLAUDE.md 声明层）。
 #
 # 效果等同于用户手动输入 /ceremony，但零人工干预。
 
@@ -26,6 +35,8 @@ python() { command "$PYTHON_BIN" "$@"; }
 
 input=$(timeout 3 cat 2>/dev/null || echo "{}")
 cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd', '.'))" 2>/dev/null || echo ".")
+# source ∈ {startup, resume, clear, compact}；空 matcher 已覆盖全部 source（含 compact）
+SOURCE=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('source', ''))" 2>/dev/null || echo "")
 cd "$cwd" 2>/dev/null || true
 
 # ─── ceremony 相位标记 ───
@@ -37,13 +48,27 @@ rm -f .chanlun/.stop-guard-counter .chanlun/.ceremony-blocked-once .chanlun/.met
 
 # ─── 安全 JSON 输出 ───
 # 用 python json.dumps 保证转义正确，避免裸拼接导致畸形 JSON
+# $1 = additionalContext（可执行内容，注入模型 context 的可靠通道）
+# $2 = systemMessage（用户可见的简短提示，advisory，可省略）
 emit_json() {
-    local msg="$1"
+    local ctx="$1"
+    local sysmsg="${2:-}"
     python -c "
 import json, sys
-msg = sys.argv[1]
-print(json.dumps({'continue': True, 'suppressOutput': False, 'systemMessage': msg}, ensure_ascii=False))
-" "$msg"
+ctx = sys.argv[1]
+sysmsg = sys.argv[2] if len(sys.argv) > 2 else ''
+out = {
+    'continue': True,
+    'suppressOutput': False,
+    'hookSpecificOutput': {
+        'hookEventName': 'SessionStart',
+        'additionalContext': ctx,
+    },
+}
+if sysmsg:
+    out['systemMessage'] = sysmsg
+print(json.dumps(out, ensure_ascii=False))
+" "$ctx" "$sysmsg"
 }
 
 # ─── 检测模式 ───
@@ -61,8 +86,9 @@ if [ -z "$SESSION_FILE" ]; then
     PENDING=0
     [ -d ".chanlun/genealogy/pending" ] && PENDING=$(ls .chanlun/genealogy/pending/*.md 2>/dev/null | wc -l)
 
-    MSG="[Ceremony/冷启动] 定义${DEF_COUNT}条 | 谱系${SETTLED}已结算/${PENDING}生成态 | 请执行完整 /ceremony 确认定义基底"
-    emit_json "$MSG"
+    # 137号正面格式：声明第一个动作，而非"请执行"软请求
+    MSG="[Ceremony/冷启动] 本回合第一个动作=执行完整 ceremony 确认定义基底。当前 定义${DEF_COUNT}条 | 谱系${SETTLED}已结算/${PENDING}生成态。"
+    emit_json "$MSG" "[Ceremony] 冷启动状态已注入 context"
     exit 0
 fi
 
@@ -156,6 +182,25 @@ if [ -f ".chanlun/.lead-corrections.log" ]; then
     fi
 fi
 
-MSG="[Ceremony/热启动L2] 恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS}${SWARM_MSG} | ${ROLE_BOUNDARY} | ⚡自动进入蜂群循环：先评估可并行工位数(≥2即拉蜂群)，扫描代码/规范/谱系状态确定本轮工作目标${CORRECTIONS_MSG}"
+# ─── 137号正面格式：第一动作前置 ───
+# 137号：行为执行层规则必须是"正面输出格式"而非否定性禁令。
+# 不写"不要忽略 ceremony"，而是声明本回合第一个具体动作（027号正面指令）。
+FIRST_ACTION="本回合第一个动作=ceremony 差异检查：对比下方状态快照(session vs 当前 git/谱系)，确定本轮工作目标；若识别出≥2个可并行独立工位，用 TaskCreate+Task spawn 拉起蜂群循环。"
 
-emit_json "$MSG"
+# compact 恢复专用框定：显式声明 summary 的 resume-directly 不覆盖本动作
+if [ "$SOURCE" = "compact" ]; then
+    HEADER="[Ceremony/compact恢复] 本会话由上下文压缩(compact)恢复。compact summary 的 'Resume directly — do not acknowledge the summary' 不覆盖本 ceremony 差异检查——${FIRST_ACTION}"
+else
+    HEADER="[Ceremony/热启动L2] ${FIRST_ACTION}"
+fi
+
+# additionalContext = 可执行内容（可靠注入通道，根因修复）
+# systemMessage = 用户可见简短提示（advisory）
+CTX="${HEADER}
+
+── 状态快照 ──
+恢复自:${SESSION_FILE} (${SESSION_TIME}) | 分支:${GIT_BRANCH} | session提交:${SESSION_COMMIT} | 当前:${CURRENT_COMMIT} | 定义变更:${CHANGED}条 | 谱系:${SETTLED}settled/${PENDING}pending | 中断点:${INTERRUPTS}${SWARM_MSG}
+
+${ROLE_BOUNDARY}${CORRECTIONS_MSG}"
+
+emit_json "$CTX" "[Ceremony/${SOURCE:-start}] 状态快照已注入 context，执行 ceremony 差异检查"

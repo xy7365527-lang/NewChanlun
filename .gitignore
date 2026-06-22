@@ -50,6 +50,9 @@ deploy/
 
 # Data files
 data/
+# 例外：trading_system/data/ 是源码目录（loader/fetch 脚本，非数据）——源码必须入库。
+# 实际数据落 analysis/data_cache/ 与 .cache/（另行忽略）。
+!trading_system/data/
 .coverage
 
 # K4 soros reports (cron 写入，不入库；保留目录占位)
@@ -80,3 +83,7 @@ analysis/logs/
 
 # NautilusTrader 上游克隆（独立 git 仓库，不作为子模块入库）
 /nautilus_trader/
+
+# 548号 hook 运行时痕迹审计开关（可控 debug 开关，默认 off）
+.chanlun/.hook-trace-enabled
+.chanlun/.hook-trace.log
