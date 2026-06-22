@@ -2695,9 +2695,9 @@ nodes:
   file: settled/550-genealogy-immune-two-layer-compact-silence.md
 - id: '551'
   title: ceremony 能指三重分叉（CC Swarm₀ / 逢亮持久实体 / RTAS 脱域抽取）+ 启动-hook 目录守卫不变量——禁止跨目录交叉触发
-  status: 生成态
+  status: settled
   type: 语法记录
-  file: pending/551-ceremony-triple-scission-and-startup-hook-directory-guard.md
+  file: settled/551-ceremony-triple-scission-and-startup-hook-directory-guard.md
 - id: '552'
   title: anchor 趋势底仓解僵尸核心死锁——吃涨 L2 实证 + 三个半架构（多空双开多重赋格的第一次成立）
   status: settled
