@@ -2720,6 +2720,12 @@ nodes:
   status: settled
   type: 概念发现
   file: settled/555-nesting-recursive-guarantee-detection-object-misdiagnosis.md
+- id: '556'
+  title: 读法 B（每级别独立腿骑走势 + 消费自己 d_top）L3 否证——四判据全否（P1 1/8 仅 ES/S）；统一根因=顶层腿冻结（最高级别走势完成在样本期结构性稀疏，d_top[top]
+    几乎不触发）；吃涨可达（anchor 死扣不等完成）/吃顶层跌不可达（等顶层完成翻空）/吃低级别涨跌可达
+  status: settled
+  type: 概念发现
+  file: settled/556-reading-b-per-level-leg-falsified-top-level-completion-sparse.md
 edges:
   depends_on:
   - from: '136'
@@ -5614,6 +5620,8 @@ edges:
     to: '545'
   - from: '555'
     to: '554'
+  - from: '556'
+    to: '555'
   triggered:
   - from: '005'
     to: 005a
@@ -5771,6 +5779,20 @@ edges:
       anchor 趋势底仓（OKLO +458.9→−106.6💥 穿仓）；隐含命题②『用 cascade 粗识别（emergent_top.completed）/
       B 路全程持空 实现对称双吃』——被证伪：cascade 粗识别强牛误翻空、B 路全程持空强牛失血。**正确形式（每级别精确走势完成识别 + 切换）未试，不证伪「吃每级别涨跌幅绝对值」目标本身**（[[feedback_filter_bank_metaphor_prove]]
       终极目标的可达性待检验；A 路 D_TOP @ a0=segment v1 否证作废=实装错误，见 555）
+  - from: '555'
+    to: 554 号『A 路 D_TOP 区间套精确识别 @ a0=segment 有效域≈空集，市场多尺度异步=结构性不可达』——被诊断为**实装错误的 artifact**
+      并经 c 段钻取 L3 重测实证：nest_chain_complete 检测对象 = 各级别全局当前走势（rec_driver.rs:102-105，异步任意相位），不是
+      cc 的 c 段向下钻取窗口；修正检测对象（路径 A 窗口过滤）后 d_top 链 0→每标的数百次贯通（区间套递归保证 L3 实证）。**554 的市场性质归因确证作废。**
+      A 路端到端切换仍稀疏的真因 = 第二层（消费级别⊥贯通级别），非市场不可达。
+  - from: '554'
+    to: ⚠️ 本 negates 声明已被 555 收回并 c 段钻取 L3 重测确证作废：原称『553 号 A 路开放轴隐含命题（区间套级联精度>cascade
+      粗识别，能避免强牛误触发、吃到跌那一半）被证伪』——实为 v1 错误实装的 artifact（检测对象错），不构成对该命题的有效否证。修检测对象后链 0→数百贯通（555
+      §五）。A 路端到端切换稀疏真因 = 第二层（消费级别⊥贯通级别），非市场不可达。原文：『区间套 D_TOP 链 @ a0=segment 坍缩（n_a_path_switches
+      21/24 = 0），A 路退化为 anchor 锁核心 + 低级别空腿照常失血混合态，比 OFF 和 ANCHOR 都差』——数据真实，但因果归因（市场性质）作废。
+  - from: '556'
+    to: 555 §5.4（+编排者读法 B 假设）的隐含命题『每级别独立腿 + d_top 精确切换 ⟹ 吃每级别涨跌幅（完整对称双吃）』——被 L3 证伪：顶层
+      d_top[top] 几乎不触发（最高级别走势跨年，样本期罕有『完成』），顶层腿开仓一次后冻结于回测起点方向（硬币翻面），完整对称双吃不随每级别独立腿自动成立（design
+      §335 预注册风险 A 坐实）。读法 B 机制本身在『顶层方向对』时 work 且超 BH（ES/S 锁 Long +681.4★），问题不在每级别独立腿，在顶层方向首段冻结锁错。
   related:
   - between:
     - '001'
@@ -7578,6 +7600,36 @@ edges:
   - between:
     - '553'
     - '555'
+  - between:
+    - '555'
+    - 【memory】project_t_multiscale_independent_filters
+  - between:
+    - '554'
+    - 【memory】project_t_multiscale_independent_filters
+  - between:
+    - '552'
+    - '556'
+  - between:
+    - '554'
+    - '556'
+  - between:
+    - '539'
+    - '556'
+  - between:
+    - '545'
+    - '556'
+  - between:
+    - '556'
+    - 【memory】project_t_multiscale_independent_filters
+  - between:
+    - '556'
+    - 【memory】project_pcf_1s_a0_source_collapse
+  - between:
+    - '556'
+    - 【memory】project_highest_level_sigma_frozen
+  - between:
+    - '556'
+    - 【memory】feedback_filter_bank_metaphor_prove
   tensions_with:
   - between:
     - '007'
