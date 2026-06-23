@@ -45,3 +45,23 @@ Stop-Guard 越界≥6次（路由 Lead 结算 pending + 自创框架"吸收/修�
 
 ## 中断点
 完全分类覆盖 = 编排者确认的解法方向（不 workaround 锁方向，诚实暴露 539，潜力做真滤波器）。两路验证完全分类覆盖的必然性（prove）+ 经验性（L3）。autocompact 后从两路结果继续。
+
+---
+## 增量更新（autocompact 前最后一批）
+
+### ★prop4-nest 重大发现（吃跌探索首个逆转强牛穿仓）
+开放轴 C（严格逐级区间套，每级别背驰段嵌套校验）**单独逆转穿仓**：OKLO −103.1% → **NEST_CS_STRICT +377.8%（超 BH+307%）**，做空腿失血 −241495→−19076（降92%）。DX +6.3→+7.8。CL 无助。**consume 平空单独微弱，真正 rescue 是严格逐级区间套 C**（=is_seam_bar 精确逐级走势完成识别=poltev-prove N9 精度=555/553，必然性侧+经验侧收敛）。⚠️OKLO 小样本可能 fluke，prop4-nest 跑全8确认 robustness（关键:strict 是否救 BRN/GC/ES/QQQ/BTC）。commit 79257d6e46。
+
+### 碰撞裁定：prop4-nest 单一 owner #22
+prop4-nest/prop4-bidir 双重分派并发编辑 rec_engine.rs（一次 build 破坏）。裁定 prop4-nest 继续（有 C 突破+commit），prop4-bidir 停手让出 engine（MFE/MAE 诊断保留）。
+
+### bootstrap 结构工位强制修复（编排者裁决，bootstrap-fix 工位进行中）
+本 session Lead 跳过 bootstrap 6 结构工位（缺 quality-guard/code-verifier/meta-observer/topology-manager/meta-lead）= bootstrap 是文本提示无机制强制（137号）。矛盾根源:075移除Stop-Guard结构工位检查 vs 095/096要spawn。编排者裁决:结构工位是teammate必须spawn。bootstrap-fix工位修复ceremony-completion-guard.sh加结构工位强制检查(缺则block)+协调075/095/096+测试+谱系。落盘 bootstrap-structural-enforce-fix-20260623.md。
+
+### 561 已立号
+poltev-prove 极性协变N9 → genealogist 写入 settled/561。但 poltev-prove 已被编排者纠正:N9只是推论,完全分类覆盖才是解法,正重做 prove_operation_covers_complete_classification(待落盘)。561 两同步缺口(negation_source已confirmed codex异质/539拆b1 L0不可约+b2 L3未决)待 genealogist 同步。
+
+### autocompact 后第一动作
+1. 先 spawn 6 常设结构工位(bootstrap-fix 完成后机制会强制;若未完成手动 spawn)。
+2. 查 prop4-nest 全8 C robustness(若 strict 救多个强牛=吃跌突破)+bootstrap-fix+poltev-prove完全分类覆盖prove落盘。
+3. commit 增量。
