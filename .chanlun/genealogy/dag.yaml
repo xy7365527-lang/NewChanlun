@@ -2750,6 +2750,22 @@ nodes:
   status: 已结算
   type: 概念发现
   file: settled/560-reading-yi-topdown-nesting-a0-location.md
+  downstream_implications:
+    # 推论10：解556⟹暴露539（顶层冻结是539的掩盖机制）
+    - id: impl-560-1
+      text: 解556（顶层冻结）⟹暴露539（做空腿失血）——顶层冻结是539掩盖机制（定理推论）
+      classification: 定理（自动结算）
+      settlement_status: settled  # 560 文件已记录：背驰段解冻556但暴露539；推论为560文本的逻辑必然
+    # 推论11：ANCHOR与NEST在强牛对立（穿仓×踏空二难，563 L3 升级）
+    - id: impl-560-2
+      text: ANCHOR与NEST强牛对立（560§下游推论2），563 L3 确认并升级为穿仓×踏空二难
+      classification: 已被563覆盖
+      settlement_status: covered_by_563  # 563 §张力检查明确「563 vs 560：560§下游推论2被563升级」
+    # 推论12：开放轴 (c) L3 闭合（563 裁决：strict 是 consume 的 enabler 非独立解）
+    - id: impl-560-3
+      text: 560 开放轴(c)「严格逐级区间套=唯一未关闭吃跌路径」L3 裁决关闭，strict=consume enabler
+      classification: 已被563覆盖
+      settlement_status: covered_by_563  # 563 §3「NEST_STRICT≈NEST全8；560开放轴(c)已L3闭合」
 - id: '561'
   title: 完全分类覆盖完备性（CC，unn主prove）+极性协变（N9，推论）——Ω必覆盖买卖点完全分类所有轨道（第17/21课升跌完备性+Burnside穷尽）；539重诊断=Ω坍缩完全分类（过覆盖560/欠覆盖553/b1-L0/b2-L3）；N9降推论(N9⊊CC)；编排者二次重定
   status: 已结算
@@ -2760,8 +2776,29 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/562-bootstrap-structural-enforce.md
+  downstream_implications:
+    # 推论6：075号下游推论5 被562否定——negated_by 字段已在 075 文件中更新（negated_by: ["562"]）
+    - id: impl-562-1
+      text: 075 下游推论5「Stop hook 不再检查 dominator node 存在性」被562否定
+      classification: 行动（已执行）
+      settlement_status: done  # 075 文件已有 negated_by: ["562"]，推论6已闭合
+    # 推论7：Lead 跳过 bootstrap 现在被机制阻断（记录到 meta-lead skill 或 swarm-architecture）
+    - id: impl-562-2
+      text: Lead 跳过 bootstrap 现由检查 1.5 机制阻断，137号文本提示无效的又一次机制化修复
+      classification: 行动（已机制化）
+      settlement_status: done  # 562 文件已声明，检查 1.5 是机制前提，覆盖此推论
+    # 推论8：agent-team-bootstrap.sh 文本注入与检查 1.5 机制前提并存（072号双前提兼容性声明）
+    - id: impl-562-3
+      text: agent-team-bootstrap.sh 文本注入（提示前提）+ 检查 1.5（机制前提）= 072号双前提完整覆盖
+      classification: 行动（记录兼容性声明）
+      settlement_status: done  # 562 文件已声明"agent-team-bootstrap.sh 仍保留"，兼容性覆盖
+    # 推论9：业务命名+规范 agentType 双层命名约定固化为检测契约（team-topology.json 已存在此约定）
+    - id: impl-562-4
+      text: 业务命名 + agentType 双层命名约定固化为检测契约——team-topology.json 已有 structural_agents
+      classification: 行动（记录已覆盖）
+      settlement_status: done  # team-topology.json 存在，structural_agents 定义规范 agentType；契约已隐含在 562 检查 1.5 逻辑中
 - id: '563'
-  title: ''
+  title: 吃跌不可调和性升一级——穿仓(consume解)×踏空(ANCHOR解)二难;prop4-nest#22 L3:consume平空解整仓死扣穿仓5/8但解穿仓≠解踏空(2/8超BH);strict开放轴C单独不救=consume enabler(560开放轴c闭合);561 CC的L3经验侧
   status: 已结算
   type: 概念发现
   file: settled/563-eating-down-piercing-vs-missing-rally-dilemma.md
@@ -2770,11 +2807,38 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/564-stopguard-check3-instruction-overflow.md
+  downstream_implications:
+    # 推论4：558/562 的 bit-exact 保留契约需加 check 3 例外标注
+    - id: impl-564-1
+      text: 558/562 bit-exact 保留契约例外标注——check 3 是已知待修项，下次 hook 修改时纳入
+      classification: 行动
+      settlement_status: recorded  # 已在 564 文件中声明；不改已结算谱系，改时并入
+    # 推论5：097号 hook 动作语义应机制化检查（非仅文本约束）
+    - id: impl-564-2
+      text: 097号 hook 动作语义（阻断/放行）应机制化检查，避免 check 3 类越界再现
+      classification: 选择（待编排者裁决修复方案 A/B/C）
+      settlement_status: pending_escalate  # 564 文件已列三方案，需编排者选择后执行
 - id: '565'
   title: 幽灵 owner 任务生命周期——死 teammate 名绕过 owner=None 孤儿检测
   status: 已结算
   type: 语法记录
   file: settled/565-ghost-owner-task-lifecycle.md
+  downstream_implications:
+    # 推论1：「任务创建即指派 owner」= feedback_task_queue_owner_liveness 隐性规则机制化（语法记录类）
+    - id: impl-565-1
+      text: 任务创建即指派 owner = feedback_task_queue_owner_liveness 隐性规则的机制化
+      classification: 语法记录（行动）
+      settlement_status: recorded  # 记录于 dag.yaml；修复路径并入 swarm-mechanism-fix #30
+    # 推论2：「死 teammate 名 owner = 孤儿」= 155号的逻辑必然扩展（定理类）
+    - id: impl-565-2
+      text: 死 teammate 名 owner = 孤儿，155号 owner 标识工位的逻辑必然推论
+      classification: 定理（自动结算）
+      settlement_status: settled  # 155号 owner 存在性 → 必然扩展为活性校验，无需新原则
+    # 推论3：Stop-Guard 检查2 owner 活性校验与检查 1.5（562号）同属 swarm-infra 修复域
+    - id: impl-565-3
+      text: 检查2 owner 活性校验 ⊥ 检查 1.5 结构工位存在性 → 同域，可批量升级
+      classification: 行动（域标记）
+      settlement_status: recorded  # 562/565 同属 swarm-infra 健壮性增强，可并入同一 PR
 edges:
   depends_on:
   - from: '136'
@@ -5717,10 +5781,6 @@ edges:
     to: '137'
   - from: '562'
     to: '155'
-  - from: '562'
-    to: '560'
-  - from: '562'
-    to: '561'
   - from: '563'
     to: '560'
   - from: '563'
