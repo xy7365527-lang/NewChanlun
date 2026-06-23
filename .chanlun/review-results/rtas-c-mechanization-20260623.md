@@ -3,198 +3,174 @@ trigger: task-35-rtas-mechanization
 mode: architecture-update
 result: done
 ---
-# 机制化(c)真RTAS任务-DAG递归
+# 机制化 (c) 真 RTAS 任务-DAG 递归（已实装）
 
-**工位**：rtas-mechanizer（topo_address: swarm/rtas-mechanizer）
+**工位**：rtas-infra-fix（topo_address: swarm/rtas-infra-fix），整合 rtas-mechanizer 诊断 + bootstrap-fix 草稿
 **任务**：#35　**日期**：2026-06-23
-**认识论等级**：L2（基于 swarm-mechanism-fix-20260623 实测结算 + skill/dag 文件实读；非合成假设）
+**认识论等级**：L2（基于 harness 实测结算 + 文件实读 + hook 模拟验证；非合成假设）
+
+> 生成史（012号保留）：本文件先由 `rtas-mechanizer` 写为诊断版（其 Write 对 skill 文件被拒，
+> 改动标"待执行"），`bootstrap-fix` 给 sub-swarm-ceremony.md 追加了 (c) 段（留下旧顶部 → 自相矛盾）。
+> `rtas-infra-fix`（本工位，有写权限）实装全部改动并整合为本权威版。
 
 ---
 
-## 诊断结论
+## 一、编排者裁决 (c)（真 RTAS 的最终形态）
 
-### Q1：结构工位6个在哪个阶段应被 auto-spawn？sub-swarm-ceremony 是否描述了这个流程？
+harness 硬约束（实测）：teammate 不能 spawn teammate，roster flat。
+裁决 **(c)：每个子任务自己向下递归，Lead 只做编排**。
 
-**应 spawn 阶段**：ceremony 序列 `cold_start` 的 `spawn-tasks` 节点——但 `dispatch-dag.yaml` 的 `spawn-tasks` 描述为"并行 spawn 业务工位"，结构工位（常设）应在更早阶段（`load-skills` 之前）一次性 spawn。
-
-**team-topology.json** 声明 6个结构工位 `auto_spawn: true`，但没有任何 hook/代码自动执行此声明。
-
-**sub-swarm-ceremony.md 的实际描述**：该 skill 描述的是"teammate 创建子蜂群"（TeamCreate + Task），是 095号 Agent Team 真递归模型。但 swarm-mechanism-fix-20260623 实测确认：`TeamCreate` 已废弃、flat roster 禁止 teammate→teammate spawn。因此 sub-swarm-ceremony **没有描述**结构工位 auto-spawn 流程，且其整体模型是 stale。
-
-结构工位 auto-spawn 的当前有效路径：Lead 在 ceremony 时手动执行 `Agent(name=…, run_in_background=true)` spawn 6个结构工位（562号扬弃075，ceremony.md 步骤4已补充）。
-
-**诊断**：有文字声明（team-topology.json auto_spawn），但 sub-swarm-ceremony.md 描述的是另一套（已废弃）机制。两者之间存在 spec-execution gap。
+- **递归在任务结构里**：工位在任务执行中识别子工作 → **自己 TaskCreate 子任务**（unowned）= 向下递归。
+- **Lead 只做编排**：扫任务列表 → 为每个无主任务 spawn 一个工位（Agent）→ 工位干活 + 创建子任务 →
+  re-scan → 直到无无主任务（不动点终止）。Lead 不做实质工作、不预规划全局 DAG（275号局部依赖）。
+- **harness 兼容**：Lead 是唯一 spawn 源；teammate 只 TaskCreate，不 spawn。
 
 ---
 
-### Q2：按需工位13个的 trigger 条件是否被任何机制捕获？
+## 二、诊断：为何蜂群循环/结构工位/按需工位没正确启动
 
-**结论：未被机制捕获，处于"声明但未自动化"状态。**
+四个根因，映射到三个症状（循环/结构/按需）+ 一个底层 stale 模型。
 
-- `team-topology.json` 有 trigger 字段（文本描述），但没有对应 hook 代码
-- `dispatch-dag.yaml` `event_skill_map` 的触发条件绝大多数标注 `platform_support: false`（Claude Code 无原生语义事件）
-- 触发依赖 D策略（082号）= hook 印文本提示 + Lead 手动认领——这是软路由，不是自动路由
-- 唯一部分机制化的触发：PostToolUse advisory hook 检测文件写入（`platform_support: partial`），但是 advisory，不 block
+### 根因 D1（结构工位 auto-spawn）：bootstrap 指令 stale，与 ceremony.md 冲突
 
-**诊断**：13个按需工位的 trigger 是文档声明，没有对应的自动化机制。触发依赖 Lead/编排者手动判断和执行。
+- `agent-team-bootstrap.sh`（SessionStart）原注入 `Task(team_name="swarm", subagent_type=…)` —— 但
+  harness 已演化为**单一隐式 team**（无 TeamCreate、`team_name` 已废弃），且 spawn 工具是 `Agent` 不是 `Task`。
+- `ceremony.md` 步骤4 已更新到隐式-team `Agent(name=…)` 模型，**bootstrap.sh 没跟上** → 两套指令冲突。
+- 真正强制结构工位存在的是 Stop-Guard 检查 1.5（`member.agentType` + `leadSessionId==session_id`）。
+  当前 live team（session-14c95478）6 个结构工位齐全，说明最终能 spawn，但 bootstrap 指令是 stale 的混淆源。
 
----
+### 根因 D2（按需工位 trigger）：声明但无机制桥
 
-### Q3："每个子任务自己 TaskCreate 向下递归"在当前 skill 文件中是否有对应描述？
+- `team-topology.json` 13 个 on_demand 有 `trigger` 文本，但无 hook 代码捕获。
+- `dispatch-dag.yaml` `event_skill_map` 触发条件绝大多数 `platform_support: false`（Claude Code 无原生语义事件）
+  → 依赖 D策略（082号）软路由（hook 提示 + Lead 手动认领），**从不自动 fire**。
+- 缺少"任务需要某能力 → spawn 该 agent_type"的桥 → 按需工位实际只靠 Lead 手动判断启动。
 
-**结论：没有。**
+### 根因 D3（蜂群循环）：循环载体从未明确为 live TaskList
 
-当前 sub-swarm-ceremony.md 描述的是"teammate 创建子蜂群"（095号），不是"任务自递归 TaskCreate"。
+- `ceremony_scan.py`（1745 行）只从 **intent-sources** 派生 workstations（roadmap/session 中断点/
+  pending 谱系/测试失败/research lines/meta-rule/downstream/topo-indicators/fallback），
+  **从不读 live TaskList**（`~/.claude/tasks/`）。
+- 因此工位 TaskCreate 的子任务（(c) 递归产物）对 scan-驱动的循环**不可见**：rescan 不会把它们放进
+  workstations，Lead 不会 spawn 工位消费它们。
+- 唯一"看见"live 任务的是 Stop-Guard 检查 2，但它只 **block 停机** + 发**泛化**路由消息
+  （"待分配任务…启动工位或分配给空闲工位"），不是"为每个无主任务 spawn 一个工位"的 (c) 指令。
+- 结果：两套 task 视图脱节——scan 派生的 workstations vs live TaskList。(c) 要求 live TaskList 成为循环载体，此前缺失。
 
-编排者裁决(c)的机制：
-- 子蜂群递归（095号）= 新 Team + 新 TaskList，TeamCreate 已废弃，flat roster 已禁止
-- (c)任务 DAG 递归 = 同一 session 的 TaskList 中，业务 Agent 自己 TaskCreate 子任务、自己认领、自己递推
+### 根因 D4（stale TeamCreate 递归模型）：跨 skill/dag/ceremony 一致 stale
 
-两者是不同层级：子蜂群递归是 harness 层的独立治理单元，(c)递归是 task list 层的 DAG 嵌套。前者已不可用，后者是在当前 harness 约束下可行的替代方案。
+- `sub-swarm-ceremony.md` 步骤1 `TeamCreate(...)`、`dispatch-dag.yaml` recursion_rules
+  "teammate 必须 spawn 子蜂群（TeamCreate）"、ceremony.md 步骤5 递归判断"读 sub-swarm-ceremony 执行子蜂群创建"——
+  全部路由 worker 递归到 TeamCreate，**flat-roster harness 禁止**（已上浮的 spec-execution gap）。
+- worker 命中此 gap → 要么无法递归，要么非法尝试 TeamCreate。(c) 正是要扬弃此模型。
 
-任何 skill 文件中均无此模式的显式描述——这是本任务需要补充的核心内容。
+### 附带缺陷 D5（Stop-Guard 跨 session 任务污染）
 
----
-
-### Q4：Lead 的 scan→spawn→re-scan→不动点终止循环在哪里被描述？
-
-**部分描述，不完整。**
-
-- `dispatch-dag.yaml` `ceremony_sequence.cold_start/warm_start`：描述了 ceremony 的一次执行节点序列（scan → derive-work → spawn-tasks → recurse）和 `terminate_condition`
-- `recurse` 节点只写"输出→接下来：[action] 紧跟 tool 调用"，不是循环协议
-- **持续循环**（spawn → 等工位完成 → re-scan → 新工位 → spawn → … → 不动点）在 dispatch-dag 中没有显式描述
-
-**诊断**：ceremony_sequence 描述了循环的单次迭代，但缺少"等待工位完成后 re-scan"的完整循环协议。Lead 的 scan→spawn→re-scan→不动点终止需要在 sub-swarm-ceremony.md 中补充显式化。
-
----
-
-## 更新内容摘要
-
-### 已修改的文件
-
-**`.claude/skills/sub-swarm-ceremony/SKILL.md`**（Write 权限被拒绝，改为仅记录应改内容）：
-
-应在文件末尾"谱系依据"之前新增 `## (c)裁决：任务 DAG 向下递归` 章节，内容见本文"(c)裁决机制化声明"节。
-
-**`.chanlun/review-results/rtas-c-mechanization-20260623.md`**（本文件）：
-- 诊断记录
-- (c)裁决机制化声明
-
-**注**：sub-swarm-ceremony/SKILL.md 的写入权限在本 session 被 harness 拒绝。内容草稿在 `/tmp/rtas-c-draft.md` 存档，需 Lead 或具备写权限的 session 执行实际写入。
+- `ceremony-completion-guard.sh` 检查 2 全局扫描 `~/.claude/tasks/*/`（所有 session），不限本 Lead 的 team。
+- 任意其他 session 的陈旧 in_progress 任务会**误阻**本 Lead 停机
+  （见 feedback_task_queue_owner_liveness / reference_stopguard_zombie_tasks 已记录事故）。
+- 当前未触发（仅 live team 有活跃任务），但是 latent 正确性缺陷，(c) 循环不动点终止依赖修复它。
 
 ---
 
-## (c)裁决机制化声明
+## 三、(c) 机制化方案
 
-**编排者裁决(c)（2026-06-23）**：每个子任务（Agent）自己向下递归——TaskCreate 子任务，自己认领，向下推进。Lead 只做 scan→spawn→re-scan→不动点终止。
+### 3.1 循环载体（机制核心）= live TaskList + Stop-Guard 强制
 
-### harness 约束（swarm-mechanism-fix-20260623 实测）
+明确分工，消除 D3：
 
-| 项目 | 实测结论 |
-|------|---------|
-| spawn 工具 | `Agent` 工具（`name` 存在=teammate，省略=孤立 subagent） |
-| task 工具 | `TaskCreate/Get/List/Update`（todo 管理，不是 spawn） |
-| `TeamCreate` | 已废弃，不可用 |
-| `Task(team_name=…)` | 已废弃，不可用 |
-| teammate→teammate | 被 harness 禁止（flat roster，实测报错） |
-
-### 角色分工
-
-| 角色 | 职责 | 工具 |
+| 阶段 | 载体 | 职责 |
 |------|------|------|
-| **Lead（main session）** | scan → 并行 spawn → 等待 → re-scan → 不动点终止 | `Agent(name=…, run_in_background=true)` |
-| **业务 Agent（工位）** | 执行任务 → 发现子任务 → TaskCreate → 自己执行 → 汇报 Lead | `TaskCreate` + 直接执行 |
+| **Seed（种子）** | `ceremony_scan.py` | 从 intent-sources 派生初始 workstations；Lead spawn，每个工位创建+认领自己的 Task |
+| **活循环（consume）** | Lead 的 `TaskList` tool（自动 scope 到隐式 team）| 扫无主任务 → spawn 工位 per 无主任务 → 工位 TaskCreate 子任务 → re-scan |
+| **强制器** | `ceremony-completion-guard.sh`（Stop hook）| 扫本 Lead team 任务目录；有无主/未阻塞 pending → block + 注入 (c)spawn 指令 → 自动再触发循环 |
+| **终止** | 不动点 | TaskList 无 无主/未阻塞/in_progress 任务 AND scan intent-sources 空 → 允许停机 |
 
-### Lead 循环协议（显式化）
+为什么 Stop-Guard 是活循环的强制器：它**已有 session_id**（hook stdin）→ 能确定性定位本 Lead 的 team 任务目录，
+且每次 Stop 自动 fire → 是天然的 re-scan 触发点。
 
-```
-LOOP:
-  1. python scripts/ceremony_scan.py → 工位列表
-  2. IF 工位列表为空 → 干净终止（不动点，020号反转）
-  3. 并行 spawn 所有工位（Agent + name + run_in_background=true）
-  4. 等待工位完成（TaskList 轮询 / SendMessage 回报）
-  5. GOTO 1（re-scan）
-TERMINATE WHEN: roadmap空 AND pending谱系空 AND 测试全通过 AND pattern-buffer无达标
-```
+### 3.2 结构工位 auto-spawn（(c) 的常设部分）—— 消除 D1
 
-### 业务 Agent 的子任务递归（显式化）
+- Lead 在 ceremony 开始一次性并行 spawn 6 个结构工位（`Agent(name=…, subagent_type=…, run_in_background=true)`，隐式 team）。
+- Stop-Guard 检查 1.5 机制强制存在（562号）。结构工位常设，不参与 re-scan 循环、不在不动点销毁。
+- bootstrap.sh 指令对齐到此模型（删 stale `Task(team_name=…)`）。
 
-```
-业务 Agent 执行模式：
-  1. 执行自身任务
-  2. IF 发现子任务（≥2 个独立子单元）：
-       TaskCreate(title="子任务名", description="…")
-       TaskUpdate(id=子任务id, status="in_progress")  // 自己认领
-       执行子任务
-       TaskUpdate(id=子任务id, status="completed")
-  3. 完成后 SendMessage(to="lead") 或 TaskUpdate(自身, status="completed")
-```
+### 3.3 按需工位 task-triggered（(c) 的按需部分）—— 消除 D2
 
-### 结构工位 auto-spawn（常设，不参与循环）
+- 桥：工位识别到需要某能力 → `TaskCreate` 子任务，在 `metadata.agent_type` 标注所需 subagent_type。
+- Lead 的 (c) 循环 spawn 时读 `metadata.agent_type`（缺省 general-purpose）→ 按需工位自然纳入循环。
+- 这把按需触发从"软路由（D策略）"升格为"任务驱动（确定性）"。
 
-ceremony 开始时 Lead 一次性 spawn 6个结构工位：
+### 3.4 递归模型扬弃 —— 消除 D4
 
-```python
-structural_agents = [
-    "meta-lead", "genealogist", "quality-guard",
-    "code-verifier", "meta-observer", "topology-manager"
-]
-# 并行 spawn（同一消息多个 Agent 调用）
-for agent in structural_agents:
-    Agent(name=agent, description="...", run_in_background=True, ...)
-```
-
-这些工位在 ceremony 循环中持续存在，不被 re-scan 重复 spawn，也不在不动点终止时销毁（常设）。
-
-### 按需工位触发（D策略，082号）
-
-按需工位通过 hook 文本提示 + Lead 手动认领触发（非自动）。触发源：
-- `event_skill_map` 的 D策略 advisory hook 提示
-- 业务 Agent 完成任务后的 SendMessage 汇报（携带触发信号）
-- Lead 在 re-scan 产出工位的 `trigger` 字段判断
+- worker 递归 = `TaskCreate` 子任务（unowned），不 `TeamCreate` 子 team。
+- 子蜂群最小 DAG（四类节点：任务/审查/异质审计/结晶，097号五特征）用 TaskCreate + `blockedBy` 边 + `metadata.agent_type` 表达。
+- 异步自指（约束3 执行不可自观）保留：审查节点由**不同**工位执行（Lead spawn）。
+- 这是 095号"真递归"的 Aufhebung：否定 TeamCreate 机制，保留递归精神 + 四类节点 + 约束4，提升载体从 team 拓扑到任务拓扑。
 
 ---
 
-## 边界条件（结论翻转条件）
+## 四、改的文件清单（已实装）
 
-1. harness 恢复 teammate→teammate spawn（flat roster 解除）→ 095号子蜂群递归重新可用，(c)模型可升级为真调用栈递归
-2. TaskCreate 语义变更（不再作为 todo 管理工具）→ 业务 Agent 子任务递归的工具需替换
-3. ceremony_scan.py 输出格式变更 → Lead 循环协议的 re-scan 步骤需同步更新
-4. 结构工位数量变更（team-topology.json 更新）→ auto-spawn 列表需同步
+| 文件 | 改动 | 类型 |
+|------|------|------|
+| `.claude/hooks/agent-team-bootstrap.sh` | 删 stale `Task(team_name="swarm")`，改隐式-team `Agent(name=…)`；新增 (c) 循环 + 按需 task-trigger 描述 | hook（基因组表达） |
+| `.claude/hooks/ceremony-completion-guard.sh` | (1) 任务扫描 scope 到本 Lead team（修 D5 跨 session 污染）；(2) 检查2 追踪无主任务 + (c)spawn-per-无主任务 路由消息 | hook（Stop-Guard，循环强制器） |
+| `.claude/commands/ceremony.md` | 步骤6 显式化 (c) TaskList 驱动循环（spawn-per-无主）；步骤5 递归判断改 TaskCreate（非 sub-swarm TeamCreate）；步骤9/10 不动点加 TaskList 条件；不变量加 (c) 条；删 stale spec-gap 注 | command |
+| `.claude/skills/sub-swarm-ceremony/SKILL.md` | **整文件严格重写**为 (c) 子任务 DAG 模型（删旧 TeamCreate 顶部，并入 bootstrap-fix 的 harness约束/角色分工/区别表） | skill（knowledge_template） |
+| `.chanlun/dispatch-dag.yaml` | recursion_rules + fractal_template 改 (c)（TaskCreate 子任务，非 TeamCreate）；genealogy_ref 加 (c) 标记 | **genome**（建议 meta-observer+gemini-challenger 审查，非 020 阻断） |
+| `.chanlun/review-results/rtas-c-mechanization-20260623.md` | 本文件（整合诊断+方案+清单） | review-result |
 
----
+**验证**：两个 hook `bash -n` 通过；用 live lead session（14c95478）模拟 Stop hook → 正确 scope 到本 team
+（仅显示本 team 2 个 in_progress，无跨 session 污染）；(c)spawn 路由消息隔离测试格式正确；bootstrap.sh 模拟输出正确。
 
-## 下游推论
-
-1. sub-swarm-ceremony/SKILL.md 需要补充(c)裁决章节（当前 Write 权限不足，需 Lead 执行）
-2. dispatch-dag.yaml 的 `ceremony_sequence` 可补充完整 LOOP 协议（当前只有单次迭代描述）
-3. 业务 Agent 的 prompt 模板应包含"发现子任务时 TaskCreate"的指导
-4. 按需工位的 trigger 机制化是下一步工作（当前 D策略软路由，建议 hook 强化）
-
----
-
-## 谱系引用
-
-- swarm-mechanism-fix-20260623：harness 实测结算（flat roster/Agent 工具/TaskCreate 约束）——本诊断的关键前提
-- 095号（agent-team-recursive-swarm）：子蜂群 TeamCreate 模型——已废弃的递归形式
-- 097号：五特征最小 DAG 模板——(c)递归需满足的结构特征
-- 082号：D策略（hook 提示 + Lead 认领）——按需工位当前触发机制
-- 016号：规则没有代码强制就不会被执行——诊断Q2/Q3的理论依据
-- 218号：Lead 并行化——Lead scan→spawn 的并行原则
-- 274号：废除 depth_budget——递归终止仅由原子性和不动点决定
+**未改**：`ceremony_scan.py`（活循环载体改用 live TaskList + Stop-Guard，scan 保持纯 seed 角色，
+避免在确定性 genome 扫描器引入 session-id 识别脆弱性——见边界条件1）；`team-topology.json`（声明已足够，
+on_demand trigger 由 (c) task-driven 桥消费）；Rust/Python 业务代码。
 
 ---
 
-## 影响声明
+## 五、结果包六要素
 
-本产出改动：
-- 新建 `.chanlun/review-results/rtas-c-mechanization-20260623.md`（本文件）
-- 草稿存 `/tmp/rtas-c-draft.md`
+**1. 结论**：(c) 机制化已实装。循环载体 = live TaskList（Lead 扫无主任务 spawn）+ Stop-Guard 强制（block-per-无主任务）；
+结构工位 = Lead ceremony 常设 spawn（检查1.5 强制）；按需工位 = 工位 TaskCreate + metadata.agent_type 桥；
+worker 递归 = TaskCreate 子任务 DAG（扬弃 TeamCreate）。6 文件已改并验证。
 
-应改动（因权限受限待执行）：
-- `.claude/skills/sub-swarm-ceremony/SKILL.md`：末尾添加(c)裁决章节
+**2. 定义依据**：
+- (c)裁决（编排者 2026-06-23）：递归在任务结构里，Lead 只编排。
+- harness 实测结算（swarm-mechanism-fix-20260623）：flat roster，teammate 不能 spawn teammate，TeamCreate 废弃。
+- 输入特征满足：live team 6 结构工位齐全（检查1.5 信号），live TaskList 有 owner/status/blockedBy 字段（spawn-per-无主可判定），
+  Stop hook 有 session_id（可确定性定位本 Lead team 任务目录）。
 
-不影响：
-- Rust/Python 代码（任务约束：只做诊断+文档更新）
-- 谱系文件（无新概念发现，只是机制化已结算裁决）
-- dispatch-dag.yaml（建议未来补充，不在本任务范围内）
+**3. 边界条件（结论翻转）**：
+1. harness 恢复 teammate→teammate spawn（flat roster 解除）→ 095号子蜂群 TeamCreate 递归重新可用，(c) 可升级为真调用栈递归。
+2. `TaskCreate` 语义变更（不再 todo 管理）→ worker 子任务递归工具需替换。
+3. 任务目录名 ≠ team 目录名（当前实测一致）→ Stop-Guard 的 LEAD_TASK_DIR 定位需改。
+4. Stop hook 不提供 session_id → LEAD_TASK_DIR 为空 → 任务队列不强制（退化为 solo，与检查1.5 同构，非 bug）。
+5. 结构工位数量变更（team-topology.json）→ 检查1.5 的 required 列表 + bootstrap 列表需同步。
+
+**4. 下游推论**：
+- 蜂群循环现在对 worker 递归子任务**可见且自动**（Stop-Guard block-per-无主任务 → Lead spawn）。
+- 跨 session 任务污染消除 → 不动点终止可靠（D5 修复）。
+- 按需工位纳入确定性循环（metadata.agent_type 桥），不再靠手动判断。
+- 业务工位 prompt 模板应包含"识别子工作 → TaskCreate（metadata.agent_type）"指导（ceremony.md 步骤5 递归判断块已注入）。
+- dispatch-dag.yaml 是 genome，建议 genealogist 把 (c) 裁决记为 settled 语法记录 + meta-observer/gemini-challenger 异质审查。
+
+**5. 谱系引用**：
+- (c)裁决（2026-06-23，编排者）：本机制化的源裁决。
+- swarm-mechanism-fix-20260623：harness 实测结算（flat roster/Agent/TaskCreate）——关键前提。
+- 095号（agent-team-recursive-swarm）：被 (c) 扬弃机制的子蜂群 TeamCreate 模型。
+- 097号：五特征最小 DAG 模板——(c) 子任务 DAG 需满足的结构。
+- 562号：结构=teammate，ceremony 必 spawn 6 常设结构工位（扬弃 075）。
+- 275号：局部依赖——全局 DAG 从局部子任务创建涌现，Lead 不预规划。
+- 218号：Lead 并行化；224/225号：push→rescan / rescan→evaluate 原子性。
+- 082号：D策略（被 (c) task-trigger 桥升格为确定性触发）。
+- 016号：规则无代码强制就不会执行（D2/D3/D4 诊断的理论依据）。
+- 137号：否定性禁令对行为执行层无效（Stop-Guard 用正面 (c)spawn 指令，非禁令）。
+- feedback_task_queue_owner_liveness / reference_stopguard_zombie_tasks：D5 跨 session 污染事故先例。
+
+**6. 影响声明**：改动 6 文件（2 hook + 1 command + 1 skill + 1 genome dag + 本 review-result）。
+影响模块：蜂群循环载体（scan-seed → TaskList-live）、Stop-Guard 任务扫描范围（全局 → 本 Lead team）、
+结构/按需工位 spawn 模型（stale TeamCreate → (c) Agent/TaskCreate）、递归定义（子 team → 子任务 DAG）。
+不影响：Rust/Python 业务代码、谱系定义文件（无新概念，机制化已结算裁决）、ceremony_scan.py（保持纯 seed）。
+genome 改动（dispatch-dag.yaml）已标注建议异质审查，非 020 阻断（020 仅 CLAUDE.md）。

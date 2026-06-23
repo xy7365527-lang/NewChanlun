@@ -125,3 +125,27 @@ decisions:
           worktree(30a6b55372)，编排者裁决 consume 口径是否被 #29 完全分类方案收敛后 cherry-pick；
       (3) prop4-bidir 主要工作（consume L3 + route_bsp #29）均已 commit，若无 pipeline 后续可收缩。
       consume 口径收敛是概念判断，呈请编排者/genealogist，非拓扑职责。
+
+  - id: TOPO-20260623-008
+    timestamp: "2026-06-23T03:55:00+08:00"
+    type: 碰撞监控（增量，事件驱动：新阶段 e1+friction 工位 spawn）
+    trigger_signal: 队列换为 e1-experiment + friction-model；pending 元规则结算
+    workstations: [e1-experiment, friction-model, prop4-diag-wt]
+    reasoning: >
+      (1) 死锁解除确认：topology-manager 路由 geneal-560 + escalate 的 2 个 pending 元规则已结算——
+          check3-revival→564号(stopguard-check3-instruction-overflow)、ghost-owner→565号
+          (ghost-owner-task-lifecycle)，移入 settled/。"不越界自结算、路由 genealogist"处理验证正确。
+      (2) 新工位隔离：friction-model 用独立双 worktree（friction-bidir 基于 consume 分支 +
+          friction-current detached 基于主树 d18b083a03，对比实验，合理隔离）。
+      (3) 碰撞风险：/private/tmp/friction-bidir 与 /private/tmp/prop4-diag-wt 共享同一分支
+          prop4-bidir-consume-C-20260623（均 fde2d3fdd4）。若 prop4-diag-wt（consume 工位）仍活跃，
+          friction-bidir 在该分支 commit 会冲突。
+      (4) e1-experiment 在主树编辑 instruments.py/backtest_*.py/data_cache(BTC+CL)，与 friction
+          worktree 物理隔离，无碰撞。
+      (5) 新 pending：team-topology-auto-spawn-gap（声明-实装不一致），与 TOPO-004 扩张建议
+          (缺 meta-lead/quality-guard)同源。
+    verdict: >
+      建议给 Lead：(1) 确认 prop4-diag-wt 工位是否已 idle——若 consume L3 完成可释放该 worktree
+      让 friction-bidir 独占 prop4-bidir-consume-C-20260623 分支；若两者都活跃需分支隔离（避免同分支 commit 冲突）；
+      (2) team-topology-auto-spawn-gap 是选择类，呈编排者裁决（与扩张建议同源）。
+      死锁解除：check3/ghost-owner 已结算为 564/565。

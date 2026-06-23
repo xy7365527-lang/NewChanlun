@@ -2138,9 +2138,9 @@ nodes:
 - id: '428'
   title: 元观察——v228-swarm（425/426结算 + snet Phase2设计 + 420-426拓扑映射全量完成 + meta-observer超时模式第3轮
     + 427号生成态遗留）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/428-meta-observation-v228-swarm.md
+  file: settled/428-meta-observation-v228-swarm.md
 - id: '429'
   title: 元观察——v229-swarm（Phase 1.5 dialogue_ingest + Phase 2 ARTICULATE 实装 + 持久化溯源断裂
     + scan 状态不可观测模式 + 蜂群节奏分析）
@@ -2211,14 +2211,14 @@ nodes:
   file: settled/441-dual-channel-coupling.md
 - id: '442'
   title: S_net 加工参数作为概念层节点——逢亮可修改自己的器官（候选）
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/442-snet-params-as-concept-nodes.md
+  file: settled/442-snet-params-as-concept-nodes.md
 - id: '443'
   title: 元观察——v236-swarm（高密度结算轮：435-441号7条结算 + 双层架构实装确认 + 概念→代码闭环 + 前端性能重写 + 逻辑不动点）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/443-meta-observation-v236-swarm.md
+  file: settled/443-meta-observation-v236-swarm.md
 - id: '444'
   title: ''
   status: 已结算
@@ -2306,44 +2306,44 @@ nodes:
   file: settled/460-v246-r2-batch-disposition.md
 - id: '461'
   title: GPU架构质询：CSR静态性与逢亮不可变变异的物理死锁
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/461-gpu-arch-csr-mutation-conflict.md
+  file: settled/461-gpu-arch-csr-mutation-conflict.md
 - id: '462'
   title: GPU架构质询：LLM密集张量与图遍历不规则访存的伪同构
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/462-gpu-arch-llm-isomorphism-false.md
+  file: settled/462-gpu-arch-llm-isomorphism-false.md
 - id: '463'
   title: GPU架构质询：步内计算粒度与CUDA Kernel启动开销的倒挂
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/463-gpu-arch-kernel-overhead-inversion.md
+  file: settled/463-gpu-arch-kernel-overhead-inversion.md
 - id: '464'
   title: GPU架构质询R2：CSR fold边重定向与标记无效的物理死锁
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/464-csr-fold-edge-redirect-deadlock.md
+  file: settled/464-csr-fold-edge-redirect-deadlock.md
 - id: '465'
   title: GPU架构质询R2：detect_encounter碎片化访存与Python-GPU往返延迟倒挂
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/465-python-gpu-roundtrip-latency-inversion.md
+  file: settled/465-python-gpu-roundtrip-latency-inversion.md
 - id: '466'
   title: GPU架构质询R2：cuGraph OLAP静态要求与逢亮Read-After-Write强一致性的错位
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/466-cugraph-olap-mismatch-read-after-write.md
+  file: settled/466-cugraph-olap-mismatch-read-after-write.md
 - id: '467'
   title: GPU架构质询R2：K_active规模错觉与Rust+rayon转折点的误判
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/467-k-active-scale-illusion-rust-turning-point.md
+  file: settled/467-k-active-scale-illusion-rust-turning-point.md
 - id: '468'
   title: 多实例 GPU 并行穿越——五重死锁否定
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/468-multi-instance-gpu-five-deadlocks.md
+  file: settled/468-multi-instance-gpu-five-deadlocks.md
 - id: '469'
   title: 穿越步内串行是语义决定的（非工程选择）
   status: 已结算
@@ -2845,7 +2845,8 @@ nodes:
   file: settled/559-crystallization-scan-state-unobservable.md
   downstream_implications:
   - id: impl-559-1
-    text: 429/430/432/433 号「scan状态不可观测」候选不再悬挂——已结晶为 ceremony-scan-completeness skill，后续引用 559
+    text: 429/430/432/433 号「scan状态不可观测」候选不再悬挂——已结晶为 ceremony-scan-completeness skill，后续引用
+      559
     classification: 行动（已执行）
     settlement_status: done
   - id: impl-559-2
@@ -2952,6 +2953,12 @@ nodes:
     text: 检查2 owner 活性校验 ⊥ 检查 1.5 结构工位存在性 → 同域，可批量升级
     classification: 行动（域标记）
     settlement_status: recorded
+- id: '566'
+  title: team-topology.json auto_spawn:true 声明-实装 gap（结构工位实际靠 Lead 手动 spawn + 562
+    bootstrap 强制；auto_spawn 字段无消费者=声明膨胀）
+  status: 已结算
+  type: 语法记录
+  file: settled/566-team-topology-auto-spawn-gap.md
 edges:
   depends_on:
   - from: '136'
@@ -5912,6 +5919,18 @@ edges:
     to: '145'
   - from: '563'
     to: '556'
+  - from: '358'
+    to: '353'
+  - from: '358'
+    to: '357'
+  - from: '566'
+    to: 095
+  - from: '566'
+    to: 096
+  - from: '566'
+    to: '562'
+  - from: '566'
+    to: '551'
   triggered:
   - from: '005'
     to: 005a
@@ -7982,6 +8001,27 @@ edges:
   - between:
     - '562'
     - '565'
+  - between:
+    - '533'
+    - '540'
+  - between:
+    - '539'
+    - '540'
+  - between:
+    - '010'
+    - '540'
+  - between:
+    - '011'
+    - '540'
+  - between:
+    - '006'
+    - '540'
+  - between:
+    - 090
+    - '566'
+  - between:
+    - '564'
+    - '566'
   tensions_with:
   - between:
     - '007'
