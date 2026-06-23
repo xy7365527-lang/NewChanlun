@@ -9,7 +9,7 @@ related: ["062", "073"]
 negation_source: ""
 negation_form: ""
 negates: []
-negated_by: []
+negated_by: ["562"]   # 562号扬弃：结构工位本体恢复为 teammate（095/096 共享 inbox 化解孤岛），skill 层下沉为轻量事件守卫
 ---
 
 # 075: 结构工位从 teammate 转为 skill + 事件驱动
