@@ -949,3 +949,96 @@ tasks:
     decomposition: parallel
     added_by: "v59-swarm Gemini derive（异质质询代理执行）"
     added_date: "2026-02-26"
+
+  # ───────────────────────────────────────────────────────────
+  # 里程碑 M-recursive_t：递归引擎操盘线（2026-06）
+  # 来源：编排者 2026-06-22 /ceremony 显式列出的 5 条方向。
+  # 转写依据：no-unnecessary-escalation.md 行动类——编排者已明示方向，
+  #   转写进 roadmap 不携带信息差，恢复 ceremony_scan 对业务线的可见性
+  #   （此前 roadmap 停在 2026-02，scan 落入 079号 no_work_fallback）。
+  # 状态依据：git log + 代码核实（截至 f38cd25f4c）+ 2026-06-22 取向Y裁决。
+  # ───────────────────────────────────────────────────────────
+
+  - id: signal_resolution_1s_bi_a0
+    title: "信号层分辨率升级（1秒数据 + 笔级别a0）—— 主线"
+    priority: P1
+    status: active
+    decision: "编排者 2026-06-22：根本问题在信号层递归深度不足，非操作层。路径=1秒数据+笔级别a0。"
+    hypothesis_level: "L0（待 L2/L3 验证）：1秒笔a0→8-10级→中间级别滤波器展开→完整周期总和趋近Σ|涨跌幅|→完整周期>BH。这是假设不是定理，升级为检验它，否定性结果同样有价值。"
+    source: "编排者 2026-06-22 /ceremony 方向 #1 + 滤波器理论重新框定"
+    description: |
+      理论框定（编排者）：每级别=带通滤波器，捕获自身尺度|涨跌幅|；足够递归深度→总和趋近Σ|涨跌幅|。
+      当前 1分钟+线段a0 仅 5-6 级，中间级别缺失，滤波器未展开 → BTC完整周期+38.9%<<BH+1380%。
+      升级两层（缺一不可）：
+        (1) 数据粒度：1分钟→1秒 bar（barspec-impl 工位，nt-scope 已给 bar_spec 参数化改点 A-C，保持现有1m bit-exact回归）；
+        (2) 递归底座下移：a0 线段→笔(bi)，比线段低一级，是级别数5-6→8-10的主因（filter-spec 工位出方案）。
+      filter-spec 工位负责：滤波器命题形式化 + a0=笔范围厘清 + L2/L3 证伪条件设计（含"1秒笔下僵尸核心死锁是否仍发生"）。
+    added_by: "编排者 /ceremony 指令"
+    added_date: "2026-06-22"
+
+  - id: operation_layer_stable
+    title: "操作层稳定（flat复现 + prove守卫 + sink同资本sizing）"
+    priority: P1
+    status: completed
+    completed_date: "2026-06-22"
+    completion_note: |
+      flat 逻辑递归化 8标的×3模式 bit-exact 复现（953d8dfdb3）；
+      prove 守卫族移植 rec+flat 对称 bit-exact（f38cd25f4c）；sink 同资本 sizing（542号）。
+      注：操作层路线（含取向Y弃bit-exact）已被编排者否定——操作层无需改动。
+      rec≡flat / 现有1m回归 bit-exact 仍是有效回归判据，信号层升级必须保持它（barspec-impl 守此）。
+    source: "编排者 2026-06-22 /ceremony 方向 #2"
+    added_by: "编排者 /ceremony 指令"
+    added_date: "2026-06-22"
+
+  - id: no_reentry_attribution_2019
+    title: "引擎 2019 后不入场归因（三阶段退本金锁死资金）"
+    priority: P1
+    status: completed
+    completed_date: "2026-06-22"
+    completion_note: |
+      根因=僵尸核心死锁：核心 units 衰减至 ~1e-6 ≫ EPS=1e-12 →
+      highest_active() 永不为 None → enter 永不触发 →
+      67% withdrawn 永久锁定 + 32% free 闲置 → 规模冻结、踏空 2019-2024。
+      诊断 btc_bull_bear_segments / btc_no_reentry_trace（rec_stream.rs，#[ignore] 观测）。
+    source: "编排者 2026-06-22 /ceremony 方向 #3"
+    added_by: "编排者 /ceremony 指令"
+    added_date: "2026-06-22"
+
+  - id: prove_guard_port
+    title: "旧 prove 守卫移植"
+    priority: P1
+    status: completed
+    completed_date: "2026-06-22"
+    completion_note: |
+      6 守卫族移植，rec+flat 对称，bit-exact（commit f38cd25f4c）。
+    source: "编排者 2026-06-22 /ceremony 方向 #4"
+    added_by: "编排者 /ceremony 指令"
+    added_date: "2026-06-22"
+
+  - id: all_8_symbol_validation
+    title: "全 8 标的验证"
+    priority: P2
+    status: deferred
+    source: "编排者 2026-06-22 /ceremony 方向 #5"
+    description: |
+      把 BTC-only 引擎诊断/回测扩展到全 8 标的，验证修复后结论普适性。
+      eight-symbol-scope 已勘查标的清单/数据齐备/harness 参数化。
+      暂 deferred：依赖僵尸核心修复落定后再做（修复改变引擎行为，先修后全标的验证）。
+    added_by: "编排者 /ceremony 指令"
+    added_date: "2026-06-22"
+
+  - id: zombie_core_operation_layer_route
+    title: "僵尸核心操作层修复路线 —— 已否定作废"
+    priority: P1
+    status: rejected
+    decision: "编排者 2026-06-22 否定整条操作层修复路线（取向Y/改enter/改退本金/改第31课定义全部作废）。根本问题不在操作层：CL/Or +39.1%超BH 证明操作层在级别充分时能工作；BTC牛市减仓踏空是结构性的非bug。真方向=信号层分辨率升级（见 signal_resolution_1s_bi_a0）。"
+    source: "no_reentry_attribution_2019 的下游——zombie-core-verify 核验确认操作层无解（三Option全是操作层补丁）"
+    description: |
+      保留的唯一开放问题（交给信号层升级的验证回答，不在操作层补丁）：
+      僵尸核心 enter 死锁（units衰减1e-11>EPS1e-12→highest_active恒Some→enter不触发，
+      rec_engine.rs:45/182-184/403-405/746-747）是否与递归底座/级别数耦合——
+      即 a0=笔、级别数增加、1秒bar 改变衰减节奏后，死锁是否自然消失，还是与分辨率正交独立存在。
+      这决定引擎能否在 2022 熊段(-78%)在场、从而靠熊段做空赚回牛段踏空税（开放张力，no-workaround 不绕过）。
+    genealogy_ref: "538/539/542/545（操作层路线的发生史，待 genealogist 记录否定）"
+    added_by: "编排者 /ceremony 指令 + 2026-06-22 操作层路线否定"
+    added_date: "2026-06-22"

@@ -5,6 +5,14 @@ version: "2.1"
 generated: "2026-02-22"
 
 skills:
+  - name: ceremony-scan-completeness
+    type: command
+    file: .claude/commands/ceremony-scan-completeness.md
+    description: "ceremony_scan 完备性守卫——检测全局状态 X 既无业务工位消费者又无 scan 消费者的结构性盲区（结晶自 scan-state-unobservable pattern，429/430/432/433号谱系）"
+    status: active
+    crystallized_from: "scan-state-unobservable"
+    gemini_decide: "A（独立新建），CONFIDENCE: HIGH，2026-06-23"
+
   - name: build-fix
     type: command
     file: .claude/commands/build-fix.md
