@@ -64,6 +64,7 @@ meta-lead 节点完成全部职责（收中断+扫文件系统+轴线汇报）�
 2. Stop hook 拦截回合结束（567 生成态 → 永远 block）
 3. ⟹ meta-lead 既无法 idle，又无通道把路由结论传回 team-lead = **死锁**
 4. 现有缓解器 = 145 智能熔断（连续 3 次状态不变放行，第 170-174 行）——但这是**兜底放行**，靠"状态停滞"事后解锁，不是"精确阻断对象"事前过滤。熔断 fire 前 meta-lead 已被无意义阻断 3 轮（每轮注入相同 feedback，零信息增量）。
+5. **熔断的代码层失效根因**（codex-challenger #77 审计坐实，2026-06-23）：counter 文件（`.chanlun/.stop-guard-counter`）是全局共享单文件。check2（第352-359行）在 ACTIVE_TASKS 变化时将其重置（`echo "1:$ACTIVE_TASKS" > "$COUNTER"`）；check3（第511-512行）只递增（`echo "$((COUNT+1)):..." > "$COUNTER"`）。在多 session 并发蜂群中，Lead session 的 check2 持续覆盖 teammate session 的 check3 计数——每次 Lead 任务状态变化，meta-lead 的熔断计数即被重置为 COUNT=1。这是「熔断兜底不可靠」的代码层坐实（非偶发竞态，是结构性必然）。参见 `.chanlun/review-results/codex-review-stopguard-amendment-77-20260623.md` 发现FA-1。
 
 ## 四、与先例的关系（这是新维度，非重复）
 
