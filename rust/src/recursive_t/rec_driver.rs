@@ -12,7 +12,7 @@
 //! ## 认识论等级
 //! 投影 = L0；驱动行为 = flat route_bsp（L3 验证 CL+120%）；递归化收益复现 = L3 验收。
 
-use super::rec_engine::{dir_to_polarity, LevelView, TRoot, TrendNode, MAX_LEVEL};
+use super::rec_engine::{dir_to_polarity, EngineConfig, LevelView, TRoot, TrendNode, MAX_LEVEL};
 use super::types::{RecursiveTree, TrendKind, TrendType, Unit};
 
 /// 递归 T 驱动：薄包装 `TRoot`，每次重跑消费 `LevelView` → `on_bar`（= flat step）。
@@ -23,6 +23,11 @@ pub struct RecDriver {
 impl RecDriver {
     pub fn new(initial_capital: f64) -> Self {
         RecDriver { root: TRoot::new(initial_capital) }
+    }
+
+    /// 显式配置构造（OFF / ANCHOR / NEST 受控对照）。
+    pub fn new_with_config(initial_capital: f64, cfg: EngineConfig) -> Self {
+        RecDriver { root: TRoot::new_with_config(initial_capital, cfg) }
     }
 
     pub fn root(&self) -> &TRoot {

@@ -50,6 +50,63 @@ const EPS: f64 = 1e-12;
 /// （rec 此前 MAX_LEVEL=16 让 rec 升级而 flat 不升 → 核心方向错位 → BTC/Structural 空头主导发散）。
 pub const MAX_LEVEL: usize = 8;
 
+// ════════════════════════════ 引擎配置（变体闸门，受控实验单进程多变体）════════════════════════════
+
+/// 引擎变体配置（OFF / ANCHOR / NEST 受控对照，单进程内可显式构造多变体——避免 env 串扰）。
+///
+/// - **OFF** = `from_env()` 默认（trend_done_clear ON、anchor OFF、nest OFF）= 当前 main 独立腿基线。
+/// - **ANCHOR** = OFF + `enable_hold_anchor`（552号趋势底仓）。
+/// - **NEST** = `enable_nest`（命题4 读法乙）：旁路 route_bsp/cc 锚，大级别背驰段闸门 a0 区间套定位翻转。
+///
+/// bit-exact 契约：`enable_nest=false ∧ enable_hold_anchor=false` ⇒ on_bar/route_bsp/sink/drain/enter
+/// 行为与 OFF 逐字一致（新逻辑全部 flag 门控、anchor 恒 0）。
+#[derive(Debug, Clone, Copy)]
+pub struct EngineConfig {
+    pub enable_earning: bool,
+    pub enable_three_stage: bool,
+    pub enable_trend_done_clear: bool,
+    pub enable_hold_anchor: bool,
+    pub enable_nest: bool,
+}
+
+impl EngineConfig {
+    /// 从 env 读（= 当前 main 行为，保 OFF 基线）。
+    pub fn from_env() -> Self {
+        EngineConfig {
+            enable_earning: std::env::var("T_NO_EARNING").is_err(),
+            enable_three_stage: std::env::var("T_NO_THREESTAGE").is_err(),
+            enable_trend_done_clear: std::env::var("T_NO_TREND_DONE_CLEAR").is_err(),
+            enable_hold_anchor: std::env::var("HOLD_ANCHOR").is_ok(),
+            enable_nest: std::env::var("T_NEST_READING_B").is_ok(),
+        }
+    }
+    /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
+    pub fn off() -> Self {
+        let mut c = Self::from_env();
+        c.enable_hold_anchor = false;
+        c.enable_nest = false;
+        c
+    }
+    /// ANCHOR（OFF + 趋势底仓 552号）。
+    pub fn anchor() -> Self {
+        let mut c = Self::off();
+        c.enable_hold_anchor = true;
+        c
+    }
+    /// NEST（命题4 读法乙，旁路 cc 锚）。
+    pub fn nest() -> Self {
+        let mut c = Self::off();
+        c.enable_nest = true;
+        c
+    }
+}
+
+impl Default for EngineConfig {
+    fn default() -> Self {
+        Self::from_env()
+    }
+}
+
 // ════════════════════════════ 走势节点身份（仓位骑节点）════════════════════════════
 
 /// 走势节点身份（重锚键 = `start_bar`）。仓位骑节点——递归结构保留；操作逻辑用绝对 `level`（对照 flat ladder）。
@@ -167,6 +224,10 @@ pub struct TInstance {
     pub units: f64,
     /// per-实例 basis（强平 + reduce pnl 用）。
     pub basis: f64,
+    /// **趋势底仓下限**（552号 HOLD_ANCHOR）：`sink`/`drain` 配额不作用于此份额——趋势底仓死扣吃大
+    /// 趋势，只让机动仓（units−anchor）做次级别短差。`enter` 设 = m×(1−MOBILE_FRAC)，flag off 时恒 0
+    /// ⇒ 机动仓=全仓 ⇒ 配额=units/3 与 OFF 逐字一致（bit-exact）。
+    pub anchor: f64,
 }
 
 impl TInstance {
@@ -177,6 +238,7 @@ impl TInstance {
             direction: Polarity::Long,
             units: 0.0,
             basis: f64::NAN,
+            anchor: 0.0,
         }
     }
     pub fn is_active(&self) -> bool {
@@ -203,6 +265,14 @@ pub struct LevelView {
     pub nodes: [Option<TrendNode>; MAX_LEVEL],
     /// T 迭代涌现上界 (level, 操作极性)——自下而上仓位涌现（= flat emergent_top）。None=本 bar 不升级。
     pub emergent_top: Option<(usize, Polarity)>,
+    /// **命题4 读法乙——大级别背驰段闸门（self-top-down 区间套前提）**。
+    /// 最高级别走势进入**背驰段**（`divergence::trend_candidate`：结构∧MACD 双确认，**未创新高**=
+    /// 未走势完成，严格⊊type1）时置位为**操作极性**：上涨顶背驰段→Short（顶部，卖点 close+做空），
+    /// 下跌底背驰段→Long（底部，买点 cover+做多）。None=最高级别未进入背驰段。
+    /// 源头审计 src-prop13（第27课区间套）：区间套前提 = 大级别**背驰段**（非走势完成）。
+    pub top_diverge: Option<Polarity>,
+    /// 最高级别**当前走势几何方向**（NEST 反转去武装：armed 与当前 top 方向不一致 ⇒ top 已反转 ⇒ 清 armed）。
+    pub top_trend_dir: Option<Direction>,
 }
 
 impl LevelView {
@@ -214,6 +284,8 @@ impl LevelView {
             t1sell: [false; MAX_LEVEL],
             nodes: [None; MAX_LEVEL],
             emergent_top: None,
+            top_diverge: None,
+            top_trend_dir: None,
         }
     }
 }
@@ -246,6 +318,15 @@ pub struct TRoot {
     /// 核心走势完成清仓开关（546号死锁解锁的 A/B 消融门）：env `T_NO_TREND_DONE_CLEAR` 置位 ⇒ false
     /// （走势完成不清仓 = 死锁基线），默认 true。与 `T_NO_EMERGENCE` 等同类 eval 工具，flat/rec 对称。
     enable_trend_done_clear: bool,
+    /// **ANCHOR**（552号 HOLD_ANCHOR）：enter 划趋势底仓 anchor=m×2/3，sink/drain 配额只作机动仓。OFF=false。
+    enable_hold_anchor: bool,
+    /// **NEST**（命题4 读法乙）：旁路 route_bsp/cc 锚，大级别背驰段闸门 a0 区间套定位翻转。OFF=false。
+    enable_nest: bool,
+    /// NEST armed 操作极性（大级别背驰段武装，跨重跑持续至 top 反转 / 翻转消费）。None=未武装。
+    nest_armed_op: Option<Polarity>,
+    /// NEST 当前背驰段窗口是否已翻转（**每窗口仅翻一次** = 读法乙区间套定位一个转折点，非读法甲全 a0 穷尽）。
+    /// 新窗口（top_diverge 极性变 / top 反转去武装）⇒ false；翻转 ⇒ true。
+    nest_consumed: bool,
 
     // ── 观测计数（纯诊断）──
     pub n_enters: u64,
@@ -256,6 +337,10 @@ pub struct TRoot {
     /// 核心走势完成清仓次数（546号死锁解锁路径触发计数，纯观测）。
     pub n_trend_done_clears: u64,
     pub n_ascends: u64,
+    /// **NEST 翻转次数**（命题4 读法乙：大级别背驰段闸门 a0 定位翻转）。诊断 556 顶层是否解冻。
+    pub n_nest_flips: u64,
+    /// NEST 逐笔（is_short, entry_bar, entry_px, exit_bar, exit_px, realized_pnl）——539 做空腿逐笔验收。
+    pub nest_trades: Vec<(bool, i64, f64, i64, f64, f64)>,
     pub n_emergence_upgrades: u64,
     /// 编排者排查 2026-06-21：emergence_upgrade 统计——核心低于涌现级别本可升级的次数 / 方向不匹配跳过。
     pub n_emergence_attempts: u64,
@@ -293,7 +378,13 @@ pub struct TRoot {
 }
 
 impl TRoot {
+    /// 默认从 env 构造（= 当前 main 行为）。
     pub fn new(initial_capital: f64) -> Self {
+        Self::new_with_config(initial_capital, EngineConfig::from_env())
+    }
+
+    /// 显式配置构造（受控实验：OFF / ANCHOR / NEST 单进程多变体）。
+    pub fn new_with_config(initial_capital: f64, cfg: EngineConfig) -> Self {
         let instances = (0..MAX_LEVEL).map(TInstance::idle).collect();
         TRoot {
             instances,
@@ -305,9 +396,13 @@ impl TRoot {
             campaign_entry_cost: f64::NAN,
             withdrawn: 0.0,
             earning_cash: 0.0,
-            enable_earning: std::env::var("T_NO_EARNING").is_err(),
-            enable_three_stage: std::env::var("T_NO_THREESTAGE").is_err(),
-            enable_trend_done_clear: std::env::var("T_NO_TREND_DONE_CLEAR").is_err(),
+            enable_earning: cfg.enable_earning,
+            enable_three_stage: cfg.enable_three_stage,
+            enable_trend_done_clear: cfg.enable_trend_done_clear,
+            enable_hold_anchor: cfg.enable_hold_anchor,
+            enable_nest: cfg.enable_nest,
+            nest_armed_op: None,
+            nest_consumed: false,
             n_enters: 0,
             n_sinks: 0,
             n_recovers: 0,
@@ -315,6 +410,8 @@ impl TRoot {
             n_flips: 0,
             n_trend_done_clears: 0,
             n_ascends: 0,
+            n_nest_flips: 0,
+            nest_trades: Vec::new(),
             n_emergence_upgrades: 0,
             n_emergence_attempts: 0,
             n_emergence_skipped_dir: 0,
@@ -545,6 +642,9 @@ impl TRoot {
         self.free = free;
         self.instances[level].node = node;
         self.instances[level].level = level;
+        // ANCHOR（552号 HOLD_ANCHOR）：核心建仓即划趋势底仓 = m×(1−MOBILE_FRAC)=m×2/3，机动仓 = m/3。
+        // OFF（flag off）时 anchor=0 ⇒ 机动仓=全仓 ⇒ 配额=units/3 与 OFF 逐字一致（bit-exact）。
+        self.instances[level].anchor = if self.enable_hold_anchor { m * (1.0 - MOBILE_FRAC) } else { 0.0 };
         self.notional_in = spent;
         self.core_cost_basis = c;
         self.campaign_entry_cost = c;
@@ -565,6 +665,8 @@ impl TRoot {
             if u > 1e-12 {
                 rec_reduce(&mut self.instances[k], u, &mut free, c);
             }
+            // ANCHOR：全塔平仓 ⇒ 无趋势底仓存活，清 anchor 防僵尸残值。OFF 时 anchor 恒 0，置 0 = no-op（bit-exact）。
+            self.instances[k].anchor = 0.0;
         }
         self.free = free;
         self.reset_campaign();
@@ -613,7 +715,13 @@ impl TRoot {
     fn sink(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64) {
         let u_p = self.instances[parent].units;
         let pdir = self.instances[parent].direction;
-        let m = quota(u_p);
+        // ANCHOR（552号）：配额作用于机动仓 u_P−anchor（趋势底仓死扣不下放），OFF 时 anchor=0 ⇒ mob_base=u_P（bit-exact）。
+        let mob_base = if self.enable_hold_anchor {
+            (u_p - self.instances[parent].anchor).max(0.0)
+        } else {
+            u_p
+        };
+        let m = quota(mob_base);
         if !(m > 1e-12 && m.is_finite()) || m > u_p + 1e-9 {
             return;
         }
@@ -632,7 +740,7 @@ impl TRoot {
         }
         // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=u_P×MOBILE_FRAC。
         prove_sink_descends(parent, sub, self.cur_bar);
-        prove_sigma_quota(m, u_p, sub, self.cur_bar);
+        prove_sigma_quota(m, mob_base, sub, self.cur_bar); // anchor OFF ⇒ mob_base=u_p（bit-exact）
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[parent], m, &mut free, c);
@@ -698,13 +806,20 @@ impl TRoot {
     /// **drain @ j**（= flat drain）：子级持同父向遗留仓 → 反父向 BSP 减暴露 1/3（不翻转）。
     fn drain(&mut self, j: usize, c: f64) {
         let u = self.instances[j].units;
-        let m = quota(u);
+        // ANCHOR（552号）：drain 目标 j 有活跃祖先（route_bsp Some(p) 分支），非核心 ⇒ enter 未给 j 划 anchor
+        // ⇒ anchor 结构性恒 0 ⇒ mob_base=u（flag ON/OFF 皆与 OFF 逐字一致）。用机动仓基准是 σ-不变配额一致形式。
+        let mob_base = if self.enable_hold_anchor {
+            (u - self.instances[j].anchor).max(0.0)
+        } else {
+            u
+        };
+        let m = quota(mob_base);
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
         let jdir = self.instances[j].direction;
-        // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=u_j×MOBILE_FRAC，级别无关）。
-        prove_sigma_quota(m, u, j, self.cur_bar);
+        // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=mob_base×MOBILE_FRAC，级别无关；mob_base=u 当 anchor=0）。
+        prove_sigma_quota(m, mob_base, j, self.cur_bar);
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[j], m, &mut free, c);
@@ -781,6 +896,85 @@ impl TRoot {
         }
     }
 
+    // ──────────────── NEST：命题4 读法乙（大级别背驰段闸门 + a0 区间套定位翻转）────────────────
+
+    /// **nest_step**（命题4 读法乙，源头审计 src-prop13 / 第27课区间套）：
+    /// 1. **大级别背驰段武装**（自顶向下前提）：`view.top_diverge` = 最高级别进入背驰段时的操作极性
+    ///    （上涨顶背驰段→Short / 下跌底背驰段→Long）。背驰段 ⊊ 走势完成（区间套前提是背驰段非完成）。
+    ///    武装跨重跑持续；top 反转（`top_trend_dir` 与 armed 不一致）⇒ 清武装（去陈旧武装）。
+    /// 2. **a0 区间套定位**：在武装下，找**最低级别**与武装极性一致的 type1（顶背驰段找 type1_sell /
+    ///    底背驰段找 type1_buy）= 区间套向下定位到的精确买卖点（最低级别 = 最接近 a0）。
+    /// 3. **整仓翻转操作**：定位点 ∧ 当前持仓 ≠ 武装极性 ⇒ clear_all（close/cover）+ enter（做多/做空）
+    ///    全仓。翻转后 cur==op ⇒ 同武装不再翻（幂等）；持仓骑走势直到反向武装定位。
+    ///
+    /// **不是读法甲**（全 a0 穷尽机械翻转）：唯有大级别背驰段武装下的 a0 定位点才翻转，背驰段是筛选闸门。
+    /// **有效域边界**（不声明膨胀）：区间套中间级别逐级背驰段未逐层校验（仅 top 武装 + a0 最低定位）；
+    /// 严格逐级嵌套（每级别背驰段）未实装，记为有效域边界（与 divergence.rs 条件3/序数简化同类）。
+    fn nest_step(&mut self, view: &LevelView, bar: i64, c: f64) {
+        // ── 1. 去陈旧武装：top 反转（当前 top 走势方向与 armed 期望方向不符）⇒ 清武装 + 开新窗口 ──
+        if let (Some(armed), Some(dir)) = (self.nest_armed_op, view.top_trend_dir) {
+            // armed Short 期望 top=Up；armed Long 期望 top=Down。不符 ⇒ top 已反转 ⇒ 清。
+            let consistent = match dir {
+                Direction::Up => Polarity::Short,
+                Direction::Down => Polarity::Long,
+            };
+            if armed != consistent {
+                self.nest_armed_op = None;
+                self.nest_consumed = false; // 窗口结束，下个背驰段窗口可再翻
+            }
+        }
+        // ── 1'. 武装/更新：最高级别进入背驰段 ⇒ armed = 操作极性。极性变 = 新窗口 ⇒ 重置 consumed ──
+        if let Some(op) = view.top_diverge {
+            if self.nest_armed_op != Some(op) {
+                self.nest_consumed = false; // 新背驰段窗口（或方向反转）⇒ 允许一次新定位翻转
+            }
+            self.nest_armed_op = Some(op);
+        }
+        // ── 2. a0 区间套定位：武装下找最低级别一致 type1（每窗口仅一次 = 读法乙非读法甲）──
+        let armed = match self.nest_armed_op {
+            Some(op) => op,
+            None => return, // 未武装 = 大级别未进背驰段 ⇒ 不操作（持现状/空仓）= 556 可能冻结根源（L3 测）
+        };
+        if self.nest_consumed {
+            return; // 本背驰段窗口已定位翻转过 ⇒ 持仓骑走势，不在同一窗口内反复翻（读法乙：一个转折点）
+        }
+        let want_buy = armed == Polarity::Long; // 底背驰段武装 → 找 type1_buy；顶背驰段 → type1_sell
+        let located = (0..MAX_LEVEL).find(|&k| if want_buy { view.t1buy[k] } else { view.t1sell[k] });
+        let loc = match located {
+            Some(k) => k,
+            None => return, // 武装但本重跑无 a0 定位点 ⇒ 等下一定位点（持现状）
+        };
+        // ── 3. 整仓翻转（cover/close + 反向 enter），每窗口一次（consumed 守卫）──
+        let cur = self.highest_active().map(|cc| self.instances[cc].direction);
+        if cur == Some(armed) {
+            self.nest_consumed = true; // 已在目标方向 ⇒ 本窗口视为已消费（不再找定位点）
+            return;
+        }
+        // 记录被平仓位逐笔（539 验收：NEST 下做空腿是长持死扣还是高频短持小亏）。
+        if let Some(cc) = self.highest_active() {
+            let inst = self.instances[cc];
+            if inst.units > EPS && inst.basis.is_finite() {
+                let is_short = inst.direction == Polarity::Short;
+                let pnl = match inst.direction {
+                    Polarity::Long => inst.units * (c - inst.basis),
+                    Polarity::Short => inst.units * (inst.basis - c),
+                };
+                self.nest_trades.push((is_short, inst.node.start_bar, inst.basis, bar, c, pnl));
+            }
+        }
+        self.guards.set_trigger(OpTrigger::Bsp); // a0 定位 type1 = 合法 BSP 触发源
+        self.clear_all(c);
+        let node = view.nodes.get(loc).copied().flatten().unwrap_or_else(|| {
+            TrendNode::new(bar, bar, c, c, match armed {
+                Polarity::Long => Direction::Up,
+                Polarity::Short => Direction::Down,
+            })
+        });
+        self.enter(loc, armed, node, c);
+        self.n_nest_flips += 1;
+        self.nest_consumed = true; // 本背驰段窗口已定位翻转，骑走势到窗口结束（top 反转）/反向窗口再翻。
+    }
+
     // ──────────────── 单 bar 步进（= flat step）────────────────
 
     /// 单 bar 操作步进（= flat step）：强平 → emergence_upgrade → route_bsp top-down。
@@ -853,6 +1047,15 @@ impl TRoot {
                     }
                 }
             }
+        }
+
+        // ── A^NEST. 命题4 读法乙（旁路 route_bsp/cc 锚，大级别背驰段闸门 a0 区间套定位翻转）──
+        //   enable_nest 时**取代** A''/A'/B（OFF 路径）：单一全仓位，在大级别背驰段武装下、由 a0 区间套
+        //   定位到的 type1 点整仓翻转（买点 cover+做多 / 卖点 close+做空）。强平（块 A）仍保留（诚实会计）。
+        if self.enable_nest {
+            self.nest_step(view, bar, c);
+            self.prove_tw_neutral(tw_pre, c);
+            return;
         }
 
         // ── A''. 核心走势完成 → 主动清仓（campaign 边界重定义，546号死锁解锁；与 flat 对称）──

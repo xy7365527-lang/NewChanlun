@@ -91,6 +91,21 @@ pub struct RecStream {
     pub bsp_counts: [u64; 6],
     pub bsp_by_level: [[u64; 6]; 10], // [level][kind]
     bsp_seen: std::collections::HashSet<(i64, usize, u8)>,
+    /// 引擎变体配置（OFF / ANCHOR / NEST）。
+    cfg: super::rec_engine::EngineConfig,
+    // ── 命题4 读法乙顶层闸门测量（556 解冻判据：背驰段触发频率 vs type1 完成触发频率）──
+    /// 重跑中最高级别处于**背驰段**（trend_candidate）的次数（armed reruns）。
+    pub n_top_diverge_reruns: u64,
+    /// 不同**背驰段窗口**数（未武装→武装跳变 = 大级别进入新背驰段的事件数）。
+    pub n_top_diverge_windows: u64,
+    /// 最高级别 **type1 完成**触发次数（重跑中 top level t1 fire）= 556 冻结的稀疏触发。
+    pub n_top_type1: u64,
+    /// 最高有走势级别分布（每重跑，诊断 top 级别随塔生长上移）。
+    pub top_level_hist: [u64; 9],
+    prev_top_armed: bool,
+    /// 顶层背驰段失败归因（每重跑划分 top 走势状态，诊断 W=0 根因）：
+    /// 0=无顶层走势 1=盘整 2=趋势<2中枢 3=≥2中枢但无c段 4=c段存在但结构滤网否 5=背驰段(armed)。
+    pub nest_diag: [u64; 6],
 }
 
 impl RecStream {
@@ -100,13 +115,23 @@ impl RecStream {
     }
 
     /// 显式指定 a₀ 来源（线段=基线 / 笔=递归底座下移，526号）。`new(mode)` 委托此构造默认 Segment。
+    /// 引擎配置从 env 读（= 当前 main 行为，OFF 基线）。
     pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source) -> Self {
+        Self::new_with_config(mode, a0_source, super::rec_engine::EngineConfig::from_env())
+    }
+
+    /// 显式引擎配置（OFF / ANCHOR / NEST 受控对照，单进程多变体）。
+    pub fn new_with_config(
+        mode: PerfectionMode,
+        a0_source: A0Source,
+        cfg: super::rec_engine::EngineConfig,
+    ) -> Self {
         RecStream {
             // orch 配置与 flat stream / backtest_run 逐字一致（segments bit-exact）。
             orch: RecursiveOrchestrator::new(6, "wide", 5, false, 3, false, false, false),
             mode,
             a0_source,
-            driver: RecDriver::new(INITIAL_CAPITAL),
+            driver: RecDriver::new_with_config(INITIAL_CAPITAL, cfg),
             macd: OnlineMacdState::new(12, 26, 9),
             prefix_pos: vec![0.0],
             prefix_neg: vec![0.0],
@@ -137,6 +162,13 @@ impl RecStream {
             bsp_counts: [0; 6],
             bsp_by_level: [[0; 6]; 10],
             bsp_seen: std::collections::HashSet::new(),
+            cfg,
+            n_top_diverge_reruns: 0,
+            n_top_diverge_windows: 0,
+            n_top_type1: 0,
+            top_level_hist: [0; 9],
+            prev_top_armed: false,
+            nest_diag: [0; 6],
         }
     }
 
@@ -177,7 +209,7 @@ impl RecStream {
                 self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (v, new_bsps, trend_stats, cd_split, cd_dumps) = {
+                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info) = {
                     let segs = self.orch.segments();
                     let strokes = self.orch.strokes();
                     let m2r = self.orch.merged_to_raw();
@@ -253,9 +285,55 @@ impl RecStream {
                         .into_iter()
                         .map(|b| (b.bar, b.price, b.level, b.kind))
                         .collect();
-                    (extract_view(&tree), bs, ts, cds, dumps)
+                    // ── 命题4 读法乙：最高级别背驰段闸门（src-prop13 第27课区间套，背驰段⊊走势完成）──
+                    //   最高有走势级别的当前（最后）走势：trend_candidate=结构∧MACD 双确认未创新高=背驰段。
+                    //   上涨顶背驰段→Short（卖点 close+做空）/ 下跌底背驰段→Long（买点 cover+做多）。
+                    let top_div_info = {
+                        let top_lvl = tree.levels.iter().rposition(|l| !l.trends.is_empty());
+                        match top_lvl.and_then(|tl| tree.levels[tl].trends.last().map(|t| (tl, t))) {
+                            Some((tl, top_trend)) => {
+                                let lvl = tree.levels[tl].level;
+                                let dir = top_trend.direction;
+                                let is_div = crate::recursive_t::divergence::trend_diverging_segment(top_trend, self.mode);
+                                // 失败归因划分（诊断 W 根因；背驰段含趋势+盘整）。
+                                let diag = if is_div {
+                                    5 // 背驰段(armed)：趋势背驰段 ∨ 盘整背驰段
+                                } else if !matches!(top_trend.kind, TrendKind::UpTrend | TrendKind::DownTrend) {
+                                    1 // 盘整但非背驰段（无离开段/力度未衰减）
+                                } else if top_trend.zhongshus.len() < 2 {
+                                    2 // 趋势<2中枢
+                                } else {
+                                    let lc = top_trend.zhongshus.last().unwrap();
+                                    let cs = lc.units.last().map(|i| i + 1).unwrap_or(usize::MAX);
+                                    if cs >= top_trend.units.len() {
+                                        3 // ≥2中枢但无c段
+                                    } else {
+                                        4 // c段存在但结构滤网否
+                                    }
+                                };
+                                let div = if diag == 5 {
+                                    Some(match dir {
+                                        Direction::Up => crate::trading::types::Polarity::Short,
+                                        Direction::Down => crate::trading::types::Polarity::Long,
+                                    })
+                                } else {
+                                    None
+                                };
+                                (div, Some(dir), lvl, diag)
+                            }
+                            None => (None, None, 0usize, 0usize),
+                        }
+                    };
+                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info)
                 };
                 view = v;
+                // 命题4 读法乙闸门注入 LevelView（engine nest_step 消费；OFF/ANCHOR 忽略 ⇒ bit-exact）。
+                let (top_div, top_dir, top_lvl_val, top_diag) = top_div_info;
+                view.top_diverge = top_div;
+                view.top_trend_dir = top_dir;
+                if top_diag < 6 {
+                    self.nest_diag[top_diag] += 1;
+                }
                 // 累加全程（每次重跑 tree 的走势类型 + no_leave 切分），首例结构只记一次。
                 for lv in 0..9 {
                     for i in 0..4 {
@@ -303,6 +381,22 @@ impl RecStream {
                     }
                 }
                 self.n_reruns += 1;
+                // ── 命题4 读法乙 556 测量：背驰段触发频率 vs type1 完成触发频率（决定 src-prop13 vs 假消解）──
+                let top_armed = view.top_diverge.is_some();
+                if top_armed {
+                    self.n_top_diverge_reruns += 1;
+                    if !self.prev_top_armed {
+                        self.n_top_diverge_windows += 1; // 大级别进入新背驰段事件
+                    }
+                    if top_lvl_val < 9 {
+                        self.top_level_hist[top_lvl_val] += 1;
+                    }
+                }
+                self.prev_top_armed = top_armed;
+                // 最高级别 type1 完成（556 冻结的稀疏触发）：top level t1 本重跑 fire。
+                if top_lvl_val < MAX_LEVEL && (view.t1buy[top_lvl_val] || view.t1sell[top_lvl_val]) {
+                    self.n_top_type1 += 1;
+                }
                 // 诊断：本次最高级别走势方向（emergent_top 极性）。
                 self.last_c0 = match view.emergent_top {
                     Some((_, crate::trading::types::Polarity::Long)) => 1,
@@ -887,6 +981,167 @@ mod tests {
             );
         }
         println!("======================================================\n");
+        assert!(!rows.is_empty(), "至少跑出一个标的");
+    }
+
+    /// **命题4 读法乙 L3 验证：OFF / ANCHOR / NEST 8 标的对照**（src-prop13 决定性测量）。
+    ///
+    /// 三变体（PerfectionMode::Structural 固定，受控对照单进程多变体）：
+    /// - **OFF** = 当前 main 独立腿（cc 锚 + trend_done_clear）。
+    /// - **ANCHOR** = OFF + 趋势底仓（552号 HOLD_ANCHOR）。
+    /// - **NEST** = 命题4 读法乙（旁路 cc 锚，大级别背驰段闸门 a0 区间套定位翻转）。
+    ///
+    /// 决定性测量（556 是否解冻）：顶层**背驰段触发频率**（W=n_top_diverge_windows）vs
+    /// **type1 完成触发频率**（T=n_top_type1）。W≫T ⇒ src-prop13（背驰段≠完成，真解冻）；
+    /// W≈T ⇒ recursive-bsp（假消解，背驰段与完成同等稀疏）。
+    ///
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::prop4_nest_l3 -- --exact --ignored --nocapture`
+    /// `BT_SYMBOLS=CL,BTC` 过滤标的。
+    #[test]
+    #[ignore = "命题4 读法乙 L3 全量回测，需 analysis/data_cache/*.json"]
+    fn prop4_nest_l3() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_default();
+
+        eprintln!("\n========== 命题4 读法乙 L3：OFF / ANCHOR / NEST（PerfectionMode::Structural）==========");
+        // (sym, bh, strat[OFF,ANCHOR,NEST], W, T, armed_reruns, reruns, nest_flips, nest_short_pnl, off_short_pnl)
+        struct Row {
+            sym: String,
+            bh: f64,
+            strat: [f64; 3],
+            w: u64,
+            t: u64,
+            armed: u64,
+            reruns: u64,
+            nest_flips: u64,
+            nest_short_n: usize,
+            nest_short_pnl: f64,
+            nest_short_hold_avg: f64,
+            nest_long_n: usize,
+            nest_short_leg_pnl: f64,
+            off_short_pnl: f64,
+        }
+        let mut rows: Vec<Row> = Vec::new();
+        let variants = [("OFF", EngineConfig::off()), ("ANCHOR", EngineConfig::anchor()), ("NEST", EngineConfig::nest())];
+
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
+            let path = data_dir.join(file);
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失 {path:?}，跳过");
+                continue;
+            }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
+            let mut strat = [0.0f64; 3];
+            let mut row = Row {
+                sym: sym.to_string(), bh, strat: [0.0; 3], w: 0, t: 0, armed: 0, reruns: 0,
+                nest_flips: 0, nest_short_n: 0, nest_short_pnl: 0.0, nest_short_hold_avg: 0.0,
+                nest_long_n: 0, nest_short_leg_pnl: 0.0, off_short_pnl: 0.0,
+            };
+
+            for (vi, (vname, cfg)) in variants.iter().enumerate() {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
+                let fin = s.finish();
+                strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                let r = s.driver().root();
+                assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限（会计 bug）");
+                eprintln!(
+                    "[{sym:<5}/{vname:<6}] strat={:+.1}% bh={:+.1}% enter={} flip={} nest_flip={} short_pnl={:+.0} \
+                     liq={} reruns={} ({:.1}s)",
+                    strat[vi], bh, r.n_enters, r.n_flips, r.n_nest_flips, r.short_leg_pnl,
+                    r.n_liquidations, s.n_reruns, t0.elapsed().as_secs_f64()
+                );
+                if *vname == "OFF" {
+                    row.off_short_pnl = r.short_leg_pnl;
+                }
+                if *vname == "NEST" {
+                    row.w = s.n_top_diverge_windows;
+                    row.t = s.n_top_type1;
+                    row.armed = s.n_top_diverge_reruns;
+                    row.reruns = s.n_reruns;
+                    row.nest_flips = r.n_nest_flips;
+                    row.nest_short_leg_pnl = r.short_leg_pnl; // 综合做空腿 P&L（含强平腿，539 主指标）
+                    // NEST 逐笔做空腿（539 验收：长持死扣 vs 高频短持小亏）。
+                    let shorts: Vec<&(bool, i64, f64, i64, f64, f64)> =
+                        r.nest_trades.iter().filter(|t| t.0).collect();
+                    let longs = r.nest_trades.iter().filter(|t| !t.0).count();
+                    row.nest_short_n = shorts.len();
+                    row.nest_short_pnl = shorts.iter().map(|t| t.5).sum();
+                    row.nest_long_n = longs;
+                    let hold_sum: f64 = shorts.iter().map(|t| (t.3 - t.1) as f64).sum();
+                    row.nest_short_hold_avg = if shorts.is_empty() { 0.0 } else { hold_sum / shorts.len() as f64 };
+                    let top_hist: Vec<u64> = (0..9).map(|k| s.top_level_hist[k]).collect();
+                    let armed_pct = 100.0 * s.n_top_diverge_reruns as f64 / s.n_reruns.max(1) as f64;
+                    eprintln!(
+                        "  [{sym}/NEST] ★顶层闸门: 背驰段窗口W={} type1完成T={} | armed_reruns={}/{} (armed%={:.1}) | top_level_hist={:?}",
+                        s.n_top_diverge_windows, s.n_top_type1, s.n_top_diverge_reruns, s.n_reruns, armed_pct, top_hist
+                    );
+                    eprintln!(
+                        "  [{sym}/NEST] 顶层状态划分[0无走势,1盘整,2趋势<2中枢,3≥2中枢无c段,4c段存在结构否,5背驰段]={:?}",
+                        s.nest_diag
+                    );
+                    // NEST 做空腿逐笔分布（持仓 bar 直方）。
+                    let short_pnls: Vec<i64> = shorts.iter().map(|t| t.5 as i64).take(12).collect();
+                    let short_holds: Vec<i64> = shorts.iter().map(|t| t.3 - t.1).take(12).collect();
+                    eprintln!(
+                        "  [{sym}/NEST] 做空腿: n={} 总pnl={:+.0} 平均持仓bar={:.0} | 多头腿 n={} | 前12短pnl={:?} 前12持bar={:?}",
+                        shorts.len(), row.nest_short_pnl, row.nest_short_hold_avg, longs, short_pnls, short_holds
+                    );
+                }
+            }
+            row.strat = strat;
+            rows.push(row);
+        }
+
+        // ── 汇总矩阵 ──
+        println!("\n===== 命题4 读法乙 L3 矩阵（strat% OFF/ANCHOR/NEST vs BH，* = 超 BH）=====");
+        println!("{:<6} {:>12} {:>12} {:>12} {:>11}", "标的", "OFF", "ANCHOR", "NEST", "BH");
+        for r in &rows {
+            let mk = |x: f64| if x > r.bh { "*" } else { " " };
+            println!(
+                "{:<6} {:>+10.1}%{} {:>+10.1}%{} {:>+10.1}%{} {:>+10.1}%",
+                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]), r.strat[2], mk(r.strat[2]), r.bh
+            );
+        }
+        // ── 556 解冻判据矩阵：W（背驰段窗口）vs T（type1完成）──
+        println!("\n----- 556 顶层触发频率：W=背驰段窗口 vs T=type1完成（W≫T⇒src-prop13真解冻 / W≈T⇒假消解）-----");
+        println!("{:<6} {:>8} {:>8} {:>10} {:>8} {:>10} {:>10}", "标的", "W", "T", "W/T", "nest_flip", "armed%", "reruns");
+        for r in &rows {
+            let wt = if r.t > 0 { format!("{:.2}", r.w as f64 / r.t as f64) } else { "∞/NaN".to_string() };
+            let armed_pct = 100.0 * r.armed as f64 / r.reruns.max(1) as f64;
+            println!(
+                "{:<6} {:>8} {:>8} {:>10} {:>8} {:>9.1}% {:>10}",
+                r.sym, r.w, r.t, wt, r.nest_flips, armed_pct, r.reruns
+            );
+        }
+        // ── vs 539：NEST 做空腿逐笔 vs OFF 做空腿 ──
+        println!("\n----- vs 539 做空腿：NEST（高频短持小亏？千刀凌迟？长持死扣？）vs OFF -----");
+        println!("{:<6} {:>12} {:>10} {:>12} {:>10} {:>14}", "标的", "NEST空腿pnl(全)", "翻转n", "逐笔空n", "平均持bar", "OFF short_pnl");
+        for r in &rows {
+            println!(
+                "{:<6} {:>+12.0} {:>10} {:>12} {:>12.0} {:>+14.0}",
+                r.sym, r.nest_short_leg_pnl, r.nest_flips, r.nest_short_n, r.nest_short_hold_avg, r.off_short_pnl
+            );
+        }
+        println!("====================================================================\n");
         assert!(!rows.is_empty(), "至少跑出一个标的");
     }
 

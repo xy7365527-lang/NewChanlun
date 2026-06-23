@@ -256,6 +256,65 @@ pub fn trend_candidate(t: &TrendType) -> bool {
         && macd_area_diverges(a_leg, c_leg, t.direction)
 }
 
+/// **命题4 读法乙——背驰段判定（src-prop13 第27课区间套前提）**。
+///
+/// 背驰段 = **走势完美判据（[`judge_divergence`]）去掉几何门 G 的「c 创新高」分量**——即趋势已进入
+/// 末段（≥2 中枢 + c 段存在 + 力度衰减按 `mode` 组合），但**尚未创出最终新高/新低**（未走势完成）。
+/// 源头审计 src-prop13：区间套的操作前提是「大级别**背驰段**」（未完成趋势的最后段），**严格⊊「走势
+/// 完成」**——两者唯一差 = 几何门 G 的创新高确认。本函数即此差的形式化：与 [`judge_trend_divergence`]
+/// **同 F∧S / M / mode 组合**，仅省去 `new_extreme` 检查 ⇒ 背驰段 ⊇ 走势完成（type1）。
+///
+/// **mode 一致性**（关键）：与产 type1 的 `judge_divergence(t, mode)` 用**同一** `combine_modes`——
+/// Structural=纯结构 / And=结构∧MACD / Or=结构∨MACD。`trend_candidate`（AND 硬编码）在 Structural 模式
+/// 下会因 MACD 门恒否而失配（背驰段恒空，假性 556 冻结）——本函数修正之。
+pub fn trend_diverging_segment(t: &TrendType, mode: PerfectionMode) -> bool {
+    match t.kind {
+        TrendKind::UpTrend | TrendKind::DownTrend => {
+            let n_centers = t.zhongshus.len();
+            if n_centers < 2 {
+                return false; // 需 ≥2 中枢（a/c 段背景）
+            }
+            let prev_center = &t.zhongshus[n_centers - 2];
+            let last_center = &t.zhongshus[n_centers - 1];
+            if prev_center.units.is_empty() || last_center.units.is_empty() {
+                return false;
+            }
+            let a_end = *prev_center.units.last().unwrap();
+            let a_leg = &t.units[0..=a_end];
+            let c_start = *last_center.units.last().unwrap() + 1;
+            if c_start >= t.units.len() {
+                return false; // c 段不存在（走势尚未离开末中枢）
+            }
+            let c_leg = &t.units[c_start..];
+            // 与 judge_trend_divergence 同 F∧S / M / mode 组合，**省去 new_extreme（创新高）门** = 背驰段 ⊋ 完成。
+            let structural = trend_structural_filter(t, a_leg, c_leg, a_end, last_center);
+            let macd = macd_area_diverges(a_leg, c_leg, t.direction);
+            combine_modes(structural, macd, mode)
+        }
+        TrendKind::Consolidation => {
+            // 盘整背驰段（= judge_consolidation_divergence 去掉 new_extreme 门）：单中枢 + 离开段存在 +
+            // 力度衰减按 mode 组合。涌现塔最高级别绝大多数是盘整（首形成形态），其 type1 由盘整背驰产生
+            // ⇒ 背驰段判据必须覆盖盘整，否则与 type1（含盘整背驰）口径失配（W 假性为 0）。
+            if t.zhongshus.len() != 1 {
+                return false;
+            }
+            let center = match t.zhongshus.first() {
+                Some(c) if !c.units.is_empty() => c,
+                _ => return false,
+            };
+            let enter_end = *center.units.last().unwrap();
+            if enter_end + 1 >= t.units.len() {
+                return false; // 无离开段（走势未离开中枢）
+            }
+            let enter_leg = &t.units[0..=enter_end];
+            let leave_leg = &t.units[enter_end + 1..];
+            let structural = leg_strength(leave_leg) < leg_strength(enter_leg);
+            let macd = macd_area_diverges(enter_leg, leave_leg, t.direction);
+            combine_modes(structural, macd, mode)
+        }
+    }
+}
+
 /// 趋势背驰结构滤网 F∧S（几何门 G 已通过后）：第37课条件2·3·5（has_nest 时激活）+
 /// 第24课结构力度衰减。返回 `true` ⟺ 结构完美。`Or` 模式下 M 可绕过本滤网（但 G 不可）。
 ///
