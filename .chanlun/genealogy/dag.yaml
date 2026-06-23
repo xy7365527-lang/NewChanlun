@@ -2451,9 +2451,9 @@ nodes:
   file: settled/519-credential-leak-skill-revision-execution.md
 - id: pending-001-scan-state-unobservable
   title: ''
-  status: 生成态
+  status: 已上浮-阻塞于Gemini异质审计
   type: meta-rule
-  file: pending/pending-001-scan-state-unobservable.md
+  file: archive/pending-001-scan-state-unobservable.md
 - id: pending-002-fengkong-trading-system-twin-emergent
   title: fengkong/chanlun-trading-system 双生成态——风控独立性由220号吸收
   status: 已结算
@@ -2461,54 +2461,54 @@ nodes:
   file: archive/pending-002-fengkong-trading-system-twin-emergent.md
 - id: pending-003-blueprint-circle4-force-comparison-gap
   title: ''
-  status: 生成态
+  status: 已上浮-待编排者裁决
   type: domain
-  file: pending/pending-003-blueprint-circle4-force-comparison-gap.md
+  file: archive/pending-003-blueprint-circle4-force-comparison-gap.md
 - id: pending-004-engine-py-strategy-evaluation-violation
   title: ''
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/pending-004-engine-py-strategy-evaluation-violation.md
+  file: archive/pending-004-engine-py-strategy-evaluation-violation.md
 - id: pending-005-orchestrator-proxy-decide-reverse-gap
   title: ''
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/pending-005-orchestrator-proxy-decide-reverse-gap.md
+  file: archive/pending-005-orchestrator-proxy-decide-reverse-gap.md
 - id: pending-006-physical-resource-gap-fourth-type
   title: ''
-  status: 生成态
+  status: 已上浮-待编排者裁决
   type: meta-rule
-  file: pending/pending-006-physical-resource-gap-fourth-type.md
+  file: archive/pending-006-physical-resource-gap-fourth-type.md
 - id: pending-007-blueprint-cycle1-vs-330-layer-tension
   title: ''
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/pending-007-blueprint-cycle1-vs-330-layer-tension.md
+  file: archive/pending-007-blueprint-cycle1-vs-330-layer-tension.md
 - id: pending-008-jsonl-vs-block-primary-migration-incomplete
   title: ''
-  status: 生成态
+  status: 已上浮-待编排者裁决
   type: domain
-  file: pending/pending-008-jsonl-vs-block-primary-migration-incomplete.md
+  file: archive/pending-008-jsonl-vs-block-primary-migration-incomplete.md
 - id: pending-009-data-blueprint-vs-code-coverage-gap
   title: ''
-  status: 生成态
+  status: 已上浮-待编排者裁决
   type: domain
-  file: pending/pending-009-data-blueprint-vs-code-coverage-gap.md
+  file: archive/pending-009-data-blueprint-vs-code-coverage-gap.md
 - id: pending-010-lead-overreach-business-vs-structural
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/pending-010-lead-overreach-business-vs-structural.md
+  file: archive/pending-010-lead-overreach-business-vs-structural.md
 - id: pending-011-topo-divergence-vs-yichan-alignment-gap
   title: ''
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/pending-011-topo-divergence-vs-yichan-alignment-gap.md
+  file: archive/pending-011-topo-divergence-vs-yichan-alignment-gap.md
 - id: pending-012-ph-operational-position-vs-chanlun
   title: ''
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/pending-012-ph-operational-position-vs-chanlun.md
+  file: archive/pending-012-ph-operational-position-vs-chanlun.md
 - id: '520'
   title: 路径空间(t,p)Rips PH 被否决——σ是伪装的自由参数, H0退化为最大单根速度, 时间盲解在因果在线merge tree而非Rips
   status: 已结算
@@ -2531,9 +2531,9 @@ nodes:
   file: settled/523-zhongshu-baseline-deviation-cannot-replace-macd.md
 - id: pending-014-chanlun-ph-categorical-relation
   title: ''
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/pending-014-chanlun-ph-categorical-relation.md
+  file: archive/pending-014-chanlun-ph-categorical-relation.md
 - id: pending-015-settle-unification
   title: 缠论形态学≅(H0 merge tree, R)——从§18投影否定到settle阶梯统一; 完备基底+选择(非高维投影); R=正则化算子(包含处理+特征序列+最小跨度归并);
     走势必完美=merge tree完备覆盖+settle不可逆; pending-014 enriched S 幸存方向的形式化(L0猜想, P1-P3待证)
@@ -2760,6 +2760,21 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/562-bootstrap-structural-enforce.md
+- id: '563'
+  title: ''
+  status: 已结算
+  type: 概念发现
+  file: settled/563-eating-down-piercing-vs-missing-rally-dilemma.md
+- id: '564'
+  title: Stop-Guard check 3 指令层复活 + 自创四分法——548 §六.1 实装缺口
+  status: 已结算
+  type: 语法记录
+  file: settled/564-stopguard-check3-instruction-overflow.md
+- id: '565'
+  title: 幽灵 owner 任务生命周期——死 teammate 名绕过 owner=None 孤儿检测
+  status: 已结算
+  type: 语法记录
+  file: settled/565-ghost-owner-task-lifecycle.md
 edges:
   depends_on:
   - from: '136'
@@ -5706,6 +5721,22 @@ edges:
     to: '560'
   - from: '562'
     to: '561'
+  - from: '563'
+    to: '560'
+  - from: '563'
+    to: '561'
+  - from: '564'
+    to: '548'
+  - from: '564'
+    to: 097
+  - from: '564'
+    to: 018
+  - from: '564'
+    to: '562'
+  - from: '565'
+    to: '155'
+  - from: '565'
+    to: '145'
   triggered:
   - from: '005'
     to: 005a
@@ -7758,6 +7789,24 @@ edges:
   - between:
     - '016'
     - '562'
+  - between:
+    - '155'
+    - '564'
+  - between:
+    - '145'
+    - '564'
+  - between:
+    - 048
+    - '564'
+  - between:
+    - 096
+    - '565'
+  - between:
+    - '275'
+    - '565'
+  - between:
+    - '562'
+    - '565'
   tensions_with:
   - between:
     - '007'
