@@ -9,9 +9,7 @@
 
 ## 0. 一句话判决
 
-**（待 L3 完成填充——见 §4 判决）**
-
-诊断（L3）：prop4-nest 强牛穿仓**两根因对半分**——缺平空（做空对但没锁，45% 腿，pnl −474k，**100% 有 cover 信号**）/ 误判顶（价直上做空错，55% 腿，pnl −359k）。两根因都实质存在 ⇒ consume 与 C 都需要，且**诊断验证编排者 spec（consume = 买卖点 cover + 做多，dual of 557）优于脚手架（次级别背驰段 平 1/3 不开反向腿）**。
+**consume 平空（557 顶层闸门的全级别双向对偶：持仓遇反向 type1∨2∨3 买卖点 → full cover + 做多）普适解 560 的整仓长持死扣穿仓（8/8 强平→0，持仓 30–900× 缩短），并在 range/震荡 regime 产出项目史上最大吃跌 alpha（CL +1429%=50×BH、BRN +178.6%，P1 2/8）；但收益是 regime 函数（trend regime churn 中性/失血 ≪ BH，539 不可约），且 range alpha magnitude 是零摩擦伪影。开放轴 C（严格逐级区间套）收益层否证（误判顶穿仓不减 + consume on 时完全 inert，仅 DX +4.2pp）。诊断（L3，20 腿）：缺平空 45%（100% 有 cover 信号）/ 误判顶 55% 对半分——验证编排者 consume spec（买卖点 cover+做多）优于脚手架（背驰段+1/3）。命题4 双向吃跌：range 成立、trend 仍 539-bound。**
 
 ---
 
@@ -104,42 +102,129 @@ min/max close ⇒ MFE/MAE；type1∨2∨3 买点 cover 信号计数）。二分�
 
 ---
 
-## 3. Step3 L3 结果（8 标的 × 6 变体，Structural）
+## 3. Step3 L3 结果（8 标的 × 6 变体，PerfectionMode::Structural）
 
-**（待全量 L3 完成填充）**
-
-OKLO 预览（已跑）：
+### 3.1 strat% 矩阵（* = 超 BH）
 
 | 标的 | OFF | ANCHOR | NEST(单向) | +CONS | +C | +BIDIR | BH |
 |------|-----|--------|-----|------|-----|------|-----|
+| CL   | +20.3 | −62.6 | −62.9 | **+1429.2*** | −62.5 | **+1429.2*** | +28.2 |
+| BRN  | −26.0 | −89.8 | −105.2 | **+178.6*** | −105.2 | **+178.6*** | +87.4 |
+| DX   | −0.7 | −12.3 | +6.3* | +0.2 | **+10.5*** | +0.2 | +4.1 |
+| GC   | −22.7 | +85.2 | −100.0 | −5.9 | −100.0 | −5.9 | +257.3 |
+| ES   | −2.3 | +301.9 | −100.2 | −28.8 | −100.2 | −28.8 | +594.3 |
+| QQQ  | −8.6 | −54.2 | −100.0 | +16.2 | −100.0 | +16.2 | +174.6 |
+| BTC  | +26.0 | +1080.2 | −100.0 | −99.3 | −100.0 | −99.3 | +1380.4 |
 | OKLO | +55.3 | −88.5 | −103.1 | −92.8 | −100.3 | −92.8 | +307.1 |
 
-**OKLO consume 验收（关键）**：持仓 bar **31973 → 942（34× 缩短）**，强平 **2 → 0（消除穿仓）**，consume=462 次。⇒ **consume 机制确解整仓长持死扣 + 消除强平**，但收益仍 −92.8%（462 次翻转 churn，consume_pnl −93351 = 震荡税）。消融：Δconsume +10.2pp / ΔC +2.8pp。
+**P1（超 BH）：OFF=0 / ANCHOR=0 / NEST=1{DX} / +CONS=2{CL,BRN} / +C=1{DX} / +BIDIR=2{CL,BRN}。**
+
+> **bit-exact 守住**：OFF/ANCHOR/NEST 列逐字复现 prop4-nest baseline（560号）——CL OFF+20.3/ANCHOR BTC+1080.2/NEST 全列与
+> `prop4-nest-readingB-L3-20260623.md` 完全一致。consume/strict 全 flag 门控。
+
+### 3.2 consume 验收（NEST 单向 vs +CONS）：解整仓长持死扣穿仓
+
+| 标的 | NEST% | CONS% | consume数 | NEST持bar | CONS持bar | NEST_liq | CONS_liq |
+|------|-----|-----|-----|------|------|-----|-----|
+| CL   | −62.9 | +1429.2 | 5447 | 310598 | 1016 | 1 | **0** |
+| BRN  | −105.2 | +178.6 | 2528 | 156075 | 997 | 2 | **0** |
+| DX   | +6.3 | +0.2 | 2144 | 551240 | 972 | 0 | 0 |
+| GC   | −100.0 | −5.9 | 5676 | 932633 | 990 | 1 | **0** |
+| ES   | −100.2 | −28.8 | 4739 | 498644 | 1240 | 1 | **0** |
+| QQQ  | −100.0 | +16.2 | 1054 | 405312 | 709 | 1 | **0** |
+| BTC  | −100.0 | −99.3 | 5052 | 132614 | 940 | 1 | **0** |
+| OKLO | −103.1 | −92.8 | 462 | 31973 | 942 | 2 | **0** |
+
+**consume 普适解穿仓**：持仓 bar **30–900× 缩短**（GC 932633→990），强平 **全 8 标的 1–2 → 0（消除穿仓）**。
+
+### 3.3 消融（Δstrat% vs NEST 单向）：consume 贡献 vs C 贡献
+
+| 标的 | Δconsume | ΔC | Δbidir | NEST flip |
+|------|------|-----|------|------|
+| CL   | **+1492.1** | +0.5 | +1492.1 | 9 |
+| BRN  | **+283.8** | +0.0 | +283.8 | 4 |
+| DX   | −6.1 | **+4.2** | −6.1 | 4 |
+| GC   | +94.2 | +0.0 | +94.2 | 5 |
+| ES   | +71.4 | +0.0 | +71.4 | 20 |
+| QQQ  | +116.2 | +0.0 | +116.2 | 2 |
+| BTC  | +0.7 | +0.0 | +0.7 | 5 |
+| OKLO | +10.2 | +2.8 | +10.2 | 7 |
+
+- **consume 贡献主导**（Δ +0.7~+1492pp，7/8 正）；**C 贡献 ≈0**（仅 DX +4.2，其余 0.0/+0.5/+2.8）。
+- **+BIDIR ≡ +CONS 逐字**（8/8 完全相等）⇒ **consume on 时 C 完全 inert**：consume 高频翻转使 construct（strict-C 作用处）几乎不 fire（NEST flip 降到 1），strict-C 仅作用 construct 路径，故被 consume subsume。
 
 ---
 
 ## 4. 判决
 
-**（待 L3 完成）**
+### 4.1 consume 平空是否解 prop4-nest「整仓长持死扣」穿仓？——**YES（机制普适，决定性）**
+全 8 标的：强平 **1–2 → 0**（消除穿仓），持仓 bar **30–900× 缩短**。560号「整仓做空腿长持 1–2 年死扣失血 −87k~−242k → 穿仓」被 consume **结构性消除**——做空形成下跌走势出现 type1∨2∨3 买点即 cover+做多，不再骑到反转穿仓。**编排者核心判据1 = YES。**
+
+### 4.2 C（严格逐级区间套）是否减少误判顶？——**NO（收益层否证）**
+- NEST_C 在 4 个误判顶主力标的（GC/ES/QQQ/BTC）**仍 −100%**（误判顶穿仓**不减**）——strict-C 没拦住误判顶的做空（逐级嵌套校验下，误判顶仍有级别贯通而武装）。
+- C 仅改善 DX construct（NEST +6.3 → NEST_C +10.5，超 BH）；其余标的 ΔC ≈ 0。
+- consume on 时 C 完全 inert（+BIDIR ≡ +CONS）。
+- **C 的诊断承诺（减 55% 误判顶）在收益层未兑现**。误判顶的真解是 consume 的「+做多」翻多（cover 错空 + 骑涨），非 C 的更严武装。**编排者核心判据2 = NO。**
+
+### 4.3 收益符号 / 超 BH / 保持解 556
+- **consume 收益 = regime 函数**（与本项目全部吃跌探索同构，第 N 例）：
+  - **range/油（CL/BRN）**：consume 巨幅 super-BH（CL **+1429%=50×BH**、BRN +178.6%=2×BH，项目史上最大 range alpha）。双向买卖点翻转捕捉震荡。
+  - **mild（QQQ +16.2 / GC −5.9 / ES −28.8）**：解穿仓到近 breakeven，但 ≪ BH（趋势——ANCHOR/BH 吃涨胜）。
+  - **强牛（BTC −99.3）**：双向 churn 在不停牛市失血（每个空腿亏、每个多腿太短未捕捉趋势），勉强解穿仓。
+  - **低波（DX +6.3→+0.2）**：consume churn 抹掉 NEST 的小 edge。
+- **保持解 556**：construct 背驰段闸门不变 ⇒ 556 顶层真解冻不变（consume 正交于 556，作用买卖点非背驰段）。
+
+### 4.4 命题4 双向是否吃跌成立 or 仍 539-bound？——**range 成立，trend 仍 539-bound**
+- consume 把单向的「整仓长持死扣穿仓」改形态为「双向买卖点 churn」：**range regime 是 alpha 来源**（捕捉震荡，CL/BRN 巨幅 super-BH）；**trend regime 是 opportunity cost**（churn 中性/失血，错过趋势，≪ ANCHOR/BH）。
+- **539（做空腿 regime 失血）被 consume 改形态但未消除**：从「整仓穿仓」（560）变为「双向 churn 中性」（不再灾难，但 trend 下仍不盈利）。539 的 regime 依赖**不可约**——这是跨 8 标的 + 多读法的第 N 次确认。
+- 与 560 对照：560 单向 = 解 556 暴露 539（穿仓）；本工位双向 = **解 556 + 解 539 的灾难形态（穿仓）+ 在 range regime 真吃跌（震荡 alpha），但 trend regime 仍 539-bound**。这是吃跌探索的实质推进（首次 consume 普适解穿仓 + range 巨幅 alpha），但**非普适 alpha**（P1 2/8）。
+
+### 4.5 ★关键诚实 caveat（认识论降级）
+1. **zero 摩擦伪影（CRITICAL）**：CL +1429% 来自 **5447 次整仓翻转 @ zero transaction cost**。real cost（CL/BRN 油期 ~1.5–3bps/round-trip × 数千 flip）会大幅侵蚀 range alpha 的 magnitude。**机制（解穿仓 + 震荡捕捉）real（L3），但 range alpha 的 magnitude 是 zero-cost-inflated**（同 [[project_cl_1s_a0_verdict]]/[[project_h4_amp_admission_verdict]] 的零摩擦伪影；cost/maker 建模是开放轴）。
+2. **机制归因（consume ≠ 命题4 区间套）**：consume on 时 construct（背驰段 + a0 区间套 = 命题4 proper）近乎 vestigial（flip 降到 1，consume 462–5676）。**range alpha 来自 consume 的全级别买卖点震荡捕捉（557 顶层闸门族的全级别对偶），非命题4 区间套结构**。命题4 区间套退化为 entry-timing 层（近 inert）。诚实命名：本结果是「**双向 type1∨2∨3 买卖点 mean-reversion（557 闸门族）**」，不是「命题4 读法乙区间套吃跌」。
+3. **consume 定位级别 = 关键未穷举轴**：consume 在**最低级**买卖点翻转（max 自相似 = max churn）⇒ range 捕捉最强但 trend churn 最重（BTC −99.3 = 多腿太短未骑趋势）。最高级（557 literal）会少 flip ⇒ trend 失血降但 range alpha 可能降。级别是 547/558 级别错配问题的复现，未穷举。
 
 ---
 
 ## 5. 六要素结果包
 
-**（§4 判决完成后补全。诊断部分先行）**
-
-1. **结论**（诊断部分）：prop4-nest 强牛穿仓两根因对半分（缺平空 45%/误判顶 55%），缺平空腿 100% 有 cover 信号 ⇒ consume + C 都需要，验证编排者 consume spec（买卖点+做多）优于脚手架（背驰段+1/3）。
-2. **定义依据**：第27课区间套（背驰段 + 自顶向下到 a0）；557 顶层 all_sell 闸门（type2 反弹不新高解稀疏）的对偶（all_buy 闸门 cover）；560 读法乙（背驰段解冻 556 暴露 539）；539 做空腿 regime。
-3. **边界条件**：θ_fav=5%（诊断二分阈值，极值鲁棒、中段敏感）；consume 定位级别（最低级=最 churn；最高级=最少）；C 严格度（逐级 vs 仅 top）。
-4. **下游推论**：（待 L3）。
-5. **谱系引用**：560（读法乙）、557（顶层闸门对偶）、539（做空腿 regime）、556（顶层冻结）、547（cascade 级别错配）、231（有效域≠定义域）。
-6. **影响声明**：worktree 实装（consume + C + 诊断埋点），不触主树（避碰撞）；待 team-lead 协调合并。
+1. **结论**：命题4 读法乙**双向**（construct 背驰段闸门保留 + consume = type1∨2∨3 买卖点 full cover+做多，557 顶层闸门全级别对偶 + 开放轴C 严格逐级区间套）忠实实装（隔离 worktree，OFF/NEST bit-exact）。L3 8 标的：**consume 普适解整仓长持死扣穿仓（liq 全 →0，持仓 30–900× 缩短）**；收益 = regime 函数，P1 2/8{CL +1429%、BRN +178.6% 巨幅 super-BH（range/油）}，trend regime 解穿仓但 ≪ BH。C 收益层否证（误判顶不减，consume on 时 inert）。诊断（L3，20 腿）：缺平空 45%（100% 有 cover 信号）/ 误判顶 55%。
+2. **定义依据**：第27课区间套（先找背驰段→次级别相应背驰段→反复到 a0）= construct + 开放轴C 逐级嵌套；557 顶层 all_sell 闸门（type1∨2∨3，「不是方向是买卖点」）的对偶 = consume（持空遇买点 cover+做多）；560 读法乙单向（背驰段解冻 556 暴露 539）；539（做空腿 regime 失血）；本工位输入数据满足：每条做空腿的 MFE/MAE（持仓期价格极值）+ type1∨2∨3 cover 信号计数 ⇒ 缺平空/误判顶二分。
+3. **边界条件（结论翻转处）**：
+   - (a) **consume 定位级别**：最低级（本实装，max churn）→ range alpha 最强 / trend churn 最重。改最高级（557 literal）→ trend 失血降但 range alpha 可能降。**级别决定 regime 画像**（547/558 级别错配复现，未穷举）。
+   - (b) **transaction cost**：zero cost（本实装）→ CL +1429%；real cost（数千 flip × bps）→ range alpha magnitude 大幅降。**符号（解穿仓 + range 正 / trend 负）鲁棒于 cost；magnitude 不鲁棒**。
+   - (c) **θ_fav=5%**（诊断二分阈值）：极值（OKLO/BTC +33~36% 缺平空 / ES/QQQ/BRN +0.2~2% 误判顶）鲁棒；GC/CL 中段（+9.7/+11.4%）阈值升 10% 会重归类。
+   - (d) **C 严格度**（逐级 vs 仅 top）：本实装逐级 loc..=top；收益层 ≈ no-op（除 DX）。
+4. **下游推论**：
+   - **吃跌核心难点从「顶层冻结」彻底转移到「做空腿 regime + 平空触发」**：560 证「解 556 暴露 539」；本工位证「consume 解 539 灾难形态（穿仓）+ range 真吃跌」，但 trend regime 539 不可约。⇒ **吃跌 alpha 的有效域 = range/震荡 regime（白名单 {CL, BRN}）**，与 ANCHOR 的吃涨有效域（强牛 {GC/ES/BTC}）**正交互补**（consume 吃震荡 / ANCHOR 吃趋势）。
+   - **consume（557 全级别对偶）= 双向 mean-reversion 引擎**：range 捕捉震荡 = alpha；trend churn 中性 = opportunity cost。这是独立于命题4 区间套的机制（construct 近 inert）。
+   - **ANCHOR + consume 组合开放轴**（557 §四正交开放轴的实证延伸）：ANCHOR 底仓吃涨（强牛 super-BH）+ consume 机动吃震荡（range super-BH）——两 regime 互补，从未组合测。
+5. **谱系引用**：
+   - **560**（读法乙单向）：本工位双向是其直接延伸——单向解 556 暴露 539 穿仓 → 双向 consume 解穿仓 + range 吃跌。
+   - **557**（顶层 all_sell 闸门 type1∨2∨3，「不是方向是买卖点」）：consume = 其**全级别双向对偶**（顶层 all_buy 闸门 + 自相似次级别）。557 收益 PARTIAL（无超 BH）→ 本工位 consume 全级别双向 2/8 super-BH（range）——557 闸门族在 range regime 真出 alpha。
+   - **539**（做空腿 regime 失血）：被 consume 改形态（穿仓→churn 中性）但 regime 依赖不可约（trend 仍负）= 第 N 次确认。
+   - **556**（顶层冻结）：construct 不变 ⇒ 真解冻保持。
+   - **547**（cascade 级别错配）/ **558**（构成≠操作等价）：consume 定位级别问题是其复现（最低级 churn vs 最高级 trend-capture）。
+   - **231/formalization-validity-domain**：consume 机制有效域（解穿仓，普适）⊋ alpha 有效域（range，2/8）= 第 N 例。
+   - **552**（ANCHOR 强牛吃涨）：与 consume 吃震荡正交互补（组合开放轴）。
+   - memory：`project_cl_1s_a0_verdict`/`project_h4_amp_admission_verdict`（零摩擦伪影）、`project_t_short_leg_regime_function`、`project_c_segment_fix_regime`（机制成立 + 收益 regime 同构）。
+6. **影响声明**：隔离 worktree 实装（`EngineConfig` consume/strict 变体 + `nest_step` consume/strict-C + `LevelView.level_diverge` + 诊断埋点 nest_trades 8 元组/all_buy_bars + harness `prop4_pierce_diagnosis`/`prop4_bidir_l3`）；**不触主树**（避 prop4-nest 脚手架并发碰撞，§0.1）；待 team-lead 协调合并（主树脚手架的 consume=背驰段+1/3 应替换为本 spec=买卖点+做多，诊断 §1.3 + L3 §4 验证后者）；不改任何已结算定义。
 
 ---
 
 ## 6. 认识论等级标注
 
-- §1 诊断 = **L3**（8 标的真实数据，20 腿，含否定性——55% 误判顶 consume 难解）。
-- §2 实装 = **L0**（源码 + 概念形式化，第27课/557 对偶逐字导出）。
-- §3 L3 = **L3**（8 标的 × 6 变体真实数据）。
-- consume 定位级别 / C 严格度 = 部分**未穷举**（有效域边界，诚实标注）。
+- §1 诊断 = **L3**（8 标的真实数据，20 腿，含否定性——55% 误判顶 consume 难单纯 cover 解）。
+- §2 实装 = **L0**（源码 + 概念形式化，第27课区间套 / 557 顶层闸门对偶逐字导出）。
+- §3 L3 / §4 判决 = **L3**（8 标的 × 6 变体真实数据，含否定性——C 否证、trend regime 不盈利、P1 2/8）。
+- §4.5 caveat：zero-cost magnitude = **L3 但零摩擦**（符号鲁棒、magnitude 待 cost 建模）；consume 定位级别 = **未穷举**（有效域边界，诚实标注）。
+
+---
+
+## 7. 建议谱系号方向
+
+- **谱系 561**（命题4 读法乙双向 consume——解穿仓普适 + range 吃跌 alpha / trend 仍 539-bound）：
+  - 结算方向：**consume（557 顶层闸门的全级别双向对偶：持仓遇反向 type1∨2∨3 买卖点 → full cover + 反向）普适解 560 的整仓长持死扣穿仓（liq 全→0），并在 range/震荡 regime 产出项目史上最大吃跌 alpha（CL +1429%=50×BH、BRN +178.6%）；但收益是 regime 函数（trend regime churn 中性/失血 ≪ BH，539 不可约），且 range alpha magnitude 是零摩擦伪影。C（严格逐级区间套）收益层否证（误判顶不减 + consume on 时 inert）。**
+  - depends_on：560（读法乙单向）、557（顶层闸门，consume 是其全级别对偶）、539（做空腿 regime）。
+  - related：556、547、558、231、552（ANCHOR 正交）。
+- **开放轴**（未关闭）：(1) consume 定位级别（最低 vs 最高 = range/trend 画像调节）；(2) transaction cost / maker 建模（range alpha magnitude 真实性）；(3) ANCHOR + consume 组合（吃涨 ∥ 吃震荡正交，从未组合测）。

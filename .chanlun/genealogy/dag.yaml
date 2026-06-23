@@ -1978,7 +1978,7 @@ nodes:
   file: settled/395-Q-R3-16-reachability-reversal.md
 - id: '396'
   title: ''
-  status: 生成态
+  status: 已结算
   type: concept-separation
   file: settled/396-settlement-thermal-death.md
 - id: '397'
@@ -2221,34 +2221,34 @@ nodes:
   file: pending/443-meta-observation-v236-swarm.md
 - id: '444'
   title: ''
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/444-naming-crystallization-gaps.md
+  file: settled/444-naming-as-articulate-byproduct.md
 - id: '445'
   title: ''
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/445-path-naming-gaps.md
+  file: settled/445-edge-path-encodes-research-lineage.md
 - id: '446'
   title: ''
-  status: 生成态
+  status: 已结算
   type: 概念发现
-  file: pending/446-deposition-articulate-naming.md
+  file: settled/446-meta-observation-v238-swarm.md
 - id: '447'
   title: ''
-  status: 生成态
+  status: 废弃
   type: 矛盾发现
-  file: pending/447-naming-crystallization-gaps.md
+  file: settled/447-naming-crystallization-gaps.md
 - id: '448'
   title: ''
-  status: 生成态
+  status: 已吸收
   type: 矛盾发现
-  file: pending/448-path-naming-gaps.md
+  file: settled/448-path-naming-gaps.md
 - id: '449'
   title: ''
-  status: 生成态
+  status: 已吸收
   type: 概念发现
-  file: pending/449-deposition-articulate-naming.md
+  file: settled/449-deposition-articulate-naming.md
 - id: '450'
   title: ''
   status: 已结算
@@ -2751,10 +2751,15 @@ nodes:
   type: 概念发现
   file: settled/560-reading-yi-topdown-nesting-a0-location.md
 - id: '561'
-  title: ''
+  title: 完全分类覆盖完备性（CC，unn主prove）+极性协变（N9，推论）——Ω必覆盖买卖点完全分类所有轨道（第17/21课升跌完备性+Burnside穷尽）；539重诊断=Ω坍缩完全分类（过覆盖560/欠覆盖553/b1-L0/b2-L3）；N9降推论(N9⊊CC)；编排者二次重定
   status: 已结算
   type: 概念发现
   file: settled/561-polarity-level-covariance-necessity.md
+- id: '562'
+  title: bootstrap 结构工位从文本提示升格为机制强制——075 扬弃（结构=teammate）
+  status: 已结算
+  type: 语法记录
+  file: settled/562-bootstrap-structural-enforce.md
 edges:
   depends_on:
   - from: '136'
@@ -5686,11 +5691,21 @@ edges:
   - from: '560'
     to: '540'
   - from: '561'
-    to: orbit_doc P2/NR-3
-  - from: '561'
     to: '541'
   - from: '561'
     to: '545'
+  - from: '562'
+    to: 095
+  - from: '562'
+    to: 096
+  - from: '562'
+    to: '137'
+  - from: '562'
+    to: '155'
+  - from: '562'
+    to: '560'
+  - from: '562'
+    to: '561'
   triggered:
   - from: '005'
     to: 005a
@@ -5862,6 +5877,8 @@ edges:
     to: 555 §5.4（+编排者读法 B 假设）的隐含命题『每级别独立腿 + d_top 精确切换 ⟹ 吃每级别涨跌幅（完整对称双吃）』——被 L3 证伪：顶层
       d_top[top] 几乎不触发（最高级别走势跨年，样本期罕有『完成』），顶层腿开仓一次后冻结于回测起点方向（硬币翻面），完整对称双吃不随每级别独立腿自动成立（design
       §335 预注册风险 A 坐实）。读法 B 机制本身在『顶层方向对』时 work 且超 BH（ES/S 锁 Long +681.4★），问题不在每级别独立腿，在顶层方向首段冻结锁错。
+  - from: '562'
+    to: '075'
   related:
   - between:
     - '001'
@@ -7726,6 +7743,21 @@ edges:
   - between:
     - '557'
     - 【memory】project_highest_level_sigma_frozen
+  - between:
+    - '072'
+    - '562'
+  - between:
+    - '075'
+    - '562'
+  - between:
+    - 069
+    - '562'
+  - between:
+    - '145'
+    - '562'
+  - between:
+    - '016'
+    - '562'
   tensions_with:
   - between:
     - '007'

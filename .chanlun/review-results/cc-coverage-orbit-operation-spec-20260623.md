@@ -23,9 +23,13 @@ type3=极性不变持加（ascend）/ 中枢扩张=升级（emergence_upgrade）
 1. **缺 `add` 原语（orbit-type2 坐实）**：引擎 7 原语（enter/flip/sink/recover/drain/ascend/no-op）**无一实现
    "极性不变本级别加仓"**。type2（绝对安全加仓位）+ type3（趋势延续加多）完全分类覆盖**必须新增 `add(k,dir,frac)`
    原语**。这是 539 踏空（吃涨失败）的架构根因——不是判据问题，是**操作词汇表缺一个动词**。
-2. **「上涨趋势确定后只 type3 买」⟹ 强牛永不翻空（orbit-type3 坐实第21课:40 逐字）**：强牛中走势不产真
-   type1/type2 卖（走势未完成），只产 type3 买（延续）。若 Ω 只在**真买卖点**操作 ⟹ 强牛核心仓恒 Long
-   （type3=持加多）⟹ **539 强牛误翻空在架构层消失，无需 if-else 硬编码 regime**（= 552 anchor 的第一性原理依据）。
+2. **「上涨趋势确定后只 type3 买」⟹ 强牛**最高活跃级别**核心仓永不翻空（orbit-type3 坐实第21课:40 逐字；
+   codex 异质质询精化级别边界，§七断言3）**：第21课:40「上涨趋势确定后…只可能 type3 买」是**该级别**走势的
+   级别绑定陈述，**非全市场所有级别全称**。**最高活跃级别 k** 上涨走势未完成（无 k 级别 type1 卖 confirmed）期间，
+   k 级别核心仓恒 Long（禁 k 级别 flip）⟹ **539 强牛误翻空在架构层消失，无需 if-else 硬编码 regime**（= 552 anchor
+   第一性原理依据）。**⚠ 级别边界（实装硬约束）**：flip 禁令**仅作用于 `highest_active()` 级别**；次级别 j<k 的
+   type1 卖（次级别下跌走势完成）触发 **sink**（j 级别局部反向短差，s_j=Short 协变于次级别自身走势 d_j=Down）
+   **仍合法，不属"翻空"**——禁止语义不可外溢到次级别，否则破坏多重赋格短差腿（codex 证伪 §七）。
 
 ---
 
@@ -71,7 +75,7 @@ type3=极性不变持加（ascend）/ 中枢扩张=升级（emergence_upgrade）
 |---|---|---|---|---|---|
 | **T3买** 次级别向上离开中枢，回试低点**不跌破 ZG**（第一次）| 第20课 type3 定理；divergence.rs:345 c_holds_center_edge | **ascend**（核心升级骑趋势）/ **add/deploy_earning**（加多）| Long 不变，仓位↑ | **过覆盖正解+欠覆盖正解** | L0 原文 |
 | **T3卖** 次级别向下离开中枢，回抽高点**不升破 ZD**（第一次）| 第20课镜像 | **ascend** Short / **add** 加空 | Short 不变，仓位↑ | 欠覆盖正解 | L0 原文 |
-| **强牛恒态** 上涨趋势确定后只可能 type3 买，不可能 type1/2 | **第21课:40 逐字**「上涨趋势确定后，不可能再有第一类与第二类买点，只可能有第三类买点」| **持多/加多永不翻空**（ascend/add，**禁 flip**）| Long 恒守恒 | **过覆盖①根治**（强牛误翻空架构消失）| L0 原文（核心结论）|
+| **强牛恒态**（**最高活跃级别**上涨趋势确定后只可能 type3 买，不可能 type1/2）| **第21课:40 逐字**「上涨趋势确定后，不可能再有第一类与第二类买点，只可能有第三类买点」（**该级别**绑定，非全级别）| **持多/加多**（ascend/add，**禁 flip——仅 highest_active() 级别**；次级别 type1 卖→sink 短差仍合法非翻空）| **最高级别** Long 恒守恒 | **过覆盖①根治**（强牛误翻空架构消失）| L0 原文（核心结论，codex 精化级别边界 §七）|
 | **T3 非第一次回试** | 第20课「必须是第一次」 | **no-op**（非 type3，正确排除）| 不变 | — | L0 |
 
 ### D. 中枢三态（中枢自身变化，完备三分类：延伸∪新生∪扩展=全集）—— 子工位 orbit-center3
@@ -228,3 +232,20 @@ type3=极性不变持加（ascend）/ 中枢扩张=升级（emergence_upgrade）
 | orbit-center3 | 中枢三态 | cc-coverage-orbit-center3-20260623.md | 无 |
 | orbit-2bs | 二买卖成败 | cc-coverage-orbit-2bs-20260623.md | **1 处**（判定时刻选择，§五）|
 | orbit-levelT | 级别 T 自相似 | cc-coverage-orbit-levelT-20260623.md | 无 |
+
+---
+
+## 七、异质质询结果（codex-challenger，2026-06-23，默认证伪立场）
+
+中心承重 4 断言经 codex 异质对抗复核（diagnose 模式）。**3 条 confirmed（证伪失败，强化 spec），1 条精化级别边界。**
+
+| 断言 | 裁决 | 证伪失败/精化节点 |
+|---|---|---|
+| **1. 五类操作互不可坍缩** | **confirmed** | type3-ascend vs 扩张-emergence_upgrade（前者换 riding_node 同级别新生，后者换 level 归属升级，合并丢"级别跳升"信息）；add vs recover（前者从 free 主动加仓，后者归还已借短差资金，合并致 NAV 计数重复）——两路合并尝试均在账户结构/级别归属处断链 |
+| **2. add 原语确缺** | **confirmed** | enter 有同向核心仓前提限制（同向走 ascend/no-op 非加仓）、ascend 是 relabel 无 rec_add、recover 是归还（假 recover 违 prove_sink_recover_balance）、`deploy_earning`(rec_engine.rs:740) 是 add 的**强牛多头特例**（仅 EarningShares∧Long，type2 卖无对称覆盖）非通用原语——7 原语逐一失败 |
+| **3. 强牛永不翻空** | **部分（级别边界精化，已并入 §一C/一句话结论）** | 第21课:40「上涨趋势确定后」= **该级别**绑定陈述非全级别全称；「永不翻空」仅对 **highest_active() 核心仓**成立；次级别 type1 卖触发 sink 是缠论正典短差（第27课），不属"翻空"。**实装硬约束：flip 禁令仅作用 highest_active() 级别**，否则禁止次级别 sink 破坏多重赋格 |
+| **4. route_bsp 二元坍缩=539根源** | **confirmed（附精化）** | 信号层确产出完整 BSPKind（rec_stream.rs:283 `bs: Vec<…BSPKind>` 六类 + bsp_counts[6] 统计证实），**丢弃位置 = extract_view→LevelView 字段投影**（LevelView 仅 t1buy/t1sell+buy/sell，无 type2/3/中枢态/成败字段）。修复只需扩展 LevelView，信号层无需改动 |
+
+**最高价值发现**：断言3 的级别混淆——spec §一C「强牛恒态」初稿遗漏「最高活跃级别」限定语，下游 prop4-bidir 若照字面禁 flip 到所有级别会破坏次级别 sink。**已修正**（§一C + 一句话结论加级别边界硬约束），并 re-notify prop4-bidir。这正是异质质询的价值——承重最大且最易出错的断言（混淆最高级别 vs 所有级别）在传给实装层前被截获。
+
+**对 spec 的最终裁决**：断言 1/2/4 confirmed，任务#29 可据此推进；断言3 措辞已修正为级别绑定，安全传递。codex agentId `a313cec4b4ce7e127`。
