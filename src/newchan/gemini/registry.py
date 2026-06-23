@@ -271,12 +271,18 @@ _DERIVE_TEMPLATE = """\
 
 @dataclass(frozen=True, slots=True)
 class ModeConfig:
-    """单个模式的完整配置。"""
+    """单个模式的完整配置。
+
+    reasoning_effort：OpenAI GPT-5.5 推理档位（none/low/medium/high/xhigh）。
+    编排者 2026-06-23 指令"最高推理" → 全模式 xhigh。
+    GPT-5.5 是推理模型，不接受 temperature（推理模型忽略采样温度），
+    因此 temperature 已移除，由 reasoning_effort 取代（声明与实际一致）。
+    """
 
     system_prompt: str
     system_prompt_with_tools: str
     template: str
-    temperature: float
+    reasoning_effort: str
 
 
 _REGISTRY: dict[ModeKey, ModeConfig] = {
@@ -284,25 +290,25 @@ _REGISTRY: dict[ModeKey, ModeConfig] = {
         system_prompt=_SYSTEM_PROMPT,
         system_prompt_with_tools=_SYSTEM_PROMPT_WITH_TOOLS,
         template=_CHALLENGE_TEMPLATE,
-        temperature=0.3,
+        reasoning_effort="xhigh",
     ),
     "verify": ModeConfig(
         system_prompt=_SYSTEM_PROMPT,
         system_prompt_with_tools=_SYSTEM_PROMPT_WITH_TOOLS,
         template=_VERIFY_TEMPLATE,
-        temperature=0.1,
+        reasoning_effort="xhigh",
     ),
     "decide": ModeConfig(
         system_prompt=_ORCHESTRATOR_SYSTEM_PROMPT,
         system_prompt_with_tools=_ORCHESTRATOR_SYSTEM_PROMPT_WITH_TOOLS,
         template=_DECIDE_TEMPLATE,
-        temperature=0.2,
+        reasoning_effort="xhigh",
     ),
     "derive": ModeConfig(
         system_prompt=_DERIVE_SYSTEM_PROMPT,
         system_prompt_with_tools=_DERIVE_SYSTEM_PROMPT_WITH_TOOLS,
         template=_DERIVE_TEMPLATE,
-        temperature=0.1,
+        reasoning_effort="xhigh",
     ),
 }
 

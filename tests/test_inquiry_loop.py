@@ -768,7 +768,7 @@ class TestRunInquiryLoop:
         old_google = os.environ.pop("GOOGLE_API_KEY", None)
         old_openai = os.environ.pop("OPENAI_API_KEY", None)
         try:
-            with pytest.raises(ValueError, match="GOOGLE_API_KEY"):
+            with pytest.raises(ValueError, match="OPENAI_API_KEY"):
                 run_inquiry_loop(
                     subject="test",
                     context="",

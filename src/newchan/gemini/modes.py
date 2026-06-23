@@ -1,20 +1,20 @@
 """各模式的具体实现 — GeminiChallenger 类 + 模块级便捷函数。
 
+底层模型 = OpenAI GPT-5.5（"gemini" 是异质质询工位的角色名，非模型名）。
 prompt 构建、输出解析、sync/async 调用入口。
-genai 在此模块级导入，测试通过 patch("newchan.gemini.modes.genai") 或
-通过兼容垫片 patch("newchan.gemini_challenger.genai") 拦截。
+openai 在此模块级导入，测试通过 patch("newchan.gemini.modes.openai") 或
+通过兼容垫片 patch("newchan.gemini_challenger.openai") 拦截。
 
-概念溯源: [新缠论] — 异质模型质询 + 编排者代理 + 形式推导
+概念溯源: [新缠论] — 异质模型质询（OpenAI GPT-5.5）+ 编排者代理 + 形式推导
 """
 
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
-from google import genai
-from google.genai import errors as genai_errors, types as genai_types
+import openai
 
 from newchan.gemini.engine import (
     _MODEL,
@@ -36,28 +36,26 @@ class ChallengeResult:
     reasoning_chain: tuple[dict, ...] = ()
 
 
-def _create_client(api_key: str | None = None) -> genai.Client:
-    """创建 Gemini 客户端，使用模块级 genai 引用（可被 mock 替换）。"""
-    import newchan.gemini.modes as _self
-
-    key = api_key or os.environ.get("GOOGLE_API_KEY", "")
+def _resolve_key(api_key: str | None = None) -> str:
+    """解析 OpenAI API Key。缺失时 fail-loud。"""
+    key = api_key or os.environ.get("OPENAI_API_KEY", "")
     if not key:
         raise ValueError(
-            "GOOGLE_API_KEY 未设置。"
+            "OPENAI_API_KEY 未设置。"
             "请在 .env 中设置或传入 api_key 参数。"
         )
-    return _self.genai.Client(api_key=key)
+    return key
 
 
 class GeminiChallenger:
-    """Gemini 质询工位的核心类。
+    """异质质询工位的核心类（底层模型 = OpenAI GPT-5.5）。
 
     Parameters
     ----------
     api_key : str | None
-        Google API Key。None 时从 GOOGLE_API_KEY 环境变量读取。
+        OpenAI API Key。None 时从 OPENAI_API_KEY 环境变量读取。
     model : str
-        模型名称，默认 gemini-3.1-pro-preview。
+        模型名称，默认 gpt-5.5-pro（pro 不可用时引擎降级到 gpt-5.5）。
     """
 
     def __init__(
@@ -65,14 +63,17 @@ class GeminiChallenger:
         api_key: str | None = None,
         model: str = _MODEL,
     ) -> None:
-        self._client = _create_client(api_key)
-        self._model = model
-
-    def _get_genai_refs(self) -> tuple[object, object]:
-        """获取当前模块级 genai 和 genai_errors 引用（支持 mock）。"""
         import newchan.gemini.modes as _self
 
-        return _self.genai, _self.genai_errors
+        self._api_key = _resolve_key(api_key)
+        self._client = _self.openai.OpenAI(api_key=self._api_key)
+        self._model = model
+
+    def _get_openai_ref(self) -> object:
+        """获取当前模块级 openai 引用（支持 mock）。"""
+        import newchan.gemini.modes as _self
+
+        return _self.openai
 
     # ── 纯文本模式（sync） ──
 
@@ -90,11 +91,11 @@ class GeminiChallenger:
         if extra_template_kwargs:
             fmt_kwargs = {**fmt_kwargs, **extra_template_kwargs}
         prompt = cfg.template.format(**fmt_kwargs)
-        genai_mod, genai_err = self._get_genai_refs()
+        openai_mod = self._get_openai_ref()
         text, model_used = call_with_fallback(
             self._client, self._model, prompt,
-            cfg.temperature, cfg.system_prompt,
-            genai_mod, genai_err,
+            cfg.reasoning_effort, cfg.system_prompt,
+            openai_mod,
         )
         return ChallengeResult(
             mode=mode, subject=subject,
@@ -132,26 +133,26 @@ class GeminiChallenger:
         mode: ModeKey,
         subject: str,
         context: str,
-        session: object | None,
+        bridge: object | None,
         max_tool_calls: int,
         *,
         extra_template_kwargs: dict | None = None,
     ) -> ChallengeResult:
-        """通用异步工具模式执行。"""
+        """通用异步工具模式执行（OpenAI + Serena MCP 手动 dispatch）。"""
         cfg = get_mode_config(mode)
         fmt_kwargs = {"subject": subject, "context": context}
         if extra_template_kwargs:
             fmt_kwargs = {**fmt_kwargs, **extra_template_kwargs}
         prompt = cfg.template.format(**fmt_kwargs)
-        _, genai_err = self._get_genai_refs()
+        openai_mod = self._get_openai_ref()
+        async_client = openai_mod.AsyncOpenAI(api_key=self._api_key)
 
-        async def _do_call(sess: object) -> ChallengeResult:
+        async def _do_call(br: object) -> ChallengeResult:
             text, model_used, calls, chain = (
                 await call_with_tools_and_fallback(
-                    self._client, self._model, prompt,
-                    cfg.temperature, sess, max_tool_calls,
-                    cfg.system_prompt_with_tools,
-                    genai_types, genai_err,
+                    async_client, self._model, prompt,
+                    cfg.reasoning_effort, br, max_tool_calls,
+                    cfg.system_prompt_with_tools, openai_mod,
                 )
             )
             return ChallengeResult(
@@ -160,25 +161,25 @@ class GeminiChallenger:
                 reasoning_chain=chain,
             )
 
-        if session is not None:
-            return await _do_call(session)
+        if bridge is not None:
+            return await _do_call(bridge)
 
-        from newchan.mcp_bridge import SerenaConfig, mcp_session
+        from newchan.mcp_bridge import McpBridge, SerenaConfig
 
-        async with mcp_session(SerenaConfig()) as sess:
-            return await _do_call(sess)
+        async with McpBridge(SerenaConfig()) as br:
+            return await _do_call(br)
 
     async def challenge_with_tools(
         self,
         subject: str,
         context: str = "",
         *,
-        session: object | None = None,
+        bridge: object | None = None,
         max_tool_calls: int = 20,
     ) -> ChallengeResult:
         """MCP 工具增强质询。"""
         return await self._run_mode_with_tools(
-            "challenge", subject, context, session, max_tool_calls,
+            "challenge", subject, context, bridge, max_tool_calls,
         )
 
     async def verify_with_tools(
@@ -186,12 +187,12 @@ class GeminiChallenger:
         subject: str,
         context: str = "",
         *,
-        session: object | None = None,
+        bridge: object | None = None,
         max_tool_calls: int = 20,
     ) -> ChallengeResult:
         """MCP 工具增强验证。"""
         return await self._run_mode_with_tools(
-            "verify", subject, context, session, max_tool_calls,
+            "verify", subject, context, bridge, max_tool_calls,
         )
 
     async def decide_with_tools(
@@ -199,12 +200,12 @@ class GeminiChallenger:
         subject: str,
         context: str = "",
         *,
-        session: object | None = None,
+        bridge: object | None = None,
         max_tool_calls: int = 20,
     ) -> ChallengeResult:
         """MCP 工具增强编排者决策。"""
         return await self._run_mode_with_tools(
-            "decide", subject, context, session, max_tool_calls,
+            "decide", subject, context, bridge, max_tool_calls,
         )
 
     async def derive_with_tools(
@@ -213,12 +214,12 @@ class GeminiChallenger:
         context: str = "",
         domain: str = "General Mathematics",
         *,
-        session: object | None = None,
+        bridge: object | None = None,
         max_tool_calls: int = 20,
     ) -> ChallengeResult:
         """MCP 工具增强形式推导。"""
         return await self._run_mode_with_tools(
-            "derive", subject, context, session, max_tool_calls,
+            "derive", subject, context, bridge, max_tool_calls,
             extra_template_kwargs={"domain": domain},
         )
 

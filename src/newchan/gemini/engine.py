@@ -1,222 +1,237 @@
-"""核心调用引擎 — API fallback 循环、推理链提取。
+"""核心调用引擎 — OpenAI Responses API + fallback 循环、推理链提取。
 
-纯逻辑模块：不直接导入 genai，所有外部依赖通过参数传入。
+底层模型 = OpenAI GPT-5.5（"gemini" 是异质质询工位的角色名，非模型名）。
+异质源从 Google Gemini 迁移到 OpenAI GPT-5.5（编排者 2026-06-23 指令：
+Gemini API 429 RESOURCE_EXHAUSTED 不可用 → 换装 gpt-5.5 最高级别最高推理）。
 
-概念溯源: [新缠论] — 异质模型质询
+纯逻辑模块：不直接导入 openai，所有外部依赖通过参数传入。
+
+概念溯源: [新缠论] — 异质模型质询（OpenAI GPT-5.5）
 """
 
 from __future__ import annotations
 
+import json
 import logging
-import os
-import time
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "gemini-3.1-pro-preview"
-_FALLBACK_MODEL = "gemini-2.5-pro"
-
-# Thinking budget — 默认无上限，可通过环境变量 GEMINI_THINKING_BUDGET 覆盖
-# -1 表示无上限（Gemini API 自行决定推理深度）
-_DEFAULT_THINKING_BUDGET = -1
-
-# 503 重试配置
-_MAX_RETRIES = 3
-_RETRY_BASE_DELAY = 5  # 秒，指数退避基数
-
-
-def _get_thinking_budget() -> int:
-    """读取 thinking budget 配置。-1 表示无上限。"""
-    raw = os.environ.get("GEMINI_THINKING_BUDGET", "")
-    if raw.strip():
-        return int(raw.strip())
-    return _DEFAULT_THINKING_BUDGET
-
-
-def _make_thinking_config(genai_types):
-    """构造 ThinkingConfig，-1 时不设 budget 限制。"""
-    budget = _get_thinking_budget()
-    if budget < 0:
-        # 无上限：不传 thinking_budget，让 Gemini 自行决定
-        return genai_types.ThinkingConfig()
-    return genai_types.ThinkingConfig(thinking_budget=budget)
+# 最高级别（pro 层）+ 最高推理（xhigh），编排者 2026-06-23 指令。
+# pro 不可用/超时时降级到标准 gpt-5.5（同样 xhigh）。
+_MODEL = "gpt-5.5-pro"
+_FALLBACK_MODEL = "gpt-5.5"
 
 
 def call_with_fallback(
     client: object,
     model: str,
     prompt: str,
-    temperature: float,
+    reasoning_effort: str,
     system_prompt: str,
-    genai_module: object,
-    genai_errors_module: object,
+    openai_module: object,
 ) -> tuple[str, str]:
-    """调用 Gemini API，503 时指数退避重试，重试耗尽后降级到 fallback。
+    """调用 OpenAI Responses API，主模型 API 错误时自动降级到 fallback。
 
     Parameters
     ----------
-    client : genai.Client
+    client : openai.OpenAI
     model : str
     prompt : str
-    temperature : float
+    reasoning_effort : str
+        "none", "low", "medium", "high", or "xhigh"
     system_prompt : str
-    genai_module : google.genai (用于 types.GenerateContentConfig)
-    genai_errors_module : google.genai.errors
+    openai_module : openai (用于 openai.APIError)
 
     Returns (response_text, actual_model_used)。
     """
+    api_error_cls = getattr(openai_module, "APIError", Exception)
+
     for m in (model, _FALLBACK_MODEL):
-        last_err = None
-        for attempt in range(_MAX_RETRIES):
-            try:
-                response = client.models.generate_content(
-                    model=m,
-                    contents=prompt,
-                    config=genai_module.types.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        temperature=temperature,
-                        thinking_config=_make_thinking_config(genai_module.types),
-                    ),
-                )
-                return response.text or "", m
-            except genai_errors_module.ServerError as e:
-                last_err = e
-                if attempt < _MAX_RETRIES - 1:
-                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
-                    logger.warning(
-                        "%s 503 (attempt %d/%d)，%d秒后重试",
-                        m, attempt + 1, _MAX_RETRIES, delay,
-                    )
-                    time.sleep(delay)
-                    continue
-                # 重试耗尽，尝试下一个模型
-                break
-            except genai_errors_module.ClientError:
-                if m == model and m != _FALLBACK_MODEL:
-                    break
-                raise
-        # 当前模型重试耗尽
-        if m == model and m != _FALLBACK_MODEL:
-            logger.warning(
-                "%s %d次重试后仍不可用，降级到 %s",
-                m, _MAX_RETRIES, _FALLBACK_MODEL,
+        try:
+            response = client.responses.create(
+                model=m,
+                instructions=system_prompt,
+                input=prompt,
+                reasoning={"effort": reasoning_effort},
             )
-            continue
-        if last_err is not None:
-            raise last_err
+            return _extract_text(response), m
+        except api_error_cls:
+            if m == model and m != _FALLBACK_MODEL:
+                logger.warning(
+                    "%s 不可用，降级到 %s", m, _FALLBACK_MODEL,
+                )
+                continue
+            raise
     raise RuntimeError("所有模型均不可用")  # pragma: no cover
 
 
 async def call_with_tools_and_fallback(
-    client: object,
+    async_client: object,
     model: str,
     prompt: str,
-    temperature: float,
-    session: object,
+    reasoning_effort: str,
+    bridge: object,
     max_tool_calls: int,
     system_prompt: str,
-    genai_types_module: object,
-    genai_errors_module: object,
+    openai_module: object,
 ) -> tuple[str, str, tuple[str, ...], tuple[dict, ...]]:
-    """Gemini + MCP 自动 function calling 循环。
+    """OpenAI Responses API + MCP 手动 function calling 循环。
 
-    503 时指数退避重试，重试耗尽后降级到 fallback。
+    google-genai 可直接接收 MCP ClientSession 做自动 function calling；
+    OpenAI Responses API 对本地 stdio MCP 不支持直接传 session，
+    因此走 mcp_bridge 的手动 dispatch 路径（get_tools / call_tool）。
+
+    主模型 API 错误时降级到 fallback。
+
+    Parameters
+    ----------
+    async_client : openai.AsyncOpenAI
+    bridge : McpBridge（已连接），提供 get_tools() 与 call_tool()
 
     Returns (response_text, actual_model, tool_call_summaries, reasoning_chain)。
     """
-    import asyncio
+    api_error_cls = getattr(openai_module, "APIError", Exception)
+
+    tool_defs = await bridge.get_tools()
+    openai_tools = [_to_openai_tool(t) for t in tool_defs]
 
     for m in (model, _FALLBACK_MODEL):
-        last_err = None
-        for attempt in range(_MAX_RETRIES):
-            try:
-                response = await client.aio.models.generate_content(
-                    model=m,
-                    contents=prompt,
-                    config=genai_types_module.GenerateContentConfig(
-                        system_instruction=system_prompt,
-                        temperature=temperature,
-                        tools=[session],
-                        automatic_function_calling=genai_types_module.AutomaticFunctionCallingConfig(
-                            maximum_remote_calls=max_tool_calls,
-                        ),
-                        thinking_config=_make_thinking_config(genai_types_module),
-                    ),
-                )
-                tool_calls, chain = extract_reasoning_chain(response)
-                return (
-                    response.text or "",
-                    m,
-                    tuple(tool_calls),
-                    tuple(chain),
-                )
-            except genai_errors_module.ServerError as e:
-                last_err = e
-                if attempt < _MAX_RETRIES - 1:
-                    delay = _RETRY_BASE_DELAY * (2 ** attempt)
-                    logger.warning(
-                        "%s 503 (attempt %d/%d)，%d秒后重试",
-                        m, attempt + 1, _MAX_RETRIES, delay,
-                    )
-                    await asyncio.sleep(delay)
-                    continue
-                break
-            except genai_errors_module.ClientError:
-                if m == model and m != _FALLBACK_MODEL:
-                    break
-                raise
-        if m == model and m != _FALLBACK_MODEL:
-            logger.warning(
-                "%s %d次重试后仍不可用，降级到 %s",
-                m, _MAX_RETRIES, _FALLBACK_MODEL,
+        try:
+            return await _run_tool_loop(
+                async_client, m, prompt, reasoning_effort,
+                system_prompt, openai_tools, bridge, max_tool_calls,
             )
-            continue
-        if last_err is not None:
-            raise last_err
+        except api_error_cls:
+            if m == model and m != _FALLBACK_MODEL:
+                logger.warning(
+                    "%s 不可用，降级到 %s", m, _FALLBACK_MODEL,
+                )
+                continue
+            raise
     raise RuntimeError("所有模型均不可用")  # pragma: no cover
 
 
-def extract_reasoning_chain(
-    response: object,
-) -> tuple[list[str], list[dict]]:
-    """从 Gemini 响应中提取工具调用历史和推理链。"""
-    tool_calls: list[str] = []
-    chain: list[dict] = []
-    history = getattr(
-        response, "automatic_function_calling_history", None,
-    )
-    if not history:
-        return tool_calls, chain
+def _to_openai_tool(tool_def: object) -> dict:
+    """将 mcp_bridge.ToolDefinition 转换为 OpenAI function tool schema。"""
+    return {
+        "type": "function",
+        "name": getattr(tool_def, "name", ""),
+        "description": getattr(tool_def, "description", ""),
+        "parameters": getattr(tool_def, "parameters", None) or {
+            "type": "object",
+            "properties": {},
+        },
+    }
 
-    for entry in history:
-        for part in getattr(entry, "parts", []):
-            text = getattr(part, "text", None)
-            if text and text.strip():
-                chain.append({
-                    "type": "thought",
-                    "content": text.strip(),
-                })
-            fc = getattr(part, "function_call", None)
-            if fc:
-                args = dict(fc.args or {})
-                summary = (
-                    f"{fc.name}("
-                    f"{', '.join(f'{k}={v!r}' for k, v in args.items())})"
-                )
-                tool_calls.append(summary)
-                chain.append({
-                    "type": "tool_call",
-                    "name": fc.name,
-                    "args": args,
-                })
-            fr = getattr(part, "function_response", None)
-            if fr:
-                content = str(getattr(fr, "response", ""))
-                chain.append({
-                    "type": "tool_result",
-                    "name": getattr(fr, "name", ""),
-                    "content": (
-                        content[:500] if len(content) > 500 else content
-                    ),
-                })
-    return tool_calls, chain
+
+async def _run_tool_loop(
+    client: object,
+    model: str,
+    prompt: str,
+    reasoning_effort: str,
+    system_prompt: str,
+    tools: list[dict],
+    bridge: object,
+    max_tool_calls: int,
+) -> tuple[str, str, tuple[str, ...], tuple[dict, ...]]:
+    """单模型 function-calling 循环：调用 → 执行工具 → 回填 → 直到无工具调用。"""
+    input_items: list[dict] = [{"role": "user", "content": prompt}]
+    chain: list[dict] = []
+    tool_calls: list[str] = []
+    calls_made = 0
+    text = ""
+    prev_id: str | None = None
+
+    while True:
+        response = await client.responses.create(
+            model=model,
+            instructions=system_prompt,
+            input=input_items,
+            reasoning={"effort": reasoning_effort, "summary": "auto"},
+            tools=tools,
+            previous_response_id=prev_id,
+        )
+        prev_id = getattr(response, "id", None)
+
+        function_calls = []
+        for item in getattr(response, "output", []) or []:
+            itype = getattr(item, "type", "")
+            if itype == "reasoning":
+                for summ in getattr(item, "summary", []) or []:
+                    stext = getattr(summ, "text", "")
+                    if stext and stext.strip():
+                        chain.append({
+                            "type": "thought",
+                            "content": stext.strip(),
+                        })
+            elif itype == "function_call":
+                function_calls.append(item)
+
+        if not function_calls:
+            text = _extract_text(response)
+            break
+
+        # 用 previous_response_id 续接：下一轮只发送新的工具输出。
+        input_items = []
+        for fc in function_calls:
+            if calls_made >= max_tool_calls:
+                break
+            calls_made += 1
+            raw_args = getattr(fc, "arguments", "") or "{}"
+            try:
+                args = json.loads(raw_args)
+            except (ValueError, TypeError):
+                args = {}
+            name = getattr(fc, "name", "")
+            summary = (
+                f"{name}("
+                f"{', '.join(f'{k}={v!r}' for k, v in args.items())})"
+            )
+            tool_calls.append(summary)
+            chain.append({"type": "tool_call", "name": name, "args": args})
+
+            result = await bridge.call_tool(name, args)
+            content = result.content if hasattr(result, "content") else str(result)
+            chain.append({
+                "type": "tool_result",
+                "name": name,
+                "content": content[:500] if len(content) > 500 else content,
+            })
+            input_items.append({
+                "type": "function_call_output",
+                "call_id": getattr(fc, "call_id", ""),
+                "output": content,
+            })
+
+        if calls_made >= max_tool_calls:
+            # 工具预算耗尽：再做一次无工具调用，逼模型给出最终文本结论。
+            final = await client.responses.create(
+                model=model,
+                instructions=system_prompt,
+                input=input_items,
+                reasoning={"effort": reasoning_effort},
+                previous_response_id=prev_id,
+            )
+            text = _extract_text(final)
+            break
+
+    return text, model, tuple(tool_calls), tuple(chain)
+
+
+def _extract_text(response: object) -> str:
+    """从 Responses API 返回对象中提取文本。"""
+    # SDK 提供 output_text 便捷属性时优先用。
+    output_text = getattr(response, "output_text", None)
+    if isinstance(output_text, str) and output_text:
+        return output_text
+
+    output = getattr(response, "output", None)
+    if not output:
+        return ""
+    parts: list[str] = []
+    for item in output:
+        if getattr(item, "type", "") == "message":
+            for block in getattr(item, "content", []) or []:
+                if getattr(block, "type", "") == "output_text":
+                    parts.append(getattr(block, "text", ""))
+    return "\n".join(parts) if parts else ""

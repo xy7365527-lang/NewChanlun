@@ -1,8 +1,9 @@
 """Gemini 异质质询工位 — 向后兼容垫片。
 
+底层模型 = OpenAI GPT-5.5（"gemini" 是异质质询工位的角色名，非模型名）。
 此文件将所有公共 API 委托给 newchan.gemini 包。
-保留 `genai` 模块级属性以兼容 `patch("newchan.gemini_challenger.genai")`。
-当 genai 被 mock 替换时，自动同步到 newchan.gemini.modes.genai。
+保留 `openai` 模块级属性以兼容 `patch("newchan.gemini_challenger.openai")`。
+当 openai 被 mock 替换时，自动同步到 newchan.gemini.modes.openai。
 
 保留 _default_challenger / _get_challenger / 便捷函数 以兼容
 `patch.object(mod, "GeminiChallenger")` + `mod._default_challenger = None` 测试模式。
@@ -14,8 +15,8 @@ from __future__ import annotations
 
 import sys
 
-# 保留 genai 在模块级，使 patch("newchan.gemini_challenger.genai") 生效。
-from google import genai  # noqa: F401
+# 保留 openai 在模块级，使 patch("newchan.gemini_challenger.openai") 生效。
+import openai  # noqa: F401
 
 from newchan.gemini.modes import (  # noqa: F401
     ChallengeResult,
@@ -74,21 +75,21 @@ def derive(
     return _get_challenger().derive(subject, context, domain)
 
 
-# ── 使 patch("newchan.gemini_challenger.genai") 同步到 modes 模块 ──
+# ── 使 patch("newchan.gemini_challenger.openai") 同步到 modes 模块 ──
 
 _this = sys.modules[__name__]
 _OrigModuleType = type(_this)
 
 
 class _PatchProxyModule(_OrigModuleType):
-    """当 genai 属性被替换时，同步到 newchan.gemini.modes。"""
+    """当 openai 属性被替换时，同步到 newchan.gemini.modes。"""
 
     def __setattr__(self, name: str, value: object) -> None:
         super().__setattr__(name, value)
-        if name == "genai":
+        if name == "openai":
             import newchan.gemini.modes as _modes
 
-            _modes.genai = value  # type: ignore[attr-defined]
+            _modes.openai = value  # type: ignore[attr-defined]
 
 
 _this.__class__ = _PatchProxyModule

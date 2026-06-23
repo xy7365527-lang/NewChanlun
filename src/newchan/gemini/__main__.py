@@ -15,7 +15,9 @@ from newchan.gemini.modes import ChallengeResult, GeminiChallenger
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Gemini 质询工位 CLI")
+    parser = argparse.ArgumentParser(
+        description="异质质询工位 CLI（底层模型 = OpenAI GPT-5.5）",
+    )
     parser.add_argument(
         "mode",
         choices=["challenge", "verify", "decide", "derive"],
