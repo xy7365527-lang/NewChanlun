@@ -1352,8 +1352,9 @@ mod tests {
                     row.liq[bi] = r.n_liquidations;
                     row.net_pnl[bi] = npnl;
                     eprintln!(
-                        "[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% total_switch={} switch_by_lvl(0..6)={:?} liq={} net_pnl={:+.0} ({:.1}s)",
-                        row.strat[vi], bh, total, sw, r.n_liquidations, npnl, t0.elapsed().as_secs_f64()
+                        "[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% total_switch={} switch_by_lvl(0..6)={:?} liq={} net_pnl={:+.0} | max_gross={:.2}× max_net={:.2}× ({:.1}s)",
+                        row.strat[vi], bh, total, sw, r.n_liquidations, npnl,
+                        r.max_gross_exp_x100 as f64 / 100.0, r.max_net_exp_x100 as f64 / 100.0, t0.elapsed().as_secs_f64()
                     );
                 } else {
                     eprintln!("[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% ({:.1}s)", row.strat[vi], bh, t0.elapsed().as_secs_f64());

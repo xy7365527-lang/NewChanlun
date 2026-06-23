@@ -449,6 +449,10 @@ pub struct TRoot {
     /// 读法B 每级别腿切换次数（d_top[k] 驱动 close+reopen，纯观测——解 556 顶层腿是否冻结）。
     pub leg_switches_by_level: [u64; MAX_LEVEL],
     pub leg_opens_by_level: [u64; MAX_LEVEL],
+    /// 读法B 杠杆验收（裂隙2 异质质询）：max 毛敞口 / max 净敞口（相对 NAV，×100 整数存）。
+    /// 恒仓声明 = max_gross ≤ ~100（≤1×）。>100 = 杠杆（ES+681%可能伪影）。
+    pub max_gross_exp_x100: u64,
+    pub max_net_exp_x100: u64,
 
     // ── 观测计数（纯诊断）──
     pub n_enters: u64,
@@ -538,6 +542,8 @@ impl TRoot {
             per_level_short_pnl: [0.0; MAX_LEVEL],
             leg_switches_by_level: [0; MAX_LEVEL],
             leg_opens_by_level: [0; MAX_LEVEL],
+            max_gross_exp_x100: 0,
+            max_net_exp_x100: 0,
             n_enters: 0,
             n_sinks: 0,
             n_recovers: 0,
@@ -1338,6 +1344,21 @@ impl TRoot {
                 }
             }
             self.consume_legs(view, c);
+            // 杠杆验收（裂隙2）：毛/净敞口相对 NAV（恒仓 ⇒ ≤1×）。
+            let (mut gross, mut net) = (0.0f64, 0.0f64);
+            for leg in &self.legs {
+                if leg.units > EPS {
+                    let notional = leg.units * c;
+                    gross += notional;
+                    net += match leg.direction {
+                        Polarity::Long => notional,
+                        Polarity::Short => -notional,
+                    };
+                }
+            }
+            let nav = self.nav(c).max(1.0);
+            self.max_gross_exp_x100 = self.max_gross_exp_x100.max((gross / nav * 100.0).max(0.0) as u64);
+            self.max_net_exp_x100 = self.max_net_exp_x100.max((net.abs() / nav * 100.0).max(0.0) as u64);
             self.prove_tw_neutral(tw_pre, c);
             return;
         }
