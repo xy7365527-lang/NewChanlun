@@ -22,8 +22,9 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
    ```
    **teammate 模式信号 = `name`**（可寻址 peer，入隐式 team 共享 inbox）；省略 name = 孤立 subagent（对工位非法，95/096）。
    无 depends_on 的工位并行，有 depends_on 的按序。
-   注：实测 teammate 不能 spawn teammate（flat roster）——Lead 是唯一 teammate spawn 源；
-   teammate 递归只能 spawn subagent（与 sub-swarm-ceremony 存在已上浮的 spec-execution gap）。
+   注：实测 teammate 不能 spawn teammate（flat roster）——Lead 是唯一 teammate spawn 源。
+   (c)裁决（2026-06-23）已消解此 spec-execution gap：teammate 递归 = **自己 TaskCreate 子任务**
+   （unowned），由 Lead 的 (c) 循环 spawn 工位消费。子蜂群 = 子任务集，非子 teammate。
 5b. JSON.required_skills[] 中 spawn_condition=true 的 skill：
    并行 spawn 对应 agent（subagent_type 从 required_skills 记录中读取）。
    spawn 规则：
@@ -36,12 +37,17 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
    Lead 在构建 prompt 时将模板变量替换为实际值后注入。
 
    ```
-   ## 递归判断（必须执行，不可跳过）
+   ## 递归判断（必须执行，不可跳过）—— (c)裁决（2026-06-23）
 
    在开始执行任务前，评估当前任务：
    1. 是否可分解为 ≥2 个独立子任务？
-   2. 如果是 → 读取 .claude/skills/sub-swarm-ceremony/SKILL.md，执行子蜂群创建
-   3. 如果否 → 在当前层直接执行（扁平退化特例，需在产出中记录理由："任务不可分解因为 [具体原因]"）
+   2. 如果是 → **为每个独立子任务 TaskCreate 一个子任务（unowned）**，
+      在 metadata.agent_type 标注所需 subagent_type（缺省 general-purpose）。
+      这是 (c) 向下递归：递归在任务结构里，不 spawn 子 teammate（harness flat roster：
+      teammate 不能 spawn teammate）。Lead 的 (c) 循环会扫到无主子任务并 spawn 工位。
+      子蜂群最小 DAG 模板（任务/审查/异质审计/结晶四类节点）见
+      .claude/skills/sub-swarm-ceremony/SKILL.md —— 用 TaskCreate + blockedBy 表达，不用 TeamCreate。
+   3. 如果否 → 在当前层直接执行（原子性终止特例，需在产出中记录理由："任务不可分解因为 [具体原因]"）
 
    topo_address: swarm/{agent_name}
    parent_callback: team-lead
@@ -49,8 +55,13 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 
    递归终止条件（274号）：仅原子性（不可分解）和不动点（无新工位）。无外部计数器。
    context window 耗尽 → 触发 compaction → 下一轮恢复继续（暂停，不是终止）。
-6. RTAS 循环（consume）：
-   - `TaskList` 查看状态
+6. RTAS 循环（consume）—— (c)裁决（2026-06-23）TaskList 驱动：
+   - `TaskList` 扫任务列表（载体 = TaskList tool，自动 scope 到本隐式 team；
+     ceremony_scan.py 只产 seed 工位，**活循环由 TaskList 驱动**）
+   - **(c) spawn**：为每个 `owner` 为空、`blockedBy` 已清空的 `pending` 任务 spawn 一个工位
+     `Agent(name=任务标识, subagent_type=metadata.agent_type 或 general-purpose, run_in_background=true)`。
+     这是向下递归的消费端——工位执行中会自己 TaskCreate 子任务（unowned），下一轮 TaskList 扫到再 spawn。
+     Lead 不预规划全局 DAG（275号局部依赖：DAG 从工位的局部子任务创建中涌现）。
    - 完成的工位 → **原子三步序列**（不可重排，不可省略任何步骤）：
      1. `bash scripts/session_append.sh "工位名: 产出摘要"`（增量写 session）
      2. 汇报产出
@@ -62,8 +73,9 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
      shutdown_request 时检测 .last-session-append 标记，缺失则注入提醒
 7. 全部完成 → 写 session → `bash scripts/ceremony_push_and_rescan.sh "commit message"` （原子链：commit→push→rescan，消除 LLM 决策间隙）
 8. 解析 rescan JSON 输出
-9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位
-10. rescan.workstations[] 为空或与上轮相同（不动点）：
+9. rescan.workstations[] 非空且与上轮不同 → 回到步骤 5 spawn 新工位；
+   **或 TaskList 有 owner 为空且未阻塞的 pending 任务（工位递归产出的子任务）→ 回到步骤 6 的 (c) spawn**
+10. 不动点（同时满足）：rescan.workstations[] 为空或与上轮相同 **且 TaskList 无无主/未阻塞/in_progress 任务**：
    10a. spawn meta-observer agent 执行二阶观察。
         同时 spawn topology-analyst agent 冷读区块拓扑（条件：block-topology/blocks/ 非空）。
         meta-observer 完成后其产出写入谱系。
@@ -85,7 +97,9 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 - **确定性**：相同文件系统状态 → 相同 scan 输出 → 相同 workstations
 - **并行默认**（218号）：无依赖的工位全部并行 spawn，Lead 的独立操作并行执行
 - **增量持久化**：每条 completion 到达时写 session，不等 consume_all
-- **不动点终止**：rescan 输出与上轮相同 → 循环终止
+- **不动点终止**：rescan 输出与上轮相同 **且 TaskList 无无主/未阻塞/in_progress 任务** → 循环终止
+- **(c) 任务递归**（编排者裁决 2026-06-23）：工位向下递归 = 自己 TaskCreate 子任务（unowned）；
+  Lead 为每个无主任务 spawn 一个工位；递归在任务结构里，不 spawn 子 teammate（flat roster 硬约束）
 - **只读扫描**：scan 不写业务文件、不运行测试（例外：review-results consumed 标记、VDW 自动验证）
 - **持久化不变量**：每条退出路径都以 session + commit + push 结束，无例外
 

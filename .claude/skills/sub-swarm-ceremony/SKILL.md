@@ -146,6 +146,52 @@ context window 耗尽 → 触发 compaction → 下一轮恢复继续。不是�
 
 每层递归都引入视差 Gap 累积（约束3 × 约束2 的历时效应，094号）。这是结构性代价，不是截断理由。
 
+
+## (c)裁决：任务 DAG 向下递归——每个子任务自己 TaskCreate（不依赖 Lead 转发）
+
+**编排者裁决(c)（2026-06-23）**：每个子任务（Agent）自己向下递归——TaskCreate 子任务，自己认领，向下推进。Lead 只做 scan→spawn→re-scan→不动点终止。
+
+### 当前 harness 约束（swarm-mechanism-fix-20260623 实测结算）
+
+- `TeamCreate` + `Task(team_name=…)` 已废弃，不可用
+- flat roster：teammate 不能 spawn teammate（harness 硬禁）
+- 有效工具：`Agent`（spawn）+ `TaskCreate/Get/List/Update`（todo 管理）
+
+### 角色分工
+
+| 角色 | 职责 | 工具 |
+|------|------|------|
+| **Lead（main session）** | scan 工位列表 → 并行 spawn 工位 → 等待完成 → re-scan → 不动点终止 | `Agent(name=…, run_in_background=true)` + TaskList |
+| **业务 Agent（spawn 的工位）** | 执行自身任务 → 如发现子任务 → TaskCreate 子任务 → 执行（自己认领）→ 完成后汇报 Lead | `TaskCreate` + 直接执行 |
+
+### Lead 的 scan→spawn→re-scan→不动点循环
+
+```
+LOOP:
+  1. python scripts/ceremony_scan.py → 工位列表
+  2. IF 工位列表为空 → 干净终止（不动点，020号反转）
+  3. 并行 spawn 所有工位（Agent + name + run_in_background=true）
+  4. 等待工位完成（TaskList 轮询 / SendMessage 回报）
+  5. GOTO 1（re-scan）
+TERMINATE WHEN: roadmap空 AND pending谱系空 AND 测试全通过 AND pattern-buffer无达标
+```
+
+### 与"子蜂群递归"的区别
+
+| 维度 | 子蜂群递归（095号，TeamCreate 模型） | (c)任务 DAG 递归（当前 harness） |
+|------|--------------------------------------|----------------------------------|
+| 层级 | 新 Team + 新 TaskList（独立治理） | 同一 session 的 TaskList 嵌套 |
+| 可用性 | TeamCreate 已废弃，不可用 | TaskCreate 有效（todo 管理工具） |
+| 递归主体 | teammate spawn 子 team（flat roster 禁止） | 业务 Agent 自己 TaskCreate 子任务 |
+| Lead 职责 | 管理层级（已不可行） | 只 scan/spawn/re-scan，不越级管理 |
+
+### 约束
+
+1. Lead 不自行执行任务——只分派（spawn）和汇总（re-scan）
+2. 业务 Agent 发现子任务 → 自己 TaskCreate → 自己执行——不反抛给 Lead
+3. 结构工位（6个）在 ceremony 开始时由 Lead 一次性 spawn，不参与 re-scan 循环（常设）
+4. 按需工位由业务 Agent 或 Lead 按触发条件 spawn（event_skill_map D策略，082号）
+
 ## 谱系依据
 
 - 097号：真严格递归拓扑异步自指蜂群完整架构——五特征最小 DAG 模板

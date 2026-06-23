@@ -9,7 +9,10 @@
 #
 # 谱系依据：
 #   095号：Agent Team 真递归是默认模式
-#   096号：无例外——所有 Task 调用必须通过 Agent Team
+#   096号：无例外——所有工位 spawn 通过 Agent tool（带 name = teammate）
+#   562号：结构=teammate，ceremony 必 spawn 6 常设结构工位
+#   (c)裁决（2026-06-23，编排者）：递归在任务结构里（TaskCreate 子任务），Lead 只编排。
+#     harness 硬约束：teammate 不能 spawn teammate（flat roster）→ 子蜂群=子任务，非子 teammate。
 #   本号：team 拓扑持久化——git 中的拓扑定义 → ceremony 时自动重建运行时 team
 
 set -uo pipefail
@@ -59,29 +62,41 @@ if not auto_agents:
     sys.exit(0)
 
 lines = []
-lines.append('[Agent Team Bootstrap] 蜂群拓扑持久化重建指令（095/096号谱系）')
+lines.append('[Agent Team Bootstrap] 蜂群拓扑持久化重建指令（095/096/562号 + (c)裁决）')
 lines.append('')
-lines.append('团队名称：' + prefix)
+lines.append('=== 隐式 team（harness 已演化，2026-06-23 实测）===')
+lines.append('单一隐式 team，首次 Agent spawn 自动加入。无需 TeamCreate，team_name 已废弃不传。')
 lines.append('')
-lines.append('=== 强制执行 ===')
-lines.append('ceremony 完成后的第一个动作：并行 spawn 结构工位 teammates。')
-lines.append('所有 Task 调用使用 team_name="' + prefix + '"。')
-lines.append('首次 Task 调用时 team 自动创建（无需显式 TeamCreate）。')
+lines.append('=== 强制执行：结构工位（常设，(c)循环的常设部分）===')
+lines.append('ceremony 完成后的第一个动作：并行 spawn ' + str(len(auto_agents)) + ' 个结构工位 teammates。')
+lines.append('缺任一 → Stop-Guard 检查 1.5 机制性 block（562号）。')
 lines.append('')
-lines.append('自动 spawn ' + str(len(auto_agents)) + ' 个结构工位（并行）：')
 
 for a in auto_agents:
-    lines.append('  - Task(team_name="' + prefix + '", subagent_type="' + a['name'] + '", description="' + a['role'] + '")')
+    lines.append('  - Agent(name="' + a['name'] + '", subagent_type="' + a['name']
+                 + '", run_in_background=true)  # ' + a['role'])
 
 lines.append('')
-lines.append('按需 spawn ' + str(len(on_demand)) + ' 个工位（不预启动）：')
+lines.append('=== 按需工位（task-triggered，(c)循环的按需部分）===')
+lines.append('按需工位不预启动。(c) 机制：工位识别到需要某类能力时，TaskCreate 一个子任务，')
+lines.append('在 metadata.agent_type 标注所需 subagent_type；Lead 的循环 spawn 该类型工位。')
+lines.append('可用 ' + str(len(on_demand)) + ' 类按需工位：')
 for a in on_demand:
     trigger = a.get('trigger', '按需')
     lines.append('  - ' + a['name'] + '（' + a['role'] + '）← ' + trigger)
 
 lines.append('')
+lines.append('=== (c) 持久循环（编排者裁决 2026-06-23）===')
+lines.append('Lead 只编排，不做实质工作。循环：')
+lines.append('  1. TaskList 扫任务列表')
+lines.append('  2. 为每个 owner 为空且未阻塞的 pending 任务 spawn 一个工位 Agent')
+lines.append('     （subagent_type 读 metadata.agent_type，缺省 general-purpose）')
+lines.append('  3. 工位执行 + 识别子工作时自己 TaskCreate 子任务（=向下递归，非 spawn 子 teammate）')
+lines.append('  4. re-scan（TaskList）→ 回到 2')
+lines.append('  5. 无无主/未阻塞/in_progress 任务 → 不动点终止')
+lines.append('')
 lines.append('=== 约束 ===')
-lines.append('- 096号谱系：所有 Task 调用必须携带 team_name，无例外')
+lines.append('- (c)裁决：teammate 不 spawn teammate（flat roster）；递归=TaskCreate 子任务，Lead spawn')
 lines.append('- 拓扑定义来源：.claude/team-topology.json（git 持久化）')
 lines.append('- 运行时 team 实例：session 级别，每次 ceremony 自动重建')
 
