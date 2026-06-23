@@ -2726,6 +2726,14 @@ nodes:
   status: settled
   type: 概念发现
   file: settled/556-reading-b-per-level-leg-falsified-top-level-completion-sparse.md
+- id: '557'
+  title: 顶层全部卖点（type1∨2∨3）做空闸门 L3 PARTIAL——机制成立（J1 type2 解顶层稀疏 / J3 不穿仓 / J4 保强牛 +
+    bit-exact OFF）但收益 regime（无单一标的因 TOP_ALL 转超 BH）；编排者『买卖点不是方向』洞察实装验证（type2 反弹不新高解最高级别
+    type1 跨年冻结）；type2@L4=36>type1=30、type3@L4=0；ANCHOR+top-gate 正交开放轴（底仓死扣吃涨超 BH +
+    机动顶层建空吃跌，未组合测）
+  status: settled
+  type: 概念发现
+  file: settled/557-top-all-sell-short-gate-partial-regime.md
 edges:
   depends_on:
   - from: '136'
@@ -5622,6 +5630,8 @@ edges:
     to: '554'
   - from: '556'
     to: '555'
+  - from: '557'
+    to: '556'
   triggered:
   - from: '005'
     to: 005a
@@ -7630,6 +7640,33 @@ edges:
   - between:
     - '556'
     - 【memory】feedback_filter_bank_metaphor_prove
+  - between:
+    - '552'
+    - '557'
+  - between:
+    - '553'
+    - '557'
+  - between:
+    - '554'
+    - '557'
+  - between:
+    - '555'
+    - '557'
+  - between:
+    - '545'
+    - '557'
+  - between:
+    - '539'
+    - '557'
+  - between:
+    - '557'
+    - 【memory】project_c_segment_fix_regime
+  - between:
+    - '557'
+    - 【memory】project_mismatch_spectator_not_mediator
+  - between:
+    - '557'
+    - 【memory】project_highest_level_sigma_frozen
   tensions_with:
   - between:
     - '007'
