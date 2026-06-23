@@ -426,6 +426,10 @@ pub struct LevelView {
     pub t1buy: [bool; MAX_LEVEL],
     /// 该 level 是否新增 **type1 卖点**（顶背驰 = 上涨走势终完美，fresh）。
     pub t1sell: [bool; MAX_LEVEL],
+    /// 该 level 是否新增 **type3 卖点**（第三类卖点 = 向下突破中枢下沿 ZD + 回试高点不回中枢 = 真顶转折，fresh）。
+    /// 真顶/假顶判别：突破中枢+回试不回（`detect_type3`：`leave.high<ZD ∧ pull.high<ZD`）=真转折开空腿；
+    /// 假突破（回试回中枢 `pull.high≥ZD`）⇒ 无 type3 ⇒ 不开空（滤震荡假突破累积止损）。
+    pub t3sell: [bool; MAX_LEVEL],
     /// 各 level 当前走势节点（enter/ascend/sink 骑节点用；None=该级无走势）。
     pub nodes: [Option<TrendNode>; MAX_LEVEL],
     /// T 迭代涌现上界 (level, 操作极性)——自下而上仓位涌现（= flat emergent_top）。None=本 bar 不升级。
@@ -445,8 +449,8 @@ pub struct LevelView {
     /// **每级别 d_top 区间套链贯通真顶/真底**（任务18 编排者修正：每级别独立腿多重赋格触发器）。
     /// `divergence::d_top(k, ..., use_diverge)`——`use_diverge=false`=走势完成链（556 读法B）/`true`=背驰段链（读法乙）。
     /// 读法B 路径（`enable_reading_b`）每级别独立腿 `legs[k]` 消费 `d_top[k]` switch（close+反向 open）。
-    /// **链破坏 churn 门控（任务57=53.1）**：LegPair 路径用 `d_top[k]` 作链破坏信号——`d_top[k]=true`=区间套
-    /// 链贯通到真顶/真底=转折（动核心多腿翻转）；`false`=链未贯通=回调（不动核心多腿，仅本级空腿吃回调）。
+    /// **任务69**：LegPair 路径（`enable_reading_b_pair`）**核心多腿 churn 门控**消费 `d_top`（最深区间套确认=走势完成
+    /// 真顶，稀疏⇒保护主力骑牛不踏空）；次级别开空腿改用 `t3sell`（单层区间套转折，响应回调）⇒ 区间套确认深度按持仓尺度分级。
     pub d_top: [bool; MAX_LEVEL],
     /// **每级别当前走势末中枢核心区间 ZG（核心上沿，否定线原料）**（任务57=53.1 LegPair 止损）。
     /// 空腿止损线：价格涨破进场中枢 ZG ⇒ 向上突破=「回试回中枢=假突破」反面=结构破坏 ⇒ 空腿止损平。None=该级无中枢。
@@ -463,6 +467,7 @@ impl LevelView {
             sell: [false; MAX_LEVEL],
             t1buy: [false; MAX_LEVEL],
             t1sell: [false; MAX_LEVEL],
+            t3sell: [false; MAX_LEVEL],
             nodes: [None; MAX_LEVEL],
             emergent_top: None,
             top_diverge: None,
@@ -1440,9 +1445,13 @@ impl TRoot {
     /// - **买点 fire**：① 空腿持仓 ⇒ 平空（反向买卖点平，与开对称）；② 多腿空 ⇒ 开多（买点开多腿）。
     /// - **卖点 fire**：① 多腿持仓 ⇒ 平多（反向卖点平）；② 空腿空 ⇒ 开空（卖点开空腿）。
     ///
-    /// **链破坏 churn 门控（第27课区间套）**：核心多腿（= highest_active_long）的反向平/翻转**只在链破坏时**动
-    /// （`view.d_top[k]=true`=区间套链贯通=转折）。链完整（d_top=false=回调）⇒ 卖点不平核心多腿（只本级空腿吃回调）。
-    /// 非核心级别（次级别）不受 churn 门控（次级别空腿自由吃回调）。
+    /// **区间套-confirmed 买卖点门控（任务69）——确认深度按持仓尺度自相似分级（567洞察①「腿开平绑买卖点+区间套」）**：
+    /// - **核心多腿 churn**（= highest_active_long）：只在 `d_top`（走势完成真顶 = type1买卖点 + 区间套 nesting 全深度=
+    ///   最深确认，稀疏）才平/翻转；走势未完成（回调/假突破）⇒ 不平核心多腿（保护主力骑牛不踏空）。次级别 long 无门控。
+    /// - **开空腿**：只在 `t3sell`（第三类卖点=突破中枢下沿+回试不回=单层区间套转折，第27课）∧ **严格次级别（k<核心）** 才开；
+    ///   假突破（回试回中枢）不开（滤震荡累积止损）；核心及其上绝不翻空（net-up 假顶翻空打主浪=灾难，L3 坐实）。
+    /// 自相似同构：皆该级别区间套-confirmed 买卖点驱动、确认深度∝持仓尺度（主力 d_top 全深度/短差 t3sell 单层）、
+    /// 角色（core vs sub）由 `highest_active_long` 结构涌现（零 if level==N/regime）。
     ///
     /// **零方向几何**：开仓方向由买卖点（buy/sell）涌现，不由 node.direction。**只写 leg_pairs[k]**（547 隔离）。
     fn g_pair(&mut self, k: usize, view: &LevelView, top: usize, c: f64) {
@@ -1453,7 +1462,16 @@ impl TRoot {
         }
         // 「核心」= 当前最高活跃多腿级别（结构涌现，无 if level==top 硬编码）。
         let is_core_long_level = self.highest_active_long() == Some(k);
-        let chain_break = view.d_top[k]; // 区间套链贯通=转折（churn 门控信号）
+        // **区间套-confirmed 买卖点驱动门控（任务69）——区间套确认深度按持仓尺度自相似分级（编排者「快且准」+ 567洞察①）**：
+        //   - **核心多腿 churn**（平主力 long）← `d_top`（区间套链贯通到 a0 = 走势完成真顶 = type1买卖点 + 区间套nesting 全深度，
+        //     最深确认 ⇒ 稀疏，保护主力骑牛不踏空）。注：567「d_top 错误代理」指的是把**空腿**绑 d_top（稀疏⇒空腿冻结），
+        //     核心主力 churn 恰需稀疏（骑牛），故沿用 d_top。L3 坐实：核心 churn 若改频繁信号(t1sell)⇒ 趋势踏空
+        //     （GC long +63522→+16227 / QQQ +36595→+10751）。
+        //   - **次级别开空腿**（吃回调短差）← `t3sell`（第三类卖点=突破中枢下沿+回试不回=单层区间套转折，第27课，响应回调）。
+        // 自相似原则：区间套确认深度 ∝ 持仓尺度（主力=全深度 d_top / 短差=单层 t3sell），角色由 `highest_active_long` 结构涌现
+        // 决定（零 if level==N/regime）。这正是 567洞察①「腿开平绑买卖点+区间套」——主力绑走势完成、短差绑第三类转折。
+        let core_done = view.d_top[k];
+        let sub_break = view.t3sell[k];
 
         if b {
             // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空）。
@@ -1470,17 +1488,31 @@ impl TRoot {
         if s {
             // 卖点：先平多腿（反向买卖点平），但核心多腿受 churn 门控（链破坏才平=转折，链完整=回调不动核心）。
             if self.leg_pairs[k].long_active() {
-                let may_close_core = !is_core_long_level || chain_break;
+                // 核心多腿只在走势完成（d_top=最深区间套真顶）才平（保护主力骑牛）；次级别 long 无门控（任意卖点平）。
+                let may_close_core = !is_core_long_level || core_done;
                 if may_close_core {
                     self.guards.set_trigger(OpTrigger::Bsp);
                     self.close_long_leg(k, c);
-                    if is_core_long_level && chain_break {
-                        self.pair_core_churns += 1; // 链破坏 churn 动核心多腿（转折）
+                    if is_core_long_level && core_done {
+                        self.pair_core_churns += 1; // 走势完成 churn 动核心多腿（真顶转折）
                     }
                 }
-                // 链完整 ∧ 核心多腿 ⇒ 不平核心多腿（回调），落到下方开空腿吃回调。
+                // 走势未完成 ∧ 核心多腿 ⇒ 不平核心多腿（回调），落到下方开空腿吃回调。
             }
-            if !self.leg_pairs[k].short_active() {
+            // **开空腿门控（任务69，编排者「次级别做空」+ per-level L3 诊断 + geom_tower_quota 结构）**：
+            //   ① `sub_break`（=t3sell=突破中枢下沿+回试不回=真顶转折）才开空（假突破不开，滤假突破累积止损）；
+            //   ② **仅在核心多腿级别之下开空（`k < 核心级别`）——绝不在核心或其上开空**。
+            // 依据：编排者纲领「本级别卖点→平多 + 次级别做空」（核心只平多到现金，做空在严格次级别）。L3 per-level 坐实：
+            //   高级别空腿 = geom_tower_quota 最大配额（depth=top−k 小⇒notional 大）× 在 net-up regime「假顶翻空打主升浪」
+            //   = 灾难（变体1 CL L4 单笔−40928 / BTC L3 −20629 / GC L3 −7335，皆 1-3 笔巨亏）；严格次级别短差小配额吃回调
+            //   正域（变体4 CL L0/L1/L2 +3145 / BTC L1/L2/L3 +10670 / GC/ES/OKLO 正）。`!is_core` 不够（杀手空腿开在核心
+            //   之上非核心本身）⇒ 须 k<核心。
+            // 牛熊切换（③）：核心走势完成（d_top）⇒ churn 平核心多腿到现金（不翻空，21:40 升跌完备性=上涨趋势无真顶卖点）；
+            //   无核心多腿（熊市镜像）⇒ 无 long 框架 ⇒ 当前不开空（保守；熊市核心做空镜像吃熊=开放轴，8 标的均 net-up
+            //   无法 L3 证伪 ⇒ 不擅自实装=避有效域膨胀）。
+            // 自相似 no-hardcode：`highest_active_long()` 是结构涌现（无 if level==N/regime），k<core 跨级别同构。
+            let below_core_long = self.highest_active_long().map_or(false, |core| k < core);
+            if !self.leg_pairs[k].short_active() && sub_break && below_core_long {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 self.open_short_leg(k, top, view.zg[k], c);
             }

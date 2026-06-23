@@ -86,6 +86,13 @@ pub fn extract_view(tree: &RecursiveTree) -> LevelView {
         }
         if let Some(t) = lvl.trends.last() {
             view.nodes[k] = Some(trend_to_node(t));
+            // **否定线原料（任务57=53.1 LegPair 止损）**：当前走势末中枢核心区间 [ZD, ZG]。
+            //   多腿止损 = 进场 ZD（跌破=结构破坏）/ 空腿止损 = 进场 ZG（涨破=结构破坏）。第17课区间套否定线。
+            //   无中枢（trends 末走势无 zhongshu）⇒ None（无否定线，仅靠反向买卖点平）。
+            if let Some(zs) = t.zhongshus.last() {
+                view.zg[k] = Some(zs.high); // ZG 核心上沿
+                view.zd[k] = Some(zs.low); // ZD 核心下沿
+            }
         }
     }
     // emergent_top = tree.emergent_top()（= flat stream，最高**已诞生上级单元** + **顺势方向**——

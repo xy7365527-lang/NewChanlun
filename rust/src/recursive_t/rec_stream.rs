@@ -345,9 +345,10 @@ impl RecStream {
                         ld
                     };
                     // ── 每级别 d_top 区间套链贯通（任务18 编排者修正：读法B/读法乙递归每级别独立腿触发器）──
-                    //   d_top[k] = 级别 k 走势真顶/真底（区间套链贯通到 a0）。use_diverge: false=走势完成链(556读法B)
-                    //   / true=背驰段链(读法乙递归)。reading_b（单腿 switch 触发器）/ reading_b_pair（LegPair 链破坏 churn
-                    //   门控）两模式需要（其余模式 d_top 全 false，bit-exact）。
+                    //   d_top[k] = 级别 k 走势真顶/真底（区间套链贯通到 a0 = 走势完成真顶 = type1买卖点+区间套nesting全深度）。
+                    //   reading_b（单腿 switch 触发器 `g`）+ reading_b_pair（任务69：LegPair **核心多腿 churn 门控**=最深区间套
+                    //   确认保护主力骑牛）两路径消费（其余模式 d_top 全 false，bit-exact）。LegPair 次级别开空腿改用 `t3sell`
+                    //   （第三类卖点=单层区间套转折，响应回调）⇒ 区间套确认深度按持仓尺度分级（主力 d_top 全深度 / 短差 t3sell 单层）。
                     let d_top_arr = if self.cfg.enable_reading_b || self.cfg.enable_reading_b_pair {
                         let level_trends_all: Vec<&[crate::recursive_t::types::TrendType]> = (0..MAX_LEVEL)
                             .map(|k| tree.levels.get(k).map(|lvl| lvl.trends.as_slice()).unwrap_or(&[]))
@@ -418,6 +419,8 @@ impl RecStream {
                                 view.t1buy[bl] = true;
                             } else if bk == 1 {
                                 view.t1sell[bl] = true;
+                            } else if bk == 5 {
+                                view.t3sell[bl] = true;
                             }
                         }
                     }
@@ -1436,6 +1439,12 @@ mod tests {
                         r.pair_long_stops, r.pair_short_stops, r.pair_core_churns, r.n_liquidations,
                         r.max_gross_exp_x100 as f64 / 100.0, r.max_net_exp_x100 as f64 / 100.0, t0.elapsed().as_secs_f64()
                     );
+                    // 任务69 诊断（纯观测）：per-level 空腿 pnl/opens（判定「做空失血是级别问题还是 539 regime」）。
+                    let sp_lvl: Vec<String> = (0..MAX_LEVEL)
+                        .filter(|&k| r.pair_short_opens[k] > 0)
+                        .map(|k| format!("L{k}:pnl={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k]))
+                        .collect();
+                    eprintln!("        [{sym}] short_per_level: {}", sp_lvl.join(" "));
                     // ── 验收硬断言（编排者交付契约）──
                     assert!(fin.is_finite() && fin > 0.0, "[{sym}/RB_PAIR] final_nav 须有限正，得 {fin}");
                     assert_eq!(r.n_liquidations, 0, "[{sym}/RB_PAIR] 零强平违反（否定线止损应先于 NAV≤0）：liq={}", r.n_liquidations);
