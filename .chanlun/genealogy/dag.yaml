@@ -2688,44 +2688,124 @@ nodes:
   status: settled
   type: 矛盾发现
   file: settled/549-relations-jsonl-lfs-pointer-blocks-mapping.md
+  downstream_implications:
+  - id: impl-549-1
+    text: 粘性陷阱——LFS 修复后简单重跑 mapper 不补边（id_mapping 已有 531-548 全跳过），须先删 meta.json 条目或手动回填
+    classification: 行动（操作注意事项，操作者 git lfs pull 后执行）
+    settlement_status: recorded
+  - id: impl-549-2
+    text: 扫描盲区——detect_genealogy_anomalies 只查 meta.json 不查关系边完备性，边缺失时仍报「已映射」（094 又一实例）
+    classification: 语法记录（已被559 ceremony-scan-completeness skill 覆盖）
+    settlement_status: covered_by_559
+  - id: impl-549-3
+    text: block-topology 映射管线 freeze 保留至操作者执行 git lfs pull，概念结算 ≠ 管线解冻
+    classification: 行动（topo_effect freeze，等待操作者基础设施动作）
+    settlement_status: pending_infra
 - id: '550'
   title: 谱系免疫两层架构——compact 使事件驱动快层静默，ceremony_scan 慢层批量补偿；delta_settled=0 是快层静默的可观测信号
   status: settled
   type: meta-rule
   file: settled/550-genealogy-immune-two-layer-compact-silence.md
+  downstream_implications:
+  - id: impl-550-1
+    text: delta_settled=0 + 无 commit 不应触发停机告警——它是快层静默的正常信号，错判为死亡导致过度干预
+    classification: 定理（自动结算）
+    settlement_status: settled
+  - id: impl-550-2
+    text: 谱系积压量 = compact频率 × 概念发现量 / ceremony频率，压缩越密集慢层补偿批越大
+    classification: 定理（自动结算）
+    settlement_status: settled
+  - id: impl-550-3
+    text: genealogist skill 事件触发列表应考虑增加「compact 边界」事件（快层增强，待评估）
+    classification: 选择（待评估，非本号结算范围）
+    settlement_status: pending_eval
 - id: '551'
   title: ceremony 能指三重分叉（CC Swarm₀ / 逢亮持久实体 / RTAS 脱域抽取）+ 启动-hook 目录守卫不变量——禁止跨目录交叉触发
   status: settled
   type: 语法记录
   file: settled/551-ceremony-triple-scission-and-startup-hook-directory-guard.md
+  downstream_implications:
+  - id: impl-551-1
+    text: hook 目录守卫技术实现（C）已完成无缺口——.chanlun/ 守卫正确，RTAS 项目由自带 hook 正交覆盖
+    classification: 行动（已执行）
+    settlement_status: done
+  - id: impl-551-2
+    text: ceremony 能指三重分叉概念分离（A）+ 「启动 hook 禁止跨目录交叉触发」operational 不变量升结算原则（B）——待编排者裁决
+    classification: 选择（上浮编排者）
+    settlement_status: pending_escalate
 - id: '552'
   title: anchor 趋势底仓解僵尸核心死锁——吃涨 L2 实证 + 三个半架构（多空双开多重赋格的第一次成立）
   status: settled
   type: 概念发现
   file: settled/552-anchor-resolves-zombie-core-deadlock.md
+  downstream_implications:
+  - id: impl-552-1
+    text: 吃涨已解（anchor L3 8标的）；吃跌（A路/B路）待补——三个半架构第二半未试
+    classification: 选择（开放轴，A路/B路分别被554/556否证，读法乙560/strict563待结算）
+    settlement_status: partially_covered
+  - id: impl-552-2
+    text: anchor = 干净 regime 分离器（7/8 正域 / 1/8 负域 GC），与 553 cascade flip 形成正交判决
+    classification: 定理（自动结算）
+    settlement_status: settled
 - id: '553'
   title: cascade flip（核心翻转）L3 否证有效域空集——核心能动=翻空=毁 anchor 趋势底仓；滤波器比喻对称双吃终极目标 L3 否证（盈利来源=核心多腿吃趋势涨，非吃回调跌，Σ|振幅|上限不可达）
   status: settled
   type: 概念发现
   file: settled/553-cascade-flip-falsified-symmetric-dual-eating-unreachable.md
+  downstream_implications:
+  - id: impl-553-1
+    text: 对称双吃的正确形式（每级别精确走势完成识别+切换）未试，553 不证伪目标本身——开放轴保留
+    classification: 选择（开放轴，被563升级为穿仓×踏空二难）
+    settlement_status: covered_by_563
+  - id: impl-553-2
+    text: cascade flip 有效域空集 ⟹ anchor 是僵尸死锁的唯一已证解，cascade 这一形式是反作用
+    classification: 定理（自动结算）
+    settlement_status: settled
 - id: '554'
   title: A 路 D_TOP 区间套精确切换 L3 否证——链坍缩，有效域≈空集 @ a0=segment（第27课区间套三必要条件在 1min a0=segment
     真实数据几乎从不同时满足）
   status: settled
   type: 概念发现
   file: settled/554-a-path-d-top-nested-precision-falsified-empty-domain.md
+  downstream_implications:
+  - id: impl-554-1
+    text: 554 否证结论被 555 收回——链坍缩21/24是实装错误artifact，「市场多尺度异步=结构性不可达」声明作废
+    classification: 已被555覆盖（否证作废）
+    settlement_status: covered_by_555
+  - id: impl-554-2
+    text: topo_effect sever（切断D_TOP切换路径）基于错误归因——555修正后 D_TOP 链 0→数百次贯通，sever 无效
+    classification: 已被555覆盖（topo_effect 修正）
+    settlement_status: covered_by_555
 - id: '555'
   title: 区间套递归保证定理 + 554 否证作废诊断——nest_chain_complete 检测对象错（各级别全局当前走势 vs cc 的 c 段钻取）；554「市场多尺度异步=结构性不可达」收回，链坍缩
     21/24 = 实装 artifact 非市场性质
   status: settled
   type: 概念发现
   file: settled/555-nesting-recursive-guarantee-detection-object-misdiagnosis.md
+  downstream_implications:
+  - id: impl-555-1
+    text: 第一层解（检测对象错修正）已 L3 实证——D_TOP 链 0→数百次贯通；第二层根因（消费级别⊥贯通级别）揭示=开放轴
+    classification: 选择（第二层开放轴，指向读法 B，被556 L3 否证）
+    settlement_status: covered_by_556
+  - id: impl-555-2
+    text: 区间套递归保证定理结算——第27课源头确证，区间套三必要条件在 nest_chain_complete 窗口内满足是 L3 事实
+    classification: 定理（自动结算）
+    settlement_status: settled
 - id: '556'
   title: 读法 B（每级别独立腿骑走势 + 消费自己 d_top）L3 否证——四判据全否（P1 1/8 仅 ES/S）；统一根因=顶层腿冻结（最高级别走势完成在样本期结构性稀疏，d_top[top]
     几乎不触发）；吃涨可达（anchor 死扣不等完成）/吃顶层跌不可达（等顶层完成翻空）/吃低级别涨跌可达
   status: settled
   type: 概念发现
   file: settled/556-reading-b-per-level-leg-falsified-top-level-completion-sparse.md
+  downstream_implications:
+  - id: impl-556-1
+    text: 顶层 anchor 死扣多 + 低级别读法B 混合架构（ES/S +681★）= 新开放轴，未独立 L3
+    classification: 选择（开放轴，已被557 aufhebung 进一步展开）
+    settlement_status: partially_covered_by_557
+  - id: impl-556-2
+    text: 顶层腿冻结根因被557 type2 auheubung——type2@L4=36解稀疏，556 type1 视角不完整
+    classification: 已被557覆盖（aufhebung，556 四判据否证不受影响）
+    settlement_status: covered_by_557
 - id: '557'
   title: 顶层全部卖点（type1∨2∨3）做空闸门 L3 PARTIAL——机制成立（J1 type2 解顶层稀疏 / J3 不穿仓 / J4 保强牛 +
     bit-exact OFF）但收益 regime（无单一标的因 TOP_ALL 转超 BH）；编排者『买卖点不是方向』洞察实装验证（type2 反弹不新高解最高级别
@@ -2734,71 +2814,109 @@ nodes:
   status: settled
   type: 概念发现
   file: settled/557-top-all-sell-short-gate-partial-regime.md
+  downstream_implications:
+  - id: impl-557-1
+    text: ANCHOR+top-gate 正交组合（底仓吃涨 + 机动顶层空头）= 开放轴，两轴各自验证但从未组合测
+    classification: 选择（开放轴，待 L3）
+    settlement_status: open
+  - id: impl-557-2
+    text: type2 解顶层稀疏（556顶层冻结根因的 aufhebung）——最高级别 type1 跨年冻结，type2 反弹不新高解
+    classification: 定理（自动结算，与556协同）
+    settlement_status: settled
 - id: '558'
   title: 构成关系 ≠ 操作等价——命题4有效域边界（四视角收敛：理论框架有效L0/操作价值零L3/两独立致命漏洞；读法乙#18 L3 回填强化：结构层成立/操作层失效）
   status: settled
   type: 矛盾发现
   file: settled/558-composition-not-operational-equivalence-proposition4.md
+  downstream_implications:
+  - id: impl-558-1
+    text: 命题4操作等价不成立——不消解556/555/545；读法乙560的「嵌套构成结构层成立/操作层失效」回填强化558
+    classification: 定理（自动结算，被560决定性证据强化）
+    settlement_status: settled
+  - id: impl-558-2
+    text: 两独立致命漏洞（推论2双重否证 + fold⊥unfold先验循环）= 操作等价永久关闭，非 regime 函数
+    classification: 定理（自动结算）
+    settlement_status: settled
 - id: '559'
   title: 结晶事件——scan-state-unobservable 模式结晶为 ceremony-scan-completeness skill（051号
     Pull 模型执行 / 429候选1→5实例→Gemini选项A）
   status: 已结算
   type: meta-rule
   file: settled/559-crystallization-scan-state-unobservable.md
+  downstream_implications:
+  - id: impl-559-1
+    text: 429/430/432/433 号「scan状态不可观测」候选不再悬挂——已结晶为 ceremony-scan-completeness skill，后续引用 559
+    classification: 行动（已执行）
+    settlement_status: done
+  - id: impl-559-2
+    text: ceremony_scan 完备性盲点处置路径确立——新增 frontmatter 字段/运行时变量时执行 skill 三问检测清单
+    classification: 语法记录（已结晶为 skill）
+    settlement_status: done
+  - id: impl-559-3
+    text: 已知应消费但未消费列表（skill §62-72）成为活清单——条目>10或清空时触发 skill 边界条件重审
+    classification: 选择（监控对象，pending 追踪）
+    settlement_status: open
 - id: '560'
   title: 读法乙（自顶向下区间套 a0 定位）L3——背驰段真解冻556（22–194×，src-prop13频率轴证实）但解冻暴露539（7/8穿仓）；有效域≠定义域（背驰段频率有效/收益失效，231号第N例）；558的决定性证据（嵌套构成结构层成立/操作层失效）
   status: 已结算
   type: 概念发现
   file: settled/560-reading-yi-topdown-nesting-a0-location.md
   downstream_implications:
-    # 推论10：解556⟹暴露539（顶层冻结是539的掩盖机制）
-    - id: impl-560-1
-      text: 解556（顶层冻结）⟹暴露539（做空腿失血）——顶层冻结是539掩盖机制（定理推论）
-      classification: 定理（自动结算）
-      settlement_status: settled  # 560 文件已记录：背驰段解冻556但暴露539；推论为560文本的逻辑必然
-    # 推论11：ANCHOR与NEST在强牛对立（穿仓×踏空二难，563 L3 升级）
-    - id: impl-560-2
-      text: ANCHOR与NEST强牛对立（560§下游推论2），563 L3 确认并升级为穿仓×踏空二难
-      classification: 已被563覆盖
-      settlement_status: covered_by_563  # 563 §张力检查明确「563 vs 560：560§下游推论2被563升级」
-    # 推论12：开放轴 (c) L3 闭合（563 裁决：strict 是 consume 的 enabler 非独立解）
-    - id: impl-560-3
-      text: 560 开放轴(c)「严格逐级区间套=唯一未关闭吃跌路径」L3 裁决关闭，strict=consume enabler
-      classification: 已被563覆盖
-      settlement_status: covered_by_563  # 563 §3「NEST_STRICT≈NEST全8；560开放轴(c)已L3闭合」
+  - id: impl-560-1
+    text: 解556（顶层冻结）⟹暴露539（做空腿失血）——顶层冻结是539掩盖机制（定理推论）
+    classification: 定理（自动结算）
+    settlement_status: settled
+  - id: impl-560-2
+    text: ANCHOR与NEST强牛对立（560§下游推论2），563 L3 确认并升级为穿仓×踏空二难
+    classification: 已被563覆盖
+    settlement_status: covered_by_563
+  - id: impl-560-3
+    text: 560 开放轴(c)「严格逐级区间套=唯一未关闭吃跌路径」L3 裁决关闭，strict=consume enabler
+    classification: 已被563覆盖
+    settlement_status: covered_by_563
 - id: '561'
   title: 完全分类覆盖完备性（CC，unn主prove）+极性协变（N9，推论）——Ω必覆盖买卖点完全分类所有轨道（第17/21课升跌完备性+Burnside穷尽）；539重诊断=Ω坍缩完全分类（过覆盖560/欠覆盖553/b1-L0/b2-L3）；N9降推论(N9⊊CC)；编排者二次重定
   status: 已结算
   type: 概念发现
   file: settled/561-polarity-level-covariance-necessity.md
+  downstream_implications:
+  - id: impl-561-1
+    text: CC 完全分类 L0强+Ω全函数联合必然已结算——Ω坍缩(539)=过覆盖(560)/欠覆盖(553)/b1-L0/b2-L3 是 539 重诊断四分类
+    classification: 定理（自动结算）
+    settlement_status: settled
+  - id: impl-561-2
+    text: N9 极性协变降为 CC 的推论（N9⊊CC）——原始 N9 实装/CC 实装/539(b2) L3 经验侧待编排者授权
+    classification: 选择（待编排者授权 prop4-bidir task#22，不擅自结算）
+    settlement_status: pending_escalate
+  - id: impl-561-3
+    text: 561 CC 定义域 = 普适（所有引擎），非 T-engine-family（poltev-prove scope 精化，231号）
+    classification: 定理（自动结算，231号有效域规则）
+    settlement_status: settled
 - id: '562'
   title: bootstrap 结构工位从文本提示升格为机制强制——075 扬弃（结构=teammate）
   status: 已结算
   type: 语法记录
   file: settled/562-bootstrap-structural-enforce.md
   downstream_implications:
-    # 推论6：075号下游推论5 被562否定——negated_by 字段已在 075 文件中更新（negated_by: ["562"]）
-    - id: impl-562-1
-      text: 075 下游推论5「Stop hook 不再检查 dominator node 存在性」被562否定
-      classification: 行动（已执行）
-      settlement_status: done  # 075 文件已有 negated_by: ["562"]，推论6已闭合
-    # 推论7：Lead 跳过 bootstrap 现在被机制阻断（记录到 meta-lead skill 或 swarm-architecture）
-    - id: impl-562-2
-      text: Lead 跳过 bootstrap 现由检查 1.5 机制阻断，137号文本提示无效的又一次机制化修复
-      classification: 行动（已机制化）
-      settlement_status: done  # 562 文件已声明，检查 1.5 是机制前提，覆盖此推论
-    # 推论8：agent-team-bootstrap.sh 文本注入与检查 1.5 机制前提并存（072号双前提兼容性声明）
-    - id: impl-562-3
-      text: agent-team-bootstrap.sh 文本注入（提示前提）+ 检查 1.5（机制前提）= 072号双前提完整覆盖
-      classification: 行动（记录兼容性声明）
-      settlement_status: done  # 562 文件已声明"agent-team-bootstrap.sh 仍保留"，兼容性覆盖
-    # 推论9：业务命名+规范 agentType 双层命名约定固化为检测契约（team-topology.json 已存在此约定）
-    - id: impl-562-4
-      text: 业务命名 + agentType 双层命名约定固化为检测契约——team-topology.json 已有 structural_agents
-      classification: 行动（记录已覆盖）
-      settlement_status: done  # team-topology.json 存在，structural_agents 定义规范 agentType；契约已隐含在 562 检查 1.5 逻辑中
+  - id: impl-562-1
+    text: 075 下游推论5「Stop hook 不再检查 dominator node 存在性」被562否定
+    classification: 行动（已执行）
+    settlement_status: done
+  - id: impl-562-2
+    text: Lead 跳过 bootstrap 现由检查 1.5 机制阻断，137号文本提示无效的又一次机制化修复
+    classification: 行动（已机制化）
+    settlement_status: done
+  - id: impl-562-3
+    text: agent-team-bootstrap.sh 文本注入（提示前提）+ 检查 1.5（机制前提）= 072号双前提完整覆盖
+    classification: 行动（记录兼容性声明）
+    settlement_status: done
+  - id: impl-562-4
+    text: 业务命名 + agentType 双层命名约定固化为检测契约——team-topology.json 已有 structural_agents
+    classification: 行动（记录已覆盖）
+    settlement_status: done
 - id: '563'
-  title: 吃跌不可调和性升一级——穿仓(consume解)×踏空(ANCHOR解)二难;prop4-nest#22 L3:consume平空解整仓死扣穿仓5/8但解穿仓≠解踏空(2/8超BH);strict开放轴C单独不救=consume enabler(560开放轴c闭合);561 CC的L3经验侧
+  title: 吃跌不可调和性升一级——穿仓(consume解)×踏空(ANCHOR解)二难;prop4-nest#22 L3:consume平空解整仓死扣穿仓5/8但解穿仓≠解踏空(2/8超BH);strict开放轴C单独不救=consume
+    enabler(560开放轴c闭合);561 CC的L3经验侧
   status: 已结算
   type: 概念发现
   file: settled/563-eating-down-piercing-vs-missing-rally-dilemma.md
@@ -2808,37 +2926,32 @@ nodes:
   type: 语法记录
   file: settled/564-stopguard-check3-instruction-overflow.md
   downstream_implications:
-    # 推论4：558/562 的 bit-exact 保留契约需加 check 3 例外标注
-    - id: impl-564-1
-      text: 558/562 bit-exact 保留契约例外标注——check 3 是已知待修项，下次 hook 修改时纳入
-      classification: 行动
-      settlement_status: recorded  # 已在 564 文件中声明；不改已结算谱系，改时并入
-    # 推论5：097号 hook 动作语义应机制化检查（非仅文本约束）
-    - id: impl-564-2
-      text: 097号 hook 动作语义（阻断/放行）应机制化检查，避免 check 3 类越界再现
-      classification: 选择（待编排者裁决修复方案 A/B/C）
-      settlement_status: pending_escalate  # 564 文件已列三方案，需编排者选择后执行
+  - id: impl-564-1
+    text: 558/562 bit-exact 保留契约例外标注——check 3 是已知待修项，下次 hook 修改时纳入
+    classification: 行动
+    settlement_status: recorded
+  - id: impl-564-2
+    text: 097号 hook 动作语义（阻断/放行）应机制化检查，避免 check 3 类越界再现
+    classification: 选择（待编排者裁决修复方案 A/B/C）
+    settlement_status: pending_escalate
 - id: '565'
   title: 幽灵 owner 任务生命周期——死 teammate 名绕过 owner=None 孤儿检测
   status: 已结算
   type: 语法记录
   file: settled/565-ghost-owner-task-lifecycle.md
   downstream_implications:
-    # 推论1：「任务创建即指派 owner」= feedback_task_queue_owner_liveness 隐性规则机制化（语法记录类）
-    - id: impl-565-1
-      text: 任务创建即指派 owner = feedback_task_queue_owner_liveness 隐性规则的机制化
-      classification: 语法记录（行动）
-      settlement_status: recorded  # 记录于 dag.yaml；修复路径并入 swarm-mechanism-fix #30
-    # 推论2：「死 teammate 名 owner = 孤儿」= 155号的逻辑必然扩展（定理类）
-    - id: impl-565-2
-      text: 死 teammate 名 owner = 孤儿，155号 owner 标识工位的逻辑必然推论
-      classification: 定理（自动结算）
-      settlement_status: settled  # 155号 owner 存在性 → 必然扩展为活性校验，无需新原则
-    # 推论3：Stop-Guard 检查2 owner 活性校验与检查 1.5（562号）同属 swarm-infra 修复域
-    - id: impl-565-3
-      text: 检查2 owner 活性校验 ⊥ 检查 1.5 结构工位存在性 → 同域，可批量升级
-      classification: 行动（域标记）
-      settlement_status: recorded  # 562/565 同属 swarm-infra 健壮性增强，可并入同一 PR
+  - id: impl-565-1
+    text: 任务创建即指派 owner = feedback_task_queue_owner_liveness 隐性规则的机制化
+    classification: 语法记录（行动）
+    settlement_status: recorded
+  - id: impl-565-2
+    text: 死 teammate 名 owner = 孤儿，155号 owner 标识工位的逻辑必然推论
+    classification: 定理（自动结算）
+    settlement_status: settled
+  - id: impl-565-3
+    text: 检查2 owner 活性校验 ⊥ 检查 1.5 结构工位存在性 → 同域，可批量升级
+    classification: 行动（域标记）
+    settlement_status: recorded
 edges:
   depends_on:
   - from: '136'
@@ -5797,6 +5910,8 @@ edges:
     to: '155'
   - from: '565'
     to: '145'
+  - from: '563'
+    to: '556'
   triggered:
   - from: '005'
     to: 005a
