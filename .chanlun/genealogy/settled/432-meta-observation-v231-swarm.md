@@ -17,6 +17,11 @@ negation_form: none
 negation_source: ""
 topo_effect: ""
 tensions_with: []
+crystallized_candidates:
+  - candidate: "候选1：scan 状态不可观测（继承自 430，第4实例）"
+    crystallized_into: ceremony-scan-completeness
+    crystallization_record: '559'
+    date: 2026-06-23
 rule_version_baseline:
   claude_md_commit: "d3363c9"
   rules_dir_mtime: "2026-03-10 22:53:58 +0000"
@@ -186,6 +191,8 @@ ceremony_scan 基于静态文件扫描，不消费运行时产出。v231 新增�
 
 阈值评估：**已达阈值**——4个实例 + 共同结构模式。430号已确认达阈值，本轮再次确认。
 
+> **【已结晶 2026-06-23】** 本候选（4实例时点）继续累积至 433号第5实例，于 2026-06-23 经 051号 Pull 模型结晶为 `ceremony-scan-completeness` skill。gemini-challenger decide：选项A（独立新建，与 spec-execution-gap 分离），CONFIDENCE: HIGH。结晶事件记录见 **559号**。本候选不再计为"待结晶候选"。
+
 ### 候选2（新增，接近阈值）：API 降级下的蜂群自适应韧性
 
 蜂群在资源受限时自适应降级（减少并发、Lead 接手、re-spawn）。3个实例（v229超时/v230 context耗尽/v231 503降级）。
@@ -226,7 +233,7 @@ v231-swarm 的核心特征：**编排者否定驱动的概念层修正——ARTI
 
 ## 边界条件
 
-1. **scan 消费标记候选**（继承自 430-BC2，升级）：4个实例，已达阈值
+1. **scan 消费标记候选**（继承自 430-BC2，升级）：4个实例，已达阈值。【2026-06-23 关闭——经 051号 Pull 模型结晶为 ceremony-scan-completeness skill，见 559号】
 2. **API 降级韧性候选**（新增）：3个实例，接近阈值，需再观察1-2轮
 3. **否定轮是否稳定模式**（新增）：v231 是第一个明确的否定轮，需观察后续是否重复
 4. **A密B疏/B密A疏 L2 验证**（继承自 431号推论4）：需 VPS daemon 重启后观察
@@ -242,3 +249,5 @@ v231-swarm 的核心特征：**编排者否定驱动的概念层修正——ARTI
 ## 影响声明
 
 本谱系不改动任何代码、定义或规则。记录 v231-swarm 的二阶观察。确认429号溯源断裂已关闭。确认 scan 消费标记缺失第4个实例。识别编排者否定与231号有效域规则的同构性。扩展三拍节奏为包含否定轮的模型。新增 API 降级韧性候选（接近阈值）。新增 1 条语法记录候选，继承 7 条。新增 3 条边界条件，关闭 1 条（429号溯源修复），继承 8 条。
+
+**【2026-06-23 回填】** 本号观察3/候选1（scan 状态不可观测，第4实例）已结晶为 ceremony-scan-completeness skill，结晶事件见 559号。

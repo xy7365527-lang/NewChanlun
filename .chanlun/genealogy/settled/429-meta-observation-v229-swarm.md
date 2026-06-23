@@ -20,6 +20,11 @@ negation_source: ""
 topo_effect: ""
 tensions_with:
   - '425'   # Phase 2 实装声明 vs 持久化溯源断裂——声明已实装但溯源未持久化
+crystallized_candidates:
+  - candidate: "候选1：scan 状态不可观测"
+    crystallized_into: ceremony-scan-completeness
+    crystallization_record: '559'
+    date: 2026-06-23
 rule_version_baseline:
   claude_md_commit: "c937c0d"
   rules_dir_mtime: "2026-03-11"
@@ -205,6 +210,8 @@ ceremony_scan 基于静态文件扫描，不消费运行时产出（block topolo
 
 阈值评估：**已达阈值**——3个实例 + 共同结构模式 + 可观测的蜂群资源浪费（重复 spawn）。
 
+> **【已结晶 2026-06-23】** 本候选历经 429（首识3实例）→430→432（第4实例）→433（第5实例）四轮 meta-observation 收敛，于 2026-06-23 经 051号 Pull 模型由 skill-crystallizer 结晶为 `ceremony-scan-completeness` skill（`.claude/commands/ceremony-scan-completeness.md`）。gemini-challenger decide：选项A（独立新建，与 spec-execution-gap 分离），CONFIDENCE: HIGH。结晶事件记录见 **559号**。本候选不再计为"待结晶候选"，后续 meta-observation 应引用 559号/skill 作为已结晶事实。
+
 ### 候选2（继承自 428-候选1）：topo_effect 执行幂等性
 
 226-C1/C2 重复已被清理。但结构性原因（handoff 不清除已执行的 effect）未解决。继承，接近阈值。
@@ -246,7 +253,7 @@ v229-swarm 的核心特征：**425号 Phase 1.5/Phase 2 工程实装 + 持久化
 ## 边界条件
 
 1. **持久化溯源断裂修复时机**（新增）：append_articulation() 需要被调用。修复路径确定（见观察2），但需在下一轮实装中执行
-2. **scan 状态不可观测候选**（新增）：已达阈值。是否通过 /escalate 上浮？取决于蜂群对 scan 输出虚假工位的容忍度
+2. **scan 状态不可观测候选**（新增）：已达阈值。【2026-06-23 关闭——经 051号 Pull 模型结晶为 ceremony-scan-completeness skill，见 559号。原 BC 关于"是否通过 /escalate 上浮"的问题已回答：不上浮，而是结晶为 skill】
 3. **meta-observer 超时是否中断**（继承自 428-BC1）：v229 结果待确认
 4. **topo_effect 幂等性**（继承自 428-BC2）：结构原因未解决
 5. **427号生成态遗留**（继承自 428-BC3，但 427 已结算——BC 关闭）
@@ -262,3 +269,5 @@ v229-swarm 的核心特征：**425号 Phase 1.5/Phase 2 工程实装 + 持久化
 ## 影响声明
 
 本谱系不改动任何代码、定义或规则。记录 v229-swarm 的二阶观察。识别持久化溯源断裂（append_articulation() 无调用者）。识别 scan 状态不可观测模式（3实例，语法记录候选已达阈值）。确认 Phase 1/1.5/2 架构一致性（除溯源断裂外）。确认三拍节奏（概念→消化→实装）的第三拍。新增 1 条语法记录候选，继承 6 条。新增 2 条边界条件（溯源修复 + scan 候选），关闭 1 条（427号已结算），继承 9 条。
+
+**【2026-06-23 回填】** 本号观察3/候选1（scan 状态不可观测）已结晶为 ceremony-scan-completeness skill，结晶事件见 559号。

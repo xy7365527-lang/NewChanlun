@@ -1,9 +1,15 @@
-# 544 号：T24 手性交替 L0 守卫降级为观测 + sink/recover 方向相容前提补齐
-
+---
+id: '544'
+number: 544
+title: "T24 手性交替 L0 守卫降级为观测 + sink/recover 方向相容前提补齐"
+type: 概念分离
 status: settled
 date: 2026-06-17
-level: L0→观测（formalization-validity-domain 修正）+ L0（操作适用域前提）
+level: "L0→观测（formalization-validity-domain 修正）+ L0（操作适用域前提）"
 负责工位: CC session（fugue_v3 T24 prove panic 调研+修复）
+---
+
+# 544 号：T24 手性交替 L0 守卫降级为观测 + sink/recover 方向相容前提补齐
 
 ## 概念分离
 

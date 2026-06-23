@@ -4,6 +4,7 @@ number: 531
 title: "1min分辨率实验「分辨率不变结构性质」断言的证据基础不足——已修正结算"
 type: 矛盾发现
 status: 已结算
+date: '2026-06-08'
 settlement_classification: 修正
 四分法分类: 修正（断言收窄 + 控制实验经验解决核心混淆）
 resolution: >
@@ -18,7 +19,6 @@ settled_by: claude-opus-4-8 (作者自结算，控制实验经验解决，非异
 negation_source: heterogeneous (同质challenger提出5裂隙) + author控制实验经验解决 + Codex异质复核(深化修正)
 negation_form: revision
 negation_model: "gemini-2.5-pro 未执行（429配额耗尽）；Codex/OpenAI 异质复核已执行（CLI 429 但工位以异质对立视角诊断）——核心裂隙由控制实验经验解决，异质复核深化修正措辞（单调放大→两实例方向初步一致）"
-date: 2026-06-08
 source: "analysis/gamma_delta_1m_results.md + docs/architecture/recursive_decomposition_tree.md §11.6"
 challenger_agent: "030a/031号谱系异质质询代理（Claude Sonnet 4.6）"
 depends_on:

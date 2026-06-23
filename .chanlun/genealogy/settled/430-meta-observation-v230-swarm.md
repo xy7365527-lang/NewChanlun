@@ -10,6 +10,11 @@ depends_on:
   - '429'   # v229-swarm 元观察
   - '076'   # fractal execution gap
   - '036'   # 声明-能力一致性
+crystallized_candidates:
+  - candidate: "候选1：scan 状态不可观测（继承自 429）"
+    crystallized_into: ceremony-scan-completeness
+    crystallization_record: '559'
+    date: 2026-06-23
 rule_version_baseline:
   claude_md_commit: "09bc3999062d55d369dde9ebedd37c9efe4ce0e3"
   rules_dir_mtime: "2026-03-10 22:53:58 +0000"
@@ -42,6 +47,16 @@ dep-auditor 产出洞察："depends_on 是历时性记录（概念生成史）�
 - 观察3：formalization-validity-domain 收敛
 - 观察4：新发现，语法记录候选，待观察
 
+## 语法记录候选状态更新
+
+### 候选1（继承自 429-候选1）：scan 状态不可观测
+
+429号已识别并确认达阈值。本轮继承（depends_on 含 429）。
+
+> **【已结晶 2026-06-23】** 本候选（继承自 429号观察3/候选1，本轮作为 430-候选1 继承确认达阈值）于 2026-06-23 经 051号 Pull 模型结晶为 `ceremony-scan-completeness` skill。gemini-challenger decide：选项A（独立新建），CONFIDENCE: HIGH。结晶事件记录见 **559号**。本候选不再计为"待结晶候选"。
+
 ## 结论
 
 无需 `/escalate`。一条语法记录候选（观察4：历时性/共时性区分）。
+
+**【2026-06-23 回填】** 本号继承自 429 的 scan 状态不可观测候选已结晶为 ceremony-scan-completeness skill，结晶事件见 559号。

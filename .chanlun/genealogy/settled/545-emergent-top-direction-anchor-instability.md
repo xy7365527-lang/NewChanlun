@@ -1,9 +1,15 @@
-# 545 号：emergent_top 判据震荡 —— 一个能指承载三重所指，方向锚所指已被否定却未移除
-
-status: settled（记录本身结算；所记录的「emergent_top 作核心方向锚」概念为**生成态**，见开放轴）
+---
+id: '545'
+number: 545
+title: "emergent_top 判据震荡 —— 一个能指承载三重所指，方向锚所指已被否定却未移除"
+type: 概念分离
+status: settled  # 记录本身结算；所记录的「emergent_top 作核心方向锚」概念为生成态（见开放轴）
 date: 2026-06-21
-level: L0（逐字源码 + git 提交史 + 设计文档文本）+ 审计期并发编辑观测
+level: "L0（逐字源码 + git 提交史 + 设计文档文本）+ 审计期并发编辑观测"
 负责工位: CC session（rec_engine 实装审计衍生，docs/rec_engine_implementation_audit.md §3.2/AV7）
+---
+
+# 545 号：emergent_top 判据震荡 —— 一个能指承载三重所指，方向锚所指已被否定却未移除
 
 ## 现象：单个函数判据在一日内被反复重写
 

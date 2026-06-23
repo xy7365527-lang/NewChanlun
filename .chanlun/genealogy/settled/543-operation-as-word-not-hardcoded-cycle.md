@@ -1,9 +1,15 @@
-# 543 号：操作 = path（D∞ word）≠ 硬编码循环模式
-
+---
+id: '543'
+number: 543
+title: "操作 = path（D∞ word）≠ 硬编码循环模式"
+type: 概念分离
 status: settled
 date: 2026-06-17
-level: L0（自由幺半群 + 覆盖论，operation_route_exhaustion §1.1）
+level: "L0（自由幺半群 + 覆盖论，operation_route_exhaustion §1.1）"
 负责工位: CC session（fugue_v3 D∞ word 处理器实装）
+---
+
+# 543 号：操作 = path（D∞ word）≠ 硬编码循环模式
 
 ## 概念分离
 

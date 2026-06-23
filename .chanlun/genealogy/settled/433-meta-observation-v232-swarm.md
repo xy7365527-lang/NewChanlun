@@ -16,6 +16,11 @@ negation_form: none
 negation_source: ""
 topo_effect: ""
 tensions_with: []
+crystallized_candidates:
+  - candidate: "候选1：scan 状态不可观测（第5实例，已达阈值）"
+    crystallized_into: ceremony-scan-completeness
+    crystallization_record: '559'
+    date: 2026-06-23
 rule_version_baseline:
   claude_md_commit: "d3363c9"
   rules_dir_mtime: "2026-03-10 22:53:58 +0000"
@@ -161,6 +166,8 @@ v232-swarm 是不动点轮，8个工位全部正常完成，无 context 耗尽�
 
 第5实例确认。ceremony_scan 基于静态文件扫描，不消费运行时产出状态。
 
+> **【已结晶 2026-06-23】** 本候选的累积链 429（3实例）→430→432（4实例）→433（5实例，本号）于 2026-06-23 经 051号 Pull 模型由 skill-crystallizer 结晶为 `ceremony-scan-completeness` skill（`.claude/commands/ceremony-scan-completeness.md`）。结晶曾于 2026-06-22 因 Gemini 429 RESOURCE_EXHAUSTED 卡住，配额恢复后 2026-06-23 重试，gemini-challenger decide：选项A（独立新建，与 spec-execution-gap 分离），CONFIDENCE: HIGH。结晶事件记录见 **559号**。本候选不再计为"待结晶候选"，是 429→433 收敛链的回溯结算终点。
+
 ### 候选2（新增，已达阈值）：L2 消费依赖外部条件
 
 推论消费链在 L2 环节因外部条件（VPS/daemon/真实数据）阻塞。蜂群 L0/L1 路径畅通。3个 session 连续出现。
@@ -224,7 +231,7 @@ v232-swarm 是不动点轮——所有工位验证了当前状态的稳定性，
 
 ## 边界条件
 
-1. **scan 消费标记候选**（继承自 432-BC1，第5实例）：持续收敛
+1. **scan 消费标记候选**（继承自 432-BC1，第5实例）：持续收敛。【2026-06-23 关闭——经 051号 Pull 模型结晶为 ceremony-scan-completeness skill，见 559号。429→433 收敛链回溯结算完成】
 2. **L2 外部阻塞链**（新增）：如果 VPS daemon 成功启动，此阻塞链将解消——需观察解消后的推论消费情况
 3. **stagnation 误报修复**（新增）：delta=0 + 短间隔场景下的 fallback 逻辑需修正。边界条件：session 间隔 < 某阈值时 stagnation 检测应跳过或标注不确定
 4. **block 缺失孤儿关系**（新增）：需确认是 194号特例还是系统性问题（其他早期谱系的 block 是否也缺失）
@@ -245,3 +252,5 @@ v232-swarm 是不动点轮——所有工位验证了当前状态的稳定性，
 ## 影响声明
 
 本谱系不改动任何代码、定义或规则。记录 v232-swarm 的二阶观察。识别 stagnation 误报的双重缺陷（036号+231号）。发现 194号 block 缺失的孤儿关系。新增 L2 外部阻塞链为语法记录候选（已达阈值）。确认 dep-chain-audit 三轮稳定性。扩展节奏分析为六拍模型（含不动点拍）。新增 1 条语法记录候选，继承 8 条。新增 6 条边界条件，继承 11 条。
+
+**【2026-06-23 回填】** 本号观察4/候选1（scan 状态不可观测，第5实例，已达阈值）已结晶为 ceremony-scan-completeness skill，是 429→433 收敛链的回溯结算终点，结晶事件见 559号。

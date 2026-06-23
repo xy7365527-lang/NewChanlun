@@ -1,5 +1,5 @@
 pattern_id: scan-state-unobservable
-status: candidate
+status: settled
 frequency: 5
 promotion_threshold: 3
 first_observed: 2026-04-15  # v213+ ARTICULATE 实装期
@@ -54,3 +54,21 @@ notes:
   - "本候选由 genealogist 工位（pending-001）于 2026-04-27 评估推送"
   - "skill-crystallizer 接收后应做 N=5 实例的形式化抽取"
   - "异质审计降级——本号产出未经 Gemini 质询"
+crystallization_attempt:
+  date: 2026-06-22
+  crystallizer: skill-crystallizer
+  gemini_decide: UNAVAILABLE (429 RESOURCE_EXHAUSTED — gemini-3.1-pro-preview + gemini-2.5-pro)
+  skill_draft: ".chanlun/pattern-buffer/pending-ceremony-scan-completeness-skill.md"
+  pending_decision: "独立新建 .claude/commands/ceremony-scan-completeness.md vs 合并到 spec-execution-gap（人类决策待批准）"
+  crystallizer_recommendation: "独立新建（定义域不同——ceremony_scan 元编排基础设施层 vs 代码层消费者缺失）"
+
+crystallization_settled:
+  date: 2026-06-23
+  crystallizer: skill-crystallizer
+  gemini_decide: "A（独立新建），CONFIDENCE: HIGH"
+  gemini_rationale: >
+    spec-execution-gap B方向处理"单个代码单元出口无消费者"（可通过grep修复），
+    ceremony-scan-completeness处理"scan引擎架构决定整类运行时状态原则上不可达"（需要架构层修复或静态化策略）。
+    合并会要求spec-execution-gap承载"已知盲点清单表"这一持续维护的动态数据结构，与其现有定位不兼容。
+  skill_registered: ".claude/commands/ceremony-scan-completeness.md"
+  manifest_updated: ".chanlun/manifest.yaml"
