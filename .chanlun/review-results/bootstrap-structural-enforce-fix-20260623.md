@@ -56,7 +56,7 @@ bootstrap 强制**，缺任一常设结构工位即 block + 路由具体缺失�
 | E 145 熔断 | counter=3:0，任务态稳定 | 放行（避免死锁） | PASS |
 
 - `bash -n` 语法检查通过。
-- 现有 Stop-Guard 5 个检查（死寂/任务队列/生成态谱系/@proof-required/四分法）bit-exact
+- 现有 Stop-Guard 5 个检查（死寂/任务队列/生成态谱系/proof-required标签/四分法）bit-exact
   保留——检查 1.5 纯加性（block 时 early-exit，放行时直通），与四分法检查（检查 5）不冲突。
 
 ## 075 vs 095/096 矛盾解决（Aufhebung）
