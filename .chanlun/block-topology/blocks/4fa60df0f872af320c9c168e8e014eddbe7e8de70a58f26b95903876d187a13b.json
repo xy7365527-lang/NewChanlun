@@ -1,0 +1,21 @@
+{
+  "id": "4fa60df0f872af320c9c168e8e014eddbe7e8de70a58f26b95903876d187a13b",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.049964+00:00",
+  "source": "migration",
+  "content": {
+    "id": "227",
+    "title": "元观察——v70-swarm P0/P1 修复 session（ceremony 状态文件集成缺口 + 三个收敛信号）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-27",
+    "depends_on": [
+      "226",
+      "036",
+      "076"
+    ],
+    "source_file": "settled/227-meta-observation-v70-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

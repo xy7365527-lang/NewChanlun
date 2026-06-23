@@ -1,0 +1,21 @@
+{
+  "id": "b777ce0fbe9954c011d4c486dc68c5ba127e631e0d1a6b7a64ae58f69dc388bf",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.031065+00:00",
+  "source": "migration",
+  "content": {
+    "id": "205",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-25",
+    "depends_on": [
+      "196",
+      "202",
+      "204",
+      "143"
+    ],
+    "source_file": "settled/205-clean-terminate-stall.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

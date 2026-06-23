@@ -1,0 +1,21 @@
+{
+  "id": "f555ac15d661d1e36397d519f3cf59eaf0af104a5b86bb8a7249d770871532db",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.162201+00:00",
+  "source": "migration",
+  "content": {
+    "id": "335",
+    "title": "三体制内部分析：边冻结INCONCLUSIVE + eff.dim动力学两种模式 + basis进入端领先",
+    "status": "已结算",
+    "type": "experiment",
+    "date": "2026-03-04",
+    "depends_on": [
+      "329",
+      "330",
+      "334"
+    ],
+    "source_file": "settled/335-three-regime-internal-analysis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

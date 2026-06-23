@@ -1,0 +1,15 @@
+{
+  "id": "a484011c334f0c96a484b7493c5a2acf9be3b6f7020bd9901218b1abf896aa6d",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.992934+00:00",
+  "source": "migration",
+  "content": {
+    "id": "164",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-13",
+    "source_file": "settled/164-stellar-fusion-recursion-model.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

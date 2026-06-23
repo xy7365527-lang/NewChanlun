@@ -1,0 +1,26 @@
+{
+  "id": "c4cd6c434472393e577257fe1084180d52fb0d65036700430d30a4dbcd232b70",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.854354+00:00",
+  "source": "migration",
+  "content": {
+    "id": "016",
+    "title": "规则没有代码强制就不会被执行",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-17",
+    "depends_on": [
+      "014"
+    ],
+    "related": [
+      "005b",
+      "012",
+      "015"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/016-runtime-enforcement-layer.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

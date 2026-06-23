@@ -1,0 +1,32 @@
+{
+  "id": "8172fa2ad2e02b5dcd83257fd13be6a2eb7350ead274e60107797e2c34e67663",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.973971+00:00",
+  "source": "migration",
+  "content": {
+    "id": "133",
+    "title": "异质双向收敛协议——030a单向否定的对称化扩展，053号异质双引擎的操作化",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "negation_source": "homogeneous",
+    "negation_form": "语法记录（已运作但未显式化的规则）",
+    "depends_on": [
+      "055",
+      "053",
+      "030a",
+      "093"
+    ],
+    "related": [
+      "129",
+      "069",
+      "012"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/133-heterogeneous-bilateral-convergence-protocol.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

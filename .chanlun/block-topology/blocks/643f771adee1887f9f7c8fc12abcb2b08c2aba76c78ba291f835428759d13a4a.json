@@ -1,0 +1,23 @@
+{
+  "id": "643f771adee1887f9f7c8fc12abcb2b08c2aba76c78ba291f835428759d13a4a",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.142490+00:00",
+  "source": "migration",
+  "content": {
+    "id": "311",
+    "title": "元观察——v134-swarm Phase 2→Phase 3 过渡 + 方向变更（flag complex 取消→穿越基础设施）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "310",
+      "309",
+      "218",
+      "137",
+      "090"
+    ],
+    "source_file": "settled/311-meta-observation-v134-swarm-phase-transition.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

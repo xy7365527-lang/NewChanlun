@@ -1,0 +1,22 @@
+{
+  "id": "98fa0d1ceaa3648c5b6a0954284f62f614b0b88022e530d20c916eec809f80e6",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.073884+00:00",
+  "source": "migration",
+  "content": {
+    "id": "253",
+    "title": "双管道真实 BSP 回测对比——22.2% 分歧率在真实数据复现",
+    "status": "settled",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "252",
+      "241",
+      "244",
+      "233"
+    ],
+    "source_file": "settled/253-dual-pipeline-real-bsp-backtest.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

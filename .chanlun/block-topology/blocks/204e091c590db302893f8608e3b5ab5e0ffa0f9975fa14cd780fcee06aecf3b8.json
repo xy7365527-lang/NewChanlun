@@ -1,0 +1,22 @@
+{
+  "id": "204e091c590db302893f8608e3b5ab5e0ffa0f9975fa14cd780fcee06aecf3b8",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.096701+00:00",
+  "source": "migration",
+  "content": {
+    "id": "270",
+    "title": "审讯者终止条件设计——stance-diff检测+编排者确认（选项D）",
+    "status": "settled",
+    "type": "语法记录",
+    "date": "2026-02-28",
+    "depends_on": [
+      "269",
+      "030",
+      "137",
+      "005"
+    ],
+    "source_file": "settled/270-challenger-termination-design.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,29 @@
+{
+  "id": "4c037c804dcc0f0de43da0b91a059444369e1043dc6d8b190af0856b39209fea",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.966614+00:00",
+  "source": "migration",
+  "content": {
+    "id": "125",
+    "title": "不允许向编排者提可自决问题的生成史——四分法的操作化守则",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "negation_source": "v32审计发现（G-10缺口）",
+    "negation_form": "语法记录（已在运作的规则的生成史追溯）",
+    "depends_on": [
+      "018"
+    ],
+    "related": [
+      "111",
+      "041",
+      "058"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/125-no-unnecessary-escalation-genesis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

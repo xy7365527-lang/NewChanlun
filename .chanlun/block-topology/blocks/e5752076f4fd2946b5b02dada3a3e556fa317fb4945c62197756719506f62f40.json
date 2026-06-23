@@ -1,0 +1,21 @@
+{
+  "id": "e5752076f4fd2946b5b02dada3a3e556fa317fb4945c62197756719506f62f40",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.160387+00:00",
+  "source": "migration",
+  "content": {
+    "id": "333",
+    "title": "元观察——Au basis 实验 session：编排者直驱模式第三次出现 + ceremony 外实验执行模式",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-04",
+    "depends_on": [
+      "332",
+      "329",
+      "330"
+    ],
+    "source_file": "settled/333-meta-observation-au-basis-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

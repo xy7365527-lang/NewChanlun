@@ -1,0 +1,22 @@
+{
+  "id": "ae2ae5646fa8cb3f5ae2d44b161d82a5d51c943c955a16fd6f7a1c112f0d7a00",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.079782+00:00",
+  "source": "migration",
+  "content": {
+    "id": "258",
+    "title": "元观察——v107-swarm 纯理论蜂群首例 + ceremony_scan 输入域边界 + Gemini 否定质量跃升 + 选择类分类正当性",
+    "status": "resolved",
+    "type": "meta-rule",
+    "date": "2026-02-28",
+    "depends_on": [
+      "228",
+      "181",
+      "154",
+      "221"
+    ],
+    "source_file": "settled/258-meta-observation-v107-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

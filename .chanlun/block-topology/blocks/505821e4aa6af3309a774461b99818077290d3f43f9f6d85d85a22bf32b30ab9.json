@@ -1,0 +1,29 @@
+{
+  "id": "505821e4aa6af3309a774461b99818077290d3f43f9f6d85d85a22bf32b30ab9",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.917707+00:00",
+  "source": "migration",
+  "content": {
+    "id": "073",
+    "title": "蜂群能修改一切——全可变性原则与人类本体论锚点",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-21",
+    "negation_source": "",
+    "negation_form": "",
+    "depends_on": [
+      "069",
+      "005a",
+      "005b",
+      "057",
+      "058"
+    ],
+    "negates": [],
+    "negated_by": [
+      "073a"
+    ],
+    "source_file": "settled/073-swarm-full-mutability.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

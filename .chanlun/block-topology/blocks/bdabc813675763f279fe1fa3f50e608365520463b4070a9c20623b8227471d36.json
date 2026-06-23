@@ -1,0 +1,24 @@
+{
+  "id": "bdabc813675763f279fe1fa3f50e608365520463b4070a9c20623b8227471d36",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.849333+00:00",
+  "source": "migration",
+  "content": {
+    "id": "011",
+    "title": "定级别的方向——自上而下只读遍历",
+    "status": "已结算",
+    "type": "语法记录 [旧缠论:隐含]",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "006",
+      "008",
+      "010"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/011-level-determination-direction.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

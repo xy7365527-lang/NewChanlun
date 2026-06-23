@@ -1,0 +1,26 @@
+{
+  "id": "224f676d551960b35a45776b4717d53614efd21a9d024d1b8c37c8b7180cadaf",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.848180+00:00",
+  "source": "migration",
+  "content": {
+    "id": "010",
+    "title": "构造层与分类层的二层架构",
+    "status": "已结算",
+    "type": "定理（逻辑必然推论）",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "005b",
+      "006",
+      "007",
+      "008",
+      "009"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/010-construction-vs-classification.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

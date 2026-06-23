@@ -1,0 +1,28 @@
+{
+  "id": "dfb6664502e963f74cbf3e40d4fbfb33c0e02328cafba3ecd4352a65d8b96246",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.893558+00:00",
+  "source": "migration",
+  "content": {
+    "id": "048",
+    "title": "通用停机阻断（Universal Stop-Guard）",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "016",
+      "028",
+      "044"
+    ],
+    "related": [
+      "027",
+      "045",
+      "046"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/048-universal-stop-guard.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

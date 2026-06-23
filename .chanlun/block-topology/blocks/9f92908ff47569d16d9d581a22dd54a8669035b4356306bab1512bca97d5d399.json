@@ -1,0 +1,22 @@
+{
+  "id": "9f92908ff47569d16d9d581a22dd54a8669035b4356306bab1512bca97d5d399",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.081482+00:00",
+  "source": "migration",
+  "content": {
+    "id": "259",
+    "title": "黄金折叠剥离实验——C-$ 吸收是 C 类资产的一般性质",
+    "status": "已结算",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "234",
+      "235",
+      "232",
+      "254"
+    ],
+    "source_file": "settled/259-gold-fold-decoupling-experiment.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

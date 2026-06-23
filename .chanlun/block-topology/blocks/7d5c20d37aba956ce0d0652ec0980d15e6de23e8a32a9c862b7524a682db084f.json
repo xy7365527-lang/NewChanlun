@@ -1,0 +1,24 @@
+{
+  "id": "7d5c20d37aba956ce0d0652ec0980d15e6de23e8a32a9c862b7524a682db084f",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.132170+00:00",
+  "source": "migration",
+  "content": {
+    "id": "300",
+    "title": "测度论与折叠拓扑的统一——度量骨架与拓扑骨架的互构",
+    "status": "已结算",
+    "type": "theory",
+    "date": "2026-03-02",
+    "depends_on": [
+      "283",
+      "292",
+      "296",
+      "298"
+    ],
+    "topo_effect": "283号判断修正——测度论+折叠结合产出了283号单独不能产出的新推论；残差获得测度论精确含义；296号两个分岔在测度论中闭合",
+    "tensions_with": [],
+    "source_file": "settled/300-measure-fold-integration.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,30 @@
+{
+  "id": "5e18c5c39bb300ab88cc5bdf9133d5167d78190bc0ce6cf6b3450d92e4b4e7e6",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.999972+00:00",
+  "source": "migration",
+  "content": {
+    "id": "172",
+    "title": "阅读顺序不可逆性——DAG偏序关系与主体历史性的分离",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "negation_source": "heterogeneous",
+    "negation_form": "separation",
+    "depends_on": [
+      "089",
+      "139",
+      "158",
+      "170"
+    ],
+    "related": [
+      "069",
+      "068"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/172-reading-order-irreversibility.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

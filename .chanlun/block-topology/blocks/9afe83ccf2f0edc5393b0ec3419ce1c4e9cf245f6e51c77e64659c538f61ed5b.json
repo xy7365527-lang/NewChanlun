@@ -1,0 +1,26 @@
+{
+  "id": "9afe83ccf2f0edc5393b0ec3419ce1c4e9cf245f6e51c77e64659c538f61ed5b",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.901239+00:00",
+  "source": "migration",
+  "content": {
+    "id": "056",
+    "title": "蜂群递归是默认执行模式，不是优化",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "020",
+      "055"
+    ],
+    "related": [
+      "042",
+      "052"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/056-swarm-recursion-default-mode.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,31 @@
+{
+  "id": "6520092a6b26266c9118f618b5ff7c108c0dd55933bde275e95e44b04d593a36",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.004118+00:00",
+  "source": "migration",
+  "content": {
+    "id": "177",
+    "title": "RTAS循环内谱系驱动拓扑操作——158号第一步工程落地",
+    "status": "已结算",
+    "type": "語法記録",
+    "date": "2026-02-23",
+    "negation_form": "",
+    "depends_on": [
+      "158",
+      "174",
+      "141",
+      "147"
+    ],
+    "related": [
+      "040",
+      "170",
+      "176"
+    ],
+    "negates": [],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/177-rtas-topo-effect-execution.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

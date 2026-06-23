@@ -1,0 +1,28 @@
+{
+  "id": "d323c76fedb7d33da3d52bfe28701680d87330853bbb61ec01167f673df5780a",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.938042+00:00",
+  "source": "migration",
+  "content": {
+    "id": "093",
+    "title": "五约束有向依赖图——从系统物理限制推导蜂群结构约束，扬弃 R.S.I",
+    "status": "已结算",
+    "type": "概念扬弃",
+    "date": "2026-02-21",
+    "negation_source": "系统内部推导 + Gemini challenge + 编排者压力测试",
+    "negation_form": "推导扬弃（从系统物理限制独立推导出结构约束，比对后确认与 Borromean knot 不同构）",
+    "depends_on": [
+      "062",
+      "069",
+      "092"
+    ],
+    "related": [
+      "012",
+      "068",
+      "075"
+    ],
+    "source_file": "settled/093-five-constraints-topology.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

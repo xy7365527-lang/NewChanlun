@@ -1,0 +1,21 @@
+{
+  "id": "2093a036ff2035d56e33aee7508fff45b51acd871f9fd7f56c488151ec606561",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.051775+00:00",
+  "source": "migration",
+  "content": {
+    "id": "228",
+    "title": "元观察——v77-swarm ceremony-step-guard 爆炸半径 + stagnation 诊断收敛 + 227号集成缺口部分修复",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-27",
+    "depends_on": [
+      "227",
+      "226",
+      "036"
+    ],
+    "source_file": "settled/228-meta-observation-v77-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

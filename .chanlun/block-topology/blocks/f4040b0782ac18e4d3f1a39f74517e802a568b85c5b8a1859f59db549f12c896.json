@@ -1,0 +1,22 @@
+{
+  "id": "f4040b0782ac18e4d3f1a39f74517e802a568b85c5b8a1859f59db549f12c896",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.856604+00:00",
+  "source": "migration",
+  "content": {
+    "id": "018",
+    "title": "四分法扩展：行动类（l'acte）",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "017"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/018-four-way-classification.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

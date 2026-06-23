@@ -1,0 +1,26 @@
+{
+  "id": "3b7ecf1b27ca1c464b498919e14ef532cede2c2a2e6f61a93ff8d4cedbca47dc",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.008142+00:00",
+  "source": "migration",
+  "content": {
+    "id": "180",
+    "title": "谱系作用域张力——用户级(~/.genealogy/)与仓库级(.chanlun/block-topology/)",
+    "status": "已结算",
+    "type": "張力標記",
+    "date": "2026-02-24",
+    "negation_form": "无——这是未解决张力的标记，不是否定",
+    "depends_on": [
+      "178"
+    ],
+    "related": [
+      "179"
+    ],
+    "negates": [],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/180-genealogy-scope-tension.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

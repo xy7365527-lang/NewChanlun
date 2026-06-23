@@ -1,0 +1,19 @@
+{
+  "id": "f3954d074ebd641809738a8e09fe9a4504344dd95bc20542b30183dcb71c9fa2",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.063101+00:00",
+  "source": "migration",
+  "content": {
+    "id": "240",
+    "title": "纤维丛上下文集成——FiberTradingContext 接入策略层",
+    "status": "已结算",
+    "type": "工程集成",
+    "date": "2026-02-28",
+    "depends_on": [
+      "236"
+    ],
+    "source_file": "settled/240-fiber-context-integration.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

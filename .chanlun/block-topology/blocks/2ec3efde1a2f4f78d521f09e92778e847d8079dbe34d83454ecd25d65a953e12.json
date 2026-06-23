@@ -1,0 +1,20 @@
+{
+  "id": "2ec3efde1a2f4f78d521f09e92778e847d8079dbe34d83454ecd25d65a953e12",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.168070+00:00",
+  "source": "migration",
+  "content": {
+    "id": "342",
+    "title": "元观察——v150 偶遇扫描 session（编排者三轮自否定 + 双层扫描启动）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-04",
+    "depends_on": [
+      "340",
+      "341"
+    ],
+    "source_file": "settled/342-meta-observation-v150-encounter-scan.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

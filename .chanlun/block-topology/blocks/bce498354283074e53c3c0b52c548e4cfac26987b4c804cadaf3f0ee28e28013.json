@@ -1,0 +1,29 @@
+{
+  "id": "bce498354283074e53c3c0b52c548e4cfac26987b4c804cadaf3f0ee28e28013",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.983021+00:00",
+  "source": "migration",
+  "content": {
+    "id": "145",
+    "title": "三线Gemini诊断收敛——Stop-Guard僵尸任务+meta-observer落标伪造+context limit根因",
+    "status": "已结算",
+    "type": "語法記録",
+    "date": "2026-02-23",
+    "negation_form": "expansion",
+    "depends_on": [
+      "137",
+      "143",
+      "141",
+      "016"
+    ],
+    "related": [
+      "069",
+      "075",
+      "087"
+    ],
+    "tensions_with": [],
+    "source_file": "settled/145-three-line-gemini-convergence.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

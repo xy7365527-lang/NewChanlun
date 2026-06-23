@@ -1,0 +1,29 @@
+{
+  "id": "6422cbe54d43819df50fa8a3b3e4449fc78724670b8313f87c302128616f8330",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.920252+00:00",
+  "source": "migration",
+  "content": {
+    "id": "074",
+    "title": "谱系下游行动执行缺口——系统性观测",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-21",
+    "depends_on": [
+      "036",
+      "071",
+      "072",
+      "073"
+    ],
+    "related": [
+      "016",
+      "033",
+      "058"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/074-downstream-action-execution-gap.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

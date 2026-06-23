@@ -1,0 +1,20 @@
+{
+  "id": "3326e32fd30c1973c4c0a518cd4d4ac90e4bbab6976a38999d1a7965e6cdb050",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.127123+00:00",
+  "source": "migration",
+  "content": {
+    "id": "297",
+    "title": "同一存在论与折叠的统一——域不能安息于域",
+    "status": "settled",
+    "type": "概念生成史",
+    "date": "2026-03-01",
+    "depends_on": [
+      "292",
+      "255"
+    ],
+    "source_file": "settled/297-identity-ontology-fold-unity.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

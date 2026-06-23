@@ -1,0 +1,29 @@
+{
+  "id": "edd856f0c035219f636ee6dc7dd9644fc0387d1bbe274386d9813b1473824b76",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.962884+00:00",
+  "source": "migration",
+  "content": {
+    "id": "121",
+    "title": "065号张力边在068否定后的存废——被否定框架下的张力自动失效",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "negation_source": "v32审计发现（T6张力）",
+    "negation_form": "定理（从否定关系的传递性推导）",
+    "depends_on": [
+      "065",
+      "068"
+    ],
+    "related": [
+      "062",
+      "064"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/121-065-tensions-under-negation.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

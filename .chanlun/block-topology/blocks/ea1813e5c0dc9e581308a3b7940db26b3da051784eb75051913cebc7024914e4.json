@@ -1,0 +1,19 @@
+{
+  "id": "ea1813e5c0dc9e581308a3b7940db26b3da051784eb75051913cebc7024914e4",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.033941+00:00",
+  "source": "migration",
+  "content": {
+    "id": "208",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "195",
+      "207"
+    ],
+    "source_file": "settled/208-gauge-invariant-rate-analysis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,23 @@
+{
+  "id": "e5b3c2cf2708bb47d7a6d9dcc35f2b710509c08af5330bc062ebf10e34c681bd",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.145751+00:00",
+  "source": "migration",
+  "content": {
+    "id": "315",
+    "title": "元观察——v137-swarm 三工位产出 + 折叠内在性检验启动 + meta.json 计数漂移",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-03",
+    "depends_on": [
+      "314",
+      "313",
+      "312",
+      "137",
+      "090"
+    ],
+    "source_file": "settled/315-meta-observation-v137-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

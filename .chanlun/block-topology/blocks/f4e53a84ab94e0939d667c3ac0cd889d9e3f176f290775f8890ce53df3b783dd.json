@@ -1,0 +1,22 @@
+{
+  "id": "f4e53a84ab94e0939d667c3ac0cd889d9e3f176f290775f8890ce53df3b783dd",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.873190+00:00",
+  "source": "migration",
+  "content": {
+    "id": "029",
+    "title": "Move C段覆盖修复",
+    "status": "已结算",
+    "type": "Bug Fix（行动）",
+    "date": "2026-02-18",
+    "depends_on": [],
+    "related": [
+      "028"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/029-move-c-segment-coverage.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

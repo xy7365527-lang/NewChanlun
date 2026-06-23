@@ -1,0 +1,32 @@
+{
+  "id": "0b4e69cdabf09d43f1affd212c9aa282f5af993d22cc2d3a5476ed37ccd55f04",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.598150+00:00",
+  "source": "migration",
+  "content": {
+    "id": "549",
+    "title": "relations.jsonl 沦为未实体化 LFS 指针——476号(append-only ⊥ long-running)张力的物质显形，冻结 block-topology 映射管线",
+    "status": "已结算",
+    "type": "矛盾发现",
+    "date": "2026-06-22",
+    "negation_source": "homogeneous",
+    "negation_form": "waiting",
+    "depends_on": [
+      "476",
+      "178"
+    ],
+    "related": [
+      "424",
+      "094"
+    ],
+    "negates": "隐含命题『block-topology 映射管线（map_genealogy_to_blocks.py）随时可执行』——被证伪：relations.jsonl 是 134 字节 LFS 指针（LFS object 未 pull），read_all_relations 对其首行 `version https://git-lfs.github.com/spec/v1` 调 json.loads 必抛 JSONDecodeError；mapper Phase3 (_build_existing_keys→read_all_relations) 在 Phase2 已 write_meta 之后崩溃 = 部分损坏（meta.json 已加 531-547，relations 未写，脚本异常退出）",
+    "provenance": "[新缠论:实装审计]（block-topology 映射管线 + git-lfs 状态）",
+    "topo_effect": "freeze:block-topology-mapping-pipeline:downstream（冻结 531-548 映射 + 一切后续谱系→区块映射；解冻条件 = A 执行 git lfs pull，§十结算后 freeze 保留——settled ≠ 解冻）",
+    "tensions_with": [
+      "178"
+    ],
+    "source_file": "settled/549-relations-jsonl-lfs-pointer-blocks-mapping.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

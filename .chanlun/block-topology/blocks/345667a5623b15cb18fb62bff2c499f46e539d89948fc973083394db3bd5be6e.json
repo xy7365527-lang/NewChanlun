@@ -1,0 +1,23 @@
+{
+  "id": "345667a5623b15cb18fb62bff2c499f46e539d89948fc973083394db3bd5be6e",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.077154+00:00",
+  "source": "migration",
+  "content": {
+    "id": "256",
+    "title": "254号定理1——三态逆序递归顺序的形式化跳跃（双轮质询确认）",
+    "status": "resolved",
+    "type": "矛盾发现",
+    "date": "2026-02-28",
+    "negation_source": "heterogeneous",
+    "negation_form": "选择类（完备化方向需编排者决断：补推导链/降级启发式/删除定理1）",
+    "depends_on": [
+      "254",
+      "233",
+      "235"
+    ],
+    "source_file": "settled/256-tristate-order-derivation-gap.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

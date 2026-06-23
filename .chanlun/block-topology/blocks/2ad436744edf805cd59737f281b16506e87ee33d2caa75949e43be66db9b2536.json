@@ -1,0 +1,21 @@
+{
+  "id": "2ad436744edf805cd59737f281b16506e87ee33d2caa75949e43be66db9b2536",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.057658+00:00",
+  "source": "migration",
+  "content": {
+    "id": "234",
+    "title": "ker(D) L2 交叉验证——K4 完全图全六条边",
+    "status": "已结算",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "233",
+      "232",
+      "230"
+    ],
+    "source_file": "settled/234-kernel-l2-cross-verification.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

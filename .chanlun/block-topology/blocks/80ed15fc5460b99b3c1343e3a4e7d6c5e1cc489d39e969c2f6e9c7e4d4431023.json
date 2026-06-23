@@ -1,0 +1,31 @@
+{
+  "id": "80ed15fc5460b99b3c1343e3a4e7d6c5e1cc489d39e969c2f6e9c7e4d4431023",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.981224+00:00",
+  "source": "migration",
+  "content": {
+    "id": "141",
+    "title": "矛盾→拓扑变化三步方案——双向收敛五结论 + compact蜂群状态缺口修复",
+    "status": "已结算",
+    "type": "語法記録",
+    "date": "2026-02-22",
+    "depends_on": [
+      "139",
+      "140"
+    ],
+    "related": [
+      "040",
+      "093",
+      "069",
+      "068",
+      "033",
+      "075",
+      "134"
+    ],
+    "topo_effect": "引入 topo_effect retrospective 标注方案 + compact 蜂群状态通路修复",
+    "tensions_with": [],
+    "source_file": "settled/141-topology-mutation-convergence.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

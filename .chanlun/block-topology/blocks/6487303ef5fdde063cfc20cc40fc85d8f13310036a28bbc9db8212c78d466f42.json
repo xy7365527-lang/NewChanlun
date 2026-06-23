@@ -1,0 +1,31 @@
+{
+  "id": "6487303ef5fdde063cfc20cc40fc85d8f13310036a28bbc9db8212c78d466f42",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.968461+00:00",
+  "source": "migration",
+  "content": {
+    "id": "127",
+    "title": "005b铰链命题地位与原则0完全可修改性的关系显式化",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "negation_source": "Gemini异质质询（gemini-dark-rtas.md焦点3 + NEW矛盾）",
+    "negation_form": "定理（从已有前提逻辑推导消解）",
+    "depends_on": [
+      "005b",
+      "118",
+      "020"
+    ],
+    "related": [
+      "069",
+      "090",
+      "093"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/127-005b-hinge-vs-principle0-modifiability.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

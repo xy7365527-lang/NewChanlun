@@ -1,0 +1,31 @@
+{
+  "id": "621388e015e78b95d0da24ce88499ec4de7fb91d9287f977d686382826c4d805",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.632080+00:00",
+  "source": "migration",
+  "content": {
+    "id": "564",
+    "title": "Stop-Guard check 3 指令层复活 + 自创四分法——548 §六.1 实装缺口",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-06-23",
+    "negation_source": "meta-observer 观测（跨 session ≥4 次复现，结晶阈值达标）",
+    "negation_form": "implementation-gap（原则已结算，实装未闭合）",
+    "depends_on": [
+      "548",
+      "097",
+      "018",
+      "562"
+    ],
+    "related": [
+      "155",
+      "145",
+      "048"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/564-stopguard-check3-instruction-overflow.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

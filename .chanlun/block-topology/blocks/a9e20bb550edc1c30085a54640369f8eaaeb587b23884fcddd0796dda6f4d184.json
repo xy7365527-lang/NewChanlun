@@ -1,0 +1,29 @@
+{
+  "id": "a9e20bb550edc1c30085a54640369f8eaaeb587b23884fcddd0796dda6f4d184",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.633393+00:00",
+  "source": "migration",
+  "content": {
+    "id": "565",
+    "title": "幽灵 owner 任务生命周期——死 teammate 名绕过 owner=None 孤儿检测",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-06-23",
+    "negation_source": "meta-observer 观测（MEMORY 两条记录 + 2026-06-23 session 坐实）",
+    "negation_form": "implementation-gap + 角色边界（孤儿检测只覆盖 owner=None；死 teammate 名是新变体）",
+    "depends_on": [
+      "155",
+      "145"
+    ],
+    "related": [
+      "096",
+      "275",
+      "562"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/565-ghost-owner-task-lifecycle.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

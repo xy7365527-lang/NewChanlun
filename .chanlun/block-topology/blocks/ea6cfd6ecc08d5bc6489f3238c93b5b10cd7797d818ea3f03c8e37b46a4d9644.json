@@ -1,0 +1,21 @@
+{
+  "id": "ea6cfd6ecc08d5bc6489f3238c93b5b10cd7797d818ea3f03c8e37b46a4d9644",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.158276+00:00",
+  "source": "migration",
+  "content": {
+    "id": "330",
+    "title": "K4拓扑与资本循环映射：金融循环的拓扑，不是资本循环的拓扑",
+    "status": "已结算",
+    "type": "event",
+    "date": "2026-03-04",
+    "depends_on": [
+      "329",
+      "292",
+      "231"
+    ],
+    "source_file": "settled/330-k4-capital-circuit-mapping.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

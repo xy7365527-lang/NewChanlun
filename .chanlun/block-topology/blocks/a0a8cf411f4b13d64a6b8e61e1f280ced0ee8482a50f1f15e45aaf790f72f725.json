@@ -1,0 +1,23 @@
+{
+  "id": "a0a8cf411f4b13d64a6b8e61e1f280ced0ee8482a50f1f15e45aaf790f72f725",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.045535+00:00",
+  "source": "migration",
+  "content": {
+    "id": "222",
+    "title": "v4 §2.3 加法守恒范畴错误——将离散流向拓扑约束误判为近似",
+    "status": "已结算",
+    "type": "矛盾发现",
+    "date": "2026-02-27",
+    "negation_source": "heterogeneous",
+    "negation_form": "unclassified",
+    "depends_on": [
+      "115"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/222-v4-conservation-law-category-error.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

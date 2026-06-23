@@ -1,0 +1,32 @@
+{
+  "id": "506ec80b6f83d75c302860fd0ca02fd85c07336286e99a0505eee91ea7d80d40",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.605515+00:00",
+  "source": "migration",
+  "content": {
+    "id": "552",
+    "title": "anchor 趋势底仓解僵尸核心死锁——吃涨 L3 八标的实证（强牛解踏空 / 震荡是结构税）+ 三个半架构（多空双开多重赋格的第一次成立）",
+    "status": "settled",
+    "type": "概念发现",
+    "date": "2026-06-22",
+    "negation_source": "homogeneous",
+    "negation_form": "aufhebung",
+    "depends_on": [
+      "546",
+      "547"
+    ],
+    "related": [
+      "539",
+      "545",
+      "553",
+      "554"
+    ],
+    "negates": "隐含命题『核心僵尸死锁只能靠 cascade 整翻解』——被否证：cascade 翻空在次级别卖点翻主力套牢(547)；正解是 anchor 让核心多腿不僵死、持多吃趋势，根本不翻空",
+    "provenance": "[新缠论:实装+诊断+编排者裁决+八标的 L3 回测]",
+    "topo_effect": "split:546-zombie-core:downstream",
+    "tensions_with": [],
+    "source_file": "settled/552-anchor-resolves-zombie-core-deadlock.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,37 @@
+{
+  "id": "c25ad0f15e3474710753b9874653a2edc307643934302e096a96c8967f6a9606",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.930034+00:00",
+  "source": "migration",
+  "content": {
+    "id": "084",
+    "title": "全面孤岛审计：hooks/agents/skills 声明-能力缺口清单",
+    "status": "已结算",
+    "type": "矛盾发现",
+    "date": "2026-02-21",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "075",
+      "082",
+      "083",
+      "016",
+      "043"
+    ],
+    "related": [
+      "055",
+      "058",
+      "061",
+      "072",
+      "076",
+      "078",
+      "081"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/084-comprehensive-island-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

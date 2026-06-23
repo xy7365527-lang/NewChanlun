@@ -1,0 +1,23 @@
+{
+  "id": "a2e4c7a55b6e97ad8b1a4b94223e5fe5f3c8985daec31bab9a79951833390f71",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.133976+00:00",
+  "source": "migration",
+  "content": {
+    "id": "302",
+    "title": "元观察——区块拓扑内容级升级 session 二阶观察",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "301",
+      "218",
+      "137",
+      "090",
+      "231"
+    ],
+    "source_file": "settled/302-meta-observation-content-topology-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,24 @@
+{
+  "id": "d1b17433130efdef2dfd5e55b1ff4b3f88762375b77d71c45e529b6590a002be",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.869186+00:00",
+  "source": "migration",
+  "content": {
+    "id": "025",
+    "title": "025 等价关系降格：从本体关系到筛选条件 → 流转关系诞生",
+    "status": "已结算",
+    "type": "选择（编排者决断完成）",
+    "date": "2026-02-18",
+    "depends_on": [],
+    "related": [
+      "022",
+      "023",
+      "024"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/025-equivalence-demotion-to-screening.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

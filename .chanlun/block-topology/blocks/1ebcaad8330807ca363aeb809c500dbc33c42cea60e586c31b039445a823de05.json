@@ -1,0 +1,26 @@
+{
+  "id": "1ebcaad8330807ca363aeb809c500dbc33c42cea60e586c31b039445a823de05",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.877988+00:00",
+  "source": "migration",
+  "content": {
+    "id": "033",
+    "title": "033 声明式工位分派规范",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "005a",
+      "016",
+      "018",
+      "020",
+      "032"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/033-declarative-dispatch-spec.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

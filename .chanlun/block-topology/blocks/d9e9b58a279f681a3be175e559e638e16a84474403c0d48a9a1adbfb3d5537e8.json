@@ -1,0 +1,20 @@
+{
+  "id": "d9e9b58a279f681a3be175e559e638e16a84474403c0d48a9a1adbfb3d5537e8",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.067497+00:00",
+  "source": "migration",
+  "content": {
+    "id": "244",
+    "title": "纤维丛管道自洽后回测对比——矛盾操作归零 + 裁决翻转为平局",
+    "status": "已结算",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "242",
+      "243"
+    ],
+    "source_file": "settled/244-fiber-consistent-backtest.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

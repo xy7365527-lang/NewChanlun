@@ -1,0 +1,22 @@
+{
+  "id": "25fbccdd30470fe015cef3c7bfa52bb17df1fc37546ca65ef2c88e7101fc1519",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.071910+00:00",
+  "source": "migration",
+  "content": {
+    "id": "250",
+    "title": "扩展数据窗口验证——daily 层中枢产出但走势未形成",
+    "status": "settled",
+    "type": "经验验证",
+    "date": "2026-02-28",
+    "depends_on": [
+      "249",
+      "248",
+      "246",
+      "229"
+    ],
+    "source_file": "settled/250-extended-data-window-validation.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

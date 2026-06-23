@@ -1,0 +1,23 @@
+{
+  "id": "1f310fe728964306160fb3ee9fa86ebeb8d60215e15b19efc925cfe0b598f3f7",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.001474+00:00",
+  "source": "migration",
+  "content": {
+    "id": "174",
+    "title": "谱系即生成引擎——RTAS是谱系的实现，严格=反熵",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "depends_on": [
+      "069",
+      "161",
+      "162"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/174-genealogy-as-generative-engine.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

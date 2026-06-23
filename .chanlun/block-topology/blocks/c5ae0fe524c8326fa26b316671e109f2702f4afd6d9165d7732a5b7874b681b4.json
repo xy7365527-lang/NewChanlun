@@ -1,0 +1,27 @@
+{
+  "id": "c5ae0fe524c8326fa26b316671e109f2702f4afd6d9165d7732a5b7874b681b4",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.881733+00:00",
+  "source": "migration",
+  "content": {
+    "id": "036",
+    "title": "声明-能力一致性原则结晶：约束链 016→032→033→034 的模式识别",
+    "status": "已结算",
+    "type": "meta-rule（知识结晶）",
+    "date": "2026-02-20",
+    "depends_on": [],
+    "related": [
+      "016",
+      "020",
+      "020a",
+      "032",
+      "033",
+      "034"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/036-spec-execution-gap-crystallization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

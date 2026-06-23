@@ -1,0 +1,19 @@
+{
+  "id": "55011ff2b85254b36163390e6c25ac82c2729367ab6aab3ba8a53ce56b647d59",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.034608+00:00",
+  "source": "migration",
+  "content": {
+    "id": "209",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "195",
+      "208"
+    ],
+    "source_file": "settled/209-gauge-invariant-hierarchy.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

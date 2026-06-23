@@ -1,0 +1,27 @@
+{
+  "id": "a3681db9455874d6644ed62c692a24a4defa4a83f2ffc3eca474c30b1d7d84be",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.010772+00:00",
+  "source": "migration",
+  "content": {
+    "id": "183",
+    "title": "纲举目张——动力学机制缺失诊断（Gemini+Codex 双向审计收敛）",
+    "status": "settled",
+    "type": "矛盾发现",
+    "date": "2026-02-24",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "182",
+      "178"
+    ],
+    "related": [
+      "174"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled/183-dynamics-mechanism-missing.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

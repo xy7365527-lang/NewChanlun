@@ -1,0 +1,22 @@
+{
+  "id": "1528c867c7a239415566719071f5e1a9db0887f74ec1697e1c75f06d61756fc2",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.093255+00:00",
+  "source": "migration",
+  "content": {
+    "id": "268",
+    "title": "元观察——v114-swarm 操作方法论内部推导首例 + 252号引用错位 + 概率论扬弃推导链完整性",
+    "status": "settled",
+    "type": "meta-rule",
+    "date": "2026-02-28",
+    "depends_on": [
+      "266",
+      "267",
+      "254",
+      "265"
+    ],
+    "source_file": "settled/268-meta-observation-v114-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

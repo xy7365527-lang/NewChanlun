@@ -1,0 +1,19 @@
+{
+  "id": "88105b1b76ab27c6e021df0de4b2fc89d0ad444b92911cce5bef4ba7280e954e",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.055286+00:00",
+  "source": "migration",
+  "content": {
+    "id": "232",
+    "title": "ConfigurationSpace 纤维丛重构——从直积到 B ×_ω F",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-28",
+    "depends_on": [
+      "230"
+    ],
+    "source_file": "settled/232-config-space-fiber-bundle.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

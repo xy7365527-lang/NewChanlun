@@ -1,0 +1,24 @@
+{
+  "id": "5b5ef88e0cf393e5722cdb5a1f69fa22f94a096c3e5cefd1eb9dd97ae84108fb",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.117490+00:00",
+  "source": "migration",
+  "content": {
+    "id": "288",
+    "title": "元观察——v131-swarm 编排者结构性校正模式 + 蜂群内部自校正/编排者校正边界",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "286",
+      "285",
+      "287",
+      "282"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/288-meta-observation-v131-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

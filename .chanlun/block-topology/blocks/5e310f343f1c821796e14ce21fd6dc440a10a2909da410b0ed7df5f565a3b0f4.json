@@ -1,0 +1,23 @@
+{
+  "id": "5e310f343f1c821796e14ce21fd6dc440a10a2909da410b0ed7df5f565a3b0f4",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.173375+00:00",
+  "source": "migration",
+  "content": {
+    "id": "349",
+    "title": "赋格状态机形式化定义——267号第七节的状态集/转移函数/输入输出显式化",
+    "status": "settled",
+    "type": "theorem",
+    "date": "2026-03-04",
+    "depends_on": [
+      "267",
+      "265",
+      "338",
+      "295",
+      "264"
+    ],
+    "source_file": "settled/349-fugue-state-machine-definition.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

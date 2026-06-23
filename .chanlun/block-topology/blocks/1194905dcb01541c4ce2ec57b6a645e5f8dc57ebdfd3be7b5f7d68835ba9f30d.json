@@ -1,0 +1,21 @@
+{
+  "id": "1194905dcb01541c4ce2ec57b6a645e5f8dc57ebdfd3be7b5f7d68835ba9f30d",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.130204+00:00",
+  "source": "migration",
+  "content": {
+    "id": "299",
+    "title": "时空有限元与折叠生命周期——Gemini 空间力学类比的时间维度补完",
+    "status": "已结算",
+    "type": "theory",
+    "date": "2026-03-02",
+    "depends_on": [
+      "292",
+      "295",
+      "298"
+    ],
+    "source_file": "settled/299-spacetime-fem-fold-lifecycle.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

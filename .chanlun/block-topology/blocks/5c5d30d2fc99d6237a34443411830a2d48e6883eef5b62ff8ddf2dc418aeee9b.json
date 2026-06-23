@@ -1,0 +1,24 @@
+{
+  "id": "5c5d30d2fc99d6237a34443411830a2d48e6883eef5b62ff8ddf2dc418aeee9b",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.171976+00:00",
+  "source": "migration",
+  "content": {
+    "id": "347",
+    "title": "Content-Addressed Block Topology",
+    "status": "已结算",
+    "type": "工程决策",
+    "date": "2026-03-04",
+    "depends_on": [
+      "345"
+    ],
+    "related": [
+      "090"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/347-content-addressed-block-topology.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

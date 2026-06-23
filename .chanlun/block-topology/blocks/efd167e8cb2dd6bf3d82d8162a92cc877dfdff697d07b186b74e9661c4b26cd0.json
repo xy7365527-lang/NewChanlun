@@ -1,0 +1,22 @@
+{
+  "id": "efd167e8cb2dd6bf3d82d8162a92cc877dfdff697d07b186b74e9661c4b26cd0",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.099897+00:00",
+  "source": "migration",
+  "content": {
+    "id": "273",
+    "title": "否定拓扑代数——边有效性标记与否定之否定的精确拓扑表达",
+    "status": "settled",
+    "type": "语法记录",
+    "date": "2026-02-28",
+    "depends_on": [
+      "272",
+      "005b",
+      "089",
+      "271"
+    ],
+    "source_file": "settled/273-negation-topology-algebra.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

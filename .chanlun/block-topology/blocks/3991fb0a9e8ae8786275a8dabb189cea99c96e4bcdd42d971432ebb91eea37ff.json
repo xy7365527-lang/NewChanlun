@@ -1,0 +1,28 @@
+{
+  "id": "3991fb0a9e8ae8786275a8dabb189cea99c96e4bcdd42d971432ebb91eea37ff",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.845993+00:00",
+  "source": "migration",
+  "content": {
+    "id": "008",
+    "title": "趋势确立与级别确认是独立概念",
+    "status": "已结算",
+    "type": "概念澄清（定理——逻辑必然推论）",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "006",
+      "007",
+      "009"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "tensions_with": [
+      "007",
+      "009"
+    ],
+    "source_file": "settled/008-trend-level-independence.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

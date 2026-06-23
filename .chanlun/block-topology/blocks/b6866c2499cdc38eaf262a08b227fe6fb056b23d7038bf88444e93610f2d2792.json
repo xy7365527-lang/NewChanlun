@@ -1,0 +1,21 @@
+{
+  "id": "b6866c2499cdc38eaf262a08b227fe6fb056b23d7038bf88444e93610f2d2792",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.070940+00:00",
+  "source": "migration",
+  "content": {
+    "id": "248",
+    "title": "段引擎 71→1 压缩诊断",
+    "status": "settled",
+    "type": "诊断",
+    "date": "2026-02-28",
+    "depends_on": [
+      "247",
+      "237",
+      "3"
+    ],
+    "source_file": "settled/248-segment-engine-diagnosis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

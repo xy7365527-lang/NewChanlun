@@ -1,0 +1,31 @@
+{
+  "id": "6c7bf5b117160e14945cf4cf7d1ecd2b12d2e38c9ea6605dc97c8896d6d4c1ff",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.919526+00:00",
+  "source": "migration",
+  "content": {
+    "id": "073b",
+    "title": "Trampoline 模式——平台约束下的递归近似",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-21",
+    "depends_on": [
+      "056",
+      "069",
+      "072"
+    ],
+    "related": [
+      "033",
+      "037",
+      "058",
+      "068"
+    ],
+    "negates": [],
+    "negated_by": [
+      "095"
+    ],
+    "source_file": "settled/073b-trampoline-recursion-approximation.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

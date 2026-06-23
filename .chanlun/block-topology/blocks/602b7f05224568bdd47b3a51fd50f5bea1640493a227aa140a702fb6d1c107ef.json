@@ -1,0 +1,28 @@
+{
+  "id": "602b7f05224568bdd47b3a51fd50f5bea1640493a227aa140a702fb6d1c107ef",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.011782+00:00",
+  "source": "migration",
+  "content": {
+    "id": "184",
+    "title": "反思层拓扑空壳——Reflexive layer 激活但动力学机制（异步自指、多轮质询）未执行",
+    "status": "settled",
+    "type": "矛盾发现",
+    "date": "2026-02-24",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "178",
+      "182"
+    ],
+    "related": [
+      "174",
+      "177"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled/184-reflexive-shell-without-dynamics.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

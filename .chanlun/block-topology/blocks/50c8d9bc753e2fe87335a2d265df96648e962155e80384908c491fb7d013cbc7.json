@@ -1,0 +1,20 @@
+{
+  "id": "50c8d9bc753e2fe87335a2d265df96648e962155e80384908c491fb7d013cbc7",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.839623+00:00",
+  "source": "migration",
+  "content": {
+    "id": "005",
+    "title": "对象否定对象原则 005（已分离）",
+    "status": "已结算",
+    "type": "原始记录（已被概念分离取代）",
+    "date": "2026-02-16",
+    "depends_on": [],
+    "related": [],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/005-object-negation-principle.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

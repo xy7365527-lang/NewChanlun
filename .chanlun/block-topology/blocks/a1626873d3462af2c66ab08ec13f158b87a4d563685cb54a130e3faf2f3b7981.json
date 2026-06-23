@@ -1,0 +1,21 @@
+{
+  "id": "a1626873d3462af2c66ab08ec13f158b87a4d563685cb54a130e3faf2f3b7981",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.159713+00:00",
+  "source": "migration",
+  "content": {
+    "id": "332",
+    "title": "元观察——v144-swarm：C1-C3最终结算后首轮 ceremony + 编排者理论推进中断处理",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-04",
+    "depends_on": [
+      "328",
+      "329",
+      "330"
+    ],
+    "source_file": "settled/332-meta-observation-v144-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

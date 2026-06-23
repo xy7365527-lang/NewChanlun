@@ -1,6 +1,7 @@
 ---
 id: "560"
 status: 已结算
+date: "2026-06-23"
 type: 概念发现
 negation_source: homogeneous
 negation_form: separation   # 背驰段有效性（频率轴/解冻轴）从商业有效性（收益轴）分离——有效域 ≠ 定义域（231号第N例）

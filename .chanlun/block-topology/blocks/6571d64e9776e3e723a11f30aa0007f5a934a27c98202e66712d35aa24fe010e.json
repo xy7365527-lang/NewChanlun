@@ -1,0 +1,19 @@
+{
+  "id": "6571d64e9776e3e723a11f30aa0007f5a934a27c98202e66712d35aa24fe010e",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.029274+00:00",
+  "source": "migration",
+  "content": {
+    "id": "203",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "195",
+      "199"
+    ],
+    "source_file": "settled/203-real-data-gauge-sensitivity.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

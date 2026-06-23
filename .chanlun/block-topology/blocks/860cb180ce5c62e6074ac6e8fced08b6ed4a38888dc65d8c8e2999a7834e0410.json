@@ -1,0 +1,24 @@
+{
+  "id": "860cb180ce5c62e6074ac6e8fced08b6ed4a38888dc65d8c8e2999a7834e0410",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.140074+00:00",
+  "source": "migration",
+  "content": {
+    "id": "308",
+    "title": "元观察——Phase 2 精度校准三轮 + 审计六信号 + 异质审查启动 session",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "307",
+      "273",
+      "231",
+      "218",
+      "137",
+      "090"
+    ],
+    "source_file": "settled/308-meta-observation-phase2-calibration-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

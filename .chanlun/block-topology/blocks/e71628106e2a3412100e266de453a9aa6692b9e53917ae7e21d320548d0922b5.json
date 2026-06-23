@@ -1,0 +1,31 @@
+{
+  "id": "e71628106e2a3412100e266de453a9aa6692b9e53917ae7e21d320548d0922b5",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.179614+00:00",
+  "source": "migration",
+  "content": {
+    "id": "355",
+    "title": "DM3 Morse跳跃点 vs 编排者'关键否定'对比验证——L2否定性结果",
+    "status": "已结算",
+    "type": "验证报告",
+    "date": "2026-03-04",
+    "depends_on": [
+      "351"
+    ],
+    "related": [
+      "087",
+      "089",
+      "090",
+      "068",
+      "137",
+      "307",
+      "306",
+      "285"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/355-morse-validation-l2-negation.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

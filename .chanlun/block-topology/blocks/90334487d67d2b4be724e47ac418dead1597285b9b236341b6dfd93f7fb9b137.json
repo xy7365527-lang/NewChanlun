@@ -1,0 +1,25 @@
+{
+  "id": "90334487d67d2b4be724e47ac418dead1597285b9b236341b6dfd93f7fb9b137",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.842242+00:00",
+  "source": "migration",
+  "content": {
+    "id": "005b",
+    "title": "对象否定对象（语法规则）",
+    "status": "已结算",
+    "type": "语法规则确立（谢林式原初命名）",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "004",
+      "005",
+      "005a",
+      "020"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/005b-object-negates-object-grammar.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

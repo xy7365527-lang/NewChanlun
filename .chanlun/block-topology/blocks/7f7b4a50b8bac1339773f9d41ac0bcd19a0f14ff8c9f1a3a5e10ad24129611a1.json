@@ -1,0 +1,28 @@
+{
+  "id": "7f7b4a50b8bac1339773f9d41ac0bcd19a0f14ff8c9f1a3a5e10ad24129611a1",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.847002+00:00",
+  "source": "migration",
+  "content": {
+    "id": "009",
+    "title": "盘整的实体/标签双重性 + 二分法=三分法盘整",
+    "status": "已结算",
+    "type": "概念澄清（定理 + 语法记录）",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "006",
+      "007",
+      "008"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "tensions_with": [
+      "007",
+      "008"
+    ],
+    "source_file": "settled/009-consolidation-identity.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

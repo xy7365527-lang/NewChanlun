@@ -1,0 +1,35 @@
+{
+  "id": "766f9099680c7ab7ac0b9d914c75a28ecfd6d1c5b244775ef1468d3f96a2d1c1",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.615900+00:00",
+  "source": "migration",
+  "content": {
+    "id": "556",
+    "title": "读法 B（每级别独立腿骑走势 + 消费自己 d_top）L3 否证——四判据全否（P1 1/8 仅 ES/S）；统一根因=顶层腿冻结（最高级别走势完成在样本期结构性稀疏，d_top[top] 几乎不触发）；吃涨可达（anchor 死扣不等完成）/吃顶层跌不可达（等顶层完成翻空）/吃低级别涨跌可达",
+    "status": "settled",
+    "type": "概念发现",
+    "date": "2026-06-22",
+    "negation_source": "homogeneous",
+    "negation_form": "separation",
+    "depends_on": [
+      "555"
+    ],
+    "related": [
+      "552",
+      "554",
+      "539",
+      "545",
+      "【memory】project_t_multiscale_independent_filters",
+      "【memory】project_pcf_1s_a0_source_collapse",
+      "【memory】project_highest_level_sigma_frozen",
+      "【memory】feedback_filter_bank_metaphor_prove"
+    ],
+    "negates": "555 §5.4（+编排者读法 B 假设）的隐含命题『每级别独立腿 + d_top 精确切换 ⟹ 吃每级别涨跌幅（完整对称双吃）』——被 L3 证伪：顶层 d_top[top] 几乎不触发（最高级别走势跨年，样本期罕有『完成』），顶层腿开仓一次后冻结于回测起点方向（硬币翻面），完整对称双吃不随每级别独立腿自动成立（design §335 预注册风险 A 坐实）。读法 B 机制本身在『顶层方向对』时 work 且超 BH（ES/S 锁 Long +681.4★），问题不在每级别独立腿，在顶层方向首段冻结锁错。",
+    "provenance": "[新缠论:实装+八标的 L3 回测+源码诊断+顶层冻结归因]",
+    "topo_effect": "sever:T_READING_B-per-level-leg-path:downstream",
+    "tensions_with": [],
+    "source_file": "settled/556-reading-b-per-level-leg-falsified-top-level-completion-sparse.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,24 @@
+{
+  "id": "25ada4cb68e7316c7030adb6832147fc3a7319c1c537879c3fc66ff5b4bc81d1",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.151763+00:00",
+  "source": "migration",
+  "content": {
+    "id": "322",
+    "title": "元观察——R3附加检验 session：编排者理论洞察→即时实验验证 + context compaction 后状态恢复",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-03",
+    "depends_on": [
+      "321",
+      "320",
+      "290",
+      "260",
+      "137",
+      "090"
+    ],
+    "source_file": "settled/322-meta-observation-r3-addendum-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

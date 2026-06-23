@@ -1,0 +1,32 @@
+{
+  "id": "ea2ba8634ceb868feedd5babbc4f422e10a3f2a6ae29d1114773f821b4bb2d59",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.948308+00:00",
+  "source": "migration",
+  "content": {
+    "id": "105",
+    "title": "递归从功能选择升级为无条件架构要求——编排者INTERRUPT否定Trampoline",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-22",
+    "depends_on": [
+      "095",
+      "097",
+      "104"
+    ],
+    "related": [
+      "056",
+      "069",
+      "073b",
+      "093"
+    ],
+    "negates": [],
+    "negated_by": [
+      "116"
+    ],
+    "provenance": "[新缠论]",
+    "source_file": "settled/105-recursion-mandatory-architecture.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

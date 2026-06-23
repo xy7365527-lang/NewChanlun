@@ -1,0 +1,24 @@
+{
+  "id": "2d97383925bdb7b3a8db64a999a3a9dfe277e820acf1030e72b8c90472899d62",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.105492+00:00",
+  "source": "migration",
+  "content": {
+    "id": "278",
+    "title": "元观察——v122-swarm 编排者辩证INTERRUPT + 已结算定义执行漂移",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-01",
+    "depends_on": [
+      "277",
+      "090",
+      "216",
+      "204"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/278-meta-observation-v122-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

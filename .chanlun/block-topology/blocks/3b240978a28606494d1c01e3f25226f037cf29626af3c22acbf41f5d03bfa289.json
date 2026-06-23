@@ -1,0 +1,26 @@
+{
+  "id": "3b240978a28606494d1c01e3f25226f037cf29626af3c22acbf41f5d03bfa289",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.859669+00:00",
+  "source": "migration",
+  "content": {
+    "id": "019b",
+    "title": "质询退回-修正无限循环",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-18",
+    "depends_on": [
+      "016"
+    ],
+    "related": [
+      "013",
+      "018",
+      "019"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/019b-inquiry-infinite-loop.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

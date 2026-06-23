@@ -1,0 +1,26 @@
+{
+  "id": "680d6b70e3454b37ac78eec32b1a863f16d009911db661cb27fa9676608fc9ca",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.176438+00:00",
+  "source": "migration",
+  "content": {
+    "id": "352",
+    "title": "多标的扫描器设计——递归区间套 × 资本流转拓扑折叠 × 商空间排序",
+    "status": "settled",
+    "type": "概念定义",
+    "date": "2026-03-04",
+    "depends_on": [
+      "350",
+      "267",
+      "265",
+      "292",
+      "254",
+      "330",
+      "300",
+      "349"
+    ],
+    "source_file": "settled/352-multi-target-scanner-design.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

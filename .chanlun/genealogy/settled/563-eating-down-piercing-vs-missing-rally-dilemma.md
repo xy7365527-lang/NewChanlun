@@ -1,6 +1,7 @@
 ---
 id: "563"
 status: 已结算   # 穿仓×踏空二难分离 + strict=enabler（开放轴c关闭）+ consume部分解穿仓 = L3已结算；编排者spec consume(买卖点+做多)全量L3 + 踏空解 = 开放轴待测
+date: "2026-06-23"
 type: 概念发现
 negation_source: homogeneous   # prop4-nest/prop4-bidir 工位 L3 实证（Codex/Gemini 双 429，异质审计待配额恢复，诚实标注）
 negation_form: separation

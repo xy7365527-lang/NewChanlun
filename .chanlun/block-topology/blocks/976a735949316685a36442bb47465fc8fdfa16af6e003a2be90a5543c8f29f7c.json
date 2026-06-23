@@ -1,0 +1,35 @@
+{
+  "id": "976a735949316685a36442bb47465fc8fdfa16af6e003a2be90a5543c8f29f7c",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.618788+00:00",
+  "source": "migration",
+  "content": {
+    "id": "557",
+    "title": "顶层全部卖点（type1∨2∨3）做空闸门 L3 PARTIAL——机制成立（J1 type2 解顶层稀疏 / J3 不穿仓 / J4 保强牛 + bit-exact OFF）但收益 regime（无单一标的因 TOP_ALL 转超 BH）；编排者『买卖点不是方向』洞察实装验证（type2 反弹不新高解最高级别 type1 跨年冻结）；type2@L4=36>type1=30、type3@L4=0；ANCHOR+top-gate 正交开放轴（底仓死扣吃涨超 BH + 机动顶层建空吃跌，未组合测）",
+    "status": "settled",
+    "type": "概念发现",
+    "date": "2026-06-22",
+    "negation_source": "homogeneous",
+    "negation_form": "aufhebung",
+    "depends_on": [
+      "556"
+    ],
+    "related": [
+      "552",
+      "553",
+      "554",
+      "555",
+      "545",
+      "539",
+      "【memory】project_c_segment_fix_regime",
+      "【memory】project_mismatch_spectator_not_mediator",
+      "【memory】project_highest_level_sigma_frozen"
+    ],
+    "provenance": "[新缠论:实装+八标的 L3 回测+编排者洞察实装验证+异质审查修正]",
+    "topo_effect": "merge:556-top-level-frozen:downstream",
+    "tensions_with": [],
+    "source_file": "settled/557-top-all-sell-short-gate-partial-regime.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

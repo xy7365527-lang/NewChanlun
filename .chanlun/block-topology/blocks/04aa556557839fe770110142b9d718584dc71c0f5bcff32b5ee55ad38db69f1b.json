@@ -1,0 +1,28 @@
+{
+  "id": "04aa556557839fe770110142b9d718584dc71c0f5bcff32b5ee55ad38db69f1b",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.009917+00:00",
+  "source": "migration",
+  "content": {
+    "id": "182",
+    "title": "递归运动为零诊断——系统当前运行单层线性追加，未执行三层递归",
+    "status": "settled",
+    "type": "矛盾发现",
+    "date": "2026-02-24",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "178",
+      "181"
+    ],
+    "related": [
+      "174",
+      "177"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled/182-recursive-motion-null-diagnosis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

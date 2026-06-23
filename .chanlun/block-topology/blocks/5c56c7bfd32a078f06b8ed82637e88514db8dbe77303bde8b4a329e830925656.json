@@ -1,0 +1,20 @@
+{
+  "id": "5c56c7bfd32a078f06b8ed82637e88514db8dbe77303bde8b4a329e830925656",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.621460+00:00",
+  "source": "migration",
+  "content": {
+    "id": "558",
+    "title": "构成关系 ≠ 操作等价——命题4有效域边界（四视角收敛：理论框架有效L0/操作价值零L3/两独立致命漏洞）",
+    "status": "settled",
+    "type": "矛盾发现",
+    "date": "2026-06-22",
+    "negation_source": "homogeneous",
+    "negation_form": "aufhebung",
+    "provenance": "[缠论:命题4（嵌套构成范式）+gemini质询+四视角收敛+codex HETERO+结算]",
+    "topo_effect": "settled:proposition4-operational-equivalence:四视角收敛结算",
+    "source_file": "settled/558-composition-not-operational-equivalence-proposition4.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

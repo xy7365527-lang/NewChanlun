@@ -1,0 +1,28 @@
+{
+  "id": "be4c97331eca026b46966915660b6a9869618210e709c6dd705ea98fdc6e9b70",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.953485+00:00",
+  "source": "migration",
+  "content": {
+    "id": "111",
+    "title": "不允许绕过概念矛盾禁令的生成史——从隐性实践到显式禁令",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [
+      "005b",
+      "012"
+    ],
+    "related": [
+      "090",
+      "071",
+      "050"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/111-no-workaround-genesis.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

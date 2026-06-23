@@ -1,0 +1,18 @@
+{
+  "id": "f8c9455bd45c101327df89a522ea4762d9831dcfc2739df9c28bd522fdca447f",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.625261+00:00",
+  "source": "migration",
+  "content": {
+    "id": "560",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-06-23",
+    "negation_source": "homogeneous",
+    "negation_form": "separation",
+    "topo_effect": "{'provides_evidence_for': ['558'], 'confirms': ['539'], 'resolves': ['556'], 'not_negates': ['558']}",
+    "source_file": "settled/560-reading-yi-topdown-nesting-a0-location.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

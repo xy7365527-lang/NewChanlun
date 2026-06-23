@@ -1,0 +1,21 @@
+{
+  "id": "398ef4840dead72d4ddcb26154e857095b1e245eb3036c82717d4e5dc3ce3b9b",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.040346+00:00",
+  "source": "migration",
+  "content": {
+    "id": "216",
+    "title": "元观察——v55-swarm 异质诊断相关失败 + 任务粒度默认偏小",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-26",
+    "depends_on": [
+      "175",
+      "032",
+      "205"
+    ],
+    "source_file": "settled/216-meta-observation-v55-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

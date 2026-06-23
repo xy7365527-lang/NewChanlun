@@ -1,0 +1,29 @@
+{
+  "id": "f96500c102afc7295c0157047546292d781215151b02165dc23594594b6fa933",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.877071+00:00",
+  "source": "migration",
+  "content": {
+    "id": "032",
+    "title": "神圣疯狂：Lead 自我权限剥夺",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-20",
+    "depends_on": [
+      "016",
+      "020",
+      "030a"
+    ],
+    "related": [
+      "013",
+      "014"
+    ],
+    "negates": [],
+    "negated_by": [
+      "088"
+    ],
+    "source_file": "settled/032-divine-madness-lead-self-restriction.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

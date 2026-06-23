@@ -1,0 +1,25 @@
+{
+  "id": "c3d4fee67c385e1c380ec83feb241fd24df4471ff35a4c2818b1ec2a6ad9f212",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.864996+00:00",
+  "source": "migration",
+  "content": {
+    "id": "021",
+    "title": "元编排去中央化审计",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-18",
+    "depends_on": [
+      "020"
+    ],
+    "related": [
+      "018",
+      "019d"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/021-decentralization-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

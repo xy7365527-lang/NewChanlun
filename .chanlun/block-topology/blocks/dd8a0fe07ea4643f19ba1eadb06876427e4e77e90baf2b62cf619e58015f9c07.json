@@ -1,0 +1,21 @@
+{
+  "id": "dd8a0fe07ea4643f19ba1eadb06876427e4e77e90baf2b62cf619e58015f9c07",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.143299+00:00",
+  "source": "migration",
+  "content": {
+    "id": "312",
+    "title": "Phase 3 穿越基础设施裁定——Gemini+Codex 讨论 5 共识确认 + 3 分歧裁定 + 1 补充裁定",
+    "status": "已结算",
+    "type": "consensus",
+    "date": "2026-03-02",
+    "depends_on": [
+      "311",
+      "309",
+      "273"
+    ],
+    "source_file": "settled/312-phase3-traverse-infrastructure-ruling.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

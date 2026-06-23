@@ -1,6 +1,7 @@
 ---
 id: "561"
 status: 已结算   # CC 主 prove L0 核心（完全分类划分=L0强 / Ω全函数=L0数学基底+工程规范联合必然）已结算；N9实装/CC实装/539(b2)L3 = 开放轴待编排者授权/待prop4-bidir(task#22)
+date: "2026-06-23"
 type: 概念发现
 title_note: "编排者二次重定后：主 prove = 完全分类覆盖完备性（CC），N9 极性协变降为推论（N9⊊CC）。文件名保留 polarity-covariance 为物理标识，以本 frontmatter/正文为准。"
 negation_source: homogeneous   # poltev-prove L0 群论+原文推导；codex 异质 confirmed N9（§八，三证伪路径全失败）；gemini-561 Ω精化=同质降级（Gemini 429，531号先例，精化非真异质）

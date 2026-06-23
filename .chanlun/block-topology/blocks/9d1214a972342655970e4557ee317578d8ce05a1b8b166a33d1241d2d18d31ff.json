@@ -1,0 +1,31 @@
+{
+  "id": "9d1214a972342655970e4557ee317578d8ce05a1b8b166a33d1241d2d18d31ff",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.861517+00:00",
+  "source": "migration",
+  "content": {
+    "id": "019d",
+    "title": "谱系张力检查的递归与范围问题",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-18",
+    "depends_on": [
+      "012"
+    ],
+    "related": [
+      "013",
+      "016",
+      "017",
+      "019",
+      "020"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "tensions_with": [
+      "012"
+    ],
+    "source_file": "settled/019d-tension-check-limits.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

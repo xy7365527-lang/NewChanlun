@@ -1,0 +1,31 @@
+{
+  "id": "9527fca6e807cf8607458379fbeddf2b3506e314349cfc051aac027821432c11",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.922324+00:00",
+  "source": "migration",
+  "content": {
+    "id": "076",
+    "title": "下游推论执行缺口的自相似性（fractal execution gap）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-21",
+    "negation_source": "homogeneous（v17 蜂群 meta-observer 扫描）",
+    "negation_form": "expansion（074号元模式在元层的再现）",
+    "depends_on": [
+      "074",
+      "036",
+      "012"
+    ],
+    "related": [
+      "071",
+      "072",
+      "075"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/076-fractal-execution-gap.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

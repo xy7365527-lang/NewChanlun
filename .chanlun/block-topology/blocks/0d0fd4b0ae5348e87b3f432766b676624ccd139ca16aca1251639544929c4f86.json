@@ -1,0 +1,24 @@
+{
+  "id": "0d0fd4b0ae5348e87b3f432766b676624ccd139ca16aca1251639544929c4f86",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.075309+00:00",
+  "source": "migration",
+  "content": {
+    "id": "254",
+    "title": "多经济体资本流转本体论（两轮Gemini审讯修正定稿）",
+    "status": "settled",
+    "type": "理论形式化",
+    "date": "2026-02-28",
+    "depends_on": [
+      "231",
+      "232",
+      "233",
+      "234",
+      "235",
+      "245"
+    ],
+    "source_file": "settled/254-multi-economy-capital-flow-ontology.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

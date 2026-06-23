@@ -1,0 +1,19 @@
+{
+  "id": "f262b9776b31e8780505db6a61c16763af18bf7824308a3a671ec4a7b526311b",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.056561+00:00",
+  "source": "migration",
+  "content": {
+    "id": "233",
+    "title": "离散化算子 D 的核结构——缠论的内在选择性原理",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-28",
+    "depends_on": [
+      "232"
+    ],
+    "source_file": "settled/233-discretization-kernel.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

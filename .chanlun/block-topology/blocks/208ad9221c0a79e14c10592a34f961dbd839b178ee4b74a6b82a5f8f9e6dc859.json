@@ -1,0 +1,21 @@
+{
+  "id": "208ad9221c0a79e14c10592a34f961dbd839b178ee4b74a6b82a5f8f9e6dc859",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.042732+00:00",
+  "source": "migration",
+  "content": {
+    "id": "219",
+    "title": "元观察——v60-swarm 缠论语言封闭性违反 + F3术语修正 + risk残留断裂",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-26",
+    "depends_on": [
+      "217",
+      "075",
+      "218"
+    ],
+    "source_file": "settled/219-meta-observation-v60-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

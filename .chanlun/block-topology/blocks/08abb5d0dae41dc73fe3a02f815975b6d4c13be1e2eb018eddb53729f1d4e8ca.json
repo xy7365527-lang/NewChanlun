@@ -1,0 +1,30 @@
+{
+  "id": "08abb5d0dae41dc73fe3a02f815975b6d4c13be1e2eb018eddb53729f1d4e8ca",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.898271+00:00",
+  "source": "migration",
+  "content": {
+    "id": "053",
+    "title": "异步自指孤岛：从哥德尔极限到异质双引擎突破",
+    "status": "已结算",
+    "type": "定理（经扬弃）",
+    "date": "2026-02-20",
+    "depends_on": [
+      "020",
+      "030a",
+      "039",
+      "042",
+      "052"
+    ],
+    "related": [
+      "005b",
+      "016",
+      "051"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/053-self-referential-island-goedel.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

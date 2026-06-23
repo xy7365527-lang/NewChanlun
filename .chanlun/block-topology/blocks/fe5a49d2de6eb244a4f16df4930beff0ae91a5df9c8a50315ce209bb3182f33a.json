@@ -1,0 +1,27 @@
+{
+  "id": "fe5a49d2de6eb244a4f16df4930beff0ae91a5df9c8a50315ce209bb3182f33a",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.860195+00:00",
+  "source": "migration",
+  "content": {
+    "id": "019c",
+    "title": "元编排进化无仪式门控（自指性缺口）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-18",
+    "depends_on": [
+      "015"
+    ],
+    "related": [
+      "005b",
+      "016",
+      "018",
+      "019"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/019c-meta-ritual-gap.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

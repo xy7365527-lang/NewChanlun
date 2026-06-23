@@ -1,0 +1,26 @@
+{
+  "id": "dd139959ce89cb84adc0249c597b7667c34cac12da037c852301d815088dc600",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.911611+00:00",
+  "source": "migration",
+  "content": {
+    "id": "067",
+    "title": "续篇洞见提取——拓扑递归统一 + 连续流形否定 + 结算论/管辖论",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "064"
+    ],
+    "related": [
+      "020",
+      "065",
+      "066"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/067-round2-insights-topology-recursion-unity.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

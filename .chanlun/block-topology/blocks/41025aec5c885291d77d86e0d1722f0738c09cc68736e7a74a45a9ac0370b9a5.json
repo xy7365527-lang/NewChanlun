@@ -1,0 +1,31 @@
+{
+  "id": "41025aec5c885291d77d86e0d1722f0738c09cc68736e7a74a45a9ac0370b9a5",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.985026+00:00",
+  "source": "migration",
+  "content": {
+    "id": "153",
+    "title": "RTAS蜂群持久化断裂——v35到v38 session缺失诊断修复",
+    "status": "已结算",
+    "type": "审计修复",
+    "date": "2026-02-23",
+    "depends_on": [
+      "130",
+      "136",
+      "134",
+      "135"
+    ],
+    "related": [
+      "092",
+      "069"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/153-rtas-swarm-persistence-gap.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

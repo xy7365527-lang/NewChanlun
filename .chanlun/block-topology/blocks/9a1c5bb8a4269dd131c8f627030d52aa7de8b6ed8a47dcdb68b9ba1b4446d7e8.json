@@ -1,0 +1,19 @@
+{
+  "id": "9a1c5bb8a4269dd131c8f627030d52aa7de8b6ed8a47dcdb68b9ba1b4446d7e8",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.053535+00:00",
+  "source": "migration",
+  "content": {
+    "id": "230",
+    "title": "K4 独立边独立性——真实数据检验",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-27",
+    "depends_on": [
+      "229"
+    ],
+    "source_file": "settled/230-k4-independence-real-data.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

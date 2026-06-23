@@ -1,0 +1,31 @@
+{
+  "id": "84ecc9664af4bfb3961c4236992cef37f02d5f2fb0afae0aceffadd00a3e0414",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.998941+00:00",
+  "source": "migration",
+  "content": {
+    "id": "171",
+    "title": "资本主义话语=无铁递归——反面教训的严格性与铁生成机制的声明-能力缺口",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "089",
+      "090",
+      "139",
+      "158",
+      "170"
+    ],
+    "related": [
+      "069",
+      "137"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/171-capitalism-ironless-recursion.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

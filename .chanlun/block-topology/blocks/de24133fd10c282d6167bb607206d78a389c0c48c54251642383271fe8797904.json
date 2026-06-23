@@ -1,0 +1,19 @@
+{
+  "id": "de24133fd10c282d6167bb607206d78a389c0c48c54251642383271fe8797904",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.985853+00:00",
+  "source": "migration",
+  "content": {
+    "id": "154",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-23",
+    "depends_on": [
+      "058",
+      "075"
+    ],
+    "source_file": "settled/154-ceremony-empty-swarm-path.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

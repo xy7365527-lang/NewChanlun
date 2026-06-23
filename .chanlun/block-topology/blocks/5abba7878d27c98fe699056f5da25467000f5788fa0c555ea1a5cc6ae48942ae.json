@@ -1,0 +1,21 @@
+{
+  "id": "5abba7878d27c98fe699056f5da25467000f5788fa0c555ea1a5cc6ae48942ae",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.156581+00:00",
+  "source": "migration",
+  "content": {
+    "id": "328",
+    "title": "元观察——C3 三线并行 session：阈值非不变量 + 坍缩质量分化 + 可逆/不可逆初步形式化",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-04",
+    "depends_on": [
+      "327",
+      "231",
+      "090"
+    ],
+    "source_file": "settled/328-meta-observation-c3-three-lines-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

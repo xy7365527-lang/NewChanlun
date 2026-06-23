@@ -1,0 +1,22 @@
+{
+  "id": "e312eb4ccd2a0a07383ba37ec06b9802bd097838aa8a9af9cefae653e8e1ecc1",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.095207+00:00",
+  "source": "migration",
+  "content": {
+    "id": "269",
+    "title": "开放问题5四轮Gemini质询——从\"不可观测\"到\"三重联立候选判据+待回测\"",
+    "status": "settled",
+    "type": "矛盾发现",
+    "date": "2026-02-28",
+    "depends_on": [
+      "254",
+      "233",
+      "235",
+      "257"
+    ],
+    "source_file": "settled/269-oq5-reopen-challenge.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

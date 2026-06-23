@@ -1,0 +1,26 @@
+{
+  "id": "19a08dfb4051759d2927eb6f650477a275807e1bdf1e48743c5191227bcd41fc",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.943919+00:00",
+  "source": "migration",
+  "content": {
+    "id": "099",
+    "title": "趋势/盘整实体化缺口记录",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [],
+    "related": [
+      "007",
+      "009",
+      "010",
+      "029",
+      "031"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/099-trend-consolidation-implementation-gap.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

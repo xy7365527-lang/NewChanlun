@@ -1,0 +1,33 @@
+{
+  "id": "719d84e4e7b00aaf3a1d7301f2e1608b6cb430cb71b0bac03e3ec677e2157c6c",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.934771+00:00",
+  "source": "migration",
+  "content": {
+    "id": "089",
+    "title": "元编排递归拓扑异步自指化审计——严格扬弃（Aufhebung）",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-21",
+    "depends_on": [
+      "069",
+      "020",
+      "073",
+      "058",
+      "075",
+      "084",
+      "088"
+    ],
+    "related": [
+      "057",
+      "014",
+      "033",
+      "005b"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/089-meta-orchestration-aufhebung-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

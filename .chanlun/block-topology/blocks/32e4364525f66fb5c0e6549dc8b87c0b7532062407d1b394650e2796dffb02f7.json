@@ -1,0 +1,30 @@
+{
+  "id": "32e4364525f66fb5c0e6549dc8b87c0b7532062407d1b394650e2796dffb02f7",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.967486+00:00",
+  "source": "migration",
+  "content": {
+    "id": "126",
+    "title": "结算停机标准的层面澄清——005b不约束元层停机判断",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-22",
+    "negation_source": "heterogeneous → 118号定理消解",
+    "negation_form": "定理（118号推导消解矛盾前提）",
+    "depends_on": [
+      "069",
+      "118",
+      "093"
+    ],
+    "related": [
+      "005b",
+      "094"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/126-settlement-stopping-criterion-gap.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

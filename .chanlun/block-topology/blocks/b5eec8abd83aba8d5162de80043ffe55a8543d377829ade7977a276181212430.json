@@ -1,0 +1,22 @@
+{
+  "id": "b5eec8abd83aba8d5162de80043ffe55a8543d377829ade7977a276181212430",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.866132+00:00",
+  "source": "migration",
+  "content": {
+    "id": "022",
+    "title": "比价关系与等价关系的形式化",
+    "status": "已结算",
+    "type": "domain",
+    "date": "2026-02-18",
+    "depends_on": [
+      "020"
+    ],
+    "related": [],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/022-ratio-relation-formalization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

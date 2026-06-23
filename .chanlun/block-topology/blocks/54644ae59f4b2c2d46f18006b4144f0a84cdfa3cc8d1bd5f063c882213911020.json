@@ -1,0 +1,15 @@
+{
+  "id": "54644ae59f4b2c2d46f18006b4144f0a84cdfa3cc8d1bd5f063c882213911020",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.024708+00:00",
+  "source": "migration",
+  "content": {
+    "id": "198",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-25",
+    "source_file": "settled/198-meta-observation-t8-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

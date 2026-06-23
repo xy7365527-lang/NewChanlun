@@ -1,0 +1,32 @@
+{
+  "id": "c908968751d2fc17c46d78ca764a0f6bc366afbcdf4e5a0d5fb6597431f19797",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.937105+00:00",
+  "source": "migration",
+  "content": {
+    "id": "092",
+    "title": "RTAS 四维度严格审计——11 个发现 + 062号 Sinthome 修正",
+    "status": "已结算",
+    "type": "审计修复",
+    "date": "2026-02-21",
+    "depends_on": [
+      "062",
+      "069",
+      "084",
+      "090",
+      "091"
+    ],
+    "related": [
+      "037",
+      "064",
+      "068",
+      "075"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "tensions_with": [],
+    "source_file": "settled/092-rtas-strict-audit.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

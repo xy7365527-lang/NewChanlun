@@ -1,0 +1,35 @@
+{
+  "id": "0af86a3fd5cee600e71aa53489f46d80f4ea35bb33ad0fdc907698d46a71201a",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.946265+00:00",
+  "source": "migration",
+  "content": {
+    "id": "103",
+    "title": "系统审计两定律结晶——声明-能力缺口的系统性与消除方式",
+    "status": "已结算",
+    "type": "结晶",
+    "date": "2026-02-22",
+    "negation_source": "内容审计（三份审计报告交叉验证）",
+    "negation_form": "crystallization（六条谱系的审计修复链凝固为两条定律）",
+    "depends_on": [
+      "084",
+      "085",
+      "086",
+      "087",
+      "088",
+      "089"
+    ],
+    "related": [
+      "016",
+      "036",
+      "090",
+      "093"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/103-system-audit-two-laws-crystallization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

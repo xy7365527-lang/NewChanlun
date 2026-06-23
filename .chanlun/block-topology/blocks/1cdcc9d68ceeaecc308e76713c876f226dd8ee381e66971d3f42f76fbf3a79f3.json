@@ -1,0 +1,29 @@
+{
+  "id": "1cdcc9d68ceeaecc308e76713c876f226dd8ee381e66971d3f42f76fbf3a79f3",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.891544+00:00",
+  "source": "migration",
+  "content": {
+    "id": "046",
+    "title": "一域一角（One Domain One Role）",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "005b",
+      "013",
+      "032",
+      "037"
+    ],
+    "related": [
+      "038",
+      "039",
+      "045"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/046-one-domain-one-role.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

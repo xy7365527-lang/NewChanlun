@@ -1,0 +1,31 @@
+{
+  "id": "55af30cab4903ce1b452bb597241c8181eb968544a2ccb220b7328bf1b5d74cc",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.913716+00:00",
+  "source": "migration",
+  "content": {
+    "id": "069",
+    "title": "递归拓扑异步自指化蜂群——严格方案与不可消除的Gap",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-21",
+    "depends_on": [
+      "020",
+      "033",
+      "036",
+      "041",
+      "053",
+      "056",
+      "058",
+      "062",
+      "067",
+      "068"
+    ],
+    "related": [],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/069-recursive-topology-async-self-referential-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

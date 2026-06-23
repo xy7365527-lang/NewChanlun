@@ -1,0 +1,33 @@
+{
+  "id": "aa33b58758f1a9ea02cf904f602f2114a263e1476df16f2acff958d87ec2743c",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.924246+00:00",
+  "source": "migration",
+  "content": {
+    "id": "078",
+    "title": "打破连续阻塞死循环：D策略决断 + 064-1/076-3 实质性决断",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-21",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "041",
+      "064",
+      "076",
+      "018"
+    ],
+    "related": [
+      "062",
+      "070",
+      "075",
+      "077"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/078-break-blocking-loop-strategy-d.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

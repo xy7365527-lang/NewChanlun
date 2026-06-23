@@ -1,0 +1,24 @@
+{
+  "id": "507ad6406cf7754cd29bd3ba91f9b92184a3613579eb0eccef316181d308e00f",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.840861+00:00",
+  "source": "migration",
+  "content": {
+    "id": "005a",
+    "title": "禁止非对象来源的否定（定理）",
+    "status": "已结算",
+    "type": "定理",
+    "date": "2026-02-17",
+    "depends_on": [
+      "005"
+    ],
+    "related": [
+      "005b"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/005a-prohibition-theorem.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

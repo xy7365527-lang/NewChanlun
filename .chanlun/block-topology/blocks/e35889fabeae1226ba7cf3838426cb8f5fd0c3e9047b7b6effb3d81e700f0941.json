@@ -1,0 +1,26 @@
+{
+  "id": "e35889fabeae1226ba7cf3838426cb8f5fd0c3e9047b7b6effb3d81e700f0941",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.977279+00:00",
+  "source": "migration",
+  "content": {
+    "id": "136",
+    "title": "ceremony 持久化缺口修复 + 规则边界退化防护 + 成本收益消解禁止",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [
+      "130",
+      "090"
+    ],
+    "related": [
+      "134",
+      "105"
+    ],
+    "negates": [],
+    "tensions_with": [],
+    "source_file": "settled/136-ceremony-gap-fix.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

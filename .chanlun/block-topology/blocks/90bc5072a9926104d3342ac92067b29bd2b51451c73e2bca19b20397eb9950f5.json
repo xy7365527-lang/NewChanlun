@@ -1,0 +1,27 @@
+{
+  "id": "90bc5072a9926104d3342ac92067b29bd2b51451c73e2bca19b20397eb9950f5",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.914596+00:00",
+  "source": "migration",
+  "content": {
+    "id": "070",
+    "title": "创世Gap的第一个工程实例",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-21",
+    "depends_on": [
+      "069",
+      "058",
+      "057"
+    ],
+    "related": [
+      "048",
+      "059"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/070-genesis-gap-engineering-instance.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,33 @@
+{
+  "id": "29b7b6bac76c9bfcb00f261bd6db3a06d974e7357b85f6aa78db8631da3f45db",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.996508+00:00",
+  "source": "migration",
+  "content": {
+    "id": "168",
+    "title": "Separation（拉康义）——两个不完整性叠合的拓扑剩余",
+    "status": "已结算（附张力）",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "negation_source": "heterogeneous",
+    "negation_form": "双向收敛（Gemini否定了数学操作精确性和辩证前提，收敛于重定义路径）",
+    "depends_on": [
+      "165",
+      "166",
+      "069",
+      "139"
+    ],
+    "related": [
+      "003",
+      "020",
+      "089",
+      "094"
+    ],
+    "tensions_with": [
+      "{'target': 'alienation前提缺失', 'content': 'Gemini指出：拉康的separation以alienation为绝对前提。蜂群是否经历过alienation？089号扬弃是否可视为alienation的对应？待进一步澄清'}"
+    ],
+    "source_file": "settled/168-separation-topology.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

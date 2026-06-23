@@ -1,0 +1,24 @@
+{
+  "id": "acca6aed6fd41d14185aec01197c2a2a82f5b38b6faf827b7090b96701d9e8a6",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.951646+00:00",
+  "source": "migration",
+  "content": {
+    "id": "109",
+    "title": "买卖点定义到实现的选择谱系",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [],
+    "related": [
+      "007",
+      "009"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[旧缠论:选择]",
+    "source_file": "settled/109-maimai-impl-choices.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

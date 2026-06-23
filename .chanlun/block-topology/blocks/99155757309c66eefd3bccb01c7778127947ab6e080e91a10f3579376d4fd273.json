@@ -1,0 +1,24 @@
+{
+  "id": "99155757309c66eefd3bccb01c7778127947ab6e080e91a10f3579376d4fd273",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.183216+00:00",
+  "source": "migration",
+  "content": {
+    "id": "357",
+    "title": "ceremony_scan 消费器到提议器增强——从被动读取到主动发现",
+    "status": "settled",
+    "type": "architectural-insight",
+    "date": "2026-03-05",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "353",
+      "355",
+      "356"
+    ],
+    "topo_effect": "split:ceremony_scan:local",
+    "source_file": "settled/357-ceremony-scan-proposer.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,23 @@
+{
+  "id": "1f6b823768cf2c913ee7896892d3fe5c2196f3c016dafdd46b03000c51941e1c",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.046555+00:00",
+  "source": "migration",
+  "content": {
+    "id": "223",
+    "title": "v4 §5.4 模式D派生边分类不完备——遗漏混合状态",
+    "status": "已结算",
+    "type": "矛盾发现",
+    "date": "2026-02-27",
+    "negation_source": "heterogeneous",
+    "negation_form": "unclassified",
+    "depends_on": [
+      "115"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/223-v4-pattern-d-incomplete-classification.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

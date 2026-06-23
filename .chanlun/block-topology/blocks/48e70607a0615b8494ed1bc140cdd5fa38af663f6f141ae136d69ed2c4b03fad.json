@@ -1,0 +1,28 @@
+{
+  "id": "48e70607a0615b8494ed1bc140cdd5fa38af663f6f141ae136d69ed2c4b03fad",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.884725+00:00",
+  "source": "migration",
+  "content": {
+    "id": "039",
+    "title": "单 agent 绕过模式与 dispatch-spec 偏差分析",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-17",
+    "depends_on": [],
+    "related": [
+      "013",
+      "016",
+      "020",
+      "027",
+      "032",
+      "033",
+      "034"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/039-single-agent-bypass-pattern.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

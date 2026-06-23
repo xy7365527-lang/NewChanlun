@@ -1,0 +1,20 @@
+{
+  "id": "36fa61414991c1415430cdf4f9e01f06d6e8eccae9e6322ba58b01c0b9bafc7b",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.166709+00:00",
+  "source": "migration",
+  "content": {
+    "id": "340",
+    "title": "元观察——v149 纲目结构实装 session",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-04",
+    "depends_on": [
+      "339",
+      "338"
+    ],
+    "source_file": "settled/340-meta-observation-v149-gangmu-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

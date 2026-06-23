@@ -1,0 +1,23 @@
+{
+  "id": "79ed159e60ddd29c7e9ad82c4cf2243d43373fd0dd69053d4c4b5e0deb160b94",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.152534+00:00",
+  "source": "migration",
+  "content": {
+    "id": "323",
+    "title": "折叠内在性检验：理论结算——触发外在/条件内在/基本面是事后命名",
+    "status": "已结算",
+    "type": "event",
+    "date": "2026-03-03",
+    "depends_on": [
+      "321",
+      "319",
+      "317",
+      "292",
+      "090"
+    ],
+    "source_file": "settled/323-fold-theory-settlement.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

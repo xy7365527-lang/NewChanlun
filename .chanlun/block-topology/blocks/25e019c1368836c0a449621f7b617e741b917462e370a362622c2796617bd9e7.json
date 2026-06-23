@@ -1,0 +1,20 @@
+{
+  "id": "25e019c1368836c0a449621f7b617e741b917462e370a362622c2796617bd9e7",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.870955+00:00",
+  "source": "migration",
+  "content": {
+    "id": "027",
+    "title": "正面指令优于禁止性规则",
+    "status": "已结算",
+    "type": "矛盾记录",
+    "date": "2026-02-18",
+    "depends_on": [],
+    "related": [],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/027-positive-instruction-over-prohibition.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

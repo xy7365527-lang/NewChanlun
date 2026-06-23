@@ -1,0 +1,30 @@
+{
+  "id": "a777ecae0bddac3c9ff8d5d58c918210b5f16619d6c754bf5a550cb0bb9149cb",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.998345+00:00",
+  "source": "migration",
+  "content": {
+    "id": "170",
+    "title": "承重点/主要矛盾——拓扑化映射的严格性与限度",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-23",
+    "negation_source": "heterogeneous",
+    "negation_form": "separation",
+    "depends_on": [
+      "089",
+      "090",
+      "139",
+      "158"
+    ],
+    "related": [
+      "069",
+      "005b"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/170-load-bearing-contradiction.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

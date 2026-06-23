@@ -1,0 +1,21 @@
+{
+  "id": "7c218f4ee3e56b3dd5e24a472f5e5b017910bb57ad31aad00bfa835e759828d2",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.163032+00:00",
+  "source": "migration",
+  "content": {
+    "id": "336",
+    "title": "元观察——三体制分析结果呈现 session（compaction 恢复 + 335号写入）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-04",
+    "depends_on": [
+      "333",
+      "334",
+      "335"
+    ],
+    "source_file": "settled/336-meta-observation-regime-analysis-results.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

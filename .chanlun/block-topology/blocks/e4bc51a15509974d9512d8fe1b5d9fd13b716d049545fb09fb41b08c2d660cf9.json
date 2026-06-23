@@ -1,0 +1,24 @@
+{
+  "id": "e4bc51a15509974d9512d8fe1b5d9fd13b716d049545fb09fb41b08c2d660cf9",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.942894+00:00",
+  "source": "migration",
+  "content": {
+    "id": "098",
+    "title": "口径结算结晶——笔/线段退化 -> 源文件不完整 -> 口径统一",
+    "status": "已结算",
+    "type": "结晶",
+    "date": "2026-02-22",
+    "depends_on": [],
+    "related": [
+      "001",
+      "002",
+      "003"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/098-caliber-settlement-crystallization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

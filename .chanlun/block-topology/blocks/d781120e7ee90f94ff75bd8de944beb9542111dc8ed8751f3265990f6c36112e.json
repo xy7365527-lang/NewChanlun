@@ -1,0 +1,22 @@
+{
+  "id": "d781120e7ee90f94ff75bd8de944beb9542111dc8ed8751f3265990f6c36112e",
+  "type": "event",
+  "timestamp": "2026-06-23T07:21:13.627555+00:00",
+  "source": "migration",
+  "content": {
+    "id": "561",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-06-23",
+    "negation_source": "homogeneous",
+    "negation_form": "aufhebung",
+    "depends_on": [
+      "541",
+      "545"
+    ],
+    "topo_effect": "split:539:Omega-collapse[过覆盖560/欠覆盖553/b1-L0/b2-L3] | subsume:558-TYPE-COLLAPSE:generalize | demote:N9:to-corollary | aufhebung:545b:emergent_top_anchor",
+    "source_file": "settled/561-polarity-level-covariance-necessity.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

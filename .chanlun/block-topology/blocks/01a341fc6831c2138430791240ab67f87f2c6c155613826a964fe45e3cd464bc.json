@@ -1,0 +1,22 @@
+{
+  "id": "01a341fc6831c2138430791240ab67f87f2c6c155613826a964fe45e3cd464bc",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.150781+00:00",
+  "source": "migration",
+  "content": {
+    "id": "321",
+    "title": "折叠第三轮——历史性的位置：事件外注入，易感性内生产",
+    "status": "已结算",
+    "type": "event",
+    "date": "2026-03-03",
+    "depends_on": [
+      "319",
+      "317",
+      "292",
+      "090"
+    ],
+    "source_file": "settled/321-fold-r3-historicity-verdict.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,21 @@
+{
+  "id": "6cc4f3913378537bccd77473b73035dd581099f1ee35551a925d2d2942af5151",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.021530+00:00",
+  "source": "migration",
+  "content": {
+    "id": "195",
+    "title": "缠论代码拓扑化——六层对应 + 转换函数等价框架",
+    "status": "结算态",
+    "type": "概念发现",
+    "date": "2026-02-25",
+    "depends_on": [
+      "001",
+      "114",
+      "113"
+    ],
+    "source_file": "settled/195-chanlun-topologization.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

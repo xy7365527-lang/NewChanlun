@@ -1,0 +1,16 @@
+{
+  "id": "01fb1766d4d55fe5ce15b4a8b6bf57ea8cfd9355cd8d56b0d2941c331d03c903",
+  "timestamp": "2026-06-22T08:14:00.931744+00:00",
+  "content": {
+    "full_text": "---\nid: '547'\nnumber: 547\ntitle: \"cascade 级别错配——次级别卖点翻整个主力仓位：死锁与做空亏是同一错误判据的两端\"\ntype: 概念发现\nstatus: settled  # 记录结算；修复判据（e_level==最高活跃走势级别）为生成态，待实装验证\ndate: 2026-06-22\nsettled_date: 2026-06-22\nsettlement: 编排者 2026-06-22 跨多轮质询诊断坐实。机制 L0（rec_engine.rs cascade 判据）+ BTC L2 实测（翻空触发级别 j=1 ≪ 大趋势 L4/L5；牛段 −70%/核心空 77%）。修复判据生成态。\nlevel: \"机制 = L0（cascade_reverse_to_core 判据 e_level≥cc + emergent_top 定义 + core_flip=clear_all+enter）；BTC 后果 = L2（flag-on 翻空 j=1 + 牛段套牢 −70%，可否证）\"\n负责工位: CC session（T2 cascade 死锁修复审计衍生）\nprovenance: \"[新缠论:实装审计]（recursive_t cascade 死锁修复）+ [旧缠论]（级别归属：次级别卖点归次级别，第一类卖点的级别属性）\"\nnegation_source: homogeneous\nnegation_form: separation\nnegates: \"cascade-flip-on-any-cross-level-completion（隐含命题：『任何级联到核心仓位级别(e_level≥cc)的反向完成走势 = 核心反转信号』——被证伪：牛市大趋势 completed=false ⟹ emergent_top 必落次级别 ⟹ 用次级别卖点翻整个主力仓位）\"\ntopo_effect: \"sever:subordinate-sell-point-from-core-flip:cross-level\"\ndepends_on:\n  - '545'   # emergent_top 方向锚——同源缺陷的方向维度；本号是其级别归属维度\n  - '546'   # 僵尸核心死锁——本号给出死锁与做空亏的共同根（级别错配）\nrelated:\n  - '006'   # level-recursion（Move(k)≡Level-(k+1)笔）——级别归属的恒等式依据\ntensions_with: []\n---\n\n# 547 号：cascade 级别错配——次级别卖点翻整个主力仓位\n\n**认识论**：机制 L0（源码判据）；BTC 后果 L2（j=1 + −70%）。\n\n## 一、现象（编排者精确总结）\n\n「最高级别走势类型的次级别有卖点，cascade 就把整个主力仓位做空了，才亏。」\n\n- T2 cascade 死锁修复（`T_CASCADE_FLIP`）的 `core_flip` 用 `emergent_top`（最高**完成**走势，545号定义）触发翻空，判据 `e_dir≠core_dir ∧ e_level≥cc`。\n- **诊断坐实**：BTC flag-on 翻空触发级别 `j=1`（次级别），大趋势在 L4/L5。`j=1 ≪ 最高级别走势类型`。\n\n## 二、机制（L0，为什么必然翻在次级别）\n\n牛市中**大趋势（最高级别走势类型）completed=false（还在涨）**，所以 `emergent_top`（最高**有完成**走势的级别）**必然落到次级别**——某次级别回调走完（次级别顶背驰）就成了「当前最高的已完成走势」，方向向下。cascade 见 `e_level≥cc` 即翻。\n\n`core_flip = clear_all`（清掉 L4/L5 主力大趋势持多仓）`+ enter`（全部 free 在次级别 L1 做空）。**一个次级别卖点 → 砍掉主力多头 + 全仓压次级别空头 → 大趋势继续涨 → 两头亏**（牛段 −70%、核心空% 77%、强平暴增）。\n\n## 三、死锁与做空亏 = 同一错误判据的两端\n\n| 选择 | 现象 | 真相 |\n|---|---|---|\n| 翻（flag-on） | 次级别卖点翻主力 → 套牢 −70% | 翻在次级别 |\n| 不翻（flag-off） | 核心被 sink 减成 1e-6 僵尸卡塔顶 | 死锁（546号） |\n\n整个 session 在「做空亏 vs 不做空」兜圈子——根是这**一个**级别错配判据。修对级别归属，两难消失。\n\n## 四、修复（缠论级别归属，生成态待实装）\n\n`core_flip` 触发从 `e_level≥cc`（任何级联到核心仓位的次级别完成走势）收紧为 **`e_level == 系统最高活跃走势级别`**（大趋势那一层本身真顶背驰）：\n- 次级别卖点（`e_level < 最高活跃走势级别`）→ 次级别 sink 做空吃回调、回补，**主力大趋势持多仓不动**。\n- 仅最高级别走势类型卖点 → 翻主力。\n- 强牛大趋势永不完成 → 核心一直持多吃涨幅（不套牢、不僵死）。\n\n**否定面**：这不是加止损、不是换数据粒度（1s）——确认滞后是逻辑的（缠论认识论：等走势走完才确认方向），数据换不掉；T1 Divergence 闸门（[[project_t2_cascade_completion_gate]]）删翻空删过头（64→3，熊段 +50.5% 连带删，+13.4%<flag-off +37.3%）。根是级别判据。\n\n## 五、上游谱系\n\n- **545号**（emergent-top-direction-anchor-instability）：emergent_top 承载多所指。本号是其**级别归属维度**的缺陷——545 关注方向锚（b），547 关注「用哪一级的完成走势触发核心翻转」。同一 emergent_top 误用。\n- **546号**（enter-allspace-gate-geometric-decay-deadlock）：本号给出 546 死锁与做空亏的**共同根**——级别错配。死锁（不翻）与套牢（乱翻）是它的两面。\n- **006号**：Move(k)≡Level-(k+1)笔——级别归属的恒等式依据（次级别卖点属次级别）。\n\n## 六、影响声明\n\n诊断/谱系结晶，未改代码。指向 `rec_engine.rs::cascade_reverse_to_core` / `core_flip` 判据修复（生成态）。新增 memory `project_cascade_level_misattribution`。\n",
+    "source_file": "settled/547-cascade-level-misattribution.md",
+    "id": "547"
+  },
+  "genealogy_id": "547",
+  "title": "cascade 级别错配——次级别卖点翻整个主力仓位：死锁与做空亏是同一错误判据的两端",
+  "type": "概念发现",
+  "depends_on": [
+    "545",
+    "546"
+  ]
+}

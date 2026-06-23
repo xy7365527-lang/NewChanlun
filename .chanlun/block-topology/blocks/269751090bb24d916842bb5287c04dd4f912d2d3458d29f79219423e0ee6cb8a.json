@@ -1,0 +1,25 @@
+{
+  "id": "269751090bb24d916842bb5287c04dd4f912d2d3458d29f79219423e0ee6cb8a",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.949777+00:00",
+  "source": "migration",
+  "content": {
+    "id": "107",
+    "title": "中枢定义到实现的选择谱系",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-22",
+    "depends_on": [],
+    "related": [
+      "001",
+      "002",
+      "006"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "provenance": "[旧缠论:选择]",
+    "source_file": "settled/107-zhongshu-impl-choices.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

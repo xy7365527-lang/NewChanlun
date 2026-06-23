@@ -1,0 +1,23 @@
+{
+  "id": "f04cad64de9d328af808b62f0bef25644c263d4e2948e3bfffb90fdd612dfc76",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.154195+00:00",
+  "source": "migration",
+  "content": {
+    "id": "325",
+    "title": "元观察——v141-swarm 四节点汇总：假说否定 + 阈值分裂 + meta.json漂移修复 + 编排者六线路线图",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-03",
+    "depends_on": [
+      "324",
+      "323",
+      "322",
+      "320",
+      "090"
+    ],
+    "source_file": "settled/325-meta-observation-v141-swarm-four-node.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

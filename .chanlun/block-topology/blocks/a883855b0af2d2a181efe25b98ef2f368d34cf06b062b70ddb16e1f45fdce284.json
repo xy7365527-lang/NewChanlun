@@ -1,0 +1,40 @@
+{
+  "id": "a883855b0af2d2a181efe25b98ef2f368d34cf06b062b70ddb16e1f45fdce284",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.933057+00:00",
+  "source": "migration",
+  "content": {
+    "id": "087",
+    "title": "086号全C重新决断：五问题诚实修复（编排者INTERRUPT）",
+    "status": "已结算",
+    "type": "选择",
+    "date": "2026-02-21",
+    "negation_source": "heterogeneous",
+    "negation_form": "expansion",
+    "depends_on": [
+      "086",
+      "085",
+      "082",
+      "073b",
+      "075",
+      "041",
+      "018"
+    ],
+    "related": [
+      "069",
+      "056",
+      "076",
+      "077",
+      "084",
+      "036"
+    ],
+    "negates": [
+      "086"
+    ],
+    "negated_by": [],
+    "provenance": "[新缠论]",
+    "source_file": "settled/087-island-repair-honest-decisions.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

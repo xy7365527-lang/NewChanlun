@@ -1,0 +1,23 @@
+{
+  "id": "173876e7a431de073bac76dc1ee459338e85344b829ca0a3d1f20a63e9522ce3",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.843645+00:00",
+  "source": "migration",
+  "content": {
+    "id": "006",
+    "title": "级别递归 vs 多周期下钻",
+    "status": "已结算",
+    "type": "概念分离 + 架构决断",
+    "date": "2026-02-16",
+    "depends_on": [],
+    "related": [
+      "003",
+      "005b"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/006-level-recursion.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,21 @@
+{
+  "id": "2d3fea1333bb16a7b5cc2bbb88cf9e176ef0f7ff16c1286696effa7316fdcdee",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.165841+00:00",
+  "source": "migration",
+  "content": {
+    "id": "339",
+    "title": "元观察——v148 compaction恢复 + 两周进展合成 session",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-04",
+    "depends_on": [
+      "336",
+      "337",
+      "338"
+    ],
+    "source_file": "settled/339-meta-observation-v148-progress-summary-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

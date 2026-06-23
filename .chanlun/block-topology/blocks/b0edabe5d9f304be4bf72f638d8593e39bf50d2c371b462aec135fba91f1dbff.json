@@ -1,0 +1,19 @@
+{
+  "id": "b0edabe5d9f304be4bf72f638d8593e39bf50d2c371b462aec135fba91f1dbff",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.144978+00:00",
+  "source": "migration",
+  "content": {
+    "id": "314",
+    "title": "Stagnation 审计——v136 Codex 审查阶段的误报分析",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-02",
+    "depends_on": [
+      "313"
+    ],
+    "source_file": "settled/314-stagnation-audit-v136-codex-review-phase.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

@@ -1,0 +1,29 @@
+{
+  "id": "2452ac4e6975ed0bb58e14b8b54da7e5ac44c71880b307aaf85497684550e0dd",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:54.888974+00:00",
+  "source": "migration",
+  "content": {
+    "id": "043",
+    "title": "自生长回路",
+    "status": "已结算",
+    "type": "语法记录",
+    "date": "2026-02-20",
+    "depends_on": [
+      "016",
+      "020",
+      "041",
+      "042"
+    ],
+    "related": [
+      "012",
+      "013",
+      "033"
+    ],
+    "negates": [],
+    "negated_by": [],
+    "source_file": "settled/043-self-growth-loop.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

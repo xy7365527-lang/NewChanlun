@@ -1,0 +1,22 @@
+{
+  "id": "5e3f1d934dfba8b9f8ad13b588f2523535b0460eefa17c6d72fdcc6086f7792f",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.044642+00:00",
+  "source": "migration",
+  "content": {
+    "id": "221",
+    "title": "元观察——v3质询双向收敛 + 编排者第0条洞察（等价关系级别依赖性）",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-02-27",
+    "depends_on": [
+      "219",
+      "115"
+    ],
+    "topo_effect": "",
+    "tensions_with": [],
+    "source_file": "settled/221-meta-observation-v3-inquiry-session.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

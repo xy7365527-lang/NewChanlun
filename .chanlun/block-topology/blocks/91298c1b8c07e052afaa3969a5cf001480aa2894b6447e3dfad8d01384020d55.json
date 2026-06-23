@@ -1,0 +1,23 @@
+{
+  "id": "91298c1b8c07e052afaa3969a5cf001480aa2894b6447e3dfad8d01384020d55",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.039219+00:00",
+  "source": "migration",
+  "content": {
+    "id": "215",
+    "title": "Alpha Vantage 1min 大规模验证——递归 Level 1 可达确认",
+    "status": "已结算",
+    "type": "概念发现",
+    "date": "2026-02-26",
+    "depends_on": [
+      "214",
+      "208"
+    ],
+    "negates": [
+      "214"
+    ],
+    "source_file": "settled/215-av-1min-recursive-reachable.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

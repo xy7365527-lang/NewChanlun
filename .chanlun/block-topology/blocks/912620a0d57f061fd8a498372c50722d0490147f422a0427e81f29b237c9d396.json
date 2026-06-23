@@ -1,0 +1,23 @@
+{
+  "id": "912620a0d57f061fd8a498372c50722d0490147f422a0427e81f29b237c9d396",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.153459+00:00",
+  "source": "migration",
+  "content": {
+    "id": "324",
+    "title": "元观察——v141-swarm $节点复制实验：命题一方向反转 + 阈值两节点汇合 + scan 排除逻辑合理",
+    "status": "已结算",
+    "type": "meta-rule",
+    "date": "2026-03-03",
+    "depends_on": [
+      "323",
+      "322",
+      "321",
+      "320",
+      "090"
+    ],
+    "source_file": "settled/324-meta-observation-v141-swarm.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}

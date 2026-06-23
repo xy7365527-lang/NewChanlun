@@ -1,0 +1,20 @@
+{
+  "id": "80601c97081f6cb8dc7075ae86371dff60025b5ed6e58cba5d98e258ce7f6148",
+  "type": "event",
+  "timestamp": "2026-06-23T07:19:55.167311+00:00",
+  "source": "migration",
+  "content": {
+    "id": "341",
+    "title": "偶遇定义精化：从时间性绑定到结构性标准",
+    "status": "已结算",
+    "type": "event",
+    "date": "2026-03-04",
+    "depends_on": [
+      "339",
+      "301"
+    ],
+    "source_file": "settled/341-encounter-definition-refinement.md"
+  },
+  "refs": [],
+  "git_ref": ""
+}
