@@ -24,7 +24,7 @@ definitions_involved:
     role: 消费断裂检测方向已补充（B方向）
   - name: gangmu.yaml ceremony-scan-bidirectional action
     version: v159-swarm-r4
-    role: completion_check 目标——本谱系满足 genealogy_settled: scan-bidirectional
+    role: "completion_check 目标——本谱系满足 genealogy_settled: scan-bidirectional"
 
 resolution:
   type: 结构重组
