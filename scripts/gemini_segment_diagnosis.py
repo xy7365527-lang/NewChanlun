@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Gemini 异质诊断：段引擎 71 strokes -> 1 segment 压缩问题。
+"""异质诊断：段引擎 71 strokes -> 1 segment 压缩问题（底层模型 = OpenAI GPT-5.5）。
 
 247号验证发现 SPY 60min 数据 874 bars -> 71 strokes -> 1 segment。
-本脚本用 Gemini 2.5 Pro 对段引擎源码进行独立诊断。
+本脚本用 OpenAI GPT-5.5（2026-06-23 从 Gemini 换装）对段引擎源码进行独立诊断。
 
 用法:
     python scripts/gemini_segment_diagnosis.py
@@ -15,16 +15,17 @@ import os
 import sys
 from pathlib import Path
 
-# --- 配置 ---
-API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
+# --- 配置（异质源：OpenAI GPT-5.5，最高级别最高推理） ---
+API_KEY = os.environ.get("OPENAI_API_KEY", "")
 if not API_KEY:
-    print("ERROR: 请设置 GEMINI_API_KEY 或 GOOGLE_API_KEY 环境变量")
+    print("ERROR: 请设置 OPENAI_API_KEY 环境变量")
     sys.exit(1)
 
-import google.generativeai as genai
+import openai
 
-genai.configure(api_key=API_KEY)
-model = genai.GenerativeModel("gemini-2.5-pro")
+client = openai.OpenAI(api_key=API_KEY)
+MODEL = "gpt-5.5-pro"
+FALLBACK_MODEL = "gpt-5.5"
 
 # --- 读取源码和参考材料 ---
 ROOT = Path(__file__).resolve().parent.parent
@@ -172,26 +173,37 @@ PROMPT = f"""你是一个精通缠论（缠中说禅的技术分析理论）的�
 请务必基于缠论原文定义和源码进行严格推理，不要猜测。
 """
 
-# --- 调用 Gemini ---
-print("正在调用 Gemini 2.5 Pro 进行段引擎诊断...")
+# --- 调用 OpenAI GPT-5.5（主模型不可用时降级到 gpt-5.5） ---
+print("正在调用 OpenAI GPT-5.5 进行段引擎诊断...")
 print(f"Prompt 长度: {len(PROMPT)} 字符")
 
-response = model.generate_content(
-    PROMPT,
-    generation_config=genai.GenerationConfig(
-        temperature=0.2,
-        max_output_tokens=16384,
-    ),
-)
 
-result_text = response.text
+def _diagnose(prompt: str) -> tuple[str, str]:
+    """调用 Responses API，主模型 APIError 时降级。返回 (text, model)。"""
+    for m in (MODEL, FALLBACK_MODEL):
+        try:
+            resp = client.responses.create(
+                model=m,
+                input=prompt,
+                reasoning={"effort": "xhigh"},
+                max_output_tokens=16384,
+            )
+            return getattr(resp, "output_text", "") or "", m
+        except openai.APIError as e:
+            if m == MODEL and m != FALLBACK_MODEL:
+                print(f"  {m} 不可用（{type(e).__name__}），降级到 {FALLBACK_MODEL}")
+                continue
+            raise
+    raise RuntimeError("所有模型均不可用")
+
+
+result_text, model_used = _diagnose(PROMPT)
 
 # --- 保存结果 ---
 output_path = ROOT / "tmp" / "gemini-segment-diagnosis.md"
 output_path.write_text(
-    f"# Gemini 段引擎诊断报告\n\n"
-    f"> 模型: gemini-2.5-pro\n"
-    f"> 日期: 2026-02-28\n"
+    f"# 段引擎异质诊断报告\n\n"
+    f"> 模型: {model_used}（OpenAI GPT-5.5，2026-06-23 从 Gemini 换装）\n"
     f"> 背景: 247号验证 SPY 60min 71 strokes -> 1 segment\n\n"
     f"---\n\n"
     f"{result_text}\n",

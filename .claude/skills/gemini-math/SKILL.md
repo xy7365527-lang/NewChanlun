@@ -1,5 +1,9 @@
 # Gemini Mathematical Derivation (derive)
 
+> **底层模型（2026-06-23 换装）**：`derive` 的推导引擎已从 Google Gemini 迁移到 **OpenAI GPT-5.5**
+> （`gpt-5.5-pro` 主 / `gpt-5.5` 降级，reasoning effort = `xhigh` 最高推理）。CLI 命令与模式不变
+> （`gemini` 是工位角色名，非模型名）。触发：Gemini API 429 RESOURCE_EXHAUSTED 不可用，编排者指令换装。
+
 ## 概述
 
 构造性数学推导引擎。接收命题，输出形式化证明。不限领域，通过公理集注入实现领域特化。

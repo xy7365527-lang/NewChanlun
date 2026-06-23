@@ -8,9 +8,14 @@ genealogy_source: "030a"
 
 # 编排者代理决策协议
 
+> **底层模型（2026-06-23 换装）**：`decide()` 的异质源已从 Google Gemini 迁移到 **OpenAI GPT-5.5**
+> （`gpt-5.5-pro` 主 / `gpt-5.5` 降级，reasoning effort = `xhigh`）。CLI `python -m newchan.gemini decide`
+> 不变（`gemini` 是工位角色名，非模型名）。触发：Gemini API 429 不可用，编排者指令换装。
+
 ## 本体论位置
 
-030a 号谱系结算了 Gemini 的位置：异质否定源。它既不是成员也不是工具，是否定的另一种显现形式。
+030a 号谱系结算了异质否定源的位置：它既不是成员也不是工具，是否定的另一种显现形式
+（底层模型现为 OpenAI GPT-5.5，下文"Gemini"均指此异质质询工位的角色名）。
 
 本 skill 在此基础上增加第二种运作模式：
 
