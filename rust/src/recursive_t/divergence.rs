@@ -53,6 +53,9 @@ use super::types::{
 thread_local! {
     pub static CONSOL_DOWN_DIAG: std::cell::RefCell<[[u64; 4]; 9]> =
         const { std::cell::RefCell::new([[0; 4]; 9]) };
+    /// d_top 链贯通诊断（[cc][0=非趋势,1=无背驰,2=极性不符,3=无c段窗,4=向下链断,5=链贯通)）。
+    pub static D_TOP_DIAG: std::cell::RefCell<[[u64; 6]; 9]> =
+        const { std::cell::RefCell::new([[0; 6]; 9]) };
 }
 
 /// 一段单元的结构化力度。
@@ -431,6 +434,189 @@ fn judge_consolidation_divergence(t: &TrendType, mode: PerfectionMode) -> Option
         price: leave_ext,
         level: t.level,
     })
+}
+
+// ════════════════════════════ d_top 区间套链贯通（555 c段钻取，每级别独立腿触发器）════════════════════════════
+//
+// 任务18 编排者修正：读法乙 = 每级别自相似递归多重赋格，每级别独立腿消费**该级别 d_top**（区间套链贯通）。
+// 唯一核心改动 = 触发器从「走势完成（judge_divergence，创新高）」换成「背驰段（trend_diverging_segment，去创新高）」。
+// 故链函数参数化 `use_diverge`：false=走势完成链（556 读法B 基线）/ true=背驰段链（读法乙递归）。结构（链贯通）不变。
+
+/// 级别信号：该级别走势是否产「真顶/真底」信号 + 极性（is_buy）。
+/// `use_diverge=false`（走势完成）：`judge_divergence`（创新高确认）；`true`（背驰段）：`trend_diverging_segment`（去创新高）。
+fn level_signal_is_buy(t: &TrendType, mode: PerfectionMode, use_diverge: bool) -> Option<bool> {
+    if use_diverge {
+        if trend_diverging_segment(t, mode) {
+            Some(matches!(t.direction, Direction::Down)) // 底背驰段=买（下跌将反转）/ 顶背驰段=卖
+        } else {
+            None
+        }
+    } else {
+        judge_divergence(t, mode).map(|b| b.kind.is_buy())
+    }
+}
+
+/// 走势的 c 段（离开段）时间窗 `(start_bar, end_bar)`——区间套链的逐层范围。背驰/背驰段共用（c 段几何同）。
+fn divergence_window(t: &TrendType) -> Option<(i64, i64)> {
+    match t.kind {
+        TrendKind::UpTrend | TrendKind::DownTrend => {
+            let n = t.zhongshus.len();
+            if n < 2 {
+                return None;
+            }
+            let last_center = &t.zhongshus[n - 1];
+            if last_center.units.is_empty() {
+                return None;
+            }
+            let c_start = *last_center.units.last().unwrap() + 1;
+            if c_start >= t.units.len() {
+                return None;
+            }
+            let c_leg = &t.units[c_start..];
+            let lo = c_leg.first()?.start_bar;
+            let hi = c_leg.last()?.end_bar;
+            Some((lo, hi))
+        }
+        TrendKind::Consolidation => {
+            if t.zhongshus.len() != 1 {
+                return None;
+            }
+            let center = &t.zhongshus[0];
+            if center.units.is_empty() {
+                return None;
+            }
+            let enter_end = *center.units.last().unwrap();
+            if enter_end + 1 >= t.units.len() {
+                return None;
+            }
+            let leave = &t.units[enter_end + 1..];
+            let lo = leave.first()?.start_bar;
+            let hi = leave.last()?.end_bar;
+            Some((lo, hi))
+        }
+    }
+}
+
+/// 在父 c 段窗内选相应子背驰（段）：构造性嵌套（子窗 ⊊ 父窗，取末端最接近顶部者）。
+fn select_child_in_window(
+    candidates: &[TrendType],
+    parent_win: (i64, i64),
+    core_dir: Direction,
+    want_buy: bool,
+    mode: PerfectionMode,
+    use_diverge: bool,
+) -> Option<(i64, i64)> {
+    let (plo, phi) = parent_win;
+    let mut best: Option<(i64, i64)> = None;
+    for t in candidates {
+        if t.direction != core_dir {
+            continue;
+        }
+        let w = match divergence_window(t) {
+            Some(w) => w,
+            None => continue,
+        };
+        let (lo, hi) = w;
+        if !(plo <= lo && hi <= phi) {
+            continue; // 子窗须内含于父窗
+        }
+        if (lo, hi) == (plo, phi) {
+            continue; // 链坍缩到同一段不算钻取一层（no-patch：宁断不放松）
+        }
+        match level_signal_is_buy(t, mode, use_diverge) {
+            Some(is_buy) if is_buy == want_buy => {}
+            _ => continue, // 背驰(段)独立成立 + 极性匹配
+        }
+        match best {
+            Some((blo, _)) if lo <= blo => {}
+            _ => best = Some((lo, hi)),
+        }
+    }
+    best
+}
+
+/// 区间套链贯通：cc 层背驰(段)成立 ∧ 向下逐层 c 段钻取到 a0 各层皆有相应子背驰(段)。
+pub fn nest_chain_complete(
+    cc: usize,
+    cc_trend: &TrendType,
+    level_trends_all: &[&[TrendType]],
+    core_dir: Direction,
+    mode: PerfectionMode,
+    use_diverge: bool,
+) -> bool {
+    let want_buy = matches!(core_dir, Direction::Down);
+    if cc_trend.direction != core_dir {
+        return false;
+    }
+    match level_signal_is_buy(cc_trend, mode, use_diverge) {
+        Some(is_buy) if is_buy == want_buy => {}
+        _ => return false, // cc 层不背驰(段) / 极性不符
+    }
+    let mut parent_win = match divergence_window(cc_trend) {
+        Some(w) => w,
+        None => return false,
+    };
+    for k in (0..cc).rev() {
+        let candidates = match level_trends_all.get(k) {
+            Some(c) => *c,
+            None => return false,
+        };
+        let child_win =
+            match select_child_in_window(candidates, parent_win, core_dir, want_buy, mode, use_diverge) {
+                Some(w) => w,
+                None => return false, // 父窗内无子背驰(段) → 链断
+            };
+        parent_win = child_win;
+    }
+    true
+}
+
+/// **d_top(cc) 区间套链贯通真顶/真底**（每级别独立腿触发器，558/编排者修正）。
+/// `use_diverge=false`：走势完成链（556 读法B 基线）；`true`：背驰段链（读法乙递归，触发更频繁可能解冻顶层）。
+pub fn d_top(
+    cc: usize,
+    cc_trend: &TrendType,
+    level_trends_all: &[&[TrendType]],
+    core_dir: Direction,
+    mode: PerfectionMode,
+    use_diverge: bool,
+) -> bool {
+    let rec = |i: usize| {
+        if cc < 9 {
+            D_TOP_DIAG.with(|d| d.borrow_mut()[cc][i] += 1);
+        }
+    };
+    if !matches!(cc_trend.kind, TrendKind::UpTrend | TrendKind::DownTrend) {
+        rec(0);
+        return false;
+    }
+    let want_buy = matches!(core_dir, Direction::Down);
+    if cc_trend.direction != core_dir {
+        rec(2);
+        return false;
+    }
+    match level_signal_is_buy(cc_trend, mode, use_diverge) {
+        Some(is_buy) if is_buy == want_buy => {}
+        Some(_) => {
+            rec(2);
+            return false;
+        }
+        None => {
+            rec(1);
+            return false;
+        }
+    }
+    if divergence_window(cc_trend).is_none() {
+        rec(3);
+        return false;
+    }
+    let ok = nest_chain_complete(cc, cc_trend, level_trends_all, core_dir, mode, use_diverge);
+    if ok {
+        rec(5);
+    } else {
+        rec(4);
+    }
+    ok
 }
 
 #[cfg(test)]

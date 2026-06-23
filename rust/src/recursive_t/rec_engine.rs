@@ -71,6 +71,10 @@ pub struct EngineConfig {
     pub enable_nest_consume: bool,
     /// **严格逐级区间套（任务22 开放轴C）**：主翻转定位点须 top..loc 逐级背驰段一致（非仅 top 武装+a0 定位）。
     pub enable_nest_strict: bool,
+    /// **读法B/读法乙递归（任务18 编排者修正）**：每级别独立腿多重赋格，消费 d_top 链 switch。旁路 instances 路径。
+    pub enable_reading_b: bool,
+    /// 读法B 触发器：false=走势完成链（556 读法B 基线）/ true=背驰段链（读法乙递归，触发更频繁可能解冻顶层）。
+    pub reading_b_diverge: bool,
 }
 
 impl EngineConfig {
@@ -84,6 +88,8 @@ impl EngineConfig {
             enable_nest: std::env::var("T_NEST_READING_B").is_ok(),
             enable_nest_consume: std::env::var("T_NEST_CONSUME").is_ok(),
             enable_nest_strict: std::env::var("T_NEST_STRICT").is_ok(),
+            enable_reading_b: std::env::var("T_READING_B").is_ok(),
+            reading_b_diverge: std::env::var("T_READING_B_DIVERGE").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -93,6 +99,22 @@ impl EngineConfig {
         c.enable_nest = false;
         c.enable_nest_consume = false;
         c.enable_nest_strict = false;
+        c.enable_reading_b = false;
+        c.reading_b_diverge = false;
+        c
+    }
+    /// 读法B 基线（556：每级别独立腿 + 走势完成链触发）。
+    pub fn reading_b_dtop() -> Self {
+        let mut c = Self::off();
+        c.enable_reading_b = true;
+        c.reading_b_diverge = false;
+        c
+    }
+    /// 读法乙递归（编排者修正：每级别独立腿 + 背驰段链触发，隔离换触发器效果）。
+    pub fn reading_b_diverge() -> Self {
+        let mut c = Self::off();
+        c.enable_reading_b = true;
+        c.reading_b_diverge = true;
         c
     }
     /// ANCHOR（OFF + 趋势底仓 552号）。
@@ -272,6 +294,55 @@ impl TInstance {
     }
 }
 
+// ════════════════════════════ 读法B/读法乙递归：每级别独立腿（多重赋格，任务18 编排者修正）════════════════════════════
+
+/// **每级别独立腿**（读法B/读法乙递归，移植自 4d6856dc75）：级别 k 的腿骑 `levels[k]` 走势，
+/// 消费该级别 `d_top[k]`（走势完成链 OR 背驰段链）switch。每级别独立 = leg_3 骑 L3，leg_4 骑 L4，
+/// 互不干预方向（547 隔离：每级别翻自己，删 `nearest_active_parent` 跨级路由）。
+#[derive(Debug, Clone, Copy)]
+pub struct Leg {
+    pub level: usize,
+    pub direction: Polarity,
+    pub units: f64,
+    pub basis: f64,
+    pub riding_node: TrendNode,
+    pub active: bool,
+}
+
+impl Leg {
+    fn idle(level: usize) -> Self {
+        Leg {
+            level,
+            direction: Polarity::Long,
+            units: 0.0,
+            basis: f64::NAN,
+            riding_node: TrendNode::new(0, 0, 0.0, 0.0, Direction::Up),
+            active: false,
+        }
+    }
+    fn fingerprint(&self) -> (u64, bool, bool) {
+        (self.units.to_bits(), self.direction == Polarity::Long, self.active)
+    }
+}
+
+/// **prove_leg_isolation（547 隔离，L0 结构 panic 守卫）**：`g(k)` 只写 `legs[k]`，断言 `legs[j≠k]`
+/// 在 g(k) 前后逐位不变（547 病灶「低级别信号越级翻动高级别主力」的结构否定）。
+fn prove_leg_isolation(
+    fp_pre: &[(u64, bool, bool); MAX_LEVEL],
+    fp_post: &[(u64, bool, bool); MAX_LEVEL],
+    k: usize,
+) {
+    for j in 0..MAX_LEVEL {
+        if j == k {
+            continue;
+        }
+        assert_eq!(
+            fp_pre[j], fp_post[j],
+            "547 隔离违反：g({k}) 改动了别级腿 legs[{j}]（每级别独立腿只许 g(k) 写 legs[k]）"
+        );
+    }
+}
+
 // ════════════════════════════ 信号视图（= flat TSignalView，按 level）════════════════════════════
 
 /// 本次重跑信号视图（= flat `TSignalView`，索引 = level）。纯 BSP 驱动（不分 type1/2/3）。
@@ -303,6 +374,10 @@ pub struct LevelView {
     /// `level_diverge[k]` = 级别 k 当前走势进入背驰段时的操作极性（顶背驰段→Short / 底背驰段→Long），None=该级未进背驰段。
     /// consume平空用：次级别（k<core）反核心向背驰段 ⇒ 平核心仓（缩短持仓）。严格逐级用：定位点须 top..loc 逐级背驰段一致。
     pub level_diverge: [Option<Polarity>; MAX_LEVEL],
+    /// **每级别 d_top 区间套链贯通真顶/真底**（任务18 编排者修正：每级别独立腿多重赋格触发器）。
+    /// `divergence::d_top(k, ..., use_diverge)`——`use_diverge=false`=走势完成链（556 读法B）/`true`=背驰段链（读法乙）。
+    /// 读法B 路径（`enable_reading_b`）每级别独立腿 `legs[k]` 消费 `d_top[k]` switch（close+反向 open）。
+    pub d_top: [bool; MAX_LEVEL],
 }
 
 impl LevelView {
@@ -317,6 +392,7 @@ impl LevelView {
             top_diverge: None,
             top_trend_dir: None,
             level_diverge: [None; MAX_LEVEL],
+            d_top: [false; MAX_LEVEL],
         }
     }
 }
@@ -362,6 +438,17 @@ pub struct TRoot {
     /// NEST 当前背驰段窗口是否已翻转（**每窗口仅翻一次** = 读法乙区间套定位一个转折点，非读法甲全 a0 穷尽）。
     /// 新窗口（top_diverge 极性变 / top 反转去武装）⇒ false；翻转 ⇒ true。
     nest_consumed: bool,
+    /// **读法B/读法乙递归（任务18）**：每级别独立腿 + 触发器。enable_reading_b=true ⇒ on_bar 走 consume_legs。
+    enable_reading_b: bool,
+    reading_b_diverge: bool,
+    /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
+    legs: Vec<Leg>,
+    /// 读法B 每级别 per-level realized pnl（验收哪级别腿赚/亏）。
+    pub per_level_long_pnl: [f64; MAX_LEVEL],
+    pub per_level_short_pnl: [f64; MAX_LEVEL],
+    /// 读法B 每级别腿切换次数（d_top[k] 驱动 close+reopen，纯观测——解 556 顶层腿是否冻结）。
+    pub leg_switches_by_level: [u64; MAX_LEVEL],
+    pub leg_opens_by_level: [u64; MAX_LEVEL],
 
     // ── 观测计数（纯诊断）──
     pub n_enters: u64,
@@ -444,6 +531,13 @@ impl TRoot {
             enable_nest_strict: cfg.enable_nest_strict,
             nest_armed_op: None,
             nest_consumed: false,
+            enable_reading_b: cfg.enable_reading_b,
+            reading_b_diverge: cfg.reading_b_diverge,
+            legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
+            per_level_long_pnl: [0.0; MAX_LEVEL],
+            per_level_short_pnl: [0.0; MAX_LEVEL],
+            leg_switches_by_level: [0; MAX_LEVEL],
+            leg_opens_by_level: [0; MAX_LEVEL],
             n_enters: 0,
             n_sinks: 0,
             n_recovers: 0,
@@ -495,6 +589,15 @@ impl TRoot {
                 v += match inst.direction {
                     Polarity::Long => inst.units * c,
                     Polarity::Short => -inst.units * c,
+                };
+            }
+        }
+        // 读法B/读法乙递归：每级别独立腿（instances 与 legs 按模式互斥，无双计）。
+        for leg in &self.legs {
+            if leg.units > 0.0 {
+                v += match leg.direction {
+                    Polarity::Long => leg.units * c,
+                    Polarity::Short => -leg.units * c,
                 };
             }
         }
@@ -939,6 +1042,129 @@ impl TRoot {
         }
     }
 
+    // ──────────────── 读法B/读法乙递归：每级别独立腿骑走势消费 d_top（任务18 编排者修正）────────────────
+
+    /// 几何塔配额（编排者裁决）：base=free×2/3，级别 k = base/λ^(top−k)，收敛 base×3/2≤free 恒仓不加杠杆。
+    fn geom_tower_quota(&self, k: usize, top: usize, free_pool: f64, c: f64) -> f64 {
+        if c <= 0.0 || free_pool <= 0.0 || k > top {
+            return 0.0;
+        }
+        let base = free_pool * (2.0 / 3.0);
+        let depth = top - k;
+        let notional = base * MOBILE_FRAC.powi(depth as i32);
+        notional / c
+    }
+
+    fn snapshot_fingerprints(&self) -> [(u64, bool, bool); MAX_LEVEL] {
+        let mut fp = [(0u64, false, false); MAX_LEVEL];
+        for k in 0..MAX_LEVEL {
+            fp[k] = self.legs[k].fingerprint();
+        }
+        fp
+    }
+
+    /// **open_leg**（ride 分支）：级别 k 空腿按走势方向从单一 free 池领几何塔配额建仓。只写 legs[k]（547 隔离）。
+    fn open_leg(&mut self, k: usize, dir: Polarity, node: TrendNode, top: usize, c: f64) {
+        let fp_pre = self.snapshot_fingerprints();
+        let m = self.geom_tower_quota(k, top, self.free.max(0.0), c);
+        if !(m > 1e-12 && m.is_finite()) {
+            return;
+        }
+        let tw_pre = self.total_wealth(c);
+        match dir {
+            Polarity::Long => self.free -= m * c,
+            Polarity::Short => self.free += m * c,
+        }
+        self.legs[k] = Leg { level: k, direction: dir, units: m, basis: c, riding_node: node, active: true };
+        self.leg_opens_by_level[k] += 1;
+        self.guards.note_op("open_leg");
+        prove_leg_isolation(&fp_pre, &self.snapshot_fingerprints(), k);
+        self.prove_tw_neutral(tw_pre, c);
+    }
+
+    /// **close_leg**（switch 前半）：平 legs[k] 全量到现金，realized 记 per_level pnl。只写 legs[k]（547 隔离）。
+    fn close_leg(&mut self, k: usize, c: f64) -> f64 {
+        if !self.legs[k].active {
+            return 0.0;
+        }
+        let fp_pre = self.snapshot_fingerprints();
+        let leg = self.legs[k];
+        let pnl = match leg.direction {
+            Polarity::Long => leg.units * (c - leg.basis),
+            Polarity::Short => leg.units * (leg.basis - c),
+        };
+        let tw_pre = self.total_wealth(c);
+        match leg.direction {
+            Polarity::Long => {
+                self.free += leg.units * c;
+                self.per_level_long_pnl[k] += pnl;
+            }
+            Polarity::Short => {
+                self.free -= leg.units * c;
+                self.per_level_short_pnl[k] += pnl;
+            }
+        }
+        self.legs[k] = Leg::idle(k);
+        self.guards.note_op("close_leg");
+        prove_leg_isolation(&fp_pre, &self.snapshot_fingerprints(), k);
+        self.prove_tw_neutral(tw_pre, c);
+        pnl
+    }
+
+    /// **g(k)**（单算子三分支）：级别 k 腿消费 `levels[k]` 走势 + `d_top[k]`（触发器=走势完成链 OR 背驰段链）。
+    /// switch：d_top[k] ∧ 腿活跃 → close+反向 open；ride：腿空 ∧ 有走势 → 按方向 open；hold：维持。
+    /// **clear 只清触发级别**（547 隔离：绝不复用 clear_all，每级别独立 campaign）。
+    fn g(&mut self, k: usize, view: &LevelView, top: usize, c: f64) {
+        let d_top = view.d_top[k];
+        if d_top && self.legs[k].active {
+            let old_dir = self.legs[k].direction;
+            self.guards.set_trigger(OpTrigger::Bsp);
+            self.close_leg(k, c);
+            let new_dir = flip_pol(old_dir);
+            let node = view.nodes[k].unwrap_or_else(|| {
+                TrendNode::new(self.cur_bar, self.cur_bar, c, c, match new_dir {
+                    Polarity::Long => Direction::Up,
+                    Polarity::Short => Direction::Down,
+                })
+            });
+            self.open_leg(k, new_dir, node, top, c);
+            self.leg_switches_by_level[k] += 1;
+            return;
+        }
+        if !self.legs[k].active {
+            if let Some(node) = view.nodes[k] {
+                let dir = dir_to_polarity(node.direction);
+                self.guards.set_trigger(OpTrigger::Bsp);
+                self.open_leg(k, dir, node, top, c);
+            }
+            return;
+        }
+    }
+
+    /// **consume_legs**（单算子递归 = construct iterate 的对偶）：a0→涌现上界逐级 g(k)。
+    fn consume_legs(&mut self, view: &LevelView, c: f64) {
+        let top = match (0..MAX_LEVEL).rev().find(|&k| view.nodes[k].is_some()) {
+            Some(t) => t,
+            None => return,
+        };
+        for k in 0..=top {
+            self.g(k, view, top, c);
+        }
+    }
+
+    /// 读法B 收尾（全平所有腿到现金）。
+    fn finish_legs(&mut self, c: f64) {
+        if !(c.is_finite() && c > 0.0) {
+            return;
+        }
+        self.guards.set_trigger(OpTrigger::Eod);
+        for k in 0..MAX_LEVEL {
+            if self.legs[k].active {
+                self.close_leg(k, c);
+            }
+        }
+    }
+
     // ──────────────── NEST：命题4 读法乙（大级别背驰段闸门 + a0 区间套定位翻转）────────────────
 
     /// **nest_step**（命题4 读法乙，源头审计 src-prop13 / 第27课区间套）：
@@ -1094,6 +1320,28 @@ impl TRoot {
         self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
         let tw_pre = self.total_wealth(c);
 
+        // ── 读法B/读法乙递归分叉（任务18 编排者修正）：ON ⟹ 每级别独立腿骑走势消费 d_top（删 sink/recover/
+        //   ascend/clear_all/三阶段——每级别独立骑乘取代跨级短差）。OFF ⟹ instances 路径逐字不动（bit-exact）。
+        if self.enable_reading_b {
+            // 强平边界（账户级 NAV≤0 ⇒ 连锁全平腿）。
+            if self.nav(c) <= 0.0 {
+                for k in 0..MAX_LEVEL {
+                    if self.legs[k].active {
+                        let entry_bar = self.legs[k].riding_node.start_bar;
+                        let entry_basis = self.legs[k].basis;
+                        let is_short = self.legs[k].direction == Polarity::Short;
+                        self.guards.set_trigger(OpTrigger::Eod);
+                        self.close_leg(k, c);
+                        self.n_liquidations += 1;
+                        self.liq_log.push((k, entry_bar, entry_basis, bar, c, is_short));
+                    }
+                }
+            }
+            self.consume_legs(view, c);
+            self.prove_tw_neutral(tw_pre, c);
+            return;
+        }
+
         // ── A. 边界算子：保证金强平，按三阶段切换（= flat）──
         match self.stage {
             RecStage::EarningShares => {
@@ -1231,10 +1479,19 @@ impl TRoot {
 
     /// 收尾（全平到现金，归还 withdrawn）。返回 final_nav (= free)。
     pub fn finish(&mut self, c: f64) -> f64 {
+        if self.enable_reading_b {
+            self.finish_legs(c);
+            return self.free;
+        }
         if c.is_finite() && c > 0.0 {
             self.guards.set_trigger(OpTrigger::Eod); // eod 是 clear_all 的合法非 BSP 触发源
             self.clear_all(c);
         }
         self.free
+    }
+
+    /// 读法B 每级别独立腿只读访问（诊断/L3）。
+    pub fn leg(&self, k: usize) -> &Leg {
+        &self.legs[k]
     }
 }

@@ -209,7 +209,7 @@ impl RecStream {
                 self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info, level_div) = {
+                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info, level_div, d_top_arr) = {
                     let segs = self.orch.segments();
                     let strokes = self.orch.strokes();
                     let m2r = self.orch.merged_to_raw();
@@ -344,7 +344,26 @@ impl RecStream {
                         }
                         ld
                     };
-                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info, level_div)
+                    // ── 每级别 d_top 区间套链贯通（任务18 编排者修正：读法B/读法乙递归每级别独立腿触发器）──
+                    //   d_top[k] = 级别 k 走势真顶/真底（区间套链贯通到 a0）。use_diverge: false=走势完成链(556读法B)
+                    //   / true=背驰段链(读法乙递归)。仅 reading_b 模式需要（其余模式 d_top 全 false，bit-exact）。
+                    let d_top_arr = if self.cfg.enable_reading_b {
+                        let level_trends_all: Vec<&[crate::recursive_t::types::TrendType]> = (0..MAX_LEVEL)
+                            .map(|k| tree.levels.get(k).map(|lvl| lvl.trends.as_slice()).unwrap_or(&[]))
+                            .collect();
+                        let mut dt = [false; MAX_LEVEL];
+                        for k in 0..MAX_LEVEL {
+                            if let Some(cc_trend) = tree.levels.get(k).and_then(|lvl| lvl.trends.last()) {
+                                dt[k] = crate::recursive_t::divergence::d_top(
+                                    k, cc_trend, &level_trends_all, cc_trend.direction, self.mode, self.cfg.reading_b_diverge,
+                                );
+                            }
+                        }
+                        dt
+                    } else {
+                        [false; MAX_LEVEL]
+                    };
+                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info, level_div, d_top_arr)
                 };
                 view = v;
                 // 命题4 读法乙闸门注入 LevelView（engine nest_step 消费；OFF/ANCHOR 忽略 ⇒ bit-exact）。
@@ -352,6 +371,7 @@ impl RecStream {
                 view.top_diverge = top_div;
                 view.top_trend_dir = top_dir;
                 view.level_diverge = level_div;
+                view.d_top = d_top_arr;
                 if top_diag < 6 {
                     self.nest_diag[top_diag] += 1;
                 }
@@ -1267,6 +1287,94 @@ mod tests {
                 "{:<6} {:>+12.0} {:>+13.0} {:>+14.0} {:>12} {:>14}",
                 r.sym, r.short_pnl[1], r.short_pnl[2], r.short_pnl[3], r.flips[2], r.consumes[3]
             );
+        }
+        println!("==================================================================\n");
+        assert!(!rows.is_empty(), "至少跑出一个标的");
+    }
+
+    /// **命题4 读法乙递归 L3（任务18 编排者修正）：每级别自相似递归多重赋格，触发器=背驰段替代走势完成**。
+    ///
+    /// 对照（隔离「换触发器」纯效果，结构=每级别独立腿不变）：
+    /// - **OFF** = 当前 main 独立腿（cc 锚）。
+    /// - **READING_B_DTOP** = 556 读法B（每级别独立腿 + **走势完成链** d_top 触发）→ 顶层腿冻结（完成跨年稀疏）。
+    /// - **READING_B_DIVERGE** = 读法乙递归（每级别独立腿 + **背驰段链** 触发）→ 背驰段⊊完成更频繁，可能解冻顶层腿。
+    ///
+    /// 核心判据：每级别 leg_switches（背驰段 vs 完成触发频率，顶层应解冻）+ 收益 + per-level pnl。
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::prop4_reading_b_recursive_l3 -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "命题4 读法乙递归 L3，需 analysis/data_cache/*.json"]
+    fn prop4_reading_b_recursive_l3() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_default();
+
+        eprintln!("\n===== 命题4 读法乙递归 L3：OFF / READING_B(走势完成) / READING_B(背驰段)（Structural）=====");
+        struct Row {
+            sym: String, bh: f64, strat: [f64; 3],
+            // [DTOP, DIVERGE] 的 per-level switch（顶层解冻测量）+ 总 switch + liq。
+            switch_by_lvl: [[u64; 6]; 2], total_switch: [u64; 2], liq: [u64; 2], net_pnl: [f64; 2],
+        }
+        let mut rows: Vec<Row> = Vec::new();
+        let variants = [
+            ("OFF", EngineConfig::off()),
+            ("RB_DTOP", EngineConfig::reading_b_dtop()),
+            ("RB_DIVERGE", EngineConfig::reading_b_diverge()),
+        ];
+
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            let mut row = Row { sym: sym.to_string(), bh, strat: [0.0;3], switch_by_lvl: [[0;6];2], total_switch: [0;2], liq: [0;2], net_pnl: [0.0;2] };
+            for (vi, (vname, cfg)) in variants.iter().enumerate() {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let fin = s.finish();
+                assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
+                row.strat[vi] = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                let r = s.driver().root();
+                if vi >= 1 {
+                    let bi = vi - 1; // DTOP=0, DIVERGE=1
+                    let sw: Vec<u64> = (0..6).map(|k| r.leg_switches_by_level[k]).collect();
+                    let total: u64 = (0..MAX_LEVEL).map(|k| r.leg_switches_by_level[k]).sum();
+                    let npnl: f64 = (0..MAX_LEVEL).map(|k| r.per_level_long_pnl[k] + r.per_level_short_pnl[k]).sum();
+                    for k in 0..6 { row.switch_by_lvl[bi][k] = sw[k]; }
+                    row.total_switch[bi] = total;
+                    row.liq[bi] = r.n_liquidations;
+                    row.net_pnl[bi] = npnl;
+                    eprintln!(
+                        "[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% total_switch={} switch_by_lvl(0..6)={:?} liq={} net_pnl={:+.0} ({:.1}s)",
+                        row.strat[vi], bh, total, sw, r.n_liquidations, npnl, t0.elapsed().as_secs_f64()
+                    );
+                } else {
+                    eprintln!("[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% ({:.1}s)", row.strat[vi], bh, t0.elapsed().as_secs_f64());
+                }
+            }
+            rows.push(row);
+        }
+
+        println!("\n===== 任务18 矩阵：strat% OFF/RB_DTOP(完成)/RB_DIVERGE(背驰段) vs BH（* 超 BH）=====");
+        println!("{:<6} {:>10} {:>13} {:>14} {:>10}", "标的", "OFF", "RB_DTOP", "RB_DIVERGE", "BH");
+        for r in &rows {
+            let mk = |x: f64| if x > r.bh { "*" } else { " " };
+            println!("{:<6} {:>+9.1}%{} {:>+12.1}%{} {:>+13.1}%{} {:>+9.1}%",
+                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]), r.strat[2], mk(r.strat[2]), r.bh);
+        }
+        // ── ★556 解冻判据：顶层 leg 切换频率 完成 vs 背驰段 ──
+        println!("\n----- ★556 解冻：每级别 leg 切换数 DTOP(走势完成) vs DIVERGE(背驰段)（背驰段≫完成⇒顶层解冻）-----");
+        println!("{:<6} {:>16} {:>16} {:>16} {:>16}", "标的", "DTOP总switch", "DIVERGE总switch", "DTOP by_lvl", "DIVERGE by_lvl");
+        for r in &rows {
+            println!("{:<6} {:>16} {:>16} {:>16?} {:>16?}",
+                r.sym, r.total_switch[0], r.total_switch[1], r.switch_by_lvl[0], r.switch_by_lvl[1]);
         }
         println!("==================================================================\n");
         assert!(!rows.is_empty(), "至少跑出一个标的");
