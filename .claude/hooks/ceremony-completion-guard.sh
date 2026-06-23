@@ -48,6 +48,36 @@ cd "$cwd" 2>/dev/null || true
 
 COUNTER=".chanlun/.stop-guard-counter"
 
+# ─── 会话/Lead 任务目录解析（(c)裁决 2026-06-23：任务扫描 scope 到本 Lead 的 team） ───
+# 旧实现全局扫描 ~/.claude/tasks/*/（跨 session 污染——其他 session 的陈旧 in_progress 任务
+# 会误阻本 Lead 停机，见 feedback_task_queue_owner_liveness / reference_stopguard_zombie_tasks）。
+# (c) 修复：通过 leadSessionId==session_id 定位本 Lead 的 team，只扫该 team 的任务目录。
+# team 目录名 == 任务目录名（实测一致），故 basename 即任务子目录名。
+# session_id 为空或无匹配 team（solo 会话）→ LEAD_TASK_DIR 为空 → 不强制任务队列（与检查1.5同构）。
+SESSION_ID=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('session_id',''))" 2>/dev/null || echo "")
+LEAD_TASK_DIR=""
+if [ -n "$SESSION_ID" ]; then
+    LEAD_TEAM=$(python -c "
+import json, os, sys
+sid = sys.argv[1]; teams = sys.argv[2]
+if os.path.isdir(teams):
+    for name in sorted(os.listdir(teams)):
+        cfg = os.path.join(teams, name, 'config.json')
+        if not os.path.isfile(cfg):
+            continue
+        try:
+            d = json.load(open(cfg))
+        except Exception:
+            continue
+        if d.get('leadSessionId','') == sid:
+            print(name)
+            break
+" "$SESSION_ID" "$HOME/.claude/teams" 2>/dev/null || echo "")
+    if [ -n "$LEAD_TEAM" ] && [ -d "$HOME/.claude/tasks/$LEAD_TEAM" ]; then
+        LEAD_TASK_DIR="$HOME/.claude/tasks/$LEAD_TEAM"
+    fi
+fi
+
 # ─── 熔断检查（145号：智能熔断，计数器格式 COUNT:LAST_ACTIVE_TASKS） ───
 COUNT=0
 LAST_ACTIVE=0
@@ -61,21 +91,18 @@ fi
 
 # 注意：ACTIVE_TASKS 在下方检查2中计算，此处先做预计算以支持智能熔断
 PRE_ACTIVE_TASKS=0
-if [ -d "$HOME/.claude/tasks" ]; then
-    for td in "$HOME/.claude/tasks"/*/; do
-        [ -d "$td" ] || continue
-        for tf in "$td"*.json; do
-            [ -f "$tf" ] || continue
-            case "$tf" in *.lock) continue ;; esac
-            ts=$(python -c "
+if [ -n "$LEAD_TASK_DIR" ]; then
+    for tf in "$LEAD_TASK_DIR"/*.json; do
+        [ -f "$tf" ] || continue
+        case "$tf" in *.lock) continue ;; esac
+        ts=$(python -c "
 import json, sys
 with open(sys.argv[1]) as f: d=json.load(f)
 s=d.get('status','')
 if s in ('pending','in_progress'): print('1')
 else: print('0')
 " "$tf" 2>/dev/null || echo "0")
-            PRE_ACTIVE_TASKS=$((PRE_ACTIVE_TASKS + ts))
-        done
+        PRE_ACTIVE_TASKS=$((PRE_ACTIVE_TASKS + ts))
     done
 fi
 
@@ -193,17 +220,15 @@ fi
 ACTIVE_TASKS=0
 PENDING_TASKS=""
 IN_PROGRESS_TASKS=""
-if [ -d "$HOME/.claude/tasks" ]; then
-    for team_dir in "$HOME/.claude/tasks"/*/; do
-        [ -d "$team_dir" ] || continue
-        team_name=$(basename "$team_dir")
-        for task_file in "$team_dir"*.json; do
-            [ -f "$task_file" ] || continue
-            # 跳过 .lock 文件
-            case "$task_file" in *.lock) continue ;; esac
-            # 提取 status, owner, subject, blockedBy
-            # 155号修复：使用 owner（agent name）而非 subject 作为工位标识
-            TASK_INFO=$(python -c "
+UNOWNED_TASKS=""
+if [ -n "$LEAD_TASK_DIR" ]; then
+    for task_file in "$LEAD_TASK_DIR"/*.json; do
+        [ -f "$task_file" ] || continue
+        # 跳过 .lock 文件
+        case "$task_file" in *.lock) continue ;; esac
+        # 提取 status, owner, subject, blockedBy
+        # 155号修复：使用 owner（agent name）而非 subject 作为工位标识
+        TASK_INFO=$(python -c "
 import json, sys
 with open(sys.argv[1]) as f:
     d = json.load(f)
@@ -231,31 +256,35 @@ if blocked:
 # 使用 TAB 分隔避免 subject 中含空格导致 cut 错位
 print(f'{status}\t{\"BLOCKED\" if has_open_blockers else \"UNBLOCKED\"}\t{owner}\t{subject}')
 " "$task_file" 2>/dev/null) || continue
-            TASK_STATUS=$(echo "$TASK_INFO" | cut -f1)
-            TASK_BLOCKED=$(echo "$TASK_INFO" | cut -f2)
-            TASK_OWNER=$(echo "$TASK_INFO" | cut -f3)
-            TASK_SUBJECT=$(echo "$TASK_INFO" | cut -f4-)
-            # 155号修复：用 owner 标识工位，subject 仅作描述
-            # completed 任务不再报告为"空闲工位"——工位退出后不应被追踪
-            DISPLAY_NAME="${TASK_OWNER:-未分配}"
-            case "$TASK_STATUS" in
-                pending)
-                    # 145号：被阻塞的 pending 不计为活跃——它们无法被分配
-                    if [ "$TASK_BLOCKED" = "UNBLOCKED" ]; then
-                        ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
-                        PENDING_TASKS="${PENDING_TASKS:+$PENDING_TASKS, }${TASK_SUBJECT}(→${DISPLAY_NAME})"
-                    fi
-                    ;;
-                in_progress)
+        TASK_STATUS=$(echo "$TASK_INFO" | cut -f1)
+        TASK_BLOCKED=$(echo "$TASK_INFO" | cut -f2)
+        TASK_OWNER=$(echo "$TASK_INFO" | cut -f3)
+        TASK_SUBJECT=$(echo "$TASK_INFO" | cut -f4-)
+        # 155号修复：用 owner 标识工位，subject 仅作描述
+        # completed 任务不再报告为"空闲工位"——工位退出后不应被追踪
+        DISPLAY_NAME="${TASK_OWNER:-未分配}"
+        case "$TASK_STATUS" in
+            pending)
+                # 145号：被阻塞的 pending 不计为活跃——它们无法被分配
+                if [ "$TASK_BLOCKED" = "UNBLOCKED" ]; then
                     ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
-                    IN_PROGRESS_TASKS="${IN_PROGRESS_TASKS:+$IN_PROGRESS_TASKS, }${DISPLAY_NAME}:${TASK_SUBJECT}"
-                    ;;
-                completed)
-                    # 155号修复：completed 任务不计入活跃，不报告为空闲
-                    # 已完成 = 工位已交付，不需要路由指令
-                    ;;
-            esac
-        done
+                    PENDING_TASKS="${PENDING_TASKS:+$PENDING_TASKS, }${TASK_SUBJECT}(→${DISPLAY_NAME})"
+                    # (c)裁决 2026-06-23：无主（owner 空）未阻塞 pending = 工位向下递归
+                    # 产出的子任务，Lead 必须 spawn 一个工位消费（spawn-per-unowned）。
+                    if [ -z "$TASK_OWNER" ]; then
+                        UNOWNED_TASKS="${UNOWNED_TASKS:+$UNOWNED_TASKS, }${TASK_SUBJECT}"
+                    fi
+                fi
+                ;;
+            in_progress)
+                ACTIVE_TASKS=$((ACTIVE_TASKS + 1))
+                IN_PROGRESS_TASKS="${IN_PROGRESS_TASKS:+$IN_PROGRESS_TASKS, }${DISPLAY_NAME}:${TASK_SUBJECT}"
+                ;;
+            completed)
+                # 155号修复：completed 任务不计入活跃，不报告为空闲
+                # 已完成 = 工位已交付，不需要路由指令
+                ;;
+        esac
     done
 fi
 
@@ -273,20 +302,26 @@ import json, sys
 active = int(sys.argv[1])
 pending = sys.argv[2]
 in_progress = sys.argv[3]
+unowned = sys.argv[4]
 
-# 构建具体路由指令
+# 构建具体路由指令（(c)裁决 2026-06-23：Lead 为每个无主任务 spawn 一个工位）
 instructions = []
 
-# 有 pending 任务但没有对应工位在运行
+# (c) 核心：无主（owner 空）未阻塞 pending = 工位向下递归产出的子任务，Lead 必须 spawn
+if unowned:
+    instructions.append(
+        '(c)spawn：为每个无主任务 spawn 一个工位 '
+        'Agent(name=任务标识, subagent_type=metadata.agent_type 或 general-purpose, '
+        'run_in_background=true)。这是 (c) 向下递归的消费端——工位自己 TaskCreate 子任务，你只 spawn。'
+        f'无主任务: [{unowned}]'
+    )
+
+# 全部未阻塞 pending（含已分配但工位未起/未认领）
 if pending:
-    instructions.append(f'待分配任务: [{pending}]，启动工位或分配给空闲工位')
+    instructions.append(f'未阻塞 pending: [{pending}]')
 
-# 所有活跃任务都在运行中（无 pending）
-if in_progress and not pending:
-    instructions.append(f'所有工位运行中 [{in_progress}]。检查是否有概念层问题可以同步处理（Gemini 质询、谱系检查）')
-
-# 有运行中的工位且有 pending
-if in_progress and pending:
+# 运行中工位
+if in_progress:
     instructions.append(f'运行中: [{in_progress}]，等待汇报')
 
 route = ' | '.join(instructions) if instructions else '请检查 TaskList 并推进未完成任务'
@@ -295,7 +330,7 @@ print(json.dumps({
     'decision': 'block',
     'reason': f'[Stop-Guard] 蜂群任务队列有 {active} 个活跃任务。不允许停止。路由指令: {route}'
 }, ensure_ascii=False))
-" "$ACTIVE_TASKS" "$PENDING_TASKS" "$IN_PROGRESS_TASKS"
+" "$ACTIVE_TASKS" "$PENDING_TASKS" "$IN_PROGRESS_TASKS" "$UNOWNED_TASKS"
     exit 0
 fi
 
