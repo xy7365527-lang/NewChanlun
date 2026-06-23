@@ -1,0 +1,127 @@
+# 拓扑决策记录（topology-manager 工位产出）
+# 格式：每条记录含 id / timestamp / type / trigger_signal / workstations / reasoning / verdict
+# 消费者：meta-observer、人类审计（CLAUDE.md 原则3：所有产出必须可质询）
+# 谱系依据：562号（结构工位机制强制）、lead-parallel-dispatch（局部依赖原则）
+# 注：001-003 由实例A 产出；004-005 由实例B 追加（含 Grep 裁定 + 并发事故记录）
+
+decisions:
+  - id: TOPO-20260623-001
+    timestamp: "2026-06-23"
+    type: 监控报告
+    trigger_signal: Stop-Guard 路由 task 24（rec_engine.rs 主树/worktree 隔离碰撞监控）
+    workstations: [prop4-nest（主树）, prop4-bidir（worktree /tmp/prop4-diag-wt）]
+    reasoning: >
+      git worktree 隔离生效。/tmp/prop4-diag-wt/.git 指向 .git/worktrees/prop4-diag-wt，
+      worktree HEAD=f11e7f8231（detached），主树 HEAD=adc39bc17a。两者不同 checkout，
+      index/工作树物理隔离，无残留主树竞争。诊断到实质 divergence（非碰撞，而是概念分离）：
+      两处 rec_engine.rs 的 enable_nest_consume 承载两种 consume 语义——
+      主树=次级别反核心向背驰段 ⇒ 平核心仓 1/3（减仓口径，无 557 引用）；
+      worktree=持仓中反向买卖点(type1∨2∨3) ⇒ full cover + 反向 enter（整仓翻转口径，引用 557 对偶 3 次）。
+    verdict: 隔离生效，无碰撞。divergence 是概念分离（吃跌两失败模式分离主线的体现），非编辑竞争。
+
+  - id: TOPO-20260623-002
+    timestamp: "2026-06-23"
+    type: 合并预案
+    trigger_signal: task 25（prop4-bidir worktree L3 完成后如何合并主树 baseline）
+    workstations: [prop4-bidir（worktree）, prop4-nest（主树 baseline）]
+    reasoning: >
+      worktree reflog 只有一条 detach 记录（0000→f11e7f8231），HEAD 从未移动，L3 工作尚未 commit。
+      两 checkout 的 consume 语义已 divergence。直接 rebase/merge 会在 enable_nest_consume
+      语义处产生概念级冲突（非文本冲突）——整仓翻转口径 vs 1/3 减仓口径不可机械合并。
+    verdict: >
+      建议给 Lead（待 worktree L3 完成 commit 后触发）：不用 rebase/merge（概念级冲突）。
+      用 cherry-pick + 独立 branch：(1) worktree 先 commit L3 到独立 branch prop4-bidir-consume；
+      (2) 由 Lead/编排者裁决两 consume 口径是否结算（尚未结算 ⇒ 并存对照 L3）；
+      (3) 若结算为单口径，cherry-pick 存活口径到主树。触发条件：worktree reflog 出现新 commit。
+
+  - id: TOPO-20260623-003
+    timestamp: "2026-06-23"
+    type: 收缩评估
+    trigger_signal: task 26（~13 成员 stale/duplicate 检测）
+    workstations: [全 ~13 活跃成员]
+    reasoning: >
+      按收缩触发信号（概念结算/职责空置/职责收敛）逐项评估：
+      (1) 概念结算：consume 两口径分离尚未结算（L3 进行中）⇒ prop4-bidir 与 prop4-nest 均须存活，
+          撤销任一 = 压扁概念分离。
+      (2) 职责空置：常设结构工位按定义常驻，不因单轮空置 shutdown。
+      (3) 职责收敛：gemini-558b（异质质询）⊥ code-verifier（代码验证）职责正交；genealogist 单工位承载多谱系。
+    verdict: >
+      建议给 Lead：当前无可 shutdown 业务工位（consume 分离未结算）。结构工位常设不撤销。
+      唯一 L3 后复审项：consume 口径结算后被否定口径工位可 shutdown。
+      边界声明：基于可观测信号，无各成员实时心跳；若 Lead 有 idle 心跳以 Lead 观测为准。
+
+  - id: TOPO-20260623-004
+    timestamp: "2026-06-23"
+    type: 扩张
+    trigger_signal: 562号机制强制（检查1.5）+ team-topology.json 缺 meta-lead/quality-guard
+    workstations: [meta-lead, quality-guard]
+    reasoning: >
+      team-topology.json 定义 6 个 auto_spawn 结构工位，本 session 缺 meta-lead + quality-guard。
+      562号（2026-06-23）已将 bootstrap 从文本提示升格为机制强制（ceremony-completion-guard.sh
+      检查1.5）：缺任一结构 agentType → Stop-Guard block + 路由 spawn。
+    verdict: >
+      分类=定理（562号已结算原则的逻辑必然推论，非选择）。建议 Lead 立即并行 spawn
+      meta-lead + quality-guard。否则 Stop-Guard 在停机判定时 block。
+
+  - id: TOPO-20260623-005
+    timestamp: "2026-06-23"
+    type: 元事件（并发duplicate + 覆盖事故 + 判断分歧裁定）
+    trigger_signal: 落盘时发现 decisions.yaml 已被另一并发 topology-manager 实例创建
+    workstations: [topology-manager（实例A）, topology-manager（实例B）]
+    reasoning: >
+      两个 topology-manager 实例并发运行（duplicate 工位）。实例B 落盘覆盖了实例A 的 001/002/003
+      （已 transcript 抢救合并）。两实例对 consume 给出对立判断：实例A=概念分离 / 实例B=重复。
+      Grep 决定性裁定：主树 rec_engine.rs 行70/432/1204 = 背驰段定位平核心仓1/3（无557）；
+      worktree 行70-72/1021-1026 = 反向买卖点full cover+反向enter（引用557×3，注释显式"区分脚手架背驰段平1/3"）。
+      ⇒ 实例A 对（概念分离两端），实例B 错（非重复）。实例B 另修正实例A 一处事实错误：
+      任务18 是未提交（git status M），非已 commit adc39bc17a（562号 docs commit 不含代码）。
+    verdict: >
+      建议给 Lead：(1) topology-manager 收缩为单一实例（duplicate 是本次覆盖事故根因）；
+      (2) prop4-bidir 不可收缩（承载 consume 整仓翻转口径，概念分离一端）；
+      (3) consume 口径分离尚未结算，呈请编排者裁决（本工位不判断定义对错，仅标记分离）。
+      并发异质性的价值：交叉验证纠正了实例B 的重复误判；代价：覆盖事故。
+
+  - id: TOPO-20260623-006
+    timestamp: "2026-06-23T03:00:00+08:00"
+    type: 碰撞监控（增量）
+    trigger_signal: Stop-Guard 路由"同步处理" + #29 route_bsp 隔离worktree 实装启动
+    workstations: [prop4-nest, prop4-bidir, genealogist]
+    reasoning: >
+      自上次快照(adc39bc17a)的增量变化：
+      (1) 主树任务18 读法B 已 commit（HEAD adc39bc17a→3b8259ae5b，rec_engine.rs/divergence.rs
+          离开未提交列表）——修正 TOPO-001 的"任务18未提交"状态。
+      (2) #29 "route_bsp 二元→轨道映射（隔离worktree）"未观测到新建独立 worktree
+          （worktree list 仅 /private/tmp/prop4-diag-wt 一个非-claude worktree，/tmp 下无新 route/orbit 目录）。
+          consume worktree rec_stream.rs 从配套增长到 +247——疑似 route_bsp 工作混入 consume worktree。
+      (3) 谱系 562 编号碰撞：562-bootstrap-structural-enforce.md（已commit）与
+          562-eating-down-piercing-vs-missing-rally-dilemma.md（untracked新建）共用562号。
+    verdict: >
+      建议给 Lead：(1) 向 prop4-bidir 确认 #29 是否新建独立 worktree——若复用 consume worktree
+      则 consume L3 + route_bsp 轨道映射两概念工作混载，commit/merge 时无法分离（声明-执行gap）；
+      (2) 562 编号碰撞交 genealogist 处置（非拓扑职责，标记上报）。
+      碰撞监控核心结论不变：worktree 物理隔离机制本身有效。
+
+  - id: TOPO-20260623-007
+    timestamp: "2026-06-23T03:05:00+08:00"
+    type: 碰撞监控（增量，事件驱动：#29 完成）
+    trigger_signal: 队列 2→1，#29 prop4-bidir route_bsp 完成
+    workstations: [prop4-nest, prop4-bidir, route_bsp(agent-worktree)]
+    reasoning: >
+      #29 完成后的拓扑状态：
+      (1) 隔离隐患否证（修正 TOPO-006 担忧）：#29 route_bsp CC orbit 工作 commit 到独立
+          agent worktree（.claude/worktrees/agent-a6cdff06703f0de30，commit 30a6b55372
+          "route_bsp CC orbit 升格 561号N9 极性协变 任务29"），未混入 consume worktree。隔离兑现；
+          TOPO-006 的"rec_stream.rs +247 疑似 route_bsp 混入"实为 consume L3 自身工作。
+      (2) consume L3 已 commit + 分支化：/private/tmp/prop4-diag-wt 从 detached(f11e7f8231)
+          → 命名分支 prop4-bidir-consume-C-20260623（fde2d3fdd4 命题4读法乙双向 construct+consume L3），
+          工作树干净 ⇒ TOPO-002 merge 预案触发条件（worktree 出现新 commit）已满足。
+      (3) 三工作线各自隔离 commit：主树 b302e2114c / consume fde2d3fdd4 / route_bsp 30a6b55372。
+          物理隔离全程有效，无碰撞。
+      (4) 概念演化信号：#29 route_bsp CC orbit 用"走势完成type1/2/3驱动极性"统一触发器（替换背驰段），
+          consume 两口径分离（TOPO-001）可能正被完全分类方案收敛。
+    verdict: >
+      建议给 Lead：(1) 撤回 TOPO-006 的 #29 混入担忧——隔离实际兑现（独立 agent worktree）；
+      (2) merge 可推进：consume 在分支 prop4-bidir-consume-C-20260623，route_bsp 在 agent
+          worktree(30a6b55372)，编排者裁决 consume 口径是否被 #29 完全分类方案收敛后 cherry-pick；
+      (3) prop4-bidir 主要工作（consume L3 + route_bsp #29）均已 commit，若无 pipeline 后续可收缩。
+      consume 口径收敛是概念判断，呈请编排者/genealogist，非拓扑职责。
