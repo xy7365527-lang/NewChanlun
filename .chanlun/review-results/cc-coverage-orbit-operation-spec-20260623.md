@@ -189,9 +189,12 @@ type3=极性不变持加（ascend）/ 中枢扩张=升级（emergence_upgrade）
    - **553**（cascade flip 否证）：中枢新生 ascend 当前用 emergent_top 代理不读中心定理二 = 毁 anchor 现场。
    - **539**（清仓判据 regime 门控开放轴）：本 spec 把 539 重诊断为 Ω 坍缩，给过/欠覆盖的完全分类正解。
    - **547**（cascade 翻错级别）：中枢扩张当前无判据 = 级别错配现场。
-   - **新概念分离候选**（报 genealogist）：**操作内容（CONTENT，L0 确定）vs 判定时刻（TIMING，L2/L3 依赖 is_seam_bar）
-     是两个等级**——同构于 561 的 PC1（L0）vs N9 工程捕获（L2/L3）。二卖成败的操作内容确定（recover/flip），但
-     "什么时候算'没跌下去'已成立"的确认时刻是选择类（§五）。
+   - **CONTENT/TIMING 分离（geneal-560 已裁定：fold 入 561，非独立号）**：**操作内容（CONTENT，L0 缠论语义）vs
+     判定时刻（TIMING，L2/L3 依赖 is_seam_bar 精度）是两个等级**——同构于 561 的 PC1（CONTENT，L0）vs N9 工程捕获
+     （TIMING，L2/L3）。**genealogist 裁决（012/synthesis§6）**：此分离是 **CC 在所有轨道的横切推论**（is_seam_bar
+     精度开放轴的普遍显形，N9 type1-flip 是其特例），非真正新分离 ⟹ **fold 入 561 §N9 新 bullet**（含本 spec 的
+     二卖失败→cover+做多 CONTENT 例 + 事后严格/当下提前 TIMING 二端 + **硬编码 TIMING 任一端=workaround 掩盖
+     561(b1) 确认滞后**）。二卖成败的操作内容确定（recover/flip），确认时刻是选择类（§五，已 escalate 编排者）。
 
 6. **影响声明**：
    - **不改动代码或定义**（spec 设计，不实装；实装 = 任务 #29）。

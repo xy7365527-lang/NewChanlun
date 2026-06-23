@@ -56,6 +56,7 @@ evidence_file: ".chanlun/review-results/polarity-level-covariance-prove-20260623
 - **正确形式**：Ω 全函数性 = **L0 数学基底（状态完全划分）+ 工程规范前提（无未定义行为/良定义系统）的联合必然**，**非纯 L0**。认识论降级：L0 纯数学 → L0 数学基底 + 工程规范约束。
 - **231号有效域≠定义域**：Burnside 定义域 = 所有轨道 / **Ω 有效域 = 工程规范 + 读法选择实际覆盖**。
 - **539 重诊断不受影响**：Ω 坍缩为二元 {buy,sell} 是 **L2/L3 经验观察**（代码 rec_engine.rs:277 观测），**独立于「Ω 必全」的 L0 声明**——539=Ω坍缩 的诊断有效性来自经验代码观察，不依赖 Ω全函数性是否纯 L0。
+- **工程规范由 539 正当化（poltev delta，强化非削弱）**：「无未定义行为」前提不是任意工程偏好——漏轨道→死扣失血（539）= 不可接受后果 ⟹「Ω 必全」是**有充分理由的设计选择**。完全分类覆盖 = 数学完备（划分 L0）+ 工程必需（Ω 全，539 证）。
 
 ## ★CC 定义域 = 普适（所有引擎），非 T-engine-family（poltev-prove scope 精化，231号）
 
@@ -117,6 +118,7 @@ evidence_file: ".chanlun/review-results/polarity-level-covariance-prove-20260623
 - **N9 = CC 在 type1-flip 单轨道的推论**：极性翻转只在 φ=0 缝（走势完成）合法（P2 谓词），违反=中途翻转 τ@φ≠0=整仓翻转穿仓。`s_k=dir_to_polarity(d_k)` 守恒不变量（PC1，L0）。
 - **定位精化**：协变根源在 P2（τ@φ=0），**非裸 srs=r⁻¹**（后者仅给 T₅₇ 镜像，必要非充分）。codex 异质质询（§八）三证伪路径（莫比乌斯w₁/群层判定/σ轨道NR-3）全失败 → **confirmed**。
 - **N9 工程捕获能力 = L2/L3 依赖** `is_seam_bar` 精度（codex 精化）。PC1 定理 L0 / N9 捕获 L2/L3，不混同。
+- **★CONTENT/TIMING 分离 = CC 横切推论（cc-coverage-spec，fold 入 561 非新号）**：每轨道的「操作内容 CONTENT（L0 缠论语义，如二卖失败→cover+做多，第20课 DD/GG 不等式）」与「判定时刻 TIMING（L2/L3 依赖 is_seam_bar 精度：事后严格无假cover但滞后 vs 当下提前但中枢延伸误判）」是两个认识论等级。N9 的 PC1(CONTENT,L0)/N9捕获(TIMING,L2/L3) 是此分离在 type1-flip 轨道的特例；cc-coverage-spec 在二买卖成败轨道再次显形同一分离。**硬编码 TIMING 任一端 = workaround 掩盖 561(b1) 确认滞后矛盾。** genealogist 裁定：CONTENT/TIMING 分离 = CC 在所有轨道的横切性质（is_seam_bar 精度开放轴的普遍显形），fold 入 561 非独立立号。
 
 ## ★张力检查（aufhebung 正确性 + CC vs 539/553/560/558/561-N9 = 一致深化，不触发中断#1）
 
