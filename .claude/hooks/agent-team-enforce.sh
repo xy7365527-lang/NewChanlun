@@ -1,19 +1,39 @@
 #!/usr/bin/env bash
-# PreToolUse Hook — Agent Team 强制（095号谱系，096号无例外修正）
+# PreToolUse Hook — Agent Team 强制（095/096号谱系；562号 + 编排者裁决 2026-06-23 harness 演化更新）
 #
-# 触发：PreToolUse on "Task" tool
-# 逻辑：
-#   1. 检查 Task 调用是否包含 team_name 参数
-#   2. 如果没有 team_name → block + 要求使用 Agent Team
-#   3. 无例外（096号谱系）：Task(Explore) 同样需要 team_name
-#      搜索任务改用 Glob/Grep/Read 直接工具，或在 team 内 spawn 搜索 teammate
-#   4. [spec-gap-audit] 检查 spawn prompt 是否包含两基因（073a号+274号：topo_address/parent_callback）
-#      缺失时 advisory 警告（不阻断——避免032号死锁重演）
+# 触发：PreToolUse on "Agent" tool（matcher 在 .claude/settings.json）
 #
-# 095号谱系：严格使用 Agent Team，不使用孤立 subagent
-# 096号谱系：无例外——规则是语法规则，例外使规则降级为软性建议
-# 016号谱系：规则没有代码强制就不会被执行
-# 073a号谱系+274号：spawn 两基因——topo_address, parent_callback（depth_budget 已废除）
+# ─── harness 真实机制（2026-06-23 实测核实，不照搬 stale TeamCreate 模型） ───
+#   1. teammate spawn 工具 = `Agent`（不是已废弃的 `Task` agent-spawn 工具）。
+#      旧 hook matcher="Task" 匹配一个不再存在的 agent-spawn 工具 → 完全失效，Lead 用
+#      Agent tool spawn 绕过了它。本次修复改 matcher="Agent" + 适配 Agent tool 的参数。
+#   2. 单一隐式 team（team_name 已 deprecated/ignored）——无需 TeamCreate，flat roster。
+#   3. teammate 模式信号 = `name` 参数存在（实测 harness 报错原文："To spawn a subagent
+#      instead, omit the `name` parameter."）。name 存在 = 可寻址 peer teammate（入隐式 team
+#      共享 inbox）；name 省略 = 孤立 subagent（只能回报 spawner，非 peer）。
+#   4. 实测核实：**teammate 不能 spawn teammate**（harness 报错："Teammates cannot spawn
+#      other teammates — the team roster is flat."）。只有 LEAD（main session）能 spawn
+#      teammate；teammate 的 Agent 调用只能产出 subagent（必须省略 name）。
+#      ⇒ 编排者要点1"蜂群递归也要自动 teammate mode" 在当前 harness 对 teammate 层不可机制实现
+#        ——这是已上浮的 spec-execution gap（见 .chanlun/review-results/swarm-mechanism-fix-20260623.md），
+#        本 hook 不硬编码 workaround（no-workaround），对 teammate 调用 fail-open + advisory。
+#
+# ─── 强制逻辑（fail-open：仅在 POSITIVE 确认违规时 block，避免 032号死锁/全蜂群停摆） ───
+#   - tool_name != "Agent" → 放行。
+#   - subagent_type == "Explore"（只读搜索 subagent）→ 不强制 teammate 模式（advisory：096号
+#     优先 Glob/Grep 或 spawn 命名搜索 teammate），放行。
+#   - 业务/结构工位 spawn（非 Explore）：
+#     * 确认调用者是 LEAD（session_id == 某 team config 的 leadSessionId）且缺 name →
+#       BLOCK：Lead 必须 spawn 命名 teammate（095/096 + 562），匿名 subagent 对工位非法。
+#     * teammate 调用 / 无法确认 lead 身份 → 不 block name（harness 禁止 teammate 用 name，
+#       block 会死锁）；仅做两基因 + 递归判断块 advisory。
+#   - 两基因（073a号+274号：topo_address, parent_callback）+ 递归判断块缺失 → advisory（不 block）。
+#
+# 095号：严格使用 Agent Team，不使用孤立 subagent
+# 096号：无例外（在当前 harness 的有效边界内——见上 spec-execution gap）
+# 016号：规则没有代码强制就不会被执行
+# 073a号+274号：spawn 两基因——topo_address, parent_callback（depth_budget 已废除）
+# 562号：结构工位是 teammate（075 扬弃）；teammate spawn = 命名 Agent
 
 set -uo pipefail
 
@@ -39,79 +59,114 @@ INPUT=$(timeout 3 cat 2>/dev/null || echo "{}")
 
 TOOL_NAME=$(echo "$INPUT" | python -c "
 import sys, json
-data = json.loads(sys.stdin.read())
-print(data.get('tool_name', ''))
+try:
+    data = json.loads(sys.stdin.read())
+    print(data.get('tool_name', ''))
+except Exception:
+    print('')
 " 2>/dev/null || echo "")
 
-# 只拦截 Task 工具
-if [ "$TOOL_NAME" != "Task" ]; then
+# 只拦截 Agent 工具（harness 真实 teammate spawn 工具）
+if [ "$TOOL_NAME" != "Agent" ]; then
     exit 0
 fi
 
-# 检查 team_name（无例外）
-python -c "
-import sys, json
+TEAMS_DIR="$HOME/.claude/teams"
 
-data = json.loads(sys.stdin.buffer.read().decode('utf-8'))
-tool_input = data.get('tool_input', {})
+# INPUT/TEAMS_DIR 经环境变量传递（脚本经 heredoc 占用 stdin，避免双 stdin 重定向冲突）。
+# 直接调用 "$PYTHON_BIN"（非 python() 函数）——env 前缀对外部命令保证导出到子进程环境。
+HOOK_INPUT="$INPUT" HOOK_TEAMS_DIR="$TEAMS_DIR" "$PYTHON_BIN" <<'PYEOF'
+import sys, json, os
 
-team_name = tool_input.get('team_name', '')
+teams_dir = os.environ.get('HOOK_TEAMS_DIR', '') or ''
+try:
+    data = json.loads(os.environ.get('HOOK_INPUT', '{}') or '{}')
+except Exception:
+    data = {}
+tool_input = data.get('tool_input', {}) or {}
+session_id = data.get('session_id', '') or ''
 
-# 如果没有 team_name → 阻断（无例外，096号谱系）
-if not team_name:
-    subagent_type = tool_input.get('subagent_type', '')
-    if subagent_type == 'Explore':
-        reason = ('[096号 无例外 Agent Team 强制] Task(Explore) 不允许作为孤立 subagent。'
-                  '需要搜索时：(1) 简单搜索 → 直接使用 Glob/Grep/Read 工具；'
-                  '(2) 多轮自主搜索 → 在当前 team 内 spawn 搜索 teammate（这是真正的子任务，属于 team 范畴）。'
-                  '规则来源：096号谱系（蜂群规则的分布式存在形式——无例外）。')
-    else:
-        reason = ('[096号 无例外 Agent Team 强制] Task 调用缺少 team_name 参数。'
-                  '所有 Task 调用必须通过 Agent Team（TeamCreate + Task with team_name）管理，'
-                  '不允许孤立 subagent。请先 TeamCreate 创建 team，然后使用 Task(team_name=xxx) spawn teammate。'
-                  '无例外——包括 Explore 类型（096号谱系）。')
+subagent_type = (tool_input.get('subagent_type', '') or '')
+name = (tool_input.get('name', '') or '')
+prompt = (tool_input.get('prompt', '') or tool_input.get('description', '') or '')
+
+def emit_block(reason):
     print(json.dumps({
         'hookSpecificOutput': {
             'hookEventName': 'PreToolUse',
             'permissionDecision': 'deny',
-            'permissionDecisionReason': reason
+            'permissionDecisionReason': reason,
         }
     }, ensure_ascii=False))
-else:
-    # --- 两基因检查（073a号+274号谱系，spec-gap-audit 修复） ---
-    # Task 有 team_name → 放行，但检查 prompt 是否包含两基因
-    # 仅对非 Explore 类型检查（Explore 是搜索，不是 spawn）
-    subagent_type = tool_input.get('subagent_type', '')
-    if subagent_type != 'Explore':
-        prompt = tool_input.get('prompt', '') or tool_input.get('description', '') or ''
-        missing_genes = []
-        if 'topo_address' not in prompt.lower() and '拓扑坐标' not in prompt:
-            missing_genes.append('topo_address')
-        # 274号废除 depth_budget——递归终止由原子性和不动点决定，不由计数器决定
-        if 'parent_callback' not in prompt.lower() and '父节点回调' not in prompt:
-            missing_genes.append('parent_callback')
 
-        # 递归判断块检测（ceremony 步骤5 强制注入）
-        has_recursion_block = ('递归判断' in prompt or 'sub-swarm-ceremony' in prompt.lower())
-        missing_recursion = not has_recursion_block
+def emit_advisory(messages):
+    if messages:
+        print(json.dumps({'systemMessage': ' | '.join(messages)}, ensure_ascii=False))
 
-        messages = []
-        if missing_genes:
-            messages.append(
-                f'[073a号+274号 spawn 两基因] Task prompt 缺少基因: {", ".join(missing_genes)}。'
-                f'dispatch-dag task_template 要求每个衍生节点携带两基因（274号废除 depth_budget 后）：'
-                f'topo_address（拓扑坐标）, parent_callback（父节点回调）。'
-                f'请在 prompt 中注入这些信息（见 .claude/commands/ceremony.md 步骤5 递归判断块）。')
-        if missing_recursion:
-            messages.append(
-                f'[递归判断缺失] Task prompt 未包含递归判断块。'
-                f'ceremony 步骤5 要求每个工位 prompt 开头包含递归判断指令（评估任务是否可分解为子蜂群）。'
-                f'原则15：真递归是默认模式，扁平执行是退化特例。'
-                f'请在 prompt 开头注入递归判断块（见 .claude/commands/ceremony.md 步骤5）。')
-        if messages:
-            print(json.dumps({'systemMessage': ' | '.join(messages)}, ensure_ascii=False))
-        else:
-            sys.exit(0)
-    else:
-        sys.exit(0)
-" <<< "$INPUT"
+# --- Explore 只读搜索 subagent：不强制 teammate 模式（096号 advisory，放行） ---
+if subagent_type == 'Explore':
+    emit_advisory([
+        '[096号] Agent(Explore) 是孤立搜索 subagent。优先：(1) 简单搜索 → 直接 Glob/Grep/Read；'
+        '(2) 多轮自主搜索且需 peer 协作 → 由 LEAD spawn 命名搜索 teammate（name=…）。'
+    ])
+    sys.exit(0)
+
+# --- 判定调用者是否 LEAD（session_id == 某 team config 的 leadSessionId） ---
+is_lead = False
+lead_known = False
+if session_id and os.path.isdir(teams_dir):
+    for nm in sorted(os.listdir(teams_dir)):
+        cfg = os.path.join(teams_dir, nm, 'config.json')
+        if not os.path.isfile(cfg):
+            continue
+        try:
+            with open(cfg) as f:
+                d = json.load(f)
+        except Exception:
+            continue
+        lsid = d.get('leadSessionId', '') or ''
+        if lsid:
+            lead_known = True
+        if lsid == session_id:
+            is_lead = True
+            break
+
+# --- 硬 block：LEAD spawn 工位但缺 name（= 孤立 subagent，对工位非法） ---
+# fail-open：仅在 POSITIVE 确认 is_lead 时 block；无法确认 lead 身份（teammate 或 config 未就绪）
+# 不 block name——teammate 用 name 会被 harness 拒绝，block 会死锁（no-workaround 上浮的 gap）。
+if is_lead and not name:
+    emit_block(
+        '[095/096+562号 teammate 模式强制] Lead 的工位 spawn 缺少 name 参数 = 孤立 subagent。'
+        'harness 实测：name 存在 = 可寻址 peer teammate（入隐式 team 共享 inbox）；name 省略 = 孤立 subagent。'
+        '结构/业务工位必须是 teammate（562号扬弃075——结构=teammate）。'
+        '请加 name="<工位名>" + run_in_background=true（teammate 模式）。'
+        '单一隐式 team：无需 TeamCreate，team_name 已废弃，不要再传。'
+    )
+    sys.exit(0)
+
+# --- advisory：两基因 + 递归判断块（lead 与 teammate 的工位 spawn 都应携带） ---
+messages = []
+missing_genes = []
+if 'topo_address' not in prompt.lower() and '拓扑坐标' not in prompt:
+    missing_genes.append('topo_address')
+# 274号废除 depth_budget——递归终止由原子性和不动点决定，不由计数器决定
+if 'parent_callback' not in prompt.lower() and '父节点回调' not in prompt:
+    missing_genes.append('parent_callback')
+if missing_genes:
+    messages.append(
+        '[073a号+274号 spawn 两基因] Agent prompt 缺少基因: ' + ', '.join(missing_genes) + '。'
+        '每个衍生节点须携带 topo_address（拓扑坐标）, parent_callback（父节点回调）。'
+    )
+
+has_recursion_block = ('递归判断' in prompt or 'sub-swarm-ceremony' in prompt.lower())
+if not has_recursion_block:
+    messages.append(
+        '[递归判断缺失] Agent prompt 未含递归判断块（原则15：真递归是默认模式）。'
+        '注意：当前 harness 实测 teammate 不能 spawn teammate（flat roster）——teammate 的子蜂群'
+        '只能 spawn subagent，与 sub-swarm-ceremony 的 teammate 递归存在 spec-execution gap'
+        '（见 review-results/swarm-mechanism-fix-20260623.md，已上浮编排者）。'
+    )
+
+emit_advisory(messages)
+sys.exit(0)
+PYEOF

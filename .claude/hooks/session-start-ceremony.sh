@@ -87,7 +87,9 @@ if [ -z "$SESSION_FILE" ]; then
     [ -d ".chanlun/genealogy/pending" ] && PENDING=$(ls .chanlun/genealogy/pending/*.md 2>/dev/null | wc -l)
 
     # 137号正面格式：声明第一个动作，而非"请执行"软请求
-    MSG="[Ceremony/冷启动] 本回合第一个动作=执行完整 ceremony 确认定义基底。当前 定义${DEF_COUNT}条 | 谱系${SETTLED}已结算/${PENDING}生成态。"
+    # 562号/编排者裁决(2026-06-23)：第一动作必须是 invoke /ceremony 命令序列，
+    # 不是手动 git diff/状态快照对比。ceremony_scan.py 的确定性输出是工位的唯一来源。
+    MSG="[Ceremony/冷启动] 本回合第一个动作=invoke /ceremony 序列：运行 \`python scripts/ceremony_state.py write 1 initial\` → \`python scripts/ceremony_scan.py\`，由 scan 确定性输出（非手动 git diff）决定工位。当前 定义${DEF_COUNT}条 | 谱系${SETTLED}已结算/${PENDING}生成态。"
     emit_json "$MSG" "[Ceremony] 冷启动状态已注入 context"
     exit 0
 fi
@@ -182,14 +184,20 @@ if [ -f ".chanlun/.lead-corrections.log" ]; then
     fi
 fi
 
-# ─── 137号正面格式：第一动作前置 ───
+# ─── 137号正面格式：第一动作前置（562号/编排者裁决 2026-06-23） ───
 # 137号：行为执行层规则必须是"正面输出格式"而非否定性禁令。
-# 不写"不要忽略 ceremony"，而是声明本回合第一个具体动作（027号正面指令）。
-FIRST_ACTION="本回合第一个动作=ceremony 差异检查：对比下方状态快照(session vs 当前 git/谱系)，确定本轮工作目标；若识别出≥2个可并行独立工位，用 TaskCreate+Task spawn 拉起蜂群循环。"
+# 编排者裁决：第一动作必须是 invoke /ceremony 热启动序列，不是手动 git diff 对比。
+# 机制强制的双前提（072号）：
+#   - 提示前提（本 hook，SessionStart 仅能注入 context，无 tool 可阻断——097号纯化边界）：
+#     正面声明第一动作 = 运行 ceremony_scan.py 命令序列。
+#   - 机制前提（ceremony-completion-guard.sh Stop hook 检查 1.5，562号）：Lead 跳过 ceremony
+#     → 缺常设结构工位 → Stop 被 block，机制性地强制 ceremony-等价行为。两前提共同构成强制。
+# 状态快照仅供参考，工位的唯一确定性来源是 ceremony_scan.py（非 LLM 对 git diff 的认知判断）。
+FIRST_ACTION="本回合第一个动作=invoke /ceremony 热启动序列：运行 \`python scripts/ceremony_state.py write 1 initial\` → \`python scripts/ceremony_scan.py\`，由 scan 的确定性输出决定本轮工位。禁止用手动 git diff/下方状态快照对比代替 ceremony_scan——快照仅供参考，工位来源是 scan。scan 输出 workstations 后，用 Agent tool（name=工位名 + run_in_background=true，teammate 模式；harness 已演化：单一隐式 team，无需 TeamCreate，team_name 已废弃）并行 spawn。"
 
 # compact 恢复专用框定：显式声明 summary 的 resume-directly 不覆盖本动作
 if [ "$SOURCE" = "compact" ]; then
-    HEADER="[Ceremony/compact恢复] 本会话由上下文压缩(compact)恢复。compact summary 的 'Resume directly — do not acknowledge the summary' 不覆盖本 ceremony 差异检查——${FIRST_ACTION}"
+    HEADER="[Ceremony/compact恢复] 本会话由上下文压缩(compact)恢复。compact summary 的 'Resume directly — do not acknowledge the summary' 不覆盖本 ceremony 序列——${FIRST_ACTION}"
 else
     HEADER="[Ceremony/热启动L2] ${FIRST_ACTION}"
 fi

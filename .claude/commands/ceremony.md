@@ -8,13 +8,22 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 1. `python scripts/ceremony_state.py write 1 initial` → `python scripts/ceremony_scan.py` → JSON
 2. JSON.workstations 为空 → `python scripts/ceremony_state.py clear` → `[020号反转] 干净终止` → 写 session → commit → push → 停止
 3. 输出摘要：`[ceremony] {mode} | 谱系 {settled}s/{pending}p | 工位 {len(workstations)}`
-4. `TeamCreate(team_name="v{N}-swarm")`
-5. JSON.workstations[] 全部并行 spawn：
+4. **常设结构工位 spawn（562号扬弃075——结构=teammate，必须 spawn，非 skill 事件驱动）**：
+   并行 spawn `.claude/team-topology.json` 中 6 个 `auto_spawn: true` 结构工位 teammates——
+   meta-lead / genealogist / quality-guard / code-verifier / meta-observer / topology-manager。
+   用规范 `subagent_type=<结构名>`（display name 可自由命名，agentType 落盘不变）。
+   缺任一结构工位 → Stop-Guard 检查 1.5 机制性 block（562号）。
+   **隐式 team（harness 已演化，2026-06-23 实测）**：单一隐式 team，首次 `Agent` spawn 自动加入，
+   **无需 TeamCreate**，`team_name` 已废弃不传。
+5. JSON.workstations[] 全部并行 spawn（业务工位）：
    ```
-   Task(name="{简写}", subagent_type="general-purpose", team_name="{蜂群名}",
-        mode="bypassPermissions", run_in_background=true, prompt="...")
+   Agent(name="{工位名}", subagent_type="general-purpose",
+         mode="bypassPermissions", run_in_background=true, prompt="...")
    ```
+   **teammate 模式信号 = `name`**（可寻址 peer，入隐式 team 共享 inbox）；省略 name = 孤立 subagent（对工位非法，95/096）。
    无 depends_on 的工位并行，有 depends_on 的按序。
+   注：实测 teammate 不能 spawn teammate（flat roster）——Lead 是唯一 teammate spawn 源；
+   teammate 递归只能 spawn subagent（与 sub-swarm-ceremony 存在已上浮的 spec-execution gap）。
 5b. JSON.required_skills[] 中 spawn_condition=true 的 skill：
    并行 spawn 对应 agent（subagent_type 从 required_skills 记录中读取）。
    spawn 规则：
@@ -34,7 +43,7 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
    2. 如果是 → 读取 .claude/skills/sub-swarm-ceremony/SKILL.md，执行子蜂群创建
    3. 如果否 → 在当前层直接执行（扁平退化特例，需在产出中记录理由："任务不可分解因为 [具体原因]"）
 
-   topo_address: {team_name}/{agent_name}
+   topo_address: swarm/{agent_name}
    parent_callback: team-lead
    ```
 
@@ -67,8 +76,8 @@ scan 输出什么就 spawn 什么。Lead 不做实质认知工作。
 
 | 类 | 操作 |
 |----|------|
-| 调度 | `ceremony_scan.py`、`TeamCreate`、`TeamDelete` |
-| 路由 | `Task` spawn、`SendMessage` 转发、`shutdown_request` |
+| 调度 | `ceremony_scan.py`、`Agent` spawn（隐式 team，无 TeamCreate）、`TeamDelete`（如平台可用） |
+| 路由 | `Agent` spawn（teammate=带 name）、`SendMessage` 转发、`shutdown_request` |
 | 持久化 | `git add/commit/push`、session 写入 |
 
 ## 不变量
@@ -102,7 +111,9 @@ Lead 不直接执行 Write/Edit（白名单路径除外）。违反此条 = 僭�
 
 ## 谱系引用
 
-058号（Swarm₀）、057号（LLM非状态机）、075号（skill事件驱动）、
+058号（Swarm₀）、057号（LLM非状态机）、075号（结构=skill事件驱动，**已被562号扬弃**）、
+562号（结构=teammate，机制强制 bootstrap——ceremony 必 spawn 6 常设结构工位）、
+095/096号（Agent Team 真递归；teammate spawn 经 Agent tool 带 name）、
 162号（RTAS持久化）、174号（谱系即生成引擎）、179号（拓扑分析家冷读）、
 218号（Lead并行化）、224号（push→rescan原子性）、225号（rescan→evaluate原子性）、
 226号（三层无状态统一根因 + 类型C角色边界缓解）
