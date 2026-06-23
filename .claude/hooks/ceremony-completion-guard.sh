@@ -3,6 +3,9 @@
 # 048号谱系：从 044号（ceremony 专用）泛化为全场景覆盖
 # 069号更新：废弃 ceremony 计数器状态机，改用显式状态检测
 # 075号更新：移除 dominator node 检查（结构能力由 skill 事件驱动，不再是 teammate）
+# 075号扬弃（编排者裁决，本次修复）：结构能力恢复为 teammate（095/096 真递归提供共享
+#   inbox，化解 075 动机中的"孤岛"问题）→ 重新引入结构工位存在性检查（检查 1.5，agentType 信号）。
+#   075 的 skill 事件驱动用于 Write/Stop 触发的轻量守卫，结构工位本体是常设 teammate（team-topology.json）。
 # 155号修复：僵尸工位检测——使用 owner 而非 subject 标识工位；completed 不再报告为空闲
 #
 # 触发：Stop 事件（agent 即将结束 turn）
@@ -130,6 +133,58 @@ print(json.dumps({
 }, ensure_ascii=False))
 " "$WORK_DESCRIPTION"
     exit 0
+fi
+
+# ─── 检查 1.5：结构工位 bootstrap 强制（095/096号 + 本号扬弃 075号） ───
+# 137号：否定性文本提示对行为执行层无效——结构工位 spawn 从"文本提示"升格为"机制强制"。
+# 编排者裁决：结构工位是 teammate（spawn，095/096），非纯 skill 事件驱动（075 被扬弃）。
+# 检测信号（严格可靠，非模糊匹配）：team config.json 的 member.agentType。
+#   - agentType 是 Task(subagent_type=…) 落盘的规范结构类型；业务命名（如 geneal-p4）
+#     不改变 agentType=genealogist，故 geneal-p4/geneal-560 自动算 genealogist 已覆盖。
+#   - 仅对 LEAD session 生效：config.leadSessionId == 本 session_id（teammate session 不匹配 → 跳过，
+#     teammate 无法也不负责 spawn 结构工位）。
+#   - 无 team（未形成蜂群）→ 不强制（solo 会话无蜂群约束）。
+# 145号兼容：沿用检查3/4 的计数器写法（增量 COUNT + 存 PRE_ACTIVE_TASKS），
+#   连续3次任务态不变由顶部熔断放行，避免死锁。
+SESSION_ID=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('session_id',''))" 2>/dev/null || echo "")
+if [ -n "$SESSION_ID" ]; then
+    STRUCT_MISSING=$(python -c "
+import json, os, sys
+session_id = sys.argv[1]
+teams_dir = sys.argv[2]
+required = ['meta-lead','genealogist','quality-guard','code-verifier','meta-observer','topology-manager']
+team_cfg = None
+if os.path.isdir(teams_dir):
+    for name in sorted(os.listdir(teams_dir)):
+        cfg = os.path.join(teams_dir, name, 'config.json')
+        if not os.path.isfile(cfg):
+            continue
+        try:
+            with open(cfg) as f:
+                d = json.load(f)
+        except Exception:
+            continue
+        if d.get('leadSessionId','') == session_id:
+            team_cfg = d
+            break
+if team_cfg is None:
+    sys.exit(0)
+types = set(m.get('agentType','') for m in team_cfg.get('members', []))
+missing = [r for r in required if r not in types]
+print(','.join(missing))
+" "$SESSION_ID" "$HOME/.claude/teams" 2>/dev/null || echo "")
+    if [ -n "$STRUCT_MISSING" ]; then
+        echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+        python -c "
+import json, sys
+missing = sys.argv[1]
+print(json.dumps({
+    'decision': 'block',
+    'reason': f'[Stop-Guard] 蜂群缺失常设结构工位（095/096号 bootstrap 强制；137号 hook 机制化——文本提示升格为机制强制）: [{missing}]。不允许停止。立即并行 spawn 缺失的结构工位 teammates：Task(team_name=…, subagent_type=结构工位名)，见 .claude/team-topology.json structural_agents。结构工位是 teammate（编排者裁决扬弃 075号"结构=skill"），不是纯 skill 事件驱动。'
+}, ensure_ascii=False))
+" "$STRUCT_MISSING"
+        exit 0
+    fi
 fi
 
 # ─── 检查 2：蜂群任务队列 ───
