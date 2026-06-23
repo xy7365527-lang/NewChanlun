@@ -209,7 +209,7 @@ impl RecStream {
                 self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info) = {
+                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info, level_div) = {
                     let segs = self.orch.segments();
                     let strokes = self.orch.strokes();
                     let m2r = self.orch.merged_to_raw();
@@ -324,13 +324,34 @@ impl RecStream {
                             None => (None, None, 0usize, 0usize),
                         }
                     };
-                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info)
+                    // ── 每级别背驰段（任务22 多重赋格 consume + 严格逐级区间套）──
+                    //   level_div[level] = 该级别当前走势背驰段操作极性（顶背驰段→Short / 底背驰段→Long）。
+                    let level_div = {
+                        let mut ld = [None; MAX_LEVEL];
+                        for lvl_out in &tree.levels {
+                            let lv = lvl_out.level;
+                            if lv >= MAX_LEVEL {
+                                continue;
+                            }
+                            if let Some(t) = lvl_out.trends.last() {
+                                if crate::recursive_t::divergence::trend_diverging_segment(t, self.mode) {
+                                    ld[lv] = Some(match t.direction {
+                                        Direction::Up => crate::trading::types::Polarity::Short,
+                                        Direction::Down => crate::trading::types::Polarity::Long,
+                                    });
+                                }
+                            }
+                        }
+                        ld
+                    };
+                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info, level_div)
                 };
                 view = v;
                 // 命题4 读法乙闸门注入 LevelView（engine nest_step 消费；OFF/ANCHOR 忽略 ⇒ bit-exact）。
                 let (top_div, top_dir, top_lvl_val, top_diag) = top_div_info;
                 view.top_diverge = top_div;
                 view.top_trend_dir = top_dir;
+                view.level_diverge = level_div;
                 if top_diag < 6 {
                     self.nest_diag[top_diag] += 1;
                 }
@@ -1142,6 +1163,112 @@ mod tests {
             );
         }
         println!("====================================================================\n");
+        assert!(!rows.is_empty(), "至少跑出一个标的");
+    }
+
+    /// **命题4 读法乙双向 consume平空 + 严格逐级区间套 L3（任务22）**：OFF / NEST / NEST_CONSUME /
+    /// NEST_CONSUME_STRICT 4 变体。核心问题：**次级别买点平空（consume侧）是否解 prop4-nest 整仓长持
+    /// 死扣穿仓（缩短持仓减强牛穿仓）+ 收益 + 解556保持？**
+    ///
+    /// - NEST = prop4-nest 基线（整仓骑到 top 反转才平，1-2 年死扣）。
+    /// - NEST_CONSUME = + 次级别反核心向背驰段平核心仓 1/3（缩短持仓）。
+    /// - NEST_CONSUME_STRICT = + 严格逐级区间套（主翻转定位点须 loc..top 逐级背驰段一致）。
+    ///
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::prop4_consume_l3 -- --exact --ignored --nocapture`
+    /// `BT_SYMBOLS=OKLO,DX,CL,BTC` 过滤（默认全 8）。
+    #[test]
+    #[ignore = "命题4 读法乙 consume L3，需 analysis/data_cache/*.json"]
+    fn prop4_consume_l3() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS")
+            .ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_default();
+
+        eprintln!("\n===== 命题4 读法乙 consume平空 + 严格逐级 L3（任务22，Structural）=====");
+        struct Row {
+            sym: String,
+            bh: f64,
+            strat: [f64; 4], // OFF, NEST, NEST_CONSUME, NEST_CONSUME_STRICT
+            flips: [u64; 4],
+            consumes: [u64; 4],
+            short_pnl: [f64; 4],
+            hold_avg: [f64; 4], // NEST 系列做空腿平均持仓 bar（缩短持仓验收）
+        }
+        let mut rows: Vec<Row> = Vec::new();
+        let variants = [
+            ("OFF", EngineConfig::off()),
+            ("NEST", EngineConfig::nest()),
+            ("NEST_STRICT", EngineConfig::nest_strict()),
+            ("NEST_CS_STR", EngineConfig::nest_consume_strict()),
+        ];
+
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) {
+                continue;
+            }
+            let path = data_dir.join(file);
+            if !path.exists() {
+                eprintln!("[{sym}] 数据缺失，跳过");
+                continue;
+            }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
+            let mut row = Row {
+                sym: sym.to_string(), bh, strat: [0.0; 4], flips: [0; 4], consumes: [0; 4],
+                short_pnl: [0.0; 4], hold_avg: [0.0; 4],
+            };
+            for (vi, (vname, cfg)) in variants.iter().enumerate() {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n {
+                    s.push_bar(o[i], h[i], l[i], c[i]);
+                }
+                let fin = s.finish();
+                assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
+                let r = s.driver().root();
+                row.strat[vi] = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+                row.flips[vi] = r.n_nest_flips;
+                row.consumes[vi] = r.n_nest_consumes;
+                row.short_pnl[vi] = r.short_leg_pnl;
+                let shorts: Vec<&(bool, i64, f64, i64, f64, f64)> = r.nest_trades.iter().filter(|t| t.0).collect();
+                let hold_sum: f64 = shorts.iter().map(|t| (t.3 - t.1) as f64).sum();
+                row.hold_avg[vi] = if shorts.is_empty() { 0.0 } else { hold_sum / shorts.len() as f64 };
+                eprintln!(
+                    "[{sym:<5}/{vname:<11}] strat={:+.1}% bh={:+.1}% flip={} consume={} consume_pnl={:+.0} short_pnl={:+.0} liq={} ({:.1}s)",
+                    row.strat[vi], bh, r.n_nest_flips, r.n_nest_consumes, r.nest_consume_pnl, r.short_leg_pnl, r.n_liquidations, t0.elapsed().as_secs_f64()
+                );
+            }
+            rows.push(row);
+        }
+
+        println!("\n===== 任务22 矩阵：strat% OFF/NEST/NEST_STRICT(开放轴C)/NEST_CS_STRICT vs BH（* 超 BH）=====");
+        println!("{:<6} {:>10} {:>10} {:>13} {:>13} {:>10}", "标的", "OFF", "NEST", "NEST_STRICT", "+CONS_STRICT", "BH");
+        for r in &rows {
+            let mk = |x: f64| if x > r.bh { "*" } else { " " };
+            println!(
+                "{:<6} {:>+9.1}%{} {:>+9.1}%{} {:>+11.1}%{} {:>+12.1}%{} {:>+9.1}%",
+                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]),
+                r.strat[2], mk(r.strat[2]), r.strat[3], mk(r.strat[3]), r.bh
+            );
+        }
+        println!("\n----- 归因：strict(开放轴C) vs consume 各自贡献 + 空腿失血 -----");
+        println!("{:<6} {:>12} {:>13} {:>14} {:>12} {:>14}", "标的", "NEST short_pnl", "STRICT short_pnl", "CS_STR short_pnl", "STR flip", "CS consume数");
+        for r in &rows {
+            println!(
+                "{:<6} {:>+12.0} {:>+13.0} {:>+14.0} {:>12} {:>14}",
+                r.sym, r.short_pnl[1], r.short_pnl[2], r.short_pnl[3], r.flips[2], r.consumes[3]
+            );
+        }
+        println!("==================================================================\n");
         assert!(!rows.is_empty(), "至少跑出一个标的");
     }
 
