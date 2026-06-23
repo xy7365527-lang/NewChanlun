@@ -77,6 +77,21 @@ for a in auto_agents:
                  + '", run_in_background=true)  # ' + a['role'])
 
 lines.append('')
+# compact 后恢复路径（codex #72 F3 文档化）：本 SessionStart hook 在每次 session 启动
+#   （含 autocompact 后的恢复）重新注入基因模板 + (c) 循环指令到 additionalContext。
+#   ⇒ compact 刷新 Lead context 后，基因/(c) 循环不丢失——bootstrap 的存在本就是为解决
+#   095/096 在 compact 后失效（"Resume directly" 压过 systemMessage）的根因（见上 §通道修复注）。
+#   **此场景（compact 后恢复）已被覆盖**。未覆盖的是 Lead 长任务期间子任务等待时延（非本 hook 域，
+#   是 (c) 循环固有特性，见 swarm-recursion-fix 报告 §3.0a）。
+lines.append('=== spawn 两基因 + 递归判断块（073a/274号 + 原则15，每个 Agent prompt 必带）===')
+lines.append('137号机制化（present-by-instruction + advisory-detected，**非** present-by-construction——')
+lines.append('harness Agent 工具无结构化基因字段，基因只能在 prompt 自由文本，无 hard structural 强制）：')
+lines.append('每个 Agent(...) 的 prompt **开头**必须含以下两基因 + 递归判断块（占位符须填实际值）：')
+lines.append('  [基因 073a/274号] topo_address: <swarm/工位名> | parent_callback: <main 或父工位名>')
+lines.append('  [递归判断块 原则15：真递归默认] 识别可分解子工作 → TaskCreate 子任务（metadata.agent_type 标类型）→')
+lines.append('    Lead spawn；teammate 不能直接 spawn teammate（flat roster），递归经 TaskCreate→Lead。')
+lines.append('agent-team-enforce.sh 对缺基因/缺递归块的 spawn 发 advisory（字符串检测，非语义有效性；fail-open，不 block）。')
+lines.append('')
 lines.append('=== 按需工位（task-triggered，(c)循环的按需部分）===')
 lines.append('按需工位不预启动。(c) 机制：工位识别到需要某类能力时，TaskCreate 一个子任务，')
 lines.append('在 metadata.agent_type 标注所需 subagent_type；Lead 的循环 spawn 该类型工位。')

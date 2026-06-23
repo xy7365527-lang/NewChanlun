@@ -14,9 +14,11 @@
 #   4. 实测核实：**teammate 不能 spawn teammate**（harness 报错："Teammates cannot spawn
 #      other teammates — the team roster is flat."）。只有 LEAD（main session）能 spawn
 #      teammate；teammate 的 Agent 调用只能产出 subagent（必须省略 name）。
-#      ⇒ 编排者要点1"蜂群递归也要自动 teammate mode" 在当前 harness 对 teammate 层不可机制实现
-#        ——这是已上浮的 spec-execution gap（见 .chanlun/review-results/swarm-mechanism-fix-20260623.md），
-#        本 hook 不硬编码 workaround（no-workaround），对 teammate 调用 fail-open + advisory。
+#      ⇒ 编排者(c)裁决（2026-06-23）已结算此 gap：teammate 要递归 → **TaskCreate 子任务**
+#        （metadata.agent_type 标 subagent_type）→ Lead 循环 spawn 该类型 teammate。递归载体从
+#        team 拓扑（roster）改为任务拓扑（TaskList DAG）。这不是未决 gap，是已结算的递归实现
+#        （见 skill sub-swarm-ceremony + dispatch-dag fractal_template）。本 hook 对 teammate 的
+#        无-name Agent 调用 fail-open + advisory，并显式导向 (c) 路径（TaskCreate）。
 #
 # ─── 强制逻辑（fail-open：仅在 POSITIVE 确认违规时 block，避免 032号死锁/全蜂群停摆） ───
 #   - tool_name != "Agent" → 放行。
@@ -113,7 +115,6 @@ if subagent_type == 'Explore':
 
 # --- 判定调用者是否 LEAD（session_id == 某 team config 的 leadSessionId） ---
 is_lead = False
-lead_known = False
 if session_id and os.path.isdir(teams_dir):
     for nm in sorted(os.listdir(teams_dir)):
         cfg = os.path.join(teams_dir, nm, 'config.json')
@@ -124,10 +125,7 @@ if session_id and os.path.isdir(teams_dir):
                 d = json.load(f)
         except Exception:
             continue
-        lsid = d.get('leadSessionId', '') or ''
-        if lsid:
-            lead_known = True
-        if lsid == session_id:
+        if (d.get('leadSessionId', '') or '') == session_id:
             is_lead = True
             break
 
@@ -145,6 +143,14 @@ if is_lead and not name:
     sys.exit(0)
 
 # --- advisory：两基因 + 递归判断块（lead 与 teammate 的工位 spawn 都应携带） ---
+# 137号机制化边界（090号声明精度）：两基因/递归判断块只能存活于 prompt 自由文本——
+#   harness Agent 工具无结构化基因字段（只有 prompt/name/subagent_type 等），故 hook 仅能
+#   启发式 substring 检测（'topo_address' in prompt），检的是字符串存在性，**非语义有效性**
+#   （含未填充占位符 "<swarm/工位名>" 的 template 也会通过）。启发式 block 会误杀同义表述 →
+#   违反本 hook 的 fail-open 不变量（032号：仅 POSITIVE 结构性违规才 block）。故基因保持 advisory。
+#   ⚠ 诚实声明：基因无 hard structural 机制化路径（harness 无结构化字段）。实际形式 =
+#   present-by-instruction（bootstrap 注入 template）+ advisory-detected（本 hook 字符串检测），
+#   **非** present-by-construction（template 含占位符，不保证 Lead 填充语义有效值）。
 messages = []
 missing_genes = []
 if 'topo_address' not in prompt.lower() and '拓扑坐标' not in prompt:
@@ -162,9 +168,19 @@ has_recursion_block = ('递归判断' in prompt or 'sub-swarm-ceremony' in promp
 if not has_recursion_block:
     messages.append(
         '[递归判断缺失] Agent prompt 未含递归判断块（原则15：真递归是默认模式）。'
-        '注意：当前 harness 实测 teammate 不能 spawn teammate（flat roster）——teammate 的子蜂群'
-        '只能 spawn subagent，与 sub-swarm-ceremony 的 teammate 递归存在 spec-execution gap'
-        '（见 review-results/swarm-mechanism-fix-20260623.md，已上浮编排者）。'
+    )
+
+# --- (c) 路径 advisory：teammate 的无-name 非-Explore Agent 调用 = 应改为 TaskCreate 子任务 ---
+# (c)裁决（2026-06-23 编排者）：teammate 识别可分解子工作 → TaskCreate 子任务（Lead spawn），
+#   而非 Agent-spawn。harness flat roster：teammate 不能 spawn teammate；teammate 的 Agent(无name)
+#   只产孤立 subagent（违 096 号），除非是只读 Explore 搜索（已在上方豁免）。
+if (not is_lead) and (not name):
+    messages.append(
+        '[(c)裁决 递归路径] 你（非 Lead）的 Agent(无 name) 只产孤立 subagent（违 096号）。'
+        '要递归请 TaskCreate 子任务（在 metadata.agent_type 标 subagent_type）→ Lead 循环 spawn 该类型 teammate。'
+        'harness 实测 teammate 不能 spawn teammate（flat roster）——递归载体是任务拓扑（TaskList DAG），'
+        '非 team 拓扑（见 skill sub-swarm-ceremony，(c)裁决已结算，非未决 gap）。'
+        '若确需只读搜索 subagent，用 subagent_type="Explore"。'
     )
 
 emit_advisory(messages)
