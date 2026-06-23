@@ -75,6 +75,11 @@ pub struct EngineConfig {
     pub enable_reading_b: bool,
     /// 读法B 触发器：false=走势完成链（556 读法B 基线）/ true=背驰段链（读法乙递归，触发更频繁可能解冻顶层）。
     pub reading_b_diverge: bool,
+    /// **读法B 一对多空腿（任务57=53.1 编排者重写）**：每级别一对 LegPair（多腿+空腿同时在场）。
+    /// 开=该级别买卖点（第17课）/ 平=反向买卖点 / 止损=否定线（进场中枢 ZG/ZD 破坏）/ 链破坏 churn 门控
+    /// （第27课区间套：链完整=回调不动核心多腿，链破坏=转折动核心）。删 d_top 几何方向单腿模型。
+    /// OFF=false ⇒ on_bar/单腿 reading_b/instances 路径逐字不动（bit-exact）。env `T_READING_B_PAIR`。
+    pub enable_reading_b_pair: bool,
 }
 
 impl EngineConfig {
@@ -90,6 +95,7 @@ impl EngineConfig {
             enable_nest_strict: std::env::var("T_NEST_STRICT").is_ok(),
             enable_reading_b: std::env::var("T_READING_B").is_ok(),
             reading_b_diverge: std::env::var("T_READING_B_DIVERGE").is_ok(),
+            enable_reading_b_pair: std::env::var("T_READING_B_PAIR").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -101,6 +107,14 @@ impl EngineConfig {
         c.enable_nest_strict = false;
         c.enable_reading_b = false;
         c.reading_b_diverge = false;
+        c.enable_reading_b_pair = false;
+        c
+    }
+    /// **读法B 一对多空腿（任务57=53.1）**：每级别 LegPair（买卖点开平 + 否定线止损 + 链破坏 churn）。
+    /// OFF + 仅 `enable_reading_b_pair`（旁路单腿 reading_b / instances 路径）。
+    pub fn reading_b_pair() -> Self {
+        let mut c = Self::off();
+        c.enable_reading_b_pair = true;
         c
     }
     /// 读法B 基线（556：每级别独立腿 + 走势完成链触发）。
@@ -325,6 +339,60 @@ impl Leg {
     }
 }
 
+// ════════════════════════════ LegPair：每级别一对多空腿（任务57=53.1 编排者重写）════════════════════════════
+
+/// **每级别一对多空腿（LegPair，自相似）**：级别 k 同时持有一条多腿（吃涨）+ 一条空腿（吃跌）。
+/// 牛市 = 大级别多腿（核心）+ 次级别空腿（吃回调）同时在场 = 多空双开 = 吃所有级别涨跌幅。
+///
+/// 三个缠论结构点（每腿）：
+/// 1. **开** = 该级别买卖点（第17课买卖点定律一 + 第27课区间套定位）：买点 fire → 多腿开 / 卖点 fire → 空腿开。
+///    开仓方向由缠论买卖点涌现，**不由 node.direction 几何方向**（删单腿模型的 dir_to_polarity(node.direction)）。
+/// 2. **平** = 该级别反向买卖点（与开对称）：多腿持仓中卖点 fire → 多腿平 / 空腿持仓中买点 fire → 空腿平。
+/// 3. **止损 = 否定线**（进场中枢边界 ZG/ZD）：多腿 stop = 进场 ZD（跌破=结构破坏）/ 空腿 stop = 进场 ZG（涨破=结构破坏）。
+///    「回试回中枢=假突破」⟹ 止损。stop_line 在开仓时锁定（进场中枢边界，骑节点不变）。
+///
+/// **零 `if level==top` 硬编码**：方向/开/平/止损全由缠论结构（买卖点/中枢/否定线）涌现，自相似跨级别同构。
+#[derive(Debug, Clone, Copy)]
+pub struct LegPair {
+    pub level: usize,
+    /// 多腿股数 ≥0（idle=0）。
+    pub long_units: f64,
+    /// 多腿 basis（开仓价）。
+    pub long_basis: f64,
+    /// 多腿否定线 = 进场中枢 ZD（跌破止损）。NaN=未锁定/无中枢（无 ZD 否定线 ⇒ 仅靠反向买卖点平）。
+    pub long_stop: f64,
+    /// 空腿股数 ≥0（idle=0）。
+    pub short_units: f64,
+    /// 空腿 basis（开仓价）。
+    pub short_basis: f64,
+    /// 空腿否定线 = 进场中枢 ZG（涨破止损）。NaN=未锁定/无中枢。
+    pub short_stop: f64,
+}
+
+impl LegPair {
+    fn idle(level: usize) -> Self {
+        LegPair {
+            level,
+            long_units: 0.0,
+            long_basis: f64::NAN,
+            long_stop: f64::NAN,
+            short_units: 0.0,
+            short_basis: f64::NAN,
+            short_stop: f64::NAN,
+        }
+    }
+    fn long_active(&self) -> bool {
+        self.long_units > EPS
+    }
+    fn short_active(&self) -> bool {
+        self.short_units > EPS
+    }
+    /// 是否最高活跃多腿级别（结构涌现「核心」= 当前最高活跃 up-trend 多腿，无 `if level==top` 硬编码）。
+    fn pair_fingerprint(&self) -> (u64, u64) {
+        (self.long_units.to_bits(), self.short_units.to_bits())
+    }
+}
+
 /// **prove_leg_isolation（547 隔离，L0 结构 panic 守卫）**：`g(k)` 只写 `legs[k]`，断言 `legs[j≠k]`
 /// 在 g(k) 前后逐位不变（547 病灶「低级别信号越级翻动高级别主力」的结构否定）。
 fn prove_leg_isolation(
@@ -377,7 +445,15 @@ pub struct LevelView {
     /// **每级别 d_top 区间套链贯通真顶/真底**（任务18 编排者修正：每级别独立腿多重赋格触发器）。
     /// `divergence::d_top(k, ..., use_diverge)`——`use_diverge=false`=走势完成链（556 读法B）/`true`=背驰段链（读法乙）。
     /// 读法B 路径（`enable_reading_b`）每级别独立腿 `legs[k]` 消费 `d_top[k]` switch（close+反向 open）。
+    /// **链破坏 churn 门控（任务57=53.1）**：LegPair 路径用 `d_top[k]` 作链破坏信号——`d_top[k]=true`=区间套
+    /// 链贯通到真顶/真底=转折（动核心多腿翻转）；`false`=链未贯通=回调（不动核心多腿，仅本级空腿吃回调）。
     pub d_top: [bool; MAX_LEVEL],
+    /// **每级别当前走势末中枢核心区间 ZG（核心上沿，否定线原料）**（任务57=53.1 LegPair 止损）。
+    /// 空腿止损线：价格涨破进场中枢 ZG ⇒ 向上突破=「回试回中枢=假突破」反面=结构破坏 ⇒ 空腿止损平。None=该级无中枢。
+    pub zg: [Option<f64>; MAX_LEVEL],
+    /// **每级别当前走势末中枢核心区间 ZD（核心下沿，否定线原料）**（任务57=53.1 LegPair 止损）。
+    /// 多腿止损线：价格跌破进场中枢 ZD ⇒ 结构破坏（多头买入逻辑被否定，第17课区间套否定线）⇒ 多腿止损平。None=该级无中枢。
+    pub zd: [Option<f64>; MAX_LEVEL],
 }
 
 impl LevelView {
@@ -393,6 +469,8 @@ impl LevelView {
             top_trend_dir: None,
             level_diverge: [None; MAX_LEVEL],
             d_top: [false; MAX_LEVEL],
+            zg: [None; MAX_LEVEL],
+            zd: [None; MAX_LEVEL],
         }
     }
 }
@@ -441,8 +519,25 @@ pub struct TRoot {
     /// **读法B/读法乙递归（任务18）**：每级别独立腿 + 触发器。enable_reading_b=true ⇒ on_bar 走 consume_legs。
     enable_reading_b: bool,
     reading_b_diverge: bool,
+    /// **读法B 一对多空腿（任务57=53.1）**：enable_reading_b_pair=true ⇒ on_bar 走 consume_leg_pairs。
+    enable_reading_b_pair: bool,
     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
     legs: Vec<Leg>,
+    /// **每级别一对多空腿（LegPair[k]，任务57=53.1）**：买卖点开平 + 否定线止损 + 链破坏 churn 门控。
+    leg_pairs: Vec<LegPair>,
+    /// LegPair per-level realized pnl（验收哪级别多/空腿赚/亏）。
+    pub pair_long_pnl: [f64; MAX_LEVEL],
+    pub pair_short_pnl: [f64; MAX_LEVEL],
+    /// LegPair 观测计数（纯诊断）。
+    pub pair_long_opens: [u64; MAX_LEVEL],
+    pub pair_short_opens: [u64; MAX_LEVEL],
+    pub pair_long_closes: [u64; MAX_LEVEL],
+    pub pair_short_closes: [u64; MAX_LEVEL],
+    /// 否定线止损次数（多/空腿，纯观测——验收止损先于 NAV≤0）。
+    pub pair_long_stops: u64,
+    pub pair_short_stops: u64,
+    /// 链破坏 churn 触发核心多腿翻转次数（纯观测——解 churn 门控是否解冻核心）。
+    pub pair_core_churns: u64,
     /// 读法B 每级别 per-level realized pnl（验收哪级别腿赚/亏）。
     pub per_level_long_pnl: [f64; MAX_LEVEL],
     pub per_level_short_pnl: [f64; MAX_LEVEL],
@@ -537,7 +632,18 @@ impl TRoot {
             nest_consumed: false,
             enable_reading_b: cfg.enable_reading_b,
             reading_b_diverge: cfg.reading_b_diverge,
+            enable_reading_b_pair: cfg.enable_reading_b_pair,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
+            leg_pairs: (0..MAX_LEVEL).map(LegPair::idle).collect(),
+            pair_long_pnl: [0.0; MAX_LEVEL],
+            pair_short_pnl: [0.0; MAX_LEVEL],
+            pair_long_opens: [0; MAX_LEVEL],
+            pair_short_opens: [0; MAX_LEVEL],
+            pair_long_closes: [0; MAX_LEVEL],
+            pair_short_closes: [0; MAX_LEVEL],
+            pair_long_stops: 0,
+            pair_short_stops: 0,
+            pair_core_churns: 0,
             per_level_long_pnl: [0.0; MAX_LEVEL],
             per_level_short_pnl: [0.0; MAX_LEVEL],
             leg_switches_by_level: [0; MAX_LEVEL],
@@ -605,6 +711,15 @@ impl TRoot {
                     Polarity::Long => leg.units * c,
                     Polarity::Short => -leg.units * c,
                 };
+            }
+        }
+        // 读法B 一对多空腿（LegPair[k]，任务57=53.1）：多腿 +u·c / 空腿 −u·c。OFF 时全 idle ⇒ 0（bit-exact）。
+        for p in &self.leg_pairs {
+            if p.long_units > 0.0 {
+                v += p.long_units * c;
+            }
+            if p.short_units > 0.0 {
+                v -= p.short_units * c;
             }
         }
         v
@@ -1171,6 +1286,265 @@ impl TRoot {
         }
     }
 
+    // ──────────────── 读法B 一对多空腿（LegPair，任务57=53.1 编排者重写）────────────────
+
+    /// LegPair 指纹快照（547 隔离守卫：g_pair(k) 只许写 leg_pairs[k]）。
+    fn snapshot_pair_fingerprints(&self) -> [(u64, u64); MAX_LEVEL] {
+        let mut fp = [(0u64, 0u64); MAX_LEVEL];
+        for k in 0..MAX_LEVEL {
+            fp[k] = self.leg_pairs[k].pair_fingerprint();
+        }
+        fp
+    }
+
+    /// **prove_pair_isolation（547 隔离，L0 结构 panic 守卫）**：g_pair(k) 只写 leg_pairs[k]，断言
+    /// leg_pairs[j≠k] 在前后逐位不变（547 病灶「低级别信号越级翻动高级别主力」的结构否定，对偶单腿守卫）。
+    fn prove_pair_isolation(
+        fp_pre: &[(u64, u64); MAX_LEVEL],
+        fp_post: &[(u64, u64); MAX_LEVEL],
+        k: usize,
+    ) {
+        for j in 0..MAX_LEVEL {
+            if j == k {
+                continue;
+            }
+            assert_eq!(
+                fp_pre[j], fp_post[j],
+                "547 隔离违反：g_pair({k}) 改动了别级 leg_pairs[{j}]（每级别独立对腿只许 g_pair(k) 写 leg_pairs[k]）"
+            );
+        }
+    }
+
+    /// **open_long_leg**（开多腿）：级别 k 买点 fire ⇒ 从单一 free 池领几何塔配额建多仓，否定线 = 进场 ZD。
+    /// 只写 leg_pairs[k]（547 隔离）。`stop_zd`=进场中枢核心下沿（跌破止损）；None ⇒ NaN（无否定线，仅靠反向卖点平）。
+    fn open_long_leg(&mut self, k: usize, top: usize, stop_zd: Option<f64>, c: f64) {
+        if self.leg_pairs[k].long_active() {
+            return; // 已持多腿 ⇒ 不重复开（hold，单一方向单腿）
+        }
+        let fp_pre = self.snapshot_pair_fingerprints();
+        let m = self.geom_tower_quota(k, top, self.free.max(0.0), c);
+        if !(m > 1e-12 && m.is_finite()) {
+            return;
+        }
+        let tw_pre = self.total_wealth(c);
+        self.free -= m * c; // 多腿建仓 = 现金换多头（NAV 中性）
+        self.leg_pairs[k].long_units = m;
+        self.leg_pairs[k].long_basis = c;
+        self.leg_pairs[k].long_stop = stop_zd.unwrap_or(f64::NAN);
+        self.pair_long_opens[k] += 1;
+        self.guards.note_op("open_long_leg");
+        Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);
+        self.prove_tw_neutral(tw_pre, c);
+    }
+
+    /// **open_short_leg**（开空腿）：级别 k 卖点 fire ⇒ 建空仓，否定线 = 进场 ZG（涨破止损）。只写 leg_pairs[k]。
+    fn open_short_leg(&mut self, k: usize, top: usize, stop_zg: Option<f64>, c: f64) {
+        if self.leg_pairs[k].short_active() {
+            return; // 已持空腿 ⇒ 不重复开
+        }
+        let fp_pre = self.snapshot_pair_fingerprints();
+        let m = self.geom_tower_quota(k, top, self.free.max(0.0), c);
+        if !(m > 1e-12 && m.is_finite()) {
+            return;
+        }
+        let tw_pre = self.total_wealth(c);
+        self.free += m * c; // 空腿建仓 = 收空头保证金现金（NAV 中性，−u·c 抵 +m·c）
+        self.leg_pairs[k].short_units = m;
+        self.leg_pairs[k].short_basis = c;
+        self.leg_pairs[k].short_stop = stop_zg.unwrap_or(f64::NAN);
+        self.pair_short_opens[k] += 1;
+        self.guards.note_op("open_short_leg");
+        Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);
+        self.prove_tw_neutral(tw_pre, c);
+    }
+
+    /// **close_long_leg**（平多腿）：反向卖点 fire 或否定线止损 ⇒ 全量平多到现金，realized 记 pair_long_pnl。
+    fn close_long_leg(&mut self, k: usize, c: f64) -> f64 {
+        if !self.leg_pairs[k].long_active() {
+            return 0.0;
+        }
+        let fp_pre = self.snapshot_pair_fingerprints();
+        let u = self.leg_pairs[k].long_units;
+        let basis = self.leg_pairs[k].long_basis;
+        let pnl = u * (c - basis);
+        let tw_pre = self.total_wealth(c);
+        self.free += u * c;
+        self.pair_long_pnl[k] += pnl;
+        self.leg_pairs[k].long_units = 0.0;
+        self.leg_pairs[k].long_basis = f64::NAN;
+        self.leg_pairs[k].long_stop = f64::NAN;
+        self.pair_long_closes[k] += 1;
+        self.guards.note_op("close_long_leg");
+        Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);
+        self.prove_tw_neutral(tw_pre, c);
+        pnl
+    }
+
+    /// **close_short_leg**（平空腿）：反向买点 fire 或否定线止损 ⇒ 全量平空到现金，realized 记 pair_short_pnl。
+    fn close_short_leg(&mut self, k: usize, c: f64) -> f64 {
+        if !self.leg_pairs[k].short_active() {
+            return 0.0;
+        }
+        let fp_pre = self.snapshot_pair_fingerprints();
+        let u = self.leg_pairs[k].short_units;
+        let basis = self.leg_pairs[k].short_basis;
+        let pnl = u * (basis - c);
+        let tw_pre = self.total_wealth(c);
+        self.free -= u * c;
+        self.pair_short_pnl[k] += pnl;
+        self.leg_pairs[k].short_units = 0.0;
+        self.leg_pairs[k].short_basis = f64::NAN;
+        self.leg_pairs[k].short_stop = f64::NAN;
+        self.pair_short_closes[k] += 1;
+        self.guards.note_op("close_short_leg");
+        Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);
+        self.prove_tw_neutral(tw_pre, c);
+        pnl
+    }
+
+    /// **当前最高活跃多腿级别**（结构涌现「核心」= 当前最高活跃 up-trend 多腿，无 `if level==top` 硬编码）。
+    /// LegPair 路径核心 = 最高有多腿在场的级别（自相似结构涌现，对照 instances 路径 highest_active）。
+    fn highest_active_long(&self) -> Option<usize> {
+        (0..MAX_LEVEL).rev().find(|&k| self.leg_pairs[k].long_active())
+    }
+
+    /// **否定线止损（任务57=53.1 第三结构点）**：每级别多/空腿价格否定结构破坏 ⇒ 止损平。
+    /// 多腿：c < long_stop（进场 ZD，跌破=结构破坏）⇒ 平。空腿：c > short_stop（进场 ZG，涨破=结构破坏）⇒ 平。
+    /// 「回试回中枢=假突破」⟹ 止损。止损先于 NAV≤0（账户级强平）生效 ⇒ 零强平判据。
+    fn pair_stop_loss_step(&mut self, c: f64) {
+        for k in 0..MAX_LEVEL {
+            // 多腿否定线：跌破进场 ZD ⇒ 结构破坏止损。
+            if self.leg_pairs[k].long_active() {
+                let stop = self.leg_pairs[k].long_stop;
+                if stop.is_finite() && c < stop {
+                    self.guards.set_trigger(OpTrigger::Bsp); // 否定线 = 结构破坏（type3 形态对偶）= 合法触发源
+                    self.close_long_leg(k, c);
+                    self.pair_long_stops += 1;
+                }
+            }
+            // 空腿否定线：涨破进场 ZG ⇒ 结构破坏止损。
+            if self.leg_pairs[k].short_active() {
+                let stop = self.leg_pairs[k].short_stop;
+                if stop.is_finite() && c > stop {
+                    self.guards.set_trigger(OpTrigger::Bsp);
+                    self.close_short_leg(k, c);
+                    self.pair_short_stops += 1;
+                }
+            }
+        }
+    }
+
+    /// **g_pair(k)**（每级别一对腿单算子）：级别 k 消费 `view.buy[k]`/`view.sell[k]`（买卖点）开平 + 链破坏 churn 门控。
+    ///
+    /// 开平规则（对称）：
+    /// - **买点 fire**：① 空腿持仓 ⇒ 平空（反向买卖点平，与开对称）；② 多腿空 ⇒ 开多（买点开多腿）。
+    /// - **卖点 fire**：① 多腿持仓 ⇒ 平多（反向卖点平）；② 空腿空 ⇒ 开空（卖点开空腿）。
+    ///
+    /// **链破坏 churn 门控（第27课区间套）**：核心多腿（= highest_active_long）的反向平/翻转**只在链破坏时**动
+    /// （`view.d_top[k]=true`=区间套链贯通=转折）。链完整（d_top=false=回调）⇒ 卖点不平核心多腿（只本级空腿吃回调）。
+    /// 非核心级别（次级别）不受 churn 门控（次级别空腿自由吃回调）。
+    ///
+    /// **零方向几何**：开仓方向由买卖点（buy/sell）涌现，不由 node.direction。**只写 leg_pairs[k]**（547 隔离）。
+    fn g_pair(&mut self, k: usize, view: &LevelView, top: usize, c: f64) {
+        let b = view.buy[k];
+        let s = view.sell[k];
+        if b && s {
+            return; // 同 bar 同级别买卖冲突 ⇒ 跳过（对照 on_bar route_bsp 同 level 买卖冲突）
+        }
+        // 「核心」= 当前最高活跃多腿级别（结构涌现，无 if level==top 硬编码）。
+        let is_core_long_level = self.highest_active_long() == Some(k);
+        let chain_break = view.d_top[k]; // 区间套链贯通=转折（churn 门控信号）
+
+        if b {
+            // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空）。
+            if self.leg_pairs[k].short_active() {
+                self.guards.set_trigger(OpTrigger::Bsp);
+                self.close_short_leg(k, c);
+            }
+            if !self.leg_pairs[k].long_active() {
+                self.guards.set_trigger(OpTrigger::Bsp);
+                self.open_long_leg(k, top, view.zd[k], c);
+            }
+            return;
+        }
+        if s {
+            // 卖点：先平多腿（反向买卖点平），但核心多腿受 churn 门控（链破坏才平=转折，链完整=回调不动核心）。
+            if self.leg_pairs[k].long_active() {
+                let may_close_core = !is_core_long_level || chain_break;
+                if may_close_core {
+                    self.guards.set_trigger(OpTrigger::Bsp);
+                    self.close_long_leg(k, c);
+                    if is_core_long_level && chain_break {
+                        self.pair_core_churns += 1; // 链破坏 churn 动核心多腿（转折）
+                    }
+                }
+                // 链完整 ∧ 核心多腿 ⇒ 不平核心多腿（回调），落到下方开空腿吃回调。
+            }
+            if !self.leg_pairs[k].short_active() {
+                self.guards.set_trigger(OpTrigger::Bsp);
+                self.open_short_leg(k, top, view.zg[k], c);
+            }
+            return;
+        }
+    }
+
+    /// **consume_leg_pairs**（单算子递归 = consume_legs 的对偶）：账户强平 → 止损 → a0→涌现上界逐级 g_pair(k)。
+    fn consume_leg_pairs(&mut self, view: &LevelView, c: f64) {
+        // ⓪ 账户级 NAV≤0 强平（诚实会计安全网）：否定线止损应先于此生效 ⇒ n_liquidations==0 = 止损有效判据。
+        //    保留此块是诚实会计（不声明「永不强平」而无强平路径）；零强平由否定线止损保证，非删除强平路径。
+        if self.nav(c) <= 0.0 {
+            for k in 0..MAX_LEVEL {
+                if self.leg_pairs[k].long_active() {
+                    let entry_bar = self.cur_bar;
+                    let entry_basis = self.leg_pairs[k].long_basis;
+                    self.guards.set_trigger(OpTrigger::Eod);
+                    self.close_long_leg(k, c);
+                    self.n_liquidations += 1;
+                    self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, false));
+                }
+                if self.leg_pairs[k].short_active() {
+                    let entry_bar = self.cur_bar;
+                    let entry_basis = self.leg_pairs[k].short_basis;
+                    self.guards.set_trigger(OpTrigger::Eod);
+                    self.close_short_leg(k, c);
+                    self.n_liquidations += 1;
+                    self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, true));
+                }
+            }
+        }
+        // ① 否定线止损（第三结构点，先于买卖点开平 ⇒ 否定线优先平失血腿）。
+        self.pair_stop_loss_step(c);
+        // ② 逐级买卖点开平 + churn 门控。
+        let top = match (0..MAX_LEVEL).rev().find(|&k| view.nodes[k].is_some()) {
+            Some(t) => t,
+            None => return,
+        };
+        for k in 0..=top {
+            self.g_pair(k, view, top, c);
+        }
+    }
+
+    /// 读法B LegPair 收尾（全平所有对腿到现金）。
+    fn finish_leg_pairs(&mut self, c: f64) {
+        if !(c.is_finite() && c > 0.0) {
+            return;
+        }
+        self.guards.set_trigger(OpTrigger::Eod);
+        for k in 0..MAX_LEVEL {
+            if self.leg_pairs[k].long_active() {
+                self.close_long_leg(k, c);
+            }
+            if self.leg_pairs[k].short_active() {
+                self.close_short_leg(k, c);
+            }
+        }
+    }
+
+    /// LegPair 只读访问（诊断/L3）。
+    pub fn leg_pair(&self, k: usize) -> &LegPair {
+        &self.leg_pairs[k]
+    }
+
     // ──────────────── NEST：命题4 读法乙（大级别背驰段闸门 + a0 区间套定位翻转）────────────────
 
     /// **nest_step**（命题4 读法乙，源头审计 src-prop13 / 第27课区间套）：
@@ -1325,6 +1699,29 @@ impl TRoot {
         self.last_close = c;
         self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
         let tw_pre = self.total_wealth(c);
+
+        // ── 读法B 一对多空腿分叉（任务57=53.1 编排者重写）：ON ⟹ 每级别 LegPair 买卖点开平 + 否定线止损 +
+        //   链破坏 churn 门控（多空双开吃所有级别涨跌幅）。OFF ⟹ 逐字不动（bit-exact）。最先检查（旁路单腿/instances）。
+        if self.enable_reading_b_pair {
+            self.consume_leg_pairs(view, c);
+            // 杠杆验收（裂隙2）：毛/净敞口相对 NAV（多空双开 ⇒ gross 含多+空）。
+            let (mut gross, mut net) = (0.0f64, 0.0f64);
+            for p in &self.leg_pairs {
+                if p.long_units > EPS {
+                    gross += p.long_units * c;
+                    net += p.long_units * c;
+                }
+                if p.short_units > EPS {
+                    gross += p.short_units * c;
+                    net -= p.short_units * c;
+                }
+            }
+            let nav = self.nav(c).max(1.0);
+            self.max_gross_exp_x100 = self.max_gross_exp_x100.max((gross / nav * 100.0).max(0.0) as u64);
+            self.max_net_exp_x100 = self.max_net_exp_x100.max((net.abs() / nav * 100.0).max(0.0) as u64);
+            self.prove_tw_neutral(tw_pre, c);
+            return;
+        }
 
         // ── 读法B/读法乙递归分叉（任务18 编排者修正）：ON ⟹ 每级别独立腿骑走势消费 d_top（删 sink/recover/
         //   ascend/clear_all/三阶段——每级别独立骑乘取代跨级短差）。OFF ⟹ instances 路径逐字不动（bit-exact）。
@@ -1500,6 +1897,10 @@ impl TRoot {
 
     /// 收尾（全平到现金，归还 withdrawn）。返回 final_nav (= free)。
     pub fn finish(&mut self, c: f64) -> f64 {
+        if self.enable_reading_b_pair {
+            self.finish_leg_pairs(c);
+            return self.free;
+        }
         if self.enable_reading_b {
             self.finish_legs(c);
             return self.free;

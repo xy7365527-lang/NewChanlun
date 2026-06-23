@@ -346,8 +346,9 @@ impl RecStream {
                     };
                     // ── 每级别 d_top 区间套链贯通（任务18 编排者修正：读法B/读法乙递归每级别独立腿触发器）──
                     //   d_top[k] = 级别 k 走势真顶/真底（区间套链贯通到 a0）。use_diverge: false=走势完成链(556读法B)
-                    //   / true=背驰段链(读法乙递归)。仅 reading_b 模式需要（其余模式 d_top 全 false，bit-exact）。
-                    let d_top_arr = if self.cfg.enable_reading_b {
+                    //   / true=背驰段链(读法乙递归)。reading_b（单腿 switch 触发器）/ reading_b_pair（LegPair 链破坏 churn
+                    //   门控）两模式需要（其余模式 d_top 全 false，bit-exact）。
+                    let d_top_arr = if self.cfg.enable_reading_b || self.cfg.enable_reading_b_pair {
                         let level_trends_all: Vec<&[crate::recursive_t::types::TrendType]> = (0..MAX_LEVEL)
                             .map(|k| tree.levels.get(k).map(|lvl| lvl.trends.as_slice()).unwrap_or(&[]))
                             .collect();
@@ -1379,6 +1380,72 @@ mod tests {
         }
         println!("==================================================================\n");
         assert!(!rows.is_empty(), "至少跑出一个标的");
+    }
+
+    /// **任务57=53.1：读法B 一对多空腿（LegPair）L3 验收**（编排者重写）。
+    ///
+    /// 模型：每级别 LegPair（多腿+空腿同时在场）。开=该级别买卖点（第17课）/ 平=反向买卖点 /
+    /// 止损=否定线（进场中枢 ZG/ZD 破坏）/ 链破坏 churn 门控（第27课区间套：链完整=回调不动核心，链破坏=转折动核心）。
+    ///
+    /// 验收（编排者交付契约）：CL 跑通新腿模型——零 panic、**零强平**（否定线止损先于 NAV≤0 生效 ⇒ n_liquidations==0）、
+    /// 守恒零违反（prove_tw_neutral 每 op 不 panic = 通过）、final_nav 有限正。
+    /// 跑法：`BT_SYMBOLS=CL cargo test --release recursive_t::rec_stream::tests::prop4_reading_b_pair_l3 -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "任务57 读法B LegPair L3，需 analysis/data_cache/*.json"]
+    fn prop4_reading_b_pair_l3() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_default();
+
+        eprintln!("\n===== 任务57=53.1：读法B 一对多空腿（LegPair）L3：OFF / READING_B_PAIR（Structural）=====");
+        let variants = [
+            ("OFF", EngineConfig::off()),
+            ("RB_PAIR", EngineConfig::reading_b_pair()),
+        ];
+        let mut any = false;
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            for (vname, cfg) in variants.iter() {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let fin = s.finish();
+                assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
+                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                let r = s.driver().root();
+                if *vname == "RB_PAIR" {
+                    any = true;
+                    let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
+                    let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
+                    let lopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k]).sum();
+                    let sopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_short_opens[k]).sum();
+                    eprintln!(
+                        "[{sym:<5}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% | long_opens={lopens} short_opens={sopens} \
+                         long_pnl={long_pnl:+.0} short_pnl={short_pnl:+.0} | long_stops={} short_stops={} core_churns={} \
+                         liq={} | max_gross={:.2}× max_net={:.2}× ({:.1}s)",
+                        r.pair_long_stops, r.pair_short_stops, r.pair_core_churns, r.n_liquidations,
+                        r.max_gross_exp_x100 as f64 / 100.0, r.max_net_exp_x100 as f64 / 100.0, t0.elapsed().as_secs_f64()
+                    );
+                    // ── 验收硬断言（编排者交付契约）──
+                    assert!(fin.is_finite() && fin > 0.0, "[{sym}/RB_PAIR] final_nav 须有限正，得 {fin}");
+                    assert_eq!(r.n_liquidations, 0, "[{sym}/RB_PAIR] 零强平违反（否定线止损应先于 NAV≤0）：liq={}", r.n_liquidations);
+                    // 守恒零违反 = prove_tw_neutral 每 op 未 panic（运行到此即通过，无显式断言可加）。
+                } else {
+                    eprintln!("[{sym:<5}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% ({:.1}s)", t0.elapsed().as_secs_f64());
+                }
+            }
+        }
+        assert!(any, "至少跑出一个标的的 RB_PAIR 变体");
     }
 
     /// **BTC 牛熊段收益归因**（编排者 2026-06-21）：zigzag(40%反转)分牛熊段，逐段算引擎 TW 收益（MtM）
