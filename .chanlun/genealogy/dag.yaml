@@ -2959,6 +2959,32 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/566-team-topology-auto-spawn-gap.md
+- id: ''
+  title: 谱系结算 ≠ 蜂群认知更新——同 session 内结构工位结算未被 Lead 实时摄入（075-vs-562 误判为未结算）
+  status: 生成态
+  type: meta-rule
+  file: pending/meta-rule-role-boundary-collapse-rlhf-attractor.md
+- id: '567'
+  title: 冻结空腿（frozen short leg）= 强牛穿仓+杠杆同根——腿开平绑错信号（d_top 走势完成代理）而非买卖点+区间套自相似载体；强牛不开空=升跌完备性涌现（非硬编码）；解=父级门控（21:40）+
+    区间套关闭信号替代 d_top + 解 556
+  status: 生成态
+  type: 概念发现
+  file: pending/567-frozen-short-leg-unified-overrun-leverage-root.md
+- id: '568'
+  title: 谱系结算 ≠ 蜂群认知更新——同 session 内结构工位结算未被 Lead 实时摄入（075-vs-562 误判为未结算）
+  status: 生成态
+  type: meta-rule
+  file: pending/meta-rule-settlement-cognition-desync.md
+- id: '569'
+  title: 角色边界坍缩是 RLHF 基底的结构吸引子——能力最强节点默认吸收他位工作（统一 Lead认知/564 hook越界/565 challenger抢实装）
+  status: 生成态
+  type: meta-rule
+  file: pending/meta-rule-role-boundary-collapse-rlhf-attractor.md
+- id: '570'
+  title: 蜂群默认伸向代理量、不能自纠为本体量——代理→本体的纠正是须主体介入的亏格类（187 的方法论实例）
+  status: 生成态
+  type: meta-rule
+  file: pending/meta-rule-proxy-vs-ontology-self-correction-impossibility.md
 edges:
   depends_on:
   - from: '136'
@@ -5931,6 +5957,52 @@ edges:
     to: '562'
   - from: '566'
     to: '551'
+  - from: ''
+    to: '137'
+  - from: ''
+    to: '562'
+  - from: ''
+    to: '566'
+  - from: '567'
+    to: '556'
+  - from: '567'
+    to: '563'
+  - from: '567'
+    to: '561'
+  - from: ''
+    to: '032'
+  - from: ''
+    to: '187'
+  - from: ''
+    to: '564'
+  - from: ''
+    to: '565'
+  - from: ''
+    to: '010'
+  - from: ''
+    to: '047'
+  - from: '568'
+    to: '137'
+  - from: '568'
+    to: '562'
+  - from: '568'
+    to: '566'
+  - from: '569'
+    to: '137'
+  - from: '569'
+    to: '032'
+  - from: '569'
+    to: '187'
+  - from: '569'
+    to: '564'
+  - from: '569'
+    to: '565'
+  - from: '570'
+    to: '187'
+  - from: '570'
+    to: '010'
+  - from: '570'
+    to: '047'
   triggered:
   - from: '005'
     to: 005a
@@ -6104,6 +6176,11 @@ edges:
       §335 预注册风险 A 坐实）。读法 B 机制本身在『顶层方向对』时 work 且超 BH（ES/S 锁 Long +681.4★），问题不在每级别独立腿，在顶层方向首段冻结锁错。
   - from: '562'
     to: '075'
+  - from: '567'
+    to: 'reading_b 多重赋格（556/563）的隐含设计前提『每级别腿的开/平/翻转信号绑 d_top（走势完成链 RB_DTOP / 背驰段链
+      RB_DIVERGE）是正确的，只是顶层稀疏（556）』——被 #37+friction-model L3 精化否定：d_top 是『走势完成』的代理，而腿的合法开平依据是『买卖点（第17课）+
+      区间套（第27课）』。绑 d_top ⟹ 在 d_top 稀疏的级别（556 跨年）等不到关闭信号 ⟹ 空腿开了关不掉 = 冻结空腿 ⟹ 强牛中骑整段反转无界失血（穿仓）。d_top
+      现象（556 顶层冻结）真实存在但根因是『绑错信号』，非『信号对但稀疏』。'
   related:
   - between:
     - '001'
@@ -8022,6 +8099,87 @@ edges:
   - between:
     - '564'
     - '566'
+  - between:
+    - ''
+    - '012'
+  - between:
+    - ''
+    - '174'
+  - between:
+    - ''
+    - '017'
+  - between:
+    - ''
+    - '076'
+  - between:
+    - ''
+    - '196'
+  - between:
+    - ''
+    - '074'
+  - between:
+    - ''
+    - '562'
+  - between:
+    - ''
+    - '035'
+  - between:
+    - ''
+    - '025'
+  - between:
+    - ''
+    - 098
+  - between:
+    - ''
+    - '011'
+  - between:
+    - ''
+    - '031'
+  - between:
+    - '012'
+    - '568'
+  - between:
+    - '174'
+    - '568'
+  - between:
+    - '017'
+    - '568'
+  - between:
+    - '568'
+    - '569'
+  - between:
+    - '076'
+    - '569'
+  - between:
+    - '196'
+    - '569'
+  - between:
+    - '074'
+    - '569'
+  - between:
+    - '562'
+    - '569'
+  - between:
+    - '035'
+    - '569'
+  - between:
+    - '025'
+    - '570'
+  - between:
+    - 098
+    - '570'
+  - between:
+    - '011'
+    - '570'
+  - between:
+    - '031'
+    - '570'
+  - between:
+    - '567'
+    - '570'
+  - between:
+    - '561'
+    - '570'
   tensions_with:
   - between:
     - '007'

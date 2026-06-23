@@ -1,0 +1,329 @@
+diff --git a/rust/src/recursive_t/rec_engine.rs b/rust/src/recursive_t/rec_engine.rs
+index f9c31099b3..fe6f15584f 100644
+--- a/rust/src/recursive_t/rec_engine.rs
++++ b/rust/src/recursive_t/rec_engine.rs
+@@ -73,6 +73,11 @@ pub struct EngineConfig {
+     pub enable_nest_consume: bool,
+     /// **严格逐级区间套（任务22 开放轴C）**：construct 主翻转定位点须 loc..=top 逐级背驰段方向一致（非仅 top 武装）。
+     pub enable_nest_strict: bool,
++    /// **摩擦成本（friction-model 工位）**：每侧 taker 交易成本，单位 bps（基点）of notional。默认 0.0
++    /// ⇒ bit-exact（无成本）。每次 fill（enter/clear_all/sink/recover/drain/consume/deploy_earning）按
++    /// `notional × cost_bps_per_side/1e4` 从 free 扣除，记入 total_cost_paid。整仓翻转 = clear_all(平) +
++    /// enter(反向) = 两侧扣费 ⇒ 自动双边成本。TW 守恒升级为 (total_wealth + total_cost_paid) 守恒。
++    pub cost_bps_per_side: f64,
+ }
+ 
+ impl EngineConfig {
+@@ -86,6 +91,7 @@ impl EngineConfig {
+             enable_nest: std::env::var("T_NEST_READING_B").is_ok(),
+             enable_nest_consume: std::env::var("T_NEST_CONSUME").is_ok(),
+             enable_nest_strict: std::env::var("T_NEST_STRICT").is_ok(),
++            cost_bps_per_side: std::env::var("T_COST_BPS").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0),
+         }
+     }
+     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
+@@ -358,6 +364,18 @@ pub struct TRoot {
+     enable_nest_consume: bool,
+     /// **严格逐级区间套（任务22 开放轴C）**：construct 定位点须 loc..=top 逐级背驰段一致。OFF=false。
+     enable_nest_strict: bool,
++    /// **摩擦成本率（friction-model 工位）** = cfg.cost_bps_per_side / 1e4（每侧 taker，notional 比例）。
++    /// 0.0 ⇒ charge_cost no-op ⇒ bit-exact。
++    cost_rate: f64,
++    /// 累计已付摩擦成本（TW 守恒升级：total_wealth + total_cost_paid 守恒）。
++    pub total_cost_paid: f64,
++    /// fill 计数（每次扣费一次 = 一侧成交）。
++    pub n_fills: u64,
++    /// 累计成交名义额 Σ|Δunits|×c（摩擦计量）。
++    pub total_notional: f64,
++    /// 毛/净敞口峰值（相对 NAV，×100 整数）。单一全仓位 ⇒ ≤100（≤1×）；多腿叠加 ⇒ >100=杠杆。
++    pub max_gross_x100: u64,
++    pub max_net_x100: u64,
+     /// NEST armed 操作极性（大级别背驰段武装，跨重跑持续至 top 反转 / 翻转消费）。None=未武装。
+     nest_armed_op: Option<Polarity>,
+     /// NEST 当前背驰段窗口是否已翻转（**每窗口仅翻一次** = 读法乙区间套定位一个转折点，非读法甲全 a0 穷尽）。
+@@ -448,6 +466,12 @@ impl TRoot {
+             enable_nest: cfg.enable_nest,
+             enable_nest_consume: cfg.enable_nest_consume,
+             enable_nest_strict: cfg.enable_nest_strict,
++            cost_rate: cfg.cost_bps_per_side / 1e4,
++            total_cost_paid: 0.0,
++            n_fills: 0,
++            total_notional: 0.0,
++            max_gross_x100: 0,
++            max_net_x100: 0,
+             nest_armed_op: None,
+             nest_consumed: false,
+             n_enters: 0,
+@@ -515,8 +539,52 @@ impl TRoot {
+         self.nav(c) + self.withdrawn
+     }
+ 
++    /// **TW 守恒基准（含已付摩擦成本）** = total_wealth + total_cost_paid。摩擦成本是有意的财富流出，
++    /// 不是会计泄漏：TW 守恒守卫验证的是「仓位转移本身 NAV 中性」。引入成本后，财富要么留在账户、要么
++    /// 已作为成本付出 ⇒ (total_wealth + total_cost_paid) 才是守恒量。cost_rate=0 ⇒ total_cost_paid=0
++    /// ⇒ tw_base == total_wealth（bit-exact）。
++    fn tw_base(&self, c: f64) -> f64 {
++        self.total_wealth(c) + self.total_cost_paid
++    }
++
++    /// **扣摩擦成本（friction-model 工位）**：每侧 taker 成本 = notional × cost_rate，从 free 扣，记
++    /// total_cost_paid。cost_rate=0 ⇒ 立即 return（bit-exact 守住）。在每个 fill 点调用（enter/clear_all/
++    /// sink/recover/drain/consume/deploy_earning）；整仓翻转 = clear_all + enter ⇒ 自动双边成本。
++    fn charge_cost(&mut self, notional: f64) {
++        if self.cost_rate <= 0.0 || !notional.is_finite() || notional <= 0.0 {
++            return;
++        }
++        let cost = notional * self.cost_rate;
++        self.free -= cost;
++        self.total_cost_paid += cost;
++        self.total_notional += notional;
++        self.n_fills += 1;
++    }
++
++    /// **杠杆验收（friction-model 工位）**：毛敞口 Σ|u·c| / 净敞口 |Σ sign(d)·u·c| 相对 NAV 的峰值。
++    /// 单一全仓位（nest/consume）⇒ gross=net≈1×；多腿叠加（多空同时持有）⇒ gross>net 且 >1×=杠杆。
++    fn update_exposure(&mut self, c: f64) {
++        if !(c.is_finite() && c > 0.0) {
++            return;
++        }
++        let (mut gross, mut net) = (0.0f64, 0.0f64);
++        for inst in &self.instances {
++            if inst.units > EPS {
++                let notional = inst.units * c;
++                gross += notional;
++                net += match inst.direction {
++                    Polarity::Long => notional,
++                    Polarity::Short => -notional,
++                };
++            }
++        }
++        let nav = self.nav(c).max(1.0);
++        self.max_gross_x100 = self.max_gross_x100.max((gross / nav * 100.0).max(0.0) as u64);
++        self.max_net_x100 = self.max_net_x100.max((net.abs() / nav * 100.0).max(0.0) as u64);
++    }
++
+     fn prove_tw_neutral(&self, tw_pre: f64, c: f64) {
+-        let tw_post = self.total_wealth(c);
++        let tw_post = self.tw_base(c);
+         let tol = 1e-4 * tw_pre.abs().max(1.0);
+         assert!(
+             (tw_post - tw_pre).abs() <= tol,
+@@ -658,6 +726,7 @@ impl TRoot {
+         let mut free = self.free;
+         rec_add(&mut self.instances[core], q, Polarity::Long, &mut free, c);
+         self.free = free;
++        self.charge_cost(q * c); // 摩擦：增股数部署 taker 成本
+         self.earning_cash -= q * c;
+         self.n_earning_deploys += 1;
+         self.earning_units_added += q;
+@@ -692,6 +761,7 @@ impl TRoot {
+         let mut free = self.free;
+         rec_add(&mut self.instances[level], m, dir, &mut free, c);
+         self.free = free;
++        self.charge_cost(spent); // 摩擦：建仓侧 taker 成本（spent = 名义额）
+         self.instances[level].node = node;
+         self.instances[level].level = level;
+         // ANCHOR（552号 HOLD_ANCHOR）：核心建仓即划趋势底仓 = m×(1−MOBILE_FRAC)=m×2/3，机动仓 = m/3。
+@@ -716,15 +786,18 @@ impl TRoot {
+     fn clear_all(&mut self, c: f64) {
+         self.guards.note_op("clear_all"); // prove_bsp_triggers_operation（panic）
+         let mut free = self.free;
++        let mut closed_notional = 0.0f64; // 摩擦：累计平仓名义额（全塔逐层）
+         for k in 0..MAX_LEVEL {
+             let u = self.instances[k].units;
+             if u > 1e-12 {
++                closed_notional += u * c;
+                 rec_reduce(&mut self.instances[k], u, &mut free, c);
+             }
+             // ANCHOR：全塔平仓 ⇒ 无趋势底仓存活，清 anchor 防僵尸残值。OFF 时 anchor 恒 0，置 0 = no-op（bit-exact）。
+             self.instances[k].anchor = 0.0;
+         }
+         self.free = free;
++        self.charge_cost(closed_notional); // 摩擦：平仓侧 taker 成本
+         self.reset_campaign();
+     }
+ 
+@@ -797,11 +870,12 @@ impl TRoot {
+         // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=u_P×MOBILE_FRAC。
+         prove_sink_descends(parent, sub, self.cur_bar);
+         prove_sigma_quota(m, mob_base, sub, self.cur_bar); // anchor OFF ⇒ mob_base=u_p（bit-exact）
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         let mut free = self.free;
+         let realized = rec_reduce(&mut self.instances[parent], m, &mut free, c);
+         rec_add(&mut self.instances[sub], short_u, mob, &mut free, c);
+         self.free = free;
++        self.charge_cost(m * c + short_u * c); // 摩擦：父减仓 + 子开短差两侧 taker 成本
+         self.instances[sub].node = sub_node;
+         self.instances[sub].level = sub;
+         self.account_reduce(pdir, realized, c);
+@@ -838,11 +912,12 @@ impl TRoot {
+         }
+         // 移植守卫（L0）：recover 升回与 sink 向心配对，同守 sub<parent（次级别走势完成升回父级）。
+         prove_sink_descends(parent, sub, self.cur_bar);
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         let mut free = self.free;
+         let realized = rec_reduce(&mut self.instances[sub], m, &mut free, c);
+         rec_add(&mut self.instances[parent], give, pdir, &mut free, c);
+         self.free = free;
++        self.charge_cost(m * c + give * c); // 摩擦：平短差 + 升回核心两侧 taker 成本
+         self.account_reduce(mob, realized, c);
+         if sub < MAX_LEVEL {
+             self.short_pnl_by_level[sub] += realized; // 短差腿 per-level（验收哪级别亏）
+@@ -876,10 +951,11 @@ impl TRoot {
+         let jdir = self.instances[j].direction;
+         // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=mob_base×MOBILE_FRAC，级别无关；mob_base=u 当 anchor=0）。
+         prove_sigma_quota(m, mob_base, j, self.cur_bar);
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         let mut free = self.free;
+         let realized = rec_reduce(&mut self.instances[j], m, &mut free, c);
+         self.free = free;
++        self.charge_cost(m * c); // 摩擦：减暴露 taker 成本
+         self.account_reduce(jdir, realized, c);
+         self.n_drains += 1;
+         self.guards.note_op("drain"); // prove_bsp_triggers_operation（panic）
+@@ -1089,8 +1165,9 @@ impl TRoot {
+             self.cur_max_c = if self.cur_max_c.is_finite() { self.cur_max_c.max(c) } else { c };
+         }
+         self.last_close = c;
++        self.update_exposure(c); // 杠杆验收（friction-model）：毛/净敞口峰值相对 NAV（单仓 ⇒ ≤1×）
+         self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+ 
+         // ── A. 边界算子：保证金强平，按三阶段切换（= flat）──
+         match self.stage {
+diff --git a/rust/src/recursive_t/rec_stream.rs b/rust/src/recursive_t/rec_stream.rs
+index 45c69eba92..06e222e003 100644
+--- a/rust/src/recursive_t/rec_stream.rs
++++ b/rust/src/recursive_t/rec_stream.rs
+@@ -1386,6 +1386,127 @@ mod tests {
+         assert!(!rows.is_empty());
+     }
+ 
++    /// **friction-model 工位 L3：摩擦+杠杆调整钉死 prop4 突破真伪**。
++    ///
++    /// 对每标的，跑 OFF/ANCHOR/NEST_CONS（=双向 consume，CL+1429% 头条）在 cost=0（复现+量杠杆/fills）
++    /// 与 per-标的真实 taker 成本（每次 fill 扣 notional×bps/侧；整仓翻转=clear_all+enter=双边）。
++    /// 报告：strat%(cost0)/strat%(costR)/BH、max_gross/max_net 杠杆、total_cost_paid、n_fills、
++    /// 杠杆调整收益（strat%/max_net）。判定 CL range alpha 残存 + 哪些标的摩擦+杠杆后仍真 alpha。
++    /// 跑法：`BT_SYMBOLS=CL cargo test --release recursive_t::rec_stream::tests::prop4_friction_leverage_l3 -- --exact --ignored --nocapture`
++    #[test]
++    #[ignore = "friction-model L3 全量回测，需 analysis/data_cache/*.json"]
++    fn prop4_friction_leverage_l3() {
++        use super::super::rec_engine::EngineConfig;
++        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
++        use std::path::PathBuf;
++
++        // ── per-标的 taker 成本（bps/侧）：memory project_cl_1s_maker_execution_verdict + 流动性分级 ──
++        //   CL 盈亏平衡 0.58–1.45bps/侧 → 1.0；ES/QQQ 最流动 → 0.75；油/金/美元 → 1.0–1.5；
++        //   BTC 加密 taker ≈ 5；OKLO 小盘新股宽价差 → 10。env T_COST_BPS 覆盖（敏感性分析）。
++        let cost_of = |sym: &str| -> f64 {
++            if let Ok(v) = std::env::var("T_COST_BPS").map(|s| s.parse::<f64>().unwrap_or(0.0)) {
++                if v > 0.0 { return v; }
++            }
++            match sym {
++                "CL" => 1.0, "BRN" => 1.5, "DX" => 1.0, "GC" => 1.0,
++                "ES" => 0.75, "QQQ" => 0.75, "BTC" => 5.0, "OKLO" => 10.0,
++                _ => 1.0,
++            }
++        };
++
++        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
++            .parent().unwrap().join("analysis/data_cache");
++        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
++            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
++            .unwrap_or_default();
++
++        struct Row {
++            sym: String, bh: f64, costbps: f64,
++            off: f64, anchor: f64,            // 低换手基线（真实成本）
++            cons0: f64, consc: f64,           // NEST_CONS cost0 / costReal
++            gross: f64, net: f64,             // NEST_CONS 杠杆峰值
++            fills: u64, cost_paid: f64, consumes: u64, liq: u64,
++        }
++        let mut rows: Vec<Row> = Vec::new();
++        eprintln!("\n===== friction-model L3：OFF/ANCHOR/NEST_CONS × (cost0/costReal)（Structural）=====");
++
++        for (sym, file) in SYMBOLS {
++            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
++            let path = data_dir.join(file);
++            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
++            let (o, h, l, c) = load_clean_ohlc(&path);
++            let n = c.len();
++            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
++            let cb = cost_of(sym);
++
++            // helper：跑一个变体（给定 cfg 已设好 cost），返回 (strat%, gross×, net×, fills, cost_paid, consumes, liq)
++            let run = |cfg: EngineConfig| -> (f64, f64, f64, u64, f64, u64, u64) {
++                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
++                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
++                let fin = s.finish();
++                let r = s.driver().root();
++                (
++                    (fin / INITIAL_CAPITAL - 1.0) * 100.0,
++                    r.max_gross_x100 as f64 / 100.0,
++                    r.max_net_x100 as f64 / 100.0,
++                    r.n_fills, r.total_cost_paid, r.n_nest_consumes, r.n_liquidations,
++                )
++            };
++
++            let t0 = std::time::Instant::now();
++            // OFF / ANCHOR @ 真实成本（低换手，cost 影响小，诚实带成本）
++            let mut off_cfg = EngineConfig::off(); off_cfg.cost_bps_per_side = cb;
++            let (off, ..) = run(off_cfg);
++            let mut anc_cfg = EngineConfig::anchor(); anc_cfg.cost_bps_per_side = cb;
++            let (anchor, ..) = run(anc_cfg);
++            // NEST_CONS @ cost0（复现 CL+1429% 头条 + 量杠杆/fills）
++            let mut c0 = EngineConfig::nest_consume(); c0.cost_bps_per_side = 0.0;
++            let (cons0, g0, nt0, f0, _cp0, k0, lq0) = run(c0);
++            // NEST_CONS @ 真实成本（摩擦判决）
++            let mut cR = EngineConfig::nest_consume(); cR.cost_bps_per_side = cb;
++            let (consc, gR, ntR, fR, cpR, kR, lqR) = run(cR);
++
++            eprintln!(
++                "[{sym:<5}] BH={:+.1}% | OFF={:+.1}% ANCHOR={:+.1}% | NEST_CONS cost0={:+.1}% costR({:.2}bps)={:+.1}% \
++                 | maxGross={:.2}× maxNet={:.2}× | fills0={} fillsR={} cost_paid=${:.0} consumes={} liq={} ({:.0}s)",
++                bh, off, anchor, cons0, cb, consc, g0.max(gR), nt0.max(ntR), f0, fR, cpR, kR, lqR, t0.elapsed().as_secs_f64()
++            );
++            rows.push(Row {
++                sym: sym.to_string(), bh, costbps: cb,
++                off, anchor, cons0, consc,
++                gross: g0.max(gR), net: nt0.max(ntR),
++                fills: fR, cost_paid: cpR, consumes: kR.max(k0), liq: lqR,
++            });
++        }
++
++        println!("\n===== friction-model L3 矩阵（strat%，* 超 BH；杠杆调整 = NEST_CONS_costR / max_net）=====");
++        println!("{:<6} {:>9} {:>9} {:>9} {:>13} {:>13} {:>8} {:>8} {:>11} {:>12}",
++            "标的", "BH", "OFF", "ANCHOR", "NESTC_cost0", "NESTC_costR", "gross×", "net×", "lev_adj%", "cost_drag_pp");
++        for r in &rows {
++            let mk = |x: f64| if x > r.bh { "*" } else { " " };
++            let lev_adj = if r.net > 0.01 { r.consc / r.net } else { r.consc }; // 一阶杠杆调整（L2 估计）
++            let drag = r.cons0 - r.consc; // 摩擦侵蚀（pp）
++            println!("{:<6} {:>+8.1}% {:>+8.1}%{} {:>+8.1}%{} {:>+11.1}%{} {:>+11.1}%{} {:>7.2} {:>7.2} {:>+10.1}%{} {:>+11.1}",
++                r.sym, r.bh, r.off, mk(r.off), r.anchor, mk(r.anchor), r.cons0, mk(r.cons0),
++                r.consc, mk(r.consc), r.gross, r.net, lev_adj, mk(lev_adj), drag);
++        }
++        // ── fills/成本细分 ──
++        println!("\n----- 摩擦细分（NEST_CONS @ 真实成本）-----");
++        println!("{:<6} {:>8} {:>10} {:>12} {:>14} {:>8} {:>8}", "标的", "cost_bps", "n_fills", "cost_paid$", "consumes", "liq", "net×");
++        for r in &rows {
++            println!("{:<6} {:>8.2} {:>10} {:>12.0} {:>14} {:>8} {:>8.2}",
++                r.sym, r.costbps, r.fills, r.cost_paid, r.consumes, r.liq, r.net);
++        }
++        // ── P1（超 BH）计数：cost0 vs costR vs lev_adj ──
++        let p1_c0 = rows.iter().filter(|r| r.cons0 > r.bh).count();
++        let p1_cr = rows.iter().filter(|r| r.consc > r.bh).count();
++        let p1_lev = rows.iter().filter(|r| (if r.net > 0.01 { r.consc / r.net } else { r.consc }) > r.bh).count();
++        println!("\n----- P1（NEST_CONS 超 BH）：cost0={} costReal={} lev_adj={} （n={}）-----",
++            p1_c0, p1_cr, p1_lev, rows.len());
++        println!("==================================================================\n");
++        assert!(!rows.is_empty());
++    }
++
+     /// **BTC 牛熊段收益归因**（编排者 2026-06-21）：zigzag(40%反转)分牛熊段，逐段算引擎 TW 收益（MtM）
+     /// vs BH，段内短差 pnl + 强平落点（牛/熊段）。Structural 模式。诊断纯观测（不改引擎/不影响 bit-exact）。
+     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::btc_bull_bear_segments -- --exact --ignored --nocapture`

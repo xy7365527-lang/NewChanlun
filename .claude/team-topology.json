@@ -128,5 +128,37 @@
         "trigger": "pattern-buffer 达标"
       }
     ]
+  },
+
+  "spawn_mandate": {
+    "description": "(c) 生产端机制化（#41，约束4=093号硬约束）：Lead spawn 每个业务工位时，prompt 必须注入本 template，强制工位第一步 invoke sub-swarm-ceremony 评估分解。固化为结构数据（autocompact 后失效的是 prose 声明，结构数据由 Stop-Guard (c)spawn 路由读取为单一源）。#35=消费端机制化（Lead 扫无主任务 spawn）；本字段=生产端机制化（工位布设子 DAG）。第二轮（#41 扩展 2026-06-23）：补 spawn 基因（073a/274号）+ 递归判断块（原则15）+ 自动触发严格形式（075号 event_skill_map）。第三轮（#55 2026-06-23）：注入反 idle 条款——teammate 生命周期=任务生命周期，完成即 SendMessage parent_callback 汇报 + 声明 ready-for-shutdown 不 idle，实际 shutdown 释放 pty 是 Lead 职责（Stop-Guard idle 检测路由强制）。",
+    "genealogy_ref": "069-rtas-two-gaps, 073a-spawn-genes, 093-heterogeneous-audit-constraint4, 095-recursive-swarm, 097-four-node-dag, 137-positive-format-mechanism, 016-no-code-no-enforce, 075-event-skill-map, 274-topo-address-parent-callback, 原则15-真递归默认, 055-anti-idle-lifecycle, (c)裁决-20260623",
+    "genes": {
+      "description": "每次 Lead spawn 的 Agent prompt 必须携带两基因（073a/274号）。工位 TaskCreate 子任务时，子任务 metadata 必须继承/派生这两基因，使全局 DAG 拓扑可追溯。",
+      "topo_address": "节点在 DAG 中的拓扑坐标（如 L0.41.6——母任务.子任务路径）。子任务的 topo_address = 父 topo_address + 子序号。",
+      "parent_callback": "父节点回调目标——完成后 SendMessage 的对象（父工位名 或 main/team-lead）。子任务的 parent_callback = 本工位名。"
+    },
+    "recursion_block": "原则15 真递归默认模式：每个被 spawn 工位第一步必须 invoke sub-swarm-ceremony skill 评估是否 ≥2 独立子工作——是则 TaskCreate 四类节点子 DAG，否则在报告写明不可分解理由（扁平退化是需声明的特例，不是默认）。",
+    "event_skill_map": {
+      "description": "075号事件→工位类型映射（SINGLE SOURCE——template 只引用本字段，不复制具体映射，避免 drift；codex 第二轮 C/D 修复）。自动触发严格形式（见 auto_trigger_strict_form）：工位产出触发事件时，TaskCreate 一个带对应 metadata.agent_type 的无主跟进任务，由 (c) 循环 spawn。hook 不能 spawn（创世 Gap），故载体是 TaskCreate（生产端）+ Lead (c)spawn（消费端）。映射可扩展，新增事件直接加键。",
+      "code_change_any": ["code-verifier", "code-reviewer"],
+      "code_change_python": ["python-reviewer"],
+      "security_sensitive_change": ["security-reviewer"],
+      "build_failure": ["build-error-resolver"],
+      "dead_code_accumulation": ["refactor-cleaner"],
+      "concept_discovery": ["genealogist"],
+      "definition_submit": ["gemini-challenger"],
+      "code_produced_needs_audit": ["codex-challenger"],
+      "docs_contract_change": ["doc-updater"],
+      "topology_change": ["topology-manager"],
+      "pattern_buffer_threshold": ["skill-crystallizer"],
+      "source_authority_doubt": ["source-auditor"],
+      "methodology_insight": ["meta-observer"]
+    },
+    "auto_trigger_strict_form": "no-workaround 严格形式（编排者 C 要求）：'自动触发' ≠ teammate 自 spawn（harness flat-roster 硬禁，teammate 不能 spawn teammate=已上浮 spec-execution gap，swarm-mechanism-fix-20260623）。严格形式 = Lead 事件驱动 spawn，机制化为：结构工位由 check1.5 强制常设存在 + 事件→TaskCreate(metadata.agent_type)→(c) 循环 spawn 跟进；按需工位同理走 (c) 循环。不假装 teammate 自涌现——载体是 TaskCreate（任何工位）+ Lead 唯一 spawn 源。",
+    "anti_idle": "反 idle 生命周期（#55，069号 RTAS 两 Gap + 137号正面格式）：业务工位生命周期 = 任务生命周期。工位完成其任务后必须 SendMessage parent_callback 汇报产出 + 显式声明 'ready-for-shutdown'，不 idle 等待新任务。no-workaround 严格形式——harness 无法让 teammate 自消亡（flat roster 无自 shutdown 工具），故 teammate 职责止于'声明 ready-for-shutdown'，实际 shutdown 释放 pty 是 Lead 职责（Lead 消费汇报后 shutdown，由 Stop-Guard 检查2.5 idle 检测路由强制——不假装 teammate 自消亡）。(c) 循环不复用 idle 工位：新无主任务 spawn 新 teammate（非复活 idle）。结构工位（meta-lead/genealogist/quality-guard/code-verifier/meta-observer/topology-manager 常设）例外——其生命周期 = 蜂群生命周期，由 check1.5 强制存在，不适用任务生命周期，不被 idle 检测 flag。",
+    "template": "【spawn 基因(073a/274)】Lead spawn 时 prompt 必须注入 topo_address（DAG 拓扑坐标如 L0.41.6）+ parent_callback（完成 SendMessage 的父工位/main）。【递归判断(原则15)】第一步 invoke sub-swarm-ceremony skill（Read .claude/skills/sub-swarm-ceremony/SKILL.md）评估能否分解为 ≥2 独立子工作；能 → 按四类节点模板 TaskCreate 子 DAG：任务节点(≥2,unowned,子任务 metadata 带 topo_address 子坐标+parent_callback=本工位)+审查节点(blockedBy 任务,异工位执行=约束3)+异质审计节点(blockedBy 审查,metadata.agent_type=codex-challenger/gemini-challenger,约束4 硬节点不可省否则封闭自证循环)+结晶节点(blockedBy 异质审计,落盘 .chanlun/+SendMessage parent_callback)；原子→报告写明理由。【自动触发严格形式(075)】产出触发事件时，按 spawn_mandate.event_skill_map（单一源，不在此复制具体映射）查对应 metadata.agent_type → TaskCreate 无主跟进任务 → (c)循环 spawn（非 teammate 自 spawn；载体=TaskCreate+Lead 唯一 spawn 源）。纯行动类(018四分法)可标注 audit_exempt 免除异质审计。【反 idle(#55,见 spawn_mandate.anti_idle)】完成任务后 SendMessage parent_callback 汇报产出 + 显式声明 'ready-for-shutdown' 不 idle（teammate 生命周期=任务生命周期；harness 无自 shutdown 工具→teammate 职责止于声明，实际 shutdown 释放 pty 由 Lead 消费汇报后执行=Stop-Guard 检查2.5 强制；(c) 循环不复用 idle 起新 teammate；结构工位常设例外）。",
+    "exemption": "纯行动类（018号四分法：不携带信息差的操作性事件，如数据清洗/格式转换/构建配置）可在子任务描述显式标注 'audit_exempt: 行动类' 免除异质审计节点；定义/分析/判决/L2+L3 实证类（携带概念信息差，结论可被异质质询翻转）不可免除。",
+    "consumed_by": ".claude/hooks/ceremony-completion-guard.sh 检查2 (c)spawn 路由（读 spawn_mandate.template 作单一源，缺失时用降级 fallback；template 含反 idle 条款=#55 注入端）+ 检查2.5 idle 检测路由（completed 任务 owner 仍 isActive=True 且无活跃任务 → 路由 Lead shutdown 释放 pty；结构工位排除）"
   }
 }

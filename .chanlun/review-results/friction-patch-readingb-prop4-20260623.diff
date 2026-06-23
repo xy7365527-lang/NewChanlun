@@ -1,0 +1,453 @@
+diff --git a/rust/src/recursive_t/rec_engine.rs b/rust/src/recursive_t/rec_engine.rs
+index 7beed2f96e..75efffab9d 100644
+--- a/rust/src/recursive_t/rec_engine.rs
++++ b/rust/src/recursive_t/rec_engine.rs
+@@ -75,6 +75,11 @@ pub struct EngineConfig {
+     pub enable_reading_b: bool,
+     /// 读法B 触发器：false=走势完成链（556 读法B 基线）/ true=背驰段链（读法乙递归，触发更频繁可能解冻顶层）。
+     pub reading_b_diverge: bool,
++    /// **摩擦成本（friction-model 工位）**：每侧 taker 交易成本，单位 bps（基点）of notional。默认 0.0
++    /// ⇒ bit-exact。每次 fill（enter/clear_all/sink/recover/drain/open_leg/close_leg/deploy_earning）按
++    /// `notional × cost_bps_per_side/1e4` 从 free 扣，记 total_cost_paid。reading_b 腿 switch=close_leg+
++    /// open_leg=双边成本。TW 守恒升级为 (total_wealth + total_cost_paid) 守恒。
++    pub cost_bps_per_side: f64,
+ }
+ 
+ impl EngineConfig {
+@@ -90,6 +95,7 @@ impl EngineConfig {
+             enable_nest_strict: std::env::var("T_NEST_STRICT").is_ok(),
+             enable_reading_b: std::env::var("T_READING_B").is_ok(),
+             reading_b_diverge: std::env::var("T_READING_B_DIVERGE").is_ok(),
++            cost_bps_per_side: std::env::var("T_COST_BPS").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0),
+         }
+     }
+     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
+@@ -441,6 +447,29 @@ pub struct TRoot {
+     /// **读法B/读法乙递归（任务18）**：每级别独立腿 + 触发器。enable_reading_b=true ⇒ on_bar 走 consume_legs。
+     enable_reading_b: bool,
+     reading_b_diverge: bool,
++    /// **摩擦成本率（friction-model 工位）** = cfg.cost_bps_per_side / 1e4。0.0 ⇒ charge_cost no-op（bit-exact）。
++    cost_rate: f64,
++    /// 累计已付摩擦成本（TW 守恒升级：total_wealth + total_cost_paid 守恒）。
++    pub total_cost_paid: f64,
++    /// fill 计数 + 累计成交名义额（摩擦计量）。
++    pub n_fills: u64,
++    pub total_notional: f64,
++    /// **平均敞口（friction-model 杠杆归一）**：在持仓 bar 累计 net/nav 与 gross/nav（×100）+ 样本数。
++    /// 峰值杠杆只给去杠杆收益的下界（strat/peak）；均值杠杆给更紧的去杠杆估计（strat/mean_net）。
++    pub exp_net_sum_x100: f64,
++    pub exp_gross_sum_x100: f64,
++    pub exp_samples: u64,
++    /// **假空腿诊断（friction-model 根因）**：reading_b 每级别腿方向时序统计。
++    /// leg_bars_long/short[k]=该级别腿活跃在多/空的 bar 数；最高活跃级别腿是否在牛市变 Short（第21课:40）。
++    pub leg_bars_long: [u64; MAX_LEVEL],
++    pub leg_bars_short: [u64; MAX_LEVEL],
++    /// 当前 bar 的「最高活跃级别腿」为 Short 的 bar 数 / 该级别腿活跃总 bar 数（=最高级别假空腿占比）。
++    pub top_leg_short_bars: u64,
++    pub top_leg_active_bars: u64,
++    /// 最高活跃级别腿为 Short 的累计 per-bar MtM 浮亏样本（诊断高级别空腿失血）。
++    pub max_active_lvl_seen: usize,
++    /// 腿开仓事件日志 (级别, bar, is_short, 开仓价)——查最高级别腿在何 bar/价 开空（vs 牛市起止价）。
++    pub leg_events: Vec<(usize, i64, bool, f64)>,
+     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
+     legs: Vec<Leg>,
+     /// 读法B 每级别 per-level realized pnl（验收哪级别腿赚/亏）。
+@@ -537,6 +566,19 @@ impl TRoot {
+             nest_consumed: false,
+             enable_reading_b: cfg.enable_reading_b,
+             reading_b_diverge: cfg.reading_b_diverge,
++            cost_rate: cfg.cost_bps_per_side / 1e4,
++            total_cost_paid: 0.0,
++            n_fills: 0,
++            total_notional: 0.0,
++            exp_net_sum_x100: 0.0,
++            exp_gross_sum_x100: 0.0,
++            exp_samples: 0,
++            leg_bars_long: [0; MAX_LEVEL],
++            leg_bars_short: [0; MAX_LEVEL],
++            top_leg_short_bars: 0,
++            top_leg_active_bars: 0,
++            max_active_lvl_seen: 0,
++            leg_events: Vec::new(),
+             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
+             per_level_long_pnl: [0.0; MAX_LEVEL],
+             per_level_short_pnl: [0.0; MAX_LEVEL],
+@@ -615,8 +657,28 @@ impl TRoot {
+         self.nav(c) + self.withdrawn
+     }
+ 
++    /// **TW 守恒基准（含已付摩擦成本）** = total_wealth + total_cost_paid。摩擦是有意财富流出非会计泄漏：
++    /// TW 守恒守卫验证「仓位转移 NAV 中性」，引入成本后 (total_wealth + total_cost_paid) 才是守恒量。
++    /// cost_rate=0 ⇒ total_cost_paid=0 ⇒ == total_wealth（bit-exact）。
++    fn tw_base(&self, c: f64) -> f64 {
++        self.total_wealth(c) + self.total_cost_paid
++    }
++
++    /// **扣摩擦成本（friction-model 工位）**：每侧 taker = notional × cost_rate，从 free 扣，记 total_cost_paid。
++    /// cost_rate=0 ⇒ 立即 return（bit-exact）。reading_b 腿 switch=close_leg+open_leg ⇒ 自动双边成本。
++    fn charge_cost(&mut self, notional: f64) {
++        if self.cost_rate <= 0.0 || !notional.is_finite() || notional <= 0.0 {
++            return;
++        }
++        let cost = notional * self.cost_rate;
++        self.free -= cost;
++        self.total_cost_paid += cost;
++        self.total_notional += notional;
++        self.n_fills += 1;
++    }
++
+     fn prove_tw_neutral(&self, tw_pre: f64, c: f64) {
+-        let tw_post = self.total_wealth(c);
++        let tw_post = self.tw_base(c);
+         let tol = 1e-4 * tw_pre.abs().max(1.0);
+         assert!(
+             (tw_post - tw_pre).abs() <= tol,
+@@ -758,6 +820,7 @@ impl TRoot {
+         let mut free = self.free;
+         rec_add(&mut self.instances[core], q, Polarity::Long, &mut free, c);
+         self.free = free;
++        self.charge_cost(q * c); // 摩擦：增股数部署 taker 成本
+         self.earning_cash -= q * c;
+         self.n_earning_deploys += 1;
+         self.earning_units_added += q;
+@@ -792,6 +855,7 @@ impl TRoot {
+         let mut free = self.free;
+         rec_add(&mut self.instances[level], m, dir, &mut free, c);
+         self.free = free;
++        self.charge_cost(spent); // 摩擦：建仓侧 taker 成本
+         self.instances[level].node = node;
+         self.instances[level].level = level;
+         // ANCHOR（552号 HOLD_ANCHOR）：核心建仓即划趋势底仓 = m×(1−MOBILE_FRAC)=m×2/3，机动仓 = m/3。
+@@ -812,15 +876,18 @@ impl TRoot {
+     fn clear_all(&mut self, c: f64) {
+         self.guards.note_op("clear_all"); // prove_bsp_triggers_operation（panic）
+         let mut free = self.free;
++        let mut closed_notional = 0.0f64; // 摩擦：累计平仓名义额
+         for k in 0..MAX_LEVEL {
+             let u = self.instances[k].units;
+             if u > 1e-12 {
++                closed_notional += u * c;
+                 rec_reduce(&mut self.instances[k], u, &mut free, c);
+             }
+             // ANCHOR：全塔平仓 ⇒ 无趋势底仓存活，清 anchor 防僵尸残值。OFF 时 anchor 恒 0，置 0 = no-op（bit-exact）。
+             self.instances[k].anchor = 0.0;
+         }
+         self.free = free;
++        self.charge_cost(closed_notional); // 摩擦：平仓侧 taker 成本
+         self.reset_campaign();
+     }
+ 
+@@ -893,11 +960,12 @@ impl TRoot {
+         // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=u_P×MOBILE_FRAC。
+         prove_sink_descends(parent, sub, self.cur_bar);
+         prove_sigma_quota(m, mob_base, sub, self.cur_bar); // anchor OFF ⇒ mob_base=u_p（bit-exact）
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         let mut free = self.free;
+         let realized = rec_reduce(&mut self.instances[parent], m, &mut free, c);
+         rec_add(&mut self.instances[sub], short_u, mob, &mut free, c);
+         self.free = free;
++        self.charge_cost(m * c + short_u * c); // 摩擦：父减仓 + 子开短差两侧 taker 成本
+         self.instances[sub].node = sub_node;
+         self.instances[sub].level = sub;
+         self.account_reduce(pdir, realized, c);
+@@ -934,11 +1002,12 @@ impl TRoot {
+         }
+         // 移植守卫（L0）：recover 升回与 sink 向心配对，同守 sub<parent（次级别走势完成升回父级）。
+         prove_sink_descends(parent, sub, self.cur_bar);
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         let mut free = self.free;
+         let realized = rec_reduce(&mut self.instances[sub], m, &mut free, c);
+         rec_add(&mut self.instances[parent], give, pdir, &mut free, c);
+         self.free = free;
++        self.charge_cost(m * c + give * c); // 摩擦：平短差 + 升回核心两侧 taker 成本
+         self.account_reduce(mob, realized, c);
+         if sub < MAX_LEVEL {
+             self.short_pnl_by_level[sub] += realized; // 短差腿 per-level（验收哪级别亏）
+@@ -972,10 +1041,11 @@ impl TRoot {
+         let jdir = self.instances[j].direction;
+         // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=mob_base×MOBILE_FRAC，级别无关；mob_base=u 当 anchor=0）。
+         prove_sigma_quota(m, mob_base, j, self.cur_bar);
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         let mut free = self.free;
+         let realized = rec_reduce(&mut self.instances[j], m, &mut free, c);
+         self.free = free;
++        self.charge_cost(m * c); // 摩擦：减暴露 taker 成本
+         self.account_reduce(jdir, realized, c);
+         self.n_drains += 1;
+         self.guards.note_op("drain"); // prove_bsp_triggers_operation（panic）
+@@ -1076,13 +1146,15 @@ impl TRoot {
+         if !(m > 1e-12 && m.is_finite()) {
+             return;
+         }
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         match dir {
+             Polarity::Long => self.free -= m * c,
+             Polarity::Short => self.free += m * c,
+         }
+         self.legs[k] = Leg { level: k, direction: dir, units: m, basis: c, riding_node: node, active: true };
+         self.leg_opens_by_level[k] += 1;
++        self.leg_events.push((k, self.cur_bar, dir == Polarity::Short, c)); // 诊断：开腿事件 (级别,bar,做空?,开仓价)
++        self.charge_cost(m * c); // 摩擦：开腿侧 taker 成本（reading_b 几何塔）
+         self.guards.note_op("open_leg");
+         prove_leg_isolation(&fp_pre, &self.snapshot_fingerprints(), k);
+         self.prove_tw_neutral(tw_pre, c);
+@@ -1099,7 +1171,7 @@ impl TRoot {
+             Polarity::Long => leg.units * (c - leg.basis),
+             Polarity::Short => leg.units * (leg.basis - c),
+         };
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         match leg.direction {
+             Polarity::Long => {
+                 self.free += leg.units * c;
+@@ -1111,6 +1183,7 @@ impl TRoot {
+             }
+         }
+         self.legs[k] = Leg::idle(k);
++        self.charge_cost(leg.units * c); // 摩擦：平腿侧 taker 成本（reading_b 几何塔）
+         self.guards.note_op("close_leg");
+         prove_leg_isolation(&fp_pre, &self.snapshot_fingerprints(), k);
+         self.prove_tw_neutral(tw_pre, c);
+@@ -1307,7 +1380,7 @@ impl TRoot {
+             return;
+         }
+         self.guards.set_trigger(OpTrigger::Bsp); // 次级别背驰段定位 = 合法 BSP 触发源
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+         let mut free = self.free;
+         let realized = rec_reduce(&mut self.instances[cc], m, &mut free, c);
+         self.free = free;
+@@ -1324,7 +1397,7 @@ impl TRoot {
+         self.cur_bar = bar;
+         self.last_close = c;
+         self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
+-        let tw_pre = self.total_wealth(c);
++        let tw_pre = self.tw_base(c);
+ 
+         // ── 读法B/读法乙递归分叉（任务18 编排者修正）：ON ⟹ 每级别独立腿骑走势消费 d_top（删 sink/recover/
+         //   ascend/clear_all/三阶段——每级别独立骑乘取代跨级短差）。OFF ⟹ instances 路径逐字不动（bit-exact）。
+@@ -1344,6 +1417,24 @@ impl TRoot {
+                 }
+             }
+             self.consume_legs(view, c);
++            // ── 假空腿诊断（friction-model 根因）：per-级别腿方向 + 最高活跃级别是否 Short ──
++            let mut top_active: Option<usize> = None;
++            for k in 0..MAX_LEVEL {
++                if self.legs[k].active && self.legs[k].units > EPS {
++                    match self.legs[k].direction {
++                        Polarity::Long => self.leg_bars_long[k] += 1,
++                        Polarity::Short => self.leg_bars_short[k] += 1,
++                    }
++                    top_active = Some(k); // 升序遍历，最后一个 = 最高活跃级别
++                }
++            }
++            if let Some(tk) = top_active {
++                self.max_active_lvl_seen = self.max_active_lvl_seen.max(tk);
++                self.top_leg_active_bars += 1;
++                if self.legs[tk].direction == Polarity::Short {
++                    self.top_leg_short_bars += 1; // 最高活跃级别腿在做空（牛市中=第21课:40 违反候选）
++                }
++            }
+             // 杠杆验收（裂隙2）：毛/净敞口相对 NAV（恒仓 ⇒ ≤1×）。
+             let (mut gross, mut net) = (0.0f64, 0.0f64);
+             for leg in &self.legs {
+@@ -1359,6 +1450,12 @@ impl TRoot {
+             let nav = self.nav(c).max(1.0);
+             self.max_gross_exp_x100 = self.max_gross_exp_x100.max((gross / nav * 100.0).max(0.0) as u64);
+             self.max_net_exp_x100 = self.max_net_exp_x100.max((net.abs() / nav * 100.0).max(0.0) as u64);
++            // 平均敞口（杠杆归一）：仅在持仓 bar 采样（gross>0），给均值杠杆 = strat/mean_net 去杠杆估计。
++            if gross > EPS {
++                self.exp_gross_sum_x100 += (gross / nav * 100.0).max(0.0);
++                self.exp_net_sum_x100 += (net.abs() / nav * 100.0).max(0.0);
++                self.exp_samples += 1;
++            }
+             self.prove_tw_neutral(tw_pre, c);
+             return;
+         }
+diff --git a/rust/src/recursive_t/rec_stream.rs b/rust/src/recursive_t/rec_stream.rs
+index b64715c7c4..1568109b7a 100644
+--- a/rust/src/recursive_t/rec_stream.rs
++++ b/rust/src/recursive_t/rec_stream.rs
+@@ -1381,6 +1381,178 @@ mod tests {
+         assert!(!rows.is_empty(), "至少跑出一个标的");
+     }
+ 
++    /// **friction-model 工位 L3：reading_b（多重赋格几何塔）摩擦+杠杆调整钉死 ES+681% 真伪**。
++    ///
++    /// RB_DIVERGE（背驰段链触发，ES+681% 头条）几何塔多腿叠加 ⇒ 净杠杆 1.3–2.4×。对每标的跑
++    /// OFF/RB_DIVERGE 在 cost=0（复现+量杠杆/fills）与真实 taker 成本，报告 strat%、max_gross/max_net、
++    /// total_cost_paid、n_fills、杠杆调整收益（strat%/max_net = 去杠杆到 1× 的一阶估计）。判定 ES 超 BH
++    /// 是否杠杆+摩擦伪影。
++    /// 跑法：`BT_SYMBOLS=ES,QQQ cargo test --release recursive_t::rec_stream::tests::prop4_readingb_friction_l3 -- --exact --ignored --nocapture`
++    #[test]
++    #[ignore = "friction-model reading_b L3，需 analysis/data_cache/*.json"]
++    fn prop4_readingb_friction_l3() {
++        use super::super::rec_engine::EngineConfig;
++        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
++        use std::path::PathBuf;
++
++        let cost_of = |sym: &str| -> f64 {
++            if let Ok(v) = std::env::var("T_COST_BPS").map(|s| s.parse::<f64>().unwrap_or(0.0)) {
++                if v > 0.0 { return v; }
++            }
++            match sym {
++                "CL" => 1.0, "BRN" => 1.5, "DX" => 1.0, "GC" => 1.0,
++                "ES" => 0.75, "QQQ" => 0.75, "BTC" => 5.0, "OKLO" => 10.0,
++                _ => 1.0,
++            }
++        };
++        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
++        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
++            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
++            .unwrap_or_default();
++
++        struct Row {
++            sym: String, bh: f64, costbps: f64,
++            div0: f64, divc: f64, gross: f64, net: f64, mean_gross: f64, mean_net: f64,
++            fills: u64, cost_paid: f64, liq: u64,
++        }
++        let mut rows: Vec<Row> = Vec::new();
++        eprintln!("\n===== friction-model reading_b L3：RB_DIVERGE × (cost0/costReal)（Structural）=====");
++
++        for (sym, file) in SYMBOLS {
++            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
++            let path = data_dir.join(file);
++            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
++            let (o, h, l, c) = load_clean_ohlc(&path);
++            let n = c.len();
++            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
++            let cb = cost_of(sym);
++
++            let run = |cfg: EngineConfig| -> (f64, f64, f64, f64, f64, u64, f64, u64) {
++                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
++                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
++                let fin = s.finish();
++                let r = s.driver().root();
++                let samp = r.exp_samples.max(1) as f64;
++                (
++                    (fin / INITIAL_CAPITAL - 1.0) * 100.0,
++                    r.max_gross_exp_x100 as f64 / 100.0,
++                    r.max_net_exp_x100 as f64 / 100.0,
++                    r.exp_gross_sum_x100 / samp / 100.0,
++                    r.exp_net_sum_x100 / samp / 100.0,
++                    r.n_fills, r.total_cost_paid, r.n_liquidations,
++                )
++            };
++
++            let t0 = std::time::Instant::now();
++            let mut d0 = EngineConfig::reading_b_diverge(); d0.cost_bps_per_side = 0.0;
++            let (div0, g0, nt0, mg0, mn0, _f0, _cp0, _lq0) = run(d0);
++            let mut dR = EngineConfig::reading_b_diverge(); dR.cost_bps_per_side = cb;
++            let (divc, gR, ntR, _mgR, _mnR, fR, cpR, lqR) = run(dR);
++
++            eprintln!(
++                "[{sym:<5}] BH={:+.1}% | RB_DIVERGE cost0={:+.1}% costR({:.2}bps)={:+.1}% | maxGross={:.2}× maxNet={:.2}× \
++                 meanGross={:.2}× meanNet={:.2}× | fills={} cost_paid=${:.0} liq={} ({:.0}s)",
++                bh, div0, cb, divc, g0.max(gR), nt0.max(ntR), mg0, mn0, fR, cpR, lqR, t0.elapsed().as_secs_f64()
++            );
++            rows.push(Row {
++                sym: sym.to_string(), bh, costbps: cb, div0, divc,
++                gross: g0.max(gR), net: nt0.max(ntR), mean_gross: mg0, mean_net: mn0,
++                fills: fR, cost_paid: cpR, liq: lqR,
++            });
++        }
++
++        println!("\n===== friction-model reading_b L3 矩阵（* 超 BH；levadj_pk=costR/max_net 下界, levadj_mn=costR/mean_net）=====");
++        println!("{:<6} {:>10} {:>13} {:>13} {:>8} {:>8} {:>9} {:>9} {:>11} {:>11}",
++            "标的", "BH", "DIV_cost0", "DIV_costR", "maxGr×", "maxNt×", "meanGr×", "meanNt×", "levadj_pk%", "levadj_mn%");
++        for r in &rows {
++            let mk = |x: f64| if x > r.bh { "*" } else { " " };
++            let lev_pk = if r.net > 0.01 { r.divc / r.net } else { r.divc };
++            let lev_mn = if r.mean_net > 0.01 { r.divc / r.mean_net } else { r.divc };
++            println!("{:<6} {:>+9.1}% {:>+11.1}%{} {:>+11.1}%{} {:>7.2} {:>7.2} {:>8.2} {:>8.2} {:>+10.1}%{} {:>+10.1}%{}",
++                r.sym, r.bh, r.div0, mk(r.div0), r.divc, mk(r.divc), r.gross, r.net, r.mean_gross, r.mean_net,
++                lev_pk, mk(lev_pk), lev_mn, mk(lev_mn));
++        }
++        let p1_0 = rows.iter().filter(|r| r.div0 > r.bh).count();
++        let p1_c = rows.iter().filter(|r| r.divc > r.bh).count();
++        let p1_pk = rows.iter().filter(|r| (if r.net > 0.01 { r.divc / r.net } else { r.divc }) > r.bh).count();
++        let p1_mn = rows.iter().filter(|r| (if r.mean_net > 0.01 { r.divc / r.mean_net } else { r.divc }) > r.bh).count();
++        println!("\n----- P1（RB_DIVERGE 超 BH）：cost0={} costReal={} levadj_peak={} levadj_mean={} （n={}）-----", p1_0, p1_c, p1_pk, p1_mn, rows.len());
++        println!("==================================================================\n");
++        assert!(!rows.is_empty());
++    }
++
++    /// **friction-model 根因诊断：强牛「假空腿」—— BTC/OKLO 多重赋格最高级别腿是否在牛市变 Short**。
++    ///
++    /// 编排者假说（第21课:40「上涨趋势确定后只可能出现第三类买点」⟹ 强牛无卖点 ⟹ 最高级别自然无翻空）：
++    /// BTC/OKLO 穿仓根因 = 引擎在**最高级别**开了完全分类不该有的空腿（背驰段/完成被误判成最高级别卖点→翻空）。
++    /// 区分：最高级别假翻空（=bug）vs 次级别腿做空吃回调（=合法）。穿仓+杠杆是否同根。
++    /// 每级别 dump：bars_long/short、switches、long/short_pnl + 最高活跃级别 short 占比 + 穿仓 liq_log 哪级别哪方向。
++    /// 跑法：`BT_SYMBOLS=BTC,OKLO cargo test --release recursive_t::rec_stream::tests::prop4_fake_short_diag -- --exact --ignored --nocapture`
++    #[test]
++    #[ignore = "假空腿根因诊断，需 analysis/data_cache/*.json"]
++    fn prop4_fake_short_diag() {
++        use super::super::rec_engine::EngineConfig;
++        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
++        use std::path::PathBuf;
++        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
++        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
++            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
++            .unwrap_or_else(|| vec!["BTC".into(), "OKLO".into()]);
++
++        let variants = [
++            ("RB_DTOP", EngineConfig::reading_b_dtop()),
++            ("RB_DIVERGE", EngineConfig::reading_b_diverge()),
++        ];
++        for (sym, file) in SYMBOLS {
++            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
++            let path = data_dir.join(file);
++            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
++            let (o, h, l, c) = load_clean_ohlc(&path);
++            let n = c.len();
++            let bh = if n > 0 && c[0] > 0.0 { (c[n - 1] / c[0] - 1.0) * 100.0 } else { 0.0 };
++            for (vname, cfg) in variants.iter() {
++                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
++                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
++                let fin = s.finish();
++                let r = s.driver().root();
++                let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
++                let top_short_pct = if r.top_leg_active_bars > 0 {
++                    100.0 * r.top_leg_short_bars as f64 / r.top_leg_active_bars as f64
++                } else { 0.0 };
++                println!("\n========== [{sym} / {vname}] strat={:+.1}% BH={:+.1}% liq={} maxActiveLvl={} 最高活跃级别腿Short占比={:.1}% ==========",
++                    strat, bh, r.n_liquidations, r.max_active_lvl_seen, top_short_pct);
++                println!("{:>3} {:>10} {:>10} {:>12} {:>12} {:>14} {:>14}", "lvl", "opens", "switches", "bars_long", "bars_short", "long_pnl", "short_pnl");
++                for k in 0..MAX_LEVEL {
++                    let bl = r.leg_bars_long[k]; let bs = r.leg_bars_short[k];
++                    if r.leg_opens_by_level[k] == 0 && bl == 0 && bs == 0 { continue; }
++                    println!("{:>3} {:>10} {:>10} {:>12} {:>12} {:>+14.0} {:>+14.0}",
++                        k, r.leg_opens_by_level[k], r.leg_switches_by_level[k], bl, bs,
++                        r.per_level_long_pnl[k], r.per_level_short_pnl[k]);
++                }
++                // 穿仓时哪些腿（level, 方向）被强平
++                if !r.liq_log.is_empty() {
++                    let shorts: Vec<usize> = r.liq_log.iter().filter(|t| t.5).map(|t| t.0).collect();
++                    let longs: Vec<usize> = r.liq_log.iter().filter(|t| !t.5).map(|t| t.0).collect();
++                    println!("  强平腿 liq_log: 共{}条 | Short级别={:?} | Long级别={:?}", r.liq_log.len(), shorts, longs);
++                }
++                // 判据：最高活跃级别（=主升浪载体）的 short_pnl 是否大负（高级别假空腿失血）
++                let top = r.max_active_lvl_seen;
++                println!("  ★判据: 最高级别 L{top} short_bars={} short_pnl={:+.0}（>0空腿且大负=高级别假空腿失血→第21课:40违反）",
++                    r.leg_bars_short[top], r.per_level_short_pnl[top]);
++                // trend-label 时序：最高级别腿开仓事件 (bar/方向/价) vs 牛市起止价（判 塔矮误标 vs 真下跌结构）
++                let (c0, cn) = (c[0], c[n - 1]);
++                println!("  价格语境: 起={:.2} 末={:.2}（BH{:+.1}%）。最高级别 L{top} 开腿事件 (bar, 方向, 开仓价, 价/末价):",
++                    c0, cn, bh);
++                for ev in r.leg_events.iter().filter(|e| e.0 == top) {
++                    let (lvl, bar, is_short, px) = *ev;
++                    println!("    L{lvl} @bar{bar} {} 开仓价={:.2}（={:.0}%末价；开空后价{}→{}）",
++                        if is_short { "做空" } else { "做多" }, px, 100.0 * px / cn,
++                        if px < cn { "上涨" } else { "下跌" }, if is_short { "空腿失血" } else { "多腿获利" });
++                }
++            }
++        }
++    }
++
+     /// **BTC 牛熊段收益归因**（编排者 2026-06-21）：zigzag(40%反转)分牛熊段，逐段算引擎 TW 收益（MtM）
+     /// vs BH，段内短差 pnl + 强平落点（牛/熊段）。Structural 模式。诊断纯观测（不改引擎/不影响 bit-exact）。
+     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::btc_bull_bear_segments -- --exact --ignored --nocapture`

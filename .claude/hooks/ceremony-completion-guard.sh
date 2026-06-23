@@ -48,6 +48,67 @@ cd "$cwd" 2>/dev/null || true
 
 COUNTER=".chanlun/.stop-guard-counter"
 
+# ─── 检查 0：context 临界 → 放行停机，让 autocompact 在 turn 边界 fire ───
+# 编排者裁决（no-workaround 严格解，2026-06-23 task#40）：
+#   真优先级矛盾——Stop-Guard 蜂群持续性 vs context 临界 compact 必要性。
+#   严格解：context 临界时 compact 优先于蜂群持续。蜂群状态已持久化在文件系统
+#   （~/.claude/tasks/ teams/ + .chanlun/genealogy/ sessions/），compact 后由
+#   session-start-ceremony.sh 重注入角色锚点恢复，不丢失。
+# 机制根因：autocompact 在停机点（turn 边界）触发。Stop-Guard 在蜂群任务活跃时
+#   每轮 block 停机 → turn 边界永不到达 → autocompact 永不 fire → context 突破
+#   75% 阈值后无界增长（实测 Lead session 14c95478 达 779k/1M=77.9% 未 compact）。
+#   修复：context ≥ 放行阈值时，无条件放行停机（绕过下方所有 block 检查），
+#   让 autocompact 取回它的 turn 边界。
+# 阈值：放行阈值默认 85%（> autocompact 的 75%，给蜂群 10% 运行余量后强制 compact；
+#   1M 窗口下 85% 留 150k headroom，避免硬上限溢出）。窗口默认 1M（Opus 4.8 [1m]），
+#   sonnet 回退 200k；二者均可由 env 覆盖（不写死，遵守 config 化原则）。
+TRANSCRIPT_PATH=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('transcript_path',''))" 2>/dev/null || echo "")
+RELEASE_PCT="${CLAUDE_STOPGUARD_RELEASE_PCT:-85}"
+if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+    CTX_PCT=$(python -c '
+import json,sys
+path=sys.argv[1]
+env_window=sys.argv[2] if len(sys.argv)>2 else ""
+last_tot=0; last_model=""
+try:
+    with open(path) as f:
+        for line in f:
+            line=line.strip()
+            if not line: continue
+            try: d=json.loads(line)
+            except: continue
+            if d.get("isSidechain"): continue
+            msg=d.get("message",{})
+            if not isinstance(msg,dict): continue
+            u=msg.get("usage")
+            if not u: continue
+            last_tot=(u.get("input_tokens",0)+u.get("cache_creation_input_tokens",0)+u.get("cache_read_input_tokens",0)+u.get("output_tokens",0))
+            m=msg.get("model","")
+            if m and m!="<synthetic>": last_model=m
+except Exception:
+    print("0"); sys.exit(0)
+if env_window and env_window.isdigit() and int(env_window)>0:
+    window=int(env_window)
+else:
+    window=200000 if "sonnet" in last_model.lower() else 1000000
+print(int(last_tot*100/window) if window>0 else 0)
+' "$TRANSCRIPT_PATH" "${CLAUDE_CTX_WINDOW_TOKENS:-}" 2>/dev/null || echo "0")
+    CTX_PCT=$((CTX_PCT + 0))
+    if [ "$CTX_PCT" -ge "$RELEASE_PCT" ]; then
+        # context 临界：先保存 session 状态（precompact-save.sh 会在 PreCompact 再存一次，
+        # 双保险），重置熔断计数器，然后放行停机（不输出 decision=block）。
+        cd "$cwd" 2>/dev/null || true
+        bash scripts/write_session.sh >/dev/null 2>&1 || true
+        rm -f "$COUNTER" 2>/dev/null || true
+        python -c "
+import json,sys
+print(json.dumps({'continue': True, 'suppressOutput': False,
+  'systemMessage': '[Stop-Guard] context 临界 '+sys.argv[1]+'% ≥ '+sys.argv[2]+'% 放行阈值——放行停机让 autocompact fire（编排者裁决 task#40：context 临界 compact 优先于蜂群持续）。蜂群状态已持久化，compact 后 session-start-ceremony 重注入恢复。'}, ensure_ascii=False))
+" "$CTX_PCT" "$RELEASE_PCT"
+        exit 0
+    fi
+fi
+
 # ─── 会话/Lead 任务目录解析（(c)裁决 2026-06-23：任务扫描 scope 到本 Lead 的 team） ───
 # 旧实现全局扫描 ~/.claude/tasks/*/（跨 session 污染——其他 session 的陈旧 in_progress 任务
 # 会误阻本 Lead 停机，见 feedback_task_queue_owner_liveness / reference_stopguard_zombie_tasks）。
@@ -207,7 +268,7 @@ import json, sys
 missing = sys.argv[1]
 print(json.dumps({
     'decision': 'block',
-    'reason': f'[Stop-Guard] 蜂群缺失常设结构工位（095/096号 bootstrap 强制；137号 hook 机制化——文本提示升格为机制强制）: [{missing}]。不允许停止。立即并行 spawn 缺失的结构工位 teammates：Task(team_name=…, subagent_type=结构工位名)，见 .claude/team-topology.json structural_agents。结构工位是 teammate（编排者裁决扬弃 075号"结构=skill"），不是纯 skill 事件驱动。'
+    'reason': f'[Stop-Guard] 蜂群缺失常设结构工位（095/096号 bootstrap 强制；137号 hook 机制化——文本提示升格为机制强制）: [{missing}]。不允许停止。立即并行 spawn 缺失的结构工位 teammates：Agent(name=结构工位名, subagent_type=结构工位名, run_in_background=true)（隐式 team / flat roster，非 stale Task(team_name=)），见 .claude/team-topology.json structural_agents。spawn 时 prompt 注入 topo_address+parent_callback 基因（073a/274号，#41 第二轮）。结构工位是 teammate（编排者裁决扬弃 075号"结构=skill"），不是纯 skill 事件驱动。'
 }, ensure_ascii=False))
 " "$STRUCT_MISSING"
         exit 0
@@ -296,6 +357,24 @@ if [ "$ACTIVE_TASKS" -gt 0 ]; then
     else
         echo "$((COUNT + 1)):$ACTIVE_TASKS" > "$COUNTER"
     fi
+    # ─── (c) 生产端 spawn mandate（#41 机制化，约束4 093号）───
+    # canonical 单一源：.claude/team-topology.json spawn_mandate.template（唯一权威，编辑只此一处）。
+    # 降级 fallback（codex 异质审计 D 修复）：canonical 不可读时启用，明确标注 [降级 fallback]，
+    #   不维护第二份完整副本（避免双源 drift/声明膨胀）——只保留一行降级提示指向 SKILL.md。
+    # 137号：否定性文本提示对执行层无效——用正面格式把"工位必须 invoke sub-swarm-ceremony 布设四类节点子 DAG"
+    #   嵌入 Lead 收到的 (c)spawn 路由，使每次 spawn 自动携带 mandate（消费端 #35 之补全=生产端）。
+    MANDATE_FALLBACK='[team-topology.json spawn_mandate 不可读——降级 fallback；完整 template/event_skill_map 见 .claude/team-topology.json + .claude/skills/sub-swarm-ceremony/SKILL.md] 不变量：spawn 带基因 topo_address+parent_callback；工位 invoke sub-swarm-ceremony 评估分解→四类节点子DAG（含 codex-challenger 异质审计=约束4 硬节点）；事件→TaskCreate(metadata.agent_type)→Lead spawn。'
+    SPAWN_MANDATE=$(python -c "
+import json, sys
+try:
+    with open('.claude/team-topology.json') as f:
+        m = json.load(f).get('spawn_mandate', {}).get('template', '')
+    sys.stdout.write(m)
+except Exception:
+    pass
+" 2>/dev/null)
+    # codex 异质审计 C 修复：python 整体失败或 canonical 为空 → 用降级 fallback，mandate 永不为空。
+    [ -z "$SPAWN_MANDATE" ] && SPAWN_MANDATE="$MANDATE_FALLBACK"
     # 155号修复：移除僵尸工位报告（completed 不再参与路由）
     python -c "
 import json, sys
@@ -303,16 +382,20 @@ active = int(sys.argv[1])
 pending = sys.argv[2]
 in_progress = sys.argv[3]
 unowned = sys.argv[4]
+mandate = sys.argv[5] if len(sys.argv) > 5 else ''
 
 # 构建具体路由指令（(c)裁决 2026-06-23：Lead 为每个无主任务 spawn 一个工位）
 instructions = []
 
 # (c) 核心：无主（owner 空）未阻塞 pending = 工位向下递归产出的子任务，Lead 必须 spawn
+# #41 生产端机制化：spawn 时把 spawn_mandate 注入被 spawn 工位的 prompt（强制 sub-swarm-ceremony 分解评估）。
 if unowned:
     instructions.append(
         '(c)spawn：为每个无主任务 spawn 一个工位 '
         'Agent(name=任务标识, subagent_type=metadata.agent_type 或 general-purpose, '
-        'run_in_background=true)。这是 (c) 向下递归的消费端——工位自己 TaskCreate 子任务，你只 spawn。'
+        'run_in_background=true)。【spawn mandate 强制（生产端机制化 #41/约束4）——'
+        f'被 spawn 工位 prompt 必须含：{mandate}】'
+        ' 这是 (c) 生产端递归——工位自己 invoke sub-swarm-ceremony 布设子 DAG，你只 spawn。'
         f'无主任务: [{unowned}]'
     )
 
@@ -330,7 +413,86 @@ print(json.dumps({
     'decision': 'block',
     'reason': f'[Stop-Guard] 蜂群任务队列有 {active} 个活跃任务。不允许停止。路由指令: {route}'
 }, ensure_ascii=False))
-" "$ACTIVE_TASKS" "$PENDING_TASKS" "$IN_PROGRESS_TASKS" "$UNOWNED_TASKS"
+" "$ACTIVE_TASKS" "$PENDING_TASKS" "$IN_PROGRESS_TASKS" "$UNOWNED_TASKS" "$SPAWN_MANDATE"
+    exit 0
+fi
+
+# ─── 检查 2.5：idle 工位检测（#55 反 idle 生命周期机制化）───
+# 机制化"teammate 生命周期 = 任务生命周期"（069号 RTAS）：业务工位完成其全部任务后仍存活
+#   （isActive=True，占用 pty）= idle。
+# no-workaround 严格形式：harness 无法让 teammate 自消亡（flat roster + 无自 shutdown 工具，
+#   swarm-mechanism-fix-20260623 已结算）→ teammate 职责止于"汇报 + 声明 ready-for-shutdown"
+#   （由 spawn_mandate.anti_idle 注入工位 prompt），实际 shutdown 释放 pty 是 Lead 职责，
+#   机制化为本检查的路由提示（不假装 teammate 自消亡）。
+# 检测信号（严格可靠，非模糊匹配，沿用 check1.5 的 agentType 信号 + isActive pty 存活标志）：
+#   - team config.json member.isActive==True（pty 存活）
+#   - member.name == 某 completed 任务的 owner（任务生命周期已终结）
+#   - 该 member 不拥有任何 pending/in_progress 任务（无活跃任务=确实 idle）
+#   - 排除结构工位（meta-lead/genealogist/... 常设，生命周期=蜂群非任务，由 check1.5 强制存在；
+#     flag 之会与 check1.5 振荡）+ 排除 team-lead（Lead 自身 in-process，不 shutdown 自己）
+# 仅当 ACTIVE_TASKS==0（本检查在 check2 提前退出之后）触发——有活跃任务时 Lead 正路由活跃工作，
+#   idle 清理让位（避免噪声；idle 工位在活跃任务清空后由本检查统一捕获）。
+# 145号兼容：沿用计数器写法，连续3次任务态不变由顶部熔断放行（Lead 无法 shutdown 时不死锁）。
+IDLE_TEAMMATES=""
+if [ -n "$LEAD_TEAM" ] && [ -n "$LEAD_TASK_DIR" ] && [ -f "$HOME/.claude/teams/$LEAD_TEAM/config.json" ]; then
+    IDLE_TEAMMATES=$(python -c "
+import json, os, sys
+cfg_path = sys.argv[1]
+task_dir = sys.argv[2]
+# 结构工位（常设）+ team-lead：生命周期=蜂群非任务，排除（与 check1.5 required 一致 + lead）
+STRUCTURAL = {'team-lead','meta-lead','genealogist','quality-guard','code-verifier','meta-observer','topology-manager'}
+try:
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+except Exception:
+    sys.exit(0)
+# 存活的业务工位：isActive 严格 True，且非结构工位（按 name 与 agentType 双重排除）
+alive = set()
+for m in cfg.get('members', []):
+    name = m.get('name','')
+    if not name or name in STRUCTURAL:
+        continue
+    if m.get('agentType','') in STRUCTURAL:
+        continue
+    if m.get('isActive') is True:
+        alive.add(name)
+if not alive:
+    sys.exit(0)
+# 任务所有权映射：owner -> 有无活跃任务 / 有无 completed 任务
+has_active = set()
+has_completed = set()
+for fn in os.listdir(task_dir):
+    if not fn.endswith('.json'):
+        continue
+    try:
+        with open(os.path.join(task_dir, fn)) as f:
+            d = json.load(f)
+    except Exception:
+        continue
+    owner = d.get('owner','')
+    if not owner or owner not in alive:
+        continue
+    st = d.get('status','')
+    if st in ('pending','in_progress'):
+        has_active.add(owner)
+    elif st == 'completed':
+        has_completed.add(owner)
+# idle = 存活 + 有 completed 任务 + 无活跃任务
+idle = sorted(n for n in alive if n in has_completed and n not in has_active)
+print(','.join(idle))
+" "$HOME/.claude/teams/$LEAD_TEAM/config.json" "$LEAD_TASK_DIR" 2>/dev/null || echo "")
+fi
+
+if [ -n "$IDLE_TEAMMATES" ]; then
+    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+    python -c "
+import json, sys
+idle = sys.argv[1]
+print(json.dumps({
+    'decision': 'block',
+    'reason': f'[Stop-Guard] 检测到 idle 工位（任务全 completed 但 isActive=True 占用 pty）: [{idle}]。不允许停止。#55 反 idle 生命周期机制化：teammate 生命周期=任务生命周期（完成即 shutdown 不 idle）。no-workaround 严格形式——harness 无法让 teammate 自消亡，Lead 消费其汇报后立即 shutdown 释放 pty（向工位发 shutdown_request 或平台 shutdown）。(c) 循环不复用 idle：新无主任务 spawn 新 teammate（非复活 idle）。结构工位（meta-lead/genealogist/quality-guard/code-verifier/meta-observer/topology-manager 常设）已排除，不在此列。'
+}, ensure_ascii=False))
+" "$IDLE_TEAMMATES"
     exit 0
 fi
 

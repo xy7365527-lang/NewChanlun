@@ -17,7 +17,7 @@
 
 version: "3.1"
 provenance: "[新缠论]"
-genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation, 179-four-position-topology-analyst, 274-abolish-depth-budget, 275-local-dependency-principle"
+genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-strategy-d, 089-aufhebung-audit, 093-five-constraints-topology, 175-epistemological-reversal-implementation, 179-four-position-topology-analyst, 274-abolish-depth-budget, 275-local-dependency-principle, (c)-task-dag-recursion-20260623"
 
 # ═══════════════════════════════════════════════════════════════
 # 层级索引（095-4：三层分类——genome / structural / business）
@@ -627,8 +627,8 @@ orchestrator_proxy:
 # 5. 子蜂群分形模板（069号谱系）
 # ═══════════════════════════════════════════════════════════════
 fractal_template:
-  genealogy_ref: "037-recursive-swarm-fractal, 069-recursive-topology-async-self-referential-swarm, 075-structural-to-skill"
-  description: "子蜂群实例化时，skill 全局可用（事件驱动），无需继承结构 teammates"
+  genealogy_ref: "037-recursive-swarm-fractal, 069-recursive-topology-async-self-referential-swarm, 075-structural-to-skill, (c)-task-dag-recursion-20260623"
+  description: "子蜂群 = 子任务 DAG（(c)裁决：TaskCreate 子任务，非 TeamCreate 子 team）；skill 全局可用（事件驱动）"
 
   # 075号：skill 是全局的，子蜂群不再 spawn 结构 teammates
   # 所有 event_skill_map 中的 skill 对任意层级蜂群自动可用
@@ -649,12 +649,15 @@ fractal_template:
   # 递归规则（从 dispatch-spec 迁移）
   # 135号修正：平台（Agent Teams）支持子蜂群递归，073b 平台约束前提已被095号事实否定
   recursion_rules:
-    - "任何 teammate 面对 ≥2 个可并行子任务时，必须 spawn 子蜂群（095号：真递归是默认模式）"
-    - "子蜂群通过 TeamCreate 创建独立 team，复制父蜂群的完整结构（097号五特征 DAG 模板）"
-    - "扁平 Lead→Worker 是退化特例，使用需要理由——必须证明子任务不需要独立治理"
-    - "递归终止条件仅两个（274号）：原子性（不可分解）和不动点（无新工位）。无外部计数器。context window 耗尽→compaction→恢复继续（暂停，不是终止）"
-    - "父 teammate 对子 teammates 负路由责任"
-    - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时允许 spawn 同类型子工位（受限递归），不允许 spawn 任务工位"
+    # (c)裁决（2026-06-23，编排者）：递归在任务结构里（TaskCreate 子任务），不在 team 结构里。
+    # harness 硬约束：teammate 不能 spawn teammate（flat roster）→ 扬弃旧 TeamCreate 子蜂群模型。
+    - "任何 teammate 面对 ≥2 个可并行子任务时，必须 TaskCreate 子任务（unowned）向下递归（(c)裁决；095号真递归精神保留，机制从子 team 改为子任务 DAG）"
+    - "子任务 DAG 在共享 TaskList 中布设：四类节点（任务/审查/异质审计/结晶）+ blockedBy 边 + metadata.agent_type（097号五特征 DAG 模板）"
+    - "teammate 不 spawn teammate（flat roster 硬约束）；Lead 是唯一 spawn 源——扫无主任务 spawn 工位"
+    - "扁平直接执行是原子性退化特例，使用需要理由——必须证明子任务不可分解为 ≥2 个独立子单元"
+    - "递归终止条件仅两个（274号）：原子性（不可分解）和不动点（TaskList 无无主/未阻塞/in_progress 任务）。无外部计数器。context window 耗尽→compaction→恢复继续（暂停，不是终止）"
+    - "父 teammate 对其 TaskCreate 的子任务负 SendMessage 汇报责任（parent_callback）"
+    - "结构工位默认扁平——裁判不参与走势。例外：结构工位自身任务需分解时 TaskCreate 同类型子任务（受限递归），不创建任务工位"
   visibility: "所有 teammates（含任意深度的子 teammates）在同一 task list 中可见"
   cost_control: "topology-manager 监控总 teammate 数量，通过收敛信号判断收缩时机（020号：背驰+分型）"
 
