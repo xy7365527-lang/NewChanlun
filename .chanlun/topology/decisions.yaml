@@ -182,3 +182,30 @@ decisions:
       (C) [行动] #44 审查节点须指派 ≠ c-producer-mechanize 的异工位（约束3）；#45 须 codex-challenger（约束4）。
       (D) [观测] prop4-diag-wt consume worktree 进入 idle watch，下轮复审是否释放。
       边界声明：基于文件系统+TaskList 可观测信号，无各成员实时心跳；若 Lead 有 idle 心跳以 Lead 观测为准。
+  - id: TOPO-20260623-010
+    timestamp: "2026-06-23T05:00:00+08:00"
+    type: 收缩+扩张复审（compact 热启动后结构工位 roster 体检）
+    trigger_signal: compact 热启动 + team-lead 委派（①原版结构工位死活检测 ②566/568/569/570 谱系编号异常）
+    workstations: [meta-lead, genealogist, quality-guard, code-verifier, meta-observer, topology-manager（原版×6）, meta-lead-2/genealogist-2/quality-guard-2/code-verifier-2/meta-observer-2/topology-manager-2（fresh×6）]
+    reasoning: >
+      读 $HOME/.claude/teams/session-14c95478/config.json（本 Lead team，leadSessionId 匹配）实测 roster：
+      (1) [收缩] 6 个原版名结构工位全部 isActive=false = compact 前残留死实例。机制双重盲区：
+          check1.5 按 agentType 判存在（-2 版已提供同 agentType ⇒ 不触发 re-spawn）；check2.5 idle reaper
+          按 name∈STRUCTURAL 排除原版名 ⇒ 永不被 flag。⇒ 机制无法自清，须 Lead 手动 shutdown 这 6 个死成员（职责收敛/duplicate）。
+      (2) [扩张/功能缺口] meta-lead 与 quality-guard 两 agentType 的原版 AND -2 版均 isActive=false
+          （meta-lead-2 / quality-guard-2 都 false）⇒ 这两个结构角色当前无活实例=功能性死亡。check1.5 不拦
+          （只查 config 成员 agentType 存在性，不查 isActive 活性）⇒ 机制盲区。后果：无活 meta-lead=概念分离中断#1
+          无路由器；无活 quality-guard=结果包六要素无守卫。
+      (3) [机制 gap 观测] check1.5 存在性判据=config 成员 agentType 集合，不含 isActive ⇒ "结构工位存在但全部死亡"
+          可通过 check1.5（声明-执行 gap，与 564/566 同模式）。交 meta-observer/genealogist 评估是否升语法记录（非拓扑职责）。
+      (4) 谱系编号 566/568/569/570=已结算 meta-rule（settled/），非 block-topology 概念块；relations 覆盖块 531-548，
+          meta-rule 本无块映射 ⇒ scan "异常" 是假阳性。属 genealogist 职责，非拓扑。
+    verdict: >
+      建议给 Lead（分类标注）：
+      (A) [行动/定理] 手动 shutdown 6 个原版名死结构工位（isActive=false 残留，机制无法自清——check2.5 按 name 排除结构工位）。
+          前置核验：以 Lead 实时心跳为准，确认无活 pty 后清理。
+      (B) [行动/定理] re-spawn 活 meta-lead + quality-guard（两 agentType 当前无活实例，check1.5 盲区）。562号精神=结构工位须存在且活；
+          当前仅"存在"未"活"⇒ 补活实例。前置核验：Lead 确认 meta-lead-2/quality-guard-2 确为死（非 transient turn 边界 isActive=false）。
+      (C) [观测/上报] check1.5 存在性≠活性=机制盲区，呈 meta-observer/genealogist 评估语法记录。
+      (D) [观测] 566/568/569/570 scan 异常=假阳性（meta-rule 无 block 映射），呈 genealogist。
+      边界声明：基于 config.json isActive 快照（平台活性字段，比 owner 可靠但仍为快照）；若 Lead 实时心跳与此不符，以 Lead 观测为准。topology-manager 不执行变更，仅建议。

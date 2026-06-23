@@ -2985,6 +2985,29 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/meta-rule-proxy-vs-ontology-self-correction-impossibility.md
+- id: TBD
+  title: Stop-Guard 阻断粒度 ⊥ pending 责任方——session 级阻断打到无可推进工作的非责任方节点（meta-lead 死锁）；097
+    hook 纯化只约束『注入什么』未覆盖『阻断谁』
+  status: 生成态
+  type: meta-rule
+  file: pending/meta-rule-stopguard-block-target-vs-responsibility.md
+- id: '571'
+  title: 平空 = 牛熊切换 = 区间套链破坏 三位一体——三者是同一个判定（下跌结束在哪个级别）；否定『开空门控』补丁（用不做空回避平空做不对）；平空判据只能由
+    级别+买卖点(17课)+走势完全分类(561 CC) 逻辑必然，绝不硬编码
+  status: 生成态
+  type: 概念发现
+  file: pending/571-close-short-bullbear-chainbreak-trinity.md
+- id: '573'
+  title: compact 边界的第四层——agent 进程 population 不被保存/恢复/回收（407 三层模型的进程层扩展）
+  status: 已结算
+  type: meta-rule
+  file: pending/meta-rule-agent-process-population-compact-layer.md
+- id: '572'
+  title: Stop-Guard 阻断粒度 ⊥ pending 责任方——session 级阻断打到无可推进工作的非责任方节点（meta-lead 死锁）；097
+    hook 纯化只约束『注入什么』未覆盖『阻断谁』
+  status: 生成态
+  type: meta-rule
+  file: pending/meta-rule-stopguard-block-target-vs-responsibility.md
 edges:
   depends_on:
   - from: '136'
@@ -6003,6 +6026,46 @@ edges:
     to: '010'
   - from: '570'
     to: '047'
+  - from: TBD
+    to: 097
+  - from: TBD
+    to: '548'
+  - from: TBD
+    to: '564'
+  - from: '571'
+    to: '567'
+  - from: '571'
+    to: '547'
+  - from: '571'
+    to: '561'
+  - from: '571'
+    to: 097
+  - from: '571'
+    to: '548'
+  - from: '571'
+    to: '564'
+  - from: '573'
+    to: '407'
+  - from: '573'
+    to: '562'
+  - from: '573'
+    to: '565'
+  - from: '573'
+    to: '566'
+  - from: '572'
+    to: 097
+  - from: '572'
+    to: '548'
+  - from: '572'
+    to: '564'
+  - from: '572'
+    to: '567'
+  - from: '572'
+    to: '547'
+  - from: '572'
+    to: '561'
+  - from: '567'
+    to: '571'
   triggered:
   - from: '005'
     to: 005a
@@ -6181,6 +6244,22 @@ edges:
       RB_DIVERGE）是正确的，只是顶层稀疏（556）』——被 #37+friction-model L3 精化否定：d_top 是『走势完成』的代理，而腿的合法开平依据是『买卖点（第17课）+
       区间套（第27课）』。绑 d_top ⟹ 在 d_top 稀疏的级别（556 跨年）等不到关闭信号 ⟹ 空腿开了关不掉 = 冻结空腿 ⟹ 强牛中骑整段反转无界失血（穿仓）。d_top
       现象（556 顶层冻结）真实存在但根因是『绑错信号』，非『信号对但稀疏』。'
+  - from: '571'
+    to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
+      纯多头 max_gross≈1× 不亏）= 补丁思维回避——用『不做空』回避『平空做不对』。门控版『8/8 净正不亏』是回避不是解（编排者否定）。这是
+      087/089/090 补丁思维否定 lineage 的新实例：面对『平空做不对』的难题，退回到『那就少做空/不做空』= 该严格不严格。
+  - from: '572'
+    to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
+      纯多头 max_gross≈1× 不亏）= 补丁思维回避——用『不做空』回避『平空做不对』。门控版『8/8 净正不亏』是回避不是解（编排者否定）。这是
+      087/089/090 补丁思维否定 lineage 的新实例：面对『平空做不对』的难题，退回到『那就少做空/不做空』= 该严格不严格。
+  - from: '567'
+    to: 'reading_b 多重赋格（556/563）的隐含设计前提『每级别腿的开/平/翻转信号绑 d_top 是正确的，只是顶层稀疏』——被 #37+friction-model+#69
+      L3 精化否定：★最终精化（#69）= 错误不在 d_top 本身，在『绑错持仓尺度』——d_top（最深区间套确认）对核心主力 churn 恰是正确信号（稀疏⇒骑牛不踏空），对空腿是错误代理（稀疏⇒冬眠/冻结）。修法=区间套确认深度分级（主力全深度
+      d_top / 短差单层 t3sell=第三类卖点）+ k<核心父级门控（升跌完备性21:40），#69 L3 确证结构性消除穿仓+杠杆（liq=0/max_gross<1×）。'
+  - from: '572'
+    to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
+      纯多头 max_gross≈1× 不亏）= 补丁思维回避——用『不做空』回避『平空做不对』。门控版『8/8 净正不亏』是回避不是解（编排者否定）。087/089/090
+      补丁思维否定 lineage 新实例。★#69 取代：开空门控改为 t3sell(链破坏)+k<核心，做空腿从『不亏冬眠』→『次级别短差净赚+9623』。
   related:
   - between:
     - '001'
@@ -8180,6 +8259,87 @@ edges:
   - between:
     - '561'
     - '570'
+  - between:
+    - '569'
+    - TBD
+  - between:
+    - '568'
+    - TBD
+  - between:
+    - '565'
+    - TBD
+  - between:
+    - '145'
+    - TBD
+  - between:
+    - 048
+    - TBD
+  - between:
+    - '275'
+    - TBD
+  - between:
+    - '569'
+    - '571'
+  - between:
+    - '568'
+    - '571'
+  - between:
+    - '565'
+    - '571'
+  - between:
+    - '145'
+    - '571'
+  - between:
+    - 048
+    - '571'
+  - between:
+    - '275'
+    - '571'
+  - between:
+    - '196'
+    - '573'
+  - between:
+    - '408'
+    - '573'
+  - between:
+    - '550'
+    - '573'
+  - between:
+    - '552'
+    - '573'
+  - between:
+    - '017'
+    - '573'
+  - between:
+    - '055'
+    - '573'
+  - between:
+    - '572'
+    - '573'
+  - between:
+    - '569'
+    - '572'
+  - between:
+    - '568'
+    - '572'
+  - between:
+    - '565'
+    - '572'
+  - between:
+    - '145'
+    - '572'
+  - between:
+    - 048
+    - '572'
+  - between:
+    - '275'
+    - '572'
+  - between:
+    - '571'
+    - '573'
+  - between:
+    - '571'
+    - '572'
   tensions_with:
   - between:
     - '007'
