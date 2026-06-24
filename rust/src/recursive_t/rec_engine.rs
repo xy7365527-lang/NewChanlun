@@ -744,6 +744,9 @@ pub struct TRoot {
     /// **LegPair 核心多腿涌现升级（R3 段无腿修复 #164/#6）**：true ⇒ consume_leg_pairs 检查 emergent_top，
     /// 核心多腿同向 relabel 上移到涌现级别（敞口不变）。OFF=false（bit-exact，无 relabel）。
     enable_pair_emergence: bool,
+    /// **T3 出场触发诊断暂存（#164 R2，observation-only）**：close_*_leg 调用前由调用点 set，push 进
+    /// exit_trigger_log（与 leg_trades 同序）。0=type1/1=type2/2=type3/3=否定线止损/5=账户强平/6=其他。
+    pending_exit_trigger: u8,
     /// 初始本金（= free 初值）——Face B 均匀基准单元定仓的级别无关基准（initial_capital×MOBILE_FRAC）。
     initial_capital: f64,
     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
@@ -833,6 +836,10 @@ pub struct TRoot {
     /// #170 TC churn 诊断（平行于 leg_trades）：每笔开仓时锁定的否定线（多腿=ZD/空腿=ZG）。
     /// NaN=无否定线。用于验证 TC=开仓贴否定线（c 距 stop 极近 ⇒ 噪声微穿即止损 collapse）。
     pub leg_entry_stops: Vec<f64>,
+    /// **T3 出场触发诊断（#164 R2 可约性判定，observation-only，与 leg_trades 同序对齐）**：每笔腿平仓的
+    /// 出场触发类型 u8——0=type1（走势完成=574 floor 最小滞后）/1=type2/2=type3/3=否定线止损/5=账户强平/6=其他。
+    /// 判据：T3 笔若主要被 type1 平 ⇒ leak 在 574 floor 内不可约；若被 type2/3 平 ⇒ floor 之上可约。
+    pub exit_trigger_log: Vec<u8>,
     /// 诊断（编排者 2026-06-21）：强平时三阶段快照 (stage_id 0=CostRed/1=CapRec/2=Earn,
     /// core_cost_basis, withdrawn, notional_in, nav)。查降成本/退本金保护是否生效 + 全仓 vs 逐仓。
     pub liq_snapshot: Vec<(u8, f64, f64, f64, f64)>,
@@ -881,6 +888,7 @@ impl TRoot {
             pair_long_entry: cfg.pair_long_entry,
             enable_uniform_sizing: cfg.enable_uniform_sizing,
             enable_pair_emergence: cfg.enable_pair_emergence,
+            pending_exit_trigger: 6,
             initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
             leg_pairs: (0..MAX_LEVEL).map(LegPair::idle).collect(),
@@ -933,6 +941,7 @@ impl TRoot {
             leg_close_reasons: Vec::new(),
             last_close_reason: 0,
             leg_entry_stops: Vec::new(),
+            exit_trigger_log: Vec::new(),
             liq_snapshot: Vec::new(),
             earning_units_added: 0.0,
             max_core_gain_x1000: 0,
@@ -1668,6 +1677,8 @@ impl TRoot {
         self.leg_trades.push((k, self.leg_pairs[k].long_entry_bar, self.cur_bar, basis, c, u, false, pnl));
         self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
         self.leg_entry_stops.push(self.leg_pairs[k].long_stop); // #170 TC 诊断：开仓否定线 ZD
+        self.exit_trigger_log.push(self.pending_exit_trigger); // #164 R2 出场触发诊断（同序）
+        self.pending_exit_trigger = 6; // reset
         self.leg_pairs[k].long_units = 0.0;
         self.leg_pairs[k].long_basis = f64::NAN;
         self.leg_pairs[k].long_stop = f64::NAN;
@@ -1695,6 +1706,8 @@ impl TRoot {
         self.leg_trades.push((k, self.leg_pairs[k].short_entry_bar, self.cur_bar, basis, c, u, true, pnl));
         self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
         self.leg_entry_stops.push(self.leg_pairs[k].short_stop); // #170 TC 诊断：开仓否定线 ZG
+        self.exit_trigger_log.push(self.pending_exit_trigger); // #164 R2 出场触发诊断（同序）
+        self.pending_exit_trigger = 6; // reset
         self.leg_pairs[k].short_units = 0.0;
         self.leg_pairs[k].short_basis = f64::NAN;
         self.leg_pairs[k].short_stop = f64::NAN;
@@ -1801,6 +1814,7 @@ impl TRoot {
                 if stop.is_finite() && c < stop {
                     self.guards.set_trigger(OpTrigger::Bsp); // 否定线 = 结构破坏（type3 形态对偶）= 合法触发源
                     self.last_close_reason = 1; // #170 TC 诊断：否定线止损
+                    self.pending_exit_trigger = 3; // #164 R2：否定线止损
                     self.close_long_leg(k, c);
                     self.pair_long_stops += 1;
                 }
@@ -1811,6 +1825,7 @@ impl TRoot {
                 if stop.is_finite() && c > stop {
                     self.guards.set_trigger(OpTrigger::Bsp);
                     self.last_close_reason = 1; // #170 TC 诊断：否定线止损
+                    self.pending_exit_trigger = 3; // #164 R2：否定线止损
                     self.close_short_leg(k, c);
                     self.pair_short_stops += 1;
                 }
@@ -1937,6 +1952,7 @@ impl TRoot {
             if self.leg_pairs[k].short_active() {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 self.last_close_reason = 0; // #170 TC 诊断：买卖点反向平
+                self.pending_exit_trigger = if view.t1buy[k] { 0 } else { 1 }; // #164 R2：type1（走势完成）vs 非type1（type2/3）
                 self.close_short_leg(k, c);
             }
             if !self.leg_pairs[k].long_active() && long_dir_ok {
@@ -1953,6 +1969,8 @@ impl TRoot {
                 if may_close_core {
                     self.guards.set_trigger(OpTrigger::Bsp);
                     self.last_close_reason = 0; // #170 TC 诊断：买卖点反向平
+                    // 出场触发分类（#164 R2）：type1（t1sell=走势完成=574 floor 最小滞后）/type3（t3sell）/type2（其余 sell）。
+                    self.pending_exit_trigger = if view.t1sell[k] { 0 } else if view.t3sell[k] { 2 } else { 1 };
                     self.close_long_leg(k, c);
                     if is_core_long_level && core_done {
                         self.pair_core_churns += 1; // 走势完成 churn 动核心多腿（真顶转折）
@@ -2008,6 +2026,7 @@ impl TRoot {
                     let entry_basis = self.leg_pairs[k].long_basis;
                     self.guards.set_trigger(OpTrigger::Eod);
                     self.last_close_reason = 2; // #170 TC 诊断：NAV 强平
+                    self.pending_exit_trigger = 5; // #164 R2：账户强平
                     self.close_long_leg(k, c);
                     self.n_liquidations += 1;
                     self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, false));
@@ -2017,6 +2036,7 @@ impl TRoot {
                     let entry_basis = self.leg_pairs[k].short_basis;
                     self.guards.set_trigger(OpTrigger::Eod);
                     self.last_close_reason = 2; // #170 TC 诊断：NAV 强平
+                    self.pending_exit_trigger = 5; // #164 R2：账户强平
                     self.close_short_leg(k, c);
                     self.n_liquidations += 1;
                     self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, true));
