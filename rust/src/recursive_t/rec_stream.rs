@@ -590,6 +590,12 @@ impl RecStream {
         &self.driver.root().leg_entry_stops
     }
 
+    /// #164 R2 出场触发诊断（与 leg_trades 同序）：每笔出场触发类型
+    /// （0=type1走势完成/1=type2/2=type3/3=否定线止损/5=账户强平/6=其他）。
+    pub fn exit_trigger_log(&self) -> &[u8] {
+        &self.driver.root().exit_trigger_log
+    }
+
     /// #149 per-level 多/空腿 realized pnl（pair_long_pnl, pair_short_pnl）——账本完整性自检的对账基准。
     pub fn pair_pnl(&self) -> (Vec<f64>, Vec<f64>) {
         let r = self.driver.root();

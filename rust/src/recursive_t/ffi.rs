@@ -309,6 +309,7 @@ impl PyRecStream {
         d.set_item("leg_close_reasons", reasons)?;
         let stops: Vec<f64> = self.core.leg_entry_stops().to_vec(); // #170 TC 诊断
         d.set_item("leg_entry_stops", stops)?;
+        d.set_item("exit_trigger_log", self.core.exit_trigger_log().to_vec())?; // #164 R2 出场触发诊断（同序）
         let (lp, sp) = self.core.pair_pnl();
         d.set_item("pair_long_pnl", lp)?;
         d.set_item("pair_short_pnl", sp)?;
