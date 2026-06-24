@@ -31,9 +31,24 @@ python() { command "$PYTHON_BIN" "$@"; }
 # 读取 stdin 的 JSON 输入
 input=$(timeout 3 cat 2>/dev/null || echo "{}")
 cwd=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('cwd', '.'))" 2>/dev/null || echo ".")
+# trigger ∈ {manual, auto}（auto = autocompact 到阈值自动压缩；manual = /compact）
+TRIGGER=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('trigger', 'unknown'))" 2>/dev/null || echo "unknown")
 
 # 确保在项目目录内
 cd "$cwd" 2>/dev/null || cd "$(git rev-parse --show-toplevel 2>/dev/null)" 2>/dev/null || true
+
+# ─── compact 后 ceremony 恢复标记（绕过平台 bug #15174） ───
+# 平台 bug #15174：SessionStart(source=compact) 的 additionalContext 不被注入压缩后
+# context（auto + manual compact 均如此，实证见
+# .chanlun/review-results/autocompact-ceremony-autorestore-20260624.md）。
+# 修复：PreCompact（auto + manual 都 fire，未受 #15174 影响）落标记，由
+# userpromptsubmit-ceremony-restore.sh（UserPromptSubmit，可靠 additionalContext 通道）
+# 在 compact 后第一条用户消息消费，注入 ceremony 恢复指令。
+# 标记记录 trigger 供下游文案精确化；落标记是确定性触发前提，不依赖被 bug 掐死的
+# SessionStart compact 注入路径。
+if [ -d ".chanlun" ]; then
+    printf 'trigger: %s\ntimestamp: %s\n' "$TRIGGER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > .chanlun/.pending-ceremony-restore 2>/dev/null || true
+fi
 
 # 调用独立 session 写入脚本（已 cd 到项目根目录）
 SESSION_FILE=$(bash scripts/write_session.sh 2>/dev/null || true)
