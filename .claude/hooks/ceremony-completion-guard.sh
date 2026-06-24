@@ -108,6 +108,9 @@ print(json.dumps({'continue': True, 'suppressOutput': False,
         exit 0
     fi
 fi
+# 注（571号否定3：与 check3 责任方过滤正交）：check0 沿 context 维度全局放行（含责任方，
+#   context 临界逃生阀）；下方 check3 沿责任方维度放行非责任方（正常 context 内的对象粒度
+#   过滤）。二者无重叠、非冗余——一个解 context 临界死锁，一个解非责任方无意义阻断死锁。
 
 # ─── 会话/Lead 任务目录解析（(c)裁决 2026-06-23：任务扫描 scope 到本 Lead 的 team） ───
 # 旧实现全局扫描 ~/.claude/tasks/*/（跨 session 污染——其他 session 的陈旧 in_progress 任务
@@ -496,7 +499,25 @@ print(json.dumps({
     exit 0
 fi
 
-# ─── 检查 3：生成态谱系矛盾 ───
+# ─── 检查 3：生成态谱系矛盾（571号责任方过滤）───
+# 571号谱系：阻断对象从「任何触发 Stop 的 agent」（session 级）精确化为「该 pending 的责任方
+#   agent」（责任方级）。非责任方放行——048号「蜂群级有工作→不停」不下降为个体命题（释放非
+#   责任方 ≠ 释放责任方；责任方仍被阻断，蜂群循环继续）。
+# codex#77 异质审查三否定约束（review-results/codex-review-stopguard-amendment-77-20260623.md）：
+#   否定1（排除自称后门）：责任判定只读两个客观来源——pending frontmatter 的 responsible_agents
+#     字段 + 平台在 transcript 首条 type=agent-setting 记录写入的 agentType。绝不读取 agent 在
+#     Stop 输出里的自称（stop_hook_content 从不参与责任判定）。
+#   否定2（responsible_agents 字段前置）：责任方来源是每个 pending 显式声明的机器可读字段，
+#     非 type→agentType 硬编码映射表（避免映射表 drift / 声明膨胀）。
+#   否定3（对齐 check0）：见 check0 末尾注——check0 沿 context 维度全局放行（含责任方），check3
+#     沿责任方维度放行非责任方（正常 context 内）。二者正交、无重叠、非冗余。
+# 身份来源（实测修正 codex FB-1）：team config 的 members 无 sessionId 字段，无法由 session_id
+#   映射 agentType。客观来源是 transcript 首条 type=agent-setting 记录的 agentSetting（=平台
+#   spawn 时记录的 subagent_type；业务命名如 geneal-p4 仍归一为 agentType=genealogist）。
+# 作用域（572 决断点A）：Lead session（leadSessionId==session_id，即 LEAD_TEAM 非空）保留全
+#   swarm 判据（负责全局调度/spawn 结算工位）→ 无条件阻断；责任方过滤仅作用于 teammate。
+# Fallback（验证d，保守=阻断防漏）：responsible_agents 字段缺失的 pending → 视为责任方；
+#   agentType 不可确定（无 agent-setting，如 main/solo session）→ 同样保守阻断。
 PENDING_COUNT=0
 PENDING_FILES=""
 if [ -d ".chanlun/genealogy/pending" ]; then
@@ -509,17 +530,106 @@ if [ -d ".chanlun/genealogy/pending" ]; then
 fi
 
 if [ "$PENDING_COUNT" -gt 0 ]; then
-    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
-    python -c "
+    # 责任方判定：Lead 无条件责任方（全 swarm 判据）；teammate 按 responsible_agents 过滤。
+    if [ -n "$LEAD_TEAM" ]; then
+        IS_RESPONSIBLE=1
+    else
+        IS_RESPONSIBLE=$(python -c "
+import json, os, sys
+tp = sys.argv[1]; pending_dir = sys.argv[2]
+Q2 = chr(34); Q1 = chr(39)
+def clean(v):
+    return v.strip().strip(Q2).strip(Q1)
+# agentType = transcript 首条 agent-setting 的 agentSetting（平台客观身份，非运行时自称）
+agent_type = None
+if tp and os.path.isfile(tp):
+    try:
+        with open(tp, encoding='utf-8') as fh:
+            for i, line in enumerate(fh):
+                if i > 10:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except Exception:
+                    continue
+                a = rec.get('agentSetting')
+                if isinstance(a, str) and a:
+                    agent_type = a
+                    break
+    except Exception:
+        pass
+if not agent_type:
+    print('1'); sys.exit(0)   # 身份不可确定 → fail-safe 阻断
+def parse_responsible(path):
+    try:
+        with open(path, encoding='utf-8') as fh:
+            text = fh.read()
+    except Exception:
+        return None
+    lines = text.splitlines()
+    if lines and lines[0].strip() == '---':
+        fm = []
+        for ln in lines[1:]:
+            if ln.strip() == '---':
+                break
+            fm.append(ln)
+    else:
+        fm = lines
+    for i, ln in enumerate(fm):
+        s = ln.strip()
+        if s.startswith('responsible_agents:'):
+            rest = s[len('responsible_agents:'):].strip()
+            if rest.startswith('[') and ']' in rest:
+                inner = rest[1:rest.index(']')]
+                return [clean(x) for x in inner.split(',') if x.strip()]
+            if rest == '' or rest.startswith('#'):
+                items = []
+                for ln2 in fm[i+1:]:
+                    s2 = ln2.strip()
+                    if s2.startswith('- '):
+                        items.append(clean(s2[2:]))
+                    elif s2 == '':
+                        continue
+                    else:
+                        break
+                return items
+            val = clean(rest.split(' #')[0])
+            return [val] if val else []
+    return None
+is_resp = 0
+if os.path.isdir(pending_dir):
+    for fn in sorted(os.listdir(pending_dir)):
+        if not fn.endswith('.md'):
+            continue
+        rp = parse_responsible(os.path.join(pending_dir, fn))
+        if rp is None:
+            is_resp = 1   # responsible_agents 字段缺失 → fail-safe 视为责任方
+            break
+        if agent_type in rp:
+            is_resp = 1
+            break
+print(str(is_resp))
+" "$TRANSCRIPT_PATH" ".chanlun/genealogy/pending" 2>/dev/null || echo "1")
+        [ -z "$IS_RESPONSIBLE" ] && IS_RESPONSIBLE=1
+    fi
+
+    if [ "$IS_RESPONSIBLE" -eq 1 ]; then
+        echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+        python -c "
 import json, sys
 n = sys.argv[1]
 files = sys.argv[2]
 print(json.dumps({
     'decision': 'block',
-    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态 pending: [{files}]。不允许停止。pending 结算属 genealogist（结算/张力检查）+ 编排者（选择类/语法记录裁决）职责，非 Lead 自结算。018号四分法=定理/选择/语法记录/行动（非"吸收/修正/分裂/废弃"——后者非任何 settled 谱系）。'
+    'reason': f'[Stop-Guard] 谱系有 {n} 个生成态 pending: [{files}]。你是其中至少一个 pending 的责任方（或 Lead / 身份不可确定，保守阻断）。不允许停止。pending 结算属 genealogist（结算/张力检查）+ 编排者（选择类/语法记录裁决）职责，非 Lead 自结算。018号四分法=定理/选择/语法记录/行动。571号责任方过滤：非责任方 agent 已放行（蜂群级持续性由责任方存活保证，非下降为个体命题）。'
 }, ensure_ascii=False))
 " "$PENDING_COUNT" "$PENDING_FILES"
-    exit 0
+        exit 0
+    fi
+    # 非责任方（571号）：不写 counter（FB-3 counter 竞态免疫），放行 → 继续后续检查 check4/5。
 fi
 
 # ─── 检查 4：@proof-required 标签扫描 ───
