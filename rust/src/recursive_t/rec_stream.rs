@@ -1457,6 +1457,99 @@ mod tests {
         assert!(any, "至少跑出一个标的的 RB_PAIR 变体");
     }
 
+    /// **任务 bear-validate：大额吃熊牛熊对称 L3 验证**（编排者：入库 bear 标的验证核心做空镜像）。
+    ///
+    /// 存在论位置：#69 判决「大额做空（max_gross>1×）吃熊有效域 ⊂ 真 bear regime，8 net-up 标的
+    /// 无法证实⇒结构性禁止」（shortleg-alpha §五，231号 formalization-validity-domain）。本测试**不入库
+    /// 新标的**——bear regime 已作为现有 8 标的的子窗口存在（CL 2014-2016 油崩 −75% / CL 2020 COVID 崩 /
+    /// ES 2022 标普熊 −27% / BRN 2020 COVID 崩 −76%），用 `load_clean_ohlc_window`（dates 列切片）取真 bear
+    /// 窗口，同格式同管线，**比入库新标的更严格**（零格式失配风险，L2 形式化有效域：定义域=切片合法的全部
+    /// 日期窗，有效域=真 bear 子窗）。
+    ///
+    /// 核心测试：放开 #69 `k<核心` 禁令（`enable_pair_core_short`，最高活跃级别走势完成→核心翻空镜像），
+    /// 对照 committed #69（RB_PAIR，k<核心 门控）。验证 bear regime 下核心做空是否**大额吃熊赚**
+    /// （max_gross>1× ∧ short_pnl 大额正，对照 net-up 标的的灾难 CL L4 −40928）。
+    ///
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::bear_validate_core_short_l3 -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "任务 bear-validate 大额吃熊 L3，需 analysis/data_cache/*.json（dates 列窗切片）"]
+    fn bear_validate_core_short_l3() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::load_clean_ohlc_window;
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+
+        // bear 窗口（label, 文件, day_start, day_end）：真 bear regime 子窗（dates 列切片，闭区间）。
+        // CL/ES/BRN 文件均 parallel-array + dates（已核验）。BTC1m 无 dates 列⇒无法日期切片（fail-loud 声明，
+        // 不入此表；1s 床位=观测分辨率非操作床位，[[project_cl_1s_a0_verdict]]，不混入）。
+        let bear_windows: [(&str, &str, &str, &str); 5] = [
+            ("CL_2014-16油崩",  "cl_1m_databento_10y.json",  "2014-06-20", "2016-02-11"), // $107→$26 −75%
+            ("CL_2020COVID崩",  "cl_1m_databento_10y.json",  "2020-01-06", "2020-04-30"), // $63→$16 急崩
+            ("ES_2022标普熊",   "es_1m_databento_10y.json",  "2022-01-03", "2022-10-13"), // 4800→3500 −27%
+            ("BRN_2020COVID崩", "brn_1m_databento_10y.json", "2020-01-06", "2020-04-30"), // $68→$16 −76%
+            ("BRN_2022H2跌",    "brn_1m_databento_10y.json", "2022-06-08", "2022-12-09"), // $125→$76 −40%
+        ];
+
+        eprintln!("\n===== 任务 bear-validate：大额吃熊核心翻空 L3（OFF / RB_PAIR(#69 k<核心) / RB_PAIR_CS(放开核心翻空)）=====");
+        eprintln!("（认识论 L3：真 bear regime 数据，可否证。核心判据：core_short 是否 max_gross>1× ∧ short_pnl 大额正）");
+        // OFF=基线（base operate 路径，无 leg）/ RB_PAIR=committed #69（k<核心 门控）/
+        // RB_PAIR_CS=核心走势完成翻空镜像（d_top）/ RB_PAIR_T3=放开 k<核心 t3sell 大额做空（变体1 机制，max_gross>1×）。
+        let variants = [
+            ("OFF",         EngineConfig::off()),
+            ("RB_PAIR",     EngineConfig::reading_b_pair()),
+            ("RB_PAIR_CS",  EngineConfig::reading_b_pair_coreshort()),
+            ("RB_PAIR_T3",  EngineConfig::reading_b_pair_coreshort_t3()),
+        ];
+        let mut any = false;
+        for (label, file, d0, d1) in bear_windows {
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{label}] 数据缺失 {file}，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc_window(&path, d0, d1);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            eprintln!("\n── {label}  [{d0}..{d1}]  bars={n}  BH={bh:+.1}%  close[{:.2}→{:.2}] ──", c[0], c[n-1]);
+            for (vname, cfg) in variants.iter() {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let fin = s.finish();
+                assert!(fin.is_finite(), "[{label}/{vname}] final_nav 非有限");
+                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                let r = s.driver().root();
+                if *vname == "OFF" {
+                    eprintln!("  [{vname:<11}] strat={strat:+8.1}% (BH {bh:+.1}%) ({:.1}s)", t0.elapsed().as_secs_f64());
+                    continue;
+                }
+                any = true;
+                let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
+                let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
+                let lopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k]).sum();
+                let sopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_short_opens[k]).sum();
+                eprintln!(
+                    "  [{vname:<11}] strat={strat:+8.1}% (BH {bh:+.1}%) | Lopen={lopens} Sopen={sopens} \
+                     long_pnl={long_pnl:+.0} short_pnl={short_pnl:+.0} | Lstop={} Sstop={} churn={} liq={} \
+                     | max_gross={:.2}× max_net={:.2}× ({:.1}s)",
+                    r.pair_long_stops, r.pair_short_stops, r.pair_core_churns, r.n_liquidations,
+                    r.max_gross_exp_x100 as f64 / 100.0, r.max_net_exp_x100 as f64 / 100.0, t0.elapsed().as_secs_f64()
+                );
+                // per-level 空腿 pnl/opens（判定大额吃熊在哪些级别赚/亏：核心级别=深层小 k=大配额）。
+                let sp_lvl: Vec<String> = (0..MAX_LEVEL)
+                    .filter(|&k| r.pair_short_opens[k] > 0)
+                    .map(|k| format!("L{k}:pnl={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k]))
+                    .collect();
+                eprintln!("        short_per_level: {}", sp_lvl.join(" "));
+                // 守恒：final_nav 有限正（所有变体）。零强平硬断言仅施于 committed #69（RB_PAIR 交付契约）；
+                // 实验变体（CS/T3）liq>0 是**发现**（大额核心做空穿仓）非契约违反 ⇒ 报告不断言。
+                assert!(fin.is_finite() && fin > 0.0, "[{label}/{vname}] final_nav 须有限正，得 {fin}");
+                if *vname == "RB_PAIR" {
+                    assert_eq!(r.n_liquidations, 0, "[{label}/RB_PAIR] 零强平违反（#69 契约）：liq={}", r.n_liquidations);
+                }
+            }
+        }
+        assert!(any, "至少跑出一个 bear 窗口的 RB_PAIR 变体");
+    }
+
     /// **BTC 牛熊段收益归因**（编排者 2026-06-21）：zigzag(40%反转)分牛熊段，逐段算引擎 TW 收益（MtM）
     /// vs BH，段内短差 pnl + 强平落点（牛/熊段）。Structural 模式。诊断纯观测（不改引擎/不影响 bit-exact）。
     /// 跑法：`cargo test --release recursive_t::rec_stream::tests::btc_bull_bear_segments -- --exact --ignored --nocapture`

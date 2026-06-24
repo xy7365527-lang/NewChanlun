@@ -80,6 +80,15 @@ pub struct EngineConfig {
     /// （第27课区间套：链完整=回调不动核心多腿，链破坏=转折动核心）。删 d_top 几何方向单腿模型。
     /// OFF=false ⇒ on_bar/单腿 reading_b/instances 路径逐字不动（bit-exact）。env `T_READING_B_PAIR`。
     pub enable_reading_b_pair: bool,
+    /// **牛熊对称核心翻空（任务 bear-validate）**：放开 #69 的 `k<核心` 禁令——最高活跃级别走势完成
+    /// （d_top）时核心多腿不止平到现金，而是**翻空镜像**（大额吃熊）。有效域 ⊂ 真 bear regime
+    /// （231号 formalization-validity-domain：net-up 8标的均亏=灾难，须 bear 数据 L3 验证）。
+    /// false ⇒ g_pair 行为与 committed #69 逐字一致（bit-exact）。env `T_PAIR_CORE_SHORT`。
+    pub enable_pair_core_short: bool,
+    /// **放开 k<核心 t3sell 开空（任务 bear-validate 变体2）**：移除 #69 开空门控的 `below_core_long`
+    /// 限制——t3sell 亦可在核心及其上开空（=变体1 机制，max_gross>1× 大额做空）。直接测「放开 k<核心
+    /// ⇒ 大额做空是否吃熊」。net-up 灾难（CL L4 单笔 −40928，539）；有效域 ⊂ 真 bear。env `T_PAIR_CORE_SHORT_T3`。
+    pub enable_pair_core_short_open: bool,
 }
 
 impl EngineConfig {
@@ -96,6 +105,8 @@ impl EngineConfig {
             enable_reading_b: std::env::var("T_READING_B").is_ok(),
             reading_b_diverge: std::env::var("T_READING_B_DIVERGE").is_ok(),
             enable_reading_b_pair: std::env::var("T_READING_B_PAIR").is_ok(),
+            enable_pair_core_short: std::env::var("T_PAIR_CORE_SHORT").is_ok(),
+            enable_pair_core_short_open: std::env::var("T_PAIR_CORE_SHORT_T3").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -108,6 +119,8 @@ impl EngineConfig {
         c.enable_reading_b = false;
         c.reading_b_diverge = false;
         c.enable_reading_b_pair = false;
+        c.enable_pair_core_short = false;
+        c.enable_pair_core_short_open = false;
         c
     }
     /// **读法B 一对多空腿（任务57=53.1）**：每级别 LegPair（买卖点开平 + 否定线止损 + 链破坏 churn）。
@@ -115,6 +128,21 @@ impl EngineConfig {
     pub fn reading_b_pair() -> Self {
         let mut c = Self::off();
         c.enable_reading_b_pair = true;
+        c
+    }
+    /// **牛熊对称核心翻空（任务 bear-validate）**：RB_PAIR + 放开 `k<核心`（核心走势完成→翻空镜像）。
+    /// 唯一变量 = `enable_pair_core_short`（其余与 reading_b_pair 逐字一致 ⇒ 收益差全归因核心翻空）。
+    /// L3 有效域：须真 bear regime 数据验证（net-up 8标的灾难，239号有效域受限）。
+    pub fn reading_b_pair_coreshort() -> Self {
+        let mut c = Self::reading_b_pair();
+        c.enable_pair_core_short = true;
+        c
+    }
+    /// **放开 k<核心 t3sell 大额做空（任务 bear-validate 变体2）**：RB_PAIR + 移除 below_core_long 门控
+    /// （t3sell 在核心及其上开空 = 变体1 机制，max_gross>1×）。直接测「大额做空吃熊」。
+    pub fn reading_b_pair_coreshort_t3() -> Self {
+        let mut c = Self::reading_b_pair();
+        c.enable_pair_core_short_open = true;
         c
     }
     /// 读法B 基线（556：每级别独立腿 + 走势完成链触发）。
@@ -526,6 +554,10 @@ pub struct TRoot {
     reading_b_diverge: bool,
     /// **读法B 一对多空腿（任务57=53.1）**：enable_reading_b_pair=true ⇒ on_bar 走 consume_leg_pairs。
     enable_reading_b_pair: bool,
+    /// **牛熊对称核心翻空（任务 bear-validate）**：true ⇒ g_pair 放开 `k<核心`，核心走势完成翻空镜像。
+    enable_pair_core_short: bool,
+    /// **放开 k<核心 t3sell 开空（任务 bear-validate 变体2）**：true ⇒ 移除 below_core_long 门控（t3sell 核心及其上开空）。
+    enable_pair_core_short_open: bool,
     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
     legs: Vec<Leg>,
     /// **每级别一对多空腿（LegPair[k]，任务57=53.1）**：买卖点开平 + 否定线止损 + 链破坏 churn 门控。
@@ -638,6 +670,8 @@ impl TRoot {
             enable_reading_b: cfg.enable_reading_b,
             reading_b_diverge: cfg.reading_b_diverge,
             enable_reading_b_pair: cfg.enable_reading_b_pair,
+            enable_pair_core_short: cfg.enable_pair_core_short,
+            enable_pair_core_short_open: cfg.enable_pair_core_short_open,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
             leg_pairs: (0..MAX_LEVEL).map(LegPair::idle).collect(),
             pair_long_pnl: [0.0; MAX_LEVEL],
@@ -1495,6 +1529,16 @@ impl TRoot {
                     self.close_long_leg(k, c);
                     if is_core_long_level && core_done {
                         self.pair_core_churns += 1; // 走势完成 churn 动核心多腿（真顶转折）
+                        // **牛转熊核心翻空镜像（任务 bear-validate，编排者：最高活跃级别走势完成→核心翻空）**：
+                        // 放开 #69 `k<核心` 禁令——核心走势完成（d_top=最深区间套真顶=type1+全深度背驰链）不止
+                        // 平多到现金，而是**翻空**（大额吃熊，max_gross>1×=核心仓尺度）。结构涌现：is_core_long_level
+                        // = highest_active_long==k（零 if regime/level，编排者 no-hardcode）。zg[k]=进场中枢上沿
+                        // =否定线止损（涨破⇒牛市恢复⇒止损出，27课区间套否定）。有效域 ⊂ 真 bear（231号
+                        // formalization-validity-domain）：net-up 假顶翻空打主升浪=灾难（539），须 bear 数据 L3。
+                        if self.enable_pair_core_short && !self.leg_pairs[k].short_active() {
+                            self.guards.set_trigger(OpTrigger::Bsp);
+                            self.open_short_leg(k, top, view.zg[k], c);
+                        }
                     }
                 }
                 // 走势未完成 ∧ 核心多腿 ⇒ 不平核心多腿（回调），落到下方开空腿吃回调。
@@ -1512,7 +1556,9 @@ impl TRoot {
             //   无法 L3 证伪 ⇒ 不擅自实装=避有效域膨胀）。
             // 自相似 no-hardcode：`highest_active_long()` 是结构涌现（无 if level==N/regime），k<core 跨级别同构。
             let below_core_long = self.highest_active_long().map_or(false, |core| k < core);
-            if !self.leg_pairs[k].short_active() && sub_break && below_core_long {
+            // 变体2（放开 k<核心 t3sell 大额做空）：移除 below_core_long 限制 ⇒ t3sell 在核心及其上开空（max_gross>1×）。
+            let short_level_ok = below_core_long || self.enable_pair_core_short_open;
+            if !self.leg_pairs[k].short_active() && sub_break && short_level_ok {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 self.open_short_leg(k, top, view.zg[k], c);
             }
