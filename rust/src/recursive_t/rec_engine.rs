@@ -60,6 +60,24 @@ pub const MAX_LEVEL: usize = 8;
 ///
 /// bit-exact 契约：`enable_nest=false ∧ enable_hold_anchor=false` ⇒ on_bar/route_bsp/sink/drain/enter
 /// 行为与 OFF 逐字一致（新逻辑全部 flag 门控、anchor 恒 0）。
+///
+/// **做空腿开仓触发器（做空腿对称化，#108 L2 根因修复，编排者推动 FINAL GOAL）**：
+/// #108 坐实做空腿亏 = 多空开仓触发**不对称**——多头开仓 = `view.buy[k]`（任意买点 type1/2/3，含
+/// 及时的 type1 底背驰 ⇒ 骑涨，每级别 long_pnl 全正）；做空开仓 = **仅 `view.t3sell[k]`**（type3
+/// 最滞后破位）⇒ 系统性晚建，错过 type1 顶背驰 → 整段 |跌幅| → type3 破位（强牛中 = 回调底 → 涨回
+/// → zg 止损）。逐笔实证：做空 L0 捕获率 34-43% < 50%（BTC 36%），多头每级别全正。
+///
+/// 对称化（缠论「开@顶 平@底」对称性）= 把开空触发提到与多头同等及时度：
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShortEntry {
+    /// 默认基线（#117 已 L3）：`view.t3sell[k]`（type3 破位，最滞后）。保 #117 逐位复现。
+    T3,
+    /// 候选A：`view.t1sell[k]`（type1 顶背驰，与多头 type1 底背驰对称——开空于走势终完美）。
+    T1,
+    /// 候选B：`view.sell[k]`（任意卖点 type1/2/3，与多头 `view.buy` 完全对称）。
+    Any,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct EngineConfig {
     pub enable_earning: bool,
@@ -97,6 +115,11 @@ pub struct EngineConfig {
     /// liq=0 仅靠 geom_tower 恒仓；删 geom_tower 必须同步接真否定线否则穿仓）。false ⇒ RB_PAIR/OFF 逐字
     /// 不变（bit-exact，geom_tower + zd/zg 恒 None）。env `T_FACEB`。
     pub enable_uniform_sizing: bool,
+    /// **做空腿开仓触发器（做空腿对称化，#108 根因）**：默认 `T3`（= #117 基线，逐位复现）；
+    /// `T1`/`Any` 把开空对称到多头 `view.buy`（候选A/B）。`below_core_long` 门 + zg 否定线封顶不变
+    /// （防核心假顶翻空灾难，leverage-accept −106256）。env：`T_PAIR_SHORT_T1` / `T_PAIR_SHORT_ANY`。
+    /// 只在 LegPair 路径（`enable_reading_b_pair`）经 g_pair 生效；OFF/instances 路径不跑 g_pair ⇒ bit-exact。
+    pub pair_short_entry: ShortEntry,
 }
 
 impl EngineConfig {
@@ -116,6 +139,17 @@ impl EngineConfig {
             enable_pair_core_short: std::env::var("T_PAIR_CORE_SHORT").is_ok(),
             enable_pair_core_short_open: std::env::var("T_PAIR_CORE_SHORT_T3").is_ok(),
             enable_uniform_sizing: std::env::var("T_FACEB").is_ok(),
+            // 做空腿对称化触发器（#108 根因）：Any 优先于 T1，二者皆无 ⇒ T3（#117 基线，逐位复现）。
+            // 注：不计入 any_variant_enabled()——pair_short_entry 是 face_a 默认引擎的**修饰**（开空触发口径），
+            // 非独立实验变体；单独 set T_PAIR_SHORT_T1 ⇒ production() 仍走 face_a() 分支（off() 不 reset 此字段，
+            // 经 from_env 基底贯穿到 face_a），= face_a + 对称开空。
+            pair_short_entry: if std::env::var("T_PAIR_SHORT_ANY").is_ok() {
+                ShortEntry::Any
+            } else if std::env::var("T_PAIR_SHORT_T1").is_ok() {
+                ShortEntry::T1
+            } else {
+                ShortEntry::T3
+            },
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -642,6 +676,9 @@ pub struct TRoot {
     /// **Face B 均匀基准单元定仓（做空腿赚 #110）**：true ⇒ open_*_leg 用 uniform_base_units 取代
     /// geom_tower_quota（删恒仓归一化压制 → 来源A 杠杆涌现 + 真否定线封顶）。OFF=false（bit-exact）。
     enable_uniform_sizing: bool,
+    /// **做空腿开仓触发器（做空腿对称化，#108 根因）**：T3=#117 基线（view.t3sell）/ T1=候选A（view.t1sell）
+    /// / Any=候选B（view.sell，对称多头 view.buy）。g_pair 开空门控用，below_core_long 门不变。
+    pair_short_entry: ShortEntry,
     /// 初始本金（= free 初值）——Face B 均匀基准单元定仓的级别无关基准（initial_capital×MOBILE_FRAC）。
     initial_capital: f64,
     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
@@ -763,6 +800,7 @@ impl TRoot {
             enable_reading_b_pair: cfg.enable_reading_b_pair,
             enable_pair_core_short: cfg.enable_pair_core_short,
             enable_pair_core_short_open: cfg.enable_pair_core_short_open,
+            pair_short_entry: cfg.pair_short_entry,
             enable_uniform_sizing: cfg.enable_uniform_sizing,
             initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
@@ -1644,7 +1682,15 @@ impl TRoot {
         // 自相似原则：区间套确认深度 ∝ 持仓尺度（主力=全深度 d_top / 短差=单层 t3sell），角色由 `highest_active_long` 结构涌现
         // 决定（零 if level==N/regime）。这正是 567洞察①「腿开平绑买卖点+区间套」——主力绑走势完成、短差绑第三类转折。
         let core_done = view.d_top[k];
-        let sub_break = view.t3sell[k];
+        // **开空触发器（做空腿对称化，#108 L2 根因修复）**：默认 T3（=view.t3sell，#117 基线，逐位复现）。
+        // 候选A（T1=view.t1sell 顶背驰）/ 候选B（Any=view.sell 任意卖点 = `s`，与多头 view.buy 完全对称）
+        // 把开空提到与多头 view.buy 同等及时度——消解 #108「做空仅 t3sell 晚建」不对称。`below_core_long` 门
+        // + zg 否定线封顶（下方 short_level_ok / open_short_leg）**不变** ⇒ net-up 假顶仍封死核心翻空（防灾难）。
+        let sub_break = match self.pair_short_entry {
+            ShortEntry::T3 => view.t3sell[k],
+            ShortEntry::T1 => view.t1sell[k],
+            ShortEntry::Any => s, // = view.sell[k]，已在 `if s` 块内恒真 ⇒ 任意卖点（below_core_long 内）开空
+        };
 
         if b {
             // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空）。
