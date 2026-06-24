@@ -1,105 +1,74 @@
-"""每级别·每元素 涨跌幅绝对值 捕获率 严格验证工具（#149 capture-ratio）。
+"""每级别·每元素 涨跌幅绝对值 捕获率 严格验证工具 v2（#149/#154 capture-ratio）。
 
-═══════════════ 存在论位置（编排者框定 FINAL GOAL 验证方法论工具）═══════════════
+═══ 编排者两刀严格化（v2 覆盖 v1，no-summation / per-trade ∀）═══
 
-FINAL GOAL = 递归嵌套多重赋格赚到**每个级别每个元素的涨跌幅绝对值** = Σ所有级别|涨跌幅|。
-聚合指标（short_pnl / strat_pct / vs BH）结构性掩盖 per-element——本工具把 Face A(#113) 的
-realized pnl 归属到每个 (级别 k, 走势段 e, 方向 d)，与理论上限 Σ|Δ| 对照，定位 r≤0 漏洞坐标。
+刀一【矩阵完备性 = 前置】不完备矩阵=假阴性盲区（像聚合掩盖 per-element 一样掩盖遗漏维度）。
+  四个可程序化检验（任一失败即定位不完备处，**先跑这个再跑捕获率**）：
+  1. 双射：trade 级别集 ⊆ 走势段级别集（无虚构 cell：腿不骑没段的级别）；每段有 cell（构造保证）。
+  2. 覆盖率=1：∀级别 段序列在该级别活跃区间内 contiguous（无内部游离 bar）；head/tail 未覆盖=边界。
+  3. 递归闭合：级别 k 中枢/段端点 ⊆ 级别 k-1 段端点（区间套递归一致）。
+  4. a0 底：level0 段 = a0(线段)最细，无更细可分（构成性底；笔更细但 a0=Segment 不取，526号）。
+  完备性根据=L0(580 操作语义二维完备 / 581 状态范畴全映射 / 走势终完美+中枢递归)；检验=L2/L3。
+  诚实边界：完备性仅在缠论递归分解 well-defined 域内；古怪线段(77/78课)/中枢延伸/谱系001退化线段
+  /002源不完备=矩阵歧义缺口，标注。
 
-数据源 = Rust 引擎 read-only instrumentation（`RecTStream.finish_full()`，#149）：
-  - level_segments: 全历史 tree 各级别走势段 (level, raw_start, raw_end, high, low, is_up) —— **分母源**。
-  - leg_trades:    Face A LegPair 逐笔账本 (level, entry_bar, exit_bar, entry_px, exit_px, units, is_short, pnl) —— **分子源**。
-  - pair_long_pnl / pair_short_pnl: per-level realized（账本完整性自检对账基准）。
+刀二【逐笔全称判定 = 禁所有求和作判据】Σcap/Σ|Δ|、by-level Σ、平均、胜率 **全作废为判据**
+  （求和三重掩盖：正负相抵/大段掩小段/级别内求和）。改：
+  - 粒度 = 每一笔 trade（买卖点驱动的开平），做多做空对称都查。
+  - 逐笔 r(trade) = per_unit_realized / covered_Δ，covered_Δ = 该笔持仓期内可得的有利幅度
+    （多头: max(high[开..平]) − 开价 / 空头: 开价 − min(low[开..平])）。r ∈ (−∞, 1]，r>0 ⟺ 该笔盈利。
+  - 判据（全称 ∀，可证伪：一笔反例即否）：做到 ⟺ ∀trade r>0；没做到 ⟺ ∃trade r≤0 → 列**全部** r≤0 笔坐标。
+  - 聚合数字仅作诊断（非判据，明确标注）。
 
-═══════════════ 定义（L0 definitional，结果包六要素见报告）═══════════════
+数据源 = `RecTStream.finish_full()`（#149/#154 read-only instrumentation）：
+  level_segments / level_centers / leg_trades / pair_long_pnl / pair_short_pnl / final_nav。
 
-记 level-k 走势段 e，raw 区间 [s,t]，振幅 |Δ_e| = high_e − low_e ≥ 0，方向 d_e（Up/Down）。
-
-1. **理论上限（真基准，≫BH）**：Σ|Δ| = Σ_k Σ_e |Δ_e|。
-   BH 只吃最大级别一个方向（close[-1]−close[0]）；Σ|Δ| 吃所有级别所有方向 ⇒ 完美多重赋格上限。
-
-2. **匹配腿**：与 e 同级别 k、极性匹配 d 的 LegPair 腿（Up→多头 / Down→做空）。
-
-3. **捕获额（分子，美元）**：cap$(e) = Σ_{匹配腿 trade T 与 [s,t] 重叠[a,b]} u_T·sign_T·(close[b]−close[a])，
-   sign=+1(多)/−1(空)，a=max(s,entry_bar_T)，b=min(t,exit_bar_T)。Face A 成交=确认时点 close ⇒
-   close[entry_bar]==entry_px（口径一致，无 look-ahead 注入）。
-
-4. **理想额（分母，美元）**：ideal$(e) = |Δ_e|·u_peak(e)，u_peak=匹配腿在 [s,t] 内峰值持仓股数。
-   单笔满跨段时 ideal$=|Δ|·u，r=cap$/ideal$=sign·(close[b]−close[a])/|Δ| ∈ (−∞,1]，完美持有 r→1
-   （因收盘成交 + 确认滞后，r<1 是真实税，非工具误差）。
-
-5. **覆盖（coverage，价格点）**：有匹配腿在场的走势段占比 = Σ|Δ|_covered / Σ|Δ|_all。
-   揭示「没吃到」= 该级别该方向根本没腿（多重赋格未在该级别部署）。
-
-6. **判据（可证伪+可定位）**：
-   - 完全做到 ⟺ ∀(k,e) cap$>0 且 总捕获率(efficiency)=Σcap$/Σideal$ → 1 且 coverage → 1。
-   - 没做到 ⟺ 列出 {(k,e,d): cap$≤0}（LOST=有腿但反亏/晚建）+ MISSED 统计（无腿）= 实现错坐标。
-
-认识论等级：定义=L0；单标的=L2；8标的(#117)交叉=L3（formalization-validity-domain）。
-no-hardcode / no-over-claim（231）；否定性结果优先（定位漏洞 > 确认）。
-
-用法：
-    .venv/bin/python analysis/capture_ratio_matrix.py                 # 8 标的 structural（production Face A）
-    .venv/bin/python analysis/capture_ratio_matrix.py --symbols OKLO  # 指定标的
-    .venv/bin/python analysis/capture_ratio_matrix.py --mode and      # 指定 mode
+认识论：完备性据=L0；逐笔 r=L3（真实数据每笔）；∀r>0 全称=可证伪。no-over-claim/no-summation(231)。
 """
 from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 import time
 from pathlib import Path
 
+import numpy as np
 import newchan_rust as nr
 
-# SYMBOLS：逐字复刻 rust/src/recursive_t/backtest_run.rs::SYMBOLS（同源 a₀/同源 Face A 引擎）。
 SYMBOLS = [
-    ("CL", "cl_1m_databento_10y.json"),
-    ("BRN", "brn_1m_databento_10y.json"),
-    ("DX", "dx_1m_databento_10y.json"),
-    ("GC", "gc_1m_databento_10y.json"),
-    ("ES", "es_1m_databento_10y.json"),
-    ("QQQ", "qqq_1m_databento_full.json"),
-    ("BTC", "btc_1m_full.json"),
-    ("OKLO", "oklo_1m_databento.json"),
+    ("CL", "cl_1m_databento_10y.json"), ("BRN", "brn_1m_databento_10y.json"),
+    ("DX", "dx_1m_databento_10y.json"), ("GC", "gc_1m_databento_10y.json"),
+    ("ES", "es_1m_databento_10y.json"), ("QQQ", "qqq_1m_databento_full.json"),
+    ("BTC", "btc_1m_full.json"), ("OKLO", "oklo_1m_databento.json"),
 ]
-
 REPO = Path(__file__).resolve().parents[1]
 DATA_DIR = REPO / "analysis" / "data_cache"
-# worktree 大 JSON 被 gitignore 不在 worktree 内 ⇒ 回落主仓库 data_cache（绝对路径，记忆 rec_stream §跑法）。
 MAIN_DATA_DIR = Path("/Users/silencehan/Projects/NewChanlun/analysis/data_cache")
+EPS = 1e-9
 
 
-def load_clean_ohlc(path: Path) -> tuple[list[float], list[float], list[float], list[float]]:
-    """逐位复刻 backtest_run.rs::load_clean_ohlc（两遍清洗，保证与 Face A 引擎同 bar 视图）。"""
-    text = path.read_text()
-    text = text.replace("-Infinity", "null").replace("Infinity", "null").replace("NaN", "null")
+def load_clean_ohlc(path: Path):
+    """逐位复刻 backtest_run.rs::load_clean_ohlc（两遍清洗，与 Face A 引擎同 bar 视图）。"""
+    text = path.read_text().replace("-Infinity", "null").replace("Infinity", "null").replace("NaN", "null")
     raw = json.loads(text)
     if raw.get("bars"):
-        bars = raw["bars"]
-        o_in = [b.get("open") for b in bars]
-        h_in = [b.get("high") for b in bars]
-        l_in = [b.get("low") for b in bars]
-        c_in = [b.get("close") for b in bars]
+        b = raw["bars"]
+        o_in = [x.get("open") for x in b]; h_in = [x.get("high") for x in b]
+        l_in = [x.get("low") for x in b]; c_in = [x.get("close") for x in b]
     else:
-        o_in = raw.get("opens", [])
-        h_in = raw.get("highs", [])
-        l_in = raw.get("lows", [])
-        c_in = raw.get("closes", [])
-    # 第一遍：None/nan/≤0 清洗。
+        o_in = raw.get("opens", []); h_in = raw.get("highs", [])
+        l_in = raw.get("lows", []); c_in = raw.get("closes", [])
     o, h, l, c = [], [], [], []
     for i in range(len(c_in)):
         oi, hi, li, ci = o_in[i], h_in[i], l_in[i], c_in[i]
         if oi is None or hi is None or li is None or ci is None:
             continue
-        if any(x != x for x in (oi, hi, li, ci)):  # nan
+        if any(x != x for x in (oi, hi, li, ci)):
             continue
         if oi <= 0 or hi <= 0 or li <= 0 or ci <= 0:
             continue
         o.append(oi); h.append(hi); l.append(li); c.append(ci)
-    # 第二遍：spike-and-revert 孤立坏 tick。
     n = len(c)
     drop = [False] * n
     for i in range(1, max(0, n - 1)):
@@ -111,171 +80,136 @@ def load_clean_ohlc(path: Path) -> tuple[list[float], list[float], list[float], 
     return o, h, l, c
 
 
-def run_face_a(closes_o, closes_h, closes_l, closes_c, mode: str) -> dict:
-    """逐 bar 推 Face A（RecTStream=new_production 默认 Face A），finish_full 取 per-element 数据。"""
+def run_face_a(o, h, l, c, mode):
     s = nr.RecTStream(mode)
-    for o, h, l, c in zip(closes_o, closes_h, closes_l, closes_c):
-        s.push_bar(o, h, l, c)
+    for a, b, d, e in zip(o, h, l, c):
+        s.push_bar(a, b, d, e)
     return s.finish_full()
 
 
-def compute_capture(res: dict, closes: list[float]) -> dict:
-    """per-element 捕获率矩阵 + r≤0 坐标定位 + 总捕获率(efficiency) + coverage + 多头/做空差异。"""
-    segs = res["level_segments"]          # (level, raw_start, raw_end, high, low, is_up)
-    trades = res["leg_trades"]            # (level, entry_bar, exit_bar, entry_px, exit_px, units, is_short, pnl)
-    n = len(closes)
+# ════════════════ 刀一：矩阵完备性四检验（前置）════════════════
 
-    # ── 账本完整性自检（fail-loud，no-workaround）：Σ账本多头 pnl == Σ pair_long_pnl，空头同 ──
-    ledger_long = sum(t[7] for t in trades if not t[6])
-    ledger_short = sum(t[7] for t in trades if t[6])
-    pl = sum(res["pair_long_pnl"]); ps = sum(res["pair_short_pnl"])
-    tol = 1e-6 * (abs(pl) + abs(ps) + 1.0)
-    ledger_ok = abs(ledger_long - pl) <= tol and abs(ledger_short - ps) <= tol
+def completeness_checks(res, n):
+    segs = res["level_segments"]      # (k, rs, re, high, low, is_up)
+    centers = res["level_centers"]    # (k, rs, re, zg, zd)
+    trades = res["leg_trades"]        # (k, eb, xb, ep, xp, u, is_short, pnl)
 
-    # ── 匹配腿索引：按 (level, is_short) 分桶 trade，便于逐段重叠归因 ──
-    by_lvl_dir: dict = {}
-    for (lvl, eb, xb, ep, xp, u, is_short, pnl) in trades:
-        by_lvl_dir.setdefault((lvl, is_short), []).append((eb, xb, u))
+    seg_levels = sorted(set(s[0] for s in segs))
+    trade_levels = sorted(set(t[0] for t in trades))
 
-    def clampc(i: int) -> float:
-        if i < 0:
-            i = 0
-        if i >= n:
-            i = n - 1
-        return closes[i]
+    # 检验1 双射：trade 级别 ⊆ 段级别（无虚构 cell）；每段有 cell（构造保证：矩阵遍历 segs）。
+    phantom_levels = [k for k in trade_levels if k not in set(seg_levels)]
+    chk1 = {"pass": len(phantom_levels) == 0, "seg_levels": seg_levels,
+            "trade_levels": trade_levels, "phantom_trade_levels": phantom_levels,
+            "n_segments": len(segs), "note": "每段有 cell（矩阵逐 level_segments 遍历，构造双射）"}
 
-    # ── 逐走势段归因 ──
-    # 矩阵聚合：key=(level, d) → {n_seg, n_cov, n_pos, n_le0, sum_abs_dz, sum_abs_dz_cov, cap$, ideal$}
-    agg: dict = {}
-    lost: list = []      # (level, raw_start, raw_end, dir, |Δ|, cap$)  —— 有腿但 cap$≤0（实现错精确坐标）
-    missed_top: dict = {}  # (level,dir) → list of (|Δ|, s, t) 取最大若干（exemplar，非全量）
-    sum_abs_dz_all = 0.0
+    # 检验2 覆盖率=1：每级别段在活跃区间内 contiguous（无内部游离 bar）。
+    # 走势段共享转折 bar ⇒ raw 坐标相邻段 gap=rs[i+1]-re[i] ∈ {≤0(共享pivot重叠), 1(相邻)}；gap≥2=游离。
+    cov = {}
+    for k in seg_levels:
+        ks = sorted([(s[1], s[2]) for s in segs if s[0] == k])
+        if not ks:
+            continue
+        first, last = ks[0][0], ks[-1][1]
+        rng = max(1, last - first)
+        stray = 0
+        stray_coords = []
+        for i in range(len(ks) - 1):
+            gap = ks[i + 1][0] - ks[i][1]
+            if gap >= 2:
+                stray += gap - 1
+                if len(stray_coords) < 5:
+                    stray_coords.append((ks[i][1], ks[i + 1][0]))
+        internal_cov = 1.0 - stray / rng
+        cov[f"L{k}"] = {"n_seg": len(ks), "range": [first, last], "active_bars": rng,
+                        "internal_stray_bars": stray, "internal_coverage": round(internal_cov, 6),
+                        "head_uncovered": first, "tail_uncovered": n - last,
+                        "stray_coords": stray_coords}
+    chk2 = {"pass": all(v["internal_coverage"] >= 1.0 - 1e-9 for v in cov.values()),
+            "per_level": cov,
+            "note": "internal_coverage=活跃区间内覆盖（head/tail 未覆盖=a0确认滞后+末段生长=边界，非bug）"}
 
-    for (lvl, s, t, high, low, is_up) in segs:
-        dz = high - low
-        if dz < 0:
-            dz = 0.0
-        sum_abs_dz_all += dz
-        d = "Up" if is_up else "Down"
-        key = (lvl, d)
-        a = agg.setdefault(key, {"n_seg": 0, "n_cov": 0, "n_pos": 0, "n_le0": 0,
-                                 "abs_dz": 0.0, "abs_dz_cov": 0.0, "cap": 0.0, "ideal": 0.0})
-        a["n_seg"] += 1
-        a["abs_dz"] += dz
-        # 匹配腿：Up 段→多头(is_short=False)；Down 段→做空(is_short=True)。同级别 k。
-        want_short = not is_up
-        legs = by_lvl_dir.get((lvl, want_short), [])
-        cap = 0.0
-        u_peak = 0.0
-        covered = False
-        sign = 1.0 if is_up else -1.0
-        if t < s:
-            s, t = t, s  # 防御：raw_start>raw_end（理论不发生）
-        for (eb, xb, u) in legs:
-            if eb < 0:
-                eb = 0
-            lo = s if s > eb else eb
-            hi = t if t < xb else xb
-            if lo > hi:
-                continue  # 无重叠
-            covered = True
-            cap += u * sign * (clampc(hi) - clampc(lo))
-            if u > u_peak:
-                u_peak = u
-        if covered:
-            ideal = dz * u_peak
-            a["n_cov"] += 1
-            a["abs_dz_cov"] += dz
-            a["cap"] += cap
-            a["ideal"] += ideal
-            if cap > 0:
-                a["n_pos"] += 1
-            else:
-                a["n_le0"] += 1
-                lost.append((lvl, s, t, d, dz, cap))
-        else:
-            # MISSED：无匹配腿在场（coverage gap）。记 top-N exemplar（按 |Δ| 最大）。
-            mk = (lvl, d)
-            lst = missed_top.setdefault(mk, [])
-            lst.append((dz, s, t))
-
-    # MISSED top-N（exemplar，no silent cap：报告记录 MISSED 总数 + 仅展示最大 N 个坐标）。
-    TOPN = 8
-    missed_examples = {}
-    missed_count = {}
-    missed_abs_dz = {}
-    for mk, lst in missed_top.items():
-        lst.sort(reverse=True)
-        missed_examples[mk] = lst[:TOPN]
-        missed_count[mk] = len(lst)
-        missed_abs_dz[mk] = sum(x[0] for x in lst)
-
-    # 总量
-    sum_cap = sum(a["cap"] for a in agg.values())
-    sum_ideal = sum(a["ideal"] for a in agg.values())
-    sum_abs_dz_cov = sum(a["abs_dz_cov"] for a in agg.values())
-    efficiency = (sum_cap / sum_ideal) if sum_ideal > 0 else float("nan")
-    coverage = (sum_abs_dz_cov / sum_abs_dz_all) if sum_abs_dz_all > 0 else float("nan")
-
-    # 多头赋格 vs 做空赋格（Up 段=多头侧 / Down 段=做空侧）实现差异
-    def side(dir_):
-        cap = sum(a["cap"] for (k, d), a in agg.items() if d == dir_)
-        ideal = sum(a["ideal"] for (k, d), a in agg.items() if d == dir_)
-        dz_all = sum(a["abs_dz"] for (k, d), a in agg.items() if d == dir_)
-        dz_cov = sum(a["abs_dz_cov"] for (k, d), a in agg.items() if d == dir_)
-        n_seg = sum(a["n_seg"] for (k, d), a in agg.items() if d == dir_)
-        n_cov = sum(a["n_cov"] for (k, d), a in agg.items() if d == dir_)
-        n_le0 = sum(a["n_le0"] for (k, d), a in agg.items() if d == dir_)
-        return {
-            "cap": cap, "ideal": ideal, "abs_dz_all": dz_all, "abs_dz_cov": dz_cov,
-            "n_seg": n_seg, "n_cov": n_cov, "n_le0": n_le0,
-            "efficiency": (cap / ideal) if ideal > 0 else float("nan"),
-            "coverage": (dz_cov / dz_all) if dz_all > 0 else float("nan"),
+    # 检验3 递归闭合：级别 k 段/中枢端点 ⊆ 级别 k-1 段端点（区间套递归一致）。
+    def endpoints(items, k):
+        e = set()
+        for it in items:
+            if it[0] == k:
+                e.add(it[1]); e.add(it[2])
+        return e
+    rec = {}
+    for k in seg_levels:
+        if k - 1 not in set(seg_levels):
+            continue
+        parent_ep = endpoints(segs, k - 1)
+        seg_ep = endpoints(segs, k)
+        ctr_ep = endpoints(centers, k)
+        seg_in = sum(1 for x in seg_ep if x in parent_ep)
+        ctr_in = sum(1 for x in ctr_ep if x in parent_ep)
+        rec[f"L{k}<L{k-1}"] = {
+            "seg_endpoints": len(seg_ep), "seg_in_parent": seg_in,
+            "seg_subset_ratio": round(seg_in / len(seg_ep), 4) if seg_ep else 1.0,
+            "center_endpoints": len(ctr_ep), "center_in_parent": ctr_in,
+            "center_subset_ratio": round(ctr_in / len(ctr_ep), 4) if ctr_ep else 1.0,
         }
+    # 闭合判据：段端点子集率→1（容忍 merged→raw 边界 ±1 效应，阈 0.98）。
+    chk3 = {"pass": all(v["seg_subset_ratio"] >= 0.98 for v in rec.values()) if rec else True,
+            "per_level": rec,
+            "note": "端点子集率<1 残差=merged→raw 边界 ±1 桥接效应（共享pivot merged bar 的 raw 宽度）"}
 
-    bh = closes[-1] - closes[0]
-    return {
-        "n_bars": n,
-        "ledger_self_check": {"ok": ledger_ok, "ledger_long": ledger_long, "pair_long": pl,
-                              "ledger_short": ledger_short, "pair_short": ps},
-        "sum_abs_dz_all": sum_abs_dz_all,          # 理论上限 Σ|Δ|（价格点）
-        "bh_abs_move": abs(bh),                    # |close[-1]−close[0]|（BH 单级单向）
-        "dz_vs_bh_ratio": (sum_abs_dz_all / abs(bh)) if bh != 0 else float("nan"),
-        "sum_cap_dollars": sum_cap,
-        "sum_ideal_dollars": sum_ideal,
-        "total_efficiency": efficiency,            # Σcap$/Σideal$ → 1 = 部署段全吃满
-        "total_coverage": coverage,                # Σ|Δ|_cov/Σ|Δ|_all → 1 = 每段都有匹配腿
-        "final_nav": res["final_nav"],
-        "n_trades": len(trades),
-        "n_segments": len(segs),
-        "long_side": side("Up"),
-        "short_side": side("Down"),
-        "matrix": {f"L{k}/{d}": v for (k, d), v in sorted(agg.items())},
-        "lost_coords": sorted(lost, key=lambda x: x[4], reverse=True),  # 全量 r≤0（有腿反亏），按 |Δ| 降序
-        "missed_count": {f"L{k}/{d}": missed_count[(k, d)] for (k, d) in missed_count},
-        "missed_abs_dz": {f"L{k}/{d}": missed_abs_dz[(k, d)] for (k, d) in missed_abs_dz},
-        "missed_examples": {f"L{k}/{d}": missed_examples[(k, d)] for (k, d) in missed_examples},
-    }
+    # 检验4 a0 底：level0 存在且最细（a0=线段，无 level<0）。
+    chk4 = {"pass": (0 in set(seg_levels)),
+            "min_level": min(seg_levels) if seg_levels else None,
+            "a0_source": "Segment(线段)",
+            "note": "a0=线段(构成性底)；笔更细但 a0=Segment 不取(526号)=已知缺口，非 bug",
+            "chanlun_boundary": "古怪线段(77/78课)/中枢延伸/谱系001退化线段/002源不完备=段归属歧义，引擎输出为准"}
+
+    all_pass = chk1["pass"] and chk2["pass"] and chk3["pass"] and chk4["pass"]
+    return {"all_pass": all_pass, "check1_bijection": chk1, "check2_bar_coverage": chk2,
+            "check3_recursive_closure": chk3, "check4_a0_base": chk4}
+
+
+# ════════════════ 刀二：逐笔全称判定（禁求和作判据）════════════════
+
+def per_trade_capture(res, h, l, c):
+    trades = res["leg_trades"]
+    H = np.asarray(h, dtype=float); L = np.asarray(l, dtype=float); C = np.asarray(c, dtype=float)
+    n = len(C)
+    rows = []
+    for (k, eb, xb, ep, xp, u, is_short, pnl) in trades:
+        a = max(0, int(eb)); b = min(n - 1, int(xb))
+        if b < a:
+            a, b = b, a
+        if is_short:
+            per_unit = ep - xp
+            mn = float(L[a:b + 1].min()) if b >= a else ep
+            covered = ep - mn               # 空头可得有利幅度 = 开价 − 期内最低
+        else:
+            per_unit = xp - ep
+            mx = float(H[a:b + 1].max()) if b >= a else ep
+            covered = mx - ep               # 多头可得有利幅度 = 期内最高 − 开价
+        covered = covered if covered > EPS else max(abs(per_unit), EPS)  # 兜底：从未有利则用净位移/eps
+        r = per_unit / covered
+        rows.append({"level": int(k), "dir": "short" if is_short else "long",
+                     "entry_bar": int(eb), "exit_bar": int(xb), "units": u,
+                     "pnl": pnl, "per_unit": per_unit, "covered_dz": covered, "r": r})
+    return rows
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--symbols", default=",".join(s for s, _ in SYMBOLS))
     ap.add_argument("--mode", default="structural")
-    ap.add_argument("--bars", type=int, default=0, help="0=全量")
+    ap.add_argument("--bars", type=int, default=0)
     ap.add_argument("--out", default=str(REPO / "analysis" / "data_cache"))
     args = ap.parse_args()
-
     want = [s.strip().upper() for s in args.symbols.split(",") if s.strip()]
     file_of = dict(SYMBOLS)
-    out_dir = Path(args.out)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out); out_dir.mkdir(parents=True, exist_ok=True)
 
-    results = {}
     for sym in want:
         fn = file_of.get(sym)
-        if fn is None:
-            print(f"[{sym}] 未注册，跳过", file=sys.stderr); continue
+        if not fn:
+            print(f"[{sym}] 未注册", file=sys.stderr); continue
         path = DATA_DIR / fn
         if not path.exists():
             path = MAIN_DATA_DIR / fn
@@ -285,23 +219,59 @@ def main() -> int:
         o, h, l, c = load_clean_ohlc(path)
         if args.bars:
             o, h, l, c = o[:args.bars], h[:args.bars], l[:args.bars], c[:args.bars]
-        print(f"[{sym}] {len(c):,} bars loaded {time.time()-t0:.1f}s, running Face A({args.mode})...", flush=True)
+        n = len(c)
+        print(f"[{sym}] {n:,} bars {time.time()-t0:.1f}s, Face A({args.mode})...", flush=True)
         t1 = time.time()
         res = run_face_a(o, h, l, c, args.mode)
-        cap = compute_capture(res, c)
-        cap["symbol"] = sym; cap["mode"] = args.mode
-        dt = time.time() - t1
-        results[sym] = cap
-        sc = cap["ledger_self_check"]
-        print(f"[{sym}] done {dt:.1f}s | ledger_ok={sc['ok']} | Σ|Δ|={cap['sum_abs_dz_all']:.0f} "
-              f"(={cap['dz_vs_bh_ratio']:.1f}×BH) | eff={cap['total_efficiency']:.3f} "
-              f"cov={cap['total_coverage']:.3f} | nav={cap['final_nav']:.0f} "
-              f"L_eff={cap['long_side']['efficiency']:.3f}/cov={cap['long_side']['coverage']:.3f} "
-              f"S_eff={cap['short_side']['efficiency']:.3f}/cov={cap['short_side']['coverage']:.3f} "
-              f"| lost(r≤0)={len(cap['lost_coords'])}", flush=True)
-        (out_dir / f"capture_ratio_{sym}_{args.mode}.json").write_text(
-            json.dumps(cap, ensure_ascii=False, indent=1))
+        comp = completeness_checks(res, n)
+        rows = per_trade_capture(res, h, l, c)
 
+        # 账本完整性自检（fail-loud）
+        ll = sum(t[7] for t in res["leg_trades"] if not t[6]); ss = sum(t[7] for t in res["leg_trades"] if t[6])
+        pl = sum(res["pair_long_pnl"]); ps = sum(res["pair_short_pnl"])
+        tol = 1e-6 * (abs(pl) + abs(ps) + 1.0)
+        ledger_ok = abs(ll - pl) <= tol and abs(ss - ps) <= tol
+
+        # 全称判定（禁求和）：∀r>0?
+        r_le0 = [x for x in rows if x["r"] <= 0]
+        n_long = sum(1 for x in rows if x["dir"] == "long")
+        n_short = sum(1 for x in rows if x["dir"] == "short")
+        n_le0_long = sum(1 for x in r_le0 if x["dir"] == "long")
+        n_le0_short = sum(1 for x in r_le0 if x["dir"] == "short")
+        forall_pos = len(r_le0) == 0
+
+        # 诊断分布（非判据）：r≤0 by (level,dir)
+        dist = {}
+        for x in r_le0:
+            key = f"L{x['level']}/{x['dir']}"
+            dist[key] = dist.get(key, 0) + 1
+
+        out = {
+            "symbol": sym, "mode": args.mode, "n_bars": n, "final_nav": res["final_nav"],
+            "ledger_self_check": {"ok": ledger_ok, "ledger_long": ll, "pair_long": pl,
+                                  "ledger_short": ss, "pair_short": ps},
+            "completeness": comp,
+            "n_trades": len(rows), "n_long": n_long, "n_short": n_short,
+            "universal_judgment": {
+                "criterion": "∀trade r>0（做多做空全笔；一笔 r≤0 即没做到那一笔的|涨跌幅|）",
+                "forall_r_positive": forall_pos,
+                "n_r_le0": len(r_le0), "n_r_le0_long": n_le0_long, "n_r_le0_short": n_le0_short,
+                "verdict": "做到（∀r>0）" if forall_pos else f"没做到（∃{len(r_le0)} 笔 r≤0）",
+            },
+            "r_le0_coords": sorted([(x["level"], x["dir"], x["entry_bar"], x["exit_bar"],
+                                     round(x["r"], 4), round(x["covered_dz"], 4), round(x["pnl"], 2))
+                                    for x in r_le0], key=lambda z: z[6]),  # 按 pnl 升序（最亏在前）
+            "diag_r_le0_by_level_dir": dist,  # 非判据
+            "all_trades": [(x["level"], x["dir"], x["entry_bar"], x["exit_bar"],
+                            round(x["r"], 4), round(x["covered_dz"], 4), round(x["pnl"], 2)) for x in rows],
+        }
+        (out_dir / f"capture_ratio_{sym}_{args.mode}.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+        cs = comp
+        print(f"[{sym}] done {time.time()-t1:.1f}s | ledger_ok={ledger_ok} | "
+              f"完备[双射{cs['check1_bijection']['pass']} 覆盖{cs['check2_bar_coverage']['pass']} "
+              f"递归{cs['check3_recursive_closure']['pass']} a0底{cs['check4_a0_base']['pass']}] | "
+              f"trades={len(rows)}(L{n_long}/S{n_short}) | ∀r>0={forall_pos} "
+              f"r≤0={len(r_le0)}(L{n_le0_long}/S{n_le0_short})", flush=True)
     return 0
 
 

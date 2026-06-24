@@ -629,6 +629,66 @@ impl RecStream {
         }
         out
     }
+
+    /// #149 per-level 中枢区间普查（matrix 完备性 递归闭合检验源，read-only）。
+    /// 同 `level_segments` 的 iterate 主循环，但 dump 每级别 apply_t 产出的中枢（步骤a find_centers）。
+    /// 中枢 bar 区间 = 参与单元 [units[0].start_bar, units.last.end_bar]（current 索引），merged→raw。
+    /// 返回 (level, raw_start, raw_end, zg=center.high, zd=center.low)。
+    pub fn level_centers(&self) -> Vec<(usize, i64, i64, f64, f64)> {
+        let segs = self.orch.segments();
+        let strokes = self.orch.strokes();
+        let m2r = self.orch.merged_to_raw();
+        let a0 = build_a0_fast(
+            segs,
+            strokes,
+            m2r,
+            &self.prefix_pos,
+            &self.prefix_neg,
+            self.a0_source,
+            false,
+        );
+        let conv = |b: i64, is_end: bool| -> i64 {
+            match m2r.get(b as usize) {
+                Some(&(rs, re)) => if is_end { re as i64 } else { rs as i64 },
+                None => b,
+            }
+        };
+        let mut out: Vec<(usize, i64, i64, f64, f64)> = Vec::new();
+        let mut current = a0;
+        let mut k = 0usize;
+        loop {
+            let o = super::apply_t(&current, k, self.mode);
+            for z in &o.centers {
+                if z.units.is_empty() {
+                    continue;
+                }
+                let u0 = current.get(z.units[0]);
+                let u1 = current.get(*z.units.last().unwrap());
+                if let (Some(u0), Some(u1)) = (u0, u1) {
+                    out.push((
+                        k,
+                        conv(u0.start_bar, false),
+                        conv(u1.end_bar, true),
+                        z.high,
+                        z.low,
+                    ));
+                }
+            }
+            if o.trends.is_empty() {
+                break;
+            }
+            let next = o.next_units.clone();
+            if next.len() < 3 {
+                break;
+            }
+            current = next;
+            k += 1;
+            if k > 64 {
+                break;
+            }
+        }
+        out
+    }
 }
 
 #[cfg(test)]

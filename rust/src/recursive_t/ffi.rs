@@ -309,6 +309,7 @@ impl PyRecStream {
         d.set_item("pair_long_pnl", lp)?;
         d.set_item("pair_short_pnl", sp)?;
         d.set_item("level_segments", self.core.level_segments())?;
+        d.set_item("level_centers", self.core.level_centers())?;
         Ok(d.into())
     }
 }
