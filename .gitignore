@@ -87,3 +87,6 @@ analysis/logs/
 # 548号 hook 运行时痕迹审计开关（可控 debug 开关，默认 off）
 .chanlun/.hook-trace-enabled
 .chanlun/.hook-trace.log
+
+# precompact-save.sh 自动快照（运行时产物，ceremony 只读最新，累积不入库）
+.chanlun/sessions/
