@@ -1,8 +1,9 @@
 ---
 type: meta-rule
-status: 生成态   # meta-observer 观测层：张力独立核验成立（L0 源码+谱系事实）。genealogist 观测层处理完成（2026-06-23）：独立张力检查通过（§九，无不可分层矛盾，新正交维度非564重复）+ 编号 571 + 责任方对偶确认数据点。【编号收敛：两代 genealogist 并发解决 571 碰撞时都让向 572（未协调同向避让=二次碰撞，573 进程层共存的谱系层显形）；war-avoiding 收敛=各动自有文件——本实例(gen-2)动本文件 stopguard 取 571，并发实例(gen-1)动 trinity 取 572；与 #73 git-mv 计划一致(stopguard→571 / trinity→572)】。状态保持生成态——hook 阻断逻辑修订=元层/基因组级修改，需 gemini-challenger 异质审查（meta-observer 构成性利益冲突防护）+ /escalate 编排者裁决（规则批准层）+ /ritual。区别于 567（gated on #69 实证）：本号 L0 已坐实，可即时上浮。
+status: 已结算   # 编排者经 team-lead 采纳裁决（2026-06-23）：阻断按责任方过滤。codex #77 异质审查通过（3否定作实装规格：排除"自称已路由"后门/responsible_agents 字段已加/对齐 check0 临界放行语义）；实装 stopguard-fix 工位。settled_by: 编排者采纳+codex#77+genealogist§九张力检查。【原观测层】meta-observer 张力独立核验成立（L0 源码+谱系事实）。genealogist 观测层处理完成（2026-06-23）：独立张力检查通过（§九，无不可分层矛盾，新正交维度非564重复）+ 编号 571 + 责任方对偶确认数据点。【编号收敛：两代 genealogist 并发解决 571 碰撞时都让向 572（未协调同向避让=二次碰撞，573 进程层共存的谱系层显形）；war-avoiding 收敛=各动自有文件——本实例(gen-2)动本文件 stopguard 取 571，并发实例(gen-1)动 trinity 取 572；与 #73 git-mv 计划一致(stopguard→571 / trinity→572)】。状态保持生成态——hook 阻断逻辑修订=元层/基因组级修改，需 gemini-challenger 异质审查（meta-observer 构成性利益冲突防护）+ /escalate 编排者裁决（规则批准层）+ /ritual。区别于 567（gated on #69 实证）：本号 L0 已坐实，可即时上浮。
 id: "571"   # genealogist(gen-2) 分配 2026-06-23（收敛：两代都让向572二次碰撞→各动自有文件，本号取571 / trinity取572 / agent-process取573；与#73 git-mv计划一致）
 number: 571
+responsible_agents: [genealogist, 编排者]   # 571号责任方过滤（机器可读，codex#77否定2：实装前置，非type→agentType硬编码映射）。结算/张力检查→genealogist（agentType，可被hook匹配）；规则批准（选择/语法记录裁决）→编排者（人类，无agentType匹配→不阻断任何agent session，符合人类异步裁决）。
 title: "Stop-Guard 阻断粒度 ⊥ pending 责任方——session 级阻断打到无可推进工作的非责任方节点（meta-lead 死锁）；097 hook 纯化只约束『注入什么』未覆盖『阻断谁』"
 date: "2026-06-23"
 source: meta-observer
