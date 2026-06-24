@@ -6066,6 +6066,8 @@ edges:
     to: '561'
   - from: '567'
     to: '571'
+  - from: '567'
+    to: '572'
   triggered:
   - from: '005'
     to: 005a
