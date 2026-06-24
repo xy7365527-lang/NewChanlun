@@ -97,6 +97,13 @@ pub struct EngineConfig {
     /// liq=0 仅靠 geom_tower 恒仓；删 geom_tower 必须同步接真否定线否则穿仓）。false ⇒ RB_PAIR/OFF 逐字
     /// 不变（bit-exact，geom_tower + zd/zg 恒 None）。env `T_FACEB`。
     pub enable_uniform_sizing: bool,
+    /// **LegPair 核心多腿涌现升级（R3 段无腿修复 #164/#6）**：true ⇒ consume_leg_pairs 在止损后、g_pair 前
+    /// 检查 `view.emergent_top`——核心多腿(highest_active_long=cc)同向(Long)且 cc<涌现级别 target ⇒ relabel
+    /// 上移到 target（持仓继承 long_units/long_basis = 无新资金 = 敞口不变，否定线更新为 target 中枢 ZD）。
+    /// 对照 instances 路径 `emergence_upgrade`/`ascend`（LegPair 路径原缺此机制 ⇒ 核心腿卡在低级别，L4/L5
+    /// 涌现段无核心腿=S1 段无腿 70.8%/高级别~100%）。多重赋格理想：每涌现级别一专属核心腿捕获本级别 |Δ|。
+    /// false ⇒ Face A/B/RB_PAIR/OFF 逐字不变（bit-exact，无 relabel）。env `T_PAIR_EMERGE`。
+    pub enable_pair_emergence: bool,
 }
 
 impl EngineConfig {
@@ -116,6 +123,7 @@ impl EngineConfig {
             enable_pair_core_short: std::env::var("T_PAIR_CORE_SHORT").is_ok(),
             enable_pair_core_short_open: std::env::var("T_PAIR_CORE_SHORT_T3").is_ok(),
             enable_uniform_sizing: std::env::var("T_FACEB").is_ok(),
+            enable_pair_emergence: std::env::var("T_PAIR_EMERGE").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -131,6 +139,7 @@ impl EngineConfig {
         c.enable_pair_core_short = false;
         c.enable_pair_core_short_open = false;
         c.enable_uniform_sizing = false;
+        c.enable_pair_emergence = false;
         c
     }
     /// **Face B：核心不僵死（做空腿赚 #110，shortleg-profit-spec §5.3）**：RB_PAIR + 均匀基准单元定仓
@@ -159,6 +168,16 @@ impl EngineConfig {
     pub fn face_a() -> Self {
         let mut c = Self::face_b();
         c.enable_pair_core_short = true;
+        c
+    }
+    /// **Face A + 核心多腿涌现升级（R3 段无腿修复 #164/#6）**：Face A 基座叠加 `enable_pair_emergence`
+    /// ——核心多腿跟随 emergent_top 涌现级别 relabel 上移（多重赋格：每涌现级别一专属核心腿捕获本级别 |Δ|）。
+    /// 唯一变量 = `enable_pair_emergence`（其余与 face_a 逐字一致 ⇒ 收益差 + S1↓ 全归因核心涌现升级）。
+    /// L3 有效域：S1 段无腿↓（尤 L4/L5 涌现段）+ coverage↑ + 逐笔 ∀r>0 改善 + bit-exact OFF + liq=0。
+    /// 升格默认（并入 face_a）须 L3 验证后裁决（形式化有效域，先独立变体 L0→L3）。
+    pub fn face_a_emerge() -> Self {
+        let mut c = Self::face_a();
+        c.enable_pair_emergence = true;
         c
     }
     /// **生产默认引擎配置（做空腿赚 #113，shortleg-profit-spec §8.1「默认开启」）**：纯级别×买卖点
@@ -196,6 +215,7 @@ impl EngineConfig {
             || self.enable_pair_core_short
             || self.enable_pair_core_short_open
             || self.enable_uniform_sizing
+            || self.enable_pair_emergence
     }
     /// **读法B 一对多空腿（任务57=53.1）**：每级别 LegPair（买卖点开平 + 否定线止损 + 链破坏 churn）。
     /// OFF + 仅 `enable_reading_b_pair`（旁路单腿 reading_b / instances 路径）。
@@ -635,6 +655,9 @@ pub struct TRoot {
     /// **Face B 均匀基准单元定仓（做空腿赚 #110）**：true ⇒ open_*_leg 用 uniform_base_units 取代
     /// geom_tower_quota（删恒仓归一化压制 → 来源A 杠杆涌现 + 真否定线封顶）。OFF=false（bit-exact）。
     enable_uniform_sizing: bool,
+    /// **LegPair 核心多腿涌现升级（R3 段无腿修复 #164/#6）**：true ⇒ consume_leg_pairs 检查 emergent_top，
+    /// 核心多腿同向 relabel 上移到涌现级别（敞口不变）。OFF=false（bit-exact，无 relabel）。
+    enable_pair_emergence: bool,
     /// 初始本金（= free 初值）——Face B 均匀基准单元定仓的级别无关基准（initial_capital×MOBILE_FRAC）。
     initial_capital: f64,
     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
@@ -654,6 +677,9 @@ pub struct TRoot {
     pub pair_short_stops: u64,
     /// 链破坏 churn 触发核心多腿翻转次数（纯观测——解 churn 门控是否解冻核心）。
     pub pair_core_churns: u64,
+    /// **核心多腿涌现升级（R3 段无腿 #164/#6）**：relabel 上移次数 / 方向不匹配跳过次数（纯观测）。
+    pub pair_emergence_upgrades: u64,
+    pub pair_emergence_skipped_dir: u64,
     /// 读法B 每级别 per-level realized pnl（验收哪级别腿赚/亏）。
     pub per_level_long_pnl: [f64; MAX_LEVEL],
     pub per_level_short_pnl: [f64; MAX_LEVEL],
@@ -752,6 +778,7 @@ impl TRoot {
             enable_pair_core_short: cfg.enable_pair_core_short,
             enable_pair_core_short_open: cfg.enable_pair_core_short_open,
             enable_uniform_sizing: cfg.enable_uniform_sizing,
+            enable_pair_emergence: cfg.enable_pair_emergence,
             initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
             leg_pairs: (0..MAX_LEVEL).map(LegPair::idle).collect(),
@@ -764,6 +791,8 @@ impl TRoot {
             pair_long_stops: 0,
             pair_short_stops: 0,
             pair_core_churns: 0,
+            pair_emergence_upgrades: 0,
+            pair_emergence_skipped_dir: 0,
             per_level_long_pnl: [0.0; MAX_LEVEL],
             per_level_short_pnl: [0.0; MAX_LEVEL],
             leg_switches_by_level: [0; MAX_LEVEL],
@@ -1565,6 +1594,84 @@ impl TRoot {
         (0..MAX_LEVEL).rev().find(|&k| self.leg_pairs[k].long_active())
     }
 
+    /// **LegPair 总敞口 (Σlong_units, Σshort_units)**（relabel 守卫用）。对偶 instances `exposure`。
+    fn pair_exposure(&self) -> (f64, f64) {
+        let mut lu = 0.0;
+        let mut su = 0.0;
+        for p in &self.leg_pairs {
+            if p.long_units > 0.0 {
+                lu += p.long_units;
+            }
+            if p.short_units > 0.0 {
+                su += p.short_units;
+            }
+        }
+        (lu, su)
+    }
+
+    /// **核心多腿涌现升级（R3 段无腿修复 #164/#6，对照 instances `emergence_upgrade`/`ascend`）**。
+    ///
+    /// **病灶**（L2 实证 BTC Face A）：LegPair 路径原缺涌现升级 ⇒ 核心多腿（`highest_active_long`）卡在
+    /// 次级别买点 fire 的低级别（L0/L1/L2），而 emergent_top 涌现到 L4/L5（占行情绝大部分 bar）。L4/L5
+    /// 自身 type1 买点几乎不 fire（高级别走势单调上涨无第二走势起点），核心腿永不上移 ⇒ **L4/L5 涌现段无
+    /// 专属核心腿**（`pair_core_level_bars[5]=0` vs `emergent_level_bars[5]=1877899`）= S1 段无腿 70.8%/
+    /// 高级别~100% 根因。最大 |Δ| 被碎成次级别 churn 穿越（T1 方向错位主导亏损），非专属核心腿捕获。
+    ///
+    /// **修复**（多重赋格理想）：核心多腿同向（Long）跟随 emergent_top relabel 上移到涌现级别——**持仓继承**
+    /// （long_units/long_basis 不变 = 无新资金 = 敞口不变），否定线更新为涌现级别中枢 ZD（核心现骑 target 走势）。
+    /// 每涌现级别获专属核心腿捕获本级别 |Δ|。与 #110 Face B「核心能翻转」正交互补（本修复=「核心能上移」）。
+    ///
+    /// **判据**（对照 ascend）：emergent_top=(target, Long) ∧ cc=highest_active_long<target ∧ target 多腿 idle。
+    /// emergent_top=Short ⇒ 不上移多腿（下跌涌现走 d_top 核心翻空，pair_core_short，正交）。target 已有核心
+    /// 多腿 ⇒ 跳过（不覆盖活跃层，对照 ascend assert）。
+    fn pair_emergence_upgrade(&mut self, view: &LevelView, c: f64) {
+        let (target, target_pol) = match view.emergent_top {
+            Some(x) => x,
+            None => return,
+        };
+        if target >= MAX_LEVEL {
+            return;
+        }
+        // 只多腿上移（下跌涌现走 d_top 核心翻空，正交；对照 instances emergence_upgrade 方向门控）。
+        if target_pol != Polarity::Long {
+            return;
+        }
+        let cc = match self.highest_active_long() {
+            Some(c) => c,
+            None => return, // 无核心多腿 ⇒ 无可上移（核心由 g_pair 买点建立）
+        };
+        if cc >= target {
+            return; // 核心已在涌现级别或更高
+        }
+        // 目标级已有核心多腿 ⇒ 跳过（不覆盖活跃层，对照 ascend `!instances[to].is_active()` assert）。
+        if self.leg_pairs[target].long_active() {
+            return;
+        }
+        // ── relabel：cc 多腿整体移到 target（敞口不变，free 不动 = 无现金流；空腿不动留 cc 级）──
+        let (lu_pre, su_pre) = self.pair_exposure();
+        let tw_pre = self.total_wealth(c);
+        let moved_units = self.leg_pairs[cc].long_units;
+        let moved_basis = self.leg_pairs[cc].long_basis;
+        // 否定线更新为 target 级中枢 ZD（核心现骑 target 走势）；None（target 无中枢）⇒ 保留原否定线（不退化无保护）。
+        let new_stop = self.faceb_stop(view.zd[target]).unwrap_or(self.leg_pairs[cc].long_stop);
+        self.leg_pairs[target].long_units = moved_units;
+        self.leg_pairs[target].long_basis = moved_basis;
+        self.leg_pairs[target].long_stop = new_stop;
+        self.leg_pairs[cc].long_units = 0.0;
+        self.leg_pairs[cc].long_basis = f64::NAN;
+        self.leg_pairs[cc].long_stop = f64::NAN;
+        // relabel = 级别重标定非加仓，敞口必不变（对照 instances prove_relabel_invariant）。
+        let (lu_post, su_post) = self.pair_exposure();
+        assert!(
+            (lu_post - lu_pre).abs() < 1e-9 && (su_post - su_pre).abs() < 1e-9,
+            "pair_emergence relabel 敞口违反：long {lu_pre}->{lu_post} short {su_pre}->{su_post}（cc={cc} target={target}）"
+        );
+        self.pair_emergence_upgrades += 1;
+        self.guards.set_trigger(OpTrigger::Emergence); // 涌现是 relabel 的合法非 BSP 触发源（对照 ascend）
+        self.guards.note_op("pair_emergence_upgrade");
+        self.prove_tw_neutral(tw_pre, c);
+    }
+
     /// **否定线止损（任务57=53.1 第三结构点）**：每级别多/空腿价格否定结构破坏 ⇒ 止损平。
     /// 多腿：c < long_stop（进场 ZD，跌破=结构破坏）⇒ 平。空腿：c > short_stop（进场 ZG，涨破=结构破坏）⇒ 平。
     /// 「回试回中枢=假突破」⟹ 止损。止损先于 NAV≤0（账户级强平）生效 ⇒ 零强平判据。
@@ -1710,6 +1817,12 @@ impl TRoot {
         }
         // ① 否定线止损（第三结构点，先于买卖点开平 ⇒ 否定线优先平失血腿）。
         self.pair_stop_loss_step(c);
+        // ①.5 核心多腿涌现升级（R3 段无腿 #164/#6）：核心同向跟随 emergent_top relabel 上移（敞口不变）。
+        //     位置 = 止损后、g_pair 前（对照 instances step「强平→emergence→route_bsp」序）。OFF/Face A/B
+        //     （enable_pair_emergence=false）⇒ 提前 return（无 relabel，bit-exact）。
+        if self.enable_pair_emergence {
+            self.pair_emergence_upgrade(view, c);
+        }
         // ② 逐级买卖点开平 + churn 门控。
         let top = match (0..MAX_LEVEL).rev().find(|&k| view.nodes[k].is_some()) {
             Some(t) => t,
@@ -1739,6 +1852,12 @@ impl TRoot {
     /// LegPair 只读访问（诊断/L3）。
     pub fn leg_pair(&self, k: usize) -> &LegPair {
         &self.leg_pairs[k]
+    }
+
+    /// **Face A LegPair 核心多腿级别**（= `highest_active_long`，pub 诊断访问器，R3 段无腿实证）。
+    /// 最高活跃多腿级别 = 当前「核心」。None=无活跃多腿。诊断用：查核心是否到最高涌现级别。
+    pub fn pair_core_long_level(&self) -> Option<usize> {
+        self.highest_active_long()
     }
 
     // ──────────────── NEST：命题4 读法乙（大级别背驰段闸门 + a0 区间套定位翻转）────────────────

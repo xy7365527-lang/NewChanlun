@@ -68,6 +68,10 @@ pub struct RecStream {
     /// bar——查核心是否到最高涌现级别（net_short 62.7% 疑核心没到最高级别被低级别 BSP flip）。
     pub core_level_bars: [u64; 9],
     pub emergent_level_bars: [u64; 9],
+    /// 诊断（R3 段无腿 #164/#6）：Face A LegPair 路径**核心多腿停留级别** bar 加权——查 `highest_active_long`
+    /// 是否到最高涌现级别。core_level_bars 测 instances 路径（OFF），本字段测 LegPair（Face A 生产路径）。
+    /// S1 根因实证：若核心多腿停留在 L2/L3（次级别买点 fire 处）而涌现在 L4/L5 ⇒ L4/L5 段无核心腿（S1）。
+    pub pair_core_level_bars: [u64; 9],
     last_emergent_level: i32, // -1=none
     /// 诊断（编排者 2026-06-21）：最后一次重跑 tree 各级别走势类型分布——查 L4 type1_buy=0
     /// 是否走势结构。[level][0=UpTrend,1=DownTrend,2=Consol-Up,3=Consol-Down]。
@@ -161,6 +165,7 @@ impl RecStream {
             net_short_bars: 0,
             core_level_bars: [0; 9],
             emergent_level_bars: [0; 9],
+            pair_core_level_bars: [0; 9],
             last_emergent_level: -1,
             tree_trend_stats: [[0; 4]; 9],
             consoldn_split: [[0; 6]; 9],
@@ -502,6 +507,12 @@ impl RecStream {
         }
         if self.last_emergent_level >= 0 && (self.last_emergent_level as usize) < 9 {
             self.emergent_level_bars[self.last_emergent_level as usize] += 1;
+        }
+        // R3 段无腿实证：Face A LegPair 核心多腿停留级别 bar 加权（与 emergent_level_bars 对比 ⇒ 高级别段无腿根因）。
+        if let Some(pk) = self.driver.root().pair_core_long_level() {
+            if pk < 9 {
+                self.pair_core_level_bars[pk] += 1;
+            }
         }
         // bar 加权核心(root)方向 + 净敞口符号 + 核心短头 episode 追踪。
         let root = self.driver.root();
@@ -944,10 +955,18 @@ mod tests {
                         "  [{sym}/{mode:?}] emergence: attempts={} upgrades={} skipped_dir={} | n_flips={} n_ascends={}",
                         r.n_emergence_attempts, r.n_emergence_upgrades, r.n_emergence_skipped_dir, r.n_flips, r.n_ascends
                     );
+                    // R3 段无腿修复：LegPair 核心多腿涌现升级（relabel 上移）次数 + churn。
+                    eprintln!(
+                        "  [{sym}/{mode:?}] pair_emergence: upgrades={} skipped_dir={} | pair_core_churns={}",
+                        r.pair_emergence_upgrades, r.pair_emergence_skipped_dir, r.pair_core_churns
+                    );
                     let core_lvl: Vec<u64> = (0..9).map(|k| s.core_level_bars[k]).collect();
                     let emg_lvl: Vec<u64> = (0..9).map(|k| s.emergent_level_bars[k]).collect();
                     eprintln!("  [{sym}/{mode:?}] core_level_bars(核心停留)={core_lvl:?}");
                     eprintln!("  [{sym}/{mode:?}] emergent_level_bars(涌现级别)={emg_lvl:?}");
+                    // R3 段无腿实证：Face A LegPair 核心多腿停留级别 vs 涌现级别（核心是否到最高涌现 ⇒ 高级别段有无腿）。
+                    let pair_core_lvl: Vec<u64> = (0..9).map(|k| s.pair_core_level_bars[k]).collect();
+                    eprintln!("  [{sym}/{mode:?}] pair_core_level_bars(LegPair核心停留)={pair_core_lvl:?}");
                     let trend_s: Vec<[u64; 4]> = (0..6).map(|k| s.tree_trend_stats[k]).collect();
                     eprintln!("  [{sym}/{mode:?}] tree_trend_stats[Up,Down,ConsolUp,ConsolDown]/lvl={trend_s:?}");
                     let consol_diag: Vec<[u64; 4]> = crate::recursive_t::divergence::CONSOL_DOWN_DIAG
