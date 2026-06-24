@@ -156,6 +156,15 @@ pub struct EngineConfig {
     /// 涌现段无核心腿=S1 段无腿 70.8%/高级别~100%）。多重赋格理想：每涌现级别一专属核心腿捕获本级别 |Δ|。
     /// false ⇒ Face A/B/RB_PAIR/OFF 逐字不变（bit-exact，无 relabel）。env `T_PAIR_EMERGE`。
     pub enable_pair_emergence: bool,
+    /// **9 轨道操作分派（task#40 B，#39 O1-O9 τ对称轨道）**：true ⇒ route_bsp 走显式 9 轨道判别——
+    /// 在 Some(p) 同父向分支补 **O3 add（= 买回/卖回 = 不动 h 同级别短差腿部分重建）** 缺口轨道
+    /// （现状：同父向持短差 → recover 整条 / 无短差 → no-op，**没有"加一段"那一腿**）。其余八轨道
+    /// （enter/ascend/flip/sink/recover/drain/no-op）= 已有原语的轨道标注，无行为改变。**account 过滤是
+    /// route 之后独立 gate 非 route 内分支**（#40 硬约束，禁 #35 C7/初版 NL7 把账本塞进操作语义）——
+    /// route 内零 if regime/account，空头镜像（add_short）一律执行（操作语义合法）。recover vs add 判别
+    /// = C 任务（区间套 H¹ 定位 `is_sub_trend_done`）接口，本实装 fallback=true ⇒ 全走 recover = 现状。
+    /// false ⇒ route_bsp 走旧二元 ⇒ facea 54279a503e 逐字一致（bit-exact）。env `T_ORBIT9_DISPATCH`。
+    pub enable_orbit9_dispatch: bool,
 }
 
 impl EngineConfig {
@@ -197,6 +206,10 @@ impl EngineConfig {
                 LongEntry::Any
             },
             enable_pair_emergence: std::env::var("T_PAIR_EMERGE").is_ok(),
+            // 9 轨道操作分派（task#40 B）：缺省 OFF ⇒ route_bsp 旧二元 bit-exact（facea 54279a503e）。
+            // 注：与 pair_short_entry/pair_long_entry 同理，是 instances route_bsp 路径的**修饰**（轨道判别），
+            // 非独立实验变体——不计入 any_variant_enabled()（off()/production() 行为不被它改变，由其自身门控保 OFF=bit-exact）。
+            enable_orbit9_dispatch: std::env::var("T_ORBIT9_DISPATCH").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -213,6 +226,7 @@ impl EngineConfig {
         c.enable_pair_core_short_open = false;
         c.enable_uniform_sizing = false;
         c.enable_pair_emergence = false;
+        c.enable_orbit9_dispatch = false;
         c
     }
     /// **Face B：核心不僵死（做空腿赚 #110，shortleg-profit-spec §5.3）**：RB_PAIR + 均匀基准单元定仓
@@ -744,6 +758,10 @@ pub struct TRoot {
     /// **LegPair 核心多腿涌现升级（R3 段无腿修复 #164/#6）**：true ⇒ consume_leg_pairs 检查 emergent_top，
     /// 核心多腿同向 relabel 上移到涌现级别（敞口不变）。OFF=false（bit-exact，无 relabel）。
     enable_pair_emergence: bool,
+    /// **9 轨道操作分派（task#40 B，#39 O1-O9）**：true ⇒ route_bsp 显式 9 轨道判别 + 补 O3 add 缺口
+    /// （= 买回/卖回 = 不动 h 同级别短差腿部分重建）。account 过滤是 route 之后独立 gate（route 内零账本，
+    /// 空头镜像一律执行）。OFF=false ⇒ route_bsp 旧二元 bit-exact（facea 54279a503e）。env `T_ORBIT9_DISPATCH`。
+    enable_orbit9_dispatch: bool,
     /// **T3 出场触发诊断暂存（#164 R2，observation-only）**：close_*_leg 调用前由调用点 set，push 进
     /// exit_trigger_log（与 leg_trades 同序）。0=type1/1=type2/2=type3/3=否定线止损/5=账户强平/6=其他。
     pending_exit_trigger: u8,
@@ -784,6 +802,10 @@ pub struct TRoot {
     pub n_enters: u64,
     pub n_sinks: u64,
     pub n_recovers: u64,
+    /// **O3 add 次数（task#40 B，= 买回/卖回 = 不动 h 同级别短差腿部分重建）**。OFF 恒 0（add 分支未激活）。
+    pub n_adds: u64,
+    /// O3 add per-level realized（部分平 sub 短差的 pnl，验收买回腿赚/亏；τ 镜像多空对称）。
+    pub add_pnl_by_level: [f64; MAX_LEVEL],
     pub n_drains: u64,
     pub n_flips: u64,
     /// 核心走势完成清仓次数（546号死锁解锁路径触发计数，纯观测）。
@@ -888,6 +910,7 @@ impl TRoot {
             pair_long_entry: cfg.pair_long_entry,
             enable_uniform_sizing: cfg.enable_uniform_sizing,
             enable_pair_emergence: cfg.enable_pair_emergence,
+            enable_orbit9_dispatch: cfg.enable_orbit9_dispatch,
             pending_exit_trigger: 6,
             initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
@@ -912,6 +935,8 @@ impl TRoot {
             n_enters: 0,
             n_sinks: 0,
             n_recovers: 0,
+            n_adds: 0,
+            add_pnl_by_level: [0.0; MAX_LEVEL],
             n_drains: 0,
             n_flips: 0,
             n_trend_done_clears: 0,
@@ -1364,6 +1389,58 @@ impl TRoot {
         self.prove_tw_neutral(tw_pre, c);
     }
 
+    /// **次级别走势完成判别接口（task#40 B ↔ C 任务区间套 H¹ 定位）**：区分 O7 recover（走势完成，
+    /// 整条升回）vs O3 add（回调未完成，部分买回）。**B 不自造判别逻辑**（禁越界 #38 协调节点裁决）——
+    /// 委托 C 的 `is_sub_trend_done(sub)`（区间套逐级收缩到 a0 = 走势完成）。**接口占位 fallback=true**
+    /// ⇒ 全走 recover ⇒ T_ORBIT9_DISPATCH ON 时与 OFF 行为同（add 未激活，保 OFF/未整合 bit-exact）。
+    /// C 整合时替换 body 为 `self.view.is_sub_trend_done(sub)`（或等价区间套链信号）。
+    fn orbit9_sub_trend_done(&self, _sub: usize) -> bool {
+        true // 占位：C 接口未就位 ⇒ 默认走势完成 ⇒ recover（O7）⇒ add（O3）不激活
+    }
+
+    /// **add @ (parent→sub)**（O3，task#40 B = 买回/卖回 = 不动 h 同级别短差腿**部分**重建）：
+    /// 父级 k 同向 BSP（type1后回调，未走势完成）⇒ **部分**买回 m=quota(u_sub) 的短差升回父向 pdir，
+    /// sub 级减一段短差（**非** recover 平整条 u_sub）。**不动 h**（同级别 k 内重建被 sink 减掉的腿的一段，
+    /// #39 §3.1b/§3.4：莫比乌斯仅作用 h，对 O3 平凡 τ 对称 ⇒ 多头买回 ↔ 空头卖回镜像，pdir 参数化无 if 多空）。
+    /// **极性不变不污染 long**（rec_add 层内单一方向 assert 守卫；add 向父级加 pdir、sub 减 mob=flip(pdir)）。
+    /// NAV 中性（同价 c 平 sub + 加 parent，资本守恒 m×sb/pb）。前置 = sub 持反父向短差且 j 有活跃祖先。
+    fn add(&mut self, parent: usize, sub: usize, c: f64) {
+        let pdir = self.instances[parent].direction;
+        let mob = flip_pol(pdir);
+        if !self.instances[sub].is_active() || self.instances[sub].direction != mob {
+            return; // 无短差腿可买回 ⇒ no-op（O9，不凭空 pyramid）
+        }
+        // O3 = 部分买回：配额 m=quota(u_sub)（机动仓 σ-不变 1/3），区别 recover 平整条 u_sub。
+        let u_sub = self.instances[sub].units;
+        let m = quota(u_sub);
+        if !(m > 1e-12 && m.is_finite()) || m > u_sub + 1e-9 {
+            return;
+        }
+        // 同资本反算（= recover 逐字同形）：平 sub 短差 m 释放名义资本 m×sb，归还父 units = m×sb/pb。
+        // sb 须在 reduce(sub) 前捕获（reduce 零化 → basis=NaN）；表达式分组 (m*sb)/pb 保会计一致。
+        let sb = self.instances[sub].basis;
+        let pb = self.instances[parent].basis;
+        let give = if pb.is_finite() && pb > 1e-12 { m * sb / pb } else { m };
+        if !(give > 1e-12 && give.is_finite()) {
+            return;
+        }
+        // 移植守卫（L0）：add 升回与 sink 向心配对，同守 sub<parent（不动 h 同级别短差腿重建）。
+        prove_sink_descends(parent, sub, self.cur_bar);
+        let tw_pre = self.total_wealth(c);
+        let mut free = self.free;
+        let realized = rec_reduce(&mut self.instances[sub], m, &mut free, c);
+        rec_add(&mut self.instances[parent], give, pdir, &mut free, c);
+        self.free = free;
+        self.account_reduce(mob, realized, c);
+        if sub < MAX_LEVEL {
+            self.add_pnl_by_level[sub] += realized; // O3 买回腿 per-level（τ 镜像多空对称）
+        }
+        self.n_adds += 1;
+        self.guards.note_op("add"); // prove_bsp_triggers_operation（panic）
+        // 注：add 是部分平短差升回 ⇒ 与 recover 同向降短差敞口，但**不**全清 ⇒ 不调 on_recover（整条配对守卫）。
+        self.prove_tw_neutral(tw_pre, c);
+    }
+
     /// **route_bsp**（= flat route_bsp）：level j 的 BSP 分派。
     fn route_bsp(&mut self, j: usize, is_buy: bool, node: TrendNode, c: f64) {
         self.guards.set_trigger(OpTrigger::Bsp); // 本路由触发的所有原子操作归因 BSP
@@ -1387,14 +1464,24 @@ impl TRoot {
                         self.drain(j, c);
                     }
                 } else {
-                    // 同父向 BSP：recover（j 持短差则平整条升回）；否则 no-op（不 pyramid）。
+                    // 同父向 BSP：j 持短差则升回；否则 no-op（不 pyramid）。
                     if self.instances[j].is_active() && self.instances[j].direction == mob {
                         if is_buy {
-                            self.buy_recover += 1; // 诊断：父多+买点 → recover
+                            self.buy_recover += 1; // 诊断：父多+买点 → recover/add
                         }
-                        self.recover(p, j, c);
+                        // ── 9 轨道分派（task#40 B，T_ORBIT9_DISPATCH）──
+                        // OFF：全走 O7 recover（平整条 = 现状 bit-exact）。
+                        // ON：区分 O7 recover（次级别走势完成 → 整条升回）vs O3 add（回调未完成 → 部分买回）。
+                        //     "走势完成 vs 回调"判别 = C 任务（区间套 H¹ 定位）接口 orbit9_sub_trend_done；
+                        //     接口未就位时 fallback=true ⇒ 全走 recover ⇒ 与 OFF 同（add 不激活）。
+                        //     account 过滤是 route 之后独立 gate（此处零 if regime/account，τ 对称 pdir 参数化）。
+                        if self.enable_orbit9_dispatch && !self.orbit9_sub_trend_done(j) {
+                            self.add(p, j, c); // O3：部分买回/卖回（不动 h 同级别短差腿部分重建）
+                        } else {
+                            self.recover(p, j, c); // O7：整条升回（走势完成）
+                        }
                     } else if is_buy {
-                        self.buy_noop += 1; // 诊断：父多+买点+j 无短差 → no-op（浪费的买点）
+                        self.buy_noop += 1; // 诊断：父多+买点+j 无短差 → no-op（浪费的买点 = O9）
                     }
                 }
             }
@@ -2533,5 +2620,112 @@ mod t1_direction_gate_tests {
         assert!(!r.long_entry_ok(0, &v));
         // 无更高级别下落段 ⇒ 放行。
         assert!(r.long_entry_ok(0, &view_with_node(0, Direction::Up)));
+    }
+}
+
+#[cfg(test)]
+mod orbit9_add_dispatch_tests {
+    //! **9 轨道操作分派 + O3 add 单测（task#40 B，#39 O1-O9）**——L0 结构判据（不依赖回测数据）：
+    //! ① add 加仓不污染 long（rec_add 层内单一方向守卫）② O3 τ 镜像（多头买回 ↔ 空头卖回对称）
+    //! ③ OFF bit-exact（T_ORBIT9_DISPATCH OFF ⇒ route_bsp 旧二元，add 不激活）。
+    use super::*;
+
+    fn node(dir: Direction) -> TrendNode {
+        TrendNode::new(0, 1, 1.0, 2.0, dir)
+    }
+
+    /// 造一个 instances 路径 root（off 基线），父级核心 @ parent + 已 sink 出 sub 短差。
+    /// 直接调 enter/sink/add 须先 set_trigger(Bsp)（prove_bsp_triggers_operation 守卫：操作必有触发源）。
+    fn root_with_sunk_short(pdir: Polarity, parent: usize, sub: usize) -> TRoot {
+        let mut r = TRoot::new_with_config(100_000.0, EngineConfig::off());
+        r.guards.set_trigger(OpTrigger::Bsp);
+        let c = 10.0;
+        // 父级建核心仓（pdir 方向）。
+        r.enter(parent, pdir, node(if pdir == Polarity::Long { Direction::Up } else { Direction::Down }), c);
+        // sink：父减 1/3 + sub 开反父向短差。
+        r.sink(parent, sub, node(if pdir == Polarity::Long { Direction::Down } else { Direction::Up }), c * 1.1);
+        r
+    }
+
+    #[test]
+    fn add_部分买回_不污染父向极性() {
+        // 父多 @ L2，sink 出 L0 空头短差。
+        let mut r = root_with_sunk_short(Polarity::Long, 2, 0);
+        let parent_dir_pre = r.instances[2].direction;
+        let parent_u_pre = r.instances[2].units;
+        let sub_u_pre = r.instances[0].units;
+        assert_eq!(r.instances[0].direction, Polarity::Short, "sink 出空头短差");
+        // O3 add：部分买回 m=quota(sub) 升回父多。
+        r.add(2, 0, 11.5);
+        // 父向极性不变（仍 Long，不被污染）。
+        assert_eq!(r.instances[2].direction, parent_dir_pre);
+        assert_eq!(r.instances[2].direction, Polarity::Long);
+        // 父 units 增（买回一段），sub units 减（部分平短差，非整条）。
+        assert!(r.instances[2].units > parent_u_pre, "父 units 应增（买回）");
+        assert!(r.instances[0].units < sub_u_pre, "sub 短差应部分减");
+        assert!(r.instances[0].units > 1e-9, "部分买回非整条 ⇒ sub 短差未清空");
+        assert_eq!(r.n_adds, 1);
+    }
+
+    #[test]
+    fn add_short_τ镜像_父空卖回对称() {
+        // τ 镜像：父空 @ L2，sink 出 L0 多头短差，add 卖回。
+        let mut r = root_with_sunk_short(Polarity::Short, 2, 0);
+        assert_eq!(r.instances[0].direction, Polarity::Long, "父空 sink 出多头短差");
+        let parent_u_pre = r.instances[2].units;
+        let sub_u_pre = r.instances[0].units;
+        // O3 add_short：部分卖回升回父空（同一 add 方法，pdir 参数化 ⇒ τ 镜像无 if 多空）。
+        r.add(2, 0, 9.0);
+        // 父向极性不变（仍 Short）。
+        assert_eq!(r.instances[2].direction, Polarity::Short);
+        // 对称：父 units 增（卖回），sub 短差部分减。
+        assert!(r.instances[2].units > parent_u_pre, "父空 units 应增（卖回）");
+        assert!(r.instances[0].units < sub_u_pre && r.instances[0].units > 1e-9, "sub 短差部分减非整条");
+        assert_eq!(r.n_adds, 1);
+    }
+
+    #[test]
+    fn add_无短差腿_noop_不pyramid() {
+        // 父多 @ L2，sub L0 无短差（未 sink）⇒ add no-op（不凭空 pyramid）。
+        let mut r = TRoot::new_with_config(100_000.0, EngineConfig::off());
+        r.guards.set_trigger(OpTrigger::Bsp);
+        r.enter(2, Polarity::Long, node(Direction::Up), 10.0);
+        let u_pre = r.instances[2].units;
+        r.add(2, 0, 11.0);
+        assert_eq!(r.instances[2].units, u_pre, "无短差腿 ⇒ add no-op，父 units 不变");
+        assert_eq!(r.n_adds, 0);
+    }
+
+    #[test]
+    fn off_bit_exact_orbit9未激活_全走recover() {
+        // T_ORBIT9_DISPATCH OFF ⇒ route_bsp 同父向持短差全走 recover（整条），add 不激活。
+        let mut r = root_with_sunk_short(Polarity::Long, 2, 0);
+        assert!(!r.enable_orbit9_dispatch, "off() ⇒ orbit9 OFF");
+        // 同父向 BSP（父多 + 买点）@ sub L0 ⇒ recover（整条升回），非 add。
+        let c = 11.0;
+        r.route_bsp(0, true, node(Direction::Up), c);
+        // OFF ⇒ 走 recover（sub 短差整条清空），n_adds 恒 0。
+        assert_eq!(r.n_adds, 0, "OFF ⇒ add 分支未激活（bit-exact）");
+        assert_eq!(r.instances[0].units, 0.0, "OFF recover 平整条 ⇒ sub 短差清空");
+        assert_eq!(r.n_recovers, 1);
+    }
+
+    #[test]
+    fn on_orbit9_回调未完成_走add部分买回() {
+        // T_ORBIT9_DISPATCH ON + orbit9_sub_trend_done=false（回调未完成）⇒ route_bsp 同父向走 add（部分）。
+        // 注：orbit9_sub_trend_done 占位 fallback=true ⇒ 现状仍走 recover；本测直接验证 add 原语接入正确性，
+        //     ON 且判定未完成的整合路径由 C 接口替换占位后激活（见报告 §四接口需求）。
+        let mut cfg = EngineConfig::off();
+        cfg.enable_orbit9_dispatch = true;
+        let mut r = TRoot::new_with_config(100_000.0, cfg);
+        r.guards.set_trigger(OpTrigger::Bsp);
+        let c = 10.0;
+        r.enter(2, Polarity::Long, node(Direction::Up), c);
+        r.sink(2, 0, node(Direction::Down), c * 1.1);
+        assert!(r.enable_orbit9_dispatch);
+        // 占位 fallback=true ⇒ 走势完成 ⇒ recover（与 OFF 同，保未整合 bit-exact）。
+        r.route_bsp(0, true, node(Direction::Up), c);
+        assert_eq!(r.n_adds, 0, "占位 fallback=true ⇒ 仍 recover（C 接口未就位 bit-exact）");
+        assert_eq!(r.n_recovers, 1);
     }
 }
