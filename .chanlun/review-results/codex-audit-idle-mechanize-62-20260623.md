@@ -41,7 +41,7 @@ check 2.5 在 `ceremony-completion-guard.sh` 第 420 行之后（check 2 的 `ex
 check 0（context 临界放行）→ check 1（死寂检测）→ check 1.5（结构工位 bootstrap）
 → check 2（活跃任务路由，ACTIVE_TASKS > 0 → block+exit）
 → check 2.5（idle 业务工位检测，ACTIVE_TASKS==0 才到达）
-→ check 3（生成态谱系）→ check 4（@proof-required）→ check 5（四分法）
+→ check 3（生成态谱系）→ check 4（proof-required 标签）→ check 5（四分法）
 ```
 
 **判定**：check 2.5 仅在 ACTIVE_TASKS==0 时执行——即 Lead 没有待推进/运行中任务时才清理 idle pty。设计正确，不干扰活跃任务路由。✓
