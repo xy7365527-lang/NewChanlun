@@ -491,4 +491,85 @@ mod tests {
         );
         std::env::remove_var("T_OFF_BASELINE");
     }
+
+    // ════════════ R3：核心多腿涌现升级（段无腿修复 #164/#6，多重赋格=核心跟随涌现上移）════════════
+
+    /// 涌现视图：emergent_top=(level, Long) + 该 level 中枢 ZD + 节点（buy/sell 不 fire，仅触发 relabel）。
+    fn lv_emergent(level: usize, zd: f64) -> LevelView {
+        let mut v = LevelView::empty();
+        v.emergent_top = Some((level, Polarity::Long));
+        v.nodes[level] = Some(node(0, 10, Direction::Up)); // top=level（consume_leg_pairs 的 top 探测）
+        v.zd[level] = Some(zd);
+        v
+    }
+
+    /// **★R3 主机制：核心多腿跟随涌现级别 relabel 上移（多重赋格，face_a_emerge）**——核心建 @3，
+    /// emergent_top 涌现到 L4 ⇒ 核心 relabel @3→@4（持仓继承，敞口不变，否定线更新为 L4 中枢 ZD）。
+    /// 这是 S1 段无腿修复的本体：L4 涌现段获专属核心腿（原 Face A 核心卡 @3，L4 段无腿）。
+    #[test]
+    fn r3_核心多腿涌现升级_relabel上移() {
+        let mut fa = TRoot::new_with_config(100_000.0, EngineConfig::face_a_emerge());
+        // 1) 核心多腿 @3（否定线 ZD=95）。
+        fa.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
+        assert!(fa.leg_pair(3).long_active(), "核心多腿建仓 @3");
+        let u3 = fa.leg_pair(3).long_units;
+        let basis3 = fa.leg_pair(3).long_basis;
+        // 2) emergent_top 涌现到 L4（L4 自身买点未 fire）⇒ 核心 relabel @3→@4。
+        fa.on_bar(&lv_emergent(4, 90.0), 11, 105.0);
+        assert!(!fa.leg_pair(3).long_active(), "★核心多腿上移：原 level 3 空");
+        assert!(fa.leg_pair(4).long_active(), "★核心多腿 relabel 到 level 4（涌现段获专属核心腿=S1 修复）");
+        assert!((fa.leg_pair(4).long_units - u3).abs() < 1e-9, "持仓继承（无新资金，敞口不变）");
+        assert!((fa.leg_pair(4).long_basis - basis3).abs() < 1e-9, "basis 继承（relabel 非重新开仓）");
+        assert!((fa.leg_pair(4).long_stop - 90.0).abs() < 1e-9, "否定线更新为 L4 中枢 ZD=90（核心骑 L4 走势）");
+        assert_eq!(fa.pair_emergence_upgrades, 1, "涌现升级计数");
+        assert_eq!(fa.n_liquidations, 0, "敞口不变 ⇒ 无强平");
+    }
+
+    /// **方向不匹配不上移（对照 instances emergence_upgrade skipped_dir）**：emergent_top=Short ⇒
+    /// 核心多腿不跟随下跌涌现上移（下跌涌现走 d_top 核心翻空 pair_core_short，正交）。
+    #[test]
+    fn r3_涌现方向short_核心多腿不上移() {
+        let mut fa = TRoot::new_with_config(100_000.0, EngineConfig::face_a_emerge());
+        fa.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
+        // emergent_top=(4, Short)（下跌涌现）⇒ 多腿不上移。
+        let mut v = LevelView::empty();
+        v.emergent_top = Some((4, Polarity::Short));
+        v.nodes[4] = Some(node(0, 10, Direction::Down));
+        v.zd[4] = Some(90.0);
+        fa.on_bar(&v, 11, 105.0);
+        assert!(fa.leg_pair(3).long_active(), "核心多腿仍 @3（下跌涌现不上移多腿）");
+        assert!(!fa.leg_pair(4).long_active(), "L4 无多腿（emergent Short 不触发多腿 relabel）");
+        assert_eq!(fa.pair_emergence_upgrades, 0, "无上移");
+    }
+
+    /// **目标级已有核心多腿不覆盖（对照 ascend `!instances[to].is_active()` assert）**：L4 已有多腿 ⇒
+    /// emergent_top=(4,Long) 不覆盖（L4 核心已存在，无需上移）。
+    #[test]
+    fn r3_目标已有核心多腿_不覆盖() {
+        let mut fa = TRoot::new_with_config(100_000.0, EngineConfig::face_a_emerge());
+        // L4 已有核心多腿（直接 L4 买点 fire），highest_active_long=4。
+        fa.on_bar(&lv_buy_zd(4, Direction::Up, 90.0), 10, 100.0);
+        let u4 = fa.leg_pair(4).long_units;
+        // emergent_top=(4,Long) ⇒ cc=4 不 < target=4 ⇒ 跳过（无 relabel）。
+        fa.on_bar(&lv_emergent(4, 88.0), 11, 105.0);
+        assert!(fa.leg_pair(4).long_active(), "L4 核心多腿保留");
+        assert!((fa.leg_pair(4).long_units - u4).abs() < 1e-9, "L4 核心未被覆盖（cc==target 跳过）");
+        assert_eq!(fa.pair_emergence_upgrades, 0, "cc 已在涌现级别 ⇒ 无上移");
+    }
+
+    /// **bit-exact：face_a（enable_pair_emergence=false）⇒ 涌现视图不触发 relabel（核心卡 @3 = 原行为）**。
+    /// face_a vs face_a_emerge 唯一差 = relabel ⇒ R3 增量全归因涌现升级（OFF/Face A/B bit-exact）。
+    #[test]
+    fn r3_face_a_bitexact_无relabel() {
+        // face_a（不开 emergence）：同序列下核心卡 @3，L4 不获核心腿（= committed Face A 原行为）。
+        let mut fa = TRoot::new_with_config(100_000.0, EngineConfig::face_a());
+        assert!(!EngineConfig::face_a().enable_pair_emergence, "face_a 默认不开 emergence（bit-exact）");
+        fa.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
+        fa.on_bar(&lv_emergent(4, 90.0), 11, 105.0);
+        assert!(fa.leg_pair(3).long_active(), "face_a：核心卡 @3（无 relabel，原行为）");
+        assert!(!fa.leg_pair(4).long_active(), "face_a：L4 无核心腿（S1 段无腿，未修复路径）");
+        assert_eq!(fa.pair_emergence_upgrades, 0, "face_a 无涌现升级（bit-exact）");
+        // face_a_emerge 唯一增量。
+        assert!(EngineConfig::face_a_emerge().enable_pair_emergence, "face_a_emerge 开 emergence（唯一增量）");
+    }
 }
