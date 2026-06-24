@@ -224,3 +224,32 @@ A 的执行（装 git-lfs CLI + 配置远端 + `git lfs pull`）= **操作者基
 - 解冻条件 = A 执行（git lfs pull，操作者基础设施动作）。
 
 **settled 不等于解冻**——这是本号结算的核心区分。topo_effect freeze 在 settled 后**保留有效**，直到 A 执行才回溯解冻（negation_form: waiting 的 après-coup 在解冻维度仍成立）。
+
+---
+
+## 十一、回溯扫描确认：569/573 缺映射 = 冻结下游（genealogist，2026-06-23）
+
+> 触发：ceremony_scan 报 573/569 在 settled/ 但 block-topology 无对应映射；Lead 任务"核实真异常 vs scan 误报，若真缺→TaskCreate 拓扑映射子任务"。genealogist 回溯扫描裁决：**非新异常，是 549 冻结的已知下游后果；不创建拓扑映射子任务**（创建即违反 §五/§十 no-workaround 结算）。
+
+### 十一.1 实测状态（2026-06-23）
+
+| 检查项 | 实测 | 与 549 一致性 |
+|---|---|---|
+| `relations.jsonl` | **仍 134 字节 LFS 指针**（oid `3b895e98…a006d416`、size 125404332，与 §一逐字一致，未变） | ✅ 映射管线仍冻结（settled ≠ 解冻，§十.6） |
+| meta.json id_mapping 最高映射号 | **565**（531-565 在册，含 549/550 的 Phase1+2 部分态） | ✅ 节点完备/边缺失态（§八） |
+| **566-573** | **完全无映射**（不在 meta.json id_mapping，relations 边亦无） | ✅ 落入"一切后续谱系→区块映射"冻结范围（topo_effect） |
+
+### 十一.2 裁决：定理类（549 冻结的逻辑必然推论），非新异常
+
+- ceremony_scan 的 `missing_block_mapping` 报 569/573 = **正确观测**（映射确实缺失），但**非新异常**——这是 549 topo_effect `freeze:block-topology-mapping-pipeline:downstream` 明文覆盖"一切后续谱系→区块映射"的**预期下游**。566-573 缺映射是 549 冻结的**逻辑必然推论**（每个 ≥ 549 的谱系在 A 执行前必然缺映射）。
+- **不创建拓扑映射子任务**（topology-manager）。理由（no-workaround，§五/§十）：
+  1. 运行 `map_genealogy_to_blocks.py` 真实模式 ⇒ Phase3 `read_all_relations` 对 LFS 指针首行 `json.loads` 必抛 JSONDecodeError 崩溃（§二），且 Phase2 已写 meta = **部分损坏**（节点完备/边缺失，§八粘性陷阱）。
+  2. 即便只跑 Phase1+2（不崩），也制造 566-573 的"节点完备/边缺失"不一致态（§八已证有害）。
+  3. 解冻条件 = A 执行（git lfs pull）= **操作者基础设施待办**（§十.4，蜂群无 git-lfs CLI / 远端凭据权限）。拓扑映射子任务无法绕过此前提。
+- **四分法**：549 冻结是已结算原则 ⇒ "566-573 缺映射"是其**定理**（逻辑必然推论）⇒ 自动结算，不上浮、不创建子任务（no-unnecessary-escalation 四分法：定理类不允许提问/创建绕过性工作）。
+
+### 十一.3 处置
+
+- 566-573（及一切后续谱系，含本轮新增 574）映射**统一归入 549 冻结范围**，等待 A 执行后**批量解冻重映射**（粘性陷阱 §八.修复：A 实体化 relations.jsonl 后，先从 meta.json 删除 531-565 + 回退计数，再全量重跑 mapper 写边；或从 dag.yaml 回填边）。
+- **唯一真阻塞 = 549 §十 A（git lfs pull）**，已作为 549 `infra_todo` 追踪（操作者基础设施动作，蜂群无权限）。无新工位可推进映射，无新谱系号。
+- **建议（接 §八扫描盲区）**：ceremony_scan 的 `missing_block_mapping` 检查应区分"549 冻结范围内的已知缺映射"（≥ 549，预期态）vs"真新异常"（< 549 的意外缺失），避免每轮 re-scan 重复报 549 下游为异常（= scan-state-unobservable 094 的逆向：已知冻结态被反复误报为新异常）。此为 ceremony-scan-completeness skill 草案的追加项。

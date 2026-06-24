@@ -3008,6 +3008,17 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/meta-rule-stopguard-block-target-vs-responsibility.md
+- id: '574'
+  title: 买卖点 = 确认滞后的形式化解（不是对立面，是认识论下界的精确表达）——三类买卖点=确认滞后/确认度权衡谱，对接群论方案B走势发展完全分类(H¹
+    6模式)；三层统一：σ=h²³失败(代数层)⟺走势完成不可预测(时间层)⟺确认滞后不可约(操作层)=同一缠论认识论事实的三个面
+  status: 已结算
+  type: 概念发现（理论结晶 / 跨域统一原理）
+  file: settled/574-bsp-formal-solution-of-confirmation-lag.md
+- id: '575'
+  title: clean slate 重建消除双代共存的两类后果——573 边界条件2 的 L2 实现（资源 reap）+ 第二维显形（命名空间写争用）+ 单写者细化
+  status: 已结算
+  type: meta-rule
+  file: pending/574-clean-slate-rebuild-dual-generation-contention.md
 edges:
   depends_on:
   - from: '136'
@@ -6068,6 +6079,28 @@ edges:
     to: '571'
   - from: '567'
     to: '572'
+  - from: '574'
+    to: '537'
+  - from: '574'
+    to: '540'
+  - from: '574'
+    to: '558'
+  - from: '574'
+    to: '573'
+  - from: '574'
+    to: '407'
+  - from: '574'
+    to: '565'
+  - from: ''
+    to: '573'
+  - from: ''
+    to: '407'
+  - from: '575'
+    to: '573'
+  - from: '575'
+    to: '407'
+  - from: '575'
+    to: '565'
   triggered:
   - from: '005'
     to: 005a
@@ -8342,6 +8375,87 @@ edges:
   - between:
     - '571'
     - '572'
+  - between:
+    - '539'
+    - '574'
+  - between:
+    - '547'
+    - '574'
+  - between:
+    - '563'
+    - '574'
+  - between:
+    - '561'
+    - '574'
+  - between:
+    - '533'
+    - '574'
+  - between:
+    - '543'
+    - '574'
+  - between:
+    - '527'
+    - '574'
+  - between:
+    - '422'
+    - '574'
+  - between:
+    - '423'
+    - '574'
+  - between:
+    - '017'
+    - '574'
+  - between:
+    - '055'
+    - '574'
+  - between:
+    - '568'
+    - '574'
+  - between:
+    - '550'
+    - '574'
+  - between:
+    - ''
+    - '422'
+  - between:
+    - ''
+    - '423'
+  - between:
+    - ''
+    - '055'
+  - between:
+    - ''
+    - '568'
+  - between:
+    - ''
+    - '550'
+  - between:
+    - '422'
+    - '575'
+  - between:
+    - '423'
+    - '575'
+  - between:
+    - '017'
+    - '575'
+  - between:
+    - '055'
+    - '575'
+  - between:
+    - '568'
+    - '575'
+  - between:
+    - '550'
+    - '575'
+  - between:
+    - '012'
+    - '575'
+  - between:
+    - '174'
+    - '575'
+  - between:
+    - '569'
+    - '575'
   tensions_with:
   - between:
     - '007'
@@ -8445,6 +8559,9 @@ edges:
   - between:
     - '178'
     - '549'
+  - between:
+    - '539'
+    - '574'
   negated_by:
   - target: '032'
     by: 088
