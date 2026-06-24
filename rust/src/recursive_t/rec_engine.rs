@@ -719,6 +719,15 @@ pub struct TRoot {
     /// (level, entry_bar_raw, exit_bar_raw, entry_price, exit_price, units, is_short, realized_pnl)。
     /// entry/exit_bar = raw bar（确认时点 cur_bar）；Σ(此 log 多头 pnl)==Σ pair_long_pnl，空头同（完整性自检）。
     pub leg_trades: Vec<(usize, i64, i64, f64, f64, f64, bool, f64)>,
+    /// #170 TC churn 诊断（平行于 leg_trades，同索引）：每笔平仓的触发源
+    /// 0=买卖点反向平(g_pair) / 1=否定线止损(pair_stop_loss_step) / 2=NAV强平或finish收尾。
+    /// observation-only：用于拆解 1-bar collapse 的因果链（卖点 churn vs 止损 vs 收尾）。
+    pub leg_close_reasons: Vec<u8>,
+    /// #170 TC churn 诊断：close 前由各 call site 设置的触发源（close_*_leg push 时消费）。
+    pub last_close_reason: u8,
+    /// #170 TC churn 诊断（平行于 leg_trades）：每笔开仓时锁定的否定线（多腿=ZD/空腿=ZG）。
+    /// NaN=无否定线。用于验证 TC=开仓贴否定线（c 距 stop 极近 ⇒ 噪声微穿即止损 collapse）。
+    pub leg_entry_stops: Vec<f64>,
     /// 诊断（编排者 2026-06-21）：强平时三阶段快照 (stage_id 0=CostRed/1=CapRec/2=Earn,
     /// core_cost_basis, withdrawn, notional_in, nav)。查降成本/退本金保护是否生效 + 全仓 vs 逐仓。
     pub liq_snapshot: Vec<(u8, f64, f64, f64, f64)>,
@@ -811,6 +820,9 @@ impl TRoot {
             short_pnl_by_level: [0.0; MAX_LEVEL],
             liq_log: Vec::new(),
             leg_trades: Vec::new(),
+            leg_close_reasons: Vec::new(),
+            last_close_reason: 0,
+            leg_entry_stops: Vec::new(),
             liq_snapshot: Vec::new(),
             earning_units_added: 0.0,
             max_core_gain_x1000: 0,
@@ -1544,6 +1556,8 @@ impl TRoot {
         self.pair_long_pnl[k] += pnl;
         // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
         self.leg_trades.push((k, self.leg_pairs[k].long_entry_bar, self.cur_bar, basis, c, u, false, pnl));
+        self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
+        self.leg_entry_stops.push(self.leg_pairs[k].long_stop); // #170 TC 诊断：开仓否定线 ZD
         self.leg_pairs[k].long_units = 0.0;
         self.leg_pairs[k].long_basis = f64::NAN;
         self.leg_pairs[k].long_stop = f64::NAN;
@@ -1569,6 +1583,8 @@ impl TRoot {
         self.pair_short_pnl[k] += pnl;
         // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
         self.leg_trades.push((k, self.leg_pairs[k].short_entry_bar, self.cur_bar, basis, c, u, true, pnl));
+        self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
+        self.leg_entry_stops.push(self.leg_pairs[k].short_stop); // #170 TC 诊断：开仓否定线 ZG
         self.leg_pairs[k].short_units = 0.0;
         self.leg_pairs[k].short_basis = f64::NAN;
         self.leg_pairs[k].short_stop = f64::NAN;
@@ -1596,6 +1612,7 @@ impl TRoot {
                 let stop = self.leg_pairs[k].long_stop;
                 if stop.is_finite() && c < stop {
                     self.guards.set_trigger(OpTrigger::Bsp); // 否定线 = 结构破坏（type3 形态对偶）= 合法触发源
+                    self.last_close_reason = 1; // #170 TC 诊断：否定线止损
                     self.close_long_leg(k, c);
                     self.pair_long_stops += 1;
                 }
@@ -1605,6 +1622,7 @@ impl TRoot {
                 let stop = self.leg_pairs[k].short_stop;
                 if stop.is_finite() && c > stop {
                     self.guards.set_trigger(OpTrigger::Bsp);
+                    self.last_close_reason = 1; // #170 TC 诊断：否定线止损
                     self.close_short_leg(k, c);
                     self.pair_short_stops += 1;
                 }
@@ -1650,6 +1668,7 @@ impl TRoot {
             // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空）。
             if self.leg_pairs[k].short_active() {
                 self.guards.set_trigger(OpTrigger::Bsp);
+                self.last_close_reason = 0; // #170 TC 诊断：买卖点反向平
                 self.close_short_leg(k, c);
             }
             if !self.leg_pairs[k].long_active() {
@@ -1665,6 +1684,7 @@ impl TRoot {
                 let may_close_core = !is_core_long_level || core_done;
                 if may_close_core {
                     self.guards.set_trigger(OpTrigger::Bsp);
+                    self.last_close_reason = 0; // #170 TC 诊断：买卖点反向平
                     self.close_long_leg(k, c);
                     if is_core_long_level && core_done {
                         self.pair_core_churns += 1; // 走势完成 churn 动核心多腿（真顶转折）
@@ -1715,6 +1735,7 @@ impl TRoot {
                     let entry_bar = self.cur_bar;
                     let entry_basis = self.leg_pairs[k].long_basis;
                     self.guards.set_trigger(OpTrigger::Eod);
+                    self.last_close_reason = 2; // #170 TC 诊断：NAV 强平
                     self.close_long_leg(k, c);
                     self.n_liquidations += 1;
                     self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, false));
@@ -1723,6 +1744,7 @@ impl TRoot {
                     let entry_bar = self.cur_bar;
                     let entry_basis = self.leg_pairs[k].short_basis;
                     self.guards.set_trigger(OpTrigger::Eod);
+                    self.last_close_reason = 2; // #170 TC 诊断：NAV 强平
                     self.close_short_leg(k, c);
                     self.n_liquidations += 1;
                     self.liq_log.push((k, entry_bar, entry_basis, self.cur_bar, c, true));
@@ -1747,6 +1769,7 @@ impl TRoot {
             return;
         }
         self.guards.set_trigger(OpTrigger::Eod);
+        self.last_close_reason = 2; // #170 TC 诊断：finish 收尾
         for k in 0..MAX_LEVEL {
             if self.leg_pairs[k].long_active() {
                 self.close_long_leg(k, c);

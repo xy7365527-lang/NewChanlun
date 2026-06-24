@@ -568,6 +568,17 @@ impl RecStream {
         &self.driver.root().leg_trades
     }
 
+    /// #170 TC churn 诊断：每笔平仓触发源（平行于 leg_trades，同索引）。
+    /// 0=买卖点反向平 / 1=否定线止损 / 2=NAV强平或finish收尾。
+    pub fn leg_close_reasons(&self) -> &[u8] {
+        &self.driver.root().leg_close_reasons
+    }
+
+    /// #170 TC churn 诊断：每笔开仓时锁定的否定线（多腿 ZD/空腿 ZG，平行于 leg_trades）。
+    pub fn leg_entry_stops(&self) -> &[f64] {
+        &self.driver.root().leg_entry_stops
+    }
+
     /// #149 per-level 多/空腿 realized pnl（pair_long_pnl, pair_short_pnl）——账本完整性自检的对账基准。
     pub fn pair_pnl(&self) -> (Vec<f64>, Vec<f64>) {
         let r = self.driver.root();

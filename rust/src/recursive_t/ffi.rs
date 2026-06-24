@@ -305,6 +305,10 @@ impl PyRecStream {
         let trades: Vec<(usize, i64, i64, f64, f64, f64, bool, f64)> =
             self.core.leg_trades().to_vec();
         d.set_item("leg_trades", trades)?;
+        let reasons: Vec<u8> = self.core.leg_close_reasons().to_vec(); // #170 TC 诊断
+        d.set_item("leg_close_reasons", reasons)?;
+        let stops: Vec<f64> = self.core.leg_entry_stops().to_vec(); // #170 TC 诊断
+        d.set_item("leg_entry_stops", stops)?;
         let (lp, sp) = self.core.pair_pnl();
         d.set_item("pair_long_pnl", lp)?;
         d.set_item("pair_short_pnl", sp)?;
