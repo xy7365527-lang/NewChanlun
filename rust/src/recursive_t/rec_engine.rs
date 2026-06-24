@@ -60,6 +60,47 @@ pub const MAX_LEVEL: usize = 8;
 ///
 /// bit-exact 契约：`enable_nest=false ∧ enable_hold_anchor=false` ⇒ on_bar/route_bsp/sink/drain/enter
 /// 行为与 OFF 逐字一致（新逻辑全部 flag 门控、anchor 恒 0）。
+///
+/// **做空腿开仓触发器（做空腿对称化，#108 L2 根因修复，编排者推动 FINAL GOAL）**：
+/// #108 坐实做空腿亏 = 多空开仓触发**不对称**——多头开仓 = `view.buy[k]`（任意买点 type1/2/3，含
+/// 及时的 type1 底背驰 ⇒ 骑涨，每级别 long_pnl 全正）；做空开仓 = **仅 `view.t3sell[k]`**（type3
+/// 最滞后破位）⇒ 系统性晚建，错过 type1 顶背驰 → 整段 |跌幅| → type3 破位（强牛中 = 回调底 → 涨回
+/// → zg 止损）。逐笔实证：做空 L0 捕获率 34-43% < 50%（BTC 36%），多头每级别全正。
+///
+/// 对称化（缠论「开@顶 平@底」对称性）= 把开空触发提到与多头同等及时度：
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShortEntry {
+    /// 默认基线（#117 已 L3）：`view.t3sell[k]`（type3 破位，最滞后）。保 #117 逐位复现。
+    T3,
+    /// 候选A：`view.t1sell[k]`（type1 顶背驰，与多头 type1 底背驰对称——开空于走势终完美）。
+    T1,
+    /// 候选B：`view.sell[k]`（任意卖点 type1/2/3，与多头 `view.buy` 完全对称）。
+    Any,
+}
+
+/// **开多腿入场方向/级别门控（T1 方向错位修复，#164/R1，546/547 cascade）**：
+/// #164 逐笔分类坐实 T1 方向错位（58.7%，最大可约靶子）= 入场在与持仓方向**逆向的同级别走势段**
+/// （开多在跌段）。L3 解剖（BTC L0 worst 例 eb=1345932）实证：买点在**下落段 20% 处** fire 即开多
+/// （非段末转折，是逆势段途中），随后段从 5540→5155（−7%）继续跌 ⇒ 真 wrong-side（**非 574 滞后税**
+/// ——574 是确认在段末，此处入场在段首）。74.8% 的 T1 落在 L0（次级别），65.5% 携 cross_level_conflict
+/// （入场段 ∧ 某更高级别走势段逆向 = 546/547 级别错配）。
+///
+/// 现状非对称：开空有 `below_core_long` 门（核心多腿之下才开空，shortleg #69），开多**零门控**
+/// （任意买点 `view.buy[k]` 即开多）⇒ 多腿在下落段/逆高级别段无差别开仓 = T1 主体（long 占 T1 的 70.4%）。
+/// 本 enum 把开多对称到「段方向/级别一致」门控（缠论：买点应开在**上涨段**或与高级别一致，第17/27课）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LongEntry {
+    /// 默认基线（#117/#113 Face A 已 L3）：`view.buy[k]` 任意买点，**零方向门控**。保 bit-exact 逐位复现。
+    Any,
+    /// 候选L1（同级别段方向对齐）：仅当 `view.nodes[k].direction == Up`（k 段为上涨段）才开多。
+    /// 直击 T1 定义（入场段逆向）——下落段途中买点不开多（等段转上涨=顺向确认）。对称镜像开空 `nodes[k]==Down`。
+    SegAlign,
+    /// 候选L2（跨级别段方向对齐，攻 65.5% xlc / 546/547）：仅当**无更高活跃级别走势段逆向**
+    /// （∀ j>k 的 `view.nodes[j].direction != Down`）才开多——次级别买点不在高级别下落段中逆势开多。
+    /// 对称镜像开空：无更高级别 Up 段才开空。这是 cascade 级别错配（次级别操作逆主级别走势）的直接门控。
+    CrossLevel,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct EngineConfig {
     pub enable_earning: bool,
@@ -97,6 +138,17 @@ pub struct EngineConfig {
     /// liq=0 仅靠 geom_tower 恒仓；删 geom_tower 必须同步接真否定线否则穿仓）。false ⇒ RB_PAIR/OFF 逐字
     /// 不变（bit-exact，geom_tower + zd/zg 恒 None）。env `T_FACEB`。
     pub enable_uniform_sizing: bool,
+    /// **做空腿开仓触发器（做空腿对称化，#108 根因）**：默认 `T3`（= #117 基线，逐位复现）；
+    /// `T1`/`Any` 把开空对称到多头 `view.buy`（候选A/B）。`below_core_long` 门 + zg 否定线封顶不变
+    /// （防核心假顶翻空灾难，leverage-accept −106256）。env：`T_PAIR_SHORT_T1` / `T_PAIR_SHORT_ANY`。
+    /// 只在 LegPair 路径（`enable_reading_b_pair`）经 g_pair 生效；OFF/instances 路径不跑 g_pair ⇒ bit-exact。
+    pub pair_short_entry: ShortEntry,
+    /// **开多腿入场方向/级别门控（T1 方向错位修复，#164/R1）**：默认 `Any`（= 现状零门控，逐位复现）；
+    /// `SegAlign`（同级别段方向对齐）/ `CrossLevel`（跨级别段方向对齐，攻 65.5% xlc）把开多对称到方向门控。
+    /// 对称镜像作用于开空（SegAlign/CrossLevel 同时门控开空，与 `pair_short_entry` 的**触发口径**正交——
+    /// pair_short_entry 选「哪个卖点开空」，pair_long_entry 选「何方向/级别条件下才开仓」）。
+    /// env：`T_PAIR_LONG_SEGALIGN` / `T_PAIR_LONG_XLEVEL`。只在 LegPair 路径经 g_pair 生效（OFF/instances bit-exact）。
+    pub pair_long_entry: LongEntry,
 }
 
 impl EngineConfig {
@@ -116,6 +168,27 @@ impl EngineConfig {
             enable_pair_core_short: std::env::var("T_PAIR_CORE_SHORT").is_ok(),
             enable_pair_core_short_open: std::env::var("T_PAIR_CORE_SHORT_T3").is_ok(),
             enable_uniform_sizing: std::env::var("T_FACEB").is_ok(),
+            // 做空腿对称化触发器（#108 根因）：Any 优先于 T1，二者皆无 ⇒ T3（#117 基线，逐位复现）。
+            // 注：不计入 any_variant_enabled()——pair_short_entry 是 face_a 默认引擎的**修饰**（开空触发口径），
+            // 非独立实验变体；单独 set T_PAIR_SHORT_T1 ⇒ production() 仍走 face_a() 分支（off() 不 reset 此字段，
+            // 经 from_env 基底贯穿到 face_a），= face_a + 对称开空。
+            pair_short_entry: if std::env::var("T_PAIR_SHORT_ANY").is_ok() {
+                ShortEntry::Any
+            } else if std::env::var("T_PAIR_SHORT_T1").is_ok() {
+                ShortEntry::T1
+            } else {
+                ShortEntry::T3
+            },
+            // 开多入场门控（T1 方向错位修复，#164/R1）：XLEVEL 优先于 SEGALIGN，二者皆无 ⇒ Any（现状零门控，逐位复现）。
+            // 注：与 pair_short_entry 同理，是 face_a 默认引擎的**修饰**（开仓方向门控），非独立实验变体
+            // （不计入 any_variant_enabled()）；单独 set ⇒ production() 仍走 face_a()，from_env 基底贯穿。
+            pair_long_entry: if std::env::var("T_PAIR_LONG_XLEVEL").is_ok() {
+                LongEntry::CrossLevel
+            } else if std::env::var("T_PAIR_LONG_SEGALIGN").is_ok() {
+                LongEntry::SegAlign
+            } else {
+                LongEntry::Any
+            },
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -642,6 +715,12 @@ pub struct TRoot {
     /// **Face B 均匀基准单元定仓（做空腿赚 #110）**：true ⇒ open_*_leg 用 uniform_base_units 取代
     /// geom_tower_quota（删恒仓归一化压制 → 来源A 杠杆涌现 + 真否定线封顶）。OFF=false（bit-exact）。
     enable_uniform_sizing: bool,
+    /// **做空腿开仓触发器（做空腿对称化，#108 根因）**：T3=#117 基线（view.t3sell）/ T1=候选A（view.t1sell）
+    /// / Any=候选B（view.sell，对称多头 view.buy）。g_pair 开空门控用，below_core_long 门不变。
+    pair_short_entry: ShortEntry,
+    /// **开多腿入场方向/级别门控（T1 方向错位修复，#164/R1）**：Any=现状零门控（bit-exact）/
+    /// SegAlign=同级别段方向对齐 / CrossLevel=跨级别段方向对齐（攻 65.5% xlc）。g_pair 开多门控用。
+    pair_long_entry: LongEntry,
     /// 初始本金（= free 初值）——Face B 均匀基准单元定仓的级别无关基准（initial_capital×MOBILE_FRAC）。
     initial_capital: f64,
     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
@@ -772,6 +851,8 @@ impl TRoot {
             enable_reading_b_pair: cfg.enable_reading_b_pair,
             enable_pair_core_short: cfg.enable_pair_core_short,
             enable_pair_core_short_open: cfg.enable_pair_core_short_open,
+            pair_short_entry: cfg.pair_short_entry,
+            pair_long_entry: cfg.pair_long_entry,
             enable_uniform_sizing: cfg.enable_uniform_sizing,
             initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
@@ -1644,6 +1725,68 @@ impl TRoot {
     /// 自相似同构：皆该级别区间套-confirmed 买卖点驱动、确认深度∝持仓尺度（主力 d_top 全深度/短差 t3sell 单层）、
     /// 角色（core vs sub）由 `highest_active_long` 结构涌现（零 if level==N/regime）。
     ///
+    /// **开多入场方向/级别门控判据（T1 方向错位修复，#164/R1）**——结构涌现，零 if regime/level==N。
+    /// 返回 true ⇒ 允许在级别 k 开多腿。`Any` 恒真（bit-exact）；`SegAlign` 要求本级别段方向上涨；
+    /// `CrossLevel` 要求无更高活跃级别走势段下落（攻 65.5% xlc / 546/547 级别错配）。
+    ///
+    /// **核心多腿级别豁免（L3 ES 退化诊断 #164/R1）**：方向门控**仅作用于次级别开多**——核心多腿级别
+    /// （`highest_active_long()==k`，或核心之上 k≥core）**豁免门控**（恒返回 true）。依据：L3 解剖坐实
+    /// SegAlign 在低级别（L0/L2）净改善（削逆势 churn），但在核心/高级别（ES L3 long_pnl 24990→4787，−20203）
+    /// **踏空**——高级别「下落段」实为主升浪中的大押小回，核心多腿应骑走势直到走势完成（d_top churn 门控管平仓，
+    /// 非入场方向门控）。与开空 `below_core_long` 门**完全对称**：开空仅次级别（核心之下），开多门控也仅次级别。
+    /// 核心入场由 trend_done_clear/emergence 重建路径管，不在 g_pair 方向门控范围。
+    fn long_entry_ok(&self, k: usize, view: &LevelView) -> bool {
+        if self.pair_long_entry == LongEntry::Any {
+            return true; // bit-exact 基线
+        }
+        // 核心多腿级别及其上豁免方向门控（次级别才门控，与 below_core_long 对称）。
+        // 无核心（全空仓）⇒ 任意级别都算「次级别」（首次建仓须放行，否则永不建仓）。
+        if let Some(core) = self.highest_active_long() {
+            if k >= core {
+                return true;
+            }
+        }
+        match self.pair_long_entry {
+            LongEntry::Any => true,
+            LongEntry::SegAlign => matches!(
+                view.nodes.get(k).and_then(|n| n.map(|t| t.direction)),
+                Some(Direction::Up)
+            ),
+            LongEntry::CrossLevel => {
+                // ∀ j>k：更高活跃级别走势段不为下落（None=该级别无活跃走势=不冲突）。
+                !((k + 1)..MAX_LEVEL).any(|j| {
+                    matches!(
+                        view.nodes.get(j).and_then(|n| n.map(|t| t.direction)),
+                        Some(Direction::Down)
+                    )
+                })
+            }
+        }
+    }
+
+    /// **开空入场方向/级别门控判据（T1 修复对称镜像，#164/R1）**——开多 `long_entry_ok` 的对偶。
+    /// `Any` 恒真（bit-exact，开空仍仅受 below_core_long 门）；`SegAlign` 要求本级别段方向下跌；
+    /// `CrossLevel` 要求无更高活跃级别走势段上涨。开空本就受 `below_core_long`（严格次级别）门控
+    /// （g_pair short_level_ok），故无需额外核心豁免——但为对称保留同一结构（核心级开空在 net-up 已被
+    /// below_core_long 封死，此处方向门控对次级别开空叠加生效）。
+    fn short_entry_ok(&self, k: usize, view: &LevelView) -> bool {
+        match self.pair_long_entry {
+            LongEntry::Any => true,
+            LongEntry::SegAlign => matches!(
+                view.nodes.get(k).and_then(|n| n.map(|t| t.direction)),
+                Some(Direction::Down)
+            ),
+            LongEntry::CrossLevel => {
+                !((k + 1)..MAX_LEVEL).any(|j| {
+                    matches!(
+                        view.nodes.get(j).and_then(|n| n.map(|t| t.direction)),
+                        Some(Direction::Up)
+                    )
+                })
+            }
+        }
+    }
+
     /// **零方向几何**：开仓方向由买卖点（buy/sell）涌现，不由 node.direction。**只写 leg_pairs[k]**（547 隔离）。
     fn g_pair(&mut self, k: usize, view: &LevelView, top: usize, c: f64) {
         let b = view.buy[k];
@@ -1662,16 +1805,34 @@ impl TRoot {
         // 自相似原则：区间套确认深度 ∝ 持仓尺度（主力=全深度 d_top / 短差=单层 t3sell），角色由 `highest_active_long` 结构涌现
         // 决定（零 if level==N/regime）。这正是 567洞察①「腿开平绑买卖点+区间套」——主力绑走势完成、短差绑第三类转折。
         let core_done = view.d_top[k];
-        let sub_break = view.t3sell[k];
+        // **开空触发器（做空腿对称化，#108 L2 根因修复）**：默认 T3（=view.t3sell，#117 基线，逐位复现）。
+        // 候选A（T1=view.t1sell 顶背驰）/ 候选B（Any=view.sell 任意卖点 = `s`，与多头 view.buy 完全对称）
+        // 把开空提到与多头 view.buy 同等及时度——消解 #108「做空仅 t3sell 晚建」不对称。`below_core_long` 门
+        // + zg 否定线封顶（下方 short_level_ok / open_short_leg）**不变** ⇒ net-up 假顶仍封死核心翻空（防灾难）。
+        let sub_break = match self.pair_short_entry {
+            ShortEntry::T3 => view.t3sell[k],
+            ShortEntry::T1 => view.t1sell[k],
+            ShortEntry::Any => s, // = view.sell[k]，已在 `if s` 块内恒真 ⇒ 任意卖点（below_core_long 内）开空
+        };
+
+        // **开多腿入场方向/级别门控（T1 方向错位修复，#164/R1）**：T1（58.7%，最大可约靶子）= 入场在与
+        // 持仓方向逆向的同级别走势段（开多在跌段）。L3 解剖坐实买点在下落段途中 fire 即开多 = wrong-side。
+        // 门控构造涌现（零 if regime/level==N）：
+        //   - SegAlign：本级别段方向上涨（`view.nodes[k].direction == Up`）才开多 = 攻 T1 定义（同级别逆向）。
+        //   - CrossLevel：无更高活跃级别走势段下落（∀ j>k，`view.nodes[j].direction != Down`）才开多 = 攻
+        //     65.5% xlc（546/547 级别错配：次级别买点不在高级别下落段中逆势开多）。
+        //   - Any：现状零门控（bit-exact）。
+        // 对称镜像作用于开空（见下方 short_dir_ok），与 below_core_long 门正交叠加。
+        let long_dir_ok = self.long_entry_ok(k, view);
 
         if b {
-            // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空）。
+            // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空 ∧ 方向门控通过）。
             if self.leg_pairs[k].short_active() {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 self.last_close_reason = 0; // #170 TC 诊断：买卖点反向平
                 self.close_short_leg(k, c);
             }
-            if !self.leg_pairs[k].long_active() {
+            if !self.leg_pairs[k].long_active() && long_dir_ok {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 self.open_long_leg(k, top, self.faceb_stop(view.zd[k]), c);
             }
@@ -1717,7 +1878,11 @@ impl TRoot {
             let below_core_long = self.highest_active_long().map_or(false, |core| k < core);
             // 变体2（放开 k<核心 t3sell 大额做空）：移除 below_core_long 限制 ⇒ t3sell 在核心及其上开空（max_gross>1×）。
             let short_level_ok = below_core_long || self.enable_pair_core_short_open;
-            if !self.leg_pairs[k].short_active() && sub_break && short_level_ok {
+            // **开空方向门控镜像（T1 修复对称，#164/R1）**：与开多 long_entry_ok 对称——SegAlign 要求本级别段
+            // 下跌（nodes[k]==Down）/ CrossLevel 要求无更高活跃级别上涨段。Any ⇒ 恒真（bit-exact，开空仍仅
+            // 受 below_core_long 门）。与 short_level_ok（核心隔离）正交叠加。
+            let short_dir_ok = self.short_entry_ok(k, view);
+            if !self.leg_pairs[k].short_active() && sub_break && short_level_ok && short_dir_ok {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 self.open_short_leg(k, top, self.faceb_stop(view.zg[k]), c);
             }
@@ -2155,5 +2320,79 @@ impl TRoot {
     /// 读法B 每级别独立腿只读访问（诊断/L3）。
     pub fn leg(&self, k: usize) -> &Leg {
         &self.legs[k]
+    }
+}
+
+#[cfg(test)]
+mod t1_direction_gate_tests {
+    //! **T1 方向错位入场门控单测（#164/R1）**——`long_entry_ok`/`short_entry_ok` 三模式分支 + 核心豁免。
+    //! L0 结构判据（不依赖回测数据）：门控逻辑的存在性与对称性。L3 有效域（8 标的 nav/T1）见报告。
+    use super::*;
+
+    fn root(le: LongEntry) -> TRoot {
+        let mut cfg = EngineConfig::off();
+        cfg.enable_reading_b_pair = true;
+        cfg.pair_long_entry = le;
+        TRoot::new_with_config(100_000.0, cfg)
+    }
+
+    fn view_with_node(k: usize, dir: Direction) -> LevelView {
+        let mut v = LevelView::default();
+        v.nodes[k] = Some(TrendNode::new(0, 1, 1.0, 2.0, dir));
+        v
+    }
+
+    #[test]
+    fn any_模式恒放行_bit_exact基线() {
+        let r = root(LongEntry::Any);
+        // 任意级别/段方向，Any 恒返回 true（= 现状零门控，bit-exact）。
+        assert!(r.long_entry_ok(0, &view_with_node(0, Direction::Down)));
+        assert!(r.long_entry_ok(2, &view_with_node(2, Direction::Down)));
+        assert!(r.short_entry_ok(0, &view_with_node(0, Direction::Up)));
+    }
+
+    #[test]
+    fn segalign_次级别下落段拒开多() {
+        let r = root(LongEntry::SegAlign);
+        // 无核心（全空仓）+ 本级别下落段 ⇒ 拒（攻 T1：开多在跌段）。
+        assert!(!r.long_entry_ok(0, &view_with_node(0, Direction::Down)));
+        // 本级别上涨段 ⇒ 放行（顺向开多）。
+        assert!(r.long_entry_ok(0, &view_with_node(0, Direction::Up)));
+        // 对称：开空在涨段拒、跌段放行。
+        assert!(!r.short_entry_ok(0, &view_with_node(0, Direction::Up)));
+        assert!(r.short_entry_ok(0, &view_with_node(0, Direction::Down)));
+    }
+
+    #[test]
+    fn segalign_核心级别豁免门控_保骑牛() {
+        let mut r = root(LongEntry::SegAlign);
+        // 造核心多腿 @ L2（highest_active_long==2）。
+        r.leg_pairs[2].long_units = 10.0;
+        assert_eq!(r.highest_active_long(), Some(2));
+        // 核心级别 L2 即使段下落也豁免（核心骑牛不踏空，押小回不砍仓）。
+        assert!(r.long_entry_ok(2, &view_with_node(2, Direction::Down)));
+        // 核心之上 L3 同豁免。
+        assert!(r.long_entry_ok(3, &view_with_node(3, Direction::Down)));
+        // 次级别 L0 仍受门控（下落段拒，攻次级别 T1）。
+        assert!(!r.long_entry_ok(0, &view_with_node(0, Direction::Down)));
+    }
+
+    #[test]
+    fn segalign_无核心时首次建仓须放行() {
+        let r = root(LongEntry::SegAlign);
+        assert_eq!(r.highest_active_long(), None);
+        // 全空仓 + 上涨段 ⇒ 放行（首次建仓不被豁免逻辑误拒）。
+        assert!(r.long_entry_ok(0, &view_with_node(0, Direction::Up)));
+    }
+
+    #[test]
+    fn crosslevel_更高级别下落段拒次级别开多() {
+        let r = root(LongEntry::CrossLevel);
+        // 次级别 k=0 上涨段，但更高 j=2 为下落段 ⇒ 拒（攻 65.5% xlc：次级别逆主级别走势开多）。
+        let mut v = view_with_node(0, Direction::Up);
+        v.nodes[2] = Some(TrendNode::new(0, 1, 1.0, 2.0, Direction::Down));
+        assert!(!r.long_entry_ok(0, &v));
+        // 无更高级别下落段 ⇒ 放行。
+        assert!(r.long_entry_ok(0, &view_with_node(0, Direction::Up)));
     }
 }
