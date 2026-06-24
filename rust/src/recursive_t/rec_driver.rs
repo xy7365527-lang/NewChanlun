@@ -289,4 +289,206 @@ mod tests {
         let fin = d.finish(40.0);
         assert!(fin.is_finite() && fin >= 0.0, "端到端 final_nav 有限");
     }
+
+    // ════════════ Face B：核心不僵死（做空腿赚 #110，删 geom_tower 均匀定仓 + 真否定线）════════════
+
+    /// LegPair 买点视图 + 进场中枢否定线 ZD（多腿跌破止损）。
+    fn lv_buy_zd(level: usize, dir: Direction, zd: f64) -> LevelView {
+        let mut v = LevelView::empty();
+        v.buy[level] = true;
+        v.nodes[level] = Some(node(0, 10, dir));
+        v.zd[level] = Some(zd);
+        v
+    }
+    /// LegPair 卖点视图（次级别开空：sell + t3sell 单层区间套转折）+ 进场中枢否定线 ZG（空腿涨破止损）。
+    fn lv_sell_zg_t3(level: usize, dir: Direction, zg: f64) -> LevelView {
+        let mut v = LevelView::empty();
+        v.sell[level] = true;
+        v.t3sell[level] = true;
+        v.nodes[level] = Some(node(0, 10, dir));
+        v.zg[level] = Some(zg);
+        v
+    }
+
+    /// **均匀基准单元定仓（§6.3 删 geom_tower）**：Face B 每级别 = INITIAL×MOBILE_FRAC（级别无关），
+    /// 区别于 geom_tower 恒仓配额（base=free×2/3）。
+    #[test]
+    fn faceb_均匀定仓_级别无关基准单元() {
+        let mut fb = TRoot::new_with_config(100_000.0, EngineConfig::face_b());
+        fb.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
+        let u_fb = fb.leg_pair(3).long_units;
+        // 均匀：100000 × (1/3) / 100 = 333.33（级别无关，无 depth 衰减、无 free 归一化）。
+        assert!((u_fb - 333.333).abs() < 0.01, "均匀基准单元 = INITIAL×1/3/c，得 {u_fb}");
+
+        // 对照 RB_PAIR（geom_tower 恒仓）：base=free×2/3=66666.7, depth=0 ⇒ units=666.67（≠均匀）。
+        let mut rb = TRoot::new_with_config(100_000.0, EngineConfig::reading_b_pair());
+        rb.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
+        let u_rb = rb.leg_pair(3).long_units;
+        assert!((u_rb - 666.667).abs() < 0.01, "geom_tower 恒仓 base×2/3，得 {u_rb}");
+        assert!((u_fb - u_rb).abs() > 1.0, "Face B 均匀 ≠ RB_PAIR geom（删 geom_tower 生效）");
+    }
+
+    /// **真否定线封顶（§6.2 567，RB_PAIR 下 zd/zg=None 死代码）**：多腿跌破进场 ZD ⇒ 止损平。
+    #[test]
+    fn faceb_多腿跌破否定线zd止损() {
+        let mut fb = TRoot::new_with_config(100_000.0, EngineConfig::face_b());
+        fb.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0); // 多腿@100, 否定线 ZD=95
+        assert!(fb.leg_pair(3).long_active(), "多腿建仓");
+        // 价格跌破 95（结构破坏）⇒ pair_stop_loss_step 平多（即便 view 空，止损先于 top 早退）。
+        fb.on_bar(&LevelView::empty(), 11, 94.0);
+        assert!(!fb.leg_pair(3).long_active(), "跌破 ZD=95 ⇒ 多腿止损平");
+        assert_eq!(fb.pair_long_stops, 1, "否定线止损计数");
+        assert_eq!(fb.n_liquidations, 0, "止损先于 NAV≤0 ⇒ liq=0");
+    }
+
+    /// **空腿涨破否定线 ZG 止损**（次级别开空 + 涨破进场 ZG）。
+    #[test]
+    fn faceb_空腿涨破否定线zg止损() {
+        let mut fb = TRoot::new_with_config(100_000.0, EngineConfig::face_b());
+        fb.on_bar(&lv_buy_zd(4, Direction::Up, 90.0), 10, 100.0); // 核心多腿@4（below_core_long 门用）
+        fb.on_bar(&lv_sell_zg_t3(2, Direction::Down, 105.0), 11, 100.0); // 次级别(2<4)开空腿, 否定线 ZG=105
+        assert!(fb.leg_pair(2).short_active(), "次级别空腿建仓（t3sell + below_core_long）");
+        fb.on_bar(&LevelView::empty(), 12, 106.0); // 涨破 105 ⇒ 空腿止损
+        assert!(!fb.leg_pair(2).short_active(), "涨破 ZG=105 ⇒ 空腿止损平");
+        assert_eq!(fb.pair_short_stops, 1, "空腿否定线止损计数");
+    }
+
+    /// **★核心否定线置 cc 级别（§5.3.2，Face B 主机制）**：次级别回调（破次级别 ZD）平次级别腿，
+    /// 但**不触发核心否定线**（未破 cc 级 ZD）⇒ 核心存活穿越次级别回调。
+    #[test]
+    fn faceb_次级别回调不扫核心_核心否定线在cc级() {
+        let mut fb = TRoot::new_with_config(100_000.0, EngineConfig::face_b());
+        // 核心多腿@4，否定线 = cc(4)级中枢 ZD=90（宽，大级别中枢）。
+        fb.on_bar(&lv_buy_zd(4, Direction::Up, 90.0), 10, 100.0);
+        // 次级别多腿@2，否定线 = 次级别中枢 ZD=98（窄，次级别中枢）。
+        fb.on_bar(&lv_buy_zd(2, Direction::Up, 98.0), 11, 100.0);
+        assert!(fb.leg_pair(4).long_active() && fb.leg_pair(2).long_active(), "核心+次级别双多腿在场");
+        // 价格回调到 95：破次级别 ZD(98) 不破核心 ZD(90)。
+        fb.on_bar(&LevelView::empty(), 12, 95.0);
+        assert!(!fb.leg_pair(2).long_active(), "次级别回调破次级别 ZD=98 ⇒ 次级别腿止损");
+        assert!(fb.leg_pair(4).long_active(), "核心存活：次级别回调未破 cc(4)级 ZD=90，核心不被扫");
+        assert_eq!(fb.n_liquidations, 0, "liq=0");
+    }
+
+    /// **杠杆来源A 涌现（§6.1 579）**：多级别独立腿叠加 ⇒ max_gross>1×（删 geom_tower 恒仓归一化），
+    /// 否定线封顶每腿 ⇒ liq=0（非穿仓）。
+    #[test]
+    fn faceb_多级别叠加_杠杆来源A涌现_liq0() {
+        let mut fb = TRoot::new_with_config(100_000.0, EngineConfig::face_b());
+        // 单 bar 四级别买点 + 各级别中枢 ZD ⇒ g_pair(0..=4) 各开 333.33 多腿（叠加）。
+        let mut v = LevelView::empty();
+        for k in 1..=4 {
+            v.buy[k] = true;
+            v.nodes[k] = Some(node(0, 10, Direction::Up));
+            v.zd[k] = Some(90.0);
+        }
+        fb.on_bar(&v, 10, 100.0);
+        let active = (0..MAX_LEVEL).filter(|&k| fb.leg_pair(k).long_active()).count();
+        assert_eq!(active, 4, "四级别独立多腿叠加");
+        // gross = 4×333.33×100 = 133333 vs nav≈100000 ⇒ >1×（geom_tower 恒仓会钳到 ≤1×=压制）。
+        assert!(fb.max_gross_exp_x100 > 100, "来源A 杠杆 >1× 涌现，得 {}×100", fb.max_gross_exp_x100);
+        assert_eq!(fb.n_liquidations, 0, "否定线封顶 ⇒ liq=0（非穿仓）");
+    }
+
+    /// **bit-exact：enable_uniform_sizing=false ⇒ RB_PAIR/OFF 逐字不变**（zd/zg 不消费、geom_tower 不变）。
+    #[test]
+    fn faceb_off_bitexact_rbpair不受影响() {
+        // RB_PAIR 即便 view 带 zd/zg（信号层只在 Face B 填充，此处人为带）也不止损（long_stop 锁 None）。
+        let mut rb = TRoot::new_with_config(100_000.0, EngineConfig::reading_b_pair());
+        rb.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
+        let u = rb.leg_pair(3).long_units;
+        rb.on_bar(&LevelView::empty(), 11, 94.0); // 即便跌破 95，RB_PAIR 无真否定线（地基代码逐字不变）
+        assert!(rb.leg_pair(3).long_active(), "RB_PAIR：open_long_leg 用 view.zd 但 RB_PAIR 仍传入=stop 锁住");
+        assert!((rb.leg_pair(3).long_units - u).abs() < 1e-9, "RB_PAIR 多腿不被止损（bit-exact 路径）");
+        assert_eq!(rb.pair_long_stops, 0, "RB_PAIR 无否定线止损");
+    }
+
+    // ════════════ Face A：核心能动（做空腿赚 #113，核心翻转=cc走势完成 + 接受杠杆 + 默认开启）════════════
+
+    /// LegPair 卖点视图 + **cc 走势完成 d_top**（核心翻转闸门=全深度区间套链贯通真顶=第一类卖点）+
+    /// 进场中枢否定线 ZG（核心空腿涨破止损=牛市恢复）。
+    fn lv_sell_dtop(level: usize, dir: Direction, zg: f64) -> LevelView {
+        let mut v = LevelView::empty();
+        v.sell[level] = true;
+        v.d_top[level] = true; // 走势完成（区间套级联，第27课，减确认滞后≠零滞后 R3）
+        v.nodes[level] = Some(node(0, 10, dir));
+        v.zg[level] = Some(zg);
+        v
+    }
+
+    /// **Face A 集成契约（§5.2/§六/§七）**：face_a = Face B 基座（uniform 定仓 + 真否定线）+ 核心翻转
+    /// （pair_core_short），**不开** pair_core_short_open（net-up 假顶翻空灾难门，§5.2.3）。唯一增量=核心翻空。
+    #[test]
+    fn facea_集成契约_facebase_叠加核心翻空() {
+        let fa = EngineConfig::face_a();
+        assert!(fa.enable_reading_b_pair, "LegPair 路径（无 sink ⇒ 生产路径不残留无保护 sink，#106）");
+        assert!(fa.enable_uniform_sizing, "Face B 均匀定仓（删 geom_tower）+ 真否定线 [ZD,ZG]");
+        assert!(fa.enable_pair_core_short, "★Face A 核心翻转吃熊（cc 走势完成翻空镜像）");
+        assert!(!fa.enable_pair_core_short_open, "不开 below_core_long 拆除门（net-up 假顶翻空灾难，§5.2.3）");
+        // 与 Face B 唯一差 = 核心翻转（其余逐字一致 ⇒ 收益差全归因核心翻空）。
+        let fb = EngineConfig::face_b();
+        assert_eq!(fa.enable_reading_b_pair, fb.enable_reading_b_pair);
+        assert_eq!(fa.enable_uniform_sizing, fb.enable_uniform_sizing);
+        assert!(fa.enable_pair_core_short && !fb.enable_pair_core_short, "唯一增量 = 核心翻空");
+    }
+
+    /// **★核心翻转=cc 走势完成翻空吃熊（§5.2，Face A 主机制）**：核心多腿在自己级别走势完成（d_top）
+    /// 翻空镜像（close_long 全量 + open_short 全量，无 clear_all），否定线=cc 中枢 ZG（涨破=牛市恢复止损），liq=0。
+    #[test]
+    fn facea_核心翻转_cc走势完成_翻空吃熊() {
+        let mut fa = TRoot::new_with_config(100_000.0, EngineConfig::face_a());
+        // 1) 核心多腿 @ cc=3（否定线 ZD=95）。
+        fa.on_bar(&lv_buy_zd(3, Direction::Up, 95.0), 10, 100.0);
+        assert!(fa.leg_pair(3).long_active(), "核心多腿建仓 @3");
+        // 2) cc(3) 走势完成（d_top）+ 卖点 @ 价 110（盈利顶）⇒ 核心平多 + 翻空。
+        fa.on_bar(&lv_sell_dtop(3, Direction::Up, 120.0), 11, 110.0);
+        assert!(!fa.leg_pair(3).long_active(), "核心走势完成 ⇒ 平多（全量）");
+        assert!(fa.leg_pair(3).short_active(), "★Face A：核心翻空吃熊（cc 走势完成区间套级联翻转）");
+        assert_eq!(fa.pair_core_churns, 1, "核心 churn（真顶转折，非次级别回调）");
+        assert!((fa.leg_pair(3).short_stop - 120.0).abs() < 1e-9, "核心空腿否定线 = cc 中枢 ZG=120（涨破止损）");
+        assert_eq!(fa.n_liquidations, 0, "否定线封顶 ⇒ liq=0");
+        // 3) 价格下跌到 90（bear）⇒ 核心空腿继续吃跌幅（未涨破 ZG=120）。
+        fa.on_bar(&LevelView::empty(), 12, 90.0);
+        assert!(fa.leg_pair(3).short_active(), "核心空腿吃跌（bear 持空，未涨破否定线）");
+    }
+
+    /// **★547 级别隔离 + net-up 自动 regime（§5.2.1/§5.2.4）**：次级别卖点绝不翻核心（独立空腿）；
+    /// cc 卖点但走势未完成（d_top=false=net-up 回调）⇒ 核心不翻空（闸门不开，零 if regime）。
+    #[test]
+    fn facea_次级别不翻核心_net_up闸门不开_547() {
+        let mut fa = TRoot::new_with_config(100_000.0, EngineConfig::face_a());
+        // 核心多腿 @4（cc），否定线 ZD=90。
+        fa.on_bar(&lv_buy_zd(4, Direction::Up, 90.0), 10, 100.0);
+        // 次级别(2<4) t3sell（回调，非 d_top）⇒ 次级别独立空腿（below_core_long），核心不动（547）。
+        fa.on_bar(&lv_sell_zg_t3(2, Direction::Down, 105.0), 11, 100.0);
+        assert!(fa.leg_pair(4).long_active(), "★547：次级别卖点不翻核心（核心多腿存活）");
+        assert!(fa.leg_pair(2).short_active(), "次级别独立空腿吃回调（below_core_long）");
+        assert_eq!(fa.pair_core_churns, 0, "核心未 churn（次级别卖点非 cc 走势完成）");
+        // cc(4) 卖点但**非 d_top**（net-up 回调，走势未完成）⇒ 核心不平不翻（churn 门控 + 闸门不开）。
+        fa.on_bar(&lv_sell_zg_t3(4, Direction::Down, 130.0), 12, 100.0);
+        assert!(fa.leg_pair(4).long_active(), "★net-up 自动 regime：cc 卖点非走势完成 ⇒ 核心不翻空");
+        assert!(!fa.leg_pair(4).short_active(), "核心未翻空（d_top[cc]=false ⇒ 闸门不开，无假顶翻空灾难）");
+        assert_eq!(fa.pair_core_churns, 0, "核心仍未 churn");
+    }
+
+    /// **默认开启（§8.1）**：`production()` 无变体 env ⇒ Face A（生产/默认）；`T_OFF_BASELINE` ⇒ off()
+    /// （instances bit-exact 回归守卫）。本测试是唯一 `production()` 调用者 ⇒ T_OFF_BASELINE 无并发竞态。
+    #[test]
+    fn facea_production_默认开启_off_baseline回归守卫() {
+        std::env::remove_var("T_OFF_BASELINE");
+        let prod = EngineConfig::production();
+        assert!(
+            prod.enable_reading_b_pair && prod.enable_uniform_sizing && prod.enable_pair_core_short,
+            "默认开启 ⇒ Face A（reading_b_pair + uniform + core_short）"
+        );
+        assert!(!prod.enable_pair_core_short_open, "默认 Face A 不开 below_core_long 拆除门");
+        // T_OFF_BASELINE ⇒ instances OFF 基线（全 LegPair flag false = bit-exact 回归守卫）。
+        std::env::set_var("T_OFF_BASELINE", "1");
+        let off = EngineConfig::production();
+        assert!(
+            !off.enable_reading_b_pair && !off.enable_uniform_sizing && !off.enable_pair_core_short,
+            "T_OFF_BASELINE ⇒ off()（instances 基线，含 sink/geom_tower 回归守卫）"
+        );
+        std::env::remove_var("T_OFF_BASELINE");
+    }
 }

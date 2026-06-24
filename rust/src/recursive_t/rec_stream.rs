@@ -115,9 +115,20 @@ impl RecStream {
     }
 
     /// 显式指定 a₀ 来源（线段=基线 / 笔=递归底座下移，526号）。`new(mode)` 委托此构造默认 Segment。
-    /// 引擎配置从 env 读（= 当前 main 行为，OFF 基线）。
+    /// 引擎配置从 env 读（= 当前 main 行为，OFF 基线）。**rec≡flat bit-exact 守卫 + 合成单测 base**——
+    /// **不改默认**（改默认会破 `rec_flat_btc_bit_exact` 等 OFF 守卫）。生产「默认开启 Face A」走
+    /// `new_production`（FFI/python 回测入口），见 #113 spec §8.1。
     pub fn new_with_a0(mode: PerfectionMode, a0_source: A0Source) -> Self {
         Self::new_with_config(mode, a0_source, super::rec_engine::EngineConfig::from_env())
+    }
+
+    /// **生产/默认回测引擎（做空腿赚 #113，shortleg-profit-spec §8.1「默认开启」）**：纯级别×买卖点
+    /// 统一引擎（Face A）为生产/默认配置。`EngineConfig::production()` 默认开启 Face A（无变体 env），
+    /// env `T_OFF_BASELINE` ⇒ instances OFF 基线（bit-exact 回归守卫），显式实验变体 env ⇒ 尊重（受控
+    /// 实验）。**FFI/python 回测入口走此**（`PyRecStream::new`）⇒ 生产默认开启 Face A。Rust 内部测试/
+    /// bit-exact 守卫继续走 `new`/`new_with_a0`（OFF 基线不变）。
+    pub fn new_production(mode: PerfectionMode, a0_source: A0Source) -> Self {
+        Self::new_with_config(mode, a0_source, super::rec_engine::EngineConfig::production())
     }
 
     /// 显式引擎配置（OFF / ANCHOR / NEST 受控对照，单进程多变体）。
@@ -209,7 +220,7 @@ impl RecStream {
                 self.last_trigger = trig;
                 // 块内借 orch（segs+m2r）→ build_a0 → iterate → extract_chain（owned，块后释放借用）。
                 // 诊断：同时捕获本树全 6 类 BSP（回补质询：查产出/消费）。
-                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info, level_div, d_top_arr) = {
+                let (v, new_bsps, trend_stats, cd_split, cd_dumps, top_div_info, level_div, d_top_arr, zd_arr, zg_arr) = {
                     let segs = self.orch.segments();
                     let strokes = self.orch.strokes();
                     let m2r = self.orch.merged_to_raw();
@@ -365,7 +376,31 @@ impl RecStream {
                     } else {
                         [false; MAX_LEVEL]
                     };
-                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info, level_div, d_top_arr)
+                    // ── 否定线原料（Face B 做空腿赚 #110，§5.3.2/§6.2 567 封顶）：每级别**进场中枢核心区间**
+                    //   [ZD,ZG]=末中枢 [low,high]（Zhongshu.low=ZD 核心下沿 / .high=ZG 核心上沿，types.rs:147-150）。
+                    //   多腿进场否定线=该级别中枢 ZD（跌破=结构破坏止损）；空腿=ZG（涨破止损）。核心多腿（cc）否定线
+                    //   = cc 级别中枢 ZD ⟹ 次级别回调（次级别卖点）不触发核心否定线（次级别 pullback 未破 cc 级 ZD）。
+                    //   **仅 enable_uniform_sizing（Face B）填充**——RB_PAIR/OFF/单腿路径 zd/zg 恒 None（pair_stop_loss_step
+                    //   死代码不动）⇒ 逐字不变（bit-exact）。删 geom_tower 恒仓必须同步接真否定线否则来源A 杠杆穿仓。
+                    let (zd_arr, zg_arr) = if self.cfg.enable_uniform_sizing {
+                        let mut zd = [None; MAX_LEVEL];
+                        let mut zg = [None; MAX_LEVEL];
+                        for k in 0..MAX_LEVEL {
+                            if let Some(t) = tree.levels.get(k).and_then(|lvl| lvl.trends.last()) {
+                                if let Some(zs) = t.zhongshus.last() {
+                                    // ZG>ZD 成立条件（types.rs §1.3）；非法中枢（ZG≤ZD）不作否定线（None=仅靠反向买卖点平）。
+                                    if zs.high > zs.low {
+                                        zd[k] = Some(zs.low);
+                                        zg[k] = Some(zs.high);
+                                    }
+                                }
+                            }
+                        }
+                        (zd, zg)
+                    } else {
+                        ([None; MAX_LEVEL], [None; MAX_LEVEL])
+                    };
+                    (extract_view(&tree), bs, ts, cds, dumps, top_div_info, level_div, d_top_arr, zd_arr, zg_arr)
                 };
                 view = v;
                 // 命题4 读法乙闸门注入 LevelView（engine nest_step 消费；OFF/ANCHOR 忽略 ⇒ bit-exact）。
@@ -374,6 +409,8 @@ impl RecStream {
                 view.top_trend_dir = top_dir;
                 view.level_diverge = level_div;
                 view.d_top = d_top_arr;
+                view.zd = zd_arr; // Face B 否定线原料（enable_uniform_sizing 才非全 None，否则 bit-exact）。
+                view.zg = zg_arr;
                 if top_diag < 6 {
                     self.nest_diag[top_diag] += 1;
                 }
@@ -1406,9 +1443,15 @@ mod tests {
             .unwrap_or_default();
 
         eprintln!("\n===== 任务57=53.1：读法B 一对多空腿（LegPair）L3：OFF / READING_B_PAIR（Structural）=====");
+        // leverage-accept（任务 leverage-accept，2026-06-23）：+RB_PAIR_T3 变体（=enable_pair_core_short_open=
+        //   放开 below_core_long 门控，t3sell 核心/高级别开空 ⇒ 涌现 max_gross>1×）在 net-up 8标的对比基线。
+        //   T3 是「接受杠杆」的**已存在**涌现机制（bear-validate 已 L3 测 bear 窗 1.27×/liq=0）；本测试在 net-up
+        //   全量数据观测其 4 读数（做空腿净盈亏/liq/max_gross/vs BH）。无新硬编码倍数（杠杆=多腿叠加+空头收益
+        //   膨胀 free 涌现，567 否定线 zg[k] 封顶单笔）。OFF/RB_PAIR 两 flag 默认 false ⇒ 路径逐字不变（bit-exact）。
         let variants = [
             ("OFF", EngineConfig::off()),
             ("RB_PAIR", EngineConfig::reading_b_pair()),
+            ("RB_PAIR_T3", EngineConfig::reading_b_pair_coreshort_t3()),
         ];
         let mut any = false;
         for (sym, file) in SYMBOLS {
@@ -1426,8 +1469,8 @@ mod tests {
                 assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
                 let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
                 let r = s.driver().root();
-                if *vname == "RB_PAIR" {
-                    any = true;
+                if vname.starts_with("RB_PAIR") {
+                    if *vname == "RB_PAIR" { any = true; }
                     let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
                     let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
                     let lopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k]).sum();
@@ -1446,8 +1489,12 @@ mod tests {
                         .collect();
                     eprintln!("        [{sym}] short_per_level: {}", sp_lvl.join(" "));
                     // ── 验收硬断言（编排者交付契约）──
-                    assert!(fin.is_finite() && fin > 0.0, "[{sym}/RB_PAIR] final_nav 须有限正，得 {fin}");
-                    assert_eq!(r.n_liquidations, 0, "[{sym}/RB_PAIR] 零强平违反（否定线止损应先于 NAV≤0）：liq={}", r.n_liquidations);
+                    assert!(fin.is_finite() && fin > 0.0, "[{sym}/{vname}] final_nav 须有限正，得 {fin}");
+                    // 零强平契约仅约束 baseline RB_PAIR（恒仓<1×）。RB_PAIR_T3（涌现杠杆 max_gross>1×）的 liq
+                    // 是**被观测量**（leverage-accept 4 读数之一：否定线在 gross>1× 下是否仍封顶单笔），不硬断言。
+                    if *vname == "RB_PAIR" {
+                        assert_eq!(r.n_liquidations, 0, "[{sym}/RB_PAIR] 零强平违反（否定线止损应先于 NAV≤0）：liq={}", r.n_liquidations);
+                    }
                     // 守恒零违反 = prove_tw_neutral 每 op 未 panic（运行到此即通过，无显式断言可加）。
                 } else {
                     eprintln!("[{sym:<5}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% ({:.1}s)", t0.elapsed().as_secs_f64());
@@ -1455,6 +1502,237 @@ mod tests {
             }
         }
         assert!(any, "至少跑出一个标的的 RB_PAIR 变体");
+    }
+
+    /// **Face B（做空腿赚 #110 implB）L2 验证：核心不僵死 = 删 geom_tower 均匀定仓 + 真否定线**。
+    ///
+    /// 存在论位置（shortleg-profit-spec §5.3/§8.2 + mid-scale §14）：post-#69 中间级别失血 = **压制**
+    /// （geom_tower 恒仓归一化把 max_gross 钳到 <1× ⟹ 中间级别敞口塌缩不吃自身|涨跌幅|）。Face B 删
+    /// geom_tower → 均匀基准单元（来源A 杠杆涌现）+ 真否定线 [ZD,ZG]（RB_PAIR 下 zd/zg=None 死代码）封顶
+    /// 每腿（liq=0）。**判据（§8.2，看符号非看 BH）**：① 做空腿 short_pnl 符号（vs RB_PAIR 压制基线）；
+    /// ② liq=0（否定线真生效）；③ max_gross>1×（来源A 解压制）；④ per-level 敞口非塌缩（entries 非 30→3）。
+    ///
+    /// L2 等级（formalization-validity-domain）：单标的（BTC，默认）假设检验，可否证。否定性优先（§8.3）：
+    /// liq>0 / short_pnl 仍负 / max_gross 仍<1× ⟹ 如实报告（缩小有效域 > 确认性主张），不硬断言掩盖。
+    ///
+    /// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::rec_stream::tests::faceb_l2_validate -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "Face B L2（做空腿赚 #110），需 analysis/data_cache/*.json"]
+    fn faceb_l2_validate() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        // 默认 BTC（L2 单标的锚，shortleg-profit-spec §8.2 / 死终止判据 2022 吃跌幅）。可 BT_SYMBOLS 覆盖。
+        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_else(|| vec!["BTC".to_string()]);
+
+        eprintln!("\n===== Face B（#110 implB）L2：OFF(instances基线) / RB_PAIR(geom_tower 压制) / FACE_B(均匀定仓+真否定线) =====");
+        eprintln!("（判据：short_pnl 符号 + liq=0 + max_gross>1×解压制 + per-level 敞口非塌缩。L2 否定性优先）");
+        // OFF=instances/sink 路径（mid-scale 8/8 失血 short_leg_pnl 基线）；RB_PAIR=LegPair geom_tower（post-#69 压制）；
+        // FACE_B=删 geom_tower 均匀定仓 + 真否定线（解压制 + liq=0 同时成立）。
+        let variants = [
+            ("OFF",    EngineConfig::off()),
+            ("RB_PAIR", EngineConfig::reading_b_pair()),
+            ("FACE_B", EngineConfig::face_b()),
+        ];
+        let mut any = false;
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            for (vname, cfg) in variants.iter() {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let fin = s.finish();
+                assert!(fin.is_finite() && fin > 0.0, "[{sym}/{vname}] final_nav 须有限正，得 {fin}");
+                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                let r = s.driver().root();
+                if *vname == "OFF" {
+                    // OFF=instances/sink 路径：mid-scale 失血基线 short_leg_pnl + per-level short_pnl_by_level。
+                    let sl: f64 = r.short_leg_pnl;
+                    let spl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.short_pnl_by_level[k].abs() > 1.0)
+                        .map(|k| format!("L{k}={:+.0}", r.short_pnl_by_level[k])).collect();
+                    eprintln!("[{sym:<4}/OFF    ] strat={strat:+.1}% bh={bh:+.1}% | short_leg_pnl(sink路径)={sl:+.0} liq={} | per-lvl:[{}] ({:.0}s)",
+                        r.n_liquidations, spl.join(" "), t0.elapsed().as_secs_f64());
+                } else {
+                    if *vname == "FACE_B" { any = true; }
+                    let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
+                    let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
+                    let lopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k]).sum();
+                    let sopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_short_opens[k]).sum();
+                    eprintln!(
+                        "[{sym:<4}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% | l_op={lopens} s_op={sopens} \
+                         long_pnl={long_pnl:+.0} short_pnl={short_pnl:+.0} | l_stop={} s_stop={} churn={} \
+                         liq={} | max_gross={:.2}× net={:.2}× ({:.0}s)",
+                        r.pair_long_stops, r.pair_short_stops, r.pair_core_churns, r.n_liquidations,
+                        r.max_gross_exp_x100 as f64 / 100.0, r.max_net_exp_x100 as f64 / 100.0, t0.elapsed().as_secs_f64()
+                    );
+                    // per-level 空腿（中间级别解压制透镜，#108 口径：是否吃自身|涨跌幅|转正）。
+                    let sp_lvl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.pair_short_opens[k] > 0)
+                        .map(|k| format!("L{k}:sp={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k])).collect();
+                    let lp_lvl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.pair_long_opens[k] > 0)
+                        .map(|k| format!("L{k}:lp={:+.0}/op={}", r.pair_long_pnl[k], r.pair_long_opens[k])).collect();
+                    eprintln!("        [{sym}/{vname}] short_per_lvl:[{}] long_per_lvl:[{}]", sp_lvl.join(" "), lp_lvl.join(" "));
+                    // 否定性优先（§8.3）：FACE_B 的 liq=0 是判据但 L2 否定性如实报告，不硬断言掩盖其余读数。
+                    if *vname == "FACE_B" && r.n_liquidations > 0 {
+                        eprintln!("        [{sym}/FACE_B] ⚠否定性 L2：liq={}>0（否定线未封死全部穿仓，§2.4 定仓精化触发）", r.n_liquidations);
+                    }
+                }
+            }
+        }
+        assert!(any, "至少跑出一个标的的 FACE_B 变体（默认 BTC）");
+    }
+
+    /// **Face B L2 死终止判据：2022 吃到跌幅（编排者「2022 吃到跌幅=成功」）**。
+    ///
+    /// BTC 全史（强牛）是次级别空腿的**最差窗口**（574 确认滞后税：浅回调涨回才平，short_pnl 微负=真539）。
+    /// Face B「吃中间级别回调跌」的成功窗口 = 真 bear 子窗（中间级别独立空腿吃下跌）。本测试用真 bear 2022
+    /// 窗口（ES 标普熊 −27% / BRN −40% / CL）验证 FACE_B 次级别独立空腿是否吃到跌幅（short_pnl 转正/改善）
+    /// vs RB_PAIR（geom_tower 压制基线）。**判据**：FACE_B short_pnl > RB_PAIR（解压制吃跌）∧ liq=0。
+    /// 注：本测试**不开 enable_pair_core_short**（核心翻空=Face A #113）——纯 Face B 次级别独立空腿吃回调。
+    ///
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::faceb_l2_bear_window -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "Face B L2 bear 窗（做空腿吃跌幅 #110），需 analysis/data_cache/*_databento_10y.json"]
+    fn faceb_l2_bear_window() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::load_clean_ohlc_window;
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let bear_windows: [(&str, &str, &str, &str); 3] = [
+            ("ES_2022标普熊",  "es_1m_databento_10y.json",  "2022-01-03", "2022-10-13"), // 4800→3500 −27%
+            ("BRN_2022H2跌",   "brn_1m_databento_10y.json", "2022-06-08", "2022-12-09"), // $125→$76 −40%
+            ("CL_2014-16油崩", "cl_1m_databento_10y.json",  "2014-06-20", "2016-02-11"), // $107→$26 −75%
+        ];
+
+        eprintln!("\n===== Face B L2 死终止判据：2022 吃到跌幅（RB_PAIR 压制 vs FACE_B 均匀+真否定线）=====");
+        let variants = [("RB_PAIR", EngineConfig::reading_b_pair()), ("FACE_B", EngineConfig::face_b())];
+        let mut any = false;
+        for (label, file, d0, d1) in bear_windows {
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{label}] 数据缺失，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc_window(&path, d0, d1);
+            let n = c.len();
+            if n == 0 { eprintln!("[{label}] 窗口空，跳过"); continue; }
+            let bh = if c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            for (vname, cfg) in variants.iter() {
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let fin = s.finish();
+                assert!(fin.is_finite() && fin > 0.0, "[{label}/{vname}] final_nav 须有限正");
+                let strat = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                let r = s.driver().root();
+                if *vname == "FACE_B" { any = true; }
+                let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
+                let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k] + r.pair_long_pnl[k]).sum::<f64>() - short_pnl;
+                let sopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_short_opens[k]).sum();
+                eprintln!(
+                    "[{label:<14}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% | short_pnl={short_pnl:+.0} long_pnl={long_pnl:+.0} \
+                     s_op={sopens} | l_stop={} s_stop={} liq={} max_gross={:.2}×",
+                    r.pair_long_stops, r.pair_short_stops, r.n_liquidations, r.max_gross_exp_x100 as f64 / 100.0
+                );
+                let sp_lvl: Vec<String> = (0..MAX_LEVEL).filter(|&k| r.pair_short_opens[k] > 0)
+                    .map(|k| format!("L{k}:sp={:+.0}/op={}", r.pair_short_pnl[k], r.pair_short_opens[k])).collect();
+                eprintln!("        [{label}/{vname}] short_per_lvl:[{}]", sp_lvl.join(" "));
+            }
+        }
+        assert!(any, "至少跑出一个 bear 窗的 FACE_B 变体");
+    }
+
+    /// **Face A（做空腿赚 #113 implA）L2 验证：核心能动 = cc 走势完成翻空 + 默认开启**。
+    ///
+    /// 存在论位置（shortleg-profit-spec §5.2/§七/§八.2）：Face A = Face B 基座 + 核心翻转吃熊
+    /// （`enable_pair_core_short`：核心多腿在 cc 走势完成 d_top 翻空镜像，区间套级联减滞后）。两 regime 由
+    /// 「哪级别走势完成」自动整合（零 if regime）。**判据（§8.2，看符号 + 自动 regime）**：
+    /// ① BTC 强牛（最差窗）：核心翻转闸门**不灾难误开**（churn 稀疏，short_pnl 非 −10万量级灾难，liq=0）=
+    ///    §5.2.4 自动 regime（net-up cc 走势未完成 ⇒ 不翻空，无假顶翻空打主升浪 leverage-accept −106256）；
+    /// ② 真 bear 窗：核心翻空吃熊（pair_core_churns>0 ∧ core short 大额 ∧ short_pnl 改善 vs FACE_B），liq=0。
+    /// 增量 = FACE_A − FACE_B（唯一差 = 核心翻转，§集成契约）。
+    ///
+    /// L2 等级（formalization-validity-domain）：单标的（BTC + 3 bear 窗）假设检验，可否证。否定性优先
+    /// （§8.3）：BTC 强牛 short_pnl 微负 = 574 确认滞后税（非 bug）；若核心翻转在 net-up 灾难误开（churn 暴增
+    /// + short_pnl −10万量级）⟹ 如实报告（闸门失效，§5.2.4 翻转），不掩盖。做空腿全 regime 赚=L3（C #117）。
+    ///
+    /// 跑法：`BT_SYMBOLS=BTC cargo test --release recursive_t::rec_stream::tests::facea_l2_validate -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "Face A L2（做空腿赚 #113），需 analysis/data_cache/*.json"]
+    fn facea_l2_validate() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, load_clean_ohlc_window, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_else(|| vec!["BTC".to_string()]);
+
+        // 逐变体跑一遍并打印 LegPair 读数（OFF=instances 基线参照）。
+        let run = |label: &str, vname: &str, cfg: EngineConfig, o: &[f64], h: &[f64], l: &[f64], c: &[f64], bh: f64| {
+            let n = c.len();
+            let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
+            for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+            let fin = s.finish();
+            assert!(fin.is_finite() && fin > 0.0, "[{label}/{vname}] final_nav 须有限正，得 {fin}");
+            let strat = (fin / INITIAL_CAPITAL - 1.0) * 100.0;
+            let r = s.driver().root();
+            let short_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_short_pnl[k]).sum();
+            let long_pnl: f64 = (0..MAX_LEVEL).map(|k| r.pair_long_pnl[k]).sum();
+            let sopens: u64 = (0..MAX_LEVEL).map(|k| r.pair_short_opens[k]).sum();
+            eprintln!(
+                "[{label:<14}/{vname:<7}] strat={strat:+.1}% bh={bh:+.1}% | short_pnl={short_pnl:+.0} long_pnl={long_pnl:+.0} \
+                 s_op={sopens} core_churn={} | l_stop={} s_stop={} liq={} max_gross={:.2}×",
+                r.pair_core_churns, r.pair_long_stops, r.pair_short_stops, r.n_liquidations,
+                r.max_gross_exp_x100 as f64 / 100.0
+            );
+            (strat, short_pnl, r.pair_core_churns, r.n_liquidations)
+        };
+
+        // ── ① BTC 全史（强牛，核心翻转闸门最差窗——验证自动 regime 不灾难误开）──
+        eprintln!("\n===== Face A（#113 implA）L2 ①：BTC 强牛自动 regime（OFF / FACE_B / FACE_A 核心翻转增量）=====");
+        let mut any = false;
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            run(sym, "OFF", EngineConfig::off(), &o, &h, &l, &c, bh);
+            run(sym, "FACE_B", EngineConfig::face_b(), &o, &h, &l, &c, bh);
+            let (_, sp_a, churn_a, liq_a) = run(sym, "FACE_A", EngineConfig::face_a(), &o, &h, &l, &c, bh);
+            any = true;
+            // §5.2.4 自动 regime：net-up 核心翻转闸门不灾难（短pnl 非 −10万量级 + liq=0）。否定性如实报告。
+            if sp_a < -50_000.0 || liq_a > 0 {
+                eprintln!("        [{sym}/FACE_A] ⚠否定性 L2：核心翻转在 net-up 可能误开（short_pnl={sp_a:+.0} churn={churn_a} liq={liq_a}，§5.2.4 闸门审查）");
+            }
+        }
+        assert!(any, "至少跑出一个标的的 FACE_A 变体（默认 BTC）");
+
+        // ── ② 真 bear 窗（核心翻空吃熊——验证 churn>0 + short_pnl 改善 vs FACE_B）──
+        eprintln!("\n===== Face A（#113 implA）L2 ②：真 bear 核心翻空吃熊（FACE_B vs FACE_A）=====");
+        let bear_windows: [(&str, &str, &str, &str); 3] = [
+            ("ES_2022标普熊",  "es_1m_databento_10y.json",  "2022-01-03", "2022-10-13"),
+            ("BRN_2022H2跌",   "brn_1m_databento_10y.json", "2022-06-08", "2022-12-09"),
+            ("CL_2014-16油崩", "cl_1m_databento_10y.json",  "2014-06-20", "2016-02-11"),
+        ];
+        for (label, file, d0, d1) in bear_windows {
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{label}] 数据缺失，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc_window(&path, d0, d1);
+            let n = c.len();
+            if n == 0 { eprintln!("[{label}] 窗口空，跳过"); continue; }
+            let bh = if c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            run(label, "FACE_B", EngineConfig::face_b(), &o, &h, &l, &c, bh);
+            run(label, "FACE_A", EngineConfig::face_a(), &o, &h, &l, &c, bh);
+        }
     }
 
     /// **任务 bear-validate：大额吃熊牛熊对称 L3 验证**（编排者：入库 bear 标的验证核心做空镜像）。

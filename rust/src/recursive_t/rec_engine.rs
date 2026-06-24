@@ -89,6 +89,14 @@ pub struct EngineConfig {
     /// 限制——t3sell 亦可在核心及其上开空（=变体1 机制，max_gross>1× 大额做空）。直接测「放开 k<核心
     /// ⇒ 大额做空是否吃熊」。net-up 灾难（CL L4 单笔 −40928，539）；有效域 ⊂ 真 bear。env `T_PAIR_CORE_SHORT_T3`。
     pub enable_pair_core_short_open: bool,
+    /// **Face B 均匀基准单元定仓（做空腿赚 #110，shortleg-profit-spec §5.3/§6.3）**：true ⇒ LegPair
+    /// open_long_leg/open_short_leg 用 `uniform_base_units`（= INITIAL_CAPITAL×MOBILE_FRAC，级别无关，
+    /// 无 depth 衰减）取代 `geom_tower_quota`（恒仓归一化 Σ=free≤1× = 压制副作用，msb §14.1）。多级别独立
+    /// 叠加 → 杠杆来源A 涌现（579），否定线 [ZD,ZG] 封顶每条腿（liq=0）。**同时**令信号层（rec_stream）
+    /// 填充 `view.zd/zg`（进场中枢边界）⇒ pair_stop_loss_step 真生效（RB_PAIR 下 zd/zg 恒 None=死代码，
+    /// liq=0 仅靠 geom_tower 恒仓；删 geom_tower 必须同步接真否定线否则穿仓）。false ⇒ RB_PAIR/OFF 逐字
+    /// 不变（bit-exact，geom_tower + zd/zg 恒 None）。env `T_FACEB`。
+    pub enable_uniform_sizing: bool,
 }
 
 impl EngineConfig {
@@ -107,6 +115,7 @@ impl EngineConfig {
             enable_reading_b_pair: std::env::var("T_READING_B_PAIR").is_ok(),
             enable_pair_core_short: std::env::var("T_PAIR_CORE_SHORT").is_ok(),
             enable_pair_core_short_open: std::env::var("T_PAIR_CORE_SHORT_T3").is_ok(),
+            enable_uniform_sizing: std::env::var("T_FACEB").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -121,7 +130,72 @@ impl EngineConfig {
         c.enable_reading_b_pair = false;
         c.enable_pair_core_short = false;
         c.enable_pair_core_short_open = false;
+        c.enable_uniform_sizing = false;
         c
+    }
+    /// **Face B：核心不僵死（做空腿赚 #110，shortleg-profit-spec §5.3）**：RB_PAIR + 均匀基准单元定仓
+    /// （删 geom_tower 恒仓归一化压制）+ 真否定线 [ZD,ZG] 封顶（rec_stream 填充 view.zd/zg）。
+    /// 三机制（纯级别×买卖点，删 sink/recover/anchor 配额异物）：① 删 sink ⟹ 核心不被衰减（LegPair
+    /// 路径本无 sink，instances sink 仅作 OFF 回归守卫保留）；② 核心否定线 = cc 级别中枢 ZD（每腿进场
+    /// 中枢边界，次级别回调不触发核心否定线）；③ 核心多腿 churn 门控 d_top（次级别卖点不平核心，已在
+    /// g_pair）。唯一变量 = `enable_uniform_sizing`（其余与 reading_b_pair 逐字一致）⇒ 收益差全归因
+    /// 删 geom_tower + 接真否定线。L3 有效域：做空腿赚（pair_short_pnl 符号）+ liq=0 + 中间级别解压制。
+    pub fn face_b() -> Self {
+        let mut c = Self::reading_b_pair();
+        c.enable_uniform_sizing = true;
+        c
+    }
+    /// **Face A：核心能动 + 接受杠杆涌现（做空腿赚 #113，shortleg-profit-spec §5.2/§六/§七）**：
+    /// Face B 基座（删 geom_tower 均匀定仓 + 真否定线 [ZD,ZG]）**叠加核心翻转吃熊**——核心多腿
+    /// （cc=highest_active_long）在**自己级别走势完成**（`d_top[cc]`=全深度区间套链贯通真顶=第一类卖点，
+    /// 区间套级联减滞后，第27课）翻空镜像（`enable_pair_core_short`，g_pair 核心 churn 段），次级别卖点
+    /// 绝不翻核心（547：sub 卖点走 below_core_long 独立空腿）。两 regime 由「哪级别走势完成」自动整合
+    /// （零 if regime）：net-up cc 走势未完成 ⇒ `d_top[cc]=false` ⇒ 闸门不开 ⇒ 核心不翻空（无假顶翻空
+    /// 灾难，§5.2.4）；bear cc 走势向下完成 ⇒ 闸门开 ⇒ 核心翻空吃熊。接受杠杆=多级别独立腿叠加
+    /// （来源A，579），每腿否定线封顶（liq=0）。**不开 `enable_pair_core_short_open`**（=移除
+    /// below_core_long 门 = net-up 假顶翻空打主升浪灾难 short_pnl +9623→−106256，leverage-accept L3
+    /// 坐实；§5.2.3：type2/3 仅作走势完成级联加速器，不作核心翻转独立触发）。**生产/默认引擎**
+    /// （§8.1，见 `production()`）。= reading_b_pair + uniform_sizing + pair_core_short。
+    pub fn face_a() -> Self {
+        let mut c = Self::face_b();
+        c.enable_pair_core_short = true;
+        c
+    }
+    /// **生产默认引擎配置（做空腿赚 #113，shortleg-profit-spec §8.1「默认开启」）**：纯级别×买卖点
+    /// 统一引擎（Face A）为**生产/默认回测配置**（LegPair 路径无 sink/geom_tower 异物 ⇒ 生产路径不残留
+    /// 无保护 sink，mid-scale #106 硬约束）。三档（互斥，env 显式优先）：
+    /// - `T_OFF_BASELINE` 置位 ⇒ `off()`（instances OFF 基线 = bit-exact 回归守卫，R4）。
+    /// - 任一显式实验变体 env 已选（`from_env` 读到 reading_b/nest/anchor/legpair/coreshort/faceb 任一）⇒
+    ///   尊重该显式变体（受控实验覆盖默认，保 env 实验工具不失效）。
+    /// - 无任何变体 env ⇒ `face_a()`（**默认开启**）。
+    ///
+    /// **why 不改 from_env 默认**：`from_env()`/`TRoot::new()` 默认 OFF 基线是 instances-path 单测
+    /// （`核心级买点_enter_long` 等）的契约——改 from_env 默认会破这些单测 + OFF 回归守卫 base。故「默认
+    /// 开启」落在**生产入口**（`RecStream::new_with_a0`，FFI/python 回测路径），不动 from_env。
+    pub fn production() -> Self {
+        if std::env::var("T_OFF_BASELINE").is_ok() {
+            return Self::off(); // 显式回归守卫：instances bit-exact 基线
+        }
+        let env_cfg = Self::from_env();
+        if env_cfg.any_variant_enabled() {
+            env_cfg // 显式实验变体 env 已选 ⇒ 尊重（受控实验）
+        } else {
+            Self::face_a() // 无变体 env ⇒ 默认开启 Face A（§8.1）
+        }
+    }
+    /// 是否已显式启用任一**实验变体**（instances 基线默认 earning/three_stage/trend_done_clear 不计）。
+    /// `production()` 用：有显式变体 ⇒ 尊重；无 ⇒ 默认 Face A。
+    fn any_variant_enabled(&self) -> bool {
+        self.enable_hold_anchor
+            || self.enable_nest
+            || self.enable_nest_consume
+            || self.enable_nest_strict
+            || self.enable_reading_b
+            || self.reading_b_diverge
+            || self.enable_reading_b_pair
+            || self.enable_pair_core_short
+            || self.enable_pair_core_short_open
+            || self.enable_uniform_sizing
     }
     /// **读法B 一对多空腿（任务57=53.1）**：每级别 LegPair（买卖点开平 + 否定线止损 + 链破坏 churn）。
     /// OFF + 仅 `enable_reading_b_pair`（旁路单腿 reading_b / instances 路径）。
@@ -409,10 +483,10 @@ impl LegPair {
             short_stop: f64::NAN,
         }
     }
-    fn long_active(&self) -> bool {
+    pub fn long_active(&self) -> bool {
         self.long_units > EPS
     }
-    fn short_active(&self) -> bool {
+    pub fn short_active(&self) -> bool {
         self.short_units > EPS
     }
     /// 是否最高活跃多腿级别（结构涌现「核心」= 当前最高活跃 up-trend 多腿，无 `if level==top` 硬编码）。
@@ -558,6 +632,11 @@ pub struct TRoot {
     enable_pair_core_short: bool,
     /// **放开 k<核心 t3sell 开空（任务 bear-validate 变体2）**：true ⇒ 移除 below_core_long 门控（t3sell 核心及其上开空）。
     enable_pair_core_short_open: bool,
+    /// **Face B 均匀基准单元定仓（做空腿赚 #110）**：true ⇒ open_*_leg 用 uniform_base_units 取代
+    /// geom_tower_quota（删恒仓归一化压制 → 来源A 杠杆涌现 + 真否定线封顶）。OFF=false（bit-exact）。
+    enable_uniform_sizing: bool,
+    /// 初始本金（= free 初值）——Face B 均匀基准单元定仓的级别无关基准（initial_capital×MOBILE_FRAC）。
+    initial_capital: f64,
     /// 每级别独立腿（legs[k] 骑 levels[k] 走势消费 d_top[k]）。
     legs: Vec<Leg>,
     /// **每级别一对多空腿（LegPair[k]，任务57=53.1）**：买卖点开平 + 否定线止损 + 链破坏 churn 门控。
@@ -672,6 +751,8 @@ impl TRoot {
             enable_reading_b_pair: cfg.enable_reading_b_pair,
             enable_pair_core_short: cfg.enable_pair_core_short,
             enable_pair_core_short_open: cfg.enable_pair_core_short_open,
+            enable_uniform_sizing: cfg.enable_uniform_sizing,
+            initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
             leg_pairs: (0..MAX_LEVEL).map(LegPair::idle).collect(),
             pair_long_pnl: [0.0; MAX_LEVEL],
@@ -1215,6 +1296,43 @@ impl TRoot {
         notional / c
     }
 
+    /// **均匀基准单元定仓（Face B，shortleg-profit-spec §6.3，删 geom_tower 恒仓归一化）**：
+    /// 每级别基准单元 = `initial_capital × MOBILE_FRAC`（级别无关，**无 depth 衰减、无 if level、无 free
+    /// 归一化**）。geom_tower 的 Σnotional=free 恒仓归一化把 max_gross 钳到 ≤1×（压制副作用，msb §14.1
+    /// = 中间级别敞口塌缩不吃自身|涨跌幅|）；均匀定仓让多级别独立腿叠加 → max_gross 自然 >1×（杠杆来源A
+    /// 涌现，579），由每腿否定线 [ZD,ZG] 分散封顶（liq=0）。
+    /// **no-hardcode**：唯一常数 = MOBILE_FRAC（= 1/λ 中枢三段 σ-不变，非新倍数参数）；杠杆从级别叠加
+    /// 涌现非倍数（编排者「删配额非加参数，杠杆涌现非倍数」）。固定绝对基准（非 free×frac）⇒ 不复现
+    /// geom_tower 的 Σ≤free 压制（free×frac 几何收敛回 ≤1×）；账户增长时 gross/nav 自动去杠杆（安全）。
+    fn uniform_base_units(&self, c: f64) -> f64 {
+        if !(c > 0.0) {
+            return 0.0;
+        }
+        self.initial_capital * MOBILE_FRAC / c
+    }
+
+    /// **腿定仓分派**（Face B 均匀基准单元 / 否则 geom_tower 恒仓配额）。单点切换保 bit-exact：
+    /// `enable_uniform_sizing=false` ⇒ 逐字 geom_tower_quota（RB_PAIR/OFF 不变）。
+    fn leg_open_units(&self, k: usize, top: usize, c: f64) -> f64 {
+        if self.enable_uniform_sizing {
+            self.uniform_base_units(c)
+        } else {
+            self.geom_tower_quota(k, top, self.free.max(0.0), c)
+        }
+    }
+
+    /// **否定线消费门（Face B，bit-exact 防御）**：进场中枢边界 [ZD,ZG] 仅在 Face B
+    /// （`enable_uniform_sizing`）作为否定线锁入腿；否则 None（RB_PAIR/OFF 下 long_stop/short_stop=NaN
+    /// ⇒ pair_stop_loss_step 死代码不动 = 逐字不变）。在引擎层而非仅信号层把关，使 bit-exact 不依赖
+    /// rec_stream 是否填充 view.zd/zg（防御 #69 否定线=死代码的隐性依赖）。
+    fn faceb_stop(&self, raw: Option<f64>) -> Option<f64> {
+        if self.enable_uniform_sizing {
+            raw
+        } else {
+            None
+        }
+    }
+
     fn snapshot_fingerprints(&self) -> [(u64, bool, bool); MAX_LEVEL] {
         let mut fp = [(0u64, false, false); MAX_LEVEL];
         for k in 0..MAX_LEVEL {
@@ -1361,7 +1479,7 @@ impl TRoot {
             return; // 已持多腿 ⇒ 不重复开（hold，单一方向单腿）
         }
         let fp_pre = self.snapshot_pair_fingerprints();
-        let m = self.geom_tower_quota(k, top, self.free.max(0.0), c);
+        let m = self.leg_open_units(k, top, c);
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
@@ -1382,7 +1500,7 @@ impl TRoot {
             return; // 已持空腿 ⇒ 不重复开
         }
         let fp_pre = self.snapshot_pair_fingerprints();
-        let m = self.geom_tower_quota(k, top, self.free.max(0.0), c);
+        let m = self.leg_open_units(k, top, c);
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
@@ -1515,7 +1633,7 @@ impl TRoot {
             }
             if !self.leg_pairs[k].long_active() {
                 self.guards.set_trigger(OpTrigger::Bsp);
-                self.open_long_leg(k, top, view.zd[k], c);
+                self.open_long_leg(k, top, self.faceb_stop(view.zd[k]), c);
             }
             return;
         }
@@ -1537,7 +1655,7 @@ impl TRoot {
                         // formalization-validity-domain）：net-up 假顶翻空打主升浪=灾难（539），须 bear 数据 L3。
                         if self.enable_pair_core_short && !self.leg_pairs[k].short_active() {
                             self.guards.set_trigger(OpTrigger::Bsp);
-                            self.open_short_leg(k, top, view.zg[k], c);
+                            self.open_short_leg(k, top, self.faceb_stop(view.zg[k]), c);
                         }
                     }
                 }
@@ -1560,7 +1678,7 @@ impl TRoot {
             let short_level_ok = below_core_long || self.enable_pair_core_short_open;
             if !self.leg_pairs[k].short_active() && sub_break && short_level_ok {
                 self.guards.set_trigger(OpTrigger::Bsp);
-                self.open_short_leg(k, top, view.zg[k], c);
+                self.open_short_leg(k, top, self.faceb_stop(view.zg[k]), c);
             }
             return;
         }

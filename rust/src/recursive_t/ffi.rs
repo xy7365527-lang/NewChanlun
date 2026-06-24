@@ -246,7 +246,10 @@ impl PyRecStream {
     fn new(mode: Option<String>, a0: Option<String>) -> Self {
         let perfection = parse_mode(mode.as_deref());
         let a0_source = parse_a0(a0.as_deref());
-        PyRecStream { core: RecStream::new_with_a0(perfection, a0_source) }
+        // **生产/默认回测引擎 = Face A 纯级别×买卖点统一引擎（做空腿赚 #113，spec §8.1「默认开启」）**：
+        // `new_production` ⇒ `EngineConfig::production()`（默认 Face A；env `T_OFF_BASELINE` ⇒ instances
+        // OFF 回归守卫；显式变体 env ⇒ 尊重）。python 回测（backtest_t_fugue 等）走此 FFI ⇒ 默认开启 Face A。
+        PyRecStream { core: RecStream::new_production(perfection, a0_source) }
     }
 
     /// 逐 bar 推送 OHLC（NT on_bar）。返回**当前目标净敞口** signed units（long − short）。
