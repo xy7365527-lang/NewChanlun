@@ -469,6 +469,11 @@ pub struct LegPair {
     pub short_basis: f64,
     /// 空腿否定线 = 进场中枢 ZG（涨破止损）。NaN=未锁定/无中枢。
     pub short_stop: f64,
+    /// 多腿建仓 raw bar（per-element 会计 instrumentation #149，capture-ratio 验证工具）。
+    /// observation-only：不参与任何仓位/方向/止损决策 ⇒ bit-exact 不变。idle=-1。
+    pub long_entry_bar: i64,
+    /// 空腿建仓 raw bar（同上）。idle=-1。
+    pub short_entry_bar: i64,
 }
 
 impl LegPair {
@@ -481,6 +486,8 @@ impl LegPair {
             short_units: 0.0,
             short_basis: f64::NAN,
             short_stop: f64::NAN,
+            long_entry_bar: -1,
+            short_entry_bar: -1,
         }
     }
     pub fn long_active(&self) -> bool {
@@ -707,6 +714,11 @@ pub struct TRoot {
     /// 强平 episode 诊断（编排者：查回补失败=空头没匹配买点被强平）：
     /// (level, 开空节点起点 bar, 开空价 basis, 强平 bar, 强平价, 是否空头)。
     pub liq_log: Vec<(usize, i64, f64, i64, f64, bool)>,
+    /// #149 per-element 会计 instrumentation（capture-ratio 验证工具，observation-only）：
+    /// LegPair 每笔多/空腿平仓的完整逐笔记录，供 per-(级别,走势段,方向) 捕获率归因。
+    /// (level, entry_bar_raw, exit_bar_raw, entry_price, exit_price, units, is_short, realized_pnl)。
+    /// entry/exit_bar = raw bar（确认时点 cur_bar）；Σ(此 log 多头 pnl)==Σ pair_long_pnl，空头同（完整性自检）。
+    pub leg_trades: Vec<(usize, i64, i64, f64, f64, f64, bool, f64)>,
     /// 诊断（编排者 2026-06-21）：强平时三阶段快照 (stage_id 0=CostRed/1=CapRec/2=Earn,
     /// core_cost_basis, withdrawn, notional_in, nav)。查降成本/退本金保护是否生效 + 全仓 vs 逐仓。
     pub liq_snapshot: Vec<(u8, f64, f64, f64, f64)>,
@@ -798,6 +810,7 @@ impl TRoot {
             short_leg_pnl: 0.0,
             short_pnl_by_level: [0.0; MAX_LEVEL],
             liq_log: Vec::new(),
+            leg_trades: Vec::new(),
             liq_snapshot: Vec::new(),
             earning_units_added: 0.0,
             max_core_gain_x1000: 0,
@@ -1488,6 +1501,7 @@ impl TRoot {
         self.leg_pairs[k].long_units = m;
         self.leg_pairs[k].long_basis = c;
         self.leg_pairs[k].long_stop = stop_zd.unwrap_or(f64::NAN);
+        self.leg_pairs[k].long_entry_bar = self.cur_bar; // #149 capture-ratio 逐笔账本（observation-only）
         self.pair_long_opens[k] += 1;
         self.guards.note_op("open_long_leg");
         Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);
@@ -1509,6 +1523,7 @@ impl TRoot {
         self.leg_pairs[k].short_units = m;
         self.leg_pairs[k].short_basis = c;
         self.leg_pairs[k].short_stop = stop_zg.unwrap_or(f64::NAN);
+        self.leg_pairs[k].short_entry_bar = self.cur_bar; // #149 capture-ratio 逐笔账本（observation-only）
         self.pair_short_opens[k] += 1;
         self.guards.note_op("open_short_leg");
         Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);
@@ -1527,9 +1542,12 @@ impl TRoot {
         let tw_pre = self.total_wealth(c);
         self.free += u * c;
         self.pair_long_pnl[k] += pnl;
+        // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
+        self.leg_trades.push((k, self.leg_pairs[k].long_entry_bar, self.cur_bar, basis, c, u, false, pnl));
         self.leg_pairs[k].long_units = 0.0;
         self.leg_pairs[k].long_basis = f64::NAN;
         self.leg_pairs[k].long_stop = f64::NAN;
+        self.leg_pairs[k].long_entry_bar = -1;
         self.pair_long_closes[k] += 1;
         self.guards.note_op("close_long_leg");
         Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);
@@ -1549,9 +1567,12 @@ impl TRoot {
         let tw_pre = self.total_wealth(c);
         self.free -= u * c;
         self.pair_short_pnl[k] += pnl;
+        // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
+        self.leg_trades.push((k, self.leg_pairs[k].short_entry_bar, self.cur_bar, basis, c, u, true, pnl));
         self.leg_pairs[k].short_units = 0.0;
         self.leg_pairs[k].short_basis = f64::NAN;
         self.leg_pairs[k].short_stop = f64::NAN;
+        self.leg_pairs[k].short_entry_bar = -1;
         self.pair_short_closes[k] += 1;
         self.guards.note_op("close_short_leg");
         Self::prove_pair_isolation(&fp_pre, &self.snapshot_pair_fingerprints(), k);

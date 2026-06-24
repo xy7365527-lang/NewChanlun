@@ -561,6 +561,74 @@ impl RecStream {
     pub fn snapshot(&self) -> (i64, f64, usize) {
         (self.cur_bar, self.driver.root().total_wealth(self.last_close), self.driver.root().n_active())
     }
+
+    /// #149 per-element 会计 instrumentation（capture-ratio 验证工具，observation-only）。
+    /// LegPair 逐笔账本：(level, entry_bar_raw, exit_bar_raw, entry_px, exit_px, units, is_short, pnl)。
+    pub fn leg_trades(&self) -> &[(usize, i64, i64, f64, f64, f64, bool, f64)] {
+        &self.driver.root().leg_trades
+    }
+
+    /// #149 per-level 多/空腿 realized pnl（pair_long_pnl, pair_short_pnl）——账本完整性自检的对账基准。
+    pub fn pair_pnl(&self) -> (Vec<f64>, Vec<f64>) {
+        let r = self.driver.root();
+        (r.pair_long_pnl.to_vec(), r.pair_short_pnl.to_vec())
+    }
+
+    /// #149 per-element 走势段普查（capture-ratio 分母 Σ|Δ| 源，read-only）。
+    /// 复刻 `iterate` 主循环，捕获每级别 `current`（apply_t 的输入构成单元 = 该级别走势段）；
+    /// 与 Face A 引擎最后一次重跑同 a0（build_a0_fast）同 mode ⇒ 走势段与引擎信号同源。
+    /// 返回 (level, raw_start, raw_end, high, low, is_up)。merged→raw 经 merged_to_raw 桥（backtest.rs 同口径）。
+    pub fn level_segments(&self) -> Vec<(usize, i64, i64, f64, f64, bool)> {
+        use super::types::Direction;
+        let segs = self.orch.segments();
+        let strokes = self.orch.strokes();
+        let m2r = self.orch.merged_to_raw();
+        let a0 = build_a0_fast(
+            segs,
+            strokes,
+            m2r,
+            &self.prefix_pos,
+            &self.prefix_neg,
+            self.a0_source,
+            false,
+        );
+        // merged bar → raw bar（start 取 raw_start，end 取 raw_end；越界兜底=原值）。
+        let conv = |b: i64, is_end: bool| -> i64 {
+            match m2r.get(b as usize) {
+                Some(&(rs, re)) => if is_end { re as i64 } else { rs as i64 },
+                None => b,
+            }
+        };
+        let mut out: Vec<(usize, i64, i64, f64, f64, bool)> = Vec::new();
+        let mut current = a0;
+        let mut k = 0usize;
+        loop {
+            for u in &current {
+                out.push((
+                    k,
+                    conv(u.start_bar, false),
+                    conv(u.end_bar, true),
+                    u.high,
+                    u.low,
+                    matches!(u.direction, Direction::Up),
+                ));
+            }
+            let o = super::apply_t(&current, k, self.mode);
+            if o.trends.is_empty() {
+                break;
+            }
+            let next = o.next_units.clone();
+            if next.len() < 3 {
+                break;
+            }
+            current = next;
+            k += 1;
+            if k > 64 {
+                break;
+            }
+        }
+        out
+    }
 }
 
 #[cfg(test)]

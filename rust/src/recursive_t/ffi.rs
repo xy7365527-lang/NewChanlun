@@ -290,6 +290,27 @@ impl PyRecStream {
     fn finish(&mut self) -> f64 {
         self.core.finish()
     }
+
+    /// #149 per-element 会计 instrumentation（capture-ratio 验证工具）。收尾后返回完整诊断 dict：
+    /// - `final_nav`：引擎内部模拟 final_nav。
+    /// - `leg_trades`：Face A LegPair 逐笔账本 [(level, entry_bar, exit_bar, entry_px, exit_px, units, is_short, pnl)]。
+    /// - `pair_long_pnl` / `pair_short_pnl`：per-level realized（账本完整性自检的对账基准）。
+    /// - `level_segments`：全历史 tree 各级别走势段 [(level, raw_start, raw_end, high, low, is_up)]（分母 Σ|Δ| 源）。
+    ///
+    /// observation-only：不改任何仓位/方向决策 ⇒ final_nav 与 `finish()` 逐位一致（bit-exact）。
+    fn finish_full(&mut self, py: Python<'_>) -> PyResult<PyObject> {
+        let nav = self.core.finish();
+        let d = PyDict::new(py);
+        d.set_item("final_nav", nav)?;
+        let trades: Vec<(usize, i64, i64, f64, f64, f64, bool, f64)> =
+            self.core.leg_trades().to_vec();
+        d.set_item("leg_trades", trades)?;
+        let (lp, sp) = self.core.pair_pnl();
+        d.set_item("pair_long_pnl", lp)?;
+        d.set_item("pair_short_pnl", sp)?;
+        d.set_item("level_segments", self.core.level_segments())?;
+        Ok(d.into())
+    }
 }
 
 /// 批量 T 流式赋格回测（与 `TFugueStream.finish` 同结构 dict）。共享 `TFugueStreamCore` ⇒
