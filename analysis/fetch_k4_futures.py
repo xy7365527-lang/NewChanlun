@@ -14,7 +14,10 @@ from pathlib import Path
 
 import databento as db
 
-API_KEY = "db-4Cxk3Q35QPXqFFj8snSbqENcwqr4G"
+import os as _os
+_API_KEY = _os.environ.get("DATABENTO_API_KEY") or _os.environ.get("DATABENTO_KEY")
+if not _API_KEY:
+    raise RuntimeError("DATABENTO_API_KEY / DATABENTO_KEY 环境变量未设置，拒绝执行")
 DATA_DIR = Path(__file__).resolve().parent / "data_cache"
 
 SYMBOLS = [
@@ -68,7 +71,7 @@ def main() -> None:
     print("  Databento K4 期货数据拉取")
     print("=" * 50)
 
-    client = db.Historical(API_KEY)
+    client = db.Historical(_API_KEY)
 
     for symbol, filename, label in SYMBOLS:
         fetch_and_save(client, symbol, filename, label)

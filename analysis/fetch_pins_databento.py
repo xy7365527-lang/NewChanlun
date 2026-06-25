@@ -15,7 +15,10 @@ from pathlib import Path
 
 import databento as db
 
-API_KEY = "db-4Cxk3Q35QPXqFFj8snSbqENcwqr4G"
+import os as _os
+_API_KEY = _os.environ.get("DATABENTO_API_KEY") or _os.environ.get("DATABENTO_KEY")
+if not _API_KEY:
+    raise RuntimeError("DATABENTO_API_KEY / DATABENTO_KEY 环境变量未设置，拒绝执行")
 DATA_DIR = Path(__file__).resolve().parent / "data_cache"
 OUT = DATA_DIR / "pins_1m_databento_full.json"
 
@@ -24,7 +27,7 @@ END = date(2026, 6, 10)
 
 
 def main() -> None:
-    client = db.Historical(API_KEY)
+    client = db.Historical(_API_KEY)
     print(f"Fetching PINS XNAS.ITCH ohlcv-1m [{START} → {END}] ...", flush=True)
     data = client.timeseries.get_range(
         dataset="XNAS.ITCH",

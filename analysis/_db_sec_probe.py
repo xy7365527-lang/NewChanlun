@@ -4,7 +4,9 @@ import json
 import os
 import urllib.request
 
-KEY = os.environ.get("DATABENTO_KEY", "db-4Cxk3Q35QPXqFFj8snSbqENcwqr4G")
+KEY = os.environ.get("DATABENTO_KEY") or os.environ.get("DATABENTO_API_KEY")
+if not KEY:
+    raise RuntimeError("DATABENTO_KEY / DATABENTO_API_KEY 环境变量未设置，拒绝执行")
 AUTH = base64.b64encode(f"{KEY}:".encode()).decode()
 BASE = "https://hist.databento.com/v0"
 

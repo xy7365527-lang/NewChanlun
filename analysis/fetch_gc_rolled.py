@@ -11,7 +11,10 @@ from pathlib import Path
 import databento as db
 import pandas as pd
 
-API_KEY = "db-4Cxk3Q35QPXqFFj8snSbqENcwqr4G"
+import os as _os
+_API_KEY = _os.environ.get("DATABENTO_API_KEY") or _os.environ.get("DATABENTO_KEY")
+if not _API_KEY:
+    raise RuntimeError("DATABENTO_API_KEY / DATABENTO_KEY 环境变量未设置，拒绝执行")
 DATA_DIR = Path(__file__).resolve().parent / "data_cache"
 
 CONTRACTS = [
@@ -39,7 +42,7 @@ def main() -> None:
     print("=" * 50)
     sys.stdout.flush()
 
-    client = db.Historical(API_KEY)
+    client = db.Historical(_API_KEY)
     frames: list[pd.DataFrame] = []
 
     for sym, start, end in CONTRACTS:

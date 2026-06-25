@@ -39,7 +39,6 @@ load_dotenv(_ROOT / ".env")
 import databento as db
 
 CACHE_DIR = _ROOT / "analysis" / "data_cache"
-API_KEY = "db-4Cxk3Q35QPXqFFj8snSbqENcwqr4G"
 TARGET_START = "2016-01-01"   # 10 年目标起点（CME 实际可到 2010，按需）
 _GLBX = "2010-06-06"
 _ICE = "2018-12-23"           # IFEU/IFUS 起点
@@ -86,7 +85,9 @@ SPECS: dict[str, Spec] = {
 
 
 def _client() -> db.Historical:
-    key = os.environ.get("DATABENTO_API_KEY") or API_KEY
+    key = os.environ.get("DATABENTO_API_KEY") or os.environ.get("DATABENTO_KEY")
+    if not key:
+        raise RuntimeError("DATABENTO_API_KEY / DATABENTO_KEY 环境变量未设置，拒绝执行")
     return db.Historical(key=key)
 
 

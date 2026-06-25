@@ -20,9 +20,13 @@ import time
 import urllib.request
 from pathlib import Path
 
+import os as _os
+
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "analysis" / "data_cache"
-API_KEY = "WP4GIQ6VALD179P3"
+_AV_API_KEY = _os.environ.get("ALPHA_VANTAGE_API_KEY")
+if not _AV_API_KEY:
+    raise RuntimeError("ALPHA_VANTAGE_API_KEY 环境变量未设置，拒绝执行")
 
 
 def fetch_daily(symbol: str, *, force: bool = False) -> dict:
@@ -38,7 +42,7 @@ def fetch_daily(symbol: str, *, force: bool = False) -> dict:
     url = (
         "https://www.alphavantage.co/query"
         f"?function=TIME_SERIES_DAILY_ADJUSTED&symbol={symbol}"
-        f"&outputsize=full&apikey={API_KEY}"
+        f"&outputsize=full&apikey={_AV_API_KEY}"
     )
     with urllib.request.urlopen(url, timeout=60) as r:
         raw = json.load(r)

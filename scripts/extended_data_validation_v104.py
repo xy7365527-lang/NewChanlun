@@ -97,7 +97,10 @@ def fetch_spy_60min_daily_yf(days: int = 730) -> tuple[list[Bar], list[Bar]]:
 
 def fetch_spy_daily_av() -> list[Bar]:
     """拉取 SPY 日线数据（Alpha Vantage, full outputsize = 20年+）。"""
-    api_key = "WP4GIQ6VALD179P3"
+    import os as _os
+    api_key = _os.environ.get("ALPHA_VANTAGE_API_KEY")
+    if not api_key:
+        raise RuntimeError("ALPHA_VANTAGE_API_KEY 环境变量未设置，拒绝执行")
     url = (
         "https://www.alphavantage.co/query"
         f"?function=TIME_SERIES_DAILY&symbol=SPY"
