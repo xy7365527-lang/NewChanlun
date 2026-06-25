@@ -165,6 +165,15 @@ pub struct EngineConfig {
     /// = C 任务（区间套 H¹ 定位 `is_sub_trend_done`）接口，本实装 fallback=true ⇒ 全走 recover = 现状。
     /// false ⇒ route_bsp 走旧二元 ⇒ facea 54279a503e 逐字一致（bit-exact）。env `T_ORBIT9_DISPATCH`。
     pub enable_orbit9_dispatch: bool,
+    /// **节点向量路由（task#63，#61 §五-§七 双源完全分类实装 = 561 Ω 解坍缩节点侧）**：true ⇒
+    /// route_bsp 读节点 j 在 **r\*（最高活跃级别 = 核心）** 的级别角色 R+/R−（不只读 nearest_active_parent
+    /// 单标量 = 拍扁纤维）。**核心溶解的踏空根因①④**（#61 §五）：次级别 type1/type3（R− 反核心向回调腿）
+    /// 触发 `is_reduce`→sink 时，旧路由减核心机动仓（OFF anchor=0 ⇒ mob_base=u_p ⇒ 主升浪回调处砍核心
+    /// = 踏空）。§六 canonical：`N1@k<r*,R−`/`N3@k,R−` → **O6 sink 机动不动核心**（核心 units 不减，只动
+    /// 机动配额）。本门控 ON ⇒ 对识别为 r* R− 回调腿的 sink，**强制核心保护**（anchor=核心整仓 ⇒ mob_base=0
+    /// ⇒ sink 配额作用于零机动仓 ⇒ 核心 units 不被减 = 机动不动核心）。R+ 同向延续腿不受影响（正常 sink/recover）。
+    /// false ⇒ route_bsp 不读 r* 角色 ⇒ 与 T_ORBIT9_DISPATCH 行为同（bit-exact）。env `T_ORBIT9_NODEVEC`。
+    pub enable_orbit9_nodevec: bool,
 }
 
 impl EngineConfig {
@@ -210,6 +219,10 @@ impl EngineConfig {
             // 注：与 pair_short_entry/pair_long_entry 同理，是 instances route_bsp 路径的**修饰**（轨道判别），
             // 非独立实验变体——不计入 any_variant_enabled()（off()/production() 行为不被它改变，由其自身门控保 OFF=bit-exact）。
             enable_orbit9_dispatch: std::env::var("T_ORBIT9_DISPATCH").is_ok(),
+            // 节点向量路由（task#63）：缺省 OFF ⇒ route_bsp 不读 r* 角色 = bit-exact。
+            // 注：与 enable_orbit9_dispatch 同理，是 route_bsp 路径的修饰（级别角色判别），非独立实验变体——
+            // 不计入 any_variant_enabled()，由其自身门控保 OFF=bit-exact。
+            enable_orbit9_nodevec: std::env::var("T_ORBIT9_NODEVEC").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -227,6 +240,7 @@ impl EngineConfig {
         c.enable_uniform_sizing = false;
         c.enable_pair_emergence = false;
         c.enable_orbit9_dispatch = false;
+        c.enable_orbit9_nodevec = false;
         c
     }
     /// **Face B：核心不僵死（做空腿赚 #110，shortleg-profit-spec §5.3）**：RB_PAIR + 均匀基准单元定仓
@@ -762,6 +776,9 @@ pub struct TRoot {
     /// （= 买回/卖回 = 不动 h 同级别短差腿部分重建）。account 过滤是 route 之后独立 gate（route 内零账本，
     /// 空头镜像一律执行）。OFF=false ⇒ route_bsp 旧二元 bit-exact（facea 54279a503e）。env `T_ORBIT9_DISPATCH`。
     enable_orbit9_dispatch: bool,
+    /// **节点向量路由（task#63，#61 §五-§七）**：true ⇒ route_bsp 读节点在 r* 的级别角色 R+/R−，对 R−
+    /// 回调腿的 sink 强制核心保护（机动不动核心）。OFF=false ⇒ bit-exact。env `T_ORBIT9_NODEVEC`。
+    enable_orbit9_nodevec: bool,
     /// **T3 出场触发诊断暂存（#164 R2，observation-only）**：close_*_leg 调用前由调用点 set，push 进
     /// exit_trigger_log（与 leg_trades 同序）。0=type1/1=type2/2=type3/3=否定线止损/5=账户强平/6=其他。
     pending_exit_trigger: u8,
@@ -911,6 +928,7 @@ impl TRoot {
             enable_uniform_sizing: cfg.enable_uniform_sizing,
             enable_pair_emergence: cfg.enable_pair_emergence,
             enable_orbit9_dispatch: cfg.enable_orbit9_dispatch,
+            enable_orbit9_nodevec: cfg.enable_orbit9_nodevec,
             pending_exit_trigger: 6,
             initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
@@ -1268,11 +1286,61 @@ impl TRoot {
     }
 
     /// **sink @ (parent→sub)**（= flat sink）：父减仓 m=u_P/3 + 次级别开 flip(d_P) 短差 m。
+    /// **节点 j 在 r\*（最高活跃级别=核心）的级别角色判别（task#63，#61 §3.4 断言U / §五）**：
+    /// 返回 true ⟺ j 是 r* 的 **R−（反向回调腿）**——即 j 严格低于核心级别 ∧ j 触发的操作极性反核心方向。
+    /// `is_buy=true`（买点 ⇒ 操作偏 Long）∧ 核心 Short ⇒ 反核心向 ⇒ R−；`is_buy=false`（卖点 ⇒ 偏 Short）
+    /// ∧ 核心 Long ⇒ 反核心向 ⇒ R−（主升浪中的次级别回调卖点）。同向 = R+（延续腿，不保护，正常 sink）。
+    /// **断言U 穷尽性（§3.4）**：构成段对核心主方向要么顺(R+)要么逆(R−)，无第三态。core=None（无核心）⇒
+    /// 无 r* 角色 ⇒ false（首建仓不是回调腿）。core==j（j 即核心级，但走到此分支说明 j 有活跃祖先 ⇒ j<某活跃级，
+    /// 此处 r*=highest_active ≥ j；若 r*==j 则 j 是核心，不应在 Some(p) 分支，防御返回 false）。
+    /// **双源乘积判别（#61 §3.0：拓扑级别角色 ⊗ 力度公理 F，二者正交不可互导）**：
+    /// 单凭拓扑角色（j 反核心向）**不足以**区分「真转折」vs「回调腿」——因为 is_reduce 分支里所有次级别
+    /// 反父向 BSP 拓扑上都反核心向（恒 R−）。必须 ⊗ **力度轴 F**：r* 自身走势**是否完成**。
+    /// - **F 未激活**（`!view.d_top[rstar]`：r* 区间套链未贯通真顶/真底 = 走势未完成）⇒ 这是 R− **回调腿**
+    ///   （主升浪/主跌浪中途的次级别回调）⇒ **保护核心**（机动不动核心，§六 O6）。
+    /// - **F 激活**（`view.d_top[rstar]`：r* 走势完成）⇒ 这是 r* 自身的**真转折**（type1）⇒ 不保护，正常
+    ///   sink（核心该减/翻）。**初版 NODEVEC-only 实测教训**：缺 F 轴 ⇒ 全标的 sink=0（过度抑制 = 把真转折
+    ///   也禁了）⇒ 强牛溶解(BTC+1537%)但震荡爆仓(CL−104.9%)。这正是 #61 §3.0「拓扑不能导出力度」的经验印证。
+    fn is_rstar_pullback_leg(&self, j: usize, is_buy: bool, view: &LevelView) -> bool {
+        match self.highest_active() {
+            None => false, // 无核心 ⇒ 无 r* 角色
+            Some(rstar) => {
+                if j >= rstar {
+                    return false; // j 非次级别（j 即 r* 或更高）⇒ 非回调腿
+                }
+                // 拓扑轴：反核心向（买点 vs 核心 Short / 卖点 vs 核心 Long）⇒ R−。
+                let cdir = self.instances[rstar].direction;
+                let topo_pullback = match cdir {
+                    Polarity::Long => !is_buy,  // 核心多：次级别卖点
+                    Polarity::Short => is_buy,  // 核心空：次级别买点
+                };
+                // 力度轴 F（#61 §3.0）：r* 走势未完成 ⇒ 回调腿（保护核心）；走势完成 ⇒ 真转折（不保护）。
+                let rstar_trend_done = view.d_top.get(rstar).copied().unwrap_or(false);
+                topo_pullback && !rstar_trend_done
+            }
+        }
+    }
+
+    /// **sink 守卫包装（task#63 §六 O6 机动不动核心）**：`protect_core=true`（R− 回调腿）⇒ sink 配额作用于
+    /// **零机动仓**（mob_base=0 ⇒ m=0 ⇒ 核心 units 不减），只在子级别建/维持反向短差腿——这是「机动不动核心」
+    /// 的精确语义：核心父仓在主升浪回调处**不被砍**。`protect_core=false`（R+ 延续腿/门控 OFF）⇒ 透传 `sink`
+    /// 原行为（bit-exact）。
+    fn sink_guarded(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64, protect_core: bool) {
+        self.sink_impl(parent, sub, sub_node, c, protect_core);
+    }
+
     fn sink(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64) {
+        self.sink_impl(parent, sub, sub_node, c, false);
+    }
+
+    fn sink_impl(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64, protect_core: bool) {
         let u_p = self.instances[parent].units;
         let pdir = self.instances[parent].direction;
         // ANCHOR（552号）：配额作用于机动仓 u_P−anchor（趋势底仓死扣不下放），OFF 时 anchor=0 ⇒ mob_base=u_P（bit-exact）。
-        let mob_base = if self.enable_hold_anchor {
+        // task#63 节点向量：protect_core=true（R− 回调腿）⇒ mob_base=0 ⇒ m=0 ⇒ 核心不减（机动不动核心，§六 O6）。
+        let mob_base = if protect_core {
+            0.0
+        } else if self.enable_hold_anchor {
             (u_p - self.instances[parent].anchor).max(0.0)
         } else {
             u_p
@@ -1441,8 +1509,8 @@ impl TRoot {
         self.prove_tw_neutral(tw_pre, c);
     }
 
-    /// **route_bsp**（= flat route_bsp）：level j 的 BSP 分派。
-    fn route_bsp(&mut self, j: usize, is_buy: bool, node: TrendNode, c: f64) {
+    /// **route_bsp**（= flat route_bsp）：level j 的 BSP 分派。task#63：+`view` 传力度轴（双源乘积，#61 §3.0）。
+    fn route_bsp(&mut self, j: usize, is_buy: bool, node: TrendNode, c: f64, view: &LevelView) {
         self.guards.set_trigger(OpTrigger::Bsp); // 本路由触发的所有原子操作归因 BSP
         match self.nearest_active_parent(j) {
             // ── 子级（有活跃祖先 P）：区间套约束，永不独立翻转 ──
@@ -1459,7 +1527,12 @@ impl TRoot {
                         self.buy_sink += 1; // 诊断：父空+买点 → sink（减核心 Short）
                     }
                     if !self.instances[j].is_active() || self.instances[j].direction == mob {
-                        self.sink(p, j, node, c);
+                        // ── 节点向量路由（task#63，#61 §六 N1@k,R−/N3@k,R− → O6 sink 机动不动核心）──
+                        // 读节点 j 在 r*（最高活跃级别=核心）的级别角色：j<r* ∧ 反核心向 ⇒ R−（回调腿）。
+                        // R− 回调腿的 sink 在主升浪回调处砍核心 = 踏空根因①④。门控 ON ⇒ 强制核心保护
+                        // （mob 配额作用于零 = 核心 units 不减，只在子级别开/维持反向短差腿）。
+                        let protect_core = self.enable_orbit9_nodevec && self.is_rstar_pullback_leg(j, is_buy, view);
+                        self.sink_guarded(p, j, node, c, protect_core);
                     } else {
                         self.drain(j, c);
                     }
@@ -2509,9 +2582,9 @@ impl TRoot {
                 TrendNode::new(bar, bar, c, c, if b { Direction::Up } else { Direction::Down })
             });
             if b {
-                self.route_bsp(j, true, node, c);
+                self.route_bsp(j, true, node, c, view);
             } else if s {
-                self.route_bsp(j, false, node, c);
+                self.route_bsp(j, false, node, c, view);
             }
         }
 
@@ -2703,7 +2776,7 @@ mod orbit9_add_dispatch_tests {
         assert!(!r.enable_orbit9_dispatch, "off() ⇒ orbit9 OFF");
         // 同父向 BSP（父多 + 买点）@ sub L0 ⇒ recover（整条升回），非 add。
         let c = 11.0;
-        r.route_bsp(0, true, node(Direction::Up), c);
+        r.route_bsp(0, true, node(Direction::Up), c, &LevelView::empty());
         // OFF ⇒ 走 recover（sub 短差整条清空），n_adds 恒 0。
         assert_eq!(r.n_adds, 0, "OFF ⇒ add 分支未激活（bit-exact）");
         assert_eq!(r.instances[0].units, 0.0, "OFF recover 平整条 ⇒ sub 短差清空");
@@ -2724,7 +2797,7 @@ mod orbit9_add_dispatch_tests {
         r.sink(2, 0, node(Direction::Down), c * 1.1);
         assert!(r.enable_orbit9_dispatch);
         // 占位 fallback=true ⇒ 走势完成 ⇒ recover（与 OFF 同，保未整合 bit-exact）。
-        r.route_bsp(0, true, node(Direction::Up), c);
+        r.route_bsp(0, true, node(Direction::Up), c, &LevelView::empty());
         assert_eq!(r.n_adds, 0, "占位 fallback=true ⇒ 仍 recover（C 接口未就位 bit-exact）");
         assert_eq!(r.n_recovers, 1);
     }

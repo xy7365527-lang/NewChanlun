@@ -3019,6 +3019,11 @@ nodes:
   status: 已结算
   type: meta-rule
   file: pending/574-clean-slate-rebuild-dual-generation-contention.md
+- id: '576'
+  title: 走势发展转折节点 = 〈中枢拓扑事件 E〉⊗〈力度公理 F〉正交双源乘积——两源不可互导；三类买卖点 ⊊ 转折节点(E0成型节点是非买卖点的转折节点)
+  status: 生成态
+  type: 概念分离
+  file: pending/turning-node-topology-strength-orthogonal-product-20260624.md
 edges:
   depends_on:
   - from: '136'
