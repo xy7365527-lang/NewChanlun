@@ -174,6 +174,94 @@ pub struct EngineConfig {
     /// ⇒ sink 配额作用于零机动仓 ⇒ 核心 units 不被减 = 机动不动核心）。R+ 同向延续腿不受影响（正常 sink/recover）。
     /// false ⇒ route_bsp 不读 r* 角色 ⇒ 与 T_ORBIT9_DISPATCH 行为同（bit-exact）。env `T_ORBIT9_NODEVEC`。
     pub enable_orbit9_nodevec: bool,
+    /// **L_confirm 第四轴会计（task#95 W-lconfirm，observation-only）**：true ⇒ open_*_leg 在开仓时捕获
+    /// 该腿的**确认深度 c**（= 触发开仓的买卖点信号类——type1 全深度背驰链 / type3 单层区间套转折 / type2
+    /// 其余）+ **腿轴 leg**（H⁰核心=`highest_active_long()==k` / H¹短差=其余），close_*_leg 时把 realized
+    /// pnl 累加进 `pi_k_leg_dir_c[k][leg][dir][c]` 纤维格子。**纯观测：不参与任何仓位/方向/止损/churn 决策**
+    /// ⇒ OFF/ON 决策路径逐字一致（bit-exact，新字段无消费者）。codex #92 审计指出 K×L×D 三轴 P&L 符号
+    /// 在同 cell 内不定（漏第四轴 c）；本会计跑 L3 判定同 (k,leg,dir) cell 是否按 c 符号分裂。env `T_LCONFIRM_AUDIT`。
+    pub enable_lconfirm_audit: bool,
+    /// **逐级内在配额（task#84 子5，仓位上同调塔 597号 子5 实装授权）**：true ⇒ route_bsp 的 sink/drain/add
+    /// 把固定 σ-不变配额 `m = u × MOBILE_FRAC(=1/3)` 替换为**逐级内在函数** `m = u × mobile_frac(L_pullback, L_confirm)`
+    /// ——配额由触发该操作的级别 k 的**区间套回调深度 L_pullback**（d_top 深=高/t3sell 浅=低）+ **区间套确认深度
+    /// L_confirm**（k-1 快触发=低/须深层=高）内在决定（split 自适应定理，tower_intrinsic_quota §3：深确认→大配额
+    /// 骑主升浪 / 浅确认→小配额防踏空）。两自变量是 ConfDepth 三值代理（type1=全深度 d_top / type3=单层 t3sell /
+    /// type2 居中，#95 L_confirm 第四轴实测端），**纯内在零外部 θ/振幅/regime 门**（零件1 v3 唯一非拍扁形式）。
+    ///
+    /// **★概念层张力（no-workaround 透明声明，不绕过）**：本路径**有意偏离** 542号 σ-不变配额（settled：
+    /// f=m/u 必须级别无关 = 1/λ，T48/T59/T23 强制；`prove_sigma_quota` panic 守卫）。逐级 mobile_frac 读 L_pullback(k)/
+    /// L_confirm(k) ⇒ f_k≠f_{k+1} ⇒ 破 σ-不变。这是 597号（生成态）明列的「逐级自相似纤维塔 vs 单级别拍扁底空间」
+    /// **不可调和概念分离**的实装侧——597 `code_changes` 显式授权子5 #84「MOBILE_FRAC→逐级 α*_k，OFF 退化 bit-exact」。
+    /// 故 **ON 路径不调 `prove_sigma_quota`**（σ-不变在 ON 不适用 = 声明的替代概念，非被绕过的守卫）；TW 中性
+    /// （`prove_tw_neutral`）+ sink/recover 配对（`prove_sink_recover_balance` 数操作非数量）与配额值无关 ⇒ 两守卫 ON 仍守。
+    ///
+    /// OFF=false ⇒ sink/drain/add 走 `quota()`（σ-不变 1/3）+ `prove_sigma_quota` = 逐字 bit-exact。env `T_INTRINSIC_QUOTA`。
+    pub enable_intrinsic_quota: bool,
+    /// **payoff G 轴 = 级别-方向对齐门 + 强平可达性（task#5，539 支配失血分量修复，仓位上同调塔遗漏-G1）**：
+    /// true ⇒ g_pair 开腿时叠加 G 轴两分量——
+    ///
+    /// **分量① 级别-方向对齐门（539 方向误读失血修复，L0 结构）**：开仓腿的极性须与**该腿自身级别 k 的
+    /// 走势方向** `view.nodes[k].direction` 对齐——开多须 `Up`、开空须 `Down`。539 根因（settled §二/§289）：
+    /// `d_k=Up` 却开空（卖点误读为方向）⟹ `L_confirm=∞` ⟹ 孤儿腿（无配对闭合转折节点）⟹ 永不模掉边界
+    /// ∮ 浮亏到 eod = **结构性必失血**（payoff_fiber §2.2 概念A：孤儿⟹必失血 L0）。本门 = payoff_fiber §2.4
+    /// 「结构孤儿失血由分类层 L0 判据消除（不开孤儿腿）= 内在结构修复」的实装侧——**只过结构孤儿（L0），
+    /// 不读 regime / 不读 payoff 符号**（payoff 符号是 L3 regime 函数，分类层不降级声明，§3.2）。**与
+    /// `pair_long_entry`(SegAlign/CrossLevel) 正交且更严**：`pair_long_entry` 豁免核心级 + 用跨级别口径；
+    /// G 轴对**所有级别**（含核心）施加**同级别方向对齐**——核心 d_k=Up 开空亦是孤儿（539 根因不豁免核心）。
+    ///
+    /// **分量② 强平可达性（539 支配失血分量=孤儿腿不可达闭合 修复，L0 结构）**：分量①阻断方向误读孤儿后，
+    /// 仍有「开仓时方向对齐但配对闭合转折节点 Y 永不 fire」的孤儿腿（payoff_fiber §2.2：腿不闭合 ⟹ 留在
+    /// 1-链层 ⟹ ∮ 浮亏持续累积到强制平仓）。其闭合**仅经 NAV≤0 账户级强平 / eod finish**（=不可达闭合：
+    /// 浮亏先吞 NAV）。本分量给 G 轴开的每条腿**强制锁定否定线**（多腿=进场中枢 ZD `view.zd[k]` / 空腿=ZG
+    /// `view.zg[k]`）作**可达强平路径**——`pair_stop_loss_step` 据此在结构破坏（跌破 ZD / 涨破 ZG）即平，
+    /// 把「不可达闭合（NAV 吞光才平）」修复为「可达闭合（否定线即平）」。与 `faceb_stop` 正交：`faceb_stop`
+    /// 仅 `enable_uniform_sizing` 锁否定线，G 轴**独立锁**（不依赖 Face B），使强平可达性不依赖定仓模式。
+    ///
+    /// **概念层声明（formalization-validity-domain，诚实分层）**：G 轴是 payoff 纤维丛的**失血修复维 G**
+    /// （payoff_fiber 〇节），**只修结构孤儿失血（L0）**——不声明「修复后超 BH」（payoff 符号是 L3 regime
+    /// 函数，OKLO 正/GC 负，§3.3 未决，不降级声明）。**与 539 清仓 regime 守恒不冲突**：539 否证的是清仓
+    /// 判据的 `top*`/`anc` regime 门（开放轴），G 轴是**开仓时的结构孤儿过滤**（539 根因侧，非被否证的清仓
+    /// 修复侧），payoff_fiber §2.4 修复方向明列「不开孤儿腿 = 内在结构修复」。**不碰 instances 路径的
+    /// `prove_sink_recover_balance`**（G 轴在 LegPair 的 g_pair 开腿路径，不改 sink/recover campaign 守卫）。
+    ///
+    /// OFF=false ⇒ g_pair 开腿不读 nodes[k] 方向 / 不锁 G 轴否定线 = 逐字 bit-exact。env `T_G_AXIS`。
+    pub enable_g_axis: bool,
+}
+
+/// **确认深度 c 的可观测代理（L_confirm 第四轴，task#95）**：开仓买卖点的区间套确认深度类。
+/// 缠论依据（#69 shortleg-alpha:11/26 L3 实装事实）：确认深度 ∝ 持仓尺度——主力核心绑 type1/d_top
+/// （全深度背驰链贯通到 a0），次级别短差绑 type3（单层区间套转折），type2 居中。**严格非补丁**：c 不是
+/// 新造代理，是 g_pair 既有门控信号（t1buy/t1sell=type1 / t3sell=type3 / 其余 buy/sell=type2）的读数。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfDepth {
+    /// type1（顶/底背驰=走势完成=全深度区间套链贯通 a0=`d_top`/`t1buy`/`t1sell`）——最深确认（c=深）。
+    T1 = 0,
+    /// type2（其余买卖点=非 type1 非 type3）——中等确认（c=中）。
+    T2 = 1,
+    /// type3（突破中枢+回试不回=单层区间套转折=`t3sell`）——最浅确认（c=浅，#69 次级别短差信号）。
+    T3 = 2,
+}
+
+impl ConfDepth {
+    /// 多腿（买点）确认深度：t1buy=type1 / 其余 buy=type2（多头无 type3 开仓信号，多头开仓走 view.buy + long_dir_ok）。
+    fn from_buy(view: &LevelView, k: usize) -> Self {
+        if view.t1buy[k] {
+            ConfDepth::T1
+        } else {
+            ConfDepth::T2
+        }
+    }
+    /// 空腿（卖点）确认深度：t1sell=type1 / t3sell=type3 / 其余 sell=type2。
+    /// 优先级 type1>type3（同 bar 若 t1sell 与 t3sell 同时为真，type1 是更深确认 ⇒ 归 type1）。
+    fn from_sell(view: &LevelView, k: usize) -> Self {
+        if view.t1sell[k] {
+            ConfDepth::T1
+        } else if view.t3sell[k] {
+            ConfDepth::T3
+        } else {
+            ConfDepth::T2
+        }
+    }
 }
 
 impl EngineConfig {
@@ -223,6 +311,17 @@ impl EngineConfig {
             // 注：与 enable_orbit9_dispatch 同理，是 route_bsp 路径的修饰（级别角色判别），非独立实验变体——
             // 不计入 any_variant_enabled()，由其自身门控保 OFF=bit-exact。
             enable_orbit9_nodevec: std::env::var("T_ORBIT9_NODEVEC").is_ok(),
+            // L_confirm 第四轴会计（task#95）：缺省 OFF ⇒ open/close_*_leg 不捕获 c/leg、不累加纤维格子
+            // = 新字段恒默认值 = bit-exact。observation-only：不计入 any_variant_enabled()（不改任何决策路径）。
+            enable_lconfirm_audit: std::env::var("T_LCONFIRM_AUDIT").is_ok(),
+            // 逐级内在配额（task#84 子5）：缺省 OFF ⇒ sink/drain/add 走 σ-不变 1/3 + prove_sigma_quota = bit-exact。
+            // 注：是 route_bsp 配额路径的**修饰**（配额读出函数），非独立 instances 实验变体——不计入
+            // any_variant_enabled()（off()/production() 行为不被它改变，由其自身门控保 OFF=bit-exact）。
+            enable_intrinsic_quota: std::env::var("T_INTRINSIC_QUOTA").is_ok(),
+            // payoff G 轴（task#5，539 失血修复维）：缺省 OFF ⇒ g_pair 开腿不读 nodes[k] 方向、不锁 G 轴否定线
+            // = 新门恒不启 = bit-exact。注：是 g_pair 开腿路径的**修饰**（方向对齐 + 强平可达性），非独立
+            // instances 实验变体——不计入 any_variant_enabled()，由其自身门控保 OFF=bit-exact。
+            enable_g_axis: std::env::var("T_G_AXIS").is_ok(),
         }
     }
     /// OFF 基线（trend_done_clear ON，anchor/nest OFF）。
@@ -241,6 +340,8 @@ impl EngineConfig {
         c.enable_pair_emergence = false;
         c.enable_orbit9_dispatch = false;
         c.enable_orbit9_nodevec = false;
+        c.enable_intrinsic_quota = false;
+        c.enable_g_axis = false;
         c
     }
     /// **Face B：核心不僵死（做空腿赚 #110，shortleg-profit-spec §5.3）**：RB_PAIR + 均匀基准单元定仓
@@ -358,6 +459,23 @@ impl EngineConfig {
     pub fn anchor() -> Self {
         let mut c = Self::off();
         c.enable_hold_anchor = true;
+        c
+    }
+    /// **INTRINSIC_QUOTA（OFF + 逐级内在配额 task#84 子5）**：sink/drain/add 配额由 mobile_frac(L_pullback,
+    /// L_confirm) 逐级内在决定（替固定 1/3）。唯一变量 = `enable_intrinsic_quota`（其余与 off() 逐字一致 ⇒
+    /// 配额维差异全归因逐级自适应）。597号子5 实装授权；ON 偏离 542号 σ-不变（透明声明，见字段文档）。
+    pub fn intrinsic_quota() -> Self {
+        let mut c = Self::off();
+        c.enable_intrinsic_quota = true;
+        c
+    }
+    /// **G_AXIS（Face A + payoff G 轴 task#5，539 失血修复维）**：g_pair 开腿叠加级别-方向对齐门
+    /// （不开方向误读孤儿腿，539 根因）+ 强平可达性（G 轴每腿锁否定线，孤儿腿不可达闭合修复）。唯一变量
+    /// = `enable_g_axis`（其余与 face_a() 逐字一致 ⇒ 差异全归因 G 轴）。在 Face A 基座上（LegPair 路径有
+    /// nodes/zd/zg 数据 + 真否定线 [ZD,ZG]）测 G 轴，OFF（缺 `enable_g_axis`）退化 face_a bit-exact。
+    pub fn g_axis() -> Self {
+        let mut c = Self::face_a();
+        c.enable_g_axis = true;
         c
     }
     /// NEST（命题4 读法乙，旁路 cc 锚）。
@@ -494,6 +612,45 @@ fn quota(units: f64) -> f64 {
     units * MOBILE_FRAC
 }
 
+/// **逐级内在配额比例 `mobile_frac(L_pullback, L_confirm)`（task#84 子5，split 自适应定理实装）**。
+///
+/// 把固定 σ-不变常数 `MOBILE_FRAC=1/3`（拍扁）替换为**两个级别读数的函数**（零件1 v3 唯一非拍扁形式，
+/// tower_intrinsic_quota §1.1/§3.2）。两自变量是 `ConfDepth` 三值代理（type1=全深度 d_top 区间套链贯通 /
+/// type3=单层 t3sell 转折 / type2 居中，#95 §1.1 L_confirm 第四轴可观测端）：
+///
+/// - **L_pullback（回调深度的内在形式）**：触发该操作的级别买卖点深度——T1(d_top 深=走势完成级)=**高**，
+///   T3(t3sell 浅=单层转折级)=**低**，T2=中（#76 §2.1：d_top↔高 L_pullback / t3sell↔低 L_pullback）。
+/// - **L_confirm（区间套确认深度/滞后的内在形式）**：捕获该回调的确认有多快——T1/T3 = 单层/全深度区间套
+///   **单次定位** = 快触发 = **低滞后**（可操作）；T2(其余,须更多同侧证据) = **高滞后**（#76 §2.2：链快触发=低 /
+///   须深层=高）。**低 L_confirm = 机动可操作（α*_k>0）；高 L_confirm = 机动套牢（α*_k→0）**。
+///
+/// **split 自适应（§3.2）**：`L_pullback 高 ∧ L_confirm 低 ⇒ f 大`（深回调+快确认=机动捕获跌幅，骑主升浪）；
+/// `L_pullback 低 ∨ L_confirm 高 ⇒ f→小`（浅回调/慢确认=核心 full，纯牛匹配 BH 防踏空）。
+///
+/// **形式（自相似形变，非新外部参数 no-hardcode）**：以 σ-不变常数 `MOBILE_FRAC=1/3` 为中性中点，沿两轴
+/// 各档作**乘性形变**——L_pullback 深(T1)→×2、中(T2)→×1、浅(T3)→×1/2；L_confirm 低(T1/T3)→×3/2、高(T2)→×1/2。
+/// 乘积裁剪到 (0, 1]（配额不超整仓）。唯一常数仍是 MOBILE_FRAC（1/λ 中枢三段），档位是级别尺度上的序读数
+/// （T1≻T2≻T3 自相似 λ 级差），**零外部 θ_abs/振幅/regime 白名单**（编排者硬约束2 / 零件1 三种 split 表）。
+///
+/// **认识论**：函数形式 = L0（split 自适应分类，定义域=有效域）。**「自适应后超 BH」= L3 未决**（不声明膨胀，
+/// tower_intrinsic_quota §3.3：实装后须 L3 验证；本函数只交付内在配额读出，不声明收益改善）。
+fn mobile_frac(l_pullback: ConfDepth, l_confirm: ConfDepth) -> f64 {
+    // L_pullback 轴：深回调(T1)→大配额捕获 / 浅回调(T3)→小配额防踏空。
+    let pull_factor = match l_pullback {
+        ConfDepth::T1 => 2.0, // 深（d_top 走势完成级）⇒ 高 L_pullback ⇒ 放大配额
+        ConfDepth::T2 => 1.0, // 中
+        ConfDepth::T3 => 0.5, // 浅（t3sell 单层转折级）⇒ 低 L_pullback ⇒ 缩小配额
+    };
+    // L_confirm 轴：快确认(T1/T3 单次区间套定位)→可操作放大 / 慢确认(T2 须更多证据)→套牢缩小。
+    let confirm_factor = match l_confirm {
+        ConfDepth::T1 | ConfDepth::T3 => 1.5, // 低滞后（单层/全深度单次定位）⇒ 机动可操作 ⇒ 放大
+        ConfDepth::T2 => 0.5,                 // 高滞后（须深层确认）⇒ 机动套牢 ⇒ 缩小
+    };
+    let f = MOBILE_FRAC * pull_factor * confirm_factor;
+    // 配额不超整仓（裁剪到 (0,1]）：纯牛 case 最小档 1/3×1/2×1/2=1/12>0，结构 case 最大档 1/3×2×3/2=1 整仓。
+    f.clamp(f64::MIN_POSITIVE, 1.0)
+}
+
 // ════════════════════════════ T 实例（按 level 索引，= flat Layer + 骑走势节点）════════════════════════════
 
 /// 单级别 T 实例（= flat `Layer` + `node`）。`instances[level]` 是该绝对级别的净仓位（idle 时 units=0）。
@@ -595,6 +752,15 @@ pub struct LegPair {
     pub long_entry_bar: i64,
     /// 空腿建仓 raw bar（同上）。idle=-1。
     pub short_entry_bar: i64,
+    /// **L_confirm 第四轴捕获（task#95，observation-only）**：开多腿时锁定的确认深度 c（type1/type2，
+    /// 多头无 type3 开仓）+ 是否核心腿（H⁰=`highest_active_long()==k`）。close 时据此归纤维格子。
+    /// 不参与任何决策 ⇒ bit-exact。仅 `enable_lconfirm_audit` ON 时写入，OFF 恒默认（T2/false）。
+    pub long_conf: ConfDepth,
+    pub long_is_core: bool,
+    /// 开空腿确认深度 c（type1/type2/type3）+ 是否核心腿（空腿在 #69 严格次级别开 ⇒ 通常非核心，
+    /// 但 RB_PAIR_T3 放开 k<核心后核心翻空空腿可为核心 ⇒ leg 轴据此分 H⁰/H¹）。observation-only。
+    pub short_conf: ConfDepth,
+    pub short_is_core: bool,
 }
 
 impl LegPair {
@@ -609,6 +775,10 @@ impl LegPair {
             short_stop: f64::NAN,
             long_entry_bar: -1,
             short_entry_bar: -1,
+            long_conf: ConfDepth::T2,
+            long_is_core: false,
+            short_conf: ConfDepth::T2,
+            short_is_core: false,
         }
     }
     pub fn long_active(&self) -> bool {
@@ -782,6 +952,23 @@ pub struct TRoot {
     /// **节点向量路由（task#63，#61 §五-§七）**：true ⇒ route_bsp 读节点在 r* 的级别角色 R+/R−，对 R−
     /// 回调腿的 sink 强制核心保护（机动不动核心）。OFF=false ⇒ bit-exact。env `T_ORBIT9_NODEVEC`。
     enable_orbit9_nodevec: bool,
+    /// **L_confirm 第四轴会计开关（task#95，observation-only）**：true ⇒ open/close_*_leg 捕获 c/leg 并累加
+    /// 纤维格子 `pi_k_leg_dir_c`。OFF=false ⇒ 不写新数组（恒 0/默认）= bit-exact。env `T_LCONFIRM_AUDIT`。
+    enable_lconfirm_audit: bool,
+    /// **逐级内在配额开关（task#84 子5）**：true ⇒ sink/drain/add 配额走 `mobile_frac(L_pullback,L_confirm)`
+    /// 逐级内在函数（替固定 1/3，ON 偏离 542 σ-不变 = 597 子5 授权的概念分离实装侧）。OFF=false ⇒ 走
+    /// `quota()`(σ-不变 1/3) + `prove_sigma_quota` = bit-exact。env `T_INTRINSIC_QUOTA`。
+    enable_intrinsic_quota: bool,
+    /// **payoff G 轴开关（task#5，539 失血修复维）**：true ⇒ g_pair 开腿叠加级别-方向对齐门（不开方向
+    /// 误读孤儿腿）+ 强平可达性（G 轴每腿锁否定线 zd/zg ⇒ 孤儿腿可达闭合）。OFF=false ⇒ 不读 nodes[k]
+    /// 方向、不锁 G 轴否定线 = bit-exact。env `T_G_AXIS`。详见 `EngineConfig::enable_g_axis`。
+    enable_g_axis: bool,
+    /// **逐级 L_pullback/L_confirm 暂存（task#84 子5，仅 enable_intrinsic_quota ON 时由 on_bar 注入）**：
+    /// route_bsp/sink/drain/add 不接收 view（架构现状），故在 on_bar 起始把每级别 ConfDepth 代理读出暂存于此，
+    /// sink/drain/add 读 `cur_l_pullback[k]`/`cur_l_confirm[k]` 算 mobile_frac。**OFF ⇒ on_bar 不写（恒默认 T2）=
+    /// 不影响任何 OFF 路径 = bit-exact**（新字段无 OFF 消费者）。L_pullback=触发腿深度代理 / L_confirm=确认滞后代理。
+    cur_l_pullback: [ConfDepth; MAX_LEVEL],
+    cur_l_confirm: [ConfDepth; MAX_LEVEL],
     /// **T3 出场触发诊断暂存（#164 R2，observation-only）**：close_*_leg 调用前由调用点 set，push 进
     /// exit_trigger_log（与 leg_trades 同序）。0=type1/1=type2/2=type3/3=否定线止损/5=账户强平/6=其他。
     pending_exit_trigger: u8,
@@ -804,6 +991,12 @@ pub struct TRoot {
     pub pair_short_stops: u64,
     /// 链破坏 churn 触发核心多腿翻转次数（纯观测——解 churn 门控是否解冻核心）。
     pub pair_core_churns: u64,
+    /// **G 轴分量① 级别-方向对齐门拦截次数（task#5，纯观测）**：g_pair 因方向误读（开多在 d_k=Down /
+    /// 开空在 d_k=Up）被 G 轴对齐门拦截而**未开**的腿数。OFF 恒 0。验收 539 方向误读孤儿被堵的频率。
+    pub g_axis_align_blocked: u64,
+    /// **G 轴分量② 强平可达性否定线锁定次数（task#5，纯观测）**：G 轴 ON 时给开成的腿锁定 zd/zg 否定线
+    /// （可达强平路径）的次数。OFF 恒 0。验收 G 轴每腿有可达闭合路径（非仅 NAV≤0 不可达闭合）。
+    pub g_axis_reach_stops_set: u64,
     /// **核心多腿涌现升级（R3 段无腿 #164/#6）**：relabel 上移次数 / 方向不匹配跳过次数（纯观测）。
     pub pair_emergence_upgrades: u64,
     pub pair_emergence_skipped_dir: u64,
@@ -888,6 +1081,19 @@ pub struct TRoot {
     pub earning_units_added: f64,
     pub max_core_gain_x1000: u64,
 
+    /// **L_confirm 第四轴纤维会计（task#95 W-lconfirm，observation-only）**：per `(级别 k × 腿 leg × 方向 dir
+    /// × 确认深度 c)` 累计 realized P&L。索引：`[k][leg][dir][c]`，leg: 0=H⁰核心/1=H¹短差，dir: 0=R+(long)/
+    /// 1=R−(short)，c: 0=T1/1=T2/2=T3（ConfDepth）。codex #92 审计断点：同 (k,leg,dir) cell 内 P&L 符号因 c
+    /// 不同而不定 ⇒ 三轴 K×L×D 分类不完备。本会计跑 L3 判定第四轴 c 成立（符号分裂）还是被否证（各 c 桶符号一致）。
+    /// 纯观测：不参与任何决策 ⇒ OFF/ON 决策路径 bit-exact（新数组无消费者，仅 close_*_leg 累加）。
+    pub pi_k_leg_dir_c: [[[[f64; 3]; 2]; 2]; MAX_LEVEL],
+    /// per-cell 平仓笔数（纯观测，验收每个 (k,leg,dir,c) 格子的样本量，符号分裂判定的统计基础）。
+    pub pi_count_k_leg_dir_c: [[[[u64; 3]; 2]; 2]; MAX_LEVEL],
+    /// **机械穷尽守卫累计量（task#95，补 #92 缺的可结算底座）**：`pi_total_audited` = 所有进入纤维格子的
+    /// realized P&L 总和（应 == Σ pair_long_pnl + Σ pair_short_pnl = 总 leg realized P&L）。不等 ⇒ 有未分类
+    /// 的 P&L 流（分类不完备的可验证信号）。`assert_lconfirm_exhaustive()` 检验。
+    pub pi_total_audited: f64,
+
     /// prove 守卫族（编排者裁决 2026-06-21）：BSP 触发归因（panic）+ sink/recover 平衡 / per-level
     /// 短差 pnl / 核心方向匹配（观测计数）。见 `prove_guards.rs`。
     guards: ProveGuards,
@@ -932,6 +1138,11 @@ impl TRoot {
             enable_pair_emergence: cfg.enable_pair_emergence,
             enable_orbit9_dispatch: cfg.enable_orbit9_dispatch,
             enable_orbit9_nodevec: cfg.enable_orbit9_nodevec,
+            enable_lconfirm_audit: cfg.enable_lconfirm_audit,
+            enable_intrinsic_quota: cfg.enable_intrinsic_quota,
+            enable_g_axis: cfg.enable_g_axis,
+            cur_l_pullback: [ConfDepth::T2; MAX_LEVEL],
+            cur_l_confirm: [ConfDepth::T2; MAX_LEVEL],
             pending_exit_trigger: 6,
             initial_capital,
             legs: (0..MAX_LEVEL).map(Leg::idle).collect(),
@@ -945,6 +1156,8 @@ impl TRoot {
             pair_long_stops: 0,
             pair_short_stops: 0,
             pair_core_churns: 0,
+            g_axis_align_blocked: 0,
+            g_axis_reach_stops_set: 0,
             pair_emergence_upgrades: 0,
             pair_emergence_skipped_dir: 0,
             per_level_long_pnl: [0.0; MAX_LEVEL],
@@ -991,6 +1204,9 @@ impl TRoot {
             liq_snapshot: Vec::new(),
             earning_units_added: 0.0,
             max_core_gain_x1000: 0,
+            pi_k_leg_dir_c: [[[[0.0; 3]; 2]; 2]; MAX_LEVEL],
+            pi_count_k_leg_dir_c: [[[[0; 3]; 2]; 2]; MAX_LEVEL],
+            pi_total_audited: 0.0,
             guards: ProveGuards::new(MAX_LEVEL),
         }
     }
@@ -1383,7 +1599,13 @@ impl TRoot {
         // - protect_core=false（R− 下跌段延续 / OFF）：核心减 m=quota(mob_base) + sub 开 m 短差（原行为，bit-exact）。
         // - protect_core=true（R+ 主升浪回调）：核心不减（realized=0）∧ **不开 hedge 空腿**（见下 rec_add 门控，
         //   #567 真539：主动 hedge 强牛失血 ⇒ 被动保护）⇒ sink 退化为 no-op（仅核心保护,不动核心不开空）。
-        let m = quota(mob_base);
+        // **逐级内在配额（task#84 子5）**：ON ⇒ m=mob_base×mobile_frac(L_pullback[sub],L_confirm[sub])（替固定 1/3，
+        // 偏离 542 σ-不变=597 子5 授权概念分离实装）；OFF ⇒ quota(mob_base)=σ-不变 1/3（bit-exact）。
+        let m = if self.enable_intrinsic_quota {
+            mob_base * mobile_frac(self.cur_l_pullback[sub], self.cur_l_confirm[sub])
+        } else {
+            quota(mob_base)
+        };
         if !(m > 1e-12 && m.is_finite()) || m > u_p + 1e-9 {
             return;
         }
@@ -1402,7 +1624,11 @@ impl TRoot {
         }
         // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=mob_base×MOBILE_FRAC。
         prove_sink_descends(parent, sub, self.cur_bar);
-        prove_sigma_quota(m, mob_base, sub, self.cur_bar); // anchor OFF ⇒ mob_base=u_p（bit-exact）
+        // σ-不变配额守卫仅在**非逐级内在配额**路径生效——ON 路径有意偏离 542 σ-不变（597 子5 授权概念分离，
+        // f_k≠f_{k+1} = 逐级纤维塔的定义本性，非被绕过的守卫）⇒ ON 跳过。向心下沉 + TW 中性 ON 仍守。
+        if !self.enable_intrinsic_quota {
+            prove_sigma_quota(m, mob_base, sub, self.cur_bar); // anchor OFF ⇒ mob_base=u_p（bit-exact）
+        }
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         // **核心减仓（task#64 O6 终版）**：protect_core=true（R+ 主升浪回调）⇒ 核心 H⁰ 不减（realized=0）；
@@ -1492,13 +1718,21 @@ impl TRoot {
         } else {
             u
         };
-        let m = quota(mob_base);
+        // 逐级内在配额（task#84 子5）：ON ⇒ m=mob_base×mobile_frac(L_pullback[j],L_confirm[j])；OFF ⇒ σ-不变 1/3。
+        let m = if self.enable_intrinsic_quota {
+            mob_base * mobile_frac(self.cur_l_pullback[j], self.cur_l_confirm[j])
+        } else {
+            quota(mob_base)
+        };
         if !(m > 1e-12 && m.is_finite()) {
             return;
         }
         let jdir = self.instances[j].direction;
         // 移植守卫（L0）：drain 减暴露配额 σ-不变（m=mob_base×MOBILE_FRAC，级别无关；mob_base=u 当 anchor=0）。
-        prove_sigma_quota(m, mob_base, j, self.cur_bar);
+        // ON 逐级内在配额偏离 σ-不变（597 子5 授权）⇒ 跳过本守卫（TW 中性 ON 仍守）。
+        if !self.enable_intrinsic_quota {
+            prove_sigma_quota(m, mob_base, j, self.cur_bar);
+        }
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
         let realized = rec_reduce(&mut self.instances[j], m, &mut free, c);
@@ -1534,8 +1768,14 @@ impl TRoot {
             return; // 无短差腿可买回 ⇒ no-op（O9，不凭空 pyramid）
         }
         // O3 = 部分买回：配额 m=quota(u_sub)（机动仓 σ-不变 1/3），区别 recover 平整条 u_sub。
+        // 逐级内在配额（task#84 子5）：ON ⇒ m=u_sub×mobile_frac(L_pullback[sub],L_confirm[sub])（部分买回量逐级
+        // 自适应——深确认大段买回 / 浅确认小段，对称 sink 的逐级配额）；OFF ⇒ σ-不变 1/3（bit-exact）。
         let u_sub = self.instances[sub].units;
-        let m = quota(u_sub);
+        let m = if self.enable_intrinsic_quota {
+            u_sub * mobile_frac(self.cur_l_pullback[sub], self.cur_l_confirm[sub])
+        } else {
+            quota(u_sub)
+        };
         if !(m > 1e-12 && m.is_finite()) || m > u_sub + 1e-9 {
             return;
         }
@@ -1888,6 +2128,14 @@ impl TRoot {
         let tw_pre = self.total_wealth(c);
         self.free += u * c;
         self.pair_long_pnl[k] += pnl;
+        // L_confirm 第四轴会计（task#95，observation-only）：归 (k, leg=long_is_core?H⁰:H¹, dir=R+, c=long_conf)。
+        if self.enable_lconfirm_audit {
+            let leg = if self.leg_pairs[k].long_is_core { 0 } else { 1 };
+            let conf = self.leg_pairs[k].long_conf as usize;
+            self.pi_k_leg_dir_c[k][leg][0][conf] += pnl;
+            self.pi_count_k_leg_dir_c[k][leg][0][conf] += 1;
+            self.pi_total_audited += pnl;
+        }
         // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
         self.leg_trades.push((k, self.leg_pairs[k].long_entry_bar, self.cur_bar, basis, c, u, false, pnl));
         self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
@@ -1917,6 +2165,14 @@ impl TRoot {
         let tw_pre = self.total_wealth(c);
         self.free -= u * c;
         self.pair_short_pnl[k] += pnl;
+        // L_confirm 第四轴会计（task#95，observation-only）：归 (k, leg=short_is_core?H⁰:H¹, dir=R−, c=short_conf)。
+        if self.enable_lconfirm_audit {
+            let leg = if self.leg_pairs[k].short_is_core { 0 } else { 1 };
+            let conf = self.leg_pairs[k].short_conf as usize;
+            self.pi_k_leg_dir_c[k][leg][1][conf] += pnl;
+            self.pi_count_k_leg_dir_c[k][leg][1][conf] += 1;
+            self.pi_total_audited += pnl;
+        }
         // #149 capture-ratio 逐笔账本（observation-only，不改决策）：(level,entry_bar,exit_bar,entry_px,exit_px,units,is_short,pnl)
         self.leg_trades.push((k, self.leg_pairs[k].short_entry_bar, self.cur_bar, basis, c, u, true, pnl));
         self.leg_close_reasons.push(self.last_close_reason); // #170 TC 诊断
@@ -2124,6 +2380,36 @@ impl TRoot {
         }
     }
 
+    /// **G 轴分量① 级别-方向对齐门（task#5，539 方向误读失血修复，L0 结构）**：开仓腿极性须与**该腿
+    /// 自身级别 k 的走势方向** `view.nodes[k].direction` 对齐——`want_long` ⇒ 须 `Up`、开空 ⇒ 须 `Down`。
+    /// 539 根因：`d_k=Up` 却开空 ⟹ `L_confirm=∞` ⟹ 孤儿腿（无配对闭合转折节点）⟹ 必失血（payoff_fiber
+    /// §2.2 概念A）。**对所有级别（含核心）施加同级别方向对齐**——539 根因不豁免核心（区别 `long_entry_ok`
+    /// 的核心豁免 + 跨级别口径）。`nodes[k]==None`（该级无走势）⇒ 无方向读数 ⇒ 不阻断（无孤儿判据，放行）。
+    /// OFF（`!enable_g_axis`）⇒ 恒 true（bit-exact，不读 nodes 方向）。
+    fn g_axis_align_ok(&self, k: usize, want_long: bool, view: &LevelView) -> bool {
+        if !self.enable_g_axis {
+            return true; // bit-exact 基线
+        }
+        match view.nodes.get(k).and_then(|n| n.map(|t| t.direction)) {
+            Some(Direction::Up) => want_long,    // d_k=Up：只许开多（开空=方向误读孤儿，539）
+            Some(Direction::Down) => !want_long, // d_k=Down：只许开空
+            None => true,                        // 该级无走势 ⇒ 无方向孤儿判据 ⇒ 放行
+        }
+    }
+
+    /// **G 轴分量② 强平可达性否定线（task#5，孤儿腿不可达闭合修复，L0 结构）**：G 轴 ON ⇒ 给开成的腿
+    /// **独立锁定**进场中枢否定线（多腿=ZD `view.zd[k]` / 空腿=ZG `view.zg[k]`）作可达强平路径，使
+    /// `pair_stop_loss_step` 能在结构破坏即平（可达闭合），而非孤儿腿仅经 NAV≤0 账户级强平（不可达闭合，
+    /// 浮亏先吞 NAV）。与 `faceb_stop` 正交（不依赖 `enable_uniform_sizing`）。OFF ⇒ None（走 faceb_stop
+    /// 原路径 = bit-exact）。zd/zg=None（该级无中枢）⇒ None（无否定线原料，可达性 fallback 到反向买卖点平）。
+    fn g_axis_stop(&self, raw: Option<f64>) -> Option<f64> {
+        if self.enable_g_axis {
+            raw
+        } else {
+            None
+        }
+    }
+
     /// **零方向几何**：开仓方向由买卖点（buy/sell）涌现，不由 node.direction。**只写 leg_pairs[k]**（547 隔离）。
     fn g_pair(&mut self, k: usize, view: &LevelView, top: usize, c: f64) {
         let b = view.buy[k];
@@ -2161,18 +2447,39 @@ impl TRoot {
         //   - Any：现状零门控（bit-exact）。
         // 对称镜像作用于开空（见下方 short_dir_ok），与 below_core_long 门正交叠加。
         let long_dir_ok = self.long_entry_ok(k, view);
+        // **G 轴分量① 级别-方向对齐门（task#5，539 方向误读失血修复）**：开多须 d_k=Up（同级别方向对齐），
+        // 否则方向误读孤儿（539 根因）⇒ 拦截（OFF ⇒ 恒 true，bit-exact）。与 long_dir_ok 正交叠加。
+        let g_long_ok = self.g_axis_align_ok(k, true, view);
 
         if b {
-            // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空 ∧ 方向门控通过）。
+            // 买点：先平空腿（反向买卖点平），再开多腿（若多腿空 ∧ 方向门控通过 ∧ G 轴对齐通过）。
             if self.leg_pairs[k].short_active() {
                 self.guards.set_trigger(OpTrigger::Bsp);
                 self.last_close_reason = 0; // #170 TC 诊断：买卖点反向平
                 self.pending_exit_trigger = if view.t1buy[k] { 0 } else { 1 }; // #164 R2：type1（走势完成）vs 非type1（type2/3）
                 self.close_short_leg(k, c);
             }
-            if !self.leg_pairs[k].long_active() && long_dir_ok {
+            // G 轴对齐拦截观测（开多但 d_k≠Up = 方向误读孤儿被堵；仅多腿空 ∧ long_dir_ok 时算「本会开」的拦截）。
+            if self.enable_g_axis && !self.leg_pairs[k].long_active() && long_dir_ok && !g_long_ok {
+                self.g_axis_align_blocked += 1;
+            }
+            if !self.leg_pairs[k].long_active() && long_dir_ok && g_long_ok {
                 self.guards.set_trigger(OpTrigger::Bsp);
-                self.open_long_leg(k, top, self.faceb_stop(view.zd[k]), c);
+                // G 轴 ON ⇒ 独立锁强平可达否定线 ZD（孤儿腿可达闭合修复）；OFF ⇒ faceb_stop 原路径（bit-exact）。
+                let stop = self.g_axis_stop(view.zd[k]).or_else(|| self.faceb_stop(view.zd[k]));
+                if self.enable_g_axis && stop.is_some() {
+                    self.g_axis_reach_stops_set += 1;
+                }
+                self.open_long_leg(k, top, stop, c);
+                // L_confirm 第四轴捕获（task#95，observation-only，open 成功后才捕获）：
+                // c=该买点确认深度（t1buy=type1/其余=type2）；leg=H⁰核心 iff 开仓后 k 是最高活跃多腿
+                // （= 骑最高/主走势=核心角色，597/#80 H⁰），否则 H¹（次级别多腿，衬底/机动角色）。
+                // **注**：is_core 须在 open 后重算（open 前 highest_active_long 不含本腿；首条核心腿开仓前
+                // highest_active_long()=None ⇒ is_core_long_level=false 是错的）。
+                if self.enable_lconfirm_audit && self.leg_pairs[k].long_active() {
+                    self.leg_pairs[k].long_conf = ConfDepth::from_buy(view, k);
+                    self.leg_pairs[k].long_is_core = self.highest_active_long() == Some(k);
+                }
             }
             return;
         }
@@ -2195,9 +2502,27 @@ impl TRoot {
                         // = highest_active_long==k（零 if regime/level，编排者 no-hardcode）。zg[k]=进场中枢上沿
                         // =否定线止损（涨破⇒牛市恢复⇒止损出，27课区间套否定）。有效域 ⊂ 真 bear（231号
                         // formalization-validity-domain）：net-up 假顶翻空打主升浪=灾难（539），须 bear 数据 L3。
-                        if self.enable_pair_core_short && !self.leg_pairs[k].short_active() {
+                        // G 轴分量① 对齐门（task#5）：核心翻空须 d_k=Down（走势已向下完成）；若 nodes[k] 仍 Up
+                        // 则翻空=方向误读孤儿（539 根因，核心不豁免）⇒ 拦截。OFF ⇒ g_core_short_ok 恒 true（bit-exact）。
+                        let g_core_short_ok = self.g_axis_align_ok(k, false, view);
+                        if self.enable_g_axis && self.enable_pair_core_short
+                            && !self.leg_pairs[k].short_active() && !g_core_short_ok {
+                            self.g_axis_align_blocked += 1;
+                        }
+                        if self.enable_pair_core_short && !self.leg_pairs[k].short_active() && g_core_short_ok {
                             self.guards.set_trigger(OpTrigger::Bsp);
-                            self.open_short_leg(k, top, self.faceb_stop(view.zg[k]), c);
+                            // G 轴 ON ⇒ 锁强平可达否定线 ZG；OFF ⇒ faceb_stop 原路径（bit-exact）。
+                            let stop = self.g_axis_stop(view.zg[k]).or_else(|| self.faceb_stop(view.zg[k]));
+                            if self.enable_g_axis && stop.is_some() {
+                                self.g_axis_reach_stops_set += 1;
+                            }
+                            self.open_short_leg(k, top, stop, c);
+                            // L_confirm 捕获（task#95）：核心走势完成翻空 = 核心尺度（H⁰）+ 全深度确认（type1/d_top）。
+                            // is_core=true（此 short 由核心 churn 触发，是核心 H⁰ 在 R− 方向的翻转，非次级别 H¹ 短差）。
+                            if self.enable_lconfirm_audit && self.leg_pairs[k].short_active() {
+                                self.leg_pairs[k].short_conf = ConfDepth::from_sell(view, k);
+                                self.leg_pairs[k].short_is_core = true;
+                            }
                         }
                     }
                 }
@@ -2222,9 +2547,28 @@ impl TRoot {
             // 下跌（nodes[k]==Down）/ CrossLevel 要求无更高活跃级别上涨段。Any ⇒ 恒真（bit-exact，开空仍仅
             // 受 below_core_long 门）。与 short_level_ok（核心隔离）正交叠加。
             let short_dir_ok = self.short_entry_ok(k, view);
-            if !self.leg_pairs[k].short_active() && sub_break && short_level_ok && short_dir_ok {
+            // **G 轴分量① 级别-方向对齐门（task#5，539 方向误读失血修复）**：开空须 d_k=Down（同级别方向
+            // 对齐）。次级别短差腿（t3sell）若开在 d_k=Up 段 = 方向误读孤儿（539 根因）⇒ 拦截。OFF ⇒ 恒 true。
+            let g_short_ok = self.g_axis_align_ok(k, false, view);
+            if self.enable_g_axis && !self.leg_pairs[k].short_active()
+                && sub_break && short_level_ok && short_dir_ok && !g_short_ok {
+                self.g_axis_align_blocked += 1;
+            }
+            if !self.leg_pairs[k].short_active() && sub_break && short_level_ok && short_dir_ok && g_short_ok {
                 self.guards.set_trigger(OpTrigger::Bsp);
-                self.open_short_leg(k, top, self.faceb_stop(view.zg[k]), c);
+                // G 轴 ON ⇒ 锁强平可达否定线 ZG（孤儿腿可达闭合修复）；OFF ⇒ faceb_stop 原路径（bit-exact）。
+                let stop = self.g_axis_stop(view.zg[k]).or_else(|| self.faceb_stop(view.zg[k]));
+                if self.enable_g_axis && stop.is_some() {
+                    self.g_axis_reach_stops_set += 1;
+                }
+                self.open_short_leg(k, top, stop, c);
+                // L_confirm 第四轴捕获（task#95，observation-only，open 成功后）：
+                // c=该卖点确认深度（t1sell=type1/t3sell=type3/其余=type2，#69 次级别短差默认 t3=单层 c=浅）；
+                // leg=H¹ 短差 当 k<核心（below_core_long）；H⁰ 核心 当放开门控后 k≥核心（coreshort_open 大额做空）。
+                if self.enable_lconfirm_audit && self.leg_pairs[k].short_active() {
+                    self.leg_pairs[k].short_conf = ConfDepth::from_sell(view, k);
+                    self.leg_pairs[k].short_is_core = !below_core_long; // k≥核心（放开门控）⇒ 核心尺度 H⁰；k<核心 ⇒ H¹ 次级别
+                }
             }
             return;
         }
@@ -2296,6 +2640,56 @@ impl TRoot {
     /// LegPair 只读访问（诊断/L3）。
     pub fn leg_pair(&self, k: usize) -> &LegPair {
         &self.leg_pairs[k]
+    }
+
+    /// **L_confirm 第四轴纤维只读访问（task#95，L3）**：返回 `pi_k_leg_dir_c[k][leg][dir][c]` + 计数。
+    pub fn lconfirm_cell(&self, k: usize, leg: usize, dir: usize, c: usize) -> (f64, u64) {
+        (self.pi_k_leg_dir_c[k][leg][dir][c], self.pi_count_k_leg_dir_c[k][leg][dir][c])
+    }
+
+    /// **跨级别 k 聚合的 (leg,dir,c) 纤维 P&L + 计数（task#95，符号分裂裁定用）**：固定 leg/dir，对每个 c
+    /// 桶求和 Σ_k π(k,leg,dir,c)。同 (leg,dir) 下不同 c 桶的符号比较 = 第四轴成立/否证的可证伪判据。
+    pub fn lconfirm_cell_sum(&self, leg: usize, dir: usize, c: usize) -> (f64, u64) {
+        let mut p = 0.0;
+        let mut n = 0u64;
+        for k in 0..MAX_LEVEL {
+            p += self.pi_k_leg_dir_c[k][leg][dir][c];
+            n += self.pi_count_k_leg_dir_c[k][leg][dir][c];
+        }
+        (p, n)
+    }
+
+    /// **机械穷尽守卫（task#95，补 #92 缺的可结算底座）**：断言所有纤维格子的 realized P&L 之和
+    /// == 总 leg realized P&L（Σ pair_long_pnl + Σ pair_short_pnl）。不等 ⇒ 有未分类的 P&L 流（分类不完备
+    /// 的可验证信号）。tol=1e-6（f64 累加误差容差）。返回 (Σ纤维, Σ总leg, 是否一致)。**只在 audit ON 有意义。**
+    pub fn lconfirm_exhaustive_check(&self) -> (f64, f64, bool) {
+        let mut fiber_sum = 0.0;
+        for k in 0..MAX_LEVEL {
+            for leg in 0..2 {
+                for dir in 0..2 {
+                    for c in 0..3 {
+                        fiber_sum += self.pi_k_leg_dir_c[k][leg][dir][c];
+                    }
+                }
+            }
+        }
+        let total_leg: f64 = (0..MAX_LEVEL).map(|k| self.pair_long_pnl[k] + self.pair_short_pnl[k]).sum();
+        // pi_total_audited 是累加镜像（应 == fiber_sum 逐位）；total_leg 是独立来源（pair_*_pnl）。
+        // 三者一致 ⇒ 穷尽：每笔 leg realized 都进了且仅进了一个纤维格子。
+        let consistent = (fiber_sum - total_leg).abs() < 1e-6
+            && (self.pi_total_audited - fiber_sum).abs() < 1e-9;
+        (fiber_sum, total_leg, consistent)
+    }
+
+    /// **机械穷尽守卫断言版（task#95）**：不一致即 panic（暴露未分类 P&L 流）。L3 跑结束调用。
+    pub fn assert_lconfirm_exhaustive(&self) {
+        let (fiber_sum, total_leg, consistent) = self.lconfirm_exhaustive_check();
+        assert!(
+            consistent,
+            "L_confirm 机械穷尽守卫违反（task#95）：Σ纤维格子={fiber_sum:.6} ≠ Σ总leg realized={total_leg:.6} \
+             (pi_total_audited={:.6})；差={:.6} ⇒ 有未分类的 P&L 流（K×L×D×c 分类不完备）",
+            self.pi_total_audited, fiber_sum - total_leg
+        );
     }
 
     /// **Face A LegPair 核心多腿级别**（= `highest_active_long`，pub 诊断访问器，R3 段无腿实证）。
@@ -2458,6 +2852,27 @@ impl TRoot {
         self.last_close = c;
         self.guards.set_trigger(OpTrigger::None); // 本 bar 起始无触发源（强平不经原子函数）
         let tw_pre = self.total_wealth(c);
+
+        // ── 逐级内在配额信号注入（task#84 子5，仅 enable_intrinsic_quota ON）──
+        //   route_bsp/sink/drain/add 不接收 view（架构现状），故在此把每级别触发腿的 ConfDepth 代理暂存，
+        //   sink/drain/add 据 cur_l_pullback[sub]/cur_l_confirm[sub] 算 mobile_frac。**OFF ⇒ 整块跳过 ⇒
+        //   新字段恒默认 T2 ⇒ 不被任何 OFF 配额路径读 ⇒ bit-exact**（OFF 配额仍走 quota()=σ-不变 1/3）。
+        //   L_pullback = 触发腿深度（type1=d_top 深/type3=t3sell 浅/type2 中）；L_confirm = 同信号的确认滞后
+        //   （type1/type3 单次区间套定位=低滞后/type2 须更多证据=高滞后）。优先 sell（反核心向回调=sink 主因）。
+        if self.enable_intrinsic_quota {
+            for k in 0..MAX_LEVEL {
+                // 触发腿确认深度：本级别若有卖点取 from_sell，否则若有买点取 from_buy，皆无则保 T2（中性）。
+                let conf = if view.sell[k] {
+                    ConfDepth::from_sell(view, k)
+                } else if view.buy[k] {
+                    ConfDepth::from_buy(view, k)
+                } else {
+                    ConfDepth::T2
+                };
+                self.cur_l_pullback[k] = conf; // 深度轴：直接用确认深度档（T1 深/T3 浅）
+                self.cur_l_confirm[k] = conf;  // 滞后轴：mobile_frac 内部按 T1/T3=低滞后、T2=高滞后映射
+            }
+        }
 
         // ── 读法B 一对多空腿分叉（任务57=53.1 编排者重写）：ON ⟹ 每级别 LegPair 买卖点开平 + 否定线止损 +
         //   链破坏 churn 门控（多空双开吃所有级别涨跌幅）。OFF ⟹ 逐字不动（bit-exact）。最先检查（旁路单腿/instances）。
@@ -2855,5 +3270,112 @@ mod orbit9_add_dispatch_tests {
         r.route_bsp(0, true, node(Direction::Up), c);
         assert_eq!(r.n_adds, 0, "占位 fallback=true ⇒ 仍 recover（C 接口未就位 bit-exact）");
         assert_eq!(r.n_recovers, 1);
+    }
+}
+
+#[cfg(test)]
+mod intrinsic_quota_tests {
+    //! **逐级内在配额单测（task#84 子5，split 自适应定理 + OFF bit-exact）**——L0 结构判据：
+    //! ① mobile_frac 纯函数：深回调+快确认→大配额 / 浅回调或慢确认→小配额，∈(0,1]（split 自适应）；
+    //! ② ON sink 配额逐级自适应（深 vs 浅触发腿 ⇒ m 不同，证非固定 1/3）；
+    //! ③ OFF bit-exact（T_INTRINSIC_QUOTA OFF ⇒ sink/drain/add 走 σ-不变 1/3 + prove_sigma_quota，逐字不变）。
+    use super::*;
+
+    fn node(dir: Direction) -> TrendNode {
+        TrendNode::new(0, 1, 1.0, 2.0, dir)
+    }
+
+    /// ① mobile_frac 纯函数：split 自适应定理的档位映射 + 边界。
+    #[test]
+    fn mobile_frac_split_自适应档位() {
+        // 深回调(T1) ∧ 快确认(T1) ⇒ 最大配额（机动捕获跌幅骑主升浪）= 1/3×2×3/2 = 1.0（整仓裁剪上界）。
+        let deep_fast = mobile_frac(ConfDepth::T1, ConfDepth::T1);
+        // 浅回调(T3) ∧ 慢确认(T2) ⇒ 最小配额（核心 full 防踏空）= 1/3×0.5×0.5 = 1/12。
+        let shallow_slow = mobile_frac(ConfDepth::T3, ConfDepth::T2);
+        // 中性(T2,T1)：1/3×1×3/2 = 0.5。
+        let mid = mobile_frac(ConfDepth::T2, ConfDepth::T1);
+
+        assert!((deep_fast - 1.0).abs() < 1e-12, "深回调+快确认=最大配额(裁剪到整仓 1.0)，得 {deep_fast}");
+        assert!((shallow_slow - 1.0 / 12.0).abs() < 1e-12, "浅回调+慢确认=最小配额 1/12，得 {shallow_slow}");
+        assert!(deep_fast > mid && mid > shallow_slow, "split 自适应单调：深快 > 中 > 浅慢");
+        // 边界：所有 9 组合 ∈ (0,1]（配额合法）。
+        for lp in [ConfDepth::T1, ConfDepth::T2, ConfDepth::T3] {
+            for lc in [ConfDepth::T1, ConfDepth::T2, ConfDepth::T3] {
+                let f = mobile_frac(lp, lc);
+                assert!(f > 0.0 && f <= 1.0, "mobile_frac({lp:?},{lc:?})={f} 须 ∈(0,1]");
+            }
+        }
+        // 与固定 σ-不变 1/3 的对照：深确认放大、浅确认缩小（拍扁的反面）。
+        assert!(deep_fast > MOBILE_FRAC, "深确认配额 > 固定 1/3（自适应放大）");
+        assert!(shallow_slow < MOBILE_FRAC, "浅确认配额 < 固定 1/3（自适应缩小防踏空）");
+    }
+
+    /// 造一个 ON 路径 root，父核心 @parent，注入触发腿 ConfDepth，sink 出 sub 短差，返回 sub 短差 units。
+    fn on_sink_sub_units(l_pullback: ConfDepth, l_confirm: ConfDepth) -> f64 {
+        let mut r = TRoot::new_with_config(100_000.0, EngineConfig::intrinsic_quota());
+        r.guards.set_trigger(OpTrigger::Bsp);
+        let c = 10.0;
+        r.enter(2, Polarity::Long, node(Direction::Up), c);
+        // 注入触发腿（sub=0）的逐级 L_pullback/L_confirm（模拟 on_bar 注入；sink 据此算 mobile_frac）。
+        r.cur_l_pullback[0] = l_pullback;
+        r.cur_l_confirm[0] = l_confirm;
+        r.sink(2, 0, node(Direction::Down), c * 1.1);
+        r.instances[0].units
+    }
+
+    /// ② ON sink 配额逐级自适应：深触发腿 ⇒ 大配额（sub 短差 units 大）vs 浅触发腿 ⇒ 小配额。
+    #[test]
+    fn on_sink_配额逐级自适应_非固定() {
+        let deep = on_sink_sub_units(ConfDepth::T1, ConfDepth::T1); // 深回调+快确认=大配额
+        let shallow = on_sink_sub_units(ConfDepth::T3, ConfDepth::T2); // 浅回调+慢确认=小配额
+        assert!(deep > shallow * 1.5, "深确认 sink 配额应显著大于浅确认（自适应非固定 1/3），deep={deep} shallow={shallow}");
+        assert!(deep > 1e-9 && shallow > 1e-9, "两档配额皆 >0（开了短差腿）");
+    }
+
+    /// ③ OFF bit-exact：T_INTRINSIC_QUOTA OFF ⇒ sink 配额 = σ-不变 quota(u_p)=u_p/3（与 off() 逐字一致）+
+    ///    prove_sigma_quota 守卫生效（不跳过）。注入 ConfDepth 也不影响 OFF（新字段无 OFF 消费者）。
+    #[test]
+    fn off_bit_exact_sink_配额恒1_3() {
+        // OFF 基线（不开 intrinsic）：sink 配额 = u_p/3。
+        let mut r_off = TRoot::new_with_config(100_000.0, EngineConfig::off());
+        r_off.guards.set_trigger(OpTrigger::Bsp);
+        let c = 10.0;
+        r_off.enter(2, Polarity::Long, node(Direction::Up), c);
+        // 即便“污染”ConfDepth 字段，OFF 路径也不读 ⇒ 配额恒 1/3（证新字段无 OFF 消费者）。
+        r_off.cur_l_pullback[0] = ConfDepth::T1;
+        r_off.cur_l_confirm[0] = ConfDepth::T1;
+        let u_p = r_off.instances[2].units;
+        r_off.sink(2, 0, node(Direction::Down), c * 1.1);
+        // sub 短差 units = m×pb/c（同资本 sizing）；m=u_p/3。验证 OFF 配额 = σ-不变 1/3。
+        // 用 add 视角更直接：父减仓量 = u_p − 剩余 = u_p/3。
+        let parent_reduced = u_p - r_off.instances[2].units;
+        assert!((parent_reduced - u_p * MOBILE_FRAC).abs() < 1e-6 * u_p,
+            "OFF sink 父减仓 = u_p×1/3=σ-不变（ConfDepth 污染无效），减 {parent_reduced} vs 期望 {}", u_p * MOBILE_FRAC);
+        assert!(!r_off.enable_intrinsic_quota, "off() ⇒ intrinsic OFF");
+    }
+
+    /// ③bis OFF prove_sigma_quota 仍守（反证非平凡）：OFF 路径若配额 ≠ 1/3 必 panic（守卫未被误跳过）。
+    /// 这里直接验证 OFF 走 quota()（= prove_sigma_quota 的 canonical），ON 才偏离——通过对比父减仓量。
+    #[test]
+    fn off_vs_on_父减仓量对照() {
+        let c = 10.0;
+        // OFF：父减 u_p/3。
+        let mut r_off = TRoot::new_with_config(100_000.0, EngineConfig::off());
+        r_off.guards.set_trigger(OpTrigger::Bsp);
+        r_off.enter(2, Polarity::Long, node(Direction::Up), c);
+        let u_off = r_off.instances[2].units;
+        r_off.sink(2, 0, node(Direction::Down), c * 1.1);
+        let reduced_off = u_off - r_off.instances[2].units;
+        // ON 深确认：父减 u_p×mobile_frac(T1,T1)=u_p×1.0=整仓（> u_p/3）。
+        let mut r_on = TRoot::new_with_config(100_000.0, EngineConfig::intrinsic_quota());
+        r_on.guards.set_trigger(OpTrigger::Bsp);
+        r_on.enter(2, Polarity::Long, node(Direction::Up), c);
+        r_on.cur_l_pullback[0] = ConfDepth::T1;
+        r_on.cur_l_confirm[0] = ConfDepth::T1;
+        let u_on = r_on.instances[2].units;
+        r_on.sink(2, 0, node(Direction::Down), c * 1.1);
+        let reduced_on = u_on - r_on.instances[2].units;
+        assert!(reduced_on > reduced_off * 2.0,
+            "ON 深确认配额(整仓)应远大于 OFF 固定 1/3：on={reduced_on} off={reduced_off}");
     }
 }

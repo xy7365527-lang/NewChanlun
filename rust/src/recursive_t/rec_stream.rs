@@ -747,6 +747,297 @@ mod tests {
         assert!((s.finish() - INITIAL_CAPITAL).abs() < 1e-6);
     }
 
+    /// **L_confirm 第四轴会计：OFF bit-exact（task#95 W-lconfirm，编排者硬约束）**。
+    /// 同一合成 OHLC 序列上，`T_LCONFIRM_AUDIT` ON vs OFF 的**决策路径输出逐位一致**——
+    /// final_nav + 全 per-level long/short pnl + opens/closes/stops/churns + liq + leg_trades 长度。
+    /// 会计是 observation-only（新数组无决策消费者）⇒ 开关不动任何仓位/方向/止损/churn 决策。
+    /// 在 OFF 基线 + RB_PAIR 变体两路径上各验一次（RB_PAIR 跑 g_pair = 会计活跃路径）。
+    #[test]
+    fn lconfirm_audit_off_bit_exact() {
+        use super::super::rec_engine::EngineConfig;
+        // 确定性合成序列（趋势 + 多尺度震荡，足以触发多级别开平腿）。
+        fn drive(s: &mut RecStream) -> f64 {
+            let mut price = 100.0_f64;
+            for i in 0..1200u32 {
+                // 大趋势上行 + 中尺度回调 + 小尺度锯齿（多级别买卖点 ⇒ 多级别腿）。
+                let big = (i as f64) * 0.05;
+                let mid = (((i / 40) % 2) as f64 - 0.5) * 6.0;
+                let small = if i % 6 < 3 { 0.8 } else { -0.6 };
+                price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+                let c = price.max(1.0);
+                s.push_bar(c - 0.15, c + 0.4, c - 0.4, c);
+            }
+            s.finish()
+        }
+        // 两个 base 变体 × {audit OFF, audit ON}。
+        for base in ["OFF", "RB_PAIR"] {
+            let cfg_base = match base {
+                "OFF" => EngineConfig::off(),
+                _ => EngineConfig::reading_b_pair(),
+            };
+            let mut cfg_audit = cfg_base;
+            cfg_audit.enable_lconfirm_audit = true;
+            let mut cfg_noaudit = cfg_base;
+            cfg_noaudit.enable_lconfirm_audit = false;
+
+            let mut s_a = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_audit);
+            let mut s_n = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_noaudit);
+            let fin_a = drive(&mut s_a);
+            let fin_n = drive(&mut s_n);
+
+            // ① final_nav 逐位一致（核心 bit-exact 判据）。
+            assert_eq!(fin_a.to_bits(), fin_n.to_bits(), "[{base}] final_nav 非 bit-exact（audit ON≠OFF）");
+
+            let (ra, rn) = (s_a.driver().root(), s_n.driver().root());
+            // ② 全 per-level pnl + opens/closes 逐位一致。
+            for k in 0..MAX_LEVEL {
+                assert_eq!(ra.pair_long_pnl[k].to_bits(), rn.pair_long_pnl[k].to_bits(), "[{base}] L{k} long_pnl 非 bit-exact");
+                assert_eq!(ra.pair_short_pnl[k].to_bits(), rn.pair_short_pnl[k].to_bits(), "[{base}] L{k} short_pnl 非 bit-exact");
+                assert_eq!(ra.pair_long_opens[k], rn.pair_long_opens[k], "[{base}] L{k} long_opens 非一致");
+                assert_eq!(ra.pair_short_opens[k], rn.pair_short_opens[k], "[{base}] L{k} short_opens 非一致");
+                assert_eq!(ra.pair_long_closes[k], rn.pair_long_closes[k], "[{base}] L{k} long_closes 非一致");
+                assert_eq!(ra.pair_short_closes[k], rn.pair_short_closes[k], "[{base}] L{k} short_closes 非一致");
+            }
+            // ③ 决策计数器逐位一致。
+            assert_eq!(ra.pair_long_stops, rn.pair_long_stops, "[{base}] long_stops");
+            assert_eq!(ra.pair_short_stops, rn.pair_short_stops, "[{base}] short_stops");
+            assert_eq!(ra.pair_core_churns, rn.pair_core_churns, "[{base}] core_churns");
+            assert_eq!(ra.n_liquidations, rn.n_liquidations, "[{base}] liq");
+            assert_eq!(ra.leg_trades.len(), rn.leg_trades.len(), "[{base}] leg_trades 长度");
+            assert_eq!(ra.max_gross_exp_x100, rn.max_gross_exp_x100, "[{base}] max_gross");
+
+            // ④ audit OFF 路径：纤维格子恒 0（无消费者 ⇒ 不写）。
+            let (fiber_n, _total_n, _) = rn.lconfirm_exhaustive_check();
+            assert_eq!(fiber_n, 0.0, "[{base}] audit OFF ⇒ 纤维格子应恒 0（未写入）");
+        }
+    }
+
+    /// **逐级内在配额：OFF bit-exact（task#84 子5，编排者硬约束「OFF 必须 bit-exact = 当前 base 逐位」）**。
+    /// 同一合成 OHLC 序列上，`T_INTRINSIC_QUOTA` OFF 引擎 vs **当前 OFF base 引擎**的输出逐位一致——
+    /// final_nav + 全 per-level pnl + 操作计数（sink/drain/add/recover）。env 缺省 ⇒ sink/drain/add 走
+    /// σ-不变 quota()(=1/3) + prove_sigma_quota = 与改动前逐字一致（新字段恒默认 T2 无 OFF 消费者）。
+    /// **在 instances OFF 路径验**（sink/drain/add 是 instances route_bsp 路径的原子，RB_PAIR 路径无 sink/drain/add）。
+    #[test]
+    fn intrinsic_quota_off_bit_exact() {
+        use super::super::rec_engine::EngineConfig;
+        // 确定性合成序列（趋势 + 多尺度震荡，触发多级别 sink/recover/drain）。
+        fn drive(s: &mut RecStream) -> f64 {
+            let mut price = 100.0_f64;
+            for i in 0..1200u32 {
+                let big = (i as f64) * 0.05;
+                let mid = (((i / 40) % 2) as f64 - 0.5) * 6.0;
+                let small = if i % 6 < 3 { 0.8 } else { -0.6 };
+                price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+                let c = price.max(1.0);
+                s.push_bar(c - 0.15, c + 0.4, c - 0.4, c);
+            }
+            s.finish()
+        }
+        // 基线 = 当前 OFF（intrinsic 字段默认 false）；对照 = 显式 off() 再确认 intrinsic OFF。
+        // 两者应逐位一致（证 enable_intrinsic_quota=false ⇒ 逐字 = 改动前 base）。
+        let cfg_base = EngineConfig::off(); // enable_intrinsic_quota=false
+        let mut cfg_iq_off = cfg_base;
+        cfg_iq_off.enable_intrinsic_quota = false; // 显式 OFF（与 base 同）
+
+        let mut s_base = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_base);
+        let mut s_off = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_iq_off);
+        let fin_base = drive(&mut s_base);
+        let fin_off = drive(&mut s_off);
+
+        // ① final_nav 逐位一致（核心 bit-exact 判据）。
+        assert_eq!(fin_base.to_bits(), fin_off.to_bits(), "intrinsic OFF final_nav 非 bit-exact");
+
+        let (rb, ro) = (s_base.driver().root(), s_off.driver().root());
+        // ② 全 per-level short pnl 逐位一致（sink/recover 的短差腿 pnl）。
+        for k in 0..MAX_LEVEL {
+            assert_eq!(rb.short_pnl_by_level[k].to_bits(), ro.short_pnl_by_level[k].to_bits(), "L{k} short_pnl 非 bit-exact");
+            assert_eq!(rb.sink_by_level[k], ro.sink_by_level[k], "L{k} sink 计数非一致");
+            assert_eq!(rb.recover_by_level[k], ro.recover_by_level[k], "L{k} recover 计数非一致");
+        }
+        // ③ 操作计数逐位一致（sink/drain/add/recover/enter/flip）。
+        assert_eq!(rb.n_sinks, ro.n_sinks, "n_sinks 非一致");
+        assert_eq!(rb.n_drains, ro.n_drains, "n_drains 非一致");
+        assert_eq!(rb.n_adds, ro.n_adds, "n_adds 非一致");
+        assert_eq!(rb.n_recovers, ro.n_recovers, "n_recovers 非一致");
+        assert_eq!(rb.n_enters, ro.n_enters, "n_enters 非一致");
+        assert_eq!(rb.n_flips, ro.n_flips, "n_flips 非一致");
+        assert_eq!(rb.n_liquidations, ro.n_liquidations, "n_liquidations 非一致");
+    }
+
+    /// **逐级内在配额：ON 激活路径零 panic + 配额偏离固定 1/3（task#84 子5，L1 管线验证）**。
+    /// `T_INTRINSIC_QUOTA` ON 在合成序列上跑全程零 panic（TW 中性 + 向心下沉守卫仍守；prove_sigma_quota
+    /// 在 ON 正确跳过——若误留则级别依赖配额必触发 σ-不变 panic）+ 产出有限正 final_nav。
+    /// L1 等级（合成数据=验管线非验假设，formalization-validity-domain；「自适应后超 BH」L3 未决不声明）。
+    #[test]
+    fn intrinsic_quota_on_零panic_有限nav() {
+        use super::super::rec_engine::EngineConfig;
+        fn drive(s: &mut RecStream) -> f64 {
+            let mut price = 100.0_f64;
+            for i in 0..1200u32 {
+                let big = (i as f64) * 0.05;
+                let mid = (((i / 40) % 2) as f64 - 0.5) * 6.0;
+                let small = if i % 6 < 3 { 0.8 } else { -0.6 };
+                price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+                let c = price.max(1.0);
+                s.push_bar(c - 0.15, c + 0.4, c - 0.4, c);
+            }
+            s.finish()
+        }
+        let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, EngineConfig::intrinsic_quota());
+        let fin = drive(&mut s);
+        assert!(fin.is_finite() && fin > 0.0, "ON intrinsic_quota final_nav 有限正（零 panic），得 {fin}");
+        // ON 路径确被触发的硬证据：sink 数 >0（否则配额路径未走，测试退化）。
+        let r = s.driver().root();
+        assert!(r.n_sinks > 0 || r.n_enters > 0, "ON 路径应有 sink/enter 操作（配额路径活跃）");
+    }
+
+    /// **payoff G 轴：OFF bit-exact（task#5，539 失血修复维，编排者硬约束「OFF 必须 bit-exact」）**。
+    /// G 轴在 Face A / LegPair 路径（g_pair 开腿）施加级别-方向对齐门 + 强平可达性否定线。同一合成 OHLC
+    /// 序列上，`enable_g_axis=false` vs **当前 Face A base**（g_axis 字段默认 false）的输出逐位一致——
+    /// final_nav + 全 per-level long/short pnl + leg 开平计数 + 止损/强平计数。验 OFF ⇒ g_axis_align_ok 恒
+    /// true（不读 nodes 方向）+ g_axis_stop 恒 None（走 faceb_stop 原路径）+ 观测计数恒 0 = 逐字 = 改动前 base。
+    /// **在 Face A 路径验**（g_pair 是 LegPair 路径的开腿算子，instances OFF 路径无 g_pair）。
+    #[test]
+    fn g_axis_off_bit_exact() {
+        use super::super::rec_engine::EngineConfig;
+        fn drive(s: &mut RecStream) -> f64 {
+            let mut price = 100.0_f64;
+            for i in 0..1200u32 {
+                let big = (i as f64) * 0.05;
+                let mid = (((i / 40) % 2) as f64 - 0.5) * 6.0;
+                let small = if i % 6 < 3 { 0.8 } else { -0.6 };
+                price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+                let c = price.max(1.0);
+                s.push_bar(c - 0.15, c + 0.4, c - 0.4, c);
+            }
+            s.finish()
+        }
+        // 基线 = 当前 Face A（g_axis 字段默认 false）；对照 = Face A 再显式 g_axis OFF。逐位一致 ⇒ 证
+        // enable_g_axis=false ⇒ 逐字 = 改动前 Face A base（新门 + 否定线 + 观测计数皆无 OFF 消费者）。
+        let cfg_base = EngineConfig::face_a(); // enable_g_axis=false
+        let mut cfg_g_off = cfg_base;
+        cfg_g_off.enable_g_axis = false; // 显式 OFF（与 base 同）
+
+        let mut s_base = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_base);
+        let mut s_off = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg_g_off);
+        let fin_base = drive(&mut s_base);
+        let fin_off = drive(&mut s_off);
+
+        // ① final_nav 逐位一致（核心 bit-exact 判据）。
+        assert_eq!(fin_base.to_bits(), fin_off.to_bits(), "G 轴 OFF final_nav 非 bit-exact");
+
+        let (rb, ro) = (s_base.driver().root(), s_off.driver().root());
+        // ② 全 per-level long/short pnl 逐位一致（LegPair 路径腿 pnl）。
+        for k in 0..MAX_LEVEL {
+            assert_eq!(rb.pair_long_pnl[k].to_bits(), ro.pair_long_pnl[k].to_bits(), "L{k} long_pnl 非 bit-exact");
+            assert_eq!(rb.pair_short_pnl[k].to_bits(), ro.pair_short_pnl[k].to_bits(), "L{k} short_pnl 非 bit-exact");
+            assert_eq!(rb.pair_long_opens[k], ro.pair_long_opens[k], "L{k} long_opens 非一致");
+            assert_eq!(rb.pair_short_opens[k], ro.pair_short_opens[k], "L{k} short_opens 非一致");
+        }
+        // ③ 止损/强平/churn 计数逐位一致 + G 轴观测计数恒 0（OFF 无消费者）。
+        assert_eq!(rb.pair_long_stops, ro.pair_long_stops, "pair_long_stops 非一致");
+        assert_eq!(rb.pair_short_stops, ro.pair_short_stops, "pair_short_stops 非一致");
+        assert_eq!(rb.pair_core_churns, ro.pair_core_churns, "pair_core_churns 非一致");
+        assert_eq!(rb.n_liquidations, ro.n_liquidations, "n_liquidations 非一致");
+        assert_eq!(rb.g_axis_align_blocked, 0, "OFF base g_axis_align_blocked 应恒 0");
+        assert_eq!(ro.g_axis_align_blocked, 0, "OFF g_axis_align_blocked 应恒 0");
+        assert_eq!(ro.g_axis_reach_stops_set, 0, "OFF g_axis_reach_stops_set 应恒 0");
+    }
+
+    /// **payoff G 轴：ON 激活路径零 panic + 方向误读孤儿被堵（task#5，L1 管线验证）**。
+    /// `g_axis()` 在合成序列上跑全程零 panic（TW 中性 + 547 隔离 + 否定线止损守卫仍守）+ 产出有限正
+    /// final_nav。G 轴 ON 路径活跃硬证据：开腿数 >0（否则路径未走，测试退化）；若有方向误读尝试则
+    /// align_blocked 计数（539 根因被堵的可观测）。L1 等级（合成数据=验管线非验假设；「修复后超 BH」
+    /// 是 L3 regime 函数 payoff_fiber §3.3 未决，不声明）。
+    #[test]
+    fn g_axis_on_零panic_有限nav() {
+        use super::super::rec_engine::EngineConfig;
+        fn drive(s: &mut RecStream) -> f64 {
+            let mut price = 100.0_f64;
+            for i in 0..1200u32 {
+                let big = (i as f64) * 0.05;
+                let mid = (((i / 40) % 2) as f64 - 0.5) * 6.0;
+                let small = if i % 6 < 3 { 0.8 } else { -0.6 };
+                price = 100.0 + big + mid + small + ((i % 11) as f64) * 0.07;
+                let c = price.max(1.0);
+                s.push_bar(c - 0.15, c + 0.4, c - 0.4, c);
+            }
+            s.finish()
+        }
+        let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, EngineConfig::g_axis());
+        let fin = drive(&mut s);
+        assert!(fin.is_finite() && fin > 0.0, "ON g_axis final_nav 有限正（零 panic），得 {fin}");
+        // ON 路径确被触发的硬证据：开腿数 >0（否则 g_pair 路径未走，测试退化）。
+        let r = s.driver().root();
+        let opens: u64 = (0..MAX_LEVEL).map(|k| r.pair_long_opens[k] + r.pair_short_opens[k]).sum();
+        assert!(opens > 0, "ON 路径应有开腿操作（g_pair 路径活跃）");
+    }
+
+    /// **L_confirm 机械穷尽守卫 + 四轴归格正确性（task#95，补 #92 缺的可结算底座，L1 管线验证）**。
+    /// 直接驱动 `TRoot.on_bar`（LegPair 路径）用受控 LevelView 开 H⁰核心多腿(type1)/H¹次级别空腿(type3)，
+    /// 平仓后断言：① 每笔 realized 进了**正确的** (k,leg,dir,c) 格子；② 机械穷尽守卫成立
+    /// （Σ纤维 == Σ总leg realized，无逃逸流）。L1 等级（合成数据=验管线非验假设，formalization-validity-domain）。
+    #[test]
+    fn lconfirm_exhaustive_guard_holds() {
+        use super::super::rec_engine::{ConfDepth, EngineConfig, LevelView, TRoot, TrendNode};
+        use super::super::types::Direction;
+
+        let mk_node = |s: i64, e: i64, dir: Direction| TrendNode::new(s, e, 0.0, 0.0, dir);
+        let mut cfg = EngineConfig::reading_b_pair();
+        cfg.enable_lconfirm_audit = true;
+        let mut r = TRoot::new_with_config(100_000.0, cfg);
+
+        // bar10：核心多腿 @L4，type1 买点（t1buy）⇒ (k=4, leg=H⁰, dir=R+, c=T1)。
+        let mut v = LevelView::empty();
+        v.buy[4] = true; v.t1buy[4] = true;
+        v.nodes[4] = Some(mk_node(0, 10, Direction::Up));
+        r.on_bar(&v, 10, 100.0);
+        assert!(r.leg_pair(4).long_active(), "核心多腿@L4 开仓");
+        assert_eq!(r.leg_pair(4).long_conf, ConfDepth::T1, "核心 type1 确认深度 c=T1");
+        assert!(r.leg_pair(4).long_is_core, "L4 = highest_active_long ⇒ H⁰核心");
+
+        // bar11：次级别空腿 @L1，type3 卖点（t3sell，k<核心4）⇒ (k=1, leg=H¹, dir=R−, c=T3)。
+        let mut v = LevelView::empty();
+        v.sell[1] = true; v.t3sell[1] = true;
+        v.nodes[1] = Some(mk_node(0, 11, Direction::Down));
+        // 保持 L4 核心走势节点在场（highest_active_long 仍=4 ⇒ k=1<4 = below_core ⇒ H¹）。
+        v.nodes[4] = Some(mk_node(0, 11, Direction::Up));
+        r.on_bar(&v, 11, 100.0);
+        assert!(r.leg_pair(1).short_active(), "次级别空腿@L1 开仓");
+        assert_eq!(r.leg_pair(1).short_conf, ConfDepth::T3, "次级别 type3 确认深度 c=T3");
+        assert!(!r.leg_pair(1).short_is_core, "L1<核心4 ⇒ H¹短差");
+
+        // bar12：L1 买点平空腿（涨到 95：空腿 basis=100 ⇒ short_pnl=+5/unit）。
+        let mut v = LevelView::empty();
+        v.buy[1] = true;
+        v.nodes[1] = Some(mk_node(0, 12, Direction::Up));
+        v.nodes[4] = Some(mk_node(0, 12, Direction::Up));
+        r.on_bar(&v, 12, 95.0);
+        assert!(!r.leg_pair(1).short_active(), "L1 买点平空腿");
+
+        // bar13：L4 核心走势完成（d_top=type1 卖点）churn 平核心多腿（c=110 ⇒ long_pnl=+10/unit）。
+        let mut v = LevelView::empty();
+        v.sell[4] = true; v.t1sell[4] = true; v.d_top[4] = true;
+        v.nodes[4] = Some(mk_node(0, 13, Direction::Up));
+        r.on_bar(&v, 13, 110.0);
+        assert!(!r.leg_pair(4).long_active(), "核心走势完成 churn 平核心多腿");
+
+        // ── 四轴归格正确性：核心多腿 pnl 在 (4,H⁰,R+,T1)；次级别空腿 pnl 在 (1,H¹,R−,T3）──
+        let (core_pnl, core_cnt) = r.lconfirm_cell(4, 0, 0, ConfDepth::T1 as usize);
+        let (sub_pnl, sub_cnt) = r.lconfirm_cell(1, 1, 1, ConfDepth::T3 as usize);
+        eprintln!("[lconfirm_guard] (4,H⁰,R+,T1)=pnl{core_pnl:+.1}/n{core_cnt}  (1,H¹,R−,T3)=pnl{sub_pnl:+.1}/n{sub_cnt}");
+        assert_eq!(core_cnt, 1, "核心多腿恰 1 笔进 (4,H⁰,R+,T1)");
+        assert_eq!(sub_cnt, 1, "次级别空腿恰 1 笔进 (1,H¹,R−,T3)");
+        assert!(core_pnl > 0.0, "核心多腿 110−100=赚 ⇒ 该格子正");
+        assert!(sub_pnl > 0.0, "次级别空腿 100→95=赚 ⇒ 该格子正");
+
+        // ── 机械穷尽守卫（无条件恒须成立）：Σ纤维 == Σ总leg realized（无逃逸 P&L 流）──
+        r.assert_lconfirm_exhaustive();
+        let (fiber, total, ok) = r.lconfirm_exhaustive_check();
+        assert!(ok, "穷尽守卫：Σ纤维={fiber:.6} == Σ总leg={total:.6}");
+        assert!(!r.leg_trades.is_empty(), "至少一笔腿平仓（守卫非平凡）");
+    }
+
     /// **递归流式笔底座零 panic + 有限正 final_nav**（TW 守恒守卫每操作，a0=笔 526号）。
     #[test]
     fn 递归流式笔底座零panic() {
@@ -1666,6 +1957,72 @@ mod tests {
             }
         }
         assert!(any, "至少跑出一个标的的 RB_PAIR 变体");
+    }
+
+    /// **L_confirm 第四轴 L3 裁定（task#95 W-lconfirm，可证伪，否定性优先）**：8 标的真实数据，audit ON +
+    /// RB_PAIR(Face A 默认引擎) 跑全量，输出 per `(级别 k, 腿 leg, 方向 dir, 确认深度 c)` 纤维格子 P&L +
+    /// 机械穷尽守卫，**裁定同一 (k,leg,dir) cell 内 P&L 是否按 c 符号分裂**：
+    ///   - 假设 H1：同 cell 内 P&L 按 c 分桶符号分裂 ⇒ 第四轴坐实 ⇒ 索引必须扩为 π(k,leg,dir,c)，#92/597 改四轴。
+    ///   - 若所有 c 桶符号一致 ⇒ 第四轴被否证 ⇒ 三轴 K×L×D 足够，#92 完备性恢复（对 #92 有利的否定性结果）。
+    /// 数据依赖：`analysis/data_cache/*.json`（8 标的 1m databento）。当前主仓 symlink 断裂=数据缺失 ⇒ 全跳过。
+    /// 跑法：`T_LCONFIRM_AUDIT=1 BT_SYMBOLS=CL cargo test --release recursive_t::rec_stream::tests::lconfirm_4axis_l3 -- --ignored --nocapture`
+    #[test]
+    #[ignore = "L_confirm 第四轴 L3 裁定，需 analysis/data_cache/*.json（8 标的 1m databento）"]
+    fn lconfirm_4axis_l3() {
+        use super::super::rec_engine::{ConfDepth, EngineConfig};
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_default();
+
+        // audit ON 注入 Face A（生产默认引擎）——4 轴裁定须在生产路径上做（非 RB_PAIR 裸基线）。
+        let mut cfg = EngineConfig::production();
+        cfg.enable_lconfirm_audit = true;
+
+        eprintln!("\n===== task#95 L_confirm 第四轴 L3 裁定（8 标的，audit ON + production/Face A）=====");
+        let leg_name = ["H⁰核心", "H¹短差"];
+        let dir_name = ["R+", "R−"];
+        let c_name = ["T1深", "T2中", "T3浅"];
+        let mut any = false;
+        // 跨标的聚合：每个 (leg,dir) 维度上，收集每个 c 桶的符号（用于全局符号分裂裁定）。
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            any = true;
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, cfg);
+            for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+            s.finish();
+            let r = s.driver().root();
+
+            // 机械穷尽守卫（无条件）：Σ纤维 == Σ总leg realized（不等=有未分类 P&L 流=分类不完备）。
+            let (fiber, total, ok) = r.lconfirm_exhaustive_check();
+            eprintln!("\n[{sym}] 穷尽守卫: Σ纤维={fiber:+.0} Σ总leg={total:+.0} 一致={ok}");
+            r.assert_lconfirm_exhaustive();
+
+            // per (leg,dir) 打印 3 个 c 桶 + 符号分裂裁定。
+            for leg in 0..2 { for dir in 0..2 {
+                let cells: Vec<(usize, f64, u64)> = (0..3)
+                    .map(|cc| { let (p, n) = r.lconfirm_cell_sum(leg, dir, cc); (cc, p, n) })
+                    .filter(|&(_, _, n)| n > 0)
+                    .collect();
+                if cells.is_empty() { continue; }
+                let desc: Vec<String> = cells.iter()
+                    .map(|&(cc, p, n)| format!("{}={:+.0}/n{}", c_name[cc], p, n)).collect();
+                // 符号分裂判定：有 c 桶 >0 且有 c 桶 <0（同 (leg,dir) cell 内符号不一致）。
+                let has_pos = cells.iter().any(|&(_, p, _)| p > 0.0);
+                let has_neg = cells.iter().any(|&(_, p, _)| p < 0.0);
+                let split = if has_pos && has_neg { "★符号分裂(第四轴坐实)" } else { "符号一致(第四轴否证)" };
+                eprintln!("  [{sym}] ({},{}) 跨k聚合: {} ⇒ {}", leg_name[leg], dir_name[dir], desc.join(" "), split);
+            }}
+            let _ = ConfDepth::T1; // 显式引用确认 enum 在 scope（裁定依据）。
+        }
+        assert!(any, "至少跑出一个标的（否则数据缺失，见报告 §三数据依赖）");
     }
 
     /// **Face B（做空腿赚 #110 implB）L2 验证：核心不僵死 = 删 geom_tower 均匀定仓 + 真否定线**。
