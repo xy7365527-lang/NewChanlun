@@ -243,6 +243,7 @@ if [ -n "$SESSION_ID" ]; then
 import json, os, sys
 session_id = sys.argv[1]
 teams_dir = sys.argv[2]
+transcript = sys.argv[3] if len(sys.argv) > 3 else ''
 required = ['meta-lead','genealogist','quality-guard','code-verifier','meta-observer','topology-manager']
 team_cfg = None
 if os.path.isdir(teams_dir):
@@ -259,14 +260,53 @@ if os.path.isdir(teams_dir):
             team_cfg = d
             break
 if team_cfg is None:
+    # 闭合 check1.5 鸡生蛋缺口（option A 强化逼迫，编排者裁决 2026-06-25）：
+    # 无 team = ceremony 未 bootstrap。仅对 Lead/主 session（无 agentType）强制 ceremony；
+    # teammate（transcript 首条有 agent-setting）不负责 ceremony → 放行。
+    # 无待推进工作（pending 谱系空）→ 不强制（solo/已清空）。
+    is_teammate = False
+    if transcript and os.path.isfile(transcript):
+        try:
+            with open(transcript, encoding='utf-8') as fh:
+                for i, line in enumerate(fh):
+                    if i > 10:
+                        break
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except Exception:
+                        continue
+                    a = rec.get('agentSetting')
+                    if isinstance(a, str) and a:
+                        is_teammate = True
+                        break
+        except Exception:
+            pass
+    if is_teammate:
+        sys.exit(0)
+    pending_dir = '.chanlun/genealogy/pending'
+    has_work = os.path.isdir(pending_dir) and any(fn.endswith('.md') for fn in os.listdir(pending_dir))
+    if has_work:
+        print('__NO_TEAM__')
     sys.exit(0)
 types = set(m.get('agentType','') for m in team_cfg.get('members', []))
 missing = [r for r in required if r not in types]
 print(','.join(missing))
-" "$SESSION_ID" "$HOME/.claude/teams" 2>/dev/null || echo "")
+" "$SESSION_ID" "$HOME/.claude/teams" "$TRANSCRIPT_PATH" 2>/dev/null || echo "")
     if [ -n "$STRUCT_MISSING" ]; then
         echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
-        python -c "
+        if [ "$STRUCT_MISSING" = "__NO_TEAM__" ]; then
+            python -c "
+import json
+print(json.dumps({
+    'decision': 'block',
+    'reason': '[Stop-Guard] 本 session 未 bootstrap 蜂群（无 team）且有待推进的生成态谱系。不允许停止。第一动作=invoke /ceremony 热启动序列：运行 python scripts/ceremony_state.py write 1 initial → python scripts/ceremony_scan.py，由 scan 确定性输出决定本轮工位并并行 spawn（含 6 个常设结构工位 + 业务工位）。137号机制强制：ceremony 自动触发从 SessionStart 文本提示（平台不能 block）升格为 Stop block 强制。若确实无需蜂群，连续 3 次停机由顶部熔断自动放行。'
+}, ensure_ascii=False))
+"
+        else
+            python -c "
 import json, sys
 missing = sys.argv[1]
 print(json.dumps({
@@ -274,6 +314,7 @@ print(json.dumps({
     'reason': f'[Stop-Guard] 蜂群缺失常设结构工位（095/096号 bootstrap 强制；137号 hook 机制化——文本提示升格为机制强制）: [{missing}]。不允许停止。立即并行 spawn 缺失的结构工位 teammates：Agent(name=结构工位名, subagent_type=结构工位名, run_in_background=true)（隐式 team / flat roster，非 stale Task(team_name=)），见 .claude/team-topology.json structural_agents。spawn 时 prompt 注入 topo_address+parent_callback 基因（073a/274号，#41 第二轮）。结构工位是 teammate（编排者裁决扬弃 075号"结构=skill"），不是纯 skill 事件驱动。'
 }, ensure_ascii=False))
 " "$STRUCT_MISSING"
+        fi
         exit 0
     fi
 fi
