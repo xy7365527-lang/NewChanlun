@@ -1286,21 +1286,27 @@ impl TRoot {
     }
 
     /// **sink @ (parent→sub)**（= flat sink）：父减仓 m=u_P/3 + 次级别开 flip(d_P) 短差 m。
-    /// **节点 j 在 r\*（最高活跃级别=核心）的级别角色判别（task#63，#61 §3.4 断言U / §五）**：
-    /// 返回 true ⟺ j 是 r* 的 **R−（反向回调腿）**——即 j 严格低于核心级别 ∧ j 触发的操作极性反核心方向。
-    /// `is_buy=true`（买点 ⇒ 操作偏 Long）∧ 核心 Short ⇒ 反核心向 ⇒ R−；`is_buy=false`（卖点 ⇒ 偏 Short）
-    /// ∧ 核心 Long ⇒ 反核心向 ⇒ R−（主升浪中的次级别回调卖点）。同向 = R+（延续腿，不保护，正常 sink）。
-    /// **断言U 穷尽性（§3.4）**：构成段对核心主方向要么顺(R+)要么逆(R−)，无第三态。core=None（无核心）⇒
-    /// 无 r* 角色 ⇒ false（首建仓不是回调腿）。core==j（j 即核心级，但走到此分支说明 j 有活跃祖先 ⇒ j<某活跃级，
-    /// 此处 r*=highest_active ≥ j；若 r*==j 则 j 是核心，不应在 Some(p) 分支，防御返回 false）。
-    /// **双源乘积判别（#61 §3.0：拓扑级别角色 ⊗ 力度公理 F，二者正交不可互导）**：
-    /// 单凭拓扑角色（j 反核心向）**不足以**区分「真转折」vs「回调腿」——因为 is_reduce 分支里所有次级别
-    /// 反父向 BSP 拓扑上都反核心向（恒 R−）。必须 ⊗ **力度轴 F**：r* 自身走势**是否完成**。
-    /// - **F 未激活**（`!view.d_top[rstar]`：r* 区间套链未贯通真顶/真底 = 走势未完成）⇒ 这是 R− **回调腿**
-    ///   （主升浪/主跌浪中途的次级别回调）⇒ **保护核心**（机动不动核心，§六 O6）。
-    /// - **F 激活**（`view.d_top[rstar]`：r* 走势完成）⇒ 这是 r* 自身的**真转折**（type1）⇒ 不保护，正常
-    ///   sink（核心该减/翻）。**初版 NODEVEC-only 实测教训**：缺 F 轴 ⇒ 全标的 sink=0（过度抑制 = 把真转折
-    ///   也禁了）⇒ 强牛溶解(BTC+1537%)但震荡爆仓(CL−104.9%)。这正是 #61 §3.0「拓扑不能导出力度」的经验印证。
+    /// **节点 j 在 r\*（最高活跃级别=核心）的级别角色判别（task#64 O6 精修，#61 §3.4 断言U / §五）**：
+    /// 返回 true ⟺ j 是**主升浪中的 R− 回调腿**（核心 H⁰ 应保护、机动 H¹ 对冲）。
+    ///
+    /// **判别量 = 级别角色方向轴 `view.top_trend_dir`（nf/morphology 驱动，永不退化），NOT 力度轴 d_top（退化）。**
+    /// task#63 误用 `d_top[r*]`（区间套链贯通=走势完成）作判别量——但**最高涌现级别恒生长不产 type1**
+    /// （[[project_l4_consoldn_no_leave_falsified]]）⇒ `d_top[r*]` 在 net-up 恒 false ⇒ 双源坍回单源 ⇒
+    /// 对所有次级别反核心向 BSP（含真下跌段）全保护 ⇒ 下跌段核心裸多扛跌爆仓（CL/BRN/OKLO −100%）。
+    /// **真判别量 = r* 走势方向**：最高涌现级别恒不产 type1（力度退化），但它的**方向**恒由 nf 驱动已知
+    /// （morphology emergent_dir），**方向轴不退化**。
+    ///
+    /// **O6 按 r* 走势方向（top_trend_dir）二分（编排者操作语义裁定）**：
+    /// - **r\* = R+（top_trend_dir=Up 主升浪）∧ 次级别反核心向（回调）** ⇒ **保护核心**（true）：核心 H⁰
+    ///   不动，机动 H¹ 在次级别回调走短差对冲（sink/recover）。主升浪回调不砍核心 = 不踏空。
+    /// - **r\* = R−（top_trend_dir=Down 下跌段）** ⇒ **不保护**（false）：次级别下跌 = 主跌的次级别延续，
+    ///   核心 H⁰ 本就该被 sink/减（走常规路径，不裸多扛跌）。**这不是 O6 特例**（CL/BRN/OKLO 爆仓根因 =
+    ///   #63 误把下跌段当回调 no-op 掉核心裸多，本修复让下跌段核心正确 sink）。
+    /// - **同一观察到的「次级别下跌走势」在 r*=R+ vs r*=R− 下操作相反**——读全纤维（含 r* 角色方向分量）⇒
+    ///   踏空（纤维拍扁）溶解。力度轴退化不致命，判别用非退化的级别角色方向轴。
+    ///
+    /// **断言U 穷尽性（§3.4）**：构成段对核心主方向要么顺(R+)要么逆(R−)，无第三态。无核心 / j≥r* / top
+    /// 方向未知（None，无任何走势）⇒ 非主升浪回调腿 ⇒ false（保守，走常规 sink，bit-exact 安全）。
     fn is_rstar_pullback_leg(&self, j: usize, is_buy: bool, view: &LevelView) -> bool {
         match self.highest_active() {
             None => false, // 无核心 ⇒ 无 r* 角色
@@ -1314,17 +1320,31 @@ impl TRoot {
                     Polarity::Long => !is_buy,  // 核心多：次级别卖点
                     Polarity::Short => is_buy,  // 核心空：次级别买点
                 };
-                // 力度轴 F（#61 §3.0）：r* 走势未完成 ⇒ 回调腿（保护核心）；走势完成 ⇒ 真转折（不保护）。
-                let rstar_trend_done = view.d_top.get(rstar).copied().unwrap_or(false);
-                topo_pullback && !rstar_trend_done
+                // 级别角色方向轴（nf 驱动，永不退化）：仅 r* 走势方向 = 核心方向（主升浪/主跌浪延续中）
+                // 才保护核心。top_trend_dir 反核心方向（顶背驰转向）⇒ 走势已转，核心该常规减仓（不保护）。
+                let rstar_continuing = match (view.top_trend_dir, cdir) {
+                    (Some(Direction::Up), Polarity::Long) => true,    // 核心多 + 最高走势仍涨 ⇒ 主升浪回调
+                    (Some(Direction::Down), Polarity::Short) => true, // 核心空 + 最高走势仍跌 ⇒ 主跌浪反弹
+                    _ => false, // 走势反核心向（转向/下跌段）∨ 未知 ⇒ 不保护（核心该常规 sink）
+                };
+                topo_pullback && rstar_continuing
             }
         }
     }
 
-    /// **sink 守卫包装（task#63 §六 O6 机动不动核心）**：`protect_core=true`（R− 回调腿）⇒ sink 配额作用于
-    /// **零机动仓**（mob_base=0 ⇒ m=0 ⇒ 核心 units 不减），只在子级别建/维持反向短差腿——这是「机动不动核心」
-    /// 的精确语义：核心父仓在主升浪回调处**不被砍**。`protect_core=false`（R+ 延续腿/门控 OFF）⇒ 透传 `sink`
-    /// 原行为（bit-exact）。
+    /// **sink 守卫包装（task#64 O6 机动不动核心，编排者操作语义裁定）**：`protect_core=true`（R+ 主升浪回调腿）
+    /// ⇒ **核心 H⁰ units 不减**（不调 `rec_reduce(parent)`）**∧ 机动 H¹ 在 sub 级别开/维持反父向短差空腿**
+    /// （对冲次级别回调下行）。这是「机动不动核心」的精确语义两半：核心不被砍（H⁰ 死扣骑主升浪）+ 机动腿
+    /// 仍开（H¹ 对冲回调）。`protect_core=false`（R− 下跌段延续腿 / 门控 OFF）⇒ 透传原 `sink`（核心常规减仓，bit-exact）。
+    ///
+    /// **task#63 误实装（本修复纠正）**：#63 把 protect_core 实装为 `mob_base=0 ⇒ m=0 ⇒ 整个 sink return`
+    /// ——**连机动对冲腿也杀了**（编排者诊断：「杀掉机动对冲腿」）。后果：R+ 回调处机动 H¹ 该做空 r*-1 下跌却
+    /// 什么都不做 ⇒ 无对冲 + 核心裸多（sink=0 全标的）。本修复解耦「核心减仓量 m_core」与「机动腿开仓量 m_hedge」：
+    /// protect_core ⇒ m_core=0（核心不动）∧ m_hedge=quota(u_p)（机动腿照常开空）。
+    ///
+    /// **会计严格性（NAV 中性独立于核心减仓）**：开空 `rec_add(sub, short_u, Short)` 内部 `free += short_u·c`
+    /// （卖空收现金）+ sub 空头市值 −short_u·c ⟹ ΔNAV=0。故机动空腿可独立于核心减仓存在（资金来自卖空收入，
+    /// **非**核心释放资本）——这是会计上严格成立的解耦，不是补丁。`prove_tw_neutral` 逐 bar 验收守恒。
     fn sink_guarded(&mut self, parent: usize, sub: usize, sub_node: TrendNode, c: f64, protect_core: bool) {
         self.sink_impl(parent, sub, sub_node, c, protect_core);
     }
@@ -1337,14 +1357,14 @@ impl TRoot {
         let u_p = self.instances[parent].units;
         let pdir = self.instances[parent].direction;
         // ANCHOR（552号）：配额作用于机动仓 u_P−anchor（趋势底仓死扣不下放），OFF 时 anchor=0 ⇒ mob_base=u_P（bit-exact）。
-        // task#63 节点向量：protect_core=true（R− 回调腿）⇒ mob_base=0 ⇒ m=0 ⇒ 核心不减（机动不动核心，§六 O6）。
-        let mob_base = if protect_core {
-            0.0
-        } else if self.enable_hold_anchor {
+        let mob_base = if self.enable_hold_anchor {
             (u_p - self.instances[parent].anchor).max(0.0)
         } else {
             u_p
         };
+        // **机动配额 m（task#64 O6：核心减仓量与机动腿开仓量解耦）**：
+        // - protect_core=false（R− 下跌段延续 / OFF）：m_core=m_hedge=quota(mob_base)，核心减 m_core + sub 开 m_hedge 短差（原行为，bit-exact）。
+        // - protect_core=true（R+ 主升浪回调）：m_core=0（核心不减），m_hedge=quota(mob_base)（机动腿照常开空对冲）。
         let m = quota(mob_base);
         if !(m > 1e-12 && m.is_finite()) || m > u_p + 1e-9 {
             return;
@@ -1353,7 +1373,7 @@ impl TRoot {
         if self.instances[sub].is_active() && self.instances[sub].direction != mob {
             return;
         }
-        // 同资本 sizing（编排者裁决 2026-06-21）：开空 units = reduce 释放的资本金额（m×parent.basis）
+        // 同资本 sizing（编排者裁决 2026-06-21）：开空 units = 机动配额对应资本金额（m×parent.basis）
         // 在当前价 c 开空 = m×pb/c。价越高→同资本开的空头越少→牛市空头累积减轻、全仓 NAV 不易被拖到 0。
         // pb 必须在 reduce 前捕获（reduce 把 units 减到 ≤EPS 时会污染 basis=NaN）；表达式分组 (m*pb)/c
         // 与 flat t_engine 逐字一致保 bit-exact。
@@ -1362,20 +1382,28 @@ impl TRoot {
         if !(short_u > 1e-12 && short_u.is_finite()) {
             return;
         }
-        // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=u_P×MOBILE_FRAC。
+        // 移植守卫（L0，从 spiral/fugue_v3）：区间套向心下沉 sub<parent + σ-不变配额 m=mob_base×MOBILE_FRAC。
         prove_sink_descends(parent, sub, self.cur_bar);
         prove_sigma_quota(m, mob_base, sub, self.cur_bar); // anchor OFF ⇒ mob_base=u_p（bit-exact）
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
-        let realized = rec_reduce(&mut self.instances[parent], m, &mut free, c);
+        // **核心减仓（task#64 O6）**：protect_core=true（R+ 回调）⇒ 核心 H⁰ 不减（realized=0，机动不动核心）；
+        // protect_core=false（R− / OFF）⇒ 核心减 m（原行为，bit-exact）。
+        let realized = if protect_core {
+            0.0
+        } else {
+            rec_reduce(&mut self.instances[parent], m, &mut free, c)
+        };
+        // **机动腿开空（两分支共有）**：sub 级别开/维持反父向短差空腿（NAV 中性，free += short_u·c 卖空收入）。
         rec_add(&mut self.instances[sub], short_u, mob, &mut free, c);
         self.free = free;
         self.instances[sub].node = sub_node;
         self.instances[sub].level = sub;
+        // account_reduce 处理核心减仓 pnl（降成本/退本金）；protect_core ⇒ realized=0 ⇒ 核心账本不动（仅空腿 pnl 在 recover 结算）。
         self.account_reduce(pdir, realized, c);
         self.n_sinks += 1;
         self.guards.note_op("sink"); // prove_bsp_triggers_operation（panic）
-        self.guards.on_sink(); // prove_sink_recover_balance（campaign 内累计）
+        self.guards.on_sink(); // prove_sink_recover_balance（campaign 内累计；机动腿在两分支均建立 ⇒ 计入配对）
         if sub < MAX_LEVEL {
             self.sink_by_level[sub] += 1; // 诊断：per-level sink
         }
