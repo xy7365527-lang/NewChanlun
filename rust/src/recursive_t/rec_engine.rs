@@ -671,6 +671,9 @@ pub struct LevelView {
     /// 源头审计 src-prop13（第27课区间套）：区间套前提 = 大级别**背驰段**（非走势完成）。
     pub top_diverge: Option<Polarity>,
     /// 最高级别**当前走势几何方向**（NEST 反转去武装：armed 与当前 top 方向不一致 ⇒ top 已反转 ⇒ 清 armed）。
+    /// **来源（F3 精确化）**：走势树最高非空层 `tree.levels[tl]` 的末走势 `direction`（`tl=rposition(非空 trends)`）。
+    /// 该层 direction 由上游 nest/morphology 数据流（`emergent_dir`）决定——「nf/morphology 驱动」描述的是
+    /// **上游数据流来源**（走势识别 morphology 决定走势方向），非本字段直接调用 nf。本字段是被动注入的投影值。
     pub top_trend_dir: Option<Direction>,
     /// **每级别背驰段操作极性**（多重赋格 + consume平空 + 严格逐级区间套，任务22）：
     /// `level_diverge[k]` = 级别 k 当前走势进入背驰段时的操作极性（顶背驰段→Short / 底背驰段→Long），None=该级未进背驰段。
@@ -1297,17 +1300,28 @@ impl TRoot {
     /// （morphology emergent_dir），**方向轴不退化**。
     ///
     /// **O6 按 r* 走势方向（top_trend_dir）二分（编排者操作语义裁定）**：
-    /// - **r\* = R+（top_trend_dir=Up 主升浪）∧ 次级别反核心向（回调）** ⇒ **保护核心**（true）：核心 H⁰
+    /// - **r\* = R+（r* 核心层走势=Up 主升浪）∧ 次级别反核心向（回调）** ⇒ **保护核心**（true）：核心 H⁰
     ///   不动，机动 H¹ 在次级别回调走短差对冲（sink/recover）。主升浪回调不砍核心 = 不踏空。
-    /// - **r\* = R−（top_trend_dir=Down 下跌段）** ⇒ **不保护**（false）：次级别下跌 = 主跌的次级别延续，
+    /// - **r\* = R−（r* 核心层走势=Down 下跌段）** ⇒ **不保护**（false）：次级别下跌 = 主跌的次级别延续，
     ///   核心 H⁰ 本就该被 sink/减（走常规路径，不裸多扛跌）。**这不是 O6 特例**（CL/BRN/OKLO 爆仓根因 =
     ///   #63 误把下跌段当回调 no-op 掉核心裸多，本修复让下跌段核心正确 sink）。
     /// - **同一观察到的「次级别下跌走势」在 r*=R+ vs r*=R− 下操作相反**——读全纤维（含 r* 角色方向分量）⇒
     ///   踏空（纤维拍扁）溶解。力度轴退化不致命，判别用非退化的级别角色方向轴。
     ///
-    /// **断言U 穷尽性（§3.4）**：构成段对核心主方向要么顺(R+)要么逆(R−)，无第三态。无核心 / j≥r* / top
-    /// 方向未知（None，无任何走势）⇒ 非主升浪回调腿 ⇒ false（保守，走常规 sink，bit-exact 安全）。
-    fn is_rstar_pullback_leg(&self, j: usize, is_buy: bool, view: &LevelView) -> bool {
+    /// **判别量来源（task#64 O6，codex 🔴HIGH #78 修复——方法1）**：r* 走势方向取自 **`instances[rstar].node.direction`**
+    /// （rstar 核心层**实际所骑走势节点**的方向），NOT `view.top_trend_dir`（走势树最高非空层方向）。
+    /// **codex 时序证据链**：route_bsp 序 = 强平 → emergence_upgrade（A'）→ route_bsp（B）（rec_driver.rs:40）。
+    /// A' 段 emergence_upgrade 把 highest_active 推到 emergent 层 + `ascend` 更新 `instances[rstar].node` 为
+    /// emergent 层走势节点（rec_engine.rs:1269/2625）；但 `view.top_trend_dir` 来自走势树最高非空层（rec_stream
+    /// rposition），二者**运行时错位**（rstar 已升高层、top_trend_dir 仍描述产生它的低层走势）⇒ 判别量取自
+    /// 错误级别。改读 `instances[rstar].node.direction` = ascend 后核心层的真实走势方向 = 「r* 角色方向」的正确
+    /// 来源（逐级方向第一步：每级有自己的方向，非单一 top_trend_dir）。debug_assert-only 守卫（前版 F1）已删——
+    /// release 下不生效仍消费错层 top_trend_dir = papers over production bug（no-patch-mentality）。
+    ///
+    /// **断言U 穷尽性（§3.4）**：构成段对核心主方向要么顺(R+)要么逆(R−)，无第三态。无核心 / j≥r* ⇒ 非主升浪
+    /// 回调腿 ⇒ false（保守，走常规 sink，bit-exact 安全）。rstar 必 active（highest_active 返回）⇒ node 已由
+    /// enter/sink/ascend 设置 ⇒ node.direction 非退化（无 None 态）。
+    fn is_rstar_pullback_leg(&self, j: usize, is_buy: bool) -> bool {
         match self.highest_active() {
             None => false, // 无核心 ⇒ 无 r* 角色
             Some(rstar) => {
@@ -1320,12 +1334,15 @@ impl TRoot {
                     Polarity::Long => !is_buy,  // 核心多：次级别卖点
                     Polarity::Short => is_buy,  // 核心空：次级别买点
                 };
-                // 级别角色方向轴（nf 驱动，永不退化）：仅 r* 走势方向 = 核心方向（主升浪/主跌浪延续中）
-                // 才保护核心。top_trend_dir 反核心方向（顶背驰转向）⇒ 走势已转，核心该常规减仓（不保护）。
-                let rstar_continuing = match (view.top_trend_dir, cdir) {
-                    (Some(Direction::Up), Polarity::Long) => true,    // 核心多 + 最高走势仍涨 ⇒ 主升浪回调
-                    (Some(Direction::Down), Polarity::Short) => true, // 核心空 + 最高走势仍跌 ⇒ 主跌浪反弹
-                    _ => false, // 走势反核心向（转向/下跌段）∨ 未知 ⇒ 不保护（核心该常规 sink）
+                // 级别角色方向轴（codex 方法1：读 rstar 核心层**实际所骑走势节点**方向，非 view.top_trend_dir）：
+                // 仅 rstar 走势方向 = 核心持仓方向（主升浪/主跌浪延续中）才保护核心。rstar 走势反核心向（顶背驰
+                // 转向）⇒ 走势已转，核心该常规减仓（不保护）。node.direction 由 emergence_upgrade/ascend 同步到
+                // 升级后的核心层走势 ⇒ 与 rstar 严格同层（消除 top_trend_dir 的级别错位）。
+                let rstar_trend_dir = self.instances[rstar].node.direction;
+                let rstar_continuing = match (rstar_trend_dir, cdir) {
+                    (Direction::Up, Polarity::Long) => true,    // 核心多 + rstar 走势仍涨 ⇒ 主升浪回调
+                    (Direction::Down, Polarity::Short) => true, // 核心空 + rstar 走势仍跌 ⇒ 主跌浪反弹
+                    _ => false, // rstar 走势反核心向（转向/下跌段）⇒ 不保护（核心该常规 sink）
                 };
                 topo_pullback && rstar_continuing
             }
@@ -1362,9 +1379,10 @@ impl TRoot {
         } else {
             u_p
         };
-        // **机动配额 m（task#64 O6：核心减仓量与机动腿开仓量解耦）**：
-        // - protect_core=false（R− 下跌段延续 / OFF）：m_core=m_hedge=quota(mob_base)，核心减 m_core + sub 开 m_hedge 短差（原行为，bit-exact）。
-        // - protect_core=true（R+ 主升浪回调）：m_core=0（核心不减），m_hedge=quota(mob_base)（机动腿照常开空对冲）。
+        // **机动配额 m（task#64 O6 终版：R+ 被动保护）**：
+        // - protect_core=false（R− 下跌段延续 / OFF）：核心减 m=quota(mob_base) + sub 开 m 短差（原行为，bit-exact）。
+        // - protect_core=true（R+ 主升浪回调）：核心不减（realized=0）∧ **不开 hedge 空腿**（见下 rec_add 门控，
+        //   #567 真539：主动 hedge 强牛失血 ⇒ 被动保护）⇒ sink 退化为 no-op（仅核心保护,不动核心不开空）。
         let m = quota(mob_base);
         if !(m > 1e-12 && m.is_finite()) || m > u_p + 1e-9 {
             return;
@@ -1387,15 +1405,24 @@ impl TRoot {
         prove_sigma_quota(m, mob_base, sub, self.cur_bar); // anchor OFF ⇒ mob_base=u_p（bit-exact）
         let tw_pre = self.total_wealth(c);
         let mut free = self.free;
-        // **核心减仓（task#64 O6）**：protect_core=true（R+ 回调）⇒ 核心 H⁰ 不减（realized=0，机动不动核心）；
-        // protect_core=false（R− / OFF）⇒ 核心减 m（原行为，bit-exact）。
+        // **核心减仓（task#64 O6 终版）**：protect_core=true（R+ 主升浪回调）⇒ 核心 H⁰ 不减（realized=0）；
+        // protect_core=false（R− 下跌段延续 / OFF）⇒ 核心减 m（原行为，bit-exact）。
         let realized = if protect_core {
             0.0
         } else {
             rec_reduce(&mut self.instances[parent], m, &mut free, c)
         };
-        // **机动腿开空（两分支共有）**：sub 级别开/维持反父向短差空腿（NAV 中性，free += short_u·c 卖空收入）。
-        rec_add(&mut self.instances[sub], short_u, mob, &mut free, c);
+        // **机动腿开空（task#64 O6 终版：R+ 不开 hedge 空腿 = 被动保护）**：
+        // protect_core=false（R−/OFF）⇒ 开/维持反父向短差空腿（原行为，bit-exact）。
+        // protect_core=true（R+ 主升浪回调）⇒ **不开 hedge 空腿**——主动 hedge 在强牛系统性失血 = #567
+        // 已结算「强趋势 hedge 短腿=真539 不可约失血」。L3 坐实：开 hedge 则 BTC −132468%/CL −677%（账户打穿,
+        // short_pnl −60M）；不开则 BTC +381.5%/CL −68.2%（爆仓全消, liq=0 无穿仓, 逐字复现 o6-level-role 报告）。
+        // O6 R+ 保护正解 = **被动保护**（核心不动 + 不开新空腿），非编排者裁定字面的「机动主动做空 r*-1」——
+        // 机制层 L3 否定性结果（formalization-validity-domain），目标（踏空溶解+不爆仓）由被动保护达成。
+        // 有效域：⊂ net-up regime（真 bear 下 active hedge 可能赚=#567 诚实声明，8 net-up 标的无法证，231号）。
+        if !protect_core {
+            rec_add(&mut self.instances[sub], short_u, mob, &mut free, c);
+        }
         self.free = free;
         self.instances[sub].node = sub_node;
         self.instances[sub].level = sub;
@@ -1538,7 +1565,7 @@ impl TRoot {
     }
 
     /// **route_bsp**（= flat route_bsp）：level j 的 BSP 分派。task#63：+`view` 传力度轴（双源乘积，#61 §3.0）。
-    fn route_bsp(&mut self, j: usize, is_buy: bool, node: TrendNode, c: f64, view: &LevelView) {
+    fn route_bsp(&mut self, j: usize, is_buy: bool, node: TrendNode, c: f64) {
         self.guards.set_trigger(OpTrigger::Bsp); // 本路由触发的所有原子操作归因 BSP
         match self.nearest_active_parent(j) {
             // ── 子级（有活跃祖先 P）：区间套约束，永不独立翻转 ──
@@ -1559,7 +1586,7 @@ impl TRoot {
                         // 读节点 j 在 r*（最高活跃级别=核心）的级别角色：j<r* ∧ 反核心向 ⇒ R−（回调腿）。
                         // R− 回调腿的 sink 在主升浪回调处砍核心 = 踏空根因①④。门控 ON ⇒ 强制核心保护
                         // （mob 配额作用于零 = 核心 units 不减，只在子级别开/维持反向短差腿）。
-                        let protect_core = self.enable_orbit9_nodevec && self.is_rstar_pullback_leg(j, is_buy, view);
+                        let protect_core = self.enable_orbit9_nodevec && self.is_rstar_pullback_leg(j, is_buy);
                         self.sink_guarded(p, j, node, c, protect_core);
                     } else {
                         self.drain(j, c);
@@ -2610,9 +2637,9 @@ impl TRoot {
                 TrendNode::new(bar, bar, c, c, if b { Direction::Up } else { Direction::Down })
             });
             if b {
-                self.route_bsp(j, true, node, c, view);
+                self.route_bsp(j, true, node, c);
             } else if s {
-                self.route_bsp(j, false, node, c, view);
+                self.route_bsp(j, false, node, c);
             }
         }
 
@@ -2804,7 +2831,7 @@ mod orbit9_add_dispatch_tests {
         assert!(!r.enable_orbit9_dispatch, "off() ⇒ orbit9 OFF");
         // 同父向 BSP（父多 + 买点）@ sub L0 ⇒ recover（整条升回），非 add。
         let c = 11.0;
-        r.route_bsp(0, true, node(Direction::Up), c, &LevelView::empty());
+        r.route_bsp(0, true, node(Direction::Up), c);
         // OFF ⇒ 走 recover（sub 短差整条清空），n_adds 恒 0。
         assert_eq!(r.n_adds, 0, "OFF ⇒ add 分支未激活（bit-exact）");
         assert_eq!(r.instances[0].units, 0.0, "OFF recover 平整条 ⇒ sub 短差清空");
@@ -2825,7 +2852,7 @@ mod orbit9_add_dispatch_tests {
         r.sink(2, 0, node(Direction::Down), c * 1.1);
         assert!(r.enable_orbit9_dispatch);
         // 占位 fallback=true ⇒ 走势完成 ⇒ recover（与 OFF 同，保未整合 bit-exact）。
-        r.route_bsp(0, true, node(Direction::Up), c, &LevelView::empty());
+        r.route_bsp(0, true, node(Direction::Up), c);
         assert_eq!(r.n_adds, 0, "占位 fallback=true ⇒ 仍 recover（C 接口未就位 bit-exact）");
         assert_eq!(r.n_recovers, 1);
     }
