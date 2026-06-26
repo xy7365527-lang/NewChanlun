@@ -66,8 +66,8 @@ pub mod types;
 
 pub use operator::apply_t;
 pub use types::{
-    A0Source, Direction, PerfectionMode, RecursiveTree, TLevelOutput, TrendKind, TrendType, Unit,
-    Zhongshu, BSPKind, BSP,
+    aggregate_endpoints, A0Source, Direction, EndpointLabels, PerfectionMode, RecursiveTree,
+    TLevelOutput, TrendKind, TrendType, Unit, Zhongshu, BSPKind, BSP,
 };
 
 /// Tᵏ 迭代驱动器：从 a₀（笔序列）迭代到涌现上界 r*。

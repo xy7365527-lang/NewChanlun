@@ -213,6 +213,94 @@ pub struct BSP {
     pub level: usize,
 }
 
+/// ★端点买卖点标签集（603 §2.3 + codex 硬修正2 + 升跌完备性010 + Lean `BSPLabels` 镜像）。
+///
+/// **范式纠正**：`BSPKind` 是**单信号**互斥 enum——它正确标注一个孤立背驰/突破信号。
+/// 但缠论的**端点**完全分类（升跌完备性，第21课 maimai.md:50）不是"端点属唯一一类"，
+/// 是"端点持有**非空标签集** ⊆ {1B,2B,3B}"——一个端点可同时是 2B 与 3B（V 型反转，
+/// maimai.md:170）。互斥 enum **无法表达** 2B/3B 同点重合，故需端点聚合类型。
+///
+/// 这是**加法的读出视图**（聚合已发射的 BSP），不改变引擎逐信号发射行为（env-gate 约束）——
+/// 它使 603 硬修正2 在类型系统中**可表达**（2B/3B 共存），同时保 `BSP` 发射 bit-exact。
+///
+/// 不变量（构造时强制，与 Lean `BSPLabelSet.nonempty` 对应）：`labels` 非空、去重。
+#[derive(Debug, Clone, PartialEq)]
+pub struct EndpointLabels {
+    /// 该端点（同一 bar+level）持有的全部 BSP 标签（去重、非空）。
+    labels: Vec<BSPKind>,
+    pub bar: i64,
+    pub price: f64,
+    pub level: usize,
+}
+
+impl EndpointLabels {
+    /// 从同一端点的一组 BSP 构造标签集。返回 `None` 当输入为空（升跌完备性010：
+    /// 端点标签集必非空——空集不是合法端点，对应 Lean `nonempty : labels ≠ []`）。
+    ///
+    /// 去重：同 (bar, price, level) 的多个 BSP 的 `kind` 合入一个标签集（保留首次出现序）。
+    pub fn from_bsps(bsps: &[BSP]) -> Option<EndpointLabels> {
+        let first = bsps.first()?;
+        let mut labels: Vec<BSPKind> = Vec::new();
+        for b in bsps {
+            if !labels.contains(&b.kind) {
+                labels.push(b.kind);
+            }
+        }
+        // first?() 保证 bsps 非空 ⟹ labels 非空（totality）。
+        Some(EndpointLabels {
+            labels,
+            bar: first.bar,
+            price: first.price,
+            level: first.level,
+        })
+    }
+
+    /// 标签集（只读；非空不变量由构造器保证，外部不可破坏）。
+    pub fn labels(&self) -> &[BSPKind] {
+        &self.labels
+    }
+
+    /// 升跌完备性 totality（010）：标签集非空（构造器不变量的运行时读出）。
+    pub fn is_total(&self) -> bool {
+        !self.labels.is_empty()
+    }
+
+    /// 是否含某类买卖点标签。
+    pub fn has(&self, kind: BSPKind) -> bool {
+        self.labels.contains(&kind)
+    }
+
+    /// ★第一类互斥律（maimai.md:170，Lean `Type1Exclusive` 镜像）：
+    /// 端点若含 1B/1S，则不应同时含同向 2/3 类（1B 在中枢下、3B 在中枢上，不可重合）。
+    /// 返回该端点是否满足互斥律（完全分类的合法性谓词，非引擎门控）。
+    pub fn type1_exclusive(&self) -> bool {
+        let has_t1_buy = self.has(BSPKind::Type1Buy);
+        let has_t1_sell = self.has(BSPKind::Type1Sell);
+        let buy_violation = has_t1_buy
+            && (self.has(BSPKind::Type2Buy) || self.has(BSPKind::Type3Buy));
+        let sell_violation = has_t1_sell
+            && (self.has(BSPKind::Type2Sell) || self.has(BSPKind::Type3Sell));
+        !(buy_violation || sell_violation)
+    }
+}
+
+/// 把全塔 BSP 按端点 (bar, level) 聚合为标签集（603 端点完全分类的读出）。
+///
+/// 同一 (bar, level) 的多个 BSP（如 2B+3B 重合）合入一个 `EndpointLabels`。
+/// 这是纯读出聚合，不改变 `RecursiveTree` 的 BSP 发射——env-gate 兼容。
+pub fn aggregate_endpoints(bsps: &[BSP]) -> Vec<EndpointLabels> {
+    use std::collections::BTreeMap;
+    // 按 (level, bar) 分组，保留遇见顺序内的 BSP。
+    let mut groups: BTreeMap<(usize, i64), Vec<BSP>> = BTreeMap::new();
+    for b in bsps {
+        groups.entry((b.level, b.bar)).or_default().push(b.clone());
+    }
+    groups
+        .into_values()
+        .filter_map(|g| EndpointLabels::from_bsps(&g))
+        .collect()
+}
+
 /// 走势类型实例。
 ///
 /// 双重性约束（谱系 540/537，设计文档 §1.3）：封装不可坍缩。`TrendType` 同时保留
@@ -291,5 +379,95 @@ impl RecursiveTree {
     /// 收集全塔所有买卖点（含跨级 type2 投影）。
     pub fn all_bsps(&self) -> Vec<BSP> {
         self.levels.iter().flat_map(|l| l.bsps.iter().cloned()).collect()
+    }
+}
+
+#[cfg(test)]
+mod label_set_tests {
+    //! 端点标签集完全分类 property 测试（603 §2.3，镜像 Lean `BSPLabels`）。
+    use super::*;
+
+    /// 六个 BSPKind 构造子的穷举枚举（exhaustive match 的测试载体）。
+    fn all_kinds() -> [BSPKind; 6] {
+        [
+            BSPKind::Type1Buy,
+            BSPKind::Type1Sell,
+            BSPKind::Type2Buy,
+            BSPKind::Type2Sell,
+            BSPKind::Type3Buy,
+            BSPKind::Type3Sell,
+        ]
+    }
+
+    /// 类型字符串穷尽（exhaustive match 无遗漏分支——构造子完全性）。
+    #[test]
+    fn bspkind_as_str_穷举无遗漏() {
+        for k in all_kinds() {
+            // as_str 是全函数：每个构造子有非空字符串，编译期 match 强制穷尽。
+            assert!(!k.as_str().is_empty());
+        }
+    }
+
+    /// 升跌完备性 totality（010）：空 BSP 列表不构成端点（None）。
+    #[test]
+    fn 空端点无标签集_totality() {
+        assert!(EndpointLabels::from_bsps(&[]).is_none());
+    }
+
+    /// 非空端点标签集 totality 成立。
+    #[test]
+    fn 非空端点标签集_totality成立() {
+        let b = BSP { kind: BSPKind::Type1Buy, bar: 3, price: 10.0, level: 1 };
+        let e = EndpointLabels::from_bsps(&[b]).expect("非空");
+        assert!(e.is_total());
+        assert_eq!(e.labels().len(), 1);
+    }
+
+    /// ★2B/3B 可重合（codex 硬修正2，maimai.md:170）：互斥 enum 不可表达，标签集可。
+    #[test]
+    fn 二B三B同端点可重合() {
+        let b2 = BSP { kind: BSPKind::Type2Buy, bar: 7, price: 12.0, level: 1 };
+        let b3 = BSP { kind: BSPKind::Type3Buy, bar: 7, price: 12.0, level: 1 };
+        let e = EndpointLabels::from_bsps(&[b2, b3]).expect("非空");
+        assert!(e.has(BSPKind::Type2Buy));
+        assert!(e.has(BSPKind::Type3Buy));
+        assert_eq!(e.labels().len(), 2, "2B+3B 应共存");
+        // 2B/3B 重合不违反第一类互斥律（不含 1B）。
+        assert!(e.type1_exclusive());
+    }
+
+    /// 第一类互斥律（maimai.md:170）：1B 与同向 2B/3B 不可重合。
+    #[test]
+    fn 一B与二B同端点违反互斥律() {
+        let b1 = BSP { kind: BSPKind::Type1Buy, bar: 9, price: 5.0, level: 0 };
+        let b2 = BSP { kind: BSPKind::Type2Buy, bar: 9, price: 5.0, level: 0 };
+        let e = EndpointLabels::from_bsps(&[b1, b2]).expect("非空");
+        assert!(!e.type1_exclusive(), "1B+2B 同端点应判违反互斥律");
+    }
+
+    /// 去重：同 kind 多次不重复进标签集。
+    #[test]
+    fn 标签集去重() {
+        let a = BSP { kind: BSPKind::Type1Sell, bar: 2, price: 8.0, level: 0 };
+        let b = BSP { kind: BSPKind::Type1Sell, bar: 2, price: 8.0, level: 0 };
+        let e = EndpointLabels::from_bsps(&[a, b]).expect("非空");
+        assert_eq!(e.labels().len(), 1);
+    }
+
+    /// 端点聚合：同 (bar, level) 的 BSP 合入一个标签集，不同的分开。
+    #[test]
+    fn 按端点聚合标签集() {
+        let bsps = vec![
+            BSP { kind: BSPKind::Type2Buy, bar: 7, price: 12.0, level: 1 },
+            BSP { kind: BSPKind::Type3Buy, bar: 7, price: 12.0, level: 1 },
+            BSP { kind: BSPKind::Type1Sell, bar: 20, price: 30.0, level: 1 },
+        ];
+        let endpoints = aggregate_endpoints(&bsps);
+        assert_eq!(endpoints.len(), 2, "两个不同端点");
+        // 每个端点标签集非空（totality 全局成立）。
+        assert!(endpoints.iter().all(|e| e.is_total()));
+        // bar=7 端点含 2B+3B。
+        let v = endpoints.iter().find(|e| e.bar == 7).unwrap();
+        assert_eq!(v.labels().len(), 2);
     }
 }

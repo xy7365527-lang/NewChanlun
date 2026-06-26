@@ -1877,6 +1877,99 @@ mod tests {
         assert!(!rows.is_empty(), "至少跑出一个标的");
     }
 
+    /// **task#84 子5：逐级内在配额塔 L3 否证（OFF 基座 vs INTRINSIC_QUOTA，可证伪，否定性优先）**。
+    ///
+    /// 这是 #84 唯一正确的 L3 载体——配额机制 `sink/drain/add` 走 `mobile_frac(L_pullback,L_confirm)`
+    /// **只在 instances/route_bsp 路径被消费**（经 `TRoot::on_bar`），而 `backtest_run::t_backtest_8x3`
+    /// 走的是 `apply_bsp` 简化算子层（cash/Position，无 TRoot/on_bar）⟹ `T_INTRINSIC_QUOTA` 在那条路径
+    /// **由构造决定零消费者**（bit-exact 是结构必然，非经验否定）。本测试用 `RecStream::new_with_config`
+    /// 驱动真正消费配额的引擎，OFF=`off()`（σ-不变 1/3 + prove_sigma_quota）vs IQ=`intrinsic_quota()`
+    /// （逐级 mobile_frac，偏离 542 σ-不变=597 子5 授权概念分离）。唯一变量 = `enable_intrinsic_quota`。
+    ///
+    /// 操作语义读数（缠论内在机制，非外在统计）：sink/drain/add = H¹机动仓在次级别区间套回调处的进出
+    /// （反核心向 BSP）；recover/enter/flip = H⁰核心的建仓/翻转。逐级配额改变的是「次级别回调时机动仓
+    /// 砍/补核心的量」，由触发腿 ConfDepth（type1=d_top 深背驰/type3=t3sell 单层转折/type2 中）逐级决定。
+    /// 若 OFF 与 IQ 的 final_nav + 操作计数 bit-exact ⇒ 否定性结果（逐级配额在该标的无操作语义效果，
+    /// 因 sink/drain/add 路径未被触发或机动仓恒零）；若发散 ⇒ 测配额方向是否超 BH（L3 有效域读数）。
+    /// 数据：`analysis/data_cache/*.json`（8 标的 1m databento）。
+    /// 跑法：`cargo test --release recursive_t::rec_stream::tests::prop4_intrinsic_quota_l3 -- --exact --ignored --nocapture`
+    #[test]
+    #[ignore = "task#84 子5 逐级配额 L3 否证，需 analysis/data_cache/*.json（8 标的 1m databento）"]
+    fn prop4_intrinsic_quota_l3() {
+        use super::super::rec_engine::EngineConfig;
+        use crate::recursive_t::backtest_run::{load_clean_ohlc, SYMBOLS};
+        use std::path::PathBuf;
+
+        let data_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().join("analysis/data_cache");
+        let only: Vec<String> = std::env::var("BT_SYMBOLS").ok()
+            .map(|s| s.split(',').map(|x| x.trim().to_uppercase()).filter(|x| !x.is_empty()).collect())
+            .unwrap_or_default();
+
+        eprintln!("\n===== task#84 子5：逐级内在配额塔 L3 否证（OFF 基座 vs INTRINSIC_QUOTA，Structural）=====");
+        // [OFF, IQ] 两变体；唯一变量 = enable_intrinsic_quota（其余 off() 逐字一致 ⇒ 差异全归因逐级配额）。
+        let variants = [
+            ("OFF", EngineConfig::off()),
+            ("IQ", EngineConfig::intrinsic_quota()),
+        ];
+        struct Row {
+            sym: String, bh: f64, n: usize, ceiling: usize,
+            strat: [f64; 2],
+            // 操作计数 [enter, sink, drain, add, recover, flip, clears, liq]。
+            ops: [[u64; 8]; 2],
+            // final_nav bits（bit-exact 判据）。
+            nav_bits: [u64; 2],
+        }
+        let mut rows: Vec<Row> = Vec::new();
+        for (sym, file) in SYMBOLS {
+            if !only.is_empty() && !only.contains(&sym.to_uppercase()) { continue; }
+            let path = data_dir.join(file);
+            if !path.exists() { eprintln!("[{sym}] 数据缺失，跳过"); continue; }
+            let (o, h, l, c) = load_clean_ohlc(&path);
+            let n = c.len();
+            let bh = if n > 0 && c[0] > 0.0 { (c[n-1]/c[0]-1.0)*100.0 } else { 0.0 };
+            let mut row = Row { sym: sym.to_string(), bh, n, ceiling: 0, strat: [0.0;2], ops: [[0;8];2], nav_bits: [0;2] };
+            for (vi, (vname, cfg)) in variants.iter().enumerate() {
+                let t0 = std::time::Instant::now();
+                let mut s = RecStream::new_with_config(PerfectionMode::Structural, A0Source::Segment, *cfg);
+                for i in 0..n { s.push_bar(o[i], h[i], l[i], c[i]); }
+                let fin = s.finish();
+                assert!(fin.is_finite(), "[{sym}/{vname}] final_nav 非有限");
+                row.strat[vi] = (fin/INITIAL_CAPITAL - 1.0)*100.0;
+                row.nav_bits[vi] = fin.to_bits();
+                let r = s.driver().root();
+                row.ceiling = r.highest_active().map_or(row.ceiling, |x| x.max(row.ceiling));
+                row.ops[vi] = [r.n_enters, r.n_sinks, r.n_drains, r.n_adds, r.n_recovers, r.n_flips, r.n_trend_done_clears, r.n_liquidations];
+                eprintln!(
+                    "[{sym:<5}/{vname:<3}] strat={:+.1}% bh={:+.1}% | enter={} sink={} drain={} add={} recover={} flip={} clears={} liq={} ({:.1}s)",
+                    row.strat[vi], bh, r.n_enters, r.n_sinks, r.n_drains, r.n_adds, r.n_recovers, r.n_flips,
+                    r.n_trend_done_clears, r.n_liquidations, t0.elapsed().as_secs_f64()
+                );
+            }
+            let bitexact = row.nav_bits[0] == row.nav_bits[1] && row.ops[0] == row.ops[1];
+            eprintln!("        [{}] OFF vs IQ {} | sink+drain+add(OFF)={} (配额路径活跃度)",
+                row.sym,
+                if bitexact { "★BIT-EXACT（逐级配额无操作语义效果=否定性结果）" } else { "≠ 发散（配额改变操作）" },
+                row.ops[0][1] + row.ops[0][2] + row.ops[0][3]);
+            rows.push(row);
+        }
+
+        println!("\n===== task#84 矩阵：strat% OFF vs IQ vs BH（* 超 BH；= bit-exact）=====");
+        println!("{:<6} {:>10} {:>12} {:>10} {:>10}", "标的", "OFF", "IQ", "BH", "OFF≡IQ?");
+        for r in &rows {
+            let mk = |x: f64| if x > r.bh { "*" } else { " " };
+            let eq = r.nav_bits[0] == r.nav_bits[1] && r.ops[0] == r.ops[1];
+            println!("{:<6} {:>+9.1}%{} {:>+11.1}%{} {:>+9.1}% {:>10}",
+                r.sym, r.strat[0], mk(r.strat[0]), r.strat[1], mk(r.strat[1]), r.bh,
+                if eq { "≡" } else { "≠" });
+        }
+        println!("\n----- 操作计数 OFF [enter,sink,drain,add,recover,flip,clears,liq]（配额作用于 sink/drain/add）-----");
+        for r in &rows {
+            println!("{:<6} OFF={:?}  IQ={:?}", r.sym, r.ops[0], r.ops[1]);
+        }
+        println!("==================================================================\n");
+        assert!(!rows.is_empty(), "至少跑出一个标的");
+    }
+
     /// **任务57=53.1：读法B 一对多空腿（LegPair）L3 验收**（编排者重写）。
     ///
     /// 模型：每级别 LegPair（多腿+空腿同时在场）。开=该级别买卖点（第17课）/ 平=反向买卖点 /

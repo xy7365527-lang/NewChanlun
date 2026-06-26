@@ -34,6 +34,11 @@ pub mod fugue_v3;
 /// 统一递归算子 T（缠师第65课 `aₙ=f(aₙ₋₁)` 形式化）。`pub` 导出避免 dead_code 误报——
 /// 设计阶段脚手架，尚未接入 PyO3（文档 docs/unified_recursive_operator_T.md）。
 pub mod recursive_t;
+/// Reference Θ v0 — bit-exact 缠论可执行系统引擎（Phase 2，task #38）。对齐
+/// `formal/Strict/*.lean` 的 L0 spec（非 Python-等价旧 ladder）。parser→classifier→
+/// strategy 三子模块，所有 Θ 参数显式 config（Phase 6 扫描入口）。`pub` 导出避免
+/// 骨架阶段（未接入 PyO3）的 dead_code 误报。文档 docs/reference-theta-v0.md。
+pub mod theta_v0;
 mod stroke;
 mod trading;
 mod zhongshu;
