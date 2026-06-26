@@ -11,7 +11,11 @@
   1. 每条边有一个 FlowDirection（来自比价走势当前笔方向）
   2. 对每个顶点 V，聚合其 3 条关联边的方向 → net(V)
   3. |net(V)| ≥ 2 → 共振（V 是流转源或汇）
-  4. Σnet(V) = 0 → 守恒约束（拓扑不变量）
+
+注：Σnet(V) = 0 是 K4 反对称边流的图论恒等式（每条边对两端分别贡献
++1/-1，求和必为零），不是物理资本守恒。它在封闭系统内恒成立、破缺不可观测，
+无诊断价值——故不提供守恒检查函数（050 号谱系结算，方案A；222/231 号：
+有效域 ≠ 定义域）。
 """
 
 from __future__ import annotations
@@ -265,34 +269,6 @@ def extract_flow_relations(
         for s in states
         if s.role == FlowRole.SOURCE
     ]
-
-
-def check_conservation(states: list[VertexFlowState]) -> bool:
-    """检查守恒约束：Σnet(V) = 0。
-
-    liuzhuan.md #14 §守恒约束：
-      Σ net(V) = 0，对四矩阵中所有顶点 V 求和。
-      "资本不凭空产生也不凭空消失"的形式表达。
-
-    守恒破缺的信号意义：如果不守恒，说明某条边的走势判读有误，
-    或资本流向了四矩阵之外（跨区域流动）。
-
-    部分图（<6 条边）上守恒恒真：乘法恒等式 A/B × B/C × C/A ≡ 1
-    对任何子集都成立，因为它是逐时刻的代数恒等式，对每个三角形独立成立。
-    部分图不破坏恒等式。因此 check_conservation 在部分图上的返回值
-    没有诊断意义——守恒破缺只在完整 K4 图上才是有意义的信号。
-
-    Parameters
-    ----------
-    states : list[VertexFlowState]
-        顶点流转状态。
-
-    Returns
-    -------
-    bool
-        True 表示守恒成立，False 表示守恒破缺。
-    """
-    return sum(s.net_flow for s in states) == 0
 
 
 # ====================================================================

@@ -20,7 +20,6 @@ from newchan.flow_relation import (
     ResonanceStrength,
     VertexFlowState,
     aggregate_vertex_flows,
-    check_conservation,
     detect_resonance,
     disambiguate_cash_signal,
     extract_flow_relations,
@@ -310,15 +309,6 @@ class TestPartialGraph:
         total = sum(s.net_flow for s in states)
         assert total == 0  # 三角形守恒
 
-    def test_partial_graph_conservation(self) -> None:
-        """任意部分图 → Σnet(V) = 0（代数恒等式）。"""
-        edges = [
-            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.B_TO_A),
-        ]
-        states = aggregate_vertex_flows(edges)
-        assert check_conservation(states) is True
-
 
 # ── EdgeFlowInput.level_id ─────────────────────────────
 
@@ -496,47 +486,6 @@ class TestExtractFlowRelations:
         )
         with pytest.raises(AttributeError):
             fr.source = V.COMMODITY  # type: ignore[misc]
-
-
-# ── 守恒约束 ──────────────────────────────────────────────
-
-
-class TestCheckConservation:
-    """check_conservation：Σnet(V) = 0。"""
-
-    def test_conserved_all_equilibrium(self) -> None:
-        edges = [
-            _edge_input(a, b, FlowDirection.EQUILIBRIUM)
-            for a in V
-            for b in V
-            if a.value < b.value
-        ]
-        states = aggregate_vertex_flows(edges)
-        assert check_conservation(states) is True
-
-    def test_conserved_with_active_edges(self) -> None:
-        """有方向的边也守恒（拓扑不变量）。"""
-        edges = [
-            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.B_TO_A),
-            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.A_TO_B),
-            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
-        ]
-        states = aggregate_vertex_flows(edges)
-        assert check_conservation(states) is True
-
-    def test_broken_conservation_detected(self) -> None:
-        """手工构造破缺状态 → check_conservation 返回 False。"""
-        # 直接构造不守恒的 states（绕过 aggregate 的拓扑保证）
-        broken_states = [
-            VertexFlowState(V.EQUITY, 1, ResonanceStrength.NONE, FlowRole.NEUTRAL),
-            VertexFlowState(V.REAL_ESTATE, 1, ResonanceStrength.NONE, FlowRole.NEUTRAL),
-            VertexFlowState(V.COMMODITY, 0, ResonanceStrength.NONE, FlowRole.NEUTRAL),
-            VertexFlowState(V.CASH, 0, ResonanceStrength.NONE, FlowRole.NEUTRAL),
-        ]
-        assert check_conservation(broken_states) is False
 
 
 # ── 现金边信号消歧 ────────────────────────────────────────

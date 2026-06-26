@@ -101,6 +101,24 @@ Flow(V → {W₁, W₂, ...})
 Σ net(V) = 0，对四矩阵中所有顶点 V 求和
 ```
 
+> **有效域标注（050/222/231 号结算后降格）**
+>
+> 本章原表述（"资本不凭空产生也不凭空消失" + "守恒破缺本身就是信号"）已被
+> 050/222 号结算**降格**。下方括注是修订后的口径，原文保留作谱系痕迹。
+>
+> - **认识论等级**：L0（纯代数/定义，信息增量为零——同义反复）。
+> - **真实语义**：Σnet(V) = 0 是完全图 K4 上**反对称离散边流**的图论恒等式
+>   （每条边对两端顶点分别贡献 +1 / −1，求和必为零），**不是物理资本守恒**。
+>   flow ∈ {−1, 0, +1} 丢弃了 magnitude，无法表达"资本量守恒"（222 号：方向守恒
+>   ≠ 资本守恒，属不同范畴）。
+> - **破缺可观测性**：反对称性是定义内置的 → 封闭系统内 Σnet(V) = 0 **恒成立**，
+>   "守恒破缺"在本模型内是**不可能事件**、不可观测（无经验内容）。下方"守恒破缺的
+>   信号意义"在当前离散方向模型中**无诊断能力**——它描述的是一个永不发生的事件。
+> - **有效域 ≠ 定义域**（231 号）：恒等式在定义域（全部边方向配置）上代数成立，
+>   但其"诊断守恒破缺"的有效域为空。要检测真正的资本量不平衡，需 magnitude 加权
+>   的守恒检查（050 号方案B，依赖 magnitude 定义，当前未结算 → 生成态，不可立即构建）。
+> - **代码落地**：`check_conservation` 函数已删除（050 号方案A），spec/012 口径已对齐。
+
 这不是数学约定，是**"资本不凭空产生也不凭空消失"**的形式表达。
 
 **守恒破缺的信号意义**：如果六条边计算出的 net flow 不守恒，说明：
@@ -137,7 +155,11 @@ Flow(V → {W₁, W₂, ...})
 | `flow_relation.py` | 顶点聚合 + 共振检测 + 流转状态 | P1 |
 | `flow_relation.py :: VertexFlowState` | 顶点流转状态（源/汇/中性） | P1 |
 | `flow_relation.py :: detect_resonance()` | 共振判定 | P1 |
-| `flow_relation.py :: check_conservation()` | 守恒约束检查 | P2 |
+
+> 注（050 号方案A）：`check_conservation()` 曾列为 P2 待实现，现**已撤销**——
+> Σnet(V) = 0 是图论恒等式（L0），守恒检查函数语义空洞、已删除。详见上文
+> "守恒约束"章的有效域标注。magnitude 加权守恒检查（方案B）依赖未结算的
+> magnitude 定义，处于生成态，不在当前待实现范围内。
 
 ---
 
@@ -165,6 +187,9 @@ Flow(V → {W₁, W₂, ...})
 - `.chanlun/genealogy/settled/025-equivalence-demotion-to-screening.md` — 本定义从此谱系中诞生
 - `.chanlun/genealogy/settled/022-ratio-relation-formalization.md` — 比价关系（前置）
 - `.chanlun/genealogy/settled/020-constitutive-contradiction.md` — ontology-v1 命题5
+- `.chanlun/genealogy/settled/050-conservation-semantic-void.md` — 守恒约束语义空洞（方向守恒 ≠ 资本守恒），裁定删除 check_conservation（方案A）
+- `.chanlun/genealogy/settled/222-v4-conservation-law-category-error.md` — 守恒律范畴错误：离散方向拓扑约束 ≠ 连续资本守恒
+- `.chanlun/genealogy/settled/231-formalization-validity-domain.md` — 有效域 ≠ 定义域 + 认识论等级标注（本章守恒约束标为 L0）
 
 ---
 

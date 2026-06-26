@@ -24,7 +24,6 @@ from newchan.flow_relation import (
     VertexFlowState,
     aggregate_vertex_flows,
     extract_flow_relations,
-    check_conservation,
 )
 from newchan.matrix_topology import AssetVertex
 
@@ -211,65 +210,3 @@ class TestFlowRelation:
         assert V.CASH in relation.sinks
         assert V.EQUITY in relation.sinks
         assert len(relation.sinks) == 2
-
-
-# ── check_conservation ───────────────────────────────────
-
-
-class TestCheckConservation:
-    """显式守恒约束检查函数。
-
-    审计缺口（LOW）：check_conservation() 函数未实现。
-    守恒是数学必然（拓扑不变量），但需要显式函数以检测未来可能的"守恒破缺"信号。
-    """
-
-    def test_conservation_holds(self) -> None:
-        """正常 6 条边输入 → 守恒成立。"""
-        edges = [
-            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.EQUILIBRIUM),
-            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.EQUILIBRIUM),
-            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.EQUILIBRIUM),
-        ]
-        states = aggregate_vertex_flows(edges)
-        assert check_conservation(states) is True
-
-    def test_conservation_sum_is_zero(self) -> None:
-        """Σnet(V) = 0。"""
-        edges = [
-            _edge_input(V.EQUITY, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.REAL_ESTATE, V.CASH, FlowDirection.B_TO_A),
-            _edge_input(V.COMMODITY, V.CASH, FlowDirection.A_TO_B),
-            _edge_input(V.EQUITY, V.REAL_ESTATE, FlowDirection.A_TO_B),
-            _edge_input(V.EQUITY, V.COMMODITY, FlowDirection.B_TO_A),
-            _edge_input(V.REAL_ESTATE, V.COMMODITY, FlowDirection.A_TO_B),
-        ]
-        states = aggregate_vertex_flows(edges)
-        total = sum(s.net_flow for s in states)
-        assert total == 0
-        assert check_conservation(states) is True
-
-    def test_conservation_detects_violation(self) -> None:
-        """手工构造违反守恒的状态 → 检测到。"""
-        # 手工构造不满足守恒的 states（正常代码不会产出这种状态）
-        bad_states = [
-            VertexFlowState(
-                vertex=V.EQUITY, net_flow=1,
-                strength=ResonanceStrength.NONE, role=FlowRole.NEUTRAL,
-            ),
-            VertexFlowState(
-                vertex=V.REAL_ESTATE, net_flow=1,
-                strength=ResonanceStrength.NONE, role=FlowRole.NEUTRAL,
-            ),
-            VertexFlowState(
-                vertex=V.COMMODITY, net_flow=1,
-                strength=ResonanceStrength.NONE, role=FlowRole.NEUTRAL,
-            ),
-            VertexFlowState(
-                vertex=V.CASH, net_flow=1,
-                strength=ResonanceStrength.NONE, role=FlowRole.NEUTRAL,
-            ),
-        ]
-        assert check_conservation(bad_states) is False
