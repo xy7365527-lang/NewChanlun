@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0001 课 · 完全分类的严格形式</title>
+<style>
+  :root{ --ink:#1a1a1a; --soft:#6b6b6b; --rule:#d8d4cc; --bg:#fdfbf7; --accent:#7a1f1f; --code:#f3efe6; }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);
+       font:18px/1.62 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+       max-width:720px;margin:0 auto;padding:64px 28px 120px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 4px;font-weight:600}
+  h2{font-size:20px;margin:42px 0 10px;font-weight:600;border-bottom:1px solid var(--rule);padding-bottom:5px}
+  .sub{color:var(--soft);font-style:italic;margin:0 0 30px}
+  code,pre{font-family:"SF Mono",Menlo,Consolas,monospace}
+  code{background:var(--code);padding:1px 5px;border-radius:3px;font-size:.86em}
+  pre{background:var(--code);padding:14px 16px;border-radius:6px;border-left:3px solid var(--accent);
+      overflow-x:auto;font-size:13.5px;line-height:1.5}
+  .lede{font-size:19px}
+  .key{background:#fff;border:1px solid var(--rule);border-left:4px solid var(--accent);
+       padding:14px 18px;margin:20px 0;border-radius:4px}
+  .key b{color:var(--accent)}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:15px}
+  th,td{border:1px solid var(--rule);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f0ebe0}
+  .sharp{background:#2b2622;color:#f5efe3;padding:18px 20px;border-radius:6px;margin:26px 0}
+  .sharp h3{margin:0 0 8px;color:#e8c07a;font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+  .sharp p{margin:0;font-size:17px}
+  .src{color:var(--soft);font-size:13px}
+  .next{border-top:1px solid var(--rule);margin-top:46px;padding-top:14px;color:var(--soft);font-size:15px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<h1>完全分类的严格形式</h1>
+<p class="sub">第 0001 课 · 行为等价纤维分类器，以及一个「人造矛盾」如何消失</p>
+
+<p class="lede">缠论说「走势终完美」——走势的递归分解是<strong>穷尽</strong>的，没有余项。
+这是公理。但要让它能回测、能被证伪，你得先回答一个数学问题：<em>「完全分类」严格写出来，到底是什么对象？</em>
+这一课就给你那个对象，并让你看穿两种写法的严格性差距。</p>
+
+<h2>1. 错误的直觉：完全分类 = 一张情况清单</h2>
+<p>最自然的想法是把走势穷举成几类（趋势上 / 趋势下 / 盘整），列一张表，证明「每个走势恰好落进一类」。
+这叫<strong>有限划分</strong>（finite partition）。它没错，但它<strong>不够</strong>——它只说「分了类」，没说<em>「凭什么这样分」</em>。
+两个走势被分到同一类，仅仅因为它们的标签相同吗？那标签本身从哪来？</p>
+
+<h2>2. 严格的形式：纤维 = 行为等价类</h2>
+<p>codex 的 origin 给出了本质的定义（<code>Origin/CompleteClassification.lean</code>）：</p>
+
+<pre>structure CompleteClassifier (X Class Omega TraceOut) where
+  classify : X -> Class
+  trace    : X -> Omega -> TraceOut
+  complete : <b>∀ x y, classify x = classify y  ↔  BehEquiv trace x y</b></pre>
+
+<p>其中 <code>BehEquiv trace x y := ∀ω, trace x ω = trace y ω</code>——
+两个走势在<strong>一切未来环境 ω 下产生完全相同的轨迹</strong>，就叫行为等价。</p>
+
+<div class="key">
+<b>关键的是那个 <code>↔</code>（当且仅当）。</b>
+它说：<code>classify</code> 把两个走势分到同一类 <b>当且仅当</b> 它们行为上不可区分。
+于是分类器的每个<strong>纤维</strong>（同类的走势集合）<strong>恰好</strong>是一个行为等价类——
+不多一个、不少一个。这就是「完全」的精确含义：分类<em>既不过粗</em>（合并了行为不同的）<em>也不过细</em>（拆开了行为相同的）。
+</div>
+
+<p>有了这一个 <code>↔</code>，其余全是<strong>推论</strong>，不需额外假设：</p>
+<table>
+<tr><th>推论</th><th>含义</th></tr>
+<tr><td><code>same_class_same_behavior</code></td><td>同类 ⟹ 行为相同</td></tr>
+<tr><td><code>distinct_classes_behavior_separated</code></td><td>异类 ⟹ 行为可区分</td></tr>
+<tr><td><code>ClassifierPartition</code></td><td>分类自动诱导出一个有限划分（穷尽且互斥）</td></tr>
+<tr><td><code>..._behavior_quotient</code></td><td>类 ≅ 行为等价商集 X/∼</td></tr>
+</table>
+<p>对比我们旧版（GPT 包逐字复制的「不变性+完备性+可实现性」三条件 I:X→P）：要三条独立假设拼出双射，笨重。
+新版一个 <code>↔</code> 就锁死了纤维结构，更本质。<span class="src">严格性差距：自洽推导 vs 复制拼装。</span></p>
+
+<h2>3. 一个「矛盾」如何被表示选择消解</h2>
+<p>我们旧版卡在这里（曾叫 §1 矛盾）：把递归抽象成<strong>单参数</strong>函数
+<code>Fstep : Dₙ → Dₙ₊₁</code>（一个 n 级对象 → 一个 n+1 级对象）。
+但缠论里「一个 n+1 级走势由<strong>≥3 个不同的</strong> n 级走势构成」——是个<strong>序列</strong>。
+单参数装不下序列，于是旧版用 <code>[m,m,m]</code>（同一个走势复制三份）硬塞，退化、造假。</p>
+
+<div class="key">
+codex origin 怎么解的？<b>它根本不用单参数抽象递归。</b>
+它用<strong>具体的分级 List 函数管线</strong>（<code>Origin/ChanlunElements.lean</code>）：
+<pre>strokesOf  : List Fractal -> List Stroke
+segmentsOf : List Stroke  -> List Segment
+movesOf    : List Segment -> List Center -> List Move</pre>
+「≥3 段合成上级」<b>自然发生在 <code>segmentsOf</code> / <code>movesOf</code> 内部</b>——输入就是序列，输出就是序列，根本不需要 <code>[m,m,m]</code>。
+</div>
+
+<p class="lede">这一课最值钱的一句话：<strong>那个「矛盾」从来不在缠论里，它在你选的抽象里。</strong>
+换一个忠实于对象的表示（序列进、序列出），矛盾不治而愈。这就是为什么编排者决定「从更严格的起点重写」而不是在旧起点上打补丁——
+<em>补丁治不好选错的抽象。</em></p>
+
+<h2>4. 但要诚实：origin 证了什么、没证什么</h2>
+<p>origin 里这些管线定理（<code>parse_total_unique</code> 等）大多是 <code>total_unique_of_fun</code>——
+即「函数即全且唯一」，这是 <strong>L0 平凡真理</strong>（任何函数都满足）。
+origin 自己说它 "deliberately an interface"。<strong>真正的缠论保真度</strong>——
+<code>segmentsOf</code> 是否真的实现了第67/71课的特征序列法——<strong>不在 origin 里</strong>，
+留给实例（引擎）去填，并且只有跑<strong>真实数据（L2）</strong>才能被证伪。</p>
+<p>所以「严格的 schema」≠「忠实的实装」。骨架严格是必要的第一步，但别把骨架的 L0 真理当成「策略有效」。</p>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询蜂群）</h3>
+<p>「你这个 <code>classify</code>，纤维<strong>恰好</strong>是行为等价类吗（那个 <code>↔</code> 两个方向都成立）？
+还是只证了一个方向、或者只是贴了标签？而且——它是 L0 schema 真理，还是有 L2 真实数据撑着？」</p>
+</div>
+
+<p class="next">
+来源：<code>NewChanlun-complete-classification-origin-20260626/formal/Origin/{CompleteClassification,ChanlunElements,FullDefinitionStrategy}.lean</code>。
+下一课预告：<strong>全定义策略闭环</strong>——分类如何驱动动作（<code>policyθ = schedule∘risk∘intent∘classify∘recStruct</code>），以及「取本金」三阶段会计如何与 R=Π−A−W 账本共存。<br>
+有任何不清楚的，直接问我（我是你的老师）——尤其「行为等价」「纤维」「商集」这三个词如果还发虚，我们就停下来把它们坐实。
+</p>
+
+</body>
+</html>

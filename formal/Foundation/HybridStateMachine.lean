@@ -47,6 +47,32 @@ theorem beh_trans (Trace : X -> Omega -> TraceOut) {x y z : X} :
   intro hxy hyz omega
   exact (hxy omega).trans (hyz omega)
 
+/--
+  行为极小完全分类（`Classify x = Classify y ↔ BehEquiv Trace x y`）。
+
+  ★★降级标注（task #91, 共有缺口3, 615/231 谱系）——**可选元理论 / 标签核模型，不作缠论
+  canonical seam**：
+
+  本谓词是对**任意** `X Ω TraceOut C` 成立的抽象双向核。codex 异质审计裁定它**不可作缠论
+  canonical 接缝**——缠论分类标签（趋势/盘整/未完成；一/二/三类买卖点）比价格轨迹行为**粗**，
+  故 ↔ 的 **→ 方向（同类 ⟹ 同行为）对非平凡缠论 trace 失败**。极限定理见
+  `Foundation/CompleteClassificationLimits.lean`：
+  - `iglobal_not_complete_minimal`：具体缠论分类器 `IGlobal` 在区分 2B/3B 的缠论可观测
+    trace 下不满足本谓词（→ 方向 fail，witness=`x_2bOnly`/`x_2b3b` 2B/3B 重合点）。
+  - `degenerate_trace_makes_iff_hold`：本谓词仅当 trace 退化为 classify 自身（零信息）时
+    才空泛成立——有效域（退化 trace）严格小于定义域（任意 trace）。
+
+  缠论 canonical 接缝**改指向**（本谓词不再承载 canonical 地位，但保留为元理论不删除）：
+  - `Foundation/CompleteClassification.lean`：递归级唯一（recSpec_complete_unique /
+    recAt_causal）+ 优先级互斥穷尽（priority_class_complete_unique）+ 全局声部唯一
+    （global_class_complete_unique）+ 策略流水线存在唯一（strategy_spec_total_unique）。
+  - `Strict/BSP.lean`：`no_global_classifies`（全域互斥分类不存在）+ `third_subdomain_classifies`
+    （第三类本征子域真双射）+ `global_only_label_quotient`（按标签商分类）。
+
+  以下三引理（`same_class_same_behavior` / `behavior_same_class` /
+  `distinct_classes_behavior_separated`）仍是本谓词的合法逻辑推论——它们刻画的是「**若**某
+  (Trace, Classify) 满足本谓词，则…」的条件性质，不预设缠论 trace 满足本谓词。
+-/
 def CompleteMinimalClassification
     (Trace : X -> Omega -> TraceOut) (Classify : X -> C) : Prop :=
   forall x y : X, Classify x = Classify y <-> BehEquiv Trace x y

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0003 课 · 从严格起点重建，还是在现有上扩展？</title>
+<style>
+  :root{ --ink:#1a1a1a; --soft:#6b6b6b; --rule:#d8d4cc; --bg:#fdfbf7; --accent:#7a1f1f; --code:#f3efe6; --warn:#8a5a00; --good:#2b5f2b; }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);
+       font:18px/1.62 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+       max-width:720px;margin:0 auto;padding:64px 28px 120px}
+  h1{font-size:29px;line-height:1.2;margin:0 0 4px;font-weight:600}
+  h2{font-size:20px;margin:42px 0 10px;font-weight:600;border-bottom:1px solid var(--rule);padding-bottom:5px}
+  .sub{color:var(--soft);font-style:italic;margin:0 0 30px}
+  code{background:var(--code);padding:1px 5px;border-radius:3px;font-size:.86em;font-family:"SF Mono",Menlo,monospace}
+  .lede{font-size:19px}
+  .key{background:#fff;border:1px solid var(--rule);border-left:4px solid var(--accent);padding:14px 18px;margin:20px 0;border-radius:4px}
+  .key b{color:var(--accent)}
+  .warn{background:#fcf6e8;border:1px solid #e6d6a8;border-left:4px solid var(--warn);padding:14px 18px;margin:20px 0;border-radius:4px}
+  .warn b{color:var(--warn)}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:15px}
+  th,td{border:1px solid var(--rule);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f0ebe0}
+  .sharp{background:#2b2622;color:#f5efe3;padding:18px 20px;border-radius:6px;margin:26px 0}
+  .sharp h3{margin:0 0 8px;color:#e8c07a;font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+  .sharp p{margin:0;font-size:17px}
+  .next{border-top:1px solid var(--rule);margin-top:46px;padding-top:14px;color:var(--soft);font-size:15px}
+  em.g{color:var(--good);font-style:normal;font-weight:600}
+</style>
+</head>
+<body>
+
+<h1>从严格起点重建，还是在现有上扩展？</h1>
+<p class="sub">第 0003 课 · 「重建」的直觉对一半——拆开那另一半</p>
+
+<p class="lede">你说：「之前的起点就不严格，从最严格的起点重新做比较好。」前半句是对的，而且第 0001/0002 课已经证给你看了——退化的 <code>[m,m,m]</code>、悬空的 <code>↔</code>，那些是起点不严格的症状。<strong>但「从更严格的起点重建」这句话里藏着一个要拆开的捆绑</strong>，拆开它，你的决定会更准。</p>
+
+<h2>1. 对的那一半：不严格的起点，补不成严格</h2>
+<p>这是铁律。一个继承了错误抽象的起点（比如把缠论的序列递归塞进单参数 <code>Fstep</code>），你在上面打多少补丁，都只是把退化换个地方藏。第 0002 课的「单窗口聚合」就是活证。<strong>所以「不在旧的不严格起点上继续」是正确的。</strong></p>
+
+<h2>2. 要拆开的捆绑：严格性有三层，别让它们粘在一起</h2>
+<p>「从更严格的起点重建」默认了「更严格的起点 → 更严格的结果」。但「严格」至少是三个不同的东西：</p>
+<table>
+<tr><th>层</th><th>是什么</th><th>重建能买到吗</th></tr>
+<tr><td><b>架构严格</b></td><td>清晰的组织——分层路径、内聚的接口（codex Origin 的六层 + ElementPipeline + EngineVerdict）</td><td><em class="g">能买到</em>——这是重建的真收益</td></tr>
+<tr><td><b>核心严格</b></td><td>底层推导的深度（完全分类那个数学内核）</td><td><b style="color:#7a1f1f">买不到</b>——codex Origin 的核心是<strong>同一份 GPT 推导</strong>，不比我们深</td></tr>
+<tr><td><b>结果严格</b></td><td>已证的定理 / 已对齐的引擎（#84/#89/#91/#93、theta_v0 bit-exact）</td><td><b style="color:#7a1f1f">不自动给</b>——这些得在新 base 上<strong>重新证成/重锚</strong>才算数</td></tr>
+</table>
+
+<div class="warn">
+<b>要警惕的声明膨胀（督导对你也生效）：</b>「重建 = 自动更严格」。
+事实：codex Origin 与我们<strong>共有同样三个缺口</strong>（#89 递归保真度 / #90 账本不同构 / #91 ↔ 不可满足），重建<strong>一个都不会自动消</strong>。
+重建买的是<em class="g">更干净的架构</em>，不是<strong>更严格的结果</strong>，也不是<strong>缺口的解</strong>。
+</div>
+
+<h2>3. 那「重建」到底值不值？取决于一个判准</h2>
+<p>把问题精确化为：<strong>旧 base 的不严格，是「结构性烂根」还是「可摘除的退化桩」？</strong></p>
+<ul>
+<li>若是<strong>结构性烂根</strong>（抽象选错，渗透全树，摘不干净）→ 重建（换 base）。清白的架构值这个钱。</li>
+<li>若只是<strong>可摘除的退化桩 + 一堆已验证的好结果</strong>→ 把结果<strong>重锚</strong>到更干净的 base，而不是从零重证。算法不会因为换 base 而消失——<code>#84</code> 段层 bit-exact、<code>#89</code> 窗口递归、<code>#91</code> ↔ 极限，这些是<strong>已证的数学</strong>，port 是「重新接线」不是「丢失」。</li>
+</ul>
+<p>换句话说：<strong>「从严格起点重建」和「把好结果重锚到严格的 base」可能是同一件事的两种说法</strong>——区别只在你是「从零重证」还是「port 已证结果」。前者慢且有丢失风险，后者快且保结果。真正的争点不是「要不要更严格的 base」（要），而是<strong>「已验证的结果，是重证还是重锚」</strong>。</p>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询你自己的决定 + 我让 codex 也答这条）</h3>
+<p>「从 origin 重建，会给一个更严格的<strong>结果</strong>，还是只给更干净的<strong>组织</strong>？
+说出具体的严格增益。若三缺口是共有的、已证结果会 port，那『重建』比『把结果重锚到更干净的 base』，到底<strong>多给了什么</strong>？」</p>
+</div>
+
+<p class="next">
+背景：codex 正在带你的「起点严格性 &gt; 重映射成本」（蜂群 161号否务实）重裁 A（重建）vs B′（扩展）。这一课不替你裁——它给你**拆开捆绑的尺子**，让你看 codex 的回答时能分辨「它在卖架构，还是在卖结果」。<br>
+我的诚实倾向：你对「不在旧不严格起点上续」是对的；真正干净的形态很可能是 <strong>origin 架构为 base + 已证结果重锚（不重证、不嫁接）</strong>——既不是盲目重建从零，也不是守旧。但这条等 codex 重裁 + 你定。<br>
+词发虚（「重锚 vs 重证」「架构/核心/结果严格」）就喊停，坐实再走。
+</p>
+
+</body>
+</html>

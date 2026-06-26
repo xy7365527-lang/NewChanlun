@@ -24,6 +24,8 @@
 //!   bit-exact 对齐 Fugue/RiskProj/Θ_exec。此层**不依赖** `bsp` 索引语义（吃已 recog 的决策）。
 
 pub mod exec;
+pub mod intent;
+pub mod ledger;
 pub mod risk;
 pub mod voice;
 

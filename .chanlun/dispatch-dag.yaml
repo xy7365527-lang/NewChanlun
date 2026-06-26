@@ -25,7 +25,7 @@ genealogy_ref: "072, 068, 069, 075-structural-to-skill, 081-swarm-continuity-str
 #   genome_layer    — 基因组/公理层（§0）：CLAUDE.md, dispatch-dag.yaml, ceremony_scan.py,
 #                     hooks, grammar_rules, knowledge_templates(skills)
 #   structural      — 结构 skill 层（§2 event_skill_map, skill_type=structural）：
-#                     genealogist, quality-guard, meta-observer, code-verifier, topology-mutator
+#                     genealogist, quality-guard, meta-observer, code-verifier, topology-mutator, teach-supervisor
 #   business        — 业务工位层（§2b task_template + platform_layer）：
 #                     运行时动态实例化的 task_node + ECC 工程底座 agent
 #   conditional     — 条件触发 skill（§2 event_skill_map, skill_type=conditional）：
@@ -155,6 +155,10 @@ genealogical_coordinates:
     origin: "179-four-position-topology-analyst"
     domain: "拓扑模式阅读（分析家话语位置）"
     negation_source: "冷读产出——跨产出的重复/积累/奇点模式标点（外部位置否定）"
+  teach-supervisor:
+    origin: "teach-supervision-loop-20260626（编排者裁定 teach 入结构层=教师+督导）"
+    domain: "教学外化（面向编排者）+ 督导回路（面向蜂群，声明膨胀闸）"
+    negation_source: "锋利问题施加于蜂群产出失败（外部位置否定——督导是对蜂群自身产出的对象否定）"
 
 # ═══════════════════════════════════════════════════════════════
 # 2. 事件→Skill 映射（075号：结构能力从 teammate 转为事件驱动 skill）
@@ -219,6 +223,28 @@ event_skill_map:
         pattern: "tests/**/*.py"
         platform_support: partial  # 353号：PostToolUse advisory hook 检测（D策略），非真实时语义事件
         description: "测试文件变更后运行"
+
+  - id: teach-supervisor
+    skill_type: structural
+    agent: ".claude/agents/teach-supervisor.md"
+    purpose: "双角色——(教师) 蜂群结算概念→出一课给编排者学；(督导) 课的锋利问题反向施加于蜂群产出，闸住声明膨胀（supervision-loop 台账）"
+    triggers:
+      - event: task_complete
+        platform_support: false
+        description: "工位报「done/faithful」时督导施加锋利问题（见证+L等级+边界）；携带新概念则出课"
+      - event: file_write
+        pattern: "formal/**/*.lean"
+        platform_support: partial  # PostToolUse advisory hook 检测，非真实时语义事件
+        description: "形式化产出带完成声明后施加督导闸（三层识破法）"
+      - event: file_write
+        pattern: "rust/src/**"
+        platform_support: partial
+        description: "引擎实装带完成声明后施加督导闸"
+      - event: command
+        pattern: "/teach"
+        description: "编排者手动触发出课（teach skill 本身 disable-model-invocation，经本 agent 出课）"
+      - event: session_end
+        description: "回顾课 + supervision-loop 台账对账（FAIL 是否都已入 TaskList）"
 
   - id: skill-crystallizer
     skill_type: terminal_sink

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0004a 课 · 为什么结构工位不自动拉起</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>为什么结构工位不自动拉起，hooks 也没自动化</h1>
+<p class="sub">第 0004a 课（优先插课）· 一堂关于「声明的自动 vs 实际的手动」的活教材</p>
+
+<p class="lede">你问得非常准：常驻结构工位（genealogist、quality-guard、teach-supervisor……）应该「事件一来就自己起」，
+按需工位应该「条件一满足就自己上」，hooks 应该把这事自动化掉。<strong>设计上确实是这么写的。</strong>
+但它们没有自动起。这一课不替这个缺口辩护——它<strong>把缺口的精确形状给你</strong>，
+让你以后能一眼戳穿任何「这是自动的」声明。这本身就是 <code>spec-execution-gap</code> 的范例：
+<em>声明 = 自动，实际 = 手动欠账</em>。</p>
+
+<h2>1. 设计层：三条原则说「结构能力是事件驱动的」</h2>
+<p>蜂群的设计是自洽且漂亮的，分三层：</p>
+<table>
+<tr><th>谱系</th><th>设计声明</th></tr>
+<tr><td><b>082号</b><br><span class="src">structural-skill-event-driven-gap</span></td><td>结构能力 = <strong>事件驱动 skill</strong>——某事件发生 ⟹ 对应结构工位自动触发出来工作</td></tr>
+<tr><td><b>069号</b><br><span class="src">创世 Gap 物质形态</span></td><td>事件的<strong>物质触发机制</strong> = 平台 hooks（Claude Code 的 PostToolUse 等）</td></tr>
+<tr><td><b>033号</b><br><span class="src">Lead=DAG 解释器</span></td><td>Lead 读 <code>dispatch-dag.yaml</code>，按事件→工位映射调度（<code>dispatch-dag.yaml:10</code>「Lead 是 DAG 解释器，不是决策者」）</td></tr>
+</table>
+<p>合起来读，设计的意图是：<strong>事件（文件改了 / 任务完成了 / 谱系结算了）自动激活对应工位，Lead 只是把这套映射「解释执行」。</strong>
+听上去完全自动。问题出在「事件」这两个字。</p>
+
+<h2>2. 物质层的真相：平台根本不发那些事件</h2>
+<p>打开 <code>.chanlun/dispatch-dag.yaml</code>，每个事件触发器都标了一个 <code>platform_support</code> 字段。
+我数过了（<code>grep -c</code>）：</p>
+
+<div class="warn">
+<b>31 个 <code>platform_support</code> 标注，<code>true</code> 的数量 = <span class="lvl l0">0</span>。</b><br>
+全部是 <code>false</code> 或 <code>partial</code>。注释一遍遍写着同一句话（353号）：
+「<strong>Claude Code 无原生 <code>file_change</code> / <code>task_complete</code> / <code>swarm_cycle_end</code> 语义事件</strong>」
+（<code>:546</code>、<code>:574</code>、<code>:618</code>、<code>:667</code>……）。
+</div>
+
+<p>这是关键的存在论事实：<strong>069号说「事件的物质形态是 hooks」，但平台的 hooks 不发「语义事件」。</strong>
+平台只发<em>机械事件</em>——「某个工具被调用了」（PostToolUse:Write）。
+它不发<em>语义事件</em>——「一个谱系刚刚结算」「一个递归循环刚收敛」。
+后者需要理解内容，平台不理解内容。<strong>设计要的事件，和平台能发的事件，不是同一种东西。</strong></p>
+
+<h2>3. 那 32 个 hooks 是干嘛的？它们是 GUARD，不是 LAUNCHER</h2>
+<p>你会想：那 <code>.claude/hooks/</code> 里 30 个脚本总该自动化点什么吧？
+关键区分来了——把它们分成两类：</p>
+<table>
+<tr><th>类型</th><th>做什么</th><th>蜂群里有吗</th></tr>
+<tr><td><b>GUARD</b>（advisory 守卫）</td><td>拦截 / 提醒 / 校验。在你<strong>已经</strong>做的事情上<strong>加一句话</strong>或<strong>挡一下</strong></td><td><span class="lvl l0">全部 30 个</span></td></tr>
+<tr><td><b>LAUNCHER</b>（启动器）</td><td><strong>主动 spawn</strong> 一个结构工位出来工作</td><td><b style="color:#7a1f1f">一个都没有</b></td></tr>
+</table>
+
+<p>证据在脚本本身。看分发器 <code>post-write-edit-dispatcher.sh</code>（理论上「文件改了→派活」最该是 LAUNCHER 的）——
+它的终点是这一行：</p>
+<pre>print(json.dumps({"<b>systemMessage</b>": combined}))
+exit 0</pre>
+<p>它<strong>只往对话里塞一句 <code>systemMessage</code> 提醒</strong>，然后 <code>exit 0</code>。
+它<strong>不</strong> spawn 任何 agent、<strong>不</strong> TeamCreate、<strong>不</strong>调 Task。看名字也一眼看穿：
+<code>ceremony-completion-guard</code>、<code>genealogy-write-guard</code>、<code>lead-audit</code>、<code>result-package-guard</code>、
+<code>topology-guard</code>……<strong>清一色 <code>-guard</code> / <code>-verify</code> / <code>-prompt</code> / <code>-dispatcher</code>，没有一个 <code>-launcher</code> / <code>-spawn</code>。</strong></p>
+
+<div class="key">
+<b>为什么 hooks 不能是 LAUNCHER？</b>因为平台 hook 是<strong>同步子进程</strong>——它能读 stdin、能 echo 一段 <code>systemMessage</code> 回注对话、能 <code>exit 2</code> 阻断一个工具调用。
+它<strong>没有 spawn 一个持久 agent 的权柄</strong>。spawn 工位需要 <code>Agent</code> / <code>TeamCreate</code> 这类工具，
+那是<strong>会话主体（Lead）</strong>的能力，不是 hook 子进程的能力。所以 069号「hooks 是事件物质形态」这句，
+物质上只兑现了「提醒」，没兑现「启动」。
+</div>
+
+<h2>4. 缺口闭合：所谓「自动」，真身是 Lead 手动解释 DAG</h2>
+<p>把三层叠起来，gap 就显形了：</p>
+<div class="flow">
+<span class="stage">设计层</span> <span class="arrow">说</span> 事件驱动，结构工位自动起（082）<br>
+<span class="stage">物质层</span> <span class="arrow">给</span> hooks 只发机械事件 + 只会 systemMessage 提醒（069 半兑现）<br>
+<span class="stage">兜底层</span> <span class="arrow">落</span> <b>Lead 手动读 DAG、手动认领、手动 spawn</b>（033 + 082号 D策略）
+</div>
+
+<p><code>dispatch-dag.yaml</code> 自己诚实写下了这个兜底：<code>:285</code>「触发方式改为<strong>手动认领</strong>——与 082号 D策略同构（hooks 提示 + Lead 认领）」；
+连 teach 出课都是 <code>:245</code>「编排者<strong>手动</strong>触发出课」。
+于是真实的因果链是：<strong>hook 发提醒 → 提醒进对话 → Lead 看到（或没看到）→ Lead 决定 spawn（或漏了）。</strong>
+「自动」这个词，落到地面是<strong>「Lead 没忘的时候」</strong>。</p>
+
+<div class="warn">
+<b>这正是 spec-execution-gap：</b>声明的能力（事件自动激活工位）和实际的能力（Lead 手动兜底）之间有一道缝。
+缝不致命——D策略「hooks 提示 + Lead 认领」是<strong>有意识选择的降级</strong>，不是隐瞒。
+致命的是<strong>把降级说成「已自动化」</strong>。说「这是自动的」而实际靠 Lead 不忘记，就是声明膨胀（090号）。
+你这一问，戳的就是这个：<em>别让「设计上是事件驱动」被讲成「运行上已经自动起来了」。</em>
+</div>
+
+<h2>5. 对 Lead 的直接推论（这一课也教 Lead）</h2>
+<p>既然「自动」的真身是「Lead 手动解释 DAG」，那 Lead 的<strong>欠执行</strong>就不是小疏忽——
+它是<strong>整个自动化声明的唯一承重点</strong>。hook 提醒了、systemMessage 进对话了，如果 Lead 没认领，
+那个结构工位就<strong>真的没起</strong>，没有第二道保险。所以：
+<strong>Lead 每次看到 <code>-guard</code> hook 的 systemMessage，要把它读成「一个待认领的 spawn」，不是「一句可看可不看的提示」。</strong>
+这是 033号「Lead 是 DAG 解释器」的运行义务——解释器停转，DAG 就是死文件。</p>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询任何「这是自动的」声明）</h3>
+<p>「你说这条是自动的——<strong>平台真发那个事件吗</strong>？去 <code>dispatch-dag.yaml</code> 查它的 <code>platform_support</code>：是 <code>true</code>，还是 <code>false</code>/<code>partial</code>？
+触发它的 hook 是 <strong>GUARD（只 echo 一句 systemMessage 就 exit）还是 LAUNCHER（真 spawn 工位）</strong>？
+如果 <code>platform_support≠true</code> 且 hook 是 GUARD，那它<strong>不是自动的</strong>——它靠某个 Lead/人手动认领兜底。
+说出那个兜底的人是谁、漏了会怎样。给不出，『自动』二字就是声明膨胀。」</p>
+</div>
+
+<p class="next">
+来源（全部 grep/read 物证，非转述）：<code>.chanlun/dispatch-dag.yaml</code>（31× <code>platform_support</code>，<code>true</code>=0；<code>:10/:245/:285</code>）、
+<code>.claude/hooks/</code>（30 脚本全 <code>-guard/-verify/-prompt/-dispatcher</code>，<code>post-write-edit-dispatcher.sh</code> 终点 <code>systemMessage</code>+<code>exit 0</code>）、
+<code>.claude/settings.json</code>（hook 事件类型全是 PostToolUse/PreToolUse/SessionStart/Stop 等<strong>机械</strong>事件）。
+谱系：<code>082-structural-skill-event-driven-gap</code> / <code>073a-control-data-flow-decoupling</code> / <code>412-openclaw-ceremony-liveness</code>；353号（platform_support 注释来源）。<br>
+「GUARD vs LAUNCHER」「机械事件 vs 语义事件」「D策略=有意识降级」这几个区分若发虚，喊停，坐实再走。
+</p>
+
+</body>
+</html>

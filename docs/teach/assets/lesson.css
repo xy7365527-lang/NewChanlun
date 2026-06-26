@@ -1,0 +1,62 @@
+/* lesson.css — teach 课程共享样式（Tufte 风，可打印，self-contained 链入）
+   抽取时机：0001-0003 三课样式已稳定重合（角色卡「≥3 课抽公共样式」）。
+   收纳：0001/0002 基础排版 + 0003 的 warn/good 语义 + 0004 起的数据流/分层语义类。
+   复用方式：<link rel="stylesheet" href="../assets/lesson.css">（课在 lessons/，asset 在 assets/）。
+   单课特有的一次性样式仍可在该课 <style> 内局部追加，不污染共享层。 */
+
+:root{
+  --ink:#1a1a1a; --soft:#6b6b6b; --rule:#d8d4cc; --bg:#fdfbf7;
+  --accent:#7a1f1f; --code:#f3efe6; --warn:#8a5a00; --good:#2b5f2b;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg);color:var(--ink);
+  font:18px/1.62 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  max-width:720px;margin:0 auto;padding:64px 28px 120px;
+}
+h1{font-size:29px;line-height:1.2;margin:0 0 4px;font-weight:600}
+h2{font-size:20px;margin:42px 0 10px;font-weight:600;border-bottom:1px solid var(--rule);padding-bottom:5px}
+.sub{color:var(--soft);font-style:italic;margin:0 0 30px}
+
+code,pre{font-family:"SF Mono",Menlo,Consolas,monospace}
+code{background:var(--code);padding:1px 5px;border-radius:3px;font-size:.86em}
+pre{background:var(--code);padding:14px 16px;border-radius:6px;border-left:3px solid var(--accent);
+    overflow-x:auto;font-size:13.5px;line-height:1.5}
+
+.lede{font-size:19px}
+
+.key{background:#fff;border:1px solid var(--rule);border-left:4px solid var(--accent);
+     padding:14px 18px;margin:20px 0;border-radius:4px}
+.key b{color:var(--accent)}
+
+.warn{background:#fcf6e8;border:1px solid #e6d6a8;border-left:4px solid var(--warn);
+      padding:14px 18px;margin:20px 0;border-radius:4px}
+.warn b{color:var(--warn)}
+
+table{border-collapse:collapse;width:100%;margin:18px 0;font-size:15px}
+th,td{border:1px solid var(--rule);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#f0ebe0}
+
+.sharp{background:#2b2622;color:#f5efe3;padding:18px 20px;border-radius:6px;margin:26px 0}
+.sharp h3{margin:0 0 8px;color:#e8c07a;font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+.sharp p{margin:0;font-size:17px}
+
+.src{color:var(--soft);font-size:13px}
+.next{border-top:1px solid var(--rule);margin-top:46px;padding-top:14px;color:var(--soft);font-size:15px}
+a{color:var(--accent)}
+
+em.g{color:var(--good);font-style:normal;font-weight:600}
+
+/* 0004 起：数据流链路框（六段管线等单向流可视化，纯文本箭头，无图片依赖） */
+.flow{background:#fff;border:1px solid var(--rule);border-radius:6px;padding:14px 18px;margin:20px 0;
+      font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13.5px;line-height:1.7}
+.flow .stage{color:var(--accent);font-weight:600}
+.flow .arrow{color:var(--soft);padding:0 4px}
+
+/* L 等级徽标（L0/L1/L2/L3 认识论分级，督导通用） */
+.lvl{display:inline-block;font:600 11px/1 "SF Mono",Menlo,monospace;letter-spacing:.03em;
+     padding:2px 6px;border-radius:3px;vertical-align:1px}
+.lvl.l0{background:#ece7db;color:#6b6b6b}
+.lvl.l1{background:#e6d6a8;color:#8a5a00}
+.lvl.l2{background:#cfe0cf;color:#2b5f2b}
+.lvl.l3{background:#2b5f2b;color:#f5efe3}

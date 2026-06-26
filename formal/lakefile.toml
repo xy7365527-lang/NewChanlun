@@ -25,7 +25,7 @@ roots = ["Claim5_ConstitutiveLadder", "Claim6_OperationalSemantics", "Claim9_Cen
 [[lean_lib]]
 name = "Tlayers"
 srcDir = "Tlayers"
-roots = ["Signal", "Operational", "Accounting", "Spiral", "Payoff", "Dynamics"]
+roots = ["Signal", "Operational", "Accounting", "Spiral", "Payoff", "Dynamics", "Accounting.TotalWealth"]
 
 # 严格完全分类·标准内核库（task #57, RTAS T-kernel 工位）：codex 异质审计七结构 +
 # Classification.lean（Classifies/SemanticQuotient/DecompositionSystem/OnlineSystem/
@@ -69,4 +69,4 @@ roots = ["Strict.Classification", "Strict.Trend", "Strict.Recursive", "Strict.De
 [[lean_lib]]
 name = "Foundation"
 srcDir = "Foundation"
-roots = ["CompleteClassification", "HybridStateMachine", "ChanlunInstantiation"]
+roots = ["CompleteClassification", "HybridStateMachine", "ChanlunInstantiation", "CompleteClassificationLimits"]

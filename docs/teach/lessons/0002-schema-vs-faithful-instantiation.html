@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0002 课 · Schema 不是忠实实装</title>
+<style>
+  :root{ --ink:#1a1a1a; --soft:#6b6b6b; --rule:#d8d4cc; --bg:#fdfbf7; --accent:#7a1f1f; --code:#f3efe6; --warn:#8a5a00; }
+  *{box-sizing:border-box}
+  body{background:var(--bg);color:var(--ink);
+       font:18px/1.62 "Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+       max-width:720px;margin:0 auto;padding:64px 28px 120px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 4px;font-weight:600}
+  h2{font-size:20px;margin:42px 0 10px;font-weight:600;border-bottom:1px solid var(--rule);padding-bottom:5px}
+  .sub{color:var(--soft);font-style:italic;margin:0 0 30px}
+  code,pre{font-family:"SF Mono",Menlo,Consolas,monospace}
+  code{background:var(--code);padding:1px 5px;border-radius:3px;font-size:.86em}
+  pre{background:var(--code);padding:14px 16px;border-radius:6px;border-left:3px solid var(--accent);
+      overflow-x:auto;font-size:13.5px;line-height:1.5}
+  .lede{font-size:19px}
+  .key{background:#fff;border:1px solid var(--rule);border-left:4px solid var(--accent);
+       padding:14px 18px;margin:20px 0;border-radius:4px}
+  .key b{color:var(--accent)}
+  .warn{background:#fcf6e8;border:1px solid #e6d6a8;border-left:4px solid var(--warn);
+       padding:14px 18px;margin:20px 0;border-radius:4px}
+  .warn b{color:var(--warn)}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:15px}
+  th,td{border:1px solid var(--rule);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f0ebe0}
+  .sharp{background:#2b2622;color:#f5efe3;padding:18px 20px;border-radius:6px;margin:26px 0}
+  .sharp h3{margin:0 0 8px;color:#e8c07a;font-size:15px;letter-spacing:.04em;text-transform:uppercase}
+  .sharp p{margin:0;font-size:17px}
+  .src{color:var(--soft);font-size:13px}
+  .next{border-top:1px solid var(--rule);margin-top:46px;padding-top:14px;color:var(--soft);font-size:15px}
+  a{color:var(--accent)}
+  .verdict{display:inline-block;font-size:13px;padding:1px 8px;border-radius:10px;font-weight:600}
+  .v-no{background:#f7d9d4;color:#7a1f1f}
+  .v-yes{background:#d6ecd6;color:#2b5f2b}
+</style>
+</head>
+<body>
+
+<h1>Schema 不是忠实实装</h1>
+<p class="sub">第 0002 课 · 一个真实的「我解决了」如何被当场拆穿——以及你该问的那一句</p>
+
+<p class="lede">就在你读上一课时，蜂群里发生了一件值得当教材的事。一个工位报告：「§1 递归矛盾——四处退化桩<strong>全部忠实替换，无矛盾</strong>，build 绿。」
+另一个异质工位（codex）当场说：<strong>不，它还是退化的，只是藏得更深。</strong>
+谁对？这一课教你怎么自己判断——这是你质询蜂群最核心的一项能力。</p>
+
+<h2>1. 案情：同一段代码，两种裁决</h2>
+<p>缠论递归要求：第 n+1 级走势 = 把第 n 级走势序列<strong>分段</strong>，<strong>每段 ≥3 个不同的下级走势</strong>合成一个上级走势，
+于是得到一个<strong>多元素</strong>的上级序列。工位的「忠实」修法是：</p>
+
+<pre>def composeStep (n) (xs : List Move) : List Move :=
+  if xs.length >= 3 then [ Move.compose xs ... ] else []</pre>
+
+<p>它把载体从 <code>Move</code>（单走势）换成了 <code>List Move</code>（序列），并宣称「现在用真实序列了，不再 <code>[m,m,m]</code> 复制，忠实」。
+表面看很有道理——确实没复制了。</p>
+
+<div class="warn">
+<b>codex 的反驳（一句话拆穿）：</b>
+<code>[ Move.compose xs ]</code> 把<strong>整个</strong>下级序列 <code>xs</code> 压成<strong>一个</strong>上级走势——
+输出 <code>List Move</code> 的长度<strong>永远 ≤ 1</strong>。这是「全局聚合摘要」，不是「多个上级走势由多个窗口递归生成」。
+缠论要的是 <code>segmentsOf : List Stroke → List Segment</code> 那种<strong>多进多出</strong>，每个输出元素背后有自己的 ≥3 个下级 witness。
+</div>
+
+<p>所以两版的退化只是形态不同：</p>
+<table>
+<tr><th></th><th>旧桩</th><th>「忠实」修法</th><th>真正忠实</th></tr>
+<tr><td>构造</td><td><code>[m,m,m]</code> 复制三份</td><td><code>[compose xs]</code> 整段压一个</td><td>分段窗口 → 多个上级</td></tr>
+<tr><td>上级序列长度</td><td>1</td><td>≤ 1</td><td>可多个</td></tr>
+<tr><td>≥3 不同 witness</td><td><span class="verdict v-no">假</span></td><td><span class="verdict v-no">未证</span></td><td><span class="verdict v-yes">须证</span></td></tr>
+</table>
+
+<h2>2. 病根：Schema（骨架）≠ 忠实实装（血肉）</h2>
+<p>为什么聪明人也会掉进去？因为 Lean <strong>能编译、能过 <code>build</code></strong>，给人「做完了」的错觉。但编译只保证<strong>类型对</strong>，不保证<strong>缠论对</strong>。</p>
+
+<div class="key">
+区分两个层级（上一课的认识论分级在这里落地）：
+<ul>
+<li><b>Schema / 接口（L0）</b>：「存在一个全函数 <code>Fstep</code>」「函数即全且唯一」——这是<strong>同义反复</strong>的真理，任何函数都满足，<em>对缠论一无所知</em>。</li>
+<li><b>忠实实装（L1/L2）</b>：「这个 <code>Fstep</code> <strong>真的</strong>实现了第67/71课的分段规则、每个上级真有 ≥3 个不同下级」——这才有缠论内容，且要真实数据才能证伪。</li>
+</ul>
+codex 的 origin 版本很<strong>诚实</strong>地承认这一点：它把递归写成 <code>ElementPipeline</code> 接口，明说 "deliberately an interface"——骨架严格，血肉留给实例。错的不是写接口，错的是<strong>把接口的 L0 真理当成「忠实实装完成」来声明</strong>。这叫<strong>声明膨胀</strong>。</p>
+</div>
+
+<h2>3. 通用的识破法</h2>
+<p>不懂 Lean 也能用。当任何人（AI 或人）说「我把 X 忠实实现了」，问三层：</p>
+<ol>
+<li><b>反退化见证</b>：「给我一个<strong>具体例子</strong>，证明它没退化。」——本案中：「给我一个输入，它的输出上级序列长度 ≥ 2。」给不出，就是 length≤1 的聚合。</li>
+<li><b>这是哪一层的真理</b>：「这是『类型/函数自动成立』（L0 骨架），还是『缠论规则真的被编码』（L1）？再问，有真实数据撑吗（L2）？」</li>
+<li><b>边界条件</b>：「什么情况下你这个结论会翻——如果翻，说明你没覆盖那个情况。」</li>
+</ol>
+
+<div class="sharp">
+<h3>带走的锋利问题</h3>
+<p>「你说忠实实现了递归——<strong>给我一个上级序列长度 ≥ 2 的具体例子</strong>，并指出每个上级元素的那 ≥3 个<strong>不同</strong>下级 witness。
+拿不出来，你做的就是『整段压一个』的聚合，不是缠论递归。」</p>
+</div>
+
+<p class="next">
+活案例来源：<code>cc-foundation-faithful</code> 报告 vs <code>cc-codex-origin-review</code> 的 codex CLI 讨论（2026-06-26）。这条缺口现在是公开前沿——两版形式化都没解，下一步就是正面解它。<br>
+下一课预告：<strong>全定义策略闭环</strong>——分类如何驱动动作（<code>policyθ = schedule∘risk∘intent∘classify∘recStruct</code>）。<br>
+任何词发虚（「witness」「聚合 vs 序列」「L0/L1/L2」）就喊停，我们坐实它再走。
+</p>
+
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0004 课 · 全定义策略闭环 S_Θ</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>全定义策略闭环 S_Θ</h1>
+<p class="sub">第 0004 课 · 从「60 个零件并排放着」到「一条会自己转下去的环」</p>
+
+<p class="lede">前三课讲的是<strong>分类</strong>（走势怎么被穷尽地分）。这一课讲<strong>分类之后</strong>——
+分类怎么驱动动作，动作怎么改变状态，状态怎么再喂回分类。
+这是「策略」第一次被写成一个<strong>闭合的环</strong>，而不是一串互不相干的定理。
+关键问题只有一个：把零件接成环，<em>到底多买到了什么</em>？这一课让你能逐字回答。</p>
+
+<h2>1. 病灶：我们有 60 个零件，但它们是「并排合取」的</h2>
+<p>蜂群已经形式化了一长串组件——解析、分类、赋格、风险投影、执行……
+它们被一条「链总定理」收口（<code>Strict/Chain.lean:330</code>）。但这条链的形状是这样的：</p>
+
+<pre>theorem chanlun_chain_total_unique (CC θ x z) :
+  (∃ s, globalClassify CC.components x = s ∧ …)   <b>-- C_Θ 侧</b>
+  <b>∧</b>
+  (∃ o, CC.family.π θ (CC.toHist x) z = o ∧ …)     <b>-- π_Θ 侧</b></pre>
+
+<div class="warn">
+<b>看那个 <code>∧</code>。</b>它把「分类唯一」和「策略唯一」<strong>并排</strong>放在一起，用合取拼起来。
+但 <code>π θ (toHist x) z</code> 里<strong>根本没有 <code>globalClassify x</code> 的输出</strong>——
+策略不读分类。两侧各自成立，<strong>彼此不连接</strong>。这不是一个环，是两块各自合格的零件躺在桌上。
+</div>
+
+<p>更具体：<code>StrategyFamily.piTheta</code> 的内部链是
+<code>recog → target → riskProj → exec</code>（<code>Strict/StrategyFamily.lean:334</code>）——
+<strong>产出订单就停</strong>。没有「下一个状态」，没有 T，环不闭合。
+分类在左边，策略在右边，中间是空的。</p>
+
+<h2>2. S_Θ：把六段接成一条强制穿过分类的环</h2>
+<p>第 0004 课的主角是 <code>Strict/HybridStep.lean</code>。它定义一个六段接口
+<code>HybridComponents</code>，并把它们接成<strong>单一一步</strong>
+<code>hybridStep : HybridState → Event → HybridState</code>（<code>:103</code>）：</p>
+
+<div class="flow">
+<span class="stage">recStruct</span> x e  <span class="arrow">→</span> d &nbsp; <span class="src">Rec：事件解析成结构</span><br>
+<span class="stage">classify</span> x d  <span class="arrow">→</span> c &nbsp; <span class="src">C_Θ：结构分到类</span><br>
+<span class="stage">intent</span> x <b>c</b>  <span class="arrow">→</span> i &nbsp; <span class="src">Intent：<b>输入是类 c</b>，决策真读分类</span><br>
+<span class="stage">risk</span> x i  <span class="arrow">→</span> u &nbsp; <span class="src">RiskProj：意图投影到仓位控制</span><br>
+<span class="stage">schedule</span> x u  <span class="arrow">→</span> o &nbsp; <span class="src">Exec：控制排成订单</span><br>
+<span class="stage">transition</span> x o e  <span class="arrow">→</span> x' &nbsp; <span class="src">T：<b>产出完整下一态</b>，环闭合</span>
+</div>
+
+<p>对照第 1 节的并排合取，这里有两条 Chain <strong>表达不出来</strong>的结构约束，各对应一条定理：</p>
+
+<table>
+<tr><th>结构约束</th><th>定理（file:line）</th><th>它锁死了什么</th></tr>
+<tr><td><b>π_Θ = π̄_Θ ∘ C_Θ</b><br>策略穿过分类</td><td><code>policy_factors_through_classify</code><br><code>HybridStep.lean:164</code></td><td><code>intent</code> 的输入<strong>就是</strong> <code>classify</code> 的输出——决策不能绕开分类</td></tr>
+<tr><td><b>T 闭环写回</b><br>下一态由当前态产出</td><td><code>hybridStep_is_closed_transition</code><br><code>HybridStep.lean:183</code></td><td><code>x' = transition x (policyOutput x e) e</code>——环闭合，<code>x_t → x_{t+1}</code></td></tr>
+</table>
+
+<div class="key">
+<b>这就是编排者那条公式的兑现：</b>
+<code>x<sub>t+1</sub> = T<sub>Θ</sub>(x<sub>t</sub>, Schedule(x<sub>t</sub>, RiskProj(x<sub>t</sub>, Intent(C<sub>Θ</sub>(x<sub>t</sub>))))，e)</code>。
+Intent 套在 C_Θ 外面（策略读分类），T 套在最外面（写回状态）。并排的 <code>∧</code> 升级成了嵌套的 <code>∘</code>。
+</div>
+
+<h2>3. 但要诚实：这两条「实质增量」是哪一层真理？</h2>
+<p>翻到证明体，你会发现 <code>policy_factors_through_classify</code> 和
+<code>hybridStep_is_closed_transition</code> 的证明<strong>都是 <code>rfl</code></strong>（<code>:167</code>、<code>:185</code>）。
+<code>rfl</code> = 「定义上就相等」= <span class="lvl l0">L0</span>。文件自己诚实标注了这一点（<code>:161-162</code>、<code>:180-181</code>）。</p>
+
+<div class="warn">
+<b>这里有个必须拆开的细节，否则会误判严格性：</b><br>
+「证明是 <code>rfl</code>」<strong>不</strong>等于「这条定理没价值」。它的价值不在<em>证明难度</em>，在<em>它把什么钉进了类型签名</em>。
+<code>intent : HybridState → Class → Intent</code>（<code>:84</code>）——这个签名<strong>强制</strong> intent 收一个 <code>Class</code>。
+你<strong>无法</strong>写一个不读分类的 hybridStep，因为类型不让你接线。<code>rfl</code> 之所以平凡，正是因为约束已经<strong>前移到接口签名里</strong>了——这是「让非法状态无法表达」，不是「定理空洞」。
+</div>
+
+<p>那它<strong>没</strong>买到什么，必须同样诚实（文件 <code>:29-34</code> 列了禁标项）：</p>
+<table>
+<tr><th>S_Θ 闭环<b>不</b>声称</th><th>为什么</th></tr>
+<tr><td>策略盈利 / 最优 / 实盘有效</td><td>T 只声明「闭环全定义」，盈利是 <span class="lvl l3">L3</span> 经验，要真实数据否证</td></tr>
+<tr><td>C_Θ 的标签有缠论语义</td><td><code>classify</code> 只给 fiber partition，语义逐 claim 承载（615）</td></tr>
+<tr><td>决策充分性 L1（同类⟹同策略）</td><td><code>same_policy_input_same_output</code>（<code>:201</code>）只给「π 穿过 C ⟹ L1 <strong>可表达</strong>」的结构前提，<strong>不是 L1 本身</strong>——文件 <code>:196-199</code> 明说</td></tr>
+</table>
+
+<p class="lede">所以这一课的天平是这样的：<strong>S_Θ 把分类和策略从「并排」接成「闭环」，这是真增量——
+但增量在<span class="lvl l0">L0</span>结构层（让接线方式合法/非法可判定），不在经验层。</strong>
+它买到的是「这个环结构上接对了、且接法被类型钉死」；它<strong>没</strong>买到「这个环转起来会赚钱」。
+把前者当后者，就是 0002/0003 反复警告的声明膨胀。</p>
+
+<h2>4. 这对下游意味着什么（为什么闭环不是装饰）</h2>
+<p>闭环有一个<strong>非装饰性</strong>的下游推论，写在 <code>HybridStep.lean:177-178</code>：
+没有 <code>x_{t+1} = T(...)</code> 这条形式契约，<strong>回测和实时根本没有共同的状态推进定义</strong>。
+有了它，回测和实盘<strong>消费同一个 <code>hybridStep</code></strong>——这是 L2 回测能不能对齐实盘的<em>形式落点</em>。
+换句话说：闭环不闭合，「回测有效 ⟹ 实盘有效」这句话<strong>连陈述都陈述不了</strong>。
+闭合了，这句话才有一个能被 L2 数据证伪的载体。</p>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询蜂群的「闭环已装配」声明）</h3>
+<p>「你说 S_Θ 闭环装配好了——给我看那两条增量（<code>policy_factors_through_classify</code> /
+<code>hybridStep_is_closed_transition</code>）<strong>除了 <code>rfl</code> 还有什么</strong>。
+如果都是 <code>rfl</code>，那真增量是『类型签名强制 intent 读 Class、T 写回完整态』<strong>这一条</strong>——
+对不对？还是你其实只是把 Chain 的 <code>∧</code> 换了个写法，<code>transition</code> 仍是个抽象字段、
+<strong>没有任何 adapter 真把 Dynamics.δ + Accounting 接进去</strong>（<code>:264</code> 说 transition 的实例化『后续』）？
+给我一个<strong>已实例化的 <code>HybridComponents</code></strong>，它的 <code>transition</code> 真改了 ledger——
+给不出，闭环就还是空环，L2 形式落点就还是悬空的。」</p>
+</div>
+
+<p class="next">
+来源：<code>formal/Strict/{HybridStep,Chain,StrategyFamily}.lean</code>（已 <code>lake env lean Strict/HybridStep.lean</code> 编译通过，零错误）。
+任务映射：闭环骨架 = #86（completed）；<strong>adapter 实例化重基 = #88（pending）</strong>、<strong>引擎实装 = #94（in_progress）</strong>——
+这正是上面锋利问题指向的缺口：骨架在，实例化未到。<br>
+下一课预告：<strong>双账本为何不同构</strong>——<code>R=Π−A−W</code> 与「取本金」三阶段 TW，以及 OQ-9『相位锁死 vs 数值可逆』如何靠扩维消解。<br>
+「fiber」「factor through」「闭环 vs 并排合取」「rfl 为什么不等于空洞」这几个词若发虚，喊停，我们坐实再走。
+</p>
+
+</body>
+</html>

@@ -58,11 +58,19 @@ import Strict.HybridStep
 import Strict.Fugue
 import Strict.RiskProj
 import Dynamics
+import Accounting.TotalWealth
 
 namespace Strict.HybridAssembly
 
 open Strict.Chain (TotalUnique totalUnique_of_fun totalUnique_prod)
 open Strict.HybridStep (HybridComponents hybridStep)
+-- ★OQ-9 扩维（task #93）：取本金三阶段账本 TW = free+holding+withdrawn + 阶段单向 + OQ-9 gate。
+-- 接进闭环：AssemblyState.twState : TWState 真被 transitionAdapter 线程化（见 §2/§4 诚实标注）。
+-- open 列表只含闭环里实际引用的名字（TWState/TWEvent/twStep + 守恒/单向定理 + LegalTransition gate
+-- 谓词）；单文件 OQ-9 定理（legal_earning_no_legacy_leg_closure / raw witness）在 TotalWealth.lean
+-- 已证，闭环侧由 assemblyStep_oq9_closure_illegal 延拓（消费 LegalTransition），不重复 open。
+open Formal.Tlayers.Accounting.TotalWealth (TWState TWEvent twStep twStep_preserves_tw
+  stage_rank_monotone LegalTransition)
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §1 账本分量 LedgerComp（R=Π-A-W 恒等，本文件新建——补 Ledger 接缝缺口）
@@ -200,6 +208,10 @@ deriving DecidableEq, Repr
   - `microState : Dynamics.State`：解析级微状态（barCount/strokeCount/lastStrokeDir/pendingRise，
     T-causal `Dynamics.State` 已证全定义转移）。
   - `ledgerState : LedgerComp`：账本恒等分量（R=Π-A-W，§1 新建）。
+  - `twState : TWState`：★取本金三阶段账本分量（TW=free+holding+withdrawn 守恒 + stage 单向 +
+    OQ-9 gate，task #93 扩维，来源 `Accounting.TotalWealth`）。**与 ledgerState 双层并置**——
+    R=Π-A-W（收益表视角）与 TW（现金流+持仓视角）二者不同构（#90 已证），完整持仓系统两者都需要。
+    twState 真被 transitionAdapter 线程化（见 §4 transitionAdapter + §6 反退化见证）。
   - `riskMode : RiskMode`：风险模式 μ（五态）。
   - `phase : Phase`：三阶段 Φ。
   - `positions : Nat`：当前总持仓单位（声部聚合后的绝对单位数 Σq_v 的摘要）。
@@ -215,6 +227,7 @@ deriving DecidableEq, Repr
 structure AssemblyState where
   microState : Tlayers.Dynamics.State
   ledgerState : LedgerComp
+  twState : TWState
   riskMode : RiskMode
   phase : Phase
   positions : Nat
@@ -224,12 +237,25 @@ deriving Repr
 
 /--
   ★混合事件 `AssemblyEvent`（L0）：驱动闭环一步的外部事件 e。
-  携带一个解析事件（`Dynamics.Event`，驱动 microState）+ 一个账本事件（`LedgerEvent`，
-  驱动 ledgerState）——两侧事件在同一外部事件 e 中同步到达（闭环转移 T 同时消费）。
+  携带一个解析事件（`Dynamics.Event`，驱动 microState）+ 一个账本事件（`LedgerEvent`）+
+  一个 TW 账本事件（`TWEvent`）——构成外部事件的完整 schema（task #93 扩 twEvent）。
+
+  ★诚实标注（review 019f0318 修正3，禁声明膨胀——撤回「非死字段」辩护）：`parseEvent` 被
+  transitionAdapter **直接消费**（驱动 microState）。`ledgerEvent`/`twEvent` 是**当前闭环明确忽略的
+  字段**（intentional ignored field，不是被 T 消费的外部输入）——权威账本事件来自 **OrderOut**
+  （scheduleAdapter 从策略动作派生，账户因果链：策略决定账本副作用，codex R2「ledger 更新放进 T，
+  用订单事件」）。这与现有 ledgerEvent 同构（ledgerState 同样只用 o.ledgerEvent，不用 e.ledgerEvent）。
+
+  ★诚实裁定（codex review）：旧标注「外部 schema 占位 + 非新增死字段」是声明膨胀——它确实是
+  **被忽略的字段**。本文件改为明确声明「当前闭环忽略 e.{ledgerEvent,twEvent}」并以定理坐实
+  （`assemblyStep_twState_ignores_event_twEvent`：换掉 e.twEvent 不影响后态 twState）。若未来目标
+  是外部事件驱动 TW，须改 transitionAdapter 消费 e.twEvent，或加 o.twEvent 与 e.twEvent 一致性校验——
+  当前**不**声称外部驱动（诚实有效域边界）。
 -/
 structure AssemblyEvent where
   parseEvent : Tlayers.Dynamics.Event
   ledgerEvent : LedgerEvent
+  twEvent : TWEvent
 deriving Repr
 
 /-! ════════════════════════════════════════════════════════════════════════
@@ -270,14 +296,16 @@ def IntentAction : Type := Strict.StrictAction
 abbrev Control : Type := Nat
 
 /--
-  ★订单 `OrderOut`（Schedule 段输出，L0）：调度后的订单 O_t（携带动作 + 目标仓位 + 账本事件）。
+  ★订单 `OrderOut`（Schedule 段输出，L0）：调度后的订单 O_t（携带动作 + 目标仓位 + 双账本事件）。
   Schedule 段 = 把控制（目标仓位）+ 意图（动作）+ 账本副作用打包为订单（StrategyFamily.exec
-  的执行顺序 Θ_exec 摘要）。订单携带 `ledgerEvent` 使 T 的 ledger 更新有据可依（账户因果）。
+  的执行顺序 Θ_exec 摘要）。订单携带 `ledgerEvent`（R=Π-A-W 侧）+ `twEvent`（取本金三阶段 TW 侧）
+  使 T 的**双账本**更新都有据可依（账户因果链；task #93 双层并置）。
 -/
 structure OrderOut where
   action : Strict.StrictAction
   targetPos : Nat
   ledgerEvent : LedgerEvent
+  twEvent : TWEvent
 deriving Repr
 
 /-! ════════════════════════════════════════════════════════════════════════
@@ -381,20 +409,30 @@ def riskAdapter (_x : AssemblyState) (_i : IntentAction) : Control :=
 
 /--
   ★Schedule 段 `scheduleAdapter`（L0）：把控制（目标仓位 q*）+ 意图（动作）打包为订单。
-  这是 StrategyFamily.exec 的执行顺序 Θ_exec 摘要——订单携带动作 + 目标仓位 + 派生的账本事件
+  这是 StrategyFamily.exec 的执行顺序 Θ_exec 摘要——订单携带动作 + 目标仓位 + 派生的双账本事件
   （动作决定账本副作用：buy/add → allocate（资本化建仓占用 R），reduce/close → realize（回收
-  实现盈亏），hold/wait/sell → noop 摘要）。账本事件使 T 的 ledger 更新有据（账户因果链）。
+  实现盈亏），hold/wait/sell → noop 摘要）。双账本事件使 T 的 ledger（R=Π-A-W）+ twState（TW）
+  更新都有据（账户因果链）。
 
-  ★诚实：账本事件的 dΠ/dA 取占位常量（1 单位）——具体数额是 Θ_risk/运行时数据（L2），本结构
-  层只承载「动作 ⟹ 账本事件类型」的映射（buy 占资本、close 实现盈亏），数额由下游填充。
+  ★twEvent 派生（task #93，真线程化非恒等）：动作 ⟹ TW 账本算子的结构映射——
+  - `u>0`（建仓/降成本）⟹ `shortDiff (-1)`（free→holding 买入降成本短差，TW 守恒，**改变 twState
+    的 free/holding 分量**——非恒等）。
+  - `u=0`（平仓/退本金）⟹ `recoverCapital 1`（free→withdrawn 退本金 1 单位，TW 守恒，**改变
+    twState 的 free/withdrawn + 推进 stage**——非恒等）。
+
+  ★诚实：账本事件的 dΠ/dA/dCash/w 取占位常量（1 单位）——具体数额是 Θ_risk/运行时数据（L2），
+  本结构层只承载「动作 ⟹ 账本事件类型」的映射（buy 占资本/降成本、close 实现盈亏/退本金），
+  数额由下游填充。twEvent 与 ledgerEvent 双侧由同一动作派生 ⟹ 两账本同步线程化。
 -/
 def scheduleAdapter (_x : AssemblyState) (u : Control) : OrderOut :=
   -- 本骨架的意图未单独透传到 schedule（HybridStep schedule 签名为 state→control→order）；
-  -- 动作由 control（目标仓位）派生：q*>0 ⟹ 建仓订单（allocate），q*=0 ⟹ 平仓订单（realize）。
+  -- 动作由 control（目标仓位）派生：q*>0 ⟹ 建仓订单（allocate + 降成本短差），q*=0 ⟹ 平仓订单（realize + 退本金）。
   if u > 0 then
-    { action := Strict.StrictAction.buy, targetPos := u, ledgerEvent := LedgerEvent.allocate 1 }
+    { action := Strict.StrictAction.buy, targetPos := u,
+      ledgerEvent := LedgerEvent.allocate 1, twEvent := TWEvent.shortDiff (-1) }
   else
-    { action := Strict.StrictAction.close, targetPos := 0, ledgerEvent := LedgerEvent.realize 1 }
+    { action := Strict.StrictAction.close, targetPos := 0,
+      ledgerEvent := LedgerEvent.realize 1, twEvent := TWEvent.recoverCapital 1 }
 
 /--
   ★★T 段 `transitionAdapter`（L0，本文件核心新建——闭环写回完整 AssemblyState）：
@@ -404,6 +442,9 @@ def scheduleAdapter (_x : AssemblyState) (u : Control) : OrderOut :=
   - `microState` := `Dynamics.delta x.microState e.parseEvent`（解析层在线推进一步，T-causal）。
   - `ledgerState` := `ledgerStep x.ledgerState o.ledgerEvent`（**账本更新，保 R=Π-A-W**——
     用订单携带的账本事件，使账户态 z 的生成进入闭环，补 piTheta_causal 的账户因果洞）。
+  - `twState` := `twStep x.twState o.twEvent`（★**取本金三阶段账本更新，保 TW 守恒 + stage 单向**——
+    task #93 真线程化：用订单携带的 twEvent 驱动 TW 账本一步，使取本金三阶段的生成进入闭环；
+    与 ledgerState 双层并置，两守恒都在闭环里被维持）。
   - `positions` := 订单目标仓位 `o.targetPos`（写回新持仓）。
   - `orders` := `x.orders + 1`（订单计数推进）。
   - `memory`、`riskMode`、`phase`：本骨架保持（其转移由 Θ_signal/Θ_risk 阈值驱动，L2；
@@ -412,11 +453,12 @@ def scheduleAdapter (_x : AssemblyState) (u : Control) : OrderOut :=
   ★诚实标注（codex R3）：T **只声明闭环状态转移全定义**（产出确定的下一态），**不**声明该
   转移盈利 / 最优 / 实盘有效（L3）。riskMode/phase/memory 的转移阈值是 Θ/L2（不在 L0 装配内
   臆造），本骨架保持它们 = 诚实留白（非 workaround：阈值驱动转移属下游有效域，本文件只闭合
-  micro/ledger/positions/orders 的结构闭环）。
+  micro/ledger/twState/positions/orders 的结构闭环）。
 -/
 def transitionAdapter (x : AssemblyState) (o : OrderOut) (e : AssemblyEvent) : AssemblyState :=
   { microState := Tlayers.Dynamics.delta x.microState e.parseEvent
     ledgerState := ledgerStep x.ledgerState o.ledgerEvent
+    twState := twStep x.twState o.twEvent
     riskMode := x.riskMode
     phase := x.phase
     positions := o.targetPos
@@ -569,6 +611,200 @@ theorem assemblyStep_preserves_ledger_inv (x : AssemblyState) (e : AssemblyEvent
         - (assemblyStep x e).ledgerState.W :=
   (assemblyStep x e).ledgerState.inv
 
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §6.5 取本金三阶段账本接入闭环（task #93，TW 守恒 + stage 单向 + OQ-9 gate，双层并置）
+
+  twState 真被 transitionAdapter 线程化（非恒等挂件，见 assemblyStep_threads_twState +
+  assemblyStep_twState_changes witness），且闭环每步：
+  - 保 TW = free+holding+withdrawn 守恒（assemblyStep_preserves_tw）；
+  - stage 单向不可逆（assemblyStep_stage_monotone，campaign 内）；
+  - OQ-9 gate 不变量在闭环转移下保持（assemblyStep_oq9_gate_preserved）。
+  与 assemblyStep_preserves_ledger_inv（R=Π-A-W 不丢）**双层并置**——两守恒都在闭环里被维持。
+
+  ★review 019f0318 诚实分工（修正3+4(a)，撤回声明膨胀）：
+  - 端B（stage 单向 + OQ-9 gate）**真在此闭环动**（_stage_monotone / _oq9_gate_preserved /
+    _oq9_closure_illegal）；trace 级端B 由 TotalWealth.oq9inv_trace 承载（单文件）。
+  - 端A（cumNetCash 数值回正）的载体 closeShareLeg **不被本装配 scheduleAdapter 派生** ⟹
+    端A 通道**两个字段**都闭环恒定（`assemblyStep_cumNetCash_unchanged` + `_openLegacyLegs_unchanged`，
+    review 复审 5c 对称补全）⟹ 端A 通道**不在此闭环有效域**（明确声明，不冒充接入；端A 在单文件
+    raw witness 层完整）。trace 级端B 的合法起点由 `TotalWealth.init_satisfies_oq9inv` 坐实（5b 补全）。
+  - AssemblyEvent.twEvent 是**被忽略字段**（`assemblyStep_twState_ignores_event_twEvent` 坐实），
+    权威账本事件来自 OrderOut（非声明膨胀的「外部 schema」辩护）。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/--
+  ★twState 真被线程化 `assemblyStep_threads_twState`（L0，反退化见证①·结构侧）：
+  闭环转移后的 twState = `twStep x.twState (策略订单.twEvent)`——twState 由 T 经 twStep 真消费
+  订单携带的 twEvent 产出，**不是恒等挂件**（删去 transitionAdapter 的 twState 行则此 rfl 不成立）。
+-/
+theorem assemblyStep_threads_twState (x : AssemblyState) (e : AssemblyEvent) :
+    (assemblyStep x e).twState
+      = twStep x.twState
+          (scheduleAdapter x (riskAdapter x (intentAdapter x (classifyAdapter x (recAdapter x e))))).twEvent :=
+  rfl
+
+/--
+  ★★TW 守恒接入闭环 `assemblyStep_preserves_tw`（L0，task #93 核心）：
+  闭环转移后，twState 的 TW = free+holding+withdrawn **守恒**。
+
+  `(assemblyStep x e).twState.tw = x.twState.tw`——T 经 twStep（保 TW 守恒，
+  `TotalWealth.twStep_preserves_tw`）更新取本金三阶段账本，故闭环每步保持 TW 守恒（缠师第31课
+  守恒律的闭环结构形式）。与 R=Π-A-W（ledger）并置——两守恒律双层都在闭环里。
+
+  ★诚实（formalization-validity-domain）：本定理证「闭环保 TW 守恒结构不变量」（L0，同价 c 固定），
+  **不**证 TW 数值反映实盘真实盈亏（跨 bar 价格变动 L2/L3，Rust prove_tw_neutral 守卫覆盖）。
+-/
+theorem assemblyStep_preserves_tw (x : AssemblyState) (e : AssemblyEvent) :
+    (assemblyStep x e).twState.tw = x.twState.tw := by
+  rw [assemblyStep_threads_twState]
+  exact twStep_preserves_tw x.twState _
+
+/--
+  ★★stage 单向不可逆接入闭环 `assemblyStep_stage_monotone`（L0，OQ-9 端B 闭环形式）：
+  闭环转移后，twState 的 stage rank **只增不减**（campaign 内，订单 twEvent ≠ clearCampaign）。
+
+  本装配的 scheduleAdapter 派生的 twEvent 只取 `shortDiff (-1)`（u>0）或 `recoverCapital 1`（u=0），
+  **都不是 clearCampaign**，故 `TotalWealth.stage_rank_monotone` 的 campaign-内单向性恒适用——
+  闭环每步 stage rank 单调不减（CostReduction→CapitalRecovered→EarningShares 不回退，OQ-9）。
+-/
+theorem assemblyStep_stage_monotone (x : AssemblyState) (e : AssemblyEvent) :
+    x.twState.stage.rank ≤ (assemblyStep x e).twState.stage.rank := by
+  rw [assemblyStep_threads_twState]
+  -- 订单 twEvent 必是 shortDiff/recoverCapital 之一（scheduleAdapter 两分支），均 ≠ clearCampaign。
+  apply stage_rank_monotone
+  -- 反证：twEvent = clearCampaign 不可能（scheduleAdapter 的 if 两支都不产 clearCampaign）。
+  unfold scheduleAdapter
+  split <;> simp only [ne_eq, not_false_eq_true, reduceCtorEq]
+
+/--
+  ★★OQ-9 gate 接入闭环 `assemblyStep_oq9_gate_preserved`（L0，task #93 + codex 修正立场C）：
+  若进入闭环前 twState 已在 EarningShares 且 OQ-9 入口证书成立（无未闭合旧腿，openLegacyLegs=0），
+  则闭环转移后该证书**仍成立**（openLegacyLegs=0 保持）——本装配的 twEvent（shortDiff/recoverCapital）
+  都不开新腿（openShareLeg）也不闭腿（closeShareLeg），故 openLegacyLegs 不变，OQ-9 gate 被维持。
+
+  这把 OQ-9 端B「EarningShares 后旧腿恒空 ⟹ 亏损腿闭合回正路径不可达」从单文件定理
+  （`legal_earning_no_legacy_leg_closure`）**延拓到闭环**：闭环装配下，合法 OQ-9 不变量逐步保持，
+  「相位锁死」是闭环转移下的结构性质（不是一次性声明）。
+-/
+theorem assemblyStep_oq9_gate_preserved (x : AssemblyState) (e : AssemblyEvent)
+    (hgate : x.twState.openLegacyLegs = 0) :
+    (assemblyStep x e).twState.openLegacyLegs = 0 := by
+  rw [assemblyStep_threads_twState]
+  -- twEvent ∈ {shortDiff, recoverCapital}（scheduleAdapter 两分支），二者都不动 openLegacyLegs。
+  unfold scheduleAdapter
+  split <;> simp only [twStep, hgate]
+
+/--
+  ★★OQ-9 端B 在闭环里是定理 `assemblyStep_oq9_closure_illegal`（L0，task #93 + codex 修正立场C）：
+  闭环转移后（gate 保持，openLegacyLegs=0），对该闭环后态「闭合旧 ShareConserving 腿」**不是合法转移**。
+
+  `¬ LegalTransition (assemblyStep x e).twState (closeShareLeg p)`——直接由 OQ-9 gate 保持
+  （`assemblyStep_oq9_gate_preserved`：闭环后 openLegacyLegs=0）+ LegalTransition 对 closeShareLeg 的
+  合法性要求（openLegacyLegs ≥ 1）矛盾导出。这把单文件的 `legal_earning_no_legacy_leg_closure`
+  （单步入口证书 ⟹ 旧腿闭合非法）**延拓到整条闭环**：闭环每步维持 gate ⟹ 任一闭环后态上
+  「亏损腿闭合回正」路径恒不可达（OQ-9 端B「相位锁死」是闭环结构定理，非一次性声明）。
+
+  ★这真消费 LegalTransition（legal 层谓词）——闭环装配下 OQ-9 矛盾的扩维消解被坐实：raw 层
+  端A 数值可回正（TotalWealth.raw_earning_legacy_leg_closure_witness），legal 层闭环里那条 trace
+  恒不可达（本定理）。两端各在其层，矛盾经扩维消解（codex binding 立场C 修正版）。
+-/
+theorem assemblyStep_oq9_closure_illegal (x : AssemblyState) (e : AssemblyEvent) (p : Int)
+    (hgate : x.twState.openLegacyLegs = 0) :
+    ¬ LegalTransition (assemblyStep x e).twState (TWEvent.closeShareLeg p) := by
+  -- 闭环后 openLegacyLegs = 0（gate 保持）；LegalTransition closeShareLeg 要求 ≥ 1 ⟹ 矛盾。
+  have h0 : (assemblyStep x e).twState.openLegacyLegs = 0 :=
+    assemblyStep_oq9_gate_preserved x e hgate
+  simp only [LegalTransition, h0]
+  decide
+
+/--
+  ★twState 真改变 witness `assemblyStep_twState_changes`（L0，反退化见证①·实例侧）：
+  **存在**一个具体态 x 与事件 e，使闭环转移后 twState ≠ x.twState（twState 真被改写，非恒等）。
+
+  本装配的 riskAdapter 恒投到网格最小格点（gridProject over {0,1,2,3} = 0），故 u=0 ⟹
+  scheduleAdapter 取 else 分支 ⟹ twEvent = recoverCapital 1 ⟹ twStep 把 free 减 1、withdrawn 加 1
+  并推进 stage——只要初始 stage=costReduction，step 后 stage=capitalRecovered ≠ costReduction，
+  twState 整体被改写。这给「twState 非恒等挂件」的硬见证（不依赖 gridProject 内部值的脆弱假设：
+  直接 decide 算闭环一步的 stage 改变）。
+-/
+theorem assemblyStep_twState_changes :
+    ∃ (x : AssemblyState) (e : AssemblyEvent),
+      (assemblyStep x e).twState ≠ x.twState := by
+  refine ⟨{ microState := Tlayers.Dynamics.s0,
+            ledgerState := ledger0 0,
+            twState := { free := 100, holding := 0, withdrawn := 0, notionalIn := 0,
+                         stage := Formal.Tlayers.Accounting.TotalWealth.TStage.costReduction,
+                         openLegacyLegs := 0, cumNetCash := 0 },
+            riskMode := RiskMode.normal, phase := Phase.phaseI,
+            positions := 0, orders := 0, memory := 0 },
+          { parseEvent := Tlayers.Dynamics.Event.newBar true, ledgerEvent := LedgerEvent.noop,
+            twEvent := TWEvent.clearCampaign }, ?_⟩
+  -- 闭环一步：riskAdapter 投网格最小格点 0 ⟹ scheduleAdapter else 分支 ⟹ 订单 twEvent=recoverCapital 1
+  -- ⟹ twStep 把 stage 从 costReduction 推进到 capitalRecovered（≠ 初始）⟹ twState 改变。
+  intro h
+  -- 从 twState 相等推出 stage 相等，再 decide 矛盾（capitalRecovered ≠ costReduction）。
+  have hstage := congrArg TWState.stage h
+  simp only [assemblyStep_threads_twState, scheduleAdapter, riskAdapter] at hstage
+  revert hstage
+  decide
+
+/--
+  ★★twEvent 字段被闭环忽略 `assemblyStep_twState_ignores_event_twEvent`（L0，review 修正3 坐实）：
+  只要 `parseEvent` 相同，**换掉 AssemblyEvent.twEvent（及 ledgerEvent）不影响后态 twState**。
+
+  这把「e.twEvent 是 intentional ignored field」从文档声明升级为**定理**——闭环的 twState 只由
+  parseEvent（经 recAdapter→…→scheduleAdapter 派生订单的 twEvent）决定，e.twEvent 不进数据流。
+  坐实诚实标注（撤回旧「外部 schema 占位非死字段」辩护）：它确实是被忽略的字段，且**机器可证**。
+
+  ★若未来要外部驱动 TW，须改 transitionAdapter 消费 e.twEvent——本定理届时会失败（成为回归守卫）。
+-/
+theorem assemblyStep_twState_ignores_event_twEvent
+    (x : AssemblyState) (e₁ e₂ : AssemblyEvent)
+    (hpe : e₁.parseEvent = e₂.parseEvent) :
+    (assemblyStep x e₁).twState = (assemblyStep x e₂).twState := by
+  -- twState = twStep x.twState (订单.twEvent)；订单经 recAdapter（只用 parseEvent）派生。
+  rw [assemblyStep_threads_twState, assemblyStep_threads_twState]
+  simp only [recAdapter, hpe]
+
+/--
+  ★★cumNetCash 闭环不动 + 端A 诚实分工 `assemblyStep_cumNetCash_unchanged`（L0，review 修正4(a)）：
+  闭环转移后 `cumNetCash` **保持不变**——本装配的 scheduleAdapter 只派生 shortDiff/recoverCapital，
+  **从不**派生 closeShareLeg（唯一改 cumNetCash 的事件），故 cumNetCash 在此闭环恒定。
+
+  ★诚实分工界限（formalization-validity-domain，撤回「OQ-9 端A 接入闭环」的空洞声明）：
+  OQ-9 端A（cumNetCash 数值回正）的载体是 **closeShareLeg legacy 腿**事件。当前 assembly 闭环的
+  scheduleAdapter **不产 leg 事件**（开/闭 legacy 腿是 Θ_voice/Θ_exec 策略决策，L0 结构层不臆造
+  「何时开闭腿」的策略逻辑——臆造=声明膨胀）。故 OQ-9 端A 的 cumNetCash 通道**不在此闭环有效域**：
+  - 端A 在**单文件 raw witness 层**完整（`TotalWealth.raw_earning_legacy_leg_closure_witness`）；
+  - 端B（stage 单向 + gate 保持）**真在此闭环动**（assemblyStep_stage_monotone / _oq9_gate_preserved）；
+  - 端A cumNetCash 通道由本定理诚实标注「闭环未驱动」（不冒充接入）。
+
+  这是诚实的分工：闭环承载端B（stage/gate，真动），端A（cumNetCash）在单文件 witness 层完整、
+  闭环层明确声明未驱动——非 workaround（要接入须先有策略层的开/闭腿决策，那是下游 Θ 的有效域）。
+-/
+theorem assemblyStep_cumNetCash_unchanged (x : AssemblyState) (e : AssemblyEvent) :
+    (assemblyStep x e).twState.cumNetCash = x.twState.cumNetCash := by
+  rw [assemblyStep_threads_twState]
+  -- scheduleAdapter 两分支产 shortDiff/recoverCapital，twStep 对二者都不动 cumNetCash。
+  unfold scheduleAdapter
+  split <;> simp only [twStep]
+
+/--
+  ★openLegacyLegs 闭环恒定 `assemblyStep_openLegacyLegs_unchanged`（L0，review 复审 5c 补全，
+  与 cumNetCash_unchanged 对称）：闭环转移后 `openLegacyLegs` **保持不变**——scheduleAdapter 只派生
+  shortDiff/recoverCapital，**从不**派生 openShareLeg/closeShareLeg（唯一动 openLegacyLegs 的事件）。
+
+  这与 `assemblyStep_cumNetCash_unchanged` 对称，坐实 OQ-9 端A 通道的**两个字段**
+  （openLegacyLegs 腿计数 + cumNetCash 净现金口径）在本闭环都恒定——端A 通道完整地不在此闭环
+  有效域（不只 cumNetCash 一个字段）。`assemblyStep_oq9_gate_preserved` 是本定理在 openLegacyLegs=0
+  前提下的特例；本定理是无前提的恒定声明（更强：不依赖初值是否为 0）。
+-/
+theorem assemblyStep_openLegacyLegs_unchanged (x : AssemblyState) (e : AssemblyEvent) :
+    (assemblyStep x e).twState.openLegacyLegs = x.twState.openLegacyLegs := by
+  rw [assemblyStep_threads_twState]
+  unfold scheduleAdapter
+  split <;> simp only [twStep]
+
 /--
   ★RiskProj 段命中有限网格 LexArgmin（L0，禁连续 argmin 的兑现）：
   `assembly_risk_is_grid_lexargmin` — riskAdapter 的输出 = defaultRiskGrid 上 cost 字典序最优格点。
@@ -586,6 +822,8 @@ theorem assembly_risk_is_grid_lexargmin (x : AssemblyState) (i : IntentAction) :
 /--
   ★装配标签 `AssemblyTag`（gatekeeper，诚实分层）。
   - `ClosedLoopWithLedger`：π̄∘C + T 写回 + R=Π-A-W 账本闭环（本文件实质增量）。
+  - `TwoLedgerConserved`：★双账本闭环守恒（R=Π-A-W ledger + TW=free+holding+withdrawn twState +
+    stage 单向 + OQ-9 gate，task #93 扩维）——二者不同构（#90）双层并置，两守恒都在闭环里。
   - `FunctionGraphUnique`：闭环步 ∃! 是函数图平凡侧（最弱必要侧）。
   - `FiniteGridRiskProj`：RiskProj 是有限网格确定选择器（非连续 argmin）。
   - `ThetaParametric`：网格/优先级/阈值是 Θ 参数（非缠论可导）。
@@ -596,6 +834,7 @@ theorem assembly_risk_is_grid_lexargmin (x : AssemblyState) (i : IntentAction) :
 -/
 inductive AssemblyTag where
   | closedLoopWithLedger
+  | twoLedgerConserved
   | functionGraphUnique
   | finiteGridRiskProj
   | thetaParametric
@@ -607,10 +846,12 @@ inductive AssemblySubkind where
   | closedLoopGivenTheta
 deriving DecidableEq, Repr
 
-/-- ★诚实标签包：闭环+账本 + 函数图唯一 + 有限网格 + Θ参数化 + 经验有效域，子类 ClosedLoopGivenTheta。 -/
+/-- ★诚实标签包：闭环+账本 + 双账本守恒（task #93）+ 函数图唯一 + 有限网格 + Θ参数化 +
+    经验有效域，子类 ClosedLoopGivenTheta。 -/
 def assemblyLabels : List AssemblyTag × AssemblySubkind :=
-  ([AssemblyTag.closedLoopWithLedger, AssemblyTag.functionGraphUnique,
-    AssemblyTag.finiteGridRiskProj, AssemblyTag.thetaParametric, AssemblyTag.empiricalDomain],
+  ([AssemblyTag.closedLoopWithLedger, AssemblyTag.twoLedgerConserved,
+    AssemblyTag.functionGraphUnique, AssemblyTag.finiteGridRiskProj,
+    AssemblyTag.thetaParametric, AssemblyTag.empiricalDomain],
    AssemblySubkind.closedLoopGivenTheta)
 
 /-- ★禁标盈利/缠论唯一/连续argmin（L0，gatekeeper 见证）：装配子类必是 ClosedLoopGivenTheta。 -/
@@ -624,17 +865,30 @@ theorem assembly_subkind_is_given_theta (k : AssemblySubkind) :
   本文件**证**（L0，machine-checked，无 sorry/admit/axiom）：
   1. 账本分量 `LedgerComp`（R=Π-A-W 恒等，本文件新建——补 Ledger 接缝缺口）+ `ledgerStep`
      全函数 + `ledgerStep_preserves_inv`（保 R=Π-A-W）+ `ledgerStep_total_unique`。
-  2. 完整乘积态 `AssemblyState`（蓝图 §2：micro/ledger/riskMode/phase/positions/orders/memory）+
-     混合事件 `AssemblyEvent`。
+  2. 完整乘积态 `AssemblyState`（蓝图 §2：micro/ledger/**twState**/riskMode/phase/positions/orders/
+     memory，task #93 增 twState）+ 混合事件 `AssemblyEvent`（增 twEvent，**当前闭环忽略字段**，
+     review 修正3：权威账本事件来自 OrderOut，非声明膨胀的「外部 schema」辩护）。
   3. 六段具体实现（recAdapter/classifyAdapter/intentAdapter[10级优先级 actionPriority]/
-     riskAdapter[有限网格 gridProject]/scheduleAdapter/transitionAdapter[闭环T]）装配为
-     `assembly : HybridComponents`。
+     riskAdapter[有限网格 gridProject]/scheduleAdapter[派生双账本事件]/transitionAdapter[闭环T，
+     同步更新 ledgerState + twState]）装配为 `assembly : HybridComponents`。
   4. ★装配总定理 `assemblyStep_total_unique`（实例化 HybridStep.hybridStep_total_unique）+
      `assembly_components_totalUnique_prod`（micro×ledger 经 Chain.totalUnique_prod 组装）。
   5. ★实质增量：`assembly_policy_factors_through_classify`（π̄∘C 真读分类）+
      `assembly_is_closed_transition`（T 真写回完整态）+ `assemblyStep_preserves_ledger_inv`
      （T 保 R=Π-A-W，补账户因果洞）+ `assembly_risk_is_grid_lexargmin`（有限网格 LexArgmin，非连续）。
-  6. 诚实标签 `assemblyLabels` + `assembly_subkind_is_given_theta`（禁标盈利/缠论唯一/连续argmin）。
+  5b. ★★取本金三阶段账本接入闭环（task #93，§6.5，双层并置 + review 019f0318 修正后诚实分工）：
+     - `assemblyStep_threads_twState`（twState 真被 T 经 twStep 线程化，非恒等挂件）+
+       `assemblyStep_twState_changes`（具体 witness：一个 step 前后 twState 真改变，stage 推进）。
+     - `assemblyStep_preserves_tw`（闭环保 TW=free+holding+withdrawn 守恒，与 R=Π-A-W 双守恒并置）。
+     - `assemblyStep_stage_monotone`（闭环 stage 单向不可逆，OQ-9 端B 闭环形式）。
+     - `assemblyStep_oq9_gate_preserved`（OQ-9 入口证书 openLegacyLegs=0 闭环逐步保持）+
+       `assemblyStep_oq9_closure_illegal`（闭环后态闭旧腿恒非法，消费 LegalTransition，端B 是闭环定理）。
+     - ★review 修正3：`assemblyStep_twState_ignores_event_twEvent`（换 e.twEvent 不影响后态 twState，
+       坐实「e.twEvent 是被忽略字段」——撤回声明膨胀）。
+     - ★review 修正4(a)：`assemblyStep_cumNetCash_unchanged`（cumNetCash 闭环恒定 ⟹ OQ-9 端A
+       cumNetCash 通道不在此闭环有效域，诚实声明不冒充接入；端A 在单文件 raw witness 层完整）。
+  6. 诚实标签 `assemblyLabels`（增 twoLedgerConserved）+ `assembly_subkind_is_given_theta`
+     （禁标盈利/缠论唯一/连续argmin）。
 
   本文件**不证**（codex R3 诚实边界，装配不得声明膨胀）：
   - ✗ 盈利/最优/实盘有效（T 只闭环全定义，L3 EmpiricalDomain）。
@@ -642,8 +896,15 @@ theorem assembly_subkind_is_given_theta (k : AssemblySubkind) :
   - ✗ 10 级优先级由缠论唯一推出（actionPriority 是 Θ_voice 确定选择器）。
   - ✗ classifyAdapter 摘要等价于完整 C_Θ fiber partition（完整 C_Θ 唯一性由 Chain 承载，
        本段只兑现「Intent 真读 classify 输出」的闭环数据流）。
-  - ✗ 账本数值反映实盘真实盈亏（ledger 保 R=Π-A-W 是 L0 结构不变量，数值正确性 L2，Rust 守卫）。
+  - ✗ 账本数值反映实盘真实盈亏（ledger 保 R=Π-A-W / twState 保 TW 都是 L0 结构不变量，数值
+       正确性 L2，Rust 守卫；twState 的 TW 守恒仅同价 c 固定，跨 bar 价格变动 L2/L3）。
   - ✗ riskMode/phase/memory 转移阈值（Θ/L2，本骨架保持，不臆造阈值——诚实留白非 workaround）。
+  - ✗ AssemblyEvent.{ledgerEvent,twEvent} 被 T 直接消费（review 修正3：它们是**当前闭环忽略的
+       字段**，T 实际消费订单 OrderOut.{ledgerEvent,twEvent}，由 assemblyStep_twState_ignores_event_twEvent
+       坐实——非「外部 schema 占位」的声明膨胀辩护）。
+  - ✗ OQ-9 端A（cumNetCash 回正）接入本闭环（review 修正4(a)：scheduleAdapter 不派生 closeShareLeg，
+       cumNetCash 闭环恒定，assemblyStep_cumNetCash_unchanged 坐实；端A 在单文件 raw witness 层完整，
+       闭环层诚实声明未驱动——接入须先有策略层开/闭腿决策，属下游 Θ 有效域，L0 不臆造）。
 
   ★ledger 接缝裁定（重要，formalization-validity-domain）：蓝图 §2 标 ledgerState 来源
   `Tlayers/Accounting/Ledger`，但该文件**无** R=Π-A-W 四字段恒等结构（实测）。本文件**新建**
@@ -651,8 +912,19 @@ theorem assembly_subkind_is_given_theta (k : AssemblySubkind) :
   冒充=090声明膨胀）。Ledger 的股数守恒/NAV中性作同范畴佐证。这是装配中发现的**蓝图引用与
   实际组件的接缝缺口**——按 no-workaround，不硬塞/不冒充，新建正确载体并标注。
 
-  谱系：615/616/617（C_Θ 与 π_Θ 都 Θ-参数化）→ HybridStep（闭环装配抽象接口）→ 本文件
-        （抽象接口具体化 + R=Π-A-W 账户因果接入闭环，补 piTheta_causal「只比同一 z」的洞）。
+  ★OQ-9 扩维裁定（task #93，codex binding 立场C 修正版，gpt-5.5 xhigh session 019f0303）：
+  取本金三阶段账本（twState）经 `import Accounting.TotalWealth` 接入闭环，**与 R=Π-A-W 双层并置**
+  （二者不同构 #90，互不替代——R=Π-A-W 收益表视角 / TW 现金流+持仓视角，完整持仓系统两者都需要）。
+  OQ-9 守恒律相变可逆性矛盾经**扩维消解**：stage 与 cumNetCash 数值解耦（独立维度），openLegacyLegs
+  承载入口证书。codex 三修正全吸收——(1) 非法性在 enterEarning 入口（openLegacyLegs=0），非 close
+  时事后判违规；(2) rawStep/legalStep 双层（raw 保端A 数值 witness / legal 排除该 trace，非「两端
+  并存」声明膨胀）；(3) 非对称是自洽 hysteresis。端B「相位锁死」由 `assemblyStep_oq9_closure_illegal`
+  延拓为**闭环定理**（非声明）。与 ledger.rs「严格形式 + n_t5 计数器可观测」结构一致。
+
+  谱系：615/616/617（C_Θ 与 π_Θ 都 Θ-参数化）→ HybridStep（闭环装配抽象接口）→ 本文件 #86
+        （抽象接口具体化 + R=Π-A-W 账户因果接入闭环，补 piTheta_causal「只比同一 z」的洞）→
+        #90（R=Π-A-W vs 取本金三阶段不同构裁定）→ 本文件 #93（取本金三阶段 TW + OQ-9 gate 扩维
+        接入闭环，双账本并置；OQ-9 矛盾 design §3.3 经 codex 立场C 修正版扩维消解）。
   ════════════════════════════════════════════════════════════════════════ -/
 
 end Strict.HybridAssembly
