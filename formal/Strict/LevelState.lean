@@ -68,7 +68,7 @@
        Claim9（中枢位置三态）+ BSPLabels（买卖点非互斥标签集，twoB_threeB_can_coincide）。
 -/
 
-import Classification          -- Strict 内核（命名空间 = Strict）：Classifies / SemanticQuotient
+import Strict.Classification   -- Strict 内核（命名空间 = Strict）：Classifies / SemanticQuotient
 import Claim9_CenterPosition    -- 分类B：中枢位置三态（命名空间 = Formal.CenterPosition）
 import Formal.BSPLabels         -- 买卖点标签集（命名空间 = Formal.BSPLabels）
 

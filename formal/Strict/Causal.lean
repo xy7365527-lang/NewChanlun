@@ -45,7 +45,7 @@
 -/
 
 import Strict.Classification
-import Tlayers.Signal
+import Signal
 import Formal.BSPLabels
 
 namespace Strict.Causal

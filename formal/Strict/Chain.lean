@@ -52,7 +52,7 @@
 -/
 import Strict.Classification
 import Strict.ClassificationFamily
-import StrategyFamily
+import Strict.StrategyFamily
 
 namespace Strict.Chain
 

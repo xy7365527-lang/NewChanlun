@@ -35,7 +35,7 @@
   禁 sorry/admit/axiom。
 -/
 
-import Classification          -- task #57 T-kernel 共享内核（lake 模块名=Classification，命名空间=Strict）
+import Strict.Classification   -- task #57 T-kernel 共享内核（lake 模块名=Strict.Classification，命名空间=Strict）
 import Formal.CenterTrichotomy  -- 分类A：两中枢关系三态（Phase1 脊柱）
 import Claim9_CenterPosition    -- 分类B：中枢位置三态（Phase2 claim9，命名空间=Formal.CenterPosition）
 

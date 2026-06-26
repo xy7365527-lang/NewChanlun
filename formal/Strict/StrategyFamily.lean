@@ -67,8 +67,8 @@
 -/
 
 import Strict.Classification
-import Causal
-import OpenTail
+import Strict.Causal
+import Strict.OpenTail
 
 namespace Strict.StrategyFamily
 

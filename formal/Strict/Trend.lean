@@ -82,7 +82,7 @@
 import Formal.TrendTrichotomy
 import Formal.CenterTrichotomy
 import Formal.RecursiveConstruction
-import Classification  -- task #57 T-kernel 共享内核（lake 模块名=Classification，命名空间=Strict）
+import Strict.Classification  -- task #57 T-kernel 共享内核（lake 模块名=Strict.Classification，命名空间=Strict）
 
 namespace Strict.Trend
 

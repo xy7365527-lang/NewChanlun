@@ -48,7 +48,7 @@
   禁 sorry/admit/axiom。
 -/
 
-import Classification
+import Strict.Classification
 import Formal.RecursiveConstruction
 
 namespace Strict.Recursive

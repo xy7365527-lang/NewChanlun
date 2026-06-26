@@ -54,10 +54,10 @@
   谱系：615/616/617（C_Θ 与 π_Θ 都 Θ-参数化）→ HybridStep（闭环装配，C 与 π 由并列升级为复合）
         → 本文件（抽象接口具体化 + R=Π-A-W 账户因果接入闭环）。
 -/
-import HybridStep
-import Fugue
-import RiskProj
-import Tlayers.Dynamics
+import Strict.HybridStep
+import Strict.Fugue
+import Strict.RiskProj
+import Dynamics
 
 namespace Strict.HybridAssembly
 
