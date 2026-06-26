@@ -60,7 +60,13 @@ roots = ["Strict.Classification", "Strict.Trend", "Strict.Recursive", "Strict.De
 #     镜像等变 + 动态闭合 + 完整 Rec→Class→Intent→Risk→Schedule→T 单步存在唯一(hybrid_step_complete_unique)。
 #   命名空间 NewChanlun/NewChanlunHybrid，与 Strict/Formal 无碰撞；纯 Prop/Type 无 Mathlib 无 sorry/admit/axiom。
 #   两文件在本仓 lake env 验证编译通过。后续：用缠论具体(笔/线段/中枢)忠实实例化其抽象参数 + 全定义策略建在其上。
+#   - ChanlunInstantiation（缠论具体实例化，task #87，cc-foundation-inst）：用已证缠论具体结构忠实
+#     实例化 CompleteClassification 抽象参数——LevelRecursion ← Strict.Recursive 走势递归（canStep
+#     逐级 compose）；Priority ← Strict.Op 动作优先级（持仓×信号 6 类）；GlobalVoice ← Strict.Trend
+#     走势分类器（trend_classifies 五件套导出 ExistsUnique）；Strategy ← 分类→应对流水线（函数图）。
+#     import CompleteClassification + Strict.{Recursive,Trend,Op}，依赖单向无环。全 L0（已证结构填入
+#     已证抽象定理，不冒充经验有效性）；完备性是缠论公理给定，忠实编码不评级。
 [[lean_lib]]
 name = "Foundation"
 srcDir = "Foundation"
-roots = ["CompleteClassification", "HybridStateMachine"]
+roots = ["CompleteClassification", "HybridStateMachine", "ChanlunInstantiation"]
