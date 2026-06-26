@@ -13,6 +13,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import sys
 import zipfile
 from datetime import datetime
@@ -21,10 +22,18 @@ from urllib.request import urlretrieve
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "analysis" / "data_cache"
-OUTPUT = DATA_DIR / "btc_1m_3year.json"
 
-START_YEAR, START_MONTH = 2023, 1
-END_YEAR, END_MONTH = 2026, 5
+# 范围与输出名可由环境变量覆盖（默认 3 年窗口，输出 btc_1m_3year.json）。
+#   全历史忠实重建（匹配 OFF 基座 fugue_v3 的 4.63M bars ≈ 8.8 年）跑法：
+#   BTC_START_YEAR=2017 BTC_START_MONTH=8 BTC_OUTPUT=btc_1m_full.json \
+#       python scripts/download_btc_binance.py
+#   BTCUSDT 现货归档实际起点 2017-08（上线月）；早于此的月份 zip 404 自动跳过。
+OUTPUT = DATA_DIR / os.environ.get("BTC_OUTPUT", "btc_1m_3year.json")
+
+START_YEAR = int(os.environ.get("BTC_START_YEAR", "2023"))
+START_MONTH = int(os.environ.get("BTC_START_MONTH", "1"))
+END_YEAR = int(os.environ.get("BTC_END_YEAR", "2026"))
+END_MONTH = int(os.environ.get("BTC_END_MONTH", "5"))
 
 BASE_URL = (
     "https://data.binance.vision/data/spot/monthly/klines/BTCUSDT/1m"
