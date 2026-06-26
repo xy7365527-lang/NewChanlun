@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0008 课 · 严格 schema 不是完整忠实分类器</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>严格 schema ≠ 完整忠实分类器</h1>
+<p class="sub">第 0008 课 · A′ Origin 焊好了「凭什么这样分」的<em>骨架</em>，但「具体凭什么」还是平凡桩或缺失</p>
+
+<p class="lede">编排者刚裁定「从 A′ Origin 这个更严格的起点重写」。这一课回答一个你现在最该问的问题：
+<strong>这个起点到底做到了什么、还差什么？</strong>一句话先放这里——
+A′ Origin 是一份<strong>严格的 schema</strong>，<em>不是</em>一份<strong>完整忠实的分类器</strong>。
+它把「完全分类」的<strong>元判准骨架</strong>焊死了（纤维=行为商、四类穷尽、↔ 诚实降级），
+但缠论分类的<strong>血肉判据</strong>——中枢/买卖点/线段/背驰<em>「具体凭什么这样分」</em>——还是平凡桩或干脆缺失。
+这正好是谱系 222/223/230 那条规律的第四次现身：<strong>定义域上代数成立，有效域严格更小</strong>。</p>
+
+<h2>1. 先分清两件不同的「分类」工作</h2>
+<p>0001 课讲过完全分类的严格形式：分类器的<strong>纤维恰好是行为等价类</strong>（那个 <code>↔</code>）。
+但「分类器」这个词其实压着两层完全不同的活，混在一起就会被声明膨胀骗过去：</p>
+<table>
+<tr><th>层</th><th>它回答什么</th><th>严格形式</th><th>谁来填</th></tr>
+<tr><td><b>元判准骨架</b><br><span class="src">meta-criterion schema</span></td><td>「<em>什么算</em>一个合法分类」——纤维结构、穷尽性、单射性、↔ 兑现</td><td>结构定理（与具体缠论无关）</td><td>schema 作者（A′ Origin）</td></tr>
+<tr><td><b>缠论血肉判据</b><br><span class="src">faithful judgment</span></td><td>「<em>具体凭什么</em>把<strong>这个</strong>走势判成中枢/二买/古怪线段」——第67/71/78 课的真规则</td><td>真编码的判据 + 反例 + 完备性</td><td>实例（引擎）——多半<strong>还没填</strong></td></tr>
+</table>
+<p class="lede">A′ Origin 把<strong>第一层</strong>做扎实了，第二层大面积是<strong>占位</strong>。
+骨架严格是必要的第一步，但<strong>骨架的 L0 真理不是「分类忠实」</strong>——这正是 0002 课「schema ≠ 忠实实装」在<em>分类</em>这条线上的重演。</p>
+
+<h2>2. A′ Origin 已经忠实做到的（DONE，别低估）</h2>
+<p>这些是真成果，骨架确实严格，质询时该认：</p>
+<table>
+<tr><th>已忠实</th><th>它兑现了什么</th></tr>
+<tr><td>完全分类元判准</td><td>纤维 = 行为商 <code>↔</code> 双向（0001 的那个 <code>↔</code>，结构焊死）</td></tr>
+<tr><td>走势四类穷尽</td><td>四类划分穷尽且互斥，<code>ClassifierPartition</code> 自动诱导</td></tr>
+<tr><td>#89 窗口化递归</td><td>多上级序列 + 每上级 ≥3 不同下级 witness（0002 锋利问题已被机器见证回答）</td></tr>
+<tr><td>#91 ↔ 诚实降级</td><td>证 ↔ 对缠论非平凡 trace 不可满足，<strong>诚实降级出 canonical</strong>，不假装满足</td></tr>
+<tr><td>闭环六段接口</td><td><code>π̄∘C+T</code> 写回，约束前移到接口签名（0004 课）</td></tr>
+<tr><td>R=Π−A−W 单账本</td><td>双账本桥 + 扩维 stage 未塌缩（0005 课）</td></tr>
+</table>
+<div class="key">
+为什么这些算「DONE」而不是膨胀？因为它们<strong>要么是结构定理（有效域=定义域，0006 课说过这类不需 L2）</strong>，
+要么<strong>给出了反退化见证</strong>（#89 的多上级 witness、#91 的可判定反例）。
+特别是 #91——它是「诚实降级 &gt; 虚假兑现」的范例：缺口的正确解可以是<em>「机器证明它不可满足并诚实标注」</em>，
+不是「假装 ↔ 成立」。这条要记牢，下一节的桩就是它的反面。
+</div>
+
+<h2>3. 还没填的血肉（MISSING / degenerate-stub，#113/#114 正在港入）</h2>
+<p>下面才是「现在重点」。元判准骨架站着，但骨架的<strong>洞</strong>里——具体缠论判据——大面积是平凡桩或空缺。
+这正是 0001 课结尾那句的兑现：「真正的缠论保真度不在 origin 里，留给实例去填」。</p>
+
+<table>
+<tr><th>判据</th><th>Origin 现状</th><th>缺的「血肉」</th></tr>
+<tr><td><b>中枢三态</b></td><td><span class="lvl l0">MISSING</span></td><td>「之上/之下/之内」态 + 中心定理一/二（GG/G/D/DD 区间）——现在是 Bool 占位字段，不是机器见证的态判定</td></tr>
+<tr><td><b>买卖点三类</b></td><td><span class="lvl l0">degenerate</span></td><td>三类判据 + 单射裁定 + 完备性「只有一二三类」——现在是裸 <code>inductive</code> 标签，没判据没单射</td></tr>
+<tr><td><b>线段（古怪线段）</b></td><td><span class="lvl l0">degenerate</span></td><td>第67/71/78 课特征序列法（包含关系 + 顶高于底硬约束）——现在是 <code>total_unique_of_fun</code> 桩（「函数即全且唯一」，对线段一无所知）</td></tr>
+<tr><td><b>背驰 / 区间套</b></td><td><span class="lvl l0">MISSING</span></td><td>背驰判定 + 区间套收敛——整块缺失</td></tr>
+<tr><td><b>策略族 π_Θ</b></td><td><span class="lvl l0">MISSING in Origin</span></td><td>「分类 ⊬ 唯一策略」的 witness——现在只在 legacy Strict，Origin 抽象接口上无实例</td></tr>
+<tr><td><b>分类器族 C_Θ / fiber</b></td><td><span class="lvl l0">MISSING in Origin</span></td><td>同上，仅 legacy；RiskProj / VoiceTree 同样全 MISSING in Origin</td></tr>
+</table>
+
+<div class="warn">
+<b>最该盯死的一个桩：<code>total_unique_of_fun</code>。</b>
+0001 课就点过它——「函数即全且唯一」是 <span class="lvl l0">L0</span> 平凡真理，<strong>任何函数都满足</strong>。
+把线段划分写成这个桩，等于说「存在一个把笔映射成线段的全函数」——
+这对「<em>古怪线段</em>到底怎么用特征序列法切」<strong>一个字都没说</strong>。
+它能过 <code>lake build</code>，却对第78课「顶高于底」硬约束、对包含关系的严格性，<strong>零编码</strong>。
+这是 schema 的洞被一个 L0 桩堵住，<em>看起来满了，其实是空的</em>。
+</div>
+
+<p>顺带一个状态点：<strong>#88 = partial</strong>——接口居留（六段闭环签名）done，但组件实例化（真改 ledger 的 <code>transition</code>）未 done。
+接口在、血肉不在，是这整课的同一个形状。</p>
+
+<h2>4. 用谱系 222/223/230 框定：定义域 vs 有效域</h2>
+<p>0006 课给了那把尺——<strong>有效域可能严格小于定义域</strong>。A′ Origin 正好是它的第四个标本：</p>
+<table>
+<tr><th></th><th>定义域（声称的）</th><th>有效域（真编码的）</th></tr>
+<tr><td><b>A′ Origin 分类器</b></td><td>声称覆盖<em>所有走势</em>——四类穷尽 + 纤维=行为商，代数上对全体走势成立</td><td>真有判据的只是<em>元判准骨架</em>；中枢/买卖点/线段/背驰的具体判据是桩或缺——<strong>有效域严格更小</strong></td></tr>
+</table>
+<div class="key">
+对齐三起判例的同一形状（0006 课表）：<br>
+<b>222号</b>（守恒律范畴错误）/ <b>223号</b>（分类不完备）/ <b>230号</b>（直积退化）——
+三例都是「<strong>定义域上代数成立，却被当成定义域上经验成立</strong>」。
+A′ Origin 是第四次：<em>「分类器覆盖所有走势」在定义域（穷尽划分）上代数成立，
+但「这样分的具体缠论判据」这个有效域，目前只覆盖元判准，不覆盖血肉。</em>
+说「Origin 已完成完全分类」= 把第四例又演一遍。
+</div>
+
+<h2>5. 怎么不被「formalized」骗过去（三层识破法，0002 §3）</h2>
+<p>当 #113/#114 任一工位报「中枢/买卖点/线段/背驰<strong>已 formalized</strong>」，套这三层（不懂 Lean 也能用）：</p>
+<ol>
+<li><b>反退化见证</b>：给一个<strong>具体缠论例子</strong>被这个判据真正处理——
+具体中枢的「之上/之下」态、具体二买的单射裁定、具体<em>古怪线段</em>被特征序列法切。给不出 = 还是桩。</li>
+<li><b>哪一层真理</b>：是 <span class="lvl l0">L0</span> 骨架（<code>total_unique_of_fun</code> / 裸 inductive / Bool 字段，自动成立），
+还是 <span class="lvl l1">L1</span>（第67/71/78 课规则<strong>真编码</strong>），还是 <span class="lvl l2">L2</span>（真实 K 线撑）？</li>
+<li><b>边界条件</b>：什么走势会让这个判据翻——翻了就是没覆盖那个情况（古怪线段、混合中枢态正是最容易漏的）。</li>
+</ol>
+
+<div class="warn">
+<b>本课自身的诚实标注（不豁免自己）：</b>这一课是<strong>审计结晶</strong>，把 A′ Origin 审计结论讲清楚。
+它本身是 <span class="lvl l0">L0</span> 级产出——从审计台账与谱系 222/223/230 推导，<strong>零真实数据依赖</strong>。
+它<strong>不</strong>是「A′ Origin 分类器有效」的 L2 主张，也不替 #113/#114 兑现任何 witness——
+那些 witness 是工位报「formalized」时<em>自己</em>必须交的。
+</div>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询任何「分类已 formalized」声明）</h3>
+<p>「你说中枢/买卖点/线段/背驰<strong>已 formalized</strong>——给我<strong>一个具体缠论例子</strong>被这个判据真正处理：
+中枢给我「之上/之下」态 + 中心定理一/二（GG/G/D/DD）的<strong>机器见证</strong>，不是 Bool 占位；
+买卖点给我单射裁定的<strong>可判定反例</strong>或第三类子域 + 「只有一二三类」的完备性定理，不是裸 inductive 标签；
+线段给我<strong>一个古怪线段</strong>被第67/71/78 课特征序列法（包含关系 + 顶高于底硬约束）处理的例子，不是 <code>total_unique_of_fun</code>；
+策略族给我「分类 ⊬ 唯一策略」在 <strong>Origin 抽象分类器接口</strong>上的 witness，不是把 legacy 直接 re-export。
+拿不出来——你 formalize 的是<strong>元判准骨架</strong>（L0），不是缠论<strong>血肉判据</strong>。
+schema 严格 ≠ 分类忠实，这是 222/223/230 的第四次重演。」</p>
+</div>
+
+<p class="next">
+来源（审计物证）：A′ Origin canonical base 审计台账（DONE：纤维=行为商 / 四类穷尽 / #89 递归 / #91 ↔ 诚实降级 / 闭环六段 <code>π̄∘C+T</code> / R=Π−A−W / TW-OQ9 bridged；
+gaps：#113 分类血肉 [中枢三态·买卖点单射·线段特征序列法·背驰区间套] / #114 策略组件 [π_Θ·C_Θ·RiskProj·VoiceTree] / #88 partial）。<br>
+谱系：<code>.chanlun/genealogy/settled/222</code>（范畴错误）/ <code>223</code>（不完备）/ <code>230</code>（退化）/ <code>231</code>（formalization-validity-domain 规则）。<br>
+接续前课：0001（纤维=行为商的 ↔ + <code>total_unique_of_fun</code> 是 L0 平凡）、0002（schema ≠ 忠实实装，本课是它在<em>分类</em>线上的重演）、0006（有效域≠定义域 L0/L1/L2/L3）。<br>
+<b>认识论等级（诚实标注）：</b>本课 <span class="lvl l0">L0</span> 审计结晶——从审计台账与谱系推导，零真实数据，<strong>不是</strong>任何 L2 缠论主张。<br>
+「元判准骨架 vs 血肉判据」「<code>total_unique_of_fun</code> 是 L0 桩」「有效域≠定义域」这三个区分若发虚，喊停，坐实再走。
+</p>
+
+</body>
+</html>

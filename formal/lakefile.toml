@@ -94,7 +94,14 @@ srcDir = "."
 #   Strict.HybridAssembly）。EngineBridge/LedgerBridge import Strict.HybridAssembly（已重锚实现 Origin
 #   FullDefinitionSystem），HybridAssembly import Origin.FullDefinitionStrategy——lib 级 Strict↔Origin
 #   互依，模块级无环（FullDefinitionStrategy 纯 Origin standalone）。lake build 全量验证。
-roots = ["Origin.SourceAxioms", "Origin.CompleteClassification", "Origin.ChanlunElements", "Origin.TrendCompleteClassification", "Origin.FullDefinitionStrategy", "Origin.BehaviorQuotient", "Origin.FiniteTraceQuotient", "Origin.TraceProjection", "Origin.RecursiveLevelSystem", "Origin.ClassificationGuardrail", "Origin.EngineBridge", "Origin.LedgerBridge"]
+# 重点 wave（task #113 分类血肉 + #114 策略组件港入，2026-06-26，审计A/B 定准）：
+#   #113: SegmentFeatureSeq(线段特征序列/古怪线段)/CenterStates(中枢三态+中心定理)/
+#         Divergence(背驰区间套)/BspClassification(买卖点三类判据+单射+完备性)——判据层 formalized，
+#         构造层(segmentsOf/centersOf GG-DD/bspOf 全自动)诚实 still-MISSING。
+#   #114: StrategyFamily(π_Θ)/ClassifierFamily(C_Θ-fiber)/RiskProj/VoiceTree——策略侧四支柱结构港入，
+#         对 Origin 抽象接口重证(非 legacy re-export)；Θ 缠论-实例化(L1+)诚实 still-open。
+#   依赖：Bsp→{CenterStates,Divergence}；StrategyFamily→{FullDefinitionStrategy,RiskProj,ClassifierFamily}；均单向无环。
+roots = ["Origin.SourceAxioms", "Origin.CompleteClassification", "Origin.ChanlunElements", "Origin.TrendCompleteClassification", "Origin.FullDefinitionStrategy", "Origin.BehaviorQuotient", "Origin.FiniteTraceQuotient", "Origin.TraceProjection", "Origin.RecursiveLevelSystem", "Origin.ClassificationGuardrail", "Origin.EngineBridge", "Origin.LedgerBridge", "Origin.SegmentFeatureSeq", "Origin.CenterStates", "Origin.Divergence", "Origin.BspClassification", "Origin.RiskProj", "Origin.ClassifierFamily", "Origin.VoiceTree", "Origin.StrategyFamily"]
 
 # ★OriginAdapters（A′ legacy→Origin 适配器层，task #96/#97，2026-06-26）：
 #   声明「legacy pipeline 将实现的 Origin 接口」的命名空间 + 接口别名 + 真能立的 def。
