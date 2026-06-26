@@ -6,9 +6,15 @@ Origin/SegmentFeatureComplete.lean — 完整特征序列法线段判据接入�
   "消费 ≥1 笔"不变量，但**不**等于第67/71/78课的完整特征序列法判据。本文件把完整判据
   （特征序列缺口判定 / 第71课包含关系严格性 / 线段终结两情况 / 第78课古怪线段 + 顶高于底硬约束）
   接入为可机器检查的**完整段尾确认谓词** `SegEndComplete`，并证：
-    (1) 完整判据下的切分点 = 真特征序列确认点（`segEndComplete_iff_featureConfirmed`）；
-    (2) 完整判据**严格细化**良构封装——存在古怪线段使 scanSegEnd 切错而完整判据正确不确认
-        （反退化见证，升 A′ 从良构封装到缠论-忠实）；
+    (1) 完整判据 `SegEndComplete` 与"真特征序列确认" `FeatureConfirmed` 是**同名谓词**
+        （`segEndComplete_iff_featureConfirmed` = `Iff.rfl`，L0 同义反复，定义体逐字相同——
+        诚实标注：这条 rfl 不承载实质内容，只登记两个语义名字指同一谓词）；
+    (2) 完整判据**严格细化**良构封装——构造**真 `List Stroke`** 古怪线段笔序列 `peculiarStrokes`，
+        committed `scanSegEnd`（SegmentConstruction.lean）在其首个反向特征笔处**真会切**
+        （`scanSegEnd_cuts_at_first_reversal` + `peculiar_scanSegEnd_cuts`），而完整判据
+        `SegEndComplete` 正确不确认（非顶分型），两层经 committed `FeatureElem.ofStroke`
+        绑定（`peculiar_strokes_abstract`）——这是机器证明的**跨层分叉**（task #122 坐实，
+        非占位 `True`，升 A′ 从良构封装到缠论-忠实）；
     (3) 第78课古怪线段唯一原因 + 顶高于底硬约束作为结构定理。
 
 ═══════════════════════════════════════════════════════════════════════════
@@ -106,7 +112,13 @@ def SegEndComplete (d : SegEndData) : Prop :=
 /--
   **真特征序列确认谓词（第67课定义直译）** —— 段尾点是"真特征序列确认点"⟺ 出现对偶分型
   ∧ 两情况终结 ∧ 顶高于底。这是第67课"出现特征序列的分型是线段结束的前提条件 + 两情况完全
-  分类 + 第78课顶高于底"的**定义性合取**，与 `SegEndComplete` 同构（下面证相等）。
+  分类 + 第78课顶高于底"的**定义性合取**。
+
+  ★诚实标注（task #122）：本谓词与 `SegEndComplete` 的定义体**逐字相同**——`FeatureConfirmed`
+  只是把"完整段尾确认所要求的三合取"重命名为"真特征序列确认"这个语义名字。两者的等价
+  （`segEndComplete_iff_featureConfirmed`）因此是 `Iff.rfl`（L0 同义反复，零信息增量），
+  **不是**任何跨层/跨定义的实质证明。真正承载内容的是三合取各支自身（分型/两情况/顶高于底）
+  与 § 2 的跨层分叉、§ 3 的正例确认。
 -/
 def FeatureConfirmed (d : SegEndData) : Prop :=
   (match d.dir with
@@ -118,40 +130,89 @@ def FeatureConfirmed (d : SegEndData) : Prop :=
   ∧ TopAboveBottom { dir := d.dir, startPrice := d.startPrice, endPrice := d.endPrice }
 
 /--
-  **★完整判据 = 真特征序列确认点（L0，A′ 升级核心定理）** —— `SegEndComplete d ↔ FeatureConfirmed d`。
+  **完整判据与真特征序列确认同名（L0 同义反复，`Iff.rfl`）** —— `SegEndComplete d ↔ FeatureConfirmed d`。
 
-  这正是 #116 still-MISSING-A′ 要求证的命题"完整判据下 segmentsOf 的切分点 = 真特征序列确认点"
-  在**判据层**的严格形式：完整段尾确认谓词与第67课定义直译的真确认谓词**逻辑等价**——
-  完整判据不多不少恰好是真特征序列确认（非良构封装的方向反转近似）。
+  ★诚实标注（task #122，formalization-validity-domain L0）：`SegEndComplete` 与 `FeatureConfirmed`
+  的定义体**逐字相同**，故此等价是 `Iff.rfl`——**零信息增量的同义反复**，仅把"完整段尾确认"
+  的三合取命名为"真特征序列确认"。它**不**证明任何跨层/跨定义的实质命题（那由 § 2 的跨层
+  分叉 `complete_strictly_refines_naive` 与 § 3 正例 `valid_segEndComplete` 承载）。
+
+  此定理的唯一作用：把判据的两个语义名字（"完整确认"/"真特征序列确认"）显式登记为同一谓词，
+  供下游引用时不必区分。它不是"A′ 升级核心定理"——升级的实证内容在 § 2/§ 3，不在这条 `rfl`。
 -/
 theorem segEndComplete_iff_featureConfirmed (d : SegEndData) :
     SegEndComplete d ↔ FeatureConfirmed d := by
   unfold SegEndComplete FeatureConfirmed
-  -- 两者逐字相同（合取三支结构一致）
+  -- 两者逐字相同（合取三支结构一致）—— L0 同义反复，非实质证明
   exact Iff.rfl
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 2. 完整判据严格细化良构封装（反退化：古怪线段使 scan 切错）
-    ═══════════════════════════════════════════════════════════════════════ -/
+    § 2. 完整判据严格细化良构封装（反退化：古怪线段使 committed scan 真切错）
+    ═══════════════════════════════════════════════════════════════════════
+
+  ★本节坐实**跨层分叉**（task #122 修 #118 表述间隙）：不再用恒真占位
+  `NaiveScanCuts := True`，而是把良构封装的切分语义接到 SegmentConstruction.lean 的
+  **committed** `scanSegEnd`/`strokeReverses`（吃 `List Stroke`）。`NaiveScanCutsAt` 是
+  真实 `List Stroke` 层谓词（rest 含与段方向反向的笔——这正是 `scanSegEnd` 做出切分决策的
+  触发条件），`scanSegEnd_cuts_at_first_reversal` 机器证 committed scan 确在第一个反向笔处切。
+  古怪线段见证 `peculiarStrokes` 是真 `List Stroke`，其向下笔（第67课对偶：向上线段特征序列
+  由向下笔构成）经 committed `FeatureElem.ofStroke` 抽象出 peculiarSegEnd 的 e1/e2/e3。
+  于是 `complete_strictly_refines_naive` 是**真跨层定理**：在一条具体笔序列上，committed 良构
+  封装真会切（scanSegEnd 在反向笔处返回切点）而完整判据 SegEndComplete 拒绝（非顶分型）。
+  -/
 
 /--
-  **从候选段尾数据读"良构封装是否会在此切"** —— 良构封装 `scanSegEnd` 的切分语义是
-  "遇第一个方向反转笔即切"。把它抽象为：第二特征序列元素 e2 的存在即代表"出现一个反向笔"
-  （良构封装会据此切）。本谓词刻画良构封装的切分触发——**只看有无反向笔，不看分型/缺口/顶高于底**。
+  **良构封装切分触发（committed `scanSegEnd` 层，第78课方向反转）** —— 对线段方向 `segDir`
+  与剩余笔列 `rest`，良构封装 `scanSegEnd` 会在 `rest` 出现第一个反向笔处切。本谓词刻画其
+  切分**触发条件**：`rest` 中存在与 `segDir` 反向的笔（`strokeReverses segDir`）。
 
-  ★关键差异：良构封装在"有反向笔"即触发，而完整判据要求分型 ∧ 两情况 ∧ 顶高于底三者全成立。
+  ★这不是占位：`strokeReverses` 是 SegmentConstruction.lean 的 committed 定义（吃 `Stroke`），
+  `scanSegEnd` 的切分行为完全由"有无反向笔"驱动（见 § scanSegEnd 定义：遇反向笔即 `acc+1` 返回）。
+  本谓词**只看有无反向笔，不看分型/缺口/顶高于底**——这正是良构封装与完整判据的差异所在。
 -/
-def NaiveScanCuts (_d : SegEndData) : Prop := True
+def NaiveScanCutsAt (segDir : Direction) (rest : List Stroke) : Prop :=
+  rest.any (fun s => strokeReverses segDir s) = true
+
+instance (segDir : Direction) (rest : List Stroke) : Decidable (NaiveScanCutsAt segDir rest) := by
+  unfold NaiveScanCutsAt; exact inferInstanceAs (Decidable (_ = true))
 
 /--
-  **★反退化见证·古怪线段（第78课唯一原因，L0，A′ 升级证据）** —— 构造一个候选段尾数据，
-  良构封装会在此切（NaiveScanCuts 成立——有反向笔），但完整判据**不**确认
-  （¬ SegEndComplete——分型不成立）。
+  **★committed scan 在第一个反向笔处真切（L0，跨层接入核心）** —— 若 `rest` 首笔 `s` 即与
+  `segDir` 反向（`strokeReverses segDir s = true`），则 committed `scanSegEnd segDir (s::ts) acc`
+  恰返回 `acc + 1`（在该反向笔处切，消费 1 根）。
 
-  古怪线段例（第78:30 唯一原因：第一种情况的笔破坏后没在该方向发展成线段破坏）：
-  向上线段，特征序列元素 e1=[5,10]、e2=[8,12]、e3=[11,15]——e2 高点 12 **不**是三者最高
-  （e3 高点 15 > 12），故**不构成顶分型**。良构封装见到反向笔就切（切错），完整判据查分型
-  发现 e2 非顶 ⟹ 不确认（正确：这是古怪线段，笔破坏未发展成线段破坏）。
+  这是良构封装"扫到第一个方向反转笔即切"的**精确机器证形式**——直接对 SegmentConstruction.lean
+  的 committed `scanSegEnd` 求值，不是抽象占位。古怪线段见证的首个特征笔（向下笔）即反向笔，
+  故 committed scan 在此真切。
+-/
+theorem scanSegEnd_cuts_at_first_reversal (segDir : Direction) (s : Stroke) (ts : List Stroke)
+    (acc : Nat) (h : strokeReverses segDir s = true) :
+    scanSegEnd segDir (s :: ts) acc = acc + 1 := by
+  unfold scanSegEnd
+  simp only [h, if_true]
+
+/--
+  **★古怪线段笔序列见证（真 `List Stroke`，第78课唯一原因，L0）** —— 一条向上线段候选的具体
+  笔序列：起始向上笔 + 三根向下笔（特征笔，第67课对偶：向上线段特征序列由向下笔构成）。
+
+  三根向下笔经 committed `FeatureElem.ofStroke` 抽象出特征序列元素：
+  - 下笔 10→5  ⟹ [5,10]  （= peculiarSegEnd.e1）
+  - 下笔 12→8  ⟹ [8,12]  （= peculiarSegEnd.e2）
+  - 下笔 15→11 ⟹ [11,15] （= peculiarSegEnd.e3）——high=15 > e2.high=12 ⟹ **非顶分型**。
+
+  良构封装见首个向下笔（反向于向上段方向）即切（切错）；完整判据查分型发现 e2 非最高 ⟹
+  不确认（正确：这是古怪线段，第78:30 笔破坏未发展成线段破坏）。
+-/
+def peculiarStrokes : List Stroke :=
+  [ { direction := Direction.up,   startIndex := 0, endIndex := 1, startPrice := 5,  endPrice := 10 },
+    { direction := Direction.down, startIndex := 1, endIndex := 2, startPrice := 10, endPrice := 5 },
+    { direction := Direction.down, startIndex := 3, endIndex := 4, startPrice := 12, endPrice := 8 },
+    { direction := Direction.down, startIndex := 5, endIndex := 6, startPrice := 15, endPrice := 11 } ]
+
+/--
+  **古怪线段对应的候选段尾数据** —— 向上线段，特征序列元素 e1=[5,10]、e2=[8,12]、e3=[11,15]，
+  与 `peculiarStrokes` 的三根向下笔经 `FeatureElem.ofStroke` 抽象一致（见 `peculiar_strokes_abstract`）。
+  e3 高点 15 > e2 高点 12 ⟹ 不构成顶分型。
 -/
 def peculiarSegEnd : SegEndData :=
   { dir := Direction.up
@@ -162,8 +223,35 @@ def peculiarSegEnd : SegEndData :=
     startPrice := 5
     endPrice := 15 }
 
-/-- 良构封装在古怪线段处会切（有反向笔触发）。 -/
-theorem peculiar_naiveScanCuts : NaiveScanCuts peculiarSegEnd := trivial
+/--
+  **★笔序列的特征序列元素 = peculiarSegEnd 的 e1/e2/e3（L0，跨层对应）** —— `peculiarStrokes`
+  的三根向下笔经 committed `FeatureElem.ofStroke` 抽象出的区间，逐一等于 peculiarSegEnd 的
+  特征序列元素（用 low/high 投影对应，因 FeatureElem 带 valid 证明字段无 DecidableEq）。
+  这把 `List Stroke` 层（committed scan 吃的）与 SegEndData 层（完整判据吃的）**真正绑定**。
+-/
+theorem peculiar_strokes_abstract :
+    let d1 := FeatureElem.ofStroke peculiarStrokes[1]
+    let d2 := FeatureElem.ofStroke peculiarStrokes[2]
+    let d3 := FeatureElem.ofStroke peculiarStrokes[3]
+    (d1.low = peculiarSegEnd.e1.low ∧ d1.high = peculiarSegEnd.e1.high) ∧
+    (d2.low = peculiarSegEnd.e2.low ∧ d2.high = peculiarSegEnd.e2.high) ∧
+    (d3.low = peculiarSegEnd.e3.low ∧ d3.high = peculiarSegEnd.e3.high) := by
+  simp only [peculiarStrokes, peculiarSegEnd, FeatureElem.ofStroke]
+  decide
+
+/--
+  **★committed 良构封装在古怪线段处真会切（L0，跨层）** —— `peculiarStrokes` 的起始向上笔之后，
+  rest 首笔（向下笔）即反向于向上段方向，故 `NaiveScanCutsAt Direction.up peculiarStrokes.tail`
+  成立，且 committed `scanSegEnd Direction.up peculiarStrokes.tail 1 = 2`（在第一个向下笔处切，
+  消费 1 根特征笔）——由 `scanSegEnd_cuts_at_first_reversal` 直接得。
+-/
+theorem peculiar_naiveScanCuts : NaiveScanCutsAt Direction.up peculiarStrokes.tail := by
+  decide
+
+/-- committed scan 在古怪线段首个反向笔处切（返回切点 2，消费 1 根），真求值见证。 -/
+theorem peculiar_scanSegEnd_cuts :
+    scanSegEnd Direction.up peculiarStrokes.tail 1 = 2 := by
+  decide
 
 /--
   **★古怪线段处完整判据不确认（L0，反退化核心）** —— `¬ SegEndComplete peculiarSegEnd`。
@@ -181,13 +269,20 @@ theorem peculiar_not_segEndComplete : ¬ SegEndComplete peculiarSegEnd := by
   omega
 
 /--
-  **★良构封装与完整判据在古怪线段上分叉（L0，A′ 升级总结）** —— 存在候选段尾点，使良构封装
-  切（NaiveScanCuts）但完整判据不确认（¬SegEndComplete）。这证明完整判据**严格细化**良构封装
-  （不是同一谓词的改名）——升 #116 A′ 从"扫方向反转即切"到"完整特征序列确认"。
+  **★良构封装与完整判据在古怪线段上真跨层分叉（L0，A′ 升级总结）** —— 存在一条**具体笔序列**
+  `List Stroke` 及其对应候选段尾数据，使 committed 良构封装 `scanSegEnd` 真会切
+  （`NaiveScanCutsAt`——首个特征笔即反向笔，scan 在此切）但完整判据 `SegEndComplete` 不确认
+  （非顶分型）。
+
+  ★这是 task #122 坐实的**跨层严格细化**（非占位 `True`、非同谓词改名）：分叉的两端分别由
+  committed `scanSegEnd`（`List Stroke` 层）与 `SegEndComplete`（特征序列层）给出，两层经
+  `FeatureElem.ofStroke`（`peculiar_strokes_abstract`）绑定。升 #116 A′ 从"扫方向反转即切"
+  到"完整特征序列确认"——并机器证明了"committed scan 真会切 ∧ 完整判据不切"。
 -/
 theorem complete_strictly_refines_naive :
-    ∃ d : SegEndData, NaiveScanCuts d ∧ ¬ SegEndComplete d :=
-  ⟨peculiarSegEnd, peculiar_naiveScanCuts, peculiar_not_segEndComplete⟩
+    ∃ (strokes : List Stroke) (d : SegEndData),
+      NaiveScanCutsAt d.dir strokes.tail ∧ ¬ SegEndComplete d :=
+  ⟨peculiarStrokes, peculiarSegEnd, peculiar_naiveScanCuts, peculiar_not_segEndComplete⟩
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 3. 合法段尾正例（完整判据确认一个真线段）+ 两情况完全分类接入
@@ -262,28 +357,40 @@ theorem segEndComplete_up_two_cases (d : SegEndData) (hdir : d.dir = Direction.u
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **古怪线段判定（第78:30 唯一原因）** —— 一个候选段尾是"古怪线段成因点"⟺ 良构封装会切
-  （有反向笔/笔破坏）但完整判据查分型不成立（笔破坏未发展成线段破坏，即没有特征序列分型）。
+  **古怪线段判定（第78:30 唯一原因，跨层）** —— 一个 `(strokes, d)` 对是"古怪线段成因点"⟺
+  committed 良构封装会在 `strokes` 上切（`NaiveScanCutsAt d.dir strokes.tail`——有反向笔/笔破坏）
+  但完整判据查分型不成立（笔破坏未发展成线段破坏，即没有特征序列分型）。
 
   第78课："所有古怪的线段，都是因为线段出现第一种情况的笔破坏后最终没有在该方向由该笔发展
-  形成线段破坏所造成的，这是线段古怪的唯一原因。"——形式化为：NaiveScanCuts ∧ ¬(分型成立)。
+  形成线段破坏所造成的，这是线段古怪的唯一原因。"——形式化为：NaiveScanCutsAt（committed
+  `List Stroke` 层切分触发）∧ ¬(分型成立)。第一个合取项接 committed scan，非占位 `True`。
 -/
-def IsPeculiarCause (d : SegEndData) : Prop :=
-  NaiveScanCuts d ∧
+def IsPeculiarCause (strokes : List Stroke) (d : SegEndData) : Prop :=
+  NaiveScanCutsAt d.dir strokes.tail ∧
   ¬ (match d.dir with
      | Direction.up   => IsTopFractal d.e1 d.e2 d.e3
      | Direction.down => IsBottomFractal d.e1 d.e2 d.e3)
 
 /--
-  **★古怪线段成因 ⟹ 完整判据不确认（L0，第78课唯一原因结构定理）** —— 若候选段尾是古怪线段
-  成因（笔破坏但无特征序列分型），则完整判据必不确认。这把第78课"古怪线段唯一原因"形式化为
-  从"无分型"到"完整判据拒绝"的蕴含——古怪线段恰是完整判据与良构封装分叉处。
+  **★古怪线段成因 ⟹ 完整判据不确认（L0，第78课唯一原因结构定理）** —— 若 `(strokes, d)` 是古怪
+  线段成因（committed scan 切但无特征序列分型），则完整判据必不确认。这把第78课"古怪线段唯一
+  原因"形式化为从"无分型"到"完整判据拒绝"的蕴含——古怪线段恰是完整判据与良构封装分叉处。
 -/
-theorem peculiarCause_not_complete (d : SegEndData) (h : IsPeculiarCause d) :
+theorem peculiarCause_not_complete (strokes : List Stroke) (d : SegEndData)
+    (h : IsPeculiarCause strokes d) :
     ¬ SegEndComplete d := by
   intro hc
   -- hc.1 是分型成立，h.2 是分型不成立，矛盾
   exact h.2 hc.1
+
+/-- **★古怪线段见证是古怪线段成因（L0，跨层闭合）** —— 具体 `(peculiarStrokes, peculiarSegEnd)`
+  满足 `IsPeculiarCause`：committed scan 真切 ∧ 非顶分型。把成因定义实例化到真笔序列。 -/
+theorem peculiar_isPeculiarCause : IsPeculiarCause peculiarStrokes peculiarSegEnd := by
+  refine ⟨peculiar_naiveScanCuts, ?_⟩
+  intro hfrac
+  unfold IsTopFractal peculiarSegEnd at hfrac
+  simp only [Tick] at hfrac
+  omega
 
 /--
   **★顶高于底硬约束是完整判据的必要条件（L0，第78:20）** —— 完整判据确认 ⟹ 顶高于底成立。
@@ -335,21 +442,28 @@ theorem complete_consume_zero_breaks : ¬ CompleteConsumesAtLeastOne 0 := by
     § 6. still-MISSING 诚实声明 + 边界条件 + 下游推论 + 影响声明
     ═══════════════════════════════════════════════════════════════════════
 
-  ★已升级（task #118 相对 #116 still-MISSING-A′）：
-    - **完整判据 = 真特征序列确认点**：`segEndComplete_iff_featureConfirmed` 证完整段尾确认谓词
-      与第67课定义直译的真特征序列确认谓词**逻辑等价**——升 #116 `nextSegmentEnd` 良构封装
-      （扫方向反转即切）到完整判据（分型 ∧ 两情况 ∧ 顶高于底）。
-    - **完整判据严格细化良构封装**：`complete_strictly_refines_naive` 用古怪线段
-      （peculiarSegEnd）见证两者结论分叉——良构封装在古怪线段处切错，完整判据正确拒绝。
-      这是 A′ 从良构封装到缠论-忠实的**可观测升级证据**（非改名）。
-    - **第78课古怪线段唯一原因 + 顶高于底**：`peculiarCause_not_complete`（古怪成因⟹不确认）+
+  ★已升级（task #118→#122 相对 #116 still-MISSING-A′）：
+    - **完整判据 = 真特征序列确认（同名谓词，L0 同义反复）**：`segEndComplete_iff_featureConfirmed`
+      是 `Iff.rfl`——`SegEndComplete` 与 `FeatureConfirmed` 定义体逐字相同，此 iff 零信息增量，
+      只登记"完整确认"/"真特征序列确认"两个语义名字指同一三合取谓词（task #122 诚实标注：
+      它**不**是承载升级实证的"核心定理"，实证内容在下面两条跨层/正例定理）。
+    - **完整判据严格细化良构封装（task #122 坐实的跨层分叉）**：`complete_strictly_refines_naive`
+      构造**真 `List Stroke`** 古怪线段笔序列 `peculiarStrokes`，机器证 committed `scanSegEnd`
+      （SegmentConstruction.lean，吃 `List Stroke`）在其首个反向特征笔处**真会切**
+      （`scanSegEnd_cuts_at_first_reversal` + `peculiar_scanSegEnd_cuts = 2`），而完整判据
+      `SegEndComplete` 正确不确认（非顶分型）。两层经 committed `FeatureElem.ofStroke` 绑定
+      （`peculiar_strokes_abstract`：三根向下特征笔抽象出 e1/e2/e3）。这是**机器证明的跨层
+      严格细化**——分叉两端分别由 committed `scanSegEnd`（`List Stroke` 层）与 `SegEndComplete`
+      （特征序列层）给出，**非占位 `True`、非同谓词改名**（修 #118 的表述间隙）。
+    - **第78课古怪线段唯一原因 + 顶高于底**：`peculiarCause_not_complete`（古怪成因⟹不确认，
+      成因第一合取项 = committed `NaiveScanCutsAt`）+ `peculiar_isPeculiarCause`（真笔序列实例化）+
       `segEndComplete_implies_topAboveBottom`（顶高于底必要条件）+ `segEndComplete_implies_fractal`
-      （分型必要前提）——三条结构定理把第78课硬约束接入完整判据。
+      （分型必要前提）——结构定理把第78课硬约束接入完整判据。
     - **两情况完全分类接入**：`segEndComplete_up_two_cases` 把第67课两情况完全分类抬升到完整
       段尾确认层（继承 SegmentFeatureSeq 的 `segment_two_cases_exhaustive`）。
 
   ★still-MISSING-A″（完整判据驱动的全自动递归切分，诚实开口）：
-    本文件证**判据层**完整接入（完整段尾确认谓词 = 真特征序列确认 + 严格细化良构封装）。但把
+    本文件证**判据层**完整接入（完整段尾确认谓词 + 与 committed scan 的跨层分叉见证）。但把
     完整判据 `SegEndComplete` 接入 SegmentConstruction 的全自动递归 `segmentsOfComplete :
     List Stroke → List Segment`——即在每个候选点提取真实 FeatureElem 序列（FeatureElem.ofStroke
     对偶）、递归非包含处理（mergeInclusion）、识别分型、按缺口走两情况、且处理古怪线段递归
@@ -361,8 +475,14 @@ theorem complete_consume_zero_breaks : ¬ CompleteConsumesAtLeastOne 0 := by
   ★边界条件（结论翻转条件）：
     - `SegEndComplete` 的合取三支（分型 ∧ 两情况 ∧ 顶高于底）缺一不确认。若某口径允许"无分型
       但有缺口封闭即切"（非缠论标准），第一支可去，但那不是第67课判据——当前严格三支合取。
+    - 跨层分叉见证依赖 committed `scanSegEnd` 的切分语义（遇第一个反向笔即切）。若
+      SegmentConstruction.lean 改 `scanSegEnd` 为非"反向即切"的语义，`scanSegEnd_cuts_at_first_reversal`
+      与 `peculiar_scanSegEnd_cuts` 须重证（当前对 committed `scanSegEnd` 直接求值）。
+    - `peculiarStrokes` 的向下特征笔与 `peculiarSegEnd.e1/e2/e3` 的对应由 `peculiar_strokes_abstract`
+      （committed `FeatureElem.ofStroke`）保证。若 `FeatureElem.ofStroke` 的区间抽取规则改变
+      （当前取笔两端价低/高），对应须重证。
     - 古怪线段反退化用 `e3.high > e2.high`（非顶分型）。若改用允许相等的分型定义
-      （e3.high ≤ e2.high 也算顶），peculiarSegEnd 须重构（当前 IsTopFractal 用严格 <）。
+      （e3.high ≤ e2.high 也算顶），peculiarSegEnd/peculiarStrokes 须重构（当前 IsTopFractal 用严格 <）。
     - 顶高于底用严格不等式（Tick=Int）。平端点（startPrice=endPrice）被完整判据拒绝
       （与 SegmentFeatureSeq.topAboveBottom_rejects_flat_up 一致）。
     - 终止性兼容性（k≥1）是 A″ 接入的**前提条件**，非已实现保证。若完整判据某确认点消费 0 笔
@@ -381,11 +501,20 @@ theorem complete_consume_zero_breaks : ¬ CompleteConsumesAtLeastOne 0 := by
     （退化线段：完整判据顶高于底硬约束严格排除从底到底/顶到顶的退化段）+
     `002-source-incompleteness.md`（第67/71/78课博文补齐，本文件直接复用博文完整判据）。
 
-  ★影响声明：
-    - 新增 Origin.SegmentFeatureComplete 模块，import ChanlunElements + SegmentFeatureSeq +
-      SegmentConstruction（全只读，不改任何 committed 模块）。
-    - 不改 canonical 类型，无反向依赖，无命名冲突（SegEndData/SegEndComplete/peculiarSegEnd 等
-      均新名）。待 Lead 登记 root：`Origin.SegmentFeatureComplete`。
+  ★影响声明（task #122 修正，相对 #118）：
+    - 修正对象：删除恒真占位 `NaiveScanCuts (_d : SegEndData) : Prop := True`，替换为真
+      `List Stroke` 层谓词 `NaiveScanCutsAt (segDir) (rest)`（接 committed `strokeReverses`）+
+      `scanSegEnd_cuts_at_first_reversal`（committed `scanSegEnd` 真切引理）+ `peculiarStrokes`
+      （真笔序列见证）+ `peculiar_strokes_abstract`（committed `FeatureElem.ofStroke` 跨层绑定）。
+      `complete_strictly_refines_naive` 改为真跨层存在命题（∃ List Stroke × SegEndData）。
+    - 表述-实证一致性修正：(1) `segEndComplete_iff_featureConfirmed` docstring 改标为
+      L0 同义反复（`Iff.rfl`），删"A′ 升级核心定理"措辞——它不承载实质内容；(2) 文件头
+      "完整判据严格细化良构封装"措辞改为机器证明的跨层分叉（committed scan 真切 ∧ 完整判据不切）。
+    - 仍 import ChanlunElements + SegmentFeatureSeq + SegmentConstruction（全只读，不改任何
+      committed 模块；`scanSegEnd`/`strokeReverses`/`FeatureElem.ofStroke` 均复用其 committed 定义）。
+    - 不改 canonical 类型，无反向依赖。新名：NaiveScanCutsAt/scanSegEnd_cuts_at_first_reversal/
+      peculiarStrokes/peculiar_strokes_abstract/peculiar_scanSegEnd_cuts/peculiar_isPeculiarCause。
+      root `Origin.SegmentFeatureComplete` 已登记于 lakefile.toml。
 -/
 
 end NewChanlun.Origin
