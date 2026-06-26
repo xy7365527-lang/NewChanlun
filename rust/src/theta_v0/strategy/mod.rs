@@ -443,19 +443,29 @@ fn recognize_point(
     let fill_index = exec::fill_bar_index(point.source_index, bars, &config.exec)?;
     let entry = bars[fill_index].open;
 
-    // stop_in：从 BspPoint 直接构造（single source，零重算）。center 缺省用零占位
-    // （1/2 类不碰 center；含 3 类 bit ⟹ center 必 Some，classifier 不变量）。
-    let stop_in = StopInput {
-        pivot_low: point.pivot_low,
-        pivot_high: point.pivot_high,
-        center: point.center.unwrap_or(super::types::Center {
+    // stop_in：从 BspPoint 直接构造（single source，零重算，对齐 cc-classifier 路 B 契约）。
+    // ★显式校验 classifier 不变量（不静默吞，coding-style「不可交易/退化情况显式处理」）：
+    // 含 3 类 bit（buy3/sell3）⟹ center 必 Some（is_third 蕴含 left_center，cc-classifier 保证）。
+    // 若不变量被违反（含 3 类 bit 但 center=None），**显式返回 None 不产决策**（不用零 Center
+    // 静默产 zg=0/zd=0 的错误止损价）。无 3 类 bit 时 center 不被 `structural_stop` 读取
+    // （1/2 类只用 pivot），用零占位无害。
+    let has_third = point.bits.buy3 || point.bits.sell3;
+    let center = match point.center {
+        Some(c) => c,
+        None if has_third => return None, // 不变量违反：含 3 类 bit 但无 center（显式拒绝）
+        None => super::types::Center {
             zd: 0,
             zg: 0,
             dd: 0,
             gg: 0,
             start_index: 0,
             end_index: 0,
-        }),
+        }, // 无 3 类 bit：center 不被读，零占位无害
+    };
+    let stop_in = StopInput {
+        pivot_low: point.pivot_low,
+        pivot_high: point.pivot_high,
+        center,
     };
 
     Some(VoiceDecision {
@@ -827,13 +837,11 @@ mod tests {
         assert_eq!(orders[0].exec_index, 1); // 延迟 1 根成交
     }
 
-    /// recognize 3 卖信号 → **显式挂起**（Lead change request #2 裁定：做空侧待根方向定义
-    /// 裁定，先接做多侧）。做空侧（σ_root=-1）阻塞于 Fugue.lean 根方向锁定的定义层修正
-    /// （方向 A 改 Lean / 方向 B 已否决=σ 语义分叉）。recog 对 sell bits 返回空决策
-    /// （`RECOGNIZE_SHORT_PENDING_ROOT_DIR`），**不静默丢弃**——有效域明确缩到「做多@L0」。
-    /// 裁定后此测试改为验证做空侧产 Sell 订单。
+    /// recognize 3 卖信号 → root_side=Short → Sell 订单（change request #2 撤销后接通做空侧）。
+    /// 做空侧 Short 根对齐 StrategyFamily §5 `long_short_both_open_allowed:570`（独立根 side=false
+    /// 已证允许，非 workaround，无 σ 分叉）。`voice_side(Short, 0)=Short`，spec:41 顶背驰做空。
     #[test]
-    fn recognize_sell3_pending_short_root_dir() {
+    fn recognize_sell3_yields_short_sell_order() {
         let cfg = ThetaConfig::default();
         let bsp = vec![BspPoint {
             source_index: 0,
@@ -849,13 +857,16 @@ mod tests {
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 95, 100, 85, 90),
         ];
-        // 做空侧挂起：recog 不产决策（待方向裁定，非静默丢弃）。
+        // 做空侧接通：recog 产 Short 根决策（对齐 §5 多独立根）。
         let decisions = recognize(&classification, &bars, &cfg);
-        assert!(decisions.is_empty(), "做空侧挂起待根方向裁定（#2）");
-        // 端到端：做空信号当前不产订单（有效域=做多@L0）。
+        assert_eq!(decisions.len(), 1);
+        assert_eq!(decisions[0].root_side, VoiceSide::Short); // 卖点 → 做空根
+        // 端到端：做空信号产 Sell 订单（不丢失）。
         let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
         let orders = plan_orders(&decisions, &bars, &account, &cfg);
-        assert!(orders.is_empty(), "做空侧挂起 ⟹ 无订单");
+        assert_eq!(orders.len(), 1);
+        assert_eq!(orders[0].action, StrictAction::Sell);
+        assert!(orders[0].qty > 0);
     }
 
     /// recognize 空 Classification → 空 decisions（无买卖点 ⟹ 无决策）。
@@ -878,6 +889,31 @@ mod tests {
         let classification = classification_with_buy3(0);
         // 信号在 index 0，但只有一根 bar（无下一根成交）⟹ 信号作废。
         let bars = vec![tradable_bar(0, 0, 100, 110, 90, 105)];
+        assert!(recognize(&classification, &bars, &cfg).is_empty());
+    }
+
+    /// recognize 显式校验 classifier 不变量（不静默吞）：含 3 类 bit 但 center=None ⟹ 不产
+    /// 决策（拒绝，不用零 Center 静默产 zg=0 错误止损）。这守卫 cc-classifier「含 3 类 bit ⟹
+    /// center 必 Some」不变量在 strategy 侧的显式落实。
+    #[test]
+    fn recognize_third_bit_without_center_rejected() {
+        let cfg = ThetaConfig::default();
+        // 违反不变量构造：buy3=true 但 center=None（cc-classifier 保证不会发生，此处守卫）。
+        let bsp = vec![BspPoint {
+            source_index: 0,
+            bits: BspBits { buy3: true, ..Default::default() },
+            pivot_low: 210,
+            pivot_high: 0,
+            center: None, // 不变量违反
+        }];
+        let classification = Classification {
+            levels: vec![LevelState { bsp, ..Default::default() }],
+        };
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 205, 215, 200, 210),
+        ];
+        // 显式拒绝（不静默用零 Center 产 zg=0 止损）。
         assert!(recognize(&classification, &bars, &cfg).is_empty());
     }
 

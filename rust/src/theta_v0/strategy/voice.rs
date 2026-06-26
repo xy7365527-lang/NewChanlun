@@ -80,7 +80,8 @@ pub fn dir_of_depth(depth: u32) -> VoiceSide {
 /// - 本函数对齐 `StrategyFamily.lean:570 long_short_both_open_allowed`——该定理证明体里两声部
 ///   都是独立根（`parent := fun _ => none`），`side` 为 Long(true) 与 Short(false) 并存，
 ///   `depth=0`，`alternating` 真空满足。**Short 根在 §5 已证允许**，故本函数的 root_side=Short
-///   分支落在 §5 的有效域内（Lean 已含多独立根），**不是超集 Lean，无 Rust/Lean σ 分叉**。
+///   分支落在 §5 的有效域内（§5 已含多独立根，含 Short 根）——voice_side 的 σ 语义即 §5 的
+///   side，bit-exact 对齐 §5（无 Rust/Lean σ 分叉）。
 /// - `dir_of_depth` / Fugue.lean `depth_parity` 是 `root_side=Long + 嵌套树`的**强化子情形**
 ///   （不同有效域）：Fugue 约束的是赋格嵌套树内部 σ=dirOfDepth(depth)（根恒 Long）；本函数
 ///   覆盖的是 §5 的多独立根（根方向自由，由信号定）。`voice_side(Long, d) == dir_of_depth(d)`
