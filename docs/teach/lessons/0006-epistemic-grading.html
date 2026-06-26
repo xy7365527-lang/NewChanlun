@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0006 课 · 认识论分级 L0/L1/L2/L3</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>认识论分级：有效域不等于定义域</h1>
+<p class="sub">第 0006 课 · L0/L1/L2/L3——为什么「代数成立」和「build 绿」可以一个字的新信息都没有</p>
+
+<p class="lede">蜂群每天产出大量「已验证」「已证明」「已对齐」。这一课给你一把<strong>分级尺</strong>，
+量任何这类声明<em>到底兑现了多少</em>。核心只有一句话，但它能戳穿一半的声明膨胀：
+<strong>一个形式化工具的「有效域」可能严格小于它的「定义域」</strong>——它在代数上对所有对象成立，
+不等于它在真实数据上对所有对象成立。把前者说成后者，就是声明膨胀。</p>
+
+<h2>1. 两个域：定义域 vs 有效域</h2>
+<p>先把两个词分清，它们是这门课的地基。</p>
+<table>
+<tr><th>词</th><th>含义</th><th>例子</th></tr>
+<tr><td><b>定义域</b></td><td>这个形式化操作在代数/逻辑上<strong>可以施加</strong>的全部对象</td><td>「完全分类」可以声称覆盖<em>所有</em>走势模式</td></tr>
+<tr><td><b>有效域</b></td><td>这个操作的结论在<strong>实际数据/语境下真正成立</strong>的范围</td><td>它实际只在<em>部分</em>模式上经验成立</td></tr>
+</table>
+<p>「在定义域上代数成立」≠「在定义域上经验成立」。声称二者相等，<strong>必须有与定义域等大的验证</strong>——
+否则就是把「我能对所有对象写出这个公式」偷换成「这个公式对所有对象都对」。</p>
+
+<h2>2. 四个等级，以及那条致命的零增量</h2>
+<p>每次形式化操作都必须标一个验证等级。关键不在背下四档，而在看懂 <strong>L0→L1 的信息增量是零</strong>。</p>
+<table>
+<tr><th>级</th><th>名称</th><th>含义</th><th>信息增量</th></tr>
+<tr><td><span class="lvl l0">L0</span></td><td>纯代数/定义</td><td>不依赖数据，从定义推导（如「函数即全且唯一」「圈秩=3」）</td><td><b>零</b>（同义反复）</td></tr>
+<tr><td><span class="lvl l1">L1</span></td><td>合成数据验证</td><td>验<strong>管线</strong>正确性，输入是你自己造的数据</td><td><b>零</b>（验管线，不验假设）</td></tr>
+<tr><td><span class="lvl l2">L2</span></td><td>真实数据验证</td><td>单标的/单时段假设检验，<strong>可能产生否定性结果</strong></td><td>正（<em>可以否证</em>）</td></tr>
+<tr><td><span class="lvl l3">L3</span></td><td>交叉验证</td><td>多标的/多时段/多代理变量的真实数据</td><td>高（否证鲁棒性）</td></tr>
+</table>
+
+<div class="key">
+<b>为什么 L0→L1 增量为零？</b>因为<strong>合成数据的独立性验证是同义反复</strong>。
+数据由你生成，独立性由你控制——你拿这数据「验证」出来的独立性，只是把你预设进去的东西再读出来。
+L1 能确认<em>管线没 bug</em>（代码跑通、类型对、流程不崩），<strong>不能</strong>确认<em>假设成立</em>（缠论真的这样运作）。
+0001/0002 课里那个「函数即全且唯一」就是典型 L0：任何函数都满足，对缠论<em>一无所知</em>。
+</div>
+
+<p>这条尺直接接上前几课：</p>
+<ul>
+<li><b>0002 的「schema ≠ 忠实实装」</b>：schema 真理是 L0；「build 绿」证明的是类型对（L0），不是缠论对（要 L2 才证伪）。</li>
+<li><b>0005 的不同构裁定与 OQ-9</b>：诚实标了「全程 <span class="lvl l0">L0</span>」——它是<em>结构</em>定理，有效域=定义域，<strong>不需</strong> L2；但也<strong>没</strong>声称三阶段策略盈利（那是 L3）。这是正确标注的范例。</li>
+</ul>
+
+<h2>3. 否定性结果比确认性结果值钱</h2>
+<p>这是反直觉但严格的一条：<strong>L2/L3 产生的否定性结果（假设被否证）比确认性结果更有价值。</strong>
+否定性结果<em>缩小了有效域的边界</em>——它告诉你「这里不成立」，是真信息；确认性结果只是「这次没能否证」，信息少得多。</p>
+
+<div class="key">
+谱系 <b>230号</b> 是活教材。K4 三条独立边 E/$、C/$、R/$ 跑真实数据（<span class="lvl l3">L3</span>），结论是
+<strong>「不满足无条件独立性」</strong>——一个<em>否定性</em>结果。但它没止于「否了」，而是读出精确分层：
+控制 $ 后 E/$ vs C/$ 偏相关 −0.029（$ 介导的耦合，独立性<em>恢复</em>）。
+<strong>否证非但没毁掉模型，反而把有效域的真实形状测了出来。</strong>这就是 L3 的信息密度。
+</div>
+
+<h2>4. 三起判例：有效域 ≠ 定义域，反复发生</h2>
+<p>这条规则（formalization-validity-domain，谱系 231号）不是凭空立的，是从三次真实翻车结晶的。
+三例同一个形状——<strong>形式化工具在定义域上代数成立，却被误当成在定义域上经验成立</strong>：</p>
+<table>
+<tr><th>谱系</th><th>定义域上声称</th><th>有效域实际</th><th>错型</th></tr>
+<tr><td><b>222号</b><br><span class="src">守恒律范畴错误</span></td><td>加法守恒律全局成立</td><td>仅在特定范畴内成立（把离散流向拓扑约束误判为近似）</td><td>范畴错误</td></tr>
+<tr><td><b>223号</b><br><span class="src">分类不完备</span></td><td>模式D 派生边分类覆盖所有情况</td><td>只覆盖部分模式（遗漏混合状态）</td><td>不完备</td></tr>
+<tr><td><b>230号</b><br><span class="src">直积退化</span></td><td>27 配置直积代数成立（3 自由度）</td><td>概率度量下退化为 &lt;3 自由度</td><td>退化</td></tr>
+</table>
+<p>编排者从这三例提炼出那句洞察——<strong>「合成数据的独立性验证是同义反复」</strong>——并把它升为规则 231号。
+三例的共同教训：<em>代数能写出来 ≠ 经验站得住</em>。222 是 gemini 异质否定抓出来的，223 也是，
+说明同质工位<strong>看不见自己的有效域膨胀</strong>，需要异质质询或真实数据来戳。</p>
+
+<h2>5. 四种声明膨胀模式（按图索骥）</h2>
+<p>把规则反过来用，就是四个可直接核对的禁止模式：</p>
+<div class="flow">
+<span class="stage">有效域膨胀</span> <span class="arrow">→</span> L0/L1 验证后声称「已验证」却不标等级<br>
+<span class="stage">合成确认偏差</span> <span class="arrow">→</span> 用合成数据「验证」你预设进合成数据里的属性<br>
+<span class="stage">定义域=有效域假设</span> <span class="arrow">→</span> 声称代数结构在全定义域经验有效，却无 L2+ 证据<br>
+<span class="stage">等级省略</span> <span class="arrow">→</span> 产出里干脆不标认识论等级
+</div>
+
+<div class="warn">
+<b>本课自身的诚实标注（不豁免自己）：</b>这一课是<strong>方法论结晶</strong>，讲「如何分级」。
+它本身是 <span class="lvl l0">L0</span> 级产出——不依赖任何真实数据，从规则 231号和谱系 222/223/230 推导。
+它<strong>不</strong>是「缠论引擎有效」的 L2 主张。把一堂教 L 分级的课说成「已验证缠论」，正是它要教你戳穿的那种膨胀。
+</div>
+
+<h2>6. 对 Phase2 重锚的直接推论</h2>
+<p>#89/#91/#93/theta_v0 正在向 Origin canonical base 重锚，每个 port 都会报「已重锚 / 已对齐 / 已验证」。
+这堂课给你一把尺：<strong>重锚的「已验证」是 L 几？有效域多大？</strong></p>
+<ul>
+<li><b>#89（RecursiveLevelSystem 重锚）</b>、<b>#91（分类极限 guardrail 重锚）</b>：重锚后若只过 <code>lake build</code>，那是 <span class="lvl l0">L0</span>（类型对），<strong>不是</strong>「缠论递归/分类对」——后者要真实数据。别让「编译通过」冒充「忠实重锚」。</li>
+<li><b>theta_v0 contract 重锚</b>：bit-exact 对齐 Lean pipeline 是 L0/L1（验管线一致性，输入若是合成的就是 L1，零增量）；<strong>真实数据回测出否定性结果</strong>才是 L2。<code>theta_v0</code> 的回测 strat≈0% 必须分层诊断（引擎产不出信号=工程层 / Θ 产信号但不盈利=经验否证），否则混淆 L0 缺陷与 L2 否证。</li>
+</ul>
+<p>谱系 230号已经示范：真实数据的<strong>否定性</strong>结果（「不满足无条件独立性」）是 port 重锚能交出的<em>最有价值</em>的东西——它缩小有效域，不是失败。</p>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询任何「已重锚/已验证/已对齐」声明）</h3>
+<p>「你说这个 port 已重锚/已验证——<strong>这是 L 几</strong>？
+如果证据是 <code>lake build</code> 绿 / bit-exact / 合成数据跑通，那是 <span class="lvl l0">L0</span>/<span class="lvl l1">L1</span>，<strong>信息增量为零</strong>——你验的是管线，不是缠论假设，别叫它『已验证』。
+你的<strong>有效域有多大</strong>？你声称覆盖整个定义域（所有走势/所有标的/所有时段），还是只测了一个标的一个时段？
+要声称定义域=有效域，给我与定义域<strong>等大</strong>的验证。
+还有——你这次重锚<strong>有没有可能产出否定性结果</strong>？如果它在结构上<em>不可能</em>被真实数据否证，那它就是 L0 同义反复，谈不上『验证』。
+给不出 L2+ 证据就老实标 <span class="lvl l0">L0</span>，把『代数成立』讲成『经验有效』就是 222/223/230 第四次重演。」</p>
+</div>
+
+<p class="next">
+来源（全部 read 物证）：规则 <code>.claude/rules/formalization-validity-domain.md</code>（L0-L3 分级表 + 禁止模式）；
+谱系 <code>.chanlun/genealogy/settled/222-v4-conservation-law-category-error.md</code>（范畴错误，gemini 异质否定）、
+<code>223-v4-pattern-d-incomplete-classification.md</code>（分类不完备）、
+<code>230-k4-independence-real-data.md</code>（L3 否定性结果：独立性非无条件，控制 $ 后恢复）、
+<code>231-formalization-validity-domain.md</code>（规则谱系记录）。<br>
+接续前课：0001/0002（schema=L0 同义反复）、0005（不同构/OQ-9 全程 L0 + 诚实边界）。<br>
+<b>认识论等级（诚实标注）：</b>本课 <span class="lvl l0">L0</span> 方法论结晶——从规则与谱系推导，零真实数据依赖，<strong>不是</strong>任何 L2 缠论主张。<br>
+「定义域 vs 有效域」「L0→L1 零增量」「同义反复」「否定性结果的价值」这四个区分若发虚，喊停，坐实再走。
+</p>
+
+</body>
+</html>

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0005 课 · 两套账本不同构</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>两套账本不同构，以及「扩维」如何消解一个矛盾</h1>
+<p class="sub">第 0005 课 · 工程账 R=Π−A−W vs 缠论取本金三阶段 TW——为什么它们不能互相翻译，OQ-9 又怎么被消解</p>
+
+<p class="lede">一个持仓系统里有<strong>两套账本</strong>同时在记。一套是工程师的利润表
+<code>R = Π − A − W</code>（盈余 = 实现损益 − 分配 − 提取）。一套是缠师第31课的「取本金」三阶段
+<code>TW = free + holding + withdrawn</code>，带一个单向不可逆的阶段机
+<code>降成本 → 退本金 → 增股数</code>。直觉会说「这俩讲的不就是同一件事吗，换个变量名而已」。
+这一课告诉你：<strong>它们不同构</strong>——不存在保守恒量又保操作语义的双向翻译——而且这个「不同构」
+不是缺陷，是<em>两个不同会计范畴</em>的诚实分界。顺带，它教你一个比「打补丁」更深的招：<strong>扩维</strong>。</p>
+
+<h2>1. 两套账本，两种「守恒」</h2>
+<p>先把两个对象摆清楚。它们的守恒律长得像，骨子里是两回事。</p>
+<table>
+<tr><th></th><th>模型 A · 财务账 <code>LedgerComp</code></th><th>模型 B · 取本金账 <code>TWState</code></th></tr>
+<tr><td>守恒量</td><td><code>R = Π − A − W</code></td><td><code>TW = free + holding + withdrawn</code></td></tr>
+<tr><td>守恒的<strong>性质</strong></td><td><b>定义性恒等</b>：R 由 Π/A/W 代数决定，<em>任意赋值永真</em>（<code>ledger_inv_always</code>）</td><td><b>操作不变量</b>：只在「同价 c 固定下池间转移」时成立（<code>twStep_preserves_tw</code>）</td></tr>
+<tr><td>状态空间</td><td>纯整数格 <code>Z³</code>，每个操作可正可负、<strong>可逆</strong>（<code>ledger_realize_invertible</code>）</td><td>带一个<strong>单向不可逆</strong>的 <code>stage</code> 维度（<code>earning_no_regress</code>）</td></tr>
+<tr><td>守恒律会变吗</td><td>不变。R=Π−A−W 全程唯一</td><td>会<strong>切换</strong>：降成本守 Σ\|units\|（股数），增股数守 K（外部投入）</td></tr>
+</table>
+
+<div class="key">
+<b>关键的不对称在「stage」。</b>模型 A 是一个<strong>可逆平移系统</strong>——你 realize 了 +5，再 realize −5
+就回到原点，任意两个 (Π,A,W) 互相可达。模型 B 里藏着一个<strong>棘轮（latch）</strong>：一旦
+<code>stage</code> 推到 <code>earningShares</code>，<code>earning_no_regress</code> 证明它<strong>再也回不去</strong>。
+可逆系统和带棘轮的系统，<em>状态空间结构就不一样</em>。
+</div>
+
+<h2>2. 不同构的精确反例：stage 坍缩</h2>
+<p>「不同构」这种话很容易说得含糊。形式化逼你给出<strong>机器可检验的精确反例</strong>。
+最强的一条（codex 标「不可反驳」）是 <code>not_isomorphic_stage_collapses</code>：</p>
+
+<pre>theorem not_isomorphic_stage_collapses : ∃ (s₁ s₂ : TWState),
+  s₁.free = s₂.free ∧ s₁.holding = s₂.holding ∧ s₁.withdrawn = s₂.withdrawn
+  ∧ <b>s₁.stage ≠ s₂.stage</b>          -- 一个 costReduction，一个 earningShares
+  ∧ s₁.tw = s₂.tw</pre>
+
+<p>读法：存在两个 B 的态，<strong>TW 三量完全相同</strong>（free/holding/withdrawn 一字不差），<strong>仅 stage 不同</strong>。
+任何只看 TW 三量的 B→A 投影 φ 都<strong>无法区分</strong> s₁ 和 s₂（<code>φ s₁ = φ s₂</code>）——φ 非单射。
+而 A 的全部信息就是 (Π,A,W)，<strong>没有第四个离散不可逆分量</strong>能承载这个区分。
+所以 B 的信息塞不进 A，双向忠实映射不存在。<span class="src">这一条的算术由 <code>by decide</code> 机器封死。</span></p>
+
+<p>另外两条反例同向加固：<code>not_isomorphic_conservation_switches</code>（B 的守恒律随
+<code>enterEarning</code> 翻转 / A 的 R=Π−A−W 全程无翻转点）、<code>not_isomorphic_exogenous_price</code>
+（B 的 <code>holding=Σunits·c</code> 含<strong>外生价格 c</strong>，重估改变 TW = 盈亏 / A 是纯 Int 格无外生维度）。
+裁定被钉进类型层——<code>IsomorphismVerdict</code> 只有一个构造子 <code>notIsomorphic</code>，<strong>没有</strong>
+<code>RoughlyCompatible</code>。「大致兼容」在类型上不可表达，督导闸不收含糊裁定。</p>
+
+<div class="key">
+<b>这是 0001 课「人造矛盾」的反面。</b>0001 里，矛盾来自选错抽象（单参数装序列），换个表示就没了。
+这里<strong>不一样</strong>：不同构是<em>真实的</em>结构差异，不是表示瑕疵。codex 还纠正过一次——理由1 原写「代数角色相反」，
+那才是表示层差异；升级成「外生价格维度」后才是结构差异。<strong>会分辨「换表示能消的矛盾」和「换表示消不掉的结构差异」，是这门课的核心刀法。</strong>
+</div>
+
+<h2>3. OQ-9：一个看似无解的矛盾</h2>
+<p>同一个文件里还埋着一个更硬的矛盾，编号 OQ-9。它的两端都是真的，且看上去直接打架：</p>
+<table>
+<tr><th>端</th><th>声明</th><th>性质</th></tr>
+<tr><td><b>端 A</b>（数值真相）</td><td>进入 <code>earningShares</code> 后，闭合一条亏损的旧腿（profit&lt;0），净现金口径成本（<code>cumNetCash</code>）会<strong>下降</strong>——「cost_basis 回正」</td><td>算术事实，<strong>不可否认</strong></td></tr>
+<tr><td><b>端 B</b>（相位锁死）</td><td>三阶段单向相变（缠师第87课 INV-2），<code>earningShares</code> <strong>不回退</strong></td><td>领域语义，<strong>不可违背</strong></td></tr>
+</table>
+<p>把这两端绑在一起，矛盾就来了：如果你用 <code>stage = sign(cost_basis)</code> 这种<strong>单一判据</strong>
+（相位 = 数值符号的函数），那么「亏损闭合让 cost_basis 回正」就<strong>逼着 stage 回退</strong>——
+直接违反端 B。补丁思维到这里会做两件事之一：要么 <code>try/except</code> 吞掉那个数值变化（端A 被糊掉），
+要么硬编码「earning 阶段禁止回正」（端A 被否认）。两条都是声明膨胀。</p>
+
+<h2>4. 扩维消解：不是打补丁，是加一个正交维度</h2>
+<p>根因不在两端，在<strong>「把数值符号和相位绑成同一个判据」</strong>。解法不是在这条绑定上加例外，
+而是<strong>把它解耦</strong>——给状态空间<strong>增一个正交维度</strong>，让相位不再是数值的函数。
+这就是 OQ-9 扩维消解，五步：</p>
+
+<div class="flow">
+<span class="stage">① 解耦正交维</span> <span class="arrow">→</span> stage（相位，路径依赖历史变量）⊥ cumNetCash（净现金口径，可正可负）⊥ openLegacyLegs（未闭合 legacy 腿计数）<br>
+<span class="stage">② 拆 legacy/新腿</span> <span class="arrow">→</span> 锁死的<b>只是</b> legacy 降成本腿；earning 阶段开增股数新腿<b>合法</b>（不混入此计数）<br>
+<span class="stage">③ 入口证书</span> <span class="arrow">→</span> <code>LegalEnterEarning s := (openLegacyLegs = 0)</code>——非法性在<b>进入</b>锁死相位时强制，不是事后判违规<br>
+<span class="stage">④ rawStep/legalStep 双层</span> <span class="arrow">→</span> raw 层（全函数）保留端A 作 witness；legal 层（谓词）排除那条 trace<br>
+<span class="stage">⑤ trace 级 invariant</span> <span class="arrow">→</span> 不是单步定理，是「合法 trace 全程保持 <code>OQ9Inv</code>」+ 初态满足 inv
+</div>
+
+<p>第 ④ 步是这门课最该记住的存在论操作。<strong>两端不是被强行调和，是被分配到两个层。</strong>
+raw 层的 <code>twStep</code> 是全函数，<em>什么都允许发生</em>——包括「带未闭合 legacy 腿进入 earning，然后亏损闭合让 cumNetCash 下降」。
+这条端A 路径<strong>真实存在、不被吞、不被禁</strong>，它是 <code>raw_earning_legacy_leg_closure_witness</code>
+机器见证的 violation witness。而 legal 层用 <code>LegalTransition</code> 谓词把这条 trace 排除在外。</p>
+
+<div class="key">
+<b>「两端并存」是声明膨胀；「raw 层端A / legal 层不可达」才是严格的。</b>
+区别在哪？前者说「在同一个系统里两个矛盾的东西都成立」（含糊）；后者说「端A 在 raw 层成立，
+但那条 trace 在 legal 层<strong>不合法</strong>，所以在<em>合法</em>系统里端B 锁死成立」（精确分层）。
+这就是为什么 <code>twStep</code> 故意<strong>不</strong>给 <code>enterEarning</code> 加入口守卫——守卫加在
+raw 层会抹掉 witness，那等于否认端A。诚实要求 raw 层保留它。
+</div>
+
+<h2>5. 物证：端B 必须是 trace 级，不是单步</h2>
+<p>codex review 第二轮抓到一个真实的漏洞，值得当反面教材。最初端B 只证了<strong>单步</strong>
+（「合法进入 earning 的下一步不能闭 legacy 腿」）。但这<strong>不够</strong>——合法 trace 可以<em>绕路</em>：
+<code>enterEarning → openShareLeg → closeShareLeg</code>，照样到达「earning ∧ legacy 腿=1」的 witness 形状。
+单步定理挡不住绕路。修法是把端B 升级到 trace 级，链条是：</p>
+
+<pre>OQ9Inv s := (s.stage = earningShares → s.openLegacyLegs = 0)   -- 不变量
+oq9inv_preserved   -- 每个合法转移逐事件保持 inv
+oq9inv_trace       -- 合法事件链归纳保持（generalizing s）
+init_satisfies_oq9inv  -- 初态（costReduction）满足 inv ← 给合法起点
+⟹ <b>oq9_legacy_leg_unreachable_in_earning</b>  -- witness 形状在任意合法 trace 不可达</pre>
+
+<p>注意 <code>init_satisfies_oq9inv</code> 那一行：没有它，对手可以<strong>注入一个非法初态</strong>绕过整个定理。
+trace 级 invariant 必须有<em>合法起点</em>才闭合。还有两个堵漏定理——<code>openShareLeg</code> 合法性收紧为
+<code>stage.rank &lt; earning.rank</code>（earning 阶段不再开 legacy 腿）、<code>zero_close_is_ghost</code>
+（闭合不存在的腿是幽灵副作用，legal 层排除）——它们把绕路的每条小道都封死了。<span class="src">build 绿 ≠ review PASS：这些是正确性缺陷，不是编译错。</span></p>
+
+<div class="warn">
+<b>反 workaround 判准（记下来，通用）：</b>判一条路径「非法」是忠实建模，<strong>当且仅当</strong>它在领域语义下本就不该发生。
+如果它真实会发生、你只为了让锁死成立才宣布它非法——那是 workaround。OQ-9 里「earning 后还有未闭 legacy 腿」
+本就违反缠师第87课「真正的拉抬不需要花钱」，所以判它非法是忠实的，不是凑的。
+</div>
+
+<h2>6. 对 Phase2 重锚的直接推论</h2>
+<p>这一课不是历史课。#89/#91/#93/theta_v0 正在向 Origin canonical base <strong>重锚</strong>，
+每个 port 都会声称「已重锚 / 闭环已接上」。扩维消解给了你一把尺：<strong>重锚不是换 import 路径，是要保住那个棘轮维度。</strong>
+如果某 port 重锚后，<code>HybridAssembly</code> 的闭环里 OQ-9 的三个正交维度（stage / cumNetCash / openLegacyLegs）
+有任何一个被压扁回单一判据，或者端A 的 witness 通道被「顺手」加了入口守卫抹掉——那就是重锚时偷偷退化了。
+#101（双账本桥 + HybridAssembly 重锚）尤其要守住：<strong>单 owner 同时守 HybridAssembly + TotalWealth + 新桥，
+正是因为这三者共享 OQ-9 的扩维结构，拆给三个人改必塌一个。</strong></p>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询任何「账本/闭环已重锚」声明）</h3>
+<p>「你说这个账本闭环已重锚到 Origin——<strong>那个单向棘轮维度（stage）还在吗</strong>？
+给我两个 TW 三量完全相同、仅 stage 不同的态，证明你的投影<strong>没把它们塌缩成同一个</strong>（即 <code>not_isomorphic_stage_collapses</code> 仍可复现）。
+再说 OQ-9：端A 的 violation witness（带未闭 legacy 腿进 earning、亏损闭合使 cumNetCash 下降）在你重锚后的 raw 层<strong>还保留着吗</strong>，
+还是被『顺手』加了入口守卫抹掉了？端B 你给的是<strong>单步</strong>定理还是 <code>oq9inv_trace</code> 那种带初态的 trace 级 invariant——
+单步挡不住绕路。三样里缺一样，『不同构』和『矛盾已消解』就都是声明膨胀，你做的是把两个会计范畴糊成一个。」</p>
+</div>
+
+<p class="next">
+来源（全部 read 物证，非转述）：<code>formal/Tlayers/Accounting/TotalWealth.lean</code>——
+<code>not_isomorphic_stage_collapses:592</code>、<code>OQ9Inv:341</code>/<code>oq9inv_preserved:377</code>/<code>oq9inv_trace:438</code>、
+<code>oq9_legacy_leg_unreachable_in_earning:453</code>、<code>raw_earning_legacy_leg_closure_witness:480</code>、
+<code>LegalEnterEarning:315</code>/<code>LegalTransition:329</code>、<code>twStep:195</code>（rawStep）、<code>earning_no_regress:247</code>、
+<code>IsomorphismVerdict:676</code>（无 RoughlyCompatible）。镜像对照 <code>Strict/HybridAssembly.lean:90</code>（LedgerComp）。<br>
+谱系：#42（账本 watch-item）/ #86（HybridAssembly LedgerComp）/ #90（不同构裁定）/ #93（账本扩维，codex binding 立场C）/ OQ-9（design §3.3）；扩维消解模式 memory <code>oq9-extend-dimension-resolution-pattern</code>。<br>
+<b>认识论等级（诚实标注）：</b><span class="lvl l0">L0</span> 全程——不同构裁定与 OQ-9 扩维都是从两模型的代数/状态结构推导，有效域=定义域，<strong>不需也未做 L2</strong>。
+本课是<strong>方法论结晶</strong>（如何用扩维消解相位锁死类矛盾），不是「三阶段策略盈利」的数据主张（那是 L3，design §3.3 net-up 8标的已记灾难）。<br>
+「不同构」「扩维」「rawStep/legalStep 双层」「trace 级 vs 单步」这几个区分若发虚，喊停，坐实再走。
+</p>
+
+</body>
+</html>

@@ -59,9 +59,12 @@ pub mod classifier;
 pub mod parser;
 pub mod strategy;
 
-/// 闭环 S_Θ 装配（Phase 4 引擎实装，task #94）。镜像 `formal/Strict/HybridAssembly.lean` 的
-/// 单一闭环状态机（AssemblyState + transition_adapter + hybrid_step）+ 双账本（R=Π-A-W + TW
-/// 取本金三阶段）+ OQ-9 gate。把开环单帧引擎升级为闭环——闭环态每 bar 真更新喂回。
+/// 闭环 S_Θ 装配（Phase 4 引擎实装，task #94；A′ Phase2 step8 契约重锚 Origin，task #102）。
+/// 契约锚 **`formal/Origin/FullDefinitionStrategy.lean`** 的单一闭环状态机（`FullDefinitionSystem` +
+/// `hybridStep` + `transition` + `LedgerState` R=Π-A-W）+ `formal/Origin/ChanlunElements.lean`
+/// （`ElementPipeline.parse`）。双账本中 R=Π-A-W 锚 Origin canonical；TW 取本金三阶段 + OQ-9 gate
+/// 仍锚 legacy `Tlayers/Accounting/TotalWealth.lean`（Origin 无 TW 对应物，诚实声明，见 closed_loop
+/// 与 strategy/ledger.rs 模块头）。把开环单帧引擎升级为闭环——闭环态每 bar 真更新喂回。
 pub mod closed_loop;
 
 /// 回测 harness（Phase 4，task #81）。`#[cfg(test)]` 门控——[`backtest::data`] 依赖

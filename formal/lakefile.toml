@@ -1,5 +1,5 @@
 name = "Formal"
-defaultTargets = ["Formal", "Phase2Claims", "Tlayers", "Strict", "Foundation"]
+defaultTargets = ["Formal", "Phase2Claims", "Tlayers", "Strict", "Foundation", "Origin", "OriginAdapters"]
 
 # 真完全分类形式化（task #27, 603 范式）
 # 不依赖 Mathlib：构造子穷尽证明是纯归纳 cases/decide，不需要外部库。
@@ -70,3 +70,39 @@ roots = ["Strict.Classification", "Strict.Trend", "Strict.Recursive", "Strict.De
 name = "Foundation"
 srcDir = "Foundation"
 roots = ["CompleteClassification", "HybridStateMachine", "ChanlunInstantiation", "CompleteClassificationLimits"]
+
+# ★Origin（A′ 方向唯一 canonical base，task #96/#97，codex binding + 编排者确认，2026-06-26）：
+#   Origin 源包六层的 standalone 闭包原样移入主仓作为完全分类的唯一权威源。Strict/Tlayers/
+#   Foundation/theta_v0 现有成果降为「待重锚 legacy reference」——port 重锚，非重证从零。
+#   闭包计算（传递 import 求闭包，凡传递 import 到 HybridAssembly/Strict.*/Foundation.* 排除）：
+#   - 5 standalone 根：SourceAxioms / CompleteClassification / ChanlunElements /
+#     TrendCompleteClassification / FullDefinitionStrategy（链：FDS→TCC→CE→CC→SA，纯 Origin 内）。
+#   - 行为商子树（BehaviorQuotient→CC，FiniteTraceQuotient→BQ，TraceProjection→FTQ）：同为 Origin
+#     内 standalone（无 legacy import），Origin canonical 包的组成部分，一并移入。
+#   ★EngineBridge 排除（明确延 Phase2）：它 import Strict.HybridAssembly（legacy）——传递依赖 legacy，
+#     不满足 standalone 闭包条件。Phase2 重锚 HybridAssembly 后再拷。
+#   srcDir="." + 前缀 roots（与 Strict 一致的 clean-rebuildable 方案）：文件物理在 Origin/，
+#   模块名=Origin.X 对应 ./Origin/X.lean，配合源包内 `import Origin.X` 前缀风格自洽，无需改写 import。
+#   命名空间 NewChanlun.Origin，与 Strict（Strict.*）/Foundation（NewChanlun/NewChanlunHybrid）/
+#   Formal 无碰撞；纯 Prop/Type 无 Mathlib 无 sorry/admit/axiom（8 文件全扫描确认）。
+#   认识论 L0：完全分类 = 行为等价商纤维 + 元素流水线 total-unique + 走势四类穷尽 + 全定义策略闭环。
+[[lean_lib]]
+name = "Origin"
+srcDir = "."
+# Phase2 重锚（task #99/#100/#101，2026-06-26）：#89 递归→RecursiveLevelSystem、
+#   #91 分类极限→ClassificationGuardrail、#93 双账本桥→LedgerBridge、EngineBridge（now 接入重锚后
+#   Strict.HybridAssembly）。EngineBridge/LedgerBridge import Strict.HybridAssembly（已重锚实现 Origin
+#   FullDefinitionSystem），HybridAssembly import Origin.FullDefinitionStrategy——lib 级 Strict↔Origin
+#   互依，模块级无环（FullDefinitionStrategy 纯 Origin standalone）。lake build 全量验证。
+roots = ["Origin.SourceAxioms", "Origin.CompleteClassification", "Origin.ChanlunElements", "Origin.TrendCompleteClassification", "Origin.FullDefinitionStrategy", "Origin.BehaviorQuotient", "Origin.FiniteTraceQuotient", "Origin.TraceProjection", "Origin.RecursiveLevelSystem", "Origin.ClassificationGuardrail", "Origin.EngineBridge", "Origin.LedgerBridge"]
+
+# ★OriginAdapters（A′ legacy→Origin 适配器层，task #96/#97，2026-06-26）：
+#   声明「legacy pipeline 将实现的 Origin 接口」的命名空间 + 接口别名 + 真能立的 def。
+#   零 sorry：只声明真能编译的结构（import Origin canonical + namespace + 别名 + 桩）。
+#   StrictPipeline.lean：Origin pipeline 接口的 adapter 锚点——Phase2 各 port（#99/#100/#101/#102）
+#   在此挂接 legacy 实现到 Origin 接口。尚不能无 sorry 实现的适配器不声明，只留 import+namespace
+#   桩 + docstring 标 TODO-接口（诚实，不假装实现）。
+[[lean_lib]]
+name = "OriginAdapters"
+srcDir = "."
+roots = ["OriginAdapters.StrictPipeline"]

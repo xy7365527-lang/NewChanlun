@@ -1,3 +1,5 @@
+/-! A′ 下本模块为待重锚 legacy reference；canonical base 已迁 formal/Origin/。-/
+
 /-!
 NewChanlun strict hybrid state machine skeleton.
 

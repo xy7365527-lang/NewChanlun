@@ -1,3 +1,5 @@
+/- A′ 下本模块为待重锚 legacy reference；canonical base 已迁 formal/Origin/。 -/
+
 /-
   Foundation/ChanlunInstantiation.lean — 用缠论具体结构忠实实例化 Foundation 抽象参数
   （task #87, cc-foundation-inst 工位；编排者「从一开始的完全分类的严格推导出发」纲领）

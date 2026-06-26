@@ -1,24 +1,52 @@
-//! 双账本分量——镜像 Lean `Strict/HybridAssembly.lean`（LedgerComp R=Π-A-W）+
-//! `Tlayers/Accounting/TotalWealth.lean`（TWState 取本金三阶段 + OQ-9 gate）。
+//! 双账本分量——契约锚点 = Origin canonical（task #102 A′ Phase2 step8 重锚）。
 //!
-//! ## 认识论等级（formalization-validity-domain 231号，强制标注）
+//! ## 契约重锚（legacy Strict/Tlayers → Origin canonical）
 //!
-//! - 本文件 = **L0/L1**（结构镜像：Rust 类型/算子与 Lean 定义 bit-exact 对齐 = 验证管线
-//!   正确性，零信息增量）。`cargo test` 通过 = 双账本不变量在每个算子下结构成立，**不**是
-//!   任何缠论盈利 / 实盘有效声明（那是 L2/L3，真实数据回测才可否证）。
-//! - 不变量 `R=Π-A-W`（ledger）+ `TW=free+holding+withdrawn`（tw）+ stage 单向（OQ-9）
-//!   都是**结构恒等**（同价 c 固定下成立），不证账本数值反映实盘真实盈亏。
+//! A′ Phase1（#97）已把 `formal/Origin/` 立为唯一 canonical base，legacy `Strict/Tlayers/
+//! Foundation` 降为待重锚 reference。本文件的契约语义**锚点指向 Origin**（不再以 legacy
+//! Strict/Tlayers 为接口权威）：
+//!
+//! - **R=Π-A-W 账本（LedgerComp）契约 → `Origin.FullDefinitionStrategy.LedgerState`**：Origin
+//!   把恒等作为结构不变量字段 `inv : R = Pi - A - W`（FullDefinitionStrategy.lean:184-190），
+//!   `ledgerStep`（:195-196）的每个算子由 `mkLedger` 显式重算 R，`ledger_invariant_preservation`
+//!   （:198-203）证保恒等。本 Rust `LedgerComp`/`ledger_step`/`inv_holds` 镜像该 Origin 接口语义。
+//!   接口别名见 `OriginAdapters/StrictPipeline.lean` `FullDefinitionIface`。
+//!
+//! ## TW 三阶段 / OQ-9 gate 的 Origin 锚点缺位（no-workaround 诚实声明）
+//!
+//! `TwState`/`tw_step`/`TStage` 三阶段/`is_legal_from` OQ-9 gate **在 Origin canonical 中无对应
+//! 锚点**：`formal/Origin/` 六层闭包（SourceAxioms/ChanlunElements/CompleteClassification/
+//! TrendCompleteClassification/FullDefinitionStrategy/TraceProjection/BehaviorQuotient/
+//! FiniteTraceQuotient）只含 `R=Π-A-W` 账本（FullDefinitionStrategy.LedgerState），**不含**
+//! `TW=free+holding+withdrawn` 守恒 / 取本金三阶段 / OQ-9 单向 gate。
+//!
+//! 故 TW/OQ-9 层的契约锚点**仍指向 legacy `Tlayers/Accounting/TotalWealth.lean`**——这是诚实
+//! 声明的有效域边界，**不是** workaround：不臆造不存在的 Origin TW 接口、不把 TW 语义硬塞进
+//! Origin LedgerState（二者不同构，#90 已证）。Origin TW 端口（把 TW 三阶段/OQ-9 重锚为 Origin
+//! canonical 结构）尚未存在 → TW 契约重锚**诚实延后**至 Origin TW 端口落地后。
 //!
 //! ## 双账本并置（task #90 不同构裁定 → task #93 闭环扩维）
 //!
-//! `R=Π-A-W`（收益表视角）与 `TW=free+holding+withdrawn`（现金流+持仓视角）**不同构**
-//! （Lean #90 已证：外生价格维度 / 状态空间结构 / 守恒律切换三条阻断）。完整持仓系统两者
-//! 都需要——故 closed_loop 把两者并置在 AssemblyState，T 同步线程化两者（见 transition.rs）。
+//! `R=Π-A-W`（收益表视角，Origin canonical）与 `TW=free+holding+withdrawn`（现金流+持仓视角，
+//! legacy Tlayers）**不同构**（#90 已证：外生价格维度 / 状态空间结构 / 守恒律切换三条阻断）。
+//! 完整持仓系统两者都需要——故 closed_loop 把两者并置在 AssemblyState，T 同步线程化两者
+//! （见 transition.rs）。重锚后并置不变：R=Π-A-W 锚 Origin，TW/OQ-9 锚 legacy（待 Origin 端口）。
 //!
-//! ## 镜像源（只读，不改 .lean）
+//! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
-//! - LedgerComp / LedgerEvent / ledger_step ← `Strict/HybridAssembly.lean:98-163`。
-//! - TwState / TwStage / TWEvent / tw_step / OQ-9 gate ← `Tlayers/Accounting/TotalWealth.lean:74-449`。
+//! - 本文件 = **L0/L1**（结构镜像：Rust 类型/算子与 Origin/legacy 定义结构对齐 = 验证管线
+//!   正确性，零信息增量）。`cargo test` 通过 = 双账本不变量在每个算子下结构成立，**不**是
+//!   任何缠论盈利 / 实盘有效声明（那是 L2/L3，真实数据回测才可否证）。重锚到 Origin **不**
+//!   提升等级——锚点换 canonical 来源仍是 L0/L1（验管线非验缠论假设）。
+//! - 不变量 `R=Π-A-W`（ledger，Origin）+ `TW=free+holding+withdrawn`（tw，legacy）+ stage
+//!   单向（OQ-9，legacy）都是**结构恒等**（同价 c 固定下成立），不证账本数值反映实盘真实盈亏。
+//!
+//! ## 契约锚点源（只读，不改 .lean）
+//!
+//! - LedgerComp / LedgerEvent / ledger_step → **`Origin.FullDefinitionStrategy.LedgerState`**
+//!   （LedgerState/mkLedger/ledgerStep/ledger_invariant_preservation，:184-203）。
+//! - TwState / TStage / TwEvent / tw_step / OQ-9 gate → legacy `Tlayers/Accounting/TotalWealth.lean`
+//!   （Origin 锚点缺位，见上「TW 三阶段 / OQ-9 gate 的 Origin 锚点缺位」诚实声明）。
 
 /// 取本金三阶段 `TStage`（镜像 Lean `TotalWealth.TStage`，缠师第31课）。
 ///
@@ -202,20 +230,27 @@ pub fn tw_step(s: &TwState, e: TwEvent) -> TwState {
     }
 }
 
-/// 账本分量 `LedgerComp`（镜像 Lean `HybridAssembly.LedgerComp`，R=Π-A-W 恒等载体）。
+/// 账本分量 `LedgerComp`（契约锚 **`Origin.FullDefinitionStrategy.LedgerState`**，R=Π-A-W 恒等载体）。
+///
+/// Origin canonical 的 `LedgerState`（FullDefinitionStrategy.lean:184-190）把恒等作为**结构不变量
+/// 字段** `inv : R = Pi - A - W`——任何 Origin LedgerState 值在类型层即携带恒等证据。本 Rust 结构
+/// 镜像该接口语义（字段对应 `Origin.LedgerState.{Pi, A, W, R}` + 本金基线 `i0`）。
 ///
 /// 字段（R=储备/Reserve，Π=累计利润/Profit，A=已分配/Allocated，W=已提取/Withdrawn）：
-/// - `i0`：初始本金 I₀（账本基线，不进恒等——恒等只约束 Π/A/W/R 四量）。
-/// - `pi`：累计利润 Π（profit，含已实现盈亏）。
-/// - `a`：已分配/资本化 A（allocated，earning 转股数等）。
-/// - `w`：已提取 W（withdrawn，出金）。
-/// - `r`：储备 R（reserve，未分配未提取的留存）。
+/// - `i0`：初始本金 I₀（账本基线，不进恒等——恒等只约束 Π/A/W/R 四量；Origin LedgerState 无此字段，
+///   是 Rust 侧 NAV 基线扩展，与恒等正交）。
+/// - `pi`：累计利润 Π（profit，含已实现盈亏）↔ `Origin.LedgerState.Pi`。
+/// - `a`：已分配/资本化 A（allocated，earning 转股数等）↔ `Origin.LedgerState.A`。
+/// - `w`：已提取 W（withdrawn，出金）↔ `Origin.LedgerState.W`。
+/// - `r`：储备 R（reserve，未分配未提取的留存）↔ `Origin.LedgerState.R`。
 ///
-/// **账本恒等不变量 `R = Π - A - W`**（结构层强制）：任何 [`LedgerComp`] 值都满足它
-/// （构造时显式重算 R，ledger_step 的每个算子保持它，见 [`ledger_step`] + 测试 `ledger_step_preserves_inv`）。
+/// **账本恒等不变量 `R = Π - A - W`**（结构层强制）↔ `Origin.LedgerState.inv`：任何 [`LedgerComp`]
+/// 值都满足它（构造时显式重算 R，对齐 Origin `mkLedger` 的 `R := Pi - A - W`；ledger_step 的每个
+/// 算子保持它，对齐 Origin `ledger_invariant_preservation`，见 [`ledger_step`] + 测试 `ledger_step_preserves_inv`）。
 ///
-/// ★诚实标注：这是镜像 Lean 新建的 R=Π-A-W 载体（`Tlayers/Accounting/Ledger` 无此结构）。
-/// 它与 [`TwState`] **不同构**（Lean #90 已证），双账本并置。
+/// ★诚实标注：Origin `LedgerState` 用依赖类型字段 `inv` 在类型层钉死恒等；Rust 无依赖类型，故用
+/// 构造时重算 R + 运行时谓词 [`inv_holds`] 共同承载（等价的结构强制，不是弱化）。
+/// 它与 [`TwState`] **不同构**（#90 已证），双账本并置——R=Π-A-W 锚 Origin，TW 锚 legacy。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LedgerComp {
     pub i0: i64,
@@ -226,22 +261,26 @@ pub struct LedgerComp {
 }
 
 impl LedgerComp {
-    /// 初始账本 `ledger0(I0)`（镜像 Lean `ledger0`）：开局账本——Π=A=W=R=0，恒等显然成立。
+    /// 初始账本 `ledger0(I0)`（契约锚 `Origin.FullDefinitionStrategy.mkLedger 0 0 0`）：开局账本
+    /// ——Π=A=W=R=0，恒等显然成立（Origin `mkLedger` 的 `R := Pi - A - W = 0`）。
     pub fn initial(i0: i64) -> LedgerComp {
         LedgerComp { i0, pi: 0, a: 0, w: 0, r: 0 }
     }
 
-    /// 账本恒等检查 `R == Π - A - W`（镜像 Lean `LedgerComp.inv`）。
+    /// 账本恒等检查 `R == Π - A - W`（契约锚 `Origin.FullDefinitionStrategy.LedgerState.inv`）。
     ///
-    /// Lean 把恒等作为**结构不变量字段**（构造时提供证据）；Rust 无依赖类型，故用运行时
-    /// 谓词 + 构造时重算 R 共同保证（[`ledger_step`] 每分支显式重算 R 使恒等成立）。
-    /// 这个谓词是不变量的可观测断言（测试逐算子验证它恒为真）。
+    /// Origin 把恒等作为**结构不变量字段** `inv`（构造时提供证据）；Rust 无依赖类型，故用运行时
+    /// 谓词 + 构造时重算 R 共同保证（[`ledger_step`] 每分支显式重算 R 使恒等成立，对齐 Origin
+    /// `mkLedger`/`ledgerStep`）。这个谓词是不变量的可观测断言（测试逐算子验证它恒为真）。
     pub fn inv_holds(&self) -> bool {
         self.r == self.pi - self.a - self.w
     }
 }
 
-/// 账本事件 `LedgerEvent`（镜像 Lean `HybridAssembly.LedgerEvent`，穷尽）。
+/// 账本事件 `LedgerEvent`（契约锚 `Origin.FullDefinitionStrategy.ledgerStep` 的 dΠ/dA/dW 增量，穷尽）。
+///
+/// Origin `ledgerStep L dPi dA dW` 以三个独立增量驱动账本；本枚举把三增量拆为正交事件
+/// （Realize=dΠ, Allocate=dA, Withdraw=dW, Noop=全零增量），逐事件保 Origin `ledger_invariant_preservation`。
 ///
 /// - `Realize(d_pi)`：实现利润 dΠ（Π += dΠ；R 随之 += dΠ 保恒等）。
 /// - `Allocate(d_a)`：分配/资本化 dA（A += dA；R -= dA 保恒等）。
@@ -255,9 +294,10 @@ pub enum LedgerEvent {
     Noop,
 }
 
-/// 账本更新 `ledger_step`（镜像 Lean `HybridAssembly.ledgerStep`，全函数，**保 R=Π-A-W**）。
+/// 账本更新 `ledger_step`（契约锚 `Origin.FullDefinitionStrategy.ledgerStep`，全函数，**保 R=Π-A-W**）。
 ///
-/// 对每个 [`LedgerEvent`] 更新四量，**新 R 由恒等重算**（R := Π - A - W），故不变量按构造成立：
+/// 对每个 [`LedgerEvent`] 更新四量，**新 R 由恒等重算**（R := Π - A - W，对齐 Origin `mkLedger`），
+/// 故不变量按构造成立（对齐 Origin `ledger_invariant_preservation`）：
 /// - `Realize(dΠ)`：Π += dΠ，A/W 不变 ⟹ R += dΠ。
 /// - `Allocate(dA)`：A += dA，Π/W 不变 ⟹ R -= dA。
 /// - `Withdraw(dW)`：W += dW，Π/A 不变 ⟹ R -= dW。
@@ -290,10 +330,10 @@ mod tests {
     use super::*;
 
     // ──────────────────────────────────────────────────────────────────────
-    //  LedgerComp R=Π-A-W 不变量（镜像 Lean ledgerStep_preserves_inv）
+    //  LedgerComp R=Π-A-W 不变量（契约锚 Origin.FullDefinitionStrategy.ledger_invariant_preservation）
     // ──────────────────────────────────────────────────────────────────────
 
-    /// ledger0 恒等成立（镜像 Lean `ledger0` 的 `inv := by decide`）。
+    /// ledger0 恒等成立（契约锚 `Origin.mkLedger 0 0 0` 的 `inv := rfl`）。
     #[test]
     fn ledger_initial_inv_holds() {
         let l = LedgerComp::initial(1_000_000);
@@ -301,7 +341,8 @@ mod tests {
         assert_eq!(l.r, 0); // Π=A=W=R=0
     }
 
-    /// ★ledger_step 保 R=Π-A-W（镜像 Lean `ledgerStep_preserves_inv`）：逐事件验证恒等保持。
+    /// ★ledger_step 保 R=Π-A-W（契约锚 `Origin.FullDefinitionStrategy.ledger_invariant_preservation`）：
+    /// 逐事件验证恒等保持。
     #[test]
     fn ledger_step_preserves_inv() {
         let l0 = LedgerComp::initial(1_000_000);
@@ -334,7 +375,8 @@ mod tests {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    //  TwState TW 守恒 + stage 单向（镜像 Lean twStep_preserves_tw / stage_rank_monotone）
+    //  TwState TW 守恒 + stage 单向（锚 legacy TotalWealth.twStep_preserves_tw /
+    //  stage_rank_monotone——Origin 锚点缺位，见模块头「TW 三阶段 / OQ-9 gate 的 Origin 锚点缺位」）
     // ──────────────────────────────────────────────────────────────────────
 
     /// ★tw_step 保 TW 守恒（镜像 Lean `twStep_preserves_tw`）：逐事件 TW=free+holding+withdrawn 不变。
@@ -415,7 +457,7 @@ mod tests {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    //  OQ-9 gate（镜像 Lean LegalTransition / LegalEnterEarning）
+    //  OQ-9 gate（锚 legacy TotalWealth.LegalTransition / LegalEnterEarning——Origin 锚点缺位）
     // ──────────────────────────────────────────────────────────────────────
 
     /// OQ-9 入口证书：EnterEarning 须 open_legacy_legs==0（镜像 Lean `LegalEnterEarning`）。

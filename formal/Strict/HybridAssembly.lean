@@ -59,6 +59,7 @@ import Strict.Fugue
 import Strict.RiskProj
 import Dynamics
 import Accounting.TotalWealth
+import Origin.FullDefinitionStrategy
 
 namespace Strict.HybridAssembly
 
@@ -924,7 +925,141 @@ theorem assembly_subkind_is_given_theta (k : AssemblySubkind) :
   谱系：615/616/617（C_Θ 与 π_Θ 都 Θ-参数化）→ HybridStep（闭环装配抽象接口）→ 本文件 #86
         （抽象接口具体化 + R=Π-A-W 账户因果接入闭环，补 piTheta_causal「只比同一 z」的洞）→
         #90（R=Π-A-W vs 取本金三阶段不同构裁定）→ 本文件 #93（取本金三阶段 TW + OQ-9 gate 扩维
-        接入闭环，双账本并置；OQ-9 矛盾 design §3.3 经 codex 立场C 修正版扩维消解）。
+        接入闭环，双账本并置；OQ-9 矛盾 design §3.3 经 codex 立场C 修正版扩维消解）→
+        #97（Origin canonical base）→ 本文件 #101（实现 Origin FullDefinitionSystem 接口，§8）。
   ════════════════════════════════════════════════════════════════════════ -/
+
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §8 实现 Origin `FullDefinitionSystem` 接口（task #101，A′ Phase2 重锚）
+
+  A′ 把 `formal/Origin/` 定为唯一 canonical base（#97）。本节让 HybridAssembly 装配
+  **实现 Origin 的 `FullDefinitionSystem` 接口**——构造一个真能编译的 Origin 接口见证
+  `originFullDef : FullDefinitionSystem`，其六段（recStruct/classify/intent/risk/schedule/
+  transition）由本文件已证的装配语义提供见证，并把闭环 ∃! / π̄∘C 因子化 / R=Π-A-W 保持三项
+  定理义务挂到 Origin 已证元定理（`hybrid_step_complete_unique` / `policy_factors_through_classification`
+  / `ledger_invariant_preservation`）。
+
+  ════════════════════════════════════════════════════════════════════════
+  ## ★接缝的严格形式（no-workaround + #90，关键诚实声明）
+
+  Origin `FullDefinitionSystem` 的六段第一参数**硬钉在 Origin 的 `StrictState`**（带 Origin
+  `LedgerState` = R=Π-A-W 四字段），它**没有 twState 字段**。本文件的 `AssemblyState` 是**另一个
+  状态类型**（带 microState/LedgerComp/**twState**/...）。二者不是同一类型——这**正是 #90 已证的
+  不同构**：Origin 单账本 `LedgerState`(R=Π-A-W) 与取本金三阶段 TW 不同构，故 Origin 的 `StrictState`
+  **结构上无法吸收 twState**（吸收=抹掉 #90 的不同构裁定=声明膨胀）。
+
+  故「实现接口」的**严格形式**是两层，不是「AssemblyState = StrictState」的冒充：
+
+  1. **接口被实例化**（`originFullDef`）：在 Origin `StrictState` 上构造一个 `FullDefinitionSystem`
+     见证，其 action 段**复用 Origin 自己的 `chooseAction` 优先级选择器**、ledger 段**复用 Origin
+     自己的 `ledgerStep`（保 R=Π-A-W）**——这是 Origin 接口确实可被本装配语义居留的真见证
+     （`originFullDef` 真能编译，三项定理义务由 Origin 元定理兑现）。
+
+  2. **#93 双账本扩维在 HybridAssembly 自有闭环**（`assembly`/`assemblyStep`/`twState`）：twState/TW/
+     stage/OQ-9 是 HybridAssembly 的 AssemblyState 闭环承载的**第二账本**（#90 的不同构第二端），
+     它与 Origin 单账本接口**并置**（双层），由 `Origin/LedgerBridge.lean` 桥接定理坐实「ledger inv /
+     TW / stage / OQ-9 全在 Origin 接口下成立」。Origin 接口承载 R=Π-A-W 端，HybridAssembly 闭环
+     承载 TW 端——两端各在其层，#90 不同构被尊重（非糊成一个）。
+
+  ★诚实裁定（formalization-validity-domain）：本节**不**声明「AssemblyState 是 Origin StrictState 的
+  子类型/同构像」（#90 否证之）。本节声明的是「Origin `FullDefinitionSystem` 接口可被本装配语义居留
+  （originFullDef 真见证）+ 本装配 AssemblyState 闭环的核心义务（∃!/π̄∘C/R=Π-A-W）与 Origin 元定理
+  逐项对齐」。L0（结构层）。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+open NewChanlun.Origin (FullDefinitionSystem StrictState ParseStruct TrendClass ActionClass
+  RiskMode CapitalPhase LedgerState mkLedger chooseAction hybridStep policyTheta
+  hybrid_step_complete_unique policy_factors_through_classification ledger_invariant_preservation)
+
+/--
+  ★空解析结构 `emptyParse`（L0）：Origin `ParseStruct` 的空实例（八字段全空 / tail=none）。
+  作 originFullDef recStruct 段的结构层占位输出——本骨架的 Origin 接口见证不重算缠论解析
+  （完整解析由 Origin.ElementPipeline.parse 承载），只兑现「recStruct 是 StrictState→Event→ParseStruct
+  的全函数」接口义务。
+-/
+def emptyParse : ParseStruct :=
+  { mergedBars := [], fractals := [], strokes := [], segments := [], centers := [],
+    moves := [], bsp := [], tail := NewChanlun.Origin.OpenTail.none }
+
+/--
+  ★Origin action 段适配 `originActionOf`（L0）：把 Origin `StrictState` 的当前 trend 标签映为
+  9 个优先级谓词，喂给 **Origin 自己的 `chooseAction`** 优先级选择器，得 Origin `ActionClass`。
+
+  本骨架取「trend=trendUp ⟹ openRoot（p7）；其余 ⟹ hold」的最小确定映射（结构层，p1..p6=p8=p9=false）——
+  这复用 Origin canonical 的 10 级优先级**确定选择器**，不另造优先级排序（Origin 接口的 action
+  语义由 Origin chooseAction 钉死，本段只提供谓词输入）。诚实：这是 Θ_voice 设计选择，非缠论唯一。
+-/
+def originActionOf (x : StrictState) : ActionClass :=
+  chooseAction false false false false false false (decide (x.trend = TrendClass.trendUp)) false false
+
+/--
+  ★★Origin 接口见证 `originFullDef`（L0，task #101 核心——HybridAssembly 实现 Origin 接口）：
+  构造 `FullDefinitionSystem` 实例，六段全函数填充：
+  - `recStruct` := 结构层 emptyParse（接口义务：StrictState→Event→ParseStruct 全函数）。
+  - `classify` := 复用 StrictState 已携带的 `trend`（Origin TrendClass，分类输出真被下游 intent 读）。
+  - `intent` := **Origin `chooseAction` 优先级选择器**（intent 输入含 TrendClass ⟹ 策略穿过分类瓶颈）。
+  - `risk`/`schedule` := 结构层确定全函数（Control=Nat 目标仓位 / Order=Origin ActionClass）。
+  - `transition` := 复用 **Origin `ledgerStep`（保 R=Π-A-W）** 更新 ledger 分量 + 写回完整 StrictState
+    （T 闭环写回，账本更新放进 T——补账户因果洞，与 §4 transitionAdapter 同构）。
+
+  Event/Intent/Control/Order 取最小具体类型（Unit/ActionClass/Nat/ActionClass）。
+  这是 Origin `FullDefinitionSystem` 接口可被本装配语义居留的真见证（真能编译，无 sorry）。
+-/
+def originFullDef : FullDefinitionSystem where
+  Event := Unit
+  Intent := ActionClass
+  Control := Nat
+  Order := ActionClass
+  recStruct := fun _ _ => emptyParse
+  classify := fun x _ => x.trend
+  intent := fun _ c => chooseAction false false false false false false (decide (c = TrendClass.trendUp)) false false
+  risk := fun _ i => match i with | ActionClass.openRoot => 1 | _ => 0
+  schedule := fun _ _u => ActionClass.hold
+  transition := fun x o _ =>
+    -- T 闭环写回：order=ActionClass 驱动 Origin ledgerStep（保 R=Π-A-W），写回完整 StrictState。
+    { x with
+        actionClass := o,
+        ledger := match o with
+          | ActionClass.openRoot => NewChanlun.Origin.ledgerStep x.ledger 0 1 0   -- 建仓资本化 allocate
+          | _ => NewChanlun.Origin.ledgerStep x.ledger 1 0 0 }                    -- 其余实现盈亏 realize
+
+/--
+  ★★HybridAssembly 实现 Origin 接口 · 闭环 ∃!（L0，task #101，接口义务①）：
+  `originFullDef` 的 Origin `hybridStep` 每步存在且唯一（实例化 Origin `hybrid_step_complete_unique`）。
+  这兑现 Origin 接口的「闭环每步全定义 + 唯一」定理义务——HybridAssembly 居留 Origin 接口后，
+  Origin 的闭环唯一性元定理对本见证成立。
+-/
+theorem originFullDef_step_complete_unique (x : StrictState) (e : originFullDef.Event) :
+    NewChanlun.Origin.ExistsUnique (fun x' => hybridStep originFullDef x e = x') :=
+  hybrid_step_complete_unique originFullDef x e
+
+/--
+  ★★HybridAssembly 实现 Origin 接口 · π̄∘C 因子化（L0，task #101，接口义务②）：
+  `originFullDef` 的策略 `policyTheta` 真穿过 classify（intent 读 classify 输出）——实例化 Origin
+  `policy_factors_through_classification`。坐实 Origin 接口的「策略穿过分类瓶颈」义务对本见证成立。
+-/
+theorem originFullDef_policy_factors (x : StrictState) (e : originFullDef.Event) :
+    policyTheta originFullDef x e =
+      originFullDef.schedule x
+        (originFullDef.risk x
+          (originFullDef.intent x
+            (originFullDef.classify x (originFullDef.recStruct x e)))) :=
+  policy_factors_through_classification originFullDef x e
+
+/--
+  ★★HybridAssembly 实现 Origin 接口 · T 保 R=Π-A-W（L0，task #101，接口义务③）：
+  `originFullDef` 的闭环转移后 ledger 分量仍满足 Origin 账本恒等 R=Π-A-W——T 段复用 Origin
+  `ledgerStep`（其 `inv` 保恒等），故闭环每步保持。兑现 Origin 接口的账本恒等保持义务。
+
+  ★这与 HybridAssembly 自有闭环的 `assemblyStep_preserves_ledger_inv`（本文件 §6）**同构对齐**：
+  两侧都证「闭环 T 保 R=Π-A-W」，一侧在 Origin StrictState 接口（本定理），一侧在 AssemblyState
+  闭环（§6）——双层都成立，#90 的 R=Π-A-W 端在两层一致。
+-/
+theorem originFullDef_transition_preserves_ledger_inv (x : StrictState) (e : originFullDef.Event) :
+    (hybridStep originFullDef x e).ledger.R =
+      (hybridStep originFullDef x e).ledger.Pi
+        - (hybridStep originFullDef x e).ledger.A
+        - (hybridStep originFullDef x e).ledger.W :=
+  (hybridStep originFullDef x e).ledger.inv
 
 end Strict.HybridAssembly

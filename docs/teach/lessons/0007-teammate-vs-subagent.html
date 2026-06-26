@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0007 课 · teammate 与 subagent</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>teammate 与 subagent：同一原语，一个布尔位的分岔</h1>
+<p class="sub">第 0007 课（优先插课）· 描述说「不可用」，schema 却含那个字段——哪个为准？一堂用物证裁决的活教材</p>
+
+<p class="lede">编排者要 Lead「用 teammate（后台并行），不要用 subagent」。这要求一个前提：<strong>Lead 真能 spawn 后台工位</strong>。
+但 Lead 手里的 <code>Agent</code> 工具自带一处刺眼矛盾——它的<strong>文字描述</strong>说「run_in_background / name / mode 在此不可用，仅同步 subagent」，
+它的 <strong>JSON schema 却含 <code>run_in_background</code> 属性</strong>。两者不可能都对。这一课按 0004a 的物证法把它坐实，
+给出可证伪的裁决——因为这直接决定 Lead 接下来怎么 spawn。</p>
+
+<h2>1. 概念区分：两者是同一原语，差在一个布尔位</h2>
+<p>先把概念摆清。subagent 和 teammate <strong>不是两种工具</strong>，是<strong>同一个 spawn 原语（Agent）的两种调用模式</strong>，
+分岔点就是 <code>run_in_background</code> 这一个布尔字段：</p>
+<table>
+<tr><th></th><th>subagent（同步）</th><th>teammate（后台）</th></tr>
+<tr><td>调用</td><td><code>Agent(..., run_in_background: false)</code>（或省略）</td><td><code>Agent(..., run_in_background: true)</code></td></tr>
+<tr><td>Lead 拿到什么</td><td><strong>阻塞</strong>，直到子 agent 跑完，返回<em>完整最终报告</em>作为工具结果</td><td><strong>立即</strong>返回一个 handle（<code>agentId</code>，格式 <code>a…-…</code>），子 agent 在后台继续跑</td></tr>
+<tr><td>Lead 期间能否响应</td><td><b style="color:#7a1f1f">不能</b>——被这一个调用占住</td><td><em class="g">能</em>——Lead 保持响应，可同时编排多个</td></tr>
+<tr><td>生命周期</td><td>一次性：返回即结束</td><td>持久：完成后发 task/agent 通知，可经 <code>SendMessage(to: agentId)</code> 续聊</td></tr>
+<tr><td>协调方式</td><td>无需协调（就一个结果）</td><td>任务板（<code>TaskCreate</code>/<code>TaskList</code>…）+ <code>SendMessage</code></td></tr>
+</table>
+
+<div class="key">
+<b>底层是同一原语吗？是。</b>本课的 <code>SendMessage</code> 物证直接证明这一点——它的描述写道：
+「to <code>"main"</code>（<strong>background subagents only</strong>）」「to resume a completed <strong>background agent</strong>, use the <code>agentId</code>」。
+平台<strong>自己</strong>把后台工位叫 "background subagent"——可见 teammate 不是异类，<em>就是开了 <code>run_in_background</code> 的 subagent</em>。
+差异只在那一个布尔位：开 = 非阻塞持久 teammate，关 = 阻塞一次性 subagent。
+</div>
+
+<h2>2. 平台真相：那个矛盾，哪一端为准（可证伪裁决）</h2>
+<p>像 0004a 查 <code>platform_support</code> 那样，这次的物证<strong>就在工具定义本身</strong>——这是最硬的物证，因为它是本 session 实际加载的 schema。</p>
+
+<div class="warn">
+<b>矛盾的两端（逐字）：</b><br>
+① <code>Agent</code> 工具<strong>描述</strong>结尾：「<code>run_in_background</code>, <code>name</code>, and <code>mode</code> are unavailable here — only synchronous subagents.」<br>
+② <code>Agent</code> 工具<strong>schema</strong>里却列着 <code>run_in_background</code> 属性：「Set to true to run this agent in the background. You will be notified when it completes.」<br>
+描述说三个字段「unavailable」，schema 却定义着它们。<strong>两端不可能都对。</strong>
+</div>
+
+<p>不要凭好看的那一端选。要找<strong>独立的第三方物证</strong>来打破对称——本课现场抓到两条：</p>
+
+<table>
+<tr><th>物证</th><th>说了什么</th><th>指向哪端</th></tr>
+<tr><td><b>A · 系统对 deferred 工具的回执</b></td><td>本 session 尝试加载 <code>TaskCreate/TaskList/TaskGet/TaskUpdate</code> 时，系统返回：这些工具「<strong>no longer available (their MCP server disconnected)</strong>」——只有 <code>TaskStop</code> 与 <code>SendMessage</code> 成功加载</td><td>任务板工具族<strong>真实存在过</strong>（否则无从「disconnected」），但<strong>此刻这台 session 连不上</strong></td></tr>
+<tr><td><b>B · <code>SendMessage</code> 的续聊语义</b></td><td>「to resume a completed <strong>background agent</strong>, use the <code>agentId</code> (format <code>a…-…</code>)」「<code>"main"</code> — The main conversation (<strong>background subagents only</strong>)」</td><td>平台的消息协议<strong>预设了后台 agent 的存在</strong>——若全程只有同步 subagent，这套 <code>agentId</code> 续聊 / <code>to:"main"</code> 回汇就没有指涉对象</td></tr>
+</table>
+
+<div class="key">
+<b>裁决（可证伪）：</b>「<code>run_in_background</code> 能不能用」<strong>不是一个全局真假，是一个 session-级运行时事实</strong>。
+schema 含它 + SendMessage 预设后台 agent ⟹ <strong>平台原语层支持后台</strong>（描述里那句「unavailable」是<em>过期/语境化的</em>，针对「任务板 MCP 未挂载」的退化态写的）。
+但物证 A 证明：<strong>本 session 的任务板（Task* MCP）此刻断连</strong>——没有任务板，后台工位即便能 spawn，也<em>无法被 TaskList 实时观测</em>。<br>
+<strong>判据（拿去证伪，不要背结论）：</strong>Lead 真要用 teammate 前，<strong>实测一次</strong>——
+①调 <code>Agent(run_in_background: true)</code>，看返回的是<strong>立即的 <code>agentId</code> handle</strong>（证后台成功）还是<strong>阻塞到完整报告</strong>（证退化成同步）；
+②调 <code>TaskList</code> 看任务板是否响应（证编排者能否看实时 in_progress）。<strong>两者皆真 = teammate 全面并行成立；任一为假 = 当前 session 只能退化用同步 subagent。</strong>
+</div>
+
+<h2>3. 何时用哪个</h2>
+<p>就算两者都可用，也不是「teammate 永远更好」。选择由<strong>任务的依赖结构</strong>决定，不由「显得并行」决定：</p>
+<table>
+<tr><th>用同步 subagent（阻塞）</th><th>用后台 teammate（非阻塞）</th></tr>
+<tr><td>需要<strong>立即拿到结果</strong>才能继续（下一步的输入是它的输出）</td><td><strong>全面并行</strong>多个独立工位（lead-parallel-dispatch 218号：无依赖即并行）</td></tr>
+<tr><td><strong>串行门</strong>：必须等这一步成败才决定走向</td><td>Lead 要<strong>保持响应</strong>、同时编排 + 接编排者中断</td></tr>
+<tr><td>一次性查询、单点搜索（如 Explore 一个文件）</td><td>编排者要在<strong>任务板看实时 <code>in_progress</code></strong>（异步可观测性）</td></tr>
+<tr><td>结果短、无需持久续聊</td><td>长任务、需 <code>SendMessage</code> 续聊 / 多轮协调</td></tr>
+</table>
+<p>注意：本课规则卡（lead-parallel-dispatch 218号）要求「无依赖即全部并行 spawn」。<strong>全面并行的<em>载体</em>是后台 teammate</strong>——
+若退化成「同步 subagent 批量」，Lead 每 spawn 一个就被阻塞到它跑完，<em>批量 ≠ 并行</em>，只是快速串行。这正是下一节锋利问题要戳的。</p>
+
+<h2>4. 这堂课对 Lead 的直接义务</h2>
+<p>编排者的指令「用 teammate 不用 subagent」落到 Lead 身上是一个<strong>可验证的运行时承诺</strong>，不是一句姿态。
+Lead 报「已 teammate 全面并行」时，<strong>声明里藏着两个必须为真的事实</strong>：(1) <code>Agent</code> 返回的是立即 handle（真后台），(2) 任务板能 <code>TaskList</code> 出实时状态（编排者可观测）。
+两者任一为假，「teammate 并行」就是<strong>声明膨胀</strong>（090号）——实际是被阻塞的同步 subagent 批量，伪装成并行。</p>
+
+<div class="warn">
+<b>诚实的退化路径（不是 workaround）：</b>若实测发现本 session 任务板断连（物证 A 的情形），
+正确动作是<strong>诚实声明「当前 session 任务板不可用，退化为同步 subagent 批量执行，编排者暂无实时任务板」</strong>，
+而<strong>不是</strong>嘴上说 teammate、底下跑同步还假装并行。前者是诚实标注有效域边界（formalization-validity-domain 同源）；后者是 spec-execution-gap（声明=teammate / 实际=阻塞 subagent）。
+</div>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询任何「teammate 全面并行」声明）</h3>
+<p>「你说这是 teammate 全面并行——<strong>它真后台了吗</strong>？你那次 <code>Agent</code> 调用返回的是<strong>立即的 <code>agentId</code> handle</strong>（<code>a…-…</code>），
+还是<strong>阻塞到完整最终报告</strong>才返回？编排者现在能在<strong>任务板看到实时 <code>in_progress</code></strong> 吗——<code>TaskList</code> 响应吗？
+还是其实退化成了<strong>同步 subagent 批量</strong>、Lead 每个都被阻塞、『并行』只是快速串行？
+给不出『立即 handle + 实时任务板』两条证据，『teammate 并行』就是声明膨胀——你做的是被阻塞的 subagent，不是后台 teammate。」</p>
+</div>
+
+<p class="next">
+来源（全部本 session 工具定义 + 系统回执物证，非转述）：
+<code>Agent</code> 工具描述「<code>run_in_background</code>, <code>name</code>, <code>mode</code> are unavailable here — only synchronous subagents」<strong>对撞</strong> 其 schema 内的 <code>run_in_background</code>/<code>name</code>/<code>mode</code> 属性定义；
+系统 deferred-tool 回执「<code>TaskCreate/TaskList/TaskGet/TaskUpdate</code> no longer available (MCP server disconnected)」（仅 <code>TaskStop</code>/<code>SendMessage</code> 加载成功）；
+<code>SendMessage</code> 描述的 <code>agentId</code> 续聊 + <code>to:"main"</code>（background subagents only）语义。<br>
+规则：<code>lead-parallel-dispatch.md</code>（218号 Lead 全并行 / 275号局部依赖）；<code>spec-execution-gap</code> skill（声明=能力一致性）；谱系同 0004a 的 082/073a。<br>
+<b>认识论等级（诚实标注）：</b>本课的<strong>概念区分</strong>（同一原语 + 布尔位分岔、何时用哪个）是 <span class="lvl l0">L0</span> 方法论结晶；
+对「<code>run_in_background</code> 能否用」的<strong>裁决</strong>诚实标为 <span class="lvl l2">L2-session局部</span>——它是<em>当前这台 session</em> 的运行时事实（schema 支持原语 / 任务板此刻断连），
+<strong>不是</strong>跨所有 session 的全局常量。这正是为何裁决落成「Lead 必须实测一次」而非「背一个结论」——session 切换 / MCP 重连后真值可能翻转，必须用判据现场证伪。<br>
+「立即 handle vs 阻塞报告」「原语支持 vs 任务板连通」「批量 ≠ 并行」这三个区分若发虚，喊停，坐实再走。
+</p>
+
+</body>
+</html>

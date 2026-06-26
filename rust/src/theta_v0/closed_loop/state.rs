@@ -1,31 +1,49 @@
-//! 闭环完整态 `AssemblyState`——镜像 Lean `Strict/HybridAssembly.lean:227-236`。
+//! 闭环完整态 `AssemblyState`——契约锚 `Origin.FullDefinitionStrategy.StrictState`（乘积态扩展）。
+//!
+//! ## 契约重锚（legacy Strict.HybridAssembly → Origin canonical）
+//!
+//! 闭环态对齐 Origin `StrictState`（FullDefinitionStrategy.lean:205-212：`parsed × trend ×
+//! actionClass × riskMode × phase × ledger`）——本 Rust `AssemblyState` 是其乘积态扩展（额外承载
+//! micro/tw/positions/orders/memory 分量，使 Rust 闭环引擎可线程化）。Origin `hybridStep` 在
+//! `StrictState` 上单步推进；本 `AssemblyState` 是 Rust 闭环引擎的 `StrictState` 实例承载。
+//! 其中 R=Π-A-W `ledger_state` 锚 Origin `LedgerState`；TW/OQ-9 `tw_state` 锚 legacy（Origin 缺位）。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
-//! - 本文件 = **L0/L1**（结构镜像：乘积态 + 枚举与 Lean 定义对齐 = 验证管线正确性，零信息增量）。
-//!   `cargo test` 通过 = 闭环态的类型自洽 + 双账本不变量可承载，**不**是缠论盈利/实盘有效声明。
+//! - 本文件 = **L0/L1**（结构镜像：乘积态 + 枚举与 Origin/legacy 定义对齐 = 验证管线正确性，
+//!   零信息增量）。`cargo test` 通过 = 闭环态的类型自洽 + 双账本不变量可承载，**不**是缠论
+//!   盈利/实盘有效声明。重锚到 Origin **不**提升等级（仍 L0/L1）。
 //!
 //! ## 乘积态（蓝图 §2，复用已有类型 + 新建分量）
 //!
 //! `AssemblyState` = microState（引擎在线推进态）× ledgerState（LedgerComp R=Π-A-W）×
 //! twState（TwState 取本金三阶段）× riskMode × phase × positions × orders × memory。
 //!
-//! ## microState 的镜像对齐（关键诚实声明，非补丁）
+//! ## microState 的契约对齐（关键诚实声明，非补丁）
 //!
-//! Lean 的 microState 是抽象 `Dynamics.State`（barCount/strokeCount/... 在线摘要），由
-//! `Dynamics.delta` 逐 bar 推进。Rust 引擎的解析是**批量重算**（`parser::parse_layer` 吃整个
-//! bar 序列）。本文件的 [`MicroState`] 忠实对齐 Lean delta「逐 bar 推进」：它承载**截至第 t 根
-//! bar 的引擎可见窗口长度** `bars_seen`——每 bar 推进 `bars_seen += 1`，闭环转移在 `bars[..bars_seen]`
-//! 前缀上重跑 parse/classify。Lean `Dynamics.classify_step`（C(h⌢e)=δ(C h,e)）已证**增量推进 =
-//! 全量重算前缀**，故 batch-on-prefix 是 delta 左折叠的忠实实装（不是补丁——它正是 foldl 语义）。
+//! Origin canonical 的解析是 `ChanlunElements.ElementPipeline.parse : List Bar → ParseStruct`
+//! （ChanlunElements.lean:114-130），**批量**吃整个 bar 序列、由 `parse_total_unique`（:132-134）
+//! 证全函数唯一。Rust 引擎的解析同样是**批量重算**（`parser::parse_layer` 吃整个 bar 序列，
+//! 契约锚 Origin `ElementPipeline.parse`）。本文件的 [`MicroState`] 是闭环引擎的**在线推进态**：
+//! 它承载**截至第 t 根 bar 的引擎可见窗口长度** `bars_seen`——每 bar 推进 `bars_seen += 1`，闭环
+//! 转移在 `bars[..bars_seen]` 前缀上重跑 Origin `parse`/classify。
 //!
-//! 此外 [`MicroState`] 镜像 Lean `Dynamics.State` 的四个在线摘要字段（bar_count/stroke_count/
-//! last_stroke_dir/pending_rise），由 [`micro_delta`] 按 [`MicroEvent`]（newBar/newStroke）推进——
-//! 这是 Lean delta 的 bit-exact Rust 镜像，与 `bars_seen` 一起构成完整在线态。
+//! ★诚实标注（no-workaround）：Origin canonical 的解析是**批量** `ElementPipeline.parse`，**无**逐
+//! bar 增量 `delta` 对应物（增量推进=全量重算前缀的左折叠等价定理在 legacy `Dynamics.classify_step`
+//! 中有，Origin canonical 尚未单列该增量定理）。故 batch-on-prefix 的「增量=全量重算前缀」等价**当前
+//! 锚 Origin `parse` 的批量唯一性**（前缀上确定 ⟹ 同前缀同结果），逐 bar 增量左折叠定理的 Origin
+//! canonical 形式**诚实延后**——本文件不冒充已有 Origin 增量定理。
+//!
+//! 此外 [`MicroState`] 的四个在线摘要字段（bar_count/stroke_count/last_stroke_dir/pending_rise）由
+//! [`micro_delta`] 按 [`MicroEvent`]（newBar/newStroke）推进——这是闭环引擎在线态的结构承载，与
+//! `bars_seen` 一起构成完整在线态（喂给 Origin `parse` 的前缀窗口推进器）。
 
 use super::super::types::Direction;
 
-/// 解析事件 `MicroEvent`（镜像 Lean `Dynamics.Event`，穷尽在线增量字母表）。
+/// 解析事件 `MicroEvent`（闭环在线增量字母表；驱动 Origin `ElementPipeline.parse` 的前缀窗口推进）。
+///
+/// ★诚实标注：这是 Rust 闭环引擎的在线增量事件类型，无直接 Origin canonical 对应（Origin 解析是
+/// 批量 `parse`，不展开增量事件字母表）——它是把批量 `parse` 接入逐 bar 闭环的推进器输入。
 ///
 /// 缠论在线推进只有两类增量事件：
 /// - `NewBar(rising)`：新 K 线到达（rising = 该 bar 收涨，T₅ 离散时刻推进最小单元）。
@@ -36,9 +54,9 @@ pub enum MicroEvent {
     NewStroke(Direction),
 }
 
-/// 解析级微状态 `MicroState`（镜像 Lean `Dynamics.State`，T-causal 在线分类摘要）。
+/// 解析级微状态 `MicroState`（闭环引擎 T-causal 在线分类摘要；推进 Origin `parse` 的可见前缀窗口）。
 ///
-/// 字段（镜像 Lean `Dynamics.State` 四字段 + `bars_seen` 可见窗口长度）：
+/// 字段（四个在线摘要 + `bars_seen` 可见窗口长度）：
 /// - `bar_count`：已处理 K 线数（T₅ 离散时刻 = 已消费事件计数，单调不减）。
 /// - `stroke_count`：已确认笔数（笔级结构积累）。
 /// - `last_stroke_dir`：最近一笔方向（`None` = 尚无笔；未完成尾部状态承载）。
@@ -57,7 +75,7 @@ pub struct MicroState {
 }
 
 impl MicroState {
-    /// 初始微状态 s₀（镜像 Lean `Dynamics.s0`，空历史：无 bar、无笔、无尾部、零可见窗口）。
+    /// 初始微状态 s₀（空历史：无 bar、无笔、无尾部、零可见窗口；喂 Origin `parse []` 起点）。
     pub fn initial() -> MicroState {
         MicroState {
             bar_count: 0,
@@ -69,10 +87,11 @@ impl MicroState {
     }
 }
 
-/// 状态转移 `micro_delta`（镜像 Lean `Dynamics.delta`，全函数且确定）。
+/// 状态转移 `micro_delta`（闭环在线推进器，全函数且确定）。
 ///
 /// 对 [`MicroEvent`] 两个构造子都有分支（穷尽），对任意 [`MicroState`] 返回确定的新状态
-/// （无未定义洞，对齐 Lean `delta_total_deterministic`）：
+/// （无未定义洞；确定性对齐 Origin `parse_total_unique` 的「同前缀同结果」唯一性，逐 bar 推进
+/// 可见窗口后在前缀上重跑 Origin `parse`）：
 /// - `NewBar(rising)`：bar 计数 +1；可见窗口 +1；涨 bar 累积 pending_rise（未完成尾部）。
 /// - `NewStroke(dir)`：笔计数 +1；记录笔方向；清零 pending_rise（尾部被新笔吸收 = 结构完成一段）。
 ///
@@ -95,9 +114,13 @@ pub fn micro_delta(s: &MicroState, e: MicroEvent) -> MicroState {
     }
 }
 
-/// 风险模式 `RiskMode`（镜像 Lean `HybridAssembly.RiskMode`，蓝图 §2 μ 五态）。
+/// 风险模式 `RiskMode`（契约锚 `Origin.FullDefinitionStrategy.RiskMode`，五态）。
 ///
-/// ★诚实标注：模式枚举是结构层（μ 的**取值阈值**是 Θ_risk 参数，非缠论可导；本枚举只承载五态）。
+/// 对齐 Origin `RiskMode`（FullDefinitionStrategy.lean:108-114：insolvent/liquidation/deleverage/
+/// closeOnly/normal，由 `chooseRiskMode` + `risk_mode_complete_unique` 证确定唯一）。
+///
+/// ★诚实标注：模式枚举是结构层（μ 的**取值阈值**是 Θ_risk 参数，非缠论可导；本枚举只承载五态，
+/// 对齐 Origin 五构造子）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RiskMode {
     Insolvent,
@@ -107,10 +130,16 @@ pub enum RiskMode {
     Normal,
 }
 
-/// 三阶段 `Phase`（镜像 Lean `HybridAssembly.Phase`，蓝图 §2 Φ 三阶段 T₂₆）。
+/// 三阶段 `Phase`（部分对齐 `Origin.FullDefinitionStrategy.CapitalPhase`，Φ 三阶段 T₂₆）。
 ///
-/// I=建仓 / II=取本 / III=增核——与 `Operational.Phase` 的 enter/hold/exit 同范畴（三阶段
-/// 结构），其转移阈值是 Θ 参数（结构层承载，不臆造阈值）。
+/// I=建仓 / II=取本 / III=增核——三阶段持仓相位结构，其转移阈值是 Θ 参数（结构层承载，不臆造阈值）。
+///
+/// ★诚实标注（no-workaround，部分对齐）：Origin canonical 的 `CapitalPhase`
+/// （FullDefinitionStrategy.lean:145-151）是**五态**（phaseI/phaseII/repair/protectedPhase/
+/// accretive，由 `chooseCapitalPhase` + `capital_phase_complete_unique` 证唯一），本 Rust `Phase`
+/// 是**三态**摘要（PhaseI/PhaseII/PhaseIII）。三态 Phase **不**与 Origin 五态 CapitalPhase 双射
+/// （Origin 把 phaseIII 细分为 repair/protected/accretive 三个 returned 后子相位）——本枚举只承载
+/// 三阶段摘要，**不**声明等价于 Origin CapitalPhase。三态→五态的精化对齐契约**诚实延后**。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Phase {
     PhaseI,
@@ -120,11 +149,14 @@ pub enum Phase {
 
 use super::super::strategy::ledger::{LedgerComp, TwState};
 
-/// 完整混合态 `AssemblyState`（镜像 Lean `HybridAssembly.AssemblyState`，蓝图 §2 乘积态）。
+/// 完整混合态 `AssemblyState`（契约锚 `Origin.FullDefinitionStrategy.StrictState`，乘积态扩展）。
+///
+/// Origin `StrictState`（FullDefinitionStrategy.lean:205-212）= `parsed × trend × actionClass ×
+/// riskMode × phase × ledger`；本 Rust 乘积态是其闭环引擎扩展（额外 micro/tw/positions/orders/memory）。
 ///
 /// 字段（各标来源，复用已证类型 / 新建分量）：
-/// - `micro_state`：解析级微状态（[`MicroState`]，T-causal 在线推进态）。
-/// - `ledger_state`：账本恒等分量（[`LedgerComp`]，R=Π-A-W）。
+/// - `micro_state`：解析级微状态（[`MicroState`]，T-causal 在线推进态，推进 Origin `parse` 前缀窗口）。
+/// - `ledger_state`：账本恒等分量（[`LedgerComp`]，R=Π-A-W，契约锚 `Origin.LedgerState`）。
 /// - `tw_state`：取本金三阶段账本分量（[`TwState`]，TW 守恒 + stage 单向 + OQ-9 gate）。
 ///   与 ledger_state **双层并置**——R=Π-A-W（收益表视角）与 TW（现金流+持仓视角）二者不同构
 ///   （Lean #90 已证），完整持仓系统两者都需要。tw_state 真被 transition 线程化（见 transition.rs）。
@@ -152,7 +184,7 @@ pub struct AssemblyState {
 }
 
 impl AssemblyState {
-    /// 初始闭环态（镜像 Lean 装配的开局态）：空微态 + 初始双账本 + Normal/PhaseI + 零仓/零单/零记忆。
+    /// 初始闭环态（Origin `StrictState` 实例的开局态）：空微态 + 初始双账本 + Normal/PhaseI + 零仓/零单/零记忆。
     ///
     /// `i0`：初始本金（进 ledger_state.i0；NAV 绝对额由 runner 在 fill 侧另算，账本是结构分量）。
     pub fn initial(i0: i64) -> AssemblyState {
@@ -173,7 +205,7 @@ impl AssemblyState {
 mod tests {
     use super::*;
 
-    /// micro_delta 全定义且确定（镜像 Lean `delta_total_deterministic`）：同输入同输出。
+    /// micro_delta 全定义且确定（确定性对齐 Origin `parse_total_unique` 的同前缀同结果）：同输入同输出。
     #[test]
     fn micro_delta_deterministic() {
         let s = MicroState::initial();
@@ -181,7 +213,7 @@ mod tests {
         assert_eq!(micro_delta(&s, e), micro_delta(&s, e));
     }
 
-    /// NewBar 推进 bar_count + bars_seen + pending_rise（镜像 Lean delta newBar 分支）。
+    /// NewBar 推进 bar_count + bars_seen + pending_rise（闭环在线推进器 newBar 分支）。
     #[test]
     fn micro_delta_new_bar() {
         let s = MicroState::initial();
@@ -195,7 +227,7 @@ mod tests {
         assert_eq!(s2.pending_rise, 1); // 收跌不累积
     }
 
-    /// NewStroke 推进 stroke_count + 记录方向 + 清零 pending_rise（镜像 Lean delta newStroke 分支）。
+    /// NewStroke 推进 stroke_count + 记录方向 + 清零 pending_rise（闭环在线推进器 newStroke 分支）。
     #[test]
     fn micro_delta_new_stroke() {
         let s = MicroState {
@@ -209,7 +241,7 @@ mod tests {
         assert_eq!(s1.bars_seen, s.bars_seen); // 笔不增加可见 bar 窗口
     }
 
-    /// bar_count 单调不减（镜像 Lean `delta_barCount_monotone`）。
+    /// bar_count 单调不减（闭环在线推进器：可见前缀窗口只增不减）。
     #[test]
     fn micro_delta_bar_count_monotone() {
         let s = MicroState::initial();

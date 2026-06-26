@@ -1,3 +1,5 @@
+/- A′ 下本模块为待重锚 legacy reference；canonical base 已迁 formal/Origin/。 -/
+
 /-
   Foundation/CompleteClassificationLimits.lean
   ── 「↔ 极限定理」：行为极小完全分类 `Classify x = Classify y ↔ BehEquiv Trace x y`
