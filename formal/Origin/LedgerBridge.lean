@@ -1,8 +1,19 @@
 /-
 Origin/LedgerBridge.lean
 
-★A′ Phase2 双账本桥（task #101，cc-ledgerbridge 工位）：把 #93 双账本扩维 + OQ-9 gate
-（取本金三阶段 TW + stage 单向 + OQ-9 入口证书）挂到 Origin canonical 接口。
+★A′ Phase2 双账本桥 / **兼容层**（task #101 桥 + task #127 TW native 重锚后定位）：把 #93 双账本
+扩维 + OQ-9 gate（取本金三阶段 TW + stage 单向 + OQ-9 入口证书）挂到 Origin canonical 接口。
+
+════════════════════════════════════════════════════════════════════════
+## ★定位（task #127 TW native 重锚后）：本文件 = compatibility/bridge theorem 层
+
+TW 定义所有权（TWState/TWEvent/twStep + #90 不同构 + OQ-9 全套）已 native 重锚进 **Origin.TotalWealth**
+（NewChanlun.Origin.TotalWealth，task #127）。本文件**不再**从 legacy 路径 import/open
+`Tlayers.Accounting.TotalWealth`——它 open 的是 `NewChanlun.Origin.TotalWealth`（Origin native）。
+
+本文件的角色降为 **bridge/compatibility 定理层**：它**不定义**任何 TW 结构，只把 Origin.TotalWealth
+的 native 定理 + HybridAssembly 闭环定理**桥接/暴露**在 `NewChanlun.Origin.LedgerBridge` 命名空间
+（坐实「双账本两端都在 Origin 接口下成立」）。所有桥定理的证明体直接引下游已证定理（无新增 TW 语义）。
 
 ════════════════════════════════════════════════════════════════════════
 ## 本文件做什么：把 #93 成果重锚 Origin，证「双账本两端都在 Origin 接口下成立」
@@ -40,7 +51,8 @@ twState）。这**不是缺陷**——#90 已证 R=Π-A-W 与取本金三阶段 
 
 谱系：#42（账本 watch-item）→ #86（HybridAssembly LedgerComp R=Π-A-W 新建）→ #90（R=Π-A-W vs
       取本金三阶段 TW 不同构裁定，machine-checked）→ #93（双账本扩维 + OQ-9 gate 接入 HybridAssembly
-      闭环）→ #97（Origin canonical base）→ 本文件 #101（双账本桥：两端都锚 Origin）。
+      闭环）→ #97（Origin canonical base）→ #101（双账本桥：两端都锚 Origin）→ 本文件 #127（TW native
+      重锚进 Origin.TotalWealth，本文件降为 compatibility/bridge theorem 层，open Origin native 而非 legacy）。
 -/
 
 import Origin.FullDefinitionStrategy
@@ -52,7 +64,7 @@ open NewChanlun.Origin (FullDefinitionSystem StrictState LedgerState mkLedger le
   hybridStep policyTheta ledger_invariant_preservation hybrid_step_complete_unique
   policy_factors_through_classification)
 open Strict.HybridAssembly (AssemblyState AssemblyEvent assembly assemblyStep originFullDef)
-open Formal.Tlayers.Accounting.TotalWealth (TWState TWEvent twStep TStage LegalTransition
+open NewChanlun.Origin.TotalWealth (TWState TWEvent twStep TStage LegalTransition
   OQ9Inv LegalChain runLegal)
 
 /-! ════════════════════════════════════════════════════════════════════════
@@ -153,7 +165,7 @@ theorem tw_oq9_legacy_unreachable_in_earning (s : TWState) (trace : List TWEvent
     (hinv : OQ9Inv s) (hchain : LegalChain s trace)
     (hst : (runLegal s trace).stage = TStage.earningShares) :
     (runLegal s trace).openLegacyLegs = 0 :=
-  Formal.Tlayers.Accounting.TotalWealth.oq9_legacy_leg_unreachable_in_earning s trace hinv hchain hst
+  NewChanlun.Origin.TotalWealth.oq9_legacy_leg_unreachable_in_earning s trace hinv hchain hst
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §3 双账本并置 · #90 不同构在 Origin 上被尊重（不糊成一个）
@@ -173,7 +185,7 @@ theorem tw_oq9_legacy_unreachable_in_earning (s : TWState) (trace : List TWEvent
 theorem two_ledger_non_isomorphic_stage_collapses : ∃ (s₁ s₂ : TWState),
     s₁.free = s₂.free ∧ s₁.holding = s₂.holding ∧ s₁.withdrawn = s₂.withdrawn
     ∧ s₁.stage ≠ s₂.stage ∧ s₁.tw = s₂.tw :=
-  Formal.Tlayers.Accounting.TotalWealth.not_isomorphic_stage_collapses
+  NewChanlun.Origin.TotalWealth.not_isomorphic_stage_collapses
 
 /--
   ★双账本桥总见证 `DualLedgerVerdict`（gatekeeper，诚实分层）。

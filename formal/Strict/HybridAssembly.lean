@@ -58,7 +58,7 @@ import Strict.HybridStep
 import Strict.Fugue
 import Strict.RiskProj
 import Dynamics
-import Accounting.TotalWealth
+import Origin.TotalWealth
 import Origin.FullDefinitionStrategy
 
 namespace Strict.HybridAssembly
@@ -68,9 +68,11 @@ open Strict.HybridStep (HybridComponents hybridStep)
 -- ★OQ-9 扩维（task #93）：取本金三阶段账本 TW = free+holding+withdrawn + 阶段单向 + OQ-9 gate。
 -- 接进闭环：AssemblyState.twState : TWState 真被 transitionAdapter 线程化（见 §2/§4 诚实标注）。
 -- open 列表只含闭环里实际引用的名字（TWState/TWEvent/twStep + 守恒/单向定理 + LegalTransition gate
--- 谓词）；单文件 OQ-9 定理（legal_earning_no_legacy_leg_closure / raw witness）在 TotalWealth.lean
+-- 谓词）；单文件 OQ-9 定理（legal_earning_no_legacy_leg_closure / raw witness）在 Origin/TotalWealth.lean
 -- 已证，闭环侧由 assemblyStep_oq9_closure_illegal 延拓（消费 LegalTransition），不重复 open。
-open Formal.Tlayers.Accounting.TotalWealth (TWState TWEvent twStep twStep_preserves_tw
+-- ★task #127 TW native 重锚：TW 定义所有权移入 Origin（NewChanlun.Origin.TotalWealth），
+--   不再从 legacy Tlayers.Accounting.TotalWealth open（A′ Origin 唯一 canonical base）。
+open NewChanlun.Origin.TotalWealth (TWState TWEvent twStep twStep_preserves_tw
   stage_rank_monotone LegalTransition)
 
 /-! ════════════════════════════════════════════════════════════════════════
@@ -210,7 +212,7 @@ deriving DecidableEq, Repr
     T-causal `Dynamics.State` 已证全定义转移）。
   - `ledgerState : LedgerComp`：账本恒等分量（R=Π-A-W，§1 新建）。
   - `twState : TWState`：★取本金三阶段账本分量（TW=free+holding+withdrawn 守恒 + stage 单向 +
-    OQ-9 gate，task #93 扩维，来源 `Accounting.TotalWealth`）。**与 ledgerState 双层并置**——
+    OQ-9 gate，task #93 扩维，来源 `Origin.TotalWealth`（#127 native 重锚））。**与 ledgerState 双层并置**——
     R=Π-A-W（收益表视角）与 TW（现金流+持仓视角）二者不同构（#90 已证），完整持仓系统两者都需要。
     twState 真被 transitionAdapter 线程化（见 §4 transitionAdapter + §6 反退化见证）。
   - `riskMode : RiskMode`：风险模式 μ（五态）。
@@ -734,7 +736,7 @@ theorem assemblyStep_twState_changes :
   refine ⟨{ microState := Tlayers.Dynamics.s0,
             ledgerState := ledger0 0,
             twState := { free := 100, holding := 0, withdrawn := 0, notionalIn := 0,
-                         stage := Formal.Tlayers.Accounting.TotalWealth.TStage.costReduction,
+                         stage := NewChanlun.Origin.TotalWealth.TStage.costReduction,
                          openLegacyLegs := 0, cumNetCash := 0 },
             riskMode := RiskMode.normal, phase := Phase.phaseI,
             positions := 0, orders := 0, memory := 0 },
@@ -914,7 +916,7 @@ theorem assembly_subkind_is_given_theta (k : AssemblySubkind) :
   实际组件的接缝缺口**——按 no-workaround，不硬塞/不冒充，新建正确载体并标注。
 
   ★OQ-9 扩维裁定（task #93，codex binding 立场C 修正版，gpt-5.5 xhigh session 019f0303）：
-  取本金三阶段账本（twState）经 `import Accounting.TotalWealth` 接入闭环，**与 R=Π-A-W 双层并置**
+  取本金三阶段账本（twState）经 `import Origin.TotalWealth`（#127 native 重锚）接入闭环，**与 R=Π-A-W 双层并置**
   （二者不同构 #90，互不替代——R=Π-A-W 收益表视角 / TW 现金流+持仓视角，完整持仓系统两者都需要）。
   OQ-9 守恒律相变可逆性矛盾经**扩维消解**：stage 与 cumNetCash 数值解耦（独立维度），openLegacyLegs
   承载入口证书。codex 三修正全吸收——(1) 非法性在 enterEarning 入口（openLegacyLegs=0），非 close
