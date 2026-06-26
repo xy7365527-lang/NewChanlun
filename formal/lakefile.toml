@@ -1,0 +1,42 @@
+name = "Formal"
+defaultTargets = ["Formal", "Phase2Claims", "Tlayers", "Strict"]
+
+# 真完全分类形式化（task #27, 603 范式）
+# 不依赖 Mathlib：构造子穷尽证明是纯归纳 cases/decide，不需要外部库。
+# 这保证 lake build 自包含、快速、可复现（认识论 L0：定义内蕴）。
+
+# Phase 1 脊柱 + solo Phase 2（Formal/ 目录）：codex 多轮 PASS 的权威源。
+[[lean_lib]]
+name = "Formal"
+globs = ["Formal", "Formal.+"]
+
+# teammate Phase 2 独立形式化（Phase2/ 目录）= Option A 交叉验证源。
+# 包含 claim5(元素阶梯自包含)/claim6(动作类型层π_op)/claim9(中枢位置三态)/claim10(线段v1)。
+# ★不包含 Claim7（与 solo Formal/DivergenceNesting 字节相同、同命名空间 Formal.DivergenceNesting，
+#   双份会命名空间碰撞——claim7 单一权威=solo Formal/，避免双份漂移，编排者"统一单一权威源"裁定）。
+[[lean_lib]]
+name = "Phase2Claims"
+srcDir = "Phase2"
+roots = ["Claim5_ConstitutiveLadder", "Claim6_OperationalSemantics", "Claim9_CenterPosition", "Claim10_SegmentV1"]
+
+# T-framework E-set 形式化（Tlayers/ 目录）：5 层（Signal/Operational/Accounting/Spiral/Payoff）。
+# teammate 各自 lake env lean 验证过（无 sorry/admit/axiom，真 codex）。
+# Operational/Payoff import Phase1（Formal.*）——跨 lib 引用，已解析。
+[[lean_lib]]
+name = "Tlayers"
+srcDir = "Tlayers"
+roots = ["Signal", "Operational", "Accounting", "Spiral", "Payoff"]
+
+# 严格完全分类·标准内核库（task #57, RTAS T-kernel 工位）：codex 异质审计七结构 +
+# Classification.lean（Classifies/SemanticQuotient/DecompositionSystem/OnlineSystem/
+# CausalOnlineSystem/RecursiveKernel/OpenTailSystem/Strategy+StrictAction）。
+# 所有 Layer2 工位的共享内核——纯 Prop/Type 定义，认识论 L0，无 sorry/admit/axiom。
+[[lean_lib]]
+name = "Strict"
+srcDir = "Strict"
+# Classification = 共享内核；Trend/Recursive/Decomp/BSP/Causal/OpenTail/Op = 各 Layer2 工位
+# canonical 实例化（import Strict.Classification[+Formal.*]，依赖单向 Strict→{Formal,Tlayers}，无环）。
+# OpenTail（task #65 t-opentail）：标准第5部分 OpenTailSystem 实例化——未完成走势→当下状态 +
+#   未来延伸 Ext(h)=⊔ⱼBⱼ(h) 互斥穷尽分支（branch_total/disjoint/sound + current_unique）。
+# Op（task #67 t-op）：标准第6部分 Strategy 实例化（πₗ:Sₗ→A 完全应对）。
+roots = ["Classification", "Trend", "Recursive", "Decomp", "BSP", "Causal", "OpenTail", "Op", "Center", "StrategyFamily", "ClassificationFamily", "Parse", "LevelState", "Nest", "Fugue", "RiskProj", "Chain"]

@@ -6,6 +6,11 @@ dist/
 build/
 *.egg
 
+# Lean / Lake build artifacts (formal/ Lean 工程；源码 tracked，构建产物 ignore)
+formal/.lake/
+.lake/
+*.olean
+
 # Virtual environment
 .venv/
 
