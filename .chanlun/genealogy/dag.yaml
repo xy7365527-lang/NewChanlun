@@ -2959,55 +2959,44 @@ nodes:
   status: 已结算
   type: 语法记录
   file: settled/566-team-topology-auto-spawn-gap.md
-- id: ''
-  title: 谱系结算 ≠ 蜂群认知更新——同 session 内结构工位结算未被 Lead 实时摄入（075-vs-562 误判为未结算）
-  status: 生成态
-  type: meta-rule
-  file: pending/meta-rule-role-boundary-collapse-rlhf-attractor.md
 - id: '567'
   title: 冻结空腿（frozen short leg）= 强牛穿仓+杠杆同根——腿开平绑错信号（d_top 走势完成代理）而非买卖点+区间套自相似载体；强牛不开空=升跌完备性涌现（非硬编码）；解=父级门控（21:40）+
     区间套关闭信号替代 d_top + 解 556
-  status: 生成态
+  status: 已结算
   type: 概念发现
-  file: pending/567-frozen-short-leg-unified-overrun-leverage-root.md
+  file: settled/567-frozen-short-leg-unified-overrun-leverage-root.md
 - id: '568'
   title: 谱系结算 ≠ 蜂群认知更新——同 session 内结构工位结算未被 Lead 实时摄入（075-vs-562 误判为未结算）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/meta-rule-settlement-cognition-desync.md
+  file: settled/568-meta-rule-settlement-cognition-desync.md
 - id: '569'
   title: 角色边界坍缩是 RLHF 基底的结构吸引子——能力最强节点默认吸收他位工作（统一 Lead认知/564 hook越界/565 challenger抢实装）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/meta-rule-role-boundary-collapse-rlhf-attractor.md
+  file: settled/569-meta-rule-role-boundary-collapse-rlhf-attractor.md
 - id: '570'
   title: 蜂群默认伸向代理量、不能自纠为本体量——代理→本体的纠正是须主体介入的亏格类（187 的方法论实例）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/meta-rule-proxy-vs-ontology-self-correction-impossibility.md
-- id: TBD
+  file: settled/570-meta-rule-proxy-vs-ontology-self-correction-impossibility.md
+- id: '571'
   title: Stop-Guard 阻断粒度 ⊥ pending 责任方——session 级阻断打到无可推进工作的非责任方节点（meta-lead 死锁）；097
     hook 纯化只约束『注入什么』未覆盖『阻断谁』
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/meta-rule-stopguard-block-target-vs-responsibility.md
-- id: '571'
+  file: settled/571-meta-rule-stopguard-block-target-vs-responsibility.md
+- id: '572'
   title: 平空 = 牛熊切换 = 区间套链破坏 三位一体——三者是同一个判定（下跌结束在哪个级别）；否定『开空门控』补丁（用不做空回避平空做不对）；平空判据只能由
     级别+买卖点(17课)+走势完全分类(561 CC) 逻辑必然，绝不硬编码
-  status: 生成态
+  status: 已结算
   type: 概念发现
-  file: pending/571-close-short-bullbear-chainbreak-trinity.md
+  file: settled/572-close-short-bullbear-chainbreak-trinity.md
 - id: '573'
   title: compact 边界的第四层——agent 进程 population 不被保存/恢复/回收（407 三层模型的进程层扩展）
   status: 已结算
   type: meta-rule
-  file: pending/meta-rule-agent-process-population-compact-layer.md
-- id: '572'
-  title: Stop-Guard 阻断粒度 ⊥ pending 责任方——session 级阻断打到无可推进工作的非责任方节点（meta-lead 死锁）；097
-    hook 纯化只约束『注入什么』未覆盖『阻断谁』
-  status: 生成态
-  type: meta-rule
-  file: pending/meta-rule-stopguard-block-target-vs-responsibility.md
+  file: settled/573-agent-process-population-compact-layer.md
 - id: '574'
   title: 买卖点 = 确认滞后的形式化解（不是对立面，是认识论下界的精确表达）——三类买卖点=确认滞后/确认度权衡谱，对接群论方案B走势发展完全分类(H¹
     6模式)；三层统一：σ=h²³失败(代数层)⟺走势完成不可预测(时间层)⟺确认滞后不可约(操作层)=同一缠论认识论事实的三个面
@@ -3018,7 +3007,7 @@ nodes:
   title: clean slate 重建消除双代共存的两类后果——573 边界条件2 的 L2 实现（资源 reap）+ 第二维显形（命名空间写争用）+ 单写者细化
   status: 已结算
   type: meta-rule
-  file: pending/574-clean-slate-rebuild-dual-generation-contention.md
+  file: settled/575-clean-slate-rebuild-dual-generation-contention.md
 - id: '576'
   title: 走势发展转折节点 = 〈中枢拓扑事件 E〉⊗〈力度公理 F〉正交双源乘积——两源不可互导；三类买卖点 ⊊ 转折节点(E0成型节点是非买卖点的转折节点)
   status: 生成态
@@ -5996,30 +5985,12 @@ edges:
     to: '562'
   - from: '566'
     to: '551'
-  - from: ''
-    to: '137'
-  - from: ''
-    to: '562'
-  - from: ''
-    to: '566'
   - from: '567'
     to: '556'
   - from: '567'
     to: '563'
   - from: '567'
     to: '561'
-  - from: ''
-    to: '032'
-  - from: ''
-    to: '187'
-  - from: ''
-    to: '564'
-  - from: ''
-    to: '565'
-  - from: ''
-    to: '010'
-  - from: ''
-    to: '047'
   - from: '568'
     to: '137'
   - from: '568'
@@ -6042,18 +6013,6 @@ edges:
     to: '010'
   - from: '570'
     to: '047'
-  - from: TBD
-    to: 097
-  - from: TBD
-    to: '548'
-  - from: TBD
-    to: '564'
-  - from: '571'
-    to: '567'
-  - from: '571'
-    to: '547'
-  - from: '571'
-    to: '561'
   - from: '571'
     to: 097
   - from: '571'
@@ -6069,19 +6028,11 @@ edges:
   - from: '573'
     to: '566'
   - from: '572'
-    to: 097
-  - from: '572'
-    to: '548'
-  - from: '572'
-    to: '564'
-  - from: '572'
     to: '567'
   - from: '572'
     to: '547'
   - from: '572'
     to: '561'
-  - from: '567'
-    to: '571'
   - from: '567'
     to: '572'
   - from: '574'
@@ -6096,10 +6047,6 @@ edges:
     to: '407'
   - from: '574'
     to: '565'
-  - from: ''
-    to: '573'
-  - from: ''
-    to: '407'
   - from: '575'
     to: '573'
   - from: '575'
@@ -6284,10 +6231,6 @@ edges:
       RB_DIVERGE）是正确的，只是顶层稀疏（556）』——被 #37+friction-model L3 精化否定：d_top 是『走势完成』的代理，而腿的合法开平依据是『买卖点（第17课）+
       区间套（第27课）』。绑 d_top ⟹ 在 d_top 稀疏的级别（556 跨年）等不到关闭信号 ⟹ 空腿开了关不掉 = 冻结空腿 ⟹ 强牛中骑整段反转无界失血（穿仓）。d_top
       现象（556 顶层冻结）真实存在但根因是『绑错信号』，非『信号对但稀疏』。'
-  - from: '571'
-    to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
-      纯多头 max_gross≈1× 不亏）= 补丁思维回避——用『不做空』回避『平空做不对』。门控版『8/8 净正不亏』是回避不是解（编排者否定）。这是
-      087/089/090 补丁思维否定 lineage 的新实例：面对『平空做不对』的难题，退回到『那就少做空/不做空』= 该严格不严格。
   - from: '572'
     to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
       纯多头 max_gross≈1× 不亏）= 补丁思维回避——用『不做空』回避『平空做不对』。门控版『8/8 净正不亏』是回避不是解（编排者否定）。这是
@@ -8219,42 +8162,6 @@ edges:
     - '564'
     - '566'
   - between:
-    - ''
-    - '012'
-  - between:
-    - ''
-    - '174'
-  - between:
-    - ''
-    - '017'
-  - between:
-    - ''
-    - '076'
-  - between:
-    - ''
-    - '196'
-  - between:
-    - ''
-    - '074'
-  - between:
-    - ''
-    - '562'
-  - between:
-    - ''
-    - '035'
-  - between:
-    - ''
-    - '025'
-  - between:
-    - ''
-    - 098
-  - between:
-    - ''
-    - '011'
-  - between:
-    - ''
-    - '031'
-  - between:
     - '012'
     - '568'
   - between:
@@ -8299,24 +8206,6 @@ edges:
   - between:
     - '561'
     - '570'
-  - between:
-    - '569'
-    - TBD
-  - between:
-    - '568'
-    - TBD
-  - between:
-    - '565'
-    - TBD
-  - between:
-    - '145'
-    - TBD
-  - between:
-    - 048
-    - TBD
-  - between:
-    - '275'
-    - TBD
   - between:
     - '569'
     - '571'
@@ -8419,21 +8308,6 @@ edges:
   - between:
     - '550'
     - '574'
-  - between:
-    - ''
-    - '422'
-  - between:
-    - ''
-    - '423'
-  - between:
-    - ''
-    - '055'
-  - between:
-    - ''
-    - '568'
-  - between:
-    - ''
-    - '550'
   - between:
     - '422'
     - '575'
