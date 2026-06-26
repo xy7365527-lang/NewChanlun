@@ -42,12 +42,27 @@ pub struct ParseConfig {
     /// 缠论 77/81 课新笔定义 N=3 是 `[缠论可导]`，但作为 config 字段承载以便审计/扫描
     /// （取值变更 = 改 Θ，须 change request）。default 3。
     pub new_stroke_min_gap: u32,
+
+    /// 线段最小笔数（第77课:64 起三笔重叠 ⟹ 段 ≥ 3 笔）。
+    ///
+    /// 对齐 Python `a_segment_v1.segments_from_strokes_v1` 的 `min_seg_strokes`（default 3）。
+    /// `[缠论可导,77课]` 但作为 config 承载以便审计（取值变更 = 改 Θ）。default 3。
+    pub seg_min_strokes: u32,
+
+    /// 第二特征序列扫描窗口（0 = 无限全扫，bit-exact 优先）。
+    ///
+    /// ★`[设计选择,默认值]`（second_kind.rs 模块头声明）：Python 的 `MAX_SECOND_SEQ_SCAN=50`
+    /// 是 O(n²) 性能妥协，**非缠论可导**。本字段 default 0（无限）——L2 实测（OKLO 2000 笔）
+    /// 窗口扩到 ∞ 输出不变，证 50 在目标数据域非约束性（单数据集 L2，不裸剥常数）。
+    pub second_seq_scan_window: u32,
 }
 
 impl Default for ParseConfig {
     fn default() -> Self {
         ParseConfig {
             new_stroke_min_gap: 3,
+            seg_min_strokes: 3,
+            second_seq_scan_window: 0,
         }
     }
 }

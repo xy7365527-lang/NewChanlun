@@ -26,7 +26,17 @@
 //! （状态机职责）。本文件的 `divide_segments` 实装该状态机：firstKind 分型形成即断段；
 //! secondKind 进入待确认态，扫描第二特征序列分型确认/否定。
 
+use super::super::config::ParseConfig;
 use super::super::types::{Direction, Segment, Stroke, Tick};
+use super::feature_seq::{ExtendMode, FeatureSeqState};
+use super::second_kind;
+
+/// 尾窗大小（对齐 Python `_FeatureSeqState.TAIL_WINDOW=7`）。
+///
+/// ★L2 实测（OKLO 2000 笔，analysis/segment_refsem_cert.py）：窗口从 7 扩到 ∞ 输出不变
+/// （237→237），证 7 在目标数据域非约束性（第二特征序列分型若有效必在窗口内）。保留 7 以
+/// bit-exact 对齐参考默认；改值 = 改 Θ。这是单数据集 L2 观察，**非** L0 结构证明（不裸剥）。
+const TAIL_WINDOW: u32 = 7;
 
 /// 价格区间 [lo, hi]（特征序列元素 / 笔的几何投影，`lo <= hi` 不变量）。
 /// bit-exact 对齐 `Claim10.Interval`。
@@ -52,13 +62,45 @@ impl Interval {
 }
 
 /// 笔在特征序列里的几何投影区间（[min(start,end), max(start,end)]）。
-fn stroke_interval(s: &Stroke) -> Interval {
+pub(super) fn stroke_interval(s: &Stroke) -> Interval {
     let (lo, hi) = if s.start_price <= s.end_price {
         (s.start_price, s.end_price)
     } else {
         (s.end_price, s.start_price)
     };
     Interval { lo, hi }
+}
+
+/// 三笔重叠判定（第77课:64 "线段开始的那三笔必须有重合"，Claim10 wellFormedV1 H4）。
+///
+/// 三笔几何区间公共交集非空：`max(lows) < min(highs)`。
+///
+/// ★口径（Claim10:471 标注的未结算 `≤`/`<` 差异）：本实装用**严格 `<`**（开区间），
+/// 对齐 Python `a_segment_v1._three_stroke_overlap`（交叉验证基准）+ frozen 第77课"必须重合"
+/// （边界相切=零测度重合，从严不算）。Claim10 H4 用 `≤`（闭区间）是较宽口径——二者在
+/// 边界相切（max(lows)==min(highs)）时分歧；本工位站 Python `<` 侧（少产边界假段，
+/// 第77课"必须有重合的部分"更倾向实质重合）。这是 Lead #84 点3 的口径裁定（追溯第77课博文）。
+fn three_stroke_overlap(a: &Stroke, b: &Stroke, c: &Stroke) -> bool {
+    let (ia, ib, ic) = (stroke_interval(a), stroke_interval(b), stroke_interval(c));
+    let max_lo = ia.lo.max(ib.lo).max(ic.lo);
+    let min_hi = ia.hi.min(ib.hi).min(ic.hi);
+    max_lo < min_hi
+}
+
+/// 从 `from` 起找首个三笔重叠的起点（第77课 H4，对齐 Python `_find_overlap_start`）。
+///
+/// 线段起点必须满足前三笔重叠（第77课:64）。从 `from` 向后扫描，返回首个满足的起点偏移；
+/// 无满足起点 ⟹ `None`（剩余笔无法起合法线段）。
+fn find_overlap_start(strokes: &[Stroke], from: usize) -> Option<usize> {
+    let n = strokes.len();
+    let mut j = from;
+    while j + 2 < n {
+        if three_stroke_overlap(&strokes[j], &strokes[j + 1], &strokes[j + 2]) {
+            return Some(j);
+        }
+        j += 1;
+    }
+    None
 }
 
 /// 从笔序列抽取特征序列元素区间：取与线段方向**相反**的笔（第67课:16-18）。
@@ -98,7 +140,7 @@ pub fn classify_termination(e1: &Interval, e2: &Interval) -> TerminationCase {
 /// 包含处理）。这里按特征序列**前进方向的极值保留**：取较新元素决定方向，向上吞并取高、
 /// 向下吞并取低。简化为：对相邻包含元素，合并为 [min(lo), max(hi)] 的并区间——这是
 /// 「元素当 K 线包含处理」的中性实现（保留外包络），与 Claim10 的 `contains` 判定配套。
-fn process_feature_inclusion(elements: &[Interval]) -> Vec<Interval> {
+pub(super) fn process_feature_inclusion(elements: &[Interval]) -> Vec<Interval> {
     let mut out: Vec<Interval> = Vec::new();
     for &e in elements {
         match out.last_mut() {
@@ -150,13 +192,33 @@ fn find_feature_fractal(seg_dir: Direction, std_feat: &[Interval]) -> Option<(us
 pub enum SegmentTermination {
     /// 第一种情况：无缺口分型形成 → 该 K 段端笔的 rest 内偏移确认终结。
     FirstKindConfirmed { end_offset: usize },
-    /// 第二种情况：有缺口 → 进入待确认态（第二特征序列分型未由本函数判定）。
+    /// 第二种情况且第二特征序列**已出现分型** → 确认终结（段端 = 极值笔偏移）。
+    ///
+    /// ★L1（动态确认，对 67课博文 frozen 定义忠实 + Python 交叉验证，**非对 Lean bit-exact**，
+    /// 见 second_kind.rs 模块头）。区别于 FirstKindConfirmed（后者是 Claim10 静态 bit-exact）。
+    SecondKindConfirmed { end_offset: usize },
+    /// 第二种情况但第二特征序列**未出现分型** → 待确认态（留 tail，不强断，不产假线段）。
     SecondKindPending,
     /// 无特征序列分型 → 当前线段未终结（古怪线段/未完成尾部）。
     NoFractal,
 }
 
-/// 分析单段终结（bit-exact 对齐 Claim10：feature_elements → 包含处理 → 找分型 → classify）。
+/// 从 apex 反向笔偏移定位段端同向笔偏移（第77课方向一致性，对齐 Python `end_stroke = k-1`）。
+///
+/// 缠论线段方向一致性（第77课:62 "向上线段一定结束于向上笔"）：分型中心在 apex **反向**笔，
+/// 段端是其前一根**同向**笔（笔严格交替 ⟹ apex_off-1 必是同向笔）。
+///
+/// 边界：`apex_off == 0`（反向笔即首笔）⟹ 段端落在起点之前，不构成合法线段 ⟹ `None`。
+fn segment_end_from_apex(apex_off: usize) -> Option<usize> {
+    apex_off.checked_sub(1)
+}
+
+/// 分析单段终结（特征序列抽取 → 包含处理 → 找分型 → 两种情况判定 + SecondKind 动态确认）。
+///
+/// 静态判据（feature_elements → 包含处理 → find_fractal → classify_termination）**bit-exact
+/// 对齐 Claim10**（Lean 已形式化的静态层）。SecondKind 分支的动态确认（resolve_second_kind）
+/// 是 **L1**（对 67课博文 frozen 定义忠实 + Python 交叉验证，**非对 Lean bit-exact**——
+/// Claim10:334-346 有意不形式化动态状态机，见 second_kind.rs 模块头）。
 ///
 /// `strokes` 的首笔方向 = 线段方向。返回该方向线段的首个终结情形。
 pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
@@ -171,75 +233,148 @@ pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
     };
     match classify_termination(&e1, &e2) {
         TerminationCase::FirstKind => {
-            // 无缺口：分型形成即终结。定位贡献分型中心元素 e2 的反向笔（rest 内偏移）。
+            // 无缺口：分型形成即终结。定位贡献分型中心元素 e2 的反向笔（apex 反向笔偏移）。
             let rev = seg_dir.flip();
-            match strokes.iter().position(|s| {
-                s.direction == rev && stroke_interval(s).overlaps(&e2)
-            }) {
-                Some(off) => SegmentTermination::FirstKindConfirmed { end_offset: off },
+            let Some(apex_off) = strokes
+                .iter()
+                .position(|s| s.direction == rev && stroke_interval(s).overlaps(&e2))
+            else {
+                return SegmentTermination::NoFractal;
+            };
+            // ★方向一致性（第77课:62 "向上线段一定结束于向上笔"）：段端 = apex 反向笔的
+            // **前一根同向笔**（offset apex_off-1），对齐 Python a_segment_v1 `end_stroke = k-1`。
+            // apex_off==0（反向笔是首笔）⟹ 段端在起点前，不合理 ⟹ NoFractal（未成段）。
+            match segment_end_from_apex(apex_off) {
+                Some(end_offset) => SegmentTermination::FirstKindConfirmed { end_offset },
                 None => SegmentTermination::NoFractal,
             }
         }
-        TerminationCase::SecondKind => SegmentTermination::SecondKindPending,
-    }
-}
-
-/// 线段划分（reference-theta-v0.md:22）——**仅 FirstKind 确定段，SecondKind 停为 tail**。
-///
-/// ★诚实标注（no-patch-mentality）：本函数只断 Claim10 的 FirstKind 确定情形（无缺口
-/// 分型形成即终结，第67课:28）。遇 SecondKind（有缺口，须第二特征序列动态确认）或无分型
-/// ⟹ **停止划分**，剩余笔 `strokes[pending_start..]` 成为未完成尾部（步骤7 `tail` 处理）。
-/// 完整 SecondKind 动态确认状态机是后续工作——此处不留半成品分支（dead reassignment），
-/// 停在严格可判定的边界，并由 `divide_segments_with_tail` 显式暴露停点供 tail 保存。
-///
-/// 返回 `(confirmed segments, pending_start)`：
-/// - `confirmed segments`：已确认（FirstKind）的线段序列（交易可用，对齐 Parse.lean confirmed）。
-/// - `pending_start`：`Some(i)` = 从第 `i` 笔起的剩余笔是未确认线段（active 尾部，
-///   对齐 Parse.lean active）；`None` = 所有笔都已划入确认段无悬挂尾部。
-///
-/// bit-exact 对齐 Parse.lean §6：解析状态 = confirmed（已闭合走势）+ active（未完成尾部）。
-/// 本函数是 L0 线段层的 confirmed/active 切分（segments=confirmed，pending_start→active）。
-///
-/// 边界条件：
-/// - 笔 < 1 ⟹ 无段无尾部，`(空, None)`。
-/// - 笔 ≥ 1 但 < 3 ⟹ 无完整特征序列分型，整段未确认 ⟹ `(空, Some(0))`（全部为 tail）。
-/// - 首段为 SecondKind/无分型 ⟹ `(空, Some(0))`（整段未确认终结，剩余全为 tail）。
-/// - 扫描到尾仍有 ≥1 笔剩余 ⟹ `pending_start = Some(剩余起点)`。
-pub fn divide_segments_with_tail(strokes: &[Stroke]) -> (Vec<Segment>, Option<usize>) {
-    let mut segments = Vec::new();
-    if strokes.is_empty() {
-        return (segments, None);
-    }
-    let mut start = 0usize;
-    while start + 2 < strokes.len() {
-        let seg_dir = strokes[start].direction;
-        let rest = &strokes[start..];
-        match analyze_termination(rest) {
-            SegmentTermination::FirstKindConfirmed { end_offset } => {
-                let end_idx = start + end_offset;
-                let end_stroke = &strokes[end_idx];
-                let end_price = match seg_dir {
-                    Direction::Up => end_stroke.start_price.max(end_stroke.end_price),
-                    Direction::Down => end_stroke.start_price.min(end_stroke.end_price),
-                };
-                segments.push(Segment {
-                    direction: seg_dir,
-                    start_index: strokes[start].start_index,
-                    end_index: end_stroke.end_index.max(end_stroke.start_index),
-                    start_price: strokes[start].start_price,
-                    end_price,
-                });
-                // 下一段从段端笔后继续（至少前进 1 笔，防死循环）。
-                start = end_idx.max(start + 1);
-            }
-            // SecondKind 动态确认 / 无分型 → 停止：剩余 strokes[start..] 是未确认线段（tail）。
-            SegmentTermination::SecondKindPending | SegmentTermination::NoFractal => {
-                return (segments, Some(start));
+        // 有缺口：第二种情况，调动态状态机判第二特征序列是否出现分型（第67课博文）。
+        // e2 = 首特征序列分型中心元素（apex），承载分型极值。确认成功 → SecondKindConfirmed，
+        // 否则 SecondKindPending（留 tail，严格不强断）。
+        TerminationCase::SecondKind => {
+            match second_kind::resolve_second_kind(strokes, &e2) {
+                // resolve 返回 apex 反向笔偏移；段端 = 其前一根同向笔（方向一致性，同 FirstKind）。
+                second_kind::SecondKindResult::Confirmed { end_offset: apex_off } => {
+                    match segment_end_from_apex(apex_off) {
+                        Some(end_offset) => SegmentTermination::SecondKindConfirmed { end_offset },
+                        None => SegmentTermination::SecondKindPending,
+                    }
+                }
+                second_kind::SecondKindResult::Pending => SegmentTermination::SecondKindPending,
             }
         }
     }
-    // 循环正常退出：剩余笔 strokes[start..] < 3 不足成段 ⟹ 是 tail（若非空）。
-    let pending_start = if start < strokes.len() { Some(start) } else { None };
+}
+
+/// 用边界笔构造确认线段（对齐 Python `_make_segment` 端点逻辑：i0=首笔 start，i1=末笔 end）。
+///
+/// `s0`/`s1` 是段首/末笔在 `strokes` 中的索引。端点价取方向极值（向上：起点 low、终点 high；
+/// 向下镜像）——保证相邻段视觉连续 + 满足第78课"顶高于底"（端点用段内笔极值）。
+fn make_segment(strokes: &[Stroke], s0: usize, s1: usize, seg_dir: Direction) -> Segment {
+    let first = &strokes[s0];
+    let last = &strokes[s1];
+    let (start_price, end_price) = match seg_dir {
+        // 向上段：起点 = 段内最低、终点 = 段内最高（第78课标准化，使下游区间语义正确）。
+        Direction::Up => {
+            let lo = strokes[s0..=s1].iter().map(|s| s.start_price.min(s.end_price)).min().unwrap();
+            let hi = strokes[s0..=s1].iter().map(|s| s.start_price.max(s.end_price)).max().unwrap();
+            (lo, hi)
+        }
+        Direction::Down => {
+            let hi = strokes[s0..=s1].iter().map(|s| s.start_price.max(s.end_price)).max().unwrap();
+            let lo = strokes[s0..=s1].iter().map(|s| s.start_price.min(s.end_price)).min().unwrap();
+            (hi, lo)
+        }
+    };
+    Segment {
+        direction: seg_dir,
+        start_index: first.start_index,
+        end_index: last.end_index.max(last.start_index),
+        start_price,
+        end_price,
+    }
+}
+
+/// 线段划分（reference-theta-v0.md:22，第67/71课）——增量「假设转折点」状态机。
+///
+/// ★bit-exact 移植 Python `a_segment_v1.segments_from_strokes_v1`（编排者裁定 v1 唯一口径，
+/// 37 测试）。L1（对参考 spec 忠实，认证 harness `analysis/segment_refsem_cert.py`），**非**
+/// 对 Lean bit-exact——动态划分算法 Claim10:334-346 有意不形式化（见 feature_seq.rs 模块头）。
+///
+/// ★为何增量（cc-refsem-harness 归因，#84）：旧批处理「找首个分型即断段」对参考认证失败
+/// （406 段 vs 参考 237 段，70% 过分段）。真因是缺第71课「假设转折点」逻辑（包含时先试不合并
+/// 看是否触发分型）——批处理无状态，无法表达此动态过程。本函数用 `FeatureSeqState` 状态机修复。
+///
+/// 返回 `(confirmed segments, pending_start)`：
+/// - `confirmed segments`：已确认线段（交易可用，对齐 Parse.lean confirmed）。
+/// - `pending_start`：`Some(i)` = 从第 `i` 笔起的剩余笔是未确认线段（active 尾部）；`None` = 无。
+///
+/// 边界条件：
+/// - 笔 < 3 ⟹ 无段，`(空, Some(0))`（全为 tail，若非空）。
+/// - 无三笔重叠起点 ⟹ `(空, Some(0))`。
+/// - 末段未触发终结 ⟹ pending_start = 末段起点（active 尾部）。
+pub fn divide_segments_with_tail(
+    strokes: &[Stroke],
+    config: &ParseConfig,
+) -> (Vec<Segment>, Option<usize>) {
+    let mut segments = Vec::new();
+    let n = strokes.len();
+    if n < 3 {
+        return (segments, if n > 0 { Some(0) } else { None });
+    }
+    // 第77课 H4：起点必须满足前三笔重叠（对齐 Python `_find_overlap_start`）。
+    let Some(mut seg_start) = find_overlap_start(strokes, 0) else {
+        return (segments, Some(0));
+    };
+    let min_seg = config.seg_min_strokes as usize;
+    let mut seg_dir = strokes[seg_start].direction;
+    let mut feat = FeatureSeqState::new(
+        seg_dir,
+        ExtendMode::Strict,
+        TAIL_WINDOW,
+        config.second_seq_scan_window,
+    );
+    let mut cursor = seg_start;
+
+    // 主循环（bit-exact Python `segments_from_strokes_v1` :591-610 + `_try_trigger_segment`）。
+    while cursor < n {
+        let sk = &strokes[cursor];
+        let opposite = seg_dir.flip();
+        if sk.direction != opposite {
+            cursor += 1;
+            continue;
+        }
+        let (h, l) = if sk.start_price >= sk.end_price {
+            (sk.start_price, sk.end_price)
+        } else {
+            (sk.end_price, sk.start_price)
+        };
+        feat.append(cursor, h, l, strokes);
+        // _try_trigger_segment：scan_trigger + min_seg 门控 + skip_trigger 去重。
+        let Some(hit) = feat.scan_trigger(strokes) else {
+            cursor += 1;
+            continue;
+        };
+        let k = hit.k;
+        let end_stroke = k - 1;
+        // min_seg 门控（Python :457）：段端-起点 < min-1 ⟹ 拒绝该触发，skip 后继续延伸。
+        if end_stroke < seg_start || end_stroke - seg_start < min_seg.saturating_sub(1) {
+            feat.skip_trigger(k);
+            cursor += 1;
+            continue;
+        }
+        // 发射旧段（Python `_emit_segment`：end_stroke = k-1）。
+        segments.push(make_segment(strokes, seg_start, end_stroke, seg_dir));
+        // 新段从 k（分型中心反向笔）起，方向反转（Python :608-610）。
+        seg_start = k;
+        seg_dir = opposite;
+        feat.reset(seg_dir);
+        cursor = k;
+    }
+
+    // 末段（未触发终结）= active 尾部。pending_start = seg_start（若剩余笔非空）。
+    let pending_start = if seg_start < n { Some(seg_start) } else { None };
     (segments, pending_start)
 }
 
@@ -247,8 +382,8 @@ pub fn divide_segments_with_tail(strokes: &[Stroke]) -> (Vec<Segment>, Option<us
 ///
 /// 丢弃 pending 尾部信息，仅返回 confirmed segments。tail 由 `divide_segments_with_tail`
 /// 的 `pending_start` 在步骤7（`tail` 模块）显式保存——本函数供只需 confirmed 段的调用方。
-pub fn divide_segments(strokes: &[Stroke]) -> Vec<Segment> {
-    divide_segments_with_tail(strokes).0
+pub fn divide_segments(strokes: &[Stroke], config: &ParseConfig) -> Vec<Segment> {
+    divide_segments_with_tail(strokes, config).0
 }
 
 #[cfg(test)]
@@ -330,7 +465,7 @@ mod tests {
             stroke(Direction::Up, 0, 4, 5, 15),
             stroke(Direction::Down, 4, 8, 15, 8),
         ];
-        assert!(divide_segments(&strokes).is_empty());
+        assert!(divide_segments(&strokes, &ParseConfig::default()).is_empty());
     }
 
     #[test]

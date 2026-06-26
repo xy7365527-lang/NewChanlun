@@ -35,6 +35,7 @@
 //! （步骤5，移交 classifier）、`PendingMove` 是级别递归层（classifier 递归级别）——二者不在
 //! parser 单层流水线职责内，由 classifier 产出（不在本文件冒充）。
 
+use super::super::config::ParseConfig;
 use super::super::types::{Bar, Direction, Fractal, FractalKind, PendingTail, Stroke, Tick};
 use super::segment::divide_segments_with_tail;
 
@@ -215,11 +216,12 @@ pub fn build_tail(
     merged: &[Bar],
     fractals: &[Fractal],
     strokes: &[Stroke],
+    config: &ParseConfig,
 ) -> Vec<PendingTail> {
     let mut tail = Vec::new();
 
     // 1. 未确认线段（段层）：从线段划分停点读出。
-    let (_segments, pending_start) = divide_segments_with_tail(strokes);
+    let (_segments, pending_start) = divide_segments_with_tail(strokes, config);
     if let Some(start) = pending_start {
         if let Some(pt) = pending_segment(strokes, start) {
             tail.push(pt);
@@ -369,7 +371,7 @@ mod tests {
     fn build_tail_empty_when_all_closed() {
         // 无分型无笔无延伸 → 空 tail。
         let merged = vec![bar(0, 10, 5)];
-        assert!(build_tail(&merged, &[], &[]).is_empty());
+        assert!(build_tail(&merged, &[], &[], &ParseConfig::default()).is_empty());
     }
 
     #[test]
@@ -392,7 +394,7 @@ mod tests {
             bar(8, 4, 3),
             bar(12, 14, 13),
         ];
-        let tail = build_tail(&merged, &fractals, &strokes);
+        let tail = build_tail(&merged, &fractals, &strokes, &ParseConfig::default());
         // 至少含 PendingSegment（剩余笔不足成段）。
         assert!(tail
             .iter()
@@ -408,7 +410,7 @@ mod tests {
             stroke(Direction::Down, 4, 8, 10, 3),
         ];
         let merged = vec![bar(0, 1, 0), bar(4, 10, 9), bar(8, 4, 3)];
-        let tail = build_tail(&merged, &[], &strokes);
+        let tail = build_tail(&merged, &[], &strokes, &ParseConfig::default());
         // 所有变体只可能是 parser 三层（不含 AliveCenter/PendingMove——那是 classifier 层）。
         for pt in &tail {
             assert!(matches!(

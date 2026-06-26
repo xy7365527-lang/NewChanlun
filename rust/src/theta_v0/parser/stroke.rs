@@ -120,6 +120,7 @@ mod tests {
     fn cfg(min_gap: u32) -> ParseConfig {
         ParseConfig {
             new_stroke_min_gap: min_gap,
+            ..ParseConfig::default()
         }
     }
 

@@ -38,6 +38,8 @@ pub mod inclusion;
 pub mod fractal;
 pub mod stroke;
 pub mod segment;
+pub mod feature_seq;
+pub mod second_kind;
 pub mod canonical;
 pub mod tail;
 
@@ -73,9 +75,9 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
     let fractals = fractal::detect_fractals(&incl.merged);
     // 步骤 3：新笔划分（reference-theta-v0.md:21）。
     let strokes = stroke::build_strokes(&fractals, &config.parse);
-    // 步骤 4：线段划分 v1 特征序列法（reference-theta-v0.md:22，第67课）。
-    // 诚实范围：只断 FirstKind 确定段，SecondKind 动态确认/无分型停为 tail（见 segment.rs）。
-    let segments = segment::divide_segments(&strokes);
+    // 步骤 4：线段划分 v1 特征序列法（reference-theta-v0.md:22，第67/71课）。
+    // 增量「假设转折点」状态机（feature_seq.rs），对参考语义 a_segment_v1 认证（L1）。
+    let segments = segment::divide_segments(&strokes, &config.parse);
 
     // 步骤 6：canonical 分解（reference-theta-v0.md:24，bit-exact 对齐 Decomp.lean gaugeFix）。
     // ★L0 段层的 canonical 端点序列 = `canonical::canonical_endpoints(&segments)`——但它在 L0
@@ -88,7 +90,7 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
     // 步骤 7：未完成尾部 tail（reference-theta-v0.md:25，bit-exact 对齐 Parse.lean §6 active +
     // OpenTail.lean 当下状态）。把流水线各阶段（段/笔/分型）未确认的延伸结构显式保存，
     // 不混入 confirmed。SecondKind 动态确认段/无分型段的剩余笔现经此进 tail（不再静默丢失）。
-    let tail = tail::build_tail(&incl.merged, &fractals, &strokes);
+    let tail = tail::build_tail(&incl.merged, &fractals, &strokes, &config.parse);
 
     ParseLayer {
         merged_bars: incl.merged,
@@ -102,6 +104,60 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 临时交叉验证导出（#84 验证门点3）：导出 Rust OKLO 笔序列 + 线段到 JSON，
+    /// 供 Python a_segment_v1.py 用**同一笔序列**跑 segments_from_strokes_v1 对比（隔离笔层）。
+    /// cfg(test) 下 backtest 可见。验证后删除。
+    #[test]
+    #[ignore]
+    fn tmp_export_oklo_strokes_segments_for_xcheck() {
+        use crate::theta_v0::backtest::data::{data_dir, load_symbol};
+        use std::io::Write;
+        let cfg = ThetaConfig::default();
+        let path = data_dir().join("oklo_1m_databento.json");
+        let ds = load_symbol(&path, "OKLO", &cfg).expect("加载 OKLO");
+        let layer = parse_layer(&ds.bars, &cfg);
+        // 导出前 2000 笔（足够覆盖 FirstKind+SecondKind 混合，避免 JSON 过大）。
+        let n = layer.strokes.len().min(2000);
+        let strokes: Vec<_> = layer.strokes[..n]
+            .iter()
+            .map(|s| {
+                let (lo, hi) = if s.start_price <= s.end_price {
+                    (s.start_price, s.end_price)
+                } else {
+                    (s.end_price, s.start_price)
+                };
+                let dir = match s.direction {
+                    super::super::types::Direction::Up => "up",
+                    super::super::types::Direction::Down => "down",
+                };
+                format!(
+                    "{{\"i0\":{},\"i1\":{},\"direction\":\"{}\",\"high\":{},\"low\":{},\"p0\":{},\"p1\":{}}}",
+                    s.start_index, s.end_index, dir, hi, lo, s.start_price, s.end_price
+                )
+            })
+            .collect();
+        // Rust 在这 n 笔上的线段（端点 start_index/end_index）。
+        let rust_segs = segment::divide_segments(&layer.strokes[..n], &cfg.parse);
+        let segs: Vec<_> = rust_segs
+            .iter()
+            .map(|s| format!("[{},{}]", s.start_index, s.end_index))
+            .collect();
+        let out = format!(
+            "{{\"strokes\":[{}],\"rust_segments\":[{}]}}",
+            strokes.join(","),
+            segs.join(",")
+        );
+        let out_path = data_dir().join("_xcheck_oklo_strokes.json");
+        let mut f = std::fs::File::create(&out_path).expect("创建导出文件");
+        f.write_all(out.as_bytes()).expect("写导出");
+        eprintln!(
+            "导出 {} 笔 + {} Rust 段 → {:?}",
+            n,
+            rust_segs.len(),
+            out_path
+        );
+    }
 
     /// 骨架契约测试：空输入 → 空 ParseLayer（接口存在性 + 空边界）。
     /// 实装后此测试扩展为 golden/property 对齐 Parse.lean fixture。

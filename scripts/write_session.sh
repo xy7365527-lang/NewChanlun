@@ -95,11 +95,16 @@ SWARM_STATUS=""
 TEAMS_DIR="$HOME/.claude/teams"
 TASKS_DIR="$HOME/.claude/tasks"
 if [ -d "$TEAMS_DIR" ]; then
+    NOW_TS=$(date +%s)
     for team_dir in "$TEAMS_DIR"/*/; do
         [ -d "$team_dir" ] || continue
         team_name=$(basename "$team_dir")
         config="$team_dir/config.json"
         [ -f "$config" ] || continue
+        # 只列最近活跃 team（config mtime 24h 内），过滤历史 session 的死 team 噪音
+        # （根因修复：旧逻辑列 $HOME/.claude/teams/ 全部历史 team，70+ 死 teammate 噪音）
+        CFG_MTIME=$(python -c "import os,sys;print(int(os.path.getmtime(sys.argv[1])))" "$config" 2>/dev/null || echo 0)
+        [ $((NOW_TS - CFG_MTIME)) -gt 86400 ] && continue
         members=$(python -c "
 import json, sys
 with open(sys.argv[1]) as f:
@@ -137,16 +142,27 @@ ${task_summary:-  - (无任务)}"
 fi
 
 # ─── 采集中断点 ───
+# 优先：Lead 维护的当前中断点（.interrupt-point.md）。避免链式复制旧 session 的过时中断点
+# （根因修复：旧逻辑 sed 复制上个 session 的「## 中断点」，导致过时内容永久传递，
+#  Lead 真实中断点无注入通道。现 Lead 在 precompact 前/重大状态变更后更新此文件）。
 PREV_SESSION=""
 PREV_INTERRUPTS=""
+LEAD_INTERRUPT=""
+if [ -f ".chanlun/.interrupt-point.md" ]; then
+    LEAD_INTERRUPT=$(cat .chanlun/.interrupt-point.md 2>/dev/null || true)
+fi
+# 取上个 session 作为 git stale 检测的时间基准（两种来源都需要）
 LATEST_SESSION=$(ls -t .chanlun/sessions/*-session.md 2>/dev/null | head -1 || true)
-# 如果最新 session 就是当前要写的文件，取第二新的
 if [ -n "$LATEST_SESSION" ] && [ "$LATEST_SESSION" = "$SESSION_FILE" ]; then
     LATEST_SESSION=$(ls -t .chanlun/sessions/*-session.md 2>/dev/null | sed -n '2p' || true)
 fi
-if [ -n "$LATEST_SESSION" ] && [ -f "$LATEST_SESSION" ]; then
-    PREV_SESSION="$LATEST_SESSION"
-    PREV_INTERRUPTS=$(sed -n '/^## 中断点$/,/^## /{/^## /d; p}' "$LATEST_SESSION" 2>/dev/null | head -20 || true)
+[ -n "$LATEST_SESSION" ] && [ -f "$LATEST_SESSION" ] && PREV_SESSION="$LATEST_SESSION"
+if [ -n "$LEAD_INTERRUPT" ]; then
+    # Lead 中断点存在：直接用，不链式复制旧 session（修复过时传递）
+    PREV_INTERRUPTS="$LEAD_INTERRUPT"
+elif [ -n "$PREV_SESSION" ]; then
+    # 回退：无 Lead 中断点文件，复制上个 session 中断点（旧逻辑）
+    PREV_INTERRUPTS=$(sed -n '/^## 中断点$/,/^## /{/^## /d; p}' "$PREV_SESSION" 2>/dev/null | head -20 || true)
 fi
 
 # G1修复：检测中断点是否过时

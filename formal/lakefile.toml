@@ -1,5 +1,5 @@
 name = "Formal"
-defaultTargets = ["Formal", "Phase2Claims", "Tlayers", "Strict"]
+defaultTargets = ["Formal", "Phase2Claims", "Tlayers", "Strict", "Foundation"]
 
 # 真完全分类形式化（task #27, 603 范式）
 # 不依赖 Mathlib：构造子穷尽证明是纯归纳 cases/decide，不需要外部库。
@@ -39,4 +39,24 @@ srcDir = "Strict"
 # OpenTail（task #65 t-opentail）：标准第5部分 OpenTailSystem 实例化——未完成走势→当下状态 +
 #   未来延伸 Ext(h)=⊔ⱼBⱼ(h) 互斥穷尽分支（branch_total/disjoint/sound + current_unique）。
 # Op（task #67 t-op）：标准第6部分 Strategy 实例化（πₗ:Sₗ→A 完全应对）。
-roots = ["Classification", "Trend", "Recursive", "Decomp", "BSP", "Causal", "OpenTail", "Op", "Center", "StrategyFamily", "ClassificationFamily", "Parse", "LevelState", "Nest", "Fugue", "RiskProj", "Chain"]
+# HybridStep（全定义策略装配，codex R1=B/R2，2026-06-26）：单一闭环 S_Θ+hybridStep+T——
+#   吸收 GPT 全定义策略的「装配/闭环」优势。把 Chain 的 C_Θ∧π_Θ 并列合取升级为闭环复合
+#   （π̄∘C 真读分类 + T 真写回完整 x_t）。import Strict.Chain，依赖单向无环。
+# HybridAssembly（抽象接口具体化，task #86，cc-hybrid-assembly）：把 HybridStep 的抽象
+#   HybridComponents 用已证组件（Dynamics.State micro + 新建 LedgerComp R=Π-A-W + Fugue/
+#   RiskProj 确定选择器）实例化为单一闭环 assembly；新建闭环 T 保 R=Π-A-W（补账户因果洞）。
+#   import Strict.HybridStep + Fugue + RiskProj + Tlayers.Dynamics，依赖单向无环。
+roots = ["Classification", "Trend", "Recursive", "Decomp", "BSP", "Causal", "OpenTail", "Op", "Center", "StrategyFamily", "ClassificationFamily", "Parse", "LevelState", "Nest", "Fugue", "RiskProj", "Chain", "HybridStep", "HybridAssembly"]
+
+# ★Foundation（完全分类严格推导地基，编排者「从一开始的完全分类的严格推导出发」，2026-06-26）：
+#   GPT「推导完全分类」的形式化原样移入作严格地基（build on，非 absorb）——我们的起点不如它严格。
+#   - CompleteClassification：完全分类 = 构造 I:X→P（不变性+完备性+可实现性 ⟹ X/∼≅P 双射）+
+#     递归级唯一(recSpec_complete_unique/recAt_causal) + 优先级互斥穷尽 + π 流水线存在唯一。
+#   - HybridStateMachine：行为等价商(BehEquiv/最小完全分类) + 10级动作优先级 + 资本阶段 + 风险模式 +
+#     镜像等变 + 动态闭合 + 完整 Rec→Class→Intent→Risk→Schedule→T 单步存在唯一(hybrid_step_complete_unique)。
+#   命名空间 NewChanlun/NewChanlunHybrid，与 Strict/Formal 无碰撞；纯 Prop/Type 无 Mathlib 无 sorry/admit/axiom。
+#   两文件在本仓 lake env 验证编译通过。后续：用缠论具体(笔/线段/中枢)忠实实例化其抽象参数 + 全定义策略建在其上。
+[[lean_lib]]
+name = "Foundation"
+srcDir = "Foundation"
+roots = ["CompleteClassification", "HybridStateMachine"]
