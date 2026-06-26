@@ -58,3 +58,10 @@ pub mod types;
 pub mod classifier;
 pub mod parser;
 pub mod strategy;
+
+/// 回测 harness（Phase 4，task #81）。`#[cfg(test)]` 门控——[`backtest::data`] 依赖
+/// serde_json（dev-dependency），且 backtest-protocol-v0.md §8 流程本就在 test 环境跑
+/// （`cargo test --release ... -- --ignored`）。门控避免污染 cdylib（Python 扩展）构建，
+/// 与 `recursive_t/backtest_run.rs` 的 serde 门控先例一致。
+#[cfg(test)]
+pub mod backtest;

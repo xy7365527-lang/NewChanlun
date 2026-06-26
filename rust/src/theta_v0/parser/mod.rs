@@ -22,38 +22,50 @@
 //!    递归层、最早原始 index 破平局。[设计选择,默认值]（对齐 `Strict/Decomp.lean` gauge）
 //! 7. **未完成尾部**（:25）：显式保存 `Pending*`/`AliveCenter`；不输出为 confirmed。
 //!
-//! ## 接口契约（子任务实装时填充，签名先冻结避免下游漂移）
+//! ## 步骤5（中枢）移交 classifier（Lead 裁定）
+//!
+//! 中枢是递归构造（前三连续完成次级别走势 A,B,C），owner=classifier——classifier 从
+//! parser 的 `segments` 自己构造中枢（见 `classifier/mod.rs` `detect_centers`），**不**读
+//! parser 的中枢。故 `ParseLayer` **无** `centers` 字段（步骤5 不在 parser 单层流水线职责内）。
+//!
+//! ## 接口契约（已冻结，下游 classifier/backtest 依赖）
 
 use super::config::ThetaConfig;
-use super::types::{Bar, Center, Fractal, PendingTail, Segment, Stroke};
+use super::types::{Bar, Fractal, PendingTail, Segment, Stroke};
 
 /// Θ_parse 流水线分步实现（聚焦小文件，coding-style <400 行/文件）。
 pub mod inclusion;
 pub mod fractal;
 pub mod stroke;
 pub mod segment;
+pub mod canonical;
+pub mod tail;
 
 /// 单层解析输出（一个级别的完整 confirmed 结构 + 未完成尾部）。
 ///
-/// bit-exact 要求：confirmed 部分对齐 Parse.lean 的唯一递归解析；`tail` 显式保存
-/// （reference-theta-v0.md:25），不混入 confirmed。
+/// bit-exact 要求：confirmed 部分对齐 Parse.lean 的唯一递归解析（confirmed/active 切分）；
+/// `tail` 显式保存未完成尾部（reference-theta-v0.md:25 + OpenTail.lean 当下状态），不混入
+/// confirmed。中枢（步骤5）移交 classifier，不在本结构（见模块头）。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ParseLayer {
     pub merged_bars: Vec<Bar>,
     pub fractals: Vec<Fractal>,
     pub strokes: Vec<Stroke>,
     pub segments: Vec<Segment>,
-    pub centers: Vec<Center>,
     pub tail: Vec<PendingTail>,
 }
 
 /// Θ_parse 顶层入口（L0=1分钟线段账本的解析）。
 ///
-/// **骨架占位**：返回空 `ParseLayer`。子任务实装时此函数体填充七步流水线，bit-exact
-/// 对齐 `Strict/Parse.lean`。签名已冻结——`(bars, config) -> ParseLayer`。
+/// 七步流水线（步骤5 中枢移交 classifier，见模块头），bit-exact 对齐 `Strict/Parse.lean`：
+/// 1. K线包含合并 → 2. 分型 → 3. 新笔 → 4. 线段（67课）→ 6. canonical 分解 →
+/// 7. 未完成尾部 tail。签名已冻结——`(bars, config) -> ParseLayer`。
+///
+/// confirmed/active 切分（Parse.lean §6）：`merged_bars/fractals/strokes/segments` 是已确认
+/// 结构（confirmed，交易可用）；`tail` 是未完成尾部（active，仅预警，不输出为 confirmed）。
 ///
 /// 边界条件：`bars` 为空 / 全程无方向 ⟹ confirmed 全空，只有 open-tail
-/// （reference-theta-v0.md:19）。
+/// （reference-theta-v0.md:19）；尾部延伸结构进 `tail`。
 pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
     // 步骤 1：K线包含合并（reference-theta-v0.md:19）。
     let incl = inclusion::process_inclusion(bars);
@@ -65,17 +77,25 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
     // 诚实范围：只断 FirstKind 确定段，SecondKind 动态确认/无分型停为 tail（见 segment.rs）。
     let segments = segment::divide_segments(&strokes);
 
-    // 步骤 5-7（中枢/canonical/tail）待续实装——bit-exact 对齐 Parse.lean +
-    // reference-theta-v0.md:23-25。当前返回已实装的前四步结果，后续步骤增量填充。
-    // 注：centers 依赖步骤 5，未实装前为空（非 workaround：流水线增量实装的真实中间态，
-    // 已实装的 merged/fractals/strokes/segments 是正确产出）。
+    // 步骤 6：canonical 分解（reference-theta-v0.md:24，bit-exact 对齐 Decomp.lean gaugeFix）。
+    // ★L0 段层的 canonical 端点序列 = `canonical::canonical_endpoints(&segments)`——但它在 L0
+    // 单层与段端点序列**恒等**（段端点 source_index 严格递增、无平局，gauge 截面退化为恒等
+    // 扫描，见 canonical.rs 诚实标注）。故 `ParseLayer` **不**额外存 canonical 端点（由
+    // `segments` 唯一确定，存它是冗余）。canonical 模块的非平凡价值在**跨递归层**的 gauge
+    // 截面选择（上级走势端点与段端点平局时），由 classifier 调 `canonical::gauge_fix` 复用。
+    // 这里不调用丢弃结果（避免死代码）——canonical 模块经其 pub 原语 + 测试独立证明正确性。
+
+    // 步骤 7：未完成尾部 tail（reference-theta-v0.md:25，bit-exact 对齐 Parse.lean §6 active +
+    // OpenTail.lean 当下状态）。把流水线各阶段（段/笔/分型）未确认的延伸结构显式保存，
+    // 不混入 confirmed。SecondKind 动态确认段/无分型段的剩余笔现经此进 tail（不再静默丢失）。
+    let tail = tail::build_tail(&incl.merged, &fractals, &strokes);
+
     ParseLayer {
         merged_bars: incl.merged,
         fractals,
         strokes,
         segments,
-        centers: Vec::new(),
-        tail: Vec::new(),
+        tail,
     }
 }
 

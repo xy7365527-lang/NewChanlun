@@ -184,20 +184,31 @@ pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
     }
 }
 
-/// 线段划分（reference-theta-v0.md:22）——**仅 FirstKind 确定段，SecondKind 待续**。
+/// 线段划分（reference-theta-v0.md:22）——**仅 FirstKind 确定段，SecondKind 停为 tail**。
 ///
 /// ★诚实标注（no-patch-mentality）：本函数只断 Claim10 的 FirstKind 确定情形（无缺口
 /// 分型形成即终结，第67课:28）。遇 SecondKind（有缺口，须第二特征序列动态确认）或无分型
-/// ⟹ **停止划分**，剩余笔成为未完成尾部（步骤7 处理）。完整 SecondKind 动态确认状态机
-/// 是后续工作——此处不留半成品分支（dead reassignment），停在严格可判定的边界。
+/// ⟹ **停止划分**，剩余笔 `strokes[pending_start..]` 成为未完成尾部（步骤7 `tail` 处理）。
+/// 完整 SecondKind 动态确认状态机是后续工作——此处不留半成品分支（dead reassignment），
+/// 停在严格可判定的边界，并由 `divide_segments_with_tail` 显式暴露停点供 tail 保存。
+///
+/// 返回 `(confirmed segments, pending_start)`：
+/// - `confirmed segments`：已确认（FirstKind）的线段序列（交易可用，对齐 Parse.lean confirmed）。
+/// - `pending_start`：`Some(i)` = 从第 `i` 笔起的剩余笔是未确认线段（active 尾部，
+///   对齐 Parse.lean active）；`None` = 所有笔都已划入确认段无悬挂尾部。
+///
+/// bit-exact 对齐 Parse.lean §6：解析状态 = confirmed（已闭合走势）+ active（未完成尾部）。
+/// 本函数是 L0 线段层的 confirmed/active 切分（segments=confirmed，pending_start→active）。
 ///
 /// 边界条件：
-/// - 笔 < 3 ⟹ 无完整特征序列分型，返回空。
-/// - 首段为 SecondKind/无分型 ⟹ 返回空（整段未确认终结）。
-pub fn divide_segments(strokes: &[Stroke]) -> Vec<Segment> {
+/// - 笔 < 1 ⟹ 无段无尾部，`(空, None)`。
+/// - 笔 ≥ 1 但 < 3 ⟹ 无完整特征序列分型，整段未确认 ⟹ `(空, Some(0))`（全部为 tail）。
+/// - 首段为 SecondKind/无分型 ⟹ `(空, Some(0))`（整段未确认终结，剩余全为 tail）。
+/// - 扫描到尾仍有 ≥1 笔剩余 ⟹ `pending_start = Some(剩余起点)`。
+pub fn divide_segments_with_tail(strokes: &[Stroke]) -> (Vec<Segment>, Option<usize>) {
     let mut segments = Vec::new();
-    if strokes.len() < 3 {
-        return segments;
+    if strokes.is_empty() {
+        return (segments, None);
     }
     let mut start = 0usize;
     while start + 2 < strokes.len() {
@@ -221,11 +232,23 @@ pub fn divide_segments(strokes: &[Stroke]) -> Vec<Segment> {
                 // 下一段从段端笔后继续（至少前进 1 笔，防死循环）。
                 start = end_idx.max(start + 1);
             }
-            // SecondKind 动态确认 / 无分型 → 停止（剩余为 tail，步骤7 处理）。
-            SegmentTermination::SecondKindPending | SegmentTermination::NoFractal => break,
+            // SecondKind 动态确认 / 无分型 → 停止：剩余 strokes[start..] 是未确认线段（tail）。
+            SegmentTermination::SecondKindPending | SegmentTermination::NoFractal => {
+                return (segments, Some(start));
+            }
         }
     }
-    segments
+    // 循环正常退出：剩余笔 strokes[start..] < 3 不足成段 ⟹ 是 tail（若非空）。
+    let pending_start = if start < strokes.len() { Some(start) } else { None };
+    (segments, pending_start)
+}
+
+/// 线段划分（reference-theta-v0.md:22）——只取确认段（薄封装 `divide_segments_with_tail`）。
+///
+/// 丢弃 pending 尾部信息，仅返回 confirmed segments。tail 由 `divide_segments_with_tail`
+/// 的 `pending_start` 在步骤7（`tail` 模块）显式保存——本函数供只需 confirmed 段的调用方。
+pub fn divide_segments(strokes: &[Stroke]) -> Vec<Segment> {
+    divide_segments_with_tail(strokes).0
 }
 
 #[cfg(test)]
