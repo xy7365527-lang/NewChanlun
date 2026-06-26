@@ -1,19 +1,20 @@
 //! 买卖点 bit-vector 判据（reference-theta-v0.md:34-36）。
 //!
-//! ## bit-exact 对齐 `Formal/BSPLabels.lean` + `Strict/BSP.lean`
+//! ## 契约重锚（legacy Formal/BSPLabels + Strict/BSP → `Origin.BspClassification`）
 //!
-//! - 端点语义 ↔ `EndpointSituation`：相对中枢的拓扑/历史语义字段（非标签）。
-//! - 三类判据 ↔ `IsFirst`/`IsSecond`/`IsThird`（结构谓词）：
-//!   · `IsFirst`  = belowLastCenter ∧ ¬afterFirstBuy ∧ ¬leftCenter（中枢下方背驰端点）。
-//!   · `IsSecond` = afterFirstBuy ∧ isPullbackEnd（1买后回调结束点）。
-//!   · `IsThird`  = leftCenter ∧ retraceNotReenter（离开中枢后回试不入）。
-//! - bit-vector 输出 ↔ `BSPVector`/`types::BspBits`（非互斥 subset，2/3 类可共存）。
+//! - 端点语义 ↔ `Origin.BspClassification.BspEndpoint`：相对中枢的拓扑/历史语义字段
+//!   （side/center/divPair/brokeCenter/afterTypeOne/leftCenter/retracePrice/firstRetrace）。
+//! - 三类判据 ↔ `Origin.BspClassification.{IsType1,IsType2,IsType3Buy,IsType3Sell}`（结构谓词）：
+//!   · `IsType1` = `brokeCenter ∧ IsDivergence divPair`（破中枢 + 背驰，第24课第一类）。
+//!   · `IsType2` = `afterTypeOne ∧ ¬brokeCenter`（1 类后回调，§10.1 第二类）。
+//!   · `IsType3Buy` = `side=long ∧ leftCenter ∧ firstRetrace ∧ center.zg < retracePrice`（离开后回试不破 ZG）。
+//! - bit-vector 输出 ↔ `BspClass`/`types::BspBits`（非互斥 subset，2/3 类可共存）。
 //!
-//! ## 互斥结构（BSPLabels 已证，不可冒充互斥三分）
+//! ## 互斥结构（`Origin.BspClassification.no_exclusive_trichotomy` 已证，不可冒充互斥三分）
 //!
-//! - 1B/2B 互斥（`first_second_disjoint`）：afterFirstBuy 前提冲突。
-//! - 1B/3B 互斥（`first_third_disjoint`）：leftCenter 前提冲突。
-//! - **2B/3B 可共存**（`twoB_threeB_can_coincide`，V 型反转）：bit-vector 容许同位为 1。
+//! - 1B/2B 互斥：afterTypeOne 前提冲突。
+//! - 1B/3B 互斥：leftCenter 前提冲突。
+//! - **2B/3B 可共存**（`no_exclusive_trichotomy`，V 型反转）：bit-vector 容许同位为 1。
 //!
 //! ## 认识论（formalization-validity-domain）
 //!
@@ -23,10 +24,11 @@
 
 use super::super::types::{BspBits, Center, Tick};
 
-/// 端点语义状态（reference-theta-v0.md:34-36；`BSPLabels.EndpointSituation`）。
+/// 端点语义状态（契约锚 `Origin.BspClassification.BspEndpoint`）。
 ///
-/// 端点相对中枢的拓扑/历史语义——区分三类买卖点的真实判据被编码为字段。这些字段由
-/// Θ_signal 从走势结构（中枢/趋势/背驰）计算后填充；本结构是判据的纯输入。
+/// 端点相对中枢的拓扑/历史语义——区分三类买卖点的真实判据被编码为字段（对齐 `BspEndpoint` 的
+/// brokeCenter/afterTypeOne/leftCenter/firstRetrace 等）。这些字段由 Θ_signal 从走势结构（中枢/
+/// 趋势/背驰）计算后填充；本结构是判据的纯输入。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EndpointSituation {
     /// 此端点之前是否已出现同向第一类买卖点（2 类前提，reference:35）。
@@ -136,7 +138,7 @@ mod tests {
 
     #[test]
     fn first_buy_judgment_bit_exact() {
-        // IsFirst = below ∧ ¬after_first ∧ ¬left（BSPLabels witness1）。
+        // IsType1 = below ∧ ¬after_first ∧ ¬left（Origin.BspClassification.IsType1 见证）。
         let e = situ(false, false, false, false, true, false);
         assert!(e.is_first());
         let bits = endpoint_to_bsp(&e);
@@ -145,7 +147,7 @@ mod tests {
 
     #[test]
     fn second_buy_judgment_bit_exact() {
-        // IsSecond = after_first ∧ pullback（BSPLabels witness2 / x_2bOnly）。
+        // IsType2 = after_first ∧ pullback（Origin.BspClassification.IsType2 见证）。
         let e = situ(true, true, false, false, false, false);
         assert!(e.is_second());
         let bits = endpoint_to_bsp(&e);
@@ -154,7 +156,7 @@ mod tests {
 
     #[test]
     fn third_buy_judgment_bit_exact() {
-        // IsThird = left ∧ retrace（BSPLabels witness3 子域）。
+        // IsType3 = left ∧ retrace（Origin.BspClassification.IsType3Buy/IsType3Sell 见证）。
         let e = situ(false, false, true, true, false, false);
         assert!(e.is_third());
         let bits = endpoint_to_bsp(&e);

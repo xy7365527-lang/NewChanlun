@@ -1,16 +1,20 @@
 //! # Reference Θ v0 — bit-exact 缠论可执行系统引擎（Phase 2，task #38）
 //!
 //! 本模块是 `docs/reference-theta-v0.md`（codex gpt-5.5 high 编排者全权代理裁决，
-//! 2026-06-25）冻结的 **Θ v0 规格的 bit-exact Rust 实装**。对齐 `formal/Strict/*.lean`
-//! 的 L0 spec（Classification / Trend / Center / BSP / Recursive / Decomp / Causal /
-//! OpenTail / Op / StrategyFamily / ClassificationFamily / Parse / LevelState / Nest /
-//! Fugue / RiskProj / Chain）。
+//! 2026-06-25）冻结的 **Θ v0 规格的 bit-exact Rust 实装**。契约锚点重锚到 `formal/Origin/*.lean`
+//! 唯一 canonical base（A′ Phase2 #127）：`Origin.ChanlunElements`（ElementPipeline 构造层）/
+//! `Origin.CenterComplete`+`CenterConstruction`+`CenterStates`（中枢完整判据/构造/三态）/
+//! `Origin.TrendCompleteClassification`（走势裁决）/ `Origin.BspClassification`+`BspConstruction`
+//! （买卖点）/ `Origin.RecursiveLevelSystem`（递归级别）/ `Origin.SubLevelDescent`（下钻）/
+//! `Origin.StrategyFamily`+`VoiceTree`+`ThetaInstantiation`（策略族）/ `Origin.RiskProj`（风险）/
+//! `Origin.FullDefinitionStrategy`（闭环 hybridStep）/ `Origin.TotalWealth`（TW 三阶段）/
+//! `Origin.ForceInterface`（力度）/ `Origin.EngineBridge`（U5 conformance 协议）。
 //!
 //! ## 与现有 standalone 引擎（`crate::recursive_t` / `crate::spiral` / `crate::fugue_v3`）的关系
 //!
-//! 现有引擎是与 Python 逐位等价的旧 ladder，**不是**对 Lean Θ v0 的 bit-exact 实装。
-//! 本模块是**独立的新引擎**——唯一权威是 Θ v0 规格 + Lean spec，不复用旧 ladder 的
-//! 中枢/走势/背驰逻辑（避免 Python-等价语义漂入 Lean-等价语义）。
+//! 现有引擎是与 Python 逐位等价的旧 ladder，**不是**对 Origin Θ v0 的 bit-exact 实装。
+//! 本模块是**独立的新引擎**——唯一权威是 Θ v0 规格 + `Origin.*` canonical spec，不复用旧 ladder 的
+//! 中枢/走势/背驰逻辑（避免 Python-等价语义漂入 Origin-等价语义）。
 //!
 //! ## 纲领（codex 总纲，reference-theta-v0.md:4）
 //!
@@ -32,19 +36,20 @@
 //! - [`types`]：整数 tick 价格 / OHLC bar / 方向 / 结构对象（K线/分型/笔/线段/中枢/Move）
 //!   / 信号 / 声部 / 仓位 / 订单等共享数据类型。
 //! - [`parser`]：Θ_parse 实装（包含/分型/新笔/线段67课/中枢/canonical 分解/未完成尾部）。
-//!   bit-exact 对齐 `Strict/Parse.lean`。**[子任务，TaskCreate]**
+//!   契约锚 `Origin.ChanlunElements.ElementPipeline`（mergeBars/fractalsOf/strokesOf/segmentsOf）。
 //! - [`classifier`]：Θ_level + Θ_signal 实装（递归级别 / R6 态 / 买卖点 bit-vector /
-//!   背驰度量 / 区间套）。bit-exact 对齐 `Strict/LevelState.lean` / `Center.lean` /
-//!   `BSP.lean` / `Trend.lean` / `Nest.lean`。**[子任务，TaskCreate]**
+//!   背驰度量 / 区间套）。契约锚 `Origin.RecursiveLevelSystem` / `Origin.CenterStates` /
+//!   `Origin.CenterComplete` / `Origin.BspClassification` / `Origin.TrendCompleteClassification` /
+//!   `Origin.SubLevelDescent`。
 //! - [`strategy`]：Θ_voice + Θ_risk + Θ_exec 实装（声部树 / 风险投影 / sizing /
-//!   执行）。bit-exact 对齐 `Strict/Fugue.lean` / `RiskProj.lean` / `Op.lean` /
-//!   `StrategyFamily.lean`。**[子任务，TaskCreate]**
+//!   执行 / Param 索引策略族）。契约锚 `Origin.StrategyFamily.{Theta,piTheta,StrategyFamily,
+//!   familyOfTheta}` / `Origin.VoiceTree` / `Origin.ThetaInstantiation` / `Origin.RiskProj`。
 //!
 //! ## 铁律（编排者硬指令）
 //!
-//! - 只实装**已冻结 Θ v0**；遇 spec 漏洞/与 Lean 冲突 → 开 change request（SendMessage
-//!   Lead），**不静默改语义**。
-//! - 不改 Lean spec（只追加 conformance fixture）。
+//! - 只实装**已冻结 Θ v0**；遇 spec 漏洞/与 `Origin.*` canonical 冲突 → 开 change request
+//!   （SendMessage Lead），**不静默改语义**。
+//! - 不改 `formal/Origin/*` Lean spec（只追加 conformance fixture）。
 //! - Rust 编译通过 + 测试绿是完成标准。
 //!
 //! ## 平局裁决全局约定（reference-theta-v0.md:15-16）
@@ -59,12 +64,13 @@ pub mod classifier;
 pub mod parser;
 pub mod strategy;
 
-/// 闭环 S_Θ 装配（Phase 4 引擎实装，task #94；A′ Phase2 step8 契约重锚 Origin，task #102）。
+/// 闭环 S_Θ 装配（Phase 4 引擎实装，task #94；A′ Phase2 step8 契约重锚 Origin，task #102/#127）。
 /// 契约锚 **`formal/Origin/FullDefinitionStrategy.lean`** 的单一闭环状态机（`FullDefinitionSystem` +
 /// `hybridStep` + `transition` + `LedgerState` R=Π-A-W）+ `formal/Origin/ChanlunElements.lean`
-/// （`ElementPipeline.parse`）。双账本中 R=Π-A-W 锚 Origin canonical；TW 取本金三阶段 + OQ-9 gate
-/// 仍锚 legacy `Tlayers/Accounting/TotalWealth.lean`（Origin 无 TW 对应物，诚实声明，见 closed_loop
-/// 与 strategy/ledger.rs 模块头）。把开环单帧引擎升级为闭环——闭环态每 bar 真更新喂回。
+/// （`ElementPipeline.parse`）+ `formal/Origin/EngineBridge.lean`（`RustEngineContract` U5 conformance）。
+/// 双账本两端均锚 Origin canonical：R=Π-A-W 锚 `Origin.FullDefinitionStrategy.LedgerState`；TW 取本金
+/// 三阶段 + OQ-9 gate 锚 `Origin.TotalWealth`（#127 native port 落地，见 closed_loop 与 strategy/ledger.rs
+/// 模块头）。把开环单帧引擎升级为闭环——闭环态每 bar 真更新喂回。
 pub mod closed_loop;
 
 /// 回测 harness（Phase 4，task #81）。`#[cfg(test)]` 门控——[`backtest::data`] 依赖

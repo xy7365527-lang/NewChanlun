@@ -12,25 +12,40 @@
 //!   （:198-203）证保恒等。本 Rust `LedgerComp`/`ledger_step`/`inv_holds` 镜像该 Origin 接口语义。
 //!   接口别名见 `OriginAdapters/StrictPipeline.lean` `FullDefinitionIface`。
 //!
-//! ## TW 三阶段 / OQ-9 gate 的 Origin 锚点缺位（no-workaround 诚实声明）
+//! ## TW 三阶段 / OQ-9 gate 契约 → `Origin.TotalWealth`（task #127 native port 已落地，重锚完成）
 //!
-//! `TwState`/`tw_step`/`TStage` 三阶段/`is_legal_from` OQ-9 gate **在 Origin canonical 中无对应
-//! 锚点**：`formal/Origin/` 六层闭包（SourceAxioms/ChanlunElements/CompleteClassification/
-//! TrendCompleteClassification/FullDefinitionStrategy/TraceProjection/BehaviorQuotient/
-//! FiniteTraceQuotient）只含 `R=Π-A-W` 账本（FullDefinitionStrategy.LedgerState），**不含**
-//! `TW=free+holding+withdrawn` 守恒 / 取本金三阶段 / OQ-9 单向 gate。
+//! ★A′ Phase2 #127 重锚（Origin-TW #103 = native）：取本金三阶段 TW 已 **native port 进 Origin
+//! canonical base** —— `formal/Origin/TotalWealth.lean`（`namespace NewChanlun.Origin.TotalWealth`）
+//! 在 Origin 命名空间**重新定义 + 重新证明**全部 TW 模型（不 import legacy，零偷渡，机器验证无
+//! sorry/admit/axiom）。故 `TwState`/`tw_step`/`TStage`/`is_legal_from` OQ-9 gate 的契约锚点
+//! **从 legacy `Tlayers/Accounting/TotalWealth.lean` 重锚到 `Origin.TotalWealth`**：
 //!
-//! 故 TW/OQ-9 层的契约锚点**仍指向 legacy `Tlayers/Accounting/TotalWealth.lean`**——这是诚实
-//! 声明的有效域边界，**不是** workaround：不臆造不存在的 Origin TW 接口、不把 TW 语义硬塞进
-//! Origin LedgerState（二者不同构，#90 已证）。Origin TW 端口（把 TW 三阶段/OQ-9 重锚为 Origin
-//! canonical 结构）尚未存在 → TW 契约重锚**诚实延后**至 Origin TW 端口落地后。
+//! - `TwState` ↔ `Origin.TotalWealth.TWState`（free/holding/withdrawn/notionalIn/stage/openLegacyLegs/
+//!   cumNetCash 字段逐一对齐，TotalWealth.lean:94-102）。
+//! - `TStage` ↔ `Origin.TotalWealth.TStage`（costReduction/capitalRecovered/earningShares，:63-67）；
+//!   `rank` ↔ `Origin.TotalWealth.TStage.rank`（:73-76）。
+//! - `TwEvent` ↔ `Origin.TotalWealth.TWEvent`（shortDiff/openShareLeg/closeShareLeg/recoverCapital/
+//!   enterEarning/clearCampaign 六构造子，:120-127）。
+//! - `tw_step` ↔ `Origin.TotalWealth.twStep`（:159-171，逐分支语义对齐，保 `twStep_preserves_tw`:178）。
+//! - `tw()` ↔ `Origin.TotalWealth.TWState.tw`（free+holding+withdrawn，:105）。
+//! - `advance_to` ↔ `Origin.TotalWealth.advanceTo`（:133-134，rank 单向 `advanceTo_rank_ge`:137）。
+//! - `is_legal_from` ↔ `Origin.TotalWealth.LegalTransition`（:261-266，OQ-9 gate）+ `LegalEnterEarning`
+//!   （:249）；OQ-9 不变量 ↔ `OQ9Inv`（:272-273）+ `oq9inv_preserved`（:296）+ trace 级 `oq9inv_trace`（:343）。
 //!
-//! ## 双账本并置（task #90 不同构裁定 → task #93 闭环扩维）
+//! ★不同构裁定保留（#90）：R=Π-A-W 与取本金三阶段 TW **不同构**（`Origin.TotalWealth` §3 三反例
+//! `not_isomorphic_stage_collapses`/`_conservation_switches`/`_exogenous_price` 在 Origin native
+//! 定义上重新成立）——故 TW **不合并进** `Origin.LedgerState`，两独立 native 结构并置（见双账本并置节）。
+//! legacy `Tlayers/Accounting/TotalWealth.lean` 此后降为待清理 reference（不再被 canonical 路径引用）。
 //!
-//! `R=Π-A-W`（收益表视角，Origin canonical）与 `TW=free+holding+withdrawn`（现金流+持仓视角，
-//! legacy Tlayers）**不同构**（#90 已证：外生价格维度 / 状态空间结构 / 守恒律切换三条阻断）。
-//! 完整持仓系统两者都需要——故 closed_loop 把两者并置在 AssemblyState，T 同步线程化两者
-//! （见 transition.rs）。重锚后并置不变：R=Π-A-W 锚 Origin，TW/OQ-9 锚 legacy（待 Origin 端口）。
+//! ## 双账本并置（task #90 不同构裁定 → task #93 闭环扩维 → #127 两端均锚 Origin）
+//!
+//! `R=Π-A-W`（收益表视角，`Origin.FullDefinitionStrategy.LedgerState`）与
+//! `TW=free+holding+withdrawn`（现金流+持仓视角，`Origin.TotalWealth.TWState`）**不同构**
+//! （#90 已证，`Origin.TotalWealth` §3 三反例在 native 定义上重新成立：外生价格维度 / stage
+//! 不可逆 vs 操作可逆 / 守恒律切换三条阻断）。完整持仓系统两者都需要——故 closed_loop 把两者
+//! 并置在 AssemblyState，T 同步线程化两者（见 transition.rs）。#127 重锚后**两端均锚 Origin
+//! canonical**：R=Π-A-W 锚 `Origin.FullDefinitionStrategy.LedgerState`，TW/OQ-9 锚
+//! `Origin.TotalWealth`（不再有 legacy 锚点缺位）。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
@@ -38,17 +53,19 @@
 //!   正确性，零信息增量）。`cargo test` 通过 = 双账本不变量在每个算子下结构成立，**不**是
 //!   任何缠论盈利 / 实盘有效声明（那是 L2/L3，真实数据回测才可否证）。重锚到 Origin **不**
 //!   提升等级——锚点换 canonical 来源仍是 L0/L1（验管线非验缠论假设）。
-//! - 不变量 `R=Π-A-W`（ledger，Origin）+ `TW=free+holding+withdrawn`（tw，legacy）+ stage
-//!   单向（OQ-9，legacy）都是**结构恒等**（同价 c 固定下成立），不证账本数值反映实盘真实盈亏。
+//! - 不变量 `R=Π-A-W`（ledger，`Origin.FullDefinitionStrategy.LedgerState`）+
+//!   `TW=free+holding+withdrawn`（tw，`Origin.TotalWealth.TWState`）+ stage 单向（OQ-9，
+//!   `Origin.TotalWealth`）都是**结构恒等**（同价 c 固定下成立），不证账本数值反映实盘真实盈亏。
 //!
-//! ## 契约锚点源（只读，不改 .lean）
+//! ## 契约锚点源（只读，不改 .lean；两端均 Origin canonical）
 //!
 //! - LedgerComp / LedgerEvent / ledger_step → **`Origin.FullDefinitionStrategy.LedgerState`**
 //!   （LedgerState/mkLedger/ledgerStep/ledger_invariant_preservation，:184-203）。
-//! - TwState / TStage / TwEvent / tw_step / OQ-9 gate → legacy `Tlayers/Accounting/TotalWealth.lean`
-//!   （Origin 锚点缺位，见上「TW 三阶段 / OQ-9 gate 的 Origin 锚点缺位」诚实声明）。
+//! - TwState / TStage / TwEvent / tw_step / OQ-9 gate → **`Origin.TotalWealth`**
+//!   （TWState/TStage/TWEvent/twStep/LegalTransition/OQ9Inv，#127 native port，见上「TW 三阶段 /
+//!   OQ-9 gate 契约 → Origin.TotalWealth」重锚声明）。
 
-/// 取本金三阶段 `TStage`（镜像 Lean `TotalWealth.TStage`，缠师第31课）。
+/// 取本金三阶段 `TStage`（契约锚 `Origin.TotalWealth.TStage`，缠师第31课）。
 ///
 /// 单向不可逆迁移（OQ-9）：CostReduction(0) → CapitalRecovered(1) → EarningShares(2)。
 /// `rank` 把三阶段映到 {0,1,2}，是单向偏序的载体（rank 只增不减，见 [`tw_step`]）。
@@ -63,7 +80,7 @@ pub enum TStage {
 }
 
 impl TStage {
-    /// 阶段序（镜像 Lean `TStage.rank`）：单向不可逆迁移的偏序载体。
+    /// 阶段序（契约锚 `Origin.TotalWealth.TStage.rank`）：单向不可逆迁移的偏序载体。
     pub fn rank(self) -> u32 {
         match self {
             TStage::CostReduction => 0,
@@ -73,7 +90,7 @@ impl TStage {
     }
 }
 
-/// 单向阶段推进（镜像 Lean `advanceTo`）：rank 只前进，不回退。
+/// 单向阶段推进（契约锚 `Origin.TotalWealth.advanceTo`）：rank 只前进，不回退。
 ///
 /// `current.rank <= target.rank` ⟹ 推到 target；否则保持 current（不下降）。
 /// 这正是 OQ-9 单向不可逆的算子形式——任何推进都不能降低 rank。
@@ -85,7 +102,7 @@ fn advance_to(current: TStage, target: TStage) -> TStage {
     }
 }
 
-/// TW 账本态 `TwState`（镜像 Lean `TotalWealth.TWState`，模型B 取本金三阶段）。
+/// TW 账本态 `TwState`（契约锚 `Origin.TotalWealth.TWState`，模型B 取本金三阶段）。
 ///
 /// 字段（对齐 `t_engine.rs:208` TPositionEngine 会计分量）：
 /// - `free`：自由现金/在险池（NAV 的现金部分）。
@@ -126,13 +143,13 @@ impl TwState {
         }
     }
 
-    /// 总财富 `TW = free + holding + withdrawn`（镜像 Lean `TWState.tw`，守恒量）。
+    /// 总财富 `TW = free + holding + withdrawn`（契约锚 `Origin.TotalWealth.TWState.tw`，守恒量）。
     pub fn tw(&self) -> i64 {
         self.free + self.holding + self.withdrawn
     }
 }
 
-/// TW 账本事件 `TWEvent`（镜像 Lean `TotalWealth.TWEvent`，对齐 t_engine 三阶段算子 + OQ-9）。
+/// TW 账本事件 `TWEvent`（契约锚 `Origin.TotalWealth.TWEvent`，对齐 t_engine 三阶段算子 + OQ-9）。
 ///
 /// - `ShortDiff(d_cash)`：降成本短差（free⇄holding 同价转换，TW 不变；CostReduction 阶段）。
 ///   `d_cash>0`=卖出（holding→free），`d_cash<0`=买回（free→holding）。
@@ -155,7 +172,7 @@ pub enum TwEvent {
 }
 
 impl TwEvent {
-    /// OQ-9 合法转移谓词 `LegalTransition`（镜像 Lean `TotalWealth.LegalTransition`，
+    /// OQ-9 合法转移谓词 `LegalTransition`（契约锚 `Origin.TotalWealth.LegalTransition`，
     /// review 019f0318 修正后的 legal 层）。
     ///
     /// 哪些 `(s, e)` 合法（raw 层 [`tw_step`] 对所有 (s,e) 都有定义，包括非法的；本谓词只标注
@@ -176,7 +193,7 @@ impl TwEvent {
     }
 }
 
-/// TW 更新 `tw_step`（镜像 Lean `TotalWealth.twStep`，全函数，**保 TW 守恒**）。
+/// TW 更新 `tw_step`（契约锚 `Origin.TotalWealth.twStep`，全函数，**保 TW 守恒**）。
 ///
 /// 同价 c 固定下 free/holding/withdrawn 间转移，三量之和 TW 不变（同价中性，design §6.3 L0）。
 /// raw 层全函数——对所有 (s, e) 都有定义（包括非法的 EnterEarning，保留 violation witness）；
@@ -250,7 +267,7 @@ pub fn tw_step(s: &TwState, e: TwEvent) -> TwState {
 ///
 /// ★诚实标注：Origin `LedgerState` 用依赖类型字段 `inv` 在类型层钉死恒等；Rust 无依赖类型，故用
 /// 构造时重算 R + 运行时谓词 [`inv_holds`] 共同承载（等价的结构强制，不是弱化）。
-/// 它与 [`TwState`] **不同构**（#90 已证），双账本并置——R=Π-A-W 锚 Origin，TW 锚 legacy。
+/// 它与 [`TwState`] **不同构**（#90 已证），双账本并置——R=Π-A-W 锚 Origin.LedgerState，TW 锚 Origin.TotalWealth。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LedgerComp {
     pub i0: i64,
@@ -375,11 +392,11 @@ mod tests {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    //  TwState TW 守恒 + stage 单向（锚 legacy TotalWealth.twStep_preserves_tw /
-    //  stage_rank_monotone——Origin 锚点缺位，见模块头「TW 三阶段 / OQ-9 gate 的 Origin 锚点缺位」）
+    //  TwState TW 守恒 + stage 单向（契约锚 `Origin.TotalWealth.twStep_preserves_tw` /
+    //  `stage_rank_monotone`——#127 native port，两端均锚 Origin canonical）
     // ──────────────────────────────────────────────────────────────────────
 
-    /// ★tw_step 保 TW 守恒（镜像 Lean `twStep_preserves_tw`）：逐事件 TW=free+holding+withdrawn 不变。
+    /// ★tw_step 保 TW 守恒（契约锚 `Origin.TotalWealth.twStep_preserves_tw`）：逐事件 TW=free+holding+withdrawn 不变。
     #[test]
     fn tw_step_preserves_tw() {
         let s0 = TwState {
@@ -411,7 +428,7 @@ mod tests {
         assert_eq!(s_clear.withdrawn, 0);
     }
 
-    /// ★stage 单向不可逆（镜像 Lean `stage_rank_monotone`）：非 clearCampaign 算子下 rank 只增不减。
+    /// ★stage 单向不可逆（契约锚 `Origin.TotalWealth.stage_rank_monotone`）：非 clearCampaign 算子下 rank 只增不减。
     #[test]
     fn stage_rank_monotone() {
         let stages = [TStage::CostReduction, TStage::CapitalRecovered, TStage::EarningShares];
@@ -435,7 +452,7 @@ mod tests {
         }
     }
 
-    /// ★EarningShares 不可回退（镜像 Lean `earning_no_regress`）：earning 态非 clearCampaign 算子保持 earning。
+    /// ★EarningShares 不可回退（契约锚 `Origin.TotalWealth.earning_no_regress`）：earning 态非 clearCampaign 算子保持 earning。
     #[test]
     fn earning_no_regress() {
         let s = TwState { stage: TStage::EarningShares, ..TwState::initial() };
@@ -457,10 +474,10 @@ mod tests {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    //  OQ-9 gate（锚 legacy TotalWealth.LegalTransition / LegalEnterEarning——Origin 锚点缺位）
+    //  OQ-9 gate（契约锚 `Origin.TotalWealth.LegalTransition` / `LegalEnterEarning`——#127 native port）
     // ──────────────────────────────────────────────────────────────────────
 
-    /// OQ-9 入口证书：EnterEarning 须 open_legacy_legs==0（镜像 Lean `LegalEnterEarning`）。
+    /// OQ-9 入口证书：EnterEarning 须 open_legacy_legs==0（契约锚 `Origin.TotalWealth.LegalEnterEarning`）。
     #[test]
     fn oq9_enter_earning_gate() {
         let with_leg = TwState { open_legacy_legs: 1, ..TwState::initial() };
@@ -469,7 +486,7 @@ mod tests {
         assert!(TwEvent::EnterEarning.is_legal_from(&no_leg), "无 legacy 腿进 earning 合法");
     }
 
-    /// ★OQ-9 核心：earning 阶段开 legacy 腿非法（镜像 Lean LegalTransition openShareLeg 修正1）。
+    /// ★OQ-9 核心：earning 阶段开 legacy 腿非法（契约锚 `Origin.TotalWealth.LegalTransition` openShareLeg 修正1）。
     #[test]
     fn oq9_no_open_leg_in_earning() {
         let earning = TwState { stage: TStage::EarningShares, ..TwState::initial() };
@@ -484,7 +501,7 @@ mod tests {
         );
     }
 
-    /// CloseShareLeg 须有腿（open_legacy_legs>=1），否则幽灵腿非法（镜像 Lean 修正4(c)）。
+    /// CloseShareLeg 须有腿（open_legacy_legs>=1），否则幽灵腿非法（契约锚 `Origin.TotalWealth` 修正4(c) `zero_close_is_ghost`）。
     #[test]
     fn oq9_no_ghost_close() {
         let no_leg = TwState { open_legacy_legs: 0, ..TwState::initial() };
@@ -493,7 +510,7 @@ mod tests {
         assert!(TwEvent::CloseShareLeg(0).is_legal_from(&one_leg), "有腿可闭合法");
     }
 
-    /// ★OQ-9 端B（镜像 Lean `legal_earning_no_legacy_leg_closure`）：合法进 earning 后闭 legacy 腿非法。
+    /// ★OQ-9 端B（契约锚 `Origin.TotalWealth.legal_earning_no_legacy_leg_closure`）：合法进 earning 后闭 legacy 腿非法。
     /// 合法 EnterEarning ⟹ open_legacy_legs=0 ⟹ CloseShareLeg 的 ≥1 合法性为假 ⟹ 闭腿非法。
     #[test]
     fn oq9_earning_no_legacy_leg_closure() {
@@ -509,7 +526,7 @@ mod tests {
         );
     }
 
-    /// ClearCampaign 须先清 legacy 腿（镜像 Lean 修正4(b)）。
+    /// ClearCampaign 须先清 legacy 腿（契约锚 `Origin.TotalWealth.LegalTransition` 修正4(b)）。
     #[test]
     fn oq9_clear_campaign_gate() {
         let with_leg = TwState { open_legacy_legs: 1, ..TwState::initial() };

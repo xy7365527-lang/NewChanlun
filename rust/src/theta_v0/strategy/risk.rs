@@ -1,5 +1,5 @@
 //! Θ_risk 风险投影 + 结构止损 + sizing（reference-theta-v0.md:44-47，
-//! bit-exact 对齐 `Strict/RiskProj.lean`）。
+//! 契约锚 `Origin.RiskProj`）。
 //!
 //! ## 范围
 //!
@@ -7,7 +7,7 @@
 //!   或 ZD。
 //! - sizing（spec:47）：`qty = min(floor(ρ*NAV/(|entry-stop|+κ*cost_per_unit)),
 //!   floor(w_depth*γ*NAV/entry), parent_cap)`；`qty<=0` 不交易；默认 lot=config.risk.default_lot。
-//! - 风险投影唯一总仓位（RiskProj.lean `riskproj_exists_unique`）：sizing 的三路 min 是
+//! - 风险投影唯一总仓位（Origin.RiskProj `riskproj_exists_unique`）：sizing 的三路 min 是
 //!   有限网格上确定选择器的具体实例——三个上界的最小值是网格 𝒦 中 cost 字典序最小的可行
 //!   格点（这里 cost = 仓位绝对值，约束 = 三个上界，min 即字典序最小可行 qty）。
 //!
@@ -20,7 +20,7 @@
 //! ## 认识论等级
 //!
 //! L0（定义内蕴）：止损价选取规则 / sizing 三路 min 是给定 Θ_risk 参数后的确定函数。
-//! ★诚实：ρ/β/γ/κ/止损规则全是 **Θ_risk 参数**（非缠论可导，RiskProj.lean 核心命题：
+//! ★诚实：ρ/β/γ/κ/止损规则全是 **Θ_risk 参数**（非缠论可导，Origin.RiskProj 核心命题：
 //! 缠论结构不能推出仓位大小）。本模块证「给定这些 Θ_risk 参数后 qty 唯一确定」，不证盈利。
 
 use super::super::config::RiskConfig;
@@ -122,20 +122,20 @@ pub struct SizingInput {
     pub parent_cap: i64,
 }
 
-/// sizing：唯一目标手数 qty（bit-exact 对齐 reference-theta-v0.md:47 + RiskProj.lean）。
+/// sizing：唯一目标手数 qty（bit-exact 对齐 reference-theta-v0.md:47 + Origin.RiskProj）。
 ///
 /// `qty = min(floor(ρ*NAV/(|entry-stop|+κ*cost_per_unit)),
 ///            floor(w_depth*γ*NAV/entry),
 ///            parent_cap)`
 ///
-/// 三路上界（风险投影的三个约束，RiskProj.lean 网格 𝒦 的可行格点上界）：
+/// 三路上界（风险投影的三个约束，Origin.RiskProj 网格 𝒦 的可行格点上界）：
 /// 1. **风险预算**：单声部风险 ρ·NAV 除以每手最大亏损（`|entry-stop| + κ·cost`）——
 ///    保证单声部亏损 ≤ ρ·NAV（spec:45 单声部风险）。
 /// 2. **名义上限**：`w_depth·γ·NAV / entry`——深度资金帽 × 总名义上限 γ 除以入场价
 ///    （spec:42 资金帽 + spec:45 总名义上限 γ）。
 /// 3. **父子约束**：`parent_cap`（父子仓位比 β 投影的上界，spec:45）。
 ///
-/// `qty <= 0 ⟹ 不交易`（返回 0，spec:47）。三路 min 是 RiskProj.lean `riskproj_exists_unique`
+/// `qty <= 0 ⟹ 不交易`（返回 0，spec:47）。三路 min 是 Origin.RiskProj `riskproj_exists_unique`
 /// 的具体实例：三约束下的可行 qty 集合是 {0,1,…,min三上界} 的有限网格，min 是字典序最小
 /// 可行格点上界 = 唯一总仓位（确定选择，无平局）。
 ///
@@ -219,7 +219,7 @@ fn floor_nonneg(x: f64) -> i64 {
 /// β=0.5）。根声部无父，上限 = 全局名义上限（由 sizing 项 2 的 γ 约束，此处返回 i64::MAX
 /// 表示父子约束不生效，留项 2 约束）。
 ///
-/// 边界条件：`parent_qty <= 0`（父空仓）⟹ 子上限 = 0（父无仓则子不开，Fugue.lean `Permit`
+/// 边界条件：`parent_qty <= 0`（父空仓）⟹ 子上限 = 0（父无仓则子不开，Origin.VoiceTree `Permit`
 /// 要求 `q_p > 0`）。
 pub fn parent_cap(parent_qty: i64, config: &RiskConfig) -> i64 {
     if parent_qty <= 0 {

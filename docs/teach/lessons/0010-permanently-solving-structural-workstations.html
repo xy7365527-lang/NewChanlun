@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0010 课 · 结构工位/hooks 能不能永久解决</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* 本课特有：四象限永久化命运表 */
+.quad{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px}
+.quad td,.quad th{border:1px solid var(--rule);padding:9px 11px;vertical-align:top}
+.quad th{background:#f0ebe0}
+.fate-yes{background:#e9f0e9}
+.fate-min{background:#fcf6e8}
+.fate-no{background:#f7ecec}
+.tag{display:inline-block;font:600 11px/1 "SF Mono",monospace;padding:2px 6px;border-radius:3px}
+.tag-yes{background:#cfe0cf;color:#2b5f2b}
+.tag-min{background:#e6d6a8;color:#8a5a00}
+.tag-no{background:#e7c3c3;color:#7a1f1f}
+</style>
+</head>
+<body>
+
+<h1>结构工位/hooks 能不能「永久解决」</h1>
+<p class="sub">第 0010 课 · 承接 <a href="0004a-why-structural-workstations-dont-autostart.html">0004a</a>「为什么不自动」——这一课回答「能不能根治」</p>
+
+<p class="lede">你上一课学了缺口的<strong>形状</strong>（声明=自动，实际=Lead 手动兜底）。
+现在你问得更狠：<strong>能不能一劳永逸？</strong>诚实答案不是 yes 也不是 no，而是：
+<strong>先把「结构能力」切成四格，三格能根治到不同程度，有一格撞上平台硬墙、当前架构里根本做不到。</strong>
+切错了，就会重蹈 075 号的覆辙——把一个做不到的格子，硬说成「已自动化」。这一课给你那把刀。</p>
+
+<h2>1. 缺口比你上次学的更深一层（本轮活体证据）</h2>
+<p>0004a 的结论是：结构工位<strong>不自动启动</strong>，靠 Lead 手动 spawn 兜底。
+这一轮蜂群（14 工位并发）给出了一个更深的事实。三个结构工位——topology-manager、meta-observer、genealogist——
+<strong>各自独立地、在自己的返回里写下了同一句实测</strong>：</p>
+
+<div class="warn">
+<b>结构工位运行时的工具集 = <code>Read</code> / <code>Grep</code> / <code>Glob</code>。<br>
+<code>SendMessage</code>、<code>Write</code>、<code>TaskList</code> —— 逐个验证，全部不可用。</b><br>
+topology-manager 原话：「结构工位（我）实际上<strong>没有任何主动投递通道到达 Lead</strong>……唯一到达你的通道 = 这段最终返回文本。」
+</div>
+
+<p>把这句和 0004a 叠起来，缺口是两层、不是一层：</p>
+<div class="flow">
+<span class="stage">第一层</span> <span class="arrow">（0004a）</span> 工位<b>不自动起</b> —— hook 是 GUARD 不是 LAUNCHER，没人 spawn 它<br>
+<span class="stage">第二层</span> <span class="arrow">（本课）</span> 就算 Lead 手动起了，工位<b>也没有主动汇报的手</b> —— 只能在「跑完那一刻」把结论作为返回值吐出来
+</div>
+<p>第二层是关键。它意味着：<strong>「常驻监控」这个念头本身，在当前架构里是空的。</strong>
+一个工位不能「一边盯着别人干活，一边随时插话提醒 Lead」——它没有插话的工具。
+它只能<strong>跑一趟、产一个结论、结束</strong>。这不是配置问题，是工具集的硬事实。</p>
+
+<h2>2. 根因：一个设计自造的矛盾（075/082 ⊥ 097）</h2>
+<p>为什么会这样？因为蜂群的设计里藏着一对<strong>互相打架的谱系</strong>——这正是你 mission 里要学会识别的「人造矛盾」（换个切法就消失的那种）：</p>
+<table>
+<tr><th>谱系</th><th>它要的</th></tr>
+<tr><td><b>075/082号</b></td><td>结构能力 = 事件驱动，事件一来<strong>自动 spawn</strong> 出结构工位</td></tr>
+<tr><td><b>097号</b><br><span class="src">hook 纯化</span></td><td>hook 的动作语义<strong>只能是阻断/放行</strong>——不索引、不指令、<strong>不 spawn</strong></td></tr>
+</table>
+<p><strong>spawn 一个工位是「主体（Lead）」的能力，不是「子进程（hook）」的能力。</strong>
+075 把「自动 spawn」的活派给了事件机制，而事件机制的物质载体是 hook，
+hook 按 097 又恰恰<strong>不准</strong> spawn。于是 075 委托给 hook 的那个能力，是 097 明令 hook 不能有的能力。
+<strong>委托从一开始就无法兑现</strong>——这就是「hooks 根本没指引你」的存在论根因，不是哪个脚本写漏了。</p>
+
+<div class="key">
+<b>诊断口径：这不是 bug，是 category error。</b>075 把两种不同的「结构能力」当成一种东西，一刀切地全委托给 hook。
+真相是：有的结构能力<strong>是</strong> guard（能 hook 化），有的<strong>必须是</strong> agent（只能 spawn）。混为一谈，才生出这个假矛盾。把它们切开，矛盾就消失——剩下的是各自清楚的工程路径。
+</div>
+
+<h2>3. 那把刀：结构能力的四象限</h2>
+<p>用两个轴切。<b>纵轴</b>：这个能力的动作是<strong>机械可判定</strong>（grep、退出码、字段在不在）还是<strong>需要认知</strong>（要 LLM 读懂内容做判断）？
+<b>横轴</b>：它<strong>跑一趟就完</strong>（batch），还是想<strong>持续盯</strong>（monitor）？</p>
+
+<table class="quad">
+<tr><th></th><th>一次性（跑完返回）</th><th>持续监控（想随时插话）</th></tr>
+<tr>
+  <th>GUARD<br><span class="src">机械可判定</span></th>
+  <td class="fate-yes"><b>① 编译检查 / <code>sorry</code> 扫描 / 六要素字段在不在 / <code>trivial</code> 模式 grep</b><br><span class="tag tag-yes">能根治</span> 实装成真 hook（PostToolUse/Stop），确定性、零 Lead 依赖</td>
+  <td class="fate-yes"><b>① 的连续版</b>：每次写文件就跑一遍<br><span class="tag tag-yes">能根治</span> 同样是 hook——hook 本就是「每次事件触发」，天生持续</td>
+</tr>
+<tr>
+  <th>AGENT<br><span class="src">需认知</span></th>
+  <td class="fate-min"><b>② 谱系发现 / 拓扑建议 / 督导出锋利问题 / 清理方案</b><br><span class="tag tag-min">最小化</span> 必须 spawn；永久化 = ceremony <strong>数据驱动</strong> spawn + 数量校验</td>
+  <td class="fate-no"><b>③ 「常驻盯着所有产出、随时提醒」</b><br><span class="tag tag-no">撞墙</span> 当前 CC 架构<strong>做不到</strong>——见下</td>
+</tr>
+</table>
+
+<h2>4. 每一格的命运（这才是「能不能永久」的真答案）</h2>
+
+<p><b><span class="tag tag-yes">① GUARD 型 → 真能永久。</span></b>
+凡是「机械可判定」的检查，应该<strong>从 AGENT 工位里拿出来，下沉成 hook 脚本</strong>：
+Lean 文件一写就 <code>grep sorry</code>、<code>lake env lean</code> 退出码非零就 <code>exit 2</code> 阻断；
+结果包缺字段就 <code>systemMessage</code> 提醒。这符合 097（动作=放行/阻断），确定性，不靠任何人记得。
+<strong>这一格是真正的「永久解决」</strong>——而且本来就该这么做，现在却塞在 quality-guard/code-verifier 这种 AGENT 工位里，是错配。</p>
+
+<p><b><span class="tag tag-min">② AGENT 一次性 → 不能零成本，但能把不确定性压到最小。</span></b>
+谱系发现、督导、拓扑建议——这些要 LLM 读懂内容，hook 干不了，<strong>只能 spawn</strong>。
+而「只有 Lead 能 spawn」+「teammate 活在 session 内」是 CC 平台硬约束，<strong>消不掉</strong>——
+每个 session 必然有「Lead spawn 这批工位」这一下动作。能做的是把这一下从
+<strong>「Lead 凭记忆」</strong>（会忘，就像这次我一开始就忘了）降级成
+<strong>「ceremony_scan 输出一张工位清单 = 数据，Lead 照单 spawn = 执行」</strong>，
+再让 Stop-Guard 校验「spawn 的数量 = 清单条数」。记忆问题→数据问题，不确定性≈0 但不严格为 0。<strong>（562 号 bootstrap 强制 spawn 已落地这一格——见 §6 更正。）</strong></p>
+
+<p><b><span class="tag tag-no">③ AGENT 持续监控 → 撞 CC 平台硬墙，当前根本做不到。</span></b>
+这是最重要、也最反直觉的一格。「一个常驻工位，盯着 14 个工位干活，谁出问题就立刻提醒 Lead」——
+这个图景在当前 CC 架构里<strong>是幻觉</strong>，两道墙：
+<strong>（a）</strong> 工位没有主动投递通道（本轮实测：无 <code>SendMessage</code>），只能在<strong>自己跑完那一刻</strong>返回一次；
+<strong>（b）</strong> teammate 生命周期 = 一次任务，不是常驻进程。
+所以「持续盯」要么是空转（盯了但说不出话），要么是假的。
+<strong>诚实的工程出路：把③改造成②</strong>——不要「常驻盯」，而是「每个业务工位<em>完成时</em>，回调触发一个一次性审查工位」。
+监控由<strong>事件回调</strong>实现（业务工位 done → spawn 审查），不由<strong>常驻进程</strong>实现。</p>
+
+<div class="warn">
+<b>所以「能不能永久解决」的严格答案：</b>
+①能（hook 化，真永久）；②能压到最小但 CC 约束下不为零（ceremony 数据驱动 + 数量校验）；
+③在当前 CC 架构<strong>不能</strong>，必须重新设计成②（回调触发的一次性审查），否则就是把幻觉说成功能 = 声明膨胀。
+<strong>「永久解决」不是一个工程冲刺能交付的开关，是一次把结构能力切对的概念分离。</strong>
+</div>
+
+<h2>5. 为什么「提醒 Lead 别忘」永远修不好（137号）</h2>
+<p>你可能想：那在 hook 里多塞一句「Lead 记得 spawn 结构工位」不就行了？<strong>不行，而且 137 号早就证了不行。</strong>
+否定性禁令（「别忘了」「不要漏」）对 LLM 的行为执行层<strong>无效</strong>——这次我读了一堆「Lead 要操作化结构工位」的规则，照样一开始就漏了。
+有效的只有<strong>正面格式约束</strong>：不是「提醒别忘」，而是「<code>ceremony_scan</code> 的输出里<strong>就有</strong>结构工位这几条数据，
+Lead 的输出格式<strong>必须</strong>是逐条 spawn，Stop-Guard 数<strong>对不上就拦</strong>」。
+把「靠记得」换成「照数据执行 + 可校验」，才是②那一格能压到最小的全部道理。</p>
+
+<h2>6. 落到根因修复（需要编排者裁，因为它改基因组）</h2>
+<p><strong>重要更正</strong>（genealogist 核实 settled 原文）：075 号<strong>早已被 562 号扬弃</strong>——结构工位本体<strong>已回归 teammate spawn</strong>，
+且 562 用 <strong>bootstrap 强制 spawn</strong> 填上了「② AGENT × 一次性」象限（即上文「ceremony 数据驱动 spawn」的谱系形态）。
+所以四象限里<strong>已有三格有谱系解</strong>（① GUARD→hook、② AGENT 一次性→562、GUARD 持续→hook）。
+真正仍<strong>悬空、需基因组裁定的只剩「③ AGENT × 持续监控」一格</strong>——本轮三工位实测无 <code>SendMessage</code>/<code>Write</code> = CC 平台硬墙，无承载者。
+它的处置——<strong>重设计成「业务 done → 回调 spawn 一次性审查」</strong>，或等平台给持久 agent + 投递通道——
+动谱系结论 + <code>dispatch-dag.yaml</code> + ceremony + Stop-Guard，按原则 0 + 020 号阻断等待，
+<strong>属于你（编排者）的裁定权，蜂群不擅自改</strong>。蜂群的职责到此为止：把假矛盾切开、把唯一悬空格定位准、把方案备好。<strong>采不采纳、怎么改，是你的事。</strong>（谱系：624 记四象限根因 + 562 扬弃链。）</p>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询任何「这个工位在持续监控」声明）</h3>
+<p>「你说这个常驻工位在<strong>持续监控</strong>——它有 <code>SendMessage</code> 吗？运行时 <strong>实测</strong>一下，不是看它定义里写没写。
+如果没有，它只能在<strong>跑完那一刻</strong>说一次话，那它就<strong>不是『持续监控』，是『一次性审查』</strong>。
+要么把『持续』这个词收回，要么告诉我它靠什么<strong>事件回调</strong>被一次次重新拉起。
+给不出回调机制、又没有投递通道，『常驻监控』四个字就是声明膨胀——和『结构工位会自动起』是同一种病。」</p>
+</div>
+
+<p class="next">
+来源（本课全部 grep/实测物证，非转述）：本轮 14 工位并发运行中 topology-manager / meta-observer / genealogist 三工位返回文本<strong>实测</strong> <code>SendMessage/Write/TaskList</code> 不可用（仅 <code>Read/Grep/Glob</code>）；
+<code>.chanlun/dispatch-dag.yaml</code>（<code>platform_support</code>=0，承 0004a）；<code>.claude/hooks/</code>（30 脚本全 GUARD，承 0004a）。
+谱系：<code>075/082</code>（结构能力事件驱动）⊥ <code>097</code>（hook 纯化）；<code>137</code>（否定禁令对行为层无效→正面格式约束）；<code>621</code>（结构工位自动化缺口·task-notification 承重）；<code>622</code>（本轮新立·worktree LFS + 自指工具有效域）。<br>
+「GUARD/AGENT × 一次性/持续」这把四象限刀是<strong>候选概念分离</strong>，待编排者裁定是否采纳去修 075/082。任何一格的命运判定若发虚，喊停，坐实再走。有不清楚的随时追问我（我是你的老师）。
+</p>
+
+</body>
+</html>

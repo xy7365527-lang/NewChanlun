@@ -1,14 +1,16 @@
 //! 递归级别构造 + 走势裁决（reference-theta-v0.md:29-30）。
 //!
-//! ## bit-exact 对齐 `Formal/RecursiveConstruction.lean` + `Formal/CenterTrichotomy.lean`
+//! ## 契约重锚（legacy Formal/RecursiveConstruction + CenterTrichotomy →
+//! `Origin.TrendCompleteClassification` + `Origin.RecursiveLevelSystem`）
 //!
-//! - 走势裁决 ↔ `classifyMove`：0 中枢 → `HigherCenterCandidate`；1 中枢 → `Consolidation`；
-//!   ≥2 中枢全链上涨延续 → `Trend(Up)`；全链下跌延续 → `Trend(Down)`；非全链一致 →
-//!   `HigherCenterCandidate`（本级终结，交父级）。
-//! - 全链同向 ↔ `allAdjacent`：所有相邻中枢的 `classify_relation` 都等于目标关系。
-//! - `MoveOutcome → MoveKind` 桥接 ↔ `Strict/Trend.lean` `outcomeToKind`：
-//!   trend up/down → upTrend/downTrend；consolidation → consolidation；
-//!   higherCenterCandidate → none（裁决退化，不落 {趋势,盘整}）。
+//! - 走势裁决 ↔ `Origin.TrendCompleteClassification.{TrendClass,chooseTrend}`：0 中枢 →
+//!   `HigherCenterCandidate`（unfinished）；1 中枢 → `Consolidation`；≥2 中枢全链上涨延续 →
+//!   `Trend(Up)`（trendUp）；全链下跌延续 → `Trend(Down)`（trendDown）；非全链一致 →
+//!   `HigherCenterCandidate`（本级终结，交父级）。`chooseTrend complete hasTwoCenters up` 逐分支对齐。
+//! - 全链同向 ↔ `allAdjacent`：所有相邻中枢的 `classify_relation`（`Origin.CenterStates` 外缘判据）
+//!   都等于目标关系。
+//! - `MoveOutcome → MoveKind` 桥接 ↔ `Origin.ChanlunElements.MoveKind`（consolidation/trendUp/trendDown）：
+//!   trend up/down → Trend；consolidation → Consolidation；higherCenterCandidate → none（裁决退化）。
 //!
 //! ## 递归级别（reference-theta-v0.md:29-30）
 //!
@@ -17,14 +19,14 @@
 //!
 //! ## 认识论（formalization-validity-domain）
 //!
-//! 全部 L0：走势裁决是 `classifyMove` 的纯函数镜像，不依赖经验数据。级别终止判据是
+//! 全部 L0：走势裁决是 `Origin.TrendCompleteClassification.chooseTrend` 的纯函数镜像，不依赖经验数据。级别终止判据是
 //! reference-theta-v0.md:30 `[设计选择]`（min_parts_per_level/l_max 进 config）。
 
 use super::super::types::{Direction, MoveKind};
 use super::center::{classify_relation, CenterRelation};
 use super::super::types::Center;
 
-/// 走势裁决结果（reference-theta-v0.md:29；`CenterTrichotomy.MoveOutcome`）。
+/// 走势裁决结果（契约锚 `Origin.TrendCompleteClassification.TrendClass`）。
 ///
 /// 比 `types::MoveKind` 严格更细——含方向 + `HigherCenterCandidate`（裁决退化态：
 /// 0 中枢 / 级别扩张 / 中枢非依次同向 = 本级终结，交父级重分类）。`MoveKind` 是
@@ -39,20 +41,20 @@ pub enum MoveOutcome {
     HigherCenterCandidate,
 }
 
-/// 全链同向判定（reference-theta-v0.md:29；`allAdjacent`）。
+/// 全链同向判定（契约锚 `Origin.CenterStates` 外缘趋势判据的全链推广）。
 ///
 /// 中枢序列中**每对相邻中枢**的 `classify_relation` 都等于 `rel`。趋势要求全链同向
 /// （非仅首两个）——`[up,up,expansion]` 或 `[up,down]` 不是趋势（mixed → 交父级）。
 fn all_adjacent(rel: CenterRelation, centers: &[Center]) -> bool {
-    // 空链 / 单中枢：无相邻对，平凡 true（与 Lean `allAdjacent [] = true`/`[_] = true` 一致）。
+    // 空链 / 单中枢：无相邻对，平凡 true（空 windows 的 all 平凡真，与全链同向定义一致）。
     centers
         .windows(2)
         .all(|w| classify_relation(&w[0], &w[1]) == rel)
 }
 
-/// 走势裁决（reference-theta-v0.md:29；`classifyMove`，全链一致）。
+/// 走势裁决（契约锚 `Origin.TrendCompleteClassification.chooseTrend`，全链一致）。
 ///
-/// 逐字对齐 Lean `classifyMove`：
+/// 逐分支对齐 `Origin.TrendCompleteClassification.chooseTrend complete hasTwoCenters up`：
 /// - 0 中枢 → `HigherCenterCandidate`（**非盘整**——完成走势必含 ≥1 中枢，0 中枢归退化）。
 /// - 1 中枢 → `Consolidation`（盘整定义）。
 /// - ≥2 中枢全链上涨延续 → `Trend(Up)`；全链下跌延续 → `Trend(Down)`。
@@ -73,7 +75,7 @@ pub fn classify_move(centers: &[Center]) -> MoveOutcome {
     }
 }
 
-/// `MoveOutcome → Option<MoveKind>` 桥接（reference-theta-v0.md:29；`outcomeToKind`）。
+/// `MoveOutcome → Option<MoveKind>` 桥接（契约锚 `Origin.ChanlunElements.MoveKind`）。
 ///
 /// trend up/down/consolidation → `Some(MoveKind)`；`HigherCenterCandidate` → `None`
 /// （裁决退化不落 {趋势,盘整}——其分类归状态层，不是已完成走势结果）。
@@ -96,7 +98,7 @@ mod tests {
         Center { zd, zg, dd, gg, start_index: 0, end_index: 0 }
     }
 
-    /// 真链中枢（对齐 Trend.lean c0/c1/c2：外缘依次上移 [0,3]/[4,7]/[8,11]）。
+    /// 真链中枢（对齐 Origin 外缘依次上移见证 c0/c1/c2：[0,3]/[4,7]/[8,11]）。
     fn c0() -> Center { center(0, 1, 2, 3) }
     fn c1() -> Center { center(4, 5, 6, 7) }
     fn c2() -> Center { center(8, 9, 10, 11) }

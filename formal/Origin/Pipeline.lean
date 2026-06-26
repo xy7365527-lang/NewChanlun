@@ -42,7 +42,8 @@ Origin/Pipeline.lean — S_Θ 端到端单管线（proven chain）：raw → seg
   严格处理（非补丁）：管线**不**伪造从薄 `Bsp` 反推厚判据数据的桥（那需 ParseStruct 全程留存
   每端点的中枢关系 + 背驰，是 still-MISSING-D′ 上游接口，#113/#116 已诚实标）。本文件的端到端管线
   让**完整判据数据从 raw 输入的 `candidates : List BspCandidate` 直接流入事件流**（每个候选端点
-  携 `BspEndpoint` 完整判据 + 一个中枢发展对组成 `ChanlunEvent`），`recogChanlun` 真消费这些判据；
+  携 `BspEndpoint` 完整判据 + 一个**自动相邻中枢发展对**（#130 CenterAutoAssign，非手工占位）组成
+  `ChanlunEvent`），`recogChanlun` 真消费这些判据；
   而 `bspOf candidates` 是**同一候选流上的分类观测侧信道**（产出 canonical 分类标签 `List Bsp`）。
   二者同源（同一 `candidates`）但承载不同信息：构造层产 canonical 分类标签，闭环链消费完整判据。
   这是 raw → bspOf 与 raw → recog→ledger 的**双投影同源**结构，不是薄→厚的伪造桥。
@@ -63,13 +64,16 @@ omega/rfl/induction machine-checked，不依赖数据）。`lake env lean Origin
     但真实 force（从次级别走势段动态计算的力度值）待 L2 数据接入（still-MISSING-force-L2）。
   - **薄→厚判据桥**：从 canonical `Bsp` 反推完整判据（divPair/中枢关系）未做——是 still-MISSING-D′
     上游接口（#113/#116 已标），本管线用双投影同源结构绕过伪造，不冒充该桥已成。
-  - **第二类次级别递归** / **bspOf/centersOf 全自动从 ParseStruct 提取每端点判据** / **TW 端双账本**：
+  - **中枢发展对端点索引精确对齐**（#130 自动读出已接，精确对齐残留 still-MISSING-align）：发展对
+    已从 centersOf 输出自动读出（消手工占位），但端点 ↔ 发展对的精确索引对齐用 zip 截断（端点 k
+    配第 k 个相邻发展对）；精确对齐继承 CenterAutoAssign endpointAlignMissing（#113/#116 still-open）。
+  - **第二类本级别判据真下钻** / **bspOf/centersOf 全自动从 ParseStruct 提取每端点判据** / **TW 端双账本**：
     继承各构造层 still-MISSING（#116/#117/#121），本管线不冒充已接。
 
 禁 sorry/admit/axiom。纯 Prop/Type，不依赖 Mathlib。**不编辑 lakefile**（报 Lead 登记 root
 `Origin.Pipeline`）。
 依赖方向（单向无环，全 committed 只读）：Pipeline → {SegmentConstruction, CenterConstruction,
-  BspConstruction, ThetaInstantiation, FullDefinitionStrategy}（均 Origin 内 committed + 已登记 root）。
+  BspConstruction, ThetaInstantiation, FullDefinitionStrategy, CenterAutoAssign}（均 Origin 内 committed + 已登记 root）。
 ★**不** import #122 在改的 SegmentFeatureComplete / #124 的 ForceInterface（避冲突；用构造层不用判据层完整版）。
 ★**不** import 未 committed 的 SellClosedLoop（git 未跟踪 + 未登记 root）——闭环用 committed 买侧
   ThetaInstantiation.chanlunTransition（已登记），卖侧对偶继承自买侧管线结构（卖侧 ledger 闭环待
@@ -86,6 +90,7 @@ import Origin.CenterConstruction
 import Origin.BspConstruction
 import Origin.ThetaInstantiation
 import Origin.FullDefinitionStrategy
+import Origin.CenterAutoAssign
 
 namespace NewChanlun.Origin.Pipeline
 
@@ -149,21 +154,29 @@ def pipelineBsp (inp : OriginInput) : List Bsp :=
   ════════════════════════════════════════════════════════════════════════ -/
 
 /--
-  ★候选端点 + 中枢发展对 → 事件 `candidateToEvent`（L0）：把一个候选端点 `BspCandidate`（携完整
-  判据数据 `BspEndpoint`）配一个中枢发展对（prev/next，从构造链中枢流读出——本骨架用同一占位
-  发展对，完整版从相邻 CenterFull 对读出，见 still-MISSING）组装为 `ChanlunEvent`。
+  ★候选端点 + 相邻中枢发展对 → 事件 `candidateToEvent`（L0，#130 接线后）：把一个候选端点
+  `BspCandidate`（携完整判据数据 `BspEndpoint`）配一个**相邻中枢发展对** `(prev, next)`
+  （prev/next 各为 `CenterWithOuter`，从 §1 构造链中枢流 `autoEventDevPairs` 自动读出——
+  不再共用同一手工占位 dev）组装为 `ChanlunEvent`。
   ★完整判据数据（divPair/brokeCenter/leftCenter/retracePrice）从 candidate 的 endpoint 直接流入——
   recogChanlun 真消费这些字段（非从薄 Bsp 伪造）。
+  ★#130 消手工占位：prev/next 不再是同一外部传入 dev，而是相邻 CenterFull 对的 toOuter 投影
+  （CenterAutoAssign.autoEventDevPairs 自动产出），发展对来源 = 构造链中枢流。
 -/
-def candidateToEvent (c : BspCandidate) (dev : CenterWithOuter) : ChanlunEvent :=
-  { bsp := c.endpoint, prevCenter := dev, nextCenter := dev }
+def candidateToEvent (c : BspCandidate) (prev next : CenterWithOuter) : ChanlunEvent :=
+  { bsp := c.endpoint, prevCenter := prev, nextCenter := next }
 
 /--
-  ★事件流 `pipelineEvents`（L0）：候选端点流 + 一个中枢发展对 → 事件流。
-  每个候选端点配同一发展对（骨架；完整版逐端点配相邻中枢对，still-MISSING）。
+  ★事件流 `pipelineEvents`（L0，#130 接线后）：候选端点流 + **自动相邻发展对串** → 事件流。
+  用 `List.zip cands devs` 把每个候选端点配其对应的相邻中枢发展对（端点 k 配第 k 个相邻发展对——
+  zip 截断对齐，端点到发展对的精确索引对齐是 still-MISSING-align，见 CenterAutoAssign §8）。
+  ★`devs : List (CenterWithOuter × CenterWithOuter)` 由 `autoEventDevPairs (pipelineSegments inp)`
+  自动产出（不再手工传入同一 dev）。事件数 = min(候选数, 相邻发展对数)——发展对不足时 zip 截断
+  （诚实：无相邻中枢对的候选无对应事件，不伪造占位发展对）。
 -/
-def pipelineEvents (cands : List BspCandidate) (dev : CenterWithOuter) : List ChanlunEvent :=
-  cands.map (fun c => candidateToEvent c dev)
+def pipelineEvents (cands : List BspCandidate)
+    (devs : List (CenterWithOuter × CenterWithOuter)) : List ChanlunEvent :=
+  (cands.zip devs).map (fun cd => candidateToEvent cd.1 cd.2.1 cd.2.2)
 
 /--
   ★闭环 fold `chanlunTransitionFold`（L0，闭环链核心）：在初始账户态上用 #117 committed
@@ -174,11 +187,13 @@ def chanlunTransitionFold (z0 : ChanlunAccount) (events : List ChanlunEvent) : C
   events.foldl chanlunTransition z0
 
 /--
-  ★闭环链·末态账户 `pipelineAccount`（L0）：`OriginInput + 发展对 → 末态账户`（= fold ∘ 事件流）。
-  端到端闭环：account0 + candidates 事件流 ──recog→ledger fold──▶ 末态账户。
+  ★闭环链·末态账户 `pipelineAccount`（L0，#130 接线后）：`OriginInput → 末态账户`（= fold ∘ 事件流）。
+  端到端闭环：account0 + (candidates zip 自动发展对) 事件流 ──recog→ledger fold──▶ 末态账户。
+  ★发展对来源 = `autoEventDevPairs (pipelineSegments inp)`（从构造链中枢流自动读出，消手工占位）。
 -/
-def pipelineAccount (inp : OriginInput) (dev : CenterWithOuter) : ChanlunAccount :=
-  chanlunTransitionFold inp.account0 (pipelineEvents inp.candidates dev)
+def pipelineAccount (inp : OriginInput) : ChanlunAccount :=
+  chanlunTransitionFold inp.account0
+    (pipelineEvents inp.candidates (autoEventDevPairs (pipelineSegments inp)))
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §3 端到端管线（整链复合）：OriginInput → OriginParse
@@ -198,25 +213,26 @@ structure OriginParse where
   account : ChanlunAccount
 
 /--
-  ★★端到端单管线 `originPipeline`（task #125，本文件核心交付）：
-  `OriginInput → CenterWithOuter → OriginParse`——把 committed 构造层 + 买侧闭环 compose 成一条链。
+  ★★端到端单管线 `originPipeline`（task #125，#130 接线后核心交付）：
+  `OriginInput → OriginParse`——把 committed 构造层 + 买侧闭环 compose 成一条链。
 
   整链复合（raw → segmentsOf → centersOf → bspOf → recog→ledger）：
   - segments := segmentsOf strokes              （§1 构造链）
   - centers  := centersOf (segmentsOf strokes)  （§1 构造链，类型逐段对接）
   - bsp      := bspOf candidates                （§1 构造链，canonical 分类标签）
-  - account  := chanlunTransitionFold account0 (events candidates)  （§2 闭环链，R=Π-A-W 贯穿）
+  - account  := fold account0 (candidates zip autoEventDevPairs)  （§2 闭环链，R=Π-A-W 贯穿）
 
-  ★这是审计 B「端到端单 wiring 未做」的直接消解：一条 proven 管线，类型对接 well-defined（§3.1）+
-  total（§3.2）+ 确定性（§3.3）+ 闭环不变量贯穿（§3.4）。
-  ★`dev` 参数（中枢发展对）显式接收——完整版从构造链 centers 相邻对读出（still-MISSING），
-  本骨架显式传入使管线 well-defined（诚实：发展对来源待构造链中枢流接入）。
+  ★这是审计 B「端到端单 wiring 未做」+ #130「中枢自动分配」的直接消解：一条 proven 管线，
+  类型对接 well-defined（§3.1）+ total（§3.2）+ 确定性（§3.3）+ 闭环不变量贯穿（§3.4）。
+  ★#130 消手工 dev 占位：原显式 `dev` 参数已删除——发展对从 `autoEventDevPairs (pipelineSegments
+  inp)`（构造链中枢流的相邻 CenterFull 对 toOuter 投影）自动读出。管线现是 `OriginInput → OriginParse`
+  的纯全函数（无外部发展对参数）。
 -/
-def originPipeline (inp : OriginInput) (dev : CenterWithOuter) : OriginParse :=
+def originPipeline (inp : OriginInput) : OriginParse :=
   { segments := pipelineSegments inp
     centers := pipelineCenters inp
     bsp := pipelineBsp inp
-    account := pipelineAccount inp dev }
+    account := pipelineAccount inp }
 
 /-! ─────────────────────────────────────────────────────────────────────────
     § 3.1 整链类型对接 well-defined（各段输出类型 = 下段输入类型）
@@ -228,24 +244,25 @@ def originPipeline (inp : OriginInput) (dev : CenterWithOuter) : OriginParse :=
   本定理把「类型对接」显式化为可观测等式：管线的 centers 段 = centersOf 直接作用于 segments 段的输出。
   （Lean 接受 `originPipeline` 的定义即坐实全链类型检查通过；本定理是对接的可观测见证。）
 -/
-theorem chain_segments_feed_centers (inp : OriginInput) (dev : CenterWithOuter) :
-    (originPipeline inp dev).centers = centersOf (originPipeline inp dev).segments := by
+theorem chain_segments_feed_centers (inp : OriginInput) :
+    (originPipeline inp).centers = centersOf (originPipeline inp).segments := by
   rfl
 
 /--
   ★整链 bsp 段对接（L0，§3.1）——管线的 bsp 段 = bspOf 作用于输入候选流（candidates → bspOf 对接）。
 -/
-theorem chain_candidates_feed_bsp (inp : OriginInput) (dev : CenterWithOuter) :
-    (originPipeline inp dev).bsp = bspOf inp.candidates := by
+theorem chain_candidates_feed_bsp (inp : OriginInput) :
+    (originPipeline inp).bsp = bspOf inp.candidates := by
   rfl
 
 /--
-  ★整链 account 段对接（L0，§3.1）——管线的 account 段 = 闭环 fold 作用于初始账户 + 候选事件流
-  （candidates → events → recog→ledger fold 对接）。
+  ★整链 account 段对接（L0，§3.1，#130 接线后）——管线的 account 段 = 闭环 fold 作用于初始账户 +
+  候选事件流（candidates zip 自动发展对 → events → recog→ledger fold 对接）。
 -/
-theorem chain_events_feed_ledger (inp : OriginInput) (dev : CenterWithOuter) :
-    (originPipeline inp dev).account =
-      chanlunTransitionFold inp.account0 (pipelineEvents inp.candidates dev) := by
+theorem chain_events_feed_ledger (inp : OriginInput) :
+    (originPipeline inp).account =
+      chanlunTransitionFold inp.account0
+        (pipelineEvents inp.candidates (autoEventDevPairs (pipelineSegments inp))) := by
   rfl
 
 /-! ─────────────────────────────────────────────────────────────────────────
@@ -253,13 +270,13 @@ theorem chain_events_feed_ledger (inp : OriginInput) (dev : CenterWithOuter) :
     ───────────────────────────────────────────────────────────────────────── -/
 
 /--
-  ★端到端 total（L0，§3.2）——`originPipeline` 对任意 (输入, 发展对) 返回（纯全函数，不发散）。
-  这是构造链各段 total（segmentsOf_total/centersOf_total/bspOf_total，#116 committed）+ 闭环 fold
-  在有限事件流上 total 的复合：整链在输入全域有定义。
+  ★端到端 total（L0，§3.2，#130 接线后）——`originPipeline` 对任意输入返回（纯全函数，不发散）。
+  这是构造链各段 total（segmentsOf_total/centersOf_total/bspOf_total，#116 committed）+ 自动发展对
+  （autoEventDevPairs，#130）+ 闭环 fold 在有限事件流上 total 的复合：整链在输入全域有定义。
 -/
 theorem pipeline_total :
-    Total (fun (p : OriginInput × CenterWithOuter) out => originPipeline p.1 p.2 = out) := by
-  intro p; exact ⟨originPipeline p.1 p.2, rfl⟩
+    Total (fun (inp : OriginInput) out => originPipeline inp = out) := by
+  intro inp; exact ⟨originPipeline inp, rfl⟩
 
 /--
   ★闭环 fold total（L0）——chanlunTransitionFold 对任意 (初始态, 事件流) 返回（有限 fold 全函数）。
@@ -273,20 +290,20 @@ theorem fold_total :
     ───────────────────────────────────────────────────────────────────────── -/
 
 /--
-  ★★端到端确定性 `pipeline_total_unique`（L0，§3.3，本文件核心）——给定 (输入, 发展对)，
+  ★★端到端确定性 `pipeline_total_unique`（L0，§3.3，本文件核心，#130 接线后）——给定输入，
   `originPipeline` 输出唯一确定。整链是纯全函数复合 ⟹ 输出由输入唯一确定。
-  这复用各段 total_unique（segmentsOf/centersOf/bspOf 的 #116 committed 唯一性 + 闭环 fold 的纯函数性）
-  导出的整链确定性——同输入同发展对必同产出。
+  这复用各段 total_unique（segmentsOf/centersOf/bspOf 的 #116 committed 唯一性 + 自动发展对
+  autoEventDevPairs 唯一性 #130 + 闭环 fold 的纯函数性）导出的整链确定性——同输入必同产出。
 -/
 theorem pipeline_total_unique :
-    TotalUnique (fun (p : OriginInput × CenterWithOuter) out => originPipeline p.1 p.2 = out) :=
-  total_unique_of_fun (fun p : OriginInput × CenterWithOuter => originPipeline p.1 p.2)
+    TotalUnique (fun (inp : OriginInput) out => originPipeline inp = out) :=
+  total_unique_of_fun (fun inp : OriginInput => originPipeline inp)
 
 /--
-  ★端到端单值性（L0，§3.3）——同一 (输入, 发展对) 不产生两个不同产出（确定性）。
+  ★端到端单值性（L0，§3.3）——同一输入不产生两个不同产出（确定性）。
 -/
 theorem pipeline_single_valued :
-    SingleValued (fun (p : OriginInput × CenterWithOuter) out => originPipeline p.1 p.2 = out) :=
+    SingleValued (fun (inp : OriginInput) out => originPipeline inp = out) :=
   (total_and_single_of_total_unique pipeline_total_unique).2
 
 /--
@@ -334,20 +351,25 @@ theorem fold_preserves_inv (z0 : ChanlunAccount) (events : List ChanlunEvent) :
   exact (chanlunTransitionFold z0 events).ledger.inv
 
 /--
-  ★★★端到端管线闭环不变量贯穿 `pipeline_preserves_ledger_inv`（L0，§3.4，task #125 核心交付）——
-  整管线产出的末态账户 `(originPipeline inp dev).account` 满足 R=Π-A-W。
+  ★★★端到端管线闭环不变量贯穿 `pipeline_preserves_ledger_inv`（L0，§3.4，task #125/#130 核心交付）——
+  整管线产出的末态账户 `(originPipeline inp).account` 满足 R=Π-A-W。
 
   ★这是「闭环不变量贯穿（R=Π-A-W 从入到出保持）」的端到端兑现：raw 输入 account0（携 R=Π-A-W）
   经整条 recog→ledger fold 链后，末态账户仍满足 R=Π-A-W——不变量从管线**入口**贯穿到**出口**。
   由 `fold_preserves_inv` 直接给出（管线 account 段 = 闭环 fold，§3.1 chain_events_feed_ledger）。
+  ★#130 重证：ledger inv 是 LedgerState 结构内蕴字段（每个账户态自带 R=Π-A-W），与发展对来源
+  无关——发展对从手工占位改为 `autoEventDevPairs` 自动串后，fold 的每个中间/末态账户仍各自携
+  inv，故贯穿成立。重证只随 chain_events_feed_ledger 的事件流来源改写（手工 dev → 自动发展对），
+  证明结构（fold_preserves_inv 取末态 ledger.inv）不变。
 -/
-theorem pipeline_preserves_ledger_inv (inp : OriginInput) (dev : CenterWithOuter) :
-    (originPipeline inp dev).account.ledger.R =
-      (originPipeline inp dev).account.ledger.Pi
-        - (originPipeline inp dev).account.ledger.A
-        - (originPipeline inp dev).account.ledger.W := by
-  rw [chain_events_feed_ledger inp dev]
-  exact fold_preserves_inv inp.account0 (pipelineEvents inp.candidates dev)
+theorem pipeline_preserves_ledger_inv (inp : OriginInput) :
+    (originPipeline inp).account.ledger.R =
+      (originPipeline inp).account.ledger.Pi
+        - (originPipeline inp).account.ledger.A
+        - (originPipeline inp).account.ledger.W := by
+  rw [chain_events_feed_ledger inp]
+  exact fold_preserves_inv inp.account0
+    (pipelineEvents inp.candidates (autoEventDevPairs (pipelineSegments inp)))
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §4 双投影同源一致性：bspOf 分类标签 ↔ recog 应对决策（坐实非伪造桥）
@@ -366,33 +388,31 @@ def classifyOne (c : BspCandidate) : Option Bsp := classifyEndpoint c
 /--
   ★★双投影同源一致性 `pipeline_bsp_recog_coherent`（L0，§4）——对一个第一类买点候选端点：
   - 构造层侧：`classifyEndpoint` 标为 `type1`（canonical 分类标签）。
-  - 闭环链侧：`recogChanlun`（同端点配任意发展对）给 `openRoot`（第一类建根仓应对决策）。
+  - 闭环链侧：`recogChanlun`（同端点配**任意相邻发展对** prev/next）给 `openRoot`（第一类建根仓决策）。
   两侧由**同一端点**的同一判据（IsType1）驱动 ⟹ 分类标签与应对决策一致（type1 ↔ openRoot）。
+  ★recog 决策只依赖端点判据（IsType1），与发展对 prev/next 无关——故 #130 自动发展对接入后一致性不变。
 
   ★这坐实双投影同源（非伪造桥）：bspOf 的 canonical 标签侧信道与 recog→ledger 的应对决策同源
   自同一候选端点的真判据，二者一致——不是从薄 Bsp 反推厚判据，而是同一厚端点的两个投影。
 -/
-theorem pipeline_bsp_recog_coherent (c : BspCandidate) (dev : CenterWithOuter)
+theorem pipeline_bsp_recog_coherent (c : BspCandidate) (prev next : CenterWithOuter)
     (h : IsType1 c.endpoint) :
     (∃ b, classifyEndpoint c = some b ∧ b.kind = BspKind.type1) ∧
-    recogChanlun (candidateToEvent c dev) = ChanlunDecision.openRoot := by
+    recogChanlun (candidateToEvent c prev next) = ChanlunDecision.openRoot := by
   constructor
   · -- 构造层侧：IsType1 ⟹ classifyEndpoint 标 type1。
     refine ⟨{ kind := BspKind.type1, side := c.endpoint.side, index := c.index, price := c.price },
             ?_, rfl⟩
     unfold classifyEndpoint
     rw [if_pos h]
-  · -- 闭环链侧：candidateToEvent 的 bsp = c.endpoint，IsType1 ⟹ recog 给 openRoot。
-    have hev : (candidateToEvent c dev).bsp = c.endpoint := rfl
-    have h' : IsType1 (candidateToEvent c dev).bsp := by rw [hev]; exact h
-    exact recog_type1_openRoot (candidateToEvent c dev) h'
+  · -- 闭环链侧：candidateToEvent 的 bsp = c.endpoint（与 prev/next 无关），IsType1 ⟹ recog 给 openRoot。
+    have hev : (candidateToEvent c prev next).bsp = c.endpoint := rfl
+    have h' : IsType1 (candidateToEvent c prev next).bsp := by rw [hev]; exact h
+    exact recog_type1_openRoot (candidateToEvent c prev next) h'
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §5 端到端计算见证（反退化：具体输入 → 具体产出，整链真跑通）
   ════════════════════════════════════════════════════════════════════════ -/
-
-/-- 任意占位发展对（见证用 + §3.1 类型对接定理用，从 #117 committed witnessOuter 取）。 -/
-def arbitraryDev : CenterWithOuter := ThetaInstantiation.witnessOuter
 
 /-- 具体端到端输入：三根笔（#116 sampleStrokes）+ 一个第一类买点候选 + 零余额初始账户。 -/
 def sampleInput : OriginInput :=
@@ -402,41 +422,118 @@ def sampleInput : OriginInput :=
 
 /-- ★反退化见证：端到端管线在 sampleInput 上产出非空线段序列（构造链真跑通）。 -/
 theorem witness_pipeline_segments_nonempty :
-    (originPipeline sampleInput arbitraryDev).segments ≠ [] := by
+    (originPipeline sampleInput).segments ≠ [] := by
   show segmentsOf sampleStrokes ≠ []
   exact witness_segmentsOf_nonempty
 
 /-- ★反退化见证：端到端管线在 sampleInput 上识别出恰一个买卖点（构造链 bspOf 真跑通）。 -/
 theorem witness_pipeline_bsp_one :
-    ((originPipeline sampleInput arbitraryDev).bsp).length = 1 := by
+    ((originPipeline sampleInput).bsp).length = 1 := by
   show (bspOf [{ endpoint := sampleType1, index := 3, price := 5 }]).length = 1
   exact witness_bspOf_single
 
-/-- ★反退化见证：端到端管线在 sampleInput 上的末态账户 A 分量 = 0 + 1 = 1（第一类建根仓，闭环真改 ledger）。 -/
-theorem witness_pipeline_account_allocates :
-    (originPipeline sampleInput arbitraryDev).account.ledger.A = 1 := by
-  show (chanlunTransitionFold (sampleInput.account0)
-         (pipelineEvents sampleInput.candidates arbitraryDev)).ledger.A = 1
-  -- 单事件 fold：account0.A=0 → 第一类建根仓 A+=1 → 1。
-  unfold chanlunTransitionFold pipelineEvents sampleInput
-  simp only [List.map_cons, List.map_nil, List.foldl_cons, List.foldl_nil]
-  -- 该候选端点是第一类买点 ⟹ 闭环转移后 A = 初始 A + 1。初始账户 mkLedger 0 0 0 的 A = 0。
-  have hev : IsType1
-      (candidateToEvent { endpoint := sampleType1, index := 3, price := (5 : Tick) } arbitraryDev).bsp :=
-    witness_type1
-  have hstep := chanlunTransition_type1_allocates { ledger := mkLedger 0 0 0 }
-    (candidateToEvent { endpoint := sampleType1, index := 3, price := (5 : Tick) } arbitraryDev) hev
-  rw [hstep]
-  simp only [mkLedger]
-  decide
+/--
+  ★辅助（L0）：中枢序列对短线段列（≤ 2 段）为空——centersOf 需 ≥ 3 段才能形成中枢，
+  其 [] / [_] / [_,_] 三个基底分支均返 []。结构 cases，机器验。
+-/
+theorem centersOf_nil_of_short (l : List Segment) (hl : l.length ≤ 2) : centersOf l = [] := by
+  match l with
+  | [] => rw [centersOf.eq_def]
+  | [_] => rw [centersOf.eq_def]
+  | [_, _] => rw [centersOf.eq_def]
+  | _ :: _ :: _ :: _ => simp only [List.length_cons] at hl; omega
 
-/-- ★反退化见证：端到端管线末态账户保 R=Π-A-W（闭环不变量贯穿，具体实例）。 -/
+/--
+  ★辅助（L0）：segmentsOf 对单笔列长度 = 1（消费 1 根笔切一段，余 [] 递归 []）。
+-/
+theorem segmentsOf_singleton_len (s : Stroke) : (segmentsOf [s]).length = 1 := by
+  rw [segmentsOf.eq_def]
+  simp only [nextSegmentEnd]
+  rw [show (List.drop 1 [s]) = [] from rfl, segmentsOf.eq_def]
+  rfl
+
+/--
+  ★辅助（L0）：sampleStrokes 经 segmentsOf 产出长度 = 2 的线段列（消费 2 根切第一段，余单笔切第二段）。
+  nextSegmentEnd sampleStrokes = 2（机器算）⟹ 第一段消费前两笔，drop 2 = 单笔列 ⟹ 递归长度 1 ⟹ 总长 2。
+-/
+theorem segmentsOf_sample_len : (segmentsOf sampleStrokes).length = 2 := by
+  rw [segmentsOf.eq_def]
+  have hk : nextSegmentEnd sampleStrokes = 2 := by decide
+  simp only [sampleStrokes] at *
+  rw [hk]
+  rw [show (List.drop 2 [({ direction := Direction.up, startIndex := 0, endIndex := 1, startPrice := 10, endPrice := 20 } : Stroke),
+        { direction := Direction.down, startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 15 },
+        { direction := Direction.up, startIndex := 2, endIndex := 3, startPrice := 15, endPrice := 25 }])
+      = [({ direction := Direction.up, startIndex := 2, endIndex := 3, startPrice := 15, endPrice := 25 } : Stroke)] from rfl]
+  rw [List.length_cons, segmentsOf_singleton_len]
+
+/--
+  ★★#130 接线后诚实见证：sampleInput 的笔流经 segmentsOf→centersOf 产出 **0 个中枢**
+  （线段列长 2 < 3，无中枢可成）。由 centersOf_nil_of_short + segmentsOf_sample_len 给出。
+-/
+theorem witness_pipeline_centers_empty :
+    centersOf (segmentsOf sampleStrokes) = [] :=
+  centersOf_nil_of_short _ (by rw [segmentsOf_sample_len]; exact Nat.le_refl 2)
+
+/--
+  ★★#130 接线后诚实见证：sampleInput 的自动相邻发展对串为空（笔流产 0 中枢 ⟹ 无相邻对）。
+
+  ★这是手工 dev 占位移除后**暴露的结构真相**：原手工 dev 占位（对每端点强塞一个 witnessOuter）
+  掩盖了「该样本笔流无中枢发展对」的事实；#130 自动分配按 centersOf 输出真实读出发展对——
+  无相邻中枢对 ⟹ 无发展对 ⟹ 闭环无事件可 fold。不伪造占位发展对（no-workaround）。
+-/
+theorem witness_pipeline_auto_devs_empty :
+    autoEventDevPairs (pipelineSegments sampleInput) = [] := by
+  show autoEventDevPairs (segmentsOf sampleStrokes) = []
+  unfold autoEventDevPairs autoDevPairsOfCenters
+  -- centersOf (segmentsOf sampleStrokes) = []（笔流产 0 中枢，witness）⟹ adjacentCenterPairs [] = [] ⟹ map [] = []
+  rw [witness_pipeline_centers_empty]
+  rfl
+
+/--
+  ★★#130 接线后诚实见证：闭环事件流为空（候选数 1 zip 自动发展对数 0 = 空 zip）。
+  发展对不足 ⟹ zip 截断 ⟹ 无事件——诚实反映「无相邻中枢对的候选无对应闭环事件」。
+-/
+theorem witness_pipeline_events_empty :
+    pipelineEvents sampleInput.candidates (autoEventDevPairs (pipelineSegments sampleInput)) = [] := by
+  rw [witness_pipeline_auto_devs_empty]
+  -- zip 任意列表与 [] = []，map [] = []。
+  unfold pipelineEvents
+  rw [List.zip_nil_right]
+  rfl
+
+/--
+  ★★#130 接线后诚实见证：sampleInput 上末态账户 = 初始账户（A 分量保持 0）。
+
+  ★这是手工占位移除后的**真实端到端行为**：自动发展对为空（witness_pipeline_auto_devs_empty）⟹
+  闭环事件流为空（witness_pipeline_events_empty）⟹ fold 是恒等 ⟹ 末态账户 = account0（A=0）。
+  ★对比原 A=1 见证（已删除）：原值依赖手工注入的 dev 占位强制产出一个事件。#130 移除占位后，
+  该样本笔流因无中枢发展对而无闭环事件——A 保持初始 0。这不是闭环逻辑失效（recog→openRoot
+  决策逻辑由 §4 pipeline_bsp_recog_coherent 抽象坐实，与发展对无关），而是该薄样本无事件可 fold。
+  ★诚实留白（still-MISSING-multicenter-witness）：闭环 fold 的**计算性**演示（A 真随建根仓 +1）需
+  笔流产 ≥2 个中枢（≥1 相邻发展对，zip 出 ≥1 事件）的更丰富样本——本文件不伪造该样本，
+  闭环逻辑由 §4 抽象一致性 + #117 committed chanlunTransition_type1_allocates 单步承载。
+-/
+theorem witness_pipeline_account_identity :
+    (originPipeline sampleInput).account.ledger.A = 0 := by
+  show (chanlunTransitionFold (sampleInput.account0)
+         (pipelineEvents sampleInput.candidates
+           (autoEventDevPairs (pipelineSegments sampleInput)))).ledger.A = 0
+  rw [witness_pipeline_events_empty]
+  -- 空事件流 fold = 恒等 ⟹ 末态 = account0；account0 = mkLedger 0 0 0 的 A = 0。
+  unfold chanlunTransitionFold
+  rw [List.foldl_nil]
+  show (sampleInput.account0).ledger.A = 0
+  unfold sampleInput
+  simp only [mkLedger]
+
+/-- ★反退化见证：端到端管线末态账户保 R=Π-A-W（闭环不变量贯穿，具体实例，#130 接线后）。 -/
 theorem witness_pipeline_inv :
-    (originPipeline sampleInput arbitraryDev).account.ledger.R =
-      (originPipeline sampleInput arbitraryDev).account.ledger.Pi
-        - (originPipeline sampleInput arbitraryDev).account.ledger.A
-        - (originPipeline sampleInput arbitraryDev).account.ledger.W :=
-  pipeline_preserves_ledger_inv sampleInput arbitraryDev
+    (originPipeline sampleInput).account.ledger.R =
+      (originPipeline sampleInput).account.ledger.Pi
+        - (originPipeline sampleInput).account.ledger.A
+        - (originPipeline sampleInput).account.ledger.W :=
+  pipeline_preserves_ledger_inv sampleInput
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §6 诚实标签（gatekeeper：禁标完整/自动/盈利） + still-MISSING + 边界 + 下游 + 影响
@@ -506,8 +603,11 @@ theorem pipeline_subkind_is_proven_chain (k : PipelineSubkind) :
      末态保 R=Π-A-W，不变量从入口贯穿到出口）。
   6. ★双投影同源一致性（§4）：`pipeline_bsp_recog_coherent`——bspOf 的 canonical 分类标签（type1）↔
      recog→ledger 的应对决策（openRoot）在同一第一类端点上一致（同源非伪造薄→厚桥）。
-  7. ★端到端计算见证（§5）：sampleInput 上 segments 非空 + bsp 恰一个 + 末态 A=1（建根仓真改 ledger）
-     + 末态保 R=Π-A-W（整链真跑通，反退化）。
+  7. ★端到端计算见证（§5，#130 接线后）：sampleInput 上 segments 非空 + bsp 恰一个 +
+     自动发展对为空（笔流产 0 中枢，`witness_pipeline_auto_devs_empty`）⟹ 闭环事件流为空 ⟹
+     末态账户 = account0（A=0，`witness_pipeline_account_identity`）+ 末态保 R=Π-A-W（整链真跑通，反退化）。
+     ★诚实：原 A=1 见证依赖手工 dev 占位，已删除——#130 自动分配按真实中枢读出发展对，该薄样本
+     无中枢发展对 ⟹ 无闭环事件（闭环逻辑由 §4 抽象一致性承载，计算性多中枢演示 still-MISSING）。
   8. 诚实标签（§6）`pipelineLabels` + `pipeline_subkind_is_proven_chain`（禁标完整/自动/盈利）。
 
   本文件**不证**（no声明膨胀 / no-workaround，诚实边界，见各 still-MISSING 标签）：
@@ -526,10 +626,12 @@ theorem pipeline_subkind_is_proven_chain (k : PipelineSubkind) :
        （避建在非 committed base 上）。闭环用 committed 买侧 `ThetaInstantiation.chanlunTransition`
        （已登记 root）。卖侧对偶闭环待 SellClosedLoop committed + 登记 root 后由对偶管线接入——
        诚实标注不冒充已接（管线结构对卖侧对称，仅缺 committed 卖侧 transition 的 import）。
-  - ✗ **中枢发展对自动读出**：`dev` 参数（ChanlunEvent 的发展对）当前显式传入——完整版从构造链
-       centers 相邻 CenterFull 对自动读出（CenterFull.developmentWith）。本骨架显式接收使管线
-       well-defined，发展对来源待构造链中枢流接入（继承 #117 still-open）。
-  - ✗ **第二类次级别递归** / **bspOf/centersOf 从 ParseStruct 全自动提取每端点判据** / **TW 端双账本**：
+  - ✓ **中枢发展对自动读出（#130 已消解）**：原 `dev` 参数（手工占位）已删除——发展对从
+       `autoEventDevPairs (pipelineSegments inp)`（CenterAutoAssign：centersOf 输出相邻 CenterFull 对
+       的 toOuter 投影）自动读出。残留 still-MISSING-align：端点 ↔ 发展对的**精确索引对齐**用 zip
+       截断（端点 k 配第 k 个相邻发展对）——精确对齐（端点在中枢序列中的位置定位）继承
+       CenterAutoAssign endpointAlignMissing（依赖 ParseStruct 留存每端点中枢归属，#113/#116 still-open）。
+  - ✗ **第二类本级别判据真下钻** / **bspOf/centersOf 从 ParseStruct 全自动提取每端点判据** / **TW 端双账本**：
        继承各构造层 still-MISSING（#116/#117/#121），本管线 compose committed 组件，不冒充已接。
   - ✗ 管线产出正确缠论标注 / 闭环盈利 / 实盘有效（L3 empiricalDomain）。
 
@@ -552,18 +654,23 @@ theorem pipeline_subkind_is_proven_chain (k : PipelineSubkind) :
       （重量应对），二者一致（§4）。
 
   ★影响声明：
-    - 新增 Origin.Pipeline 模块（端到端 wiring 层），import {SegmentConstruction, CenterConstruction,
-      BspConstruction, ThetaInstantiation, FullDefinitionStrategy}（均 committed + 已登记 root，只读）。
+    - Origin.Pipeline 模块（端到端 wiring 层），import {SegmentConstruction, CenterConstruction,
+      BspConstruction, ThetaInstantiation, FullDefinitionStrategy, CenterAutoAssign}（均 committed +
+      已登记 root，只读）。#130 接线新增 import Origin.CenterAutoAssign（自动中枢发展对）。
     - 不改任何 committed 类型/模块，无反向依赖，无命名冲突（新命名空间 NewChanlun.Origin.Pipeline）。
     - **不** import #122 SegmentFeatureComplete（在改）/ #124 ForceInterface（用构造层不用判据层完整版）。
     - **不** import 未 committed SellClosedLoop。
-    - 待 Lead 登记 root：`Origin.Pipeline`（无工具自登记，报 Lead 代置）。
+    - #130 接线改动（本文件内）：`candidateToEvent` 签名 dev→(prev next)；`pipelineEvents` 用
+      `List.zip cands (autoEventDevPairs segs)`；`originPipeline`/`pipelineAccount` 删 `dev` 参数，
+      发展对从 `autoEventDevPairs (pipelineSegments inp)` 自动读出；`pipeline_preserves_ledger_inv`
+      等随之去 dev 参数重证（ledger inv 结构内蕴，与发展对来源无关，贯穿不变）。
+      §5 计算见证更新：A=1（手工占位）→ A=0（自动空发展对 ⟹ 空事件 ⟹ 恒等 fold，诚实）。
 
   ★谱系引用：构造层 #116（SegmentConstruction/CenterConstruction/BspConstruction，终止+唯一）committed
     + 买侧闭环 #117（ThetaInstantiation chanlunTransition + distinguishes_classes）committed → 审计 B 标
-    「端到端单 wiring 未做」→ 本文件 #125（compose committed 组件成端到端 proven 管线，证整链
-    well-defined/total/确定性 + 闭环不变量贯穿；薄→厚桥/force-L2/卖侧-uncommitted 诚实留 still-MISSING）。
-    无概念分离谱系涉及（纯结构 wiring 复合，不引入新定义冲突）。
+    「端到端单 wiring 未做」→ 本文件 #125（compose committed 组件成端到端 proven 管线）→ #130（接入
+    CenterAutoAssign 自动中枢发展对，消手工 dev 占位；薄→厚桥/force-L2/卖侧-uncommitted/多中枢计算见证
+    诚实留 still-MISSING）。无概念分离谱系涉及（纯结构 wiring 复合，不引入新定义冲突）。
   ════════════════════════════════════════════════════════════════════════ -/
 
 end NewChanlun.Origin.Pipeline

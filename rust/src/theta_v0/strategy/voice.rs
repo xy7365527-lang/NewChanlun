@@ -1,14 +1,14 @@
-//! Θ_voice 声部树（reference-theta-v0.md:39-42，bit-exact 对齐 `Strict/Fugue.lean`）。
+//! Θ_voice 声部树（reference-theta-v0.md:39-42，契约锚 `Origin.VoiceTree`）。
 //!
 //! ## 范围（声部树 𝒯=(V,p) + 4 互斥动作态）
 //!
 //! - 根 = 当前最高有效决策级别 L*；最多 `config.voice.max_depth` 层（L*, L*-1, L*-2）。
-//! - 声部方向 `σ_v = (-1)^depth`（`dir_of_depth`，对齐 Fugue.lean `dirOfDepth`）：
+//! - 声部方向 `σ_v = (-1)^depth`（`dir_of_depth`，对齐 Origin.VoiceTree `dirOfDepth`）：
 //!   偶深多（+1）/ 奇深空（-1），根多 → 子空 → 孙多…。子须 `σ_child = -σ_parent`
-//!   （`flip_dir`，对齐 Fugue.lean `flipDir` + `alternating`）。
-//! - 4 互斥动作态 {close, open, hold, wait}：Σ𝟙=1（对齐 Fugue.lean
+//!   （`flip_dir`，对齐 Origin.VoiceTree `flipDir` + `alternating`）。
+//! - 4 互斥动作态 {close, open, hold, wait}：Σ𝟙=1（对齐 Origin.VoiceTree
 //!   `voice_action_exhaustive_exclusive`）；目标仓位 q̃ = 0(close)/b_v(open)/q_v(hold)/0(wait)
-//!   （对齐 Fugue.lean `targetPos`）。
+//!   （对齐 Origin.VoiceTree `targetPos`）。
 //! - 资金帽深度权重 `config.voice.depth_weights`（w=[0.60,0.30,0.10]）；未用部分保留现金
 //!   不重分配（reference-theta-v0.md:42）。
 //!
@@ -21,8 +21,8 @@ use super::super::config::VoiceConfig;
 
 /// 声部方向 σ ∈ {+1 多, -1 空, 0 空仓}（reference-theta-v0.md:41）。
 ///
-/// `Long=+1` / `Short=-1` 是 Fugue.lean `σ` 的两态（赋格交替域）；`Flat=0` 是 spec:41 的
-/// 空仓极性（声部不开仓时的方向，Fugue.lean 用 `q_v=0` 表达，本 Rust 域显式 `Flat`）。
+/// `Long=+1` / `Short=-1` 是 Origin.VoiceTree `σ` 的两态（赋格交替域）；`Flat=0` 是 spec:41 的
+/// 空仓极性（声部不开仓时的方向，Origin.VoiceTree 用 `q_v=0` 表达，本 Rust 域显式 `Flat`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VoiceSide {
     Long,
@@ -31,10 +31,10 @@ pub enum VoiceSide {
 }
 
 impl VoiceSide {
-    /// 方向翻转（对齐 Fugue.lean `flipDir`）：Long ↔ Short；Flat 不翻转（空仓无方向可翻）。
+    /// 方向翻转（对齐 Origin.VoiceTree `flipDir`）：Long ↔ Short；Flat 不翻转（空仓无方向可翻）。
     ///
     /// 边界条件：`Flat.flip() = Flat`——空仓极性不参与赋格交替（spec:41 的 σ=0 是无方向态，
-    /// 不在 (-1)^depth 的两态域内）。只有 Long/Short 满足 `flip(flip(x))=x` 对合（Fugue.lean
+    /// 不在 (-1)^depth 的两态域内）。只有 Long/Short 满足 `flip(flip(x))=x` 对合（Origin.VoiceTree
     /// `flipDir_flipDir`）。
     pub fn flip(self) -> VoiceSide {
         match self {
@@ -45,14 +45,14 @@ impl VoiceSide {
     }
 }
 
-/// 从深度奇偶导出声部方向，**根方向固定 Long**（bit-exact 对齐 Fugue.lean `dirOfDepth`）。
+/// 从深度奇偶导出声部方向，**根方向固定 Long**（bit-exact 对齐 Origin.VoiceTree `dirOfDepth`）。
 ///
 /// `dir_of_depth(d) = (-1)^d`：偶深 → Long(+1)，奇深 → Short(-1)。根（depth 0）= Long。
-/// 这是赋格交替 σ_v=-σ_{p(v)} 的算术核心（Fugue.lean `dirOfDepth_succ`：相邻深度方向相反），
-/// **逐值 bit-exact 镜像 Fugue.lean `dirOfDepth`**（根恒 Long 的绝对版）。
+/// 这是赋格交替 σ_v=-σ_{p(v)} 的算术核心（Origin.VoiceTree `dirOfDepth_succ`：相邻深度方向相反），
+/// **逐值 bit-exact 镜像 Origin.VoiceTree `dirOfDepth`**（根恒 Long 的绝对版）。
 ///
 /// ★有效域辨识（formalization-validity-domain）：本函数 = [`voice_side`] 在 `root_side=Long`
-/// 子域的逐值重合（`voice_side(Long, d) == dir_of_depth(d)`）。Fugue.lean `dirOfDepth`/
+/// 子域的逐值重合（`voice_side(Long, d) == dir_of_depth(d)`）。Origin.VoiceTree `dirOfDepth`/
 /// `depth_parity`（根恒 Long）约束的是**赋格嵌套树**（父子 σ 交替）；[`voice_side`] 覆盖的是
 /// StrategyFamily §5 **多独立根**（根方向自由，`long_short_both_open_allowed:570`）。两者是同一
 /// 极性律在不同有效域的呈现——`dir_of_depth` 是 root_side=Long + 嵌套的强化子情形。
@@ -82,7 +82,7 @@ pub fn dir_of_depth(depth: u32) -> VoiceSide {
 ///   `depth=0`，`alternating` 真空满足。**Short 根在 §5 已证允许**，故本函数的 root_side=Short
 ///   分支落在 §5 的有效域内（§5 已含多独立根，含 Short 根）——voice_side 的 σ 语义即 §5 的
 ///   side，bit-exact 对齐 §5（无 Rust/Lean σ 分叉）。
-/// - `dir_of_depth` / Fugue.lean `depth_parity` 是 `root_side=Long + 嵌套树`的**强化子情形**
+/// - `dir_of_depth` / Origin.VoiceTree `depth_parity` 是 `root_side=Long + 嵌套树`的**强化子情形**
 ///   （不同有效域）：Fugue 约束的是赋格嵌套树内部 σ=dirOfDepth(depth)（根恒 Long）；本函数
 ///   覆盖的是 §5 的多独立根（根方向自由，由信号定）。`voice_side(Long, d) == dir_of_depth(d)`
 ///   逐值成立——二者在 root_side=Long 子域重合，是同一极性律在两有效域（§5 多根 / Fugue 嵌套）
@@ -91,7 +91,7 @@ pub fn dir_of_depth(depth: u32) -> VoiceSide {
 ///   （σ_child=-σ_parent）对任意 root_side 成立（root_side·(-1)^(d+1) = flip(root_side·(-1)^d)）。
 ///
 /// ★诚实：v0 recognize 产**单声部决策**（depth 0，独立根）——每个买卖点是 §5 的独立根，
-/// 方向 = `root_side` = 信号方向。嵌套声部树（depth>0 子对冲）是 Fugue.lean 完整结构，
+/// 方向 = `root_side` = 信号方向。嵌套声部树（depth>0 子对冲）是 Origin.VoiceTree 完整结构，
 /// v0 未触发（无嵌套）；本函数对 depth>0 给 §5 一致的极性推广，v0 只用 depth=0 分支。
 ///
 /// 边界条件：`root_side = Flat` ⟹ 返回 Flat（空仓无方向，不参与极性翻转，所有深度均 Flat）。
@@ -109,18 +109,18 @@ pub fn voice_side(root_side: VoiceSide, depth: u32) -> VoiceSide {
     }
 }
 
-/// 单声部状态（对齐 Fugue.lean `FugueTree` 的逐声部字段 + `VoiceEnv` 的判定）。
+/// 单声部状态（对齐 Origin.VoiceTree `FugueTree` 的逐声部字段 + `VoiceEnv` 的判定）。
 ///
-/// 字段语义（Fugue.lean `FugueTree`/`VoiceEnv`）：
+/// 字段语义（Origin.VoiceTree `FugueTree`/`VoiceEnv`）：
 /// - `depth`：声部深度（根=0），决定 σ（`dir_of_depth`）。
-/// - `b`：开仓基准手数 b_v（Θ_risk 参数，结构承载非缠论可导；Fugue.lean `b_pos`：b_v≥1）。
+/// - `b`：开仓基准手数 b_v（Θ_risk 参数，结构承载非缠论可导；Origin.VoiceTree `b_pos`：b_v≥1）。
 /// - `q`：当前持仓手数 q_v（q_v=0 = 空仓）。
-/// - `exit`：退出态 X_v（emergency ∨ ancestor_close ∨ stop ∨ reverse_nest，Fugue.lean `Exit`）。
-/// - `enter_ok`：进场许可 E_v（Permit ∧ same_nest，Fugue.lean `EnterOK`）。
+/// - `exit`：退出态 X_v（emergency ∨ ancestor_close ∨ stop ∨ reverse_nest，Origin.VoiceTree `Exit`）。
+/// - `enter_ok`：进场许可 E_v（Permit ∧ same_nest，Origin.VoiceTree `EnterOK`）。
 ///
 /// ★诚实：`b`/`q` 取值不由缠论推导（Θ_risk + 运行时状态）；`exit`/`enter_ok` 的实时取值
 /// 来自数据流（区间套/许可判定），本结构作为给定 Bool/手数承载——动作态划分在给定它们后
-/// 是 L0 逻辑必然（对齐 Fugue.lean 在给定 env 下的 L0 证明）。
+/// 是 L0 逻辑必然（对齐 Origin.VoiceTree 在给定 env 下的 L0 证明）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VoiceState {
     pub depth: u32,
@@ -130,7 +130,7 @@ pub struct VoiceState {
     pub enter_ok: bool,
 }
 
-/// 4 互斥动作态（bit-exact 对齐 Fugue.lean `ActState`：close/open/hold/wait）。
+/// 4 互斥动作态（bit-exact 对齐 Origin.VoiceTree `ActState`：close/open/hold/wait）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActState {
     /// 平仓（退出 X_v 成立，吸收前四优先级：全局强平/祖先关闭/止损/反向区间套）。
@@ -143,9 +143,9 @@ pub enum ActState {
     Wait,
 }
 
-/// 选出当前动作态（bit-exact 对齐 Fugue.lean `actState`：基于 (Exit, q=0, EnterOK) 三元分类）。
+/// 选出当前动作态（bit-exact 对齐 Origin.VoiceTree `actState`：基于 (Exit, q=0, EnterOK) 三元分类）。
 ///
-/// 全函数：穷尽 (Exit, q=0?, EnterOK?) 三元判定的 4 种结果——对齐 Fugue.lean
+/// 全函数：穷尽 (Exit, q=0?, EnterOK?) 三元判定的 4 种结果——对齐 Origin.VoiceTree
 /// `voice_action_exhaustive_exclusive`（Σ𝟙=1，4 态恰一成立）。Rust match 静态保证穷尽。
 ///
 /// 边界条件：close 吸收 Exit（不论 q）；¬Exit 后按 q=0 划分 open/wait（EnterOK 区分）与
@@ -164,10 +164,10 @@ pub fn act_state(v: &VoiceState) -> ActState {
     }
 }
 
-/// 目标仓位 q̃（bit-exact 对齐 Fugue.lean `targetPos`）。
+/// 目标仓位 q̃（bit-exact 对齐 Origin.VoiceTree `targetPos`）。
 ///
 /// close → 0；open → b_v；hold → q_v；wait → 0。与 4 动作态一一对应
-/// （Fugue.lean `targetPos_spec`）。
+/// （Origin.VoiceTree `targetPos_spec`）。
 pub fn target_pos(v: &VoiceState) -> u32 {
     match act_state(v) {
         ActState::Close => 0,
@@ -205,7 +205,7 @@ pub fn within_max_depth(depth: u32, config: &VoiceConfig) -> bool {
 mod tests {
     use super::*;
 
-    /// bit-exact 对齐 Fugue.lean `dirOfDepth`：偶深 Long，奇深 Short（根多→子空→孙多）。
+    /// bit-exact 对齐 Origin.VoiceTree `dirOfDepth`：偶深 Long，奇深 Short（根多→子空→孙多）。
     #[test]
     fn dir_of_depth_alternates_from_long_root() {
         assert_eq!(dir_of_depth(0), VoiceSide::Long);
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(dir_of_depth(3), VoiceSide::Short);
     }
 
-    /// 赋格交替 σ_child = -σ_parent（对齐 Fugue.lean `alternating` + `dirOfDepth_succ`）：
+    /// 赋格交替 σ_child = -σ_parent（对齐 Origin.VoiceTree `alternating` + `dirOfDepth_succ`）：
     /// 相邻深度方向恒相反。
     #[test]
     fn child_side_is_parent_flipped() {
@@ -224,7 +224,7 @@ mod tests {
         }
     }
 
-    /// flip 对合（对齐 Fugue.lean `flipDir_flipDir`）：Long/Short 翻两次还原；Flat 不变。
+    /// flip 对合（对齐 Origin.VoiceTree `flipDir_flipDir`）：Long/Short 翻两次还原；Flat 不变。
     #[test]
     fn flip_involutive_on_directional_sides() {
         assert_eq!(VoiceSide::Long.flip().flip(), VoiceSide::Long);
@@ -274,7 +274,7 @@ mod tests {
         }
     }
 
-    /// bit-exact 对齐 Fugue.lean `voice_action_exhaustive_exclusive`：4 态 Σ𝟙=1
+    /// bit-exact 对齐 Origin.VoiceTree `voice_action_exhaustive_exclusive`：4 态 Σ𝟙=1
     /// （穷尽 + 互斥）。逐 (exit, q, enter_ok) 组合枚举验证恰一态。
     #[test]
     fn act_state_partition_exhaustive_exclusive() {
@@ -298,7 +298,7 @@ mod tests {
         }
     }
 
-    /// bit-exact 对齐 Fugue.lean `targetPos_spec`：close/wait→0，open→b_v，hold→q_v。
+    /// bit-exact 对齐 Origin.VoiceTree `targetPos_spec`：close/wait→0，open→b_v，hold→q_v。
     #[test]
     fn target_pos_matches_act_state() {
         let close = VoiceState { depth: 0, b: 3, q: 7, exit: true, enter_ok: false };

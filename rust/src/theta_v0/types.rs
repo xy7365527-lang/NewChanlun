@@ -164,11 +164,11 @@ pub enum PendingTail {
     },
 }
 
-/// 买卖点类型 bit-vector（reference-theta-v0.md:34-36；Strict/BSP.lean 非互斥裁定）。
+/// 买卖点类型 bit-vector（契约锚 `Origin.BspClassification.no_exclusive_trichotomy` 非互斥裁定）。
 ///
-/// ★关键（BSP.lean Layer1+C 段）：买卖点**不是互斥三分**——2B/3B 可在同一点重合
-/// （maimai.md:170）。故用 bit-vector（标签集），不是 sum type。`b1/b2/b3` 各为
-/// 独立 bool，一个点可同时是 `[2B,3B]`。这是 BSP.lean 的核心诚实裁定的 Rust 镜像。
+/// ★关键（`Origin.BspClassification.no_exclusive_trichotomy`）：买卖点**不是互斥三分**——2B/3B
+/// 可在同一点重合（maimai.md:170）。故用 bit-vector（标签集），不是 sum type。`b1/b2/b3` 各为
+/// 独立 bool，一个点可同时是 `[2B,3B]`。这是 Origin BspClassification 核心诚实裁定的 Rust 镜像。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BspBits {
     pub buy1: bool,
@@ -191,7 +191,7 @@ pub enum Side {
     Short,
 }
 
-/// 持仓方向（Strict/Op.lean `Pos`：long/short/flat）。
+/// 持仓方向（契约锚 `Origin.FullDefinitionStrategy` 动作类前件 `Pos`：long/short/flat）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pos {
     Long,
@@ -199,7 +199,7 @@ pub enum Pos {
     Flat,
 }
 
-/// 信号方向（Strict/Op.lean `Sig`：buySide/sellSide/none）。
+/// 信号方向（契约锚 `Origin.BspClassification` 信号前件 `Sig`：buySide/sellSide/none）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sig {
     BuySide,
@@ -207,7 +207,7 @@ pub enum Sig {
     None,
 }
 
-/// 严格动作（Strict/Op.lean `StrictAction` 7 构造子，含 wait/hold 区分）。
+/// 严格动作（契约锚 `Origin.FullDefinitionStrategy.ActionClass` 投影，7 构造子，含 wait/hold 区分）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StrictAction {
     Buy,

@@ -1,25 +1,33 @@
 //! Θ_level + Θ_signal 子模块（reference-theta-v0.md:27-37）。
 //!
-//! ## bit-exact 对齐 `Strict/LevelState.lean` / `Center.lean` / `BSP.lean` /
-//! `Trend.lean` / `Nest.lean` / `Recursive.lean`
+//! ## 契约重锚（legacy Strict/* → Origin canonical，task #127 A′ Phase2）
 //!
-//! 递归级别构造 + R6 态 + 买卖点 bit-vector + 背驰度量 + 区间套。
-//! 给定 Θ_level/Θ_signal ⟹ R6 态 + BSP 证书 (D_ℓ,R_ℓ,E_ℓ) 唯一（LevelState 元定理）。
+//! 递归级别构造 + R6 态 + 买卖点 bit-vector + 背驰度量 + 区间套。给定 Θ_level/Θ_signal ⟹ R6 态 +
+//! BSP 证书唯一。契约锚点从 legacy `Strict/{LevelState,Center,BSP,Trend,Nest,Recursive}.lean`
+//! **重锚到 Origin canonical**：`Origin.RecursiveLevelSystem` / `Origin.CenterStates` /
+//! `Origin.BspClassification` / `Origin.TrendCompleteClassification` / `Origin.SubLevelDescent`。
 //!
-//! ## 子模块拓扑
+//! ## 子模块拓扑（各子模块契约锚 Origin def）
 //!
-//! - [`center`]：中枢边界构造（连续三段窗口）+ 中枢关系三态 + 点位三态。对齐
-//!   `RecursiveConstruction.CenterDerivedAt` / `CenterTrichotomy` / `Claim9`。
-//! - [`level`]：递归级别走势裁决（`classifyMove` 全链同向）。对齐 `RecursiveConstruction`。
-//! - [`level_state`]：R6 位置态 + LevelState 三元组。对齐 `Strict/LevelState.lean`。
-//! - [`bsp`]：买卖点 bit-vector 判据（三类结构谓词，非互斥）。对齐 `BSPLabels`/`Strict/BSP`。
-//! - [`divergence`]：背驰 MACD 度量（浮点域隔离 + 同向段面积严格变小）。对齐 reference:37。
-//! - [`nest`]：区间套有限递归证书 χ（`Sel_Θ` 选择器 + 终端确认）。对齐 `Strict/Nest.lean`。
+//! - [`center`]：完整中枢判据（方向交替+第三段贯穿）+ 关系/位置三态。对齐
+//!   `Origin.CenterComplete.CenterConfirmedComplete` / `Origin.CenterConstruction.centersOf` /
+//!   `Origin.CenterStates.{classifyDevelopment,classifyPosition}`。
+//! - [`level`]：递归级别走势裁决（`classifyMove` 全链同向）。对齐
+//!   `Origin.TrendCompleteClassification.{TrendClass,chooseTrend}` + `Origin.RecursiveLevelSystem`。
+//! - [`level_state`]：R6 位置态 + LevelState 三元组。对齐 `Origin.CenterStates.CenterPosition` +
+//!   `Origin.RecursiveLevelSystem`。
+//! - [`bsp`]：买卖点 bit-vector 判据（三类结构谓词，非互斥）。对齐
+//!   `Origin.BspClassification.{BspEndpoint,IsType1,IsType2,IsType3Buy,IsType3Sell}`。
+//! - [`divergence`]：背驰 MACD 度量（浮点域隔离 + 同向段面积严格变小）。对齐
+//!   `Origin.Divergence.{Force,IsDivergence}` + `Origin.ForceInterface.ForceMeasure`（reference:37）。
+//! - [`nest`]：区间套有限递归证书 χ（`Sel_Θ` 选择器 + 终端确认）。对齐
+//!   `Origin.SubLevelDescent.{descend,subLevelHasBrokenCenter}`。
 //!
-//! ## 递归级别（reference-theta-v0.md:29-30）
+//! ## 递归级别（reference-theta-v0.md:29-30；契约锚 `Origin.RecursiveLevelSystem`）
 //!
-//! `L0=1分钟线段账本`（parser segments）；`L(k+1)` 只由 `Lk` 已完成走势/Move 构造
-//! （Lk 走势单元 → 连续三段窗口中枢 → 中枢序列裁决走势 → L(k+1) 输入单元）。禁跳级混级。
+//! `L0=1分钟线段账本`（parser segments）；`L(k+1)` 只由 `Lk` 已完成走势/Move 构造（对齐
+//! `Origin.RecursiveLevelSystem.lift` + `chanRecursiveLevelSystem` 的 `composeStep`：Lk 走势单元 →
+//! 连续三段窗口中枢 → 中枢序列裁决走势 → L(k+1) 输入单元）。禁跳级混级。
 //! 某层无 ≥`config.level.min_parts_per_level` 完成部件则自然终止；上界 `config.level.l_max`。
 //!
 //! ## 认识论（formalization-validity-domain）
@@ -35,13 +43,14 @@
 
 use super::config::ThetaConfig;
 use super::parser::ParseLayer;
-use super::types::{Center, MoveKind, Segment};
+use super::types::{Center, Direction, MoveKind, Segment};
 
 pub mod center;
 pub mod level;
 pub mod level_state;
 pub mod bsp;
 pub mod divergence;
+pub mod force_conformance;
 pub mod descend;
 pub mod nest;
 pub mod signal;
@@ -71,10 +80,10 @@ pub struct Classification {
     pub levels: Vec<LevelState>,
 }
 
-/// 走势单元的价格区间投影（线段 / 上级走势的 `[lo,hi]`，递归级别构造的输入单元）。
+/// 把 L0 线段规约为携带方向的走势单元（契约锚 `Origin.ChanlunElements.Segment` + `CenterConstruction.segHigh/segLow`）。
 ///
-/// L0 单元 = parser 线段；L(k+1) 单元 = Lk 已完成走势（其区间由中枢外缘合成，对齐
-/// `RecursiveConstruction.Move.interval`：compose 的 dd/gg 折叠）。
+/// L0 单元 = parser 线段（**含方向**，完整判据 `DirAlternates` 的输入）；`[lo,hi]` 对齐
+/// `Origin.CenterConstruction.segHigh/segLow`（向上段 hi=端价/向下段 lo=端价已规约为区间）。
 fn segment_to_unit(seg: &Segment) -> UnitRange {
     let (lo, hi) = if seg.start_price <= seg.end_price {
         (seg.start_price, seg.end_price)
@@ -84,32 +93,53 @@ fn segment_to_unit(seg: &Segment) -> UnitRange {
     UnitRange {
         start_index: seg.start_index,
         end_index: seg.end_index,
+        direction: seg.direction,
         lo,
         hi,
     }
 }
 
-/// 从一级走势单元序列识别中枢序列（reference:23,29；连续三段窗口扫描）。
+/// 从 L0 线段单元序列识别中枢序列（**完整判据**，契约锚 `Origin.CenterComplete.CenterConfirmedComplete`）。
 ///
-/// 从左到右扫描：连续三段重叠产生中枢（`center_from_window`，`zd<=zg` 成立）。已确认中枢
-/// 不回写重分解（reference:16）——窗口前进到中枢末段之后继续找下一中枢。无重叠的窗口
-/// 跳过（非中枢，前进一段）。
+/// L0 线段有内在方向 ⟹ 用 `center::center_from_segments`（完整判据：方向交替 ∧ 前两段核心非空 ∧
+/// 第三段贯穿）。从左到右扫描：连续三段构成真中枢则前进 3 段（已确认中枢不回写，reference:16）；
+/// 任一支不成立（无方向交替/核心空/第三段不贯穿）则前进一段继续找（对齐 `Origin.centersOf` 滑窗：
+/// 成立支消费 3、不成立支消费 1）。
 ///
-/// ★诚实范围：v0 用**非重叠三段窗口**识别中枢（连续三段成枢则前进 3 段）。延伸中枢
-/// （同一中枢吸收后续段）的完整 start/finish 区间识别留待后续——此处用 Recursive.lean
-/// 给的三段窗口 sound contract（`CenterDerivedAt`），不超出已形式化的边界造延伸逻辑。
-fn detect_centers(units: &[UnitRange]) -> Vec<Center> {
+/// ★诚实范围：v0 用**非重叠三段窗口**识别中枢（连续三段成真枢则前进 3 段）。延伸中枢
+/// （同一中枢吸收后续段）的完整 start/finish 区间识别留待后续（Origin `centersOf` 当前亦三段窗口）。
+fn detect_centers_complete(units: &[UnitRange]) -> Vec<Center> {
+    detect_centers_with(units, center::center_from_segments)
+}
+
+/// 从上级走势单元序列识别中枢序列（**几何路径**，契约锚 `Origin.centerHolds` + 三段共同重叠）。
+///
+/// 上级单元是中枢外缘区间（**无内在缠论方向**，方向由 Move 趋势裁决携带）⟹ 用
+/// `center::center_from_window`（几何三支：前两段核心非空 + 第三段贯穿，无方向交替）。上级发展
+/// 裁决用 `Origin.CenterStates.classifyDevelopment`（外缘判据，无方向交替要求）——见 `center.rs`
+/// 诚实有效域声明。
+fn detect_centers_geometric(units: &[UnitRange]) -> Vec<Center> {
+    detect_centers_with(units, center::center_from_window)
+}
+
+/// 三段窗口扫描骨架（成立支消费 3 段、不成立支消费 1 段，对齐 `Origin.centersOf` 滑窗终止性）。
+///
+/// `build` 是中枢构造函数（L0=完整判据 `center_from_segments`；上级=几何 `center_from_window`）。
+fn detect_centers_with(
+    units: &[UnitRange],
+    build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
+) -> Vec<Center> {
     let mut centers = Vec::new();
     let mut i = 0usize;
     while i + 2 < units.len() {
-        match center::center_from_window(&units[i], &units[i + 1], &units[i + 2]) {
+        match build(&units[i], &units[i + 1], &units[i + 2]) {
             Some(c) => {
                 centers.push(c);
-                // 非重叠窗口：前进到三段之后（已确认中枢不回写，reference:16）。
+                // 成立支：前进 3 段（已确认中枢不回写，reference:16）。
                 i += 3;
             }
             None => {
-                // 三段无公共重叠 ⟹ 非中枢，前进一段继续找。
+                // 不成立支：前进 1 段继续找（对齐 Origin centersOf 滑窗）。
                 i += 1;
             }
         }
@@ -119,10 +149,13 @@ fn detect_centers(units: &[UnitRange]) -> Vec<Center> {
 
 /// 把一级走势单元序列规约为该级走势裁决 + 中枢（reference:29 `classifyMove`）。
 ///
-/// 返回 `(中枢序列, 走势裁决)`：中枢由 `detect_centers` 识别，裁决由 `classify_move`。
-/// 这是一级的"完整走势"——其裁决决定该单元序列是趋势/盘整/退化。
-fn classify_level(units: &[UnitRange]) -> (Vec<Center>, MoveOutcome) {
-    let centers = detect_centers(units);
+/// `is_l0`：L0 用完整判据（方向交替），上级用几何路径（外缘）。返回 `(中枢序列, 走势裁决)`。
+fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, MoveOutcome) {
+    let centers = if is_l0 {
+        detect_centers_complete(units)
+    } else {
+        detect_centers_geometric(units)
+    };
     let outcome = classify_move(&centers);
     (centers, outcome)
 }
@@ -159,7 +192,8 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
             break;
         }
 
-        let (centers, outcome) = classify_level(&units);
+        // L0（level_idx==0）用完整判据（方向交替，线段有方向）；上级用几何路径（外缘，单元无方向）。
+        let (centers, outcome) = classify_level(&units, level_idx == 0);
 
         // 走势裁决 → MoveKind（HigherCenterCandidate 退化态映 None，不入 moves）。
         let moves: Vec<MoveKind> = outcome_to_kind(outcome).into_iter().collect();
@@ -183,15 +217,32 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
             bsp,
         });
 
-        // L(k+1) 输入单元 = 本级中枢外缘区间（compose 的 dd/gg 折叠，Move.interval）。
+        // L(k+1) 输入单元 = 本级中枢外缘区间（dd/gg 折叠，契约锚 `Origin.RecursiveLevelSystem`
+        // chanRecursiveLevelSystem.composeStep 的窗口复合）。
         // 中枢数 < min_parts ⟹ 上级无法产生完整走势，下轮循环自然终止。
+        //
+        // ★direction：上级单元的方向取相邻中枢外缘的局部趋势（前中枢外缘上移=Up / 下移=Down，
+        // 与 `classify_relation` 外缘判据同源）。此方向**不被几何路径 `center_from_window` 读取**
+        // （上级用外缘判据，无方向交替要求——见 center.rs 诚实有效域）：它是结构占位，使 UnitRange
+        // 类型完整，**不**冒充 §6.1 意义的线段方向。首单元无前驱，缺省 Up（不影响几何中枢判定）。
         units = centers
             .iter()
-            .map(|c| UnitRange {
-                start_index: c.start_index,
-                end_index: c.end_index,
-                lo: c.dd,
-                hi: c.gg,
+            .enumerate()
+            .map(|(idx, c)| {
+                let direction = if idx == 0 {
+                    Direction::Up // 首单元无前驱，缺省（几何路径不读取）
+                } else {
+                    let prev = &centers[idx - 1];
+                    // 外缘上移（gg 升）= Up，下移 = Down（与 classify_relation 外缘判据同源）。
+                    if c.gg >= prev.gg { Direction::Up } else { Direction::Down }
+                };
+                UnitRange {
+                    start_index: c.start_index,
+                    end_index: c.end_index,
+                    direction,
+                    lo: c.dd,
+                    hi: c.gg,
+                }
             })
             .collect();
 
@@ -235,8 +286,9 @@ mod tests {
 
     #[test]
     fn three_overlapping_segments_form_center() {
-        // 三段区间重叠 ⟹ L0 识别出一个中枢。段区间 [0,10],[3,12],[5,15]：
-        // zd=max(0,3,5)=5, zg=min(10,12,15)=10 ⟹ 中枢成立。
+        // 完整判据（Origin.CenterComplete）：方向交替 上-下-上 + 前两段核心 + 第三段贯穿。
+        // 段区间 [0,10]up,[3,12]down,[5,15]up：核心取**前两段** zd=max(0,3)=3, zg=min(10,12)=10。
+        // 第三段 [5,15] 贯穿核心 [3,10]（5<=10 ∧ 3<=15）⟹ 真中枢成立。
         let cfg = ThetaConfig::default();
         let layer = ParseLayer {
             segments: vec![
@@ -249,10 +301,30 @@ mod tests {
         let out = classify(&layer, &cfg);
         assert!(!out.levels.is_empty());
         let l0 = &out.levels[0];
-        assert_eq!(l0.centers.len(), 1, "三段重叠 ⟹ 一个中枢");
-        assert_eq!((l0.centers[0].zd, l0.centers[0].zg), (5, 10));
+        assert_eq!(l0.centers.len(), 1, "三段方向交替+贯穿 ⟹ 一个真中枢");
+        // 核心取前两段（Origin computeZD/computeZG s1 s2），非三段——G4 完整判据重锚后的正确语义。
+        assert_eq!((l0.centers[0].zd, l0.centers[0].zg), (3, 10));
         // 一个中枢 ⟹ classifyMove = consolidation ⟹ moves=[Consolidation]。
         assert_eq!(l0.moves, vec![MoveKind::Consolidation]);
+    }
+
+    #[test]
+    fn same_direction_three_segments_rejected_by_complete() {
+        // G4 完整判据反退化：三段同向（全 up）+ 前两段核心非空，但无方向交替 ⟹ L0 不识别中枢
+        // （旧几何窗口会误判，完整判据正确拒绝，对齐 Origin.CenterComplete.sameDir_not_centerConfirmed）。
+        let cfg = ThetaConfig::default();
+        let layer = ParseLayer {
+            segments: vec![
+                seg(Direction::Up, 0, 4, 10, 20),
+                seg(Direction::Up, 4, 8, 18, 25),
+                seg(Direction::Up, 8, 12, 22, 30),
+            ],
+            ..Default::default()
+        };
+        let out = classify(&layer, &cfg);
+        // 无方向交替 ⟹ L0 无中枢（完整判据拒绝单边三段）。
+        assert_eq!(out.levels.len(), 1);
+        assert!(out.levels[0].centers.is_empty(), "同向三段无方向交替 ⟹ 完整判据拒绝（非中枢）");
     }
 
     #[test]

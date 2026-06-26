@@ -15,12 +15,15 @@
 //! 仅 Δ=2 段，1.2%）——真因是**算法范式整体差异**：参考用增量「假设转折点」状态机，旧实装
 //! 缺此核心。本文件移植参考的增量算法以通过认证。
 //!
-//! ## Claim10 有效域（无矛盾，formalization-validity-domain）
+//! ## 静态层契约 vs 动态层有效域（无矛盾，formalization-validity-domain）
 //!
-//! `Claim10_SegmentV1.lean:334-346` **明确声明动态划分算法不在 Lean 形式化范围**（是
-//! `_FeatureSeqState` 状态机职责，非遗漏）。故本文件移植动态算法**不碰 Claim10 bit-exact**：
-//! 静态原语（`Interval`/`feature_elements`/`classify_termination`，segment.rs）保持对 Claim10
-//! bit-exact；动态扫描（本文件）对 Python 参考 bit-exact。两个认证目标在不同有效域，不冲突。
+//! Origin `SegmentConstruction.segmentsOf`（committed naive cut）+ `SegmentFeatureComplete.SegEndComplete`
+//! （静态完整段端确认谓词）形式化了线段划分的**静态层**；**动态划分状态机**（第71课「假设转折点」
+//! 增量过程）**不在 Origin 形式化范围**（是 `_FeatureSeqState` 状态机职责，非遗漏——与 legacy
+//! Claim10:334-346 同样的有意非形式化边界）。故本文件移植动态算法**不碰静态层契约**：静态原语
+//! （`Interval`/`feature_elements`/`classify_termination`，segment.rs）保持对
+//! `Origin.SegmentFeatureSeq`/`SegmentFeatureComplete` 对齐；动态扫描（本文件）对 Python 参考
+//! bit-exact。两个认证目标在不同有效域，不冲突。
 //!
 //! ## 第71课博文权威（一级权威，CLAUDE.md 三级权威链）
 //!

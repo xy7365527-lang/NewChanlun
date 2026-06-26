@@ -1,14 +1,15 @@
 //! R6 位置态 + BSP bit-vector + 每级 LevelState（reference-theta-v0.md:32-36）。
 //!
-//! ## bit-exact 对齐 `Strict/LevelState.lean`
+//! ## 契约重锚（legacy Strict/LevelState → `Origin.CenterStates` + `Origin.RecursiveLevelSystem`）
 //!
-//! - R6 态 ↔ `RLevel`：`{bot, inside, aboveNo3B, aboveB3, belowNo3S, belowS3}`（互斥 sum）。
-//! - R6 判定 ↔ `rlevelOf`：无中枢 → bot；有中枢按 `CenterPosition.classify` 三态分流，
+//! - R6 态 ↔ `Origin.CenterStates.CenterPosition` 三态 × 第三类事件精化：
+//!   `{bot, inside, aboveNo3B, aboveB3, belowNo3S, belowS3}`（互斥 sum）。
+//! - R6 判定 ↔ `rlevelOf`：无中枢 → bot；有中枢按 `Origin.CenterStates.classifyPosition` 三态分流，
 //!   above 按 b3 裂 aboveB3/aboveNo3B，below 按 s3 裂 belowS3/belowNo3S，within → inside。
-//! - BSP bit-vector ↔ `BSPVector`（{0,1}⁶ 非互斥，2/3 类可共存）= `types::BspBits`。
-//! - LevelState 三元组 ↔ `LevelState (D_ℓ, R_ℓ, E_ℓ)`：decomp/position/signal。
+//! - BSP bit-vector ↔ `Origin.BspClassification.BspClass`（{0,1}⁶ 非互斥，2/3 类可共存）= `types::BspBits`。
+//! - LevelState 三元组 (D_ℓ, R_ℓ, E_ℓ)：decomp/position/signal（递归级别态，锚 `Origin.RecursiveLevelSystem`）。
 //!
-//! ## 两分类代数性质相反（LevelState.lean 核心诚实点）
+//! ## 两分类代数性质相反（核心诚实点）
 //!
 //! - **R 位置态**：partition（互斥穷尽 Σ𝟙=1）——sum type `RLevel`。
 //! - **E 信号**：subset（2/3 类可共存）——bit-vector `BspBits`。把 E 做成互斥 sum 是错误。
@@ -23,10 +24,10 @@ use super::super::types::{BspBits, Center};
 use super::super::types::Tick;
 use super::center::{classify_position, RelativePosition};
 
-/// R6 位置态（reference-theta-v0.md:32；`LevelState.RLevel`，互斥 sum type）。
+/// R6 位置态（契约锚 `Origin.CenterStates.CenterPosition` 精化，互斥 sum type）。
 ///
-/// 相对最后中枢 Z_ℓ 的位置状态机精化（Claim9 三态 × 第三类事件 + 无中枢）：
-/// within → Inside（不拆）；above 按 3B 裂 2 态；below 按 3S 裂 2 态；+ Bot。
+/// 相对最后中枢 Z_ℓ 的位置状态机精化（`Origin.CenterStates.classifyPosition` 三态 × 第三类事件
+/// + 无中枢）：within → Inside（不拆）；above 按 3B 裂 2 态；below 按 3S 裂 2 态；+ Bot。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RLevel {
     /// ⊥：无最后中枢（ExistsZ = false）。
@@ -57,11 +58,11 @@ pub struct RContext {
     pub s3: bool,
 }
 
-/// R6 态判定（reference-theta-v0.md:32；`rlevelOf`，给定 Θ 后全函数）。
+/// R6 态判定（契约锚 `Origin.CenterStates.classifyPosition` 精化，给定 Θ 后全函数）。
 ///
-/// 逐字对齐 Lean `rlevelOf`：
+/// 逐分支对齐 `Origin.CenterStates.classifyPosition` 三态 × 第三类事件精化：
 /// - 无中枢 → Bot；
-/// - 有中枢 c 按 `classify_position(c, p)` 三态分流：
+/// - 有中枢 c 按 `classify_position(c, p)`（= `Origin.classifyPosition`）三态分流：
 ///   within → Inside；above → b3 ? AboveB3 : AboveNo3B；below → s3 ? BelowS3 : BelowNo3S。
 pub fn rlevel_of(ctx: &RContext) -> RLevel {
     match ctx.last_center {

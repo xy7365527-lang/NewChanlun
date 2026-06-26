@@ -17,7 +17,7 @@
 //!
 //! | Rust | Lean（Origin SubLevelDescent） | 语义 |
 //! |------|------------------------------|------|
-//! | [`RMove`] | `RecursiveConstruction.Move`（μF） | 递归走势（携 level/interval/subs）|
+//! | [`RMove`] | `Origin.SubLevelDescent.RMove`（= `Formal.RecursiveConstruction.Move` μF 别名）| 递归走势（携 level/interval/subs）|
 //! | [`descend`] | `descend`（lift 逆） | 取回次级别走势序列 subs |
 //! | [`sub_broke_below`] | `SubBrokeBelow`（`m.lo < c.zd`）| 向下破中枢（买点侧几何）|
 //! | [`sub_broke_above`] | `SubBrokeAbove`（`c.zg < m.hi`）| 向上破中枢（卖点侧几何）|
@@ -42,7 +42,7 @@
 
 use super::super::types::{Center, Direction, Side, Tick};
 
-/// 递归走势 `RMove`（port `RecursiveConstruction.Move` μF，携带 level/interval/subs）。
+/// 递归走势 `RMove`（port `Origin.SubLevelDescent.RMove` = `Formal.RecursiveConstruction.Move` μF 别名，携带 level/interval/subs）。
 ///
 /// 缠论递归走势的两个构造子（对齐 Lean `Move.segment` / `Move.compose`）：
 /// - `Segment`：线段（递归底 level 0，无次级别，Lean `Move.segment d lo hi`）。

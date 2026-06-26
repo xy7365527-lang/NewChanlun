@@ -1,18 +1,20 @@
 //! 第六步：canonical 分解（reference-theta-v0.md:24，[设计选择,默认值]）。
 //!
-//! ## bit-exact 对齐 `formal/Strict/Decomp.lean` 的 GaugeNormal 截面唯一
+//! ## 契约重锚（legacy Strict/Decomp → Origin 行为商；minGauge 优化层待 Origin 端口，诚实声明）
 //!
-//! Decomp.lean 的 gauge-fixing（§6）把「同 base 多义分解」收缩到唯一规范截面：
-//! - `gaugeLevel m := m.level`（排序键）。
-//! - `minGauge a b := if gaugeLevel a ≤ gaugeLevel b then a else b`（**平级保左**）。
-//! - `gaugeFix := foldl minGauge`（从候选列表折叠选截面）。
-//! - `gauge_section_unique`：纤维内 gaugeFix 截面唯一且不逃逸纤维。
+//! canonical 分解的**概念归属**在 Origin 行为商：`Origin.BehaviorQuotient.{BehEquiv,
+//! CompleteClassifier,behaviorQuotientClassify}` + `Origin.FiniteTraceQuotient.finiteCorpusClassify`
+//! ——同 base 多义分解的「规范等价类」由行为商定义（`behavior_quotient_fiber_iff`：同类 ⟺ 行为
+//! 等价）。本文件的 gauge 截面选择（`minGauge` 字典序破平局）落到 parser 结构端点序列上：
+//! - `min_gauge a b := if key(a) ≤ key(b) then a else b`（**平级保左**）。
+//! - `gauge_fix := foldl min_gauge`（从候选列表折叠选截面）。
+//! - 破平局键「最早确认时间 → 最低递归层 → 最早原始 index」（reference:24）。
 //!
-//! 本文件把该 gauge 截面选择落到 parser 的结构端点序列上。reference:24 的破平局判据
-//! 「最早确认时间 → 最低递归层 → 最早原始 index」是 Decomp.lean `minGauge`（level 最小、
-//! 平级最左）在「确认时间」主键上的精化：parser 的端点天然按确认时间从左到右产生，
-//! 故主键（确认时间）由扫描顺序保证；次键（递归层）+ 末键（原始 index）由 `min_gauge`
-//! 在平局时裁决——与 Decomp.lean `minGauge` 的 `≤`（平级保左 = 保更早 index）一致。
+//! ★诚实有效域（no-workaround，待对齐依赖）：Origin canonical 当前**无** `minGauge` 字典序
+//! gauge-fixing 的 native 对应物（行为商 `BehaviorQuotient` 定义了规范等价**类**的存在，但具体
+//! 「字典序 tie-break 选唯一代表元」的优化层未 port 到 Origin）。故本文件的 gauge 截面选择是
+//! **parser 实装侧的确定截面选择器**，其概念正确性锚 Origin 行为商（同纤维内选唯一代表元），
+//! 但具体 `minGauge` 优化层的 Origin native 端口**诚实延后**——不冒充已有 Origin minGauge 锚点。
 //!
 //! ## reference-theta-v0.md:24 逐字
 //!
@@ -20,23 +22,23 @@
 //!
 //! ## 认识论（formalization-validity-domain）
 //!
-//! 本文件 L0（纯结构选择，零数据依赖）。它形式化 Decomp.lean 给定 gauge 后的确定性截面
-//! 选择——**不**声称「真实走势分解经验唯一」（后者 L2/L3）。多义性是真的（Decomp.lean
-//! `decomp_ambiguity_witness`），gauge 固定后规范截面唯一确定（本文件实装该 gauge）。
+//! 本文件 L0（纯结构选择，零数据依赖）。它实装给定 gauge 后的确定性截面选择（概念锚 Origin
+//! 行为商同纤维代表元）——**不**声称「真实走势分解经验唯一」（后者 L2/L3）。多义性是真的
+//! （行为商纤维非平凡），gauge 固定后规范截面唯一确定（本文件实装该 gauge 截面选择器）。
 
 use super::super::types::{Segment, Timestamp};
 
 /// canonical 候选端点（结构对象在 canonical 分解中的统一表示）。
 ///
-/// bit-exact 对齐 Decomp.lean 的破平局三键（reference:24）：
+/// gauge 截面选择器的破平局三键（reference:24；概念锚 Origin 行为商同纤维代表元选择）：
 /// - `confirm_time`：最早**确认时间**（主键；端点被确认为分解边界的时刻）。
-/// - `recursion_level`:**最低递归层**（次键；段=L0 层，上级走势层更高，对齐 `gaugeLevel`）。
+/// - `recursion_level`:**最低递归层**（次键；段=L0 层，上级走势层更高）。
 /// - `source_index`:**最早原始 index**（末键；端点对应的原始 K 序号，对齐平局裁决 :16）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Candidate {
     /// 确认时间（主键，升序优先）。
     pub confirm_time: Timestamp,
-    /// 递归层（次键，最低优先；L0 段 = 0，对齐 Decomp.gaugeLevel）。
+    /// 递归层（次键，最低优先；L0 段 = 0）。
     pub recursion_level: u32,
     /// 原始 K 序号（末键，最早优先；reference:16 平局裁决）。
     pub source_index: usize,
@@ -45,8 +47,8 @@ pub struct Candidate {
 impl Candidate {
     /// gauge 排序键（reference:24 三键字典序：确认时间 → 递归层 → 原始 index）。
     ///
-    /// bit-exact：三键全部「越小越优先」，对齐 Decomp.lean `minGauge` 的 `≤`（平级保左
-    /// = 三键字典序更小者胜）。返回元组用 Rust 的元组 `Ord`（按序字典比较）。
+    /// 三键全部「越小越优先」（平级保左 = 三键字典序更小者胜）。返回元组用 Rust 的元组 `Ord`
+    /// （按序字典比较）。
     pub fn gauge_key(&self) -> (Timestamp, u32, usize) {
         (self.confirm_time, self.recursion_level, self.source_index)
     }
@@ -54,8 +56,8 @@ impl Candidate {
 
 /// gauge 截面选择：两候选取 gauge_key 较小者（reference:24 破平局，平级保左）。
 ///
-/// bit-exact 对齐 `Decomp.minGauge`：`if key(a) ≤ key(b) then a else b`。`≤` 保证平局
-/// （key 相等）时保留 `a`（更早扫描到的，左侧）——与 Decomp.lean「平级最左」一致。
+/// `min_gauge a b := if key(a) ≤ key(b) then a else b`。`≤` 保证平局（key 相等）时保留 `a`
+/// （更早扫描到的，左侧）——「平级最左」（gauge 截面选择器的确定代表元规则）。
 fn min_gauge(a: Candidate, b: Candidate) -> Candidate {
     if a.gauge_key() <= b.gauge_key() {
         a
@@ -64,12 +66,12 @@ fn min_gauge(a: Candidate, b: Candidate) -> Candidate {
     }
 }
 
-/// 从候选端点列表折叠选 gauge 截面（reference:24，bit-exact 对齐 `Decomp.gaugeFix`）。
+/// 从候选端点列表折叠选 gauge 截面（reference:24，gauge 截面选择器）。
 ///
-/// `gaugeFix := foldl minGauge`。空列表无截面（`None`，对齐 `gaugeFix [] = none`，
-/// 偏函数诚实——不伪造全函数）；非空折叠选 gauge_key 最小候选（平级保左）。
+/// `gauge_fix := foldl min_gauge`。空列表无截面（`None`，偏函数诚实——不伪造全函数）；
+/// 非空折叠选 gauge_key 最小候选（平级保左）。
 ///
-/// 边界条件：候选为空 ⟹ `None`（无可选截面，对齐 Decomp.lean `gaugeFix_empty_none`）。
+/// 边界条件：候选为空 ⟹ `None`（无可选截面）。
 pub fn gauge_fix(cands: &[Candidate]) -> Option<Candidate> {
     cands.split_first().map(|(&head, rest)| rest.iter().fold(head, |acc, &c| min_gauge(acc, c)))
 }
@@ -157,7 +159,7 @@ mod tests {
 
     #[test]
     fn min_gauge_keeps_left_on_full_tie() {
-        // 三键全相等（平局）→ 保留左侧 a（平级最左，对齐 Decomp.minGauge 的 ≤）。
+        // 三键全相等（平局）→ 保留左侧 a（平级最左，min_gauge 的 ≤ 规则）。
         let a = cand(5, 0, 3);
         let b = cand(5, 0, 3);
         assert_eq!(min_gauge(a, b), a);
@@ -165,7 +167,7 @@ mod tests {
 
     #[test]
     fn gauge_fix_empty_none() {
-        // 空候选 → None（偏函数诚实，对齐 Decomp.gaugeFix_empty_none）。
+        // 空候选 → None（偏函数诚实，无可选截面）。
         assert_eq!(gauge_fix(&[]), None);
     }
 

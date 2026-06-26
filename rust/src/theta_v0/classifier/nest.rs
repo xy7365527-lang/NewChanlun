@@ -1,17 +1,19 @@
-//! 区间套有限递归证书 χ（reference-theta-v0.md:对齐 Nest.lean）。
+//! 区间套有限递归证书 χ（reference-theta-v0.md；契约重锚 `Origin.SubLevelDescent`）。
 //!
-//! ## bit-exact 对齐 `Strict/Nest.lean`
+//! ## 契约重锚（legacy Strict/Nest → `Origin.SubLevelDescent`）
 //!
-//! - `Sel_Θ` 选择器 ↔ `selOrder`：endTime 大优先 → startTime 大优先 → idx 小优先。
+//! - 下钻递归 ↔ `Origin.SubLevelDescent.descend : RMove → List RMove`（compose 的逆，segment → []，
+//!   `descend_level_decreases` 证下钻级别严格降 well-founded 终止）。
 //! - 区间套关系 ↔ `Sub`：`J'.startTime>=J.startTime ∧ J'.endTime<=J.endTime`（J' 套在 J 内）。
-//! - 选择器键 ↔ `selKey`：`(endTime, startTime, idx)`。
-//! - 递归证书 ↔ `NestCertificate`：逐级 candidate + 区间套 ⊆。
+//! - 子级别破中枢 ↔ `Origin.SubLevelDescent.{SubBrokeBelow,SubBrokeAbove,subLevelHasBrokenCenter}`。
+//! - `Sel_Θ` 选择器 ↔ `selKey`：`(endTime, startTime, idx)` 字典序（canonical tie-break）。
 //! - 终端确认 ↔ `Confirm`：`Λ≠∅`（至少一类买卖点成立，**不要求 |Λ|=1**——2/3 类可共存）。
 //!
-//! ## 核心定理（Nest.lean nest_certificate_unique）
+//! ## 核心定理（契约锚 `Origin.SubLevelDescent.descend_level_decreases`）
 //!
-//! 在 `Sel_Θ` 固定下，区间套递归证书的定位见证（各级 `Sel_Θ` chosen 键序列）唯一。
-//! Θ-参数化前件：唯一性依赖 `Sel_Θ`——缠论结构公理单独给不出唯一定位（需选择器固定）。
+//! 在 `Sel_Θ` 固定下，区间套递归证书的定位见证（各级 chosen 键序列）唯一；下钻级别严格降
+//! （`descend_level_decreases`）⟹ 有限递归终止。唯一性依赖 `Sel_Θ`——缠论结构公理单独给不出
+//! 唯一定位（需选择器固定）。
 //!
 //! ## 认识论（formalization-validity-domain）
 //!
@@ -21,7 +23,7 @@
 
 use super::super::types::BspBits;
 
-/// 候选定位区间（reference:对齐 `Nest.Interval`）——携带 `Sel_Θ` 排序三键。
+/// 候选定位区间（契约锚 `Origin.SubLevelDescent` 下钻区间）——携带 `Sel_Θ` 排序三键。
 ///
 /// 几何上下界由下游 `Sub` 契约（区间套缩小），本结构暴露排序所需三键，使「选择器固定
 /// candidate」可机器检查。

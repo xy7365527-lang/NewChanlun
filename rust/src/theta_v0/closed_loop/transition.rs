@@ -13,7 +13,8 @@
 //!   由 `hybrid_step_complete_unique`（:232-236）证确定唯一、`transition_writes_full_state`（:244-247）
 //!   证 T 写回完整下一态、`policy_factors_through_classification`（:238-242）证经分类瓶颈分解。
 //! - R=Π-A-W 双账本写回 → `Origin.ledgerStep` + `ledger_invariant_preservation`（见 strategy/ledger.rs）。
-//! - **TW/OQ-9 写回 → 锚点缺位**（Origin 无 TW 对应，tw_step/OQ-9 gate 仍锚 legacy；见 ledger.rs 模块头）。
+//! - **TW/OQ-9 写回 → `Origin.TotalWealth.twStep` + `oq9inv_preserved`**（#127 native port 已落地，
+//!   tw_step/OQ-9 gate 锚 Origin canonical；见 ledger.rs 模块头「TW 三阶段 / OQ-9 gate 契约 → Origin.TotalWealth」）。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
@@ -66,7 +67,7 @@ pub struct AssemblyEvent {
 /// 订单 `OrderOut`（契约锚 `Origin.FullDefinitionSystem.Order`，Schedule 段输出）。
 ///
 /// 对齐 Origin `schedule : StrictState → Control → Order` 的 `Order` 输出位。携带动作 + 目标仓位 +
-/// 双账本事件——使 T 的双账本（ledger R=Π-A-W 锚 Origin + tw_state TW 锚 legacy）更新都有据
+/// 双账本事件——使 T 的双账本（ledger R=Π-A-W 锚 Origin.LedgerState + tw_state TW 锚 Origin.TotalWealth）更新都有据
 /// （账户因果链；task #93 双层并置）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OrderOut {
@@ -123,7 +124,7 @@ fn risk_adapter(x: &AssemblyState, intent: StrictAction) -> u64 {
 ///   推进 stage——非恒等）。
 /// - 保持/观望（Hold/Wait）⟹ `Noop`（无账本变化）+ `ShortDiff(0)`（TW 不变的零转移）。
 ///
-/// ★OQ-9 gate（锚 legacy `TotalWealth.LegalTransition`，Origin 锚点缺位）：`OpenShareLeg` 在
+/// ★OQ-9 gate（契约锚 `Origin.TotalWealth.LegalTransition`，#127 native port）：`OpenShareLeg` 在
 /// stage=EarningShares **非法**（引擎层禁该转移）。本段派生的 tw_event 只取 `ShortDiff`/`RecoverCapital`
 /// （都不是 OpenShareLeg/CloseShareLeg），故不开 legacy 腿也不闭 legacy 腿——OQ-9 gate 自动满足
 /// （开 legacy 腿的非法转移不被本段产生，见 `assert_oq9_legal`）。
@@ -173,13 +174,13 @@ pub fn policy_output(x: &AssemblyState, e: &AssemblyEvent) -> OrderOut {
     schedule_adapter(x, intent, target_pos)
 }
 
-/// OQ-9 gate 守卫（锚 legacy `TotalWealth.LegalTransition`，Origin 锚点缺位）：tw_event 在当前
+/// OQ-9 gate 守卫（契约锚 `Origin.TotalWealth.LegalTransition`，#127 native port）：tw_event 在当前
 /// tw_state 下必须合法。
 ///
 /// OpenShareLeg 在 stage=EarningShares 非法。本守卫断言订单携带的 tw_event 是当前态下的合法转移
 /// （schedule_adapter 只派生 ShortDiff/RecoverCapital，二者恒合法，故此守卫恒成立；它是引擎层
-/// 「禁非法转移」的显式落实，对齐 legacy `assemblyStep_oq9_gate_preserved`——TW/OQ-9 的 Origin
-/// canonical 重锚诚实延后至 Origin TW 端口落地）。
+/// 「禁非法转移」的显式落实，对齐 `Origin.TotalWealth.oq9inv_preserved` 的单步保持——TW/OQ-9 的
+/// Origin canonical 重锚已由 #127 `Origin.TotalWealth` native port 落地）。
 fn assert_oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
     tw_event.is_legal_from(tw_state)
 }
@@ -278,7 +279,7 @@ mod tests {
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    //  闭环每步保不变量（R=Π-A-W 锚 Origin.ledger_invariant_preservation；TW/stage 锚 legacy TotalWealth）
+    //  闭环每步保不变量（R=Π-A-W 锚 Origin.ledger_invariant_preservation；TW/stage 锚 Origin.TotalWealth）
     // ──────────────────────────────────────────────────────────────────────
 
     /// ★闭环每步保 R=Π-A-W（契约锚 `Origin.FullDefinitionStrategy.ledger_invariant_preservation`）。
@@ -297,7 +298,7 @@ mod tests {
         }
     }
 
-    /// ★闭环每步保 TW 守恒（锚 legacy `TotalWealth` twStep_preserves_tw——Origin 锚点缺位）。
+    /// ★闭环每步保 TW 守恒（契约锚 `Origin.TotalWealth.twStep_preserves_tw`——#127 native port）。
     #[test]
     fn hybrid_step_preserves_tw() {
         let mut x = AssemblyState::initial(1_000_000);
@@ -308,7 +309,7 @@ mod tests {
         }
     }
 
-    /// ★闭环每步 stage 单向不减（锚 legacy `TotalWealth` stage_rank_monotone——Origin 锚点缺位）。
+    /// ★闭环每步 stage 单向不减（契约锚 `Origin.TotalWealth.stage_rank_monotone`——#127 native port）。
     #[test]
     fn hybrid_step_stage_monotone() {
         let mut x = AssemblyState::initial(1_000_000);
@@ -323,7 +324,7 @@ mod tests {
         }
     }
 
-    /// ★OQ-9 gate 闭环保持（锚 legacy `TotalWealth` assemblyStep_oq9_gate_preserved——Origin 锚点缺位）：
+    /// ★OQ-9 gate 闭环保持（契约锚 `Origin.TotalWealth.oq9inv_preserved` / `oq9inv_trace`——#127 native port）：
     /// schedule_adapter 只派生 ShortDiff/RecoverCapital（不开/不闭 legacy 腿）⟹ open_legacy_legs 恒 0。
     #[test]
     fn hybrid_step_oq9_gate_preserved() {
@@ -351,7 +352,7 @@ mod tests {
     //  ★反退化见证：双账本 + micro 真被线程化（非恒等挂件）
     // ──────────────────────────────────────────────────────────────────────
 
-    /// ★tw_state 真被线程化（锚 legacy `TotalWealth` assemblyStep_threads_twState——Origin 锚点缺位）：
+    /// ★tw_state 真被线程化（契约锚 `Origin.TotalWealth.twStep`——#127 native port，非恒等挂件）：
     /// 闭环后 tw_state = tw_step(x.tw_state, policy_output(x).tw_event)——非恒等挂件。
     #[test]
     fn hybrid_step_threads_tw_state() {

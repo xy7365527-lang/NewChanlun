@@ -1,27 +1,42 @@
 //! Θ_voice + Θ_risk + Θ_exec 子模块（reference-theta-v0.md:39-54）。
 //!
-//! ## 范围（bit-exact 对齐 `Strict/Fugue.lean` / `RiskProj.lean` / `Op.lean` /
-//! `StrategyFamily.lean`）
+//! ## 契约重锚（legacy Strict → `Origin.StrategyFamily` + `Origin.VoiceTree` + `Origin.RiskProj`）
 //!
-//! 声部树 + 风险投影 + sizing + 执行。给定 Θ ⟹ 订单 O_{t+1} 唯一（StrategyFamily 元定理）。
+//! 声部树 + 风险投影 + sizing + 执行。**策略是 Param 索引的族 π_Θ**（不是硬编码单策略）——契约锚
+//! `Origin.StrategyFamily`（StrategyFamily.lean，`namespace NewChanlun.Origin.StrategyFamily`）：
+//! ```text
+//! structure Theta (H Z D Target Pos K Order) where     -- 单个 Θ 实例（6+1 字段）
+//!   prefixEq; recog : H→Z→D; target : D→Z→Target; riskProj : RiskGrid Pos K
+//!   proj : Target→Pos; exec : D→Z→Pos→Order; recog_causal : ...
+//! def piTheta (θ) (h) (z) : Order :=                    -- π_Θ = exec∘proj∘target∘recog
+//!   θ.exec (θ.recog h z) z (θ.proj (θ.target (θ.recog h z) z))
+//! structure StrategyFamily (H Z Param Order) where      -- ★Param 索引的策略族
+//!   π : Param → H → Z → Order
+//!   total_unique : ∀ θ h z, ExistsUnique (fun o => π θ h z = o)
+//!   causal : ∀ θ z, Causal ...
+//! def familyOfTheta : (Param → Theta ...) → StrategyFamily ...  -- Θ 族 → 策略族
+//! ```
+//! 关键元定理：`classification_does_not_choose_unique_policy`（分类**不**推出唯一策略——存在
+//! π₁≠π₂）+ `given_theta_total_unique`（给定 Θ ⟹ π_Θ 全定义唯一）。本 Rust [`StrategyFamily`]
+//! 把 [`ThetaConfig`] 立为 **Param 索引**：`StrategyFamily::pi(param, decisions, bars, account)` =
+//! `piTheta` 在 param=config 处的求值——消硬编码单策略（不同 config ⟹ 不同 π_Θ 族成员）。
 //!
-//! ## 子模块拓扑（对齐 StrategyFamily.lean `piTheta = exec ∘ riskProj ∘ target ∘ recog`）
+//! ## 子模块拓扑（对齐 `Origin.StrategyFamily.piTheta = exec ∘ proj ∘ target ∘ recog`）
 //!
-//! - [`voice`]（Θ_voice，对齐 `Fugue.lean`）：声部树 σ=(-1)^depth + 4 互斥动作态 + 深度权重。
-//! - [`risk`]（Θ_risk，对齐 `RiskProj.lean`）：结构止损 + sizing 三路 min（唯一总仓位）。
-//! - [`exec`]（Θ_exec）：延迟成交 + 费用 + 止损成交 + 不可交易过滤 + 冲突排序。
+//! - [`voice`]（Θ_voice，对齐 `Origin.VoiceTree`）：声部树 σ=flip(父σ) + 4 互斥动作态 + 深度权重。
+//! - [`risk`]（Θ_risk，对齐 `Origin.RiskProj`）：结构止损 + sizing 三路 min（唯一总仓位）。
+//! - [`exec`]（Θ_exec，对齐 `Origin.StrategyFamily.Theta.exec`）：延迟成交 + 费用 + 止损成交 + 冲突排序。
 //!
-//! [`pi_strict`] 是 strategy 的可验证种子（bit-exact 对齐 `Op.lean` `piStrict`，9 状态→7 动作）。
-//! [`plan_orders`] 实装 π_Θ 链的 `target → riskProj → exec` 段（声部决策 → 风险投影 → 执行
-//! ⟹ 唯一订单流）；`recog` 段（[`recognize`]）阻塞于 `bsp` 索引语义 change request。
+//! [`pi_strict`] 是 strategy 的可验证种子（对齐 `Origin.FullDefinitionStrategy` 动作类 9→7 投影）。
+//! [`plan_orders`] 实装 π_Θ 链的 `target → proj(riskProj) → exec` 段；[`StrategyFamily::pi`] 是
+//! Param 索引的族入口；`recog` 段见 [`recognize`]（对齐 `Origin.StrategyFamily.Theta.recog`）。
 //!
-//! ## piTheta 链的两层（StrategyFamily.lean `recog`/`target`/`riskProj`/`exec`）
+//! ## piTheta 链的两层（`Origin.StrategyFamily.Theta` `recog`/`target`/`proj`/`exec`）
 //!
-//! - **recog**（`Classification + bars → 声部决策 D`）：从分类标签 + 历史读出每声部的决策意图
-//!   （级别 L*、方向 σ、进场/退出判定、止损/入场价）。recog 的**价格桥接**（买卖点 bit-vector
-//!   索引 → pivot/entry 价）依赖 cc-classifier 冻结的 `bsp` 索引语义——见 [`recognize`]。
-//! - **target → riskProj → exec**（`声部决策 + 账户 → 订单`）：[`plan_orders`] 实装此确定链，
-//!   bit-exact 对齐 Fugue/RiskProj/Θ_exec。此层**不依赖** `bsp` 索引语义（吃已 recog 的决策）。
+//! - **recog**（`Classification + bars → 声部决策 D`，对齐 `Theta.recog : H→Z→D`）：从分类标签 +
+//!   历史读出每声部的决策意图（级别 L*、方向 σ、进场/退出判定、止损/入场价）。
+//! - **target → proj(riskProj) → exec**（`声部决策 + 账户 → 订单`）：[`plan_orders`] 实装此确定链，
+//!   对齐 `Theta.{target,proj,riskProj,exec}`。此层吃已 recog 的决策。
 
 pub mod exec;
 pub mod intent;
@@ -36,19 +51,20 @@ use exec::FillSide;
 use risk::{SizingInput, StopInput, StopSide};
 use voice::{ActState, VoiceSide, VoiceState};
 
-/// 完整结构状态 Sₗ（Strict/Op.lean `StrictState`：持仓 × 信号 = 9 状态）。
+/// 完整结构状态 Sₗ（持仓 × 信号 = 9 状态，对齐 `Origin.FullDefinitionStrategy` 动作类前件）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StrictState {
     pub pos: Pos,
     pub sig: Sig,
 }
 
-/// 完全应对策略 π（**bit-exact 对齐 `Strict/Op.lean` `piStrict`**）。
+/// 完全应对策略 π 种子（**对齐 `Origin.FullDefinitionStrategy.ActionClass` 9→7 投影**）。
 ///
-/// 9 状态（3 持仓 × 3 信号）→ 7 动作全函数。每一格的映射逐字对齐 Op.lean：
+/// 9 状态（3 持仓 × 3 信号）→ 7 动作全函数。这是策略族的**单点种子**（固定 Param 下的 9→7 映射），
+/// 由 [`StrategyFamily`] 的 Param 索引推广为族。每一格的映射逐字对齐 Origin 动作语义：
 /// - flat+buySide → Buy（建仓）
 /// - flat+sellSide → Wait（空仓遇卖侧，裸空非缠论 §4.4，观望不动）
-/// - flat+none → Wait（空仓无信号 = 等待，**非 Hold**，Op.lean codex#2 关键修正）
+/// - flat+none → Wait（空仓无信号 = 等待，**非 Hold**，Origin 动作类 wait/hold 区分）
 /// - long+buySide → Add（降成本买回）
 /// - long+sellSide → Reduce（降成本减仓）
 /// - long+none → Hold（持多不动，有仓位）
@@ -73,7 +89,7 @@ pub fn pi_strict(s: StrictState) -> StrictAction {
     }
 }
 
-/// 账户状态 Z（StrategyFamily.lean `Theta` 的账户输入 Z）。
+/// 账户状态 Z（契约锚 `Origin.StrategyFamily.Theta` 的账户输入 Z）。
 ///
 /// strategy-owned（不进共享 types.rs——账户状态是 strategy 层的运行时输入，非 parse/classify
 /// 的结构对象）。字段：
@@ -95,14 +111,14 @@ impl AccountState {
     }
 }
 
-/// 单声部决策 D（StrategyFamily.lean `recog : H → Z → D` 的输出）。
+/// 单声部决策 D（契约锚 `Origin.StrategyFamily.Theta.recog : H → Z → D` 的输出）。
 ///
 /// 这是 recog 从分类标签 + 历史读出的**每声部决策意图**——target/riskProj/exec 链消费它
-/// 产出订单。字段（声部级，对齐 Fugue.lean `VoiceState` + Θ_risk/Θ_exec 输入）：
+/// 产出订单。字段（声部级，对齐 Origin.VoiceTree `VoiceState` + Θ_risk/Θ_exec 输入）：
 /// - `depth`：声部深度（根=0）。决定资金权重；与 `root_side` 一起定声部绝对方向。
 /// - `root_side`：**根方向 σ_root**（信号方向：买点→Long，卖点→Short）。声部绝对方向
 ///   = `voice::voice_side(root_side, depth)` = σ_root·(-1)^depth（spec:41 + Fugue 推广）。
-/// - `exit`/`enter_ok`：退出/进场判定（Fugue.lean `Exit`/`EnterOK`，运行时 Bool）。
+/// - `exit`/`enter_ok`：退出/进场判定（Origin.VoiceTree `Exit`/`EnterOK`，运行时 Bool）。
 /// - `bsp`：该声部触发点的买卖点 bit-vector（决定止损类别 + bsp_class 冲突序）。
 /// - `signal_index`：信号确认的 bar 索引（exec 延迟成交起点）。
 /// - `stop_in`：结构止损输入（pivot 极值 + 最后中枢，`risk::structural_stop` 用）。
@@ -111,7 +127,7 @@ impl AccountState {
 /// - `level`：决策级别（冲突排序 `ConflictKey` 的 level，高 level 先）。
 ///
 /// ★`root_side`（声部方向由信号定）：reference spec:41「σ=+1多/-1空」未固定根方向——3买/
-/// 底背驰 → Long 根，3卖/顶背驰 → Short 根。这把 Fugue.lean「根恒 Long」推广为「根方向参数化」
+/// 底背驰 → Long 根，3卖/顶背驰 → Short 根。这把 Origin.VoiceTree「根恒 Long」推广为「根方向参数化」
 /// （`voice::voice_side` 是 `dir_of_depth` 的有效域推广，Fugue 是 root_side=Long 特例）。v0
 /// recognize 产单声部（depth 0，无嵌套对冲），σ = root_side = 信号方向。
 ///
@@ -177,7 +193,7 @@ fn min_bsp_class(bits: &BspBits, side: VoiceSide) -> u8 {
     }
 }
 
-/// Θ_voice + Θ_risk + Θ_exec 顶层管线——实装 StrategyFamily.lean `piTheta` 链的
+/// Θ_voice + Θ_risk + Θ_exec 顶层管线——实装 `Origin.StrategyFamily.piTheta` 链的
 /// **`target → riskProj → exec` 段**（`recog` 段见 [`recognize`]，阻塞于 change request）。
 ///
 /// 给定**已 recog 的声部决策列表** `decisions`（= recog 输出 D，本函数不含 recog 步骤）+
@@ -190,9 +206,9 @@ fn min_bsp_class(bits: &BspBits, side: VoiceSide) -> u8 {
 ///
 /// ## 管线（每声部）
 ///
-/// 1. **target（Fugue.lean `actState`/`targetPos`）**：从声部状态算 4 动作态 + 目标仓位。
+/// 1. **target（Origin.VoiceTree `actState`/`targetPos`）**：从声部状态算 4 动作态 + 目标仓位。
 ///    close/wait → 无新仓订单（close 触发平仓订单）；open → sizing 建仓；hold → 不动。
-/// 2. **riskProj（RiskProj.lean sizing）**：open 时 `risk::size_position` 算唯一 qty；
+/// 2. **riskProj（`Origin.RiskProj` sizing）**：open 时 `risk::size_position` 算唯一 qty；
 ///    qty<=0 不交易（spec:47）。止损价由 `risk::structural_stop` 定。
 /// 3. **exec（Θ_exec）**：`exec::fill_bar_index` 定延迟成交 bar；exec_index 写入订单。
 ///    不可交易 bar 过滤（无成交 bar ⟹ 该声部无订单）。
@@ -214,19 +230,19 @@ pub fn plan_orders(
     let mut planned: Vec<(exec::ConflictKey, Order)> = Vec::new();
 
     for d in decisions {
-        // 声部深度超出 max_depth ⟹ 不开声部（Fugue.lean 最多 max_depth 层，spec:40）。
+        // 声部深度超出 max_depth ⟹ 不开声部（Origin.VoiceTree 最多 max_depth 层，spec:40）。
         if !voice::within_max_depth(d.depth, &config.voice) {
             continue;
         }
 
         // 声部绝对方向 = 根方向（信号定）× depth 相对极性（`voice_side`，对齐 StrategyFamily
         // §5 `long_short_both_open_allowed:570` 多独立根）。根（depth 0）= root_side（信号方向，
-        // 3买→Long/3卖→Short）；子声部按 depth 奇偶相对根翻转（赋格交替）。Fugue.lean
+        // 3买→Long/3卖→Short）；子声部按 depth 奇偶相对根翻转（赋格交替）。Origin.VoiceTree
         // `dirOfDepth`（根恒 Long）是 root_side=Long + 嵌套树的强化子情形（不同有效域）。
         let side = voice::voice_side(d.root_side, d.depth);
         let q = account.qty_at(d.depth);
 
-        // target：4 动作态（Fugue.lean actState）。
+        // target：4 动作态（Origin.VoiceTree actState）。
         let vstate = VoiceState {
             depth: d.depth,
             b: 0, // b_v（开仓基准）由 sizing 算出，target 阶段只需 act_state 判定
@@ -346,7 +362,7 @@ fn build_exit_order(
     let _ = fill_side_of(side, true)?; // 平仓方向校验（Flat ⟹ None）
 
     let exec_index = exec::fill_bar_index(d.signal_index, bars, &config.exec)?;
-    // 平仓动作（Close）：StrictAction::Close（平当前腿，对齐 Op.lean）。
+    // 平仓动作（Close）：StrictAction::Close（平当前腿，对齐 Origin 动作类 close）。
     Some(Order { action: StrictAction::Close, qty, exec_index })
 }
 
@@ -364,7 +380,7 @@ fn signal_tie_keys(d: &VoiceDecision, bars: &[Bar]) -> (i64, usize) {
     }
 }
 
-/// recog 步骤（StrategyFamily.lean `recog : H → Z → D`）：`Classification + bars → 声部决策`。
+/// recog 步骤（契约锚 `Origin.StrategyFamily.Theta.recog : H → Z → D`）：`Classification + bars → 声部决策`。
 ///
 /// 从 cc-classifier 的 `Classification`（分类标签 S，路 B `BspPoint` 携带结构止损价 single
 /// source）+ `bars`（历史 H）读出每个买卖点的 [`VoiceDecision`]（决策 D）。**零结构重算**
@@ -413,7 +429,25 @@ pub fn recognize(
 
     let mut decisions = Vec::new();
     for (level_idx, level) in classification.levels.iter().enumerate() {
-        // 声部深度 = L* - ℓ（L* 级 → depth 0 根；低级 → 更深）。L* ≥ level_idx（L* 是最高）。
+        // ★声部树语义（契约锚 `Origin.VoiceTree`）：声部节点**只锚在携带决策点（bsp）的级别**上
+        // ——`depth : V → Nat` 是声部节点的属性，根 depth=0 锚在 L*（最高有效决策级别）。一个 bsp
+        // 空的级别**不是声部节点**（无决策点 ⟹ 无 voice）。`l_star = max{ℓ : levels[ℓ].bsp 非空}`
+        // 已蕴含：任何 `level_idx > l_star` 的级别 bsp **必空**（否则它会是新的 max，矛盾）。
+        //
+        // 旧代码对**所有**级别算 `depth = l_star - level_idx`——当 level_idx > l_star（高于 L* 的空
+        // bsp 级别）时 usize 下溢（debug panic / release wrapping 成巨大 u32）。修复=**严格语义**：
+        // 空 bsp 级别不是声部节点，跳过它（不是 saturating_sub 补丁——那会给非声部级别臆造一个错误
+        // depth）。`depth = l_star - level_idx` 只对**携带 bsp 的级别**（必 level_idx ≤ l_star）有定义。
+        if level.bsp.is_empty() {
+            // 空 bsp 级别非声部节点（含所有 level_idx > l_star 的级别）——跳过，不算 depth。
+            continue;
+        }
+        // 此处 level.bsp 非空 ⟹ level_idx ≤ l_star（l_star 是非空 bsp 级别的最大索引）⟹ 减法不下溢。
+        debug_assert!(
+            level_idx <= l_star,
+            "非空 bsp 级别 {} 不应高于 l_star {}（l_star 是非空 bsp 级别的最大索引）",
+            level_idx, l_star
+        );
         let depth = (l_star - level_idx) as u32;
         for point in &level.bsp {
             if let Some(d) = recognize_point(point, depth, level_idx as u32, bars, config) {
@@ -502,12 +536,67 @@ fn bsp_root_side(bits: &BspBits) -> Option<VoiceSide> {
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  Param 索引策略族 π_Θ（G7：契约锚 `Origin.StrategyFamily.{StrategyFamily,familyOfTheta,piTheta}`）
+// ──────────────────────────────────────────────────────────────────────────
+
+/// **Param 索引策略族 π_Θ**（契约锚 `Origin.StrategyFamily.StrategyFamily` + `familyOfTheta`）。
+///
+/// ★G7 消硬编码单策略：Origin `StrategyFamily.π : Param → H → Z → Order` 把策略**参数化为族**——
+/// 每个 `Param` 值索引一个 `Theta` 实例（`familyOfTheta : (Param → Theta) → StrategyFamily`），
+/// 求值 `π param h z = piTheta (paramToTheta param) h z`。`classification_does_not_choose_unique_policy`
+/// 已证「分类不推出唯一策略」（存在 π₁≠π₂）——故策略**必须**是 Param 索引的族，硬编码单策略 =
+/// 抹掉这个自由度（违背 Origin 元定理）。
+///
+/// 本 Rust 实装把 [`ThetaConfig`] 立为 **Param 索引**（reference-theta-v0.md:config 即 Θ 空间扫描的
+/// 对象）：`family().pi(config, ...)` = `piTheta` 在 param=config 处的求值。不同 config（不同 ρ/β/
+/// γ/κ/max_depth/depth_weights 等）⟹ 不同 π_Θ 族成员 ⟹ 不同订单流——这正是 Phase 6 Θ 空间扫描
+/// 扫的族。`given_theta_total_unique`（给定 Θ ⟹ π_Θ 唯一）由 [`plan_orders`] 的确定性保证。
+///
+/// ★诚实有效域（formalization-validity-domain）：本结构是**族的入口包装**（把 Param=config 注入
+/// piTheta 链），不引入新算法——`pi` 复合既有 [`recognize`]（recog）+ [`plan_orders`]（target→
+/// riskProj→exec），与 Origin `piTheta = exec∘proj∘target∘recog` 的四段复合同构。认识论 L1
+/// （Param 索引接线，不验证某 Param 在市场有效——那是 L2/L3）。
+#[derive(Debug, Clone, Copy)]
+pub struct StrategyFamily;
+
+impl StrategyFamily {
+    /// 构造策略族（无状态——族由 `pi` 的 Param 参数索引，对齐 `familyOfTheta` 的纯函数族）。
+    pub fn family() -> StrategyFamily {
+        StrategyFamily
+    }
+
+    /// **族成员求值 `π param h z`**（契约锚 `Origin.StrategyFamily.StrategyFamily.π : Param → H → Z → Order`）。
+    ///
+    /// 在 Param=`config` 处求值完整 piTheta 链 `exec ∘ proj ∘ target ∘ recog`：
+    /// - `recog`（H→D）= [`recognize`]：`classification + bars → 声部决策`。
+    /// - `target → proj(riskProj) → exec`（D→Order）= [`plan_orders`]：`决策 + 账户 → 订单流`。
+    ///
+    /// 给定 Param（config）⟹ 订单流唯一（`given_theta_total_unique`：plan_orders 确定 + 冲突排序全序）。
+    /// **不同 Param ⟹ 不同 π_Θ 族成员**——`classification_does_not_choose_unique_policy` 的 Rust 兑现。
+    ///
+    /// 参数：`param`（= Θ 索引，config）、`classification`（C_Θ 输出 H）、`bars`（历史 H）、
+    /// `account`（账户 Z）。返回该 Param 下的唯一订单流 O_{t+1}。
+    pub fn pi(
+        &self,
+        param: &ThetaConfig,
+        classification: &Classification,
+        bars: &[Bar],
+        account: &AccountState,
+    ) -> Vec<Order> {
+        // recog 段（H→D）：在 Param=param 处读出声部决策。
+        let decisions = recognize(classification, bars, param);
+        // target→proj(riskProj)→exec 段（D→Order）：在 Param=param 处产唯一订单流。
+        plan_orders(&decisions, bars, account, param)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// bit-exact 对齐 Op.lean：9 状态全枚举 → 7 动作映射逐格验证（golden table）。
-    /// 这是 Op.lean `piStrict` 的 Rust conformance fixture——任一格漂移 = bit-exact 失败。
+    /// 对齐 Origin 动作类：9 状态全枚举 → 7 动作映射逐格验证（golden table）。
+    /// 这是 `Origin.FullDefinitionStrategy.ActionClass` 9→7 投影的 Rust conformance fixture——任一格漂移 = 失败。
     #[test]
     fn pi_strict_matches_op_lean_nine_states() {
         use Pos::*;
@@ -529,7 +618,7 @@ mod tests {
         }
     }
 
-    /// Op.lean wait/hold 区分关键不变量：flat 永不返回 Hold，long/short+none 永远 Hold。
+    /// Origin 动作类 wait/hold 区分关键不变量：flat 永不返回 Hold，long/short+none 永远 Hold。
     #[test]
     fn wait_only_for_flat_hold_only_for_held_positions() {
         use Pos::*;
@@ -884,6 +973,39 @@ mod tests {
         assert!(recognize(&empty_bsp, &bars, &cfg).is_empty());
     }
 
+    /// ★L2 回归（#132 真实数据 OKLO 暴露的 usize 下溢）：低级别（L0）有 bsp、**高级别**（L1+）
+    /// bsp 空时，`l_star=0`，旧代码对 level_idx=1>l_star 算 `l_star - level_idx` 下溢 panic
+    /// （release wrapping 成巨大 u32 静默错误）。修复=空 bsp 级别非声部节点跳过（Origin.VoiceTree
+    /// 语义）。本测试构造该多级别布局，验证不 panic 且只在 L0 产决策。
+    #[test]
+    fn recognize_higher_empty_levels_no_underflow() {
+        let cfg = ThetaConfig::default();
+        // L0 有第三类买点，L1/L2 bsp 空（多级别真实常态：高级别无信号）⟹ l_star=0。
+        let l0_bsp = vec![BspPoint {
+            source_index: 0,
+            bits: BspBits { buy3: true, ..Default::default() },
+            pivot_low: 210,
+            pivot_high: 0,
+            center: Some(mk_center(100, 200, 3)),
+        }];
+        let classification = Classification {
+            levels: vec![
+                LevelState { bsp: l0_bsp, ..Default::default() }, // L0：非空 bsp（l_star=0）
+                LevelState::default(),                            // L1：空 bsp（level_idx 1 > l_star 0）
+                LevelState::default(),                            // L2：空 bsp（level_idx 2 > l_star 0）
+            ],
+        };
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 205, 215, 200, 210),
+        ];
+        // 旧代码：level_idx=1 时 0-1 下溢 panic。修复后：高空级别跳过，只 L0 产决策（depth 0 根）。
+        let decisions = recognize(&classification, &bars, &cfg);
+        assert_eq!(decisions.len(), 1, "只 L0 非空 bsp 级别产决策（高空级别跳过，不下溢）");
+        assert_eq!(decisions[0].depth, 0, "L0 = L* ⟹ depth 0 根");
+        assert_eq!(decisions[0].level, 0, "决策级别 = L0");
+    }
+
     /// recognize 无可交易成交 bar → 该买卖点不产决策（信号作废，spec:50）。
     #[test]
     fn recognize_no_fill_bar_drops_signal() {
@@ -976,5 +1098,75 @@ mod tests {
         assert!(!orders.is_empty(), "L2 关键路径：真实链产非空订单流（n_orders>0）");
         assert_eq!(orders[0].action, StrictAction::Buy, "3 买 → Buy 开仓");
         assert!(orders[0].qty > 0, "sizing 产正手数");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  G7：Param 索引策略族 π_Θ（契约锚 Origin.StrategyFamily.{StrategyFamily,familyOfTheta}）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★族成员求值 = piTheta 链（契约锚 `Origin.StrategyFamily.StrategyFamily.π`）：
+    /// `family().pi(config, ...)` 逐态等于 `plan_orders(recognize(...))`（recog→target→riskProj→exec 复合）。
+    #[test]
+    fn family_pi_equals_recog_then_plan() {
+        let cfg = ThetaConfig::default();
+        let classification = classification_with_buy3(0);
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 205, 215, 200, 210),
+            tradable_bar(2, 2, 210, 220, 205, 215),
+        ];
+        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        // 族成员 π(param=cfg) = piTheta 四段复合（recog → target → riskProj → exec）。
+        let via_family = StrategyFamily::family().pi(&cfg, &classification, &bars, &account);
+        let via_chain = plan_orders(&recognize(&classification, &bars, &cfg), &bars, &account, &cfg);
+        assert_eq!(via_family, via_chain, "族成员求值 = piTheta 链复合");
+        assert!(!via_family.is_empty());
+    }
+
+    /// ★给定 Param ⟹ π_Θ 唯一（契约锚 `Origin.StrategyFamily.given_theta_total_unique`）：
+    /// 同 Param + 同输入恒同订单流（族成员是确定函数）。
+    #[test]
+    fn family_given_param_total_unique() {
+        let cfg = ThetaConfig::default();
+        let classification = classification_with_buy3(0);
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 205, 215, 200, 210),
+        ];
+        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let fam = StrategyFamily::family();
+        let a = fam.pi(&cfg, &classification, &bars, &account);
+        let b = fam.pi(&cfg, &classification, &bars, &account);
+        assert_eq!(a, b, "给定 Param ⟹ 订单流唯一（given_theta_total_unique）");
+    }
+
+    /// ★不同 Param ⟹ 不同族成员（契约锚 `classification_does_not_choose_unique_policy`）：
+    /// 同分类 + 同输入，但不同 Θ 参数（如 ρ 风险预算）⟹ 订单流可不同（sizing qty 受 ρ 影响）。
+    /// 这兑现「分类不推出唯一策略」——策略由 Param 索引，非分类唯一决定。
+    #[test]
+    fn family_distinct_param_distinct_member() {
+        let classification = classification_with_buy3(0);
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 205, 215, 200, 210),
+            tradable_bar(2, 2, 210, 220, 205, 215),
+        ];
+        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0] };
+        let fam = StrategyFamily::family();
+
+        // Param A：默认 ρ=0.005。
+        let cfg_a = ThetaConfig::default();
+        // Param B：ρ 翻倍（更大单声部风险预算 ⟹ sizing 项1 = floor(ρ·NAV/|entry-stop|) 翻倍）。
+        let mut cfg_b = ThetaConfig::default();
+        cfg_b.risk.rho = 0.010;
+
+        let orders_a = fam.pi(&cfg_a, &classification, &bars, &account);
+        let orders_b = fam.pi(&cfg_b, &classification, &bars, &account);
+        // 两者都产订单（同分类），但 qty 不同（不同 Param ⟹ 不同族成员）。
+        assert!(!orders_a.is_empty() && !orders_b.is_empty());
+        assert_ne!(
+            orders_a[0].qty, orders_b[0].qty,
+            "不同 Θ 参数（ρ）⟹ 不同 π_Θ 族成员（订单 qty 不同）——分类不推出唯一策略"
+        );
     }
 }

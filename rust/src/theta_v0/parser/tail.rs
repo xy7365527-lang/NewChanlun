@@ -1,25 +1,26 @@
 //! 第七步：未完成尾部 tail（reference-theta-v0.md:25，[设计选择,默认值]）。
 //!
-//! ## bit-exact 对齐 `formal/Strict/OpenTail.lean` + `Strict/Parse.lean` §6
+//! ## 契约重锚（legacy Strict/OpenTail + Strict/Parse §6 → `Origin.ChanlunElements.OpenTail`）
 //!
-//! Parse.lean §6 把解析状态切为 **confirmed（已闭合走势，交易可用）** + **active（未完成
-//! 尾部，仅预警）**。本文件实装 active 侧——把 parser 流水线**各阶段**未确认的延伸结构
-//! 显式保存为 `PendingTail`，**不**输出为 confirmed（不混入已确认结构）。
+//! Origin `ElementPipeline.parse` 把解析输出切为 **confirmed（ParseStruct 主体，已闭合走势，交易
+//! 可用）** + **`tail : OpenTail`（未完成尾部，仅预警）**。`Origin.ChanlunElements.OpenTail`
+//! （inductive 五构造子）：`none / pendingFractal (bars) / pendingStroke (fractals) /
+//! pendingSegment (strokes) / pendingMove (segments)`。本文件实装该 active 侧——把 parser 流水线
+//! **各阶段**未确认的延伸结构显式保存为 `PendingTail`，**不**输出为 confirmed（对齐 `tailOf : ... -> OpenTail`）。
 //!
-//! OpenTail.lean 的核心裁定（standard 第5部分）：未完成走势只能唯一分类为**当下状态**
-//! （`current(h) = pendingTail h.tail`），**不能**强行分类为最终结果。`PendingTail` 的每个
-//! 变体携带「方向/起点/当前极值」= 当下状态的内容，**不**携带「最终终结结果」——未来延伸
-//! 落入 reversal/continuation 哪个分支（OpenTail.lean `Branch`）由后续真实数据决定（L2/L3），
+//! 核心裁定：未完成走势只能唯一分类为**当下状态**（对应 `OpenTail` 的 pending* 构造子），**不能**
+//! 强行分类为最终结果。`PendingTail` 的每个变体携带「方向/起点/当前极值」= 当下状态内容，**不**
+//! 携带「最终终结结果」——未来延伸落入 reversal/continuation 哪个分支由后续真实数据决定（L2/L3），
 //! 不由本文件预判。本文件只保存当下状态，不预测分支。
 //!
 //! ## 流水线阶段轴 vs 级别递归轴（两个正交的 tail 概念，非矛盾）
 //!
 //! ★诚实标注（formalization-validity-domain，澄清 spec 间张力）：
-//! - Parse.lean §6 的 `active : Option ActiveTail` 是**级别递归轴**的尾部（一个解析级别
-//!   `D_{ℓ,t}` 最多一个正在延伸的走势尾部）。
+//! - `Origin.ChanlunElements.OpenTail` 是**级别递归轴**的尾部（一个解析级别最多一个正在延伸的
+//!   走势尾部，单个 `OpenTail` 值的 pending* 构造子）。
 //! - 本文件的 `tail : Vec<PendingTail>` 是**单层流水线阶段轴**的尾部（K线→分型→笔→线段
 //!   各阶段各自的未完成结构，reference:25 逐字列举 `PendingFractal|PendingStroke|
-//!   PendingSegment|AliveCenter|PendingMove`）。
+//!   PendingSegment|AliveCenter|PendingMove`，覆盖 `OpenTail` 五构造子的多阶段并存版本）。
 //!
 //! 两者正交：流水线阶段轴在「一个级别内部」的多个识别阶段上各保存一个 pending（栈式，
 //! 从粗到细：段未完成 → 该段内最后笔未完成 → 该笔内最后分型未完成）；级别递归轴在「跨级别」
@@ -209,7 +210,7 @@ fn extreme_after(merged: &[Bar], anchor_index: usize, direction: Direction) -> O
 /// 顺序：从粗（段）到细（分型），对齐流水线阶段轴的栈语义（外层结构未完成 → 其内层
 /// 最后元素也未完成）。每层独立判定，某层无未完成则跳过（不强行造 pending，no-patch）。
 ///
-/// bit-exact 对齐 Parse.lean §6（active 尾部）+ OpenTail.lean（当下状态，不预判分支）。
+/// 契约锚 `Origin.ChanlunElements.OpenTail`（active 尾部 pending* 构造子，当下状态，不预判分支）。
 ///
 /// 边界条件：所有阶段都恰好闭合无延伸 ⟹ 空 tail。
 pub fn build_tail(
@@ -402,7 +403,7 @@ mod tests {
     }
 
     /// property：build_tail 产出的 Pending* 都不携带"最终终结"——仅当下状态字段
-    /// （方向/起点/当前极值）。这是 OpenTail.lean「未完成只给当下状态」的结构见证。
+    /// （方向/起点/当前极值）。这是 `Origin.ChanlunElements.OpenTail`「未完成只给当下状态」的结构见证。
     #[test]
     fn property_tail_carries_only_current_state() {
         let strokes = vec![

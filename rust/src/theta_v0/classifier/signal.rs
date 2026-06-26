@@ -1,15 +1,17 @@
 //! 信号端点提取（reference-theta-v0.md:34-36）——confirmed 走势结构 → 买卖点。
 //!
-//! ## bit-exact 对齐 `Formal/BSPLabels.lean`（EndpointSituation 判据）+ Claim9（点位）
+//! ## 契约重锚（legacy Formal/BSPLabels + Claim9 → `Origin.BspClassification` + `Origin.CenterStates`）
 //!
-//! 把 confirmed 中枢 + 线段序列提取为买卖点端点（`BspPoint`）。每个端点的
-//! `EndpointSituation` 字段由走势结构相对中枢的位置 bit-exact 计算（非臆造）。
+//! 把 confirmed 中枢 + 线段序列提取为买卖点端点（`BspPoint`）。每个端点的语义状态（对齐
+//! `Origin.BspClassification.BspEndpoint` 字段）由走势结构相对中枢的位置（`Origin.CenterStates.
+//! classifyPosition`）bit-exact 计算（非臆造）。
 //!
 //! ## 诚实范围（formalization-validity-domain，★关键边界标注）
 //!
 //! 本工位 v0 **只提取第三类买卖点**——它是 confirmed 结构上**严格可判定**的买卖点：
 //! reference:36「上离中枢后次级别回试低点 `≥ZG`=3买；下离后回抽高点 `≤ZD`=3卖」是
-//! **点相对中枢核心区间的位置判据**（Claim9，已 bit-exact 形式化），只需 confirmed 中枢
+//! **点相对中枢核心区间的位置判据**（`Origin.BspClassification.IsType3Buy/IsType3Sell` +
+//! `Origin.CenterStates.classifyPosition`，已 bit-exact 形式化），只需 confirmed 中枢
 //! + 后续线段端点价，零经验时序依赖。
 //!
 //! 第一/二类买卖点**未在此提取**，原因是诚实的结构边界（非补丁/未实装）：
@@ -47,7 +49,7 @@ fn seg_end(s: &Segment) -> SegEnd {
     }
 }
 
-/// 第三类买卖点提取（reference-theta-v0.md:36；bit-exact Claim9 点位判据）。
+/// 第三类买卖点提取（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。
 ///
 /// 对每个 confirmed 中枢 `c`，扫描其后的线段端点序列，按 reference:36 判第三类：
 /// - **3买**：一条**向上线段**离开中枢上方（端点 `> zg`），紧随的**向下线段**回试低点

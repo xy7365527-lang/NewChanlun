@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0009 课 · 诚实标级 vs 声明膨胀</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>诚实标级 ＞ 假装满级</h1>
+<p class="sub">第 0009 课 · 这一轮四方向<em>真</em>过了督导闸——但「过」靠的不是「全做到了」，而是<strong>把没做到的那一层显式标成 L2 假设、绝不 discharge</strong></p>
+
+<p class="lede">0008 课你学会了识破「schema 冒充忠实分类器」。这一课是它的<strong>正面镜像</strong>：
+当四方向工位（判据血肉 / 深层判据+下钻 / rust 港入 / TW native 重锚）这一轮报「done」，
+我把每个声明拖过三层识破法，结论是——<strong>这次是真 done，而且 done 的方式恰恰是不假装</strong>。
+最该让你带走的不是「他们做完了」，而是一个可复用的判据：<strong>一份形式化产出「严格」与否，
+不看它声明做到了多少，看它<em>把没做到的那一层放在哪里</em></strong>。放进 <code>sorry</code>/裸 <code>axiom</code> = 膨胀；
+放进<strong>显式 <code>structure</code> 字段 / <code>Prop</code> 前件、永不 discharge、并标 L2</strong> = 严格。同一个缺口，两种放法，天壤之别。</p>
+
+<h2>1. 这一轮四方向报了什么，我怎么验的</h2>
+<p>四方向不是「我说做完了」就放行。每条声明对应一个<strong>机器可检验的 witness</strong>，给不出就是 FAIL。我逐条拖过去：</p>
+<table>
+<tr><th>方向</th><th>声明（done）</th><th>我要的 witness</th><th>裁决</th></tr>
+<tr><td><b>判据血肉</b><br><span class="src">#113/#116/#117</span></td><td>中枢三态 / 买卖点单射 / 古怪线段特征序列 / Θ 缠论实例化「已 formalized，首次触 L1」</td><td>真 case-split 缠论判据 → <strong>不同分类产不同 ledger delta</strong>（非裸 inductive、非 Bool 占位）</td><td><span class="lvl l1">PASS-L1</span></td></tr>
+<tr><td><b>深层判据+下钻</b><br><span class="src">#118/#119/#120/#125</span></td><td>完整判据严格细化良构封装 / 真下钻次级别 / 卖点对偶 / 端到端管线闭环</td><td>古怪线段反例两层分叉真证 / <code>descend∘lift</code> 级别真递减 / 管线各段输出真喂下段</td><td><span class="lvl l1">PASS-L0/L1</span></td></tr>
+<tr><td><b>rust 港入</b><br><span class="src">G1 卖侧 / G2 下钻</span></td><td>cargo 273 绿、买卖镜像 A+1↔A−1、MACD 真算非占位</td><td><strong>我亲自重跑 cargo</strong>（#93 闸）+ 镜像 <code>assert_eq</code> + EMA/DIF/DEA 真实算</td><td><span class="lvl l1">PASS-L1（实测 273）</span></td></tr>
+<tr><td><b>TW native 重锚</b><br><span class="src">#103/#127</span></td><td>TW 物理 port 进 Origin，零 import legacy，#90 不同构 + OQ-9 全保</td><td>0005 课三 witness（stage 坍缩反例 / raw 违规腿 / trace 级 invariant）<strong>重锚后全部存活</strong></td><td><span class="lvl l1">PASS-L0</span></td></tr>
+</table>
+<div class="key">
+注意第三行：rust 那条我<strong>没有信「273 绿」这句话</strong>——我自己 <code>cargo test theta_v0</code> 跑了一遍（#93 课的教训：owner 改过文件后，旧的「273 绿」可能是陈旧快照）。
+当前工作树实测 <code>273 passed; 0 failed</code>，与声明一致。<strong>「真封」不是看 commit message 写了几绿，是看你此刻重跑出几绿。</strong>
+全量 <code>lake build</code> 同理——我跑了，<code>Build completed successfully (90 jobs)</code>，不是单文件 <code>lake env lean</code>。
+</div>
+
+<h2>2. 本课的核心范本：<code>ForceConformance.lean</code> 怎么「诚实标级」</h2>
+<p>这一轮最该让编排者学的一份文件，是 <code>Origin/ForceConformance.lean</code>（#131）。它面对一个<strong>真缺口</strong>：
+「rust 的 MACD 引擎，到底是不是 Lean <code>ForceMeasure</code> 的合法实例？」——这是关于真实数值引擎在真实 K 线上行为的<strong>经验命题</strong>，
+<em>当前没有 L2 数据验证</em>。换句话说，这个缺口<strong>现在填不了</strong>。关键在于：填不了的时候，它把缺口放在了哪里。</p>
+<table>
+<tr><th></th><th>声明膨胀的放法（禁止）</th><th>#131 实际的放法（范本）</th></tr>
+<tr><td>缺口载体</td><td><code>sorry</code> / 裸 <code>axiom</code> 伪装成定理</td><td><code>structure</code> 字段（<code>MacdForceMeasureWitness</code>）+ <code>Prop</code> 前件（<code>MacdConformsTo</code>）</td></tr>
+<tr><td>是否 discharge</td><td>偷偷证掉 / 用合成数据「验证」自己预设的属性</td><td><strong>从不 discharge</strong>——L2 前件永远是前件，留给 #127 rust 对齐 + 真实数据</td></tr>
+<tr><td>定理形态</td><td>「MACD 符合 ForceMeasure」当成已证 <code>theorem</code></td><td>条件定理 <code>给定 L2 见证 ⟹ L0 后果</code>——结构层证了，实例符合是<strong>假设</strong></td></tr>
+<tr><td>否定性入口</td><td>无——结构上不可能被真实数据否证（= L0 同义反复）</td><td><strong>显式标</strong>：若真实 MACD 违反 mono/faithful 公理，则该实例不构成 witness（L2 可否证）</td></tr>
+</table>
+<div class="key">
+这正是 0006 课「有效域 ≠ 定义域」的<strong>正确应对姿势</strong>。#131 把一份产出诚实切成两半：<br>
+① <span class="lvl l0">L0 结构层</span>（conformance 关系自反/对称/传递、等价 measure 给等价判据）——<em>纯逻辑，不依赖数据，本文件真证</em>；<br>
+② <span class="lvl l2">L2 实例符合</span>（rust MACD 真的是合法 ForceMeasure）——<em>经验命题，本文件不证，标成显式假设</em>。<br>
+有效域（真证的）严格小于定义域（声称覆盖的），而且<strong>这个差额被显式写出来了</strong>，没有被一个 L0 桩堵住假装满了。
+</div>
+
+<h2>3. 为什么「诚实标级」比「假装满级」严格——而不是更弱</h2>
+<p>直觉上会觉得「承认还差 L2」像是没做完、是退让。<strong>恰恰相反。</strong>把 L2 缺口显式留成前件，比偷偷用 <code>sorry</code> 或合成数据糊过去<strong>更严格</strong>，原因有三：</p>
+<ol>
+<li><b>可质询</b>：前件是显式的，下游能一眼看到「这里依赖一个未验证的 L2 假设」，于是能去验它、能否证它。<code>sorry</code> 把缺口藏起来，下游<em>看不到</em>缺口，误以为满了。</li>
+<li><b>可否证</b>（0006 课的核心）：#131 写明「若真实 MACD 违反公理则不构成 witness」——这是一个<strong>能产出否定性结果</strong>的结构。L0 同义反复（任何函数都满足的桩）结构上<em>不可能被真实数据推翻</em>，所以它谈不上「验证」，信息增量为零。</li>
+<li><b>声明=能力</b>（no-patch-mentality 的「诚实」条）：代码能做什么就声明什么，不多不少。#131 声明的是「L0 结构 + L2 接口假设」，它就<em>真的</em>只有这些，一字不多。这才是 090 号「严格 = 声明与实际一致」。</li>
+</ol>
+<div class="warn">
+<b>对照陷阱（0008 课的 <code>total_unique_of_fun</code> 桩）：</b>那个桩是「假装满级」的反面教材——用一个 <span class="lvl l0">L0</span> 平凡真理（函数即全且唯一）堵住「古怪线段怎么切」的洞，<em>看起来满了其实空的</em>，且结构上不可否证。
+#131 是同一个位置的<strong>正解</strong>：洞填不了就<em>把洞显式标出来 + 标 L2 + 留否证入口</em>，不拿桩堵。<br>
+<b>一句话判据：</b>看到一个「已 formalized」声明，去找它的<strong>最弱那一环</strong>——那一环是 <code>sorry</code>/裸 axiom/L0 桩（膨胀），还是显式 <code>Prop</code> 前件 + L2 标注（严格）？最弱环的放法，决定整份产出的严格性。
+</div>
+
+<h2>4. 一个不该被「全绿」盖过的细节：闭环不变量是「流通」不是「生成」</h2>
+<p>#125 管线声明「R=Π−A−W 贯穿入口到出口」，机器证了。但我要你看清它<strong>怎么</strong>证的——证法是 <code>exact (…).ledger.inv</code>，
+即不变量是 <code>LedgerState</code> 的<strong>结构字段</strong>，每个中间态由 <code>chanlunTransition</code> 自动携带，末态自动携带。这是<strong>「流通性」</strong>（入口带着、一路不丢），<em>不是</em><strong>「生成性」</strong>（用归纳从无到有论证出来）。</p>
+<div class="key">
+这<strong>不是缺陷</strong>——对一个「保不变量」的闭环，流通性恰好是对的形式，且它是 <span class="lvl l0">L0</span> 结构定理（有效域=定义域，0006 课说这类不需 L2）。
+但你质询时要能<strong>说出它是哪一种</strong>：如果有人把「R=Π−A−W 端到端成立」说成「我们<em>推导</em>出账本必然守恒」，那是夸大——它是「我们<em>规定</em> ledger 携带 inv，并证明每步 transition 不破坏它」。
+区分「流通 vs 生成」，是你不被一句「闭环已证」糊弄过去的关键。
+</div>
+
+<h2>5. 三层识破法这一轮的运用（0002 §3，复用模板）</h2>
+<p>每条「done」我都套了同一个三层。把它内化成肌肉记忆：</p>
+<ol>
+<li><b>反退化见证</b>：给具体例子证明没退化。<em>#117</em> 给了 <code>eventType1</code>(→A+1) vs <code>eventType3</code>(→A+2) 两个具体事件产不同 ledger；<em>rust</em> 给了买 A+1 ↔ 卖 A−1 的 <code>assert_eq</code>；<em>TW</em> 给了两个 TW 三量相同仅 stage 不同的态。给得出 = 没退化。</li>
+<li><b>哪一层真理</b>：每个「过了」都标了 L 等级。判据血肉与 rust 触到了 <span class="lvl l1">L1</span>（缠论规则真编码 / MACD 真算），TW 与管线闭环是 <span class="lvl l0">L0</span>（结构定理，有效域=定义域）。<strong>没有一个声明把 L0 说成「已验证」冒充 L2</strong>——这是这一轮过闸的根本原因。</li>
+<li><b>边界条件</b>：什么情况翻？<em>#131</em> 自己写明：真实 MACD 违反公理则 conformance 假设不成立（L2 可否证）。<em>TW</em>：若 stage 字段被删则不同构反例翻——而它没被删。能说出翻的条件 = 真严格。</li>
+</ol>
+
+<div class="warn">
+<b>本课自身的诚实标注（不豁免自己）：</b>这一课是<strong>督导结晶</strong>，是 <span class="lvl l0">L0</span> 级产出——从本轮审计 witness 与谱系 222/223/230/231 推导，<strong>零真实数据依赖</strong>。
+它<strong>不</strong>是「四方向的形式化在真实行情有效」的 L2 主张（那需要 L2 回测，<em>尚未做</em>）。它断言的只是：<em>这一轮的 L0/L1 结构声明，其 witness 经机器与重跑核实属实，且缺口被诚实标成 L2 假设</em>。
+四方向的 L2 经验有效性，仍是<strong>悬空的、待 #127 rust 对齐 + 真实数据验证</strong>——这正是 #131 显式留出的那个前件。
+</div>
+
+<div class="sharp">
+<h3>带走的锋利问题（拿去质询任何「已 formalized / 已对齐 / 已重锚」声明）</h3>
+<p>「你说<strong>已 formalized / 已对齐 / 已重锚</strong>——<strong>给我看你这份产出的<em>最弱那一环</em></strong>：
+① 那个你<em>还没做到</em>的部分（L2 经验符合、真实数据验证）放在哪里？是 <code>sorry</code>/裸 <code>axiom</code>/L0 平凡桩（= 声明膨胀，藏住了缺口），
+还是<strong>显式 <code>structure</code> 字段 / <code>Prop</code> 前件、标了 L2、永不在本文件 discharge</strong>（= 严格，缺口可见可否证）？
+② 你这个不变量/对齐是<strong>「流通」</strong>（入口携带、结构字段自动保持）还是<strong>「生成」</strong>（归纳真推导出来）？说错了就是夸大。
+③ 你声明「绿/对齐」——是<strong>我此刻重跑</strong>的 <code>lake build</code> 全量 / <code>cargo test</code> 全量（owner 改过就得重跑，#93），还是 commit message 里一句陈旧快照？
+三问里只要有一问的答案是『藏起来的缺口 / 流通冒充生成 / 陈旧快照』，这份『done』就是膨胀。
+<strong>严格不是『全做到』，是『没做到的那一层，诚实地放在能被质询和否证的地方』。</strong>」</p>
+</div>
+
+<p class="next">
+来源（本轮审计物证）：<code>Origin/ThetaInstantiation.lean:297-300,420-428</code>（#117 真 case-split 产不同 delta）/
+<code>Origin/Pipeline.lean:215-219,327-350</code>（#125 管线真复合 + inv 流通）/
+<code>Origin/ForceConformance.lean:35-66</code>（#131 L0/L2 边界范本）/
+<code>Origin/TotalWealth.lean:480-491,376-391,343-363</code>（#127 TW 三 witness 存活）/
+<code>rust/src/theta_v0/closed_loop/sell.rs:400-426</code>（买卖镜像 assert）。<br>
+实测核实：<code>lake build</code> = 90 jobs 绿（全量，非单文件）；<code>cargo test theta_v0</code> = 273 passed / 0 failed（当前工作树重跑）。<br>
+谱系：<code>222</code>（范畴错误）/ <code>223</code>（不完备）/ <code>230</code>（退化）/ <code>231</code>（formalization-validity-domain 规则——L0-L3 + 否定性结果价值）。<br>
+接续前课：0002（schema ≠ 忠实实装，三层识破法 §3）、0006（有效域≠定义域，L0/L1/L2/L3 + 否定性结果）、0008（schema 冒充忠实分类器——本课是它的<em>正面镜像</em>：缺口的正解 = 诚实标级，不是 L0 桩）。<br>
+<b>认识论等级（诚实标注）：</b>本课 <span class="lvl l0">L0</span> 督导结晶——从审计 witness 与谱系推导，零真实数据，<strong>不是</strong>任何 L2 缠论有效性主张。<br>
+「最弱环放法决定严格性」「流通 vs 生成」「重跑 vs 陈旧快照」这三个区分若发虚，喊停，坐实再走。
+</p>
+
+</body>
+</html>

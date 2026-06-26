@@ -14,10 +14,13 @@
 //! - `DEA = EMA(DIF, signal)`，DEA 首值取首 DIF。
 //! - `hist = DIF - DEA`（逐 bar）。
 //!
-//! ## 背驰判据（reference-theta-v0.md:37）
+//! ## 背驰判据（reference-theta-v0.md:37；契约锚 `Origin.Divergence` + `Origin.ForceInterface`）
 //!
 //! 「同向段面积**严格**变小才成立，等值不成立」。段面积 = 该段 bar 区间内 `|hist|` 之和。
-//! 后一同向段面积 `<` 前一同向段面积 ⟹ 背驰成立（严格 `<`，等值返回 false）。
+//! 后一同向段面积 `<` 前一同向段面积 ⟹ 背驰成立（严格 `<`，等值返回 false）。契约锚
+//! `Origin.Divergence.IsDivergence`（`d.forceC.area < d.forceA.area`，Divergence.lean:83）+
+//! `Origin.ForceInterface.ForceMeasure`（力度抽象接口：`measure`/`strength`/`mono`/`faithful`）。
+//! 力度 conformance（MACD area 实例化 ForceMeasure）见 [`super::force_conformance`]。
 //!
 //! ## 认识论（formalization-validity-domain）
 //!

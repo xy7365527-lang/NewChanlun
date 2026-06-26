@@ -1,14 +1,18 @@
 //! 第四步：线段划分 v1 特征序列法（reference-theta-v0.md:22，第67/71/77/78课）。
 //!
-//! ## bit-exact 对齐 `formal/Phase2/Claim10_SegmentV1.lean`
+//! ## 契约重锚（legacy Phase2/Claim10_SegmentV1 → `Origin.SegmentConstruction` +
+//! `Origin.SegmentFeatureSeq` + `Origin.SegmentFeatureComplete`）
 //!
-//! 本文件的原语函数与 Claim10 的 Lean 定义一一对应（同名同语义）：
-//! - `Interval` ↔ `Claim10.Interval`（`lo <= hi` 不变量，特征序列元素几何投影）。
-//! - `overlaps` ↔ `Interval.overlaps`：`a.lo <= b.hi && b.lo <= a.hi`。
-//! - `gap` ↔ `Interval.gap`：`¬overlaps`（第67课:18 缺口定义）。
-//! - `contains` ↔ `Interval.contains`：`a.lo <= b.lo && b.hi <= a.hi`（包含处理）。
-//! - `feature_elements` ↔ `featureElements segDir strokes`：取方向 `segDir.flip` 的笔区间。
-//! - `classify_termination` ↔ `classifyTermination`：`if gap(e1,e2) secondKind else firstKind`。
+//! 本文件的原语函数与 Origin 特征序列构造层定义一一对应（同语义）：
+//! - `Interval` ↔ `Origin.SegmentFeatureSeq.FeatureElem`（`low <= high` 不变量，`ofStroke` 投影）。
+//! - `overlaps` ↔ `Origin.SegmentFeatureSeq.Overlaps`：`a.low <= b.high ∧ b.low <= a.high`。
+//! - `gap` ↔ `Origin.SegmentFeatureSeq.HasGap`：`a.high < b.low ∨ b.high < a.low`（第67课缺口）。
+//! - `contains` ↔ `Origin.SegmentFeatureSeq.Contains`：`b.low <= a.low ∧ a.high <= b.high`（包含处理）。
+//! - `feature_elements` ↔ `Origin.SegmentFeatureSeq.FeatureElem.ofStroke`：取方向 `segDir.flip` 的笔区间。
+//! - `classify_termination` ↔ `Origin.SegmentFeatureSeq.{SegmentEndUp,SegmentEndDown}`：
+//!   `if HasGap e1 e2 then 等反向特征序列分型 else 直接确认`（无缺口 firstKind / 有缺口 secondKind）。
+//! - 完整段端确认 ↔ `Origin.SegmentFeatureComplete.SegEndComplete`（分型 ∧ gap-case ∧ TopAboveBottom 第78课）。
+//! - 段切分骨架 ↔ `Origin.SegmentConstruction.segmentsOf`（`nextSegmentEnd`/`scanSegEnd` 滑窗，well-founded 终止）。
 //!
 //! ## 规则（reference-theta-v0.md:22，第67课"只有两种可能"）
 //!
@@ -21,10 +25,10 @@
 //!
 //! ## 认识论（formalization-validity-domain）
 //!
-//! Claim10 明确：`classifyTermination` 返回 `secondKind` 仅表示「进入有缺口分支、待第二
-//! 特征序列分型确认」，**不是**「终结已确认」——第二特征序列分型是否实际出现是**动态过程**
-//! （状态机职责）。本文件的 `divide_segments` 实装该状态机：firstKind 分型形成即断段；
-//! secondKind 进入待确认态，扫描第二特征序列分型确认/否定。
+//! `Origin.SegmentFeatureSeq.SegmentEndUp/Down` 明确：有缺口（`HasGap`）分支须「等反向特征序列出现
+//! 相反分型」才确认（`FractalInSeq`），**不是**「终结已确认」——第二特征序列分型是否实际出现是
+//! **动态过程**（状态机职责）。本文件的 `divide_segments` 实装该状态机：firstKind（无缺口）分型形成
+//! 即断段；secondKind（有缺口）进入待确认态，扫描第二特征序列分型确认/否定。
 
 use super::super::config::ParseConfig;
 use super::super::types::{Direction, Segment, Stroke, Tick};
@@ -39,7 +43,7 @@ use super::second_kind;
 const TAIL_WINDOW: u32 = 7;
 
 /// 价格区间 [lo, hi]（特征序列元素 / 笔的几何投影，`lo <= hi` 不变量）。
-/// bit-exact 对齐 `Claim10.Interval`。
+/// 契约锚 `Origin.SegmentFeatureSeq.FeatureElem`（`low <= high` valid 不变量）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Interval {
     pub lo: Tick,
@@ -71,14 +75,14 @@ pub(super) fn stroke_interval(s: &Stroke) -> Interval {
     Interval { lo, hi }
 }
 
-/// 三笔重叠判定（第77课:64 "线段开始的那三笔必须有重合"，Claim10 wellFormedV1 H4）。
+/// 三笔重叠判定（第77课:64 "线段开始的那三笔必须有重合"，对齐 `Origin.SegmentFeatureSeq.Overlaps` 三笔版）。
 ///
 /// 三笔几何区间公共交集非空：`max(lows) < min(highs)`。
 ///
-/// ★口径（Claim10:471 标注的未结算 `≤`/`<` 差异）：本实装用**严格 `<`**（开区间），
-/// 对齐 Python `a_segment_v1._three_stroke_overlap`（交叉验证基准）+ frozen 第77课"必须重合"
-/// （边界相切=零测度重合，从严不算）。Claim10 H4 用 `≤`（闭区间）是较宽口径——二者在
-/// 边界相切（max(lows)==min(highs)）时分歧；本工位站 Python `<` 侧（少产边界假段，
+/// ★口径（`≤`/`<` 差异）：本实装用**严格 `<`**（开区间），对齐 Python
+/// `a_segment_v1._three_stroke_overlap`（交叉验证基准）+ frozen 第77课"必须重合"
+/// （边界相切=零测度重合，从严不算）。`Origin.SegmentFeatureSeq.Overlaps` 用 `≤`（闭区间）是较宽
+/// 口径——二者在边界相切（max(lows)==min(highs)）时分歧；本工位站 Python `<` 侧（少产边界假段，
 /// 第77课"必须有重合的部分"更倾向实质重合）。这是 Lead #84 点3 的口径裁定（追溯第77课博文）。
 fn three_stroke_overlap(a: &Stroke, b: &Stroke, c: &Stroke) -> bool {
     let (ia, ib, ic) = (stroke_interval(a), stroke_interval(b), stroke_interval(c));
@@ -114,7 +118,7 @@ pub fn feature_elements(seg_dir: Direction, strokes: &[Stroke]) -> Vec<Interval>
         .collect()
 }
 
-/// 线段划分两种情况（第67课"只有两种可能"）。bit-exact 对齐 `Claim10.TerminationCase`。
+/// 线段划分两种情况（第67课"只有两种可能"）。对齐 `Origin.SegmentFeatureSeq.HasGap` 的 case 二分。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminationCase {
     /// 第一种：无缺口，分型形成即终结。
@@ -124,7 +128,7 @@ pub enum TerminationCase {
 }
 
 /// 从特征序列分型相邻两元素判定进入哪个分支（第67课:28/38 缺口判据，全函数）。
-/// bit-exact 对齐 `classifyTermination`：有缺口 → SecondKind，无缺口 → FirstKind。
+/// 对齐 `Origin.SegmentFeatureSeq.{SegmentEndUp,SegmentEndDown}` 的 `HasGap` 分支：有缺口 → SecondKind，无缺口 → FirstKind。
 pub fn classify_termination(e1: &Interval, e2: &Interval) -> TerminationCase {
     if e1.gap(e2) {
         TerminationCase::SecondKind
@@ -139,7 +143,7 @@ pub fn classify_termination(e1: &Interval, e2: &Interval) -> TerminationCase {
 /// 但包含处理的高低取舍按**特征序列自身的走向**——第67课:20 把元素当 K 线，方向同 K 线
 /// 包含处理）。这里按特征序列**前进方向的极值保留**：取较新元素决定方向，向上吞并取高、
 /// 向下吞并取低。简化为：对相邻包含元素，合并为 [min(lo), max(hi)] 的并区间——这是
-/// 「元素当 K 线包含处理」的中性实现（保留外包络），与 Claim10 的 `contains` 判定配套。
+/// 「元素当 K 线包含处理」的中性实现（保留外包络），与 `Origin.SegmentFeatureSeq.Contains` 判定配套。
 pub(super) fn process_feature_inclusion(elements: &[Interval]) -> Vec<Interval> {
     let mut out: Vec<Interval> = Vec::new();
     for &e in elements {
@@ -183,19 +187,20 @@ fn find_feature_fractal(seg_dir: Direction, std_feat: &[Interval]) -> Option<(us
 
 /// 线段终结判定（reference-theta-v0.md:22，第67课特征序列法）——单段终结分析。
 ///
-/// ★诚实范围（formalization-validity-domain + Claim10 认识论）：
+/// ★诚实范围（formalization-validity-domain + `Origin.SegmentFeatureSeq` 认识论）：
 /// 本函数对**给定起始方向的笔序列**，分析其特征序列首个分型并判定终结情形。它实装了
-/// Claim10 的纯函数侧（特征序列抽取 → 包含处理 → 找分型 → 两种情况判定）。
-/// 它**不**实装 SecondKind 的第二特征序列动态确认——Claim10 明确该确认是**状态机职责**
-/// （动态过程），不是纯函数可判定。故返回值显式区分三态，把动态部分留给调用方/未完成尾部。
+/// `Origin.SegmentFeatureSeq` 的纯函数侧（`FeatureElem.ofStroke` 抽取 → 包含处理 → `IsTopFractal`/
+/// `IsBottomFractal` 找分型 → `HasGap` 两种情况判定）。它**不**实装 SecondKind 的第二特征序列动态
+/// 确认——`SegmentEndUp/Down` 的 `FractalInSeq` 确认是**状态机职责**（动态过程），不是纯函数可判定。
+/// 故返回值显式区分三态，把动态部分留给调用方/未完成尾部。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SegmentTermination {
     /// 第一种情况：无缺口分型形成 → 该 K 段端笔的 rest 内偏移确认终结。
     FirstKindConfirmed { end_offset: usize },
     /// 第二种情况且第二特征序列**已出现分型** → 确认终结（段端 = 极值笔偏移）。
     ///
-    /// ★L1（动态确认，对 67课博文 frozen 定义忠实 + Python 交叉验证，**非对 Lean bit-exact**，
-    /// 见 second_kind.rs 模块头）。区别于 FirstKindConfirmed（后者是 Claim10 静态 bit-exact）。
+    /// ★L1（动态确认，对 67课博文 frozen 定义忠实 + Python 交叉验证，**非对 Origin Lean bit-exact**，
+    /// 见 second_kind.rs 模块头）。区别于 FirstKindConfirmed（后者对齐 Origin.SegmentFeatureComplete 静态层）。
     SecondKindConfirmed { end_offset: usize },
     /// 第二种情况但第二特征序列**未出现分型** → 待确认态（留 tail，不强断，不产假线段）。
     SecondKindPending,
@@ -215,10 +220,10 @@ fn segment_end_from_apex(apex_off: usize) -> Option<usize> {
 
 /// 分析单段终结（特征序列抽取 → 包含处理 → 找分型 → 两种情况判定 + SecondKind 动态确认）。
 ///
-/// 静态判据（feature_elements → 包含处理 → find_fractal → classify_termination）**bit-exact
-/// 对齐 Claim10**（Lean 已形式化的静态层）。SecondKind 分支的动态确认（resolve_second_kind）
-/// 是 **L1**（对 67课博文 frozen 定义忠实 + Python 交叉验证，**非对 Lean bit-exact**——
-/// Claim10:334-346 有意不形式化动态状态机，见 second_kind.rs 模块头）。
+/// 静态判据（feature_elements → 包含处理 → find_fractal → classify_termination）**对齐
+/// `Origin.SegmentFeatureSeq`/`SegmentFeatureComplete`**（Origin 已形式化的静态层）。SecondKind
+/// 分支的动态确认（resolve_second_kind）是 **L1**（对 67课博文 frozen 定义忠实 + Python 交叉验证，
+/// **非对 Origin Lean bit-exact**——动态状态机有意不形式化，见 second_kind.rs 模块头）。
 ///
 /// `strokes` 的首笔方向 = 线段方向。返回该方向线段的首个终结情形。
 pub fn analyze_termination(strokes: &[Stroke]) -> SegmentTermination {
@@ -300,14 +305,15 @@ fn make_segment(strokes: &[Stroke], s0: usize, s1: usize, seg_dir: Direction) ->
 ///
 /// ★bit-exact 移植 Python `a_segment_v1.segments_from_strokes_v1`（编排者裁定 v1 唯一口径，
 /// 37 测试）。L1（对参考 spec 忠实，认证 harness `analysis/segment_refsem_cert.py`），**非**
-/// 对 Lean bit-exact——动态划分算法 Claim10:334-346 有意不形式化（见 feature_seq.rs 模块头）。
+/// 对 Origin Lean bit-exact——动态划分算法在 Origin 有意不形式化（静态层锚
+/// `Origin.SegmentConstruction`/`SegmentFeatureComplete`，见 feature_seq.rs 模块头）。
 ///
 /// ★为何增量（cc-refsem-harness 归因，#84）：旧批处理「找首个分型即断段」对参考认证失败
 /// （406 段 vs 参考 237 段，70% 过分段）。真因是缺第71课「假设转折点」逻辑（包含时先试不合并
 /// 看是否触发分型）——批处理无状态，无法表达此动态过程。本函数用 `FeatureSeqState` 状态机修复。
 ///
 /// 返回 `(confirmed segments, pending_start)`：
-/// - `confirmed segments`：已确认线段（交易可用，对齐 Parse.lean confirmed）。
+/// - `confirmed segments`：已确认线段（交易可用，对齐 `Origin.SegmentConstruction.segmentsOf` 输出）。
 /// - `pending_start`：`Some(i)` = 从第 `i` 笔起的剩余笔是未确认线段（active 尾部）；`None` = 无。
 ///
 /// 边界条件：

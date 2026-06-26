@@ -6,7 +6,8 @@
 //! actionClass × riskMode × phase × ledger`）——本 Rust `AssemblyState` 是其乘积态扩展（额外承载
 //! micro/tw/positions/orders/memory 分量，使 Rust 闭环引擎可线程化）。Origin `hybridStep` 在
 //! `StrictState` 上单步推进；本 `AssemblyState` 是 Rust 闭环引擎的 `StrictState` 实例承载。
-//! 其中 R=Π-A-W `ledger_state` 锚 Origin `LedgerState`；TW/OQ-9 `tw_state` 锚 legacy（Origin 缺位）。
+//! 其中 R=Π-A-W `ledger_state` 锚 Origin `LedgerState`；TW/OQ-9 `tw_state` 锚 `Origin.TotalWealth`
+//! （#127 native port 已落地，两端均 Origin canonical）。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
@@ -157,9 +158,10 @@ use super::super::strategy::ledger::{LedgerComp, TwState};
 /// 字段（各标来源，复用已证类型 / 新建分量）：
 /// - `micro_state`：解析级微状态（[`MicroState`]，T-causal 在线推进态，推进 Origin `parse` 前缀窗口）。
 /// - `ledger_state`：账本恒等分量（[`LedgerComp`]，R=Π-A-W，契约锚 `Origin.LedgerState`）。
-/// - `tw_state`：取本金三阶段账本分量（[`TwState`]，TW 守恒 + stage 单向 + OQ-9 gate）。
-///   与 ledger_state **双层并置**——R=Π-A-W（收益表视角）与 TW（现金流+持仓视角）二者不同构
-///   （Lean #90 已证），完整持仓系统两者都需要。tw_state 真被 transition 线程化（见 transition.rs）。
+/// - `tw_state`：取本金三阶段账本分量（[`TwState`]，TW 守恒 + stage 单向 + OQ-9 gate，契约锚
+///   `Origin.TotalWealth.TWState`）。与 ledger_state **双层并置**——R=Π-A-W（收益表视角）与 TW
+///   （现金流+持仓视角）二者不同构（#90 已证，`Origin.TotalWealth` §3 三反例 native 重证），
+///   完整持仓系统两者都需要。tw_state 真被 transition 线程化（见 transition.rs）。
 /// - `risk_mode`：风险模式 μ（五态）。
 /// - `phase`：三阶段 Φ。
 /// - `positions`：当前总持仓单位（声部聚合后的绝对单位数 Σq_v 的摘要）。

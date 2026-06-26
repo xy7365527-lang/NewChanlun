@@ -138,7 +138,7 @@ pub fn stop_fill_price(bar: &Bar, stop: Tick, exit_side: FillSide) -> Option<Tic
 /// ★`depth` 是 spec:54 五键之外的**第六键**：spec:54 的四级裁决（exit/level/class/
 /// (ts,idx)）在多声部赋格中**可能不足以全序**——两个不同深度的声部若共享同一触发结构
 /// （同 level/class/timestamp/source_index，如依赖同一中枢），前五键相同。声部深度在赋格
-/// 树中唯一（Fugue.lean `depth_child` 严格 +1），作终局键保证全序、订单流不依赖输入顺序。
+/// 树中唯一（`Origin.VoiceTree.depth_decreasing` 严格递减），作终局键保证全序、订单流不依赖输入顺序。
 /// 这是 spec:54「仍平局」兜底的结构补全（非新规则，是把「平局」裁到底）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ConflictKey {

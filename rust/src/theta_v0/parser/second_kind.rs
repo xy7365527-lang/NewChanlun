@@ -4,17 +4,18 @@
 //!
 //! **本文件 = L1（对 frozen 定义忠实 + 对 Python 参考交叉验证），非对 Lean bit-exact。**
 //!
-//! 关键诚实标注：SecondKind 第二特征序列**动态确认状态机**在 Lean **无 spec**——
-//! `formal/Phase2/Claim10_SegmentV1.lean`（:334-346）**有意**声明动态划分算法不在其形式化
-//! 范围（设计选择，留给参考实现 `a_segment_v1.py`，非遗漏）。故本文件**不**对 Lean bit-exact，
-//! 只对：
+//! 关键诚实标注：SecondKind 第二特征序列**动态确认状态机**在 Origin canonical **无 spec**——
+//! Origin `SegmentConstruction`/`SegmentFeatureComplete` 形式化了静态层，但动态划分状态机不在其
+//! 形式化范围（设计选择，留给参考实现 `a_segment_v1.py`，非遗漏——与 legacy
+//! Phase2/Claim10_SegmentV1:334-346 同样的有意非形式化边界）。故本文件**不**对 Origin Lean
+//! bit-exact，只对：
 //! - **frozen 定义**（reference-theta-v0.md:22 + 第67课博文原文）**忠实**；
 //! - **Python `a_segment_v1.py`**（`_second_seq_has_fractal`，37 测试）**交叉验证**（同输入对比
 //!   线段确认结果，不要求逐位等价内部中间态）。
 //!
-//! 对照：静态判据（`classify_termination`/特征序列抽取/包含处理）保持对 Claim10 **bit-exact**
-//! （那是 Lean 已形式化的静态层）。theta_v0「对 Lean bit-exact」的**有效域 = 静态判据**，
-//! 动态确认部分超出该有效域（Lead #84 点2）。
+//! 对照：静态判据（`classify_termination`/特征序列抽取/包含处理）保持对
+//! `Origin.SegmentFeatureSeq`/`SegmentFeatureComplete` 对齐（那是 Origin 已形式化的静态层）。
+//! theta_v0「对 Origin canonical 对齐」的**有效域 = 静态判据**，动态确认部分超出该有效域（Lead #84 点2）。
 //!
 //! ## 第67课博文权威定义（动态确认语义，CLAUDE.md 三级权威链：博文 = 一级权威）
 //!
@@ -136,7 +137,7 @@ pub enum SecondKindResult {
 /// 检测分型。出现 ⟹ `Confirmed{ end_offset }`（段端 = 极值笔偏移）；否则 `Pending`（留 tail）。
 ///
 /// ★严格性（Lead #84 硬约束 + no-patch）：仅第二特征序列**实际出现分型**才 `Confirmed`。
-/// 未出现 ⟹ `Pending`（古怪线段/笔破坏未发展成线段破坏，Claim10 PostBreakOutcome）——
+/// 未出现 ⟹ `Pending`（古怪线段/笔破坏未发展成线段破坏，对齐 Origin.SegmentFeatureComplete 未确认态）——
 /// 不为"多产线段"放松标准。
 pub fn resolve_second_kind(strokes: &[Stroke], apex: &Interval) -> SecondKindResult {
     let Some(apex_offset) = locate_apex_stroke(strokes, apex) else {
