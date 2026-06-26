@@ -42,6 +42,7 @@ pub mod level;
 pub mod level_state;
 pub mod bsp;
 pub mod divergence;
+pub mod descend;
 pub mod nest;
 pub mod signal;
 
