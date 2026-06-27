@@ -4,29 +4,53 @@
 //!
 //! 把 confirmed 中枢 + 线段序列提取为买卖点端点（`BspPoint`）。每个端点的语义状态（对齐
 //! `Origin.BspClassification.BspEndpoint` 字段）由走势结构相对中枢的位置（`Origin.CenterStates.
-//! classifyPosition`）bit-exact 计算（非臆造）。
+//! classifyPosition`）+ 背驰力度（`Origin.Divergence.IsDivergence`，由已实装 MACD 真算）bit-exact
+//! 计算（非臆造）。
 //!
-//! ## 诚实范围（formalization-validity-domain，★关键边界标注）
+//! ## 完整买卖点覆盖（formalization-validity-domain，★关键 L 级边界标注）
 //!
-//! 本工位 v0 **只提取第三类买卖点**——它是 confirmed 结构上**严格可判定**的买卖点：
-//! reference:36「上离中枢后次级别回试低点 `>ZG`=3买；下离后回抽高点 `<ZD`=3卖」是
-//! **点相对中枢核心区间的位置判据**（`Origin.BspClassification.IsType3Buy/IsType3Sell` +
-//! `Origin.CenterStates.classifyPosition`，已 bit-exact 形式化），只需 confirmed 中枢
-//! + 后续线段端点价，零经验时序依赖。
+//! 本工位提取**第一类 + 第三类**买卖点（confirmed 结构上**严格可判定**的两类）：
 //!
-//! 第一/二类买卖点**未在此提取**，原因是诚实的结构边界（非补丁/未实装）：
-//! - 1 类需**趋势末段背驰确认**（趋势 ≥2 同向中枢 + 末段相对前同向段 MACD 面积严格变小，
-//!   reference:34）——背驰判据 `divergence::segments_diverge` 已实装，但「定位趋势的末段
-//!   与前同向段的 bar 区间」需完整趋势确认时序（多级别走势的段边界），超出当前**单中枢
-//!   局部**可严格判定的范围。
-//! - 2 类需 1 类后的回调时序状态（reference:35），依赖 1 类已确认。
+//! - **第三类**（B3/S3）：reference:36「上离中枢后次级别回试低点 `>ZG`=3买；下离后回抽高点
+//!   `<ZD`=3卖」是**点相对中枢核心区间的位置判据**（`Origin.BspClassification.IsType3Buy/IsType3Sell`
+//!   + `Origin.CenterStates.classifyPosition`，已 bit-exact 形式化），只需 confirmed 中枢 + 后续
+//!   线段端点价，**纯整数几何 L0**，零经验时序依赖。
 //!
-//! ⟹ v0 提取第三类（端到端打通 L2：classify 返回非空买卖点）。1/2 类在趋势确认时序工位
-//! 就绪后零改本判据扩展（endpoint_to_bsp 已支持全三类 bit）。这是**增量覆盖**——第三类
-//! 是 confirmed 结构正确产出，不是错误逻辑加垫片。
+//! - **第一类**（B1/S1）：reference:34 + `Origin.BspClassification.IsType1 = brokeCenter ∧
+//!   IsDivergence(divPair)`。两分量分层：
+//!   · **破中枢几何分量**（`brokeCenter`）：离开中枢的段端点落中枢核心 `[zd,zg]` 之外（买侧
+//!     向下破 `< zd`，卖侧向上破 `> zg`）——纯整数比较，**L0**（608号位置三态，对齐 descend.rs
+//!     `sub_broke_below`/`sub_broke_above`）。
+//!   · **背驰力度分量**（`IsDivergence`）：破中枢段相对**前一同向段** MACD 面积**严格变小**
+//!     （reference:34「末段相对前同向段面积严格变小」）——由已实装 MACD（`divergence::segments_diverge`）
+//!     **真算**（★rust 领先 Origin：Lean `divPair` 是外部参数 still-MISSING-C 无 Origin MACD 引擎；
+//!     rust `divergence.rs` 已实装 MACD，故背驰分量**真算非占位**，见 descend.rs 模块头）。
+//!     认识论：MACD 段面积比较确定 = **L1**（管线正确性，bit-exact 对齐 Lean IsType1 结构合取）；
+//!     「MACD 背驰预测在真实行情有效」才是 **L2/L3**（否证检验，**不在本工位**）。
+//!
+//! ## 第二类（B2/S2）：结构不可产，诚实标注递归组装层缺口（★no-patch，非遗漏）
+//!
+//! 第二类买卖点**不在本函数产出**，原因是诚实的结构边界（非补丁/未实装的力度缺口）：
+//! `IsType2 = afterTypeOne ∧ ¬brokeCenter`，且**买卖点定律一**（§10.2）：「任何级别的第二类
+//! 买卖点都由次级别相应走势的**第一类**构成」。本函数入参 `segments` 是 **L0 线段**——线段是
+//! 递归底（`descend.rs::RMove::Segment` 下钻得空序列），**结构上无次级别走势对象**。
+//! 「次级别第一类构成」需要 `descend.rs::RMove::Compose { subs, .. }` 的递归载荷（次级别走势序列）
+//! 作输入——`extract_signals(centers, segments, ...)` 的签名层**拿不到**它。
+//!
+//! `descend.rs::second_type_via_sublevel_type1` **已实装**（消费 RMove 递归结构判第二类构成），
+//! 但它需要 **RMove 递归塔** 作输入，不是 L0 segment 序列。把第二类接入需在**上游 mod.rs 递归
+//! 组装层**（构造 RMove::Compose 后调 descend）——属递归级别系统的组装工位，**不在本签名层**。
+//! 在 `extract_signals(centers, segments)` 内硬产第二类 = 用本级别 `afterTypeOne` 占位冒充次级别
+//! 第一类构成 = 声明膨胀（禁止）。故本函数**不产第二类**，由 `signal_extraction_emits_no_second_class`
+//! 可执行断言锁定该边界（still-MISSING：RMove 递归组装层接入 descend，属上游）。
+//!
+//! ⟹ 本函数多声部产 B1/S1/B3/S3（消解 #5「单声部 L0 第三类」根因）。B2/S2 诚实留递归组装层。
+//! 下游 E5 平仓闭环（trades=0）是 L3 层（不在本工位，见 closed_loop）。
 
+use super::super::config::MacdConfig;
 use super::super::types::{Center, Direction, Segment, Tick};
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
+use super::divergence::{compute_macd, segments_diverge};
 use super::super::types::BspBits;
 
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
@@ -47,6 +71,102 @@ fn seg_end(s: &Segment) -> SegEnd {
         price: s.end_price,
         dir: s.direction,
     }
+}
+
+/// 把段的 `source_index`（原始 K 序）区间映射到 `closes` 序列的下标区间（MACD 段面积坐标系）。
+///
+/// ★坐标系一致性（formalization-validity-domain，无漂移）：段的 `start_index/end_index` 是
+/// `source_index`（原始 K 序，stroke.rs:94 链）；`closes` 是 `ParseLayer.merged_bars` 的 close
+/// 序列（classify 唯一可达的 close 来源）。merged_bars 各元素携带 `source_index`（合并保留起始
+/// bar 原始号，单调递增）。本函数把段的 source_index 端点映射到 merged_bars **下标**，使 MACD 段
+/// 面积区间与 `closes` 同坐标系——**不**跨「原始 bars / merged_bars」两序列混用（那会引入面积错位）。
+///
+/// `src_to_idx` 是 merged_bars 下标 → source_index 的升序映射（`closes[k]` 对应 `src_to_idx[k]`）。
+/// 找首个 `>= start` 的下标 lo 与末个 `<= end` 的下标 hi。区间空（无 bar 落入）⟹ None。
+fn map_src_range_to_close_idx(
+    src_to_idx: &[usize],
+    start: usize,
+    end: usize,
+) -> Option<(usize, usize)> {
+    if start > end {
+        return None;
+    }
+    // lo = 首个 source_index >= start 的 closes 下标。
+    let lo = src_to_idx.iter().position(|&s| s >= start)?;
+    // hi = 末个 source_index <= end 的 closes 下标。
+    let hi = src_to_idx.iter().rposition(|&s| s <= end)?;
+    if lo > hi {
+        return None;
+    }
+    Some((lo, hi))
+}
+
+/// 第一类买卖点提取（契约锚 `Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence`）。
+///
+/// reference:34「某级别趋势中，次级别向下跌破最后一个中枢后形成的**背驰点**」。对每个 confirmed
+/// 中枢 `c`，扫描其后线段序列，找**破中枢的段** + **背驰**（破中枢段 vs 前一同向段 MACD 面积严格
+/// 变小）：
+/// - **1买**：一条**向下线段**跌破中枢下方（端点 `< zd`，`brokeCenter` 几何 L0），且该段相对
+///   **前一向下段** MACD 面积**严格变小**（背驰，`segments_diverge` 真算）⟹ 该破中枢段端点 = 1 买。
+/// - **1卖**：镜像——**向上线段**突破中枢上方（端点 `> zg`），相对**前一向上段**面积严格变小 ⟹ 1 卖。
+///
+/// ★分量 L 级（formalization-validity-domain）：破中枢 `< zd`/`> zg` 是整数几何 **L0**；背驰由
+/// MACD `segments_diverge` 真算 = **L1**（管线正确性）。两者合取 = `IsType1`（对齐 Lean，bit-exact）。
+/// 「前一同向段」是序列里同 direction 的最近前驱段（reference:34「末段相对**前**同向段」的确定配对——
+/// 非任意配对，是序列序最近同向前驱，确定可定位 ⟹ 无歧义）。
+///
+/// `hist` 是 MACD hist 序列（`closes` 上算）；`src_to_idx` 是 closes 下标→source_index 映射（段
+/// 区间坐标系转换）。破中枢段或前同向段无法映射到 closes 区间（越界）⟹ 跳过（无面积 ⟹ 非背驰）。
+fn extract_first_for_center(
+    c: &Center,
+    segs_after: &[Segment],
+    hist: &[f64],
+    src_to_idx: &[usize],
+) -> Vec<BspPoint> {
+    let mut points = Vec::new();
+    for (i, seg) in segs_after.iter().enumerate() {
+        let end = seg_end(seg);
+        // 破中枢几何（L0）：买侧向下破（端点 < zd）；卖侧向上破（端点 > zg）。
+        let (broke, is_sell) = match end.dir {
+            Direction::Down if end.price < c.zd => (true, false), // 1 买：向下破中枢下沿
+            Direction::Up if c.zg < end.price => (true, true),    // 1 卖：向上破中枢上沿
+            _ => (false, false),
+        };
+        if !broke {
+            continue;
+        }
+        // 前一同向段（序列序最近同向前驱）——reference:34「末段相对前同向段」的确定配对。
+        let prev_same_dir = segs_after[..i].iter().rev().find(|s| s.direction == end.dir);
+        let Some(prev) = prev_same_dir else {
+            // 无前同向段 ⟹ 无背驰对照标的 ⟹ 非第一类（第一类是趋势末段，必有前同向段）。
+            continue;
+        };
+        // 段区间（source_index）→ closes 下标区间（MACD 面积坐标系）。
+        let (Some(curr_seg), Some(prev_seg)) = (
+            map_src_range_to_close_idx(src_to_idx, seg.start_index, seg.end_index),
+            map_src_range_to_close_idx(src_to_idx, prev.start_index, prev.end_index),
+        ) else {
+            // 段无法映射到 closes 区间（越界/空）⟹ 无 MACD 面积 ⟹ 跳过（不冒充背驰）。
+            continue;
+        };
+        // 背驰（L1 真算）：破中枢段（curr）面积严格小于前同向段（prev）面积。
+        if !segments_diverge(hist, prev_seg, curr_seg) {
+            continue; // 力度未衰减 ⟹ 非背驰 ⟹ 非第一类。
+        }
+        // 第一类端点：below_last_center（买）/对偶（卖），未离开中枢（破中枢 ≠ 离开后回抽）。
+        let situ = EndpointSituation {
+            after_first_buy: false,
+            is_pullback_end: false,
+            left_center: false,         // 第一类是破中枢背驰，非第三类的离开后回抽
+            retrace_not_reenter: false,
+            below_last_center: true,    // 破中枢背驰端点（买=中枢下方/卖镜像）
+            is_sell_side: is_sell,
+        };
+        let bits = endpoint_to_bsp(&situ);
+        // 第一类止损 = pivot（破中枢段端点极值）：买点 pivot_low、卖点 pivot_high。
+        points.push(make_first_point(end.source_index, bits, end.price));
+    }
+    points
 }
 
 /// 第三类买卖点提取（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。
@@ -83,7 +203,7 @@ fn extract_third_for_center(c: &Center, segs_after: &[Segment]) -> Vec<BspPoint>
                         is_sell_side: false,
                     };
                     let bits = endpoint_to_bsp(&situ);
-                    points.push(make_point(retest.source_index, bits, retest.price, c));
+                    points.push(make_third_point(retest.source_index, bits, retest.price, c));
                 }
             }
             // 3 卖：向下离开（leave 端点 < zd）+ 向上回抽（retest 高点 < zd，不触及闭区间中枢）。
@@ -99,7 +219,7 @@ fn extract_third_for_center(c: &Center, segs_after: &[Segment]) -> Vec<BspPoint>
                         is_sell_side: true,
                     };
                     let bits = endpoint_to_bsp(&situ);
-                    points.push(make_point(retest.source_index, bits, retest.price, c));
+                    points.push(make_third_point(retest.source_index, bits, retest.price, c));
                 }
             }
             // 同向相邻（无回试）/其他：非第三类结构，跳过。
@@ -109,11 +229,26 @@ fn extract_third_for_center(c: &Center, segs_after: &[Segment]) -> Vec<BspPoint>
     points
 }
 
-/// 构造 BspPoint（结构止损价 single source）。
+/// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46；center 留 None——1 类止损用 pivot）。
+///
+/// 1/2 类止损取 `pivot_low`(买)/`pivot_high`(卖)（破中枢段端点极值），非 center.zg/zd（那是 3 类）。
+/// 故第一类 center=None（1 类不用 center 止损，与 3 类区分）。pivot 按 bit 方向填，另一侧 0。
+fn make_first_point(source_index: usize, bits: BspBits, pivot_price: Tick) -> BspPoint {
+    BspPoint {
+        source_index,
+        bits,
+        // 1 买止损源 pivot_low（破中枢低点）；1 卖止损源 pivot_high（破中枢高点）。
+        pivot_low: if bits.buy1 { pivot_price } else { 0 },
+        pivot_high: if bits.sell1 { pivot_price } else { 0 },
+        center: None,
+    }
+}
+
+/// 构造第三类 BspPoint（结构止损价 single source）。
 ///
 /// 3 类止损取 `center.zg`(买)/`zd`(卖)，故 center 必 `Some`（不变量：含 3 类 bit ⟹ center
 /// 有值）。pivot_low/pivot_high 取回试端点价（买点回试低点 = pivot_low，卖点 = pivot_high）。
-fn make_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &Center) -> BspPoint {
+fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &Center) -> BspPoint {
     BspPoint {
         source_index,
         bits,
@@ -124,21 +259,39 @@ fn make_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &Center
     }
 }
 
-/// 从 confirmed 中枢序列 + 线段序列提取该级别全部买卖点（reference:34-36）。
+/// 从 confirmed 中枢序列 + 线段序列 + close 序列提取该级别全部买卖点（reference:34-36）。
 ///
-/// 对每个中枢，取其 `end_index` 之后的线段子序列，提取第三类买卖点。买卖点按 source_index
-/// 升序返回（reference:16 平局裁决——已确认结构不回写，时间序天然升序）。
+/// 对每个中枢，取其 `end_index` 之后的线段子序列，提取**第一类**（破中枢 ∧ MACD 背驰真算）+
+/// **第三类**（离开后回试不破）买卖点。买卖点按 source_index 升序返回（reference:16 平局裁决——
+/// 已确认结构不回写，时间序天然升序）。第二类诚实不产（递归组装层缺口，见模块头）。
 ///
-/// ★诚实范围（见模块头）：v0 只提取第三类（confirmed 结构严格可判定）。
-pub fn extract_signals(centers: &[Center], segments: &[Segment]) -> Vec<BspPoint> {
+/// `closes`：close 序列（`ParseLayer.merged_bars` 的 close，MACD 算第一类背驰用）。
+/// `close_src`：closes 各元素的 source_index（merged_bars 锚点，段区间坐标系转换用）。
+/// `macd_cfg`：MACD 参数（fast/slow/signal，从 ThetaConfig.macd 读）。
+///
+/// ★完整覆盖（见模块头）：B1/S1（破中枢 ∧ 背驰真算）+ B3/S3（confirmed 结构几何）。
+pub fn extract_signals(
+    centers: &[Center],
+    segments: &[Segment],
+    closes: &[f64],
+    close_src: &[usize],
+    macd_cfg: &MacdConfig,
+) -> Vec<BspPoint> {
+    // MACD hist（第一类背驰真算，浮点域隔离在 divergence.rs）。空 closes ⟹ 空 hist ⟹ 第一类不产
+    // （段无法映射 closes 区间），第三类仍正常产（纯整数几何，不依赖 MACD）。
+    let hist = compute_macd(closes, macd_cfg).hist;
+
     let mut points = Vec::new();
     for c in centers {
-        // 中枢之后的线段（end_index 严格大于中枢 end_index 的线段——离开+回试发生在中枢后）。
+        // 中枢之后的线段（start_index >= 中枢 end_index 的线段——离开+回试/破中枢发生在中枢后）。
         let segs_after: Vec<Segment> = segments
             .iter()
             .filter(|s| s.start_index >= c.end_index)
             .copied()
             .collect();
+        // 第一类（破中枢 ∧ MACD 背驰真算）。
+        points.extend(extract_first_for_center(c, &segs_after, &hist, close_src));
+        // 第三类（离开后回试不破，纯整数几何）。
         points.extend(extract_third_for_center(c, &segs_after));
     }
     // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。
@@ -158,16 +311,30 @@ mod tests {
         Segment { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }
     }
 
+    /// closes + close_src 辅助：连续 source_index 0..n（无合并跳跃的简单坐标系）。
+    fn closes_seq(vals: &[Tick]) -> (Vec<f64>, Vec<usize>) {
+        let c: Vec<f64> = vals.iter().map(|&v| v as f64).collect();
+        let src: Vec<usize> = (0..vals.len()).collect();
+        (c, src)
+    }
+
+    /// 第三类专用入口（无 MACD 依赖——传空 closes，第一类自然不产）。
+    fn extract_third_only(centers: &[Center], segs: &[Segment]) -> Vec<BspPoint> {
+        extract_signals(centers, segs, &[], &[], &MacdConfig::default())
+    }
+
+    // ── 第三类（保留原判据，MACD 无关）────────────────────────────────────────
+
     #[test]
     fn third_buy_extracted_bit_exact() {
         // 中枢核心 [100,200] end_index=12。后续：向上线段离开（端点 250 > zg=200），
-        // 向下回试低点 210 >= zg=200（不入中枢）⟹ 3 买。
+        // 向下回试低点 210 > zg=200（不入中枢）⟹ 3 买。
         let c = center(100, 200, 12);
         let segs = vec![
             seg(Direction::Up, 12, 16, 150, 250),   // 离开：端点 250 > 200
-            seg(Direction::Down, 16, 20, 250, 210), // 回试：低点 210 >= 200 → 3 买
+            seg(Direction::Down, 16, 20, 250, 210), // 回试：低点 210 > 200 → 3 买
         ];
-        let points = extract_signals(&[c], &segs);
+        let points = extract_third_only(&[c], &segs);
         assert_eq!(points.len(), 1);
         assert!(points[0].bits.buy3);
         assert_eq!(points[0].source_index, 20); // 回试端点
@@ -183,7 +350,7 @@ mod tests {
             seg(Direction::Up, 12, 16, 150, 250),
             seg(Direction::Down, 16, 20, 250, 190), // 回试 190 < 200 → 入中枢，非 3 买
         ];
-        let points = extract_signals(&[c], &segs);
+        let points = extract_third_only(&[c], &segs);
         assert!(points.is_empty());
     }
 
@@ -197,19 +364,19 @@ mod tests {
             seg(Direction::Up, 12, 16, 150, 250),
             seg(Direction::Down, 16, 20, 250, 200), // 回试 == zg → 触及中枢 → 非 3 买（严格排除等号）
         ];
-        let points = extract_signals(&[c], &segs);
+        let points = extract_third_only(&[c], &segs);
         assert!(points.is_empty(), "retest==zg 触及闭区间中枢=非终结=非第三类（严格口径，对齐 Lean）");
     }
 
     #[test]
     fn third_sell_extracted_bit_exact() {
-        // 镜像：向下离开（端点 50 < zd=100），向上回抽高点 90 <= zd=100 ⟹ 3 卖。
+        // 镜像：向下离开（端点 50 < zd=100），向上回抽高点 90 < zd=100 ⟹ 3 卖。
         let c = center(100, 200, 12);
         let segs = vec![
             seg(Direction::Down, 12, 16, 150, 50),  // 离开：端点 50 < 100
-            seg(Direction::Up, 16, 20, 50, 90),     // 回抽：高点 90 <= 100 → 3 卖
+            seg(Direction::Up, 16, 20, 50, 90),     // 回抽：高点 90 < 100 → 3 卖
         ];
-        let points = extract_signals(&[c], &segs);
+        let points = extract_third_only(&[c], &segs);
         assert_eq!(points.len(), 1);
         assert!(points[0].bits.sell3);
         assert_eq!(points[0].pivot_high, 90);   // 回抽高点 = pivot_high
@@ -217,14 +384,14 @@ mod tests {
     }
 
     #[test]
-    fn no_leave_no_signal() {
-        // 线段未离开中枢（端点 180 < zg=200）⟹ 无第三类。
+    fn no_leave_no_third_signal() {
+        // 线段未离开中枢（端点 180 < zg=200）⟹ 无第三类（且方向不破中枢，无第一类）。
         let c = center(100, 200, 12);
         let segs = vec![
             seg(Direction::Up, 12, 16, 150, 180),   // 未离开（180 < 200）
-            seg(Direction::Down, 16, 20, 180, 160),
+            seg(Direction::Down, 16, 20, 180, 160), // 端点 160 ∈ [100,200]，未破中枢下沿
         ];
-        let points = extract_signals(&[c], &segs);
+        let points = extract_third_only(&[c], &segs);
         assert!(points.is_empty());
     }
 
@@ -236,7 +403,7 @@ mod tests {
             seg(Direction::Up, 12, 16, 150, 250),
             seg(Direction::Down, 16, 20, 250, 210),
         ];
-        let points = extract_signals(&[c], &segs);
+        let points = extract_third_only(&[c], &segs);
         for p in &points {
             if p.bits.buy3 || p.bits.sell3 {
                 assert!(p.center.is_some(), "含 3 类 bit ⟹ center 必 Some");
@@ -246,7 +413,145 @@ mod tests {
 
     #[test]
     fn empty_centers_no_signal() {
-        let points = extract_signals(&[], &[seg(Direction::Up, 0, 4, 0, 10)]);
+        let points = extract_third_only(&[], &[seg(Direction::Up, 0, 4, 0, 10)]);
         assert!(points.is_empty());
+    }
+
+    // ── 第一类（破中枢几何 L0 ∧ MACD 背驰真算 L1）────────────────────────────
+
+    #[test]
+    fn first_buy_extracted_with_divergence() {
+        // 中枢核心 [100,200] end_index=2。后续两条向下段：
+        // - 前向下段 [3,5]：端点 90（已破中枢下沿 < zd=100），MACD 面积大（强势）。
+        // - 后向下段 [6,8]：端点 80（破中枢更深 < zd=100），MACD 面积小（背驰，力度衰减）⟹ 1 买。
+        let c = center(100, 200, 2);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 150, 90),  // 前向下段（破中枢，作背驰对照）
+            seg(Direction::Down, 6, 8, 120, 80),  // 后向下段（破中枢 ∧ 面积更小 → 背驰）
+        ];
+        // closes 构造：前段 bar [3,5] 波动大（|hist| 大），后段 bar [6,8] 波动小（|hist| 小）。
+        // 用价格序列让 MACD hist 在前段绝对值大于后段（背驰）。
+        let prices: Vec<Tick> = vec![
+            100, 100, 100,        // 0..2（中枢区，预热）
+            100, 60, 140,         // 3..5 前段：大幅震荡 ⟹ hist 绝对值大
+            100, 95, 105,         // 6..8 后段：小幅震荡 ⟹ hist 绝对值小（力度衰减）
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+        // 至少后段（6,8）应识别为 1 买（破中枢 ∧ 面积严格小于前段）。
+        let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
+        assert_eq!(buy1.len(), 1, "后向下段破中枢 ∧ 背驰 ⟹ 一个 1 买");
+        assert_eq!(buy1[0].source_index, 8, "1 买端点 = 后破中枢段终止 source_index");
+        assert_eq!(buy1[0].pivot_low, 80, "1 买止损源 = pivot_low（破中枢段端点）");
+        assert!(buy1[0].center.is_none(), "1 类止损用 pivot 非 center ⟹ center=None");
+    }
+
+    #[test]
+    fn first_buy_rejected_without_divergence() {
+        // 破中枢但**力度未衰减**（后段面积 >= 前段）⟹ 非背驰 ⟹ 非第一类。
+        let c = center(100, 200, 2);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 150, 90),
+            seg(Direction::Down, 6, 8, 120, 80),
+        ];
+        // closes：前段小波动、后段大波动 ⟹ 后段面积 > 前段 ⟹ 力度延续，非背驰。
+        let prices: Vec<Tick> = vec![
+            100, 100, 100,
+            100, 98, 102,         // 3..5 前段：小幅（hist 小）
+            100, 50, 150,         // 6..8 后段：大幅（hist 大 ⟹ 力度延续 ⟹ 非背驰）
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+        assert!(points.iter().all(|p| !p.bits.buy1), "破中枢但力度延续 ⟹ 非第一类");
+    }
+
+    #[test]
+    fn first_buy_rejected_without_broke_center() {
+        // 向下段未破中枢下沿（端点 120 ∈ [100,200]）⟹ 非第一类（几何不足，无论背驰与否）。
+        let c = center(100, 200, 2);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 150, 130),
+            seg(Direction::Down, 6, 8, 140, 120), // 端点 120 >= zd=100，未破中枢
+        ];
+        let prices: Vec<Tick> = vec![100, 100, 100, 100, 60, 140, 100, 98, 102];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+        assert!(points.iter().all(|p| !p.bits.buy1), "未破中枢 ⟹ 非第一类（几何分量不足）");
+    }
+
+    #[test]
+    fn first_buy_rejected_without_prior_same_dir_segment() {
+        // 破中枢段是序列**首个**向下段（无前同向段对照）⟹ 无背驰对照标的 ⟹ 非第一类。
+        let c = center(100, 200, 2);
+        let segs = vec![
+            seg(Direction::Up, 3, 5, 100, 150),   // 向上段（非买点方向）
+            seg(Direction::Down, 6, 8, 150, 80),  // 首个向下段（破中枢，但无前向下段对照）
+        ];
+        let prices: Vec<Tick> = vec![100, 100, 100, 100, 130, 170, 100, 95, 60];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+        assert!(points.iter().all(|p| !p.bits.buy1), "无前同向段 ⟹ 无背驰对照 ⟹ 非第一类");
+    }
+
+    #[test]
+    fn first_sell_mirror_with_divergence() {
+        // 卖镜像：两条向上段突破中枢上沿（> zg=200），后段 MACD 面积严格小于前段 ⟹ 1 卖。
+        let c = center(100, 200, 2);
+        let segs = vec![
+            seg(Direction::Up, 3, 5, 150, 210),  // 前向上段（破中枢上沿）
+            seg(Direction::Up, 6, 8, 180, 220),  // 后向上段（破中枢 ∧ 背驰）
+        ];
+        let prices: Vec<Tick> = vec![
+            200, 200, 200,
+            200, 260, 140,        // 3..5 前段：大幅
+            200, 205, 195,        // 6..8 后段：小幅（背驰）
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+        let sell1: Vec<_> = points.iter().filter(|p| p.bits.sell1).collect();
+        assert_eq!(sell1.len(), 1, "后向上段破中枢上沿 ∧ 背驰 ⟹ 一个 1 卖");
+        assert_eq!(sell1[0].pivot_high, 220, "1 卖止损源 = pivot_high");
+        assert!(sell1[0].center.is_none(), "1 类止损用 pivot 非 center");
+    }
+
+    // ── 第二类诚实边界（结构不可产，递归组装层缺口）─────────────────────────
+
+    #[test]
+    fn signal_extraction_emits_no_second_class() {
+        // ★诚实标注（编码为可执行断言，formalization-validity-domain）：extract_signals 对任意
+        // L0 segment 输入**永不产第二类**——第二类=次级别第一类构成（买卖点定律一），需 RMove 递归
+        // 结构（descend.rs），L0 segment 是递归底（descend 得空）⟹ 结构不可 bit-exact 产出。
+        // 此断言锁定边界：B2/S2 留递归组装层（上游 mod.rs 接入 descend.second_type_via_sublevel_type1）。
+        let c = center(100, 200, 2);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 150, 90),
+            seg(Direction::Down, 6, 8, 120, 80),
+            seg(Direction::Up, 9, 11, 80, 250),
+            seg(Direction::Down, 12, 14, 250, 210),
+        ];
+        let prices: Vec<Tick> = vec![
+            100, 100, 100, 100, 60, 140, 100, 95, 105,
+            100, 175, 250, 250, 230, 210,
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+        for p in &points {
+            assert!(!p.bits.buy2, "extract_signals 不产第二类买点（递归组装层缺口，非本签名层）");
+            assert!(!p.bits.sell2, "extract_signals 不产第二类卖点（递归组装层缺口，非本签名层）");
+        }
+    }
+
+    // ── 坐标系映射（source_index → closes 下标）─────────────────────────────
+
+    #[test]
+    fn src_range_maps_with_merged_bar_gaps() {
+        // merged_bars 有合并跳跃：source_index = [0,2,5,9]（下标 0..3）。
+        // 段 source_index [2,9] 应映射到 closes 下标 [1,3]（src=2 在下标1，src=9 在下标3）。
+        let src_to_idx = vec![0usize, 2, 5, 9];
+        assert_eq!(map_src_range_to_close_idx(&src_to_idx, 2, 9), Some((1, 3)));
+        // 段 [3,6]：首个 >=3 是 src=5（下标2），末个 <=6 是 src=5（下标2）⟹ (2,2)。
+        assert_eq!(map_src_range_to_close_idx(&src_to_idx, 3, 6), Some((2, 2)));
+        // 段 [10,20]：无 source_index 落入 ⟹ None。
+        assert_eq!(map_src_range_to_close_idx(&src_to_idx, 10, 20), None);
     }
 }

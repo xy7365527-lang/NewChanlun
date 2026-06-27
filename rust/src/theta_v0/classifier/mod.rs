@@ -201,14 +201,20 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
         let moves: Vec<MoveKind> = outcome_to_kind(outcome).into_iter().collect();
 
         // BSP 信号提取（reference:34-36）。
-        // ★诚实范围（formalization-validity-domain）：v0 在 **L0** 用线段（次级别走势=线段，
-        // 有方向）提取第三类买卖点（confirmed 结构严格可判定，见 signal.rs）。上级级别的
-        // 输入单元是中枢外缘区间（`UnitRange` 无方向），第三类「次级别回试」的方向判据无法
-        // 在无方向的上级单元上 bit-exact 判定 ⟹ 上级 bsp 留空（非补丁：避免基于无方向单元
-        // 的猜测信号）。上级信号需「上级走势携带方向」的递归扩展（units 加 direction），
-        // 是后续增量——本工位先打通 L0 端到端（解阻塞点 A）。
+        // ★完整覆盖（formalization-validity-domain）：v0 在 **L0** 用线段（次级别走势=线段，
+        // 有方向）提取**第一类**（破中枢几何 L0 ∧ MACD 背驰 L1 真算）+ **第三类**（confirmed
+        // 结构几何，严格可判定）买卖点（见 signal.rs）。第二类诚实不产（次级别 RMove 递归结构
+        // 缺失，属递归组装层缺口，见 signal.rs 模块头）。上级级别的输入单元是中枢外缘区间
+        // （`UnitRange` 无方向），第三类「次级别回试」的方向判据无法在无方向的上级单元上
+        // bit-exact 判定 ⟹ 上级 bsp 留空（非补丁：避免基于无方向单元的猜测信号）。上级信号需
+        // 「上级走势携带方向」的递归扩展（units 加 direction），是后续增量。
+        //
+        // 第一类背驰用 MACD：closes 取 `l0.merged_bars` 的 close（classify 唯一可达的 close 序列），
+        // close_src 取各 bar 的 source_index（段区间坐标系转换，见 signal.rs `map_src_range_to_close_idx`）。
         let bsp = if level_idx == 0 {
-            signal::extract_signals(&centers, &l0.segments)
+            let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
+            let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
+            signal::extract_signals(&centers, &l0.segments, &closes, &close_src, &config.macd)
         } else {
             Vec::new()
         };

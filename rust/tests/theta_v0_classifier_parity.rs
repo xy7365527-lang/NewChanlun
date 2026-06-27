@@ -9,19 +9,27 @@
 //!
 //! - **位置分量 r**（相对最后确认中枢）：rust `classifier::center::classify_position`
 //!   ↔ Lean `Origin.CenterStates.classifyPosition`（CenterStates.lean:71-74）。
-//! - **信号位 b 的第三类分量 B3/S3**：rust `classifier::bsp::{EndpointSituation,endpoint_to_bsp}`
-//!   + `classifier::signal::extract_signals` ↔ Lean `Origin.BspClassification.{IsType3Buy,IsType3Sell}`
-//!   （BspClassification.lean:111-121）。
+//! - **信号位 b 的第一/三类分量 B1/S1 + B3/S3**：rust `classifier::bsp::{EndpointSituation,
+//!   endpoint_to_bsp}` + `classifier::signal::extract_signals` ↔ Lean `Origin.BspClassification.
+//!   {IsType1,IsType3Buy,IsType3Sell}`（BspClassification.lean:94-95,111-121）。第二类结构不可产
+//!   （递归组装层缺口，见 ★诚实覆盖标注）。
 //!
 //! ## ★诚实覆盖标注（formalization-validity-domain 231号，强制）
 //!
-//! 本工位的 b 向量 parity 覆盖 = **B3/S3 only**（第三类买/卖）。
-//! 第一类（B1/S1）、第二类（B2/S2）的 Lean↔Rust parity **不在本工位**（属 SG-5）——原因是诚实的
-//! 结构边界，非遗漏：rust `signal::extract_signals`（classifier 顶层信号入口）当前**只产第三类**
-//! （signal.rs:11-26 模块头声明 v0 只提取第三类，第一/二类需趋势确认时序/次级别递归，未实装）。
-//! 因此 rust 在「从 confirmed 结构提取信号」这一端到端路径上**不存在** B1/B2 的输出，对其做
-//! Lean↔Rust 端到端 parity 无对照标的。bsp.rs 的 `is_first/is_second` 谓词存在但 signal.rs 不
-//! 调用它们产信号——故本工位核对 bsp.rs 第三类谓词，不核对一/二类谓词的端到端 parity。
+//! 本工位的 b 向量 parity 覆盖 = **B1/S1 + B3/S3**（第一类 + 第三类买/卖），**不含 B2/S2**。
+//! - **B3/S3**（第三类）：`extract_signals` 纯整数几何（离开后回试不破 ZG/ZD）↔ Lean
+//!   `IsType3Buy/IsType3Sell`，**L0** bit-exact（层 B1/B2）。
+//! - **B1/S1**（第一类）：`extract_signals` 破中枢几何（**L0**）∧ MACD 背驰真算（**L1**）↔ Lean
+//!   `IsType1 = brokeCenter ∧ IsDivergence`（层 C）。★rust 领先 Origin：Lean `divPair` 是外部参数
+//!   （still-MISSING-C 无 MACD 引擎），rust `divergence.rs` 已实装 MACD ⟹ 背驰分量真算非占位。
+//! - **B2/S2**（第二类）：**结构不可 bit-exact 产出**（非遗漏，诚实边界）。买卖点定律一：第二类=
+//!   次级别第一类构成，需 `descend.rs::RMove` 递归结构；L0 segment 是递归底（descend 得空）⟹
+//!   `extract_signals(centers, segments)` 签名层拿不到次级别走势。第二类接入属**递归组装层**
+//!   （上游 mod.rs 构造 RMove::Compose 后调 descend.second_type_via_sublevel_type1），still-MISSING。
+//!   `signal_extraction_emits_no_second_class_only` 锁定该边界。
+//!
+//! 「MACD 背驰预测在真实行情有效」（L2/L3 否证检验）**不在本工位**——本工位证 IsType1 结构合取
+//! bit-exact（L1 管线正确性），非背驰预测的经验有效性。
 //!
 //! ## ★边界口径对齐（codex 裁决 2026-06-27：定义层矛盾已消解，三处统一严格口径）
 //!
@@ -40,9 +48,16 @@
 
 use newchan_rust::theta_v0::classifier::bsp::{endpoint_to_bsp, EndpointSituation};
 use newchan_rust::theta_v0::classifier::center::{classify_position, RelativePosition};
-use newchan_rust::theta_v0::classifier::signal::extract_signals;
+use newchan_rust::theta_v0::classifier::signal::{extract_signals, BspPoint};
+use newchan_rust::theta_v0::config::MacdConfig;
 use newchan_rust::theta_v0::types::{Center, Direction, Segment, Tick};
 use serde::Deserialize;
+
+/// 第三类 parity 专用入口：传空 closes（第三类纯整数几何，不依赖 MACD）——第一类自然不产。
+/// 第三类 Lean↔rust bit-exact 对照只核对几何判据，MACD 无关。
+fn extract_third_only(centers: &[Center], segments: &[Segment]) -> Vec<BspPoint> {
+    extract_signals(centers, segments, &[], &[], &MacdConfig::default())
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  §0 Lean #eval 导出 fixture 机器耦合（631 兑现，消手工转录漂移）
@@ -255,7 +270,7 @@ fn type3_buy_lean_witness_scale_matches_fixture() {
         seg(Direction::Up, 12, 16, zg - 5, zg + 30),      // 离开：端点 > zg
         seg(Direction::Down, 16, 20, zg + 30, retrace),   // 回试低点 = Lean retracePrice（> zg 严格）
     ];
-    let points = extract_signals(&[c], &segs);
+    let points = extract_third_only(&[c], &segs);
     assert_eq!(points.len(), 1, "Lean 见证尺度 retrace>zg ⟹ 一个第三类买点（rust 与 Lean IsType3Buy 一致）");
     assert!(points[0].bits.buy3, "Lean eventType3 见证：rust 与 Lean IsType3Buy 同为真");
     assert_eq!(points[0].center.map(|c| c.zg), Some(zg), "3 买止损=ZG（= Lean center.zg）");
@@ -273,7 +288,7 @@ fn type3_buy_interior_point_matches_lean() {
         seg(Direction::Up, 12, 16, 150, 250),   // 离开：端点 250 > zg=200
         seg(Direction::Down, 16, 20, 250, 210), // 回试低点 210 > zg=200（严格，两侧一致）
     ];
-    let points = extract_signals(&[c], &segs);
+    let points = extract_third_only(&[c], &segs);
     assert_eq!(points.len(), 1, "离开+回试不破 ⟹ 一个第三类买点（rust 与 Lean 一致）");
     assert!(points[0].bits.buy3, "内部安全点 retest>zg：rust 与 Lean IsType3Buy 同为真");
     assert_eq!(points[0].center.map(|c| c.zg), Some(200), "3 买止损=ZG（BspClassification 止损语义）");
@@ -287,7 +302,7 @@ fn type3_buy_clear_reenter_matches_lean() {
         seg(Direction::Up, 12, 16, 150, 250),
         seg(Direction::Down, 16, 20, 250, 190), // 回试 190 < zg=200（明确重入）
     ];
-    let points = extract_signals(&[c], &segs);
+    let points = extract_third_only(&[c], &segs);
     assert!(points.is_empty(), "回试明确破 ZG ⟹ rust 与 Lean 同为 ¬第三类");
 }
 
@@ -311,7 +326,7 @@ fn boundary_retest_eq_zg_rust_aligned_to_lean_strict() {
         seg(Direction::Up, 12, 16, 150, 250),
         seg(Direction::Down, 16, 20, 250, 200), // 回试 == zg=200（边界临界点）
     ];
-    let points = extract_signals(&[c], &segs);
+    let points = extract_third_only(&[c], &segs);
     // rust 严格口径（>）⟹ retest==zg 触及闭区间中枢=非终结=非第三类。
     // 对齐 Lean IsType3Buy（严格 zg<retracePrice 在 retest==zg 时为假）⟹ 两侧同判 points 空。
     assert!(points.is_empty(), "rust 严格（>）：retest==zg 触及中枢=非第三类，对齐 Lean IsType3Buy 严格口径");
@@ -328,29 +343,86 @@ fn boundary_retest_eq_zd_rust_aligned_to_lean_strict() {
         seg(Direction::Down, 12, 16, 150, 50), // 离开：端点 50 < zd=100
         seg(Direction::Up, 16, 20, 50, 100),   // 回抽 == zd=100（边界临界点）
     ];
-    let points = extract_signals(&[c], &segs);
+    let points = extract_third_only(&[c], &segs);
     // rust 严格口径（<）⟹ retest==zd 触及闭区间中枢=非终结=非第三类，对齐 Lean IsType3Sell 严格口径。
     assert!(points.is_empty(), "rust 严格（<）：retest==zd 触及中枢=非第三类，对齐 Lean IsType3Sell 严格口径");
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  诚实覆盖确认（B3/S3 only，第一/二类不在本工位）
+//  层 C — 第一类（B1/S1）：extract_signals 破中枢几何 L0 ∧ MACD 背驰 L1 真算
+//          ↔ Lean Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence(divPair)
+//
+//  Lean IsType1 (BspClassification.lean:94-95)：brokeCenter=true ∧ IsDivergence divPair。
+//  Lean IsDivergence (Divergence.lean:83)：d.forceC.area < d.forceA.area（后段力度严格小于前段）。
+//  rust 侧：破中枢=段端点出中枢核心（L0 整数几何，对齐 descend.rs sub_broke_below）；
+//  IsDivergence=破中枢段 vs 前同向段 MACD 面积严格变小（divergence::segments_diverge 真算，L1）。
+//  ★rust 领先 Origin：Lean divPair 是外部参数（still-MISSING-C 无 MACD 引擎），rust MACD 已实装。
 // ════════════════════════════════════════════════════════════════════════════
 
-/// ★诚实标注（编码为可执行断言）：signal::extract_signals（classifier 顶层信号入口）当前只产
-/// 第三类——对任意 confirmed 结构输入，产出的 BspBits 中 buy1/buy2/sell1/sell2 恒为假。
-/// 故第一/二类的 Lean↔Rust 端到端 parity **无对照标的**（属 SG-5）。本测试锁定该覆盖边界。
+/// closes + close_src 辅助（连续 source_index，无合并跳跃）。
+fn closes_seq(vals: &[Tick]) -> (Vec<f64>, Vec<usize>) {
+    let c: Vec<f64> = vals.iter().map(|&v| v as f64).collect();
+    let src: Vec<usize> = (0..vals.len()).collect();
+    (c, src)
+}
+
+/// 第一类买点 Lean↔rust parity：破中枢（端点 < zd，对齐 Lean brokeCenter）∧ 背驰（后段 MACD 面积
+/// 严格小于前段，对齐 Lean IsDivergence forceC.area < forceA.area）⟹ rust buy1 置位，与 Lean IsType1 同。
 #[test]
-fn signal_extraction_emits_third_class_only() {
-    let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 12 };
+fn type1_buy_broke_and_diverge_matches_lean_istype1() {
+    let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 2 };
     let segs = vec![
-        seg(Direction::Up, 12, 16, 150, 250),
-        seg(Direction::Down, 16, 20, 250, 210),
+        seg(Direction::Down, 3, 5, 150, 90),  // 前向下段（破中枢，作背驰对照=Lean forceA）
+        seg(Direction::Down, 6, 8, 120, 80),  // 后向下段（破中枢 ∧ 面积更小=Lean forceC < forceA）
     ];
-    let points = extract_signals(&[c], &segs);
+    // 前段 bar [3,5] 大幅波动（hist 绝对值大=forceA.area 大），后段 bar [6,8] 小幅（forceC.area 小）。
+    let (closes, src) = closes_seq(&[100, 100, 100, 100, 60, 140, 100, 95, 105]);
+    let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+    let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
+    assert_eq!(buy1.len(), 1, "Lean IsType1（brokeCenter ∧ IsDivergence）⟺ rust buy1 置位");
+    assert_eq!(buy1[0].pivot_low, 80, "1 买止损=pivot_low（破中枢段端点，reference:46）");
+}
+
+/// 第一类反退化（Lean IsType1 需 IsDivergence）：破中枢但后段面积 >= 前段（¬IsDivergence）⟹ ¬IsType1。
+/// 对照 Lean：IsType1 = brokeCenter ∧ IsDivergence；IsDivergence 假 ⟹ 整体假（合取）。
+#[test]
+fn type1_rejected_without_divergence_matches_lean() {
+    let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 2 };
+    let segs = vec![
+        seg(Direction::Down, 3, 5, 150, 90),
+        seg(Direction::Down, 6, 8, 120, 80),
+    ];
+    // 前段小幅、后段大幅 ⟹ 后段面积 > 前段 ⟹ ¬IsDivergence（力度延续）。
+    let (closes, src) = closes_seq(&[100, 100, 100, 100, 98, 102, 100, 50, 150]);
+    let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+    assert!(points.iter().all(|p| !p.bits.buy1), "Lean ¬IsDivergence ⟹ ¬IsType1 ⟺ rust ¬buy1");
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  诚实覆盖确认（B1/S1 + B3/S3 产出；B2/S2 结构不可产，递归组装层缺口）
+// ════════════════════════════════════════════════════════════════════════════
+
+/// ★诚实标注（编码为可执行断言）：extract_signals 产**第一类 + 第三类**，但对任意 L0 segment
+/// 输入**永不产第二类**（buy2/sell2 恒假）——第二类=次级别第一类构成（买卖点定律一），需 RMove
+/// 递归结构（descend.rs），L0 segment 是递归底（descend 得空）⟹ 结构不可 bit-exact 产出。
+/// 故第二类 Lean↔Rust 端到端 parity **无对照标的**（属递归组装层 still-MISSING，上游 mod.rs 接入
+/// descend.second_type_via_sublevel_type1）。本测试锁定该覆盖边界（多声部 B1/B3，B2 留递归层）。
+#[test]
+fn signal_extraction_emits_no_second_class_only() {
+    let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 2 };
+    let segs = vec![
+        seg(Direction::Down, 3, 5, 150, 90),   // 破中枢前段
+        seg(Direction::Down, 6, 8, 120, 80),   // 破中枢后段（背驰 → B1）
+        seg(Direction::Up, 9, 11, 80, 250),    // 离开中枢上方
+        seg(Direction::Down, 12, 14, 250, 210), // 回试不破 → B3
+    ];
+    let (closes, src) = closes_seq(&[100, 100, 100, 100, 60, 140, 100, 95, 105, 100, 175, 250, 250, 230, 210]);
+    let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
     for p in &points {
-        assert!(!p.bits.buy1 && !p.bits.buy2, "signal v0 不产第一/二类买点（覆盖=B3 only，SG-5 域）");
-        assert!(!p.bits.sell1 && !p.bits.sell2, "signal v0 不产第一/二类卖点（覆盖=S3 only，SG-5 域）");
+        assert!(!p.bits.buy2, "extract_signals 不产第二类买点（递归组装层缺口，非本签名层）");
+        assert!(!p.bits.sell2, "extract_signals 不产第二类卖点（递归组装层缺口，非本签名层）");
     }
-    assert!(points.iter().any(|p| p.bits.buy3 || p.bits.sell3), "本输入确产第三类（覆盖标的存在）");
+    // 多声部确认：B1（破中枢背驰）+ B3（离开回试）均产出（消解「单声部 L0 第三类」根因）。
+    assert!(points.iter().any(|p| p.bits.buy1), "产第一类（破中枢 ∧ 背驰真算）");
+    assert!(points.iter().any(|p| p.bits.buy3), "产第三类（离开后回试不破）");
 }
