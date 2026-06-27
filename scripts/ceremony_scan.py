@@ -23,6 +23,44 @@ BACKGROUND_NOISE_STATUSES = {"background_noise", "观察项", "背景噪音"}
 TERMINAL_STATUSES = {"已修复", "resolved", "background_noise"}
 VALID_TOPO_TYPES = frozenset({"freeze", "split", "sever"})
 
+# 脚本目录加入 sys.path：以 `python scripts/ceremony_scan.py` 运行时 sys.path[0]
+# 自动是 scripts/，但以模块方式导入（import scripts.ceremony_scan，见 2g 节先例）
+# 时 sys.path[0] 不是 scripts/——显式加入保证 `from goal_reducer import` 始终可解析。
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+
+
+def _load_current_goal():
+    """D′：读 goal events → reduce → current_goal projection。
+
+    goal 是 roadmap 之前的当前交易性承诺（roadmap 是 backlog）——本函数让
+    ceremony_scan 降为 seed bootloader：goal 未设定（events.jsonl 不存在）时返回
+    None，不阻塞冷启动；goal 已设定时返回 reduce_goal 的 projection。
+
+    facts.git_head 供 reduce_goal 做 base_head 对账（base_head_stale 信号，spec §9）。
+    其余 facts 字段（genealogy_pending/genealogy_settled/roadmap）是 §4 数据流预留，
+    当前 readiness 规则未依赖，传空。
+    """
+    from goal_reducer import reduce_goal
+    ev_path = os.path.join(_SCRIPT_DIR, "..", ".chanlun", "goals", "events.jsonl")
+    if not os.path.isfile(ev_path):
+        return None
+    with open(ev_path, encoding="utf-8") as f:
+        events = [json.loads(line) for line in f if line.strip()]
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True, text=True,
+        cwd=os.path.dirname(os.path.abspath(ev_path)),
+    ).stdout.strip()
+    facts = {
+        "git_head": head,
+        "genealogy_pending": [],
+        "genealogy_settled": [],
+        "roadmap": [],
+    }
+    return reduce_goal(events, facts)
+
 
 def get_frozen_nodes(root):
     """从 block-topology 读取 frozen 节点集合（147号 + 178号-2 迁移）。
@@ -1368,6 +1406,10 @@ def main():
     session_name, workstations = get_session_workstations(root)
     result["mode"] = "warm_start" if session_name else "cold_start"
     result["session"] = session_name
+
+    # 0. D′：current_goal（roadmap 之前的当前交易性承诺，roadmap 是 backlog）。
+    #    goal 未设定时为 None——ceremony_scan 降为 seed bootloader，不阻塞冷启动。
+    result["current_goal"] = _load_current_goal()
 
     # 1. 最高优先级：roadmap.yaml 中的 active 任务
     roadmap_tasks = get_roadmap_workstations(root)
