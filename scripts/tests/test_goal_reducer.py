@@ -72,6 +72,15 @@ def test_goal_set_rejects_non_falsifiable_acceptance():
     with pytest.raises(ValueError, match="falsifiable"):
         reduce_goal(events, _facts())
 
+def test_base_head_mismatch_flags_stale():
+    # facts.git_head 与 goal.base_head 不匹配 → current_goal 标记 base_head_stale=True（spec §9：快照降级信号）
+    events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+               "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t0"}]
+    out_match = reduce_goal(events, _facts(head="abc123"))
+    out_stale = reduce_goal(events, _facts(head="deadbeef"))
+    assert out_match["current_goal"]["base_head_stale"] is False
+    assert out_stale["current_goal"]["base_head_stale"] is True
+
 def test_sub_goal_check_name_collision_does_not_close_goal():
     # sub_goal 的 check 名与 goal acceptance check 名相同，但 CHECK_PASS 只 target sub_goal，
     # 不应误判 goal acceptance 通过（gid-only 匹配，SCHEMA 未定义跨节点 rollup）。
