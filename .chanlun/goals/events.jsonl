@@ -10,3 +10,4 @@
 {"event": "EVIDENCE", "sub_goal_id": "SG-A", "artifact": "2b G_α: GlobalProductClassification.lean global_product_complete_unique L0证成(全量98 jobs绿,零sorry,PDF p24父子一致性缺口补,refines现有GlobalClassSpec)", "ts": "2026-06-27T09:17:49Z"}
 {"event": "EVIDENCE", "sub_goal_id": "SG-1", "artifact": "#4买侧vacuous消除: buy.rs+theta_v0_buy_parity.rs(commit 83f747689d,直接rust买侧↔Lean买侧见证bit-exact,cargo lib 888 passed,买侧从间接对偶升直接)", "ts": "2026-06-27T09:17:49Z"}
 {"event": "EVIDENCE", "sub_goal_id": "SG-A", "artifact": "4b显式良基秩: WellFoundedRank.lean(r:RMove→Nat+rank_decreases严格<+wf_rank WellFounded实例,全量99 jobs绿,PDF p25兑现,编排者Q1裁定补,48c3edf9c5)", "ts": "2026-06-27T09:20:06Z"}
+{"event": "CHECK_PASS", "sub_goal_id": "SG-2", "check": "§36临界口径矛盾消解(codex裁决严格<,align reference+rust→Lean,bf9c55fe98,边界retest==zg rust==Lean非第三类,cargo全绿)", "ts": "2026-06-27T09:20:55Z"}
