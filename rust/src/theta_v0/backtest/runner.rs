@@ -72,6 +72,12 @@ pub struct RunResult {
     /// 证明 account+twState 每 bar 真更新喂回（非开环单帧构造一次）——见
     /// `closed_loop_threads_every_bar` 见证。`None` 仅当 bars 为空。
     pub closed_loop_final: Option<AssemblyState>,
+    /// ★每笔完整平仓交易的**成交盈亏**（非 mark-to-market 浮动）——L2 统计检验
+    /// （[`metrics::significance`] block bootstrap / 随机对照）与成交 PnL 分布的输入。
+    /// 真实数据回测时这是 L2 否证/确认的数据基础（区别于 `metrics.strat_return` 的 MtM 口径）。
+    pub trade_pnls: Vec<f64>,
+    /// 逐 bar（聚合前）returns 序列——Sharpe 标准误（Lo 2002）与显著性检验的输入。
+    pub daily_returns: Vec<f64>,
 }
 
 /// 执行回测：把 [`Dataset`] 喂 frozen Θ v0 引擎，模拟 fill，算指标。
@@ -138,6 +144,8 @@ pub fn run_theta_v0(
         untradable_ratio,
         is_l2,
         closed_loop_final,
+        trade_pnls,
+        daily_returns,
     }
 }
 
@@ -1483,5 +1491,152 @@ mod tests {
             n_l2_orders >= 1,
             "acceptance #5：source_index bug 修复后 ≥1 品种端到端产订单流（干净 L2 可证伪），实测 {n_l2_orders}",
         );
+    }
+
+    /// **★L2 否证验证：成交盈亏分布 + §3.4/§4 统计检验（OKLO 截断窗，退出生成器真实成交）**
+    /// （`#[ignore]`，需 `analysis/data_cache/oklo_1m_databento.json`）。
+    ///
+    /// ## 认识论等级与诚实边界（formalization-validity-domain 231号）
+    ///
+    /// - **L2（可否证）**：真实 OKLO 数据驱动 frozen Θ → **成交盈亏**（trade_pnls，非 MtM 浮动）
+    ///   → §3.4 block bootstrap p 值 + §4 随机入场对照 → Θ 是否显著优于零收益/随机择时。
+    /// - **单标的 = L2（非 L3）**：仅 OKLO 单品种单时段——L3 鲁棒性需多标的/多时段（待
+    ///   classifier extract_signals O(n²) 优化后全 8 品种全窗，本测试不冒充 L3）。
+    /// - **截断窗 ≠ 全窗**：classifier `signal::extract_signals` O(C×S²)（profile 坐实：全窗
+    ///   268K bar classify 30.96s/96.7% 总耗时；plan_and_fill_mtm 仅 7.5ms 非瓶颈）。本测试取
+    ///   **前 60K bar**（classify ~0.4s 在时限内）验证 L2 链路 + 统计检验**可工作并产真实数字**。
+    ///   全窗 L2 数字待 classifier 优化后重跑（本测试的截断窗 = 全窗的下采样，统计量含义口径
+    ///   一致，但样本量较小 ⟹ 检验功效受限，诚实标注非全窗结论）。
+    ///
+    /// ## 分层诊断 + 否证性结论（625 铁律：区分工程层断流 vs L2 经验否证）
+    ///
+    /// (a) 引擎产不出信号（n_orders=0，工程层）；(b) 产信号但成交盈亏 p>0.05 / 不优于随机
+    /// （L2 否证，Θ 无效，有价值）；(c) 成交盈亏 p≤0.05 且优于随机（L2 确认）。带计数。
+    /// **MtM 浮动 ≠ 成交盈亏**：strat_return 是 mark-to-market 口径（含未平仓浮盈），统计检验
+    /// 只用 trade_pnls（已实现成交盈亏）——严格区分（Lead 铁律）。
+    ///
+    /// 跑法：`cargo test --release --lib theta_v0::backtest::runner::tests::l2_falsify_oklo_traded_pnl -- --ignored --nocapture`
+    #[test]
+    #[ignore = "L2 否证验证（成交盈亏+统计检验），需 oklo cache；截断窗；--release --ignored --nocapture"]
+    fn l2_falsify_oklo_traded_pnl() {
+        use super::super::data;
+        use super::super::metrics;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("OKLO", &config).expect("加载 OKLO");
+        let oklo_reg = PREREG_WINDOWS.iter().find(|w| w.symbol == "OKLO").unwrap();
+        let oos_full = ds.slice_date_window(oklo_reg.oos.0, oklo_reg.oos.1);
+        assert!(!oos_full.bars.is_empty(), "OOS 窗非空");
+
+        // 截断 60K bar（classify ~0.4s；全窗 268K classify 30.96s 待 classifier 优化）。
+        let cut = 60_000.min(oos_full.bars.len());
+        let oos = Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[..cut].to_vec(),
+            dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+        };
+        eprintln!(
+            "\n===== L2 否证验证：OKLO 截断窗 bars={}（全窗 {}，截断因 classify O(n²) 待优化）=====",
+            oos.bars.len(),
+            oos_full.bars.len()
+        );
+
+        // NAV 与品种价量级匹配（首价×容量）。
+        let first_px = oos
+            .bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * config.tick.tick_size)
+            .unwrap_or(1.0);
+        let nav = (first_px * 1000.0).max(1.0e6);
+        let res = run_theta_v0(&oos, &config, 0.5, nav);
+
+        // ── 成交盈亏分布（trade_pnls，非 MtM）──
+        let pnls = &res.trade_pnls;
+        let n_trades = pnls.len();
+        let total_pnl: f64 = pnls.iter().sum();
+        let mean_pnl = if n_trades > 0 { total_pnl / n_trades as f64 } else { 0.0 };
+        let mut sorted = pnls.clone();
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let median_pnl = if n_trades > 0 { sorted[n_trades / 2] } else { 0.0 };
+        let n_win = pnls.iter().filter(|&&p| p > 0.0).count();
+        let win_rate = if n_trades > 0 { n_win as f64 / n_trades as f64 } else { 0.0 };
+
+        eprintln!(
+            "[L2] 引擎产出：n_orders={} n_trades={} is_l2={}",
+            res.n_orders, n_trades, res.is_l2
+        );
+        eprintln!(
+            "[L2] 成交盈亏分布（trade_pnls，非 MtM）：total={:.4} mean={:.6} median={:.6} \
+             win_rate={:.4} maxDD(MtM)={:.4}%",
+            total_pnl, mean_pnl, median_pnl, win_rate, res.metrics.max_drawdown * 100.0
+        );
+        eprintln!(
+            "[L2] 对照口径区分：strat_return(MtM 浮动)={:.2}% bh_return={:.2}% \
+             ★统计检验只用 trade_pnls 非 MtM",
+            res.metrics.strat_return * 100.0,
+            res.metrics.bh_return * 100.0
+        );
+
+        // ── §3.4 block bootstrap + §4 随机对照（seed=20260625 冻结，可复现）──
+        let sig = metrics::significance(pnls, &res.daily_returns);
+        eprintln!(
+            "[L2] §3.4 bootstrap（块长20 n=1000 H0:收益≤0）：mean_total={:.4} \
+             p(收益≤0)={:.4} CI95=[{:.4}, {:.4}]",
+            sig.boot_mean_total_pnl, sig.boot_pvalue_pnl_le_0, sig.boot_ci95_lo, sig.boot_ci95_hi
+        );
+        eprintln!(
+            "[L2] §3.4 Sharpe(Lo2002)：sharpe={:.4} SE={:.4} CI95=[{:.4}, {:.4}]",
+            sig.sharpe, sig.sharpe_se, sig.sharpe_ci95_lo, sig.sharpe_ci95_hi
+        );
+        eprintln!(
+            "[L2] §4 随机入场对照（n=1000）：rand_mean={:.4} Θ分位={:.4} Θ优于随机={}",
+            sig.rand_mean_total_pnl, sig.rand_percentile_of_theta, sig.theta_beats_random
+        );
+
+        // ── 分层诊断 + 否证性结论（625 铁律 + §5.5 inconclusive 严格区分）──
+        // ★关键有效域区分（formalization-validity-domain）：n_trades<2 时 bootstrap/随机对照
+        // 退化（significance 走退化分支 p=1.0/CI=[0,0]），**不构成可否证的统计检验**——这是
+        // 样本量不足（§5.5 inconclusive），**不是** L2 否证（把样本不足伪装成否证 = 声明膨胀）。
+        // 真正的 L2 否证/确认需足够成交样本（block bootstrap 块长 20 ⟹ 至少需 ≳20+ 笔才有
+        // 序列结构）。截断窗 n_trades 太少 ⟹ 诚实归为 inconclusive，非 L2 结论。
+        const MIN_TRADES_FOR_L2: usize = 20; // §3.4 块长=20，少于此 bootstrap 无序列结构
+        let (layer, verdict) = if res.n_orders == 0 {
+            ("(a)工程层", "引擎产不出订单——非 L2 经验否证，是工程断流")
+        } else if n_trades == 0 {
+            ("(a)工程层", "产订单但无平仓——退出闭环未产 Close（接线缺口）")
+        } else if n_trades < MIN_TRADES_FOR_L2 {
+            (
+                "(d)inconclusive",
+                "成交样本不足（n_trades<20=bootstrap 块长）⟹ 统计功效不足 ⟹ §5.5 inconclusive，\
+                 非 L2 否证也非确认（截断窗破坏样本量，需全窗）",
+            )
+        } else if sig.boot_pvalue_pnl_le_0 > 0.05 {
+            ("(b)L2否证", "成交盈亏 p>0.05：无法拒绝『收益≤0』⟹ Θ 收益不显著（§5.1 失败，有价值）")
+        } else if !sig.theta_beats_random {
+            ("(b)L2否证", "收益显著但 Θ 不优于随机择时（§5.3 失败：择时无信息，有价值）")
+        } else {
+            ("(c)L2确认", "成交盈亏 p≤0.05 且优于随机 ⟹ Θ 在此窗未被证伪（截断窗，非全窗/非 L3）")
+        };
+        eprintln!("[L2] ★分层归因：{layer}｜{verdict}");
+        eprintln!(
+            "[L2] ★诚实边界：单标的(OKLO)单时段截断窗={}bar = L2（非 L3 多标的鲁棒性）；\
+             全窗待 classifier extract_signals O(n²) 优化后重跑。",
+            oos.bars.len()
+        );
+
+        // 不变量（管线 + 标注一致性，不对 Θ 盈利符号下断言——那是 L2 经验结果，照实报告不强求方向）：
+        assert!(res.metrics.bh_return.is_finite(), "buy&hold 有限");
+        assert!(res.metrics.strat_return.is_finite(), "strat(MtM) 有限");
+        assert!(sig.boot_pvalue_pnl_le_0 >= 0.0 && sig.boot_pvalue_pnl_le_0 <= 1.0, "p 值合法 [0,1]");
+        assert!(
+            sig.rand_percentile_of_theta >= 0.0 && sig.rand_percentile_of_theta <= 1.0,
+            "分位合法 [0,1]"
+        );
+        assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空（诚实标注）");
+        // 可复现见证：同输入同 seed ⟹ bit-exact 同检验结果（§4 硬约束）。
+        let sig2 = metrics::significance(pnls, &res.daily_returns);
+        assert_eq!(sig, sig2, "significance 可复现（seed=20260625 冻结）");
     }
 }

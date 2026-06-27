@@ -139,6 +139,12 @@ fn map_src_range_to_close_idx(
 ///
 /// `hist` 是 MACD hist 序列（`closes` 上算）；`src_to_idx` 是 closes 下标→source_index 映射（段
 /// 区间坐标系转换）。破中枢段或前同向段无法映射到 closes 区间（越界）⟹ 跳过（无面积 ⟹ 非背驰）。
+///
+/// ★性能（O(segs_after) 单趟，原 O(segs_after²)）：「前一同向段」用**增量维护** `last_up_idx`/
+/// `last_down_idx`（各方向序列序最近已遍历前驱的下标）替代原 `segs_after[..i].rev().find`
+/// 向前线性扫描——单趟遍历中先读 last（当前段的最近同向前驱），段处理完后再更新 last
+/// （当前段不成为自己的前驱）。所有前驱（不论破中枢与否、不论是否被 continue 跳过）都被记录，
+/// 与 `rev().find(direction==d)`（找 i 之前最近同向段）**逐元素等价**（bit-exact，纯算法重写）。
 fn extract_first_for_center(
     c: &Center,
     segs_after: &[Segment],
@@ -146,8 +152,23 @@ fn extract_first_for_center(
     src_to_idx: &[usize],
 ) -> Vec<BspPoint> {
     let mut points = Vec::new();
+    // 各方向序列序最近已遍历前驱的下标（增量维护，替代 O(segs_after²) 向前 find）。
+    let mut last_up_idx: Option<usize> = None;
+    let mut last_down_idx: Option<usize> = None;
     for (i, seg) in segs_after.iter().enumerate() {
         let end = seg_end(seg);
+        // 前一同向段（序列序最近同向前驱）——reference:34「末段相对前同向段」的确定配对。
+        // ★先读 last（当前段 i 之前最近的同向段），与原 `segs_after[..i].rev().find` 逐元素等价。
+        let prev_same_dir = match end.dir {
+            Direction::Up => last_up_idx,
+            Direction::Down => last_down_idx,
+        };
+        // 段处理完后更新 last（在 continue 前更新，确保被跳过的段仍作为后续前驱候选——
+        // 对齐原 `rev().find` 扫描全部前驱，不论是否破中枢/是否产出）。
+        match end.dir {
+            Direction::Up => last_up_idx = Some(i),
+            Direction::Down => last_down_idx = Some(i),
+        }
         // 破中枢几何（L0）：买侧向下破（端点 < zd）；卖侧向上破（端点 > zg）。
         let (broke, is_sell) = match end.dir {
             Direction::Down if end.price < c.zd => (true, false), // 1 买：向下破中枢下沿
@@ -157,12 +178,11 @@ fn extract_first_for_center(
         if !broke {
             continue;
         }
-        // 前一同向段（序列序最近同向前驱）——reference:34「末段相对前同向段」的确定配对。
-        let prev_same_dir = segs_after[..i].iter().rev().find(|s| s.direction == end.dir);
-        let Some(prev) = prev_same_dir else {
+        let Some(prev_idx) = prev_same_dir else {
             // 无前同向段 ⟹ 无背驰对照标的 ⟹ 非第一类（第一类是趋势末段，必有前同向段）。
             continue;
         };
+        let prev = &segs_after[prev_idx];
         // 段区间（source_index）→ closes 下标区间（MACD 面积坐标系）。
         let (Some(curr_seg), Some(prev_seg)) = (
             map_src_range_to_close_idx(src_to_idx, seg.start_index, seg.end_index),
@@ -383,18 +403,24 @@ pub fn extract_signals(
     // （段无法映射 closes 区间），第三类仍正常产（纯整数几何，不依赖 MACD）。
     let hist = compute_macd(closes, macd_cfg).hist;
 
+    // ★性能（O(S·logS) 一次排序 + 每 center O(logS) 二分，替代原每 center O(S) 全扫 + 堆分配）：
+    // 把 segments 按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格
+    // 单调递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等，逐元素
+    // 与原序相同 ⟹ bit-exact）。稳定排序保证 start_index 相同时保留原序（与原 filter 保序一致）。
+    let mut sorted: Vec<Segment> = segments.to_vec();
+    sorted.sort_by_key(|s| s.start_index);
+
     let mut points = Vec::new();
     for c in centers {
-        // 中枢之后的线段（start_index >= 中枢 end_index 的线段——离开+回试/破中枢发生在中枢后）。
-        let segs_after: Vec<Segment> = segments
-            .iter()
-            .filter(|s| s.start_index >= c.end_index)
-            .copied()
-            .collect();
+        // 中枢之后的线段（start_index >= 中枢 end_index）：升序序列上 = 一个后缀。二分定位首个
+        // start_index >= c.end_index 的下标，取后缀切片 `&sorted[lo..]`——与原 filter 结果逐元素相同
+        // （升序谓词 start_index >= c.end_index 恰为后缀），免每 center O(S) 全扫 + 免堆分配新 Vec。
+        let lo = sorted.partition_point(|s| s.start_index < c.end_index);
+        let segs_after = &sorted[lo..];
         // 第一类（破中枢 ∧ MACD 背驰真算）。
-        points.extend(extract_first_for_center(c, &segs_after, &hist, close_src));
+        points.extend(extract_first_for_center(c, segs_after, &hist, close_src));
         // 第三类（离开后回试不破，纯整数几何）。
-        points.extend(extract_third_for_center(c, &segs_after));
+        points.extend(extract_third_for_center(c, segs_after));
     }
     // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。
     points.sort_by_key(|p| p.source_index);
@@ -768,5 +794,202 @@ mod tests {
         assert_eq!(map_src_range_to_close_idx(&src_to_idx, 3, 6), Some((2, 2)));
         // 段 [10,20]：无 source_index 落入 ⟹ None。
         assert_eq!(map_src_range_to_close_idx(&src_to_idx, 10, 20), None);
+    }
+
+    // ── bit-exact 对照（优化前 O(C×S²) oracle ↔ 优化后 O(C·logS) ）+ 标度证据 ─────────
+
+    /// **优化前**的 `extract_signals` 完整重实现（O(C×S²)）——作为 bit-exact 对照 oracle。
+    ///
+    /// 逐字节复制优化前的三处算法形态：
+    /// (1) 主循环：每 center `filter(start_index >= end_index).copied().collect()`（O(S) 全扫 + 堆分配）；
+    /// (2) 第一类：「前一同向段」用 `segs_after[..i].rev().find(direction==d)`（O(segs_after²) 向前扫）；
+    /// (3) 第三类：`windows(2)`（与优化后共用 `extract_third_for_center`，第三类本无平方瓶颈，不重写）。
+    /// 与优化后 `extract_signals` 在同输入上逐 `BspPoint` 对比 = bit-exact 经验证据（L1 管线一致性）。
+    fn extract_signals_oracle_pre_opt(
+        centers: &[Center],
+        segments: &[Segment],
+        closes: &[f64],
+        close_src: &[usize],
+        macd_cfg: &MacdConfig,
+    ) -> Vec<BspPoint> {
+        let hist = compute_macd(closes, macd_cfg).hist;
+        let mut points = Vec::new();
+        for c in centers {
+            // (1) 优化前主循环：filter + collect（O(S) 全扫 + 堆分配）。
+            let segs_after: Vec<Segment> = segments
+                .iter()
+                .filter(|s| s.start_index >= c.end_index)
+                .copied()
+                .collect();
+            // (2) 优化前第一类：rev().find 向前线性扫（O(segs_after²)）。
+            for (i, seg) in segs_after.iter().enumerate() {
+                let end = seg_end(seg);
+                let (broke, is_sell) = match end.dir {
+                    Direction::Down if end.price < c.zd => (true, false),
+                    Direction::Up if c.zg < end.price => (true, true),
+                    _ => (false, false),
+                };
+                if !broke {
+                    continue;
+                }
+                let prev_same_dir = segs_after[..i].iter().rev().find(|s| s.direction == end.dir);
+                let Some(prev) = prev_same_dir else { continue };
+                let (Some(curr_seg), Some(prev_seg)) = (
+                    map_src_range_to_close_idx(close_src, seg.start_index, seg.end_index),
+                    map_src_range_to_close_idx(close_src, prev.start_index, prev.end_index),
+                ) else {
+                    continue;
+                };
+                if !segments_diverge(&hist, prev_seg, curr_seg) {
+                    continue;
+                }
+                let situ = EndpointSituation {
+                    after_first_buy: false,
+                    is_pullback_end: false,
+                    left_center: false,
+                    retrace_not_reenter: false,
+                    below_last_center: true,
+                    is_sell_side: is_sell,
+                };
+                let bits = endpoint_to_bsp(&situ);
+                points.push(make_first_point(end.source_index, bits, end.price));
+            }
+            // (3) 第三类（与优化后共用，无平方瓶颈）。
+            points.extend(extract_third_for_center(c, &segs_after));
+        }
+        points.sort_by_key(|p| p.source_index);
+        points
+    }
+
+    /// 确定性合成数据：n_seg 条升序线段（对齐生产路径 parser 线段账本 start_index 严格单调）+
+    /// n_center 个中枢 + closes/close_src。无 RNG（确定性，可复现），价格用确定性正弦式震荡造背驰差。
+    fn synth_scale_input(n_seg: usize, n_center: usize) -> (Vec<Center>, Vec<Segment>, Vec<f64>, Vec<usize>) {
+        // 段：方向交替，start_index 严格升序（0,2,4,...），价格在中枢上下震荡（造破中枢 + 背驰对照）。
+        let mut segments = Vec::with_capacity(n_seg);
+        for k in 0..n_seg {
+            let dir = if k % 2 == 0 { Direction::Down } else { Direction::Up };
+            let si = k * 2;
+            let ei = k * 2 + 1;
+            // 端点在 [40,260] 区间确定性摆动（破中枢核心 [100,200]：部分段端点 <100 或 >200）。
+            let phase = (k as i64 * 37) % 220;
+            let ep: Tick = 40 + phase; // 40..260
+            let sp: Tick = 150;
+            segments.push(Segment { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep });
+        }
+        // 中枢：核心 [100,200]，end_index 散布（造不同二分定位起点）。
+        let mut centers = Vec::with_capacity(n_center);
+        for j in 0..n_center {
+            let ei = (j * n_seg / n_center.max(1)) * 2; // 散布在段序列各处
+            centers.push(Center { zd: 100, zg: 200, dd: 50, gg: 250, start_index: 0, end_index: ei });
+        }
+        // closes/close_src：覆盖全段区间，确定性震荡（MACD hist 有非平凡面积 → 背驰判定真触发）。
+        let n_close = n_seg * 2 + 2;
+        let mut closes = Vec::with_capacity(n_close);
+        let mut close_src = Vec::with_capacity(n_close);
+        for t in 0..n_close {
+            let osc = (((t as i64 * 53) % 80) - 40) as f64; // -40..40 确定性震荡
+            closes.push(150.0 + osc);
+            close_src.push(t);
+        }
+        (centers, segments, closes, close_src)
+    }
+
+    #[test]
+    fn extract_signals_bit_exact_vs_pre_opt_oracle() {
+        // ★bit-exact 核心证据（L1 管线一致性，formalization-validity-domain）：优化后 extract_signals
+        // 与优化前 O(C×S²) oracle 在多档标度合成输入上**逐 BspPoint 完全相同**。性能优化不改任何
+        // 缠论语义（B1/S1/B3/S3 口径、破中枢、背驰、回试不变）⟹ 输出序列逐字段恒等。
+        for &(n_seg, n_center) in &[(200usize, 8usize), (1000, 16), (3000, 24)] {
+            let (centers, segments, closes, close_src) = synth_scale_input(n_seg, n_center);
+            let cfg = MacdConfig::default();
+            let opt = extract_signals(&centers, &segments, &closes, &close_src, &cfg);
+            let oracle = extract_signals_oracle_pre_opt(&centers, &segments, &closes, &close_src, &cfg);
+            assert_eq!(
+                opt.len(),
+                oracle.len(),
+                "标度 ({n_seg} seg, {n_center} center)：优化后 bsp 数量必须与优化前 oracle 相同"
+            );
+            for (k, (a, b)) in opt.iter().zip(oracle.iter()).enumerate() {
+                assert_eq!(a, b, "标度 ({n_seg} seg)：第 {k} 个 BspPoint 必须逐字段相同（bit-exact）");
+            }
+        }
+    }
+
+    #[test]
+    fn extract_signals_handles_unsorted_input_via_stable_sort() {
+        // 严格性（零假设）：extract_signals 入口稳定排序 ⟹ 即使输入乱序（非生产路径，但公开函数
+        // 不能假设升序），结果 = 按 start_index 升序处理的确定性输出。验证排序后切片二分定位正确：
+        // 乱序输入与其升序版本产相同 bsp（排序消除输入顺序依赖）。
+        let c = center(100, 200, 2);
+        let asc = vec![
+            seg(Direction::Down, 3, 5, 150, 90),
+            seg(Direction::Down, 6, 8, 120, 80),
+        ];
+        let desc = vec![
+            seg(Direction::Down, 6, 8, 120, 80),
+            seg(Direction::Down, 3, 5, 150, 90),
+        ];
+        let prices: Vec<Tick> = vec![100, 100, 100, 100, 60, 140, 100, 95, 105];
+        let (closes, src) = closes_seq(&prices);
+        let cfg = MacdConfig::default();
+        let from_asc = extract_signals(&[c], &asc, &closes, &src, &cfg);
+        let from_desc = extract_signals(&[c], &desc, &closes, &src, &cfg);
+        assert_eq!(from_asc, from_desc, "稳定排序消除输入顺序依赖 ⟹ 乱序与升序输入产相同 bsp");
+    }
+
+    /// 第一类 S² 主导的合成数据（隔离 first 内层 `rev().find` 的 O(segs_after²) 成本）。
+    ///
+    /// ★为什么需要独立档：`synth_scale_input` 让方向交替 ⟹ 第三类 `windows(2)` 大量产出（O(C×S)）+
+    /// 段端点剧烈摆动 ⟹ 第一类大量产出 ⟹ **产出量 O(C×S)** 主导耗时，淹没 first 的 O(S²) **扫描**成本
+    /// （优化目标）。本档构造**全段同向（全 Down）** ⟹ 第三类 `windows(2)` 全 (Down,Down) **零产出**；
+    /// 段端点几乎都破中枢（< zd）⟹ first 的 `rev().find` 在每段上扫全部前驱 = **O(S²) 扫描**；但
+    /// closes 平坦 ⟹ MACD 面积近零 ⟹ `segments_diverge` 几乎全 false ⟹ **first 产出稀疏**。
+    /// 净效果：O(S²) **扫描**主导（优化目标），产出可忽略 ⟹ 加速比反映 first 优化的真实效果。
+    fn synth_first_scan_dominated(n_seg: usize) -> (Vec<Center>, Vec<Segment>, Vec<f64>, Vec<usize>) {
+        // 全段同向 Down，start_index 升序，端点全部破中枢下沿（< zd=100）⟹ broke 恒真 ⟹ rev().find 必扫。
+        let mut segments = Vec::with_capacity(n_seg);
+        for k in 0..n_seg {
+            let si = k * 2;
+            let ei = k * 2 + 1;
+            segments.push(Segment {
+                direction: Direction::Down,
+                start_index: si,
+                end_index: ei,
+                start_price: 150,
+                end_price: 80, // < zd=100 ⟹ 破中枢 ⟹ broke 恒真 ⟹ first 内层 rev().find 必执行
+            });
+        }
+        // 单 center，end_index=0 ⟹ segs_after = 全部 S 段（最大化 first 内层扫描范围 = O(S²)）。
+        let centers = vec![Center { zd: 100, zg: 200, dd: 50, gg: 250, start_index: 0, end_index: 0 }];
+        // closes 平坦 ⟹ MACD hist 近零 ⟹ segments_diverge 几乎全 false ⟹ first 产出稀疏（扫描主导）。
+        let n_close = n_seg * 2 + 2;
+        let closes = vec![150.0; n_close];
+        let close_src: Vec<usize> = (0..n_close).collect();
+        (centers, segments, closes, close_src)
+    }
+
+    /// 标度计时（`--ignored` 显式触发，不拖累常规测试）：优化后 vs 优化前 oracle 在 first-S²-主导
+    /// 输入上耗时。隔离 first 内层 `rev().find` O(segs_after²) 扫描成本（优化目标），展示加速比。
+    /// L2 profile 坐实热点是 `extract_signals` O(C×S²)（S² 来自 first rev().find），本档复现该 S² 扫描。
+    #[test]
+    #[ignore = "标度计时，--ignored 显式触发"]
+    fn scale_timing_opt_vs_pre_opt() {
+        use std::time::Instant;
+        let cfg = MacdConfig::default();
+        for &n_seg in &[2000usize, 8000, 20000] {
+            let (centers, segments, closes, close_src) = synth_first_scan_dominated(n_seg);
+            let t0 = Instant::now();
+            let opt = extract_signals(&centers, &segments, &closes, &close_src, &cfg);
+            let dt_opt = t0.elapsed();
+            let t1 = Instant::now();
+            let oracle = extract_signals_oracle_pre_opt(&centers, &segments, &closes, &close_src, &cfg);
+            let dt_pre = t1.elapsed();
+            assert_eq!(opt.len(), oracle.len(), "标度计时档同输入必须同输出 bsp 数（bit-exact）");
+            let speedup = dt_pre.as_secs_f64() / dt_opt.as_secs_f64().max(1e-9);
+            println!(
+                "[first-S² 主导 S={n_seg}] 优化后={:?} 优化前(O(S²)扫描)={:?} 加速={speedup:.1}x bsp={}",
+                dt_opt, dt_pre, opt.len()
+            );
+        }
     }
 }

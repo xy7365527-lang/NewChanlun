@@ -118,6 +118,265 @@ pub fn compute(
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════
+//  统计显著性检验（§3.4 + §4，预注册，seed=20260625）
+//
+//  ## 认识论等级：**L2**（当且仅当输入是真实数据回测的交易序列）
+//
+//  §3.4 block bootstrap / §4 随机入场对照是**可否证**的假设检验——它们对真实数据
+//  回测的 trade_pnls/daily_returns 给出 p 值与经验分布，用于判定 Θ 策略是否**显著
+//  优于零收益 / 优于随机择时**（§5.1/§5.3 失败判据）。否定性结果（p>0.05 或 Sharpe
+//  落在随机 95% 区间内）= Θ 被否证，缩小有效域，是正信息增量（231号）。
+//
+//  ★合成数据上跑这些检验仍是 **L1**（验证检验管线正确，零信息增量）——L2 只在喂
+//  真实回测交易序列时产生。
+//
+//  ## seed 冻结（§4，可复现硬约束）
+//
+//  随机数 seed = **20260625**（codex 裁决日，backtest-protocol-v0.md:141 冻结）。
+//  用 SplitMix64（无外部依赖、纯算术、确定性）——重跑 bit-exact 复现。
+// ════════════════════════════════════════════════════════════════════════
+
+/// 预注册随机种子（§4，backtest-protocol-v0.md:141 冻结，不可改）。
+pub const PREREG_SEED: u64 = 20260625;
+
+/// block bootstrap 块长（§3.4：20 个交易日，backtest-protocol-v0.md:127）。
+pub const BLOCK_LEN: usize = 20;
+
+/// bootstrap / 蒙特卡洛重采样次数（§3.4 + §4：n=1000）。
+pub const N_RESAMPLE: usize = 1000;
+
+/// SplitMix64 确定性 PRNG（无依赖，纯算术）。
+///
+/// 给定 seed，`next_u64` 序列完全确定（bit-exact 可复现，§4 seed 冻结要求）。
+/// 这是技术性工具（伪随机数发生器），不涉及任何缠论领域概念。
+#[derive(Debug, Clone)]
+struct SplitMix64 {
+    state: u64,
+}
+
+impl SplitMix64 {
+    fn new(seed: u64) -> Self {
+        SplitMix64 { state: seed }
+    }
+
+    /// 下一个 u64（SplitMix64 标准约简，确定性）。
+    fn next_u64(&mut self) -> u64 {
+        self.state = self.state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+
+    /// `[0, n)` 均匀整数（n>0；Lemire 无偏约简的简化——取模偏置在 n≪2^64 时可忽略，
+    /// 但为确定性可复现，用直接取模，bit-exact）。
+    fn next_below(&mut self, n: usize) -> usize {
+        debug_assert!(n > 0, "next_below 要求 n>0");
+        (self.next_u64() % n as u64) as usize
+    }
+}
+
+/// §3.4 + §4 统计显著性检验结果（预注册全套，全部报告，不挑有利项）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct Significance {
+    // ── §3.4 block bootstrap（H0：收益 ≤ 0）──
+    /// bootstrap 重采样的交易序列**总收益**经验分布的均值。
+    pub boot_mean_total_pnl: f64,
+    /// **单边 p 值 H0：总收益 ≤ 0**（§5.1 失败判据：p>0.05 ⟹ 收益不显著）。
+    /// = 重采样中总收益 ≤ 0 的比例（经验 p 值）。
+    pub boot_pvalue_pnl_le_0: f64,
+    /// bootstrap 总收益的 95% 置信区间下界（2.5 分位）。
+    pub boot_ci95_lo: f64,
+    /// bootstrap 总收益的 95% 置信区间上界（97.5 分位）。
+    pub boot_ci95_hi: f64,
+
+    // ── §3.4 Sharpe 标准误（Lo 2002 自相关调整）──
+    /// 实测年化 Sharpe（日 returns）。
+    pub sharpe: f64,
+    /// Sharpe 标准误（Lo 2002 一阶自相关调整）。
+    pub sharpe_se: f64,
+    /// Sharpe 95% 置信区间下界（sharpe - 1.96·se）。
+    pub sharpe_ci95_lo: f64,
+    /// Sharpe 95% 置信区间上界（sharpe + 1.96·se）。
+    pub sharpe_ci95_hi: f64,
+
+    // ── §4 随机入场对照（择时信息含量）──
+    /// 随机入场对照的总收益经验分布均值（保持交易笔数，仅打乱 pnl 配对顺序——
+    /// 入场时点随机化的**离散代理**：在真实成交 pnl 池里重抽 n_trades 笔，检验 Θ 的
+    /// 择时（哪些 bar 入场）是否优于随机抽取同样笔数）。
+    pub rand_mean_total_pnl: f64,
+    /// Θ 实测总收益在随机对照分布中的分位（0..1）。
+    /// §5.3 失败判据：Θ 落在随机分布 95% 区间内（分位 < 0.95）⟹ 择时无信息。
+    pub rand_percentile_of_theta: f64,
+    /// Θ 是否**显著优于**随机择时（分位 ≥ 0.95，单边）。
+    pub theta_beats_random: bool,
+}
+
+/// 计算 §3.4 block bootstrap + Sharpe 标准误 + §4 随机入场对照（预注册，seed 冻结）。
+///
+/// 输入：
+/// - `trade_pnls`：每笔完整平仓交易的盈亏（真实数据回测产出 ⟹ L2；合成 ⟹ L1）。
+/// - `daily_returns`：日 returns 序列（Sharpe 标准误 Lo 2002 调整用）。
+///
+/// **block bootstrap**（§3.4，backtest-protocol-v0.md:127）：以 [`BLOCK_LEN`]=20 为块长，
+/// 从 `trade_pnls` 有放回抽连续块拼成等长重采样序列（保留交易序列的局部自相关结构），
+/// 算其总收益，重复 [`N_RESAMPLE`]=1000 次 ⟹ 总收益经验分布 ⟹ 单边 p 值（H0：收益≤0）
+/// + 95% 置信区间。
+///
+/// **Sharpe 标准误**（§3.4，Lo 2002）：日 returns 的 Sharpe 标准误，一阶自相关调整因子
+/// √(1 - 2·ρ₁·(1-1/n)) 近似（Lo 2002 式 ρ₁=lag-1 自相关）。
+///
+/// **随机入场对照**（§4，backtest-protocol-v0.md:138）：保持交易笔数 n_trades 不变，从真实
+/// 成交 pnl 池有放回重抽 n_trades 笔（入场时点随机化的离散代理：随机选哪些"成交结果"），
+/// n=1000 次 ⟹ 总收益分布 ⟹ Θ 实测在其中的分位。Θ 分位 ≥0.95 ⟹ 择时携带信息（优于随机）。
+///
+/// **边界条件**：`trade_pnls` 为空或仅 1 笔 ⟹ bootstrap 退化（p=1.0，CI=[0,0]，
+/// theta_beats_random=false）——无交易序列无法否证（§5.5 inconclusive，不冒充显著性）。
+///
+/// **谱系引用**：§3.4/§4 统计方法直接引用 backtest-protocol-v0.md（看结果前冻结，
+/// codex 裁决 seed=20260625）。本函数不引入新判据（下游不可事后改判据，协议 §影响声明）。
+pub fn significance(trade_pnls: &[f64], daily_returns: &[f64]) -> Significance {
+    let (sharpe, _) = sharpe_sortino(daily_returns);
+    let (sharpe_se, sharpe_ci95_lo, sharpe_ci95_hi) = sharpe_lo2002(daily_returns, sharpe);
+
+    let n = trade_pnls.len();
+    // 退化：无交易 / 仅 1 笔 ⟹ 无可重采样的序列结构 ⟹ 不冒充显著性（§5.5 inconclusive）。
+    if n < 2 {
+        return Significance {
+            boot_mean_total_pnl: trade_pnls.iter().sum(),
+            boot_pvalue_pnl_le_0: 1.0, // 无法拒绝 H0（无证据）
+            boot_ci95_lo: 0.0,
+            boot_ci95_hi: 0.0,
+            sharpe,
+            sharpe_se,
+            sharpe_ci95_lo,
+            sharpe_ci95_hi,
+            rand_mean_total_pnl: trade_pnls.iter().sum(),
+            rand_percentile_of_theta: 0.0,
+            theta_beats_random: false,
+        };
+    }
+
+    let theta_total: f64 = trade_pnls.iter().sum();
+
+    // ── §3.4 block bootstrap（块长 20，n=1000，H0：总收益≤0）──
+    let mut rng = SplitMix64::new(PREREG_SEED);
+    let mut boot_totals: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
+    for _ in 0..N_RESAMPLE {
+        let total = block_bootstrap_total(trade_pnls, BLOCK_LEN, &mut rng);
+        boot_totals.push(total);
+    }
+    let boot_mean_total_pnl = boot_totals.iter().sum::<f64>() / N_RESAMPLE as f64;
+    // 单边 p 值 H0：总收益 ≤ 0 = 重采样中总收益 ≤ 0 的比例。
+    let n_le_0 = boot_totals.iter().filter(|&&t| t <= 0.0).count();
+    let boot_pvalue_pnl_le_0 = n_le_0 as f64 / N_RESAMPLE as f64;
+    let (boot_ci95_lo, boot_ci95_hi) = percentile_ci(&mut boot_totals, 0.025, 0.975);
+
+    // ── §4 随机入场对照（保持笔数，pnl 池有放回重抽，n=1000）──
+    // seed 续用同一流（确定性：bootstrap 后 rng 状态延续，仍 seed 派生，可复现）。
+    let mut rand_totals: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
+    for _ in 0..N_RESAMPLE {
+        let mut total = 0.0;
+        for _ in 0..n {
+            total += trade_pnls[rng.next_below(n)];
+        }
+        rand_totals.push(total);
+    }
+    let rand_mean_total_pnl = rand_totals.iter().sum::<f64>() / N_RESAMPLE as f64;
+    // Θ 实测总收益在随机分布中的分位（< theta_total 的比例）。
+    let n_below = rand_totals.iter().filter(|&&t| t < theta_total).count();
+    let rand_percentile_of_theta = n_below as f64 / N_RESAMPLE as f64;
+    // §5.3：Θ 分位 ≥ 0.95 ⟹ 显著优于随机（落在随机 95% 区间外的右侧）。
+    let theta_beats_random = rand_percentile_of_theta >= 0.95;
+
+    Significance {
+        boot_mean_total_pnl,
+        boot_pvalue_pnl_le_0,
+        boot_ci95_lo,
+        boot_ci95_hi,
+        sharpe,
+        sharpe_se,
+        sharpe_ci95_lo,
+        sharpe_ci95_hi,
+        rand_mean_total_pnl,
+        rand_percentile_of_theta,
+        theta_beats_random,
+    }
+}
+
+/// 一次 block bootstrap 重采样的总收益（块长 `block`，有放回抽连续块拼成 ≥len 序列后截断）。
+///
+/// 保留交易序列局部自相关结构（§3.4 block bootstrap 的目的——独立 bootstrap 破坏自相关）。
+/// 抽块起点在 `[0, len)` 均匀（循环 wrap，使每笔被抽概率均等，避免末尾块偏置）。
+fn block_bootstrap_total(pnls: &[f64], block: usize, rng: &mut SplitMix64) -> f64 {
+    let len = pnls.len();
+    let block = block.min(len).max(1);
+    let mut total = 0.0;
+    let mut filled = 0usize;
+    while filled < len {
+        let start = rng.next_below(len);
+        let take = block.min(len - filled);
+        for k in 0..take {
+            total += pnls[(start + k) % len]; // 循环 wrap，等概率覆盖
+        }
+        filled += take;
+    }
+    total
+}
+
+/// 经验分位置信区间（就地排序 `samples`，取 `lo`/`hi` 分位）。
+fn percentile_ci(samples: &mut [f64], lo: f64, hi: f64) -> (f64, f64) {
+    if samples.is_empty() {
+        return (0.0, 0.0);
+    }
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let n = samples.len();
+    let idx = |q: f64| -> usize {
+        (((n as f64 - 1.0) * q).round() as usize).min(n - 1)
+    };
+    (samples[idx(lo)], samples[idx(hi)])
+}
+
+/// Sharpe 标准误（Lo 2002 一阶自相关调整）+ 95% 置信区间。
+///
+/// Lo (2002)「The Statistics of Sharpe Ratios」：IID 下 SE(SR) ≈ √((1+SR²/2)/n)；
+/// 一阶自相关 ρ₁ 调整因子 √(1 + ... )。本实装用 Lo 的自相关调整简化式：
+/// SE(SR_annualized) ≈ SE_iid · √(adj)，adj = 1 - 2·ρ₁·(1 - 1/n)（一阶 AR(1) 近似）。
+/// ρ₁ = lag-1 自相关。**诚实**：Lo 2002 完整式含全阶自相关；本实装取一阶（AR(1)）近似——
+/// 标注 L1 口径（统计算法正确性），完整高阶 GMM 估计待 L3 精化（不冒充全阶）。
+///
+/// 边界：n<2 ⟹ SE=0，CI=[sharpe,sharpe]（无波动无标准误）。
+fn sharpe_lo2002(daily_returns: &[f64], sharpe: f64) -> (f64, f64, f64) {
+    let n = daily_returns.len();
+    if n < 2 {
+        return (0.0, sharpe, sharpe);
+    }
+    // IID 标准误（年化 Sharpe 的标准误 ≈ √((1 + SR²/2)/n)，SR 为年化值）。
+    let se_iid = ((1.0 + sharpe * sharpe / 2.0) / n as f64).sqrt();
+    // lag-1 自相关 ρ₁。
+    let rho1 = lag1_autocorr(daily_returns);
+    // AR(1) 调整因子（Lo 2002 一阶近似；ρ₁>0 正自相关 ⟹ SE 放大）。
+    let adj = (1.0 + 2.0 * rho1 * (1.0 - 1.0 / n as f64)).max(0.0);
+    let se = se_iid * adj.sqrt();
+    (se, sharpe - 1.96 * se, sharpe + 1.96 * se)
+}
+
+/// lag-1 自相关系数 ρ₁（日 returns 序列）。
+fn lag1_autocorr(x: &[f64]) -> f64 {
+    let n = x.len();
+    if n < 2 {
+        return 0.0;
+    }
+    let mean = x.iter().sum::<f64>() / n as f64;
+    let denom: f64 = x.iter().map(|v| (v - mean).powi(2)).sum();
+    if denom <= 1e-18 {
+        return 0.0;
+    }
+    let numer: f64 = (0..n - 1).map(|i| (x[i] - mean) * (x[i + 1] - mean)).sum();
+    numer / denom
+}
+
 /// 年化 Sharpe + Sortino（rf=0）。日 returns 序列 → 均值/标准差 → ×√252 年化。
 fn sharpe_sortino(daily_returns: &[f64]) -> (f64, f64) {
     let n = daily_returns.len();
@@ -287,5 +546,122 @@ mod tests {
         let (s0, so0) = sharpe_sortino(&[0.01, 0.01, 0.01]);
         assert_eq!(s0, 0.0, "零波动 → Sharpe 0（防 NaN）");
         assert_eq!(so0, 0.0, "无下行 → Sortino 0");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  统计显著性检验（§3.4 block bootstrap + §4 随机入场对照）
+    //  认识论：合成 pnl 上跑 = L1（验证检验管线正确）。L2 只在真实回测交易序列时产生。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// SplitMix64 确定性可复现（同 seed ⟹ bit-exact 同序列，§4 seed 冻结要求）。
+    #[test]
+    fn splitmix64_deterministic_reproducible() {
+        let mut a = SplitMix64::new(PREREG_SEED);
+        let mut b = SplitMix64::new(PREREG_SEED);
+        for _ in 0..100 {
+            assert_eq!(a.next_u64(), b.next_u64(), "同 seed ⟹ bit-exact 同序列");
+        }
+        // 不同 seed ⟹ 不同序列（PRNG 非常数）。
+        let mut c = SplitMix64::new(PREREG_SEED + 1);
+        let mut d = SplitMix64::new(PREREG_SEED);
+        assert_ne!(c.next_u64(), d.next_u64(), "不同 seed ⟹ 不同序列");
+    }
+
+    /// next_below 落在 [0, n) 且均匀覆盖（确定性）。
+    #[test]
+    fn splitmix64_next_below_in_range() {
+        let mut rng = SplitMix64::new(PREREG_SEED);
+        let n = 7;
+        let mut seen = [false; 7];
+        for _ in 0..1000 {
+            let v = rng.next_below(n);
+            assert!(v < n, "next_below 落在 [0,{n})");
+            seen[v] = true;
+        }
+        assert!(seen.iter().all(|&s| s), "1000 抽样覆盖全部 7 个值（均匀性弱见证）");
+    }
+
+    /// significance 可复现（同输入同 seed ⟹ bit-exact 同结果，§4 硬约束）。
+    #[test]
+    fn significance_reproducible() {
+        let pnls: Vec<f64> = (0..50).map(|i| if i % 3 == 0 { -1.0 } else { 2.0 }).collect();
+        let rets: Vec<f64> = (0..50).map(|i| 0.001 * (i % 5) as f64 - 0.001).collect();
+        let s1 = significance(&pnls, &rets);
+        let s2 = significance(&pnls, &rets);
+        assert_eq!(s1, s2, "同输入同 seed ⟹ bit-exact 同结果（可复现）");
+    }
+
+    /// ★否证性见证①：**纯亏损序列** ⟹ bootstrap p 值 ≈ 1.0（无法拒绝 H0 收益≤0）。
+    /// 这是统计检验**能产生否定性结果**的见证——亏损策略被正确判为不显著（§5.1 失败）。
+    #[test]
+    fn significance_losing_strategy_rejected() {
+        // 全亏损交易（每笔 -1.0）。
+        let pnls = vec![-1.0; 40];
+        let rets = vec![-0.002; 40];
+        let s = significance(&pnls, &rets);
+        // H0：收益≤0 无法拒绝（p 值高）——所有重采样总收益都 <0 ⟹ p=1.0。
+        assert!(
+            s.boot_pvalue_pnl_le_0 > 0.95,
+            "纯亏损 ⟹ bootstrap 总收益恒≤0 ⟹ p≈1.0（无法拒绝 H0），实得 {}",
+            s.boot_pvalue_pnl_le_0
+        );
+        // 置信区间整体在负区（亏损分布）。
+        assert!(s.boot_ci95_hi < 0.0, "纯亏损 ⟹ CI 上界<0");
+    }
+
+    /// ★否证性见证②：**强正收益序列** ⟹ bootstrap p 值 ≈ 0（拒绝 H0，收益显著>0）。
+    /// 与亏损见证对偶——检验能正确**确认**显著盈利（不是只会说"不显著"）。
+    #[test]
+    fn significance_winning_strategy_confirmed() {
+        // 全盈利交易（每笔 +2.0）。
+        let pnls = vec![2.0; 40];
+        let rets = vec![0.003; 40];
+        let s = significance(&pnls, &rets);
+        // 所有重采样总收益都 >0 ⟹ p=0（拒绝 H0，收益显著正）。
+        assert!(
+            s.boot_pvalue_pnl_le_0 < 0.05,
+            "纯盈利 ⟹ bootstrap 总收益恒>0 ⟹ p≈0（拒绝 H0），实得 {}",
+            s.boot_pvalue_pnl_le_0
+        );
+        assert!(s.boot_ci95_lo > 0.0, "纯盈利 ⟹ CI 下界>0");
+    }
+
+    /// 空 / 单笔交易 ⟹ 退化（p=1.0，不冒充显著性，§5.5 inconclusive）。
+    #[test]
+    fn significance_degenerate_no_trades() {
+        let s0 = significance(&[], &[]);
+        assert_eq!(s0.boot_pvalue_pnl_le_0, 1.0, "无交易 ⟹ p=1.0（无证据，不冒充）");
+        assert!(!s0.theta_beats_random, "无交易 ⟹ 不优于随机");
+        let s1 = significance(&[5.0], &[0.01]);
+        assert_eq!(s1.boot_pvalue_pnl_le_0, 1.0, "仅 1 笔 ⟹ 无序列结构 ⟹ p=1.0");
+    }
+
+    /// 随机入场对照：恒定 pnl（每笔相同）⟹ 随机重抽总收益恒等 ⟹ Θ 不优于随机（分位 0，
+    /// 因 Θ total == 所有随机 total，无一严格小于）。这见证「无择时差异 ⟹ 不优于随机」。
+    #[test]
+    fn random_control_constant_pnl_no_edge() {
+        let pnls = vec![1.0; 30]; // 每笔相同 ⟹ 任意重抽 30 笔总收益恒 = 30.0
+        let rets = vec![0.001; 30];
+        let s = significance(&pnls, &rets);
+        // Θ total=30，所有随机 total=30 ⟹ 无一 < 30 ⟹ 分位=0 ⟹ 不优于随机。
+        assert_eq!(s.rand_percentile_of_theta, 0.0, "恒定 pnl ⟹ Θ 不严格优于随机重抽");
+        assert!(!s.theta_beats_random, "无择时差异 ⟹ 不优于随机（§5.3）");
+    }
+
+    /// Sharpe Lo 2002 标准误：正自相关 ⟹ SE 放大（调整因子 >1）；CI 含 sharpe。
+    #[test]
+    fn sharpe_lo2002_autocorr_inflates_se() {
+        // 强正自相关序列（趋势性）。
+        let rets: Vec<f64> = (0..50).map(|i| 0.001 + 0.0001 * (i as f64)).collect();
+        let (sharpe, _) = sharpe_sortino(&rets);
+        let (se, lo, hi) = sharpe_lo2002(&rets, sharpe);
+        assert!(se > 0.0, "有波动 ⟹ SE>0");
+        assert!(lo < sharpe && sharpe < hi, "CI 含点估计");
+        // 与 IID SE 对比：正自相关 ⟹ Lo SE ≥ IID SE。
+        let se_iid = ((1.0 + sharpe * sharpe / 2.0) / rets.len() as f64).sqrt();
+        let rho1 = lag1_autocorr(&rets);
+        if rho1 > 0.0 {
+            assert!(se >= se_iid * 0.999, "正自相关 ⟹ Lo SE ≥ IID SE");
+        }
     }
 }
