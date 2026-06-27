@@ -9,7 +9,7 @@
 //! ## 诚实范围（formalization-validity-domain，★关键边界标注）
 //!
 //! 本工位 v0 **只提取第三类买卖点**——它是 confirmed 结构上**严格可判定**的买卖点：
-//! reference:36「上离中枢后次级别回试低点 `≥ZG`=3买；下离后回抽高点 `≤ZD`=3卖」是
+//! reference:36「上离中枢后次级别回试低点 `>ZG`=3买；下离后回抽高点 `<ZD`=3卖」是
 //! **点相对中枢核心区间的位置判据**（`Origin.BspClassification.IsType3Buy/IsType3Sell` +
 //! `Origin.CenterStates.classifyPosition`，已 bit-exact 形式化），只需 confirmed 中枢
 //! + 后续线段端点价，零经验时序依赖。
@@ -53,12 +53,16 @@ fn seg_end(s: &Segment) -> SegEnd {
 ///
 /// 对每个 confirmed 中枢 `c`，扫描其后的线段端点序列，按 reference:36 判第三类：
 /// - **3买**：一条**向上线段**离开中枢上方（端点 `> zg`），紧随的**向下线段**回试低点
-///   `>= zg`（不重新跌破进入中枢）⟹ 该回试低点端点 = 3 买。
+///   `> zg`（不重新触及中枢闭区间）⟹ 该回试低点端点 = 3 买。
 /// - **3卖**：一条**向下线段**离开中枢下方（端点 `< zd`），紧随的**向上线段**回抽高点
-///   `<= zd`（不重新升破进入中枢）⟹ 该回抽高点端点 = 3 卖。
+///   `< zd`（不重新触及中枢闭区间）⟹ 该回抽高点端点 = 3 卖。
 ///
 /// `segs_after` 是中枢 `end_index` 之后的线段序列（按时间序）。逐相邻对 (leave, retest)
-/// 判定。bit-exact：边界用 reference:36 等号口径（`>= zg` / `<= zd` 含等号）。
+/// 判定。bit-exact：边界用 **严格口径**（`> zg` / `< zd`，等号排除）——第三类买点是中枢
+/// **终结点**，retest==zg=单点重叠仍触及闭区间中枢 `[ZD,ZG]`（中心定理一：与 `[ZD,ZG]`
+/// 重叠=中枢延伸，非终结）⟹ 非第三类。逐字段对齐 Lean `IsType3Buy`（`zg < retracePrice`
+/// 严格，BspClassification.lean:113）与 legacy `buysellpoint.rs:414`（`low > zg` 严格）。
+/// codex 裁决 2026-06-27（中枢终结语义）。
 fn extract_third_for_center(c: &Center, segs_after: &[Segment]) -> Vec<BspPoint> {
     let mut points = Vec::new();
     // 逐相邻线段对：前者离开中枢，后者回试。
@@ -66,14 +70,15 @@ fn extract_third_for_center(c: &Center, segs_after: &[Segment]) -> Vec<BspPoint>
         let leave = seg_end(&pair[0]);
         let retest = seg_end(&pair[1]);
         match (leave.dir, retest.dir) {
-            // 3 买：向上离开（leave 端点 > zg）+ 向下回试（retest 低点 >= zg，不入中枢）。
+            // 3 买：向上离开（leave 端点 > zg）+ 向下回试（retest 低点 > zg，不触及闭区间中枢）。
+            // 严格 `>`：retest==zg=单点重叠仍触及中枢 [ZD,ZG]=非终结=非第三类（codex 裁决 2026-06-27）。
             (Direction::Up, Direction::Down) => {
-                if leave.price > c.zg && retest.price >= c.zg {
+                if leave.price > c.zg && retest.price > c.zg {
                     let situ = EndpointSituation {
                         after_first_buy: false,
                         is_pullback_end: false,
                         left_center: true,        // 离开中枢（leave.price > zg）
-                        retrace_not_reenter: true, // 回试不入（retest >= zg）
+                        retrace_not_reenter: true, // 回试不触及闭区间中枢（retest > zg，严格）
                         below_last_center: false,
                         is_sell_side: false,
                     };
@@ -81,9 +86,10 @@ fn extract_third_for_center(c: &Center, segs_after: &[Segment]) -> Vec<BspPoint>
                     points.push(make_point(retest.source_index, bits, retest.price, c));
                 }
             }
-            // 3 卖：向下离开（leave 端点 < zd）+ 向上回抽（retest 高点 <= zd，不入中枢）。
+            // 3 卖：向下离开（leave 端点 < zd）+ 向上回抽（retest 高点 < zd，不触及闭区间中枢）。
+            // 严格 `<`：retest==zd=单点重叠仍触及中枢 [ZD,ZG]=非终结=非第三类（codex 裁决 2026-06-27）。
             (Direction::Down, Direction::Up) => {
-                if leave.price < c.zd && retest.price <= c.zd {
+                if leave.price < c.zd && retest.price < c.zd {
                     let situ = EndpointSituation {
                         after_first_buy: false,
                         is_pullback_end: false,
@@ -182,16 +188,17 @@ mod tests {
     }
 
     #[test]
-    fn third_buy_boundary_retest_eq_zg_is_third() {
-        // 回试低点 = zg=200（reference:36 「>=ZG」等号允许）⟹ 3 买成立。
+    fn third_buy_boundary_retest_eq_zg_not_third() {
+        // 回试低点 == zg=200（边界临界点）：严格口径 `> zg` ⟹ 非第三类买点。
+        // retest==zg=单点重叠仍触及闭区间中枢 [ZD,ZG]=中枢延伸（中心定理一）=非终结=非第三类。
+        // 逐字段对齐 Lean IsType3Buy（zg < retracePrice，严格）。codex 裁决 2026-06-27。
         let c = center(100, 200, 12);
         let segs = vec![
             seg(Direction::Up, 12, 16, 150, 250),
-            seg(Direction::Down, 16, 20, 250, 200), // 回试 = zg → 3 买（等号允许）
+            seg(Direction::Down, 16, 20, 250, 200), // 回试 == zg → 触及中枢 → 非 3 买（严格排除等号）
         ];
         let points = extract_signals(&[c], &segs);
-        assert_eq!(points.len(), 1);
-        assert!(points[0].bits.buy3);
+        assert!(points.is_empty(), "retest==zg 触及闭区间中枢=非终结=非第三类（严格口径，对齐 Lean）");
     }
 
     #[test]

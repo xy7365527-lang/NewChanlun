@@ -23,16 +23,20 @@
 //! Lean↔Rust 端到端 parity 无对照标的。bsp.rs 的 `is_first/is_second` 谓词存在但 signal.rs 不
 //! 调用它们产信号——故本工位核对 bsp.rs 第三类谓词，不核对一/二类谓词的端到端 parity。
 //!
-//! ## ★边界口径发现（no-workaround：定义层不一致，已显式记录非迁就）
+//! ## ★边界口径对齐（codex 裁决 2026-06-27：定义层矛盾已消解，三处统一严格口径）
 //!
-//! 第三类「不破 ZG/ZD」的**边界临界点** `retest == zg`（或 `retest == zd`）上，rust 与 Lean 口径相反：
-//! - reference §36 原文：`回试低点 ≥ZG = 3买`（**含等号**，标注「等号允许设计选择」，docs/reference-theta-v0.md:36）。
-//! - rust `signal::extract_signals`（signal.rs:71）：`retest.price >= c.zg`（**含等号**）——逐字符合 reference §36。
-//! - Lean `IsType3Buy`（BspClassification.lean:113）：`e.center.zg < e.retracePrice`（**严格 >**，等号**排除**）——与 reference §36 相反。
+//! 第三类「不破 ZG/ZD」的**边界临界点** `retest == zg`（或 `retest == zd`）上，曾存在 rust/reference
+//! 含等号 vs Lean 严格的口径矛盾（SG-2 §36 口径 BLOCKED）。codex 裁决统一为**严格口径**：
+//! - **裁决依据**：第三类买点是**中枢终结点**；项目结算中枢=闭区间 `[ZD,ZG]` + 中心定理一（与
+//!   `[ZD,ZG]` 重叠=中枢延伸，仅 `dn>ZG`/`gn<ZD` 才离开）。故 `retest == zg`=单点重叠=仍触及
+//!   闭区间中枢=**非中枢终结=非第三类**。第21课「回抽不触及该中枢」支持。严格口径**正确**（Lean 严格<正确）。
+//! - Lean `IsType3Buy`（BspClassification.lean:113）：`e.center.zg < e.retracePrice`（严格 `<`）——**正确，不动**。
+//! - legacy `buysellpoint.rs:414`：`pullback_seg.low > zs.zg`（严格 `>`）——**已严格，不动**。
+//! - rust `signal::extract_signals`（signal.rs:71）：原 `>= c.zg`（含等号，错口径）→ **已改严格 `> c.zg`**，对齐 Lean。
+//! - reference §36：原 `≥ZG`（含等号，错口径）→ **已改严格 `>ZG`**，对齐 Lean。
 //!
-//! 本文件**不**写测试去迁就任一侧让其变绿：把临界点行为编码为显式记录矛盾的 `boundary_*` 测试，
-//! 断言 rust **现状** = reference §36 含等号口径，并在断言旁标注 Lean 严格口径与之冲突（待 SG/Lead
-//! 走矛盾上浮决定哪侧为准）。内部安全点（retest 严格大于 zg）两侧一致，正常 bit-exact 绿。
+//! ⟹ 边界临界点 `retest == zg` 上 rust 与 Lean **现已一致**（两侧同判非第三类）。本文件 `boundary_*`
+//! 测试断言 rust 严格口径 == Lean 严格口径（不再记录矛盾）。内部安全点（retest 严格大于 zg）两侧本就一致。
 
 use newchan_rust::theta_v0::classifier::bsp::{endpoint_to_bsp, EndpointSituation};
 use newchan_rust::theta_v0::classifier::center::{classify_position, RelativePosition};
@@ -174,7 +178,7 @@ fn seg(dir: Direction, si: usize, ei: usize, sp: Tick, ep: Tick) -> Segment {
 }
 
 /// 内部安全点：回试低点严格大于 ZG（Lean eventType3 见证口径 retracePrice=25 > zg=20）。
-/// 此点 rust（>=）与 Lean（严格 >）两侧一致 ⟹ bit-exact 绿。
+/// 此点 rust（严格 >）与 Lean（严格 >）两侧一致 ⟹ bit-exact 绿。
 #[test]
 fn type3_buy_interior_point_matches_lean() {
     // 中枢核心 [100,200] end_index=12。向上线段离开（端点 250 > zg=200），向下回试低点 210（严格 > 200）。
@@ -203,49 +207,45 @@ fn type3_buy_clear_reenter_matches_lean() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  ★边界口径矛盾（no-workaround：显式记录，非迁就）
+//  ★边界口径对齐（codex 裁决 2026-06-27：rust 严格 == Lean 严格，矛盾已消解）
 //
-//  临界点 retest == zg：reference §36 含等号（≥ZG=3买）；rust signal.rs `>=` 与之一致；
-//  Lean IsType3Buy `zg < retracePrice` 严格排除等号，与 reference §36 相反。
-//  本测试断言 rust **现状** = reference §36 含等号口径（rust 正确忠实 spec），并标注 Lean 冲突。
-//  这不是 rust bug——rust 逐字符合 reference §36；矛盾在 Lean IsType3Buy 的严格 `<` 偏离了 spec
-//  的「等号允许」。待矛盾上浮裁决统一口径（改 Lean 为 ≤/< 含等号 或 reference 改为不含等号）。
+//  临界点 retest == zg：第三类买点=中枢终结点；retest==zg=单点重叠=仍触及闭区间中枢 [ZD,ZG]
+//  =中枢延伸（中心定理一）=非终结=非第三类。严格口径正确（第21课「回抽不触及该中枢」支持）。
+//  rust signal.rs 原 `>=`（含等号，错）已改严格 `>`，与 Lean IsType3Buy（`zg < retracePrice` 严格）
+//  现一致；reference §36 同步改严格 `>ZG`。本测试断言 rust 严格 == Lean 严格（不再记录矛盾）。
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// 边界临界点（买侧）：回试低点 **恰等于** ZG（retest == zg）。
-/// - rust 现状（signal.rs `retest.price >= c.zg`）：算第三类（buy3=1）——合 reference §36「≥ZG」。
-/// - Lean IsType3Buy（`zg < retracePrice`，严格）：**不**算第三类——与 reference §36 相反。
-/// 本测试锁定 rust 现状 = reference §36 口径；rust 与 Lean 在此临界点结论相反（记录矛盾）。
+/// - rust（signal.rs `retest.price > c.zg`，严格）：**不**算第三类（buy3=0）。
+/// - Lean IsType3Buy（`zg < retracePrice`，严格）：**不**算第三类。
+/// 两侧在此临界点结论**一致**（同判非第三类）——矛盾已由 codex 裁决消解。
 #[test]
-fn boundary_retest_eq_zg_rust_follows_reference_lean_diverges() {
+fn boundary_retest_eq_zg_rust_aligned_to_lean_strict() {
     let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 12 };
     let segs = vec![
         seg(Direction::Up, 12, 16, 150, 250),
         seg(Direction::Down, 16, 20, 250, 200), // 回试 == zg=200（边界临界点）
     ];
     let points = extract_signals(&[c], &segs);
-    // rust 现状：含等号口径 ⟹ 算第三类（合 reference §36「≥ZG 等号允许设计选择」）。
-    assert_eq!(points.len(), 1, "rust 现状（>=）：retest==zg 算第三类（合 reference §36）");
-    assert!(points[0].bits.buy3, "rust buy3 置位");
-    // ★矛盾记录：Lean IsType3Buy（严格 zg<retracePrice）在 retest==zg 时为假——
-    //   若 rust 改用 Lean 严格口径，本断言的 points.len() 应为 0。两侧在此临界点结论相反。
-    //   见模块头「边界口径发现」——待矛盾上浮裁决（reference §36 含等号 vs Lean 严格 <）。
+    // rust 严格口径（>）⟹ retest==zg 触及闭区间中枢=非终结=非第三类。
+    // 对齐 Lean IsType3Buy（严格 zg<retracePrice 在 retest==zg 时为假）⟹ 两侧同判 points 空。
+    assert!(points.is_empty(), "rust 严格（>）：retest==zg 触及中枢=非第三类，对齐 Lean IsType3Buy 严格口径");
 }
 
 /// 边界临界点（卖侧镜像）：回抽高点 **恰等于** ZD（retest == zd）。
-/// - rust 现状（signal.rs `retest.price <= c.zd`）：算第三类（sell3=1）——合 reference §36「≤ZD」。
-/// - Lean IsType3Sell（`retracePrice < center.zd`，严格）：**不**算——与 reference §36 相反。
+/// - rust（signal.rs `retest.price < c.zd`，严格）：**不**算第三类（sell3=0）。
+/// - Lean IsType3Sell（`retracePrice < center.zd`，严格）：**不**算第三类。
+/// 两侧一致——矛盾已由 codex 裁决消解。
 #[test]
-fn boundary_retest_eq_zd_rust_follows_reference_lean_diverges() {
+fn boundary_retest_eq_zd_rust_aligned_to_lean_strict() {
     let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 12 };
     let segs = vec![
         seg(Direction::Down, 12, 16, 150, 50), // 离开：端点 50 < zd=100
         seg(Direction::Up, 16, 20, 50, 100),   // 回抽 == zd=100（边界临界点）
     ];
     let points = extract_signals(&[c], &segs);
-    assert_eq!(points.len(), 1, "rust 现状（<=）：retest==zd 算第三类（合 reference §36）");
-    assert!(points[0].bits.sell3, "rust sell3 置位");
-    // ★矛盾记录：Lean IsType3Sell（严格 retracePrice<zd）在 retest==zd 时为假——两侧结论相反。
+    // rust 严格口径（<）⟹ retest==zd 触及闭区间中枢=非终结=非第三类，对齐 Lean IsType3Sell 严格口径。
+    assert!(points.is_empty(), "rust 严格（<）：retest==zd 触及中枢=非第三类，对齐 Lean IsType3Sell 严格口径");
 }
 
 // ════════════════════════════════════════════════════════════════════════════
