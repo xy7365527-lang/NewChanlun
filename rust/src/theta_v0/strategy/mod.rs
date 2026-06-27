@@ -392,11 +392,13 @@ fn signal_tie_keys(d: &VoiceDecision, bars: &[Bar]) -> (i64, usize) {
 ///
 /// ## 映射（每个 `BspPoint` → 一个 `VoiceDecision`）
 ///
-/// - **决策级别 L\***（spec:40 根=当前最高有效决策级别）：L\* = 含非空 bsp 的最高级别索引。
-///   声部深度 `depth = L\* - ℓ`（L\* 级 bsp → depth 0 根；低级 bsp → 更深声部）。
-///   超 `max_depth` 的深度由 [`plan_orders`] 的 `within_max_depth` 过滤（spec:40 最多 3 层）。
+/// - **声部深度 depth = 0（§5 多独立根）**：每个买卖点是一个**独立根**（契约锚
+///   `Origin.StrategyFamily` §5 `long_short_both_open_allowed:570`：`parent := none`，`depth=0`）。
+///   不同级别的买卖点是**并存的多独立根**，**不构成赋格嵌套父子关系**——故 depth 恒 0，方向由
+///   各自信号定（不跨级别赋格翻转）。赋格交替（`voice_side` 奇深翻转）只对显式嵌套子声部有定义，
+///   v0 classifier 不产嵌套子声部。`level` = ℓ 仅用于冲突排序（spec:54 高 level 先），非 depth。
 /// - **根方向 root_side**（spec:41 σ 由信号定）：bits 有买点位 → Long；有卖点位 → Short
-///   （`bsp_root_side`）。声部绝对方向 = `voice::voice_side(root_side, depth)`。
+///   （`bsp_root_side`）。独立根（depth=0）⟹ `voice::voice_side(root_side, 0) = root_side`（不翻转）。
 /// - **stop_in**：从 `BspPoint` 的 `pivot_low`/`pivot_high`/`center` 直接构造 `StopInput`
 ///   （single source，零重算）。`center` 为 `None`（无 3 类）时用零 `Center` 占位（1/2 类
 ///   止损只用 pivot，不碰 center；3 类 bit ⟹ center 必 Some，classifier 不变量保证）。
@@ -421,43 +423,30 @@ pub fn recognize(
     bars: &[Bar],
     config: &ThetaConfig,
 ) -> Vec<VoiceDecision> {
-    // 决策级别 L* = 含非空 bsp 的最高级别索引（spec:40 根=最高有效决策级别）。
-    let l_star = match classification
-        .levels
-        .iter()
-        .enumerate()
-        .filter(|(_, ls)| !ls.bsp.is_empty())
-        .map(|(idx, _)| idx)
-        .max()
-    {
-        Some(l) => l,
-        None => return Vec::new(), // 无任何买卖点 ⟹ 无决策（空订单流）
-    };
-
+    // ★声部 depth 语义（契约锚 `Origin.StrategyFamily` §5 `long_short_both_open_allowed:570`）：
+    // **每个买卖点是一个独立根**（`parent := fun _ => none`，`depth = 0`），方向由自身信号定
+    // （3买/底背驰→Long，3卖/顶背驰→Short）。不同级别的买卖点是**并存的多独立根**（§5 多独立根），
+    // **不构成赋格嵌套父子关系**——赋格交替（`voice_side` 奇深翻转 σ_child=-σ_parent）只对
+    // **显式嵌套子声部**（同一根下的对冲腿，`Origin.VoiceTree` Fugue 嵌套树）有定义，v0 classifier
+    // 不产嵌套子声部（voice.rs `voice_side` 契约：v0 单声部独立根 depth=0）。
+    //
+    // ★诚实纠正（no-patch-mentality + 实现 bug 修复，L2 OKLO bisect 坐实 2026-06-27）：旧实现用
+    // `depth = l_star - level_idx`（l_star = 最高非空 bsp 级别）把**级别差**伪造成赋格嵌套深度——
+    // 当上级（如 L1）偶现一个第二类 B2/S2 bsp 时 l_star 被抬高，本级（L0）的所有第三类买卖点被
+    // 误降格为 depth=1 的奇深子声部，`voice_side` 翻转其方向 ⟹ `structural_stop(翻转side, 原始bsp)`
+    // 方向不匹配恒 None ⟹ 全部开仓被丢（OKLO 30K：6044/6045 开仓决策因此丢失，n_orders 3040→1）。
+    // 级别差 ≠ 赋格嵌套深度（§5 多独立根 ≠ Fugue 嵌套树，两个不同有效域）。修复=各级 bsp 均为
+    // 独立根 depth=0、方向=自身信号（codex 异质裁决 + 机器证据双向确认：不改 §5/voice_side/
+    // structural_stop 任何定义，纯实现 bug）。`level` 字段保留 level_idx（冲突排序高 level 先，spec:54）。
     let mut decisions = Vec::new();
     for (level_idx, level) in classification.levels.iter().enumerate() {
-        // ★声部树语义（契约锚 `Origin.VoiceTree`）：声部节点**只锚在携带决策点（bsp）的级别**上
-        // ——`depth : V → Nat` 是声部节点的属性，根 depth=0 锚在 L*（最高有效决策级别）。一个 bsp
-        // 空的级别**不是声部节点**（无决策点 ⟹ 无 voice）。`l_star = max{ℓ : levels[ℓ].bsp 非空}`
-        // 已蕴含：任何 `level_idx > l_star` 的级别 bsp **必空**（否则它会是新的 max，矛盾）。
-        //
-        // 旧代码对**所有**级别算 `depth = l_star - level_idx`——当 level_idx > l_star（高于 L* 的空
-        // bsp 级别）时 usize 下溢（debug panic / release wrapping 成巨大 u32）。修复=**严格语义**：
-        // 空 bsp 级别不是声部节点，跳过它（不是 saturating_sub 补丁——那会给非声部级别臆造一个错误
-        // depth）。`depth = l_star - level_idx` 只对**携带 bsp 的级别**（必 level_idx ≤ l_star）有定义。
+        // 空 bsp 级别非决策点级别——跳过（无买卖点 ⟹ 无独立根）。
         if level.bsp.is_empty() {
-            // 空 bsp 级别非声部节点（含所有 level_idx > l_star 的级别）——跳过，不算 depth。
             continue;
         }
-        // 此处 level.bsp 非空 ⟹ level_idx ≤ l_star（l_star 是非空 bsp 级别的最大索引）⟹ 减法不下溢。
-        debug_assert!(
-            level_idx <= l_star,
-            "非空 bsp 级别 {} 不应高于 l_star {}（l_star 是非空 bsp 级别的最大索引）",
-            level_idx, l_star
-        );
-        let depth = (l_star - level_idx) as u32;
         for point in &level.bsp {
-            if let Some(d) = recognize_point(point, depth, level_idx as u32, bars, config) {
+            // 每个买卖点 = §5 独立根：depth=0（方向由 recognize_point 从自身 bits 定，不跨级别翻转）。
+            if let Some(d) = recognize_point(point, 0, level_idx as u32, bars, config) {
                 decisions.push(d);
             }
         }

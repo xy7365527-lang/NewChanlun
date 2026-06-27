@@ -1639,4 +1639,240 @@ mod tests {
         let sig2 = metrics::significance(pnls, &res.daily_returns);
         assert_eq!(sig, sig2, "significance 可复现（seed=20260625 冻结）");
     }
+
+    /// OOS 窗时间跨度（年）——从预注册 ISO 日期 `"YYYY-MM-DD"` 端点算（§3.1 年化基数）。
+    ///
+    /// 纯技术性工具（日期算术），不涉及缠论概念。按 365.25 日/年近似（闰年平均），
+    /// 各品种实际交易日历精确化是 L3 精化项（本处用于年化基数，量级匹配即可）。
+    fn oos_years(oos_start: &str, oos_end: &str) -> f64 {
+        fn ymd(s: &str) -> (i64, i64, i64) {
+            let p: Vec<i64> = s.split('-').map(|x| x.parse().unwrap_or(0)).collect();
+            (p[0], *p.get(1).unwrap_or(&1), *p.get(2).unwrap_or(&1))
+        }
+        // 朴素天数（自 0 年的近似序数日，仅用于求差，绝对值无意义）。
+        fn ord(y: i64, m: i64, d: i64) -> i64 {
+            // 各月累计天数（平年，闰年误差 ≤1 日，对年化基数量级无影响）。
+            const CUM: [i64; 12] = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+            y * 365 + y / 4 + CUM[(m as usize - 1).min(11)] + d
+        }
+        let (y0, m0, d0) = ymd(oos_start);
+        let (y1, m1, d1) = ymd(oos_end);
+        ((ord(y1, m1, d1) - ord(y0, m0, d0)) as f64 / 365.25).max(0.1)
+    }
+
+    /// **★L3 否证/确认：全 8 品种全窗 OOS + §3.4/§4 统计检验（成交盈亏口径）**
+    /// （`#[ignore]`，需全 8 品种 `analysis/data_cache/*.json`；慢测，`--release` 必须）。
+    ///
+    /// ## 认识论等级与诚实边界（formalization-validity-domain 231号）
+    ///
+    /// - **单标的 = L2，多标的复现 = L3**：本测试遍历全 8 品种 OOS **前 [`MAX_BARS`] 截断窗**
+    ///   （全窗 CPU-bound 不可行，见下），每品种跑 frozen Θ → 成交盈亏 trade_pnls → §3.4 block
+    ///   bootstrap p 值 + §4 随机入场对照。单品种结论是 L2（截断窗）；跨品种"是否复现同一方向
+    ///   （否证/确认）"才是 L3 鲁棒性结论。截断窗 ⟹ 检验功效受限，全窗结论待优化后重跑。
+    /// - **★MtM ≠ 成交盈亏**：`strat_return` 是 mark-to-market 浮动口径（含未平仓浮盈，
+    ///   OKLO 60K 截断窗实测 578%），统计检验**只用 trade_pnls**（已实现成交盈亏）+ §4 随机
+    ///   择时对照——这是严格的 L2 否证口径（Lead 铁律）。OKLO 60K 截断窗 §4 实测 Θ分位≈0.50、
+    ///   **Θ 不优于随机择时 ⟹ (b)L2否证**（MtM 的 578% 是浮盈幻觉，非择时信息）。本测试核验
+    ///   该否证是否**跨标的复现**（L3）。
+    ///
+    /// ## 否证性结论分层（625 铁律：工程断流 vs L2 经验否证 vs 样本不足 inconclusive）
+    ///
+    /// 每品种归一类：
+    /// - **(a) 工程层**：n_orders=0 或 n_trades=0 —— 非 L2 否证，是接线断流（不计入否证）。
+    /// - **(d) inconclusive**：n_trades<20（block bootstrap 块长）—— 样本不足，统计功效不足，
+    ///   §5.5 不冒充否证也不冒充确认（625：样本不足 ≠ 否证）。
+    /// - **(b) L2否证**：n_trades≥20 且（boot p>0.05 收益不显著 或 Θ 不优于随机择时）——
+    ///   §5.1/§5.3 失败，缩小有效域，**比确认更有价值**（231号）。
+    /// - **(c) L2确认**：n_trades≥20 且 boot p≤0.05 且 Θ 优于随机 —— 在此窗未被证伪。
+    ///
+    /// L3 结论：统计 (b)/(c)/(d) 的跨品种分布。若否证跨标的复现（多数品种 (b)）⟹ Θ v0 择时
+    /// 无信息是鲁棒否证（L3）；若各品种结论分散 ⟹ Θ 有效性品种依赖（有效域 < 定义域）。
+    ///
+    /// ## 全窗不可行性（诚实标注，no-patch：不假装跑了全窗）
+    ///
+    /// **全窗实测不可行**（2026-06-27 机器证据坐实）：BTC 全窗 OOS（≈1.31M bar）单品种端到端
+    /// （parse→classify→recognize→plan_and_fill_mtm 逐 bar 退出生成器）CPU 全速跑 >5min 仍未
+    /// 产出首行——CPU-bound（非死锁），8 品种全窗远超任何时限。故本测试取**前 [`MAX_BARS`]
+    /// 截断窗**（与 [`l2_falsify_oklo_traded_pnl`] 60K 同口径，OKLO 实测 218 trades 样本充足）。
+    /// 截断窗 = 全窗的前缀下采样：统计量含义口径一致，但样本量 < 全窗 ⟹ **检验功效受限**，
+    /// **诚实标注为截断窗 L2/L3，非全窗结论**。全窗待 plan_and_fill_mtm + classify 的逐 bar
+    /// 复杂度进一步优化后重跑（本测试不在测试内静默假装全窗，也不留 fallback——截断是显式
+    /// 声明的有效域边界，非补丁）。
+    ///
+    /// 跑法：`cargo test --release --lib theta_v0::backtest::runner::tests::l3_falsify_multi_symbol_significance -- --ignored --nocapture`
+    #[test]
+    #[ignore = "L3 多标的截断窗否证（全 8 品种 + significance），需全 data_cache；慢测；--release --ignored --nocapture"]
+    fn l3_falsify_multi_symbol_significance() {
+        use super::super::data;
+        use super::super::metrics;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+
+        let config = ThetaConfig::default();
+        const MIN_TRADES_FOR_L2: usize = 20; // §3.4 块长=20，少于此 bootstrap 无序列结构
+        // 截断窗 bar 数（全窗 CPU-bound 不可行——BTC 全窗 >5min，见 doc）。60K 与
+        // l2_falsify_oklo_traded_pnl 同口径（OKLO 60K 实测 218 trades 样本充足）。
+        const MAX_BARS: usize = 60_000;
+
+        eprintln!("\n===== L3 多标的【截断窗 {MAX_BARS}bar】OOS 否证：8 品种 + §3.4/§4 统计检验（成交盈亏口径）=====");
+        eprintln!("★全窗不可行（BTC 全窗 >5min CPU-bound，机器坐实）⟹ 截断窗 = 显式有效域边界（非全窗结论）");
+        eprintln!(
+            "{:<6} {:>10} {:>7} {:>8} {:>9} {:>6} {:>7} {:>9} {:>8} {:>7} {:>6} {}",
+            "symbol", "oos_bars/T", "trades", "MtM%", "bh%", "winR",
+            "boot_p", "boot_mean", "Θ分位", "beats?", "Sharpe", "归因",
+        );
+        eprintln!("（oos_bars 后 T=截断窗/F=全窗；MtM%=mark-to-market 浮动口径含浮盈≠成交盈亏；boot_p/Θ分位/beats? 用 trade_pnls 成交盈亏）");
+
+        // L3 聚合：跨品种否证/确认/inconclusive/工程断流计数。
+        let mut n_falsify = 0usize; // (b) L2 否证
+        let mut n_confirm = 0usize; // (c) L2 确认
+        let mut n_inconclusive = 0usize; // (d) 样本不足
+        let mut n_engine_block = 0usize; // (a) 工程断流（无订单/无平仓）
+        let mut n_beats_random = 0usize; // Θ 优于随机择时的品种数（择时信息含量）
+
+        for w in PREREG_WINDOWS {
+            let t0 = std::time::Instant::now();
+            let ds = match data::load_by_symbol(w.symbol, &config) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("{:<6} 加载失败：{e}", w.symbol);
+                    continue;
+                }
+            };
+            // 预注册 OOS 窗（唯一真相源 = PREREG_WINDOWS，防数据挖掘）。
+            let oos_full = ds.slice_date_window(w.oos.0, w.oos.1);
+            if oos_full.bars.is_empty() {
+                eprintln!("{:<6} OOS 窗空（{}→{}）", w.symbol, w.oos.0, w.oos.1);
+                continue;
+            }
+            // 截断前 MAX_BARS（全窗 CPU-bound 不可行，见 doc）——显式有效域边界，非静默截断。
+            let cut = MAX_BARS.min(oos_full.bars.len());
+            let truncated = cut < oos_full.bars.len();
+            let oos = Dataset {
+                symbol: oos_full.symbol.clone(),
+                bars: oos_full.bars[..cut].to_vec(),
+                dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+            };
+
+            // years：截断窗按截断 bar 占全窗比例缩放全窗年跨（年化基数 §3.1，量级匹配）。
+            let full_years = oos_years(w.oos.0, w.oos.1);
+            let years = if truncated {
+                (full_years * cut as f64 / oos_full.bars.len() as f64).max(0.1)
+            } else {
+                full_years
+            };
+            // NAV 与品种价量级匹配（首价×容量；与 l2_falsify_oklo / l2_oos_eight_symbols 同口径）。
+            let first_px = oos
+                .bars
+                .iter()
+                .find(|b| !b.untradable && b.close > 0)
+                .map(|b| b.close as f64 * config.tick.tick_size)
+                .unwrap_or(1.0);
+            let nav = (first_px * 1000.0).max(1.0e6);
+            let res = run_theta_v0(&oos, &config, years, nav);
+
+            let pnls = &res.trade_pnls;
+            let n_trades = pnls.len();
+            let total_pnl: f64 = pnls.iter().sum();
+            let n_win = pnls.iter().filter(|&&p| p > 0.0).count();
+            let win_rate = if n_trades > 0 { n_win as f64 / n_trades as f64 } else { 0.0 };
+
+            // §3.4 block bootstrap + §4 随机对照（seed=20260625 冻结，成交盈亏口径）。
+            let sig = metrics::significance(pnls, &res.daily_returns);
+            if sig.theta_beats_random {
+                n_beats_random += 1;
+            }
+
+            // 分层归因（625 + §5.5 inconclusive 严格区分）。
+            let verdict = if res.n_orders == 0 || n_trades == 0 {
+                n_engine_block += 1;
+                "(a)工程断流"
+            } else if n_trades < MIN_TRADES_FOR_L2 {
+                n_inconclusive += 1;
+                "(d)inconcl样本<20"
+            } else if sig.boot_pvalue_pnl_le_0 > 0.05 {
+                n_falsify += 1;
+                "(b)否证:收益不显著"
+            } else if !sig.theta_beats_random {
+                n_falsify += 1;
+                "(b)否证:不优于随机"
+            } else {
+                n_confirm += 1;
+                "(c)确认:p≤.05且优随机"
+            };
+
+            let elapsed = t0.elapsed().as_secs_f64();
+            let trunc_mark = if truncated { "T" } else { "F" }; // T=截断窗 F=全窗
+            eprintln!(
+                "{:<6} {:>9}{} {:>7} {:>8.2} {:>9.2} {:>6.3} {:>7.4} {:>9.1} {:>8.4} {:>7} {:>6.3} {}  [{:.1}s]",
+                w.symbol,
+                oos.bars.len(),
+                trunc_mark,
+                n_trades,
+                res.metrics.strat_return * 100.0,
+                res.metrics.bh_return * 100.0,
+                win_rate,
+                sig.boot_pvalue_pnl_le_0,
+                sig.boot_mean_total_pnl,
+                sig.rand_percentile_of_theta,
+                sig.theta_beats_random,
+                sig.sharpe,
+                verdict,
+                elapsed,
+            );
+            eprintln!(
+                "       └ full_oos_bars={} total_pnl={:.2} boot_CI95=[{:.1},{:.1}] Sharpe_SE={:.4} Sharpe_CI95=[{:.4},{:.4}] years={:.2}",
+                oos_full.bars.len(),
+                total_pnl,
+                sig.boot_ci95_lo,
+                sig.boot_ci95_hi,
+                sig.sharpe_se,
+                sig.sharpe_ci95_lo,
+                sig.sharpe_ci95_hi,
+                years,
+            );
+
+            // 不变量（每品种）：管线不崩 + 检验值合法 + 标注一致。
+            assert!(res.metrics.strat_return.is_finite(), "{} strat(MtM) 有限", w.symbol);
+            assert!(res.metrics.bh_return.is_finite(), "{} bh 有限", w.symbol);
+            assert!(
+                (0.0..=1.0).contains(&sig.boot_pvalue_pnl_le_0),
+                "{} boot p∈[0,1]",
+                w.symbol
+            );
+            assert!(
+                (0.0..=1.0).contains(&sig.rand_percentile_of_theta),
+                "{} 随机分位∈[0,1]",
+                w.symbol
+            );
+            assert_eq!(res.is_l2, res.n_orders > 0, "{} is_l2 ⟺ 订单非空", w.symbol);
+        }
+
+        // ── L3 跨标的结论（231号：否证跨标的复现 = 鲁棒否证，比确认更有价值）──
+        let total = PREREG_WINDOWS.len();
+        eprintln!("\n===== L3 跨标的否证聚合（8 品种截断窗 OOS 前 {MAX_BARS}bar，成交盈亏口径）=====");
+        eprintln!("(a) 工程断流(无订单/无平仓)     : {n_engine_block}");
+        eprintln!("(d) inconclusive(n_trades<20)   : {n_inconclusive}");
+        eprintln!("(b) L2 否证(收益不显著/不优随机): {n_falsify}");
+        eprintln!("(c) L2 确认(p≤.05 且优于随机)   : {n_confirm}");
+        eprintln!("    其中 Θ 择时优于随机的品种数 : {n_beats_random}/{total}");
+        eprintln!(
+            "\n★L3 诚实结论（formalization-validity-domain 231号）：\n  \
+             - 跨标的多数 (b) ⟹ Θ v0「择时无信息/收益不显著」是**鲁棒否证**（L3，有效域缩小）。\n  \
+             - 各品种结论分散 ⟹ Θ 有效性**品种依赖**（有效域 < 定义域，非全域有效）。\n  \
+             - n_beats_random 是择时信息含量的直接计数：=0 ⟹ Θ 择时全标的无信息（强否证）。\n  \
+             - ★MtM strat% 高（浮盈）≠ 成交盈亏优于随机——统计检验只采 trade_pnls + §4 随机对照。"
+        );
+
+        // 不变量：分层完备（每产出订单的品种恰归一类 b/c/d；无订单归 a）。
+        assert_eq!(
+            n_falsify + n_confirm + n_inconclusive + n_engine_block,
+            total,
+            "L3 分层完备：每品种恰归一类（a 工程断流 ∪ b 否证 ∪ c 确认 ∪ d inconclusive = 全集）",
+        );
+        // ★acceptance：≥1 品种端到端产订单流（管线在多标的真实数据上跑通，否则 L2/L3 无从谈起）。
+        assert!(
+            n_falsify + n_confirm + n_inconclusive >= 1,
+            "≥1 品种产订单流（多标的真实数据 L2 检验可执行），实测全部工程断流 ⟹ 接线回退",
+        );
+    }
 }
