@@ -7,3 +7,5 @@
 {"event": "BLOCKED", "sub_goal_id": "SG-2", "blocker": "reference §36含等号(≥ZG设计选择)+rust vs Lean IsType3Buy严格<(BspClassification.lean:113)定义层矛盾，临界retest==zg结论相反，需编排者/ritual裁决口径统一", "ts": "2026-06-27T09:03:40Z"}
 {"event": "EVIDENCE", "sub_goal_id": "SG-C", "artifact": "center generation repo 已超前闭合(repo⊇canonical)：chanCenters_empty 空桩已消除，composeStep 真派生中枢 windowCenters，WellFormed 强制 centers≥1，lake build exit 0 零sorry(HEAD 421b493936)。canonical Gate1 center 部分 MET，无需补", "ts": "2026-06-27T09:07:33Z"}
 {"event": "CHECK_PASS", "sub_goal_id": "SG-C", "check": "canonical Gate1 center-generation/WellFormed(629开口①②线段层正交,非center)", "ts": "2026-06-27T09:07:33Z"}
+{"event": "EVIDENCE", "sub_goal_id": "SG-A", "artifact": "2b G_α: GlobalProductClassification.lean global_product_complete_unique L0证成(全量98 jobs绿,零sorry,PDF p24父子一致性缺口补,refines现有GlobalClassSpec)", "ts": "2026-06-27T09:17:49Z"}
+{"event": "EVIDENCE", "sub_goal_id": "SG-1", "artifact": "#4买侧vacuous消除: buy.rs+theta_v0_buy_parity.rs(commit 83f747689d,直接rust买侧↔Lean买侧见证bit-exact,cargo lib 888 passed,买侧从间接对偶升直接)", "ts": "2026-06-27T09:17:49Z"}
