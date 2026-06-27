@@ -5,26 +5,41 @@
 > 数据：`analysis/data_cache/{btc,es,cl,gc,brn,dx,qqq,oklo}_*.json`（databento 1m）
 > 切分：`rust/src/theta_v0/backtest/prereg_windows.rs::PREREG_WINDOWS`（OOS 窗，看结果前冻结）
 
-## 1. 真实回测表格（每品种一行，OOS 窗）
+## 0. 报告核心结论（先于数据，TL;DR）
 
-下表为 `cargo --nocapture` 的**真实输出**（非伪造），核心/扩展池 OOS 窗统一
-`2023-01-01→2025-06-30`，OKLO `§2.4` 特例 OOS。
+本次 L2 跑的**核心产出不是回测收益，是一个被反事实对照坐实的根因诊断**：
 
-| symbol | pool     | oos_bars  | bh%     | strat%  | sharpe | seg   | ctr  | bsp       | decis  | ord | trades | L 级 | 断点层            |
-|--------|----------|-----------|---------|---------|--------|-------|------|-----------|--------|-----|--------|------|-------------------|
-| BTC    | Core     | 1,313,200 | +547.66 |  0.00   |  0.000 | 11221 | 4674 | 9,323,059 | 0      | 0   | 0      | L1   | recognize:无决策  |
-| ES     | Core     |   881,913 |  +60.73 |  0.00   |  0.000 |  6977 | 2909 | 3,608,856 | 0      | 0   | 0      | L1   | recognize:无决策  |
-| CL     | Core     |   870,572 |  -19.28 |  0.00   |  0.000 |  6970 | 2913 | 3,507,460 | 0      | 0   | 0      | L1   | recognize:无决策  |
-| GC     | Core     |   870,964 |  +81.26 |  0.00   |  0.000 |  6946 | 2893 | 3,568,205 | 0      | 0   | 0      | L1   | recognize:无决策  |
-| BRN    | Extended |   816,448 |  -22.49 |  0.00   |  0.000 |  6153 | 2566 | 2,733,135 | 0      | 0   | 0      | L1   | recognize:无决策  |
-| DX     | Extended |   678,728 |   -6.81 |  0.00   |  0.000 |  5308 | 2186 | 2,030,280 | 0      | 0   | 0      | L1   | recognize:无决策  |
-| QQQ    | Extended |   523,112 | +105.16 |  0.00   |  0.000 |  3776 | 1460 |   995,372 | 0      | 0   | 0      | L1   | recognize:无决策  |
-| OKLO   | Observ.  |   268,411 | +155.46 | **-0.12** | **-0.003** | 2021 | 785 | 282,839 | 154,218 | **1** | 0      | **L2** | **L2有效**        |
+**8 品种全部坐标系断裂——`slice_date_window` 切 OOS 窗时未重置 `Bar.source_index`，
+保留了全数据集绝对偏移，导致 `fill_bar_index` 用全集偏移索引 OOS 局部数组而越界，
+吞掉全部决策。这是 (b) L1 实现 bug，不是 (a) 引擎在真实数据上的有效域边界，也不是定义冲突。**
 
-**L 级判据（231 号 formalization-validity-domain）**：管线驱动本身 = L1（遍历+收集，零信息
-增量）。每品种扣成本指标 = **L2 当且仅当 `n_orders > 0`**（真实数据 + 非空订单流，可否证）。
-逐品种诚实标注：7/8 品种 `n_orders=0` → **L1**（不报 strat%，因为它不是策略行为，是引擎断流的
-平凡 0）；OKLO `n_orders=1` → **L2**（strat=-0.12% / sharpe=-0.003 是真实可证伪指标）。
+直接后果（**改写了原 v0 报告**）：
+- 原结论「7/8 品种 L1 工程层断流（引擎产不出信号）」**不准确**——引擎**产了**信号（反事实
+  对照下 BTC 产 9,323,059 个决策）。准确表述：引擎产信号，回测**数据装配层**的 source_index
+  坐标系 bug 在 fill 层吞掉决策。
+- **OKLO 的 L2 标注作废**——OKLO 同样坐标系断裂，其 strat=-0.12% 仅覆盖 OOS 中
+  source_index<bars.len 的前段（~54%）信号，是污染结果，不是干净 L2 否定性结果。
+- **bug 修复（`data.rs::slice_date_window` 重置 source_index）前，#5 无任何可信 L2 结果。**
+
+## 1. 真实回测表格（每品种一行，OOS 窗）— 受 bug 污染，非可信 L2
+
+下表为 `cargo --nocapture` 的**真实输出**，但 strat%/sharpe 列受 §3 坐标系 bug 污染，
+**不可作为 Θ 策略经验有效性证据**。保留它用于诊断对照（展示 bug 的可观测后果）。
+
+| symbol | pool     | oos_bars  | bh%     | strat% | sharpe | seg   | ctr  | bsp       | decis   | ord | trades | L 级（污染） | 断点层           |
+|--------|----------|-----------|---------|--------|--------|-------|------|-----------|---------|-----|--------|-------------|------------------|
+| BTC    | Core     | 1,313,200 | +547.66 |  0.00  |  0.000 | 11221 | 4674 | 9,323,059 | 0       | 0   | 0      | L1(bug)     | recognize:无决策 |
+| ES     | Core     |   881,913 |  +60.73 |  0.00  |  0.000 |  6977 | 2909 | 3,608,856 | 0       | 0   | 0      | L1(bug)     | recognize:无决策 |
+| CL     | Core     |   870,572 |  -19.28 |  0.00  |  0.000 |  6970 | 2913 | 3,507,460 | 0       | 0   | 0      | L1(bug)     | recognize:无决策 |
+| GC     | Core     |   870,964 |  +81.26 |  0.00  |  0.000 |  6946 | 2893 | 3,568,205 | 0       | 0   | 0      | L1(bug)     | recognize:无决策 |
+| BRN    | Extended |   816,448 |  -22.49 |  0.00  |  0.000 |  6153 | 2566 | 2,733,135 | 0       | 0   | 0      | L1(bug)     | recognize:无决策 |
+| DX     | Extended |   678,728 |   -6.81 |  0.00  |  0.000 |  5308 | 2186 | 2,030,280 | 0       | 0   | 0      | L1(bug)     | recognize:无决策 |
+| QQQ    | Extended |   523,112 | +105.16 |  0.00  |  0.000 |  3776 | 1460 |   995,372 | 0       | 0   | 0      | L1(bug)     | recognize:无决策 |
+| OKLO   | Observ.  |   268,411 | +155.46 | -0.12  | -0.003 |  2021 |  785 |   282,839 | 154,218 | 1   | 0      | ~~L2~~污染  | L2有效(部分信号) |
+
+**L 级标注（231 号，修正）**：原 v0 标 OKLO=L2、7 品种=L1。**修正后全 8 品种均不可标 L2**——
+strat/sharpe 受 source_index 坐标系 bug 系统性污染。OKLO 的 n_orders=1 来自仅前 54% 信号的部分
+回测，不是真实数据 + 完整订单流，不满足 L2（可证伪扣成本指标）的诚实条件。
 
 ## 2. 分层诊断断点归因汇总
 
@@ -34,111 +49,131 @@
 断点 signal(无BSP)   : 0
 断点 recognize(无决策): 7
 断点 sizing(无订单)  : 0
-L2 端到端(产订单流)  : 1     ← OKLO
+L2 端到端(产订单流)  : 1     ← OKLO（污染，见 §3.3）
 ```
 
 8 品种全部通过 parse→classify→signal 三层（segments 数千、centers 数千、bsp 数百万到千万），
-**无任何品种在 classifier 层塌缩**。断点 100% 集中在 `recognize` 层（7 品种）与 L2 端到端
-（1 品种）。
+**无任何品种在 classifier 层塌缩**。断点集中在 `recognize` 层。
 
-### 2.1 recognize 断点子原因细分（625 铁律精确归因，单位=BspPoint）
-
-把粗归因「recognize:无决策」逐 point 复现 `strategy::recognize_point` 的三道拒绝判据：
+### 2.1 recognize 断点子原因细分（逐 BspPoint 三道判据，单位=point）
 
 ```
 reject empty_bits(非交易点)   : 0
 reject fill_oob(落点越界)     : 25,766,367   ← 全部 7 品种 bsp 在此被拒
 reject center_inv(3类无中枢)  : 0
 accept(三道判据通过本应产决策): 0
-其中坐标系不一致品种数(max_src_idx≥bars.len): 7
+坐标系不一致品种数(max_bsp_src≥bars.len): 7
 ```
 
-**全部 25,766,367 个 BspPoint 都被第二道判据 `fill_bar_index` 拒（返回 `None`）**。
-`empty_bits=0`（bits 都合法）、`center_inv=0`（中枢不变量都满足）、`accept=0`（没有任何
-point 通过三道判据）。这排除了「recognize 逻辑错误」「bits 退化」「中枢不变量违反」三种假说。
+**全部 25,766,367 个 BspPoint 都被第二道判据 `fill_bar_index` 拒**。`empty_bits=0`、
+`center_inv=0`、`accept=0`，排除了「recognize 逻辑错误」「bits 退化」「中枢不变量违反」。
+断点 100% 在 fill 层的 source_index 越界。
 
-## 3. 矛盾上浮候选：source_index 坐标系不一致（定义层冲突）
+## 3. 根因坐实：(b) L1 实现 bug（反事实对照，非推理）
 
-### 3.1 坐标证据（每品种首个 fill 失败点，真实输出）
+### 3.1 坐标证据（全 8 品种，真实输出）
 
-| symbol | first_fail src_idx | bars.len  | max_src_idx | untradable_ratio | 坐标系不一致 |
-|--------|--------------------|-----------|-------------|------------------|--------------|
-| BTC    | 2,819,196          | 1,313,200 | 4,131,007   | 0.0001           | true         |
-| ES     | 2,450,857          |   881,913 | 3,331,081   | 0.0000           | true         |
-| CL     | 2,458,097          |   870,572 | 3,328,002   | 0.0000           | true         |
-| GC     | 2,439,071          |   870,964 | 3,308,288   | 0.0000           | true         |
-| BRN    | 1,311,404          |   816,448 | 2,127,083   | 0.0066           | true         |
-| DX     | 1,117,289          |   678,728 | 1,794,650   | 0.0033           | true         |
-| QQQ    |   889,289          |   523,112 | 1,411,261   | 0.0000           | true         |
+| symbol | oos_first_src | max_bsp_src | bars.len  | 断裂  | decisions(原) | decisions(reindex 反事实) |
+|--------|---------------|-------------|-----------|-------|---------------|----------------------------|
+| BTC    | 2,817,999     | 4,131,007   | 1,313,200 | true  | 0             | 9,323,059                  |
+| ES     | 2,449,435     | 3,331,081   |   881,913 | true  | 0             | 3,608,856                  |
+| CL     | 2,457,529     | 3,328,002   |   870,572 | true  | 0             | 3,507,460                  |
+| GC     | 2,437,488     | 3,308,288   |   870,964 | true  | 0             | 3,568,205                  |
+| BRN    | 1,310,703     | 2,127,083   |   816,448 | true  | 0             | 2,733,135                  |
+| DX     | 1,116,146     | 1,794,650   |   678,728 | true  | 0             | 2,030,280                  |
+| QQQ    |   888,487     | 1,411,261   |   523,112 | true  | 0             |   995,372                  |
+| OKLO   |    74,871     |   343,217   |   268,411 | true  | 154,218(部分) | （已部分成功，见 §3.3）    |
 
-**`max_src_idx` 约为 `bars.len` 的 3 倍**，`untradable_ratio ≈ 0`（排除数据稀缺假说）。
+**`oos_first_src` 对所有品种 > 0**（BTC=281万）——证明 OOS 是全集中段切片，`slice_date_window`
+保留了全集绝对 source_index。BTC 的 oos_first_src=2,817,999 **已超** bars.len=1,313,200 ⟹ OOS
+**首 bar 的 source_index 就越界** ⟹ 几乎全部 point 的 fill 失败。
 
-### 3.2 矛盾精确描述
+### 3.2 反事实对照坐实 a/b（核心证据）
 
-- `BspPoint.source_index` 取自 `segment.end_index`（`classifier/signal.rs::seg_end`）。
-- `strategy::recognize_point` 用 `source_index` 调 `exec::fill_bar_index(source_index, bars, ...)`
-  索引**切片后的回测 `oos.bars`**（长度 = `bars.len`）。
-- 实测 `source_index` 最大值达 `bars.len` 的 ~3 倍 ⟹ `source_index` 与 `oos.bars` **不在同一
-  索引坐标系**。`fill_bar_index` 因 `source_index >= bars.len` 对**每个** point 返回 `None`
-  ⟹ 全部决策被吞 ⟹ 零订单流。
-- **OKLO 是唯一例外**：它的 `max_src_idx < bars.len`（坐标系巧合落在范围内），故 fill 大量
-  成功（154,218 决策 → 1 订单），成为唯一 L2 品种。这佐证根因是坐标系范围而非逻辑。
+测试内**只读重建**（不改 data.rs）：把 `oos.bars` 的 source_index 由全集绝对偏移改为局部下标
+`0..len`，管线其余完全不变，重跑 parse→classify→recognize：
 
-### 3.3 为何是定义冲突而非实现 bug（testing-override 判据）
+**7 品种 decisions 由 0 全部转非零（百万级，每 bsp 产决策）。唯一改变的变量 = source_index。**
+断言 `n_fixed_by_reindex(7) == n_coordsys_mismatch(7)` 通过 ⟹ 根因唯一。
 
-- 若能在**不改任何定义**的前提下修复 → 实现错误，正常修复。
-- 修复需改 `segment.end_index` / `source_index` 的**坐标系定义/边界**（segment 端点索引基准
-  vs 回测 bars 索引基准），或在 `fill` 前插入坐标映射层 → **改变了定义含义/边界** → 定义冲突。
-- 据 no-workaround / 625 铁律：**不在回测工位打补丁让它产决策**（如 `source_index %
-  bars.len` 或截断），那会用错误坐标喂 fill，产出语义错误的成交。如实标注，走矛盾上浮。
+→ **坐实 (b)**：不是 (a) 真实拒绝（信号确实存在），不是定义冲突。
 
-### 3.4 上浮所需澄清
+### 3.3 OKLO 为何「部分成功」（推翻原「坐标系巧合一致」归因）
 
-`source_index`（segment.end_index）的坐标系基准究竟是：
-（a）原始 `bars` 索引？——则 3× 放大说明 segment 划分过程某处累加/未去重了 index；
-（b）包含合并后 `merged_bars` 索引？——但 merged 比 bars **短**，不能产生 3× 放大；
-（c）某复合/递归展开坐标？——则需定义 source_index → bars 的映射，且该映射须进 reference 规格。
-必须先结算 (a/b/c) 才能确定 `fill_bar_index` 的正确入参坐标，本工位不替定义层做此裁决。
+OKLO `max_bsp_src=343217 ≥ bars.len=268411`，**同样断裂=true**。但 `oos_first_src=74871 <
+bars.len` ⟹ OOS **前段** bar 的 source_index 落在局部数组内，这些 point 的 fill 成功
+（154,218 decisions），只有 source_index≥bars.len 的**后段**信号被吞。故 OKLO 的 strat=-0.12%
+是**坐标系断裂下仅覆盖 OOS 前 ~54% 信号的污染回测**，不是干净 L2。原 v0 报告「OKLO 坐标系巧合
+一致所以成功」的归因**被证伪**——OKLO 也断裂，只是部分而非全部越界。
+
+### 3.4 根因链（机器证据）
+
+```
+load_symbol(data.rs:206)  : Bar.source_index = 全数据集绝对下标 i
+        ↓
+slice_date_window(data.rs:106) : bars.push(*b) 保留全集 source_index，未重置为局部下标
+        ↓ oos.bars[0].source_index = 全集偏移（BTC=2,817,999 > bars.len）
+parse_layer 链(inclusion:56/fractal/stroke/segment) : 信任 bar.source_index 字段（非数组下标）
+        ↓ BspPoint.source_index(=segment.end_index) 携全集偏移
+recognize_point → fill_bar_index(source_index, oos.bars) : 全集偏移索引 OOS 局部数组
+        ↓ source_index ≥ bars.len ⟹ 越界返 None ⟹ 全决策被吞 ⟹ 零订单
+```
+
+### 3.5 为何是实现 bug 而非定义冲突（testing-override 判据）
+
+- 修复 = `slice_date_window` 重置 source_index 为局部下标 `0..len`。
+- 局部下标**满足** source_index 的定义（reference:16「`(timestamp, source_index)` 单序列内
+  唯一单调平局裁决键」——**不要求**它是全集绝对位置）⟹ **不改任何定义的含义/边界**。
+- 据 testing-override：「不改任何定义能修 → 实现 bug，正常修复」⟹ **(b)，不上浮，正常修复**。
+
+### 3.6 修复归属与本工位边界
+
+- 修复位置 = `data.rs::slice_date_window`（引擎层数据装配），**非本回测工位（runner.rs）owner**。
+- 本工位**不跨文件改 data.rs、不在测试内打补丁伪造 L2**（工位边界 + 不伪造结果 + no-workaround）。
+- **移交下游引擎层工位**：在 `slice_date_window` 内构造新 Dataset 时，重置每个保留 bar 的
+  `source_index` 为切片后局部 enumerate 下标（dates 同步）。修复后重跑本测试，全 8 品种才可能产
+  **干净** L2，届时方可判 Θ 策略经验有效性（盈利/不盈利）。
 
 ---
 
 ## 结果包六要素
 
-1. **结论**：8 品种 OOS 真实回测完成，产**可证伪结果**——OKLO 达 L2（strat=-0.12% /
-   sharpe=-0.003 / 1 单，真实数据+非空订单流）；7 品种 L1 断流，精确归因到 `recognize.fill`
-   层的 **source_index 坐标系不一致**（max_src_idx≈3×bars.len，untradable≈0）。1/8 L2、
-   7/8 L1，分层计数完备（断言通过）。
+1. **结论**：本次 L2 跑坐实了一个 (b) L1 实现 bug——`slice_date_window` 未重置 source_index 致
+   全 8 品种坐标系断裂、fill 层吞决策。反事实对照（仅改 source_index→局部下标）使 7 品种
+   decisions 由 0 转百万级，断言 `n_fixed_by_reindex==n_coordsys_mismatch==7` 坐实根因唯一。
+   **OKLO 原 L2 标注作废**（污染）。bug 修复前 #5 无可信 L2 结果。
 
-2. **定义依据**：231 号 L 级（L2 ⟺ n_orders>0）；625 铁律（[[l2-engine-incompleteness-vs-theta-falsification]]，
-   n_orders=0 报「L1 工程层断流在 X 层」非「策略不盈利」）；testing-override（修复需改定义
-   含义/边界 ⟹ 定义冲突，停下上浮）；`BspPoint.source_index = segment.end_index`
-   （classifier/signal.rs）；`fill_bar_index(source_index, oos.bars, ...)`（strategy/exec.rs）。
+2. **定义依据**：source_index 定义（reference:16，`(timestamp,source_index)` 单序列唯一单调平局
+   键，不要求全集绝对位置）；testing-override（不改定义能修=实现 bug 正常修复）；231 号 L 级
+   （L2=真实数据+非空订单流，污染信号不满足）；625 铁律（引擎产不出信号=工程层 vs Θ 产信号不
+   盈利=经验否证——本次是工程层 bug，引擎**产**信号被 bug 吞，非经验否证）。
 
-3. **边界条件**（结论翻转条件）：
-   - 若 `source_index` 坐标系基准与回测 `bars` 对齐（坐标映射修复或定义澄清后），7 品种的
-     `fill_oob` 拒绝消失 → 它们将产决策 → 此时若仍 n_orders>0 但 strat≈0，**才**是 L2 经验
-     否证（策略不盈利）；当前**不是**——当前是工程层断流，结论会从「坐标系冲突」翻转为「策略
-     有效性待 L2 检验」。
-   - 若改 OOS 窗或切分（PREREG_WINDOWS 变更），oos_bars/max_src_idx 量级随之变，但 3× 比例
-     是结构性的（源于 source_index 坐标系），不随窗口消失。
-   - OKLO 的 L2 结论翻转条件：若 OKLO 的 max_src_idx 因数据更新越过 bars.len，它也会退回 L1。
+3. **边界条件**（结论翻转）：
+   - 若 `slice_date_window` 修复（重置 source_index）→ fill 不再越界 → 全品种产决策 → 此时
+     strat/sharpe 才是干净 L2，**才**能判 Θ 策略盈利/不盈利。当前结论（bug 归因）不翻转，
+     翻转的是「能否判策略有效性」（修复后才能）。
+   - 反事实对照若某品种 reindex 后仍 decisions=0 → 根因非坐标系，需另查；实测 7/7 转非零，
+     不触发。
+   - 若 source_index 定义被改判为「必须全集绝对位置」→ 则降级为定义冲突需上浮；但 reference:16
+     无此要求，不触发。
 
-4. **下游推论**：goal `g-complete-classification-full-strategy` acceptance #5（L2 真实数据回测
-   产可证伪结果 + 分层诊断）**达成**——既有 L2 可证伪结果（OKLO），又有精确分层诊断定位到
-   定义层断点。**但 Θ v0 策略的经验有效性（盈利与否）尚不可判**：7/8 品种因坐标系冲突未进入
-   L2，OKLO 单品种 1 单不足以做 L3 交叉验证。下游 strat 收益的 L2/L3 评估**阻塞**于
-   source_index 坐标系矛盾的结算。
+4. **下游推论**：acceptance #5「产可证伪结果 + 分层诊断」**部分达成**——分层诊断坐实了根因
+   （高价值否定性诊断结果），但**未产可信 L2 回测结果**（全品种受 bug 污染）。下游 Θ 策略经验
+   有效性评估（L2/L3）**阻塞**于 `slice_date_window` 修复。修复是明确的工程任务（非概念矛盾），
+   移交引擎层工位后重跑即可解阻塞。
 
-5. **谱系引用**：[[l2-engine-incompleteness-vs-theta-falsification]]（625：引擎产不出信号=工程
-   缺口 vs Θ 产信号不盈利=经验否证，本测试严格区分）；231 号 formalization-validity-domain
-   （L 级标注 + 有效域膨胀禁令）；627（theta_v0 引擎线独立，未与旧引擎代偿）。source_index 坐标系
-   此前是否有概念分离记录**不确定**——明确标注：需 genealogist 核查 classifier source_index
-   语义是否已有谱系条目。
+5. **谱系引用**：[[l2-engine-incompleteness-vs-theta-falsification]]（625：本次严格区分——引擎
+   产信号被数据装配 bug 吞 ≠ Θ 产信号不盈利，故**不**报「策略不盈利」）；231 号
+   formalization-validity-domain（L 级，污染信号不标 L2）；627（theta_v0 引擎线独立，未代偿）。
+   source_index 坐标系 bug 是否有既存谱系**不确定**——建议 genealogist 核查 slice/source_index
+   坐标系语义是否已有条目（疑似首次暴露，可能值得记一条「切片不重置局部坐标」的工程谱系）。
 
 6. **影响声明**：
-   - 改动文件：`rust/src/theta_v0/backtest/runner.rs`（续完并增强 `l2_oos_eight_symbols`：
-     +recognize 子原因细分 +坐标系不一致检测 +矛盾上浮标注 +acceptance 断言；删除被证伪的
-     「classifier 塌缩为 all-hold」错误结论分支）。
-   - 新建文件：`docs/theta-v0-l2-results-v0.md`（本报告）。
-   - **未改动** classifier/strategy/parser 实现（坐标系矛盾走上浮，不打补丁）。
-   - 影响模块：goal #5 状态（达成，但下游策略有效性评估阻塞于上浮）。
+   - 改动文件：`rust/src/theta_v0/backtest/runner.rs`（增强 `l2_oos_eight_symbols`：+全品种坐标
+     证据 +反事实对照坐实 a/b +根因坐实断言；删除原「定义层坐标系冲突/矛盾上浮候选」错误归因
+     和「OKLO=干净 L2」结论——两者被反事实证据改写为「(b) 实现 bug + OKLO 污染」）。
+   - 新建/重写文件：`docs/theta-v0-l2-results-v0.md`（本报告，核心结论改写）。
+   - **未改动** classifier/strategy/parser/**data.rs** 实现（修复 data.rs::slice_date_window 移交
+     引擎层工位，本工位不越界）。
+   - 影响模块：goal #5 状态（诊断达成，L2 结果阻塞于 slice bug 修复）；**移交项**：
+     `data.rs::slice_date_window` 重置 source_index。

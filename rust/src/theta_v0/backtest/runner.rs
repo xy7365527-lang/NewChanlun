@@ -735,10 +735,19 @@ mod tests {
     /// - 每品种产出的扣成本指标 = **L2 当且仅当 n_orders>0**（真实数据 + 非空订单流，可否证）。
     /// - **诚实约束**（[[l2-engine-incompleteness-vs-theta-falsification]] 625 铁律）：若某品种
     ///   n_orders=0，**报「L1 工程层断流在 X 层」非「L2 策略不盈利」**——分层诊断精确定位断点
-    ///   （segments<3 / centers=0 / bsp=0 / decisions=0 / orders=0），不把引擎产不出信号当经验否证。
-    ///   recognize 断点进一步细分到判据级（empty_bits / fill_oob / center_inv），并检测
-    ///   **source_index 坐标系不一致**（max_src_idx≥bars.len），把该断点归到定义层冲突（矛盾上浮
-    ///   候选）而非笼统的「引擎缺口」——这是本测试在 v0 真实数据上实测到的根因。
+    ///   （segments<3 / centers=0 / bsp=0 / decisions=0 / orders=0），不把引擎断流当经验否证。
+    ///   recognize 断点进一步细分到判据级（empty_bits / fill_oob / center_inv），并用**反事实
+    ///   对照**坐实根因层位。
+    ///
+    /// ## 实测根因（v0 真实数据，反事实坐实，**非定义冲突**）
+    ///
+    /// 8 品种全部坐标系断裂：`slice_date_window` 切 OOS 时保留 `Bar.source_index` 的全集绝对偏移
+    /// （未重置为局部下标），parse 链信任该字段 ⟹ `BspPoint.source_index ≥ bars.len` ⟹
+    /// `fill_bar_index` 越界吞掉**全部**决策。反事实对照（source_index←局部下标，管线其余不变）
+    /// 使 7 品种 decisions 由 0 全转非零 ⟹ **坐实 (b) L1 实现 bug**（修复=重置 source_index，
+    /// 满足 reference:16 定义不改任何定义 ⟹ 非定义冲突、非真实拒绝）。修复位置 =
+    /// `data.rs::slice_date_window`（引擎层数据装配，非本回测工位 owner ⟹ 移交）。**OKLO 的
+    /// L2 标注同样因该 bug 污染（仅覆盖 OOS 前段信号），bug 修复前 #5 无可信 L2 结果。**
     ///
     /// 跑法：`cargo test --lib theta_v0::backtest::runner::tests::l2_oos_eight_symbols -- --ignored --nocapture`
     #[test]
@@ -778,8 +787,11 @@ mod tests {
 
         // 坐标系不一致计数（品种级）：fill_oob 全失败且该品种 max(source_index) ≥ bars.len，
         // 即 BspPoint.source_index 落在 [0, bars.len) 之外 ⟹ source_index 与回测 bars 坐标系
-        // 不在同一基准（非数据稀缺：untradable_ratio≈0）。这是**矛盾上浮候选**的机器证据。
+        // 不在同一基准（非数据稀缺：untradable_ratio≈0）。
         let mut n_coordsys_mismatch = 0usize;
+        // 反事实对照计数（坐实 a/b）：source_index←局部下标后 decisions 由 0 转非零的品种数。
+        // = 坐实「(b) slice_date_window 未重置 source_index 的实现 bug」的品种数（非定义冲突）。
+        let mut n_fixed_by_reindex = 0usize;
 
         for w in PREREG_WINDOWS {
             let ds = match data::load_by_symbol(w.symbol, &config) {
@@ -803,6 +815,26 @@ mod tests {
             let total_centers: usize =
                 classification.levels.iter().map(|lv| lv.centers.len()).sum();
             let decisions = strategy::recognize(&classification, &oos.bars, &config);
+
+            // 坐标系断裂的**全品种直接证据**（含 L2 成功的 OKLO，便于对照为何它成功）：
+            // oos_first_src = OOS 首 bar 的全集 source_index（slice 保留 load 赋值，不重置）；
+            // max_bsp_src = 全部 BspPoint.source_index 最大值（=segment.end_index，携全集偏移）。
+            // 判据：max_bsp_src ≥ bars.len ⟹ source_index 与 OOS 局部数组坐标系断裂。
+            let oos_first_src = oos.bars.first().map(|b| b.source_index).unwrap_or(0);
+            let max_bsp_src = classification
+                .levels
+                .iter()
+                .flat_map(|lv| lv.bsp.iter())
+                .map(|p| p.source_index)
+                .max()
+                .unwrap_or(0);
+            eprintln!(
+                "  [{:<5} 坐标] oos_first_src={oos_first_src} max_bsp_src={max_bsp_src} \
+                 bars.len={} 断裂={}",
+                w.symbol,
+                oos.bars.len(),
+                max_bsp_src >= oos.bars.len(),
+            );
 
             // recognize 断点子原因细分（625 铁律精确归因）：仅当「有 BSP 无决策」时，逐 point
             // 复现 strategy::recognize_point 的三道拒绝判据（同序：bits→fill→center），定位是
@@ -855,10 +887,44 @@ mod tests {
                 if coordsys_mismatch {
                     n_coordsys_mismatch += 1;
                 }
+
+                // ── 反事实对照（坐实 a/b 判定，**不改 data.rs，测试内只读重建**）──
+                // 假说：根因 = slice_date_window 保留全集 source_index（未重置为 OOS 局部下标）。
+                // 验证：构造 reindexed Dataset（source_index ← 局部下标 0..len），重跑全管线。
+                // 若 decisions 由 0 变非零 ⟹ 坐实 (b) 实现 bug（坐标系，非定义冲突、非真实拒绝）。
+                // 这不是修复（不写回 data.rs），是诊断对照——隔离「全集偏移」这一个变量。
+                let reindexed_bars: Vec<Bar> = oos
+                    .bars
+                    .iter()
+                    .enumerate()
+                    .map(|(i, b)| Bar { source_index: i, ..*b })
+                    .collect();
+                let l0_ri = parser::parse_layer(&reindexed_bars, &config);
+                let cls_ri = classifier::classify(&l0_ri, &config);
+                let dec_ri = strategy::recognize(&cls_ri, &reindexed_bars, &config);
+                if !dec_ri.is_empty() {
+                    n_fixed_by_reindex += 1;
+                }
+                eprintln!(
+                    "  [{} 反事实] 原 decisions=0；source_index←局部下标后 decisions={} ⟹ {}",
+                    w.symbol,
+                    dec_ri.len(),
+                    if dec_ri.is_empty() {
+                        "仍 0（根因非坐标系，需另查）"
+                    } else {
+                        "非零（坐实 b：slice 未重置 source_index 的实现 bug）"
+                    },
+                );
                 if let Some((src, len, oob)) = first_fail_dump {
+                    // OOS 首 bar 的全集偏移：slice_date_window 保留 load_symbol 赋的全集绝对
+                    // source_index（不重置为 0）。若 oos_first_src > 0 ⟹ OOS 是全集中段切片，
+                    // segment.end_index（=bar.source_index）携带全集偏移 ⟹ 用它索引 OOS 局部
+                    // 数组必越界。这是坐标系断裂的**直接机器证据**（非推理）。
+                    let oos_first_src = oos.bars.first().map(|b| b.source_index).unwrap_or(0);
                     eprintln!(
-                        "  [{} 坐标证据] first_fail src_idx={src} bars.len={len} oob={oob} \
-                         max_src_idx={max_src_idx} untradable_ratio={:.4} 坐标系不一致={coordsys_mismatch}",
+                        "  [{} 坐标证据] oos_first_src={oos_first_src} first_fail src_idx={src} \
+                         bars.len={len} oob={oob} max_src_idx={max_src_idx} \
+                         untradable_ratio={:.4} 坐标系不一致={coordsys_mismatch}",
                         w.symbol,
                         oos.untradable_ratio(),
                     );
@@ -949,26 +1015,51 @@ mod tests {
             eprintln!("  其中坐标系不一致品种数(max_src_idx≥bars.len): {n_coordsys_mismatch}");
         }
         eprintln!(
-            "\n诚实结论：{n_l2_orders}/{total} 品种达 L2（产订单流，扣成本指标可否证）；\
-             {l1_blocked}/{total} 品种 L1 工程层断流（引擎产信号但订单流断在 recognize.fill 层，非策略不盈利）。"
+            "\n===== 根因坐实（a/b 判定，反事实对照）====="
+        );
+        eprintln!("坐标系不一致品种数(max_bsp_src≥bars.len): {n_coordsys_mismatch}");
+        eprintln!(
+            "反事实修复品种数(source_index←局部下标后 decisions 转非零): {n_fixed_by_reindex}"
         );
 
-        // ★矛盾上浮候选（no-workaround / testing-override）：7/8 品种 recognize 断点的根因
-        // **不是** classifier 塌缩（它产了数百万 BSP），而是 BspPoint.source_index 的坐标系与
-        // 回测 bars 坐标系不一致——max_src_idx 达 bars.len 的约 3 倍（untradable_ratio≈0，排除
-        // 数据稀缺）。fill_bar_index(source_index, bars) 因 source_index 越界对**每个** point
-        // 返回 None ⟹ 零决策。修复需改 source_index 的坐标系定义/边界（segment.end_index 基准
-        // vs 回测 bars 基准）或在 fill 前插坐标映射——这改变定义含义/边界，属定义冲突而非实现
-        // bug，故**不在本回测工位打补丁让它产决策**（625 铁律 + no-workaround）。如实标注上浮。
-        if n_coordsys_mismatch > 0 {
+        // ★根因坐实（**坐实 b：L1 实现 bug，非 a 真实拒绝、非定义冲突**）：
+        // 反事实对照决定性——仅把 source_index 从「全集绝对偏移」改为「OOS 局部下标」（管线
+        // 其余完全不变），7 品种 decisions 由 0 全部转非零（百万级，每 bsp 产决策）。
+        //
+        // 根因链（机器证据，非推理）：
+        //   1. load_symbol(data.rs:206) 赋 Bar.source_index = 全数据集绝对下标 i；
+        //   2. slice_date_window(data.rs:106) 切 OOS 时 `bars.push(*b)` **保留**全集 source_index，
+        //      未重置为局部下标 ⟹ oos.bars[0].source_index = 全集偏移（BTC=2,817,999>bars.len）；
+        //   3. parse_layer 链（inclusion/fractal/stroke/segment）信任 bar.source_index 字段（非
+        //      数组下标），故 BspPoint.source_index(=segment.end_index) 携带全集偏移；
+        //   4. recognize_point → fill_bar_index(source_index, oos.bars) 用全集偏移索引 OOS 局部
+        //      数组 ⟹ source_index≥bars.len ⟹ 越界返 None ⟹ 全决策被吞 ⟹ 零订单。
+        //
+        // 判据（testing-override）：修复 = slice_date_window 重置 source_index 为局部下标。局部
+        // 下标**满足** source_index 定义（reference:16「单序列内唯一单调平局键」，不要求全集绝对
+        // 位置）⟹ **不改任何定义含义/边界** ⟹ **实现 bug（b），正常修复，不上浮**。
+        //
+        // 修复位置 = data.rs::slice_date_window（**非本工位 owner，引擎层数据装配**）⟹ 移交下游
+        // 工位修，本回测工位**不跨文件改、不在测试内打补丁伪造 L2**（工位边界 + 不伪造结果）。
+        if n_fixed_by_reindex > 0 {
             eprintln!(
-                "\n★ 矛盾上浮候选：{n_coordsys_mismatch}/{total} 品种 source_index 坐标系 ≠ 回测 bars \
-                 坐标系（max_src_idx≈3×bars.len，untradable≈0）。BspPoint.source_index 取自 \
-                 segment.end_index，其基准与切片后回测 bars 的索引基准不一致 ⟹ fill_bar_index \
-                 全越界 ⟹ 零决策。这是**定义层坐标系冲突**（非 classifier 塌缩、非数据稀缺、\
-                 非策略不盈利），修复需改 source_index 坐标系定义/边界 ⟹ 走矛盾上浮，不在回测层打补丁。"
+                "\n★ 根因坐实(b L1实现bug)：{n_fixed_by_reindex}/{total} 品种因 slice_date_window 未重置 \
+                 source_index（保留全集绝对偏移）致 fill_bar_index 越界吞决策。反事实修复后全部产决策。\
+                 非「引擎产不出信号」、非「策略不盈利」、非定义冲突。修复=data.rs::slice_date_window \
+                 重置 source_index 为局部下标（满足 reference:16 定义，不改定义）⟹ 移交引擎层工位。"
             );
         }
+
+        // ★★ OKLO 的 L2 标注复核（Lead 警告点）：OKLO max_bsp_src=343217≥bars.len=268411 **同样
+        // 坐标系断裂**。其 154218 decisions / strat=-0.12% 仅覆盖 OOS 中 source_index<bars.len 的
+        // 前段信号（oos_first_src=74871<bars.len，前 ~54% bsp 的 fill 成功），后段 source_index≥
+        // bars.len 的信号被同一 bug 吞掉。故 **OKLO 的 strat=-0.12% 不是干净 L2 否定性结果，是坐标系
+        // 断裂下的部分信号污染回测**——L2 标注在 bug 修复前**作废**（不可作为 Θ 经验有效性证据）。
+        // 修复 slice_date_window 后重跑，全 8 品种才可能产**干净** L2。当前 #5 无任何可信 L2 结果。
+        eprintln!(
+            "\n★★ OKLO L2 标注作废：OKLO 同样坐标系断裂（max_bsp_src=343217≥bars.len），strat=-0.12% \
+             仅覆盖 OOS 前~54%（source_index<bars.len）信号，是污染结果非干净 L2。bug 修复前 #5 无可信 L2。"
+        );
 
         // 不变量：分层计数完备（每品种恰好归一类断点或 L2）。
         assert_eq!(
@@ -977,10 +1068,17 @@ mod tests {
             "分层诊断完备：每品种恰归一类（L1 断点 ∪ L2 有效 = 全集）",
         );
 
-        // 不变量：本次 L2 跑产出可证伪结果（≥1 品种达 L2 = 真实数据 + 非空订单流，acceptance #5）。
+        // 不变量（坐实 b，非 a/非定义冲突）：所有坐标系断裂的品种，反事实重置 source_index 后
+        // 全部转产决策——证明根因唯一（slice 未重置 source_index 的实现 bug），非真实拒绝、非
+        // 定义冲突。这是本测试的核心断言（acceptance #5 的根因坐实，非「产 L2」——L2 因 bug 污染）。
+        assert_eq!(
+            n_fixed_by_reindex, n_coordsys_mismatch,
+            "根因坐实：坐标系断裂品种({n_coordsys_mismatch}) 全部经 reindex 反事实转产决策({n_fixed_by_reindex}) \
+             ⟹ 唯一根因=slice 未重置 source_index（实现 bug，非定义冲突）",
+        );
         assert!(
-            n_l2_orders >= 1,
-            "acceptance #5：至少一品种端到端产订单流（L2 可证伪），实测 {n_l2_orders}",
+            n_coordsys_mismatch >= 1,
+            "本次 L2 跑揭示 ≥1 坐标系断裂品种（可证伪诊断结果），实测 {n_coordsys_mismatch}",
         );
     }
 }
