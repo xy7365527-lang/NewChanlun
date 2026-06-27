@@ -81,6 +81,25 @@ def test_base_head_mismatch_flags_stale():
     assert out_match["current_goal"]["base_head_stale"] is False
     assert out_stale["current_goal"]["base_head_stale"] is True
 
+def test_reads_legacy_degraded_schema_without_crash():
+    # 真实 events.jsonl 形态（630 开口①：写路径未实装→actor 手搓后期事件退化为
+    # sub_goal_id+artifact，丢失 goal_id/description/acceptance/base_head）。reducer 作为
+    # event-sourcing reader 必须向后兼容多 schema 版本：算出最新未被 supersede 的 goal id
+    # 不崩；退化事件无结构化 acceptance → [] 诚实暴露（terminated 保守 False，不静默当
+    # 0 验收已通过——非补丁掩盖）。这是 L2 真实数据（不是 L1 合成）才暴露的 reader 缺口。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g-old", "description": "x",
+         "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "h0", "ts": "t0"},
+        {"event": "SUPERSEDE", "sub_goal_id": "g-old", "artifact": "升级替代", "ts": "t1"},
+        {"event": "GOAL_SET", "sub_goal_id": "g-new", "artifact": "新 goal 叙事", "ts": "t2"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["goal_id"] == "g-new"  # 最新未被 supersede 的 goal
+    assert out["current_goal"]["status"] == "active"  # acceptance 缺失 → 保守 not closed
+    assert out["current_goal"]["acceptance"] == []  # 退化事件无结构化验收（诚实暴露）
+    assert out["current_goal"]["description"] == "新 goal 叙事"  # artifact fallback 作 description
+    assert out["terminated"] is False
+
 def test_sub_goal_check_name_collision_does_not_close_goal():
     # sub_goal 的 check 名与 goal acceptance check 名相同，但 CHECK_PASS 只 target sub_goal，
     # 不应误判 goal acceptance 通过（gid-only 匹配，SCHEMA 未定义跨节点 rollup）。
