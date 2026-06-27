@@ -95,6 +95,23 @@ impl Dataset {
     /// 返回新 `Dataset`（immutable，coding-style：不就地改）。窗为空时返回空 bars 的
     /// Dataset（调用方据 §5.5 判 inconclusive，**不 panic**——空窗是合法的"该品种该窗无
     /// 数据"，区别于切片口径错误）。
+    ///
+    /// ## source_index 重置为切片局部下标（坐标系契约，acceptance #5 实证坐实）
+    ///
+    /// `Bar.source_index` 在本系统承担**双语义**，二者在切片后必须一致：
+    /// 1. **局部数组下标**：下游 `exec::fill_bar_index(source_index, bars, ..)` 用
+    ///    `bars[source_index]` **直接索引当前 Dataset 的 bars 数组**（非跨 Dataset 溯源）。
+    /// 2. **平局裁决键**（reference:16）：`(timestamp, source_index)` 单序列内唯一单调裁平局。
+    ///
+    /// `load_symbol` 对全集 Dataset 赋 `source_index = i`（全集数组下标），二语义在全集上一致。
+    /// 切片若只 `push(*b)` **保留全集偏移**，则切片后 `source_index ≠ 局部数组下标`
+    /// （OOS 首 bar 的全集偏移可达数百万 > `bars.len()`），下游 `bars[source_index]` 越界、
+    /// `fill_bar_index` 对**每个** point 返 `None` ⟹ 全决策被吞（acceptance #5 实测：8 品种
+    /// 全部 `decisions=0`，反事实重置 source_index 后 7 品种 decisions 转百万级，坐实根因唯一）。
+    ///
+    /// 故切片**重置 `source_index` 为局部 enumerate 下标 `0..len`**：既复原「= 局部数组下标」
+    /// 语义（下游索引合法），又仍满足 reference:16（`0..len` 严格单调唯一，是合法平局键）——
+    /// 不改 source_index 的任何**定义**含义，只把切片实现对齐到既有契约。
     pub fn slice_date_window(&self, day_start: &str, day_end: &str) -> Dataset {
         assert!(
             day_start <= day_end,
@@ -105,7 +122,13 @@ impl Dataset {
         for (i, b) in self.bars.iter().enumerate() {
             let day = self.dates[i].get(..10).unwrap_or("");
             if day >= day_start && day <= day_end {
-                bars.push(*b);
+                // source_index ← 切片局部下标（= 新 bars 数组下标，下游 bars[source_index]
+                // 合法），复原全集 Dataset 上 `source_index == 数组下标` 的契约。
+                let local_index = bars.len();
+                bars.push(Bar {
+                    source_index: local_index,
+                    ..*b
+                });
                 dates.push(self.dates[i].clone());
             }
         }
