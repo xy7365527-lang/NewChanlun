@@ -17,16 +17,16 @@
 //! 后段力度面积严格小于前段 ⟹ 背驰。本文件把 MACD 段面积（`divergence::segment_macd_area`）
 //! 包成满足 `ForceMeasure` 接口语义（`mono`/`faithful` 公理）的 rust 适配器。
 //!
-//! ## ★Lean 半待对齐依赖（no-workaround 诚实声明）
+//! ## ★Lean 半状态与 bit-exact 对齐（no-workaround 诚实声明）
 //!
-//! force-conformance 工位的 **Lean 半**（`formal/Origin/ForceConformance.lean`：把 MACD area 度量
-//! 形式化为 `ForceMeasure` 的具体实例 + 证它满足 mono/faithful + 与 Rust 段面积 bit-exact 对齐）
-//! **当前不存在**（已核实 `formal/Origin/ForceConformance.lean` 缺失）。本文件是 **rust 半**：
-//! 在 Rust 侧把 MACD 段面积包成满足 ForceMeasure 接口语义的适配器并验证公理。
-//!
-//! 完整 force-conformance（Rust↔Lean bit-exact 对齐）**待 Lean 半 `Origin/ForceConformance.lean`
-//! 落地**——本文件**不**冒充已与 Lean 对齐（rust 半独立成立：MACD area 度量满足 ForceMeasure
-//! 接口的 mono/faithful 公理；Lean 半由另一工位写）。这是诚实的有效域边界，非补丁。
+//! - **Lean 半已存在**：`formal/Origin/ForceConformance.lean` 已落地，`lake env lean` 通过（L0）。
+//!   内容：conformance 关系代数性质（自反/对称/传递）+ `MacdForceMeasureWitness`（L2 假设载体）+
+//!   `MacdConformsTo`（未证命题）。
+//! - **Rust↔Lean bit-exact 对齐仍是 L2 未验证假设**：`MacdConformsTo` 在 Lean 中是 Prop（未证
+//!   定理），`MacdForceMeasureWitness` 是显式 L2 假设（ForceConformance.lean 不构造其实例）。
+//!   「rust MACD 是 ForceMeasure 合法实例 + 与 Lean 判据一致」需真实 K 线 L2 验证，当前未验证。
+//! - **本文件（rust 半）独立成立**：MACD area 适配器满足 ForceMeasure 接口的 mono/faithful
+//!   公理，L1 逐例验证。rust 半不依赖 Lean 半，Lean 半的 L2 前件由外部数据验证工位填充。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!

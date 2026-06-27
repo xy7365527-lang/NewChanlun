@@ -106,9 +106,13 @@ pub fn structural_stop(side: StopSide, bits: &BspBits, stop_in: &StopInput) -> O
 /// sizing 输入（reference-theta-v0.md:47）。
 ///
 /// 字段语义：
-/// - `nav`：账户净值 NAV（账户层状态，Θ 之外的运行时输入）。
+/// - `nav`：账户净值 NAV（账户层状态，Θ 之外的运行时输入）。单位：**美元**。
 /// - `entry`：入场价（整数 tick；>0 必要——分母）。
 /// - `stop`：结构止损价（`structural_stop` 产出，整数 tick）。
+/// - `tick_size`：价格最小变动单位（`config.tick.tick_size`）。用于把整数 tick 转换为
+///   美元价格（`entry_tick * tick_size` = 美元价格），与 NAV 量纲对齐。
+///   sizing 公式 `floor(w·γ·NAV/entry)` 中的 `entry` 是**美元价格**而非 tick 整数，
+///   公式 `floor(ρ·NAV/|entry-stop|)` 中的 `|entry-stop|` 是**美元亏损**（tick差×tick_size）。
 /// - `cost_per_unit`：每单位成本（commission+slippage+tax 折算，账户/Θ_exec 参数）。
 /// - `w_depth`：声部深度资金权重（`voice::depth_weight`，spec:42）。
 /// - `parent_cap`：父声部仓位上限（父子比 β 投影，spec:45；β 在调用方按 `parent_qty*β` 算好）。
@@ -117,6 +121,8 @@ pub struct SizingInput {
     pub nav: f64,
     pub entry: Tick,
     pub stop: Tick,
+    /// 价格最小变动单位（美元/tick）。用于把 tick 整数转换为美元价格与 NAV 量纲对齐。
+    pub tick_size: f64,
     pub cost_per_unit: f64,
     pub w_depth: f64,
     pub parent_cap: i64,
@@ -124,15 +130,22 @@ pub struct SizingInput {
 
 /// sizing：唯一目标手数 qty（bit-exact 对齐 reference-theta-v0.md:47 + Origin.RiskProj）。
 ///
-/// `qty = min(floor(ρ*NAV/(|entry-stop|+κ*cost_per_unit)),
-///            floor(w_depth*γ*NAV/entry),
+/// `qty = min(floor(ρ*NAV/(|entry-stop|*tick_size+κ*cost_per_unit)),
+///            floor(w_depth*γ*NAV/(entry*tick_size)),
 ///            parent_cap)`
 ///
+/// ★量纲修正（工程层 sizing 门控根因，L2 OKLO 诊断 2026-06-27）：
+/// spec:47 的公式 `ρ·NAV/|entry-stop|` 和 `w·γ·NAV/entry` 中的分母是**美元**量纲——
+/// `|entry-stop|` 是每手最大亏损（美元），`entry` 是入场价（美元）。Rust 实装用整数
+/// tick，必须乘以 `tick_size`（美元/tick）才能与 NAV（美元）量纲对齐。
+/// 量纲不对齐时（如 tick_size=1e-8，OKLO 价格~$10 → entry_tick~1e9 >> NAV=1e6），
+/// 项2分母 >> 分子，floor → 0，令 sizing 永不开仓（工程层门控，非 Θ 经验否证）。
+///
 /// 三路上界（风险投影的三个约束，Origin.RiskProj 网格 𝒦 的可行格点上界）：
-/// 1. **风险预算**：单声部风险 ρ·NAV 除以每手最大亏损（`|entry-stop| + κ·cost`）——
+/// 1. **风险预算**：单声部风险 ρ·NAV 除以每手最大亏损（`|entry-stop|*tick_size + κ·cost`）——
 ///    保证单声部亏损 ≤ ρ·NAV（spec:45 单声部风险）。
-/// 2. **名义上限**：`w_depth·γ·NAV / entry`——深度资金帽 × 总名义上限 γ 除以入场价
-///    （spec:42 资金帽 + spec:45 总名义上限 γ）。
+/// 2. **名义上限**：`w_depth·γ·NAV / (entry*tick_size)`——深度资金帽 × 总名义上限 γ 除以
+///    入场美元价（spec:42 资金帽 + spec:45 总名义上限 γ）。
 /// 3. **父子约束**：`parent_cap`（父子仓位比 β 投影的上界，spec:45）。
 ///
 /// `qty <= 0 ⟹ 不交易`（返回 0，spec:47）。三路 min 是 Origin.RiskProj `riskproj_exists_unique`
@@ -141,19 +154,14 @@ pub struct SizingInput {
 ///
 /// ## bit-exact 浮点约简顺序（spec:47 未钉死括号，本实装固定为下列顺序 [设计选择]）
 ///
-/// spec:47 的公式 `floor(ρ*NAV/(...))` / `floor(w_depth*γ*NAV/entry)` **未明确括号结合序**。
 /// 本实装把约简顺序**固定**为（bit-exact 的设计选择，Cargo.toml 已禁浮点重排）：
-/// - 项 1 分母：先 `|entry-stop|`（整数 tick → f64），再 `+ κ·cost`（先乘 `κ·cost` 后加）；
-///   分子 `ρ·NAV`（先乘）；除后 `floor`。
-/// - 项 2：`((w_depth·γ)·NAV) / entry`（**左结合**，先 `w_depth·γ`，再 `·NAV`，再 `/entry`），
-///   后 `floor`。
-///
-/// 这个左结合顺序是**确定选择**（非 spec 推论）——同一 Θ + 输入恒产出同一 qty（bit-exact）。
-/// 若需与其他实装（如 Lean fixture 或 Python 参考）对齐到 bit，须共享此括号约定。
+/// - 项 1 分母：先 `|entry-stop| as f64 * tick_size`，再 `+ κ·cost`；分子 `ρ·NAV`；除后 `floor`。
+/// - 项 2：`((w_depth·γ)·NAV) / (entry as f64 * tick_size)`（左结合），后 `floor`。
 ///
 /// 边界条件：
 /// - `entry <= 0` ⟹ 项 2 分母非正，返回 0（不交易；入场价须为正 tick）。
-/// - 项 1 分母 `|entry-stop| + κ·cost = 0`（entry=stop 且 cost=0）⟹ 风险预算无界，
+/// - `tick_size <= 0` ⟹ 量纲无效，返回 0（保护边界）。
+/// - 项 1 分母 `|entry-stop|*tick_size + κ·cost = 0`（entry=stop 且 cost=0）⟹ 风险预算无界，
 ///   项 1 不约束（取 i64::MAX），由项 2/3 约束。
 /// - `default_lot`（spec:47）：qty>0 时按 lot 取整——qty 向下取整到 lot 的整数倍
 ///   （`default_lot=1` 时无影响）。
@@ -161,21 +169,28 @@ pub fn size_position(input: &SizingInput, config: &RiskConfig) -> i64 {
     if input.entry <= 0 {
         return 0;
     }
+    if input.tick_size <= 0.0 {
+        return 0; // 量纲无效（tick_size 必须正数）
+    }
 
-    // ── 项 1：风险预算上界 floor(ρ*NAV / (|entry-stop| + κ*cost_per_unit)) ──
-    let risk_dist = (input.entry - input.stop).abs() as f64; // |entry-stop|，整数 tick → f64
-    let denom1 = risk_dist + config.kappa * input.cost_per_unit; // 先乘 κ·cost 后加
+    // ── 项 1：风险预算上界 floor(ρ*NAV / (|entry-stop|*tick_size + κ*cost_per_unit)) ──
+    // |entry-stop|*tick_size = 每手最大亏损（美元），与 NAV（美元）量纲一致。
+    let risk_dist_ticks = (input.entry - input.stop).abs() as f64; // tick 差，整数 → f64
+    let risk_dist_usd = risk_dist_ticks * input.tick_size; // 美元亏损（量纲对齐）
+    let denom1 = risk_dist_usd + config.kappa * input.cost_per_unit; // 先乘 κ·cost 后加
     let bound1: i64 = if denom1 <= 0.0 {
         // 分母非正（entry=stop 且 cost=0）：风险预算不约束。
         i64::MAX
     } else {
-        let numer1 = config.rho * input.nav; // ρ·NAV
+        let numer1 = config.rho * input.nav; // ρ·NAV（美元）
         floor_nonneg(numer1 / denom1)
     };
 
-    // ── 项 2：名义上限 floor(w_depth*γ*NAV / entry) ──
+    // ── 项 2：名义上限 floor(w_depth*γ*NAV / (entry*tick_size)) ──
+    // entry*tick_size = 入场美元价，与 NAV（美元）量纲一致。
+    let entry_usd = input.entry as f64 * input.tick_size; // 美元价格（量纲对齐）
     let numer2 = input.w_depth * config.gamma * input.nav; // (w_depth·γ)·NAV，左结合
-    let bound2: i64 = floor_nonneg(numer2 / (input.entry as f64));
+    let bound2: i64 = floor_nonneg(numer2 / entry_usd);
 
     // ── 项 3：父子约束 parent_cap ──
     let bound3 = input.parent_cap;
@@ -295,14 +310,15 @@ mod tests {
     #[test]
     fn sizing_risk_budget_binds() {
         let cfg = RiskConfig::default(); // ρ=0.005, β=0.5, γ=1.0, κ=2.0, lot=1
-        // NAV=1_000_000, entry=100, stop=90 (|d|=10), cost=0。
-        // 项1 = floor(0.005*1e6 / (10 + 2*0)) = floor(5000/10) = 500。
-        // 项2 = floor(0.6*1.0*1e6 / 100) = floor(6000) = 6000。
+        // NAV=1_000_000, entry=100 tick（tick_size=1.0 ⟹ entry_usd=100），stop=90（|d_usd|=10），cost=0。
+        // 项1 = floor(0.005*1e6 / (10*1.0 + 2*0)) = floor(5000/10) = 500。
+        // 项2 = floor(0.6*1.0*1e6 / (100*1.0)) = floor(6000) = 6000。
         // 项3 = MAX。 min = 500。
         let inp = SizingInput {
             nav: 1_000_000.0,
             entry: 100,
             stop: 90,
+            tick_size: 1.0, // 测试用 tick_size=1 ⟹ tick=美元，期望值不变
             cost_per_unit: 0.0,
             w_depth: 0.6,
             parent_cap: i64::MAX,
@@ -314,13 +330,13 @@ mod tests {
     #[test]
     fn sizing_notional_cap_binds() {
         let cfg = RiskConfig::default();
-        // entry=100, stop=99 (|d|=1) ⟹ 项1 = floor(5000/1)=5000；
-        // 项2 = floor(0.6*1e6/100)=6000... 让项2更紧：用小 w_depth。
-        // w_depth=0.1: 项2 = floor(0.1*1e6/100)=1000；项1=5000 ⟹ min=1000。
+        // entry=100, stop=99 (|d_usd|=1*1.0=1) ⟹ 项1 = floor(5000/1)=5000；
+        // w_depth=0.1: 项2 = floor(0.1*1e6/(100*1.0))=1000；项1=5000 ⟹ min=1000。
         let inp = SizingInput {
             nav: 1_000_000.0,
             entry: 100,
             stop: 99,
+            tick_size: 1.0,
             cost_per_unit: 0.0,
             w_depth: 0.1,
             parent_cap: i64::MAX,
@@ -336,6 +352,7 @@ mod tests {
             nav: 1_000_000.0,
             entry: 100,
             stop: 90,
+            tick_size: 1.0,
             cost_per_unit: 0.0,
             w_depth: 0.6,
             parent_cap: 50, // 比项1=500、项2=6000 都小
@@ -351,6 +368,7 @@ mod tests {
             nav: 1_000_000.0,
             entry: 100,
             stop: 90,
+            tick_size: 1.0,
             cost_per_unit: 0.0,
             w_depth: 0.6,
             parent_cap: 0,
@@ -366,6 +384,7 @@ mod tests {
             nav: 1_000_000.0,
             entry: 0,
             stop: -10,
+            tick_size: 1.0,
             cost_per_unit: 0.0,
             w_depth: 0.6,
             parent_cap: i64::MAX,
@@ -393,6 +412,7 @@ mod tests {
             nav: 1_000_000.0,
             entry: 100,
             stop: 90,
+            tick_size: 1.0,
             cost_per_unit: 0.0,
             w_depth: 0.6,
             parent_cap: i64::MAX,

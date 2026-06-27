@@ -323,10 +323,12 @@ fn build_open_order(
     };
 
     // sizing（riskProj，唯一总仓位）。
+    // tick_size 把整数 tick 价还原为美元，与 NAV（美元）量纲对齐（spec:47 分母是美元价格）。
     let sizing = SizingInput {
         nav: account.nav,
         entry: d.entry,
         stop,
+        tick_size: config.tick.tick_size,
         cost_per_unit: d.cost_per_unit,
         w_depth: voice::depth_weight(d.depth, &config.voice),
         parent_cap,
@@ -682,9 +684,13 @@ mod tests {
     }
 
     /// golden：单根声部 1 买 open → 一条 Buy 订单，qty=sizing，exec_index=signal+1。
+    ///
+    /// ★tick_size=1.0（tick=美元）：本测试的 entry=100/stop=90 是美元值（非 1e-8 tick）。
+    /// sizing 公式要求 entry/stop 单位为美元（与 NAV 量纲对齐），故用 tick_size=1.0。
     #[test]
     fn plan_orders_single_buy_open_golden() {
-        let cfg = ThetaConfig::default();
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0; // 测试中 entry/stop 是美元值（tick_size=1 ⟹ tick=美元）
         let bars = vec![
             tradable_bar(0, 0, 100, 110, 90, 105),
             tradable_bar(1, 1, 101, 111, 99, 108),
@@ -697,8 +703,10 @@ mod tests {
         assert_eq!(orders.len(), 1);
         let o = orders[0];
         assert_eq!(o.action, StrictAction::Buy);
-        // sizing：entry=100, stop=90 (|d|=10), cost=0 ⟹ 项1=floor(0.005*1e6/10)=500；
-        // 项2=floor(0.6*1.0*1e6/100)=6000；项3=MAX ⟹ qty=500。
+        // sizing（tick_size=1.0）：entry_usd=100, |d_usd|=10, cost=0。
+        // 项1 = floor(0.005*1e6 / 10) = 500。
+        // 项2 = floor(0.6*1.0*1e6 / 100) = 6000。
+        // 项3 = MAX ⟹ qty = min(500,6000,MAX) = 500。
         assert_eq!(o.qty, 500);
         // 延迟 1 根 ⟹ 成交在 signal_index+1 = 1。
         assert_eq!(o.exec_index, 1);

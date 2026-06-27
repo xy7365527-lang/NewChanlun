@@ -80,6 +80,11 @@ teach 每一课结尾的「**带走的锋利问题**」不只是给编排者学�
 
 - **#89（2026-06-26，cc-gap89-recursion，方向B）→ PASS（窗口化递归忠实实装）**：lesson 0002 的锋利问题（「给我长度≥2 + 每上级≥3 不同 witness」）被**机器见证**回答——`xs9`（9 个不同 segment）→ `composeStep` 产 **3 个**上级（`xs9_multi_upper`，rfl）+ 每上级 3 个**不同**下级（`xs9_each_upper_three_distinct_subs`，injection+omega）+ `MovesComposedFrom` 全约束（3*3≤9）+ 真派生中枢（非 `canG=[]`）。从「单窗口 length≤1 聚合退化」升级为窗口化多上级序列，54 jobs 绿零 sorry。对比上轮 cc-foundation-faithful 的 FAIL（`[compose xs]` 单窗口聚合）——同一锋利问题，这次给出了见证。**督导闸把「去风险（裁决A）」与「已实装（机器见证）」分开，逼出了真实装。**
 
+- **0011（2026-06-27，《从中断点继续 · /goal · 指令工具箱》）→ 施加于本轮 `/goal`=完全分类+全定义策略 完整形式化+实装+真证明**：两把锋利问题反向督导本轮——
+  ① **恢复核 git 真相还是 session 自述？** 本轮活体：Lead 差点照搬 session（停 `423597858e`），核 `git log` 才见 A′ 收口轮（`4318b4efad`）整轮工作在 session 之后——**核 git 真相纪律生效，避免漏一轮**（memory async-swarm-report-git-truth）。
+  ② **`/goal` 的「目标达成」有可验收交付物吗？** 本轮 goal 验收 = 真数学证明（非 L0 骨架/退化桩）+ rust bit-exact 实装 + 关 #89/#90/#91。
+  ⚠ **关键 port 真相督导**：#89（B批 PASS@Strict/Foundation）/ #91（B批诚实降级：`both_directions_fail` ↔双向皆假@Strict）/ #90（0005 PASS@TotalWealth）**均已在 B批/A′ 处理，但都在 Strict/Foundation 或 A′ 前态**——gap-audit（#10）须核 **port 到 Origin canonical 后是否保持**，禁把「Strict 上 PASS」冒充「Origin 上 PASS」（090 声明膨胀 + 619 port 忠实性待验证）。真正的大 gap 在 #113 分类血肉（A′ 重点 wave 已港入，需核 L1 真编码 vs L0 桩）+ #114 策略组件（π_Θ/C_Θ/RiskProj/VoiceTree port 到 Origin 的忠实性）。
+
 ## 后续
 
 每新增一课，在此追加一行；缺口入 TaskList 追踪。本回路的元模式（教学方法结晶 → 反向督导）可由 meta-observer 适时上升为蜂群常设结构。

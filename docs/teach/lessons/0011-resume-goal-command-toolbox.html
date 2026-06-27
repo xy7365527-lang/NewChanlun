@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0011 课 · 从中断点继续 · /goal · 你的指令工具箱</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* 本课特有：命令工具箱三层分类表 */
+.cmd{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+.cmd td,.cmd th{border:1px solid var(--rule);padding:8px 10px;vertical-align:top}
+.cmd th{background:#f0ebe0}
+.cmd code{white-space:nowrap}
+.layer-a{background:#eef1f5}
+.layer-b{background:#f5eef0}
+.layer-c{background:#f1f3ee}
+.star{color:var(--accent);font-weight:700}
+</style>
+</head>
+<body>
+
+<h1>从中断点继续 · <code>/goal</code> · 你的指令工具箱</h1>
+<p class="sub">第 0011 课 · 你这次会话刚亲手做过的三件事，现在变成你随时能用、能拿来盘问蜂群的工具</p>
+
+<p class="lede">这一课跟前面几课不一样——它不教数学，教<strong>怎么开蜂群这台机器</strong>。
+你刚在这次会话里做了三件事：从一次「没保存就关机」里<strong>恢复</strong>、用 <code>/goal</code> 让蜂群<strong>持续跑下去</strong>、还顺手用了一串<strong>命令</strong>。
+这一课把它们钉成台账，并且——按本工作区的规矩（<a href="../supervision-loop.md">督导回路</a>）——每个工具都配一把<strong>能盘问蜂群的锋利问题</strong>。</p>
+
+<h2>1. 从中断点继续：<code>/ceremony</code> 热启动</h2>
+<p>「之前没保存就关机」听起来像灾难。其实不是。蜂群的恢复有一条铁律：
+<strong>session 文件只是<em class="g">指针</em>，git commit 才是<em class="g">地面真相</em>。</strong>
+你手动存没存 session，决定的只是「指针新不新」，不决定「工作丢没丢」——工作早在每个 <code>git commit</code> 里。</p>
+
+<p>你输入 <code>/ceremony</code> 时，它自动判断冷/热启动：</p>
+<div class="flow">
+<span class="stage">1 检测</span> 扫 <code>.chanlun/sessions/*-session.md</code> —— 有 → 热启动（L2 恢复，<b>不等你确认</b>）<br>
+<span class="stage">2 核真相</span> <span class="arrow">→</span> 对比 session 自述的 HEAD <b>vs</b> <code>git log</code> 实际 HEAD<br>
+<span class="stage">3 谱系差</span> <span class="arrow">→</span> 对比 <code>definitions/</code> 版本 + <code>genealogy/</code> 新增（pending/settled）<br>
+<span class="stage">4 差异报告</span> <span class="arrow">→</span> 定义差 · 谱系差 · 中断点<br>
+<span class="stage">5 进循环</span> <span class="arrow">→</span> <code>ceremony_scan.py</code> 评估工位 → spawn
+</div>
+
+<div class="warn">
+<b>这次的活体教训（你亲眼见的）。</b>session 文件停在 <code>423597858e</code>（08:36 快照），
+但 <code>git log</code> 显示之后还有一个 <code>4318b4efad</code>「A′ 收口轮」（09:44）——
+<strong>真正的工作发生在 session 之后</strong>。如果照搬 session 的中断点，会漏掉整整一轮收口。
+所以第 2 步「核 git 真相」不是装饰：<strong>谁信了 session 的自述时间线、没核 git，谁就丢了一轮工作。</strong>
+</div>
+
+<p>同理，<code>genealogy/pending/</code> 里悄悄多出了 622–626 五条——这些是关机前那轮的发现史，
+session 表格里没有，只有扫 <code>pending/</code> 目录才看得到。<strong>恢复 = 读三个真相源（git + definitions + genealogy），不是读一个 session 文件。</strong></p>
+
+<h2>2. <code>/goal</code> 怎么用</h2>
+<p><code>/goal</code> 是这次会话<strong>新造</strong>的指令（<code>.claude/commands/goal.md</code>）。
+它解决一个具体痛点：你不想每一步都来按一次「继续」。它让蜂群<strong>认准一个目标，自己一轮一轮跑，跑到达成为止</strong>。</p>
+
+<pre>/goal &lt;目标描述&gt;     # 设定一个收敛目标，蜂群持续自跑
+/goal                # 不带参 → 从当前路线 + 中断点自动推导目标</pre>
+
+<p>设定后，Lead 进入一条<strong>不被打断的循环</strong>（每轮是一个原子链）：</p>
+<div class="flow">
+<span class="stage">评估</span> 目标达成？达成→交付+停 <span class="arrow">│</span>
+<span class="stage">scan</span> <span class="arrow">→</span> <span class="stage">spawn</span>（无依赖工位全并行）<span class="arrow">→</span>
+<span class="stage">监控</span> <span class="arrow">→</span> <span class="stage">真封</span>（全量 lake+cargo）<span class="arrow">→</span>
+<span class="stage">commit</span> <span class="arrow">→</span> 回到「评估」
+</div>
+
+<p>关键在<strong>它什么时候<em>停</em></strong>——只有三种合法停止，没有第四种：</p>
+<table>
+<tr><th>停止条件</th><th>动作</th></tr>
+<tr><td><b>目标达成</b></td><td>输出<em class="g">可验收交付物</em> + 状态快照</td></tr>
+<tr><td><b>真实矛盾</b></td><td><code>/escalate</code>（定义冲突 / 需你做价值判断 / 缺外部数据）</td></tr>
+<tr><td><b>资源耗尽</b></td><td>报进度 + 剩余工位 + 精确 blocker</td></tr>
+</table>
+
+<div class="key">
+<b>为什么 <code>/goal</code> 能成立。</b>第 0010 课你学过：结构工位有「<strong>持续监控</strong>」这一格在平台上<strong>没有承载者</strong>（工位跑完就结束，没有插话的手）。
+<code>/goal</code> 正是补这一格——不是让工位常驻，而是让 <strong>Lead 自己的运行时</strong>充当那个「一直盯着、一轮轮推」的主体（624号 / <a href="0004a-why-structural-workstations-dont-autostart.html">0004a</a> 的「唯一修 = Lead 操作化 DAG 解释器纪律」）。
+</div>
+
+<p>用 <code>/goal</code> 时给的目标必须是<strong>收敛的</strong>——单一、可验收。
+本轮的 goal 是「<code>theta_v0</code> 引擎在 8 品种真实数据上的 <span class="lvl l2">L2</span> 回测可证伪」，验收物是「真实回测结果 + 分层归因」。
+宏大愿景（「做出会盈利的系统」「让逢亮活起来」）<strong>不能直接当 goal</strong>——它们拆成里程碑，<code>/goal</code> 一次只咬一个（你这次就把它收敛到 M1，没让它咬 M2 选股）。</p>
+
+<h2>3. 你的指令工具箱（还有哪些好用的）</h2>
+<p>蜂群的命令在 <code>.claude/commands/</code>。按<strong>存在论层次</strong>分三层——这个分层本身就是知识：</p>
+
+<table class="cmd">
+<tr><th>命令</th><th>做什么</th><th>什么时候用</th></tr>
+
+<tr class="layer-a"><td colspan="3"><b>A · 启动与恢复</b>（蜂群的生命周期）</td></tr>
+<tr><td><code>/ceremony</code> <span class="star">★</span></td><td>创世仪式：冷启动（首次，等你确认）/ 热启动（有 session，L2 恢复，不等确认）</td><td>每次开新会话<strong>第一件事</strong></td></tr>
+<tr><td><code>/goal</code> <span class="star">★</span></td><td>设定收敛目标，蜂群持续自跑到达成</td><td>你想让它「自己跑下去」、不逐步盯</td></tr>
+<tr><td><code>/checkpoint</code></td><td>保存中断点（precompact 前主动存指针）</td><td>预感要 compact / 关机前</td></tr>
+
+<tr class="layer-b"><td colspan="3"><b>B · 质询与矛盾</b>（蜂群的<em>核心价值</em>——矛盾是最有价值的产出）</td></tr>
+<tr><td><code>/inquire</code> <span class="star">★</span></td><td>四步质询序列（系统化盘问一个产出/定义）</td><td>你怀疑某个形式化「不够严格」</td></tr>
+<tr><td><code>/challenge</code></td><td>反向质询（异质角度找裂隙，不给答案只制造裂隙）</td><td>产出太顺、想找它的不可消化点</td></tr>
+<tr><td><code>/escalate</code> <span class="star">★</span></td><td>矛盾上浮：生成「什么跟什么不可调和」的报告</td><td>遇到<strong>真</strong>矛盾（定义冲突，非 bug）</td></tr>
+<tr><td><code>/ritual</code> <span class="star">★</span></td><td>定义广播仪式：结算谱系（pending→settled）</td><td><strong>只有你能做</strong>——蜂群不擅自结算</td></tr>
+
+<tr class="layer-c"><td colspan="3"><b>C · 工程执行</b>（ECC 底座，受元编排约束）</td></tr>
+<tr><td><code>/plan</code></td><td>实现规划（多模型对审：Opus 方案 + Codex 评审）</td><td>动手前，复杂功能/重构</td></tr>
+<tr><td><code>/tdd</code></td><td>测试驱动开发（先测后码）</td><td>新功能 / 修 bug</td></tr>
+<tr><td><code>/code-review</code> · <code>/verify</code></td><td>代码审查 / 验证</td><td>写完代码后</td></tr>
+<tr><td><code>/build-fix</code> · <code>/refactor-clean</code> · <code>/update-docs</code></td><td>修构建 / 清死代码 / 更文档</td><td>对应工程场景</td></tr>
+<tr><td><code>/ceremony-scan-completeness</code></td><td>检查 ceremony 扫描有没有漏工位</td><td>怀疑 scan 不全</td></tr>
+</table>
+
+<p>带 <span class="star">★</span> 的是<strong>蜂群独有、最高价值</strong>的——它们承载蜂群的存在方式（恢复、设目标、质询、结算）。
+没星的 A/B/C 之外那些（C 层）是通用工程指令，任何项目都有类似物。
+<strong>你问「有没有类似 /goal 这么实用的」——答案集中在 A 层和 B 层</strong>：
+<code>/ceremony</code> 让你开机，<code>/goal</code> 让你放手，<code>/escalate</code>+<code>/ritual</code> 让你只在「真矛盾」和「该结算」时才需要亲自出手。</p>
+
+<div class="sharp">
+<h3>带走的锋利问题 ①（恢复）</h3>
+<p>下次蜂群报「已从中断点恢复」时问它：<strong>「你恢复的依据是 session 文件的自述，还是 <code>git log</code> 的地面真相？如果 session 停在旧 HEAD、git 有更新的 commit，你信了哪个？」</strong>
+答不出「我核了 git」= 它可能丢了关机前那一轮工作。</p>
+</div>
+
+<div class="sharp">
+<h3>带走的锋利问题 ②（/goal）</h3>
+<p>蜂群说「<code>/goal</code> 持续运行中」时问它：<strong>「你的『目标达成』是一个<em>可验收的交付物</em>，还是模糊的『差不多了』？给我验收标准。」</strong>
+没有可证伪的验收 = 永动空转，会无限刷工位却永远「没达成」。收敛的 goal 必须自带「怎样算赢」。</p>
+</div>
+
+<p class="next">
+<b>主源（最高信任）</b>：<code>.claude/commands/ceremony.md</code>（恢复协议原文）+ <code>.claude/commands/goal.md</code>（你刚造的 /goal 协议）+ <a href="../supervision-loop.md">supervision-loop.md</a>（督导台账）。
+读这三个文件，就掌握了这台机器的开关。<br><br>
+<b>有不清楚的，随时问我（我是你的老师）</b>——比如「热启动为什么不等我确认？」「/goal 跑飞了怎么喊停？」「/ritual 我该怎么逐条裁决积压的 622–626？」这些都能展开成下一课。
+</p>
+
+</body>
+</html>
