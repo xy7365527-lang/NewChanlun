@@ -73,6 +73,14 @@ pub mod strategy;
 /// 模块头）。把开环单帧引擎升级为闭环——闭环态每 bar 真更新喂回。
 pub mod closed_loop;
 
+/// 完整状态/事件 schema（FULL 结果包 §3 17 分量 `x_t` + §20 8 元组 `e_{t+1}` 的逐分量显式实装，
+/// 组C 补全工位，task #43）。契约锚 **`formal/Origin/CompleteStateEvent.lean`**
+/// （`NewChanlun.Origin.CompleteStateEvent`）。补全 cov-rust-impl 报告的 E1 状态~50%（17 分量逐分量，
+/// 非 `closed_loop::AssemblyState` 6 分量摘要）+ D7 事件仅价格笔（8 元组，补 7 类经纪/会计/公司行为事件，
+/// 非 `closed_loop::MicroEvent` 仅 NewBar/NewStroke）。与闭环摘要态/微事件并置——完整态→摘要态、外部
+/// 事件→微事件均为遗忘投影（见 [`complete`] 模块头）。全模块 L0（纯结构 schema）。
+pub mod complete;
+
 /// 回测 harness（Phase 4，task #81）。`#[cfg(test)]` 门控——[`backtest::data`] 依赖
 /// serde_json（dev-dependency），且 backtest-protocol-v0.md §8 流程本就在 test 环境跑
 /// （`cargo test --release ... -- --ignored`）。门控避免污染 cdylib（Python 扩展）构建，
