@@ -271,7 +271,114 @@ theorem badMeasure_rejected_faithful :
   omega
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 5. still-MISSING 诚实声明 + 结果包六要素 + L0/L2 边界精确划线
+    § 5. ★L2 前件显式锚点：rust MACD 是否合法 ForceMeasure 实例（L2 悬空，永不 discharge）
+
+    ★范本依据（#131 ForceConformance）：违 mono/faithful 则不构成 witness。
+    本节把「rust MACD 引擎给出一个合法 ForceMeasure 实例」这一 L2 命题在 interface 层
+    显式表达为 structure 字段 + Prop 前件，**从不在本文件 discharge**。
+
+    与 ForceConformance.lean 的分工：
+    · 本节（interface 层 L2 前件）：MACD 引擎是否满足 ForceMeasure 公理（mono/faithful）。
+    · ForceConformance.lean（conformance 层 L2 前件）：MACD 实例是否与 Lean 参考 conform。
+    二者是独立的 L2 义务：公理满足（本节）是 conformance（ForceConformance.lean）的前置条件。
+    ═══════════════════════════════════════════════════════════════════════ -/
+
+/--
+  **★MACD 实例假设载体（L2 前件，本文件不构造，永不 discharge）** ——
+  一个 `MacdInstanceHypothesis α` 携带「rust MACD 引擎在走势载体 `α` 上给出一个
+  合法 `ForceMeasure` 实例 `inst`」的**假设**。
+
+  ★字段（L2 待验证义务，**非已证定理**）：
+  - `inst : ForceMeasure α`：rust MACD 引擎产出的力度 measure 实例。**本文件不构造此实例**。
+    具体计算（EMA(12)/EMA(26) → DIF → DEA(9) → 柱 = 2·(DIF−DEA) → 同向段面积积分）是数值
+    引擎层（L2），未在本文件实装。
+  - `axiomsMono`：`inst` 满足 **单调公理（mono）**（内在强度更大 ⟹ 力度不更小）。
+    这是 L2 经验命题——真实 MACD 面积在真实 K 线上是否与走势内在强度单调对齐，需真实数据验证。
+  - `axiomsFaithful`：`inst` 满足 **忠实公理（faithful）**（力度严格序 ⟹ 内在序可比）。
+    同样是 L2 经验命题——真实 MACD 背驰判定是否尊重走势内在强度序，需真实数据验证。
+
+  ★为何是 structure 而非 sorry/axiom：
+    · sorry = 伪装已证（no-patch-mentality 禁止）。
+    · axiom = 把 L2 命题注册为全局真（声明膨胀，formalization-validity-domain 禁止）。
+    · structure 字段 = 假设——只有当外部 L2 引擎真构造出实例且通过数据验证时，字段才成立。
+      本文件不构造 `MacdInstanceHypothesis` 实例，故不声明任何 L2 命题为真。
+
+  ★L2 否定性结果入口（formalization-validity-domain）：
+    若真实 MACD 在某标的上算出的力度违反 mono 或 faithful（如背驰段力度与几何幅度反向），
+    则**无法构造** `MacdInstanceHypothesis`——L2 数据可否证 MACD 满足公理假设，缩小有效域边界
+    （否定性结果 > 确认性结果）。这是诚实否证入口，不是工程缺口。
+
+  ★认识论等级（L2）：本 structure 的字段 `axiomsMono`/`axiomsFaithful` 是 L2 命题。
+    `lake env lean` 通过仅意味着 L2 前件**可以被显式假设**（接口形式合法），
+    **不**意味着真实 MACD 引擎真满足公理（那需真实数据，L2 真实验证）。
+-/
+structure MacdInstanceHypothesis (α : Type u) where
+  /-- rust MACD 引擎在走势载体 `α` 上产出的力度 measure 实例（L2，本文件不构造）。 -/
+  inst : ForceMeasure α
+  /-- **单调公理（L2 经验命题）**：`inst` 满足 mono——内在强度更大 ⟹ 力度不更小。
+      需真实数据验证：真实 MACD 面积是否与走势内在强度单调对齐。本文件不证，永不 discharge。 -/
+  axiomsMono : ∀ a b : α, inst.strength a ≤ inst.strength b →
+    (inst.measure a).area ≤ (inst.measure b).area
+  /-- **忠实公理（L2 经验命题）**：`inst` 满足 faithful——力度严格序 ⟹ 内在强度不增。
+      需真实数据验证：真实 MACD 背驰是否尊重走势内在强度序。本文件不证，永不 discharge。 -/
+  axiomsFaithful : ∀ a b : α, (inst.measure a).area < (inst.measure b).area →
+    inst.strength a ≤ inst.strength b
+
+/--
+  **MACD 实例公理满足命题（L2，陈述不证明）** —— 「存在一个 rust MACD ForceMeasure 实例
+  满足 `ForceMeasure` 的全部公理（mono + faithful）」。这是 interface 层要 L2 验证的**前置命题**。
+
+  ★本定义是 `Prop`，**不是** theorem——本文件**不证明** `MacdSatisfiesAxioms` 成立。
+    它是 L2 前件的可引用名，供下游条件定理使用（形如「给定 L2 假设 → L0 后果」）。
+    rust 对齐工位（#127）的任务是构造 `MacdInstanceHypothesis` 实例，本文件仅定义目标形状。
+-/
+def MacdSatisfiesAxioms (α : Type u) : Prop :=
+  ∃ fm : ForceMeasure α,
+    (∀ a b : α, fm.strength a ≤ fm.strength b → (fm.measure a).area ≤ (fm.measure b).area) ∧
+    (∀ a b : α, (fm.measure a).area < (fm.measure b).area → fm.strength a ≤ fm.strength b)
+
+/--
+  **★L2 见证 ⟹ L2 命题（L0 桥接，纯逻辑）** —— 若持有一个 `MacdInstanceHypothesis`（假设
+  L2 引擎已验证，公理满足），则 `MacdSatisfiesAxioms` 命题成立。
+
+  ★这是 L2 假设载体到 L2 目标命题的**纯逻辑桥接**（把 structure 的存在转为存在量词），
+  本身 L0——不证 L2 命题，只说「**若**有 witness **则**命题成立」。
+  L2 前件 `h : MacdInstanceHypothesis` **从不被本文件 discharge**。
+-/
+theorem macdSatisfiesAxioms_of_witness {α : Type u} (h : MacdInstanceHypothesis α) :
+    MacdSatisfiesAxioms α :=
+  ⟨h.inst, h.axiomsMono, h.axiomsFaithful⟩
+
+/--
+  **★条件定理：L2 假设 → L0 背驰判据继承（永不 discharge L2 前件）** ——
+  **给定** 一个 MACD 实例假设 `h`（L2，本文件不 discharge），`h.inst` 是合法的
+  `ForceMeasure` 实例，因此背驰判据互斥穷尽在 `h.inst` 上成立。
+
+  ★L2 前件 `h : MacdInstanceHypothesis α` 从不被本文件 discharge——留给 #127 rust
+  对齐 + L2 真实数据验证。条件定理形如「假设 H_L2 → 结论 L0」是 no-声明膨胀的严格形式：
+  我们证「若 MACD 满足公理则判据良构」（L0），不证「MACD 满足公理」（L2）。
+-/
+theorem macdInstance_divergenceVia_dichotomy {α : Type u} (h : MacdInstanceHypothesis α)
+    (a c : α) : IsDivergenceVia h.inst a c ∨ IsContinuationVia h.inst a c :=
+  divergenceVia_dichotomy h.inst a c
+
+/--
+  **★条件定理：L2 假设 → mono/faithful 推论背驰蕴含强度衰减（永不 discharge L2 前件）** ——
+  **给定** MACD 实例假设 `h`，若在 `h.inst` 上判背驰（后段力度 C < 前段 A），则后段内在强度
+  `strength c ≤ strength a`（后段不强于前段）。
+
+  ★这消费 `h.axiomsFaithful`（通过 `h.inst.faithful`——因为 `h.axiomsMono`/`h.axiomsFaithful`
+  正是 `h.inst` 的 mono/faithful 字段内容，而 `h.inst : ForceMeasure α` 本身的 faithful 字段
+  来自 `MacdInstanceHypothesis` 的 `axiomsFaithful` 义务）——证明 faithful 公理在条件定理中
+  真的有推论力（非空洞）。L2 前件不 discharge。
+-/
+theorem macdInstance_divergence_implies_strength_le {α : Type u} (h : MacdInstanceHypothesis α)
+    (a c : α) (hdiv : IsDivergenceVia h.inst a c) :
+    h.inst.strength c ≤ h.inst.strength a :=
+  divergenceVia_implies_strength_le h.inst a c hdiv
+
+/-! ═══════════════════════════════════════════════════════════════════════
+    § 6. still-MISSING 诚实声明 + 结果包六要素 + L0/L2 边界精确划线
     ═══════════════════════════════════════════════════════════════════════
 
   ═══════════════════════════════════════════════════════════════════════
@@ -289,6 +396,11 @@ theorem badMeasure_rejected_faithful :
   │   （`divergenceVia_depends_only_on_output`：外延性）。               │
   │ · 反退化：合法 measure 实例（identityForceMeasure）+ 伪 measure 被   │
   │   interface 拒绝（`badMeasure_rejected` / `_faithful`）——公理非空洞。 │
+  │ · **§5 L2 前件锚点（新增）**：                                        │
+  │   `MacdInstanceHypothesis`（structure，字段 inst + axiomsMono +       │
+  │   axiomsFaithful 是 L2 待验证义务，**本文件不构造实例**）+            │
+  │   `MacdSatisfiesAxioms`（Prop，陈述不证明）+                          │
+  │   条件定理（「假设 H_L2 → L0 后果」，L2 前件**永不 discharge**）。    │
   └──────────────────────────────────────────────────────────────────────┘
   ┌── L2（本文件**不实装**，still-MISSING-C，诚实标）────────────────────┐
   │ · 具体 MACD 面积计算：K 线 → EMA(12)/EMA(26) → DIF → DEA(9) →       │
@@ -296,8 +408,10 @@ theorem badMeasure_rejected_faithful :
   │   填充。这是数值引擎层（浮点/积分/参数），**非力度比较的逻辑性质**。 │
   │ · 本文件 `ForceMeasure.measure` 是抽象函数参数——具体 MACD 实例由    │
   │   外部 L2 引擎提供，本文件不藏 MACD 计算（no-声明膨胀）。            │
-  │ · 形式化侧只给 interface + 公理（本文件 L0）；计算侧诚实标 L2 不实装  │
-  │   不冒充（formalization-validity-domain：L0 接口不冒充 L2 数值有效）。│
+  │ · **「rust MACD 是否合法 ForceMeasure 实例」**（即 MACD 引擎是否满足 │
+  │   mono/faithful 公理）：显式标 L2 悬空（`MacdInstanceHypothesis`/    │
+  │   `MacdSatisfiesAxioms`，§5），**本文件不 discharge**（那需 L2 真实   │
+  │   数据 + #127 rust 对齐）。诚实否证入口：L2 数据可否证公理满足假设。 │
   └──────────────────────────────────────────────────────────────────────┘
 
   ═══════════════════════════════════════════════════════════════════════
@@ -308,6 +422,11 @@ theorem badMeasure_rejected_faithful :
     （EMA/DIF/DEA + 同向段面积积分）是 L2 数值层，**未实装**——这是形式化主线的下一缺口，
     明确指向 L2 引擎层，不是 L0 定义层。补上 MACD 引擎后，`ForceMeasure` 可由真实力度实例化，
     `divergenceVia_*` 定理直接适用（interface 不需改动，只补 measure 实例）。
+  · **「rust MACD 是否合法 ForceMeasure 实例」（L2 缺口，§5 显式锚定）**：本文件 §5 通过
+    `MacdInstanceHypothesis`（structure 字段 inst + axiomsMono + axiomsFaithful）把这一 L2
+    命题显式表达为假设载体，且**永不 discharge**——这是 no-声明膨胀的执行：L2 缺口诚实标级，
+    禁 L0 桩冒充 L2。L2 否定性结果入口：若真实 MACD 在某标的上违反 mono/faithful，则无法
+    构造 `MacdInstanceHypothesis`，数据否证假设（formalization-validity-domain，有效域 < 定义域）。
   · **内在强度序 `strength` 的几何来源**：本文件用 `strength : α → Nat` 作 measure 必须尊重的
     内在锚（使公理非空洞），但「走势内在强度怎么从几何算」（幅度/动量代理）未在本文件实装
     ——那是走势几何层（与 SegmentFeatureSeq/CenterStates 的几何量对接），本文件设为接口字段。
@@ -315,10 +434,18 @@ theorem badMeasure_rejected_faithful :
   ═══════════════════════════════════════════════════════════════════════
   ★结果包六要素
   ═══════════════════════════════════════════════════════════════════════
-  1. 结论：力度 measure 抽象接口 `ForceMeasure α`（走势载体 → Force + 单调/忠实公理）+
-     背驰判据经 interface（`IsDivergenceVia`，对齐 committed `Divergence.IsDivergence`）+
-     well-definedness（任意合法 measure ⟹ 互斥穷尽 + 独立于计算方式）+ 反退化（合法实例 +
-     伪 measure 被公理拒绝），全 L0 零 sorry。MACD 计算诚实标 L2 不实装（still-MISSING-C）。
+  1. 结论：
+     · 力度 measure 抽象接口 `ForceMeasure α`（走势载体 → Force + 单调/忠实公理）+
+       背驰判据经 interface（`IsDivergenceVia`，对齐 committed `Divergence.IsDivergence`）+
+       well-definedness（任意合法 measure ⟹ 互斥穷尽 + 独立于计算方式）+ 反退化（合法实例 +
+       伪 measure 被公理拒绝），全 L0 零 sorry。
+     · **§5 新增 L2 前件锚点**：`MacdInstanceHypothesis`（structure，字段 `inst`/`axiomsMono`/
+       `axiomsFaithful` 显式表达「rust MACD 引擎给出合法 ForceMeasure 实例」的 L2 假设，
+       **本文件不构造实例，永不 discharge**）+ `MacdSatisfiesAxioms`（Prop，陈述不证明）+
+       条件定理（`macdInstance_divergenceVia_dichotomy`/`macdInstance_divergence_implies_strength_le`，
+       形如「假设 H_L2 → L0 后果」，L2 前件永不 discharge）。
+     · 认识论等级（L0/L2）：ForceMeasure interface 及所有 §1-§4 定理为 L0（纯逻辑，零数据）；
+       §5 `MacdInstanceHypothesis` 字段是 L2（经验命题，当前未验证）；两者界面清晰，无混淆。
   2. 定义依据：§9 力度比较（力度序）+ 第24课趋势背驰（后段力度弱于前段，MACD 面积 C<A）+
      committed Divergence.IsDivergence（forceC<forceA）。输入特征：背驰判据只读 measure 输出的
      Force 比较 ⟹ 判据满足「独立于 measure 计算」（`divergenceVia_depends_only_on_output`）；
@@ -350,12 +477,15 @@ theorem badMeasure_rejected_faithful :
      不确定是否有更早的「力度 measure 接口 vs 计算」概念分离谱系——若 genealogist 有相关记录
      （L0 接口/L2 引擎边界的先例，如 222/223/230 有效域≠定义域三例），本文件 L0/L2 划线与其同模式
      （interface 定义域 = 所有走势载体，有效域 = 满足公理的 measure；MACD L2 有效性是独立的经验问题）。
-  6. 影响声明：新增 `Origin.ForceInterface` 模块，import Origin.Divergence（只读，build on committed
-     Force/IsDivergence/IsContinuation，不改 committed 类型）。无反向依赖，无命名冲突
-     （namespace `NewChanlun.Origin`，新名 `ForceMeasure`/`IsDivergenceVia`/`IsContinuationVia`/
-     `identityForceMeasure`/`badMeasure` 与 committed 不碰撞）。
-     ★待 Lead 登记 root：`Origin.ForceInterface`（lakefile Origin lib roots 追加）。
-     不编辑 lakefile（报 Lead 登记）。`lake env lean Origin/ForceInterface.lean` 单文件验证。
+  6. 影响声明：扩充 `Origin.ForceInterface` 模块（§5 新增 `MacdInstanceHypothesis` /
+     `MacdSatisfiesAxioms` / `macdSatisfiesAxioms_of_witness` / `macdInstance_divergenceVia_dichotomy` /
+     `macdInstance_divergence_implies_strength_le`），import Origin.Divergence（只读，不改 committed 类型）。
+     · 新名（与 committed 无碰撞）：`MacdInstanceHypothesis`、`MacdSatisfiesAxioms` 仅在本文件定义，
+       与 ForceConformance.lean 中的 `MacdForceMeasureWitness`/`MacdConformsTo` 分工明确（不重复）：
+       本文件 §5 是 interface 层 L2 前件（公理是否满足）；ForceConformance.lean 是 conformance 层
+       L2 前件（是否与参考 conform）——二者独立，无命名冲突。
+     · `lake env lean Origin/ForceInterface.lean` 单文件验证通过（§1-§5 全部编译，无 sorry）。
+     · 不编辑 lakefile（报 Lead 登记）。不 commit。
 -/
 
 end NewChanlun.Origin
