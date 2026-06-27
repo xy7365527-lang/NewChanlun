@@ -28,10 +28,11 @@ VALID_TOPO_TYPES = frozenset({"freeze", "split", "sever"})
 # 时 sys.path[0] 不是 scripts/——显式加入保证 `from goal_reducer import` 始终可解析。
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
+    # 注意 insert(0) 把 scripts/ 置于路径最前；scripts/ 下若有与标准库同名文件会遮蔽（当前无此风险）
     sys.path.insert(0, _SCRIPT_DIR)
 
 
-def _load_current_goal():
+def _load_current_goal(ev_path=None):
     """D′：读 goal events → reduce → current_goal projection。
 
     goal 是 roadmap 之前的当前交易性承诺（roadmap 是 backlog）——本函数让
@@ -41,18 +42,34 @@ def _load_current_goal():
     facts.git_head 供 reduce_goal 做 base_head 对账（base_head_stale 信号，spec §9）。
     其余 facts 字段（genealogy_pending/genealogy_settled/roadmap）是 §4 数据流预留，
     当前 readiness 规则未依赖，传空。
+
+    ev_path 可注入（测试用临时文件，避免污染真实 events.jsonl）；None 时用默认真实路径。
+    系统边界容错（对齐 _load_settlement_requests）：无 events 文件或全部行损坏 → None；
+    单行 JSON 损坏 → 写 stderr 跳过，不崩溃。
     """
     from goal_reducer import reduce_goal
-    ev_path = os.path.join(_SCRIPT_DIR, "..", ".chanlun", "goals", "events.jsonl")
+    if ev_path is None:
+        ev_path = os.path.join(_SCRIPT_DIR, "..", ".chanlun", "goals", "events.jsonl")
     if not os.path.isfile(ev_path):
         return None
+    events = []
     with open(ev_path, encoding="utf-8") as f:
-        events = [json.loads(line) for line in f if line.strip()]
-    head = subprocess.run(
+        for lineno, line in enumerate(f, 1):
+            if not line.strip():
+                continue
+            try:
+                events.append(json.loads(line))
+            except (json.JSONDecodeError, ValueError) as exc:
+                print(f"[ceremony_scan] WARNING: events.jsonl line {lineno} JSON 损坏，跳过: {exc}",
+                      file=sys.stderr)
+    if not events:
+        return None
+    proc = subprocess.run(
         ["git", "rev-parse", "HEAD"],
         capture_output=True, text=True,
         cwd=os.path.dirname(os.path.abspath(ev_path)),
-    ).stdout.strip()
+    )
+    head = proc.stdout.strip() if proc.returncode == 0 else ""  # 脱离 git repo 时空串（显式意图）
     facts = {
         "git_head": head,
         "genealogy_pending": [],
@@ -1764,6 +1781,8 @@ def main():
         result["topo_indicators_error"] = f"{type(exc).__name__}: {exc}"
 
     try:
+        # 与 _load_current_goal 的 git HEAD 查询是同一 repo 的两次独立用途（此处 short hash
+        # 供扫描结果标注，那处 full hash 供 reducer 做 base_head 对账），非冗余
         result["head"] = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"], cwd=root, text=True).strip()
     except Exception:
