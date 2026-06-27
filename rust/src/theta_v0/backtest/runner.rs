@@ -220,7 +220,7 @@ fn plan_and_fill_mtm(
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
 
-    // decisions 按 exec_index 分组。
+    // decisions 按 exec_index 分组（开仓侧延迟成交，spec:50）。
     // exec_index = fill_bar_index(signal_index, bars, config)，
     // 与 build_open/exit_order 内计算方式完全对齐（同一函数，零重算偏差）。
     // VoiceDecision 只有 signal_index，exec_index 需要预计算。
@@ -238,6 +238,12 @@ fn plan_and_fill_mtm(
     let mut entry_price: f64 = 0.0;
     // voice_qty：各深度声部持仓手数，对齐 AccountState.voice_qty 语义。
     let mut voice_qty: Vec<u32> = vec![0u32; config.voice.max_depth as usize];
+    // ★持仓声部台账（退出决策生成器的状态）：按 depth 记录入场快照（方向 + 止损价 + 决策快照），
+    // 退出判定（§9 closePred）逐 bar 读它。None = 该 depth 空仓。
+    let mut held: Vec<Option<HeldVoice>> = vec![None; config.voice.max_depth as usize];
+    // ★退出 Close 订单的延迟成交队列（spec:50：退出触发在 bar i 检测，Close 订单延迟到
+    // fill_bar_index(i) 成交——与开仓延迟语义一致，不在触发 bar 即时成交）。
+    let mut exit_orders_at: Vec<Vec<VoiceDecision>> = vec![Vec::new(); n];
 
     let mut equity_curve = Vec::with_capacity(n);
     let mut trade_pnls: Vec<f64> = Vec::new();
@@ -247,7 +253,42 @@ fn plan_and_fill_mtm(
         let bar = &bars[i];
         let px = bar.close as f64 * config.tick.tick_size;
 
-        // 该 bar 到达 exec_index 的 decisions：用当前账本 NAV（MtM）重新 plan_orders。
+        // ── 退出 Close 订单成交（延迟队列，spec:50）：bar i 是某退出触发的 fill bar。 ──
+        // 先于开仓处理（spec:54：退出/止损先于开仓）。
+        if !exit_orders_at[i].is_empty() && !bar.untradable && px > 0.0 {
+            let mut exit_decisions = std::mem::take(&mut exit_orders_at[i]);
+            let current_nav = cash + units * px;
+            let account = AccountState {
+                nav: if current_nav > 0.0 { current_nav } else { nav0 },
+                voice_qty: voice_qty.clone(),
+            };
+            let orders = strategy::plan_orders(&exit_decisions, bars, &account, config);
+            // 退出决策全是 Close（exit=true）⟹ plan_orders 按 ConflictKey 终局键 depth 升序排
+            // （exec::ConflictKey 第六键 depth；退出决策同信号 bar/level/class，仅 depth 区分）。
+            // 故 Close 订单按 depth 升序与按 depth 升序的退出决策一一对应（depth 配对零歧义，
+            // 不再用「恒取首决策」的近似——多声部退出也精确归 depth）。
+            exit_decisions.sort_by_key(|d| d.depth);
+            for (o, d) in orders.iter().zip(exit_decisions.iter()) {
+                if o.qty > 0 && matches!(o.action, StrictAction::Close) {
+                    let depth = d.depth as usize;
+                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_price, &mut trade_pnls);
+                    apply_voice_qty(&mut voice_qty, depth, o);
+                    // 平仓后台账状态机：全平 ⟹ 清台账（held=None）；未全平（退化边界，build_exit_order
+                    // 是全平 q，正常不发生）⟹ 保留台账但重置 exit_pending，允许下一 bar 重新评估退出
+                    // （避免 exit_pending 永久阻塞该声部退出）。
+                    if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
+                        if let Some(slot) = held.get_mut(depth) {
+                            *slot = None;
+                        }
+                    } else if let Some(Some(h)) = held.get_mut(depth) {
+                        h.exit_pending = false; // 未全平：解除 pending，下一 bar 可再触发
+                    }
+                    n_orders_executed += 1;
+                }
+            }
+        }
+
+        // 该 bar 到达 exec_index 的开仓 decisions：用当前账本 NAV（MtM）重新 plan_orders。
         let bar_decisions = &groups[i];
         if !bar_decisions.is_empty() && !bar.untradable && px > 0.0 {
             // 当前账本 NAV（mark-to-market）= free（cash）+ holding（units×px）。
@@ -266,33 +307,63 @@ fn plan_and_fill_mtm(
                     // voice_qty 同步：找首个方向匹配的 decision，取其 depth。
                     // decisions 与 orders 不一一对应（冲突排序可合并/删订单），
                     // 但同一 exec_index 内 depth=0 单声部时精确；多声部 depth 推断是近似。
-                    let depth = bar_decisions
-                        .iter()
-                        .find_map(|d| {
-                            let side = voice::voice_side(d.root_side, d.depth);
-                            let matches_action = matches!(
-                                (o.action, side),
-                                (StrictAction::Buy | StrictAction::Add, VoiceSide::Long)
-                                    | (StrictAction::Sell, VoiceSide::Short)
-                                    | (StrictAction::Close | StrictAction::Reduce, _)
-                            );
-                            if matches_action { Some(d.depth as usize) } else { None }
-                        })
-                        .unwrap_or(0);
+                    let matched = bar_decisions.iter().find(|d| {
+                        let side = voice::voice_side(d.root_side, d.depth);
+                        matches!(
+                            (o.action, side),
+                            (StrictAction::Buy | StrictAction::Add, VoiceSide::Long)
+                                | (StrictAction::Sell, VoiceSide::Short)
+                                | (StrictAction::Close | StrictAction::Reduce, _)
+                        )
+                    });
+                    let depth = matched.map(|d| d.depth as usize).unwrap_or(0);
                     apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_price, &mut trade_pnls);
-                    // voice_qty 同步（fill 后更新）。depth 超界时跳过（诚实边界，不应发生）。
-                    if let Some(slot) = voice_qty.get_mut(depth) {
-                        match o.action {
-                            StrictAction::Buy | StrictAction::Add => {
-                                *slot = slot.saturating_add(o.qty as u32);
-                            }
-                            StrictAction::Sell | StrictAction::Close | StrictAction::Reduce => {
-                                *slot = slot.saturating_sub(o.qty as u32);
-                            }
-                            StrictAction::Hold | StrictAction::Wait => {}
+                    apply_voice_qty(&mut voice_qty, depth, o);
+                    // ★开仓订单 ⟹ 记入持仓台账（退出生成器读它）。止损价由入场决策的
+                    // stop_in + 方向算出（与 build_open_order 内 structural_stop 同一函数）。
+                    if matches!(o.action, StrictAction::Buy | StrictAction::Sell | StrictAction::Add) {
+                        if let Some(d) = matched {
+                            record_held_voice(&mut held, d);
                         }
                     }
                     n_orders_executed += 1;
+                }
+            }
+        }
+
+        // ── ★退出决策生成器（§9 closePred，本轮真根因修复核心）：逐持仓声部检查关闭谓词。 ──
+        // 持仓后逐 bar 检查 [止损触及 / 反向 BSP / RiskClose]，触发则构造 exit=true 决策入
+        // 延迟队列（spec:50：Close 订单延迟到 fill_bar_index(i) 成交）。对齐
+        // Origin.SubVoiceOpenClose.closePred（X = ¬ParentValid ∨ χ^{σ_p} ∨ Stop ∨ RiskClose）。
+        if !bar.untradable && px > 0.0 {
+            // 当前账本权益（RiskClose 的 GlobalRiskClose 判据需要，Origin.RiskProj）。
+            let equity_now = cash + units * px;
+            for depth in 0..held.len() {
+                let hv = match held[depth] {
+                    Some(hv) => hv,
+                    None => continue, // 空仓声部，无退出可言
+                };
+                if hv.exit_pending {
+                    continue; // 退出已触发，Close 在延迟队列待成交——不重复入队（关闭一次触发一次平仓）
+                }
+                if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
+                    continue; // 台账方向有但手数 0（已平），跳过
+                }
+                if let Some(exit_d) =
+                    exit_decision_for(&hv, depth, bar, i, &groups, equity_now)
+                {
+                    // Close 订单延迟成交（spec:50）：触发 bar i → fill bar = fill_bar_index(i)。
+                    if let Some(fi) = fill_bar_index(i, bars, &config.exec) {
+                        if fi < n {
+                            exit_orders_at[fi].push(exit_d);
+                            // 标记退出 pending（避免 fill 前重复触发同一止损/反向）。
+                            if let Some(slot) = held.get_mut(depth) {
+                                if let Some(ref mut h) = slot {
+                                    h.exit_pending = true;
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -304,6 +375,142 @@ fn plan_and_fill_mtm(
 
     let daily_returns = bar_returns(&equity_curve);
     (equity_curve, daily_returns, trade_pnls, n_orders_executed)
+}
+
+/// 持仓声部台账项（退出决策生成器的状态，对齐 §9 closePred 读出所需的入场快照）。
+///
+/// 退出判定（§9 closePred：Stop ∨ 反向 BSP ∨ RiskClose）逐 bar 读它：
+/// - `side`：持仓方向（`VoiceSide::Long`/`Short`）——决定止损触及方向 + 反向信号方向。
+/// - `stop`：结构止损价（`risk::structural_stop` 产出，与 build_open_order 同一函数零偏差）。
+/// - `decision`：入场决策快照——退出触发时复用它构造 `exit=true` 决策喂 plan_orders
+///   （复用 depth/level/bsp/stop_in/root_side，使 build_exit_order 全平当前 q）。
+/// - `exit_pending`：退出已触发但 Close 订单尚在延迟队列（fill 未到）的标记——避免在触发 bar
+///   到 fill bar 之间**重复入队**同一退出（spec:50 延迟成交期间不重复触发，关闭谓词一次触发
+///   一次平仓；台账在 Close 成交清台账后才允许新触发）。
+#[derive(Debug, Clone, Copy)]
+struct HeldVoice {
+    side: super::super::strategy::voice::VoiceSide,
+    stop: super::super::types::Tick,
+    decision: VoiceDecision,
+    exit_pending: bool,
+}
+
+/// 记入持仓台账（开仓订单成交后调用）：算止损价 + 存入场快照。
+///
+/// 止损价用 `risk::structural_stop`（与 `build_open_order` 内同一函数，零口径偏差）。
+/// 方向 Flat / 无结构止损 ⟹ 不记台账（无止损则退出生成器的 Stop 项无依据，诚实跳过——
+/// 此情形 build_open_order 也返回 None 不开仓，故不应到达；防御性跳过）。
+fn record_held_voice(held: &mut [Option<HeldVoice>], d: &VoiceDecision) {
+    use super::super::strategy::risk::{structural_stop, StopSide};
+    use super::super::strategy::voice::{voice_side, VoiceSide};
+
+    let side = voice_side(d.root_side, d.depth);
+    let stop_side = match side {
+        VoiceSide::Long => StopSide::Long,
+        VoiceSide::Short => StopSide::Short,
+        VoiceSide::Flat => return,
+    };
+    let stop = match structural_stop(stop_side, &d.bsp, &d.stop_in) {
+        Some(s) => s,
+        None => return, // 无结构止损（不应到达——build_open_order 已 None）
+    };
+    if let Some(slot) = held.get_mut(d.depth as usize) {
+        *slot = Some(HeldVoice { side, stop, decision: *d, exit_pending: false });
+    }
+}
+
+/// voice_qty 同步（fill 后更新；depth 超界跳过，诚实边界不应发生）。
+fn apply_voice_qty(voice_qty: &mut [u32], depth: usize, o: &Order) {
+    if let Some(slot) = voice_qty.get_mut(depth) {
+        match o.action {
+            StrictAction::Buy | StrictAction::Add => {
+                *slot = slot.saturating_add(o.qty as u32);
+            }
+            StrictAction::Sell | StrictAction::Close | StrictAction::Reduce => {
+                *slot = slot.saturating_sub(o.qty as u32);
+            }
+            StrictAction::Hold | StrictAction::Wait => {}
+        }
+    }
+}
+
+/// **退出决策生成器（§9 closePred → exit=true 决策，本轮真根因修复核心）**。
+///
+/// 对持仓声部 `hv` 在当前 bar `bar`（索引 `i`）检查关闭谓词 X_{v,t}（对齐
+/// `Origin.SubVoiceOpenClose.closePred`），触发则构造**全平**退出决策（`exit=true`，复用入场
+/// 决策快照），喂 plan_orders 产 Close 订单。返回 `None` 当 X=false（不关闭，持仓延续）。
+///
+/// **四析取项的 root 声部读出**（contract anchor `Origin.SubVoiceOpenClose.closePred` line 552-562）：
+/// - `parent_invalid`（¬ParentValid）：**root 声部无父 ⟹ 恒 false**（v0 recognize 只产 depth=0
+///   独立根；子声部的父失效判定属嵌套树扩展，v0 未触发——诚实有效域标注）。
+/// - `reverse_signal`（χ^{σ_p}）：当前 bar 的开仓 decisions（`groups[i]`）中是否有**反向**方向的
+///   决策（持多遇卖侧根 / 持空遇买侧根）。反向 BSP 经 recognize 产成反向开仓决策落在某 exec_index，
+///   该 exec_index = i 时即当前 bar 出现反向信号 ⟹ 触发先平（对齐 risk.rs `root_dir_next` case2）。
+/// - `stop`（Stop）：当前 bar 价格触及 `hv.stop`（`exec::stop_hit`，复用 spec:52 触及语义）。
+/// - `risk_close`（RiskClose）：`risk::global_risk_close(μ_t)`。v0 可计算 μ_t 的 **Insolvent 子集**
+///   （equity≤0）——maint_margin/buffer/liq_flag 是账户/场所层输入（§11），v0 未建模，故
+///   GlobalRiskClose 在 v0 退化为「权益耗尽」判据（标 L0 有效域：μ_t 全五态需账户层输入，
+///   v0 只 discharge equity≤0 这一可计算分量，不臆造 maint_margin）。
+///
+/// **关闭优先于开启**（line 592）：退出生成器在每 bar **先于**开仓处理（exit_orders_at 在开仓前
+/// apply），且退出 Close 订单的 ConflictKey.exit_first=0（spec:54 退出先于开仓）——双重保证关闭赢。
+fn exit_decision_for(
+    hv: &HeldVoice,
+    depth: usize,
+    bar: &Bar,
+    i: usize,
+    groups: &[Vec<&VoiceDecision>],
+    equity_now: f64,
+) -> Option<VoiceDecision> {
+    use super::super::strategy::exec::{close_pred, reverse_signal, stop_hit, CloseTriggers, FillSide};
+    use super::super::strategy::risk::{global_risk_close, risk_mode, RiskModeInput};
+    use super::super::strategy::voice::VoiceSide;
+
+    // Stop（line 559）：当前 bar 触及止损价 hv.stop。平仓方向 = 持仓反向（平多=Sell，平空=Buy）。
+    let exit_side = match hv.side {
+        VoiceSide::Long => FillSide::Sell,
+        VoiceSide::Short => FillSide::Buy,
+        VoiceSide::Flat => return None, // 不应发生（台账只记 Long/Short）
+    };
+    let stop = stop_hit(bar, hv.stop, exit_side);
+
+    // 反向信号 χ^{σ_p}（line 596-601）：当前 bar 的开仓 decisions 含反向方向根决策 ⟹ 触发。
+    // 用 reverse_signal 判每个当前 bar 决策的 bsp 是否与持仓反向（持多遇卖 / 持空遇买）。
+    let reverse = groups
+        .get(i)
+        .map(|ds| ds.iter().any(|d| reverse_signal(hv.side, &d.bsp)))
+        .unwrap_or(false);
+
+    // RiskClose（line 561）：GlobalRiskClose（μ_t ∈ {Insolvent, Liquidation}）。
+    // v0 可计算 Insolvent（equity≤0）——maint_margin/buffer/liq_flag 账户层输入未建模，
+    // 用占位（maint_margin=0, buffer=0, liq_flag=false）使 μ_t 退化到 equity≤0 ⟹ Insolvent 子集。
+    let mode = risk_mode(&RiskModeInput {
+        equity: equity_now,
+        maint_margin: 0.0,
+        buffer1: 0.0,
+        buffer2: 0.0,
+        liq_flag: false,
+    });
+    let risk_close = global_risk_close(mode);
+
+    let triggers = CloseTriggers {
+        parent_invalid: false, // root 声部无父（恒 false，诚实有效域）
+        reverse_signal: reverse,
+        stop,
+        risk_close,
+    };
+    if !close_pred(&triggers) {
+        return None; // X=false：不关闭，持仓延续
+    }
+
+    // X=true：构造全平退出决策（exit=true，复用入场快照）。signal_index = 触发 bar i
+    // （build_exit_order 用它经 fill_bar_index 算延迟成交 bar；与本函数外 exit_orders_at[fi] 对齐）。
+    let mut exit_d = hv.decision;
+    exit_d.exit = true;
+    exit_d.enter_ok = false; // 退出态，非进场
+    exit_d.signal_index = i;
+    exit_d.depth = depth as u32;
+    Some(exit_d)
 }
 
 /// fill 模拟（Θ_exec 基础形态，reference-theta-v0.md:49-54）。
@@ -627,6 +834,148 @@ mod tests {
         let _ = rets; // 日 returns 由 bar_returns 计算，不在此断言具体值
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★退出决策生成器（§9 closePred）：trades=0 真根因修复的 L1 验证
+    //  （合成数据验证管线正确产 Close 订单 → trade_pnls 非空 → n_trades>0）
+    // ──────────────────────────────────────────────────────────────────────
+
+    use super::super::super::strategy::VoiceDecision;
+    use super::super::super::strategy::risk::StopInput;
+    use super::super::super::strategy::voice::VoiceSide;
+    use super::super::super::types::{BspBits, Center, Tick};
+
+    /// OHLC 可控的 bar（退出测试需 low/high 触发止损，mk_bar 的 o=h=l=c 不够）。
+    fn ohlc_bar(idx: usize, o: Tick, h: Tick, l: Tick, c: Tick) -> Bar {
+        Bar {
+            source_index: idx,
+            timestamp: idx as i64,
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: 100,
+            untradable: false,
+        }
+    }
+
+    /// 单根 1 买 Long 入场决策（depth 0，stop = pivot_low；tick_size=1 ⟹ 价格=美元）。
+    fn buy1_long_decision(signal_index: usize, pivot_low: Tick) -> VoiceDecision {
+        VoiceDecision {
+            depth: 0,
+            root_side: VoiceSide::Long,
+            exit: false,
+            enter_ok: true,
+            bsp: BspBits { buy1: true, ..Default::default() },
+            signal_index,
+            stop_in: StopInput {
+                pivot_low,
+                pivot_high: 0,
+                center: Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 },
+            },
+            entry: 100,
+            cost_per_unit: 0.0,
+            level: 5,
+        }
+    }
+
+    /// ★真根因修复 L1：止损触及 ⟹ 退出生成器产 Close ⟹ trade_pnls 非空 ⟹ n_trades>0。
+    ///
+    /// 修复前（exit 恒 false，无退出生成器）：无 Close ⟹ trade_pnls 恒空 ⟹ n_trades=0（cyan 坐实）。
+    /// 修复后：开多 @ bar1 → 后续 bar 的 low 跌破 stop(=pivot_low=90) ⟹ §9 closePred.Stop=true
+    /// ⟹ 退出生成器产 exit=true 决策 ⟹ plan_orders 产 Close ⟹ apply_order close_long ⟹ pnl 入账。
+    /// 认识论 L1（合成数据验证退出管线串通 + Close 真产出，非伪造）。
+    #[test]
+    fn exit_generator_stop_hit_produces_close_trade() {
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0; // 价格=美元（entry=100/stop=90 是美元值）
+
+        // bar0：信号确认前置；bar1：信号 @ source_index=0 的延迟成交 bar（开多 @ open=100）；
+        // bar2：价格平稳（low=95>stop=90，不触发）；bar3：low=85<stop=90 ⟹ 止损触及。
+        // bar4：退出 Close 的延迟成交 bar（触发 bar3 → fill bar4）。
+        let bars = vec![
+            ohlc_bar(0, 100, 110, 90, 105),  // 信号 bar（source_index=0）
+            ohlc_bar(1, 100, 110, 99, 108),  // 开多成交 bar（entry delay 1，open=100）
+            ohlc_bar(2, 105, 112, 100, 109), // 持仓中（low=100>stop=90，不触发）
+            ohlc_bar(3, 95, 100, 85, 88),    // ★low=85<stop=90 ⟹ Stop 触发
+            ohlc_bar(4, 88, 92, 85, 90),     // 退出 Close 延迟成交 bar
+        ];
+        let decisions = vec![buy1_long_decision(0, 90)]; // stop = pivot_low = 90
+
+        let (_eq, _rets, trade_pnls, n_orders) =
+            plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+
+        // 修复核心断言：退出生成器产 Close ⟹ trade_pnls 非空 ⟹ n_trades > 0。
+        assert!(!trade_pnls.is_empty(), "止损触及 ⟹ 退出生成器产 Close ⟹ trade_pnls 非空（修复前恒空）");
+        assert_eq!(trade_pnls.len(), 1, "一次完整开平（开多 + 止损平多）");
+        // n_orders ≥ 2（开仓 1 + 平仓 1）。
+        assert!(n_orders >= 2, "至少 2 单（开多 + 止损 Close），实得 {n_orders}");
+    }
+
+    /// ★退出生成器：无关闭触发（价格平稳，无反向/止损/破产）⟹ 持仓延续，无 Close（不误平）。
+    ///
+    /// closePred 全 false ⟹ 退出生成器返 None ⟹ 持仓延续 ⟹ trade_pnls 空（持仓不平 = 正确，
+    /// 关闭优先于开启不误触发）。这是退出生成器**不过度触发**的诚实见证（与止损触及测试对偶）。
+    #[test]
+    fn exit_generator_no_trigger_holds_position() {
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+
+        // 开多 @ bar1，后续价格全在 stop=90 之上（low 恒 >90），无反向 BSP，equity>0 ⟹ closePred 全 false。
+        let bars = vec![
+            ohlc_bar(0, 100, 110, 95, 105),
+            ohlc_bar(1, 100, 110, 99, 108), // 开多成交
+            ohlc_bar(2, 105, 115, 100, 110),
+            ohlc_bar(3, 110, 120, 105, 115),
+            ohlc_bar(4, 115, 125, 110, 120), // 持仓全程 low>90，无止损
+        ];
+        let decisions = vec![buy1_long_decision(0, 90)];
+
+        let (_eq, _rets, trade_pnls, _n_orders) =
+            plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        // 无关闭触发 ⟹ 持仓延续到末尾未平 ⟹ 无平仓 pnl（退出生成器不误触发）。
+        assert!(trade_pnls.is_empty(), "价格平稳无关闭触发 ⟹ 持仓延续 ⟹ 无 Close（不过度触发）");
+    }
+
+    /// ★退出生成器：反向 BSP（持多遇卖侧根决策）⟹ §9 closePred.reverse_signal ⟹ Close。
+    ///
+    /// 持多仓后，后续 bar 出现卖侧（Short 根）开仓决策 ⟹ 当前 bar 的 groups 含反向方向决策
+    /// ⟹ reverse_signal=true ⟹ closePred 触发先平（对齐 risk.rs root_dir_next case2「反向先平」）。
+    /// 认识论 L1（验证反向信号触发退出管线串通）。
+    #[test]
+    fn exit_generator_reverse_signal_produces_close() {
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+
+        // bar 序列：开多 @ bar1（buy1 信号 @ source_index=0），后续出现卖侧信号 @ source_index=2
+        // ⟹ 延迟成交 bar3 出现 Short 根决策 ⟹ bar3 的 groups 含反向 ⟹ 持多遇反向先平。
+        let bars = vec![
+            ohlc_bar(0, 100, 110, 95, 105),
+            ohlc_bar(1, 100, 110, 99, 108), // 开多成交
+            ohlc_bar(2, 105, 115, 100, 110), // 卖侧信号 bar（source_index=2）
+            ohlc_bar(3, 108, 118, 103, 113), // 反向 Short 决策延迟成交 bar（low>stop=90，止损不触发）
+            ohlc_bar(4, 110, 120, 105, 115), // 退出 Close 延迟成交 bar
+        ];
+        // 入场：buy1 Long @ src 0；反向：sell1 Short @ src 2（stop=pivot_high）。
+        let entry = buy1_long_decision(0, 90);
+        let mut reverse = buy1_long_decision(2, 90);
+        reverse.root_side = VoiceSide::Short;
+        reverse.bsp = BspBits { sell1: true, ..Default::default() };
+        reverse.stop_in = StopInput {
+            pivot_low: 0,
+            pivot_high: 200, // Short 止损在上方
+            center: Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 },
+        };
+        let decisions = vec![entry, reverse];
+
+        let (_eq, _rets, trade_pnls, _n_orders) =
+            plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        // 反向信号触发先平 ⟹ 多仓被 Close ⟹ trade_pnls 非空。
+        assert!(
+            !trade_pnls.is_empty(),
+            "持多遇反向卖侧根决策 ⟹ §9 closePred.reverse_signal ⟹ Close（先平后建）"
+        );
+    }
+
     /// 不可交易 bar 上不成交（reference:53）。
     #[test]
     fn untradable_bar_skips_order() {
@@ -720,6 +1069,103 @@ mod tests {
         // 不变量（无论订单是否非空）：管线在真实数据上不崩 + L2 标注与订单一致。
         assert!(res.metrics.bh_return.is_finite(), "buy&hold 对照有限值");
         assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空（诚实标注）");
+    }
+
+    /// **★E5 trades=0 真根因修复 L2 验证（截断窗口，退出生成器真实数据 trades>0）**
+    /// （`#[ignore]`，需 `analysis/data_cache/oklo_1m_databento.json`）。
+    ///
+    /// 全 OOS 窗（268K bar × 430K 决策）的退出生成器逐 bar 检查在 590s timeout 内跑不完
+    /// （性能，非正确性）——本测试取 OKLO OOS 窗的**前 30000 bar** 截断窗口，在时限内验证
+    /// **退出决策生成器修复后真实数据产 Close 订单 ⟹ trade_pnls 非空 ⟹ n_trades>0**。
+    ///
+    /// ## 分层诊断（formalization-validity-domain 231号 + 625 铁律）
+    ///
+    /// - parse→classify→recognize→plan_orders→退出生成器各层产出量逐层报告。
+    /// - **修复前**（exit 恒 false，无退出生成器）：n_trades=0（cyan 编译期机器证据坐实）——
+    ///   不是「Θ 不盈利」（L2 经验否证），是**接线层缺退出生成器**（工程层）。
+    /// - **修复后**：退出生成器逐 bar 检查 §9 closePred（止损/反向/RiskClose）产 Close ⟹
+    ///   n_trades>0 ⟹ **接线层打通**，回测进入可产生平仓盈亏的 L2 状态。
+    /// - **诚实分层**：n_trades>0 证「退出闭环接线层打通」（L1 工程层），**不证** Θ 策略盈利
+    ///   （strat% 的符号/大小是 L2 经验结果，本测试只验证 trades 计数非零，不对 strat 符号下结论）。
+    ///
+    /// 跑法：`cargo test --lib theta_v0::backtest::runner::tests::e5_exit_loop_trades_nonzero_oklo -- --ignored --nocapture`
+    #[test]
+    #[ignore = "E5 trades>0 真实数据验证，需 oklo cache；截断窗口；显式 --ignored"]
+    fn e5_exit_loop_trades_nonzero_oklo() {
+        use super::super::super::{classifier, parser, strategy};
+        use super::super::data;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("OKLO", &config).expect("加载 OKLO");
+        let oklo_reg = PREREG_WINDOWS
+            .iter()
+            .find(|w| w.symbol == "OKLO")
+            .expect("PREREG_WINDOWS 含 OKLO");
+        let oos_full = ds.slice_date_window(oklo_reg.oos.0, oklo_reg.oos.1);
+        assert!(!oos_full.bars.is_empty(), "OOS 窗非空");
+
+        // 截断前 30000 bar（性能：全窗 268K bar 退出生成器逐 bar 超时；30K 在时限内）。
+        let cut = 30_000.min(oos_full.bars.len());
+        let oos = Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[..cut].to_vec(),
+            dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+        };
+        eprintln!("[E5] 截断 OOS 窗 bars={}（全窗 {}）", oos.bars.len(), oos_full.bars.len());
+
+        // ── 分层诊断（systematic-debugging）──
+        let l0 = parser::parse_layer(&oos.bars, &config);
+        let classification = classifier::classify(&l0, &config);
+        let total_bsp: usize = classification.levels.iter().map(|lv| lv.bsp.len()).sum();
+        let total_centers: usize = classification.levels.iter().map(|lv| lv.centers.len()).sum();
+        let decisions = strategy::recognize(&classification, &oos.bars, &config);
+        eprintln!(
+            "[E5] 分层：segments={} centers={} bsp={} decisions={}",
+            l0.segments.len(),
+            total_centers,
+            total_bsp,
+            decisions.len(),
+        );
+
+        // ── 端到端回测（退出生成器接入）──
+        let first_px = oos
+            .bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * config.tick.tick_size)
+            .unwrap_or(1.0);
+        let nav = (first_px * 1000.0).max(1.0e6);
+        let res = run_theta_v0(&oos, &config, 0.5, nav);
+        eprintln!(
+            "[E5] 回测：n_orders={} n_trades={} is_l2={} bh={:.2}% strat(MtM)={:.2}%",
+            res.n_orders,
+            res.metrics.n_trades,
+            res.is_l2,
+            res.metrics.bh_return * 100.0,
+            res.metrics.strat_return * 100.0,
+        );
+
+        // ── 分层诊断断点（如实报告，不伪造）──
+        if decisions.is_empty() {
+            eprintln!("[E5] ⟹ 断点 recognize：无决策（不应发生——OKLO 全窗 430K 决策）");
+        } else if res.n_orders == 0 {
+            eprintln!("[E5] ⟹ 断点 plan_orders/sizing：有决策无订单");
+        } else if res.metrics.n_trades == 0 {
+            eprintln!("[E5] ⟹ 断点 退出生成器：有订单但无平仓（退出闭环未产 Close——修复回退）");
+        } else {
+            eprintln!("[E5] ⟹ 退出闭环打通：trades>0（接线层 L1 修复，n_trades 非零）");
+        }
+
+        // ★E5 真根因修复核心断言：退出生成器修复后 n_trades>0（修复前 cyan 坐实 0）。
+        // 诚实分层：这证「退出闭环接线层打通」（L1 工程层），不证 Θ 盈利（strat 符号是 L2，不断言）。
+        assert!(
+            res.metrics.n_trades > 0,
+            "E5 真根因修复：退出生成器接入后真实数据产平仓 ⟹ n_trades>0（修复前恒 0），实得 {}",
+            res.metrics.n_trades
+        );
+        assert!(res.n_orders > 0, "有平仓必有订单");
+        assert!(res.metrics.strat_return.is_finite(), "strat 有限");
     }
 
     /// **L2 真实数据回测：8 品种 OOS 窗 + 分层诊断**（`#[ignore]`，需 `analysis/data_cache/*.json`）。

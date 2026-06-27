@@ -19,7 +19,8 @@
 //! 标 [设计选择]/[L3经验待标定]）。本模块证「给定这些参数后成交价/排序唯一确定」，不证盈利。
 
 use super::super::config::ExecConfig;
-use super::super::types::{Bar, Tick};
+use super::super::types::{Bar, BspBits, Tick};
+use super::voice::VoiceSide;
 
 /// 成交方向（买入/卖出，决定 slippage 加减，spec:51）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -182,6 +183,97 @@ impl ConflictKey {
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  closePred：退出触发器（§9 关闭谓词的 root 声部镜像，contract anchor
+//  `Origin.SubVoiceOpenClose.closePred`）
+// ──────────────────────────────────────────────────────────────────────────
+
+/// 退出触发器读出（§9 关闭谓词 X_{v,t} 的当下 bool 分量，pasted-text.txt §9 line 552-562）。
+///
+/// **canonical 形式**（`Origin.SubVoiceOpenClose.closePred`，line 552-562）：
+/// ```text
+/// X_{v,t} = ¬ParentValid_{v,t} ∨ χ^{σ_p}_{v,t} ∨ Stop_{v,t} ∨ RiskClose_{v,t}.
+/// ```
+/// 四析取项任一为真即触发关闭（持仓声部出场）。本结构逐字段承载这些**状态读出**
+/// （与 `SubVoiceEnv` 的 bool 字段语义对齐，不臆造其内部计算）：
+/// - `parent_invalid`：`¬ParentValid_{v,t}`——父声部失效（背景级否决）。**root 声部无父 ⟹
+///   ParentValid 恒真 ⟹ 该项恒 false**（root 退出不由父失效驱动；子声部才有非 false 取值，
+///   v0 recognize 只产 depth=0 独立根，故 root 路径该项恒 false——诚实标注有效域）。
+/// - `reverse_signal`：`χ^{σ_p}_{v,t}`——**反向信号**触发出场。canonical line 596-601 语义：
+///   父级多头 ⟹ 同父向（χ^{σ_p}）信号 = 平仓信号。对 root 声部，σ_p = root 持仓方向，
+///   反向 BSP（持多遇卖侧 / 持空遇买侧）即该项（与 risk.rs `root_dir_next` case2「反向先平」
+///   bit-exact 同语义：做多根遇 χ⁻=1 / 做空根遇 χ⁺=1 ⟹ 先平）。
+/// - `stop`：`Stop_{v,t}`——结构止损触及（line 559）。bar 价格触及 `risk::structural_stop`
+///   产出的止损价（多头 low≤stop / 空头 high≥stop）。
+/// - `risk_close`：`RiskClose_{v,t}`——风险关闭触发（line 561，§11 风险模式驱动的强平/去杠杆）。
+///   = `risk::global_risk_close(μ_t)`（μ_t ∈ {Insolvent, Liquidation} ⟹ 全局平仓，
+///   contract anchor `Origin.RiskProj.GlobalRiskClose`）。
+///
+/// ★诚实标注（formalization-validity-domain）：本结构的 bool 字段是**状态读出**（Stop/反向信号/
+/// RiskClose 的判定结果），不是它们的内部计算。closePred 的转移代数在给定这些读出后**确定**
+/// （L0）；读出本身由各自判据（止损价比较 / 反向 BSP / 风险模式）产出（调用方 discharge）。
+/// 认识论 L0（关闭谓词布尔代数）——与 SubVoiceOpenClose.lean closePred 逐项对照（root 子域）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CloseTriggers {
+    /// `¬ParentValid_{v,t}`：父失效（root 声部恒 false，无父）。
+    pub parent_invalid: bool,
+    /// `χ^{σ_p}_{v,t}`：反向信号触发出场（持多遇卖侧 / 持空遇买侧）。
+    pub reverse_signal: bool,
+    /// `Stop_{v,t}`：结构止损触及。
+    pub stop: bool,
+    /// `RiskClose_{v,t}`：风险关闭（GlobalRiskClose）。
+    pub risk_close: bool,
+}
+
+/// **退出触发器 `close_pred`（§9 关闭谓词 X_{v,t} 的 root 声部镜像，L0）**。
+///
+/// contract anchor `Origin.SubVoiceOpenClose.closePred`（pasted-text.txt §9 line 552-562）：
+/// ```text
+/// X_{v,t} = ¬ParentValid ∨ χ^{σ_p} ∨ Stop ∨ RiskClose.
+/// ```
+/// 四析取项任一为真即触发关闭——bit-exact 镜像 Lean `closePred` 的 `|| || ||` 析取结构。
+///
+/// **关闭优先于开启**（line 592，`Origin.SubVoiceOpenClose.nextActive_close_wins`）：调用方在
+/// 持仓声部上**先**判 `close_pred`，触发则产 Close 订单（出场），不在同一帧假设反手——这把
+/// Lean `nextActive` 的「X 先于 E 判」分支顺序落到 runner 的逐 bar 退出决策生成器（见
+/// `plan_and_fill_mtm` 的退出决策循环）。
+///
+/// ★认识论 L0：给定四读出后，X 是它们的析取，确定唯一。返回 bool（X_{v,t}）。
+pub fn close_pred(t: &CloseTriggers) -> bool {
+    t.parent_invalid || t.reverse_signal || t.stop || t.risk_close
+}
+
+/// 反向信号判定（`χ^{σ_p}_{v,t}` 的 root 声部实例，line 596-601 语义）。
+///
+/// **持仓方向 vs BSP 反向**：持多头声部（`VoiceSide::Long`）遇**卖侧** BSP（sell1/2/3 任一）⟹
+/// 反向信号触发（同父向 χ^{σ_p}=平仓，line 596-601「次级买入证书平空 / 次级卖出证书平多」的
+/// root 实例）；持空头（`VoiceSide::Short`）遇**买侧** BSP（buy1/2/3 任一）⟹ 反向触发。与
+/// risk.rs `root_dir_next` case2（做多根遇 χ⁻ / 做空根遇 χ⁺ ⟹ 先平）bit-exact 同语义。
+///
+/// 边界条件：`held = VoiceSide::Flat`（空仓）⟹ 无「反向」可言，返回 false（对齐 risk.rs
+/// `root_dir_next` 的 `VoiceSide::Flat => false`）。`bits` 无任何反向位 ⟹ false。
+pub fn reverse_signal(held: VoiceSide, bits: &BspBits) -> bool {
+    match held {
+        VoiceSide::Long => bits.sell1 || bits.sell2 || bits.sell3, // 持多遇卖侧 χ⁻
+        VoiceSide::Short => bits.buy1 || bits.buy2 || bits.buy3,   // 持空遇买侧 χ⁺
+        VoiceSide::Flat => false,                                  // 空仓无反向
+    }
+}
+
+/// 结构止损触及判定（`Stop_{v,t}` 的 bar 级实例，line 559）。
+///
+/// 用 [`stop_fill_price`] 的同一触及语义（spec:52）判当前 bar 是否触及止损价 `stop`：
+/// - 多头持仓（`exit_side = FillSide::Sell`，止损在下方）：bar open<stop（跳空击穿）∨ low≤stop。
+/// - 空头持仓（`exit_side = FillSide::Buy`，止损在上方，镜像）：bar open>stop ∨ high≥stop。
+///
+/// `stop_fill_price` 返回 `Some(_)` ⟺ bar 触及止损 ⟹ 本函数返回 true。**复用同一函数零口径偏差**
+/// （止损触及判定与止损成交价用同一 spec:52 规则，单一真相源）。
+///
+/// 边界条件：`untradable` bar 在调用前已过滤；本函数假设 bar 可交易（与 stop_fill_price 一致）。
+pub fn stop_hit(bar: &Bar, stop: Tick, exit_side: FillSide) -> bool {
+    stop_fill_price(bar, stop, exit_side).is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -315,5 +407,68 @@ mod tests {
         let exit_low = ConflictKey::new(true, 1, 3, 100, 9, 2);
         let open_high = ConflictKey::new(false, 5, 1, 100, 1, 0);
         assert!(exit_low < open_high);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  closePred 镜像（§9 关闭谓词 X_{v,t}，对照 Origin.SubVoiceOpenClose.closePred）
+    // ──────────────────────────────────────────────────────────────────────
+
+    use super::super::voice::VoiceSide;
+    use super::super::super::types::BspBits;
+
+    /// ★bit-exact 对照 `Origin.SubVoiceOpenClose.closePred`：四析取项任一为真 ⟹ X=true。
+    /// 逐项验证 X = ¬ParentValid ∨ χ^{σ_p} ∨ Stop ∨ RiskClose（line 552-562）。
+    #[test]
+    fn close_pred_disjunction_of_four() {
+        // 全 false ⟹ X=false（无关闭触发，持仓延续）。
+        assert!(!close_pred(&CloseTriggers::default()));
+        // 任一项 true ⟹ X=true（逐项）。
+        assert!(close_pred(&CloseTriggers { parent_invalid: true, ..Default::default() }));
+        assert!(close_pred(&CloseTriggers { reverse_signal: true, ..Default::default() }));
+        assert!(close_pred(&CloseTriggers { stop: true, ..Default::default() }));
+        assert!(close_pred(&CloseTriggers { risk_close: true, ..Default::default() }));
+        // 多项同真 ⟹ 仍 X=true（析取）。
+        assert!(close_pred(&CloseTriggers {
+            stop: true,
+            risk_close: true,
+            ..Default::default()
+        }));
+    }
+
+    /// 反向信号 χ^{σ_p}（line 596-601）：持多遇卖侧 / 持空遇买侧 ⟹ true；同向/空仓 ⟹ false。
+    /// 与 risk.rs `root_dir_next` case2（做多根遇 χ⁻ / 做空根遇 χ⁺ ⟹ 先平）bit-exact 同语义。
+    #[test]
+    fn reverse_signal_held_vs_bsp() {
+        let sell = BspBits { sell1: true, ..Default::default() };
+        let buy = BspBits { buy1: true, ..Default::default() };
+        // 持多遇卖侧 ⟹ 反向（χ⁻）。
+        assert!(reverse_signal(VoiceSide::Long, &sell));
+        // 持多遇买侧（同向）⟹ 非反向。
+        assert!(!reverse_signal(VoiceSide::Long, &buy));
+        // 持空遇买侧 ⟹ 反向（χ⁺）。
+        assert!(reverse_signal(VoiceSide::Short, &buy));
+        // 持空遇卖侧（同向）⟹ 非反向。
+        assert!(!reverse_signal(VoiceSide::Short, &sell));
+        // 空仓 ⟹ 无反向（对齐 risk.rs root_dir_next 的 Flat=>false）。
+        assert!(!reverse_signal(VoiceSide::Flat, &sell));
+        assert!(!reverse_signal(VoiceSide::Flat, &buy));
+    }
+
+    /// 止损触及 Stop（line 559）：复用 stop_fill_price 的 spec:52 触及语义（单一真相源）。
+    #[test]
+    fn stop_hit_uses_stop_fill_semantics() {
+        let stop_long = 90;
+        // 多头持仓（exit=Sell，止损在下）：low 触及 ⟹ 触发。
+        let touch = bar(0, 0, 100, 105, 88, 95, false);
+        assert!(stop_hit(&touch, stop_long, FillSide::Sell));
+        // 多头未触及（low>stop）⟹ 不触发。
+        let safe = bar(0, 0, 100, 105, 95, 102, false);
+        assert!(!stop_hit(&safe, stop_long, FillSide::Sell));
+        // 空头持仓（exit=Buy，止损在上）：high 触及 ⟹ 触发。
+        let stop_short = 110;
+        let touch_s = bar(0, 0, 100, 112, 98, 105, false);
+        assert!(stop_hit(&touch_s, stop_short, FillSide::Buy));
+        let safe_s = bar(0, 0, 100, 108, 95, 102, false);
+        assert!(!stop_hit(&safe_s, stop_short, FillSide::Buy));
     }
 }

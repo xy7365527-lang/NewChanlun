@@ -405,7 +405,10 @@ fn signal_tie_keys(d: &VoiceDecision, bars: &[Bar]) -> (i64, usize) {
 ///   ⟹ 该买卖点不产决策（信号作废，对齐 spec:50「无下一根」）。
 /// - **enter_ok**：买卖点信号非空 = 进场许可（有 BspPoint 即有信号）。`exit` = false
 ///   （recognize 产**开仓侧**决策；平仓/止损由持仓状态 + 后续 bar 触发，属运行时循环，
-///   不在单帧 recog 内——v0 recog 是信号→开仓决策，退出决策由账户层后续驱动）。
+///   不在单帧 recog 内）。**退出决策生成器**（持仓 + 后续 bar → §9 closePred → `exit=true`
+///   决策）活在 `backtest::runner::plan_and_fill_mtm` 的逐 bar 循环（那里有实时持仓 + 当前
+///   bar），对齐 `Origin.SubVoiceOpenClose.closePred`——非「账户层后续驱动」的空声明，是
+///   runner 已实装的退出生成器（消除声明膨胀，no-patch-mentality）。
 /// - **signal_index** = `BspPoint.source_index`（触发点原始 K 序，exec 延迟起点 + 平局键）。
 /// - **level** = ℓ（决策级别，冲突排序高 level 先）。
 ///
@@ -510,8 +513,16 @@ fn recognize_point(
 
     Some(VoiceDecision {
         depth,
+        // recog 是**单帧无持仓**函数（签名只吃 BspPoint+bars+config，无账户持仓 Z）——它产的是
+        // **开仓侧**决策（信号 → 进场意图）。`exit=false` 对开仓侧是**正确取值**（不是硬编码 bug）：
+        // 退出判定依赖**运行时持仓状态 + 后续 bar**（§9 closePred：止损触及 / 反向 BSP / RiskClose），
+        // 这些 recog 单帧不可见。退出决策由 **runner 的退出决策生成器**（backtest::runner
+        // `plan_and_fill_mtm` 逐 bar 循环）产出——持仓后逐 bar 检查 closePred 触发则构造 `exit=true`
+        // 决策喂 plan_orders 产 Close 订单。这把「信号→开仓」与「持仓+后续bar→退出」分离为两个生成器
+        // （契约锚：开仓侧 recog 对齐 `Origin.StrategyFamily.Theta.recog`；退出侧对齐
+        // `Origin.SubVoiceOpenClose.closePred` 关闭谓词）。
         root_side,
-        exit: false, // recog 产开仓侧决策；退出由账户层后续 bar 驱动（见函数注释）
+        exit: false, // 开仓侧决策（退出侧由 runner closePred 生成器产，见上）
         enter_ok: true, // 有买卖点信号 = 进场许可
         bsp: point.bits,
         signal_index: point.source_index,

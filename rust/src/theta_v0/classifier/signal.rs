@@ -28,30 +28,50 @@
 //!     认识论：MACD 段面积比较确定 = **L1**（管线正确性，bit-exact 对齐 Lean IsType1 结构合取）；
 //!     「MACD 背驰预测在真实行情有效」才是 **L2/L3**（否证检验，**不在本工位**）。
 //!
-//! ## 第二类（B2/S2）：结构不可产，诚实标注递归组装层缺口（★no-patch，非遗漏）
+//! ## 第二类（B2/S2）：递归组装层提取入口 `extract_second_signals`（#52 收尾，★no-patch）
 //!
-//! 第二类买卖点**不在本函数产出**，原因是诚实的结构边界（非补丁/未实装的力度缺口）：
-//! `IsType2 = afterTypeOne ∧ ¬brokeCenter`，且**买卖点定律一**（§10.2）：「任何级别的第二类
-//! 买卖点都由次级别相应走势的**第一类**构成」。本函数入参 `segments` 是 **L0 线段**——线段是
-//! 递归底（`descend.rs::RMove::Segment` 下钻得空序列），**结构上无次级别走势对象**。
-//! 「次级别第一类构成」需要 `descend.rs::RMove::Compose { subs, .. }` 的递归载荷（次级别走势序列）
-//! 作输入——`extract_signals(centers, segments, ...)` 的签名层**拿不到**它。
+//! 第二类买卖点**不在 `extract_signals`（L0 segment 层）产出**——这是诚实的**签名层**边界，
+//! 不是遗漏：`IsType2 = afterTypeOne ∧ ¬brokeCenter`，且**买卖点定律一**（§10.2，第14课）：
+//! 「任何级别的第二类买卖点都由次级别相应走势的**第一类**构成」。`extract_signals` 入参 `segments`
+//! 是 **L0 线段**——线段是递归底（`descend.rs::RMove::Segment` 下钻得空序列），**结构上无次级别
+//! 走势对象**。「次级别第一类构成」需要 `descend.rs::RMove::Compose { subs, .. }` 的递归载荷
+//! （次级别走势序列）作输入——`extract_signals(centers, segments, ...)` 的签名层**拿不到**它。
+//! 在 `extract_signals` 内硬产第二类 = 用本级别 `afterTypeOne` 占位冒充次级别第一类构成 =
+//! 声明膨胀（禁止）。`signal_extraction_emits_no_second_class` 锁定 L0 层不产第二类的边界。
 //!
-//! `descend.rs::second_type_via_sublevel_type1` **已实装**（消费 RMove 递归结构判第二类构成），
-//! 但它需要 **RMove 递归塔** 作输入，不是 L0 segment 序列。把第二类接入需在**上游 mod.rs 递归
-//! 组装层**（构造 RMove::Compose 后调 descend）——属递归级别系统的组装工位，**不在本签名层**。
-//! 在 `extract_signals(centers, segments)` 内硬产第二类 = 用本级别 `afterTypeOne` 占位冒充次级别
-//! 第一类构成 = 声明膨胀（禁止）。故本函数**不产第二类**，由 `signal_extraction_emits_no_second_class`
-//! 可执行断言锁定该边界（still-MISSING：RMove 递归组装层接入 descend，属上游）。
+//! **#52 消除「递归组装层缺口」标记**：依赖已满足——`rmove_compose.rs::find_second_type_structure`
+//! （port `Origin.RMoveCompose.SecondTypeStructure`，#51 已真封）消费 RMove 递归塔，从 `descend parent`
+//! 取回的次级别走势序列内识别第二类走势结构（第一类离开 m1 + 回拉 m2 不创新低/新高 + i1<i2 时间序）。
+//! 本模块补**平行的递归组装层提取入口** [`extract_second_signals`]：消费 RMove 递归塔（`parent: &RMove`）
+//! + B 口径中枢区间，调 `find_second_type_structure` 产 B2/S2 `BspPoint`。这**不是**在 `extract_signals`
+//! 内硬产（那会声明膨胀），而是补上**递归组装层本身**——`extract_signals`（L0）与 `extract_second_signals`
+//! （递归组装层）是**两个平行的提取入口**，按输入对象（L0 segment vs RMove 递归塔）分工，零冒充。
 //!
-//! ⟹ 本函数多声部产 B1/S1/B3/S3（消解 #5「单声部 L0 第三类」根因）。B2/S2 诚实留递归组装层。
+//! ⟹ `extract_signals` 多声部产 B1/S1/B3/S3（消解 #5「单声部 L0 第三类」根因）；
+//!    `extract_second_signals` 递归组装层产 B2/S2（消解 #5「第二类结构不可产」收尾）。
 //! 下游 E5 平仓闭环（trades=0）是 L3 层（不在本工位，见 closed_loop）。
+//!
+//! ## ★诚实 still-MISSING（B2/S2 递归组装层提取的开口，no-声明膨胀）
+//!
+//! - **RMove 递归塔生产路径未接入**（still-MISSING-塔）：`mod.rs::classify` 当前用 `UnitRange`+`Center`
+//!   的递归级别系统，**未构造 RMove::Compose 塔**。故 `extract_second_signals` 的提取逻辑已封（消费
+//!   `SecondTypeStructure`），但生产路径上**无 RMove 塔可喂**——接入需上游 `mod.rs` 把 `UnitRange`
+//!   递归塔转译为 `RMove::Compose`（携 source_index 坐标），属递归级别系统的塔构造工位，不在本签名层。
+//! - **次级别坐标 `index_of`**（still-MISSING-坐标）：`RMove`（port Lean `Move` μF）是纯结构区间，
+//!   **无 source_index**。B2/S2 `BspPoint.source_index`（平局裁决+回溯，reference:16）由 `index_of`
+//!   闭包提供（次级别走势→原始 K 序，上游塔构造时填）——与 `center_of`/`divergence_of` 同精神（次级别
+//!   坐标/中枢/力度由上游提供，descend.rs 边界）。本模块不冒充自动坐标分配。
+//! - **背驰力度引擎**（still-MISSING-C，承接 SubLevelDescent）：第一类离开 m1 的背驰由 `divergence_of`
+//!   闭包提供。rust `divergence.rs` 已实装 MACD（领先 Origin），但「次级别走势→MACD 背驰」的自动配对
+//!   需 RMove 塔携带各次级别走势的 close 区间——同 still-MISSING-塔，由上游塔构造时接入真 MACD。
 
 use super::super::config::MacdConfig;
-use super::super::types::{Center, Direction, Segment, Tick};
+use super::super::types::{Center, Direction, Segment, Side, Tick};
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
 use super::divergence::{compute_macd, segments_diverge};
 use super::super::types::BspBits;
+use super::descend::RMove;
+use super::rmove_compose::find_second_type_structure;
 
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
 pub use super::bsp::BspPoint;
@@ -259,17 +279,97 @@ fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &
     }
 }
 
+/// 构造第二类 BspPoint（结构止损价 = 回拉走势结束点，reference:46 1/2 类止损 = pivot）。
+///
+/// 第二类止损（reference:46，与第一类同列）：1/2 买止损 = `pivot_low`，1/2 卖止损 = `pivot_high`
+/// ——非 `center.zg/zd`（那是第三类）。故第二类 center=None（与第三类区分，对齐 `make_first_point`
+/// 1/2 类止损不用 center 的不变量）。`second_point` = `SecondTypeStructure.second_point`（回拉走势
+/// 结束点：买侧 = 回拉低点 m2.lo / 卖侧 = 回拉高点 m2.hi，§10.1），按 bit 方向填 pivot，另一侧 0。
+fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick) -> BspPoint {
+    BspPoint {
+        source_index,
+        bits,
+        // 2 买止损源 pivot_low（回拉低点）；2 卖止损源 pivot_high（回拉高点）。
+        pivot_low: if bits.buy2 { second_point } else { 0 },
+        pivot_high: if bits.sell2 { second_point } else { 0 },
+        center: None,
+    }
+}
+
+/// 第二类买卖点提取（递归组装层入口，契约锚 `Origin.RMoveCompose.SecondTypeStructure` +
+/// `Origin.BspClassification.IsType2`；买卖点定律一 §10.2 + 第14/15课）。
+///
+/// ★与 `extract_signals`（L0 segment 层）平行的**递归组装层提取入口**：`extract_signals` 入参是
+/// L0 线段（递归底，无次级别走势对象 ⟹ 不可产第二类）；本函数入参是 **RMove 递归塔** `parent`
+/// （`RMove::Compose`，携 `descend parent` = 次级别走势序列），故**能**产第二类——第二类 =
+/// 次级别第一类构成（§10.2「任何级别的第二类由次级别相应走势的第一类构成」，第14课买点定律一）。
+///
+/// 语义（消费 `find_second_type_structure` 识别的第二类走势结构）：
+/// - **B2**（side=Long）：第一类离开走势后，次级别**回拉再次下跌不创新低**（第15课「未创新低」）的
+///   回拉走势结束点（§10.1「第一类买点后次级别上涨结束、再次下跌的那个次级别走势的结束点」）。
+/// - **S2**（side=Short）：镜像——第一类离开后回抽**不创新高**的回抽走势结束点。
+///
+/// `find_second_type_structure(parent, side, center_of, divergence_of)` 在 `descend parent` 内识别
+/// `SecondTypeStructure { i1, i2, second_point }`（i1=第一类离开，i2=回拉，i1<i2 时间序；second_point=
+/// 回拉走势结束点）。识别出 ⟹ 产一个 B2/S2 端点（`is_second = after_first_buy ∧ is_pullback_end`，
+/// 对齐 `IsType2 = afterTypeOne ∧ ¬brokeCenter`：回拉走势未再破中枢 = `is_pullback_end`）；否则空。
+///
+/// ★坐标 still-MISSING（见模块头）：`RMove`（port Lean `Move` μF）无 source_index——`BspPoint.source_index`
+/// 由 `index_of` 闭包提供（次级别走势 → 原始 K 序，上游塔构造时填，与 `center_of`/`divergence_of` 同
+/// 精神）。本函数不冒充自动坐标分配（在 RMove 上硬造 source_index = 声明膨胀）。
+///
+/// `c1`：第二类的次级别第一类离开走势所破的中枢（B 口径核心区间 [zd,zg]，迁主塔 637 定稿；
+/// `center_of` 给次级别每走势配中枢，本入口对识别出的第一类离开走势用 `c1` 统一，同 descend.rs 边界）。
+/// `divergence_of`：每个次级别走势的 MACD 背驰判定（rust 真算，divergence.rs；力度领先 Origin）。
+/// `index_of`：每个次级别走势 → 原始 K 序号（坐标 still-MISSING，上游塔提供）。
+pub fn extract_second_signals(
+    parent: &RMove,
+    side: Side,
+    c1: &Center,
+    divergence_of: impl Fn(&RMove) -> bool,
+    index_of: impl Fn(&RMove) -> usize,
+) -> Vec<BspPoint> {
+    // 在 RMove 递归塔的次级别走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高 + i1<i2）。
+    // center_of 对识别用的第一类离开走势统一配 c1（次级别中枢，B 口径核心区间，上游塔提供）。
+    let Some(structure) = find_second_type_structure(parent, side, |_m| *c1, &divergence_of) else {
+        // 无第二类走势结构（无第一类离开 / 无回拉 / 回拉创新低或新高）⟹ 无 B2/S2（诚实空）。
+        return Vec::new();
+    };
+    let subs = super::descend::descend(parent);
+    // 回拉走势 m2（结构识别出的 i2 位置）——第二类买卖点 = 其结束点 = structure.second_point。
+    let m2 = &subs[structure.i2];
+    let is_sell = matches!(side, Side::Short);
+    // 第二类端点语义：after_first_buy（第一类离开在前，IsType2 的 afterTypeOne）∧ is_pullback_end
+    //（回拉走势结束点，回拉未再破中枢 = IsType2 的 ¬brokeCenter）。
+    let situ = EndpointSituation {
+        after_first_buy: true,      // 第一类离开走势在前（structure.i1 < i2，§10.1「第一类后」）
+        is_pullback_end: true,      // 回拉走势结束点（回拉不创新低/新高，第15课）
+        left_center: false,         // 第二类是中枢内部回拉，非第三类的离开后回抽
+        retrace_not_reenter: false,
+        below_last_center: false,   // 第二类非第一类的破中枢背驰端点
+        is_sell_side: is_sell,
+    };
+    let bits = endpoint_to_bsp(&situ);
+    // source_index 由 index_of 取回拉走势 m2 的原始 K 序（坐标 still-MISSING，上游塔提供）。
+    vec![make_second_point(index_of(m2), bits, structure.second_point)]
+}
+
 /// 从 confirmed 中枢序列 + 线段序列 + close 序列提取该级别全部买卖点（reference:34-36）。
 ///
 /// 对每个中枢，取其 `end_index` 之后的线段子序列，提取**第一类**（破中枢 ∧ MACD 背驰真算）+
 /// **第三类**（离开后回试不破）买卖点。买卖点按 source_index 升序返回（reference:16 平局裁决——
-/// 已确认结构不回写，时间序天然升序）。第二类诚实不产（递归组装层缺口，见模块头）。
+/// 已确认结构不回写，时间序天然升序）。
+///
+/// ★第二类（B2/S2）**不在本函数产出**——本函数入参是 L0 线段（递归底，无次级别走势对象 ⟹ 结构
+/// 上不可产第二类，签名层边界，见模块头）。B2/S2 由平行的递归组装层入口 [`extract_second_signals`]
+/// 产（消费 RMove 递归塔的 `SecondTypeStructure`）——按输入对象分工，非本函数缺口，零冒充。
 ///
 /// `closes`：close 序列（`ParseLayer.merged_bars` 的 close，MACD 算第一类背驰用）。
 /// `close_src`：closes 各元素的 source_index（merged_bars 锚点，段区间坐标系转换用）。
 /// `macd_cfg`：MACD 参数（fast/slow/signal，从 ThetaConfig.macd 读）。
 ///
-/// ★完整覆盖（见模块头）：B1/S1（破中枢 ∧ 背驰真算）+ B3/S3（confirmed 结构几何）。
+/// ★本函数覆盖：B1/S1（破中枢 ∧ 背驰真算）+ B3/S3（confirmed 结构几何）。
+/// B2/S2 见 [`extract_second_signals`]（递归组装层）。
 pub fn extract_signals(
     centers: &[Center],
     segments: &[Segment],
@@ -514,14 +614,15 @@ mod tests {
         assert!(sell1[0].center.is_none(), "1 类止损用 pivot 非 center");
     }
 
-    // ── 第二类诚实边界（结构不可产，递归组装层缺口）─────────────────────────
+    // ── 第二类 L0 签名层边界（extract_signals 不产；B2 由递归组装层入口产）──────
 
     #[test]
     fn signal_extraction_emits_no_second_class() {
-        // ★诚实标注（编码为可执行断言，formalization-validity-domain）：extract_signals 对任意
+        // ★L0 签名层边界（编码为可执行断言，formalization-validity-domain）：extract_signals 对任意
         // L0 segment 输入**永不产第二类**——第二类=次级别第一类构成（买卖点定律一），需 RMove 递归
-        // 结构（descend.rs），L0 segment 是递归底（descend 得空）⟹ 结构不可 bit-exact 产出。
-        // 此断言锁定边界：B2/S2 留递归组装层（上游 mod.rs 接入 descend.second_type_via_sublevel_type1）。
+        // 结构（descend.rs），L0 segment 是递归底（descend 得空）⟹ 结构上不可在本签名层产出。
+        // 此断言锁定边界：B2/S2 由平行的递归组装层入口 `extract_second_signals` 产（消费 RMove 塔），
+        // 非 extract_signals 缺口——按输入对象分工（L0 segment vs RMove 递归塔），见模块头。
         let c = center(100, 200, 2);
         let segs = vec![
             seg(Direction::Down, 3, 5, 150, 90),
@@ -536,9 +637,121 @@ mod tests {
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
         for p in &points {
-            assert!(!p.bits.buy2, "extract_signals 不产第二类买点（递归组装层缺口，非本签名层）");
-            assert!(!p.bits.sell2, "extract_signals 不产第二类卖点（递归组装层缺口，非本签名层）");
+            assert!(!p.bits.buy2, "extract_signals（L0 层）不产第二类买点——B2 由 extract_second_signals 递归组装层产");
+            assert!(!p.bits.sell2, "extract_signals（L0 层）不产第二类卖点——S2 由 extract_second_signals 递归组装层产");
         }
+    }
+
+    // ── 第二类递归组装层提取（extract_second_signals 消费 RMove 塔产 B2/S2）────────
+
+    use super::super::descend::RMove;
+    use super::super::rmove_compose::compose_move;
+
+    /// 第二类结构的次级别中枢（B 口径核心区间 [zd,zg]=[0,4]，对齐 rmove_compose 见证 c1_wit）。
+    fn second_center() -> Center {
+        Center { zd: 0, zg: 4, dd: -2, gg: 6, start_index: 0, end_index: 0 }
+    }
+
+    /// 第一类离开走势（向下破中枢，区间 [-10,-2]，lo=-10 < zd=0 ⟹ 破中枢；对齐 rmove_compose m1_wit）。
+    fn m1_break() -> RMove {
+        RMove::Segment { direction: Direction::Down, lo: -10, hi: -2 }
+    }
+
+    /// 回拉走势（再次下跌不创新低，区间 [-8,3]，lo=-8 ≥ m1.lo=-10 ⟹ 不创新低；对齐 m2_wit）。
+    fn m2_pullback() -> RMove {
+        RMove::Segment { direction: Direction::Up, lo: -8, hi: 3 }
+    }
+
+    /// 收尾走势（凑满 ≥3 段；对齐 m3_wit）。
+    fn m3_tail() -> RMove {
+        RMove::Segment { direction: Direction::Up, lo: 1, hi: 5 }
+    }
+
+    /// 本级别走势塔：RMove::Compose 组装第一类离开 + 回拉 + 收尾。
+    fn parent_tower() -> RMove {
+        compose_move(vec![m1_break(), m2_pullback(), m3_tail()], vec![second_center()], 1)
+    }
+
+    #[test]
+    fn second_buy_extracted_from_rmove_tower() {
+        // ★递归组装层 B2 提取：RMove 塔含第一类离开（破中枢 ∧ 背驰）+ 回拉不创新低 ⟹ 一个 B2。
+        // divergence_of：仅第一类离开 m1（lo=-10）背驰，回拉/收尾不背驰（rust MACD 真算的占位见证）。
+        // index_of：回拉走势 m2 → 原始 K 序 42（坐标 still-MISSING，上游塔提供）。
+        let parent = parent_tower();
+        let points = extract_second_signals(
+            &parent,
+            Side::Long,
+            &second_center(),
+            |m| m.lo() == -10,        // 仅第一类离开背驰
+            |m| if m.lo() == -8 { 42 } else { 0 }, // 回拉走势 m2 的原始 K 序
+        );
+        assert_eq!(points.len(), 1, "RMove 塔（第一类离开 ∧ 回拉不创新低）⟹ 一个 B2");
+        assert!(points[0].bits.buy2, "递归组装层产第二类买点（buy2 置位）");
+        assert!(!points[0].bits.buy1 && !points[0].bits.buy3, "第二类端点不置 1/3 类（互斥语义）");
+        assert_eq!(points[0].source_index, 42, "B2 source_index = 回拉走势 m2 的原始 K 序（index_of）");
+        assert_eq!(points[0].pivot_low, -8, "B2 止损源 = 回拉低点（second_point = m2.lo）");
+        assert!(points[0].center.is_none(), "1/2 类止损用 pivot 非 center ⟹ center=None");
+    }
+
+    #[test]
+    fn second_buy_rejected_when_retrace_makes_new_low() {
+        // 回拉创新低（lo=-12 < m1.lo=-10）⟹ 破前低 ⟹ 非第二类（第15课「未创新低」是真约束）。
+        let m2_break = RMove::Segment { direction: Direction::Up, lo: -12, hi: 3 };
+        let parent = compose_move(vec![m1_break(), m2_break], vec![second_center()], 1);
+        let points = extract_second_signals(
+            &parent,
+            Side::Long,
+            &second_center(),
+            |m| m.lo() == -10,
+            |_m| 0,
+        );
+        assert!(points.is_empty(), "回拉创新低 ⟹ 非第二类（无 B2）");
+    }
+
+    #[test]
+    fn second_buy_rejected_without_divergence() {
+        // 第一类离开破中枢但**不背驰**（divergence_of 全 false）⟹ 无完整第一类 ⟹ 无第二类结构。
+        let parent = parent_tower();
+        let points = extract_second_signals(
+            &parent,
+            Side::Long,
+            &second_center(),
+            |_m| false, // 力度全 false：无背驰
+            |_m| 0,
+        );
+        assert!(points.is_empty(), "破中枢但不背驰 ⟹ 非次级别第一类 ⟹ 无第二类");
+    }
+
+    #[test]
+    fn second_sell_mirror_from_rmove_tower() {
+        // S2 镜像：第一类向上离开探顶（破中枢上沿）+ 回抽不创新高 ⟹ 一个 S2（止损 = 回抽高点）。
+        // 第一类离开 [2,10]（hi=10 > zg=4 ⟹ 向上破中枢），回抽 [1,8]（hi=8 ≤ m1.hi=10 ⟹ 不创新高）。
+        let m1_sell = RMove::Segment { direction: Direction::Up, lo: 2, hi: 10 };
+        let m2_sell = RMove::Segment { direction: Direction::Down, lo: 1, hi: 8 };
+        let m3_sell = RMove::Segment { direction: Direction::Down, lo: 0, hi: 6 };
+        let parent = compose_move(vec![m1_sell, m2_sell, m3_sell], vec![second_center()], 1);
+        let points = extract_second_signals(
+            &parent,
+            Side::Short,
+            &second_center(),
+            |m| m.hi() == 10,         // 仅第一类离开背驰
+            |m| if m.hi() == 8 { 17 } else { 0 }, // 回抽走势的原始 K 序
+        );
+        assert_eq!(points.len(), 1, "S2：第一类离开 ∧ 回抽不创新高 ⟹ 一个 S2");
+        assert!(points[0].bits.sell2, "递归组装层产第二类卖点（sell2 置位）");
+        assert!(!points[0].bits.buy2, "卖侧 ⟹ buy2 不置位");
+        assert_eq!(points[0].source_index, 17, "S2 source_index = 回抽走势的原始 K 序");
+        assert_eq!(points[0].pivot_high, 8, "S2 止损源 = 回抽高点（second_point = m2.hi）");
+        assert!(points[0].center.is_none(), "1/2 类止损用 pivot 非 center");
+    }
+
+    #[test]
+    fn second_signals_empty_for_l0_segment() {
+        // 递归底：RMove::Segment（L0 线段）descend 得空 ⟹ 无次级别走势 ⟹ 无第二类（对齐
+        // rmove_compose segment_no_second_type）。递归组装层入口在递归底诚实空，非崩溃。
+        let seg = RMove::Segment { direction: Direction::Down, lo: -10, hi: -2 };
+        let points = extract_second_signals(&seg, Side::Long, &second_center(), |_m| true, |_m| 0);
+        assert!(points.is_empty(), "L0 线段（递归底）⟹ 无第二类结构 ⟹ 无 B2");
     }
 
     // ── 坐标系映射（source_index → closes 下标）─────────────────────────────

@@ -11,22 +11,26 @@
 //!   ↔ Lean `Origin.CenterStates.classifyPosition`（CenterStates.lean:71-74）。
 //! - **信号位 b 的第一/三类分量 B1/S1 + B3/S3**：rust `classifier::bsp::{EndpointSituation,
 //!   endpoint_to_bsp}` + `classifier::signal::extract_signals` ↔ Lean `Origin.BspClassification.
-//!   {IsType1,IsType3Buy,IsType3Sell}`（BspClassification.lean:94-95,111-121）。第二类结构不可产
-//!   （递归组装层缺口，见 ★诚实覆盖标注）。
+//!   {IsType1,IsType3Buy,IsType3Sell}`（BspClassification.lean:94-95,111-121）。
+//! - **信号位 b 的第二类分量 B2/S2**：rust `classifier::signal::extract_second_signals`（递归组装层）
+//!   ↔ Lean `Origin.RMoveCompose.{SecondTypeStructure,secondPointPrice}`（RMoveCompose.lean:197-215）。
 //!
 //! ## ★诚实覆盖标注（formalization-validity-domain 231号，强制）
 //!
-//! 本工位的 b 向量 parity 覆盖 = **B1/S1 + B3/S3**（第一类 + 第三类买/卖），**不含 B2/S2**。
+//! 本工位的 b 向量 parity 覆盖 = **B1/S1 + B3/S3 + B2/S2**（三类全买/卖）。
 //! - **B3/S3**（第三类）：`extract_signals` 纯整数几何（离开后回试不破 ZG/ZD）↔ Lean
 //!   `IsType3Buy/IsType3Sell`，**L0** bit-exact（层 B1/B2）。
 //! - **B1/S1**（第一类）：`extract_signals` 破中枢几何（**L0**）∧ MACD 背驰真算（**L1**）↔ Lean
 //!   `IsType1 = brokeCenter ∧ IsDivergence`（层 C）。★rust 领先 Origin：Lean `divPair` 是外部参数
 //!   （still-MISSING-C 无 MACD 引擎），rust `divergence.rs` 已实装 MACD ⟹ 背驰分量真算非占位。
-//! - **B2/S2**（第二类）：**结构不可 bit-exact 产出**（非遗漏，诚实边界）。买卖点定律一：第二类=
-//!   次级别第一类构成，需 `descend.rs::RMove` 递归结构；L0 segment 是递归底（descend 得空）⟹
-//!   `extract_signals(centers, segments)` 签名层拿不到次级别走势。第二类接入属**递归组装层**
-//!   （上游 mod.rs 构造 RMove::Compose 后调 descend.second_type_via_sublevel_type1），still-MISSING。
-//!   `signal_extraction_emits_no_second_class_only` 锁定该边界。
+//! - **B2/S2**（第二类，#52 递归组装层）：`extract_second_signals` 消费 RMove 递归塔的
+//!   `SecondTypeStructure`（第一类离开 m1 + 回拉 m2 不创新低/新高 + i1<i2）↔ Lean
+//!   `Origin.RMoveCompose.SecondTypeStructure` + `secondPointPrice`（层 D，见 §层 D）。**L0/L1**
+//!   bit-exact（结构层 L0，第一类离开背驰经 MACD = L1）。★诚实区分（与 B1/B3 不同）：B2/S2 的输入
+//!   是 **RMove 递归塔**（非 L0 segment）——`extract_signals`（L0 签名层）不产 B2/S2
+//!   （`signal_extraction_emits_no_second_class_only` 锁定该边界），按输入对象分工，非缺口。
+//!   ★still-MISSING（坐标/塔）：RMove 无 source_index（坐标由 index_of 闭包提供），且 mod.rs 生产
+//!   路径未构造 RMove 塔（still-MISSING-塔，上游接入），见 signal.rs 模块头。
 //!
 //! 「MACD 背驰预测在真实行情有效」（L2/L3 否证检验）**不在本工位**——本工位证 IsType1 结构合取
 //! bit-exact（L1 管线正确性），非背驰预测的经验有效性。
@@ -48,9 +52,11 @@
 
 use newchan_rust::theta_v0::classifier::bsp::{endpoint_to_bsp, EndpointSituation};
 use newchan_rust::theta_v0::classifier::center::{classify_position, RelativePosition};
-use newchan_rust::theta_v0::classifier::signal::{extract_signals, BspPoint};
+use newchan_rust::theta_v0::classifier::descend::RMove;
+use newchan_rust::theta_v0::classifier::rmove_compose::compose_move;
+use newchan_rust::theta_v0::classifier::signal::{extract_second_signals, extract_signals, BspPoint};
 use newchan_rust::theta_v0::config::MacdConfig;
-use newchan_rust::theta_v0::types::{Center, Direction, Segment, Tick};
+use newchan_rust::theta_v0::types::{Center, Direction, Segment, Side, Tick};
 use serde::Deserialize;
 
 /// 第三类 parity 专用入口：传空 closes（第三类纯整数几何，不依赖 MACD）——第一类自然不产。
@@ -399,14 +405,14 @@ fn type1_rejected_without_divergence_matches_lean() {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-//  诚实覆盖确认（B1/S1 + B3/S3 产出；B2/S2 结构不可产，递归组装层缺口）
+//  覆盖确认（extract_signals L0 层产 B1/S1 + B3/S3；B2/S2 由 extract_second_signals 递归组装层产）
 // ════════════════════════════════════════════════════════════════════════════
 
-/// ★诚实标注（编码为可执行断言）：extract_signals 产**第一类 + 第三类**，但对任意 L0 segment
+/// ★L0 签名层边界（编码为可执行断言）：extract_signals 产**第一类 + 第三类**，但对任意 L0 segment
 /// 输入**永不产第二类**（buy2/sell2 恒假）——第二类=次级别第一类构成（买卖点定律一），需 RMove
-/// 递归结构（descend.rs），L0 segment 是递归底（descend 得空）⟹ 结构不可 bit-exact 产出。
-/// 故第二类 Lean↔Rust 端到端 parity **无对照标的**（属递归组装层 still-MISSING，上游 mod.rs 接入
-/// descend.second_type_via_sublevel_type1）。本测试锁定该覆盖边界（多声部 B1/B3，B2 留递归层）。
+/// 递归结构（descend.rs），L0 segment 是递归底（descend 得空）⟹ 结构上不可在本签名层产出。
+/// B2/S2 由平行的递归组装层入口 `extract_second_signals` 产（消费 RMove 塔，见 §层 D）——按输入对象
+/// 分工（L0 segment vs RMove 递归塔），非 extract_signals 缺口。本测试锁定 L0 层覆盖边界（B1/B3）。
 #[test]
 fn signal_extraction_emits_no_second_class_only() {
     let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 2 };
@@ -419,10 +425,110 @@ fn signal_extraction_emits_no_second_class_only() {
     let (closes, src) = closes_seq(&[100, 100, 100, 100, 60, 140, 100, 95, 105, 100, 175, 250, 250, 230, 210]);
     let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
     for p in &points {
-        assert!(!p.bits.buy2, "extract_signals 不产第二类买点（递归组装层缺口，非本签名层）");
-        assert!(!p.bits.sell2, "extract_signals 不产第二类卖点（递归组装层缺口，非本签名层）");
+        assert!(!p.bits.buy2, "extract_signals（L0 层）不产第二类买点——B2 由 extract_second_signals 递归组装层产");
+        assert!(!p.bits.sell2, "extract_signals（L0 层）不产第二类卖点——S2 由 extract_second_signals 递归组装层产");
     }
     // 多声部确认：B1（破中枢背驰）+ B3（离开回试）均产出（消解「单声部 L0 第三类」根因）。
     assert!(points.iter().any(|p| p.bits.buy1), "产第一类（破中枢 ∧ 背驰真算）");
     assert!(points.iter().any(|p| p.bits.buy3), "产第三类（离开后回试不破）");
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  层 D — 第二类（B2/S2，#52 递归组装层）：extract_second_signals 消费 RMove 递归塔的
+//          SecondTypeStructure ↔ Lean Origin.RMoveCompose.{SecondTypeStructure,secondPointPrice}
+//
+//  Lean RMoveCompose.lean 已 machine-checked 见证（直接对照值，非 fixture，同 type3 内部点尺度精神）：
+//  - m1Wit（:301-302）：向下破中枢，区间 [-10,-2]，lo=-10 < c1Wit.zd=0 ⟹ SubBrokeBelow（:330）。
+//  - m2Wit（:305-306）：回拉不创新低，区间 [-8,3]，lo=-8 ≥ m1.lo=-10 ⟹ NoNewLow（:336）。
+//  - c1Wit（:313-315）：次级别中枢核心 [zd,zg]=[0,4]（B 口径核心区间）。
+//  - witness_secondTypeStructure（:352）：i1=0 < i2=1，第一类离开破中枢∧背驰 + 回拉不创新低 ⟹
+//    SecondTypeStructure Side.long parentWit2 成立（已证）。
+//  - witness_secondPoint_price（:374）：secondPointPrice Side.long m2Wit = -8（回拉低点 = m2.lo，已证）。
+//  - witness_newLow_breaks_type2（:343）：回拉 lo=-12 < m1.lo=-10 ⟹ ¬NoNewLow（不创新低是真约束，已证）。
+//
+//  rust extract_second_signals 用 Lean 见证原始数值（c1Wit/m1Wit/m2Wit）构造 RMove 塔，断言产出
+//  与 Lean 见证 bit-exact 一致（second_point = -8 = Lean secondPointPrice）。
+//  ★坐标：Lean Move μF 无 source_index（同 rust RMove）——本层对照结构判定 + second_point 价位，
+//  source_index 由 rust 测试侧 index_of 提供（坐标 still-MISSING，对照不依赖坐标，见 signal.rs 模块头）。
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 第二类见证中枢（Lean c1Wit，RMoveCompose.lean:313-315，B 口径核心区间 [zd,zg]=[0,4]）。
+fn second_center_wit() -> Center {
+    Center { zd: 0, zg: 4, dd: -2, gg: 6, start_index: 0, end_index: 0 }
+}
+
+/// Lean m1Wit（:301-302）：第一类离开走势（向下破中枢，区间 [-10,-2]）。
+fn m1_wit_rust() -> RMove {
+    RMove::Segment { direction: Direction::Down, lo: -10, hi: -2 }
+}
+
+/// Lean m2Wit（:305-306）：回拉走势（不创新低，区间 [-8,3]）。
+fn m2_wit_rust() -> RMove {
+    RMove::Segment { direction: Direction::Up, lo: -8, hi: 3 }
+}
+
+/// Lean m3Wit（:309-310）：收尾走势（区间 [1,5]）。
+fn m3_wit_rust() -> RMove {
+    RMove::Segment { direction: Direction::Up, lo: 1, hi: 5 }
+}
+
+#[test]
+fn type2_buy_matches_lean_witness_second_point() {
+    // ★对照 Lean witness_secondTypeStructure（:352）+ witness_secondPoint_price（:374）：
+    // RMove 塔（m1 破中枢∧背驰 + m2 回拉不创新低 + i1<i2）⟹ rust 产 B2，second_point = m2.lo = -8
+    // （= Lean secondPointPrice Side.long m2Wit）。
+    let parent = compose_move(vec![m1_wit_rust(), m2_wit_rust(), m3_wit_rust()], vec![second_center_wit()], 1);
+    let points = extract_second_signals(
+        &parent,
+        Side::Long,
+        &second_center_wit(),
+        |m| m.lo() == -10,        // Lean divWit2：仅第一类离开 m1（含 lo=-10）背驰
+        |m| if m.lo() == -8 { 99 } else { 0 }, // 回拉走势 m2 坐标（still-MISSING，测试侧提供）
+    );
+    assert_eq!(points.len(), 1, "Lean witness_secondTypeStructure 成立 ⟹ rust 产一个 B2");
+    assert!(points[0].bits.buy2, "Lean SecondTypeStructure Side.long ⟺ rust buy2 置位");
+    assert!(!points[0].bits.buy1 && !points[0].bits.buy3, "第二类不置 1/3 类 bit");
+    // ★second_point bit-exact：= Lean secondPointPrice Side.long m2Wit = -8（回拉低点 = m2.lo）。
+    assert_eq!(points[0].pivot_low, -8, "rust B2 止损源 pivot_low == Lean secondPointPrice m2Wit（-8）");
+}
+
+#[test]
+fn type2_buy_rejected_new_low_matches_lean() {
+    // ★对照 Lean witness_newLow_breaks_type2（:343）：回拉创新低（lo=-12 < m1.lo=-10）⟹ ¬NoNewLow
+    // ⟹ ¬SecondTypeStructure ⟹ rust 无 B2（不创新低是真约束，rust 与 Lean 同判）。
+    let m2_break = RMove::Segment { direction: Direction::Up, lo: -12, hi: 3 };
+    let parent = compose_move(vec![m1_wit_rust(), m2_break], vec![second_center_wit()], 1);
+    let points = extract_second_signals(&parent, Side::Long, &second_center_wit(), |m| m.lo() == -10, |_m| 0);
+    assert!(points.is_empty(), "Lean ¬NoNewLow（回拉创新低）⟹ rust 无 B2（与 Lean 同判非第二类）");
+}
+
+#[test]
+fn type2_sell_mirror_matches_lean() {
+    // ★S2 镜像对照 Lean NoNewHigh（RMoveCompose.lean:152）：第一类向上探顶 [2,10]，回抽 [1,8]，
+    // hi=8 ≤ m1.hi=10 ⟹ NoNewHigh ⟹ SecondTypeStructure Side.short ⟹ rust 产 S2，
+    // second_point = secondPointPrice Side.short m2 = m2.hi = 8。
+    let m1_sell = RMove::Segment { direction: Direction::Up, lo: 2, hi: 10 };
+    let m2_sell = RMove::Segment { direction: Direction::Down, lo: 1, hi: 8 };
+    let m3_sell = RMove::Segment { direction: Direction::Down, lo: 0, hi: 6 };
+    let parent = compose_move(vec![m1_sell, m2_sell, m3_sell], vec![second_center_wit()], 1);
+    let points = extract_second_signals(
+        &parent,
+        Side::Short,
+        &second_center_wit(),
+        |m| m.hi() == 10,
+        |m| if m.hi() == 8 { 7 } else { 0 },
+    );
+    assert_eq!(points.len(), 1, "Lean NoNewHigh ⟹ rust 产一个 S2");
+    assert!(points[0].bits.sell2 && !points[0].bits.buy2, "Lean SecondTypeStructure Side.short ⟺ rust sell2 置位");
+    assert_eq!(points[0].pivot_high, 8, "rust S2 止损源 pivot_high == Lean secondPointPrice Side.short m2（m2.hi=8）");
+}
+
+/// ★诚实边界（编码为可执行断言，formalization-validity-domain）：B2/S2 输入是 RMove 递归塔，
+/// 不是 L0 segment。L0 线段（RMove::Segment，递归底）descend 得空 ⟹ extract_second_signals 诚实空
+/// （对照 Lean segment_no_secondType，RMoveCompose.lean:285）——按输入对象分工，B2/S2 不在 L0 segment 层产。
+#[test]
+fn type2_empty_for_l0_segment_matches_lean() {
+    let seg = RMove::Segment { direction: Direction::Down, lo: -10, hi: -2 };
+    let points = extract_second_signals(&seg, Side::Long, &second_center_wit(), |_m| true, |_m| 0);
+    assert!(points.is_empty(), "Lean segment_no_secondType ⟺ rust L0 线段无 B2（递归底诚实空）");
 }
