@@ -41,6 +41,8 @@
 pub mod exec;
 pub mod intent;
 pub mod ledger;
+/// 区间套递归证书 N^δ + Sel_Θ 固定选择器（对照 `Origin.IntervalNestCertificate`，L2-B 补全）。
+pub mod nest;
 pub mod risk;
 pub mod voice;
 
