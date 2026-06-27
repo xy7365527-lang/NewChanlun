@@ -885,3 +885,18 @@ definition_partial_order:
     - {id: dengjia, depends_on: []}                    # 无前置依赖（筛选条件，非本体关系）
     - {id: bijia, depends_on: [dengjia]}               # 比价分析前提=等价对成立
     - {id: liuzhuan, depends_on: [bijia]}               # dengjia 通过 bijia 传递可达（Hasse 最小化）
+
+# ───────── goal_reducer（D′ RTAS-goal 动态根，619/033 声明式 dispatch 延伸）─────────
+goal_reducer:
+  description: >
+    goal 是蜂群运行时动态根（CLAUDE.md genome 是创世静态根）。
+    蜂群递归展开 = goal reducer 的确定性运行（非 Lead 认知）。
+  spec_what:  # 声明：什么是 ready
+    ready_condition: "sub_goal 未 passed ∧ 无 blocker ∧ 所有 blocked_by 已 passed"
+    terminate_condition: "所有 acceptance 项 CHECK_PASS（acceptance 必须 falsifiable）"
+    block_condition: "定义冲突 / 缺外部数据 / 需编排者裁决 → BLOCKED 事件 + escalate"
+  impl_how: "scripts/goal_reducer.py::reduce_goal（纯函数，确定性）"
+  event_source: ".chanlun/goals/events.jsonl"
+  projection: ".chanlun/goals/current.yaml"
+  # state 降 projection：session/interrupt 仅 base_head 匹配时作 hint（非真相源）
+  truth_sources: ["goal events", "git HEAD", "genealogy"]
