@@ -109,32 +109,23 @@ pub fn run_theta_v0(
     // 无 bsp（数据无「中枢+离开+回试」结构）⟹ 空 decisions ⟹ 空订单（如实反映，非伪造）。
     let decisions: Vec<VoiceDecision> = strategy::recognize(&classification, bars, config);
 
-    // 初始账户（绝对 NAV，各声部空仓）。声部树深度 = voice.max_depth。
-    let account = AccountState {
-        nav: if initial_nav > 0.0 { initial_nav } else { 1.0 },
-        voice_qty: vec![0; config.voice.max_depth as usize],
-    };
-
-    // ── 步骤 4：策略（声部决策 → 订单流）。plan_orders 已实装；空 decisions ⇒ 空订单。 ──
-    let orders = strategy::plan_orders(&decisions, bars, &account, config);
-
-    // ── 步骤 4.5：★闭环 S_Θ 驱动（task #94 引擎实装，消除开环单帧）。 ──
-    // 旧引擎：account 构造一次后不更新喂回（开环单帧）。本步骤把闭环 AssemblyState 逐 bar
-    // 推进 `x = hybrid_step(x, e)`——micro_state/ledger_state/tw_state/positions/orders 每 bar
-    // 真更新喂回（双账本 R=Π-A-W + TW 守恒 + stage 单向 + OQ-9 gate 在闭环每步被维持）。
-    // 闭环终态作为「每 bar 真喂回」的证据（见 closed_loop_threads_every_bar 见证）。
+    // ── 步骤 4+5：★闭环 NAV mark-to-market（Task A，消除开环单帧）。 ──
+    // 旧引擎：account 构造一次（初始 NAV=1e6），plan_orders 全部订单用固定 NAV sizing
+    // → qty 过大 → strat_return=3464% 不可信（Origin.TotalWealth 定义未满足）。
+    // 新引擎：decisions 按 exec_index 分组，逐 bar 推进：每个 exec_index 到达时，用
+    // 当前账本 TW（cash + units×px）动态计算 NAV，重新 plan_orders + fill + 更新账本。
+    // 对齐 Origin.TotalWealth：TW = free（cash）+ holding（units × current_price）。
+    // ★认识论：账本更新 = L0（Origin.TotalWealth 结构恒等）；指标结果 = L2（真实数据回测）。
     let closed_loop_final = run_closed_loop(bars, initial_nav);
-
-    // ── 步骤 5：fill 模拟 + 权益曲线（绝对 NAV 记账，归一化输出）。 ──
-    let (equity_curve, daily_returns, trade_pnls) =
-        simulate_fills(bars, &orders, account.nav, config);
+    let (equity_curve, daily_returns, trade_pnls, n_orders_cl) =
+        plan_and_fill_mtm(&decisions, bars, initial_nav, config);
 
     // buy&hold 对照（首尾 close，整数 tick → f64 比率，无 tick_size 依赖）。
     let bh_return = buy_and_hold_return(bars);
 
     let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return);
 
-    let n_orders = orders.len();
+    let n_orders = n_orders_cl;
     let untradable_ratio = dataset.untradable_ratio();
     // L2 判据：产出非空订单流（阻塞点解除）+ 真实数据。订单空 ⇒ 仅 L1（管线串通）。
     let is_l2 = n_orders > 0;
@@ -195,6 +186,124 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
         (Some(f), Some(l)) if f.close > 0 => l.close as f64 / f.close as f64 - 1.0,
         _ => 0.0,
     }
+}
+
+/// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
+///
+/// 接收 `recognize` 批产的 `Vec<VoiceDecision>`，按 `exec_index` 分组，逐 bar 推进：
+/// - 每到 `exec_index == i` 时，用当前账本 TW（`cash + units × px`）构造 `AccountState`，
+///   以当前账本 NAV 重新 `plan_orders`（sizing 用真实账本，非固定初始 NAV）。
+/// - `apply_order` 执行 fill（cash/units/entry_price/voice_qty 四态同步更新）。
+/// - 推进权益曲线（bar 级，归一化为 ÷initial_nav）。
+///
+/// **对齐 Origin.TotalWealth**：`TW = free（cash）+ holding（units × current_price）`。
+/// 同价操作（buy@px → holding=qty×px）NAV 中性（L0 结构恒等）；账本 NAV 随价格走势真变化。
+///
+/// **voice_qty 同步**：`plan_orders` 的 `act_state` 依赖 `voice_qty[depth]` 判开/平仓。
+/// fill 后按 action 更新：Buy/Add → `voice_qty[depth] += qty`；Close/Reduce → 减。
+/// 当前 recognize 产单声部 depth=0，voice_qty 维护精确（多声部时仍正确按 depth 分组）。
+///
+/// 返回 `(equity_curve, daily_returns, trade_pnls, n_orders_executed)`（L2 等级，真实数据时
+/// n_orders_executed > 0 ⟺ is_l2 = true）。
+fn plan_and_fill_mtm(
+    decisions: &[VoiceDecision],
+    bars: &[Bar],
+    initial_nav: f64,
+    config: &ThetaConfig,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, usize) {
+    use super::super::strategy::exec::fill_bar_index;
+    use super::super::strategy::voice;
+    use super::super::strategy::voice::VoiceSide;
+
+    let n = bars.len();
+    let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
+    let fee_rate =
+        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+
+    // decisions 按 exec_index 分组。
+    // exec_index = fill_bar_index(signal_index, bars, config)，
+    // 与 build_open/exit_order 内计算方式完全对齐（同一函数，零重算偏差）。
+    // VoiceDecision 只有 signal_index，exec_index 需要预计算。
+    let mut groups: Vec<Vec<&VoiceDecision>> = vec![Vec::new(); n];
+    for d in decisions {
+        if let Some(ei) = fill_bar_index(d.signal_index, bars, &config.exec) {
+            if ei < n {
+                groups[ei].push(d);
+            }
+        }
+    }
+
+    let mut cash: f64 = nav0;
+    let mut units: f64 = 0.0;
+    let mut entry_price: f64 = 0.0;
+    // voice_qty：各深度声部持仓手数，对齐 AccountState.voice_qty 语义。
+    let mut voice_qty: Vec<u32> = vec![0u32; config.voice.max_depth as usize];
+
+    let mut equity_curve = Vec::with_capacity(n);
+    let mut trade_pnls: Vec<f64> = Vec::new();
+    let mut n_orders_executed: usize = 0;
+
+    for i in 0..n {
+        let bar = &bars[i];
+        let px = bar.close as f64 * config.tick.tick_size;
+
+        // 该 bar 到达 exec_index 的 decisions：用当前账本 NAV（MtM）重新 plan_orders。
+        let bar_decisions = &groups[i];
+        if !bar_decisions.is_empty() && !bar.untradable && px > 0.0 {
+            // 当前账本 NAV（mark-to-market）= free（cash）+ holding（units×px）。
+            // 对齐 Origin.TotalWealth：TW = free + holding。
+            let current_nav = cash + units * px;
+            let account = AccountState {
+                nav: if current_nav > 0.0 { current_nav } else { nav0 },
+                voice_qty: voice_qty.clone(),
+            };
+            // 对该 exec_index 的全部 decisions 批量 plan（保持冲突排序语义）。
+            let bar_decision_slice: Vec<VoiceDecision> =
+                bar_decisions.iter().copied().cloned().collect();
+            let orders = strategy::plan_orders(&bar_decision_slice, bars, &account, config);
+            for o in &orders {
+                if o.qty > 0 {
+                    // voice_qty 同步：找首个方向匹配的 decision，取其 depth。
+                    // decisions 与 orders 不一一对应（冲突排序可合并/删订单），
+                    // 但同一 exec_index 内 depth=0 单声部时精确；多声部 depth 推断是近似。
+                    let depth = bar_decisions
+                        .iter()
+                        .find_map(|d| {
+                            let side = voice::voice_side(d.root_side, d.depth);
+                            let matches_action = matches!(
+                                (o.action, side),
+                                (StrictAction::Buy | StrictAction::Add, VoiceSide::Long)
+                                    | (StrictAction::Sell, VoiceSide::Short)
+                                    | (StrictAction::Close | StrictAction::Reduce, _)
+                            );
+                            if matches_action { Some(d.depth as usize) } else { None }
+                        })
+                        .unwrap_or(0);
+                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_price, &mut trade_pnls);
+                    // voice_qty 同步（fill 后更新）。depth 超界时跳过（诚实边界，不应发生）。
+                    if let Some(slot) = voice_qty.get_mut(depth) {
+                        match o.action {
+                            StrictAction::Buy | StrictAction::Add => {
+                                *slot = slot.saturating_add(o.qty as u32);
+                            }
+                            StrictAction::Sell | StrictAction::Close | StrictAction::Reduce => {
+                                *slot = slot.saturating_sub(o.qty as u32);
+                            }
+                            StrictAction::Hold | StrictAction::Wait => {}
+                        }
+                    }
+                    n_orders_executed += 1;
+                }
+            }
+        }
+
+        // 权益曲线（mark-to-market，归一化 ÷nav0）。
+        let equity = (cash + units * px) / nav0;
+        equity_curve.push(equity);
+    }
+
+    let daily_returns = bar_returns(&equity_curve);
+    (equity_curve, daily_returns, trade_pnls, n_orders_executed)
 }
 
 /// fill 模拟（Θ_exec 基础形态，reference-theta-v0.md:49-54）。
@@ -494,6 +603,30 @@ mod tests {
         assert!(equity[1] > 1.0, "盈利交易 ⇒ 末权益 > 初始 1.0，实得 {}", equity[1]);
     }
 
+    /// ★ plan_and_fill_mtm：空 decisions ⟹ 权益曲线全 1.0，n_orders=0（L1 退化验证）。
+    ///
+    /// 认识论：L1（合成 bars + 空 decisions，验证管线正确退化，零信息增量）。
+    /// 边界条件：decisions 非空时才进 per-bar plan 路径（此测试仅验证退化）。
+    #[test]
+    fn plan_and_fill_mtm_empty_decisions_flat_equity() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> =
+            (0..5).map(|i| mk_bar(i, 1000 + i as i64 * 10, false)).collect();
+        let (eq, rets, pnls, n) = plan_and_fill_mtm(&[], &bars, 1.0e6, &config);
+        assert_eq!(n, 0, "空 decisions ⟹ n_orders=0");
+        assert_eq!(pnls.len(), 0, "无交易 ⟹ 无 pnl");
+        assert_eq!(eq.len(), 5, "权益曲线与 bars 等长");
+        // 所有权益值 = 1.0（无交易，cash=nav0，units=0）。
+        for (i, e) in eq.iter().enumerate() {
+            assert!(
+                (e - 1.0).abs() < 1e-12,
+                "bar {} 权益应 =1.0（无交易），实得 {}",
+                i, e
+            );
+        }
+        let _ = rets; // 日 returns 由 bar_returns 计算，不在此断言具体值
+    }
+
     /// 不可交易 bar 上不成交（reference:53）。
     #[test]
     fn untradable_bar_skips_order() {
@@ -518,13 +651,20 @@ mod tests {
     fn real_data_smoke_oklo() {
         use super::super::super::{classifier, parser, strategy};
         use super::super::data;
+        use super::super::prereg_windows::PREREG_WINDOWS;
 
         let config = ThetaConfig::default();
         let ds = data::load_by_symbol("OKLO", &config).expect("加载 OKLO 真实数据");
         assert!(ds.bars.len() > 300_000, "OKLO 应有 ~343K bar（协议 §1.1）");
 
-        // 切 OOS 窗（协议 §2.1：2023-01-01 → 2025-06-30）。
-        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        // 切 OOS 窗：从 PREREG_WINDOWS 消费 OKLO 的预注册 OOS 边界（§2.4 特例）。
+        // OKLO OOS = ("2025-01-01", "2026-06-24")，非核心池统一 OOS("2023-01-01"/"2025-06-30")。
+        // 使用 PREREG_WINDOWS 而非字面量，确保数据挖掘防护的唯一真相源（Task B）。
+        let oklo_reg = PREREG_WINDOWS
+            .iter()
+            .find(|w| w.symbol == "OKLO")
+            .expect("PREREG_WINDOWS 含 OKLO（prereg_consistency_pool_counts 已断言）");
+        let oos = ds.slice_date_window(oklo_reg.oos.0, oklo_reg.oos.1);
         assert!(!oos.bars.is_empty(), "OOS 窗应非空");
         eprintln!("[OKLO] OOS 窗 bars={}", oos.bars.len());
 
