@@ -44,7 +44,7 @@ def reduce_goal(events, facts):
     blocked = [{"id": s["id"], "blocker": s["blocker"]} for s in subs.values() if s["blocker"]]
     # 5. goal 验收：所有 acceptance CHECK_PASS → closed
     for acc in goal["acceptance"]:
-        if (gid, acc["check"]) in passed_checks or any(c == acc["check"] for _, c in passed_checks):
+        if (gid, acc["check"]) in passed_checks:
             acc["passed"] = True
     terminated = bool(goal["acceptance"]) and all(a["passed"] for a in goal["acceptance"])
     if terminated or gid in closed:

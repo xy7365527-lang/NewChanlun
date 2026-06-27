@@ -71,3 +71,17 @@ def test_goal_set_rejects_non_falsifiable_acceptance():
     import pytest
     with pytest.raises(ValueError, match="falsifiable"):
         reduce_goal(events, _facts())
+
+def test_sub_goal_check_name_collision_does_not_close_goal():
+    # sub_goal 的 check 名与 goal acceptance check 名相同，但 CHECK_PASS 只 target sub_goal，
+    # 不应误判 goal acceptance 通过（gid-only 匹配，SCHEMA 未定义跨节点 rollup）。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "DECOMPOSE", "goal_id": "g1", "ts": "t1",
+         "sub_goals": [{"id": "g1.1", "desc": "a", "blocked_by": []}]},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1.1", "check": "c1", "ts": "t2"},  # sub_goal，非 goal
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["status"] != "closed"  # 不应因 sub_goal 同名 check 而闭合
+    assert out["current_goal"]["acceptance"][0]["passed"] is False
