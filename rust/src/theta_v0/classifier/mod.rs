@@ -55,6 +55,7 @@ pub mod force_conformance;
 pub mod descend;
 pub mod nest;
 pub mod signal;
+pub mod six_state;
 
 use bsp::BspPoint;
 use center::UnitRange;
