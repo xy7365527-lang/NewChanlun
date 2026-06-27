@@ -15,6 +15,17 @@
 
 `/goal` 就是这个承载机制的显式化：**Lead runtime 层在 goal 驱动下持续轮询工位 + 推进蜂群循环**，承载"持续监控型"能力——不是 hook/teammate 承载，而是 Lead 自身的运行时纪律承载。
 
+## 契约写入（D′）
+
+`/goal <目标>` 设定时：
+1. 校验目标可收敛 + 验收可证伪（每个 acceptance 项 falsifiable=true，否则拒绝——lesson 0011 锋利问题②；该校验由 `goal_reducer._validate_acceptance` 在 reduce 时强制，非 falsifiable 的 GOAL_SET 会在 reduce 时 raise）
+2. append GOAL_SET 事件到 `.chanlun/goals/events.jsonl`（含 goal_id, description, acceptance[], base_head=当前 git HEAD, ts）
+3. 调 `python scripts/ceremony_scan.py`（其 `_load_current_goal` 读 events.jsonl → `goal_reducer.reduce_goal` 纯函数 reduce）→ scan JSON 输出 current_goal projection + ready_workstations。**注**：`goal_reducer` 是纯函数（无 IO），reduce 结果仅以 projection 形式出现在 scan JSON 的 `current_goal` 字段中；`current.yaml` 文件物化当前**尚未实装**，由后续任务/Lead 承载——本协议不声称已写 current.yaml。
+4. 进入运行协议循环（下方）
+
+恢复时（无参 /goal 或 /ceremony）：reduce events → 若有 active goal 继续；无则从 roadmap/中断点推导候选 GOAL_SET。
+**state 降 projection**：session/interrupt 仅 base_head 匹配时作 hint，不匹配则 reduce 重算（消除状态过时；reduce 输出 current_goal.base_head_stale 标记不匹配）。
+
 ## 运行协议（持续循环，不等确认）
 
 设定 goal 后，Lead 进入循环（每轮原子链，不可被总结段落/确认信号打断——137号/post-commit-flow）：
