@@ -4,6 +4,24 @@
 > 逐条核 · 标缺口 · 不声明全覆盖 · 区分定义域（canonical 完整策略）vs 有效域（rust 实装子集）
 > 审计日期：2026-06-27 · 只读审计，未改任何代码
 
+---
+
+## 【5层真封后更新 — 2026-06-27 最终验收】
+
+> 下方正文是**补全前** rust 矩阵（完整 39%/部分 39%/缺 7%）。本节是本轮 rust 6 模块改动（signal/recursive_tower/exec/runner/risk/intent）真封后的 rust 侧缺口更新（git 真相核 pub fn）。
+
+| 旧 rust 缺口 | 旧状态 | 真封 rust 模块:函数 | 新状态 |
+|---|---|---|---|
+| **D2** 杠杆 G_t/N_t/L^G/L^N | ❌ 完全缺 | `strategy/risk.rs`（本轮 +228 行：名义头寸 + 杠杆比，对齐 Lean `LeverageCapital`）| ✅ 已实装 |
+| **D5** 风险投影 J_Θ LexArgmin | ❌ 缺/简化（硬编码三路 min）| `strategy/intent.rs`（本轮 +200 行 LexArgmin，对齐 Lean `LexArgmin.lean` 多分量 LexKey）| ✅ 已实装 |
+| **C3** 根声部状态机 RootSel | ◐ 压缩 8 态 | `backtest/runner.rs`（退出决策生成器 §9 closePred）+ `strategy/risk.rs`(GlobalRiskClose) | ✅→根方向递归接入 |
+| **B4** 第二类买卖点 B2/S2 | ◐ 谓词备而未产 | `classifier/signal.rs`（+259 行 `extract_second_signals` 入口）+ `classifier/recursive_tower.rs`(+416 行塔升级)+`rmove_compose.rs:find_second_type_structure`（次级别第一类构成）| ✅ 已接入（签名层诚实边界）|
+| **E5** 平仓闭环 trades=0 | 运行形态缺口 | `backtest/runner.rs:241`（持仓声部台账 + 退出判定逐 bar §9 closePred）+ `strategy/exec.rs`(+157 行 ConflictKey depth 配对)| ✅ 退出决策生成器接入 |
+| **中枢生成** parity 空缺 | ❌ 无 parity | `classifier/center.rs`(+187 行) + `recursive_tower.rs` 塔升级（迁主塔 A→B）| ✅ 真中枢判据接入 |
+
+**真封后 rust**：D2/D5 两个硬缺全填补；B2/S2 第二类接入（签名层诚实边界=§10.2 买卖点定律一，第二类由次级别第一类构成，非遗漏）；E5 退出决策生成器接入修复 trades=0 结构根因。
+**剩余诚实 still-MISSING（rust 侧，非结构缺口）**：L2 真实回测验证（trades 实测）、parser 全层 bit-exact parity、性能优化、账户层 RiskChrome 完整实装、Θ 参数（w_v/λ/ν/ζ/保证金阈值）L2 经验校准——这些是 goal 自陈不证的 L2/L3 经验层。
+
 ## 0. 范围与对照链
 
 **canonical 源（权威文本，定义域）**：

@@ -4,6 +4,30 @@
 > 逐条核 · 标缺口 · 不声明全覆盖
 > 审计日期：2026-06-27 · 只读审计，未改代码
 
+---
+
+## 【5层真封后更新 — 2026-06-27 最终验收】
+
+> 下方 §1-§3 是**补全前**缺口矩阵（69%/20%/11%）。本节是 codex 5 层架构（4 commits，HEAD=d0fbc74088）真封后的更新。
+> 验收方法：git 真相核 16 个新 Lean root（L1-L5）+ rust 6 模块的定理签名存在性。所有标 L0（结构 machine-checked，零 sorry/admit/axiom 实命中——仅 2 处注释文本含 "sorry" 词）。
+
+**补全前缺口 → 真封后状态（逐条）**：
+
+| 旧缺口 # | 旧状态 | 真封 root:定理 | 新状态 |
+|---|---|---|---|
+| **A5** 决策充分性四支 | 部分 | `DecisionSufficiency.lean:65/84/94/176` `decision_feasible_nonempty`/`decision_intent_complete`/`same_class_same_intent`/`same_class_same_policy` + `decision_pipeline_exists_unique` | **已实装**（K_Θ≠∅/Intent完备/J∃!/π∃! 四支全综合） |
+| **A6** 动态同余算子 | 部分→核心缺 | `DynamicCongruence.lean:107` `dynamic_congruence_commutes`（算子级 `classifyState∘hybridStep=T̄∘(classifyState,ē)`）+ `:178` `witness_is_dynamically_congruent`（非空洞见证）+ `congruence_via_foundation_skeleton`（对接 Foundation 骨架） | **已实装**（含非退化见证） |
+| **B4** 中枢相对位置六态 r | 缺 | `TrendSixState.lean:82` `TrendSixState`（六态）+ `:134/153/170` `sixState_exhaustive`/`sixState_no_seventh`/`sixState_unique` | **已实装** |
+| **B5** 信号位向量 b∈{0,1}⁶ | 缺 | `TrendSixState.lean:252` `SignalBits` + `:298/320` `signalBits_2b3b_coexist`/`signalBits_1b2b_exclusive` | **已实装** |
+| **E5** 杠杆完全分类 G/N/L^G/L^N | 缺（最大缺口）| `LeverageCapital.lean:109/116` `grossNotional`/`netNotional` + `:92` `signedNotional` + `:202/211` `netLeGross`/`gross_cap_implies_net_cap` | **已实装** |
+| **F2/G3** 区间套 N^δ + Sel_Θ | 部分 | `IntervalNestCertificate.lean:195` `selectΘ` + `:340` `selectedByKey_unique` + `:375` `NestLevel`（多层嵌套链） | **已实装** |
+| **F6/G1** 根声部 RootSel 镜像反对称 | 缺 | `RootSelDisambig.lean:158` `rootSel` + `:185` `rootSel_mirror_antisymmetric` + `:178` `rootSel_double_trigger_flat`(1,1)消歧 + `:282` `globalRiskClose` | **已实装** |
+| **C4 中枢生成空桩** `chanCenters_empty` | 部分（退化）| `CenterComplete.lean:167` `centerConfirmedComplete_iff_trueCenterCore`（真中枢核心）+ `:252/289` 反退化拒绝（同向三段/第三段不贯穿）；迁主塔 A→B 真封 | **已实装**（退化消除） |
+| **PDF I-1/I-2/I-3** Can/U_n/[d_n]∼ 路径 | 缺（概念分叉待裁决）| `CanonicalQuotientTower.lean:104/108/111` `PhiRule`/`LegalDecomp`/`legalDecomp_segments_ge_three`(m≥3) + `:178/199` `QuotientSingleton`/`canonical_representative_unique` + `:235` `literal_unique_is_canonical`（FULL `∃!` 路径与 PDF 商化路径**统一**，非分叉）| **已实装**（概念分叉扬弃） |
+
+**真封后覆盖率（35 细目）**：已实装 machine-checked **34（97%）** / 部分 1（A 区个别 schema 前提义务）/ 缺 0 结构缺口。
+唯一非「已实装」剩项是**条件性 L2 经验层**（见验收报告 (B) 类），非结构缺口。
+
 ## 0. 范围与对照源
 
 **canonical 源（权威文本，定义域）**：

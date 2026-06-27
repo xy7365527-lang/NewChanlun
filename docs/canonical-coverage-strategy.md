@@ -1,5 +1,27 @@
 # Canonical 全定义策略 S_Θ × repo Lean 实装 —— 逐条覆盖矩阵
 
+---
+
+## 【5层真封后更新 — 2026-06-27 最终验收】
+
+> 下方正文是**补全前**矩阵（5节完整/13节部分/4节缺口，G1-G8）。本节是 codex 5 层架构真封后 G1-G8 的更新（git 真相核 Lean root 定理签名）。
+
+| 缺口 | 旧状态 | 真封 root:定理 | 新状态 |
+|---|---|---|---|
+| **G1** §9 根声部 RootSel/GlobalRiskClose/根方向递归 | ❌ 全缺（高）| `RootSelDisambig.lean` `rootSel`/`rootSel_mirror_antisymmetric`/`rootSel_double_trigger_flat`/`globalRiskClose` + `SubVoiceOpenClose.lean:120/131` `closePred`/`openPred`（关闭优先开启）| ✅ 已实装 |
+| **G2** §11 杠杆 n_v/G_t/N_t/L^G/L^N | ❌ 全缺（高）| `LeverageCapital.lean` `signedNotional`/`grossNotional`/`netNotional`/`netLeGross`/`gross_cap_implies_net_cap` | ✅ 已实装 |
+| **G3** §6 区间套 Sel_Θ + N^δ 嵌套链 | ❌ 缺（中）| `IntervalNestCertificate.lean` `selectΘ`/`selectedByKey_unique`/`NestLevel`（J⊆J 嵌套 + 三键字典序选择器）| ✅ 已实装 |
+| **G4** §10 负成本 c^adj<0⟺W+R>I_0 + K^adj | ❌ 缺（中）| `LeverageCapital.lean` 资本基准 + `CompleteStateEvent.lean` 完整账本分量（c^adj/K^adj 公式接入完整状态）| ◐→✅（结构层）|
+| **G5** §8 声部树有限有根 + 同单位对冲约束 | ◐ 弱（中）| `SubVoiceOpenClose.lean` 子声部开平 + `ConstraintSystem.lean` K17 含 `a'_v=1⟹q'_v=q'_{p(v)}`（同单位）/`Σa'_w≤1`（每父一活子）逐条 | ✅ 已实装 |
+| **G6** §7 镜像等变全链（非假设式）| ◐（中）| `RMoveCompose.lean`/`RootSelDisambig.lean:185` `rootSel_mirror_antisymmetric` + `MainTheorem.lean` 镜像等变综合支（从 Θ 镜像构造）| ◐→✅（综合支）|
+| **G7** §1/§17 hybrid_step 六段义务版 | ◐（低-中）| `MainTheorem.lean:main_theorem` 闭环∃! 综合（引六段 ExistsUnique 义务）+ `DecisionSufficiency.lean:decision_pipeline_exists_unique` | ✅ 已实装 |
+| **G8** §14 决策充分性 + 动态同余 | ❌ 全缺（**最严重**）| `DecisionSufficiency.lean`（四支全综合）+ `DynamicCongruence.lean:dynamic_congruence_commutes`（算子级交换图 + 非空洞见证 + 对接 Foundation `dynamic_closure_step`）| ✅ 已实装 |
+
+**真封后**：22 节中 **§6/§9/§11/§14 四个显著 ❌ 缺口节全部填补**，G1-G8 八个关键缺口全部 ✅。
+剩余诚实 still-MISSING（§18 不证盈利/回本/负成本/增单 + 最小性⟸行为商 + Θ 参数 L2 校准）= goal 自陈不证的条件性不变量，**非结构缺口**。
+
+---
+
 **审计类型**：反膨胀完整性核查（逐条核、标缺口、不声明全覆盖）
 **canonical 源（只读）**：
 - `~/Downloads/newchanlun-formal/strict_hybrid_state_machine_strategy.md`（S_Θ 混合状态机，619 行 22 节）

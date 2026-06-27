@@ -7,6 +7,30 @@
 
 ---
 
+## 【5层真封后更新 — 2026-06-27 最终验收】
+
+> 下方正文是**补全前**异源条目清单（23 异源 + 24 平行）。本节更新第Ⅰ类 PDF-only 路径（Can/U_n/[d_n]∼）的填补状态。
+
+**第Ⅰ类 PDF-only 级别递归公理化 — 真封后**：
+
+| 异源 # | 旧状态 | 真封 root:定理 | 新状态 |
+|---|---|---|---|
+| **I-1** `Can_{Φ_n}` 规范化算子 | ❌ 否（退化态）| `CanonicalQuotientTower.lean:131` `CanonicalForm` + `:104` `PhiRule` 规则族 | ✅ 已实装 |
+| **I-2** `U_n` 直积塔 + m≥3 构成律 | 退化（length≤1）| `CanonicalQuotientTower.lean:111` `legalDecomp_segments_ge_three`（m≥3）+ `RMoveCompose.lean:composeMove`（塔升级）；中枢迁主塔 A→B（`CenterComplete.lean` 真中枢核心）| ✅ 退化消除 |
+| **I-3** `[d_n]_∼n` 等价类 + `\|D_n/∼_n\|=1` | ❌ 否 | `CanonicalQuotientTower.lean:178` `QuotientSingleton` + `:199` `canonical_representative_unique` | ✅ 已实装 |
+| **I-7** 指示函数互斥穷尽 ∑1[·]=1 | 平行 | `TrendSixState.lean`/`各 *_complete_unique`（∃! 等价）| ✅ 平行确认 |
+| **I-8** 双射分类元定理三件套 | 部分 | `CanonicalQuotientTower.lean` + `CompleteClassification.lean` fibre 同构 | ✅ |
+
+**关键：FULL `∃!` 路径 vs PDF 商化 `\|·/∼\|=1` 路径的概念分叉已扬弃**——
+`CanonicalQuotientTower.lean:229/235` `literalUnique` + `literal_unique_is_canonical` 证**两条路径统一**（字面唯一是规范形的特例），非待裁决分叉。补全前矩阵 §5.1「两条路径的选择是待裁决概念分叉」已被严格扬弃（否定分叉 + 保留两路径 + 提升为统一定理）。
+
+**第Ⅱ类 reference 语义**：中枢 max3/min3 + GG/DD 分离已实装（补全前已 ✅），本轮迁主塔 A→B 后 `chanCenters_empty`/`composeStep_length_le_one`/`composeStrictStep_head_not_wellformed` 三个退化标记**消除**（`CenterComplete.lean` 真中枢核心替代）。
+**第Ⅲ类 D/T 商**：K4 拓扑 + D 读数商仍 L0 结构层（有效域声明义务保留，230号 L2 退化警告不变）——这是 goal 自陈不证的 L2 经验层。
+
+**剩余 still-MISSING（非结构缺口）**：I-5 鲁棒 DP 值函数（FULL §19 用单步 LexArgmin 已实装，DP 迭代是 PDF 异源**可选**扩展，FULL 主动选 LexArgmin 路径，非缺口）、I-9 哥德尔元层（不入实装，元理论）、仓库 spec 原文纳入（外部依赖）。
+
+---
+
 ## 0. 通读范围与去重证据（完整读不省略的地面真相）
 
 ### 0.1 已完整通读的文档清单
