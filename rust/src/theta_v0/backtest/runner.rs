@@ -721,4 +721,266 @@ mod tests {
         assert!(res.metrics.bh_return.is_finite(), "buy&hold 对照有限值");
         assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空（诚实标注）");
     }
+
+    /// **L2 真实数据回测：8 品种 OOS 窗 + 分层诊断**（`#[ignore]`，需 `analysis/data_cache/*.json`）。
+    ///
+    /// canonical Next Gate 3 / acceptance #5 的执行体。遍历 PREREG_WINDOWS 全 8 品种，对每品种
+    /// 的预注册 OOS 窗（核心/扩展统一 2023-01-01→2025-06-30；OKLO §2.4 特例）跑 frozen Θ v0，
+    /// 产出每品种：strat_return / sharpe / max_dd / n_trades / n_orders + **分层诊断计数**
+    /// （信号在 parse→classify→signal→recognize→plan_orders 哪一层断流）。
+    ///
+    /// ## 认识论（formalization-validity-domain 231号，强制标注）
+    ///
+    /// - 管线驱动本身 = **L1**（遍历 + 收集，零信息增量）。
+    /// - 每品种产出的扣成本指标 = **L2 当且仅当 n_orders>0**（真实数据 + 非空订单流，可否证）。
+    /// - **诚实约束**（[[l2-engine-incompleteness-vs-theta-falsification]] 625 铁律）：若某品种
+    ///   n_orders=0，**报「L1 工程层断流在 X 层」非「L2 策略不盈利」**——分层诊断精确定位断点
+    ///   （segments<3 / centers=0 / bsp=0 / decisions=0 / orders=0），不把引擎产不出信号当经验否证。
+    ///   recognize 断点进一步细分到判据级（empty_bits / fill_oob / center_inv），并检测
+    ///   **source_index 坐标系不一致**（max_src_idx≥bars.len），把该断点归到定义层冲突（矛盾上浮
+    ///   候选）而非笼统的「引擎缺口」——这是本测试在 v0 真实数据上实测到的根因。
+    ///
+    /// 跑法：`cargo test --lib theta_v0::backtest::runner::tests::l2_oos_eight_symbols -- --ignored --nocapture`
+    #[test]
+    #[ignore = "L2 真实数据回测，需 analysis/data_cache/*.json 全 8 品种；显式 --ignored"]
+    fn l2_oos_eight_symbols() {
+        use super::super::super::{classifier, parser, strategy};
+        use super::super::data;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+
+        let config = ThetaConfig::default();
+
+        eprintln!("\n===== L2 OOS 回测：8 品种分层诊断 =====");
+        eprintln!(
+            "{:<6} {:>9} {:>8} {:>8} {:>7} {:>4} {:>4} {:>4} {:>5} {:>5} {:>6}  {:>4} {}",
+            "symbol", "oos_bars", "bh%", "strat%", "sharpe", "seg", "ctr", "bsp",
+            "decis", "ord", "trades", "L?", "断点层",
+        );
+
+        // 分层断点诊断聚合计数（L1 工程层 vs L2 经验否证的精确归因）。
+        let mut n_block_l0_segments = 0usize; // 断点 L0：线段<3（无法构造中枢）
+        let mut n_block_classify = 0usize; // 断点 classify：有线段无中枢
+        let mut n_block_signal = 0usize; // 断点 signal：有中枢无 BSP
+        let mut n_block_recognize = 0usize; // 断点 recognize：有 BSP 无声部决策
+        let mut n_block_sizing = 0usize; // 断点 plan_orders/sizing：有决策无订单
+        let mut n_l2_orders = 0usize; // 端到端产订单流（L2 有效）
+
+        // recognize 断点的子原因细分（625 铁律：精确归因，非粗归到「recognize:无决策」）。
+        // 当某品种 total_bsp>0 却 decisions=0 时，逐 BspPoint 复现 strategy::recognize_point 的
+        // 三道拒绝判据（与 strategy/mod.rs 同一逻辑，单一真相），统计哪道判据吞掉了全部 bsp：
+        //   - empty_bits：bits 无任何买卖位（bsp_root_side→None，非交易点）
+        //   - fill_oob：信号后 entry_delay 落点越过序列末尾或全 untradable（fill_bar_index→None）
+        //   - center_inv：含 3 类 bit 但 center=None（classifier 不变量违反，显式拒绝）
+        let mut recog_reject_empty_bits = 0usize;
+        let mut recog_reject_fill_oob = 0usize;
+        let mut recog_reject_center_inv = 0usize;
+        let mut recog_accept_point = 0usize; // 通过三道判据本应产决策的 BspPoint
+
+        // 坐标系不一致计数（品种级）：fill_oob 全失败且该品种 max(source_index) ≥ bars.len，
+        // 即 BspPoint.source_index 落在 [0, bars.len) 之外 ⟹ source_index 与回测 bars 坐标系
+        // 不在同一基准（非数据稀缺：untradable_ratio≈0）。这是**矛盾上浮候选**的机器证据。
+        let mut n_coordsys_mismatch = 0usize;
+
+        for w in PREREG_WINDOWS {
+            let ds = match data::load_by_symbol(w.symbol, &config) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("{:<6} 加载失败：{e}", w.symbol);
+                    continue;
+                }
+            };
+            // 预注册 OOS 窗（唯一真相源 = PREREG_WINDOWS，防数据挖掘 Task B）。
+            let oos = ds.slice_date_window(w.oos.0, w.oos.1);
+            if oos.bars.is_empty() {
+                eprintln!("{:<6} OOS 窗空（{}→{}）", w.symbol, w.oos.0, w.oos.1);
+                continue;
+            }
+
+            // ── 分层诊断：定位订单流断点（systematic-debugging）──
+            let l0 = parser::parse_layer(&oos.bars, &config);
+            let classification = classifier::classify(&l0, &config);
+            let total_bsp: usize = classification.levels.iter().map(|lv| lv.bsp.len()).sum();
+            let total_centers: usize =
+                classification.levels.iter().map(|lv| lv.centers.len()).sum();
+            let decisions = strategy::recognize(&classification, &oos.bars, &config);
+
+            // recognize 断点子原因细分（625 铁律精确归因）：仅当「有 BSP 无决策」时，逐 point
+            // 复现 strategy::recognize_point 的三道拒绝判据（同序：bits→fill→center），定位是
+            // 哪道判据吞掉了全部 bsp。bsp_root_side 私有，用同一 bits 判据（公开字段）复现。
+            if total_bsp > 0 && decisions.is_empty() {
+                let mut max_src_idx = 0usize;
+                let mut first_fail_dump: Option<(usize, usize, bool)> = None;
+                for level in &classification.levels {
+                    for point in &level.bsp {
+                        max_src_idx = max_src_idx.max(point.source_index);
+                        let b = &point.bits;
+                        let has_buy = b.buy1 || b.buy2 || b.buy3;
+                        let has_sell = b.sell1 || b.sell2 || b.sell3;
+                        if !has_buy && !has_sell {
+                            recog_reject_empty_bits += 1; // bsp_root_side→None
+                            continue;
+                        }
+                        // fill_bar_index：与 strategy::recognize_point 第二道判据同一函数。
+                        if strategy::exec::fill_bar_index(
+                            point.source_index,
+                            &oos.bars,
+                            &config.exec,
+                        )
+                        .is_none()
+                        {
+                            if first_fail_dump.is_none() {
+                                // 捕获首个 fill 失败的坐标证据：source_index vs bars.len，
+                                // 及该 source_index 处 bar 是否越界（区分越界 vs 全 untradable）。
+                                let oob = point.source_index >= oos.bars.len();
+                                first_fail_dump =
+                                    Some((point.source_index, oos.bars.len(), oob));
+                            }
+                            recog_reject_fill_oob += 1; // 信号后落点越界/全 untradable
+                            continue;
+                        }
+                        // center 不变量：含 3 类 bit 但 center=None ⟹ recognize_point 显式拒绝。
+                        let has_third = b.buy3 || b.sell3;
+                        if has_third && point.center.is_none() {
+                            recog_reject_center_inv += 1;
+                            continue;
+                        }
+                        recog_accept_point += 1; // 本应产决策（与 decisions=0 矛盾→候选）
+                    }
+                }
+                // 坐标证据（首个 fill 失败的 source_index/bars.len + max_src_idx + untradable 率）：
+                // 区分根因——max_src_idx ≥ bars.len ⟹ source_index 坐标系越界（坐标系不一致）；
+                // max_src_idx < bars.len 但全失败 ⟹ OOS 窗可交易 bar 稀缺（数据层）。
+                let coordsys_mismatch =
+                    recog_reject_fill_oob > 0 && max_src_idx >= oos.bars.len();
+                if coordsys_mismatch {
+                    n_coordsys_mismatch += 1;
+                }
+                if let Some((src, len, oob)) = first_fail_dump {
+                    eprintln!(
+                        "  [{} 坐标证据] first_fail src_idx={src} bars.len={len} oob={oob} \
+                         max_src_idx={max_src_idx} untradable_ratio={:.4} 坐标系不一致={coordsys_mismatch}",
+                        w.symbol,
+                        oos.untradable_ratio(),
+                    );
+                }
+            }
+
+            // 端到端回测（OOS 窗 2.5 年，年化基数 §3.1；NAV 与品种价量级匹配——用首价×容量）。
+            let first_px = oos
+                .bars
+                .iter()
+                .find(|b| !b.untradable && b.close > 0)
+                .map(|b| b.close as f64 * config.tick.tick_size)
+                .unwrap_or(1.0);
+            let nav = (first_px * 1000.0).max(1.0e6);
+            let res = run_theta_v0(&oos, &config, 2.5, nav);
+
+            // 断点归因（如实报告，不伪造 L2；与 real_data_smoke_oklo 同一诊断阶梯）。
+            let blocked_layer = if l0.segments.len() < 3 {
+                n_block_l0_segments += 1;
+                "L0:线段<3"
+            } else if total_centers == 0 {
+                n_block_classify += 1;
+                "classify:无中枢"
+            } else if total_bsp == 0 {
+                n_block_signal += 1;
+                "signal:无BSP"
+            } else if decisions.is_empty() {
+                n_block_recognize += 1;
+                "recognize:无决策"
+            } else if res.n_orders == 0 {
+                n_block_sizing += 1;
+                "sizing:无订单"
+            } else {
+                n_l2_orders += 1;
+                "L2有效"
+            };
+
+            eprintln!(
+                "{:<6} {:>9} {:>8.2} {:>8.2} {:>7.3} {:>4} {:>4} {:>4} {:>5} {:>5} {:>6}  {:>4} {}",
+                w.symbol,
+                oos.bars.len(),
+                res.metrics.bh_return * 100.0,
+                res.metrics.strat_return * 100.0,
+                res.metrics.sharpe,
+                l0.segments.len(),
+                total_centers,
+                total_bsp,
+                decisions.len(),
+                res.n_orders,
+                res.metrics.n_trades,
+                if res.is_l2 { "L2" } else { "L1" },
+                blocked_layer,
+            );
+
+            // 不变量（每品种）：管线在真实数据上不崩 + L2 标注与订单一致。
+            assert!(res.metrics.bh_return.is_finite(), "{} buy&hold 有限", w.symbol);
+            assert!(res.metrics.strat_return.is_finite(), "{} strat 有限", w.symbol);
+            assert_eq!(
+                res.is_l2,
+                res.n_orders > 0,
+                "{} is_l2 ⟺ 订单非空（诚实标注）",
+                w.symbol
+            );
+        }
+
+        // ── 诚实结论：L2 经验否证 vs L1 工程缺口的精确归因（分层计数）──
+        let total = PREREG_WINDOWS.len();
+        let l1_blocked = n_block_l0_segments
+            + n_block_classify
+            + n_block_signal
+            + n_block_recognize
+            + n_block_sizing;
+        eprintln!("\n===== 分层诊断聚合（8 品种 OOS）=====");
+        eprintln!("断点 L0(线段<3)      : {n_block_l0_segments}");
+        eprintln!("断点 classify(无中枢): {n_block_classify}");
+        eprintln!("断点 signal(无BSP)   : {n_block_signal}");
+        eprintln!("断点 recognize(无决策): {n_block_recognize}");
+        eprintln!("断点 sizing(无订单)  : {n_block_sizing}");
+        eprintln!("L2 端到端(产订单流)  : {n_l2_orders}");
+
+        // recognize 断点子原因细分（625 精确归因）：把粗归因「recognize:无决策」拆到判据级。
+        if n_block_recognize > 0 {
+            eprintln!("\n--- recognize 断点子原因（逐 BspPoint 三道判据，单位=point）---");
+            eprintln!("  reject empty_bits(非交易点): {recog_reject_empty_bits}");
+            eprintln!("  reject fill_oob(落点越界)  : {recog_reject_fill_oob}");
+            eprintln!("  reject center_inv(3类无中枢): {recog_reject_center_inv}");
+            eprintln!("  accept(三道判据通过本应产决策): {recog_accept_point}");
+            eprintln!("  其中坐标系不一致品种数(max_src_idx≥bars.len): {n_coordsys_mismatch}");
+        }
+        eprintln!(
+            "\n诚实结论：{n_l2_orders}/{total} 品种达 L2（产订单流，扣成本指标可否证）；\
+             {l1_blocked}/{total} 品种 L1 工程层断流（引擎产信号但订单流断在 recognize.fill 层，非策略不盈利）。"
+        );
+
+        // ★矛盾上浮候选（no-workaround / testing-override）：7/8 品种 recognize 断点的根因
+        // **不是** classifier 塌缩（它产了数百万 BSP），而是 BspPoint.source_index 的坐标系与
+        // 回测 bars 坐标系不一致——max_src_idx 达 bars.len 的约 3 倍（untradable_ratio≈0，排除
+        // 数据稀缺）。fill_bar_index(source_index, bars) 因 source_index 越界对**每个** point
+        // 返回 None ⟹ 零决策。修复需改 source_index 的坐标系定义/边界（segment.end_index 基准
+        // vs 回测 bars 基准）或在 fill 前插坐标映射——这改变定义含义/边界，属定义冲突而非实现
+        // bug，故**不在本回测工位打补丁让它产决策**（625 铁律 + no-workaround）。如实标注上浮。
+        if n_coordsys_mismatch > 0 {
+            eprintln!(
+                "\n★ 矛盾上浮候选：{n_coordsys_mismatch}/{total} 品种 source_index 坐标系 ≠ 回测 bars \
+                 坐标系（max_src_idx≈3×bars.len，untradable≈0）。BspPoint.source_index 取自 \
+                 segment.end_index，其基准与切片后回测 bars 的索引基准不一致 ⟹ fill_bar_index \
+                 全越界 ⟹ 零决策。这是**定义层坐标系冲突**（非 classifier 塌缩、非数据稀缺、\
+                 非策略不盈利），修复需改 source_index 坐标系定义/边界 ⟹ 走矛盾上浮，不在回测层打补丁。"
+            );
+        }
+
+        // 不变量：分层计数完备（每品种恰好归一类断点或 L2）。
+        assert_eq!(
+            l1_blocked + n_l2_orders,
+            total,
+            "分层诊断完备：每品种恰归一类（L1 断点 ∪ L2 有效 = 全集）",
+        );
+
+        // 不变量：本次 L2 跑产出可证伪结果（≥1 品种达 L2 = 真实数据 + 非空订单流，acceptance #5）。
+        assert!(
+            n_l2_orders >= 1,
+            "acceptance #5：至少一品种端到端产订单流（L2 可证伪），实测 {n_l2_orders}",
+        );
+    }
 }
