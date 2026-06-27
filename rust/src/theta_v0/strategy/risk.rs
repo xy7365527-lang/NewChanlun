@@ -25,6 +25,7 @@
 
 use super::super::config::RiskConfig;
 use super::super::types::{BspBits, Center, Tick};
+use super::voice::{root_sel, RootCandidates, VoiceSide};
 
 /// 结构止损价的方向（多头止损在下方，空头止损在上方）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -251,6 +252,150 @@ pub fn root_parent_cap() -> i64 {
     i64::MAX
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  §11 风险模式 μ_t + GlobalRiskClose 全局风控平仓
+//  （strict §11「杠杆、保证金和风险模式」line 361-375 / FULL 十三 line 1012-1057
+//   + strict §9 根方向递归 line 280 GlobalRiskClose_t / FULL 十 line 643）
+// ──────────────────────────────────────────────────────────────────────────
+
+/// 五态风险模式 μ_t（bit-exact 对齐 strict §11 line 364 / FULL 十三 line 1016-1022，
+/// 契约锚 Lean `risk_mode_complete_unique`：Σ𝟙=1）。
+///
+/// 按优先级穷尽互斥（strict §11 line 369-374 / FULL 十三 line 1026-1046）：
+/// M0 > M1 > M2 > M3 > M4，每个 M_i 含 `¬M0 ∧ … ∧ ¬M_{i-1}` 前缀，故恰一态成立。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RiskMode {
+    /// M0：`E_t ≤ 0`——权益耗尽（破产）。
+    Insolvent,
+    /// M1：`¬M0 ∧ (LiqFlag_t ∨ E_t < MM_t)`——触发强平（场所强平标志或权益跌破维持保证金）。
+    Liquidation,
+    /// M2：`¬M0 ∧ ¬M1 ∧ E_t < MM_t + B1`——主动去杠杆区（权益在维持线 + 一档缓冲内）。
+    Deleverage,
+    /// M3：`¬M0 ∧ ¬M1 ∧ ¬M2 ∧ E_t < MM_t + B2`——只许平仓区（二档缓冲内）。
+    CloseOnly,
+    /// M4：以上皆否——正常交易区。
+    Normal,
+}
+
+/// 风险模式输入（strict §11 / FULL 十三：账户层运行时量，非缠论可导）。
+///
+/// 字段语义（strict §11 line 370-373）：
+/// - `equity` = E_t：账户权益（美元）。M0 判 `E_t ≤ 0`。
+/// - `maint_margin` = MM_t(q_t)：当前持仓的维持保证金（美元）。M1 判 `E_t < MM_t`。
+/// - `buffer1` = B1_t、`buffer2` = B2_t：去杠杆/只平仓的两档缓冲（美元，`0 < B1 < B2`，
+///   strict §11 / FULL 十三 line 1010）。
+/// - `liq_flag` = LiqFlag_t：交易场所强平标志（外部事件 ν_t 的一部分，strict §1 line 47）。
+///
+/// ★诚实（formalization-validity-domain）：E_t/MM_t/B1/B2/LiqFlag 全是**账户/场所层运行时输入**
+/// （Θ 之外的外部事件 e_{t+1}/ν_t，strict §1:47 + §9:264）——**不由缠论或 Θ_risk 推导**。本结构
+/// 作为给定 Z 承载；风险模式划分在给定它们后是 L0 逻辑必然（穷尽互斥）。
+#[derive(Debug, Clone, Copy)]
+pub struct RiskModeInput {
+    pub equity: f64,
+    pub maint_margin: f64,
+    pub buffer1: f64,
+    pub buffer2: f64,
+    pub liq_flag: bool,
+}
+
+/// 计算风险模式 μ_t（bit-exact 对齐 strict §11 line 369-374 / FULL 十三 line 1026-1057）。
+///
+/// 按优先级 M0 > M1 > M2 > M3 > M4 短路判定——`if/else if` 链天然实现 `¬M0 ∧ … ∧ ¬M_{i-1}`
+/// 前缀（先判 M0，否则才判 M1，…）。穷尽（最后 else = M4 = Normal）+ 互斥（短路保证恰一态），
+/// 对齐 Lean `risk_mode_complete_unique`（Σ𝟙=1）。
+///
+/// 边界条件：
+/// - `E_t ≤ 0` ⟹ Insolvent（不论 LiqFlag/MM——M0 最高优先级吸收）。
+/// - 缓冲 `B1 < B2` 是 strict 前提；若配置 `B1 ≥ B2` 则 M2 吸收 M3 的部分区间（CloseOnly
+///   退化），属配置违规而非本函数 bug——本函数忠实按给定 B1/B2 划分。
+pub fn risk_mode(input: &RiskModeInput) -> RiskMode {
+    if input.equity <= 0.0 {
+        RiskMode::Insolvent // M0：E_t ≤ 0
+    } else if input.liq_flag || input.equity < input.maint_margin {
+        RiskMode::Liquidation // M1：LiqFlag ∨ E_t < MM_t
+    } else if input.equity < input.maint_margin + input.buffer1 {
+        RiskMode::Deleverage // M2：E_t < MM_t + B1
+    } else if input.equity < input.maint_margin + input.buffer2 {
+        RiskMode::CloseOnly // M3：E_t < MM_t + B2
+    } else {
+        RiskMode::Normal // M4
+    }
+}
+
+/// **GlobalRiskClose_t：全局风控平仓触发判定**（strict §9 line 280 / FULL 十 line 643，
+/// 契约锚 §16 优先级 P1「破产或强平」line 535）。
+///
+/// 触发条件 = 风险模式落入**破产或强平**两态：`μ_t ∈ {Insolvent, Liquidation}`。这是 strict
+/// §16 动作意图优先级的**最高级**（P1，line 535-536「破产或强平 ≻ 主动去杠杆 ≻ …」），也是
+/// strict §9 / FULL 十根方向递归的**首触发**（`σ̃_{r,t+1}=0` 的第一个 case，line 280/643）。
+///
+/// **平仓语义**（strict §9 line 287 / FULL 十 line 656「先平根仓，下一决策周期才允许反向重新
+/// 建立」）：GlobalRiskClose 成立 ⟹ 根方向强制归零（σ̃_{r,t+1}=0）⟹ 全局平根仓。由于级联关闭
+/// （Origin.VoiceTree `cascade_close`：父关 ⟹ 后代全关），根仓平 ⟹ 所有子声部仓位级联平 ⟹
+/// **全局平仓**。这关死「权益耗尽/被强平时仍持仓」。
+///
+/// ★区分（Deleverage/CloseOnly 不触发全局平仓）：μ_t=Deleverage(M2)/CloseOnly(M3) 是 §12
+/// 可行集的 `G(q') ≤ G(q_t)`（不增总名义）约束（strict §12 line 403），**不是全局平仓**——
+/// 它们限制开新仓/增仓，但不强制平掉现有仓。只有 Insolvent/Liquidation 触发 GlobalRiskClose。
+///
+/// ★认识论 L0（定义内蕴）：给定 μ_t 后，GlobalRiskClose 是「μ_t ∈ {Insolvent, Liquidation}」的
+/// 布尔判定，对齐 strict §16 P1 谓词。μ_t 本身依赖账户层运行时输入（[`RiskModeInput`]，非缠论
+/// 可导），但「哪些 μ_t 触发全局平仓」是 strict §9/§16 的定义层规则。
+///
+/// 边界条件：若 Θ 后续把 GlobalRiskClose 扩到「执行异常」（strict §16 P3「未完成订单和执行
+/// 异常处理」）等更低优先级触发，则须 change request——Θ v0 内 GlobalRiskClose 仅 = {Insolvent,
+/// Liquidation}（P1），不含 P2（主动去杠杆）及以下。
+pub fn global_risk_close(mode: RiskMode) -> bool {
+    matches!(mode, RiskMode::Insolvent | RiskMode::Liquidation)
+}
+
+/// **根方向递归 σ̃_{r,t+1}**（strict §9 line 278-284 / FULL 十 line 638-654，bit-exact）。
+///
+/// 全定义根方向状态转移——按 strict §9 的 4 路 case（优先级从上到下短路）：
+/// ```text
+/// σ̃_{r,t+1} =
+///   0,                              GlobalRiskClose_t                    （首触发：全局平根仓）
+///   0,                              σ_{r,t} ≠ 0 ∧ χ^{-σ_r}_{r,t} = 1     （反向信号：先平后建）
+///   RootSel(χ⁺,χ⁻),                 σ_{r,t} = 0                          （空仓：按候选选向）
+///   σ_{r,t},                        其他                                 （持仓延续）
+/// ```
+///
+/// 参数：
+/// - `mode`：当前风险模式 μ_t（[`risk_mode`] 产出）——决定 GlobalRiskClose_t。
+/// - `current`：当前根方向 σ_{r,t}（[`VoiceSide`]：Long/Short/Flat）。
+/// - `cands`：根触发候选 (χ⁺,χ⁻)（[`voice::RootCandidates`]）——供 RootSel 与反向信号判定。
+///
+/// **第二 case「反向信号先平后建」**（strict §9 line 281/287 / FULL 十 line 644-647/656）：持有
+/// 根仓（σ_{r,t}≠0）且出现**反向**触发（做多根遇 χ⁻=1，或做空根遇 χ⁺=1）⟹ 先平（σ̃=0），不在
+/// 同一时刻假设已反手（避免未成交就反向）。下一决策周期 σ_{r,t}=0 时才经第三 case 重新建反向仓。
+///
+/// ★认识论 L0：4 路 case 是 strict §9 根方向递归的逐 case 镜像，给定 (μ_t, σ_{r,t}, χ±) 后唯一
+/// 确定 σ̃_{r,t+1}。返回的 Flat = σ̃=0（平根仓 → 级联全平）。
+///
+/// 边界条件：case 优先级不可交换——GlobalRiskClose 必须最高（强平先于一切）；反向先平先于持仓
+/// 延续（避免反手假设）。若交换则破坏 strict §9 的 case 顺序语义。
+pub fn root_dir_next(mode: RiskMode, current: VoiceSide, cands: RootCandidates) -> VoiceSide {
+    // case 1：GlobalRiskClose_t ⟹ σ̃ = 0（全局平根仓，最高优先级）。
+    if global_risk_close(mode) {
+        return VoiceSide::Flat;
+    }
+    // case 2：持仓 + 反向信号 ⟹ 先平（σ̃ = 0），不假设已反手。
+    let reverse_signal = match current {
+        VoiceSide::Long => cands.short_trigger,  // 做多根遇卖侧触发 χ⁻=1
+        VoiceSide::Short => cands.long_trigger,   // 做空根遇买侧触发 χ⁺=1
+        VoiceSide::Flat => false,                 // 空仓无「反向」可言
+    };
+    if current != VoiceSide::Flat && reverse_signal {
+        return VoiceSide::Flat;
+    }
+    // case 3：空仓 ⟹ 按 RootSel 选向（含 (1,1) 镜像反对称消歧）。
+    if current == VoiceSide::Flat {
+        return root_sel(cands);
+    }
+    // case 4：其他（持仓且无反向信号）⟹ 延续当前方向。
+    current
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,6 +545,101 @@ mod tests {
         assert_eq!(parent_cap(7, &cfg), 3); // floor(7*0.5)=floor(3.5)=3
         assert_eq!(parent_cap(0, &cfg), 0); // 父空仓 ⟹ 子上限 0
         assert_eq!(parent_cap(-5, &cfg), 0);
+    }
+
+    fn mk_risk_input(equity: f64, mm: f64, liq: bool) -> RiskModeInput {
+        // 缓冲 B1=100, B2=300（0<B1<B2，strict §11 前提）。
+        RiskModeInput { equity, maint_margin: mm, buffer1: 100.0, buffer2: 300.0, liq_flag: liq }
+    }
+
+    /// 风险模式五态穷尽互斥（strict §11 / FULL 十三，Lean `risk_mode_complete_unique`）：
+    /// 逐区间验证 M0>M1>M2>M3>M4 优先级。
+    #[test]
+    fn risk_mode_five_states_priority() {
+        // M0：E_t ≤ 0 ⟹ Insolvent（不论 LiqFlag/MM）。
+        assert_eq!(risk_mode(&mk_risk_input(0.0, 500.0, false)), RiskMode::Insolvent);
+        assert_eq!(risk_mode(&mk_risk_input(-10.0, 500.0, true)), RiskMode::Insolvent);
+        // M1：E_t>0 ∧ (LiqFlag ∨ E_t<MM) ⟹ Liquidation。MM=500，E=400<500。
+        assert_eq!(risk_mode(&mk_risk_input(400.0, 500.0, false)), RiskMode::Liquidation);
+        // M1 经 LiqFlag：E=1000>MM+B2，但 LiqFlag=true ⟹ 仍 Liquidation（强平标志优先）。
+        assert_eq!(risk_mode(&mk_risk_input(1000.0, 500.0, true)), RiskMode::Liquidation);
+        // M2：MM ≤ E < MM+B1 ⟹ Deleverage。MM=500，B1=100，E=550 ∈ [500,600)。
+        assert_eq!(risk_mode(&mk_risk_input(550.0, 500.0, false)), RiskMode::Deleverage);
+        // M3：MM+B1 ≤ E < MM+B2 ⟹ CloseOnly。E=700 ∈ [600,800)。
+        assert_eq!(risk_mode(&mk_risk_input(700.0, 500.0, false)), RiskMode::CloseOnly);
+        // M4：E ≥ MM+B2 ⟹ Normal。E=900 ≥ 800。
+        assert_eq!(risk_mode(&mk_risk_input(900.0, 500.0, false)), RiskMode::Normal);
+    }
+
+    /// 风险模式恰一态（穷尽互斥见证）：扫一系列权益，每个恰好返回一个 RiskMode（match 静态保证）。
+    #[test]
+    fn risk_mode_exhaustive_exclusive() {
+        for e in [-100.0, 0.0, 1.0, 400.0, 500.0, 550.0, 600.0, 700.0, 800.0, 900.0] {
+            let m = risk_mode(&mk_risk_input(e, 500.0, false));
+            // 恰一态：返回值是 5 态之一（Rust enum 穷尽 + 函数全定义）。
+            assert!(matches!(
+                m,
+                RiskMode::Insolvent
+                    | RiskMode::Liquidation
+                    | RiskMode::Deleverage
+                    | RiskMode::CloseOnly
+                    | RiskMode::Normal
+            ));
+        }
+    }
+
+    /// ★GlobalRiskClose 触发判定（strict §9/§16 P1）：仅 Insolvent/Liquidation 触发全局平仓，
+    /// Deleverage/CloseOnly/Normal **不**触发（它们限增仓不强制平仓）。
+    #[test]
+    fn global_risk_close_only_insolvent_or_liquidation() {
+        assert!(global_risk_close(RiskMode::Insolvent)); // M0 → P1 触发
+        assert!(global_risk_close(RiskMode::Liquidation)); // M1 → P1 触发
+        assert!(!global_risk_close(RiskMode::Deleverage)); // M2 不触发全局平仓
+        assert!(!global_risk_close(RiskMode::CloseOnly)); // M3 不触发
+        assert!(!global_risk_close(RiskMode::Normal)); // M4 不触发
+    }
+
+    /// ★根方向递归 σ̃_{r,t+1}（strict §9 line 278-284 / FULL 十）：4 路 case 逐一验证。
+    #[test]
+    fn root_dir_next_four_cases() {
+        let long_c = RootCandidates { long_trigger: true, short_trigger: false };
+        let short_c = RootCandidates { long_trigger: false, short_trigger: true };
+        let none_c = RootCandidates { long_trigger: false, short_trigger: false };
+        let both_c = RootCandidates { long_trigger: true, short_trigger: true };
+
+        // case 1：GlobalRiskClose（Liquidation）⟹ σ̃=0，覆盖一切（即便持多仓 + 同向信号）。
+        assert_eq!(root_dir_next(RiskMode::Liquidation, VoiceSide::Long, long_c), VoiceSide::Flat);
+        assert_eq!(root_dir_next(RiskMode::Insolvent, VoiceSide::Short, short_c), VoiceSide::Flat);
+
+        // case 2：持多仓（Long）+ 反向触发（χ⁻=1）⟹ 先平（σ̃=0），不假设反手。
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Long, short_c), VoiceSide::Flat);
+        // 持空仓（Short）+ 反向触发（χ⁺=1）⟹ 先平。
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Short, long_c), VoiceSide::Flat);
+
+        // case 3：空仓（Flat）⟹ 按 RootSel 选向。
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, long_c), VoiceSide::Long);
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, short_c), VoiceSide::Short);
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, none_c), VoiceSide::Flat);
+        // 空仓遇双触发 (1,1) ⟹ RootSel 镜像反对称消歧为 Flat（不开根仓）。
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Flat, both_c), VoiceSide::Flat);
+
+        // case 4：持多仓 + 同向/无反向信号 ⟹ 延续 Long。
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Long, long_c), VoiceSide::Long);
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Long, none_c), VoiceSide::Long);
+        // 持空仓 + 同向（χ⁻=1）⟹ 延续 Short。
+        assert_eq!(root_dir_next(RiskMode::Normal, VoiceSide::Short, short_c), VoiceSide::Short);
+    }
+
+    /// 根方向递归 case 优先级：GlobalRiskClose 高于反向先平高于持仓延续。
+    #[test]
+    fn root_dir_next_case_priority() {
+        let short_c = RootCandidates { long_trigger: false, short_trigger: true };
+        // 持多仓 + 反向触发 + 同时 Liquidation ⟹ case 1（GlobalRiskClose）先于 case 2，均得 Flat
+        // （此例两 case 都给 Flat，但 case 1 必须优先——Insolvent 时即便无反向也平）。
+        assert_eq!(root_dir_next(RiskMode::Liquidation, VoiceSide::Long, short_c), VoiceSide::Flat);
+        // Deleverage（非 GlobalRiskClose）+ 持多仓 + 无反向 ⟹ 延续（去杠杆不强制平根仓）。
+        let none_c = RootCandidates { long_trigger: false, short_trigger: false };
+        assert_eq!(root_dir_next(RiskMode::Deleverage, VoiceSide::Long, none_c), VoiceSide::Long);
     }
 
     /// default_lot 取整（spec:47）：qty 向下取整到 lot 倍数。

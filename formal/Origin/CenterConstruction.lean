@@ -3,15 +3,16 @@ Origin/CenterConstruction.lean — centersOf 全自动构造（算 ZG/ZD/GG/DD�
 
 ★工位定位（#113 still-MISSING-B 缺口）：CenterStates.lean 形式化了中枢分类血肉（位置三态/
   发展三态/中心定理一二），CenterFull.lean 提供承载外缘的扩展类型；但 `centersOf : List Segment
-  → List CenterFull` 的**全自动构造**——从线段序列识别中枢、计算 ZG=min(g₁,g₂)/ZD=max(d₁,d₂)
-  /GG=max(gₙ)/DD=min(dₙ)——的**终止性**与**输出唯一性**未证。本文件实装该构造为 Lean 全函数
-  （well-founded 递归），机器检查终止性，并由"纯函数 ⟹ 输出唯一"导出确定性。
+  → List CenterFull` 的**全自动构造**——从线段序列识别中枢、计算 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)
+  （口径 B 全三段，637号）/GG=max(gₙ)/DD=min(dₙ)——的**终止性**与**输出唯一性**未证。本文件实装该
+  构造为 Lean 全函数（well-founded 递归），机器检查终止性，并由"纯函数 ⟹ 输出唯一"导出确定性。
 
 ═══════════════════════════════════════════════════════════════════════════
 构造算法（§6.4 GG/DD 计算 + 中枢识别终止性核心）
 ═══════════════════════════════════════════════════════════════════════════
 中枢由 ≥3 个连续重叠次级别走势段构成。识别递归：
-  - 取前 3 段，计算核心 ZG=min(g₁,g₂)/ZD=max(d₁,d₂)（前两段定核心）+ 外缘 GG/DD（三段聚合）。
+  - 取前 3 段，计算核心 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)（口径 B 全三段定核心，637号）+
+    外缘 GG/DD（三段聚合，与核心同三段）。
   - 若三段确有公共重叠区间（ZD ≤ ZG，中枢成立）⟹ 产出一个 CenterFull，消费 3 段递归。
   - 否则（无中枢）消费 1 段前进（滑窗）。
 **终止性**：每步消费 ≥1 段 ⟹ 剩余段数严格递减 ⟹ well-founded（`List.length`）。
@@ -29,9 +30,9 @@ GG/DD/ZG/ZD 用 if 显式构造（不用 min/max——Mathlib 缺失时无 simp 
 诚实标注（gatekeeper，no-patch-mentality）：
 ★ TerminationAndDeterminismOnly + OuterComputationConstructive ——
   本文件证 centersOf 的**终止性 + 唯一性**（构造层骨架）+ ZG/ZD/GG/DD 的**构造性计算**
-  （前两段定核心 + 三段聚合外缘，§6.4 公式直译）。"三段是否构成中枢"的判据用"核心区间
-  非空（ZD ≤ ZG）"封装——这是中枢重叠的**必要**几何条件，良构且终止；但**不**等于完整
-  缠论中枢识别（须次级别走势段方向交替 + 重叠区间贯穿三段，still-MISSING-B′）。
+  （口径 B 全三段定核心 + 三段聚合外缘，§6.3/§6.4 公式直译，637号）。"三段是否构成中枢"的判据用
+  "全三段核心区间非空（ZD ≤ ZG）"封装——这是中枢重叠的**必要**几何条件（口径 B 下已含第三段
+  贯穿），良构且终止；但**不**等于完整缠论中枢识别（须次级别走势段方向交替，still-MISSING-B′）。
   把骨架冒充为完整识别 = 声明膨胀（禁止）。
 
 禁 sorry/admit/axiom。纯 Prop/Type，不依赖 Mathlib。omega 前须 `simp only [..., Tick]` 暴露 Int。
@@ -78,17 +79,24 @@ theorem right_le_tmax (a b : Tick) : b ≤ tmax a b := by
   unfold tmax; simp only [Tick]; split <;> omega
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 3. 从三段计算中枢核心 + 外缘（§6.4 公式直译）
+    § 3. 从三段计算中枢核心 + 外缘（§6.3/§6.4 公式直译，口径 B 全三段，637号）
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **核心上沿 ZG = min(g₁, g₂)（§6.4）** —— 前两段高点的较小者。
+  **核心上沿 ZG = min(g₁, g₂, g₃)（口径 B，637号）** —— **全三段**高点的最小者。
+
+  ★口径 A→B 迁移（637号谱系，一级权威第17课答疑严格公式 `min(a1,b1,c1)`）：核心区间 = 前三个
+  连续次级别走势的**重叠部分** = `(max(三段低), min(三段高))`。误口径 A（前两段 `min(g₁,g₂)`）
+  仅在第三段贯穿核心时与 B 重合，第三段更窄时 A 高估核心上沿。canonical = B 全三段。
 -/
-def computeZG (s1 s2 : Segment) : Tick := tmin (segHigh s1) (segHigh s2)
+def computeZG (s1 s2 s3 : Segment) : Tick := tmin (tmin (segHigh s1) (segHigh s2)) (segHigh s3)
 /--
-  **核心下沿 ZD = max(d₁, d₂)（§6.4）** —— 前两段低点的较大者。
+  **核心下沿 ZD = max(d₁, d₂, d₃)（口径 B，637号）** —— **全三段**低点的最大者。
+
+  ★口径 B（第17课答疑 `max(a2,b2,c2)`）：误口径 A（前两段 `max(d₁,d₂)`）仅在第三段贯穿核心时
+  与 B 重合。canonical = B 全三段。
 -/
-def computeZD (s1 s2 : Segment) : Tick := tmax (segLow s1) (segLow s2)
+def computeZD (s1 s2 s3 : Segment) : Tick := tmax (tmax (segLow s1) (segLow s2)) (segLow s3)
 
 /--
   **外缘上界 GG = max(g₁,g₂,g₃)（§6.4）** —— 三段高点的最大值。
@@ -100,44 +108,51 @@ def computeGG (s1 s2 s3 : Segment) : Tick := tmax (tmax (segHigh s1) (segHigh s2
 def computeDD (s1 s2 s3 : Segment) : Tick := tmin (tmin (segLow s1) (segLow s2)) (segLow s3)
 
 /--
-  **中枢成立的几何必要条件** —— 核心非空：ZD ≤ ZG（前两段有重叠区间）。
+  **中枢成立的几何必要条件** —— 核心非空：ZD ≤ ZG（**全三段**有共同重叠区间，口径 B）。
   这是"三段构成中枢"的几何**必要**条件（封装，非完整缠论判据，still-MISSING-B′）。
+  ★口径 B（637号）：全三段核心非空 `max3(lows) ≤ min3(highs)` ⟺ 三段有共同重叠部分
+  （已含"第三段贯穿前两段核心"——见 CenterComplete.lean 完整判据）。
 -/
-def centerHolds (s1 s2 : Segment) : Bool := decide (computeZD s1 s2 ≤ computeZG s1 s2)
+def centerHolds (s1 s2 s3 : Segment) : Bool := decide (computeZD s1 s2 s3 ≤ computeZG s1 s2 s3)
 
 /--
-  **★从三段构造 CenterFull（§6.4，仅当核心非空）** —— 计算 ZG/ZD/GG/DD 并组装 CenterFull，
-  携带所有不变量证明。前提 `h : ZD ≤ ZG`（核心良构）由调用点 centerHolds 保证。
+  **★从三段构造 CenterFull（口径 B，仅当全三段核心非空）** —— 计算 ZG/ZD/GG/DD 并组装 CenterFull，
+  携带所有不变量证明。前提 `h : ZD ≤ ZG`（全三段核心良构）由调用点 centerHolds 保证。
 
   外缘包含核心证明（DD ≤ ZD ≤ ZG ≤ GG）：
-  - `outer_lo : DD ≤ ZD`：DD = min(d₁,d₂,d₃) ≤ d₁ ≤ max(d₁,d₂) = ZD（链）。
-  - `outer_hi : ZG ≤ GG`：ZG = min(g₁,g₂) ≤ g₁ ≤ max(g₁,g₂,g₃) = GG（链）。
+  - `outer_lo : DD ≤ ZD`：DD = min(d₁,d₂,d₃) ≤ d₁ ≤ max(d₁,d₂,d₃) = ZD（口径 B 同三段聚合，链）。
+  - `outer_hi : ZG ≤ GG`：ZG = min(g₁,g₂,g₃) ≤ g₁ ≤ max(g₁,g₂,g₃) = GG（链）。
+  ★口径 B 下核心与外缘用**同一三段聚合**：ZD=max3(lows) 同 DD 用同三段（DD≤ZD 因 min3≤max3）；
+  ZG=min3(highs) 同 GG 用同三段（ZG≤GG 因 min3≤max3）。
 -/
-def centerFromThree (s1 s2 s3 : Segment) (h : computeZD s1 s2 ≤ computeZG s1 s2) : CenterFull :=
+def centerFromThree (s1 s2 s3 : Segment) (h : computeZD s1 s2 s3 ≤ computeZG s1 s2 s3) : CenterFull :=
   { core :=
-      { zd := computeZD s1 s2
-        zg := computeZG s1 s2
+      { zd := computeZD s1 s2 s3
+        zg := computeZG s1 s2 s3
         startIndex := s1.startIndex
         endIndex := s3.endIndex
         valid := h }
     dd := computeDD s1 s2 s3
     gg := computeGG s1 s2 s3
     outer_lo := by
-      -- DD = min(min(d1,d2),d3) ≤ min(d1,d2) ≤ d1 ... 但 ZD = max(d1,d2) ≥ d1。需 DD ≤ ZD。
-      -- DD ≤ tmin(d1,d2) ≤ d1 ≤ tmax(d1,d2) = ZD
+      -- DD = min3(lows) ≤ d1 ≤ max3(lows) = ZD（口径 B：核心下沿与外缘下界同三段聚合，min3≤max3）。
       unfold computeDD computeZD
       have h1 : tmin (tmin (segLow s1) (segLow s2)) (segLow s3) ≤ tmin (segLow s1) (segLow s2) :=
         tmin_le_left _ _
       have h2 : tmin (segLow s1) (segLow s2) ≤ segLow s1 := tmin_le_left _ _
       have h3 : segLow s1 ≤ tmax (segLow s1) (segLow s2) := left_le_tmax _ _
+      have h4 : tmax (segLow s1) (segLow s2) ≤ tmax (tmax (segLow s1) (segLow s2)) (segLow s3) :=
+        left_le_tmax _ _
       simp only [Tick] at *
       omega
     outer_hi := by
-      -- ZG = min(g1,g2) ≤ g1 ≤ max(max(g1,g2),g3) = GG
+      -- ZG = min3(highs) ≤ g1 ≤ max3(highs) = GG（口径 B：核心上沿与外缘上界同三段聚合，min3≤max3）。
       unfold computeZG computeGG
-      have h1 : tmin (segHigh s1) (segHigh s2) ≤ segHigh s1 := tmin_le_left _ _
-      have h2 : segHigh s1 ≤ tmax (segHigh s1) (segHigh s2) := left_le_tmax _ _
-      have h3 : tmax (segHigh s1) (segHigh s2) ≤ tmax (tmax (segHigh s1) (segHigh s2)) (segHigh s3) :=
+      have h1 : tmin (tmin (segHigh s1) (segHigh s2)) (segHigh s3) ≤ tmin (segHigh s1) (segHigh s2) :=
+        tmin_le_left _ _
+      have h2 : tmin (segHigh s1) (segHigh s2) ≤ segHigh s1 := tmin_le_left _ _
+      have h3 : segHigh s1 ≤ tmax (segHigh s1) (segHigh s2) := left_le_tmax _ _
+      have h4 : tmax (segHigh s1) (segHigh s2) ≤ tmax (tmax (segHigh s1) (segHigh s2)) (segHigh s3) :=
         left_le_tmax _ _
       simp only [Tick] at *
       omega }
@@ -165,7 +180,7 @@ def centersOf (segs : List Segment) : List CenterFull :=
   | [_] => []
   | [_, _] => []
   | s1 :: s2 :: s3 :: rest =>
-      if h : computeZD s1 s2 ≤ computeZG s1 s2 then
+      if h : computeZD s1 s2 s3 ≤ computeZG s1 s2 s3 then
         centerFromThree s1 s2 s3 h :: centersOf rest
       else
         centersOf (s2 :: s3 :: rest)
@@ -211,9 +226,9 @@ def ovSeg1 : Segment := { direction := Direction.up,   startIndex := 0, endIndex
 def ovSeg2 : Segment := { direction := Direction.down, startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 12 }
 def ovSeg3 : Segment := { direction := Direction.up,   startIndex := 2, endIndex := 3, startPrice := 12, endPrice := 22 }
 
-/-- overlappingSegs 前两段核心非空：ZD=12 ≤ ZG=20（机器算）。 -/
-theorem overlapping_holds : computeZD ovSeg1 ovSeg2 ≤ computeZG ovSeg1 ovSeg2 := by
-  unfold computeZD computeZG segLow segHigh tmax tmin ovSeg1 ovSeg2
+/-- overlappingSegs 全三段核心非空（口径 B）：ZD=max(10,12,12)=12 ≤ ZG=min(20,20,22)=20（机器算）。 -/
+theorem overlapping_holds : computeZD ovSeg1 ovSeg2 ovSeg3 ≤ computeZG ovSeg1 ovSeg2 ovSeg3 := by
+  unfold computeZD computeZG segLow segHigh tmax tmin ovSeg1 ovSeg2 ovSeg3
   decide
 
 /-- ★反退化见证：[ovSeg1,ovSeg2,ovSeg3] 上 centersOf 终止并产出恰一个中枢（核心非空，三段重叠）。 -/
@@ -223,14 +238,14 @@ theorem witness_centersOf_one : (centersOf [ovSeg1, ovSeg2, ovSeg3]).length = 1 
   rw [dif_pos overlapping_holds, centersOf.eq_def]
   rfl
 
-/-- 三段分离的三个具名段（核心空：ZD=20 > ZG=15）。 -/
+/-- 三段分离的三个具名段（口径 B 核心空：ZD=max(10,20,30)=30 > ZG=min(15,25,35)=15）。 -/
 def spSeg1 : Segment := { direction := Direction.up, startIndex := 0, endIndex := 1, startPrice := 10, endPrice := 15 }
 def spSeg2 : Segment := { direction := Direction.up, startIndex := 1, endIndex := 2, startPrice := 20, endPrice := 25 }
 def spSeg3 : Segment := { direction := Direction.up, startIndex := 2, endIndex := 3, startPrice := 30, endPrice := 35 }
 
-/-- separatedSegs 前两段核心空：¬ (ZD=20 ≤ ZG=15)（机器算）。 -/
-theorem separated_not_holds : ¬ (computeZD spSeg1 spSeg2 ≤ computeZG spSeg1 spSeg2) := by
-  unfold computeZD computeZG segLow segHigh tmax tmin spSeg1 spSeg2
+/-- separatedSegs 全三段核心空（口径 B）：¬ (ZD=max(10,20,30)=30 ≤ ZG=min(15,25,35)=15)（机器算）。 -/
+theorem separated_not_holds : ¬ (computeZD spSeg1 spSeg2 spSeg3 ≤ computeZG spSeg1 spSeg2 spSeg3) := by
+  unfold computeZD computeZG segLow segHigh tmax tmin spSeg1 spSeg2 spSeg3
   decide
 
 /-- ★反退化见证：[spSeg1,spSeg2,spSeg3] 核心空，滑窗后剩 2 段无中枢 ⟹ 空中枢序列。 -/
@@ -251,25 +266,27 @@ theorem witness_centersOf_too_few : centersOf [] = [] := by
 
   ★已消解（task #116 相对 #113 still-MISSING-B）：
     - **GG/DD 字段**：CenterFull（CenterFull.lean）承载外缘；centersOf 产出 CenterFull，
-      `computeGG/computeDD/computeZG/computeZD` 按 §6.4 公式**构造性计算**外缘——消解
-      "Center 无 GG/DD 字段 + 从线段自动计算外缘未证"。
+      `computeGG/computeDD/computeZG/computeZD` 按 §6.3/§6.4 公式（口径 B 全三段核心，637号）
+      **构造性计算**核心 + 外缘——消解"Center 无 GG/DD 字段 + 从线段自动计算外缘未证"。
     - **终止性**：centersOf well-founded 递归（每步消费 ≥1 段），`termination_by`/`decreasing_by`
       机器检查。**输出唯一性**：`centersOf_total_unique` + `centersOf_single_valued`。
     - **外缘包含核心不变量**：centerFromThree 的 outer_lo/outer_hi 由 tmin/tmax 链证（DD≤ZD≤ZG≤GG）。
 
   ★still-MISSING-B′（完整中枢识别判据，诚实开口）：
-    `centerHolds`/核心非空（ZD ≤ ZG）是中枢重叠的**几何必要条件**，良构且终止；但**不**等于
-    完整缠论中枢识别——完整版须：(1) 三段为**次级别走势**（非任意线段，须方向交替），
-    (2) 重叠区间贯穿三段（本文件仅查前两段定核心，未强制第三段也重叠核心），(3) 中枢延伸/
-    新生/扩展的发展态串接（CenterStates.classifyDevelopment 接入相邻中枢对）。把 (1)-(3) 接入
-    使识别 = 真缠论中枢，是 still-MISSING-B′。本文件**不声称**识别的中枢真对应权威标注——
-    只声称识别递归终止 + 确定 + 外缘按公式计算。
+    `centerHolds`/全三段核心非空（ZD ≤ ZG，口径 B）是中枢重叠的**几何必要条件**，良构且终止；
+    口径 B 下已含"第三段贯穿前两段核心"（637号 codex L0 等价：全三段核心非空 ⟺ 前两段核心非空
+    ∧ 第三段贯穿）。但**不**等于完整缠论中枢识别——完整版须：(1) 三段为**次级别走势**（非任意
+    线段，须方向交替，CenterComplete.lean DirAlternates），(2) 中枢延伸/新生/扩展的发展态串接
+    （CenterStates.classifyDevelopment 接入相邻中枢对）。把 (1)-(2) 接入使识别 = 真缠论中枢，是
+    still-MISSING-B′。本文件**不声称**识别的中枢真对应权威标注——只声称识别递归终止 + 确定 +
+    核心/外缘按口径 B 公式计算。
 
   ★边界条件（结论翻转）：
     - 终止性依赖"每步消费 ≥1 段"。成立支消费 3，不成立支消费 1——两支都 ≥1，故终止。
       若 still-MISSING-B′ 接入完整判据后某支消费 0 段（如"重叠但不前进"），终止性翻转须重证。
-    - 核心 ZG/ZD 用前两段（§6.4 ZG=min(g₁,g₂)/ZD=max(d₁,d₂)）。若某口径用全部段算核心
-      （而非前两段），computeZG/ZD 须改，外缘包含核心证明须重做。
+    - 核心 ZG/ZD 用**全三段**（口径 B，§6.3/§6.4 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)，637号）。
+      若回退误口径 A（前两段 min(g₁,g₂)/max(d₁,d₂)），computeZG/ZD 须改，外缘包含核心证明须重做
+      （但 A 已被一级权威第17课答疑裁错——见 637号谱系，canonical 不回退）。
     - centerHolds 用闭区间 `ZD ≤ ZG`（核心可退化为单点 ZD=ZG）。若要求严格 `ZD < ZG`
       （排除单点中枢），临界翻转。
 

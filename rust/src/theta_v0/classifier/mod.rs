@@ -53,6 +53,7 @@ pub mod bsp;
 pub mod divergence;
 pub mod force_conformance;
 pub mod descend;
+pub mod rmove_compose;
 pub mod nest;
 pub mod signal;
 pub mod six_state;
@@ -294,9 +295,9 @@ mod tests {
 
     #[test]
     fn three_overlapping_segments_form_center() {
-        // 完整判据（Origin.CenterComplete）：方向交替 上-下-上 + 前两段核心 + 第三段贯穿。
-        // 段区间 [0,10]up,[3,12]down,[5,15]up：核心取**前两段** zd=max(0,3)=3, zg=min(10,12)=10。
-        // 第三段 [5,15] 贯穿核心 [3,10]（5<=10 ∧ 3<=15）⟹ 真中枢成立。
+        // 完整判据（Origin.CenterComplete，口径 B 637号）：方向交替 上-下-上 + 全三段核心非空。
+        // 段区间 [0,10]up,[3,12]down,[5,15]up：核心取**全三段** zd=max(0,3,5)=5, zg=min(10,12,15)=10。
+        // 第三段 [5,15] 收窄核心下沿（A 口径 zd=3 → B zd=5）⟹ 真中枢成立。
         let cfg = ThetaConfig::default();
         let layer = ParseLayer {
             segments: vec![
@@ -310,8 +311,8 @@ mod tests {
         assert!(!out.levels.is_empty());
         let l0 = &out.levels[0];
         assert_eq!(l0.centers.len(), 1, "三段方向交替+贯穿 ⟹ 一个真中枢");
-        // 核心取前两段（Origin computeZD/computeZG s1 s2），非三段——G4 完整判据重锚后的正确语义。
-        assert_eq!((l0.centers[0].zd, l0.centers[0].zg), (3, 10));
+        // 核心取全三段（口径 B，637号 computeZD/computeZG s1 s2 s3）——第三段收窄核心下沿至 5。
+        assert_eq!((l0.centers[0].zd, l0.centers[0].zg), (5, 10));
         // 一个中枢 ⟹ classifyMove = consolidation ⟹ moves=[Consolidation]。
         assert_eq!(l0.moves, vec![MoveKind::Consolidation]);
     }

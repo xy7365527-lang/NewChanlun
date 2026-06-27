@@ -524,19 +524,29 @@ fn recognize_point(
     })
 }
 
-/// 从买卖点 bit-vector 判根方向（reference spec:41：买点→Long，卖点→Short）。
+/// 从买卖点 bit-vector 判根方向（**RootSel_Θ 镜像反对称消歧**，strict §9 / FULL 十）。
 ///
-/// 买点位（buy1/2/3 任一）→ `Long`（底背驰/回试做多）；卖点位（sell1/2/3 任一）→ `Short`
-/// （顶背驰/回抽做空）。一个 `BspPoint` 是单方向的（classifier signal.rs 按 `is_sell_side`
-/// 置买或卖位，不混）——若混（买卖位同真，理论不应出现）则买侧优先（确定性裁决）。
-/// 全空 bits ⟹ `None`（非交易点）。
+/// 把 bits 投到根候选 `(χ⁺,χ⁻)`：χ⁺=买侧（buy1/2/3 任一）触发，χ⁻=卖侧（sell1/2/3 任一）触发，
+/// 交给 [`voice::root_sel`] 做 canonical 消歧（strict §9 `RootSel_Θ`）：
+/// - 仅买侧 (1,0) → `Long`（底背驰/回试做多）；仅卖侧 (0,1) → `Short`（顶背驰/回抽做空）；
+/// - **双侧 (1,1) → `Flat` ⟹ `None`**（镜像不动点反对称强制 RootSel(1,1)=0，**非买侧优先**，
+///   见 [`voice::root_sel`] 推导）——根方向空仓 = 不在该点开根仓（plan_orders 跳过）；
+/// - 全空 (0,0) → `Flat` ⟹ `None`（非交易点）。
+///
+/// ★诚实纠正（no-patch-mentality）：旧实现遇买卖位同真取「买侧优先」——这违背 strict §17.7
+/// 多空镜像等变（破坏 `RootSel∘M_D = -RootSel`）。现接 [`voice::root_sel`] 的镜像反对称消歧，
+/// (1,1) 唯一消歧为空仓根（与 (0,0) 共享镜像不动点性质）。classifier signal.rs 正常产单方向
+/// BspPoint，(1,1) 在 Θ v0 不应出现；但根方向选择器的**全定义性**要求 (1,1) 有 canonical 取值
+/// 而非人为裁决（strict §9 要求 RootSel 全定义且镜像等变）。
 fn bsp_root_side(bits: &BspBits) -> Option<VoiceSide> {
-    if bits.buy1 || bits.buy2 || bits.buy3 {
-        Some(VoiceSide::Long)
-    } else if bits.sell1 || bits.sell2 || bits.sell3 {
-        Some(VoiceSide::Short)
-    } else {
-        None
+    let cands = voice::RootCandidates {
+        long_trigger: bits.buy1 || bits.buy2 || bits.buy3,
+        short_trigger: bits.sell1 || bits.sell2 || bits.sell3,
+    };
+    match voice::root_sel(cands) {
+        VoiceSide::Long => Some(VoiceSide::Long),
+        VoiceSide::Short => Some(VoiceSide::Short),
+        VoiceSide::Flat => None, // RootSel=0：无触发 (0,0) 或双触发不动点 (1,1) ⟹ 不开根仓
     }
 }
 

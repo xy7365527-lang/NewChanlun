@@ -13,14 +13,17 @@ Origin/CenterConstruct.lean — centersOf 构造层升级：退化平凡桩 → 
   - 具体数值 witness（ZG/ZD/GG/DD 均机器算）证明输出非平凡
 
 ═══════════════════════════════════════════════════════════════════════════
-权威来源（§6.4 ZG/ZD/GG/DD 公式）
+权威来源（§6.3/§6.4 ZG/ZD/GG/DD 公式，口径 B 全三段，637号）
 ═══════════════════════════════════════════════════════════════════════════
-- §6.4（知识库 + chan99 第八节）：
-  · ZG = min(g₁,g₂)（前两段高点的较小者，中枢核心上沿）
-  · ZD = max(d₁,d₂)（前两段低点的较大者，中枢核心下沿）
+- §6.3/§6.4（一级权威第17课答疑严格公式 + 知识库 + chan99 第八节）：
+  · ZG = min(g₁,g₂,g₃)（**全三段**高点的最小者，中枢核心上沿，口径 B）
+  · ZD = max(d₁,d₂,d₃)（**全三段**低点的最大者，中枢核心下沿，口径 B）
   · GG = max(gₙ)（所有构成段最高高点，外缘上界）
   · DD = min(dₙ)（所有构成段最低低点，外缘下界）
-  · 不变量：DD ≤ ZD ≤ ZG ≤ GG（外缘包含核心）。
+  · 不变量：DD ≤ ZD ≤ ZG ≤ GG（外缘包含核心；口径 B 下核心与外缘同三段聚合）。
+  · ★口径 A→B 迁移（637号）：误口径 A（前两段 min(g₁,g₂)/max(d₁,d₂)）已被一级权威第17课答疑
+    严格公式 `(max(a2,b2,c2), min(a1,b1,c1))` 裁错——canonical = B 全三段。本文件 centersOf 路径
+    已迁 B，与 § 5.5 ref_v1 路径（本就 B 全三段）**口径统一**。
 - §6.1（中枢定义）："走势中枢：某级别走势类型中，被至少三个连续次级别走势类型所重叠的部分。"
   本文件用几何必要条件（ZD ≤ ZG）作识别判据（诚实边界：still-MISSING-B′ 完整判据见
   CenterComplete.lean）。
@@ -62,7 +65,8 @@ namespace NewChanlun.Origin
   逐元素投影得到 List CenterWithOuter。
 
   每个输出元素 `cwo : CenterWithOuter` 携带：
-  - `cwo.core`：canonical Center，含 `zd ≤ zg`（核心区间良构，ZD = max(d₁,d₂)，ZG = min(g₁,g₂)）
+  - `cwo.core`：canonical Center，含 `zd ≤ zg`（核心区间良构，口径 B 全三段：ZD = max(d₁,d₂,d₃)，
+    ZG = min(g₁,g₂,g₃)，637号）
   - `cwo.dd`：外缘下界 DD = min(d₁,d₂,d₃)
   - `cwo.gg`：外缘上界 GG = max(g₁,g₂,g₃)
   - `cwo.outer_lo : dd ≤ core.zd`（DD ≤ ZD，外缘包含核心下沿）
@@ -129,9 +133,9 @@ theorem centersOfWithOuter_length (segs : List Segment) :
   - s1 = 上(10→20)：segHigh=20, segLow=10
   - s2 = 下(20→12)：segHigh=20, segLow=12
   - s3 = 上(12→22)：segHigh=22, segLow=12
-  §6.4 计算：
-  - ZG = min(g₁,g₂) = min(20,20) = 20
-  - ZD = max(d₁,d₂) = max(10,12) = 12
+  §6.3/§6.4 计算（口径 B 全三段，637号）：
+  - ZG = min(g₁,g₂,g₃) = min(20,20,22) = 20（此 witness 第三段贯穿 ⟹ A/B 重合）
+  - ZD = max(d₁,d₂,d₃) = max(10,12,12) = 12（此 witness A/B 重合）
   - GG = max(g₁,g₂,g₃) = max(20,20,22) = 22
   - DD = min(d₁,d₂,d₃) = min(10,12,12) = 10
   不变量：DD=10 ≤ ZD=12 ≤ ZG=20 ≤ GG=22 ✓
@@ -202,15 +206,15 @@ theorem witness_dd_value :
 def witnessCenter : CenterWithOuter :=
   (centerFromThree ovSeg1 ovSeg2 ovSeg3 overlapping_holds).toOuter
 
-/-- ★ZG 值机器验证（L0，由定义直接读）：core.zg = 20。 -/
+/-- ★ZG 值机器验证（L0，由定义直接读，口径 B 全三段）：core.zg = min(20,20,22) = 20。 -/
 theorem witnessCenter_zg : witnessCenter.core.zg = 20 := by
   unfold witnessCenter CenterFull.toOuter centerFromThree computeZG
-  unfold tmin segHigh ovSeg1 ovSeg2; decide
+  unfold tmin segHigh ovSeg1 ovSeg2 ovSeg3; decide
 
-/-- ★ZD 值机器验证（L0，由定义直接读）：core.zd = 12。 -/
+/-- ★ZD 值机器验证（L0，由定义直接读，口径 B 全三段）：core.zd = max(10,12,12) = 12。 -/
 theorem witnessCenter_zd : witnessCenter.core.zd = 12 := by
   unfold witnessCenter CenterFull.toOuter centerFromThree computeZD
-  unfold tmax segLow ovSeg1 ovSeg2; decide
+  unfold tmax segLow ovSeg1 ovSeg2 ovSeg3; decide
 
 /-- ★GG 值机器验证（L0，由定义直接读）：gg = 22。 -/
 theorem witnessCenter_gg : witnessCenter.gg = 22 := by
@@ -252,7 +256,7 @@ theorem witnessCenter_chain : witnessCenter.dd ≤ witnessCenter.core.zd ∧
 theorem witnessCenter_position_within :
     classifyPosition witnessCenter.core 15 = CenterPosition.within := by
   unfold classifyPosition witnessCenter CenterFull.toOuter centerFromThree
-  unfold computeZG computeZD tmin tmax segHigh segLow ovSeg1 ovSeg2
+  unfold computeZG computeZD tmin tmax segHigh segLow ovSeg1 ovSeg2 ovSeg3
   decide
 
 /--
@@ -312,10 +316,15 @@ theorem centersOfWithOuter_nontrivial :
 
     ★工位定位（第Ⅱ类中枢 reference 语义，codex 裁决「全部必须形式化+实装+parity」）：
       上面 §1-5 的 `centersOfWithOuter` 走 `CenterConstruction.centersOf` 路径——核心
-      `ZD=max(d₁,d₂)/ZG=min(g₁,g₂)`（**前两段**，chan99 编纂版 §6.4 口径）+ 固定三段窗口。
-      本 § 兑现**另一条权威链**：`~/Downloads/newchanlun-engine-formal-audit/reference_chanlun.py`
+      `ZD=max(d₁,d₂,d₃)/ZG=min(g₁,g₂,g₃)`（**全三段**，口径 B，637号迁移后与本 § ref_v1 核心
+      口径统一）+ 固定三段窗口。本 § 兑现**另一条权威链**：
+      `~/Downloads/newchanlun-engine-formal-audit/reference_chanlun.py`
       的 **frozen v1 rule**（README §1）——`ZD=max3(lows)/ZG=min3(highs)`（**全三段**）+ 弱接触延伸
       + gg/dd/settled 生命周期 + 结算后重叠回退 `i=max(j-2,end)`。
+      ★口径收敛（637号）：迁移前 §1-5 路径核心是误口径 A（前两段），与本 § ref_v1（B 全三段）
+      **核心口径分离**；迁移后两路径核心**统一为 B**，区别仅剩本 § ref_v1 额外的弱接触延伸 +
+      生命周期字段（§1-5 路径用固定三段窗口，不做延伸）。`legacyV0Interval`（首尾段）仍是被裁错
+      的第三种口径（与 A、B 均不同）。
 
     ★v0/v1 反例裁决（NewChanlunEngineAudit.lean，已 native_decide 裁 v0 错）：
       fixture `s0=[10,20],s1=[12,15],s2=[11,18]` 上 v1=[12,15]、legacy_v0=[11,18]
@@ -628,31 +637,33 @@ def refV1FixtureJson : Json :=
     § 6. 边界条件 + 下游推论 + 影响声明 + 谱系引用（结果包六要素）
     ═══════════════════════════════════════════════════════════════════════
 
-  ★结论（task #16）：
+  ★结论（task #16 + 637号口径 A→B 迁移）：
     centersOfWithOuter : List Segment → List CenterWithOuter 真算实装。
-    - 从线段序列自动识别中枢并计算 ZG=min(g₁,g₂)/ZD=max(d₁,d₂)/GG=max(gₙ)/DD=min(dₙ)
+    - 从线段序列自动识别中枢并计算 ZG=min(g₁,g₂,g₃)/ZD=max(d₁,d₂,d₃)（口径 B 全三段）/
+      GG=max(gₙ)/DD=min(dₙ)
     - 每个输出元素携带机器证明的不变量 DD≤ZD≤ZG≤GG
-    - 4 个数值 witness（ZG=20/ZD=12/GG=22/DD=10）机器验证公式正确性
+    - 4 个数值 witness（ZG=20/ZD=12/GG=22/DD=10，此 witness 第三段贯穿 ⟹ A/B 重合）机器验证公式正确性
     - 1 个端到端见证（classifyPosition 接入 witnessCenter，返回 within）
     - 1 个中心定理二见证（IsUpTrend witnessCenter witnessUpNext）
     - 认识论等级：L1（合成数值 witness，验证管线，不验证真实行情有效性）
 
-  ★定义依据（§6.4 公式）：
-    - ZG = min(g₁,g₂)：前两段高点较小者（中枢核心上沿）
-    - ZD = max(d₁,d₂)：前两段低点较大者（中枢核心下沿）
+  ★定义依据（§6.3/§6.4 公式，口径 B 全三段，637号）：
+    - ZG = min(g₁,g₂,g₃)：全三段高点最小者（中枢核心上沿）
+    - ZD = max(d₁,d₂,d₃)：全三段低点最大者（中枢核心下沿）
     - GG = max(gₙ)：三段高点最大值（外缘上界）
     - DD = min(dₙ)：三段低点最小值（外缘下界）
     段高点/低点：segHigh = max(startPrice, endPrice)，segLow = min(startPrice, endPrice)。
-    识别判据（几何必要条件）：ZD ≤ ZG（核心区间非空）。
+    识别判据（几何必要条件）：ZD ≤ ZG（全三段核心区间非空，已含第三段贯穿）。
 
   ★边界条件（结论翻转）：
-    - 识别判据是几何必要条件（ZD ≤ ZG），非完整缠论判据（方向交替 + 第三段贯穿，见
-      CenterComplete.lean CenterConfirmedComplete）。若接入完整判据（still-MISSING-B″），
-      部分当前输出的"中枢"会被过滤（无方向交替的假中枢）——centersOfWithOuter 输出
-      在完整判据下可能严格减少。
+    - 识别判据是几何必要条件（全三段 ZD ≤ ZG，口径 B 下已含第三段贯穿），非完整缠论判据
+      （仍缺方向交替，见 CenterComplete.lean CenterConfirmedComplete）。若接入方向交替判据
+      （still-MISSING-B″），部分当前输出的"中枢"会被过滤（无方向交替的假中枢）——
+      centersOfWithOuter 输出在完整判据下可能严格减少。
     - 终止性依赖"每步消费 ≥1 段"（继承自 centersOf well-founded 递归）。若识别逻辑
       引入"消费 0 段"的分支（如延伸态不前进），终止性须重证。
-    - ZG/ZD 公式用前两段（§6.4 原文），若某口径用全部段动态更新 ZG/ZD，公式须改。
+    - ZG/ZD 公式用**全三段**（口径 B，637号 + 一级权威第17课答疑）。误口径 A（前两段）已被裁错，
+      canonical 不回退。
     - ZG/ZD/GG/DD 基于整数价格（Tick = Int），无浮点误差；若改 Float，需重证 omega 部分。
 
   ★下游推论：

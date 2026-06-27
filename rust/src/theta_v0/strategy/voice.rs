@@ -201,6 +201,86 @@ pub fn within_max_depth(depth: u32, config: &VoiceConfig) -> bool {
     depth < config.max_depth
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  RootSel_Θ：根声部方向选择 + 镜像反对称消歧
+//  （strict §9 / FULL 十「根声部的双向全定义状态机」）
+// ──────────────────────────────────────────────────────────────────────────
+
+/// 根声部方向候选（χ⁺=买侧触发，χ⁻=卖侧触发，strict §9 `RootSel_Θ : {0,1}² × D_t × ν_t → {-1,0,+1}`）。
+///
+/// 字段语义（strict §9 / FULL 十）：
+/// - `long_trigger` = χ⁺_{r,t} ∈ {0,1}：根级别买侧信号（底背驰/3 买/做多触发）是否成立。
+/// - `short_trigger` = χ⁻_{r,t} ∈ {0,1}：根级别卖侧信号（顶背驰/3 卖/做空触发）是否成立。
+///
+/// **镜像算子作用**（strict §7 / FULL 七）：M_D 把 (χ⁺,χ⁻) 互换为 (χ⁻,χ⁺)，把方向 +1↔-1。
+/// `RootCandidates { long_trigger, short_trigger }.mirror() = RootCandidates { short_trigger, long_trigger }`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RootCandidates {
+    /// χ⁺_{r,t}：买侧（做多）根触发。
+    pub long_trigger: bool,
+    /// χ⁻_{r,t}：卖侧（做空）根触发。
+    pub short_trigger: bool,
+}
+
+impl RootCandidates {
+    /// 镜像算子 M_D 作用于候选（strict §7：B_i ↔ S_i ⟹ χ⁺ ↔ χ⁻）。
+    ///
+    /// `M_D(χ⁺,χ⁻) = (χ⁻,χ⁺)`——买侧触发与卖侧触发互换。镜像对合（`mirror.mirror = id`）。
+    pub fn mirror(self) -> RootCandidates {
+        RootCandidates {
+            long_trigger: self.short_trigger,
+            short_trigger: self.long_trigger,
+        }
+    }
+}
+
+/// **RootSel_Θ：根方向选择函数，含 (1,1) 镜像反对称消歧**（strict §9 / FULL 十，bit-exact）。
+///
+/// 基础规则（strict §9 line 270-272 / FULL 十 line 616-620）：
+/// ```text
+/// RootSel(1,0) = +1   （仅买侧触发 → 做多根）
+/// RootSel(0,1) = -1   （仅卖侧触发 → 做空根）
+/// RootSel(0,0) =  0   （无触发 → 空仓根）
+/// ```
+///
+/// **(1,1) 消歧 = 镜像反对称的代数必然，非设计选择**（strict §9 line 273 / FULL 十 line 626-634）：
+/// canonical 公理 `RootSel(M_D D) = -RootSel(D)`。当 `D=(1,1)` 时，镜像算子 M_D 交换买卖候选：
+/// `M_D(1,1) = (1,1)`——**(1,1) 是镜像不动点**。代入公理：
+/// ```text
+/// RootSel(1,1) = RootSel(M_D(1,1)) = -RootSel(1,1)
+/// ⟹ 2·RootSel(1,1) = 0  ⟹  RootSel(1,1) = 0.
+/// ```
+/// 故 (1,1) 双触发**唯一消歧为 0（空仓根，不开）**——这不是「买侧优先」之类的人为裁决，是
+/// 严格镜像等变（strict §17 条件 7「多空镜像等变」）强制的唯一值。任何非 0 取值都破坏
+/// `RootSel∘M_D = -RootSel`。**无平局，无未定义**（strict §6:190「无候选时值为 0，不是未定义」
+/// 的对偶——双候选时镜像反对称同样钉死唯一值）。
+///
+/// ★认识论 L0（定义内蕴）：四种 (χ⁺,χ⁻) 组合的取值是镜像反对称公理 + 基础规则的逻辑必然，
+/// 不依赖经验数据。返回 [`VoiceSide`]（Long=+1 / Short=-1 / Flat=0）对齐值域 {-1,0,+1}。
+///
+/// 边界条件：本函数只依赖 (χ⁺,χ⁻) 二元布尔。strict §9 的 `D_t × ν_t`（市场结构/借券状态）
+/// 在 Θ v0 中**不参与根方向选择**（recog 已把 D_t 折叠进 χ± 的产生，ν_t 是执行层借券约束
+/// 不改根方向符号）——若 Θ 后续引入 D_t/ν_t 依赖的根方向（如借券不可用时禁做空根），则须
+/// change request 扩展签名，不在 Θ v0 内。
+pub fn root_sel(cands: RootCandidates) -> VoiceSide {
+    match (cands.long_trigger, cands.short_trigger) {
+        (true, false) => VoiceSide::Long,  // RootSel(1,0) = +1
+        (false, true) => VoiceSide::Short, // RootSel(0,1) = -1
+        (false, false) => VoiceSide::Flat, // RootSel(0,0) =  0
+        (true, true) => VoiceSide::Flat,   // RootSel(1,1) =  0（镜像不动点反对称强制）
+    }
+}
+
+/// 根方向的镜像反对称（strict §9 line 273 / FULL 十 line 628-634：`RootSel(M_D D) = -RootSel(D)`）。
+///
+/// 镜像后的根方向 = 原根方向取负（Long↔Short，Flat↔Flat）。这是 [`root_sel`] 满足镜像等变的
+/// 见证——对**所有** 4 种候选组合 `root_sel(cands.mirror()) == root_sel(cands).flip()`（见测试
+/// `root_sel_mirror_antisymmetric`），其中 Flat.flip()=Flat（0 的负仍是 0）使 (0,0) 与 (1,1)
+/// 两个镜像不动点自洽（`root_sel = Flat = -Flat`）。
+pub fn root_sel_mirror(cands: RootCandidates) -> VoiceSide {
+    root_sel(cands.mirror())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,6 +375,56 @@ mod tests {
         for &e in &[false, true] {
             let v = VoiceState { depth: 0, b: 3, q: 7, exit: false, enter_ok: e };
             assert_eq!(act_state(&v), ActState::Hold);
+        }
+    }
+
+    /// RootSel 基础规则（strict §9 line 270-272 / FULL 十 line 616-620）：
+    /// (1,0)→Long(+1)，(0,1)→Short(-1)，(0,0)→Flat(0)。
+    #[test]
+    fn root_sel_base_rules() {
+        let long_only = RootCandidates { long_trigger: true, short_trigger: false };
+        assert_eq!(root_sel(long_only), VoiceSide::Long); // RootSel(1,0) = +1
+        let short_only = RootCandidates { long_trigger: false, short_trigger: true };
+        assert_eq!(root_sel(short_only), VoiceSide::Short); // RootSel(0,1) = -1
+        let none = RootCandidates { long_trigger: false, short_trigger: false };
+        assert_eq!(root_sel(none), VoiceSide::Flat); // RootSel(0,0) = 0
+    }
+
+    /// ★(1,1) 镜像反对称消歧（strict §9 line 273 / FULL 十 line 626-634）：双触发唯一消歧为
+    /// Flat(0)。证：M_D(1,1)=(1,1) 是不动点 ⟹ RootSel(1,1)=-RootSel(1,1) ⟹ =0。**非买侧优先**。
+    #[test]
+    fn root_sel_double_trigger_disambiguates_to_flat() {
+        let both = RootCandidates { long_trigger: true, short_trigger: true };
+        assert_eq!(root_sel(both), VoiceSide::Flat); // RootSel(1,1) = 0（镜像反对称强制）
+        // 反对称自洽：(1,1) 是镜像不动点，root_sel(mirror) = root_sel 本身 = Flat = Flat.flip()。
+        assert_eq!(root_sel_mirror(both), root_sel(both)); // Flat == Flat
+        assert_eq!(root_sel(both), root_sel(both).flip()); // Flat == Flat.flip()
+    }
+
+    /// ★镜像反对称律（strict §9 line 273 / FULL 十 line 628-634）：对**所有** 4 种候选组合，
+    /// `root_sel(mirror(D)) == flip(root_sel(D))`——RootSel∘M_D = -RootSel（多空镜像等变 §17.7）。
+    #[test]
+    fn root_sel_mirror_antisymmetric() {
+        for &lt in &[false, true] {
+            for &st in &[false, true] {
+                let cands = RootCandidates { long_trigger: lt, short_trigger: st };
+                // RootSel(M_D D) = -RootSel(D)，其中 -Long=Short, -Short=Long, -Flat=Flat。
+                assert_eq!(root_sel_mirror(cands), root_sel(cands).flip());
+            }
+        }
+    }
+
+    /// 镜像算子对合（strict §7 `M² = id`）：候选镜像两次还原。
+    #[test]
+    fn root_candidates_mirror_involutive() {
+        for &lt in &[false, true] {
+            for &st in &[false, true] {
+                let c = RootCandidates { long_trigger: lt, short_trigger: st };
+                assert_eq!(c.mirror().mirror(), c);
+                // 镜像交换买卖触发。
+                assert_eq!(c.mirror().long_trigger, c.short_trigger);
+                assert_eq!(c.mirror().short_trigger, c.long_trigger);
+            }
         }
     }
 
