@@ -5,3 +5,5 @@
 {"event": "EVIDENCE", "sub_goal_id": "SG-1", "artifact": "theta_v0_lean_parity.rs commit 5ba07286；10 passed 真断言(code-verifier真封)；诚实残留:买侧vacuous+转录信任gap", "ts": "2026-06-27T09:03:40Z"}
 {"event": "EVIDENCE", "sub_goal_id": "SG-2", "artifact": "theta_v0_classifier_parity.rs commit ab43d40c2b；12 passed 真断言；第三类覆盖；边界矛盾retest==zg", "ts": "2026-06-27T09:03:40Z"}
 {"event": "BLOCKED", "sub_goal_id": "SG-2", "blocker": "reference §36含等号(≥ZG设计选择)+rust vs Lean IsType3Buy严格<(BspClassification.lean:113)定义层矛盾，临界retest==zg结论相反，需编排者/ritual裁决口径统一", "ts": "2026-06-27T09:03:40Z"}
+{"event": "EVIDENCE", "sub_goal_id": "SG-C", "artifact": "center generation repo 已超前闭合(repo⊇canonical)：chanCenters_empty 空桩已消除，composeStep 真派生中枢 windowCenters，WellFormed 强制 centers≥1，lake build exit 0 零sorry(HEAD 421b493936)。canonical Gate1 center 部分 MET，无需补", "ts": "2026-06-27T09:07:33Z"}
+{"event": "CHECK_PASS", "sub_goal_id": "SG-C", "check": "canonical Gate1 center-generation/WellFormed(629开口①②线段层正交,非center)", "ts": "2026-06-27T09:07:33Z"}
