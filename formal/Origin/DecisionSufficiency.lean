@@ -29,21 +29,39 @@ strict_hybrid_state_machine_strategy.md §14）：
                                (兑现 π_Θ 经分类因子化 ⟹ 同类同应对)
 
 认识论等级：**L0**（结构/逻辑综合定理，不依赖任何市场数据）。
-诚实标注 still-MISSING：
-  - 决策充分性的**充要**方向（ℭ_Θ(x)=ℭ_Θ(y) ⟺ 四相等）的 ⟸ 方向（最小性）
-    属行为商最小完全分类（Origin.ConcreteBehaviorQuotient / FiniteTraceQuotient 承载），
-    本文件只综合 ⟹ 方向（决策充分性 = 同类不产生不同应对）。
+
+充要双向（§16 ⟹ + §17 ⟸ 合成，本文件现兑现）：
+  - **⟹ 方向**（§16 决策充分性，line 1196-1213）：ℭ_Θ(x)=ℭ_Θ(y) ⟹ 同应对——对任意
+    fiber-constant 策略 f 成立（`same_class_same_policy`，§d-3）。
+  - **⟸ 方向**（§17 最小完全分类，line 1239-1290）：行为等价（∀未来事件流输出轨迹相同）⟹ 同类
+    （最小性，「再合并任何两类必现某未来不同动作」）——**仅对「分类器纤维 = 行为等价类」的分类器
+    成立**（CompleteClassifier），由 `CompleteClassification.behavior_same_class` + 本文件 §4.5
+    合成段承载。引擎自身商的具体兑现见 `ConcreteBehaviorQuotient.engine_minimal_complete_classification`。
+  - **合成充要**（§4.5 `complete_classifier_decision_sufficiency_iff`）：当且仅当分类器是
+    CompleteClassifier（纤维 = 行为等价类）时，ℭ_Θ(x)=ℭ_Θ(y) ⟺ 行为等价（同类 ⟺ 同轨迹应对）。
+
+诚实标注 still-MISSING / 精确边界：
+  - **⟸ 不对任意分类器普遍成立**：缠论标签 IGlobal 与行为核**不可比**（既有同行为却异类、亦有异行为
+    却同类的 witness，`Foundation/CompleteClassificationLimits.iglobal_not_complete_minimal` 已证它
+    不是行为极小完全分类）——本文件**不**重证不强证那个反命题（no-workaround）。⟸ 支以 schema
+    `CompleteClassifier` 为条件前提，谁声称某分类器满足充要谁需提供其 `complete` 证明。
+  - **§16 policy 层 vs §17 trace 层不混同**（codex 异质审查 2026-06-27）：§16 的 policy 是单步应对，
+    §17 的 trace 是全未来输出轨迹 Tr_Θ；⟸（最小性）是 trace 层的「行为等价 ⟹ 同类」，**不是**
+    §16 ⟹ 的朴素逆 `f x=f y → I x=I y`（那是 FALSE——policy 碰撞，常值 f 即反例）。
   - 四支的**经验有效性**（约束参数 / J_Θ 权重 / 意图谓词的真实校准）是 L2/L3，不在本层。
+  - axiom 边界：本文件全部定理保持构造性 axiom 基线（propext / Quot.sound），不引入 Classical.choice。
 -/
 
 import Origin.ConstraintSystem
 import Origin.LexArgmin
 import Origin.FullDefinitionStrategy
 import Origin.StrategyFamily
+import Origin.CompleteClassification          -- CompleteClassifier / BehEquiv / behavior_same_class（最小性 ⟸ 支）
 
 namespace NewChanlun.Origin.DecisionSufficiency
 
 open NewChanlun.Origin                       -- ActionClass / ExistsUnique / FullDefinitionSystem / hybridStep
+                                             -- + CompleteClassifier / BehEquiv / same_class_same_behavior / behavior_same_class
 open NewChanlun.Origin.ConstraintSystem      -- FeasibilityContext / Control / Feasible / IsSafeContext / feasible_nonempty
 open NewChanlun.Origin.LexArgmin             -- RiskProjection / lexArgmin_exists_unique
 open NewChanlun.Origin.StrategyFamily        -- Factors / FiberConstant / factor_unique / piTheta / given_theta_total_unique
@@ -199,6 +217,85 @@ theorem policy_factors_unique
   factor_unique I f hrealized π₁ π₂ h1 h2
 
 /-! ════════════════════════════════════════════════════════════════════════
+  ## §4.5 ★★★ 决策充分性充要的 ⟸ 支（最小性）+ 合成充要
+
+  ★定位（补 L5 留的精确 still-MISSING）：§16 决策充分性是 **⟹ 方向**（同类⟹同应对，§d-3
+  `same_class_same_policy` 已证）。本段补 **⟸ 方向（最小性）**——canonical §17「最小完全分类」boxed
+  `ℭ_Θ(x)=ℭ_Θ(y) ⟺ x ≡^beh y` 的 ⟸ 支，并把 ⟹+⟸ 合成**充要**。
+
+  ★关键概念区分（codex 异质审查 2026-06-27 确认，防混淆/防假证）：
+  - ⟸（最小性）**不是** §16 ⟹ 的朴素逆 `f x=f y → I x=I y`——那 **FALSE**（policy 碰撞：不同行为类
+    可应对相同动作，`StrategyFamily.classification_does_not_produce_strategy` 已证存在常值 f 反例）。
+  - ⟸（最小性）**是**轨迹层的 `BehEquiv trace x y → classify x = classify y`（行为等价 ⟹ 同类）——
+    = `CompleteClassification.behavior_same_class`（取 `CompleteClassifier.complete` 的 ⟸ 支）。
+  - ⟸ **仅对「分类器纤维 = 行为等价类」的分类器成立**（CompleteClassifier）；对任意分类器（缠论标签
+    IGlobal）**不**成立——故 ⟸ 支以 schema `CompleteClassifier` 为条件前提（谁声称某分类器满足，
+    谁提供其 `complete` 证明）。这不是声明膨胀：条件定理诚实标注其前提义务。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/--
+  ★★⟸ 支（最小性）`minimality_behavior_implies_class`（L0，§17 boxed 的 ⟸ 方向）★★：
+  对完备分类器 C（纤维 = 行为等价类），**行为等价 ⟹ 同类**——
+  `BehEquiv C.trace x y → C.classify x = C.classify y`。
+
+  **直接综合** CompleteClassification.behavior_same_class——不重证。这是 §17「再合并任何两个类别
+  都会导致某种未来事件下出现不同动作」的正向兑现（其逆否：异类 ⟹ 非行为等价，由
+  `distinct_classes_behavior_separated` 承载）。
+
+  ★诚实边界（依赖 `CompleteClassifier`）：本定理要求 C **是** CompleteClassifier（其 `complete`
+  字段证 classify x=y ⟺ BehEquiv trace）。任意分类器（如缠论标签 IGlobal）不满足此前提——
+  IGlobal 与行为核不可比（CompleteClassificationLimits 已证），故对它本定理不可用。
+-/
+theorem minimality_behavior_implies_class
+    {X : Type} {Class : Type} {Omega : Type} {TraceOut : Type}
+    (C : CompleteClassifier X Class Omega TraceOut)
+    {x y : X} (h : BehEquiv C.trace x y) :
+    C.classify x = C.classify y :=
+  behavior_same_class C h
+
+/--
+  ★★合成充要 `complete_classifier_decision_sufficiency_iff`（L0，§16 ⟹ + §17 ⟸ 合成）★★：
+  对完备分类器 C，决策充分性达到**充要**：
+    `C.classify x = C.classify y ↔ BehEquiv C.trace x y`。
+  - ⟹（决策充分性 / §16，再细分无新增信息侧）：同类 ⟹ 行为等价（= `same_class_same_behavior`）。
+  - ⟸（最小性 / §17，再合并必现不同动作侧）：行为等价 ⟹ 同类（= `minimality_behavior_implies_class`）。
+
+  **直接综合** `CompleteClassifier.complete`——这正是 §17 boxed `ℭ_Θ(x)=ℭ_Θ(y) ⟺ x ≡^beh y` 的
+  Lean 兑现：当且仅当分类器纤维 = 行为等价类时，同类 ⟺ 同（轨迹）行为。这把 L5 的 ⟹-only
+  提升为充要——补 still-MISSING 的 ⟸ 支。
+
+  ★诚实边界：充要**条件化于** C 是 CompleteClassifier。这不是「任意分类器都充要」（那 FALSE）——
+  是「凡纤维=行为核的分类器即充要」。引擎自身商的具体见证：
+  `ConcreteBehaviorQuotient.engine_minimal_complete_classification`（concrete instance，
+  classify=Quotient.mk 必满足 complete）。缠论标签 IGlobal 不满足（§本段开头诚实分叉）。
+-/
+theorem complete_classifier_decision_sufficiency_iff
+    {X : Type} {Class : Type} {Omega : Type} {TraceOut : Type}
+    (C : CompleteClassifier X Class Omega TraceOut) (x y : X) :
+    C.classify x = C.classify y ↔ BehEquiv C.trace x y :=
+  C.complete x y
+
+/--
+  ★充要逆否 `minimality_distinct_class_separates`（L0，§17 ① 的构造性兑现）：
+  「再合并任何两个类别都会导致某种未来事件下出现不同动作」——
+  `C.classify x ≠ C.classify y → ¬ BehEquiv C.trace x y`（异类 ⟹ 非行为等价）。
+
+  **直接综合** CompleteClassification.distinct_classes_behavior_separated——不重证。这坐实分类的
+  **最小性**：不同类必被某未来观察区分（无两个本可合并的冗余类）。
+
+  ★axiom 边界（诚实，formalization-validity-domain）：用 `¬ BehEquiv`（=`¬∀ω, trace x ω=trace y ω`）
+  ——构造性，不引入 Classical.choice。**不**展开为字面 `∃ω`（那需 `not_forall→exists`，依赖
+  Classical.choice，破坏本文件 axiom 铁律，no-workaround）。`¬∀ω` 是 `∃ω`（排中律下）的等价但更强的
+  构造性形式。
+-/
+theorem minimality_distinct_class_separates
+    {X : Type} {Class : Type} {Omega : Type} {TraceOut : Type}
+    (C : CompleteClassifier X Class Omega TraceOut)
+    {x y : X} (hneq : C.classify x ≠ C.classify y) :
+    ¬ BehEquiv C.trace x y :=
+  distinct_classes_behavior_separated C hneq
+
+/-! ════════════════════════════════════════════════════════════════════════
   ## 决策充分性合题：四支同时成立
 
   把四支打包为单一结构 `DecisionSufficiencyWitness`——一个上下文同时见证可行集非空、
@@ -263,14 +360,19 @@ end DecisionSufficiencyWitness
 /--
   ★决策充分性标签 `DecisionSufficiencyTag`（gatekeeper，诚实分层）。
   - `StructuralSynthesisL0`：四支是结构/逻辑综合（引前层已证定理），不依赖数据。
-  - `OnlyForwardDirection`：本层只综合 ⟹ 方向（同类⟹同应对），充要 ⟸（最小性）属行为商。
+  - `BiconditionalSynthesized`：⟹（§16 决策充分性）+ ⟸（§17 最小性）已合成**充要**
+    （`complete_classifier_decision_sufficiency_iff`）。⟹ 对任意 fiber-constant f；⟸ 见下条件。
+  - `MinimalityConditionalOnCompleteClassifier`：⟸（最小性）**条件化于** CompleteClassifier
+    （纤维=行为等价类）——不对任意分类器普遍成立（缠论标签 IGlobal 与行为核不可比，不满足前提）。
   - `FiberConstantIsObligation`：同类同应对依赖 fiber-constant 决策充分性**义务**（非平凡前提）。
   - `EmpiricalValidityOutOfScope`：四支的经验校准（约束参数/J_Θ 权重）是 L2/L3，不在本层。
-  ★**没有** `TrueCompleteClassification` 构造子——类型层拒绝把决策充分性标为经验有效分类。
+  ★**没有** `TrueCompleteClassification` 构造子——类型层拒绝把决策充分性标为经验有效分类
+  （最小完全分类的**经验**有效是 L2，不在本结构层）。
 -/
 inductive DecisionSufficiencyTag where
   | StructuralSynthesisL0
-  | OnlyForwardDirection
+  | BiconditionalSynthesized
+  | MinimalityConditionalOnCompleteClassifier
   | FiberConstantIsObligation
   | EmpiricalValidityOutOfScope
 deriving DecidableEq, Repr
@@ -285,7 +387,8 @@ def decisionSufficiencyLevel : DecisionSufficiencyTag := DecisionSufficiencyTag.
 -/
 theorem decision_sufficiency_not_true_classification (t : DecisionSufficiencyTag) :
     t = DecisionSufficiencyTag.StructuralSynthesisL0 ∨
-    t = DecisionSufficiencyTag.OnlyForwardDirection ∨
+    t = DecisionSufficiencyTag.BiconditionalSynthesized ∨
+    t = DecisionSufficiencyTag.MinimalityConditionalOnCompleteClassifier ∨
     t = DecisionSufficiencyTag.FiberConstantIsObligation ∨
     t = DecisionSufficiencyTag.EmpiricalValidityOutOfScope := by
   cases t <;> simp

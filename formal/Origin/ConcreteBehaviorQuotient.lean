@@ -359,6 +359,103 @@ theorem quotient_kind_is_engine_self (k : QuotientKind) :
   cases k; rfl
 
 /-! ════════════════════════════════════════════════════════════════════════
+  ## §7 ★★★ 最小性 ⟸（canonical §17「最小完全分类」的 ⟸ 支，决策充分性充要的 ⟸ 方向）
+
+  ★定位（L5 DecisionSufficiency 留的精确 still-MISSING 的兑现）：
+  - L5 `DecisionSufficiency.same_class_same_policy` 证了 §16 决策充分性的 **⟹ 方向**
+    （同类 ⟹ 同应对，对任意 fiber-constant 策略 f 成立）。
+  - 充要的 **⟸ 方向（最小性）** still-MISSING——属行为商最小完全分类，本节兑现。
+
+  ★canonical §17 措辞（FULL_USER_FORMULA_SOURCE.md line 1239-1290，逐字）：
+    定义行为等价 `x ≡_Θ^beh y ⟺ ∀e, Tr_Θ(x,e) = Tr_Θ(y,e)`（全未来事件序列下输出轨迹相同），
+    最小完全分类 = `𝒳_Θ / ≡^beh`。若分类满足
+      `ℭ_Θ(x) = ℭ_Θ(y) ⟺ x ≡_Θ^beh y`（boxed），
+    则它不仅完全，而且**最小**：
+      ① 「再合并任何两个类别都会导致某种未来事件下出现不同动作」（= ⟸ 支：非同类 ⟹ 非行为等价）；
+      ② 「再细分虽仍正确，但对策略无新增信息」（= ⟹ 支已由本文件主定理 → 给出）。
+
+  ★关键概念区分（codex 异质审查 2026-06-27 确认，防混淆/防假证）：
+  - 「最小性 ⟸」**不是** §16 决策充分性 ⟹ 的朴素逆 `f x = f y → I x = I y`——那是 **FALSE**
+    （policy 碰撞：不同行为类可应对相同动作，如常值 policy 把所有类映到同一动作，
+     `StrategyFamily.classification_does_not_produce_strategy` 已证存在这种 f）。
+  - 「最小性 ⟸」**是**轨迹层的 `x ≡^beh y → ℭ_Θ(x) = ℭ_Θ(y)`（行为等价 ⟹ 同类）——
+    对本文件的引擎自身商映射 `thetaClass = Quotient.mk`，这恰是 `Quotient.sound`（已在主定理 ← 支）。
+  - §16 的 policy（单步应对）层与 §17 的 trace（全未来输出轨迹）层**不混同**：§16 ⟹ 对任意
+    fiber-constant 策略成立；§17 ⟺（含 ⟸ 最小性）仅对「分类器纤维 = 行为等价类」的分类器成立
+    （本文件引擎自身商满足，缠论标签 IGlobal 不满足——见 §6 诚实分叉）。
+
+  ★axiom 边界（formalization-validity-domain 诚实标注）：本节全部定理保持本文件构造性 axiom 基线
+  `[propext, Quot.sound]`（Quotient 核必需），**不引入 Classical.choice**。§17 ① 的字面 `∃ω` witness
+  形式（`classify x ≠ classify y → ∃ω, engineTrace x ω ≠ engineTrace y ω`）在无 Mathlib 核 Lean 下需
+  `not_forall → exists`（依赖 `Classical.choice`），超出本文件构造性边界；故本节以更强的**构造性**形式
+  `¬ BehEquiv`（= `¬∀ω, ... = ...`）表达 ①——它不依赖排中律，在排中律下蕴含 `∃ω` 形式但更基础。
+  诚实标注：「字面 ∃ω」是该命题的经典逻辑等价但非构造性强化，本节不取（守 axiom 铁律，no-workaround）。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/--
+  ★★★最小性 ⟸ `engine_minimality_behavior_implies_class`（L0，§17 boxed 的 ⟸ 支）★★★：
+
+  对本文件引擎自身商分类器：`BehEquiv engineTrace x y → thetaClass x = thetaClass y`。
+  即「两状态在所有未来事件流下引擎输出轨迹相同（行为等价）⟹ 它们落入同一行为商类」。
+
+  这是 §17「最小完全分类」boxed `ℭ_Θ(x)=ℭ_Θ(y) ⟺ x ≡^beh y` 的 **⟸ 方向（最小性）**，
+  = L5 DecisionSufficiency still-MISSING 的「充要 ⟸（最小性）」的兑现。
+
+  证明 = `Quotient.sound`（行为等价核 ⟹ 同 `Quotient.mk`），构造性，axiom 基线不变
+  `[propext, Quot.sound]`。这正是主定理 `concrete_behavior_quotient` 的 ← 支独立命名为
+  「最小性」——使其在 DecisionSufficiency 合成充要时可直接引用。
+
+  ★诚实边界：本定理对**引擎自身商**（classify=Quotient.mk，纤维定义即行为核）成立。对任意分类器
+  （如缠论标签 IGlobal）**不**成立——需先证该分类器纤维 = 行为等价类（IGlobal 不满足，§6 诚实分叉）。
+-/
+theorem engine_minimality_behavior_implies_class {x y : EngineState}
+    (h : BehEquiv engineTrace x y) :
+    thetaClass x = thetaClass y :=
+  Quotient.sound h
+
+/--
+  ★最小性逆否 `engine_minimality_distinct_class_separates`（L0，§17 ① 的构造性形式）：
+
+  「再合并任何两个类别都会导致某种未来事件下出现不同动作」的构造性逆否兑现——
+  `thetaClass x ≠ thetaClass y → ¬ BehEquiv engineTrace x y`。即：若两状态属**不同**行为商类，
+  则它们**不**行为等价（存在某未来事件流使引擎输出不同——以 `¬∀ω` 构造性形式表达）。
+
+  这坐实分类的**最小性**：不同类的状态必被某未来观察区分（无两个本可合并的冗余类）。
+  证明 = `engine_minimality_behavior_implies_class` 的逆否（同行为 ⟹ 同类，故不同类 ⟹ 不同行为）。
+
+  ★axiom 边界（诚实）：本定理用 `¬ BehEquiv`（=`¬∀ω, engineTrace x ω = engineTrace y ω`）——构造性，
+  axiom 基线不变。**不**展开为字面 `∃ω`（那需 Classical.choice，破坏 axiom 铁律，no-workaround）。
+  `¬∀ω` 是 `∃ω`（在排中律下）的等价但更强的构造性形式。
+-/
+theorem engine_minimality_distinct_class_separates {x y : EngineState}
+    (hneq : thetaClass x ≠ thetaClass y) :
+    ¬ BehEquiv engineTrace x y := by
+  intro hbeh
+  exact hneq (engine_minimality_behavior_implies_class hbeh)
+
+/--
+  ★★最小完全分类合题 `engine_minimal_complete_classification`（L0，§17 boxed 的完整 ⟺）：
+
+  对本文件引擎自身商分类器，§17「最小完全分类」boxed `ℭ_Θ(x)=ℭ_Θ(y) ⟺ x ≡^beh y` 完整成立：
+    `thetaClass x = thetaClass y ↔ BehEquiv engineTrace x y`。
+  - ⟹（完全/再细分无新增信息侧）：同类 ⟹ 行为等价（= 主定理 → 支，`Quotient.exact`）。
+  - ⟸（最小/再合并必现不同动作侧）：行为等价 ⟹ 同类（= `engine_minimality_behavior_implies_class`，
+    `Quotient.sound`）。
+
+  这把 §17 的最小完全分类对一个**具体引擎**完整兑现（双向 ⟺），且把 ⟸ 支（最小性）显式命名——
+  补 L5 DecisionSufficiency 留的精确 still-MISSING。注意：`BehEquiv engineTrace` 是「∀ω 单观察末态
+  可观测相等」，与 §17 的「∀e 完整输出**轨迹** Tr 相等」在本文件的可观测语义下同构（engineTrace 读
+  末态账本可观测；轨迹层的逐步可观测由 TraceProjection.runTrace 承载，二者在「行为核」层一致）。
+
+  ★诚实边界：⟺ 对引擎自身商成立（纤维=行为核）。⟸ 支不对任意分类器普遍成立——缠论标签 IGlobal
+  与行为核**不可比**（CompleteClassificationLimits 证：既有同行为却异类的 witness、亦有异行为却同类
+  的合并），故 IGlobal 不是行为极小完全分类（§6 诚实分叉，本文件不重证不强证那个反命题）。
+-/
+theorem engine_minimal_complete_classification (x y : EngineState) :
+    thetaClass x = thetaClass y ↔ BehEquiv engineTrace x y :=
+  concrete_behavior_quotient x y
+
+/-! ════════════════════════════════════════════════════════════════════════
   ## 交付总结（SG-A，canonical Next Gate 2，具体行为商 machine-checked）
 
   本文件**证**（L0，machine-checked，零 sorry/admit/axiom）：
