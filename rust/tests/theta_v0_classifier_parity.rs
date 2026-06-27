@@ -42,6 +42,53 @@ use newchan_rust::theta_v0::classifier::bsp::{endpoint_to_bsp, EndpointSituation
 use newchan_rust::theta_v0::classifier::center::{classify_position, RelativePosition};
 use newchan_rust::theta_v0::classifier::signal::extract_signals;
 use newchan_rust::theta_v0::types::{Center, Direction, Segment, Tick};
+use serde::Deserialize;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  §0 Lean #eval 导出 fixture 机器耦合（631 兑现，消手工转录漂移）
+//
+//  位置见证（classifyPosition sampleCenter.core 5/15/30 = below/within/above）由
+//  `formal/Origin/ParityFixtureExport.lean` 的 #eval **机器导出**（Lean 真求值 classifyPosition），
+//  序列化为 JSON。本文件用 include_str! 读 fixture 的 position 段，断言 rust classify_position 在
+//  同一中枢同一价位产出 == fixture 中 Lean 导出的位置态。bit-exact 等级 = L0。
+// ════════════════════════════════════════════════════════════════════════════
+
+/// fixture JSON 中本文件 classifier 消费的子集（serde 镜像 ParityFixtureExport.fixtureJson）。
+#[derive(Deserialize)]
+struct ParityFixture {
+    position: PositionFixture,
+    buy_witness: BuyWitness,
+}
+
+#[derive(Deserialize)]
+struct PositionFixture {
+    at_5: String,
+    at_15: String,
+    at_30: String,
+    zd: Tick,
+    zg: Tick,
+}
+
+#[derive(Deserialize)]
+struct BuyWitness {
+    type3_retrace_price: Tick,
+    type3_center_zg: Tick,
+}
+
+fn load_fixture() -> ParityFixture {
+    let raw = include_str!("fixtures/theta_v0_parity.json");
+    serde_json::from_str(raw).expect("fixture 必须是 Lean #eval 导出的合法 JSON")
+}
+
+/// Lean 导出的 CenterPosition 枚举名字符串 → rust RelativePosition（期望值由 fixture 决定，非手填）。
+fn position_from_lean(s: &str) -> RelativePosition {
+    match s {
+        "below" => RelativePosition::Below,
+        "within" => RelativePosition::Within,
+        "above" => RelativePosition::Above,
+        other => panic!("fixture 出现未知位置态名「{other}」——Lean 枚举与 rust 镜像漂移"),
+    }
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  层 A — 位置分量 r：classify_position ↔ Lean Origin.CenterStates.classifyPosition
@@ -67,20 +114,36 @@ fn center(zd: Tick, zg: Tick) -> Center {
 /// 三态，故此处穷举三态在 Lean sampleCenter 见证数值上的 bit-exact 对照。
 #[test]
 fn position_below_within_above_matches_lean_witness() {
-    // 逐字段对照 Lean witness_below/within/above（CenterStates.lean:403-411，核心 [10,20]）。
-    let c = center(10, 20);
-    assert_eq!(classify_position(&c, 5), RelativePosition::Below, "Lean witness_below: 5<zd=10");
-    assert_eq!(classify_position(&c, 15), RelativePosition::Within, "Lean witness_within: 10≤15≤20");
-    assert_eq!(classify_position(&c, 30), RelativePosition::Above, "Lean witness_above: 20<30");
+    // 机器耦合：中枢边界 zd/zg 与三态期望从 fixture 读（Lean #eval classifyPosition sampleCenter.core
+    // 5/15/30），非手填。Lean 改 sampleCenter 或 classifyPosition ⟹ fixture 变 ⟹ 本测试随之变。
+    let fx = load_fixture();
+    let c = center(fx.position.zd, fx.position.zg); // fixture: sampleCenter.core [zd=10, zg=20]
+    assert_eq!(
+        classify_position(&c, 5),
+        position_from_lean(&fx.position.at_5),
+        "rust classify_position(c,5) == Lean #eval classifyPosition sampleCenter.core 5"
+    );
+    assert_eq!(
+        classify_position(&c, 15),
+        position_from_lean(&fx.position.at_15),
+        "rust classify_position(c,15) == Lean #eval classifyPosition sampleCenter.core 15"
+    );
+    assert_eq!(
+        classify_position(&c, 30),
+        position_from_lean(&fx.position.at_30),
+        "rust classify_position(c,30) == Lean #eval classifyPosition sampleCenter.core 30"
+    );
 }
 
 #[test]
 fn position_closed_core_boundary_matches_lean() {
     // 逐字段对照 Lean position_boundary_closed_core_within（CenterStates.lean:384-389）：
     // p=zd 与 p=zg 都归 within（闭核心区间，Lean 严格不等式判据 p<zd / zg<p）。
-    let c = center(10, 20);
-    assert_eq!(classify_position(&c, 10), RelativePosition::Within, "Lean: p=zd → within（闭区间）");
-    assert_eq!(classify_position(&c, 20), RelativePosition::Within, "Lean: p=zg → within（闭区间）");
+    // 中枢边界 zd/zg 从 fixture 读（Lean sampleCenter.core），非手填 10/20。
+    let fx = load_fixture();
+    let c = center(fx.position.zd, fx.position.zg);
+    assert_eq!(classify_position(&c, fx.position.zd), RelativePosition::Within, "Lean: p=zd → within（闭区间）");
+    assert_eq!(classify_position(&c, fx.position.zg), RelativePosition::Within, "Lean: p=zg → within（闭区间）");
 }
 
 #[test]
@@ -177,12 +240,34 @@ fn seg(dir: Direction, si: usize, ei: usize, sp: Tick, ep: Tick) -> Segment {
     Segment { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }
 }
 
-/// 内部安全点：回试低点严格大于 ZG（Lean eventType3 见证口径 retracePrice=25 > zg=20）。
-/// 此点 rust（严格 >）与 Lean（严格 >）两侧一致 ⟹ bit-exact 绿。
+/// ★Lean 见证尺度 bit-exact（机器耦合）：直接用 fixture 导出的 Lean eventType3 见证值
+/// （center.zg / retracePrice）跑 extract_signals，断言 rust 在 Lean 见证原始数值上产第三类买点。
+/// 这是真正的 Lean 见证 parity（zg=20 < retrace=25 严格）——zg/retrace 从 fixture 读，非手填。
+#[test]
+fn type3_buy_lean_witness_scale_matches_fixture() {
+    let fx = load_fixture();
+    let zg = fx.buy_witness.type3_center_zg;       // fixture: Lean eventType3.bsp.center.zg = 20
+    let retrace = fx.buy_witness.type3_retrace_price; // fixture: Lean eventType3.bsp.retracePrice = 25
+    assert!(retrace > zg, "fixture 自洽前置：Lean eventType3 retrace 严格 > zg（不破 ZG）");
+    // 用 Lean 见证尺度构造中枢与离开+回试线段：zd 任取低于 zg 的合法值，离开端点 > zg，回试 == retrace。
+    let c = Center { zd: zg - 10, zg, dd: zg - 15, gg: zg + 5, start_index: 0, end_index: 12 };
+    let segs = vec![
+        seg(Direction::Up, 12, 16, zg - 5, zg + 30),      // 离开：端点 > zg
+        seg(Direction::Down, 16, 20, zg + 30, retrace),   // 回试低点 = Lean retracePrice（> zg 严格）
+    ];
+    let points = extract_signals(&[c], &segs);
+    assert_eq!(points.len(), 1, "Lean 见证尺度 retrace>zg ⟹ 一个第三类买点（rust 与 Lean IsType3Buy 一致）");
+    assert!(points[0].bits.buy3, "Lean eventType3 见证：rust 与 Lean IsType3Buy 同为真");
+    assert_eq!(points[0].center.map(|c| c.zg), Some(zg), "3 买止损=ZG（= Lean center.zg）");
+}
+
+/// 内部安全点（scaled 路径覆盖，非 Lean 见证值）：回试低点严格大于 ZG。此处 zg=200/retrace=210 是
+/// **测试自造的更大尺度**（覆盖 extract_signals 信号路径），不是 Lean eventType3 见证（zg=20/retrace=25，
+/// 后者的 bit-exact 耦合见 type3_buy_lean_witness_scale_matches_fixture）。两尺度同判第三类成立。
 #[test]
 fn type3_buy_interior_point_matches_lean() {
     // 中枢核心 [100,200] end_index=12。向上线段离开（端点 250 > zg=200），向下回试低点 210（严格 > 200）。
-    // Lean IsType3Buy: center.zg=200 < retracePrice=210 ⟹ 成立（内部安全点，非边界）。
+    // 严格口径下 center.zg=200 < retracePrice=210 ⟹ 第三类成立（内部安全点，非边界）。
     let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 12 };
     let segs = vec![
         seg(Direction::Up, 12, 16, 150, 250),   // 离开：端点 250 > zg=200

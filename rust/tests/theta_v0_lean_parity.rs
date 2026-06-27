@@ -56,6 +56,71 @@ use newchan_rust::theta_v0::closed_loop::sell::{
 use newchan_rust::theta_v0::closed_loop::state::AssemblyState;
 use newchan_rust::theta_v0::strategy::ledger::LedgerComp;
 use newchan_rust::theta_v0::types::Side;
+use serde::Deserialize;
+
+// ════════════════════════════════════════════════════════════════════════════
+//  §0 Lean #eval 导出 fixture 机器耦合（631 兑现，消手工转录漂移）
+//
+//  卖侧 delta/recog/transition 与买侧 ledger delta（供 dual_mirror）由
+//  `formal/Origin/ParityFixtureExport.lean` 的 #eval **机器导出**（Lean 真求值
+//  sellDecisionLedgerDelta / recogChanlunSell / sellTransition / decisionLedgerDelta），序列化为
+//  JSON。本文件用 include_str! 读同一 fixture，断言 rust 计算 == fixture 中 Lean 导出值。
+//
+//  ★631 点名修复：此前 lean_buy_side_delta_via_dual_mirror 用**硬编码** `lean_buy_open_root_a: i64=1`
+//  （买侧无 rust 实装，只能手填）——这正是手工转录漂移风险点。现改为从 fixture 读 Lean 买侧
+//  decisionLedgerDelta openRoot/accreteCore 的 A 分量（机器导出），手填常量被消除。bit-exact = L0。
+// ════════════════════════════════════════════════════════════════════════════
+
+/// fixture JSON 中本文件卖侧 + dual_mirror 消费的子集（serde 镜像 ParityFixtureExport.fixtureJson）。
+#[derive(Deserialize)]
+struct ParityFixture {
+    buy_ledger_delta: BuyLedgerDelta,
+    sell_ledger_delta: SellLedgerDelta,
+    sell_recog: SellRecog,
+    sell_transition: SellTransition,
+}
+
+#[derive(Deserialize)]
+struct BuyLedgerDelta {
+    open_root: (i64, i64, i64),
+    accrete_core: (i64, i64, i64),
+}
+
+#[derive(Deserialize)]
+struct SellLedgerDelta {
+    close_root: (i64, i64, i64),
+    reduce_core: (i64, i64, i64),
+    hold: (i64, i64, i64),
+}
+
+#[derive(Deserialize)]
+struct SellRecog {
+    sample_type1: String,
+    sample_type3: String,
+}
+
+#[derive(Deserialize)]
+struct SellTransition {
+    base_a_5: i64,
+    type1_a_at_base5: i64,
+    type1_pi_at_base5: i64,
+    type3_a_at_base5: i64,
+}
+
+fn load_fixture() -> ParityFixture {
+    let raw = include_str!("fixtures/theta_v0_parity.json");
+    serde_json::from_str(raw).expect("fixture 必须是 Lean #eval 导出的合法 JSON")
+}
+
+/// Lean 导出的 SellDecision 枚举名字符串 → rust SellDecision（期望值由 fixture 决定，非手填）。
+fn sell_decision_from_lean(s: &str) -> SellDecision {
+    match s {
+        "closeRoot" => SellDecision::CloseRoot,
+        "reduceCore" => SellDecision::ReduceCore,
+        "hold" => SellDecision::Hold,
+        other => panic!("fixture 出现未知卖侧 decision 名「{other}」——Lean 枚举与 rust 镜像漂移"),
+    }
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 //  §1 Lean 买侧见证字段 → 经买↔卖对偶编码为 rust SellEndpoint
@@ -141,20 +206,24 @@ fn lean_type3_witness_matches_rust_is_type3() {
 /// Lean `eventType1_recog_openRoot`（:398）的卖侧对偶：recog = `CloseRoot`（买 openRoot 对偶）。
 #[test]
 fn lean_type1_recog_bit_exact() {
+    let fx = load_fixture();
+    // 期望值从 fixture 读（Lean #eval recogChanlunSell sampleType1Sell = "closeRoot"），非手填。
     assert_eq!(
         recog_chanlun_sell(&lean_event_type1_dual()),
-        SellDecision::CloseRoot,
-        "Lean eventType1 ⟹ openRoot；卖侧对偶 ⟹ closeRoot（bit-exact）"
+        sell_decision_from_lean(&fx.sell_recog.sample_type1),
+        "rust recog_chanlun_sell == Lean #eval recogChanlunSell sampleType1Sell（bit-exact）"
     );
 }
 
 /// Lean `eventType3_recog_accreteCore`（:402）的卖侧对偶：recog = `ReduceCore`（买 accreteCore 对偶）。
 #[test]
 fn lean_type3_recog_bit_exact() {
+    let fx = load_fixture();
+    // 期望值从 fixture 读（Lean #eval recogChanlunSell sampleType3Sell = "reduceCore"），非手填。
     assert_eq!(
         recog_chanlun_sell(&lean_event_type3_dual()),
-        SellDecision::ReduceCore,
-        "Lean eventType3 ⟹ accreteCore；卖侧对偶 ⟹ reduceCore（bit-exact）"
+        sell_decision_from_lean(&fx.sell_recog.sample_type3),
+        "rust recog_chanlun_sell == Lean #eval recogChanlunSell sampleType3Sell（bit-exact）"
     );
 }
 
@@ -169,32 +238,51 @@ fn lean_type3_recog_bit_exact() {
 /// 卖侧 delta bit-exact 对齐 Lean `sellDecisionLedgerDelta`（#121）。
 #[test]
 fn lean_sell_ledger_delta_bit_exact() {
-    assert_eq!(sell_decision_ledger_delta(SellDecision::CloseRoot), (1, -1, 0));
-    assert_eq!(sell_decision_ledger_delta(SellDecision::ReduceCore), (0, -2, 0));
-    assert_eq!(sell_decision_ledger_delta(SellDecision::Hold), (0, 0, 0));
+    let fx = load_fixture();
+    let d = &fx.sell_ledger_delta;
+    // 期望值从 fixture 读（Lean #eval sellDecisionLedgerDelta closeRoot/reduceCore/hold），非手填三元组。
+    assert_eq!(
+        sell_decision_ledger_delta(SellDecision::CloseRoot),
+        d.close_root,
+        "rust closeRoot delta == Lean #eval sellDecisionLedgerDelta closeRoot"
+    );
+    assert_eq!(
+        sell_decision_ledger_delta(SellDecision::ReduceCore),
+        d.reduce_core,
+        "rust reduceCore delta == Lean #eval sellDecisionLedgerDelta reduceCore"
+    );
+    assert_eq!(
+        sell_decision_ledger_delta(SellDecision::Hold),
+        d.hold,
+        "rust hold delta == Lean #eval sellDecisionLedgerDelta hold"
+    );
 }
 
 /// ★买侧 ThetaInstantiation delta 经对偶间接验证（Lean decisionLedgerDelta + buy_sell_A_delta_mirror）。
 ///
-/// 买侧 Lean `decisionLedgerDelta`：openRoot.A=+1，accreteCore.A=+2（ThetaInstantiation.lean:257-258，
-/// Lean machine-checked 常量）。本测试断言 rust 卖侧 delta 的 A 分量是买侧 Lean 期望的严格相反号
-/// ——即 rust 实装满足 Lean `buy_sell_A_delta_mirror`（SellClosedLoop §4，已证）。这是买侧 Lean
-/// delta 在 rust 端的**间接** bit-exact 交叉验证（买侧无 rust 独立实现，见模块头诚实边界）。
+/// ★631 点名修复：原硬编码 `lean_buy_open_root_a: i64 = 1`（手填，转录漂移风险）已替换为从 fixture
+/// 读 Lean 买侧 decisionLedgerDelta openRoot/accreteCore 的 A 分量（机器导出）。Lean 改买侧 delta
+/// ⟹ #eval 输出变 ⟹ fixture 变 ⟹ 本断言随之变，漂移被消除。
+///
+/// 本测试断言 rust 卖侧 delta 的 A 分量是买侧 Lean 导出 A 分量的严格相反号——即 rust 实装满足 Lean
+/// `buy_sell_A_delta_mirror`（SellClosedLoop §4，已证）。这是买侧 Lean delta 在 rust 端的**间接**
+/// bit-exact 交叉验证（买侧无 rust 独立实现于本卖侧文件；买侧直接 parity 见 theta_v0_buy_parity.rs）。
 #[test]
 fn lean_buy_side_delta_via_dual_mirror() {
-    // 买侧 Lean decisionLedgerDelta 的 A 分量（来自 ThetaInstantiation.lean:257-258，machine-checked）。
-    let lean_buy_open_root_a: i64 = 1; // decisionLedgerDelta openRoot = (0, 1, 0)
-    let lean_buy_accrete_core_a: i64 = 2; // decisionLedgerDelta accreteCore = (0, 2, 0)
+    let fx = load_fixture();
+    // 买侧 Lean decisionLedgerDelta 的 A 分量——从 fixture 读（机器导出），非硬编码常量。
+    let lean_buy_open_root_a = fx.buy_ledger_delta.open_root.1; // Lean openRoot delta.A = 1
+    let lean_buy_accrete_core_a = fx.buy_ledger_delta.accrete_core.1; // Lean accreteCore delta.A = 2
     // rust 卖侧 A 分量。
     let rust_sell_close_root_a = sell_decision_ledger_delta(SellDecision::CloseRoot).1; // -1
     let rust_sell_reduce_core_a = sell_decision_ledger_delta(SellDecision::ReduceCore).1; // -2
     assert_eq!(
         lean_buy_open_root_a, -rust_sell_close_root_a,
-        "Lean 买侧 openRoot A=+1 ↔ rust 卖侧 closeRoot A=-1（buy_sell_A_delta_mirror）"
+        "Lean 买侧 openRoot A ↔ rust 卖侧 closeRoot A 严格相反号（buy_sell_A_delta_mirror，A 分量从 fixture 读）"
     );
     assert_eq!(
         lean_buy_accrete_core_a, -rust_sell_reduce_core_a,
-        "Lean 买侧 accreteCore A=+2 ↔ rust 卖侧 reduceCore A=-2（buy_sell_A_delta_mirror）"
+        "Lean 买侧 accreteCore A ↔ rust 卖侧 reduceCore A 严格相反号（buy_sell_A_delta_mirror，A 分量从 fixture 读）"
     );
 }
 
@@ -208,16 +296,25 @@ fn lean_buy_side_delta_via_dual_mirror() {
 /// 断言 ledger.A = base-1（卖侧第一类清根仓；对偶买侧 base+1，A 分量镜像）。
 #[test]
 fn lean_type1_transition_ledger_bit_exact() {
-    let base_a: i64 = 5;
+    let fx = load_fixture();
+    let t = &fx.sell_transition;
+    // base_a 与期望 A/Pi 从 fixture 读（Lean #eval sellTransition base=5 后 ledger.A/Pi），非手填。
+    let base_a: i64 = t.base_a_5;
     let x0 = AssemblyState {
         ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: base_a, w: 0, r: -base_a },
         ..AssemblyState::initial(1_000_000)
     };
     let x1 = sell_transition(&x0, &lean_event_type1_dual());
-    // 卖侧第一类：A = base - 1（对偶 Lean 买侧 chanlunTransition_type1_allocates 的 base + 1）。
-    assert_eq!(x1.ledger_state.a, base_a - 1, "卖侧第一类清根仓 A = base - 1");
-    // 卖侧第一类额外实现利润 Π += 1（Lean sellTransition_type1_realizes；买侧无 Π 变化的时间不对称）。
-    assert_eq!(x1.ledger_state.pi, 1, "卖侧第一类实现利润 Π += 1");
+    // 卖侧第一类：A == Lean #eval (sellTransition base5 sampleType1Sell).ledger.A（=base-1=4）。
+    assert_eq!(
+        x1.ledger_state.a, t.type1_a_at_base5,
+        "rust 卖侧第一类 A == Lean #eval sellTransition A（base=5）"
+    );
+    // 卖侧第一类 Π == Lean #eval ...ledger.Pi（=1，实现利润；买侧 Π 不变的时间不对称）。
+    assert_eq!(
+        x1.ledger_state.pi, t.type1_pi_at_base5,
+        "rust 卖侧第一类 Π == Lean #eval sellTransition Pi（base=5，实现利润 Π+=1）"
+    );
     // 闭环保 R=Π-A-W（Lean chanlunTransition_preserves_ledger_inv / sellTransition_preserves_ledger_inv）。
     assert!(x1.ledger_state.inv_holds(), "闭环转移保 R=Π-A-W");
 }
@@ -225,14 +322,19 @@ fn lean_type1_transition_ledger_bit_exact() {
 /// 把 Lean `chanlunTransition_type3_allocates`（买侧 A=base+2）对偶为卖侧 A=base-2 的逐态验证。
 #[test]
 fn lean_type3_transition_ledger_bit_exact() {
-    let base_a: i64 = 5;
+    let fx = load_fixture();
+    let t = &fx.sell_transition;
+    let base_a: i64 = t.base_a_5;
     let x0 = AssemblyState {
         ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: base_a, w: 0, r: -base_a },
         ..AssemblyState::initial(1_000_000)
     };
     let x1 = sell_transition(&x0, &lean_event_type3_dual());
-    // 卖侧第三类：A = base - 2（对偶 Lean 买侧 chanlunTransition_type3_allocates 的 base + 2）。
-    assert_eq!(x1.ledger_state.a, base_a - 2, "卖侧第三类减核 A = base - 2");
+    // 卖侧第三类：A == Lean #eval (sellTransition base5 sampleType3Sell).ledger.A（=base-2=3）。
+    assert_eq!(
+        x1.ledger_state.a, t.type3_a_at_base5,
+        "rust 卖侧第三类 A == Lean #eval sellTransition A（base=5）"
+    );
     assert!(x1.ledger_state.inv_holds(), "闭环转移保 R=Π-A-W");
 }
 
@@ -243,20 +345,23 @@ fn lean_type3_transition_ledger_bit_exact() {
 /// **同一**初始态跑 rust 闭环，断言两类产生不同 A delta——bit-exact 兑现 Lean 非退化结论。
 #[test]
 fn lean_transition_distinguishes_classes_bit_exact() {
-    let base_a: i64 = 10;
+    let fx = load_fixture();
+    let t = &fx.sell_transition;
+    // base 与两类期望 A 从 fixture 读（Lean #eval sellTransition base=5：type1 A=4 ≠ type3 A=3），非手填。
+    let base_a: i64 = t.base_a_5;
     let x0 = AssemblyState {
         ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: base_a, w: 0, r: -base_a },
         ..AssemblyState::initial(1_000_000)
     };
-    let a_type1 = sell_transition(&x0, &lean_event_type1_dual()).ledger_state.a; // base - 1 = 9
-    let a_type3 = sell_transition(&x0, &lean_event_type3_dual()).ledger_state.a; // base - 2 = 8
+    let a_type1 = sell_transition(&x0, &lean_event_type1_dual()).ledger_state.a;
+    let a_type3 = sell_transition(&x0, &lean_event_type3_dual()).ledger_state.a;
     assert_ne!(
         a_type1, a_type3,
         "Lean chanlun_transition_distinguishes_classes：两类缠论分类 ⟹ 不同 ledger A delta"
     );
-    // 逐值锚定（卖侧对偶具体值；买侧 Lean 为 base+1=11 / base+2=12）。
-    assert_eq!(a_type1, base_a - 1, "第一类 A = base - 1");
-    assert_eq!(a_type3, base_a - 2, "第三类 A = base - 2");
+    // 逐值锚定 Lean 导出（卖侧对偶具体值，从 fixture 读）。
+    assert_eq!(a_type1, t.type1_a_at_base5, "rust 第一类 A == Lean #eval sellTransition A（base=5）");
+    assert_eq!(a_type3, t.type3_a_at_base5, "rust 第三类 A == Lean #eval sellTransition A（base=5）");
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -275,8 +380,14 @@ fn lean_continuation_hold_bit_exact() {
         retrace_price: 0,
         center_zd: 10,
     };
-    assert_eq!(recog_chanlun_sell(&cont), SellDecision::Hold, "力度延续 ⟹ hold");
-    assert_eq!(sell_decision_ledger_delta(SellDecision::Hold), (0, 0, 0), "hold delta (0,0,0)");
+    let fx = load_fixture();
+    assert_eq!(recog_chanlun_sell(&cont), sell_decision_from_lean("hold"), "力度延续 ⟹ hold");
+    // hold delta 从 fixture 读（Lean #eval sellDecisionLedgerDelta hold），非手填 (0,0,0)。
+    assert_eq!(
+        sell_decision_ledger_delta(SellDecision::Hold),
+        fx.sell_ledger_delta.hold,
+        "rust hold delta == Lean #eval sellDecisionLedgerDelta hold"
+    );
     // hold 闭环不改账本（Lean hold delta 全零 ⟹ ledger 恒等）。
     let x0 = AssemblyState {
         ledger_state: LedgerComp { i0: 1_000_000, pi: 3, a: 5, w: 1, r: -3 },
