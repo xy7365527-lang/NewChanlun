@@ -46,6 +46,7 @@ use super::parser::ParseLayer;
 use super::types::{Center, Direction, MoveKind, Segment};
 
 pub mod center;
+pub mod ref_v1;
 pub mod level;
 pub mod level_state;
 pub mod bsp;
