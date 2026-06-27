@@ -1,5 +1,6 @@
 /-
 Origin/BspConstruction.lean — bsp 全自动构造（遍历识别三类 + 第二类本级别判据签名）+ 终止性 + 唯一性（task #116）
+  + 632号路1 canonical 修复（brokeCenter/leftCenter L0 价格几何推导 + afterTypeOne 前序折叠 + divPair L2 开口）
 
 ★工位定位（#113 still-MISSING-D 缺口）：BspClassification.lean 形式化了买卖点三类**判据层**
   （每类中枢关系 + 背驰 + 单射裁定 + 完备性）；但 `bspOf : List BspEndpoint → List Bsp` 的
@@ -25,18 +26,28 @@ Origin/BspConstruction.lean — bsp 全自动构造（遍历识别三类 + 第�
 ═══════════════════════════════════════════════════════════════════════════
 认识论等级（formalization-validity-domain 强制标注）
 ═══════════════════════════════════════════════════════════════════════════
-全部 **L0**（纯定义 / 结构递归终止 / Bool 全函数二歧 / 纯函数唯一性，不依赖数据）。
-`lake env lean Origin/BspConstruction.lean` 通过 = bspOf 作为全函数良定义（终止）+ 输出唯一
-（确定性）+ 第二类本级别判据是返回 Bool 的全函数在定义层成立，**不是**任何"识别的买卖点真对应
-缠论权威标注"的实证断言（L2+），**也不是**次级别真下钻终止性的证明（该下钻 still-MISSING-D′）。
+§1-6 全 **L0**（纯定义 / 结构递归终止 / Bool 全函数二歧 / 纯函数唯一性，不依赖数据）。
+§7（632号路1 canonical 修复，codex 异质裁决）分层：
+  · `brokeCenterOf`/`leftCenterOf`（§7.1）**L0**：从 `Move.endPrice` vs 中枢 [zd,zg] 用 608号
+    位置三态（IsBelow/IsAbove）纯价格几何推导——`Move` 加 endPrice 字段后 brokeCenter/leftCenter
+    **不再 oracle 注入**，真 L0 结构推导（`brokeCenterOf_iff` 坐实锚到 608号）。
+  · `afterTypeOne`（§7.3）**L0**：在 `bspOfMovesAux` 遍历 `List Move` 时由前序状态折叠产生
+    （列表级时序量，纯结构折叠），**不是**单 `Move` 原子字段。
+  · `divPair`（`MoveForceJudgment`）**L2 开口**：背驰力度 `Force`/MACD 面积无 Origin 计算引擎
+    （Divergence still-MISSING-C，需 EMA/DIF/DEA + 面积积分）——诚实不填，标 L2，不冒充已填。
+`lake env lean Origin/BspConstruction.lean` 通过 = bspOf 全函数良定义（终止）+ 输出唯一（确定性）
++ brokeCenter/leftCenter 价格几何 L0 推导成立，**不是**任何"识别的买卖点真对应缠论权威标注"的
+实证断言（L2+），**也不是** divPair 力度已计算（still-MISSING-C），**也不是**次级别真下钻终止性
+证明（still-MISSING-D′）。
 
 诚实标注（gatekeeper，no-patch-mentality）：
-★ TerminationAndDeterminismOnly + SubLevelIsSingleStepPlaceholder ——
-  本文件证 bspOf 遍历的**结构终止 + 唯一性**。第二类「次级别第一类」用 level-indexed **单步占位
-  判据**（`subLevelHasType1`：丢弃 n、两分支同体、不自调）——**不是** well-founded 级别下降递归，
-  **不**实装"从本级别 ParseStruct 下钻到次级别 ParseStruct 重新跑 segmentsOf/centersOf"
-  （那需 RecursiveLevelSystem 全实例化，still-MISSING-D′）。
-  把单步占位判据冒充为完整次级别下钻递归 = 声明膨胀（禁止）。
+★ L0PriceGeometry + ListLevelFold + DivPairL2Open + SubLevelIsSingleStepPlaceholder ——
+  本文件证 bspOf 遍历的**结构终止 + 唯一性** + brokeCenter/leftCenter 价格几何 L0 推导（632号路1）
+  + afterTypeOne 列表级前序折叠。divPair 力度诚实留 L2 开口（still-MISSING-C，不冒充）。第二类
+  「次级别第一类」用 level-indexed **单步占位判据**（`subLevelHasType1`：丢弃 n、两分支同体、不自调）
+  ——**不是** well-founded 级别下降递归，**不**实装"从本级别 ParseStruct 下钻到次级别 ParseStruct
+  重新跑 segmentsOf/centersOf"（still-MISSING-D′）。把单步占位判据冒充为完整下钻递归 / 把 divPair
+  冒充为已 L0 推导 = 声明膨胀（禁止）。
 
 禁 sorry/admit/axiom。纯 Prop/Type，不依赖 Mathlib。omega 前须 `simp only [..., Tick]` 暴露 Int。
 -/
@@ -235,222 +246,306 @@ theorem witness_secondType_is_bool :
   secondType_is_bool 1 sampleType1
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 7. ElementPipeline 桥接：Move → BspCandidate oracle 接口（L1 真编码）
+    § 7. ElementPipeline 桥接：Move → BspCandidate（brokeCenter/leftCenter L0 价格几何推导
+         + afterTypeOne 列表级前序折叠 + divPair L2 开口）
     ═══════════════════════════════════════════════════════════════════════ -/
 
+/-! ─── § 7.1 brokeCenter / leftCenter：从 Move 价格端点 vs 中枢的 L0 几何推导（608号位置三态）─── -/
+
 /--
-  **走势判据注入（oracle 接口，外部数据契约）** —— 从元素层 `Move` **无法单独推导**的买卖点
-  判据数据：`Move` 结构只携带 `kind/startIndex/endIndex/centers`，**不携带价格端点**
-  （无 startPrice/endPrice），也不携带背驰段对。`bspOfMoves` 对这些**外部注入**的判据做遍历识别。
+  **★破中枢判据（L0 价格几何，608号位置三态）** —— 走势末端价 `m.endPrice` 落在中枢 `c` 核心
+  `[zd,zg]` **之外**（之下或之上）⟺ 走势已跌破/突破该中枢。
 
-  ★诚实声明（no-patch-mentality + formalization-validity-domain + 632号矛盾上浮）：
-  `MoveJudgment` 是 oracle **接口定义**——它声明"产买卖点判据需要哪些字段"，**不声明**"这些字段
-  能从 `Move` 推导"。三个 Bool 字段的可推导性分层（632号逐字段分析）：
+  ★632号路1 兑现：原 `brokeCenter` 是 oracle Bool 字段（无法从无价格端点的 `Move` 推导）；
+  `Move` 加 `endPrice`（透传自 `Segment.endPrice`）后，破中枢从 608号 CenterStates 的
+  `IsBelow`/`IsAbove`（点相对 [zd,zg] 的位置三态）**纯 L0 结构推导**，消除 oracle 注入。
+  「之外」= `IsBelow ∨ IsAbove` = `classifyPosition ≠ within`——位置三态的直接应用。
 
-  · `brokeCenter`/`leftCenter`（价格几何）= **L0 结构**，但元素层 `Move` 缺价格端点：判定数据是
-    «走势末端价 vs 中枢 [zd,zg]»（CenterStates.IsBelow/IsAbove，608号），价格在 `Segment.endPrice`
-    层已算出（管线 strokesOf→segmentsOf）；是 `movesOf : List Segment → List Move` 构造 `Move` 时
-    **丢弃**了 Segment 价格端点。对照 `SubLevelDescent.SubBrokeBelow`（对携带 `interval` 的 `RMove`
-    L0 判破中枢）——破中枢本质 L0 几何，缺口在元素层 `Move` 无价格字段（canonical 契约缺陷）。
-  · `afterTypeOne`（时序）需走势序列级前序分类上下文 + 递归依赖 `brokeCenter`，单 `Move` 不可推导。
-  · `divPair`（背驰力度）= **真 L2 缺口**：`Force`/MACD 面积无 Origin 计算引擎（Divergence
-    still-MISSING-C，需 EMA/DIF/DEA + 面积积分）。
-
-  ★632号矛盾上浮：消除"从 Move 单独 L0 推导判据"的开口需 canonical 契约裁定（给 `Move` 加价格
-  字段 / 改 `bspOf` 签名接 Segment / 接受 oracle 永久外部化）——触及 P1 owner `ChanlunElements`，
-  待编排者 /ritual。本文件**不冒充**"Move 单独足以产 MoveJudgment"（删除原 dummyJudgmentFromMove
-  零判据桩，见 §8 诚实化），只保留 oracle **接口契约**（judgments 由携带价格几何的上游注入）。
+  ★认识论等级 L0：纯整数比较（价格几何），不依赖经验数据/MACD/Θ 参数。
 -/
-structure MoveJudgment where
+def brokeCenterOf (m : Move) (c : Center) : Bool :=
+  decide (m.endPrice < c.zd ∨ c.zg < m.endPrice)
+
+/--
+  **★离开中枢判据（L0 价格几何，608号位置三态）** —— 走势末端价落在中枢核心 `[zd,zg]` 之外
+  ⟺ 走势已离开该中枢。与 `brokeCenterOf` 同几何基准（末端价 vs [zd,zg]），区别在语境：
+  `brokeCenter` 用于第一类（破中枢后背驰），`leftCenter` 用于第三类（离开中枢后回抽）——
+  二者在「末端价是否在中枢之外」这一**位置三态判据**上同构（608号 IsBelow/IsAbove）。
+
+  ★认识论等级 L0：与 brokeCenterOf 同为价格几何结构推导，不依赖经验数据。
+-/
+def leftCenterOf (m : Move) (c : Center) : Bool :=
+  decide (m.endPrice < c.zd ∨ c.zg < m.endPrice)
+
+/--
+  **★破中枢 L0 推导坐实（位置三态应用，L0）** —— `brokeCenterOf m c = true` ⟺ 末端价在中枢之外
+  （608号位置三态 `IsBelow c p ∨ IsAbove c p`：之下或之上 = ¬之中）。坐实 L0 几何推导非桩——
+  `brokeCenterOf` 的底层整数析取 `endPrice < zd ∨ zg < endPrice` 按定义即 `IsBelow ∨ IsAbove`。
+-/
+theorem brokeCenterOf_iff (m : Move) (c : Center) :
+    brokeCenterOf m c = true ↔ (IsBelow c m.endPrice ∨ IsAbove c m.endPrice) := by
+  unfold brokeCenterOf IsBelow IsAbove; exact decide_eq_true_iff
+
+/-! ─── § 7.2 走势判据 oracle 接口（仅 divPair/retracePrice/firstRetrace 留 L2 开口）─── -/
+
+/--
+  **走势力度判据注入（L2 oracle 接口，仅背驰相关）** —— 632号路1 后，`Move` 携价格端点，
+  价格几何字段（brokeCenter/leftCenter）已可 L0 推导；时序字段（afterTypeOne）由列表级前序
+  折叠产生。**只剩**「背驰力度」相关数据无法从 `Move` 几何推导，需上游真实计算注入：
+
+  - `divPair`（背驰段对）= **真 L2 缺口**：`Force`/MACD 面积无 Origin 计算引擎
+    （Divergence still-MISSING-C，需 EMA/DIF/DEA + 面积积分）。不填、诚实标注 L2 开口。
+  - `retracePrice`/`firstRetrace`（第三类回抽极值/是否首抽）：回抽极值价是次级别走势的几何量，
+    本级别 `Move` 末端价不直接等于回抽极值——保留为上游注入（携带次级别几何的载体提供）。
+
+  ★诚实声明（no-patch-mentality + 632号路1 兑现）：本结构**只**声明「无法从本级别 Move 几何
+  L0 推导的力度/回抽字段」——brokeCenter/leftCenter（价格几何，§7.1 L0 推导）+ afterTypeOne
+  （时序，§7.3 前序折叠）**不再**在此结构中（已从 oracle 降为推导/折叠产物，632号路1）。
+  把 divPair 力度冒充为已填 = 声明膨胀（禁止）——`divPair` still-MISSING-C，诚实留 L2。
+-/
+structure MoveForceJudgment where
   side : Side
-  center : Center
   divPair : DivergencePair
-  brokeCenter : Bool
-  afterTypeOne : Bool
-  leftCenter : Bool
   retracePrice : Tick
   firstRetrace : Bool
-  endIndex : Index
-  endPrice : Tick
 deriving Repr
 
 /--
-  **走势判据 → 买卖点候选端点（桥接函数，L1）** —— 将 `MoveJudgment` 组装为 `BspCandidate`。
-  `Move` 的 `endIndex` 对应候选买卖点的下标（走势末端是买卖点候选位置）。
+  **走势 + 中枢 + 力度判据 + 前序时序 → 买卖点候选端点（桥接函数，L0 几何 + L2 力度开口）** ——
+  组装 `BspEndpoint`：brokeCenter/leftCenter 从 `Move` 价格端点 vs `center` L0 推导（§7.1），
+  afterTypeOne 由调用方传入的前序状态 `afterT1` 折叠产生（§7.3），力度/回抽字段从 `MoveForceJudgment`
+  注入（L2 开口）。`Move.endIndex`/`Move.endPrice` 对应候选买卖点的下标/价。
 -/
-def moveJudgmentToCandidate (j : MoveJudgment) : BspCandidate :=
+def moveToCandidate (m : Move) (center : Center) (force : MoveForceJudgment) (afterT1 : Bool) :
+    BspCandidate :=
   { endpoint :=
-      { side := j.side
-        center := j.center
-        divPair := j.divPair
-        brokeCenter := j.brokeCenter
-        afterTypeOne := j.afterTypeOne
-        leftCenter := j.leftCenter
-        retracePrice := j.retracePrice
-        firstRetrace := j.firstRetrace }
-    index := j.endIndex
-    price := j.endPrice }
+      { side := force.side
+        center := center
+        divPair := force.divPair
+        brokeCenter := brokeCenterOf m center      -- L0 价格几何推导（608号位置三态）
+        afterTypeOne := afterT1                     -- 列表级前序折叠产物（§7.3）
+        leftCenter := leftCenterOf m center         -- L0 价格几何推导（608号位置三态）
+        retracePrice := force.retracePrice
+        firstRetrace := force.firstRetrace }
+    index := m.endIndex
+    price := m.endPrice }
+
+/-! ─── § 7.3 bspOfMoves：列表级前序折叠（afterTypeOne 由前序「是否已出现第一类」产生）─── -/
 
 /--
-  **★bspOfMoves（L1 真编码）** —— `List Move → List MoveJudgment → List Bsp`。
-  对每个 `(Move, MoveJudgment)` 对，提取候选端点并调用 `classifyEndpoint`，收集非 none 结果。
-  oracle 注入（`judgments`）是 L1 接口约束：判据数据由外部提供，本函数只做遍历识别。
+  **★bspOfMoves（L0 价格几何 + 列表级前序折叠 afterTypeOne + L2 力度开口）** ——
+  `List Move → List Center → List MoveForceJudgment → List Bsp`。遍历 `(Move, Center, Force)`
+  三元组，**维护前序状态** `afterT1`（前序是否已出现第一类买卖点），对每个走势：
+  (1) 用 `moveToCandidate`（brokeCenter/leftCenter L0 推导 + afterTypeOne := 当前前序状态）组装端点；
+  (2) `classifyEndpoint` 判类；
+  (3) **折叠更新前序状态**：若本走势识别为第一类 ⟹ 后续 `afterT1 := true`（第一类已出现）。
 
-  ★终止性：结构递归消费 `pairs` 列头（`_ :: rest` → 递归 `rest`），结构终止。
-  ★唯一性：纯函数 ⟹ 输出唯一（`bspOfMoves_total_unique`）。
-  ★有效域诚实标注：L1（管线编码，judgments 是合成注入时不产生信息增量；
-  L2+ 需真实判据数据，即上游真实 centersOf + 背驰计算）。
+  ★afterTypeOne 前序折叠（632号路1 codex 裁决）：`afterTypeOne` **不是**单个 `Move` 的原子字段，
+  而是走势**序列**遍历时由前序状态折叠产生的**列表级时序量**——第二类「在第一类之后」是序列级
+  时序关系，非单走势内蕴属性。本函数把它装配为 fold：前序出现第一类 ⟹ 翻转 afterT1。
+
+  ★终止性：结构递归消费三元组列头，结构终止。
+  ★认识论等级：brokeCenter/leftCenter L0（价格几何）；afterTypeOne L0（列表级折叠，纯结构）；
+  divPair L2 开口（force 注入时携带的背驰力度数据，still-MISSING-C，本函数不产生力度信息增量）。
 -/
-def bspOfMoves (moves : List Move) (judgments : List MoveJudgment) : List Bsp :=
-  let pairs := moves.zip judgments
-  pairs.filterMap (fun (_, j) => classifyEndpoint (moveJudgmentToCandidate j))
+def bspOfMovesAux :
+    List Move → List Center → List MoveForceJudgment → Bool → List Bsp
+  | [], _, _, _ => []
+  | _, [], _, _ => []
+  | _, _, [], _ => []
+  | m :: ms, c :: cs, f :: fs, afterT1 =>
+      let cand := moveToCandidate m c f afterT1
+      match classifyEndpoint cand with
+      | some b =>
+          let afterT1' := afterT1 || decide (b.kind = BspKind.type1)
+          b :: bspOfMovesAux ms cs fs afterT1'
+      | none => bspOfMovesAux ms cs fs afterT1
 
-/-- ★bspOfMoves 输出唯一性（L0，确定性）。 -/
+/--
+  **★bspOfMoves（顶层，前序状态初始 false）** —— 走势序列起始时尚未出现第一类（afterT1 := false）。
+-/
+def bspOfMoves (moves : List Move) (centers : List Center) (forces : List MoveForceJudgment) :
+    List Bsp :=
+  bspOfMovesAux moves centers forces false
+
+/-- ★bspOfMoves 输出唯一性（L0，确定性：纯全函数 ⟹ 输出唯一）。 -/
 theorem bspOfMoves_total_unique :
-    TotalUnique (fun (pair : List Move × List MoveJudgment) (out : List Bsp) =>
-      bspOfMoves pair.1 pair.2 = out) :=
-  total_unique_of_fun (fun p : List Move × List MoveJudgment => bspOfMoves p.1 p.2)
+    TotalUnique (fun (t : List Move × List Center × List MoveForceJudgment) (out : List Bsp) =>
+      bspOfMoves t.1 t.2.1 t.2.2 = out) :=
+  total_unique_of_fun
+    (fun t : List Move × List Center × List MoveForceJudgment => bspOfMoves t.1 t.2.1 t.2.2)
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 8. 诚实开口（632号）：bspOf 从元素层 Move 单独不可 L0 实装——无桩冒充绑定
+    § 8. 632号路1 兑现：brokeCenter/leftCenter L0 消桩 + afterTypeOne 前序折叠 + divPair L2 开口
 
-    ★629号识别"未验证 oracle 冒充完整分类"开口；632号精确化：元素层 `Move`（无价格端点）
-    单独不足以产 `MoveJudgment`（brokeCenter/leftCenter 需走势末端价 vs 中枢几何，价格在
-    `Segment` 层已算但被 `movesOf` 丢弃；divPair 需 MACD 力度 = L2 still-MISSING-C）。
+    ★629号识别"未验证 oracle 冒充完整分类"开口；632号精确化根因：元素层 `Move` **缺价格端点**
+    （`movesOf` 丢弃了 `Segment.startPrice/endPrice`），brokeCenter/leftCenter（价格几何判据）
+    无法从 `Move` 单独推导，只能 oracle 注入——这是 canonical 契约缺陷（codex 异质裁决）。
 
-    原 `dummyJudgmentFromMove`（对每个 Move 产零判据：全 false / 零价）+ `bspOfViaPipeline`
-    （map 零判据 → 恒产空 Bsp 列）已**删除**——它们冒充"绑定 ElementPipeline.bspOf 字段、消解
-    平凡桩"，实际零判据恒产空列 = 退化冒充（no-patch-mentality / 090 声明膨胀，acceptance#2 要
-    "无未验证 oracle 冒充完整分类"）。`bspOf : List Move → List Bsp` 的具体绑定需 canonical 契约
-    裁定（632号上浮三路：给 Move 加价格字段 / 改 bspOf 签名接 Segment / 接受 oracle 永久外部化），
-    触及 P1 owner ChanlunElements，待编排者 /ritual——本文件**不冒充该绑定已成**。
+    **632号路1 修复（codex 裁决，acceptance #2）**：给 canonical `Move` 加 `startPrice/endPrice`
+    （透传自 `Segment` 端点，ChanlunElements.lean）。修复后逐字段消解：
 
-    保留的诚实部分：`MoveJudgment`（oracle 接口契约）+ `bspOfMoves`（真遍历，judgments 由携带
-    价格几何的上游外部注入，无冒充）+ §9 用真判据 `bspSampleJudgment1`（复用 sampleType1，
-    携带真破中枢+真背驰）的 L1 管线见证——judgments 真实（非零判据），是诚实的 L1 编码见证。
+    · `brokeCenter`/`leftCenter`（§7.1）：从 `Move.endPrice` vs 中枢 [zd,zg] 用 608号位置三态
+      `IsBelow/IsAbove` **纯 L0 几何推导**（`brokeCenterOf`/`leftCenterOf`），**不再 oracle 注入**。
+      原 oracle 注入的价格几何分量已删除，替换为 608 真结构推导（`brokeCenterOf_iff` 坐实）。
+    · `afterTypeOne`（§7.3）：**不是**单个 `Move` 的原子字段，改为在 `bspOfMovesAux` 遍历
+      `List Move` 时由**前序状态折叠**产生（前序出现第一类 ⟹ afterT1 翻转）——列表级时序量。
+      原 `MoveJudgment.afterTypeOne` Bool 字段已删除（不再当单走势内蕴属性）。
+    · `divPair`（背驰力度）：保持**明确 L2 开口**（`MoveForceJudgment.divPair`，still-MISSING-C：
+      MACD/EMA 引擎无 Origin 计算）——不填、诚实标注，不与 L0 几何捆成大 oracle（codex 裁决）。
+
+    原 `MoveJudgment`（把 brokeCenter/leftCenter/afterTypeOne 当 oracle Bool 字段）+
+    `moveJudgmentToCandidate` + `bspSampleJudgment1` + 旧 `bspOfMoves`（zip+filterMap，无前序折叠）
+    已**删除/重构**——它们把可 L0 推导的价格几何（632号路1 后）+ 可折叠的时序冒充为 oracle 注入。
+    新 `MoveForceJudgment` **只**保留无法从 `Move` 几何推导的力度/回抽字段（divPair L2 开口）。
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 9. L1 合成计算见证（具体 Move + 具体真判据 ⟹ 具体 Bsp 输出）
+    § 9. L0/L2 合成计算见证（具体 Move 价格端点 ⟹ L0 几何推导 brokeCenter ⟹ 具体 Bsp 输出）
     ═══════════════════════════════════════════════════════════════════════ -/
 
--- L1 合成见证用 Move（趋势上涨，单中枢；endIndex=3 对应 sampleType1 见证）。
+-- 合成见证用 Move（趋势上涨，单中枢；endIndex=3 对应 sampleType1 见证）。
 -- 避免与 CenterStates.sampleCenter（CenterWithOuter 类型）名称冲突，中枢值内联。
+-- ★endPrice=5 < zd=10 ⟹ 末端价在中枢之下 ⟹ brokeCenterOf 推导出 true（L0 价格几何，非 oracle）。
 def bspSampleMove : Move :=
   { kind := MoveKind.trendUp, startIndex := 0, endIndex := 3
+    startPrice := 22         -- 起点价：中枢 [10,20] 之上（趋势上涨起点在中枢上沿外）
+    endPrice := 5            -- 末端价：5 < zd=10 ⟹ 之下 ⟹ 破中枢（L0 推导，与 sampleType1 第一类一致）
     centers := [sampleType1.center] }
 
--- L1 合成见证用判据：复用 BspClassification.sampleType1（第一类买点，已有 witness_type1）。
-def bspSampleJudgment1 : MoveJudgment :=
+-- 合成见证用力度判据：复用 BspClassification.sampleType1 的背驰/回抽字段（L2 开口部分）。
+-- ★brokeCenter/leftCenter **不在此**（已从 oracle 降为 L0 推导，632号路1）；afterTypeOne 也不在
+--   （已降为前序折叠产物）。本结构只携带无法从 Move 几何推导的力度数据（divPair still-MISSING-C）。
+def bspSampleForce1 : MoveForceJudgment :=
   { side := sampleType1.side
-    center := sampleType1.center
     divPair := sampleType1.divPair
-    brokeCenter := sampleType1.brokeCenter
-    afterTypeOne := sampleType1.afterTypeOne
-    leftCenter := sampleType1.leftCenter
     retracePrice := sampleType1.retracePrice
-    firstRetrace := sampleType1.firstRetrace
-    endIndex := 3
-    endPrice := 5 }
+    firstRetrace := sampleType1.firstRetrace }
 
-/-- ★L1 反退化见证：bspSampleJudgment1 端点识别为 type1。 -/
-theorem witness_L1_type1_from_judgment :
-    classifyEndpoint (moveJudgmentToCandidate bspSampleJudgment1) =
+/-- ★L0 反退化见证：bspSampleMove 末端价 5 在中枢 [10,20] 之下 ⟹ brokeCenterOf 推导出 true
+    （价格几何 L0 推导，非 oracle 注入——这是 632号路1 消桩的核心兑现）。 -/
+theorem witness_L0_brokeCenter :
+    brokeCenterOf bspSampleMove sampleType1.center = true := by
+  unfold brokeCenterOf bspSampleMove sampleType1
+  decide
+
+/-- ★L0 反退化见证：moveToCandidate 组装的端点（brokeCenter L0 推导 + afterT1=false）识别为 type1。
+    afterT1=false 不阻碍第一类（第一类只需 brokeCenter ∧ 背驰，不依赖 afterTypeOne）。 -/
+theorem witness_L0_type1_from_move :
+    classifyEndpoint (moveToCandidate bspSampleMove sampleType1.center bspSampleForce1 false) =
       some { kind := BspKind.type1, side := Side.long, index := 3, price := 5 } := by
-  -- moveJudgmentToCandidate bspSampleJudgment1 展开后 endpoint = sampleType1（字段投影，不产新 proof）
-  -- witness_type1 已证 IsType1 sampleType1，用于 if_pos
-  have heq : (moveJudgmentToCandidate bspSampleJudgment1).endpoint = sampleType1 := by
-    unfold moveJudgmentToCandidate bspSampleJudgment1 sampleType1; rfl
-  have ht1 : IsType1 (moveJudgmentToCandidate bspSampleJudgment1).endpoint := heq ▸ witness_type1
+  have ht1 : IsType1 (moveToCandidate bspSampleMove sampleType1.center bspSampleForce1 false).endpoint := by
+    unfold IsType1 moveToCandidate bspSampleForce1
+    refine ⟨?_, ?_⟩
+    · exact witness_L0_brokeCenter
+    · unfold IsDivergence; decide
   unfold classifyEndpoint
   rw [if_pos ht1]
-  unfold moveJudgmentToCandidate bspSampleJudgment1 sampleType1
+  unfold moveToCandidate bspSampleForce1 sampleType1
   rfl
 
-/-- ★L1 管线见证：bspOfMoves 对 [bspSampleMove] + [bspSampleJudgment1] 产出恰一个 type1 买卖点。 -/
-theorem witness_L1_bspOfMoves_single :
-    (bspOfMoves [bspSampleMove] [bspSampleJudgment1]).length = 1 := by
-  unfold bspOfMoves
-  simp only [List.zip_cons_cons, List.zip_nil_right, List.filterMap_cons, List.filterMap_nil]
-  rw [witness_L1_type1_from_judgment]
+/-- ★管线见证：bspOfMoves 对 [bspSampleMove] + [center] + [force] 产出恰一个 type1 买卖点
+    （brokeCenter 从 Move 价格端点 L0 推导，divPair 从 force 注入，afterTypeOne 前序折叠初始 false）。 -/
+theorem witness_bspOfMoves_single :
+    (bspOfMoves [bspSampleMove] [sampleType1.center] [bspSampleForce1]).length = 1 := by
+  simp only [bspOfMoves, bspOfMovesAux, witness_L0_type1_from_move]
   rfl
 
-/-- ★L1 管线见证：bspOfMoves 空走势列 + 空判据列 ⟹ 空（边界，真遍历，无桩）。 -/
-theorem witness_L1_bspOfMoves_empty : bspOfMoves [] [] = [] := by
-  unfold bspOfMoves; rfl
+/-- ★管线见证：bspOfMoves 空走势列 ⟹ 空（边界，真遍历，无桩）。 -/
+theorem witness_bspOfMoves_empty : bspOfMoves [] [] [] = [] := by
+  unfold bspOfMoves bspOfMovesAux; rfl
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 10. still-MISSING 诚实声明 + 边界条件 + 下游推论 + 影响声明
     ═══════════════════════════════════════════════════════════════════════
 
-  ★已消解（task #116 + task #17 P2 构造层升级 L0→L1）：
-    - **遍历识别终止性**：bspOf 结构递归（消费列头），结构终止（Lean 直接接受）。
+  ★已消解（task #116 + 632号路1 canonical 修复，acceptance #2）：
+    - **遍历识别终止性**：bspOf/bspOfMovesAux 结构递归（消费列头），结构终止（Lean 直接接受）。
     - **第二类本级别判据签名**：secondTypeViaSublevel 是返回 Bool 的全函数（`secondType_is_bool`
       二歧见证）——把买卖点定律一装配为「本级别 IsType2 ∧ 次级别第一类占位」单步判据。
       ★诚实：这**不是**次级别递归终止性证明——`subLevelHasType1` 丢弃级别索引 n、两分支同体、
       不自调，无下降递归结构，故无终止义务可证（次级别真下钻 still-MISSING-D′，见下）。
-    - **输出唯一性**：bspOf_total_unique + bspOf_single_valued + secondType_total_unique。
+    - **输出唯一性**：bspOf_total_unique + bspOf_single_valued + secondType_total_unique +
+      bspOfMoves_total_unique。
     - **2/3 共存的操作侧消解**：classifyEndpoint 用确定性优先级（一类>三类>二类）使输出唯一——
       判据层互斥三分失败（no_exclusive_trichotomy）不阻碍构造层确定性输出。
-    - **ElementPipeline 桥接（oracle 接口侧，无桩冒充）**：
-      · `MoveJudgment`：oracle 接口契约——声明产买卖点判据需要的字段，**不声明**这些字段能从
-        元素层 `Move`（无价格端点）推导（632号）。
-      · `bspOfMoves`：`List Move → List MoveJudgment → List Bsp` 真遍历（结构终止）——judgments 由
-        携带价格几何的上游外部注入，本函数只做遍历识别，无冒充。
-      · L1 计算见证：`witness_L1_type1_from_judgment`（**真判据** sampleType1 → type1）+
-        `witness_L1_bspOfMoves_single`（真判据管线产出 length=1）+ `witness_L1_bspOfMoves_empty`
-        （空列边界）——judgments 真实（携真破中枢+真背驰，非零判据），是诚实 L1 编码见证。
-    - **L 等级诚实标注**：§7 及以前全部 L0（纯定义/结构递归）；§9 L1（用真判据 sampleType1 的
-      管线编码见证）。L1 信息增量为零——判据 `brokeCenter=true` 由 sampleType1 给定，验证只确认
-      管线没有 bug，**不**确认"真实 Move 真有破中枢/背驰"（需 L2+，且元素层 Move 缺价格，632号）。
+    - **★632号路1 canonical 修复（codex 异质裁决，brokeCenter/leftCenter L0 消桩）**：
+      给 canonical `Move` 加 `startPrice/endPrice`（ChanlunElements.lean，透传自 `Segment` 端点）。
+      · `brokeCenterOf`/`leftCenterOf`（§7.1）：从 `Move.endPrice` vs 中枢 [zd,zg] 用 608号位置三态
+        `IsBelow/IsAbove` **纯 L0 几何推导**——`brokeCenter`/`leftCenter` **不再 oracle 注入**。
+        `brokeCenterOf_iff` 坐实推导锚到 608号位置三态（之外 = IsBelow ∨ IsAbove）。**L0**。
+      · `afterTypeOne`（§7.3）：在 `bspOfMovesAux` 遍历 `List Move` 时由**前序状态折叠**产生
+        （前序出现第一类 ⟹ afterT1 翻转），**不是**单 `Move` 原子字段——列表级时序量。**L0**（纯折叠）。
+      · `divPair`（背驰力度）：保持**明确 L2 开口**（`MoveForceJudgment.divPair`，still-MISSING-C：
+        MACD/EMA 引擎无 Origin 计算）——不填、诚实标注，不与 L0 几何捆成大 oracle。
+      · 计算见证：`witness_L0_brokeCenter`（末端价 L0 推导破中枢=true）+ `witness_L0_type1_from_move`
+        （Move 价格端点 → L0 brokeCenter → type1）+ `witness_bspOfMoves_single`（管线产出 length=1）+
+        `witness_bspOfMoves_empty`（空列边界）——brokeCenter 真 L0 推导（非 oracle），divPair 真 L2 注入。
+    - **L 等级诚实标注**：§7.1 brokeCenter/leftCenter **L0**（价格几何，608号位置三态结构推导，
+      信息增量真——从 Move 价格端点真推导，非 oracle 给定）；§7.3 afterTypeOne **L0**（列表级折叠，
+      纯结构）；divPair **L2 开口**（still-MISSING-C，背驰力度需 MACD 引擎，诚实不填）。
 
-  ★still-MISSING-D′ + 632号诚实开口（bspOf 从元素层 Move 单独不可 L0 实装）：
+  ★still-MISSING-D′ + divPair L2 开口（divPair 力度仍需 Origin 计算引擎）：
     - `subLevelHasType1` 丢弃级别索引 n、两分支同体、不自调——**不是** well-founded 级别下降递归。
       把单步占位判据冒充为完整下钻递归 = 声明膨胀（禁止）。
-    - **632号**：原 `dummyJudgmentFromMove`（零判据桩）+ `bspOfViaPipeline`（恒产空列）已**删除**——
-      它们冒充"绑定 ElementPipeline.bspOf、消解平凡桩"，实际零判据恒产空 = 退化冒充（acceptance#2
-      要"无未验证 oracle 冒充完整分类"）。`MoveJudgment` 的三 Bool 字段不可从元素层 `Move` 纯 L0
-      结构推导：brokeCenter/leftCenter（价格几何，L0 结构但 `Move` 缺价格端点——`movesOf` 丢弃了
-      `Segment` 的 startPrice/endPrice）、afterTypeOne（时序，需走势序列上下文）、divPair（背驰力度，
-      L2 still-MISSING-C）。`bspOf` 具体绑定需 canonical 契约裁定（632号上浮三路），待编排者 /ritual。
+    - **divPair（背驰力度）= 真 L2 缺口（still-MISSING-C）**：632号路1 消解了价格几何 oracle
+      （brokeCenter/leftCenter）与时序 oracle（afterTypeOne），但 `divPair` 的 `Force`/MACD 面积
+      **无法**从 `Move` 价格端点几何推导（需 EMA/DIF/DEA + 面积积分，Divergence still-MISSING-C）。
+      `MoveForceJudgment.divPair` 是诚实的 L2 开口——本文件**不冒充** divPair 已可 L0 推导。
+      第一类判据 `IsType1 = brokeCenter ∧ IsDivergence` 中：brokeCenter 现 L0（632号路1），
+      IsDivergence(divPair) 仍 L2——第一类完整识别仍依赖 L2 力度引擎接入。
 
   ★边界条件（结论翻转）：
-    - `bspOfMoves` 终止性是结构递归内蕴（消费 `pairs` 列头），对任何 `classifyEndpoint` 都成立——
-      接入完整判据不影响遍历终止性。
-    - `witness_L1_bspOfMoves_single` 成立依赖 `bspSampleJudgment1`（真判据：brokeCenter=true 且
-      IsDivergence divPair）。若判据改为非破中枢/非背驰，则输出空——见证翻转，须新见证。
-    - 632号修复路裁定翻转下游：若编排者裁定"给 `Move` 加价格字段"（路1），则 brokeCenter/leftCenter
-      可用 608号位置三态 L0 结构推导消桩，本文件可新增真结构推导函数（替代已删的零判据桩），
-      仅 divPair 力度留 L2 开口；若裁定"接受 oracle 永久外部化"（路3），则 oracle 接口即终态。
+    - `brokeCenterOf`/`leftCenterOf` L0 推导依赖 `Move.endPrice`（632号路1 加的字段）。若
+      `movesOf` 实例**不**从 `Segment` 端点透传真价格（违反 ElementPipeline 价格透传契约），
+      则 `Move.endPrice` 是垃圾值，brokeCenter 推导虽 type-check 但语义失效——透传契约是 L0 推导
+      有效的前提（接口义务，ChanlunElements.lean 文档）。
+    - `witness_bspOfMoves_single` 成立依赖 `bspSampleMove.endPrice=5 < zd=10`（末端价破中枢）+
+      `bspSampleForce1` 背驰（IsDivergence）。若末端价改到中枢内（之中），brokeCenterOf 推导 false ⟹
+      非第一类 ⟹ 输出空——见证翻转，须新见证。brokeCenter 翻转现由**价格几何**驱动（非 oracle 改值）。
+    - `afterTypeOne` 前序折叠：第一类不依赖 afterTypeOne（`IsType1` 无 afterTypeOne 项），故前序状态
+      不影响第一类识别；但第二类 `IsType2 = afterTypeOne ∧ ¬brokeCenter` 依赖前序折叠——若走势序列
+      中无前序第一类，则后续走势 afterT1 恒 false ⟹ 无第二类。这是买卖点定律一的列表级时序兑现。
+    - `divPair` 留 L2 开口：若 Divergence still-MISSING-C 被填（MACD 引擎接入），则 `MoveForceJudgment`
+      可从真实力度计算产生（L2→L3 视数据覆盖），本文件接口不需改动（force 注入点已留）。
     - `classifyEndpoint` 优先级（一类>三类>二类）是确定性选择。若某口径要求"2/3 共存时同时输出
       两个 Bsp"（非互斥路由），须改 `bspOfMoves` 签名为 `List (List Bsp)` per move——
       当前裁定优先级单选（与策略层"6 种买卖点信号"路由一致）。
 
-  ★下游推论：
-    - **632号**：`bspOf : List Move → List Bsp` 从元素层 `Move` 单独**不可 L0 实装**（Move 缺价格
-      几何 + 力度），不能宣称"消解 bspOf 平凡桩"——具体绑定待 canonical 契约裁定。策略组件工位
-      （#114）的第二类应对可依赖 `secondType_needs_sublevel_type1` 前件结构（占位判据，待真下钻接入）。
-    - `MoveJudgment` 接口契约 ⟹ 上游须实现「携带价格几何的载体（Segment/RMove）+ 背驰 → MoveJudgment」
-      才能注入（不是 `Move → MoveJudgment`，因元素层 Move 信息不足，632号）。
-    - L1 见证告诉下游：管线遍历层无 bug（真判据端点正确路由到 type1），上游填充真实判据后管线不需
-      改动——但"上游填充"需先解决 632号 canonical 契约（Move 取价格的途径），非纯上游责任。
+  ★下游推论（632号路1 对 acceptance #2 MET）：
+    - **价格几何 L0 真推导消冒充**：brokeCenter/leftCenter 从 `Move` 价格端点真 L0 推导（608号
+      位置三态），**不再**是"未验证 oracle 冒充完整分类"——acceptance #2 的价格几何分量真兑现。
+    - **divPair 诚实 L2 开口**：背驰力度未冒充已填，明确标 still-MISSING-C（MACD 引擎）——
+      第一类完整识别 = L0 破中枢 ∧ L2 背驰，分层诚实（不把 L2 力度说成 L0）。
+    - `movesOf` 实例上游须**从 Segment 端点透传价格**（ElementPipeline 价格透传契约）——这是
+      `Move` 携价格端点后的接口义务（不是丢弃，632号路1）。`MoveForceJudgment` 仅需上游提供力度
+      （背驰段对），不再需提供价格几何/时序（已内化为 L0 推导/折叠）。
+    - 策略组件工位（#114）的第二类应对依赖 `bspOfMovesAux` 前序折叠产生的 afterTypeOne（列表级
+      时序），+ `secondType_needs_sublevel_type1` 前件结构（次级别下钻占位，still-MISSING-D′）。
 
   ★影响声明：
-    - §7：`MoveJudgment`（oracle 接口契约，文档诚实化标 632号）+ `moveJudgmentToCandidate` + `bspOfMoves`。
-    - §8（632号诚实化）：**删除** `dummyJudgmentFromMove`（零判据桩）+ `bspOfViaPipeline`
-      + `bspOfViaPipeline_total` + `bspOfViaPipeline_total_unique` + `witness_L1_pipeline_empty`
-      + `witness_L1_pipeline_zero_judgment`（它们冒充"绑定 bspOf 字段"，零判据恒产空 = 退化冒充）。
-      新增 `witness_L1_bspOfMoves_empty`（空列边界，真遍历无桩）。保留 `bspOfMoves`（真遍历）+
-      §9 真判据 L1 见证。
-    - 不改 canonical 类型（`BspEndpoint`/`BspCandidate`/`Bsp`/`Move`/`ElementPipeline` 结构定义不变）。
-    - 不改 BspClassification.lean / ChanlunElements.lean（只读，P1 owner 文件）。
+    - **ChanlunElements.lean**（canonical，632号路1）：`Move` 加 `startPrice/endPrice` 字段；
+      `ElementPipeline` 加价格透传契约文档（`movesOf` 须从 Segment 端点透传）。
+    - **BspConstruction.lean §7（632号路1 重构）**：
+      · 新增 `brokeCenterOf`/`leftCenterOf`（608号位置三态 L0 价格几何推导）+ `brokeCenterOf_iff`。
+      · 新增 `MoveForceJudgment`（**只**保留 divPair/retracePrice/firstRetrace L2 力度开口字段）+
+        `moveToCandidate`（brokeCenter/leftCenter L0 推导 + afterTypeOne 折叠传入 + force L2 注入）。
+      · 新增 `bspOfMovesAux`（列表级前序折叠 afterTypeOne）+ `bspOfMoves`（顶层 afterT1 初始 false）+
+        `bspOfMoves_total_unique`。
+      · **删除** 旧 `MoveJudgment`（把价格几何/时序当 oracle Bool 字段）+ `moveJudgmentToCandidate`
+        + `bspSampleJudgment1` + 旧 `bspOfMoves`（zip+filterMap，无前序折叠）。
+    - **BspConstruction.lean §9（见证重构）**：`bspSampleMove` 加价格端点（endPrice=5 破中枢）；
+      新增 `bspSampleForce1`（L2 力度判据）+ `witness_L0_brokeCenter`/`witness_L0_type1_from_move`/
+      `witness_bspOfMoves_single`/`witness_bspOfMoves_empty`。删除旧 `witness_L1_*_from_judgment`。
+    - 不改 BspClassification.lean / CenterStates.lean / Divergence.lean（只读，用其判据/位置三态/背驰）。
 
   ★谱系引用：消解 BspClassification.lean § 8 still-MISSING-D（bspOf 全自动遍历终止 + 唯一）；
-    **632号**精确化 629号开口③——MoveJudgment 消桩在元素层 Move 上不可纯 L0（根因 movesOf 丢
-    Segment 价格），区分 L0 结构缺口（价格几何）与 L2 数据缺口（背驰力度，still-MISSING-C），
-    canonical 契约修复待编排者 /ritual。互斥三分失败的操作侧优先级消解重锚 Strict.BSP
-    refined_classifies（精化触发签名真单射，谱系 598→603→615）。
-    认识论等级：§1-7 全 L0；§9 L1（真判据管线编码见证，信息增量为零但遍历编码真实）。
+    **632号路1 兑现**（codex 异质裁决，编排者委托）——629号开口③精确化的 canonical 契约缺陷
+    （movesOf 丢 Segment 价格）通过给 `Move` 加价格端点修复：brokeCenter/leftCenter 从 oracle 降为
+    608号位置三态 L0 推导，afterTypeOne 从单走势字段降为列表级前序折叠，divPair 诚实留 L2 开口
+    （still-MISSING-C）。互斥三分失败的操作侧优先级消解重锚 Strict.BSP refined_classifies
+    （精化触发签名真单射，谱系 598→603→615）。
+    认识论等级：§1-7.1/7.3 全 L0（价格几何推导 + 列表折叠）；divPair L2 开口（背驰力度 still-MISSING-C）。
 -/
 
 end NewChanlun.Origin

@@ -62,10 +62,28 @@ inductive MoveKind where
   | trendDown
 deriving DecidableEq, Repr
 
+/--
+  **走势（canonical，632号路1：加价格端点）** —— 一段走势的规范类型。
+
+  ★632号路1 canonical 修复（codex 异质裁决，acceptance #2）：原 `Move` 只携带
+  `kind/startIndex/endIndex/centers`，**不携带价格端点**——这把「同 kind/index/centers 但
+  末端价不同的走势」折叠成同一类型值 = **行为等价类错误合并 = canonical 类型缺陷**
+  （呼应完全分类 = 行为等价商 X_Θ/≡^beh：丢失末端价 ⟹ 商映射坍缩不同行为到同一格）。
+
+  - `startPrice`：走势起点价（透传自构成该走势的 `Segment` 起点端点 `Segment.startPrice`）。
+  - `endPrice`：走势末端价（透传自 `Segment.endPrice`）。走势末端是买卖点候选位置，其价格
+    与中枢 [zd,zg] 的几何关系（之上/之下，608号 CenterStates）是 brokeCenter/leftCenter
+    判据的 **L0 结构输入**——价格在 `Segment` 层（管线 strokesOf→segmentsOf）已算出，
+    `movesOf` 透传而非丢弃（消除原 632号 canonical 契约缺陷）。
+
+  ★认识论等级 L0：价格端点是 `Segment` 端点的结构透传（非经验数据），加字段不引入 Θ 参数。
+-/
 structure Move where
   kind : MoveKind
   startIndex : Index
   endIndex : Index
+  startPrice : Tick
+  endPrice : Tick
   centers : List Center
 deriving Repr
 
@@ -101,6 +119,15 @@ structure ParseStruct where
   tail : OpenTail
 deriving Repr
 
+/--
+  **元素管线接口（canonical）** —— 各字段是元素流水线的确定性阶段（接口，非实现）。
+
+  ★632号路1 价格透传契约（codex 裁决）：`movesOf : List Segment → List Center → List Move`
+  的任一合法实例**必须**从构成每个 `Move` 的 `Segment` 端点透传 `startPrice`/`endPrice`
+  （`Move.startPrice := Segment.startPrice`，`Move.endPrice := Segment.endPrice`）——
+  价格在 `segmentsOf` 层已算出，`movesOf` 透传而非丢弃。这是 `Move` 携带价格端点后的
+  接口义务（消除原 canonical 契约缺陷）。签名不变（价格在 `Segment` 内），契约在 `Move` 字段层。
+-/
 structure ElementPipeline where
   mergeBars : List Bar -> List Bar
   fractalsOf : List Bar -> List Fractal
