@@ -396,6 +396,130 @@ pub fn root_dir_next(mode: RiskMode, current: VoiceSide, cands: RootCandidates) 
     current
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  §13 杠杆系统：有符号名义头寸 n_v + 毛/净敞口 G_t/N_t + 毛/净杠杆 L^G/L^N
+//  （strict §11「杠杆、保证金和风险模式」line 341-359 / FULL 十三 line 975-1006，
+//   契约锚 Lean `Origin.LeverageCapital`：net_le_gross / gross_cap_implies_net_cap）
+// ──────────────────────────────────────────────────────────────────────────
+
+/// 单声部名义头寸（strict §11 line 343 / FULL 十三 line 977-981：n_v = σ_v·M_v·P_v·q_v）。
+///
+/// 字段语义：
+/// - `side`：声部方向 σ_v（[`VoiceSide`]：Long/Short/Flat；Flat ⟹ 名义 0）。
+/// - `notional_mag`：名义大小 |n_v| = M_v·P_v·q_v（≥0，调用方按合约乘数×价格×手数算好，
+///   单位美元；M_v 是 Θ_leverage 合约乘数参数，P_v 是价格，q_v 是手数）。
+///
+/// ★诚实（formalization-validity-domain）：M_v（合约乘数）是 Θ_leverage 参数（非缠论可导）。
+/// 本结构承载折算后的名义大小，证聚合关系，不重算乘积（对齐 Lean `VoicePosition`）。
+#[derive(Debug, Clone, Copy)]
+pub struct VoiceNotional {
+    pub side: VoiceSide,
+    pub notional_mag: i64,
+}
+
+impl VoiceNotional {
+    /// 有符号名义头寸 n_v = σ_v·|n_v|（strict §11 line 343）：Long → +|n_v|，Short → -|n_v|，
+    /// Flat → 0（空仓声部无名义贡献，对齐 [`VoiceSide::Flat`] 的 q_v=0 语义）。
+    ///
+    /// ★对齐 Lean `Origin.LeverageCapital.VoicePosition.signedNotional`（long→+, short→-）；
+    /// Flat 是 Rust 域显式空仓态（Lean Side 只 long/short，Flat 在 Rust 对应 notional_mag=0 的
+    /// 退化，本函数直接返回 0 使空仓声部不进毛/净聚合）。
+    pub fn signed_notional(&self) -> i64 {
+        match self.side {
+            VoiceSide::Long => self.notional_mag,
+            VoiceSide::Short => -self.notional_mag,
+            VoiceSide::Flat => 0,
+        }
+    }
+
+    /// 名义大小 |n_v|（毛敞口贡献；Flat ⟹ 0）。
+    fn gross_contribution(&self) -> i64 {
+        match self.side {
+            VoiceSide::Flat => 0,
+            _ => self.notional_mag,
+        }
+    }
+}
+
+/// 毛名义头寸 G_t = Σ_v |n_v|（strict §11 line 347 / FULL 十三 line 985-987）。
+///
+/// 各声部名义大小之和（绝对值之和——双开的两腿都计入，故毛敞口高）。对齐 Lean
+/// `Origin.LeverageCapital.grossNotional`。
+pub fn gross_notional(voices: &[VoiceNotional]) -> i64 {
+    voices.iter().map(VoiceNotional::gross_contribution).sum()
+}
+
+/// 净名义头寸 N_t = |Σ_v n_v|（strict §11 line 348 / FULL 十三 line 991-996）。
+///
+/// 各声部有符号名义的代数和的绝对值（多空抵消——双开两腿符号相反，故净敞口可低）。对齐 Lean
+/// `Origin.LeverageCapital.netNotional`。
+pub fn net_notional(voices: &[VoiceNotional]) -> i64 {
+    voices.iter().map(VoiceNotional::signed_notional).sum::<i64>().abs()
+}
+
+/// 杠杆度量结果（毛杠杆 L^G、净杠杆 L^N，strict §11 line 355-357 / FULL 十三 line 1000-1004）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LeverageMetrics {
+    /// 毛敞口 G_t（美元）。
+    pub gross: i64,
+    /// 净敞口 N_t（美元）。
+    pub net: i64,
+    /// 毛杠杆 L^G_t = G_t / E_t。
+    pub gross_lev: f64,
+    /// 净杠杆 L^N_t = N_t / E_t。
+    pub net_lev: f64,
+}
+
+/// 计算杠杆度量 L^G/L^N（strict §11 line 355-357 / FULL 十三 line 1000-1004，bit-exact）。
+///
+/// `L^G = G_t / E_t`，`L^N = N_t / E_t`（名义除以权益）。E_t ≤ 0 时杠杆无定义（破产态由
+/// §11 风险模式 M0 处理），返回 `f64::INFINITY`（杠杆爆表 ⟹ 任何上限约束都违反，安全侧）。
+///
+/// ★净 ≤ 毛（对齐 Lean `net_le_gross`）：N_t = |Σ n_v| ≤ Σ|n_v| = G_t（三角不等式），故
+/// L^N ≤ L^G（E_t>0 时除以正权益保序）。这坐实 strict §11 line 359「同单位数双开可能让净杠杆
+/// 很低，但总杠杆仍高，所以必须同时约束」——单约束净不够（见 [`leverage_ok`] 同时查两者）。
+///
+/// 边界条件：`equity <= 0` ⟹ 两杠杆 = ∞（约束必违反，让位 §11 M0 Insolvent 处理）。
+pub fn leverage_metrics(voices: &[VoiceNotional], equity: f64) -> LeverageMetrics {
+    let gross = gross_notional(voices);
+    let net = net_notional(voices);
+    let (gross_lev, net_lev) = if equity <= 0.0 {
+        (f64::INFINITY, f64::INFINITY)
+    } else {
+        (gross as f64 / equity, net as f64 / equity)
+    };
+    LeverageMetrics { gross, net, gross_lev, net_lev }
+}
+
+/// 杠杆上限（Θ_leverage 参数：毛杠杆上限 L̄^G、净杠杆上限 L̄^N，strict §12 line 396-397 /
+/// FULL 十四 line 1086-1087：C6/C7 约束）。
+///
+/// ★诚实（formalization-validity-domain）：L̄^G/L̄^N 是 Θ_leverage 参数（**非缠论可导**）——
+/// 缠论结构不能推出杠杆上限。本结构承载给定的上限值，still-MISSING（L2）：上限的经验校准
+/// （多大上限在真实账户避免强平）属 EmpiricalDomain，不由本模块声称。
+#[derive(Debug, Clone, Copy)]
+pub struct LeverageCaps {
+    /// 毛杠杆上限 L̄^G。
+    pub gross_cap: f64,
+    /// 净杠杆上限 L̄^N。
+    pub net_cap: f64,
+}
+
+/// 杠杆约束检查（strict §12 line 396-397 / FULL 十四 C6/C7，契约锚 Lean
+/// `Origin.ConstraintSystem.c6_grossLev / c7_netLev`）。
+///
+/// 返回 `true` ⟺ **同时**满足 `L^G ≤ L̄^G`（毛上限）**且** `L^N ≤ L̄^N`（净上限）。
+///
+/// ★必须同时约束（strict §11 line 359 / Lean `net_ok_not_imply_gross_ok`）：净约束**不能**替代
+/// 毛约束——双开 long k + short k 使 N=0（净约束平凡满足）但 G=2k（毛约束可违反）。故本函数
+/// 查两者合取，不是只查净（只查净会漏掉双开抬高的毛敞口风险）。
+///
+/// 边界条件：E_t ≤ 0 ⟹ [`leverage_metrics`] 返回 ∞ ⟹ 两约束都违反 ⟹ 返回 `false`（安全侧：
+/// 破产态拒绝任何杠杆，让位 §11 M0 Insolvent 全局平仓）。
+pub fn leverage_ok(metrics: LeverageMetrics, caps: LeverageCaps) -> bool {
+    metrics.gross_lev <= caps.gross_cap && metrics.net_lev <= caps.net_cap
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -661,5 +785,109 @@ mod tests {
         // parent_cap=250, lot=100 ⟹ min(500,...,250)=250 ⟹ floor(250/100)*100=200。
         let inp2 = SizingInput { parent_cap: 250, ..inp };
         assert_eq!(size_position(&inp2, &cfg), 200);
+    }
+
+    // ── §13 杠杆系统测试（strict §11 / FULL 十三，Lean Origin.LeverageCapital）──
+
+    /// 有符号名义 n_v = σ_v·|n_v|（Long→+，Short→-，Flat→0）。
+    #[test]
+    fn signed_notional_by_side() {
+        let long = VoiceNotional { side: VoiceSide::Long, notional_mag: 100 };
+        let short = VoiceNotional { side: VoiceSide::Short, notional_mag: 100 };
+        let flat = VoiceNotional { side: VoiceSide::Flat, notional_mag: 100 };
+        assert_eq!(long.signed_notional(), 100);
+        assert_eq!(short.signed_notional(), -100);
+        assert_eq!(flat.signed_notional(), 0); // 空仓声部无名义
+    }
+
+    /// 毛/净敞口：单边持仓 G=N（无抵消）。
+    #[test]
+    fn gross_net_single_side() {
+        let voices = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: 300 },
+            VoiceNotional { side: VoiceSide::Long, notional_mag: 200 },
+        ];
+        assert_eq!(gross_notional(&voices), 500); // |300|+|200|
+        assert_eq!(net_notional(&voices), 500); // |+300+200|=500（同向无抵消）
+    }
+
+    /// ★精确同单位数双开：净敞口低（0），毛敞口高（2k）——strict §11 line 359 的核心情形。
+    /// 对齐 Lean `hedged_gross_high_net_zero`。
+    #[test]
+    fn hedged_gross_high_net_zero() {
+        let k = 400;
+        let voices = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: k },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: k },
+        ];
+        assert_eq!(net_notional(&voices), 0); // |+k-k|=0（净敞口被双开抵消为 0）
+        assert_eq!(gross_notional(&voices), 2 * k); // k+k=2k（毛敞口仍满额）
+    }
+
+    /// ★净 ≤ 毛（三角不等式，Lean `net_le_gross`）：混合多空，净敞口 ≤ 毛敞口。
+    #[test]
+    fn net_le_gross_property() {
+        let voices = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: 500 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: 200 },
+            VoiceNotional { side: VoiceSide::Long, notional_mag: 100 },
+        ];
+        let gross = gross_notional(&voices); // 500+200+100=800
+        let net = net_notional(&voices); // |+500-200+100|=400
+        assert_eq!(gross, 800);
+        assert_eq!(net, 400);
+        assert!(net <= gross); // 净 ≤ 毛（三角不等式）
+    }
+
+    /// 杠杆度量 L^G/L^N = G/E, N/E（E>0）+ 净杠杆 ≤ 毛杠杆。
+    #[test]
+    fn leverage_metrics_computation() {
+        let voices = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: 800 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: 300 },
+        ];
+        // G=1100, N=|800-300|=500, E=1000 ⟹ L^G=1.1, L^N=0.5。
+        let m = leverage_metrics(&voices, 1000.0);
+        assert_eq!(m.gross, 1100);
+        assert_eq!(m.net, 500);
+        assert!((m.gross_lev - 1.1).abs() < 1e-9);
+        assert!((m.net_lev - 0.5).abs() < 1e-9);
+        assert!(m.net_lev <= m.gross_lev); // 净杠杆 ≤ 毛杠杆
+    }
+
+    /// 杠杆度量 E≤0 ⟹ 杠杆 = ∞（破产态，约束必违反）。
+    #[test]
+    fn leverage_metrics_zero_equity_infinite() {
+        let voices = [VoiceNotional { side: VoiceSide::Long, notional_mag: 100 }];
+        let m = leverage_metrics(&voices, 0.0);
+        assert!(m.gross_lev.is_infinite());
+        assert!(m.net_lev.is_infinite());
+    }
+
+    /// ★杠杆约束必须同时查毛净（Lean `net_ok_not_imply_gross_ok`）：双开使净约束满足但毛违反。
+    #[test]
+    fn leverage_ok_must_check_both() {
+        // 双开 long 600 + short 600：G=1200, N=0, E=1000 ⟹ L^G=1.2, L^N=0。
+        let voices = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: 600 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: 600 },
+        ];
+        let m = leverage_metrics(&voices, 1000.0);
+        // 净上限 1.0：L^N=0 ≤ 1.0 满足；毛上限 1.0：L^G=1.2 > 1.0 违反。
+        let caps = LeverageCaps { gross_cap: 1.0, net_cap: 1.0 };
+        // 只查净会误判 OK；同时查 ⟹ false（毛违反）。
+        assert!(!leverage_ok(m, caps));
+        // 放宽毛上限到 1.5 ⟹ 两者都满足 ⟹ OK。
+        let caps2 = LeverageCaps { gross_cap: 1.5, net_cap: 1.0 };
+        assert!(leverage_ok(m, caps2));
+    }
+
+    /// 杠杆约束 E≤0 ⟹ false（破产态拒绝杠杆）。
+    #[test]
+    fn leverage_ok_zero_equity_false() {
+        let voices = [VoiceNotional { side: VoiceSide::Long, notional_mag: 100 }];
+        let m = leverage_metrics(&voices, 0.0);
+        let caps = LeverageCaps { gross_cap: 100.0, net_cap: 100.0 };
+        assert!(!leverage_ok(m, caps)); // ∞ > 任何有限上限
     }
 }

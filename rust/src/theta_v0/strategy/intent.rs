@@ -167,6 +167,119 @@ fn strict_state_from_label(c: ClassLabel) -> StrictState {
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  §19 J_Θ 目标函数 + LexArgmin 真字典序最小化
+//  （strict §12 末 line 416-421 / FULL 十九 line 1340-1385，契约锚 Lean
+//   `Origin.LexArgmin`：lexLe 全序 + lexArgmin_exists_unique）
+//
+//  ★替「硬编码标量 min」为「真字典序键比较」（no-patch-mentality）：风险投影 u* =
+//  LexArgmin_{u∈K_Θ} J_Θ(u,ũ) 的字典序**不是**把多目标加权成单标量再 min（那会让次目标的
+//  差被主目标权重淹没，丢失优先级分层），而是**多分量元组逐分量比较**（主键平局才比次键）。
+//  本节实装真字典序键 [`JThetaKey`] + 选择器 [`lex_argmin`]，对齐 Lean `Origin.LexArgmin`。
+// ──────────────────────────────────────────────────────────────────────────
+
+/// J_Θ 字典序键（strict §12 / FULL 十九 line 1353-1366：J_Θ 多分量目标按优先级降序）。
+///
+/// J_Θ(u,ũ) = Σ_v w_v(q'_v-q̃_v)² + λ·TradeCost + ν·RiskPenalty + ζ·Turnover。本结构把它的
+/// **分量**按字典序优先级排成元组（主键在前），逐分量比较：
+/// - `tracking_err`：跟踪误差 Σ_v w_v(q'_v-q̃_v)²（偏离原始意图 ũ，**主键**——优先贴合意图）。
+/// - `trade_cost`：交易成本 λ·TradeCost（次键）。
+/// - `risk_penalty`：风险罚 ν·RiskPenalty（第三键）。
+/// - `turnover`：换手 ζ·Turnover（第四键）。
+/// - `grid_index`：格点索引（**末键 = tie-break**，固定字典序平局规则，strict line 421 /
+///   FULL line 1378「固定字典序平局规则」——前四键全平时按格点先后定序，使键单射 ⟹ u* 唯一）。
+///
+/// ★诚实（formalization-validity-domain）：权重 w_v/λ/ν/ζ 全是 Θ_risk 参数（**非缠论可导**）。
+/// 各分量值（已乘权重）由调用方按 Θ_risk 求值。本键证「给定 J_Θ 后字典序选择确定唯一」，
+/// **不**证权重经验最优（still-MISSING L2：权重校准属 EmpiricalDomain）。键分量用 i64（定点放大，
+/// bit-exact——浮点 J_Θ 值乘固定缩放因子后取整，避免浮点比较的非确定性）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct JThetaKey {
+    pub tracking_err: i64,
+    pub trade_cost: i64,
+    pub risk_penalty: i64,
+    pub turnover: i64,
+    pub grid_index: i64,
+}
+
+impl JThetaKey {
+    /// 字典序比较 `lex_le`（对齐 Lean `Origin.LexArgmin.lexLe`）：逐分量比较，首个不等分量定序。
+    ///
+    /// 主键 `tracking_err` 决定优先（主键不等即定序，次键不翻盘——优先级分层）；主键平局才比
+    /// 次键 `trade_cost`，依次到末键 `grid_index`（tie-break）。返回 `true` ⟺ self ≤ other（字典序）。
+    ///
+    /// ★对齐 Lean `lex_primary_dominates`（主键定胜负）+ `lex_secondary_breaks_tie`（主键平局次键定）。
+    /// 这是**真字典序**——区别于 `(w₁·a₁+w₂·a₂).min(...)` 的单层标量 min（加权和会让 a₂ 大差翻
+    /// a₁ 小差，丢失优先级）。
+    pub fn lex_le(&self, other: &JThetaKey) -> bool {
+        // 按优先级降序排成数组，逐分量比较（首个不等定序）。
+        let a = [
+            self.tracking_err,
+            self.trade_cost,
+            self.risk_penalty,
+            self.turnover,
+            self.grid_index,
+        ];
+        let b = [
+            other.tracking_err,
+            other.trade_cost,
+            other.risk_penalty,
+            other.turnover,
+            other.grid_index,
+        ];
+        for i in 0..a.len() {
+            if a[i] < b[i] {
+                return true; // 主键（首个不等分量）self 更小 ⟹ self ≤ other
+            }
+            if b[i] < a[i] {
+                return false; // self 更大 ⟹ self 不 ≤ other
+            }
+            // a[i] == b[i]：该分量平局，继续比下一分量
+        }
+        true // 全分量相等 ⟹ self == other ⟹ self ≤ other（自反）
+    }
+}
+
+/// 候选控制（u, J_Θ键）对——LexArgmin 在这些可行候选上选字典序最小。
+///
+/// `U`：控制类型（K_Θ 可行集的格点，调用方提供，本选择器对类型透明）。
+#[derive(Debug, Clone, Copy)]
+pub struct LexCandidate<U> {
+    pub control: U,
+    pub key: JThetaKey,
+}
+
+/// **LexArgmin 真字典序最小化** u* = LexArgmin_{u∈K_Θ} J_Θ(u,ũ)（strict §12 line 416-421 /
+/// FULL 十九 line 1371-1376，契约锚 Lean `Origin.LexArgmin.RiskProjection.project`）。
+///
+/// 在**有限非空可行候选表**上选 J_Θ 字典序最小控制。**替硬编码标量 min**：用 [`JThetaKey::lex_le`]
+/// 真字典序键比较（多分量逐层），非单层 `.min()`。
+///
+/// 实现 = foldl pick（对齐 Lean `lexArgmin`）：从首候选起逐个比较 lex_le，保留字典序更小者，
+/// **平局保留先出现者**（grid_index tie-break 已使键单射 ⟹ 实际无平局；此 fold 顺序兑现
+/// strict line 421「固定字典序平局规则」）。
+///
+/// 返回 `None` ⟺ 候选表为空（K_Θ = ∅——但 strict §12 line 405-409 / Lean
+/// `feasible_nonempty` 保证 K_Θ ≠ ∅，故调用方总应传非空表含 u^safe；空表返回 None 是防御边界）。
+///
+/// ★对齐 Lean `lexArgmin_exists_unique`（有限非空 + 键单射 ⟹ u* 存在唯一）。返回的 u* 是可行表
+/// 字典序最小（`lexArgmin_le`：key(u*) ≤ 所有候选键）。
+///
+/// 边界条件：候选表非空但有键平局（grid_index 也相等）⟹ 保留 fold 中先出现者（确定，无未定义）。
+/// 实际 grid_index 唯一 ⟹ 键单射 ⟹ u* 唯一（无平局）。
+pub fn lex_argmin<U: Copy>(candidates: &[LexCandidate<U>]) -> Option<U> {
+    let mut best: Option<&LexCandidate<U>> = None;
+    for c in candidates {
+        best = Some(match best {
+            // 保留 b（已积累最优）当且仅当 b.key ≤ c.key（平局 b.key==c.key 时 lex_le 返回 true
+            // ⟹ 保留先出现的 b，对齐 Lean pick 的「平局保留第一个」）。
+            Some(b) if b.key.lex_le(&c.key) => b,
+            _ => c,
+        });
+    }
+    best.map(|b| b.control)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,5 +362,92 @@ mod tests {
         // pi_strict(Long,SellSide)=Reduce，与 action_priority(Deleverage,_)=Reduce 一致。
         assert_eq!(pi_strict_factored(c), StrictAction::Reduce);
         assert_eq!(pi_strict_factored(c), action_priority(c));
+    }
+
+    // ── §19 J_Θ LexArgmin 测试（strict §12 末 / FULL 十九，Lean Origin.LexArgmin）──
+
+    fn mk_key(track: i64, cost: i64, risk: i64, turn: i64, idx: i64) -> JThetaKey {
+        JThetaKey {
+            tracking_err: track,
+            trade_cost: cost,
+            risk_penalty: risk,
+            turnover: turn,
+            grid_index: idx,
+        }
+    }
+
+    /// ★字典序主键定胜负（Lean `lex_primary_dominates`）：主键更小则 ≤，无论次键。
+    #[test]
+    fn lex_le_primary_dominates() {
+        // 主键 1 < 5，即便次键 self 大（999 > 0），仍 self ≤ other（主键定序）。
+        let a = mk_key(1, 999, 0, 0, 0);
+        let b = mk_key(5, 0, 0, 0, 0);
+        assert!(a.lex_le(&b));
+        assert!(!b.lex_le(&a));
+    }
+
+    /// ★字典序次键 tie-break（Lean `lex_secondary_breaks_tie`）：主键平局，次键定序。
+    #[test]
+    fn lex_le_secondary_breaks_tie() {
+        // 主键同 3，次键 2 < 7 ⟹ a ≤ b。
+        let a = mk_key(3, 2, 0, 0, 0);
+        let b = mk_key(3, 7, 0, 0, 0);
+        assert!(a.lex_le(&b));
+        assert!(!b.lex_le(&a));
+    }
+
+    /// ★字典序全分量相等 ⟹ 互相 ≤（自反，键单射前提下不发生于不同格点）。
+    #[test]
+    fn lex_le_equal_keys_both() {
+        let a = mk_key(1, 2, 3, 4, 5);
+        let b = mk_key(1, 2, 3, 4, 5);
+        assert!(a.lex_le(&b));
+        assert!(b.lex_le(&a)); // 互相 ≤ ⟹ 反对称下相等
+    }
+
+    /// ★grid_index 末键 tie-break：前四键全平，索引定序（固定字典序平局规则）。
+    #[test]
+    fn lex_le_grid_index_tiebreak() {
+        let a = mk_key(1, 1, 1, 1, 0); // 索引 0
+        let b = mk_key(1, 1, 1, 1, 1); // 索引 1
+        assert!(a.lex_le(&b)); // 前四键平，索引 0 < 1 ⟹ a ≤ b
+        assert!(!b.lex_le(&a));
+    }
+
+    /// ★lex_argmin 选字典序最小控制（Lean `lexArgmin_exists_unique` + `lexArgmin_le`）。
+    #[test]
+    fn lex_argmin_selects_minimum() {
+        // 三候选：控制标签 + J_Θ键。主键最小者（10）应被选出。
+        let candidates = [
+            LexCandidate { control: "B", key: mk_key(20, 0, 0, 0, 1) },
+            LexCandidate { control: "A", key: mk_key(10, 999, 0, 0, 0) }, // 主键最小（次键大不翻盘）
+            LexCandidate { control: "C", key: mk_key(30, 0, 0, 0, 2) },
+        ];
+        assert_eq!(lex_argmin(&candidates), Some("A")); // 主键 10 最小 ⟹ 选 A
+    }
+
+    /// ★lex_argmin 主键平局时次键决胜（真字典序 ≠ 单层 min）。
+    #[test]
+    fn lex_argmin_tiebreak_by_secondary() {
+        let candidates = [
+            LexCandidate { control: "X", key: mk_key(5, 8, 0, 0, 0) },
+            LexCandidate { control: "Y", key: mk_key(5, 3, 0, 0, 1) }, // 主键平 5，次键 3 最小
+            LexCandidate { control: "Z", key: mk_key(5, 6, 0, 0, 2) },
+        ];
+        assert_eq!(lex_argmin(&candidates), Some("Y")); // 主键平局后次键 3 最小 ⟹ 选 Y
+    }
+
+    /// ★lex_argmin 空表 ⟹ None（K_Θ=∅ 防御边界；实际 K_Θ≠∅ 由 Lean feasible_nonempty 保）。
+    #[test]
+    fn lex_argmin_empty_none() {
+        let candidates: [LexCandidate<&str>; 0] = [];
+        assert_eq!(lex_argmin(&candidates), None);
+    }
+
+    /// ★lex_argmin 单候选 ⟹ 直接返回（u^safe 单点可行集）。
+    #[test]
+    fn lex_argmin_single_candidate() {
+        let candidates = [LexCandidate { control: "safe", key: mk_key(0, 0, 0, 0, 0) }];
+        assert_eq!(lex_argmin(&candidates), Some("safe"));
     }
 }

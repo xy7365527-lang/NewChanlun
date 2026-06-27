@@ -53,10 +53,12 @@
 //!
 //! ## ★诚实 still-MISSING（B2/S2 递归组装层提取的开口，no-声明膨胀）
 //!
-//! - **RMove 递归塔生产路径未接入**（still-MISSING-塔）：`mod.rs::classify` 当前用 `UnitRange`+`Center`
-//!   的递归级别系统，**未构造 RMove::Compose 塔**。故 `extract_second_signals` 的提取逻辑已封（消费
-//!   `SecondTypeStructure`），但生产路径上**无 RMove 塔可喂**——接入需上游 `mod.rs` 把 `UnitRange`
-//!   递归塔转译为 `RMove::Compose`（携 source_index 坐标），属递归级别系统的塔构造工位，不在本签名层。
+//! - **RMove 递归塔生产路径已接入**（still-MISSING-塔已解除，#53 升级）：`mod.rs::classify` 已把递归塔
+//!   走势单元从 `UnitRange` 升级为携 subs 的 `RMove::Compose`（`recursive_tower.rs::LeveledMove`+source_index
+//!   坐标侧车），`extract_second_signals`/`extract_second_for_level` 零改动真接入生产路径——端到端产 B2
+//!   （`mod.rs::tests::end_to_end_second_buy_via_l1_l2_geometric`）。诚实边界（still-MISSING-窗口，codex 裁决）：
+//!   B2/S2 只在 L1→L2 几何路径产，L0→L1 三段交替窗口结构上界（可背驰同向段仅位置2，非接入缺陷），
+//!   见 `mod.rs::l0_level_emits_no_second_class_window_bound`。
 //! - **次级别坐标 `index_of`**（still-MISSING-坐标）：`RMove`（port Lean `Move` μF）是纯结构区间，
 //!   **无 source_index**。B2/S2 `BspPoint.source_index`（平局裁决+回溯，reference:16）由 `index_of`
 //!   闭包提供（次级别走势→原始 K 序，上游塔构造时填）——与 `center_of`/`divergence_of` 同精神（次级别

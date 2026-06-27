@@ -54,6 +54,7 @@ pub mod divergence;
 pub mod force_conformance;
 pub mod descend;
 pub mod rmove_compose;
+pub mod recursive_tower;
 pub mod nest;
 pub mod signal;
 pub mod six_state;
@@ -61,6 +62,10 @@ pub mod six_state;
 use bsp::BspPoint;
 use center::UnitRange;
 use level::{classify_move, outcome_to_kind, MoveOutcome};
+use recursive_tower::{
+    compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units, LeveledMove,
+};
+use super::types::Side;
 
 /// 单级别分类状态（R6 态 + 走势类型 + 中枢 + 买卖点）。
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -186,6 +191,18 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
         return Classification::default();
     }
 
+    // ★递归塔对象（#53 升级，still-MISSING-塔解除）：L0 走势单元 = 携坐标的 `RMove::Segment`
+    // （`LeveledMove`，递归底 level 0）。旧塔把每级走势单元折叠为无 subs 的 `UnitRange`，
+    // `extract_second_signals`（消费 `RMove::Compose` 的 descend 取回次级别走势）永产不出 B2/S2。
+    // 新塔每级走势单元携次级别走势 subs（`RMove::Compose`）+ source_index 坐标 ⟹ B2/S2 真可产。
+    let mut moves_tower: Vec<LeveledMove> = units.iter().map(LeveledMove::from_unit).collect();
+
+    // 第一类背驰 MACD：closes/close_src 在全递归层共享（L0 唯一可达 close 序列；上级走势的
+    // 次级别 close 区间由 source_index 坐标定位，见 macd 接入点）。
+    let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
+    let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
+    let hist = divergence::compute_macd(&closes, &config.macd).hist;
+
     let mut levels: Vec<LevelState> = Vec::new();
 
     // 递归级别构造：每级由下级走势单元构造（L0 直接是线段单元，从 L0 开始裁决）。
@@ -196,29 +213,33 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
         }
 
         // L0（level_idx==0）用完整判据（方向交替，线段有方向）；上级用几何路径（外缘，单元无方向）。
-        let (centers, outcome) = classify_level(&units, level_idx == 0);
+        let is_l0 = level_idx == 0;
+        let (centers, outcome) = classify_level(&units, is_l0);
 
         // 走势裁决 → MoveKind（HigherCenterCandidate 退化态映 None，不入 moves）。
         let moves: Vec<MoveKind> = outcome_to_kind(outcome).into_iter().collect();
 
-        // BSP 信号提取（reference:34-36）。
-        // ★完整覆盖（formalization-validity-domain）：v0 在 **L0** 用线段（次级别走势=线段，
-        // 有方向）提取**第一类**（破中枢几何 L0 ∧ MACD 背驰 L1 真算）+ **第三类**（confirmed
-        // 结构几何，严格可判定）买卖点（见 signal.rs）。第二类诚实不产（次级别 RMove 递归结构
-        // 缺失，属递归组装层缺口，见 signal.rs 模块头）。上级级别的输入单元是中枢外缘区间
-        // （`UnitRange` 无方向），第三类「次级别回试」的方向判据无法在无方向的上级单元上
-        // bit-exact 判定 ⟹ 上级 bsp 留空（非补丁：避免基于无方向单元的猜测信号）。上级信号需
-        // 「上级走势携带方向」的递归扩展（units 加 direction），是后续增量。
-        //
-        // 第一类背驰用 MACD：closes 取 `l0.merged_bars` 的 close（classify 唯一可达的 close 序列），
-        // close_src 取各 bar 的 source_index（段区间坐标系转换，见 signal.rs `map_src_range_to_close_idx`）。
-        let bsp = if level_idx == 0 {
-            let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
-            let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
+        // L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
+        // 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。`upper_moves` 是携坐标的上级走势
+        // 序列（descend 取回构成它的次级别走势 ⟹ B2/S2 可产），与 `centers` 一一对应。
+        let (centers_w, upper_moves) = compose_level(&units, &moves_tower, is_l0, level_idx as u32 + 1);
+        debug_assert_eq!(centers, centers_w, "compose_level 与 classify_level 中枢序列一致");
+
+        // BSP 信号提取（reference:34-36）。三层覆盖：
+        // - **L0 线段层**（`extract_signals`）：第一类（破中枢几何 L0 ∧ MACD 背驰 L1 真算）+ 第三类
+        //   （confirmed 结构几何）。L0 走势单元 = 线段（有方向），第一/三类在线段端点上 bit-exact 判定。
+        // - **递归组装层**（`extract_second_signals`，#53 接入）：第二类（B2/S2）由次级别第一类构成
+        //   （买卖点定律一 §10.2）。对本级**每个上级走势** `RMove::Compose`，从 descend 取回的次级别
+        //   走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高），产 B2/S2。背驰力度由
+        //   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
+        let mut bsp: Vec<BspPoint> = if is_l0 {
             signal::extract_signals(&centers, &l0.segments, &closes, &close_src, &config.macd)
         } else {
             Vec::new()
         };
+        // 递归组装层 B2/S2（#53 接入）：对每个上级走势的次级别走势序列识别第二类结构。
+        bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
+        bsp.sort_by_key(|p| p.source_index);
 
         levels.push(LevelState {
             moves,
@@ -226,34 +247,11 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
             bsp,
         });
 
-        // L(k+1) 输入单元 = 本级中枢外缘区间（dd/gg 折叠，契约锚 `Origin.RecursiveLevelSystem`
-        // chanRecursiveLevelSystem.composeStep 的窗口复合）。
-        // 中枢数 < min_parts ⟹ 上级无法产生完整走势，下轮循环自然终止。
-        //
-        // ★direction：上级单元的方向取相邻中枢外缘的局部趋势（前中枢外缘上移=Up / 下移=Down，
-        // 与 `classify_relation` 外缘判据同源）。此方向**不被几何路径 `center_from_window` 读取**
-        // （上级用外缘判据，无方向交替要求——见 center.rs 诚实有效域）：它是结构占位，使 UnitRange
-        // 类型完整，**不**冒充 §6.1 意义的线段方向。首单元无前驱，缺省 Up（不影响几何中枢判定）。
-        units = centers
-            .iter()
-            .enumerate()
-            .map(|(idx, c)| {
-                let direction = if idx == 0 {
-                    Direction::Up // 首单元无前驱，缺省（几何路径不读取）
-                } else {
-                    let prev = &centers[idx - 1];
-                    // 外缘上移（gg 升）= Up，下移 = Down（与 classify_relation 外缘判据同源）。
-                    if c.gg >= prev.gg { Direction::Up } else { Direction::Down }
-                };
-                UnitRange {
-                    start_index: c.start_index,
-                    end_index: c.end_index,
-                    direction,
-                    lo: c.dd,
-                    hi: c.gg,
-                }
-            })
-            .collect();
+        // L(k+1) 输入单元 = 上级走势塔的 `UnitRange` 投影（外缘区间 + 坐标 + 外缘趋势方向）。
+        // 上级走势携 subs（`RMove::Compose`），投影只为下一级几何中枢检测提供 [lo,hi] 区间——
+        // 真递归 subs 在 `moves_tower` 里保留（不丢弃，旧塔丢弃 subs 是 B2 不可产的根因）。
+        units = project_to_units(&upper_moves);
+        moves_tower = upper_moves;
 
         // 本级无中枢 ⟹ 无上级输入单元，停止递归（自然终止）。
         if units.is_empty() {
@@ -264,6 +262,114 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
     Classification { levels }
 }
 
+/// 递归组装层第二类提取（对一级的每个上级走势 `RMove::Compose` 产 B2/S2）。
+///
+/// ★#53 接入点（still-MISSING-塔解除）：对本级每个上级走势 `LeveledMove`（`RMove::Compose`），
+/// 双侧（Long/Short）调 `signal::extract_second_signals`——从 `descend parent` 取回的次级别走势
+/// 序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高，§10.2 买卖点定律一）。产出的 B2/S2
+/// 端点零改动接入生产路径。
+///
+/// 三个闭包参数的真实接入（非占位）：
+/// - `c1`（次级别中枢）：`RMove::Compose.centers` 的首个中枢（窗口三段区间重叠真派生，B 口径核心
+///   区间）——`find_second_type_structure` 用它判次级别第一类离开是否破中枢。
+/// - `divergence_of`（MACD 背驰）：次级别走势的 source_index 区间 → `hist` 面积，相对**前一同向次
+///   级别走势**面积严格变小（reference:34 背驰，`divergence.rs` 真算 L1）。
+/// - `index_of`（坐标）：从坐标侧车 `subs`（携 source_index 的 `LeveledMove`）按结构身份查回原始
+///   K 序（`index_of_in`）——B2/S2 的 `source_index` 真坐标（still-MISSING-坐标解除）。
+///
+/// ★诚实 still-MISSING（背驰力度引擎配对，no-声明膨胀）：`divergence_of` 对次级别走势的「前一同向
+/// 走势」配对用**序列序最近同向前驱**（与 signal.rs `extract_first_for_center` 同口径）——次级别
+/// 走势的 close 区间由 source_index 坐标定位到 `hist`。L1 管线正确性（MACD 面积比较确定），**不**是
+/// 「背驰预测在真实行情有效」（L2/L3，不在本层）。
+fn extract_second_for_level(
+    upper_moves: &[LeveledMove],
+    hist: &[f64],
+    close_src: &[usize],
+) -> Vec<BspPoint> {
+    let mut points = Vec::new();
+    for parent in upper_moves {
+        // 次级别中枢（RMove::Compose.centers 首个，窗口真派生 B 口径核心区间）。
+        let c1 = match &parent.rmove {
+            descend::RMove::Compose { centers, .. } => match centers.first() {
+                Some(c) => *c,
+                None => continue, // 无中枢载荷 ⟹ 跳过（compose_level 必带中枢，防御性）。
+            },
+            // L0 线段（递归底）不会出现在 upper_moves（compose_level 只产 Compose），防御性跳过。
+            descend::RMove::Segment { .. } => continue,
+        };
+        // 坐标侧车：构成 parent 的次级别 LeveledMove 序列（与 descend parent 同序同长）。
+        let subs = descend_leveled(parent);
+        // 双侧识别第二类结构（B2=Long / S2=Short），各产至多一个端点。
+        for side in [Side::Long, Side::Short] {
+            let pts = signal::extract_second_signals(
+                &parent.rmove,
+                side,
+                &c1,
+                // 背驰：次级别走势 source_index 区间 → hist 面积，相对前一同向次级别走势严格变小。
+                |m| sublevel_diverges(m, &subs, hist, close_src),
+                // 坐标：从侧车按结构身份查回次级别走势的原始 K 序（end_index）。
+                |m| index_of_in(&subs, m),
+            );
+            points.extend(pts);
+        }
+    }
+    points
+}
+
+/// 次级别走势的 MACD 背驰判定（reference:34，`divergence.rs` 真算 L1）。
+///
+/// 给定次级别走势 `m`（descend 取回的 `RMove`）+ 坐标侧车 `subs`：定位 `m` 在 `subs` 中的位置，
+/// 取其 source_index 区间 → `hist` 面积，相对**序列序最近同向次级别前驱走势**面积严格变小 ⟹ 背驰。
+/// 同向 = 走势的 direction 相同（`RMove::Segment.direction`；`Compose` 走势取外缘趋势方向占位）。
+///
+/// ★诚实 still-MISSING（背驰力度引擎）：无前同向走势（`m` 是序列首个该向走势）⟹ 无背驰对照
+/// ⟹ false（与 signal.rs `extract_first_for_center` 同口径——第一类是趋势末段必有前同向段）。
+/// 无法定位 source_index 区间到 `hist`（坐标越界）⟹ false（不冒充背驰）。
+fn sublevel_diverges(
+    m: &descend::RMove,
+    subs: &[LeveledMove],
+    hist: &[f64],
+    close_src: &[usize],
+) -> bool {
+    // 定位 m 在 subs 中的位置（结构身份匹配）。
+    let Some(idx) = subs.iter().position(|x| &x.rmove == m) else {
+        return false; // m 不在 subs（防御性）⟹ 无坐标 ⟹ 非背驰。
+    };
+    let curr = &subs[idx];
+    let curr_dir = rmove_direction(&curr.rmove);
+    // 序列序最近同向前驱走势（reference:34「末段相对前同向段」的确定配对）。
+    let Some(prev) = subs[..idx].iter().rev().find(|x| rmove_direction(&x.rmove) == curr_dir) else {
+        return false; // 无前同向走势 ⟹ 无背驰对照 ⟹ 非第一类（趋势末段必有前同向段）。
+    };
+    // 两走势 source_index 区间 → hist 面积比较（curr < prev ⟹ 背驰，divergence.rs 真算）。
+    let (Some(curr_seg), Some(prev_seg)) = (
+        map_src_to_close_idx(close_src, curr.start_index, curr.end_index),
+        map_src_to_close_idx(close_src, prev.start_index, prev.end_index),
+    ) else {
+        return false; // 区间越界/空 ⟹ 无面积 ⟹ 不冒充背驰。
+    };
+    divergence::segments_diverge(hist, prev_seg, curr_seg)
+}
+
+/// 走势方向（`RMove::Segment` 直接取 direction；`Compose` 取外缘趋势方向占位——首子升=Up）。
+///
+/// ★诚实有效域：`Compose` 走势的方向是**外缘占位**（subs 区间聚合趋势），用于背驰「同向段」配对的
+/// 序列序判定。不冒充 §6.1 意义的线段方向交替（中枢检测用几何路径，不读方向，见 center.rs）。
+fn rmove_direction(m: &descend::RMove) -> Direction {
+    match m {
+        descend::RMove::Segment { direction, .. } => *direction,
+        // Compose 走势：外缘下沿 vs 上沿——hi 偏离 lo 多者为趋势向（占位，背驰同向配对用）。
+        // subs 首尾区间趋势：末子 hi >= 首子 hi ⟹ Up（外缘上移），否则 Down。
+        descend::RMove::Compose { subs, .. } => {
+            match (subs.first(), subs.last()) {
+                (Some(f), Some(l)) if l.hi() >= f.hi() => Direction::Up,
+                (Some(_), Some(_)) => Direction::Down,
+                _ => Direction::Up, // 空 subs ⟹ 缺省 Up（防御性）。
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -272,6 +378,110 @@ mod tests {
 
     fn seg(dir: Direction, si: usize, ei: usize, sp: i64, ep: i64) -> Segment {
         Segment { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }
+    }
+
+    /// 构造 merged_bars：source_index 连续 0..n，close = vals（MACD 背驰真算用）。
+    fn bars_from_closes(vals: &[i64]) -> Vec<super::super::types::Bar> {
+        vals.iter()
+            .enumerate()
+            .map(|(i, &v)| super::super::types::Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: v,
+                high: v,
+                low: v,
+                close: v,
+                volume: 1,
+                untradable: false,
+            })
+            .collect()
+    }
+
+    /// ★端到端 B2 真产出（#53 验证门，L1 管线正确性）：升级后的递归塔（`RMove::Compose` 携 subs）
+    /// 让 `extract_second_signals` **真接入生产路径**——classify 在真实结构输入上产出 B2 买点。
+    ///
+    /// 旧塔（`UnitRange` 无 subs）在**任何**输入上产 0 个 B2（descend 得空，结构上不可产）；新塔
+    /// 在此输入上产 1 个 B2，坐实升级解除了 still-MISSING-塔。
+    ///
+    /// 路径（codex 异质裁决确认）：B2 在 **L1→L2 几何路径**产出——3 个同向 L1 走势经几何窗口
+    /// （不强制方向交替）compose 成 L2 走势，其 descend 取回的 3 个 L1 走势内识别第二类结构：
+    /// L1[1]（i1=1）破 L2 中枢 + MACD 背驰（相对前同向 L1[0]）= 第一类离开；L1[2]（i2=2）回拉不
+    /// 创新低 = 第二类回拉走势。B2 端点 = L1[2] 的回拉结束点（坐标由 source_index 侧车真映射）。
+    ///
+    /// ★诚实边界（still-MISSING-窗口，codex 裁决坐实）：B2/S2 **不在 L0→L1 三段交替窗口产**——
+    /// 三段方向交替窗口里可背驰的同向段只在位置 2（末段，无后继回拉），位置 0 无前同向对照，
+    /// 位置 1 是唯一异向（无前同向）。这是固定三段封装的结构上界，非接入缺陷（接入逻辑双侧完整）。
+    #[test]
+    fn end_to_end_second_buy_via_l1_l2_geometric() {
+        let cfg = ThetaConfig::default();
+        // 9 段 L0：三组 up-down-up（每组 → 一个 L1 走势）。三个 L1 走势外缘重叠成 L2 中枢，
+        // 但 L1[1] 向下深破核心下沿（第一类离开候选，Side::Long），L1[2] 回拉不创新低。
+        // L1 走势外缘 = 组内三段 [dd,gg]：A=[110,150], B=[80,145], C=[115,148]。
+        // L2 核心 = max(110,80,115)=115 .. min(150,145,148)=145 → [115,145] 非空（盘整 L2 中枢）。
+        let segments = vec![
+            // 组A（L1[0]）：up-down-up，外缘 [110,150]
+            seg(Direction::Up,   0,  4, 110, 150),
+            seg(Direction::Down, 4,  8, 150, 120),
+            seg(Direction::Up,   8, 12, 120, 148),
+            // 组B（L1[1]）：up-down-up，外缘 [80,145]，lo=80 深破 L2 核心下沿 115
+            seg(Direction::Up,  12, 16, 130, 145),
+            seg(Direction::Down,16, 20, 145, 80),
+            seg(Direction::Up,  20, 24, 80, 144),
+            // 组C（L1[2]）：up-down-up，外缘 [115,148]，回拉不创新低（lo=115 >= L1[1].lo=80）
+            seg(Direction::Up,  24, 28, 120, 148),
+            seg(Direction::Down,28, 32, 148, 115),
+            seg(Direction::Up,  32, 36, 115, 147),
+        ];
+        // closes 让 L1[1] 区间（source_index [12,24]）MACD 面积 < L1[0] 区间（[0,12]）= 背驰（真算）。
+        // 前段大幅波动（面积大），后段小幅（面积小）。
+        let mut closes: Vec<i64> = Vec::new();
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); } // L1[0] 大幅
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 5 } else { -5 }); }   // L1[1] 小幅（背驰）
+        for i in 0..16 { closes.push(100 + if i % 2 == 0 { 3 } else { -3 }); }   // L1[2] 更小
+        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let out = classify(&layer, &cfg);
+
+        // L1 级别（索引 1）含 L2 中枢 + B2（递归组装层产出）。
+        assert!(out.levels.len() >= 2, "三组 L0 → L1 走势塔 → L2 中枢，至少 2 级");
+        let l1 = &out.levels[1];
+        assert_eq!(l1.centers.len(), 1, "3 个 L1 走势 → 1 个 L2 中枢（几何路径）");
+        let second_buys: Vec<_> = l1.bsp.iter().filter(|p| p.bits.buy2).collect();
+        assert_eq!(second_buys.len(), 1, "★升级后塔真产 B2（旧 UnitRange 塔产 0）");
+        let b2 = second_buys[0];
+        // B2 端点坐标由 source_index 侧车真映射（回拉走势 L1[2] 的 end_index=36）。
+        assert_eq!(b2.source_index, 36, "B2 source_index = 回拉走势 L1[2] 的原始 K 序（坐标侧车真映射）");
+        // 第二类止损 = 回拉低点（second_point = 回拉走势 m2.lo）；center=None（1/2 类用 pivot 非 center）。
+        assert!(b2.pivot_low != 0, "B2 携结构止损价 pivot_low（回拉低点 single source）");
+        assert!(b2.center.is_none(), "1/2 类止损用 pivot 非 center ⟹ center=None");
+        // 互斥语义：B2 端点不置 1/3 类 bit。
+        assert!(!b2.bits.buy1 && !b2.bits.buy3, "第二类端点不置 1/3 类 bit");
+    }
+
+    /// ★still-MISSING-窗口边界（codex 异质裁决坐实，编码为可执行断言，formalization-validity-domain）：
+    /// L0→L1 的三段方向交替窗口**结构上不产 B2/S2**——三段交替里可背驰的同向段只在位置 2（末段，
+    /// 无后继回拉），位置 0 无前同向对照，位置 1 是唯一异向（无前同向）。故单个 L1 走势的 3 段 L0
+    /// subs 内识别不出「第一类离开（破中枢∧背驰）+ 后继回拉」。
+    ///
+    /// 此断言锁定边界：L0 级别（索引 0）的 bsp **不含 B2/S2**（B2/S2 由 L1→L2 几何路径产，见
+    /// `end_to_end_second_buy_via_l1_l2_geometric`）。这是固定三段封装的结构上界，非补丁——放松
+    /// 背驰约束或窗口大小来强产 L0 层 B2 = 声明膨胀（no-patch 禁止）。
+    #[test]
+    fn l0_level_emits_no_second_class_window_bound() {
+        let cfg = ThetaConfig::default();
+        // 简单 up-down-up 三段（一个 L0 中枢，一个 L1 走势）——L1 走势 3 段 subs 内无法产 B2/S2。
+        let segments = vec![
+            seg(Direction::Up,   0,  4, 100, 200),
+            seg(Direction::Down, 4,  8, 200, 100),
+            seg(Direction::Up,   8, 12, 100, 200),
+        ];
+        let closes: Vec<i64> = (0..16).map(|i| 100 + (i % 4) * 10).collect();
+        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let out = classify(&layer, &cfg);
+        // L0 级别 bsp 不含第二类（三段交替窗口结构上界）。
+        for p in &out.levels[0].bsp {
+            assert!(!p.bits.buy2, "L0→L1 三段交替窗口不产 B2（still-MISSING-窗口，codex 裁决）");
+            assert!(!p.bits.sell2, "L0→L1 三段交替窗口不产 S2（still-MISSING-窗口，codex 裁决）");
+        }
     }
 
     #[test]
