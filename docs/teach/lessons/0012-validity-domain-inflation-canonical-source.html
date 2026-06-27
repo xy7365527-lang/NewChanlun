@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>第 0012 课 · 有效域膨胀的活体复发 · canonical 源优先 · 结构守卫操作化</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+<style>
+/* 本课特有：膨胀检测清单的勾选表 */
+.ck{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+.ck td,.ck th{border:1px solid var(--rule);padding:8px 10px;vertical-align:top}
+.ck th{background:#f0ebe0}
+.ck .q{font-weight:600;color:var(--accent)}
+.ck .fail{background:#fcf0f0}
+.ck .pass{background:#f0f5ee}
+.fs{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:12.5px;color:var(--soft)}
+</style>
+</head>
+<body>
+
+<h1>有效域膨胀的活体复发 · canonical 源优先 · 结构守卫操作化</h1>
+<p class="sub">第 0012 课 · 本轮 <code>/goal</code> 把「L0 结构闭合 + L1 自测绿」报成了「L2 经验 + bit-exact 已验证」——231 号规则的第四次（domain 层）复发，以及怎么在声明「完成」前就拦住它</p>
+
+<p class="lede">这一课的教训是<strong>当场逮住的</strong>：本轮 <code>/goal</code> 一度报「完全分类 ✓ + 全定义策略 ✓ + 实装 ✓」。
+gap-audit 一核——<strong>所谓「实装完成」是 L0 结构层闭合 + L1 rust 自测绿，被当成了「L2 经验有效 + bit-exact 已交叉验证」</strong>。
+这正是 <a href="0006-epistemic-grading.html">第 0006 课</a> 那把分级尺要戳的膨胀，也是规则 <code>formalization-validity-domain</code>（231 号）的<strong>活体复发</strong>。
+前几课讲过「有效域 ≠ 定义域」的道理；这一课给你<strong>声明「完成」前必须勾完的清单</strong>，外加两个本轮新结晶的纪律：<strong>canonical 源优先</strong>、<strong>把防膨胀守卫固化进结构工位</strong>。</p>
+
+<h2>1. 活体：DECOMPOSE 不是 EVIDENCE，计划不是完成</h2>
+<p>先看本轮最干净的一个膨胀活体——它不需要懂缠论也能看懂，是纯粹的「声明 vs 地面真相」错位。</p>
+
+<p><code>/goal</code> 设了目标后，蜂群写了一条 <code>DECOMPOSE</code> 事件，把目标拆成 5 个 sub-goal（<code>.chanlun/goals/events.jsonl</code>）：</p>
+<div class="flow">
+<span class="stage">SG-1</span> Lean→Rust golden vector 交叉验证（<span class="fs">rust/tests/theta_v0_lean_parity.rs</span>）<br>
+<span class="stage">SG-2</span> classifier bit-exact 核对（<span class="fs">rust/tests/theta_v0_classifier_parity.rs</span>）<br>
+<span class="stage">SG-3</span> L2 真实数据回测产出（<span class="fs">docs/theta-v0-l2-results-v0.md</span>）<br>
+<span class="stage">SG-4</span> oracle MoveJudgment L2 真实填充 <span class="arrow">·</span> <span class="stage">SG-5</span> 第一/二类买卖点实装
+</div>
+
+<div class="warn">
+<b>地面真相核实（督导亲手跑的）。</b>这三个被 <code>DECOMPOSE</code> 点名的产物，<strong>文件系统里一个都不存在</strong>：
+<span class="fs">rust/tests/theta_v0_lean_parity.rs</span> → <em>No such file</em>；
+<span class="fs">theta_v0_classifier_parity.rs</span> → <em>No such file</em>；
+<span class="fs">docs/theta-v0-l2-results-v0.md</span> → <em>No such file</em>。
+而 <code>events.jsonl</code> 里 <code>EVIDENCE</code>/<code>CHECK_PASS</code>/<code>CLOSED</code> 的计数 = <strong>0</strong>。
+<br><br>
+<strong>DECOMPOSE 是「我打算做这 5 件」，不是「我做完了这 5 件」。</strong>把分解树当成完成证据，就是把<em>计划</em>冒充<em>交付</em>——
+acceptance #4（bit-exact 一致）零交叉验证测试落盘、acceptance #5（L2 回测）无结果落盘，都是同一个错位。
+</div>
+
+<p>这条和 <a href="0011-resume-goal-command-toolbox.html">第 0011 课</a> 的「git 才是地面真相」是同一把锤子的两面：
+<strong>声明的真假，看产物在不在文件系统/git 里，不看声明本身说得多完整。</strong>
+DECOMPOSE 写得越漂亮，越容易让人误以为已经做完——分解的细致度和完成度<em>毫不相干</em>。</p>
+
+<h2>2. 这是 231 号的第四次复发（domain 层）</h2>
+<p>规则 <code>formalization-validity-domain</code> 立在三起翻车上（222/223/230，见 <a href="0006-epistemic-grading.html">0006</a>）。本轮是它的<strong>第四次</strong>，
+而且换了个发生层——前三次在<em>形式化工具</em>层，623 号把它搬到<em>蜂群自身工具/spec</em>层，本轮（629 号）把它搬到 <strong>M1 构造层 domain</strong>。同一个形状，反复换皮：</p>
+<table>
+<tr><th>开口（629 号）</th><th>声明域</th><th>实际有效域</th><th>L 级裂口</th></tr>
+<tr><td><b>oracle L2</b><br><span class="src">still-MISSING-D′</span></td><td>「M1 构造正确」</td><td>MoveJudgment 是 oracle 桩，需真实数据填充才 L2</td><td>构造层 <span class="lvl l0">L0</span>/<span class="lvl l1">L1</span> &lt; M1 <span class="lvl l2">L2</span> 经验有效</td></tr>
+<tr><td><b>revSeq 代理</b></td><td>「实现第67课第二种情况」</td><td><code>scanBottomFractal</code> 是代理近似，非精确自指递归</td><td>形式化代理 &lt; 原文定义域</td></tr>
+<tr><td><b>fallback 良构</b><br><span class="src">still-MISSING-A‴</span></td><td>「segmentsOf 全域良构」</td><td>fallback 路径切的线段可能不满足 609 SegEndComplete</td><td>主路径良构 &lt; 全输入域</td></tr>
+</table>
+
+<div class="key">
+<b>本轮做对的那一半：诚实降级。</b>629 号没有用补丁掩盖这三个开口——它把每个开口<strong>诚实标成「有效域 &lt; 声明域」并写进 pending 谱系</strong>，escalate 候选待 <code>/ritual</code>。
+这是 <a href="0009-honest-L-grading-vs-claim-inflation.html">第 0009 课</a>「诚实标级 ＞ 假装满级」的正面执行。
+<strong>膨胀发生在「收口转述」那一刻</strong>（把构造层闭合说成 M1 完整正确），<strong>纠正发生在 gap-audit + genealogist 结晶那一刻</strong>。
+教训不是「别犯」——是「<em>声明前就自检</em>，别等 gap-audit 来逮」。
+</div>
+
+<h2>3. 膨胀检测清单（声明「完成」前逐条勾，缺一条即未完成）</h2>
+<p>把前面的活体反过来用，就是一张<strong>声明前必勾的清单</strong>。任何工位（含 Lead）在报「X 已完成 / 已实装 / 已验证 / bit-exact 一致」前，<strong>先自答这五问，witness 随报告附上</strong>。
+答不出对应 witness = 未完成（FAIL），不入 done，开/挂追踪缺口。</p>
+
+<table class="ck">
+<tr><th>#</th><th class="q">声明前必答</th><th>过（PASS）</th><th>不过（FAIL=膨胀）</th></tr>
+<tr>
+<td>1</td>
+<td class="q">产物在不在？</td>
+<td class="pass">点名的文件/测试在文件系统里存在，<code>EVIDENCE</code> 已 append 到 events.jsonl</td>
+<td class="fail">只有 DECOMPOSE/计划/spec，产物文件不存在（计划冒充交付）</td>
+</tr>
+<tr>
+<td>2</td>
+<td class="q">这是 L 几？</td>
+<td class="pass">明确标 <span class="lvl l0">L0</span>（类型/结构）/ <span class="lvl l1">L1</span>（规则真编码或合成自测）/ <span class="lvl l2">L2</span>（真实数据）</td>
+<td class="fail"><code>lake build</code> 绿 / <code>cargo test</code> 绿 / bit-exact 当「已验证」——那是 L0/L1，<strong>信息增量为零</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td class="q">bit-exact 有交叉验证测试落盘吗？</td>
+<td class="pass">存在 parity 测试文件，<strong>从 Lean 见证导出 golden IO + 断言 rust 输出逐字段相等</strong>，且测试真跑过</td>
+<td class="fail">声明「rust 与 Lean bit-exact」但无 parity 测试文件 / 测试是 <code>assert!(true)</code> / golden 是手填的</td>
+</tr>
+<tr>
+<td>4</td>
+<td class="q">有效域多大？</td>
+<td class="pass">声明覆盖范围 = 实际验证范围；只测一标的一时段就标 <span class="lvl l2">L2-窄</span></td>
+<td class="fail">声称覆盖整个定义域（所有走势/标的/时段）却无等大验证</td>
+</tr>
+<tr>
+<td>5</td>
+<td class="q">缺口怎么放的？</td>
+<td class="pass">没做到的那层显式留成 <code>structure</code> 字段 / <code>Prop</code> 前件 / pending 开口，<strong>永不 discharge</strong>，标 L2+ 留否证入口</td>
+<td class="fail">缺口被 oracle 桩 / 代理近似 / fallback 默认值 / <code>sorry</code> 堵住后宣布「闭合」</td>
+</tr>
+</table>
+
+<div class="warn">
+<b>第 3 问是本轮的核心新增。</b>「bit-exact」是个特别容易膨胀的词——它<em>听起来</em>像 L2，<em>其实</em>是 L0/L1（验的是两套实现一致，不是缠论对）。
+<strong>没有 parity 测试文件落盘，「bit-exact 一致」就是空声明。</strong>而且即使 parity 测试绿，它也只到 L1（管线一致），<strong>不</strong>到 L2（真实数据有效）——
+golden vector 若来自 Lean 合成见证，<a href="0006-epistemic-grading.html">L0→L1 增量为零</a>仍然成立。
+</div>
+
+<h2>4. canonical 源优先：读不完整 = 从一开始就膨胀</h2>
+<p>本轮编排者纠正了一条容易被略过的纪律：<strong>「原文在 gpt 结果里包含 PDF，得完整读完。」</strong>
+它指向一个比 L 分级更<em>前置</em>的膨胀源——<strong>不是验证阶段才膨胀，而是输入阶段就基于不完整理解膨胀。</strong></p>
+
+<p>本仓库的权威链是写死的（<code>CLAUDE.md</code>「三级权威链」）：</p>
+<div class="flow">
+<span class="stage">① 缠师原始博文</span>（108课+答疑，<span class="fs">docs/chanlun/text/blog/</span>）—— <b>最终权威</b><br>
+<span class="stage">② 《股市技术理论》编纂版</span>（<span class="fs">chan99/</span>）—— 第三方编纂，<strong>可能有遗漏</strong><br>
+<span class="stage">③ 思维导图/第三方总结</span> —— 辅助理解，<strong>不作定义依据</strong>
+</div>
+
+<div class="key">
+<b>已知缺口是物证，不是抽象风险。</b>编纂版（第 2 级）<strong>遗漏了</strong>第67课（线段划分标准）、第71课（再分辨）、第77课、第78课（古怪线段 + 「顶高于底」硬约束）、《忽闻台风可休市》（新笔定义）。
+谁只读了编纂版就去形式化线段，谁的「古怪线段已实现」从第一行就是膨胀——<strong>因为他读的源里根本没有「顶高于底」这条硬约束</strong>。
+这正是 629 号开口②（<code>revSeq</code> 代理）的根：第67课第二种情况的<em>精确</em>自指递归，只有回到博文原文才能编码，编纂版给不出。
+</div>
+
+<p>所以 canonical 源优先是一条<strong>输入侧的反膨胀闸</strong>：</p>
+<ul>
+<li><b>形式化任何缠论概念前，先确认你读的是哪一级源。</b>若涉及线段/古怪线段/新笔等已知缺口领域，<strong>必须回溯第 1 级博文原文</strong>，不能停在编纂版或思维导图。</li>
+<li><b>「原文包含 PDF」= 读完整，不是读摘要。</b>gpt 结果包含 PDF 附件时，PDF 是原文本体——略过 PDF 只读正文摘要 = 基于不完整源形式化 = 输入侧膨胀。</li>
+<li><b>声明「我忠实实现了第 N 课」前，引用该课原文的具体约束</b>（如第78课「顶高于底」、第71课「包含关系严格性」）作 witness。引不出原文约束 = 没读 canonical = FAIL。</li>
+</ul>
+
+<h2>5. 把守卫固化进结构工位（否则靠人记，必复发）</h2>
+<p>第 0004a/0010 课讲过一个铁律：<strong>没有承载者的检查 = 不会自动发生</strong>。膨胀检测清单若只写在课里，靠工位「记得自检」，它就和 hook 里的 GUARD 一样——<a href="0004a-why-structural-workstations-dont-autostart.html">说是自动，实则手动兜底</a>。
+要让它真生效，必须固化进<strong>有承载者的结构工位</strong>。</p>
+
+<div class="warn">
+<b>结构缺口（督导核实，供 Lead 操作化）。</b><code>quality-guard</code> 工位（<span class="fs">.claude/agents/quality-guard.md</span>）当前检查<strong>结果包六要素 + 谱系引用 + 代码违规</strong>——
+但 <code>grep</code> 不到任何 <code>bit-exact</code> / <code>L2</code> / 交叉验证 / canonical 源 的检查项。
+也就是说：<strong>本轮膨胀（bit-exact 无 parity 测试、L2 无落盘、缺口堵桩）恰好落在 quality-guard 的盲区。</strong>
+它能逮「六要素缺了边界条件」，逮不住「声明 bit-exact 但 parity 测试文件不存在」。
+</div>
+
+<p>建议 Lead 操作化两处（均是把本课清单变成工位的可执行检查，不是新概念）：</p>
+<table>
+<tr><th>落点</th><th>加什么检查（可操作）</th><th>对应清单项</th></tr>
+<tr>
+<td><code>quality-guard</code></td>
+<td>新增一格：凡产出含「bit-exact / parity / 一致」字样 → <strong>验对应 parity 测试文件存在且非 <code>assert!(true)</code></strong>；凡含「已验证 / L2 / 回测」→ <strong>验结果文档落盘 + 标 L 级</strong>；凡含「忠实实现第 N 课」→ <strong>验引用了该课原文约束</strong></td>
+<td>第 1/2/3/5 问</td>
+</tr>
+<tr>
+<td><code>/ceremony</code> 真封闸</td>
+<td>「目标达成」判定前，<strong>核 acceptance 每项点名的产物文件在文件系统/git 里存在</strong>（DECOMPOSE 的 sub-goal 产物路径逐个 <code>ls</code>）；缺一个 = 未达成，不报 done</td>
+<td>第 1 问</td>
+</tr>
+</table>
+
+<p>还有一条本轮 627 号识别的<strong>双引擎线纪律</strong>，也属结构操作化范畴：项目当前并行两条引擎线（旧 Python/Rust 已做大量 L2/L3 vs theta_v0 Origin 仅 L0）。
+按 231：<strong>两条线的有效域不重叠，旧引擎的 L2 结论不代偿 theta_v0 的 L2</strong>。所以所有 L2/L3 回测产出与引擎 bug 记录<strong>必须强制标注引擎线归属</strong>（(a) 旧 / (b) theta_v0）——
+否则「门控=暴露」会被误外推成 theta_v0 的预设结论，跳过 theta_v0 自己的 L2（风险1），或 bug 归属不明致分层诊断悬空（风险2）。这条建议 Lead 一并纳入 quality-guard 的 L2 产出检查。</p>
+
+<div class="sharp">
+<h3>带走的锋利问题 ①（计划 vs 完成）</h3>
+<p>蜂群报「<code>/goal</code> 的 X 已实装/已完成」时问它：<strong>「你点名的产物文件，我现在 <code>ls</code> 得到吗？<code>events.jsonl</code> 里有对应的 <code>EVIDENCE</code>/<code>CHECK_PASS</code> 吗？」</strong>
+只有 DECOMPOSE、产物不存在、EVIDENCE 计数为 0 = 把<em>计划</em>冒充<em>完成</em>。分解树写得再细也不是交付。</p>
+</div>
+
+<div class="sharp">
+<h3>带走的锋利问题 ②（bit-exact 膨胀）</h3>
+<p>蜂群报「rust 与 Lean bit-exact 一致」时问它：<strong>「parity 测试文件在哪？它是不是从 Lean 见证导出 golden、逐字段断言 rust 相等、而且真跑绿了？就算绿了——golden 是合成的还是真实数据的？」</strong>
+没有落盘的交叉验证测试 = 空声明；测试绿但 golden 合成 = 到 L1 封顶（<a href="0006-epistemic-grading.html">零增量</a>），<strong>不准叫已验证</strong>。</p>
+</div>
+
+<div class="sharp">
+<h3>带走的锋利问题 ③（canonical 源）</h3>
+<p>蜂群报「我忠实实现了第 N 课（线段/古怪线段/新笔）」时问它：<strong>「你读的是哪一级源？引一条该课原文的硬约束给我（如第78课『顶高于底』）。如果你停在编纂版/思维导图——它<em>已知遗漏</em>了第67/71/77/78课，你从一开始就基于不完整源在膨胀。」</strong></p>
+</div>
+
+<p class="next">
+来源（全部 read 物证）：<code>.chanlun/goals/events.jsonl</code>（GOAL_SET + DECOMPOSE 5 SG，EVIDENCE/CHECK_PASS 计数=0）+ 文件系统核实（SG-1/SG-2 parity 测试、SG-3 L2 文档<strong>均不存在</strong>）；
+谱系 <code>pending/629</code>（M1 三诚实降级开口：oracle L2 / revSeq 代理 / fallback 良构）、<code>pending/627</code>（双引擎线外推风险 + 引擎线归属强制标注）、<code>pending/630</code>（D′ 同构收口）；
+规则 <code>formalization-validity-domain.md</code>（231，L0-L3 + 第四次 domain 复发）；<code>CLAUDE.md</code>「三级权威链 + 已知缺口」；<code>.claude/agents/quality-guard.md</code>（六要素检查，<strong>无 bit-exact/L2/canonical 守卫</strong>=结构缺口）。<br>
+接续前课：0006（有效域≠定义域 + L0→L1 零增量）、0008（schema≠忠实，第67/71/78课血肉判据）、0009（诚实标级＞假装满级）、0011（git 才是地面真相）。<br>
+<b>认识论等级（诚实标注）：</b>本课 <span class="lvl l0">L0</span> 方法论结晶——从本轮 events.jsonl + 文件系统核实 + 谱系 629/627/630 + 规则 231 推导，零真实数据依赖，<strong>不是</strong>任何 L2 缠论主张。本课自身也过第 1 问：所引产物缺失、EVIDENCE 计数、quality-guard 盲区均为督导亲手核实的地面真相，非转述。
+</p>
+
+</body>
+</html>

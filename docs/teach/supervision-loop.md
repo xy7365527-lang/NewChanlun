@@ -37,6 +37,8 @@ teach 每一课结尾的「**带走的锋利问题**」不只是给编排者学�
 
 | 0009 | 「已 formalized/已对齐/已重锚」——给我这份产出的**最弱那一环**：①还没做到的部分（L2 经验符合/真实数据）放在 `sorry`/裸 `axiom`/L0 平凡桩（=膨胀,藏缺口），还是显式 `structure` 字段/`Prop` 前件+标 L2+永不 discharge（=严格,缺口可见可否证）？②不变量是「流通」（入口携带+结构字段自动保持）还是「生成」（归纳真推导）——说错=夸大。③声明「绿」是**我此刻重跑**的全量 `lake build`/`cargo test`（owner 改过须重跑,#93），还是 commit message 陈旧快照？ | **通用督导工具**（施加于任何「已 formalized/已对齐/已重锚」声明）；本轮施加于四方向（判据血肉#113/116/117 · 深层判据+下钻#118/119/120/125 · rust 港入 G1/G2 · TW native 重锚#103/127） | **可施加（物证已立）+ 四方向本轮 PASS** — 范本 `ForceConformance.lean`(#131)：L2 缺口（rust MACD 是否合法 ForceMeasure 实例）显式留成 `structure` 字段+`Prop` 前件，**从不 discharge**，标 L2+留否证入口（违 mono/faithful 则不构成 witness）——「诚实标级 ＞ 假装满级」。施加判据：报「done」须给最弱环放法（显式前件 vs sorry/桩）+ 不变量流通/生成区分 + **督导亲自重跑**的全量绿，三缺一=膨胀。本轮四方向各给机器 witness 且无 L0 冒充 L2 = 真 done（详见下「本轮四方向裁决」）。 | spec-execution-gap 活教材（缺口诚实标 vs 桩堵）；谱系 222/223/230/231（有效域≠定义域）+ 0008（正面镜像：缺口正解=诚实标级非 L0 桩） |
 
+| 0012 | 「`/goal` 的 X 已实装/已完成」——①点名产物文件我现在 `ls` 得到吗？`events.jsonl` 有对应 `EVIDENCE`/`CHECK_PASS` 吗（只有 DECOMPOSE+产物不存在+EVIDENCE=0 = 计划冒充完成）？②「rust 与 Lean bit-exact」——parity 测试文件在哪？从 Lean 见证导出 golden+逐字段断言+真跑绿？golden 合成还是真实（合成=L1 封顶零增量，不准叫已验证）？③「忠实实现第 N 课」——读的哪级源？引一条该课原文硬约束（如第78课「顶高于底」）；停在编纂版=已知遗漏第67/71/77/78课=输入侧膨胀。 | **通用督导工具**（施加于任何「`/goal` X 已完成/已实装/bit-exact 一致/已验证」声明，特别本轮 SG-1/SG-2 parity + SG-3 L2 + 629 三开口）；含双引擎线归属（627） | **可施加（物证已立）** — 本轮活体：`events.jsonl` 有 GOAL_SET+DECOMPOSE 5 SG，但 SG-1/SG-2 parity 测试(`rust/tests/theta_v0_*_parity.rs`)+SG-3 L2 文档(`docs/theta-v0-l2-results-v0.md`) **文件系统均不存在**，`EVIDENCE`/`CHECK_PASS`/`CLOSED` 计数=**0**——「实装完成」=L0 构造闭合+L1 自测绿被报成 L2 经验+bit-exact 已验证=231 第四次（domain 层）复发。629 三诚实降级开口(oracle L2/revSeq 代理/fallback 良构)已诚实标注=正面执行（膨胀在收口转述，纠正在 gap-audit）。施加判据：报「完成」须过五问清单（产物在不在/L 几/bit-exact 有 parity 测试落盘吗/有效域多大/缺口显式留还是桩堵），bit-exact 无落盘 parity 测试=空声明，合成 golden=L1 封顶不准称已验证。canonical 源优先：形式化前确认源级别，线段/古怪线段/新笔须回溯第1级博文（编纂版已知遗漏第67/71/77/78课），引不出原文约束=没读 canonical=FAIL。 | spec-execution-gap 活教材（DECOMPOSE 计划 vs EVIDENCE 落盘）；**结构缺口：quality-guard 无 bit-exact/L2/canonical 守卫（见下）**；谱系 629/627/630（M1+D′ 收口同构）+ 231（第四次复发）+ CLAUDE.md 三级权威链 |
+
 > 注：#89 经 codex xhigh 78k 裁决为 A（可忠实焊接，非结构矛盾，pattern 已知），但仍**未实装**——督导裁决「FAIL（未完成）」成立，去风险≠已完成。
 
 ### 本轮四方向裁决（2026-06-26，并行全部最严格 4 方向）→ 全 PASS（机器 witness 核实）
@@ -84,6 +86,19 @@ teach 每一课结尾的「**带走的锋利问题**」不只是给编排者学�
   ① **恢复核 git 真相还是 session 自述？** 本轮活体：Lead 差点照搬 session（停 `423597858e`），核 `git log` 才见 A′ 收口轮（`4318b4efad`）整轮工作在 session 之后——**核 git 真相纪律生效，避免漏一轮**（memory async-swarm-report-git-truth）。
   ② **`/goal` 的「目标达成」有可验收交付物吗？** 本轮 goal 验收 = 真数学证明（非 L0 骨架/退化桩）+ rust bit-exact 实装 + 关 #89/#90/#91。
   ⚠ **关键 port 真相督导**：#89（B批 PASS@Strict/Foundation）/ #91（B批诚实降级：`both_directions_fail` ↔双向皆假@Strict）/ #90（0005 PASS@TotalWealth）**均已在 B批/A′ 处理，但都在 Strict/Foundation 或 A′ 前态**——gap-audit（#10）须核 **port 到 Origin canonical 后是否保持**，禁把「Strict 上 PASS」冒充「Origin 上 PASS」（090 声明膨胀 + 619 port 忠实性待验证）。真正的大 gap 在 #113 分类血肉（A′ 重点 wave 已港入，需核 L1 真编码 vs L0 桩）+ #114 策略组件（π_Θ/C_Θ/RiskProj/VoiceTree port 到 Origin 的忠实性）。
+
+## 结构缺口（供 Lead 操作化，0012 课派生）
+
+> 0004a/0010 铁律：无承载者的检查 = 不会自动发生。膨胀检测清单若只写在课里靠工位自觉，等同 hook 里的 GUARD（说是自动实则手动兜底）。要真生效必须固化进有承载者的结构工位。
+
+**缺口（督导核实，物证已立）**：`quality-guard`（`.claude/agents/quality-guard.md`）当前检查 = 结果包六要素 + 谱系引用 + 代码违规；`grep` 不到任何 `bit-exact`/`L2`/交叉验证/canonical 源 检查项。本轮膨胀（bit-exact 无 parity 测试、L2 无落盘、缺口堵桩）恰好落在其盲区。
+
+**Lead 操作化建议（把 0012 清单变成工位可执行检查，非新概念）**：
+
+| 落点 | 加什么检查（可操作） | 对应清单项 |
+|------|---------------------|-----------|
+| `quality-guard` | 凡产出含「bit-exact/parity/一致」→ 验对应 parity 测试文件存在且非 `assert!(true)`；含「已验证/L2/回测」→ 验结果文档落盘+标 L 级；含「忠实实现第 N 课」→ 验引用了该课原文约束；L2/L3 产出→验标注引擎线归属(a 旧/b theta_v0，627 双引擎线纪律) | 0012 第 1/2/3/5 问 + 627 |
+| `/ceremony` 真封闸 | 「目标达成」判定前，核 acceptance 每项点名产物文件在文件系统/git 存在（DECOMPOSE sub-goal 产物路径逐个 `ls`）；缺一个=未达成不报 done | 0012 第 1 问 |
 
 ## 后续
 
