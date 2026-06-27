@@ -239,16 +239,27 @@ theorem witness_secondType_is_bool :
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **走势判据注入（oracle pattern，L1 接口）** —— 从 `Move` 无法单独推导的买卖点判据数据：
-  `Move` 结构只携带 `kind/startIndex/endIndex/centers`，**不**携带背驰段对、中枢突破标志等。
-  这些判据由上游（背驰计算 + 中枢位置判断）提供，此处定义为外部注入结构（oracle），
-  使 `bspOfMoves` 可在不依赖 P1 未完成的 CenterConstruct 的情况下组装端点。
+  **走势判据注入（oracle 接口，外部数据契约）** —— 从元素层 `Move` **无法单独推导**的买卖点
+  判据数据：`Move` 结构只携带 `kind/startIndex/endIndex/centers`，**不携带价格端点**
+  （无 startPrice/endPrice），也不携带背驰段对。`bspOfMoves` 对这些**外部注入**的判据做遍历识别。
 
-  ★诚实声明（no-patch-mentality + formalization-validity-domain）：
-  `MoveJudgment` 是**接口占位**——在真实管线中，它须由 centersOf + Divergence 真填充
-  （`divPair` 来自背驰力度计算，`brokeCenter/leftCenter` 来自中枢位置判断）。
-  本文件假设该数据已正确注入，不实装"从 Move 自动推导判据"（那是上游责任）。
-  **有效域**：L1（管线编码层成立，经验有效性需 L2+）。
+  ★诚实声明（no-patch-mentality + formalization-validity-domain + 632号矛盾上浮）：
+  `MoveJudgment` 是 oracle **接口定义**——它声明"产买卖点判据需要哪些字段"，**不声明**"这些字段
+  能从 `Move` 推导"。三个 Bool 字段的可推导性分层（632号逐字段分析）：
+
+  · `brokeCenter`/`leftCenter`（价格几何）= **L0 结构**，但元素层 `Move` 缺价格端点：判定数据是
+    «走势末端价 vs 中枢 [zd,zg]»（CenterStates.IsBelow/IsAbove，608号），价格在 `Segment.endPrice`
+    层已算出（管线 strokesOf→segmentsOf）；是 `movesOf : List Segment → List Move` 构造 `Move` 时
+    **丢弃**了 Segment 价格端点。对照 `SubLevelDescent.SubBrokeBelow`（对携带 `interval` 的 `RMove`
+    L0 判破中枢）——破中枢本质 L0 几何，缺口在元素层 `Move` 无价格字段（canonical 契约缺陷）。
+  · `afterTypeOne`（时序）需走势序列级前序分类上下文 + 递归依赖 `brokeCenter`，单 `Move` 不可推导。
+  · `divPair`（背驰力度）= **真 L2 缺口**：`Force`/MACD 面积无 Origin 计算引擎（Divergence
+    still-MISSING-C，需 EMA/DIF/DEA + 面积积分）。
+
+  ★632号矛盾上浮：消除"从 Move 单独 L0 推导判据"的开口需 canonical 契约裁定（给 `Move` 加价格
+  字段 / 改 `bspOf` 签名接 Segment / 接受 oracle 永久外部化）——触及 P1 owner `ChanlunElements`，
+  待编排者 /ritual。本文件**不冒充**"Move 单独足以产 MoveJudgment"（删除原 dummyJudgmentFromMove
+  零判据桩，见 §8 诚实化），只保留 oracle **接口契约**（judgments 由携带价格几何的上游注入）。
 -/
 structure MoveJudgment where
   side : Side
@@ -301,56 +312,26 @@ theorem bspOfMoves_total_unique :
   total_unique_of_fun (fun p : List Move × List MoveJudgment => bspOfMoves p.1 p.2)
 
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 8. ElementPipeline 具体实例（L1 合成见证：管线端到端跑通）
+    § 8. 诚实开口（632号）：bspOf 从元素层 Move 单独不可 L0 实装——无桩冒充绑定
+
+    ★629号识别"未验证 oracle 冒充完整分类"开口；632号精确化：元素层 `Move`（无价格端点）
+    单独不足以产 `MoveJudgment`（brokeCenter/leftCenter 需走势末端价 vs 中枢几何，价格在
+    `Segment` 层已算但被 `movesOf` 丢弃；divPair 需 MACD 力度 = L2 still-MISSING-C）。
+
+    原 `dummyJudgmentFromMove`（对每个 Move 产零判据：全 false / 零价）+ `bspOfViaPipeline`
+    （map 零判据 → 恒产空 Bsp 列）已**删除**——它们冒充"绑定 ElementPipeline.bspOf 字段、消解
+    平凡桩"，实际零判据恒产空列 = 退化冒充（no-patch-mentality / 090 声明膨胀，acceptance#2 要
+    "无未验证 oracle 冒充完整分类"）。`bspOf : List Move → List Bsp` 的具体绑定需 canonical 契约
+    裁定（632号上浮三路：给 Move 加价格字段 / 改 bspOf 签名接 Segment / 接受 oracle 永久外部化），
+    触及 P1 owner ChanlunElements，待编排者 /ritual——本文件**不冒充该绑定已成**。
+
+    保留的诚实部分：`MoveJudgment`（oracle 接口契约）+ `bspOfMoves`（真遍历，judgments 由携带
+    价格几何的上游外部注入，无冒充）+ §9 用真判据 `bspSampleJudgment1`（复用 sampleType1，
+    携带真破中枢+真背驰）的 L1 管线见证——judgments 真实（非零判据），是诚实的 L1 编码见证。
     ═══════════════════════════════════════════════════════════════════════ -/
 
-/--
-  **★ElementPipeline.bspOf 字段绑定（L1 合成实例）** —— 将 `ElementPipeline.bspOf`（`List Move → List Bsp`）
-  绑定为：对每个 `Move` 提取其 `centers.head?`（首中枢）作为背景中枢，以零判据（全 false/零）
-  产出 BspCandidate，调用 `classifyEndpoint`。
-
-  ★诚实声明：此实例是 L1 **管线编码**见证（非经验有效见证）：
-  - 零判据（`brokeCenter = false`, `afterTypeOne = false`, `leftCenter = false`）⟹
-    无法满足任何三类判据 ⟹ 对任何真实 Move 均产出空 Bsp 列。
-  - 意义：证明 `ElementPipeline.bspOf` 字段可被具体全函数（`classifyEndpoint` 遍历）绑定，
-    消解"bspOf 字段是平凡桩"——字段现有具体算法，不再是 `total_unique_of_fun P.bspOf` 的抽象占位。
-  - 真实管线须接入上游真实判据注入（`MoveJudgment` 由 centersOf + 背驰填充，still-MISSING-D′）。
--/
-def dummyJudgmentFromMove (m : Move) : MoveJudgment :=
-  let c : Center := match m.centers.head? with
-    | some ctr => ctr
-    | none => { zd := 0, zg := 0, startIndex := 0, endIndex := 0, valid := Int.le_refl 0 }
-  { side := Side.long
-    center := c
-    divPair := { forceA := ⟨0⟩, forceC := ⟨0⟩, isTrend := false }
-    brokeCenter := false
-    afterTypeOne := false
-    leftCenter := false
-    retracePrice := 0
-    firstRetrace := false
-    endIndex := m.endIndex
-    endPrice := 0 }
-
-/--
-  **★具体 ElementPipeline 实例见证（L1，管线端到端编码）** —— `bspOfViaPipeline` 是一个
-  `List Move → List Bsp` 全函数，绑定到 `bspOfMoves`（零判据路径）。
-  可直接用作 `ElementPipeline.bspOf` 字段的具体实现（消解平凡桩）。
--/
-def bspOfViaPipeline (moves : List Move) : List Bsp :=
-  bspOfMoves moves (moves.map dummyJudgmentFromMove)
-
-/-- ★终止性：bspOfViaPipeline 是全函数（`List.map` + `bspOfMoves` 均结构终止）。 -/
-theorem bspOfViaPipeline_total :
-    Total (fun moves out => bspOfViaPipeline moves = out) :=
-  fun moves => ⟨bspOfViaPipeline moves, rfl⟩
-
-/-- ★唯一性：bspOfViaPipeline 输出唯一（纯函数）。 -/
-theorem bspOfViaPipeline_total_unique :
-    TotalUnique (fun moves out => bspOfViaPipeline moves = out) :=
-  total_unique_of_fun bspOfViaPipeline
-
 /-! ═══════════════════════════════════════════════════════════════════════
-    § 9. L1 合成计算见证（具体 Move + 具体判据 ⟹ 具体 Bsp 输出）
+    § 9. L1 合成计算见证（具体 Move + 具体真判据 ⟹ 具体 Bsp 输出）
     ═══════════════════════════════════════════════════════════════════════ -/
 
 -- L1 合成见证用 Move（趋势上涨，单中枢；endIndex=3 对应 sampleType1 见证）。
@@ -394,15 +375,9 @@ theorem witness_L1_bspOfMoves_single :
   rw [witness_L1_type1_from_judgment]
   rfl
 
-/-- ★L1 管线见证：bspOfViaPipeline 空列 ⟹ 空（零判据路径边界）。 -/
-theorem witness_L1_pipeline_empty : bspOfViaPipeline [] = [] := by
-  unfold bspOfViaPipeline bspOfMoves; rfl
-
-/-- ★L1 管线见证：bspOfViaPipeline 对 [bspSampleMove]（零判据）产出空（零判据不产信号，诚实）。 -/
-theorem witness_L1_pipeline_zero_judgment : bspOfViaPipeline [bspSampleMove] = [] := by
-  -- 零判据（dummyJudgmentFromMove 产 brokeCenter=false,afterTypeOne=false,leftCenter=false）
-  -- ⟹ IsType1/IsType3/IsType2 均不满足 ⟹ classifyEndpoint = none ⟹ filterMap 产空
-  native_decide
+/-- ★L1 管线见证：bspOfMoves 空走势列 + 空判据列 ⟹ 空（边界，真遍历，无桩）。 -/
+theorem witness_L1_bspOfMoves_empty : bspOfMoves [] [] = [] := by
+  unfold bspOfMoves; rfl
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 10. still-MISSING 诚实声明 + 边界条件 + 下游推论 + 影响声明
@@ -417,54 +392,65 @@ theorem witness_L1_pipeline_zero_judgment : bspOfViaPipeline [bspSampleMove] = [
     - **输出唯一性**：bspOf_total_unique + bspOf_single_valued + secondType_total_unique。
     - **2/3 共存的操作侧消解**：classifyEndpoint 用确定性优先级（一类>三类>二类）使输出唯一——
       判据层互斥三分失败（no_exclusive_trichotomy）不阻碍构造层确定性输出。
-    - **ElementPipeline 桥接（L1 升级）**：
-      · `MoveJudgment`：oracle 接口，外部判据注入结构（move 不携带的判据字段）。
-      · `bspOfMoves`：`List Move → List MoveJudgment → List Bsp` 真遍历（结构终止）。
-      · `bspOfViaPipeline`：`List Move → List Bsp` 具体函数，可绑定 ElementPipeline.bspOf。
-      · L1 计算见证：`witness_L1_type1_from_judgment`（合成判据 → type1）+
-        `witness_L1_bspOfMoves_single`（管线产出 length=1）+ `witness_L1_pipeline_zero_judgment`
-        （零判据→空列，诚实标注无信号）——消解"bspOf 字段是平凡桩"。
-    - **L 等级诚实标注**：§7 及以前全部 L0（纯定义/结构递归）；§8-9 L1（合成数据管线编码）。
-      L1 信息增量为零——合成判据中的 `brokeCenter=true/false` 由测试者设定，
-      验证只能确认管线没有 bug，**不**确认"真实 Move 真有背驰"（需 L2+）。
+    - **ElementPipeline 桥接（oracle 接口侧，无桩冒充）**：
+      · `MoveJudgment`：oracle 接口契约——声明产买卖点判据需要的字段，**不声明**这些字段能从
+        元素层 `Move`（无价格端点）推导（632号）。
+      · `bspOfMoves`：`List Move → List MoveJudgment → List Bsp` 真遍历（结构终止）——judgments 由
+        携带价格几何的上游外部注入，本函数只做遍历识别，无冒充。
+      · L1 计算见证：`witness_L1_type1_from_judgment`（**真判据** sampleType1 → type1）+
+        `witness_L1_bspOfMoves_single`（真判据管线产出 length=1）+ `witness_L1_bspOfMoves_empty`
+        （空列边界）——judgments 真实（携真破中枢+真背驰，非零判据），是诚实 L1 编码见证。
+    - **L 等级诚实标注**：§7 及以前全部 L0（纯定义/结构递归）；§9 L1（用真判据 sampleType1 的
+      管线编码见证）。L1 信息增量为零——判据 `brokeCenter=true` 由 sampleType1 给定，验证只确认
+      管线没有 bug，**不**确认"真实 Move 真有破中枢/背驰"（需 L2+，且元素层 Move 缺价格，632号）。
 
-  ★still-MISSING-D′（完整次级别下钻 + 判据真填充，诚实开口）：
+  ★still-MISSING-D′ + 632号诚实开口（bspOf 从元素层 Move 单独不可 L0 实装）：
     - `subLevelHasType1` 丢弃级别索引 n、两分支同体、不自调——**不是** well-founded 级别下降递归。
       把单步占位判据冒充为完整下钻递归 = 声明膨胀（禁止）。
-    - `dummyJudgmentFromMove` 产出零判据（全 false）——`bspOfViaPipeline` 在零判据下恒产空列。
-      真实管线须上游（centersOf 真算 + 背驰力度真算）填充 `MoveJudgment` 各字段
-      （仍是 still-MISSING-D′，本文件不冒充该接入已完成）。
+    - **632号**：原 `dummyJudgmentFromMove`（零判据桩）+ `bspOfViaPipeline`（恒产空列）已**删除**——
+      它们冒充"绑定 ElementPipeline.bspOf、消解平凡桩"，实际零判据恒产空 = 退化冒充（acceptance#2
+      要"无未验证 oracle 冒充完整分类"）。`MoveJudgment` 的三 Bool 字段不可从元素层 `Move` 纯 L0
+      结构推导：brokeCenter/leftCenter（价格几何，L0 结构但 `Move` 缺价格端点——`movesOf` 丢弃了
+      `Segment` 的 startPrice/endPrice）、afterTypeOne（时序，需走势序列上下文）、divPair（背驰力度，
+      L2 still-MISSING-C）。`bspOf` 具体绑定需 canonical 契约裁定（632号上浮三路），待编排者 /ritual。
 
   ★边界条件（结论翻转）：
     - `bspOfMoves` 终止性是结构递归内蕴（消费 `pairs` 列头），对任何 `classifyEndpoint` 都成立——
       接入完整判据不影响遍历终止性。
-    - `witness_L1_pipeline_zero_judgment` 成立依赖 `dummyJudgmentFromMove` 零判据（所有 Bool=false）。
-      若上游接入真实判据（`brokeCenter=true` 且 `IsDivergence divPair`），则输出非空——此时需
-      `witness_L1_bspOfMoves_single` 类型的新见证，当前零判据见证不翻转（零判据行为仍成立）。
+    - `witness_L1_bspOfMoves_single` 成立依赖 `bspSampleJudgment1`（真判据：brokeCenter=true 且
+      IsDivergence divPair）。若判据改为非破中枢/非背驰，则输出空——见证翻转，须新见证。
+    - 632号修复路裁定翻转下游：若编排者裁定"给 `Move` 加价格字段"（路1），则 brokeCenter/leftCenter
+      可用 608号位置三态 L0 结构推导消桩，本文件可新增真结构推导函数（替代已删的零判据桩），
+      仅 divPair 力度留 L2 开口；若裁定"接受 oracle 永久外部化"（路3），则 oracle 接口即终态。
     - `classifyEndpoint` 优先级（一类>三类>二类）是确定性选择。若某口径要求"2/3 共存时同时输出
       两个 Bsp"（非互斥路由），须改 `bspOfMoves` 签名为 `List (List Bsp)` per move——
       当前裁定优先级单选（与策略层"6 种买卖点信号"路由一致）。
 
   ★下游推论：
-    - `bspOfViaPipeline` 终止 + 唯一 ⟹ 可直接绑定 `ElementPipeline.bspOf` 字段——消解审计
-      判决的"bspOf 平凡桩"。策略组件工位（#114）的第二类应对可依赖 `secondType_needs_sublevel_type1`
-      前件结构（占位判据，待真下钻接入）。
-    - `MoveJudgment` 接口定义 ⟹ 上游（centersOf + 背驰）只需实现 `Move → MoveJudgment`
-      即可接入完整管线，接口契约已在本文件形式化（字段类型 + moveJudgmentToCandidate 组装）。
-    - L1 见证告诉下游：管线编码层无 bug（合成端点正确路由到 type1），上游填充真实判据后，
-      管线不需改动——信息差在于判据质量（L2+），不在于管线实现（L1 已完成）。
+    - **632号**：`bspOf : List Move → List Bsp` 从元素层 `Move` 单独**不可 L0 实装**（Move 缺价格
+      几何 + 力度），不能宣称"消解 bspOf 平凡桩"——具体绑定待 canonical 契约裁定。策略组件工位
+      （#114）的第二类应对可依赖 `secondType_needs_sublevel_type1` 前件结构（占位判据，待真下钻接入）。
+    - `MoveJudgment` 接口契约 ⟹ 上游须实现「携带价格几何的载体（Segment/RMove）+ 背驰 → MoveJudgment」
+      才能注入（不是 `Move → MoveJudgment`，因元素层 Move 信息不足，632号）。
+    - L1 见证告诉下游：管线遍历层无 bug（真判据端点正确路由到 type1），上游填充真实判据后管线不需
+      改动——但"上游填充"需先解决 632号 canonical 契约（Move 取价格的途径），非纯上游责任。
 
   ★影响声明：
-    - 在 Origin.BspConstruction 新增 §7-9：`MoveJudgment`（结构体）、`moveJudgmentToCandidate`、
-      `bspOfMoves`、`dummyJudgmentFromMove`、`bspOfViaPipeline` + 相关定理和见证。
-    - 不改 canonical 类型（`BspEndpoint`/`BspCandidate`/`Bsp`/`ElementPipeline` 结构定义不变）。
-    - 不改 BspClassification.lean（只读，P1 owner 文件）。
+    - §7：`MoveJudgment`（oracle 接口契约，文档诚实化标 632号）+ `moveJudgmentToCandidate` + `bspOfMoves`。
+    - §8（632号诚实化）：**删除** `dummyJudgmentFromMove`（零判据桩）+ `bspOfViaPipeline`
+      + `bspOfViaPipeline_total` + `bspOfViaPipeline_total_unique` + `witness_L1_pipeline_empty`
+      + `witness_L1_pipeline_zero_judgment`（它们冒充"绑定 bspOf 字段"，零判据恒产空 = 退化冒充）。
+      新增 `witness_L1_bspOfMoves_empty`（空列边界，真遍历无桩）。保留 `bspOfMoves`（真遍历）+
+      §9 真判据 L1 见证。
+    - 不改 canonical 类型（`BspEndpoint`/`BspCandidate`/`Bsp`/`Move`/`ElementPipeline` 结构定义不变）。
+    - 不改 BspClassification.lean / ChanlunElements.lean（只读，P1 owner 文件）。
 
   ★谱系引用：消解 BspClassification.lean § 8 still-MISSING-D（bspOf 全自动遍历终止 + 唯一）；
-    L0→L1 升级消解 task #17 P2 平凡桩；`MoveJudgment` oracle pattern 对应"判据完整接入"
-    的接口侧（经验侧仍 still-MISSING-D′）。互斥三分失败的操作侧优先级消解重锚 Strict.BSP
+    **632号**精确化 629号开口③——MoveJudgment 消桩在元素层 Move 上不可纯 L0（根因 movesOf 丢
+    Segment 价格），区分 L0 结构缺口（价格几何）与 L2 数据缺口（背驰力度，still-MISSING-C），
+    canonical 契约修复待编排者 /ritual。互斥三分失败的操作侧优先级消解重锚 Strict.BSP
     refined_classifies（精化触发签名真单射，谱系 598→603→615）。
-    认识论等级：§1-6 全 L0；§7-9 L1（合成数据管线编码，信息增量为零但管线编码真实）。
+    认识论等级：§1-7 全 L0；§9 L1（真判据管线编码见证，信息增量为零但遍历编码真实）。
 -/
 
 end NewChanlun.Origin
