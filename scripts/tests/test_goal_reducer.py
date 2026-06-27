@@ -100,6 +100,31 @@ def test_reads_legacy_degraded_schema_without_crash():
     assert out["current_goal"]["description"] == "新 goal 叙事"  # artifact fallback 作 description
     assert out["terminated"] is False
 
+def test_ready_details_carry_desc_for_workstation_naming():
+    # ready_details：ready sub_goal 的 {id, desc}，供 ceremony_scan 生成有意义的
+    # workstation name/description（开口②驱动 spawn 的前置——光有 id 列表不够，
+    # workstation 需要 desc 才能让工位知道做什么）。与 ready_workstations(id 列表)并存，
+    # 不破坏向后兼容。顺序与 ready_workstations 一致（sorted by id）。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "DECOMPOSE", "goal_id": "g1", "ts": "t1",
+         "sub_goals": [{"id": "g1.1", "desc": "做 A", "blocked_by": []},
+                       {"id": "g1.2", "desc": "做 B", "blocked_by": ["g1.1"]}]},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["ready_workstations"] == ["g1.1"]
+    assert out["ready_details"] == [{"id": "g1.1", "desc": "做 A"}]  # g1.2 blocked，不在 ready
+
+
+def test_ready_details_empty_when_no_decompose():
+    # 退化数据（无结构化 DECOMPOSE）→ ready_details 为空，与 ready_workstations 一致。
+    events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+               "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t0"}]
+    out = reduce_goal(events, _facts())
+    assert out["ready_details"] == []
+
+
 def test_sub_goal_check_name_collision_does_not_close_goal():
     # sub_goal 的 check 名与 goal acceptance check 名相同，但 CHECK_PASS 只 target sub_goal，
     # 不应误判 goal acceptance 通过（gid-only 匹配，SCHEMA 未定义跨节点 rollup）。

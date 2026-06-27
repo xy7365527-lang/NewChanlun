@@ -22,7 +22,14 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     # ★ 有效域诚实标注：止血让 reducer 算出 current goal id 不崩；但退化事件无结构化
     #   acceptance，reducer 不能机器判定验收闭合——完整修复（结构化 acceptance + 写路径
     #   writer）是 630 开口①残留，待编排者 /ritual。
-    def _gid(e):  # goal id：规范 goal_id 优先，退化事件 fallback sub_goal_id
+    # reader/writer 有效域分层（formalization-validity-domain 显式标注，非兼容垫片）：
+    # reducer 是 event-sourcing reader，有效域=「全部历史 events.jsonl（含 actor 手搓退化
+    # 事件，用 sub_goal_id 当 goal id）」——必须读不崩（630 开口①止血目的）。writer
+    # (goal_events.append_event) 是新写路径，有效域=「仅新事件」，严格拒绝退化。两者有效域
+    # 不同是分工不是矛盾：reader 宽容读历史（有效域更大），writer 严格守新写（有效域更小）。
+    # _gid 的 fallback 只服务 reader 的历史有效域；新事件由 writer 保证 goal_id 存在，永不走
+    # fallback。改 reducer 严格化会让历史行25/53/61 崩，破坏已结算止血（no-workaround）。
+    def _gid(e):  # goal id：规范 goal_id 优先，退化历史事件 fallback sub_goal_id（reader 有效域）
         return e.get("goal_id") or e.get("sub_goal_id")
     superseded = {e.get("old_goal_id") or e.get("sub_goal_id")
                   for e in events if e["event"] == "SUPERSEDE"}
@@ -38,7 +45,8 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
                     "base_head": e.get("base_head"), "status": "active",
                     "base_head_stale": e.get("base_head") != facts.get("git_head")}
     if goal is None:
-        return {"current_goal": None, "ready_workstations": [], "blocked": [], "terminated": False}
+        return {"current_goal": None, "ready_workstations": [], "ready_details": [],
+                "blocked": [], "terminated": False}
 
     gid = goal["goal_id"]
     # 2. 重建 sub-goal 树（DECOMPOSE）。schema 容错（630 开口①）：只处理含规范
@@ -68,6 +76,11 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
              if not s["passed"] and s["blocker"] is None
              and all(subs.get(b, {}).get("passed", False) for b in s["blocked_by"])]
     blocked = [{"id": s["id"], "blocker": s["blocker"]} for s in subs.values() if s["blocker"]]
+    # ready_details：ready sub_goal 的 {id, desc}，供 ceremony_scan 生成有意义的
+    # workstation name/description（开口② reducer 驱动 spawn 的前置——id 列表不带 desc，
+    # 工位无从知道做什么）。与 ready_workstations(id 列表)并存，按 id 同序，保持确定性。
+    ready_details = [{"id": s["id"], "desc": subs[s["id"]]["desc"]} for s in
+                     sorted((subs[i] for i in ready), key=lambda x: x["id"])]
     # 5. goal 验收：所有 acceptance CHECK_PASS → closed
     for acc in goal["acceptance"]:
         if (gid, acc["check"]) in passed_checks:
@@ -77,4 +90,5 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
         goal["status"] = "closed"
     elif blocked and not ready:
         goal["status"] = "blocked"
-    return {"current_goal": goal, "ready_workstations": sorted(ready), "blocked": blocked, "terminated": terminated}
+    return {"current_goal": goal, "ready_workstations": sorted(ready),
+            "ready_details": ready_details, "blocked": blocked, "terminated": terminated}

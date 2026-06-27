@@ -53,6 +53,7 @@ def _load_current_goal(ev_path=None):
     if not os.path.isfile(ev_path):
         return None
     events = []
+    skipped = 0
     with open(ev_path, encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
             if not line.strip():
@@ -60,6 +61,7 @@ def _load_current_goal(ev_path=None):
             try:
                 events.append(json.loads(line))
             except (json.JSONDecodeError, ValueError) as exc:
+                skipped += 1
                 print(f"[ceremony_scan] WARNING: events.jsonl line {lineno} JSON 损坏，跳过: {exc}",
                       file=sys.stderr)
     if not events:
@@ -76,7 +78,55 @@ def _load_current_goal(ev_path=None):
         "genealogy_settled": [],
         "roadmap": [],
     }
-    return reduce_goal(events, facts)
+    out = reduce_goal(events, facts)
+    # 数据完整性透出（错误吞没修复）：损坏行被跳过时标注，使调用方能区分「损坏导致空
+    # ready」与「结构性空 ready（全 blocked/passed）」——两者在 ready_workstations 上都表现
+    # 为空，但语义不同。不静默吞没（common/coding-style：never silently swallow errors）。
+    if skipped:
+        out["skipped_event_lines"] = skipped
+    return out
+
+
+def goal_driven_workstations(goal_result):
+    """D′ 开口②：reducer 输出 → goal 驱动的 workstation 列表（spawn 列表的最高优先来源）。
+
+    630 开口②：reducer 算的 ready_workstations 从未被 ceremony spawn 消费（一直 fallback
+    roadmap/session）。本函数闭合开口——把 reducer 的 ready_details 转化为 workstation
+    dict，让蜂群从 goal 递归展开（spec §4「goal_reducer → ready workstations」、§5
+    「reducer 驱动而非 fallback」）。
+
+    映射规则：每个 ready sub_goal → 一个 workstation（priority=P0：goal 是当前交易性承诺，
+    高于 roadmap backlog，spec §6；source='goal_reducer'）。携 goal_id + sub_goal_id 供
+    工位回写 EVIDENCE/CHECK_PASS 时定位（用 writer goal_events.append_event）。
+
+    goal 未设定（None）或已闭合（terminated）或 ready_details 空 → 返回 []（seed
+    bootloader 不阻塞冷启动；闭合 goal 不再驱动 spawn）。纯函数，无 IO，可独立测。
+
+    有效域诚实标注（231 L 级）：本函数是 L1 管线正确性（reducer 输出 → spawn 列表的
+    确定性转化）。「reducer 驱动真实恢复跑通」是 L2，待下次真实 ceremony 验证。
+    """
+    if not goal_result or goal_result.get("current_goal") is None:
+        return []
+    if goal_result.get("terminated"):
+        return []
+    # goal_id 非空守卫：退化历史事件经 reducer 容错路径可能产出 current_goal 但 goal_id=None
+    # （reducer _gid fallback 两字段皆缺时）。此时不产 goal 工位——否则 name=goal[None]、
+    # goal_id=None 写进 spawn 列表，下游用 goal_id=None 回写 CHECK_PASS 会触发 writer 校验
+    # 失败（goal_id 必填非空），错误延迟到下游且来源已丢。宁可保守不产，不放行脏数据。
+    if not goal_result["current_goal"].get("goal_id"):
+        return []
+    workstations = []
+    for sg in goal_result.get("ready_details", []):
+        workstations.append({
+            "priority": "P0",
+            "name": f"goal[{goal_result['current_goal']['goal_id']}]子目标：{sg['id']}",
+            "status": "goal_ready",
+            "source": "goal_reducer",
+            "description": sg["desc"],
+            "goal_id": goal_result["current_goal"]["goal_id"],
+            "sub_goal_id": sg["id"],
+        })
+    return workstations
 
 
 def get_frozen_nodes(root):
@@ -1399,9 +1449,18 @@ def main():
     parser.add_argument("--workstations", nargs="*", help="指定业务工位名称")
     parser.add_argument("--summary", action="store_true",
                         help="输出简要摘要（供 OpenClaw cron liveness 节点使用）")
+    parser.add_argument("--materialize-interrupt", action="store_true",
+                        help="D′ 开口③：从 reducer 输出机械生成 .interrupt-point.md projection（取代手搓）")
     args = parser.parse_args()
 
     root = os.getcwd()
+
+    if args.materialize_interrupt:
+        # D′ 开口③闭环：中断点降为 reducer 的机械投影（叙事剥离），消除手搓漂移。
+        from interrupt_materializer import materialize
+        print(materialize(root))
+        return
+
     result = {"required_skills": get_required_skills(root)}
 
     if args.skills or args.structural:
@@ -1426,7 +1485,8 @@ def main():
 
     # 0. D′：current_goal（roadmap 之前的当前交易性承诺，roadmap 是 backlog）。
     #    goal 未设定时为 None——ceremony_scan 降为 seed bootloader，不阻塞冷启动。
-    result["current_goal"] = _load_current_goal()
+    goal_result = _load_current_goal()
+    result["current_goal"] = goal_result
 
     # 1. 最高优先级：roadmap.yaml 中的 active 任务
     roadmap_tasks = get_roadmap_workstations(root)
@@ -1434,6 +1494,14 @@ def main():
         # roadmap 任务插入到 workstations 最前（P2 优先级，高于 P3 long_term）
         workstations = roadmap_tasks + workstations
         result["roadmap_tasks_found"] = len(roadmap_tasks)
+
+    # 1b. D′ 开口②：goal 驱动 spawn——reducer 的 ready_workstations 进 spawn 列表，
+    #     前插到所有工位最前（spec §6：goal 是当前交易性承诺，先于 roadmap backlog；
+    #     §5：reducer 驱动而非 fallback）。goal 未设定/已闭合时为空，不阻塞冷启动。
+    goal_ws = goal_driven_workstations(goal_result)
+    if goal_ws:
+        workstations = goal_ws + workstations
+        result["goal_driven_workstations_found"] = len(goal_ws)
 
     # 2. pattern-buffer 达标模式扫描（放在 fallback 前，避免误触发重型扫描）
     pattern_candidates = get_pattern_buffer_candidate_count(root)
