@@ -80,7 +80,7 @@ import Origin.ConstraintSystem
 namespace NewChanlun.Origin.SevenLinkStrategy
 
 open NewChanlun.Origin (ExistsUnique total_unique_of_fun)
-open NewChanlun.Origin.CandidateSet (Cand State gamma gamma_finite)
+open NewChanlun.Origin.CandidateSet (Cand State gamma allCands gamma_finite)
 open NewChanlun.Origin.RThetaInterp (Triple RΘ interpList rTheta_exists_unique)
 open NewChanlun.Origin.ActiveSet (activeNext ptilde ptilde_exists_unique)
 open NewChanlun.Origin.SeparateLedger (SepPosition)
@@ -156,8 +156,8 @@ def piTheta (S : ThetaStrategy U Order) (x : State) : Order :=
   正是它们的合成。
   ════════════════════════════════════════════════════════════════════════ -/
 
-/-- **环3：Γ(x) 有限**（假设 8）——复用 `CandidateSet.gamma_finite`。 -/
-theorem link3_gamma_finite (x : State) : ∃ n : Nat, (gamma x).length = n :=
+/-- **环3：Γ(x) 有限**（假设 8）——复用 `CandidateSet.gamma_finite`（Γ 长度 ≤ 论域上界）。 -/
+theorem link3_gamma_finite (x : State) : (gamma x).length ≤ (allCands x.ℓmax).length :=
   gamma_finite x
 
 /-- **环5：三桶 (𝒟,ℬ,𝒦) ∃!**（假设 9）——复用 `RThetaInterp.rTheta_exists_unique`。 -/

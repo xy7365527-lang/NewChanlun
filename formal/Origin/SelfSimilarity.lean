@@ -257,13 +257,18 @@ theorem ptilde_shift_equivariant (sOf : Cand → Nat) (A : List Cand) (k : Level
 
 /-- ★[需人工确认] 步1：Prom 递归塔平移等变（L0 设计约束，spec line 900–906）。
     `D(S_k x) = S_k D(x)`——结构提升规则 Prom_ℓ 在级别平移下等变。
-    spec 给"满足"但 Lean 既有递归塔未给此定理，以显式 Prop 承载。 -/
-def PromEquivariant (k : LevelShift) (x : State) : Prop := True
+    spec 给"满足"但 Lean 既有递归塔未给此定理，以**真等式 Prop** 承载（非 `True`）：
+    要求结构提升判据 `promote` 在级别平移下不变——这是 spec 自相似的实质设计约束，
+    任何接此定理者必须提供该等式见证，不能由 `trivial` 自动满足（防声明膨胀）。 -/
+def PromEquivariant (promote : State → Nat → Bool) (k : LevelShift) (x : State) : Prop :=
+  ∀ ℓ : Nat, promote (shiftState k x) (ℓ + k) = promote x ℓ
 
 /-- ★[需人工确认] 步2：买卖点语法平移不变（L0 设计约束，spec line 908–910）。
     `b_{ℓ+k}(S_k x) = b_ℓ(x)`——买卖点语法归一化相同。
-    spec 给"满足"但 b_ℓ 的 Lean 形式化在 shiftState 下的等变性以显式 Prop 承载。 -/
-def BspEquivariant (k : LevelShift) (x : State) : Prop := True
+    以**真等式 Prop** 承载（非 `True`）：买卖点触发判据 `fired` 在级别平移下不变。
+    任何接此定理者必须提供等式见证，不能由 `trivial` 自动满足（防声明膨胀）。 -/
+def BspEquivariant (fired : State → Nat → Bool) (k : LevelShift) (x : State) : Prop :=
+  ∀ ℓ : Nat, fired (shiftState k x) (ℓ + k) = fired x ℓ
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §18 主定理：ℭ_Θ(S_k x) = S_k ℭ_Θ(x)（八步等变合成）
@@ -288,20 +293,36 @@ def BspEquivariant (k : LevelShift) (x : State) : Prop := True
 -/
 theorem classify_equivariant (k : LevelShift) (x : State)
     (par : Cand → Option Cand) (fuel : Nat) (sOf : Cand → Nat)
+    (promote fired : State → Nat → Bool)
     (hParEqui : ParEquivariant par k)
     (hSOf : SOfEquivariant sOf k)
     (hInterp : ∀ gs : List Cand, InterpEquivariant k gs)
-    (hProm : PromEquivariant k x)
-    (hBsp : BspEquivariant k x) :
-    -- 八步等变合成见证：步3 (N^δ) + 步8 (p̃) 的等变性作为代表性合成
-    -- 其余步（4/5 R、7 AncOK）已由 R_shift_invariant/AncOK_shift_equivariant 证立
-    -- 步1/2/6 由 hProm/hBsp/hInterp 承载
-    -- ⟹ ℭ_Θ(S_k x) = S_k ℭ_Θ(x) 合成成立（各分量等变 ⟹ 九元组等变）
-    N Dir.buy (shiftState k x).f (0 + k) (0 + k) = N Dir.buy x.f 0 0 ∧
-    ptilde sOf (([] : List Cand).map (shiftCand k)) = ptilde sOf ([] : List Cand) := by
-  refine ⟨?_, ?_⟩
-  · exact N_shift_invariant Dir.buy x 0 0 k
-  · exact ptilde_shift_equivariant sOf ([] : List Cand) k hSOf
+    (hProm : PromEquivariant promote k x)
+    (hBsp : BspEquivariant fired k x) :
+    -- ★八步分量等变全称合取（真合成，非 trivial 实例）——
+    -- 每一步对**任意** (ℓ,e,δ,g,A,gs,prevDir,parentDir) 成立，是 ℭ_Θ 九元组各分量的等变性。
+    -- ℭ_Θ(S_k x)=S_kℭ_Θ(x) 是这八步分量等变的合成（ℭ_Θ 载体见 GlobalProductClassification；
+    -- 九元组按分量等变 ⟹ 整体等变，分量等变即下列八条）。
+    (∀ ℓ : Nat, promote (shiftState k x) (ℓ + k) = promote x ℓ)                          -- 步1 Prom
+  ∧ (∀ ℓ : Nat, fired (shiftState k x) (ℓ + k) = fired x ℓ)                              -- 步2 b
+  ∧ (∀ (δ : Dir) (ℓ e : Nat), N δ (shiftState k x).f (ℓ + k) (e + k) = N δ x.f ℓ e)      -- 步3 N^δ
+  ∧ (∀ (g : Cand) (pd : Option Side), classifyH pd (shiftCand k g).dir = classifyH pd g.dir)        -- 步4 H
+  ∧ (∀ (g : Cand) (pd : Option Side), classifyV pd (shiftCand k g).dir = classifyV pd g.dir)        -- 步5 V
+  ∧ (∀ (g : Cand) (pd qd : Option Side),
+        classifyR18 pd qd (shiftCand k g).dir = classifyR18 pd qd g.dir)                  -- 步4+5 R
+  ∧ (∀ (a b : Cand), candLe (shiftCand k a) (shiftCand k b) = candLe a b)                 -- 步6 ≺_Θ
+  ∧ (∀ gs : List Cand, InterpEquivariant k gs)                                            -- 步6 ℛ_Θ（设计假设）
+  ∧ (∀ (A : List Cand),
+        (ancOKG par fuel A).map (shiftCand k) = ancOKG par fuel (A.map (shiftCand k)))    -- 步7 AncOK
+  ∧ (∀ (A : List Cand), ptilde sOf (A.map (shiftCand k)) = ptilde sOf A) := by            -- 步8 p̃
+  refine ⟨hProm, hBsp, ?_, ?_, ?_, ?_, ?_, hInterp, ?_, ?_⟩
+  · exact fun δ ℓ e => N_shift_invariant δ x ℓ e k
+  · exact fun g pd => H_shift_invariant g pd k
+  · exact fun g pd => V_shift_invariant g pd k
+  · exact fun g pd qd => R_shift_invariant g pd qd k
+  · exact fun a b => candLe_shift' k a b
+  · exact fun A => AncOK_shift_equivariant par fuel A k hParEqui
+  · exact fun A => ptilde_shift_equivariant sOf A k hSOf
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §19 条件定理：π_Θ(S_k x) = S_k π_Θ(x)（方案 A 下前提满足）
@@ -336,15 +357,24 @@ theorem piTheta_equivariant {X P Θ Order : Type}
     (sched : P → Order)
     (schedEquiv : ∀ (q : P), sched (capSys.shiftP k q) = shiftO k (sched q))
     (hθ : capSys.shiftΘ k θ = θ)
+    -- ★hstrict：移位问题 (𝒦_{S_kΘ}(S_kx), J_{S_kx}) 的 argmin 唯一（LexArgmin 字典序严格最小给出）
     (hstrict : ∀ a b : P,
-      IsMin (feasibleSet cs θ x) (J x) a →
-      IsMin (feasibleSet cs θ x) (J x) b → a = b) :
-    -- π_Θ(x) = sched(argmin)；π_Θ(S_kx) = sched(argmin_{S_kx})
-    -- 方案 A: 𝒦_Θ(S_kx)=S_k𝒦_Θ(x)（feasibleSet_equivariant_strong，hθ 下）
-    -- + J 等变 ⟹ argmin 等变（argmin_equivariant）
-    -- + 唯一 ⟹ argmin_{S_kx} = S_k(argmin_x)（proj_equivariant）
-    -- + schedEquiv ⟹ sched(S_k p*) = S_k sched(p*) = π_Θ(S_kx) = S_k π_Θ(x)
-    sched (capSys.shiftP k p) = shiftO k (sched p) := by
+      IsMin (feasibleSet cs (capSys.shiftΘ k θ) (capSys.shiftX k x)) (J (capSys.shiftX k x)) a →
+      IsMin (feasibleSet cs (capSys.shiftΘ k θ) (capSys.shiftX k x)) (J (capSys.shiftX k x)) b →
+      a = b)
+    -- ★pStar：移位问题 S_kx 的 argmin（策略在 S_kx 上的最优头寸）。π_Θ(S_kx)=sched(pStar)。
+    (pStar : P)
+    (hpStar : IsMin (feasibleSet cs (capSys.shiftΘ k θ) (capSys.shiftX k x))
+      (J (capSys.shiftX k x)) pStar) :
+    -- ★★真等变结论（非前提复述）：π_Θ(S_kx) = sched(pStar) = S_k(sched(p)) = S_k π_Θ(x)。
+    -- π_Θ(x)=sched(p)（p=argmin_x），π_Θ(S_kx)=sched(pStar)（pStar=argmin_{S_kx}）。
+    sched pStar = shiftO k (sched p) := by
+  -- 步1：S_kx 的 argmin pStar 等于原 argmin p 的平移 S_k p（proj_equivariant：方案 A 𝒦 等变 + J 不变 + 唯一）
+  have hpStar_eq : pStar = capSys.shiftP k p :=
+    NewChanlun.Origin.CovariantCapital.proj_equivariant
+      cs k θ x J Jinv p hp pStar hpStar hstrict
+  -- 步2：sched(pStar) = sched(S_k p) = S_k(sched p)（schedEquiv，调度等变）
+  rw [hpStar_eq]
   exact schedEquiv p
 
 /-- ★§19 (a) 前提满足见证（L0，方案 A 证立）：𝒦_Θ 等变由协变资本给出。
@@ -398,10 +428,14 @@ theorem piTheta_equivariant_strong {X P Θ Order : Type}
     (schedEquiv : ∀ (q : P), sched (capSys.shiftP k q) = shiftO k (sched q))
     (hθ : capSys.shiftΘ k θ = θ)
     (hstrict : ∀ a b : P,
-      IsMin (feasibleSet cs θ x) (J x) a →
-      IsMin (feasibleSet cs θ x) (J x) b → a = b) :
-    sched (capSys.shiftP k p) = shiftO k (sched p) :=
-  piTheta_equivariant capSys cs k θ x J Jinv p hp shiftO sched schedEquiv hθ hstrict
+      IsMin (feasibleSet cs (capSys.shiftΘ k θ) (capSys.shiftX k x)) (J (capSys.shiftX k x)) a →
+      IsMin (feasibleSet cs (capSys.shiftΘ k θ) (capSys.shiftX k x)) (J (capSys.shiftX k x)) b →
+      a = b)
+    (pStar : P)
+    (hpStar : IsMin (feasibleSet cs (capSys.shiftΘ k θ) (capSys.shiftX k x))
+      (J (capSys.shiftX k x)) pStar) :
+    sched pStar = shiftO k (sched p) :=
+  piTheta_equivariant capSys cs k θ x J Jinv p hp shiftO sched schedEquiv hθ hstrict pStar hpStar
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §5 诚实标签（formalization-validity-domain gatekeeper，L0 声明）

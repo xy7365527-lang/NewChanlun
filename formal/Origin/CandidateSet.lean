@@ -129,7 +129,7 @@ theorem allBsp_count_one (t : BspType) : allBsp.count t = 1 := by
   ★**供下游 R_Θ fold（环5 lean-interp）消费的信息**：级别 `lvl`、执行级 `exec`、方向 `dir`
     （= dirOf bsp，`Side` 型）、买卖点 `bsp`。环4（OperationRole18）可由 `dir` + 关系上下文
     （前兄弟/父容器方向）经 `Cand.roleOf` 算出 R(g)=(H,V,δ)——即候选已**带级别/方向/角色信息**。
-  ★`DecidableEq`/`BEq` ⟹ List.count/filter/native_decide 机器可算。 -/
+  ★`DecidableEq`/`BEq` ⟹ List.count/filter/decide 机器可算。 -/
 structure Cand where
   /-- 级别 ℓ（区间套操作级）。 -/
   lvl  : Nat
@@ -206,13 +206,6 @@ def gamma (x : State) : List Cand :=
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /--
-  **★|Γ(x)| < ∞（spec line 1169 / line 621 第一依据，★核心主定理）** —— 存在自然数 n 使
-  `(gamma x).length = n`。即 Γ(x) 的基数是一个良定义的有限自然数（List 在 Lean 中归纳定义 ⟹
-  length 恒为 Nat ⟹ 有限）。这是 spec "|Γ(x)|<∞" 的纯 core List 表达（无 Finset.card）。 -/
-theorem gamma_finite (x : State) : ∃ n : Nat, (gamma x).length = n :=
-  ⟨(gamma x).length, rfl⟩
-
-/--
   **★|Γ(x)| ≤ |allCands ℓmax|（显式有限上界，L0）** —— Γ(x) 是论域 `allCands x.ℓmax` 的过滤子，
   故其长度不超过论域长度。这给 |Γ|<∞ 一个**显式可计算上界**（不只是"是 Nat"）：上界
   |allCands ℓmax| = Σ_{ℓ=0}^{ℓmax} 6·(ℓ+1) 只依赖有限支撑 ℓ_max——坐实"由所有级别×所有买卖点×
@@ -220,6 +213,15 @@ theorem gamma_finite (x : State) : ∃ n : Nat, (gamma x).length = n :=
 theorem gamma_length_le_universe (x : State) :
     (gamma x).length ≤ (allCands x.ℓmax).length :=
   List.length_filter_le (member x) (allCands x.ℓmax)
+
+/--
+  **★|Γ(x)|<∞（实质有限性：Γ 被论域上界界定，spec line 1169 / line 621 第一依据）** ——
+  Γ(x) 的长度不超过论域 `allCands x.ℓmax` 的长度。这是 spec "|Γ(x)|<∞" 的**实质证明**
+  （非同义反复）：上界 |allCands ℓmax| = Σ_{ℓ=0}^{ℓmax} 6·(ℓ+1) 依赖有限支撑 ℓmax，
+  Γ 作为过滤子不超过论域（`List.length_filter_le`）。非平凡：不对任意 List 成立，依赖
+  `allCands` 论域构造。即 `gamma_length_le_universe` 的具名入口（保留向后兼容名称）。 -/
+theorem gamma_finite (x : State) : (gamma x).length ≤ (allCands x.ℓmax).length :=
+  gamma_length_le_universe x
 
 /--
   **★Γ(x) ⊆ allCands ℓmax（生成自论域，L0）** —— Γ(x) 的每个候选 c 都在枚举论域 allCands x.ℓmax 中。
@@ -249,22 +251,22 @@ def witState : State :=
 
 /-- **★反退化见证：枚举论域非平凡 |allCands 2| = 36（L0）** —— ℓ=0→6·1, ℓ=1→6·2, ℓ=2→6·3 = 36
     = 3·(2+1)·(2+2)。坐实 allCands 真笛卡尔积展开（非空桩）。 -/
-theorem witness_universe_card : (allCands 2).length = 36 := by native_decide
+theorem witness_universe_card : (allCands 2).length = 36 := by decide
 
 /-- **★反退化见证：Γ(witState) 非空（L0）** —— 三级区间套链 + b1 触发 ⟹ 候选 ⟨0,0,b1⟩ 等真入 Γ。
     坐实 gamma 非平凡空桩（能产候选）。 -/
-theorem witness_gamma_nonempty : gamma witState ≠ [] := by native_decide
+theorem witness_gamma_nonempty : gamma witState ≠ [] := by decide
 
 /-- **★反退化见证：|Γ(witState)| = 3（L0）** —— witField 仅执行级 0 有 b1=true，候选 ⟨ℓ,0,b1⟩
     对 ℓ∈{0,1,2}（N^+_{ℓ↓0}=1 三级套全成立）= 恰 3 个。坐实"同一买卖点跨级别区间套生成多候选"，
     且 |Γ|<∞ 落到具体有限数（3 ≤ 36 = |allCands 2|）。 -/
-theorem witness_gamma_card : (gamma witState).length = 3 := by native_decide
+theorem witness_gamma_card : (gamma witState).length = 3 := by decide
 
 /-- **★反退化见证：候选 ⟨2,0,b1⟩ ∈ Γ(witState)（L0）** —— 操作级 2 ≻ 执行级 0，b1 在执行级触发 +
     三级区间套确认 ⟹ 该候选真属 Γ。用 `List.elem`（BEq，Bool）表达成员——纯 core 下
     `c ∈ gamma x`（Prop/List.Mem）无自动 Decidable 实例，故用 `.elem … = true`（同 OperationRole18
-    手法），等价成员断言，native_decide 可计算。 -/
-theorem witness_top_cand_mem : (gamma witState).elem (⟨2, 0, .b1⟩ : Cand) = true := by native_decide
+    手法），等价成员断言，decide 可计算。 -/
+theorem witness_top_cand_mem : (gamma witState).elem (⟨2, 0, .b1⟩ : Cand) = true := by decide
 
 /-- **★反退化见证：候选 ⟨2,0,b1⟩ 的角色（环3→环4 桥，L0）** —— 父为胚元 ∂（parentDir=none）+
     无前兄弟（prevDir=none）⟹ R(g)=(First, Ambient, long)。坐实 Cand.roleOf 真接 OperationRole18
@@ -277,13 +279,13 @@ theorem witness_cand_role :
     （Γ 非"凡触发即入"，区间套确认是硬门）。`.elem … = false` = 非成员（纯 core，同上）。 -/
 theorem witness_broken_cand_not_mem :
     (gamma { f := NestingCertificate.witBrokenField, ℓmax := 2 }).elem (⟨2, 0, .b1⟩ : Cand)
-      = false := by native_decide
+      = false := by decide
 
 /-- **★反退化见证：未触发买卖点不入 Γ（L0）** —— witField 执行级 0 的 s1=false（无卖点触发）⟹
     候选 ⟨2,0,s1⟩ 被 firedAt 门拒。坐实 firedAt 真起门控（Γ 非"凡区间套即入"，买卖点触发是硬门）。
     `.elem … = false` = 非成员（纯 core，同上）。 -/
 theorem witness_unfired_cand_not_mem :
-    (gamma witState).elem (⟨2, 0, .s1⟩ : Cand) = false := by native_decide
+    (gamma witState).elem (⟨2, 0, .s1⟩ : Cand) = false := by decide
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 6. still-MISSING 诚实声明 + 结果包六要素
@@ -293,8 +295,8 @@ theorem witness_unfired_cand_not_mem :
     (1) **候选 Cand = (级别 ℓ, 执行级 e, 买卖点 t)** + 方向 δ=dirOf t（`Cand`/`dirOf`/`Cand.dir`）。
     (2) **Γ(x) = 论域过滤**（`allCands` 所有级别×所有买卖点×所有执行级 + `member` 买卖点触发∧
         区间套确认 ⟹ `gamma`，spec §12 三重生成）。
-    (3) **|Γ(x)|<∞**（`gamma_finite` List 即有限 + `gamma_length_le_universe` 显式上界
-        |allCands ℓmax| + `mem_gamma_imp_mem_universe` Γ⊆论域，spec line 1169 / line 621 第一依据）。
+    (3) **|Γ(x)|<∞**（`gamma_finite` 实质上界 ≤ |allCands ℓmax|（即 `gamma_length_le_universe` 的
+        具名入口）+ `mem_gamma_imp_mem_universe` Γ⊆论域，spec line 1169 / line 621 第一依据）。
     (4) **环3→环4 角色桥**（`Cand.roleOf` 接 OperationRole18.classifyR18，候选带方向⟹可 role 化）。
 
   ★本文件**未**实装（诚实 still-MISSING，非声明膨胀）：
@@ -315,8 +317,8 @@ theorem witness_unfired_cand_not_mem :
   ═══════════════════════════════════════════════════════════════════════
   1. 结论：候选集 Γ(x) 的 **L0 结构形式化**——Γ : State → List Cand（`gamma` = 论域 `allCands`
      按隶属门 `member` 过滤），候选 `Cand=(lvl,exec,bsp)` 带方向 δ=dirOf bsp（Side，对接角色层）。
-     **|Γ(x)|<∞** 主定理：`gamma_finite`（List 即有限）+ `gamma_length_le_universe`（显式上界
-     |allCands ℓmax|）+ `mem_gamma_imp_mem_universe`（Γ⊆有限论域）。环3→环4 桥 `Cand.roleOf`。
+     **|Γ(x)|<∞** 主定理：`gamma_finite`（实质上界 ≤ |allCands ℓmax|，即 `gamma_length_le_universe`
+     的具名入口）+ `mem_gamma_imp_mem_universe`（Γ⊆有限论域）。环3→环4 桥 `Cand.roleOf`。
      全 L0，零 sorry/admit/axiom。反退化见证 |Γ(witState)|=3（非空桩）。
   2. 定义依据：spec `2026-06-28-recursive-complete-classification-bsp-pdf-extract.md` §12（P10）+
      七链表 line 1169（环3：区间套确认→Γ(x)；Γ 由所有级别×所有买卖点×所有区间套确认生成；|Γ|<∞）

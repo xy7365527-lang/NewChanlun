@@ -108,6 +108,9 @@ pub fn structural_stop(side: StopSide, bits: &BspBits, stop_in: &StopInput) -> O
 ///
 /// 字段语义：
 /// - `nav`：账户净值 NAV（账户层状态，Θ 之外的运行时输入）。单位：**美元**。
+///   **方案A协变**：`nav` 在 runner 层即是协变资本单位 `U_ℓ`（按级别缩放注入）；
+///   sizing 公式 `w·γ·NAV/entry` 中 `γ` 是无量纲 Θ 参数，`NAV/entry` 给出名义手数上限
+///   （d_j=1 名义上限，与 coverage.rs `feasible_net_cap` γ̄ 对齐）。
 /// - `entry`：入场价（整数 tick；>0 必要——分母）。
 /// - `stop`：结构止损价（`structural_stop` 产出，整数 tick）。
 /// - `tick_size`：价格最小变动单位（`config.tick.tick_size`）。用于把整数 tick 转换为
@@ -147,6 +150,8 @@ pub struct SizingInput {
 ///    保证单声部亏损 ≤ ρ·NAV（spec:45 单声部风险）。
 /// 2. **名义上限**：`w_depth·γ·NAV / (entry*tick_size)`——深度资金帽 × 总名义上限 γ 除以
 ///    入场美元价（spec:42 资金帽 + spec:45 总名义上限 γ）。
+///    **方案A d_j=1**：`γ` 是无量纲 Θ 参数，`NAV/entry_usd` 给出名义手数；约束是
+///    d_j=1 名义约束（对齐 CovariantCapital.lean `dNominal=1` + coverage.rs `feasible_net_cap`）。
 /// 3. **父子约束**：`parent_cap`（父子仓位比 β 投影的上界，spec:45）。
 ///
 /// `qty <= 0 ⟹ 不交易`（返回 0，spec:47）。三路 min 是 Origin.RiskProj `riskproj_exists_unique`
@@ -289,6 +294,11 @@ pub enum RiskMode {
 /// ★诚实（formalization-validity-domain）：E_t/MM_t/B1/B2/LiqFlag 全是**账户/场所层运行时输入**
 /// （Θ 之外的外部事件 e_{t+1}/ν_t，strict §1:47 + §9:264）——**不由缠论或 Θ_risk 推导**。本结构
 /// 作为给定 Z 承载；风险模式划分在给定它们后是 L0 逻辑必然（穷尽互斥）。
+///
+/// **方案A协变兼容**（2026-06-28 CovariantCapital.lean §5 ReadyReturn/StageOne/StageThree 对齐）：
+/// `risk_mode` 的 `E_t < MM_t` 等比较等价于归一化形式 `Ē_t < MM̄_t`（两侧同除 `U_ℓ > 0` 对消）——
+/// 比较保序，函数体不变；runner 注入绝对值（美元），策略层语义对应无量纲比例（d_j=0 杠杆/d_j=1 名义）。
+/// 杠杆约束 `leverage_ok`（`G_t/E_t ≤ L̄^G`）是比值（d_j=0，天然无量纲，完全方案A兼容）。
 #[derive(Debug, Clone, Copy)]
 pub struct RiskModeInput {
     pub equity: f64,

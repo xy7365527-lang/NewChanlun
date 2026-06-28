@@ -331,12 +331,12 @@ def witField : Nat → LevelData
 /-- **★反退化见证：三级区间套链 N^+_{2↓0} = 1（真跑通，L0）** —— 操作级 2 ≻ 中间级 1 ≻ 执行级 0，
     各级 jBuy 真套缩小（子⊆父）+ 候选/确认成立 ⟹ N = true。证 N 非平凡桩（能产 1）。 -/
 theorem witness_N_three_level_one :
-    N Dir.buy witField 2 0 = true := by native_decide
+    N Dir.buy witField 2 0 = true := by decide
 
 /-- **★反退化见证：基例 ℓ=e ⟹ N = Conf（单级退化区间套，L0）** —— 操作级 = 执行级 0
     ⟹ N^+_{0↓0} = Conf^+_0 = b1 = true。 -/
 theorem witness_N_base_one :
-    N Dir.buy witField 0 0 = true := by native_decide
+    N Dir.buy witField 0 0 = true := by decide
 
 /--
   区间套破坏状态：执行级 0 的 jBuy = [2,30] **超出**中间级 1 的 [8,22]（2<8 ∧ 30>22 ⟹ 子⊄父）。
@@ -350,7 +350,7 @@ def witBrokenField : Nat → LevelData
 /-- **★反退化见证：区间套不成立 ⟹ N = 0（L0）** —— 执行级区间 [2,30] 超出中间级 [8,22]
     （子⊄父）⟹ subB = false ⟹ N = 0。坐实 subB 子⊆父方向真起门控作用（非平凡真桩）。 -/
 theorem witness_N_broken_nest_zero :
-    N Dir.buy witBrokenField 2 0 = false := by native_decide
+    N Dir.buy witBrokenField 2 0 = false := by decide
 
 /-- **★反退化见证：级别平移不变具体实例（L0）** —— 把 witField 整体上移 k=3，
     在级别 (2+3 ↓ 0+3) 上的证书 = 原 (2↓0) 证书（= true）。机器见证平移不变非空洞。 -/
@@ -360,7 +360,7 @@ theorem witness_translation_concrete :
 
 /-- **★反退化见证：卖出方向 Conf^-_e = ⋁S（基例方向对偶，L0）** —— 卖出基例读 s_i 析取。 -/
 theorem witness_conf_sell :
-    Conf Dir.sell { emptyLevel with s2 := true } = true := by native_decide
+    Conf Dir.sell { emptyLevel with s2 := true } = true := by decide
 
 /-! ═══════════════════════════════════════════════════════════════════════
     § 9. still-MISSING 诚实声明 + 结果包六要素

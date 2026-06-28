@@ -822,18 +822,23 @@ fn lot_round(p: f64, lot: f64) -> f64 {
     (p / lot).round() * lot
 }
 
-/// 𝒦_Θ 净持仓可行幅度上限 `|p| ≤ cap`（net units；spec §15 八约束之 **杠杆/保证金** + **三阶段资本**）。
+/// 𝒦_Θ 净持仓可行幅度**无量纲**上限 `γ̄`（**方案A协变**，spec §3/§5/§6 钦定，CovariantCapital.lean GREEN）。
 ///
-/// **复用** [`RiskConfig`] 的 `gamma`（总名义上限 γ）作 net-units 代理上限 `cap = base_units·γ`。
+/// 返回 `risk.gamma.abs()`（= `γ̄`，无量纲比例上限，`b_j(S_k Θ) = a_k^{d_j} b_j(Θ)` 边界协变，
+/// d_j=1 名义上限）。绝对上限由调用方 [`pi_theta_position`] 完成：`cap = U_ℓ · γ̄`
+/// （`U_ℓ = base_units`，runner 注入的协变资本单位，满足 `U_{ℓ+k}(S_k x) = a_k U_ℓ(x)`）。
 ///
-/// ★诚实有效域（formalization-validity-domain，no-声明膨胀）：真 **杠杆/保证金约束**
-/// （[`risk::leverage_ok`]，毛/净杠杆 ≤ L̄^G/L̄^N）与 **三阶段资本约束**（[`risk::risk_mode`]，
-/// 权益 E_t vs 维持保证金 MM_t）是 **美元/名义量纲**（需价格 P_v、权益 E_t）。π_Θ 净 units 骨架层
-/// **无价格/权益** ⟹ 只能用 units 代理上限。美元级杠杆/保证金 binding [需 runner 注入 price/equity]；
-/// **三阶段资本协变** [方案A-rust-todo]（Lean lean-capital 在做协变/无量纲重构，见 spec
-/// `2026-06-28-absolute-capital-equivariance-resolution`；本骨架不引入新绝对资本特权尺度）。
-fn feasible_net_cap(base_units: f64, risk: &RiskConfig) -> f64 {
-    (base_units * risk.gamma).abs()
+/// **方案A落地**（2026-06-28-absolute-capital-equivariance-resolution §6 钦定）：
+/// `γ̄` 是无量纲 Θ 参数（`S_k Θ = Θ` 强形式，不含特权绝对尺度）；约束 `|p| ≤ U_ℓ · γ̄` 随
+/// `a_k` 协变缩放（d_j=1 名义上限）——绝对资本特权尺度已消除，三阶段资本比例化完成。
+///
+/// **d_j 默认（对齐 CovariantCapital.lean §6）**：名义上限 d_j=1（本函数）；杠杆比 d_j=0
+/// （[`risk::leverage_ok`]，无量纲比值天然满足）；跟踪误差 `w·(p−p̃)²` d_j=2（[`j_theta_key`]）。
+///
+/// **★诚实有效域**：美元级杠杆/保证金（[`risk::leverage_ok`]）仍需 runner 注入 price/equity。
+/// 实盘 Nautilus 路径：`a_t = U_ℓ · ā_t`（`ā_t = p*`，`U_ℓ = base_units`，runner 层还原绝对值）。
+fn feasible_net_cap(risk: &RiskConfig) -> f64 {
+    risk.gamma.abs()
 }
 
 /// 构造有限可行集 𝒦_Θ(x) 的 **LexArgmin 代表点**（spec §15 line 721-736 八约束 + line 725 `𝒦_Θ≠∅`）。
@@ -903,12 +908,13 @@ fn j_theta_key(
 pub fn pi_theta_position(
     p_tilde: f64,
     p_t: f64,
-    base_units: f64,
+    base_units: f64, // U_ℓ：runner 注入的协变资本单位（随级别 a_k 缩放；方案A）
     risk: &RiskConfig,
     weights: PiThetaWeights,
 ) -> f64 {
     let lot = risk.default_lot.max(1) as f64;
-    let cap = feasible_net_cap(base_units, risk);
+    // 方案A：γ̄ = feasible_net_cap(risk) 无量纲；绝对上限 cap = U_ℓ · γ̄（d_j=1 协变缩放）
+    let cap = feasible_net_cap(risk) * base_units.abs();
     let candidates: Vec<LexCandidate<f64>> = feasible_candidates(p_tilde, p_t, cap, lot)
         .into_iter()
         .map(|(p, gi)| LexCandidate {
@@ -998,8 +1004,9 @@ pub fn schedule_order(p_star: f64, p_t: f64, exec_index: usize) -> Order {
 /// >   多最优则唯一性翻转（spec line 761）。③ p̃ 在 cap 内 ⟹ p*=lot(p̃)；超 cap ⟹ p*=±hi（杠杆/
 /// >   资本 cap binding 翻转结论）。④ 八约束中 **AncOK/同单位短差/级别自相似/分账本** 在环5+6 上游
 /// >   已施于 p̃（𝒦_Θ 经 p̃ 继承，不重复机件）；**手数/订单执行** 在本环施（lot 网格 + Schedule_Θ）；
-/// >   **杠杆保证金/三阶段资本** 仅 units 代理（美元级 binding [需 runner price/equity]，三阶段资本
-/// >   协变 [方案A-rust-todo]）。⑤ 净额降维：p 是有符号净持仓（分账本多空腿 q^± 在 net_target_units
+/// >   **杠杆保证金** 仍需 runner price/equity（[需 runner 注入]）；**三阶段资本** 已方案A协变
+/// >   （`cap=U_ℓ·γ̄`，base_units=U_ℓ，runner 按级别注入，d_j=1 名义上限，无特权绝对尺度）。
+/// >   ⑤ 净额降维：p 是有符号净持仓（分账本多空腿 q^± 在 net_target_units
 /// >   已降维，毛分账本须 hedging 账户，v0 净额，M29 §7 诚实声明）。
 /// > - **下游推论**：`(A_{t+1}, p*)` 喂下一 bar（p* 成为下一 `p_t`，A_{t+1} 喂 interpret 闭环）；
 /// >   O_{t+1} 喂 runner 净额账本（接 Nautilus 入场/出场点）。GAP-5 收口 ⟹ recognize↔coverage 入场
@@ -1013,6 +1020,9 @@ pub fn schedule_order(p_star: f64, p_t: f64, exec_index: usize) -> Order {
 /// >   复用 intent.rs（[`JThetaKey`]/[`LexCandidate`]/[`lex_argmin`]）+ RiskConfig（κ/ρ/γ/lot）+
 /// >   types.rs（Order/StrictAction）；删除 §7 `coverage_step`（λ_e 走势边界入场，GAP-5）+ 其 3 测试；
 /// >   不改 interp.rs/risk.rs/mod.rs/lakefile，coverage.rs 已注册（`pub mod coverage;` mod.rs:43）。
+/// >   **方案A实装（本工位）**：`feasible_net_cap` 改为返回无量纲 `γ̄`（`risk.gamma`），
+/// >   `pi_theta_position` 计算 `cap = U_ℓ·γ̄`（`U_ℓ=base_units`）——绝对资本协变化完成，
+/// >   `[方案A-rust-todo]` 清零；信源：CovariantCapital.lean GREEN（feasibleSet_equivariant 全证）。
 #[allow(clippy::too_many_arguments)]
 pub fn pi_theta_step(
     classification: &Classification,
@@ -1548,7 +1558,7 @@ mod tests {
     /// ★杠杆/资本 cap binding：p̃=1500 超 cap=1000 ⟹ p*=1000（±hi 截断，结论翻转）。
     #[test]
     fn pi_theta_position_clamps_over_cap() {
-        let r = rcfg(); // base_units=1000, gamma=1.0 ⟹ cap=1000
+        let r = rcfg(); // base_units=1000（U_ℓ）, gamma=1.0（γ̄）⟹ cap=U_ℓ·γ̄=1000
         let p_star = pi_theta_position(1500.0, 0.0, 1000.0, &r, PiThetaWeights::from_risk(&r));
         assert!((p_star - 1000.0).abs() < 1e-9, "p* = +hi = cap = 1000（杠杆/资本 cap binding）");
     }
