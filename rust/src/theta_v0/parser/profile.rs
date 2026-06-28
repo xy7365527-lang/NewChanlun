@@ -297,3 +297,32 @@ fn bit_exact_parse_layer_incr_per_bar_es() {
     }
     eprintln!("\n===== parse_layer 增量 bit-exact 通过：ES n={n} bars =====");
 }
+
+/// 隔离验证：ES 数据上 IncrInclusion 逐 bar == process_inclusion（不含下游）。
+/// 用于定位 bit_exact_parse_layer_incr_per_bar_es 失败是否在 inclusion 层。
+#[test]
+#[ignore = "隔离 inclusion bit-exact：需 ES 数据"]
+fn bit_exact_inclusion_only_es() {
+    let cfg = ThetaConfig::default();
+    let path = data_dir().join("es_1m_databento_10y.json");
+    let ds = match load_symbol(&path, "ES", &cfg) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("DATA BLOCKER: {e}");
+            panic!("需真实数据");
+        }
+    };
+    let n = 4_000.min(ds.bars.len());
+    let bars = &ds.bars[..n];
+    let mut incr = inclusion::IncrInclusion::empty();
+    for (i, b) in bars.iter().enumerate() {
+        incr = incr.append(*b);
+        let incr_merged = incr.to_result_ref().merged;
+        let full_merged = &inclusion::process_inclusion(&bars[..=i]).merged;
+        assert_eq!(
+            incr_merged, full_merged,
+            "bar {i}: 增量 inclusion merged != 全量（ES bit-exact 破裂）"
+        );
+    }
+    eprintln!("\n===== inclusion 增量 bit-exact 通过：ES n={n} bars =====");
+}

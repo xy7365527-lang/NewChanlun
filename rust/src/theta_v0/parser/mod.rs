@@ -163,8 +163,12 @@ impl<'c> ParseLayerIncr<'c> {
     /// ponytail: 增量化把下游从 O(merged_i)/bar 降到 O(尾部)/bar（fractal/stroke/segment
     /// 均保留 confirmed 前缀，只重算尾部）。tail 仍全量但非热点（profile 坐实）。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
-        self.incr_inclusion = self.incr_inclusion.append(bar);
+        // append 消费 self（by-value，mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+        let prev = std::mem::replace(&mut self.incr_inclusion, inclusion::IncrInclusion::empty());
+        self.incr_inclusion = prev.append(bar);
         // 增量化 to_result：借用 merged 切片（零 clone），仅在构造 ParseLayer 时 to_vec。
+        // ponytail: 剩余 ceiling = to_result_ref().merged.to_vec()（ParseLayer 拥有所有权，
+        // merged_bars: Vec<Bar> 下游 classifier/complete 依赖 Vec 语义，改 Rc/Cow 超出本工位）。
         let merged = self.incr_inclusion.to_result_ref().merged.to_vec();
 
         // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。

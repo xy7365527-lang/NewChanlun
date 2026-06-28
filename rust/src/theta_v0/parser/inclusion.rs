@@ -270,11 +270,11 @@ impl IncrInclusion {
         }
     }
 
-    /// 追加 1 bar，返回新状态（immutability）。
+    /// 追加 1 bar，消费 self 返回新状态（函数式 immutability，mem::take 重用 Vec 缓冲）。
     ///
     /// bit-exact：本 bar 后调 `to_result()` / `to_result_ref()` 的输出 ==
     /// `process_inclusion(全部已追加 bar)`。
-    pub fn append(&self, new_bar: Bar) -> IncrInclusion {
+    pub fn append(self, new_bar: Bar) -> IncrInclusion {
         match self.start_dir {
             // 相 B：稳态 O(1) left-fold 步进。
             Some(_) => self.append_folded(new_bar),
@@ -320,8 +320,10 @@ impl IncrInclusion {
     /// 增量扫描性质：全量开头扫描查"第一对非包含严格单调对"。旧前缀已扫无非包含严格对
     /// （否则已进入相 B），故只需判 `raw_pending` 末根 与 `new_bar` 这一对。若严格 →
     /// 进入相 B，一次性全量左折叠 `raw_pending ++ [new_bar]`。
-    fn append_pending(&self, new_bar: Bar) -> IncrInclusion {
-        let mut raw = self.raw_pending.clone();
+    ///
+    /// mem::take 重用 raw_pending Vec 缓冲（仅 push 尾部，前缀不动），消除 clone。
+    fn append_pending(self, new_bar: Bar) -> IncrInclusion {
+        let mut raw = self.raw_pending;
         raw.push(new_bar);
         // 增量判定：旧前缀（追加前 raw_pending）已无非包含严格对（否则已进相 B）。
         // 故全量开头扫描的"第一对非包含严格对"只可能在新增的末尾对 (last, new_bar) 出现。
@@ -362,10 +364,11 @@ impl IncrInclusion {
 
     /// 相 B 推进：O(1) left-fold 步进（镜像全量算法 inclusion.rs:137-148 循环体）。
     ///
-    /// 连续布局：`merged` 末根即 acc。clone 整个 Vec（immutability 强制），pop 旧 acc，
-    /// fold_step 推进，push 新 acc。`to_result_ref` 据此零 clone 返回 `&self.merged`。
-    fn append_folded(&self, new_bar: Bar) -> IncrInclusion {
-        let mut merged = self.merged.clone();
+    /// 连续布局：`merged` 末根即 acc。mem::take 取出 Vec 缓冲（消费 self，函数式不变性），
+    /// pop 旧 acc（仅尾部 mutation，前缀不动），fold_step 推进，push 新 acc。全程 O(1)，
+    /// 消除旧 clone 整个 Vec 的 O(n)/bar。`to_result_ref` 据此零 clone 返回 `&self.merged`。
+    fn append_folded(self, new_bar: Bar) -> IncrInclusion {
+        let mut merged = self.merged;
         // 末根即 acc（相 B 不变量：merged 非空）。
         let acc = merged.pop().expect("相 B 下 merged 非空（acc 在末尾，不变量）");
         let (new_acc, new_dir) = fold_step(&acc, new_bar, self.dir, &mut merged);
@@ -432,7 +435,8 @@ fn fold_all(bars: &[Bar], dir0: MergeDir) -> (Vec<Bar>, MergeDir) {
 /// 增量包含合并便利函数：`prev` 状态 + 1 bar → 新 `InclusionResult`。
 ///
 /// 等价 `IncrInclusion::from_state(prev).append(new_bar).to_result()`，便于逐 bar 调用。
-pub fn process_inclusion_append(prev: &IncrInclusion, new_bar: &Bar) -> (IncrInclusion, InclusionResult) {
+/// `prev` 按值消费（与 `append` 一致）。
+pub fn process_inclusion_append(prev: IncrInclusion, new_bar: &Bar) -> (IncrInclusion, InclusionResult) {
     let next = prev.append(*new_bar);
     let result = next.to_result();
     (next, result)
