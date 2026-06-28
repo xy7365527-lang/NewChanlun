@@ -416,6 +416,14 @@ fn k_theta_risk_gate(
     let risk_close = global_risk_close(mode);
 
     // stop：per 活动腿结构止损触及（从全窗 classification 查 BspPoint，与 v1 同一 structural_stop）。
+    // ponytail: 循环前预建 HashMap<(level,source_index),&BspPoint>，bsp.iter().find O(n) → map.get O(1)
+    let mut bsp_index: std::collections::HashMap<(usize, usize), &classifier::bsp::BspPoint> =
+        std::collections::HashMap::new();
+    for (lvl_idx, lvl) in classification.levels.iter().enumerate() {
+        for p in &lvl.bsp {
+            bsp_index.insert((lvl_idx, p.source_index), p);
+        }
+    }
     let mut long_stop = false;
     let mut short_stop = false;
     for leg in prev_active {
@@ -424,12 +432,8 @@ fn k_theta_risk_gate(
             VoiceSide::Short => (StopSide::Short, FillSide::Buy),
             VoiceSide::Flat => continue, // Flat 不入活动集（防御性）
         };
-        let bsp = match classification
-            .levels
-            .get(leg.level as usize)
-            .and_then(|lvl| lvl.bsp.iter().find(|p| p.source_index == leg.source_index))
-        {
-            Some(b) => b,
+        let bsp = match bsp_index.get(&(leg.level as usize, leg.source_index)) {
+            Some(b) => *b,
             None => continue, // 找不到对应买卖点（不应发生）⟹ 无止损读出
         };
         let stop_in = StopInput {

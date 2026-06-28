@@ -240,7 +240,7 @@ mod tests {
     fn compose_descend_roundtrip() {
         let parent = parent_wit2();
         let subs = descend(&parent);
-        assert_eq!(subs, vec![m1_wit(), m2_wit(), m3_wit()]);
+        assert_eq!(subs.to_vec(), vec![m1_wit(), m2_wit(), m3_wit()]);
     }
 
     /// ★回拉不创新低（Lean `witness_retrace_noNewLow`）：m2.lo=-8 ≥ m1.lo=-10。

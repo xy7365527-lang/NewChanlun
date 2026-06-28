@@ -393,8 +393,16 @@ pub fn map_src_to_close_idx(close_src: &[usize], start: usize, end: usize) -> Op
     if start > end {
         return None;
     }
-    let lo = close_src.iter().position(|&s| s >= start)?;
-    let hi = close_src.iter().rposition(|&s| s <= end)?;
+    // ponytail: partition_point 二分 O(log n) 替 position/rposition 线性 O(n)——close_src 升序保证等价
+    let lo = close_src.partition_point(|&s| s < start);
+    if lo >= close_src.len() {
+        return None;
+    }
+    let hi = close_src.partition_point(|&s| s <= end);
+    if hi == 0 {
+        return None;
+    }
+    let hi = hi - 1;
     if lo > hi {
         return None;
     }
@@ -435,7 +443,7 @@ mod tests {
         let parent = LeveledMove::compose(&[s0.clone(), s1.clone(), s2.clone()], c, 1);
         // descend 取回三段次级别 rmove（旧塔 UnitRange 折叠后 descend 得空）。
         let subs = descend(&parent.rmove);
-        assert_eq!(subs, vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone()]);
+        assert_eq!(subs.to_vec(), vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone()]);
         // 上级走势坐标 = 窗口首起点..末终点。
         assert_eq!((parent.start_index, parent.end_index), (0, 12));
         // 级别 = 1（次级别 segment level 0 + 1）。
@@ -474,7 +482,7 @@ mod tests {
         // 上级走势是 RMove::Compose，descend 取回构成它的三段 L0 线段。
         let subs = descend(&upper[0].rmove);
         assert_eq!(subs.len(), 3, "上级走势 descend 取回三段次级别走势（B2 可产的前提）");
-        assert_eq!(subs, vec![moves[0].rmove.clone(), moves[1].rmove.clone(), moves[2].rmove.clone()]);
+        assert_eq!(subs.to_vec(), vec![moves[0].rmove.clone(), moves[1].rmove.clone(), moves[2].rmove.clone()]);
     }
 
     /// index_of_in：从坐标侧车按结构身份查回次级别走势的 end_index。

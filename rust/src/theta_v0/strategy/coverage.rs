@@ -342,13 +342,16 @@ pub fn ancestors(elements: &[CoverageElement], e_idx: usize) -> Vec<usize> {
 /// **关闭在前 开启在后**（对齐 `SeparateStrategyTarget.targetActiveSet`）。返回去重后的索引集
 /// （同一元素不重复——B_t 中已在 A_t∖D_t 的不重复加）。
 fn raw_active_set(active: &[usize], ending: &[usize], starting: &[usize]) -> Vec<usize> {
+    // ponytail: HashSet O(1) 替 Vec.contains O(n)——ending/starting 去重查询从线性降常数
+    let ending_set: std::collections::HashSet<usize> = ending.iter().copied().collect();
     let mut raw: Vec<usize> = active
         .iter()
         .copied()
-        .filter(|i| !ending.contains(i))
+        .filter(|i| !ending_set.contains(i))
         .collect();
+    let mut raw_set: std::collections::HashSet<usize> = raw.iter().copied().collect();
     for &b in starting {
-        if !raw.contains(&b) {
+        if raw_set.insert(b) {
             raw.push(b);
         }
     }
@@ -360,12 +363,14 @@ fn raw_active_set(active: &[usize], ending: &[usize], starting: &[usize]) -> Vec
 /// 保留「全部祖先也在 raw 集中」的元素——子激活 ⟹ 全祖先在场（覆盖不漂浮，对齐
 /// `AncestorClosure.ancOK`）。祖先不齐（父不在 raw）的元素被裁掉（子声部不漂浮在不存在的父上）。
 fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
+    // ponytail: HashSet O(1) 替 raw.contains O(n)——祖先查询从线性降常数
+    let raw_set: std::collections::HashSet<usize> = raw.iter().copied().collect();
     raw.iter()
         .copied()
         .filter(|&e_idx| {
             ancestors(elements, e_idx)
                 .iter()
-                .all(|a| raw.contains(a))
+                .all(|a| raw_set.contains(a))
         })
         .collect()
 }

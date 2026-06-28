@@ -99,10 +99,11 @@ impl RMove {
 ///   窗口封装为本级别走势的**逆操作**（Lean `descend_compose` rfl）。取出的是真实次级别走势对象
 ///   （携各自 interval），非本级别端点复制。
 /// - `Segment`：线段是递归底（level 0），**无次级别**——下钻得空序列（Lean `descend_segment`）。
-pub fn descend(parent: &RMove) -> Vec<RMove> {
+// ponytail: 返回 &[RMove] 替 Vec<RMove>::clone——调用方只读遍历，零拷贝切片引用
+pub fn descend(parent: &RMove) -> &[RMove] {
     match parent {
-        RMove::Segment { .. } => Vec::new(),
-        RMove::Compose { subs, .. } => subs.clone(),
+        RMove::Segment { .. } => &[],
+        RMove::Compose { subs, .. } => subs.as_slice(),
     }
 }
 
@@ -211,7 +212,8 @@ mod tests {
     /// descend 取回真实次级别走势序列（Lean `descend_compose` / `witness_descend`）。
     #[test]
     fn descend_compose_returns_subs() {
-        let subs = descend(&parent_wit());
+        let parent = parent_wit();
+        let subs = descend(&parent);
         assert_eq!(subs.len(), 3);
         assert_eq!(subs[0], sub_move_broke());
         assert_eq!(subs[1], sub_move_inside());
