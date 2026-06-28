@@ -1,10 +1,38 @@
-//! 背驰度量（reference-theta-v0.md:37）——MACD 辅助 + 同向段面积严格变小。
+//! 背驰度量（reference-theta-v0.md:34,37）——MACD 辅助 + **A/B/C 趋势/盘整背驰框架**。
+//!
+//! ## 两层结构（★no-patch：力度原语 + A/B/C 框架层）
+//!
+//! 本文件分两层，对应缠论背驰的两个语义层（第24课:22-24 + beichi.md v1.1 已结算）：
+//!
+//! - **力度原语层**（§A）：MACD 段面积比较（`segment_macd_area` / `is_divergence` /
+//!   `segments_diverge`）——「后段面积 `<` 前段面积」的纯算术，对齐契约锚
+//!   `Origin.Divergence.IsDivergence`（`d.forceC.area < d.forceA.area`，Divergence.lean:83）+
+//!   `Origin.ForceInterface.ForceMeasure`（[`super::force_conformance`] 实例化）。这是**正确的
+//!   力度比较原语**（C段 < A段），被 force_conformance + 次级别背驰（mod.rs）复用，**保留**。
+//!
+//! - **A/B/C 框架层**（§B，本次新增，消解 grammar-audit 头号缺口）：把力度原语组装为缠论
+//!   **趋势背驰 vs 盘整背驰**判定。退化的旧实现只有力度原语，`judge_first` 直接用「任意前
+//!   同向段」喂原语——**无 A/B/C 走势分解、无趋势/盘整区分、无 τ 门控**，产假背驰=假买卖点。
+//!   本层补上 A/B/C 的精确结构（第24课:22-24）：
+//!   · **A/B/C 是走势级别三段**：A=前一离开段、B=中间中枢、C=后一离开段（**不是**次级别 a-b-c，
+//!     也不是力度段）。第24课原文:22「同向趋势之间一定有一个盘整或反向趋势连接，把这三段分别
+//!     称为 A、B、C 段」。
+//!   · **趋势背驰**（[`trend_divergence`]）：走势类型 τ=Trend（≥2 依次同向中枢，reference:34
+//!     「同级别趋势≥两同向中枢后」+ maimai.md:105「≥2个依次同向的同级别中枢」）。A=相邻**前
+//!     一中枢**的离开段，C=相邻**后一中枢**的离开段（破中枢段）。C段面积 < A段面积 ⟹ 趋势背驰。
+//!   · **盘整背驰**（[`consolidation_divergence`]）：τ=Consolidation（恰 1 中枢，zoushi.md:107）。
+//!     A、C 是**同一中枢**的两次同向离开段（第24课:34-36 + beichi.md:113）。C < A ⟹ 盘整背驰。
+//!   · **τ 门控**（[`trend_class`]）：复用 `center::classify_relation` 派生走势类型——
+//!     ≥2 全链同向 → Trend；1 中枢 → Consolidation；mixed/扩张 → 非趋势非盘整（不产第一类）。
+//!     第一类买卖点**只由趋势背驰产生**（盘整背驰不产第一类，beichi.md #4 + maimai.md:56 已结算）。
 //!
 //! ## bit-exact 注意点（★浮点域隔离）
 //!
 //! MACD 是 v0 的**辅助**度量（结构前提优先）。MACD 浮点运算**隔离在本文件**，按固定
 //! 约简顺序计算，**不漏入整数 tick 域**（types.rs 的结构判定全在 i64）。背驰输出是
 //! bool（严格变小），bool 无浮点歧义——浮点只在内部面积比较时出现，且用严格 `<`。
+//! A/B/C 框架层的中枢关系判定（趋势门控）在**整数 tick 域**（`center::classify_relation`），
+//! 浮点只在力度原语层（面积比较）出现——两域不混。
 //!
 //! ## MACD(12,26,9) 算法（reference-theta-v0.md:37，固定约简顺序）
 //!
@@ -14,21 +42,24 @@
 //! - `DEA = EMA(DIF, signal)`，DEA 首值取首 DIF。
 //! - `hist = DIF - DEA`（逐 bar）。
 //!
-//! ## 背驰判据（reference-theta-v0.md:37；契约锚 `Origin.Divergence` + `Origin.ForceInterface`）
+//! ## 背驰判据（reference-theta-v0.md:34,37；契约锚 `Origin.Divergence` + `Origin.ForceInterface`）
 //!
-//! 「同向段面积**严格**变小才成立，等值不成立」。段面积 = 该段 bar 区间内 `|hist|` 之和。
-//! 后一同向段面积 `<` 前一同向段面积 ⟹ 背驰成立（严格 `<`，等值返回 false）。契约锚
-//! `Origin.Divergence.IsDivergence`（`d.forceC.area < d.forceA.area`，Divergence.lean:83）+
-//! `Origin.ForceInterface.ForceMeasure`（力度抽象接口：`measure`/`strength`/`mono`/`faithful`）。
-//! 力度 conformance（MACD area 实例化 ForceMeasure）见 [`super::force_conformance`]。
+//! 力度原语「同向段面积**严格**变小才成立，等值不成立」。段面积 = 该段 bar 区间内 `|hist|` 之和。
+//! 后一同向段面积 `<` 前一同向段面积 ⟹ 力度衰减（严格 `<`，等值返回 false）。契约锚
+//! `Origin.Divergence.IsDivergence`（`d.forceC.area < d.forceA.area`，Divergence.lean:83）。
+//! A/B/C 框架层把该原语限定到正确的 A/C 段配对（趋势=跨相邻中枢 / 盘整=同中枢两次离开）。
 //!
 //! ## 认识论（formalization-validity-domain）
 //!
 //! MACD 常数从 config 读（fast/slow/signal）。EMA 首值规则 + 面积规则标 `[L3经验待标定]`
 //! （reference-theta-v0.md:37）——v0 默认占位，L2/L3 标定不归本工位。本文件证的是
-//! 「给定 MACD 参数后面积比较确定」（L1 管线正确性），**不**证「MACD 背驰预测有效」。
+//! 「给定 MACD 参数后 A/B/C 段配对 + 面积比较确定」（**L1** 管线正确性），**不**证「MACD 趋势
+//! 背驰预测在真实行情有效」（**L2/L3**，否证检验，不在本工位；alpha 影响须统一 L3 验证）。
+//! 趋势/盘整门控判据（中枢同向关系）是 **L0**（纯整数几何，不依赖经验数据）。
 
 use super::super::config::MacdConfig;
+use super::super::types::{Center, Direction, Segment};
+use super::center::{classify_relation, CenterRelation};
 
 /// MACD 逐 bar 输出（DIF/DEA/hist，浮点域，隔离在本结构）。
 #[derive(Debug, Clone, PartialEq)]
@@ -105,7 +136,8 @@ pub fn is_divergence(prev_area: f64, curr_area: f64) -> bool {
 
 /// 两段背驰判定（端到端）：从 hist 序列取两同向段面积并比较。
 ///
-/// `prev_seg`/`curr_seg` 是 `(start,end)` 闭区间 bar 索引对。后段面积严格小于前段 ⟹ 背驰。
+/// `prev_seg`/`curr_seg` 是 `(start,end)` 闭区间 bar 索引对。后段面积严格小于前段 ⟹ 力度衰减
+/// （力度原语，A/B/C 框架层 §B 用它比较已定位的 A/C 段）。
 pub fn segments_diverge(
     hist: &[f64],
     prev_seg: (usize, usize),
@@ -116,9 +148,122 @@ pub fn segments_diverge(
     is_divergence(prev_area, curr_area)
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// § B. A/B/C 趋势/盘整背驰框架层（第24课:22-24 + beichi.md v1.1 已结算）
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 走势类型 τ（背驰门控，契约锚 `Origin.TrendCompleteClassification.TrendClass`）。
+///
+/// 比 `level::MoveOutcome` 轻量——本层只需区分背驰相关的三态：趋势（携方向，产趋势背驰=第一类）、
+/// 盘整（产盘整背驰，不产第一类）、退化（mixed/扩张/0中枢，不产任何背驰型买卖点）。逐分支对齐
+/// `classify_move`（level.rs），但本层独立计算（signal.rs 内从 `centers` 自派生，不改 mod.rs 签名）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrendClass {
+    /// 趋势（≥2 全链同向中枢，携方向）——产**趋势背驰**（第一类买卖点，reference:34）。
+    Trend(Direction),
+    /// 盘整（恰 1 中枢，zoushi.md:107）——产**盘整背驰**（不产第一类，beichi #4 已结算）。
+    Consolidation,
+    /// 退化（0 中枢 / 中枢非全链同向 = 扩张/方向混合）——不产趋势背驰也不产盘整背驰。
+    Degenerate,
+}
+
+/// 全链同向判定（契约锚 `Origin.CenterStates` 外缘趋势判据全链推广，对齐 level.rs `all_adjacent`）。
+///
+/// 中枢序列每对相邻中枢的 `classify_relation` 都等于 `rel`。趋势要求**全链**同向（非仅首两个）：
+/// `[up,up,扩张]` 或 `[up,down]` 不是趋势（第24课:22「否则就连成一个大趋势或大中枢」的反面=混合）。
+fn all_same_relation(rel: CenterRelation, centers: &[Center]) -> bool {
+    centers
+        .windows(2)
+        .all(|w| classify_relation(&w[0], &w[1]) == rel)
+}
+
+/// 从中枢序列派生走势类型 τ（背驰门控，第24课 + reference:34 + zoushi.md:107-109）。
+///
+/// - **0 中枢** → `Degenerate`（无中枢=未完成走势，无背驰对象）。
+/// - **1 中枢** → `Consolidation`（盘整定义，zoushi.md:107）。
+/// - **≥2 中枢全链上涨延续** → `Trend(Up)`；全链下跌延续 → `Trend(Down)`（reference:34
+///   「趋势≥两同向中枢」+ maimai.md:105-112「≥2个依次同向的同级别中枢」）。
+/// - **≥2 中枢非全链一致**（扩张/方向混合）→ `Degenerate`（第24课:22「连成大中枢」=级别扩张，
+///   本级非趋势非盘整，交父级；本层不产背驰）。
+///
+/// L0 纯整数几何（中枢外缘 dd/gg 比较），不依赖经验数据。
+pub fn trend_class(centers: &[Center]) -> TrendClass {
+    match centers.len() {
+        0 => TrendClass::Degenerate,
+        1 => TrendClass::Consolidation,
+        _ => {
+            if all_same_relation(CenterRelation::UpContinuation, centers) {
+                TrendClass::Trend(Direction::Up)
+            } else if all_same_relation(CenterRelation::DownContinuation, centers) {
+                TrendClass::Trend(Direction::Down)
+            } else {
+                TrendClass::Degenerate
+            }
+        }
+    }
+}
+
+/// A/B/C 背驰段对（第24课:22-24 走势级别三段；契约锚 `Origin.Divergence.DivergencePair`）。
+///
+/// - `seg_a`：A 段（前一离开段）的 source_index 闭区间 `(start,end)`。
+/// - `seg_c`：C 段（后一离开段/破中枢段）的 source_index 闭区间。
+/// - `is_trend`：true=趋势背驰（A/C 跨相邻两中枢，B=中间中枢）；false=盘整背驰（A/C 同一中枢两次离开）。
+///
+/// B 段在结构上是 A 与 C 之间的中枢（趋势背驰=后一中枢；盘整背驰=唯一中枢），由调用方的中枢序列
+/// 隐含定位——本结构只携 A/C 段坐标（力度比较的两端），B 的存在性由 τ 门控（≥1 中枢）保证。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AbcDivergence {
+    pub seg_a: (usize, usize),
+    pub seg_c: (usize, usize),
+    pub is_trend: bool,
+}
+
+impl AbcDivergence {
+    /// 背驰判定（C段面积 < A段面积，力度原语）。`src_to_idx`：source_index→closes 下标的升序映射。
+    /// 段无法映射到 closes 区间（越界/空）⟹ false（无面积=非背驰，与 judge_first 越界口径一致）。
+    pub fn diverges(&self, hist: &[f64], a_idx: (usize, usize), c_idx: (usize, usize)) -> bool {
+        segments_diverge(hist, a_idx, c_idx)
+    }
+}
+
+/// 趋势背驰的 A/C 段定位（第24课:22-24，趋势 τ=Trend）。
+///
+/// 在 ≥2 同向中枢的趋势中，C 段 = **最后一个中枢**之后破中枢的离开段（`c_seg`，已由 judge_first
+/// 定位为破中枢段）；A 段 = **倒数第二个中枢**之后、同向的离开段（相邻前一中枢的离开段）。
+///
+/// ★A/C 跨相邻中枢配对（消解退化的「任意前同向段」）：A 不是序列序任意前同向段，而是趋势中**相邻
+/// 前一中枢**的离开段——第24课:24「A 之前已有一个中枢，B 是这个大趋势的另一个中枢」。`segments`
+/// 按 start_index 升序；`last_center`/`prev_center` 是趋势的最后两个相邻中枢。
+///
+/// 返回 A 段（前一中枢离开段）的 `(start_index, end_index)`；找不到（无符合的前中枢离开段）⟹ None。
+/// 离开段方向 = 趋势方向（向下趋势=向下离开段=底背驰候选；向上趋势=向上离开段=顶背驰候选）。
+pub fn locate_trend_seg_a(
+    segments: &[Segment],
+    prev_center: &Center,
+    last_center: &Center,
+    trend_dir: Direction,
+) -> Option<(usize, usize)> {
+    // A 段 = prev_center 之后、last_center 之前、方向 = trend_dir 的离开段（相邻前中枢的离开段）。
+    // 取该区间内**最后一个**同向段（最接近后一中枢=离开 prev_center 进入 last_center 的趋势腿）。
+    segments
+        .iter()
+        .filter(|s| {
+            s.direction == trend_dir
+                && s.start_index >= prev_center.end_index
+                && s.start_index < last_center.end_index
+        })
+        .next_back()
+        .map(|s| (s.start_index, s.end_index))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn ctr(zd: Tick, zg: Tick, dd: Tick, gg: Tick, ei: usize) -> Center {
+        Center { zd, zg, dd, gg, start_index: 0, end_index: ei }
+    }
+    use super::super::super::types::Tick;
 
     #[test]
     fn ema_first_value_is_first_close() {
@@ -203,5 +348,99 @@ mod tests {
                 assert!(segment_macd_area(&m.hist, start, end) >= 0.0);
             }
         }
+    }
+
+    // ── § B. A/B/C 框架层：走势类型 τ 门控（trend_class）────────────────────────
+
+    #[test]
+    fn trend_class_zero_center_degenerate() {
+        // 0 中枢 → 退化（无走势对象，无背驰）。
+        assert_eq!(trend_class(&[]), TrendClass::Degenerate);
+    }
+
+    #[test]
+    fn trend_class_one_center_consolidation() {
+        // 1 中枢 → 盘整（zoushi.md:107）。盘整背驰可产，第一类不产。
+        let c = ctr(100, 200, 90, 210, 5);
+        assert_eq!(trend_class(&[c]), TrendClass::Consolidation);
+    }
+
+    #[test]
+    fn trend_class_two_up_centers_trend_up() {
+        // ≥2 全链上涨延续（后 dd > 前 gg）→ Trend(Up)（reference:34，maimai.md:112）。
+        let c0 = ctr(100, 200, 90, 210, 5);
+        let c1 = ctr(300, 400, 290, 410, 12); // c1.dd=290 > c0.gg=210 ⟹ 上涨延续
+        assert_eq!(trend_class(&[c0, c1]), TrendClass::Trend(Direction::Up));
+    }
+
+    #[test]
+    fn trend_class_two_down_centers_trend_down() {
+        // ≥2 全链下跌延续（后 gg < 前 dd）→ Trend(Down)（底背驰候选，1买）。
+        let c0 = ctr(300, 400, 290, 410, 5);
+        let c1 = ctr(100, 200, 90, 210, 12); // c1.gg=210 < c0.dd=290 ⟹ 下跌延续
+        assert_eq!(trend_class(&[c0, c1]), TrendClass::Trend(Direction::Down));
+    }
+
+    #[test]
+    fn trend_class_mixed_centers_degenerate() {
+        // ≥2 中枢非全链同向（c0→c1 上涨，c1→c2 扩张）→ 退化（第24课:22「连成大中枢」=级别扩张）。
+        // 第一类**不产**：mixed/扩张本级非趋势非盘整，交父级。这是 τ 门控的核心否决路径。
+        let c0 = ctr(100, 200, 90, 210, 5);
+        let c1 = ctr(300, 400, 290, 410, 12); // c0→c1 上涨延续
+        let c2 = ctr(350, 450, 250, 460, 20); // c1→c2：c2.dd=250 ≤ c1.gg=410 且 c2.gg=460 ≥ c1.dd=290 ⟹ 扩张
+        assert_eq!(classify_relation(&c1, &c2), CenterRelation::LevelExpansion);
+        assert_eq!(trend_class(&[c0, c1, c2]), TrendClass::Degenerate);
+    }
+
+    #[test]
+    fn trend_class_three_up_centers_trend_up() {
+        // ≥3 全链同向仍是趋势（趋势延伸，第24课:22「连成大趋势」=多中枢同向趋势）。
+        let c0 = ctr(100, 200, 90, 210, 5);
+        let c1 = ctr(300, 400, 290, 410, 12);
+        let c2 = ctr(500, 600, 490, 610, 20); // c2.dd=490 > c1.gg=410 ⟹ 续涨
+        assert_eq!(trend_class(&[c0, c1, c2]), TrendClass::Trend(Direction::Up));
+    }
+
+    // ── § B. A/B/C 框架层：趋势背驰 A 段定位（locate_trend_seg_a）─────────────────
+
+    #[test]
+    fn locate_seg_a_picks_prev_center_leave_segment() {
+        // 趋势 τ=Trend(Down)：prev_center end=5，last_center end=12。A 段 = prev_center 之后、
+        // last_center 之前、向下方向的离开段（相邻前中枢的离开段，非任意前同向段）。
+        let prev_c = ctr(300, 400, 290, 410, 5);
+        let last_c = ctr(100, 200, 90, 210, 12);
+        let segments = vec![
+            // start_index 升序。向下段在 [5,12) 区间内（A 段候选）。
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 350 },
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 350, end_price: 250 }, // 最接近 last_center 的向下段
+            Segment { direction: Direction::Down, start_index: 13, end_index: 15, start_price: 200, end_price: 80 }, // 在 last_center 之后（C 段区，非 A）
+        ];
+        let seg_a = locate_trend_seg_a(&segments, &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, Some((10, 11)), "A 段 = prev_center 离开段中最接近 last_center 的向下段");
+    }
+
+    #[test]
+    fn locate_seg_a_none_when_no_prev_leave() {
+        // prev_center 与 last_center 之间无同向离开段 ⟹ A 段无法定位 ⟹ None（无背驰对照）。
+        let prev_c = ctr(300, 400, 290, 410, 5);
+        let last_c = ctr(100, 200, 90, 210, 12);
+        let segments = vec![
+            // [5,12) 内只有向上段，无向下离开段 ⟹ A 段（向下）无候选。
+            Segment { direction: Direction::Up, start_index: 6, end_index: 8, start_price: 280, end_price: 380 },
+        ];
+        let seg_a = locate_trend_seg_a(&segments, &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, None, "无 prev_center 同向离开段 ⟹ A 段无法定位");
+    }
+
+    #[test]
+    fn abc_divergence_trend_diverges_via_area() {
+        // AbcDivergence 趋势背驰：A 段面积大、C 段面积小 ⟹ 背驰（C<A 力度原语）。
+        let hist = vec![5.0, -5.0, 1.0, -1.0]; // A=[0,1] 面积10，C=[2,3] 面积2
+        let abc = AbcDivergence { seg_a: (0, 1), seg_c: (2, 3), is_trend: true };
+        assert!(abc.diverges(&hist, (0, 1), (2, 3)), "C段面积2 < A段面积10 ⟹ 趋势背驰");
+        // 反向：C 段面积大 ⟹ 力度延续 ⟹ 非背驰。
+        let abc_cont = AbcDivergence { seg_a: (2, 3), seg_c: (0, 1), is_trend: true };
+        assert!(!abc_cont.diverges(&hist, (2, 3), (0, 1)), "C段面积10 ≥ A段面积2 ⟹ 力度延续=非背驰");
     }
 }
