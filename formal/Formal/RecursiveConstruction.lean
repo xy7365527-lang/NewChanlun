@@ -295,6 +295,23 @@ def windowCenters : List Move → List Center
   | _ => []
 
 /--
+  ★canonical 选择唯一性（640 谱系第三列，L0 by-construction 零信息增量）：
+
+  `windowCenters` 是 def（全函数）⟹ 函数应用确定性 ⟹ 同输入唯一输出。这是 640 谱系第三列
+  （canonical 选择唯一性）的机器见证——deterministic first-window selector 在其定义域上产唯一
+  结果。有效域 = selector 的定义域（首窗口可产中枢的 es；首三段无中枢时产空，仍在 selector
+  定义域内）。
+
+  **这是纯 by-construction 函数性**（L0 零信息增量 = 函数应用确定性的同义反复），既不是
+  `promote` 的函数性单值（`windowCenters` 不是 promote），也不是 `CentersDerivedFrom` 对所有
+  合法 centers 的结构性单值（selector 只挑一个 canonical 窗口，不约束其他合法 centers 的存在性）。
+  见 `promote_function_unique`（PromQual.lean:246）与 `derivation_not_unique`（PromQual.lean:459）。
+-/
+theorem windowCenters_deterministic (es : List Move) :
+    ∃ c : List Center, c = windowCenters es ∧ ∀ c' : List Center, c' = windowCenters es → c' = c :=
+  ⟨windowCenters es, rfl, fun _ h => h⟩
+
+/--
   ★规范窗口族辅助（fuel 减 1 结构递归，对 `decide`/`rfl` 友好归约）：
 
   `canonicalWindowsAux fuel base xs` 从起点 `base` 起，把 `xs` 切成连续恰 3 段窗口

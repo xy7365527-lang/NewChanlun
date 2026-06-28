@@ -207,11 +207,13 @@ theorem conformance_strictly_weaker_than_eq :
     ForceConformsAll identityForceMeasure scaledForceMeasure ∧
       identityForceMeasure.measure 1 ≠ scaledForceMeasure.measure 1 := by
   refine ⟨?_, ?_⟩
-  · -- 全域 conform：判定等价
+  · -- 全域 conform：判定等价（`c < a ↔ 2*c < 2*a`）
     intro a c
     unfold IsDivergenceVia identityForceMeasure scaledForceMeasure
     simp only
-    omega
+    -- 拆 Iff 后逐支为纯不等式目标再 omega：保持 #print axioms 仅 propext/Quot.sound
+    -- （omega 直接闭合 Iff 目标会引入 Classical.choice；分支后是纯算术，不引入）。
+    constructor <;> intro h <;> omega
   · -- measure 输出不同：⟨1⟩ ≠ ⟨2⟩
     unfold identityForceMeasure scaledForceMeasure
     simp only

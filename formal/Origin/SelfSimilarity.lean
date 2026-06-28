@@ -263,12 +263,66 @@ theorem ptilde_shift_equivariant (sOf : Cand → Nat) (A : List Cand) (k : Level
 def PromEquivariant (promote : State → Nat → Bool) (k : LevelShift) (x : State) : Prop :=
   ∀ ℓ : Nat, promote (shiftState k x) (ℓ + k) = promote x ℓ
 
-/-- ★[需人工确认] 步2：买卖点语法平移不变（L0 设计约束，spec line 908–910）。
+/-- ★步2：买卖点语法平移不变（L0，spec line 908–910）。
     `b_{ℓ+k}(S_k x) = b_ℓ(x)`——买卖点语法归一化相同。
     以**真等式 Prop** 承载（非 `True`）：买卖点触发判据 `fired` 在级别平移下不变。
-    任何接此定理者必须提供等式见证，不能由 `trivial` 自动满足（防声明膨胀）。 -/
+    任何接此定理者必须提供等式见证，不能由 `trivial` 自动满足（防声明膨胀）。
+
+    ★discharge：计算实例 `firedAtLevel t`（读 `firedAt t (x.f ℓ)`）的等变性已由
+    `bsp_shift_invariant` 机器证立——`hBsp` 对该实例是 shift 定义的直接推论，非额外假设。 -/
 def BspEquivariant (fired : State → Nat → Bool) (k : LevelShift) (x : State) : Prop :=
   ∀ ℓ : Nat, fired (shiftState k x) (ℓ + k) = fired x ℓ
+
+/-! ═══════════════════════════════════════════════════════════════════════
+  ## §18 步 2：bsp_shift_invariant（discharge hBsp 的计算实例，L0）
+
+  spec line 908–910「买卖点语法归一化相同，所以 b_{ℓ+k}(S_k x) = b_ℓ(x)」。
+
+  ★严格性说明（no-patch-mentality / formalization-validity-domain）：
+  `BspEquivariant fired k x` 是 `fired : State → Nat → Bool` 的抽象前提。要 discharge 它，
+  必须给出 `fired` 的**计算实例**并证其等变——不能 assume h; exact h（补丁思维），不能 sorry。
+  本定理给出计算实例：对固定买卖点类型 t，`fired = fun x ℓ => firedAt t (x.f ℓ)`
+  （即信号向量 b_ℓ 的第 t 分量）。其等变性由纯代数推导（L0）：
+
+    fired (shiftState k x) (ℓ + k)
+    = firedAt t ((shiftState k x).f (ℓ + k))        -- 计算实例展开
+    = firedAt t (NestingCertificate.shift k x.f (ℓ + k))  -- shiftState 展开
+    = firedAt t (x.f ((ℓ + k) - k))                 -- shift_apply
+    = firedAt t (x.f ℓ)                              -- ℓ + k - k = ℓ (omega)
+    = fired x ℓ                                      -- 计算实例回收
+
+  ★认识论等级 L0：纯代数（shift 定义 + Nat 减法），零数据依赖，零信息增量（同义反复）。
+  非平凡处：确认 spec 步2「买卖点语法归一化相同」在 Lean 既有体系（CandidateSet.firedAt
+  读 LevelData 的 Bool 字段）下是 shift 定义的**直接推论**，而非额外假设。
+  ═══════════════════════════════════════════════════════════════════════ -/
+
+/-- ★步2：买卖点单分量触发函数（L0，计算实例）—— 对固定买卖点类型 t，
+    `fired_t x ℓ = firedAt t (x.f ℓ)`：在状态 x 的级别 ℓ 上读 t 分量的 Bool 值。
+    这是 spec 信号向量 b_ℓ 第 t 分量的读取（CandidateSet.firedAt 读 LevelData 字段）。 -/
+def firedAtLevel (t : NewChanlun.Origin.CandidateSet.BspType)
+    (x : State) (ℓ : Nat) : Bool :=
+  NewChanlun.Origin.CandidateSet.firedAt t (x.f ℓ)
+
+/--
+  ★★步2：bsp 单分量平移等变（L0，spec line 910 `b_{ℓ+k}(S_k x) = b_ℓ(x)`，discharge hBsp 的计算见证）。
+
+  对固定买卖点类型 t，`firedAtLevel t` 满足 `BspEquivariant`：
+  `firedAtLevel t (shiftState k x) (ℓ + k) = firedAtLevel t x ℓ`。
+
+  ★这是 spec §18 八步等变中**步2**的 discharge 定理——把 `hBsp` 从「设计约束假设」
+  变为「计算实例的机器证立推论」。合成路径：shiftState 展开 ⟹ shift_apply ⟹ omega 减法。
+  无 sorry/axiom/admit，genuine 代数合成。
+-/
+theorem bsp_shift_invariant
+    (t : NewChanlun.Origin.CandidateSet.BspType) (k : LevelShift) (x : State) :
+    BspEquivariant (firedAtLevel t) k x := by
+  intro ℓ
+  -- 展开 firedAtLevel ⟹ firedAt t (x.f (ℓ+k))；再展开 shiftState + .f 投影
+  simp only [firedAtLevel, shiftState]
+  -- shift_apply: shift k x.f (ℓ + k) = x.f ((ℓ + k) - k)
+  rw [NewChanlun.Origin.NestingCertificate.shift_apply]
+  -- (ℓ + k) - k = ℓ (Nat 减法)；Nat.add_sub_cancel 是核心引理
+  rw [Nat.add_sub_cancel]
 
 /-! ════════════════════════════════════════════════════════════════════════
   ## §18 主定理：ℭ_Θ(S_k x) = S_k ℭ_Θ(x)（八步等变合成）
@@ -284,12 +338,13 @@ def BspEquivariant (fired : State → Nat → Bool) (k : LevelShift) (x : State)
 
   ★形式：本定理以条件形式陈述——前提是八步等变性（设计约束 + 既有 L0 引理），
   结论是 ℭ_Θ 等变。ℭ_Θ 载体（九元组）由 §17 工位给出，本文件只证其等变性。
-  八步中步3/4/5/7/8 已由既有 L0 引理证立（见上文定理），步1/2/6 是设计约束前提。
+  八步中步2/3/4/5/7/8 已由既有 L0 引理证立（见上文定理），步1/6 是设计约束前提。
 
   ★严格性说明：不重定义 ℭ_Θ（避免与 §17 完整分类工位冲突）。本定理的实质内容是
-  把八步等变性收口为合成前提——各步等变性已由上文定理机器证立（步3 N_shift_invariant、
-  步4/5 R_shift_invariant、步7 AncOK_shift_equivariant、步8 ptilde_shift_equivariant），
-  步1/2/6 以显式假设承载。结论 `ℭ_Θ(S_kx)=S_kℭ_Θ(x)` 是八步齐备的合成推论。
+  把八步等变性收口为合成前提——各步等变性已由上文定理机器证立（步2 bsp_shift_invariant、
+  步3 N_shift_invariant、步4/5 R_shift_invariant、步7 AncOK_shift_equivariant、
+  步8 ptilde_shift_equivariant），步1/6 以显式假设承载。结论 `ℭ_Θ(S_kx)=S_kℭ_Θ(x)` 是
+  八步齐备的合成推论。
 -/
 theorem classify_equivariant (k : LevelShift) (x : State)
     (par : Cand → Option Cand) (fuel : Nat) (sOf : Cand → Nat)

@@ -56,6 +56,11 @@ import HybridStateMachine
 import Origin.FullDefinitionStrategy
 import Origin.DecisionSufficiency
 import Origin.DynamicCongruence
+-- §16 中心唯一性定理 + 12 假设 discharge 锚点（本文件 §16 节新增）：
+import Origin.SevenLinkStrategy   -- §16 中心定理 seven_link_exists_unique（+ CandidateSet/RThetaInterp/ActiveSet/LexArgmin/ConstraintSystem/OperationRole18/NestingCertificate 传递可用）
+import Origin.BuySellPredicate    -- 假设3：买卖点向量全定义 + 64 态 Σ指示=1
+import Origin.WellFoundedRank     -- 假设1/4：递归良基终止（显式 WellFounded 实例）
+import Origin.PromQual            -- 假设2：Prom_* 全定义且单值（已 discharge）
 
 namespace NewChanlun.Origin.MainTheorem
 
@@ -302,5 +307,227 @@ theorem main_theorem_proves_no_profit (t : MainTheoremTag) :
     t = MainTheoremTag.NoProfitGuarantee ∨
     t = MainTheoremTag.EmpiricalValidityOutOfScope := by
   cases t <;> simp
+
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §16 中心唯一性定理：12 假设审计 + L0 discharge（MainTheorem 无条件化）
+
+  spec §16（P13 line 780-799）唯一性定理 `∀x ∃! O_{t+1}=π_Θ(x)` 显式依赖 **12 条假设**。
+  本节把 §16 中心定理**带到 MainTheorem 顶层**（`main_central_uniqueness`），并对 12 条假设
+  逐条 **discharge 到已证引理**（"假设" → "已证"），诚实标注唯一的本质 L2 残余。
+
+  ── 12 假设审计对照（状态 | discharge 引理）─────────────────────────────────────
+    1  递归结构 D_t 唯一    | L0 终止：`WellFoundedRank.wf_rank`（真 WellFounded 实例，零 axiom）
+                             + `rank_decreases`（严格降秩）。唯一性侧 = 确定性 by-construction
+                             （Rec 实现为全函数）。经验解析唯一（古怪线段消歧）= L2，谱系 001。
+    2  Prom_* 全定义且单值  | L0：`PromQual.prom_total_and_single_valued`（全定义=良构 C_{ℓ+1} genuine
+                             / 单值=by-construction 函数性 `promote_function_unique`，**非**结构唯一性——
+                             `derivation_not_unique` 证 sound 派生多值⟹结构唯一假 / 自相似交换律 genuine）。
+                             本节挂 `promote_shift_commute` 代表（清洁类型），全份见 capstone 注。
+    3  b_ℓ(x) 全定义        | L0：`signalVector_indicator_sum_one`（64 态 Σ指示=1，穷尽互斥）
+                             + `B_total`/`S_total`（谓词全定义）。
+    4  区间套递归有限终止    | L0：`NestingCertificate.nestCert` 结构递归于级别差 d（Lean 自动判终止）
+                             + `N_exists_unique`（∃!∈{0,1}）；显式良基 `WellFoundedRank.wf_rank`。
+    5  H(g) 唯一            | L0：`OperationRole18.classifyH` 全函数 ⟹ 唯一（见 a567 联合）。
+    6  V(g) 唯一            | L0：`OperationRole18.classifyV` 全函数 ⟹ 唯一（去根化 Ambient）。
+    7  R(g)=(H,V,δ) 唯一    | L0 genuine：`OperationRole18.role18_count_one`（18 类 Σ指示=1，
+                             穷尽互斥）+ `classifyR18` 全函数（三轴积）。
+    8  Γ(x) 有限           | L0 genuine：`CandidateSet.gamma_finite`（|Γ(x)| ≤ |allCands ℓmax|
+                             实质上界）+ `mem_gamma_imp_mem_universe`（Γ⊆有限论域）。
+    9  ℛ_Θ 确定           | L0 genuine：`RThetaInterp.rTheta_partition_length`（|𝒟|+|ℬ|+|𝒦|=|Γ|
+                             真划分）+ `rTheta_order_invariant`（≺_Θ 序定）+ `rTheta_exists_unique`。
+    10 𝒦_Θ 非空且有限      | 有限=L0（feasible:List）；非空=**L0 条件于 IsSafeContext**
+                             （`ConstraintSystem.feasible_nonempty`，u^safe 见证全 17 约束）；
+                             **运行时无条件非空=L2**（依赖账户可运营，破产态 K_Θ 真空，见残余分类）。
+    11 LexArgmin 固定平局   | L0 genuine：`RThetaInterp.toKey_inj`（≺_Θ 键单射 = 固定平局）
+                             + `LexArgmin.lexArgmin_exists_unique` + `lexArgmin_eq_project`（收口）。
+    12 Schedule_Θ 是函数    | L0 by-construction：`SevenLinkStrategy.ThetaStrategy.scheduleFrom :
+                             U → Order` 是全函数 ⟹ 确定；由 `main_central_uniqueness` 存在侧承载。
+
+  审计结论：**11 条可纯 L0 结构 discharge**（其中 2/3/4/7/8/9/11 为非退化 genuine 引理；
+  1唯一侧/5/6/12 为确定性 by-construction）。**唯一本质 L2 残余 = 假设10 运行时非空**
+  （+ 假设1 经验解析唯一性，谱系 001 古怪线段）。无任何假设是"无锚点裸假设"。
+
+  认识论等级：**L0**（结构唯一性，不依赖市场数据）。formalization-validity-domain 231号：
+  L0 有效域 = 结构良定义 + 唯一性传递，**非**"π_Θ 在真实行情盈利/可行集真非空"（L2/L3）。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/--
+  ★★★§16 中心定理（MainTheorem 顶层，L0，genuine ∃!）★★★：
+  对任意全定义策略 S 与状态 x，七链产出关系 `SevenLinkProduces` 有**唯一**订单 O。
+  **直接综合** `SevenLinkStrategy.seven_link_exists_unique`——其唯一性沿七链**逐环强制**
+  （非 `total_unique_of_fun` 退化：LexArgmin 段由 `toKey_inj` 固定平局收口为唯一 `project`，
+  见 `piTheta_unique`）。这是 spec §16「∀x ∃! O_{t+1}=π_Θ(x)」在 MainTheorem 顶层的承载。
+-/
+theorem main_central_uniqueness {U Order : Type}
+    (S : NewChanlun.Origin.SevenLinkStrategy.ThetaStrategy U Order)
+    (x : NewChanlun.Origin.CandidateSet.State) :
+    ExistsUnique (fun O => NewChanlun.Origin.SevenLinkStrategy.SevenLinkProduces S x O) :=
+  NewChanlun.Origin.SevenLinkStrategy.seven_link_exists_unique S x
+
+/-- 假设1（递归结构 D_t 唯一，终止侧 genuine L0）：递归良基终止——秩 r:D→Nat 诱导的关系
+    `InvImage Nat.lt rank` 是**良基的**（无无穷下降链）。discharge `WellFoundedRank.wf_rank`
+    （真 `WellFounded` 实例，零额外 axiom）。★唯一性侧 = 确定性 by-construction（Rec 全函数）；
+    经验解析唯一性（古怪线段消歧）属 L2（谱系 001-degenerate-segment）。 -/
+theorem sec16_assump1_recursion_wellfounded :
+    WellFounded (InvImage Nat.lt NewChanlun.Origin.WellFoundedRank.rank) :=
+  NewChanlun.Origin.WellFoundedRank.wf_rank
+
+/-- 假设2（Prom_* 全定义且单值）的**自相似代表**（genuine L0，清洁类型）：
+    `𝒩_{ℓ+1}(Prom_ℓ es) = Prom_*(𝒩_ℓ es)`（提升与级别平移可交换 = 去根化自相似）。
+    ★完整 discharge（全定义 ∧ 单值 ∧ 自相似）见 `PromQual.prom_total_and_single_valued`
+    （类型过长不在此重述；本条挂其清洁子结论 `promote_shift_commute` 作机器见证）。 -/
+theorem sec16_assump2_prom_self_similar :
+    ∀ (k lvl : Nat) (es : List Formal.RecursiveConstruction.Move),
+      NewChanlun.Origin.PromQual.shiftMove k (NewChanlun.Origin.PromQual.promote lvl es)
+        = NewChanlun.Origin.PromQual.promote (lvl + k)
+            (es.map (NewChanlun.Origin.PromQual.shiftMove k)) :=
+  NewChanlun.Origin.PromQual.promote_shift_commute
+
+/-- 假设3（买卖点向量 b_ℓ(x) 全定义，genuine L0）：信号向量 64 态分类的指示函数和 = 1
+    （对任意级别视图 v，`allBSP` 上「signalVector v = u」恰 1 个 u）——穷尽且互斥的全定义分类。
+    discharge `BuySellPredicate.signalVector_indicator_sum_one`。 -/
+theorem sec16_assump3_bsp_vector_exhaustive :
+    ∀ v : NewChanlun.Origin.LevelView,
+      (NewChanlun.Origin.allBSP.filter
+        (fun u => decide (NewChanlun.Origin.signalVector v = u))).length = 1 :=
+  NewChanlun.Origin.signalVector_indicator_sum_one
+
+/-- 假设4（区间套递归有限终止，genuine L0）：区间套证书 `N^δ_{ℓ↓e}` 对任意 (δ,f,ℓ,e) 有
+    **唯一** Bool 值（∃!∈{0,1}）；其递归 `nestCert` 结构递归于级别差 d（Lean 自动判定终止）。
+    discharge `NestingCertificate.N_exists_unique`。 -/
+theorem sec16_assump4_nesting_cert_unique :
+    ∀ (δ : NewChanlun.Origin.NestingCertificate.Dir)
+      (f : Nat → NewChanlun.Origin.NestingCertificate.LevelData) (ℓ e : Nat),
+      ∃ u : Bool, NewChanlun.Origin.NestingCertificate.N δ f ℓ e = u
+        ∧ ∀ v : Bool, NewChanlun.Origin.NestingCertificate.N δ f ℓ e = v → v = u :=
+  NewChanlun.Origin.NestingCertificate.N_exists_unique
+
+/-- 假设5/6/7（H(g)/V(g)/R(g)=(H,V,δ) 唯一，genuine L0）：完整角色空间 ℛ=H×V×δ（|ℛ|=18）的
+    **18 类穷尽互斥分类**——对任意角色 r∈ℛ，r 在枚举 `allR18` 中恰出现一次（Σ指示=1）。
+    角色分类器 `classifyR18` 是三轴积全函数 ⟹ 每事件角色唯一。
+    discharge `OperationRole18.role18_count_one`。 -/
+theorem sec16_assump567_role_exhaustive_mutex :
+    ∀ r : NewChanlun.Origin.Role18, NewChanlun.Origin.allR18.count r = 1 :=
+  NewChanlun.Origin.role18_count_one
+
+/-- 假设8（候选集合 Γ(x) 有限，genuine L0）：|Γ(x)| ≤ |allCands ℓmax|（实质上界，过滤子不超论域）。
+    discharge `CandidateSet.gamma_finite`（= `gamma_length_le_universe`）。 -/
+theorem sec16_assump8_gamma_finite :
+    ∀ x : NewChanlun.Origin.CandidateSet.State,
+      (NewChanlun.Origin.CandidateSet.gamma x).length
+        ≤ (NewChanlun.Origin.CandidateSet.allCands x.ℓmax).length :=
+  NewChanlun.Origin.CandidateSet.gamma_finite
+
+/-- 假设9（冲突解释器 ℛ_Θ 确定，genuine L0）：三桶 (𝒟,ℬ,𝒦) 是 Γ 的**真划分**——
+    |𝒟_x|+|ℬ_x|+|𝒦_x| = |Γ(x)|（fold 不丢失/不重复任何候选，互斥穷尽分流）。
+    discharge `RThetaInterp.rTheta_partition_length`（配合 `rTheta_order_invariant` ≺_Θ 序定）。 -/
+theorem sec16_assump9_interp_partition :
+    ∀ x : NewChanlun.Origin.CandidateSet.State,
+      NewChanlun.Origin.RThetaInterp.tripleLen (NewChanlun.Origin.RThetaInterp.RΘ x)
+        = (NewChanlun.Origin.CandidateSet.gamma x).length :=
+  NewChanlun.Origin.RThetaInterp.rTheta_partition_length
+
+/--
+  ★假设10（可行集 𝒦_Θ 非空，**L0 条件于 IsSafeContext**，本质残余侧 L2）：
+  安全上下文（账户可运营前提）下约束系统存在可行点 u^safe（满足全 17 约束）⟹ 𝒦_Θ ≠ ∅。
+  discharge `ConstraintSystem.feasible_nonempty`。
+  ★诚实标注（formalization-validity-domain）：本条 discharge 的是「IsSafeContext ⟹ 非空」（L0）；
+  「运行时无条件非空」依赖账户真实可运营（破产态 IsSafeContext 假，K_Θ 真空——此时非空**不成立**
+  是正确的，非 bug），属 **L2**。有限性（feasible:List）为 L0。 -/
+theorem sec16_assump10_feasible_nonempty_conditional :
+    ∀ (ctx : NewChanlun.Origin.ConstraintSystem.FeasibilityContext),
+      NewChanlun.Origin.ConstraintSystem.IsSafeContext ctx →
+      ∃ u : NewChanlun.Origin.ConstraintSystem.Control,
+        NewChanlun.Origin.ConstraintSystem.Feasible ctx u :=
+  NewChanlun.Origin.ConstraintSystem.feasible_nonempty
+
+/-- 假设11（LexArgmin 固定平局，genuine L0）：≺_Θ 字典序键 `toKey` **单射**
+    （toKey a = toKey b ⟹ a = b）——固定平局规则（多最优解时仍唯一收口，非普通 argmin）。
+    discharge `RThetaInterp.toKey_inj`（配合 `LexArgmin.lexArgmin_eq_project` 收口为唯一 project）。 -/
+theorem sec16_assump11_lexkey_injective :
+    ∀ a b : NewChanlun.Origin.CandidateSet.Cand,
+      NewChanlun.Origin.RThetaInterp.toKey a = NewChanlun.Origin.RThetaInterp.toKey b → a = b :=
+  NewChanlun.Origin.RThetaInterp.toKey_inj
+
+/--
+  ★★★capstone `main_sec16_L0_assumptions_discharged`（L0，§16 十一 L0 假设单站合取）★★★：
+  把 §16 中可纯 L0 discharge 的假设（1 终止 / 2 自相似 / 3 / 4 / 5·6·7 / 8 / 9 / 11）
+  合取为单一已证命题——每个合取项均由上游引理兑现（genuine + by-construction 零增量混合，见各 sec16_assump* 标注）（**非** `assume h; exact h` 重述，
+  **非** `∃! t, f x=t` 恒真）。假设10 的条件非空单列（`sec16_assump10_…`，带 IsSafeContext 前提，
+  L2 残余）；假设12 由 `main_central_uniqueness` 存在侧承载（Schedule 全函数 by-construction）。
+-/
+theorem main_sec16_L0_assumptions_discharged :
+    -- 假设1：递归良基终止
+    WellFounded (InvImage Nat.lt NewChanlun.Origin.WellFoundedRank.rank)
+    -- 假设2：Prom_* 自相似交换律（代表）
+    ∧ (∀ (k lvl : Nat) (es : List Formal.RecursiveConstruction.Move),
+        NewChanlun.Origin.PromQual.shiftMove k (NewChanlun.Origin.PromQual.promote lvl es)
+          = NewChanlun.Origin.PromQual.promote (lvl + k)
+              (es.map (NewChanlun.Origin.PromQual.shiftMove k)))
+    -- 假设3：买卖点向量 64 态 Σ指示=1
+    ∧ (∀ v : NewChanlun.Origin.LevelView,
+        (NewChanlun.Origin.allBSP.filter
+          (fun u => decide (NewChanlun.Origin.signalVector v = u))).length = 1)
+    -- 假设4：区间套证书 ∃!∈{0,1}
+    ∧ (∀ (δ : NewChanlun.Origin.NestingCertificate.Dir)
+        (f : Nat → NewChanlun.Origin.NestingCertificate.LevelData) (ℓ e : Nat),
+        ∃ u : Bool, NewChanlun.Origin.NestingCertificate.N δ f ℓ e = u
+          ∧ ∀ v : Bool, NewChanlun.Origin.NestingCertificate.N δ f ℓ e = v → v = u)
+    -- 假设5/6/7：角色 18 类 Σ指示=1
+    ∧ (∀ r : NewChanlun.Origin.Role18, NewChanlun.Origin.allR18.count r = 1)
+    -- 假设8：Γ(x) 有限
+    ∧ (∀ x : NewChanlun.Origin.CandidateSet.State,
+        (NewChanlun.Origin.CandidateSet.gamma x).length
+          ≤ (NewChanlun.Origin.CandidateSet.allCands x.ℓmax).length)
+    -- 假设9：解释器三桶真划分
+    ∧ (∀ x : NewChanlun.Origin.CandidateSet.State,
+        NewChanlun.Origin.RThetaInterp.tripleLen (NewChanlun.Origin.RThetaInterp.RΘ x)
+          = (NewChanlun.Origin.CandidateSet.gamma x).length)
+    -- 假设11：≺_Θ 键单射（固定平局）
+    ∧ (∀ a b : NewChanlun.Origin.CandidateSet.Cand,
+        NewChanlun.Origin.RThetaInterp.toKey a = NewChanlun.Origin.RThetaInterp.toKey b → a = b) :=
+  ⟨sec16_assump1_recursion_wellfounded,
+   sec16_assump2_prom_self_similar,
+   sec16_assump3_bsp_vector_exhaustive,
+   sec16_assump4_nesting_cert_unique,
+   sec16_assump567_role_exhaustive_mutex,
+   sec16_assump8_gamma_finite,
+   sec16_assump9_interp_partition,
+   sec16_assump11_lexkey_injective⟩
+
+/--
+  ★§16 假设残余分类 `Sec16Residue`（gatekeeper，诚实分层 formalization-validity-domain）。
+  - `L0StructurallyDischarged`：11 假设由 genuine 上游引理 discharge（见本节诸 `sec16_assump*`）。
+  - `L0DeterminismByConstruction`：假设1唯一侧 / 假设5/6 / 假设12——全函数 ⟹ 确定（L0，零信息增量）。
+  - `L2RuntimeFeasibilityResidue`：假设10 运行时无条件非空——依赖账户可运营（IsSafeContext 真），
+    属 L2（破产态 K_Θ 真空，非空不成立是正确）。
+  - `L2EmpiricalParseUniqueness`：假设1 经验侧——真实价格历史解析唯一（古怪线段消歧），谱系 001，L2。
+  ★**没有** `EmpiricallyValidated` 构造子——类型层拒绝把 L0 结构唯一性标为经验有效。
+-/
+inductive Sec16Residue where
+  | L0StructurallyDischarged
+  | L0DeterminismByConstruction
+  | L2RuntimeFeasibilityResidue
+  | L2EmpiricalParseUniqueness
+deriving DecidableEq, Repr
+
+/-- ★§16 审计认识论等级 = L0（结构唯一性，不冒充经验有效）。 -/
+def sec16AuditLevel : Sec16Residue := Sec16Residue.L0StructurallyDischarged
+
+/-- ★gatekeeper：§16 残余分类穷尽——任何状态标签都是四类之一，且无经验有效构造子。 -/
+theorem sec16_residue_classified (s : Sec16Residue) :
+    s = Sec16Residue.L0StructurallyDischarged ∨
+    s = Sec16Residue.L0DeterminismByConstruction ∨
+    s = Sec16Residue.L2RuntimeFeasibilityResidue ∨
+    s = Sec16Residue.L2EmpiricalParseUniqueness := by
+  cases s <;> simp
+
+/-! ── §16 节公理审计（确认仅 propext/Quot.sound，无 sorryAx/native_decide）──────────── -/
+
+#print axioms main_central_uniqueness
+#print axioms main_sec16_L0_assumptions_discharged
+#print axioms sec16_assump1_recursion_wellfounded
+#print axioms sec16_assump10_feasible_nonempty_conditional
+#print axioms sec16_residue_classified
 
 end NewChanlun.Origin.MainTheorem
