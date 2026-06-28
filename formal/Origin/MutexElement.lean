@@ -1,6 +1,23 @@
 /-
   Origin/MutexElement.lean — MW1 缠论元素五元组 + 级别关系标签 ρ_e（角色互斥分类链的根）
 
+  ── ★去根化偏离声明（20页 spec paradigm 对照，2026-06-28）──────────────────────────────
+  **本文件属 15页 paradigm**（`LevelRelation = Root/Same/Sub` 三值标签，Root 为分类轴特例）。
+  **20页权威 paradigm 在 `Origin.OperationRole18`**（18 类 R=H×V×δ，去根化：根从分类轴特例
+  消失，被边界胚元 ∂ + Ambient 吸收，无 `RootRole`/`LevelRelation.root` 构造子）。
+
+  - **有效域**：本文件的 `LevelRelation.root`（α_e=∅ 的根级元素）是 15页时期的 L0 结构分类
+    特例，在 15页定义域内代数成立。20页去根化表明该特例可被 Ambient 吸收——有效域严格
+    小于 15页定义域声称的范围（231号：有效域 ⊊ 定义域）。
+  - **为何保留**（no-patch 保留契约锚，MEMORY newchanlun-no-patch-keep-primitive）：本文件被
+    互斥定理链 `MutexExhaustive → MutexRecursive → MutexFinalTheorem` import 锚定，这些是
+    15页时期已结算的 L0 定理（M05 三分穷尽 / M12 Σ指示=1 / M26 三分归纳 / M29 三结论合一）。
+    删除会破既有 GREEN，且这些定理在其 15页定义域内是严格的同义反复（L0 信息增量零）。
+    保留为**契约锚**（非权威 paradigm），诚实标注有效域——非兼容垫片（不作为 fallback 使用）。
+  - **权威指引**：新模块应 import `Origin.OperationRole18`（去根化权威），不应 import 本文件。
+    本文件与 `OperationRole18` 是同一概念（级别关系/操作角色）的 paradigm 并存，非替代关系。
+  ──────────────────────────────────────────────────────────────────────────────────────
+
   ── 存在论位置（M04/M05，互斥分类 canonical spec §B 表 M04/M05 行 / §A 页2-3 §2）────────
   本文件形式化 **M04 元素五元组** + **M05 三种级别关系**：在 W7 C27 四元组
     e_C27 = (I_e, ε_e, ℓ_e, par(e))                       （`Origin.SyntaxElement`）

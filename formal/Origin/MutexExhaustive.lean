@@ -1,6 +1,22 @@
 /-
   Origin/MutexExhaustive.lean — MW4 角色互斥穷尽顶点定理 M12（Σ指示=1）+ 完全互斥分类完备性
 
+  ── ★去根化偏离声明（20页 spec paradigm 对照，2026-06-28）──────────────────────────────
+  **本文件属 15页 paradigm**（M12 Σ指示=1 在四角色 `{RootDir, SameDir, SubFollow, ShortDiff}`
+  上求和，`RootDir` 是分类轴特例）。**20页权威 paradigm 在 `Origin.OperationRole18`**（18 类
+  R=H×V×δ，去根化：无 `RootDir` 构造子，求和索引集是 18 类无根特例）。
+
+  - **有效域**：M12 Σ指示=1 在 15页四角色定义域内是 L0 同义反复（信息增量零）。20页去根化
+    表明求和索引集不应含 RootDir 特例——有效域（15页四角色代数成立）严格小于定义域声称
+    （231号：有效域 ⊊ 定义域）。
+  - **直接矛盾点**：M12 的求和索引集 `{RootDir, SameDir, SubFollow, ShortDiff}` 含 `RootDir`
+    特例，与 20页去根化**直接矛盾**。本文件保留该索引集是 15paradigm 的历史存在。
+  - **为何保留**（no-patch 保留契约锚，MEMORY newchanlun-no-patch-keep-primitive）：本文件被
+    `MutexRecursive → MutexFinalTheorem` import 锚定，M12 是 15页时期已结算的 L0 顶点定理。
+    删除会破既有 GREEN。保留为**契约锚**（非权威 paradigm），诚实标注有效域——非兼容垫片。
+  - **权威指引**：新模块应 import `Origin.OperationRole18`（去根化权威），不应 import 本文件。
+  ──────────────────────────────────────────────────────────────────────────────────────
+
   ── 存在论位置（M12，互斥分类 canonical spec §B 表 M12 行 / §A 页4 §4 / §C 完备性论证）────
   本文件形式化 **M12 角色互斥穷尽定理**——goal「严格完全互斥分类」的 **形式化顶点**：
     ∀ e ∈ E, Σ_{R ∈ {RootDir, SameDir, SubFollow, ShortDiff}} 1[operationRole(e) = R] = 1

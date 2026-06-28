@@ -1,6 +1,21 @@
 /-
   Origin/MutexRecursive.lean — MW8 角色感知自相似递归 M26（三分互斥穷尽归纳）
 
+  ── ★去根化偏离声明（20页 spec paradigm 对照，2026-06-28）──────────────────────────────
+  **本文件属 15页 paradigm**（M26 三分互斥穷尽归纳在 `LevelRelation = Root/Same/Sub` 上进行，
+  `Root` 是分类轴特例）。**20页权威 paradigm 在 `Origin.OperationRole18`**（18 类 R=H×V×δ，
+  去根化：无 `Root` 构造子，归纳基础由边界胚元 ∂ + Ambient 承载）。
+
+  - **有效域**：M26 三分归纳在 15页定义域内是 L0 结构定理。20页去根化表明归纳不应以 Root
+    特例为分支——有效域严格小于 15页定义域声称（231号：有效域 ⊊ 定义域）。
+  - **直接矛盾点**：M26 归纳的 `Root` 分支（α_e=∅）与 20页去根化**直接矛盾**。本文件保留
+    该分支是 15paradigm 的历史存在。
+  - **为何保留**（no-patch 保留契约锚，MEMORY newchanlun-no-patch-keep-primitive）：本文件被
+    `MutexFinalTheorem` import 锚定，M26 是 15页时期已结算的 L0 定理。删除会破既有 GREEN。
+    保留为**契约锚**（非权威 paradigm），诚实标注有效域——非兼容垫片。
+  - **权威指引**：新模块应 import `Origin.OperationRole18`（去根化权威），不应 import 本文件。
+  ──────────────────────────────────────────────────────────────────────────────────────
+
   ── 存在论位置（M26，互斥分类 canonical spec §B 表 M26 行 / §A 页15 §19 / §D MW8 行 / §F）────
   本文件把 W13 基础递归（`Origin.SeparateCoverRecursive`，父/子二分覆盖骨架）的归纳步从
   **父/子二分**（同向/反向，由 W8 `dir_consistent` 统一承载方向）**精化** 为 **角色三分互斥

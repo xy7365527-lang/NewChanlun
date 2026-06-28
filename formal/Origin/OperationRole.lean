@@ -1,6 +1,25 @@
 /-
   Origin/OperationRole.lean — MW3 角色四分类 Role(e) + Side⊥Role 二维正交 + 短差绝对方向 + 短差非反手
 
+  ── ★去根化偏离声明（20页 spec paradigm 对照，2026-06-28）──────────────────────────────
+  **本文件属 15页 paradigm**（`OperationRole = RootDir/SameDir/SubFollow/ShortDiff` 四分类，
+  `RootDir` 是 ρ_e=Root 的分类轴特例——根方向元素独立做多/做空）。**20页权威 paradigm 在
+  `Origin.OperationRole18`**（18 类 R=H×V×δ，去根化：无 `RootDir` 构造子，σ_p=0 → Ambient
+  吸收旧 RootDir 特例）。
+
+  - **有效域**：本文件的 `RootDir`（ρ_e=Root 独立角色）是 15页时期的 L0 结构分类特例，在
+    15页定义域内代数成立（M09 四分穷尽是同义反复）。20页去根化表明根无需作为分类轴特例
+    存在——有效域严格小于 15页定义域声称的范围（231号：有效域 ⊊ 定义域）。
+  - **直接矛盾点**：`RootDir` 特例与 20页去根化**直接矛盾**——20页核心严格性即根从分类轴
+    消失。本文件保留 `RootDir` 是 15paradigm 的历史存在，非当前权威。
+  - **为何保留**（no-patch 保留契约锚，MEMORY newchanlun-no-patch-keep-primitive）：本文件被
+    互斥定理链 `MutexExhaustive → MutexRecursive → MutexFinalTheorem` import 锚定，这些是
+    15页时期已结算的 L0 定理（M12 Σ指示=1 / M26 / M29）。删除会破既有 GREEN。保留为**契约锚**
+    （非权威 paradigm），诚实标注有效域——非兼容垫片。
+  - **权威指引**：新模块应 import `Origin.OperationRole18`（去根化权威），不应 import 本文件。
+    `OperationRole18` 文末 §5 有完整对照表（4类 vs 18类 / RootDir vs Ambient）。
+  ──────────────────────────────────────────────────────────────────────────────────────
+
   ── 存在论位置（M09/M10/M11/M13，互斥分类 canonical spec §B 表 + §A 页3-4 §3）──────────
   本文件形式化角色互斥分类链的「角色侧」四条 canonical 条目：
   - **M09 角色四分类** `Role(e) ∈ {RootDir, SameDir, SubFollow, ShortDiff}`：
