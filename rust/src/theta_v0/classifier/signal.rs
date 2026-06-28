@@ -103,8 +103,14 @@ fn seg_end(s: &Segment) -> SegEnd {
 /// bar 原始号，单调递增）。本函数把段的 source_index 端点映射到 merged_bars **下标**，使 MACD 段
 /// 面积区间与 `closes` 同坐标系——**不**跨「原始 bars / merged_bars」两序列混用（那会引入面积错位）。
 ///
-/// `src_to_idx` 是 merged_bars 下标 → source_index 的升序映射（`closes[k]` 对应 `src_to_idx[k]`）。
-/// 找首个 `>= start` 的下标 lo 与末个 `<= end` 的下标 hi。区间空（无 bar 落入）⟹ None。
+/// `src_to_idx` 是 merged_bars 下标 → source_index 的**升序**映射（`closes[k]` 对应 `src_to_idx[k]`；
+/// merged_bars source_index 单调递增，见函数头）。找首个 `>= start` 的下标 lo 与末个 `<= end` 的
+/// 下标 hi。区间空（无 bar 落入）⟹ None。
+///
+/// ★性能（O(logS) 二分，原 O(S) 线性 `position`/`rposition`）：`src_to_idx` 升序 ⟹ 谓词 `s >= start`
+/// 与 `s <= end` 都是单调前缀/后缀，用 `partition_point` 二分定位（替代每次调用 O(S) 全扫）。type1
+/// 路径每段调本函数 2 次（curr + prev），原 O(S) 线性扫使 type1 退化为 O(S²)——这是 L2 profile 坐实
+/// 的真 O(n²) 热点之一（与 type3 前驱重复 O(C·S) 并列）；二分后降为 O(S·logS)。
 fn map_src_range_to_close_idx(
     src_to_idx: &[usize],
     start: usize,
@@ -113,162 +119,158 @@ fn map_src_range_to_close_idx(
     if start > end {
         return None;
     }
-    // lo = 首个 source_index >= start 的 closes 下标。
-    let lo = src_to_idx.iter().position(|&s| s >= start)?;
-    // hi = 末个 source_index <= end 的 closes 下标。
-    let hi = src_to_idx.iter().rposition(|&s| s <= end)?;
+    // lo = 首个 source_index >= start 的 closes 下标（升序 ⟹ `s < start` 是前缀，二分其长度）。
+    let lo = src_to_idx.partition_point(|&s| s < start);
+    if lo >= src_to_idx.len() {
+        return None; // 无 source_index >= start（全部 < start）。
+    }
+    // hi = 末个 source_index <= end 的 closes 下标（升序 ⟹ `s <= end` 是前缀，末元素 = 前缀长 - 1）。
+    let cnt_le_end = src_to_idx.partition_point(|&s| s <= end);
+    if cnt_le_end == 0 {
+        return None; // 无 source_index <= end（全部 > end）。
+    }
+    let hi = cnt_le_end - 1;
     if lo > hi {
         return None;
     }
     Some((lo, hi))
 }
 
-/// 第一类买卖点提取（契约锚 `Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence`）。
+/// 某线段归属的「最近已确认中枢」（第18课定理三「该中枢」+ 第49课「当下之前最后一个中枢」）。
 ///
-/// reference:34「某级别趋势中，次级别向下跌破最后一个中枢后形成的**背驰点**」。对每个 confirmed
-/// 中枢 `c`，扫描其后线段序列，找**破中枢的段** + **背驰**（破中枢段 vs 前一同向段 MACD 面积严格
-/// 变小）：
-/// - **1买**：一条**向下线段**跌破中枢下方（端点 `< zd`，`brokeCenter` 几何 L0），且该段相对
-///   **前一向下段** MACD 面积**严格变小**（背驰，`segments_diverge` 真算）⟹ 该破中枢段端点 = 1 买。
-/// - **1卖**：镜像——**向上线段**突破中枢上方（端点 `> zg`），相对**前一向上段**面积严格变小 ⟹ 1 卖。
+/// ★中枢归属语义（codex 异质裁决 2026-06-27，原文坐实）：第一/三类买卖点针对的中枢是该端点
+/// **刚离开并首次回试的那个中枢**——即该线段在原始 K 序上**之前最后一个已确认中枢**（不是所有
+/// 价格阈值更低/更高的前驱中枢）。原文依据：
+/// - 第18课定理三（018:64）：「中枢破坏 = 离开**该**中枢后回抽不重新回到**该**中枢内」——单数「该中枢」。
+/// - 第20课定理（020:60）：「离开缠中说禅走势中枢...回试...必须是**第一次**」——单数中枢 + 第一次。
+/// - 第49课/第29课：「当下之前最后一个中枢」组织买卖点（`bsp.rs:110` BspPoint.center 注「最后中枢」）。
+/// - maimai.md:103：第一类「向下跌破**最后一个**中枢」。
+/// - Lean `BspClassification.BspEndpoint`（lean:75-84）只带**单一** center，`IsType3Buy/Sell` 相对该
+///   **一个** center 判定（lean:111-121）。
 ///
-/// ★分量 L 级（formalization-validity-domain）：破中枢 `< zd`/`> zg` 是整数几何 **L0**；背驰由
-/// MACD `segments_diverge` 真算 = **L1**（管线正确性）。两者合取 = `IsType1`（对齐 Lean，bit-exact）。
-/// 「前一同向段」是序列里同 direction 的最近前驱段（reference:34「末段相对**前**同向段」的确定配对——
-/// 非任意配对，是序列序最近同向前驱，确定可定位 ⟹ 无歧义）。
-///
-/// `hist` 是 MACD hist 序列（`closes` 上算）；`src_to_idx` 是 closes 下标→source_index 映射（段
-/// 区间坐标系转换）。破中枢段或前同向段无法映射到 closes 区间（越界）⟹ 跳过（无面积 ⟹ 非背驰）。
-///
-/// ★性能（O(segs_after) 单趟，原 O(segs_after²)）：「前一同向段」用**增量维护** `last_up_idx`/
-/// `last_down_idx`（各方向序列序最近已遍历前驱的下标）替代原 `segs_after[..i].rev().find`
-/// 向前线性扫描——单趟遍历中先读 last（当前段的最近同向前驱），段处理完后再更新 last
-/// （当前段不成为自己的前驱）。所有前驱（不论破中枢与否、不论是否被 continue 跳过）都被记录，
-/// 与 `rev().find(direction==d)`（找 i 之前最近同向段）**逐元素等价**（bit-exact，纯算法重写）。
-fn extract_first_for_center(
-    c: &Center,
-    segs_after: &[Segment],
-    hist: &[f64],
-    src_to_idx: &[usize],
-) -> Vec<BspPoint> {
-    let mut points = Vec::new();
-    // 各方向序列序最近已遍历前驱的下标（增量维护，替代 O(segs_after²) 向前 find）。
-    let mut last_up_idx: Option<usize> = None;
-    let mut last_down_idx: Option<usize> = None;
-    for (i, seg) in segs_after.iter().enumerate() {
-        let end = seg_end(seg);
-        // 前一同向段（序列序最近同向前驱）——reference:34「末段相对前同向段」的确定配对。
-        // ★先读 last（当前段 i 之前最近的同向段），与原 `segs_after[..i].rev().find` 逐元素等价。
-        let prev_same_dir = match end.dir {
-            Direction::Up => last_up_idx,
-            Direction::Down => last_down_idx,
-        };
-        // 段处理完后更新 last（在 continue 前更新，确保被跳过的段仍作为后续前驱候选——
-        // 对齐原 `rev().find` 扫描全部前驱，不论是否破中枢/是否产出）。
-        match end.dir {
-            Direction::Up => last_up_idx = Some(i),
-            Direction::Down => last_down_idx = Some(i),
-        }
-        // 破中枢几何（L0）：买侧向下破（端点 < zd）；卖侧向上破（端点 > zg）。
-        let (broke, is_sell) = match end.dir {
-            Direction::Down if end.price < c.zd => (true, false), // 1 买：向下破中枢下沿
-            Direction::Up if c.zg < end.price => (true, true),    // 1 卖：向上破中枢上沿
-            _ => (false, false),
-        };
-        if !broke {
-            continue;
-        }
-        let Some(prev_idx) = prev_same_dir else {
-            // 无前同向段 ⟹ 无背驰对照标的 ⟹ 非第一类（第一类是趋势末段，必有前同向段）。
-            continue;
-        };
-        let prev = &segs_after[prev_idx];
-        // 段区间（source_index）→ closes 下标区间（MACD 面积坐标系）。
-        let (Some(curr_seg), Some(prev_seg)) = (
-            map_src_range_to_close_idx(src_to_idx, seg.start_index, seg.end_index),
-            map_src_range_to_close_idx(src_to_idx, prev.start_index, prev.end_index),
-        ) else {
-            // 段无法映射到 closes 区间（越界/空）⟹ 无 MACD 面积 ⟹ 跳过（不冒充背驰）。
-            continue;
-        };
-        // 背驰（L1 真算）：破中枢段（curr）面积严格小于前同向段（prev）面积。
-        if !segments_diverge(hist, prev_seg, curr_seg) {
-            continue; // 力度未衰减 ⟹ 非背驰 ⟹ 非第一类。
-        }
-        // 第一类端点：below_last_center（买）/对偶（卖），未离开中枢（破中枢 ≠ 离开后回抽）。
-        let situ = EndpointSituation {
-            after_first_buy: false,
-            is_pullback_end: false,
-            left_center: false,         // 第一类是破中枢背驰，非第三类的离开后回抽
-            retrace_not_reenter: false,
-            below_last_center: true,    // 破中枢背驰端点（买=中枢下方/卖镜像）
-            is_sell_side: is_sell,
-        };
-        let bits = endpoint_to_bsp(&situ);
-        // 第一类止损 = pivot（破中枢段端点极值）：买点 pivot_low、卖点 pivot_high。
-        points.push(make_first_point(end.source_index, bits, end.price));
+/// `centers` 按 `end_index` 升序（`detect_centers_with` 非重叠扫描保证，mod.rs:136）。返回 `end_index
+/// <= seg_start` 的**最后一个**中枢（该线段离开/回试时「当下之前最后一个中枢」）。无满足者 ⟹ None
+/// （线段在所有中枢之前 ⟹ 无可离开/回试的中枢 ⟹ 非第一/三类）。
+fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Center> {
+    // 升序 centers 上，end_index <= seg_start 的是一个前缀；取该前缀末元素 = 最近中枢。
+    let hi = centers.partition_point(|c| c.end_index <= seg_start);
+    if hi == 0 {
+        None
+    } else {
+        Some(&centers[hi - 1])
     }
-    points
 }
 
-/// 第三类买卖点提取（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。
+/// 第一类买卖点判定（契约锚 `Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence`）。
 ///
-/// 对每个 confirmed 中枢 `c`，扫描其后的线段端点序列，按 reference:36 判第三类：
-/// - **3买**：一条**向上线段**离开中枢上方（端点 `> zg`），紧随的**向下线段**回试低点
-///   `> zg`（不重新触及中枢闭区间）⟹ 该回试低点端点 = 3 买。
-/// - **3卖**：一条**向下线段**离开中枢下方（端点 `< zd`），紧随的**向上线段**回抽高点
-///   `< zd`（不重新触及中枢闭区间）⟹ 该回抽高点端点 = 3 卖。
+/// reference:34 + maimai.md:103「某级别趋势中，次级别向下跌破**最后一个**中枢后形成的**背驰点**」。
+/// 对单个线段 `seg`（已归属其**最近中枢** `c`，见 [`nearest_confirmed_center`]）+ 前一同向段 `prev`
+/// 判破中枢 ∧ 背驰：
+/// - **1买**：向下线段端点 `< c.zd`（破最近中枢下沿，`brokeCenter` 几何 L0）∧ 相对前向下段 MACD
+///   面积严格变小（背驰，`segments_diverge` 真算 L1）⟹ 1 买。
+/// - **1卖**：镜像——向上线段端点 `> c.zg`，相对前向上段面积严格变小 ⟹ 1 卖。
 ///
-/// `segs_after` 是中枢 `end_index` 之后的线段序列（按时间序）。逐相邻对 (leave, retest)
-/// 判定。bit-exact：边界用 **严格口径**（`> zg` / `< zd`，等号排除）——第三类买点是中枢
-/// **终结点**，retest==zg=单点重叠仍触及闭区间中枢 `[ZD,ZG]`（中心定理一：与 `[ZD,ZG]`
-/// 重叠=中枢延伸，非终结）⟹ 非第三类。逐字段对齐 Lean `IsType3Buy`（`zg < retracePrice`
-/// 严格，BspClassification.lean:113）与 legacy `buysellpoint.rs:414`（`low > zg` 严格）。
-/// codex 裁决 2026-06-27（中枢终结语义）。
-fn extract_third_for_center(c: &Center, segs_after: &[Segment]) -> Vec<BspPoint> {
-    let mut points = Vec::new();
-    // 逐相邻线段对：前者离开中枢，后者回试。
-    for pair in segs_after.windows(2) {
-        let leave = seg_end(&pair[0]);
-        let retest = seg_end(&pair[1]);
-        match (leave.dir, retest.dir) {
-            // 3 买：向上离开（leave 端点 > zg）+ 向下回试（retest 低点 > zg，不触及闭区间中枢）。
-            // 严格 `>`：retest==zg=单点重叠仍触及中枢 [ZD,ZG]=非终结=非第三类（codex 裁决 2026-06-27）。
-            (Direction::Up, Direction::Down) => {
-                if leave.price > c.zg && retest.price > c.zg {
-                    let situ = EndpointSituation {
-                        after_first_buy: false,
-                        is_pullback_end: false,
-                        left_center: true,        // 离开中枢（leave.price > zg）
-                        retrace_not_reenter: true, // 回试不触及闭区间中枢（retest > zg，严格）
-                        below_last_center: false,
-                        is_sell_side: false,
-                    };
-                    let bits = endpoint_to_bsp(&situ);
-                    points.push(make_third_point(retest.source_index, bits, retest.price, c));
-                }
-            }
-            // 3 卖：向下离开（leave 端点 < zd）+ 向上回抽（retest 高点 < zd，不触及闭区间中枢）。
-            // 严格 `<`：retest==zd=单点重叠仍触及中枢 [ZD,ZG]=非终结=非第三类（codex 裁决 2026-06-27）。
-            (Direction::Down, Direction::Up) => {
-                if leave.price < c.zd && retest.price < c.zd {
-                    let situ = EndpointSituation {
-                        after_first_buy: false,
-                        is_pullback_end: false,
-                        left_center: true,
-                        retrace_not_reenter: true,
-                        below_last_center: false,
-                        is_sell_side: true,
-                    };
-                    let bits = endpoint_to_bsp(&situ);
-                    points.push(make_third_point(retest.source_index, bits, retest.price, c));
-                }
-            }
-            // 同向相邻（无回试）/其他：非第三类结构，跳过。
-            _ => {}
-        }
+/// ★中枢归属（codex 裁决）：`c` 是 `seg` 的**最近中枢**（"最后一个中枢"），非所有 zd > 端点的前驱
+/// 中枢——每个破中枢段端点只相对**一个**中枢判一次（消解旧 `for c in centers` 对前驱重复产出）。
+///
+/// ★分量 L 级（formalization-validity-domain）：破中枢 `< zd`/`> zg` 整数几何 **L0**；背驰 MACD
+/// 真算 **L1**。两者合取 = `IsType1`（对齐 Lean，bit-exact）。「前一同向段」是序列序最近同向前驱
+/// （reference:34「末段相对前同向段」的确定配对）。`prev` 无（首个同向段）⟹ 无背驰对照 ⟹ None。
+///
+/// `hist` 是 MACD hist 序列；`src_to_idx` 是 closes 下标→source_index 映射。段无法映射到 closes
+/// 区间（越界）⟹ None（无面积 ⟹ 非背驰）。
+fn judge_first(
+    c: &Center,
+    seg: &Segment,
+    prev: &Segment,
+    hist: &[f64],
+    src_to_idx: &[usize],
+) -> Option<BspPoint> {
+    let end = seg_end(seg);
+    // 破中枢几何（L0）：买侧向下破（端点 < zd）；卖侧向上破（端点 > zg）。
+    let (broke, is_sell) = match end.dir {
+        Direction::Down if end.price < c.zd => (true, false), // 1 买：向下破最近中枢下沿
+        Direction::Up if c.zg < end.price => (true, true),    // 1 卖：向上破最近中枢上沿
+        _ => (false, false),
+    };
+    if !broke {
+        return None;
     }
-    points
+    // 段区间（source_index）→ closes 下标区间（MACD 面积坐标系）。
+    let (Some(curr_seg), Some(prev_seg)) = (
+        map_src_range_to_close_idx(src_to_idx, seg.start_index, seg.end_index),
+        map_src_range_to_close_idx(src_to_idx, prev.start_index, prev.end_index),
+    ) else {
+        // 段无法映射到 closes 区间（越界/空）⟹ 无 MACD 面积 ⟹ 非背驰。
+        return None;
+    };
+    // 背驰（L1 真算）：破中枢段（curr）面积严格小于前同向段（prev）面积。
+    if !segments_diverge(hist, prev_seg, curr_seg) {
+        return None; // 力度未衰减 ⟹ 非背驰 ⟹ 非第一类。
+    }
+    // 第一类端点：below_last_center（买）/对偶（卖），未离开中枢（破中枢 ≠ 离开后回抽）。
+    let situ = EndpointSituation {
+        after_first_buy: false,
+        is_pullback_end: false,
+        left_center: false,      // 第一类是破中枢背驰，非第三类的离开后回抽
+        retrace_not_reenter: false,
+        below_last_center: true, // 破中枢背驰端点（买=中枢下方/卖镜像）
+        is_sell_side: is_sell,
+    };
+    let bits = endpoint_to_bsp(&situ);
+    // 第一类止损 = pivot（破中枢段端点极值）：买点 pivot_low、卖点 pivot_high。
+    Some(make_first_point(end.source_index, bits, end.price))
+}
+
+/// 第三类买卖点判定（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。
+///
+/// 对相邻线段对 (leave, retest)（leave 已归属其**最近中枢** `c`，见 [`nearest_confirmed_center`]）
+/// 按 reference:36 判第三类：
+/// - **3买**：向上 leave 离开 `c` 上方（端点 `> c.zg`）+ 向下 retest 回试低点 `> c.zg`（不触及闭区间
+///   中枢）⟹ 该回试低点 = 3 买。
+/// - **3卖**：向下 leave 离开 `c` 下方（端点 `< c.zd`）+ 向上 retest 回抽高点 `< c.zd`（不触及闭区间
+///   中枢）⟹ 该回抽高点 = 3 卖。
+///
+/// ★中枢归属（codex 裁决，第18课定理三「该中枢」）：`c` 是 leave 段刚离开的**最近中枢**——同一
+/// retest 端点只相对**该一个**中枢判一次，不对所有 `zg < retest` 的前驱中枢重复产出（旧
+/// `for c in centers` 的重复 bug 根源）。
+///
+/// bit-exact 边界：严格口径（`> zg` / `< zd`，等号排除）——retest==zg=单点重叠仍触及闭区间中枢
+/// `[ZD,ZG]`（中心定理一：重叠=中枢延伸，非终结）⟹ 非第三类。逐字段对齐 Lean `IsType3Buy`
+/// （`zg < retracePrice` 严格，BspClassification.lean:113）。codex 裁决 2026-06-27（中枢终结语义）。
+fn judge_third(c: &Center, leave_seg: &Segment, retest_seg: &Segment) -> Option<BspPoint> {
+    let leave = seg_end(leave_seg);
+    let retest = seg_end(retest_seg);
+    match (leave.dir, retest.dir) {
+        // 3 买：向上离开（leave 端点 > c.zg）+ 向下回试（retest 低点 > c.zg，不触及闭区间中枢）。
+        (Direction::Up, Direction::Down) if leave.price > c.zg && retest.price > c.zg => {
+            let situ = EndpointSituation {
+                after_first_buy: false,
+                is_pullback_end: false,
+                left_center: true,         // 离开最近中枢（leave.price > c.zg）
+                retrace_not_reenter: true, // 回试不触及闭区间中枢（retest > c.zg，严格）
+                below_last_center: false,
+                is_sell_side: false,
+            };
+            let bits = endpoint_to_bsp(&situ);
+            Some(make_third_point(retest.source_index, bits, retest.price, c))
+        }
+        // 3 卖：向下离开（leave 端点 < c.zd）+ 向上回抽（retest 高点 < c.zd，不触及闭区间中枢）。
+        (Direction::Down, Direction::Up) if leave.price < c.zd && retest.price < c.zd => {
+            let situ = EndpointSituation {
+                after_first_buy: false,
+                is_pullback_end: false,
+                left_center: true,
+                retrace_not_reenter: true,
+                below_last_center: false,
+                is_sell_side: true,
+            };
+            let bits = endpoint_to_bsp(&situ);
+            Some(make_third_point(retest.source_index, bits, retest.price, c))
+        }
+        // 同向相邻（无回试）/破中枢方向不符/触及中枢：非第三类结构。
+        _ => None,
+    }
 }
 
 /// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46；center 留 None——1 类止损用 pivot）。
@@ -403,24 +405,62 @@ pub fn extract_signals(
     // （段无法映射 closes 区间），第三类仍正常产（纯整数几何，不依赖 MACD）。
     let hist = compute_macd(closes, macd_cfg).hist;
 
-    // ★性能（O(S·logS) 一次排序 + 每 center O(logS) 二分，替代原每 center O(S) 全扫 + 堆分配）：
-    // 把 segments 按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格
-    // 单调递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等，逐元素
-    // 与原序相同 ⟹ bit-exact）。稳定排序保证 start_index 相同时保留原序（与原 filter 保序一致）。
+    // ★线段按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格单调
+    // 递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等）。稳定
+    // 排序保证 start_index 相同时保留原序。中枢归属用 start_index，单趟扫描需线段时间序。
     let mut sorted: Vec<Segment> = segments.to_vec();
     sorted.sort_by_key(|s| s.start_index);
 
+    // ★中枢归属用 centers 按 end_index 升序（`detect_centers_with` 非重叠扫描已保证，mod.rs:136；
+    // 公开函数不假设入参有序 ⟹ 本入口稳定排序，`nearest_confirmed_center` 二分前缀依赖升序）。
+    let mut centers_sorted: Vec<Center> = centers.to_vec();
+    centers_sorted.sort_by_key(|c| c.end_index);
+
+    // ★单趟扫描（消解旧 `for c in centers` 对前驱中枢重复产出，codex 裁决 2026-06-27）：每个线段端点
+    // 只相对其**最近已确认中枢**（"当下之前最后一个中枢"，第18课定理三「该中枢」+ 第49课）判第一/三
+    // 类**一次**，不对所有阈值更低/更高的前驱中枢重复认领。
+    //
+    // 复杂度 O(S·logC + S)：每段 `nearest_confirmed_center` 二分 O(logC) + 前同向段增量 O(1)。替代旧
+    // O(C·S)（每 center 全扫后缀）——同时解 O(n²) 全窗瓶颈（旧 first 内层 `rev().find` 的 O(S²) 已在
+    // 增量 last 维护中消除，此处保留）。
     let mut points = Vec::new();
-    for c in centers {
-        // 中枢之后的线段（start_index >= 中枢 end_index）：升序序列上 = 一个后缀。二分定位首个
-        // start_index >= c.end_index 的下标，取后缀切片 `&sorted[lo..]`——与原 filter 结果逐元素相同
-        // （升序谓词 start_index >= c.end_index 恰为后缀），免每 center O(S) 全扫 + 免堆分配新 Vec。
-        let lo = sorted.partition_point(|s| s.start_index < c.end_index);
-        let segs_after = &sorted[lo..];
-        // 第一类（破中枢 ∧ MACD 背驰真算）。
-        points.extend(extract_first_for_center(c, segs_after, &hist, close_src));
-        // 第三类（离开后回试不破，纯整数几何）。
-        points.extend(extract_third_for_center(c, segs_after));
+    // 各方向序列序最近已遍历前驱段的下标（增量维护，type1 背驰对照「前一同向段」）。
+    let mut last_up_idx: Option<usize> = None;
+    let mut last_down_idx: Option<usize> = None;
+    for (i, seg) in sorted.iter().enumerate() {
+        // 该段归属的最近已确认中枢（"当下之前最后一个中枢"）。无 ⟹ 该段在所有中枢之前 ⟹ 非第一/三类。
+        let center_for_seg = nearest_confirmed_center(&centers_sorted, seg.start_index);
+
+        if let Some(c) = center_for_seg {
+            // 第一类：破最近中枢 ∧ 背驰（相对前一同向段）。
+            let prev_same_dir = match seg.direction {
+                Direction::Up => last_up_idx,
+                Direction::Down => last_down_idx,
+            };
+            if let Some(prev_idx) = prev_same_dir {
+                if let Some(p) = judge_first(c, seg, &sorted[prev_idx], &hist, close_src) {
+                    points.push(p);
+                }
+            }
+
+            // 第三类：当前段作 retest，前一段作 leave。中枢归属 = **leave 段离开的最近中枢**（第18课
+            // 「该中枢」），故用 leave 段 start_index 定位中枢，retest 相对**同一**中枢判一次。
+            if i > 0 {
+                let leave_seg = &sorted[i - 1];
+                if let Some(c_leave) = nearest_confirmed_center(&centers_sorted, leave_seg.start_index)
+                {
+                    if let Some(p) = judge_third(c_leave, leave_seg, seg) {
+                        points.push(p);
+                    }
+                }
+            }
+        }
+
+        // 段处理完后更新「前一同向段」last（当前段不作为自己的前驱）。
+        match seg.direction {
+            Direction::Up => last_up_idx = Some(i),
+            Direction::Down => last_down_idx = Some(i),
+        }
     }
     // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。
     points.sort_by_key(|p| p.source_index);
@@ -543,6 +583,37 @@ mod tests {
     fn empty_centers_no_signal() {
         let points = extract_third_only(&[], &[seg(Direction::Up, 0, 4, 0, 10)]);
         assert!(points.is_empty());
+    }
+
+    // ★探索性测试（揭示 bug，testing-override 生成态例外）：坐实「同一 retest 端点对所有
+    //   zg < retest 的前驱中枢重复产出」的重复机制。修复后此测试断言**唯一归属最近中枢**。
+    #[test]
+    fn third_buy_belongs_only_to_nearest_center_not_all_predecessors() {
+        // 三个前驱中枢，zg 递增：C0[10,20] end=2、C1[30,40] end=14、C2[50,60] end=26。
+        // 离开+回试发生在 C2 之后：向上离开（端点 90 > 60），向下回试低点 70 > 60（不入 C2）。
+        // bug 语义：retest 端点 70 同时满足 70 > C0.zg=20、70 > C1.zg=40、70 > C2.zg=60 ⟹ 旧码产 3 个 bsp。
+        // 正确语义（第18课定理三「该中枢」+ 第49课「当下之前最后一个中枢」）：retest 只归属刚离开的
+        //   最近中枢 C2（end=26，离 leave 段最近）⟹ 唯一 1 个 bsp，center=C2。
+        let c0 = center(10, 20, 2);
+        let c1 = center(30, 40, 14);
+        let c2 = center(50, 60, 26);
+        let segs = vec![
+            seg(Direction::Up, 27, 30, 60, 90),    // 离开 C2 上方（端点 90 > 60）
+            seg(Direction::Down, 30, 34, 90, 70),  // 回试低点 70 > 60（不入 C2）→ 3 买（仅归属 C2）
+        ];
+        let points = extract_third_only(&[c0, c1, c2], &segs);
+        let buy3: Vec<_> = points.iter().filter(|p| p.bits.buy3).collect();
+        assert_eq!(
+            buy3.len(),
+            1,
+            "同一 retest 端点只归属刚离开的最近中枢 C2，不对 C0/C1 前驱重复产出（第18课定理三「该中枢」）"
+        );
+        assert_eq!(buy3[0].source_index, 34, "唯一 bsp 在回试端点");
+        assert_eq!(
+            buy3[0].center.map(|c| (c.zd, c.zg)),
+            Some((50, 60)),
+            "归属中枢 = 刚离开的最近中枢 C2[50,60]（第49课「当下之前最后一个中枢」）"
+        );
     }
 
     // ── 第一类（破中枢几何 L0 ∧ MACD 背驰真算 L1）────────────────────────────
@@ -796,70 +867,7 @@ mod tests {
         assert_eq!(map_src_range_to_close_idx(&src_to_idx, 10, 20), None);
     }
 
-    // ── bit-exact 对照（优化前 O(C×S²) oracle ↔ 优化后 O(C·logS) ）+ 标度证据 ─────────
-
-    /// **优化前**的 `extract_signals` 完整重实现（O(C×S²)）——作为 bit-exact 对照 oracle。
-    ///
-    /// 逐字节复制优化前的三处算法形态：
-    /// (1) 主循环：每 center `filter(start_index >= end_index).copied().collect()`（O(S) 全扫 + 堆分配）；
-    /// (2) 第一类：「前一同向段」用 `segs_after[..i].rev().find(direction==d)`（O(segs_after²) 向前扫）；
-    /// (3) 第三类：`windows(2)`（与优化后共用 `extract_third_for_center`，第三类本无平方瓶颈，不重写）。
-    /// 与优化后 `extract_signals` 在同输入上逐 `BspPoint` 对比 = bit-exact 经验证据（L1 管线一致性）。
-    fn extract_signals_oracle_pre_opt(
-        centers: &[Center],
-        segments: &[Segment],
-        closes: &[f64],
-        close_src: &[usize],
-        macd_cfg: &MacdConfig,
-    ) -> Vec<BspPoint> {
-        let hist = compute_macd(closes, macd_cfg).hist;
-        let mut points = Vec::new();
-        for c in centers {
-            // (1) 优化前主循环：filter + collect（O(S) 全扫 + 堆分配）。
-            let segs_after: Vec<Segment> = segments
-                .iter()
-                .filter(|s| s.start_index >= c.end_index)
-                .copied()
-                .collect();
-            // (2) 优化前第一类：rev().find 向前线性扫（O(segs_after²)）。
-            for (i, seg) in segs_after.iter().enumerate() {
-                let end = seg_end(seg);
-                let (broke, is_sell) = match end.dir {
-                    Direction::Down if end.price < c.zd => (true, false),
-                    Direction::Up if c.zg < end.price => (true, true),
-                    _ => (false, false),
-                };
-                if !broke {
-                    continue;
-                }
-                let prev_same_dir = segs_after[..i].iter().rev().find(|s| s.direction == end.dir);
-                let Some(prev) = prev_same_dir else { continue };
-                let (Some(curr_seg), Some(prev_seg)) = (
-                    map_src_range_to_close_idx(close_src, seg.start_index, seg.end_index),
-                    map_src_range_to_close_idx(close_src, prev.start_index, prev.end_index),
-                ) else {
-                    continue;
-                };
-                if !segments_diverge(&hist, prev_seg, curr_seg) {
-                    continue;
-                }
-                let situ = EndpointSituation {
-                    after_first_buy: false,
-                    is_pullback_end: false,
-                    left_center: false,
-                    retrace_not_reenter: false,
-                    below_last_center: true,
-                    is_sell_side: is_sell,
-                };
-                let bits = endpoint_to_bsp(&situ);
-                points.push(make_first_point(end.source_index, bits, end.price));
-            }
-            // (3) 第三类（与优化后共用，无平方瓶颈）。
-            points.extend(extract_third_for_center(c, &segs_after));
-        }
-        points.sort_by_key(|p| p.source_index);
-        points
-    }
+    // ── 中枢归属语义（codex 裁决：唯一归属最近中枢）+ 复杂度标度证据 ─────────────
 
     /// 确定性合成数据：n_seg 条升序线段（对齐生产路径 parser 线段账本 start_index 严格单调）+
     /// n_center 个中枢 + closes/close_src。无 RNG（确定性，可复现），价格用确定性正弦式震荡造背驰差。
@@ -895,22 +903,53 @@ mod tests {
     }
 
     #[test]
-    fn extract_signals_bit_exact_vs_pre_opt_oracle() {
-        // ★bit-exact 核心证据（L1 管线一致性，formalization-validity-domain）：优化后 extract_signals
-        // 与优化前 O(C×S²) oracle 在多档标度合成输入上**逐 BspPoint 完全相同**。性能优化不改任何
-        // 缠论语义（B1/S1/B3/S3 口径、破中枢、背驰、回试不变）⟹ 输出序列逐字段恒等。
+    fn each_retest_endpoint_belongs_to_unique_nearest_center() {
+        // ★conformance 测试（codex 明确要求，锁正确语义，替代锚定 bug 产出的旧 bit-exact oracle）：
+        // 多中枢散布输入下，每个 retest 端点（source_index）只产**一个** bsp——唯一归属其最近中枢，
+        // 不对所有前驱中枢重复（第18课定理三「该中枢」+ 第49课「当下之前最后一个中枢」）。
+        //
+        // 旧 `for c in centers` 对同一 source_index 重复产出 O(C) 次（98.9% 重复）；修复后单趟扫描
+        // 每端点唯一归属 ⟹ 同一 source_index 至多一个第一类 + 至多一个第三类（互斥语义不同 bit）。
         for &(n_seg, n_center) in &[(200usize, 8usize), (1000, 16), (3000, 24)] {
             let (centers, segments, closes, close_src) = synth_scale_input(n_seg, n_center);
             let cfg = MacdConfig::default();
-            let opt = extract_signals(&centers, &segments, &closes, &close_src, &cfg);
-            let oracle = extract_signals_oracle_pre_opt(&centers, &segments, &closes, &close_src, &cfg);
-            assert_eq!(
-                opt.len(),
-                oracle.len(),
-                "标度 ({n_seg} seg, {n_center} center)：优化后 bsp 数量必须与优化前 oracle 相同"
-            );
-            for (k, (a, b)) in opt.iter().zip(oracle.iter()).enumerate() {
-                assert_eq!(a, b, "标度 ({n_seg} seg)：第 {k} 个 BspPoint 必须逐字段相同（bit-exact）");
+            let points = extract_signals(&centers, &segments, &closes, &close_src, &cfg);
+
+            // 每个 source_index 的第三类买卖点至多一个（唯一归属最近中枢，无前驱重复）。
+            use std::collections::HashMap;
+            let mut third_per_src: HashMap<usize, usize> = HashMap::new();
+            let mut first_per_src: HashMap<usize, usize> = HashMap::new();
+            for p in &points {
+                if p.bits.buy3 || p.bits.sell3 {
+                    *third_per_src.entry(p.source_index).or_insert(0) += 1;
+                }
+                if p.bits.buy1 || p.bits.sell1 {
+                    *first_per_src.entry(p.source_index).or_insert(0) += 1;
+                }
+            }
+            for (&src, &cnt) in &third_per_src {
+                assert_eq!(
+                    cnt, 1,
+                    "标度 ({n_seg} seg, {n_center} center)：source_index={src} 的第三类买卖点必须唯一\
+                     （归属最近中枢，不对前驱重复，第18课定理三「该中枢」）"
+                );
+            }
+            for (&src, &cnt) in &first_per_src {
+                assert_eq!(
+                    cnt, 1,
+                    "标度 ({n_seg} seg, {n_center} center)：source_index={src} 的第一类买卖点必须唯一\
+                     （归属最后中枢，不对前驱重复，maimai.md:103「最后一个中枢」）"
+                );
+            }
+            // 含 3 类 bit 的 bsp 的 center 必 Some 且 = 某真实输入中枢（归属正确，非零占位）。
+            for p in &points {
+                if p.bits.buy3 || p.bits.sell3 {
+                    let c = p.center.expect("含 3 类 bit ⟹ center 必 Some");
+                    assert!(
+                        centers.iter().any(|ic| ic.zd == c.zd && ic.zg == c.zg && ic.end_index == c.end_index),
+                        "归属中枢必是真实输入中枢之一（最近中枢，非臆造）"
+                    );
+                }
             }
         }
     }
@@ -937,58 +976,59 @@ mod tests {
         assert_eq!(from_asc, from_desc, "稳定排序消除输入顺序依赖 ⟹ 乱序与升序输入产相同 bsp");
     }
 
-    /// 第一类 S² 主导的合成数据（隔离 first 内层 `rev().find` 的 O(segs_after²) 成本）。
+    /// 多中枢散布的合成数据（隔离单趟扫描的 O(S·logC) 标度——大量中枢 + 大量线段）。
     ///
-    /// ★为什么需要独立档：`synth_scale_input` 让方向交替 ⟹ 第三类 `windows(2)` 大量产出（O(C×S)）+
-    /// 段端点剧烈摆动 ⟹ 第一类大量产出 ⟹ **产出量 O(C×S)** 主导耗时，淹没 first 的 O(S²) **扫描**成本
-    /// （优化目标）。本档构造**全段同向（全 Down）** ⟹ 第三类 `windows(2)` 全 (Down,Down) **零产出**；
-    /// 段端点几乎都破中枢（< zd）⟹ first 的 `rev().find` 在每段上扫全部前驱 = **O(S²) 扫描**；但
-    /// closes 平坦 ⟹ MACD 面积近零 ⟹ `segments_diverge` 几乎全 false ⟹ **first 产出稀疏**。
-    /// 净效果：O(S²) **扫描**主导（优化目标），产出可忽略 ⟹ 加速比反映 first 优化的真实效果。
-    fn synth_first_scan_dominated(n_seg: usize) -> (Vec<Center>, Vec<Segment>, Vec<f64>, Vec<usize>) {
-        // 全段同向 Down，start_index 升序，端点全部破中枢下沿（< zd=100）⟹ broke 恒真 ⟹ rev().find 必扫。
+    /// ★为什么需要：旧 `for c in centers` 主循环对每 center 全扫线段后缀 = O(C·S)，且第一/三类对
+    /// 前驱中枢**重复产出** O(C) 份/端点（98.9% 重复 + O(n²) 全窗瓶颈双重根源）。本档造 n_center 个
+    /// 中枢散布在段序列各处 + 段端点剧烈摆动（破中枢 + 离开/回试），复现旧码 C·S 主循环成本。修复后
+    /// 单趟扫描每段 O(logC) 二分定位归属中枢 ⟹ 总 O(S·logC)，无 C·S 全扫 + 无前驱重复。
+    fn synth_many_center_input(n_seg: usize, n_center: usize) -> (Vec<Center>, Vec<Segment>, Vec<f64>, Vec<usize>) {
+        // 方向交替段，start_index 升序，端点剧烈摆动（破中枢 + 离开/回试，最大化产出路径触发）。
         let mut segments = Vec::with_capacity(n_seg);
         for k in 0..n_seg {
+            let dir = if k % 2 == 0 { Direction::Down } else { Direction::Up };
             let si = k * 2;
             let ei = k * 2 + 1;
-            segments.push(Segment {
-                direction: Direction::Down,
-                start_index: si,
-                end_index: ei,
-                start_price: 150,
-                end_price: 80, // < zd=100 ⟹ 破中枢 ⟹ broke 恒真 ⟹ first 内层 rev().find 必执行
-            });
+            let phase = (k as i64 * 37) % 220;
+            let ep: Tick = 40 + phase; // 40..260（破中枢核心 [100,200] + 离开/回试）
+            segments.push(Segment { direction: dir, start_index: si, end_index: ei, start_price: 150, end_price: ep });
         }
-        // 单 center，end_index=0 ⟹ segs_after = 全部 S 段（最大化 first 内层扫描范围 = O(S²)）。
-        let centers = vec![Center { zd: 100, zg: 200, dd: 50, gg: 250, start_index: 0, end_index: 0 }];
-        // closes 平坦 ⟹ MACD hist 近零 ⟹ segments_diverge 几乎全 false ⟹ first 产出稀疏（扫描主导）。
+        // n_center 个中枢，end_index 散布在段序列各处（每段二分定位不同归属中枢，复现 C 维成本）。
+        let mut centers = Vec::with_capacity(n_center);
+        for j in 0..n_center {
+            let ei = (j * n_seg / n_center.max(1)) * 2;
+            centers.push(Center { zd: 100, zg: 200, dd: 50, gg: 250, start_index: 0, end_index: ei });
+        }
         let n_close = n_seg * 2 + 2;
-        let closes = vec![150.0; n_close];
-        let close_src: Vec<usize> = (0..n_close).collect();
+        let mut closes = Vec::with_capacity(n_close);
+        let mut close_src = Vec::with_capacity(n_close);
+        for t in 0..n_close {
+            let osc = (((t as i64 * 53) % 80) - 40) as f64;
+            closes.push(150.0 + osc);
+            close_src.push(t);
+        }
         (centers, segments, closes, close_src)
     }
 
-    /// 标度计时（`--ignored` 显式触发，不拖累常规测试）：优化后 vs 优化前 oracle 在 first-S²-主导
-    /// 输入上耗时。隔离 first 内层 `rev().find` O(segs_after²) 扫描成本（优化目标），展示加速比。
-    /// L2 profile 坐实热点是 `extract_signals` O(C×S²)（S² 来自 first rev().find），本档复现该 S² 扫描。
+    /// 标度计时（`--ignored` 显式触发，不拖累常规测试）：修复后单趟扫描 `extract_signals` 在
+    /// 多中枢散布输入上耗时。验证 O(S·logC) 标度（线性 × log）——段数 ×N、中枢数 ×N 时耗时近线性增长，
+    /// 非旧 O(C·S)/O(n²) 的二次/平方爆炸。L2 profile 坐实旧热点 = `extract_signals` O(n²)（前驱重复 +
+    /// 每 center 全扫），本档复现规模并展示修复后近线性耗时（无 oracle 对照——旧 oracle 锚定 bug 产出
+    /// 已删，no-patch）。
     #[test]
     #[ignore = "标度计时，--ignored 显式触发"]
-    fn scale_timing_opt_vs_pre_opt() {
+    fn scale_timing_single_pass() {
         use std::time::Instant;
         let cfg = MacdConfig::default();
-        for &n_seg in &[2000usize, 8000, 20000] {
-            let (centers, segments, closes, close_src) = synth_first_scan_dominated(n_seg);
+        // 段数与中枢数同步放大（旧 O(C·S) 会二次爆炸；修复后 O(S·logC) 近线性）。
+        for &(n_seg, n_center) in &[(4000usize, 32usize), (16000, 64), (64000, 128)] {
+            let (centers, segments, closes, close_src) = synth_many_center_input(n_seg, n_center);
             let t0 = Instant::now();
-            let opt = extract_signals(&centers, &segments, &closes, &close_src, &cfg);
-            let dt_opt = t0.elapsed();
-            let t1 = Instant::now();
-            let oracle = extract_signals_oracle_pre_opt(&centers, &segments, &closes, &close_src, &cfg);
-            let dt_pre = t1.elapsed();
-            assert_eq!(opt.len(), oracle.len(), "标度计时档同输入必须同输出 bsp 数（bit-exact）");
-            let speedup = dt_pre.as_secs_f64() / dt_opt.as_secs_f64().max(1e-9);
+            let points = extract_signals(&centers, &segments, &closes, &close_src, &cfg);
+            let dt = t0.elapsed();
             println!(
-                "[first-S² 主导 S={n_seg}] 优化后={:?} 优化前(O(S²)扫描)={:?} 加速={speedup:.1}x bsp={}",
-                dt_opt, dt_pre, opt.len()
+                "[单趟扫描 S={n_seg} C={n_center}] 耗时={:?} bsp={}（O(S·logC) 近线性，无前驱重复）",
+                dt, points.len()
             );
         }
     }
