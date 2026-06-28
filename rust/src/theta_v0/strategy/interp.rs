@@ -43,6 +43,7 @@
 //! 经验市场数据，无择时盈利声明。`≺_Θ` 全序 + fold 确定性使 ∃! 成立是 L0 同义反复（定义内蕴）。
 //! 18 类角色经验可达性（哪些组合真实出现）是 **L2 未覆盖**（spec 疑点5）——**不**声称已验证。
 
+use super::super::classifier::recursive_tower::LeveledMove;
 use super::super::classifier::Classification;
 use super::super::types::BspBits;
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
@@ -212,6 +213,119 @@ fn nest_confirm(level: u32, source_index: usize, bits: &BspBits, dir: VoiceSide)
         confirm_ok,
     }];
     nest::chi_bool(level, &chain)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  环3b：塔导出桥 (ii) 喂入段——真嵌套塔 + 638 附着 → 真父子候选元素（替换扁平全根）
+//  谱系：638 + 547 + coverage-engine-needs-tower-export-bridge + b2s2-still-missing-tower
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 一个买卖点候选的 [`CoverageElement`]，按 **638 hostOf 附着**到真元素树 `tree`。
+///
+/// `dir`：候选操作方向 δ_g（[`candidate_dir`] 消歧；Flat 占位 Long——Flat 候选下游归 𝒦 不执行，
+/// 占位不伪装方向，与扁平 [`assemble_gamma`] 同口径）。`parent`/`attached_dir` 来自
+/// [`coverage::attach_bsp_to_tree`]（hostOf 的真 Compose 父索引 + σ_{p(g)}，铁律：真父子非级别差）。
+/// `lambda=rho=source_index`：候选坐在 hostOf 右端点（reference:16），无独立操作区间跨度
+/// （[`coverage::operation_role`]/[`coverage::leg_target`] 只读 parent/level/eps/attached_dir）。
+fn bsp_element_attached(
+    tree: &[CoverageElement],
+    level_g: u32,
+    source_index: usize,
+    dir: VoiceSide,
+) -> CoverageElement {
+    let (parent, attached_dir) = coverage::attach_bsp_to_tree(tree, level_g, source_index);
+    CoverageElement {
+        lambda: source_index,
+        rho: source_index,
+        eps: match dir {
+            VoiceSide::Flat => VoiceSide::Long, // 占位（Flat 候选归 𝒦，角色不执行）
+            d => d,
+        },
+        level: level_g,
+        parent,
+        attached_dir,
+    }
+}
+
+/// 从真嵌套塔 + 638 附着规则构造**组合元素数组**（真元素树 ++ 附着的买卖点候选元素）。
+///
+/// 这是塔导出桥 (ii) **喂入段**的核心：替换 [`assemble_gamma`] 的扁平全根（独立根 ∂、V 恒 Ambient）。
+/// 两段：
+/// 1. `tree = extract_elements(tower)`：真嵌套元素树（`RMove::Compose` 真父子，547 铁律守护——
+///    父只来自 `sub_moves` 真包含，非级别差伪造）。
+/// 2. 每个 bsp 候选 → 一个 [`CoverageElement`]（[`bsp_element_attached`]），按 638 hostOf 附着到
+///    `tree`（继承 hostOf 的真父 + 父方向 σ_{p(g)}）。候选元素追加在 `tree` 之后。
+///
+/// 返回 `(elements, candidate_start)`：`elements[..candidate_start]` 是真元素树，
+/// `elements[candidate_start..]` 是附着候选（**按 `classification.levels` 层序 × 每层 `bsp` 序追加**
+/// ——与 [`assemble_gamma_with_tower`] 候选序 1:1 对齐，这是 ci 索引对齐的不变量契约）。
+/// 候选 i 的真父索引指向 `tree`（< candidate_start），其 [`coverage::operation_role`] 的 V 由真
+/// σ_{p(g)} 派生（FollowParent/ShortDiff 真出，非恒 Ambient）；[`coverage::ancestor_close`]（经
+/// [`coverage::active_set_step`]）在 `elements` 上对附着候选**真剪枝**（祖先=hostOf 父链，非空）。
+///
+/// **边界条件**：`tower.len()<2`（仅 L0）或候选 hostOf 是根 ⟹ σ_{p(g)}=0 ⟹ 候选 parent=None
+/// （与扁平退化一致，tower-export-i 边界）。空 `levels`/空 bsp ⟹ 候选段空（仅 `tree`）。
+///
+/// **认识论 L0/L1**（formalization-validity-domain 231号）：纯结构组装（真嵌套塔 + 端点附着）。
+/// #5 多声部对冲 alpha 来源**结构性就位**，alpha **未验证**（待 L2/L3，不声明 alpha）。
+pub fn coverage_elements_with_tower(
+    classification: &Classification,
+    tower: &[Vec<LeveledMove>],
+) -> (Vec<CoverageElement>, usize) {
+    // 真嵌套元素树（独立 immutable 视图，供 hostOf 附着查表；铁律：真父子来自 push_element_tree）。
+    let tree = coverage::extract_elements(tower);
+    let candidate_start = tree.len();
+    let mut elements = tree.clone();
+    for (level_idx, level) in classification.levels.iter().enumerate() {
+        let lvl = level_idx as u32;
+        for point in &level.bsp {
+            let dir = candidate_dir(&point.bits);
+            elements.push(bsp_element_attached(&tree, lvl, point.source_index, dir));
+        }
+    }
+    (elements, candidate_start)
+}
+
+/// 组装候选集 Γ（环3）**接真嵌套塔**——候选 [`Candidate`] 的角色 R(g)=(H,V,δ) 由 638 附着的真父子
+/// 元素派生（**V 真出 FollowParent/ShortDiff**，非扁平 [`assemble_gamma`] 的恒 Ambient）。
+///
+/// 与 [`assemble_gamma`] 同产候选序（每个 `BspPoint` 1:1，含 Flat 候选，`gamma_index`=遍历序），
+/// 唯一差异：`role` 从 [`coverage_elements_with_tower`] 的**真父子组合元素数组**取
+/// （[`coverage::operation_role`] 在附着候选索引 `ci` 上读真 `attached_dir`=σ_{p(g)}）——hostOf
+/// 有真 Compose 父的候选 V≠Ambient：FollowParent（δ_g=σ_{p(g)} 顺父）/ ShortDiff（δ_g=−σ_{p(g)}
+/// 反向子声部对冲腿，spec §9）。`ci` 与候选追加序对齐（见 [`coverage_elements_with_tower`] 契约）。
+///
+/// **边界条件**：`tower.len()<2`（缺塔）或候选 hostOf 是根 ⟹ σ_{p(g)}=0 ⟹ V=Ambient（与
+/// [`assemble_gamma`] 扁平退化逐候选一致，tower-export-i 边界）。空 `levels`/空 bsp ⟹ 空 Γ。
+///
+/// **认识论 L0/L1**：纯结构组装。#5 多声部对冲 alpha 来源结构性就位，alpha 未验证（待 L2/L3）。
+pub fn assemble_gamma_with_tower(
+    classification: &Classification,
+    tower: &[Vec<LeveledMove>],
+) -> Vec<Candidate> {
+    // 真父子组合元素（tree ++ 附着候选）——role 单一来源（V 由真 σ_{p(g)} 派生）。
+    let (elements, candidate_start) = coverage_elements_with_tower(classification, tower);
+    let mut out: Vec<Candidate> = Vec::new();
+    // ci 沿候选追加序遍历 elements 的候选段（与 coverage_elements_with_tower 同 level×bsp 序）。
+    let mut ci = candidate_start;
+    for (level_idx, level) in classification.levels.iter().enumerate() {
+        let lvl = level_idx as u32;
+        for point in &level.bsp {
+            let dir = candidate_dir(&point.bits);
+            out.push(Candidate {
+                level: lvl,
+                source_index: point.source_index,
+                bits: point.bits,
+                dir,
+                bsp_class: min_class(&point.bits, dir),
+                role: coverage::operation_role(&elements, ci), // 真父子 ⟹ V 真出（非恒 Ambient）
+                nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
+                gamma_index: out.len(),
+            });
+            ci += 1;
+        }
+    }
+    out
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -536,6 +650,141 @@ mod tests {
             b.open.len() + b.record.len() + consumed_as_close,
             gamma.len(),
             "候选守恒：open + record + 关闭触发 = |Γ|"
+        );
+    }
+
+    // ── 环3b 塔导出桥 (ii) 喂入段：638 附着 → 真父子候选（V 真出 FollowParent/ShortDiff）──
+
+    use super::super::super::classifier::center::UnitRange;
+    use super::super::super::classifier::recursive_tower::LeveledMove as LM;
+    use super::super::super::config::VoiceConfig;
+    use super::super::super::types::{Direction, Tick};
+
+    fn unit_r(si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick) -> UnitRange {
+        UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi }
+    }
+
+    /// 单父真嵌套塔：L1 走势（外缘 Long）+ 3 个 L0 子（ρ=4/8/12，真父=L1，attached=Long）。
+    fn long_parent_tower() -> Vec<Vec<LM>> {
+        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10));
+        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12));
+        let s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15));
+        let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let l1 = LM::compose(&[s0, s1, s2], c, 1); // 外缘 10→15 ⟹ Long（σ_p=+1）
+        vec![Vec::new(), vec![l1]]
+    }
+
+    /// 两父塔：compose_a(Long) + compose_b(Short)，a2/b0 结构全等异 ρ（ordinal 身份测试）。
+    fn two_parent_tower() -> Vec<Vec<LM>> {
+        let mk = |si, ei, d, lo, hi| LM::from_unit(&unit_r(si, ei, d, lo, hi));
+        let ca = LM::compose(
+            &[mk(0, 4, Direction::Up, 0, 10), mk(4, 8, Direction::Down, 3, 12), mk(8, 12, Direction::Up, 5, 15)],
+            Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 },
+            1,
+        ); // Long
+        let cb = LM::compose(
+            &[mk(12, 16, Direction::Up, 5, 15), mk(16, 20, Direction::Down, 3, 12), mk(20, 24, Direction::Down, 0, 8)],
+            Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 12, end_index: 24 },
+            1,
+        ); // Short
+        vec![Vec::new(), vec![ca, cb]]
+    }
+
+    /// ★关键测试：买候选在 Long 父走势下 ⟹ V=FollowParent（V≠Ambient，真嵌套对冲腿结构产生）。
+    #[test]
+    fn gamma_with_tower_buy_under_long_parent_is_follow_parent() {
+        let tower = long_parent_tower();
+        let c = classification(vec![vec![buy_point(8, 1)]]); // level 0, src=8 ⟹ host=s1(父Long)
+        let gamma = assemble_gamma_with_tower(&c, &tower);
+        assert_eq!(gamma.len(), 1);
+        assert_eq!(gamma[0].dir, VoiceSide::Long);
+        assert_eq!(
+            gamma[0].role.v,
+            Vertical::FollowParent,
+            "买候选 δ=Long == σ_{{p}}=Long ⟹ FollowParent（真父附着，非恒 Ambient）"
+        );
+    }
+
+    /// ★关键测试：卖候选在 Long 父走势下 ⟹ V=ShortDiff（反向子声部对冲腿，spec §9，真出非空跑）。
+    #[test]
+    fn gamma_with_tower_sell_under_long_parent_is_short_diff() {
+        let tower = long_parent_tower();
+        let c = classification(vec![vec![sell_point(8, 1)]]); // level 0, src=8 ⟹ host=s1(父Long)
+        let gamma = assemble_gamma_with_tower(&c, &tower);
+        assert_eq!(gamma[0].dir, VoiceSide::Short);
+        assert_eq!(
+            gamma[0].role.v,
+            Vertical::ShortDiff,
+            "卖候选 δ=Short = −σ_{{p}}=−Long ⟹ ShortDiff（反向子声部对冲腿，真出）"
+        );
+    }
+
+    /// 漏洞① 级别上下文：同 src=12 跨级共享端点，L0 候选有真父、L1 候选 host 是根 ⟹ Ambient。
+    #[test]
+    fn gamma_with_tower_level_context_disambiguates() {
+        let tower = two_parent_tower();
+        // L0、src=12 ⟹ host=a2（真父 compose_a=Long），买 ⟹ FollowParent。
+        let g0 = assemble_gamma_with_tower(&classification(vec![vec![buy_point(12, 1)]]), &tower);
+        assert_eq!(g0[0].role.v, Vertical::FollowParent, "L0 host=a2 真父 Long");
+        // L1、src=12 ⟹ host=compose_a（顶层根）⟹ Ambient（级别防误命中 L0 host）。
+        let g1 = assemble_gamma_with_tower(&classification(vec![vec![], vec![buy_point(12, 1)]]), &tower);
+        assert_eq!(g1[0].role.v, Vertical::Ambient, "L1 host=compose_a 是根 ⟹ Ambient");
+    }
+
+    /// 漏洞③ ordinal 身份：结构全等 host（a2/b0）按 (level,ρ) 区分 ⟹ 角色 V 不同（非结构相等）。
+    #[test]
+    fn gamma_with_tower_ordinal_identity_struct_equal_hosts() {
+        let tower = two_parent_tower();
+        // src=12 → a2(父 Long)：卖 ⟹ ShortDiff。
+        let g12 = assemble_gamma_with_tower(&classification(vec![vec![sell_point(12, 1)]]), &tower);
+        assert_eq!(g12[0].role.v, Vertical::ShortDiff, "host=a2(Long父) 卖 ⟹ ShortDiff");
+        // src=16 → b0(父 Short，与 a2 结构全等)：卖 ⟹ FollowParent。
+        let g16 = assemble_gamma_with_tower(&classification(vec![vec![sell_point(16, 1)]]), &tower);
+        assert_eq!(g16[0].role.v, Vertical::FollowParent, "host=b0(Short父) 卖 ⟹ FollowParent（ordinal 区分）");
+    }
+
+    /// guard：tower.len()<2（仅 L0 全根）⟹ V 恒 Ambient，与扁平 assemble_gamma 逐候选一致。
+    #[test]
+    fn gamma_with_tower_guard_matches_flat_when_no_compose_level() {
+        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10));
+        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12));
+        let tower = vec![vec![s0, s1]]; // len()==1 < 2
+        let c = classification(vec![vec![buy_point(4, 1)]]);
+        let with = assemble_gamma_with_tower(&c, &tower);
+        let flat = assemble_gamma(&c);
+        assert_eq!(with[0].role.v, Vertical::Ambient, "缺塔 ⟹ host 是根 ⟹ Ambient（诚实退化）");
+        assert_eq!(with[0].role.v, flat[0].role.v, "缺塔退化与扁平 assemble_gamma 一致");
+    }
+
+    /// ★AncOK 真剪枝（task step3）：附着候选孤儿（祖先 compose 不在 raw）被剪枝；含祖先则保留。
+    /// 对照扁平（parent=None ⟹ AncOK 恒等不剪枝）——接真塔后 AncOK 翻转为真剪枝。
+    #[test]
+    fn coverage_elements_with_tower_ancok_prunes_attached_orphan() {
+        let tower = long_parent_tower();
+        let c = classification(vec![vec![sell_point(8, 1)]]);
+        let (elements, cstart) = coverage_elements_with_tower(&c, &tower);
+        assert_eq!(elements[cstart].parent, Some(0), "附着候选继承 host(s1) 真父 compose(idx0)");
+        // raw 只含候选（不含祖先 compose idx0）⟹ AncOK 真剪枝（t=999 无 B/D，raw=active）。
+        let pruned = coverage::active_set_step(&elements, &[cstart], 999);
+        assert!(pruned.is_empty(), "孤儿附着候选（祖先 compose 不在场）被 AncOK 真剪枝");
+        // raw 含祖先 compose(idx0) + 候选 ⟹ 保留（祖先齐全，覆盖闭合）。
+        let kept = coverage::active_set_step(&elements, &[0, cstart], 999);
+        assert!(kept.contains(&cstart), "祖先 compose 在场 ⟹ 附着候选保留");
+    }
+
+    /// ★ShortDiff 对冲腿结构产生（非空跑）：真嵌套深度≥1 ⟹ 深度权重 w[1]=0.30，方向反父声部。
+    #[test]
+    fn coverage_elements_with_tower_shortdiff_hedge_leg_produced() {
+        let tower = long_parent_tower();
+        let c = classification(vec![vec![sell_point(8, 1)]]); // 卖 under Long 父 ⟹ ShortDiff
+        let (elements, cstart) = coverage_elements_with_tower(&c, &tower);
+        assert_eq!(coverage::operation_role(&elements, cstart).v, Vertical::ShortDiff);
+        let leg = coverage::leg_target(&elements, cstart, 100.0, &VoiceConfig::default());
+        assert_eq!(leg.side, VoiceSide::Short, "ShortDiff 对冲腿方向 Short（反 Long 父声部）");
+        assert_eq!(leg.role.v, Vertical::ShortDiff);
+        assert!(
+            (leg.units - 30.0).abs() < 1e-9,
+            "真嵌套深度 1（沿真父链）⟹ w[1]=0.30 × 100 = 30（真深度权重，非空跑）"
         );
     }
 }

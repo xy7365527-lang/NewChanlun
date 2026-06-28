@@ -168,6 +168,89 @@ fn rmove_side(m: &RMove) -> VoiceSide {
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  §2b 买卖点候选 → 真元素树附着（638 hostOf：本级右端点命中，非区间包含）
+//  谱系：.chanlun/genealogy/pending/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 把一个买卖点候选 g 按 **638 hostOf 判准**附着到 [`extract_elements`] 建出的真元素树。
+///
+/// 给定真元素树 `tree`（[`extract_elements`] 产，含 `RMove::Compose` 真父子）+ 候选所在级别
+/// `level_g`（ℓ_g）+ 候选 `source_index`，返回候选继承的 `(parent(g), σ_{p(g)})`：
+///
+/// ```text
+/// hostOf(g) = tree 中 级别==ℓ_g、右端点 ρ_e==source_index 的元素（产出该买卖点的走势）
+/// parent(g) = hostOf(g).parent（hostOf 在塔里的真 Compose 父；push_element_tree 真父子）
+/// σ_{p(g)}  = hostOf(g).attached_dir（= parent(g) 的走势方向，push_element_tree 已填）
+/// ```
+///
+/// 返回 `(host.parent, host.attached_dir)`——候选 g 坐在 hostOf 右端点上（buy/sell 点 = 走势端点，
+/// reference:16），其操作角色 V 相对 hostOf 的父容器 p(g) 判定，故**继承 hostOf 的 `parent`
+/// （父元素索引）+ `attached_dir`（σ_{p(g)}）**。
+///
+/// ## 638 三漏洞防护（codex 标，实装必防，违则重蹈旧 bug）
+///
+/// 1. **ℓ_g 上下文（漏洞①）**：`level_g` 是显式入参（调用方从 `Classification.levels` 层索引取）
+///    ——**不从 `source_index` 反推级别**。host 匹配按 `e.level == level_g` 过滤：右端点 ρ 沿塔
+///    最右脊跨级共享（`compose` 的 `end_index == 末 sub.end_index`），不过滤级别会误命中上级走势。
+/// 2. **严格右端点命中（漏洞②）**：匹配 `e.rho == source_index`（hostOf 是**产出**该买卖点的走势，
+///    其 `end_index == source_index`，signal.rs:101 构造）。**禁** `e.lambda == source_index`（左
+///    端点）或 `e.lambda <= source_index <= e.rho`（区间包含）——相邻走势共享端点 ⟹ 区间包含恒
+///    二义（638 矛盾的精确形式）。共享端点处（前一走势 ρ == 后一走势 λ）唯一命中**右端归产出段**
+///    （前一走势，ρ 命中），非后一走势。
+/// 3. **ordinal 身份非结构相等（漏洞③）**：host 按 `(level, rho)` **坐标身份**匹配——`rho`
+///    （= end_index）在同级别单调唯一（`compose_level` 非重叠窗口，坐标严格递增）。**不**用
+///    `RMove` 结构相等（`index_of_in` recursive_tower.rs:251 的局限：结构全等走势坐标不可区分）。
+///    `tree` 的父链由 [`push_element_tree`] 按**位置 my_idx** 建（非结构查表），故结构全等的子走势
+///    在 `tree` 里是不同索引的不同元素（ρ 区分），附着按 ρ 命中正确 host + 其真父。
+///
+/// > **结果包六要素**
+/// > - **结论**：买卖点候选 g 附着到 hostOf（本级右端点命中），继承 hostOf 的真 Compose 父
+/// >   `parent(g)` + 父方向 σ_{p(g)}；返回 `(host.parent, host.attached_dir)`。
+/// > - **定义依据**：638 裁定式（canonical 定义式）`hostOf(g)=规范塔中 ℓ_g 级、ρ==source_index 的
+/// >   走势 LeveledMove；parent(g)=hostOf 的真 Compose 父；σ_{p(g)}=parent.rmove_side`。输入
+/// >   `CoverageElement.rho`（= `LeveledMove.end_index`）满足 ρ==source_index（signal.rs:101
+/// >   `source_index: s.end_index`）；`parent`/`attached_dir` 由 [`push_element_tree`] 从 `sub_moves`
+/// >   真包含填（铁律：父只来自真 Compose，非级别差伪造，547 否定旧 bug）。
+/// > - **边界条件**：① host 未找到（候选级别 ℓ_g 无 ρ==source_index 的元素：该走势未被任何
+/// >   Compose 父收录，或 `tree` 不含该级别）⟹ `(None,None)`（无真 Compose 父 = 边界胚元 ∂，σ=0 →
+/// >   V=Ambient，去根化诚实退化）。② host 是顶层根（`tree` 最高级走势，parent=None）⟹ `(None,None)`
+/// >   （根走势无父，V=Ambient）。③ `tower.len()<2`（仅 L0）⟹ `tree` 全根 segment ⟹ 恒 `(None,None)`
+/// >   （缺塔诚实退化，tower-export-i 边界；接真塔 tower.len()>=2 才翻转为真父附着）。④ 若构造改变使
+/// >   source_index 不再恒等于 end_index（638 边界条件）⟹ 右端点命中失效，需重裁。
+/// > - **下游推论**：候选元素继承真 `parent`/`attached_dir` ⟹ [`vertical_relation`] V 真出
+/// >   FollowParent（δ_g=σ_{p(g)}）/ ShortDiff（δ_g=−σ_{p(g)} 反向子声部对冲腿），非恒 Ambient；
+/// >   [`ancestor_close`] AncOK 对附着候选真剪枝（祖先=hostOf 父链，非空）；[`leg_target`] 深度权重
+/// >   按真嵌套深度（沿真父链）≥1。#5 多声部对冲 alpha 来源**结构性就位**（alpha 未验证，待 L2/L3）。
+/// > - **谱系引用**：638（本附着判准 settle 条件之一=本函数实装坐实）；547（级别差伪造父的否定，
+/// >   铁律来源）；coverage-engine-needs-tower-export-bridge（互斥全定义策略=买卖点入场+多级角色/
+/// >   嵌套对冲）；b2s2-still-missing-tower（盲接 classify() 空跑的反面：本函数喂真嵌套塔）。
+/// >   独立未裁自由度：638 (B) 操作角色"主力级别"绝对锚（生成态，编排者待裁）——本函数只兑现
+/// >   settle 的 hostOf 附着（σ_{p(g)}），不触 (B) 主力锚。
+/// > - **影响声明**：新增 coverage.rs §2b（本函数）；不改 [`extract_elements`]/[`push_element_tree`]
+/// >   /[`from_classification_levels`]/活动集/角色判定/mod.rs。被 interp.rs
+/// >   `coverage_elements_with_tower`/`assemble_gamma_with_tower` 消费（替换扁平全根）。
+/// >
+/// > **认识论 L0/L1**（formalization-validity-domain 231号）：纯结构查表（端点坐标匹配 + 真父继承），
+/// > 不依赖经验数据。
+pub fn attach_bsp_to_tree(
+    tree: &[CoverageElement],
+    level_g: u32,
+    source_index: usize,
+) -> (Option<usize>, Option<VoiceSide>) {
+    // hostOf(g)：本级（漏洞①级别过滤）右端点命中（漏洞② ρ==source_index）、坐标 ordinal 身份
+    // （漏洞③ 非 RMove 结构相等）的元素。ρ 同级唯一 ⟹ find 首个即唯一 host。
+    match tree
+        .iter()
+        .find(|e| e.level == level_g && e.rho == source_index)
+    {
+        // 继承 hostOf 的真 Compose 父 + 父方向 σ_{p(g)}（push_element_tree 真父子，铁律）。
+        Some(host) => (host.parent, host.attached_dir),
+        // host 无（未被 Compose 收录 / tree 无该级别 / 顶层根）⟹ 无真父 = ∂ → V=Ambient（去根化）。
+        None => (None, None),
+    }
+}
+
 /// 直接从 [`Classification`] 提取元素集 E（生产入口：消费 classifier 输出）。
 ///
 /// classifier 的 `Classification.levels` 当前不直接携 `LeveledMove` 塔（塔在 classify 内部构造后
@@ -1108,6 +1191,86 @@ mod tests {
         assert_eq!((elements[1].lambda, elements[1].rho), (0, 4));
         // 子1：λ=4, ρ=8。
         assert_eq!((elements[2].lambda, elements[2].rho), (4, 8));
+    }
+
+    // ── §2b 638 附着判准（hostOf 本级右端点命中；三漏洞防护）─────────────────────
+
+    /// 两父塔：compose_a(Long) + compose_b(Short) 相邻；a2 与 b0 **结构全等**(Seg{Up,5,15})
+    /// 但属不同父 + 不同 ρ（漏洞③可观测）。a2.ρ=12==b0.λ=12（共享端点，漏洞②）。
+    /// compose_a.ρ=12==a2.ρ=12 跨级共享（漏洞①）。
+    fn two_parent_tower() -> Vec<Vec<LeveledMove>> {
+        let a0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10));
+        let a1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12));
+        let a2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15));
+        let compose_a = LeveledMove::compose(&[a0, a1, a2], ctr(0, 12), 1); // 外缘 10→15 ⟹ Long
+        let b0 = LeveledMove::from_unit(&unit(12, 16, Direction::Up, 5, 15)); // 结构 == a2
+        let b1 = LeveledMove::from_unit(&unit(16, 20, Direction::Down, 3, 12));
+        let b2 = LeveledMove::from_unit(&unit(20, 24, Direction::Down, 0, 8));
+        let compose_b = LeveledMove::compose(&[b0, b1, b2], ctr(12, 24), 1); // 外缘 15→8 ⟹ Short
+        vec![Vec::new(), vec![compose_a, compose_b]]
+    }
+
+    /// 638 附着：候选继承 hostOf 的真 Compose 父 + 父方向 σ_{p(g)}（V≠Ambient 前提，真父附着）。
+    #[test]
+    fn attach_inherits_host_compose_parent_dir() {
+        let tree = extract_elements(&two_parent_tower());
+        // 级别 0、source_index=8（= a1 的 end_index，hostOf=a1，父=compose_a=Long）。
+        let (parent, sigma) = attach_bsp_to_tree(&tree, 0, 8);
+        assert_eq!(parent, Some(0), "hostOf(a1) 的真 Compose 父 = compose_a(idx0)");
+        assert_eq!(sigma, Some(VoiceSide::Long), "sigma_p(g) = 父走势方向 Long");
+    }
+
+    /// 638 漏洞②：严格右端点命中——共享端点处归**产出段**（前一走势 ρ 命中），非后一走势 λ。
+    #[test]
+    fn attach_right_endpoint_归产出段_not_next_start() {
+        let tree = extract_elements(&two_parent_tower());
+        // source_index=12：a2.ρ=12（产出段，父 compose_a=Long）∧ b0.λ=12（后一走势起点）。
+        // 右端点命中 ⟹ host=a2 → (compose_a, Long)，**非** b0（b0.ρ=16，父 compose_b=Short）。
+        let (parent, sigma) = attach_bsp_to_tree(&tree, 0, 12);
+        assert_eq!(parent, Some(0), "右端归产出段 a2 → 父 compose_a");
+        assert_eq!(sigma, Some(VoiceSide::Long), "非后一走势 b0（那会是 Short）");
+        // 反证：b0 的右端点是 16，不是 12 ⟹ 12 不附着到 b0。
+        let (pb, sb) = attach_bsp_to_tree(&tree, 0, 16);
+        assert_eq!((pb, sb), (Some(4), Some(VoiceSide::Short)), "16=b0.ρ ⟹ host=b0,父 compose_b=Short");
+    }
+
+    /// 638 漏洞①：级别上下文消歧——同 source_index 跨级共享端点，按候选级别命中本级 host。
+    #[test]
+    fn attach_level_context_disambiguates_shared_rho() {
+        let tree = extract_elements(&two_parent_tower());
+        // compose_a.ρ=12（L1）与 a2.ρ=12（L0）共享 ρ=12。
+        // 级别 0 ⟹ host=a2（有真父 compose_a=Long）。
+        assert_eq!(attach_bsp_to_tree(&tree, 0, 12), (Some(0), Some(VoiceSide::Long)));
+        // 级别 1 ⟹ host=compose_a（顶层根，无父）⟹ Ambient（不误命中 L0 host）。
+        assert_eq!(attach_bsp_to_tree(&tree, 1, 12), (None, None));
+    }
+
+    /// 638 漏洞③：ordinal 坐标身份——结构全等子走势(a2/b0=Seg{Up,5,15})按 (level,ρ) 区分附着。
+    #[test]
+    fn attach_ordinal_identity_not_rmove_struct_equal() {
+        let tree = extract_elements(&two_parent_tower());
+        // a2 与 b0 RMove 结构全等。结构相等查表(index_of_in)会把 16 误配 a2(首个结构匹配,父Long)。
+        // (level,ρ) 身份 ⟹ ρ=16 唯一命中 b0（父 compose_b=Short），ρ=12 唯一命中 a2（父 Long）。
+        assert_eq!(attach_bsp_to_tree(&tree, 0, 16).1, Some(VoiceSide::Short), "ρ=16 → b0 真父 Short");
+        assert_eq!(attach_bsp_to_tree(&tree, 0, 12).1, Some(VoiceSide::Long), "ρ=12 → a2 真父 Long");
+    }
+
+    /// 638 边界：host 未找到（无 ρ==source_index 的本级元素）⟹ (None,None) 去根化 Ambient。
+    #[test]
+    fn attach_host_not_found_is_ambient() {
+        let tree = extract_elements(&two_parent_tower());
+        assert_eq!(attach_bsp_to_tree(&tree, 0, 99), (None, None), "无本级 host ⟹ 无真父 ⟹ Ambient");
+    }
+
+    /// 638 边界 + tower-export-i guard：tower.len()<2（仅 L0 全根）⟹ host 是根 ⟹ 恒 Ambient。
+    #[test]
+    fn attach_guard_no_compose_level_is_ambient() {
+        let s0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10));
+        let s1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12));
+        let tower = vec![vec![s0, s1]]; // 仅 L0，len()==1 < 2（无 Compose 级）
+        let tree = extract_elements(&tower);
+        // host=s0（ρ=4，level 0）但 s0 是根（parent=None）⟹ 缺塔诚实退化 Ambient。
+        assert_eq!(attach_bsp_to_tree(&tree, 0, 4), (None, None), "缺塔（len<2）⟹ host 是根 ⟹ Ambient");
     }
 
     // ── §3 活动集递归 A_{t+1}=AncOK[(A_t∖D_t)∪B_t]（先关后开 + 祖先闭合）──────────

@@ -169,18 +169,13 @@ fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, MoveOutcome
     (centers, outcome)
 }
 
-/// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
+/// Θ_level + Θ_signal 分类内部实现（`classify` / `classify_with_tower` 共享单一来源）。
 ///
-/// 递归构造 L0..Lmax：L0=parser 线段账本；每级由下级已完成走势单元构造中枢 + 裁决走势，
-/// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势），
-/// 或达 `l_max` 上界。
-///
-/// ★边界条件：
-/// - L0 线段数 < `min_parts_per_level` ⟹ `levels` 仅含 L0（或为空，见下）—— 自然终止。
-/// - 任一级中枢序列裁决为 `HigherCenterCandidate`（退化）⟹ 该级 moves 不收录该裁决
-///   （outcome_to_kind → None），但中枢/bsp 仍保留（结构事实）。
-/// - 空 ParseLayer（无线段）⟹ `Classification::default()`（空 levels，无可构造级别）。
-pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
+/// `tower_snapshots[i]` = 处理第 i 级时 `compose_level` 前的 `moves_tower` 快照，下标与
+/// `Classification.levels` 同构（`tower_snapshots.len() == levels.len()`）：
+/// - 索引 0（L0 级）：全 `RMove::Segment`（递归底，`sub_moves` 空）。
+/// - 索引 ≥1（L(k) 级）：前一级产出的 `RMove::Compose` 序列（携次级别 subs，depth≥1 真嵌套）。
+fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<Vec<LeveledMove>>) {
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
@@ -189,7 +184,7 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
 
     // 空 L0：无可构造级别（自然终止于 L0 之前）。
     if units.is_empty() {
-        return Classification::default();
+        return (Classification::default(), Vec::new());
     }
 
     // ★递归塔对象（#53 升级，still-MISSING-塔解除）：L0 走势单元 = 携坐标的 `RMove::Segment`
@@ -205,6 +200,7 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
     let hist = divergence::compute_macd(&closes, &config.macd).hist;
 
     let mut levels: Vec<LevelState> = Vec::new();
+    let mut tower_snapshots: Vec<Vec<LeveledMove>> = Vec::new();
 
     // 递归级别构造：每级由下级走势单元构造（L0 直接是线段单元，从 L0 开始裁决）。
     for level_idx in 0..=l_max {
@@ -212,6 +208,9 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
         if units.len() < min_parts {
             break;
         }
+
+        // 本级输入塔快照（compose_level 前，与 levels[level_idx] 对应——同步 index 不变量）。
+        tower_snapshots.push(moves_tower.clone());
 
         // L0（level_idx==0）用完整判据（方向交替，线段有方向）；上级用几何路径（外缘，单元无方向）。
         let is_l0 = level_idx == 0;
@@ -260,7 +259,40 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
         }
     }
 
-    Classification { levels }
+    (Classification { levels }, tower_snapshots)
+}
+
+/// Θ_level + Θ_signal 顶层入口（reference-theta-v0.md:27-37）。
+///
+/// 递归构造 L0..Lmax：L0=parser 线段账本；每级由下级已完成走势单元构造中枢 + 裁决走势，
+/// 走势成为上级输入单元。自然终止：某级单元数 < `min_parts_per_level`（无法产生完整走势），
+/// 或达 `l_max` 上界。
+///
+/// ★边界条件：
+/// - L0 线段数 < `min_parts_per_level` ⟹ `levels` 仅含 L0（或为空，见下）—— 自然终止。
+/// - 任一级中枢序列裁决为 `HigherCenterCandidate`（退化）⟹ 该级 moves 不收录该裁决
+///   （outcome_to_kind → None），但中枢/bsp 仍保留（结构事实）。
+/// - 空 ParseLayer（无线段）⟹ `Classification::default()`（空 levels，无可构造级别）。
+pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
+    classify_impl(l0, config).0
+}
+
+/// 分类 + 逐级塔导出入口（(i) 段导出桥，MEMORY coverage-engine-needs-tower-export-bridge）。
+///
+/// 返回 `(Classification, Vec<Vec<LeveledMove>>)`：
+/// - `Classification`：与 `classify` bit-identical（共用 `classify_impl` 单一来源，原行为不变）。
+/// - `Vec<Vec<LeveledMove>>`：逐级走势塔快照（`tower[i]` 对应第 i 级处理的输入塔）：
+///   - `tower[0]`：L0 线段层（全 `RMove::Segment`，递归底，`sub_moves` 空）。
+///   - `tower[k]`（k≥1）：第 k 级输入塔，含 `RMove::Compose` 携次级别 subs（depth≥1 真嵌套），
+///     下游 `descend_leveled` 可遍历次级别走势。
+///
+/// ★不碰附着映射：本函数只导出塔，不消费 coverage/interp 的附着规则（(ii) 段职责）。
+/// ★L0/L1 认识论等级：纯结构导出操作，不依赖经验数据（formalization-validity-domain 231号）。
+pub fn classify_with_tower(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+) -> (Classification, Vec<Vec<LeveledMove>>) {
+    classify_impl(l0, config)
 }
 
 /// 递归组装层第二类提取（对一级的每个上级走势 `RMove::Compose` 产 B2/S2）。
@@ -633,5 +665,62 @@ mod tests {
         let out = classify(&layer, &cfg);
         assert_eq!(out.levels[0].centers.len(), 1);
         assert!(out.levels[0].bsp.is_empty(), "无离开/回试 ⟹ 无买卖点（诚实空）");
+    }
+
+    /// ★classify_with_tower (i) 段导出桥——tower 非空 + depth≥1 真嵌套存在。
+    ///
+    /// 9 段 L0 → 3 个 L1 走势 → L2 中枢（几何路径）：tower[1] 含 sub_moves 非空的
+    /// LeveledMove（RMove::Compose，depth=1 真嵌套）。坐实：导出桥正确产出真嵌套塔。
+    #[test]
+    fn classify_with_tower_depth_ge1_true_nesting() {
+        let cfg = ThetaConfig::default();
+        // 9 段：三组 up-down-up（每组 → 一个 L1 走势），三个 L1 走势外缘重叠成 L2 中枢。
+        let segments = vec![
+            seg(Direction::Up,   0,  4, 110, 150),
+            seg(Direction::Down, 4,  8, 150, 120),
+            seg(Direction::Up,   8, 12, 120, 148),
+            seg(Direction::Up,  12, 16, 130, 145),
+            seg(Direction::Down,16, 20, 145,  80),
+            seg(Direction::Up,  20, 24,  80, 144),
+            seg(Direction::Up,  24, 28, 120, 148),
+            seg(Direction::Down,28, 32, 148, 115),
+            seg(Direction::Up,  32, 36, 115, 147),
+        ];
+        let mut closes: Vec<i64> = Vec::new();
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
+        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
+        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let (_, tower) = classify_with_tower(&layer, &cfg);
+        assert!(!tower.is_empty(), "tower 非空（至少 L0 级被处理）");
+        assert!(tower.len() >= 2, "9 段 L0 → 3 个 L1 走势 → L2 中枢 ⟹ tower 至少 2 层");
+        // depth≥1 真嵌套：tower[1] 含 sub_moves 非空的 LeveledMove（RMove::Compose，L1 输入塔）。
+        let has_true_nesting = tower[1].iter().any(|m| !m.sub_moves.is_empty());
+        assert!(has_true_nesting, "tower[1] 含真嵌套 LeveledMove（sub_moves 非空，depth≥1）");
+    }
+
+    /// ★classify_with_tower Classification 与 classify 同输入 bit-identical（导出不改原分类）。
+    #[test]
+    fn classify_with_tower_classification_equals_classify() {
+        let cfg = ThetaConfig::default();
+        let segments = vec![
+            seg(Direction::Up,   0,  4, 110, 150),
+            seg(Direction::Down, 4,  8, 150, 120),
+            seg(Direction::Up,   8, 12, 120, 148),
+            seg(Direction::Up,  12, 16, 130, 145),
+            seg(Direction::Down,16, 20, 145,  80),
+            seg(Direction::Up,  20, 24,  80, 144),
+            seg(Direction::Up,  24, 28, 120, 148),
+            seg(Direction::Down,28, 32, 148, 115),
+            seg(Direction::Up,  32, 36, 115, 147),
+        ];
+        let mut closes: Vec<i64> = Vec::new();
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
+        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
+        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let expected = classify(&layer, &cfg);
+        let (actual, _) = classify_with_tower(&layer, &cfg);
+        assert_eq!(actual, expected, "classify_with_tower Classification 与 classify bit-identical（原分类不变）");
     }
 }
