@@ -1824,6 +1824,13 @@ mod tests {
              全窗待 classifier extract_signals O(n²) 优化后重跑。",
             oos.bars.len()
         );
+        // ★★有效域分层归因（Θ v0 = 退化实装，grammar-audit 0c71a0f771；231号强制 caveat）：
+        eprintln!(
+            "[L2] ★★有效域 = 「Θ v0 退化实装」非「完整缠论语法」：四维度退化叠加无法分离——\n     \
+             #1 long-only（决策 mod.rs:81 + fill runner.rs:718 砍半方向）+ #2 假背驰（divergence.rs:102 \
+             无 A/B/C 框架）+ #5 无声部对冲 + #6 无 τ∈{{P,U,D}} 走势分解。\n     \
+             ⟹ 若否证，严禁归因「缠论/Θ 走势识别无 alpha」（退化叠加 vs 走势识别本身无 alpha 在 v0 不可分）。"
+        );
 
         // 不变量（管线 + 标注一致性，不对 Θ 盈利符号下断言——那是 L2 经验结果，照实报告不强求方向）：
         assert!(res.metrics.bh_return.is_finite(), "buy&hold 有限");
@@ -2069,11 +2076,27 @@ mod tests {
         eprintln!("    其中 Θ 含浮盈打败两随机对照的品种数 : {n_beats_random}/{total}");
         eprintln!(
             "\n★L3 诚实结论（formalization-validity-domain 231号）：\n  \
-             - 跨标的多数 (b) ⟹ Θ v0「缠论内在语法不贡献择时 alpha」是**鲁棒否证**（L3，有效域缩小）。\n  \
-             - 各品种结论分散 ⟹ Θ 有效性**品种依赖**（有效域 < 定义域，非全域有效）。\n  \
-             - n_beats_random 是择时信息含量的直接计数：=0 ⟹ Θ 缠论结构全标的无择时信息（强否证）。\n  \
+             - 跨标的多数 (b) ⟹ **「Θ v0 退化实装的择时不贡献 alpha」** 是鲁棒否证（L3，有效域缩小）。\n  \
+             - 各品种结论分散 ⟹ Θ v0 有效性**品种依赖**（有效域 < 定义域，非全域有效）。\n  \
+             - n_beats_random 是择时信息含量的直接计数：=0 ⟹ Θ v0 退化实装全标的无择时信息。\n  \
              - ★含浮盈口径 + 操作语义随机对照（schedule-shift 主 + independent 副）= 严格否证口径\n    \
                （旧 self-resampling 自举恒真已删；随机对照保操作外形随机化入场点，破坏缠论内在语法）。"
+        );
+        // ★★有效域分层归因（grammar-audit commit 0c71a0f771 坐实，强制 caveat）：
+        // 本否证/确认的有效域 = **「Θ v0 退化实装」**，**不是「完整缠论语法」**。Θ v0 四维度退化：
+        eprintln!(
+            "\n★★有效域分层归因（Θ v0 = 退化实装，grammar-audit 0c71a0f771 坐实；231号强制 caveat）：\n  \
+             否证/确认的有效域 = 「Θ v0 退化实装」，**非「完整缠论语法」**。四维度退化叠加，在 v0 上无法分离：\n  \
+             - #1 long-only（双层坐实）：决策层 pi_strict (Flat,SellSide)→Wait（mod.rs:81 空仓不开空）\n    \
+               + fill 层 units≥0 做空腿待定（runner.rs:718）⟹ 系统性砍掉一半方向（做空 alpha 整段缺失）。\n  \
+             - #2 背驰退化：is_divergence 只判相邻同向段面积递减（divergence.rs:102），无 A/B/C 趋势背驰\n    \
+               框架 ⟹ 假背驰=假买卖点=信号噪声混入。\n  \
+             - #5 多声部 depth=0：结构是 canonical §5 契约（正确），但放弃次级别对冲 alpha。\n  \
+             - #6 走势分解：signal 路径跳过 τ∈{{P,U,D}} 四分类（与 #2 同根）。\n  \
+             ⟹ 若 (b) 否证：**严禁直接归因「缠论/Θ 走势识别无 alpha」**——可能是 long-only 砍半 + 假背驰\n    \
+               噪声 + 无声部对冲的退化叠加，这几层在 v0 上**无法分离**。否证只否定退化 v0，不否定完整缠论。\n  \
+             - 弱反向先验（不迁移）：谱系 553/557 做空 L3 测得 alpha 有效域≈空集，但跑在 recursive_t 引擎\n    \
+               **非 theta_v0**，强牛 regime 单一，不能假设迁移——仅作弱先验，不影响本 v0 口径结论。"
         );
 
         // 不变量：分层完备（每产出订单的品种恰归一类 b/c/d；无订单归 a）。
