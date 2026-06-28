@@ -278,10 +278,24 @@ def RΘ (x : State) : Triple := interpList (gamma x)
   **★∀x ∃!(𝒟_x,ℬ_x,𝒦_x)（spec line 626 / §12 方框 ∀x ∃!，★核心主定理）** —— 对每个状态 x，
   存在唯一三桶 = ℛ_Θ(Γ(x))。**L0**：R_Θ 是全函数（排序 + 确定性 fold），故像唯一。
   其三前提（spec 边界条件）已分别坐实：(1)Γ(x)有限=`CandidateSet.gamma_finite`；(2)≺_Θ 全序=
-  `candLe_refl/total/trans/antisymm`；(3)每步确定=`stepR` 是函数。三者缺一则 ∃! 翻转。 -/
+  `candLe_refl/total/trans/antisymm`；(3)每步确定=`stepR` 是函数。三者缺一则 ∃! 翻转。
+  实质唯一性（顺序无关）见 `rTheta_order_invariant`；本 ∃! 是其函数式推论。 -/
 theorem rTheta_exists_unique (x : State) :
     NewChanlun.Origin.ExistsUnique (fun t : Triple => RΘ x = t) :=
   ⟨RΘ x, rfl, fun _ hy => hy.symm⟩
+
+/--
+  **★R_Θ 顺序不变性 `rTheta_order_invariant`（实质补充，消除声明膨胀）** ——
+  若两候选集的 ≺_Θ 排序结果相同（`sortΓ gs₁ = sortΓ gs₂`），则 R_Θ 输出相同三桶。
+  坐实 spec line 632「固定级别平移不变的自相似总序 ≺_Θ，解释器 ℛ_Θ 按序处理产生唯一三元组」
+  ——三桶由 ≺_Θ 序唯一决定，与输入原始顺序无关。
+  **非平凡**：依赖 `interpList` 内部通过 `sortΓ`（`candLe` 全序驱动）排序再 fold；
+  任意函数 f 不满足「sortΓ gs₁ = sortΓ gs₂ ⟹ f gs₁ = f gs₂」。
+  **L0**（定义展开）。 -/
+theorem rTheta_order_invariant (gs₁ gs₂ : List Cand)
+    (h : sortΓ gs₁ = sortΓ gs₂) :
+    interpList gs₁ = interpList gs₂ := by
+  simp only [interpList, h]
 
 /-- 三桶总基数（|𝒟|+|ℬ|+|𝒦|）。 -/
 def tripleLen (t : Triple) : Nat := t.D.length + t.B.length + t.K.length
