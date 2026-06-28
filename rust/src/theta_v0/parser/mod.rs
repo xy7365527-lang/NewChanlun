@@ -164,7 +164,8 @@ impl<'c> ParseLayerIncr<'c> {
     /// 均保留 confirmed 前缀，只重算尾部）。tail 仍全量但非热点（profile 坐实）。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
         self.incr_inclusion = self.incr_inclusion.append(bar);
-        let merged = self.incr_inclusion.to_result().merged;
+        // 增量化 to_result：借用 merged 切片（零 clone），仅在构造 ParseLayer 时 to_vec。
+        let merged = self.incr_inclusion.to_result_ref().merged.to_vec();
 
         // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
         self.incr_fractals = self.incr_fractals.append(&merged);
