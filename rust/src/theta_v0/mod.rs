@@ -64,6 +64,13 @@ pub mod classifier;
 pub mod parser;
 pub mod strategy;
 
+/// 分账本头寸空间 P^sep（工作单元 R2，C25/C26/C29）。契约锚 **`formal/Origin/SeparateLedger.lean`**
+/// （C25/C26：`Leg`/`SepPosition`/`Net`）+ spec §四 C29 分账本吃到 `Eat^sep`。与净额账本
+/// （`strategy::ledger` R=Π-A-W、`nautilus::account_adapter` net_position）**正交并置**——P^sep 保留
+/// 每声部多/空两独立坐标（双开 (Q,Q) 不抵消），净额映射 Net 是有损投影（230号直积退化防火墙）。
+/// 全模块 L0/L1（结构镜像，非实盘盈利声明）。
+pub mod ledger;
+
 /// 闭环 S_Θ 装配（Phase 4 引擎实装，task #94；A′ Phase2 step8 契约重锚 Origin，task #102/#127）。
 /// 契约锚 **`formal/Origin/FullDefinitionStrategy.lean`** 的单一闭环状态机（`FullDefinitionSystem` +
 /// `hybridStep` + `transition` + `LedgerState` R=Π-A-W）+ `formal/Origin/ChanlunElements.lean`

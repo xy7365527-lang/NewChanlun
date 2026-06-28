@@ -58,6 +58,7 @@ pub mod recursive_tower;
 pub mod nest;
 pub mod signal;
 pub mod six_state;
+pub mod voice_eat;
 
 use bsp::BspPoint;
 use center::UnitRange;

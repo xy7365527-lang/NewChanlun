@@ -347,8 +347,8 @@ fn plan_and_fill_mtm(
                     let depth = d.depth as usize;
                     let units_before = units;
                     apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
-                    // ★轨迹配对：平仓到 units=0 ⟹ 一笔完整交易（非强平，正常退出）。
-                    track_close_to_trade(
+                    // ★轨迹配对（v1 方向中性）：平仓到 units=0 / 翻转 ⟹ 完整交易闭合（非强平，正常退出）。
+                    track_position_transition(
                         &mut trades, &mut pos_entry_bar, units_before, units, i, false,
                     );
                     apply_voice_qty(&mut voice_qty, depth, o);
@@ -398,16 +398,14 @@ fn plan_and_fill_mtm(
                     let depth = matched.map(|d| d.depth as usize).unwrap_or(0);
                     let units_before = units;
                     apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
-                    // ★轨迹追踪：开仓（units 0→正）⟹ 记入场 bar；意外平仓（Sell 翻空到 0）⟹ 配对。
-                    if matches!(o.action, StrictAction::Buy | StrictAction::Add) {
-                        if units_before <= 0.0 && units > 0.0 {
-                            pos_entry_bar = Some(i); // 新仓开仓 bar（加仓不重置，延续首次入场）
-                        }
-                    } else if matches!(o.action, StrictAction::Sell | StrictAction::Close | StrictAction::Reduce) {
-                        track_close_to_trade(
-                            &mut trades, &mut pos_entry_bar, units_before, units, i, false,
-                        );
-                    }
+                    // ★轨迹追踪（v1 方向中性）：units 有符号（正=多/负=空）。任一订单经
+                    // apply_fill「先平后开」可能同时闭合反向旧仓 + 开新仓（翻转）⟹ 用 units 跨 0
+                    // 行为统一追踪：(a) |units| 由非零回 0 / 跨 0 翻转 ⟹ 闭合旧方向 trade（配对
+                    // pos_entry_bar，方向 = units_before.signum()）；(b) units 由 0 进入非零 /
+                    // 翻转后新方向 ⟹ 记新 entry_bar。
+                    track_position_transition(
+                        &mut trades, &mut pos_entry_bar, units_before, units, i, false,
+                    );
                     apply_voice_qty(&mut voice_qty, depth, o);
                     // ★开仓订单 ⟹ 记入持仓台账（退出生成器读它）。止损价由入场决策的
                     // stop_in + 方向算出（与 build_open_order 内 structural_stop 同一函数）。
@@ -463,21 +461,24 @@ fn plan_and_fill_mtm(
         equity_curve.push(equity);
     }
 
-    // ── ★窗口终点强制平仓（含浮盈口径，编排者铁律「不把浮盈算上不合理」）──
-    // 已实现口径 trade_pnls（循环内 close_long push）**不含**最后一段未平仓持仓的浮盈；
-    // 含浮盈口径在此对剩余 units 按末 bar close 强平（含卖出费），实现持仓期浮盈。
+    // ── ★窗口终点强制平仓（含浮盈口径，编排者铁律「不把浮盈算上不合理」；v1 方向中性）──
+    // 已实现口径 trade_pnls（循环内 apply_fill push）**不含**最后一段未平仓持仓的浮盈；
+    // 含浮盈口径在此对剩余 units 按末 bar close 强平（含费），实现持仓期浮盈。剩余持仓可多可空
+    // （units≠0），强平 PnL 方向中性：多头 = proceeds(扣卖出费)−成本基；空头 = 成本基(开空净收)−支出(含买入费)。
     // 双口径并列：trade_pnls_realized（不含强平）+ trade_pnls_with_forced（含强平）。
     let mut trade_pnls_with_forced = trade_pnls.clone();
-    if units > 0.0 {
+    if units != 0.0 {
         // 末 bar 的 close 作强平价（含浮盈口径——窗口边界 mark-to-market 实现）。
         if let Some(last_bar) = bars.last() {
             let last_px = last_bar.close as f64 * config.tick.tick_size;
             if last_px > 0.0 {
-                let proceeds = units * last_px * (1.0 - fee_rate);
-                let cost_basis = units * entry_cost; // entry_cost 含买入费（成本对称）
-                let forced_pnl = proceeds - cost_basis;
+                // 强平 PnL（成本对称，多空统一）：pos_sign=units.signum()。
+                // 平仓净价 px_exit_net：多 px(1−fee)，空 px(1+fee)。PnL = sign×(px_exit_net−entry_cost)×|units|。
+                let pos_sign = units.signum();
+                let px_exit_net = last_px * (1.0 - pos_sign * fee_rate);
+                let forced_pnl = pos_sign * (px_exit_net - entry_cost) * units.abs();
                 trade_pnls_with_forced.push(forced_pnl);
-                // 强平笔轨迹（forced_close=true，统计功效门槛不计——见 L2/L3 测试）。
+                // 强平笔轨迹（forced_close=true，统计功效门槛不计——见 L2/L3 测试）。方向 = units 符号。
                 if let Some(entry_bar) = pos_entry_bar.take() {
                     let exit_bar = n.saturating_sub(1);
                     let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
@@ -485,8 +486,8 @@ fn plan_and_fill_mtm(
                         entry_bar,
                         exit_bar,
                         hold_bars,
-                        qty: units,
-                        long: true,
+                        qty: units.abs(),
+                        long: units > 0.0,
                         forced_close: true,
                     });
                 }
@@ -507,11 +508,19 @@ fn plan_and_fill_mtm(
 
 /// ★交易轨迹配对（平仓事件 → [`metrics::TradeRecord`]）。
 ///
-/// 平仓到 `units` 回 0（`units_before > 0 ∧ units_after ≤ 0`）⟹ 一笔完整交易闭合：用追踪的
-/// `pos_entry_bar` 与当前 bar `exit_bar` 配对产 TradeRecord（hold_bars = exit−entry，≥1）。
-/// `forced` 标记是否窗口终点强平。v0 单声部全平 ⟹ 开-平配对唯一。未平到 0（部分减仓）⟹ 不闭合
-/// （延续持仓，entry_bar 不变）——v0 build_exit_order 全平 q，部分减仓是退化边界。
-fn track_close_to_trade(
+/// ★持仓状态转移轨迹追踪（v1 方向中性，替代 long-only `track_close_to_trade`）。
+///
+/// `units` 有符号（正=多/负=空/0=空仓）。一次成交（`units_before → units_after`）可能：
+/// - **纯开仓**（before=0, after≠0）：记新 `pos_entry_bar = Some(exit_bar)`（此 bar 为入场 bar）。
+/// - **纯平仓**（before≠0, after=0）：配对 `pos_entry_bar` 产 TradeRecord（方向 = before.signum()：
+///   before>0 ⟹ long=true 平多；before<0 ⟹ long=false 平空），清 entry_bar。
+/// - **翻转**（before·after<0，先平后开同一笔）：先配对旧方向 trade（方向 = before.signum()，
+///   qty = |before|），再记新 entry_bar（新方向持仓从此 bar 入场）。
+/// - **同向加/减仓未到 0**（before·after>0）：entry_bar 不变（延续首次入场，v0 单标量近似）。
+///
+/// `forced` 标记窗口终点强平（不计 n_trades≥30 统计功效门槛）。qty = 平掉的绝对手数 = |before|
+/// （翻转/全平时平掉全部旧仓；v0 build_exit_order 全平 ⟹ 配对唯一）。
+fn track_position_transition(
     trades: &mut Vec<metrics::TradeRecord>,
     pos_entry_bar: &mut Option<usize>,
     units_before: f64,
@@ -519,18 +528,34 @@ fn track_close_to_trade(
     exit_bar: usize,
     forced: bool,
 ) {
-    if units_before > 0.0 && units_after <= 0.0 {
+    // ★显式三态符号（−1/0/+1）：f64::signum 对 0.0 返回 +1.0（不返回 0），不能用于判持仓有无。
+    let sign = |x: f64| -> i8 {
+        if x > 0.0 {
+            1
+        } else if x < 0.0 {
+            -1
+        } else {
+            0
+        }
+    };
+    // 闭合旧仓：before≠0 且符号改变（到 0 / 翻转）⟹ 配对产 trade。
+    let closed = sign(units_before) != 0 && sign(units_before) != sign(units_after);
+    if closed {
         if let Some(entry_bar) = pos_entry_bar.take() {
             let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
             trades.push(metrics::TradeRecord {
                 entry_bar,
                 exit_bar,
                 hold_bars,
-                qty: units_before, // 平掉的手数 = 平仓前持仓
-                long: true,
+                qty: units_before.abs(), // 平掉的绝对手数 = |平仓前持仓|
+                long: units_before > 0.0, // 方向 = 平仓前持仓方向（多/空）
                 forced_close: forced,
             });
         }
+    }
+    // 记新入场：after≠0 且 (纯开仓 before=0 / 翻转后新方向) ⟹ 此 bar 为新仓入场 bar。
+    if units_after != 0.0 && (units_before == 0.0 || closed) {
+        *pos_entry_bar = Some(exit_bar);
     }
 }
 
@@ -577,13 +602,22 @@ fn record_held_voice(held: &mut [Option<HeldVoice>], d: &VoiceDecision) {
 }
 
 /// voice_qty 同步（fill 后更新；depth 超界跳过，诚实边界不应发生）。
+///
+/// ★v1 方向中性：`voice_qty` 是该 depth 声部的**绝对持仓手数**（`act_state` 判 open/hold/close
+/// 用，与持仓方向解耦——方向由 `HeldVoice.side` 记）。在 `plan_and_fill_mtm` 数据流中 plan_orders
+/// 的 build_open_order 产 **Buy（开多）/ Sell（开空）**、build_exit_order 产 **Close（平仓）**——
+/// 故 **Buy/Add/Sell = 开仓侧（绝对手数增）**，**Close/Reduce = 平仓侧（绝对手数减）**。
+/// 修复前 long-only 把 Sell 当减仓 ⟹ Short 根开空后 voice_qty 恒 0 ⟹ act_state 恒 Open ⟹ 重复
+/// 开空不止（v1 缺陷根因之一）。
 fn apply_voice_qty(voice_qty: &mut [u32], depth: usize, o: &Order) {
     if let Some(slot) = voice_qty.get_mut(depth) {
         match o.action {
-            StrictAction::Buy | StrictAction::Add => {
+            // 开仓侧（开多 Buy / 开空 Sell / 加仓 Add）⟹ 绝对手数增。
+            StrictAction::Buy | StrictAction::Add | StrictAction::Sell => {
                 *slot = slot.saturating_add(o.qty as u32);
             }
-            StrictAction::Sell | StrictAction::Close | StrictAction::Reduce => {
+            // 平仓侧（平多/平空 Close / 减仓 Reduce）⟹ 绝对手数减。
+            StrictAction::Close | StrictAction::Reduce => {
                 *slot = slot.saturating_sub(o.qty as u32);
             }
             StrictAction::Hold | StrictAction::Wait => {}
@@ -751,12 +785,26 @@ fn simulate_fills(
     (equity_curve, daily_returns, trade_pnls)
 }
 
-/// 应用单个订单到仓位（开/平/加/减仓 + 费用）。
+/// 应用单个订单到仓位（**方向中性账本**，开/平/加/减仓 + 费用，多空对称）。
 ///
-/// ★成本对称（本轮缺陷③修复，no-patch 根因重写）：`entry_cost` 是**含买入费**（commission+
-/// slippage）的每单位加权平均成本基，**非裸建仓价**。买入时 `qty×px×(1+fee_rate)` 全额进成本基；
-/// 平仓 PnL = `proceeds(含卖出费) − cost_basis(含买入费)`——买卖两侧费用对称计入。修复前
-/// `entry_price` 用裸价，平仓 PnL 系统性**高估买入费部分**（`runner.rs:659` cost_basis 不含费）。
+/// ★v1 做空腿（操作语义补全，对齐 canonical FULL §10「根声部双向全定义状态机」+ §13「有符号
+/// 名义头寸 n_v=σ_v·M·P·q」+ Origin.TotalWealth `TW=cash+units×price`）：`units` **有符号**
+/// （正=多头，负=空头，0=空仓，对齐 canonical σ_r∈{-1,0,+1}×绝对手数）。订单方向（Buy/Add 增
+/// units，Sell/Reduce/Close 减 units）统一映射到有符号 units 增减，**多空完全对称**（删 v0 退化
+/// 的 long-only `close_long`，no-patch 重写）。
+///
+/// ★先平后开（canonical FULL §20「撤单→先平后开」执行序的 fill 层兑现）：任一订单先**平掉反向
+/// 持仓部分**（实现 PnL 入 trade_pnls），再用剩余 qty **开新方向仓**（更新成本基）。这使翻转
+/// （平多→开空 / 平空→开多）成本基语义无歧义——不存在"多空混合成本基"。
+///
+/// ★成本对称（缺陷③修复保留，多空两侧统一）：`entry_cost` 是当前持仓**每单位含费成本基**——
+/// 多头 = 买入均价含买入费（开仓 cash−含费 cost）；空头 = 卖出均价**扣卖出费后**净收（开空
+/// cash+净 proceeds）。平仓 PnL 两侧对称：平多 PnL=平仓proceeds(扣卖出费)−成本基(含买入费)；
+/// 平空 PnL=开空成本基(扣卖出费净收)−平空支出(含买入费)。
+///
+/// ★现金约束（多空对称）：开多需 `cash ≥ 含费 cost`（现金买入）；开空收到卖出 proceeds（cash+），
+/// 无需预付现金（保证金约束属 canonical §11/§14 K_Θ 风险可行集，v0 未建模——诚实有效域 L0：
+/// 做空保证金/借券成本未建模，标注非全 canonical §11，是 σ 双向 + TW 账本的最小兑现）。
 fn apply_order(
     o: &Order,
     px: f64,
@@ -767,58 +815,107 @@ fn apply_order(
     trade_pnls: &mut Vec<f64>,
 ) {
     let qty = o.qty as f64;
-    match o.action {
-        StrictAction::Buy | StrictAction::Add => {
-            // 建多 / 加多：现金买入，扣费。含费成本 = qty×px×(1+fee_rate)。
-            let cost = qty * px * (1.0 + fee_rate);
-            if *cash >= cost {
-                // 加权平均**含费**成本基（每单位含买入 commission+slippage）。
-                let new_units = *units + qty;
-                if new_units > 0.0 {
-                    // 已持仓含费成本（entry_cost×units）+ 本次含费成本（cost）÷ 新总仓。
-                    *entry_cost = (*entry_cost * *units + cost) / new_units;
-                }
-                *units = new_units;
-                *cash -= cost;
+    // 订单 → (有符号成交方向 δ, 是否纯平仓 close_only)。
+    // ★信号成交（Buy/Add/Sell）：可「先平后开」翻转（开多 δ+1 / 开空 δ−1）。
+    // ★纯平仓（Close/Reduce，v1 做空腿方向感知）：平掉当前持仓——平多=卖（δ−1），平空=买（δ+1），
+    //   **只平不反向开**（close_only=true，剩余 qty 超持仓时不借机开反向仓）。build_exit_order 对
+    //   多空两腿都产 `StrictAction::Close`（不带方向），故成交方向由**当前持仓符号**决定；空仓 ⟹ 无操作。
+    let (delta, close_only): (f64, bool) = match o.action {
+        StrictAction::Buy | StrictAction::Add => (1.0, false),
+        StrictAction::Sell => (-1.0, false),
+        StrictAction::Reduce | StrictAction::Close => {
+            if *units > 0.0 {
+                (-1.0, true) // 持多 ⟹ 卖出平多
+            } else if *units < 0.0 {
+                (1.0, true) // 持空 ⟹ 买回平空
+            } else {
+                return; // 空仓无仓可平
             }
         }
-        StrictAction::Sell => {
-            // 翻空 / 建空（简化：当前只处理平多→空仓，做空腿待 strategy 订单语义定）。
-            close_long(qty, px, fee_rate, cash, units, entry_cost, trade_pnls);
-        }
-        StrictAction::Reduce | StrictAction::Close => {
-            // 减多 / 平多：卖出，扣费，记盈亏。
-            close_long(qty, px, fee_rate, cash, units, entry_cost, trade_pnls);
-        }
-        StrictAction::Hold | StrictAction::Wait => {
-            // 不动。
-        }
-    }
+        StrictAction::Hold | StrictAction::Wait => return, // 不动
+    };
+    apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls);
 }
 
-/// 平多（减仓/清仓）：卖 min(qty, 持仓) 股，扣费，记盈亏。
+/// **方向中性成交**（v1 做空腿核心，先平后开）：有符号方向 `delta`（+1 买/−1 卖）× 绝对手数 `qty`。
 ///
-/// ★成本对称：`cost_basis = sell × entry_cost`，`entry_cost` **已含买入费**（见 [`apply_order`]）。
-/// `pnl = proceeds(含卖出费) − cost_basis(含买入费)`——买卖两侧费用对称，不再高估买入费。
-fn close_long(
+/// 分两段（canonical §20 先平后开）：
+/// 1. **平反向**：若新成交方向与当前持仓反向（`units·delta < 0`），先平掉 `min(qty, |units|)` 手，
+///    实现 PnL 入 trade_pnls（多空 PnL 公式对称，见下），cash 反向于 units 变化。
+/// 2. **开新仓**：剩余 `qty − 已平` 手按 `delta` 方向开仓，加权平均更新含费成本基。
+///
+/// PnL 口径（成本对称，多空统一）：
+/// - 平多（delta=−1，units>0）：proceeds=平仓 qty×px×(1−fee)，cost_basis=qty×entry_cost（开仓含买入费）⟹ PnL=proceeds−cost_basis。
+/// - 平空（delta=+1，units<0）：开空成本基=qty×entry_cost（开空扣卖出费净收），平空支出=qty×px×(1+fee)（买回含买入费）⟹ PnL=成本基−支出。
+///   两式统一为 `PnL = sign·(entry_cost − px·(1+sign·fee_factor))`，由下方有符号代数自动覆盖。
+fn apply_fill(
+    delta: f64,
     qty: f64,
+    close_only: bool,
     px: f64,
     fee_rate: f64,
     cash: &mut f64,
     units: &mut f64,
-    entry_cost: &f64,
+    entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
 ) {
-    let sell = qty.min(*units);
-    if sell <= 0.0 {
+    if qty <= 0.0 || px <= 0.0 {
         return;
     }
-    let proceeds = sell * px * (1.0 - fee_rate);
-    let cost_basis = sell * *entry_cost; // entry_cost 含买入费 ⟹ 成本对称
-    let pnl = proceeds - cost_basis;
-    *cash += proceeds;
-    *units -= sell;
-    trade_pnls.push(pnl);
+    let mut remaining = qty;
+
+    // ── 段 1：平反向持仓（units 与 delta 反向 ⟹ 本次成交先减仓）。 ──
+    if *units * delta < 0.0 {
+        let close_qty = remaining.min(units.abs());
+        if close_qty > 0.0 {
+            // 平仓现金流：delta=+1（买回平空）cash 减 qty×px×(1+fee)；delta=−1（卖出平多）cash 加 qty×px×(1−fee)。
+            // 统一：cash += −delta × qty × px × (1 + delta×fee_rate)。
+            let cash_flow = -delta * close_qty * px * (1.0 + delta * fee_rate);
+            // PnL = 持仓方向收益。持仓方向 sign = units.signum()（多=+1，空=−1）。
+            // 平多（持多，sign+1）：PnL = proceeds − cost = (qty×px×(1−fee)) − (qty×entry_cost)。
+            // 平空（持空，sign−1）：PnL = 开空净收 − 平空支出 = (qty×entry_cost) − (qty×px×(1+fee))。
+            // 统一：PnL = sign × (px_exit_net − entry_cost) × qty，其中 px_exit_net 对多=px(1−fee)，对空=px(1+fee)。
+            let pos_sign = units.signum();
+            let px_exit_net = px * (1.0 - pos_sign * fee_rate);
+            let pnl = pos_sign * (px_exit_net - *entry_cost) * close_qty;
+            *cash += cash_flow;
+            // 平反向：delta 与持仓异号，units += delta×close_qty 使 |units| 减小（向 0 收敛）。
+            // 平多（units=+N, delta=−1）⟹ N+(−1)·N=0；平空（units=−N, delta=+1）⟹ −N+1·N=0。
+            *units += delta * close_qty;
+            trade_pnls.push(pnl);
+            remaining -= close_qty;
+            // 全平 ⟹ 成本基归零（无持仓）；未全平 ⟹ 同方向剩余成本基不变（同价同费基）。
+            if *units == 0.0 {
+                *entry_cost = 0.0;
+            }
+        }
+    }
+
+    // ── 段 2：开新方向仓 / 同向加仓（剩余 qty 按 delta 开仓）。纯平仓 ⟹ 不开新仓。 ──
+    if remaining > 0.0 && !close_only {
+        // 开仓现金流：开多（delta+1）cash 减 qty×px×(1+fee)（含买入费）；
+        // 开空（delta−1）cash 加 qty×px×(1−fee)（卖出净收，扣卖出费）。
+        // 统一：cash += −delta × qty × px × (1 + delta×fee_rate)。
+        let cash_flow = -delta * remaining * px * (1.0 + delta * fee_rate);
+        // 现金约束：开多需现金充足（cash ≥ 买入含费成本）；开空收现金（无预付，保证金 v0 未建模）。
+        let need_cash = delta > 0.0; // 仅开多需现金
+        let cost = remaining * px * (1.0 + fee_rate);
+        if need_cash && *cash < cost {
+            return; // 现金不足，不开多（对齐 v0 现金约束；开空无此约束）
+        }
+        // 每单位含费成本基（多=买入均价含买入费；空=卖出均价扣卖出费净收）。
+        // 单笔成交成本基 = px × (1 + delta×fee_rate)：多 px(1+fee)，空 px(1−fee)。
+        let unit_cost = px * (1.0 + delta * fee_rate);
+        let old_units_abs = units.abs();
+        let new_units = *units + delta * remaining;
+        let new_units_abs = new_units.abs();
+        if new_units_abs > 0.0 {
+            // 加权平均含费成本基（同方向加仓：旧成本基×旧手数 + 本次成本基×本次手数 ÷ 新手数）。
+            *entry_cost = (*entry_cost * old_units_abs + unit_cost * remaining) / new_units_abs;
+        }
+        *units = new_units;
+        *cash += cash_flow;
+    }
 }
 
 /// bar-级 returns（占位；日聚合接通前的 L1 口径）。
@@ -1175,6 +1272,133 @@ mod tests {
         let orders = vec![Order { action: StrictAction::Buy, qty: 1, exec_index: 0 }];
         let (_eq, _r, pnls) = simulate_fills(&bars, &orders, 1000.0, &config);
         assert_eq!(pnls.len(), 0, "不可交易 bar 跳过订单，无交易");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★v1 做空腿 fill 账本（方向中性，apply_order/apply_fill golden）
+    //  canonical FULL §10「根声部双向全定义状态机」+ §13 有符号名义头寸 + Origin.TotalWealth
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 开空：units 变负，cash 增（收到卖出净收 = qty×px×(1−fee)）。对齐 canonical σ_r=−1（空头）
+    /// + Origin.TotalWealth TW=cash+units×px 守恒（开空瞬间 TW 仅扣费用，本金不变）。
+    #[test]
+    fn short_open_units_negative_cash_increases() {
+        let fee = 0.001;
+        let (mut cash, mut units, mut ec, mut pnls) = (1_000_000.0, 0.0, 0.0, Vec::new());
+        let o = Order { action: StrictAction::Sell, qty: 100, exec_index: 0 };
+        apply_order(&o, 50.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        assert_eq!(units, -100.0, "开空 ⟹ units 负（canonical σ_r=−1 空头）");
+        assert!(
+            (cash - (1_000_000.0 + 100.0 * 50.0 * (1.0 - fee))).abs() < 1e-6,
+            "开空 cash+ 卖出净收"
+        );
+        assert!((ec - 50.0 * (1.0 - fee)).abs() < 1e-9, "空头成本基 = 卖出均价扣费");
+        assert!(pnls.is_empty(), "开仓无已实现 PnL");
+        let tw = cash + units * 50.0;
+        assert!(
+            (tw - (1_000_000.0 - 100.0 * 50.0 * fee)).abs() < 1e-6,
+            "开空 TW 仅扣费（Origin.TotalWealth 守恒）"
+        );
+    }
+
+    /// 平空（盈利）：买回价 < 开空价 ⟹ 空头盈利。units 回 0，cash 减买回支出，PnL>0。
+    /// Close 方向感知：持空 ⟹ 买回（δ+1）。
+    #[test]
+    fn short_close_profit_when_price_drops() {
+        let fee = 0.001;
+        let (mut cash, mut units, mut ec, mut pnls) = (1_000_000.0, 0.0, 0.0, Vec::new());
+        apply_order(&Order { action: StrictAction::Sell, qty: 100, exec_index: 0 }, 50.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        let cash_after_open = cash;
+        apply_order(&Order { action: StrictAction::Close, qty: 100, exec_index: 1 }, 40.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        assert_eq!(units, 0.0, "平空 ⟹ units 回 0");
+        assert!(
+            (cash - (cash_after_open - 100.0 * 40.0 * (1.0 + fee))).abs() < 1e-6,
+            "平空 cash− 买回支出"
+        );
+        assert_eq!(pnls.len(), 1, "平空产 1 笔 PnL");
+        let expect = 100.0 * 50.0 * (1.0 - fee) - 100.0 * 40.0 * (1.0 + fee);
+        assert!((pnls[0] - expect).abs() < 1e-6, "空头 PnL = 开空净收−平空支出");
+        assert!(pnls[0] > 0.0, "价跌 ⟹ 空头盈利");
+        assert_eq!(ec, 0.0, "全平 ⟹ 成本基归零");
+    }
+
+    /// 平空（亏损）：买回价 > 开空价 ⟹ 空头亏损（PnL<0）。
+    #[test]
+    fn short_close_loss_when_price_rises() {
+        let fee = 0.001;
+        let (mut cash, mut units, mut ec, mut pnls) = (1_000_000.0, 0.0, 0.0, Vec::new());
+        apply_order(&Order { action: StrictAction::Sell, qty: 100, exec_index: 0 }, 50.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        apply_order(&Order { action: StrictAction::Close, qty: 100, exec_index: 1 }, 60.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        assert_eq!(units, 0.0, "平空 ⟹ units 回 0");
+        assert!(pnls[0] < 0.0, "价涨 ⟹ 空头亏损（PnL<0）");
+    }
+
+    /// 多空 PnL 镜像对称（canonical §7 镜像等变兑现）：同幅度有利价变，多头（价涨）与空头
+    /// （价跌）PnL 在零费下严格相等。
+    #[test]
+    fn long_short_pnl_mirror_symmetric_zero_fee() {
+        let fee = 0.0;
+        let (mut c1, mut u1, mut e1, mut p1) = (1_000_000.0, 0.0, 0.0, Vec::new());
+        apply_order(&Order { action: StrictAction::Buy, qty: 100, exec_index: 0 }, 50.0, fee, &mut c1, &mut u1, &mut e1, &mut p1);
+        apply_order(&Order { action: StrictAction::Close, qty: 100, exec_index: 1 }, 60.0, fee, &mut c1, &mut u1, &mut e1, &mut p1);
+        let (mut c2, mut u2, mut e2, mut p2) = (1_000_000.0, 0.0, 0.0, Vec::new());
+        apply_order(&Order { action: StrictAction::Sell, qty: 100, exec_index: 0 }, 50.0, fee, &mut c2, &mut u2, &mut e2, &mut p2);
+        apply_order(&Order { action: StrictAction::Close, qty: 100, exec_index: 1 }, 40.0, fee, &mut c2, &mut u2, &mut e2, &mut p2);
+        assert!((p1[0] - 1000.0).abs() < 1e-6, "多头 PnL=1000");
+        assert!((p2[0] - 1000.0).abs() < 1e-6, "空头 PnL=1000");
+        assert!((p1[0] - p2[0]).abs() < 1e-9, "多空 PnL 镜像对称（canonical §7 镜像等变）");
+    }
+
+    /// 翻转（先平后开，canonical §20）：持多 @50 遇 Sell qty>持仓 ⟹ 先平多（记 PnL）再开空。
+    #[test]
+    fn flip_long_to_short_sells_then_opens_short() {
+        let fee = 0.0;
+        let (mut cash, mut units, mut ec, mut pnls) = (1_000_000.0, 0.0, 0.0, Vec::new());
+        apply_order(&Order { action: StrictAction::Buy, qty: 100, exec_index: 0 }, 50.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        apply_order(&Order { action: StrictAction::Sell, qty: 150, exec_index: 1 }, 60.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        assert_eq!(units, -50.0, "翻转后净持空 50（150 − 平多 100）");
+        assert_eq!(pnls.len(), 1, "翻转产 1 笔平多 PnL");
+        assert!((pnls[0] - 1000.0).abs() < 1e-6, "平多 PnL=100×(60−50)=1000");
+        assert!((ec - 60.0).abs() < 1e-9, "翻转后空头成本基 = 开空价（零费）");
+    }
+
+    /// Close 方向感知：空仓遇 Close ⟹ 无操作（不借 Close 开新仓）。
+    #[test]
+    fn close_on_flat_is_noop() {
+        let fee = 0.001;
+        let (mut cash, mut units, mut ec, mut pnls) = (1_000_000.0, 0.0, 0.0, Vec::new());
+        apply_order(&Order { action: StrictAction::Close, qty: 100, exec_index: 0 }, 50.0, fee, &mut cash, &mut units, &mut ec, &mut pnls);
+        assert_eq!(units, 0.0, "空仓 Close 无操作");
+        assert_eq!(cash, 1_000_000.0, "空仓 Close 现金不动");
+        assert!(pnls.is_empty(), "空仓 Close 无 PnL");
+    }
+
+    /// 端到端做空腿（plan_and_fill_mtm）：单 Short 根决策 → 开空 → 止损平空 → trade 标 long=false。
+    #[test]
+    fn short_leg_end_to_end_trade_marked_short() {
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        // Short 根：卖点 @ bar0，开空 @ bar1 open；止损在上方（pivot_high）。
+        // bar3 high 突破 stop ⟹ 止损平空（买回）。
+        let bars = vec![
+            ohlc_bar(0, 100, 110, 90, 95),
+            ohlc_bar(1, 100, 105, 95, 98),
+            ohlc_bar(2, 98, 102, 94, 96),
+            ohlc_bar(3, 105, 130, 104, 125), // high=130>stop ⟹ 止损触发
+            ohlc_bar(4, 125, 128, 120, 122),
+        ];
+        let mut d = buy1_long_decision(0, 0);
+        d.root_side = VoiceSide::Short;
+        d.bsp = BspBits { sell1: true, ..Default::default() };
+        d.stop_in = StopInput {
+            pivot_low: 0,
+            pivot_high: 120, // Short 止损在上方
+            center: Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 },
+        };
+        let fill = plan_and_fill_mtm(&[d], &bars, 1_000_000.0, &config);
+        assert!(!fill.trades.is_empty(), "Short 根 ⟹ 开空 + 平空产交易轨迹");
+        assert!(fill.trades.iter().all(|t| !t.long), "做空腿交易标 long=false（Short）");
+        assert!(fill.n_orders >= 2, "至少 2 单（开空 Sell + 止损 Close）");
     }
 
     /// **真实数据分层诊断 + L2 探测**（`#[ignore]`，需 `analysis/data_cache/*.json`）。

@@ -8,6 +8,9 @@
 //! - 子级别破中枢 ↔ `Origin.SubLevelDescent.{SubBrokeBelow,SubBrokeAbove,subLevelHasBrokenCenter}`。
 //! - `Sel_Θ` 选择器 ↔ `selKey`：`(endTime, startTime, idx)` 字典序（canonical tie-break）。
 //! - 终端确认 ↔ `Confirm`：`Λ≠∅`（至少一类买卖点成立，**不要求 |Λ|=1**——2/3 类可共存）。
+//! - 方向化区间套证书 ↔ `N^δ_{ℓ↓e}`（spec P5 §6 line 1168）：χ 的**方向化 + 候选化精化**——基例
+//!   用方向化 `Conf^δ_e`（[`BspBits::confirm_side`]），递归步追加候选谓词 `Cand^δ_ℓ`（[需人工确认]
+//!   定义式，spec 疑点2）+ 子⊆父区间套（复用 [`is_sub`]）。见 [`NestCertificate`]。
 //!
 //! ## 核心定理（契约锚 `Origin.SubLevelDescent.descend_level_decreases`）
 //!
@@ -21,7 +24,7 @@
 //! 唯一性是纯结构归纳（同义反复，不冒充 L1+）。`Sel_Θ` 规则由 Θ_signal 给出（reference:24
 //! canonical 分解 tie-break：最早确认时间 → 最低递归层 → 最早原始 index）。
 
-use super::super::types::BspBits;
+use super::super::types::{BspBits, Side};
 
 /// 候选定位区间（契约锚 `Origin.SubLevelDescent` 下钻区间）——携带 `Sel_Θ` 排序三键。
 ///
@@ -96,13 +99,12 @@ pub struct LevelNode {
 ///
 /// **不要求 |Λ|=1**（Nest.lean `confirm_of_two_three`/`confirm_of_all_three`）——2/3 类
 /// 共存同样确认。唯一被排除的是全零 bit-vector（无任何买卖点成立的终端）。
+///
+/// ★方向无关 = `Conf^+ ∨ Conf^-`（spec P5 §6）：`Λ≠∅` 恰为「买侧确认 [`BspBits::conf_plus`] 或
+/// 卖侧确认 [`BspBits::conf_minus`]」的析取。委托两方向谓词（单一来源，消除重复析取）；区间套证书
+/// `N^δ_{ℓ↓e}` 的**方向化**基例用 [`BspBits::confirm_side`]，本函数是其双向并集。
 pub fn confirm(terminal: &BspBits) -> bool {
-    terminal.buy1
-        || terminal.buy2
-        || terminal.buy3
-        || terminal.sell1
-        || terminal.sell2
-        || terminal.sell3
+    terminal.conf_plus() || terminal.conf_minus()
 }
 
 /// 最终确认证书 χ（reference:对齐 `Chi`）——区间套递归证书 + 终端确认。
@@ -135,12 +137,109 @@ impl Chi {
     }
 }
 
+/// 方向化区间套证书 `N^δ_{ℓ↓e}` 的递归梯级（spec P5 §6 递归步 ℓ>e 的单级数据）。
+///
+/// 对应 spec 递归步 `Cand^δ_ℓ(x) ∧ [J^δ_{ℓ-1}(x)⊆J^δ_ℓ(x)] ∧ N^δ_{ℓ-1↓e}` 中本级 ℓ 的两个分量：
+/// - `interval` = 本级定位区间 `J^δ_ℓ`（与**子级** `J^δ_{ℓ-1}` 做闭口径 ⊆ 比较，复用 [`is_sub`]）。
+/// - `cand` = 候选谓词 `Cand^δ_ℓ(x) ∈ {0,1}` 的**取值**（不是定义式）。
+///
+/// [需人工确认]（spec 疑点2，line 1257）：`Cand^δ_ℓ(x)` 在 PDF 中仅作符号出现，**无独立定义式**。
+/// 本结构按 spec 把 `Cand^δ_ℓ(x)` 当作 0/1 谓词**取值**消费（与 `b_ℓ∈{0,1}^6` 同样是判定结果输入），
+/// 其计算规则属上游（候选判据定义）——`N^δ` 只做合取组装，**不臆造** Cand 的判据。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestRung {
+    /// 本级 `J^δ_ℓ` 定位区间。
+    pub interval: NestInterval,
+    /// `Cand^δ_ℓ(x) ∈ {0,1}` 取值。[需人工确认] 定义式（spec 疑点2）。
+    pub cand: bool,
+}
+
+/// 方向化区间套证书 `N^δ_{ℓ↓e}(x) ∈ {0,1}`（spec P5 §6 line 1168 / 结果包 line 308）。
+///
+/// `Chi`（χ）的**方向化 + 候选化精化**：χ 用方向无关 [`confirm`] 且无 `Cand`；本证书 (a) 基例改用
+/// 方向化 [`BspBits::confirm_side`]（按 δ 选 `conf_plus`/`conf_minus`），(b) 每个递归级追加
+/// `Cand^δ_ℓ` 合取。区间套关系仍复用契约锚 [`is_sub`]（不重造区间逻辑）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct NestCertificate {
+    /// 方向 δ（`Long`=+1 / `Short`=-1），固定于整条证书。
+    pub side: Side,
+    /// 执行级 e 终端 bit-vector（基例 `Conf^δ_e` 的输入）。
+    pub terminal: BspBits,
+    /// 执行级 e 定位区间 `J^δ_e`（最内层；作为最低递归级的子区间参与 ⊆）。
+    pub base_interval: NestInterval,
+    /// 递归级 `(e, ℓ]` 梯级，**从高到低**排列：`rungs[0]`=级 ℓ，`rungs[last]`=级 e+1。
+    /// 空 ⟹ ℓ=e（纯基例）。结构上不可表达 e>ℓ（无负梯级），天然满足前置约束 e≤ℓ。
+    pub rungs: Vec<NestRung>,
+}
+
+impl NestCertificate {
+    /// 区间套证书 `N^δ_{ℓ↓e}(x) ∈ {0,1}`：按 ℓ 从高到低逐级校验。
+    ///
+    /// ## 结果包（六要素）
+    /// - **结论**：返回 0/1（bool）值的级别递归谓词。基例 ℓ=e（`rungs` 空）取方向化确认
+    ///   `Conf^δ_e(x)`=[`BspBits::confirm_side`]；递归步 ℓ>e 取 `Cand^δ_ℓ(x) ∧ [J^δ_{ℓ-1}⊆J^δ_ℓ]
+    ///   ∧ N^δ_{ℓ-1↓e}`，逐级下降至基例。
+    /// - **定义依据**：spec `2026-06-28-recursive-complete-classification-bsp-pdf-extract.md`
+    ///   P5 §6 分段方框（line 277-285）+ ∃! 方框（line 295）+ 结果包（line 308-312）。`side` 选 δ；
+    ///   `terminal` 满足基例 `Conf^δ_e=⋁ B_{i,e}`/`⋁ S_{i,e}`；`rungs[k].cand` 提供 `Cand^δ`；
+    ///   相邻 `interval` 满足 ⊆。
+    /// - **边界条件**：(1) ⊆ 方向是**子⊆父** `J^δ_{ℓ-1}⊆J^δ_ℓ`（[`is_sub`]：child.lo≥parent.lo
+    ///   ∧ child.hi≤parent.hi，闭口径；lo=`start_time`/hi=`end_time`），方向反则证书失效。
+    ///   (2) 任一级 `Cand^δ_ℓ=false`、或任一相邻 ⊆ 不成立、或基例 `Conf^δ_e=false` ⟹ 整体翻转为 0。
+    ///   (3) 方向 δ 翻转（Long↔Short）则基例改判 `conf_plus`↔`conf_minus`，结论可翻转。
+    ///   (4) 前置 e≤ℓ 由结构保证（rungs 非负长度），e>ℓ 不可表达（spec：e>ℓ 递归未定义）。
+    /// - **下游推论**：N^δ 是 Γ 候选集→确认信号提升（环2→环3）的方向化确认层；返回 bool ⟹ ∃!
+    ///   ∈{0,1}（2 值确定函数，无需 Finset）；级别每步严格下降（rungs 缩短）⟹ 有限终止。
+    ///   Lean 端对应 (ℓ-e):Nat 结构递归。
+    /// - **谱系引用**：第三类边界谱系（MEMORY: theta-v0-type3-boundary）——基例只消费
+    ///   [`BspBits::confirm_side`]（委托 `conf_plus`/`conf_minus` → buy3/sell3 bit），B3 边界已在
+    ///   `bsp::endpoint_to_bsp`（rust `>=`）结算，本层**不重判边界**。`Cand^δ_ℓ` 定义式缺失见
+    ///   spec 疑点2（[需人工确认]）。
+    /// - **影响声明**：在 nest.rs 新增方向化区间套证书；不改 `Chi`/`confirm`/`is_sub`（契约锚保留），
+    ///   不动 classifier/mod.rs。L0 操作语义结构（非 L2 alpha）。
+    pub fn n_delta(&self) -> bool {
+        Self::n_delta_rec(self.side, &self.terminal, &self.base_interval, &self.rungs)
+    }
+
+    /// `N^δ` 的级别递归核（mirror Lean (ℓ-e):Nat 结构递归）。`rungs` 从高(ℓ)到低(e+1)。
+    fn n_delta_rec(side: Side, terminal: &BspBits, base: &NestInterval, rungs: &[NestRung]) -> bool {
+        match rungs.split_first() {
+            // 基例 ℓ=e：N^δ_{e↓e} = Conf^δ_e。
+            None => terminal.confirm_side(side),
+            // 递归步 ℓ>e：Cand^δ_ℓ ∧ [J^δ_{ℓ-1} ⊆ J^δ_ℓ] ∧ N^δ_{ℓ-1↓e}。
+            Some((top, rest)) => {
+                // 子级 J^δ_{ℓ-1}：下一梯级区间；rest 空 ⟹ 子级是执行级 J^δ_e。
+                let child = rest.first().map_or(base, |r| &r.interval);
+                top.cand
+                    && is_sub(child, &top.interval)
+                    && Self::n_delta_rec(side, terminal, base, rest)
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn interval(et: u64, st: u64, idx: u64) -> NestInterval {
         NestInterval { end_time: et, start_time: st, idx }
+    }
+
+    fn rung(et: u64, st: u64, idx: u64, cand: bool) -> NestRung {
+        NestRung { interval: interval(et, st, idx), cand }
+    }
+
+    fn buy1_bits() -> BspBits {
+        let mut t = BspBits::default();
+        t.buy1 = true;
+        t
+    }
+
+    fn sell1_bits() -> BspBits {
+        let mut t = BspBits::default();
+        t.sell1 = true;
+        t
     }
 
     #[test]
@@ -272,5 +371,114 @@ mod tests {
         };
         assert!(chi.nest_valid());
         assert!(chi.is_confirmed());
+    }
+
+    #[test]
+    fn n_delta_base_case_directional_confirm() {
+        // ℓ=e（rungs 空）：N^δ = Conf^δ_e（方向化基例）。
+        let cert = NestCertificate {
+            side: Side::Long,
+            terminal: buy1_bits(),
+            base_interval: interval(50, 0, 0),
+            rungs: vec![],
+        };
+        assert!(cert.n_delta()); // 买侧确认 + Long ⟹ 1
+        // 方向翻转：买侧 bit 对 Short 不确认 ⟹ 0。
+        let cert_short = NestCertificate { side: Side::Short, ..cert.clone() };
+        assert!(!cert_short.n_delta());
+    }
+
+    #[test]
+    fn n_delta_base_case_empty_terminal_rejected() {
+        // 全零终端 ⟹ 基例 Conf^δ_e=0。
+        let cert = NestCertificate {
+            side: Side::Long,
+            terminal: BspBits::default(),
+            base_interval: interval(50, 0, 0),
+            rungs: vec![],
+        };
+        assert!(!cert.n_delta());
+    }
+
+    #[test]
+    fn n_delta_two_level_full_certificate() {
+        // ℓ=e+1：Cand^δ_ℓ ∧ [J^δ_e ⊆ J^δ_ℓ] ∧ Conf^δ_e。
+        let cert = NestCertificate {
+            side: Side::Long,
+            terminal: buy1_bits(),
+            base_interval: interval(60, 20, 0), // J^δ_e 内层
+            rungs: vec![rung(100, 0, 0, true)], // J^δ_ℓ 外层，Cand=1
+        };
+        assert!(is_sub(&interval(60, 20, 0), &interval(100, 0, 0))); // 子⊆父
+        assert!(cert.n_delta());
+    }
+
+    #[test]
+    fn n_delta_false_when_cand_false() {
+        // 候选谓词 Cand^δ_ℓ=0 ⟹ 整体翻转（即便区间套 + 确认都成立）。
+        let cert = NestCertificate {
+            side: Side::Long,
+            terminal: buy1_bits(),
+            base_interval: interval(60, 20, 0),
+            rungs: vec![rung(100, 0, 0, false)],
+        };
+        assert!(!cert.n_delta());
+    }
+
+    #[test]
+    fn n_delta_false_when_nesting_broken() {
+        // 子⊄父（base end 100 超出 rung end 60）⟹ ⊆ 失败 ⟹ 0。
+        let cert = NestCertificate {
+            side: Side::Long,
+            terminal: buy1_bits(),
+            base_interval: interval(100, 0, 0), // 子超界
+            rungs: vec![rung(60, 20, 0, true)],
+        };
+        assert!(!cert.n_delta());
+    }
+
+    #[test]
+    fn n_delta_subset_direction_is_child_in_parent() {
+        // ⊆ 方向校验：父⊆子（反向）不成立——大区间作子级、小区间作父级 ⟹ child⊄parent。
+        let cert = NestCertificate {
+            side: Side::Long,
+            terminal: buy1_bits(),
+            base_interval: interval(100, 0, 0), // 大区间作子级
+            rungs: vec![rung(60, 20, 0, true)], // 小区间作父级
+        };
+        assert!(!cert.n_delta());
+    }
+
+    #[test]
+    fn n_delta_three_level_chain() {
+        // ℓ=e+2：100 ⊇ 80 ⊇ 60，两递归级 Cand=1，买侧确认 ⟹ 1。
+        let cert = NestCertificate {
+            side: Side::Long,
+            terminal: buy1_bits(),
+            base_interval: interval(60, 20, 0),                          // J^δ_e
+            rungs: vec![rung(100, 0, 0, true), rung(80, 10, 0, true)],   // ℓ, ℓ-1
+        };
+        assert!(cert.n_delta());
+        // 中间级 Cand=0 ⟹ 逐级合取翻转为 0。
+        let cert_mid_false = NestCertificate {
+            rungs: vec![rung(100, 0, 0, true), rung(80, 10, 0, false)],
+            ..cert.clone()
+        };
+        assert!(!cert_mid_false.n_delta());
+    }
+
+    #[test]
+    fn n_delta_short_direction_certificate() {
+        // δ=Short：基例取 conf_minus（卖侧）。
+        let cert = NestCertificate {
+            side: Side::Short,
+            terminal: sell1_bits(),
+            base_interval: interval(60, 20, 0),
+            rungs: vec![rung(100, 0, 0, true)],
+        };
+        assert!(cert.n_delta());
+        // 同结构换 Long：卖侧 bit 对 Long 不确认 ⟹ 0。
+        let cert_long = NestCertificate { side: Side::Long, ..cert.clone() };
+        assert!(!cert_long.n_delta());
     }
 }

@@ -179,6 +179,79 @@ pub struct BspBits {
     pub sell3: bool,
 }
 
+impl BspBits {
+    /// 买入方向确认 `Conf^+_e(x) = ⋁_{i=1}^{3} B_{i,e}(x) = B1 ∨ B2 ∨ B3`。
+    ///
+    /// ## 结果包（六要素）
+    /// - **结论**：买入方向确认谓词，对买卖点向量 `b_ℓ` 的买侧三分量取析取 ⋁。
+    /// - **定义依据**：spec `2026-06-28-recursive-complete-classification-bsp-pdf-extract.md`
+    ///   P5 §6 方框 `Conf^+_e(x)=⋁_{i=1}^3 B_{i,e}(x)`（line 283）+ 七链 环1（line 1167）。
+    ///   输入 `BspBits` 的 buy1/buy2/buy3 三 bool 直接对应 B_{1,e}/B_{2,e}/B_{3,e}。
+    /// - **边界条件**：用 ⋁（析取，**非互斥**——P4 §5「不要求六个买卖点互斥，可重合」line 233）；
+    ///   任一买点成立即确认。若改用 ∧（合取）或假设互斥三选一，则结论翻转——确认条件收紧、
+    ///   64 类完全分类塌缩。三分量全 false ⟹ 买侧未确认。
+    /// - **下游推论**：区间套证书 `N^δ_{ℓ↓e}` 基例（ℓ=e，δ=+1/Long）取本谓词（P5 §6 分段函数）；
+    ///   与 [`BspBits::conf_minus`] 合取覆盖 [`crate::theta_v0::classifier::nest::confirm`] 的 Λ≠∅。
+    /// - **谱系引用**：第三类边界谱系（MEMORY: theta-v0-type3-boundary，reference §36 含等号 vs Lean
+    ///   严格<）在 B3 谓词层（`bsp::endpoint_to_bsp`）已与既有 rust `>=` 一致结算；本析取层只消费已置位
+    ///   的 buy3 bool，**不重判边界**，故不引入新等号冲突。互斥责任分层谱系见 P4 §5 结果包（不互斥转移
+    ///   到角色层/解释器层）。
+    /// - **影响声明**：新增买侧确认析取；[`crate::theta_v0::classifier::nest::confirm`] 改为委托本方法
+    ///   +`conf_minus`（单一来源，消除重复析取）。L0 操作语义，**不**声明择时 alpha（买卖点 v1 全窗 8/8
+    ///   L3 已否证）。
+    pub fn conf_plus(&self) -> bool {
+        self.buy1 || self.buy2 || self.buy3
+    }
+
+    /// 卖出方向确认 `Conf^-_e(x) = ⋁_{i=1}^{3} S_{i,e}(x) = S1 ∨ S2 ∨ S3`。
+    ///
+    /// 镜像 [`BspBits::conf_plus`]（spec P5 §6 line 285；δ=-1/Short 方向）。六要素见 `conf_plus`，
+    /// 此为其卖侧对偶（买卖对偶 §10.1）。
+    pub fn conf_minus(&self) -> bool {
+        self.sell1 || self.sell2 || self.sell3
+    }
+
+    /// 方向化确认 `Conf^δ_e(x)`（spec P5 §6 区间套证书基例 ℓ=e）：`δ=+1`(Long)→`Conf^+`，
+    /// `δ=-1`(Short)→`Conf^-`。区间套证书 `N^δ_{ℓ↓e}` 按方向 δ 选取本谓词作基例。
+    pub fn confirm_side(&self, side: Side) -> bool {
+        match side {
+            Side::Long => self.conf_plus(),
+            Side::Short => self.conf_minus(),
+        }
+    }
+
+    /// 64 类完全分类索引 `b_ℓ ∈ {0,1}^6 → 0..64`（spec P4 §5：`Σ_{u∈{0,1}^6} 1[b_ℓ=u]=1`）。
+    ///
+    /// bit 权重 `(B1,B2,B3,S1,S2,S3) = (1,2,4,8,16,32)`，是 `{0,1}^6 ↔ ℤ_64` 的**双射**——这是
+    /// 「64 类完全分类、指示函数和恒为 1」(P4 §5 line 241) 的可计算落点。**非互斥**：6 位可任意组合
+    /// （含多位同 1），覆盖全部 2^6=64 状态，故是完全分类而非互斥子集。与 [`BspBits::from_class_index`]
+    /// 互逆（round-trip 见单测）。
+    pub fn class_index(&self) -> u8 {
+        (self.buy1 as u8)
+            | (self.buy2 as u8) << 1
+            | (self.buy3 as u8) << 2
+            | (self.sell1 as u8) << 3
+            | (self.sell2 as u8) << 4
+            | (self.sell3 as u8) << 5
+    }
+
+    /// 64 类索引 `0..64 → b_ℓ ∈ {0,1}^6`（[`BspBits::class_index`] 的逆，双射另一半）。
+    ///
+    /// 定义域 `idx ∈ 0..64`（{0,1}^6 的 64 个元素）。`idx >= 64` 越界（高于 6 位无意义）⟹ debug 断言
+    /// 失败（fail-fast 边界校验，非静默截断）。
+    pub fn from_class_index(idx: u8) -> Self {
+        debug_assert!(idx < 64, "BspBits 64 类索引必须 ∈ 0..64，收到 {idx}");
+        BspBits {
+            buy1: idx & 1 != 0,
+            buy2: idx & 2 != 0,
+            buy3: idx & 4 != 0,
+            sell1: idx & 8 != 0,
+            sell2: idx & 16 != 0,
+            sell3: idx & 32 != 0,
+        }
+    }
+}
+
 /// 买卖向 `Side`（port `Origin.BspClassification.Side`：long/short）。
 ///
 /// 缠论买卖点的方向语境（§10.1 买卖对偶）：`Long` = 买点侧（底背驰/向上离开中枢之上）；
@@ -257,5 +330,91 @@ mod tests {
             ..Default::default()
         };
         assert!(bits.buy2 && bits.buy3);
+    }
+
+    #[test]
+    fn conf_plus_is_buy_side_disjunction() {
+        // Conf^+ = B1 ∨ B2 ∨ B3（spec P5 §6 line 283）：任一买点成立即确认，卖点不参与。
+        assert!(!BspBits::default().conf_plus(), "全零 ⟹ 买侧未确认");
+        for f in [
+            BspBits { buy1: true, ..Default::default() },
+            BspBits { buy2: true, ..Default::default() },
+            BspBits { buy3: true, ..Default::default() },
+        ] {
+            assert!(f.conf_plus(), "任一买点 ⟹ Conf^+");
+        }
+        // 仅卖点置位 ⟹ Conf^+ 假（方向隔离）。
+        let only_sell = BspBits { sell1: true, sell2: true, sell3: true, ..Default::default() };
+        assert!(!only_sell.conf_plus());
+        assert!(only_sell.conf_minus());
+    }
+
+    #[test]
+    fn conf_minus_is_sell_side_disjunction() {
+        // Conf^- = S1 ∨ S2 ∨ S3（spec P5 §6 line 285），买卖对偶镜像。
+        assert!(!BspBits::default().conf_minus());
+        for f in [
+            BspBits { sell1: true, ..Default::default() },
+            BspBits { sell2: true, ..Default::default() },
+            BspBits { sell3: true, ..Default::default() },
+        ] {
+            assert!(f.conf_minus());
+        }
+        let only_buy = BspBits { buy1: true, ..Default::default() };
+        assert!(!only_buy.conf_minus());
+        assert!(only_buy.conf_plus());
+    }
+
+    #[test]
+    fn conf_disjunction_non_exclusive_coexist() {
+        // ★不互斥（P4 §5 line 233）：买侧多位 + 卖侧多位可同时置位，两方向确认同真。
+        let coexist = BspBits {
+            buy2: true,
+            buy3: true,
+            sell1: true,
+            ..Default::default()
+        };
+        assert!(coexist.conf_plus() && coexist.conf_minus());
+    }
+
+    #[test]
+    fn confirm_side_selects_direction() {
+        // Conf^δ_e：Long → Conf^+，Short → Conf^-（区间套证书方向化基例）。
+        let buy = BspBits { buy1: true, ..Default::default() };
+        let sell = BspBits { sell3: true, ..Default::default() };
+        assert!(buy.confirm_side(Side::Long) && !buy.confirm_side(Side::Short));
+        assert!(sell.confirm_side(Side::Short) && !sell.confirm_side(Side::Long));
+    }
+
+    #[test]
+    fn class_index_from_index_round_trip_64_complete() {
+        // ★64 类完全分类（P4 §5 line 241：Σ_{u∈{0,1}^6} 1[b=u]=1）：
+        // class_index 是 {0,1}^6 ↔ 0..64 双射 ⟹ 枚举全 64 索引 round-trip 还原且索引各异
+        // = 状态空间被 64 类无遗漏无重复覆盖（指示函数和恒为 1 的可计算见证）。
+        use std::collections::BTreeSet;
+        let mut seen = BTreeSet::new();
+        for idx in 0u8..64 {
+            let bits = BspBits::from_class_index(idx);
+            assert_eq!(bits.class_index(), idx, "round-trip 还原 idx={idx}");
+            assert!(seen.insert(idx), "索引 {idx} 唯一（无重复类）");
+        }
+        assert_eq!(seen.len(), 64, "恰好 64 类，完全分类");
+    }
+
+    #[test]
+    fn class_index_bit_weights_exact() {
+        // bit 权重 (B1,B2,B3,S1,S2,S3)=(1,2,4,8,16,32)。
+        assert_eq!(BspBits::default().class_index(), 0);
+        assert_eq!(BspBits { buy1: true, ..Default::default() }.class_index(), 1);
+        assert_eq!(BspBits { sell3: true, ..Default::default() }.class_index(), 32);
+        let all = BspBits {
+            buy1: true,
+            buy2: true,
+            buy3: true,
+            sell1: true,
+            sell2: true,
+            sell3: true,
+        };
+        assert_eq!(all.class_index(), 63, "全 1 ⟹ 第 63 类（64 类的最后一类）");
     }
 }

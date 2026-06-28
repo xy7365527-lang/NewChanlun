@@ -38,7 +38,12 @@
 //! - **target → proj(riskProj) → exec**（`声部决策 + 账户 → 订单`）：[`plan_orders`] 实装此确定链，
 //!   对齐 `Theta.{target,proj,riskProj,exec}`。此层吃已 recog 的决策。
 
+/// 互斥全定义策略 element-coverage 执行引擎（M29 三结论合一的 rust 兑现，与买卖点 v1 正交的
+/// 新路径——在每个语法元素 λ_e 入场、ρ_e 平腿，覆盖每个笔/线段/走势，非离散择时）。
+pub mod coverage;
 pub mod exec;
+/// R_Θ 解释器（七链环5）：候选集 Γ(x) → 平移不变全序 ≺_Θ → 三桶 (𝒟_x close / ℬ_x open / 𝒦_x record)。
+pub mod interp;
 pub mod intent;
 pub mod ledger;
 /// 区间套递归证书 N^δ + Sel_Θ 固定选择器（对照 `Origin.IntervalNestCertificate`，L2-B 补全）。
@@ -384,103 +389,120 @@ fn signal_tie_keys(d: &VoiceDecision, bars: &[Bar]) -> (i64, usize) {
     }
 }
 
-/// recog 步骤（契约锚 `Origin.StrategyFamily.Theta.recog : H → Z → D`）：`Classification + bars → 声部决策`。
+/// recog 步骤（契约锚 `Origin.StrategyFamily.Theta.recog : H → Z → D`）：`Classification + bars → 声部决策`，
+/// **经 R_Θ 解释器（七链环5，spec §12）路由**（不再逐点硬编码 exit）。
 ///
-/// 从 cc-classifier 的 `Classification`（分类标签 S，路 B `BspPoint` 携带结构止损价 single
-/// source）+ `bars`（历史 H）读出每个买卖点的 [`VoiceDecision`]（决策 D）。**零结构重算**
-/// （pivot/center 直接读 `BspPoint`，不从 bars 重算结构，对齐 Lead single-source 裁定）。
+/// ## 数据流（环3 → 环5 → 决策）
 ///
-/// ## 映射（每个 `BspPoint` → 一个 `VoiceDecision`）
+/// 1. **环3 组装 Γ**（[`interp::assemble_gamma`]）：从 `Classification` 的所有级别×买卖点×区间套确认
+///    生成有限候选集（每候选携方向 σ_g、类号、18 类角色 R(g)、N^δ 确认）。
+/// 2. **环5 ℛ_Θ 唯一化**（[`interp::interpret`]）：按时刻 x（source_index）分组 Γ(x)，每时刻按平移
+///    不变全序 ≺_Θ 排序 + 确定性 fold → 三桶 (𝒟_x close / ℬ_x open / 𝒦_x record)，∃! 唯一（spec §12）。
+/// 3. **桶 → 决策**（[`build_decision`]）：ℬ_x 候选 → 开仓侧决策（exit=false）；𝒟_x 活动腿 → 平仓侧
+///    决策（exit=true）；𝒦_x → 记录不执行（无决策）。**exit 由分桶归属推导，非硬编码字面量**。
 ///
-/// - **声部深度 depth = 0（§5 多独立根）**：每个买卖点是一个**独立根**（契约锚
-///   `Origin.StrategyFamily` §5 `long_short_both_open_allowed:570`：`parent := none`，`depth=0`）。
-///   不同级别的买卖点是**并存的多独立根**，**不构成赋格嵌套父子关系**——故 depth 恒 0，方向由
-///   各自信号定（不跨级别赋格翻转）。赋格交替（`voice_side` 奇深翻转）只对显式嵌套子声部有定义，
-///   v0 classifier 不产嵌套子声部。`level` = ℓ 仅用于冲突排序（spec:54 高 level 先），非 depth。
-/// - **根方向 root_side**（spec:41 σ 由信号定）：bits 有买点位 → Long；有卖点位 → Short
-///   （`bsp_root_side`）。独立根（depth=0）⟹ `voice::voice_side(root_side, 0) = root_side`（不翻转）。
-/// - **stop_in**：从 `BspPoint` 的 `pivot_low`/`pivot_high`/`center` 直接构造 `StopInput`
-///   （single source，零重算）。`center` 为 `None`（无 3 类）时用零 `Center` 占位（1/2 类
-///   止损只用 pivot，不碰 center；3 类 bit ⟹ center 必 Some，classifier 不变量保证）。
-/// - **entry**：信号确认后下一可交易 bar 的 open（spec:50 延迟成交基准价）——
-///   `bars[fill_index].open`，`fill_index = exec::fill_bar_index(source_index)`。无成交 bar
-///   ⟹ 该买卖点不产决策（信号作废，对齐 spec:50「无下一根」）。
-/// - **enter_ok**：买卖点信号非空 = 进场许可（有 BspPoint 即有信号）。`exit` = false
-///   （recognize 产**开仓侧**决策；平仓/止损由持仓状态 + 后续 bar 触发，属运行时循环，
-///   不在单帧 recog 内）。**退出决策生成器**（持仓 + 后续 bar → §9 closePred → `exit=true`
-///   决策）活在 `backtest::runner::plan_and_fill_mtm` 的逐 bar 循环（那里有实时持仓 + 当前
-///   bar），对齐 `Origin.SubVoiceOpenClose.closePred`——非「账户层后续驱动」的空声明，是
-///   runner 已实装的退出生成器（消除声明膨胀，no-patch-mentality）。
-/// - **signal_index** = `BspPoint.source_index`（触发点原始 K 序，exec 延迟起点 + 平局键）。
-/// - **level** = ℓ（决策级别，冲突排序高 level 先）。
+/// ## 映射要点（每个 ℬ_x/𝒟_x 候选 → 一个 `VoiceDecision`，single source 零重算）
 ///
-/// ★诚实有效域（formalization-validity-domain）：v0 classifier 只在 L0 产第三类买卖点
-/// （signal.rs 上级留空），故 recognize 实际产 L0 单声部决策（depth 0）。本函数写**通用**
-/// 级别映射（L\* = 最高非空 bsp 级别），classifier 未来填充上级 bsp 时自然支持多层声部树，
-/// 无需改本函数——v0 是其单层特例。认识论 L1（bit-exact 接线，不验证 Θ 市场有效）。
+/// - **depth = 0（§5 多独立根）**：每个买卖点是独立根（`parent=none`，方向由自身 bits 定，不跨级别
+///   赋格翻转）；`level` = ℓ 仅用于冲突排序（spec:54 高 level 先），非 depth。
+/// - **root_side = σ_g**：候选方向由 [`interp::assemble_gamma`] 经 `root_sel`（镜像反对称消歧）定。
+/// - **stop_in / entry / signal_index**：从原始 `BspPoint`（`gamma_index` 索引回）零重算读出。
+/// - **exit / enter_ok**：由分桶推导——ℬ_x(open)→`exit=false`/`enter_ok=true`；𝒟_x(close)→
+///   `exit=true`/`enter_ok=false`。这**取代**旧 `exit: false` 硬编码（MEMORY trades-vs-closedloop：
+///   旧硬编码使所有决策 exit=false ⟹ act_state 永不判 Close）。
+///
+/// ## 诚实有效域（formalization-validity-domain，L0）
+///
+/// recog 是**单帧无持仓函数**（无账户持仓 Z）⟹ 传 `A_t=空` 给 interpret ⟹ 𝒟_x（关闭活动腿）**必空**
+/// （`interpret` 规则2 无腿可关），故本函数实际产 ℬ_x 开仓侧决策 + 𝒦_x 跳过。**持仓驱动的 𝒟_x
+/// 非空关闭由持有 active 的 caller**（runner per-moment 传 HeldVoice 台账经 [`interp::interpret`]）
+/// 驱动——与 runner 的 §9 closePred（`exec::close_pred`，contract-anchored，跨 bar/价格驱动
+/// Stop∨RiskClose）互补（§12 候选冲突互斥化 ≠ §9 关闭谓词，两条不同链环）。认识论 L1（bit-exact
+/// 接线，不验证 Θ 市场有效）；解释器结构本身 L0（[`interp`] 模块）。
 pub fn recognize(
     classification: &Classification,
     bars: &[Bar],
     config: &ThetaConfig,
 ) -> Vec<VoiceDecision> {
-    // ★声部 depth 语义（契约锚 `Origin.StrategyFamily` §5 `long_short_both_open_allowed:570`）：
-    // **每个买卖点是一个独立根**（`parent := fun _ => none`，`depth = 0`），方向由自身信号定
-    // （3买/底背驰→Long，3卖/顶背驰→Short）。不同级别的买卖点是**并存的多独立根**（§5 多独立根），
-    // **不构成赋格嵌套父子关系**——赋格交替（`voice_side` 奇深翻转 σ_child=-σ_parent）只对
-    // **显式嵌套子声部**（同一根下的对冲腿，`Origin.VoiceTree` Fugue 嵌套树）有定义，v0 classifier
-    // 不产嵌套子声部（voice.rs `voice_side` 契约：v0 单声部独立根 depth=0）。
+    // ── 环3：组装候选集 Γ（所有级别×买卖点×区间套确认，spec §12）。 ──────────────────
+    // [`interp::assemble_gamma`] 产 1:1 对应 BspPoint 的候选（gamma_index = BspPoint 遍历序），
+    // 故下文用同序遍历建平行 `points` 列表，用 `gamma_index` 索引回原始 `BspPoint`（零重算）。
+    let gamma = interp::assemble_gamma(classification);
+    let points: Vec<&classifier::bsp::BspPoint> = classification
+        .levels
+        .iter()
+        .flat_map(|level| level.bsp.iter())
+        .collect();
+
+    // ── 环5：按时刻 x（source_index）分组 → 每时刻 ℛ_Θ(Γ(x)) 三桶唯一化（spec §12）。 ──
+    // **诚实有效域（formalization-validity-domain，L0）**：recog 是**单帧无持仓函数**（签名只吃
+    // classification+bars+config，无账户持仓 Z——MEMORY trades-vs-closedloop 坐实），故活动集
+    // `A_t = 空`。空 A_t ⟹ 𝒟_x（应关闭活动腿）**必空**（interpret 规则2 不触发，无腿可关）——
+    // 持仓驱动的关闭（𝒟_x 非空）由**持有 active 的 caller**（runner per-moment 传 HeldVoice 台账）
+    // 经 [`interp::interpret`] 驱动，与 runner 的 §9 closePred（exec::close_pred，contract-anchored，
+    // 跨 bar/价格驱动 Stop∨RiskClose）互补（§12 候选冲突互斥化 ≠ §9 关闭谓词，两条不同链环）。
     //
-    // ★诚实纠正（no-patch-mentality + 实现 bug 修复，L2 OKLO bisect 坐实 2026-06-27）：旧实现用
-    // `depth = l_star - level_idx`（l_star = 最高非空 bsp 级别）把**级别差**伪造成赋格嵌套深度——
-    // 当上级（如 L1）偶现一个第二类 B2/S2 bsp 时 l_star 被抬高，本级（L0）的所有第三类买卖点被
-    // 误降格为 depth=1 的奇深子声部，`voice_side` 翻转其方向 ⟹ `structural_stop(翻转side, 原始bsp)`
-    // 方向不匹配恒 None ⟹ 全部开仓被丢（OKLO 30K：6044/6045 开仓决策因此丢失，n_orders 3040→1）。
-    // 级别差 ≠ 赋格嵌套深度（§5 多独立根 ≠ Fugue 嵌套树，两个不同有效域）。修复=各级 bsp 均为
-    // 独立根 depth=0、方向=自身信号（codex 异质裁决 + 机器证据双向确认：不改 §5/voice_side/
-    // structural_stop 任何定义，纯实现 bug）。`level` 字段保留 level_idx（冲突排序高 level 先，spec:54）。
+    // ★exit 不再硬编码（本轮修复核心）：决策的 `exit` 由**分桶归属**推导——候选落 ℬ_x(open) ⟹
+    // exit=false；落 𝒟_x(close) ⟹ exit=true。recog 空 A_t ⟹ 全部可交易候选落 ℬ_x ⟹ exit=false
+    // 由 §12 解释器分桶**计算**得出，**非** `exit: false` 字面量硬编码（旧实现 recognize_point:517
+    // 的硬编码已删除，替换为 𝒟_x 驱动，无旧分支 fallback——no-patch-mentality）。
+    //
+    // ★每个买卖点 = §5 独立根（depth=0，方向由自身 bits 定，不跨级别赋格翻转）：`level` 字段保留
+    // 候选级别（冲突排序高 level 先，spec:54）；级别差 ≠ 赋格嵌套深度（§5 多独立根 ≠ Fugue 嵌套树）。
+    let mut moments: Vec<usize> = gamma.iter().map(|c| c.source_index).collect();
+    moments.sort_unstable();
+    moments.dedup();
+
     let mut decisions = Vec::new();
-    for (level_idx, level) in classification.levels.iter().enumerate() {
-        // 空 bsp 级别非决策点级别——跳过（无买卖点 ⟹ 无独立根）。
-        if level.bsp.is_empty() {
-            continue;
-        }
-        for point in &level.bsp {
-            // 每个买卖点 = §5 独立根：depth=0（方向由 recognize_point 从自身 bits 定，不跨级别翻转）。
-            if let Some(d) = recognize_point(point, 0, level_idx as u32, bars, config) {
+    for x in moments {
+        let gamma_x: Vec<interp::Candidate> =
+            gamma.iter().filter(|c| c.source_index == x).copied().collect();
+        // A_t = 空（recog 单帧无持仓，见上诚实标注）。
+        let buckets = interp::interpret(&gamma_x, &[]);
+
+        // ℬ_x(open) ⟹ 开仓侧决策（exit=false 由「候选 ∈ open 桶」推导）。
+        for cand in &buckets.open {
+            if let Some(d) = build_decision(cand, points[cand.gamma_index], false, bars, config) {
                 decisions.push(d);
             }
         }
+        // 𝒟_x(close) ⟹ 平仓侧决策（exit=true 由「腿 ∈ close 桶」推导）。recog 空 A_t ⟹ 此桶必空
+        // （interpret 规则2 不触发）；本不变量显式断言（不静默——空 A_t ⟹ ∅，coding-style 显式处理）。
+        debug_assert!(
+            buckets.close.is_empty(),
+            "recog 空 active ⟹ 𝒟_x 必空（持仓关闭由持 active 的 caller 经 interpret 驱动）"
+        );
+        // 𝒦_x(record)：记录但不执行（无决策产出，对齐 spec §11「记录但暂不执行的候选」）。
     }
     decisions
 }
 
-/// 单个 `BspPoint` → `VoiceDecision`（recog 的逐点映射，single source 零重算）。
+/// 单个开/平候选 → [`VoiceDecision`]（recog 逐桶映射，single source 零重算）。
 ///
-/// 返回 `None` 当：bits 无任何买卖点位（非交易点）/ 无可交易成交 bar（信号作废，spec:50）。
-fn recognize_point(
+/// `cand`：[`interp::Candidate`]（携级别/方向/类号/角色）。`point`：原始 [`classifier::bsp::BspPoint`]
+/// （携 pivot/center 结构止损源，`cand.gamma_index` 索引回，零重算）。`is_exit`：分桶推导的退出标志
+/// （ℬ_x→false 开仓侧 / 𝒟_x→true 平仓侧）——**replaces 旧 `exit: false` 硬编码**（no-patch）。
+///
+/// 返回 `None` 当：无可交易成交 bar（信号作废，spec:50）/ 含 3 类 bit 但 center=None（classifier
+/// 不变量违反，显式拒绝不静默）。这两道判据逐字保留旧 recognize_point 语义（runner 诊断
+/// `recog_reject_*` 对照同序：bits→fill→center）。
+fn build_decision(
+    cand: &interp::Candidate,
     point: &classifier::bsp::BspPoint,
-    depth: u32,
-    level: u32,
+    is_exit: bool,
     bars: &[Bar],
     config: &ThetaConfig,
 ) -> Option<VoiceDecision> {
-    // 根方向 σ_root：bits 买侧 → Long，卖侧 → Short（spec:41 信号定方向）。
-    // 做多/做空侧都接通——Short 根在 StrategyFamily §5 `long_short_both_open_allowed:570`
-    // **已证允许**（独立根 side=false），故 σ 由信号定方向对齐 §5（非 workaround，无分叉）。
-    // change request #2 已由 Lead 撤销（无真矛盾，是有效域辨识：v0 单声部独立根落 §5 多独立根，
-    // 非 Fugue 嵌套树定义域）。`voice::voice_side(root_side, depth)` 兑现 §5 多独立根。
-    let root_side = bsp_root_side(&point.bits)?; // None = 空 bits（非交易点）
+    // 方向 σ_root：候选已由 `interp::candidate_dir`（root_sel 镜像反对称消歧）定方向；ℬ_x/𝒟_x
+    // 候选必非 Flat（Flat 已归 𝒦 不入此函数）。独立根 depth=0 ⟹ voice_side(root_side,0)=root_side。
+    let root_side = cand.dir;
 
-    // entry = 信号确认后下一可交易 bar 的 open（spec:50 延迟成交基准）。
+    // entry = 信号确认后下一可交易 bar 的 open（spec:50 延迟成交基准）。无成交 bar ⟹ 信号作废。
     let fill_index = exec::fill_bar_index(point.source_index, bars, &config.exec)?;
     let entry = bars[fill_index].open;
 
-    // stop_in：从 BspPoint 直接构造（single source，零重算，对齐 cc-classifier 路 B 契约）。
-    // ★显式校验 classifier 不变量（不静默吞，coding-style「不可交易/退化情况显式处理」）：
-    // 含 3 类 bit（buy3/sell3）⟹ center 必 Some（is_third 蕴含 left_center，cc-classifier 保证）。
-    // 若不变量被违反（含 3 类 bit 但 center=None），**显式返回 None 不产决策**（不用零 Center
-    // 静默产 zg=0/zd=0 的错误止损价）。无 3 类 bit 时 center 不被 `structural_stop` 读取
-    // （1/2 类只用 pivot），用零占位无害。
+    // stop_in：从 BspPoint 直接构造（single source，零重算）。含 3 类 bit ⟹ center 必 Some
+    // （classifier 不变量）；违反则显式返回 None（不用零 Center 静默产 zg=0 错误止损价）。
     let has_third = point.bits.buy3 || point.bits.sell3;
     let center = match point.center {
         Some(c) => c,
@@ -492,7 +514,7 @@ fn recognize_point(
             gg: 0,
             start_index: 0,
             end_index: 0,
-        }, // 无 3 类 bit：center 不被读，零占位无害
+        }, // 无 3 类 bit：center 不被 structural_stop 读，零占位无害
     };
     let stop_in = StopInput {
         pivot_low: point.pivot_low,
@@ -501,53 +523,20 @@ fn recognize_point(
     };
 
     Some(VoiceDecision {
-        depth,
-        // recog 是**单帧无持仓**函数（签名只吃 BspPoint+bars+config，无账户持仓 Z）——它产的是
-        // **开仓侧**决策（信号 → 进场意图）。`exit=false` 对开仓侧是**正确取值**（不是硬编码 bug）：
-        // 退出判定依赖**运行时持仓状态 + 后续 bar**（§9 closePred：止损触及 / 反向 BSP / RiskClose），
-        // 这些 recog 单帧不可见。退出决策由 **runner 的退出决策生成器**（backtest::runner
-        // `plan_and_fill_mtm` 逐 bar 循环）产出——持仓后逐 bar 检查 closePred 触发则构造 `exit=true`
-        // 决策喂 plan_orders 产 Close 订单。这把「信号→开仓」与「持仓+后续bar→退出」分离为两个生成器
-        // （契约锚：开仓侧 recog 对齐 `Origin.StrategyFamily.Theta.recog`；退出侧对齐
-        // `Origin.SubVoiceOpenClose.closePred` 关闭谓词）。
+        depth: 0, // §5 独立根
         root_side,
-        exit: false, // 开仓侧决策（退出侧由 runner closePred 生成器产，见上）
-        enter_ok: true, // 有买卖点信号 = 进场许可
+        // ★exit 由 §12 解释器分桶推导（`is_exit` = 候选 ∈ 𝒟_x），**非硬编码字面量**。
+        exit: is_exit,
+        // 开仓侧（ℬ_x）enter_ok=true（有信号即进场许可）；平仓侧（𝒟_x）enter_ok=false（退出态非进场）。
+        enter_ok: !is_exit,
         bsp: point.bits,
         signal_index: point.source_index,
         stop_in,
         entry,
-        // 成本 per-unit（sizing κ·cost 项的风险预算缓冲）：v0 占位 0.0（成交费用由
-        // exec::apply_fees 在成交价上施加；每单位成本模型待 L3 标定，spec:45 κ 已 config）。
+        // 成本 per-unit：v0 占位 0.0（成交费用由 exec::apply_fees 施加；每单位成本模型待 L3 标定）。
         cost_per_unit: 0.0,
-        level,
+        level: cand.level,
     })
-}
-
-/// 从买卖点 bit-vector 判根方向（**RootSel_Θ 镜像反对称消歧**，strict §9 / FULL 十）。
-///
-/// 把 bits 投到根候选 `(χ⁺,χ⁻)`：χ⁺=买侧（buy1/2/3 任一）触发，χ⁻=卖侧（sell1/2/3 任一）触发，
-/// 交给 [`voice::root_sel`] 做 canonical 消歧（strict §9 `RootSel_Θ`）：
-/// - 仅买侧 (1,0) → `Long`（底背驰/回试做多）；仅卖侧 (0,1) → `Short`（顶背驰/回抽做空）；
-/// - **双侧 (1,1) → `Flat` ⟹ `None`**（镜像不动点反对称强制 RootSel(1,1)=0，**非买侧优先**，
-///   见 [`voice::root_sel`] 推导）——根方向空仓 = 不在该点开根仓（plan_orders 跳过）；
-/// - 全空 (0,0) → `Flat` ⟹ `None`（非交易点）。
-///
-/// ★诚实纠正（no-patch-mentality）：旧实现遇买卖位同真取「买侧优先」——这违背 strict §17.7
-/// 多空镜像等变（破坏 `RootSel∘M_D = -RootSel`）。现接 [`voice::root_sel`] 的镜像反对称消歧，
-/// (1,1) 唯一消歧为空仓根（与 (0,0) 共享镜像不动点性质）。classifier signal.rs 正常产单方向
-/// BspPoint，(1,1) 在 Θ v0 不应出现；但根方向选择器的**全定义性**要求 (1,1) 有 canonical 取值
-/// 而非人为裁决（strict §9 要求 RootSel 全定义且镜像等变）。
-fn bsp_root_side(bits: &BspBits) -> Option<VoiceSide> {
-    let cands = voice::RootCandidates {
-        long_trigger: bits.buy1 || bits.buy2 || bits.buy3,
-        short_trigger: bits.sell1 || bits.sell2 || bits.sell3,
-    };
-    match voice::root_sel(cands) {
-        VoiceSide::Long => Some(VoiceSide::Long),
-        VoiceSide::Short => Some(VoiceSide::Short),
-        VoiceSide::Flat => None, // RootSel=0：无触发 (0,0) 或双触发不动点 (1,1) ⟹ 不开根仓
-    }
 }
 
 // ──────────────────────────────────────────────────────────────────────────
