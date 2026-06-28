@@ -18,6 +18,7 @@
 
 use super::super::types::{Fractal, FractalKind};
 use super::super::types::Bar;
+use std::rc::Rc;
 
 /// 在包含处理后的 merged K 序列上识别分型（reference-theta-v0.md:20）。
 ///
@@ -84,12 +85,18 @@ pub fn detect_fractals(merged: &[Bar]) -> Vec<Fractal> {
 
 /// 增量 fractal 状态（bit-exact 对齐 `detect_fractals`）。
 ///
-/// 保留 confirmed 前缀分型 `(Fractal, mid_idx)` + 当前 merged 长度。
+/// 保留 confirmed 前缀分型 + 对应 mid 下标 + 当前 merged 长度。
 /// append 新 merged 序列时只重算尾部 2 个三元组（mid ≥ confirmed_mid_bound）。
+///
+/// Rc 共享——`to_result_rc()` 返回 `Rc::clone` O(1)，替代旧 `to_result()` 的 O(n) map+collect。
+/// `fractals_rc` + `mid_indices` 双 Vec 同步 truncate（ponytail: 复用缓冲消除 O(n)/bar clone）。
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IncrFractals {
-    /// confirmed 前缀分型 + 对应 mid 下标（mid < confirmed_mid_bound，不可变）。
-    prefix: Vec<(Fractal, usize)>,
+    /// confirmed 前缀分型（mid < confirmed_mid_bound，不可变）。
+    /// Rc 共享——`to_result_rc()` O(1) clone 给 `ParseLayer.fractals`。
+    fractals_rc: Rc<Vec<Fractal>>,
+    /// 对应 mid 下标（与 fractals_rc 同步 truncate/push）。
+    mid_indices: Vec<usize>,
     /// 上次快照时的 merged 长度（用于确定重算起点）。
     merged_len: usize,
 }
@@ -108,58 +115,70 @@ impl IncrFractals {
     pub fn from_full(fractals: &[Fractal], merged: &[Bar]) -> Self {
         if merged.len() < 3 || fractals.is_empty() {
             return IncrFractals {
-                prefix: Vec::new(),
+                fractals_rc: Rc::new(Vec::new()),
+                mid_indices: Vec::new(),
                 merged_len: merged.len(),
             };
         }
-        // 全量重扫建 (Fractal, mid_idx) 对——from_full 是断点续算入口，一次性 O(n) 可接受。
-        let mut prefix = Vec::with_capacity(fractals.len());
+        // 全量重扫建 mid_idx——from_full 是断点续算入口，一次性 O(n) 可接受。
+        let mut mid_indices = Vec::with_capacity(fractals.len());
         let mut fi = 0usize;
         for i in 1..merged.len() - 1 {
             if fi < fractals.len() {
                 let mid = &merged[i];
                 let expected_src = fractals[fi].source_index;
                 if mid.source_index == expected_src {
-                    prefix.push((fractals[fi], i));
+                    mid_indices.push(i);
                     fi += 1;
                 }
             }
         }
         IncrFractals {
-            prefix,
+            fractals_rc: Rc::new(fractals.to_vec()),
+            mid_indices,
             merged_len: merged.len(),
         }
     }
 
-    /// 增量追加 merged 序列，返回新状态（immutability）。
+    /// 增量追加 merged 序列，消费 self 返回新状态（by-value 缓冲复用，消除 O(n)/bar clone）。
     ///
     /// bit-exact：结果分型序列 == `detect_fractals(merged)`。
     ///
     /// 保留 mid < confirmed_mid_bound 的前缀分型（不可变），重算 mid ≥ confirmed_mid_bound 的尾部。
     /// confirmed_mid_bound = min(old_len, n).saturating_sub(2)（mid+1 < 此值的 right 不可变）。
-    /// ponytail: 尾部最多重算 2 个三元组（O(1)/bar）。
-    pub fn append(&self, merged: &[Bar]) -> IncrFractals {
+    /// ponytail: truncate 复用 Vec 缓冲 + Rc::make_mut 突变 fractals_rc，替代旧
+    /// `take_while().collect()` + `to_result()` 的 O(n)/bar map+collect。
+    pub fn append(self, merged: &[Bar]) -> IncrFractals {
         let n = merged.len();
         if n < 3 {
             return IncrFractals {
-                prefix: Vec::new(),
+                fractals_rc: Rc::new(Vec::new()),
+                mid_indices: Vec::new(),
                 merged_len: n,
             };
         }
-        let old_len = self.merged_len;
+        // 移出 self 字段（by-value 消费）。
+        let IncrFractals {
+            mut fractals_rc,
+            mut mid_indices,
+            merged_len: old_len,
+        } = self;
+
         // mid 不可变 ⟺ right = mid+1 在不可变前缀内 ⟺ mid+1 < min(old_len, n) - 1。
         // inclusion 增量只改末元素（acc），故 merged[0..n-1] 不可变（n == old_len 时 acc=merged[n-1] 可变）。
         // old_len < n 时 merged[0..old_len] 完全不可变（旧 acc 已定稿）。
         // confirmed_mid_bound = mid < 此值的分型不可变。
         let confirmed_mid_bound = old_len.saturating_sub(2).min(n.saturating_sub(2));
 
-        // 保留 prefix 中 mid < confirmed_mid_bound 的（严格按 mid_idx 过滤）。
-        let mut new_prefix: Vec<(Fractal, usize)> = self
-            .prefix
-            .iter()
-            .copied()
-            .take_while(|(_, mid_idx)| *mid_idx < confirmed_mid_bound)
-            .collect();
+        // ponytail: partition_point O(log n) 定位 truncate 位置，替代 take_while O(n)。
+        let keep = mid_indices
+            .partition_point(|&mid_idx| mid_idx < confirmed_mid_bound);
+
+        // Rc::make_mut 突变 fractals_rc——strong_count==1（self 被消费，旧 ParseLayer 已 drop）
+        // 时 O(1) in-place；strong_count>1 时 O(n) deep copy（调用方须丢弃上一轮 ParseLayer 保 O(1)）。
+        let new_fractals = Rc::make_mut(&mut fractals_rc);
+        new_fractals.truncate(keep);
+        mid_indices.truncate(keep);
 
         // 重算尾部：mid ∈ [confirmed_mid_bound.saturating_sub(1) .. n-1)。
         // 从 confirmed_mid_bound-1 起扫（多算 1 个保边界——但该 mid 的分型若已在新_prefix 则不重复）。
@@ -183,37 +202,42 @@ impl IncrFractals {
                 && mid.low < right.low;
 
             if is_top {
-                new_prefix.push((
-                    Fractal {
-                        kind: FractalKind::Top,
-                        source_index: mid.source_index,
-                        timestamp: mid.timestamp,
-                        price: mid.high,
-                    },
-                    i,
-                ));
+                new_fractals.push(Fractal {
+                    kind: FractalKind::Top,
+                    source_index: mid.source_index,
+                    timestamp: mid.timestamp,
+                    price: mid.high,
+                });
+                mid_indices.push(i);
             } else if is_bottom {
-                new_prefix.push((
-                    Fractal {
-                        kind: FractalKind::Bottom,
-                        source_index: mid.source_index,
-                        timestamp: mid.timestamp,
-                        price: mid.low,
-                    },
-                    i,
-                ));
+                new_fractals.push(Fractal {
+                    kind: FractalKind::Bottom,
+                    source_index: mid.source_index,
+                    timestamp: mid.timestamp,
+                    price: mid.low,
+                });
+                mid_indices.push(i);
             }
         }
 
         IncrFractals {
-            prefix: new_prefix,
+            fractals_rc,
+            mid_indices,
             merged_len: n,
         }
     }
 
     /// 当前快照分型序列（与 `detect_fractals` bit-exact）。
     pub fn to_result(&self) -> Vec<Fractal> {
-        self.prefix.iter().map(|(f, _)| *f).collect()
+        self.fractals_rc.to_vec()
+    }
+
+    /// 当前快照分型序列的 Rc 共享句柄（O(1) refcount bump）。
+    ///
+    /// ponytail: Rc 共享替代旧 `to_result()` 的 O(n) map+collect——`ParseLayerIncr::append`
+    /// 用此填 `ParseLayer.fractals`，消除每 bar Vec clone。
+    pub fn to_result_rc(&self) -> Rc<Vec<Fractal>> {
+        Rc::clone(&self.fractals_rc)
     }
 }
 

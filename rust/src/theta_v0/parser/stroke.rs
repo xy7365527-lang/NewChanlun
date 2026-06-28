@@ -20,6 +20,7 @@
 
 use super::super::config::ParseConfig;
 use super::super::types::{Direction, Fractal, FractalKind, Stroke};
+use std::rc::Rc;
 
 /// 同类连续分型取舍 + 顶底交替规整（new 笔预处理）。
 ///
@@ -167,7 +168,8 @@ pub struct IncrStrokes {
     /// confirmed 交替序列前缀 `(Fractal, fractal_idx)`（除末 1 个可能被 collapse 修改）。
     alt_prefix: Vec<(Fractal, usize)>,
     /// confirmed strokes 前缀（端点 fractal 已固定，不可变）。
-    strokes: Vec<Stroke>,
+    /// Rc 共享——`to_result_rc()` O(1) clone 给 `ParseLayer.strokes`。
+    strokes: Rc<Vec<Stroke>>,
     /// 上次快照时的 fractals 长度。
     fractals_len: usize,
     /// alt_prefix 中 `fi < fractals_len-1` 的条目数（confirmed alt 前缀长度）。
@@ -185,7 +187,7 @@ impl Default for IncrStrokes {
     fn default() -> Self {
         IncrStrokes {
             alt_prefix: Vec::new(),
-            strokes: Vec::new(),
+            strokes: Rc::new(Vec::new()),
             fractals_len: 0,
             confirmed_alt_len: 0,
             confirmed_strokes_len: 0,
@@ -237,7 +239,7 @@ impl IncrStrokes {
         );
         IncrStrokes {
             alt_prefix,
-            strokes: strokes.to_vec(),
+            strokes: Rc::new(strokes.to_vec()),
             fractals_len: fractals.len(),
             confirmed_alt_len,
             confirmed_strokes_len,
@@ -293,7 +295,9 @@ impl IncrStrokes {
         // ponytail: truncate 复用 Vec 缓冲 + O(1) 继承 resume_alt_idx，替代 O(n²) 嵌套扫描
         //（hotspot 2，a5a1bb70 坐实 exp 2.9 主导）。confirmed_strokes_len 笔的笔尾 fi < confirmed_bound，
         // 且其 alt 索引 = last_end_alt_idx（由上次 append 保证，new_alt 前缀不变）。
-        let mut new_strokes: Vec<Stroke> = self.strokes;
+        // Rc::make_mut——strong_count==1（self 消费，旧 ParseLayer 已 drop）时 O(1) in-place。
+        let mut strokes_rc = self.strokes;
+        let new_strokes = Rc::make_mut(&mut strokes_rc);
         new_strokes.truncate(self.confirmed_strokes_len);
         let resume_alt_idx = self.last_end_alt_idx;
 
@@ -347,7 +351,7 @@ impl IncrStrokes {
 
         IncrStrokes {
             alt_prefix: new_alt,
-            strokes: new_strokes,
+            strokes: strokes_rc,
             fractals_len: fractals.len(),
             confirmed_alt_len: new_confirmed_alt_len,
             confirmed_strokes_len: new_confirmed_strokes_len,
@@ -358,6 +362,14 @@ impl IncrStrokes {
     /// 当前快照笔序列（与 `build_strokes` bit-exact）。
     pub fn to_result(&self) -> &[Stroke] {
         &self.strokes
+    }
+
+    /// 当前快照笔序列的 Rc 共享句柄（O(1) refcount bump）。
+    ///
+    /// ponytail: Rc 共享替代旧 `to_result().to_vec()` 的 O(n) clone——`ParseLayerIncr::append`
+    /// 用此填 `ParseLayer.strokes`，消除每 bar Vec clone。
+    pub fn to_result_rc(&self) -> Rc<Vec<Stroke>> {
+        Rc::clone(&self.strokes)
     }
 }
 

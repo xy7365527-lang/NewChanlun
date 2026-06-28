@@ -74,16 +74,25 @@ mod profile;
 /// centers/moves/bsp 由 classifier 从 segments 构造）：confirmed 部分对齐 `ElementPipeline.parse`
 /// 的批量唯一解析（`parse_total_unique`）；`tail` 显式保存未完成尾部（对齐 `tailOf : ... -> OpenTail`），
 /// 不混入 confirmed。中枢（`centersOf`）移交 classifier，不在本结构（见模块头）。
+///
+/// 所有字段 Rc 共享——`ParseLayerIncr::append` 从增量子模块 `to_result_rc()` O(1) clone，
+/// `parse_layer`（批量）从 `Rc::new(...)` O(n) 构造（单次，非每 bar）。
+/// 下游 `&layer.fractals` 等借用经 `Rc::deref → Vec::deref → &[T]`（透明）。
+/// ponytail: Rc 共享消除每 bar Vec clone（#93 incr_total exp 1.89 残余 O(n²)）。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ParseLayer {
     /// Rc 共享——`ParseLayerIncr::append` 从 `IncrInclusion.merged_rc()` O(1) clone，
     /// `parse_layer`（批量）从 `Rc::new(merged.to_vec())` O(n) 构造（单次，非每 bar）。
     /// 下游 `&layer.merged_bars` 借用经 `Rc::deref → Vec::deref → &[Bar]`（透明）。
     pub merged_bars: Rc<Vec<Bar>>,
-    pub fractals: Vec<Fractal>,
-    pub strokes: Vec<Stroke>,
-    pub segments: Vec<Segment>,
-    pub tail: Vec<PendingTail>,
+    /// Rc 共享——`ParseLayerIncr::append` 从 `IncrFractals::to_result_rc()` O(1) clone。
+    pub fractals: Rc<Vec<Fractal>>,
+    /// Rc 共享——`ParseLayerIncr::append` 从 `IncrStrokes::to_result_rc()` O(1) clone。
+    pub strokes: Rc<Vec<Stroke>>,
+    /// Rc 共享——`ParseLayerIncr::append` 从 `IncrSegments::to_result_rc()` O(1) clone。
+    pub segments: Rc<Vec<Segment>>,
+    /// Rc 共享——tail 全量重算结果 O(1) 共享（tail 小 Vec，重算本身 O(tail) 非 O(n)）。
+    pub tail: Rc<Vec<PendingTail>>,
 }
 
 /// Θ_parse 顶层入口（L0=1分钟线段账本的解析）。
@@ -164,8 +173,8 @@ impl<'c> ParseLayerIncr<'c> {
     /// 追加 1 bar，返回该 bar 后的 `ParseLayer`（bit-exact 对齐 `parse_layer(&bars[..=i])`）。
     ///
     /// 内部：增量 inclusion → 增量 fractal → 增量 stroke → 增量 segment → tail 重算。
-    /// ponytail: 增量化把下游从 O(merged_i)/bar 降到 O(尾部)/bar（fractal/stroke/segment
-    /// 均保留 confirmed 前缀，只重算尾部）。tail 仍全量但非热点（profile 坐实）。
+    /// ponytail: Rc 共享消除每 bar Vec clone——`to_result_rc()` 返回 Rc clone O(1)，
+    /// 替代旧 `to_result().to_vec()` 的 O(n)/bar。tail 二分查找消除 O(merged_i) 线性扫描。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
         // append 消费 self（by-value，mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
         let prev = std::mem::replace(&mut self.incr_inclusion, inclusion::IncrInclusion::empty());
@@ -175,21 +184,25 @@ impl<'c> ParseLayerIncr<'c> {
         let merged = self.incr_inclusion.merged_rc();
 
         // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
-        self.incr_fractals = self.incr_fractals.append(&merged);
-        let fractals = self.incr_fractals.to_result();
+        // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+        let prev_fractals = std::mem::replace(&mut self.incr_fractals, fractal::IncrFractals::empty());
+        self.incr_fractals = prev_fractals.append(&merged);
+        let fractals = self.incr_fractals.to_result_rc();
 
         // 增量 stroke：保留 confirmed 交替序列前缀 + confirmed strokes，续扫配对。
         // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
         let prev_strokes = std::mem::replace(&mut self.incr_strokes, stroke::IncrStrokes::empty());
         self.incr_strokes = prev_strokes.append(&fractals, &self.config.parse);
-        let strokes = self.incr_strokes.to_result().to_vec();
+        let strokes = self.incr_strokes.to_result_rc();
 
         // 增量 segment：保留 confirmed segments 前缀，从 pending_start 续扫。
-        self.incr_segments = self.incr_segments.append(&strokes, &self.config.parse);
-        let (segments, pending_start) = self.incr_segments.to_result_vec();
+        // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+        let prev_segments = std::mem::replace(&mut self.incr_segments, segment::IncrSegments::empty());
+        self.incr_segments = prev_segments.append(&strokes, &self.config.parse);
+        let (segments, pending_start) = self.incr_segments.to_result_rc();
         let pending_start = pending_start;
 
-        // tail 全量重算（依赖全字段，非热点——profile 坐实 tail 耗时占比 <5%）。
+        // tail 全量重算（O(tail) 非 O(merged_i)——二分查找定位锚点 + 尾部延伸段扫描）。
         let tail = tail::build_tail(&merged, &fractals, &strokes, &segments, pending_start);
 
         ParseLayer {
@@ -197,7 +210,7 @@ impl<'c> ParseLayerIncr<'c> {
             fractals,
             strokes,
             segments,
-            tail,
+            tail: Rc::new(tail),
         }
     }
 }
@@ -221,10 +234,10 @@ fn parse_layer_from_merged(merged: &[Bar], config: &ThetaConfig) -> ParseLayer {
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),
-        fractals,
-        strokes,
-        segments,
-        tail,
+        fractals: Rc::new(fractals),
+        strokes: Rc::new(strokes),
+        segments: Rc::new(segments),
+        tail: Rc::new(tail),
     }
 }
 

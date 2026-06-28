@@ -38,6 +38,22 @@
 
 use super::super::types::{Bar, Direction, Fractal, FractalKind, PendingTail, Segment, Stroke, Tick};
 
+// ============================================================================
+// 增量 tail O(n²) 修复（#93 incr_total exp 1.89 残余：tail 全量重算 O(merged_i)/bar）。
+//
+// ## 根因（aa8ab531 标注）
+//
+// `extreme_after` + `pending_fractal` 每 bar 遍历整个 merged 序列：
+// - `extreme_after`：`merged.iter().filter().collect()` + `max/min` = O(merged_i)/bar。
+// - `pending_fractal`：`merged.iter().position()` = O(merged_i)/bar。
+//
+// ## 修复（ponytail：二分查找替代线性扫描）
+//
+// merged 的 source_index 严格单调递增（inclusion 左折叠只前进，合并段保留起点
+// source_index）。故可用 `partition_point`（二分 O(log n)）定位锚点，然后只扫尾部
+// 延伸段（稳态 O(1)——延伸段 = 新增 bar，非整个 merged）。
+// ============================================================================
+
 /// 从未确认线段的剩余笔序列读出 `PendingSegment`（reference:25，OpenTail 当下状态）。
 ///
 /// `divide_segments_with_tail` 在 SecondKind/无分型/不足成段时停于 `pending_start`，
@@ -144,7 +160,12 @@ fn pending_stroke(
 fn pending_fractal(fractals: &[Fractal], merged: &[Bar]) -> Option<PendingTail> {
     let last = fractals.last()?;
     // 最后确认分型在 merged 中的位置（按 source_index 定位）。
-    let last_pos = merged.iter().position(|b| b.source_index == last.source_index)?;
+    // ponytail: 二分查找替代线性 position（O(log n) vs O(n)）。merged.source_index 严格单调递增。
+    let last_pos = merged
+        .partition_point(|b| b.source_index < last.source_index);
+    if last_pos >= merged.len() || merged[last_pos].source_index != last.source_index {
+        return None;
+    }
     // 最后分型之后的延伸 K（已确认分型之后仍在延伸的部分）。
     let tail_bars = merged.get(last_pos + 1..)?;
     if tail_bars.is_empty() {
@@ -183,11 +204,14 @@ fn pending_fractal(fractals: &[Fractal], merged: &[Bar]) -> Option<PendingTail> 
 /// merged 序列中锚点原始 index 之后、给定方向上的当前极值（向上取最高 high、向下最低 low）。
 ///
 /// 边界条件：锚点之后无延伸 K ⟹ `None`。
+///
+/// ponytail: 二分查找定位锚点（O(log n)），只扫尾部延伸段（稳态 O(1)/bar）。
+/// merged.source_index 严格单调递增（inclusion 左折叠不变量）。
 fn extreme_after(merged: &[Bar], anchor_index: usize, direction: Direction) -> Option<Tick> {
-    let after: Vec<&Bar> = merged
-        .iter()
-        .filter(|b| b.source_index > anchor_index)
-        .collect();
+    // 二分定位首个 source_index > anchor_index 的位置。
+    let start = merged
+        .partition_point(|b| b.source_index <= anchor_index);
+    let after = merged.get(start..)?;
     if after.is_empty() {
         return None;
     }

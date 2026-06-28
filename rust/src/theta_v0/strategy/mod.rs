@@ -56,6 +56,7 @@ use super::config::ThetaConfig;
 use super::types::{Bar, BspBits, Order, Pos, Sig, StrictAction, Tick};
 use exec::FillSide;
 use risk::{SizingInput, StopInput, StopSide};
+use std::rc::Rc;
 use voice::{ActState, VoiceSide, VoiceState};
 
 /// 完整结构状态 Sₗ（持仓 × 信号 = 9 状态，对齐 `Origin.FullDefinitionStrategy` 动作类前件）。
@@ -1072,13 +1073,13 @@ mod tests {
         // cc-classifier 端到端 fixture：三段在 [100,200] 重叠 ⟹ 中枢 zd=100,zg=200,end=12；
         // 段3 向上离开（端点 250>200）；段4 向下回试低点 210>=200 ⟹ 3 买 @ source_index=20。
         let l0 = ParseLayer {
-            segments: vec![
+            segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 100, 200),
                 seg(Direction::Down, 4, 8, 200, 100),
                 seg(Direction::Up, 8, 12, 100, 200),
                 seg(Direction::Up, 12, 16, 150, 250),
                 seg(Direction::Down, 16, 20, 250, 210),
-            ],
+            ]),
             ..Default::default()
         };
 

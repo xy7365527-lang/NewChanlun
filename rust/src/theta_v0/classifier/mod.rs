@@ -926,7 +926,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); } // L1[0] 大幅
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 5 } else { -5 }); }   // L1[1] 小幅（背驰）
         for i in 0..16 { closes.push(100 + if i % 2 == 0 { 3 } else { -3 }); }   // L1[2] 更小
-        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let out = classify(&layer, &cfg);
 
         // L1 级别（索引 1）含 L2 中枢 + B2（递归组装层产出）。
@@ -963,7 +963,7 @@ mod tests {
             seg(Direction::Up,   8, 12, 100, 200),
         ];
         let closes: Vec<i64> = (0..16).map(|i| 100 + (i % 4) * 10).collect();
-        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let out = classify(&layer, &cfg);
         // L0 级别 bsp 不含第二类（三段交替窗口结构上界）。
         for p in &out.levels[0].bsp {
@@ -984,7 +984,7 @@ mod tests {
         // L0 线段数 < min_parts_per_level(3) ⟹ 无 L0 走势，levels 空（自然终止）。
         let cfg = ThetaConfig::default();
         let layer = ParseLayer {
-            segments: vec![seg(Direction::Up, 0, 4, 0, 10), seg(Direction::Down, 4, 8, 10, 5)],
+            segments: Rc::new(vec![seg(Direction::Up, 0, 4, 0, 10), seg(Direction::Down, 4, 8, 10, 5)]),
             ..Default::default()
         };
         let out = classify(&layer, &cfg);
@@ -998,11 +998,11 @@ mod tests {
         // 第三段 [5,15] 收窄核心下沿（A 口径 zd=3 → B zd=5）⟹ 真中枢成立。
         let cfg = ThetaConfig::default();
         let layer = ParseLayer {
-            segments: vec![
+            segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 0, 10),
                 seg(Direction::Down, 4, 8, 12, 3),
                 seg(Direction::Up, 8, 12, 5, 15),
-            ],
+            ]),
             ..Default::default()
         };
         let out = classify(&layer, &cfg);
@@ -1021,11 +1021,11 @@ mod tests {
         // （旧几何窗口会误判，完整判据正确拒绝，对齐 Origin.CenterComplete.sameDir_not_centerConfirmed）。
         let cfg = ThetaConfig::default();
         let layer = ParseLayer {
-            segments: vec![
+            segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 10, 20),
                 seg(Direction::Up, 4, 8, 18, 25),
                 seg(Direction::Up, 8, 12, 22, 30),
-            ],
+            ]),
             ..Default::default()
         };
         let out = classify(&layer, &cfg);
@@ -1044,7 +1044,7 @@ mod tests {
             let dir = if i % 2 == 0 { Direction::Up } else { Direction::Down };
             segments.push(seg(dir, i * 4, i * 4 + 4, 0, 100));
         }
-        let layer = ParseLayer { segments, ..Default::default() };
+        let layer = ParseLayer { segments: Rc::new(segments), ..Default::default() };
         let out = classify(&layer, &cfg);
         // 级别数不超过 l_max+1（reference:30 上界，default l_max=6）。
         assert!(out.levels.len() <= cfg.level.l_max as usize + 1);
@@ -1055,11 +1055,11 @@ mod tests {
         // 三段无公共重叠 ⟹ L0 无中枢 ⟹ moves 为空（HigherCenterCandidate→None）+ 递归终止。
         let cfg = ThetaConfig::default();
         let layer = ParseLayer {
-            segments: vec![
+            segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 0, 4),
                 seg(Direction::Down, 4, 8, 14, 10),
                 seg(Direction::Up, 8, 12, 20, 24),
-            ],
+            ]),
             ..Default::default()
         };
         let out = classify(&layer, &cfg);
@@ -1077,13 +1077,13 @@ mod tests {
         // 段0-2：三段在 [100,200] 重叠 ⟹ 中枢 zd=100,zg=200,end_index=12。
         // 段3：向上离开（端点 250 > zg=200）。段4：向下回试低点 210 >= zg=200 ⟹ 3 买。
         let layer = ParseLayer {
-            segments: vec![
+            segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 100, 200),
                 seg(Direction::Down, 4, 8, 200, 100),
                 seg(Direction::Up, 8, 12, 100, 200),
                 seg(Direction::Up, 12, 16, 150, 250),   // 离开中枢上方
                 seg(Direction::Down, 16, 20, 250, 210), // 回试低点 >= zg → 3 买
-            ],
+            ]),
             ..Default::default()
         };
         let out = classify(&layer, &cfg);
@@ -1110,11 +1110,11 @@ mod tests {
         let cfg = ThetaConfig::default();
         // 三段重叠成中枢，但无后续离开线段 ⟹ 无第三类买卖点。
         let layer = ParseLayer {
-            segments: vec![
+            segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 100, 200),
                 seg(Direction::Down, 4, 8, 200, 100),
                 seg(Direction::Up, 8, 12, 100, 200),
-            ],
+            ]),
             ..Default::default()
         };
         let out = classify(&layer, &cfg);
@@ -1145,7 +1145,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
         for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
         for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let (_, tower) = classify_with_tower(&layer, &cfg);
         assert!(!tower.is_empty(), "tower 非空（至少 L0 级被处理）");
         assert!(tower.len() >= 2, "9 段 L0 → 3 个 L1 走势 → L2 中枢 ⟹ tower 至少 2 层");
@@ -1173,7 +1173,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
         for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
         for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let expected = classify(&layer, &cfg);
         let (actual, _) = classify_with_tower(&layer, &cfg);
         assert_eq!(actual, expected, "classify_with_tower Classification 与 classify bit-identical（原分类不变）");
@@ -1208,7 +1208,7 @@ mod tests {
             let segments = synthetic_segments(n);
             let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 5) * 5).collect();
             let layer =
-                ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+                ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
 
             let (full_cls, full_tower) = classify_with_tower(&layer, &cfg);
             let mut cache = TowerCache::new();
@@ -1238,7 +1238,7 @@ mod tests {
         for n in 1..=all_segments.len() {
             let segments = all_segments[..n].to_vec();
             let layer = ParseLayer {
-                segments,
+                segments: Rc::new(segments),
                 merged_bars: Rc::new(bars_from_closes(&closes)),
                 ..Default::default()
             };
@@ -1274,11 +1274,11 @@ mod tests {
         let mut cache = TowerCache::new();
         // 先追加到 12 段。
         let layer_full =
-            ParseLayer { segments: all_segments.clone(), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+            ParseLayer { segments: Rc::new(all_segments.clone()), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let _ = classify_with_tower_incremental(&layer_full, &cfg, &mut cache);
         // 回缩到 8 段（parser 回撤）。
         let layer_shrink = ParseLayer {
-            segments: all_segments[..8].to_vec(),
+            segments: Rc::new(all_segments[..8].to_vec()),
             merged_bars: Rc::new(bars_from_closes(&closes)),
             ..Default::default()
         };
@@ -1309,7 +1309,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
         for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
         for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
+        let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
 
         let (full_cls, _) = classify_with_tower(&layer, &cfg);
         let mut cache = TowerCache::new();
@@ -1348,7 +1348,7 @@ mod tests {
             let t0 = std::time::Instant::now();
             for k in 1..=n {
                 let layer = ParseLayer {
-                    segments: all_segments[..k].to_vec(),
+                    segments: Rc::new(all_segments[..k].to_vec()),
                     merged_bars: Rc::new(bars_from_closes(&closes)),
                     ..Default::default()
                 };
@@ -1361,7 +1361,7 @@ mod tests {
             let mut cache = TowerCache::new();
             for k in 1..=n {
                 let layer = ParseLayer {
-                    segments: all_segments[..k].to_vec(),
+                    segments: Rc::new(all_segments[..k].to_vec()),
                     merged_bars: Rc::new(bars_from_closes(&closes)),
                     ..Default::default()
                 };

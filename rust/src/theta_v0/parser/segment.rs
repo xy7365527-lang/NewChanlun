@@ -34,6 +34,7 @@ use super::super::config::ParseConfig;
 use super::super::types::{Direction, Segment, Stroke, Tick};
 use super::feature_seq::{ExtendMode, FeatureSeqState};
 use super::second_kind;
+use std::rc::Rc;
 
 /// 尾窗大小（对齐 Python `_FeatureSeqState.TAIL_WINDOW=7`）。
 ///
@@ -412,8 +413,10 @@ pub fn divide_segments(strokes: &[Stroke], config: &ParseConfig) -> Vec<Segment>
 /// 增量 segment 状态（bit-exact 对齐 `divide_segments_with_tail`）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct IncrSegments {
-    /// confirmed segments 前缀 + 段端在 strokes 数组中的下标 `(Segment, end_array_idx)`。
-    segments: Vec<(Segment, usize)>,
+    /// confirmed segments 前缀（Rc 共享——`to_result_rc()` O(1) clone 给 `ParseLayer.segments`）。
+    segments_rc: Rc<Vec<Segment>>,
+    /// 段端在 strokes 数组中的下标（与 segments_rc 同步 truncate/push）。
+    end_indices: Vec<usize>,
     /// 未完成段的起点（pending_start，strokes 数组下标）。
     pending_start: Option<usize>,
     /// 上次快照时的 strokes 长度。
@@ -423,7 +426,8 @@ pub struct IncrSegments {
 impl Default for IncrSegments {
     fn default() -> Self {
         IncrSegments {
-            segments: Vec::new(),
+            segments_rc: Rc::new(Vec::new()),
+            end_indices: Vec::new(),
             pending_start: None,
             strokes_len: 0,
         }
@@ -439,7 +443,7 @@ impl IncrSegments {
     /// 从全量结果恢复增量状态（断点续算，需 strokes 以重建 end_array_idx）。
     pub fn from_full(segments: &[Segment], pending_start: Option<usize>, strokes: &[Stroke]) -> Self {
         // 重建 end_array_idx：段端 = strokes[s1].end_index，找 s1 在 strokes 中的位置。
-        let mut segs_with_idx: Vec<(Segment, usize)> = Vec::with_capacity(segments.len());
+        let mut end_indices: Vec<usize> = Vec::with_capacity(segments.len());
         let mut search_from = 0usize;
         for seg in segments {
             // 段端 end_index = strokes[s1].end_index。从 search_from 起找匹配的 s1。
@@ -452,20 +456,21 @@ impl IncrSegments {
             }
             match found {
                 Some(si) => {
-                    segs_with_idx.push((*seg, si));
+                    end_indices.push(si);
                     search_from = si + 1;
                 }
                 None => break, // 段端不在 strokes 中（数据不一致）——截断
             }
         }
         IncrSegments {
-            segments: segs_with_idx,
+            segments_rc: Rc::new(segments.to_vec()),
+            end_indices,
             pending_start,
             strokes_len: strokes.len(),
         }
     }
 
-    /// 增量追加 strokes 序列，返回新状态（immutability）。
+    /// 增量追加 strokes 序列，消费 self 返回新状态（by-value 缓冲复用，消除 O(n)/bar clone）。
     ///
     /// bit-exact：结果 (segments, pending_start) == `divide_segments_with_tail(strokes, config)`。
     ///
@@ -475,35 +480,46 @@ impl IncrSegments {
     /// strokes 末尾（scan_window=0 无限），新 bar 可能让段内更早的 SecondKindPending 触发
     /// 复活（第二特征序列出现分形），使段端回退到更早位置。故末段非不可变，必须丢弃重算。
     /// 倒数第二段及之前视为不可变（其 SecondKind 确认依赖的第二序列分形在更早数据已稳定）。
-    pub fn append(&self, strokes: &[Stroke], config: &ParseConfig) -> IncrSegments {
+    /// ponytail: Rc::make_mut + truncate 复用 Vec 缓冲，替代旧 take_while().collect() 的 O(n)/bar。
+    pub fn append(self, strokes: &[Stroke], config: &ParseConfig) -> IncrSegments {
         let n = strokes.len();
 
-        // ponytail: 丢弃末段重算。confirmed_bound = 末段 end_array_idx（take_while 用 `<`
+        // 移出 self 字段（by-value 消费）。
+        let IncrSegments {
+            mut segments_rc,
+            mut end_indices,
+            strokes_len: _,
+            pending_start: _,
+        } = self;
+
+        // ponytail: 丢弃末段重算。confirmed_bound = 末段 end_array_idx（truncate 用 `<`
         // 排除末段）。无 confirmed 段时 confirmed_bound=0（全扫）。
-        let confirmed_bound = match self.segments.last() {
-            Some((_, last_end_idx)) => *last_end_idx,
+        let confirmed_bound = match end_indices.last() {
+            Some(&last_end_idx) => last_end_idx,
             None => 0,
         };
 
-        // 保留 confirmed segments 前缀（end_array_idx < confirmed_bound 的——排除末段）。
-        let mut new_segments: Vec<(Segment, usize)> = self
-            .segments
-            .iter()
-            .copied()
-            .take_while(|(_, end_idx)| *end_idx < confirmed_bound)
-            .collect();
+        // ponytail: partition_point O(log n) 定位 truncate 位置，替代 take_while O(n)。
+        let keep = end_indices
+            .partition_point(|&end_idx| end_idx < confirmed_bound);
+
+        // Rc::make_mut 突变 segments_rc——strong_count==1 时 O(1) in-place。
+        let new_segments = Rc::make_mut(&mut segments_rc);
+        new_segments.truncate(keep);
+        end_indices.truncate(keep);
 
         // 确定续扫起点：倒数第二段的 seg_start = end_array_idx + 1（= 末段原 seg_start）。
         let resume_seg_start: usize;
         let resume_seg_dir: Direction;
 
-        match new_segments.last() {
-            Some((_, last_end_idx)) => {
+        match end_indices.last() {
+            Some(&last_end_idx) => {
                 resume_seg_start = last_end_idx + 1;
                 if resume_seg_start >= n {
                     // 无剩余笔——全部 confirmed，无 pending。
                     return IncrSegments {
-                        segments: new_segments,
+                        segments_rc,
+                        end_indices,
                         pending_start: if resume_seg_start < n { Some(resume_seg_start) } else { None },
                         strokes_len: n,
                     };
@@ -514,14 +530,16 @@ impl IncrSegments {
                 // 无 confirmed 段（或仅 1 段被丢弃）：全扫。先找 overlap start。
                 if n < 3 {
                     return IncrSegments {
-                        segments: Vec::new(),
+                        segments_rc,
+                        end_indices,
                         pending_start: if n > 0 { Some(0) } else { None },
                         strokes_len: n,
                     };
                 }
                 let Some(start) = find_overlap_start(strokes, 0) else {
                     return IncrSegments {
-                        segments: Vec::new(),
+                        segments_rc,
+                        end_indices,
                         pending_start: Some(0),
                         strokes_len: n,
                     };
@@ -568,7 +586,8 @@ impl IncrSegments {
                 continue;
             }
             let seg = make_segment(strokes, seg_start, end_stroke, seg_dir);
-            new_segments.push((seg, end_stroke));
+            new_segments.push(seg);
+            end_indices.push(end_stroke);
             seg_start = k;
             seg_dir = opposite;
             feat.reset(seg_dir);
@@ -577,7 +596,8 @@ impl IncrSegments {
 
         let pending_start = if seg_start < n { Some(seg_start) } else { None };
         IncrSegments {
-            segments: new_segments,
+            segments_rc,
+            end_indices,
             pending_start,
             strokes_len: n,
         }
@@ -586,9 +606,17 @@ impl IncrSegments {
     /// 当前快照 segments（Vec<Segment>，与 `divide_segments_with_tail` bit-exact）。
     pub fn to_result_vec(&self) -> (Vec<Segment>, Option<usize>) {
         (
-            self.segments.iter().map(|(s, _)| *s).collect(),
+            self.segments_rc.to_vec(),
             self.pending_start,
         )
+    }
+
+    /// 当前快照 segments 的 Rc 共享句柄（O(1) refcount bump）。
+    ///
+    /// ponytail: Rc 共享替代旧 `to_result_vec()` 的 O(n) collect——`ParseLayerIncr::append`
+    /// 用此填 `ParseLayer.segments`，消除每 bar Vec clone。
+    pub fn to_result_rc(&self) -> (Rc<Vec<Segment>>, Option<usize>) {
+        (Rc::clone(&self.segments_rc), self.pending_start)
     }
 }
 
