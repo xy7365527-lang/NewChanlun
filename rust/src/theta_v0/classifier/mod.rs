@@ -724,17 +724,26 @@ pub fn classify_with_tower_incremental(
 
         levels.push(LevelState {
             moves,
+            // ponytail: Center is Copy ⟹ clone = memcpy O(k)（非 LeveledMove 递归深拷贝）。
+            //           Arc<Vec<Center>> 引入原子计数开销反劣于 memcpy；此 clone 已是最优。
+            //           ceiling：若 Center 变大（>~64B），可考虑 Arc<Vec<Center>> 共享缓存。
             centers: lc.centers.clone(),
             bsp,
         });
 
         // 下一级输入 = 上级走势塔投影（前缀来自缓存 upper_moves 前缀，尾部来自续扫）。
         units = project_to_units(&lc.upper_moves);
-        moves_tower = lc.upper_moves.clone();
 
         if units.is_empty() {
             break;
         }
+        // ★O(1) 优化：仅当下一级有输入时才 clone upper_moves → moves_tower。
+        // 末级（units 空）跳过 clone（LeveledMove 含递归 sub_moves，深拷贝 O(k)）。
+        // bit-exact：moves_tower 内容 == lc.upper_moves（值拷贝，bit-identical）。
+        // ponytail: clone 因下游（compose_level_resume）需 owned（mem::take 入 tower_snapshots）。
+        //           ceiling：Arc<Vec<LeveledMove>> 共享可消此 clone，但需改 LevelCache.upper_moves
+        //           + 返回类型（跨 mod.rs 边界，当前最小 diff 不改字段）。
+        moves_tower = lc.upper_moves.clone();
     }
 
     (Classification { levels }, tower_snapshots)
