@@ -46,9 +46,11 @@
 //!    持仓的复利权益曲线，**不**算随机策略的 CAGR/Sharpe，**不**建模 independent 对照可能产生
 //!    的重叠仓位资金约束。声明仅为"逐笔无复利总收益对照"——比"完整 equity 曲线"弱（诚实不膨胀）。
 //!    Θ 同口径基准也用同一逐笔无复利公式（非 MtM 复利 strat_return），故 Θ 与随机口径严格一致。
-//! 2. **仅多头有效域**：v0 backtest 的 `apply_order` 把 `Sell` 当 close_long（不建空），
-//!    [`TradeRecord::long`] 恒 true，随机对照只按多头 PnL 算。做空腿（strategy 已识别 Short 根）
-//!    在回测账本侧未建模——**有效域 = 多头交易**，做空腿是独立工位的缺口（不在本轮 owner）。
+//! 2. **多空双向有效域**：runner.rs `track_position_transition` 按持仓符号产真实 [`TradeRecord::long`]
+//!    （多/空），消费侧 [`trade_abs_pnl`] **方向感知**（多头低买高卖 `qty·(exit·(1−fee)−entry·(1+fee))`；
+//!    空头高卖低买 `qty·(entry·(1−fee)−exit·(1+fee))`，canonical 镜像等变 σ→−σ，`formal/Origin/`
+//!    LeverageCapital.lean 有符号名义 `n_v=σ_v·M·P·q` + MainTheorem.lean §22「多空镜像」）。
+//!    随机对照按每笔方向选公式、保持方向不变（只随机化入场点）——**有效域 = 多空交易**。
 
 /// 协议 §3 全套指标（单个检验窗）。每个字段对应 §3 一行。
 #[derive(Debug, Clone, PartialEq)]
@@ -202,10 +204,10 @@ pub struct TradeRecord {
     pub hold_bars: usize,
     /// 仓位规模（lot 数，绝对手数）。随机对照保持此值不变。
     pub qty: f64,
-    /// 方向（**当前恒 true=多头**）。★有效域边界（codex 实现审查缺陷④）：strategy 层已识别
-    /// Short 根并产 `StrictAction::Sell`，但 backtest 账本侧 `apply_order` 把 `Sell` 当 close_long
-    /// （不建空），故本字段恒 true、随机对照只按多头 PnL 算。做空腿在回测账本未建模——
-    /// **有效域 = 多头**，做空是独立工位的缺口（不在本轮 owner，诚实标注非静默丢失）。
+    /// 方向（`true=多头`，`false=空头`）。runner.rs 的 `track_position_transition` 按持仓符号
+    /// （`units_before > 0.0`）真实区分多空——做空腿已建模（v1 方向中性账本）。
+    /// 消费侧 [`trade_abs_pnl`] **方向感知**（多头低买高卖 / 空头高卖低买，canonical 镜像等变
+    /// σ→−σ），随机对照按该字段选公式、保持方向不变。**有效域 = 多空双向**（不再限多头）。
     pub long: bool,
     /// 是否窗口终点强制平仓（[`TradeRecord`] 的 `ForcedWindowClose` 标记）。
     /// ★含浮盈口径的载体：终点未平仓的持仓被强平实现浮盈，但**不计入 n_trades≥30 的
@@ -425,13 +427,16 @@ struct RandomControls {
 ///   落在 [0, len)。
 /// - **副 independent-entry**：逐笔独立随机抽 entry（破坏交易间时序相关，只保边际 hold_bars/qty）。
 ///
-/// **total_return 重算**（含浮盈口径，Θ 与随机**同口径**——消除复利偏置）：每笔交易（无论 Θ 真实
-/// 入场还是随机入场）= 在 entry 开仓、持有 hold_bars、平仓，**逐笔无复利**绝对盈亏求和归一化：
-/// total_return = Σ qty·(exit_px·(1−fee) − entry_px·(1+fee)) / nav_base，nav_base = Σ qty·entry_px·
-/// (1+fee)（Θ 入场名义额基准）。**Θ 的 total_return（[`RandomControls::theta_return_same_caliber`]）
-/// 用 Θ 真实 entry/exit 按同一公式算**——与随机的唯一区别 = 入场点，无复利偏置（codex 设计审查
-/// 第2点：不能比较「Θ 复利 MtM vs 随机逐笔」）。含浮盈口径体现于终点强平笔（hold 到末 bar，在
-/// trades 内 forced_close=true）。close 成交口径（与 Θ 账本侧 `apply_order` 的 `px=bar.close` 一致）。
+/// **total_return 重算**（含浮盈口径，Θ 与随机**同口径**——消除复利偏置，**方向感知**）：每笔交易
+/// （无论 Θ 真实入场还是随机入场）= 在 entry 开仓、持有 hold_bars、平仓，按 **`trade_abs_pnl(…, t.long)`
+/// 方向感知公式**（多头 `qty·(exit·(1−fee) − entry·(1+fee))`；空头 `qty·(entry·(1−fee) − exit·(1+fee))`，
+/// canonical 镜像等变 σ→−σ）求**逐笔无复利**绝对盈亏归一化：total_return = Σ pnl(t) / nav_base，
+/// nav_base = Σ qty·entry_px·(1+fee)（方向无关名义量级基准 |n_v|=M·P·q，镜像对称要求分母方向无关）。
+/// **随机对照保持每笔的方向 `t.long` 不变**（只随机化入场点，方向是 Θ 内在语法决定的，不随机化）。
+/// **Θ 的 total_return（[`RandomControls::theta_return_same_caliber`]）用 Θ 真实 entry/exit 按同一公式算**
+/// ——与随机的唯一区别 = 入场点，无复利偏置（codex 设计审查第2点：不能比较「Θ 复利 MtM vs 随机逐笔」）。
+/// 含浮盈口径体现于终点强平笔（hold 到末 bar，在 trades 内 forced_close=true）。close 成交口径
+/// （与 Θ 账本侧 `apply_order` 的 `px=bar.close` 一致）。
 ///
 /// **p 值**：`p_upper = (1 + count(rand ≥ theta_same_caliber)) / (N+1)`（保守上单边）。
 /// `theta_beats_random ⟺ shift_pvalue ≤ 0.05 ∧ indep_pvalue ≤ 0.05`（两对照都打败才算择时有信息）。
@@ -460,7 +465,9 @@ fn random_entry_controls(
         };
     }
 
-    // 归一化基准 = Θ 各笔入场名义额之和（含买入费），与 total_return 口径对齐（绝对额 ÷ 基准）。
+    // 归一化基准 = Θ 各笔入场名义额之和（方向无关的名义量级 |n_v|=M·P·q 折算，含建仓费量级）。
+    // ★方向无关（镜像对称要求）：分母对多空统一，分子（PnL）方向感知 ⟹ 同价格走势 long_return =
+    // −short_return（镜像等变的可测后果，formal LeverageCapital.lean |n_v| 方向无关）。
     let nav_base: f64 = trades
         .iter()
         .map(|t| {
@@ -471,13 +478,13 @@ fn random_entry_controls(
     let nav_base = if nav_base > 1e-12 { nav_base } else { 1.0 };
 
     // ── ★Θ 同口径 total_return（用 Θ 真实 entry/exit，与随机完全相同的逐笔无复利公式）──
-    // 这是随机对照的**实际比较基准**——与随机唯一区别 = 入场点，消除复利偏置。
+    // 这是随机对照的**实际比较基准**——与随机唯一区别 = 入场点，消除复利偏置。方向感知（按 t.long）。
     let theta_same_caliber: f64 = trades
         .iter()
         .map(|t| {
             let e = t.entry_bar.min(len - 1);
             let x = t.exit_bar.min(len - 1);
-            trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate)
+            trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate, t.long)
         })
         .sum::<f64>()
         / nav_base;
@@ -504,7 +511,8 @@ fn random_entry_controls(
             for t in trades {
                 let e = (t.entry_bar as isize + delta) as usize;
                 let x = (t.exit_bar as isize + delta) as usize;
-                total_abs += trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate);
+                // 随机对照保持该 trade 方向（t.long）不变——只随机化入场点，方向是 Θ 内在语法决定的。
+                total_abs += trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate, t.long);
             }
             shift_returns.push(total_abs / nav_base);
         }
@@ -524,7 +532,8 @@ fn random_entry_controls(
             }
             let e = rng.next_below(len - t.hold_bars);
             let x = e + t.hold_bars;
-            total_abs += trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate);
+            // 随机对照保持该 trade 方向（t.long）不变——只随机化入场点。
+            total_abs += trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate, t.long);
         }
         if feasible {
             indep_returns.push(total_abs / nav_base);
@@ -549,14 +558,32 @@ fn random_entry_controls(
     }
 }
 
-/// 单笔交易的绝对盈亏（多头 close-to-close，含双边费用，与 Θ 账本侧成本对称口径一致）。
+/// 单笔交易的绝对盈亏（**方向感知** close-to-close，含双边费用，与 Θ 账本侧成本对称口径一致）。
 ///
-/// `qty·(exit_px·(1−fee) − entry_px·(1+fee))`：买入名义额含买入费，卖出名义额扣卖出费。
-/// （v0 只有多头根；做空腿待 strategy 订单语义定，此处不臆造。）
-fn trade_abs_pnl(entry_px: f64, exit_px: f64, qty: f64, fee_rate: f64) -> f64 {
-    let proceeds = qty * exit_px * (1.0 - fee_rate);
-    let cost = qty * entry_px * (1.0 + fee_rate);
-    proceeds - cost
+/// **方向感知（canonical 镜像等变的可测后果）**：有符号名义头寸 `n_v = σ_v·M·P·q`
+/// （`formal/Origin/LeverageCapital.lean` §1，σ_v∈{−1,+1}）+ 全链镜像等变 σ→−σ
+/// （`formal/Origin/MainTheorem.lean` §22「多空镜像」ℭ_{MΘ}∘M_X = M_S∘ℭ_Θ）⟹ 相同价格走势下
+/// 多头（σ=+1）与空头（σ=−1）的 PnL **符号相反**（模费用对称）。两方向的成本语义对称：
+/// **建仓名义额按成交方向含建仓费，平仓名义额扣平仓费**。
+///
+/// - **多头**（`long=true`，σ=+1）：建仓=买入（成本 `entry·(1+fee)`），平仓=卖出（收入 `exit·(1−fee)`）
+///   ⟹ PnL = `qty·(exit·(1−fee) − entry·(1+fee))`（低买高卖盈利）。
+/// - **空头**（`long=false`，σ=−1）：建仓=卖出（收入 `entry·(1−fee)`），平仓=买回（成本 `exit·(1+fee)`）
+///   ⟹ PnL = `qty·(entry·(1−fee) − exit·(1+fee))`（高卖低买盈利，方向反转）。
+///
+/// 口径与 Θ 账本侧强平公式（`runner.rs`：`pos_sign·(px·(1−pos_sign·fee) − entry_cost)·|units|`）
+/// 一致——令 σ=pos_sign，两者代数等价（空头 σ=−1 时 `px_exit_net = exit·(1+fee)`，符号翻转）。
+fn trade_abs_pnl(entry_px: f64, exit_px: f64, qty: f64, fee_rate: f64, long: bool) -> f64 {
+    if long {
+        let proceeds = qty * exit_px * (1.0 - fee_rate);
+        let cost = qty * entry_px * (1.0 + fee_rate);
+        proceeds - cost
+    } else {
+        // 空头：建仓卖出收 entry·(1−fee)，平仓买回付 exit·(1+fee)。
+        let proceeds = qty * entry_px * (1.0 - fee_rate);
+        let cost = qty * exit_px * (1.0 + fee_rate);
+        proceeds - cost
+    }
 }
 
 /// 随机对照分布统计：均值 + 上单边 p 值 `p_upper = (1 + count(rand ≥ theta)) / (N+1)`。
@@ -863,6 +890,109 @@ mod tests {
         }
     }
 
+    /// 构造单笔**空头** TradeRecord（测试 helper，long=false）。
+    fn mk_trade_short(entry: usize, hold: usize, qty: f64) -> TradeRecord {
+        TradeRecord {
+            entry_bar: entry,
+            exit_bar: entry + hold,
+            hold_bars: hold,
+            qty,
+            long: false,
+            forced_close: false,
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★方向感知 PnL（做空腿 join 前置）：trade_abs_pnl 多空公式 + 镜像对称
+    //  认识论 L1：方向感知 = 管线正确性验证（合成价格上验证公式正确，零信息增量）。
+    //  做空 alpha 的经验影响须 L3 全窗真实数据统一重跑（本工位只保证 PnL 算对）。
+    //  定义依据：canonical 镜像等变 σ→−σ（formal/Origin/LeverageCapital.lean 有符号名义
+    //  n_v=σ_v·M·P·q + MainTheorem.lean §22「多空镜像」ℭ_{MΘ}∘M_X = M_S∘ℭ_Θ）。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★镜像对称（canonical 镜像等变的可测后果）：同 entry/exit/qty/fee 下，多头 PnL = −空头 PnL。
+    /// σ→−σ ⟹ 有符号名义符号翻转 ⟹ 逐笔 PnL 符号严格相反（费用语义对称：建仓含费、平仓扣费）。
+    #[test]
+    fn trade_abs_pnl_mirror_symmetry() {
+        // 无费时严格镜像：long(100→110) = +10·qty，short(100→110) = −10·qty。
+        let long_pnl = trade_abs_pnl(100.0, 110.0, 2.0, 0.0, true);
+        let short_pnl = trade_abs_pnl(100.0, 110.0, 2.0, 0.0, false);
+        assert!((long_pnl - 20.0).abs() < 1e-9, "多头 100→110 ×2 = +20，实得 {long_pnl}");
+        assert!((short_pnl + 20.0).abs() < 1e-9, "空头 100→110 ×2 = −20，实得 {short_pnl}");
+        assert!(
+            (long_pnl + short_pnl).abs() < 1e-9,
+            "镜像对称（无费）：long PnL = −short PnL，实得 long={long_pnl} short={short_pnl}"
+        );
+        // 含费时镜像对称仍成立（费用语义对称：两方向建仓含费、平仓扣费）。
+        let fee = 0.001;
+        let lp = trade_abs_pnl(100.0, 110.0, 1.0, fee, true);
+        let sp = trade_abs_pnl(100.0, 110.0, 1.0, fee, false);
+        // long = 110(1−f) − 100(1+f)；short = 100(1−f) − 110(1+f) ⟹ long+short = −2f(100+110) = −0.42。
+        let expected_sum = -2.0 * fee * (100.0 + 110.0);
+        assert!(
+            (lp + sp - expected_sum).abs() < 1e-9,
+            "含费：long+short = −2·fee·(entry+exit)（费用是两方向共同摩擦，非镜像可消），实得 {}",
+            lp + sp
+        );
+    }
+
+    /// ★空头盈利场景（entry_px > exit_px ⟹ 高卖低买盈利）+ 空头亏损（entry < exit ⟹ 亏）。
+    #[test]
+    fn trade_abs_pnl_short_profit_and_loss() {
+        // 空头盈利：120 卖出建仓，100 买回平仓 ⟹ +20·qty（无费）。
+        let win = trade_abs_pnl(120.0, 100.0, 1.0, 0.0, false);
+        assert!((win - 20.0).abs() < 1e-9, "空头 120→100 = +20（高卖低买盈利），实得 {win}");
+        // 空头亏损：100 卖出建仓，120 买回平仓 ⟹ −20·qty（价格涨，空头亏）。
+        let loss = trade_abs_pnl(100.0, 120.0, 1.0, 0.0, false);
+        assert!((loss + 20.0).abs() < 1e-9, "空头 100→120 = −20（价涨空头亏），实得 {loss}");
+        // 对偶见证：同一 120→100 走势，多头反而亏 −20（低买高卖被破坏）。
+        let long_same = trade_abs_pnl(120.0, 100.0, 1.0, 0.0, true);
+        assert!((long_same + 20.0).abs() < 1e-9, "多头 120→100 = −20（高买低卖亏），实得 {long_same}");
+        assert!((win + long_same).abs() < 1e-9, "同走势 short 盈 = −long 亏（镜像）");
+    }
+
+    /// ★随机对照保持方向（Short trade 重执行仍按空头公式）：纯空头轨迹在下跌价格上，
+    /// Θ 同口径 total_return > 0（空头吃下跌盈利），且随机对照分布按空头公式算（非多头算反）。
+    #[test]
+    fn random_control_preserves_short_direction() {
+        // 单调下跌价格（200 → 101）——空头在此盈利，多头亏损。
+        let prices: Vec<f64> = (0..100).map(|i| 200.0 - i as f64).collect();
+        // 全空头轨迹（low entry 段持有 3 根，下跌中空头盈利）。
+        let trades: Vec<TradeRecord> = (0..8).map(|i| mk_trade_short(10 + i, 3, 1.0)).collect();
+        // 手算 Θ 同口径：每笔 entry_px > exit_px（下跌），空头 pnl = entry − exit = +3·qty（无费）。
+        let s = significance(&[], &[], &trades, &prices, 0.0, 0.0);
+        // 空头在下跌中盈利 ⟹ Θ 同口径 total_return > 0（若算反成多头公式则会 <0）。
+        assert!(
+            s.theta_return_same_caliber > 0.0,
+            "空头吃下跌 ⟹ Θ 同口径收益>0（方向感知正确，未按多头算反），实得 {}",
+            s.theta_return_same_caliber
+        );
+        // 随机对照分布均值也按空头公式算（下跌价格上任意空头入场段平均盈利>0）。
+        assert!(
+            s.shift_mean_return > 0.0 && s.indep_mean_return > 0.0,
+            "随机对照保持空头方向 ⟹ 下跌价格上随机空头均值>0，实得 shift={} indep={}",
+            s.shift_mean_return, s.indep_mean_return
+        );
+    }
+
+    /// ★镜像对照见证：同价格序列 + 同入场结构，多头轨迹 Θ 收益 = −空头轨迹 Θ 收益（无费）。
+    /// 这是 random_entry_controls 层的镜像等变可测后果（nav_base 方向无关 ⟹ 归一化保符号关系）。
+    #[test]
+    fn theta_same_caliber_mirror_long_vs_short() {
+        // 任意非单调价格（含涨跌）。
+        let prices: Vec<f64> = (0..60).map(|i| 100.0 + 5.0 * ((i as f64) * 0.3).sin()).collect();
+        let longs: Vec<TradeRecord> = (0..5).map(|i| mk_trade(i * 4, 2, 1.0)).collect();
+        let shorts: Vec<TradeRecord> = (0..5).map(|i| mk_trade_short(i * 4, 2, 1.0)).collect();
+        // nav_base 方向无关（Σ qty·entry·(1+fee)）⟹ 多空用同一分母，分子符号相反。
+        let s_long = significance(&[], &[], &longs, &prices, 0.0, 0.0);
+        let s_short = significance(&[], &[], &shorts, &prices, 0.0, 0.0);
+        assert!(
+            (s_long.theta_return_same_caliber + s_short.theta_return_same_caliber).abs() < 1e-9,
+            "镜像等变：long Θ 收益 = −short Θ 收益（无费，nav_base 方向无关），实得 long={} short={}",
+            s_long.theta_return_same_caliber, s_short.theta_return_same_caliber
+        );
+    }
+
     /// significance 可复现（同输入同 seed ⟹ bit-exact 同结果，§4 硬约束，含新随机对照）。
     #[test]
     fn significance_reproducible() {
@@ -943,7 +1073,7 @@ mod tests {
         let trades: Vec<TradeRecord> = (0..8).map(|i| mk_trade(70 + i, 3, 1.0)).collect();
         let theta_ret: f64 = trades
             .iter()
-            .map(|t| trade_abs_pnl(prices[t.entry_bar], prices[t.exit_bar], t.qty, 0.0))
+            .map(|t| trade_abs_pnl(prices[t.entry_bar], prices[t.exit_bar], t.qty, 0.0, t.long))
             .sum::<f64>()
             / trades.iter().map(|t| t.qty * prices[t.entry_bar]).sum::<f64>();
         let s = significance(&[], &[], &trades, &prices, 0.0, theta_ret);
