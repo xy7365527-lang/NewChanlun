@@ -307,6 +307,13 @@ pub fn coverage_elements_and_gamma_with_tower(
     let mut elements = coverage::extract_elements(tower);
     let candidate_start = elements.len();
     let mut gamma: Vec<Candidate> = Vec::new();
+    // ponytail: H7 单次建 tree 前缀 (level,ρ)→idx 索引——tree 前缀在候选 append 期间不变 ⟹ 建一次。
+    // bit-exact：ρ 同级唯一 ⟹ (level,ρ) 唯一命中 == 旧 attach_bsp_to_tree .find() 首个。
+    let tree_endpoint_idx = coverage::build_tree_endpoint_index(&elements[..candidate_start]);
+    // ponytail: H5 维护 (parent,level)→idx 列表——每 push 一个候选后 append，operation_role_indexed
+    // 二分查 < ci 的最大 idx（最近前兄弟）。bit-exact：列表升序 ⟹ partition_point == 旧 .rev().find() 首个。
+    let mut sibling_idx: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
+        coverage::build_prev_sibling_index(&elements[..candidate_start]);
     // ci 沿候选追加序遍历 elements 的候选段（与 coverage_elements_with_tower 同 level×bsp 序）。
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
@@ -314,7 +321,8 @@ pub fn coverage_elements_and_gamma_with_tower(
         for point in &level.bsp {
             let dir = candidate_dir(&point.bits);
             // hostOf 查表只读 tree 前缀（elements[..candidate_start]，候选 append 期间不变）。
-            let (parent, attached_dir) = coverage::attach_bsp_to_tree(
+            let (parent, attached_dir) = coverage::attach_bsp_to_tree_indexed(
+                &tree_endpoint_idx,
                 &elements[..candidate_start],
                 lvl,
                 point.source_index,
@@ -330,13 +338,17 @@ pub fn coverage_elements_and_gamma_with_tower(
                 parent,
                 attached_dir,
             });
+            // H5：push 后把当前候选 idx 追加到 sibling_idx（列表升序，二分查 < ci 的最大 idx）。
+            sibling_idx.entry((parent, lvl)).or_default().push(ci);
             gamma.push(Candidate {
                 level: lvl,
                 source_index: point.source_index,
                 bits: point.bits,
                 dir,
                 bsp_class: min_class(&point.bits, dir),
-                role: coverage::operation_role(&elements, ci), // 真父子 ⟹ V 真出（非恒 Ambient）
+                // ponytail: H5 用 sibling_idx O(1) 查前兄弟（替代 operation_role 的 O(ci) 线性扫）。
+                // bit-exact：operation_role_indexed == operation_role（同 prev 判定）。
+                role: coverage::operation_role_indexed(&elements, ci, &sibling_idx),
                 nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
                 gamma_index: gamma.len(),
             });
@@ -461,6 +473,18 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
     let mut opened: Vec<(u32, VoiceSide)> = Vec::new();
     let mut buckets = Buckets::default();
 
+    // ponytail: H8 预索引——level → legs idx 列表（reverse_signal 需逐腿判 bits，无法纯 key 查表；
+    // 但 level 索引把 O(|working|) 全扫缩为只遍历同 level 的腿，通常 1-2 条）。
+    // bit-exact：索引只过滤同 level 候选腿，逐腿判 !closed + reverse_signal/leg.dir 与旧线性
+    // position/any 等价。active 不变 ⟹ 索引建一次（关闭只标 bool，不从索引移除——旧 position 跳过 closed）。
+    let level_idx: std::collections::HashMap<u32, Vec<usize>> = {
+        let mut m: std::collections::HashMap<u32, Vec<usize>> = std::collections::HashMap::new();
+        for (i, (leg, _)) in working.iter().enumerate() {
+            m.entry(leg.level).or_default().push(i);
+        }
+        m
+    };
+
     for &c in &ordered {
         // 规则1：非方向候选 ⟹ 𝒦_x。
         if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
@@ -468,17 +492,28 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
             continue;
         }
         // 规则2：反向关闭 A_t 中同级别活动腿（reverse_signal 复用 §9 closePred 反向项）。
-        if let Some(pos) = working.iter().position(|(leg, closed)| {
-            !*closed && leg.level == c.level && reverse_signal(leg.dir, &c.bits)
-        }) {
+        // ponytail: H8 查 level→idx 列表，逐腿判 reverse_signal（bits 不可 key 化，须逐腿）。
+        // bit-exact：取首个未关闭且 reverse_signal 命中者 == 旧 working.iter().position(...)。
+        let closed_pos = level_idx.get(&c.level).and_then(|idxs| {
+            idxs.iter().copied().find(|&i| {
+                let (leg, closed) = &working[i];
+                !*closed && reverse_signal(leg.dir, &c.bits)
+            })
+        });
+        if let Some(pos) = closed_pos {
+            // 标记关闭（不从索引移除——bit-exact：旧 working.iter().position 也跳过已关闭腿）。
             working[pos].1 = true;
             buckets.close.push(working[pos].0);
             continue;
         }
         // 规则3/4：开启 vs 记录（slot = (level, σ_g)）。
-        let slot_in_at = working
-            .iter()
-            .any(|(leg, closed)| !*closed && leg.level == c.level && leg.dir == c.dir);
+        // ponytail: H8 slot_in_at 用 level 索引查同 level 腿里是否有未关闭且 dir==c.dir 者
+        // == 旧 working.iter().any(|(leg,closed)| !closed && leg.level==c.level && leg.dir==c.dir)。
+        let slot_in_at = level_idx
+            .get(&c.level)
+            .map_or(false, |idxs| {
+                idxs.iter().any(|&i| !working[i].1 && working[i].0.dir == c.dir)
+            });
         let slot_this_fold = opened.iter().any(|&(lv, d)| lv == c.level && d == c.dir);
         if !slot_in_at && !slot_this_fold {
             buckets.open.push(*c); // 规则3：开启

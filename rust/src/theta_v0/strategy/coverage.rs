@@ -240,13 +240,47 @@ pub fn attach_bsp_to_tree(
 ) -> (Option<usize>, Option<VoiceSide>) {
     // hostOf(g)：本级（漏洞①级别过滤）右端点命中（漏洞② ρ==source_index）、坐标 ordinal 身份
     // （漏洞③ 非 RMove 结构相等）的元素。ρ 同级唯一 ⟹ find 首个即唯一 host。
-    match tree
-        .iter()
-        .find(|e| e.level == level_g && e.rho == source_index)
-    {
-        // 继承 hostOf 的真 Compose 父 + 父方向 σ_{p(g)}（push_element_tree 真父子，铁律）。
-        Some(host) => (host.parent, host.attached_dir),
-        // host 无（未被 Compose 收录 / tree 无该级别 / 顶层根）⟹ 无真父 = ∂ → V=Ambient（去根化）。
+    // ponytail: H7 预建 (level, ρ)→idx HashMap 把 O(|tree|) 线性 .find() 降为 O(1) 查表。
+    // bit-exact：ρ 同级单调唯一（compose 非重叠窗口）⟹ (level,ρ) 唯一命中 == 旧 .find() 首个。
+    let idx = build_tree_endpoint_index(tree);
+    match idx.get(&(level_g, source_index)).copied() {
+        Some(host_idx) => {
+            let host = &tree[host_idx];
+            (host.parent, host.attached_dir)
+        }
+        None => (None, None),
+    }
+}
+
+/// ponytail: H7 预建 (level, ρ) → idx 索引——hostOf 查表 O(1)。
+/// bit-exact 依据：ρ（= end_index）在同级别单调唯一（compose_level 非重叠窗口，坐标严格递增）
+/// ⟹ (level, ρ) 唯一，无多匹配。热循环 coverage_elements_and_gamma_with_tower 单次建、多次查
+/// （tree 前缀不变）。
+pub fn build_tree_endpoint_index(
+    tree: &[CoverageElement],
+) -> std::collections::HashMap<(u32, usize), usize> {
+    let mut idx: std::collections::HashMap<(u32, usize), usize> =
+        std::collections::HashMap::new();
+    for (i, e) in tree.iter().enumerate() {
+        // ρ 同级唯一 ⟹ 后插入不会覆盖已存在的（compose 非重叠）。用 entry 保首个（与 .find() 首个一致）。
+        idx.entry((e.level, e.rho)).or_insert(i);
+    }
+    idx
+}
+
+/// ponytail: H7 带预建索引的 attach_bsp_to_tree 变体——热循环单次建索引、多次查。
+/// bit-exact == attach_bsp_to_tree（同 hostOf 判定：(level,ρ) 命中取首个）。
+pub fn attach_bsp_to_tree_indexed(
+    tree_idx: &std::collections::HashMap<(u32, usize), usize>,
+    tree: &[CoverageElement],
+    level_g: u32,
+    source_index: usize,
+) -> (Option<usize>, Option<VoiceSide>) {
+    match tree_idx.get(&(level_g, source_index)).copied() {
+        Some(host_idx) => {
+            let host = &tree[host_idx];
+            (host.parent, host.attached_dir)
+        }
         None => (None, None),
     }
 }
@@ -506,12 +540,21 @@ pub fn horizontal_relation(elements: &[CoverageElement], e_idx: usize) -> Horizo
         None => return Horizontal::First, // 越界防御性（不应到达）
     };
     let delta = dir_sign(direction_of(e.eps));
-    // prev(g)：同父容器 + 同级别 + 索引最近的前兄弟（None==None = 同一边界胚元 ∂）。
-    let prev = (0..e_idx)
-        .rev()
-        .find(|&i| elements[i].parent == e.parent && elements[i].level == e.level);
+    // ponytail: H5 预建 (parent,level)→idx 列表 + 二分查 < e_idx 的最大 idx，把 O(e_idx) 线性
+    // .rev().find() 降为 O(log n) 查表。bit-exact：同级兄弟 ρ 单调递增（compose 非重叠窗口）⟹
+    // 列表升序，partition_point 取 < e_idx 的末个 == 旧 .rev().find() 首个。
+    let idx = build_prev_sibling_index(elements);
+    let prev = idx.get(&(e.parent, e.level)).and_then(|idxs| {
+        // idxs 升序（push 序）⟹ partition_point(|&i| i < e_idx) 取首个 >= e_idx 的位置，
+        // 前一位即 < e_idx 的最大 idx（最近前兄弟）。
+        let pos = idxs.partition_point(|&i| i < e_idx);
+        if pos == 0 {
+            None
+        } else {
+            Some(idxs[pos - 1])
+        }
+    });
     match prev {
-        None => Horizontal::First,
         Some(p) => {
             let sigma_prev = dir_sign(direction_of(elements[p].eps));
             if delta == sigma_prev {
@@ -520,7 +563,72 @@ pub fn horizontal_relation(elements: &[CoverageElement], e_idx: usize) -> Horizo
                 Horizontal::SameReverse
             }
         }
+        None => Horizontal::First,
     }
+}
+
+/// ponytail: H5 预建 (parent, level) → 该键所有元素索引（升序，push 序）。
+/// bit-exact 依据：同级兄弟按 push 序排列（extract_elements 父在子前 + 候选 append 序），
+/// 二分查 < e_idx 的最大 idx == 旧 (0..e_idx).rev().find() 首个。
+/// 返回 HashMap 可被多次 operation_role 调用复用（热循环 strategy_target_legs 单次建、多次查）。
+pub fn build_prev_sibling_index(
+    elements: &[CoverageElement],
+) -> std::collections::HashMap<(Option<usize>, u32), Vec<usize>> {
+    let mut idx: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
+        std::collections::HashMap::new();
+    for (i, e) in elements.iter().enumerate() {
+        idx.entry((e.parent, e.level)).or_default().push(i);
+    }
+    idx
+}
+
+/// ponytail: H5 带预建索引的 operation_role 变体——热循环（strategy_target_legs）单次建索引、
+/// 多次查，消除每元素 O(e_idx) 线性扫。bit-exact == operation_role（同 prev 判定逻辑）。
+pub fn operation_role_indexed(
+    elements: &[CoverageElement],
+    e_idx: usize,
+    sibling_idx: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+) -> OperationRole {
+    let e = match elements.get(e_idx) {
+        Some(e) => e,
+        None => {
+            return OperationRole {
+                h: Horizontal::First,
+                v: Vertical::Ambient,
+                delta: Dir::Plus,
+            }
+        }
+    };
+    let delta = direction_of(e.eps);
+    // H(g)：查 sibling_idx 取 < e_idx 的最大 idx（最近前兄弟）。
+    let h = match sibling_idx.get(&(e.parent, e.level)).and_then(|idxs| {
+        let pos = idxs.partition_point(|&i| i < e_idx);
+        if pos == 0 {
+            None
+        } else {
+            Some(idxs[pos - 1])
+        }
+    }) {
+        Some(p) => {
+            let sigma_prev = dir_sign(direction_of(elements[p].eps));
+            if dir_sign(delta) == sigma_prev {
+                Horizontal::SameFollow
+            } else {
+                Horizontal::SameReverse
+            }
+        }
+        None => Horizontal::First,
+    };
+    // V(g)：不变（O(1)，parent_sign + direction_of）。
+    let sigma_parent = parent_sign(e.attached_dir);
+    let v = if sigma_parent == 0 {
+        Vertical::Ambient
+    } else if dir_sign(delta) == sigma_parent {
+        Vertical::FollowParent
+    } else {
+        Vertical::ShortDiff
+    };
+    OperationRole { h, v, delta }
 }
 
 /// 垂直关系 V(g)（spec §7.2 / P6-P7，全函数唯一判定）。
@@ -628,6 +736,27 @@ pub fn leg_target(
     }
 }
 
+/// ponytail: H5 带预建索引的 leg_target 变体——热循环 strategy_target_legs 单次建索引、多次查。
+/// bit-exact == leg_target（role 经 operation_role_indexed 同逻辑）。
+fn leg_target_indexed(
+    elements: &[CoverageElement],
+    e_idx: usize,
+    base_units: f64,
+    config: &VoiceConfig,
+    sibling_idx: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+) -> LegTarget {
+    let e = &elements[e_idx];
+    let depth = element_depth(elements, e_idx);
+    let w = depth_weight(depth, config);
+    let role = operation_role_indexed(elements, e_idx, sibling_idx);
+    LegTarget {
+        e_idx,
+        side: e.eps,
+        units: base_units * w,
+        role,
+    }
+}
+
 /// 元素的真嵌套深度（沿 parent 链长度，根=0；铁律：真父子，非级别差）。
 fn element_depth(elements: &[CoverageElement], e_idx: usize) -> u32 {
     ancestors(elements, e_idx).len() as u32
@@ -644,9 +773,12 @@ pub fn strategy_target_legs(
     base_units: f64,
     config: &VoiceConfig,
 ) -> Vec<LegTarget> {
+    // ponytail: H5 单次建 (parent,level)→last_idx 索引，每元素 O(1) 查前兄弟（消除 O(e_idx) 线性扫）。
+    // bit-exact：operation_role_indexed == operation_role（同 prev 判定）⟹ leg_target_indexed == leg_target。
+    let sibling_idx = build_prev_sibling_index(elements);
     active
         .iter()
-        .map(|&e_idx| leg_target(elements, e_idx, base_units, config))
+        .map(|&e_idx| leg_target_indexed(elements, e_idx, base_units, config, &sibling_idx))
         .collect()
 }
 
@@ -727,22 +859,60 @@ fn held_leg_tree_index(
 ) -> HeldLegMatch {
     let tree_end = candidate_start.min(elements.len());
     let tree = &elements[..tree_end];
+    // ponytail: H6 预建 (level,ρ,eps)→idx + (level,λ,eps)→idx HashMap 把两次 O(|tree|) 线性 .position()
+    // 降为 O(1) 查表。bit-exact：(level,ρ,eps) 同级唯一（ρ 单调递增 + eps 二值）⟹ 唯一命中 == 旧
+    // .position() 首个；(level,λ,eps) 同级唯一（λ 不共享起点）⟹ 唯一命中，rho>=source_index 守卫保留。
+    let rho_idx = build_tree_rho_index(tree);
+    let lambda_idx = build_tree_lambda_index(tree);
+    held_leg_tree_index_indexed(tree, leg, &rho_idx, &lambda_idx)
+}
+
+/// ponytail: H6 预建 (level, ρ, eps) → idx 索引（Exact 身份查表 O(1)）。
+/// bit-exact 依据：ρ 同级单调唯一 + eps 二值 ⟹ (level,ρ,eps) 唯一，无多匹配。
+fn build_tree_rho_index(
+    tree: &[CoverageElement],
+) -> std::collections::HashMap<(u32, usize, VoiceSide), usize> {
+    let mut idx: std::collections::HashMap<(u32, usize, VoiceSide), usize> =
+        std::collections::HashMap::new();
+    for (i, e) in tree.iter().enumerate() {
+        idx.entry((e.level, e.rho, e.eps)).or_insert(i);
+    }
+    idx
+}
+
+/// ponytail: H6 预建 (level, λ, eps) → idx 索引（CoordDrift 身份查表 O(1)）。
+/// bit-exact 依据：λ（= start_index）在同级别 confirmed 走势不共享起点 ⟹ (level,λ,eps) 唯一。
+/// CoordDrift 须守卫 rho>=source_index（父延伸判据）——索引命中后逐元素判（单元素 O(1)）。
+fn build_tree_lambda_index(
+    tree: &[CoverageElement],
+) -> std::collections::HashMap<(u32, usize, VoiceSide), usize> {
+    let mut idx: std::collections::HashMap<(u32, usize, VoiceSide), usize> =
+        std::collections::HashMap::new();
+    for (i, e) in tree.iter().enumerate() {
+        idx.entry((e.level, e.lambda, e.eps)).or_insert(i);
+    }
+    idx
+}
+
+/// ponytail: H6 带预建索引的 held_leg_tree_index 变体——热循环 coverage_step_from_buckets 单次建、多次查。
+/// bit-exact == held_leg_tree_index（同三段判定：Exact (level,ρ,eps) → CoordDrift (level,λ,eps)+rho守卫 → Stale）。
+fn held_leg_tree_index_indexed(
+    tree: &[CoverageElement],
+    leg: &ActiveLeg,
+    rho_idx: &std::collections::HashMap<(u32, usize, VoiceSide), usize>,
+    lambda_idx: &std::collections::HashMap<(u32, usize, VoiceSide), usize>,
+) -> HeldLegMatch {
     // 1. 精确身份（level + ρ + eps）：未漂移常态。
-    if let Some(idx) = tree
-        .iter()
-        .position(|e| e.level == leg.level && e.rho == leg.source_index && e.eps == leg.dir)
-    {
+    if let Some(&idx) = rho_idx.get(&(leg.level, leg.source_index, leg.dir)) {
         return HeldLegMatch::Exact(idx);
     }
     // 2. 稳定身份（level + λ + eps，且当前 ρ ≥ 旧 ρ=向右延伸）：coord_drift（同一父延伸）。
     //    旧 ρ（leg.source_index）落入当前已延伸区间 [λ, ρ] 内 ⟹ 同一走势吸收了旧端点。
-    if let Some(idx) = tree.iter().position(|e| {
-        e.level == leg.level
-            && e.eps == leg.dir
-            && e.lambda == leg.lambda
-            && e.rho >= leg.source_index
-    }) {
-        return HeldLegMatch::CoordDrift(idx);
+    if let Some(&idx) = lambda_idx.get(&(leg.level, leg.lambda, leg.dir)) {
+        // rho>=source_index 守卫（bit-exact：旧 .position() 的 && e.rho >= leg.source_index 条件）。
+        if tree[idx].rho >= leg.source_index {
+            return HeldLegMatch::CoordDrift(idx);
+        }
     }
     // 3. 无语义匹配 ⟹ 真失效。
     HeldLegMatch::Stale
@@ -863,13 +1033,22 @@ pub fn coverage_step_from_buckets(
     let mut work: Vec<CoverageElement> = elements.to_vec();
     let mut raw: Vec<usize> = Vec::new();
 
+    // ponytail: H6 单次建 tree 前缀 (level,ρ,eps)→idx + (level,λ,eps)→idx 索引——tree 前缀在持仓腿
+    // 对位期间不变（Stale 追加在 candidate_start 之后，不污染 tree 前缀）⟹ 建一次、多次查 O(1)。
+    // bit-exact：held_leg_tree_index_indexed == held_leg_tree_index（同三段判定）。
+    let tree_end = candidate_start.min(work.len());
+    let rho_idx = build_tree_rho_index(&work[..tree_end]);
+    let lambda_idx = build_tree_lambda_index(&work[..tree_end]);
+
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）对位回当前因果树元素（638 身份）；不在树 ⟹ 追加为根。
     let closed = close_indices(prev_active, &buckets.close);
     for (i, leg) in prev_active.iter().enumerate() {
         if closed.contains(&i) {
             continue; // 𝒟_x：本腿关闭，不入 A^raw
         }
-        match held_leg_tree_index(&work, candidate_start, leg) {
+        // tree_end 固定 + Stale 追加在 tree_end 之后 ⟹ work[..tree_end] 内容不变；每轮重借（NLL）。
+        let m = held_leg_tree_index_indexed(&work[..tree_end], leg, &rho_idx, &lambda_idx);
+        match m {
             // Exact（ρ 未漂移）/ CoordDrift（父延伸，ρ 漂移但 λ 稳定=同一父）：都对位回当前树元素
             // idx（携真父链）⟹ 其子声部腿的 AncOK 祖先齐全。CoordDrift 不再静默降 orphan（Q4 修正）。
             HeldLegMatch::Exact(idx) | HeldLegMatch::CoordDrift(idx) => {
