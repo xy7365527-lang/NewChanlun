@@ -57,3 +57,10 @@ pub mod data;
 pub mod metrics;
 pub mod prereg_windows;
 pub mod runner;
+
+/// 全窗 L3 定论测试模块（task #75，owner=l3-fullwindow 工位，Lead 登记）。
+/// 复现 [`runner`] 的 `l3_falsify_multi_symbol_significance` 但 `cut=全窗`（非 60K 截断），
+/// 定论缠论择时 alpha。整个 `backtest` 已被 `#[cfg(test)]` 门控（theta_v0/mod.rs:88），本子模块
+/// 继承门控——只在 `cargo test --lib` 编译，不污染 cdylib；integration test（独立 crate）看不到
+/// （故全窗测试只能挂此处，见文件头机器坐实 E0433）。
+mod l3_fullwindow;
