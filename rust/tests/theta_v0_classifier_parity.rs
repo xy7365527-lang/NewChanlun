@@ -372,21 +372,37 @@ fn closes_seq(vals: &[Tick]) -> (Vec<f64>, Vec<usize>) {
     (c, src)
 }
 
-/// 第一类买点 Lean↔rust parity：破中枢（端点 < zd，对齐 Lean brokeCenter）∧ 背驰（后段 MACD 面积
-/// 严格小于前段，对齐 Lean IsDivergence forceC.area < forceA.area）⟹ rust buy1 置位，与 Lean IsType1 同。
+/// 第一类买点 Lean↔rust parity：趋势背驰（A/B/C 框架）⟹ rust buy1 置位，与 Lean IsType1 同。
+///
+/// ★fixture 对齐 tau 框架权威（divergence.rs trend_class，b8667b968f 收紧 B1=趋势背驰 A/B/C 框架）：
+/// 旧 fixture 用单中枢（Consolidation τ）产 B1 是退化语义——tau 门控下盘整背驰**不产第一类**
+/// （beichi #4 + maimai.md:56 已结算）。现对齐 `signal.rs:680-711` 的 `[c0, c1]` 两全链同向向下
+/// 中枢模式（c1.gg < c0.dd ⟹ 下跌趋势 τ=Trend(Down)），B1=趋势背驰（C 段破最后中枢 ∧ C<A 面积）。
+/// Lean IsType1 = brokeCenter ∧ IsDivergence（divPair 外参，rust MACD 真算 forceC.area < forceA.area）。
 #[test]
 fn type1_buy_broke_and_diverge_matches_lean_istype1() {
-    let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 2 };
+    // 两依次向下中枢（下跌趋势 τ=Trend(Down)），对齐 signal.rs:687-705 `first_buy_extracted_with_trend_divergence`。
+    // c1.gg=210 < c0.dd=290 ⟹ 下跌延续 ⟹ Trend(Down) ⟹ B1 可产（趋势背驰，非盘整背驰）。
+    let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
+    let c1 = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 8 };
     let segs = vec![
-        seg(Direction::Down, 3, 5, 150, 90),  // 前向下段（破中枢，作背驰对照=Lean forceA）
-        seg(Direction::Down, 6, 8, 120, 80),  // 后向下段（破中枢 ∧ 面积更小=Lean forceC < forceA）
+        seg(Direction::Down, 3, 5, 350, 250),   // A 段：C0 离开段（破 C0 下沿），MACD 面积大（强势=Lean forceA）
+        seg(Direction::Up, 5, 7, 250, 280),     // B 段：中间反向连接（构成 C1）
+        seg(Direction::Down, 9, 11, 150, 80),   // C 段：破 C1 下沿（< 100）∧ C<A 趋势背驰 ⟹ B1（=Lean forceC < forceA）
     ];
-    // 前段 bar [3,5] 大幅波动（hist 绝对值大=forceA.area 大），后段 bar [6,8] 小幅（forceC.area 小）。
-    let (closes, src) = closes_seq(&[100, 100, 100, 100, 60, 140, 100, 95, 105]);
-    let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+    // closes（merged_bars 序列，与 segment 抽象端点价解耦——结构判定在 tick 域，MACD 在浮点域，两者
+    // 不必逐 bar 一致）：A 段 bar[3,5] 急跌 hist 大=强力度（forceA.area 大），B 段 bar[5,7] 盘整让 EMA 收敛，
+    // C 段 bar[9,11] 缓动 hist 小=力度衰减=趋势背驰（手算 A area[3,5]=23.26 > C area[9,11]=9.09 ⟹ C<A 成立）。
+    let (closes, src) = closes_seq(&[
+        300, 300, 300,        // 0..2 C0 区（预热）
+        300, 100, 250,        // 3..5 A 段：急跌（hist 绝对值大=强力度）
+        250, 250, 250,        // 6..8 B 段：盘整让 EMA 收敛（hist 回拉 0 轴）
+        248, 246, 244,        // 9..11 C 段：缓动（hist 小=力度衰减=趋势背驰）
+    ]);
+    let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
     let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
     assert_eq!(buy1.len(), 1, "Lean IsType1（brokeCenter ∧ IsDivergence）⟺ rust buy1 置位");
-    assert_eq!(buy1[0].pivot_low, 80, "1 买止损=pivot_low（破中枢段端点，reference:46）");
+    assert_eq!(buy1[0].pivot_low, 80, "1 买止损=pivot_low（C 段破中枢端点，reference:46）");
 }
 
 /// 第一类反退化（Lean IsType1 需 IsDivergence）：破中枢但后段面积 >= 前段（¬IsDivergence）⟹ ¬IsType1。
@@ -413,24 +429,43 @@ fn type1_rejected_without_divergence_matches_lean() {
 /// 递归结构（descend.rs），L0 segment 是递归底（descend 得空）⟹ 结构上不可在本签名层产出。
 /// B2/S2 由平行的递归组装层入口 `extract_second_signals` 产（消费 RMove 塔，见 §层 D）——按输入对象
 /// 分工（L0 segment vs RMove 递归塔），非 extract_signals 缺口。本测试锁定 L0 层覆盖边界（B1/B3）。
+///
+/// ★fixture 对齐 tau 框架权威（divergence.rs trend_class，b8667b968f 收紧 B1=趋势背驰 A/B/C 框架）：
+/// 旧 fixture 用单中枢（Consolidation τ）产 B1 是退化语义——tau 门控下盘整背驰**不产第一类**
+/// （beichi #4 + maimai.md:56 已结算）。现对齐 `signal.rs:687-705` 的 `[c0, c1]` 两全链同向向下
+/// 中枢模式（c1.gg < c0.dd ⟹ 下跌趋势 τ=Trend(Down)），B1=趋势背驰（C 段破最后中枢 ∧ C<A 面积）。
 #[test]
 fn signal_extraction_emits_no_second_class_only() {
-    let c = Center { zd: 100, zg: 200, dd: 95, gg: 205, start_index: 0, end_index: 2 };
+    // 两依次向下中枢（下跌趋势 τ=Trend(Down)），对齐 signal.rs:687-705 `first_buy_extracted_with_trend_divergence`。
+    // c1.gg=210 < c0.dd=290 ⟹ 下跌延续 ⟹ Trend(Down) ⟹ B1 可产（趋势背驰，非盘整背驰）。
+    let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
+    let c1 = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 8 };
     let segs = vec![
-        seg(Direction::Down, 3, 5, 150, 90),   // 破中枢前段
-        seg(Direction::Down, 6, 8, 120, 80),   // 破中枢后段（背驰 → B1）
-        seg(Direction::Up, 9, 11, 80, 250),    // 离开中枢上方
-        seg(Direction::Down, 12, 14, 250, 210), // 回试不破 → B3
+        seg(Direction::Down, 3, 5, 350, 250),   // A 段：C0 离开段（破 C0 下沿），MACD 面积大（强势）
+        seg(Direction::Up, 5, 7, 250, 280),     // B 段：中间反向连接（构成 C1）
+        seg(Direction::Down, 9, 11, 150, 80),   // C 段：破 C1 下沿（< 100）∧ C<A 趋势背驰 ⟹ B1
+        seg(Direction::Up, 11, 13, 80, 260),    // 离开 C1 上方（端点 > c1.zg=200）
+        seg(Direction::Down, 13, 15, 260, 210), // 回试低点 210 > c1.zg=200（不破 ZG）⟹ B3
     ];
-    let (closes, src) = closes_seq(&[100, 100, 100, 100, 60, 140, 100, 95, 105, 100, 175, 250, 250, 230, 210]);
-    let points = extract_signals(&[c], &segs, &closes, &src, &MacdConfig::default());
+    // closes（merged_bars 序列，与 segment 抽象端点价解耦——结构判定在 tick 域，MACD 在浮点域，两者
+    // 不必逐 bar 一致）：A 段 bar[3,5] 急跌 hist 大=强力度，B 段 bar[5,7] 盘整让 EMA 收敛，C 段 bar[9,11]
+    // 缓动 hist 小=力度衰减=趋势背驰（手算 A area[3,5]=23.26 > C area[9,11]=9.09 ⟹ C<A 成立）。
+    let (closes, src) = closes_seq(&[
+        300, 300, 300,        // 0..2 C0 区（预热）
+        300, 100, 250,        // 3..5 A 段：急跌（hist 绝对值大=强力度）
+        250, 250, 250,        // 6..8 B 段：盘整让 EMA 收敛（hist 回拉 0 轴）
+        248, 246, 244,        // 9..11 C 段：缓动（hist 小=力度衰减=趋势背驰）
+        244, 250, 256,        // 11..13 离开上段：价格回升过 c1.zg=200（端点 256 > 200）
+        256, 230, 210,        // 13..15 回试：低点 210 > c1.zg=200（不破 ZG ⟹ B3）
+    ]);
+    let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
     for p in &points {
         assert!(!p.bits.buy2, "extract_signals（L0 层）不产第二类买点——B2 由 extract_second_signals 递归组装层产");
         assert!(!p.bits.sell2, "extract_signals（L0 层）不产第二类卖点——S2 由 extract_second_signals 递归组装层产");
     }
-    // 多声部确认：B1（破中枢背驰）+ B3（离开回试）均产出（消解「单声部 L0 第三类」根因）。
-    assert!(points.iter().any(|p| p.bits.buy1), "产第一类（破中枢 ∧ 背驰真算）");
-    assert!(points.iter().any(|p| p.bits.buy3), "产第三类（离开后回试不破）");
+    // 多声部确认：B1（趋势背驰 A/B/C 框架）+ B3（离开后回试不破）均产出（消解「单声部 L0 第三类」根因）。
+    assert!(points.iter().any(|p| p.bits.buy1), "产第一类（趋势背驰：C 段破最后中枢 ∧ C<A 面积）");
+    assert!(points.iter().any(|p| p.bits.buy3), "产第三类（离开后回试不破 ZG）");
 }
 
 // ════════════════════════════════════════════════════════════════════════════
