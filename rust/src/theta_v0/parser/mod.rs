@@ -52,6 +52,7 @@
 
 use super::config::ThetaConfig;
 use super::types::{Bar, Fractal, PendingTail, Segment, Stroke};
+use std::rc::Rc;
 
 /// Θ_parse 流水线分步实现（聚焦小文件，coding-style <400 行/文件）。
 pub mod inclusion;
@@ -75,7 +76,10 @@ mod profile;
 /// 不混入 confirmed。中枢（`centersOf`）移交 classifier，不在本结构（见模块头）。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ParseLayer {
-    pub merged_bars: Vec<Bar>,
+    /// Rc 共享——`ParseLayerIncr::append` 从 `IncrInclusion.merged_rc()` O(1) clone，
+    /// `parse_layer`（批量）从 `Rc::new(merged.to_vec())` O(n) 构造（单次，非每 bar）。
+    /// 下游 `&layer.merged_bars` 借用经 `Rc::deref → Vec::deref → &[Bar]`（透明）。
+    pub merged_bars: Rc<Vec<Bar>>,
     pub fractals: Vec<Fractal>,
     pub strokes: Vec<Stroke>,
     pub segments: Vec<Segment>,
@@ -166,10 +170,9 @@ impl<'c> ParseLayerIncr<'c> {
         // append 消费 self（by-value，mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
         let prev = std::mem::replace(&mut self.incr_inclusion, inclusion::IncrInclusion::empty());
         self.incr_inclusion = prev.append(bar);
-        // 增量化 to_result：借用 merged 切片（零 clone），仅在构造 ParseLayer 时 to_vec。
-        // ponytail: 剩余 ceiling = to_result_ref().merged.to_vec()（ParseLayer 拥有所有权，
-        // merged_bars: Vec<Bar> 下游 classifier/complete 依赖 Vec 语义，改 Rc/Cow 超出本工位）。
-        let merged = self.incr_inclusion.to_result_ref().merged.to_vec();
+        // merged_rc: Rc 共享 clone（O(1)），替代旧 to_result_ref().merged.to_vec() 的 O(n)/bar。
+        // 下游 fractal/stroke/segment/tail 借用 &merged（Rc::deref → &[Bar]，透明）。
+        let merged = self.incr_inclusion.merged_rc();
 
         // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
         self.incr_fractals = self.incr_fractals.append(&merged);
@@ -215,7 +218,7 @@ fn parse_layer_from_merged(merged: &[Bar], config: &ThetaConfig) -> ParseLayer {
     let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, &config.parse);
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
-        merged_bars: merged.to_vec(),
+        merged_bars: Rc::new(merged.to_vec()),
         fractals,
         strokes,
         segments,

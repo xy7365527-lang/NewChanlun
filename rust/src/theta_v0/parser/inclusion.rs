@@ -24,6 +24,7 @@
 //!   `volume` 累加，`untradable` 取或（任一不可交易则合并段不可交易）。
 
 use super::super::types::{Bar, Direction};
+use std::rc::Rc;
 
 /// 合并方向：包含处理的左折叠方向（向上吞并取高，向下吞并取低）。
 ///
@@ -198,7 +199,7 @@ pub fn process_inclusion(bars: &[Bar]) -> InclusionResult {
 /// 表示全量算法的中间态，支持 append-1-bar 增量推进。构造后不可变（函数式推进，
 /// 每次 `append` 返回新状态——coding-style immutability）。
 ///
-/// ## 存储布局（增量化 to_result，ae0118c0 残余 O(n²) 解）
+/// ## 存储布局（增量化 to_result，ae0118c0 残余 O(n²) 解 + Rc 共享 ceiling 突破）
 ///
 /// - **相 A**（`start_dir=None`）：`raw_pending` 缓存原始 bar；`merged` 为空。
 /// - **相 B**（`start_dir=Some`）：`merged` 是**连续**的合并序列——`merged[..len-1]`
@@ -206,14 +207,22 @@ pub fn process_inclusion(bars: &[Bar]) -> InclusionResult {
 ///   返回 `&self.merged`（零 clone）；旧 `merged_prefix.clone() + push(acc)` 每 bar
 ///   clone 整个 Vec 的 O(n²) 已消除。
 ///
-/// // ponytail: 剩余 ceiling = `append_folded` 的 immutability clone（O(n)/bar，
-/// // coding-style 强制）。进一步降 O(1) 需可变状态或共享所有权，超出本工位范围。
+/// `merged: Rc<Vec<Bar>>`（Rc 共享所有权，#93 incr_total ceiling 突破）：
+/// `ParseLayerIncr::append` 的 O(n²) 主导 = `to_result_ref().merged.to_vec()` 每 bar
+/// clone 整个 merged 填 `ParseLayer.merged_bars`。改 Rc 后 `merged_rc()` 返回
+/// `Rc::clone`（O(1) refcount bump），`ParseLayer.merged_bars: Rc<Vec<Bar>>` 共享同一
+/// 分配。`append_folded` 用 `Rc::make_mut` 突变——当 `strong_count==1`（prev.append 消费
+/// prev，上一轮 ParseLayer 已 drop）时 O(1)；若上一轮 ParseLayer 仍存活则 O(n) deep copy
+/// （调用方须丢弃上一轮 ParseLayer 以保 O(1)，profile/runner 均如此）。
+///
+/// // ponytail: 无剩余 ceiling（incr_total O(n²) → O(n) 已闭合）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IncrInclusion {
     /// 相 A：开头方向未定时缓存原始 bar（方向确定后清空）。
     raw_pending: Vec<Bar>,
     /// 相 B：连续合并序列（confirmed 前缀 + 末尾 acc）。相 A 下为空。
-    merged: Vec<Bar>,
+    /// Rc 共享——`merged_rc()` 给 `ParseLayer.merged_bars` O(1) clone，`make_mut` 突变。
+    merged: Rc<Vec<Bar>>,
     /// 相 B：当前折叠方向。
     dir: MergeDir,
     /// 开头方向（None = 相 A 仍 only_open_tail；Some = 相 B 已定方向）。
@@ -225,7 +234,7 @@ impl IncrInclusion {
     pub fn empty() -> Self {
         IncrInclusion {
             raw_pending: Vec::new(),
-            merged: Vec::new(),
+            merged: Rc::new(Vec::new()),
             dir: Direction::Up, // 占位（相 A 不用）；定方向时覆盖。
             start_dir: None,
         }
@@ -249,7 +258,7 @@ impl IncrInclusion {
             // 全程无方向：原始 bar 序列 = merged（未合并）。回到相 A 等待方向出现。
             return IncrInclusion {
                 raw_pending: prev.merged.clone(),
-                merged: Vec::new(),
+                merged: Rc::new(Vec::new()),
                 dir: Direction::Up,
                 start_dir: None,
             };
@@ -264,7 +273,7 @@ impl IncrInclusion {
         };
         IncrInclusion {
             raw_pending: Vec::new(),
-            merged: prev.merged.clone(),
+            merged: Rc::new(prev.merged.clone()),
             dir,
             start_dir: Some(dir),
         }
@@ -286,7 +295,7 @@ impl IncrInclusion {
     /// 当前状态快照为 `InclusionResult`（与全量输出 bit-exact）。
     ///
     /// 拥有版（clone merged）——供测试 / `from_result` / 便利函数使用。热路径
-    /// （`ParseLayerIncr::append`）应改用 `to_result_ref()` 零 clone 借用。
+    /// （`ParseLayerIncr::append`）应改用 `merged_rc()` O(1) Rc 共享。
     pub fn to_result(&self) -> InclusionResult {
         let (merged, only_open_tail) = self.merged_view();
         InclusionResult {
@@ -298,7 +307,7 @@ impl IncrInclusion {
     /// 当前状态快照的借用视图（零 clone，与全量输出 bit-exact）。
     ///
     /// 返回 `merged: &[Bar]` 指向内部连续存储（相 A = `raw_pending`，相 B = `merged`），
-    /// 内容与 `to_result().merged` 逐字段相同。热路径调用方据此避免每 bar clone 整个 Vec。
+    /// 内容与 `to_result().merged` 逐字段相同。
     pub fn to_result_ref(&self) -> InclusionResultRef<'_> {
         let (merged, only_open_tail) = self.merged_view();
         InclusionResultRef {
@@ -307,11 +316,26 @@ impl IncrInclusion {
         }
     }
 
+    /// 合并序列的 Rc 共享句柄（O(1) refcount bump，#93 incr_total ceiling 突破）。
+    ///
+    /// 相 B 返回 `Rc::clone(&self.merged)`（与 `to_result_ref().merged` 内容 bit-exact，
+    /// 共享同一分配）；相 A 返回 `Rc::new(self.raw_pending.clone())`（相 A 稀少，一次性
+    /// O(n) 可接受——仅全程无方向时停留相 A）。供热路径 `ParseLayerIncr::append` 替代
+    /// `to_result_ref().merged.to_vec()` 的每 bar O(n) clone。
+    ///
+    /// bit-exact：返回的 Rc<Vec<Bar>> 内容 == `to_result().merged` 逐字段。
+    pub fn merged_rc(&self) -> Rc<Vec<Bar>> {
+        match self.start_dir {
+            None => Rc::new(self.raw_pending.clone()),
+            Some(_) => Rc::clone(&self.merged),
+        }
+    }
+
     /// 内部：返回合并序列的借用切片 + only_open_tail 标志。
     fn merged_view(&self) -> (&[Bar], bool) {
         match self.start_dir {
             None => (&self.raw_pending, true),
-            Some(_) => (&self.merged, false),
+            Some(_) => (self.merged.as_slice(), false),
         }
     }
 
@@ -343,7 +367,7 @@ impl IncrInclusion {
                 // 仍 only_open_tail。
                 IncrInclusion {
                     raw_pending: raw,
-                    merged: Vec::new(),
+                    merged: Rc::new(Vec::new()),
                     dir: Direction::Up,
                     start_dir: None,
                 }
@@ -354,7 +378,7 @@ impl IncrInclusion {
                 let (merged, dir) = fold_all(&raw, dir0);
                 IncrInclusion {
                     raw_pending: Vec::new(),
-                    merged,
+                    merged: Rc::new(merged),
                     dir,
                     start_dir: Some(dir0),
                 }
@@ -364,18 +388,19 @@ impl IncrInclusion {
 
     /// 相 B 推进：O(1) left-fold 步进（镜像全量算法 inclusion.rs:137-148 循环体）。
     ///
-    /// 连续布局：`merged` 末根即 acc。mem::take 取出 Vec 缓冲（消费 self，函数式不变性），
-    /// pop 旧 acc（仅尾部 mutation，前缀不动），fold_step 推进，push 新 acc。全程 O(1)，
-    /// 消除旧 clone 整个 Vec 的 O(n)/bar。`to_result_ref` 据此零 clone 返回 `&self.merged`。
-    fn append_folded(self, new_bar: Bar) -> IncrInclusion {
-        let mut merged = self.merged;
+    /// 连续布局：`merged` 末根即 acc。`Rc::make_mut` 取得可变借用（消费 self 的 Rc 所有权），
+    /// pop 旧 acc（仅尾部 mutation，前缀不动），fold_step 推进，push 新 acc。当 `strong_count==1`
+    /// （prev.append 消费 prev，上一轮 ParseLayer 已 drop）时全程 O(1)；`strong_count>1` 时
+    /// make_mut deep copy O(n)（调用方须丢弃上一轮 ParseLayer 保 O(1)）。
+    fn append_folded(mut self, new_bar: Bar) -> IncrInclusion {
+        let merged = Rc::make_mut(&mut self.merged);
         // 末根即 acc（相 B 不变量：merged 非空）。
         let acc = merged.pop().expect("相 B 下 merged 非空（acc 在末尾，不变量）");
-        let (new_acc, new_dir) = fold_step(&acc, new_bar, self.dir, &mut merged);
+        let (new_acc, new_dir) = fold_step(&acc, new_bar, self.dir, merged);
         merged.push(new_acc);
         IncrInclusion {
             raw_pending: Vec::new(),
-            merged,
+            merged: self.merged,
             dir: new_dir,
             start_dir: self.start_dir,
         }

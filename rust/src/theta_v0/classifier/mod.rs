@@ -45,6 +45,7 @@ use super::config::ThetaConfig;
 use super::parser::ParseLayer;
 use super::types::{Center, Direction, MoveKind, Segment};
 use divergence::MacdState;
+use std::rc::Rc;
 
 pub mod center;
 pub mod ref_v1;
@@ -925,7 +926,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); } // L1[0] 大幅
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 5 } else { -5 }); }   // L1[1] 小幅（背驰）
         for i in 0..16 { closes.push(100 + if i % 2 == 0 { 3 } else { -3 }); }   // L1[2] 更小
-        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let out = classify(&layer, &cfg);
 
         // L1 级别（索引 1）含 L2 中枢 + B2（递归组装层产出）。
@@ -962,7 +963,7 @@ mod tests {
             seg(Direction::Up,   8, 12, 100, 200),
         ];
         let closes: Vec<i64> = (0..16).map(|i| 100 + (i % 4) * 10).collect();
-        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let out = classify(&layer, &cfg);
         // L0 级别 bsp 不含第二类（三段交替窗口结构上界）。
         for p in &out.levels[0].bsp {
@@ -1144,7 +1145,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
         for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
         for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let (_, tower) = classify_with_tower(&layer, &cfg);
         assert!(!tower.is_empty(), "tower 非空（至少 L0 级被处理）");
         assert!(tower.len() >= 2, "9 段 L0 → 3 个 L1 走势 → L2 中枢 ⟹ tower 至少 2 层");
@@ -1172,7 +1173,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
         for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
         for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let expected = classify(&layer, &cfg);
         let (actual, _) = classify_with_tower(&layer, &cfg);
         assert_eq!(actual, expected, "classify_with_tower Classification 与 classify bit-identical（原分类不变）");
@@ -1207,7 +1208,7 @@ mod tests {
             let segments = synthetic_segments(n);
             let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 5) * 5).collect();
             let layer =
-                ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+                ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
 
             let (full_cls, full_tower) = classify_with_tower(&layer, &cfg);
             let mut cache = TowerCache::new();
@@ -1238,7 +1239,7 @@ mod tests {
             let segments = all_segments[..n].to_vec();
             let layer = ParseLayer {
                 segments,
-                merged_bars: bars_from_closes(&closes),
+                merged_bars: Rc::new(bars_from_closes(&closes)),
                 ..Default::default()
             };
 
@@ -1273,12 +1274,12 @@ mod tests {
         let mut cache = TowerCache::new();
         // 先追加到 12 段。
         let layer_full =
-            ParseLayer { segments: all_segments.clone(), merged_bars: bars_from_closes(&closes), ..Default::default() };
+            ParseLayer { segments: all_segments.clone(), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let _ = classify_with_tower_incremental(&layer_full, &cfg, &mut cache);
         // 回缩到 8 段（parser 回撤）。
         let layer_shrink = ParseLayer {
             segments: all_segments[..8].to_vec(),
-            merged_bars: bars_from_closes(&closes),
+            merged_bars: Rc::new(bars_from_closes(&closes)),
             ..Default::default()
         };
         let (full_cls, full_tower) = classify_with_tower(&layer_shrink, &cfg);
@@ -1308,7 +1309,7 @@ mod tests {
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
         for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
         for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
-        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let layer = ParseLayer { segments, merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
 
         let (full_cls, _) = classify_with_tower(&layer, &cfg);
         let mut cache = TowerCache::new();
@@ -1348,7 +1349,7 @@ mod tests {
             for k in 1..=n {
                 let layer = ParseLayer {
                     segments: all_segments[..k].to_vec(),
-                    merged_bars: bars_from_closes(&closes),
+                    merged_bars: Rc::new(bars_from_closes(&closes)),
                     ..Default::default()
                 };
                 let _ = classify_with_tower(&layer, &cfg);
@@ -1361,7 +1362,7 @@ mod tests {
             for k in 1..=n {
                 let layer = ParseLayer {
                     segments: all_segments[..k].to_vec(),
-                    merged_bars: bars_from_closes(&closes),
+                    merged_bars: Rc::new(bars_from_closes(&closes)),
                     ..Default::default()
                 };
                 let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
