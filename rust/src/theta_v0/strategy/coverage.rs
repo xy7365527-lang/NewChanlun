@@ -946,10 +946,12 @@ pub fn coverage_step_classification(
     base_units: f64,
     config: &VoiceConfig,
 ) -> (Vec<ActiveLeg>, f64) {
-    // 真父子组合元素（tree ++ 638 附着候选）——σ_p=父容器方向（639）+ AncOK 持仓准入的单一元素来源。
-    let (elements, candidate_start) = interp::coverage_elements_with_tower(classification, tower);
-    // 环5：候选集 Γ（V 由真父派生）+ 解释器三桶（𝒟_x 反向关闭喂 prev_active）。
-    let gamma = interp::assemble_gamma_with_tower(classification, tower);
+    // H2 优化：单次建树产 (elements, candidate_start) + gamma——消除旧版每 bar 双调
+    // extract_elements(tower) 的冗余（coverage_elements_with_tower + assemble_gamma_with_tower
+    // 各建树一次，第二次纯重复）。bit-exact：同 (classification, tower) 同一建树输出。
+    let ((elements, candidate_start), gamma) =
+        interp::coverage_elements_and_gamma_with_tower(classification, tower);
+    // 环5：解释器三桶（𝒟_x 反向关闭喂 prev_active）。
     let buckets = interp::interpret(&gamma, prev_active);
     // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ShortDiff 未持父则剔除，639(c)）。
     coverage_step_from_buckets(&elements, candidate_start, prev_active, &buckets, base_units, config)

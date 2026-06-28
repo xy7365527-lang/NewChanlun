@@ -235,41 +235,14 @@ fn nest_confirm(level: u32, source_index: usize, bits: &BspBits, dir: VoiceSide)
 //  谱系：638 + 547 + coverage-engine-needs-tower-export-bridge + b2s2-still-missing-tower
 // ════════════════════════════════════════════════════════════════════════════
 
-/// 一个买卖点候选的 [`CoverageElement`]，按 **638 hostOf 附着**到真元素树 `tree`。
-///
-/// `dir`：候选操作方向 δ_g（[`candidate_dir`] 消歧；Flat 占位 Long——Flat 候选下游归 𝒦 不执行，
-/// 占位不伪装方向，与扁平 [`assemble_gamma`] 同口径）。`parent`/`attached_dir` 来自
-/// [`coverage::attach_bsp_to_tree`]（hostOf 的真 Compose 父索引 + σ_{p(g)}，铁律：真父子非级别差）。
-/// `lambda=rho=source_index`：候选坐在 hostOf 右端点（reference:16），无独立操作区间跨度
-/// （[`coverage::operation_role`]/[`coverage::leg_target`] 只读 parent/level/eps/attached_dir）。
-fn bsp_element_attached(
-    tree: &[CoverageElement],
-    level_g: u32,
-    source_index: usize,
-    dir: VoiceSide,
-) -> CoverageElement {
-    let (parent, attached_dir) = coverage::attach_bsp_to_tree(tree, level_g, source_index);
-    CoverageElement {
-        lambda: source_index,
-        rho: source_index,
-        eps: match dir {
-            VoiceSide::Flat => VoiceSide::Long, // 占位（Flat 候选归 𝒦，角色不执行）
-            d => d,
-        },
-        level: level_g,
-        parent,
-        attached_dir,
-    }
-}
-
 /// 从真嵌套塔 + 638 附着规则构造**组合元素数组**（真元素树 ++ 附着的买卖点候选元素）。
 ///
 /// 这是塔导出桥 (ii) **喂入段**的核心：替换 [`assemble_gamma`] 的扁平全根（独立根 ∂、V 恒 Ambient）。
 /// 两段：
 /// 1. `tree = extract_elements(tower)`：真嵌套元素树（`RMove::Compose` 真父子，547 铁律守护——
 ///    父只来自 `sub_moves` 真包含，非级别差伪造）。
-/// 2. 每个 bsp 候选 → 一个 [`CoverageElement`]（[`bsp_element_attached`]），按 638 hostOf 附着到
-///    `tree`（继承 hostOf 的真父 + 父方向 σ_{p(g)}）。候选元素追加在 `tree` 之后。
+/// 2. 每个 bsp 候选 → 一个 [`CoverageElement`]（[`coverage::attach_bsp_to_tree`] hostOf 附着），
+///    按 638 hostOf 附着到 `tree`（继承 hostOf 的真父 + 父方向 σ_{p(g)}）。候选元素追加在 `tree` 之后。
 ///
 /// 返回 `(elements, candidate_start)`：`elements[..candidate_start]` 是真元素树，
 /// `elements[candidate_start..]` 是附着候选（**按 `classification.levels` 层序 × 每层 `bsp` 序追加**
@@ -287,17 +260,10 @@ pub fn coverage_elements_with_tower(
     classification: &Classification,
     tower: &[Vec<LeveledMove>],
 ) -> (Vec<CoverageElement>, usize) {
-    // 真嵌套元素树（独立 immutable 视图，供 hostOf 附着查表；铁律：真父子来自 push_element_tree）。
-    let tree = coverage::extract_elements(tower);
-    let candidate_start = tree.len();
-    let mut elements = tree.clone();
-    for (level_idx, level) in classification.levels.iter().enumerate() {
-        let lvl = level_idx as u32;
-        for point in &level.bsp {
-            let dir = candidate_dir(&point.bits);
-            elements.push(bsp_element_attached(&tree, lvl, point.source_index, dir));
-        }
-    }
+    // H2 优化：委托 [`coverage_elements_and_gamma_with_tower`]（单次建树，无 tree.clone()），
+    // 丢弃 gamma 仅返 (elements, candidate_start)。bit-exact == 旧版（同 extract_elements 输出）。
+    let ((elements, candidate_start), _gamma) =
+        coverage_elements_and_gamma_with_tower(classification, tower);
     (elements, candidate_start)
 }
 
@@ -318,16 +284,53 @@ pub fn assemble_gamma_with_tower(
     classification: &Classification,
     tower: &[Vec<LeveledMove>],
 ) -> Vec<Candidate> {
-    // 真父子组合元素（tree ++ 附着候选）——role 单一来源（V 由真 σ_{p(g)} 派生）。
-    let (elements, candidate_start) = coverage_elements_with_tower(classification, tower);
-    let mut out: Vec<Candidate> = Vec::new();
+    // H2 优化：委托 [`coverage_elements_and_gamma_with_tower`]（单次建树），丢弃 elements 仅返 gamma。
+    // bit-exact == 旧版（同 extract_elements 输出 + 同候选序）。
+    let (_elements_and_start, gamma) =
+        coverage_elements_and_gamma_with_tower(classification, tower);
+    gamma
+}
+
+/// 组合元素 + 候选集 Γ **单次建树**（H2 优化：消除 `coverage_step_classification` 每 bar 双调
+/// `extract_elements` 的冗余——同 `(classification, tower)` 建树两次，第二次纯重复）。
+///
+/// 与分别调 [`coverage_elements_with_tower`] + [`assemble_gamma_with_tower`] **bit-exact 等价**：
+/// 同一 `extract_elements(tower)` 产同一 `elements`/`candidate_start`，候选段同序追加，`gamma`
+/// 的 `ci` 与候选段偏移 1:1 对齐（[`coverage_elements_with_tower`] 不变量契约）。
+///
+/// **认识论 L0**：纯结构组装去重，无语义变化（bit-exact，同源数据同源建树）。
+pub fn coverage_elements_and_gamma_with_tower(
+    classification: &Classification,
+    tower: &[Vec<LeveledMove>],
+) -> ((Vec<CoverageElement>, usize), Vec<Candidate>) {
+    // 真嵌套元素树（单 Vec，无 tree.clone()——前缀=tree，候选尾部 append）。
+    let mut elements = coverage::extract_elements(tower);
+    let candidate_start = elements.len();
+    let mut gamma: Vec<Candidate> = Vec::new();
     // ci 沿候选追加序遍历 elements 的候选段（与 coverage_elements_with_tower 同 level×bsp 序）。
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
         for point in &level.bsp {
             let dir = candidate_dir(&point.bits);
-            out.push(Candidate {
+            // hostOf 查表只读 tree 前缀（elements[..candidate_start]，候选 append 期间不变）。
+            let (parent, attached_dir) = coverage::attach_bsp_to_tree(
+                &elements[..candidate_start],
+                lvl,
+                point.source_index,
+            );
+            elements.push(CoverageElement {
+                lambda: point.source_index,
+                rho: point.source_index,
+                eps: match dir {
+                    VoiceSide::Flat => VoiceSide::Long,
+                    d => d,
+                },
+                level: lvl,
+                parent,
+                attached_dir,
+            });
+            gamma.push(Candidate {
                 level: lvl,
                 source_index: point.source_index,
                 bits: point.bits,
@@ -335,13 +338,18 @@ pub fn assemble_gamma_with_tower(
                 bsp_class: min_class(&point.bits, dir),
                 role: coverage::operation_role(&elements, ci), // 真父子 ⟹ V 真出（非恒 Ambient）
                 nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
-                gamma_index: out.len(),
+                gamma_index: gamma.len(),
             });
             ci += 1;
         }
     }
-    out
+    ((elements, candidate_start), gamma)
 }
+// ponytail: ceiling = 跨 bar 复用 extract_elements 前缀。tower.levels[k].upper_moves 前缀不可变
+// （TowerCache 不变量），但 extract_elements 从最高非空级建根——当更高级新出现时根结构重构
+// （旧根变新根的 sub_moves），元素索引重映射，前缀不可简单 append 复用。需检测"最高级是否变化"
+// + 索引重映射表，bit-exact 风险高，超出 ponytail ultra 最小 diff 范围。当前每 bar 单次建树
+// 已消除双调冗余（H2 主要收益），跨 bar 前缀复用留后续工位。
 
 // ════════════════════════════════════════════════════════════════════════════
 //  环3c：执行层 σ_{p(g)} = **父容器方向**（639 settle，取代删除的"活动父腿"错口径）
