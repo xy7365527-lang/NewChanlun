@@ -72,10 +72,25 @@ pub struct RunResult {
     /// 证明 account+twState 每 bar 真更新喂回（非开环单帧构造一次）——见
     /// `closed_loop_threads_every_bar` 见证。`None` 仅当 bars 为空。
     pub closed_loop_final: Option<AssemblyState>,
-    /// ★每笔完整平仓交易的**成交盈亏**（非 mark-to-market 浮动）——L2 统计检验
-    /// （[`metrics::significance`] block bootstrap / 随机对照）与成交 PnL 分布的输入。
+    /// ★每笔完整平仓交易的**已实现成交盈亏**（**不含**窗口终点强平的浮盈）——§3.4 block
+    /// bootstrap（H0:收益≤0）的输入，**已实现口径**。区别于含浮盈口径（[`trade_pnls_with_forced`]）。
     /// 真实数据回测时这是 L2 否证/确认的数据基础（区别于 `metrics.strat_return` 的 MtM 口径）。
     pub trade_pnls: Vec<f64>,
+    /// ★每笔交易盈亏的**含浮盈口径**（窗口终点对未平仓持仓强制平仓，实现所有浮盈）。
+    /// 编排者铁律「不把浮盈算上不合理」——对「少平仓长持有」策略，持仓期 MtM 浮盈是择时载体，
+    /// 剔除它=系统性抹掉。已实现口径（[`trade_pnls`]）与含浮盈口径**并列诚实报告**（231号）。
+    pub trade_pnls_with_forced: Vec<f64>,
+    /// ★交易执行轨迹（[`metrics::TradeRecord`]）——操作语义随机入场对照（§4 重写）的输入。
+    /// 含 entry_bar/hold_bars/qty/forced_close，随机对照保操作外形随机化入场点检验择时 alpha。
+    pub trades: Vec<metrics::TradeRecord>,
+    /// 原始价格序列（close 口径，与账本侧 `apply_order` 成交价一致）——随机对照在其上重执行。
+    pub prices: Vec<f64>,
+    /// 单边费用率（commission+slippage+tax 比率）——随机对照含同等成本。
+    pub fee_rate: f64,
+    /// Θ MtM 复利口径 total_return（= `metrics.strat_return`）——**仅作 significance 报告参考**
+    /// （`theta_return_mtm`），**不是**随机对照比较基准。实际比较用 significance 内部算的
+    /// `theta_return_same_caliber`（逐笔无复利同口径）——消除复利偏置（codex 实现审查缺陷①②）。
+    pub theta_return_mtm: f64,
     /// 逐 bar（聚合前）returns 序列——Sharpe 标准误（Lo 2002）与显著性检验的输入。
     pub daily_returns: Vec<f64>,
 }
@@ -123,18 +138,36 @@ pub fn run_theta_v0(
     // 对齐 Origin.TotalWealth：TW = free（cash）+ holding（units × current_price）。
     // ★认识论：账本更新 = L0（Origin.TotalWealth 结构恒等）；指标结果 = L2（真实数据回测）。
     let closed_loop_final = run_closed_loop(bars, initial_nav);
-    let (equity_curve, daily_returns, trade_pnls, n_orders_cl) =
-        plan_and_fill_mtm(&decisions, bars, initial_nav, config);
+    let fill = plan_and_fill_mtm(&decisions, bars, initial_nav, config);
 
     // buy&hold 对照（首尾 close，整数 tick → f64 比率，无 tick_size 依赖）。
     let bh_return = buy_and_hold_return(bars);
 
-    let m = metrics::compute(&equity_curve, &daily_returns, &trade_pnls, years, bh_return);
+    // metrics.compute 用含浮盈口径的 trade_pnls（终点强平，编排者铁律「浮盈算上」）——
+    // strat_return（MtM 权益曲线）本就含浮盈，win_rate/profit_factor/top5 用含浮盈口径对齐。
+    let m = metrics::compute(
+        &fill.equity_curve,
+        &fill.daily_returns,
+        &fill.trade_pnls_with_forced,
+        years,
+        bh_return,
+    );
 
-    let n_orders = n_orders_cl;
+    let n_orders = fill.n_orders;
     let untradable_ratio = dataset.untradable_ratio();
     // L2 判据：产出非空订单流（阻塞点解除）+ 真实数据。订单空 ⇒ 仅 L1（管线串通）。
     let is_l2 = n_orders > 0;
+
+    // 原始价格序列（close 口径，与账本侧成交价一致）——操作语义随机对照在其上重执行。
+    let prices: Vec<f64> = bars
+        .iter()
+        .map(|b| b.close as f64 * config.tick.tick_size)
+        .collect();
+    let fee_rate =
+        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    // Θ MtM 复利口径 total_return（权益曲线）——仅 significance 报告参考，非比较基准
+    // （比较用 significance 内部同口径值；先取，m 随后 move）。
+    let theta_return_mtm = m.strat_return;
 
     RunResult {
         symbol: dataset.symbol.clone(),
@@ -144,8 +177,13 @@ pub fn run_theta_v0(
         untradable_ratio,
         is_l2,
         closed_loop_final,
-        trade_pnls,
-        daily_returns,
+        trade_pnls: fill.trade_pnls_realized,
+        trade_pnls_with_forced: fill.trade_pnls_with_forced,
+        trades: fill.trades,
+        prices,
+        fee_rate,
+        theta_return_mtm,
+        daily_returns: fill.daily_returns,
     }
 }
 
@@ -196,12 +234,28 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
     }
 }
 
+/// [`plan_and_fill_mtm`] 的完整产出（双口径 trade_pnls + 操作语义随机对照的输入）。
+struct FillOutput {
+    /// 逐 bar 归一化权益曲线（MtM 含浮盈）。
+    equity_curve: Vec<f64>,
+    /// 逐 bar returns（Sharpe/显著性输入）。
+    daily_returns: Vec<f64>,
+    /// 已实现成交盈亏（**不含**窗口终点强平浮盈，§3.4 bootstrap 输入）。
+    trade_pnls_realized: Vec<f64>,
+    /// 含浮盈成交盈亏（窗口终点强平未平仓持仓，编排者铁律「浮盈算上」）。
+    trade_pnls_with_forced: Vec<f64>,
+    /// 交易执行轨迹（[`metrics::TradeRecord`]，含强平笔；随机对照输入）。
+    trades: Vec<metrics::TradeRecord>,
+    /// 执行订单数（n_orders_executed > 0 ⟺ is_l2）。
+    n_orders: usize,
+}
+
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
 ///
 /// 接收 `recognize` 批产的 `Vec<VoiceDecision>`，按 `exec_index` 分组，逐 bar 推进：
 /// - 每到 `exec_index == i` 时，用当前账本 TW（`cash + units × px`）构造 `AccountState`，
 ///   以当前账本 NAV 重新 `plan_orders`（sizing 用真实账本，非固定初始 NAV）。
-/// - `apply_order` 执行 fill（cash/units/entry_price/voice_qty 四态同步更新）。
+/// - `apply_order` 执行 fill（cash/units/entry_cost/voice_qty 四态同步更新，成本对称）。
 /// - 推进权益曲线（bar 级，归一化为 ÷initial_nav）。
 ///
 /// **对齐 Origin.TotalWealth**：`TW = free（cash）+ holding（units × current_price）`。
@@ -211,14 +265,21 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
 /// fill 后按 action 更新：Buy/Add → `voice_qty[depth] += qty`；Close/Reduce → 减。
 /// 当前 recognize 产单声部 depth=0，voice_qty 维护精确（多声部时仍正确按 depth 分组）。
 ///
-/// 返回 `(equity_curve, daily_returns, trade_pnls, n_orders_executed)`（L2 等级，真实数据时
-/// n_orders_executed > 0 ⟺ is_l2 = true）。
+/// **★含浮盈口径（2026-06-28，编排者铁律「不把浮盈算上不合理」）**：窗口终点（末 bar）对所有
+/// 未平仓持仓**强制平仓**（close 成交 + 卖出费），实现持仓期浮盈。`trade_pnls_realized`（不含
+/// 强平）与 `trade_pnls_with_forced`（含强平）双口径并列产出。强平笔在 [`metrics::TradeRecord`]
+/// 打 `forced_close=true`（统计功效门槛 n≥30 不计强平笔，避免偷过——见 runner L2/L3 测试）。
+///
+/// **★交易轨迹**：每笔完整开平记 [`metrics::TradeRecord`]（entry_bar/exit_bar/hold_bars/qty），
+/// 作操作语义随机入场对照（§4 重写）的输入。v0 单声部多头全开全平，开-平配对唯一。
+///
+/// 返回 [`FillOutput`]（L2 等级，真实数据时 n_orders > 0 ⟺ is_l2 = true）。
 fn plan_and_fill_mtm(
     decisions: &[VoiceDecision],
     bars: &[Bar],
     initial_nav: f64,
     config: &ThetaConfig,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>, usize) {
+) -> FillOutput {
     use super::super::strategy::exec::fill_bar_index;
     use super::super::strategy::voice;
     use super::super::strategy::voice::VoiceSide;
@@ -243,7 +304,8 @@ fn plan_and_fill_mtm(
 
     let mut cash: f64 = nav0;
     let mut units: f64 = 0.0;
-    let mut entry_price: f64 = 0.0;
+    // entry_cost：含买入费的每单位加权平均成本基（成本对称，见 apply_order）。
+    let mut entry_cost: f64 = 0.0;
     // voice_qty：各深度声部持仓手数，对齐 AccountState.voice_qty 语义。
     let mut voice_qty: Vec<u32> = vec![0u32; config.voice.max_depth as usize];
     // ★持仓声部台账（退出决策生成器的状态）：按 depth 记录入场快照（方向 + 止损价 + 决策快照），
@@ -256,6 +318,10 @@ fn plan_and_fill_mtm(
     let mut equity_curve = Vec::with_capacity(n);
     let mut trade_pnls: Vec<f64> = Vec::new();
     let mut n_orders_executed: usize = 0;
+    // ★交易轨迹追踪（操作语义随机对照输入）：当前持仓的开仓 bar（None=空仓）+ 已完成轨迹。
+    // v0 单声部多头全开全平 ⟹ 开仓记 entry_bar，平仓到 units=0 时配对产 TradeRecord。
+    let mut trades: Vec<metrics::TradeRecord> = Vec::new();
+    let mut pos_entry_bar: Option<usize> = None;
 
     for i in 0..n {
         let bar = &bars[i];
@@ -279,7 +345,12 @@ fn plan_and_fill_mtm(
             for (o, d) in orders.iter().zip(exit_decisions.iter()) {
                 if o.qty > 0 && matches!(o.action, StrictAction::Close) {
                     let depth = d.depth as usize;
-                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_price, &mut trade_pnls);
+                    let units_before = units;
+                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    // ★轨迹配对：平仓到 units=0 ⟹ 一笔完整交易（非强平，正常退出）。
+                    track_close_to_trade(
+                        &mut trades, &mut pos_entry_bar, units_before, units, i, false,
+                    );
                     apply_voice_qty(&mut voice_qty, depth, o);
                     // 平仓后台账状态机：全平 ⟹ 清台账（held=None）；未全平（退化边界，build_exit_order
                     // 是全平 q，正常不发生）⟹ 保留台账但重置 exit_pending，允许下一 bar 重新评估退出
@@ -325,7 +396,18 @@ fn plan_and_fill_mtm(
                         )
                     });
                     let depth = matched.map(|d| d.depth as usize).unwrap_or(0);
-                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_price, &mut trade_pnls);
+                    let units_before = units;
+                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    // ★轨迹追踪：开仓（units 0→正）⟹ 记入场 bar；意外平仓（Sell 翻空到 0）⟹ 配对。
+                    if matches!(o.action, StrictAction::Buy | StrictAction::Add) {
+                        if units_before <= 0.0 && units > 0.0 {
+                            pos_entry_bar = Some(i); // 新仓开仓 bar（加仓不重置，延续首次入场）
+                        }
+                    } else if matches!(o.action, StrictAction::Sell | StrictAction::Close | StrictAction::Reduce) {
+                        track_close_to_trade(
+                            &mut trades, &mut pos_entry_bar, units_before, units, i, false,
+                        );
+                    }
                     apply_voice_qty(&mut voice_qty, depth, o);
                     // ★开仓订单 ⟹ 记入持仓台账（退出生成器读它）。止损价由入场决策的
                     // stop_in + 方向算出（与 build_open_order 内 structural_stop 同一函数）。
@@ -381,8 +463,75 @@ fn plan_and_fill_mtm(
         equity_curve.push(equity);
     }
 
+    // ── ★窗口终点强制平仓（含浮盈口径，编排者铁律「不把浮盈算上不合理」）──
+    // 已实现口径 trade_pnls（循环内 close_long push）**不含**最后一段未平仓持仓的浮盈；
+    // 含浮盈口径在此对剩余 units 按末 bar close 强平（含卖出费），实现持仓期浮盈。
+    // 双口径并列：trade_pnls_realized（不含强平）+ trade_pnls_with_forced（含强平）。
+    let mut trade_pnls_with_forced = trade_pnls.clone();
+    if units > 0.0 {
+        // 末 bar 的 close 作强平价（含浮盈口径——窗口边界 mark-to-market 实现）。
+        if let Some(last_bar) = bars.last() {
+            let last_px = last_bar.close as f64 * config.tick.tick_size;
+            if last_px > 0.0 {
+                let proceeds = units * last_px * (1.0 - fee_rate);
+                let cost_basis = units * entry_cost; // entry_cost 含买入费（成本对称）
+                let forced_pnl = proceeds - cost_basis;
+                trade_pnls_with_forced.push(forced_pnl);
+                // 强平笔轨迹（forced_close=true，统计功效门槛不计——见 L2/L3 测试）。
+                if let Some(entry_bar) = pos_entry_bar.take() {
+                    let exit_bar = n.saturating_sub(1);
+                    let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
+                    trades.push(metrics::TradeRecord {
+                        entry_bar,
+                        exit_bar,
+                        hold_bars,
+                        qty: units,
+                        long: true,
+                        forced_close: true,
+                    });
+                }
+            }
+        }
+    }
+
     let daily_returns = bar_returns(&equity_curve);
-    (equity_curve, daily_returns, trade_pnls, n_orders_executed)
+    FillOutput {
+        equity_curve,
+        daily_returns,
+        trade_pnls_realized: trade_pnls,
+        trade_pnls_with_forced,
+        trades,
+        n_orders: n_orders_executed,
+    }
+}
+
+/// ★交易轨迹配对（平仓事件 → [`metrics::TradeRecord`]）。
+///
+/// 平仓到 `units` 回 0（`units_before > 0 ∧ units_after ≤ 0`）⟹ 一笔完整交易闭合：用追踪的
+/// `pos_entry_bar` 与当前 bar `exit_bar` 配对产 TradeRecord（hold_bars = exit−entry，≥1）。
+/// `forced` 标记是否窗口终点强平。v0 单声部全平 ⟹ 开-平配对唯一。未平到 0（部分减仓）⟹ 不闭合
+/// （延续持仓，entry_bar 不变）——v0 build_exit_order 全平 q，部分减仓是退化边界。
+fn track_close_to_trade(
+    trades: &mut Vec<metrics::TradeRecord>,
+    pos_entry_bar: &mut Option<usize>,
+    units_before: f64,
+    units_after: f64,
+    exit_bar: usize,
+    forced: bool,
+) {
+    if units_before > 0.0 && units_after <= 0.0 {
+        if let Some(entry_bar) = pos_entry_bar.take() {
+            let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
+            trades.push(metrics::TradeRecord {
+                entry_bar,
+                exit_bar,
+                hold_bars,
+                qty: units_before, // 平掉的手数 = 平仓前持仓
+                long: true,
+                forced_close: forced,
+            });
+        }
+    }
 }
 
 /// 持仓声部台账项（退出决策生成器的状态，对齐 §9 closePred 读出所需的入场快照）。
@@ -570,7 +719,7 @@ fn simulate_fills(
     let nav = if initial_nav > 0.0 { initial_nav } else { 1.0 };
     let mut cash: f64 = nav; // 绝对现金（初始 = NAV）
     let mut units: f64 = 0.0; // 持仓 lot 数（正=多；做空腿待 strategy 订单语义定）
-    let mut entry_price: f64 = 0.0;
+    let mut entry_cost: f64 = 0.0; // 含买入费的每单位成本基（成本对称）
     let mut ord_idx = 0usize;
 
     for i in 0..n {
@@ -585,7 +734,7 @@ fn simulate_fills(
             if bar.untradable || px <= 0.0 || o.qty <= 0 {
                 continue; // 不可交易 / 非法 qty ⇒ 跳过（reference:47 qty<=0 不交易）。
             }
-            apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_price, &mut trade_pnls);
+            apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
         }
 
         // MtM 权益 = 现金 + 持仓市值，归一化（÷NAV → 收益率口径，初始=1.0）。
@@ -603,25 +752,31 @@ fn simulate_fills(
 }
 
 /// 应用单个订单到仓位（开/平/加/减仓 + 费用）。
+///
+/// ★成本对称（本轮缺陷③修复，no-patch 根因重写）：`entry_cost` 是**含买入费**（commission+
+/// slippage）的每单位加权平均成本基，**非裸建仓价**。买入时 `qty×px×(1+fee_rate)` 全额进成本基；
+/// 平仓 PnL = `proceeds(含卖出费) − cost_basis(含买入费)`——买卖两侧费用对称计入。修复前
+/// `entry_price` 用裸价，平仓 PnL 系统性**高估买入费部分**（`runner.rs:659` cost_basis 不含费）。
 fn apply_order(
     o: &Order,
     px: f64,
     fee_rate: f64,
     cash: &mut f64,
     units: &mut f64,
-    entry_price: &mut f64,
+    entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
 ) {
     let qty = o.qty as f64;
     match o.action {
         StrictAction::Buy | StrictAction::Add => {
-            // 建多 / 加多：现金买入，扣费。
+            // 建多 / 加多：现金买入，扣费。含费成本 = qty×px×(1+fee_rate)。
             let cost = qty * px * (1.0 + fee_rate);
             if *cash >= cost {
-                // 加权平均建仓价。
+                // 加权平均**含费**成本基（每单位含买入 commission+slippage）。
                 let new_units = *units + qty;
                 if new_units > 0.0 {
-                    *entry_price = (*entry_price * *units + px * qty) / new_units;
+                    // 已持仓含费成本（entry_cost×units）+ 本次含费成本（cost）÷ 新总仓。
+                    *entry_cost = (*entry_cost * *units + cost) / new_units;
                 }
                 *units = new_units;
                 *cash -= cost;
@@ -629,11 +784,11 @@ fn apply_order(
         }
         StrictAction::Sell => {
             // 翻空 / 建空（简化：当前只处理平多→空仓，做空腿待 strategy 订单语义定）。
-            close_long(qty, px, fee_rate, cash, units, entry_price, trade_pnls);
+            close_long(qty, px, fee_rate, cash, units, entry_cost, trade_pnls);
         }
         StrictAction::Reduce | StrictAction::Close => {
             // 减多 / 平多：卖出，扣费，记盈亏。
-            close_long(qty, px, fee_rate, cash, units, entry_price, trade_pnls);
+            close_long(qty, px, fee_rate, cash, units, entry_cost, trade_pnls);
         }
         StrictAction::Hold | StrictAction::Wait => {
             // 不动。
@@ -642,13 +797,16 @@ fn apply_order(
 }
 
 /// 平多（减仓/清仓）：卖 min(qty, 持仓) 股，扣费，记盈亏。
+///
+/// ★成本对称：`cost_basis = sell × entry_cost`，`entry_cost` **已含买入费**（见 [`apply_order`]）。
+/// `pnl = proceeds(含卖出费) − cost_basis(含买入费)`——买卖两侧费用对称，不再高估买入费。
 fn close_long(
     qty: f64,
     px: f64,
     fee_rate: f64,
     cash: &mut f64,
     units: &mut f64,
-    entry_price: &f64,
+    entry_cost: &f64,
     trade_pnls: &mut Vec<f64>,
 ) {
     let sell = qty.min(*units);
@@ -656,7 +814,7 @@ fn close_long(
         return;
     }
     let proceeds = sell * px * (1.0 - fee_rate);
-    let cost_basis = sell * *entry_price;
+    let cost_basis = sell * *entry_cost; // entry_cost 含买入费 ⟹ 成本对称
     let pnl = proceeds - cost_basis;
     *cash += proceeds;
     *units -= sell;
@@ -827,19 +985,20 @@ mod tests {
         let config = ThetaConfig::default();
         let bars: Vec<Bar> =
             (0..5).map(|i| mk_bar(i, 1000 + i as i64 * 10, false)).collect();
-        let (eq, rets, pnls, n) = plan_and_fill_mtm(&[], &bars, 1.0e6, &config);
-        assert_eq!(n, 0, "空 decisions ⟹ n_orders=0");
-        assert_eq!(pnls.len(), 0, "无交易 ⟹ 无 pnl");
-        assert_eq!(eq.len(), 5, "权益曲线与 bars 等长");
+        let fill = plan_and_fill_mtm(&[], &bars, 1.0e6, &config);
+        assert_eq!(fill.n_orders, 0, "空 decisions ⟹ n_orders=0");
+        assert_eq!(fill.trade_pnls_realized.len(), 0, "无交易 ⟹ 无 pnl");
+        assert_eq!(fill.trade_pnls_with_forced.len(), 0, "无持仓 ⟹ 无终点强平 pnl");
+        assert_eq!(fill.trades.len(), 0, "无交易 ⟹ 无轨迹");
+        assert_eq!(fill.equity_curve.len(), 5, "权益曲线与 bars 等长");
         // 所有权益值 = 1.0（无交易，cash=nav0，units=0）。
-        for (i, e) in eq.iter().enumerate() {
+        for (i, e) in fill.equity_curve.iter().enumerate() {
             assert!(
                 (e - 1.0).abs() < 1e-12,
                 "bar {} 权益应 =1.0（无交易），实得 {}",
                 i, e
             );
         }
-        let _ = rets; // 日 returns 由 bar_returns 计算，不在此断言具体值
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -909,20 +1068,28 @@ mod tests {
         ];
         let decisions = vec![buy1_long_decision(0, 90)]; // stop = pivot_low = 90
 
-        let (_eq, _rets, trade_pnls, n_orders) =
-            plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        let fill = plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
 
-        // 修复核心断言：退出生成器产 Close ⟹ trade_pnls 非空 ⟹ n_trades > 0。
-        assert!(!trade_pnls.is_empty(), "止损触及 ⟹ 退出生成器产 Close ⟹ trade_pnls 非空（修复前恒空）");
-        assert_eq!(trade_pnls.len(), 1, "一次完整开平（开多 + 止损平多）");
+        // 修复核心断言：退出生成器产 Close ⟹ 已实现 trade_pnls 非空 ⟹ n_trades > 0。
+        assert!(!fill.trade_pnls_realized.is_empty(), "止损触及 ⟹ 退出生成器产 Close ⟹ 已实现盈亏非空（修复前恒空）");
+        assert_eq!(fill.trade_pnls_realized.len(), 1, "一次完整开平（开多 + 止损平多）");
+        // 止损全平 ⟹ 末尾无未平仓 ⟹ 含浮盈口径 = 已实现口径（无强平笔）。
+        assert_eq!(fill.trade_pnls_with_forced.len(), 1, "止损全平 ⟹ 无终点强平 ⟹ 双口径同长");
+        // 轨迹记录：1 笔正常退出（forced_close=false）。
+        assert_eq!(fill.trades.len(), 1, "1 笔交易轨迹");
+        assert!(!fill.trades[0].forced_close, "止损退出非强平");
         // n_orders ≥ 2（开仓 1 + 平仓 1）。
-        assert!(n_orders >= 2, "至少 2 单（开多 + 止损 Close），实得 {n_orders}");
+        assert!(fill.n_orders >= 2, "至少 2 单（开多 + 止损 Close），实得 {}", fill.n_orders);
     }
 
     /// ★退出生成器：无关闭触发（价格平稳，无反向/止损/破产）⟹ 持仓延续，无 Close（不误平）。
+    /// **+ 含浮盈口径见证（2026-06-28）**：持仓到末尾未平 ⟹ 已实现口径空，但含浮盈口径**非空**
+    /// （终点强平实现浮盈），且强平笔 forced_close=true。
     ///
-    /// closePred 全 false ⟹ 退出生成器返 None ⟹ 持仓延续 ⟹ trade_pnls 空（持仓不平 = 正确，
-    /// 关闭优先于开启不误触发）。这是退出生成器**不过度触发**的诚实见证（与止损触及测试对偶）。
+    /// closePred 全 false ⟹ 退出生成器返 None ⟹ 持仓延续 ⟹ 已实现 trade_pnls 空（持仓不平=正确，
+    /// 关闭优先于开启不误触发）。但**含浮盈口径**对末尾持仓强平——编排者铁律「不把浮盈算上
+    /// 不合理」：上涨持仓的浮盈是择时载体，剔除它=系统性抹掉。这是退出生成器**不过度触发**
+    /// 与**含浮盈口径**的双重见证。
     #[test]
     fn exit_generator_no_trigger_holds_position() {
         let mut config = ThetaConfig::default();
@@ -934,14 +1101,30 @@ mod tests {
             ohlc_bar(1, 100, 110, 99, 108), // 开多成交
             ohlc_bar(2, 105, 115, 100, 110),
             ohlc_bar(3, 110, 120, 105, 115),
-            ohlc_bar(4, 115, 125, 110, 120), // 持仓全程 low>90，无止损
+            ohlc_bar(4, 115, 125, 110, 120), // 持仓全程 low>90，无止损；末 close=120 > 入场 ⟹ 浮盈
         ];
         let decisions = vec![buy1_long_decision(0, 90)];
 
-        let (_eq, _rets, trade_pnls, _n_orders) =
-            plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
-        // 无关闭触发 ⟹ 持仓延续到末尾未平 ⟹ 无平仓 pnl（退出生成器不误触发）。
-        assert!(trade_pnls.is_empty(), "价格平稳无关闭触发 ⟹ 持仓延续 ⟹ 无 Close（不过度触发）");
+        let fill = plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        // 无关闭触发 ⟹ 持仓延续到末尾未平 ⟹ 已实现口径无平仓 pnl（退出生成器不误触发）。
+        assert!(
+            fill.trade_pnls_realized.is_empty(),
+            "价格平稳无关闭触发 ⟹ 持仓延续 ⟹ 已实现口径无 Close（不过度触发）"
+        );
+        // ★含浮盈口径：末尾持仓被终点强平 ⟹ 含浮盈口径非空（实现浮盈）。
+        assert_eq!(
+            fill.trade_pnls_with_forced.len(), 1,
+            "持仓到末尾 ⟹ 含浮盈口径终点强平 1 笔（编排者铁律：浮盈算上）"
+        );
+        // 末 close=120 > 入场（开多成交 @ bar1 close=108）⟹ 强平浮盈为正。
+        assert!(
+            fill.trade_pnls_with_forced[0] > 0.0,
+            "上涨持仓强平 ⟹ 浮盈为正，实得 {}",
+            fill.trade_pnls_with_forced[0]
+        );
+        // 强平笔轨迹打 forced_close=true（统计功效门槛不计此笔）。
+        assert_eq!(fill.trades.len(), 1, "1 笔强平轨迹");
+        assert!(fill.trades[0].forced_close, "终点强平笔 forced_close=true");
     }
 
     /// ★退出生成器：反向 BSP（持多遇卖侧根决策）⟹ §9 closePred.reverse_signal ⟹ Close。
@@ -975,11 +1158,10 @@ mod tests {
         };
         let decisions = vec![entry, reverse];
 
-        let (_eq, _rets, trade_pnls, _n_orders) =
-            plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
-        // 反向信号触发先平 ⟹ 多仓被 Close ⟹ trade_pnls 非空。
+        let fill = plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        // 反向信号触发先平 ⟹ 多仓被 Close ⟹ 已实现 trade_pnls 非空。
         assert!(
-            !trade_pnls.is_empty(),
+            !fill.trade_pnls_realized.is_empty(),
             "持多遇反向卖侧根决策 ⟹ §9 closePred.reverse_signal ⟹ Close（先平后建）"
         );
     }
@@ -1552,37 +1734,45 @@ mod tests {
         let nav = (first_px * 1000.0).max(1.0e6);
         let res = run_theta_v0(&oos, &config, 0.5, nav);
 
-        // ── 成交盈亏分布（trade_pnls，非 MtM）──
-        let pnls = &res.trade_pnls;
+        // ── 成交盈亏分布（双口径并列：已实现 vs 含浮盈终点强平）──
+        let pnls = &res.trade_pnls; // 已实现口径（§3.4 bootstrap 输入）
+        let pnls_forced = &res.trade_pnls_with_forced; // 含浮盈口径（终点强平）
         let n_trades = pnls.len();
+        // ★统计功效门槛计数 = **非强平**笔数（codex：29 笔真实退出 + 1 笔强平不偷过 n≥30）。
+        let n_real_trades = res.trades.iter().filter(|t| !t.forced_close).count();
         let total_pnl: f64 = pnls.iter().sum();
-        let mean_pnl = if n_trades > 0 { total_pnl / n_trades as f64 } else { 0.0 };
-        let mut sorted = pnls.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        let median_pnl = if n_trades > 0 { sorted[n_trades / 2] } else { 0.0 };
+        let total_pnl_forced: f64 = pnls_forced.iter().sum();
         let n_win = pnls.iter().filter(|&&p| p > 0.0).count();
         let win_rate = if n_trades > 0 { n_win as f64 / n_trades as f64 } else { 0.0 };
 
         eprintln!(
-            "[L2] 引擎产出：n_orders={} n_trades={} is_l2={}",
-            res.n_orders, n_trades, res.is_l2
+            "[L2] 引擎产出：n_orders={} n_trades(已实现)={} n_real_trades(非强平)={} is_l2={}",
+            res.n_orders, n_trades, n_real_trades, res.is_l2
         );
         eprintln!(
-            "[L2] 成交盈亏分布（trade_pnls，非 MtM）：total={:.4} mean={:.6} median={:.6} \
+            "[L2] ★双口径成交盈亏：已实现 total={:.4}（{}笔）｜含浮盈(终点强平) total={:.4}（{}笔）\
              win_rate={:.4} maxDD(MtM)={:.4}%",
-            total_pnl, mean_pnl, median_pnl, win_rate, res.metrics.max_drawdown * 100.0
+            total_pnl, n_trades, total_pnl_forced, pnls_forced.len(), win_rate,
+            res.metrics.max_drawdown * 100.0
         );
         eprintln!(
-            "[L2] 对照口径区分：strat_return(MtM 浮动)={:.2}% bh_return={:.2}% \
-             ★统计检验只用 trade_pnls 非 MtM",
+            "[L2] 三口径并列：strat_return(MtM 含浮盈)={:.2}% bh_return={:.2}% \
+             ★随机对照用含浮盈 total_return，§3.4 bootstrap 用已实现 trade_pnls",
             res.metrics.strat_return * 100.0,
             res.metrics.bh_return * 100.0
         );
 
-        // ── §3.4 block bootstrap + §4 随机对照（seed=20260625 冻结，可复现）──
-        let sig = metrics::significance(pnls, &res.daily_returns);
+        // ── §3.4 block bootstrap（已实现口径）+ §4 操作语义随机对照（含浮盈口径，seed 冻结）──
+        let sig = metrics::significance(
+            pnls,
+            &res.daily_returns,
+            &res.trades,
+            &res.prices,
+            res.fee_rate,
+            res.theta_return_mtm,
+        );
         eprintln!(
-            "[L2] §3.4 bootstrap（块长20 n=1000 H0:收益≤0）：mean_total={:.4} \
+            "[L2] §3.4 bootstrap（块长5笔 n=1000 H0:已实现收益≤0）：mean_total={:.4} \
              p(收益≤0)={:.4} CI95=[{:.4}, {:.4}]",
             sig.boot_mean_total_pnl, sig.boot_pvalue_pnl_le_0, sig.boot_ci95_lo, sig.boot_ci95_hi
         );
@@ -1591,33 +1781,42 @@ mod tests {
             sig.sharpe, sig.sharpe_se, sig.sharpe_ci95_lo, sig.sharpe_ci95_hi
         );
         eprintln!(
-            "[L2] §4 随机入场对照（n=1000）：rand_mean={:.4} Θ分位={:.4} Θ优于随机={}",
-            sig.rand_mean_total_pnl, sig.rand_percentile_of_theta, sig.theta_beats_random
+            "[L2] §4 操作语义随机入场对照（n=1000，同口径逐笔无复利；Θ_同口径={:.4} vs Θ_MtM复利={:.4}仅参考）：\n     \
+             主 schedule-shift: rand_mean={:.4} p_upper={:.4}｜副 independent: rand_mean={:.4} p_upper={:.4}\n     \
+             ★Θ 优于随机（两对照 p≤0.05）={}",
+            sig.theta_return_same_caliber, sig.theta_return_mtm,
+            sig.shift_mean_return, sig.shift_pvalue,
+            sig.indep_mean_return, sig.indep_pvalue,
+            sig.theta_beats_random
         );
 
         // ── 分层诊断 + 否证性结论（625 铁律 + §5.5 inconclusive 严格区分）──
-        // ★关键有效域区分（formalization-validity-domain）：n_trades<2 时 bootstrap/随机对照
-        // 退化（significance 走退化分支 p=1.0/CI=[0,0]），**不构成可否证的统计检验**——这是
-        // 样本量不足（§5.5 inconclusive），**不是** L2 否证（把样本不足伪装成否证 = 声明膨胀）。
-        // 真正的 L2 否证/确认需足够成交样本（block bootstrap 块长 20 ⟹ 至少需 ≳20+ 笔才有
-        // 序列结构）。截断窗 n_trades 太少 ⟹ 诚实归为 inconclusive，非 L2 结论。
-        const MIN_TRADES_FOR_L2: usize = 20; // §3.4 块长=20，少于此 bootstrap 无序列结构
+        // ★关键有效域区分（formalization-validity-domain）：n_real_trades<30 时统计功效不足，
+        // **不构成可否证的统计检验**——样本量不足（§5.5 inconclusive，协议 §5.5 阈值 <30），
+        // **不是** L2 否证（把样本不足伪装成否证 = 声明膨胀）。门槛用**非强平**笔数（强平笔是
+        // 窗口边界口径，不携带 Θ 退出信号信息，不计入统计功效）。
+        const MIN_TRADES_FOR_L2: usize = 30; // 协议 §5.5（backtest-protocol-v0.md:171）：n_trades<30 inconclusive
         let (layer, verdict) = if res.n_orders == 0 {
             ("(a)工程层", "引擎产不出订单——非 L2 经验否证，是工程断流")
         } else if n_trades == 0 {
             ("(a)工程层", "产订单但无平仓——退出闭环未产 Close（接线缺口）")
-        } else if n_trades < MIN_TRADES_FOR_L2 {
+        } else if n_real_trades < MIN_TRADES_FOR_L2 {
             (
                 "(d)inconclusive",
-                "成交样本不足（n_trades<20=bootstrap 块长）⟹ 统计功效不足 ⟹ §5.5 inconclusive，\
+                "非强平成交样本不足（n_real_trades<30，协议 §5.5）⟹ 统计功效不足 ⟹ inconclusive，\
                  非 L2 否证也非确认（截断窗破坏样本量，需全窗）",
             )
+        } else if sig.controls_degenerate {
+            (
+                "(d)inconclusive",
+                "随机对照退化（无真随机平移/合法区间）⟹ p_upper 无统计含义 ⟹ inconclusive（codex 缺陷⑤）",
+            )
         } else if sig.boot_pvalue_pnl_le_0 > 0.05 {
-            ("(b)L2否证", "成交盈亏 p>0.05：无法拒绝『收益≤0』⟹ Θ 收益不显著（§5.1 失败，有价值）")
+            ("(b)L2否证", "已实现盈亏 p>0.05：无法拒绝『收益≤0』⟹ Θ 收益不显著（§5.1 失败，有价值）")
         } else if !sig.theta_beats_random {
-            ("(b)L2否证", "收益显著但 Θ 不优于随机择时（§5.3 失败：择时无信息，有价值）")
+            ("(b)L2否证", "收益显著但 Θ 不优于随机择时（§5.3 失败：缠论内在语法不贡献择时 alpha，有价值）")
         } else {
-            ("(c)L2确认", "成交盈亏 p≤0.05 且优于随机 ⟹ Θ 在此窗未被证伪（截断窗，非全窗/非 L3）")
+            ("(c)L2确认", "已实现 p≤0.05 且含浮盈优于两随机对照 ⟹ Θ 在此窗未被证伪（截断窗，非全窗/非 L3）")
         };
         eprintln!("[L2] ★分层归因：{layer}｜{verdict}");
         eprintln!(
@@ -1630,14 +1829,19 @@ mod tests {
         assert!(res.metrics.bh_return.is_finite(), "buy&hold 有限");
         assert!(res.metrics.strat_return.is_finite(), "strat(MtM) 有限");
         assert!(sig.boot_pvalue_pnl_le_0 >= 0.0 && sig.boot_pvalue_pnl_le_0 <= 1.0, "p 值合法 [0,1]");
-        assert!(
-            sig.rand_percentile_of_theta >= 0.0 && sig.rand_percentile_of_theta <= 1.0,
-            "分位合法 [0,1]"
-        );
+        assert!((0.0..=1.0).contains(&sig.shift_pvalue), "schedule-shift p_upper 合法 [0,1]");
+        assert!((0.0..=1.0).contains(&sig.indep_pvalue), "independent p_upper 合法 [0,1]");
         assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空（诚实标注）");
         // 可复现见证：同输入同 seed ⟹ bit-exact 同检验结果（§4 硬约束）。
-        let sig2 = metrics::significance(pnls, &res.daily_returns);
-        assert_eq!(sig, sig2, "significance 可复现（seed=20260625 冻结）");
+        let sig2 = metrics::significance(
+            pnls,
+            &res.daily_returns,
+            &res.trades,
+            &res.prices,
+            res.fee_rate,
+            res.theta_return_mtm,
+        );
+        assert_eq!(sig, sig2, "significance 可复现（seed=20260625 冻结，含操作语义随机对照）");
     }
 
     /// OOS 窗时间跨度（年）——从预注册 ISO 日期 `"YYYY-MM-DD"` 端点算（§3.1 年化基数）。
@@ -1679,11 +1883,12 @@ mod tests {
     ///
     /// 每品种归一类：
     /// - **(a) 工程层**：n_orders=0 或 n_trades=0 —— 非 L2 否证，是接线断流（不计入否证）。
-    /// - **(d) inconclusive**：n_trades<20（block bootstrap 块长）—— 样本不足，统计功效不足，
-    ///   §5.5 不冒充否证也不冒充确认（625：样本不足 ≠ 否证）。
-    /// - **(b) L2否证**：n_trades≥20 且（boot p>0.05 收益不显著 或 Θ 不优于随机择时）——
-    ///   §5.1/§5.3 失败，缩小有效域，**比确认更有价值**（231号）。
-    /// - **(c) L2确认**：n_trades≥20 且 boot p≤0.05 且 Θ 优于随机 —— 在此窗未被证伪。
+    /// - **(d) inconclusive**：n_real_trades<30（协议 §5.5；**非强平**笔数门槛）—— 样本不足，
+    ///   统计功效不足，§5.5 不冒充否证也不冒充确认（625：样本不足 ≠ 否证）。
+    /// - **(b) L2否证**：n_real_trades≥30 且（已实现 boot p>0.05 收益不显著 或 含浮盈不优于两随机
+    ///   对照）—— §5.1/§5.3 失败：缠论内在语法不贡献择时 alpha，缩小有效域，**比确认更有价值**（231号）。
+    /// - **(c) L2确认**：n_real_trades≥30 且 boot p≤0.05 且含浮盈优于 schedule-shift+independent
+    ///   两随机对照 —— 在此窗未被证伪。
     ///
     /// L3 结论：统计 (b)/(c)/(d) 的跨品种分布。若否证跨标的复现（多数品种 (b)）⟹ Θ v0 择时
     /// 无信息是鲁棒否证（L3）；若各品种结论分散 ⟹ Θ 有效性品种依赖（有效域 < 定义域）。
@@ -1708,19 +1913,20 @@ mod tests {
         use super::super::prereg_windows::PREREG_WINDOWS;
 
         let config = ThetaConfig::default();
-        const MIN_TRADES_FOR_L2: usize = 20; // §3.4 块长=20，少于此 bootstrap 无序列结构
+        const MIN_TRADES_FOR_L2: usize = 30; // 协议 §5.5（backtest-protocol-v0.md:171）：n_trades<30 inconclusive
         // 截断窗 bar 数（全窗 CPU-bound 不可行——BTC 全窗 >5min，见 doc）。60K 与
         // l2_falsify_oklo_traded_pnl 同口径（OKLO 60K 实测 218 trades 样本充足）。
         const MAX_BARS: usize = 60_000;
 
-        eprintln!("\n===== L3 多标的【截断窗 {MAX_BARS}bar】OOS 否证：8 品种 + §3.4/§4 统计检验（成交盈亏口径）=====");
+        eprintln!("\n===== L3 多标的【截断窗 {MAX_BARS}bar】OOS 否证：8 品种 + §3.4/§4 操作语义随机对照 =====");
         eprintln!("★全窗不可行（BTC 全窗 >5min CPU-bound，机器坐实）⟹ 截断窗 = 显式有效域边界（非全窗结论）");
+        eprintln!("★口径：boot_p 用已实现 trade_pnls；随机对照（shift/indep）用含浮盈 total_return；beats?=两对照 p≤0.05");
         eprintln!(
-            "{:<6} {:>10} {:>7} {:>8} {:>9} {:>6} {:>7} {:>9} {:>8} {:>7} {:>6} {}",
-            "symbol", "oos_bars/T", "trades", "MtM%", "bh%", "winR",
-            "boot_p", "boot_mean", "Θ分位", "beats?", "Sharpe", "归因",
+            "{:<6} {:>10} {:>6} {:>6} {:>8} {:>9} {:>7} {:>7} {:>7} {:>6} {}",
+            "symbol", "oos_bars/T", "real", "trd", "MtM%", "bh%",
+            "boot_p", "shift_p", "indep_p", "beats?", "归因",
         );
-        eprintln!("（oos_bars 后 T=截断窗/F=全窗；MtM%=mark-to-market 浮动口径含浮盈≠成交盈亏；boot_p/Θ分位/beats? 用 trade_pnls 成交盈亏）");
+        eprintln!("（real=非强平笔数(门槛)；trd=已实现笔数；MtM%=含浮盈≠成交盈亏；shift_p/indep_p=随机对照 p_upper）");
 
         // L3 聚合：跨品种否证/确认/inconclusive/工程断流计数。
         let mut n_falsify = 0usize; // (b) L2 否证
@@ -1770,25 +1976,35 @@ mod tests {
             let nav = (first_px * 1000.0).max(1.0e6);
             let res = run_theta_v0(&oos, &config, years, nav);
 
-            let pnls = &res.trade_pnls;
+            let pnls = &res.trade_pnls; // 已实现口径（§3.4 bootstrap）
             let n_trades = pnls.len();
+            // ★门槛计数 = 非强平笔数（codex：强平笔不偷过 n≥30 统计功效门槛）。
+            let n_real_trades = res.trades.iter().filter(|t| !t.forced_close).count();
             let total_pnl: f64 = pnls.iter().sum();
-            let n_win = pnls.iter().filter(|&&p| p > 0.0).count();
-            let win_rate = if n_trades > 0 { n_win as f64 / n_trades as f64 } else { 0.0 };
 
-            // §3.4 block bootstrap + §4 随机对照（seed=20260625 冻结，成交盈亏口径）。
-            let sig = metrics::significance(pnls, &res.daily_returns);
+            // §3.4 block bootstrap（已实现）+ §4 操作语义随机对照（含浮盈，seed=20260625 冻结）。
+            let sig = metrics::significance(
+                pnls,
+                &res.daily_returns,
+                &res.trades,
+                &res.prices,
+                res.fee_rate,
+                res.theta_return_mtm,
+            );
             if sig.theta_beats_random {
                 n_beats_random += 1;
             }
 
-            // 分层归因（625 + §5.5 inconclusive 严格区分）。
+            // 分层归因（625 + §5.5 inconclusive 严格区分；门槛用非强平笔数）。
             let verdict = if res.n_orders == 0 || n_trades == 0 {
                 n_engine_block += 1;
                 "(a)工程断流"
-            } else if n_trades < MIN_TRADES_FOR_L2 {
+            } else if n_real_trades < MIN_TRADES_FOR_L2 {
                 n_inconclusive += 1;
-                "(d)inconcl样本<20"
+                "(d)inconcl real<30"
+            } else if sig.controls_degenerate {
+                n_inconclusive += 1;
+                "(d)inconcl 对照退化"
             } else if sig.boot_pvalue_pnl_le_0 > 0.05 {
                 n_falsify += 1;
                 "(b)否证:收益不显著"
@@ -1803,31 +2019,30 @@ mod tests {
             let elapsed = t0.elapsed().as_secs_f64();
             let trunc_mark = if truncated { "T" } else { "F" }; // T=截断窗 F=全窗
             eprintln!(
-                "{:<6} {:>9}{} {:>7} {:>8.2} {:>9.2} {:>6.3} {:>7.4} {:>9.1} {:>8.4} {:>7} {:>6.3} {}  [{:.1}s]",
+                "{:<6} {:>9}{} {:>6} {:>6} {:>8.2} {:>9.2} {:>7.4} {:>7.4} {:>7.4} {:>6} {}  [{:.1}s]",
                 w.symbol,
                 oos.bars.len(),
                 trunc_mark,
+                n_real_trades,
                 n_trades,
                 res.metrics.strat_return * 100.0,
                 res.metrics.bh_return * 100.0,
-                win_rate,
                 sig.boot_pvalue_pnl_le_0,
-                sig.boot_mean_total_pnl,
-                sig.rand_percentile_of_theta,
+                sig.shift_pvalue,
+                sig.indep_pvalue,
                 sig.theta_beats_random,
-                sig.sharpe,
                 verdict,
                 elapsed,
             );
             eprintln!(
-                "       └ full_oos_bars={} total_pnl={:.2} boot_CI95=[{:.1},{:.1}] Sharpe_SE={:.4} Sharpe_CI95=[{:.4},{:.4}] years={:.2}",
+                "       └ full_oos_bars={} 已实现total={:.2} Θ_同口径={:.4} (MtM复利={:.4}仅参考) shift_mean={:.4} indep_mean={:.4} Sharpe={:.3} years={:.2}",
                 oos_full.bars.len(),
                 total_pnl,
-                sig.boot_ci95_lo,
-                sig.boot_ci95_hi,
-                sig.sharpe_se,
-                sig.sharpe_ci95_lo,
-                sig.sharpe_ci95_hi,
+                sig.theta_return_same_caliber,
+                sig.theta_return_mtm,
+                sig.shift_mean_return,
+                sig.indep_mean_return,
+                sig.sharpe,
                 years,
             );
 
@@ -1839,28 +2054,26 @@ mod tests {
                 "{} boot p∈[0,1]",
                 w.symbol
             );
-            assert!(
-                (0.0..=1.0).contains(&sig.rand_percentile_of_theta),
-                "{} 随机分位∈[0,1]",
-                w.symbol
-            );
+            assert!((0.0..=1.0).contains(&sig.shift_pvalue), "{} shift p∈[0,1]", w.symbol);
+            assert!((0.0..=1.0).contains(&sig.indep_pvalue), "{} indep p∈[0,1]", w.symbol);
             assert_eq!(res.is_l2, res.n_orders > 0, "{} is_l2 ⟺ 订单非空", w.symbol);
         }
 
         // ── L3 跨标的结论（231号：否证跨标的复现 = 鲁棒否证，比确认更有价值）──
         let total = PREREG_WINDOWS.len();
-        eprintln!("\n===== L3 跨标的否证聚合（8 品种截断窗 OOS 前 {MAX_BARS}bar，成交盈亏口径）=====");
-        eprintln!("(a) 工程断流(无订单/无平仓)     : {n_engine_block}");
-        eprintln!("(d) inconclusive(n_trades<20)   : {n_inconclusive}");
-        eprintln!("(b) L2 否证(收益不显著/不优随机): {n_falsify}");
-        eprintln!("(c) L2 确认(p≤.05 且优于随机)   : {n_confirm}");
-        eprintln!("    其中 Θ 择时优于随机的品种数 : {n_beats_random}/{total}");
+        eprintln!("\n===== L3 跨标的否证聚合（8 品种截断窗 OOS 前 {MAX_BARS}bar，操作语义随机对照）=====");
+        eprintln!("(a) 工程断流(无订单/无平仓)       : {n_engine_block}");
+        eprintln!("(d) inconclusive(real_trades<30)  : {n_inconclusive}");
+        eprintln!("(b) L2 否证(收益不显著/不优随机)  : {n_falsify}");
+        eprintln!("(c) L2 确认(p≤.05 且优于两随机对照): {n_confirm}");
+        eprintln!("    其中 Θ 含浮盈打败两随机对照的品种数 : {n_beats_random}/{total}");
         eprintln!(
             "\n★L3 诚实结论（formalization-validity-domain 231号）：\n  \
-             - 跨标的多数 (b) ⟹ Θ v0「择时无信息/收益不显著」是**鲁棒否证**（L3，有效域缩小）。\n  \
+             - 跨标的多数 (b) ⟹ Θ v0「缠论内在语法不贡献择时 alpha」是**鲁棒否证**（L3，有效域缩小）。\n  \
              - 各品种结论分散 ⟹ Θ 有效性**品种依赖**（有效域 < 定义域，非全域有效）。\n  \
-             - n_beats_random 是择时信息含量的直接计数：=0 ⟹ Θ 择时全标的无信息（强否证）。\n  \
-             - ★MtM strat% 高（浮盈）≠ 成交盈亏优于随机——统计检验只采 trade_pnls + §4 随机对照。"
+             - n_beats_random 是择时信息含量的直接计数：=0 ⟹ Θ 缠论结构全标的无择时信息（强否证）。\n  \
+             - ★含浮盈口径 + 操作语义随机对照（schedule-shift 主 + independent 副）= 严格否证口径\n    \
+               （旧 self-resampling 自举恒真已删；随机对照保操作外形随机化入场点，破坏缠论内在语法）。"
         );
 
         // 不变量：分层完备（每产出订单的品种恰归一类 b/c/d；无订单归 a）。

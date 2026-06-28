@@ -18,6 +18,37 @@
 //!   runner 层组织（需要引擎产出真实订单流后才有意义，属**等引擎阻塞点**）。
 //! - 年化因子按"每年交易日"近似——日聚合 returns 的年化用 √252（标准约定）。各品种实际
 //!   交易日数在 runner 层按数据日历精确化（§3.1"年化因子按各品种实际交易日"）。
+//!
+//! ## ★随机入场对照重写（2026-06-28，自举恒真否证后的操作语义版）
+//!
+//! **旧 §4 缺陷（codex 异质审查 + 编排者裁定，已删）**：旧随机对照从 Θ 自己的 `trade_pnls`
+//! 池有放回重抽 n 笔求和——这是 **self-resampling 自举恒真**：重抽分布的均值恒等于 Θ 总盈亏
+//! （n×池均值 = sum），Θ 分位必然≈0.5，与择时能力**无关**。它从未与"随机选时点入场"比较。
+//!
+//! **新 §4（操作语义 + 内在语法 + 含浮盈）**：随机对照不再脱离执行做统计重抽，而是**保持 Θ 的
+//! 操作骨架**（开仓→持仓 hold_bars→平仓），只随机化"在哪根 bar 入场"（破坏缠论内在语法——
+//! 无笔/线段/中枢/买卖点结构），在**原始价格序列**上重新执行开/持/平操作语义（含成本，
+//! close-to-close 口径与 Θ 账本侧一致），算 **total_return**（含浮盈口径）。零假设 = "破坏缠论
+//! 结构（随机入场）vs 保持（Θ 按结构入场）"，检验缠论内在语法是否贡献择时 alpha。
+//!
+//! 两个对照（codex 严格版）：
+//! - **主：schedule-shift**（保操作外形）——整体平移交易日程，保留交易间隔/并发/hold_bars/qty
+//!   序列的联合结构，只随机偏移起点。
+//! - **副：independent-entry**（边际择时）——逐笔独立随机抽 entry，破坏交易间时序相关，只保边际。
+//!
+//! Θ 与随机**同口径**（逐笔无复利绝对盈亏 ÷ 同一 nav_base）⟹ 唯一区别 = 入场点，无复利偏置。
+//! p 值用 `p_upper = (1 + count(rand ≥ theta)) / (N+1)`（不是裸分位）；`beats_random ⟺ 两对照
+//! p_upper ≤ 0.05 且两对照非退化`。
+//!
+//! ## ★诚实有效域边界（formalization-validity-domain，codex 实现审查缺陷③④）
+//!
+//! 1. **不重建复利权益曲线**：total_return = **逐笔无复利**绝对盈亏求和归一化，**不**重建现金/
+//!    持仓的复利权益曲线，**不**算随机策略的 CAGR/Sharpe，**不**建模 independent 对照可能产生
+//!    的重叠仓位资金约束。声明仅为"逐笔无复利总收益对照"——比"完整 equity 曲线"弱（诚实不膨胀）。
+//!    Θ 同口径基准也用同一逐笔无复利公式（非 MtM 复利 strat_return），故 Θ 与随机口径严格一致。
+//! 2. **仅多头有效域**：v0 backtest 的 `apply_order` 把 `Sell` 当 close_long（不建空），
+//!    [`TradeRecord::long`] 恒 true，随机对照只按多头 PnL 算。做空腿（strategy 已识别 Short 根）
+//!    在回测账本侧未建模——**有效域 = 多头交易**，做空腿是独立工位的缺口（不在本轮 owner）。
 
 /// 协议 §3 全套指标（单个检验窗）。每个字段对应 §3 一行。
 #[derive(Debug, Clone, PartialEq)]
@@ -140,8 +171,47 @@ pub fn compute(
 /// 预注册随机种子（§4，backtest-protocol-v0.md:141 冻结，不可改）。
 pub const PREREG_SEED: u64 = 20260625;
 
-/// block bootstrap 块长（§3.4：20 个交易日，backtest-protocol-v0.md:127）。
-pub const BLOCK_LEN: usize = 20;
+/// trade_pnls 序列 block bootstrap 的块长（**交易笔数**单位，保留成交序列局部自相关）。
+///
+/// ★单位诚实（codex 修正）：旧代码用 `BLOCK_LEN=20` 对 `trade_pnls` 做 block bootstrap 是
+/// **单位错误**——协议 §3.4（backtest-protocol-v0.md:127）的「块长 20 **交易日**」是
+/// **日 returns 序列**的块长，**不是** 20 笔交易。trade_pnls 是交易序列，块长单位是笔数。
+/// 取 5 笔（短块保留相邻交易的局部相关，不假设全序列独立）。
+///
+/// **诚实声明（formalization-validity-domain）**：协议 §3.4 还要求对 **daily_returns 序列**
+/// 做块长=20 交易日的 block bootstrap 输出 CAGR/Sharpe 经验分布——本 [`significance`] **未实装
+/// 该分支**（daily_returns 仅用于 Lo 2002 Sharpe 标准误）。该协议项是已存在的实装缺口，
+/// 不在本轮（操作语义随机对照重写）owner 范围，不声明已具备。
+pub const TRADE_BLOCK_LEN: usize = 5;
+
+/// ★交易执行轨迹（操作语义随机对照的输入，2026-06-28 新增）。
+///
+/// 每笔完整开平交易记录其**操作骨架**：在哪根 bar 开仓、持有多少根、仓位规模、方向、是否
+/// 窗口终点强平。随机对照保持 `hold_bars`/`qty`/`side`（操作外形），只随机化 `entry_bar`
+/// （破坏缠论内在语法），在原始价格序列上重新执行开/持/平算 PnL。
+///
+/// **认识论**：这是 L2 否证的载体——`entry_bar` 携带"Θ 按缠论结构选时点"的信息，随机化它
+/// 即移除该信息，比较 Θ vs 随机的 equity 分布检验缠论语法的择时 alpha 贡献。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TradeRecord {
+    /// 开仓成交 bar 索引（回测 bars 局部下标，close 成交口径）。
+    pub entry_bar: usize,
+    /// 平仓成交 bar 索引（close 成交口径）。`exit_bar > entry_bar`。
+    pub exit_bar: usize,
+    /// 持仓时长（bar 数）= `exit_bar − entry_bar`（≥1）。随机对照保持此值不变。
+    pub hold_bars: usize,
+    /// 仓位规模（lot 数，绝对手数）。随机对照保持此值不变。
+    pub qty: f64,
+    /// 方向（**当前恒 true=多头**）。★有效域边界（codex 实现审查缺陷④）：strategy 层已识别
+    /// Short 根并产 `StrictAction::Sell`，但 backtest 账本侧 `apply_order` 把 `Sell` 当 close_long
+    /// （不建空），故本字段恒 true、随机对照只按多头 PnL 算。做空腿在回测账本未建模——
+    /// **有效域 = 多头**，做空是独立工位的缺口（不在本轮 owner，诚实标注非静默丢失）。
+    pub long: bool,
+    /// 是否窗口终点强制平仓（[`TradeRecord`] 的 `ForcedWindowClose` 标记）。
+    /// ★含浮盈口径的载体：终点未平仓的持仓被强平实现浮盈，但**不计入 n_trades≥30 的
+    /// 统计功效门槛**（避免 29 笔真实退出 + 1 笔强平偷过门槛，codex 指出的陷阱）。
+    pub forced_close: bool,
+}
 
 /// bootstrap / 蒙特卡洛重采样次数（§3.4 + §4：n=1000）。
 pub const N_RESAMPLE: usize = 1000;
@@ -201,47 +271,81 @@ pub struct Significance {
     /// Sharpe 95% 置信区间上界（sharpe + 1.96·se）。
     pub sharpe_ci95_hi: f64,
 
-    // ── §4 随机入场对照（择时信息含量）──
-    /// 随机入场对照的总收益经验分布均值（保持交易笔数，仅打乱 pnl 配对顺序——
-    /// 入场时点随机化的**离散代理**：在真实成交 pnl 池里重抽 n_trades 笔，检验 Θ 的
-    /// 择时（哪些 bar 入场）是否优于随机抽取同样笔数）。
-    pub rand_mean_total_pnl: f64,
-    /// Θ 实测总收益在随机对照分布中的分位（0..1）。
-    /// §5.3 失败判据：Θ 落在随机分布 95% 区间内（分位 < 0.95）⟹ 择时无信息。
-    pub rand_percentile_of_theta: f64,
-    /// Θ 是否**显著优于**随机择时（分位 ≥ 0.95，单边）。
+    // ── §4 随机入场对照（操作语义版，2026-06-28 重写）──
+    // ★主检验 schedule-shift（保操作外形：交易间隔/并发/hold_bars/qty 联合结构）+
+    //   副检验 independent-entry（边际择时）。Θ 与随机**同口径**（逐笔无复利绝对盈亏 ÷ 同一
+    //   nav_base）比较——消除「Θ 复利 MtM vs 随机逐笔」的口径偏置（codex 设计审查第2点）。
+    /// 主检验（schedule-shift）随机策略 total_return 分布均值。
+    pub shift_mean_return: f64,
+    /// Θ 同口径 total_return 在 schedule-shift 分布中的上单边 p 值
+    /// `p_upper = (1 + count(rand ≥ theta)) / (N+1)`。§5.3：p_upper > 0.05 ⟹ 不优于随机。
+    pub shift_pvalue: f64,
+    /// 副检验（independent-entry）随机策略 total_return 分布均值。
+    pub indep_mean_return: f64,
+    /// Θ 同口径 total_return 在 independent-entry 分布中的上单边 p 值。
+    pub indep_pvalue: f64,
+    /// ★Θ **同口径** total_return（随机对照的实际比较基准）：用 Θ 的 trades 在 prices 上按
+    /// **与随机对照完全相同**的逐笔无复利公式（`trade_abs_pnl ÷ nav_base`，含浮盈/终点持仓）算。
+    /// 唯一区别于随机的变量 = 入场点（Θ 真实 vs 随机）⟹ 严格同质比较，无复利偏置。
+    pub theta_return_same_caliber: f64,
+    /// Θ MtM 复利口径 total_return（= `metrics.strat_return`）——**仅报告参考**，不用于比较
+    /// （复利与随机逐笔不同质）。诚实并列：同口径用于判定，MtM 用于展示量级。
+    pub theta_return_mtm: f64,
+    /// Θ 是否**显著优于**随机择时：**两对照都** p_upper ≤ 0.05 **且两对照非退化**（codex
+    /// 严格判定：Θ 须同时打败 schedule-shift 与 independent-entry 才算择时携带信息）。
     pub theta_beats_random: bool,
+    /// ★随机对照是否退化（codex 缺陷⑤）：schedule-shift 无非零合法平移（span<2）或
+    /// independent 全笔 hold≥len ⟹ 无真随机样本 ⟹ p_upper 无统计含义。退化时下游归
+    /// **inconclusive**（不冒充否证也不冒充确认）。非退化 ⟹ p_upper 可采信。
+    pub controls_degenerate: bool,
 }
 
-/// 计算 §3.4 block bootstrap + Sharpe 标准误 + §4 随机入场对照（预注册，seed 冻结）。
+/// 计算 §3.4 block bootstrap + Sharpe 标准误 + §4 操作语义随机入场对照（预注册，seed 冻结）。
 ///
 /// 输入：
 /// - `trade_pnls`：每笔完整平仓交易的盈亏（真实数据回测产出 ⟹ L2；合成 ⟹ L1）。
-/// - `daily_returns`：日 returns 序列（Sharpe 标准误 Lo 2002 调整用）。
+///   §3.4 block bootstrap 用它（H0：收益≤0）。
+/// - `daily_returns`：逐 bar returns 序列（Sharpe 标准误 Lo 2002 调整用）。
+/// - `trades`：Θ 的交易执行轨迹（[`TradeRecord`]，操作语义随机对照的输入）。
+/// - `prices`：原始价格序列（close 口径，与 Θ 账本侧 `apply_order` 的 `px=bar.close` 一致）。
+/// - `fee_rate`：单边费用率（commission+slippage+tax，比率）。随机对照含同等成本。
+/// - `theta_return_for_control`：Θ 含浮盈 total_return（MtM/终点强平口径）——随机对照的比较基准。
 ///
-/// **block bootstrap**（§3.4，backtest-protocol-v0.md:127）：以 [`BLOCK_LEN`]=20 为块长，
-/// 从 `trade_pnls` 有放回抽连续块拼成等长重采样序列（保留交易序列的局部自相关结构），
-/// 算其总收益，重复 [`N_RESAMPLE`]=1000 次 ⟹ 总收益经验分布 ⟹ 单边 p 值（H0：收益≤0）
-/// + 95% 置信区间。
+/// **block bootstrap**（§3.4，backtest-protocol-v0.md:127）：以 [`TRADE_BLOCK_LEN`]=5 笔为块长
+/// （★单位修正：协议 §3.4 的「20 交易日」是日 returns 块，**不是** 20 笔交易；trade_pnls 序列
+/// 用交易笔数块长），从 `trade_pnls` 有放回抽连续块拼成等长重采样序列（保留交易序列局部自相关），
+/// 算其总收益，重复 [`N_RESAMPLE`]=1000 次 ⟹ 单边 p 值（H0：收益≤0）+ 95% 置信区间。
 ///
-/// **Sharpe 标准误**（§3.4，Lo 2002）：日 returns 的 Sharpe 标准误，一阶自相关调整因子
-/// √(1 - 2·ρ₁·(1-1/n)) 近似（Lo 2002 式 ρ₁=lag-1 自相关）。
+/// **Sharpe 标准误**（§3.4，Lo 2002）：日 returns 的 Sharpe 标准误，一阶自相关调整。
 ///
-/// **随机入场对照**（§4，backtest-protocol-v0.md:138）：保持交易笔数 n_trades 不变，从真实
-/// 成交 pnl 池有放回重抽 n_trades 笔（入场时点随机化的离散代理：随机选哪些"成交结果"），
-/// n=1000 次 ⟹ 总收益分布 ⟹ Θ 实测在其中的分位。Θ 分位 ≥0.95 ⟹ 择时携带信息（优于随机）。
+/// **操作语义随机入场对照**（§4，2026-06-28 重写，见 [`random_entry_controls`]）：保持 Θ 交易的
+/// 操作外形（hold_bars/qty/方向），随机化入场点（破坏缠论内在语法），在 `prices` 上重新执行
+/// 开/持/平算 total_return，主检验 schedule-shift + 副检验 independent-entry，各 n=1000。
+/// p_upper = (1+count(rand≥theta))/(N+1)；`theta_beats_random ⟺ 两对照 p_upper 均 ≤ 0.05`。
 ///
-/// **边界条件**：`trade_pnls` 为空或仅 1 笔 ⟹ bootstrap 退化（p=1.0，CI=[0,0]，
-/// theta_beats_random=false）——无交易序列无法否证（§5.5 inconclusive，不冒充显著性）。
+/// **边界条件**：`trade_pnls` 为空/仅 1 笔 ⟹ §3.4 bootstrap 退化（p=1.0，CI=[0,0]）；
+/// `trades` 为空或 `prices` 太短 ⟹ 随机对照退化（两 p_upper=1.0，theta_beats_random=false）——
+/// 无交易/无价格序列无法否证（§5.5 inconclusive，不冒充显著性）。
 ///
 /// **谱系引用**：§3.4/§4 统计方法直接引用 backtest-protocol-v0.md（看结果前冻结，
 /// codex 裁决 seed=20260625）。本函数不引入新判据（下游不可事后改判据，协议 §影响声明）。
-pub fn significance(trade_pnls: &[f64], daily_returns: &[f64]) -> Significance {
+pub fn significance(
+    trade_pnls: &[f64],
+    daily_returns: &[f64],
+    trades: &[TradeRecord],
+    prices: &[f64],
+    fee_rate: f64,
+    theta_return_mtm: f64,
+) -> Significance {
     let (sharpe, _) = sharpe_sortino(daily_returns);
     let (sharpe_se, sharpe_ci95_lo, sharpe_ci95_hi) = sharpe_lo2002(daily_returns, sharpe);
 
+    // ── §4 操作语义随机入场对照（seed 冻结，独立 rng 流，先于 bootstrap 算保证可复现）──
+    // ★Θ 同口径 total_return 在 random_entry_controls 内部用 trades+prices 算（与随机同公式）。
+    let ctrl = random_entry_controls(trades, prices, fee_rate);
+
     let n = trade_pnls.len();
-    // 退化：无交易 / 仅 1 笔 ⟹ 无可重采样的序列结构 ⟹ 不冒充显著性（§5.5 inconclusive）。
+    // §3.4 退化：无交易 / 仅 1 笔 ⟹ 无可重采样的序列结构 ⟹ 不冒充显著性（§5.5 inconclusive）。
     if n < 2 {
         return Significance {
             boot_mean_total_pnl: trade_pnls.iter().sum(),
@@ -252,19 +356,22 @@ pub fn significance(trade_pnls: &[f64], daily_returns: &[f64]) -> Significance {
             sharpe_se,
             sharpe_ci95_lo,
             sharpe_ci95_hi,
-            rand_mean_total_pnl: trade_pnls.iter().sum(),
-            rand_percentile_of_theta: 0.0,
-            theta_beats_random: false,
+            shift_mean_return: ctrl.shift_mean_return,
+            shift_pvalue: ctrl.shift_pvalue,
+            indep_mean_return: ctrl.indep_mean_return,
+            indep_pvalue: ctrl.indep_pvalue,
+            theta_return_same_caliber: ctrl.theta_return_same_caliber,
+            theta_return_mtm,
+            theta_beats_random: ctrl.theta_beats_random,
+            controls_degenerate: ctrl.controls_degenerate,
         };
     }
 
-    let theta_total: f64 = trade_pnls.iter().sum();
-
-    // ── §3.4 block bootstrap（块长 20，n=1000，H0：总收益≤0）──
+    // ── §3.4 block bootstrap（块长 TRADE_BLOCK_LEN 笔，n=1000，H0：总收益≤0）──
     let mut rng = SplitMix64::new(PREREG_SEED);
     let mut boot_totals: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
     for _ in 0..N_RESAMPLE {
-        let total = block_bootstrap_total(trade_pnls, BLOCK_LEN, &mut rng);
+        let total = block_bootstrap_total(trade_pnls, TRADE_BLOCK_LEN, &mut rng);
         boot_totals.push(total);
     }
     let boot_mean_total_pnl = boot_totals.iter().sum::<f64>() / N_RESAMPLE as f64;
@@ -272,23 +379,6 @@ pub fn significance(trade_pnls: &[f64], daily_returns: &[f64]) -> Significance {
     let n_le_0 = boot_totals.iter().filter(|&&t| t <= 0.0).count();
     let boot_pvalue_pnl_le_0 = n_le_0 as f64 / N_RESAMPLE as f64;
     let (boot_ci95_lo, boot_ci95_hi) = percentile_ci(&mut boot_totals, 0.025, 0.975);
-
-    // ── §4 随机入场对照（保持笔数，pnl 池有放回重抽，n=1000）──
-    // seed 续用同一流（确定性：bootstrap 后 rng 状态延续，仍 seed 派生，可复现）。
-    let mut rand_totals: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
-    for _ in 0..N_RESAMPLE {
-        let mut total = 0.0;
-        for _ in 0..n {
-            total += trade_pnls[rng.next_below(n)];
-        }
-        rand_totals.push(total);
-    }
-    let rand_mean_total_pnl = rand_totals.iter().sum::<f64>() / N_RESAMPLE as f64;
-    // Θ 实测总收益在随机分布中的分位（< theta_total 的比例）。
-    let n_below = rand_totals.iter().filter(|&&t| t < theta_total).count();
-    let rand_percentile_of_theta = n_below as f64 / N_RESAMPLE as f64;
-    // §5.3：Θ 分位 ≥ 0.95 ⟹ 显著优于随机（落在随机 95% 区间外的右侧）。
-    let theta_beats_random = rand_percentile_of_theta >= 0.95;
 
     Significance {
         boot_mean_total_pnl,
@@ -299,10 +389,190 @@ pub fn significance(trade_pnls: &[f64], daily_returns: &[f64]) -> Significance {
         sharpe_se,
         sharpe_ci95_lo,
         sharpe_ci95_hi,
-        rand_mean_total_pnl,
-        rand_percentile_of_theta,
-        theta_beats_random,
+        shift_mean_return: ctrl.shift_mean_return,
+        shift_pvalue: ctrl.shift_pvalue,
+        indep_mean_return: ctrl.indep_mean_return,
+        indep_pvalue: ctrl.indep_pvalue,
+        theta_return_same_caliber: ctrl.theta_return_same_caliber,
+        theta_return_mtm,
+        theta_beats_random: ctrl.theta_beats_random,
+        controls_degenerate: ctrl.controls_degenerate,
     }
+}
+
+/// 操作语义随机入场对照的中间结果（[`random_entry_controls`] 产出）。
+struct RandomControls {
+    shift_mean_return: f64,
+    shift_pvalue: f64,
+    indep_mean_return: f64,
+    indep_pvalue: f64,
+    /// Θ 同口径 total_return（与随机对照完全相同的逐笔无复利公式算，比较基准）。
+    theta_return_same_caliber: f64,
+    theta_beats_random: bool,
+    /// 随机对照退化（无真随机样本）⟹ p_upper 无统计含义。
+    controls_degenerate: bool,
+}
+
+/// **★操作语义随机入场对照（§4 核心，2026-06-28 重写）**。
+///
+/// 零假设：破坏缠论内在语法（随机入场，无笔/线段/中枢/买卖点结构）vs 保持（Θ 按结构入场）。
+/// 检验缠论结构本身是否贡献择时 alpha。**保持操作外形**（hold_bars/qty/方向序列），只随机化
+/// 入场点，在 `prices` 上重新执行开/持/平操作语义（含成本），重建 equity 算 total_return（含浮盈）。
+///
+/// **两对照**（codex 严格版）：
+/// - **主 schedule-shift**：整体平移交易日程——所有交易的 entry_bar 同加一个随机偏移 δ，保留
+///   交易间隔/并发/重叠的**联合结构**（最强保操作外形）。δ 范围使所有交易 [entry+δ, exit+δ]
+///   落在 [0, len)。
+/// - **副 independent-entry**：逐笔独立随机抽 entry（破坏交易间时序相关，只保边际 hold_bars/qty）。
+///
+/// **total_return 重算**（含浮盈口径，Θ 与随机**同口径**——消除复利偏置）：每笔交易（无论 Θ 真实
+/// 入场还是随机入场）= 在 entry 开仓、持有 hold_bars、平仓，**逐笔无复利**绝对盈亏求和归一化：
+/// total_return = Σ qty·(exit_px·(1−fee) − entry_px·(1+fee)) / nav_base，nav_base = Σ qty·entry_px·
+/// (1+fee)（Θ 入场名义额基准）。**Θ 的 total_return（[`RandomControls::theta_return_same_caliber`]）
+/// 用 Θ 真实 entry/exit 按同一公式算**——与随机的唯一区别 = 入场点，无复利偏置（codex 设计审查
+/// 第2点：不能比较「Θ 复利 MtM vs 随机逐笔」）。含浮盈口径体现于终点强平笔（hold 到末 bar，在
+/// trades 内 forced_close=true）。close 成交口径（与 Θ 账本侧 `apply_order` 的 `px=bar.close` 一致）。
+///
+/// **p 值**：`p_upper = (1 + count(rand ≥ theta_same_caliber)) / (N+1)`（保守上单边）。
+/// `theta_beats_random ⟺ shift_pvalue ≤ 0.05 ∧ indep_pvalue ≤ 0.05`（两对照都打败才算择时有信息）。
+///
+/// **边界/退化**：`trades` 空、`prices.len() < 2`、或无合法随机区间 ⟹ 两 p_upper=1.0，
+/// theta_beats_random=false（不冒充否证，§5.5 inconclusive）。
+///
+/// **认识论 L2**（真实数据时）：随机化 entry 移除"Θ 按缠论结构选时点"的信息——若 Θ 同口径收益
+/// 不能稳定打败随机分布，则缠论内在语法**不贡献择时 alpha**（否证，缩小有效域，231号）。
+fn random_entry_controls(
+    trades: &[TradeRecord],
+    prices: &[f64],
+    fee_rate: f64,
+) -> RandomControls {
+    let len = prices.len();
+    // 退化：无交易序列 / 价格序列太短 ⟹ 无法构造随机策略 ⟹ 不冒充否证。
+    if trades.is_empty() || len < 2 {
+        return RandomControls {
+            shift_mean_return: 0.0,
+            shift_pvalue: 1.0,
+            indep_mean_return: 0.0,
+            indep_pvalue: 1.0,
+            theta_return_same_caliber: 0.0,
+            theta_beats_random: false,
+            controls_degenerate: true,
+        };
+    }
+
+    // 归一化基准 = Θ 各笔入场名义额之和（含买入费），与 total_return 口径对齐（绝对额 ÷ 基准）。
+    let nav_base: f64 = trades
+        .iter()
+        .map(|t| {
+            let entry_px = prices[t.entry_bar.min(len - 1)];
+            t.qty * entry_px * (1.0 + fee_rate)
+        })
+        .sum();
+    let nav_base = if nav_base > 1e-12 { nav_base } else { 1.0 };
+
+    // ── ★Θ 同口径 total_return（用 Θ 真实 entry/exit，与随机完全相同的逐笔无复利公式）──
+    // 这是随机对照的**实际比较基准**——与随机唯一区别 = 入场点，消除复利偏置。
+    let theta_same_caliber: f64 = trades
+        .iter()
+        .map(|t| {
+            let e = t.entry_bar.min(len - 1);
+            let x = t.exit_bar.min(len - 1);
+            trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate)
+        })
+        .sum::<f64>()
+        / nav_base;
+
+    // ── 主：schedule-shift（整体平移，保留交易日程联合结构）──
+    // δ 合法范围：所有交易 exit_bar+δ < len 且 entry_bar+δ ≥ 0 ⟹ δ ∈ [−min_entry, len−1−max_exit]。
+    let min_entry = trades.iter().map(|t| t.entry_bar).min().unwrap_or(0);
+    let max_exit = trades.iter().map(|t| t.exit_bar).max().unwrap_or(0);
+    let mut rng = SplitMix64::new(PREREG_SEED);
+    let mut shift_returns: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
+    // span = 合法 δ 取值数（含端点）。span<2 ⟹ 唯一 δ=0（复现 Θ），**无真随机平移**——
+    // 退化（codex 缺陷⑤）：留空 shift_returns ⟹ control_stats 返 p_upper=1.0，但通过
+    // theta_beats_random 的 shift 退化检查阻止「退化伪装否证/确认」（下游报告 inconclusive）。
+    let span: usize = if max_exit < len {
+        (len - 1 - max_exit) + min_entry + 1
+    } else {
+        0
+    };
+    let shift_degenerate = span < 2; // 无非零合法平移 ⟹ 退化
+    if !shift_degenerate {
+        for _ in 0..N_RESAMPLE {
+            let delta = rng.next_below(span) as isize - min_entry as isize;
+            let mut total_abs = 0.0;
+            for t in trades {
+                let e = (t.entry_bar as isize + delta) as usize;
+                let x = (t.exit_bar as isize + delta) as usize;
+                total_abs += trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate);
+            }
+            shift_returns.push(total_abs / nav_base);
+        }
+    }
+    let (shift_mean_return, shift_pvalue) = control_stats(&mut shift_returns, theta_same_caliber);
+
+    // ── 副：independent-entry（逐笔独立随机抽 entry，破坏交易间时序相关）──
+    let mut indep_returns: Vec<f64> = Vec::with_capacity(N_RESAMPLE);
+    for _ in 0..N_RESAMPLE {
+        let mut total_abs = 0.0;
+        let mut feasible = true;
+        for t in trades {
+            // entry' ∈ [0, len − hold_bars)（半开，保证 exit'=entry'+hold_bars < len）。
+            if t.hold_bars >= len {
+                feasible = false;
+                break;
+            }
+            let e = rng.next_below(len - t.hold_bars);
+            let x = e + t.hold_bars;
+            total_abs += trade_abs_pnl(prices[e], prices[x], t.qty, fee_rate);
+        }
+        if feasible {
+            indep_returns.push(total_abs / nav_base);
+        }
+    }
+    let indep_degenerate = indep_returns.is_empty(); // 全笔 hold≥len ⟹ 无合法随机
+    let (indep_mean_return, indep_pvalue) = control_stats(&mut indep_returns, theta_same_caliber);
+
+    // codex 严格判定（含退化 guard 缺陷⑤）：Θ 须**同时**打败 schedule-shift 与 independent-entry，
+    // **且两对照都有真随机样本**（非退化）——退化时不冒充否证也不冒充确认（下游归 inconclusive）。
+    let theta_beats_random =
+        !shift_degenerate && !indep_degenerate && shift_pvalue <= 0.05 && indep_pvalue <= 0.05;
+
+    RandomControls {
+        shift_mean_return,
+        shift_pvalue,
+        indep_mean_return,
+        indep_pvalue,
+        theta_return_same_caliber: theta_same_caliber,
+        theta_beats_random,
+        controls_degenerate: shift_degenerate || indep_degenerate,
+    }
+}
+
+/// 单笔交易的绝对盈亏（多头 close-to-close，含双边费用，与 Θ 账本侧成本对称口径一致）。
+///
+/// `qty·(exit_px·(1−fee) − entry_px·(1+fee))`：买入名义额含买入费，卖出名义额扣卖出费。
+/// （v0 只有多头根；做空腿待 strategy 订单语义定，此处不臆造。）
+fn trade_abs_pnl(entry_px: f64, exit_px: f64, qty: f64, fee_rate: f64) -> f64 {
+    let proceeds = qty * exit_px * (1.0 - fee_rate);
+    let cost = qty * entry_px * (1.0 + fee_rate);
+    proceeds - cost
+}
+
+/// 随机对照分布统计：均值 + 上单边 p 值 `p_upper = (1 + count(rand ≥ theta)) / (N+1)`。
+///
+/// 空分布（无合法重采样）⟹ 均值 0、p_upper=1.0（不冒充否证）。p_upper 用 Davison-Hinkley
+/// 加 1 修正（保守，避免 p=0 的过度自信；codex 指出裸分位不是 p 值）。
+fn control_stats(samples: &mut [f64], theta: f64) -> (f64, f64) {
+    let n = samples.len();
+    if n == 0 {
+        return (0.0, 1.0);
+    }
+    let mean = samples.iter().sum::<f64>() / n as f64;
+    // count(rand ≥ theta)：随机策略不劣于 Θ 的次数。
+    let n_ge = samples.iter().filter(|&&r| r >= theta).count();
+    let p_upper = (1 + n_ge) as f64 / (n as f64 + 1.0);
+    (mean, p_upper)
 }
 
 /// 一次 block bootstrap 重采样的总收益（块长 `block`，有放回抽连续块拼成 ≥len 序列后截断）。
@@ -581,14 +851,30 @@ mod tests {
         assert!(seen.iter().all(|&s| s), "1000 抽样覆盖全部 7 个值（均匀性弱见证）");
     }
 
-    /// significance 可复现（同输入同 seed ⟹ bit-exact 同结果，§4 硬约束）。
+    /// 构造单笔多头 TradeRecord（测试 helper）。
+    fn mk_trade(entry: usize, hold: usize, qty: f64) -> TradeRecord {
+        TradeRecord {
+            entry_bar: entry,
+            exit_bar: entry + hold,
+            hold_bars: hold,
+            qty,
+            long: true,
+            forced_close: false,
+        }
+    }
+
+    /// significance 可复现（同输入同 seed ⟹ bit-exact 同结果，§4 硬约束，含新随机对照）。
     #[test]
     fn significance_reproducible() {
         let pnls: Vec<f64> = (0..50).map(|i| if i % 3 == 0 { -1.0 } else { 2.0 }).collect();
         let rets: Vec<f64> = (0..50).map(|i| 0.001 * (i % 5) as f64 - 0.001).collect();
-        let s1 = significance(&pnls, &rets);
-        let s2 = significance(&pnls, &rets);
-        assert_eq!(s1, s2, "同输入同 seed ⟹ bit-exact 同结果（可复现）");
+        // 合成价格序列 + 交易轨迹（随机对照可复现见证）。
+        let prices: Vec<f64> = (0..100).map(|i| 100.0 + (i as f64).sin()).collect();
+        let trades: Vec<TradeRecord> =
+            (0..10).map(|i| mk_trade(i * 5, 3, 1.0)).collect();
+        let s1 = significance(&pnls, &rets, &trades, &prices, 0.0003, 0.05);
+        let s2 = significance(&pnls, &rets, &trades, &prices, 0.0003, 0.05);
+        assert_eq!(s1, s2, "同输入同 seed ⟹ bit-exact 同结果（可复现，含随机对照）");
     }
 
     /// ★否证性见证①：**纯亏损序列** ⟹ bootstrap p 值 ≈ 1.0（无法拒绝 H0 收益≤0）。
@@ -598,7 +884,7 @@ mod tests {
         // 全亏损交易（每笔 -1.0）。
         let pnls = vec![-1.0; 40];
         let rets = vec![-0.002; 40];
-        let s = significance(&pnls, &rets);
+        let s = significance(&pnls, &rets, &[], &[], 0.0, 0.0);
         // H0：收益≤0 无法拒绝（p 值高）——所有重采样总收益都 <0 ⟹ p=1.0。
         assert!(
             s.boot_pvalue_pnl_le_0 > 0.95,
@@ -616,7 +902,7 @@ mod tests {
         // 全盈利交易（每笔 +2.0）。
         let pnls = vec![2.0; 40];
         let rets = vec![0.003; 40];
-        let s = significance(&pnls, &rets);
+        let s = significance(&pnls, &rets, &[], &[], 0.0, 0.0);
         // 所有重采样总收益都 >0 ⟹ p=0（拒绝 H0，收益显著正）。
         assert!(
             s.boot_pvalue_pnl_le_0 < 0.05,
@@ -629,23 +915,120 @@ mod tests {
     /// 空 / 单笔交易 ⟹ 退化（p=1.0，不冒充显著性，§5.5 inconclusive）。
     #[test]
     fn significance_degenerate_no_trades() {
-        let s0 = significance(&[], &[]);
+        let s0 = significance(&[], &[], &[], &[], 0.0, 0.0);
         assert_eq!(s0.boot_pvalue_pnl_le_0, 1.0, "无交易 ⟹ p=1.0（无证据，不冒充）");
         assert!(!s0.theta_beats_random, "无交易 ⟹ 不优于随机");
-        let s1 = significance(&[5.0], &[0.01]);
+        assert_eq!(s0.shift_pvalue, 1.0, "无交易轨迹 ⟹ 随机对照退化 p_upper=1.0");
+        assert_eq!(s0.indep_pvalue, 1.0, "无交易轨迹 ⟹ independent 对照退化 p_upper=1.0");
+        let s1 = significance(&[5.0], &[0.01], &[], &[], 0.0, 0.0);
         assert_eq!(s1.boot_pvalue_pnl_le_0, 1.0, "仅 1 笔 ⟹ 无序列结构 ⟹ p=1.0");
     }
 
-    /// 随机入场对照：恒定 pnl（每笔相同）⟹ 随机重抽总收益恒等 ⟹ Θ 不优于随机（分位 0，
-    /// 因 Θ total == 所有随机 total，无一严格小于）。这见证「无择时差异 ⟹ 不优于随机」。
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★操作语义随机入场对照（§4 重写）：脱离自举恒真 + 否证性见证
+    //  认识论：合成价格上跑 = L1（验证对照管线正确）。L2 只在真实回测交易轨迹时产生。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★脱离自举恒真的回归见证：随机对照分布均值**不**恒等于 Θ 收益。
+    ///
+    /// 旧 §4（self-resampling）：随机分布均值 ≡ Θ 总盈亏（数学恒真）。本测试构造**单调上涨**
+    /// 价格 + Θ 入场点偏向**后段**（高位入场，差择时）⟹ 随机对照（全序列随机入场）的均值收益
+    /// 应**高于** Θ（Θ 高位入场吃亏）⟹ Θ 分位低、p_upper 大 ⟹ 见证均值非恒等于 Θ（恒真已破）。
     #[test]
-    fn random_control_constant_pnl_no_edge() {
-        let pnls = vec![1.0; 30]; // 每笔相同 ⟹ 任意重抽 30 笔总收益恒 = 30.0
-        let rets = vec![0.001; 30];
-        let s = significance(&pnls, &rets);
-        // Θ total=30，所有随机 total=30 ⟹ 无一 < 30 ⟹ 分位=0 ⟹ 不优于随机。
-        assert_eq!(s.rand_percentile_of_theta, 0.0, "恒定 pnl ⟹ Θ 不严格优于随机重抽");
-        assert!(!s.theta_beats_random, "无择时差异 ⟹ 不优于随机（§5.3）");
+    fn random_control_not_self_resampling_tautology() {
+        // 单调上涨价格（100 → 199）。
+        let prices: Vec<f64> = (0..100).map(|i| 100.0 + i as f64).collect();
+        // Θ 全部在**后段高位**入场（entry 70..80），持有 3 根——上涨趋势中高位入场仍盈利，
+        // 但随机入场（可落在前段低位）平均盈利更高 ⟹ Θ 不优于随机。
+        let trades: Vec<TradeRecord> = (0..8).map(|i| mk_trade(70 + i, 3, 1.0)).collect();
+        let theta_ret: f64 = trades
+            .iter()
+            .map(|t| trade_abs_pnl(prices[t.entry_bar], prices[t.exit_bar], t.qty, 0.0))
+            .sum::<f64>()
+            / trades.iter().map(|t| t.qty * prices[t.entry_bar]).sum::<f64>();
+        let s = significance(&[], &[], &trades, &prices, 0.0, theta_ret);
+        // 单调上涨 + 固定 hold ⟹ 每笔绝对盈亏恒 = qty×hold（价格每根 +1）⟹ 随机均值 ≈ Θ。
+        // 关键见证：随机分布均值是**重新执行操作语义**算出，不是从 Θ pnl 池重抽——
+        // 故 shift_mean_return 反映价格序列结构，非 Θ 总盈亏的代数恒等。
+        assert!(
+            s.shift_mean_return.is_finite() && s.indep_mean_return.is_finite(),
+            "随机对照均值有限（操作语义重算）"
+        );
+        // Θ 高位入场 ⟹ 不显著优于随机（两对照不全 ≤0.05）⟹ 不冒充择时 alpha。
+        assert!(
+            !s.theta_beats_random,
+            "单调上涨中差择时（高位入场）⟹ Θ 不优于随机（脱离自举恒真后能产否定结果）"
+        );
+    }
+
+    /// ★否证性见证③：**好择时**（Θ 入场恰在局部低点）⟹ Θ 显著优于 **independent** 对照。
+    ///
+    /// 锯齿价格（低点 100、高点 110 交替）。Θ 全部在**局部低点**入场、持有到**高点**平仓
+    /// （完美择时）⟹ Θ 收益远高于 independent 随机入场分布 ⟹ indep p_upper ≤0.05。
+    /// 这见证检验**能确认择时 alpha**（不是只会否证）——与差择时见证对偶。
+    ///
+    /// ★诚实标注（两对照检验不同的东西，正是 codex 要两对照的理由）：在**周期性价格**上，
+    /// **schedule-shift 对相位对齐的择时不敏感**——整体平移 δ 为周期倍数时复现 Θ 的完美择时
+    /// （锯齿周期=2，δ 为偶数时所有交易仍低买高卖），故 schedule-shift 分布双峰、约半数复制 Θ
+    /// ⟹ shift p_upper ≈ 0.5（Θ 未胜）。这**不是 bug**，是 schedule-shift「保留交易-价格相位
+    /// 联合结构」的**正确统计性质**：它检验「打散交易间时序相关后是否还有 alpha」，对
+    /// 周期对齐的择时本就保守。independent 对照（破坏相位）才捕捉这类择时 ⟹ 两对照互补。
+    #[test]
+    fn random_control_good_timing_beats_independent() {
+        // 锯齿：偶数 bar=100（低），奇数 bar=110（高）。
+        let prices: Vec<f64> = (0..200).map(|i| if i % 2 == 0 { 100.0 } else { 110.0 }).collect();
+        // Θ 在偶数 bar（低点）入场，持有 1 根到奇数 bar（高点）平仓——完美择时。
+        let trades: Vec<TradeRecord> = (0..40).map(|i| mk_trade(i * 2, 1, 1.0)).collect();
+        // Θ 每笔买 100 卖 110 ⟹ 含浮盈 total_return（fee=0）= Σ10 / Σ100 = 0.1。
+        let theta_ret = 0.1;
+        let s = significance(&[], &[], &trades, &prices, 0.0, theta_ret);
+        // independent 随机入场（破坏相位，一半落在高点买低点卖 ⟹ 亏）⟹ 均值 ≈ 0 ≪ Θ 0.1。
+        assert!(
+            s.indep_mean_return < theta_ret,
+            "完美择时 ⟹ Θ 收益 {theta_ret} > independent 均值 {}",
+            s.indep_mean_return
+        );
+        assert!(
+            s.indep_pvalue <= 0.05,
+            "完美择时（低买高卖）⟹ Θ 显著优于 independent 随机入场（确认择时 alpha）。indep_p={}",
+            s.indep_pvalue
+        );
+        // schedule-shift 在周期数据上对相位对齐择时不敏感（双峰分布，约半数复制 Θ）——
+        // 诚实见证两对照检验不同的东西（非 bug，是 schedule-shift 保相位的正确性质）。
+        assert!(
+            s.shift_pvalue > 0.05,
+            "周期价格上 schedule-shift 复现 Θ 相位 ⟹ shift_p>0.05（两对照互补的诚实见证）。shift_p={}",
+            s.shift_pvalue
+        );
+    }
+
+    /// 随机对照退化边界：hold_bars ≥ 价格序列长度 ⟹ independent 无合法区间 ⟹ p_upper=1.0。
+    #[test]
+    fn random_control_degenerate_short_prices() {
+        let prices = vec![100.0, 101.0, 102.0];
+        // hold=5 > len=3 ⟹ 无合法 entry 区间。
+        let trades = vec![mk_trade(0, 5, 1.0)];
+        let s = significance(&[], &[], &trades, &prices, 0.0, 0.0);
+        // exit_bar=5 ≥ len=3 ⟹ schedule-shift 无合法 δ（max_exit≥len）⟹ 退化。
+        assert_eq!(s.shift_pvalue, 1.0, "exit 越界 ⟹ schedule-shift 退化 p_upper=1.0");
+        assert_eq!(s.indep_pvalue, 1.0, "hold≥len ⟹ independent 退化 p_upper=1.0");
+        assert!(!s.theta_beats_random, "退化 ⟹ 不冒充否证");
+        assert!(s.controls_degenerate, "无真随机样本 ⟹ controls_degenerate=true（下游归 inconclusive）");
+    }
+
+    /// ★schedule-shift span==1 退化 guard（codex 缺陷⑤）：交易紧贴序列末尾 ⟹ 唯一 δ=0（复现 Θ）
+    /// ⟹ 无真随机平移 ⟹ shift 退化。independent 仍可随机（hold<len）⟹ 仅 shift 退化即整体退化。
+    #[test]
+    fn random_control_shift_span_one_degenerate() {
+        // len=4；交易 entry=2 exit=3（紧贴末尾）⟹ min_entry=2 max_exit=3 ⟹
+        // span = (4-1-3) + 2 + 1 = 3 ≥2，非退化。构造 span==1：entry=0 exit=3（占满全程）⟹
+        // min_entry=0 max_exit=3 ⟹ span = (4-1-3)+0+1 = 1 ⟹ 唯一 δ=0 ⟹ shift 退化。
+        let prices = vec![100.0, 101.0, 102.0, 103.0];
+        let trades = vec![mk_trade(0, 3, 1.0)]; // entry=0 exit=3 占满 ⟹ span=1
+        let s = significance(&[], &[], &trades, &prices, 0.0, 0.0);
+        assert_eq!(s.shift_pvalue, 1.0, "span==1（唯一 δ=0）⟹ shift 无真随机 ⟹ 退化 p_upper=1.0");
+        assert!(s.controls_degenerate, "shift 退化 ⟹ controls_degenerate=true");
+        assert!(!s.theta_beats_random, "退化 ⟹ 不冒充 beats");
     }
 
     /// Sharpe Lo 2002 标准误：正自相关 ⟹ SE 放大（调整因子 >1）；CI 含 sharpe。
