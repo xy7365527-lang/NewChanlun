@@ -685,3 +685,128 @@ mod incremental_tests {
         }
     }
 }
+
+// ════════════════════════════════════════════════════════════
+// 性能 profile（IncrementalSegZhongshu 标度 — scan_i 停滞 regime 的 O(n²) 定位）
+// ════════════════════════════════════════════════════════════
+//
+// 递增笔规模，每次 segments_from_strokes_v1 构造线段 + IncrementalSegZhongshu::update，
+// 测累计耗时，拟合标度。trend regime（无 settled 中枢）触发 scan_i 停滞 → 期望 O(n²)（优化前）。
+//
+// L1 度量（231号）：CPU 耗时是确定性工程度量，零信息增量。
+// 跑法：cargo test --lib segment_layers::perf_profile -- --ignored --nocapture
+#[cfg(test)]
+mod perf_profile {
+    use super::*;
+    use crate::segment::segments_from_strokes_v1;
+    use crate::stroke::{Direction, Stroke};
+    use std::time::Instant;
+
+    const SIZES: [usize; 5] = [500, 1000, 2000, 4000, 8000];
+
+    fn mk_strokes(prices: &[f64]) -> Vec<Stroke> {
+        let mut out = Vec::new();
+        for k in 0..prices.len().saturating_sub(1) {
+            let p0 = prices[k];
+            let p1 = prices[k + 1];
+            let direction = if p1 > p0 { Direction::Up } else { Direction::Down };
+            out.push(Stroke {
+                i0: k,
+                i1: k + 1,
+                direction,
+                high: p0.max(p1),
+                low: p0.min(p1),
+                p0,
+                p1,
+                confirmed: true,
+            });
+        }
+        out
+    }
+
+    /// trend：单调上行 prices → 笔单调 → 线段单调 → 无三段重叠 → 无 settled 中枢。
+    fn gen_trend(n: usize) -> Vec<Stroke> {
+        let prices: Vec<f64> = (0..n).map(|k| 100.0 + k as f64).collect();
+        mk_strokes(&prices)
+    }
+
+    /// 驱动：逐前缀 m 调 update，测累计耗时（隔离 update，不含 segments 构造）。
+    /// `full_stable`：true=stable_count=segs.len()（全永久）；false=真实 stable_count
+    /// （复刻 SegCheckpoint 稳定判据，有易变尾，接近生产配置）。
+    fn drive_update(strokes: &[Stroke], full_stable: bool) -> (std::time::Duration, usize) {
+        // 预构造所有前缀的 segments + stable_count（排除构造耗时）。
+        let all: Vec<(Vec<Segment>, usize)> = (3..=strokes.len())
+            .step_by(2)
+            .map(|m| {
+                let s = &strokes[..m];
+                let segs = segments_from_strokes_v1(s, 3, true);
+                let sc = if full_stable {
+                    segs.len()
+                } else {
+                    compute_stable_count(&segs, s.len())
+                };
+                (segs, sc)
+            })
+            .collect();
+        let t = Instant::now();
+        let mut inc = IncrementalSegZhongshu::new();
+        let mut last_len = 0usize;
+        for (segs, sc) in &all {
+            inc.update(segs, *sc);
+            last_len = inc.zhongshus().len();
+        }
+        (t.elapsed(), std::hint::black_box(last_len))
+    }
+
+    /// 复刻 SegCheckpoint._update_checkpoint 稳定判据（同 incremental_tests）。
+    fn compute_stable_count(segments: &[Segment], n_strokes: usize) -> usize {
+        use crate::segment::MAX_SECOND_SEQ_SCAN;
+        let mut sc = 0usize;
+        for seg in segments {
+            if !seg.confirmed {
+                break;
+            }
+            let trigger_k = match seg.break_evidence {
+                Some(be) => be.trigger_stroke_k,
+                None => break,
+            };
+            if trigger_k + 1 + MAX_SECOND_SEQ_SCAN > n_strokes {
+                break;
+            }
+            sc += 1;
+        }
+        sc
+    }
+
+    #[test]
+    #[ignore = "性能 profile：cargo test --lib segment_layers::perf_profile -- --ignored --nocapture"]
+    fn profile_incremental_seg_zhongshu_scaling() {
+        eprintln!("\n===== segment_layers IncrementalSegZhongshu 标度 profile =====");
+        for (name, gen) in [("trend(无中枢)", gen_trend as fn(usize) -> Vec<Stroke>)] {
+            for (cfg, full) in [("全stable", true), ("真实stable(有易变尾)", false)] {
+                eprintln!("\n── regime={name} / {cfg} ──");
+                let mut rows: Vec<(usize, f64)> = Vec::new();
+                for &n in &SIZES {
+                    let strokes = gen(n);
+                    let mut best = f64::INFINITY;
+                    let mut zs = 0usize;
+                    for _ in 0..3 {
+                        let (d, l) = drive_update(&strokes, full);
+                        best = best.min(d.as_secs_f64());
+                        zs = l;
+                    }
+                    rows.push((n, best));
+                    eprintln!("  n={n:>6}  total={best:>10.6}s  zs={zs}");
+                }
+                for w in rows.windows(2) {
+                    let exp = (w[1].1 / w[0].1).ln() / (w[1].0 as f64 / w[0].0 as f64).ln();
+                    eprintln!("    inc {}→{}: exp≈{exp:.2}", w[0].0, w[1].0);
+                }
+                let (n0, n1) = (rows[0].0 as f64, rows[rows.len() - 1].0 as f64);
+                let (t0, t1) = (rows[0].1, rows[rows.len() - 1].1);
+                let overall = (t1 / t0).ln() / (n1 / n0).ln();
+                eprintln!("    overall: exp≈{overall:.2}  (1=线性 2=平方)");
+            }
+        }
+    }
+}

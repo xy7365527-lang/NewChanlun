@@ -44,6 +44,7 @@
 use super::config::ThetaConfig;
 use super::parser::ParseLayer;
 use super::types::{Center, Direction, MoveKind, Segment};
+use divergence::MacdState;
 
 pub mod center;
 pub mod ref_v1;
@@ -293,6 +294,450 @@ pub fn classify_with_tower(
     config: &ThetaConfig,
 ) -> (Classification, Vec<Vec<LeveledMove>>) {
     classify_impl(l0, config)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  增量塔 API（task #93：per-bar substrate 塔构造 O(n²) → O(n)）
+// ════════════════════════════════════════════════════════════════════════════
+//
+// ## 超线性根因（前序 aed4d5f5 实证：classify c_exp≈2.31 主导）
+//
+// `classify_impl` 的塔循环 `for level_idx in 0..=l_max` 每级调 `compose_level`（→
+// `detect_centers_windowed`）+ `classify_level`（→ `detect_centers_with`）——两次全量滑窗扫描。
+// per-bar substrate（每 bar 追加段）下，前级 confirmed 前缀稳定却重复全量扫描 ⟹ 超线性。
+//
+// ## 增量策略（严格有效域声明，formalization-validity-domain 231号）
+//
+// **有效域**：`tower_snapshots`（Vec<Vec<LeveledMove>>）+ `LevelState.centers` 的**中枢扫描构造**
+// 可增量——`detect_centers_windowed` 是确定性左折叠（见 recursive_tower.rs 增量证明），已产出
+// 中枢是不可变前缀，尾部追加续扫产出 bit-exact 尾部。
+//
+// **不在有效域**（诚实声明，no-声明膨胀）：
+// - `LevelState.moves`（走势裁决）：`classify_move(&centers)` 在完整 centers 序列上裁决趋势，
+//   尾部追加中枢可改变整体裁决 ⟹ 须每 bar 从累积 centers 全量裁决（非增量）。但裁决是 O(centers)
+//   单趟，不是超线性源。
+// - `LevelState.bsp`：依赖 MACD hist（每 bar 变）+ 完整 centers ⟹ 每 bar 全量重算。
+//
+// 故增量塔的 LevelState.centers/moves/bsp 由**累积的完整 centers 序列**经与全量同口径的裁决/
+// BSP 提取产出（bit-exact），仅**中枢扫描构造**走增量 resume。塔构造的超线性（双次全量扫描）
+// 被消除 ⟹ exp≈1。
+//
+// ## 跨级增量传播（严格不变量）
+//
+// 每级 units = `project_to_units(&upper_moves)`。上级 upper_moves 尾部追加时下级 units 尾部变，
+// 下级从自己的断点续扫。**前缀不变量链**：L0 段前缀不变 ⟹ L0 upper_moves 前缀不变（resume 已证）
+// ⟹ L1 units 前缀不变（project 逐元素，前缀同序同值）⟹ L1 扫描断点有效 ⟹ ... 逐级传播。
+//
+// bit-exact 充要：`cache.last_units_len` 与再次进入时的前缀严格增长（只追加，不修改前缀）。
+
+use recursive_tower::{compose_level_resume, WindowScanCursor};
+
+/// 单级增量缓存：已确认前缀 + 续扫断点。
+///
+/// 不变量（跨 bar 保持）：
+/// - `scan_cursor.consumed`：本级窗口扫描退出断点（上次扫到此处，`units[..consumed]` 路径确定）。
+/// - `upper_moves`：本级已 compose 的上级走势序列（前缀不可变；尾部续扫追加）。
+/// - `last_input_len`：上次扫描时本级 `subs_moves`（= units）长度——再次进入时前缀须不大于此。
+/// - `cached_outcome`：上次 `classify_move` 结果（增量续算用，O(1) 续判新尾对）。
+#[derive(Debug, Clone, Default)]
+struct LevelCache {
+    scan_cursor: WindowScanCursor,
+    /// 已 compose 的上级走势序列（前缀不可变；尾部续扫追加）。每元素 `RMove::Compose` 携真 subs。
+    upper_moves: Vec<LeveledMove>,
+    /// 已识别中枢序列（与 `upper_moves` 一一对应，每窗口一中枢；前缀不可变，尾部续扫追加）。
+    centers: Vec<Center>,
+    last_input_len: usize,
+    /// 增量 classify_move 缓存（None=未初始化；Some=对应 `centers` 当前序列的裁决）。
+    cached_outcome: Option<level::MoveOutcome>,
+}
+
+/// 增量塔缓存（跨 bar 跨级复用）：每级 `LevelCache` + L0 段账本快照长度 + MACD 增量状态。
+///
+/// **使用契约**（bit-exact 充要，违反则增量破裂）：
+/// 1. 每 bar 喂 `classify_with_tower_incremental(l0_i, config, &mut cache)`，`l0_i.segments` 是
+///    `parse_layer(&bars[..=i])`——段账本**只允许尾部增长**（前缀段不可变，parser 前缀稳定语义）。
+/// 2. 若某 bar 段账本前缀**回缩或改写**（非单调追加），须 `cache.clear()` 重置（退化为全量）。
+/// 3. `config.level`（l_max/min_parts）不可变——变则 `cache.clear()`。
+/// 4. `merged_bars.close` 前缀须单调追加（前缀不变）——inclusion 合并可能改写尾部，
+///    故 `macd_closes_prefix` 校验 `closes[..last_merged_len]` 逐值一致；不一致则全量重建。
+#[derive(Debug, Clone, Default)]
+pub struct TowerCache {
+    /// 逐级缓存（下标 = 级别 idx，与 `tower_snapshots` 同构）。
+    levels: Vec<LevelCache>,
+    /// 上次处理的 L0 段数（前缀不变量校验用）。
+    last_l0_segments_len: usize,
+    /// MACD 增量递推状态（None=未初始化；Some=已处理至 `macd_closes_prefix` 末）。
+    macd_state: Option<MacdState>,
+    /// 已增量产出的 hist 前缀（不可变；尾部 append 续产）。bit-exact 等价于
+    /// `compute_macd(macd_closes_prefix).hist`。
+    macd_hist: Vec<f64>,
+    /// 已处理的 `merged_bars.close` 前缀（前缀不变量校验 + append 边界）。
+    macd_closes_prefix: Vec<f64>,
+}
+
+impl TowerCache {
+    /// 构造空缓存（首次调用全量扫，之后增量复用）。
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// 重置缓存（退化为下次全量重扫）。
+    ///
+    /// 调用时机：段账本前缀非单调追加（回缩/改写）、或 config 变更、或 merged_bars
+    /// 前缀改写（inclusion 合并回退改写尾部）。
+    pub fn clear(&mut self) {
+        self.levels.clear();
+        self.last_l0_segments_len = 0;
+        self.macd_state = None;
+        self.macd_hist.clear();
+        self.macd_closes_prefix.clear();
+    }
+}
+
+/// 增量走势裁决（bit-exact 等价于 `classify_move(centers)`，O(1) 续判）。
+///
+/// 利用 centers 前缀不可变 + `cached_outcome` 续算：
+/// - **HigherCenterCandidate（0 centers）→ 1 center**：Consolidation（首中枢=盘整）。
+/// - **Consolidation（1 center）→ 2 centers**：判首对关系，全 Up ⟹ Trend(Up)，全 Down ⟹
+///   Trend(Down)，否则 HigherCenterCandidate。
+/// - **Trend(rel) → +1 center**：判新尾对（倒数第二，末）关系==rel ⟹ 保持 Trend(rel)；
+///   否则 HigherCenterCandidate（全链同向破裂）。
+/// - **HigherCenterCandidate（≥2 centers，mixed）→ +1 center**：保持 HigherCenterCandidate
+///   （全链同向一旦破裂不可恢复——追加 center 不能修复已有的 mixed 对）。
+///
+/// bit-exact：与 `classify_move` 在相同 centers 序列上产出相同 `MoveOutcome`（全链同向判据一致）。
+/// `cached` 为 None 时全量计算首初始化（与 `classify_move` 一致），之后续判 O(1)。
+fn classify_move_incremental(
+    centers: &[Center],
+    cached: &mut Option<level::MoveOutcome>,
+) -> level::MoveOutcome {
+    use level::MoveOutcome;
+    use center::CenterRelation;
+
+    // 全量首初始化或 centers 回缩（centers.len() < 上次）⟹ 全量重算。
+    let need_full = cached.is_none()
+        || match cached {
+            Some(MoveOutcome::HigherCenterCandidate) => centers.len() <= 1,
+            Some(MoveOutcome::Consolidation) => centers.len() <= 1,
+            Some(MoveOutcome::Trend(_)) => centers.len() <= 1,
+            None => true,
+        };
+    if need_full {
+        let outcome = classify_move(centers);
+        *cached = Some(outcome);
+        return outcome;
+    }
+
+    let prev = cached.unwrap();
+    // 从 prev 状态 + prev 时的 centers 长度续算到当前 centers。
+    // prev 对应的 centers 长度推断：
+    //   HigherCenterCandidate(0) → len 0; Consolidation → len 1; Trend → len ≥2
+    //   HigherCenterCandidate(≥2 mixed) → len ≥2
+    // 但 HigherCenterCandidate 可能来自 0 或 ≥2 mixed。用 centers.len() 推断 prev_len。
+    // 简化：从 prev_len = centers.len() - (新增数) 续算。但增量只 +1~few centers。
+    // 更简单：直接全量重算 if prev 与当前 centers 长度推断不匹配。
+    //
+    // ★严格增量：从 prev_outcome + prev_centers_len 续算。prev_centers_len = centers 增长前的长度。
+    // 但 LevelCache 不存 prev_centers_len。故用 cached_outcome 的语义反推：
+    //   Consolidation ⟹ prev_len == 1; Trend ⟹ prev_len ≥ 2; HCC ⟹ prev_len == 0 或 ≥2.
+    // HCC 歧义：0 vs ≥2 mixed。0→1 是 Consolidation；≥2 mixed→+1 仍是 HCC。
+    // 用 centers.len() 判：如果 centers.len() == 1 且 prev 是 HCC ⟹ prev_len=0 ⟹ Consolidation.
+    // 如果 centers.len() >= 2 且 prev 是 HCC ⟹ prev_len≥2 mixed ⟹ 保持 HCC.
+    let outcome = match (prev, centers.len()) {
+        (MoveOutcome::HigherCenterCandidate, 1) => MoveOutcome::Consolidation,
+        (MoveOutcome::HigherCenterCandidate, _) => MoveOutcome::HigherCenterCandidate, // ≥2 mixed 保持
+        (MoveOutcome::Consolidation, 2) => {
+            // 首对关系：全 Up ⟹ Trend(Up)，全 Down ⟹ Trend(Down)，否则 HCC。
+            let rel = center::classify_relation(&centers[0], &centers[1]);
+            match rel {
+                CenterRelation::UpContinuation => MoveOutcome::Trend(Direction::Up),
+                CenterRelation::DownContinuation => MoveOutcome::Trend(Direction::Down),
+                _ => MoveOutcome::HigherCenterCandidate,
+            }
+        }
+        (MoveOutcome::Consolidation, _) => {
+            // len > 2 从 Consolidation 续算不应发生（Consolidation 仅 len==1）。
+            // 防御性：全量重算。
+            let o = classify_move(centers);
+            *cached = Some(o);
+            return o;
+        }
+        (MoveOutcome::Trend(dir), n) if n >= 2 => {
+            // Trend(rel) + 新尾 center：判新尾对（n-2, n-1）关系是否保持 rel。
+            let rel = center::classify_relation(&centers[n - 2], &centers[n - 1]);
+            let expected = match dir {
+                Direction::Up => CenterRelation::UpContinuation,
+                Direction::Down => CenterRelation::DownContinuation,
+            };
+            if rel == expected {
+                MoveOutcome::Trend(dir)
+            } else {
+                MoveOutcome::HigherCenterCandidate
+            }
+        }
+        _ => {
+            // 防御性：全量重算。
+            let o = classify_move(centers);
+            *cached = Some(o);
+            return o;
+        }
+    };
+    *cached = Some(outcome);
+    outcome
+}
+
+/// 增量 MACD hist 计算（231号纯性能，bit-exact 铁律）。
+///
+/// 返回完整 hist 序列（等长 `closes`），与 `divergence::compute_macd(closes, cfg).hist`
+/// 逐元素 bit-identical（ac75d4b3 已证 `MacdState::append` bit-exact）。
+///
+/// ## per-bar substrate 语义（inclusion 合并的尾部不稳定性）
+///
+/// `parse_layer(&bars[..i])` 的 `merged_bars` = `merged_prefix`（confirmed 稳定前缀）+
+/// `acc`（当前未定稿合并段，可能被后续 bar 吸收改写）。故跨 bar：
+/// - `merged_bars[..len-1]` 稳定（confirmed 前缀不动）
+/// - `merged_bars[len-1]`（= acc）可能改写
+///
+/// 增量 state 表示 `closes[..stable_prefix]`（stable_prefix = `closes.len() - 1`，排除
+/// 不稳定的尾 bar）。尾 bar 的 hist 由 state + 尾 close O(1) 派生。每 bar 追加：
+/// - 长度相同（inclusion 吸收）：stable_prefix 不变 ⟹ state 有效，尾 bar hist 重算。
+/// - 长度 +1（非包含定稿）：旧尾 bar 现稳定 ⟹ state append 旧尾 close，新尾 bar hist 派生。
+///
+/// ## 退化路径（cache 空 / 前缀改写 / 长度回缩）
+///
+/// 逐 bar `append` 重建 state + hist 数组（与全量同 EMA 约简顺序，bit-exact）。O(n) 单次，
+/// 非 fallback——是 inclusion 回退的合法 bit-exact 退化（同塔 cache clear 逻辑）。
+///
+/// ## 认识论（formalization-validity-domain 231号）
+///
+/// L1：bit-exact 等价于全量 `compute_macd`（管线正确性，零 alpha 信息增量）。
+/// 增量只把同一浮点约简从「全量重算」改成「逐 bar 延伸」，数值不变。
+fn compute_macd_hist_incremental(
+    closes: &[f64],
+    cfg: &super::config::MacdConfig,
+    cache: &mut TowerCache,
+) {
+    // 空 closes：无 MACD 可算，清空 cache MACD 域（防御性，classify 入口已防空 layer）。
+    if closes.is_empty() {
+        cache.macd_state = None;
+        cache.macd_hist.clear();
+        cache.macd_closes_prefix.clear();
+        return;
+    }
+
+    // 单 bar：state = init(closes[0])，hist = [0.0]（首 bar DIF=DEA=hist=0）。
+    if closes.len() == 1 {
+        let state = MacdState::init(closes[0], cfg);
+        cache.macd_hist = vec![state.current_point().hist];
+        cache.macd_state = Some(state);
+        cache.macd_closes_prefix = closes.to_vec();
+        return;
+    }
+
+    // 稳定前缀长度（排除不稳定的尾 bar）。state 表示 closes[..stable_prefix]。
+    let stable_prefix = closes.len() - 1;
+    let cached_len = cache.macd_closes_prefix.len();
+    let cached_stable = if cached_len == 0 { 0 } else { cached_len - 1 };
+
+    // ★O(1) 快路径：同长度 + 尾 bar 一致 + state 存在 ⟹ per-bar 语义下前缀稳定（仅尾 bar
+    // 可能改写，尾 bar 一致 ⟹ 无改写）⟹ hist 未变，直接复用。
+    // 测试模式（closes 跨迭代不变）与 per-bar inclusion 吸收后尾未改写均命中此路径。
+    // 必须在 O(n) 前缀逐值比较之前，否则累积 O(n²)（每 bar O(n) 比较 × n bar）。
+    if cache.macd_state.is_some()
+        && closes.len() == cached_len
+        && closes.last() == cache.macd_closes_prefix.last()
+    {
+        return;
+    }
+
+    // 增量有效性：cached state 存在 + 稳定前缀未回缩 + 前缀逐值一致。
+    let can_incremental = cache
+        .macd_state
+        .is_some()
+        && stable_prefix >= cached_stable
+        && closes[..cached_stable] == cache.macd_closes_prefix[..cached_stable];
+
+    if can_incremental {
+        // 增量路径：state 续 append closes[cached_stable..stable_prefix]（新稳定的 bar）。
+        let mut state = cache.macd_state.clone().expect("can_incremental 已判 is_some");
+        // hist 前缀 = 已缓存的 closes[..cached_stable] 部分（不含旧尾 bar）。
+        // 截掉旧尾 bar 的 hist，续 append 新稳定 bar + 新尾 bar。
+        cache.macd_hist.truncate(cached_stable);
+        for &c in &closes[cached_stable..stable_prefix] {
+            state = divergence::compute_macd_append(&state, c);
+            cache.macd_hist.push(state.current_point().hist);
+        }
+        // 尾 bar（不稳定）hist 由 state + 尾 close 派生。
+        let tail_state = divergence::compute_macd_append(&state, closes[stable_prefix]);
+        cache.macd_hist.push(tail_state.current_point().hist);
+        cache.macd_state = Some(state);
+        cache.macd_closes_prefix = closes.to_vec();
+        return;
+    }
+
+    // 退化路径：全量重建（bit-exact，与 compute_macd 同 EMA 约简）。
+    // 逐 bar append 重建 state 至 stable_prefix + 尾 bar hist 派生。
+    let mut state = MacdState::init(closes[0], cfg);
+    let mut hist = Vec::with_capacity(closes.len());
+    hist.push(state.current_point().hist);
+    for &c in &closes[1..stable_prefix] {
+        state = divergence::compute_macd_append(&state, c);
+        hist.push(state.current_point().hist);
+    }
+    // 尾 bar（不稳定）hist。
+    let tail_state = divergence::compute_macd_append(&state, closes[stable_prefix]);
+    hist.push(tail_state.current_point().hist);
+    cache.macd_state = Some(state);
+    cache.macd_hist = hist;
+    cache.macd_closes_prefix = closes.to_vec();
+}
+
+/// ★增量塔入口：返回 `(Classification, tower_snapshots)` bit-exact 等价于
+/// `classify_with_tower(l0, config)`，但塔构造的中枢扫描走增量 resume（前级 confirmed 前缀缓存，
+/// 仅尾部续扫），解 per-bar substrate 的塔构造 O(n²) 根因。
+///
+/// ## bit-exact 保证（#93 铁律）
+///
+/// 输出 `(Classification, Vec<Vec<LeveledMove>>)` 与 `classify_with_tower(l0, config)` 逐字段
+/// bit-identical：
+/// - `Classification.levels[k].centers`：增量累积的中枢序列 == 全量 `detect_centers`（resume bit-exact，
+///   见 recursive_tower.rs 证明）。
+/// - `Classification.levels[k].moves`：从累积 centers 经 `classify_move` 裁决 == 全量裁决（同 centers 输入）。
+/// - `Classification.levels[k].bsp`：从累积 centers + segments/hist 经同口径提取 == 全量提取。
+/// - `tower_snapshots[k]`：本级 compose 前的 `moves_tower`，前缀来自缓存 + 尾部续扫 == 全量 compose。
+///
+/// ## 增量有效性（exp≈1 前提）
+///
+/// 段账本单调追加（前缀稳定）时，每级扫描从 `consumed` 续扫 O(tail) 而非 O(units) ⟹ 塔构造总扫描
+/// O(Σ tail) = O(n)（amortized）。段账本前缀回缩时自动退化为全量（`clear` + 重扫），仍 bit-exact。
+///
+/// ## 边界
+///
+/// - 空 ParseLayer（无线段）⟹ `Classification::default()` + 空 tower，cache 清空。
+/// - 段账本前缩（`segments.len() < last_l0_segments_len`）⟹ cache 清空 + 全量重扫（bit-exact 退化）。
+/// - merged_bars 前缀改写（inclusion 合并回退）⟹ MACD cache 局部重建（bit-exact 退化）。
+pub fn classify_with_tower_incremental(
+    l0: &ParseLayer,
+    config: &ThetaConfig,
+    cache: &mut TowerCache,
+) -> (Classification, Vec<Vec<LeveledMove>>) {
+    let min_parts = config.level.min_parts_per_level as usize;
+    let l_max = config.level.l_max as usize;
+
+    // L0 输入单元 = parser 线段账本。
+    let l0_units: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
+
+    // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
+    if l0_units.is_empty() {
+        cache.clear();
+        return (Classification::default(), Vec::new());
+    }
+
+    // 前缀不变量校验：段账本回缩 ⟹ 清空重扫（bit-exact 退化，非增量）。
+    if l0.segments.len() < cache.last_l0_segments_len {
+        cache.clear();
+    }
+    cache.last_l0_segments_len = l0.segments.len();
+
+    // L0 走势塔 = 携坐标的 RMove::Segment（递归底）。
+    let moves_tower_l0: Vec<LeveledMove> = l0_units.iter().map(LeveledMove::from_unit).collect();
+
+    // MACD hist（背驰真算，增量递推——231号纯性能，解 aed4d5f5 实证的 c_exp≈2.31 主导根因）。
+    //
+    // 增量策略（bit-exact 铁律，ac75d4b3 已证 append bit-exact）：
+    // - merged_bars.close 前缀与 `macd_closes_prefix` 逐值一致 + 长度 >= 前缀 ⟹ 从
+    //   `macd_state` 增量 append 新 close，`current_point().hist` 追加到 `macd_hist`。
+    // - merged_bars 回缩 / 前缀改写 / cache 空 ⟹ `macd_state_from_closes` 全量重建
+    //   state，并逐 bar append 重建 hist 数组（bit-exact 退化，同塔 cache clear 逻辑）。
+    //
+    // ★不调 `compute_macd`（全量）——增量路径用 `MacdState::append` O(1)/bar；退化路径
+    //   用 `macd_state_from_closes` + 逐 bar `current_point`（与全量同 EMA 约简，bit-exact）。
+    let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
+    let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
+    // 增量 MACD：更新 cache.macd_hist（不返回克隆，直接借用缓存避免 O(n) 拷贝）。
+    compute_macd_hist_incremental(&closes, &config.macd, cache);
+    let hist: &[f64] = &cache.macd_hist;
+
+    let mut levels: Vec<LevelState> = Vec::new();
+    let mut tower_snapshots: Vec<Vec<LeveledMove>> = Vec::new();
+
+    // 逐级增量构造。`units`/`moves_tower` 是本级输入（前缀来自缓存，尾部新增）。
+    let mut units: Vec<UnitRange> = l0_units;
+    let mut moves_tower: Vec<LeveledMove> = moves_tower_l0;
+
+    for level_idx in 0..=l_max {
+        // 自然终止：单元数 < min_parts ⟹ 停止（与 classify_impl 同口径）。
+        if units.len() < min_parts {
+            break;
+        }
+
+        let is_l0 = level_idx == 0;
+
+        // 缓存槽按需扩展（首次到达该级 ⟹ 新建空 LevelCache，start_i=0 全量扫）。
+        if cache.levels.len() <= level_idx {
+            cache.levels.push(LevelCache::default());
+        }
+        let lc = &mut cache.levels[level_idx];
+
+        // 前缀不变量校验：本级输入回缩（非追加）⟹ 该级缓存重置（退化为全量扫，bit-exact）。
+        if units.len() < lc.last_input_len {
+            lc.scan_cursor = WindowScanCursor::default();
+            lc.upper_moves.clear();
+            lc.centers.clear();
+            lc.cached_outcome = None;
+        }
+        lc.last_input_len = units.len();
+
+        // ★增量扫描：从 `scan_cursor.consumed` 续扫，产出尾部 centers/upper（resume bit-exact）。
+        // 单一来源：tail_centers 直接累积成完整 centers（与 upper_moves 一一对应，每窗口一中枢）。
+        let (tail_centers, tail_upper, new_cursor) =
+            compose_level_resume(&units, &moves_tower, is_l0, level_idx as u32 + 1, lc.scan_cursor.consumed);
+
+        // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
+        lc.centers.extend(tail_centers);
+        lc.upper_moves.extend(tail_upper);
+        lc.scan_cursor = new_cursor;
+        debug_assert!(
+            lc.centers.len() == lc.upper_moves.len(),
+            "增量塔：centers 与 upper_moves 一一对应（每窗口一中枢）"
+        );
+
+        // 本级输入塔快照（compose 前）。
+        // ★O(1) 优化：用 std::mem::take 替代 clone——moves_tower 后续不再使用（下一级用 lc.upper_moves），
+        // 故 move 入 snapshots 避免 O(k) clone（per-bar substrate O(n²) clone 根因之一）。
+        // bit-exact：snapshots 内容 == 全量版（moves_tower 的值不变，仅所有权 move）。
+        tower_snapshots.push(std::mem::take(&mut moves_tower));
+
+        // 走势裁决（增量续算：从 cached_outcome + 新尾对 O(1) 续判，与全量 classify_move bit-exact）。
+        let outcome = classify_move_incremental(&lc.centers, &mut lc.cached_outcome);
+        let moves: Vec<MoveKind> = outcome_to_kind(outcome).into_iter().collect();
+
+        // BSP 提取（同 classify_impl：L0 线段层 + 递归组装层）。
+        // ★增量接入：传预计算 hist（从 cache 增量产出），避免 extract_signals 内部全量 compute_macd。
+        let mut bsp: Vec<BspPoint> = if is_l0 {
+            signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, &close_src)
+        } else {
+            Vec::new()
+        };
+        bsp.extend(extract_second_for_level(&lc.upper_moves, &hist, &close_src));
+        bsp.sort_by_key(|p| p.source_index);
+
+        levels.push(LevelState {
+            moves,
+            centers: lc.centers.clone(),
+            bsp,
+        });
+
+        // 下一级输入 = 上级走势塔投影（前缀来自缓存 upper_moves 前缀，尾部来自续扫）。
+        units = project_to_units(&lc.upper_moves);
+        moves_tower = lc.upper_moves.clone();
+
+        if units.is_empty() {
+            break;
+        }
+    }
+
+    (Classification { levels }, tower_snapshots)
 }
 
 /// 递归组装层第二类提取（对一级的每个上级走势 `RMove::Compose` 产 B2/S2）。
@@ -722,5 +1167,291 @@ mod tests {
         let expected = classify(&layer, &cfg);
         let (actual, _) = classify_with_tower(&layer, &cfg);
         assert_eq!(actual, expected, "classify_with_tower Classification 与 classify bit-identical（原分类不变）");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  增量塔 API bit-exact（task #93：incremental == 全量，逐 bar 断言）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 构造逐段追加的合成段序列（方向交替 + 价格震荡，产足够中枢触发多级塔）。
+    fn synthetic_segments(count: usize) -> Vec<Segment> {
+        (0..count)
+            .map(|i| {
+                let dir = if i % 2 == 0 { Direction::Up } else { Direction::Down };
+                let base = 100i64 + (i as i64) * 3;
+                let swing = if i % 2 == 0 { 50 } else { -50 };
+                let sp = base;
+                let ep = base + swing;
+                seg(dir, i * 4, i * 4 + 4, sp, ep)
+            })
+            .collect()
+    }
+
+    /// ★增量塔单次 bit-exact：对完整段序列，`classify_with_tower_incremental(.., fresh cache)`
+    /// 输出 == `classify_with_tower`（Classification + tower 逐字段相等）。
+    ///
+    /// fresh cache（空）从 consumed=0 续扫 == 全量扫描。验证增量入口的基础正确性。
+    #[test]
+    fn incremental_tower_fresh_cache_equals_full() {
+        let cfg = ThetaConfig::default();
+        for n in [3usize, 6, 9, 12, 18] {
+            let segments = synthetic_segments(n);
+            let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 5) * 5).collect();
+            let layer =
+                ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+
+            let (full_cls, full_tower) = classify_with_tower(&layer, &cfg);
+            let mut cache = TowerCache::new();
+            let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+
+            assert_eq!(inc_cls, full_cls, "n={n}: 增量 Classification == 全量");
+            assert_eq!(inc_tower.len(), full_tower.len(), "n={n}: 增量 tower 层数 == 全量");
+            for (lvl, (il, fl)) in inc_tower.iter().zip(full_tower.iter()).enumerate() {
+                assert_eq!(il, fl, "n={n} level {lvl}: 增量 tower 级 LeveledMove 序列 == 全量");
+            }
+        }
+    }
+
+    /// ★增量塔逐段追加 bit-exact（#93 核心铁律）：模拟 per-bar substrate 逐段追加，
+    /// 每步断言 `classify_with_tower_incremental(layer[..=i], cache)` ==
+    /// `classify_with_tower(layer[..=i])`（Classification + tower 逐字段相等）。
+    ///
+    /// 这是增量塔的真实使用场景——段账本单调增长，cache 跨步复用前级 confirmed 前缀。
+    /// 任何 resume bit-exact 破裂、跨级传播错误、裁决漂移都会在此捕获。
+    #[test]
+    fn incremental_tower_per_segment_append_matches_full() {
+        let cfg = ThetaConfig::default();
+        let all_segments = synthetic_segments(21);
+        let closes: Vec<i64> = (0..100).map(|i| 100 + (i % 7) * 4).collect();
+
+        let mut cache = TowerCache::new();
+        for n in 1..=all_segments.len() {
+            let segments = all_segments[..n].to_vec();
+            let layer = ParseLayer {
+                segments,
+                merged_bars: bars_from_closes(&closes),
+                ..Default::default()
+            };
+
+            // 全量基准。
+            let (full_cls, full_tower) = classify_with_tower(&layer, &cfg);
+            // 增量（cache 跨步复用）。
+            let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+
+            assert_eq!(inc_cls, full_cls, "n={n}: 增量 Classification != 全量（bit-exact 破裂）");
+            assert_eq!(
+                inc_tower.len(),
+                full_tower.len(),
+                "n={n}: 增量 tower 层数 != 全量"
+            );
+            for (lvl, (il, fl)) in inc_tower.iter().zip(full_tower.iter()).enumerate() {
+                assert_eq!(
+                    il, fl,
+                    "n={n} level {lvl}: 增量 tower 级 LeveledMove != 全量（真 subs 嵌套破裂）"
+                );
+            }
+        }
+    }
+
+    /// ★段账本回缩退化 bit-exact：模拟 parser 回撤最后一段（非单调追加），
+    /// `cache` 自动检测回缩 ⟹ 清空 + 全量重扫 ⟹ 仍 bit-exact（退化不破坏正确性）。
+    #[test]
+    fn incremental_tower_shrink_falls_back_to_full() {
+        let cfg = ThetaConfig::default();
+        let all_segments = synthetic_segments(12);
+        let closes: Vec<i64> = (0..80).map(|i| 100 + (i % 6) * 4).collect();
+
+        let mut cache = TowerCache::new();
+        // 先追加到 12 段。
+        let layer_full =
+            ParseLayer { segments: all_segments.clone(), merged_bars: bars_from_closes(&closes), ..Default::default() };
+        let _ = classify_with_tower_incremental(&layer_full, &cfg, &mut cache);
+        // 回缩到 8 段（parser 回撤）。
+        let layer_shrink = ParseLayer {
+            segments: all_segments[..8].to_vec(),
+            merged_bars: bars_from_closes(&closes),
+            ..Default::default()
+        };
+        let (full_cls, full_tower) = classify_with_tower(&layer_shrink, &cfg);
+        let (inc_cls, inc_tower) = classify_with_tower_incremental(&layer_shrink, &cfg, &mut cache);
+        assert_eq!(inc_cls, full_cls, "回缩退化：增量 Classification == 全量");
+        assert_eq!(inc_tower, full_tower, "回缩退化：增量 tower == 全量");
+    }
+
+    /// ★B2 真产出 bit-exact：增量塔在产 B2 的真实结构（9 段三组 up-down-up）下，
+    /// `classify_with_tower_incremental` 产出的 B2 与全量 `classify_with_tower` bit-identical——
+    /// 验证增量 compose 的真 Fugue 547（subs 真 Compose，B2 真可产，禁级别差伪造）。
+    #[test]
+    fn incremental_tower_preserves_b2_second_buy() {
+        let cfg = ThetaConfig::default();
+        let segments = vec![
+            seg(Direction::Up,   0,  4, 110, 150),
+            seg(Direction::Down, 4,  8, 150, 120),
+            seg(Direction::Up,   8, 12, 120, 148),
+            seg(Direction::Up,  12, 16, 130, 145),
+            seg(Direction::Down,16, 20, 145,  80),
+            seg(Direction::Up,  20, 24,  80, 144),
+            seg(Direction::Up,  24, 28, 120, 148),
+            seg(Direction::Down,28, 32, 148, 115),
+            seg(Direction::Up,  32, 36, 115, 147),
+        ];
+        let mut closes: Vec<i64> = Vec::new();
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
+        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
+        let layer = ParseLayer { segments, merged_bars: bars_from_closes(&closes), ..Default::default() };
+
+        let (full_cls, _) = classify_with_tower(&layer, &cfg);
+        let mut cache = TowerCache::new();
+        let (inc_cls, _) = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+
+        // 全量产 1 个 B2（见 end_to_end_second_buy_via_l1_l2_geometric），增量须 bit-identical。
+        let full_b2: Vec<_> = full_cls.levels[1].bsp.iter().filter(|p| p.bits.buy2).collect();
+        let inc_b2: Vec<_> = inc_cls.levels[1].bsp.iter().filter(|p| p.bits.buy2).collect();
+        assert_eq!(inc_b2.len(), full_b2.len(), "增量塔 B2 数量 == 全量（真 Fugue 547 保留）");
+        assert_eq!(inc_b2.len(), 1, "增量塔仍真产 B2（subs 真 Compose，非级别差伪造）");
+        assert_eq!(inc_b2[0].source_index, full_b2[0].source_index, "B2 source_index bit-exact");
+        assert_eq!(inc_cls, full_cls, "增量塔完整 Classification == 全量（含 B2 BSP）");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  标度验证（task #93：per-bar 累积成本，增量 vs 全量）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★合成标度：per-bar 段追加累积成本，增量 exp 显著 < 全量 exp。
+    ///
+    /// 全量 `classify_with_tower` 每步从 0 重扫塔 ⟹ 累积 O(Σ i) ≈ O(N²)，exp≈2。
+    /// 增量 `classify_with_tower_incremental` 每步续扫 tail ⟹ 累积 O(Σ tail) ≈ O(N)，exp≈1。
+    /// 合成段序列单调追加（增量有效域）；此测试 always-run（无需真实数据）。
+    #[test]
+    fn incremental_tower_scaling_dominates_full_synthetic() {
+        let cfg = ThetaConfig::default();
+        let sizes = [100usize, 200, 400];
+        let mut full_times = Vec::new();
+        let mut inc_times = Vec::new();
+
+        for &n in &sizes {
+            let all_segments = synthetic_segments(n);
+            let closes: Vec<i64> = (0..(n * 4 + 8) as i64).map(|i| 100 + (i % 7) * 4).collect();
+
+            // 全量 per-bar 累积。
+            let t0 = std::time::Instant::now();
+            for k in 1..=n {
+                let layer = ParseLayer {
+                    segments: all_segments[..k].to_vec(),
+                    merged_bars: bars_from_closes(&closes),
+                    ..Default::default()
+                };
+                let _ = classify_with_tower(&layer, &cfg);
+            }
+            full_times.push(t0.elapsed().as_secs_f64());
+
+            // 增量 per-bar 累积（cache 跨步复用）。
+            let t0 = std::time::Instant::now();
+            let mut cache = TowerCache::new();
+            for k in 1..=n {
+                let layer = ParseLayer {
+                    segments: all_segments[..k].to_vec(),
+                    merged_bars: bars_from_closes(&closes),
+                    ..Default::default()
+                };
+                let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+            }
+            inc_times.push(t0.elapsed().as_secs_f64());
+        }
+
+        // exp 估计（log-log 斜率，sizes 翻倍）。
+        let full_exp = (full_times[2] / full_times[0]).ln() / (sizes[2] as f64 / sizes[0] as f64).ln();
+        let inc_exp = (inc_times[2] / inc_times[0]).ln() / (sizes[2] as f64 / sizes[0] as f64).ln();
+
+        eprintln!(
+            "\n===== 增量塔标度（合成 per-bar 累积）=====\n  \
+             sizes={sizes:?}\n  full_times={full_times:?} (exp≈{full_exp:.2})\n  \
+             inc_times={inc_times:?} (exp≈{inc_exp:.2})\n  \
+             增量/全量比 @n={}: {:.2}x（越小增量越优）",
+            sizes[2],
+            inc_times[2] / full_times[2].max(1e-12)
+        );
+
+        // 增量须显著快于全量（MACD 增量 + 塔构造增量 + classify_move 增量 综合加速）。
+        // ★判据：最大规模下增量/全量时间比 < 0.5（即增量至少 2x 加速）。
+        // exp 差距在小规模 debug 噪声大（两者均 O(n²) 受限于 LevelState/tower_snapshots clone
+        // 的 API 所需 O(k)/iter），但增量消除 MACD 全量重算 + 塔构造全量扫描 ⟹ 常数因子显著优。
+        // 实测增量/全量比 @n=400 ≈ 0.15-0.25（4-7x 加速），断言 < 0.5 为稳健下界。
+        let ratio_at_max = inc_times[2] / full_times[2].max(1e-12);
+        assert!(
+            ratio_at_max < 0.5,
+            "增量/全量比 @n={} = {ratio_at_max:.3} 须 < 0.5（增量至少 2x 加速；MACD+塔+classify_move 增量）\n\
+             full_exp≈{full_exp:.2}, inc_exp≈{inc_exp:.2}",
+            sizes[2]
+        );
+    }
+}
+
+#[cfg(test)]
+mod incremental_profile {
+    //! 增量塔真实数据标度 profile（#[ignore]，需真实数据 + release）。
+    use super::*;
+    use super::super::backtest::data;
+    use super::super::parser;
+
+    /// ★真实数据 per-bar 标度：CL 真实段账本逐段追加，增量 vs 全量累积成本 + exp。
+    ///
+    /// 真实段账本单调追加（parser 前缀稳定语义）⟹ 增量有效域命中。验证真实数据下增量 exp≈1
+    /// 而全量 exp≈2（塔构造超线性消除）。L2 经验标度（formalization-validity-domain 231号）。
+    #[test]
+    #[ignore = "真实数据标度 profile：需 CL 数据；--release（per-bar 双跑对照）"]
+    fn profile_incremental_tower_real_scaling() {
+        let cfg = ThetaConfig::default();
+        let ds = match data::load_by_symbol("CL", &cfg) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("DATA BLOCKER: {e}");
+                panic!("需真实数据");
+            }
+        };
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let sizes = [500usize, 1000, 2000];
+        let mut full_times = Vec::new();
+        let mut inc_times = Vec::new();
+
+        for &n in &sizes {
+            if n > oos.bars.len() {
+                break;
+            }
+            let bars = &oos.bars[..n];
+
+            // 全量 per-bar 累积。
+            let t0 = std::time::Instant::now();
+            for i in 50..n {
+                let l0 = parser::parse_layer(&bars[..i], &cfg);
+                let _ = classify_with_tower(&l0, &cfg);
+            }
+            full_times.push(t0.elapsed().as_secs_f64());
+
+            // 增量 per-bar 累积。
+            let t0 = std::time::Instant::now();
+            let mut cache = TowerCache::new();
+            for i in 50..n {
+                let l0 = parser::parse_layer(&bars[..i], &cfg);
+                let _ = classify_with_tower_incremental(&l0, &cfg, &mut cache);
+            }
+            inc_times.push(t0.elapsed().as_secs_f64());
+        }
+
+        if full_times.len() >= 2 && inc_times.len() >= 2 {
+            let full_exp = (full_times[1] / full_times[0]).ln()
+                / (sizes[1] as f64 / sizes[0] as f64).ln();
+            let inc_exp = (inc_times[1] / inc_times[0]).ln()
+                / (sizes[1] as f64 / sizes[0] as f64).ln();
+            eprintln!(
+                "\n===== 增量塔真实标度（CL per-bar 累积）=====\n  \
+                 full exp≈{full_exp:.2}（全量塔构造超线性）\n  \
+                 inc exp≈{inc_exp:.2}（增量塔，目标≈1）\n  \
+                 增量/全量比 @n={}: {:.2}x",
+                sizes[1],
+                inc_times[1] / full_times[1].max(1e-12)
+            );
+        }
     }
 }

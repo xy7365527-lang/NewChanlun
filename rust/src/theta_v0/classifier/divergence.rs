@@ -110,6 +110,117 @@ pub fn compute_macd(closes: &[f64], cfg: &MacdConfig) -> MacdSeries {
     MacdSeries { dif, dea, hist }
 }
 
+/// 单 bar MACD 输出（增量 API 用，与 [`MacdSeries`] 同浮点域）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MacdPoint {
+    pub dif: f64,
+    pub dea: f64,
+    pub hist: f64,
+}
+
+/// MACD 增量递推状态（per-bar substrate O(n²) 根因解法，231号纯性能非 alpha）。
+///
+/// 携带 EMA_fast / EMA_slow / DEA 三条 EMA 的末值与已处理 bar 数，使每 bar
+/// 以 O(1) 延伸而非 O(merged) 全量重算。bit-exact 镜像 [`compute_macd`]：
+/// - α = `2.0/(period+1.0)`（与 [`compute_macd`] 内 `ema` 同公式）。
+/// - EMA 递推顺序 `alpha*x + (1-alpha)*prev`（与 `ema` 同约简顺序）。
+/// - 首值规则：EMA_fast[0]=EMA_slow[0]=close[0]；DIF[0]=0；DEA[0]=首 DIF=0（`ema` 首值取首元素）。
+///
+/// 边界条件：`bars_processed == 0` 时本状态对应首 bar（init 契约）；
+/// `cfg` 的 fast/slow/signal 须 >=1（config 校验层拒绝 0，此处假设）。
+/// 认识论：L1（管线 bit-exact 等价于全量版），不携带 alpha 信息——增量只是把同一
+/// 浮点约简从「全量重算」改成「逐 bar 延伸」，数值不变（231号：纯性能）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MacdState {
+    bars_processed: u64,
+    ema_fast: f64,
+    ema_slow: f64,
+    dea: f64,
+    alpha_fast: f64,
+    alpha_slow: f64,
+    alpha_signal: f64,
+}
+
+impl MacdState {
+    /// 从首 bar 初始化增量状态（镜像 [`compute_macd`] 对 `closes[0..=0]` 的输出）。
+    ///
+    /// 等价于 `compute_macd(&[first_close], cfg)` 后取末状态。首 bar 输出：
+    /// DIF = first_close - first_close = 0；DEA = EMA(DIF, signal) 首值 = 首 DIF = 0；
+    /// hist = DIF - DEA = 0。
+    pub fn init(first_close: f64, cfg: &MacdConfig) -> Self {
+        Self {
+            bars_processed: 1,
+            ema_fast: first_close,
+            ema_slow: first_close,
+            dea: 0.0,
+            alpha_fast: 2.0 / (cfg.fast as f64 + 1.0),
+            alpha_slow: 2.0 / (cfg.slow as f64 + 1.0),
+            alpha_signal: 2.0 / (cfg.signal as f64 + 1.0),
+        }
+    }
+
+    /// 已处理的 bar 数（init 后 =1，每 append +1）。
+    pub fn bars_processed(&self) -> u64 {
+        self.bars_processed
+    }
+
+    /// 当前 bar 的 MACD 输出（由当前状态直接派生，O(1)）。
+    ///
+    /// DIF = ema_fast - ema_slow；hist = DIF - DEA。与全量版对应位置逐位相等。
+    pub fn current_point(&self) -> MacdPoint {
+        let dif = self.ema_fast - self.ema_slow;
+        MacdPoint { dif, dea: self.dea, hist: dif - self.dea }
+    }
+
+    /// 增量延伸一个 bar（O(1)），返回新状态。
+    ///
+    /// 递推顺序严格镜像全量版：先更新 EMA_fast/slow（得到新 DIF），再用新 DIF
+    /// 递推 DEA（signal EMA 的输入是 DIF 序列）。这是 bit-exact 关键——DEA 必须用
+    /// **本 bar 的新 DIF** 而非上一 bar 的旧 DIF（全量版 `dea = ema(&dif, signal)` 中
+    /// dif/dea 同索引对齐，即 DEA[i] 用 DIF[i] 递推）。
+    pub fn append(&self, new_close: f64) -> Self {
+        // EMA 递推：alpha*x + (1-alpha)*prev（与 `ema` 同约简顺序）。
+        let new_ema_fast = self.alpha_fast * new_close + (1.0 - self.alpha_fast) * self.ema_fast;
+        let new_ema_slow = self.alpha_slow * new_close + (1.0 - self.alpha_slow) * self.ema_slow;
+        let new_dif = new_ema_fast - new_ema_slow;
+        // DEA = EMA(DIF, signal)，本 bar 用新 DIF 递推（全量版同索引对齐）。
+        let new_dea = self.alpha_signal * new_dif + (1.0 - self.alpha_signal) * self.dea;
+        Self {
+            bars_processed: self.bars_processed + 1,
+            ema_fast: new_ema_fast,
+            ema_slow: new_ema_slow,
+            dea: new_dea,
+            alpha_fast: self.alpha_fast,
+            alpha_slow: self.alpha_slow,
+            alpha_signal: self.alpha_signal,
+        }
+    }
+}
+
+/// 增量 MACD API：基于上一状态延伸一个 bar（O(1)），返回新状态。
+///
+/// `prev` 由 [`MacdState::init`]（首 bar）或上一次本函数的返回值（后续 bar）提供。
+/// 每次调用对应一个新 close，返回状态的 [`MacdState::current_point`] 即该 bar 输出。
+/// bit-exact：逐 bar append 的输出 == [`compute_macd`](closes) 对应位置（见测试）。
+///
+/// 这是 per-bar substrate O(n²) 根因之一的全量 MACD 重算的 O(n) 替代——
+/// 把每 bar `compute_macd(merged)` 的 O(merged) 降为 O(1) 延伸（231号纯性能）。
+pub fn compute_macd_append(prev: &MacdState, new_close: f64) -> MacdState {
+    prev.append(new_close)
+}
+
+/// 由完整 closes 用增量 API 构造末状态（供 bit-exact 对照与下游接入验证）。
+///
+/// 从 `MacdState::init(closes[0])` 起，逐 bar `append`，返回末状态。
+/// 等价于 `compute_macd(closes)` 的末状态 + 全序列 `current_point` 轨迹。
+pub fn macd_state_from_closes(closes: &[f64], cfg: &MacdConfig) -> MacdState {
+    let mut state = MacdState::init(closes[0], cfg);
+    for &c in &closes[1..] {
+        state = state.append(c);
+    }
+    state
+}
+
 /// 同向段 MACD 面积（reference-theta-v0.md:37）= 段 bar 区间 `[start,end]` 内 `|hist|` 之和。
 ///
 /// `[start, end]` 是闭区间 bar 索引。越界（end>=len 或 start>end）⟹ 0.0（空段无面积）。
@@ -442,5 +553,139 @@ mod tests {
         // 反向：C 段面积大 ⟹ 力度延续 ⟹ 非背驰。
         let abc_cont = AbcDivergence { seg_a: (2, 3), seg_c: (0, 1), is_trend: true };
         assert!(!abc_cont.diverges(&hist, (2, 3), (0, 1)), "C段面积10 ≥ A段面积2 ⟹ 力度延续=非背驰");
+    }
+
+    // ===== 增量 MACD API（231号纯性能，bit-exact 对照全量版）=====
+
+    /// bit-exact 核心：增量逐 bar 输出 == 全量版对应位置（合成数据）。
+    #[test]
+    fn incremental_macd_bit_exact_synthetic() {
+        // 合成 closes：覆盖上升/震荡/下降，长度 > signal 周期使 EMA 充分递推。
+        let closes: Vec<f64> = (0..80)
+            .map(|i| 100.0 + 10.0 * ((i as f64) * 0.3).sin() + (i as f64) * 0.05)
+            .collect();
+        let cfg = MacdConfig::default();
+        let full = compute_macd(&closes, &cfg);
+
+        // 增量：init 首 bar，逐 bar append，逐位断言。
+        let mut state = MacdState::init(closes[0], &cfg);
+        // 首 bar 对照。
+        let p0 = state.current_point();
+        assert!(
+            (p0.dif - full.dif[0]).abs() < 1e-12,
+            "首 bar DIF 不匹配：增量={} 全量={}",
+            p0.dif,
+            full.dif[0]
+        );
+        assert!((p0.dea - full.dea[0]).abs() < 1e-12);
+        assert!((p0.hist - full.hist[0]).abs() < 1e-12);
+
+        for i in 1..closes.len() {
+            state = compute_macd_append(&state, closes[i]);
+            let p = state.current_point();
+            assert!(
+                (p.dif - full.dif[i]).abs() < 1e-12,
+                "bar {} DIF 不匹配：增量={} 全量={}",
+                i,
+                p.dif,
+                full.dif[i]
+            );
+            assert!(
+                (p.dea - full.dea[i]).abs() < 1e-12,
+                "bar {} DEA 不匹配：增量={} 全量={}",
+                i,
+                p.dea,
+                full.dea[i]
+            );
+            assert!(
+                (p.hist - full.hist[i]).abs() < 1e-12,
+                "bar {} hist 不匹配：增量={} 全量={}",
+                i,
+                p.hist,
+                full.hist[i]
+            );
+        }
+        assert_eq!(state.bars_processed(), closes.len() as u64);
+    }
+
+    /// bit-exact 边界：首 bar 确定性（DIF=DEA=hist=0）。
+    #[test]
+    fn incremental_macd_first_bar_is_zero() {
+        let cfg = MacdConfig::default();
+        let state = MacdState::init(1234.5, &cfg);
+        let p = state.current_point();
+        assert_eq!(p.dif, 0.0, "首 bar DIF = close-close = 0");
+        assert_eq!(p.dea, 0.0, "首 bar DEA = 首值取首 DIF = 0");
+        assert_eq!(p.hist, 0.0, "首 bar hist = DIF-DEA = 0");
+        assert_eq!(state.bars_processed(), 1);
+    }
+
+    /// bit-exact：macd_state_from_closes 末状态 == 逐 bar append 末状态。
+    #[test]
+    fn incremental_macd_from_closes_matches_append() {
+        let closes: Vec<f64> = (0..30).map(|i| 50.0 + (i as f64)).collect();
+        let cfg = MacdConfig::default();
+        let from_helper = macd_state_from_closes(&closes, &cfg);
+        // 手动逐 bar。
+        let mut manual = MacdState::init(closes[0], &cfg);
+        for &c in &closes[1..] {
+            manual = manual.append(c);
+        }
+        assert_eq!(from_helper, manual);
+    }
+
+    /// bit-exact：跨不同 cfg 参数（fast/slow/signal 非默认）逐位相等。
+    #[test]
+    fn incremental_macd_bit_exact_custom_cfg() {
+        let closes: Vec<f64> = (0..60)
+            .map(|i| 200.0 + 5.0 * ((i as f64) * 0.7).cos())
+            .collect();
+        let cfg = MacdConfig { fast: 5, slow: 20, signal: 5 };
+        let full = compute_macd(&closes, &cfg);
+        let mut state = MacdState::init(closes[0], &cfg);
+        for i in 1..closes.len() {
+            state = compute_macd_append(&state, closes[i]);
+            let p = state.current_point();
+            assert!((p.dif - full.dif[i]).abs() < 1e-12, "custom cfg bar {} DIF", i);
+            assert!((p.dea - full.dea[i]).abs() < 1e-12, "custom cfg bar {} DEA", i);
+            assert!((p.hist - full.hist[i]).abs() < 1e-12, "custom cfg bar {} hist", i);
+        }
+    }
+
+    /// 标度：增量 append 单次成本应近似常数（exp≈1），相对全量 compute_macd 的 O(n)。
+    ///
+    /// 用单 bar append 的固定耗时 vs 全量 compute_macd 在增大 n 下的线性增长比，
+    /// 断言 append 耗时不随已处理 bar 数增长（O(1) per bar）。
+    #[test]
+    fn incremental_macd_append_is_o1_scaling() {
+        let cfg = MacdConfig::default();
+        // 在两个不同规模下测量「再 append 1 bar」的耗时——O(1) 则两者相近。
+        let bench = |n_pre: usize| -> u128 {
+            let closes_pre: Vec<f64> =
+                (0..n_pre).map(|i| 100.0 + ((i as f64) * 0.1).sin()).collect();
+            let state0 = macd_state_from_closes(&closes_pre, &cfg);
+            let new_close = 105.0;
+            // 重复 append（丢弃，仅测单次 append 在已处理 n_pre 后的耗时）。
+            let start = std::time::Instant::now();
+            let iters = 50_000;
+            let mut s = state0.clone();
+            for _ in 0..iters {
+                s = s.append(new_close);
+            }
+            let _ = s.current_point();
+            start.elapsed().as_nanos() / (iters as u128)
+        };
+        let per_bar_small = bench(100);
+        let per_bar_large = bench(5_000);
+        // O(1) 判据：大样本 per-bar 耗时不应显著高于小样本。
+        // 容忍 3x 噪声（bench 环境抖动），真正 O(n) 会差 ~50x。
+        let ratio = per_bar_large as f64 / per_bar_small.max(1) as f64;
+        assert!(
+            ratio < 3.0,
+            "append 非 O(1)：小样本 {} ns/bar，大样本 {} ns/bar，比 {}",
+            per_bar_small,
+            per_bar_large,
+            ratio
+        );
     }
 }

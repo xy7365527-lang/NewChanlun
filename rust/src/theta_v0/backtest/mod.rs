@@ -54,6 +54,7 @@
 //! [`Bar`]: super::types::Bar
 
 pub mod data;
+pub mod incremental;
 pub mod metrics;
 pub mod prereg_windows;
 pub mod runner;
@@ -64,3 +65,15 @@ pub mod runner;
 /// 继承门控——只在 `cargo test --lib` 编译，不污染 cdylib；integration test（独立 crate）看不到
 /// （故全窗测试只能挂此处，见文件头机器坐实 E0433）。
 mod l3_fullwindow;
+
+/// Phase-1 可行性探针（pi 七链生产 runner 的 O(n²) substrate 时标 + 信号/交易计数）。
+/// 决定 L2/L3 用全窗还是可行子集。继承 backtest cfg(test) 门控。
+mod l3_pi_probe;
+
+/// Phase-2 L2/L3 pi 否证（驱动 run_theta_v0_pi 七链生产 runner；双口径门 + 分层诊断）。
+/// 镜像 [`l3_fullwindow`] 口径但驱动 pi（非 v1 recognize）；O(n²) 致用可行子集截断窗。
+mod l3_pi_falsify;
+
+/// #5 多声部对冲深度贡献根因诊断（231 诊断非 alpha）——instrument 计数区分 (a) ρ漂移剪枝
+/// vs (b) 结构不产。O(n²) CL/BTC 32K，继承 backtest cfg(test) 门控。
+mod l3_pi_depth_diag;

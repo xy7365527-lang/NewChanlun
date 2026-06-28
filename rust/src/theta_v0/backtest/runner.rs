@@ -187,6 +187,438 @@ pub fn run_theta_v0(
     }
 }
 
+/// ★**七链 π_Θ 生产 runner（塔导出桥 (iii) 布线段，接 Nautilus 核心实装）**——与 [`run_theta_v0`]
+/// （买卖点 v1 `recognize`）**并行**的新路径（编排者 Q1：最小侵入并行路径，v1 保留作对照基线）。
+///
+/// ## 与 v1 的正交（Q1 裁定）
+///
+/// `run_theta_v0` 走 `strategy::recognize`（每 bsp 一 [`VoiceDecision`]，离散择时，全窗 L3 8/8 否证）。
+/// 本 runner 走**全定义策略 π_Θ 七链**（`coverage::pi_theta_step`）：每 bar 解释器三桶 → 活动集
+/// 递归 → 目标头寸 p̃ → LexArgmin 𝒦_Θ → 唯一订单（§16 单一决策出口）。**不改** `recognize`。
+///
+/// ## 三适配器（诊断 task adcc804058774e334 缺口解除）
+///
+/// - **[A] per-bar 前缀因果重分类 + 确认-bar 部署**（`classify_with_tower` + [`newly_confirmed_step`]）：
+///   每 bar i 喂 **前缀** `classify_with_tower(parse_layer(bars[0..=i]))` 得当步**因果塔 + 因果分类**
+///   （只用 ≤i 数据 → 因果，无 look-ahead）；再 [`newly_confirmed_step`] 取**本 bar 新确认买卖点**
+///   （append-only diff vs seen，确认时点部署——非 `source_index==i` 切片，后者因买卖点回溯确认而恒空
+///   ⟹ 零订单，见 [`newly_confirmed_step`]）。全窗 `classify` 非因果（>i 数据确认），执行层禁用（639）。
+/// - **[B] base_units（U_ℓ）注入**：从当前 NAV 协变派生 `U_ℓ = NAV/px`（方案A，`cap=U_ℓ·γ̄`，
+///   `coverage::feasible_net_cap` 已无量纲化）——净 lot 资本单位（可建名义手数）。
+/// - **[C] per-bar 驱动 + 活动集台账**：thread `(prev_active: Vec<ActiveLeg>, p_t)`；`p_t` 取
+///   [`apply_order`] fill 后的 `units`（净 lot）；订单经 [`apply_order`]（全 [`StrictAction`] + 先平
+///   后开）成交。
+///
+/// ## 执行层 σ_p = 父容器方向（★639 settle，per-bar 因果塔）
+///
+/// 候选垂直关系 V 的父向 σ_{p(g)} = **父容器方向**（结构对象），从 per-bar 前缀因果塔经
+/// [`coverage::attach_bsp_to_tree`]（host→真 Compose 父→父 `rmove_side`，封于
+/// `interp::assemble_gamma_with_tower`）查得，**与是否持仓无关**。父=胚元∂（缺塔/host 是根）⟹
+/// σ_p=0 ⟹ Ambient（去根化，非"未持仓"）。错口径"活动持仓父腿"（`parent_dir_from_active` /
+/// `assemble_gamma_active_parent`）已删（639，no-patch 删不留 fallback）。Lean 同构落地
+/// `Origin/ParentDirContainer.lean`（parentDirOfContainer 无持仓门控）。
+///
+/// ## close_pred 折 𝒦_Θ（Q2 裁定，非第二决策出口）
+///
+/// 风控（stop/risk）经 [`k_theta_risk_gate`]（复用 `exec::close_pred` 契约锚）→ [`KThetaRiskGate`]
+/// → 收窄 `pi_theta_position` 的 𝒦_Θ（force_flat→{0}/止损→禁向）——退出走**唯一决策出口** p*，非
+/// 独立 exit 订单。reverse_signal 走 interpret 𝒟_x（腿级单出口）。
+///
+/// ## 认识论 L0/L1（formalization-validity-domain 231号）
+///
+/// 管线串联 + fill = **L1**（管线正确性）。本 runner 产 trades 后须 L2/L3 否证（下个工位）——
+/// 本工位**不声明 alpha**（L0/L1 结构非 alpha；真 Fugue + 231：σ_p 父只来自真 Compose 父容器，
+/// 禁级别差/走势几何伪造）。
+///
+/// ★σ_p 来源 + §13 AncOK 持仓准入双机制（639，两正交机制均就位）：① σ_p **来源** = 父容器方向
+/// （`assemble_gamma_with_tower` 从因果塔查，与持仓无关）；② **§13 AncOK 持仓准入**
+/// （`coverage_step_from_buckets` 经 `prev_active` 对位真树元素 + `ancestor_close`）**未持父则剔除
+/// ShortDiff 子腿**——故本 runner **不开 naked 逆势仓**（639(c) 兑现）。两机制正交：σ_p 用因果塔
+/// （结构对象），准入用持仓台账（A_t 父容器腿在场判据）。
+///
+/// > **结果包六要素**
+/// > - **结论**：新增 `run_theta_v0_pi`——七链 π_Θ 引擎接入生产 runner，per-bar 三适配器
+/// >   ([A]前缀因果重分类/[B]base_units/[C]thread) 驱动 `pi_theta_step`（σ_p=父容器方向，639）产订单
+/// >   → `apply_order` fill → metrics。
+/// > - **定义依据**：reference §13-§16（活动集递归 + π_Θ 单一决策出口）；MEMORY
+/// >   coverage-engine-needs-tower-export-bridge（互斥全定义策略=买卖点入场+多级角色/嵌套对冲）。
+/// >   输入特征：`classification.levels[ℓ].bsp` 满足 `source_index` 坐标 ⟹ [A] 切片每 bar 候选。
+/// > - **边界条件**：① classify 产空 bsp（无缠论结构）⟹ 候选空 ⟹ 无订单（诚实退化，非 bug，
+/// >   与 run_theta_v0 同）。② 前缀塔仅 L0（tower.len()<2，host 是根）⟹ 候选父=∂ ⟹ Ambient（早 bar/
+/// >   冷启动态，与持仓无关）。③ base_units 随 NAV 协变 ⟹ 净持仓目标随 NAV 标度（vol/equity 目标化
+/// >   重平衡）；NAV≤0 ⟹ force_flat 门 ⟹ 𝒦_Θ={0}。④ 若 σ_p 改回全窗塔（>i 数据）或持仓父腿则违因果
+/// >   或混淆 §7.2 与 §13——本 runner 严禁（639）。
+/// > - **下游推论**：`run_theta_v0_pi` 产非空 trades ⟹ L2/L3 净额回测否证检验有输入（下个工位）；
+/// >   接 Nautilus 时净额账本 `units` 直接对接 `apply_order`（StrictAction + 先平后开已处理）。
+/// > - **谱系引用**：Q1（最小侵入并行路径，v1 保留）；Q2（close_pred 折 𝒦_Θ，非第二出口）；639（σ_p
+/// >   = 父容器方向，删"活动父腿"错口径，per-bar 因果塔）；638（hostOf 附着=σ_p 来源）；547（主力锚
+/// >   删除）；newchanlun-v1-fullwindow-l3-falsified（v1 否证，本 runner 是 element-coverage 兑现，alpha
+/// >   待验）；trades-vs-closedloop-disjoint-paths。
+/// > - **影响声明**：新增 runner.rs `run_theta_v0_pi`/[`pi_theta_fill_loop`]/[`newly_confirmed_step`]/
+/// >   [`k_theta_risk_gate`]；复用 [`apply_order`]/[`track_position_transition`]/[`run_closed_loop`]/
+/// >   `metrics::compute`/`coverage::pi_theta_step`；**不改** `run_theta_v0`/`recognize`/`plan_and_fill_mtm`。
+pub fn run_theta_v0_pi(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+) -> RunResult {
+    let bars = &dataset.bars;
+
+    // 闭环终态证据（与 run_theta_v0 同——bar 闭环驱动）。
+    let closed_loop_final = run_closed_loop(bars, initial_nav);
+
+    // 步骤 3+4+5：七链 π_Θ per-bar 驱动 + fill（三适配器 [A][B][C] + 执行层父容器 σ_p + 风控门）。
+    // ★[A] 执行层 σ_p = 父容器方向（639）：fill loop 每 bar i 经 `IncrementalClassifier::classify_at(i)`
+    // 得**因果塔 + 因果分类**——只用 ≤i 数据（无 look-ahead）。全窗 classify（非因果，bsp/父走势
+    // 可能用 >i 数据确认）执行层禁用，故此处不预算全窗分类（增量器逐 bar 前缀重分类）。
+    //
+    // ★增量塔接入（ad7319b9 + 本工位）：IncrementalClassifier 内部走真增量链——
+    // ParseLayerIncr::append（inclusion O(1)/bar）+ classify_with_tower_incremental（TowerCache 跨 bar
+    // 复用：LevelCache.upper_moves/centers/scan_cursor 持久 + MACD 增量递推）。
+    //
+    // **跨 bar 身份稳定**（核心修复——memory newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass）：
+    // 全量重分类每 bar 从零重建塔→LeveledMove 身份断裂→held_leg 判 Stale→depth>0 腿被 AncOK 剪→
+    // #5 贡献为零→ΔSharpe=0。增量塔 TowerCache 跨 bar 复用同一 Vec（前缀不可变，尾部 append）→
+    // 身份连续→Stale 降根减少→depth>0 腿准入→ΔSharpe 可非零。
+    //
+    // **bit-exact 不变**：增量链 == 全量 classify_with_tower(parse_layer(..=i))（parser +
+    // classifier 各自 bit-exact 已证，见 incremental.rs 文档）。逐 bar 断言见 `incremental::bit_exact_*`。
+    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    let fill = pi_theta_fill_loop(
+        |i| classifier_incr.classify_at(i),
+        bars,
+        initial_nav,
+        config,
+    );
+
+    let bh_return = buy_and_hold_return(bars);
+    let m = metrics::compute(
+        &fill.equity_curve,
+        &fill.daily_returns,
+        &fill.trade_pnls_with_forced,
+        years,
+        bh_return,
+    );
+
+    let n_orders = fill.n_orders;
+    let untradable_ratio = dataset.untradable_ratio();
+    let is_l2 = n_orders > 0;
+    let prices: Vec<f64> = bars
+        .iter()
+        .map(|b| b.close as f64 * config.tick.tick_size)
+        .collect();
+    let fee_rate =
+        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let theta_return_mtm = m.strat_return;
+
+    RunResult {
+        symbol: dataset.symbol.clone(),
+        metrics: m,
+        n_bars: bars.len(),
+        n_orders,
+        untradable_ratio,
+        is_l2,
+        closed_loop_final,
+        trade_pnls: fill.trade_pnls_realized,
+        trade_pnls_with_forced: fill.trade_pnls_with_forced,
+        trades: fill.trades,
+        prices,
+        fee_rate,
+        theta_return_mtm,
+        daily_returns: fill.daily_returns,
+    }
+}
+
+/// 买卖点身份判别 u8（seen-set append-only diff 键；6 类 bit 打包）。
+///
+/// 同一 `(level, source_index)` 上不同类买卖点（如 2买/3买 V 型可共存）是不同身份 ⟹ 入 bits 判别。
+fn bsp_bits_disc(b: &super::super::types::BspBits) -> u8 {
+    (b.buy1 as u8)
+        | (b.buy2 as u8) << 1
+        | (b.buy3 as u8) << 2
+        | (b.sell1 as u8) << 3
+        | (b.sell2 as u8) << 4
+        | (b.sell3 as u8) << 5
+}
+
+/// ★[A] per-bar **确认-bar 部署**（修 bsp→订单转化；`recursive_t/stream.rs:273` 同构）。
+///
+/// 输入是**前缀因果分类** `classify_with_tower(l0[0..=i])`（639；非全窗）。返回本 bar **新确认**的
+/// 买卖点（append-only diff vs `seen`，stream.rs 的 `seen_bsps`/"只增不改"语义）：`seen.insert(key)`
+/// 为真（首次出现于前缀塔）⟹ 本 bar i 确认 ⟹ 保留 + 部署；已 seen ⟹ 跳过。
+///
+/// ## 为什么不是 `source_index==i`（旧错口径，零订单根因）
+/// 买卖点**回溯确认**——其 `source_index`（触发 K 序）的端点常在**比 source_index 晚的 bar** 才被
+/// 结构（中枢突破/线段确认/背驰）确认入前缀塔。按 `source_index==i` 切，当前 bar i 的前缀塔里
+/// `source_index==i` 位置的买卖点**往往尚未确认**（host 仅 L0 / 候选父=∂ ⟹ Ambient 空切）⟹ 候选恒空
+/// ⟹ **零订单**。改为"本 bar 新确认买卖点 diff"：买卖点在其被确认的那根 bar（其 source_index≤i）部署
+/// （确认时点 = 因果，无 look-ahead；与 stream.rs「本 bar 新增 BSP 在当前 bar 投放」同构）。
+///
+/// 保留 `levels` 级别结构（与因果塔 `tower_i` 级别对齐）；`moves`/`centers` 空（σ_p 父容器方向由
+/// `tower_i` 经 `assemble_gamma_with_tower` 的 `attach_bsp_to_tree` 查得，不读 classification moves/centers）。
+fn newly_confirmed_step(
+    classification: &classifier::Classification,
+    seen: &mut std::collections::HashSet<(usize, usize, u8)>,
+) -> classifier::Classification {
+    use super::super::classifier::LevelState;
+    classifier::Classification {
+        levels: classification
+            .levels
+            .iter()
+            .enumerate()
+            .map(|(lvl, ls)| LevelState {
+                moves: Vec::new(),
+                centers: Vec::new(),
+                // append-only：seen.insert 为真=本 bar 首次确认 ⟹ 保留；副作用把所有 bsp 标记 seen。
+                bsp: ls
+                    .bsp
+                    .iter()
+                    .filter(|p| seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits))))
+                    .cloned()
+                    .collect(),
+            })
+            .collect(),
+    }
+}
+
+/// [close_pred 折 𝒦_Θ] 计算 [`KThetaRiskGate`]（Q2：风控 stop/risk 作可行集约束门，非第二出口）。
+///
+/// 复用 `exec::close_pred` 契约锚（no-patch-keep-primitive）：
+/// - **risk（GlobalRiskClose）**：`risk_mode(equity)` ∈ {Insolvent,Liquidation} ⟹ `force_flat`
+///   （v0 可计算 Insolvent `E_t≤0`；账户层 MM/buffer/liq 未建模，诚实有效域 L0）。
+/// - **stop（结构止损触及）**：per 活动腿从**全窗** `classification` 查 `BspPoint` 算
+///   `structural_stop`，`stop_hit(bar,…)` 判触及——多腿止损 ⟹ `stop_long`、空腿止损 ⟹ `stop_short`。
+/// - **reverse_signal 不入本门**：反向信号关活动腿走 `interpret` 𝒟_x（腿级单出口）；
+///   **parent_invalid** v0 root 恒 false（无父）。
+fn k_theta_risk_gate(
+    prev_active: &[super::super::strategy::interp::ActiveLeg],
+    classification: &classifier::Classification,
+    bar: &Bar,
+    equity: f64,
+) -> super::super::strategy::coverage::KThetaRiskGate {
+    use super::super::strategy::coverage::KThetaRiskGate;
+    use super::super::strategy::exec::{close_pred, stop_hit, CloseTriggers, FillSide};
+    use super::super::strategy::risk::{
+        global_risk_close, risk_mode, structural_stop, RiskModeInput, StopInput, StopSide,
+    };
+    use super::super::strategy::voice::VoiceSide;
+    use super::super::types::Center;
+
+    // risk：GlobalRiskClose（v0 退化为 Insolvent E_t≤0；账户层输入未建模，置 0/false 占位）。
+    let mode = risk_mode(&RiskModeInput {
+        equity,
+        maint_margin: 0.0,
+        buffer1: 0.0,
+        buffer2: 0.0,
+        liq_flag: false,
+    });
+    let risk_close = global_risk_close(mode);
+
+    // stop：per 活动腿结构止损触及（从全窗 classification 查 BspPoint，与 v1 同一 structural_stop）。
+    let mut long_stop = false;
+    let mut short_stop = false;
+    for leg in prev_active {
+        let (stop_side, exit_side) = match leg.dir {
+            VoiceSide::Long => (StopSide::Long, FillSide::Sell),
+            VoiceSide::Short => (StopSide::Short, FillSide::Buy),
+            VoiceSide::Flat => continue, // Flat 不入活动集（防御性）
+        };
+        let bsp = match classification
+            .levels
+            .get(leg.level as usize)
+            .and_then(|lvl| lvl.bsp.iter().find(|p| p.source_index == leg.source_index))
+        {
+            Some(b) => b,
+            None => continue, // 找不到对应买卖点（不应发生）⟹ 无止损读出
+        };
+        let stop_in = StopInput {
+            pivot_low: bsp.pivot_low,
+            pivot_high: bsp.pivot_high,
+            // center=None（1/2 类不用 center）⟹ 零 center 占位（3 类必有 center，不到达）。
+            center: bsp.center.unwrap_or(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 }),
+        };
+        if let Some(stop) = structural_stop(stop_side, &bsp.bits, &stop_in) {
+            if !bar.untradable && stop_hit(bar, stop, exit_side) {
+                match leg.dir {
+                    VoiceSide::Long => long_stop = true,
+                    VoiceSide::Short => short_stop = true,
+                    VoiceSide::Flat => {}
+                }
+            }
+        }
+    }
+
+    // close_pred 折 𝒦_Θ（契约锚保留）：风控项（stop ∨ risk）→ 方向约束门。
+    KThetaRiskGate {
+        force_flat: risk_close, // GlobalRiskClose ⟹ 𝒦_Θ={0}
+        stop_long: close_pred(&CloseTriggers {
+            parent_invalid: false,
+            reverse_signal: false,
+            stop: long_stop,
+            risk_close,
+        }),
+        stop_short: close_pred(&CloseTriggers {
+            parent_invalid: false,
+            reverse_signal: false,
+            stop: short_stop,
+            risk_close,
+        }),
+    }
+}
+
+/// ★七链 π_Θ per-bar fill 循环（三适配器 [A][B][C] + 执行层父容器 σ_p + close_pred 折 𝒦_Θ）。
+///
+/// 镜像 [`plan_and_fill_mtm`] 的账本/双口径/强平结构，但**入场决策走 π_Θ 七链**（非 recognize）：
+/// 每 bar — ① 延迟成交挂单（[`apply_order`]）→ ② `p_t=units`（净 lot）→ ③ [A] **前缀因果重分类**
+/// （`classify_at(i)`=`classify_with_tower(l0[0..=i])` → 因果塔 + 因果分类，再 [`newly_confirmed_step`]
+/// 取本 bar 新确认买卖点=确认-bar 部署）+ [B] `base_units=NAV/px` + [C] thread `prev_active` → `pi_theta_step`（父容器 σ_p +
+/// 风控门）→ ④ 挂单到 `exec_index`（延迟）→ ⑤ thread 活动集 → ⑥ MtM 权益。窗口终点强平（含浮盈口径）。
+///
+/// **★[A] 因果（639）**：`classify_at` 闭包**只用 ≤i 数据**（`bars[0..=i]` 前缀）——父容器方向 σ_p
+/// 与风控止损 bsp 均从前缀因果分类查得（无 look-ahead）。runner 注入
+/// `|i| classify_with_tower(parse_layer(bars[0..=i]))`；测试可注入合成闭包（隔离 fill 机制）。
+/// **复杂度**：逐 bar 前缀重分类 = O(n²)（正确性优先；性能/采样是 L2/L3 下个工位，本工位不优化）。
+///
+/// **认识论 L1**（管线正确性，非 L2 alpha）：fill 模拟 + 账本推进确定，产 trades 是引擎管线串通
+/// 的物证；是否盈利由 L2/L3 否证（下个工位）。
+fn pi_theta_fill_loop<F>(
+    mut classify_at: F,
+    bars: &[Bar],
+    initial_nav: f64,
+    config: &ThetaConfig,
+) -> FillOutput
+where
+    F: FnMut(usize) -> (classifier::Classification, Vec<Vec<classifier::recursive_tower::LeveledMove>>),
+{
+    use super::super::strategy::coverage::{self, PiThetaWeights};
+    use super::super::strategy::exec::fill_bar_index;
+    use super::super::strategy::interp::ActiveLeg;
+
+    let n = bars.len();
+    let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
+    let fee_rate =
+        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let weights = PiThetaWeights::from_risk(&config.risk);
+
+    let mut cash: f64 = nav0;
+    let mut units: f64 = 0.0; // p_t = 净 lot（apply_order 维护，有符号：正多/负空/0空仓）
+    let mut entry_cost: f64 = 0.0;
+    // [C] 活动集台账（thread 跨 bar；interp::interpret 闭环递归）。
+    let mut prev_active: Vec<ActiveLeg> = Vec::new();
+    // ★确认-bar 部署 seen-set（append-only "只增不改"；已部署买卖点身份键，stream.rs:162 同构）。
+    let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+    // 延迟成交队列（spec:50：订单在 exec_index bar 成交，与 plan_and_fill_mtm 同语义）。
+    let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];
+
+    let mut equity_curve = Vec::with_capacity(n);
+    let mut trade_pnls: Vec<f64> = Vec::new();
+    let mut trades: Vec<metrics::TradeRecord> = Vec::new();
+    let mut pos_entry_bar: Option<usize> = None;
+    let mut n_orders_executed: usize = 0;
+
+    for i in 0..n {
+        let bar = &bars[i];
+        let px = bar.close as f64 * config.tick.tick_size;
+
+        // ── ① 延迟成交：本 bar 到达 exec_index 的挂单 fill（apply_order，先平后开）。 ──
+        if !pending[i].is_empty() && !bar.untradable && px > 0.0 {
+            let orders = std::mem::take(&mut pending[i]);
+            for o in &orders {
+                if o.qty > 0 {
+                    let units_before = units;
+                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    // 轨迹配对（v1 方向中性）：units 跨 0 / 回 0 ⟹ 完整交易闭合。
+                    track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
+                    n_orders_executed += 1;
+                }
+            }
+        }
+
+        // ── ② p_t = 净 lot（成交后真实持仓）。 ──
+        let p_t = units;
+        let current_nav = cash + units * px;
+        let equity_nav = if current_nav > 0.0 { current_nav } else { nav0 };
+
+        if !bar.untradable && px > 0.0 {
+            // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
+            //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
+            let (classification_i, tower_i) = classify_at(i);
+            // ★当步候选 = 前缀因果塔里**本 bar 新确认**的买卖点（append-only diff vs seen，确认-bar
+            // 部署）——非 source_index==i 切片（买卖点回溯确认，其触发点常在更晚 bar 才入前缀塔 ⟹
+            // source_index==i 切恒空 ⟹ 零订单）。买卖点在被确认那根 bar（source_index≤i）部署=因果。
+            let classification_step = newly_confirmed_step(&classification_i, &mut seen_bsps);
+            let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
+            // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
+            let gate = k_theta_risk_gate(&prev_active, &classification_i, bar, equity_nav);
+            // exec_index：延迟成交 bar（spec:50；尾部无可成交 bar ⟹ 不挂单）。
+            let exec_index = fill_bar_index(i, bars, &config.exec);
+            // 环5+6+7：pi_theta_step（父容器 σ_p=attach_bsp_to_tree(因果塔) + 风控门）→ (A_{t+1}, p*, O)。
+            let (next_active, _p_star, order) = coverage::pi_theta_step(
+                &classification_step,
+                &tower_i,
+                &prev_active,
+                p_t,
+                exec_index.unwrap_or(i),
+                base_units,
+                &config.voice,
+                &config.risk,
+                weights,
+                gate,
+            );
+            // ── ④ 挂单到 exec_index（延迟成交；qty>0 才挂）。 ──
+            if order.qty > 0 {
+                if let Some(ei) = exec_index {
+                    if ei < n {
+                        pending[ei].push(order);
+                    }
+                }
+            }
+            // ── ⑤ thread 活动集台账（喂下一 bar interpret 闭环）。 ──
+            prev_active = next_active;
+        }
+
+        // ── ⑥ 权益曲线（mark-to-market，归一化 ÷nav0）。 ──
+        equity_curve.push((cash + units * px) / nav0);
+    }
+
+    // ── 窗口终点强平（含浮盈口径，编排者铁律「不把浮盈算上不合理」；与 plan_and_fill_mtm 同）──
+    let mut trade_pnls_with_forced = trade_pnls.clone();
+    if units != 0.0 {
+        if let Some(last_bar) = bars.last() {
+            let last_px = last_bar.close as f64 * config.tick.tick_size;
+            if last_px > 0.0 {
+                let pos_sign = units.signum();
+                let px_exit_net = last_px * (1.0 - pos_sign * fee_rate);
+                let forced_pnl = pos_sign * (px_exit_net - entry_cost) * units.abs();
+                trade_pnls_with_forced.push(forced_pnl);
+                if let Some(entry_bar) = pos_entry_bar.take() {
+                    let exit_bar = n.saturating_sub(1);
+                    let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
+                    trades.push(metrics::TradeRecord {
+                        entry_bar,
+                        exit_bar,
+                        hold_bars,
+                        qty: units.abs(),
+                        long: units > 0.0,
+                        forced_close: true,
+                    });
+                }
+            }
+        }
+    }
+
+    let daily_returns = bar_returns(&equity_curve);
+    FillOutput {
+        equity_curve,
+        daily_returns,
+        trade_pnls_realized: trade_pnls,
+        trade_pnls_with_forced,
+        trades,
+        n_orders: n_orders_executed,
+    }
+}
+
 /// ★闭环 S_Θ 驱动（task #94 引擎实装核心）：把 bar 序列逐 bar 喂入闭环 [`hybrid_step`]。
 ///
 /// 镜像 Lean `for bar { x = assemblyStep(x, e) }`——从初始闭环态出发，每根 bar 构造一个
@@ -969,6 +1401,225 @@ mod tests {
         assert!(res.metrics.bh_return > 0.0, "L1：buy&hold 对照正确计算（上涨数据）");
         // is_l2 与订单一致性（诚实标注不变量）。
         assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★★塔导出桥 (iii) 布线段：run_theta_v0_pi 七链 π_Θ 生产 runner（接 Nautilus 实装）
+    // ──────────────────────────────────────────────────────────────────────
+
+    use super::super::super::classifier::{Classification, LevelState};
+    use super::super::super::classifier::bsp::BspPoint;
+    // BspBits/Center 由本测试模块下方 `use ...types::{BspBits, Center, Tick}` 模块级导入提供。
+
+    /// 价格 ~$100（tick_size=1e-8 ⟹ close_tick=1e10）的可交易 bar，逐 bar 微涨（产 PnL）。
+    fn px100_bar(i: usize) -> Bar {
+        let c = 10_000_000_000i64 + (i as i64) * 10_000_000; // px ≈ 100 → 100.x
+        mk_bar(i, c, false)
+    }
+
+    /// L0 一类买点（source_index=si；pivot_low 远低于入场价 ⟹ 止损不触及，持仓延续）。
+    fn buy1_at(si: usize) -> BspPoint {
+        BspPoint {
+            source_index: si,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 9_000_000_000, // px 90 < 入场 100 ⟹ 止损在下方不触及
+            pivot_high: 0,
+            center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
+        }
+    }
+
+    /// ★关键测试：`pi_theta_fill_loop` 端到端产 trades（非空）——注入合成 classify 闭包（隔离 fill
+    /// 机制，绕过 classify→bsp，由 run_theta_v0 真实数据另测）。买点候选 → 开仓 → 窗口终点强平 ⟹ ≥1 笔。
+    #[test]
+    fn run_theta_v0_pi_loop_produces_trades_nonempty() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        // ★确认-bar 部署语义：L0 一类买点 source_index=3，但**回溯确认**——直到 bar 7 才被结构确认
+        // 入前缀塔（合成闭包 i<7 返回空分类，i≥7 返回含 buy@3 的分类）。旧 source_index==i 切口径
+        // 会在 bar 3 切（彼时前缀塔尚无该点）⟹ 永远切不到 ⟹ 零订单；确认-bar 部署在 bar 7（确认时点，
+        // source_index=3≤7=因果）首次 diff 出该新确认买卖点 → 部署。+ 空塔（候选父=∂ ⟹ Ambient，足以
+        // 验 fill 机制；σ_p 由 tower 专测）。
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![buy1_at(3)], ..Default::default() }],
+        };
+        let fill = pi_theta_fill_loop(
+            |i| {
+                if i >= 7 {
+                    (classification.clone(), Vec::new())
+                } else {
+                    (Classification::default(), Vec::new())
+                }
+            },
+            &bars,
+            1.0e6,
+            &config,
+        );
+        // 七链：买点 bar 7 确认 → 确认-bar diff 部署 → 开 Long → 订单 → fill → 窗口终点强平 ⟹ trades≥1。
+        assert!(fill.n_orders > 0, "π_Θ 确认-bar 部署买点 ⟹ 产订单（n_orders>0），实得 {}", fill.n_orders);
+        assert!(!fill.trades.is_empty(), "开仓 + 窗口终点强平 ⟹ ≥1 笔交易轨迹，实得 {}", fill.trades.len());
+        assert!(fill.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
+    }
+
+    /// ★run_theta_v0_pi 全链端到端（bars → parse → classify → π_Θ → fill）不破——结构性数据
+    /// 无缠论结构 ⟹ classify 产空 bsp ⟹ 无订单（诚实退化，非 bug；与 run_theta_v0 同口径）。
+    #[test]
+    fn run_theta_v0_pi_structureless_runs_clean() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..100).map(|i| mk_bar(i, 1000 + i as i64, false)).collect();
+        let ds = Dataset {
+            symbol: "TEST".to_string(),
+            bars,
+            dates: (0..100).map(|i| format!("2024-01-{:02} 00:00:00", (i % 28) + 1)).collect(),
+        };
+        let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        // 单调数据无缠论结构 ⟹ 空 bsp ⟹ 无订单（诚实退化）。管线全链跑通（不 panic）。
+        assert_eq!(res.n_orders, 0, "无结构 ⟹ 空候选 ⟹ 无订单（诚实退化）");
+        assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空（诚实标注不变量）");
+        assert!(res.metrics.bh_return > 0.0, "L1：buy&hold 对照正确（上涨数据）");
+        assert!(res.closed_loop_final.is_some(), "非空 bars ⟹ 闭环终态");
+    }
+
+    /// ★[A] 因果坐实（639）：runner 前缀因果分类**只用 ≤i 数据**——`parse_layer(bars[0..=i])` 的
+    /// merged_bars/segments 无任何 index > i（无 look-ahead）；前缀分类 bsp source_index ≤ i。这是执行层
+    /// σ_p 因果合法的结构保证（父容器方向从 ≤i 前缀塔查得，不引用未来 bar）。
+    #[test]
+    fn run_theta_v0_pi_prefix_classify_is_causal_no_lookahead() {
+        let config = ThetaConfig::default();
+        // 锯齿 bars（顶底交替，前缀分类非平凡）。
+        let bars: Vec<Bar> = (0..40)
+            .map(|i| {
+                let up = ((i / 3) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 300_000_000i64 * ((i % 3) as i64);
+                mk_bar(i, if up { base + step } else { base + 900_000_000 - step }, false)
+            })
+            .collect();
+        for &i in &[5usize, 12, 25, 39] {
+            let l0_prefix = parser::parse_layer(&bars[..=i], &config);
+            // ① merged_bars 不读 >i（无 look-ahead）。
+            assert!(
+                l0_prefix.merged_bars.iter().all(|b| b.source_index <= i),
+                "前缀 merged_bars 无 source_index>{i}（无 look-ahead）"
+            );
+            // ② segments 不读 >i。
+            assert!(
+                l0_prefix.segments.iter().all(|s| s.end_index <= i),
+                "前缀 segments 无 end_index>{i}（无 look-ahead）"
+            );
+            // ③ 前缀分类 bsp source_index ≤ i（候选不引用未来 bar）。
+            let (c_i, _t_i) = classifier::classify_with_tower(&l0_prefix, &config);
+            assert!(
+                c_i.levels.iter().all(|lv| lv.bsp.iter().all(|p| p.source_index <= i)),
+                "前缀分类 bsp source_index ≤ {i}（因果）"
+            );
+        }
+    }
+
+    /// ★执行层 σ_p = 父容器方向（639，runner [A] 适配器 wiring）：切片当步卖候选 + per-bar 因果塔
+    /// （有向 L1 Long 父走势）→ `assemble_gamma_with_tower` ⟹ V=ShortDiff（来自**父容器方向**，
+    /// **与持仓无关**——`assemble_gamma_with_tower` 不接受 active 参数）。取代旧"活动父腿"错口径 loop 见证。
+    #[test]
+    fn run_theta_v0_pi_loop_shortdiff_from_parent_container() {
+        use super::super::super::strategy::interp::assemble_gamma_with_tower;
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::strategy::coverage::Vertical;
+        use super::super::super::classifier::recursive_tower::LeveledMove as LM;
+        use super::super::super::classifier::center::UnitRange;
+        use super::super::super::types::Direction;
+        // per-bar 因果塔：L1 Long 父走势（3 个 L0 子，sub(8,12) 右端点 ρ=12；外缘 10→15 ⟹ Long）。
+        let u = |si, ei, d, lo, hi| UnitRange { start_index: si, end_index: ei, direction: d, lo, hi };
+        let s0 = LM::from_unit(&u(0, 4, Direction::Up, 0, 10));
+        let s1 = LM::from_unit(&u(4, 8, Direction::Down, 3, 12));
+        let s2 = LM::from_unit(&u(8, 12, Direction::Up, 5, 15));
+        let l1 = LM::compose(
+            &[s0, s1, s2],
+            Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 },
+            1,
+        );
+        let tower = vec![Vec::new(), vec![l1]];
+        // 切片当步 L0 卖候选 source_index=12（host=sub(8,12) ⟹ 真父 L1 Long ⟹ σ_p=Long）。
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![{
+                let mut p = buy1_at(12);
+                p.bits = BspBits { sell1: true, ..Default::default() };
+                p.pivot_low = 0; p.pivot_high = 11_000_000_000;
+                p
+            }], ..Default::default() }],
+        };
+        // 单候选分类（bsp@12，moves/centers 空）——直接作当步候选喂 σ_p 派生（与确认-bar 部署产物同形）。
+        let sliced = classification.clone();
+        // ★639：未持仓（assemble_gamma_with_tower 不接受 active）仍 ShortDiff（σ_p=父容器方向）。
+        let gamma = assemble_gamma_with_tower(&sliced, &tower);
+        assert_eq!(gamma[0].dir, VoiceSide::Short);
+        assert_eq!(
+            gamma[0].role.v,
+            Vertical::ShortDiff,
+            "L0 卖 under L1 Long 父容器 ⟹ ShortDiff（639：来自父容器方向，非持仓父腿）"
+        );
+    }
+
+    /// ★前缀重分类路径确定性（639）：`run_theta_v0_pi`（per-bar 前缀因果重分类闭包）无隐藏状态/RNG ⟹
+    /// 同输入两次运行结果 bit-identical。坐实 O(n²) 前缀重分类路径确定（接 L2/L3 否证的前提）。
+    #[test]
+    fn run_theta_v0_pi_deterministic_prefix_path() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..30)
+            .map(|i| {
+                let up = ((i / 3) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 300_000_000i64 * ((i % 3) as i64);
+                mk_bar(i, if up { base + step } else { base + 900_000_000 - step }, false)
+            })
+            .collect();
+        let ds = Dataset {
+            symbol: "ZZ".to_string(),
+            bars,
+            dates: (0..30).map(|i| format!("2024-01-{:02} 00:00:00", (i % 28) + 1)).collect(),
+        };
+        let a = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        let b = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        assert_eq!(a.n_orders, b.n_orders, "前缀重分类路径确定 ⟹ n_orders 两次相同");
+        assert_eq!(a.trades.len(), b.trades.len(), "trades 两次相同");
+        assert_eq!(a.metrics.n_trades, b.metrics.n_trades, "n_trades 两次相同");
+    }
+
+    /// ★`run_theta_v0_pi` 全链在**结构化锯齿数据**上前缀因果重分类跑通（不 panic，不变量保持）——
+    /// 区别于 `..structureless`（单调无结构）：锯齿产笔/段，前缀塔逐 bar 演化，坐实因果路径在真结构上稳健。
+    #[test]
+    fn run_theta_v0_pi_zigzag_prefix_path_runs_clean() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..60)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
+            })
+            .collect();
+        let ds = Dataset {
+            symbol: "ZZ60".to_string(),
+            bars,
+            dates: (0..60).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
+        };
+        let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空（诚实标注不变量）");
+        assert!(res.closed_loop_final.is_some(), "非空 bars ⟹ 闭环终态");
+        assert!(res.metrics.strat_return.is_finite(), "strat 有限（前缀因果路径不产 NaN/Inf）");
+        assert!(res.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
+    }
+
+    /// ★Q2 close_pred 折 𝒦_Θ（loop 内见证）：风控门把退出折进可行集（非第二出口）——
+    /// k_theta_risk_gate 产门 + pi_theta_position 收窄 𝒦_Θ。此处坐实 force_flat（Insolvent equity≤0）门。
+    #[test]
+    fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
+        let classification = Classification { levels: vec![LevelState::default()] };
+        let bar = px100_bar(0);
+        // equity≤0 ⟹ Insolvent ⟹ GlobalRiskClose ⟹ force_flat（𝒦_Θ={0}）。
+        let gate_insolvent = k_theta_risk_gate(&[], &classification, &bar, -1.0);
+        assert!(gate_insolvent.force_flat, "equity≤0 ⟹ Insolvent ⟹ force_flat（𝒦_Θ={{0}}）");
+        // equity>0 + 无活动腿 ⟹ 门全开（无风控触发）。
+        let gate_open = k_theta_risk_gate(&[], &classification, &bar, 1.0e6);
+        assert!(!gate_open.force_flat && !gate_open.stop_long && !gate_open.stop_short, "正常态 ⟹ 门全开");
     }
 
     // ──────────────────────────────────────────────────────────────────────

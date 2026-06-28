@@ -51,7 +51,7 @@ use super::super::classifier::Classification;
 use super::super::config::{RiskConfig, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
 use super::intent::{lex_argmin, JThetaKey, LexCandidate};
-use super::interp::{self, ActiveLeg, Buckets, Candidate};
+use super::interp::{self, ActiveLeg, Buckets};
 use super::voice::{depth_weight, VoiceSide};
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -690,46 +690,84 @@ pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
 //        （spec §13 line 1172 活动集 + §14 line 1243 头寸，七链 **环6** rust 兑现）
 // ════════════════════════════════════════════════════════════════════════════
 
-/// 活动腿 [`ActiveLeg`] 的根 [`CoverageElement`] 视图（环6 桶驱动路径，扁平 `Classification`）。
+/// 持仓腿 [`ActiveLeg`] → **当前因果树元素索引**（638 坐标身份：本级 `level`、右端点
+/// `ρ==source_index`、方向 `eps==dir`）。
 ///
-/// ★真 Fugue 铁律（严防级别差伪造，mod.rs:433-440 codex 已裁旧 bug）：桶驱动路径的活动腿来自
-/// 扁平 `Classification`（**无** `LeveledMove` 真嵌套塔——MEMORY coverage-engine-needs-tower-export-bridge，
-/// classify 不导出塔）⟹ 每条腿是**独立根**（`parent=None`=边界胚元 ∂，去根化）。**不**从 level
-/// 差伪造父子（那正是被裁的旧 bug）。`lambda=rho=source_index`：活动腿无操作区间端点语义，AncOK
-/// （[`ancestor_close`]）/ [`leg_target`] 只消费 `parent`/`level`/`eps`，不读 λ/ρ。`eps`=腿方向
-/// （活动腿方向恒 ∈{Long,Short}，Flat 不入活动集）。
-fn legs_as_root_elements(legs: &[ActiveLeg]) -> Vec<CoverageElement> {
-    legs.iter()
-        .map(|leg| CoverageElement {
-            lambda: leg.source_index,
-            rho: leg.source_index,
-            eps: leg.dir,
-            level: leg.level,
-            parent: None,       // 独立根（扁平路径，铁律不伪造父子）
-            attached_dir: None, // σ_{p(g)}=0 ⟹ V=Ambient
-        })
-        .collect()
+/// 只在**真嵌套树元素段** `elements[0..candidate_start)` 查（候选段 `[candidate_start..)` 是本 bar
+/// 新触发候选，非持仓）。找到 ⟹ 持仓腿覆盖的走势在当前因果树在场 ⟹ 其子声部腿的 AncOK 祖先齐全
+/// （[`ancestor_close`] 保留）；未找到 ⟹ 持仓腿走势不在当前前缀因果树（走势已演化/不在前缀，缺塔
+/// 边界）⟹ 调用方追加为根元素（无父，AncOK 不剔）。
+///
+/// ★真 Fugue 铁律（mod.rs:433-440 codex 裁旧 bug）：父子来自**真 Compose 塔**（树元素由
+/// [`extract_elements`] 的 `sub_moves` 真嵌套建，非级别差伪造），本函数只按 638 坐标身份把持仓腿
+/// 对位回真树元素，**不**伪造父子。
+///
+/// ## 持久身份对位（codex Q4 ρ 漂移修正）
+///
+/// 三段判定（按严格性降序）——区分 **coord_drift（父语义有效仅坐标漂移）** vs **stale（父真失效）**：
+/// 1. [`HeldLegMatch::Exact`]：`(level, ρ==source_index, eps)` 精确命中——ρ 未漂移的常态对位。
+/// 2. [`HeldLegMatch::CoordDrift`]：`(level, λ==lambda, eps)` 稳定身份命中且 `e.rho >= leg.source_index`
+///    ——父容器走势**向右延伸**（吸收更多次级别子走势 ⟹ `end_index/ρ` 增大），但**起点 λ 不变** ⟹
+///    **同一父**（仅坐标漂移）。返回当前（已延伸）树元素 idx（携真父链）——**不静默降 orphan**。
+/// 3. [`HeldLegMatch::Stale`]：无任何语义匹配 ⟹ 持仓腿走势**真失效**（结构演化/不在前缀因果树）⟹
+///    调用方作根保留（无父，AncOK 不剔）。
+///
+/// λ 稳定性依据：走势的 `start_index`（左端点）在其向右延伸时不变（confirmed 前缀不回写，
+/// reference:16）；`end_index/ρ`（右端点）随延伸增大。`(level, λ, eps)` 在因果前缀内唯一（同级别
+/// 两个不同 confirmed 走势不共享起点）⟹ 是走势的稳定语义身份（独立坐标，无需 generation_id）。
+fn held_leg_tree_index(
+    elements: &[CoverageElement],
+    candidate_start: usize,
+    leg: &ActiveLeg,
+) -> HeldLegMatch {
+    let tree_end = candidate_start.min(elements.len());
+    let tree = &elements[..tree_end];
+    // 1. 精确身份（level + ρ + eps）：未漂移常态。
+    if let Some(idx) = tree
+        .iter()
+        .position(|e| e.level == leg.level && e.rho == leg.source_index && e.eps == leg.dir)
+    {
+        return HeldLegMatch::Exact(idx);
+    }
+    // 2. 稳定身份（level + λ + eps，且当前 ρ ≥ 旧 ρ=向右延伸）：coord_drift（同一父延伸）。
+    //    旧 ρ（leg.source_index）落入当前已延伸区间 [λ, ρ] 内 ⟹ 同一走势吸收了旧端点。
+    if let Some(idx) = tree.iter().position(|e| {
+        e.level == leg.level
+            && e.eps == leg.dir
+            && e.lambda == leg.lambda
+            && e.rho >= leg.source_index
+    }) {
+        return HeldLegMatch::CoordDrift(idx);
+    }
+    // 3. 无语义匹配 ⟹ 真失效。
+    HeldLegMatch::Stale
 }
 
-/// 开启候选 [`Candidate`]（ℬ_x 桶）→ 新活动腿 [`ActiveLeg`]。
+/// 持仓腿跨 bar 对位结果（持久身份三分；[`held_leg_tree_index`] 产）。
 ///
-/// [`interp::interpret`] 仅把可交易候选（`dir∈{Long,Short}`）放入 `open`（Flat/无类归 `record`
-/// 𝒦_x，不入活动集），故新腿方向恒合法。
-fn open_candidate_as_leg(c: &Candidate) -> ActiveLeg {
-    ActiveLeg {
-        level: c.level,
-        dir: c.dir,
-        source_index: c.source_index,
-    }
+/// `Exact`/`CoordDrift` 都对位回**当前因果树元素 idx**（携真父链，AncOK 祖先齐全判据有效）；
+/// `Stale` 才作根保留（父真失效）。`CoordDrift` 是 codex Q4 修正核心：旧逻辑只有 ρ 精确匹配，
+/// 父延伸（ρ 漂移）即误判 stale → 静默降 orphan → 子声部 ShortDiff 腿父不在 raw → AncOK 误剪
+/// （假阴性）。区分 coord_drift 后，延伸父仍在 raw ⟹ ShortDiff 子腿正确准入。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HeldLegMatch {
+    /// ρ 精确命中（未漂移）：当前树元素 idx。
+    Exact(usize),
+    /// λ 稳定命中（父延伸，ρ 漂移）：当前（已延伸）树元素 idx。
+    CoordDrift(usize),
+    /// 无语义匹配（父真失效）：调用方作根保留。
+    Stale,
 }
 
-/// 根元素视图 → 活动腿（[`legs_as_root_elements`] 的逆：`eps`→`dir` / `lambda`→`source_index`）。
-fn root_element_as_leg(e: &CoverageElement) -> ActiveLeg {
-    ActiveLeg {
-        level: e.level,
-        dir: e.eps,
-        source_index: e.lambda,
-    }
+/// 元素 [`CoverageElement`] → 活动腿 [`ActiveLeg`]（638 坐标身份：`level` / `dir=eps` /
+/// `source_index=ρ`）。
+///
+/// `source_index=ρ`（= `LeveledMove.end_index` / 候选 `source_index`，638 hostOf 身份）——喂下一 bar
+/// [`interp::interpret`] 闭环 + [`held_leg_tree_index`] 跨 bar 对位（坐标身份一致：本腿下一 bar 仍按
+/// `(level, ρ, dir)` 映射回真树元素）。候选元素 `lambda==rho==source_index`，根/树走势元素 `ρ=end_index`。
+fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
+    // ρ=source_index（右端点，漂移）+ λ=lambda（左端点，稳定语义身份，持久身份对位用）。
+    ActiveLeg { level: e.level, dir: e.eps, source_index: e.rho, lambda: e.lambda }
 }
 
 /// 𝒟_x 在 A_t 中的索引集（close 腿 ⊆ A_t；每个 close 腿认领一个匹配占位，保多重性严格）。
@@ -752,102 +790,164 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
     idx
 }
 
-/// **环6：解释器三桶 → 活动集递归 `A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x]` + 目标头寸 `p̃_{t+1}`**。
+/// **环6：解释器三桶 → 活动集递归 `A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x]` + 目标头寸 `p̃_{t+1}`**
+/// （§13 持仓准入实装：ShortDiff 子声部腿**未持父则剔除**，不开 naked 逆势仓——639(c) 兑现）。
 ///
-/// 消费 [`interp::Buckets`]（环5 解释器 ℛ_Θ 输出，rust-interp 完成）：`close`=𝒟_x（应关活动腿
-/// ⊆A_t）、`open`=ℬ_x（应开候选）、`record`=𝒦_x（记录不执行，**不**进活动集，本函数不消费）。
+/// 消费 **真父子组合元素数组** `elements`（[`interp::coverage_elements_with_tower`] 产：
+/// `elements[0..candidate_start)` = 真嵌套树走势元素（`RMove::Compose` 真父子，547 铁律），
+/// `elements[candidate_start..)` = 638 附着买卖点候选元素，**含真 `parent`/`attached_dir`**）+
+/// [`interp::Buckets`] 三桶：`close`=𝒟_x（应关活动腿 ⊆A_t）、`open`=ℬ_x（应开候选）、`record`=𝒦_x
+/// （不入活动集，本函数不消费）。
 ///
-/// ## 两步活动集递归（spec §13 line 1172）
-/// 1. `A^{raw}_{t+1} = (A_t ∖ 𝒟_x) ∪ ℬ_x`：先关后开，复用 [`raw_active_set`]（索引集差并）。
-/// 2. `A_{t+1} = AncOK(A^{raw})`，`AncOK(A)={a∈A:Anc(a)⊆A}`：复用 [`ancestor_close`]，剔孤儿子腿。
+/// ## 两步活动集递归（spec §13 line 657-685）
+/// 1. `A^{raw}_{t+1} = (A_t ∖ 𝒟_x) ∪ ℬ_x`：
+///    - **(A_t∖𝒟_x)**：持仓腿（除 𝒟_x，[`close_indices`] 认领）经 [`held_leg_tree_index`] 对位回
+///      当前因果树元素索引（638 身份）——持仓的**父容器腿**由此在 `raw` 在场；不在树者追加为根。
+///    - **∪ℬ_x**：开启候选映射到其因果树附着元素索引 `candidate_start + gamma_index`（携真父）。
+/// 2. `A_{t+1} = AncOK(A^{raw})`，`AncOK(A)={e∈A:Anc(e)⊆A}`：[`ancestor_close`] 剔除**父容器不在
+///    `raw`** 的孤儿子腿——ShortDiff（及任意子声部）候选**仅当其真 Compose 父容器腿在持仓集 A_t**
+///    才准入（spec line 671「任何子级短差腿存在时，其父容器也存在」）。
 ///
-/// ## 目标头寸（spec §14 line 1243）
-/// `p̃_{t+1} = Σ_{g∈A_{t+1}} Leg(g)`：复用 [`strategy_target_legs`]（每腿 ν(g)/方向 ε_e/单位 s_e）
-/// + [`net_target_units`]（按方向净额聚合 Σ ε_e·s_e，毛分账本 → 净持仓）。
+/// ## §13 持仓准入兑现（639 (c)）
+/// 父有向但**未持父仓**的逆向次级候选 = ShortDiff（σ_p=父容器方向，639；其元素 `parent` 指向真
+/// Compose 父树元素）。该父树元素**在 `raw` ⟺ 持仓腿对位到它**（[`held_leg_tree_index`]）；未持父
+/// ⟹ 父不在 `raw` ⟹ AncOK **剪枝**该 ShortDiff ⟹ **不开仓**（防 garbage trade）。持父 ⟹ 父在
+/// `raw` ⟹ ShortDiff **准入**（祖先齐全）。
 ///
-/// 返回 `(A_{t+1}: Vec<ActiveLeg>, p̃: f64)`——A_{t+1} 喂下一 bar 的 [`interp::interpret`]（环5↔环6
-/// 闭环），p̃ 喂环7 策略 π_Θ（LexArgmin）。**immutable**：不 mutate `prev_active`/`buckets`。
+/// ## 目标头寸（spec §14）
+/// `p̃_{t+1}=Σ_{g∈A_{t+1}}Leg(g)`：[`strategy_target_legs`]（每腿 ν(g)/ε_e/s_e，depth 权重沿真父链）
+/// + [`net_target_units`]（方向净额聚合 Σ ε_e·s_e，ShortDiff 空腿部分对冲父多腿）。
+///
+/// 返回 `(A_{t+1}: Vec<ActiveLeg>, p̃: f64)`（[`element_as_leg`] 回腿，喂下一 bar interpret 闭环 +
+/// 跨 bar 对位）。**immutable**：工作副本上追加不在树的持仓腿，不 mutate `elements`/`prev_active`/`buckets`。
 ///
 /// ## 认识论等级（formalization-validity-domain 231号）
-/// **L1**（管线正确性，非 L2 alpha）：确定性结构变换（三桶→集差并→AncOK→净额），消费结构化输入，
-/// 无择时盈利声明。扁平路径 AncOK 恒等是诚实有效域（见边界条件①），**不**声称真嵌套对冲已接入。
+/// **L1**（管线正确性，**非 L2 alpha**）：确定性结构变换（三桶→对位→集差并→AncOK→净额）。AncOK
+/// 接入后产/不产 trades 都是管线正确性，**不蕴含** alpha（231 铁律，下游 L2/L3 否证）。
 ///
 /// > **结果包六要素**
-/// > - **结论**：环6 桶驱动活动集递归 `A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x]` + 目标头寸
-/// >   `p̃_{t+1}=Σ_{g∈A_{t+1}}Leg(g)`，消费 [`interp::Buckets`] 三桶产 `(A_{t+1}:Vec<ActiveLeg>, p̃:f64)`。
-/// > - **定义依据**：spec §13（line 1172 `A^{raw}_{t+1}=(A_t∖𝒟_x)∪ℬ_x；A_{t+1}=AncOK(A^{raw})`，
-/// >   `AncOK(A)={a∈A:Anc(a)⊆A}`）+ §14（line 1243 活动腿按 ν(g)/方向聚合求和）。输入特征满足：
-/// >   `buckets.close`=𝒟_x（⊆A_t 应关活动腿）喂步1 集差、`buckets.open`=ℬ_x（应开候选）喂步1 并集、
-/// >   `buckets.record`=𝒦_x 不入活动集（spec「记录但暂不执行」）。
-/// > - **边界条件**：① 扁平 `Classification` 路径活动腿全为独立根（`parent=∂`，去根化）⟹ Anc(g)=∅
-/// >   ⟹ AncOK **恒等**（不剔任何腿）；若接真 `LeveledMove` 嵌套塔（带 Compose 父）则 AncOK 翻转为
-/// >   **剪枝孤儿子腿**（结论从"恒等"翻转为"剪枝"）。② p̃ 用 depth 权重（根 depth=0 ⟹ w[0]=0.60，
-/// >   [`depth_weight`]）；`base_units`/`depth_weights` 改 ⟹ p̃ 标度翻转。③ 𝒟_x 须 ⊆ A_t（interpret
-/// >   保证 close 取自 working A_t）；若 close 含非 A_t 腿，[`close_indices`] 找不到匹配 ⟹ 静默不删
-/// >   （不伪造删除）。
-/// > - **下游推论**：A_{t+1} 喂下一 bar [`interp::interpret`] 闭环（环5↔环6 递归活动集）；p̃ 喂环7
-/// >   策略 π_Θ 的 LexArgmin（`p*=argmin J_x(p)`，`O=Schedule_Θ(p*−p_t)`）。净额 p̃（有符号 units）
-/// >   对齐 runner 净额账本（净 ≤ 毛，risk `net_le_gross`）。
-/// > - **谱系引用**：MEMORY coverage-engine-needs-tower-export-bridge（互斥全定义策略=买卖点入场+
-/// >   多级角色/嵌套对冲；嵌套对冲真子声部腿需真嵌套塔，classify 不导出 `LeveledMove` 塔——故本桶
-/// >   路径全根、AncOK 恒等是该缺口的**诚实体现**，非 bug）；真 Fugue 铁律（mod.rs:433-440 codex 裁
-/// >   级别差伪造）——本桶路径 [`legs_as_root_elements`] **不**从 level 差伪造父子。
-/// > - **影响声明**：新增 coverage.rs §8（本函数 + [`coverage_step_classification`] 环5+6 端到端 +
-/// >   3 私有 leg↔element 转换 + [`close_indices`]）；复用既有 [`raw_active_set`]/[`ancestor_close`]/
-/// >   [`strategy_target_legs`]/[`net_target_units`]（**不重造** AncOK/LegTarget）；新增 `use super::interp`
-/// >   依赖；不改 interp.rs/nest.rs/入场源（[`extract_elements`]/[`from_classification_levels`]）/mod.rs。
+/// > - **结论**：环6 桶驱动活动集递归接 §13 AncOK 持仓准入——ShortDiff 子腿未持父则剔除（639(c)），
+/// >   产 `(A_{t+1}, p̃)`。
+/// > - **定义依据**：spec §13（line 657-685 `A^{raw}=(A_t∖𝒟_x)∪ℬ_x；A_{t+1}=AncOK(A^{raw})`，
+/// >   `AncOK(A)={e∈A:Anc(e)⊆A}`，line 671「子级短差腿存在 ⟹ 父容器存在」）+ §14（活动腿聚合）。
+/// >   输入特征：`elements` 候选段携真 `parent`（638 附着的真 Compose 父，639 σ_p=父容器方向）；
+/// >   `prev_active` 持仓腿经 638 坐标身份对位回真树元素（父容器腿在场判据）。
+/// > - **边界条件**：① 候选父=∂（Ambient 根：缺塔 `tower.len()<2` / host 是根）⟹ `parent=None` ⟹
+/// >   Anc=∅ ⟹ AncOK 恒等准入（根级无父要求，与持仓无关）。② ShortDiff/FollowParent 子候选父在树
+/// >   但**未持父仓** ⟹ 父不在 `raw` ⟹ 剪枝（结论翻转：持父则准入）。③ 持仓父腿关闭（∈𝒟_x）⟹ 其
+/// >   子腿同 bar 失祖先 ⟹ AncOK 连带剪枝（覆盖不漂浮，spec §13）。④ 𝒟_x 须 ⊆A_t（interpret 保证）。
+/// > - **下游推论**：A_{t+1} 喂下一 bar [`interp::interpret`] 闭环 + 跨 bar [`held_leg_tree_index`]
+/// >   对位；p̃ 喂环7 π_Θ LexArgmin。未持父不开 ShortDiff ⟹ `run_theta_v0_pi` 不再持 naked 逆势仓。
+/// > - **谱系引用**：639（σ_p=父容器方向 ⊥ 持仓准入；本函数兑现 (c) 承诺的"未持父不开 ShortDiff"）；
+/// >   638（hostOf 附着=候选真父来源）；547（真 Fugue，父只来自真 Compose）；
+/// >   coverage-engine-needs-tower-export-bridge（多级角色/嵌套对冲=#5 alpha 来源，依赖 AncOK 准入）。
+/// > - **影响声明**：重写 coverage.rs §8 `coverage_step_from_buckets`（签名加 `elements`/
+/// >   `candidate_start`，接真父子元素数组）；**删** `legs_as_root_elements`/`open_candidate_as_leg`/
+/// >   `root_element_as_leg`（平铺全根错路径，no-patch 不留 fallback）；新增 [`held_leg_tree_index`]/
+/// >   [`element_as_leg`]；复用 [`close_indices`]/[`ancestor_close`]/[`strategy_target_legs`]/
+/// >   [`net_target_units`]；不改 σ_p 来源（assemble_gamma_with_tower）/interp.rs/mod.rs。
 pub fn coverage_step_from_buckets(
+    elements: &[CoverageElement],
+    candidate_start: usize,
     prev_active: &[ActiveLeg],
     buckets: &Buckets,
     base_units: f64,
     config: &VoiceConfig,
 ) -> (Vec<ActiveLeg>, f64) {
-    // 元素视图：[A_t 根..., ℬ_x 开启候选根...]（扁平路径全独立根，铁律不伪造父子）。
-    let mut elements = legs_as_root_elements(prev_active);
-    let open_legs: Vec<ActiveLeg> = buckets.open.iter().map(open_candidate_as_leg).collect();
-    elements.extend(legs_as_root_elements(&open_legs));
+    // 工作副本（immutable：不 mutate 入参；不在当前因果树的持仓腿追加为根）。
+    let mut work: Vec<CoverageElement> = elements.to_vec();
+    let mut raw: Vec<usize> = Vec::new();
 
-    // 索引集：A_t=[0..at_len)；ℬ_x=其后 open 段；𝒟_x=A_t 中匹配 close 腿者。
-    let at_len = prev_active.len();
-    let a_t: Vec<usize> = (0..at_len).collect();
-    let b_x: Vec<usize> = (at_len..elements.len()).collect();
-    let d_x = close_indices(prev_active, &buckets.close);
+    // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）对位回当前因果树元素（638 身份）；不在树 ⟹ 追加为根。
+    let closed = close_indices(prev_active, &buckets.close);
+    for (i, leg) in prev_active.iter().enumerate() {
+        if closed.contains(&i) {
+            continue; // 𝒟_x：本腿关闭，不入 A^raw
+        }
+        match held_leg_tree_index(&work, candidate_start, leg) {
+            // Exact（ρ 未漂移）/ CoordDrift（父延伸，ρ 漂移但 λ 稳定=同一父）：都对位回当前树元素
+            // idx（携真父链）⟹ 其子声部腿的 AncOK 祖先齐全。CoordDrift 不再静默降 orphan（Q4 修正）。
+            HeldLegMatch::Exact(idx) | HeldLegMatch::CoordDrift(idx) => {
+                if !raw.contains(&idx) {
+                    raw.push(idx);
+                }
+            }
+            // Stale（父真失效）：持仓腿走势不在当前前缀因果树 ⟹ 作根保留（无父，AncOK 不剔）。
+            HeldLegMatch::Stale => {
+                let idx = work.len();
+                work.push(CoverageElement {
+                    lambda: leg.lambda,
+                    rho: leg.source_index,
+                    eps: leg.dir,
+                    level: leg.level,
+                    parent: None,
+                    attached_dir: None,
+                });
+                raw.push(idx);
+            }
+        }
+    }
 
-    // 步1：A^raw=(A_t∖𝒟_x)∪ℬ_x（复用 raw_active_set，先关后开）。
-    let raw = raw_active_set(&a_t, &d_x, &b_x);
-    // 步2：A_{t+1}=AncOK(A^raw)（复用 ancestor_close；扁平根路径 Anc=∅⟹恒等，真塔路径剔孤儿）。
-    let next_idx = ancestor_close(&elements, &raw);
+    // ∪ ℬ_x：开启候选 → 其 638 附着因果树元素索引（candidate_start + gamma_index，携真 Compose 父）。
+    for c in &buckets.open {
+        let idx = candidate_start + c.gamma_index;
+        if idx < work.len() && !raw.contains(&idx) {
+            raw.push(idx);
+        }
+    }
 
-    // p̃=Σ Leg(g)（复用 strategy_target_legs + net_target_units 按方向净额聚合）。
-    let legs = strategy_target_legs(&elements, &next_idx, base_units, config);
+    // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
+    let next_idx = ancestor_close(&work, &raw);
+
+    // p̃=Σ Leg(g)（depth 权重沿真父链 + 方向净额聚合，ShortDiff 空腿部分对冲父多腿）。
+    let legs = strategy_target_legs(&work, &next_idx, base_units, config);
     let p_tilde = net_target_units(&legs);
 
-    // A_{t+1} 回 ActiveLeg（喂下一 bar interpret 闭环）。
-    let next_active = next_idx
-        .iter()
-        .map(|&i| root_element_as_leg(&elements[i]))
-        .collect();
+    // A_{t+1} 回 ActiveLeg（638 身份，喂下一 bar interpret 闭环 + 跨 bar 对位）。
+    let next_active = next_idx.iter().map(|&i| element_as_leg(&work[i])).collect();
     (next_active, p_tilde)
 }
 
-/// 环5+环6 端到端（`Classification` → Γ → 解释器三桶 → `A_{t+1}` → `p̃`），element-coverage 生产入口。
+/// 环5+环6 端到端（`Classification` + per-bar 因果塔 → Γ → 三桶 → `A_{t+1}=AncOK[...]` → `p̃`），
+/// element-coverage 生产入口（**σ_p 来源 + §13 AncOK 持仓准入双机制就位**）。
 ///
-/// 串接环5（[`interp::assemble_gamma`] 组装候选集 Γ + [`interp::interpret`] ℛ_Θ 唯一化三桶）与环6
-/// （[`coverage_step_from_buckets`] 活动集递归 + p̃）。给定当前 bar 的 `classification` + 上一 bar 活动
-/// 集 `prev_active`，产 `(A_{t+1}, p̃)`。**immutable**：不 mutate 输入。
+/// 串接：
+/// 1. **真父子组合元素** `(elements, candidate_start)`=[`interp::coverage_elements_with_tower`]
+///    （tree ++ 638 附着候选；候选携真 `parent`=Compose 父、`attached_dir`=σ_p=**父容器方向**，639）。
+/// 2. **环5**：`gamma`=[`interp::assemble_gamma_with_tower`]（角色 V 由真父派生：FollowParent/ShortDiff/
+///    Ambient）+ [`interp::interpret`] ℛ_Θ 唯一化三桶（含反向关闭 𝒟_x，喂 `prev_active`）。
+/// 3. **环6**：[`coverage_step_from_buckets`] 活动集递归 + §13 AncOK 持仓准入（未持父则剔除 ShortDiff）。
 ///
-/// **边界条件**：扁平 `Classification`（无真嵌套塔）⟹ 候选/活动腿全独立根（V=Ambient，AncOK 恒等）；
-/// 完整 element-coverage（含 ShortDiff 真子声部对冲腿）须接真 `LeveledMove` 塔（owner=classifier，
-/// MEMORY coverage-engine-needs-tower-export-bridge）。**认识论 L1**（管线正确性，非 L2 alpha）。
+/// **★两机制正交（639）**：① **σ_p 来源**（§7.2，`assemble_gamma_with_tower` 经 `attach_bsp_to_tree`
+/// 从 per-bar 因果塔查父容器方向，**与持仓无关**）；② **持仓准入**（§13 AncOK，`coverage_step_from_buckets`
+/// 经 `prev_active` 对位真树元素判父容器腿是否持有）。`prev_active` **进** interpret（𝒟_x 反向关闭）
+/// **与** AncOK 准入（父容器腿在场判据），**不进** σ_p 计算（错口径"活动父腿"已删，639）。
+///
+/// **★执行层因果塔**：调用方（runner）须喂 **per-bar 前缀因果塔**（`classify_with_tower(l0[0..=t])`，
+/// 只用 ≤t 数据 → 因果）；全窗塔非因果，执行层禁用（639）。有向父容器 ⟹ V 真出 FollowParent/ShortDiff；
+/// 父=胚元∂（缺塔/host 是根）⟹ σ_p=0 ⟹ Ambient。
+///
+/// **不变量契约**：[`interp::coverage_elements_with_tower`] 与 [`interp::assemble_gamma_with_tower`]
+/// 在同一 `(classification, tower)` 上**确定重建同一树**（同 `levels×bsp` 序），故候选 `gamma_index`
+/// 与 `elements` 候选段偏移 1:1 对齐（`elements[candidate_start + gamma_index]` 即该候选元素）。
+///
+/// **边界条件**：`tower.len()<2`（仅 L0，无 Compose 父）⟹ 所有候选 σ_p=0 ⟹ 全 Ambient 根 ⟹ AncOK
+/// 恒等准入（与扁平 [`interp::assemble_gamma`] 一致，tower-export-i 边界）。空 `levels`/空 bsp ⟹ 空 Γ。
+/// **认识论 L1**（管线正确性，非 L2 alpha）。
 pub fn coverage_step_classification(
     classification: &Classification,
+    tower: &[Vec<LeveledMove>],
     prev_active: &[ActiveLeg],
     base_units: f64,
     config: &VoiceConfig,
 ) -> (Vec<ActiveLeg>, f64) {
-    let gamma = interp::assemble_gamma(classification);
+    // 真父子组合元素（tree ++ 638 附着候选）——σ_p=父容器方向（639）+ AncOK 持仓准入的单一元素来源。
+    let (elements, candidate_start) = interp::coverage_elements_with_tower(classification, tower);
+    // 环5：候选集 Γ（V 由真父派生）+ 解释器三桶（𝒟_x 反向关闭喂 prev_active）。
+    let gamma = interp::assemble_gamma_with_tower(classification, tower);
     let buckets = interp::interpret(&gamma, prev_active);
-    coverage_step_from_buckets(prev_active, &buckets, base_units, config)
+    // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ShortDiff 未持父则剔除，639(c)）。
+    coverage_step_from_buckets(&elements, candidate_start, prev_active, &buckets, base_units, config)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -924,6 +1024,51 @@ fn feasible_net_cap(risk: &RiskConfig) -> f64 {
     risk.gamma.abs()
 }
 
+/// **𝒦_Θ 风控约束门（close_pred 折入可行集，非第二决策出口，§16 单一决策出口）**。
+///
+/// ## Q2 编排者裁定（close_pred 风控折进 𝒦_Θ）
+///
+/// reference §16 钦定**单一决策出口** `π_Θ(x)=Schedule_Θ[LexArgmin_{p∈𝒦_Θ}J_x(p)−p_t]`。退出
+/// 不能有第二出口——故 close_pred 的**风控项（stop/risk）折入 𝒦_Θ 约束门**：风控触发 ⟹ 𝒦_Θ
+/// 可行净持仓收窄（`force_flat`→{0}；`stop_long`→禁净多仓；`stop_short`→禁净空仓），[`lex_argmin`]
+/// 在收窄集上自然产 p*→平/减——退出仍走**唯一决策出口**（p*），非独立 exit 订单。
+///
+/// ## close_pred 契约锚保留（no-patch-keep-primitive）
+///
+/// 本门由 [`super::exec::close_pred`] 计算（runner discharge stop/risk 读出 → close_pred → 本门），
+/// **不删** close_pred 原语。`reverse_signal` 项**不**入本门——反向信号关闭活动腿走 [`interp::interpret`]
+/// 的 𝒟_x（活动集递归腿级决策，那才是 §16 的腿级单出口）；本门只承载 stop/risk（账户/价格层风控）。
+///
+/// ## 认识论 L0（formalization-validity-domain 231号）
+/// 给定风控读出后，约束门是 𝒦_Θ 区间收窄的布尔代数（确定）。风控读出本身（`stop_hit`/
+/// `global_risk_close`）由 runner discharge（账户层运行时输入 E_t/价格触及，**非缠论可导**）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct KThetaRiskGate {
+    /// GlobalRiskClose（Insolvent/Liquidation，P1 最高优先级）⟹ 𝒦_Θ={0}（强制全平）。
+    pub force_flat: bool,
+    /// 多头风控触发（结构止损触及，`close_pred(stop_long)`）⟹ 𝒦_Θ 禁净多仓（hi_cap=0）。
+    pub stop_long: bool,
+    /// 空头风控触发（结构止损触及，`close_pred(stop_short)`）⟹ 𝒦_Θ 禁净空仓（lo_cap=0）。
+    pub stop_short: bool,
+}
+
+impl KThetaRiskGate {
+    /// 无约束门（𝒦_Θ=[−cap,+cap] 全开，风控未触发）——执行层默认 + 既有 π_Θ 测试用。
+    pub fn open() -> Self {
+        KThetaRiskGate { force_flat: false, stop_long: false, stop_short: false }
+    }
+
+    /// 应用约束门到对称 cap，产 `(lo_cap, hi_cap)` 幅度（`force_flat` 优先收到 {0}）。
+    fn caps(&self, cap: f64) -> (f64, f64) {
+        if self.force_flat {
+            return (0.0, 0.0); // GlobalRiskClose ⟹ 𝒦_Θ={0}（净持仓只能 0）
+        }
+        let hi = if self.stop_long { 0.0 } else { cap }; // 禁净多 ⟹ 上限 0
+        let lo = if self.stop_short { 0.0 } else { cap }; // 禁净空 ⟹ 下限 0
+        (lo, hi)
+    }
+}
+
 /// 构造有限可行集 𝒦_Θ(x) 的 **LexArgmin 代表点**（spec §15 line 721-736 八约束 + line 725 `𝒦_Θ≠∅`）。
 ///
 /// 𝒦_Θ = lot 对齐的净持仓 `p ∈ [−cap,+cap]`（有限网格，spec P13 假设10「𝒦_Θ 非空且有限」）。返回
@@ -940,9 +1085,11 @@ fn feasible_net_cap(risk: &RiskConfig) -> f64 {
 /// ★凸性精确性（formalization-validity-domain，**非近似**）：主键跟踪误差 `w(p−p̃)²`（w>0）在 lot
 /// 离散区间的全局最小在 `clamp(p̃)` 相邻 lot 点取得；二点等距（p̃ 恰在 lot 中点）⟹ 跟踪并列 ⟹ 次键
 /// 成本破并列——两点均在本集 ⟹ **本代表集上 LexArgmin = 全 𝒦_Θ 网格 LexArgmin（精确相等）**。
-fn feasible_candidates(p_tilde: f64, p_t: f64, cap: f64, lot: f64) -> Vec<(f64, i64)> {
-    let hi = ((cap / lot).floor() * lot).max(0.0); // 最大 lot 对齐幅度 ≤ cap
-    let lo = -hi;
+fn feasible_candidates(p_tilde: f64, p_t: f64, lo_cap: f64, hi_cap: f64, lot: f64) -> Vec<(f64, i64)> {
+    // 非对称 cap（𝒦_Θ 风控约束门 [`KThetaRiskGate::caps`] 注入）：hi_cap=净多上限、lo_cap=净空上限
+    // （幅度）。对称全开时 lo_cap=hi_cap=cap（退化为旧 [−hi,hi]）；force_flat ⟹ 两者 0 ⟹ 𝒦_Θ={0}。
+    let hi = ((hi_cap / lot).floor() * lot).max(0.0); // 净多最大 lot 对齐幅度 ≤ hi_cap
+    let lo = -((lo_cap / lot).floor() * lot).max(0.0); // 净空最大 lot 对齐幅度 ≤ lo_cap
     let clamp = |x: f64| x.max(lo).min(hi);
     let pc = clamp(p_tilde);
     let floor_pt = clamp((pc / lot).floor() * lot);
@@ -994,11 +1141,14 @@ pub fn pi_theta_position(
     base_units: f64, // U_ℓ：runner 注入的协变资本单位（随级别 a_k 缩放；方案A）
     risk: &RiskConfig,
     weights: PiThetaWeights,
+    gate: KThetaRiskGate, // 𝒦_Θ 风控约束门（close_pred 折入，非第二出口；全开=open()）
 ) -> f64 {
     let lot = risk.default_lot.max(1) as f64;
     // 方案A：γ̄ = feasible_net_cap(risk) 无量纲；绝对上限 cap = U_ℓ · γ̄（d_j=1 协变缩放）
     let cap = feasible_net_cap(risk) * base_units.abs();
-    let candidates: Vec<LexCandidate<f64>> = feasible_candidates(p_tilde, p_t, cap, lot)
+    // 𝒦_Θ 风控约束门：force_flat→{0}，stop_long→禁净多，stop_short→禁净空（Q2 折入可行集）。
+    let (lo_cap, hi_cap) = gate.caps(cap);
+    let candidates: Vec<LexCandidate<f64>> = feasible_candidates(p_tilde, p_t, lo_cap, hi_cap, lot)
         .into_iter()
         .map(|(p, gi)| LexCandidate {
             control: p,
@@ -1109,6 +1259,7 @@ pub fn schedule_order(p_star: f64, p_t: f64, exec_index: usize) -> Order {
 #[allow(clippy::too_many_arguments)]
 pub fn pi_theta_step(
     classification: &Classification,
+    tower: &[Vec<LeveledMove>], // per-bar 因果塔（639 σ_p=父容器方向；runner 喂前缀重分类塔）
     prev_active: &[ActiveLeg],
     p_t: f64,
     exec_index: usize,
@@ -1116,12 +1267,14 @@ pub fn pi_theta_step(
     voice: &VoiceConfig,
     risk: &RiskConfig,
     weights: PiThetaWeights,
+    gate: KThetaRiskGate, // 𝒦_Θ 风控约束门（close_pred 折入；全开=open()）
 ) -> (Vec<ActiveLeg>, f64, Order) {
     // 环5+6：买卖点 Γ 入场 → A_{t+1} + p̃（GAP-5：入场源 = BspPoint.source_index 买卖点）。
+    // 执行层 σ_p=父容器方向（639；coverage_step_classification 内 assemble_gamma_with_tower 喂因果塔）。
     let (next_active, p_tilde) =
-        coverage_step_classification(classification, prev_active, base_units, voice);
-    // 环7：p* = LexArgmin J_x（𝒦_Θ）→ O = Schedule_Θ(p*−p_t)。
-    let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights);
+        coverage_step_classification(classification, tower, prev_active, base_units, voice);
+    // 环7：p* = LexArgmin J_x（𝒦_Θ，风控门收窄）→ O = Schedule_Θ(p*−p_t)（单一决策出口 §16）。
+    let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
     (next_active, p_star, order)
 }
@@ -1504,6 +1657,57 @@ mod tests {
         }
     }
 
+    /// 测试辅助：ℬ_x 开启候选 → 扁平根元素数组（缺塔/Ambient 路径，`candidate_start=0`）。
+    /// `elements[gamma_index]` = 候选根（`parent=None` ⟹ AncOK 恒等准入，与缺塔生产路径一致）。
+    /// 按 `gamma_index` 定位（测试 `cand` 用连续 0..n，无父子）。
+    fn flat_elements(open: &[Candidate]) -> Vec<CoverageElement> {
+        let n = open.iter().map(|c| c.gamma_index + 1).max().unwrap_or(0);
+        let mut v = vec![
+            CoverageElement {
+                lambda: 0,
+                rho: 0,
+                eps: VoiceSide::Flat,
+                level: 0,
+                parent: None,
+                attached_dir: None,
+            };
+            n
+        ];
+        for c in open {
+            v[c.gamma_index] = CoverageElement {
+                lambda: c.source_index,
+                rho: c.source_index,
+                eps: c.dir,
+                level: c.level,
+                parent: None,
+                attached_dir: None,
+            };
+        }
+        v
+    }
+
+    /// L0 卖买卖点（src=si；host 右端点 ρ=si；pivot 远离 ⟹ 止损不触及）。
+    fn sell_bsp(si: usize) -> BspPoint {
+        BspPoint {
+            source_index: si,
+            bits: BspBits { sell1: true, ..Default::default() },
+            pivot_low: 0,
+            pivot_high: 210,
+            center: Some(ctr(0, si)),
+        }
+    }
+
+    /// L0 买买卖点（src=si）。
+    fn buy_bsp(si: usize) -> BspPoint {
+        BspPoint {
+            source_index: si,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 90,
+            pivot_high: 0,
+            center: Some(ctr(0, si)),
+        }
+    }
+
     /// ★环6 开启：空 A_t + ℬ_x 一个买候选 ⟹ A_{t+1} 含该腿，p̃ = base×w[0]（根 depth 0）。
     #[test]
     fn buckets_open_creates_active_leg_and_target() {
@@ -1512,9 +1716,9 @@ mod tests {
             open: vec![cand(0, 5, VoiceSide::Long, 0)],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
         assert_eq!(active.len(), 1, "ℬ_x 开启 ⟹ A_{{t+1}} 一条新腿");
-        assert_eq!(active[0], ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 5 });
+        assert_eq!(active[0], ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 5, lambda: 5 });
         // p̃ = 1000×w_depth(0)=1000×0.60=600（根 depth 0，多腿正号）。
         assert!((p - 600.0).abs() < 1e-9, "p̃ = base×w[0] = 600（单多腿）");
     }
@@ -1522,13 +1726,13 @@ mod tests {
     /// ★环6 关闭：A_t 一条 Long 腿 + 𝒟_x={该腿} ⟹ A_{t+1}=∅，p̃=0（先关后开）。
     #[test]
     fn buckets_close_removes_active_leg() {
-        let leg = ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 3 };
+        let leg = ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 3, lambda: 3 };
         let buckets = Buckets {
             close: vec![leg], // 𝒟_x ⊆ A_t
             open: vec![],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&[leg], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg], &buckets, 1000.0, &cfg());
         assert!(active.is_empty(), "𝒟_x 关闭活动腿 ⟹ A_{{t+1}} 空");
         assert_eq!(p, 0.0, "无活动腿 ⟹ p̃=0");
     }
@@ -1544,7 +1748,7 @@ mod tests {
             ],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
         assert_eq!(active.len(), 2);
         // 两腿同根 depth 0（w[0]=0.60）：Long +600，Short −600 ⟹ 净 0。
         assert!(p.abs() < 1e-9, "p̃ = +600 −600 = 0（方向净额聚合）");
@@ -1553,18 +1757,18 @@ mod tests {
     /// ★环6 先关后开 + 保留：A_t={legA, legB}，𝒟_x={legA}，ℬ_x={candC} ⟹ A_{t+1}={legB, legC}。
     #[test]
     fn buckets_close_then_open_keeps_survivor() {
-        let leg_a = ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 1 };
-        let leg_b = ActiveLeg { level: 1, dir: VoiceSide::Short, source_index: 2 };
+        let leg_a = ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 1, lambda: 1 };
+        let leg_b = ActiveLeg { level: 1, dir: VoiceSide::Short, source_index: 2, lambda: 2 };
         let buckets = Buckets {
             close: vec![leg_a],                          // 关 legA
             open: vec![cand(0, 9, VoiceSide::Long, 0)],  // 开 candC（level 0 Long）
             record: vec![],
         };
-        let (active, _p) = coverage_step_from_buckets(&[leg_a, leg_b], &buckets, 1000.0, &cfg());
+        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg_a, leg_b], &buckets, 1000.0, &cfg());
         assert!(!active.contains(&leg_a), "legA 被 𝒟_x 关闭");
         assert!(active.contains(&leg_b), "legB（不在 𝒟_x）保留");
         assert!(
-            active.contains(&ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 9 }),
+            active.contains(&ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 9, lambda: 9 }),
             "candC 被 ℬ_x 开启"
         );
         assert_eq!(active.len(), 2);
@@ -1575,26 +1779,26 @@ mod tests {
     #[test]
     fn buckets_ancok_identity_on_flat_roots() {
         let legs = [
-            ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0 },
-            ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 1 },
-            ActiveLeg { level: 2, dir: VoiceSide::Short, source_index: 2 },
+            ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 },
+            ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 1, lambda: 1 },
+            ActiveLeg { level: 2, dir: VoiceSide::Short, source_index: 2, lambda: 2 },
         ];
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
-        let (active, _p) = coverage_step_from_buckets(&legs, &buckets, 1000.0, &cfg());
+        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &legs, &buckets, 1000.0, &cfg());
         assert_eq!(active.len(), 3, "扁平根全保留（AncOK 恒等——无父子可剔孤儿）");
     }
 
     /// ★环6 immutable：coverage_step_from_buckets 不 mutate prev_active。
     #[test]
     fn buckets_step_immutable_prev_active() {
-        let prev = vec![ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0 }];
+        let prev = vec![ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
         let snapshot = prev.clone();
         let buckets = Buckets {
             close: vec![],
             open: vec![cand(1, 3, VoiceSide::Short, 0)],
             record: vec![],
         };
-        let _ = coverage_step_from_buckets(&prev, &buckets, 1000.0, &cfg());
+        let _ = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &prev, &buckets, 1000.0, &cfg());
         assert_eq!(prev, snapshot, "桶驱动递归不 mutate prev_active（纯函数）");
     }
 
@@ -1606,7 +1810,7 @@ mod tests {
             open: vec![],
             record: vec![cand(0, 7, VoiceSide::Long, 0)], // 𝒦_x：记录不执行
         };
-        let (active, p) = coverage_step_from_buckets(&[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
         assert!(active.is_empty(), "𝒦_x 不入活动集");
         assert_eq!(p, 0.0);
     }
@@ -1615,7 +1819,7 @@ mod tests {
     #[test]
     fn buckets_empty_yields_empty_and_zero() {
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
-        let (active, p) = coverage_step_from_buckets(&[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
         assert!(active.is_empty());
         assert_eq!(p, 0.0);
     }
@@ -1635,7 +1839,8 @@ mod tests {
             levels: vec![LevelState { bsp: vec![bsp], ..Default::default() }],
         };
         // 空 A_t：买候选开启 ⟹ A_{t+1} 一条 Long 腿，p̃ = 600。
-        let (active, p) = coverage_step_classification(&classification, &[], 1000.0, &cfg());
+        // 空塔（tower &[]）⟹ 候选父=∂ ⟹ Ambient（与扁平一致）；本测试只验开腿/p̃，角色不约束。
+        let (active, p) = coverage_step_classification(&classification, &[], &[], 1000.0, &cfg());
         assert_eq!(active.len(), 1, "买点 ℬ_x 开启 ⟹ 一条活动腿");
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert_eq!(active[0].source_index, 4);
@@ -1653,7 +1858,7 @@ mod tests {
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
         };
         let c_buy = Classification { levels: vec![LevelState { bsp: vec![buy], ..Default::default() }] };
-        let (active_t1, _) = coverage_step_classification(&c_buy, &[], 1000.0, &cfg());
+        let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg());
         assert_eq!(active_t1.len(), 1, "买点开 Long 腿");
         // bar t+1：卖点（反向）→ A_{t+1} 回喂 interpret ⟹ 关闭 Long 腿 ⟹ A_{t+2}=∅。
         let sell = BspPoint {
@@ -1663,9 +1868,161 @@ mod tests {
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
         };
         let c_sell = Classification { levels: vec![LevelState { bsp: vec![sell], ..Default::default() }] };
-        let (active_t2, p2) = coverage_step_classification(&c_sell, &active_t1, 1000.0, &cfg());
+        let (active_t2, p2) = coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg());
         assert!(active_t2.is_empty(), "反向卖点关闭持仓 Long（𝒟_x）⟹ A_{{t+2}}=∅（闭环）");
         assert_eq!(p2, 0.0, "无活动腿 ⟹ p̃=0");
+    }
+
+    // ── §8b §13 AncOK 持仓准入（639(c)：ShortDiff 未持父则剔除，不开 naked 逆势仓）──────────
+    //   真嵌套塔（L1 Long 父走势）+ 638 附着候选 ⟹ AncOK 在真 Compose 父链上对附着候选剪枝/准入。
+
+    /// ★测试①（AncOK 准入）：有向父容器 + **已持父仓** + 逆向次级 ShortDiff 候选 ⟹ ShortDiff 子腿
+    /// **准入**（祖先齐全：父容器腿在 A_t）。
+    #[test]
+    fn ancok_admits_shortdiff_when_parent_held() {
+        use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
+        // per-bar 因果塔：L1 Long 父走势（compose idx0）+ 3 L0 子（idx1/2/3，sub(4,8) ρ=8）。
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // L0 卖候选 src=8 ⟹ host=sub(4,8) ⟹ 真父 L1 Long ⟹ ShortDiff（δ=Short=−σ_p）。
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
+        let gamma = assemble_gamma_with_tower(&classification, &tower);
+        assert_eq!(gamma[0].role.v, Vertical::ShortDiff, "前置：候选 V=ShortDiff（639 σ_p=父容器方向）");
+        // 持父仓：prev_active 含父容器腿（L1 Long，638 身份 source_index=compose.ρ=12）。
+        let held_parent = ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0 };
+        let buckets = interpret(&gamma, &[held_parent]);
+        let (active, _p) =
+            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
+        assert!(
+            active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
+            "持父仓 ⟹ ShortDiff 子腿准入（AncOK 祖先齐全）；实得 {active:?}"
+        );
+        assert!(
+            active.iter().any(|l| l.level == 1 && l.dir == VoiceSide::Long),
+            "父容器腿保留"
+        );
+    }
+
+    /// ★测试①b（持久身份 coord_drift，codex Q4 假阴性消除）：父走势**延伸 end_index 变但同一父**
+    /// （吸收更多次级别子走势 ⟹ ρ 漂移）+ 已持父仓 + 逆向次级 ShortDiff 候选 ⟹ ShortDiff 子腿
+    /// **仍准入**（持久身份 λ 稳定对位识别为 coord_drift，非误判 stale 剪枝）。
+    ///
+    /// 旧逻辑（仅 ρ 精确匹配）：持仓父腿 ρ 漂移 ⟹ `held_leg_tree_index` 误判 None ⟹ 静默降 orphan ⟹
+    /// 子腿父不在 raw ⟹ AncOK 误剪 ShortDiff（**假阴性**）。本测试断言修正后不再剪。
+    #[test]
+    fn ancok_admits_shortdiff_under_parent_coord_drift() {
+        use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
+        // 当前因果塔：L1 Long 父走势**已延伸**到 ρ=12（持仓时旧 ρ 曾=8，现吸收更多子走势 ρ 漂移）。
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
+        let gamma = assemble_gamma_with_tower(&classification, &tower);
+        assert_eq!(gamma[0].role.v, Vertical::ShortDiff, "前置：候选 V=ShortDiff（639 σ_p=父容器方向）");
+        // ★持仓父腿 ρ 漂移：source_index=8（开仓时旧 ρ，现树无 ρ=8 的 L1 元素），λ=0（稳定起点）。
+        // 当前树 L1 元素 ρ=12（已延伸）⟹ Exact(ρ==8) 失配 ⟹ CoordDrift(λ==0, ρ=12≥8) 命中同一父。
+        let held_parent = ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0 };
+        let buckets = interpret(&gamma, &[held_parent]);
+        let (active, _p) =
+            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
+        assert!(
+            active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
+            "coord_drift（λ 稳定对位）⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入（Q4 假阴性消除）；实得 {active:?}"
+        );
+        assert!(
+            active.iter().any(|l| l.level == 1 && l.dir == VoiceSide::Long),
+            "延伸父容器腿对位回当前树元素并保留（非降 orphan）"
+        );
+    }
+
+    /// ★测试②（AncOK 剪枝，639(c) 关键测试）：有向父容器 + **未持父仓** + 逆向次级 ShortDiff 候选 ⟹
+    /// ShortDiff 子腿**被剔除**（不开 naked 逆势仓 garbage trade）。这是 639(c) 承诺的兑现。
+    #[test]
+    fn ancok_prunes_shortdiff_when_parent_unheld() {
+        use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
+        let gamma = assemble_gamma_with_tower(&classification, &tower);
+        assert_eq!(gamma[0].role.v, Vertical::ShortDiff, "前置：候选 V=ShortDiff（σ 来源 ⊥ 持仓）");
+        // 未持父仓：空 prev_active。
+        let buckets = interpret(&gamma, &[]);
+        // ★Q3 加固（codex）：坐实剪枝**前**候选确实进 open 桶 + 携非空父指针——否则
+        // active.is_empty() 在「候选从未入场」时也假性通过（interpret 行为变后防假阳性）。
+        assert_eq!(buckets.open.len(), 1, "interpret 确实把 ShortDiff 候选放入 open 桶（非从未入场）");
+        assert!(
+            matches!(elements[cstart].parent, Some(_)),
+            "候选携非空真 Compose 父指针（AncOK 剪枝的前提是父存在但未持，非父=None）"
+        );
+        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg());
+        assert!(
+            active.is_empty(),
+            "未持父 ⟹ ShortDiff 子腿被 AncOK 剪枝（639(c)：不开 naked 逆势仓）；实得 {active:?}"
+        );
+        assert_eq!(p, 0.0, "ShortDiff 剔除 ⟹ 无活动腿 ⟹ p̃=0（不开仓）");
+    }
+
+    /// ★测试③（根级无父要求）：Ambient 根候选（缺塔/host 是根，σ_p=0）⟹ 空持仓也正常准入。
+    #[test]
+    fn ancok_admits_ambient_root_without_held_parent() {
+        use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
+        let tower: Vec<Vec<LeveledMove>> = Vec::new(); // 缺塔 ⟹ 候选父=∂ ⟹ Ambient 根
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![buy_bsp(4)], ..Default::default() }],
+        };
+        let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
+        let gamma = assemble_gamma_with_tower(&classification, &tower);
+        assert_eq!(gamma[0].role.v, Vertical::Ambient, "缺塔 ⟹ 候选父=∂ ⟹ Ambient 根");
+        let buckets = interpret(&gamma, &[]); // 空持仓
+        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg());
+        assert_eq!(active.len(), 1, "Ambient 根腿无父要求 ⟹ 空持仓也准入");
+        assert_eq!(active[0].dir, VoiceSide::Long);
+        assert!((p - 600.0).abs() < 1e-9, "根 depth 0 ⟹ p̃=base×w[0]=600");
+    }
+
+    /// ★测试④（持父→撤父→连带剪枝，覆盖不漂浮）：先持父仓准入 ShortDiff 子腿，下一 bar 父腿被反向
+    /// 关闭（𝒟_x）⟹ 子腿同 bar 失祖先 ⟹ AncOK 连带剪枝（spec §13 覆盖不漂浮）。
+    #[test]
+    fn ancok_prunes_child_when_parent_closed_same_step() {
+        use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // 同 bar 两候选：L1 卖（反向关闭 L1 Long 父腿）+ L0 卖（ShortDiff 子腿）。
+        let classification = Classification {
+            levels: vec![
+                LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }, // L0：ShortDiff 子
+                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() }, // L1：反向关父
+            ],
+        };
+        let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
+        let gamma = assemble_gamma_with_tower(&classification, &tower);
+        // 持父仓（L1 Long）。
+        let held_parent = ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0 };
+        let buckets = interpret(&gamma, &[held_parent]);
+        // L1 卖反向关闭 L1 Long 父腿（𝒟_x），故 (A_t∖𝒟_x) 不含父 ⟹ 子腿失祖先 ⟹ AncOK 连带剪枝。
+        assert!(buckets.close.iter().any(|l| l.level == 1), "L1 卖反向关闭 L1 Long 父腿（𝒟_x）");
+        let (active, _p) =
+            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
+        assert!(
+            !active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
+            "父腿同 bar 关闭 ⟹ ShortDiff 子腿连带剪枝（覆盖不漂浮）；实得 {active:?}"
+        );
     }
 
     // ── §9 环7 π_Θ：J_x + 𝒦_Θ + LexArgmin + Schedule_Θ → 唯一订单 ──────────────
@@ -1687,11 +2044,11 @@ mod tests {
     /// ★𝒦_Θ≠∅：可行集恒含安全锚 0（非空性构造见证，spec line 725 硬前提）。
     #[test]
     fn feasible_set_nonempty_contains_zero() {
-        let cands = feasible_candidates(600.0, 0.0, 1000.0, 1.0);
+        let cands = feasible_candidates(600.0, 0.0, 1000.0, 1000.0, 1.0);
         assert!(!cands.is_empty(), "𝒦_Θ 非空");
         assert!(cands.iter().any(|&(p, _)| p.abs() < 1e-9), "含安全锚 0");
         // cap<lot 退化：hi=0 ⟹ 𝒦_Θ={0} 仍非空。
-        let degen = feasible_candidates(5.0, 0.0, 0.4, 1.0);
+        let degen = feasible_candidates(5.0, 0.0, 0.4, 0.4, 1.0);
         assert!(!degen.is_empty());
         assert!(degen.iter().all(|&(p, _)| p.abs() < 1e-9), "cap<lot ⟹ 𝒦_Θ={{0}}");
     }
@@ -1700,7 +2057,7 @@ mod tests {
     #[test]
     fn feasible_candidates_lot_aligned_within_cap() {
         let (lot, cap) = (10.0, 100.0);
-        let cands = feasible_candidates(23.0, 0.0, cap, lot);
+        let cands = feasible_candidates(23.0, 0.0, cap, cap, lot);
         for &(p, _) in &cands {
             assert!((p / lot).fract().abs() < 1e-9, "lot 对齐");
             assert!(p.abs() <= cap + 1e-9, "∈[−cap,cap]");
@@ -1714,7 +2071,8 @@ mod tests {
     #[test]
     fn pi_theta_position_tracks_ptilde_within_cap() {
         let r = rcfg();
-        let p_star = pi_theta_position(600.0, 0.0, 1000.0, &r, PiThetaWeights::from_risk(&r));
+        let p_star =
+            pi_theta_position(600.0, 0.0, 1000.0, &r, PiThetaWeights::from_risk(&r), KThetaRiskGate::open());
         assert!((p_star - 600.0).abs() < 1e-9, "p* = p̃ = 600（cap 内跟踪）");
     }
 
@@ -1722,7 +2080,8 @@ mod tests {
     #[test]
     fn pi_theta_position_clamps_over_cap() {
         let r = rcfg(); // base_units=1000（U_ℓ）, gamma=1.0（γ̄）⟹ cap=U_ℓ·γ̄=1000
-        let p_star = pi_theta_position(1500.0, 0.0, 1000.0, &r, PiThetaWeights::from_risk(&r));
+        let p_star =
+            pi_theta_position(1500.0, 0.0, 1000.0, &r, PiThetaWeights::from_risk(&r), KThetaRiskGate::open());
         assert!((p_star - 1000.0).abs() < 1e-9, "p* = +hi = cap = 1000（杠杆/资本 cap binding）");
     }
 
@@ -1731,7 +2090,8 @@ mod tests {
     fn pi_theta_position_lot_rounds_to_nearest() {
         let mut r = rcfg();
         r.default_lot = 10;
-        let p_star = pi_theta_position(23.0, 0.0, 1000.0, &r, PiThetaWeights::from_risk(&r));
+        let p_star =
+            pi_theta_position(23.0, 0.0, 1000.0, &r, PiThetaWeights::from_risk(&r), KThetaRiskGate::open());
         assert!((p_star - 20.0).abs() < 1e-9, "p* = 20（最近 lot 点）");
     }
 
@@ -1789,7 +2149,8 @@ mod tests {
         };
         let r = rcfg();
         let (active, p_star, order) = pi_theta_step(
-            &classification, &[], 0.0, 5, 1000.0, &cfg(), &r, PiThetaWeights::from_risk(&r),
+            &classification, &[], &[], 0.0, 5, 1000.0, &cfg(), &r, PiThetaWeights::from_risk(&r),
+            KThetaRiskGate::open(),
         );
         // GAP-5：活动腿 source_index = BspPoint.source_index = 4（买卖点，非 LeveledMove.start_index）。
         assert_eq!(active.len(), 1);
@@ -1814,9 +2175,82 @@ mod tests {
         };
         let r = rcfg();
         let w = PiThetaWeights::from_risk(&r);
-        let a = pi_theta_step(&classification, &[], 0.0, 1, 1000.0, &cfg(), &r, w);
-        let b = pi_theta_step(&classification, &[], 0.0, 1, 1000.0, &cfg(), &r, w);
+        let a = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open());
+        let b = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open());
         assert_eq!(a.2, b.2, "∀x ∃! O_{{t+1}}：确定唯一订单");
         assert_eq!(a.1, b.1);
+    }
+
+    /// ★Q2 close_pred 折 𝒦_Θ：force_flat ⟹ 𝒦_Θ={0} ⟹ p*=0（强平，单一决策出口产平仓 O）。
+    #[test]
+    fn pi_theta_position_force_flat_gate_clamps_to_zero() {
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        // 无门：p̃=600 cap 内 ⟹ p*=600。force_flat 门：𝒦_Θ={0} ⟹ p*=0（不论 p̃）。
+        let open = pi_theta_position(600.0, 600.0, 1000.0, &r, w, KThetaRiskGate::open());
+        assert!((open - 600.0).abs() < 1e-9, "全开门 ⟹ p*=600");
+        let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false };
+        let p_star = pi_theta_position(600.0, 600.0, 1000.0, &r, w, flat);
+        assert_eq!(p_star, 0.0, "force_flat ⟹ 𝒦_Θ={{0}} ⟹ p*=0（持仓 600 → Close）");
+    }
+
+    /// ★Q2 stop_long 门：禁净多 ⟹ 持多 p_t=600 + p̃=600（信号仍要多）⟹ p*=0（止损经 𝒦_Θ 平多，
+    /// 非第二 exit 出口）。stop_short 不触发 ⟹ 净空仍可（对称见证）。
+    #[test]
+    fn pi_theta_position_stop_long_gate_forbids_net_long() {
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let gate = KThetaRiskGate { force_flat: false, stop_long: true, stop_short: false };
+        // 持多 600 + 信号要多 600，但 stop_long 禁净多 ⟹ 𝒦_Θ⊆[−cap,0] ⟹ p*=0（平多，单出口）。
+        let p_star = pi_theta_position(600.0, 600.0, 1000.0, &r, w, gate);
+        assert!(p_star <= 1e-9, "stop_long ⟹ 禁净多 ⟹ p*≤0（止损平多走 𝒦_Θ，非第二出口），实得 {p_star}");
+    }
+
+    /// ★执行层 σ_p = 父容器方向（639，端到端 pi_theta_step；取代旧"活动父腿"错口径测试）：
+    /// per-bar 因果塔含有向 L1 Long 父走势 + L0 逆向卖候选 ⟹ 候选 V=ShortDiff（来自**父容器方向**，
+    /// **非持仓**——空 `prev_active` 仍 ShortDiff，坐实 σ 来源 ⊥ 持仓）。
+    ///
+    /// ★两机制正交端到端坐实（639，AncOK 已接入）：① **σ_p 来源**=ShortDiff（`assemble_gamma_with_tower`，
+    /// 不接受 active ⟹ 与持仓无关）；② **§13 AncOK 持仓准入**=空 `prev_active`（未持父）⟹ ShortDiff 子腿
+    /// 被剪枝 ⟹ pi_theta_step 产 **Wait/qty=0**（不开 naked 逆势仓，639(c)）。σ 仍分类 ShortDiff 但准入
+    /// 剔除——正是两正交机制（σ 用因果塔，准入用持仓台账）。
+    #[test]
+    fn pi_theta_step_shortdiff_from_parent_container_not_position() {
+        use super::super::interp::assemble_gamma_with_tower;
+        // per-bar 因果塔：L1 Long 父走势（结构对象；3 个 L0 子，sub(8,12) 右端点 ρ=12）。
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // L0 卖候选 source_index=12 ⟹ host=sub(8,12)（ρ=12）⟹ 真父 L1 Long ⟹ σ_p=Long。
+        let sell = BspPoint {
+            source_index: 12,
+            bits: BspBits { sell1: true, ..Default::default() },
+            pivot_low: 0, pivot_high: 210,
+            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 }),
+        };
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![sell], ..Default::default() }],
+        };
+        // ★639 核心坐实：空 prev_active（未持仓）+ 有向父容器 ⟹ ShortDiff（σ_p=父容器方向，非持仓父腿）。
+        let gamma = assemble_gamma_with_tower(&classification, &tower);
+        assert_eq!(gamma[0].dir, VoiceSide::Short);
+        assert_eq!(
+            gamma[0].role.v,
+            Vertical::ShortDiff,
+            "L0 卖 δ=Short = −σ_p（父容器 L1 Long）⟹ ShortDiff（639：来自父容器方向，未持仓仍成立）"
+        );
+        // 端到端 pi_theta_step（GAP-5 入场 + 父容器 σ_p + §13 AncOK 持仓准入 + 风控门全开）。
+        // 空 prev_active（未持父）⟹ ShortDiff 子腿被 AncOK 剪枝 ⟹ Wait/qty=0（639(c)：不开 naked 逆势仓）。
+        let r = rcfg();
+        let (a, p_star, order) = pi_theta_step(
+            &classification, &tower, &[], 0.0, 9, 1000.0, &cfg(), &r,
+            PiThetaWeights::from_risk(&r), KThetaRiskGate::open(),
+        );
+        assert!(a.is_empty(), "未持父 ⟹ ShortDiff 子腿 AncOK 剪枝 ⟹ A_{{t+1}} 空");
+        assert_eq!(p_star, 0.0, "无活动腿 ⟹ p*=0（不开仓）");
+        assert_eq!(order.action, StrictAction::Wait, "未持父 ⟹ ShortDiff 剔除 ⟹ Wait（639(c)）");
+        assert_eq!(order.qty, 0, "Wait ⟹ qty=0（不建 naked 逆势仓）");
+        assert_eq!(order.exec_index, 9, "订单携 exec_index（延迟成交 bar）");
     }
 }

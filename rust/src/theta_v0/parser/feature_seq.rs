@@ -145,6 +145,11 @@ fn apply_inclusion(
 /// 从 `from_stroke_idx` 之后取 **seg_dir 同向笔**构造第二特征序列，方向性包含处理后查任意分型。
 /// `scan_window`：0 = 无限全扫（second_seq_scan_window config，default 0，bit-exact 优先）；
 /// >0 = Python `MAX_SECOND_SEQ_SCAN` 风格窗口（笔数上限，含双向）。
+///
+/// ★性能（#93，bit-exact）：单遍构建 + 尾部三元组提前终止。`has_any_fractal` 对完整序列的判定
+/// = 「存在某三元组成分型」。构建过程中每加入一个元素，只需检查**新尾部三元组**（旧三元组
+/// 未变，前序无分型已隐含）——一旦成分型立即返回 true，避免完整 collect + 二次遍历。包含合并
+/// 修改尾元素后同样只影响尾部三元组，检查时机一致。语义等价于完整 `has_any_fractal`。
 fn second_seq_has_fractal(
     strokes: &[Stroke],
     seg_dir: Direction,
@@ -175,9 +180,23 @@ fn second_seq_has_fractal(
         } else {
             dir_state = apply_inclusion(&mut elements, h, l, dir_state);
         }
+        // 尾部三元组提前终止：elements 尾三元组成任意分型 → 确认（等价 has_any_fractal 前缀判定）。
+        let n = elements.len();
+        if n >= 3 {
+            let (a_h, a_l) = elements[n - 3];
+            let (b_h, b_l) = elements[n - 2];
+            let (c_h, c_l) = elements[n - 1];
+            // 顶分型：b_h 严格高于左右 hi；底分型：b_l 严格低于左右 lo（同 has_any_fractal）。
+            if b_h > a_h && b_h > c_h {
+                return true;
+            }
+            if b_l < a_l && b_l < c_l {
+                return true;
+            }
+        }
         i += 1;
     }
-    has_any_fractal(&elements)
+    false
 }
 
 /// 延续模式（Python `extend_mode`）。
@@ -450,5 +469,86 @@ mod tests {
         let strokes = vec![stroke(Direction::Up, 0, 4, 5, 20)];
         assert!(!second_seq_has_fractal(&strokes, Direction::Up, 0, 0));
         assert!(!second_seq_has_fractal(&strokes, Direction::Up, 0, 50));
+    }
+
+    /// ★bit-exact 等价性验证（#93 性能优化的等价锚）：提前终止版 `second_seq_has_fractal`
+    /// 必须等价于"完整 collect elements + apply_inclusion + has_any_fractal"的参照实现。
+    ///
+    /// 这是合成数据 L1 交叉验证（formalization-validity-domain：L0→L1 信息增量为零，仅验证
+    /// 管线等价；L2 真实数据等价由 diag_segment_window_effect 的 seg_n=1072 全规模 bit-exact 提供）。
+    /// 参照实现独立重写完整扫描逻辑（不调被测函数），二者比对。
+    fn reference_second_seq_has_fractal(
+        strokes: &[Stroke],
+        seg_dir: Direction,
+        from_stroke_idx: usize,
+    ) -> bool {
+        let mut elements: Vec<(Tick, Tick)> = Vec::new();
+        let mut dir_state: Option<Direction> = match seg_dir {
+            Direction::Up => Some(Direction::Down),
+            Direction::Down => None,
+        };
+        for sk in strokes.iter().skip(from_stroke_idx + 1) {
+            if sk.direction != seg_dir {
+                continue;
+            }
+            let (h, l) = stroke_high_low(sk);
+            if elements.is_empty() {
+                elements.push((h, l));
+            } else {
+                dir_state = apply_inclusion(&mut elements, h, l, dir_state);
+            }
+        }
+        has_any_fractal(&elements)
+    }
+
+    #[test]
+    fn property_second_seq_early_terminate_equals_full_scan() {
+        // 多组手工序列：单调（无分型）、顶分型、底分型、包含后分型、长序列无分型。
+        // 向上线段（seg_dir=Up）→ 第二特征序列取 Up 笔（同向），dir_state 初始 Down。
+        let cases: Vec<Vec<Stroke>> = vec![
+            // 单调递增 Up 笔（无分型）。
+            vec![
+                stroke(Direction::Down, 0, 1, 100, 0),
+                stroke(Direction::Up, 1, 2, 0, 10),
+                stroke(Direction::Down, 2, 3, 10, 1),
+                stroke(Direction::Up, 3, 4, 1, 20),
+                stroke(Direction::Down, 4, 5, 20, 2),
+                stroke(Direction::Up, 5, 6, 2, 30),
+            ],
+            // 顶分型（中间 hi 最高）。
+            vec![
+                stroke(Direction::Down, 0, 1, 100, 0),
+                stroke(Direction::Up, 1, 2, 0, 10),
+                stroke(Direction::Down, 2, 3, 10, 1),
+                stroke(Direction::Up, 3, 4, 1, 50),
+                stroke(Direction::Down, 4, 5, 50, 2),
+                stroke(Direction::Up, 5, 6, 2, 20),
+            ],
+            // 底分型（中间 lo 最低）。
+            vec![
+                stroke(Direction::Down, 0, 1, 100, 0),
+                stroke(Direction::Up, 1, 2, 0, 30),
+                stroke(Direction::Down, 2, 3, 30, 1),
+                stroke(Direction::Up, 3, 4, 1, 5),
+                stroke(Direction::Down, 4, 5, 5, 2),
+                stroke(Direction::Up, 5, 6, 2, 40),
+            ],
+            // 包含后成顶分型（apply_inclusion 后中元素最高）。
+            vec![
+                stroke(Direction::Down, 0, 1, 100, 0),
+                stroke(Direction::Up, 1, 2, 0, 10),
+                stroke(Direction::Down, 2, 3, 10, 1),
+                stroke(Direction::Up, 3, 4, 1, 60), // [1,60]
+                stroke(Direction::Down, 4, 5, 60, 2),
+                stroke(Direction::Up, 5, 6, 2, 55), // [2,55] 被 [1,60] 包含 → 合并看 dir_state
+                stroke(Direction::Down, 6, 7, 55, 3),
+                stroke(Direction::Up, 7, 8, 3, 20),
+            ],
+        ];
+        for (i, strokes) in cases.iter().enumerate() {
+            let early = second_seq_has_fractal(strokes, Direction::Up, 0, 0);
+            let full = reference_second_seq_has_fractal(strokes, Direction::Up, 0);
+            assert_eq!(early, full, "case {i}: early-terminate ({early}) != full-scan ({full})");
+        }
     }
 }

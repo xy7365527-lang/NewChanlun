@@ -241,3 +241,380 @@ fn l3_fullwindow_multi_symbol_significance() {
         "≥1 品种产订单流（多标的真实数据 L2 检验可执行），实测全部工程断流 ⟹ 接线回退",
     );
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+//  #5 多声部对冲深度贡献根因诊断（231 诊断非 alpha）
+//  诊断 max_depth=3 七链 vs depth=0 baseline ΔSharpe=0/ΔCalmar=0 根因——
+//  区分 (a) ρ漂移保守剪枝 vs (b) 结构不产 depth>0 腿。
+//  跑法：cargo test --release --lib l3_pi_depth_diag -- --ignored --nocapture
+// ════════════════════════════════════════════════════════════════════════════
+use super::super::strategy::coverage;
+use super::super::strategy::interp;
+use super::super::strategy::coverage::{CoverageElement, Vertical};
+use super::super::strategy::interp::ActiveLeg;
+use super::super::strategy::voice::depth_weight;
+use super::super::classifier;
+use super::super::parser;
+
+/// #5 深度诊断 per-bar instrument 计数器。
+#[derive(Default, Debug)]
+struct DepthDiag {
+    tower_depth0: u64,
+    tower_depth1: u64,
+    tower_depth2: u64,
+    tower_depth_ge3: u64,
+    bars_with_tower_ge2: u64,
+    bars_with_empty_tree: u64,
+    open_ambient: u64,
+    open_followparent: u64,
+    open_shortdiff: u64,
+    open_total: u64,
+    close_total: u64,
+    record_total: u64,
+    bars_with_any_open: u64,
+    active_depth0: u64,
+    active_depth1: u64,
+    active_depth2: u64,
+    active_depth_ge3: u64,
+    active_depth0_units: f64,
+    active_depth1_units: f64,
+    active_depth2_units: f64,
+    raw_total: u64,
+    post_ancok_total: u64,
+    pruned_total: u64,
+    pruned_depth1: u64,
+    pruned_depth_ge2: u64,
+    held_exact: u64,
+    held_coord_drift: u64,
+    held_stale: u64,
+    held_total: u64,
+    bars_processed: u64,
+}
+
+fn elem_depth(elements: &[CoverageElement], idx: usize) -> u32 {
+    let mut d = 0u32;
+    let mut cur = elements.get(idx).and_then(|e| e.parent);
+    while let Some(p) = cur {
+        d += 1;
+        cur = elements.get(p).and_then(|e| e.parent);
+    }
+    d
+}
+
+/// 重放 held_leg_tree_index 三分（coverage.rs:718-744 私有函数公开镜像）。0=Exact 1=CoordDrift 2=Stale。
+fn held_branch(elements: &[CoverageElement], candidate_start: usize, leg: &ActiveLeg) -> u8 {
+    let tree_end = candidate_start.min(elements.len());
+    let tree = &elements[..tree_end];
+    if tree
+        .iter()
+        .position(|e| e.level == leg.level && e.rho == leg.source_index && e.eps == leg.dir)
+        .is_some()
+    {
+        return 0;
+    }
+    if tree
+        .iter()
+        .position(|e| {
+            e.level == leg.level
+                && e.eps == leg.dir
+                && e.lambda == leg.lambda
+                && e.rho >= leg.source_index
+        })
+        .is_some()
+    {
+        return 1;
+    }
+    2
+}
+
+fn close_indices_mirror(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
+    let mut claimed = vec![false; prev_active.len()];
+    let mut idx = Vec::new();
+    for d in close {
+        for (i, leg) in prev_active.iter().enumerate() {
+            if !claimed[i] && leg == d {
+                claimed[i] = true;
+                idx.push(i);
+                break;
+            }
+        }
+    }
+    idx
+}
+
+/// per-bar instrument：调生产 coverage_step_classification 拿真实 next_active + 采集计数。
+fn instrument_bar(
+    diag: &mut DepthDiag,
+    classification_i: &classifier::Classification,
+    tower_i: &[Vec<classifier::recursive_tower::LeveledMove>],
+    prev_active: &[ActiveLeg],
+    base_units: f64,
+    cfg: &ThetaConfig,
+) -> Vec<ActiveLeg> {
+    let (next_active, _p_tilde) = coverage::coverage_step_classification(
+        classification_i,
+        tower_i,
+        prev_active,
+        base_units,
+        &cfg.voice,
+    );
+    let (elements, candidate_start) =
+        interp::coverage_elements_with_tower(classification_i, tower_i);
+    let gamma = interp::assemble_gamma_with_tower(classification_i, tower_i);
+    let buckets = interp::interpret(&gamma, prev_active);
+
+    diag.bars_processed += 1;
+
+    let tree = &elements[..candidate_start.min(elements.len())];
+    if tree.is_empty() {
+        diag.bars_with_empty_tree += 1;
+    }
+    if tower_i.len() >= 2 {
+        diag.bars_with_tower_ge2 += 1;
+    }
+    for (idx, _e) in tree.iter().enumerate() {
+        match elem_depth(&elements, idx) {
+            0 => diag.tower_depth0 += 1,
+            1 => diag.tower_depth1 += 1,
+            2 => diag.tower_depth2 += 1,
+            _ => diag.tower_depth_ge3 += 1,
+        }
+    }
+
+    diag.open_total += buckets.open.len() as u64;
+    diag.close_total += buckets.close.len() as u64;
+    diag.record_total += buckets.record.len() as u64;
+    if !buckets.open.is_empty() {
+        diag.bars_with_any_open += 1;
+    }
+    for c in &buckets.open {
+        let ci = candidate_start + c.gamma_index;
+        if ci < elements.len() {
+            let role = coverage::operation_role(&elements, ci);
+            match role.v {
+                Vertical::Ambient => diag.open_ambient += 1,
+                Vertical::FollowParent => diag.open_followparent += 1,
+                Vertical::ShortDiff => diag.open_shortdiff += 1,
+            }
+        }
+    }
+
+    for leg in prev_active {
+        diag.held_total += 1;
+        match held_branch(&elements, candidate_start, leg) {
+            0 => diag.held_exact += 1,
+            1 => diag.held_coord_drift += 1,
+            _ => diag.held_stale += 1,
+        }
+    }
+
+    let mut raw: Vec<usize> = Vec::new();
+    let closed_idx = close_indices_mirror(prev_active, &buckets.close);
+    let tree_end = candidate_start.min(elements.len());
+    for (i, leg) in prev_active.iter().enumerate() {
+        if closed_idx.contains(&i) {
+            continue;
+        }
+        let idx_opt = elements[..tree_end]
+            .iter()
+            .position(|e| e.level == leg.level && e.rho == leg.source_index && e.eps == leg.dir)
+            .or_else(|| {
+                elements[..tree_end].iter().position(|e| {
+                    e.level == leg.level
+                        && e.eps == leg.dir
+                        && e.lambda == leg.lambda
+                        && e.rho >= leg.source_index
+                })
+            });
+        if let Some(idx) = idx_opt {
+            if !raw.contains(&idx) {
+                raw.push(idx);
+            }
+        }
+    }
+    for c in &buckets.open {
+        let idx = candidate_start + c.gamma_index;
+        if idx < elements.len() && !raw.contains(&idx) {
+            raw.push(idx);
+        }
+    }
+    diag.raw_total += raw.len() as u64;
+
+    let post: Vec<usize> = raw
+        .iter()
+        .copied()
+        .filter(|&e_idx| {
+            coverage::ancestors(&elements, e_idx)
+                .iter()
+                .all(|a| raw.contains(a))
+        })
+        .collect();
+    diag.post_ancok_total += post.len() as u64;
+
+    for &idx in &raw {
+        if !post.contains(&idx) {
+            match elem_depth(&elements, idx) {
+                0 => {}
+                1 => diag.pruned_depth1 += 1,
+                _ => diag.pruned_depth_ge2 += 1,
+            }
+        }
+    }
+    diag.pruned_total += (raw.len() - post.len()) as u64;
+
+    for &idx in &post {
+        let d = elem_depth(&elements, idx);
+        let w = depth_weight(d, &cfg.voice);
+        let u = base_units * w;
+        match d {
+            0 => {
+                diag.active_depth0 += 1;
+                diag.active_depth0_units += u;
+            }
+            1 => {
+                diag.active_depth1 += 1;
+                diag.active_depth1_units += u;
+            }
+            2 => {
+                diag.active_depth2 += 1;
+                diag.active_depth2_units += u;
+            }
+            _ => {
+                diag.active_depth_ge3 += 1;
+            }
+        }
+    }
+
+    next_active
+}
+
+/// per-symbol instrument loop（只跑结构变换，不跑成交——depth/role/AncOK 计数与 NAV 协变无关）。
+fn instrument_loop(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> DepthDiag {
+    let mut diag = DepthDiag::default();
+    let mut prev_active: Vec<ActiveLeg> = Vec::new();
+    let base_units = 1000.0_f64;
+
+    for i in 0..bars.len() {
+        let bar = &bars[i];
+        if bar.untradable || bar.close == 0 {
+            continue;
+        }
+        let l0_prefix = parser::parse_layer(&bars[..=i], cfg);
+        let (classification_i, tower_i) = classifier::classify_with_tower(&l0_prefix, cfg);
+        // 诊断用全量 classification_i（非 newly_confirmed_step diff——该函数私有）。
+        // 诚实标注：open_*/active_* 是 per-bar 全量候选/活动角色，非新增订单 diff。结构诊断用。
+        prev_active = instrument_bar(
+            &mut diag,
+            &classification_i,
+            &tower_i,
+            &prev_active,
+            base_units,
+            cfg,
+        );
+    }
+
+    diag
+}
+
+/// **★#5 深度贡献根因诊断：CL + BTC 32K OOS instrument 计数（区分 (a) ρ漂移剪枝 vs (b) 结构不产）**。
+///
+/// `#[ignore]`，需 CL/BTC 数据缓存；O(n²) 慢测 `--release` 必须。
+/// 跑法：`cargo test --release --lib l3_pi_depth_diag -- --ignored --nocapture`
+#[test]
+#[ignore = "#5 深度诊断；O(n²) CL/BTC 32K；需数据缓存；--release"]
+fn l3_pi_depth_diag_cl_btc() {
+    let config = ThetaConfig::default();
+    const MAX_BARS: usize = 32_000;
+
+    eprintln!("\n===== #5 深度贡献根因诊断：max_depth=3 七链 depth>0 腿为何 ΔSharpe=0 =====");
+    eprintln!("★区分 (a) ρ漂移保守剪枝（CoordDrift 计数应低=修复未生效）vs (b) 结构不产（tower depth>=2 少/ShortDiff=0）");
+    eprintln!("★诚实标注：open_*/active_* 是 per-bar 全量候选/活动角色（非新增订单 diff），结构诊断用。");
+
+    for w in PREREG_WINDOWS.iter().filter(|w| w.symbol == "CL" || w.symbol == "BTC") {
+        let ds = match data::load_by_symbol(w.symbol, &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("{:<6} 加载失败：{e}（DATA BLOCKER）", w.symbol);
+                continue;
+            }
+        };
+        let oos_full = ds.slice_date_window(w.oos.0, w.oos.1);
+        if oos_full.bars.is_empty() {
+            continue;
+        }
+        let cut = MAX_BARS.min(oos_full.bars.len());
+        let oos = Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[..cut].to_vec(),
+            dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+        };
+
+        eprintln!("\n──── {:<6} ({} bars, OOS {}→{}, cut={}) ────", w.symbol, oos.bars.len(), w.oos.0, w.oos.1, cut);
+
+        let t0 = std::time::Instant::now();
+        let diag = instrument_loop(&oos.bars, &config);
+        let elapsed = t0.elapsed().as_secs_f64();
+
+        eprintln!("  bars_processed         : {}", diag.bars_processed);
+        eprintln!();
+        eprintln!("  ── (1) 塔结构深度分布 ──");
+        eprintln!("  bars_with_tower_ge2    : {}  ({:.1}% of bars)", diag.bars_with_tower_ge2, 100.0 * diag.bars_with_tower_ge2 as f64 / diag.bars_processed.max(1) as f64);
+        eprintln!("  bars_with_empty_tree   : {}", diag.bars_with_empty_tree);
+        eprintln!("  tower_depth0 (根)      : {}", diag.tower_depth0);
+        eprintln!("  tower_depth1 (子)      : {}", diag.tower_depth1);
+        eprintln!("  tower_depth2 (孙)      : {}", diag.tower_depth2);
+        eprintln!("  tower_depth_ge3        : {}", diag.tower_depth_ge3);
+        eprintln!();
+        eprintln!("  ── (2) 候选角色（open 桶各 V，#5 alpha 源=ShortDiff）──");
+        eprintln!("  bars_with_any_open     : {}", diag.bars_with_any_open);
+        eprintln!("  open_total             : {}", diag.open_total);
+        eprintln!("  open_ambient           : {}", diag.open_ambient);
+        eprintln!("  open_followparent      : {}", diag.open_followparent);
+        eprintln!("  ★open_shortdiff        : {}  (反向对冲腿源)", diag.open_shortdiff);
+        eprintln!("  close_total            : {}", diag.close_total);
+        eprintln!("  record_total           : {}", diag.record_total);
+        eprintln!();
+        eprintln!("  ── (3) active 集深度贡献（AncOK 后净活动腿）──");
+        eprintln!("  active_depth0 腿       : {}  units={:.2}", diag.active_depth0, diag.active_depth0_units);
+        eprintln!("  active_depth1 腿       : {}  units={:.2}  (w=0.30)", diag.active_depth1, diag.active_depth1_units);
+        eprintln!("  active_depth2 腿       : {}  units={:.2}  (w=0.10)", diag.active_depth2, diag.active_depth2_units);
+        let total_u = diag.active_depth0_units + diag.active_depth1_units + diag.active_depth2_units;
+        if total_u > 0.0 {
+            eprintln!("  depth0 占比            : {:.1}%", 100.0 * diag.active_depth0_units / total_u);
+            eprintln!("  depth1 占比            : {:.1}%", 100.0 * diag.active_depth1_units / total_u);
+            eprintln!("  depth2 占比            : {:.1}%", 100.0 * diag.active_depth2_units / total_u);
+        }
+        eprintln!();
+        eprintln!("  ── (4) AncOK 剪枝 ──");
+        eprintln!("  raw_total              : {}", diag.raw_total);
+        eprintln!("  post_ancok_total       : {}", diag.post_ancok_total);
+        eprintln!("  pruned_total           : {}", diag.pruned_total);
+        eprintln!("  ★pruned_depth1        : {}", diag.pruned_depth1);
+        eprintln!("  ★pruned_depth_ge2     : {}", diag.pruned_depth_ge2);
+        eprintln!();
+        eprintln!("  ── (5) held_leg_tree_index 分支 ──");
+        eprintln!("  held_total             : {}", diag.held_total);
+        eprintln!("  held_exact (ρ未漂移)   : {}", diag.held_exact);
+        eprintln!("  ★held_coord_drift     : {}  (ρ漂移=父延伸)", diag.held_coord_drift);
+        eprintln!("  held_stale (父真失效)  : {}", diag.held_stale);
+        eprintln!("  [{:.1}s]", elapsed);
+
+        eprintln!();
+        eprintln!("  ── 裁定 ──");
+        let depth_active = diag.active_depth1 + diag.active_depth2 + diag.active_depth_ge3;
+        let pruned_depth_gt0 = diag.pruned_depth1 + diag.pruned_depth_ge2;
+        if diag.open_shortdiff == 0 && depth_active == 0 {
+            eprintln!("  → (b) 结构不产：open_shortdiff=0 + active depth>0=0。ShortDiff 候选根本不产生（塔缺真 Compose 父 / hostOf 恒根 / V 恒 Ambient）。");
+        } else if diag.open_shortdiff > 0 && depth_active == 0 && pruned_depth_gt0 > 0 {
+            eprintln!("  → (a) AncOK 剪枝：ShortDiff 产生但 depth>0 腿全剪。查 CoordDrift={}（低=ρ漂移未根治致父不在 raw）。", diag.held_coord_drift);
+        } else if diag.open_shortdiff > 0 && depth_active == 0 && pruned_depth_gt0 == 0 {
+            eprintln!("  → (b/候选未入桶) ShortDiff 产生 + 未被 AncOK 剪 + 但 active depth>0=0：候选未入 open 桶（interpret record/close）或 prev_active 未持父。");
+        } else if depth_active > 0 {
+            eprintln!("  → (net-cancel) active depth>0 腿存在（{}）但 ΔSharpe=0：查 net_target_units 净额抵消（权重 0.30/0.10 太小或方向同向）。", depth_active);
+        } else {
+            eprintln!("  → (未分类) 人工裁定。");
+        }
+    }
+
+    assert!(true, "诊断完成");
+}

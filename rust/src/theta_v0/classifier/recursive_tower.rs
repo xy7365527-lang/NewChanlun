@@ -205,6 +205,133 @@ pub fn compose_level(
     (centers, upper)
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  增量塔 API（task #93：解 per-bar substrate 塔构造 O(n²) 根因）
+// ════════════════════════════════════════════════════════════════════════════
+//
+// ## 超线性根因（前序 aed4d5f5 实证）
+//
+// per-bar substrate 每 bar `classify_with_tower` 内部 `for level_idx in 0..=l_max`
+//（mod.rs:206）每级 `compose_level` → `detect_centers_windowed` 从 `units[0..]` 全量滑窗
+// 扫描。前级 confirmed 前缀稳定时重复扫描 ⟹ 超线性（classify c_exp≈2.31 主导）。
+//
+// ## 增量正确性（L0 纯结构证明，no-patch：非套用 zhongshu ScanResume 语义）
+//
+// `detect_centers_windowed` 是**确定性左折叠**：游标 `i` 从 0 严格递增（成立支 +3、不成立支
+// +1），每步决策 `build(units[i],units[i+1],units[i+2])` 是纯函数（不依赖历史）。三条推论：
+//
+// 1. **路径确定性**：给定 `units[0..k]`，扫描到达位置 `k` 时的游标路径与已产出 centers 序列
+//    完全确定（前缀的确定性函数）。
+// 2. **已产出 centers 是不可变前缀**：成立支产出 center 后 `i+=3`，该 center 窗口 `[i,i+1,i+2]`
+//    永不被后续重访（i 严格递增 ⟹ 窗口不重叠）。故已产出 centers 序列可缓存，续扫只追加尾部。
+// 3. **续扫等价于全量重扫到达断点后继续**：从 `consumed` 续扫 == 全量重扫到达 `consumed`（前缀
+//    路径不变）然后继续扫尾部新 units。
+//
+// `consumed`（退出断点）= while 退出时的游标 `i`（满足 `i+2 >= len`）。尾部追加后
+// `consumed+2 < new_len` 可能成立 ⟹ 从 `consumed` 续扫的新窗口 `[consumed,consumed+1,consumed+2]`
+// 可能横跨旧/新段——全量重扫也会到达同一 `consumed` 后扫同一窗口（前缀不变 ⟹ 同路径）。
+//
+// **与 zhongshu `ScanResume` 的严格区分**（no-patch：不套用不同语义）：zhongshu 处理中枢
+// **延伸吸收**（unsettled 中枢携 extend 状态 gg/dd 吸收后续段），其 `Unsettled` 状态机在塔的
+// 非重叠三段窗口扫描中**不存在**（塔成立支 +3 永不回头、不 extend）。塔增量基元是无状态的
+// 游标续进（仅 `consumed` + 已产出不可变前缀），状态机更简单，直接基于左折叠的确定性。
+//
+// ## 真 Fugue 547（铁律保留）
+//
+// 增量 compose 的 `LeveledMove::compose` 父子仍用真 sub_moves（窗口三段次级别 LeveledMove），
+// `descend` 取回真 subs ⟹ B2/S2 真可产。增量只改"扫描从何处起"，不改"compose 的 subs 来源"——
+// subs 永远是真窗口三段（禁级别差伪造）。
+//
+// ## 认识论等级（formalization-validity-domain 231号）
+//
+// 增量等价性本身是 **L0**（纯结构，确定性左折叠的数学性质，不依赖数据）。bit-exact 逐 bar
+// 断言是 **L1**（合成数据 + 真实数据管线正确性验证）。标度 exp≈1 是 **L2**（真实数据经验标度）。
+
+/// 扫描退出断点（增量续进的锚）：while 退出时的游标位置。
+///
+/// `consumed` 满足 `consumed + 2 >= units.len()`（while 终止条件）。尾部追加 units 后，
+/// `consumed + 2 < new_len` 可能成立 ⟹ 从 `consumed` 续扫正确（见模块文档增量证明）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct WindowScanCursor {
+    /// 已扫描到的游标位置（退出点；`units[..consumed]` 的扫描路径已确定）。
+    pub consumed: usize,
+}
+
+/// 增量窗口扫描：从 `start_i` 续扫三段窗口，返回新产出的 `(Center, [usize;3])` 序列 + 退出断点。
+///
+/// 与 `detect_centers_windowed(units, build)` 的关系：
+/// - 全量等价：`detect_centers_windowed(units, build)` == `detect_centers_windowed_resume(units, build, 0).0`
+///   （`start_i=0` 续扫 == 全量扫描）。
+/// - 增量等价：设上次扫描在 `units[..old_len]` 上退出断点为 `c0`（`c0.consumed`），产出前缀
+///   `prefix`。追加到 `new_len` 后，`detect_centers_windowed_resume(units, build, c0.consumed)` 返回
+///   `(tail, c1)`，则全量扫描 `detect_centers_windowed(units, build)` == `prefix ++ tail`（bit-exact）。
+///
+/// **bit-exact 充要条件**（调用方必须保证，否则增量破裂）：
+/// 1. `start_i` 必须是前缀 `units[..start_i]` 的真实退出断点（上次扫描返回的 `consumed`）。
+/// 2. `units[..start_i]` 在两次扫描间**不可变**（只允许尾部追加）。
+/// 3. 已产出的前缀 centers 不可变（成立支 +3 ⟹ 永不重访，自动满足）。
+///
+/// 三个条件满足时，从 `start_i` 续扫产出的 tail 与全量重扫到达 `start_i` 后继续的产出逐位相同。
+pub fn detect_centers_windowed_resume(
+    units: &[UnitRange],
+    build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
+    start_i: usize,
+) -> (Vec<(Center, [usize; 3])>, WindowScanCursor) {
+    let mut out = Vec::new();
+    let mut i = start_i;
+    while i + 2 < units.len() {
+        match build(&units[i], &units[i + 1], &units[i + 2]) {
+            Some(c) => {
+                out.push((c, [i, i + 1, i + 2]));
+                i += 3;
+            }
+            None => {
+                i += 1;
+            }
+        }
+    }
+    (out, WindowScanCursor { consumed: i })
+}
+
+/// 增量 compose：从 `start_i` 续扫窗口 + 把新产出的窗口 compose 为上级 `LeveledMove`。
+///
+/// 与 `compose_level` 的关系：
+/// - 全量等价：`compose_level(units, subs, is_l0, level)` ==
+///   `compose_level_resume(units, subs, is_l0, level, 0)`（`.0`/`.1`/`.2` 三元组相同）。
+/// - 增量：返回 `(tail_centers, tail_upper, cursor)`——tail 是新产出（追加到已缓存前缀后），
+///   `cursor.consumed` 是退出断点（下次续扫起点）。
+///
+/// `subs_moves` 必须与 `units` 同序同长（`units` 是 `subs_moves` 的投影）。增量只追加产出，
+/// **不修改**已缓存的 `LeveledMove` 前缀——真 Fugue 547：每个新 compose 的 subs 仍是真窗口三段
+/// 次级别 LeveledMove（`subs_moves[win[0..3]]`），descend 取回真 subs。
+pub fn compose_level_resume(
+    units: &[UnitRange],
+    subs_moves: &[LeveledMove],
+    is_l0: bool,
+    level: u32,
+    start_i: usize,
+) -> (Vec<Center>, Vec<LeveledMove>, WindowScanCursor) {
+    let build = if is_l0 {
+        super::center::center_from_segments
+    } else {
+        super::center::center_from_window
+    };
+    let (windowed, cursor) = detect_centers_windowed_resume(units, build, start_i);
+    let tail_centers: Vec<Center> = windowed.iter().map(|(c, _)| *c).collect();
+    let tail_upper: Vec<LeveledMove> = windowed
+        .iter()
+        .map(|(c, win)| {
+            let subs = [
+                subs_moves[win[0]].clone(),
+                subs_moves[win[1]].clone(),
+                subs_moves[win[2]].clone(),
+            ];
+            LeveledMove::compose(&subs, *c, level)
+        })
+        .collect();
+    (tail_centers, tail_upper, cursor)
+}
+
 /// 把上级 `LeveledMove` 序列投影为 `UnitRange` 序列（供下一级 `detect_centers_windowed` 的
 /// 几何路径用——上级中枢检测在外缘区间上做，方向是外缘占位）。
 ///
@@ -380,6 +507,127 @@ mod tests {
         assert_eq!((units[0].start_index, units[0].end_index), (0, 12));
         // 首单元无前驱 ⟹ 方向缺省 Up（几何路径不读取）。
         assert_eq!(units[0].direction, up());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  增量塔 API bit-exact（task #93：resume == 全量，逐位等价）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★增量基元 bit-exact：`detect_centers_windowed_resume(.., 0)` == `detect_centers_windowed`。
+    #[test]
+    fn resume_from_zero_equals_full_scan() {
+        let units: Vec<UnitRange> = (0..9)
+            .map(|i| {
+                let dir = if i % 2 == 0 { up() } else { down() };
+                unit(i * 4, i * 4 + 4, dir, 0, 100)
+            })
+            .collect();
+        let full = detect_centers_windowed(&units, super::super::center::center_from_segments);
+        let (res, cursor) =
+            detect_centers_windowed_resume(&units, super::super::center::center_from_segments, 0);
+        assert_eq!(res.len(), full.len(), "start_i=0 续扫产出 == 全量");
+        for (r, f) in res.iter().zip(full.iter()) {
+            assert_eq!(r.0, f.0, "中枢相等");
+            assert_eq!(r.1, f.1, "窗口索引相等");
+        }
+        // 9 段 → 3 窗口（成立支 +3 三次）⟹ consumed = 9（9+2 >= 9 退出）。
+        assert_eq!(cursor.consumed, 9, "9 段全消费，退出断点 consumed=9");
+    }
+
+    /// ★增量核心 bit-exact：尾部追加后续扫 == 全量重扫。
+    ///
+    /// 前 6 段（2 窗口）扫描断点缓存，追加 3 段后从断点续扫 ⟹ 产出 == 全量 9 段扫描。
+    /// 验证「已产出前缀不可变 + 从 consumed 续扫 == 全量」的增量不变量。
+    #[test]
+    fn resume_after_append_matches_full_rescan() {
+        // 9 段交替（3 窗口），分两批：前 6 段 → 追加 3 段。
+        let all_units: Vec<UnitRange> = (0..9)
+            .map(|i| {
+                let dir = if i % 2 == 0 { up() } else { down() };
+                unit(i * 4, i * 4 + 4, dir, 0, 100)
+            })
+            .collect();
+        let build = super::super::center::center_from_segments;
+
+        // 全量基准。
+        let full = detect_centers_windowed(&all_units, build);
+
+        // 增量：前 6 段先扫。
+        let (prefix, cursor6) = detect_centers_windowed_resume(&all_units[..6], build, 0);
+        // 追加到 9 段后从 cursor6 续扫（前缀 units[..6] 不变，仅尾部追加）。
+        let (tail, _cursor9) = detect_centers_windowed_resume(&all_units, build, cursor6.consumed);
+
+        // 拼接 == 全量。
+        let mut combined = prefix.clone();
+        combined.extend(tail);
+        assert_eq!(combined.len(), full.len(), "增量拼接长度 == 全量");
+        for (c, f) in combined.iter().zip(full.iter()) {
+            assert_eq!(c.0, f.0, "中枢相等");
+            assert_eq!(c.1, f.1, "窗口索引相等");
+        }
+    }
+
+    /// ★compose_level_resume bit-exact：全量 `compose_level` == `compose_level_resume(.., 0)`，
+    /// 且增量追加后 `(prefix ++ tail)` == 全量（centers + upper LeveledMove 序列逐位相等）。
+    #[test]
+    fn compose_level_resume_matches_full_compose() {
+        let units: Vec<UnitRange> = (0..9)
+            .map(|i| {
+                let dir = if i % 2 == 0 { up() } else { down() };
+                unit(i * 4, i * 4 + 4, dir, 0, 100)
+            })
+            .collect();
+        let moves: Vec<LeveledMove> = units.iter().map(LeveledMove::from_unit).collect();
+
+        // 全量 compose_level。
+        let (full_c, full_u) = compose_level(&units, &moves, true, 1);
+
+        // resume from 0 == 全量。
+        let (rc, ru, _) = compose_level_resume(&units, &moves, true, 1, 0);
+        assert_eq!(rc, full_c, "resume(0) centers == 全量");
+        assert_eq!(ru, full_u, "resume(0) upper == 全量");
+
+        // 增量：前 6 段 compose。
+        let (pc, pu, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0);
+        // 追加续扫。
+        let (tc, tu, _) = compose_level_resume(&units, &moves, true, 1, cursor6.consumed);
+
+        let mut comb_c = pc.clone();
+        comb_c.extend(tc);
+        let mut comb_u = pu.clone();
+        comb_u.extend(tu);
+        assert_eq!(comb_c, full_c, "增量拼接 centers == 全量");
+        assert_eq!(comb_u, full_u, "增量拼接 upper == 全量（真 subs LeveledMove）");
+    }
+
+    /// ★边界：不成立支前缀的增量。前段不组中枢（方向不交替）⟹ consumed 逐段 +1 推进，
+    /// 追加后从 consumed 续扫仍 == 全量。
+    #[test]
+    fn resume_with_non_matching_prefix_advances_by_one() {
+        // 前 2 段同向（不交替，不成立支 +1 推进），第 3-5 段交替组中枢。
+        let units = vec![
+            unit(0, 4, up(), 0, 10),
+            unit(4, 8, up(), 5, 15),     // 同向，与 [0] 不交替
+            unit(8, 12, down(), 3, 12),  // 与 [1] 交替
+            unit(12, 16, up(), 5, 15),   // 与 [2] 交替 → [1,2,3] 组中枢
+            unit(16, 20, down(), 4, 11),
+        ];
+        let build = super::super::center::center_from_segments;
+        let full = detect_centers_windowed(&units, build);
+
+        // 前 2 段：不成立支，i: 0→1→2（2+2>=2 退出，consumed=2，但 len=2 时 0+2<2 假 ⟹ 不进循环，
+        // consumed=0）。实际 units[..2] 长度 2，while 0+2<2 假 ⟹ consumed=0。
+        // 这验证空扫描也正确返回断点。
+        let (prefix, c0) = detect_centers_windowed_resume(&units[..2], build, 0);
+        assert!(prefix.is_empty(), "2 段凑不齐窗口 ⟹ 空产出");
+        assert_eq!(c0.consumed, 0, "len=2 不进 while ⟹ consumed=0");
+        // 追加到 5 段从 consumed=0 续扫 == 全量。
+        let (tail, _) = detect_centers_windowed_resume(&units, build, c0.consumed);
+        assert_eq!(tail.len(), full.len(), "从 0 续扫 == 全量");
+        for (t, f) in tail.iter().zip(full.iter()) {
+            assert_eq!(t.0, f.0);
+            assert_eq!(t.1, f.1);
+        }
     }
 
     /// 多级递归塔：L0 → L1 → L2，每级 descend 取回下级走势（级别严格递减）。

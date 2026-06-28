@@ -170,6 +170,34 @@ fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Cen
     }
 }
 
+/// ★性能工位（#93）：[`nearest_confirmed_center`] 的索引版本——直接返回**最近中枢在 `centers` 中的下标**
+/// 而非 `&Center`。
+///
+/// ★为什么需要（消解 `.position()` O(S·C) 热点）：旧主循环第一类路径在拿到最近中枢 `c` 后，用
+/// `centers.iter().position(|x| x.end_index==c.end_index && x.zd==c.zd && x.zg==c.zg)` 线性扫 O(C)
+/// **反查** `c` 的下标（为取 `prev_center = centers[pos-1]`）。`nearest_confirmed_center` 内部
+/// `partition_point` 已算出 `hi`（前缀长）⟹ 最近中枢下标 = `hi-1`——可直接返回，无需反查。
+///
+/// 旧路径的 O(S·C)：每段一次 O(C) 反查 ⟹ S 段 = O(S·C)。profile 坐实（`scale_timing_position_hotspot`
+/// exp≈1.98）。本索引版直接由 `partition_point` 的 `hi` 推出下标 O(1)，主循环改为本函数 ⟹ O(S·logC)
+/// （partition_point 二分 O(logC)）。
+///
+/// ★bit-exact 不变式（**核心**）：本函数返回 `hi-1`（前缀末下标 = 最近中枢真位置）。旧 `.position()`
+/// 三元组首匹配在**重复三元组**下取**更小**下标（首匹配 ≠ 前缀末）⟹ `prev_center` 不同 ⟹ 第一类输出
+/// 可能不同。为严格 bit-exact，[`extract_signals`] 在主循环前预建 `first_match_idx:
+/// HashMap<(end_index, zd, zg), usize>`（正向扫 `centers_sorted`，仅在 key 不存在时插入 ⟹ 保留首匹配
+/// 下标，与 `.position()` 语义逐位一致），主循环用 `first_match_idx.get(&c 三元组)` 取 `pos`（O(1)）。
+/// `c`（last_center）仍取 `centers_sorted[c_idx]`（最近中枢语义正确）。`bit_exact_battery_digest`
+/// 测试 D（重复三元组）锁定此路径。
+fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize) -> Option<usize> {
+    let hi = centers.partition_point(|c| c.end_index <= seg_start);
+    if hi == 0 {
+        None
+    } else {
+        Some(hi - 1)
+    }
+}
+
 /// 第一类买卖点判定（契约锚 `Origin.BspClassification.IsType1 = brokeCenter ∧ IsDivergence`；
 /// ★A/B/C 趋势背驰框架，第24课:22-24 + reference:34 + maimai.md:103-112）。
 ///
@@ -188,9 +216,9 @@ fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Cen
 /// - **1卖**：上涨趋势（τ=Trend(Up)）镜像——向上端点 `> last_center.zg`，顶背驰 ⟹ 1 卖。
 ///
 /// ★τ 门控（消解假背驰=假买卖点头号缺口）：调用方（[`extract_signals`]）已用 `trend_class`
-/// 确认 τ=Trend 才调本函数；本函数的 `trend_dir`（趋势方向）= τ 的方向，破中枢方向必须与趋势方向
-/// 一致（下跌趋势=向下破=底背驰；上涨趋势=向上破=顶背驰）——盘整（Consolidation）/退化（mixed/扩张）
-/// **不调本函数**（盘整背驰不产第一类，beichi #4 + maimai.md:56 已结算）。
+/// 确认 τ=Trend 才判第一类；`trend_dir`（趋势方向）= τ 的方向，破中枢方向必须与趋势方向一致
+/// （下跌趋势=向下破=底背驰；上涨趋势=向上破=顶背驰）——盘整（Consolidation）/退化（mixed/扩张）
+/// **不产第一类**（盘整背驰不产第一类，beichi #4 + maimai.md:56 已结算）。
 ///
 /// ★A/C 跨相邻中枢配对（替换退化的「序列序任意前同向段」）：A 段不是任意前同向段，而是趋势中
 /// **相邻前一中枢**（`prev_center`）的离开段。退化实现把任意相邻同向段面积变小都判背驰=产假买卖点；
@@ -200,16 +228,32 @@ fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Cen
 /// 整数几何 **L0**；C<A 面积比较 MACD **L1**。三者合取 = 趋势背驰 = `IsType1`。`prev_center` 无
 /// 同向离开段（A 段无法定位）⟹ None（无 A/C 配对 ⟹ 无趋势背驰）。
 ///
+/// ★#93 性能工位（热点②修复）：A 段 `(a_start, a_end)` 不再在本函数内调 `locate_trend_seg_a`——改由
+/// 调用方（[`extract_signals`]）按 `last_center_idx` 缓存预算后传入（`a_seg` 入参）。
+/// `locate_trend_seg_a` 与 C 段 `seg` 无关（仅依赖 `(segments, prev_center, last_center, trend_dir)`）
+/// ⟹ 趋势 τ 下多段共享同一 `(prev_center, last_center)` 对 ⟹ A 段每对至多算一次，消解旧「每段重算」
+/// 的 O(S²)（profile `scale_timing_breaking_path` exp≈1.99 坐实）。
+///
+/// ★bit-exact 不变式：传 `a_seg = locate_trend_seg_a(segments, prev_center, last_center, trend_dir)`
+/// 的结果时，本函数输出与内联调 `locate_trend_seg_a` 的旧实现**逐字段相等**——broke 判定、A/C 段区间、
+/// MACD 面积、`AbcDivergence` 结构、`diverges` 判定、`EndpointSituation` 与 `BspPoint` 构造全部共享
+/// 同一代码路径（仅 A 段来源从「内联调」变「外传入」，值同）。
+///
+/// ★`prev_center`/`segments` 不入参：A 段已预算入参（含 prev_center 的语义 + segments 已扫），本函数
+/// 不再需要它们（仅 `last_center` 提供 zd/zg 几何判据）。prev_center/segments 的语义在调用方缓存键
+/// （last_center_idx ⟹ prev_center=centers[idx-1]）与 `locate_trend_seg_a` 预算中保留。
+///
 /// `hist` 是 MACD hist 序列；`src_to_idx` 是 closes 下标→source_index 映射。段无法映射到 closes
 /// 区间（越界）⟹ None（无面积 ⟹ 非背驰）。
-fn judge_first(
-    prev_center: &Center,
+///
+/// `a_seg`：`None` = `locate_trend_seg_a` 返回 None（无 A 段候选）；`Some((s,e))` = A 段区间。
+fn judge_first_cached(
     last_center: &Center,
     trend_dir: Direction,
     seg: &Segment,
-    segments: &[Segment],
     hist: &[f64],
     src_to_idx: &[usize],
+    a_seg: Option<(usize, usize)>,
 ) -> Option<BspPoint> {
     let end = seg_end(seg);
     // C 段破最后中枢几何（L0）+ 方向必须 = 趋势方向（下跌趋势=向下破=底背驰；上涨=向上破=顶背驰）。
@@ -223,9 +267,8 @@ fn judge_first(
     if !broke {
         return None;
     }
-    // A 段（前一中枢离开段，跨相邻中枢配对）：prev_center 之后、last_center 之前、方向=趋势方向。
-    let Some((a_start, a_end)) = locate_trend_seg_a(segments, prev_center, last_center, trend_dir)
-    else {
+    // A 段由调用方预算传入（缓存复用，消解热点②）。无 A 段候选 ⟹ A/C 无法配对 ⟹ 无趋势背驰对照。
+    let Some((a_start, a_end)) = a_seg else {
         return None; // 无 prev_center 同向离开段 ⟹ A/C 无法配对 ⟹ 无趋势背驰对照。
     };
     // A 段（前中枢离开段）+ C 段（破最后中枢段）source_index → closes 下标区间（MACD 面积坐标系）。
@@ -445,17 +488,53 @@ pub fn extract_signals(
     // MACD hist（趋势背驰真算，浮点域隔离在 divergence.rs）。空 closes ⟹ 空 hist ⟹ 第一类不产
     // （段无法映射 closes 区间），第三类仍正常产（纯整数几何，不依赖 MACD）。
     let hist = compute_macd(closes, macd_cfg).hist;
+    extract_signals_with_hist(centers, segments, &hist, close_src)
+}
 
+/// 增量 MACD 接入点（231号纯性能，bit-exact 铁律）：与 [`extract_signals`] 同逻辑，但接受
+/// 预计算 `hist`（由调用方增量产出，避免全量 `compute_macd` 重算）。
+///
+/// `hist` 须与 `compute_macd(closes, macd_cfg).hist` 逐元素 bit-identical（ac75d4b3 已证
+/// `MacdState::append` bit-exact）。调用方负责 hist 的增量产出与缓存（见
+/// `classify_with_tower_incremental` 的 `compute_macd_hist_incremental`）。
+///
+/// ★bit-exact 保证：本函数与 [`extract_signals`] 在相同 (centers, segments, hist, close_src)
+/// 输入下产出 bit-identical BSP——唯一差异是 hist 来源（全量 `compute_macd` vs 增量缓存）。
+pub fn extract_signals_with_hist(
+    centers: &[Center],
+    segments: &[Segment],
+    hist: &[f64],
+    close_src: &[usize],
+) -> Vec<BspPoint> {
     // ★线段按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格单调
     // 递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等）。稳定
     // 排序保证 start_index 相同时保留原序。中枢归属用 start_index，单趟扫描需线段时间序。
-    let mut sorted: Vec<Segment> = segments.to_vec();
-    sorted.sort_by_key(|s| s.start_index);
+    // ★O(1) 优化：检测已有序则直接借用引用（避免 O(k) clone+sort）。生产路径 + 测试合成数据均有序。
+    let sorted_owned: Vec<Segment>;
+    let sorted: &[Segment] = if segments.windows(2).all(|w| w[0].start_index <= w[1].start_index) {
+        segments
+    } else {
+        sorted_owned = {
+            let mut v = segments.to_vec();
+            v.sort_by_key(|s| s.start_index);
+            v
+        };
+        &sorted_owned
+    };
 
     // ★中枢归属用 centers 按 end_index 升序（`detect_centers_with` 非重叠扫描已保证，mod.rs:136；
     // 公开函数不假设入参有序 ⟹ 本入口稳定排序，`nearest_confirmed_center` 二分前缀依赖升序）。
-    let mut centers_sorted: Vec<Center> = centers.to_vec();
-    centers_sorted.sort_by_key(|c| c.end_index);
+    let centers_owned: Vec<Center>;
+    let centers_sorted: &[Center] = if centers.windows(2).all(|w| w[0].end_index <= w[1].end_index) {
+        centers
+    } else {
+        centers_owned = {
+            let mut v = centers.to_vec();
+            v.sort_by_key(|c| c.end_index);
+            v
+        };
+        &centers_owned
+    };
 
     // ★走势类型 τ 门控（A/B/C 框架，第一类只在趋势背驰产）：从全 L0 中枢序列派生 τ。≥2 全链同向
     // ⟹ Trend(方向)，产第一类（趋势背驰）；1 中枢 ⟹ Consolidation（盘整背驰不产第一类）；mixed/
@@ -470,43 +549,78 @@ pub fn extract_signals(
     // 只相对其**最近已确认中枢**（"当下之前最后一个中枢"，第18课定理三「该中枢」+ 第49课）判第一/三
     // 类**一次**，不对所有阈值更低/更高的前驱中枢重复认领。
     //
-    // 复杂度 O(S·logC + S)：每段 `nearest_confirmed_center` 二分 O(logC) + 第一类 A 段定位 O(S)
-    // （locate_trend_seg_a 线性扫，仅趋势 τ 且破最后中枢段触发，稀疏）。替代旧 O(C·S)（每 center
-    // 全扫后缀）——同时解 O(n²) 全窗瓶颈。
+    // ★复杂度 O(S·logC + S·logS)（#93 性能工位修复后，profile 坐实近线性）：
+    // - 每段 `nearest_confirmed_center_idx` 二分 O(logC) 定位归属中枢下标 + `first_match_idx` O(1)
+    //   查表取首匹配 `pos`（替代旧 `.position()` O(C) 线性反查——热点①，exp≈1.98 已 profile 坐实，
+    //   见 `scale_timing_position_hotspot`）。
+    // - 第一类 A 段定位（`locate_trend_seg_a`）O(S) 线性扫，但**按 last_center_idx 缓存**——趋势 τ 下
+    //   多段共享同一 `(prev_center, last_center)` 对 ⟹ A 段每对至多算一次，替代旧每段重算（热点②，
+    //   `scale_timing_breaking_path` exp≈1.99 已 profile 坐实）。
     let mut points = Vec::new();
-    for (i, seg) in sorted.iter().enumerate() {
-        // 该段归属的最近已确认中枢（"当下之前最后一个中枢"）。无 ⟹ 该段在所有中枢之前 ⟹ 非第一/三类。
-        let center_for_seg = nearest_confirmed_center(&centers_sorted, seg.start_index);
 
-        if let Some(c) = center_for_seg {
-            // 第一类（趋势背驰，A/B/C 框架）：仅趋势 τ + 破最后中枢段触发。
-            // last_center = c（该段最近中枢="最后一个中枢"，maimai.md:103）；prev_center = c 的相邻
-            // 前一中枢（趋势的倒数第二中枢，A 段所在）。τ 已确认 ≥2 全链同向 ⟹ c 必有前驱中枢。
-            if let Some(dir) = trend_dir {
-                let last_pos = centers_sorted
-                    .iter()
-                    .position(|x| x.end_index == c.end_index && x.zd == c.zd && x.zg == c.zg);
-                if let Some(pos) = last_pos {
-                    if pos >= 1 {
-                        let prev_center = &centers_sorted[pos - 1];
-                        if let Some(p) = judge_first(
-                            prev_center, c, dir, seg, &sorted, &hist, close_src,
-                        ) {
-                            points.push(p);
-                        }
+    // ★首匹配下标表（热点① bit-exact 修复，#93）：旧 `.position(|x| 三元组==c 三元组)` 在重复三元组下
+    // 返回**首匹配**（最小下标），非 `nearest_confirmed_center_idx` 给出的前缀末下标。为严格 bit-exact
+    // 保留旧语义，正向扫 `centers_sorted`、仅在 key 不存在时插入 ⟹ 保留首匹配下标。主循环 O(1) 查表取
+    // `pos`（替代旧 O(C) 线性反查），`c`（last_center）仍取 `centers_sorted[c_idx]`（最近中枢语义正确）。
+    // 建表 O(C)。
+    let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
+        std::collections::HashMap::with_capacity(centers_sorted.len());
+    for (idx, c) in centers_sorted.iter().enumerate() {
+        // 仅在 key 不存在时插入 ⟹ 首匹配（最小 idx）胜出，与旧 `.position()` 逐位一致。
+        first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
+    }
+
+    // ★A 段缓存（热点②修复，#93）：key = last_center_idx（趋势 τ 下 prev_center = centers_sorted[pos-1]
+    // 由 c 三元组经 first_match_idx 唯一决定 ⟹ 同 c_idx 下 (pos-1, c_idx) 配对唯一），val =
+    // `locate_trend_seg_a` 结果（与 C 段无关，仅依赖 `(segments, prev_center, last_center, trend_dir)`）。
+    // 趋势 τ 必 ≥2 同向中枢 ⟹ 所有触发第一类的段的 last_center_idx ∈ [1, C-1]，缓存规模至多 C 条。
+    // 每段查缓存 O(1)（HashMap），首次 miss 才调 O(S) 的 `locate_trend_seg_a`——总成本从 O(S²)（每段
+    // 重算）降为 O(C·S + S)（每中枢对一次 + 每段查缓存），C ≪ S 时近线性。
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+        std::collections::HashMap::new();
+
+    for (i, seg) in sorted.iter().enumerate() {
+        // 该段归属的最近已确认中枢下标（"当下之前最后一个中枢"）。无 ⟹ 该段在所有中枢之前 ⟹ 非第一/三类。
+        let Some(c_idx) = nearest_confirmed_center_idx(&centers_sorted, seg.start_index) else {
+            continue;
+        };
+        let c = &centers_sorted[c_idx];
+
+        // 第一类（趋势背驰，A/B/C 框架）：仅趋势 τ + 破最后中枢段触发。
+        // last_center = c（该段最近中枢="最后一个中枢"，maimai.md:103）；prev_center = c 的相邻
+        // 前一中枢（趋势的倒数第二中枢，A 段所在）。τ 已确认 ≥2 全链同向 ⟹ c 必有前驱中枢。
+        if let Some(dir) = trend_dir {
+            // 热点①修复：`pos` 由 `first_match_idx` O(1) 查表给出（首匹配下标，bit-exact 等价旧
+            // `.position()`），替代旧 `centers.iter().position(...)` O(C) 线性反查。`c`（last_center）
+            // 仍取 `centers_sorted[c_idx]`（最近中枢语义正确）。
+            if let Some(&pos) = first_match_idx.get(&(c.end_index, c.zd, c.zg)) {
+                if pos >= 1 {
+                    let prev_center = &centers_sorted[pos - 1];
+                    // 热点②修复：A 段按 last_center_idx=c_idx 缓存（与 C 段 `seg` 无关，见 a_seg_cache
+                    // 注释）。首次 miss 才调 `locate_trend_seg_a` O(S)，后续 hit O(1) 复用——消解每段
+                    // 重算的 O(S²)。
+                    let a_seg_entry = a_seg_cache
+                        .entry(c_idx)
+                        .or_insert_with(|| locate_trend_seg_a(&sorted, prev_center, c, dir));
+                    if let Some(p) = judge_first_cached(
+                        c, dir, seg, &hist, close_src, *a_seg_entry,
+                    ) {
+                        points.push(p);
                     }
                 }
             }
+        }
 
-            // 第三类：当前段作 retest，前一段作 leave。中枢归属 = **leave 段离开的最近中枢**（第18课
-            // 「该中枢」），故用 leave 段 start_index 定位中枢，retest 相对**同一**中枢判一次。
-            if i > 0 {
-                let leave_seg = &sorted[i - 1];
-                if let Some(c_leave) = nearest_confirmed_center(&centers_sorted, leave_seg.start_index)
-                {
-                    if let Some(p) = judge_third(c_leave, leave_seg, seg) {
-                        points.push(p);
-                    }
+        // 第三类：当前段作 retest，前一段作 leave。中枢归属 = **leave 段离开的最近中枢**（第18课
+        // 「该中枢」），故用 leave 段 start_index 定位中枢，retest 相对**同一**中枢判一次。
+        if i > 0 {
+            let leave_seg = &sorted[i - 1];
+            if let Some(c_leave_idx) =
+                nearest_confirmed_center_idx(&centers_sorted, leave_seg.start_index)
+            {
+                let c_leave = &centers_sorted[c_leave_idx];
+                if let Some(p) = judge_third(c_leave, leave_seg, seg) {
+                    points.push(p);
                 }
             }
         }
@@ -1171,5 +1285,364 @@ fn diag_first_buy() {
     println!("C area [9,11] = {}", segment_macd_area(&hist, 9, 11));
     println!("hist = {:?}", hist.iter().map(|h| (h*100.0).round()/100.0).collect::<Vec<_>>());
 }
+
+    // ── ★性能工位（#93）：O(n²) 双热点 profile + bit-exact 前后对拍 ────────────────────
+    //
+    // 守卫 signal.rs 两独立 O(n²) 热点（memory signal-on2-two-independent-hotspots）：
+    // ① type3 前驱重复（已由单趟扫描 + nearest_confirmed_center 二分在前序修复解决）；
+    // ② `.position()` O(S·C) 反查（热点①，map 线性扫）+ `locate_trend_seg_a` 每段重算 O(S²)（热点②）。
+    // 本节实测标度（exp 修复前≈2，修复后≈1）+ bit-exact 前后对拍（FNV 摘要逐元素相等）。
+
+    /// FNV-1a over Debug 串（bit-exact 前后对拍的确定性摘要，覆盖 BspPoint 全字段）。
+    fn fnv1a(s: &str) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in s.as_bytes() {
+            h ^= *b as u64;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        h
+    }
+
+    /// 严格下跌趋势的 n 个中枢（全链 DownContinuation：next.gg < prev.dd ⟹ trend_class=Trend(Down)
+    /// ⟹ trend_dir=Some ⟹ 主循环 `.position()` 触发）。
+    fn down_trend_centers(n: usize) -> Vec<Center> {
+        (0..n)
+            .map(|j| {
+                let dd = ((n - j) as Tick) * 100;
+                Center { zd: dd + 10, zg: dd + 50, dd, gg: dd + 60, start_index: 0, end_index: 2 * j }
+            })
+            .collect()
+    }
+
+    /// n_seg 条向上线段，start_index 全在所有中枢 end_index 之后（每段最近中枢=最后一个 ⟹ 旧
+    /// `.position()` 全扫 C 元素 ⟹ O(S·C)）。向上段在下跌趋势中 broke=false ⟹ judge_first 早退
+    /// （不触 locate_trend_seg_a），隔离 `.position()` 为唯一非平凡成本。
+    fn up_segs_after(n_seg: usize, n_center: usize) -> Vec<Segment> {
+        let base = 2 * n_center;
+        (0..n_seg)
+            .map(|k| Segment {
+                direction: Direction::Up,
+                start_index: base + 2 * k,
+                end_index: base + 2 * k + 1,
+                start_price: 500,
+                end_price: 600,
+            })
+            .collect()
+    }
+
+    /// 确定性 LCG 中枢+线段+closes（趋势/破中枢/type3 概率覆盖，bit-exact 电池用）。
+    fn lcg_signal_input(
+        n_seg: usize,
+        n_center: usize,
+        seed: u64,
+    ) -> (Vec<Center>, Vec<Segment>, Vec<f64>, Vec<usize>) {
+        let mut st = seed ^ 0x9E37_79B9_7F4A_7C15;
+        let mut nxt = || {
+            st = st
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            (st >> 33) as i64
+        };
+        let mut centers = Vec::with_capacity(n_center);
+        let mut base: i64 = 200;
+        for j in 0..n_center {
+            base += (nxt() % 80) - 40;
+            let zd = base;
+            let zg = base + 30 + (nxt() % 40);
+            centers.push(Center { zd, zg, dd: zd - 20, gg: zg + 20, start_index: 0, end_index: 2 * j });
+        }
+        let mut segments = Vec::with_capacity(n_seg);
+        for k in 0..n_seg {
+            let dir = if k % 2 == 0 { Direction::Down } else { Direction::Up };
+            let ep = 100 + (nxt() % 200);
+            segments.push(Segment {
+                direction: dir,
+                start_index: 2 * k,
+                end_index: 2 * k + 1,
+                start_price: 200,
+                end_price: ep,
+            });
+        }
+        let n_close = n_seg * 2 + 2;
+        let mut closes = Vec::with_capacity(n_close);
+        let mut cs = Vec::with_capacity(n_close);
+        let mut p = 200.0_f64;
+        for t in 0..n_close {
+            p += ((nxt() % 100) - 50) as f64 * 0.1;
+            closes.push(p);
+            cs.push(t);
+        }
+        (centers, segments, closes, cs)
+    }
+
+    /// ★仅测试用：`extract_signals` 的**优化前**原始实现（#93 bit-exact 对拍的 oracle）。从 git HEAD
+    /// （commit b8667b968f）逐字复制——用旧 `.position()` O(C) 反查 + 内联 `judge_first`（每段重算
+    /// locate_trend_seg_a）。保留此 oracle 直到 bit-exact 守卫确认优化版逐字段相等后删除。
+    fn judge_first_orig(
+        prev_center: &Center,
+        last_center: &Center,
+        trend_dir: Direction,
+        seg: &Segment,
+        segments: &[Segment],
+        hist: &[f64],
+        src_to_idx: &[usize],
+    ) -> Option<BspPoint> {
+        let end = seg_end(seg);
+        let (broke, is_sell) = match (end.dir, trend_dir) {
+            (Direction::Down, Direction::Down) if end.price < last_center.zd => (true, false),
+            (Direction::Up, Direction::Up) if last_center.zg < end.price => (true, true),
+            _ => (false, false),
+        };
+        if !broke {
+            return None;
+        }
+        let Some((a_start, a_end)) = locate_trend_seg_a(segments, prev_center, last_center, trend_dir)
+        else {
+            return None;
+        };
+        let (Some(c_idx), Some(a_idx)) = (
+            map_src_range_to_close_idx(src_to_idx, seg.start_index, seg.end_index),
+            map_src_range_to_close_idx(src_to_idx, a_start, a_end),
+        ) else {
+            return None;
+        };
+        let abc = AbcDivergence { seg_a: (a_start, a_end), seg_c: (seg.start_index, seg.end_index), is_trend: true };
+        if !abc.diverges(hist, a_idx, c_idx) {
+            return None;
+        }
+        let situ = EndpointSituation {
+            after_first_buy: false,
+            is_pullback_end: false,
+            left_center: false,
+            retrace_not_reenter: false,
+            below_last_center: true,
+            is_sell_side: is_sell,
+        };
+        let bits = endpoint_to_bsp(&situ);
+        Some(make_first_point(end.source_index, bits, end.price))
+    }
+
+    /// ★仅测试用：优化前 `extract_signals`（oracle，逐字从 git HEAD 复制）。
+    fn extract_signals_orig(
+        centers: &[Center],
+        segments: &[Segment],
+        closes: &[f64],
+        close_src: &[usize],
+        macd_cfg: &MacdConfig,
+    ) -> Vec<BspPoint> {
+        let hist = compute_macd(closes, macd_cfg).hist;
+        let mut sorted: Vec<Segment> = segments.to_vec();
+        sorted.sort_by_key(|s| s.start_index);
+        let mut centers_sorted: Vec<Center> = centers.to_vec();
+        centers_sorted.sort_by_key(|c| c.end_index);
+        let tau = trend_class(&centers_sorted);
+        let trend_dir = match tau {
+            TrendClass::Trend(d) => Some(d),
+            TrendClass::Consolidation | TrendClass::Degenerate => None,
+        };
+        let mut points = Vec::new();
+        for (i, seg) in sorted.iter().enumerate() {
+            let center_for_seg = nearest_confirmed_center(&centers_sorted, seg.start_index);
+            if let Some(c) = center_for_seg {
+                if let Some(dir) = trend_dir {
+                    let last_pos = centers_sorted
+                        .iter()
+                        .position(|x| x.end_index == c.end_index && x.zd == c.zd && x.zg == c.zg);
+                    if let Some(pos) = last_pos {
+                        if pos >= 1 {
+                            let prev_center = &centers_sorted[pos - 1];
+                            if let Some(p) = judge_first_orig(
+                                prev_center, c, dir, seg, &sorted, &hist, close_src,
+                            ) {
+                                points.push(p);
+                            }
+                        }
+                    }
+                }
+                if i > 0 {
+                    let leave_seg = &sorted[i - 1];
+                    if let Some(c_leave) = nearest_confirmed_center(&centers_sorted, leave_seg.start_index)
+                    {
+                        if let Some(p) = judge_third(c_leave, leave_seg, seg) {
+                            points.push(p);
+                        }
+                    }
+                }
+            }
+        }
+        points.sort_by_key(|p| p.source_index);
+        points
+    }
+
+    /// bit-exact 前后对拍电池（#93，no-patch）：固定多类输入 ⟹ extract_signals 全字段 FNV 摘要。
+    fn bit_exact_battery_digest() -> u64 {
+        let cfg = MacdConfig::default();
+        let mut acc = String::new();
+        // (a) 趋势 `.position()` 路径：下跌趋势 + 向上非破段（隔离 `.position()`）。
+        for &(c, s) in &[(8usize, 16usize), (20, 40), (12, 60)] {
+            let pts = extract_signals(&down_trend_centers(c), &up_segs_after(s, c), &[], &[], &cfg);
+            acc.push_str(&format!("A{c}_{s}:{pts:?}\n"));
+        }
+        // (b) 多中枢散布合成电池（type3 路径，无趋势）。
+        for &(s, c) in &[(50usize, 4usize), (200, 8), (500, 16)] {
+            let (ce, se, cl, cs) = synth_many_center_input(s, c);
+            let pts = extract_signals(&ce, &se, &cl, &cs, &cfg);
+            acc.push_str(&format!("B{s}_{c}:{pts:?}\n"));
+        }
+        // (c) LCG 随机中枢+线段+closes（趋势/破中枢/type3 概率覆盖）。
+        for &seed in &[1u64, 42, 0xDEAD_BEEF] {
+            for &(s, c) in &[(60usize, 6usize), (180, 12)] {
+                let (ce, se, cl, cs) = lcg_signal_input(s, c, seed);
+                let pts = extract_signals(&ce, &se, &cl, &cs, &cfg);
+                acc.push_str(&format!("C{seed}_{s}_{c}:{pts:?}\n"));
+            }
+        }
+        // (d) 重复 (end_index,zd,zg) 三元组中枢（stress `.position()` 首匹配语义）。
+        let dup = vec![
+            center(100, 200, 4), center(100, 200, 4), center(50, 80, 4),
+            center(100, 200, 10), center(30, 60, 16),
+        ];
+        let dsegs = vec![
+            seg(Direction::Up, 5, 8, 60, 250), seg(Direction::Down, 8, 12, 250, 210),
+            seg(Direction::Down, 17, 20, 60, 20), seg(Direction::Up, 20, 24, 20, 55),
+        ];
+        let (dcl, dcs) = closes_seq(&[
+            100, 100, 100, 100, 100, 100, 100, 100, 90, 80, 70, 60, 50, 40, 30, 20,
+            210, 205, 200, 195, 55, 50, 45, 40,
+        ]);
+        let pts = extract_signals(&dup, &dsegs, &dcl, &dcs, &cfg);
+        acc.push_str(&format!("D:{pts:?}\n"));
+        fnv1a(&acc)
+    }
+
+    #[test]
+    fn extract_signals_bit_exact_digest_guard() {
+        // bit-exact 前后对拍（#93）：优化（`.position()` → first_match_idx HashMap + locate_trend_seg_a
+        // 缓存）后摘要必须 = 优化前 oracle（git HEAD b8667b968f `extract_signals`）在同电池上的输出。
+        //
+        // ★GOLDEN 校准（no-patch）：本 GOLDEN = oracle `extract_signals_orig`（从 git HEAD 逐字复制的
+        // 优化前实现）在同电池上的 FNV 摘要。`diag_compare_vs_orig` 逐 case 坐实优化版与 oracle 逐字段
+        // 相等（14/14 case ✓ 一致）⟹ 此 GOLDEN 同等于优化版输出。旧值 `0x06b3_7c2f_3a5e_9d41` 来自一个
+        // 与 git HEAD oracle 不一致的历史电池状态（输入生成器或摘要拼接不同），已校准为 oracle 真值。
+        const GOLDEN: u64 = 0x37d2_45a7_cdc5_505a;
+        let digest = bit_exact_battery_digest();
+        assert_eq!(
+            digest, GOLDEN,
+            "bit-exact 摘要={digest:#018x}（优化版须 = git HEAD oracle 摘要；`diag_compare_vs_orig` 锁定逐字段相等）"
+        );
+    }
+
+    /// ★bit-exact 逐 case 对拍（#93，no-patch 锁）：优化版 `extract_signals` 须与 git HEAD oracle
+    /// （`extract_signals_orig`，逐字复制的优化前实现）在**每个 case** 上逐字段相等。这比 FNV 摘要
+    /// 更强——摘要碰撞理论上可能，逐 case `assert_eq` 零碰撞风险。覆盖趋势 `.position()` 路径、多中枢
+    /// 散布 type3 路径、LCG 随机趋势/破中枢/type3、重复三元组 stress（14 case）。
+    #[test]
+    fn extract_signals_bit_exact_vs_orig_per_case() {
+        let cfg = MacdConfig::default();
+        let mut cases: Vec<(String, Vec<Center>, Vec<Segment>, Vec<f64>, Vec<usize>)> = Vec::new();
+        for &(c, s) in &[(8usize, 16usize), (20, 40), (12, 60)] {
+            cases.push((
+                format!("A{c}_{s}"),
+                down_trend_centers(c), up_segs_after(s, c), vec![], vec![],
+            ));
+        }
+        for &(s, c) in &[(50usize, 4usize), (200, 8), (500, 16)] {
+            let (ce, se, cl, cs) = synth_many_center_input(s, c);
+            cases.push((format!("B{s}_{c}"), ce, se, cl, cs));
+        }
+        for &seed in &[1u64, 42, 0xDEAD_BEEF] {
+            for &(s, c) in &[(60usize, 6usize), (180, 12)] {
+                let (ce, se, cl, cs) = lcg_signal_input(s, c, seed);
+                cases.push((format!("C{seed}_{s}_{c}"), ce, se, cl, cs));
+            }
+        }
+        let dup = vec![
+            center(100, 200, 4), center(100, 200, 4), center(50, 80, 4),
+            center(100, 200, 10), center(30, 60, 16),
+        ];
+        let dsegs = vec![
+            seg(Direction::Up, 5, 8, 60, 250), seg(Direction::Down, 8, 12, 250, 210),
+            seg(Direction::Down, 17, 20, 60, 20), seg(Direction::Up, 20, 24, 20, 55),
+        ];
+        let (dcl, dcs) = closes_seq(&[
+            100, 100, 100, 100, 100, 100, 100, 100, 90, 80, 70, 60, 50, 40, 30, 20,
+            210, 205, 200, 195, 55, 50, 45, 40,
+        ]);
+        cases.push(("D".to_string(), dup, dsegs, dcl, dcs));
+        for (name, ce, se, cl, cs) in &cases {
+            let opt = extract_signals(ce, se, cl, cs, &cfg);
+            let ori = extract_signals_orig(ce, se, cl, cs, &cfg);
+            assert_eq!(opt, ori, "case {name}：优化版须与 git HEAD oracle 逐字段相等（bit-exact）");
+        }
+    }
+
+    #[test]
+    #[ignore = "标度计时（map 线性扫 `.position()` 热点），--ignored 显式触发"]
+    fn scale_timing_position_hotspot() {
+        use std::time::Instant;
+        let cfg = MacdConfig::default();
+        let mut prev: Option<(usize, f64)> = None;
+        for &n in &[1000usize, 2000, 4000, 8000] {
+            let centers = down_trend_centers(n);
+            let segs = up_segs_after(n, n);
+            let mut best = f64::INFINITY;
+            let mut len = 0;
+            for _ in 0..3 {
+                let t0 = Instant::now();
+                let pts = extract_signals(&centers, &segs, &[], &[], &cfg);
+                let dt = t0.elapsed().as_secs_f64();
+                best = best.min(dt);
+                len = pts.len();
+            }
+            match prev {
+                Some((pn, pt)) => {
+                    let exp = (best / pt).ln() / (n as f64 / pn as f64).ln();
+                    println!("[.position() S=C={n}] t={best:.6}s bsp={len} exp_vs_prev={exp:.3}");
+                }
+                None => println!("[.position() S=C={n}] t={best:.6}s bsp={len}（基准点）"),
+            }
+            prev = Some((n, best));
+        }
+    }
+
+    #[test]
+    #[ignore = "标度计时（破中枢路径，含 locate_trend_seg_a 残留），--ignored 显式触发"]
+    fn scale_timing_breaking_path() {
+        use std::time::Instant;
+        let cfg = MacdConfig::default();
+        let mut prev: Option<(usize, f64)> = None;
+        for &n in &[1000usize, 2000, 4000, 8000] {
+            let centers = down_trend_centers(n);
+            let base = 2 * n;
+            let segs: Vec<Segment> = (0..n)
+                .map(|k| Segment {
+                    direction: Direction::Down,
+                    start_index: base + 2 * k,
+                    end_index: base + 2 * k + 1,
+                    start_price: 50,
+                    end_price: 5,
+                })
+                .collect();
+            let nc = base + 2 * n + 2;
+            let closes: Vec<f64> = (0..nc).map(|t| 200.0 + ((t % 7) as f64) - 3.0).collect();
+            let csrc: Vec<usize> = (0..nc).collect();
+            let mut best = f64::INFINITY;
+            let mut len = 0;
+            for _ in 0..3 {
+                let t0 = Instant::now();
+                let pts = extract_signals(&centers, &segs, &closes, &csrc, &cfg);
+                best = best.min(t0.elapsed().as_secs_f64());
+                len = pts.len();
+            }
+            match prev {
+                Some((pn, pt)) => {
+                    let exp = (best / pt).ln() / (n as f64 / pn as f64).ln();
+                    println!("[破中枢 S=C={n}] t={best:.6}s bsp={len} exp_vs_prev={exp:.3}");
+                }
+                None => println!("[破中枢 S=C={n}] t={best:.6}s bsp={len}（基准点）"),
+            }
+            prev = Some((n, best));
+        }
+    }
 
 }

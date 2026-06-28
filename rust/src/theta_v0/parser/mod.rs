@@ -63,6 +63,10 @@ pub mod second_kind;
 pub mod canonical;
 pub mod tail;
 
+/// 性能 profile（cfg(test) only，#93 标度测量，不入产物）。
+#[cfg(test)]
+mod profile;
+
 /// 单层解析输出（一个级别的完整 confirmed 结构 + 未完成尾部）。
 ///
 /// 契约锚 `Origin.ChanlunElements.ParseStruct` 的子集（mergedBars/fractals/strokes/segments/tail——
@@ -94,29 +98,84 @@ pub struct ParseLayer {
 pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
     // 步骤 1：K线包含合并（reference-theta-v0.md:19）。
     let incl = inclusion::process_inclusion(bars);
-    // 步骤 2：分型识别（reference-theta-v0.md:20）。
-    let fractals = fractal::detect_fractals(&incl.merged);
-    // 步骤 3：新笔划分（reference-theta-v0.md:21）。
+    // 步骤 2-7：从 merged 构造（与增量入口共享，下游步结构性 bit-exact）。
+    parse_layer_from_merged(&incl.merged, config)
+}
+
+// ============================================================================
+// 增量 parse_layer API（#93 per-bar substrate O(n²) 根因解——parser 侧入口）。
+//
+// ## 缺口锚点（aed4d5f5 + incremental.rs:10/23 + runner.rs:280）
+//
+// per-bar substrate 每 bar 调 `parse_layer(&bars[..=i])`。inclusion 全量左折叠 O(i)/bar 是
+// 精确实证的 O(n²) 根因。本入口把 inclusion 增量化（`IncrInclusion` append-1-bar O(1)），
+// 下游（fractal/stroke/segment/tail）基于增量 inclusion 的 merged 输出重算。
+//
+// ## 诚实标注（formalization-validity-domain：有效域边界）
+//
+// 本入口的增量收益**仅覆盖 inclusion 步**（O(i)→O(1)/bar）。下游 fractal/stroke/segment
+// 仍是 O(merged_i)/bar 的全量重算——**若 merged_i 随 i 线性增长，下游仍是 O(n²) 项**。
+// 即：本入口把 inclusion 这一项从 O(n²) 降到 O(n)，但**不改变下游步的标度**。
+//
+// 下游增量化（fractal 局部三元组可增量；stroke 的 collapse_consecutive 全局规整与 segment
+// 的 FeatureSeqState 状态机需独立工位）超出 inclusion 缺口范围——实测下游是否成新 O(n²)
+// 热点见 profile.rs `profile_parse_layer_incr_scaling`。本工位的严格范围 = inclusion 增量化。
+//
+// ## bit-exact 不变量（铁律）
+//
+// 对任意 bar 序列与任意 i：`parse_layer_append` 链的输出 == `parse_layer(&bars[..=i])`，
+// 逐字段精确（ParseLayer #[derive(PartialEq)]）。逐 bar 断言见 profile.rs
+// `bit_exact_parse_layer_incr_per_bar`（合成 + 真实数据）。
+// ============================================================================
+
+/// 增量 parse_layer 状态（封装增量 inclusion + 下游重算的中间态）。
+///
+/// 每 bar `append` 推进增量 inclusion（O(1)），下游 fractal/stroke/segment/tail 基于
+/// 增量 inclusion 的 merged 输出重算（O(merged_i)）。
+#[derive(Debug, Clone)]
+pub struct ParseLayerIncr<'c> {
+    incr_inclusion: inclusion::IncrInclusion,
+    config: &'c ThetaConfig,
+}
+
+impl<'c> ParseLayerIncr<'c> {
+    /// 新建增量解析器（零 bar 起步）。
+    pub fn new(config: &'c ThetaConfig) -> Self {
+        ParseLayerIncr {
+            incr_inclusion: inclusion::IncrInclusion::empty(),
+            config,
+        }
+    }
+
+    /// 追加 1 bar，返回该 bar 后的 `ParseLayer`（bit-exact 对齐 `parse_layer(&bars[..=i])`）。
+    ///
+    /// 内部：增量 inclusion（O(1) 稳态）→ 全量重算 fractal/stroke/segment/tail（O(merged_i)）。
+    pub fn append(&mut self, bar: Bar) -> ParseLayer {
+        self.incr_inclusion = self.incr_inclusion.append(bar);
+        let merged = self.incr_inclusion.to_result().merged;
+        parse_layer_from_merged(&merged, self.config)
+    }
+}
+
+/// 从已合并的 merged bar 序列构造 ParseLayer（步骤 2-7，复用全量子步）。
+///
+/// 增量与全量共享此函数——保证下游步 bit-exact（同一代码路径）。
+///
+/// 步骤 2-7 契约锚（详见各子模块文档）：
+/// - 步骤 2 分型（fractal::detect_fractals，reference:20，[缠论可导,62课]）。
+/// - 步骤 3 新笔（stroke::build_strokes，reference:21，[缠论可导,77/81课]）。
+/// - 步骤 4 线段 v1 特征序列法（segment::divide_segments_with_tail，reference:22，第67/71课）。
+///   增量「假设转折点」状态机（feature_seq.rs），对参考语义 a_segment_v1 认证（L1）。
+///   `(segments, pending_start)` 同时喂给步骤 7 tail——避免重跑段划分（性能 #93）。
+/// - 步骤 6 canonical 分解：L0 段层与段端点序列恒等（见 mod 头注释），不额外存。
+/// - 步骤 7 未完成尾部（tail::build_tail，reference:25，对齐 Parse.lean §6 + OpenTail）。
+fn parse_layer_from_merged(merged: &[Bar], config: &ThetaConfig) -> ParseLayer {
+    let fractals = fractal::detect_fractals(merged);
     let strokes = stroke::build_strokes(&fractals, &config.parse);
-    // 步骤 4：线段划分 v1 特征序列法（reference-theta-v0.md:22，第67/71课）。
-    // 增量「假设转折点」状态机（feature_seq.rs），对参考语义 a_segment_v1 认证（L1）。
-    let segments = segment::divide_segments(&strokes, &config.parse);
-
-    // 步骤 6：canonical 分解（reference-theta-v0.md:24，bit-exact 对齐 Decomp.lean gaugeFix）。
-    // ★L0 段层的 canonical 端点序列 = `canonical::canonical_endpoints(&segments)`——但它在 L0
-    // 单层与段端点序列**恒等**（段端点 source_index 严格递增、无平局，gauge 截面退化为恒等
-    // 扫描，见 canonical.rs 诚实标注）。故 `ParseLayer` **不**额外存 canonical 端点（由
-    // `segments` 唯一确定，存它是冗余）。canonical 模块的非平凡价值在**跨递归层**的 gauge
-    // 截面选择（上级走势端点与段端点平局时），由 classifier 调 `canonical::gauge_fix` 复用。
-    // 这里不调用丢弃结果（避免死代码）——canonical 模块经其 pub 原语 + 测试独立证明正确性。
-
-    // 步骤 7：未完成尾部 tail（reference-theta-v0.md:25，bit-exact 对齐 Parse.lean §6 active +
-    // OpenTail.lean 当下状态）。把流水线各阶段（段/笔/分型）未确认的延伸结构显式保存，
-    // 不混入 confirmed。SecondKind 动态确认段/无分型段的剩余笔现经此进 tail（不再静默丢失）。
-    let tail = tail::build_tail(&incl.merged, &fractals, &strokes, &config.parse);
-
+    let (segments, pending_start) = segment::divide_segments_with_tail(&strokes, &config.parse);
+    let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
-        merged_bars: incl.merged,
+        merged_bars: merged.to_vec(),
         fractals,
         strokes,
         segments,

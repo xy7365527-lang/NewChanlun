@@ -86,14 +86,29 @@ pub struct Candidate {
 /// 活动集 A_t 的元素（活动腿），spec §13 `A^{raw}_{t+1}=(A_t∖𝒟_x)∪ℬ_x` 的 A_t/𝒟_x 元素。
 ///
 /// 一个活动腿 = 某级别的一个已开持仓（方向 + 开仓信号源）。`𝒟_x⊆A_t`（关闭的是活动腿，非候选）。
+///
+/// ## 双坐标身份（持久身份，codex Q4 ρ 漂移修正）
+///
+/// 一个活动腿携**两个** L0 原始 K 序坐标，对应其覆盖走势/候选的区间端点：
+/// - `source_index = ρ`（右端点 / `LeveledMove.end_index` / 候选 bsp 触发点）——**会漂移**：父容器
+///   走势延伸（吸收更多次级别子走势）时 `end_index` 增大。同时是 reference:16 平局键 + 结构止损
+///   bsp 回查键（`k_theta_risk_gate` 按 `source_index` 查 `BspPoint`）。
+/// - `lambda`（左端点 / `LeveledMove.start_index` / 候选 bsp 同点）——**稳定**：走势的**起点**在其
+///   向右延伸时不变。故 `(level, lambda, eps)` 是走势的**稳定语义身份**（独立于 ρ 漂移）。
+///
+/// 候选腿（买卖点入场）`lambda == source_index`（坐在 hostOf 右端点，reference:16）；树走势腿
+/// `lambda = start_index < source_index = end_index`。持久身份用 `lambda` 跨 bar 对位（见
+/// `coverage::held_leg_tree_index`：ρ 精确匹配失败时回落 `lambda` 稳定匹配 = coord_drift，非 stale）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActiveLeg {
     /// 该腿级别 ℓ。
     pub level: u32,
     /// 该腿方向 σ（Long/Short；Flat 不应入活动集）。
     pub dir: VoiceSide,
-    /// 该腿开仓信号源（关闭时回溯 + 平局键）。
+    /// 该腿开仓信号源 ρ=右端点（关闭时回溯 + 平局键 + 结构止损 bsp 回查；**会随父延伸漂移**）。
     pub source_index: usize,
+    /// 该腿覆盖走势的左端点 λ=start_index（**稳定语义身份坐标**，父延伸不变）。候选腿 `lambda==source_index`。
+    pub lambda: usize,
 }
 
 /// 解释器输出三桶 (𝒟_x, ℬ_x, 𝒦_x)（spec §11 line 565-571 + §12 line 617）。
@@ -329,6 +344,21 @@ pub fn assemble_gamma_with_tower(
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+//  环3c：执行层 σ_{p(g)} = **父容器方向**（639 settle，取代删除的"活动父腿"错口径）
+//  执行层 σ_p 源 = [`assemble_gamma_with_tower`]（§3b，attach_bsp_to_tree host→真 Compose 父→
+//  父 rmove_side），喂 **per-bar 前缀因果塔**（runner::pi_theta_fill_loop 的 classify_with_tower
+//  前缀重分类，只用 ≤t 数据 → 因果）。父容器是结构对象（从 ≤t 自底向上闭包 D_t 自上而下查得），
+//  **与是否持仓无关**——σ 来源（spec §7.2）与持仓准入（§13 AncOK）正交。
+//
+//  ★删除的错口径（639，no-patch 删不留 fallback）：`parent_dir_from_active`（活动持仓父腿方向）
+//  + `assemble_gamma_active_parent`（σ_p=持仓父腿）。错口径把 §7.2「σ 来源=父容器方向」与 §13
+//  「AncOK 持仓准入=父腿在 A_t」两个正交机制混为一谈：父有向但未持仓的逆向次级点，错口径判
+//  Ambient（→建 naked 逆势仓 garbage trades），正确口径判 ShortDiff（→AncOK 未持父时剔除不开仓）。
+//  Lean 落地 `Origin/ParentDirContainer.lean`（parentDirOfContainer 无持仓门控，struct_only 零公理）。
+//  谱系：639（σ_p 来源修正）；638（hostOf 附着，σ_p 来源）；547（主力锚删除确认）。
+// ════════════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════════════
 //  环5：≺_Θ 平移不变全序 + 确定性 fold → 三桶 ℛ_Θ
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -535,7 +565,7 @@ mod tests {
     #[test]
     fn interpret_reverse_candidate_closes_active_leg() {
         let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, 1)]]));
-        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0 }];
+        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
         let b = interpret(&gamma, &active);
         assert_eq!(b.close.len(), 1, "反向卖候选关闭持仓 Long 腿（𝒟_x 非空）");
         assert_eq!(b.close[0].dir, VoiceSide::Long);
@@ -568,7 +598,7 @@ mod tests {
     #[test]
     fn interpret_same_dir_as_active_records() {
         let gamma = assemble_gamma(&classification(vec![vec![buy_point(0, 1)]]));
-        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0 }];
+        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
         let b = interpret(&gamma, &active);
         assert!(b.close.is_empty());
         assert!(b.open.is_empty());
@@ -598,7 +628,7 @@ mod tests {
         // 反序 Γ（同候选集，不同输入顺序）。
         let mut g2 = g1.clone();
         g2.reverse();
-        let active = [ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 0 }];
+        let active = [ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
         let b1 = interpret(&g1, &active);
         let b2 = interpret(&g2, &active);
         // 三桶逐元素相等（gamma_index 终局键 ⟹ 排序后同序）。
@@ -642,7 +672,7 @@ mod tests {
             buy_point(3, 3),  // 同向重复 → record
             sell_point(7, 1), // 反向 → 关闭活动 Long
         ]]));
-        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0 }];
+        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
         let b = interpret(&gamma, &active);
         // 每个候选恰落 open 或 record（关闭触发候选被消费，不入 open/record）。
         let consumed_as_close = b.close.len(); // 反向候选数（消费为关闭）
@@ -785,6 +815,43 @@ mod tests {
         assert!(
             (leg.units - 30.0).abs() < 1e-9,
             "真嵌套深度 1（沿真父链）⟹ w[1]=0.30 × 100 = 30（真深度权重，非空跑）"
+        );
+    }
+
+    // ── 环3c 执行层 σ_p = 父容器方向（639 settle；σ 来源与持仓正交，非活动父腿）────────────
+
+    /// ★639 口径修正坐实（旧错测试 `gamma_active_parent_no_position_is_ambient` 的精确反转）：
+    /// 有向父容器（前缀因果塔 L1 Long 走势）+ 逆向次级卖候选 ⟹ V=**ShortDiff**（来自父容器方向）。
+    /// 旧"活动父腿"错口径：未持仓 ⟹ Ambient（→建 naked 逆势仓 garbage trades）。正确口径：σ 来源是
+    /// 结构对象（父容器方向），与持仓无关——`assemble_gamma_with_tower` **不接受** active 参数
+    /// （σ_p 不可能依赖持仓，与 Lean `parentDirOfContainer_struct_only` 同构）。
+    #[test]
+    fn gamma_with_tower_shortdiff_from_container_not_position() {
+        let tower = long_parent_tower(); // L1 Long 父走势（结构对象，非持仓）
+        let c = classification(vec![vec![sell_point(8, 1)]]); // L0 卖候选，host=s1（真父 L1 Long）
+        let gamma = assemble_gamma_with_tower(&c, &tower);
+        assert_eq!(gamma[0].dir, VoiceSide::Short);
+        assert_eq!(
+            gamma[0].role.v,
+            Vertical::ShortDiff,
+            "有向父容器 + 未持仓 ⟹ ShortDiff（639：σ_p=父容器方向，非持仓父腿；旧错口径误判 Ambient）"
+        );
+    }
+
+    /// ★639 Ambient 充要条件修正：Ambient ⟺ 父=胚元∂/无有向父容器（**非**"未持仓"）。
+    /// 缺塔（仅 L0，host 是根 segment）⟹ 父=∂ ⟹ Ambient——与持仓无关（对齐 Lean
+    /// `classifyV_ambient_iff_germ`：Ambient 的唯一来源是父=胚元，非父未持有）。
+    #[test]
+    fn gamma_with_tower_ambient_iff_germ_not_unheld() {
+        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10));
+        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12));
+        let no_parent_tower = vec![vec![s0, s1]]; // len()==1：host 是根 segment，无 Compose 父 = ∂
+        let c = classification(vec![vec![sell_point(8, 1)]]);
+        let gamma = assemble_gamma_with_tower(&c, &no_parent_tower);
+        assert_eq!(
+            gamma[0].role.v,
+            Vertical::Ambient,
+            "父=胚元∂（无有向父容器）⟹ Ambient（639：充要条件是父=∂，非未持仓）"
         );
     }
 }
