@@ -469,17 +469,23 @@ impl IncrSegments {
     ///
     /// bit-exact：结果 (segments, pending_start) == `divide_segments_with_tail(strokes, config)`。
     ///
-    /// 保留 confirmed segments 前缀（段端 end_array_idx < confirmed_bound 的），从最后 confirmed
-    /// 段的 seg_start 重新初始化状态机续扫尾部 strokes。
+    /// 保留 confirmed segments 前缀（除末段），从倒数第二段的 seg_start 重新初始化状态机续扫。
+    ///
+    /// ponytail: 末段（最后 confirmed 段）必须重算——`second_seq_has_fractal` 扫描到
+    /// strokes 末尾（scan_window=0 无限），新 bar 可能让段内更早的 SecondKindPending 触发
+    /// 复活（第二特征序列出现分形），使段端回退到更早位置。故末段非不可变，必须丢弃重算。
+    /// 倒数第二段及之前视为不可变（其 SecondKind 确认依赖的第二序列分形在更早数据已稳定）。
     pub fn append(&self, strokes: &[Stroke], config: &ParseConfig) -> IncrSegments {
         let n = strokes.len();
-        let old_n = self.strokes_len;
 
-        // confirmed 段前缀边界：段端 strokes 数组下标 < old_n-1 的不可变（末笔可能变）。
-        // old_n == 0 时无 confirmed（首次）。
-        let confirmed_bound = if old_n == 0 { 0 } else { old_n.saturating_sub(1) };
+        // ponytail: 丢弃末段重算。confirmed_bound = 末段 end_array_idx（take_while 用 `<`
+        // 排除末段）。无 confirmed 段时 confirmed_bound=0（全扫）。
+        let confirmed_bound = match self.segments.last() {
+            Some((_, last_end_idx)) => *last_end_idx,
+            None => 0,
+        };
 
-        // 保留 confirmed segments 前缀（end_array_idx < confirmed_bound 的）。
+        // 保留 confirmed segments 前缀（end_array_idx < confirmed_bound 的——排除末段）。
         let mut new_segments: Vec<(Segment, usize)> = self
             .segments
             .iter()
@@ -487,7 +493,7 @@ impl IncrSegments {
             .take_while(|(_, end_idx)| *end_idx < confirmed_bound)
             .collect();
 
-        // 确定续扫起点：最后 confirmed 段的 seg_start = end_array_idx + 1（k = end_stroke + 1）。
+        // 确定续扫起点：倒数第二段的 seg_start = end_array_idx + 1（= 末段原 seg_start）。
         let resume_seg_start: usize;
         let resume_seg_dir: Direction;
 
@@ -505,7 +511,7 @@ impl IncrSegments {
                 resume_seg_dir = strokes[resume_seg_start].direction;
             }
             None => {
-                // 无 confirmed 段：全扫。先找 overlap start。
+                // 无 confirmed 段（或仅 1 段被丢弃）：全扫。先找 overlap start。
                 if n < 3 {
                     return IncrSegments {
                         segments: Vec::new(),
