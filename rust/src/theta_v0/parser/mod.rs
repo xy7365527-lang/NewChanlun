@@ -179,7 +179,9 @@ impl<'c> ParseLayerIncr<'c> {
         let fractals = self.incr_fractals.to_result();
 
         // 增量 stroke：保留 confirmed 交替序列前缀 + confirmed strokes，续扫配对。
-        self.incr_strokes = self.incr_strokes.append(&fractals, &self.config.parse);
+        // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+        let prev_strokes = std::mem::replace(&mut self.incr_strokes, stroke::IncrStrokes::empty());
+        self.incr_strokes = prev_strokes.append(&fractals, &self.config.parse);
         let strokes = self.incr_strokes.to_result().to_vec();
 
         // 增量 segment：保留 confirmed segments 前缀，从 pending_start 续扫。

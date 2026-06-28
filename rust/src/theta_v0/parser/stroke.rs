@@ -120,7 +120,46 @@ pub fn build_strokes(fractals: &[Fractal], config: &ParseConfig) -> Vec<Stroke> 
 //
 // 严格性：存 (Fractal, fractal_idx) 对——fractal_idx 是在原始 fractals 输入中的下标，
 // 用于精确过滤前缀。不依赖 source_index 代理。
+//
+// ## O(n²) 修复（a5a1bb70 子步隔离坐实 IncrStrokes::append 为 incr_total exp 2.9 真主导）
+//
+// ae0118c0 增量实现有两处 O(n²)/bar：
+// 1. `take_while(|(_, fi)| *fi < confirmed_bound)` 遍历整个 alt_prefix O(n)/bar。
+// 2. 嵌套循环 `for s in &self.strokes { for (ai,..) in new_alt.iter() }` O(strokes×alt)/bar。
+//
+// 修复：维护 confirmed_alt_len / confirmed_strokes_len / last_end_alt_idx 三个索引，
+// append 入口 O(1) slice + O(1) 继承 resume_alt_idx，消除两处 O(n²)。出口 O(1) 更新
+// confirmed 索引（new_alt.last() fi == new_confirmed_bound 判定 + 续扫尾端 alt 索引追踪）。
 // ============================================================================
+
+/// 计算 confirmed strokes 长度 + 最后一个 confirmed stroke 笔尾的 alt 索引。
+///
+/// confirmed strokes = 端点 source_index 对应的 alt 条目在 `alt_prefix[..confirmed_alt_len]` 内的笔。
+/// alt 按 source_index 单调递增，strokes 按 end_index 单调递增 → partition_point O(log n)。
+/// 返回 `(confirmed_strokes_len, last_end_alt_idx)`，无 confirmed 笔时 last_end_alt_idx = 0。
+fn compute_confirmed_strokes(
+    strokes: &[Stroke],
+    alt_prefix: &[(Fractal, usize)],
+    confirmed_alt_len: usize,
+) -> (usize, usize) {
+    if confirmed_alt_len == 0 || strokes.is_empty() {
+        return (0, 0);
+    }
+    // confirmed 段最后一个 source_index（边界）。
+    let boundary_si = alt_prefix[confirmed_alt_len - 1].0.source_index;
+    // end_index <= boundary_si 的笔为 confirmed（端点在 confirmed alt 段内）。
+    let confirmed_strokes_len = strokes
+        .partition_point(|s| s.end_index <= boundary_si);
+    let last_end_alt_idx = if confirmed_strokes_len == 0 {
+        0
+    } else {
+        // 最后一个 confirmed stroke 笔尾在 alt_prefix 中的位置。
+        let end_si = strokes[confirmed_strokes_len - 1].end_index;
+        alt_prefix.partition_point(|(f, _)| f.source_index < end_si)
+    };
+    (confirmed_strokes_len, last_end_alt_idx)
+}
+
 
 /// 增量 stroke 状态（bit-exact 对齐 `build_strokes`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -131,6 +170,15 @@ pub struct IncrStrokes {
     strokes: Vec<Stroke>,
     /// 上次快照时的 fractals 长度。
     fractals_len: usize,
+    /// alt_prefix 中 `fi < fractals_len-1` 的条目数（confirmed alt 前缀长度）。
+    // ponytail: O(1) slice 替代 O(n) take_while（hotspot 1，ae0118c0 增量 bug）。
+    confirmed_alt_len: usize,
+    /// strokes 中端点 `fi < fractals_len-1` 的笔数（confirmed strokes 前缀长度）。
+    // ponytail: O(1) slice 替代 O(n²) 嵌套扫描（hotspot 2，ae0118c0 增量 bug）。
+    confirmed_strokes_len: usize,
+    /// 最后一个 confirmed stroke 笔尾在 alt_prefix 中的索引（续扫起点）。
+    // ponytail: O(1) 继承替代 O(n²) 逐笔重扫 new_alt（hotspot 2，ae0118c0 增量 bug）。
+    last_end_alt_idx: usize,
 }
 
 impl Default for IncrStrokes {
@@ -139,6 +187,9 @@ impl Default for IncrStrokes {
             alt_prefix: Vec::new(),
             strokes: Vec::new(),
             fractals_len: 0,
+            confirmed_alt_len: 0,
+            confirmed_strokes_len: 0,
+            last_end_alt_idx: 0,
         }
     }
 }
@@ -173,33 +224,46 @@ impl IncrStrokes {
                 _ => alt_prefix.push((f, fi)),
             }
         }
+        // 重建 confirmed 索引（O(n) 一次性，断点续算非热路径）。
+        let confirmed_bound = fractals.len().saturating_sub(1);
+        let confirmed_alt_len = alt_prefix
+            .partition_point(|(_, fi)| *fi < confirmed_bound);
+        // confirmed strokes：端点 source_index < alt_prefix[confirmed_alt_len] 的 source_index
+        //（alt 按 source_index 单调递增，strokes 按 end_index 单调递增）。
+        let (confirmed_strokes_len, last_end_alt_idx) = compute_confirmed_strokes(
+            strokes,
+            &alt_prefix,
+            confirmed_alt_len,
+        );
         IncrStrokes {
             alt_prefix,
             strokes: strokes.to_vec(),
             fractals_len: fractals.len(),
+            confirmed_alt_len,
+            confirmed_strokes_len,
+            last_end_alt_idx,
         }
     }
 
-    /// 增量追加 fractals 序列，返回新状态（immutability）。
+    /// 增量追加 fractals 序列，返回新状态（by-value 缓冲复用，消除 O(n)/bar clone）。
     ///
     /// bit-exact：结果笔序列 == `build_strokes(fractals, config)`。
     ///
     /// 保留 alt_prefix 中 fractal_idx < confirmed_bound 的（除末 1 个可能被 collapse 修改），
     /// 重算尾部 collapse + 保留 confirmed strokes 前缀并续扫配对。
     /// ponytail: collapse 尾部局部重算 + 配对续扫（O(尾部)/bar，非 O(n)）。
-    pub fn append(&self, fractals: &[Fractal], config: &ParseConfig) -> IncrStrokes {
+    pub fn append(self, fractals: &[Fractal], config: &ParseConfig) -> IncrStrokes {
         let old_len = self.fractals_len;
         // collapse 末元素可能被新 fractal 修改（同类连续），故保留 fractal_idx < old_len-1 的，
         // 从 old_len-1 起重算（含重叠 1 个保边界）。
         let confirmed_bound = old_len.saturating_sub(1);
 
         // 保留 alt_prefix 中 fractal_idx < confirmed_bound 的。
-        let mut new_alt: Vec<(Fractal, usize)> = self
-            .alt_prefix
-            .iter()
-            .copied()
-            .take_while(|(_, fi)| *fi < confirmed_bound)
-            .collect();
+        // ponytail: truncate 复用 Vec 缓冲（O(尾部) drop），替代 O(n) take_while + to_vec
+        //（hotspot 1，a5a1bb70 坐实 exp 2.9 主导）。前缀不变性：alt_prefix[..confirmed_alt_len]
+        // 的 fi 均 < confirmed_bound（由上次 append 保证）。
+        let mut new_alt: Vec<(Fractal, usize)> = self.alt_prefix;
+        new_alt.truncate(self.confirmed_alt_len);
 
         // 重算 collapse：从 fractal_idx = confirmed_bound 起扫描到末尾。
         for fi in confirmed_bound..fractals.len() {
@@ -226,27 +290,16 @@ impl IncrStrokes {
 
         // 增量配对：保留 confirmed strokes 前缀（笔尾 fractal_idx < confirmed_bound 的），
         // 从最后一笔笔尾在 new_alt 中的位置续扫。
-        let mut new_strokes: Vec<Stroke> = Vec::new();
-        let mut resume_alt_idx = 0usize;
-        for s in &self.strokes {
-            // 找该笔笔尾在 new_alt（fractal_idx < confirmed_bound 段）中的位置。
-            let mut found_end_alt = None;
-            for (ai, (f, fi)) in new_alt.iter().enumerate() {
-                if *fi < confirmed_bound && f.source_index == s.end_index {
-                    found_end_alt = Some(ai);
-                    break;
-                }
-            }
-            match found_end_alt {
-                Some(ai) => {
-                    new_strokes.push(*s);
-                    resume_alt_idx = ai; // 下一笔从 ai+1 起扫（i+=1 后位置）
-                }
-                None => break, // 笔尾不在 confirmed 段——此笔及之后重扫
-            }
-        }
+        // ponytail: truncate 复用 Vec 缓冲 + O(1) 继承 resume_alt_idx，替代 O(n²) 嵌套扫描
+        //（hotspot 2，a5a1bb70 坐实 exp 2.9 主导）。confirmed_strokes_len 笔的笔尾 fi < confirmed_bound，
+        // 且其 alt 索引 = last_end_alt_idx（由上次 append 保证，new_alt 前缀不变）。
+        let mut new_strokes: Vec<Stroke> = self.strokes;
+        new_strokes.truncate(self.confirmed_strokes_len);
+        let resume_alt_idx = self.last_end_alt_idx;
 
         // 从 resume_alt_idx 续扫配对（镜像 build_strokes 贪心逻辑）。
+        // 追踪续扫产出的每笔笔尾 alt 索引，用于最后 O(1) 更新 confirmed 索引。
+        let mut scan_end_alt_indices: Vec<usize> = Vec::new();
         let mut i = resume_alt_idx;
         while i + 1 < new_alt.len() {
             let a = &new_alt[i].0;
@@ -263,9 +316,32 @@ impl IncrStrokes {
                     start_price: a.price,
                     end_price: b.price,
                 });
-                i += 1;
+                i += 1; // 笔尾 b 成为下一笔笔头。
+                scan_end_alt_indices.push(i); // 笔尾 alt 索引 = i（i+=1 后）。
             } else {
                 i += 2;
+            }
+        }
+
+        // 更新 confirmed 索引（O(1) amortized）。
+        // 新 confirmed_bound = fractals.len()-1。new_alt 最后一个 fi 要么 = 新 bound（最后分型存活）
+        // 要么 < 新 bound（被 collapse 吞）。confirmed_alt_len = 前者 ? len-1 : len。
+        let new_confirmed_bound = fractals.len().saturating_sub(1);
+        let new_confirmed_alt_len = match new_alt.last() {
+            Some((_, fi)) if *fi == new_confirmed_bound => new_alt.len() - 1,
+            _ => new_alt.len(),
+        };
+        // confirmed strokes = confirmed 前缀 + 续扫中 fi < new_confirmed_bound 的笔。
+        // confirmed 前缀笔数 = self.confirmed_strokes_len（继承）。
+        // 续扫笔的笔尾 alt 索引 < new_confirmed_alt_len ⟺ 笔尾 fi < new_confirmed_bound。
+        let mut new_confirmed_strokes_len = self.confirmed_strokes_len;
+        let mut new_last_end_alt_idx = self.last_end_alt_idx;
+        for &end_ai in &scan_end_alt_indices {
+            if end_ai < new_confirmed_alt_len {
+                new_confirmed_strokes_len += 1;
+                new_last_end_alt_idx = end_ai;
+            } else {
+                break; // alt 按序，首个未确认后续全未确认。
             }
         }
 
@@ -273,6 +349,9 @@ impl IncrStrokes {
             alt_prefix: new_alt,
             strokes: new_strokes,
             fractals_len: fractals.len(),
+            confirmed_alt_len: new_confirmed_alt_len,
+            confirmed_strokes_len: new_confirmed_strokes_len,
+            last_end_alt_idx: new_last_end_alt_idx,
         }
     }
 

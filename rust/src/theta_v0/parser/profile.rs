@@ -326,3 +326,43 @@ fn bit_exact_inclusion_only_es() {
     }
     eprintln!("\n===== inclusion 增量 bit-exact 通过：ES n={n} bars =====");
 }
+
+/// 诊断：隔离 IncrStrokes::append 逐 bar 标度（O(n²) 修复验证）。
+/// 测量逐 fractals 长度递增的 IncrStrokes::append 总耗时，拟合 exp。
+/// 修复前 exp ≈ 2.9（take_while O(n) + 嵌套循环 O(n²)），修复后目标 exp ≈ 1.0。
+#[test]
+#[ignore = "IncrStrokes 标度诊断：需 ES 数据；--release"]
+fn diag_incr_strokes_scaling() {
+    let cfg = ThetaConfig::default();
+    let path = data_dir().join("es_1m_databento_10y.json");
+    let ds = load_symbol(&path, "ES", &cfg).expect("加载 ES");
+
+    let sizes = [2000usize, 4000, 8000, 16000];
+    eprintln!("IncrStrokes::append 逐 bar 标度（总耗时 μs vs exp）");
+    eprintln!("{:>8} | {:>12} {:>8}", "n", "incr_strokes", "exp");
+    let mut prev: Option<(usize, f64)> = None;
+    for &n in &sizes {
+        if n > ds.bars.len() {
+            break;
+        }
+        let bars = &ds.bars[..n];
+        let incl = inclusion::process_inclusion(bars);
+        let merged = &incl.merged;
+        let fractals_all = fractal::detect_fractals(merged);
+
+        // 逐 fractals 长度 append，测总耗时。
+        let t = bench(1, || {
+            let mut incr = stroke::IncrStrokes::empty();
+            for end in 1..=fractals_all.len() {
+                incr = incr.append(&fractals_all[..end], &cfg.parse);
+            }
+        });
+
+        let e = match prev {
+            Some((pn, pt)) => exp(pn, pt, n, t),
+            None => 0.0,
+        };
+        eprintln!("{:>8} | {:>12.1} {:>8.2}", n, t, e);
+        prev = Some((n, t));
+    }
+}
