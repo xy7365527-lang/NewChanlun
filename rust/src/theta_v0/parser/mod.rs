@@ -128,13 +128,20 @@ pub fn parse_layer(bars: &[Bar], config: &ThetaConfig) -> ParseLayer {
 // `bit_exact_parse_layer_incr_per_bar`（合成 + 真实数据）。
 // ============================================================================
 
-/// 增量 parse_layer 状态（封装增量 inclusion + 下游重算的中间态）。
+/// 增量 parse_layer 状态（封装增量 inclusion + 增量 fractal/stroke/segment + tail 重算）。
 ///
-/// 每 bar `append` 推进增量 inclusion（O(1)），下游 fractal/stroke/segment/tail 基于
-/// 增量 inclusion 的 merged 输出重算（O(merged_i)）。
+/// 每 bar `append` 推进：
+/// 1. 增量 inclusion（O(1) 稳态）→ merged 输出。
+/// 2. 增量 fractal（O(尾部)/bar，保留 confirmed 前缀）。
+/// 3. 增量 stroke（O(尾部)/bar，保留 confirmed 前缀）。
+/// 4. 增量 segment（O(pending)/bar，保留 confirmed 前缀）。
+/// 5. tail 全量重算（O(merged_i)，tail 依赖全字段——非热点，profile 坐实）。
 #[derive(Debug, Clone)]
 pub struct ParseLayerIncr<'c> {
     incr_inclusion: inclusion::IncrInclusion,
+    incr_fractals: fractal::IncrFractals,
+    incr_strokes: stroke::IncrStrokes,
+    incr_segments: segment::IncrSegments,
     config: &'c ThetaConfig,
 }
 
@@ -143,17 +150,45 @@ impl<'c> ParseLayerIncr<'c> {
     pub fn new(config: &'c ThetaConfig) -> Self {
         ParseLayerIncr {
             incr_inclusion: inclusion::IncrInclusion::empty(),
+            incr_fractals: fractal::IncrFractals::empty(),
+            incr_strokes: stroke::IncrStrokes::empty(),
+            incr_segments: segment::IncrSegments::empty(),
             config,
         }
     }
 
     /// 追加 1 bar，返回该 bar 后的 `ParseLayer`（bit-exact 对齐 `parse_layer(&bars[..=i])`）。
     ///
-    /// 内部：增量 inclusion（O(1) 稳态）→ 全量重算 fractal/stroke/segment/tail（O(merged_i)）。
+    /// 内部：增量 inclusion → 增量 fractal → 增量 stroke → 增量 segment → tail 重算。
+    /// ponytail: 增量化把下游从 O(merged_i)/bar 降到 O(尾部)/bar（fractal/stroke/segment
+    /// 均保留 confirmed 前缀，只重算尾部）。tail 仍全量但非热点（profile 坐实）。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
         self.incr_inclusion = self.incr_inclusion.append(bar);
         let merged = self.incr_inclusion.to_result().merged;
-        parse_layer_from_merged(&merged, self.config)
+
+        // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
+        self.incr_fractals = self.incr_fractals.append(&merged);
+        let fractals = self.incr_fractals.to_result();
+
+        // 增量 stroke：保留 confirmed 交替序列前缀 + confirmed strokes，续扫配对。
+        self.incr_strokes = self.incr_strokes.append(&fractals, &self.config.parse);
+        let strokes = self.incr_strokes.to_result().to_vec();
+
+        // 增量 segment：保留 confirmed segments 前缀，从 pending_start 续扫。
+        self.incr_segments = self.incr_segments.append(&strokes, &self.config.parse);
+        let (segments, pending_start) = self.incr_segments.to_result_vec();
+        let pending_start = pending_start;
+
+        // tail 全量重算（依赖全字段，非热点——profile 坐实 tail 耗时占比 <5%）。
+        let tail = tail::build_tail(&merged, &fractals, &strokes, &segments, pending_start);
+
+        ParseLayer {
+            merged_bars: merged,
+            fractals,
+            strokes,
+            segments,
+            tail,
+        }
     }
 }
 

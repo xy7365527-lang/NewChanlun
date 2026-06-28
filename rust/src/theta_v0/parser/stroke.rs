@@ -105,6 +105,183 @@ pub fn build_strokes(fractals: &[Fractal], config: &ParseConfig) -> Vec<Stroke> 
     strokes
 }
 
+// ============================================================================
+// 增量 stroke（#93 H1 主根因：parse_layer 下游 per-bar O(n²) → 增量化）。
+//
+// ## 前缀不变性（bit-exact 基础）
+//
+// collapse_consecutive 是左折叠：out.push(f) 后，前缀 out[0..len-1] 不可变，仅 out.last()
+// 可能被同类连续修改。贪心配对在交替序列上扫描：一旦某笔成笔（i+=1），其端点 fractal 固定。
+//
+// 增量策略：
+// 1. 增量 collapse：保留前缀交替序列（除末 1 个可能被修改），重算尾部 collapse。
+// 2. 增量配对：保留 confirmed strokes 前缀（端点 fractal 已固定），从最后一笔笔尾在
+//    新交替序列中的位置续扫。
+//
+// 严格性：存 (Fractal, fractal_idx) 对——fractal_idx 是在原始 fractals 输入中的下标，
+// 用于精确过滤前缀。不依赖 source_index 代理。
+// ============================================================================
+
+/// 增量 stroke 状态（bit-exact 对齐 `build_strokes`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IncrStrokes {
+    /// confirmed 交替序列前缀 `(Fractal, fractal_idx)`（除末 1 个可能被 collapse 修改）。
+    alt_prefix: Vec<(Fractal, usize)>,
+    /// confirmed strokes 前缀（端点 fractal 已固定，不可变）。
+    strokes: Vec<Stroke>,
+    /// 上次快照时的 fractals 长度。
+    fractals_len: usize,
+}
+
+impl Default for IncrStrokes {
+    fn default() -> Self {
+        IncrStrokes {
+            alt_prefix: Vec::new(),
+            strokes: Vec::new(),
+            fractals_len: 0,
+        }
+    }
+}
+
+impl IncrStrokes {
+    /// 空状态。
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// 从全量结果恢复增量状态（断点续算，一次性 O(n) 重建 alt_prefix 的 fractal_idx）。
+    pub fn from_full(fractals: &[Fractal], strokes: &[Stroke]) -> Self {
+        // 重建 (Fractal, fractal_idx)：重跑 collapse 逻辑记录 fractal_idx。
+        let mut alt_prefix: Vec<(Fractal, usize)> = Vec::with_capacity(fractals.len());
+        for (fi, &f) in fractals.iter().enumerate() {
+            match alt_prefix.last() {
+                Some(prev) if prev.0.kind == f.kind => {
+                    let keep_new = match f.kind {
+                        FractalKind::Top => {
+                            f.price > prev.0.price
+                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
+                        }
+                        FractalKind::Bottom => {
+                            f.price < prev.0.price
+                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
+                        }
+                    };
+                    if keep_new {
+                        *alt_prefix.last_mut().unwrap() = (f, fi);
+                    }
+                }
+                _ => alt_prefix.push((f, fi)),
+            }
+        }
+        IncrStrokes {
+            alt_prefix,
+            strokes: strokes.to_vec(),
+            fractals_len: fractals.len(),
+        }
+    }
+
+    /// 增量追加 fractals 序列，返回新状态（immutability）。
+    ///
+    /// bit-exact：结果笔序列 == `build_strokes(fractals, config)`。
+    ///
+    /// 保留 alt_prefix 中 fractal_idx < confirmed_bound 的（除末 1 个可能被 collapse 修改），
+    /// 重算尾部 collapse + 保留 confirmed strokes 前缀并续扫配对。
+    /// ponytail: collapse 尾部局部重算 + 配对续扫（O(尾部)/bar，非 O(n)）。
+    pub fn append(&self, fractals: &[Fractal], config: &ParseConfig) -> IncrStrokes {
+        let old_len = self.fractals_len;
+        // collapse 末元素可能被新 fractal 修改（同类连续），故保留 fractal_idx < old_len-1 的，
+        // 从 old_len-1 起重算（含重叠 1 个保边界）。
+        let confirmed_bound = old_len.saturating_sub(1);
+
+        // 保留 alt_prefix 中 fractal_idx < confirmed_bound 的。
+        let mut new_alt: Vec<(Fractal, usize)> = self
+            .alt_prefix
+            .iter()
+            .copied()
+            .take_while(|(_, fi)| *fi < confirmed_bound)
+            .collect();
+
+        // 重算 collapse：从 fractal_idx = confirmed_bound 起扫描到末尾。
+        for fi in confirmed_bound..fractals.len() {
+            let f = fractals[fi];
+            match new_alt.last() {
+                Some(prev) if prev.0.kind == f.kind => {
+                    let keep_new = match f.kind {
+                        FractalKind::Top => {
+                            f.price > prev.0.price
+                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
+                        }
+                        FractalKind::Bottom => {
+                            f.price < prev.0.price
+                                || (f.price == prev.0.price && f.source_index < prev.0.source_index)
+                        }
+                    };
+                    if keep_new {
+                        *new_alt.last_mut().unwrap() = (f, fi);
+                    }
+                }
+                _ => new_alt.push((f, fi)),
+            }
+        }
+
+        // 增量配对：保留 confirmed strokes 前缀（笔尾 fractal_idx < confirmed_bound 的），
+        // 从最后一笔笔尾在 new_alt 中的位置续扫。
+        let mut new_strokes: Vec<Stroke> = Vec::new();
+        let mut resume_alt_idx = 0usize;
+        for s in &self.strokes {
+            // 找该笔笔尾在 new_alt（fractal_idx < confirmed_bound 段）中的位置。
+            let mut found_end_alt = None;
+            for (ai, (f, fi)) in new_alt.iter().enumerate() {
+                if *fi < confirmed_bound && f.source_index == s.end_index {
+                    found_end_alt = Some(ai);
+                    break;
+                }
+            }
+            match found_end_alt {
+                Some(ai) => {
+                    new_strokes.push(*s);
+                    resume_alt_idx = ai; // 下一笔从 ai+1 起扫（i+=1 后位置）
+                }
+                None => break, // 笔尾不在 confirmed 段——此笔及之后重扫
+            }
+        }
+
+        // 从 resume_alt_idx 续扫配对（镜像 build_strokes 贪心逻辑）。
+        let mut i = resume_alt_idx;
+        while i + 1 < new_alt.len() {
+            let a = &new_alt[i].0;
+            let b = &new_alt[i + 1].0;
+            if gap_ok(a, b, config.new_stroke_min_gap) {
+                let direction = match a.kind {
+                    FractalKind::Bottom => Direction::Up,
+                    FractalKind::Top => Direction::Down,
+                };
+                new_strokes.push(Stroke {
+                    direction,
+                    start_index: a.source_index,
+                    end_index: b.source_index,
+                    start_price: a.price,
+                    end_price: b.price,
+                });
+                i += 1;
+            } else {
+                i += 2;
+            }
+        }
+
+        IncrStrokes {
+            alt_prefix: new_alt,
+            strokes: new_strokes,
+            fractals_len: fractals.len(),
+        }
+    }
+
+    /// 当前快照笔序列（与 `build_strokes` bit-exact）。
+    pub fn to_result(&self) -> &[Stroke] {
+        &self.strokes
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,6 +376,35 @@ mod tests {
         let s = build_strokes(&fs, &cfg(3));
         for w in s.windows(2) {
             assert_ne!(w[0].direction, w[1].direction);
+        }
+    }
+
+    /// ★bit-exact：增量 IncrStrokes::append 链 == 全量 build_strokes（逐 fractals 长度）。
+    #[test]
+    fn bit_exact_incr_strokes_per_bar() {
+        // 合成分型序列：顶底交替 + 同类连续（触发 collapse）+ 间隔不足（触发 skip）。
+        let fractals: Vec<Fractal> = (0..150usize)
+            .flat_map(|i| {
+                let base = i * 10;
+                vec![
+                    frac(FractalKind::Bottom, base, 100 + i as i64),
+                    frac(FractalKind::Top, base + 4, 200 + i as i64),
+                    frac(FractalKind::Top, base + 6, 210 + i as i64), // 同类连续（测 collapse）
+                    frac(FractalKind::Bottom, base + 8, 90 + i as i64),
+                ]
+            })
+            .collect();
+
+        let cfg = cfg(3);
+        let mut incr = IncrStrokes::empty();
+        for end in 1..=fractals.len() {
+            incr = incr.append(&fractals[..end], &cfg);
+            let full = build_strokes(&fractals[..end], &cfg);
+            assert_eq!(
+                incr.to_result(),
+                full.as_slice(),
+                "fractals len {end}: 增量 stroke != 全量（bit-exact 破裂）"
+            );
         }
     }
 }

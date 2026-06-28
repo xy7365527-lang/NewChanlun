@@ -392,6 +392,200 @@ pub fn divide_segments(strokes: &[Stroke], config: &ParseConfig) -> Vec<Segment>
     divide_segments_with_tail(strokes, config).0
 }
 
+// ============================================================================
+// 增量 segment（#93 H1 主根因：parse_layer 下游 per-bar O(n²) → 增量化）。
+//
+// ## 前缀不变性（bit-exact 基础）
+//
+// divide_segments_with_tail 的 confirmed segments 前缀不可变——strokes 增量只改尾部
+// （collapse 末元素 + 配对尾部重扫），confirmed 段端在 strokes 数组下标 < old_n-1 的范围内。
+//
+// 增量策略：
+// 1. 保留 confirmed segments 前缀（段端 strokes 数组下标 < confirmed_bound 的）。
+// 2. 从最后一笔 confirmed 段的 seg_start（= 段端+1）重新初始化 FeatureSeqState，续扫尾部 strokes。
+//
+// 严格性：内部存 (Segment, end_array_idx) 对——end_array_idx 是段端在 strokes 数组中的下标
+// （不是 source_index！）。pending 段状态机从 seg_start 重建（tail strokes 可能变化）。
+// ponytail: 保留 confirmed 前缀 + pending 段重扫（O(pending_strokes)/bar，非 O(n)）。
+// ============================================================================
+
+/// 增量 segment 状态（bit-exact 对齐 `divide_segments_with_tail`）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct IncrSegments {
+    /// confirmed segments 前缀 + 段端在 strokes 数组中的下标 `(Segment, end_array_idx)`。
+    segments: Vec<(Segment, usize)>,
+    /// 未完成段的起点（pending_start，strokes 数组下标）。
+    pending_start: Option<usize>,
+    /// 上次快照时的 strokes 长度。
+    strokes_len: usize,
+}
+
+impl Default for IncrSegments {
+    fn default() -> Self {
+        IncrSegments {
+            segments: Vec::new(),
+            pending_start: None,
+            strokes_len: 0,
+        }
+    }
+}
+
+impl IncrSegments {
+    /// 空状态。
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// 从全量结果恢复增量状态（断点续算，需 strokes 以重建 end_array_idx）。
+    pub fn from_full(segments: &[Segment], pending_start: Option<usize>, strokes: &[Stroke]) -> Self {
+        // 重建 end_array_idx：段端 = strokes[s1].end_index，找 s1 在 strokes 中的位置。
+        let mut segs_with_idx: Vec<(Segment, usize)> = Vec::with_capacity(segments.len());
+        let mut search_from = 0usize;
+        for seg in segments {
+            // 段端 end_index = strokes[s1].end_index。从 search_from 起找匹配的 s1。
+            let mut found = None;
+            for si in search_from..strokes.len() {
+                if strokes[si].end_index == seg.end_index {
+                    found = Some(si);
+                    break;
+                }
+            }
+            match found {
+                Some(si) => {
+                    segs_with_idx.push((*seg, si));
+                    search_from = si + 1;
+                }
+                None => break, // 段端不在 strokes 中（数据不一致）——截断
+            }
+        }
+        IncrSegments {
+            segments: segs_with_idx,
+            pending_start,
+            strokes_len: strokes.len(),
+        }
+    }
+
+    /// 增量追加 strokes 序列，返回新状态（immutability）。
+    ///
+    /// bit-exact：结果 (segments, pending_start) == `divide_segments_with_tail(strokes, config)`。
+    ///
+    /// 保留 confirmed segments 前缀（段端 end_array_idx < confirmed_bound 的），从最后 confirmed
+    /// 段的 seg_start 重新初始化状态机续扫尾部 strokes。
+    pub fn append(&self, strokes: &[Stroke], config: &ParseConfig) -> IncrSegments {
+        let n = strokes.len();
+        let old_n = self.strokes_len;
+
+        // confirmed 段前缀边界：段端 strokes 数组下标 < old_n-1 的不可变（末笔可能变）。
+        // old_n == 0 时无 confirmed（首次）。
+        let confirmed_bound = if old_n == 0 { 0 } else { old_n.saturating_sub(1) };
+
+        // 保留 confirmed segments 前缀（end_array_idx < confirmed_bound 的）。
+        let mut new_segments: Vec<(Segment, usize)> = self
+            .segments
+            .iter()
+            .copied()
+            .take_while(|(_, end_idx)| *end_idx < confirmed_bound)
+            .collect();
+
+        // 确定续扫起点：最后 confirmed 段的 seg_start = end_array_idx + 1（k = end_stroke + 1）。
+        let resume_seg_start: usize;
+        let resume_seg_dir: Direction;
+
+        match new_segments.last() {
+            Some((_, last_end_idx)) => {
+                resume_seg_start = last_end_idx + 1;
+                if resume_seg_start >= n {
+                    // 无剩余笔——全部 confirmed，无 pending。
+                    return IncrSegments {
+                        segments: new_segments,
+                        pending_start: if resume_seg_start < n { Some(resume_seg_start) } else { None },
+                        strokes_len: n,
+                    };
+                }
+                resume_seg_dir = strokes[resume_seg_start].direction;
+            }
+            None => {
+                // 无 confirmed 段：全扫。先找 overlap start。
+                if n < 3 {
+                    return IncrSegments {
+                        segments: Vec::new(),
+                        pending_start: if n > 0 { Some(0) } else { None },
+                        strokes_len: n,
+                    };
+                }
+                let Some(start) = find_overlap_start(strokes, 0) else {
+                    return IncrSegments {
+                        segments: Vec::new(),
+                        pending_start: Some(0),
+                        strokes_len: n,
+                    };
+                };
+                resume_seg_start = start;
+                resume_seg_dir = strokes[start].direction;
+            }
+        }
+
+        // 从 resume_seg_start 续扫（镜像 divide_segments_with_tail 主循环）。
+        let min_seg = config.seg_min_strokes as usize;
+        let mut seg_start = resume_seg_start;
+        let mut seg_dir = resume_seg_dir;
+        let mut feat = FeatureSeqState::new(
+            seg_dir,
+            ExtendMode::Strict,
+            TAIL_WINDOW,
+            config.second_seq_scan_window,
+        );
+        let mut cursor = seg_start;
+
+        while cursor < n {
+            let sk = &strokes[cursor];
+            let opposite = seg_dir.flip();
+            if sk.direction != opposite {
+                cursor += 1;
+                continue;
+            }
+            let (h, l) = if sk.start_price >= sk.end_price {
+                (sk.start_price, sk.end_price)
+            } else {
+                (sk.end_price, sk.start_price)
+            };
+            feat.append(cursor, h, l, strokes);
+            let Some(hit) = feat.scan_trigger(strokes) else {
+                cursor += 1;
+                continue;
+            };
+            let k = hit.k;
+            let end_stroke = k - 1;
+            if end_stroke < seg_start || end_stroke - seg_start < min_seg.saturating_sub(1) {
+                feat.skip_trigger(k);
+                cursor += 1;
+                continue;
+            }
+            let seg = make_segment(strokes, seg_start, end_stroke, seg_dir);
+            new_segments.push((seg, end_stroke));
+            seg_start = k;
+            seg_dir = opposite;
+            feat.reset(seg_dir);
+            cursor = k;
+        }
+
+        let pending_start = if seg_start < n { Some(seg_start) } else { None };
+        IncrSegments {
+            segments: new_segments,
+            pending_start,
+            strokes_len: n,
+        }
+    }
+
+    /// 当前快照 segments（Vec<Segment>，与 `divide_segments_with_tail` bit-exact）。
+    pub fn to_result_vec(&self) -> (Vec<Segment>, Option<usize>) {
+        (
+            self.segments.iter().map(|(s, _)| *s).collect(),
+            self.pending_start,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -513,5 +707,38 @@ mod tests {
         let feat = feature_elements(Direction::Up, &strokes);
         let down_count = strokes.iter().filter(|s| s.direction == Direction::Down).count();
         assert_eq!(feat.len(), down_count);
+    }
+
+    /// ★bit-exact：增量 IncrSegments::append 链 == 全量 divide_segments_with_tail（逐 strokes 长度）。
+    #[test]
+    fn bit_exact_incr_segments_per_bar() {
+        // 合成笔序列：交替上下 + 满足三笔重叠 + 间隔足够触发段终结。
+        let strokes: Vec<Stroke> = (0..120usize)
+            .flat_map(|i| {
+                let b = i * 20;
+                vec![
+                    stroke(Direction::Up, b, b + 4, 5 + i as i64, 20 + i as i64),
+                    stroke(Direction::Down, b + 4, b + 8, 20 + i as i64, 10 + i as i64),
+                    stroke(Direction::Up, b + 8, b + 12, 10 + i as i64, 25 + i as i64),
+                    stroke(Direction::Down, b + 12, b + 16, 25 + i as i64, 12 + i as i64),
+                ]
+            })
+            .collect();
+
+        let cfg = ParseConfig::default();
+        let mut incr = IncrSegments::empty();
+        for end in 3..=strokes.len() {
+            incr = incr.append(&strokes[..end], &cfg);
+            let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
+            let (incr_segs, incr_pending) = incr.to_result_vec();
+            assert_eq!(
+                incr_segs, full_segs,
+                "strokes len {end}: 增量 segments != 全量（bit-exact 破裂）"
+            );
+            assert_eq!(
+                incr_pending, full_pending,
+                "strokes len {end}: 增量 pending_start != 全量（bit-exact 破裂）"
+            );
+        }
     }
 }

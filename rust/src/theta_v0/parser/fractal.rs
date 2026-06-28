@@ -69,6 +69,154 @@ pub fn detect_fractals(merged: &[Bar]) -> Vec<Fractal> {
     out
 }
 
+// ============================================================================
+// 增量 fractal（#93 H1 主根因：parse_layer 下游 per-bar O(n²) → 增量化）。
+//
+// ## 前缀不变性（bit-exact 基础）
+//
+// 分型在 mid 位置确认，需 right = merged[mid+1]。inclusion 增量只修改 acc = merged 末元素
+// （merged_prefix 不可变）。故 mid ≤ n-4 的分型不可变（right ≤ merged[n-3] ∈ prefix）。
+// 仅 mid ∈ {n-3, n-2} 的分型可能受新 bar 影响（right 可能是 acc）。
+//
+// 增量策略：保留 confirmed 前缀（mid ≤ n-4 的分型），重算尾部（mid ≥ n-3）。
+// 严格性：内部存 (Fractal, mid_idx) 对，按 mid_idx 精确过滤——不依赖 source_index 代理。
+// ============================================================================
+
+/// 增量 fractal 状态（bit-exact 对齐 `detect_fractals`）。
+///
+/// 保留 confirmed 前缀分型 `(Fractal, mid_idx)` + 当前 merged 长度。
+/// append 新 merged 序列时只重算尾部 2 个三元组（mid ≥ confirmed_mid_bound）。
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct IncrFractals {
+    /// confirmed 前缀分型 + 对应 mid 下标（mid < confirmed_mid_bound，不可变）。
+    prefix: Vec<(Fractal, usize)>,
+    /// 上次快照时的 merged 长度（用于确定重算起点）。
+    merged_len: usize,
+}
+
+impl IncrFractals {
+    /// 空状态。
+    pub fn empty() -> Self {
+        Self::default()
+    }
+
+    /// 从全量 `detect_fractals` 结果 + merged 长度恢复增量状态（断点续算）。
+    ///
+    /// 重建 mid_idx：对每个分型，mid = 其在 merged 中的位置（source_index 单调性不足以
+    /// 精确反推 mid 下标，故要求调用方提供 merged 用于重建——或接受全量重算）。
+    /// 严格起见：`from_full` 仅在 merged 与 fractals 一致时使用，内部全量重扫建 mid_idx。
+    pub fn from_full(fractals: &[Fractal], merged: &[Bar]) -> Self {
+        if merged.len() < 3 || fractals.is_empty() {
+            return IncrFractals {
+                prefix: Vec::new(),
+                merged_len: merged.len(),
+            };
+        }
+        // 全量重扫建 (Fractal, mid_idx) 对——from_full 是断点续算入口，一次性 O(n) 可接受。
+        let mut prefix = Vec::with_capacity(fractals.len());
+        let mut fi = 0usize;
+        for i in 1..merged.len() - 1 {
+            if fi < fractals.len() {
+                let mid = &merged[i];
+                let expected_src = fractals[fi].source_index;
+                if mid.source_index == expected_src {
+                    prefix.push((fractals[fi], i));
+                    fi += 1;
+                }
+            }
+        }
+        IncrFractals {
+            prefix,
+            merged_len: merged.len(),
+        }
+    }
+
+    /// 增量追加 merged 序列，返回新状态（immutability）。
+    ///
+    /// bit-exact：结果分型序列 == `detect_fractals(merged)`。
+    ///
+    /// 保留 mid < confirmed_mid_bound 的前缀分型（不可变），重算 mid ≥ confirmed_mid_bound 的尾部。
+    /// confirmed_mid_bound = min(old_len, n).saturating_sub(2)（mid+1 < 此值的 right 不可变）。
+    /// ponytail: 尾部最多重算 2 个三元组（O(1)/bar）。
+    pub fn append(&self, merged: &[Bar]) -> IncrFractals {
+        let n = merged.len();
+        if n < 3 {
+            return IncrFractals {
+                prefix: Vec::new(),
+                merged_len: n,
+            };
+        }
+        let old_len = self.merged_len;
+        // mid 不可变 ⟺ right = mid+1 在不可变前缀内 ⟺ mid+1 < min(old_len, n) - 1。
+        // inclusion 增量只改末元素（acc），故 merged[0..n-1] 不可变（n == old_len 时 acc=merged[n-1] 可变）。
+        // old_len < n 时 merged[0..old_len] 完全不可变（旧 acc 已定稿）。
+        // confirmed_mid_bound = mid < 此值的分型不可变。
+        let confirmed_mid_bound = old_len.saturating_sub(2).min(n.saturating_sub(2));
+
+        // 保留 prefix 中 mid < confirmed_mid_bound 的（严格按 mid_idx 过滤）。
+        let mut new_prefix: Vec<(Fractal, usize)> = self
+            .prefix
+            .iter()
+            .copied()
+            .take_while(|(_, mid_idx)| *mid_idx < confirmed_mid_bound)
+            .collect();
+
+        // 重算尾部：mid ∈ [confirmed_mid_bound.saturating_sub(1) .. n-1)。
+        // 从 confirmed_mid_bound-1 起扫（多算 1 个保边界——但该 mid 的分型若已在新_prefix 则不重复）。
+        // 严格：只扫 mid ≥ confirmed_mid_bound（前缀已覆盖 mid < confirmed_mid_bound）。
+        let scan_start = confirmed_mid_bound.max(1);
+        for i in scan_start..n - 1 {
+            if i == 0 {
+                continue;
+            }
+            let left = &merged[i - 1];
+            let mid = &merged[i];
+            let right = &merged[i + 1];
+
+            let is_top = mid.high > left.high
+                && mid.high > right.high
+                && mid.low > left.low
+                && mid.low > right.low;
+            let is_bottom = mid.high < left.high
+                && mid.high < right.high
+                && mid.low < left.low
+                && mid.low < right.low;
+
+            if is_top {
+                new_prefix.push((
+                    Fractal {
+                        kind: FractalKind::Top,
+                        source_index: mid.source_index,
+                        timestamp: mid.timestamp,
+                        price: mid.high,
+                    },
+                    i,
+                ));
+            } else if is_bottom {
+                new_prefix.push((
+                    Fractal {
+                        kind: FractalKind::Bottom,
+                        source_index: mid.source_index,
+                        timestamp: mid.timestamp,
+                        price: mid.low,
+                    },
+                    i,
+                ));
+            }
+        }
+
+        IncrFractals {
+            prefix: new_prefix,
+            merged_len: n,
+        }
+    }
+
+    /// 当前快照分型序列（与 `detect_fractals` bit-exact）。
+    pub fn to_result(&self) -> Vec<Fractal> {
+        self.prefix.iter().map(|(f, _)| *f).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -148,5 +296,36 @@ mod tests {
         let merged = vec![bar(0, 10, 5), bar(1, 15, 12), bar(2, 11, 6)];
         let f = detect_fractals(&merged);
         assert_eq!(f[0].price, merged[1].high); // 顶 → 中 K high
+    }
+
+    /// ★bit-exact：增量 IncrFractals::append 链 == 全量 detect_fractals（逐 merged 长度）。
+    #[test]
+    fn bit_exact_incr_fractals_per_bar() {
+        // 合成 merged 序列（交替顶底 + 平坦段，触发各类分型 + 尾部边界）。
+        let merged: Vec<Bar> = (0..200usize)
+            .map(|i| {
+                let (h, l) = match i % 7 {
+                    0 => (10, 5),
+                    1 => (20, 15),
+                    2 => (12, 8),
+                    3 => (25, 18),
+                    4 => (8, 3),
+                    5 => (22, 14),
+                    _ => (15, 10),
+                };
+                bar(i, h + (i as i64), l + (i as i64))
+            })
+            .collect();
+
+        let mut incr = IncrFractals::empty();
+        for end in 1..=merged.len() {
+            incr = incr.append(&merged[..end]);
+            let full = detect_fractals(&merged[..end]);
+            assert_eq!(
+                incr.to_result(),
+                full,
+                "merged len {end}: 增量 fractal != 全量（bit-exact 破裂）"
+            );
+        }
     }
 }
