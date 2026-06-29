@@ -98,6 +98,97 @@ pub struct CoverageElement {
     pub parent_id: Option<ElementId>,
 }
 
+/// ★热点② O(n²) 消除（element-view-refactor-hotspot1-verdict 残留）：元素 Vec **借用 base 前缀
+/// + overlay 追加**，消 [`coverage_step_from_buckets`] per-bar `elements.to_vec()`（O(tree)×n=O(n²)）。
+///
+/// `base`：当前 bar 的真嵌套树元素（[`interp::coverage_elements_with_tower`] 产，**借用零拷贝**）。
+/// `overlay`：仅 Stale/restore 路径（[`restore_ancestor_chain_from_registry`]）追加的 registry 恢复
+/// 祖先——**绝大多数 bar 为空**（L2 诊断 sd_parent_held=0，restore 罕触发），故零拷贝路径覆盖热循环。
+///
+/// 索引语义（与旧 `work: Vec` 逐字节一致）：`0..base.len()` 查 `base`，`base.len()..` 查 `overlay`。
+/// 追加只在尾部（`push` 返新 idx），不重排不跳号 ⟹ ElementId 确定性层不变（bit-exact 守卫）。
+pub(crate) struct ElementView<'a> {
+    base: &'a [CoverageElement],
+    overlay: Vec<CoverageElement>,
+}
+
+impl<'a> ElementView<'a> {
+    fn new(base: &'a [CoverageElement]) -> Self {
+        ElementView { base, overlay: Vec::new() }
+    }
+
+    /// 双段构造（base=持久树前缀借用零拷贝 + overlay=本 bar candidate 段 owned）。
+    /// `_cached` 返回 `(tree_rc, candidates)` 后由消费者组装——消除旧 `tree.clone()` O(tree)/bar。
+    pub(crate) fn from_parts(base: &'a [CoverageElement], overlay: Vec<CoverageElement>) -> Self {
+        ElementView { base, overlay }
+    }
+
+    /// 元素总数（base 前缀 + overlay 追加），= 旧 `work.len()`。
+    fn len(&self) -> usize {
+        self.base.len() + self.overlay.len()
+    }
+
+    /// base 段长度 = candidate_start（candidate 段从此起，在 overlay）。
+    fn base_len(&self) -> usize {
+        self.base.len()
+    }
+
+    /// 取回 overlay（`_cached` 遍历2 算完 role 后取回 candidates Vec；view drop）。
+    pub(crate) fn into_overlay(self) -> Vec<CoverageElement> {
+        self.overlay
+    }
+
+    /// 按全局 idx 取元素（`< base.len()` 查 base，否则查 overlay），= 旧 `work.get(i)`。
+    fn get(&self, idx: usize) -> Option<&CoverageElement> {
+        if idx < self.base.len() {
+            self.base.get(idx)
+        } else {
+            self.overlay.get(idx - self.base.len())
+        }
+    }
+
+    /// 尾部追加（restore 路径恢复 registry 祖先），返新元素的全局 idx，= 旧 `work.push(e); work.len()-1`。
+    fn push(&mut self, e: CoverageElement) -> usize {
+        let idx = self.len();
+        self.overlay.push(e);
+        idx
+    }
+
+    /// 首个满足 `pred` 的元素全局 idx，= 旧 `work.iter().position(pred)`（base 在前 overlay 在后）。
+    fn position(&self, mut pred: impl FnMut(&CoverageElement) -> bool) -> Option<usize> {
+        self.base.iter().position(&mut pred).or_else(|| {
+            self.overlay.iter().position(pred).map(|i| self.base.len() + i)
+        })
+    }
+
+    /// 全元素迭代（base 前缀 ++ overlay），= 旧 `work.iter()`。
+    fn iter(&self) -> impl Iterator<Item = &CoverageElement> {
+        self.base.iter().chain(self.overlay.iter())
+    }
+
+    /// base 前缀切片（树元素段，candidate_start 在 base 内 ⟹ 零拷贝），= 旧 `&work[..tree_end]`。
+    fn tree_prefix(&self, tree_end: usize) -> &[CoverageElement] {
+        &self.base[..tree_end.min(self.base.len())]
+    }
+
+    /// 连续切片视图（喂仍接 `&[CoverageElement]` 的 [`strategy_target_legs`]）：overlay 空 ⟹ **借 base
+    /// 零拷贝**（热循环常态）；非空（restore 罕触发）⟹ materialize 一次 O(tree+overlay)。
+    pub(crate) fn as_contiguous(&self) -> std::borrow::Cow<'_, [CoverageElement]> {
+        if self.overlay.is_empty() {
+            std::borrow::Cow::Borrowed(self.base)
+        } else {
+            std::borrow::Cow::Owned(self.base.iter().chain(self.overlay.iter()).copied().collect())
+        }
+    }
+}
+
+impl std::ops::Index<usize> for ElementView<'_> {
+    type Output = CoverageElement;
+    fn index(&self, idx: usize) -> &CoverageElement {
+        self.get(idx).expect("ElementView index out of bounds")
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  §2 元素集 E 提取（从 classifier levels + RMove::Compose 塔，真嵌套父子）
 // ════════════════════════════════════════════════════════════════════════════
@@ -426,18 +517,16 @@ pub fn ancestors(elements: &[CoverageElement], e_idx: usize) -> Vec<usize> {
 ///
 /// 树深有限 ⟹ 链有限，无 fuel 需要。环不可能——parent_id 严格指向更高级别（`push_element_tree`
 /// 父 level > 子 level，descend 级别严格递减保证）。
-pub fn ancestors_by_id(elements: &[CoverageElement], e_idx: usize) -> Vec<ElementId> {
+fn ancestors_by_id(
+    elements: &ElementView,
+    e_idx: usize,
+    id_to_idx: &std::collections::HashMap<ElementId, usize>,
+) -> Vec<ElementId> {
     let mut chain = Vec::new();
     let mut cur = elements.get(e_idx).and_then(|e| e.parent_id);
-    // 建一次 id→idx 索引（链上溯需按 parent_id 反查元素）。
-    let id_to_idx: std::collections::HashMap<ElementId, usize> = elements
-        .iter()
-        .enumerate()
-        .map(|(i, e)| (e.id, i))
-        .collect();
     while let Some(pid) = cur {
         chain.push(pid);
-        // 按 parent_id 查下一级祖先（parent_id 指向的元素的 parent_id）。
+        // 按 parent_id 查下一级祖先（parent_id 指向的元素的 parent_id）。索引复用调用方预建表（H6）。
         cur = id_to_idx.get(&pid).and_then(|&pidx| elements.get(pidx).and_then(|e| e.parent_id));
     }
     chain
@@ -495,14 +584,17 @@ fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
 /// ★与 [`ancestor_close`] 的区别：[`ancestor_close`] 按 `parent: Option<usize>` 索引链（§3 Lean
 /// M16 原语），本函数按 `parent_id: Option<ElementId>` 结构映射链（§13 生产）。两者在单 bar 内
 /// 元素集上等价（parent 索引与 parent_id 一一对应），但本函数的判据跨 bar 稳定（ID 确定性）。
-fn ancestor_close_by_id(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
+fn ancestor_close_by_id(elements: &ElementView, raw: &[usize]) -> Vec<usize> {
     // raw_ids：raw 中元素的 id 集合（结构映射判据）。
     let raw_ids: std::collections::HashSet<ElementId> =
         raw.iter().filter_map(|&i| elements.get(i).map(|e| e.id)).collect();
+    // ponytail: id→idx 索引建一次（旧版 ancestors_by_id 内每元素 rebuild O(n)，raw×n=O(n²)）。
+    let id_to_idx: std::collections::HashMap<ElementId, usize> =
+        elements.iter().enumerate().map(|(i, e)| (e.id, i)).collect();
     raw.iter()
         .copied()
         .filter(|&e_idx| {
-            ancestors_by_id(elements, e_idx)
+            ancestors_by_id(elements, e_idx, &id_to_idx)
                 .iter()
                 .all(|a| raw_ids.contains(a))
         })
@@ -684,8 +776,8 @@ pub fn build_prev_sibling_index(
 
 /// ponytail: H5 带预建索引的 operation_role 变体——热循环（strategy_target_legs）单次建索引、
 /// 多次查，消除每元素 O(e_idx) 线性扫。bit-exact == operation_role（同 prev 判定逻辑）。
-pub fn operation_role_indexed(
-    elements: &[CoverageElement],
+pub(crate) fn operation_role_indexed(
+    elements: &ElementView,
     e_idx: usize,
     sibling_idx: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
 ) -> OperationRole {
@@ -825,7 +917,8 @@ pub fn leg_target(
     config: &VoiceConfig,
 ) -> LegTarget {
     let e = &elements[e_idx];
-    let depth = element_depth(elements, e_idx);
+    // element_depth 现接 ElementView（双段）；非 indexed 简单版包 base-only view（overlay 空，零拷贝）。
+    let depth = element_depth(&ElementView::new(elements), e_idx);
     let w = depth_weight(depth, config);
     let role = operation_role(elements, e_idx);
     LegTarget {
@@ -839,7 +932,7 @@ pub fn leg_target(
 /// ponytail: H5 带预建索引的 leg_target 变体——热循环 strategy_target_legs 单次建索引、多次查。
 /// bit-exact == leg_target（role 经 operation_role_indexed 同逻辑）。
 fn leg_target_indexed(
-    elements: &[CoverageElement],
+    elements: &ElementView,
     e_idx: usize,
     base_units: f64,
     config: &VoiceConfig,
@@ -858,8 +951,15 @@ fn leg_target_indexed(
 }
 
 /// 元素的真嵌套深度（沿 parent 链长度，根=0；铁律：真父子，非级别差）。
-fn element_depth(elements: &[CoverageElement], e_idx: usize) -> u32 {
-    ancestors(elements, e_idx).len() as u32
+/// parent（usize 索引）指向 base 段 carrier（< candidate_start ≤ base.len），链全在 base，bit-exact == ancestors().len()。
+fn element_depth(elements: &ElementView, e_idx: usize) -> u32 {
+    let mut depth = 0u32;
+    let mut cur = elements.get(e_idx).and_then(|e| e.parent);
+    while let Some(p) = cur {
+        depth += 1;
+        cur = elements.get(p).and_then(|e| e.parent);
+    }
+    depth
 }
 
 /// **全定义策略目标头寸腿集 `q̄_Θ = LegTarget(AncOK[(A∖D)∪B])`**（M28 §十三 总形式）。
@@ -867,15 +967,17 @@ fn element_depth(elements: &[CoverageElement], e_idx: usize) -> u32 {
 /// 对祖先闭合活动集 `active`（A_{t+1}）中**每个元素**生成 [`leg_target`]，得目标头寸腿列表
 /// （= 分账本目标头寸 q̄_Θ 的腿分解，对齐 `SeparateStrategyTarget.strategyTargetLegs` + M28）。
 /// 每条腿带 `(ν(e), ε_e, s_e, role)`，多空独立坐标（分账本 C25），净额抵消在 [`net_target_units`]。
-pub fn strategy_target_legs(
-    elements: &[CoverageElement],
+pub(crate) fn strategy_target_legs(
+    elements: &ElementView,
     active: &[usize],
     base_units: f64,
     config: &VoiceConfig,
 ) -> Vec<LegTarget> {
     // ponytail: H5 单次建 (parent,level)→last_idx 索引，每元素 O(1) 查前兄弟（消除 O(e_idx) 线性扫）。
     // bit-exact：operation_role_indexed == operation_role（同 prev 判定）⟹ leg_target_indexed == leg_target。
-    let sibling_idx = build_prev_sibling_index(elements);
+    // build_prev_sibling_index 仍接 slice：as_contiguous overlay 空借 base 零拷贝（常态），restore 罕触发 materialize。
+    let contiguous = elements.as_contiguous();
+    let sibling_idx = build_prev_sibling_index(contiguous.as_ref());
     active
         .iter()
         .map(|&e_idx| leg_target_indexed(elements, e_idx, base_units, config, &sibling_idx))
@@ -1116,7 +1218,7 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 /// 递归上溯 structural_parent_id 链，遇到已在 raw 中的祖先停止（闭包满足）。
 /// ponytail: ceiling=增量 extract_elements 时 confirmed prefix 已含全部祖先，无需恢复。
 fn restore_ancestor_chain_from_registry(
-    work: &mut Vec<CoverageElement>,
+    work: &mut ElementView,
     raw: &mut Vec<usize>,
     registry: &super::persistent::PersistentRegistry,
     start_pid: super::classifier::recursive_tower::ElementId,
@@ -1159,24 +1261,27 @@ fn restore_ancestor_chain_from_registry(
     }
 }
 
-pub fn coverage_step_from_buckets(
-    elements: &[CoverageElement],
-    candidate_start: usize,
+pub(crate) fn coverage_step_from_buckets(
+    mut work: ElementView,
     prev_active: &[ActiveLeg],
     buckets: &Buckets,
     base_units: f64,
     config: &VoiceConfig,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
-    // 工作副本（immutable：不 mutate 入参；不在当前因果树的持仓腿追加为根）。
-    let mut work: Vec<CoverageElement> = elements.to_vec();
+    // ★热点② O(n²) 消除：work = ElementView{base=持久树前缀借用零拷贝, overlay=本 bar candidate 段}。
+    // 旧 `elements.to_vec()` + 上游 `tree.clone()` 每 bar O(tree)×n=O(n²) 双双消除（base 借 Rc 树，
+    // candidate 在 overlay）。restore 路径继续 push overlay 尾（绝大多数 bar 不触发）。
+    // candidate_start = base 段长（candidate 从此起，在 overlay）。
+    let candidate_start = work.base_len();
     let mut raw: Vec<usize> = Vec::new();
 
     // ponytail: H6 单次建 tree 前缀 ElementId→idx 索引——tree 前缀在持仓腿对位期间不变
     //（Stale 追加在 candidate_start 之后，不污染 tree 前缀）⟹ 建一次、多次查 O(1)。
     // codex Q4：按 ElementId 结构映射查表（spec §13），替代旧 (level,ρ,eps)/(level,λ,eps) 值比较。
+    // tree_prefix(tree_end) **借用 base**（candidate_start ≤ base.len()）⟹ build_tree_id_index 不 to_vec。
     let tree_end = candidate_start.min(work.len());
-    let id_idx = build_tree_id_index(&work[..tree_end]);
+    let id_idx = build_tree_id_index(work.tree_prefix(tree_end));
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -1185,8 +1290,8 @@ pub fn coverage_step_from_buckets(
         if closed.contains(&i) {
             continue; // 𝒟_x：本腿关闭，不入 A^raw
         }
-        // tree_end 固定 + Stale 追加在 tree_end 之后 ⟹ work[..tree_end] 内容不变；每轮重借（NLL）。
-        let m = held_leg_tree_index_indexed(&work[..tree_end], leg, &id_idx);
+        // tree_end 固定 + Stale 追加在 overlay（tree_end 之后）⟹ base 前缀内容不变；每轮重借（NLL）。
+        let m = held_leg_tree_index_indexed(work.tree_prefix(tree_end), leg, &id_idx);
         match m {
             // Exact（ID 命中=同一走势，父延伸也同 ID）：对位回当前树元素 idx（携真父链）⟹
             // 其子声部腿的 AncOK 祖先齐全。
@@ -1376,18 +1481,18 @@ pub fn coverage_step_classification(
     // H2 优化：单次建树产 (elements, candidate_start) + gamma——消除旧版每 bar 双调
     // extract_elements(tower) 的冗余（coverage_elements_with_tower + assemble_gamma_with_tower
     // 各建树一次，第二次纯重复）。bit-exact：同 (classification, tower) 同一建树输出。
-    let ((elements, candidate_start), gamma) =
+    let (tree, candidates, gamma) =
         interp::coverage_elements_and_gamma_with_tower(classification, tower);
-    coverage_step_prebuilt(&elements, candidate_start, &gamma, prev_active, base_units, config, registry)
+    let work = ElementView::from_parts(&tree, candidates);
+    coverage_step_prebuilt(work, &gamma, prev_active, base_units, config, registry)
 }
 
 /// **工位 K 性能：环5+环6 用预建 `(elements, candidate_start, gamma)`**（消除 runner per-bar
 /// 双调 `coverage_elements_and_gamma_with_tower`——一次 `pi_theta_step` + 一次 merge 的 elements，
 /// 现共享同一预建产物）。bit-exact == [`coverage_step_classification`]：同 elements/gamma 同 interpret
 /// 同 AncOK。**不改 AncOK 准入逻辑**（[`coverage_step_from_buckets`] 原样），仅消除重复建树。
-pub fn coverage_step_prebuilt(
-    elements: &[CoverageElement],
-    candidate_start: usize,
+pub(crate) fn coverage_step_prebuilt(
+    work: ElementView,
     gamma: &[Candidate],
     prev_active: &[ActiveLeg],
     base_units: f64,
@@ -1397,7 +1502,7 @@ pub fn coverage_step_prebuilt(
     // 环5：解释器三桶（𝒟_x 反向关闭喂 prev_active）。
     let buckets = interp::interpret(gamma, prev_active);
     // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ShortDiff 未持父则剔除，639(c)）。
-    coverage_step_from_buckets(elements, candidate_start, prev_active, &buckets, base_units, config, registry)
+    coverage_step_from_buckets(work, prev_active, &buckets, base_units, config, registry)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1735,8 +1840,7 @@ pub fn pi_theta_step(
 /// 预建产物——消除 per-bar 双调建树 + 跨 bar 全前缀重建 O(confirmed)）。
 #[allow(clippy::too_many_arguments)]
 pub fn pi_theta_step_prebuilt(
-    elements: &[CoverageElement],
-    candidate_start: usize,
+    work: ElementView,
     gamma: &[Candidate],
     prev_active: &[ActiveLeg],
     p_t: f64,
@@ -1749,7 +1853,7 @@ pub fn pi_theta_step_prebuilt(
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64, Order) {
     let (next_active, p_tilde) =
-        coverage_step_prebuilt(elements, candidate_start, gamma, prev_active, base_units, config, registry);
+        coverage_step_prebuilt(work, gamma, prev_active, base_units, config, registry);
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
     (next_active, p_star, order)
@@ -2192,6 +2296,13 @@ mod tests {
         v
     }
 
+    /// ★O(n²) 重构测试适配：把旧 `(elements, candidate_start)` 拆成 ElementView 双段
+    /// （base=tree 前缀 elements[..cstart]，overlay=candidate 段 elements[cstart..]）。
+    /// bit-exact == 旧合并 Vec：索引语义不变（base 在前 overlay 在后）。
+    fn view_split(elements: &[CoverageElement], cstart: usize) -> ElementView {
+        ElementView::from_parts(&elements[..cstart], elements[cstart..].to_vec())
+    }
+
     /// L0 卖买卖点（src=si；host 右端点 ρ=si；pivot 远离 ⟹ 止损不触及）。
     fn sell_bsp(si: usize) -> BspPoint {
         BspPoint {
@@ -2223,7 +2334,7 @@ mod tests {
             open: vec![cand(0, 5, VoiceSide::Long, 0)],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 1, "ℬ_x 开启 ⟹ A_{{t+1}} 一条新腿");
         assert_eq!(active[0], aleg(0, VoiceSide::Long, 5, 5 ));
         // p̃ = 1000×w_depth(0)=1000×0.60=600（根 depth 0，多腿正号）。
@@ -2240,7 +2351,7 @@ mod tests {
             open: vec![],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[leg], &buckets, 1000.0, &cfg(), &reg);
         assert!(active.is_empty(), "𝒟_x 关闭活动腿 ⟹ A_{{t+1}} 空");
         assert_eq!(p, 0.0, "无活动腿 ⟹ p̃=0");
     }
@@ -2257,7 +2368,7 @@ mod tests {
             ],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 2);
         // 两腿同根 depth 0（w[0]=0.60）：Long +600，Short −600 ⟹ 净 0。
         assert!(p.abs() < 1e-9, "p̃ = +600 −600 = 0（方向净额聚合）");
@@ -2274,7 +2385,7 @@ mod tests {
             open: vec![cand(0, 9, VoiceSide::Long, 0)],  // 开 candC（level 0 Long）
             record: vec![],
         };
-        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg_a, leg_b], &buckets, 1000.0, &cfg(), &reg);
+        let (active, _p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[leg_a, leg_b], &buckets, 1000.0, &cfg(), &reg);
         assert!(!active.contains(&leg_a), "legA 被 𝒟_x 关闭");
         assert!(active.contains(&leg_b), "legB（不在 𝒟_x）保留");
         assert!(
@@ -2295,7 +2406,7 @@ mod tests {
             aleg(2, VoiceSide::Short, 2, 2 ),
         ];
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
-        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &legs, &buckets, 1000.0, &cfg(), &reg);
+        let (active, _p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &legs, &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 3, "扁平根全保留（AncOK 恒等——无父子可剔孤儿）");
         let reg = super::super::persistent::PersistentRegistry::new();
     }
@@ -2311,7 +2422,7 @@ mod tests {
             open: vec![cand(1, 3, VoiceSide::Short, 0)],
             record: vec![],
         };
-        let _ = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &prev, &buckets, 1000.0, &cfg(), &reg);
+        let _ = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &prev, &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(prev, snapshot, "桶驱动递归不 mutate prev_active（纯函数）");
     }
 
@@ -2324,7 +2435,7 @@ mod tests {
             open: vec![],
             record: vec![cand(0, 7, VoiceSide::Long, 0)], // 𝒦_x：记录不执行
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
         assert!(active.is_empty(), "𝒦_x 不入活动集");
         assert_eq!(p, 0.0);
     }
@@ -2334,7 +2445,7 @@ mod tests {
     fn buckets_empty_yields_empty_and_zero() {
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
         let reg = super::super::persistent::PersistentRegistry::new();
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
         assert!(active.is_empty());
         assert_eq!(p, 0.0);
     }
@@ -2419,7 +2530,7 @@ mod tests {
         let buckets = interpret(&gamma, &[held_parent]);
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "持父仓 ⟹ ShortDiff 子腿准入（AncOK 祖先齐全）；实得 {active:?}"
@@ -2460,7 +2571,7 @@ mod tests {
         let buckets = interpret(&gamma, &[held_parent]);
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "ID 匹配（确定性 ElementId）⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入（Q4 假阴性消除）；实得 {active:?}"
@@ -2497,7 +2608,7 @@ mod tests {
             "候选携非空真 Compose 父指针（AncOK 剪枝的前提是父存在但未持，非父=None）"
         );
         let reg = super::super::persistent::PersistentRegistry::new();
-        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&elements, cstart), &[], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             active.is_empty(),
             "未持父 ⟹ ShortDiff 子腿被 AncOK 剪枝（639(c)：不开 naked 逆势仓）；实得 {active:?}"
@@ -2518,7 +2629,7 @@ mod tests {
         let gamma = assemble_gamma_with_tower(&classification, &tower);
         assert_eq!(gamma[0].role.v, Vertical::Ambient, "缺塔 ⟹ 候选父=∂ ⟹ Ambient 根");
         let buckets = interpret(&gamma, &[]); // 空持仓
-        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&elements, cstart), &[], &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 1, "Ambient 根腿无父要求 ⟹ 空持仓也准入");
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert!((p - 600.0).abs() < 1e-9, "根 depth 0 ⟹ p̃=base×w[0]=600");
@@ -2552,7 +2663,7 @@ mod tests {
         assert!(buckets.close.iter().any(|l| l.level == 1), "L1 卖反向关闭 L1 Long 父腿（𝒟_x）");
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             !active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "父腿同 bar 关闭 ⟹ ShortDiff 子腿连带剪枝（覆盖不漂浮）；实得 {active:?}"
@@ -2749,7 +2860,7 @@ mod tests {
     fn restore_reuses_existing_work_idx_no_duplicate_id() {
         let carrier = eid(1, 0);
         // work 树前缀已含 carrier（如跨 bar 持仓的父声部走势对位回当前树）。
-        let mut work = vec![CoverageElement {
+        let base = vec![CoverageElement {
             lambda: 0,
             rho: 12,
             eps: VoiceSide::Short,
@@ -2759,14 +2870,14 @@ mod tests {
             id: carrier,
             parent_id: None,
         }];
+        let mut work = ElementView::new(&base);
         let mut raw: Vec<usize> = Vec::new();
         // registry 持有同一 carrier id（LiveDetached：snapshot_present 经下一 bar 增量重置为 false）。
-        let snap = work.clone();
-        let reg = super::super::persistent::PersistentRegistry::new().merge(&snap, &[]);
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&base, &[]);
 
         restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier);
 
-        assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]）");
+        assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]，overlay 空）");
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
         let dup = raw.iter().filter(|&&r| work[r].id == carrier).count();
         assert_eq!(dup, 1, "carrier 在 raw 中须唯一表示（双计根因守卫）");
@@ -2820,7 +2931,7 @@ mod tests {
         let buckets = interpret(&gamma, &[stale_non_root]);
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, p) =
-            coverage_step_from_buckets(&elements, cstart, &[stale_non_root], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[stale_non_root], &buckets, 1000.0, &cfg(), &reg);
         // Stale 非边界根 ⟹ prune（不入 raw）⟹ 不在 A_{t+1}。
         assert!(
             !active.iter().any(|l| l.id == eid(99, 99)),

@@ -281,10 +281,13 @@ pub fn coverage_elements_with_tower(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
 ) -> (Vec<CoverageElement>, usize) {
-    // H2 优化：委托 [`coverage_elements_and_gamma_with_tower`]（单次建树，无 tree.clone()），
-    // 丢弃 gamma 仅返 (elements, candidate_start)。bit-exact == 旧版（同 extract_elements 输出）。
-    let ((elements, candidate_start), _gamma) =
+    // 委托 parts 版后合并成连续 Vec（tree ++ candidates）——非热路径（诊断/l3_fullwindow），
+    // materialize 一次可接受。bit-exact == 旧版（同 extract_elements tree + 同候选序）。
+    let (tree, candidates, _gamma) =
         coverage_elements_and_gamma_with_tower(classification, tower);
+    let candidate_start = tree.len();
+    let mut elements = (*tree).clone();
+    elements.extend(candidates);
     (elements, candidate_start)
 }
 
@@ -305,9 +308,8 @@ pub fn assemble_gamma_with_tower(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
 ) -> Vec<Candidate> {
-    // H2 优化：委托 [`coverage_elements_and_gamma_with_tower`]（单次建树），丢弃 elements 仅返 gamma。
-    // bit-exact == 旧版（同 extract_elements 输出 + 同候选序）。
-    let (_elements_and_start, gamma) =
+    // 委托 parts 版，丢弃 tree/candidates 仅返 gamma。bit-exact == 旧版（同候选序 + role）。
+    let (_tree, _candidates, gamma) =
         coverage_elements_and_gamma_with_tower(classification, tower);
     gamma
 }
@@ -323,7 +325,7 @@ pub fn assemble_gamma_with_tower(
 pub fn coverage_elements_and_gamma_with_tower(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
-) -> ((Vec<CoverageElement>, usize), Vec<Candidate>) {
+) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
     coverage_elements_and_gamma_with_tower_cached(classification, tower, &mut None)
 }
 
@@ -419,7 +421,9 @@ impl TreeKey {
 #[derive(Default)]
 pub struct TreeCache {
     key: TreeKey,
-    tree: Vec<CoverageElement>,
+    /// ★热点② O(n²) 消除：`Rc` 共享缓存树（命中返 `Rc::clone` O(1)，旧 `Vec` clone O(tree)/bar=O(n²)）。
+    /// candidate 不再 append 进树 clone，由消费者 [`coverage::ElementView`] overlay 承载（双段视图）。
+    tree: Rc<Vec<CoverageElement>>,
     valid: bool,
 }
 
@@ -437,50 +441,49 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
-) -> ((Vec<CoverageElement>, usize), Vec<Candidate>) {
-    // 真嵌套元素树（单 Vec，无 tree.clone()——前缀=tree，候选尾部 append）。缓存命中则复用。
-    let mut elements: Vec<CoverageElement> = match cache {
+) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
+    // ★热点② O(n²) 消除：树前缀 `Rc` 共享（命中返 `Rc::clone` O(1)，旧 `tree.clone()` O(tree)/bar=O(n²)）。
+    // candidate 段不再 append 进树 clone，单独 `candidates` Vec 返回（消费者 ElementView 双段视图组装）。
+    let tree: Rc<Vec<CoverageElement>> = match cache {
         Some(c) => {
             let key = TreeKey::of(tower);
             if c.valid && c.key == key {
                 // bit-exact 守卫（debug/test）：缓存命中必与全量 extract_elements 逐字节相等（§16 + 实测 0 假命中）。
-                debug_assert_eq!(c.tree, coverage::extract_elements(tower),
+                debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
                     "TreeCache 假命中——§16 不变量破裂或 TreeKey 不 sound");
-                c.tree.clone() // O(tree)：candidate append 须 mutate 尾部，故 clone 缓存前缀
+                Rc::clone(&c.tree) // O(1)：引用计数共享，不拷贝元素
             } else {
-                let t = coverage::extract_elements(tower);
+                c.tree = Rc::new(coverage::extract_elements(tower));
                 c.key = key;
-                c.tree = t.clone();
                 c.valid = true;
-                t
+                Rc::clone(&c.tree)
             }
         }
-        None => coverage::extract_elements(tower),
+        None => Rc::new(coverage::extract_elements(tower)),
     };
-    let candidate_start = elements.len();
-    let mut gamma: Vec<Candidate> = Vec::new();
-    // ponytail: H7 单次建 tree 前缀 (level,ρ)→idx 索引——tree 前缀在候选 append 期间不变 ⟹ 建一次。
-    // bit-exact：ρ 同级唯一 ⟹ (level,ρ) 唯一命中 == 旧 attach_bsp_to_tree .find() 首个。
-    let tree_endpoint_idx = coverage::build_tree_endpoint_index(&elements[..candidate_start]);
-    // ponytail: H5 维护 (parent,level)→idx 列表——每 push 一个候选后 append，operation_role_indexed
-    // 二分查 < ci 的最大 idx（最近前兄弟）。bit-exact：列表升序 ⟹ partition_point == 旧 .rev().find() 首个。
+    let candidate_start = tree.len();
+    // ponytail: H7 单次建 tree 前缀 (level,ρ)→idx 索引——tree 前缀不变 ⟹ 建一次。
+    let tree_endpoint_idx = coverage::build_tree_endpoint_index(&tree);
+    // ponytail: H5 维护 (parent,level)→idx 列表（全局 idx）——遍历1 push 候选后 append。
     let mut sibling_idx: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
-        coverage::build_prev_sibling_index(&elements[..candidate_start]);
-    // ci 沿候选追加序遍历 elements 的候选段（与 coverage_elements_with_tower 同 level×bsp 序）。
+        coverage::build_prev_sibling_index(&tree);
+
+    // ── 遍历1：构建 candidate 段（parent/id/parent_id 只读 tree 前缀，无需 candidate 段连续）。 ──
+    let mut candidates: Vec<CoverageElement> = Vec::new();
+    let mut gamma: Vec<Candidate> = Vec::new();
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
         for point in &level.bsp {
             let dir = candidate_dir(&point.bits);
-            // hostOf 查表只读 tree 前缀（elements[..candidate_start]，候选 append 期间不变）。
-            // ★工位 H（级别容器.pdf §13）：取 carrier 容器自身 id（hostOf(g)），非买卖点叶子新 ordinal。
+            // hostOf 查表只读 tree 前缀（候选 append 期间不变）。
             let (parent, attached_dir, carrier_id) = coverage::attach_bsp_carrier_indexed(
                 &tree_endpoint_idx,
-                &elements[..candidate_start],
+                &tree,
                 lvl,
                 point.source_index,
             );
-            elements.push(CoverageElement {
+            candidates.push(CoverageElement {
                 lambda: point.source_index,
                 rho: point.source_index,
                 eps: match dir {
@@ -490,38 +493,43 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
                 level: lvl,
                 parent,
                 attached_dir,
-                // ★工位 H 修复（级别容器.pdf §13/§14，否定 codex Q4 的叶子 ordinal id）：
-                // 开仓激活的位置节点身份 = **carrier 容器 hostOf(g) 的 ElementId**（不是买卖点叶子的
-                // 新 ordinal）。PDF §6/§7 反证：叶子作持仓 ⟹ a_carrier=0 ⟹ 子声部 a_u≤a_carrier=0 永剪。
-                // carrier id 跨 bar 稳定 ⟹ 同一 carrier 上的位置节点跨 bar 对位（§9.1 par_C 匹配）⟹
-                // 子声部的 parent_id（= par_C(carrier)）能命中持仓父位置节点 ⟹ depth>0 准入。
-                // 退化：缺塔/host 是根（carrier_id=None）⟹ 回退叶子 ordinal id（边界胚元 ∂，无 carrier）。
-                // ★简化（PDF §14，标注非伪证）：同 carrier 同 bar 多买卖点共享 id（损失 entry-level
-                // 区分）；严格 position instance（hash(carrier,entry,side,gen)）= §H ceiling。
+                // ★工位 H（级别容器.pdf §13/§14）：carrier 容器 hostOf(g) id（非叶子 ordinal）。
+                // 退化：carrier_id=None ⟹ 叶子 ordinal id（边界胚元 ∂）。同 carrier 同 bar 多 bsp 共享 id（§14 简化）。
                 id: carrier_id.unwrap_or(ElementId { level: lvl, ordinal: ci as u64 }),
-                // parent_id = carrier 的父容器 id（= hostOf(g).parent.id，par_C(κ(u))；§9.1 父声部 carrier）。
-                parent_id: parent.and_then(|pidx| {
-                    elements.get(pidx).map(|e: &CoverageElement| e.id)
-                }),
+                // parent_id = carrier 父容器 id（par_C(κ(u))，§9.1）；parent 指 tree 前缀 idx，读 tree。
+                parent_id: parent.and_then(|pidx| tree.get(pidx).map(|e: &CoverageElement| e.id)),
             });
-            // H5：push 后把当前候选 idx 追加到 sibling_idx（列表升序，二分查 < ci 的最大 idx）。
+            // H5：push 后把当前候选全局 idx 追加 sibling_idx（升序，二分查 < ci 的最大 idx）。
             sibling_idx.entry((parent, lvl)).or_default().push(ci);
+            ci += 1;
+        }
+    }
+
+    // ── 遍历2：算 role（用完整 ElementView{base=tree, overlay=candidates}——前兄弟可能在 tree 或
+    //    candidate 段，需双段连续访问；零拷贝借 tree_rc + candidates）。bit-exact == 旧单遍：
+    //    operation_role_indexed 仅读 elements[ci]/elements[前兄弟]，与 push 序无关，两遍同结果。 ──
+    let view = coverage::ElementView::from_parts(&tree, candidates);
+    let mut ci = candidate_start;
+    for (level_idx, level) in classification.levels.iter().enumerate() {
+        let lvl = level_idx as u32;
+        for point in &level.bsp {
+            let dir = candidate_dir(&point.bits);
             gamma.push(Candidate {
                 level: lvl,
                 source_index: point.source_index,
                 bits: point.bits,
                 dir,
                 bsp_class: min_class(&point.bits, dir),
-                // ponytail: H5 用 sibling_idx O(1) 查前兄弟（替代 operation_role 的 O(ci) 线性扫）。
-                // bit-exact：operation_role_indexed == operation_role（同 prev 判定）。
-                role: coverage::operation_role_indexed(&elements, ci, &sibling_idx),
+                role: coverage::operation_role_indexed(&view, ci, &sibling_idx),
                 nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
                 gamma_index: gamma.len(),
             });
             ci += 1;
         }
     }
-    ((elements, candidate_start), gamma)
+    // 取回 candidates（view drop，tree_rc 仍 Rc owned 返回）。
+    let candidates = view.into_overlay();
+    (tree, candidates, gamma)
 }
 // ponytail: ceiling = 跨 bar 复用 extract_elements 前缀。tower.levels[k].upper_moves 前缀不可变
 // （TowerCache 不变量），但 extract_elements 从最高非空级建根——当更高级新出现时根结构重构
@@ -1190,13 +1198,13 @@ mod tests {
         for i in 0..n {
             let l0 = parser::parse_layer(&oos.bars[..=i], &config);
             let (cls, tower) = classifier::classify_with_tower(&l0, &config);
-            // cached 路径（带 TreeCache，跨 bar 复用前缀）。
-            let ((cached_elems, _), _) =
+            // cached 路径（带 TreeCache，跨 bar 复用 Rc 树前缀）。
+            let (cached_tree, _candidates, _) =
                 coverage_elements_and_gamma_with_tower_cached(&cls, &tower, &mut Some(&mut cache));
             // nocache 路径（每 bar 全量 extract_elements）。
             let nocache_elems = coverage::extract_elements(&tower);
-            assert_eq!(cached_elems[..nocache_elems.len()], nocache_elems[..],
-                "bar {i}：cached extract_elements 前缀 ≠ nocache（TreeCache 假命中——陈旧树）");
+            assert_eq!(cached_tree[..], nocache_elems[..],
+                "bar {i}：cached Rc 树 ≠ nocache（TreeCache 假命中——陈旧树）");
             if cache.valid { hits += 1; }
         }
         eprintln!("bit_exact_per_bar：{n} bars 全部 cached==nocache，{hits} bars 缓存有效");
