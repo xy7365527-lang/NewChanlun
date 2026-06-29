@@ -121,6 +121,12 @@ pub struct ActiveLeg {
     /// `is_boundary_root=true` 的 Stale 腿作根保留（parent_id=None 合法）；
     /// `is_boundary_root=false` 的 Stale 腿被 prune（不入 raw，AncOK 严格 §13）。
     pub is_boundary_root: bool,
+    /// ★persistent overlay（anc.pdf §6）：操作父容器 op_parent(L)——入场时操作容器，持久。
+    /// 区分 pop(e)（操作父，开腿时用，驱动持仓生命周期）vs pstr_i(e)（结构父，当前 snapshot，可变）。
+    /// 更高级别涌现时 pstr 变，pop 不变 → 腿不 Stale（§6）。
+    /// `op_parent=None` = 无操作父（depth=0 ambient 腿）；`op_parent=Some(c)` = 入场时容器 c。
+    /// ponytail: ceiling=增量 extract_elements 时 op_parent 可从 confirmed prefix 直接取。
+    pub op_parent: Option<ElementId>,
 }
 
 /// 解释器输出三桶 (𝒟_x, ℬ_x, 𝒦_x)（spec §11 line 565-571 + §12 line 617）。
@@ -773,6 +779,7 @@ mod tests {
             id: ElementId { level, ordinal: source_index as u64 },
             parent_id: None,
             is_boundary_root: true,
+            op_parent: None,
         }
     }
 

@@ -289,6 +289,15 @@ struct DepthDiag {
     held_stale: u64,
     held_total: u64,
     bars_processed: u64,
+    // ★persistent overlay（anc.pdf §12）：三类 held 指标拆分。
+    /// held_snapshot_exact：snapshot 中找到的 held 腿（旧 held_exact，可能永远不高）。
+    held_snapshot_exact: u64,
+    /// held_registry_alive：persistent registry 中存活的 held 腿（目标≈100%，§12）。
+    held_registry_alive: u64,
+    /// held_operation_parent_alive：op_parent 在 registry 中存活的 depth>0 腿（§12）。
+    held_operation_parent_alive: u64,
+    /// LiveDetached 腿计数（persistent overlay 修复后保留的非 stale detached 腿）。
+    held_live_detached: u64,
 }
 
 fn elem_depth(elements: &[CoverageElement], idx: usize) -> u32 {
@@ -336,6 +345,7 @@ fn instrument_bar(
     prev_active: &[ActiveLeg],
     base_units: f64,
     cfg: &ThetaConfig,
+    registry: &super::super::strategy::persistent::PersistentRegistry,
 ) -> Vec<ActiveLeg> {
     let (next_active, _p_tilde) = coverage::coverage_step_classification(
         classification_i,
@@ -343,6 +353,7 @@ fn instrument_bar(
         prev_active,
         base_units,
         &cfg.voice,
+        registry,
     );
     let (elements, candidate_start) =
         interp::coverage_elements_with_tower(classification_i, tower_i);
@@ -391,6 +402,25 @@ fn instrument_bar(
             0 => diag.held_exact += 1,
             1 => diag.held_coord_drift += 1,
             _ => diag.held_stale += 1,
+        }
+        // ★persistent overlay（anc.pdf §12）：三类 held 指标拆分。
+        // held_snapshot_exact：snapshot 中找到（旧 held_exact，可能永远不高）。
+        if held_branch(&elements, candidate_start, leg) == 0 {
+            diag.held_snapshot_exact += 1;
+        }
+        // held_registry_alive：persistent registry 中存活（目标≈100%，§12）。
+        if registry.registry_live(&leg.id) {
+            diag.held_registry_alive += 1;
+            // LiveDetached：registry alive 但 snapshot 找不到。
+            if held_branch(&elements, candidate_start, leg) != 0 {
+                diag.held_live_detached += 1;
+            }
+        }
+        // held_operation_parent_alive：op_parent 在 registry 中存活的 depth>0 腿（§12）。
+        if let Some(op_pid) = leg.op_parent {
+            if registry.registry_live(&op_pid) {
+                diag.held_operation_parent_alive += 1;
+            }
         }
     }
 
@@ -481,6 +511,8 @@ fn instrument_loop(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> Dept
     let mut diag = DepthDiag::default();
     let mut prev_active: Vec<ActiveLeg> = Vec::new();
     let base_units = 1000.0_f64;
+    // ★persistent overlay（anc.pdf §4-§9）：跨 bar 持久元素注册表。
+    let mut registry = super::super::strategy::persistent::PersistentRegistry::new();
 
     for i in 0..bars.len() {
         let bar = &bars[i];
@@ -498,7 +530,12 @@ fn instrument_loop(bars: &[super::super::types::Bar], cfg: &ThetaConfig) -> Dept
             &prev_active,
             base_units,
             cfg,
+            &registry,
         );
+        // ★persistent overlay merge：Pi+1 = merge(Pi, Ei+1, held legs)。
+        let (elements_ref, _cstart) =
+            interp::coverage_elements_with_tower(&classification_i, &tower_i);
+        registry = registry.merge(&elements_ref, &prev_active);
     }
 
     diag
@@ -585,6 +622,12 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  held_exact (ρ未漂移)   : {}", diag.held_exact);
         eprintln!("  ★held_coord_drift     : {}  (ρ漂移=父延伸)", diag.held_coord_drift);
         eprintln!("  held_stale (父真失效)  : {}", diag.held_stale);
+        eprintln!();
+        eprintln!("  ── (5b) ★persistent overlay 指标（anc.pdf §12）──");
+        eprintln!("  held_snapshot_exact    : {}  (snapshot 中找到，可能永远不高)", diag.held_snapshot_exact);
+        eprintln!("  ★held_registry_alive  : {}  (目标≈100%——未显式关闭的腿)", diag.held_registry_alive);
+        eprintln!("  ★held_op_parent_alive  : {}  (depth>0 腿的 op_parent 在 registry 存活)", diag.held_operation_parent_alive);
+        eprintln!("  held_live_detached     : {}  (LiveDetached——修复后保留非 stale)", diag.held_live_detached);
         eprintln!("  [{:.1}s]", elapsed);
 
         eprintln!();

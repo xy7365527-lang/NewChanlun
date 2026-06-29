@@ -48,6 +48,11 @@ pub mod intent;
 pub mod ledger;
 /// 区间套递归证书 N^δ + Sel_Θ 固定选择器（对照 `Origin.IntervalNestCertificate`，L2-B 补全）。
 pub mod nest;
+/// **Persistent Element Layer Pi**（anc.pdf §4-§9 最小修复 = persistent overlay）。
+///
+/// 跨 bar 持久元素注册表——修复 Q4 "LiveDetached 误处理成 Stale" 导致 depth>0 腿被 AncOK 系统性剪掉。
+/// 不变量 I1-I5（anc.pdf §7）：持久身份 / 方向不变 / parent 是关系非身份 / 操作父持久 / AncOK 作用 persistent set。
+pub mod persistent;
 pub mod risk;
 pub mod voice;
 

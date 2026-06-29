@@ -986,6 +986,9 @@ fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
     // ρ=source_index（右端点，漂移）+ λ=lambda（左端点，稳定语义身份，持久身份对位用）。
     // ★codex Q4：携带 id/parent_id/is_boundary_root（跨 bar 稳定身份，spec §13 结构映射）。
     // is_boundary_root = parent_id.is_none()（真边界胚元 ∂ 根）。
+    // ★persistent overlay（anc.pdf §6）：op_parent = 入场时 parent_id（操作父，持久）。
+    // 新开腿 op_parent=当前 parent_id（入场容器）；后续 bar parent_id 可变（结构父 pstr），
+    // op_parent 不变 → 腿不因结构父变化而 Stale（§6）。
     ActiveLeg {
         level: e.level,
         dir: e.eps,
@@ -994,6 +997,7 @@ fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
         id: e.id,
         parent_id: e.parent_id,
         is_boundary_root: e.parent_id.is_none(),
+        op_parent: e.parent_id,
     }
 }
 
@@ -1073,6 +1077,51 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 /// >   `root_element_as_leg`（平铺全根错路径，no-patch 不留 fallback）；新增 [`held_leg_tree_index`]/
 /// >   [`element_as_leg`]；复用 [`close_indices`]/[`ancestor_close`]/[`strategy_target_legs`]/
 /// >   [`net_target_units`]；不改 σ_p 来源（assemble_gamma_with_tower）/interp.rs/mod.rs。
+
+/// ★persistent overlay（anc.pdf §11 归纳）：从 registry 递归恢复操作祖先链。
+///
+/// LiveDetached 腿的 op_parent 及其祖先（沿 structural_parent_id 链）若不在 raw 中，
+/// 从 persistent registry 恢复加入 work/raw。这使 ancestor_close_by_id 通过（I5：
+/// AncOK 作用 persistent active set）。
+///
+/// §11 归纳证明：每条未关闭腿的操作父 live ⟹ 所有 depth<d 腿通过 persistent AncOK。
+/// 递归上溯 structural_parent_id 链，遇到已在 raw 中的祖先停止（闭包满足）。
+/// ponytail: ceiling=增量 extract_elements 时 confirmed prefix 已含全部祖先，无需恢复。
+fn restore_ancestor_chain_from_registry(
+    work: &mut Vec<CoverageElement>,
+    raw: &mut Vec<usize>,
+    registry: &super::persistent::PersistentRegistry,
+    start_pid: super::classifier::recursive_tower::ElementId,
+) {
+    let mut cur = Some(start_pid);
+    while let Some(pid) = cur {
+        // 已在 raw 中？⟹ 闭包满足，停止递归。
+        let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
+        if already_in_raw {
+            break;
+        }
+        // 从 registry 取元素。
+        let pe = match registry.get(&pid) {
+            Some(e) if !e.invalidated => e,
+            _ => break, // registry 无效或已作废 ⟹ 停止（不再恢复祖先）
+        };
+        let parent_pid = pe.structural_parent_id;
+        let op_idx = work.len();
+        work.push(CoverageElement {
+            lambda: pe.lambda,
+            rho: pe.rho,
+            eps: pe.dir,
+            level: pe.level,
+            parent: None,
+            attached_dir: None,
+            id: pe.pid,
+            parent_id: pe.structural_parent_id,
+        });
+        raw.push(op_idx);
+        cur = parent_pid; // 上溯祖先链
+    }
+}
+
 pub fn coverage_step_from_buckets(
     elements: &[CoverageElement],
     candidate_start: usize,
@@ -1080,6 +1129,7 @@ pub fn coverage_step_from_buckets(
     buckets: &Buckets,
     base_units: f64,
     config: &VoiceConfig,
+    registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
     // 工作副本（immutable：不 mutate 入参；不在当前因果树的持仓腿追加为根）。
     let mut work: Vec<CoverageElement> = elements.to_vec();
@@ -1108,26 +1158,73 @@ pub fn coverage_step_from_buckets(
                     raw.push(idx);
                 }
             }
-            // Stale（ID 未匹配=父真失效）：★codex Q4 发现 A 修复——不伪造 parent:None（AncOK 放宽）。
-            // 按 is_boundary_root 决定：真边界根 ∂ 作根保留；非边界根 prune（不入 raw，AncOK 严格 §13）。
+            // Stale（snapshot 找不到）：★persistent overlay 修复（anc.pdf §8/§10）。
+            // Stale(L) ⟺ pid(e)∉Pj or explicit invalidation（非 pid(e)∉Ej）。
+            // e∉Ej 只是 snapshot_present(e)=0，不是 persistent_alive(e)=0（§8）。
+            // 检查 persistent registry：LiveDetached 保留（op_parent 持久，I4+I5），Invalidated 才 prune。
             HeldLegMatch::Stale => {
-                if leg.is_boundary_root {
-                    // 真边界根 ∂：作根保留（parent_id=None 合法，AncOK 不剔）。
-                    let idx = work.len();
-                    work.push(CoverageElement {
-                        lambda: leg.lambda,
-                        rho: leg.source_index,
-                        eps: leg.dir,
-                        level: leg.level,
-                        parent: None,
-                        attached_dir: None,
-                        id: leg.id,
-                        parent_id: None,
-                    });
-                    raw.push(idx);
-                } else {
-                    // 非边界根但父未解析 → prune（不入 raw，AncOK 严格 §13 line 671）。
-                    // 不 push 到 work，不入 raw——spec §13 硬约束"子级短差腿存在 ⟹ 父容器存在"。
+                let held_state = registry.held_state(leg);
+                match held_state {
+                    super::persistent::HeldLegState::LivePresent => {
+                        // 理论不可达（Exact 未命中但 registry LivePresent = snapshot 不一致）；
+                        // 按持久身份保留（I1），op_parent 驱动 AncOK。
+                        let idx = work.len();
+                        work.push(CoverageElement {
+                            lambda: leg.lambda,
+                            rho: leg.source_index,
+                            eps: leg.dir,
+                            level: leg.level,
+                            parent: None,
+                            attached_dir: None,
+                            id: leg.id,
+                            parent_id: leg.op_parent,
+                        });
+                        raw.push(idx);
+                    }
+                    super::persistent::HeldLegState::LiveDetached => {
+                        // ★anc.pdf §10 核心修复：LiveDetached 不 prune，不伪造 root。
+                        // parent 仍是 op_parent(L)（§15），只是当前 snapshot 没展示。
+                        // op_parent 在 persistent registry 中 live（I4）→ AncOK 通过（I5）。
+                        // ★I5 + §11 归纳：从 registry 递归恢复整条操作祖先链（op_parent 及其祖先），
+                        // 全部加入 work/raw，使 ancestor_close_by_id 通过（§11：每条未关闭腿的操作父
+                        // live ⟹ 所有 depth<d 腿通过 persistent AncOK）。
+                        if let Some(op_pid) = leg.op_parent {
+                            restore_ancestor_chain_from_registry(
+                                &mut work, &mut raw, registry, op_pid,
+                            );
+                        }
+                        let idx = work.len();
+                        work.push(CoverageElement {
+                            lambda: leg.lambda,
+                            rho: leg.source_index,
+                            eps: leg.dir,
+                            level: leg.level,
+                            parent: None,
+                            attached_dir: None,
+                            id: leg.id,
+                            parent_id: leg.op_parent,
+                        });
+                        raw.push(idx);
+                    }
+                    super::persistent::HeldLegState::Closed | super::persistent::HeldLegState::Invalidated => {
+                        // 显式关闭/作废 → prune（§9 rule 5：只有 close/risk close/invalidation 才退出 live）。
+                        if leg.is_boundary_root {
+                            // 真边界根 ∂：作根保留（parent_id=None 合法，AncOK 不剔）。
+                            let idx = work.len();
+                            work.push(CoverageElement {
+                                lambda: leg.lambda,
+                                rho: leg.source_index,
+                                eps: leg.dir,
+                                level: leg.level,
+                                parent: None,
+                                attached_dir: None,
+                                id: leg.id,
+                                parent_id: None,
+                            });
+                            raw.push(idx);
+                        }
+                        // 非边界根且 invalidated/closed → prune（不入 raw，§9 rule 5）。
+                    }
                 }
             }
         }
@@ -1186,6 +1283,7 @@ pub fn coverage_step_classification(
     prev_active: &[ActiveLeg],
     base_units: f64,
     config: &VoiceConfig,
+    registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
     // H2 优化：单次建树产 (elements, candidate_start) + gamma——消除旧版每 bar 双调
     // extract_elements(tower) 的冗余（coverage_elements_with_tower + assemble_gamma_with_tower
@@ -1195,7 +1293,7 @@ pub fn coverage_step_classification(
     // 环5：解释器三桶（𝒟_x 反向关闭喂 prev_active）。
     let buckets = interp::interpret(&gamma, prev_active);
     // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ShortDiff 未持父则剔除，639(c)）。
-    coverage_step_from_buckets(&elements, candidate_start, prev_active, &buckets, base_units, config)
+    coverage_step_from_buckets(&elements, candidate_start, prev_active, &buckets, base_units, config, registry)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1516,11 +1614,12 @@ pub fn pi_theta_step(
     risk: &RiskConfig,
     weights: PiThetaWeights,
     gate: KThetaRiskGate, // 𝒦_Θ 风控约束门（close_pred 折入；全开=open()）
+    registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64, Order) {
     // 环5+6：买卖点 Γ 入场 → A_{t+1} + p̃（GAP-5：入场源 = BspPoint.source_index 买卖点）。
     // 执行层 σ_p=父容器方向（639；coverage_step_classification 内 assemble_gamma_with_tower 喂因果塔）。
     let (next_active, p_tilde) =
-        coverage_step_classification(classification, tower, prev_active, base_units, voice);
+        coverage_step_classification(classification, tower, prev_active, base_units, voice, registry);
     // 环7：p* = LexArgmin J_x（𝒦_Θ，风控门收窄）→ O = Schedule_Θ(p*−p_t)（单一决策出口 §16）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
@@ -1576,6 +1675,7 @@ mod tests {
             id: ElementId { level, ordinal: source_index as u64 },
             parent_id: None,
             is_boundary_root: true,
+            op_parent: None,
         }
     }
 
@@ -1982,12 +2082,13 @@ mod tests {
     /// ★环6 开启：空 A_t + ℬ_x 一个买候选 ⟹ A_{t+1} 含该腿，p̃ = base×w[0]（根 depth 0）。
     #[test]
     fn buckets_open_creates_active_leg_and_target() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         let buckets = Buckets {
             close: vec![],
             open: vec![cand(0, 5, VoiceSide::Long, 0)],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 1, "ℬ_x 开启 ⟹ A_{{t+1}} 一条新腿");
         assert_eq!(active[0], aleg(0, VoiceSide::Long, 5, 5 ));
         // p̃ = 1000×w_depth(0)=1000×0.60=600（根 depth 0，多腿正号）。
@@ -1997,13 +2098,14 @@ mod tests {
     /// ★环6 关闭：A_t 一条 Long 腿 + 𝒟_x={该腿} ⟹ A_{t+1}=∅，p̃=0（先关后开）。
     #[test]
     fn buckets_close_removes_active_leg() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         let leg = aleg(0, VoiceSide::Long, 3, 3 );
         let buckets = Buckets {
             close: vec![leg], // 𝒟_x ⊆ A_t
             open: vec![],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg], &buckets, 1000.0, &cfg(), &reg);
         assert!(active.is_empty(), "𝒟_x 关闭活动腿 ⟹ A_{{t+1}} 空");
         assert_eq!(p, 0.0, "无活动腿 ⟹ p̃=0");
     }
@@ -2011,6 +2113,7 @@ mod tests {
     /// ★环6 净额聚合：A_{t+1} = {Long, Short} ⟹ p̃ = +600 −600 = 0（方向聚合，多空抵消）。
     #[test]
     fn buckets_target_nets_long_and_short() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         let buckets = Buckets {
             close: vec![],
             open: vec![
@@ -2019,7 +2122,7 @@ mod tests {
             ],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 2);
         // 两腿同根 depth 0（w[0]=0.60）：Long +600，Short −600 ⟹ 净 0。
         assert!(p.abs() < 1e-9, "p̃ = +600 −600 = 0（方向净额聚合）");
@@ -2028,6 +2131,7 @@ mod tests {
     /// ★环6 先关后开 + 保留：A_t={legA, legB}，𝒟_x={legA}，ℬ_x={candC} ⟹ A_{t+1}={legB, legC}。
     #[test]
     fn buckets_close_then_open_keeps_survivor() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         let leg_a = aleg(0, VoiceSide::Long, 1, 1 );
         let leg_b = aleg(1, VoiceSide::Short, 2, 2 );
         let buckets = Buckets {
@@ -2035,7 +2139,7 @@ mod tests {
             open: vec![cand(0, 9, VoiceSide::Long, 0)],  // 开 candC（level 0 Long）
             record: vec![],
         };
-        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg_a, leg_b], &buckets, 1000.0, &cfg());
+        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[leg_a, leg_b], &buckets, 1000.0, &cfg(), &reg);
         assert!(!active.contains(&leg_a), "legA 被 𝒟_x 关闭");
         assert!(active.contains(&leg_b), "legB（不在 𝒟_x）保留");
         assert!(
@@ -2049,19 +2153,22 @@ mod tests {
     /// （真嵌套塔剔孤儿在 §3 active_set_step 已验；本桶路径无塔故恒等——MEMORY tower-export-bridge 缺口）。
     #[test]
     fn buckets_ancok_identity_on_flat_roots() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         let legs = [
             aleg(0, VoiceSide::Long, 0, 0 ),
             aleg(1, VoiceSide::Long, 1, 1 ),
             aleg(2, VoiceSide::Short, 2, 2 ),
         ];
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
-        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &legs, &buckets, 1000.0, &cfg());
+        let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &legs, &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 3, "扁平根全保留（AncOK 恒等——无父子可剔孤儿）");
+        let reg = super::super::persistent::PersistentRegistry::new();
     }
 
     /// ★环6 immutable：coverage_step_from_buckets 不 mutate prev_active。
     #[test]
     fn buckets_step_immutable_prev_active() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         let prev = vec![aleg(0, VoiceSide::Long, 0, 0 )];
         let snapshot = prev.clone();
         let buckets = Buckets {
@@ -2069,19 +2176,20 @@ mod tests {
             open: vec![cand(1, 3, VoiceSide::Short, 0)],
             record: vec![],
         };
-        let _ = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &prev, &buckets, 1000.0, &cfg());
+        let _ = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &prev, &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(prev, snapshot, "桶驱动递归不 mutate prev_active（纯函数）");
     }
 
     /// 𝒦_x（record 桶）不进活动集（spec「记录但暂不执行」）。
     #[test]
     fn buckets_record_excluded_from_active_set() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         let buckets = Buckets {
             close: vec![],
             open: vec![],
             record: vec![cand(0, 7, VoiceSide::Long, 0)], // 𝒦_x：记录不执行
         };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
         assert!(active.is_empty(), "𝒦_x 不入活动集");
         assert_eq!(p, 0.0);
     }
@@ -2090,7 +2198,8 @@ mod tests {
     #[test]
     fn buckets_empty_yields_empty_and_zero() {
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
-        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg(), &reg);
         assert!(active.is_empty());
         assert_eq!(p, 0.0);
     }
@@ -2098,6 +2207,7 @@ mod tests {
     /// ★环5+环6 端到端：Classification（一买点）→ Γ → 解释器 → A_{t+1} → p̃。
     #[test]
     fn classification_end_to_end_ring5_ring6() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         // L0 一个一类买点（source_index=4）。
         let bsp = BspPoint {
             source_index: 4,
@@ -2111,7 +2221,7 @@ mod tests {
         };
         // 空 A_t：买候选开启 ⟹ A_{t+1} 一条 Long 腿，p̃ = 600。
         // 空塔（tower &[]）⟹ 候选父=∂ ⟹ Ambient（与扁平一致）；本测试只验开腿/p̃，角色不约束。
-        let (active, p) = coverage_step_classification(&classification, &[], &[], 1000.0, &cfg());
+        let (active, p) = coverage_step_classification(&classification, &[], &[], 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 1, "买点 ℬ_x 开启 ⟹ 一条活动腿");
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert_eq!(active[0].source_index, 4);
@@ -2121,6 +2231,7 @@ mod tests {
     /// ★环5↔环6 闭环：A_{t+1} 回喂 interpret——持仓 Long 遇反向卖点 ⟹ 关闭，A_{t+2}=∅。
     #[test]
     fn ring6_active_set_feeds_back_into_interpret() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         // bar t：买点开 Long。
         let buy = BspPoint {
             source_index: 0,
@@ -2129,7 +2240,7 @@ mod tests {
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
         };
         let c_buy = Classification { levels: vec![LevelState { bsp: vec![buy], ..Default::default() }] };
-        let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg());
+        let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), &reg);
         assert_eq!(active_t1.len(), 1, "买点开 Long 腿");
         // bar t+1：卖点（反向）→ A_{t+1} 回喂 interpret ⟹ 关闭 Long 腿 ⟹ A_{t+2}=∅。
         let sell = BspPoint {
@@ -2139,7 +2250,7 @@ mod tests {
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
         };
         let c_sell = Classification { levels: vec![LevelState { bsp: vec![sell], ..Default::default() }] };
-        let (active_t2, p2) = coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg());
+        let (active_t2, p2) = coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg(), &reg);
         assert!(active_t2.is_empty(), "反向卖点关闭持仓 Long（𝒟_x）⟹ A_{{t+2}}=∅（闭环）");
         assert_eq!(p2, 0.0, "无活动腿 ⟹ p̃=0");
     }
@@ -2168,11 +2279,12 @@ mod tests {
         // ★codex Q4：held_leg_tree_index 按 ElementId 匹配——leg.id 必须与塔元素 id 一致。
         let held_parent = ActiveLeg {
             level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0,
-            id: eid(1, 0), parent_id: None, is_boundary_root: true,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
         };
         let buckets = interpret(&gamma, &[held_parent]);
+        let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
+            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "持父仓 ⟹ ShortDiff 子腿准入（AncOK 祖先齐全）；实得 {active:?}"
@@ -2208,15 +2320,17 @@ mod tests {
         //（父延伸 ρ 8→12 不变 ID）⟹ Exact 命中 ⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入。
         let held_parent = ActiveLeg {
             level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0,
-            id: eid(1, 0), parent_id: None, is_boundary_root: true,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
         };
         let buckets = interpret(&gamma, &[held_parent]);
+        let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
+            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "ID 匹配（确定性 ElementId）⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入（Q4 假阴性消除）；实得 {active:?}"
         );
+        let reg = super::super::persistent::PersistentRegistry::new();
         assert!(
             active.iter().any(|l| l.level == 1 && l.dir == VoiceSide::Long),
             "延伸父容器腿按 ID 对位回当前树元素并保留（非降 orphan）"
@@ -2247,7 +2361,8 @@ mod tests {
             matches!(elements[cstart].parent, Some(_)),
             "候选携非空真 Compose 父指针（AncOK 剪枝的前提是父存在但未持，非父=None）"
         );
-        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg());
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             active.is_empty(),
             "未持父 ⟹ ShortDiff 子腿被 AncOK 剪枝（639(c)：不开 naked 逆势仓）；实得 {active:?}"
@@ -2258,6 +2373,7 @@ mod tests {
     /// ★测试③（根级无父要求）：Ambient 根候选（缺塔/host 是根，σ_p=0）⟹ 空持仓也正常准入。
     #[test]
     fn ancok_admits_ambient_root_without_held_parent() {
+        let reg = super::super::persistent::PersistentRegistry::new();
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
         let tower: Vec<Vec<LeveledMove>> = Vec::new(); // 缺塔 ⟹ 候选父=∂ ⟹ Ambient 根
         let classification = Classification {
@@ -2267,7 +2383,7 @@ mod tests {
         let gamma = assemble_gamma_with_tower(&classification, &tower);
         assert_eq!(gamma[0].role.v, Vertical::Ambient, "缺塔 ⟹ 候选父=∂ ⟹ Ambient 根");
         let buckets = interpret(&gamma, &[]); // 空持仓
-        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg());
+        let (active, p) = coverage_step_from_buckets(&elements, cstart, &[], &buckets, 1000.0, &cfg(), &reg);
         assert_eq!(active.len(), 1, "Ambient 根腿无父要求 ⟹ 空持仓也准入");
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert!((p - 600.0).abs() < 1e-9, "根 depth 0 ⟹ p̃=base×w[0]=600");
@@ -2294,13 +2410,14 @@ mod tests {
         // 持父仓（L1 Long，ID=(1,0) 与塔 compose 元素同 ID）。
         let held_parent = ActiveLeg {
             level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0,
-            id: eid(1, 0), parent_id: None, is_boundary_root: true,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
         };
         let buckets = interpret(&gamma, &[held_parent]);
         // L1 卖反向关闭 L1 Long 父腿（𝒟_x），故 (A_t∖𝒟_x) 不含父 ⟹ 子腿失祖先 ⟹ AncOK 连带剪枝。
         assert!(buckets.close.iter().any(|l| l.level == 1), "L1 卖反向关闭 L1 Long 父腿（𝒟_x）");
+        let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
+            coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg(), &reg);
         assert!(
             !active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "父腿同 bar 关闭 ⟹ ShortDiff 子腿连带剪枝（覆盖不漂浮）；实得 {active:?}"
@@ -2328,11 +2445,12 @@ mod tests {
         // parent_id=Some((1,0)) 表示它本应有父（非 ∂ 根），但父不在当前树。
         let stale_non_root = ActiveLeg {
             level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0,
-            id: eid(99, 99), parent_id: Some(eid(1, 0)), is_boundary_root: false,
+            id: eid(99, 99), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: Some(eid(1, 0)),
         };
         let buckets = interpret(&gamma, &[stale_non_root]);
+        let reg = super::super::persistent::PersistentRegistry::new();
         let (active, p) =
-            coverage_step_from_buckets(&elements, cstart, &[stale_non_root], &buckets, 1000.0, &cfg());
+            coverage_step_from_buckets(&elements, cstart, &[stale_non_root], &buckets, 1000.0, &cfg(), &reg);
         // Stale 非边界根 ⟹ prune（不入 raw）⟹ 不在 A_{t+1}。
         assert!(
             !active.iter().any(|l| l.id == eid(99, 99)),
@@ -2497,7 +2615,7 @@ mod tests {
         let r = rcfg();
         let (active, p_star, order) = pi_theta_step(
             &classification, &[], &[], 0.0, 5, 1000.0, &cfg(), &r, PiThetaWeights::from_risk(&r),
-            KThetaRiskGate::open(),
+            KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new(),
         );
         // GAP-5：活动腿 source_index = BspPoint.source_index = 4（买卖点，非 LeveledMove.start_index）。
         assert_eq!(active.len(), 1);
@@ -2522,8 +2640,8 @@ mod tests {
         };
         let r = rcfg();
         let w = PiThetaWeights::from_risk(&r);
-        let a = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open());
-        let b = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open());
+        let a = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new());
+        let b = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new());
         assert_eq!(a.2, b.2, "∀x ∃! O_{{t+1}}：确定唯一订单");
         assert_eq!(a.1, b.1);
     }
@@ -2592,7 +2710,7 @@ mod tests {
         let r = rcfg();
         let (a, p_star, order) = pi_theta_step(
             &classification, &tower, &[], 0.0, 9, 1000.0, &cfg(), &r,
-            PiThetaWeights::from_risk(&r), KThetaRiskGate::open(),
+            PiThetaWeights::from_risk(&r), KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new(),
         );
         assert!(a.is_empty(), "未持父 ⟹ ShortDiff 子腿 AncOK 剪枝 ⟹ A_{{t+1}} 空");
         assert_eq!(p_star, 0.0, "无活动腿 ⟹ p*=0（不开仓）");

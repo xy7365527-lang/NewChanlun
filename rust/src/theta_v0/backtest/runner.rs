@@ -502,7 +502,7 @@ where
 {
     use super::super::strategy::coverage::{self, PiThetaWeights};
     use super::super::strategy::exec::fill_bar_index;
-    use super::super::strategy::interp::ActiveLeg;
+    use super::super::strategy::interp::{self, ActiveLeg};
 
     let n = bars.len();
     let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
@@ -515,6 +515,10 @@ where
     let mut entry_cost: f64 = 0.0;
     // [C] 活动集台账（thread 跨 bar；interp::interpret 闭环递归）。
     let mut prev_active: Vec<ActiveLeg> = Vec::new();
+    // ★persistent overlay（anc.pdf §4-§9）：跨 bar 持久元素注册表 Pi。
+    // 修复 Q4 "LiveDetached 误处理成 Stale" → depth>0 腿被 AncOK 系统性剪掉 → #5α=0。
+    // Pi+1 = merge(Pi, Ei+1, held legs)（§9）：snapshot 匹配刷新 + held 找不到标记 LiveDetached。
+    let mut registry = super::super::strategy::persistent::PersistentRegistry::new();
     // ★确认-bar 部署 seen-set（append-only "只增不改"；已部署买卖点身份键，stream.rs:162 同构）。
     let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
     // 延迟成交队列（spec:50：订单在 exec_index bar 成交，与 plan_and_fill_mtm 同语义）。
@@ -574,6 +578,7 @@ where
                 &config.risk,
                 weights,
                 gate,
+                &registry,
             );
             // ── ④ 挂单到 exec_index（延迟成交；qty>0 才挂）。 ──
             if order.qty > 0 {
@@ -583,7 +588,15 @@ where
                     }
                 }
             }
-            // ── ⑤ thread 活动集台账（喂下一 bar interpret 闭环）。 ──
+            // ── ⑤ thread 活动集台账（喂下一 bar interpret 闭环）+ persistent registry 合并。 ──
+            // ★persistent overlay（anc.pdf §9）：Pi+1 = merge(Pi, Ei+1, held legs)。
+            // 用本 bar snapshot（elements）+ held legs（next_active）刷新 registry。
+            // 关闭的腿（buckets.close）在 registry 中标记 invalidated（§9 rule 5）。
+            {
+                let (elements_ref, _candidate_start) =
+                    interp::coverage_elements_with_tower(&classification_i, &tower_i);
+                registry = registry.merge(&elements_ref, &next_active);
+            }
             prev_active = next_active;
         }
 
