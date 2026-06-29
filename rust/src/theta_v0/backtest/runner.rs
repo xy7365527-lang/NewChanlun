@@ -277,13 +277,15 @@ pub fn run_theta_v0_pi(
     // ParseLayerIncr::append（inclusion O(1)/bar）+ classify_with_tower_incremental（TowerCache 跨 bar
     // 复用：LevelCache.upper_moves/centers/scan_cursor 持久 + MACD 增量递推）。
     //
-    // **跨 bar 身份稳定**（核心修复——memory newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass）：
-    // 全量重分类每 bar 从零重建塔→LeveledMove 身份断裂→held_leg 判 Stale→depth>0 腿被 AncOK 剪→
-    // #5 贡献为零→ΔSharpe=0。增量塔 TowerCache 跨 bar 复用同一 Vec（前缀不可变，尾部 append）→
-    // 身份连续→Stale 降根减少→depth>0 腿准入→ΔSharpe 可非零。
+    // ponytail: 增量塔身份稳定路径已被 L2 证伪（ab5f5a29d ΔSharpe 重测 0.000，Stale 90%+ 未降）。
+    // 增量塔 TowerCache 跨 bar 复用 O(n)（bit-exact，见 incremental.rs 文档），但 held_leg_tree_index
+    // 值字段比较（level/ρ/eps/λ）非对象身份——bit-exact 不变 ⟹ 值比较结果相同 ⟹ Stale 不降。
+    // 真根因 = held_leg_tree_index 的 CoordDrift 判据（level,λ,eps）真实数据命中率 ~0%（父走势
+    // 演化后 λ/eps 漂移）。#5 alpha 待父腿追踪/CoordDrift 语义修复，非增量链身份稳定可解。
     //
     // **bit-exact 不变**：增量链 == 全量 classify_with_tower(parse_layer(..=i))（parser +
     // classifier 各自 bit-exact 已证，见 incremental.rs 文档）。逐 bar 断言见 `incremental::bit_exact_*`。
+    // 注意：bit-exact 仅证明塔构造 O(n) 达成，不证明身份稳定→Stale 降根（后者被 L2 否证）。
     let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
     let fill = pi_theta_fill_loop(
         |i| classifier_incr.classify_at(i),

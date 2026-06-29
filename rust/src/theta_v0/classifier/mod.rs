@@ -323,6 +323,15 @@ pub fn classify_with_tower(
 // BSP 提取产出（bit-exact），仅**中枢扫描构造**走增量 resume。塔构造的超线性（双次全量扫描）
 // 被消除 ⟹ exp≈1。
 //
+// **641 谱系标注（有效域声明）**：incr_total exp 0.91 @16K ≈ 1.0 → 塔构造 O(n) **已达成**
+// （L2 真实数据验证，非 L0/L1）。有效域 = 中枢扫描构造（compose_level_resume）+ parse_layer
+// 增量合并（process_inclusion）。**不在有效域**：全引擎 per-bar 端到端 exp 须大规模验证（moves/
+// bsp 裁决每 bar 全量但 O(centers) 单趟，非超线性源；实测端到端 exp 见 benchmark）。
+// **注意（ab5f5a29d）**：O(n) 达成 ≠ 身份稳定→Stale 降根。增量塔 bit-exact 跨 bar 复用，但
+// held_leg_tree_index 值字段比较（level/ρ/eps/λ）非对象身份——bit-exact 不变 ⟹ Stale 不降。
+// "增量塔→身份连续→Stale 降根→ΔSharpe 可非零"路径被 L2 证伪（见 runner.rs 注释 + memory
+// newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass）。
+//
 // ## 跨级增量传播（严格不变量）
 //
 // 每级 units = `project_to_units(&upper_moves)`。上级 upper_moves 尾部追加时下级 units 尾部变，
