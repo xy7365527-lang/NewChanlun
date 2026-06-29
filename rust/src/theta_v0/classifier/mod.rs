@@ -178,7 +178,7 @@ fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, MoveOutcome
 /// `Classification.levels` 同构（`tower_snapshots.len() == levels.len()`）：
 /// - 索引 0（L0 级）：全 `RMove::Segment`（递归底，`sub_moves` 空）。
 /// - 索引 ≥1（L(k) 级）：前一级产出的 `RMove::Compose` 序列（携次级别 subs，depth≥1 真嵌套）。
-fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<Vec<LeveledMove>>) {
+fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
@@ -194,11 +194,15 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
     // （`LeveledMove`，递归底 level 0）。旧塔把每级走势单元折叠为无 subs 的 `UnitRange`，
     // `extract_second_signals`（消费 `RMove::Compose` 的 descend 取回次级别走势）永产不出 B2/S2。
     // 新塔每级走势单元携次级别走势 subs（`RMove::Compose`）+ source_index 坐标 ⟹ B2/S2 真可产。
-    let mut moves_tower: Vec<LeveledMove> = units
-        .iter()
-        .enumerate()
-        .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
-        .collect();
+    // ★O(n) 重构：moves_tower/snapshots 用 Rc（与增量版同返回类型 `Vec<Rc<Vec<LeveledMove>>>`，
+    // bit-exact 测试逐字段比较 *rc）。全量版非 per-bar 热点（O(n) 单趟），Rc 仅为类型对齐。
+    let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(
+        units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+            .collect(),
+    );
 
     // 第一类背驰 MACD：closes/close_src 在全递归层共享（L0 唯一可达 close 序列；上级走势的
     // 次级别 close 区间由 source_index 坐标定位，见 macd 接入点）。
@@ -207,7 +211,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
     let hist = divergence::compute_macd(&closes, &config.macd).hist;
 
     let mut levels: Vec<LevelState> = Vec::new();
-    let mut tower_snapshots: Vec<Vec<LeveledMove>> = Vec::new();
+    let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
 
     // 递归级别构造：每级由下级走势单元构造（L0 直接是线段单元，从 L0 开始裁决）。
     for level_idx in 0..=l_max {
@@ -217,7 +221,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         }
 
         // 本级输入塔快照（compose_level 前，与 levels[level_idx] 对应——同步 index 不变量）。
-        tower_snapshots.push(moves_tower.clone());
+        tower_snapshots.push(Rc::clone(&moves_tower));
 
         // L0（level_idx==0）用完整判据（方向交替，线段有方向）；上级用几何路径（外缘，单元无方向）。
         let is_l0 = level_idx == 0;
@@ -229,7 +233,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         // L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
         // 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。`upper_moves` 是携坐标的上级走势
         // 序列（descend 取回构成它的次级别走势 ⟹ B2/S2 可产），与 `centers` 一一对应。
-        let (centers_w, upper_moves) = compose_level(&units, &moves_tower, is_l0, level_idx as u32 + 1);
+        let (centers_w, upper_moves) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
         debug_assert_eq!(centers, centers_w, "compose_level 与 classify_level 中枢序列一致");
 
         // BSP 信号提取（reference:34-36）。三层覆盖：
@@ -258,7 +262,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         // 上级走势携 subs（`RMove::Compose`），投影只为下一级几何中枢检测提供 [lo,hi] 区间——
         // 真递归 subs 在 `moves_tower` 里保留（不丢弃，旧塔丢弃 subs 是 B2 不可产的根因）。
         units = project_to_units(&upper_moves);
-        moves_tower = upper_moves;
+        moves_tower = Rc::new(upper_moves);
 
         // 本级无中枢 ⟹ 无上级输入单元，停止递归（自然终止）。
         if units.is_empty() {
@@ -298,7 +302,7 @@ pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
 pub fn classify_with_tower(
     l0: &ParseLayer,
     config: &ThetaConfig,
-) -> (Classification, Vec<Vec<LeveledMove>>) {
+) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
     classify_impl(l0, config)
 }
 
@@ -358,7 +362,10 @@ use recursive_tower::{compose_level_resume, WindowScanCursor};
 struct LevelCache {
     scan_cursor: WindowScanCursor,
     /// 已 compose 的上级走势序列（前缀不可变；尾部续扫追加）。每元素 `RMove::Compose` 携真 subs。
-    upper_moves: Vec<LeveledMove>,
+    /// ★O(n) 重构：`Rc` 共享塔——`moves_tower`/`tower_snapshots` 经 `Rc::clone`（O(1) 引用计数）取得，
+    /// 消除 per-bar 全塔深拷贝（O(n²) 热点①）。`extend` 经 `Rc::make_mut`：caller 逐 bar drop 返回的
+    /// snapshot ⟹ 下 bar extend 时 strong_count==1 ⟹ 原地追加 O(tail)，不触发写时复制。
+    upper_moves: Rc<Vec<LeveledMove>>,
     /// 已识别中枢序列（与 `upper_moves` 一一对应，每窗口一中枢；前缀不可变，尾部续扫追加）。
     centers: Vec<Center>,
     last_input_len: usize,
@@ -720,7 +727,7 @@ pub fn classify_with_tower_incremental(
     l0: &ParseLayer,
     config: &ThetaConfig,
     cache: &mut TowerCache,
-) -> (Classification, Vec<Vec<LeveledMove>>) {
+) -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
@@ -768,11 +775,13 @@ pub fn classify_with_tower_incremental(
     let hist: &[f64] = &cache.macd_hist;
 
     let mut levels: Vec<LevelState> = Vec::new();
-    let mut tower_snapshots: Vec<Vec<LeveledMove>> = Vec::new();
+    // ★O(n) 重构：snapshots 存 Rc——L≥1 级 push Rc::clone(&lc.upper_moves)（O(1)）；L0 级 push
+    // moves_tower_l0（Rc）。下游（runner/interp/l3）只读借 &[Rc<Vec<LeveledMove>>]。
+    let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
 
     // 逐级增量构造。`units`/`moves_tower` 是本级输入（前缀来自缓存，尾部新增）。
     let mut units: Vec<UnitRange> = l0_units;
-    let mut moves_tower: Vec<LeveledMove> = moves_tower_l0;
+    let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(moves_tower_l0);
 
     // ★cascade reset（codex 异质审查裁决：option 2）：任一级检出 frontier 变异 ⟹ 该级**及所有更高级**
     // 无条件 reset。根因：本级守卫只比对 `project_to_units` 投影（有损——丢弃 `sub_moves`/`rmove.subs`）。
@@ -813,7 +822,8 @@ pub fn classify_with_tower_incremental(
         }
         if cascade_reset {
             lc.scan_cursor = WindowScanCursor::default();
-            lc.upper_moves.clear();
+            // make_mut：若上 bar snapshot 仍持引用则写时复制再 clear（退化 bit-exact）；否则原地清。
+            Rc::make_mut(&mut lc.upper_moves).clear();
             lc.centers.clear();
             lc.cached_outcome = None;
             lc.cached_bsp.clear();
@@ -831,7 +841,7 @@ pub fn classify_with_tower_incremental(
         // ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。
         let (tail_centers, tail_upper, new_cursor) = compose_level_resume(
             &units,
-            &moves_tower,
+            &moves_tower[..],
             is_l0,
             level_idx as u32 + 1,
             lc.scan_cursor.consumed,
@@ -840,7 +850,9 @@ pub fn classify_with_tower_incremental(
 
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
         lc.centers.extend(tail_centers);
-        lc.upper_moves.extend(tail_upper);
+        // make_mut：strong_count==1（caller 已 drop 上 bar snapshot）⟹ 原地 extend O(tail)；
+        // >1（理论上 caller 跨 bar 持有，生产路径不发生）⟹ 写时复制再追加（仍 bit-exact）。
+        Rc::make_mut(&mut lc.upper_moves).extend(tail_upper);
         lc.scan_cursor = new_cursor;
         debug_assert!(
             lc.centers.len() == lc.upper_moves.len(),
@@ -848,9 +860,9 @@ pub fn classify_with_tower_incremental(
         );
 
         // 本级输入塔快照（compose 前）。
-        // ★O(1) 优化：用 std::mem::take 替代 clone——moves_tower 后续不再使用（下一级用 lc.upper_moves），
-        // 故 move 入 snapshots 避免 O(k) clone（per-bar substrate O(n²) clone 根因之一）。
-        // bit-exact：snapshots 内容 == 全量版（moves_tower 的值不变，仅所有权 move）。
+        // ★O(1) 优化：moves_tower 是 Rc——move 入 snapshots（所有权转移，零拷贝）。下一级用
+        // Rc::clone(&lc.upper_moves) 重置 moves_tower（line 912），故此处 move 后 moves_tower 失效合法。
+        // bit-exact：snapshots 内容 == 全量版（Rc 指向的 Vec 值不变，仅所有权/引用计数变）。
         tower_snapshots.push(std::mem::take(&mut moves_tower));
 
         // 走势裁决（增量续算：从 cached_outcome + 新尾对 O(1) 续判，与全量 classify_move bit-exact）。
@@ -881,7 +893,7 @@ pub fn classify_with_tower_incremental(
             } else {
                 Vec::new()
             };
-            b.extend(extract_second_for_level(&lc.upper_moves, hist, &close_src));
+            b.extend(extract_second_for_level(&lc.upper_moves[..], hist, &close_src));
             b.sort_by_key(|p| p.source_index);
             lc.cached_bsp = b.clone();
             lc.cached_bsp_key = Some(bsp_key);
@@ -898,18 +910,17 @@ pub fn classify_with_tower_incremental(
         });
 
         // 下一级输入 = 上级走势塔投影（前缀来自缓存 upper_moves 前缀，尾部来自续扫）。
-        units = project_to_units(&lc.upper_moves);
+        units = project_to_units(&lc.upper_moves[..]);
 
         if units.is_empty() {
             break;
         }
-        // ★O(1) 优化：仅当下一级有输入时才 clone upper_moves → moves_tower。
-        // 末级（units 空）跳过 clone（LeveledMove 含递归 sub_moves，深拷贝 O(k)）。
-        // bit-exact：moves_tower 内容 == lc.upper_moves（值拷贝，bit-identical）。
-        // ponytail: clone 因下游（compose_level_resume）需 owned（mem::take 入 tower_snapshots）。
-        //           ceiling：Arc<Vec<LeveledMove>> 共享可消此 clone，但需改 LevelCache.upper_moves
-        //           + 返回类型（跨 mod.rs 边界，当前最小 diff 不改字段）。
-        moves_tower = lc.upper_moves.clone();
+        // ★O(n) 重构：moves_tower = Rc::clone(&lc.upper_moves) —— O(1) 引用计数，消除 per-bar 全塔
+        // 深拷贝（旧 `lc.upper_moves.clone()` 是 O(n²) 热点①根因）。下一级 line 832 借 &moves_tower[..]
+        // 只读，line 854 move 入 snapshots。lc.upper_moves 跨 bar 持久于 cache；extend（line 843）经
+        // make_mut，caller 逐 bar drop snapshot ⟹ strong_count==1 ⟹ 原地 O(tail)。
+        // bit-exact：Rc 指向同一 Vec，逐字段与旧 clone 等价。
+        moves_tower = Rc::clone(&lc.upper_moves);
     }
 
     // closes/close_src 缓冲放回 cache（mem::take 取出的所有权归还，下 bar 复用，零额外分配）。

@@ -44,6 +44,7 @@
 //! 18 类角色经验可达性（哪些组合真实出现）是 **L2 未覆盖**（spec 疑点5）——**不**声称已验证。
 
 use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+use std::rc::Rc;
 use super::super::classifier::Classification;
 use super::super::types::BspBits;
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
@@ -278,7 +279,7 @@ fn nest_confirm(level: u32, source_index: usize, bits: &BspBits, dir: VoiceSide)
 /// #5 多声部对冲 alpha 来源**结构性就位**，alpha **未验证**（待 L2/L3，不声明 alpha）。
 pub fn coverage_elements_with_tower(
     classification: &Classification,
-    tower: &[Vec<LeveledMove>],
+    tower: &[Rc<Vec<LeveledMove>>],
 ) -> (Vec<CoverageElement>, usize) {
     // H2 优化：委托 [`coverage_elements_and_gamma_with_tower`]（单次建树，无 tree.clone()），
     // 丢弃 gamma 仅返 (elements, candidate_start)。bit-exact == 旧版（同 extract_elements 输出）。
@@ -302,7 +303,7 @@ pub fn coverage_elements_with_tower(
 /// **认识论 L0/L1**：纯结构组装。#5 多声部对冲 alpha 来源结构性就位，alpha 未验证（待 L2/L3）。
 pub fn assemble_gamma_with_tower(
     classification: &Classification,
-    tower: &[Vec<LeveledMove>],
+    tower: &[Rc<Vec<LeveledMove>>],
 ) -> Vec<Candidate> {
     // H2 优化：委托 [`coverage_elements_and_gamma_with_tower`]（单次建树），丢弃 elements 仅返 gamma。
     // bit-exact == 旧版（同 extract_elements 输出 + 同候选序）。
@@ -321,7 +322,7 @@ pub fn assemble_gamma_with_tower(
 /// **认识论 L0**：纯结构组装去重，无语义变化（bit-exact，同源数据同源建树）。
 pub fn coverage_elements_and_gamma_with_tower(
     classification: &Classification,
-    tower: &[Vec<LeveledMove>],
+    tower: &[Rc<Vec<LeveledMove>>],
 ) -> ((Vec<CoverageElement>, usize), Vec<Candidate>) {
     coverage_elements_and_gamma_with_tower_cached(classification, tower, &mut None)
 }
@@ -357,11 +358,11 @@ pub fn coverage_elements_and_gamma_with_tower(
 pub struct TreeKey(Vec<(u32, u32, u64, usize, usize, u8, i64, i64, usize)>);
 
 impl TreeKey {
-    fn of(tower: &[Vec<LeveledMove>]) -> TreeKey {
+    fn of(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
         for lvl in tower.iter().rev() {
             if !lvl.is_empty() {
                 let mut fp = Vec::new();
-                for m in lvl {
+                for m in lvl.iter() {
                     TreeKey::emit(m, &mut fp);
                 }
                 return TreeKey(fp);
@@ -434,7 +435,7 @@ impl TreeCache {
 /// 候选段每次按当前 `classification` 重建 append（候选随 bar 变；§16 只保证 tree-prefix 不变）。
 pub fn coverage_elements_and_gamma_with_tower_cached(
     classification: &Classification,
-    tower: &[Vec<LeveledMove>],
+    tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
 ) -> ((Vec<CoverageElement>, usize), Vec<Candidate>) {
     // 真嵌套元素树（单 Vec，无 tree.clone()——前缀=tree，候选尾部 append）。缓存命中则复用。
@@ -907,6 +908,11 @@ mod tests {
         ElementId { level, ordinal }
     }
 
+    /// ★O(n) 重构测试适配：字面量塔逐级包 Rc（生产塔 = Vec<Rc<Vec<LeveledMove>>>）。
+    fn rc_tower(levels: Vec<Vec<LM>>) -> Vec<Rc<Vec<LM>>> {
+        levels.into_iter().map(Rc::new).collect()
+    }
+
     /// 测试用 ActiveLeg 构造器（默认 is_boundary_root=true 真边界根 ∂，parent_id=None）。
     fn aleg(level: u32, dir: VoiceSide, source_index: usize, lambda: usize) -> ActiveLeg {
         ActiveLeg {
@@ -922,17 +928,17 @@ mod tests {
     }
 
     /// 单父真嵌套塔：L1 走势（外缘 Long）+ 3 个 L0 子（ρ=4/8/12，真父=L1，attached=Long）。
-    fn long_parent_tower() -> Vec<Vec<LM>> {
+    fn long_parent_tower() -> Vec<Rc<Vec<LM>>> {
         let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
         let s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
         let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
         let l1 = LM::compose(&[s0, s1, s2], c, 1, eid(1, 0)); // 外缘 10→15 ⟹ Long（σ_p=+1）
-        vec![Vec::new(), vec![l1]]
+        rc_tower(vec![Vec::new(), vec![l1]])
     }
 
     /// 两父塔：compose_a(Long) + compose_b(Short)，a2/b0 结构全等异 ρ（ordinal 身份测试）。
-    fn two_parent_tower() -> Vec<Vec<LM>> {
+    fn two_parent_tower() -> Vec<Rc<Vec<LM>>> {
         let mk = |si, ei, d, lo, hi, ord| LM::from_unit(&unit_r(si, ei, d, lo, hi), eid(0, ord));
         let ca = LM::compose(
             &[mk(0, 4, Direction::Up, 0, 10, 0), mk(4, 8, Direction::Down, 3, 12, 1), mk(8, 12, Direction::Up, 5, 15, 2)],
@@ -946,7 +952,7 @@ mod tests {
             1,
             eid(1, 1),
         ); // Short
-        vec![Vec::new(), vec![ca, cb]]
+        rc_tower(vec![Vec::new(), vec![ca, cb]])
     }
 
     /// ★关键测试：买候选在 Long 父走势下 ⟹ V=FollowParent（V≠Ambient，真嵌套对冲腿结构产生）。
@@ -1007,7 +1013,7 @@ mod tests {
     fn gamma_with_tower_guard_matches_flat_when_no_compose_level() {
         let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
-        let tower = vec![vec![s0, s1]]; // len()==1 < 2
+        let tower = rc_tower(vec![vec![s0, s1]]); // len()==1 < 2
         let c = classification(vec![vec![buy_point(4, 1)]]);
         let with = assemble_gamma_with_tower(&c, &tower);
         let flat = assemble_gamma(&c);
@@ -1107,7 +1113,7 @@ mod tests {
     fn gamma_with_tower_ambient_iff_germ_not_unheld() {
         let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
-        let no_parent_tower = vec![vec![s0, s1]]; // len()==1：host 是根 segment，无 Compose 父 = ∂
+        let no_parent_tower = rc_tower(vec![vec![s0, s1]]); // len()==1：host 是根 segment，无 Compose 父 = ∂
         let c = classification(vec![vec![sell_point(8, 1)]]);
         let gamma = assemble_gamma_with_tower(&c, &no_parent_tower);
         assert_eq!(
@@ -1134,7 +1140,7 @@ mod tests {
         let a_s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
         let ca = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
         let a_l1 = LM::compose(&[a_s0, a_s1, a_s2], ca, 1, eid(1, 0));
-        let tower_a = vec![Vec::new(), vec![a_l1]];
+        let tower_a = rc_tower(vec![Vec::new(), vec![a_l1]]);
 
         // tower B：interior s1 古怪线段重划——同 start/end_index（4/8）、同 ordinal、同子数，
         // 但方向 Up（≠Down）+ 坐标 [99,199]（≠[3,12]）。顶层 end_index=12/ordinal=0/子数=3 不变。
@@ -1143,10 +1149,10 @@ mod tests {
         let b_s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
         let cb = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
         let b_l1 = LM::compose(&[b_s0, b_s1, b_s2], cb, 1, eid(1, 0));
-        let tower_b = vec![Vec::new(), vec![b_l1]];
+        let tower_b = rc_tower(vec![Vec::new(), vec![b_l1]]);
 
         // 前提坐实：旧浅指纹（顶层 level/ordinal/end_index/子数）两 tower 相同（漏的来源）。
-        let shallow = |t: &[Vec<LM>]| -> Vec<(u32, u64, usize, usize)> {
+        let shallow = |t: &[Rc<Vec<LM>>]| -> Vec<(u32, u64, usize, usize)> {
             t.iter().rev().find(|l| !l.is_empty()).map_or(Vec::new(), |l| {
                 l.iter().map(|m| (m.id.level, m.id.ordinal, m.end_index, m.sub_moves.len())).collect()
             })

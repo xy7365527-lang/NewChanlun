@@ -83,7 +83,7 @@ impl<'a> IncrementalClassifier<'a> {
     /// `tower_cache` 跨 bar 复用 → `LeveledMove` 身份连续 → held_leg 不判 Stale。
     ///
     /// **因果性**：`parse_layer(&bars[..=i])` 只用 ≤i 数据 ⟹ 输出因果（无 look-ahead，639）。
-    pub fn classify_at(&mut self, i: usize) -> (classifier::Classification, Vec<Vec<classifier::recursive_tower::LeveledMove>>) {
+    pub fn classify_at(&mut self, i: usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>) {
         debug_assert!(i < self.bars.len(), "classify_at({i}) 越界 bars.len={}", self.bars.len());
         // 增量 parse：append bar i（O(1) inclusion + O(merged_i) 下游）。
         let l0_i = self.parser_incr.append(self.bars[i]);
@@ -281,6 +281,7 @@ mod profile {
                 symbol: oos.symbol.clone(),
                 bars: bars.to_vec(),
                 dates: oos.dates[..n].to_vec(),
+                bar_seconds: 60,
             };
             let years = (n as f64) / (252.0 * 390.0); // 名义年数（仅 metrics 用，不影响标度）
             let t = std::time::Instant::now();

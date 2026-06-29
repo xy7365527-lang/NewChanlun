@@ -47,6 +47,7 @@
 
 use super::super::classifier::descend::RMove;
 use super::super::classifier::recursive_tower::{compose_level, compose_level_resume, ElementId, LeveledMove};
+use std::rc::Rc;
 use super::super::classifier::Classification;
 use super::super::config::{RiskConfig, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
@@ -114,12 +115,12 @@ pub struct CoverageElement {
 ///
 /// 返回 `Vec<CoverageElement>`：元素按提取序排列（父在子前，`parent` 索引指向已提取的父）。
 /// 空塔 ⟹ 空元素集。
-pub fn extract_elements(tower: &[Vec<LeveledMove>]) -> Vec<CoverageElement> {
+pub fn extract_elements(tower: &[Rc<Vec<LeveledMove>>]) -> Vec<CoverageElement> {
     let mut elements: Vec<CoverageElement> = Vec::new();
     // 顶级元素（tower 最高级的走势）是根（parent=None）；逐层向下钻取真嵌套子元素。
     // 从最高级开始（顶层走势是边界胚元 ∂ 容器下的兄弟，去根化无 RootRole）。
     for level_moves in tower.iter().rev() {
-        for lm in level_moves {
+        for lm in level_moves.iter() {
             // 顶层走势 = 根元素（parent=None，attached_dir=None，parent_id=None=边界胚元 ∂）。
             push_element_tree(&mut elements, lm, None, None, None);
         }
@@ -1366,7 +1367,7 @@ pub fn coverage_step_from_buckets(
 /// **认识论 L1**（管线正确性，非 L2 alpha）。
 pub fn coverage_step_classification(
     classification: &Classification,
-    tower: &[Vec<LeveledMove>],
+    tower: &[Rc<Vec<LeveledMove>>],
     prev_active: &[ActiveLeg],
     base_units: f64,
     config: &VoiceConfig,
@@ -1708,7 +1709,7 @@ pub fn schedule_order(p_star: f64, p_t: f64, exec_index: usize) -> Order {
 #[allow(clippy::too_many_arguments)]
 pub fn pi_theta_step(
     classification: &Classification,
-    tower: &[Vec<LeveledMove>], // per-bar 因果塔（639 σ_p=父容器方向；runner 喂前缀重分类塔）
+    tower: &[Rc<Vec<LeveledMove>>], // per-bar 因果塔（639 σ_p=父容器方向；runner 喂前缀重分类塔）
     prev_active: &[ActiveLeg],
     p_t: f64,
     exec_index: usize,
@@ -1765,6 +1766,12 @@ mod tests {
         VoiceConfig::default() // max_depth=3, depth_weights=[0.60,0.30,0.10]
     }
 
+    /// ★O(n) 重构测试适配：把 `Vec<Vec<LeveledMove>>` 字面量塔逐级包 `Rc`（生产塔现为
+    /// `Vec<Rc<Vec<LeveledMove>>>`）。bit-exact 无关——仅类型适配，Rc deref 后内容不变。
+    fn rc_tower(levels: Vec<Vec<LeveledMove>>) -> Vec<Rc<Vec<LeveledMove>>> {
+        levels.into_iter().map(Rc::new).collect()
+    }
+
     /// 测试用 18 类角色构造器（三轴元组）。
     fn role(h: Horizontal, v: Vertical, d: Dir) -> OperationRole {
         OperationRole { h, v, delta: d }
@@ -1813,7 +1820,7 @@ mod tests {
     #[test]
     fn extract_elements_nested_parent_child() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]]; // 索引=级别：L0 空（子由 Compose 带出），L1 一个走势
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]); // 索引=级别：L0 空（子由 Compose 带出），L1 一个走势
         let elements = extract_elements(&tower);
         // 1 根（L1 走势）+ 3 子（L0 线段，真嵌套）= 4 元素。
         assert_eq!(elements.len(), 4);
@@ -1832,7 +1839,7 @@ mod tests {
     #[test]
     fn element_intervals_from_tower_coords() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         // 根：λ=0, ρ=12（窗口首起点..末终点）。
         assert_eq!((elements[0].lambda, elements[0].rho), (0, 12));
@@ -1847,7 +1854,7 @@ mod tests {
     /// 两父塔：compose_a(Long) + compose_b(Short) 相邻；a2 与 b0 **结构全等**(Seg{Up,5,15})
     /// 但属不同父 + 不同 ρ（漏洞③可观测）。a2.ρ=12==b0.λ=12（共享端点，漏洞②）。
     /// compose_a.ρ=12==a2.ρ=12 跨级共享（漏洞①）。
-    fn two_parent_tower() -> Vec<Vec<LeveledMove>> {
+    fn two_parent_tower() -> Vec<Rc<Vec<LeveledMove>>> {
         let a0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let a1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
         let a2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15), eid(0, 2));
@@ -1856,7 +1863,7 @@ mod tests {
         let b1 = LeveledMove::from_unit(&unit(16, 20, Direction::Down, 3, 12), eid(0, 4));
         let b2 = LeveledMove::from_unit(&unit(20, 24, Direction::Down, 0, 8), eid(0, 5));
         let compose_b = LeveledMove::compose(&[b0, b1, b2], ctr(12, 24), 1, eid(1, 1)); // 外缘 15→8 ⟹ Short
-        vec![Vec::new(), vec![compose_a, compose_b]]
+        rc_tower(vec![Vec::new(), vec![compose_a, compose_b]])
     }
 
     /// 638 附着：候选继承 hostOf 的真 Compose 父 + 父方向 σ_{p(g)}（V≠Ambient 前提，真父附着）。
@@ -1916,7 +1923,7 @@ mod tests {
     fn attach_guard_no_compose_level_is_ambient() {
         let s0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
         let s1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
-        let tower = vec![vec![s0, s1]]; // 仅 L0，len()==1 < 2（无 Compose 级）
+        let tower = rc_tower(vec![vec![s0, s1]]); // 仅 L0，len()==1 < 2（无 Compose 级）
         let tree = extract_elements(&tower);
         // host=s0（ρ=4，level 0）但 s0 是根（parent=None）⟹ 缺塔诚实退化 Ambient。
         assert_eq!(attach_bsp_to_tree(&tree, 0, 4), (None, None), "缺塔（len<2）⟹ host 是根 ⟹ Ambient");
@@ -1928,7 +1935,7 @@ mod tests {
     #[test]
     fn starting_ending_sets_by_endpoints() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         // bar 0：根（λ=0）+ 子0（λ=0）开始。
         let b0 = starting_set(&elements, 0);
@@ -1942,7 +1949,7 @@ mod tests {
     #[test]
     fn ancestor_close_prunes_orphan_child() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         // 人为构造：raw 只含子1（idx=2），不含其父（根 idx=0）⟹ AncOK 裁掉子1（祖先不齐）。
         let active = active_set_step(&elements, &[2], 99); // t=99 无新开始/结束，raw=active∖∅
@@ -1954,7 +1961,7 @@ mod tests {
     #[test]
     fn ancestor_close_keeps_closed_family() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         // raw 含根（0）+ 子0（1）：子0 祖先=根0 在 raw ⟹ 都保留。
         let active = active_set_step(&elements, &[0, 1], 99);
@@ -1965,7 +1972,7 @@ mod tests {
     #[test]
     fn raw_close_then_open() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         // t=4：子0（ρ=4）结束被关，子1（λ=4）开始被开。active 初始含根+子0。
         let active = active_set_step(&elements, &[0, 1], 4);
@@ -1983,7 +1990,7 @@ mod tests {
     #[test]
     fn role_toplevel_is_first_ambient_not_root() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         let r = operation_role(&elements, 0);
         // 顶层根（唯一同级元素）：H=First（无前兄弟），V=Ambient（父胚元 σ=0），δ=Plus（外缘上移 Long）。
@@ -1998,7 +2005,7 @@ mod tests {
         // 根 L1 走势外缘上移 ⟹ ε_root=Long（σ_{p(g)}=+1 for 子）。
         // 子0=Up(Long)=顺父 ⟹ FollowParent；子1=Down(Short)=反父 ⟹ ShortDiff。
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         // 根方向（外缘 hi：首子 hi=10, 末子 hi=15 ⟹ 上移 ⟹ Long）。
         assert_eq!(elements[0].eps, VoiceSide::Long);
@@ -2038,7 +2045,7 @@ mod tests {
     #[test]
     fn leg_target_side_and_depth_weighted_units() {
         let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
-        let tower = vec![Vec::new(), vec![l1]];
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
         let elements = extract_elements(&tower);
         let c = cfg();
         // 根腿（depth 0）：side=ε_root=Long，units=1000×w[0]=1000×0.60=600。
@@ -2392,10 +2399,10 @@ mod tests {
     fn ancok_admits_shortdiff_when_parent_held() {
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
         // per-bar 因果塔：L1 Long 父走势（compose idx0）+ 3 L0 子（idx1/2/3，sub(4,8) ρ=8）。
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // L0 卖候选 src=8 ⟹ host=sub(4,8) ⟹ 真父 L1 Long ⟹ ShortDiff（δ=Short=−σ_p）。
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
@@ -2433,10 +2440,10 @@ mod tests {
     fn ancok_admits_shortdiff_under_parent_coord_drift() {
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
         // 当前因果塔：L1 Long 父走势**已延伸**到 ρ=12（持仓时旧 ρ 曾=8，现吸收更多子走势 ρ 漂移）。
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
         };
@@ -2470,10 +2477,10 @@ mod tests {
     #[test]
     fn ancok_prunes_shortdiff_when_parent_unheld() {
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
         };
@@ -2503,7 +2510,7 @@ mod tests {
     fn ancok_admits_ambient_root_without_held_parent() {
         let reg = super::super::persistent::PersistentRegistry::new();
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
-        let tower: Vec<Vec<LeveledMove>> = Vec::new(); // 缺塔 ⟹ 候选父=∂ ⟹ Ambient 根
+        let tower: Vec<Rc<Vec<LeveledMove>>> = Vec::new(); // 缺塔 ⟹ 候选父=∂ ⟹ Ambient 根
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![buy_bsp(4)], ..Default::default() }],
         };
@@ -2522,10 +2529,10 @@ mod tests {
     #[test]
     fn ancok_prunes_child_when_parent_closed_same_step() {
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // 同 bar 两候选：L1 卖（反向关闭 L1 Long 父腿）+ L0 卖（ShortDiff 子腿）。
         let classification = Classification {
             levels: vec![
@@ -2566,10 +2573,10 @@ mod tests {
     fn engine_bootstrap_container_bsp_admits_depth_child_from_empty() {
         let reg = super::super::persistent::PersistentRegistry::new();
         // per-bar 因果塔：L1 Long 父走势（compose ρ=12，idx0）+ 3 L0 子（idx1/2/3）。
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // 两个 BSP 同 bar：
         //  - L1 容器自身的卖点（src=12=容器 ρ，host=L1 容器，是根 ⟹ Ambient 根腿，AncOK 无父要求准入）。
         //  - L0 卖点（src=8=sub(4,8) ρ，host=sub，真父=L1 容器 ⟹ ShortDiff depth=1 子腿）。
@@ -2598,10 +2605,10 @@ mod tests {
     #[test]
     fn engine_bootstrap_does_not_admit_orphan_shortdiff_without_container_bsp() {
         let reg = super::super::persistent::PersistentRegistry::new();
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // 仅 L0 ShortDiff 候选，**无** L1 容器 BSP ⟹ 容器不开腿 ⟹ 子腿父不在 raw ⟹ 剪枝（639(c)）。
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
@@ -2636,10 +2643,10 @@ mod tests {
     #[test]
     fn cross_bar_held_container_admits_depth_child_next_bar() {
         let reg = super::super::persistent::PersistentRegistry::new();
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // bar1：仅 L1 容器卖点（src=12=容器 ρ）⟹ 容器腿开（根，§8 σ_r 持仓）。
         let bar1 = Classification {
             levels: vec![
@@ -2689,10 +2696,10 @@ mod tests {
     #[test]
     fn open_candidate_parent_injected_from_registry_admits_depth_child() {
         let reg = super::super::persistent::PersistentRegistry::new();
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // bar1：L1 容器卖点（src=12）⟹ 容器腿开 ⟹ merge 把容器 carrier 写入 registry（LiveDetached 源）。
         let bar1 = Classification {
             levels: vec![
@@ -2770,10 +2777,10 @@ mod tests {
     #[test]
     fn open_candidate_parent_not_in_registry_still_pruned() {
         let reg = super::super::persistent::PersistentRegistry::new();
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // 空 registry（父 carrier 从未出现在任何 snapshot）+ 仅 L0 ShortDiff 子卖点 + 空 prev_active。
         let bar = Classification {
             levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
@@ -2795,10 +2802,10 @@ mod tests {
     #[test]
     fn stale_non_boundary_root_is_pruned_not_fabricated_root() {
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
         };
@@ -3046,10 +3053,10 @@ mod tests {
     fn pi_theta_step_shortdiff_from_parent_container_not_position() {
         use super::super::interp::assemble_gamma_with_tower;
         // per-bar 因果塔：L1 Long 父走势（结构对象；3 个 L0 子，sub(8,12) 右端点 ρ=12）。
-        let tower = vec![
+        let tower = rc_tower(vec![
             Vec::new(),
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
-        ];
+        ]);
         // L0 卖候选 source_index=12 ⟹ host=sub(8,12)（ρ=12）⟹ 真父 L1 Long ⟹ σ_p=Long。
         let sell = BspPoint {
             source_index: 12,

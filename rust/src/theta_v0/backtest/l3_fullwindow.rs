@@ -99,6 +99,7 @@ fn l3_fullwindow_multi_symbol_significance() {
             symbol: oos_full.symbol.clone(),
             bars: oos_full.bars.clone(),
             dates: oos_full.dates.clone(),
+            bar_seconds: 60,
         };
         n_full += 1;
 
@@ -434,7 +435,7 @@ fn close_indices_mirror(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<u
 fn instrument_bar(
     diag: &mut DepthDiag,
     classification_i: &classifier::Classification,
-    tower_i: &[Vec<classifier::recursive_tower::LeveledMove>],
+    tower_i: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
     prev_active: &[ActiveLeg],
     base_units: f64,
     cfg: &ThetaConfig,
@@ -782,6 +783,7 @@ fn l3_pi_depth_diag_cl_btc() {
             symbol: oos_full.symbol.clone(),
             bars: oos_full.bars[..cut].to_vec(),
             dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
         };
 
         eprintln!("\n──── {:<6} ({} bars, OOS {}→{}, cut={}) ────", w.symbol, oos.bars.len(), w.oos.0, w.oos.1, cut);
