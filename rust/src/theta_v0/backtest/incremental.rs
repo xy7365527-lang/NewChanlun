@@ -12,12 +12,18 @@
 //!
 //! ## 跨 bar 身份稳定（核心修复——memory newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass）
 //!
-//! 全量重分类每 bar 从零重建塔→`LeveledMove` 对象身份每 bar 断裂→`held_leg_tree_index` 在新塔里
-//! 找不到旧腿→判 Stale（90%+）→`depth>0` 对冲腿全被 §13 AncOK 剪→#5 贡献为零→ΔSharpe=0。
+//! ★codex Q4 发现 B 归因修正：旧注释"λ/eps 漂移"归因错误——λ=start_index 在 confirmed 前缀不回写时
+//! 不变。真因 = extract_elements 每 bar 重建 Vec + 更高级新出现时根结构重构索引重映射 + 旧 held_leg_tree_index
+//! 值比较 (level,λ,eps) 非 spec §13 结构映射 p(g)。Q4 修复：确定性 ElementId 跨 bar 稳定（全量/增量
+//! 产同 ID），held_leg_tree_index 按 ID 匹配非值比较；Stale 不伪造 parent:None（发现 A），非边界根
+//! 父未解析 = prune（AncOK 严格 §13）⟹ depth>0 腿可准入 ⟹ ΔSharpe 可非零（待 L2 重测）。
+//!
+//! 全量重分类每 bar 从零重建塔→旧值比较 held_leg_tree_index 在新塔里找不到旧腿→判 Stale（90%+）
+//! →`depth>0` 对冲腿全被 §13 AncOK 剪→#5 贡献为零→ΔSharpe=0。
 //!
 //! 增量塔的 `TowerCache.levels[k].upper_moves` 跨 bar **复用同一 Vec**（前缀不可变，尾部 append）→
-//! `LeveledMove` 对象身份跨 bar 连续→held_leg 在新塔里找到同身份腿→Stale 降根减少→depth>0 腿准入→
-//! ΔSharpe 可非零。
+//! `LeveledMove` 对象身份跨 bar 连续→Q4 确定性 ElementId 跨 bar 稳定→held_leg 按 ID 在新塔里找到
+//! 同身份腿→Stale 降根减少→depth>0 腿准入→ΔSharpe 可非零。
 //!
 //! ## bit-exact 铁律
 //!

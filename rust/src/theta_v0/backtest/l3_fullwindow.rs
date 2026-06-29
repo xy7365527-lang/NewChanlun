@@ -301,28 +301,14 @@ fn elem_depth(elements: &[CoverageElement], idx: usize) -> u32 {
     d
 }
 
-/// 重放 held_leg_tree_index 三分（coverage.rs:718-744 私有函数公开镜像）。0=Exact 1=CoordDrift 2=Stale。
+/// 重放 held_leg_tree_index 二分（codex Q4：按 ElementId 结构映射匹配，spec §13）。
+/// 0=Exact（ID 命中） 2=Stale（ID 未匹配）。旧 1=CoordDrift 已删（ID 确定性 ⟹ 父延伸同 ID ⟹ Exact 覆盖）。
 fn held_branch(elements: &[CoverageElement], candidate_start: usize, leg: &ActiveLeg) -> u8 {
     let tree_end = candidate_start.min(elements.len());
     let tree = &elements[..tree_end];
-    if tree
-        .iter()
-        .position(|e| e.level == leg.level && e.rho == leg.source_index && e.eps == leg.dir)
-        .is_some()
-    {
+    // codex Q4：按 leg.id（跨 bar 稳定的确定性 ElementId）查当前因果树元素。
+    if tree.iter().position(|e| e.id == leg.id).is_some() {
         return 0;
-    }
-    if tree
-        .iter()
-        .position(|e| {
-            e.level == leg.level
-                && e.eps == leg.dir
-                && e.lambda == leg.lambda
-                && e.rho >= leg.source_index
-        })
-        .is_some()
-    {
-        return 1;
     }
     2
 }
@@ -415,20 +401,22 @@ fn instrument_bar(
         if closed_idx.contains(&i) {
             continue;
         }
-        let idx_opt = elements[..tree_end]
-            .iter()
-            .position(|e| e.level == leg.level && e.rho == leg.source_index && e.eps == leg.dir)
-            .or_else(|| {
-                elements[..tree_end].iter().position(|e| {
-                    e.level == leg.level
-                        && e.eps == leg.dir
-                        && e.lambda == leg.lambda
-                        && e.rho >= leg.source_index
-                })
-            });
-        if let Some(idx) = idx_opt {
-            if !raw.contains(&idx) {
-                raw.push(idx);
+        // ★codex Q4：按 leg.id（确定性 ElementId）匹配当前因果树元素（spec §13 结构映射）。
+        let idx_opt = elements[..tree_end].iter().position(|e| e.id == leg.id);
+        match idx_opt {
+            Some(idx) => {
+                if !raw.contains(&idx) {
+                    raw.push(idx);
+                }
+            }
+            None => {
+                // Stale：★发现 A 修复——不伪造 parent:None。真边界根 ∂ 作根保留，非边界根 prune。
+                if leg.is_boundary_root {
+                    // 真边界根 ∂：保留（prune 逻辑在 ancestor_close_by_id 按 parent_id 闭包）。
+                    // 此处 L3 探针只统计，不重建 work，故不计入 raw（与 coverage_step_from_buckets
+                    // 的 prune 一致——非边界根 prune，边界根作根但 L3 探针无 work 追加路径）。
+                }
+                // 非边界根：prune（不入 raw）。
             }
         }
     }

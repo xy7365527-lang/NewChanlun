@@ -47,6 +47,28 @@ use super::super::types::{Center, Direction};
 use super::center::UnitRange;
 use super::descend::RMove;
 
+/// 确定性元素身份（codex Q4：spec §13 `p:C_ℓ→C_{ℓ+1}` 结构映射的 rust 对象身份）。
+///
+/// 跨 bar 稳定（全量/增量产同 ID），非 per-bar `Vec` 索引——解 codex 发现 A/B：
+/// - 发现 A：`held_leg_tree_index` Stale 分支伪造 `parent:None`（AncOK 放宽，spec §13 line 671 偏差）。
+/// - 发现 B：值比较 `(level,λ,eps)` 非 spec §13 结构映射；真因 = 每 bar 重建 Vec + 更高级根重构索引重映射。
+///
+/// `id = (level, ordinal)`：级别 + 该级 compose 输出序号（同级别窗口扫描产出序，全量/增量一致）。
+/// L0 线段 ordinal = 段在 L0 序列中的索引；上级 Compose ordinal = 窗口在该级产出序（增量 tail 接续前缀）。
+///
+/// ★确定性保证（全量/增量产同 ID）：`compose_level` 用 `enumerate` 注入 ordinal；
+/// `compose_level_resume` 接收 `prefix_count`（已产出前缀数），tail ordinal = `prefix_count + i`。
+///
+/// ## 认识论等级（formalization-validity-domain 231号）
+/// **L0**（纯结构身份）：ID 构造是确定性序号注入，不依赖经验数据。跨 bar 稳定是定义性（同前缀同 ID）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ElementId {
+    /// 级别 ℓ（L0=0，逐级递增）。
+    pub level: u32,
+    /// 该级 compose 输出序号（同级别单调递增，全量/增量一致）。
+    pub ordinal: u64,
+}
+
 /// 携坐标的递归走势（坐标层包装：`RMove` 结构 + 原始 K 序坐标 + 携坐标的次级别走势侧车）。
 ///
 /// `rmove`：纯结构走势（Lean `Move` μF 镜像，descend.rs::RMove——无坐标）。
@@ -69,6 +91,9 @@ pub struct LeveledMove {
     pub end_index: usize,
     /// 构成该走势的携坐标次级别走势序列（与 `rmove` 的 Compose.subs 同序同长；L0 线段空）。
     pub sub_moves: Vec<LeveledMove>,
+    /// ★codex Q4：确定性元素身份（跨 bar 稳定，spec §13 结构映射对象身份）。
+    /// 全量/增量产同 ID——`compose_level`/`compose_level_resume` 注入 ordinal。
+    pub id: ElementId,
 }
 
 impl LeveledMove {
@@ -76,7 +101,9 @@ impl LeveledMove {
     ///
     /// L0 走势单元是 parser 线段（`UnitRange`，有方向 + [lo,hi]）。它是递归底（`descend` 得空
     /// 序列）——`RMove::Segment { direction, lo, hi }`。坐标取线段的 source_index 区间。
-    pub fn from_unit(u: &UnitRange) -> LeveledMove {
+    ///
+    /// `id`：确定性元素身份（codex Q4）。L0 线段 ordinal = 段在 L0 序列中的索引（调用方 enumerate 注入）。
+    pub fn from_unit(u: &UnitRange, id: ElementId) -> LeveledMove {
         LeveledMove {
             rmove: RMove::Segment {
                 direction: u.direction,
@@ -86,6 +113,7 @@ impl LeveledMove {
             start_index: u.start_index,
             end_index: u.end_index,
             sub_moves: Vec::new(),
+            id,
         }
     }
 
@@ -94,12 +122,14 @@ impl LeveledMove {
     /// `subs`：构成该上级走势的连续次级别 `LeveledMove`（窗口三段，走势分解定理二 ≥3 段）。
     /// `center`：窗口三段区间重叠真派生的中枢（`RMove::Compose.centers` 载荷）。
     /// `level`：上级走势级别（次级别 level + 1，Lean `Move.level` 严格递增/descend 递减）。
+    /// `id`：确定性元素身份（codex Q4，调用方注入 ordinal = 窗口产出序）。
     /// 坐标取窗口首单元起点 + 末单元终点（上级走势覆盖其全部次级别走势的 K 序跨度）。
     ///
     /// `rmove` 的 `RMove::Compose.subs` = 窗口内次级别走势的 **rmove**（纯结构，坐标剥离——Lean μF
     /// 的 subs）；`sub_moves` 保留**携坐标**的 `subs`（坐标侧车，`descend_leveled` 取回 + `index_of_in`
-    /// 映射 source_index）。两者同序同长（`sub_moves[i].rmove == rmove.subs[i]`）。
-    pub fn compose(subs: &[LeveledMove], center: Center, level: u32) -> LeveledMove {
+    /// 映射 source_index）。两者同序同长（`sub_moves[i].rmove == rmove.subs[i]`）。子走势 `id` 继承
+    /// subs 各自的 ID（已携带，非父派生）。
+    pub fn compose(subs: &[LeveledMove], center: Center, level: u32, id: ElementId) -> LeveledMove {
         let sub_rmoves: Vec<RMove> = subs.iter().map(|m| m.rmove.clone()).collect();
         let start_index = subs.first().map(|m| m.start_index).unwrap_or(0);
         let end_index = subs.last().map(|m| m.end_index).unwrap_or(0);
@@ -112,6 +142,7 @@ impl LeveledMove {
             start_index,
             end_index,
             sub_moves: subs.to_vec(),
+            id,
         }
     }
 
@@ -191,15 +222,18 @@ pub fn compose_level(
     let windowed = detect_centers_windowed(units, build);
     let centers: Vec<Center> = windowed.iter().map(|(c, _)| *c).collect();
     // 每个中枢的构成窗口（三段次级别 LeveledMove）→ compose 为一个上级走势。
+    // ★codex Q4：确定性 ID 注入——ordinal = 窗口在该级产出序（enumerate）。全量从 0 起。
     let upper: Vec<LeveledMove> = windowed
         .iter()
-        .map(|(c, win)| {
+        .enumerate()
+        .map(|(i, (c, win))| {
             let subs = [
                 subs_moves[win[0]].clone(),
                 subs_moves[win[1]].clone(),
                 subs_moves[win[2]].clone(),
             ];
-            LeveledMove::compose(&subs, *c, level)
+            let id = ElementId { level, ordinal: i as u64 };
+            LeveledMove::compose(&subs, *c, level, id)
         })
         .collect();
     (centers, upper)
@@ -297,19 +331,24 @@ pub fn detect_centers_windowed_resume(
 ///
 /// 与 `compose_level` 的关系：
 /// - 全量等价：`compose_level(units, subs, is_l0, level)` ==
-///   `compose_level_resume(units, subs, is_l0, level, 0)`（`.0`/`.1`/`.2` 三元组相同）。
+///   `compose_level_resume(units, subs, is_l0, level, 0, 0)`（`.0`/`.1`/`.2` 三元组相同）。
 /// - 增量：返回 `(tail_centers, tail_upper, cursor)`——tail 是新产出（追加到已缓存前缀后），
 ///   `cursor.consumed` 是退出断点（下次续扫起点）。
 ///
 /// `subs_moves` 必须与 `units` 同序同长（`units` 是 `subs_moves` 的投影）。增量只追加产出，
 /// **不修改**已缓存的 `LeveledMove` 前缀——真 Fugue 547：每个新 compose 的 subs 仍是真窗口三段
 /// 次级别 LeveledMove（`subs_moves[win[0..3]]`），descend 取回真 subs。
+///
+/// ★codex Q4 确定性 ID：`prefix_count` = 已产出前缀数（调用方传 `lc.upper_moves.len()`），
+/// tail ordinal = `prefix_count + i`（接续前缀，全量/增量产同 ID）。`start_i=0, prefix_count=0`
+/// 时与全量 `compose_level` 逐字段 bit-identical（含 ID）。
 pub fn compose_level_resume(
     units: &[UnitRange],
     subs_moves: &[LeveledMove],
     is_l0: bool,
     level: u32,
     start_i: usize,
+    prefix_count: usize,
 ) -> (Vec<Center>, Vec<LeveledMove>, WindowScanCursor) {
     let build = if is_l0 {
         super::center::center_from_segments
@@ -320,13 +359,16 @@ pub fn compose_level_resume(
     let tail_centers: Vec<Center> = windowed.iter().map(|(c, _)| *c).collect();
     let tail_upper: Vec<LeveledMove> = windowed
         .iter()
-        .map(|(c, win)| {
+        .enumerate()
+        .map(|(i, (c, win))| {
             let subs = [
                 subs_moves[win[0]].clone(),
                 subs_moves[win[1]].clone(),
                 subs_moves[win[2]].clone(),
             ];
-            LeveledMove::compose(&subs, *c, level)
+            // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。
+            let id = ElementId { level, ordinal: (prefix_count + i) as u64 };
+            LeveledMove::compose(&subs, *c, level, id)
         })
         .collect();
     (tail_centers, tail_upper, cursor)
@@ -422,11 +464,26 @@ mod tests {
     fn up() -> Direction { Direction::Up }
     fn down() -> Direction { Direction::Down }
 
+    /// 测试用 ID 生成器（codex Q4：确定性 ElementId）。
+    fn eid(level: u32, ordinal: u64) -> ElementId {
+        ElementId { level, ordinal }
+    }
+
+    /// 测试用 from_unit 包装（自动注入 L0 ID，ordinal 按调用序由调用方给）。
+    fn from_unit(u: &UnitRange, ordinal: u64) -> LeveledMove {
+        LeveledMove::from_unit(u, eid(0, ordinal))
+    }
+
+    /// 测试用 compose 包装（自动注入上级 ID）。
+    fn compose(subs: &[LeveledMove], center: Center, level: u32, ordinal: u64) -> LeveledMove {
+        LeveledMove::compose(subs, center, level, eid(level, ordinal))
+    }
+
     /// L0 线段单元 → RMove::Segment（递归底，坐标保留）。
     #[test]
     fn from_unit_is_segment_with_coords() {
         let u = unit(4, 8, down(), 90, 150);
-        let lm = LeveledMove::from_unit(&u);
+        let lm = LeveledMove::from_unit(&u, eid(0, 0));
         assert_eq!(lm.rmove, RMove::Segment { direction: down(), lo: 90, hi: 150 });
         assert_eq!((lm.start_index, lm.end_index), (4, 8));
         // 递归底：descend 得空（L0 线段无次级别）。
@@ -436,11 +493,11 @@ mod tests {
     /// ★组装-取回对偶（descend ∘ compose = id）：compose 三段次级别 → descend 取回它们的 rmove。
     #[test]
     fn compose_descend_roundtrip_preserves_subs() {
-        let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10));
-        let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12));
-        let s2 = LeveledMove::from_unit(&unit(8, 12, up(), 5, 15));
+        let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10), eid(0, 0));
+        let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12), eid(0, 1));
+        let s2 = LeveledMove::from_unit(&unit(8, 12, up(), 5, 15), eid(0, 2));
         let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
-        let parent = LeveledMove::compose(&[s0.clone(), s1.clone(), s2.clone()], c, 1);
+        let parent = LeveledMove::compose(&[s0.clone(), s1.clone(), s2.clone()], c, 1, eid(1, 0));
         // descend 取回三段次级别 rmove（旧塔 UnitRange 折叠后 descend 得空）。
         let subs = descend(&parent.rmove);
         assert_eq!(subs.to_vec(), vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone()]);
@@ -475,7 +532,7 @@ mod tests {
             unit(4, 8, down(), 3, 12),
             unit(8, 12, up(), 5, 15),
         ];
-        let moves: Vec<LeveledMove> = units.iter().map(LeveledMove::from_unit).collect();
+        let moves: Vec<LeveledMove> = units.iter().enumerate().map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64))).collect();
         let (centers, upper) = compose_level(&units, &moves, true, 1);
         assert_eq!(centers.len(), 1, "上-下-上 全三段核心非空 ⟹ 一个中枢");
         assert_eq!(upper.len(), 1, "一个中枢 ⟹ 一个上级走势");
@@ -488,8 +545,8 @@ mod tests {
     /// index_of_in：从坐标侧车按结构身份查回次级别走势的 end_index。
     #[test]
     fn index_of_maps_rmove_to_source_index() {
-        let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10));
-        let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12));
+        let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10), eid(0, 0));
+        let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12), eid(0, 1));
         let subs = vec![s0.clone(), s1.clone()];
         // 按结构身份查 s1.rmove → end_index=8。
         assert_eq!(index_of_in(&subs, &s1.rmove), 8);
@@ -502,11 +559,11 @@ mod tests {
     /// project_to_units：上级走势序列 → UnitRange 序列（供下一级几何检测 + 坐标传递）。
     #[test]
     fn project_preserves_outer_envelope_and_coords() {
-        let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10));
-        let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12));
-        let s2 = LeveledMove::from_unit(&unit(8, 12, up(), 5, 15));
+        let s0 = LeveledMove::from_unit(&unit(0, 4, up(), 0, 10), eid(0, 0));
+        let s1 = LeveledMove::from_unit(&unit(4, 8, down(), 3, 12), eid(0, 1));
+        let s2 = LeveledMove::from_unit(&unit(8, 12, up(), 5, 15), eid(0, 2));
         let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
-        let parent = LeveledMove::compose(&[s0, s1, s2], c, 1);
+        let parent = LeveledMove::compose(&[s0, s1, s2], c, 1, eid(1, 0));
         let units = project_to_units(&[parent.clone()]);
         assert_eq!(units.len(), 1);
         // 外缘 = subs 区间聚合（lo=min=0, hi=max=15）。
@@ -585,20 +642,20 @@ mod tests {
                 unit(i * 4, i * 4 + 4, dir, 0, 100)
             })
             .collect();
-        let moves: Vec<LeveledMove> = units.iter().map(LeveledMove::from_unit).collect();
+        let moves: Vec<LeveledMove> = units.iter().enumerate().map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64))).collect();
 
         // 全量 compose_level。
         let (full_c, full_u) = compose_level(&units, &moves, true, 1);
 
         // resume from 0 == 全量。
-        let (rc, ru, _) = compose_level_resume(&units, &moves, true, 1, 0);
+        let (rc, ru, _) = compose_level_resume(&units, &moves, true, 1, 0, 0);
         assert_eq!(rc, full_c, "resume(0) centers == 全量");
         assert_eq!(ru, full_u, "resume(0) upper == 全量");
 
         // 增量：前 6 段 compose。
-        let (pc, pu, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0);
-        // 追加续扫。
-        let (tc, tu, _) = compose_level_resume(&units, &moves, true, 1, cursor6.consumed);
+        let (pc, pu, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+        // 追加续扫（prefix_count = pu.len()，tail ordinal 接续前缀）。
+        let (tc, tu, _) = compose_level_resume(&units, &moves, true, 1, cursor6.consumed, pu.len());
 
         let mut comb_c = pc.clone();
         comb_c.extend(tc);
@@ -648,7 +705,7 @@ mod tests {
                 unit(i * 4, i * 4 + 4, dir, 0, 100)
             })
             .collect();
-        let moves: Vec<LeveledMove> = units.iter().map(LeveledMove::from_unit).collect();
+        let moves: Vec<LeveledMove> = units.iter().enumerate().map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64))).collect();
         // L0 → L1（完整判据，方向交替）。
         let (_c1, l1) = compose_level(&units, &moves, true, 1);
         assert_eq!(l1.len(), 3, "9 段 → 3 窗口 → 3 个 L1 走势");

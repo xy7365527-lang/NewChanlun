@@ -46,7 +46,7 @@
 //! immutable 风格：所有构造新对象，不原地修改（活动集递归返回新集合，不 mutate 旧集合）。
 
 use super::super::classifier::descend::RMove;
-use super::super::classifier::recursive_tower::LeveledMove;
+use super::super::classifier::recursive_tower::{compose_level, compose_level_resume, ElementId, LeveledMove};
 use super::super::classifier::Classification;
 use super::super::config::{RiskConfig, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
@@ -71,6 +71,12 @@ use super::voice::{depth_weight, VoiceSide};
 /// ★`parent`/`attached_dir` 来自塔的**真嵌套结构**（Compose 父子），非级别差伪造（铁律）。
 /// ★去根化（spec §4/§7）：`parent=None` **不是**"无父根"，而是父容器为边界胚元 ∂（σ_{p(g)}=0），
 /// 在角色分类中由 V=Ambient 吸收——**无 RootRole 特例**（spec P7：Ambient 非根规则）。
+///
+/// ★codex Q4 确定性 ID（spec §13 `p:C_ℓ→C_{ℓ+1}` 结构映射对象身份）：
+/// - `id`：跨 bar 稳定的确定性 ElementId（来自 `LeveledMove.id`，全量/增量产同 ID）。
+/// - `parent_id`：父容器的 ElementId（跨 bar 稳定，真 Compose 父）。`None` = 真边界胚元 ∂。
+/// `parent: Option<usize>` 保留作 per-bar Vec 索引（`ancestor_close` 等仍用索引查 elements Vec），
+/// 但 AncOK 的**结构判据**改用 `parent_id`（spec §13 结构映射，非 per-bar 索引）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoverageElement {
     /// λ_e：操作区间左端点（source_index，入场 bar）。
@@ -85,6 +91,10 @@ pub struct CoverageElement {
     pub parent: Option<usize>,
     /// σ_{p(g)}：父容器方向（顶层 None / Flat = 胚元 σ=0；V 垂直关系用）。
     pub attached_dir: Option<VoiceSide>,
+    /// ★codex Q4：确定性元素身份（跨 bar 稳定，来自 `LeveledMove.id`）。
+    pub id: ElementId,
+    /// ★codex Q4：父容器的 ElementId（跨 bar 稳定，spec §13 结构映射）。None = 真边界胚元 ∂。
+    pub parent_id: Option<ElementId>,
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -110,8 +120,8 @@ pub fn extract_elements(tower: &[Vec<LeveledMove>]) -> Vec<CoverageElement> {
     // 从最高级开始（顶层走势是边界胚元 ∂ 容器下的兄弟，去根化无 RootRole）。
     for level_moves in tower.iter().rev() {
         for lm in level_moves {
-            // 顶层走势 = 根元素（parent=None，attached_dir=None）。
-            push_element_tree(&mut elements, lm, None, None);
+            // 顶层走势 = 根元素（parent=None，attached_dir=None，parent_id=None=边界胚元 ∂）。
+            push_element_tree(&mut elements, lm, None, None, None);
         }
         // 只展开最高非空级别作为根（更低级别由 Compose.subs 真嵌套带出，不重复作根）。
         if !level_moves.is_empty() {
@@ -131,6 +141,7 @@ fn push_element_tree(
     lm: &LeveledMove,
     parent_idx: Option<usize>,
     parent_dir: Option<VoiceSide>,
+    parent_id: Option<ElementId>,
 ) {
     let eps = rmove_side(&lm.rmove);
     let my_idx = elements.len();
@@ -141,10 +152,12 @@ fn push_element_tree(
         level: lm.rmove.level(),
         parent: parent_idx,
         attached_dir: parent_dir,
+        id: lm.id,
+        parent_id,
     });
     // 真嵌套子声部（descend 取回的子走势携坐标侧车 `sub_moves`）⟹ 子元素 parent=my_idx。
     for sub in &lm.sub_moves {
-        push_element_tree(elements, sub, Some(my_idx), Some(eps));
+        push_element_tree(elements, sub, Some(my_idx), Some(eps), Some(lm.id));
     }
 }
 
@@ -317,6 +330,9 @@ pub fn from_classification_levels(classification: &Classification) -> Vec<Covera
                 level: level_idx as u32,
                 parent: None,
                 attached_dir: None,
+                // 扁平入口无真塔 ⟹ 确定性 ID 退化为 (level, center 序号)；parent_id=None=∂。
+                id: ElementId { level: level_idx as u32, ordinal: elements.len() as u64 },
+                parent_id: None,
             });
         }
     }
@@ -360,12 +376,41 @@ pub fn ending_set(elements: &[CoverageElement], t: usize) -> Vec<usize> {
 /// 从 e 的父 `parent` 出发，沿 parent 链上溯收集祖先（对齐 `AncestorClosure.ancestors`）。
 /// 树深有限（塔级别有限）⟹ 链有限，无 fuel 需要（rust 用 while 上溯，环不可能——parent 索引
 /// 严格小于子索引，`push_element_tree` 父在子前保证）。
+///
+/// ★codex Q4：此为**索引链**版本（per-bar Vec 索引），用于 §3 `active_set_step` 的 Lean M16
+/// 区间递归原语对齐（非生产入场，GAP-5 note）。§13 生产 AncOK 用 [`ancestors_by_id`]（parent_id
+/// 结构映射，spec §13 line 675 `p:C_ℓ→C_{ℓ+1}`）。
 pub fn ancestors(elements: &[CoverageElement], e_idx: usize) -> Vec<usize> {
     let mut chain = Vec::new();
     let mut cur = elements.get(e_idx).and_then(|e| e.parent);
     while let Some(p) = cur {
         chain.push(p);
         cur = elements.get(p).and_then(|e| e.parent);
+    }
+    chain
+}
+
+/// ★codex Q4 祖先链（按 `parent_id` 结构映射，spec §13 `p:C_ℓ→C_{ℓ+1}`）。
+///
+/// 从 e 的父 `parent_id` 出发，沿 parent_id 链上溯收集祖先的 `ElementId`。跨 bar 稳定（ID 确定性），
+/// 非每 bar Vec 索引。用于 §13 生产 AncOK（[`ancestor_close_by_id`]）——spec §13 line 671 硬约束
+/// "子级短差腿存在 ⟹ 父容器存在"按结构映射判据，非 per-bar 索引。
+///
+/// 树深有限 ⟹ 链有限，无 fuel 需要。环不可能——parent_id 严格指向更高级别（`push_element_tree`
+/// 父 level > 子 level，descend 级别严格递减保证）。
+pub fn ancestors_by_id(elements: &[CoverageElement], e_idx: usize) -> Vec<ElementId> {
+    let mut chain = Vec::new();
+    let mut cur = elements.get(e_idx).and_then(|e| e.parent_id);
+    // 建一次 id→idx 索引（链上溯需按 parent_id 反查元素）。
+    let id_to_idx: std::collections::HashMap<ElementId, usize> = elements
+        .iter()
+        .enumerate()
+        .map(|(i, e)| (e.id, i))
+        .collect();
+    while let Some(pid) = cur {
+        chain.push(pid);
+        // 按 parent_id 查下一级祖先（parent_id 指向的元素的 parent_id）。
+        cur = id_to_idx.get(&pid).and_then(|&pidx| elements.get(pidx).and_then(|e| e.parent_id));
     }
     chain
 }
@@ -396,6 +441,9 @@ fn raw_active_set(active: &[usize], ending: &[usize], starting: &[usize]) -> Vec
 ///
 /// 保留「全部祖先也在 raw 集中」的元素——子激活 ⟹ 全祖先在场（覆盖不漂浮，对齐
 /// `AncestorClosure.ancOK`）。祖先不齐（父不在 raw）的元素被裁掉（子声部不漂浮在不存在的父上）。
+///
+/// ★此为**索引链**版本（§3 Lean M16 区间递归原语对齐，非生产入场）。§13 生产 AncOK 用
+/// [`ancestor_close_by_id`]（parent_id 结构映射，spec §13）。
 fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
     // ponytail: HashSet O(1) 替 raw.contains O(n)——祖先查询从线性降常数
     let raw_set: std::collections::HashSet<usize> = raw.iter().copied().collect();
@@ -405,6 +453,30 @@ fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
             ancestors(elements, e_idx)
                 .iter()
                 .all(|a| raw_set.contains(a))
+        })
+        .collect()
+}
+
+/// ★codex Q4 祖先闭合（按 `parent_id` 结构映射，spec §13 line 661/665/671）。
+///
+/// `AncOK(A)={a∈A:Anc(a)⊆A}`——保留「全部祖先（沿 parent_id 链）也在 raw 中」的元素。
+/// 祖先判据用 `parent_id`（跨 bar 稳定的 ElementId，spec §13 `p:C_ℓ→C_{ℓ+1}` 结构映射），
+/// 非 per-bar Vec 索引。祖先不齐（父不在 raw_ids）的元素被裁掉——spec §13 line 671 硬约束
+/// "任何子级短差腿存在时，它的父容器也存在"。
+///
+/// ★与 [`ancestor_close`] 的区别：[`ancestor_close`] 按 `parent: Option<usize>` 索引链（§3 Lean
+/// M16 原语），本函数按 `parent_id: Option<ElementId>` 结构映射链（§13 生产）。两者在单 bar 内
+/// 元素集上等价（parent 索引与 parent_id 一一对应），但本函数的判据跨 bar 稳定（ID 确定性）。
+fn ancestor_close_by_id(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
+    // raw_ids：raw 中元素的 id 集合（结构映射判据）。
+    let raw_ids: std::collections::HashSet<ElementId> =
+        raw.iter().filter_map(|&i| elements.get(i).map(|e| e.id)).collect();
+    raw.iter()
+        .copied()
+        .filter(|&e_idx| {
+            ancestors_by_id(elements, e_idx)
+                .iter()
+                .all(|a| raw_ids.contains(a))
         })
         .collect()
 }
@@ -827,31 +899,24 @@ pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
 //        （spec §13 line 1172 活动集 + §14 line 1243 头寸，七链 **环6** rust 兑现）
 // ════════════════════════════════════════════════════════════════════════════
 
-/// 持仓腿 [`ActiveLeg`] → **当前因果树元素索引**（638 坐标身份：本级 `level`、右端点
-/// `ρ==source_index`、方向 `eps==dir`）。
+/// 持仓腿 [`ActiveLeg`] → **当前因果树元素索引**（codex Q4：按 `ElementId` 结构映射匹配，spec §13）。
 ///
-/// 只在**真嵌套树元素段** `elements[0..candidate_start)` 查（候选段 `[candidate_start..)` 是本 bar
-/// 新触发候选，非持仓）。找到 ⟹ 持仓腿覆盖的走势在当前因果树在场 ⟹ 其子声部腿的 AncOK 祖先齐全
-/// （[`ancestor_close`] 保留）；未找到 ⟹ 持仓腿走势不在当前前缀因果树（走势已演化/不在前缀，缺塔
-/// 边界）⟹ 调用方追加为根元素（无父，AncOK 不剔）。
+/// ★codex Q4 严格修复（替代值比较 `(level,ρ,eps)`/`(level,λ,eps)` hack）：
+/// 按 `leg.id`（跨 bar 稳定的确定性 ElementId）在当前因果树前缀查同 ID 元素。
+/// - 找到 → [`HeldLegMatch::Exact`]：持仓腿覆盖的走势在当前因果树在场 ⟹ 其子声部腿的 AncOK
+///   祖先齐全（[`ancestor_close`] 保留）。ID 确定性 ⟹ 父延伸（ρ 漂移）仍同 ID ⟹ 不需 CoordDrift 分支。
+/// - 未找到 → [`HeldLegMatch::Stale`]：持仓腿走势不在当前前缀因果树（结构演化/不在前缀）。
+///   调用方按 `is_boundary_root` 决定：真边界根 ∂ 作根保留，非边界根 prune（发现 A 修复）。
+///
+/// 只在**真嵌套树元素段** `elements[0..candidate_start)` 查（候选段是本 bar 新触发候选，非持仓）。
 ///
 /// ★真 Fugue 铁律（mod.rs:433-440 codex 裁旧 bug）：父子来自**真 Compose 塔**（树元素由
-/// [`extract_elements`] 的 `sub_moves` 真嵌套建，非级别差伪造），本函数只按 638 坐标身份把持仓腿
-/// 对位回真树元素，**不**伪造父子。
+/// [`extract_elements`] 的 `sub_moves` 真嵌套建，非级别差伪造），本函数按 ID 对位，**不**伪造父子。
 ///
-/// ## 持久身份对位（codex Q4 ρ 漂移修正）
-///
-/// 三段判定（按严格性降序）——区分 **coord_drift（父语义有效仅坐标漂移）** vs **stale（父真失效）**：
-/// 1. [`HeldLegMatch::Exact`]：`(level, ρ==source_index, eps)` 精确命中——ρ 未漂移的常态对位。
-/// 2. [`HeldLegMatch::CoordDrift`]：`(level, λ==lambda, eps)` 稳定身份命中且 `e.rho >= leg.source_index`
-///    ——父容器走势**向右延伸**（吸收更多次级别子走势 ⟹ `end_index/ρ` 增大），但**起点 λ 不变** ⟹
-///    **同一父**（仅坐标漂移）。返回当前（已延伸）树元素 idx（携真父链）——**不静默降 orphan**。
-/// 3. [`HeldLegMatch::Stale`]：无任何语义匹配 ⟹ 持仓腿走势**真失效**（结构演化/不在前缀因果树）⟹
-///    调用方作根保留（无父，AncOK 不剔）。
-///
-/// λ 稳定性依据：走势的 `start_index`（左端点）在其向右延伸时不变（confirmed 前缀不回写，
-/// reference:16）；`end_index/ρ`（右端点）随延伸增大。`(level, λ, eps)` 在因果前缀内唯一（同级别
-/// 两个不同 confirmed 走势不共享起点）⟹ 是走势的稳定语义身份（独立坐标，无需 generation_id）。
+/// ## 发现 B 归因修正（codex Q4）
+/// 旧值比较 `(level,λ,eps)` 的"λ 漂移"归因错误——λ=start_index 在 confirmed 前缀不回写时不变。
+/// 真因 = `extract_elements` 每 bar 重建 Vec + 更高级新出现时根结构重构索引重映射 + 值比较非 spec §13
+/// 结构映射。Q4 修复：确定性 ElementId 跨 bar 稳定（全量/增量产同 ID），按 ID 匹配非值比较。
 fn held_leg_tree_index(
     elements: &[CoverageElement],
     candidate_start: usize,
@@ -859,78 +924,55 @@ fn held_leg_tree_index(
 ) -> HeldLegMatch {
     let tree_end = candidate_start.min(elements.len());
     let tree = &elements[..tree_end];
-    // ponytail: H6 预建 (level,ρ,eps)→idx + (level,λ,eps)→idx HashMap 把两次 O(|tree|) 线性 .position()
-    // 降为 O(1) 查表。bit-exact：(level,ρ,eps) 同级唯一（ρ 单调递增 + eps 二值）⟹ 唯一命中 == 旧
-    // .position() 首个；(level,λ,eps) 同级唯一（λ 不共享起点）⟹ 唯一命中，rho>=source_index 守卫保留。
-    let rho_idx = build_tree_rho_index(tree);
-    let lambda_idx = build_tree_lambda_index(tree);
-    held_leg_tree_index_indexed(tree, leg, &rho_idx, &lambda_idx)
+    let id_idx = build_tree_id_index(tree);
+    held_leg_tree_index_indexed(tree, leg, &id_idx)
 }
 
-/// ponytail: H6 预建 (level, ρ, eps) → idx 索引（Exact 身份查表 O(1)）。
-/// bit-exact 依据：ρ 同级单调唯一 + eps 二值 ⟹ (level,ρ,eps) 唯一，无多匹配。
-fn build_tree_rho_index(
+/// ponytail: H6 预建 `ElementId → idx` 索引（结构映射查表 O(1)，spec §13）。
+/// 确定性 ID 跨 bar 稳定 ⟹ 全量/增量产同 ID ⟹ 同一走势跨 bar 命中同 idx（父延伸也同 ID）。
+fn build_tree_id_index(
     tree: &[CoverageElement],
-) -> std::collections::HashMap<(u32, usize, VoiceSide), usize> {
-    let mut idx: std::collections::HashMap<(u32, usize, VoiceSide), usize> =
-        std::collections::HashMap::new();
+) -> std::collections::HashMap<ElementId, usize> {
+    let mut idx: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
     for (i, e) in tree.iter().enumerate() {
-        idx.entry((e.level, e.rho, e.eps)).or_insert(i);
-    }
-    idx
-}
-
-/// ponytail: H6 预建 (level, λ, eps) → idx 索引（CoordDrift 身份查表 O(1)）。
-/// bit-exact 依据：λ（= start_index）在同级别 confirmed 走势不共享起点 ⟹ (level,λ,eps) 唯一。
-/// CoordDrift 须守卫 rho>=source_index（父延伸判据）——索引命中后逐元素判（单元素 O(1)）。
-fn build_tree_lambda_index(
-    tree: &[CoverageElement],
-) -> std::collections::HashMap<(u32, usize, VoiceSide), usize> {
-    let mut idx: std::collections::HashMap<(u32, usize, VoiceSide), usize> =
-        std::collections::HashMap::new();
-    for (i, e) in tree.iter().enumerate() {
-        idx.entry((e.level, e.lambda, e.eps)).or_insert(i);
+        idx.entry(e.id).or_insert(i);
     }
     idx
 }
 
 /// ponytail: H6 带预建索引的 held_leg_tree_index 变体——热循环 coverage_step_from_buckets 单次建、多次查。
-/// bit-exact == held_leg_tree_index（同三段判定：Exact (level,ρ,eps) → CoordDrift (level,λ,eps)+rho守卫 → Stale）。
+/// codex Q4：按 `leg.id` 查表（结构映射），删除 CoordDrift 分支（ID 确定性 ⟹ 无需 λ 稳定性 hack）。
 fn held_leg_tree_index_indexed(
     tree: &[CoverageElement],
     leg: &ActiveLeg,
-    rho_idx: &std::collections::HashMap<(u32, usize, VoiceSide), usize>,
-    lambda_idx: &std::collections::HashMap<(u32, usize, VoiceSide), usize>,
+    id_idx: &std::collections::HashMap<ElementId, usize>,
 ) -> HeldLegMatch {
-    // 1. 精确身份（level + ρ + eps）：未漂移常态。
-    if let Some(&idx) = rho_idx.get(&(leg.level, leg.source_index, leg.dir)) {
+    // 按 ElementId 结构映射匹配（spec §13 p:C_ℓ→C_{ℓ+1}）。
+    if let Some(&idx) = id_idx.get(&leg.id) {
+        // ID 命中 ⟹ 同一走势（父延伸也同 ID）。更新 rho/source_index 从当前元素由调用方处理
+        //（element_as_leg 重读当前元素坐标）。守卫：当前 rho >= 旧 source_index（父延伸不变量）。
+        if tree[idx].rho >= leg.source_index {
+            return HeldLegMatch::Exact(idx);
+        }
+        // rho 守卫失败（理论不可达——ID 确定性 ⟹ 同走势 rho 单调增）⟹ 仍作 Exact（ID 即身份）。
         return HeldLegMatch::Exact(idx);
     }
-    // 2. 稳定身份（level + λ + eps，且当前 ρ ≥ 旧 ρ=向右延伸）：coord_drift（同一父延伸）。
-    //    旧 ρ（leg.source_index）落入当前已延伸区间 [λ, ρ] 内 ⟹ 同一走势吸收了旧端点。
-    if let Some(&idx) = lambda_idx.get(&(leg.level, leg.lambda, leg.dir)) {
-        // rho>=source_index 守卫（bit-exact：旧 .position() 的 && e.rho >= leg.source_index 条件）。
-        if tree[idx].rho >= leg.source_index {
-            return HeldLegMatch::CoordDrift(idx);
-        }
-    }
-    // 3. 无语义匹配 ⟹ 真失效。
+    // ID 未匹配 ⟹ 父真失效（走势不在当前前缀因果树）。
     HeldLegMatch::Stale
 }
 
-/// 持仓腿跨 bar 对位结果（持久身份三分；[`held_leg_tree_index`] 产）。
+/// 持仓腿跨 bar 对位结果（codex Q4：ID 结构映射二分）。
 ///
-/// `Exact`/`CoordDrift` 都对位回**当前因果树元素 idx**（携真父链，AncOK 祖先齐全判据有效）；
-/// `Stale` 才作根保留（父真失效）。`CoordDrift` 是 codex Q4 修正核心：旧逻辑只有 ρ 精确匹配，
-/// 父延伸（ρ 漂移）即误判 stale → 静默降 orphan → 子声部 ShortDiff 腿父不在 raw → AncOK 误剪
-/// （假阴性）。区分 coord_drift 后，延伸父仍在 raw ⟹ ShortDiff 子腿正确准入。
+/// `Exact` 对位回**当前因果树元素 idx**（携真父链，AncOK 祖先齐全判据有效）；
+/// `Stale` 由调用方按 `is_boundary_root` 决定：真边界根 ∂ 作根保留，非边界根 prune（发现 A 修复）。
+///
+/// ★codex Q4 删除 `CoordDrift` 分支：ID 确定性 ⟹ 父延伸（ρ 漂移）仍同 ID ⟹ Exact 直接覆盖，
+/// 无需 λ 稳定性 hack（值比较 `(level,λ,eps)` 已弃用，spec §13 结构映射对齐）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HeldLegMatch {
-    /// ρ 精确命中（未漂移）：当前树元素 idx。
+    /// ID 命中（跨 bar 同走势，父延伸也同 ID）：当前树元素 idx。
     Exact(usize),
-    /// λ 稳定命中（父延伸，ρ 漂移）：当前（已延伸）树元素 idx。
-    CoordDrift(usize),
-    /// 无语义匹配（父真失效）：调用方作根保留。
+    /// ID 未匹配（父真失效）：调用方按 is_boundary_root 决定 root/prune。
     Stale,
 }
 
@@ -942,7 +984,17 @@ enum HeldLegMatch {
 /// `(level, ρ, dir)` 映射回真树元素）。候选元素 `lambda==rho==source_index`，根/树走势元素 `ρ=end_index`。
 fn element_as_leg(e: &CoverageElement) -> ActiveLeg {
     // ρ=source_index（右端点，漂移）+ λ=lambda（左端点，稳定语义身份，持久身份对位用）。
-    ActiveLeg { level: e.level, dir: e.eps, source_index: e.rho, lambda: e.lambda }
+    // ★codex Q4：携带 id/parent_id/is_boundary_root（跨 bar 稳定身份，spec §13 结构映射）。
+    // is_boundary_root = parent_id.is_none()（真边界胚元 ∂ 根）。
+    ActiveLeg {
+        level: e.level,
+        dir: e.eps,
+        source_index: e.rho,
+        lambda: e.lambda,
+        id: e.id,
+        parent_id: e.parent_id,
+        is_boundary_root: e.parent_id.is_none(),
+    }
 }
 
 /// 𝒟_x 在 A_t 中的索引集（close 腿 ⊆ A_t；每个 close 腿认领一个匹配占位，保多重性严格）。
@@ -1033,41 +1085,50 @@ pub fn coverage_step_from_buckets(
     let mut work: Vec<CoverageElement> = elements.to_vec();
     let mut raw: Vec<usize> = Vec::new();
 
-    // ponytail: H6 单次建 tree 前缀 (level,ρ,eps)→idx + (level,λ,eps)→idx 索引——tree 前缀在持仓腿
-    // 对位期间不变（Stale 追加在 candidate_start 之后，不污染 tree 前缀）⟹ 建一次、多次查 O(1)。
-    // bit-exact：held_leg_tree_index_indexed == held_leg_tree_index（同三段判定）。
+    // ponytail: H6 单次建 tree 前缀 ElementId→idx 索引——tree 前缀在持仓腿对位期间不变
+    //（Stale 追加在 candidate_start 之后，不污染 tree 前缀）⟹ 建一次、多次查 O(1)。
+    // codex Q4：按 ElementId 结构映射查表（spec §13），替代旧 (level,ρ,eps)/(level,λ,eps) 值比较。
     let tree_end = candidate_start.min(work.len());
-    let rho_idx = build_tree_rho_index(&work[..tree_end]);
-    let lambda_idx = build_tree_lambda_index(&work[..tree_end]);
+    let id_idx = build_tree_id_index(&work[..tree_end]);
 
-    // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）对位回当前因果树元素（638 身份）；不在树 ⟹ 追加为根。
+    // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
+    // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
     let closed = close_indices(prev_active, &buckets.close);
     for (i, leg) in prev_active.iter().enumerate() {
         if closed.contains(&i) {
             continue; // 𝒟_x：本腿关闭，不入 A^raw
         }
         // tree_end 固定 + Stale 追加在 tree_end 之后 ⟹ work[..tree_end] 内容不变；每轮重借（NLL）。
-        let m = held_leg_tree_index_indexed(&work[..tree_end], leg, &rho_idx, &lambda_idx);
+        let m = held_leg_tree_index_indexed(&work[..tree_end], leg, &id_idx);
         match m {
-            // Exact（ρ 未漂移）/ CoordDrift（父延伸，ρ 漂移但 λ 稳定=同一父）：都对位回当前树元素
-            // idx（携真父链）⟹ 其子声部腿的 AncOK 祖先齐全。CoordDrift 不再静默降 orphan（Q4 修正）。
-            HeldLegMatch::Exact(idx) | HeldLegMatch::CoordDrift(idx) => {
+            // Exact（ID 命中=同一走势，父延伸也同 ID）：对位回当前树元素 idx（携真父链）⟹
+            // 其子声部腿的 AncOK 祖先齐全。
+            HeldLegMatch::Exact(idx) => {
                 if !raw.contains(&idx) {
                     raw.push(idx);
                 }
             }
-            // Stale（父真失效）：持仓腿走势不在当前前缀因果树 ⟹ 作根保留（无父，AncOK 不剔）。
+            // Stale（ID 未匹配=父真失效）：★codex Q4 发现 A 修复——不伪造 parent:None（AncOK 放宽）。
+            // 按 is_boundary_root 决定：真边界根 ∂ 作根保留；非边界根 prune（不入 raw，AncOK 严格 §13）。
             HeldLegMatch::Stale => {
-                let idx = work.len();
-                work.push(CoverageElement {
-                    lambda: leg.lambda,
-                    rho: leg.source_index,
-                    eps: leg.dir,
-                    level: leg.level,
-                    parent: None,
-                    attached_dir: None,
-                });
-                raw.push(idx);
+                if leg.is_boundary_root {
+                    // 真边界根 ∂：作根保留（parent_id=None 合法，AncOK 不剔）。
+                    let idx = work.len();
+                    work.push(CoverageElement {
+                        lambda: leg.lambda,
+                        rho: leg.source_index,
+                        eps: leg.dir,
+                        level: leg.level,
+                        parent: None,
+                        attached_dir: None,
+                        id: leg.id,
+                        parent_id: None,
+                    });
+                    raw.push(idx);
+                } else {
+                    // 非边界根但父未解析 → prune（不入 raw，AncOK 严格 §13 line 671）。
+                    // 不 push 到 work，不入 raw——spec §13 硬约束"子级短差腿存在 ⟹ 父容器存在"。
+                }
             }
         }
     }
@@ -1081,7 +1142,8 @@ pub fn coverage_step_from_buckets(
     }
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
-    let next_idx = ancestor_close(&work, &raw);
+    // ★codex Q4：按 parent_id 结构映射闭包（spec §13 `p:C_ℓ→C_{ℓ+1}`），非 per-bar 索引链。
+    let next_idx = ancestor_close_by_id(&work, &raw);
 
     // p̃=Σ Leg(g)（depth 权重沿真父链 + 方向净额聚合，ShortDiff 空腿部分对冲父多腿）。
     let legs = strategy_target_legs(&work, &next_idx, base_units, config);
@@ -1490,11 +1552,31 @@ mod tests {
     }
 
     /// 构造一个真嵌套 L1 走势（Compose 三段 L0 线段子声部，真父子）。
+    /// ★codex Q4：注入确定性 ElementId（L0 子 ordinal=0/1/2，L1 父 ordinal=0）。
     fn nested_l1(si: usize, ei: usize, sub_dirs: [Direction; 3]) -> LeveledMove {
-        let s0 = LeveledMove::from_unit(&unit(si, si + 4, sub_dirs[0], 0, 10));
-        let s1 = LeveledMove::from_unit(&unit(si + 4, si + 8, sub_dirs[1], 3, 12));
-        let s2 = LeveledMove::from_unit(&unit(si + 8, ei, sub_dirs[2], 5, 15));
-        LeveledMove::compose(&[s0, s1, s2], ctr(si, ei), 1)
+        let s0 = LeveledMove::from_unit(&unit(si, si + 4, sub_dirs[0], 0, 10), ElementId { level: 0, ordinal: 0 });
+        let s1 = LeveledMove::from_unit(&unit(si + 4, si + 8, sub_dirs[1], 3, 12), ElementId { level: 0, ordinal: 1 });
+        let s2 = LeveledMove::from_unit(&unit(si + 8, ei, sub_dirs[2], 5, 15), ElementId { level: 0, ordinal: 2 });
+        LeveledMove::compose(&[s0, s1, s2], ctr(si, ei), 1, ElementId { level: 1, ordinal: 0 })
+    }
+
+    /// 测试用 ElementId（默认根级 (0,0)）。
+    fn eid(level: u32, ordinal: u64) -> ElementId {
+        ElementId { level, ordinal }
+    }
+
+    /// 测试用 ActiveLeg 构造器（默认 is_boundary_root=true 真边界根 ∂，parent_id=None）。
+    /// 旧测试字面量用此辅助补齐 id/parent_id/is_boundary_root 字段（codex Q4）。
+    fn aleg(level: u32, dir: VoiceSide, source_index: usize, lambda: usize) -> ActiveLeg {
+        ActiveLeg {
+            level,
+            dir,
+            source_index,
+            lambda,
+            id: ElementId { level, ordinal: source_index as u64 },
+            parent_id: None,
+            is_boundary_root: true,
+        }
     }
 
     // ── §1/§2 元素提取（真嵌套父子，铁律守护）─────────────────────────────────
@@ -1538,14 +1620,14 @@ mod tests {
     /// 但属不同父 + 不同 ρ（漏洞③可观测）。a2.ρ=12==b0.λ=12（共享端点，漏洞②）。
     /// compose_a.ρ=12==a2.ρ=12 跨级共享（漏洞①）。
     fn two_parent_tower() -> Vec<Vec<LeveledMove>> {
-        let a0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10));
-        let a1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12));
-        let a2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15));
-        let compose_a = LeveledMove::compose(&[a0, a1, a2], ctr(0, 12), 1); // 外缘 10→15 ⟹ Long
-        let b0 = LeveledMove::from_unit(&unit(12, 16, Direction::Up, 5, 15)); // 结构 == a2
-        let b1 = LeveledMove::from_unit(&unit(16, 20, Direction::Down, 3, 12));
-        let b2 = LeveledMove::from_unit(&unit(20, 24, Direction::Down, 0, 8));
-        let compose_b = LeveledMove::compose(&[b0, b1, b2], ctr(12, 24), 1); // 外缘 15→8 ⟹ Short
+        let a0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let a1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
+        let a2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15), eid(0, 2));
+        let compose_a = LeveledMove::compose(&[a0, a1, a2], ctr(0, 12), 1, eid(1, 0)); // 外缘 10→15 ⟹ Long
+        let b0 = LeveledMove::from_unit(&unit(12, 16, Direction::Up, 5, 15), eid(0, 3)); // 结构 == a2
+        let b1 = LeveledMove::from_unit(&unit(16, 20, Direction::Down, 3, 12), eid(0, 4));
+        let b2 = LeveledMove::from_unit(&unit(20, 24, Direction::Down, 0, 8), eid(0, 5));
+        let compose_b = LeveledMove::compose(&[b0, b1, b2], ctr(12, 24), 1, eid(1, 1)); // 外缘 15→8 ⟹ Short
         vec![Vec::new(), vec![compose_a, compose_b]]
     }
 
@@ -1604,8 +1686,8 @@ mod tests {
     /// 638 边界 + tower-export-i guard：tower.len()<2（仅 L0 全根）⟹ host 是根 ⟹ 恒 Ambient。
     #[test]
     fn attach_guard_no_compose_level_is_ambient() {
-        let s0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10));
-        let s1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12));
+        let s0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let s1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
         let tower = vec![vec![s0, s1]]; // 仅 L0，len()==1 < 2（无 Compose 级）
         let tree = extract_elements(&tower);
         // host=s0（ρ=4，level 0）但 s0 是根（parent=None）⟹ 缺塔诚实退化 Ambient。
@@ -1708,9 +1790,9 @@ mod tests {
     fn horizontal_sibling_follow_vs_reverse() {
         // 三个同级别兄弟（同父=边界胚元 ∂ parent=None，同 level=1）——去根化下顶层亦是兄弟。
         let elements = vec![
-            CoverageElement { lambda: 0, rho: 4, eps: VoiceSide::Long, level: 1, parent: None, attached_dir: None },
-            CoverageElement { lambda: 4, rho: 8, eps: VoiceSide::Long, level: 1, parent: None, attached_dir: None },
-            CoverageElement { lambda: 8, rho: 12, eps: VoiceSide::Short, level: 1, parent: None, attached_dir: None },
+            CoverageElement { lambda: 0, rho: 4, eps: VoiceSide::Long, level: 1, parent: None, attached_dir: None, id: eid(1, 0), parent_id: None },
+            CoverageElement { lambda: 4, rho: 8, eps: VoiceSide::Long, level: 1, parent: None, attached_dir: None, id: eid(1, 1), parent_id: None },
+            CoverageElement { lambda: 8, rho: 12, eps: VoiceSide::Short, level: 1, parent: None, attached_dir: None, id: eid(1, 2), parent_id: None },
         ];
         // idx0：无前兄弟 ⟹ First。
         assert_eq!(horizontal_relation(&elements, 0), Horizontal::First);
@@ -1848,17 +1930,18 @@ mod tests {
     /// 按 `gamma_index` 定位（测试 `cand` 用连续 0..n，无父子）。
     fn flat_elements(open: &[Candidate]) -> Vec<CoverageElement> {
         let n = open.iter().map(|c| c.gamma_index + 1).max().unwrap_or(0);
-        let mut v = vec![
-            CoverageElement {
+        let mut v: Vec<CoverageElement> = (0..n)
+            .map(|i| CoverageElement {
                 lambda: 0,
                 rho: 0,
                 eps: VoiceSide::Flat,
                 level: 0,
                 parent: None,
                 attached_dir: None,
-            };
-            n
-        ];
+                id: ElementId { level: 0, ordinal: i as u64 },
+                parent_id: None,
+            })
+            .collect();
         for c in open {
             v[c.gamma_index] = CoverageElement {
                 lambda: c.source_index,
@@ -1867,6 +1950,8 @@ mod tests {
                 level: c.level,
                 parent: None,
                 attached_dir: None,
+                id: ElementId { level: c.level, ordinal: c.source_index as u64 },
+                parent_id: None,
             };
         }
         v
@@ -1904,7 +1989,7 @@ mod tests {
         };
         let (active, p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &[], &buckets, 1000.0, &cfg());
         assert_eq!(active.len(), 1, "ℬ_x 开启 ⟹ A_{{t+1}} 一条新腿");
-        assert_eq!(active[0], ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 5, lambda: 5 });
+        assert_eq!(active[0], aleg(0, VoiceSide::Long, 5, 5 ));
         // p̃ = 1000×w_depth(0)=1000×0.60=600（根 depth 0，多腿正号）。
         assert!((p - 600.0).abs() < 1e-9, "p̃ = base×w[0] = 600（单多腿）");
     }
@@ -1912,7 +1997,7 @@ mod tests {
     /// ★环6 关闭：A_t 一条 Long 腿 + 𝒟_x={该腿} ⟹ A_{t+1}=∅，p̃=0（先关后开）。
     #[test]
     fn buckets_close_removes_active_leg() {
-        let leg = ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 3, lambda: 3 };
+        let leg = aleg(0, VoiceSide::Long, 3, 3 );
         let buckets = Buckets {
             close: vec![leg], // 𝒟_x ⊆ A_t
             open: vec![],
@@ -1943,8 +2028,8 @@ mod tests {
     /// ★环6 先关后开 + 保留：A_t={legA, legB}，𝒟_x={legA}，ℬ_x={candC} ⟹ A_{t+1}={legB, legC}。
     #[test]
     fn buckets_close_then_open_keeps_survivor() {
-        let leg_a = ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 1, lambda: 1 };
-        let leg_b = ActiveLeg { level: 1, dir: VoiceSide::Short, source_index: 2, lambda: 2 };
+        let leg_a = aleg(0, VoiceSide::Long, 1, 1 );
+        let leg_b = aleg(1, VoiceSide::Short, 2, 2 );
         let buckets = Buckets {
             close: vec![leg_a],                          // 关 legA
             open: vec![cand(0, 9, VoiceSide::Long, 0)],  // 开 candC（level 0 Long）
@@ -1954,7 +2039,7 @@ mod tests {
         assert!(!active.contains(&leg_a), "legA 被 𝒟_x 关闭");
         assert!(active.contains(&leg_b), "legB（不在 𝒟_x）保留");
         assert!(
-            active.contains(&ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 9, lambda: 9 }),
+            active.contains(&aleg(0, VoiceSide::Long, 9, 9 )),
             "candC 被 ℬ_x 开启"
         );
         assert_eq!(active.len(), 2);
@@ -1965,9 +2050,9 @@ mod tests {
     #[test]
     fn buckets_ancok_identity_on_flat_roots() {
         let legs = [
-            ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 },
-            ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 1, lambda: 1 },
-            ActiveLeg { level: 2, dir: VoiceSide::Short, source_index: 2, lambda: 2 },
+            aleg(0, VoiceSide::Long, 0, 0 ),
+            aleg(1, VoiceSide::Long, 1, 1 ),
+            aleg(2, VoiceSide::Short, 2, 2 ),
         ];
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
         let (active, _p) = coverage_step_from_buckets(&flat_elements(&buckets.open), 0, &legs, &buckets, 1000.0, &cfg());
@@ -1977,7 +2062,7 @@ mod tests {
     /// ★环6 immutable：coverage_step_from_buckets 不 mutate prev_active。
     #[test]
     fn buckets_step_immutable_prev_active() {
-        let prev = vec![ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
+        let prev = vec![aleg(0, VoiceSide::Long, 0, 0 )];
         let snapshot = prev.clone();
         let buckets = Buckets {
             close: vec![],
@@ -2079,8 +2164,12 @@ mod tests {
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
         assert_eq!(gamma[0].role.v, Vertical::ShortDiff, "前置：候选 V=ShortDiff（639 σ_p=父容器方向）");
-        // 持父仓：prev_active 含父容器腿（L1 Long，638 身份 source_index=compose.ρ=12）。
-        let held_parent = ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0 };
+        // 持父仓：prev_active 含父容器腿（L1 Long，ID=(1,0) 与塔 compose 元素同 ID，source_index=ρ=12）。
+        // ★codex Q4：held_leg_tree_index 按 ElementId 匹配——leg.id 必须与塔元素 id 一致。
+        let held_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true,
+        };
         let buckets = interpret(&gamma, &[held_parent]);
         let (active, _p) =
             coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
@@ -2114,19 +2203,23 @@ mod tests {
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
         assert_eq!(gamma[0].role.v, Vertical::ShortDiff, "前置：候选 V=ShortDiff（639 σ_p=父容器方向）");
-        // ★持仓父腿 ρ 漂移：source_index=8（开仓时旧 ρ，现树无 ρ=8 的 L1 元素），λ=0（稳定起点）。
-        // 当前树 L1 元素 ρ=12（已延伸）⟹ Exact(ρ==8) 失配 ⟹ CoordDrift(λ==0, ρ=12≥8) 命中同一父。
-        let held_parent = ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0 };
+        // ★codex Q4 发现 B 归因修正：旧注释"ρ 漂移"归因错误——λ=start_index 不变，真因是值比较非
+        // spec §13 结构映射。Q4 修复：按确定性 ElementId 匹配——leg.id=(1,0) 与塔 L1 父元素同 ID
+        //（父延伸 ρ 8→12 不变 ID）⟹ Exact 命中 ⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入。
+        let held_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 8, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true,
+        };
         let buckets = interpret(&gamma, &[held_parent]);
         let (active, _p) =
             coverage_step_from_buckets(&elements, cstart, &[held_parent], &buckets, 1000.0, &cfg());
         assert!(
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
-            "coord_drift（λ 稳定对位）⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入（Q4 假阴性消除）；实得 {active:?}"
+            "ID 匹配（确定性 ElementId）⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入（Q4 假阴性消除）；实得 {active:?}"
         );
         assert!(
             active.iter().any(|l| l.level == 1 && l.dir == VoiceSide::Long),
-            "延伸父容器腿对位回当前树元素并保留（非降 orphan）"
+            "延伸父容器腿按 ID 对位回当前树元素并保留（非降 orphan）"
         );
     }
 
@@ -2198,8 +2291,11 @@ mod tests {
         };
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
-        // 持父仓（L1 Long）。
-        let held_parent = ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0 };
+        // 持父仓（L1 Long，ID=(1,0) 与塔 compose 元素同 ID）。
+        let held_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true,
+        };
         let buckets = interpret(&gamma, &[held_parent]);
         // L1 卖反向关闭 L1 Long 父腿（𝒟_x），故 (A_t∖𝒟_x) 不含父 ⟹ 子腿失祖先 ⟹ AncOK 连带剪枝。
         assert!(buckets.close.iter().any(|l| l.level == 1), "L1 卖反向关闭 L1 Long 父腿（𝒟_x）");
@@ -2209,6 +2305,71 @@ mod tests {
             !active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "父腿同 bar 关闭 ⟹ ShortDiff 子腿连带剪枝（覆盖不漂浮）；实得 {active:?}"
         );
+    }
+
+    /// ★codex Q4 发现 A 修复测试：Stale 非边界根被 prune（非伪造 parent:None root）。
+    ///
+    /// 持仓腿 ID 不在当前因果树（Stale）+ `is_boundary_root=false`（非真边界根 ∂）⟹ prune（不入 raw），
+    /// AncOK 严格 §13 line 671。旧逻辑伪造 `parent:None` ⟹ AncOK 恒等放行（放宽 spec §13）。
+    /// Q4 修复：保留原 `is_boundary_root`，非边界根 Stale = prune。
+    #[test]
+    fn stale_non_boundary_root_is_pruned_not_fabricated_root() {
+        use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
+        let gamma = assemble_gamma_with_tower(&classification, &tower);
+        // 持仓腿：ID=(99,99) 不在当前因果树（Stale）+ is_boundary_root=false（非真边界根 ∂）。
+        // parent_id=Some((1,0)) 表示它本应有父（非 ∂ 根），但父不在当前树。
+        let stale_non_root = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0,
+            id: eid(99, 99), parent_id: Some(eid(1, 0)), is_boundary_root: false,
+        };
+        let buckets = interpret(&gamma, &[stale_non_root]);
+        let (active, p) =
+            coverage_step_from_buckets(&elements, cstart, &[stale_non_root], &buckets, 1000.0, &cfg());
+        // Stale 非边界根 ⟹ prune（不入 raw）⟹ 不在 A_{t+1}。
+        assert!(
+            !active.iter().any(|l| l.id == eid(99, 99)),
+            "Stale 非边界根被 prune（非伪造 root，spec §13 严格）；实得 {active:?}"
+        );
+        // p̃ 不含该腿（pruned ⟹ 不贡献）。
+        let _ = p; // p̃ 可非零（若 ShortDiff 候选准入），关键是 stale_non_root 不在 active。
+    }
+
+    /// ★codex Q4 确定性 ElementId 跨 bar 稳定测试：全量/增量产同 ID。
+    #[test]
+    fn element_id_deterministic_full_vs_incremental() {
+        // 全量 compose_level 产 ID (level, ordinal) 从 0 起。
+        let units: Vec<UnitRange> = (0..9)
+            .map(|i| unit(i * 4, i * 4 + 4, if i % 2 == 0 { Direction::Up } else { Direction::Down }, 0, 100))
+            .collect();
+        let moves: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+            .collect();
+        let (_fc, full_upper) = compose_level(&units, &moves, true, 1);
+        // 增量 resume(prefix_count=0) == 全量。
+        let (_tc, tail_upper, _) = compose_level_resume(&units, &moves, true, 1, 0, 0);
+        assert_eq!(full_upper.len(), tail_upper.len());
+        for (f, t) in full_upper.iter().zip(tail_upper.iter()) {
+            assert_eq!(f.id, t.id, "全量/增量产同 ElementId（确定性）");
+        }
+        // 增量续扫：前 6 段 + 追加 3 段，tail ID 接续前缀（prefix_count + i）。
+        let (_pc, prefix_upper, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+        let (_tc2, tail_upper2, _) = compose_level_resume(&units, &moves, true, 1, cursor6.consumed, prefix_upper.len());
+        let mut comb = prefix_upper.clone();
+        comb.extend(tail_upper2);
+        assert_eq!(comb.len(), full_upper.len());
+        for (f, c) in full_upper.iter().zip(comb.iter()) {
+            assert_eq!(f.id, c.id, "增量续扫 ID 接续前缀（全量/增量产同 ID）");
+        }
     }
 
     // ── §9 环7 π_Θ：J_x + 𝒦_Θ + LexArgmin + Schedule_Θ → 唯一订单 ──────────────

@@ -43,7 +43,7 @@
 //! 经验市场数据，无择时盈利声明。`≺_Θ` 全序 + fold 确定性使 ∃! 成立是 L0 同义反复（定义内蕴）。
 //! 18 类角色经验可达性（哪些组合真实出现）是 **L2 未覆盖**（spec 疑点5）——**不**声称已验证。
 
-use super::super::classifier::recursive_tower::LeveledMove;
+use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
 use super::super::classifier::Classification;
 use super::super::types::BspBits;
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
@@ -87,18 +87,20 @@ pub struct Candidate {
 ///
 /// 一个活动腿 = 某级别的一个已开持仓（方向 + 开仓信号源）。`𝒟_x⊆A_t`（关闭的是活动腿，非候选）。
 ///
-/// ## 双坐标身份（持久身份，codex Q4 ρ 漂移修正）
+/// ## 双坐标身份（持久身份，codex Q4 确定性 ElementId 结构映射）
 ///
-/// 一个活动腿携**两个** L0 原始 K 序坐标，对应其覆盖走势/候选的区间端点：
+/// 一个活动腿携**两个** L0 原始 K 序坐标 + **确定性 ElementId**（跨 bar 稳定身份）：
 /// - `source_index = ρ`（右端点 / `LeveledMove.end_index` / 候选 bsp 触发点）——**会漂移**：父容器
 ///   走势延伸（吸收更多次级别子走势）时 `end_index` 增大。同时是 reference:16 平局键 + 结构止损
 ///   bsp 回查键（`k_theta_risk_gate` 按 `source_index` 查 `BspPoint`）。
 /// - `lambda`（左端点 / `LeveledMove.start_index` / 候选 bsp 同点）——**稳定**：走势的**起点**在其
-///   向右延伸时不变。故 `(level, lambda, eps)` 是走势的**稳定语义身份**（独立于 ρ 漂移）。
+///   向右延伸时不变（confirmed 前缀不回写）。
+/// - `id`（★codex Q4）：确定性 ElementId（跨 bar 稳定，全量/增量产同 ID）——`held_leg_tree_index`
+///   按 ID 匹配当前因果树元素（spec §13 `p:C_ℓ→C_{ℓ+1}` 结构映射，**非**值比较 `(level,λ,eps)`）。
+///   父延伸（ρ 漂移）仍同 ID ⟹ Exact 命中（删除旧 CoordDrift 分支）。
 ///
 /// 候选腿（买卖点入场）`lambda == source_index`（坐在 hostOf 右端点，reference:16）；树走势腿
-/// `lambda = start_index < source_index = end_index`。持久身份用 `lambda` 跨 bar 对位（见
-/// `coverage::held_leg_tree_index`：ρ 精确匹配失败时回落 `lambda` 稳定匹配 = coord_drift，非 stale）。
+/// `lambda = start_index < source_index = end_index`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ActiveLeg {
     /// 该腿级别 ℓ。
@@ -109,6 +111,16 @@ pub struct ActiveLeg {
     pub source_index: usize,
     /// 该腿覆盖走势的左端点 λ=start_index（**稳定语义身份坐标**，父延伸不变）。候选腿 `lambda==source_index`。
     pub lambda: usize,
+    /// ★codex Q4：跨 bar 稳定的确定性元素身份（spec §13 结构映射对象身份）。
+    /// `held_leg_tree_index` 按 ID 匹配当前因果树元素（非值比较 level,λ,eps）。
+    pub id: ElementId,
+    /// ★codex Q4：父容器的 ElementId（真 Compose 父，跨 bar 稳定）。None = 真边界胚元 ∂。
+    /// Stale 路径**不伪造** None（发现 A 修复）：保留原 parent_id，缺失非边界父 = prune 非 root。
+    pub parent_id: Option<ElementId>,
+    /// ★codex Q4：真边界根 ∂ 标记（host 是根 / 缺塔）vs 未解析父腿。
+    /// `is_boundary_root=true` 的 Stale 腿作根保留（parent_id=None 合法）；
+    /// `is_boundary_root=false` 的 Stale 腿被 prune（不入 raw，AncOK 严格 §13）。
+    pub is_boundary_root: bool,
 }
 
 /// 解释器输出三桶 (𝒟_x, ℬ_x, 𝒦_x)（spec §11 line 565-571 + §12 line 617）。
@@ -161,6 +173,8 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
                 level: lvl,
                 parent: None,        // 独立根（§5 多独立根；去根化父=∂）
                 attached_dir: None,  // σ_{p(g)}=0 ⟹ V=Ambient
+                id: ElementId { level: lvl, ordinal: elements.len() as u64 },
+                parent_id: None,
             });
             raw.push((lvl, point.source_index, point.bits, dir, cls, nest_ok));
         }
@@ -337,6 +351,13 @@ pub fn coverage_elements_and_gamma_with_tower(
                 level: lvl,
                 parent,
                 attached_dir,
+                // ★codex Q4：候选元素 ID = (level, gamma_index 偏移)；parent_id 来自 hostOf 真父。
+                // 候选 ordinal 用 ci（元素数组当前长度）保证唯一；parent_id 从 attach_bsp_to_tree
+                // 返回的 parent 索引查 tree 元素的 id（真 Compose 父 ID，跨 bar 稳定）。
+                id: ElementId { level: lvl, ordinal: ci as u64 },
+                parent_id: parent.and_then(|pidx| {
+                    elements.get(pidx).map(|e: &CoverageElement| e.id)
+                }),
             });
             // H5：push 后把当前候选 idx 追加到 sibling_idx（列表升序，二分查 < ci 的最大 idx）。
             sibling_idx.entry((parent, lvl)).or_default().push(ci);
@@ -608,7 +629,7 @@ mod tests {
     #[test]
     fn interpret_reverse_candidate_closes_active_leg() {
         let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, 1)]]));
-        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
+        let active = [aleg(0, VoiceSide::Long, 0, 0 )];
         let b = interpret(&gamma, &active);
         assert_eq!(b.close.len(), 1, "反向卖候选关闭持仓 Long 腿（𝒟_x 非空）");
         assert_eq!(b.close[0].dir, VoiceSide::Long);
@@ -641,7 +662,7 @@ mod tests {
     #[test]
     fn interpret_same_dir_as_active_records() {
         let gamma = assemble_gamma(&classification(vec![vec![buy_point(0, 1)]]));
-        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
+        let active = [aleg(0, VoiceSide::Long, 0, 0 )];
         let b = interpret(&gamma, &active);
         assert!(b.close.is_empty());
         assert!(b.open.is_empty());
@@ -671,7 +692,7 @@ mod tests {
         // 反序 Γ（同候选集，不同输入顺序）。
         let mut g2 = g1.clone();
         g2.reverse();
-        let active = [ActiveLeg { level: 1, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
+        let active = [aleg(1, VoiceSide::Long, 0, 0 )];
         let b1 = interpret(&g1, &active);
         let b2 = interpret(&g2, &active);
         // 三桶逐元素相等（gamma_index 终局键 ⟹ 排序后同序）。
@@ -715,7 +736,7 @@ mod tests {
             buy_point(3, 3),  // 同向重复 → record
             sell_point(7, 1), // 反向 → 关闭活动 Long
         ]]));
-        let active = [ActiveLeg { level: 0, dir: VoiceSide::Long, source_index: 0, lambda: 0 }];
+        let active = [aleg(0, VoiceSide::Long, 0, 0 )];
         let b = interpret(&gamma, &active);
         // 每个候选恰落 open 或 record（关闭触发候选被消费，不入 open/record）。
         let consumed_as_close = b.close.len(); // 反向候选数（消费为关闭）
@@ -737,28 +758,48 @@ mod tests {
         UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi }
     }
 
+    /// 测试用 ElementId。
+    fn eid(level: u32, ordinal: u64) -> ElementId {
+        ElementId { level, ordinal }
+    }
+
+    /// 测试用 ActiveLeg 构造器（默认 is_boundary_root=true 真边界根 ∂，parent_id=None）。
+    fn aleg(level: u32, dir: VoiceSide, source_index: usize, lambda: usize) -> ActiveLeg {
+        ActiveLeg {
+            level,
+            dir,
+            source_index,
+            lambda,
+            id: ElementId { level, ordinal: source_index as u64 },
+            parent_id: None,
+            is_boundary_root: true,
+        }
+    }
+
     /// 单父真嵌套塔：L1 走势（外缘 Long）+ 3 个 L0 子（ρ=4/8/12，真父=L1，attached=Long）。
     fn long_parent_tower() -> Vec<Vec<LM>> {
-        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10));
-        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12));
-        let s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15));
+        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
+        let s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
         let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
-        let l1 = LM::compose(&[s0, s1, s2], c, 1); // 外缘 10→15 ⟹ Long（σ_p=+1）
+        let l1 = LM::compose(&[s0, s1, s2], c, 1, eid(1, 0)); // 外缘 10→15 ⟹ Long（σ_p=+1）
         vec![Vec::new(), vec![l1]]
     }
 
     /// 两父塔：compose_a(Long) + compose_b(Short)，a2/b0 结构全等异 ρ（ordinal 身份测试）。
     fn two_parent_tower() -> Vec<Vec<LM>> {
-        let mk = |si, ei, d, lo, hi| LM::from_unit(&unit_r(si, ei, d, lo, hi));
+        let mk = |si, ei, d, lo, hi, ord| LM::from_unit(&unit_r(si, ei, d, lo, hi), eid(0, ord));
         let ca = LM::compose(
-            &[mk(0, 4, Direction::Up, 0, 10), mk(4, 8, Direction::Down, 3, 12), mk(8, 12, Direction::Up, 5, 15)],
+            &[mk(0, 4, Direction::Up, 0, 10, 0), mk(4, 8, Direction::Down, 3, 12, 1), mk(8, 12, Direction::Up, 5, 15, 2)],
             Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 },
             1,
+            eid(1, 0),
         ); // Long
         let cb = LM::compose(
-            &[mk(12, 16, Direction::Up, 5, 15), mk(16, 20, Direction::Down, 3, 12), mk(20, 24, Direction::Down, 0, 8)],
+            &[mk(12, 16, Direction::Up, 5, 15, 3), mk(16, 20, Direction::Down, 3, 12, 4), mk(20, 24, Direction::Down, 0, 8, 5)],
             Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 12, end_index: 24 },
             1,
+            eid(1, 1),
         ); // Short
         vec![Vec::new(), vec![ca, cb]]
     }
@@ -819,8 +860,8 @@ mod tests {
     /// guard：tower.len()<2（仅 L0 全根）⟹ V 恒 Ambient，与扁平 assemble_gamma 逐候选一致。
     #[test]
     fn gamma_with_tower_guard_matches_flat_when_no_compose_level() {
-        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10));
-        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12));
+        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
         let tower = vec![vec![s0, s1]]; // len()==1 < 2
         let c = classification(vec![vec![buy_point(4, 1)]]);
         let with = assemble_gamma_with_tower(&c, &tower);
@@ -886,8 +927,8 @@ mod tests {
     /// `classifyV_ambient_iff_germ`：Ambient 的唯一来源是父=胚元，非父未持有）。
     #[test]
     fn gamma_with_tower_ambient_iff_germ_not_unheld() {
-        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10));
-        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12));
+        let s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
         let no_parent_tower = vec![vec![s0, s1]]; // len()==1：host 是根 segment，无 Compose 父 = ∂
         let c = classification(vec![vec![sell_point(8, 1)]]);
         let gamma = assemble_gamma_with_tower(&c, &no_parent_tower);

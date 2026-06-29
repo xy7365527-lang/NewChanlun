@@ -278,10 +278,13 @@ pub fn run_theta_v0_pi(
     // 复用：LevelCache.upper_moves/centers/scan_cursor 持久 + MACD 增量递推）。
     //
     // ponytail: 增量塔身份稳定路径已被 L2 证伪（ab5f5a29d ΔSharpe 重测 0.000，Stale 90%+ 未降）。
-    // 增量塔 TowerCache 跨 bar 复用 O(n)（bit-exact，见 incremental.rs 文档），但 held_leg_tree_index
+    // 增量塔 TowerCache 跨 bar 复用 O(n)（bit-exact，见 incremental.rs 文档），但旧 held_leg_tree_index
     // 值字段比较（level/ρ/eps/λ）非对象身份——bit-exact 不变 ⟹ 值比较结果相同 ⟹ Stale 不降。
-    // 真根因 = held_leg_tree_index 的 CoordDrift 判据（level,λ,eps）真实数据命中率 ~0%（父走势
-    // 演化后 λ/eps 漂移）。#5 alpha 待父腿追踪/CoordDrift 语义修复，非增量链身份稳定可解。
+    // ★codex Q4 发现 B 归因修正：旧注释"父走势演化后 λ/eps 漂移"归因错误——λ=start_index 在
+    // confirmed 前缀不回写时不变。真因 = extract_elements 每 bar 重建 Vec + 更高级新出现时根结构
+    // 重构索引重映射 + 值比较非 spec §13 结构映射 p(g)。Q4 修复：确定性 ElementId 跨 bar 稳定
+    //（全量/增量产同 ID），held_leg_tree_index 按 ID 匹配非值比较；Stale 不伪造 parent:None（发现 A），
+    // 非边界根父未解析 = prune（AncOK 严格 §13）⟹ depth>0 腿可准入 ⟹ ΔSharpe 可非零（待 L2 重测）。
     //
     // **bit-exact 不变**：增量链 == 全量 classify_with_tower(parse_layer(..=i))（parser +
     // classifier 各自 bit-exact 已证，见 incremental.rs 文档）。逐 bar 断言见 `incremental::bit_exact_*`。
@@ -1529,18 +1532,19 @@ mod tests {
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
         use super::super::super::strategy::coverage::Vertical;
-        use super::super::super::classifier::recursive_tower::LeveledMove as LM;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove as LM};
         use super::super::super::classifier::center::UnitRange;
         use super::super::super::types::Direction;
         // per-bar 因果塔：L1 Long 父走势（3 个 L0 子，sub(8,12) 右端点 ρ=12；外缘 10→15 ⟹ Long）。
         let u = |si, ei, d, lo, hi| UnitRange { start_index: si, end_index: ei, direction: d, lo, hi };
-        let s0 = LM::from_unit(&u(0, 4, Direction::Up, 0, 10));
-        let s1 = LM::from_unit(&u(4, 8, Direction::Down, 3, 12));
-        let s2 = LM::from_unit(&u(8, 12, Direction::Up, 5, 15));
+        let s0 = LM::from_unit(&u(0, 4, Direction::Up, 0, 10), ElementId { level: 0, ordinal: 0 });
+        let s1 = LM::from_unit(&u(4, 8, Direction::Down, 3, 12), ElementId { level: 0, ordinal: 1 });
+        let s2 = LM::from_unit(&u(8, 12, Direction::Up, 5, 15), ElementId { level: 0, ordinal: 2 });
         let l1 = LM::compose(
             &[s0, s1, s2],
             Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 },
             1,
+            ElementId { level: 1, ordinal: 0 },
         );
         let tower = vec![Vec::new(), vec![l1]];
         // 切片当步 L0 卖候选 source_index=12（host=sub(8,12) ⟹ 真父 L1 Long ⟹ σ_p=Long）。

@@ -66,7 +66,8 @@ use bsp::BspPoint;
 use center::UnitRange;
 use level::{classify_move, outcome_to_kind, MoveOutcome};
 use recursive_tower::{
-    compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units, LeveledMove,
+    compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units,
+    ElementId, LeveledMove,
 };
 use super::types::Side;
 
@@ -193,7 +194,11 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
     // （`LeveledMove`，递归底 level 0）。旧塔把每级走势单元折叠为无 subs 的 `UnitRange`，
     // `extract_second_signals`（消费 `RMove::Compose` 的 descend 取回次级别走势）永产不出 B2/S2。
     // 新塔每级走势单元携次级别走势 subs（`RMove::Compose`）+ source_index 坐标 ⟹ B2/S2 真可产。
-    let mut moves_tower: Vec<LeveledMove> = units.iter().map(LeveledMove::from_unit).collect();
+    let mut moves_tower: Vec<LeveledMove> = units
+        .iter()
+        .enumerate()
+        .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+        .collect();
 
     // 第一类背驰 MACD：closes/close_src 在全递归层共享（L0 唯一可达 close 序列；上级走势的
     // 次级别 close 区间由 source_index 坐标定位，见 macd 接入点）。
@@ -650,7 +655,12 @@ pub fn classify_with_tower_incremental(
     cache.last_l0_segments_len = l0.segments.len();
 
     // L0 走势塔 = 携坐标的 RMove::Segment（递归底）。
-    let moves_tower_l0: Vec<LeveledMove> = l0_units.iter().map(LeveledMove::from_unit).collect();
+    // ★codex Q4：确定性 ElementId 注入（ordinal = L0 段索引，跨 bar 稳定）。
+    let moves_tower_l0: Vec<LeveledMove> = l0_units
+        .iter()
+        .enumerate()
+        .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+        .collect();
 
     // MACD hist（背驰真算，增量递推——231号纯性能，解 aed4d5f5 实证的 c_exp≈2.31 主导根因）。
     //
@@ -700,8 +710,16 @@ pub fn classify_with_tower_incremental(
 
         // ★增量扫描：从 `scan_cursor.consumed` 续扫，产出尾部 centers/upper（resume bit-exact）。
         // 单一来源：tail_centers 直接累积成完整 centers（与 upper_moves 一一对应，每窗口一中枢）。
-        let (tail_centers, tail_upper, new_cursor) =
-            compose_level_resume(&units, &moves_tower, is_l0, level_idx as u32 + 1, lc.scan_cursor.consumed);
+        // ★codex Q4：prefix_count = lc.upper_moves.len()（已产出前缀数），tail ordinal 接续前缀
+        // ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。
+        let (tail_centers, tail_upper, new_cursor) = compose_level_resume(
+            &units,
+            &moves_tower,
+            is_l0,
+            level_idx as u32 + 1,
+            lc.scan_cursor.consumed,
+            lc.upper_moves.len(),
+        );
 
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
         lc.centers.extend(tail_centers);
@@ -1430,12 +1448,16 @@ mod incremental_profile {
             }
         };
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
-        let sizes = [500usize, 1000, 2000];
+        // ponytail: 大规模标度验证 acceptance[4]——全引擎 per-bar exp≈1.0 @16K。
+        // a7dfec46: n<5000 不可靠；此处用 [5K, 10K, 16K] 真实大规模。
+        let sizes = [5_000usize, 10_000, 16_000];
         let mut full_times = Vec::new();
         let mut inc_times = Vec::new();
+        let mut used_sizes = Vec::new();
 
         for &n in &sizes {
             if n > oos.bars.len() {
+                eprintln!("DATA LIMIT: n={n} > oos.bars.len()={}，跳过", oos.bars.len());
                 break;
             }
             let bars = &oos.bars[..n];
@@ -1456,20 +1478,24 @@ mod incremental_profile {
                 let _ = classify_with_tower_incremental(&l0, &cfg, &mut cache);
             }
             inc_times.push(t0.elapsed().as_secs_f64());
+            used_sizes.push(n);
+            eprintln!("n={n} done: full={:.2}s inc={:.2}s", *full_times.last().unwrap(), *inc_times.last().unwrap());
         }
 
-        if full_times.len() >= 2 && inc_times.len() >= 2 {
-            let full_exp = (full_times[1] / full_times[0]).ln()
-                / (sizes[1] as f64 / sizes[0] as f64).ln();
-            let inc_exp = (inc_times[1] / inc_times[0]).ln()
-                / (sizes[1] as f64 / sizes[0] as f64).ln();
+        // 逐相邻对算 exp（log-log 斜率），大规模验证 acceptance[4]。
+        eprintln!("\n===== 增量塔真实标度（CL per-bar 累积，大规模）=====");
+        for w in used_sizes.windows(2) {
+            let (n0, n1) = (w[0], w[1]);
+            let i0 = used_sizes.iter().position(|&s| s == n0).unwrap();
+            let i1 = i0 + 1;
+            let full_exp = (full_times[i1] / full_times[i0].max(1e-12)).ln()
+                / (n1 as f64 / n0 as f64).ln();
+            let inc_exp = (inc_times[i1] / inc_times[i0].max(1e-12)).ln()
+                / (n1 as f64 / n0 as f64).ln();
             eprintln!(
-                "\n===== 增量塔真实标度（CL per-bar 累积）=====\n  \
-                 full exp≈{full_exp:.2}（全量塔构造超线性）\n  \
-                 inc exp≈{inc_exp:.2}（增量塔，目标≈1）\n  \
-                 增量/全量比 @n={}: {:.2}x",
-                sizes[1],
-                inc_times[1] / full_times[1].max(1e-12)
+                "  [{n0}→{n1}] full exp≈{full_exp:.2}  inc exp≈{inc_exp:.2}  \
+                 增量/全量比 @{n1}: {:.2}x",
+                inc_times[i1] / full_times[i1].max(1e-12)
             );
         }
     }
