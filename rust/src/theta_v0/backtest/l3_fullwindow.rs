@@ -279,6 +279,9 @@ struct DepthDiag {
     active_depth0_units: f64,
     active_depth1_units: f64,
     active_depth2_units: f64,
+    /// ★codex ad4afb58：生产 next_active 中 id 不在当前 elements[..tree_end] 的腿
+    ///（来自 restore_ancestor_chain_from_registry 追加的 work 元素）。shadow 探针低估的量。
+    active_restored: u64,
     raw_total: u64,
     post_ancok_total: u64,
     pruned_total: u64,
@@ -480,25 +483,40 @@ fn instrument_bar(
     }
     diag.pruned_total += (raw.len() - post.len()) as u64;
 
-    for &idx in &post {
-        let d = elem_depth(&elements, idx);
-        let w = depth_weight(d, &cfg.voice);
-        let u = base_units * w;
-        match d {
-            0 => {
-                diag.active_depth0 += 1;
-                diag.active_depth0_units += u;
+    // ★codex ad4afb58 修复：active_depth* 统计循环源从 shadow `post`（自重建 AncOK，不调
+    // restore_ancestor_chain_from_registry、用索引 ancestors）改为**生产 next_active**。
+    // 生产 next_active 是 coverage_step_classification 返回的真 A_{t+1}（经 ancestor_close_by_id
+    // + restore_ancestor_chain_from_registry）。shadow post 系统性低估 active_depth1。
+    // ponytail: ceiling=按 leg.id 在 elements[..tree_end] 查 idx 算 elem_depth；registry restored
+    // 的腿（id 不在 elements）单独计 active_restored（其 depth 需遍历 work 元素才能算，非热路径）。
+    for leg in next_active.iter() {
+        let idx_opt = elements[..tree_end].iter().position(|e| e.id == leg.id);
+        match idx_opt {
+            Some(idx) => {
+                let d = elem_depth(&elements, idx);
+                let w = depth_weight(d, &cfg.voice);
+                let u = base_units * w;
+                match d {
+                    0 => {
+                        diag.active_depth0 += 1;
+                        diag.active_depth0_units += u;
+                    }
+                    1 => {
+                        diag.active_depth1 += 1;
+                        diag.active_depth1_units += u;
+                    }
+                    2 => {
+                        diag.active_depth2 += 1;
+                        diag.active_depth2_units += u;
+                    }
+                    _ => {
+                        diag.active_depth_ge3 += 1;
+                    }
+                }
             }
-            1 => {
-                diag.active_depth1 += 1;
-                diag.active_depth1_units += u;
-            }
-            2 => {
-                diag.active_depth2 += 1;
-                diag.active_depth2_units += u;
-            }
-            _ => {
-                diag.active_depth_ge3 += 1;
+            None => {
+                // 来自 restore_ancestor_chain_from_registry 的腿（id 不在当前 elements snapshot）。
+                diag.active_restored += 1;
             }
         }
     }
@@ -603,6 +621,7 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  active_depth0 腿       : {}  units={:.2}", diag.active_depth0, diag.active_depth0_units);
         eprintln!("  active_depth1 腿       : {}  units={:.2}  (w=0.30)", diag.active_depth1, diag.active_depth1_units);
         eprintln!("  active_depth2 腿       : {}  units={:.2}  (w=0.10)", diag.active_depth2, diag.active_depth2_units);
+        eprintln!("  ★active_restored     : {}  (registry 恢复祖先腿，shadow 探针漏计)", diag.active_restored);
         let total_u = diag.active_depth0_units + diag.active_depth1_units + diag.active_depth2_units;
         if total_u > 0.0 {
             eprintln!("  depth0 占比            : {:.1}%", 100.0 * diag.active_depth0_units / total_u);
