@@ -79,9 +79,12 @@ fn main() -> std::process::ExitCode {
         return std::process::ExitCode::FAILURE;
     }
 
-    // years：bar 数 / 一年分钟数（1min 数据；CAGR 年化基数，runner §3.1）。
+    // years：bar 数 / 一年 bar 数（CAGR 年化基数，runner §3.1）。粒度从 dataset 携带（barspec-impl
+    // A 点）——1min ⟹ bars_per_year(60) bit-exact = 旧硬编码 365.25*24*60；1s ⟹ ×60。
     // ponytail: 用 bar 计数近似而非历法换算（data.rs 已声明无 chrono 依赖，时间戳只用于排序）。
-    let years = (dataset.bars.len() as f64 / (365.25 * 24.0 * 60.0)).max(1e-9);
+    let years = (dataset.bars.len() as f64
+        / newchan_rust::theta_v0::backtest::data::bars_per_year(dataset.bar_seconds))
+    .max(1e-9);
 
     // initial_nav：与品种价量级匹配（首价 × 容量倍数），否则 sizing qty 取整为 0（runner:111）。
     let first_px = dataset.bars[0].close as f64 * config.tick.tick_size;

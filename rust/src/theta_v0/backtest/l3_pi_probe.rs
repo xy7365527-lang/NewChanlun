@@ -44,6 +44,7 @@ fn prefix(oos: &Dataset, n: usize) -> Dataset {
         symbol: oos.symbol.clone(),
         bars: oos.bars[..n].to_vec(),
         dates: oos.dates[..n.min(oos.dates.len())].to_vec(),
+        bar_seconds: oos.bar_seconds,
     }
 }
 

@@ -34,7 +34,7 @@ fn exp(n0: usize, t0: f64, n1: usize, t1: f64) -> f64 {
 fn profile_parse_layer_scaling() {
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
-    let ds = load_symbol(&path, "ES", &cfg).expect("加载 ES");
+    let ds = load_symbol(&path, "ES", &cfg, 60).expect("加载 ES");
     let total = ds.bars.len();
     eprintln!("ES bars 总数: {total}");
 
@@ -99,7 +99,7 @@ fn diag_segment_window_effect() {
     use crate::theta_v0::config::ParseConfig;
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
-    let ds = load_symbol(&path, "ES", &cfg).expect("加载 ES");
+    let ds = load_symbol(&path, "ES", &cfg, 60).expect("加载 ES");
 
     let sizes = [4000usize, 8000, 16000, 32000, 64000, 128000];
     let windows = [0u32, 50, 200];
@@ -152,7 +152,7 @@ fn diag_segment_window_effect() {
 fn profile_parse_layer_incr_scaling() {
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
-    let ds = load_symbol(&path, "ES", &cfg).expect("加载 ES");
+    let ds = load_symbol(&path, "ES", &cfg, 60).expect("加载 ES");
 
     let sizes = [2000usize, 4000, 8000, 16000];
     eprintln!("增量 parse_layer 标度（逐 bar append 总耗时 μs vs 全量单次）");
@@ -275,7 +275,7 @@ fn bit_exact_parse_layer_incr_per_bar_synthetic() {
 fn bit_exact_parse_layer_incr_per_bar_es() {
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
-    let ds = match load_symbol(&path, "ES", &cfg) {
+    let ds = match load_symbol(&path, "ES", &cfg, 60) {
         Ok(d) => d,
         Err(e) => {
             eprintln!("DATA BLOCKER: {e}");
@@ -305,7 +305,7 @@ fn bit_exact_parse_layer_incr_per_bar_es() {
 fn bit_exact_inclusion_only_es() {
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
-    let ds = match load_symbol(&path, "ES", &cfg) {
+    let ds = match load_symbol(&path, "ES", &cfg, 60) {
         Ok(d) => d,
         Err(e) => {
             eprintln!("DATA BLOCKER: {e}");
@@ -335,7 +335,7 @@ fn bit_exact_inclusion_only_es() {
 fn diag_incr_strokes_scaling() {
     let cfg = ThetaConfig::default();
     let path = data_dir().join("es_1m_databento_10y.json");
-    let ds = load_symbol(&path, "ES", &cfg).expect("加载 ES");
+    let ds = load_symbol(&path, "ES", &cfg, 60).expect("加载 ES");
 
     let sizes = [2000usize, 4000, 8000, 16000];
     eprintln!("IncrStrokes::append 逐 bar 标度（总耗时 μs vs exp）");

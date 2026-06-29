@@ -108,6 +108,7 @@ fn l3_pi_falsify_multi_symbol_significance() {
             symbol: oos_full.symbol.clone(),
             bars: oos_full.bars[..cut].to_vec(),
             dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
         };
         n_done += 1;
 

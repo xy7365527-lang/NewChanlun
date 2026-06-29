@@ -77,6 +77,17 @@ pub struct Dataset {
     pub bars: Vec<Bar>,
     /// 逐 bar 日期串（与 `bars` 同索引）。用于日期窗切片（OOS/Holdout/walk-forward）。
     pub dates: Vec<String>,
+    /// bar 粒度（秒）。数据事实∉Θ自由度（不进 config，避免扫描器把粒度当 Θ 维度扫，
+    /// config.rs:3-7）。1min=60，1s=1。年化基数 `bars_per_year` 从此算（barspec-impl A 点）。
+    pub bar_seconds: u32,
+}
+
+/// 一年的 bar 数（CAGR 年化基数）= 一年秒数 / bar 粒度秒数（barspec-impl A 点）。
+///
+/// 旧硬编码 `365.25*24*60`（一年分钟数）= `bars_per_year(60)` bit-exact。1s 数据 ×60。
+/// `bar_seconds=0` 不可能（数据加载层保证 ≥1）。
+pub fn bars_per_year(bar_seconds: u32) -> f64 {
+    365.25 * 24.0 * 3600.0 / bar_seconds as f64
 }
 
 impl Dataset {
@@ -136,22 +147,25 @@ impl Dataset {
             symbol: self.symbol.clone(),
             bars,
             dates,
+            bar_seconds: self.bar_seconds,
         }
     }
 }
 
 /// 把 ISO 日期串解析为单调时间戳（仅用于排序，不参与价格运算，types.rs:17）。
 ///
-/// 用 `dates[..16]`（`"YYYY-MM-DD HH:MM"`）去掉分隔符后的整数作为单调键——同序列内严格
-/// 单调即可（协议平局裁决按 `(timestamp, source_index)`，source_index 已唯一裁平局）。
+/// 取数字部分前 14 位 `YYYYMMDDHHMMSS` 作单调键——同序列内严格单调即可（协议平局裁决按
+/// `(timestamp, source_index)`，source_index 已唯一裁平局）。秒位保留是 1s 数据的前提：
+/// 1min bar 秒位恒 00（旧 12 位值 ×100，相对序不变 ⟹ 1m 路径 bit-exact），1s bar 秒位
+/// 区分同分钟内的 60 根（否则时间戳塌缩，违反 reference:16 单调性，barspec-impl B 点）。
 /// 不做完整历法换算（无 chrono 依赖；时间戳只用于排序，绝对值无语义）。
 fn date_to_timestamp(date: &str) -> Timestamp {
-    // "2016-01-03 23:00:00+00:00" → 取 "201601032300" 数字部分（年月日时分，单调）。
+    // "2016-01-03 23:00:01+00:00" → 取 "20160103230001" 数字部分（年月日时分秒，单调）。
     let digits: String = date
         .chars()
         .take_while(|c| *c != '+') // 去掉 tz 后缀
         .filter(|c| c.is_ascii_digit())
-        .take(12) // YYYYMMDDHHMM
+        .take(14) // YYYYMMDDHHMMSS
         .collect();
     digits.parse::<i64>().unwrap_or(0)
 }
@@ -163,7 +177,15 @@ fn date_to_timestamp(date: &str) -> Timestamp {
 ///
 /// 边界条件：文件不存在 ⇒ `Err`；JSON 解析失败 ⇒ `Err`；五列长度不一致 ⇒ `Err`
 /// （fail-loud，no-patch）。
-pub fn load_symbol(path: &Path, symbol: &str, config: &ThetaConfig) -> Result<Dataset, String> {
+pub fn load_symbol(
+    path: &Path,
+    symbol: &str,
+    config: &ThetaConfig,
+    bar_seconds: u32,
+) -> Result<Dataset, String> {
+    if bar_seconds == 0 {
+        return Err("bar_seconds 必须 ≥1（粒度秒数，bars_per_year 分母）".to_string());
+    }
     let text = std::fs::read_to_string(path).map_err(|e| format!("读取 {path:?} 失败: {e}"))?;
     // Python json(allow_nan) 写出 NaN/Infinity（serde_json 硬拒）→ null。
     let text = text
@@ -241,6 +263,7 @@ pub fn load_symbol(path: &Path, symbol: &str, config: &ThetaConfig) -> Result<Da
         symbol: symbol.to_string(),
         bars,
         dates: raw.dates,
+        bar_seconds,
     })
 }
 
@@ -252,7 +275,8 @@ pub fn load_by_symbol(symbol: &str, config: &ThetaConfig) -> Result<Dataset, Str
         .map(|(_, f)| *f)
         .ok_or_else(|| format!("未知品种 `{symbol}`（不在 SYMBOLS 表）"))?;
     let path = data_dir().join(file);
-    load_symbol(&path, symbol, config)
+    // SYMBOLS 全为 1min 文件（*_1m_*.json）⟹ 默认 60s。1s 数据接入时此表加粒度列（C 点，本轮无）。
+    load_symbol(&path, symbol, config, 60)
 }
 
 #[cfg(test)]
@@ -269,13 +293,40 @@ mod tests {
         assert!(t1 < t2, "跨日单调");
     }
 
+    /// 秒级分辨率（barspec-impl B 点）：同一分钟内相邻秒 bar 时间戳**严格区分**。
+    ///
+    /// 旧实现取 `YYYYMMDDHHMM` 12 位 → 同分钟 60 根秒 bar 时间戳全塌缩为同值，
+    /// 平局键 `(timestamp, source_index)` 退化为只靠 source_index 单调。扩到
+    /// `YYYYMMDDHHMMSS` 14 位后秒被保留，1s 数据下时间戳恢复严格单调（reference:16）。
+    #[test]
+    fn date_timestamp_distinguishes_seconds() {
+        let s0 = date_to_timestamp("2024-01-01 09:30:00");
+        let s1 = date_to_timestamp("2024-01-01 09:30:01");
+        let s59 = date_to_timestamp("2024-01-01 09:30:59");
+        let next_min = date_to_timestamp("2024-01-01 09:31:00");
+        assert!(s0 < s1, "同分钟相邻秒严格单调（1s 平局键不退化）");
+        assert!(s1 < s59, "同分钟内秒级单调");
+        assert!(s59 < next_min, "跨分钟单调（秒位不溢出干扰分钟序）");
+    }
+
     /// BTC 无 tz 与 databento 有 tz 的日期串都能解析（协议 §1.2 BTC 按 UTC）。
     #[test]
     fn date_timestamp_handles_tz_and_no_tz() {
         let no_tz = date_to_timestamp("2017-08-17 04:00:00");
         let with_tz = date_to_timestamp("2017-08-17 04:00:00+00:00");
-        assert_eq!(no_tz, with_tz, "tz 后缀不影响单调键（取数字前 12 位）");
-        assert_eq!(no_tz, 201_708_170_400, "YYYYMMDDHHMM");
+        assert_eq!(no_tz, with_tz, "tz 后缀不影响单调键（取数字前 14 位）");
+        assert_eq!(no_tz, 20_170_817_040_000, "YYYYMMDDHHMMSS");
+    }
+
+    /// 1m 数据 14 位扩展 bit-exact 守卫（barspec-impl 硬约束）：1m bar 秒位恒 00，
+    /// 扩位后时间戳 = 旧 12 位值 × 100，**相对序与单调性不变** ⟹ 1m 路径 tape-equality 保持。
+    #[test]
+    fn minute_data_14digit_preserves_relative_order() {
+        let m0 = date_to_timestamp("2016-01-03 23:00:00+00:00");
+        let m1 = date_to_timestamp("2016-01-03 23:01:00+00:00");
+        // 旧 12 位值 ×100（秒=00），相对差比例不变 ⟹ 排序结果同。
+        assert_eq!(m0, 201_601_032_300 * 100, "1m bar 秒=00 ⟹ 14 位 = 旧 12 位 ×100");
+        assert!(m0 < m1, "1m 相对序不变（bit-exact 平局键不受影响）");
     }
 
     /// 日期窗切片闭区间语义（L1：切片口径正确性）。
@@ -302,6 +353,7 @@ mod tests {
                 "2023-01-02 00:00:00".to_string(),
                 "2025-07-01 00:00:00".to_string(),
             ],
+            bar_seconds: 60,
         };
         // OOS 窗（协议 §2.1）：2023-01-01 → 2025-06-30。
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
@@ -312,6 +364,28 @@ mod tests {
         // 空窗合法（不 panic）。
         let empty = ds.slice_date_window("2099-01-01", "2099-12-31");
         assert_eq!(empty.bars.len(), 0, "空窗返回空 Dataset，不 panic");
+    }
+
+    /// bars_per_year 粒度参数化守卫（barspec-impl A 点）：1m(60s) 必须 bit-exact 等于
+    /// 旧硬编码常数 `365.25*24*60`；1s(1s) = 旧值 ×60（粒度 60 倍 ⟹ 年化基数 60 倍）。
+    #[test]
+    fn bars_per_year_parameterized_by_granularity() {
+        let one_min = bars_per_year(60);
+        assert_eq!(one_min, 365.25 * 24.0 * 60.0, "1m bit-exact = 旧硬编码常数");
+        let one_sec = bars_per_year(1);
+        assert_eq!(one_sec, 365.25 * 24.0 * 60.0 * 60.0, "1s = 1m ×60");
+    }
+
+    /// load_by_symbol 默认粒度 = 60s（SYMBOLS 全 1m）——Dataset 携带粒度事实。
+    #[test]
+    fn dataset_carries_bar_seconds() {
+        let ds = Dataset {
+            symbol: "T".into(),
+            bars: vec![],
+            dates: vec![],
+            bar_seconds: 60,
+        };
+        assert_eq!(ds.bar_seconds, 60);
     }
 
     /// untradable_ratio 计算（协议 §5.5/§1.2）。
@@ -331,6 +405,7 @@ mod tests {
             symbol: "T".to_string(),
             bars: vec![mk(false, 0), mk(true, 1), mk(false, 2), mk(true, 3)],
             dates: vec!["x".into(); 4],
+            bar_seconds: 60,
         };
         assert!((ds.untradable_ratio() - 0.5).abs() < 1e-12, "2/4 不可交易");
     }

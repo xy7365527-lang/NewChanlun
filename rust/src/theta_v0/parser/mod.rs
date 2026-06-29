@@ -255,7 +255,7 @@ mod tests {
         use std::io::Write;
         let cfg = ThetaConfig::default();
         let path = data_dir().join("oklo_1m_databento.json");
-        let ds = load_symbol(&path, "OKLO", &cfg).expect("加载 OKLO");
+        let ds = load_symbol(&path, "OKLO", &cfg, 60).expect("加载 OKLO");
         let layer = parse_layer(&ds.bars, &cfg);
         // 导出前 2000 笔（足够覆盖 FirstKind+SecondKind 混合，避免 JSON 过大）。
         let n = layer.strokes.len().min(2000);
