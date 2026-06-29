@@ -88,11 +88,11 @@ pub mod closed_loop;
 /// 事件→微事件均为遗忘投影（见 [`complete`] 模块头）。全模块 L0（纯结构 schema）。
 pub mod complete;
 
-/// 回测 harness（Phase 4，task #81）。`#[cfg(test)]` 门控——[`backtest::data`] 依赖
-/// serde_json（dev-dependency），且 backtest-protocol-v0.md §8 流程本就在 test 环境跑
-/// （`cargo test --release ... -- --ignored`）。门控避免污染 cdylib（Python 扩展）构建，
-/// 与 `recursive_t/backtest_run.rs` 的 serde 门控先例一致。
-#[cfg(test)]
+/// 回测 harness（Phase 4，task #81）。门控为 `any(test, feature = "backtest_bin")`——
+/// [`backtest::data`] 依赖 serde_json（test 走 dev-dependency；CLI 走 backtest_bin feature 的
+/// optional dep）。默认 cdylib（Python 扩展）构建**两者都不开** ⟹ 零依赖膨胀（acceptance[5]
+/// CLI 生产入口解门控：let theta_backtest bin 链接 run_theta_v0_pi/load_by_symbol）。
+#[cfg(any(test, feature = "backtest_bin"))]
 pub mod backtest;
 
 /// Nautilus Trader ↔ canonical S_Θ 适配层（goal acceptance[5]，设计 `docs/nautilus-integration-design.md`）。

@@ -323,8 +323,139 @@ pub fn coverage_elements_and_gamma_with_tower(
     classification: &Classification,
     tower: &[Vec<LeveledMove>],
 ) -> ((Vec<CoverageElement>, usize), Vec<Candidate>) {
-    // 真嵌套元素树（单 Vec，无 tree.clone()——前缀=tree，候选尾部 append）。
-    let mut elements = coverage::extract_elements(tower);
+    coverage_elements_and_gamma_with_tower_cached(classification, tower, &mut None)
+}
+
+/// **工位 K 性能：tree-prefix 缓存键**（§16 confirmed prefix immutable）。
+///
+/// **递归发射树指纹**（工位 O，644 第3次有损指纹否定）：覆盖 [`coverage::extract_elements`] 输出
+/// 依赖的**全部** `LeveledMove` 深层字段，逐节点递归 `sub_moves`。指纹元组每节点发射
+/// `(id.level, id.ordinal, start_index, end_index, dir, lo, hi, sub_moves.len())`：
+///
+/// | extract_elements 输出字段 | 来源 LeveledMove 字段 | 指纹覆盖 |
+/// |---|---|---|
+/// | `lambda` | `start_index` | ✔ start_index |
+/// | `rho` | `end_index` | ✔ end_index |
+/// | `eps` | `rmove` 方向（Segment.direction / Compose 外缘 first.hi vs last.hi） | ✔ dir + lo/hi（外缘判据） |
+/// | `level` | `rmove.level()` | ✔ id.level（compose level == id.level） |
+/// | `id`/`parent_id` | `id` | ✔ id.level + id.ordinal |
+/// | `parent`/`attached_dir`/子元素全部 | `sub_moves`（递归） | ✔ 递归发射所有 sub_moves |
+///
+/// ★旧浅指纹漏洞（644 否定）：只发射顶层 `(level, ordinal, end_index, sub_moves.len())`——不递归
+/// `sub_moves`、不含 `start_index`、不含方向。interior（非首非尾）子走势被古怪线段重划（坐标/方向变）
+/// 而顶层 start/end/ordinal/子数不变 ⟹ 旧指纹相同但 extract_elements 输出发散 ⟹ 缓存返陈旧树
+/// （污染 ΔSharpe，bar 1464 类）。递归发射后任何深层改写都改变指纹。
+///
+/// soundness 依据 §16：confirmed move 跨 bar 身份稳定不重排（TowerCache 复用同一 Vec），只有
+/// frontier（最后 top move）可变。复杂度：O(tree)（递归一遍）——与 extract_elements 同阶，per-bar
+/// 本就遍历 tree，不引入更差阶。
+///
+/// `dir`/`lo`/`hi` 用 [`coverage::extract_elements`] 的 `rmove_side` 同源外缘判据所依赖的原始坐标
+/// （`RMove::lo`/`RMove::hi` 递归取 leaf min/max + Segment.direction），故指纹随任何影响 eps 的 leaf
+/// 坐标/方向改写而变。
+#[derive(Clone, PartialEq, Eq, Default, Debug)]
+pub struct TreeKey(Vec<(u32, u32, u64, usize, usize, u8, i64, i64, usize)>);
+
+impl TreeKey {
+    fn of(tower: &[Vec<LeveledMove>]) -> TreeKey {
+        for lvl in tower.iter().rev() {
+            if !lvl.is_empty() {
+                let mut fp = Vec::new();
+                for m in lvl {
+                    TreeKey::emit(m, &mut fp);
+                }
+                return TreeKey(fp);
+            }
+        }
+        TreeKey(Vec::new())
+    }
+
+    /// 递归发射一个 move 及其全部 sub_moves 的深层指纹（前序遍历，父在子前——与
+    /// [`coverage::push_element_tree`] 同序，确保结构同构的两树发射序一致）。
+    fn emit(m: &LeveledMove, fp: &mut Vec<(u32, u32, u64, usize, usize, u8, i64, i64, usize)>) {
+        // dir：与 rmove_side 同口径——Segment.direction / Compose 外缘 first.hi vs last.hi（0=Up,1=Down）。
+        let dir: u8 = match &m.rmove {
+            super::super::classifier::descend::RMove::Segment { direction, .. } => {
+                match direction {
+                    super::super::types::Direction::Up => 0,
+                    super::super::types::Direction::Down => 1,
+                }
+            }
+            super::super::classifier::descend::RMove::Compose { subs, .. } => {
+                match (subs.first(), subs.last()) {
+                    (Some(f), Some(l)) if l.hi() >= f.hi() => 0,
+                    (Some(_), Some(_)) => 1,
+                    _ => 0,
+                }
+            }
+        };
+        fp.push((
+            // ★codex审O补漏(644元模式第4次): extract_elements 的 level 输出=rmove.level()，
+            // 旧指纹只发 id.level 作代理(靠构造纪律 id.level==rmove.level()，非指纹强制)。
+            // 发射真实输出驱动量 rmove.level()，使指纹自包含(不替换 id.level——后者仍是 id 字段)。
+            m.rmove.level(),
+            m.id.level,
+            m.id.ordinal,
+            m.start_index,
+            m.end_index,
+            dir,
+            m.rmove.lo(),
+            m.rmove.hi(),
+            m.sub_moves.len(),
+        ));
+        for sub in &m.sub_moves {
+            TreeKey::emit(sub, fp);
+        }
+    }
+}
+
+/// **工位 K 性能：tree-prefix（[`coverage::extract_elements`] 输出）缓存**。
+///
+/// `extract_elements(tower)` 是 `tower` 的纯函数，O(confirmed tree)。runner per-bar 在两处调（一处
+/// `pi_theta_step`、一处 merge），且跨 bar confirmed prefix 不变（§16）⟹ 每 bar 重建 = O(confirmed)×n
+/// = O(n²)。缓存：键 [`TreeKey`] 命中 ⟹ 复用 `tree`（O(top-level count) 键比较，O(tree) clone 仅在
+/// append 候选时 caller 做——candidates 才需 mutate 尾部）；未命中（CL 16K 仅 26 次）⟹ 重建。
+#[derive(Default)]
+pub struct TreeCache {
+    key: TreeKey,
+    tree: Vec<CoverageElement>,
+    valid: bool,
+}
+
+impl TreeCache {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// [`coverage_elements_and_gamma_with_tower`] 带可选 tree-prefix 缓存（工位 K 性能）。
+///
+/// bit-exact == 无缓存版：命中复用的 `tree` 与 `extract_elements(tower)` 逐字节相等（§16 + 实测 0 假命中）。
+/// 候选段每次按当前 `classification` 重建 append（候选随 bar 变；§16 只保证 tree-prefix 不变）。
+pub fn coverage_elements_and_gamma_with_tower_cached(
+    classification: &Classification,
+    tower: &[Vec<LeveledMove>],
+    cache: &mut Option<&mut TreeCache>,
+) -> ((Vec<CoverageElement>, usize), Vec<Candidate>) {
+    // 真嵌套元素树（单 Vec，无 tree.clone()——前缀=tree，候选尾部 append）。缓存命中则复用。
+    let mut elements: Vec<CoverageElement> = match cache {
+        Some(c) => {
+            let key = TreeKey::of(tower);
+            if c.valid && c.key == key {
+                // bit-exact 守卫（debug/test）：缓存命中必与全量 extract_elements 逐字节相等（§16 + 实测 0 假命中）。
+                debug_assert_eq!(c.tree, coverage::extract_elements(tower),
+                    "TreeCache 假命中——§16 不变量破裂或 TreeKey 不 sound");
+                c.tree.clone() // O(tree)：candidate append 须 mutate 尾部，故 clone 缓存前缀
+            } else {
+                let t = coverage::extract_elements(tower);
+                c.key = key;
+                c.tree = t.clone();
+                c.valid = true;
+                t
+            }
+        }
+        None => coverage::extract_elements(tower),
+    };
     let candidate_start = elements.len();
     let mut gamma: Vec<Candidate> = Vec::new();
     // ponytail: H7 单次建 tree 前缀 (level,ρ)→idx 索引——tree 前缀在候选 append 期间不变 ⟹ 建一次。
@@ -341,7 +472,8 @@ pub fn coverage_elements_and_gamma_with_tower(
         for point in &level.bsp {
             let dir = candidate_dir(&point.bits);
             // hostOf 查表只读 tree 前缀（elements[..candidate_start]，候选 append 期间不变）。
-            let (parent, attached_dir) = coverage::attach_bsp_to_tree_indexed(
+            // ★工位 H（级别容器.pdf §13）：取 carrier 容器自身 id（hostOf(g)），非买卖点叶子新 ordinal。
+            let (parent, attached_dir, carrier_id) = coverage::attach_bsp_carrier_indexed(
                 &tree_endpoint_idx,
                 &elements[..candidate_start],
                 lvl,
@@ -357,10 +489,16 @@ pub fn coverage_elements_and_gamma_with_tower(
                 level: lvl,
                 parent,
                 attached_dir,
-                // ★codex Q4：候选元素 ID = (level, gamma_index 偏移)；parent_id 来自 hostOf 真父。
-                // 候选 ordinal 用 ci（元素数组当前长度）保证唯一；parent_id 从 attach_bsp_to_tree
-                // 返回的 parent 索引查 tree 元素的 id（真 Compose 父 ID，跨 bar 稳定）。
-                id: ElementId { level: lvl, ordinal: ci as u64 },
+                // ★工位 H 修复（级别容器.pdf §13/§14，否定 codex Q4 的叶子 ordinal id）：
+                // 开仓激活的位置节点身份 = **carrier 容器 hostOf(g) 的 ElementId**（不是买卖点叶子的
+                // 新 ordinal）。PDF §6/§7 反证：叶子作持仓 ⟹ a_carrier=0 ⟹ 子声部 a_u≤a_carrier=0 永剪。
+                // carrier id 跨 bar 稳定 ⟹ 同一 carrier 上的位置节点跨 bar 对位（§9.1 par_C 匹配）⟹
+                // 子声部的 parent_id（= par_C(carrier)）能命中持仓父位置节点 ⟹ depth>0 准入。
+                // 退化：缺塔/host 是根（carrier_id=None）⟹ 回退叶子 ordinal id（边界胚元 ∂，无 carrier）。
+                // ★简化（PDF §14，标注非伪证）：同 carrier 同 bar 多买卖点共享 id（损失 entry-level
+                // 区分）；严格 position instance（hash(carrier,entry,side,gen)）= §H ceiling。
+                id: carrier_id.unwrap_or(ElementId { level: lvl, ordinal: ci as u64 }),
+                // parent_id = carrier 的父容器 id（= hostOf(g).parent.id，par_C(κ(u))；§9.1 父声部 carrier）。
                 parent_id: parent.and_then(|pidx| {
                     elements.get(pidx).map(|e: &CoverageElement| e.id)
                 }),
@@ -877,6 +1015,39 @@ mod tests {
         assert_eq!(with[0].role.v, flat[0].role.v, "缺塔退化与扁平 assemble_gamma 一致");
     }
 
+    /// ★工位 H 不变量 I1/I3/I4（级别容器.pdf §11/§13）：开仓激活的位置节点身份 = **carrier 容器**
+    /// hostOf(g) 的 ElementId，**不是**买卖点叶子的新 ordinal。
+    ///
+    /// - **I4**（买卖点激活 position node）：候选元素 id == carrier(=hostOf(g)) 的 id，非叶子 ordinal。
+    /// - **I1**（买卖点不是持仓父节点）：候选不携带独立叶子身份，而是 carrier 上的位置实例。
+    /// - **I3**（子声部 AncOK 检查父 carrier）：候选 parent_id == par_C(carrier)（carrier 的父容器 id）。
+    ///
+    /// long_parent_tower：sell_point(8) 的 host=s1（id=(0,1)，carrier），s1 的父 = L1 compose（id=(1,0)）。
+    #[test]
+    fn position_node_identity_is_carrier_not_leaf_ordinal() {
+        let tower = long_parent_tower();
+        let c = classification(vec![vec![sell_point(8, 1)]]);
+        let (elements, cstart) = coverage_elements_with_tower(&c, &tower);
+        // I4/I1：候选位置节点 id == carrier hostOf(g)=s1 的 id=(0,1)（非叶子 ordinal=cstart）。
+        assert_eq!(
+            elements[cstart].id,
+            eid(0, 1),
+            "I4：开仓激活的位置节点身份 = carrier hostOf(g)=s1 的 id（非买卖点叶子新 ordinal）"
+        );
+        // I3：候选 parent_id == carrier 的父容器 = L1 compose id=(1,0)（§9.1 par_C(κ)）。
+        assert_eq!(
+            elements[cstart].parent_id,
+            Some(eid(1, 0)),
+            "I3：子声部父 carrier = par_C(carrier) = L1 compose id（active position parent，非裸叶子）"
+        );
+        // I1 推论：carrier id 与树中 s1 走势同 id ⟹ 位置节点是 carrier 上的实例（跨 bar 按 carrier 对位）。
+        let s1_tree_idx = elements[..cstart].iter().position(|e| e.id == eid(0, 1));
+        assert!(
+            s1_tree_idx.is_some(),
+            "carrier s1 走势在树前缀中存在（位置节点身份 = 该 carrier，跨 bar 对位源）"
+        );
+    }
+
     /// ★AncOK 真剪枝（task step3）：附着候选孤儿（祖先 compose 不在 raw）被剪枝；含祖先则保留。
     /// 对照扁平（parent=None ⟹ AncOK 恒等不剪枝）——接真塔后 AncOK 翻转为真剪枝。
     #[test]
@@ -944,5 +1115,84 @@ mod tests {
             Vertical::Ambient,
             "父=胚元∂（无有向父容器）⟹ Ambient（639：充要条件是父=∂，非未持仓）"
         );
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  工位 O：TreeCache 递归指纹（644 第3次有损指纹否定）
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// **L1 反例（codex 构造）**：两个 tower 顶层指纹 `(id.level, id.ordinal, end_index,
+    /// sub_moves.len())` 完全相同，但 interior（非首非尾）子走势被古怪线段重划——坐标/方向变，
+    /// 而顶层 start/end/ordinal/子数全不变。旧浅指纹 ⟹ TreeKey 相同（漏，缓存返陈旧树）；
+    /// 递归指纹 ⟹ TreeKey 不同（深层改写被捕获）。同时断言 extract_elements 输出确实发散
+    /// （证明这不是伪反例——深层改写真改输出）。
+    #[test]
+    fn treekey_recursive_catches_interior_rewrite() {
+        // tower A：interior 子走势 s1 = Down [3,12]（end_index=8）。
+        let a_s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let a_s1 = LM::from_unit(&unit_r(4, 8, Direction::Down, 3, 12), eid(0, 1));
+        let a_s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
+        let ca = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let a_l1 = LM::compose(&[a_s0, a_s1, a_s2], ca, 1, eid(1, 0));
+        let tower_a = vec![Vec::new(), vec![a_l1]];
+
+        // tower B：interior s1 古怪线段重划——同 start/end_index（4/8）、同 ordinal、同子数，
+        // 但方向 Up（≠Down）+ 坐标 [99,199]（≠[3,12]）。顶层 end_index=12/ordinal=0/子数=3 不变。
+        let b_s0 = LM::from_unit(&unit_r(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let b_s1 = LM::from_unit(&unit_r(4, 8, Direction::Up, 99, 199), eid(0, 1)); // 重划！
+        let b_s2 = LM::from_unit(&unit_r(8, 12, Direction::Up, 5, 15), eid(0, 2));
+        let cb = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let b_l1 = LM::compose(&[b_s0, b_s1, b_s2], cb, 1, eid(1, 0));
+        let tower_b = vec![Vec::new(), vec![b_l1]];
+
+        // 前提坐实：旧浅指纹（顶层 level/ordinal/end_index/子数）两 tower 相同（漏的来源）。
+        let shallow = |t: &[Vec<LM>]| -> Vec<(u32, u64, usize, usize)> {
+            t.iter().rev().find(|l| !l.is_empty()).map_or(Vec::new(), |l| {
+                l.iter().map(|m| (m.id.level, m.id.ordinal, m.end_index, m.sub_moves.len())).collect()
+            })
+        };
+        assert_eq!(shallow(&tower_a), shallow(&tower_b),
+            "前提：旧浅指纹两 tower 相同（这正是漏洞——浅指纹不区分 interior 重划）");
+
+        // 反例坐实：extract_elements 输出确实发散（深层改写真改输出，非伪反例）。
+        let ea = coverage::extract_elements(&tower_a);
+        let eb = coverage::extract_elements(&tower_b);
+        assert_ne!(ea, eb,
+            "interior 重划改变 extract_elements 输出（s1 的 eps/lambda/rho 变）——缓存返陈旧树会污染 ΔSharpe");
+
+        // 修复坐实：递归指纹捕获深层变化 ⟹ TreeKey 不同 ⟹ 缓存不会假命中。
+        assert_ne!(TreeKey::of(&tower_a), TreeKey::of(&tower_b),
+            "递归发射指纹捕获 interior 子走势的坐标/方向改写（644：第3次有损指纹否定）");
+    }
+
+    /// **L2 逐 bar 对拍**（真实 CL 数据，cached vs nocache extract_elements 全字段一致）。
+    /// codex 指出当前 0 假命中无回归守卫、debug_assert 仅 debug 生效——本测试在 release 下逐 bar
+    /// 对比 `coverage_elements_and_gamma_with_tower_cached`（带 TreeCache）与无缓存版的 elements
+    /// 输出，任何缓存假命中（陈旧树）立即被 assert_eq 捕获。
+    #[test]
+    #[ignore = "工位 O L2：真实 CL 逐 bar cached-vs-nocache 对拍；需 CL；--release --ignored"]
+    fn bit_exact_per_bar_cached_vs_nocache() {
+        use super::super::super::backtest::data;
+        use super::super::super::{classifier, parser};
+        use super::super::super::config::ThetaConfig;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 2000.min(oos.bars.len());
+        let mut cache = TreeCache::new();
+        let mut hits = 0usize;
+        for i in 0..n {
+            let l0 = parser::parse_layer(&oos.bars[..=i], &config);
+            let (cls, tower) = classifier::classify_with_tower(&l0, &config);
+            // cached 路径（带 TreeCache，跨 bar 复用前缀）。
+            let ((cached_elems, _), _) =
+                coverage_elements_and_gamma_with_tower_cached(&cls, &tower, &mut Some(&mut cache));
+            // nocache 路径（每 bar 全量 extract_elements）。
+            let nocache_elems = coverage::extract_elements(&tower);
+            assert_eq!(cached_elems[..nocache_elems.len()], nocache_elems[..],
+                "bar {i}：cached extract_elements 前缀 ≠ nocache（TreeCache 假命中——陈旧树）");
+            if cache.valid { hits += 1; }
+        }
+        eprintln!("bit_exact_per_bar：{n} bars 全部 cached==nocache，{hits} bars 缓存有效");
     }
 }

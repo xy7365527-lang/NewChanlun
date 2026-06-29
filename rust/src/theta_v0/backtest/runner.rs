@@ -523,6 +523,8 @@ where
     let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
     // 延迟成交队列（spec:50：订单在 exec_index bar 成交，与 plan_and_fill_mtm 同语义）。
     let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];
+    // 工位 K 性能：tree-prefix 缓存（§16 confirmed prefix immutable；跨 bar 复用 extract_elements）。
+    let mut tree_cache = interp::TreeCache::new();
 
     let mut equity_curve = Vec::with_capacity(n);
     let mut trade_pnls: Vec<f64> = Vec::new();
@@ -567,17 +569,24 @@ where
             // exec_index：延迟成交 bar（spec:50；尾部无可成交 bar ⟹ 不挂单）。
             let exec_index = fill_bar_index(i, bars, &config.exec);
             // 环5+6+7：pi_theta_step（父容器 σ_p=attach_bsp_to_tree(因果塔) + 风控门）→ (A_{t+1}, p*, O)。
-            let (next_active, _p_star, order) = coverage::pi_theta_step(
-                &classification_step,
-                &tower_i,
+            // 工位 K 性能：tree-prefix 缓存（§16，命中省 extract_elements 重建）。pi_theta_step 用
+            // newly-confirmed step 候选；merge 用全 classification 候选——两者共享同一 tower tree-prefix 缓存。
+            let ((step_elements, step_cs), step_gamma) =
+                interp::coverage_elements_and_gamma_with_tower_cached(
+                    &classification_step, &tower_i, &mut Some(&mut tree_cache),
+                );
+            let (next_active, _p_star, order) = coverage::pi_theta_step_prebuilt(
+                &step_elements,
+                step_cs,
+                &step_gamma,
                 &prev_active,
                 p_t,
                 exec_index.unwrap_or(i),
                 base_units,
-                &config.voice,
                 &config.risk,
                 weights,
                 gate,
+                &config.voice,
                 &registry,
             );
             // ── ④ 挂单到 exec_index（延迟成交；qty>0 才挂）。 ──
@@ -593,9 +602,13 @@ where
             // 用本 bar snapshot（elements）+ held legs（next_active）刷新 registry。
             // 关闭的腿（buckets.close）在 registry 中标记 invalidated（§9 rule 5）。
             {
-                let (elements_ref, _candidate_start) =
-                    interp::coverage_elements_with_tower(&classification_i, &tower_i);
-                registry = registry.merge(&elements_ref, &next_active);
+                // 工位 K 性能：共享 tree-prefix 缓存（merge 用全 classification 候选）。
+                let ((elements_ref, _cs), _gamma) =
+                    interp::coverage_elements_and_gamma_with_tower_cached(
+                        &classification_i, &tower_i, &mut Some(&mut tree_cache),
+                    );
+                // 原地增量 merge（消除 self.clone() O(registry) + 全量 values_mut 扫）。
+                registry.merge_in_place(&elements_ref, &next_active);
             }
             prev_active = next_active;
         }

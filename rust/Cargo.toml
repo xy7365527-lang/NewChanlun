@@ -14,10 +14,37 @@ crate-type = ["cdylib", "rlib"]
 #   - maturin build 时启用（见 pyproject.toml [tool.maturin] features）
 #   - cargo test 时不启用（否则链接 libpython 失败）
 pyo3 = { version = "0.23" }
+# backtest CLI 生产入口（[[bin]] theta_backtest）依赖：optional，仅 backtest_bin feature 启用。
+#   默认 cdylib（Python 扩展）构建零膨胀——serde/serde_json 不进 Python 扩展。
+#   cargo test 仍用 dev-dependencies 的 serde（test 路径不开 feature）。
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [features]
 default = []
 extension-module = ["pyo3/extension-module"]
+# CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
+backtest_bin = ["dep:serde", "dep:serde_json"]
+
+# ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
+# required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
+#   构建/运行：cargo run --features backtest_bin --bin theta_backtest -- <symbol>
+[[bin]]
+name = "theta_backtest"
+path = "src/bin/theta_backtest.rs"
+required-features = ["backtest_bin"]
+
+# 纯买卖点择时隔离实验（goal #5 最根本问题：缠论买卖点择时本身有无 alpha）。
+# 离散事件状态机（仓位∈{+1,0,-1}），不做 π_Θ 覆盖/净额——只在买卖点切换仓位。
+[[bin]]
+name = "pure_bsp_timing"
+path = "src/bin/pure_bsp_timing.rs"
+required-features = ["backtest_bin"]
+
+[[bin]]
+name = "pi_bsp_timing"
+path = "src/bin/pi_bsp_timing.rs"
+required-features = ["backtest_bin"]
 
 # 仅测试期依赖：T 回测全量 runner 读取 analysis/data_cache/*.json（8 标的 OHLC）。
 # 放 dev-dependencies ⇒ cdylib（Python 扩展）构建不受影响，零运行时依赖膨胀。

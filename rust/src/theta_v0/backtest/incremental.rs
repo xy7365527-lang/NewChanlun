@@ -203,12 +203,298 @@ mod profile {
     use super::super::super::config::ThetaConfig;
     use super::super::super::{classifier, parser};
 
+    /// **★全引擎大规模标度（acceptance[4]）：parser+classifier+strategy per-bar exp@16K（L2）**。
+    ///
+    /// goal `g-sigma-complete-l2-nautilus` acceptance[4] 要求**全引擎** per-bar exp≈1.0 @16K，
+    /// 证明 parser + classifier + strategy(coverage/interp) 全热路径线性。本 profile 在**真实** CL
+    /// OOS 数据上对 n∈{2K,4K,8K,16K} 测三个 cost center：
+    ///
+    /// 1. **classify**：`IncrementalClassifier::classify_at(i)` 累计（= 增量 parse + 增量塔；
+    ///    parser+classifier 合并测，因增量塔与增量 parse 在 classify_at 内串联，外部无法零成本拆）。
+    /// 2. **engine_full**：`run_theta_v0_pi(&prefix_dataset)` 端到端（= classify + strategy/coverage/interp
+    ///    + fill + closed_loop）——production per-bar 引擎入口。
+    /// 3. **closed_loop**：`run_closed_loop(bars)` 单独测（engine_full 含此项，须扣除才得 strategy 净额）。
+    ///
+    /// **strategy 净额** = engine_full − classify − closed_loop（pi_theta_fill_loop 的 coverage/interp/
+    /// registry/risk_gate 部分）。各 cost center 在相邻 n 上算 log-log 局部 exp，n=8K→16K 的 exp 是
+    /// **acceptance[4] 的判定值**（16K 目标点）。
+    ///
+    /// ## 认识论等级：**L2**（真实 CL 数据 + 16K 大规模标度 → 可否证 O(n) 声明）
+    ///
+    /// formalization-validity-domain 231号：@16K 真实标度 = L2（可否证）；@n=1000 小窗 = L1 不足以
+    /// 坐实大规模线性。每个 exp 的 16K 判定值是本工位的可否证产出——exp≈1.0 确认 O(n)，exp≈2.0
+    /// 否证（暴露残留 O(n²) 热点）。
+    ///
+    /// 运行：`cargo test --release -p newchan_rust --lib \
+    ///   backtest::incremental::profile::profile_full_engine_scaling_16k -- --ignored --nocapture`
+    #[test]
+    #[ignore = "全引擎大规模标度 acceptance[4]；需 CL 数据；--release"]
+    fn profile_full_engine_scaling_16k() {
+        use super::super::runner::{run_closed_loop, run_theta_v0_pi};
+        use super::super::data::Dataset;
+
+        let config = ThetaConfig::default();
+        let ds = match data::load_by_symbol("CL", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("DATA BLOCKER: {e}");
+                panic!("需真实数据");
+            }
+        };
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        eprintln!("\n===== 全引擎大规模标度（CL OOS，acceptance[4]，L2 真实数据）=====");
+        eprintln!(
+            "{:>7} | {:>9} {:>9} {:>9} {:>10} | {:>6} {:>6} {:>6} {:>6}",
+            "n", "classify", "clloop", "stratgy", "engine", "cls_e", "cll_e", "str_e", "eng_e"
+        );
+
+        let sizes = [2000usize, 4000, 8000, 16000];
+        // 相邻点 log-log exp：exp = ln(t1/t0)/ln(n1/n0)。≈1.0=O(n)，≈2.0=O(n²)。
+        let logexp =
+            |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        // (n, classify, closed_loop, strategy, engine)
+        let mut rows: Vec<(usize, f64, f64, f64, f64)> = Vec::new();
+        let mut prev: Option<(usize, f64, f64, f64, f64)> = None;
+
+        for &n in &sizes {
+            if n > oos.bars.len() {
+                eprintln!("(n={n} > 可用 {}，跳过)", oos.bars.len());
+                break;
+            }
+            let bars = &oos.bars[..n];
+
+            // ① classify 累计：per-bar 增量 classify_at（parser 增量 + 增量塔）。
+            let mut incr = super::IncrementalClassifier::new(bars, &config);
+            let t = std::time::Instant::now();
+            for i in 0..n {
+                let _ = incr.classify_at(i);
+            }
+            let t_classify = t.elapsed().as_secs_f64();
+
+            // ② closed_loop（engine_full 含此项，须扣除）。
+            let t = std::time::Instant::now();
+            let _ = run_closed_loop(bars, 1.0);
+            let t_clloop = t.elapsed().as_secs_f64();
+
+            // ③ engine_full：production per-bar 引擎入口（prefix Dataset，source_index 已=局部下标）。
+            let prefix = Dataset {
+                symbol: oos.symbol.clone(),
+                bars: bars.to_vec(),
+                dates: oos.dates[..n].to_vec(),
+            };
+            let years = (n as f64) / (252.0 * 390.0); // 名义年数（仅 metrics 用，不影响标度）
+            let t = std::time::Instant::now();
+            let _ = run_theta_v0_pi(&prefix, &config, years, 1.0);
+            let t_engine = t.elapsed().as_secs_f64();
+
+            // strategy 净额 = engine − classify − closed_loop（coverage/interp/registry/risk_gate/fill）。
+            let t_strategy = (t_engine - t_classify - t_clloop).max(0.0);
+
+            let (ce, cle, se, ee) = prev
+                .map(|(pn, pc, pcl, ps, pe)| {
+                    (
+                        logexp(pn, pc, n, t_classify),
+                        logexp(pn, pcl, n, t_clloop),
+                        logexp(pn, ps.max(1e-9), n, t_strategy.max(1e-9)),
+                        logexp(pn, pe, n, t_engine),
+                    )
+                })
+                .unwrap_or((f64::NAN, f64::NAN, f64::NAN, f64::NAN));
+
+            eprintln!(
+                "{n:>7} | {t_classify:>9.3} {t_clloop:>9.3} {t_strategy:>9.3} {t_engine:>10.3} | \
+                 {ce:>6.2} {cle:>6.2} {se:>6.2} {ee:>6.2}"
+            );
+            use std::io::Write;
+            std::io::stderr().flush().ok();
+
+            rows.push((n, t_classify, t_clloop, t_strategy, t_engine));
+            prev = Some((n, t_classify, t_clloop, t_strategy, t_engine));
+        }
+
+        // 16K 判定（acceptance[4] 目标点：8K→16K 的 exp）。
+        if rows.len() >= 2 {
+            let (n0, c0, cl0, s0, e0) = rows[rows.len() - 2];
+            let (n1, c1, cl1, s1, e1) = rows[rows.len() - 1];
+            let verdict = |e: f64| {
+                if e < 1.3 {
+                    "O(n) ✓"
+                } else if e < 1.7 {
+                    "亚二次(超线性)"
+                } else {
+                    "O(n²) ✗ 残留热点"
+                }
+            };
+            let ce = logexp(n0, c0, n1, c1);
+            let cle = logexp(n0, cl0, n1, cl1);
+            let se = logexp(n0, s0.max(1e-9), n1, s1.max(1e-9));
+            let ee = logexp(n0, e0, n1, e1);
+            eprintln!(
+                "\n★acceptance[4] 判定（{n0}→{n1} 16K 目标点 exp，L2 真实数据）：\n  \
+                 classify   exp={ce:.2}  {}\n  \
+                 closed_loop exp={cle:.2}  {}\n  \
+                 strategy   exp={se:.2}  {}\n  \
+                 engine_full exp={ee:.2}  {}",
+                verdict(ce),
+                verdict(cle),
+                verdict(se),
+                verdict(ee),
+            );
+            eprintln!(
+                "  判读：engine_full exp≈1.0 ⟹ 全引擎 O(n) 达成（acceptance[4] 确认）；\n  \
+                 某 cost center exp≈2.0 ⟹ 该段残留 O(n²)，owner 见 cost center 名。\n  \
+                 ★L2：真实数据 + 16K 大规模，可否证（231号）。"
+            );
+        }
+        assert!(!rows.is_empty(), "至少 profile 一个窗口（n=2000 应可用）");
+    }
+
+    /// **★classify_at 内部拆解：parser-append 累计 vs classify_with_tower_incremental 累计（定位 O(n²) 段）**。
+    ///
+    /// `profile_full_engine_scaling_16k` 测出 classify(整) exp≈2.17 O(n²)，但 parser::profile
+    /// 测出 ParseLayerIncr::append 累计 exp≈0.94 O(n)。本拆解坐实 O(n²) 在**增量塔**
+    /// （`classify_with_tower_incremental`）而非 parser——逐 bar 分别计时 parser_incr.append 与
+    /// 塔续算，各自累计后拟合 exp。
+    ///
+    /// **L2**（真实 CL，16K）。
+    #[test]
+    #[ignore = "classify_at 内部 O(n²) 段定位；需 CL；--release"]
+    fn profile_classify_at_decompose_16k() {
+        let config = ThetaConfig::default();
+        let ds = match data::load_by_symbol("CL", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("DATA BLOCKER: {e}");
+                panic!("需真实数据");
+            }
+        };
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        eprintln!("\n===== classify_at 拆解：parser-append vs 增量塔（CL OOS，L2）=====");
+        eprintln!("{:>7} | {:>10} {:>10} | {:>7} {:>7}", "n", "parse_s", "tower_s", "p_exp", "t_exp");
+        let logexp =
+            |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [2000usize, 4000, 8000, 16000];
+        let mut prev: Option<(usize, f64, f64)> = None;
+        for &n in &sizes {
+            if n > oos.bars.len() {
+                break;
+            }
+            let bars = &oos.bars[..n];
+            let mut parser_incr = parser::ParseLayerIncr::new(&config);
+            let mut tower_cache = classifier::TowerCache::default();
+            let mut t_parse = 0.0f64;
+            let mut t_tower = 0.0f64;
+            for i in 0..n {
+                let t = std::time::Instant::now();
+                let l0_i = parser_incr.append(bars[i]);
+                t_parse += t.elapsed().as_secs_f64();
+                let t = std::time::Instant::now();
+                let _ = classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+                t_tower += t.elapsed().as_secs_f64();
+            }
+            let (pe, te) = prev
+                .map(|(pn, pp, pt)| (logexp(pn, pp, n, t_parse), logexp(pn, pt, n, t_tower)))
+                .unwrap_or((f64::NAN, f64::NAN));
+            eprintln!("{n:>7} | {t_parse:>10.3} {t_tower:>10.3} | {pe:>7.2} {te:>7.2}");
+            use std::io::Write;
+            std::io::stderr().flush().ok();
+            prev = Some((n, t_parse, t_tower));
+        }
+        eprintln!(
+            "\n判读：parser p_exp≈1.0 (O(n)) + tower t_exp≈2.0 (O(n²)) ⟹ O(n²) 根在增量塔\n  \
+             classify_with_tower_incremental（mod.rs:634）——逐 bar 全前缀重算项（见报告）。L2。"
+        );
+    }
+
+    /// **★诊断（工位 E 留档）：classifier 增量 vs 全量 bit-exact 隔离**。
+    ///
+    /// 同一 legacy `parse_layer(&bars[..=i])` 输入喂 `classify_with_tower_incremental`（持久 cache）
+    /// 与 `classify_with_tower`（全量），隔离 **classifier 增量** vs parser 增量。坐实
+    /// `classify_with_tower_incremental` 在真实 CL 上 **bar 1464 与全量发散**（第 3 个 L0 中枢
+    /// `end_index`/`dd` 不同——增量 resume 续扫的 frontier 中枢比全量非重叠扫描多吸收段）。
+    ///
+    /// ★此发散**先于工位 E 的性能改动**（git stash 验证：pure-HEAD 同样 1464 发散，同值）——
+    /// 是 `detect_centers_windowed_resume` 的 frontier 中枢不稳定性 bug（resume cursor 把未确认的
+    /// 末窗口当作 immutable，违反 bit-exact 充要条件 #2），非性能 memo/cache 引入。属上浮矛盾。
+    /// **L2**（真实 CL）。
+    #[test]
+    #[ignore = "工位 E 诊断：classifier 增量 frontier 中枢 bit-exact 发散（bar 1464，pre-existing）；需 CL"]
+    fn diag_classifier_resume_frontier_divergence() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 1500.min(oos.bars.len());
+        let bars = &oos.bars[..n];
+        let mut cache = classifier::TowerCache::new();
+        for i in 0..n {
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (inc_cls, _) = classifier::classify_with_tower_incremental(&l0, &config, &mut cache);
+            let (full_cls, _) = classifier::classify_with_tower(&l0, &config);
+            if inc_cls != full_cls {
+                eprintln!("classifier-only divergence at bar {i}: segs={} merged={}",
+                    l0.segments.len(), l0.merged_bars.len());
+                for (lvl, (il, fl)) in inc_cls.levels.iter().zip(full_cls.levels.iter()).enumerate() {
+                    if il.centers != fl.centers {
+                        eprintln!("  L{lvl} centers DIFFER\n    inc ={:?}\n    full={:?}", il.centers, fl.centers);
+                    }
+                }
+                return; // 诊断目的：报告首个发散点，不 panic（pre-existing 矛盾，已上浮）。
+            }
+        }
+        eprintln!("no classifier-only divergence in 0..{n}");
+    }
+
     /// **★Profile：增量链 vs legacy 全量 标度对比**。
     ///
     /// 增量路径 = ParseLayerIncr::append + classify_with_tower_incremental（cache 跨 bar 复用）。
     /// 对比 legacy = parse_layer + classify_with_tower（每 bar 全算）。
     /// 增量总 exp 应低于 legacy（inclusion + 塔构造增量化），但下游 fractal/stroke/segment 仍全量
     /// 重算（parser 工位约束），故 exp 不会到 1.0。
+    /// **★工位 K L2 证据：strategy fill-loop 热点分解（extract_elements + registry.merge 标度）**。
+    ///
+    /// 隔离 runner fill loop 的两段 per-bar 全前缀操作（`coverage_elements_with_tower`=extract_elements
+    /// + `registry.merge`），坐实二者 exp≈2.0=O(n²)。根因：confirmed 元素集（~167 @16K）随 n 线性增，
+    /// per-bar 操作 O(confirmed) × n bars = O(n²)。`registry_len` 列展示 registry 单调增（22→193）。
+    ///
+    /// 工位 K 已修：merge → 原地增量（消 clone+全扫）；tree-prefix → §16 缓存（命中复用 extract）。
+    /// 残留 O(n²)：`coverage_step_from_buckets` 的 `elements.to_vec()`+`build_tree_id_index`（AncOK 准入
+    /// 函数内，I/J 域）+ tree-prefix 缓存命中仍 clone O(tree) → exp 未到 1.0（见 escalate 报告）。L2。
+    #[test]
+    #[ignore = "工位 K L2：strategy 热点分解标度；需 CL；--release"]
+    fn diag_strategy_hotspot_decompose_16k() {
+        use super::super::super::strategy::{coverage, interp, persistent};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        eprintln!("\n===== strategy 热点分解（CL OOS，L2）=====");
+        eprintln!("{:>7} | {:>10} {:>10} | {:>7} {:>7}", "n", "extract_s", "merge_s", "x_exp", "m_exp");
+        let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [2000usize, 4000, 8000, 16000];
+        let mut prev: Option<(usize, f64, f64)> = None;
+        for &n in &sizes {
+            if n > oos.bars.len() { break; }
+            let bars = &oos.bars[..n];
+            let mut incr = super::IncrementalClassifier::new(bars, &config);
+            let mut registry = persistent::PersistentRegistry::new();
+            let mut t_extract = 0.0f64;
+            let mut t_merge = 0.0f64;
+            for i in 0..n {
+                let (cls, tower) = incr.classify_at(i);
+                let t = std::time::Instant::now();
+                let (elements_ref, _cs) = interp::coverage_elements_with_tower(&cls, &tower);
+                t_extract += t.elapsed().as_secs_f64();
+                let _ = coverage::extract_elements(&tower); // 第二次 extract（pi_theta_step 内）
+                let t = std::time::Instant::now();
+                registry = registry.merge(&elements_ref, &[]);
+                t_merge += t.elapsed().as_secs_f64();
+            }
+            let (xe, me) = prev.map(|(pn, px, pm)| (logexp(pn, px, n, t_extract), logexp(pn, pm, n, t_merge)))
+                .unwrap_or((f64::NAN, f64::NAN));
+            eprintln!("{n:>7} | {t_extract:>10.3} {t_merge:>10.3} | {xe:>7.2} {me:>7.2}  registry_len={}", registry.len());
+            prev = Some((n, t_extract, t_merge));
+        }
+    }
+
     #[test]
     #[ignore = "profile: 增量 vs legacy 标度；需 CL；--release"]
     fn profile_incremental_vs_legacy_scaling() {
@@ -268,4 +554,5 @@ mod profile {
              ★身份稳定（非标度）：TowerCache 跨 bar 复用 → LeveledMove 身份连续 → Stale 降根。"
         );
     }
+
 }

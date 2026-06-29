@@ -114,6 +114,12 @@ pub struct PersistentElement {
 pub struct PersistentRegistry {
     /// pid → PersistentElement。
     elements: std::collections::HashMap<ElementId, PersistentElement>,
+    /// ★工位 K 性能：上一 bar snapshot_present=true 的 pid 集合（增量 merge 用）。
+    /// 旧 merge 每 bar 全量 `values_mut()` 扫 registry 把不在本 bar snapshot 的置 false（O(registry)，
+    /// registry 跨 bar 单调增 ⟹ O(n²)）。改增量：只把"上 bar present 但本 bar 不 present"的 pid 置 false
+    /// （O(上 bar snapshot)，非 O(registry)）。bit-exact：结果状态与全量扫等价——registry 中从未被任何
+    /// snapshot 置 true 的元素其 snapshot_present 本就保持 false（or_insert 初值/held leg 初值），无需扫。
+    present_last: std::collections::HashSet<ElementId>,
 }
 
 impl PersistentRegistry {
@@ -185,13 +191,37 @@ impl PersistentRegistry {
         snapshot: &[CoverageElement],
         held_legs: &[ActiveLeg],
     ) -> PersistentRegistry {
+        // immutable 包装（保留 §9 immutable 契约 + 测试调用面）；生产路径用 merge_in_place 避免 clone。
         let mut next = self.clone();
+        next.merge_in_place(snapshot, held_legs);
+        next
+    }
 
-        // 1. snapshot 中所有元素刷新 snapshot_present=true + 更新 structural_parent_id/rho。
-        //    新元素（不在 Pi）加入 Pi。
+    /// **§9 merge 原地增量版**（工位 K 性能：消除 `self.clone()` O(registry) + 全量 `values_mut()` 扫）。
+    ///
+    /// bit-exact == [`merge`]：所有调用点用 `reg = reg.merge(..)` consume-replace 语义，原地 mutate 等价。
+    /// 增量 snapshot_present 重置：旧版每 bar 扫全 registry（O(registry)，registry 单调增 ⟹ O(n²)）；
+    /// 本版只重置"上 bar present 但本 bar 不 present"的 pid（O(上 bar snapshot)）。soundness：snapshot_present
+    /// 只在 step 1 snapshot upsert 置 true（held/op_parent 用 `or_insert(false)` 不翻已存在的真值）⟹
+    /// 任何 present=true 的元素必在上 bar snapshot ⟹ 必在 `present_last` ⟹ 全量扫与增量扫产同状态。
+    pub fn merge_in_place(&mut self, snapshot: &[CoverageElement], held_legs: &[ActiveLeg]) {
+        let snapshot_ids: std::collections::HashSet<ElementId> =
+            snapshot.iter().map(|e| e.id).collect();
+
+        // 1'. 增量重置：上 bar present 但本 bar snapshot 找不到 → snapshot_present=false（LiveDetached）。
+        //     只遍历 present_last（O(上 bar snapshot)），非全 registry（O(registry)）。
+        for pid in &self.present_last {
+            if !snapshot_ids.contains(pid) {
+                if let Some(e) = self.elements.get_mut(pid) {
+                    e.snapshot_present = false;
+                }
+            }
+        }
+
+        // 2'. snapshot 中所有元素刷新 snapshot_present=true + 更新 structural_parent_id/rho（§9 rule 1）。
         for e in snapshot {
             let pid = e.id;
-            let entry = next.elements.entry(pid).or_insert(PersistentElement {
+            let entry = self.elements.entry(pid).or_insert(PersistentElement {
                 pid,
                 dir: e.eps,
                 level: e.level,
@@ -201,7 +231,6 @@ impl PersistentRegistry {
                 snapshot_present: true,
                 invalidated: false,
             });
-            // 刷新 snapshot fields（§9 rule 1）。
             entry.dir = e.eps;
             entry.level = e.level;
             entry.lambda = e.lambda;
@@ -211,23 +240,9 @@ impl PersistentRegistry {
             // 不重置 invalidated（显式作废持久，§9 rule 5）。
         }
 
-        // 2. 上一 bar snapshot_present=true 但本 bar snapshot 找不到的元素 → LiveDetached。
-        //    先把所有元素 snapshot_present 置 false，再用本 bar snapshot 重新置 true（上面已做）。
-        //    上面循环已把 snapshot 中的置 true，其余保持 false（或新置 false）。
-        //    需显式把不在本 bar snapshot 的旧元素置 false（它们在 next.elements 里但没被上面循环刷新）。
-        let snapshot_ids: std::collections::HashSet<ElementId> =
-            snapshot.iter().map(|e| e.id).collect();
-        for e in next.elements.values_mut() {
-            if !snapshot_ids.contains(&e.pid) {
-                e.snapshot_present = false; // LiveDetached（如果未 invalidated）
-            }
-        }
-
-        // 3. held 引用但 snapshot 找不到的元素：**不删除**（§9 rule 2，I1 持久身份）。
-        //    它们已在 next.elements 中（从 self 继承），snapshot_present=false（LiveDetached）。
-        //    确保所有 held 腿的 pid 在 registry 中（I1：腿未关闭 ⟹ pid∈Pi）。
+        // 3'. held 引用但 snapshot 找不到的元素：**不删除**（§9 rule 2，I1 持久身份）。
         for leg in held_legs {
-            next.elements.entry(leg.id).or_insert(PersistentElement {
+            self.elements.entry(leg.id).or_insert(PersistentElement {
                 pid: leg.id,
                 dir: leg.dir,
                 level: leg.level,
@@ -237,24 +252,23 @@ impl PersistentRegistry {
                 snapshot_present: false, // LiveDetached（snapshot 找不到）
                 invalidated: false,
             });
-            // ★I4（anc.pdf §7）：操作父容器持久——op_parent(L)=c ⟹ c∈Pi 或 c⇝c'。
-            // 若 op_parent 不在 snapshot 也不在 registry，按 I4 加入 registry（LiveDetached）。
-            // 这保证 depth>0 腿的 op_parent 在 registry 中 live（AncOK 通过，I5）。
+            // ★I4（anc.pdf §7）：操作父容器持久。
             if let Some(op_pid) = leg.op_parent {
-                next.elements.entry(op_pid).or_insert(PersistentElement {
+                self.elements.entry(op_pid).or_insert(PersistentElement {
                     pid: op_pid,
-                    dir: leg.dir, // 占位——op_parent 方向从 snapshot 刷新（若 snapshot 有）
-                    level: leg.level + 1, // op_parent 是父容器，级别 +1（占位，snapshot 刷新）
-                    lambda: leg.lambda, // 占位
-                    rho: leg.source_index, // 占位
+                    dir: leg.dir,
+                    level: leg.level + 1,
+                    lambda: leg.lambda,
+                    rho: leg.source_index,
                     structural_parent_id: None,
-                    snapshot_present: false, // LiveDetached（snapshot 找不到时）
+                    snapshot_present: false,
                     invalidated: false,
                 });
             }
         }
 
-        next
+        // present_last 更新为本 bar snapshot ids（下 bar 增量重置基准）。
+        self.present_last = snapshot_ids;
     }
 
     /// held 腿四态分类（§10）。

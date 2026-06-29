@@ -51,7 +51,7 @@ use super::super::classifier::Classification;
 use super::super::config::{RiskConfig, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
 use super::intent::{lex_argmin, JThetaKey, LexCandidate};
-use super::interp::{self, ActiveLeg, Buckets};
+use super::interp::{self, ActiveLeg, Buckets, Candidate};
 use super::voice::{depth_weight, VoiceSide};
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -295,6 +295,33 @@ pub fn attach_bsp_to_tree_indexed(
             (host.parent, host.attached_dir)
         }
         None => (None, None),
+    }
+}
+
+/// ★工位 H（级别容器.pdf §13/§14）：hostOf(g) = **carrier 容器**本身（产出 g 的走势元素），
+/// 返回 `(host.parent, host.attached_dir, host.id)`——比 [`attach_bsp_to_tree_indexed`] 多返回
+/// **carrier 自身 ElementId**。
+///
+/// PDF §13 修复要害：开仓激活的 PositionNode 身份 = `hostOf(g)`（carrier 容器），**不是**买卖点叶子
+/// 的新 ordinal（PDF §6/§7：叶子作持仓 ⟹ a_carrier=0 ⟹ 祖先闭合 a_child≤a_carrier=0 ⟹ depth>0 永剪）。
+/// carrier 自身的 ElementId 跨 bar 稳定（确定性 (level,ordinal)），故位置节点按 carrier 身份跨 bar 对位
+/// （§9.1 `p_V(u)=v ⟺ par_C(κ(u))=κ(v)`：子声部 carrier 的父容器 = 父声部 carrier）。
+///
+/// ★简化标注（PDF §14）：本实装用 carrier id 作位置节点身份（= PDF §14 简化版 `host.active=true`），
+/// **同一 carrier 同 bar 多买卖点会共享 id**（损失 entry-level 区分）。PDF 更严格版 = `posId =
+/// hash(carrier_id, entry_signal, side, generation)` position instance——见 §H ceiling。
+pub fn attach_bsp_carrier_indexed(
+    tree_idx: &std::collections::HashMap<(u32, usize), usize>,
+    tree: &[CoverageElement],
+    level_g: u32,
+    source_index: usize,
+) -> (Option<usize>, Option<VoiceSide>, Option<ElementId>) {
+    match tree_idx.get(&(level_g, source_index)).copied() {
+        Some(host_idx) => {
+            let host = &tree[host_idx];
+            (host.parent, host.attached_dir, Some(host.id))
+        }
+        None => (None, None, None),
     }
 }
 
@@ -1100,7 +1127,16 @@ fn restore_ancestor_chain_from_registry(
         if already_in_raw {
             break;
         }
-        // 从 registry 取元素。
+        // ★(I-1) codex 异质审查发现：祖先若**已存在于 work**（如树前缀的 carrier 走势）但不在 raw，
+        // 必须**复用其现有 idx**入 raw——不能 push 重复 id 元素。否则 next_idx（AncOK 后索引集）会对
+        // 同一 carrier 产**两条** leg（树前缀 idx + registry 追加 idx），strategy_target_legs 双计 ⟹
+        // p̃ 双计（伪证）。复用现有 idx 保证每 id 在 raw 中唯一表示（与 spec §13 元素集语义一致）。
+        if let Some(existing_idx) = work.iter().position(|e| e.id == pid) {
+            raw.push(existing_idx);
+            cur = work[existing_idx].parent_id; // 沿已有元素的结构父链上溯
+            continue;
+        }
+        // 从 registry 取元素（work 中尚无 ⟹ 真 LiveDetached 祖先，须从持久身份恢复）。
         let pe = match registry.get(&pid) {
             Some(e) if !e.invalidated => e,
             _ => break, // registry 无效或已作废 ⟹ 停止（不再恢复祖先）
@@ -1230,11 +1266,51 @@ pub fn coverage_step_from_buckets(
         }
     }
 
-    // ∪ ℬ_x：开启候选 → 其 638 附着因果树元素索引（candidate_start + gamma_index，携真 Compose 父）。
+    // ∪ ℬ_x：开启候选 → 其 638 附着因果树元素索引（candidate_start + gamma_index）。
+    //
+    // ★工位 H 修复（级别容器.pdf §13）：开仓激活的位置节点身份 = carrier 容器 hostOf(g)（其 ElementId
+    // 在候选元素 id 上携带，见 interp.rs `coverage_elements_and_gamma_with_tower`），**不是**买卖点叶子。
+    // 故候选自身入 raw 即等价于「激活 carrier 上的位置节点」（PDF §14 简化 position instance）。子声部
+    // 的 parent_id（= par_C(carrier)）由 ancestor_close_by_id 检查是否在 raw（= 持仓父位置节点在 A_t）。
+    //
+    // ★删除旧 G host 注入（级别容器.pdf §6/§7 + §13 否定）：旧 G 把 `(c.level, c.source_index)` 命中的
+    // **同级 host 叶子**注入 raw（叶子作持仓 = a_carrier 仍 0），是 PDF §6/§7 反证的"开叶子"错形式，
+    // 且对 depth>0 子无效（注入的是叶子自身非父 carrier）。位置节点身份改为 carrier id 后，候选 id=
+    // carrier id 入 raw 作位置节点。
+    //
+    // ★(I-1) 修正（codex 行级坐实）：候选自身入 raw 只激活 **本级** carrier 位置节点；depth>0 **子声部**
+    // 候选的准入还需其**父** carrier（= par_C(carrier)，候选 parent_id）在 raw（§13 AncOK 子声部不漂浮
+    // 在不存在的父上）。父 carrier 几乎从不与子同 bar 共现/持仓（sd_parent_held=0），仅 registry
+    // LiveDetached 存活——故 open 候选自身入 raw **不足以**让父在场。下方补 open 候选父链注入（no-patch：
+    // 缺失逻辑补全，非 AncOK 加特例）。
     for c in &buckets.open {
         let idx = candidate_start + c.gamma_index;
         if idx < work.len() && !raw.contains(&idx) {
             raw.push(idx);
+        }
+        // ★(I-1) open 候选父注入（codex 异质审查行级坐实，642/644）：
+        //
+        // depth>0 子声部候选（ShortDiff/FollowParent）的真 Compose 父 carrier（= par_C(carrier)，候选
+        // 元素 parent_id 携带）几乎从不与子同 bar 作 open 候选，也几乎从不是 prev_active 持仓腿
+        // （L2 诊断：sd_parent_held=0），但**在 persistent registry 中 LiveDetached 存活**
+        // （sd_parent_registry_alive≈sd_total）。Stale 持仓腿路径（上方 LiveDetached 分支）已用
+        // [`restore_ancestor_chain_from_registry`] 把 op_parent 祖先链注入 raw，但 open 候选路径
+        // **从不触发**该恢复 ⟹ 父 carrier 不在 raw ⟹ ancestor_close_by_id 判子声部祖先不齐 ⟹ AncOK
+        // 全剪 depth>0 子腿（accepted_cert_carrier=0）。
+        //
+        // 修复：把 Stale 路径的祖先链恢复机制**扩展到 open 路径**——对每个 open 候选的父 carrier
+        // （work[idx].parent_id），若 registry live 且不在 raw，从 registry 递归恢复整条结构祖先链
+        // （§11 归纳：每条子声部腿的操作父 live ⟹ depth<d 祖先全在 raw ⟹ AncOK 通过）。这让持仓父
+        // carrier 的位置节点进入 A_t（§8 父声部 carrier 跨 bar 持有，§9 祖先闭合兑现），depth>0 子腿
+        // 准入。**非** AncOK 加特例放行——父链真实注入后由原 ancestor_close_by_id 正常判定（no-patch）。
+        if idx < work.len() {
+            if let Some(parent_pid) = work[idx].parent_id {
+                let parent_in_raw =
+                    raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
+                if !parent_in_raw && registry.registry_live(&parent_pid) {
+                    restore_ancestor_chain_from_registry(&mut work, &mut raw, registry, parent_pid);
+                }
+            }
         }
     }
 
@@ -1247,7 +1323,18 @@ pub fn coverage_step_from_buckets(
     let p_tilde = net_target_units(&legs);
 
     // A_{t+1} 回 ActiveLeg（638 身份，喂下一 bar interpret 闭环 + 跨 bar 对位）。
-    let next_active = next_idx.iter().map(|&i| element_as_leg(&work[i])).collect();
+    let next_active: Vec<ActiveLeg> = next_idx.iter().map(|&i| element_as_leg(&work[i])).collect();
+    // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
+    // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。
+    // restore_ancestor_chain_from_registry 已复用现有 idx 保证唯一；此 assert 锁不变量防回归。
+    debug_assert!(
+        {
+            let mut ids: Vec<_> = next_active.iter().map(|l| l.id).collect();
+            ids.sort_by_key(|id| (id.level, id.ordinal));
+            ids.windows(2).all(|w| w[0] != w[1])
+        },
+        "next_active 含重复 ElementId ⟹ strategy_target_legs 双计 p̃（restore 未复用现有 idx）"
+    );
     (next_active, p_tilde)
 }
 
@@ -1290,10 +1377,26 @@ pub fn coverage_step_classification(
     // 各建树一次，第二次纯重复）。bit-exact：同 (classification, tower) 同一建树输出。
     let ((elements, candidate_start), gamma) =
         interp::coverage_elements_and_gamma_with_tower(classification, tower);
+    coverage_step_prebuilt(&elements, candidate_start, &gamma, prev_active, base_units, config, registry)
+}
+
+/// **工位 K 性能：环5+环6 用预建 `(elements, candidate_start, gamma)`**（消除 runner per-bar
+/// 双调 `coverage_elements_and_gamma_with_tower`——一次 `pi_theta_step` + 一次 merge 的 elements，
+/// 现共享同一预建产物）。bit-exact == [`coverage_step_classification`]：同 elements/gamma 同 interpret
+/// 同 AncOK。**不改 AncOK 准入逻辑**（[`coverage_step_from_buckets`] 原样），仅消除重复建树。
+pub fn coverage_step_prebuilt(
+    elements: &[CoverageElement],
+    candidate_start: usize,
+    gamma: &[Candidate],
+    prev_active: &[ActiveLeg],
+    base_units: f64,
+    config: &VoiceConfig,
+    registry: &super::persistent::PersistentRegistry,
+) -> (Vec<ActiveLeg>, f64) {
     // 环5：解释器三桶（𝒟_x 反向关闭喂 prev_active）。
-    let buckets = interp::interpret(&gamma, prev_active);
+    let buckets = interp::interpret(gamma, prev_active);
     // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ShortDiff 未持父则剔除，639(c)）。
-    coverage_step_from_buckets(&elements, candidate_start, prev_active, &buckets, base_units, config, registry)
+    coverage_step_from_buckets(elements, candidate_start, prev_active, &buckets, base_units, config, registry)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1621,6 +1724,31 @@ pub fn pi_theta_step(
     let (next_active, p_tilde) =
         coverage_step_classification(classification, tower, prev_active, base_units, voice, registry);
     // 环7：p* = LexArgmin J_x（𝒦_Θ，风控门收窄）→ O = Schedule_Θ(p*−p_t)（单一决策出口 §16）。
+    let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
+    let order = schedule_order(p_star, p_t, exec_index);
+    (next_active, p_star, order)
+}
+
+/// **工位 K 性能：`pi_theta_step` 用预建 `(elements, candidate_start, gamma)`**（bit-exact ==
+/// [`pi_theta_step`]，仅把内部 `coverage_elements_and_gamma_with_tower` 重建替换为 runner 缓存的
+/// 预建产物——消除 per-bar 双调建树 + 跨 bar 全前缀重建 O(confirmed)）。
+#[allow(clippy::too_many_arguments)]
+pub fn pi_theta_step_prebuilt(
+    elements: &[CoverageElement],
+    candidate_start: usize,
+    gamma: &[Candidate],
+    prev_active: &[ActiveLeg],
+    p_t: f64,
+    exec_index: usize,
+    base_units: f64,
+    risk: &RiskConfig,
+    weights: PiThetaWeights,
+    gate: KThetaRiskGate,
+    config: &VoiceConfig,
+    registry: &super::persistent::PersistentRegistry,
+) -> (Vec<ActiveLeg>, f64, Order) {
+    let (next_active, p_tilde) =
+        coverage_step_prebuilt(elements, candidate_start, gamma, prev_active, base_units, config, registry);
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
     (next_active, p_star, order)
@@ -2422,6 +2550,241 @@ mod tests {
             !active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "父腿同 bar 关闭 ⟹ ShortDiff 子腿连带剪枝（覆盖不漂浮）；实得 {active:?}"
         );
+    }
+
+    /// ★工位 G 引擎自举测试（depth>0 准入 bootstrap，H2 裁决）：level-(ℓ+1) BSP 确认 ⟹ 其 **host
+    /// 容器** 同 bar 开腿入 raw（容器作 §8 σ_r 根声部持仓）⟹ 同 bar level-ℓ ShortDiff 子候选的真
+    /// Compose 父（= 该容器）在 raw ⟹ AncOK 准入 depth>0 子腿。**空 prev_active 即可产 depth>0**，
+    /// 不再依赖外部预注入持仓父腿（死循环根因消除）。
+    ///
+    /// 死循环根因（H2 settled）：旧引擎 open 集 100% 来自 BSP 叶子点（lambda==rho==source_index，
+    /// 挂容器**之下**作叶子），容器自身从不入 next_active ⟹ 永不成持仓腿 ⟹ depth>0 子腿父永不在
+    /// raw ⟹ AncOK 永剪。本测试断言：容器自身的 BSP 确认时，容器作根声部开腿（§8 σ_r=最高级别=持仓）。
+    ///
+    /// 定义依据：pasted-text §8（根声部 σ_r=持仓）+ §9 祖先闭合（子声部激活 ⟹ 父声部激活持仓=AncOK）。
+    #[test]
+    fn engine_bootstrap_container_bsp_admits_depth_child_from_empty() {
+        let reg = super::super::persistent::PersistentRegistry::new();
+        // per-bar 因果塔：L1 Long 父走势（compose ρ=12，idx0）+ 3 L0 子（idx1/2/3）。
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // 两个 BSP 同 bar：
+        //  - L1 容器自身的卖点（src=12=容器 ρ，host=L1 容器，是根 ⟹ Ambient 根腿，AncOK 无父要求准入）。
+        //  - L0 卖点（src=8=sub(4,8) ρ，host=sub，真父=L1 容器 ⟹ ShortDiff depth=1 子腿）。
+        let classification = Classification {
+            levels: vec![
+                LevelState { bsp: vec![sell_bsp(8)], ..Default::default() },  // L0：ShortDiff 子
+                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() }, // L1：容器自身买卖点
+            ],
+        };
+        // ★空 prev_active：无外部预注入持仓父腿（死循环场景）。
+        let (active, _p) =
+            coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), &reg);
+        // 自举后：L1 容器腿开（其 BSP 确认）+ L0 ShortDiff 子腿准入（父=L1 容器在 raw）。
+        assert!(
+            active.iter().any(|l| l.level == 1),
+            "L1 容器自身 BSP 确认 ⟹ 容器开腿（§8 σ_r 根声部持仓）；实得 {active:?}"
+        );
+        assert!(
+            active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
+            "容器在 raw ⟹ L0 ShortDiff depth>0 子腿 AncOK 准入（空 prev_active 即产 depth>0）；实得 {active:?}"
+        );
+    }
+
+    /// ★工位 G 自举非膨胀守卫（639(c) 保护）：**没有**容器自身 BSP 时，孤立 L0 ShortDiff 候选仍被剪枝
+    /// （不开 naked 逆势仓）。自举只在容器自身买卖点确认时开容器腿，不无条件放行所有 ShortDiff。
+    #[test]
+    fn engine_bootstrap_does_not_admit_orphan_shortdiff_without_container_bsp() {
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // 仅 L0 ShortDiff 候选，**无** L1 容器 BSP ⟹ 容器不开腿 ⟹ 子腿父不在 raw ⟹ 剪枝（639(c)）。
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (active, p) =
+            coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), &reg);
+        assert!(
+            active.is_empty(),
+            "无容器 BSP ⟹ ShortDiff 子腿仍剪枝（自举不膨胀，639(c) 保护）；实得 {active:?}"
+        );
+        assert_eq!(p, 0.0, "孤立 ShortDiff 剪枝 ⟹ p̃=0");
+    }
+
+    /// ★工位 H 跨 bar 持仓父链测试（depth>0 准入的**真**生产场景，非同 bar 共现）：
+    ///
+    /// 真实数据（L2 诊断坐实）：L1 容器 BSP 极稀疏（全窗仅 ~5 个），几乎从不与 L0 子 BSP 同 bar 共现
+    /// ⟹ G 的同 bar 自举（`engine_bootstrap_*`）结构上几乎不触发 ⟹ active_depth1=0。真实场景是：
+    /// **bar t 容器 BSP 开容器腿 → 容器腿跨 bar 持有 → bar t+1（无 L1 BSP）L0 子 ShortDiff 借持仓容器
+    /// 准入**（§8 σ_r 持仓跨 bar，§9 祖先=持仓父在 A_t）。
+    ///
+    /// 本测试用**两 bar 序列**复现真实路径：
+    /// - bar1：仅 L1 容器卖点（src=12）⟹ 容器腿开（根，§8 σ_r）。
+    /// - bar2：仅 L0 子卖点（src=8，**无** L1 BSP）+ prev_active=bar1 的容器腿 ⟹ L0 ShortDiff 子腿
+    ///   的真 Compose 父（= 持仓容器腿）在 A_t ⟹ AncOK 准入（639(c) 兑现：父**已持仓**才放行）。
+    ///
+    /// **RED（修复前）**：bar2 的 host 注入用 `(c.level=0, c.source_index=8)` = L0 子 host 自身（叶子），
+    /// 容器（L1，parent_id 指向）从不在 raw；prev_active 容器腿对位回树后入 raw，但 G 的注入逻辑不补
+    /// 容器到 raw——实际上**持仓容器腿**（prev_active）才是父在场源。若持仓对位生效，bar2 应准入子腿。
+    ///
+    /// 定义依据：639(c)（持仓准入 §13 AncOK，父在 A_t 才放行——与本测试断言一致，非膨胀）；
+    /// §8 σ_r 根声部持仓跨 bar；§9 祖先闭合（子激活 ⟹ 持仓父在场）。
+    #[test]
+    fn cross_bar_held_container_admits_depth_child_next_bar() {
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // bar1：仅 L1 容器卖点（src=12=容器 ρ）⟹ 容器腿开（根，§8 σ_r 持仓）。
+        let bar1 = Classification {
+            levels: vec![
+                LevelState::default(),                                    // L0：无 BSP
+                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() }, // L1：容器自身卖点
+            ],
+        };
+        let (active1, _p1) =
+            coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), &reg);
+        assert!(
+            active1.iter().any(|l| l.level == 1),
+            "bar1：L1 容器 BSP ⟹ 容器腿开（§8 σ_r 持仓根）；实得 {active1:?}"
+        );
+        // registry merge（生产 instrument_loop 同序）：跨 bar 持久身份。
+        let (elements1, _c1) =
+            super::super::interp::coverage_elements_with_tower(&bar1, &tower);
+        let reg2 = reg.merge(&elements1, &active1);
+
+        // bar2：仅 L0 子卖点（src=8，**无** L1 BSP）+ prev_active=bar1 容器腿。
+        let bar2 = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (active2, _p2) =
+            coverage_step_classification(&bar2, &tower, &active1, 1000.0, &cfg(), &reg2);
+        // 持仓容器腿（prev_active）= L0 子腿真 Compose 父在 A_t ⟹ AncOK 准入 depth>0 子腿。
+        assert!(
+            active2.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
+            "bar2：L0 ShortDiff 子腿借跨 bar 持仓容器准入（639(c) 父已持仓放行）；实得 {active2:?}"
+        );
+    }
+
+    /// ★(I-1) open 候选父注入测试（depth>0 准入的**真**生产场景，codex 行级裁决坐实，642/644）：
+    ///
+    /// L2 诊断坐实根因：父 carrier **不在 prev_active 持仓腿**（sd_parent_held=0），也几乎不与子同 bar
+    /// 共现（容器 BSP 极稀疏），但**在 persistent registry LiveDetached 存活**（sd_parent_registry_alive
+    /// ≈51525）。`cross_bar_held_container_*` 测的是父作 prev_active 持仓腿的路径——**不**覆盖此真实场景。
+    /// 本测试覆盖：**prev_active 为空、父仅 registry-live** ⟹ open 候选父注入必须从 registry 恢复祖先链
+    /// 才能让子腿 AncOK 准入。
+    ///
+    /// **RED（修复前）**：open 候选路径从不调 `restore_ancestor_chain_from_registry` ⟹ 父 carrier 不在
+    /// raw（既非 held 又非 open 候选自身）⟹ ancestor_close_by_id 判子声部祖先不齐 ⟹ AncOK 全剪 ⟹
+    /// active 不含 L0 ShortDiff 子腿。**GREEN（修复后）**：open 候选父 parent_id registry-live ⟹ 恢复父
+    /// carrier 祖先链入 raw ⟹ 子腿准入。
+    ///
+    /// 定义依据：级别容器.pdf §13（AncOK 持仓准入，父在 A_t 放行）+ anc.pdf §11（操作父 live ⟹ depth<d
+    /// 祖先全在 raw）；§8 σ_r 父声部 carrier 跨 bar 持有（registry LiveDetached = 操作上仍持有）。
+    #[test]
+    fn open_candidate_parent_injected_from_registry_admits_depth_child() {
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // bar1：L1 容器卖点（src=12）⟹ 容器腿开 ⟹ merge 把容器 carrier 写入 registry（LiveDetached 源）。
+        let bar1 = Classification {
+            levels: vec![
+                LevelState::default(),
+                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() },
+            ],
+        };
+        let (active1, _p1) =
+            coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), &reg);
+        let (elements1, _c1) =
+            super::super::interp::coverage_elements_with_tower(&bar1, &tower);
+        let reg2 = reg.merge(&elements1, &active1);
+
+        // bar2：仅 L0 子卖点（src=8，**无** L1 BSP）+ **prev_active 为空**（父 carrier 非持仓腿）。
+        // 父 carrier 仅在 reg2 中 LiveDetached 存活 ⟹ 唯有 open 候选父注入恢复祖先链才能准入子腿。
+        let bar2 = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (active2, _p2) =
+            coverage_step_classification(&bar2, &tower, &[], 1000.0, &cfg(), &reg2);
+        assert!(
+            active2.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
+            "bar2：L0 ShortDiff 子腿借 registry-live 父 carrier（非持仓腿）经 open 父注入准入 depth>0；实得 {active2:?}"
+        );
+        // ★(I-1) 双计守卫（codex 异质审查）：父 carrier 在 bar2 树前缀中也存在 ⟹ restore 须复用现有 idx，
+        // 不得 push 重复 id ⟹ next_active 每 ElementId 唯一（否则 p̃ 双计）。
+        let mut ids: Vec<_> = active2.iter().map(|l| l.id).collect();
+        let n = ids.len();
+        ids.sort_by_key(|id| (id.level, id.ordinal));
+        ids.dedup();
+        assert_eq!(ids.len(), n, "next_active 含重复 ElementId（restore 未复用现有 idx）⟹ p̃ 双计；实得 {active2:?}");
+    }
+
+    /// ★(I-1) **双计根因直测**（codex HIGH 行级坐实，644）：`restore_ancestor_chain_from_registry` 在
+    /// 祖先**已存在于 work 树前缀**（如 carrier 走势）但未入 raw 时，必须**复用其现有 idx**，不得 push
+    /// 重复 id 新元素。
+    ///
+    /// **RED（修复前 push 新元素）**：carrier id 已在 `work[0]`，restore 从 registry 取同 id 又 push 到
+    /// `work[1]` ⟹ `work.len()==2`、`raw==[1]` 指向重复 id ⟹ 同一 carrier 在 next_idx 产两条 leg ⟹
+    /// strategy_target_legs/net_target_units 双计 p̃、next_active 含两条同 id 腿（伪证仓位规模）。
+    /// **GREEN（修复后复用现有 idx）**：restore 查得 `work[0].id==pid` ⟹ `raw==[0]`、`work.len()==1`
+    /// 不增 ⟹ 每 id 在 raw 中唯一表示（spec §13 元素集语义）。
+    ///
+    /// 定义依据：codex 异质审查 HIGH（restore 只查 raw 不查 work 树前缀 ⟹ 重复 id）；spec §13 元素集
+    /// （同一 ElementId 在 A_t 唯一）。
+    #[test]
+    fn restore_reuses_existing_work_idx_no_duplicate_id() {
+        let carrier = eid(1, 0);
+        // work 树前缀已含 carrier（如跨 bar 持仓的父声部走势对位回当前树）。
+        let mut work = vec![CoverageElement {
+            lambda: 0,
+            rho: 12,
+            eps: VoiceSide::Short,
+            level: 1,
+            parent: None,
+            attached_dir: None,
+            id: carrier,
+            parent_id: None,
+        }];
+        let mut raw: Vec<usize> = Vec::new();
+        // registry 持有同一 carrier id（LiveDetached：snapshot_present 经下一 bar 增量重置为 false）。
+        let snap = work.clone();
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&snap, &[]);
+
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier);
+
+        assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]）");
+        assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
+        let dup = raw.iter().filter(|&&r| work[r].id == carrier).count();
+        assert_eq!(dup, 1, "carrier 在 raw 中须唯一表示（双计根因守卫）");
+    }
+
+    /// ★(I-1) open 父注入非膨胀守卫：父 carrier **不在 registry**（既非持仓又非 registry-live）⟹ 子腿
+    /// 仍被剪枝。open 父注入只在父真实 live 时恢复祖先链，不无条件放行（no-patch：非 AncOK 加特例）。
+    #[test]
+    fn open_candidate_parent_not_in_registry_still_pruned() {
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let tower = vec![
+            Vec::new(),
+            vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
+        ];
+        // 空 registry（父 carrier 从未出现在任何 snapshot）+ 仅 L0 ShortDiff 子卖点 + 空 prev_active。
+        let bar = Classification {
+            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+        };
+        let (active, p) =
+            coverage_step_classification(&bar, &tower, &[], 1000.0, &cfg(), &reg);
+        assert!(
+            active.is_empty(),
+            "父 carrier 不在 registry ⟹ open 父注入不恢复 ⟹ 子腿仍剪枝（非膨胀）；实得 {active:?}"
+        );
+        assert_eq!(p, 0.0, "孤立 ShortDiff（父不可恢复）剪枝 ⟹ p̃=0");
     }
 
     /// ★codex Q4 发现 A 修复测试：Stale 非边界根被 prune（非伪造 parent:None root）。
