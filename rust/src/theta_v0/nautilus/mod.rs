@@ -58,6 +58,17 @@ pub mod bar_adapter;
 pub mod order_adapter;
 pub mod strategy;
 
+/// ③ `ThetaStrategy` —— S_Θ 的 Nautilus Rust-native 策略包壳（feature `nautilus` 门控）。
+/// 真实 `StrategyCore + DataActor + Strategy`，包 [`strategy::ThetaCore`]（in-crate S_Θ 核心）。
+#[cfg(feature = "nautilus")]
+pub mod theta_strategy;
+
+/// ⑥ 真实 `BacktestEngine` 驱动 S_Θ 跑回测（L2 验收：非空订单流）。
+/// 门控 `backtest_bin`：依赖 `theta_v0::backtest::data::Dataset`（同 `backtest_bin` 门控），
+/// 且只被 CLI（`[[bin]] theta_backtest`）消费——故与 CLI feature 同生命周期。
+#[cfg(all(feature = "nautilus", feature = "backtest_bin"))]
+pub mod backtest_engine;
+
 /// 适配层路径选择（设计文档 §5，待编排者裁定）。
 ///
 /// `RustNative` = 推荐（编排者「纯 Rust S_Θ + 性能最大化」定调 ⟹ Rust-native Strategy，零 FFI）。

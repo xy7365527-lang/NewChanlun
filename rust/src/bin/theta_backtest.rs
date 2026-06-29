@@ -131,5 +131,30 @@ fn main() -> std::process::ExitCode {
         );
     }
 
+    // ── ⑥ 真实 Nautilus BacktestEngine 路径（goal acceptance[5] L2：真引擎产非空订单流）。 ──
+    // ★生产 Param：entry_delay_bars=0（#7：流式逐 bar 退出在末根触发，delay 归 venue 撮合）。
+    let mut nautilus_config = ThetaConfig::default();
+    nautilus_config.exec.entry_delay_bars = 0;
+    println!("--- ⑥ 真实 Nautilus BacktestEngine（生产引擎贯通验证）---");
+    match newchan_rust::theta_v0::nautilus::backtest_engine::run_theta_backtest(
+        &dataset,
+        &nautilus_config,
+    ) {
+        Ok(bt) => {
+            println!("引擎迭代次数    : {}", bt.iterations);
+            println!("总订单数        : {}", bt.total_orders);
+            println!("总持仓数        : {}", bt.total_positions);
+            if bt.total_orders > 0 {
+                println!("等级: L2（真实 Nautilus 引擎 + 非空订单流）——生产引擎贯通验证通过。");
+            } else {
+                println!("等级: L1（真实引擎跑通，订单流为空）——数据无缠论结构 ⟹ 无 BSP ⟹ 无订单。");
+            }
+        }
+        Err(e) => {
+            eprintln!("Nautilus BacktestEngine 运行失败: {e}");
+            return std::process::ExitCode::FAILURE;
+        }
+    }
+
     std::process::ExitCode::SUCCESS
 }

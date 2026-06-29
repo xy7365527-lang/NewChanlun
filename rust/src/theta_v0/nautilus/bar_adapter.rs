@@ -67,6 +67,29 @@ pub fn from_nautilus_bar(nb: &NautilusBarLike, source_index: usize, tick_size: f
     }
 }
 
+/// ② 真实类型桥（feature `nautilus`）：真实 `nautilus_model::data::Bar` → S_Θ `types::Bar`。
+///
+/// task#8 ②：删占位（[`NautilusBarLike`] 保留为 feature 无关的 IR/self-check 用），吃真实 Bar。
+/// 字段读取（context7 + #5b 实证）：OHLC 是 `Price`（`.as_f64()`）、volume 是 `Quantity`
+/// （`.as_f64()`）、ts_event 是 `UnixNanos`（`.as_u64() → i64`）。转换委托 [`from_nautilus_bar`]
+/// （quantize + untradable 判定 bit-exact 复用，零分叉）。
+#[cfg(feature = "nautilus")]
+pub fn from_real_bar(
+    bar: &nautilus_model::data::Bar,
+    source_index: usize,
+    tick_size: f64,
+) -> Bar {
+    let mirror = NautilusBarLike {
+        open: bar.open.as_f64(),
+        high: bar.high.as_f64(),
+        low: bar.low.as_f64(),
+        close: bar.close.as_f64(),
+        volume: bar.volume.as_f64(),
+        ts_event: bar.ts_event.as_u64() as i64,
+    };
+    from_nautilus_bar(&mirror, source_index, tick_size)
+}
+
 /// S_Θ 价格（Tick）→ Nautilus `Price` 的 f64 值（dequantize，order_adapter 构造 `Price` 用）。
 ///
 /// 还原：`price_f64 = tick * tick_size`（quantize 的逆）。Nautilus 侧再 `Price::new(value, precision)`

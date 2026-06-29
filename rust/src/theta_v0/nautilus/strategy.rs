@@ -202,6 +202,16 @@ impl ThetaCore {
         intents
     }
 
+    /// 清空持仓声部台账（缠论语义真相源）。
+    ///
+    /// ③ `ThetaStrategy::on_position_closed` 调用：venue 报仓位全平 ⟹ 清 held（缠论买卖点/止损
+    /// 语义状态随持仓消失而清空；持仓**数量**真相由 Nautilus portfolio 管，本台账只管缠论语义）。
+    pub fn clear_held(&mut self) {
+        for slot in self.held.iter_mut() {
+            *slot = None;
+        }
+    }
+
     /// recog 段（`parse_layer → classify → recognize`）：当前 bar 窗口 → 开仓侧声部决策。
     ///
     /// ★诚实：等价 `StrategyFamily::pi` 的 recog 段（不含 target→exec 的 plan_orders）——拆出

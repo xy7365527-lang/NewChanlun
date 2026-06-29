@@ -20,11 +20,28 @@ pyo3 = { version = "0.23" }
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
 
+# Nautilus Trader Rust-native 引擎（goal acceptance[5] ②③⑥：真实 BacktestEngine 驱动 S_Θ）。
+#   optional + 仅 backtest_bin/nautilus feature 启用 ⟹ cdylib（Python 扩展）构建零膨胀。
+#   default-features=false：避 nautilus 的 pyo3 feature 与本 crate pyo3 0.23 冲突（#5a 实测可拉）。
+nautilus-model = { version = "0.60.0", default-features = false, optional = true }
+nautilus-common = { version = "0.60.0", default-features = false, optional = true }
+nautilus-trading = { version = "0.60.0", default-features = false, optional = true }
+nautilus-backtest = { version = "0.60.0", default-features = false, optional = true }
+# nautilus 集成的直接依赖（trait 返回 anyhow::Result、PortfolioApi 返回 rust_decimal::Decimal、
+#   Bar/instrument 用 nautilus_core::UnixNanos、CurrencyPair 字段用 dec! 字面量）。
+anyhow = { version = "1", optional = true }
+rust_decimal = { version = "1", optional = true }
+rust_decimal_macros = { version = "1", optional = true }
+nautilus-core = { version = "0.60.0", default-features = false, optional = true }
+
 [features]
 default = []
 extension-module = ["pyo3/extension-module"]
+# Nautilus 集成 feature：激活 theta_v0::nautilus 真实类型适配（②③）+ CLI BacktestEngine（⑥）。
+nautilus = ["dep:nautilus-model", "dep:nautilus-common", "dep:nautilus-trading", "dep:nautilus-backtest", "dep:nautilus-core", "dep:anyhow", "dep:rust_decimal", "dep:rust_decimal_macros"]
 # CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
-backtest_bin = ["dep:serde", "dep:serde_json"]
+#   含 nautilus：CLI ⑥ 用真实 BacktestEngine（task#8 acceptance[5]）。
+backtest_bin = ["dep:serde", "dep:serde_json", "nautilus"]
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
