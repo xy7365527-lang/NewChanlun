@@ -94,3 +94,11 @@ pub mod complete;
 /// 与 `recursive_t/backtest_run.rs` 的 serde 门控先例一致。
 #[cfg(test)]
 pub mod backtest;
+
+/// Nautilus Trader ↔ canonical S_Θ 适配层（goal acceptance[5]，设计 `docs/nautilus-integration-design.md`）。
+///
+/// ★骨架阶段：子模块**不 `use nautilus_*`**（依赖未加，路径裁定权属编排者，见 mod 头 `IntegrationPath`）。
+/// 适配器逻辑全部依赖 in-crate（`classifier/parser/strategy/types`），故**可独立编译 + 自检**——
+/// 注册它让 13 个 L0/L1 self-check 在 `cargo test` 下运行（证明 Bar→S_Θ 管线→Order 数据流贯通，
+/// formalization-validity-domain：L1 管线就绪，**非** L2 真实回测）。依赖加入时删除占位结构（TODO 已标）。
+pub mod nautilus;
