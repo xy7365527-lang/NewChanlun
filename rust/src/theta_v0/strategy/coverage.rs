@@ -823,6 +823,62 @@ pub(crate) fn operation_role_indexed(
     OperationRole { h, v, delta }
 }
 
+/// ★工位 4c：双段兄弟索引的 [`operation_role_indexed`]——`tree_sibling`（缓存的 tree-only，命中
+/// `Rc::clone` 复用）+ `cand_sibling`（本 bar candidate-only overlay）。消除每 bar 把 candidate idx
+/// merge 进 tree sibling_idx 的 O(tree) clone（缓存被 mutate ⟹ 不能 Rc 共享）。
+///
+/// **bit-exact == [`operation_role_indexed`]（合并 sibling_idx）**：合并列表 = tree 段同键（全
+/// `< candidate_start ≤ e_idx`，升序）++ candidate 段同键（升序）整体升序（tree idx < candidate idx）。
+/// `partition_point(< e_idx)` 的前一个 = candidate 段 `< e_idx` 的最大 idx（存在则 > 任何 tree idx）；
+/// 否则 = tree 段同键最末（最大 tree idx，全 `< e_idx`）。
+pub(crate) fn operation_role_indexed_split(
+    elements: &ElementView,
+    e_idx: usize,
+    tree_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+    cand_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+) -> OperationRole {
+    let e = match elements.get(e_idx) {
+        Some(e) => e,
+        None => {
+            return OperationRole {
+                h: Horizontal::First,
+                v: Vertical::Ambient,
+                delta: Dir::Plus,
+            }
+        }
+    };
+    let delta = direction_of(e.eps);
+    let key = (e.parent, e.level);
+    // 最近前兄弟：先查 candidate overlay（< e_idx 的最大；其 idx > 任何 tree idx），无则 tree 段末尾。
+    let prev = cand_sibling
+        .get(&key)
+        .and_then(|idxs| {
+            let pos = idxs.partition_point(|&i| i < e_idx);
+            (pos > 0).then(|| idxs[pos - 1])
+        })
+        .or_else(|| tree_sibling.get(&key).and_then(|idxs| idxs.last().copied()));
+    let h = match prev {
+        Some(p) => {
+            let sigma_prev = dir_sign(direction_of(elements[p].eps));
+            if dir_sign(delta) == sigma_prev {
+                Horizontal::SameFollow
+            } else {
+                Horizontal::SameReverse
+            }
+        }
+        None => Horizontal::First,
+    };
+    let sigma_parent = parent_sign(e.attached_dir);
+    let v = if sigma_parent == 0 {
+        Vertical::Ambient
+    } else if dir_sign(delta) == sigma_parent {
+        Vertical::FollowParent
+    } else {
+        Vertical::ShortDiff
+    };
+    OperationRole { h, v, delta }
+}
+
 /// 垂直关系 V(g)（spec §7.2 / P6-P7，全函数唯一判定）。
 ///
 /// 按父容器方向 σ_{p(g)}（[`parent_sign`]）分：σ=0 → `Ambient`（去根化，spec P7）；

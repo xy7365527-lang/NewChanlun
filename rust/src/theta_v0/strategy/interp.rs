@@ -424,6 +424,12 @@ pub struct TreeCache {
     /// ★热点② O(n²) 消除：`Rc` 共享缓存树（命中返 `Rc::clone` O(1)，旧 `Vec` clone O(tree)/bar=O(n²)）。
     /// candidate 不再 append 进树 clone，由消费者 [`coverage::ElementView`] overlay 承载（双段视图）。
     tree: Rc<Vec<CoverageElement>>,
+    /// ★热点③ O(n²) 消除（工位 4c）：tree 派生的两个索引（`(level,ρ)→idx` 端点表 + `(parent,level)→idx`
+    /// 兄弟表）也是 `tree` 的纯函数，§16 tree 前缀不变 ⟹ 索引不变 ⟹ 同缓存键复用。命中返 `Rc::clone`
+    /// O(1)，旧每 bar `build_*_index(&tree)` O(tree)/bar=O(n²)。两表只读（candidate 段兄弟由消费者
+    /// overlay 单独承载，[`coverage::operation_role_indexed_split`]），缓存不被 mutate。
+    endpoint_idx: Rc<std::collections::HashMap<(u32, usize), usize>>,
+    sibling_idx: Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
     valid: bool,
 }
 
@@ -442,33 +448,45 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
-    // ★热点② O(n²) 消除：树前缀 `Rc` 共享（命中返 `Rc::clone` O(1)，旧 `tree.clone()` O(tree)/bar=O(n²)）。
-    // candidate 段不再 append 进树 clone，单独 `candidates` Vec 返回（消费者 ElementView 双段视图组装）。
-    let tree: Rc<Vec<CoverageElement>> = match cache {
+    // ★热点②③ O(n²) 消除：树前缀 + 两个派生索引 `Rc` 共享（命中返 `Rc::clone` O(1)，旧每 bar
+    // `extract_elements` + `build_*_index` 全是 O(tree)/bar=O(n²)）。candidate 段不进树/索引 clone，
+    // 单独 `candidates` Vec + candidate-only 兄弟 overlay 承载（消费者 ElementView + split 查询双段组装）。
+    let (tree, tree_endpoint_idx, tree_sibling_idx): (
+        Rc<Vec<CoverageElement>>,
+        Rc<std::collections::HashMap<(u32, usize), usize>>,
+        Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
+    ) = match cache {
         Some(c) => {
             let key = TreeKey::of(tower);
             if c.valid && c.key == key {
                 // bit-exact 守卫（debug/test）：缓存命中必与全量 extract_elements 逐字节相等（§16 + 实测 0 假命中）。
                 debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
                     "TreeCache 假命中——§16 不变量破裂或 TreeKey 不 sound");
-                Rc::clone(&c.tree) // O(1)：引用计数共享，不拷贝元素
+                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx)) // 三者 O(1)
             } else {
-                c.tree = Rc::new(coverage::extract_elements(tower));
+                let t = Rc::new(coverage::extract_elements(tower));
+                c.endpoint_idx = Rc::new(coverage::build_tree_endpoint_index(&t));
+                c.sibling_idx = Rc::new(coverage::build_prev_sibling_index(&t));
+                c.tree = t;
                 c.key = key;
                 c.valid = true;
-                Rc::clone(&c.tree)
+                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
             }
         }
-        None => Rc::new(coverage::extract_elements(tower)),
+        None => {
+            let t = Rc::new(coverage::extract_elements(tower));
+            let ep = Rc::new(coverage::build_tree_endpoint_index(&t));
+            let sb = Rc::new(coverage::build_prev_sibling_index(&t));
+            (t, ep, sb)
+        }
     };
     let candidate_start = tree.len();
-    // ponytail: H7 单次建 tree 前缀 (level,ρ)→idx 索引——tree 前缀不变 ⟹ 建一次。
-    let tree_endpoint_idx = coverage::build_tree_endpoint_index(&tree);
-    // ponytail: H5 维护 (parent,level)→idx 列表（全局 idx）——遍历1 push 候选后 append。
-    let mut sibling_idx: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
-        coverage::build_prev_sibling_index(&tree);
 
     // ── 遍历1：构建 candidate 段（parent/id/parent_id 只读 tree 前缀，无需 candidate 段连续）。 ──
+    // candidate-only 兄弟 overlay（不 mutate 缓存的 tree_sibling_idx）：候选全局 idx 按 (parent,level)
+    // 分组、push 序升序。遍历2 split 查询先查此 overlay 再 fallback tree base（bit-exact，见 split 函数）。
+    let mut cand_sibling_idx: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
+        std::collections::HashMap::new();
     let mut candidates: Vec<CoverageElement> = Vec::new();
     let mut gamma: Vec<Candidate> = Vec::new();
     let mut ci = candidate_start;
@@ -499,15 +517,15 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
                 // parent_id = carrier 父容器 id（par_C(κ(u))，§9.1）；parent 指 tree 前缀 idx，读 tree。
                 parent_id: parent.and_then(|pidx| tree.get(pidx).map(|e: &CoverageElement| e.id)),
             });
-            // H5：push 后把当前候选全局 idx 追加 sibling_idx（升序，二分查 < ci 的最大 idx）。
-            sibling_idx.entry((parent, lvl)).or_default().push(ci);
+            // candidate-only overlay：当前候选全局 idx 追加（升序，二分查 < ci 的最大 idx）。
+            cand_sibling_idx.entry((parent, lvl)).or_default().push(ci);
             ci += 1;
         }
     }
 
     // ── 遍历2：算 role（用完整 ElementView{base=tree, overlay=candidates}——前兄弟可能在 tree 或
     //    candidate 段，需双段连续访问；零拷贝借 tree_rc + candidates）。bit-exact == 旧单遍：
-    //    operation_role_indexed 仅读 elements[ci]/elements[前兄弟]，与 push 序无关，两遍同结果。 ──
+    //    operation_role_indexed_split 双段兄弟查询 == 旧合并 sibling_idx 的 partition_point。 ──
     let view = coverage::ElementView::from_parts(&tree, candidates);
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
@@ -520,7 +538,9 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
                 bits: point.bits,
                 dir,
                 bsp_class: min_class(&point.bits, dir),
-                role: coverage::operation_role_indexed(&view, ci, &sibling_idx),
+                role: coverage::operation_role_indexed_split(
+                    &view, ci, &tree_sibling_idx, &cand_sibling_idx,
+                ),
                 nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
                 gamma_index: gamma.len(),
             });

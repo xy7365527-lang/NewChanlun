@@ -453,21 +453,24 @@ mod profile {
     /// 重算（parser 工位约束），故 exp 不会到 1.0。
     /// **★工位 K L2 证据：strategy fill-loop 热点分解（extract_elements + registry.merge 标度）**。
     ///
-    /// 隔离 runner fill loop 的两段 per-bar 全前缀操作（`coverage_elements_with_tower`=extract_elements
-    /// + `registry.merge`），坐实二者 exp≈2.0=O(n²)。根因：confirmed 元素集（~167 @16K）随 n 线性增，
-    /// per-bar 操作 O(confirmed) × n bars = O(n²)。`registry_len` 列展示 registry 单调增（22→193）。
+    /// 隔离 runner fill loop 的两段 per-bar 操作（tree-prefix 提取 + registry merge）标度，证 exp≈1.0。
     ///
-    /// 工位 K 已修：merge → 原地增量（消 clone+全扫）；tree-prefix → §16 缓存（命中复用 extract）。
-    /// 残留 O(n²)：`coverage_step_from_buckets` 的 `elements.to_vec()`+`build_tree_id_index`（AncOK 准入
-    /// 函数内，I/J 域）+ tree-prefix 缓存命中仍 clone O(tree) → exp 未到 1.0（见 escalate 报告）。L2。
+    /// ★工位 4c 修正（exp 2.12 是测错路径，非生产仍坏）：旧 diag 用**非生产路径**——`coverage_elements_with_tower`
+    /// （materialize `(*tree).clone()` O(tree)，**不传 TreeCache** ⟹ 每 bar 全量 extract）+ 手动双调
+    /// `extract_elements` + 旧 `merge`（返新对象，clone O(registry)）。这套是被刻意保留的优化前路径，
+    /// 测出 O(n²) 是必然——它不反映 runner 实际跑的路径。
+    ///
+    /// 生产热路径（runner.rs:577/608）：`coverage_elements_and_gamma_with_tower_cached`（命中返
+    /// `Rc::clone` O(1)，§16 confirmed prefix 不变 ⟹ CL 16K 仅 26 次 miss）+ `merge_in_place`（原地增量，
+    /// 消 clone+全扫）。本 diag 现镜像该路径——`x_exp`/`m_exp` 反映生产真实标度（应 ≈1.0）。
     #[test]
-    #[ignore = "工位 K L2：strategy 热点分解标度；需 CL；--release"]
+    #[ignore = "工位 4c L2：strategy 热点分解标度（镜像生产 cached+in_place）；需 CL；--release"]
     fn diag_strategy_hotspot_decompose_16k() {
         use super::super::super::strategy::{coverage, interp, persistent};
         let config = ThetaConfig::default();
         let ds = data::load_by_symbol("CL", &config).expect("CL");
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
-        eprintln!("\n===== strategy 热点分解（CL OOS，L2）=====");
+        eprintln!("\n===== strategy 热点分解（CL OOS，L2，镜像生产 cached+in_place）=====");
         eprintln!("{:>7} | {:>10} {:>10} | {:>7} {:>7}", "n", "extract_s", "merge_s", "x_exp", "m_exp");
         let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
         let sizes = [2000usize, 4000, 8000, 16000];
@@ -477,16 +480,22 @@ mod profile {
             let bars = &oos.bars[..n];
             let mut incr = super::IncrementalClassifier::new(bars, &config);
             let mut registry = persistent::PersistentRegistry::new();
+            let mut tree_cache = interp::TreeCache::new(); // 跨 bar 复用（§16，与 runner 同）
             let mut t_extract = 0.0f64;
             let mut t_merge = 0.0f64;
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
+                // 生产 tree-prefix 提取：cached（命中 Rc::clone O(1)），candidate 段 overlay 不进树 clone。
                 let t = std::time::Instant::now();
-                let (elements_ref, _cs) = interp::coverage_elements_with_tower(&cls, &tower);
+                let (tree_ref, candidates_ref, _gamma) =
+                    interp::coverage_elements_and_gamma_with_tower_cached(
+                        &cls, &tower, &mut Some(&mut tree_cache),
+                    );
                 t_extract += t.elapsed().as_secs_f64();
-                let _ = coverage::extract_elements(&tower); // 第二次 extract（pi_theta_step 内）
+                // 生产 merge：原地增量（overlay 空 ⟹ as_contiguous 借 base 零拷贝）。
+                let snapshot = coverage::ElementView::from_parts(&tree_ref, candidates_ref);
                 let t = std::time::Instant::now();
-                registry = registry.merge(&elements_ref, &[]);
+                registry.merge_in_place(snapshot.as_contiguous().as_ref(), &[]);
                 t_merge += t.elapsed().as_secs_f64();
             }
             let (xe, me) = prev.map(|(pn, px, pm)| (logexp(pn, px, n, t_extract), logexp(pn, pm, n, t_merge)))
