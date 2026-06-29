@@ -2359,6 +2359,49 @@ mod tests {
         ElementView::from_parts(&elements[..cstart], elements[cstart..].to_vec())
     }
 
+    /// ★工位 4c bit-exact 守卫：`operation_role_indexed_split`（双段 tree+candidate 兄弟索引）
+    /// == `operation_role_indexed`（旧单合并 sibling_idx）。LCG 压力构造多 (parent,level,eps,cstart)
+    /// 配置，逐 candidate 元素断言 role 三轴逐字段相等。覆盖前兄弟在 tree 段 / candidate 段 / 无前兄弟
+    /// 三种分支（split 的 cand-overlay 优先 + tree-fallback last() 路径）。
+    #[test]
+    fn operation_role_split_matches_merged_lcg() {
+        let mut seed = 0x4c_u64;
+        let mut next = || { seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407); (seed >> 33) as usize };
+        for _ in 0..200 {
+            let tree_n = next() % 8;       // tree 段元素数 0..7
+            let cand_n = 1 + next() % 6;   // candidate 段 1..6（至少 1 个被测）
+            let n = tree_n + cand_n;
+            // 构造 elements：parent 指向更早的 tree idx（或 None），level 小集合、eps 双向。
+            let elems: Vec<CoverageElement> = (0..n).map(|i| {
+                let parent = if tree_n > 0 && next() % 2 == 0 { Some(next() % tree_n.max(1)) } else { None };
+                CoverageElement {
+                    lambda: i, rho: i,
+                    eps: if next() % 2 == 0 { VoiceSide::Long } else { VoiceSide::Short },
+                    level: (next() % 3) as u32,
+                    parent: parent.filter(|&p| p < i), // parent 必在自身之前（树前序）
+                    attached_dir: if next() % 2 == 0 { None } else { Some(VoiceSide::Long) },
+                    id: ElementId { level: 0, ordinal: i as u64 },
+                    parent_id: None,
+                }
+            }).collect();
+            let cstart = tree_n;
+            // 旧路径：合并 sibling_idx（全 elements）。
+            let merged = build_prev_sibling_index(&elems);
+            // 新路径：tree-only + candidate-only 双段。
+            let tree_sib = build_prev_sibling_index(&elems[..cstart]);
+            let mut cand_sib: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> = std::collections::HashMap::new();
+            for ci in cstart..n {
+                cand_sib.entry((elems[ci].parent, elems[ci].level)).or_default().push(ci);
+            }
+            let view = ElementView::from_parts(&elems[..cstart], elems[cstart..].to_vec());
+            for ci in cstart..n {
+                let old = operation_role_indexed(&view, ci, &merged);
+                let new = operation_role_indexed_split(&view, ci, &tree_sib, &cand_sib);
+                assert_eq!(old, new, "split≠merged @ci={ci} cstart={cstart} n={n}");
+            }
+        }
+    }
+
     /// L0 卖买卖点（src=si；host 右端点 ρ=si；pivot 远离 ⟹ 止损不触及）。
     fn sell_bsp(si: usize) -> BspPoint {
         BspPoint {
