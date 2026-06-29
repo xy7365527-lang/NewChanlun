@@ -36,8 +36,10 @@
 use crate::theta_v0::classifier;
 use crate::theta_v0::config::ThetaConfig;
 use crate::theta_v0::parser;
-use crate::theta_v0::strategy::{self, AccountState};
-use crate::theta_v0::types::{Bar, Order};
+use crate::theta_v0::strategy::exit::{exit_decision_for, record_held_voice, HeldVoice};
+use crate::theta_v0::strategy::voice::{self, VoiceSide};
+use crate::theta_v0::strategy::{self, AccountState, VoiceDecision};
+use crate::theta_v0::types::{Bar, Order, StrictAction};
 
 use super::account_adapter::{self, PortfolioSnapshot};
 use super::order_adapter::{self, OrderIntent};
@@ -52,12 +54,32 @@ pub struct ThetaCore {
     pub config: ThetaConfig,
     /// 累积 bar 窗口（source_index = 窗口序号；S_Θ 管线吃完整窗口，非单 bar）。
     pub bars: Vec<Bar>,
+    /// ★持仓声部台账（退出决策生成器的缠论语义真相源，按 depth 索引，长度 = max_depth）。
+    ///
+    /// **边界注释（no-workaround，消双源的存在论分界）**：持仓**数量**真相源 = Nautilus
+    /// portfolio（[`PortfolioSnapshot`]）；本字段 `held` 是**缠论语义**真相源——`stop`（结构止损价）
+    /// 与 `decision`（入场决策快照）**无 Nautilus 对应物**（Nautilus 只记数量/成本，不记缠论买卖点
+    /// 类别/中枢止损），故必须自维护。消除的是「数量双账」（runner 模拟 units vs portfolio），
+    /// 缠论状态与数量正交，自维护 held **不违反**消除双源原则。
+    held: Vec<Option<HeldVoice>>,
+    /// ★逐 bar 决策分组（退出生成器 `reverse_signal` 项的源，与回测 runner `groups` 同构）。
+    ///
+    /// `groups[i]` = 第 i 个 bar 的开仓侧 recog 决策。[`exit_decision_for`] 读 `groups[i]` 判当前 bar
+    /// 是否出现反向 BSP（χ^{σ_p}）。生产路径逐 bar 追加（owned `VoiceDecision`），调用时构造
+    /// `&[Vec<&VoiceDecision>]` 视图喂 `exit_decision_for`（与 runner 传全局 groups 同签名，零分叉）。
+    groups: Vec<Vec<VoiceDecision>>,
 }
 
 impl ThetaCore {
-    /// 构造（给定 Θ config，空窗口）。
+    /// 构造（给定 Θ config，空窗口，空台账）。
     pub fn new(config: ThetaConfig) -> Self {
-        ThetaCore { config, bars: Vec::new() }
+        let max_depth = config.voice.max_depth as usize;
+        ThetaCore {
+            config,
+            bars: Vec::new(),
+            held: vec![None; max_depth],
+            groups: Vec::new(),
+        }
     }
 
     /// **每 bar 决策（适配层核心，设计文档 §4.2 数据流）**。
@@ -82,35 +104,113 @@ impl ThetaCore {
     ///
     /// 边界条件：bars 不足以产生结构（< min_parts_per_level）⟹ classify 产空 ⟹ 无决策 ⟹ 空意图
     /// （诚实退化，对齐 runner.rs `structureless_data_yields_empty_orders`）。
+    ///
+    /// ## 退出生成器接入（§9 closePred，设计文档 §4.4——本次实装）
+    ///
+    /// 顺序 = **退出先于开仓**（spec:54）：
+    /// 1. **退出侧**：对 `held` 中每个持仓声部调 [`exit_decision_for`]（equity = `snap.nav +
+    ///    snap.unrealized_pnl`，对齐 `Origin.TotalWealth = free + holding`）→ X=true 产 `exit=true`
+    ///    决策 → `plan_orders` 产 Close → 转 Close 意图。持仓真相从 `snap` 读（非内部台账）。
+    /// 2. **开仓侧**：当前 bar 的 recog 决策 → `plan_orders` 产开仓订单 → 转意图；开仓侧（Buy/Sell/
+    ///    Add）成交意图对应的决策 `record_held_voice` 记台账（供后续 bar 退出判定）。
+    ///
+    /// ★生产 vs 回测的差异（no-workaround 诚实标注）：回测 runner 用**内部延迟成交队列**
+    /// （`exit_orders_at`，模拟撮合时序），生产路径**无延迟队列**——Close 意图直接交 Nautilus venue
+    /// 撮合，`exit_pending`/全平清台账由 venue fill 回调（`on_order_filled`/`on_position_closed`，
+    /// 骨架 TODO）驱动。本函数产**意图**（退出判定逻辑与 runner bit-exact 共享 `exit_decision_for`），
+    /// 撮合时序差异归 venue，不分叉退出判定。
     pub fn plan_for_bar(&mut self, new_bar: Bar, snap: &PortfolioSnapshot) -> Vec<OrderIntent> {
         self.bars.push(new_bar);
+        let i = self.bars.len() - 1;
 
-        // S_Θ 管线（开仓侧订单）。account 从 Nautilus portfolio（真实持仓真相源）。
+        // account / 方向从 Nautilus portfolio（真实持仓真相源）。
         let account: AccountState =
             account_adapter::to_account_state(snap, self.config.voice.max_depth);
-        let orders = self.plan_orders(&account);
-
-        // 退出决策生成器接入点（TODO，设计文档 §4.4）：
-        //   let exit_orders = self.generate_exits(snap, &new_bar);  // §9 closePred，持仓从 snap 读
-        //   orders.extend(exit_orders);
-        // 本骨架不内联（避免与 runner::exit_decision_for 双源；移植时单源化）。
-
-        // S_Θ Order → Nautilus 下单意图。
         let pos_dir = account_adapter::position_dir(snap);
-        orders
-            .iter()
-            .filter_map(|o| order_adapter::to_order_intent(o, pos_dir, self.entry_tick_for(o)))
-            .collect()
+
+        // recog 段（当前窗口 → 开仓侧声部决策）。与 `groups` 追加同源（退出生成器读 groups[i]）。
+        let decisions = self.recognize_current();
+        self.groups.push(decisions.clone());
+
+        let mut intents: Vec<OrderIntent> = Vec::new();
+
+        // ── 1. 退出侧（spec:54 退出先于开仓）：逐持仓声部 §9 closePred → Close 意图。 ──
+        // equity = NAV + 未实现盈亏（mark-to-market，对齐 Origin.TotalWealth = free + holding）。
+        let equity_now = snap.nav + snap.unrealized_pnl;
+        // groups 视图（&[Vec<&VoiceDecision>]）：与 runner 传全局 groups 同签名喂 exit_decision_for。
+        let groups_view: Vec<Vec<&VoiceDecision>> =
+            self.groups.iter().map(|g| g.iter().collect()).collect();
+        let mut exit_decisions: Vec<VoiceDecision> = Vec::new();
+        for depth in 0..self.held.len() {
+            let hv = match self.held[depth] {
+                Some(hv) => hv,
+                None => continue, // 空仓声部
+            };
+            if hv.exit_pending {
+                continue; // Close 意图已发，待 venue fill（不重复触发，对齐 spec:50）
+            }
+            if account.qty_at(depth as u32) == 0 {
+                continue; // portfolio 已无此声部持仓（venue 已平）
+            }
+            if let Some(exit_d) =
+                exit_decision_for(&hv, depth, &self.bars[i], i, &groups_view, equity_now)
+            {
+                exit_decisions.push(exit_d);
+                if let Some(slot) = self.held.get_mut(depth) {
+                    if let Some(ref mut h) = slot {
+                        h.exit_pending = true; // 标记 pending（避免 fill 前重复触发同一退出）
+                    }
+                }
+            }
+        }
+        if !exit_decisions.is_empty() {
+            let exit_orders =
+                strategy::plan_orders(&exit_decisions, &self.bars, &account, &self.config);
+            for o in &exit_orders {
+                if let Some(intent) =
+                    order_adapter::to_order_intent(o, pos_dir, self.entry_tick_for(o))
+                {
+                    intents.push(intent);
+                }
+            }
+        }
+
+        // ── 2. 开仓侧：当前 bar recog 决策 → 开仓订单 → 意图；成交侧记台账。 ──
+        let open_orders = strategy::plan_orders(&decisions, &self.bars, &account, &self.config);
+        for o in &open_orders {
+            // 开仓订单（Buy/Sell/Add）⟹ 记台账（退出生成器读它）。按方向匹配决策回找
+            // depth/止损源（与 runner `matched` 同逻辑——decisions↔orders 非一一，按方向 + depth 配）。
+            if matches!(o.action, StrictAction::Buy | StrictAction::Sell | StrictAction::Add) {
+                if let Some(d) = decisions.iter().find(|d| {
+                    let side = voice::voice_side(d.root_side, d.depth);
+                    matches!(
+                        (o.action, side),
+                        (StrictAction::Buy | StrictAction::Add, VoiceSide::Long)
+                            | (StrictAction::Sell, VoiceSide::Short)
+                    )
+                }) {
+                    record_held_voice(&mut self.held, d);
+                }
+            }
+            if let Some(intent) =
+                order_adapter::to_order_intent(o, pos_dir, self.entry_tick_for(o))
+            {
+                intents.push(intent);
+            }
+        }
+
+        intents
     }
 
-    /// S_Θ 开仓侧订单流（`StrategyFamily::pi` = recognize + plan_orders）。
+    /// recog 段（`parse_layer → classify → recognize`）：当前 bar 窗口 → 开仓侧声部决策。
     ///
-    /// ★诚实：`StrategyFamily::pi` 吃 `Classification`——本函数串 `parse_layer → classify → pi`
-    /// （`pi` 内部再 recognize）。等价于 `run_theta_v0` 的步骤 1-3（不含 plan_and_fill_mtm 的 fill）。
-    fn plan_orders(&self, account: &AccountState) -> Vec<Order> {
+    /// ★诚实：等价 `StrategyFamily::pi` 的 recog 段（不含 target→exec 的 plan_orders）——拆出
+    /// 单独 recog 是因退出生成器需要 `decisions`（喂 `groups[i]` 的 reverse_signal 项）+ 开仓侧
+    /// 分别走 plan_orders（退出决策与开仓决策不可混批，否则冲突排序语义错）。
+    fn recognize_current(&self) -> Vec<VoiceDecision> {
         let l0 = parser::parse_layer(&self.bars, &self.config);
         let classification = classifier::classify(&l0, &self.config);
-        strategy::StrategyFamily::family().pi(&self.config, &classification, &self.bars, account)
+        strategy::recognize(&classification, &self.bars, &self.config)
     }
 
     /// 取订单对应的限价 tick（开仓限价腿）。
@@ -172,5 +272,142 @@ mod tests {
         assert_eq!(core.bars.len(), 2);
         assert_eq!(core.bars[0].source_index, 0);
         assert_eq!(core.bars[1].source_index, 1);
+    }
+
+    use crate::theta_v0::strategy::exit::HeldVoice;
+    use crate::theta_v0::strategy::risk::StopInput;
+    use crate::theta_v0::strategy::voice::VoiceSide;
+    use crate::theta_v0::strategy::VoiceDecision;
+    use crate::theta_v0::types::{BspBits, Center};
+
+    /// 持多 snap（net_position>0 ⟹ portfolio 持多，voice_qty[0]>0）。
+    fn long_snap(nav: f64, qty: f64) -> PortfolioSnapshot {
+        PortfolioSnapshot { nav, net_position: qty, realized_pnl: 0.0, unrealized_pnl: 0.0 }
+    }
+
+    /// 入场决策快照（depth 0 做多根 1 买，止损 pivot/center 源 → structural_stop 算 hv.stop）。
+    fn buy1_decision(signal_index: usize) -> VoiceDecision {
+        VoiceDecision {
+            depth: 0,
+            root_side: VoiceSide::Long,
+            exit: false,
+            enter_ok: true,
+            bsp: BspBits { buy1: true, ..Default::default() },
+            signal_index,
+            stop_in: StopInput {
+                pivot_low: 950,
+                pivot_high: 1100,
+                center: Center { zd: 1000, zg: 1080, dd: 940, gg: 1090, start_index: 0, end_index: 5 },
+            },
+            entry: 1000,
+            cost_per_unit: 0.0,
+            level: 0,
+        }
+    }
+
+    /// ★退出生成器自检（验收门，认识论 L1 接线）：持仓触止损 ⟹ 产 Close 意图。
+    ///
+    /// 直接注入 `held` 台账（绕过开仓侧 recog 结构构造——开仓侧由 strategy 层 L2 端到端测试
+    /// `real_classify_to_orders_end_to_end` 覆盖；本自检专验「退出判定 → Close 意图」接线链）。
+    /// 验证：exit_decision_for（Stop 触发）→ plan_orders（产 Close）→ to_order_intent（持多 ⟹
+    /// Sell + reduce_only）整条接通。
+    ///
+    /// ★延迟语义（no-workaround 诚实标注）：退出 Close 经 `build_exit_order` 的 `fill_bar_index`
+    /// 算成交基准 bar。回测默认 `entry_delay_bars=1`（模拟「信号确认后下一根成交」），但 ThetaCore
+    /// 流式逐 bar、退出在**末根** bar 触发 ⟹ delay=1 时 fill_bar_index(i) 找 i+1 不存在 ⟹ 丢单。
+    /// 生产路径用 `entry_delay_bars=0`（§4.4 line 271-273「延迟归 venue」：生产不模拟延迟，意图即时
+    /// 发 venue，真实延迟由 venue 撮合）⟹ fill_bar_index(i)=i ⟹ 末根 bar 即成交基准 ⟹ 产 Close。
+    /// 故本测试用 delay=0（生产路径的正确 Param，非 hack）。delay=0 是 plan_orders 既有合法 config
+    /// 值（u32），不改 plan_orders 代码、runner bit-exact 不受影响。
+    #[test]
+    fn held_long_stop_hit_yields_close_intent() {
+        // ★生产路径 Param：entry_delay_bars=0（§4.4 line 271-273「延迟归 venue」的落实）。
+        // 回测默认 delay=1 模拟「信号确认后下一根成交」；生产路径**不模拟延迟**——意图即时发
+        // Nautilus venue，真实延迟由 venue 撮合实现。ThetaCore 每根 bar 流式调用、退出在末根 bar
+        // 触发，delay=0 ⟹ fill_bar_index(i)=i（当前 bar 即成交基准）⟹ plan_orders 产 Close。
+        // 这是生产路径的**正确 Θ 参数**（由 #5d 构造生产 ThetaConfig 时设定），非测试 hack。
+        let mut cfg = ThetaConfig::default();
+        cfg.exec.entry_delay_bars = 0;
+        let mut core = ThetaCore::new(cfg);
+
+        // bar 0：注入持多台账后此 bar low=900 跌破 stop=950 ⟹ Stop 触发；bar 1 作 Close 成交 bar。
+        let snap = long_snap(1_000_000.0, 300.0); // portfolio 持多 300 手（voice_qty[0]=300）
+
+        // 先喂 bar 0（建立窗口 + groups[0]），手动注入持多台账（模拟开仓已成交、portfolio 已持多）。
+        let stop_bar = Bar {
+            source_index: 0,
+            timestamp: 0,
+            open: 1000,
+            high: 1010,
+            low: 900, // low ≤ stop(950) ⟹ 多头止损触及（exec::stop_hit）
+            close: 920,
+            volume: 100,
+            untradable: false,
+        };
+        core.bars.push(stop_bar);
+        core.groups.push(Vec::new()); // bar 0 无开仓决策（手动注入台账，非 recog 路径）
+        core.held[0] = Some(HeldVoice {
+            side: VoiceSide::Long,
+            stop: 950,
+            decision: buy1_decision(0),
+            exit_pending: false,
+        });
+
+        // 用 plan_for_bar 喂 bar 1（退出在 bar 1 评估：bar 1 也 low 跌破 stop；bar 1 作成交 bar）。
+        let exit_eval_bar = Bar {
+            source_index: 1,
+            timestamp: 1,
+            open: 915,
+            high: 920,
+            low: 900,
+            close: 905,
+            volume: 100,
+            untradable: false,
+        };
+        let intents = core.plan_for_bar(exit_eval_bar, &snap);
+
+        // 退出生成器应产至少一条 Close 意图（持多 ⟹ Sell + reduce_only）。
+        let close_intent = intents.iter().find(|oi| oi.reduce_only);
+        assert!(
+            close_intent.is_some(),
+            "持仓触止损 ⟹ 产 Close 意图（退出生成器接通：exit_decision_for→plan_orders→intent）"
+        );
+        let ci = close_intent.unwrap();
+        assert_eq!(ci.side, order_adapter::OrderSideLike::Sell, "平多 ⟹ Sell");
+        assert!(ci.reduce_only, "退出 ⟹ reduce_only");
+        assert!(ci.qty > 0, "全平当前持仓 ⟹ qty>0");
+        // 台账标记 pending（避免下一 bar 重复触发）。
+        assert!(
+            core.held[0].map(|h| h.exit_pending).unwrap_or(false),
+            "退出触发后 held.exit_pending=true（fill 前不重复入意图）"
+        );
+    }
+
+    /// 退出 pending 幂等：已触发退出的声部下一 bar 不重复产 Close（spec:50 一次触发一次平仓）。
+    #[test]
+    fn exit_pending_no_duplicate_close() {
+        // delay=0（生产路径 Param，同上）——确保「无 Close」来自 pending 跳过，非 fill_bar_index 落空。
+        let mut cfg = ThetaConfig::default();
+        cfg.exec.entry_delay_bars = 0;
+        let mut core = ThetaCore::new(cfg);
+        let snap = long_snap(1_000_000.0, 300.0);
+        core.bars.push(mk_bar(0, 1000));
+        core.groups.push(Vec::new());
+        // 注入已 pending 的台账（上一 bar 已触发退出，Close 在 venue 撮合中）。
+        core.held[0] = Some(HeldVoice {
+            side: VoiceSide::Long,
+            stop: 950,
+            decision: buy1_decision(0),
+            exit_pending: true, // 已 pending
+        });
+        let stop_bar = Bar {
+            source_index: 1, timestamp: 1, open: 900, high: 905, low: 890, close: 895,
+            volume: 100, untradable: false,
+        };
+        let intents = core.plan_for_bar(stop_bar, &snap);
+        assert!(
+            intents.iter().all(|oi| !oi.reduce_only),
+            "exit_pending ⟹ 不重复产 Close 意图（一次触发一次平仓）"
+        );
     }
 }

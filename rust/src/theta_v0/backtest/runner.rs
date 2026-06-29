@@ -49,6 +49,7 @@
 use super::super::closed_loop::state::{AssemblyState, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
 use super::super::config::ThetaConfig;
+use super::super::strategy::exit::{exit_decision_for, record_held_voice, HeldVoice};
 use super::super::strategy::{AccountState, VoiceDecision};
 use super::super::types::{Bar, Order, StrictAction};
 use super::super::{classifier, parser, strategy};
@@ -498,7 +499,7 @@ fn pi_theta_fill_loop<F>(
     config: &ThetaConfig,
 ) -> FillOutput
 where
-    F: FnMut(usize) -> (classifier::Classification, Vec<Vec<classifier::recursive_tower::LeveledMove>>),
+    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>),
 {
     use super::super::strategy::coverage::{self, PiThetaWeights};
     use super::super::strategy::exec::fill_bar_index;
@@ -1026,48 +1027,6 @@ fn track_position_transition(
     }
 }
 
-/// 持仓声部台账项（退出决策生成器的状态，对齐 §9 closePred 读出所需的入场快照）。
-///
-/// 退出判定（§9 closePred：Stop ∨ 反向 BSP ∨ RiskClose）逐 bar 读它：
-/// - `side`：持仓方向（`VoiceSide::Long`/`Short`）——决定止损触及方向 + 反向信号方向。
-/// - `stop`：结构止损价（`risk::structural_stop` 产出，与 build_open_order 同一函数零偏差）。
-/// - `decision`：入场决策快照——退出触发时复用它构造 `exit=true` 决策喂 plan_orders
-///   （复用 depth/level/bsp/stop_in/root_side，使 build_exit_order 全平当前 q）。
-/// - `exit_pending`：退出已触发但 Close 订单尚在延迟队列（fill 未到）的标记——避免在触发 bar
-///   到 fill bar 之间**重复入队**同一退出（spec:50 延迟成交期间不重复触发，关闭谓词一次触发
-///   一次平仓；台账在 Close 成交清台账后才允许新触发）。
-#[derive(Debug, Clone, Copy)]
-struct HeldVoice {
-    side: super::super::strategy::voice::VoiceSide,
-    stop: super::super::types::Tick,
-    decision: VoiceDecision,
-    exit_pending: bool,
-}
-
-/// 记入持仓台账（开仓订单成交后调用）：算止损价 + 存入场快照。
-///
-/// 止损价用 `risk::structural_stop`（与 `build_open_order` 内同一函数，零口径偏差）。
-/// 方向 Flat / 无结构止损 ⟹ 不记台账（无止损则退出生成器的 Stop 项无依据，诚实跳过——
-/// 此情形 build_open_order 也返回 None 不开仓，故不应到达；防御性跳过）。
-fn record_held_voice(held: &mut [Option<HeldVoice>], d: &VoiceDecision) {
-    use super::super::strategy::risk::{structural_stop, StopSide};
-    use super::super::strategy::voice::{voice_side, VoiceSide};
-
-    let side = voice_side(d.root_side, d.depth);
-    let stop_side = match side {
-        VoiceSide::Long => StopSide::Long,
-        VoiceSide::Short => StopSide::Short,
-        VoiceSide::Flat => return,
-    };
-    let stop = match structural_stop(stop_side, &d.bsp, &d.stop_in) {
-        Some(s) => s,
-        None => return, // 无结构止损（不应到达——build_open_order 已 None）
-    };
-    if let Some(slot) = held.get_mut(d.depth as usize) {
-        *slot = Some(HeldVoice { side, stop, decision: *d, exit_pending: false });
-    }
-}
-
 /// voice_qty 同步（fill 后更新；depth 超界跳过，诚实边界不应发生）。
 ///
 /// ★v1 方向中性：`voice_qty` 是该 depth 声部的**绝对持仓手数**（`act_state` 判 open/hold/close
@@ -1090,85 +1049,6 @@ fn apply_voice_qty(voice_qty: &mut [u32], depth: usize, o: &Order) {
             StrictAction::Hold | StrictAction::Wait => {}
         }
     }
-}
-
-/// **退出决策生成器（§9 closePred → exit=true 决策，本轮真根因修复核心）**。
-///
-/// 对持仓声部 `hv` 在当前 bar `bar`（索引 `i`）检查关闭谓词 X_{v,t}（对齐
-/// `Origin.SubVoiceOpenClose.closePred`），触发则构造**全平**退出决策（`exit=true`，复用入场
-/// 决策快照），喂 plan_orders 产 Close 订单。返回 `None` 当 X=false（不关闭，持仓延续）。
-///
-/// **四析取项的 root 声部读出**（contract anchor `Origin.SubVoiceOpenClose.closePred` line 552-562）：
-/// - `parent_invalid`（¬ParentValid）：**root 声部无父 ⟹ 恒 false**（v0 recognize 只产 depth=0
-///   独立根；子声部的父失效判定属嵌套树扩展，v0 未触发——诚实有效域标注）。
-/// - `reverse_signal`（χ^{σ_p}）：当前 bar 的开仓 decisions（`groups[i]`）中是否有**反向**方向的
-///   决策（持多遇卖侧根 / 持空遇买侧根）。反向 BSP 经 recognize 产成反向开仓决策落在某 exec_index，
-///   该 exec_index = i 时即当前 bar 出现反向信号 ⟹ 触发先平（对齐 risk.rs `root_dir_next` case2）。
-/// - `stop`（Stop）：当前 bar 价格触及 `hv.stop`（`exec::stop_hit`，复用 spec:52 触及语义）。
-/// - `risk_close`（RiskClose）：`risk::global_risk_close(μ_t)`。v0 可计算 μ_t 的 **Insolvent 子集**
-///   （equity≤0）——maint_margin/buffer/liq_flag 是账户/场所层输入（§11），v0 未建模，故
-///   GlobalRiskClose 在 v0 退化为「权益耗尽」判据（标 L0 有效域：μ_t 全五态需账户层输入，
-///   v0 只 discharge equity≤0 这一可计算分量，不臆造 maint_margin）。
-///
-/// **关闭优先于开启**（line 592）：退出生成器在每 bar **先于**开仓处理（exit_orders_at 在开仓前
-/// apply），且退出 Close 订单的 ConflictKey.exit_first=0（spec:54 退出先于开仓）——双重保证关闭赢。
-fn exit_decision_for(
-    hv: &HeldVoice,
-    depth: usize,
-    bar: &Bar,
-    i: usize,
-    groups: &[Vec<&VoiceDecision>],
-    equity_now: f64,
-) -> Option<VoiceDecision> {
-    use super::super::strategy::exec::{close_pred, reverse_signal, stop_hit, CloseTriggers, FillSide};
-    use super::super::strategy::risk::{global_risk_close, risk_mode, RiskModeInput};
-    use super::super::strategy::voice::VoiceSide;
-
-    // Stop（line 559）：当前 bar 触及止损价 hv.stop。平仓方向 = 持仓反向（平多=Sell，平空=Buy）。
-    let exit_side = match hv.side {
-        VoiceSide::Long => FillSide::Sell,
-        VoiceSide::Short => FillSide::Buy,
-        VoiceSide::Flat => return None, // 不应发生（台账只记 Long/Short）
-    };
-    let stop = stop_hit(bar, hv.stop, exit_side);
-
-    // 反向信号 χ^{σ_p}（line 596-601）：当前 bar 的开仓 decisions 含反向方向根决策 ⟹ 触发。
-    // 用 reverse_signal 判每个当前 bar 决策的 bsp 是否与持仓反向（持多遇卖 / 持空遇买）。
-    let reverse = groups
-        .get(i)
-        .map(|ds| ds.iter().any(|d| reverse_signal(hv.side, &d.bsp)))
-        .unwrap_or(false);
-
-    // RiskClose（line 561）：GlobalRiskClose（μ_t ∈ {Insolvent, Liquidation}）。
-    // v0 可计算 Insolvent（equity≤0）——maint_margin/buffer/liq_flag 账户层输入未建模，
-    // 用占位（maint_margin=0, buffer=0, liq_flag=false）使 μ_t 退化到 equity≤0 ⟹ Insolvent 子集。
-    let mode = risk_mode(&RiskModeInput {
-        equity: equity_now,
-        maint_margin: 0.0,
-        buffer1: 0.0,
-        buffer2: 0.0,
-        liq_flag: false,
-    });
-    let risk_close = global_risk_close(mode);
-
-    let triggers = CloseTriggers {
-        parent_invalid: false, // root 声部无父（恒 false，诚实有效域）
-        reverse_signal: reverse,
-        stop,
-        risk_close,
-    };
-    if !close_pred(&triggers) {
-        return None; // X=false：不关闭，持仓延续
-    }
-
-    // X=true：构造全平退出决策（exit=true，复用入场快照）。signal_index = 触发 bar i
-    // （build_exit_order 用它经 fill_bar_index 算延迟成交 bar；与本函数外 exit_orders_at[fi] 对齐）。
-    let mut exit_d = hv.decision;
-    exit_d.exit = true;
-    exit_d.enter_ok = false; // 退出态，非进场
-    exit_d.signal_index = i;
-    exit_d.depth = depth as u32;
-    Some(exit_d)
 }
 
 /// fill 模拟（Θ_exec 基础形态，reference-theta-v0.md:49-54）。
@@ -1426,6 +1306,7 @@ mod tests {
             symbol: "TEST".to_string(),
             bars,
             dates: (0..100).map(|i| format!("2024-01-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
         };
         let res = run_theta_v0(&ds, &config, 1.0, 1.0e6);
         // 无结构 ⟹ 订单空 ⟹ 非 L2 ⟹ 无交易（正确退化，非阻塞）。
@@ -1505,6 +1386,7 @@ mod tests {
             symbol: "TEST".to_string(),
             bars,
             dates: (0..100).map(|i| format!("2024-01-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
         };
         let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
         // 单调数据无缠论结构 ⟹ 空 bsp ⟹ 无订单（诚实退化）。管线全链跑通（不 panic）。
@@ -1572,7 +1454,8 @@ mod tests {
             1,
             ElementId { level: 1, ordinal: 0 },
         );
-        let tower = vec![Vec::new(), vec![l1]];
+        // ★O(n) 重构：生产塔现为 Vec<Rc<Vec<LeveledMove>>>，测试字面量逐级包 Rc（仅类型适配）。
+        let tower: Vec<std::rc::Rc<Vec<_>>> = vec![Vec::new(), vec![l1]].into_iter().map(std::rc::Rc::new).collect();
         // 切片当步 L0 卖候选 source_index=12（host=sub(8,12) ⟹ 真父 L1 Long ⟹ σ_p=Long）。
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![{
@@ -1611,6 +1494,7 @@ mod tests {
             symbol: "ZZ".to_string(),
             bars,
             dates: (0..30).map(|i| format!("2024-01-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
         };
         let a = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
         let b = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
@@ -1636,6 +1520,7 @@ mod tests {
             symbol: "ZZ60".to_string(),
             bars,
             dates: (0..60).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
         };
         let res = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
         assert_eq!(res.is_l2, res.n_orders > 0, "is_l2 ⟺ 订单非空（诚实标注不变量）");
@@ -1720,6 +1605,7 @@ mod tests {
             symbol: "TEST".to_string(),
             bars,
             dates: (0..20).map(|i| format!("2024-01-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
         };
         let res = run_theta_v0(&ds, &config, 1.0, 1.0e6);
         let cl = res.closed_loop_final.expect("非空 bars ⟹ 闭环终态");
@@ -2212,6 +2098,7 @@ mod tests {
             symbol: oos_full.symbol.clone(),
             bars: oos_full.bars[..cut].to_vec(),
             dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
         };
         eprintln!("[E5] 截断 OOS 窗 bars={}（全窗 {}）", oos.bars.len(), oos_full.bars.len());
 
@@ -2628,6 +2515,7 @@ mod tests {
             symbol: oos_full.symbol.clone(),
             bars: oos_full.bars[..cut].to_vec(),
             dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
         };
         eprintln!(
             "\n===== L2 否证验证：OKLO 截断窗 bars={}（全窗 {}，截断因 classify O(n²) 待优化）=====",
@@ -2875,6 +2763,7 @@ mod tests {
                 symbol: oos_full.symbol.clone(),
                 bars: oos_full.bars[..cut].to_vec(),
                 dates: oos_full.dates[..cut.min(oos_full.dates.len())].to_vec(),
+                bar_seconds: 60,
             };
 
             // years：截断窗按截断 bar 占全窗比例缩放全窗年跨（年化基数 §3.1，量级匹配）。
