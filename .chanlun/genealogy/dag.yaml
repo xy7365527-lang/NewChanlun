@@ -3013,6 +3013,393 @@ nodes:
   status: 生成态
   type: 概念分离
   file: pending/turning-node-topology-strength-orthogonal-product-20260624.md
+- id: 566a
+  title: dag.yaml nodes 段 567-575 元数据 desync 回溯结算 + 571/572 ID 对调修复 + TBD 孤儿清理——568号(结算≠认知更新)的索引层实例
+  status: 已结算
+  type: meta-rule
+  file: settled/566a-dag-node-metadata-desync-settlement.md
+- id: '597'
+  title: 仓位上同调塔 = 走势发展的第三纤维：仓位 = ⊕_k(H⁰_k⊕H¹_k) over 全涌现级别——576节点轴(在哪操作)/#39操作轴(怎么操作)之外的第三商空间(分多少仓·什么角色)
+  status: 已结算
+  type: 概念分离
+  file: settled/597-position-cohomology-tower-third-fiber.md
+- id: '598'
+  title: 真完全分类元判据 = 生成性递归 + 有限商 + 无遗漏证明 + 无边界例外：581→586 转化的完备性判据 = 机械验证 Σ类==n 底座(分类不是被断言完备,是被生成函数吐出)
+  status: 已结算
+  type: 概念分离
+  file: settled/598-true-complete-classification-metacriterion.md
+- id: '599'
+  title: 印钞机构造解 = H⁰⊕H¹ 直和 by construction + 涌现条件化核心减仓：无界爆仓不可能 = 机动不碰核心 units(直和正交)∧
+    核心不减条件化(非无条件)——健全 ≠ 盈利,no-hedge 是被动基座(0/8超BH)
+  status: 已结算
+  type: 概念分离
+  file: settled/599-printing-press-disjoint-sum-soundness.md
+- id: '600'
+  title: 约束4(异质审计硬节点)的实证否定价值：codex 异质审计的产出价值在于'吐出连蜂群都没指出的遗漏 case'(L_confirm 第四轴/payoff
+    四 FAIL),否定性结果缩小有效域边界 > 确认性背书——封闭自证循环禁止(093号)的正面兑现
+  status: 已结算
+  type: 语法记录
+  file: settled/600-constraint4-heterogeneous-audit-falsification-value.md
+- id: '601'
+  title: 离散二值 = 连续轴投影：涌现状态{有/无更高级别}离散二值 = 区间套确认深度 δ 连续轴在阈值 δ* 的投影(拍扁)——L_confirm 第四轴是
+    δ 连续轴,塔最后假例外消除(无边界例外的最深应用,等涌现=等 type1 背驰确认=同一件事)
+  status: 已结算
+  type: 概念分离
+  file: settled/601-discrete-binary-continuous-axis-projection.md
+- id: '602'
+  title: G' 仍不完全 = 漏 type3 完成源轴：δ 死绑第一类买卖点(背驰)触发读数，吐不出第三类买卖点/小转大终结的真顶 case ⟹ G' 只完备覆盖
+    type1 子空间——需新增 completion_source/BSP_kind 轴(≠L_confirm)，δ 推广为任一买卖点完成源的区间套确认读数
+    【★603 改判：此「不完全」是轴范式产物，递归范式下 type3=构造子标签，否定链关死】
+  status: 已结算
+  type: 概念分离
+  file: settled/602-G-prime-incomplete-type3-completion-source-axis.md
+- id: '603'
+  title: 完全分类·范式分离 = 轴范式不可达 vs 递归数据类型范式可达：完全性不是『轴集合是否穷尽』（外延式经验命题→无穷回归）而是『构造子集是否穷尽』（内涵式，继承缠论已结算定理：走势三分
+    qushi:28 ∪ 第21课买卖点三类 maimai:48 ∪ 中枢三态 zhongshu:328）——by construction 完全，对构造子结构归纳证明
+  status: 已结算
+  type: 概念分离
+  file: settled/603-complete-classification-recursive-vs-axis-paradigm.md
+- id: '604'
+  title: 缠论元素构成性阶梯递归完全分类（K线→分型→笔→线段→走势→中枢）= 构成性递归数据类型链：每层由下层有序窗口构造（非 membership）+
+    每层分类是该层 inductive 构造子穷尽（分型二分 / 笔二分 / 线段二分，L0）+ 线段 v0 reference ladder 有效域（非 v1
+    特征序列法，诚实口径分离引谱系 003）
+  status: 已结算
+  type: domain
+  file: settled/604-constitutive-ladder-recursive-complete-classification.md
+- id: '605'
+  title: '操作语义完全分类 = 单级别句法 Σ*（自由幺半群 = List OpAtom，4 构造子穷尽 by Σ-exh + List 归纳，L0）+
+    9 轨道是 Σ*/D∞ 派生有限商（598 有限商要素 + #39，非独立轴）+ 操作触发继承 BSP totality（弱声明，操作 route 内容依赖状态/守恒不在范围）：撤回''操作完全分类=BSP
+    totality composition''膨胀声明'
+  status: 已结算
+  type: domain
+  file: settled/605-operational-semantics-complete-classification-syntax-sigma-star.md
+- id: '606'
+  title: '背驰/区间套完全分类 = 背驰二分（趋势背驰 → 第一类 BSP 力度判据 / 盘整背驰 → 不产生 BSP，maimai #4）+ 区间套几何骨架（严格收缩
+    + 级别递减 ⟹ 有限终止，与 Phase1 r* 终余代数有限下降同构）+ L_confirm = 区间套深度构造子字段（绑真实 chain + ★chain
+    非空，非自由字段，603 §五关 602 否定链）【★最终 codex 019effca 发现空链赘类 FAIL→加 chain_nonempty+lconfirm_depth_pos
+    修复→019effd3 验证 GREEN，修复后忠实 fully ready】'
+  status: 已结算
+  type: domain
+  file: settled/606-divergence-nesting-complete-classification-lconfirm-constructor-field.md
+- id: '607'
+  title: 守恒约束012 范式判定 = 建议修订有效域标注（不撤销）：守恒律 Σnet(v)=0 是 K4 资本流转层的 L0 代数恒等 + 27 配置完全分类是轴范式外延枚举（代数
+    L0 封闭但经验 L2 部分否定）+ 与递归范式无定义冲突（不 escalate）。★settled 改动是编排者权，本号只记录判定+依据。★编排者覆盖（用户已醒）：改记
+    reform 目标——待递归重铸为真完全分类，reform-ledger 进行中；真不可重铸才回落轴范式声明
+  status: 已结算
+  type: bias-correction
+  file: settled/607-conservation012-paradigm-determination-validity-domain-demotion.md
+- id: '608'
+  title: 中枢位置三态完全分类（第49课：价格点 p 相对单个中枢核心区间 [ZD,ZG] 的位置 = below(p<ZD) / within(ZD≤p≤ZG)
+    / above(p>ZG)）= 实数线相对闭区间的三歧 trichotomy 推论（穷尽 ∧ 两两互斥 ∧ 恰好其一，L0）+ 与 maimai 第三类买卖点边界一致（不破
+    ZG/ZD 算中枢外，临界点归闭核心区间）+ 与第20课两中枢关系三分（claim CenterTrichotomy）是不同的完全分类（点vs区间 ≠ 区间vs区间）
+  status: 已结算
+  type: domain
+  file: settled/608-center-position-trichotomy-point-relative-interval.md
+- id: '609'
+  title: 线段划分 v1 特征序列法完全分类（第67课'只有两种可能'：划分情形二分 {firstKind 无缺口直接终结 / secondKind 有缺口须第二特征序列分型}
+    + 第78课笔破坏发展结局二分 {develops 线段破坏确认 / stays 古怪来源唯一原因} + 第77课方向二分穷尽）= 三个 inductive
+    构造子穷尽合取（内涵式，对构造子结构归纳，L0）+ v1 五硬约束（奇数性 + 方向一致 + 前三笔重叠 + 顶高于底）+ v1 ⊊ v0（v1 加细 v0
+    骨架，谱系 003）：补 claim5 v0 reference ladder → v1 唯一正式口径
+  status: 已结算
+  type: domain
+  file: settled/609-segment-v1-feature-sequence-complete-classification.md
+- id: '610'
+  title: 守恒012 清理落地 = 050方案A（删除 check_conservation）+ liuzhuan 守恒章声明膨胀勘误：方向守恒 Σnet(v)=0
+    是 K4 图论恒等式（L0）非资本守恒（222范畴错误/231有效域≠定义域）——代码零残留 + 定义文档加 L0 有效域标注 + 撤销 P2 待实现项。★编排者覆盖：守恒012
+    是 reform 目标（清理落地=回落基线物质态，与 reform 成败无关）
+  status: 已结算
+  type: source-tracing
+  file: settled/610-conservation012-cleanup-settled-ruling-landing.md
+- id: '611'
+  title: Phase2 形式化族（604-610）统一结晶最终核对 = 编号无碰撞（604-610 连续）+ 跨族张力零矛盾（Option A 交叉验证 130
+    定理 GREEN）+ ★ritual-ready 终态：整族 604-612 全部 fully /ritual-ready（606 claim7 空链赘类经
+    019effca 发现→修复→019effd3 验证闭合 / 609 经 612 解锁 xianduan doc-only 笔误）：claim5-7/9-10
+    进 build 机器验证 + claim8 非 Lean 判定一致
+  status: 已结算
+  type: meta-rule
+  file: settled/611-phase2-formalization-crystallization-unified-review.md
+- id: '612'
+  title: xianduan 终结语义反转勘误（v1.3→v1.4）= 纯 doc-only 文档笔误更正：第一种(无缺口)=分型形成即直接终结 / 第二种(有缺口)=须第二特征序列分型才终结——非编纂污染、非实现bug、非定义冲突（类型b
+    单源转写笔误）；★同源笔误家族两处落点（xianduan.md 4 行 + settled/003:88）已全部勘误对齐博文067，无残留同源污染；609
+    解锁 fully /ritual-ready
+  status: 已结算
+  type: source-tracing
+  file: settled/612-xianduan-termination-semantics-doc-only-correction.md
+- id: '613'
+  title: codex 编排者代理 D3-D6 裁决 + ★编排者覆盖 = D3 轴范式（Burnside46/58槽/27配置/守恒012/#42/#45）改【reform
+    目标待递归重铸】（非维持不进 Lean）+ D4 payoff L3 层改【reform 目标待递归重铸】（非 L3 收工）+ D5 独立系统层不纳入统一编号
+    + D6 守恒012等级标注L0-L3 / xianduan v1.4基线 / 跨worktree统一编号流程规则
+  status: 已结算
+  type: meta-rule
+  file: settled/613-codex-orchestrator-proxy-D3-D6-rulings.md
+- id: '614'
+  title: delegated-settle 决策记录 = codex 代理（session 019effe6）D2 + ★编排者覆盖：604-612 缠论本体（9
+    条真完全分类）结算【决策已记，★物理 git mv 暂缓待编号核对+reform 结果】；★597-603 归属分层（597/601 payoff=D4 reform
+    / 598/599/600/602/603 待编排者明确）——606 带 codex C 点 known-boundary / 609 带 xianduan
+    v1.4+003:88 同源勘误家族 / 跨 worktree 全局编号待 D6c
+  status: 已结算
+  type: meta-rule
+  file: settled/614-delegated-settle-597-612-codex-proxy-ritual.md
+- id: '616'
+  title: 完全分类 ⊬ 唯一策略 = 分类与策略的分离：缠论完全分类只回答『当前是什么结构』，不能唯一决定仓位/杠杆/成本阈值/止损/冲突优先级——这些是
+    extra-缠论 的 Θ（风险公理）；完全分类只推出一族策略 {π_Θ}，给定 Θ 后 π_Θ 全定义/唯一/因果但不证盈利最优。标准第⑥部分『完全应对』深化为
+    StrategyFamilyGivenTheta（非唯一自然 π）
+  status: 已结算
+  type: 概念分离
+  file: settled/616-classification-underdetermines-strategy-theta-family.md
+- id: '617'
+  title: 连分类器 C_Θ 本身都是 Θ 参数化：缠论结构公理单独连唯一分类都给不出——需要 Θ_parse（边界/canonical 选择器）固定『在哪里切、相同极值取谁、开闭边界、未完成尾部』，才得到固定分类器
+    C_Θ；C_Θ 的 fiber 构成原像划分（互斥穷尽，结构事实），再与 Θ_risk/Θ_exec 复合得全定义唯一 π_Θ。617 精化 616 前件（不只
+    π 需 Θ，C 也需），616『分类⊬唯一策略』结论保留
+  status: 已结算
+  type: 概念分离
+  file: settled/617-classification-itself-theta-parametric.md
+- id: '618'
+  title: 完全分类是缠论公理非定理：反复把『完全分类』当要证明/评级的东西（四级阶梯 L0-L3 / 行为最小性 no-go / 『L0 零信息』）= 把
+    231 号有效域怀疑错位施加到缠论根公理——纠正=三层归位【完全分类=缠论公理（走势终完美=X/∼≅P 双射存在，忠实编码不评级）/ 全定义策略=工作（从公理推导
+    S_Θ）/ 盈利性=L2 经验（231 只在此层）】+ 我们起点不如 GPT 严格故 build-on（GPT 推导形式化移入 formal/Foundation
+    作地基）非 absorb
+  status: 已结算
+  type: 概念分离
+  file: settled/618-gpt-package-confluence-four-rung-ladder-closed-loop-assembly.md
+- id: '619'
+  title: 'formal/Origin/ 六层 = 唯一 canonical base（A′ 方向裁定）：现有 Strict/Tlayers/Foundation/theta_v0
+    降为『待重锚库』(port 重锚，非重证从零)——区分『clean slate 从零重证』(被否) vs 『canonical base 切换 + 旧零件
+    port 重锚』(裁定)；三方收敛(编排者直觉A + Lead答 + codex 重裁撤回上次B)，161号(否务实)压过重映射成本；★关键纪律：缺口 #89/#90/#91
+    在 Origin 上仍开，迁移不自动关(诚实 gap register)'
+  status: 已结算
+  type: 概念分离
+  file: settled/619-origin-canonical-base-A-prime-port-not-reprove.md
+- id: '620'
+  title: '#95 吸收反转 = 『吸收 vs 从头重建』矛盾的结算：cc-arch-absorb 产的 Foundation/EngineVerdict.lean
+    + FixedThetaParam.lean 被 A′ 弃用删除——编排者 INTERRUPT『不是说不要吸收吗？你不是在从头重新建吗？』暴露蜂群在 build-on(618)/canonical
+    base 切换(619)裁定后**仍执行 absorb 路径**的执行层背离；A′ 否定吸收路径(Origin 自带 EngineBridge/FullDefinitionStrategy)，吸收物作为概念上已被否定的产出删除'
+  status: 已结算
+  type: 矛盾发现
+  file: settled/620-95-absorb-reversal-absorb-vs-rebuild-settlement.md
+- id: '621'
+  title: 结构工位自动化缺口精确化(0004a 课 + 编排者深化)：平台无原生语义事件(353)→.claude/hooks 29 脚本全 GUARD 非
+    LAUNCHER→真实『自动』=Lead 手动解释 DAG(033 承重点)；★深化两层——(1)hook PostToolUse systemMessage
+    投递给『发起写的 agent』(guard5 用 CLAUDE_AGENT_NAME 区分即证 hook 知谁在写)，而结构工位触发写几乎都是 teammate→『PENDING
+    SPAWN→Lead 认领』提示到不了 Lead=投递错对象=补丁/声明膨胀；(2)唯一真实到达 Lead 的平台事件 = task-notification(task_complete)，但它
+    platform_support:false 根本无 hook(dispatcher 仅 PostToolUse:Write/Edit)→真实承重点收窄为『Lead
+    对 task-notification 的反应』，hook 层无法承载。编排者裁定『待改不只待教』
+  status: 已结算
+  type: meta-rule
+  file: settled/621-structural-station-automation-gap-task-notification-load-bearing.md
+- id: '623'
+  title: 元观察——本轮三教训共享元结构：231号(形式化有效域规则)在『蜂群自身工具/spec 层』的连续实例化(hooks GUARD有效域 / 隔离工具可用域
+    / Lead工具能力认识论)；二阶模式候选(与034/036/406观察3并轨)
+  status: 已结算
+  type: meta-rule
+  file: settled/623-meta-observation-self-tool-validity-domain-pattern.md
+- id: '624'
+  title: 结构能力四象限(GUARD×AGENT × 一次性×持续)统一框架 + 根因揭示：075/082(委托 hook/事件驱动自动 spawn 结构能力)⊥
+    097(hook 纯化：hook 动作语义只能阻断/放行，绝不能提示/教学/spawn)的设计自造矛盾——两条已结算 spec 在『hook 能否承载结构能力自动激活』上直接对立；562
+    扬弃 075 已部分化解(结构工位本体回归 teammate)，但『持续监控型 AGENT 的自动激活』象限仍无承载者：本轮三结构工位实测工具有效域仅 Read/Grep/Glob（无
+    SendMessage/Write/spawn，启动后亦无主动投递通道）= CC 平台硬墙。统一 621(自动化缺口)+本轮三工位投递实测+623(231
+    自指工具有效域)。永久修复=改 075/082 按四象限重切=编排者基因组裁定(020 阻断等待)
+  status: 已结算
+  type: 矛盾发现
+  file: settled/624-structural-capability-quadrant-guard-agent-oneshot-persistent-075-097-self-made-contradiction.md
+- id: '625'
+  title: '#132 L2 真实数据回测暴露 L1 合成数据全绿掩盖的引擎 bug(strategy/mod.rs:417，#132 工位转述未独立核实)=
+    形式化有效域规则(231号)『L1→L2 信息增量为正/否定性结果价值』的 NewChanlun 工程域内回测层活体实例：L1 合成全绿是同义反复(数据自造、属性自控，验证只确认管线无
+    bug)，L2 真实数据才否证出 L1 永不会暴露的引擎 bug——确认 231 发生史从『缠论/数学形式化对象』延伸到『工程引擎回测层』'
+  status: 已结算
+  type: 实验结果
+  file: settled/625-l2-real-data-exposes-l1-synthetic-green-masked-engine-bug-231-live-instance.md
+- id: '627'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/627-meta-observation-two-engine-lines-validity-domain-extrapolation-risk.md
+- id: '628'
+  title: M1 构造层闭合：centersOf/bspOf/segmentsOf 退化桩消解 = 010 号构造层(递归层，核心对象=中枢)的 L1/L0
+    实现闭合——完全分类的判据/分类层(A′ Origin canonical base 已 L0 满，606/609/616)此前 still-MISSING
+    的对偶构造层本轮补齐；构造层闭合=L0/L1 结构层(终止性/良构性不依赖真实 K 线数据，信息增量低)，M1 的 L2 经验有效性由开口 P2(oracle
+    真实数据，见 629)承载，禁把构造层结构闭合冒充 M1 经验有效(090)
+  status: 已结算
+  type: domain
+  file: settled/628-m1-construction-layer-closure-degenerate-stub-elimination-centers-bsp-segments.md
+- id: '629'
+  title: M1 收口三诚实降级开口=231 有效域规则(有效域<定义域)在 M1 构造层的三实例：①P3 开口1 fallback 路径良构性(still-MISSING-A‴：segmentsOfComplete
+    扫完未找判据点→返回 n 消费全部→切出线段可能不满足 609 SegEndComplete=良构性定理有效域<全输入域) ②P3 开口2 revSeq 代理近似(scanBottomFractal
+    作 revSeq 代理，非精确第67课第二种情况自指递归=形式化代理<原文定义) ③P2 oracle pattern 真实数据填充(still-MISSING-D′：MoveJudgment
+    需上游真实数据填充=L2，当前 oracle 桩=构造层 L0/L1 闭合不等于 M1 经验有效)；三开口均诚实降级标注非补丁掩盖，escalate 候选待编排者
+    /ritual 裁定
+  status: 已结算
+  type: 矛盾发现
+  file: settled/629-m1-three-honest-downgrade-openings-fallback-wellformed-revseq-proxy-oracle-l2.md
+- id: '630'
+  title: D′ RTAS-goal 持久化架构改造执行完成（波1 T1-T6 全 committed + 波2 T7 committed c4fb7d6f7e
+    + T8 裁定 T4+T7 实质交付）= 069 RTAS 蜂群动态根(goal contract+events)落地的读/reduce 路径闭合，附三诚实开口：①写路径未实装(读/reduce
+    完整 vs 无代码 append events.jsonl/物化 current.yaml，靠 actor 手工 append 无 schema 校验 writer，有效域=读侧
+    L1) ②goal projection 已 surface 但未驱动 spawn(ceremony_scan 输出 current_goal.ready_workstations
+    但项目最小自举序列 step5 仍从 JSON.workstations spawn 未消费=集成 gap，『蜂群递归展开=reducer 确定性运行』命题调度层未闭环)
+    ③T8 spec-execution 不一致 + 全局热启动 doc 对齐延迟(计划假设项目 ceremony.md 有热启动可插 step0，实际项目是最小自举序列
+    058 无热启动/带 L2 恢复的 ceremony 在用户全局 ~/.claude repo 外，裁定 T4+T7 实质交付不编辑全局 config 不重构
+    058)；三开口均诚实标注(非补丁掩盖 090/no-patch-mentality)，登记待编排者 /ritual
+  status: 已结算
+  type: domain
+  file: settled/630-d-prime-rtas-goal-persistence-completion-three-honest-openings-write-path-projection-spawn-wiring-global-doc.md
+- id: '631'
+  title: theta_v0 bit-exact 声明膨胀基线对照表 = 『镜像 Lean spec 输出对齐』措辞在零 Lean 数值 parity 测试下的有效域膨胀（231号活实例）：全部
+    `_bit_exact` 测试是 Rust 内部硬编码 golden（L1），无任何代码运行 Lean 并逐 bit 比对输出（L0↔L1 交叉缺失）——『bit-exact
+    镜像 Lean』裸声明 vs 已诚实标注的 conformance 协议契约的分裂
+  status: 已结算
+  type: bias-correction
+  file: settled/631-theta-v0-bit-exact-claim-inflation-baseline.md
+- id: '632'
+  title: oracle MoveJudgment 消桩=L0 结构缺口非 L2 数据缺口：MoveJudgment 三 Bool 字段(brokeCenter/leftCenter/afterTypeOne)不可从元素层
+    Move 纯结构推导，根因=canonical movesOf:List Segment→List Move 丢弃 Segment 携带的价格端点(startPrice/endPrice)，致下游
+    bspOf:List Move→List Bsp 拿不到产买卖点判据所需的价格-中枢几何；SubLevelDescent 能真下钻判破中枢仅因 RMove
+    携带 interval(lo/hi)，元素层 Move 无此字段。修复方向是 canonical 类型契约选择(给 Move 加价格字段 vs 改 bspOf
+    签名接 Segment vs 接受 oracle 注入永久外部化)，触及 P1 owner ChanlunElements，escalate 候选；与 629
+    开口③『等 L2 真实数据填充』定性冲突——价格几何在 Segment 层即 L0 结构可得，非 L2 经验。
+  status: 已结算
+  type: 矛盾发现
+  file: settled/632-oracle-movejudgment-element-move-drops-segment-price-geometry-L0-structural-not-L2-data.md
+- id: '633'
+  title: 'source_index 坐标系 bug（slice_date_window 切片未重置局部下标 → fill_bar_index 越界吞决策，commit
+    b6aeabbf8b 已修）的两层谱系意义 + 跨层误判模式：①工程缺口模式『数据切片不重置局部坐标系致下标越界』在 NewChanlun 谱系无先例（核
+    8 处 source_index/切片/坐标系 Grep 命中：604 切片=Lean List.drop/take、turning-node 切片=E×F
+    代数轨道、627 坐标系=分层诊断认识论坐标系——均非数据切片局部下标，无重复）；②raw_source_index 跨 Dataset 溯源边界（codex
+    提示：现修复重置 source_index 为局部一致，若未来有跨 Dataset 溯源消费者则重置破坏全集溯源，须新增 raw_source_index
+    字段——前瞻边界值，当前无消费者）；③跨层误判模式：Lead 曾提『#2 Move 丢价格(定义冲突,632) ⊥ #5 source_index bug(实现
+    bug)疑似同源』，被机器证据否定（层级不同：#2=设计契约层 canonical Move 信息不足，#5=实现疏漏切片下标越界）——这是 L0 模式推测（同源假设）被
+    L2 机器证据否定的 formalization-validity-domain 实例（L0→L2 信息增量为正）'
+  status: 已结算
+  type: 矛盾发现
+  file: settled/633-source-index-slice-local-coordinate-reset-engineering-gap-raw-source-index-cross-dataset-tracing-boundary-cross-layer-misjudgment.md
+- id: '639'
+  title: 操作角色 σ_{p(g)} 来源 = 父容器方向（非活动持仓父腿，非全局主力锚，非静态全走势方向）
+  status: 已结算
+  type: 概念修正
+  file: settled/639-sigma-p-source-is-parent-container-direction-not-held-leg.md
+- id: '640'
+  title: 函数性单值 vs 结构性单值——§16 假设2"Prom 单值"的概念分离（前者真 by-construction，后者假 derivation_not_unique）
+  status: 已结算
+  type: 概念分离
+  file: settled/640-function-uniqueness-vs-structural-uniqueness-prom-single-valued.md
+- id: '577'
+  title: ''
+  status: 生成态
+  type: ''
+  file: pending/577-contamination-boundary-content-provenance-not-commit-timestamp.md
+- id: '615'
+  title: 完全分类·Layer1⊊Layer2 分离 = 构造子穷尽（μF 语法无逃逸）⊊ 缠论式完全分类（6 部分动态双射）：603 的『by construction
+    完全』对 Layer1 正确、对数学最严格标准不完整——最严标准 = 互斥穷尽分区 + 唯一递归分解(Eval健全+∼ₙ截面唯一) + 无前视状态转移 +
+    递归核 + 未完成→状态分支集 + 完全应对，三方独立验证收敛（Lead 代码库审计 + codex#1 双射分析 + codex#2 差距矩阵 + 编排者
+    ChatGPT 标准）
+  status: 生成态
+  type: 概念分离
+  file: pending/615-mu-f-layer1-subset-chanlun-strict-classification-layer2.md
+- id: '622'
+  title: worktree 隔离因 relations.jsonl 125MB LFS smudge 失败降级 = 549/476 同根因（LFS object
+    本地不可达）在『蜂群并行隔离层』的新显形面：git worktree checkout 时 smudge filter 对 relations.jsonl
+    拉取失败致 worktree 创建受阻 → 隔离方案降级为 git archive + CARGO_TARGET_DIR（隔离 cargo target 而非
+    git worktree）。区分 549（mapper 读 LFS 指针崩溃，scope=block-topology 映射管线）vs 本号（worktree
+    checkout smudge 失败，scope=蜂群并行隔离）——同一 125MB object 不可达，两个互不覆盖的冻结 scope
+  status: 生成态
+  type: 矛盾发现
+  file: pending/622-worktree-isolation-lfs-smudge-failure-archive-cargo-target-downgrade.md
+- id: '626'
+  title: block-topology 缺增量迁移路径——仅有破坏性全量重建(run_migration)，无 566-575 之类新增谱系的增量补齐入口；后果三联：(1)566-575(含566a)11条
+    settled 自迁移后未入 id_mapping(meta.json 仅到565)→ceremony_scan 两检测器(genealogy_anomalies/scan_topology_mapping_gap)持续报
+    missing_block_mapping+unmapped；(2)last_mapped_genealogy=530 与实际(565)脱节(全量重建丢该字段，无增量入口更新它)；(3)run_migration
+    全量重跑会清空 content_enrichment(314blocks/1148concepts)元数据并因 settled 内容漂移产生重复区块=178号Q1『一次性升格』决断的下游缺口(升格路径未配增量入口)
+  status: 生成态
+  type: 矛盾发现
+  file: pending/626-block-topology-no-incremental-migration-path-only-destructive-rebuild.md
+- id: '634'
+  title: ''
+  status: 生成态
+  type: 矛盾发现
+  file: pending/634-supervisor-persistent-vs-quadrant3-hardwall-conflict-event-vs-resident-station-taxonomy.md
+- id: '635'
+  title: ''
+  status: 生成态（部分结晶）
+  type: meta-rule
+  file: pending/635-anti-inflation-guard-crystallize-checkpoint-and-guard-self-inflation-new-dimension.md
+- id: '636'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/636-meta-observation-idle-notification-semantics-vs-lead-spawn-race.md
+- id: '637'
+  title: 中枢核心区间 ZG/ZD 的三口径分离
+  status: 生成态
+  type: 概念分离（reference 裁决触发）
+  file: pending/637-zhongshu-core-interval-caliber-separation-two-segment-vs-three-segment-vs-endpoints.md
+- id: '638'
+  title: 买卖点候选→走势元素附着判准（本级右端点命中，非区间包含）
+  status: 生成态
+  type: 语法记录
+  file: pending/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
+- id: '641'
+  title: 增量塔 API 声明『塔构造超线性消除 ⟹ exp≈1』但 exp 仍 1.65——centers.clone() O(k)/iter 残留热点未声明，声明膨胀（090号）+
+    memory signal-on2 模式复发
+  status: 生成态
+  type: bias-correction
+  file: pending/641-incremental-tower-macd-root-cause-claim-inflation-centers-clone-residual.md
+- id: '642'
+  title: acceptance[2] escalate『I5父结构live vs §13/639(c)父held仓位定义冲突』被codex异质+codex-challenger双向收敛降级为H2引擎自举缺口（定理类）；真因=coverage.rs:1253
+    host注入key错（注入候选同级host(c.level,source_index)而AncOK需候选parent_id高一级容器）——可在coverage.rs内修不改任何定义；连带修正
+    deltasharpe-zero-stale-rooting memory 把同一工程bug记为『真定义层冲突/编排者方向裁定（选择类）』的误判
+  status: 生成态
+  type: bias-correction
+  file: pending/642-acceptance2-h2-bootstrap-gap-not-definition-conflict-coverage-host-key-bug-deltasharpe-memory-correction.md
+- id: '643'
+  title: acceptance[1] bit-exact『PASS』是 L1 合成数据假 PASS——L2 真实 CL bar1464 发散（pre-existing
+    parser bug）；根因=古怪线段末段原地变异（67/78课定义层正确非bug）+ caller 守卫只查段数回缩不查末段值改写→复用陈旧缓存中枢；第一版
+    frontier_mutated 守卫比对 project_to_units 投影（有损丢 sub_moves）『碰巧过 8000bar 测试』被 codex
+    走真实守卫入口复现反例（115→147 vs 147→140 内点）抓出深嵌套 L2 cache subs 陈旧；修复=cascade reset（任一级
+    frontier 变异→该级+所有上级 reset），消除『投影有损丢 sub_moves』整类问题
+  status: 生成态
+  type: bias-correction
+  file: pending/643-acceptance1-bit-exact-false-pass-l1-validity-domain-inflation-frontier-guard-projection-lossy-cascade-reset.md
+- id: '644'
+  title: acceptance[2] 在 642(host key) 之后继续穿透三层：①工位H carrier-keyed 修复后 active_depth_ge3
+    报 14166 是**坐标系伪证**（诊断 elem_depth 走重建树 vs 生产 AncOK 走 work parent 链；active_restored=14137
+    实锤 restore overlay 污染）——codex + ChatGPT「级别容器2.pdf」§7定理**双向独立证伪**（depth_ge3>0⟹depth1/2>0
+    祖先闭合，故 14166∧depth1/2=0 数学不可能），且这是 commit 8dda535709 已裁 restore 伪证的**重复**（换字段）；②工位I
+    修诊断坐标系后真 depth>0 准入=0（四指标全=0一致，诚实否定性结果）；③命题M（『depth1/2=0 是 §9.1 结构定理⟹#5 先验不可达』，Lead
+    推测）被 ChatGPT §12/§14 严格证明否定——§9.1 只说『子active⟹父active』不说『浅层应少』，缠论自相似无 depth 特权，depth1/2=0
+    是经验/工程问题非结构定理；④真因 = 父 carrier 证书发出 10 万（BTC open_cert_with_carrier=100583/CL=91635，区间套确实发出父
+    carrier 子证书）但 accepted_cert_carrier=0（AncOK 全剪），落 ChatGPT §8 第二分支：父 carrier 注入
+    prev_active 的对位缺口（carrier 父 BSP 确认后未进 prev_active 作持仓父），非经验稀疏（P）非解释器没包装（发出侧巨量）。待
+    codex 核 I-1（注入缺口可修）vs I-2（计数虚高）。元模式判定：诊断坐标系≠生产坐标系的伪证已出现≥2 次（8dda535709 restore
+    + 本号 14166），关联 633（切片局部坐标系混用）/635（自清膨胀=运动员当裁判），建议结构性防护『诊断指标必须走生产同坐标系』移交 Lead
+  status: 生成态
+  type: bias-correction
+  file: pending/644-acceptance2-four-layer-penetration-14166-coordinate-phantom-repeats-restore-phantom-proposition-M-falsified-parent-carrier-injection-gap.md
+- id: '645'
+  title: ★命题A（ChatGPT「买卖点alpha.pdf」17页严格证明 + Lead 双向收敛 + codex）：π_Θ^cov（结构覆盖净额投影）≠
+    π_Θ^bsp（买卖点离散择时）是两个不同的操作语义对象——goal 六层穿透一直在否证 π_Θ^cov（覆盖净额无 alpha），从未测 π_Θ^bsp（缠论买卖点择时）。四定理坐实：T1
+    反例（父跌 ε=-1 ∧ 内部买点 B=1 → 离散择时 q=+1 做多，但覆盖净额=-0.7 做空，方向相反）；T2 §7 端点定向语法 G_e>0（ε_e=sign(P_ρ-P_λ)）是恒真语法非择时
+    alpha；T3 ε_e 依赖未来终点非 F_λ 可测=事后方向标签（lookahead）；T4 净额投影丢边际方向。§10 判定：b1 否证的是 π_Θ^cov
+    覆盖投影无 alpha，**没否证** π_Θ^bsp 买卖点择时（从未测）。这是『结构覆盖 vs 买卖点择时』的操作语义分离——v1 8/8 否证的有效域是覆盖投影，非缠论买卖点
+  status: 生成态
+  type: source-tracing
+  file: pending/645-coverage-projection-vs-bsp-timing-operational-semantic-separation-goal-falsified-wrong-object.md
+- id: '646'
+  title: §9 同单位数公理（q_v=q_p ⟹ 多空腿精确抵消 → b2 净额为零）vs rust 实装 depth_weight 不等权 [0.6,0.3,0.1]（⟹
+    不抵消 → b1 净额非零）= spec↔impl 定义冲突（codex task#19 发现）。接受 §9（同单位数）则 b2 精确抵消、覆盖净额恒零；接受
+    rust 不等权则 b1 净额非零但违 §9 公理。是 645 分离出的 π_Θ^cov（覆盖侧）内部的权重定义冲突——与 645（覆盖 vs 择时对象分离）正交。哪边对=选择类，待编排者裁定
+  status: 生成态
+  type: domain
+  file: pending/646-section9-equal-unit-count-axiom-vs-rust-depth-weight-unequal-definition-conflict.md
+- id: '647'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/647-meta-observation-object-identity-must-precede-falsification-design.md
+- id: 647-WITHDRAWN
+  title: ''
+  status: 已撤回
+  type: meta-rule
+  file: pending/647-lossy-projection-bidirectional-non-extrapolation-meta-rule.md
 edges:
   depends_on:
   - from: '136'
@@ -6053,6 +6440,172 @@ edges:
     to: '407'
   - from: '575'
     to: '565'
+  - from: 566a
+    to: '568'
+  - from: 566a
+    to: '575'
+  - from: 566a
+    to: '559'
+  - from: 566a
+    to: 094
+  - from: '616'
+    to: '615'
+  - from: '617'
+    to: '616'
+  - from: '617'
+    to: '615'
+  - from: '618'
+    to: '617'
+  - from: '618'
+    to: '616'
+  - from: '618'
+    to: '615'
+  - from: '619'
+    to: '618'
+  - from: '620'
+    to: '619'
+  - from: '620'
+    to: '618'
+  - from: '621'
+    to: 082
+  - from: '621'
+    to: '353'
+  - from: '621'
+    to: '566'
+  - from: '623'
+    to: '231'
+  - from: '623'
+    to: '034'
+  - from: '623'
+    to: '036'
+  - from: '623'
+    to: '621'
+  - from: '624'
+    to: '075'
+  - from: '624'
+    to: 082
+  - from: '624'
+    to: 097
+  - from: '625'
+    to: '231'
+  - from: '627'
+    to: '231'
+  - from: '627'
+    to: '625'
+  - from: '629'
+    to: '628'
+  - from: '629'
+    to: '231'
+  - from: '629'
+    to: '609'
+  - from: '630'
+    to: 069
+  - from: '630'
+    to: '033'
+  - from: '630'
+    to: '162'
+  - from: '630'
+    to: '231'
+  - from: '631'
+    to: '625'
+  - from: '631'
+    to: '627'
+  - from: '631'
+    to: '623'
+  - from: '632'
+    to: '629'
+  - from: '632'
+    to: '231'
+  - from: '632'
+    to: '608'
+  - from: '633'
+    to: '231'
+  - from: '577'
+    to: '201'
+  - from: '577'
+    to: '550'
+  - from: '615'
+    to: '598'
+  - from: '615'
+    to: '603'
+  - from: '622'
+    to: '549'
+  - from: '622'
+    to: '476'
+  - from: '626'
+    to: '178'
+  - from: '634'
+    to: '624'
+  - from: '634'
+    to: '621'
+  - from: '634'
+    to: '075'
+  - from: '634'
+    to: 082
+  - from: '635'
+    to: '231'
+  - from: '635'
+    to: 090
+  - from: '635'
+    to: '137'
+  - from: '636'
+    to: '353'
+  - from: '636'
+    to: '621'
+  - from: '636'
+    to: '624'
+  - from: '637'
+    to: '003'
+  - from: '637'
+    to: 098
+  - from: '641'
+    to: 090
+  - from: '641'
+    to: '231'
+  - from: '642'
+    to: '639'
+  - from: '643'
+    to: '231'
+  - from: '643'
+    to: '625'
+  - from: '643'
+    to: '640'
+  - from: '643'
+    to: 090
+  - from: '644'
+    to: '642'
+  - from: '644'
+    to: '633'
+  - from: '644'
+    to: '639'
+  - from: '644'
+    to: '231'
+  - from: '644'
+    to: '640'
+  - from: '644'
+    to: 090
+  - from: '645'
+    to: '231'
+  - from: '645'
+    to: '642'
+  - from: '645'
+    to: '644'
+  - from: '646'
+    to: '231'
+  - from: '646'
+    to: '645'
+  - from: '647'
+    to: '231'
+  - from: '647'
+    to: '644'
+  - from: '647'
+    to: '645'
+  - from: '647'
+    to: '640'
+  - from: '647'
+    to: 090
+  - from: '647'
+    to: '643'
   triggered:
   - from: '005'
     to: 005a
@@ -6231,6 +6784,11 @@ edges:
       RB_DIVERGE）是正确的，只是顶层稀疏（556）』——被 #37+friction-model L3 精化否定：d_top 是『走势完成』的代理，而腿的合法开平依据是『买卖点（第17课）+
       区间套（第27课）』。绑 d_top ⟹ 在 d_top 稀疏的级别（556 跨年）等不到关闭信号 ⟹ 空腿开了关不掉 = 冻结空腿 ⟹ 强牛中骑整段反转无界失血（穿仓）。d_top
       现象（556 顶层冻结）真实存在但根因是『绑错信号』，非『信号对但稀疏』。'
+  - from: '571'
+    to: 097/548/564 的隐含完备性命题『hook 纯化序列已覆盖 Stop-Guard 的全部维度』——571 expansion
+      型否定：该序列只在『注入内容维度』（097 阻断/放行二值 + 548 注入什么类型 + 564 注入内容越界）收敛，未覆盖正交的『阻断对象维度』（阻断谁）。Stop-Guard
+      第 511-522 行 decision:block 无 owner/责任方过滤，把 session 级阻断打到无可推进工作的非责任方（meta-lead 之于 567）。expansion
+      = 否定旧序列的完备性断言 + 保留其内容维度结论 + 扩展出阻断对象维度（split:097-hook-action-dimension）。
   - from: '572'
     to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
       纯多头 max_gross≈1× 不亏）= 补丁思维回避——用『不做空』回避『平空做不对』。门控版『8/8 净正不亏』是回避不是解（编排者否定）。这是
@@ -6243,6 +6801,10 @@ edges:
     to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
       纯多头 max_gross≈1× 不亏）= 补丁思维回避——用『不做空』回避『平空做不对』。门控版『8/8 净正不亏』是回避不是解（编排者否定）。087/089/090
       补丁思维否定 lineage 新实例。★#69 取代：开空门控改为 t3sell(链破坏)+k<核心，做空腿从『不亏冬眠』→『次级别短差净赚+9623』。
+  - from: '577'
+    to: 隐含命题『恢复语境下，post-interrupt 的文件系统/session 快照是可信真值，恢复只需补全缺失的结构元数据（201号模式）』——被证伪：post-interrupt
+      快照即便看似忠实也可能携带污染；污染边界由内容 provenance 而非 commit 时间戳判定；派生的 session 文件可能引入错误分类（把
+      pre-interrupt 在制品误标为污染）
   related:
   - between:
     - '001'
@@ -8335,6 +8897,690 @@ edges:
   - between:
     - '569'
     - '575'
+  - between:
+    - '566'
+    - 566a
+  - between:
+    - 566a
+    - '567'
+  - between:
+    - 566a
+    - '569'
+  - between:
+    - 566a
+    - '570'
+  - between:
+    - 566a
+    - '571'
+  - between:
+    - 566a
+    - '572'
+  - between:
+    - 566a
+    - '573'
+  - between:
+    - 566a
+    - '574'
+  - between:
+    - '012'
+    - 566a
+  - between:
+    - '549'
+    - 566a
+  - between:
+    - '550'
+    - 566a
+  - between:
+    - '605'
+    - '616'
+  - between:
+    - '603'
+    - '616'
+  - between:
+    - '231'
+    - '616'
+  - between:
+    - 090
+    - '616'
+  - between:
+    - '605'
+    - '617'
+  - between:
+    - '603'
+    - '617'
+  - between:
+    - '231'
+    - '617'
+  - between:
+    - 090
+    - '617'
+  - between:
+    - '231'
+    - '618'
+  - between:
+    - 090
+    - '618'
+  - between:
+    - '603'
+    - '618'
+  - between:
+    - '575'
+    - '619'
+  - between:
+    - '161'
+    - '619'
+  - between:
+    - '615'
+    - '619'
+  - between:
+    - '231'
+    - '619'
+  - between:
+    - 090
+    - '619'
+  - between:
+    - '603'
+    - '619'
+  - between:
+    - '616'
+    - '619'
+  - between:
+    - '617'
+    - '619'
+  - between:
+    - '161'
+    - '620'
+  - between:
+    - 090
+    - '620'
+  - between:
+    - '603'
+    - '620'
+  - between:
+    - '620'
+    - no-workaround
+  - between:
+    - '033'
+    - '621'
+  - between:
+    - 069
+    - '621'
+  - between:
+    - '548'
+    - '621'
+  - between:
+    - '562'
+    - '621'
+  - between:
+    - '016'
+    - '621'
+  - between:
+    - 090
+    - '621'
+  - between:
+    - '161'
+    - '621'
+  - between:
+    - '036'
+    - '621'
+  - between:
+    - '406'
+    - '623'
+  - between:
+    - '353'
+    - '623'
+  - between:
+    - 082
+    - '623'
+  - between:
+    - '016'
+    - '623'
+  - between:
+    - '562'
+    - '623'
+  - between:
+    - 090
+    - '623'
+  - between:
+    - '443'
+    - '623'
+  - between:
+    - '622'
+    - '623'
+  - between:
+    - '562'
+    - '624'
+  - between:
+    - '621'
+    - '624'
+  - between:
+    - '623'
+    - '624'
+  - between:
+    - '353'
+    - '624'
+  - between:
+    - '566'
+    - '624'
+  - between:
+    - '033'
+    - '624'
+  - between:
+    - 069
+    - '624'
+  - between:
+    - 095
+    - '624'
+  - between:
+    - 096
+    - '624'
+  - between:
+    - '020'
+    - '624'
+  - between:
+    - 090
+    - '624'
+  - between:
+    - '161'
+    - '624'
+  - between:
+    - '623'
+    - '625'
+  - between:
+    - '376'
+    - '625'
+  - between:
+    - 090
+    - '625'
+  - between:
+    - '625'
+    - L2-engine-incompleteness-vs-theta-falsification
+  - between:
+    - '623'
+    - '627'
+  - between:
+    - '619'
+    - '627'
+  - between:
+    - '616'
+    - '627'
+  - between:
+    - '617'
+    - '627'
+  - between:
+    - '376'
+    - '627'
+  - between:
+    - 090
+    - '627'
+  - between:
+    - '627'
+    - l2-engine-incompleteness-vs-theta-falsification
+  - between:
+    - '619'
+    - '629'
+  - between:
+    - '606'
+    - '629'
+  - between:
+    - 090
+    - '629'
+  - between:
+    - '161'
+    - '629'
+  - between:
+    - '629'
+    - no-workaround
+  - between:
+    - '629'
+    - no-patch-mentality
+  - between:
+    - '623'
+    - '629'
+  - between:
+    - '625'
+    - '629'
+  - between:
+    - '629'
+    - '630'
+  - between:
+    - '628'
+    - '630'
+  - between:
+    - '624'
+    - '630'
+  - between:
+    - '562'
+    - '630'
+  - between:
+    - 081
+    - '630'
+  - between:
+    - '575'
+    - '630'
+  - between:
+    - '619'
+    - '630'
+  - between:
+    - '630'
+    - no-patch-mentality
+  - between:
+    - '630'
+    - no-workaround
+  - between:
+    - '161'
+    - '630'
+  - between:
+    - '607'
+    - '631'
+  - between:
+    - '600'
+    - '631'
+  - between:
+    - '628'
+    - '632'
+  - between:
+    - '606'
+    - '632'
+  - between:
+    - '619'
+    - '632'
+  - between:
+    - 090
+    - '632'
+  - between:
+    - '161'
+    - '632'
+  - between:
+    - '632'
+    - no-workaround
+  - between:
+    - '632'
+    - no-patch-mentality
+  - between:
+    - '632'
+    - '633'
+  - between:
+    - '625'
+    - '633'
+  - between:
+    - '627'
+    - '633'
+  - between:
+    - '623'
+    - '633'
+  - between:
+    - 090
+    - '633'
+  - between:
+    - '633'
+    - no-workaround
+  - between:
+    - '633'
+    - no-patch-mentality
+  - between:
+    - '633'
+    - formalization-validity-domain
+  - between:
+    - '633'
+    - L2-engine-incompleteness-vs-theta-falsification
+  - between:
+    - '638'
+    - '639'
+  - between:
+    - '547'
+    - '639'
+  - between:
+    - '574'
+    - '639'
+  - between:
+    - '639'
+    - coverage-engine-needs-tower-export-bridge
+  - between:
+    - '639'
+    - newchanlun-v1-fullwindow-l3-falsified
+  - between:
+    - '639'
+    - '640'
+  - between:
+    - '635'
+    - '640'
+  - between:
+    - '640'
+    - lead-self-cleared-inflation-flag-is-rationalization
+  - between:
+    - '231'
+    - '640'
+  - between:
+    - '534'
+    - '576'
+  - between:
+    - '538'
+    - '576'
+  - between:
+    - '231'
+    - '576'
+  - between:
+    - '050'
+    - '576'
+  - between:
+    - '407'
+    - '577'
+  - between:
+    - '137'
+    - '577'
+  - between:
+    - 090
+    - '577'
+  - between:
+    - '012'
+    - '577'
+  - between:
+    - '575'
+    - '577'
+  - between:
+    - '597'
+    - '615'
+  - between:
+    - '602'
+    - '615'
+  - between:
+    - '604'
+    - '615'
+  - between:
+    - '605'
+    - '615'
+  - between:
+    - '606'
+    - '615'
+  - between:
+    - '608'
+    - '615'
+  - between:
+    - '609'
+    - '615'
+  - between:
+    - '231'
+    - '615'
+  - between:
+    - 090
+    - '615'
+  - between:
+    - '178'
+    - '622'
+  - between:
+    - '347'
+    - '622'
+  - between:
+    - '622'
+    - no-workaround
+  - between:
+    - '622'
+    - no-patch-mentality
+  - between:
+    - '037'
+    - '622'
+  - between:
+    - '056'
+    - '622'
+  - between:
+    - '549'
+    - '626'
+  - between:
+    - 566a
+    - '626'
+  - between:
+    - '624'
+    - '626'
+  - between:
+    - '621'
+    - '626'
+  - between:
+    - '036'
+    - '626'
+  - between:
+    - 090
+    - '626'
+  - between:
+    - '161'
+    - '626'
+  - between:
+    - '012'
+    - '626'
+  - between:
+    - '562'
+    - '634'
+  - between:
+    - '353'
+    - '634'
+  - between:
+    - '033'
+    - '634'
+  - between:
+    - 069
+    - '634'
+  - between:
+    - 090
+    - '634'
+  - between:
+    - '161'
+    - '634'
+  - between:
+    - '020'
+    - '634'
+  - between:
+    - '621'
+    - '635'
+  - between:
+    - '623'
+    - '635'
+  - between:
+    - '627'
+    - '635'
+  - between:
+    - '625'
+    - '635'
+  - between:
+    - '631'
+    - '635'
+  - between:
+    - '600'
+    - '635'
+  - between:
+    - '036'
+    - '635'
+  - between:
+    - '623'
+    - '636'
+  - between:
+    - '627'
+    - '636'
+  - between:
+    - '625'
+    - '636'
+  - between:
+    - '033'
+    - '636'
+  - between:
+    - 069
+    - '636'
+  - between:
+    - '275'
+    - '636'
+  - between:
+    - 090
+    - '636'
+  - between:
+    - '636'
+    - l2-engine-incompleteness-vs-theta-falsification
+  - between:
+    - '003'
+    - '637'
+  - between:
+    - 098
+    - '637'
+  - between:
+    - '231'
+    - '637'
+  - between:
+    - '248'
+    - '637'
+  - between:
+    - '547'
+    - '638'
+  - between:
+    - '574'
+    - '638'
+  - between:
+    - '608'
+    - '638'
+  - between:
+    - '6'
+    - '638'
+  - between:
+    - '638'
+    - coverage-engine-needs-tower-export-bridge
+  - between:
+    - '638'
+    - b2s2-still-missing-tower
+  - between:
+    - '640'
+    - '641'
+  - between:
+    - '639'
+    - '641'
+  - between:
+    - '641'
+    - signal-on2-two-independent-hotspots
+  - between:
+    - '638'
+    - '642'
+  - between:
+    - '640'
+    - '642'
+  - between:
+    - '641'
+    - '642'
+  - between:
+    - '642'
+    - newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass
+  - between:
+    - '642'
+    - l2-falsify-dual-barrier-not-just-perf
+  - between:
+    - '642'
+    - newchanlun-sigma-p-is-parent-container-not-held-leg
+  - between:
+    - '631'
+    - '643'
+  - between:
+    - '641'
+    - '643'
+  - between:
+    - '642'
+    - '643'
+  - between:
+    - '001'
+    - '643'
+  - between:
+    - '002'
+    - '643'
+  - between:
+    - '635'
+    - '644'
+  - between:
+    - '640'
+    - '644'
+  - between:
+    - '641'
+    - '644'
+  - between:
+    - '643'
+    - '644'
+  - between:
+    - '625'
+    - '644'
+  - between:
+    - '644'
+    - newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass
+  - between:
+    - '644'
+    - v1-fullwindow-l3-falsified
+  - between:
+    - '644'
+    - newchanlun-sigma-p-is-parent-container-not-held-leg
+  - between:
+    - '633'
+    - '644'
+  - between:
+    - '627'
+    - '644'
+  - between:
+    - 643-frontier-guard
+    - '644'
+  - between:
+    - '639'
+    - '645'
+  - between:
+    - '643'
+    - '645'
+  - between:
+    - '645'
+    - v1-fullwindow-l3-falsified
+  - between:
+    - '645'
+    - newchanlun-divergence-degenerate-is-missing-abc-layer
+  - between:
+    - '645'
+    - coverage-engine-needs-tower-export-bridge
+  - between:
+    - '645'
+    - newchanlun-sigma-p-is-parent-container-not-held-leg
+  - between:
+    - '639'
+    - '646'
+  - between:
+    - '642'
+    - '646'
+  - between:
+    - '644'
+    - '646'
+  - between:
+    - '646'
+    - v1-fullwindow-l3-falsified
+  - between:
+    - '646'
+    - coverage-engine-needs-tower-export-bridge
+  - between:
+    - '627'
+    - '647'
+  - between:
+    - '623'
+    - '647'
+  - between:
+    - '640'
+    - '647'
+  - between:
+    - '643'
+    - '647'
+  - between:
+    - '644'
+    - '647'
+  - between:
+    - '645'
+    - '647'
+  - between:
+    - '601'
+    - '647'
+  - between:
+    - '631'
+    - '647'
+  - between:
+    - '642'
+    - '647'
+  - between:
+    - '646'
+    - '647'
   tensions_with:
   - between:
     - '007'

@@ -1,3 +1,6 @@
+# 谱系发生史数据（block-topology 区块 JSON，非代码，去 git 跟踪以瘦身索引；物理文件保留）
+.chanlun/block-topology/blocks/
+
 # Python
 __pycache__/
 *.py[cod]
