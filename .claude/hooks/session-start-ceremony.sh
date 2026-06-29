@@ -193,7 +193,7 @@ fi
 #   - 机制前提（ceremony-completion-guard.sh Stop hook 检查 1.5，562号）：Lead 跳过 ceremony
 #     → 缺常设结构工位 → Stop 被 block，机制性地强制 ceremony-等价行为。两前提共同构成强制。
 # 状态快照仅供参考，工位的唯一确定性来源是 ceremony_scan.py（非 LLM 对 git diff 的认知判断）。
-FIRST_ACTION="本回合第一个动作=invoke /ceremony 热启动序列：运行 \`python scripts/ceremony_state.py write 1 initial\` → \`python scripts/ceremony_scan.py\`，由 scan 的确定性输出决定本轮工位。禁止用手动 git diff/下方状态快照对比代替 ceremony_scan——快照仅供参考，工位来源是 scan。scan 输出 workstations 后，用 Agent tool（name=工位名 + run_in_background=true，teammate 模式；harness 已演化：单一隐式 team，无需 TeamCreate，team_name 已废弃）并行 spawn。"
+FIRST_ACTION="本回合第一个动作=invoke /ceremony 热启动序列：运行 \`python scripts/ceremony_state.py write 1 initial\` → \`python scripts/ceremony_scan.py\`，由 scan 的确定性输出决定本轮工位。禁止用手动 git diff/下方状态快照对比代替 ceremony_scan——快照仅供参考，工位来源是 scan。scan 输出 workstations 后，用 Agent tool（name=工位名 + run_in_background=true，teammate 模式；harness 已演化：单一隐式 team，无需 TeamCreate，team_name 已废弃）并行 spawn。ceremony/热启动完成后 Lead 默认进 /goal 运行协议循环（.claude/commands/goal.md 步骤1-7：评估→scan→spawn→监控→真封→commit→回步骤1，不停在手动 (c) 等 Stop-Guard 推动）——若 .chanlun/goals/events.jsonl 有 active goal（scan 输出 current_goal 非 null 且未 terminated）则 append GOAL_RESUME 续跑；无 active goal 则从 roadmap/中断点推导候选 GOAL_SET（acceptance 项须 falsifiable）后 append 进循环。编排者裁定(2026-06-29)：Lead 默认 goal 驱动持续自主运行，goal 达成/真实矛盾(/escalate)/资源耗尽是仅有的三种合法停止。"
 
 # compact 恢复专用框定：显式声明 summary 的 resume-directly 不覆盖本动作
 if [ "$SOURCE" = "compact" ]; then

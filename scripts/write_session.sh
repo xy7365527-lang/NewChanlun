@@ -141,10 +141,19 @@ ${task_summary:-  - (无任务)}"
     done
 fi
 
+# ─── 无条件重新生成中断点 projection（630 开口③写侧根因修复） ───
+# 根因：interrupt_materializer.materialize() 是正确的实时机械生成器（每次 git rev-parse
+# HEAD），但此前只挂在 ceremony_scan --materialize-interrupt 下，无 hook 触发它。
+# PreCompact/Stop/ceremony_push 三个写侧调用方都经过本脚本，却只把 .interrupt-point.md
+# 当只读输入读（下方），从不重写——于是它停在首次手写的 HEAD，git 多 commit 后永久 stale。
+# 修复：采集前无条件 materialize，让 base_head/git_head 锚定实时 git 真相。须在读取之前
+# 执行，否则 session 拿到刷新前的旧指针。失败容错（不阻断 session 写入）。
+python scripts/interrupt_materializer.py >/dev/null 2>&1 || true
+
 # ─── 采集中断点 ───
-# 优先：Lead 维护的当前中断点（.interrupt-point.md）。避免链式复制旧 session 的过时中断点
-# （根因修复：旧逻辑 sed 复制上个 session 的「## 中断点」，导致过时内容永久传递，
-#  Lead 真实中断点无注入通道。现 Lead 在 precompact 前/重大状态变更后更新此文件）。
+# 优先：实时 materialize 的中断点 projection（.interrupt-point.md，刚由上方重新生成）。
+# 避免链式复制旧 session 的过时中断点（旧逻辑 sed 复制上个 session 的「## 中断点」，
+#  导致过时内容永久传递）。
 PREV_SESSION=""
 PREV_INTERRUPTS=""
 LEAD_INTERRUPT=""

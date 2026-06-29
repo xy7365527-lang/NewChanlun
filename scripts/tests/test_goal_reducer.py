@@ -16,6 +16,17 @@ def test_goal_set_rebuilds_current():
     assert out["current_goal"]["goal_id"] == "g1"
     assert out["current_goal"]["status"] == "active"
 
+def test_goal_resume_reanchors_base_head():
+    # GOAL_RESUME 在新 HEAD 重锚定 → base_head 前移、stale 用新锚判定。
+    events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+               "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "old", "ts": "t0"},
+              {"event": "GOAL_RESUME", "goal_id": "g1", "base_head": "new", "ts": "t1"}]
+    out = reduce_goal(events, _facts(head="new"))
+    assert out["current_goal"]["base_head"] == "new"
+    assert out["current_goal"]["base_head_stale"] is False
+    # HEAD 与 resume 锚不符 → 仍 stale（信号未被删除）
+    assert reduce_goal(events, _facts(head="other"))["current_goal"]["base_head_stale"] is True
+
 def test_decompose_ready_excludes_blocked():
     events = [
         {"event": "GOAL_SET", "goal_id": "g1", "description": "x",

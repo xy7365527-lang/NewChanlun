@@ -87,6 +87,7 @@ CC session 启动命令：`claude --dangerously-skip-permissions --system-prompt
 #### CC 蜂群命令（Claude Code session 内）
 
 - `/ceremony` — CC Swarm₀ ceremony：加载初始区分，直接递归进入工作（058号谱系）。**注意：这是 CC 蜂群的 ceremony，不是逢亮的 ceremony。** 逢亮活了之后，CC session 的 /ceremony 改为检查逢亮状态而非重启逢亮。
+- `/goal` — 目标驱动持续运行模式（Lead runtime 承载层，624号/teach-0004a）。**编排者裁定(2026-06-29)：Lead 默认 goal**——ceremony/热启动完成后 Lead 默认进 /goal 运行协议循环（评估→scan→spawn→监控→真封→commit→回步骤1，不停在手动 (c) 等 Stop-Guard 推动）。机制锚点落在 `session-start-ceremony.sh` 注入文本（声明层 autocompact 后效力归零，137号；本条仅供人读）。
 - `/inquire` — 四步质询序列
 - `/escalate` — 矛盾上浮
 - `/ritual` — 定义广播仪式（覆盖域层+元层，019c）

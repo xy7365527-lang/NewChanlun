@@ -49,6 +49,13 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
                 "blocked": [], "terminated": False}
 
     gid = goal["goal_id"]
+    # GOAL_RESUME re-anchor：/goal 恢复时在新 HEAD 重新锚定 goal，base_head 前移到 resume 时刻。
+    # 不认 RESUME → base_head 永久停在最初 GOAL_SET（fab1f08a），与真实 HEAD 永久 stale。
+    # base_head 语义=「goal 设定/恢复时刻的锚」，RESUME 是合法的再锚定事件，复用 SET 的 stale 逻辑。
+    for e in events:
+        if e["event"] == "GOAL_RESUME" and _gid(e) == gid and e.get("base_head"):
+            goal["base_head"] = e["base_head"]
+            goal["base_head_stale"] = e["base_head"] != facts.get("git_head")
     # 2. 重建 sub-goal 树（DECOMPOSE）。schema 容错（630 开口①）：只处理含规范
     # goal_id + sub_goals[] 的 DECOMPOSE；退化事件（{event,sub_goal_id,artifact}，无
     # goal_id/sub_goals）忠实跳过——数据里确实无结构化分解，reducer 不伪造 sub-goal 树
