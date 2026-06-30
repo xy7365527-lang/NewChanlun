@@ -1479,6 +1479,10 @@ fn restore_ancestor_chain_from_registry(
     raw: &mut Vec<usize>,
     registry: &super::persistent::PersistentRegistry,
     start_pid: super::classifier::recursive_tower::ElementId,
+    // ★工位 4f：id→idx 查表（base 段缓存 + restore 动态 push 的 overlay 段累积），消 work.iter().position
+    // O(work)/层=O(n²)。raw.any 不动（raw 有界，prev_active~O(log n) 实测 9@16K）。
+    id_idx: &std::collections::HashMap<ElementId, usize>,
+    overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
 ) {
     let mut cur = Some(start_pid);
     while let Some(pid) = cur {
@@ -1487,11 +1491,11 @@ fn restore_ancestor_chain_from_registry(
         if already_in_raw {
             break;
         }
-        // ★(I-1) codex 异质审查发现：祖先若**已存在于 work**（如树前缀的 carrier 走势）但不在 raw，
-        // 必须**复用其现有 idx**入 raw——不能 push 重复 id 元素。否则 next_idx（AncOK 后索引集）会对
-        // 同一 carrier 产**两条** leg（树前缀 idx + registry 追加 idx），strategy_target_legs 双计 ⟹
-        // p̃ 双计（伪证）。复用现有 idx 保证每 id 在 raw 中唯一表示（与 spec §13 元素集语义一致）。
-        if let Some(existing_idx) = work.iter().position(|e| e.id == pid) {
+        // ★(I-1) 祖先若已在 work（树前缀 carrier / restore 已 push 的）但不在 raw，**复用现有 idx**入 raw
+        // （不 push 重复 id，否则 strategy_target_legs 双计 p̃ 伪证）。查表 O(1)：先 base id_idx 再 overlay_seen。
+        // bit-exact == 旧 work.iter().position：position 返首个匹配 idx，base 段在 overlay 前 ⟹ base 优先与
+        // position 序一致；overlay_seen 用 or_insert 存首次 push idx ⟹ 与 position 在 overlay 段首个匹配一致。
+        if let Some(&existing_idx) = id_idx.get(&pid).or_else(|| overlay_seen.get(&pid)) {
             raw.push(existing_idx);
             cur = work[existing_idx].parent_id; // 沿已有元素的结构父链上溯
             continue;
@@ -1513,6 +1517,7 @@ fn restore_ancestor_chain_from_registry(
             id: pe.pid,
             parent_id: pe.structural_parent_id,
         });
+        overlay_seen.entry(pe.pid).or_insert(op_idx); // 记录新 push 的 overlay idx（首次出现序，复用查 O(1)）。
         raw.push(op_idx);
         cur = parent_pid; // 上溯祖先链
     }
@@ -1546,6 +1551,17 @@ pub(crate) fn coverage_step_from_buckets(
         Some(rc) => Rc::clone(rc),
         None => Rc::new(build_tree_id_index(work.tree_prefix(tree_end))),
     };
+    // ★工位 4f：overlay 段（candidate ++ restore push）id→idx，restore 复用查 O(1)（消 work.iter().position
+    // O(work)/层=O(n²)）。初始 = candidate 段（base_len..work.len()，首次出现序）；restore push 时累积。
+    // bit-exact == 旧 work.iter().position：查找 id_idx(base) 优先 → overlay_seen，与 position「base 段在前」
+    // 序一致；or_insert 存首次 idx，与 position 首个匹配一致。
+    let mut overlay_seen: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
+    for i in candidate_start..work.len() {
+        if let Some(e) = work.get(i) {
+            overlay_seen.entry(e.id).or_insert(i);
+        }
+    }
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -1596,7 +1612,7 @@ pub(crate) fn coverage_step_from_buckets(
                         // live ⟹ 所有 depth<d 腿通过 persistent AncOK）。
                         if let Some(op_pid) = leg.op_parent {
                             restore_ancestor_chain_from_registry(
-                                &mut work, &mut raw, registry, op_pid,
+                                &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
                             );
                         }
                         let idx = work.len();
@@ -1678,7 +1694,7 @@ pub(crate) fn coverage_step_from_buckets(
                 let parent_in_raw =
                     raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
                 if !parent_in_raw && registry.registry_live(&parent_pid) {
-                    restore_ancestor_chain_from_registry(&mut work, &mut raw, registry, parent_pid);
+                    restore_ancestor_chain_from_registry(&mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen);
                 }
             }
         }
@@ -3241,7 +3257,9 @@ mod tests {
         // registry 持有同一 carrier id（LiveDetached：snapshot_present 经下一 bar 增量重置为 false）。
         let reg = super::super::persistent::PersistentRegistry::new().merge(&base, &[]);
 
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier);
+        let id_idx = build_tree_id_index(&base);
+        let mut overlay_seen = std::collections::HashMap::new();
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen);
 
         assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]，overlay 空）");
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");

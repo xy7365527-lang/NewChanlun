@@ -519,6 +519,102 @@ mod profile {
         }
     }
 
+    /// **★工位 4g 前置诊断：TreeKey-miss 频率 + 成本分布**（修复路径决策数据，L2）。
+    ///
+    /// #18 报告 extract x_exp≈2.0 但绝对值极小，归因 TreeKey-miss ceiling（miss 时全量
+    /// `extract_elements` + 3×`build_*_index`）。修复（检测最高级变化 + 索引重映射重用前缀）是
+    /// high bit-exact risk 重构——动手前必须先量化：miss 占多少 bar？miss 累积成本占 extract 总时
+    /// 多少？miss 是否集中在大 n 端（O(Σtree_at_miss) 超线性的来源）？
+    ///
+    /// 测：逐 bar 记 hit/miss + miss 时 tree.len()。若 miss 累积成本 << extract 总时 ⟹ ceiling 不是
+    /// exp≈2.0 的真因（exp 来自别处），修复无收益（ponytail：不修不需要存在的东西）。
+    #[test]
+    #[ignore = "工位 4g：TreeKey-miss 频率+成本分布；需 CL；--release --ignored"]
+    fn diag_treekey_miss_cost_16k() {
+        use super::super::super::strategy::{coverage, interp};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 16_000.min(oos.bars.len());
+        let bars = &oos.bars[..n];
+        let mut incr = super::IncrementalClassifier::new(bars, &config);
+        let mut prev_key = interp::TreeKey::default();
+        let mut first = true;
+        let mut miss_count = 0usize;
+        let mut miss_cost = 0.0f64;   // miss 时 extract_elements + 3 index 全量重建累计耗时
+        let mut total_extract_work = 0.0f64; // 所有 bar 若无缓存的全量重建总时（基底对照）
+        let mut miss_tree_sizes: Vec<usize> = Vec::new();
+        for i in 0..n {
+            let (_cls, tower) = incr.classify_at(i);
+            let key = interp::TreeKey::of(&tower);
+            let is_miss = first || key != prev_key;
+            first = false;
+            prev_key = key;
+            // 量化一次全量重建成本（extract + 3 index，§16 ceiling 的真实工作量）。
+            let t = std::time::Instant::now();
+            let tree = coverage::extract_elements(&tower);
+            let _e = coverage::build_tree_endpoint_index(&tree);
+            let _s = coverage::build_prev_sibling_index(&tree);
+            let _d = coverage::build_tree_id_index(&tree);
+            let cost = t.elapsed().as_secs_f64();
+            total_extract_work += cost;
+            if is_miss {
+                miss_count += 1;
+                miss_cost += cost;
+                miss_tree_sizes.push(tree.len());
+            }
+        }
+        let avg_miss_tree = if miss_count > 0 {
+            miss_tree_sizes.iter().sum::<usize>() as f64 / miss_count as f64
+        } else { 0.0 };
+        let max_miss_tree = miss_tree_sizes.iter().copied().max().unwrap_or(0);
+        eprintln!("\n===== TreeKey-miss 成本分布（CL OOS 16K，L2）=====");
+        eprintln!("miss={miss_count}/{n}（{:.2}%）", 100.0 * miss_count as f64 / n as f64);
+        eprintln!("miss 累积重建成本={miss_cost:.4}s；全 bar 若无缓存总重建={total_extract_work:.4}s");
+        eprintln!("miss 成本占全量重建={:.1}%（其余 {:.1}% 被缓存命中省下）",
+            100.0 * miss_cost / total_extract_work, 100.0 * (1.0 - miss_cost / total_extract_work));
+        eprintln!("miss tree.len：avg={avg_miss_tree:.0} max={max_miss_tree}");
+        eprintln!("miss tree.len 末 10：{:?}", &miss_tree_sizes[miss_tree_sizes.len().saturating_sub(10)..]);
+    }
+
+    /// **★工位 4g 真因隔离：`TreeKey::of` per-bar 标度**（L2）。
+    ///
+    /// miss 成本仅 0.1%（diag_treekey_miss_cost_16k 坐实），∴ exp≈2.0 不来自 miss 重建。嫌疑：
+    /// cached hit 路径**每 bar 无条件 `TreeKey::of(tower)`**（interp.rs:480 算 key 才能比较）——递归
+    /// 发射全部 tree 节点 = O(confirmed tree)/bar，tree 单调增 ⟹ O(n²) 累积。这是 hit 路径里唯一随
+    /// tree 增长的 O(tree) 工作（候选段 O(cand≤47)、role 查表 O(1)、tree/index 命中 Rc::clone O(1)）。
+    /// 本 diag 测纯 `TreeKey::of` 累积标度——若 key_exp≈2 ⟹ 真因坐实（修复=指纹增量/缓存，非 extract 前缀重用）。
+    #[test]
+    #[ignore = "工位 4g：TreeKey::of per-bar 标度（真因隔离）；需 CL；--release --ignored"]
+    fn diag_treekey_of_scaling_16k() {
+        use super::super::super::strategy::interp;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [2000usize, 4000, 8000, 16000];
+        let mut prev: Option<(usize, f64)> = None;
+        eprintln!("\n===== TreeKey::of per-bar 累积标度（CL OOS，L2）=====");
+        eprintln!("{:>7} | {:>10} | {:>8}", "n", "key_s", "key_exp");
+        for &n in &sizes {
+            if n > oos.bars.len() { break; }
+            let bars = &oos.bars[..n];
+            let mut incr = super::IncrementalClassifier::new(bars, &config);
+            let mut t_key = 0.0f64;
+            let mut last_fp_len = 0usize;
+            for i in 0..n {
+                let (_cls, tower) = incr.classify_at(i);
+                let t = std::time::Instant::now();
+                let key = interp::TreeKey::of(&tower);
+                t_key += t.elapsed().as_secs_f64();
+                last_fp_len = key.fp_len();
+            }
+            let ke = prev.map(|(pn, pt)| logexp(pn, pt, n, t_key)).unwrap_or(f64::NAN);
+            eprintln!("{n:>7} | {t_key:>10.4} | {ke:>8.2}  fp_len={last_fp_len}");
+            prev = Some((n, t_key));
+        }
+    }
+
     /// **★工位 4d L2 证据：`coverage_step` 路径标度（热点①② 消除验收）**。
     ///
     /// 工位 4c 的 `diag_strategy_hotspot_decompose_16k` 只测 extract（candidate 段重建）+ merge（③），
@@ -553,11 +649,15 @@ mod profile {
             let mut tree_cache = interp::TreeCache::new();
             let mut prev_active: Vec<interp::ActiveLeg> = Vec::new();
             let mut t_step = 0.0f64;
+            let mut last_gamma = 0usize;
+            let mut last_work_base = 0usize;
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 let (tree, candidates, gamma) =
                     interp::coverage_elements_and_gamma_with_tower_cached(
                         &cls, &tower, &mut Some(&mut tree_cache));
+                last_gamma = gamma.len();
+                last_work_base = tree.len();
                 // 生产路径：注入缓存 base 索引（①② O(1) 命中）。
                 let mut work = coverage::ElementView::from_parts(&tree, candidates);
                 if let Some((sib, id)) = tree_cache.tree_sibling_and_id() {
@@ -574,7 +674,7 @@ mod profile {
                 prev_active = next_active;
             }
             let se = prev.map(|(pn, pt)| logexp(pn, pt, n, t_step)).unwrap_or(f64::NAN);
-            eprintln!("{n:>7} | {t_step:>10.3} | {se:>8.2}  registry_len={}", registry.len());
+            eprintln!("{n:>7} | {t_step:>10.3} | {se:>8.2}  registry_len={} prev_active_last={} gamma_last={} work_base_last={}", registry.len(), prev_active.len(), last_gamma, last_work_base);
             prev = Some((n, t_step));
         }
     }
