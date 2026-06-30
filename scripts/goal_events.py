@@ -474,6 +474,41 @@ def _check_reference_integrity(event: dict, ev_path: str) -> None:
             )
     elif event["event"] == "GOAL_AMEND":
         _check_amend_against_history(event, events)
+    # codex #6 MAJOR：goal-level CHECK_PASS/CHECK_FAIL（sub_goal_id==当前 goal_id）带的
+    # acceptance_id 必须在该 goal 的 acceptance 集里精确解析到唯一项——否则裁决指向不存在的
+    # 验收项（机器溯源空壳）。sub_goal 级事件（sub_goal_id != goal_id）有自己的验收标识，
+    # 不受 goal acceptance 集约束（reducer 也只对 (gid, acceptance_id) 作 goal 闭合）。
+    if event["event"] in ("CHECK_PASS", "CHECK_FAIL") and event.get("acceptance_id"):
+        _check_acceptance_id_belongs_to_goal(event, events)
+
+
+def _check_acceptance_id_belongs_to_goal(event: dict, events: list[dict]) -> None:
+    """goal-level CHECK_PASS/CHECK_FAIL.acceptance_id 归属校验（codex #6）。
+
+    仅当 sub_goal_id 命中某个 active goal_id（即该事件是 goal-level 裁决）时校验：
+    acceptance_id 须在该 goal 的 acceptance[].id 集里恰好解析到 1 项（0 或多于 1 都 raise）。
+    多于 1 由 GOAL_SET 的 id 唯一性保证不发生（_validate_acceptance），此处主防 0（指向空气）。
+    """
+    sid = event.get("sub_goal_id")
+    superseded = {e.get("old_goal_id") or e.get("sub_goal_id")
+                  for e in events if e.get("event") == "SUPERSEDE"}
+    closed = {(e.get("goal_id") or e.get("sub_goal_id"))
+              for e in events if e.get("event") == "CLOSED"}
+    # sub_goal_id 是否命中一个 active GOAL_SET（=goal-level 裁决）。非 active goal 的事件不校验。
+    gs = _current_goal_set(events, sid)
+    if gs is None or sid in superseded or sid in closed:
+        return  # sub_goal 级裁决（不针对当前 goal acceptance），不校验归属
+    acceptance = gs.get("acceptance")
+    if not isinstance(acceptance, list):
+        return  # 退化 GOAL_SET 无结构化 acceptance，无可校验集
+    ids = [a.get("id") for a in acceptance if isinstance(a, dict) and a.get("id")]
+    aid = event["acceptance_id"]
+    matches = [x for x in ids if x == aid]
+    if len(matches) != 1:
+        raise ValueError(
+            f"{event['event']}.acceptance_id {aid!r} 在 goal {sid!r} 的 acceptance 集"
+            f"{ids} 中解析到 {len(matches)} 项（须恰好 1，禁裁决指向不存在/歧义的验收项）"
+        )
 
 
 def _slug_goal_id(description: str) -> str:

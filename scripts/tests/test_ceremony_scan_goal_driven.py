@@ -71,6 +71,19 @@ def test_goal_driven_workstations_closed_goal_empty():
     assert goal_driven_workstations(cg_result) == []
 
 
+def test_goal_driven_workstations_status_closed_empty_without_terminated():
+    # codex #5 MAJOR：CLOSED 事件让 status="closed" 但 terminated 可能 False（手动 CLOSED，
+    # acceptance 未全 pass）。旧代码只查 terminated → 仍 spawn closed goal 的 ready 工位。
+    # 修复：status=="closed" 也返回 []。
+    cg_result = {
+        "current_goal": {"goal_id": "g1", "status": "closed", "base_head_stale": False},
+        "ready_workstations": ["x"],
+        "ready_details": [{"id": "x", "desc": "d"}],
+        "blocked": [], "terminated": False,  # 手动 CLOSED：status=closed 但未 terminated
+    }
+    assert goal_driven_workstations(cg_result) == []
+
+
 def test_scan_emits_goal_driven_workstations_end_to_end():
     # 真实 events.jsonl 经 scan → workstations 与 reducer 真值一致（开口②闭合）。
     # 测试隔离：不硬断言「恒有 active goal」——live goal 一旦合法 terminated（closed），
@@ -108,7 +121,10 @@ def test_materialize_interrupt_flag_writes_projection(tmp_path):
     # 否则真实 goal 一变就脆断，违反 test isolation）。从 reducer 取当前 goal_id 对照。
     from ceremony_scan import _load_current_goal  # noqa: E402（运行时 sys.path 已含 scripts/）
     gr = _load_current_goal()
-    goal_id = (gr or {}).get("current_goal", {}).get("goal_id") if gr else None
+    # current_goal 合法地可为 None（无 active goal / >1 active 歧义 AMBIGUOUS_ACTIVE_GOALS，
+    # #1 active-set 语义）——安全取值，不假设恒有 current_goal dict。
+    cg = (gr or {}).get("current_goal") or {}
+    goal_id = cg.get("goal_id")
     if goal_id:
         assert goal_id in out.stdout, f"projection 未含当前 goal_id {goal_id}"
     assert len(out.stdout.splitlines()) <= 51  # ≤50 行 + 可能末尾换行

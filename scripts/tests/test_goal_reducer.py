@@ -190,22 +190,9 @@ def test_check_fail_reverts_passed_and_reopens_goal():
     assert out["terminated"] is False
 
 
-def test_check_fail_then_pass_recloses_goal():
-    # 最后写者胜：FAIL 后再 PASS（争议解决/补强后重新通过）→ goal 恢复闭合。
-    events = [
-        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
-         "acceptance": [{"id": "acc-1", "check": "c", "falsifiable": True}],
-         "base_head": "abc123", "ts": "t0"},
-        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c",
-         "acceptance_id": "acc-1", "method": "auto", "command": "x", "verifier": "ci", "ts": "t1"},
-        {"event": "CHECK_FAIL", "sub_goal_id": "g1", "check": "c",
-         "acceptance_id": "acc-1", "reason": "争议", "ts": "t2"},
-        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c",
-         "acceptance_id": "acc-1", "method": "auto", "command": "x", "verifier": "ci", "ts": "t3"},
-    ]
-    out = reduce_goal(events, _facts())
-    assert out["current_goal"]["acceptance"][0]["passed"] is True
-    assert out["current_goal"]["status"] == "closed"
+# 注：裁定前的 test_check_fail_then_pass_recloses_goal（编码被否决的「FAIL 后 PASS 即重闭合」
+# 复判语义）已删除——#7 严格闭合裁定取代之，由 test_contested_prevents_close 覆盖
+# PASS→FAIL→PASS 后 contested 永久、goal 不自动重闭合。
 
 
 def test_check_fail_via_check_fallback_no_acceptance_id():
@@ -218,6 +205,75 @@ def test_check_fail_via_check_fallback_no_acceptance_id():
     ]
     out = reduce_goal(events, _facts())
     assert out["current_goal"]["acceptance"][0]["passed"] is False
+    assert out["current_goal"]["status"] != "closed"
+
+
+def test_multiple_active_goals_blocks():
+    # codex #1 CRITICAL silent goal-loss：两个 GOAL_SET 都未 SUPERSEDE/CLOSED → 都 active。
+    # 旧 last-writer-wins 静默选物理最后一个，吞掉前一个 active goal（实证 bug：
+    # mutexlevel 被 overfitframework 静默盖掉）。修复：active>1 → current_goal=None +
+    # AMBIGUOUS_ACTIVE_GOALS，不产 ready，不 fallback。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "目标一",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "GOAL_SET", "goal_id": "g2", "description": "目标二",
+         "acceptance": [{"check": "c2", "falsifiable": True}], "base_head": "abc123", "ts": "t1"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"] is None  # 不静默选 g2
+    assert out["ready_workstations"] == []
+    amb = [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+    assert len(amb) == 1
+    assert amb[0]["ids"] == ["g1", "g2"]  # sorted
+
+
+def test_single_active_normal_after_supersede():
+    # 多 GOAL_SET 但只剩一个未 SUPERSEDE → 正常选中（active-set 语义不破坏单 active 场景）。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "GOAL_SET", "goal_id": "g2", "description": "y",
+         "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t1"},
+        {"event": "SUPERSEDE", "old_goal_id": "g1", "new_goal_id": "g2", "ts": "t2"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["goal_id"] == "g2"
+    assert not [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+
+
+def test_closed_excluded_from_active_set():
+    # CLOSED 的 GOAL_SET 从 active 集剔除：g1 closed + g2 active → 仅 g2 active，不歧义。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "GOAL_SET", "goal_id": "g2", "description": "y",
+         "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t1"},
+        {"event": "CLOSED", "goal_id": "g1", "ts": "t2"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["goal_id"] == "g2"
+    assert not [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+
+
+def test_contested_prevents_close():
+    # codex #7 MAJOR：PASS→FAIL→PASS 后 passed=True 但 contested=True。严格闭合（编排者裁定
+    # 保守安全）：曾被 CHECK_FAIL 争议的 acceptance 即使后续 CHECK_PASS，仍需显式 CHECK_RESOLVE
+    # 才闭合 → terminated=False。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"id": "acc-1", "check": "c", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c",
+         "acceptance_id": "acc-1", "method": "auto", "command": "x", "verifier": "ci", "ts": "t1"},
+        {"event": "CHECK_FAIL", "sub_goal_id": "g1", "check": "c",
+         "acceptance_id": "acc-1", "reason": "争议", "ts": "t2"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c",
+         "acceptance_id": "acc-1", "method": "auto", "command": "x", "verifier": "ci", "ts": "t3"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["acceptance"][0]["passed"] is True  # 最后写者=PASS
+    assert out["current_goal"]["acceptance"][0]["contested"] is True  # 曾被争议
+    assert out["terminated"] is False  # 严格闭合：contested 阻止闭合
     assert out["current_goal"]["status"] != "closed"
 
 

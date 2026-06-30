@@ -107,7 +107,10 @@ def goal_driven_workstations(goal_result):
     """
     if not goal_result or goal_result.get("current_goal") is None:
         return []
-    if goal_result.get("terminated"):
+    # codex #5 MAJOR：CLOSED 事件让 current_goal.status="closed"，但 reducer 严格闭合下
+    # terminated 可能 False（acceptance 未全 pass / contested）。只查 terminated 会让手动
+    # CLOSED 的 goal 仍 spawn ready 工位。同时查 status=="closed"——闭合 goal 不再驱动 spawn。
+    if goal_result.get("terminated") or goal_result["current_goal"].get("status") == "closed":
         return []
     # goal_id 非空守卫：退化历史事件经 reducer 容错路径可能产出 current_goal 但 goal_id=None
     # （reducer _gid fallback 两字段皆缺时）。此时不产 goal 工位——否则 name=goal[None]、

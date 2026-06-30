@@ -514,3 +514,51 @@ def test_goal_amend_no_goal_set_rejected(tmp_path):
                      amendment_kind="ACCEPTANCE_ID_BINDING", reason="x",
                      acceptance_vector_hash="sha256:x",
                      bindings=[{"ordinal": 0, "acceptance_hash": "sha256:y", "acceptance_id": "acc-1"}])
+
+
+# ── #6 MAJOR: CHECK_PASS/CHECK_FAIL.acceptance_id 归属校验（写入前精确解析当前 goal）──
+
+def test_check_pass_acceptance_id_belongs_to_goal_appends(tmp_path):
+    # CHECK_PASS 针对 goal-level acceptance（sub_goal_id==goal_id），带的 acceptance_id 恰在
+    # 该 goal 的 acceptance 集里 → 合法写入。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"id": "acc-1", "check": "c", "falsifiable": True}], base_head="h")
+    append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1", check="c",
+                 acceptance_id="acc-1", method="auto", command="x", verifier="ci")
+    e = _read_lines(ev_path)[1]
+    assert e["acceptance_id"] == "acc-1"
+
+
+def test_check_pass_acceptance_id_not_in_goal_rejected(tmp_path):
+    # #6：CHECK_PASS 针对 goal（sub_goal_id==goal_id）带的 acceptance_id 不属于该 goal 的
+    # acceptance 集 → 解析 0 项 → 拒绝（机器溯源：禁指向不存在的 acceptance）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"id": "acc-1", "check": "c", "falsifiable": True}], base_head="h")
+    with pytest.raises(ValueError, match="acceptance_id|不属于|不存在"):
+        append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1", check="c",
+                     acceptance_id="acc-GHOST", method="auto", command="x", verifier="ci")
+
+
+def test_check_fail_acceptance_id_not_in_goal_rejected(tmp_path):
+    # #6：CHECK_FAIL 同样校验 acceptance_id 归属（对齐 CHECK_PASS）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"id": "acc-1", "check": "c", "falsifiable": True}], base_head="h")
+    with pytest.raises(ValueError, match="acceptance_id|不属于|不存在"):
+        append_event("CHECK_FAIL", ev_path=str(ev_path), sub_goal_id="g1", check="c",
+                     acceptance_id="acc-GHOST", reason="争议")
+
+
+def test_check_pass_sub_goal_acceptance_id_not_goal_scoped(tmp_path):
+    # 边界：CHECK_PASS 针对 sub_goal（sub_goal_id != goal_id）的 acceptance_id 不受 goal
+    # acceptance 集约束——sub_goal 有自己的验收标识，不在 goal acceptance 集里是合法的。
+    # 只有针对 goal-level（sub_goal_id==当前 goal_id）的事件才校验归属。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"id": "acc-1", "check": "c", "falsifiable": True}], base_head="h")
+    # sub_goal_id="g1.1" != goal_id="g1" → 不校验 goal acceptance 归属
+    append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="子目标完成",
+                 acceptance_id="sg-local-id", method="auto", command="x", verifier="ci")
+    assert len(_read_lines(ev_path)) == 2

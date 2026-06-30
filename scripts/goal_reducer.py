@@ -34,16 +34,35 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     superseded = {e.get("old_goal_id") or e.get("sub_goal_id")
                   for e in events if e["event"] == "SUPERSEDE"}
     closed = {_gid(e) for e in events if e["event"] == "CLOSED"}
-    goal = None
+    # current goal = active set 语义（codex #1 CRITICAL silent goal-loss 修复）：
+    # active = {所有 GOAL_SET 的 gid} − superseded − closed。旧 last-writer-wins（for 循环
+    # 物理最后一个未 superseded 的 GOAL_SET）会静默吞掉多个未显式终止的 active goal（实证：
+    # mutexlevel 被 overfitframework 静默盖掉）。物理 append order 是 event-sourcing 因果序，
+    # 但「最后一个」不能用作单一 current goal 选择——两个都 active 是状态机歧义，须显式暴露。
+    #   len(active)==0 → current_goal=None（无 active goal，seed bootloader 不阻塞冷启动）
+    #   len(active)==1 → 该 goal 为 current
+    #   len(active)>1  → current_goal=None + AMBIGUOUS_ACTIVE_GOALS（不产 ready、不 fallback，
+    #                    须显式 SUPERSEDE 消歧；编排者裁定走 /escalate 而非静默选一个）
+    # 退化历史事件经 _gid fallback 仍参与 active 集（reader 有效域：sub_goal_id 当 gid）。
+    goal_sets = {}  # gid → 最后一个同 gid 的 GOAL_SET 事件（同 gid 重复 SET 取最后，幂等续写）
     for e in events:
-        if e["event"] == "GOAL_SET" and _gid(e) not in superseded:
-            acceptance = e.get("acceptance", [])
-            _validate_acceptance(acceptance)
-            goal = {"goal_id": _gid(e),
-                    "description": e.get("description") or e.get("artifact", ""),
-                    "acceptance": [dict(a, passed=False) for a in acceptance],
-                    "base_head": e.get("base_head"), "status": "active",
-                    "base_head_stale": e.get("base_head") != facts.get("git_head")}
+        if e["event"] == "GOAL_SET":
+            goal_sets[_gid(e)] = e
+    active_ids = sorted(gid for gid in goal_sets if gid not in superseded and gid not in closed)
+    if len(active_ids) > 1:
+        return {"current_goal": None, "ready_workstations": [], "ready_details": [],
+                "blocked": [{"type": "AMBIGUOUS_ACTIVE_GOALS", "ids": active_ids}],
+                "terminated": False}
+    goal = None
+    if len(active_ids) == 1:
+        e = goal_sets[active_ids[0]]
+        acceptance = e.get("acceptance", [])
+        _validate_acceptance(acceptance)
+        goal = {"goal_id": _gid(e),
+                "description": e.get("description") or e.get("artifact", ""),
+                "acceptance": [dict(a, passed=False) for a in acceptance],
+                "base_head": e.get("base_head"), "status": "active",
+                "base_head_stale": e.get("base_head") != facts.get("git_head")}
     if goal is None:
         return {"current_goal": None, "ready_workstations": [], "ready_details": [],
                 "blocked": [], "terminated": False}
@@ -141,8 +160,17 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
             acc["passed"] = passed_checks[ckey]
             if ckey in contested_checks:
                 acc["contested"] = True
-    terminated = bool(goal["acceptance"]) and all(a["passed"] for a in goal["acceptance"])
-    if terminated or gid in closed:
+    # 严格闭合（codex #7 MAJOR + 编排者裁定 CHOICE：严格闭合 vs 复判）：terminated 要求每个
+    # acceptance passed 且 **not contested**。曾被 CHECK_FAIL 争议的 acceptance 即使后续
+    # CHECK_PASS（passed=True+contested=True），仍不闭合 goal——保守安全，防 PASS→FAIL→PASS
+    # 序列误闭合（注释「not CHECK_FAIL'd」此前未在代码执行，是真 bug）。
+    # 当前取严格闭合。复判路径（需 CHECK_RESOLVE 事件显式清 contested 后才闭合）是未实装的
+    # 扩展点：新增 amendment_kind/event 清 contested 标记，再让 terminated 忽略已 resolve 的
+    # contested。本工位不实装复判（编排者裁定保守优先），留此注释为升级路径锚点。
+    terminated = bool(goal["acceptance"]) and all(
+        a["passed"] and not a.get("contested") for a in goal["acceptance"])
+    # gid 不再可能 in closed（active-set 已剔 closed），保留 status=closed 仅由 terminated 驱动。
+    if terminated:
         goal["status"] = "closed"
     elif blocked and not ready:
         goal["status"] = "blocked"
