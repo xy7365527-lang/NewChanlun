@@ -3455,6 +3455,22 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md
+- id: '656'
+  title: alpha2 Doc3 §13 定理2「细分类不劣于粗分类」V(Z)≥V(Y)——编排者「全互斥更有优势」的严格回答。优势=表达力优势(粗策略可被细策略模拟,sup_Z≥sup_Y)+统计识别优势(μ(z,a)可分类估计)，**不是**先验盈利保证。§19：全互斥=alpha命题形式化实验台(使「三类买卖点有用」从模糊句变严格命题
+    ∃z,a:E[R|C_Θ=z]>0)。645 覆盖≠盈利(反面)的对偶正面：覆盖不保证盈利，全互斥分类提供识别盈利的表达力。V(Z)≥V(Y) 是 L0 结构定理，盈利仍需
+    L2/L3 μ>0 真实数据(231 铁律)
+  status: 生成态
+  type: domain
+  file: pending/656-finer-classification-not-worse-expressivity-not-profit-dual-of-645.md
+- id: '657'
+  title: alpha.pdf Part1（p1-15「覆盖≠alpha」）三增量：①候选1 双 L0-L3 阶梯能指碰撞（alpha §12 交易断言阶梯
+    vs 231 验证阶梯，同名不同义，同 651 能指挪用范式→降级归并不独立立号）；②候选2 M24 因果可测性 refinement（mutex-derive
+    标 M24「无 gap」是推导链内自洽，但 M24→盈利有 gap：L0 同义反复 + ε_e 用未来端点非 F_λe 可测=因果失败，蜂群 M24 漏标，=645
+    T2/T3 在 M24 的实例）；③645 结算评估：alpha §15 χ_t 因果选择器=645 wrong-object 外部权威确认，结算条件满足但落盘走
+    /ritual
+  status: 生成态
+  type: bias-correction
+  file: pending/657-alpha-pdf-part1-signifier-collision-downgrade-m24-causal-measurability-645-settle-eval.md
 edges:
   depends_on:
   - from: '136'
@@ -6689,6 +6705,26 @@ edges:
     to: '621'
   - from: '655'
     to: '624'
+  - from: '655'
+    to: '231'
+  - from: '655'
+    to: '645'
+  - from: '655'
+    to: 651-652
+  - from: '655'
+    to: '036'
+  - from: '656'
+    to: '231'
+  - from: '656'
+    to: '645'
+  - from: '657'
+    to: '231'
+  - from: '657'
+    to: '645'
+  - from: '657'
+    to: 651-652
+  - from: '657'
+    to: '036'
   triggered:
   - from: '005'
     to: 005a
@@ -9802,6 +9838,75 @@ edges:
   - between:
     - 090
     - '655'
+  - between:
+    - '653'
+    - '655'
+  - between:
+    - '654'
+    - '655'
+  - between:
+    - '648'
+    - '655'
+  - between:
+    - '642'
+    - '655'
+  - between:
+    - '643'
+    - '655'
+  - between:
+    - '644'
+    - '655'
+  - between:
+    - '655'
+    - v1-fullwindow-l3-falsified
+  - between:
+    - '655'
+    - project_zero_lookahead_backtest
+  - between:
+    - '655'
+    - project_trend_direction_proxy
+  - between:
+    - '604'
+    - '656'
+  - between:
+    - '605'
+    - '656'
+  - between:
+    - '615'
+    - '656'
+  - between:
+    - '648'
+    - '656'
+  - between:
+    - '656'
+    - v1-fullwindow-l3-falsified
+  - between:
+    - '653'
+    - '657'
+  - between:
+    - '654'
+    - '657'
+  - between:
+    - '648'
+    - '657'
+  - between:
+    - '642'
+    - '657'
+  - between:
+    - '643'
+    - '657'
+  - between:
+    - '644'
+    - '657'
+  - between:
+    - '657'
+    - v1-fullwindow-l3-falsified
+  - between:
+    - '657'
+    - project_zero_lookahead_backtest
+  - between:
+    - '657'
+    - project_trend_direction_proxy
   tensions_with:
   - between:
     - '007'
