@@ -93,5 +93,11 @@ def test_materialize_interrupt_flag_writes_projection(tmp_path):
         cwd=ROOT, capture_output=True, text=True,
     )
     assert out.returncode == 0, f"materialize 退出非0: {out.stderr}"
-    assert "g-l2-nautilus-production" in out.stdout
+    # 测试隔离：projection 含真实 events.jsonl 当前 goal 的 goal_id（不硬编码具体值——
+    # 否则真实 goal 一变就脆断，违反 test isolation）。从 reducer 取当前 goal_id 对照。
+    from ceremony_scan import _load_current_goal  # noqa: E402（运行时 sys.path 已含 scripts/）
+    gr = _load_current_goal()
+    goal_id = (gr or {}).get("current_goal", {}).get("goal_id") if gr else None
+    if goal_id:
+        assert goal_id in out.stdout, f"projection 未含当前 goal_id {goal_id}"
     assert len(out.stdout.splitlines()) <= 51  # ≤50 行 + 可能末尾换行

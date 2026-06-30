@@ -1486,7 +1486,21 @@ def main():
     # 0. D′：current_goal（roadmap 之前的当前交易性承诺，roadmap 是 backlog）。
     #    goal 未设定时为 None——ceremony_scan 降为 seed bootloader，不阻塞冷启动。
     goal_result = _load_current_goal()
-    result["current_goal"] = goal_result
+    # 拍平输出结构（goal-usability）：reducer dict 的内层 current_goal（goal projection）
+    # 直接挂 result["current_goal"]，goal_id/acceptance/base_head 在顶层一层可读
+    # （`jq -r .current_goal.goal_id` 直出）；其余 reducer 键提到 result 顶层加 goal_ 前缀，
+    # 消除「result["current_goal"]["current_goal"]["goal_id"]」双层嵌套误报 goal 未设定。
+    # goal_driven_workstations 仍接收完整 reducer dict（goal_result），不受此拍平影响。
+    if goal_result is None:
+        result["current_goal"] = None
+    else:
+        result["current_goal"] = goal_result.get("current_goal")
+        result["goal_ready_workstations"] = goal_result.get("ready_workstations", [])
+        result["goal_ready_details"] = goal_result.get("ready_details", [])
+        result["goal_blocked"] = goal_result.get("blocked", [])
+        result["goal_terminated"] = goal_result.get("terminated", False)
+        if "skipped_event_lines" in goal_result:
+            result["goal_skipped_event_lines"] = goal_result["skipped_event_lines"]
 
     # 1. 最高优先级：roadmap.yaml 中的 active 任务
     roadmap_tasks = get_roadmap_workstations(root)
