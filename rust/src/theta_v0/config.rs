@@ -139,6 +139,11 @@ pub struct RiskConfig {
     pub kappa: f64,
     /// sizing 默认 lot（reference-theta-v0.md:47）。default 1。
     pub default_lot: u32,
+    /// χ_t 阈值 θ（alpha2 §13 line 2241，成本/风险门槛）。`None`=χ≡1 全覆盖（默认，frozen Θ v0
+    /// bit-exact 不变）；`Some(θ)`=χ=1[μ>θ] 阈值过滤（只交易正边际收益类别）。θ 是 **Θ_risk 参数，
+    /// 非缠论可导**（selector.rs 诚实标注）——θ 为**常数**（不从样本 μ 分布选，避免 in-sample
+    /// 泄漏，codex Q1 审查确认）。default None（不改 frozen 默认）。
+    pub chi_theta: Option<f64>,
 }
 
 impl Default for RiskConfig {
@@ -149,6 +154,7 @@ impl Default for RiskConfig {
             gamma: 1.0,
             kappa: 2.0,
             default_lot: 1,
+            chi_theta: None,
         }
     }
 }

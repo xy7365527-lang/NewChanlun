@@ -446,6 +446,30 @@ fn run_state_machine(
         net_per_bar[i] = net_target(&active, &voices);
     }
 
+    // ── 窗口末端仍 active 的声部强平喂 μ（forced，与真实 τ_γ 区分）──
+    // ★诚实（formalization-validity-domain）：forced 退出不是 §12 τ_γ=出场证书时刻，是窗口边界
+    // 人为强平。仍喂 μ 桶（否则末端浮盈被丢弃低估收益），但属 forced——本 bin 不单独区分桶
+    // （codex 审退出定义时可裁）。Pass 1/Pass 2 同口径处理，保证 μ 表可比。
+    let last_bar = n - 1;
+    for v in 0..voices.len() {
+        if active.contains(&v) {
+            let voice = voices[v];
+            if last_bar > voice.entry_bar {
+                let entry_px = prices[voice.entry_bar.min(last_bar)];
+                let exit_px = prices[last_bar];
+                let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
+                let z = MuClass::from_certificate(
+                    voice.level,
+                    voice.dir,
+                    voice.bits,
+                    parent_dir_of(&voices, v),
+                    if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+                );
+                mu_est.observe(MuObservation { class: z, x_gamma });
+            }
+        }
+    }
+
     PassResult {
         net_per_bar,
         mu_est,
