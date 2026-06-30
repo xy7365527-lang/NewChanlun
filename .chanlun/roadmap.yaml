@@ -960,19 +960,30 @@ tasks:
   # ───────────────────────────────────────────────────────────
 
   - id: signal_resolution_1s_bi_a0
-    title: "信号层分辨率升级（1秒数据 + 笔级别a0）—— 主线"
+    title: "信号层分辨率升级（1秒数据 + 笔级别a0）—— 主线【已L2否证】"
     priority: P1
-    status: active
+    status: falsified
+    falsified_date: "2026-06-23"
     decision: "编排者 2026-06-22：根本问题在信号层递归深度不足，非操作层。路径=1秒数据+笔级别a0。"
-    hypothesis_level: "L0（待 L2/L3 验证）：1秒笔a0→8-10级→中间级别滤波器展开→完整周期总和趋近Σ|涨跌幅|→完整周期>BH。这是假设不是定理，升级为检验它，否定性结果同样有价值。"
-    source: "编排者 2026-06-22 /ceremony 方向 #1 + 滤波器理论重新框定"
+    hypothesis_level: "L0→L2 已否证：1秒笔a0→8-10级→中间级别滤波器展开→完整周期总和趋近Σ|涨跌幅|→完整周期>BH。这是假设非定理，已升级为 L2 检验并产生否定性结果。"
+    falsification: |
+      L2 否证（filter-spec-71-20260623.md / e1-a0stroke-result-20260623.md，commit b01029b42a；编排者 2026-06-30 裁定 status→falsified）：
+      因果链第一环（细化 a0/bar → 涌现中间级别）被实测否证，三路证据：
+        (1) E1 受控 A/B（唯一变量=a0 来源）：BTC a0=段→笔 8.2× 底座单元但 r* 5→5（深度+0），strat +68.3%→−100.0% 三模式全塌；CL 9.0× 单元 r* 5→6(+1)，+120.4%→−99.9%。
+        (2) filter_bank_l2：BTC 31.5M bar/年，每 8M chunk r*=5，未达承诺的 8-10 级。
+        (3) 1s 谱系第四次确认尺度不变性（pcf_source_collapse / cl_1s_verdict / 1min_irreducible）。
+      核心反直觉结论：递归深度 r* 由"窗口内行情反复次数"决定，是尺度不变量，**不由 a0 单元数或 bar 密度决定**（222/223/230 有效域≠定义域）。types.rs:64「a0=笔是级别数5-6→8-10主因」实测否证。
+      codex 异质审窄化（codex-e1-audit-20260630-1456.md，判定B）：E1 的 −100% 否证有效域 = "单腿单调减仓无回补"操作层（long-only apply_bsp），混入"引擎对信号密度敏感性"第二变量，不能外推为"a0=笔无 alpha"。
+    reopen_condition: |
+      非永久死亡，re-open 条件 = 操作层协进化为多空双开（做空腿回补，deadlock_dual_open_target，B先A后），且用带级别/方向门控引擎（rec_engine LongEntry::CrossLevel）而非 long-only apply_bsp 重测。
+      但即使 re-open，须先反驳"r* 尺度不变"这一更深层否证（深度不随 a0/bar 细化增加）——否则因果链第一环仍断。
+    orthogonality_note: |
+      barspec-impl 的 1s-bar 数据粒度参数化（data.rs bar_seconds/bars_per_year，commit 5a94a72f3e/e7cf6a679b）与 a0 轴正交（531号）：E1 只否证 a0=Stroke 这一格，不否证 1s-bar 参数化基础设施本身。该基础设施作为引擎能力保留（任何 re-open 实验都需要），不随本条 falsified 撤销。
+    source: "编排者 2026-06-22 /ceremony 方向 #1 + 滤波器理论重新框定；2026-06-23 L2 否证；2026-06-30 编排者裁定 falsified"
     description: |
-      理论框定（编排者）：每级别=带通滤波器，捕获自身尺度|涨跌幅|；足够递归深度→总和趋近Σ|涨跌幅|。
-      当前 1分钟+线段a0 仅 5-6 级，中间级别缺失，滤波器未展开 → BTC完整周期+38.9%<<BH+1380%。
-      升级两层（缺一不可）：
-        (1) 数据粒度：1分钟→1秒 bar（barspec-impl 工位，nt-scope 已给 bar_spec 参数化改点 A-C，保持现有1m bit-exact回归）；
-        (2) 递归底座下移：a0 线段→笔(bi)，比线段低一级，是级别数5-6→8-10的主因（filter-spec 工位出方案）。
-      filter-spec 工位负责：滤波器命题形式化 + a0=笔范围厘清 + L2/L3 证伪条件设计（含"1秒笔下僵尸核心死锁是否仍发生"）。
+      【已否证存档，描述保留供溯源】理论框定（编排者）：每级别=带通滤波器，捕获自身尺度|涨跌幅|；足够递归深度→总和趋近Σ|涨跌幅|。
+      原假设：当前 1分钟+线段a0 仅 5-6 级，中间级别缺失 → 升级 1秒+笔 a0 展开滤波器。
+      否证：a0/bar 细化不产生中间级别（r* 尺度不变），见上方 falsification。
     added_by: "编排者 /ceremony 指令"
     added_date: "2026-06-22"
 
