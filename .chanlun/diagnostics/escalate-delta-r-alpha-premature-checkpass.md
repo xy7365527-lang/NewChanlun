@@ -36,3 +36,19 @@
 ## Lead 自主可推进部分（不待裁决）
 - martingale-guard(#48)运行中=独立 null-baseline 交叉验证同问题
 - 退化品种诊断 + 功效分析 = codex 要求的补强，可 spawn 工位先做（不预判裁决）
+
+---
+
+## 更新（2026-06-30 自主推进完成 #47/#48/#49，goal 机械闭合）
+
+**⚠ goal 现已机械 terminated=closed（5/5）**：acc-martingale-guard 真封 PASS 后，reducer 单调性使 acc-delta-r-alpha(争议)+其余4项=5/5 全 passed → status=closed。**这是 658 缺陷的实例：goal 机械闭合 ≠ 实质达成**。acc-delta-r-alpha 的闭合仍 contested，本 escalate 待裁未变。
+
+**自主推进已完成 codex 要求的全部诊断（line 36-38），裁决所需证据齐备**：
+
+- **#47 codex 异质审裁定 = (B) 否证有缺陷 → inconclusive**（.chanlun/review-results/codex-diagnose-20260630-deltar-l3.md）。逐攻击点：前视稳健(L1) / 退化掩盖+功效不足+短窗截断=否证有缺陷。正确结论="32000bar短窗+n_L3=5条件下未观察到显著系统性alpha"≠"χ无alpha"。
+- **#48 鞅守卫 PASS**（harness 因果纯净）：合成鞅跨8种子 ΔGross 符号检验 p=0.2891 不显著,检出泄漏=false。⟹ **harness 可信**(真实数据 alpha 信号不被泄漏污染)——这是好消息：实证管线本身没问题,问题在 underpowered。
+- **#49 退化诊断**：BTC/ES/QQQ 空仓根因=μ>0类=0 但单样本类(count=1)占比高=16K短窗μ估计退化+高级别z样本饥饿(确认codex攻击点4),非干净"真无alpha"。
+
+**裁决建议更新**（证据齐备后）：选项3（GOAL_AMEND收紧判据+重跑）最严格——codex 攻击点4 指出 alpha 集中在高级别(recL2/recL3)而16K短窗估不出高级别μ。真严格的 acc-delta-r-alpha 须：(a)更长窗使高级别z有样本 (b)记录μ=None/μ≤0/μ>0覆盖率+level分布 (c)跨品种系统性判据(非n=5)。但 reducer 单调无法 un-pass，须 SCHEMA 加 CHECK_FAIL/revoke 或新 goal。
+
+**Lead 不自决**：选项1/2/3 是 goal 终止语义的价值判断（编排者域）。当前 goal 机械 closed 但本报告标记 acc-delta-r-alpha closed=contested,醒后裁。
