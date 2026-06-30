@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-start-ceremony.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-ceremony.sh"
           }
         ]
       },
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/agent-team-bootstrap.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/agent-team-bootstrap.sh"
           }
         ]
       },
@@ -33,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-start-fable5.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-fable5.sh"
           }
         ]
       }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/precompact-save.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/precompact-save.sh"
           }
         ]
       }
@@ -55,7 +55,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/userpromptsubmit-ceremony-restore.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/userpromptsubmit-ceremony-restore.sh"
           }
         ]
       }
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/agent-team-enforce.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/agent-team-enforce.sh"
           }
         ]
       },
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/double-helix-verify.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/double-helix-verify.sh"
           }
         ]
       },
@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-write-edit-dispatcher.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-edit-dispatcher.sh"
           }
         ]
       },
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-write-edit-dispatcher.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/pre-write-edit-dispatcher.sh"
           }
         ]
       }
@@ -104,7 +104,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/ceremony-completion-guard.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/ceremony-completion-guard.sh"
           }
         ]
       }
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/function-length-guard.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/function-length-guard.sh"
           }
         ]
       },
@@ -124,7 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/flow-continuity-guard.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/flow-continuity-guard.sh"
           }
         ]
       },
@@ -133,7 +133,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/crystallization-guard.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/crystallization-guard.sh"
           }
         ]
       },
@@ -142,7 +142,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/topology-guard.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/topology-guard.sh"
           }
         ]
       },
@@ -151,7 +151,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/post-write-edit-dispatcher.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-write-edit-dispatcher.sh"
           }
         ]
       },
@@ -160,7 +160,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/consensus-ceremony-trigger.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/consensus-ceremony-trigger.sh"
           }
         ]
       },
@@ -169,7 +169,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/post-write-edit-dispatcher.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/post-write-edit-dispatcher.sh"
           }
         ]
       },
@@ -178,7 +178,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/consensus-ceremony-trigger.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/consensus-ceremony-trigger.sh"
           }
         ]
       },
@@ -187,7 +187,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/source-auditor-prompt.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/source-auditor-prompt.sh"
           }
         ]
       },
@@ -196,7 +196,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/source-auditor-prompt.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/source-auditor-prompt.sh"
           }
         ]
       },
@@ -205,7 +205,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/completion-session-guard.sh"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/completion-session-guard.sh"
           }
         ]
       }
