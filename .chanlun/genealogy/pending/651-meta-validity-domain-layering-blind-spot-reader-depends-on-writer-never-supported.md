@@ -8,6 +8,7 @@ session: 68088c95（meta-observer 第二轮）
 discovered_by: meta-observer
 created: 2026-06-30
 related: [630（写路径未实装开口①，声明"有效域=读侧"）, 650（GOAL_RESUME 可读不可写——分层盲区揭露）, 231（formalization-validity-domain 规则谱系）, 222/223/230（有效域≠定义域三例）]
+responsible_agents: [编排者]   # 571号：meta-rule/语法记录候选→编排者裁决（/escalate→/ritual）。Stop-Guard check3 据此精确化阻断对象，非责任方放行。
 rule_version_baseline:
   claude_md_commit: "4f040f0c31bb38a58b1adbbde5708096038eea65"
   rules_dir_mtime: "2026-03-14 23:27:42 +0000"

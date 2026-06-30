@@ -8,6 +8,7 @@ session: 68088c95
 discovered_by: Lead（/goal 协议 commit→rescan→base_head 同步失败）
 created: 2026-06-30
 related: ['630'（写路径未实装开口①——writer 整体未实装，本号是其演化态：writer 已实装但 GOAL_RESUME/CHECK_PASS 契约盲区）]
+responsible_agents: [编排者]   # 571号：立场A/B 二选一=选择类→编排者裁决（/escalate）。Stop-Guard check3 据此精确化阻断对象，非责任方放行。
 rule_version_baseline:
   claude_md_commit: "4f040f0c31bb38a58b1adbbde5708096038eea65"
   rules_dir_mtime: "2026-03-14 23:27:42 +0000"

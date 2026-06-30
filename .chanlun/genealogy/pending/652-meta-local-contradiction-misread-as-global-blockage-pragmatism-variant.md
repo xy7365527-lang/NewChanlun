@@ -8,6 +8,7 @@ session: 68088c95（meta-observer 第二轮）
 discovered_by: meta-observer
 created: 2026-06-30
 related: [161（务实思维否定——把矛盾和缺口留到后面）, 275（局部依赖原则——附庸的附庸不是我的附庸）, 650（goal 事件契约分裂——本轮被误当全局停止理由）, no-unnecessary-escalation（该走不走的对偶）]
+responsible_agents: [编排者]   # 571号：meta-rule/语法记录候选→编排者裁决（/escalate→/ritual）。Stop-Guard check3 据此精确化阻断对象，非责任方放行。
 rule_version_baseline:
   claude_md_commit: "4f040f0c31bb38a58b1adbbde5708096038eea65"
   rules_dir_mtime: "2026-03-14 23:27:42 +0000"
