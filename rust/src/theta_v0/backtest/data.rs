@@ -153,6 +153,21 @@ impl Dataset {
             bar_seconds: self.bar_seconds,
         }
     }
+
+    /// 按 bar 索引半开区间 `[start, end)` 切片（时间序不打乱，train/OOS 切分用）。
+    ///
+    /// 半开区间保证相邻切片（train=[0,split), holdout=[split,n)）**无重叠**——区别于
+    /// `slice_date_window` 的闭区间（边界天会被两侧重复包含）。`source_index` 重置为局部下标，
+    /// 复原 `source_index == 数组下标` 契约（下游 `bars[source_index]` 合法，见 slice_date_window 文档）。
+    pub fn slice_bar_range(&self, start: usize, end: usize) -> Dataset {
+        let end = end.min(self.bars.len());
+        let (mut bars, mut dates) = (Vec::new(), Vec::new());
+        for i in start..end {
+            bars.push(Bar { source_index: bars.len(), ..self.bars[i] });
+            dates.push(self.dates[i].clone());
+        }
+        Dataset { symbol: self.symbol.clone(), bars, dates, bar_seconds: self.bar_seconds }
+    }
 }
 
 /// 把 ISO 日期串解析为单调时间戳（仅用于排序，不参与价格运算，types.rs:17）。

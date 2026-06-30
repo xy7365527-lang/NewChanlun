@@ -568,4 +568,174 @@ mod tests {
         assert!((agg.sum_actual_spread - sum_act).abs() < 1e-3,
             "Σactual_spread 聚合 {} ≠ 逐信号和 {}", agg.sum_actual_spread, sum_act);
     }
+
+    /// per-class (level,δ) 真实成交统计：(n, Σactual_pnl, n_act+, Σab_rev)。OOS 测试复用，避免重复分桶。
+    fn class_actual_pnl(decomps: &[SignalDecomp], level: u32, delta: i8) -> (usize, f64, usize, f64) {
+        decomps.iter().filter(|d| d.level == level && d.delta == delta).fold(
+            (0usize, 0.0f64, 0usize, 0.0f64),
+            |(n, pnl, npos, ab), d| {
+                (n + 1, pnl + d.actual_pnl, npos + (d.actual_pnl > 0.0) as usize, ab + d.a_b)
+            },
+        )
+    }
+
+    /// 窗口净涨跌方向：首尾 close 总收益**百分数**（>0 涨段 / <0 跌段）。tick 抵消，直接用 close 整数比。
+    fn window_net_return(ds: &Dataset) -> f64 {
+        let (first, last) = (ds.bars.first(), ds.bars.last());
+        match (first, last) {
+            (Some(f), Some(l)) if f.close > 0 => 100.0 * (l.close as f64 - f.close as f64) / f.close as f64,
+            _ => 0.0,
+        }
+    }
+
+    /// **663 推论 OOS 验证（防 winner's curse）**：对 in-sample 最强正类 level0卖（level=0,δ=−1，
+    /// in-sample actual_pnl=+3.47e4）做 train/holdout 时间切分 + 方向不对称分解。
+    ///
+    /// `#[ignore]`：同 l2_btc 需 BTC 全量 + O(n²) 重分类，`--release`。
+    ///
+    /// **L2 纪律**：holdout level0卖 actual_pnl≤0 ⟹ +3.47e4 是窗口/挑赢家产物（否证 alpha，照实报）；
+    /// >0 ⟹ OOS 初步稳健（仍单标的单切分，标有效域）。否定性结果照实报（161/formalization-validity-domain）。
+    #[test]
+    #[ignore]
+    fn acc_level0sell_oos() {
+        use super::super::data;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+
+        // 截断窗（同 l2_btc_capturable_spread_diagnosis：最后 MAX_BARS，OOM 边界=显式有效域）。
+        const MAX_BARS: usize = 300_000;
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let n = ds.bars.len();
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+
+        // ── 任务1：train(前 frac)/holdout(后 1−frac) 时间切分（半开区间无重叠，时间序不打乱）。 ──
+        let train_frac = std::env::var("ECON_L2_TRAIN_FRAC").ok()
+            .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
+        let split = (n as f64 * train_frac) as usize;
+        let ds_train = ds.slice_bar_range(0, split);
+        let ds_hold = ds.slice_bar_range(split, n);
+        let train_split_day = ds.dates[split].get(..10).unwrap_or("").to_string();
+
+        let (decomps_train, _) = decompose_capturable_spread(&ds_train, &config);
+        let (decomps_hold, _) = decompose_capturable_spread(&ds_hold, &config);
+        let (tr_n, tr_pnl, tr_pos, tr_ab) = class_actual_pnl(&decomps_train, 0, -1);
+        let (hd_n, hd_pnl, hd_pos, hd_ab) = class_actual_pnl(&decomps_hold, 0, -1);
+        // 对照：买（δ=+1，in-sample 亏损主源）OOS 是否仍亏。
+        let (hd_buy_n, hd_buy_pnl, hd_buy_pos, _) = class_actual_pnl(&decomps_hold, 0, 1);
+
+        let train_ret = window_net_return(&ds_train);
+        let hold_ret = window_net_return(&ds_hold);
+        let full_ret = window_net_return(&ds);
+
+        // ── 任务2：2 个不重叠子窗（前半/后半，各 n/2），分别算 level0卖 vs level0买。 ──
+        let half = n / 2;
+        let ds_w1 = ds.slice_bar_range(0, half);
+        let ds_w2 = ds.slice_bar_range(half, n);
+        let (dw1, _) = decompose_capturable_spread(&ds_w1, &config);
+        let (dw2, _) = decompose_capturable_spread(&ds_w2, &config);
+        let (w1_s_n, w1_sell, _, _) = class_actual_pnl(&dw1, 0, -1);
+        let (w1_b_n, w1_buy, _, _) = class_actual_pnl(&dw1, 0, 1);
+        let (w2_s_n, w2_sell, _, _) = class_actual_pnl(&dw2, 0, -1);
+        let (w2_b_n, w2_buy, _, _) = class_actual_pnl(&dw2, 0, 1);
+        let w1_ret = window_net_return(&ds_w1);
+        let w2_ret = window_net_return(&ds_w2);
+
+        // ── 判定 ──
+        let oos_robust = hd_pnl > 0.0; // holdout 卖正 ⟹ 初步稳健
+        // 方向不对称结构性 ⟺ 两个不重叠子窗 level0卖都优于买（不论子窗涨跌）。
+        let sell_beats_buy_w1 = w1_sell > w1_buy;
+        let sell_beats_buy_w2 = w2_sell > w2_buy;
+        let asym_structural = sell_beats_buy_w1 && sell_beats_buy_w2;
+
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# 663 推论 OOS 验证：level0卖 train/holdout 切分 + 方向不对称（防 winner's curse）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的单切分，可产否定性结果；非 L3 跨标的）。");
+        let _ = writeln!(rpt, "**对象**：in-sample 最强正类 level0卖（level=0, δ=−1，in-sample actual_pnl=+3.47e4/349/36%）。");
+        let _ = writeln!(rpt, "**复算**：`cargo test -p <crate> --release acc_level0sell_oos -- --ignored --nocapture`（确定性）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 数据 / 窗口");
+        let _ = writeln!(rpt, "- BTC 全量 {n_full} bar；**截断窗 [{win_start}→{win_end}]，bars={n}**（最后 {max_bars} bar；OOM 边界=显式有效域，非全历史，同 l2_btc 纪律）。");
+        let _ = writeln!(rpt, "- train_frac={train_frac}，切分 bar 索引={split}（切分日 {train_split_day}，半开区间 train=[0,{split}) / holdout=[{split},{n}) 无重叠）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 窗净涨跌方向（首尾 close 总收益）");
+        let _ = writeln!(rpt, "| 窗 | 净收益 | 方向 |");
+        let _ = writeln!(rpt, "|---|---|---|");
+        let _ = writeln!(rpt, "| 截断全窗 | {full_ret:+.2}% | {} |", if full_ret > 0.0 { "涨" } else { "跌" });
+        let _ = writeln!(rpt, "| train | {train_ret:+.2}% | {} |", if train_ret > 0.0 { "涨" } else { "跌" });
+        let _ = writeln!(rpt, "| holdout | {hold_ret:+.2}% | {} |", if hold_ret > 0.0 { "涨" } else { "跌" });
+        let _ = writeln!(rpt, "| 子窗1（前半） | {w1_ret:+.2}% | {} |", if w1_ret > 0.0 { "涨" } else { "跌" });
+        let _ = writeln!(rpt, "| 子窗2（后半） | {w2_ret:+.2}% | {} |", if w2_ret > 0.0 { "涨" } else { "跌" });
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 任务1：level0卖 train vs holdout（关键——正负决定 winner's curse 判定）");
+        let _ = writeln!(rpt, "| 窗 | n | Σactual_pnl | n_act+/n（胜率） | Σab_rev |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|");
+        let _ = writeln!(rpt, "| train | {tr_n} | {tr_pnl:.4e} | {tr_pos}/{tr_n} ({:.0}%) | {tr_ab:.4e} |", winrate(tr_pos, tr_n));
+        let _ = writeln!(rpt, "| **holdout** | {hd_n} | **{hd_pnl:.4e}** | {hd_pos}/{hd_n} ({:.0}%) | {hd_ab:.4e} |", winrate(hd_pos, hd_n));
+        let _ = writeln!(rpt, "| holdout 对照·买(δ+1) | {hd_buy_n} | {hd_buy_pnl:.4e} | {hd_buy_pos}/{hd_buy_n} ({:.0}%) | — |", winrate(hd_buy_pos, hd_buy_n));
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "**判定**：holdout level0卖 actual_pnl = {hd_pnl:.4e} {} 0", if hd_pnl > 0.0 { ">" } else { "≤" });
+        if oos_robust {
+            let _ = writeln!(rpt, "→ **OOS 初步稳健**：holdout 卖仍正，+3.47e4 不是纯挑赢家产物。**但仅 BTC 单标的单切分 L2，非 L3**——holdout 窗净涨跌={hold_ret:+.2}%，若 holdout 仍跌段则方向效应未排除（见任务2）。");
+        } else {
+            let _ = writeln!(rpt, "→ **否证 alpha（winner's curse 坐实）**：holdout 卖 actual_pnl≤0 ⟹ in-sample +3.47e4 是窗口/挑赢家产物。这是有价值的否定性结果（缩小有效域边界，161/formalization-validity-domain）——照实报，不粉饰。");
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 任务2：方向不对称（2 个不重叠子窗，结构性 vs 窗口效应）");
+        let _ = writeln!(rpt, "| 子窗 | 净涨跌 | 卖(δ−1) actual_pnl | n卖 | 买(δ+1) actual_pnl | n买 | 卖>买? |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
+        let _ = writeln!(rpt, "| 1（前半） | {w1_ret:+.2}% | {w1_sell:.4e} | {w1_s_n} | {w1_buy:.4e} | {w1_b_n} | {} |", if sell_beats_buy_w1 { "是" } else { "否" });
+        let _ = writeln!(rpt, "| 2（后半） | {w2_ret:+.2}% | {w2_sell:.4e} | {w2_s_n} | {w2_buy:.4e} | {w2_b_n} | {} |", if sell_beats_buy_w2 { "是" } else { "否" });
+        let _ = writeln!(rpt);
+        if asym_structural {
+            let _ = writeln!(rpt, "**判定**：两个不重叠子窗 level0卖均优于买。");
+            if w1_ret * w2_ret < 0.0 {
+                let _ = writeln!(rpt, "→ **结构性（跨涨跌都卖优）**：子窗1/子窗2 净涨跌符号相反（一涨一跌）卖仍都优 ⟹ 卖优势非单纯下跌段做空产物，是结构性方向不对称。L2 单标的。");
+            } else {
+                let _ = writeln!(rpt, "→ **方向同号，未充分隔离**：两子窗净涨跌同号（{w1_ret:+.2}%/{w2_ret:+.2}%），卖优势可能仍含方向效应——结构性结论需跨涨跌子窗或 L3 跨标的。");
+            }
+        } else {
+            let _ = writeln!(rpt, "**判定**：卖优势在子窗间不一致（子窗1卖>买={sell_beats_buy_w1}，子窗2={sell_beats_buy_w2}）。");
+            let _ = writeln!(rpt, "→ **窗口效应**：卖优势依赖特定子窗（很可能是下跌子窗做空），非结构性。否定性结果照实报。");
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 结果包六要素");
+        let _ = writeln!(rpt, "1. **结论**：holdout level0卖 actual_pnl={hd_pnl:.4e}（{}），方向不对称={}。", if oos_robust { "OOS 初步稳健" } else { "winner's curse 否证" }, if asym_structural { "结构性候选" } else { "窗口效应" });
+        let _ = writeln!(rpt, "2. **定义依据**：level0卖=663 in-sample 最强正类（level=0/δ=−1/顶背驰卖空反转腿）；actual_pnl=δ(Pτout−Pτin)−Ce 真实成交口径（664-Q3）。");
+        let _ = writeln!(rpt, "3. **边界条件**：holdout 窗净涨跌={hold_ret:+.2}%；若 holdout 为下跌段（做空天然赚），OOS 正不足以证 alpha（需跨涨跌子窗，见任务2）。train_frac={train_frac} 改变切分点结论可能翻转（单切分脆弱）。");
+        let _ = writeln!(rpt, "4. **下游推论**：{}", if oos_robust { "level0卖可作信号层 entry 候选，但须 L3 跨标的 + 涨段验证后才升基座（防方向效应）。" } else { "level0卖不可单独作 entry——in-sample 正是窗口产物，下游策略勿基于此类升基座。" });
+        let _ = writeln!(rpt, "5. **谱系引用**：663 econpositive 推论；664 对象错配修复（δ=反转腿方向）；formalization-validity-domain（L2 有效域 < 定义域）；161（务实=把缺口留后面）。");
+        let _ = writeln!(rpt, "6. **影响声明**：新增 Dataset::slice_bar_range（半开区间切片，复用 source_index 重置契约）+ acc_level0sell_oos 测试；不改 decompose_capturable_spread/TradeRecord/Order。");
+
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent().expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/econpositive-oos-level0sell-20260630.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
+        eprintln!("\n报告已落盘：{out:?}");
+
+        // 真封：train+holdout 信号数之和与全窗同口径无丢失（半开切分无重叠无遗漏 ⟹ 级别涌现局部性除外，
+        // 切窗会改变级别涌现 ⟹ 不强求 n 守恒；仅断言切片本身非空、actual_pnl 与逐信号和一致）。
+        let recomputed_hold: f64 = decomps_hold.iter().filter(|d| d.level == 0 && d.delta == -1)
+            .map(|d| d.actual_pnl).sum();
+        assert!((hd_pnl - recomputed_hold).abs() < 1e-6, "holdout level0卖 Σactual_pnl 聚合不一致");
+        assert!(ds_train.bars.len() + ds_hold.bars.len() == n, "train+holdout bar 数 ≠ 全窗（半开区间应无重叠无遗漏）");
+    }
+
+    fn winrate(pos: usize, n: usize) -> f64 {
+        if n > 0 { 100.0 * pos as f64 / n as f64 } else { 0.0 }
+    }
 }
