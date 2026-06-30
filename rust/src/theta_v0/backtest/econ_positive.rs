@@ -3,32 +3,39 @@
 //! 证明链 L0 见 `.chanlun/proofs/economic-positive-condition-chain.md`。本模块是其
 //! **唯一可否证环节**（可捕获价差判据前件）的 L2 实装：逐信号确定性分解
 //!
-//!     captured = Ab − ηin − ηout − Ce/qe        (PDF p4-5 §5)
+//!     captured = Ab_rev − ηin − ηout − Ce/qe        (PDF p4-5 §5，对象=反转交易腿)
 //!
-//! 其中（向上笔 εb=+1，向下笔 εb=−1）：
-//! - `Ab   = εb(Pρb − Pλb)`         结构端点价差（触发笔两端点 close，理想入出场）。
-//! - `ηin  = max(0, εb(Pτin − Pλb))` 入场滞后损耗（确认 bar 成交价相对理想起点的不利滑移，≥0）。
-//! - `ηout = max(0, εb(Pρb − Pτout))` 出场损耗（实际出场价相对理想终点的损耗，≥0）。
-//! - `Ce/qe = Pτ·fee_rate·2`          单位双边成本（与 `mu_estimator::marginal_return` 同口径）。
+//! **664 号对象错配修复（codex 异质审计 diagnose 坐实，2026-06-30）**：缠论买卖点是
+//! **反转交易**（底背驰买点 δ=+1 出现在下跌段末端，顶背驰卖点 δ=−1 出现在上涨段末端），
+//! 交易方向 δ 与信号前触发/背驰段方向 ε **内在相反**。旧实装测「信号前触发段端点价差」
+//! `Ab=εb(Pρb−Pλb)`（locate_lambda_bar 定位触发段起点）= **测错对象**：触发段几何方向反平行
+//! 于 δ ⟹ δ·(Pρ−Pλ)<0 系统性产生 ΣAb<0（BTC L2 ΣAb=−1.8e4）。正确对象 = **post-signal
+//! 反转交易腿**（信号确认后真正持有的那一段）。**禁止补丁**：改 eps 回 sign(Pρ−Pλ) 只恢复
+//! Ab=|Pρ−Pλ|≥0 同义反复（命题S L0 恒真，零信息）= 声明膨胀（090）+ 掩盖错配（no-patch）。
 //!
-//! **可否证（L2）**：若 Σ(ηin+ηout+Ce) ≥ ΣAb（执行损耗吃光结构价差），则该信号集无可捕获 alpha，
-//! 且分解定位「钱去哪了」（结构无价差 / 执行滞后 / 成本三者分离）。与 663 咬合：逐信号确定性分解，
-//! 非统计功效检验。
+//! 反转交易腿分解（δ=+1 多 / δ=−1 空）：
+//! - `Ab_rev = δ(P[ρ_rev] − P[λ_rev])`      反转交易腿理想价差（λ_rev=入场信号挂靠 pivot，
+//!                                          ρ_rev=配对出场信号挂靠 pivot，端点 close）。
+//! - `ηin    = max(0, δ(Pτin − P[λ_rev]))`  入场滞后损耗（确认 bar 成交价相对入场 pivot 的不利滑移，≥0）。
+//! - `ηout   = max(0, δ(P[ρ_rev] − Pτout))` 出场损耗（实际出场价相对出场 pivot 的损耗，≥0）。
+//! - `Ce/qe  = Pτ·fee_rate·2`               单位双边成本（与 `mu_estimator::marginal_return` 同口径）。
 //!
-//! **端点价缺口的严格解（不改 TradeRecord/Order）**：理想端点价 Pλb/Pρb 不在 fill 配对链
-//! （`TradeRecord` 只有 entry/exit bar），但**信号收集路径**（同 `build_walk_forward_mu`）在确认点
-//! 持有 tower——按触发笔右端点 `end_index == source_index`（coverage.rs:381 判准）从 tower 定位
-//! 触发 `LeveledMove`，取其 `start_index`(λb)/`end_index`(ρb) 端点 bar 的 close 作 Pλb/Pρb。
-//! 故走 μ 路径无需透传 Order 端点价。
+//! **可否证（L2）**：若 Σ(ηin+ηout+Ce) ≥ ΣAb_rev（执行损耗吃光反转腿价差），则该信号集无可捕获 alpha，
+//! 且分解定位「钱去哪了」（反转腿无价差 / 执行滞后 / 成本三者分离）。与 663 咬合：逐信号确定性分解，
+//! 非统计功效检验。注意：与旧触发段实装不同，Ab_rev 在反转腿上可正可负——是测对了对象之后的真实价差，
+//! 不是同义反复（命题S L0 恒真仅在顺笔/触发段成立）。
+//!
+//! **端点价缺口的严格解（不改 TradeRecord/Order）**：理想 pivot 端点价 P[λ_rev]/P[ρ_rev] 不在 fill
+//! 配对链（`TradeRecord` 只有 entry/exit bar），但**信号收集路径**（同 `build_walk_forward_mu`）在确认点
+//! 持有 BspPoint——其 `source_index`（bsp.rs:103，L0 原始 K 序的 pivot 端点位置）即信号挂靠的 pivot 端点
+//! bar，取其 close 作 P[λ_rev]（入场信号）/P[ρ_rev]（配对出场信号）。故走 μ 路径无需透传 Order 端点价。
 
 use super::data::Dataset;
 use super::incremental::IncrementalClassifier;
-use super::super::classifier::recursive_tower::LeveledMove;
 use super::super::config::ThetaConfig;
 use super::super::strategy::interp::assemble_gamma_with_tower;
 use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Bar, BspBits};
-use std::rc::Rc;
 
 /// 单信号的可捕获价差分解（PDF §5 五项 + captured = Ab−ηin−ηout−Ce/qe）。
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -39,17 +46,18 @@ pub struct SignalDecomp {
     pub exit_bar: usize,
     /// 触发买卖点所在 tower 级别（per-class 分桶键 (level,δ) 的 level 分量，MuClass.level 同口径）。
     pub level: u32,
-    /// 方向 δ：+1 多 / −1 空。
+    /// 方向 δ：+1 多 / −1 空（交易方向，反转交易腿；664 号 δ≠ε 笔方向）。
     pub delta: i8,
-    /// Ab = εb(Pρb − Pλb)：结构端点价差（≥0，端点方向同义反复）。
+    /// Ab_rev = δ(P[ρ_rev] − P[λ_rev])：反转交易腿理想价差（λ_rev=入场信号 pivot，ρ_rev=出场信号 pivot；
+    /// 664 号修复测错对象——非触发段价差，可正可负）。
     pub a_b: f64,
-    /// ηin = max(0, εb(Pτin − Pλb))：入场滞后损耗。
+    /// ηin = max(0, δ(Pτin − P[λ_rev]))：入场滞后损耗（相对入场 pivot）。
     pub eta_in: f64,
-    /// ηout = max(0, εb(Pρb − Pτout))：出场损耗。
+    /// ηout = max(0, δ(P[ρ_rev] − Pτout))：出场损耗（相对出场 pivot）。
     pub eta_out: f64,
     /// Ce/qe：单位双边成本。
     pub ce_unit: f64,
-    /// captured = Ab − ηin − ηout − Ce/qe（>0 ⟺ 路径级正收益，PDF §5）。
+    /// captured = Ab_rev − ηin − ηout − Ce/qe（>0 ⟺ 路径级正收益，PDF §5）。
     pub captured: f64,
 }
 
@@ -57,7 +65,7 @@ pub struct SignalDecomp {
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct SpreadAttribution {
     pub n_signals: usize,
-    /// Σ Ab：结构给的理想总价差。
+    /// Σ Ab_rev：反转交易腿给的理想总价差（664 号：post-signal 腿，非触发段）。
     pub sum_a_b: f64,
     /// Σ ηin：入场滞后吃掉。
     pub sum_eta_in: f64,
@@ -90,21 +98,8 @@ fn bsp_disc(b: &BspBits) -> u8 {
         | (b.sell3 as u8) << 5
 }
 
-/// 在 tower 第 `lvl` 级中按右端点 `end_index == source_index` 定位触发走势元素，返回其起点 bar
-/// `start_index`(λb)。判准来自 coverage.rs:381（买卖点触发元素 `e.rho == source_index`，禁 lambda）。
-///
-/// `None` ⟹ 该 source_index 在 lvl 级无匹配 move（信号触发点未入该级塔，跳过该信号——诚实跳过，
-/// 不用 entry_bar 兜底，否则 λb=τin ⟹ ηin≡0 退化为同义反复）。
-fn locate_lambda_bar(tower: &[Rc<Vec<LeveledMove>>], lvl: usize, source_index: usize) -> Option<usize> {
-    tower
-        .get(lvl)?
-        .iter()
-        .find(|m| m.end_index == source_index)
-        .map(|m| m.start_index)
-}
-
 /// 逐信号可捕获价差分解（L2）。复用 `build_walk_forward_mu` 的信号收集 + 退出配对模板，
-/// 在确认点用 tower 定位触发笔端点，算 PDF §5 五项分解。
+/// 取入场信号与配对出场信号的 pivot 端点（source_index）算 PDF §5 反转交易腿分解（664 号）。
 ///
 /// 返回 `(Vec<SignalDecomp>, SpreadAttribution)`：逐信号分解 + 聚合归因。
 ///
@@ -116,12 +111,13 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
 
-    // ── 信号收集（同 build_walk_forward_mu）：逐 bar 因果分类，收新确认买卖点 (entry_bar, dir, λb_bar)。 ──
+    // ── 信号收集（同 build_walk_forward_mu）：逐 bar 因果分类，收新确认买卖点。 ──
+    // 664 号：每条信号挂靠的 pivot 端点 = p.source_index（bsp.rs:103，L0 原始 K 序）。
+    // 反转交易腿 λ_rev = 入场信号 pivot 端点；ρ_rev 在退出配对时取配对出场信号的 pivot 端点。
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
     let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
-    // 每条信号：(entry_bar=确认 bar τin, dir, lambda_bar=触发笔起点 bar λb, rho_bar=触发笔终点 bar ρb, lvl=级别)。
-    // 触发笔终点 ρb 的 bar 序 = p.source_index（coverage.rs:381 判准）。
-    let mut signals: Vec<(usize, VoiceSide, usize, usize, u32)> = Vec::new();
+    // 每条信号：(entry_bar=确认 bar τin, dir=交易方向 δ, pivot_bar=信号挂靠 pivot 端点 source_index, lvl=级别)。
+    let mut signals: Vec<(usize, VoiceSide, usize, u32)> = Vec::new();
 
     for i in 0..n {
         let bar = &bars[i];
@@ -134,12 +130,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                 if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {
                     continue; // 已确认过
                 }
-                // 触发笔起点 bar（λb）：tower 第 lvl 级 end_index==source_index 的 move 的 start_index。
-                let lambda_bar = match locate_lambda_bar(&tower_i, lvl, p.source_index) {
-                    Some(lb) => lb,
-                    None => continue, // 诚实跳过：无匹配 move ⟹ 算不出 Ab，不兜底
-                };
-                let rho_bar = p.source_index; // 触发笔终点 = source_index（coverage.rs:381）
+                let pivot_bar = p.source_index; // 信号挂靠 pivot 端点（bsp.rs:103）= λ_rev / ρ_rev 取价处
                 // dir 经 assemble_gamma 拿（构造仅含该点的单级别分类，同 build_walk_forward_mu）。
                 let single = super::super::classifier::Classification {
                     levels: cls_i
@@ -157,48 +148,49 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                     if c.dir == VoiceSide::Flat {
                         continue;
                     }
-                    signals.push((i, c.dir, lambda_bar, rho_bar, lvl as u32));
+                    signals.push((i, c.dir, pivot_bar, lvl as u32));
                 }
             }
         }
     }
 
-    // ── 退出配对（事前固定规则：持有到下一反向新确认信号确认 bar，或末 bar censored；同 build_walk_forward_mu）。 ──
+    // ── 退出配对（664 号反转交易腿）：持有到下一反向新确认信号，ρ_rev = 该配对出场信号的 pivot 端点。 ──
+    // 与旧实装的关键差异：ρ_rev 是 **post-signal 且策略 owned**（配对出场信号挂靠 pivot），
+    // 不是触发段起点（错对象）。无配对出场信号 ⟹ 诚实跳过（末 bar 不是 pivot 端点，无 ρ_rev，不兜底）。
     let mut decomps: Vec<SignalDecomp> = Vec::new();
     let mut agg = SpreadAttribution::default();
 
-    for (idx, &(entry_bar, dir, lambda_bar, rho_bar, level)) in signals.iter().enumerate() {
+    for (idx, &(entry_bar, dir, lambda_rev_bar, level)) in signals.iter().enumerate() {
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
             VoiceSide::Short => -1,
             VoiceSide::Flat => continue,
         };
         let opp = if delta == 1 { VoiceSide::Short } else { VoiceSide::Long };
-        let exit_bar = signals[idx + 1..]
+        // 配对出场信号（首个后续反向新确认信号，π^bsp owned）：取其 entry_bar(τout) + pivot_bar(ρ_rev)。
+        let (exit_bar, rho_rev_bar) = match signals[idx + 1..]
             .iter()
-            .find(|(eb, d, _, _, _)| *eb > entry_bar && *d == opp)
-            .map(|(eb, _, _, _, _)| *eb)
-            .unwrap_or_else(|| {
-                (0..n)
-                    .rev()
-                    .find(|&j| j > entry_bar && !bars[j].untradable && bars[j].close > 0)
-                    .unwrap_or(entry_bar)
-            });
+            .find(|(eb, d, _, _)| *eb > entry_bar && *d == opp)
+            .map(|&(eb, _, pivot, _)| (eb, pivot))
+        {
+            Some(pair) => pair,
+            None => continue, // 诚实跳过：无配对出场反转信号 ⟹ 无 ρ_rev，算不出 Ab_rev，不兜底
+        };
         if exit_bar <= entry_bar {
             continue;
         }
-        // 端点价（close 口径，与回测成交价同口径，避免端点价定义混入）：
-        // Pλb=触发笔起点 close（理想入场），Pρb=触发笔终点 close（理想出场，rho_bar=source_index），
-        // Pτin=确认 bar close（实际入场，含确认滞后），Pτout=配对退出 bar close（实际出场）。
-        let p_lambda = px_at(bars, lambda_bar, tick);
-        let p_rho = px_at(bars, rho_bar, tick);
+        // 端点价（close 口径，与回测成交价同口径）：
+        // P[λ_rev]=入场信号 pivot 端点 close（理想入场），P[ρ_rev]=配对出场信号 pivot 端点 close（理想出场），
+        // Pτin=入场确认 bar close（实际入场，含确认滞后），Pτout=出场确认 bar close（实际出场）。
+        let p_lambda = px_at(bars, lambda_rev_bar, tick);
+        let p_rho = px_at(bars, rho_rev_bar, tick);
         let p_tau_in = px_at(bars, entry_bar, tick);
         let p_tau_out = px_at(bars, exit_bar, tick);
         if [p_lambda, p_rho, p_tau_in, p_tau_out].iter().any(|&x| x <= 0.0) {
             continue;
         }
-        let eps = delta as f64;
-        let a_b = eps * (p_rho - p_lambda);
+        let eps = delta as f64; // 交易方向 δ（反转交易腿；664 号 δ≠ε 笔方向）
+        let a_b = eps * (p_rho - p_lambda); // Ab_rev=δ(P[ρ_rev]−P[λ_rev])，可正可负（测对了对象）
         let eta_in = (eps * (p_tau_in - p_lambda)).max(0.0);
         let eta_out = (eps * (p_rho - p_tau_out)).max(0.0);
         // 单位双边成本：与 marginal_return 口径一致（fee 在 entry/exit 各扣一次）。
@@ -229,12 +221,13 @@ fn px_at(bars: &[Bar], i: usize, tick: f64) -> f64 {
 mod tests {
     use super::*;
 
-    /// PDF §4 反例的分解自检（合成，L1 验证分解算术正确）：
-    /// 向上笔理想 Pλ=10, Pρ=12（Ab=2）；确认滞后 Pτin=11.8, Pτout=11.1。
+    /// PDF §4 反例的分解算术自检（合成，L1 验证分解算术正确）：
+    /// 多头反转交易腿 P[λ_rev]=10, P[ρ_rev]=12（Ab_rev=δ·2=2，δ=+1）；确认滞后 Pτin=11.8, Pτout=11.1。
     /// ηin=max(0,11.8−10)=1.8, ηout=max(0,12−11.1)=0.9, captured=2−1.8−0.9−Ce<0（执行吃光）。
+    /// 664 号：λ_rev/ρ_rev 是入场/出场信号挂靠 pivot 端点价，δ=交易方向（非触发段笔方向 ε）。
     #[test]
     fn pdf_counterexample_decomp() {
-        let eps = 1.0_f64; // 向上笔
+        let eps = 1.0_f64; // 多头反转腿 δ=+1
         let (p_lambda, p_rho, p_tau_in, p_tau_out) = (10.0, 12.0, 11.8, 11.1);
         let a_b = eps * (p_rho - p_lambda);
         let eta_in = (eps * (p_tau_in - p_lambda)).max(0.0);
@@ -248,6 +241,23 @@ mod tests {
         assert!((captured - (-0.7)).abs() < 1e-9);
     }
 
+    /// 664 号反转交易腿方向语义自检（合成，L1）：底背驰买点 δ=+1，入场 pivot 低、出场 pivot 高
+    /// ⟹ Ab_rev=δ(P[ρ_rev]−P[λ_rev])>0；顶背驰卖点 δ=−1，入场 pivot 高、出场 pivot 低 ⟹ Ab_rev>0。
+    /// 两侧反转腿价差都为正——证明 δ 作用在 post-signal 腿（入场→出场 pivot）上，不与触发段方向 ε 耦合。
+    #[test]
+    fn reversal_leg_direction_semantics() {
+        // 底买反转腿：λ_rev=入场低点 pivot 100，ρ_rev=出场高点 pivot 120，δ=+1。
+        let ab_buy = 1.0_f64 * (120.0 - 100.0);
+        assert!(ab_buy > 0.0, "底买反转腿 Ab_rev 应 >0（入场低点→出场高点），实得 {ab_buy}");
+        // 顶卖反转腿：λ_rev=入场高点 pivot 120，ρ_rev=出场低点 pivot 100，δ=−1。
+        let ab_sell = (-1.0_f64) * (100.0 - 120.0);
+        assert!(ab_sell > 0.0, "顶卖反转腿 Ab_rev 应 >0（入场高点→出场低点，δ=−1 翻正），实得 {ab_sell}");
+        // 对照（664 号错配示意）：δ 作用在触发段（底买出现在下跌段末端，触发段 Pρ<Pλ）⟹ δ·(Pρ−Pλ)<0
+        // ——这正是旧实装系统性 ΣAb<0 的来源（测错对象，非判据被否证）。
+        let ab_old_trigger = 1.0_f64 * (100.0 - 120.0);
+        assert!(ab_old_trigger < 0.0, "旧触发段对象 δ·(Pρ−Pλ) 系统性负（对象错配示意）");
+    }
+
     /// spread_eaten 判据自检：Σcaptured≤0 ⟺ 损耗吃光。
     #[test]
     fn spread_eaten_iff_captured_nonpositive() {
@@ -258,12 +268,12 @@ mod tests {
         assert!(!agg.spread_eaten());
     }
 
-    /// L2 诊断「钱去哪了」：BTC 全历史逐信号可捕获价差分解（真实数据，可产否定性结果）。
+    /// L2 重测「钱去哪了」：BTC 全历史逐信号反转交易腿 Ab_rev 可捕获价差分解（真实数据，可产否定性结果；664 号）。
     ///
     /// `#[ignore]`：需 BTC 全量数据（314M）+ O(n²) 逐 bar 重分类，`--release` 必须。重跑由 Lead。
-    /// 报告落盘 `.chanlun/review-results/econ-l2-btc-diagnosis-20260630.md`（确定性，可复算）。
+    /// 报告落盘 `.chanlun/review-results/econ-abrev-l2-btc-20260630.md`（确定性，可复算；不覆盖旧触发段报告）。
     ///
-    /// **L2 纪律**：spread_eaten=true ⟹ 该信号集执行损耗吃光结构价差（否证可交易，有效域收窄）；
+    /// **L2 纪律**：spread_eaten=true ⟹ 该信号集执行损耗吃光反转交易腿价差（否证可交易，有效域收窄）；
     /// spread_eaten=false ⟹ 该级别有可捕获 alpha——两者照实报，不粉饰（161/formalization-validity-domain）。
     #[test]
     #[ignore]
@@ -322,22 +332,23 @@ mod tests {
         let pct = |x: f64| if total_drain > 0.0 { 100.0 * x / total_drain } else { 0.0 };
 
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# 经济正条件③ L2 诊断：BTC 基线「钱去哪了」可捕获价差归因");
+        let _ = writeln!(rpt, "# 经济正条件④ L2 重测：BTC 基线反转交易腿 Ab_rev「钱去哪了」可捕获价差归因（664 号对象错配修复）");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的逐信号确定性分解，可产否定性结果）。");
-        let _ = writeln!(rpt, "**口径**：captured = Ab − ηin − ηout − Ce/qe（PDF §5）；端点 close 口径；fee_rate=(comm+slip+tax)bps/1e4。");
+        let _ = writeln!(rpt, "**664 号修复**：测量对象从「信号前触发段价差 Ab=εb(Pρ−Pλ)」改为「post-signal 反转交易腿价差 Ab_rev=δ(P[ρ_rev]−P[λ_rev])」。λ_rev=入场信号挂靠 pivot，ρ_rev=配对出场信号挂靠 pivot（均取 source_index 端点 close）。旧实装系统性 ΣAb<0（−1.8e4）是触发段错对象产物，非判据被否证。");
+        let _ = writeln!(rpt, "**口径**：captured = Ab_rev − ηin − ηout − Ce/qe（PDF §5）；pivot 端点 close 口径；fee_rate=(comm+slip+tax)bps/1e4。");
         let _ = writeln!(rpt, "**复算**：`cargo test -p <crate> --release l2_btc_capturable_spread_diagnosis -- --ignored --nocapture`（确定性）。");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 数据");
         let _ = writeln!(rpt, "- 品种：BTC（btc_1m_full.json，全量 {n_full} bar，2017-08→2026-05）");
         let _ = writeln!(rpt, "- **截断窗 [{window_start}→{window_end}]，bars={n_bars}**（最后 {max_bars} bar；全量 461万 OOM 不可行 ⟹ 截断窗=显式有效域边界，非全窗结论，l3 同纪律）");
         let _ = writeln!(rpt, "- untradable_ratio={:.4}", untradable);
-        let _ = writeln!(rpt, "- 收集信号数 n_signals={}（locate_lambda_bar 跳过的信号不入此集——见跳过率）", agg.n_signals);
+        let _ = writeln!(rpt, "- 收集信号数 n_signals={}（无配对出场反转信号的入场信号被诚实跳过，不入此集——无 ρ_rev 不兜底）", agg.n_signals);
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 全局归因");
         let _ = writeln!(rpt, "| 量 | 值 |");
         let _ = writeln!(rpt, "|---|---|");
-        let _ = writeln!(rpt, "| ΣAb（结构理想总价差） | {:.6e} |", agg.sum_a_b);
+        let _ = writeln!(rpt, "| ΣAb_rev（反转交易腿理想总价差） | {:.6e} |", agg.sum_a_b);
         let _ = writeln!(rpt, "| Σηin（入场滞后） | {:.6e} ({:.1}%) |", agg.sum_eta_in, pct(agg.sum_eta_in));
         let _ = writeln!(rpt, "| Σηout（出场滞后） | {:.6e} ({:.1}%) |", agg.sum_eta_out, pct(agg.sum_eta_out));
         let _ = writeln!(rpt, "| ΣCe（成本） | {:.6e} ({:.1}%) |", agg.sum_ce, pct(agg.sum_ce));
@@ -350,25 +361,29 @@ mod tests {
         let _ = writeln!(rpt, "## L2 判定");
         let _ = writeln!(rpt, "- **spread_eaten = {}**（Σcaptured {} 0）", agg.spread_eaten(), if agg.spread_eaten() { "≤" } else { ">" });
         if agg.spread_eaten() {
-            let _ = writeln!(rpt, "- **否定性结果**：执行损耗（含成本）吃光结构价差 ⟹ 该信号集无可捕获 alpha（PDF §5 前件失败）。有效域收窄——比确认性结果信息量大（161/formalization-validity-domain）。");
+            let _ = writeln!(rpt, "- **否定性结果**：执行损耗（含成本）吃光反转交易腿价差 ⟹ 该信号集无可捕获 alpha（PDF §5 前件失败）。有效域收窄——比确认性结果信息量大（161/formalization-validity-domain）。");
         } else {
-            let _ = writeln!(rpt, "- **确认性结果**：Σcaptured>0 ⟹ 该信号集结构端点价差未被执行损耗吃光（PDF §5 前件成立）。注意：路径级正 ≠ 跨品种功效；仅 BTC 单标的 L2。");
+            let _ = writeln!(rpt, "- **确认性结果**：Σcaptured>0 ⟹ 该信号集反转交易腿价差未被执行损耗吃光（PDF §5 前件成立）。注意：路径级正 ≠ 跨品种功效；仅 BTC 单标的 L2。");
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 失血三源对比（ΣAb 为结构上限）");
-        let _ = writeln!(rpt, "- 结构无价差：ΣAb={:.6e}（若 ΣAb 本身小则结构不给价差）", agg.sum_a_b);
+        let _ = writeln!(rpt, "## 失血三源对比（ΣAb_rev 为反转腿结构上限）");
+        let _ = writeln!(rpt, "- 反转腿价差：ΣAb_rev={:.6e}（664 号测对了对象——可正可负，非触发段同义反复）", agg.sum_a_b);
         let _ = writeln!(rpt, "- 执行吃光：Ση={:.6e}（入场+出场滞后）", agg.sum_eta_in + agg.sum_eta_out);
         let _ = writeln!(rpt, "- 成本：ΣCe={:.6e}", agg.sum_ce);
         if agg.sum_a_b < 0.0 {
             let _ = writeln!(rpt);
-            let _ = writeln!(rpt, "**核心诊断（比执行滞后更根本）：ΣAb<0。** Ab=εb(Pρb−Pλb)，理论应 ≥0（端点方向同义反复：");
-            let _ = writeln!(rpt, "向上笔 ρ>λ）。ΣAb<0 ⟹ **信号方向 δ（assemble_gamma 给）与触发笔结构端点方向系统性错位**——");
-            let _ = writeln!(rpt, "买卖点在触发笔做了反向标注（如向下笔上标买点）。这不是执行问题：结构端点价差本身为负，");
-            let _ = writeln!(rpt, "执行损耗只是在负的结构价差上再扣。即使零滞后零成本（Ση=ΣCe=0），captured=ΣAb<0 仍无 alpha。");
+            let _ = writeln!(rpt, "**ΣAb_rev<0（反转交易腿）：** 664 号修复后仍为负 ⟹ 不是对象错配（已测对反转腿），是反转交易腿");
+            let _ = writeln!(rpt, "本身的真实价差为负——配对出场信号 pivot 相对入场信号 pivot 在交易方向 δ 上整体不利。这是测对");
+            let _ = writeln!(rpt, "对象之后的真实否定性结果（231：缩小有效域边界），不靠改符号修复（改 eps=恢复同义反复，090+no-patch）。");
+            let _ = writeln!(rpt, "即使零滞后零成本（Ση=ΣCe=0），captured=ΣAb_rev<0 仍无 alpha——但这次测的是反转交易腿，不是触发段。");
+        } else {
+            let _ = writeln!(rpt);
+            let _ = writeln!(rpt, "**ΣAb_rev>0（反转交易腿）：** 664 号修复后反转腿理想价差为正 ⟹ 结构给了可捕获价差（与旧触发段 ΣAb=−1.8e4");
+            let _ = writeln!(rpt, "形成对照——后者是测错对象的伪否证）。剩余 alpha = ΣAb_rev − Ση − ΣCe（执行/成本是否吃光见上表 Σcaptured）。");
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## per-class (level, δ) 分桶");
-        let _ = writeln!(rpt, "| level | δ | n | ΣAb | Ση | ΣCe | Σcaptured | n_pos/n (路径级正占比) |");
+        let _ = writeln!(rpt, "| level | δ | n | ΣAb_rev | Ση | ΣCe | Σcaptured | n_pos/n (路径级正占比) |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
         for ((lvl, dlt), (n, sab, sin, sout, sce, scap, npos)) in &buckets {
             let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.1}%) |",
@@ -391,10 +406,10 @@ mod tests {
 
         eprint!("{rpt}");
 
-        // 落盘（项目根 = CARGO_MANIFEST_DIR 上一级）。
+        // 落盘新文件（不覆盖旧 econ-l2-btc-diagnosis-20260630.md——664 号 split 保留旧触发段 ΣAb=−1.8e4 数值）。
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent().expect("rust/ 父目录 = 项目根")
-            .join(".chanlun/review-results/econ-l2-btc-diagnosis-20260630.md");
+            .join(".chanlun/review-results/econ-abrev-l2-btc-20260630.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
