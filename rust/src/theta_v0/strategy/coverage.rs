@@ -496,6 +496,27 @@ pub fn attach_bsp_carrier_indexed(
     }
 }
 
+/// ★Lift.Context^δ_j 投影载体（pi_bsp_timing 工位 D续）：返回 host 的真 Compose 父容器 c 的
+/// `(parent_id, level_c, rho_c)`——子声部 Lift 的 Context 谓词需上级 carrier c 的 **级别 ℓ_c +
+/// 右端点 ρ_c** 才能去 `Classification.levels[ℓ_c].bsp` 找「g 证成上级第 j 类」的已确认买卖点。
+///
+/// 与 [`attach_bsp_carrier_indexed`] 同 hostOf 判准（(level,ρ)==source_index 命中），只是额外返回父
+/// carrier 的 level/rho（[`attach_bsp_carrier_indexed`] 只返回 `host.parent` 索引 + `host.id`，丢了
+/// 父的坐标）。host-miss / host 是根（无父）⟹ 父三元组 None。
+///
+/// > 认识论 L0：纯结构查表（端点坐标 + 父链坐标），不依赖经验数据。
+pub fn attach_bsp_parent_carrier_indexed(
+    tree_idx: &std::collections::HashMap<(u32, usize), usize>,
+    tree: &[CoverageElement],
+    level_g: u32,
+    source_index: usize,
+) -> Option<(ElementId, u32, usize)> {
+    let host_idx = tree_idx.get(&(level_g, source_index)).copied()?;
+    let parent_idx = tree[host_idx].parent?;
+    let parent = &tree[parent_idx];
+    Some((parent.id, parent.level, parent.rho))
+}
+
 /// 直接从 [`Classification`] 提取元素集 E（生产入口：消费 classifier 输出）。
 ///
 /// classifier 的 `Classification.levels` 当前不直接携 `LeveledMove` 塔（塔在 classify 内部构造后

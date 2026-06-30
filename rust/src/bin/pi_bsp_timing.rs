@@ -55,11 +55,46 @@ use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
 use newchan_rust::theta_v0::config::ThetaConfig;
+use newchan_rust::theta_v0::classifier::Classification;
 use newchan_rust::theta_v0::strategy::coverage::{
-    attach_bsp_carrier_indexed, build_tree_endpoint_index, extract_carrier_forest,
+    attach_bsp_carrier_indexed, attach_bsp_parent_carrier_indexed, build_tree_endpoint_index,
+    extract_carrier_forest,
 };
-use newchan_rust::theta_v0::types::BspBits;
+use newchan_rust::theta_v0::types::{BspBits, Side};
 use std::collections::{HashMap, HashSet};
+
+/// ★Lift.Context^δ_j（递归证明.pdf §2.3；codex 裁决口径 A，2026-06-30）：判次级别买卖点 g 是否
+/// **证成上级 carrier c 第 j 类**——即上级级别 ℓ_c 在 c 右端点 ρ_c 处**已独立分类出**与 g 同向 δ 的
+/// 买卖点。
+///
+/// ## 为何是「读上级已确认 bsp」而非「现场重算 EndpointSituation」（codex no-patch 裁决）
+/// EndpointSituation 的 left_center / retrace_not_reenter / 一买背驰（A/C MACD 面积）字段是**上级
+/// 级别的段对结构**（leave 段 / retest 段 / A 段 / C 段）算出的——次级别 g 只是上级某走势的右端点
+/// **单点**，不携带上级段对。若用 g 单点 + 上级 centers 现场构造 EndpointSituation，这些字段只能瞎填
+/// false（伪 Context，违反 no-patch.md）。上级级别 ℓ_c 自己的 `judge_first/third/extract_second`
+/// **已用上级段对算过** ⟹ `Classification.levels[ℓ_c].bsp` 就是「相对 c 重算」的忠实结果。Context
+/// = ∃ 上级 bsp 在 ρ_c 处含同向 δ 证书（codex 审点 #1=A，#4=坐标对齐 ρ==source_index）。
+///
+/// ## δ 取向（codex 审点 #2=σ_u/证书方向）
+/// `side` 是子声部要 Lift 的**证书方向**（g 证成的买卖点方向）——非被对冲的父方向 σ_p。买 δ=+1
+/// 用 conf_plus，卖 δ=−1 用 conf_minus（`confirm_side`）。
+///
+/// 返回 true ⟹ g 可提升（U(g) 的 Context 分量满足）；false ⟹ Context 缺失（子声部不 Lift）。
+fn context_lifts(
+    classification: &Classification,
+    parent_level: u32,
+    parent_rho: usize,
+    side: Side,
+) -> bool {
+    classification
+        .levels
+        .get(parent_level as usize)
+        .is_some_and(|ls| {
+            ls.bsp
+                .iter()
+                .any(|p| p.source_index == parent_rho && p.bits.confirm_side(side))
+        })
+}
 
 /// 声部 position instance（PDF §3：v=(c_v, η_v, σ_v, n_v)）。
 ///
@@ -175,6 +210,10 @@ fn main() -> std::process::ExitCode {
     // active：当前 A_t（§4 活动声部索引集）。
     let mut classifier = IncrementalClassifier::new(bars, &config);
     let mut seen: HashSet<(usize, usize, u8)> = HashSet::new();
+    // ★Fresh（递归证明.pdf §2，codex NO#3）：独立 Lift 记忆——防同一 (carrier,方向) 重复 Lift。
+    // **不**复用 `seen`（seen 在证书发现去重，早于 Lift；会吞「先 U(g)=∅ 父未 live、后父成熟」的合法
+    // 迟到 Lift）。seen_lifted 只在真正 Lift 成功（子声部开成）时记 ⟹ 迟到 Lift 仍可激活。
+    let mut seen_lifted: HashSet<(ElementId, i8)> = HashSet::new();
     let mut voices: Vec<Voice> = Vec::new();
     let mut active: HashSet<usize> = HashSet::new();
     // 每 carrier 的代数计数（§3 n_v：同 carrier 多次开仓）。carrier=hostOf ElementId（644）。
@@ -192,6 +231,7 @@ fn main() -> std::process::ExitCode {
     let mut diag_host_miss = 0usize; // hostOf 未命中（落 extract_elements 树外，∂ 根）
     let mut diag_has_parent = 0usize; // host 命中且有真 Compose 父容器
     let mut diag_parent_active_found = 0usize; // 父容器上有 active 声部（子声部可达的必要条件）
+    let mut diag_lift_pass = 0usize; // ★严格可提升数（Context∧Fresh 双门通过的子声部 Lift，≤裸 host-hit）
 
     for i in 0..n {
         let (classification, tower) = classifier.classify_at(i);
@@ -210,7 +250,10 @@ fn main() -> std::process::ExitCode {
         // (carrier=hostOf ElementId, parent_id=hostOf 真 Compose 父容器, σ_p=父方向)。
         // append-only seen-set diff（644：与 runner newly_confirmed_step 同语义，无 look-ahead）。
         // (carrier, parent_id, dir)：dir 是证书方向（买 +1 / 卖 −1），由 §5/§16 在 open 时按是否有父决定 final_dir。
-        let mut new_certs: Vec<(ElementId, Option<ElementId>, i8)> = Vec::new();
+        // 元组：(carrier, parent_id, parent_level ℓ_c, parent_rho ρ_c, dir)。(ℓ_c,ρ_c) = 上级
+        // carrier c 坐标（Lift.Context 投影去 levels[ℓ_c].bsp 找 g 证成上级第 j 类的已确认买卖点）。
+        let mut new_certs: Vec<(ElementId, Option<ElementId>, Option<u32>, Option<usize>, i8)> =
+            Vec::new();
         for (lvl, ls) in classification.levels.iter().enumerate() {
             for p in &ls.bsp {
                 if seen.insert((lvl, p.source_index, p.bits.class_index())) {
@@ -235,11 +278,17 @@ fn main() -> std::process::ExitCode {
                     if (c.buy || c.sell) && parent_id.is_some() {
                         diag_has_parent += 1;
                     }
+                    // 上级 carrier c 的 (level_c, rho_c)——Lift.Context 投影载体（codex 口径 A）。
+                    let parent_carrier = attach_bsp_parent_carrier_indexed(
+                        &tree_idx, &tree, lvl as u32, p.source_index,
+                    );
+                    let parent_level = parent_carrier.map(|(_, lc, _)| lc);
+                    let parent_rho = parent_carrier.map(|(_, _, rho_c)| rho_c);
                     if c.buy {
-                        new_certs.push((carrier, parent_id, 1));
+                        new_certs.push((carrier, parent_id, parent_level, parent_rho, 1));
                     }
                     if c.sell {
-                        new_certs.push((carrier, parent_id, -1));
+                        new_certs.push((carrier, parent_id, parent_level, parent_rho, -1));
                     }
                 }
             }
@@ -261,7 +310,7 @@ fn main() -> std::process::ExitCode {
             let exit_dir = -voice.dir;
             let exit_cert = new_certs
                 .iter()
-                .any(|&(c, _, d)| c == voice.carrier && d == exit_dir);
+                .any(|&(c, _, _, _, d)| c == voice.carrier && d == exit_dir);
             // §10-11 close 优先：风险关闭(本实装 risk_close=false, K_Θ 恒等)/父关闭/出场证书。
             // 父关闭在 anc_ok 阶段级联处理，此处判出场证书（P3，同 carrier 反向）。
             if should_close(exit_cert, true, false) {
@@ -294,7 +343,7 @@ fn main() -> std::process::ExitCode {
         // codex 严格条件：父 voice 进 O_i **仅因**父证书同 bar 或父已 live（**非** AncOK 生成父——AncOK
         // 仍是过滤器只剪孤儿子，§6/§7）。沿真 Compose parent 链上溯，对每个有同 bar 证书的祖先开 voice。
         let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8)> =
-            new_certs.iter().map(|&(c, p, d)| (c, (p, d))).collect();
+            new_certs.iter().map(|&(c, p, _lc, _rho, d)| (c, (p, d))).collect();
 
         // open_carrier：确保 carrier 上有 active voice（已 live ⟹ 复用首个；否则沿父链先开父再开本级）。
         // 返回该 carrier 的 active voice 索引。父链上溯到 ∂（parent_id=None）或无同 bar 证书的祖先为止。
@@ -358,7 +407,7 @@ fn main() -> std::process::ExitCode {
             idx
         }
 
-        for &(_carrier, parent_id, _cert_dir) in &new_certs {
+        for &(_carrier, parent_id, _lc, _rho, _cert_dir) in &new_certs {
             if let Some(pid) = parent_id {
                 if active_voice_by_carrier.contains_key(&pid) {
                     diag_parent_active_found += 1;
@@ -366,7 +415,33 @@ fn main() -> std::process::ExitCode {
             }
         }
         let mut opened_this_bar: HashMap<ElementId, usize> = HashMap::new();
-        for &(carrier, parent_id, cert_dir) in &new_certs {
+        for &(carrier, parent_id, parent_level, parent_rho, cert_dir) in &new_certs {
+            // ── Lift 谓词链门（递归证明.pdf §2/§4：Lift=Host∧Nest∧Context∧Fresh，全 1 ⟹ U(g)≠∅）──
+            // Host：carrier 命中 hostOf（new_certs 已是命中结果）。Nest：K_i 真嵌套自动满足（debug_assert）。
+            // 有真父的证书 = 候选子声部 g（要 Lift 到上级 c）。无真父 = 根声部证书，无需 Lift 门，直接开根。
+            if parent_id.is_some() {
+                // ★Context^δ_j（codex 口径 A）：g 必须证成上级 carrier c 第 j 类（上级 ℓ_c 在 ρ_c 处
+                // 已独立分类出同向 δ 买卖点）。投影坐标 (ℓ_c=parent_level, ρ_c=parent_rho) 在证书收集
+                // 时由 attach_bsp_parent_carrier_indexed 取真 Compose 父 carrier 的 level/rho。
+                let lifts = match (parent_level, parent_rho) {
+                    (Some(lc), Some(rc)) => {
+                        // δ：子声部要 Lift 的证书方向 g（codex 审点 #2=σ_u/证书方向，非父 σ_p）。
+                        let side = if cert_dir > 0 { Side::Long } else { Side::Short };
+                        context_lifts(&classification, lc, rc, side)
+                    }
+                    _ => false, // ℓ_c/ρ_c 缺失（host 父坐标丢失）⟹ Context 不可判 ⟹ 不可提升。
+                };
+                if !lifts {
+                    continue; // Context 失败 ⟹ g 不可提升 ⟹ 不开子、不开父、不降级根（codex 审点 #3）。
+                }
+                // ★Fresh（codex NO#3）：独立 seen_lifted 防同一 Lift（carrier+方向）重复触发——
+                // **不**复用 seen（seen 早于 Lift 在证书发现去重，会吞「先 U(g)=∅ 后成熟」的合法迟到 Lift）。
+                // seen_lifted 只在真正 Lift 成功时记，故迟到 Lift（父成熟后）仍可激活。
+                if !seen_lifted.insert((carrier, cert_dir)) {
+                    continue; // 该 (carrier,方向) 已 Lift 过 ⟹ Fresh 失败 ⟹ 跳过（不重复开子声部）。
+                }
+                diag_lift_pass += 1;
+            }
             open_carrier(
                 &mut voices, &mut active, &mut gen_counter, &active_voice_by_carrier,
                 &certs_by_carrier, &mut opened_this_bar, carrier, parent_id, cert_dir, i,
@@ -468,6 +543,7 @@ fn main() -> std::process::ExitCode {
     println!("hostOf 命中     : {host_hit}（{hit_pct:.1}%；其余落 extract_elements 树外=∂ 根）");
     println!("命中且有父容器  : {diag_has_parent}（host 有真 Compose 父）");
     println!("父容器有 active : {diag_parent_active_found}（子声部可达必要条件——0 ⟹ 子声部结构性不可达）");
+    println!("★严格可提升 Lift: {diag_lift_pass}（Context^δ_j∧Fresh 双门通过——收紧后真子声部；≤裸 host-hit）");
     println!("--- 指标（§18 r^bsp=N^bsp·ΔP−C，同工位 L NAV 口径，可比 π^cov）---");
     println!("★Sharpe         : {:.4}", m.sharpe);
     println!("strat_return    : {:.4}", m.strat_return);
