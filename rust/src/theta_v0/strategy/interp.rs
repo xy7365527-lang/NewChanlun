@@ -46,6 +46,7 @@
 use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
 use std::rc::Rc;
 use super::super::classifier::Classification;
+use super::super::classifier::bsp::BspPoint;
 use super::super::types::BspBits;
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
 use super::exec::reverse_signal;
@@ -468,6 +469,256 @@ impl TreeCache {
     }
 }
 
+/// ★tree 段缓存（[`coverage_elements_and_gamma_with_tower_cached_gen`] 与 PART1 gamma-free 路径
+/// [`coverage_elements_with_tower_cached_gen`] **单一来源**，no-patch 不复制 tree 缓存逻辑）。
+///
+/// 返回 `(tree, endpoint_idx, sibling_idx)` 三 Rc（命中 O(1)）。gen 快路（代次未变跳 `TreeKey::of`）
+/// + TreeKey fallback + 无缓存全建——逐字节 == 抽出前的 inline 逻辑（工位 4g）。
+fn tree_segment_cached_gen(
+    classification: &Classification,
+    tower: &[Rc<Vec<LeveledMove>>],
+    cache: &mut Option<&mut TreeCache>,
+    tower_gen: Option<u64>,
+) -> (
+    Rc<Vec<CoverageElement>>,
+    Rc<std::collections::HashMap<(u32, usize), usize>>,
+    Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
+) {
+    let _ = classification; // tree 段不消费 classification（candidate 段才用），保签名一致。
+    match cache {
+        Some(c) => {
+            // ★工位 4g 代次快路：塔代次未变 ⟹ 跳过 O(tree) 的 TreeKey::of（exp≈2.0 真因消除）。
+            let gen_hit = matches!((tower_gen, c.gen), (Some(g), Some(cg)) if g == cg) && c.valid;
+            if gen_hit {
+                debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
+                    "TreeCache 代次假命中——TowerCache::generation 维护遗漏变异点（codex Q3）");
+                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
+            } else {
+                let key = TreeKey::of(tower);
+                if c.valid && c.key == key {
+                    debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
+                        "TreeCache 假命中——§16 不变量破裂或 TreeKey 不 sound");
+                    c.gen = tower_gen;
+                    (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
+                } else {
+                    let t = Rc::new(coverage::extract_elements(tower));
+                    c.endpoint_idx = Rc::new(coverage::build_tree_endpoint_index(&t));
+                    c.sibling_idx = Rc::new(coverage::build_prev_sibling_index(&t));
+                    c.id_idx = Rc::new(coverage::build_tree_id_index(&t));
+                    c.tree = t;
+                    c.key = key;
+                    c.gen = tower_gen;
+                    c.valid = true;
+                    (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
+                }
+            }
+        }
+        None => {
+            let t = Rc::new(coverage::extract_elements(tower));
+            let ep = Rc::new(coverage::build_tree_endpoint_index(&t));
+            let sb = Rc::new(coverage::build_prev_sibling_index(&t));
+            (t, ep, sb)
+        }
+    }
+}
+
+/// 单个 bsp → candidate `CoverageElement`（遍历1 核心，PART1 gamma-free 路径与全路径共享）。
+///
+/// 纯查表（`attach_bsp_carrier_indexed` 只读 tree 前缀 + endpoint_idx，O(1)）：bit-exact == 遍历1
+/// line 560-583 内联。`ci` = 该 candidate 的全局 idx（fallback id 用）。
+fn build_candidate_element(
+    tree: &[CoverageElement],
+    tree_endpoint_idx: &std::collections::HashMap<(u32, usize), usize>,
+    lvl: u32,
+    point: &BspPoint,
+    ci: usize,
+) -> CoverageElement {
+    let dir = candidate_dir(&point.bits);
+    let (parent, attached_dir, carrier_id) =
+        coverage::attach_bsp_carrier_indexed(tree_endpoint_idx, tree, lvl, point.source_index);
+    CoverageElement {
+        lambda: point.source_index,
+        rho: point.source_index,
+        eps: match dir {
+            VoiceSide::Flat => VoiceSide::Long,
+            d => d,
+        },
+        level: lvl,
+        parent,
+        attached_dir,
+        id: carrier_id.unwrap_or(ElementId { level: lvl, ordinal: ci as u64 }),
+        parent_id: parent.and_then(|pidx| tree.get(pidx).map(|e: &CoverageElement| e.id)),
+    }
+}
+
+/// ★工位 4h：candidate 段前缀缓存（源(b) O(n²) 真修）——caller B（merge，gamma 丢弃）专用。
+///
+/// ## 源(b)（#20 诊断 acceptance4-4g）
+///
+/// [`coverage_elements_and_gamma_with_tower_cached_gen`] 的 candidate 段每 bar 全量重建 `Vec<CoverageElement>`
+/// （遍历 `classification.levels[*].bsp` 全部，bsp ∝ confirmed ∝ n^1.26 超线性 ⟹ Σ_bar O(bsp_at_bar) = O(n²)）。
+/// CL 16K cand≈0.05s，BTC 1.31M 外推 ≈946s 爆。
+///
+/// ## 增量充要（codex 异质审 verdict，/tmp/codex_4h_prompt.md）
+///
+/// - **Q1 SOUND**：caller B 丢弃 gamma ⟹ 跳过遍历2（role/gamma 组装）bit-exact。`merge_in_place_split`
+///   只读 candidate 字段 {id,eps,level,lambda,rho,parent_id}，不读 role/gamma。本路径**不建** cand_sibling_idx
+///   （只为遍历2 role 服务）。
+/// - **Q2 SOUND（身份）**：`gen` 不变 ⟹ `extract_elements(tower)` 输出不变 ⟹ 同一 bsp（同 level/source_index/
+///   bits）的 `attach_bsp_carrier_indexed` 返回 (parent,attached_dir,carrier_id) + tree[parent].id 全不变
+///   ⟹ candidate 前缀身份稳定。
+/// - **Q3 SOUND（须前缀校验）**：memo 命中时 bsp 不变（clone）；重算时 confirmed 前缀不变（B2/S2 extend
+///   必 bump generation）。无合法路径让 confirmed 前缀变/缩而 gen 不 bump。**但 gen 不变 ≠ 无新 bsp**
+///   （L0 seg_len 变可增长 bsp 尾部而不 bump gen，codex Q2）⟹ 不能 gen-only 返旧全量，须按 per-level
+///   bsp 前缀长度检测尾部增长 + 只 build 尾部。
+/// - **Q4 诚实下界**：前缀校验用 per-level len 比较 O(levels)（≈7 常数），**非** naive 全 bsp 扫描
+///   O(bsp)。命中 ⟹ candidate 构建 = O(Σ Δbsp) = O(总 bsp) amortized O(n)。
+///
+/// ## 命中两级（与 [`TreeCache`] 同构）
+///
+/// 1. **gen + 前缀快路**：`gen == tower_gen` ∧ 每级 `bsp.len() >= cached_lens[lvl]`（单调追加）⟹ 复用
+///    cached candidates 前缀，只对每级 `bsp[cached_lens[lvl]..]` 尾部 `build_candidate_element` 追加。
+/// 2. **miss fallback**：gen 不匹配 / 前缀回缩 / 级数变 ⟹ 全量重建（bit-exact 退化）。
+#[derive(Default)]
+pub struct CandidateCache {
+    /// 缓存对应的塔代次（`TowerCache::generation()`）。`Some(g)` ⟹ candidates 由代次 g 的 tree 建得。
+    gen: Option<u64>,
+    /// ★per-level 分段存储（修正扁平 Vec 顺序 bug）：candidates 按 level 顺序拼接成扁平 Vec
+    /// `[L0..., L1..., ...]`。命中时 L0 新增 bsp 必须插在 L0 段末尾（L1 之前），不是整个 Vec 末尾。
+    /// 故按级分段存 `per_level[lvl]`，返回时按级拼接 ⟹ level 顺序 bit-exact。
+    /// `per_level[lvl].len()` = 该级已 build 的 bsp 数（替代旧 cached_lens）。
+    per_level: Vec<Vec<CoverageElement>>,
+    /// ★codex Q3 前缀内容校验：每级已处理 bsp 的内容指纹（(source_index, bits 判别码)）。gen 不变但
+    /// L0 bsp 内容变（古怪线段重划改 segments → extract_signals 重算，len 可能不变）时，len 校验漏检
+    /// （bar 3020 坐实），须逐元素比对前缀身份。指纹比 full CoverageElement 轻（只 (usize, u8)）。
+    prefix_fp: Vec<Vec<(usize, u8)>>,
+    /// ★codex 实施审 QUESTION A/C UNSOUND 修复：每级**缓存时**的 base_ci（该级首元素全局 flat idx =
+    /// candidate_start + Σ_{k<lvl} bsp_len[k]）。fallback id `ordinal=ci`（carrier miss 时）依赖全局
+    /// flat ci，ci 依赖**所有前置级** bsp 数。前置级增长（如 L0 +1）⟹ 后置级 base_ci 偏移 ⟹ 后置级
+    /// fallback-id 元素的 ordinal 失效（codex 反例：L0 8→9 时 L1 fallback ordinal 应 tree.len()+8→+9）。
+    /// 命中时逐级比对 base_ci，变化则重建该级（保 fallback ordinal bit-exact）。
+    base_ci: Vec<usize>,
+    valid: bool,
+}
+
+/// bsp 内容指纹（codex Q3 前缀校验）：(source_index, bits 判别码)。candidate 的 lambda/rho/eps/level
+/// 由 (source_index, bits) 决定（attach 查表给 parent/id，由 gen 保证稳定）⟹ 此指纹不变 ⟹ candidate 不变。
+fn bsp_fingerprint(p: &BspPoint) -> (usize, u8) {
+    let b = &p.bits;
+    let disc = (b.buy1 as u8)
+        | (b.buy2 as u8) << 1
+        | (b.buy3 as u8) << 2
+        | (b.sell1 as u8) << 3
+        | (b.sell2 as u8) << 4
+        | (b.sell3 as u8) << 5;
+    (p.source_index, disc)
+}
+
+impl CandidateCache {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+/// ★工位 4h：caller B（merge）的 **gamma-free + candidate 前缀缓存** 路径（源(b) O(n²) 真修）。
+///
+/// 返回 `(tree_rc, candidates)`——**不产 gamma**（codex Q1：caller B 丢弃 gamma）。tree 段复用
+/// [`coverage_elements_and_gamma_with_tower_cached_gen`] 的同一 [`TreeCache`]（gen 快路）；candidate 段
+/// 用 [`CandidateCache`] 前缀缓存（gen + per-level bsp len 校验 ⟹ 只 build 尾部）。
+///
+/// bit-exact == [`coverage_elements_and_gamma_with_tower_cached_gen`] 的 `(tree, candidates)`（丢 gamma）：
+/// - 命中：cached candidates 前缀 == 全量遍历1 前缀（codex Q2 身份稳定）+ 尾部 `build_candidate_element`
+///   == 全量遍历1 尾部（同 `attach_bsp_carrier_indexed` 路径）。
+/// - miss：全量重建，逐元素 == 全量遍历1。
+///
+/// candidate 段 `id` fallback ordinal 用全局 `ci`——前缀复用时 ci 接续（cached candidates.len()），与全量
+/// 同序（遍历顺序 level×bsp 不变）⟹ ci bit-exact。
+pub fn coverage_elements_with_tower_cached_gen(
+    classification: &Classification,
+    tower: &[Rc<Vec<LeveledMove>>],
+    tree_cache: &mut TreeCache,
+    cand_cache: &mut CandidateCache,
+    tower_gen: Option<u64>,
+) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>) {
+    // ── tree 段（复用全路径的 gen 快路，O(1) 命中）。 ──
+    let (tree, tree_endpoint_idx) = {
+        let mut opt = Some(tree_cache);
+        let (t, ep, _sb) = tree_segment_cached_gen(classification, tower, &mut opt, tower_gen);
+        (t, ep)
+    };
+    let candidate_start = tree.len();
+
+    // ── candidate 段（CandidateCache per-level 前缀复用，codex Q2/Q3）。 ──
+    // ★关键不变量（ci 全局 idx）：candidates 扁平序 = [L0 全部, L1 全部, ...]（按 level 顺序拼接）。
+    // ci = candidate_start + 已拼接元素数。命中路径 L_k 的尾部 ci 必须接 **L_k 段** 末尾（不是整个
+    // Vec 末尾，否则 L0 新增插到 L1 之后乱序——bar 3020 bit-exact 失败坐实）。故按级分段存 per_level，
+    // ci 由"前 k 级 bsp 总数 + 本级偏移"算（保 fallback id ordinal 全量 bit-exact）。
+    let gen_match = matches!((tower_gen, cand_cache.gen), (Some(g), Some(cg)) if g == cg);
+    let level_match = cand_cache.per_level.len() == classification.levels.len();
+    let cache_usable = gen_match && cand_cache.valid && level_match;
+
+    if !cache_usable {
+        // miss：全量重建（bit-exact 退化）。per_level/fp/base_ci 清空重建。
+        cand_cache.per_level.clear();
+        cand_cache.prefix_fp.clear();
+        cand_cache.base_ci.clear();
+        for _ in 0..classification.levels.len() {
+            cand_cache.per_level.push(Vec::new());
+            cand_cache.prefix_fp.push(Vec::new());
+            cand_cache.base_ci.push(0);
+        }
+        cand_cache.gen = tower_gen;
+        cand_cache.valid = true;
+    }
+
+    // 逐级：base_ci 累积（= 该级首元素全局 ci = candidate_start + Σ_{k<lvl} bsp_len[k]）。命中三条件
+    // （全满足 ⟹ 复用前缀只 build 尾部 O(Δbsp)；任一不满足 ⟹ 重建该级）：
+    //   (1) base_ci 不变（codex A/C：前置级未增长 ⟹ fallback ordinal 不偏移）；
+    //   (2) bsp 单调追加（len >= cached）；
+    //   (3) 前缀指纹 bit-exact（codex Q3：gen 不变但 L0 bsp 内容变——古怪线段重划——须逐元素验身份）。
+    let mut level_offset = candidate_start;
+    for (level_idx, level) in classification.levels.iter().enumerate() {
+        let lvl = level_idx as u32;
+        let cached_base = cand_cache.base_ci[level_idx];
+        let fp_len = cand_cache.prefix_fp[level_idx].len();
+        let base_ok = cached_base == level_offset;
+        let grow_ok = level.bsp.len() >= fp_len;
+        let prefix_ok = grow_ok
+            && level.bsp[..fp_len]
+                .iter()
+                .zip(cand_cache.prefix_fp[level_idx].iter())
+                .all(|(p, &f)| bsp_fingerprint(p) == f);
+        let level_hit = base_ok && prefix_ok;
+
+        if !level_hit {
+            // 重建该级（base_ci 偏移 / 前缀指纹不符）⟹ 清空该级，全量 build（fallback ordinal 用新 base）。
+            cand_cache.per_level[level_idx].clear();
+            cand_cache.prefix_fp[level_idx].clear();
+        }
+        let seg = &mut cand_cache.per_level[level_idx];
+        let fp = &mut cand_cache.prefix_fp[level_idx];
+        let cached = seg.len(); // level_hit ⟹ 前缀保留续 build 尾部；否则 0 ⟹ 全量 build。
+        for (off, point) in level.bsp[cached..].iter().enumerate() {
+            let ci = level_offset + cached + off;
+            seg.push(build_candidate_element(&tree, &tree_endpoint_idx, lvl, point, ci));
+            fp.push(bsp_fingerprint(point));
+        }
+        cand_cache.base_ci[level_idx] = level_offset;
+        level_offset += level.bsp.len();
+    }
+
+    // 按级顺序拼接成扁平 candidates（[L0..., L1...]）供 merge 消费。
+    // ponytail: 拼接 = O(总 bsp) memcpy（CoverageElement: Copy）。这是 merge 接口所需全量 Vec 的下界
+    //           （codex Q4 诚实：candidate **构建** 摊还 O(Σ Δbsp)，但 merge 需每 bar 完整快照 ⟹ 输出
+    //           拼接/clone 是 O(bsp)/bar，与 merge 内部 O(bsp)/bar 同阶。本工位有效域 = candidate 构建侧
+    //           的重复 attach 消除；merge 侧 O(bsp)/bar 是独立残余，见结果包诚实声明）。
+    let mut candidates: Vec<CoverageElement> = Vec::with_capacity(level_offset - candidate_start);
+    for seg in &cand_cache.per_level {
+        candidates.extend_from_slice(seg);
+    }
+    (tree, candidates)
+}
+
 /// [`coverage_elements_and_gamma_with_tower`] 带可选 tree-prefix 缓存（工位 K 性能）。
 ///
 /// bit-exact == 无缓存版：命中复用的 `tree` 与 `extract_elements(tower)` 逐字节相等（§16 + 实测 0 假命中）。
@@ -500,50 +751,10 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     // ★热点②③ O(n²) 消除：树前缀 + 两个派生索引 `Rc` 共享（命中返 `Rc::clone` O(1)，旧每 bar
     // `extract_elements` + `build_*_index` 全是 O(tree)/bar=O(n²)）。candidate 段不进树/索引 clone，
     // 单独 `candidates` Vec + candidate-only 兄弟 overlay 承载（消费者 ElementView + split 查询双段组装）。
-    let (tree, tree_endpoint_idx, tree_sibling_idx): (
-        Rc<Vec<CoverageElement>>,
-        Rc<std::collections::HashMap<(u32, usize), usize>>,
-        Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
-    ) = match cache {
-        Some(c) => {
-            // ★工位 4g 代次快路：塔代次未变 ⟹ 跳过 O(tree) 的 TreeKey::of（exp≈2.0 真因消除）。
-            let gen_hit = matches!((tower_gen, c.gen), (Some(g), Some(cg)) if g == cg) && c.valid;
-            if gen_hit {
-                // soundness 守卫（debug/test）：代次命中必与全量 extract_elements 逐字节相等
-                // （generation 绑定可观察树变更——若假命中则 generation 维护有遗漏，立即暴露）。
-                debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
-                    "TreeCache 代次假命中——TowerCache::generation 维护遗漏变异点（codex Q3）");
-                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx)) // 三者 O(1)
-            } else {
-            let key = TreeKey::of(tower);
-            if c.valid && c.key == key {
-                // bit-exact 守卫（debug/test）：缓存命中必与全量 extract_elements 逐字节相等（§16 + 实测 0 假命中）。
-                debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
-                    "TreeCache 假命中——§16 不变量破裂或 TreeKey 不 sound");
-                // 代次记录（TreeKey 命中但代次曾 miss——刷新 gen 让下 bar 走代次快路）。
-                c.gen = tower_gen;
-                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx)) // 三者 O(1)
-            } else {
-                let t = Rc::new(coverage::extract_elements(tower));
-                c.endpoint_idx = Rc::new(coverage::build_tree_endpoint_index(&t));
-                c.sibling_idx = Rc::new(coverage::build_prev_sibling_index(&t));
-                // ★工位 4d 热点②：tree 前缀 ElementId→idx 一并缓存（held leg 对位查表，§16 不变复用）。
-                c.id_idx = Rc::new(coverage::build_tree_id_index(&t));
-                c.tree = t;
-                c.key = key;
-                c.gen = tower_gen;
-                c.valid = true;
-                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
-            }
-            }
-        }
-        None => {
-            let t = Rc::new(coverage::extract_elements(tower));
-            let ep = Rc::new(coverage::build_tree_endpoint_index(&t));
-            let sb = Rc::new(coverage::build_prev_sibling_index(&t));
-            (t, ep, sb)
-        }
-    };
+    // ★热点②③ O(n²) 消除：树前缀 + 派生索引 Rc 共享。抽出 tree_segment_cached_gen 单一来源
+    // （PART1 gamma-free 路径共享同逻辑，no-patch 不复制 tree 缓存）。
+    let (tree, tree_endpoint_idx, tree_sibling_idx) =
+        tree_segment_cached_gen(classification, tower, cache, tower_gen);
     let candidate_start = tree.len();
 
     // ── 遍历1：构建 candidate 段（parent/id/parent_id 只读 tree 前缀，无需 candidate 段连续）。 ──
@@ -557,30 +768,10 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
         for point in &level.bsp {
-            let dir = candidate_dir(&point.bits);
-            // hostOf 查表只读 tree 前缀（候选 append 期间不变）。
-            let (parent, attached_dir, carrier_id) = coverage::attach_bsp_carrier_indexed(
-                &tree_endpoint_idx,
-                &tree,
-                lvl,
-                point.source_index,
-            );
-            candidates.push(CoverageElement {
-                lambda: point.source_index,
-                rho: point.source_index,
-                eps: match dir {
-                    VoiceSide::Flat => VoiceSide::Long,
-                    d => d,
-                },
-                level: lvl,
-                parent,
-                attached_dir,
-                // ★工位 H（级别容器.pdf §13/§14）：carrier 容器 hostOf(g) id（非叶子 ordinal）。
-                // 退化：carrier_id=None ⟹ 叶子 ordinal id（边界胚元 ∂）。同 carrier 同 bar 多 bsp 共享 id（§14 简化）。
-                id: carrier_id.unwrap_or(ElementId { level: lvl, ordinal: ci as u64 }),
-                // parent_id = carrier 父容器 id（par_C(κ(u))，§9.1）；parent 指 tree 前缀 idx，读 tree。
-                parent_id: parent.and_then(|pidx| tree.get(pidx).map(|e: &CoverageElement| e.id)),
-            });
+            // ★工位 4h：单一来源 build_candidate_element（与 PART1 gamma-free 路径共享，no-patch）。
+            let e = build_candidate_element(&tree, &tree_endpoint_idx, lvl, point, ci);
+            let parent = e.parent;
+            candidates.push(e);
             // candidate-only overlay：当前候选全局 idx 追加（升序，二分查 < ci 的最大 idx）。
             cand_sibling_idx.entry((parent, lvl)).or_default().push(ci);
             ci += 1;
@@ -1292,5 +1483,174 @@ mod tests {
             if cache.valid { hits += 1; }
         }
         eprintln!("bit_exact_per_bar：{n} bars 全部 cached==nocache，{hits} bars 缓存有效");
+    }
+}
+
+#[cfg(test)]
+mod candidate_profile {
+    //! 工位 #4h profile（L2）：candidate(gamma)段成本分布 + 标度 exp。
+    //! 隔离遍历1（candidates 构建）vs 遍历2（role/gamma 组装），量化 caller B 丢弃 gamma 后
+    //! 遍历2 是否纯浪费 + candidate 段是否 O(n²) 主导。
+    use super::*;
+    use super::super::super::backtest::incremental::IncrementalClassifier;
+    use super::super::super::backtest::data;
+    use super::super::super::config::ThetaConfig;
+    use super::super::super::classifier::bsp::BspPoint;
+    use super::super::super::classifier::{Classification, LevelState};
+    use super::super::super::types::BspBits;
+
+    /// ★工位 4h 回归守卫（codex 实施审 QUESTION A/C UNSOUND 反例，合成 L1）：fallback ordinal id
+    /// 依赖全局 flat ci（依赖**所有前置级** bsp 数）。前置级（L0）增长 ⟹ 后置级（L1）fallback-id 元素
+    /// ordinal 必须偏移。base_ci 校验未修则命中复用旧 ordinal → bit-exact 破裂。
+    ///
+    /// 复现 codex 精确反例：空 tower（tree 空 ⟹ **所有 candidate carrier-miss → fallback ordinal**）。
+    /// bar t：L0=2 bsp, L1=1 bsp（L1 fallback ordinal=tree.len()+2=2）。bar t+1：L0=3（L0 增长），
+    /// L1=1 同前缀。全量重算 L1 fallback ordinal=3；base_ci 未修的命中复用保留 2 → 发散。
+    /// 本测试断言增量（cand_cache 跨 bar）== 全量，base_ci 修复后 L1 因 base_ci 偏移被重建为 ordinal 3。
+    ///
+    /// **L1**（合成构造，验证管线完备性——formalization-validity-domain 231号；fallback 路径在 CL 8K
+    /// 未触发，codex "passing ≠ proof"，本合成测试补完未测路径）。
+    #[test]
+    fn candidate_cache_fallback_ordinal_prefix_shift() {
+        fn buy3(si: usize) -> BspPoint {
+            BspPoint { source_index: si, bits: BspBits { buy3: true, ..Default::default() },
+                pivot_low: 1, pivot_high: 0, center: None }
+        }
+        let cls = |l0: Vec<usize>, l1: Vec<usize>| Classification {
+            levels: vec![
+                LevelState { bsp: l0.into_iter().map(buy3).collect(), ..Default::default() },
+                LevelState { bsp: l1.into_iter().map(buy3).collect(), ..Default::default() },
+            ],
+        };
+        // 空 tower ⟹ extract_elements 空 ⟹ tree 空 ⟹ 全 candidate carrier-miss（fallback ordinal）。
+        let tower: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
+        let gen = Some(7u64); // 同 gen 跨两 bar（模拟 gen 不变但 L0 增长，codex Q2 条件）。
+
+        let mut tree_cache = TreeCache::new();
+        let mut cand_cache = CandidateCache::new();
+
+        // bar t：L0=[10,20], L1=[30]。
+        let cls_t = cls(vec![10, 20], vec![30]);
+        let (_t0, _c0) = coverage_elements_with_tower_cached_gen(&cls_t, &tower, &mut tree_cache, &mut cand_cache, gen);
+
+        // bar t+1：L0 增长到 3（[10,20,25]），L1 前缀不变（[30]）。
+        let cls_t1 = cls(vec![10, 20, 25], vec![30]);
+        let (_t1, inc) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut tree_cache, &mut cand_cache, gen);
+
+        // 全量基准（fresh cache，从零全量 build）。
+        let mut fresh_tree = TreeCache::new();
+        let mut fresh_cand = CandidateCache::new();
+        let (_tf, full) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut fresh_tree, &mut fresh_cand, gen);
+
+        assert_eq!(inc, full, "base_ci 偏移修复：L0 增长后 L1 fallback ordinal 须重建（codex A/C 反例）");
+        // 显式验证 L1 fallback ordinal = 全局 flat idx 3（candidate_start=0 + L0 3 个 + L1 第 0 个）。
+        let l1 = inc.iter().find(|e| e.level == 1).expect("L1 candidate 存在");
+        assert_eq!(l1.id, ElementId { level: 1, ordinal: 3 },
+            "L1 fallback ordinal = 全局 flat ci = 3（L0 增长到 3 后偏移；未修则陈旧为 2）");
+    }
+
+    /// ★工位 4h bit-exact 守卫（L1 管线正确性，硬约束2）：caller B gamma-free + 前缀缓存路径
+    /// [`coverage_elements_with_tower_cached_gen`] 的 candidates **逐 bar bit-identical** 于全路径
+    /// [`coverage_elements_and_gamma_with_tower_cached_gen`] 的 candidates（丢 gamma）。
+    ///
+    /// 真实 CL 增量链（跨 bar 共享两个独立 cache：全路径 tree_cache_full / gamma-free 路径
+    /// tree_cache_gf + cand_cache）。任何前缀复用陈旧、gen 假命中、ci 错位、尾部 build 偏移都被捕获。
+    #[test]
+    #[ignore = "工位 4h L1：caller B 增量 candidate bit-exact vs 全路径；需 CL；--release --ignored"]
+    fn candidate_incremental_bit_exact_vs_full() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 8_000.min(oos.bars.len());
+        let bars = &oos.bars[..n];
+
+        let mut incr = IncrementalClassifier::new(bars, &config);
+        let mut tree_cache_full = TreeCache::new();
+        let mut tree_cache_gf = TreeCache::new();
+        let mut cand_cache = CandidateCache::new();
+        let mut hits = 0usize;
+        for i in 0..n {
+            let (cls, tower) = incr.classify_at(i);
+            let gen = incr.tower_generation();
+            // 全路径（含遍历2，丢 gamma 取 candidates）。
+            let (_t_full, cand_full, _g) = coverage_elements_and_gamma_with_tower_cached_gen(
+                &cls, &tower, &mut Some(&mut tree_cache_full), Some(gen),
+            );
+            // gamma-free + 前缀缓存路径。
+            let (_t_gf, cand_gf) = coverage_elements_with_tower_cached_gen(
+                &cls, &tower, &mut tree_cache_gf, &mut cand_cache, Some(gen),
+            );
+            assert_eq!(cand_gf, cand_full,
+                "bar {i}: gamma-free 增量 candidates != 全路径（前缀复用陈旧/gen 假命中/ci 错位）");
+            if cand_cache.valid && matches!((Some(gen), cand_cache.gen), (Some(a),Some(b)) if a==b) {
+                hits += 1;
+            }
+        }
+        eprintln!("工位 4h bit-exact：{n} bars 全部 candidates bit-identical，cand_cache 命中 {hits} bars");
+    }
+
+    /// ★工位 4h L2 标度：candidate 段**构建侧** 旧全量路径 vs 新增量（前缀缓存）路径累积时间 + exp。
+    ///
+    /// 旧 `coverage_elements_and_gamma_with_tower_cached_gen`（含遍历1 全量重建 + 遍历2 gamma）vs
+    /// 新 `coverage_elements_with_tower_cached_gen`（gamma-free + per-level 前缀复用，只 build 尾部）。
+    ///
+    /// **诚实有效域**：本 profile 量 candidate **构建**侧（attach 重复消除）。两路均含返回 Vec 拼接/clone
+    /// （merge 接口下界 O(bsp)/bar，codex Q4），故新路径 exp 不会到 1.0——构建摊还 O(Σ Δbsp)，但拼接残余
+    /// O(bsp)/bar。端到端 strategy 段标度见 `incremental::profile_full_engine_scaling_16k`。
+    #[test]
+    #[ignore = "工位 4h L2：candidate 旧全量 vs 新增量构建标度；需 CL；--release --ignored"]
+    fn profile_candidate_old_vs_new_scaling() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let sizes = [5_000usize, 10_000, 16_000];
+        let mut old_t = Vec::new();
+        let mut new_t = Vec::new();
+        let mut used = Vec::new();
+
+        for &n in &sizes {
+            if n > oos.bars.len() { break; }
+            let bars = &oos.bars[..n];
+
+            // 旧全量路径（_cached_gen，含遍历2）累积。
+            let mut incr = IncrementalClassifier::new(bars, &config);
+            let mut tc = TreeCache::new();
+            let t0 = std::time::Instant::now();
+            for i in 0..n {
+                let (cls, tower) = incr.classify_at(i);
+                let gen = incr.tower_generation();
+                let _ = coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut Some(&mut tc), Some(gen));
+            }
+            old_t.push(t0.elapsed().as_secs_f64());
+
+            // 新增量路径（gamma-free + 前缀缓存）累积。
+            let mut incr2 = IncrementalClassifier::new(bars, &config);
+            let mut tc2 = TreeCache::new();
+            let mut cc = CandidateCache::new();
+            let t1 = std::time::Instant::now();
+            for i in 0..n {
+                let (cls, tower) = incr2.classify_at(i);
+                let gen = incr2.tower_generation();
+                let _ = coverage_elements_with_tower_cached_gen(
+                    &cls, &tower, &mut tc2, &mut cc, Some(gen));
+            }
+            new_t.push(t1.elapsed().as_secs_f64());
+            used.push(n);
+            eprintln!("n={n}: old={:.3}s new={:.3}s (new/old={:.2}x)",
+                old_t.last().unwrap(), new_t.last().unwrap(),
+                new_t.last().unwrap() / old_t.last().unwrap().max(1e-12));
+        }
+
+        eprintln!("\n===== 工位 4h candidate 旧全量 vs 新增量标度（CL per-bar）=====");
+        for w in used.windows(2) {
+            let (n0, n1) = (w[0], w[1]);
+            let i0 = used.iter().position(|&s| s == n0).unwrap();
+            let i1 = i0 + 1;
+            let oe = (old_t[i1] / old_t[i0].max(1e-12)).ln() / (n1 as f64 / n0 as f64).ln();
+            let ne = (new_t[i1] / new_t[i0].max(1e-12)).ln() / (n1 as f64 / n0 as f64).ln();
+            eprintln!("  [{n0}→{n1}] old exp≈{oe:.2} ({:.3}s) | new exp≈{ne:.2} ({:.3}s)",
+                old_t[i1], new_t[i1]);
+        }
     }
 }

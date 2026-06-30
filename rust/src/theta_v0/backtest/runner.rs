@@ -532,6 +532,8 @@ where
     let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];
     // 工位 K 性能：tree-prefix 缓存（§16 confirmed prefix immutable；跨 bar 复用 extract_elements）。
     let mut tree_cache = interp::TreeCache::new();
+    // ★工位 4h：candidate 段前缀缓存（源(b) O(n²) 真修；caller B merge 路径 gamma-free + 前缀复用）。
+    let mut cand_cache = interp::CandidateCache::new();
     // ★工位 4f：上一 bar merge 用的 tree Rc——`Rc::ptr_eq` 命中（同一 Rc::clone）⟹ tree 逐字节不变
     // ⟹ merge tree 段跳过 step 1'/2'（confirmed prefix 增量维护，消 O(tree)/bar）。
     let mut prev_merge_tree: Option<std::rc::Rc<Vec<coverage::CoverageElement>>> = None;
@@ -618,10 +620,11 @@ where
             // 用本 bar snapshot（elements）+ held legs（next_active）刷新 registry。
             // 关闭的腿（buckets.close）在 registry 中标记 invalidated（§9 rule 5）。
             {
-                // 工位 K 性能：共享 tree-prefix 缓存（merge 用全 classification 候选）。tree=Rc::clone O(1)。
-                let (tree_ref, candidates_ref, _gamma) =
-                    interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                        &classification_i, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen),
+                // ★工位 4h：caller B gamma-free + candidate 前缀缓存路径（源(b) O(n²) 真修）。merge 只
+                // 消费 candidates（不读 gamma/role，codex Q1）⟹ 跳遍历2 + candidate 前缀复用（codex Q2/Q3）。
+                let (tree_ref, candidates_ref) =
+                    interp::coverage_elements_with_tower_cached_gen(
+                        &classification_i, &tower_i, &mut tree_cache, &mut cand_cache, Some(tower_gen),
                     );
                 // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
                 // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
