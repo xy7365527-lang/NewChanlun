@@ -327,7 +327,7 @@ fn push_element_tree(
         parent_id,
     });
     // 真嵌套子声部（descend 取回的子走势携坐标侧车 `sub_moves`）⟹ 子元素 parent=my_idx。
-    for sub in &lm.sub_moves {
+    for sub in lm.sub_moves.iter() {
         push_element_tree(elements, sub, Some(my_idx), Some(eps), Some(lm.id));
     }
 }

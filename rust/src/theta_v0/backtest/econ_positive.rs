@@ -393,9 +393,14 @@ mod tests {
         let n_full = ds_full.bars.len();
 
         // 截断窗（显式有效域边界，非全窗结论；l3_delta_r_alpha::MAX_BARS 同纪律）：
-        // BTC 全量 461 万 bar 逐 bar 增量重分类 cache（每 bar 一份 Rc<塔>）跨 bar 累积 ⟹ 内存不可行
-        // （实测 500K bar OOM 被杀，300K=67s 可行、是内存上限）。取**最后** MAX_BARS（近期行情，
-        // 与近期可交易性相关）作截断窗。env ECON_L2_MAX_BARS 覆盖供 Lead 调窗（50K/150K/300K 实测一致）。
+        // ★fullhist-oom-fix-20260630 订正：旧注释「500K OOM 被杀=内存上限」是**误诊**（错误归因，090号）。
+        // /usr/bin/time -l 实测峰值 RSS：100K=1990MB、200K=2010MB、400K=2034MB、600K=2083MB——
+        // 内存随 bar **平坦**（100K→600K 仅 +5%），无 OOM。塔状态（TowerCache.upper_moves）累积是塔元素数
+        // （走势/中枢，亚线性于 bar），不是「每 bar 一份 Rc 副本」。旧「500K OOM」实为 **O(n²) 时间墙超时被
+        // kill** 被误报为 OOM。真瓶颈 = classify_with_tower_incremental 的 O(tree)/bar 续算（profile_classify_at
+        // 已坐实 t_exp≈2.0；归 Task #104/#105 classifier 核心优化）。截断窗在此**为时间非内存**：实测
+        // 100K=8.7s、200K=31.8s、400K=124.5s、600K=283s（O(n²)），全量 461万≈数小时可跑通但慢。
+        // env ECON_L2_MAX_BARS 覆盖供 Lead 调窗（>4.6M=不截断跑全量）。
         const MAX_BARS: usize = 300_000;
         let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
             .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);

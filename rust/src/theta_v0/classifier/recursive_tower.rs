@@ -43,6 +43,8 @@
 //!   携 source_index 坐标（可定位 close 区间），但「次级别 close 区间 → MACD 面积比较」的自动闭包
 //!   接入是 L1 力度配对，由 mod.rs 接入点用 `divergence.rs` 真算（见接入点诚实标注）。
 
+use std::rc::Rc;
+
 use super::super::types::{Center, Direction};
 use super::center::UnitRange;
 use super::descend::RMove;
@@ -81,6 +83,13 @@ pub struct ElementId {
 /// `Vec<RMove>`（坐标剥离，Lean μF 无坐标）——`descend(rmove)` 取回的是裸 RMove，无法反查 source_index。
 /// `sub_moves` 是携坐标侧车，`descend_leveled` 取回它们后 `index_of_in` 能映射回原始 K 序。两者
 /// 同序同长（`sub_moves[i].rmove == rmove.subs[i]` 不变量），结构层用 rmove，坐标层用 sub_moves。
+///
+/// ★`sub_moves` 用 `Rc<Vec<..>>`（task #104 OOM 根因2）：递归塔逐级 `compose` 时父走势深拷贝整棵
+/// 子 `sub_moves` 树（line ~231/365 的 `subs.to_vec()`），内存随级别深度膨胀（全历史 461 万 bar
+/// tower 累积 = OOM 主因之一）。`Rc` 共享后 `compose` 只 clone 引用计数（廉价），子树物理上单份。
+/// 不变量与 bit-exact 不受影响：`Rc<Vec<T>>` 的 `PartialEq`/`Eq` 按内容比较（deref 后逐元素），
+/// `descend_leveled` clone Rc 后调用方 deref 得同一 slice。`LeveledMove` 不跨线程（无 thread::spawn /
+/// rayon 消费），故 `Rc` 足够，不需 `Arc`。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LeveledMove {
     /// 纯结构走势（descend.rs::RMove，无坐标——Lean μF 镜像）。
@@ -90,7 +99,8 @@ pub struct LeveledMove {
     /// 该走势在 L0 原始 K 序的终点（窗口末单元终点）。
     pub end_index: usize,
     /// 构成该走势的携坐标次级别走势序列（与 `rmove` 的 Compose.subs 同序同长；L0 线段空）。
-    pub sub_moves: Vec<LeveledMove>,
+    /// `Rc` 共享（task #104）：compose 深拷贝消除——见结构体文档。
+    pub sub_moves: Rc<Vec<LeveledMove>>,
     /// ★codex Q4：确定性元素身份（跨 bar 稳定，spec §13 结构映射对象身份）。
     /// 全量/增量产同 ID——`compose_level`/`compose_level_resume` 注入 ordinal。
     pub id: ElementId,
@@ -112,7 +122,7 @@ impl LeveledMove {
             },
             start_index: u.start_index,
             end_index: u.end_index,
-            sub_moves: Vec::new(),
+            sub_moves: Rc::new(Vec::new()),
             id,
         }
     }
@@ -141,7 +151,7 @@ impl LeveledMove {
             },
             start_index,
             end_index,
-            sub_moves: subs.to_vec(),
+            sub_moves: Rc::new(subs.to_vec()),
             id,
         }
     }
@@ -402,8 +412,8 @@ pub fn project_to_units(moves: &[LeveledMove]) -> Vec<UnitRange> {
 /// `descend`（descend.rs）取回的是裸 `RMove`（坐标剥离）——无法反查 source_index。本函数取回
 /// `parent.sub_moves`（携坐标侧车，与 `descend(parent.rmove)` 同序同长，`sub_moves[i].rmove ==
 /// descend(parent.rmove)[i]` 不变量）。L0 线段（递归底，`sub_moves` 空）⟹ 空序列（与 descend 一致）。
-pub fn descend_leveled(parent: &LeveledMove) -> Vec<LeveledMove> {
-    parent.sub_moves.clone()
+pub fn descend_leveled(parent: &LeveledMove) -> Rc<Vec<LeveledMove>> {
+    Rc::clone(&parent.sub_moves)
 }
 
 /// 次级别走势 `RMove` → 原始 K 序坐标（`extract_second_signals` 的 `index_of` 实现）。

@@ -82,7 +82,7 @@ pub fn verify_containment(tower: &[&[LeveledMove]]) -> ContainmentReport {
     let mut report = ContainmentReport::default();
     for level in tower {
         for parent in *level {
-            for sub in &parent.sub_moves {
+            for sub in parent.sub_moves.iter() {
                 report.total_elements += 1;
                 // WF-Contain：闭端点包含。任一端点越界 ⟹ par 非构成父（依附 host）⟹ 违反。
                 if parent.start_index > sub.start_index || sub.end_index > parent.end_index {
@@ -364,14 +364,14 @@ mod tests {
             rmove: RMove::Segment { direction: Direction::Up, lo: 0, hi: 1 },
             start_index: 2,
             end_index: 8,
-            sub_moves: Vec::new(),
+            sub_moves: std::rc::Rc::new(Vec::new()),
             id: ElementId { level: 0, ordinal: 0 },
         };
         let parent = LeveledMove {
             rmove: RMove::Segment { direction: Direction::Up, lo: 0, hi: 1 },
             start_index: 0,
             end_index: 5,
-            sub_moves: vec![child],
+            sub_moves: std::rc::Rc::new(vec![child]),
             id: ElementId { level: 1, ordinal: 0 },
         };
         let level = vec![parent];

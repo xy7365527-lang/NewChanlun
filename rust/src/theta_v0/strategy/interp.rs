@@ -412,7 +412,7 @@ impl TreeKey {
             m.rmove.hi(),
             m.sub_moves.len(),
         ));
-        for sub in &m.sub_moves {
+        for sub in m.sub_moves.iter() {
             TreeKey::emit(sub, fp);
         }
     }

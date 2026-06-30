@@ -1016,9 +1016,9 @@ fn extract_second_for_level(
                 side,
                 &c1,
                 // 背驰：次级别走势 source_index 区间 → hist 面积，相对前一同向次级别走势严格变小。
-                |m| sublevel_diverges(m, &subs, hist, close_src),
+                |m| sublevel_diverges(m, &subs[..], hist, close_src),
                 // 坐标：从侧车按结构身份查回次级别走势的原始 K 序（end_index）。
-                |m| index_of_in(&subs, m),
+                |m| index_of_in(&subs[..], m),
             );
             points.extend(pts);
         }
