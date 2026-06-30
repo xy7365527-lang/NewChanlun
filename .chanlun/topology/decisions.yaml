@@ -264,3 +264,40 @@ decisions:
           则 S2 ripple 评估失效，退回 S1。当前 grep 实测 runner.rs/l3_fullwindow.rs 零 K_i 引用。
       (E) [观测] architect 工位仅在 S2 设计节点需要时 spawn（按需，非常设）；codex-challenger
           已在本主线触达（TOPO-011 NO#2 审 K_i dedup），S2 复用同工位类型，非新增类型。
+
+  - id: TOPO-20260630-013
+    timestamp: "2026-06-30T02:30:00+08:00"
+    type: 扩张评估（signal_resolution_1s_bi_a0 主线：backtest 执行工位触发判定）
+    trigger_signal: Lead 委派——filter-spec L2/L3 证伪条件设计完成后是否 spawn backtest 执行工位
+    workstations: [filter-spec, barspec-impl, backtest-e1（候选新工位）]
+    reasoning: >
+      (1) [触发满足] filter-spec 产出已落盘（review-results/filter-spec-a0-stroke-20260623.md）：
+          E1 实验设计完整（控制变量表 + 否证条件 BTC P1 final_nav < +664%）+ 工程可行性确认
+          （a0=Stroke 代码就绪 types.rs:72/stream.rs:111/rec_stream.rs:117，runner 传参约 5-10 行）。
+          ⟹ Lead 预判的 backtest 执行工位触发条件（证伪条件设计完成 + 需实际回测）已满足。
+      (2) [依赖结构修正 Lead 描述] Lead 描述 backtest 串行依赖 barspec-impl(1s通路)+filter-spec(判据)。
+          实测 filter-spec 报告四节(E1)：E1 先跑 1min（"1min a0=笔是最小可否证单位"），
+          E2(1s+a0=Segment) 才用 1s。按 275 局部依赖：E1 阶段不消费 barspec-impl 的 1s 输出
+          （只需 a0=Stroke 传参，已就绪），不被 barspec 阻塞。barspec 只阻塞 E2 阶段。
+          backtest 工位应分阶段：E1（不依赖 barspec，可立即推进）→ E2（依赖 barspec 1s 通路）。
+      (3) [前置依赖未消解] filter-spec 报告三节明确 E1/1s 实验"可解读的必要前提"=547号 cascade 修复
+          （e_level==最高活跃走势级别）。但本轮代码已大幅重构（K_i 主线 commit 37d282abb0+），
+          grep 实测引擎源码 fn cascade_reverse_to_core / fn core_flip 零匹配——filter-spec 报告
+          引用的修复位置坐标（rec_engine.rs::cascade_reverse_to_core）已漂移。这是 backtest 工位
+          执行时的自检事项（诊断坐标系≠生产坐标系，关联 633/635），非拓扑裁定。
+      (4) [异质审查定理] backtest E1 产出是 L2 实证（捕获率提升可证伪，携概念信息差），按 #41
+          spawn_mandate「L2+L3 实证类不可免除异质审查」（同 TOPO-009-A 定理）须配异质审查节点。
+    verdict: >
+      (A) [扩张建议] 建议 Lead spawn backtest-e1 执行工位，scope=E1（1min, a0=Segment→Stroke 单变量，
+          BTC+CL，PerfectionMode=Structural 固定）。该工位不被 barspec-impl 阻塞（E1 不消费 1s 通路）。
+      (B) [定理] backtest-e1 是 L2 实证，须 blockedBy 一个异质审查节点（codex-challenger/gemini-challenger），
+          否则 crystallize=封闭自证（#41 exemption 已结算，非选择）。
+      (C) [依赖分阶段] E2（1s+a0=Segment）阶段才依赖 barspec-impl 的 1s 数据通路；若 barspec-impl
+          未完成，仅阻塞 E2 不阻塞 E1。Lead 不应把 E1+E2 捆为单工位串行等 barspec（275 局部依赖：
+          把不依赖的工作误判为不可推进=161 镜像）。
+      (D) [边界翻转] E1 否证（BTC P1 < +664%），1s+笔组合失去依据，E2/barspec 路线一并失效，
+          backtest-e1 是该主线的判决点。E1 成立，E2 才有意义、barspec 1s 通路才被消费。
+      (E) [自检移交] 547 cascade 修复坐标漂移 + a0=Stroke runner 传参就绪性，由 backtest-e1 工位
+          执行时自检（生产同坐标系验证），非拓扑职责。
+      (F) [边界声明] 基于文件系统可观测信号（filter-spec 落盘产出 + roadmap + 引擎 grep），
+          无各成员实时心跳；roster 活性以 Lead 实时心跳为准。topology-manager 不执行变更，仅建议。

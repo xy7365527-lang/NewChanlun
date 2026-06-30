@@ -47,16 +47,19 @@ struct RawData {
     dates: Vec<String>,
 }
 
-/// 8 品种 → 数据文件名（协议 §1.1 锁定）。与 `recursive_t/backtest_run.rs::SYMBOLS` 一致。
-pub const SYMBOLS: [(&str, &str); 8] = [
-    ("BTC", "btc_1m_full.json"),
-    ("ES", "es_1m_databento_10y.json"),
-    ("CL", "cl_1m_databento_10y.json"),
-    ("GC", "gc_1m_databento_10y.json"),
-    ("BRN", "brn_1m_databento_10y.json"),
-    ("DX", "dx_1m_databento_10y.json"),
-    ("QQQ", "qqq_1m_databento_full.json"),
-    ("OKLO", "oklo_1m_databento.json"),
+/// 8 品种 → (数据文件名, bar 粒度秒数)（协议 §1.1 锁定）。文件名与
+/// `recursive_t/backtest_run.rs::SYMBOLS` 一致。粒度列让 load_by_symbol 随品种取粒度
+/// （C 点）——现有 8 品种全 1min 文件 ⟹ 60，对 load_symbol 仍传 60 ⟹ 1m 路径 bit-exact。
+/// 1s 数据接入时此表追加 1s 条目（task-a 落盘后），bar_seconds=1。
+pub const SYMBOLS: [(&str, &str, u32); 8] = [
+    ("BTC", "btc_1m_full.json", 60),
+    ("ES", "es_1m_databento_10y.json", 60),
+    ("CL", "cl_1m_databento_10y.json", 60),
+    ("GC", "gc_1m_databento_10y.json", 60),
+    ("BRN", "brn_1m_databento_10y.json", 60),
+    ("DX", "dx_1m_databento_10y.json", 60),
+    ("QQQ", "qqq_1m_databento_full.json", 60),
+    ("OKLO", "oklo_1m_databento.json", 60),
 ];
 
 /// `analysis/data_cache` 绝对路径（crate manifest 上一级）。
@@ -269,14 +272,14 @@ pub fn load_symbol(
 
 /// 便捷：从默认 `data_dir()` 按品种名加载（SYMBOLS 表查文件名）。
 pub fn load_by_symbol(symbol: &str, config: &ThetaConfig) -> Result<Dataset, String> {
-    let file = SYMBOLS
+    let (file, bar_seconds) = SYMBOLS
         .iter()
-        .find(|(s, _)| s.eq_ignore_ascii_case(symbol))
-        .map(|(_, f)| *f)
+        .find(|(s, _, _)| s.eq_ignore_ascii_case(symbol))
+        .map(|(_, f, g)| (*f, *g))
         .ok_or_else(|| format!("未知品种 `{symbol}`（不在 SYMBOLS 表）"))?;
     let path = data_dir().join(file);
-    // SYMBOLS 全为 1min 文件（*_1m_*.json）⟹ 默认 60s。1s 数据接入时此表加粒度列（C 点，本轮无）。
-    load_symbol(&path, symbol, config, 60)
+    // 粒度随品种取自 SYMBOLS 表（C 点）。现有 8 品种 bar_seconds=60 ⟹ 仍传 60 ⟹ 1m 路径 bit-exact。
+    load_symbol(&path, symbol, config, bar_seconds)
 }
 
 #[cfg(test)]
@@ -386,6 +389,24 @@ mod tests {
             bar_seconds: 60,
         };
         assert_eq!(ds.bar_seconds, 60);
+    }
+
+    /// C 点 bit-exact 守卫：SYMBOLS 表全 8 品种 bar_seconds==60，且查表取出的粒度恒 60
+    /// （= 改前 load_by_symbol 写死的 60）⟹ load_by_symbol 对 1m 路径逐 bit 等价（不读文件，
+    /// 纯查表，roadmap.yaml:988 硬约束）。1s 接入新增条目时此断言会暴露（守卫不被默默放过）。
+    #[test]
+    fn symbols_table_bit_exact_60s() {
+        assert_eq!(SYMBOLS.len(), 8, "现有 8 品种（1s 接入前）");
+        for (sym, _, bar_seconds) in SYMBOLS.iter() {
+            assert_eq!(*bar_seconds, 60, "{sym} 为 1m 文件 ⟹ 60s（bit-exact）");
+        }
+        // load_by_symbol 查表逻辑（与生产同路径）取出的粒度 = 60，与改前写死值一致。
+        let btc = SYMBOLS
+            .iter()
+            .find(|(s, _, _)| s.eq_ignore_ascii_case("BTC"))
+            .map(|(_, _, g)| *g)
+            .expect("BTC 在 SYMBOLS 表");
+        assert_eq!(btc, 60, "load_by_symbol(\"BTC\") 传给 load_symbol 的粒度 = 60");
     }
 
     /// untradable_ratio 计算（协议 §5.5/§1.2）。
