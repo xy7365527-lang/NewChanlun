@@ -3445,6 +3445,16 @@ nodes:
   status: 生成态
   type: source-tracing
   file: pending/654-bsp-quantity-identity-separation-canonical-node-On-vs-event-stream-n126.md
+- id: 651-652
+  title: 651/652 降级归并【已结算 2026-06-30：编排者 /ritual 授权 + genealogist R4 论证，两号不独立立号，增量投放既有规则】
+  status: 已结算
+  type: 回溯结算（降级归并）
+  file: settled/651-652-downgrade-merge-spec-execution-gap-and-275.md
+- id: '655'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md
 edges:
   depends_on:
   - from: '136'
@@ -6673,6 +6683,12 @@ edges:
     to: '231'
   - from: '654'
     to: '653'
+  - from: '655'
+    to: '636'
+  - from: '655'
+    to: '621'
+  - from: '655'
+    to: '624'
   triggered:
   - from: '005'
     to: 005a
@@ -9753,6 +9769,39 @@ edges:
   - between:
     - '654'
     - mutex-prove-result
+  - between:
+    - '645'
+    - '654'
+  - between:
+    - '651'
+    - 651-652
+  - between:
+    - 651-652
+    - '652'
+  - between:
+    - 036（spec-execution-gap 结晶谱系）
+    - 651-652
+  - between:
+    - 275（局部依赖原则）
+    - 651-652
+  - between:
+    - 651-652
+    - no-unnecessary-escalation
+  - between:
+    - '161'
+    - 651-652
+  - between:
+    - '231'
+    - 651-652
+  - between:
+    - '650'
+    - 651-652
+  - between:
+    - '275'
+    - '655'
+  - between:
+    - 090
+    - '655'
   tensions_with:
   - between:
     - '007'

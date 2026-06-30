@@ -72,7 +72,14 @@ def test_goal_driven_workstations_closed_goal_empty():
 
 
 def test_scan_emits_goal_driven_workstations_end_to_end():
-    # 真实 events.jsonl 经 scan → workstations 含 source=goal_reducer 的工位（开口②闭合）。
+    # 真实 events.jsonl 经 scan → workstations 与 reducer 真值一致（开口②闭合）。
+    # 测试隔离：不硬断言「恒有 active goal」——live goal 一旦合法 terminated（closed），
+    # 按 goal_driven_workstations 语义就该产空（line 65 closed→空已 bless）。故从同一真值源
+    # （_load_current_goal → goal_driven_workstations）算期望，再断言 scan 输出与之对齐：
+    # 有 ready 工位时 scan 必含且 goal 工位优先；无时不强求（仿 line 96-102 if-goal 条件模式）。
+    from ceremony_scan import _load_current_goal, goal_driven_workstations  # noqa: E402
+    expected_goal_ws = goal_driven_workstations(_load_current_goal())
+
     out = subprocess.run(
         ["python", "scripts/ceremony_scan.py"],
         cwd=ROOT, capture_output=True, text=True,
@@ -80,9 +87,13 @@ def test_scan_emits_goal_driven_workstations_end_to_end():
     assert out.returncode == 0, f"scan 退出非0: {out.stderr}"
     data = json.loads(out.stdout)
     goal_ws = [w for w in data["workstations"] if w.get("source") == "goal_reducer"]
-    assert goal_ws, "reducer 驱动的工位未进 workstations（开口②未闭合）"
-    # goal 工位优先：在 workstations 列表最前（spec §6 goal 先于 roadmap backlog）
-    assert data["workstations"][0]["source"] == "goal_reducer"
+    if expected_goal_ws:
+        # reducer 有 ready 工位 → scan 必把它们 emit 进 workstations，且 goal 工位优先（spec §6）。
+        assert goal_ws, "reducer 有 ready 工位但未进 workstations（开口②未闭合）"
+        assert data["workstations"][0]["source"] == "goal_reducer"
+    else:
+        # reducer 无 ready 工位（None/closed/terminated）→ scan 不应凭空造 goal 工位。
+        assert not goal_ws, "reducer 无 ready 工位但 scan 产了 goal_reducer 工位"
 
 
 def test_materialize_interrupt_flag_writes_projection(tmp_path):

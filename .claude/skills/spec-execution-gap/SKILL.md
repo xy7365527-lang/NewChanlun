@@ -41,6 +41,10 @@ genealogy_source: "036"
 
 **发生史实例**：ceremony_scan.py 的 `_scan_genealogy_proposals` 输出 `proposed_new_mu` 列表，但 Lead ceremony 流程中曾未消费此字段——产出端完整实现，消费端断裂（353号谱系触发点）。
 
+7. **reader/writer 事件契约分裂**（651号实例）: 某个事件/字段被 reader 消费（有读取端），但全系统无 writer 产生它（无产生端）——契约声明"该事件存在"，实装只支持读不支持写。每个消费端须有产生端：无产生者的消费 → 补产生（写 writer）或删消费（去掉 reader 对该事件的依赖）。
+
+**发生史实例（651号）**：GOAL_RESUME 事件被 reader 消费但无 writer 产生（可读不可写）。注意能指边界——这是 spec-execution-gap（036号声明-能力轴：契约声明 vs 实装支持）的实例，不是 formalization-validity-domain（231号有效域轴：代数可施加 vs 数据经验成立）的扩展。两轴非同一：把 reader「定义域当有效域」类比 230「定义域=有效域假设」是能指挪用——validity-domain 的所指（数据经验收缩）不随能指迁移过来。reader/writer 契约分裂的判定维度是声明-能力断裂，归 036。
+
 ## 修复模式
 
 ### A 方向修复（声明→能力）
