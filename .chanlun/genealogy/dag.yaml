@@ -3400,6 +3400,20 @@ nodes:
   status: 已撤回
   type: meta-rule
   file: pending/647-lossy-projection-bidirectional-non-extrapolation-meta-rule.md
+- id: '648'
+  title: π^bsp 子声部=0【编排者裁决 D 视图分离消解】根因精确化=host^op=host^struct 混用(非 P1∧P2 不可避免)。解 D：分离
+    T_i(结构视图树=↓r_i,保留P1) 与 K_i(操作 carrier forest=endpoint-complete,host^op 定义域)；host^op
+    仍严格右端点命中(保留 P2a,不违638)，只改 host 宇宙 T_i→K_i(P2b)。非 workaround(PDF§11:不伪父链/不级别差/不区间包含)=真扬弃。§10定理1:endpoint-complete
+    K_i + 解释器生成父voice(非子反推父) ⟹ 子声部可激活。推翻『π^bsp 子声部层=wrong object』倾向——子声部=0 是 host
+    宇宙不足(可修)非 goal#5 本质错误；命题A(645)π^cov≠π^bsp 仍成立
+  status: 已结算
+  type: domain
+  file: pending/648-pibsp-647-fix-insufficient-fourth-root-extract-elements-tree-coverage.md
+- id: '649'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md
 edges:
   depends_on:
   - from: '136'
@@ -6606,6 +6620,20 @@ edges:
     to: 090
   - from: '647'
     to: '643'
+  - from: '648'
+    to: '647'
+  - from: '648'
+    to: '644'
+  - from: '648'
+    to: '231'
+  - from: '648'
+    to: 090
+  - from: '649'
+    to: '648'
+  - from: '649'
+    to: 018
+  - from: '649'
+    to: 089
   triggered:
   - from: '005'
     to: 005a
@@ -6785,9 +6813,9 @@ edges:
       区间套（第27课）』。绑 d_top ⟹ 在 d_top 稀疏的级别（556 跨年）等不到关闭信号 ⟹ 空腿开了关不掉 = 冻结空腿 ⟹ 强牛中骑整段反转无界失血（穿仓）。d_top
       现象（556 顶层冻结）真实存在但根因是『绑错信号』，非『信号对但稀疏』。'
   - from: '571'
-    to: 097/548/564 的隐含完备性命题『hook 纯化序列已覆盖 Stop-Guard 的全部维度』——571 expansion
-      型否定：该序列只在『注入内容维度』（097 阻断/放行二值 + 548 注入什么类型 + 564 注入内容越界）收敛，未覆盖正交的『阻断对象维度』（阻断谁）。Stop-Guard
-      第 511-522 行 decision:block 无 owner/责任方过滤，把 session 级阻断打到无可推进工作的非责任方（meta-lead 之于 567）。expansion
+    to: 097/548/564 的隐含完备性命题『hook 纯化序列已覆盖 Stop-Guard 的全部维度』——571 expansion 型否定：该序列只在『注入内容维度』（097
+      阻断/放行二值 + 548 注入什么类型 + 564 注入内容越界）收敛，未覆盖正交的『阻断对象维度』（阻断谁）。Stop-Guard 第 511-522
+      行 decision:block 无 owner/责任方过滤，把 session 级阻断打到无可推进工作的非责任方（meta-lead 之于 567）。expansion
       = 否定旧序列的完备性断言 + 保留其内容维度结论 + 扩展出阻断对象维度（split:097-hook-action-dimension）。
   - from: '572'
     to: Lead 前 session 的『开空门控』方向（rec_engine.rs line 1483 加 `&& chain_break` 少开空 →
@@ -9581,6 +9609,30 @@ edges:
   - between:
     - '646'
     - '647'
+  - between:
+    - '638'
+    - '648'
+  - between:
+    - '645'
+    - '648'
+  - between:
+    - '646'
+    - '648'
+  - between:
+    - '640'
+    - '648'
+  - between:
+    - '547'
+    - '648'
+  - between:
+    - '161'
+    - '649'
+  - between:
+    - 647-object-identity
+    - '649'
+  - between:
+    - '640'
+    - '649'
   tensions_with:
   - between:
     - '007'

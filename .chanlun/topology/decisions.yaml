@@ -209,3 +209,23 @@ decisions:
       (C) [观测/上报] check1.5 存在性≠活性=机制盲区，呈 meta-observer/genealogist 评估语法记录。
       (D) [观测] 566/568/569/570 scan 异常=假阳性（meta-rule 无 block 映射），呈 genealogist。
       边界声明：基于 config.json isActive 快照（平台活性字段，比 owner 可靠但仍为快照）；若 Lead 实时心跳与此不符，以 Lead 观测为准。topology-manager 不执行变更，仅建议。
+
+  - id: TOPO-20260629-011
+    timestamp: "2026-06-30T01:12:02+08:00"
+    type: 扩张评估（K_i 主线，648 实装后复审）
+    trigger_signal: Lead 委派——K_i 实装是否暴露异质审查/子分解需求；646/648 结算后拓扑复审
+    workstations: [k-i-subvoice, perf-fullwindow-verify, l2l3-fullwindow-rejudge]
+    reasoning: >
+      (1) [扩张否] task#14 K_i 已实装(commit 37d282abb0)：coverage.rs::extract_carrier_forest(行264)+
+          pi_bsp_timing.rs host^op→K_i(方案D)，带 2 测试。无需新工位实装 K_i。
+      (2) [异质审查否] dedup 危险(同 LeveledMove 作根+作子重复)已被 codex 异质审查 NO#2 命中并修
+          (coverage.rs:255/272)。codex-challenger 已触达 K_i，不重复 spawn。
+      (3) [收缩否+下游解锁] 646/648 均已结算待 /ritual(019c)。K_i 实装 ⟹ task#3 l2l3-fullwindow-rejudge
+          前置满足(648 downstream)，行动类解锁非新工位。
+      (4) [瓶颈观测] perf-fullwindow-verify 已实测 engine exp≈2.0 O(n²)残留(classifier增量塔+coverage extract/merge)，
+          真修=task#16 ElementView 大重构(需 fresh session)，本轮不碰。
+    verdict: >
+      (A) [定理] 不为 K_i 实装新建工位(已落地)；不重复 spawn 异质审查(codex NO#2 已审已修)。
+      (B) [行动] task#3 l2l3-fullwindow-rejudge 前置已满足(K_i 实装)，可由现有业务工位推进。
+      (C) [边界] 翻转点=L2 实测若子声部仍=0 ⟹ 648 被否证回退 C；当前 OKLO 已激活(腿20≠0)，不回退。
+      (D) [观测] session 68088c95 在 ~/.claude/teams 无对应 config，roster 活性以 Lead 实时心跳为准。

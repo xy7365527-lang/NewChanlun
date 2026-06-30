@@ -1,193 +1,183 @@
 ---
 id: "646"
 number: 646
-status: 生成态   # genealogist 结构记录：定义冲突候选——§9 同单位数公理（q_v=q_p → 精确抵消 b2）vs rust depth_weight 不等权 [0.6,0.3,0.1]（→ b1）。codex 发现（task#19）。这是 §9 规格定义与 rust 实装之间的根本不一致（spec↔impl 冲突），与 645 操作语义对象分离正交（646 在 π_Θ^cov 覆盖侧内部权重层）。上浮路径=质询序列/编排者裁定（选择类候选），genealogist 不结算、不裁定哪边对。最终结算待编排者 /ritual。
+status: 生成态   # 【改判 2026-06-29，codex CLI 裁决=C 范畴错误/消解，非真定义冲突】原记"定义冲突候选待裁(选择类)"。codex CLI(gpt-5.5 xhigh)独立裁决：rust leg.units=base_units·depth_weight 是下游资本加权目标敞口，**不是** §9 的 q_v 手数；§9 是条件式 a_v=1⟹q_v=q_parent(治理 active voice 手数恒等)，depth_weight 是资金帽设计参数——不等权不违反 §9，唯有把 leg.units 重释为 q_v 才违反，那个重释本身=范畴错误。b1/b2 不是同一对象的两个互斥定义，是两个不同对象 ⟹ "不可同真"前提不成立 ⟹ 冲突消解。codex+代理侧+Lead 三方收敛。改判为**消解类**(非选择类)。settled 落盘走 /ritual(019c 编排者权)。详见正文"codex CLI 裁决C"段。
 date: "2026-06-29"
-type: domain   # 域内定义冲突：§9 同单位数公理 vs rust depth_weight 不等权——同一覆盖侧权重对象的两个互斥定义
+type: domain   # 改判后：范畴错误消解（原记"域内定义冲突"，codex 裁决证伪冲突前提——leg.units≠q_v）
 depends_on: ["231", "645"]
 related: ["639", "642", "644", "v1-fullwindow-l3-falsified", "coverage-engine-needs-tower-export-bridge"]
-title: "§9 同单位数公理（q_v=q_p ⟹ 多空腿精确抵消 → b2 净额为零）vs rust 实装 depth_weight 不等权 [0.6,0.3,0.1]（⟹ 不抵消 → b1 净额非零）= spec↔impl 定义冲突（codex task#19 发现）。接受 §9（同单位数）则 b2 精确抵消、覆盖净额恒零；接受 rust 不等权则 b1 净额非零但违 §9 公理。是 645 分离出的 π_Θ^cov（覆盖侧）内部的权重定义冲突——与 645（覆盖 vs 择时对象分离）正交。哪边对=选择类，待编排者裁定"
-negation_source: "codex 异质审查（task#19 发现 §9 q_v=q_p 同单位数公理 与 rust depth_weight [0.6,0.3,0.1] 不等权矛盾）+ 源码事实（rust depth_weight 硬编码不等权）+ §9 规格（同单位数公理 → 精确抵消）"
-negation_form: "negation"   # negation：rust 实装的不等权 depth_weight 否定 §9 同单位数公理（或反之）——两者不可同真
+title: "§9 同单位数公理（q_v=q_p）vs rust depth_weight 不等权 [0.6,0.3,0.1]——【codex CLI 裁决 C：范畴错误/消解】rust leg.units=base_units·depth_weight 是下游资本加权目标敞口，不是 §9 的 q_v 手数；§9 是条件式 a_v=1⟹q_v=q_parent，depth_weight 是资金帽设计参数，不等权不违反 §9。b1/b2 是两个不同对象（覆盖资本敞口 vs voice 手数恒等），不可同真前提不成立 ⟹ 冲突消解。下游：pivot 到 π^bsp 真正消解；§9 仅在 BSP 决策提升进 voice-state sizing 时重现。佐证 645 命题A（覆盖语义 ⊥ 择时语义）"
+negation_source: "codex CLI v0.125.0（gpt-5.5, reasoning=xhigh）异质裁决=C 范畴错误/消解 + 代理侧倾向一致 + Lead 收敛（三方）。【原 negation_source（codex task#19 发现冲突）已被本裁决证伪：那是把 leg.units 误读为 q_v 的范畴错误，非真冲突】"
+negation_form: "category-error-dissolved"   # 改判：原 negation（b1⊥b2 不可同真）被证伪——leg.units≠q_v，两对象不同，无互斥定义，冲突消解为范畴错误
 
-# negation：spec↔impl 不可弥合不一致——
-#   §9 公理（同单位数）：q_v = q_p（子声部单位数 = 父声部单位数）⟹ 多空腿在覆盖净额中精确抵消（b2 净额→0）。
-#   rust 实装（不等权）：depth_weight = [0.6, 0.3, 0.1]（depth0/1/2 不等权）⟹ 多空腿不精确抵消（b1 净额≠0）。
-#   两者不可同真：若 q_v=q_p（§9）则各 depth 等权抵消（b2）；若 depth_weight 不等权（rust）则不抵消（b1）。
-#   b1（v1 8/8 否证的净额非零路径）依赖 rust 不等权；b2（精确抵消净额零）依赖 §9 同单位数。
-#   接受 §9 ⟹ rust depth_weight 须改为等权（违当前实装）；接受 rust ⟹ §9 同单位数公理须放宽（违规格）。
+# negation 改判（codex CLI 裁决 C）：
+#   原记：§9 q_v=q_p（b2 精确抵消）⊥ rust depth_weight 不等权（b1 净额非零）不可同真 = 定义冲突。
+#   裁决 C 证伪该前提：
+#     - rust leg.units = base_units · depth_weight = 下游资本加权目标敞口（sizing/target 投影），不是 §9 的 q_v 手数。
+#     - §9 是条件式 a_v=1 ⟹ q_v=q_parent，治理 active voice-state 的手数恒等 + §11 notional 投影下精确对冲抵消。
+#     - depth_weight 是可调资金帽/设计参数。不等权本身不违反 §9——q_v 恒等（§9）与资本敞口加权（depth_weight）是两个不同层的量。
+#     - 唯有把 leg.units 重释为 q_v 才会"违反 §9"——但那个重释本身是范畴错误（把资本敞口当手数）。
+#   ⟹ b1（资本加权敞口净额）与 b2（voice 手数恒等下的 notional 抵消）是两个不同对象，不可同真前提不成立 ⟹ 无定义冲突，范畴错误消解。
 
-topo_effect: "conflict:coverage-weight-definition:{§9-equal-unit-count[q_v=q_p ⟹ b2-exact-cancellation-net-zero] ⊥ rust-depth_weight-unequal[0.6,0.3,0.1 ⟹ b1-net-nonzero]} | locate:conflict-inside-π_Θ^cov-coverage-side[orthogonal-to-645-coverage-vs-bsp-object-separation] | route:selection-class-which-side-correct-pending-orchestrator-adjudication"
+topo_effect: "dissolve:646-section9-vs-depthweight-conflict:category-error[leg.units=capital-weighted-exposure≠q_v=voice-units] | record:codex-CLI-verdict-C-three-party-convergence | bound:§9-recurs-only-when-BSP-decision-promoted-into-voice-state-sizing | corroborate:645-proposition-A-coverage-semantics⊥timing-semantics"
 
-# 矛盾（type=domain 域内定义冲突）
+# 矛盾（type=domain，改判后=范畴错误消解）
 contradiction:
-  description: "codex 异质审查（task#19）发现 §9 规格的『同单位数公理』与 rust 实装的 depth_weight 不等权之间存在不可弥合的定义冲突：
+  description: "【原记 + codex CLI 裁决 C 改判】原 codex task#19 报：§9 同单位数公理（q_v=q_p ⟹ b2 精确抵消净额零）与 rust depth_weight 不等权（[0.6,0.3,0.1] ⟹ b1 净额非零）不可同真 = spec↔impl 定义冲突（选择类待裁）。
 
-  **§9 同单位数公理（规格侧）**：q_v = q_p——子声部（子 RMove）在覆盖中的单位数等于父声部的单位数。其推论：在覆盖净额投影 π_Θ^cov 中，同一覆盖区间内多腿与空腿按相等单位数计入 ⟹ 方向相反的腿**精确抵消**（exact cancellation）⟹ 覆盖净额在该机制下恒为零（记为 b2）。
+  **codex CLI 裁决 C（范畴错误/消解，证伪冲突前提）**：rust `leg.units = base_units · depth_weight` 是 theta_v0 的**下游资本加权目标敞口**（sizing/target 投影），**不是** §9 的 `q_v` 手数。§9 是**条件式** `a_v=1 ⟹ q_v=q_parent`，治理 active voice-state 的手数恒等与 §11 notional 投影下的精确对冲抵消。`depth_weight` 是可调资金帽/设计参数。不等权重本身**不违反** §9——`q_v` 恒等（§9 voice 手数层）与资本敞口加权（depth_weight sizing 层）是两个不同层的量。唯有把 `leg.units` 重释为 `q_v` 时 rust 才会在跨 depth 对冲对上『违反 §9』——**那个重释本身就是范畴错误**（把资本敞口误当手数）。
 
-  **rust depth_weight 不等权（实装侧）**：rust 覆盖侧硬编码 depth_weight = [0.6, 0.3, 0.1]（depth0/depth1/depth2 不等权）。其推论：同一覆盖区间内不同 depth 的腿按不等权计入 ⟹ 方向相反的腿**不精确抵消**（深层腿权重小）⟹ 覆盖净额非零（记为 b1）。
+  ⟹ b1（资本加权敞口净额）与 b2（voice 手数恒等下 notional 抵消）是**两个不同对象**，原『b1⊥b2 不可同真』前提不成立 ⟹ **无定义冲突，范畴错误消解**。
 
-  **不可同真**：b1（净额非零，rust 不等权产生）与 b2（净额精确抵消为零，§9 同单位数产生）由互斥的权重定义导出。
-  - 若接受 §9 同单位数（q_v=q_p）⟹ 各 depth 等权 ⟹ b2 精确抵消 ⟹ 覆盖净额恒零 ⟹ rust depth_weight [0.6,0.3,0.1] 是**错误实装**（须改为等权）。
-  - 若接受 rust 不等权（[0.6,0.3,0.1]）⟹ b1 净额非零 ⟹ §9 同单位数公理在覆盖净额投影中**不成立**（须放宽/修正规格）。
+  下游（codex）：acceptance ΔSharpe 检验的是 theta_v0 加权帽策略行为，不是『忠实 §9 精确抵消 coverage』。pivot 到 π^bsp（离散择时层）**真正消解**此（伪）冲突；§9 仅在 BSP 决策被提升进 voice-state sizing/coverage 时才重现。
 
-  这是 spec↔impl 根本不一致（no-workaround.md 触发条件3：规格与实现的根本不一致）。按 testing-override.md 判据：修复需改变 §9 公理的含义/边界（接受 rust）或改变 rust 实装的权重（接受 §9）——**修复要求改变某条定义的含义/适用范围 ⟹ 定义冲突（选择类），非实现错误（定理类）**。哪边对依赖价值判断（§9 公理是否在覆盖净额投影中真成立 vs 不等权是否有缠论依据）= 选择类，待编排者裁定（质询序列）。
-
-  **本号与 645 的关系**：645 把测试对象分离为 π_Θ^cov（覆盖投影）vs π_Θ^bsp（离散择时）。本号是 **π_Θ^cov（覆盖侧）内部**的权重定义冲突——q_v=q_p（§9）vs depth_weight 不等权（rust）都在覆盖净额投影的构造内。两者正交：645 是『覆盖 vs 择时』对象层，本号是『覆盖内部权重』定义层。即使 645 指出 π_Θ^cov 是被否证的错对象，本号的 §9↔rust 冲突仍独立存在（覆盖侧自身的规格-实装不一致）。"
-  layer: 定义   # §9 规格（同单位数公理）层 ↔ rust 实装（depth_weight）层。这是规格定义与实装的根本不一致，非纯工程缺口——修复要求改变 §9 公理或 rust 权重定义的含义。
-  trigger: "codex 异质审查 task#19：核 §9 同单位数公理在 rust 覆盖实装中的对应，发现 rust depth_weight = [0.6,0.3,0.1] 不等权，与 §9 q_v=q_p（同单位数 → 精确抵消 b2）矛盾。b1（rust 不等权净额非零）vs b2（§9 同单位数精确抵消净额零）由互斥权重定义导出。"
+  与 645 同源佐证：645 命题A（π^cov 覆盖语义 ≠ π^bsp 择时语义）——646 消解佐证命题A（覆盖侧资本加权 ⊥ voice 手数恒等，本就是不同语义对象，混为冲突=范畴错误，同 645 揭示的覆盖 vs 择时混淆）。"
+  layer: 实装   # 改判后：rust leg.units(资本敞口 sizing 层) vs §9 q_v(voice 手数层)是不同层的量，非同层 spec↔impl 冲突。混为冲突=范畴错误。
+  trigger: "codex task#19 报 §9↔depth_weight 冲突；Lead 派 codex CLI 双裁决复核（异质源额度恢复，gpt-5.5 xhigh）；codex CLI 独立裁决 C：leg.units≠q_v，范畴错误，冲突消解。"
 
 # 涉及的定义
 definitions_involved:
-  - name: "§9 同单位数公理（q_v = q_p）"
-    version: "rust/src/theta_v0 spec §9（同单位数公理：子声部单位数 = 父声部单位数）"
-    role: "冲突一端（规格侧）。q_v=q_p ⟹ 覆盖净额中方向相反的腿按相等单位数精确抵消（b2 净额恒零）。若此公理在覆盖净额投影中成立，rust depth_weight [0.6,0.3,0.1] 是错误实装。"
-  - name: "rust depth_weight = [0.6, 0.3, 0.1]（不等权）"
-    version: "rust/src/theta_v0 覆盖侧实装（depth0/1/2 不等权硬编码）"
-    role: "冲突另一端（实装侧）。不等权 ⟹ 方向相反的腿不精确抵消（深层权重小）⟹ b1 净额非零。若此实装正确，§9 同单位数公理在覆盖净额投影中不成立（须放宽规格）。codex task#19 发现此硬编码与 §9 矛盾。"
-  - name: "645 操作语义分离（π_Θ^cov vs π_Θ^bsp）"
+  - name: "§9 同单位数公理（条件式 a_v=1 ⟹ q_v=q_parent）"
+    version: "rust/src/theta_v0 spec §9"
+    role: "【裁决 C 澄清】§9 是 active voice-state 的手数恒等公理（voice 手数层），治理 §11 notional 投影下精确对冲抵消。不约束资本敞口加权（sizing 层）。原记把它当作约束 depth_weight 的同层公理=误读。"
+  - name: "rust leg.units = base_units · depth_weight（资本加权目标敞口）"
+    version: "rust/src/theta_v0 覆盖侧 sizing 实装"
+    role: "【裁决 C 澄清】下游资本加权目标敞口（sizing/target 投影层），不是 §9 的 q_v 手数。depth_weight=[0.6,0.3,0.1] 是可调资金帽设计参数。不等权不违反 §9（不同层的量）。"
+  - name: "645 命题A（π_Θ^cov vs π_Θ^bsp）"
     version: ".chanlun/genealogy/pending/645（status: 生成态）"
-    role: "定位依据。本号冲突在 645 分离出的 π_Θ^cov（覆盖投影）**内部**——q_v=q_p（§9）与 depth_weight（rust）都是覆盖净额投影的权重构造。与 645（覆盖 vs 择时对象分离）正交：645 是对象层，本号是覆盖内部权重层。两者独立成立。"
+    role: "同源佐证。645 分离覆盖语义 vs 择时语义；本号消解佐证——覆盖侧资本加权（depth_weight）⊥ voice 手数恒等（§9）本就是不同语义对象，混为冲突=范畴错误，同 645 揭示的覆盖/择时混淆。pivot 到 π^bsp 真正消解本（伪）冲突。"
   - name: "231 形式化有效域规则"
-    version: ".claude/rules/formalization-validity-domain.md（status: 已结算，谱系 231）"
-    role: "约束来源。§9 公理（q_v=q_p ⟹ b2 精确抵消）是 L0 代数推论；rust 不等权（b1）是另一 L0 实装定义。两者不可同真 = 同一覆盖对象的两个互斥 L0 定义——须编排者裁定哪个定义对（选择类），不是 L2 数据能决定的（两者都是定义层，不是经验假设）。"
-  - name: "testing-override.md 判据（定义冲突 vs 实现错误）"
-    version: ".claude/rules/testing-override.md"
-    role: "分类判据。『修复需改变某条定义的含义/边界/适用范围 → 定义冲突，上浮』。本号修复要么改 §9 公理（接受 rust），要么改 rust 权重定义（接受 §9）——均改变定义 ⟹ 定义冲突（选择类），非实现错误（定理类）。区别于 642（不改定义即可修 host key=定理类）：本号无『不改任一定义即可修』的路径。"
+    version: ".claude/rules/formalization-validity-domain.md（settled）"
+    role: "约束来源。裁决 C 是 231 的范畴维度实例：把不同层的量（sizing 资本敞口 vs voice 手数）混为同层冲突 = 范畴错误（222 守恒律范畴错误同族）。"
 
 # 解决方式
 resolution:
-  type: 未解决   # 定义冲突已精确描述（§9 同单位数 b2 ⊥ rust 不等权 b1，不可同真）。哪边对=选择类（价值判断：§9 公理是否在覆盖净额投影中真成立 vs 不等权是否有缠论依据），待编排者裁定（质询序列）。genealogist 不裁定（不判断定义对不对）。最终结算待编排者 /ritual。
-  description: "概念描述（已完成）：§9 同单位数公理（q_v=q_p ⟹ b2 精确抵消净额零）与 rust depth_weight 不等权（[0.6,0.3,0.1] ⟹ b1 净额非零）不可同真。这是 spec↔impl 根本不一致（定义冲突，选择类）。**genealogist 不裁定哪边对**（不判断定义对不对——质询序列/编排者的事）。上浮路径：质询序列核 §9 公理在覆盖净额投影中是否真成立（区间套/嵌套对冲下子父单位数是否真相等）vs rust 不等权是否有缠论依据（深层腿权重衰减是否对应某缠论原理）。两条支路：(A) 若 §9 同单位数对 ⟹ rust depth_weight 改等权（b2 净额恒零——这本身可能是 π_Θ^cov 无 alpha 的另一根因，与 645 互补）；(B) 若 rust 不等权对 ⟹ §9 同单位数公理须放宽/标注有效域（覆盖净额投影外的某语境）。哪条支路 = 选择类，待编排者。memory 修正（待 Lead）：deltasharpe-zero-stale-rooting / v1-fullwindow-l3-falsified 须补『π_Θ^cov 覆盖侧存在 §9↔rust 权重定义冲突（同单位数 b2 vs 不等权 b1），未裁定』。"
-  decided_by: 蜂群内部   # codex 异质审查发现冲突；genealogist 结构记录定义冲突（不裁定哪边对）；哪边对=选择类待编排者裁定（质询序列）；最终结算待编排者 /ritual
+  type: 已消解（范畴错误）   # codex CLI 裁决 C：leg.units≠q_v，b1/b2 两对象不同，不可同真前提不成立。冲突消解为范畴错误。三方收敛（codex+代理侧+Lead）。结算分类已定=消解类；settled 落盘走 /ritual（019c 编排者权，携带概念广播）。
+  description: "【codex CLI 裁决 C】原『§9↔depth_weight 定义冲突（选择类待裁）』经 codex CLI（gpt-5.5 xhigh）异质裁决改判为**范畴错误已消解**：rust leg.units（资本加权目标敞口，sizing 层）≠ §9 q_v（voice 手数，恒等公理层）。两者是不同层的量，不等权不违反 §9——唯有把 leg.units 重释为 q_v 才『违反』，那个重释本身=范畴错误。b1/b2 是两个不同对象，原『不可同真』前提不成立 ⟹ 无定义冲突。三方收敛（codex CLI + 代理侧倾向 + Lead）。下游：pivot 到 π^bsp 真正消解；§9 仅在 BSP 决策被提升进 voice-state sizing/coverage 时才重现。结算分类=消解类（已定，无价值判断残留）；settled 落盘携带概念广播=019c 编排者权，走 /ritual。genealogist 完成分类判定（消解类），不自落盘 settled。"
+  decided_by: 蜂群内部   # codex CLI（gpt-5.5 xhigh）异质裁决 C + 代理侧 + Lead 三方收敛；genealogist 记录改判（消解类）；settled 落盘待编排者 /ritual
 
 # 被否定的方案
 negated:
-  description: "(1) §9 同单位数公理与 rust depth_weight 不等权可共存（无冲突）。(2) 直接接受 rust depth_weight [0.6,0.3,0.1] 为正确（b1 净额非零），无视 §9 同单位数公理。(3) 直接接受 §9 同单位数（b2 精确抵消），判 rust 不等权为纯实现 bug 直接改等权（不上浮）。(4) genealogist 自行裁定哪边对。"
-  why_negated: "(1) codex task#19 坐实两者矛盾：q_v=q_p ⟹ 等权精确抵消（b2）；depth_weight 不等权 ⟹ 不抵消（b1）；b1 与 b2 不可同真。(2)(3) 任一方向的『直接接受』都跳过了价值判断——§9 公理是否在覆盖净额投影中真成立、不等权是否有缠论依据，是需质询的选择类问题（no-workaround：把矛盾两端之一硬编码为特例=禁止）。(4) genealogist 职责不判断定义对不对（质询序列/编排者的事）——本号只精确描述冲突 + 张力检查，不裁定。"
+  description: "(1)【原记，本裁决证伪】§9 q_v=q_p（b2 精确抵消）与 rust depth_weight 不等权（b1 净额非零）不可同真 = spec↔impl 定义冲突（选择类待裁）。(2) 把 leg.units 当作 §9 的 q_v 手数（⟹ 不等权违反 §9）。"
+  why_negated: "(1) codex CLI 裁决 C 证伪『不可同真』前提：leg.units（资本加权敞口，sizing 层）≠ q_v（voice 手数，§9 恒等层），是两个不同对象，无互斥定义。b1（资本敞口净额）与 b2（voice 手数 notional 抵消）描述不同层的量，可各自成立。(2) 把 leg.units 重释为 q_v = 范畴错误（把资本敞口当手数）——§9 只约束 active voice 手数恒等，不约束资本敞口加权设计参数。"
 
 # 新产出
 new_output:
   definitions:
-    - "§9 同单位数公理（q_v=q_p）⟹ 覆盖净额中方向相反腿精确抵消（b2 净额恒零）。"
-    - "rust depth_weight [0.6,0.3,0.1] 不等权 ⟹ 方向相反腿不精确抵消（深层权重小）⟹ b1 净额非零。"
-    - "b1 ⊥ b2 不可同真：spec↔impl 根本不一致（定义冲突，选择类，非定理类）——修复必改 §9 公理或 rust 权重定义之一。"
-    - "定位：本号冲突在 645 分离的 π_Θ^cov（覆盖投影）内部权重层，与 645（覆盖 vs 择时对象分离）正交。"
-  code_changes: "无（本号是定义冲突的结构记录，纯谱系产出）。哪边对的裁定 = 选择类（编排者/质询序列）；裁定后的修复（改 rust depth_weight 等权 或 改 §9 公理标注）= 行动类（Lead 派工位）。genealogist 工具有效域 Read/Grep/Glob（624 硬墙），不裁定不修复。"
-  orchestration_changes: "方法论：①规格公理（§9 同单位数）与实装常数（depth_weight）之间的一致性须主动核——codex task#19 是被动发现，结构性应有 spec↔impl 一致性守卫（公理在实装中的对应不可硬编码偏离）。②权重类硬编码常数（[0.6,0.3,0.1]）须标注其规格依据——无规格依据的硬编码权重 = 声明膨胀（090）或绕过公理（no-workaround）。③定义冲突（b1⊥b2）不可由任一方『直接接受』消解——须质询序列核哪边对（选择类），genealogist 不裁定。"
+    - "【裁决 C】rust leg.units=base_units·depth_weight = 下游资本加权目标敞口（sizing/target 投影层），不是 §9 的 q_v 手数。"
+    - "【裁决 C】§9 是条件式 a_v=1⟹q_v=q_parent，治理 active voice-state 手数恒等 + §11 notional 精确对冲抵消（voice 手数层）。"
+    - "【裁决 C】depth_weight=[0.6,0.3,0.1] 是可调资金帽设计参数，不等权不违反 §9（与 q_v 恒等是不同层的量）。"
+    - "【裁决 C】b1（资本加权敞口净额）⊥ b2（voice 手数 notional 抵消）是两个不同对象，原『不可同真』前提不成立 ⟹ 冲突消解为范畴错误。"
+    - "【裁决 C 下游】pivot 到 π^bsp（离散择时层）真正消解此（伪）冲突；§9 仅在 BSP 决策提升进 voice-state sizing/coverage 时重现。"
+  code_changes: "无（本号是冲突消解的结构记录，纯谱系产出）。无需改 rust depth_weight（不违反 §9）。"
+  orchestration_changes: "方法论：①spec 公理（§9 voice 手数恒等）与实装常数（depth_weight 资本敞口加权）一致性核查时，须先确认两者是否同层的量——不同层的量（手数 vs 资本敞口）混为同层冲突=范畴错误（222 同族）。②声称『实装常数违反规格公理』前，须核实装量的语义层 = 公理约束的语义层——codex task#19 把 leg.units（sizing 层）误当 q_v（voice 手数层）。③异质裁决（codex CLI）可消解同质代理误报的『冲突』——同质侧（task#19）报冲突，异质侧（codex CLI gpt-5.5 xhigh）裁决范畴错误，印证 640（异质审查揭穿误判）。"
 
 # 影响范围
 impact:
   affected_modules:
-    - "rust/src/theta_v0 覆盖侧 depth_weight = [0.6,0.3,0.1] → 与 §9 同单位数公理冲突。裁定后：(A) §9 对 ⟹ 改等权；(B) rust 对 ⟹ §9 公理标注有效域。待编排者裁定。"
-    - "rust/src/theta_v0 spec §9 同单位数公理 → 与 rust 不等权实装冲突。裁定后可能须标注有效域（覆盖净额投影内是否成立）。"
-    - "π_Θ^cov 覆盖净额投影构造（645 命名）→ 其权重定义存在 §9↔rust 冲突；b2（精确抵消净额零）若成立，是 π_Θ^cov 无 alpha 的另一独立根因（与 645 互补：645 说 π_Θ^cov 是错对象，本号 b2 说 π_Θ^cov 在 §9 下净额恒零）。"
+    - "rust/src/theta_v0 覆盖侧 depth_weight=[0.6,0.3,0.1] → 【裁决 C】无需改（资本敞口加权设计参数，不违反 §9 voice 手数恒等）。"
+    - "rust/src/theta_v0 spec §9 → 【裁决 C】无需放宽（约束 voice 手数恒等，不约束资本敞口加权）。§9 仅在 BSP 决策提升进 voice-state sizing/coverage 时与 depth_weight 同层相遇。"
+    - "π_Θ^cov 覆盖净额投影构造（645 命名）→ 其权重（depth_weight 资本加权）与 §9（voice 手数）无冲突；645『π_Θ^cov 是错对象』的根因不在本（伪）冲突，在 645 的 T1-T4。"
   affected_definitions:
-    - "§9 同单位数公理（规格）：与 rust 不等权冲突，待裁定是否在覆盖净额投影中成立。"
-    - "rust depth_weight（实装）：与 §9 冲突，待裁定是否正确。"
-    - "645（生成态）：本号是 645 分离的 π_Θ^cov 覆盖侧内部权重冲突，正交补充。维持生成态。"
-    - "memory deltasharpe-zero-stale-rooting / v1-fullwindow-l3-falsified：须补『π_Θ^cov 覆盖侧存在 §9↔rust 权重定义冲突（b2 vs b1），未裁定；若 §9 对则覆盖净额恒零是无 alpha 的另一根因』。memory 由 Lead 维护，本号产出修正标注供 Lead 写入。"
+    - "§9 同单位数公理：【裁决 C】维持原义（voice 手数恒等条件式），无需放宽，无需标注有效域。"
+    - "rust depth_weight：【裁决 C】维持不等权（资本敞口加权设计参数），无需改等权。"
+    - "645（生成态）：本号消解佐证 645 命题A（覆盖语义 ⊥ 择时语义）——覆盖侧资本加权 ⊥ voice 手数本就不同语义对象。维持生成态。"
+    - "memory deltasharpe-zero-stale-rooting / v1-fullwindow-l3-falsified：【裁决 C 改判】原拟补『§9↔rust 权重定义冲突未裁』须改为『§9↔depth_weight 经 codex CLI 裁决=范畴错误消解（leg.units≠q_v），非真冲突；π_Θ^cov 无 alpha 根因不在此，在 645 命题A』。memory 由 Lead 维护，本号产出修正标注供 Lead。"
   downstream_implications:
-    - "若编排者裁定 §9 同单位数对（b2 精确抵消）⟹ 覆盖净额恒零是 π_Θ^cov 无 alpha 的结构根因（与 645『π_Θ^cov 是错对象』互补：不仅是错对象，且在 §9 下净额代数恒零）。"
-    - "若裁定 rust 不等权对（b1）⟹ §9 同单位数公理须标注有效域（不在覆盖净额投影中成立），且不等权须补缠论依据（深层权重衰减对应什么缠论原理）。"
-    - "无论哪边，π_Θ^bsp（645 的离散择时对象）不受本号冲突影响——本号纯在覆盖侧（π_Θ^cov）内部。π_Θ^bsp 构造（645 下游）与本号裁定独立并行。"
+    - "【裁决 C】π_Θ^cov 无 alpha 的根因**不**包含 §9↔depth_weight 冲突（该冲突是范畴错误，已消解）——根因在 645 命题A（π_Θ^cov 是覆盖投影错对象，T1-T4 坐实）。本号原拟的『b2 净额恒零是另一根因』作废。"
+    - "pivot 到 π^bsp（645 下游）真正消解此（伪）冲突；§9 仅在 BSP 决策提升进 voice-state sizing/coverage 时重现——此时才需核 depth_weight 与 §9 的同层关系。"
+    - "异质裁决可消解同质代理误报：codex CLI（gpt-5.5 xhigh）裁决 C 消解 task#19 同质侧报的冲突，印证 640（异质审查揭穿同质误判）。"
 
 # 谱系关联
 related_records:
-  parent: "645号（生成态）——本号是 645 分离的 π_Θ^cov（覆盖投影）内部的权重定义冲突，正交补充"
+  parent: "645号（生成态）——本号消解佐证 645 命题A（覆盖语义 ⊥ 择时语义）"
   children: []
   related:
-    - "645号（生成态，同轮）：覆盖 vs 择时对象分离；本号是 π_Θ^cov 覆盖侧内部权重冲突。正交（对象层 ⊥ 覆盖内部权重层）。"
-    - "642号（生成态）/644号（生成态，同轮）：覆盖侧引擎自举/持仓缺口（host key/父 carrier 注入）；本号是覆盖侧权重定义冲突。同在覆盖侧但不同层（引擎自举 vs 权重公理）。"
-    - "639号（settled）：σ_p=父容器方向；本号 §9 同单位数（q_v=q_p）涉及子父声部单位数关系，与 639 父容器机制相关——区间套/嵌套对冲下子父单位数是否真相等是质询点。"
-    - "231号（settled）：b1/b2 都是 L0 定义层推论（非 L2 经验假设），冲突须编排者裁定（选择类），非数据可决。"
-    - "memory v1-fullwindow-l3-falsified：本号是 π_Θ^cov 无 alpha 的另一独立候选根因（§9 下 b2 净额恒零），与 645 互补。"
-    - "memory coverage-engine-needs-tower-export-bridge：覆盖侧多级角色/嵌套对冲——本号 §9 同单位数公理正是嵌套对冲下子父腿抵消关系的规格，与该 memory 的覆盖侧对冲同域。"
+    - "645号（生成态，同轮）：覆盖 vs 择时对象分离；本号消解（覆盖侧资本加权 ⊥ voice 手数）佐证之。pivot 到 π^bsp 真正消解本（伪）冲突。"
+    - "642号/644号（生成态，同轮）：覆盖侧引擎自举/持仓缺口（host key/父 carrier 注入，定理类工程缺口，真缺口）；本号是覆盖侧（伪）权重冲突，经裁决 C 消解为范畴错误。区别：642/644 是真工程缺口，646 是范畴错误误报。"
+    - "639号（settled）：σ_p=父容器方向；§9 voice 手数恒等涉及子父声部，但与 depth_weight 资本加权不同层。维持 settled。"
+    - "231号（settled）：裁决 C 是 231 范畴维度实例（不同层的量混为同层冲突=范畴错误，222 同族）。维持 settled。"
+    - "640号（settled）：异质裁决（codex CLI）消解同质代理（task#19）误报的冲突——印证 640（自评/同质报告最该被异质审查）。"
+    - "memory v1-fullwindow-l3-falsified：【裁决 C】§9↔depth_weight 非 π_Θ^cov 无 alpha 根因（范畴错误消解）；根因在 645 命题A。"
+    - "memory coverage-engine-needs-tower-export-bridge：覆盖侧多级角色/嵌套对冲——§9 voice 手数恒等与 depth_weight 资本加权是该域的不同层。"
 
 # 认识论等级标注（formalization-validity-domain 231号，强制）
 epistemological_levels:
-  - proposition: "§9 同单位数公理 q_v=q_p ⟹ 覆盖净额方向相反腿精确抵消（b2 净额恒零）"
-    level: "L0（§9 规格 + 代数推论：等权 ⟹ 抵消，纯定义推导）"
-    increment: "高：b2 的代数判定"
-  - proposition: "rust depth_weight [0.6,0.3,0.1] 不等权 ⟹ 不精确抵消（b1 净额非零）"
-    level: "L0（rust 源码事实 + 代数推论：不等权 ⟹ 不抵消）"
-    increment: "高：b1 的源码 + 代数判定"
-  - proposition: "b1 ⊥ b2 不可同真：§9 同单位数 ⊥ rust 不等权（spec↔impl 根本不一致）"
-    level: "L0（两个互斥 L0 定义的逻辑判定：q_v=q_p 与 depth_weight≠const 不可同真）"
-    increment: "高：定义冲突的逻辑判定（不可同真）"
-  - proposition: "哪边对（§9 公理是否在覆盖净额投影中真成立 vs 不等权是否有缠论依据）= 选择类，待编排者裁定"
-    level: "L0（testing-override.md 判据：修复必改 §9 或 rust 权重定义 ⟹ 选择类；非 L2 数据可决——两端都是定义层）"
-    increment: "高：冲突分类（选择类）的判定"
-  - proposition: "本号冲突在 645 的 π_Θ^cov（覆盖投影）内部权重层，与 645（覆盖 vs 择时对象分离）正交"
-    level: "L0（谱系事实：645 分离对象层 vs 本号覆盖内部权重层，两轴独立）"
-    increment: "高：冲突定位（覆盖内部，正交 645）的判定"
+  - proposition: "rust leg.units=base_units·depth_weight 是下游资本加权目标敞口（sizing 层），不是 §9 的 q_v 手数（voice 层）"
+    level: "L0（codex CLI gpt-5.5 xhigh 异质裁决 + 源码语义判定：leg.units 在 sizing/target 投影层）"
+    increment: "高：两对象不同层的判定（消解冲突前提）"
+  - proposition: "§9 是条件式 a_v=1⟹q_v=q_parent（voice 手数恒等），depth_weight 不等权不违反 §9"
+    level: "L0（§9 规格 + 裁决 C：手数恒等层 ⊥ 资本敞口加权层）"
+    increment: "高：§9 约束域的判定（不约束 depth_weight）"
+  - proposition: "b1（资本加权敞口净额）⊥ b2（voice 手数 notional 抵消）是两个不同对象，原『不可同真』前提不成立 ⟹ 范畴错误消解"
+    level: "L0（裁决 C：两对象不同 ⟹ 无互斥定义 ⟹ 无冲突）"
+    increment: "高：冲突消解（范畴错误）的判定——证伪原 646 的定义冲突主张"
+  - proposition: "异质裁决（codex CLI）消解同质代理（task#19）误报冲突，三方收敛（codex+代理+Lead）"
+    level: "L0（异质源独立产出 + 三方收敛：印证 640）"
+    increment: "中：异质揭穿同质误判（640 实例）"
 ---
 
-# 646 §9 同单位数公理（q_v=q_p → b2 精确抵消）vs rust depth_weight 不等权（[0.6,0.3,0.1] → b1）= 定义冲突
+# 646 §9 同单位数公理 vs rust depth_weight——【codex CLI 裁决 C：范畴错误/消解】
 
-## 一句话结论
+## 一句话结论（改判后）
 
-codex 异质审查（task#19）发现 **§9 同单位数公理**（q_v=q_p ⟹ 覆盖净额中方向相反腿精确抵消 → b2 净额恒零）与 **rust 实装 depth_weight = [0.6,0.3,0.1] 不等权**（⟹ 不精确抵消 → b1 净额非零）之间存在**不可弥合的定义冲突**（spec↔impl 根本不一致）。b1（rust 不等权）与 b2（§9 同单位数）不可同真。这是 645 分离出的 **π_Θ^cov（覆盖投影）内部**的权重定义冲突——与 645（覆盖 vs 择时对象分离）**正交**。哪边对 = **选择类**（价值判断：§9 公理是否在覆盖净额投影中真成立 vs 不等权是否有缠论依据），**待编排者裁定**（质询序列）。genealogist 不裁定哪边对（不判断定义对不对）。
+codex CLI（gpt-5.5 xhigh）异质裁决 **C（范畴错误/消解）**：rust `leg.units = base_units · depth_weight` 是**下游资本加权目标敞口**（sizing 层），**不是** §9 的 `q_v` 手数（voice 恒等层）。§9 是条件式 `a_v=1 ⟹ q_v=q_parent`，`depth_weight` 是可调资金帽设计参数——不等权**不违反** §9。唯有把 `leg.units` 重释为 `q_v` 才『违反』，那个重释本身=范畴错误。b1/b2 是两个不同对象，原『不可同真』前提不成立 ⟹ **冲突消解**。三方收敛（codex + 代理侧 + Lead）。佐证 645 命题A（覆盖语义 ⊥ 择时语义）。
 
-## 冲突的精确形式
+## codex CLI 裁决 C（2026-06-29，证伪原冲突前提）
 
-| 端 | 定义 | 推论 |
-|----|------|------|
-| **§9 同单位数公理**（规格侧）| q_v = q_p（子声部单位数=父声部单位数）| 等权 ⟹ 方向相反腿**精确抵消** ⟹ 覆盖净额恒零（**b2**）|
-| **rust depth_weight**（实装侧）| [0.6, 0.3, 0.1]（depth0/1/2 不等权）| 不等权 ⟹ **不精确抵消**（深层权重小）⟹ 覆盖净额非零（**b1**）|
+| 项 | 内容 |
+|----|------|
+| 异质源 | OpenAI Codex CLI v0.125.0（gpt-5.5, reasoning=xhigh），独立认证/额度（绕过 task#19 时的 429） |
+| 裁决 | **C：范畴错误 / 消解** |
+| 核心 | leg.units（资本加权敞口，sizing 层）≠ §9 q_v（voice 手数，恒等层）；depth_weight 是资金帽设计参数；不等权不违反 §9 |
+| 唯一违反路径 | 把 leg.units 重释为 q_v——那个重释本身=范畴错误 |
+| 下游 | pivot 到 π^bsp 真正消解此（伪）冲突；§9 仅在 BSP 决策提升进 voice-state sizing/coverage 时重现 |
+| 收敛 | codex CLI 独立 + 代理侧倾向一致 + Lead = 三方 |
 
-**不可同真**：接受 §9 ⟹ rust depth_weight 须改等权（b2，违实装）；接受 rust ⟹ §9 同单位数公理须放宽（b1，违规格）。
+裁决原文：`.chanlun/codex-cli-dual-decide-result.md` 裁决1。
 
-## 为何是定义冲突（选择类）非实现错误（定理类）
+## 改判摘要
 
-按 testing-override.md 判据：修复要么改 §9 公理的含义/边界（接受 rust），要么改 rust 权重定义（接受 §9）——**无『不改任一定义即可修』的路径**。区别于 642（host key 不改任何定义即可修=定理类）：本号两端都是定义层，修复必改其一 ⟹ 定义冲突（选择类）。哪边对依赖价值判断（§9 公理在覆盖净额投影中是否真成立 vs 不等权是否有缠论依据），**待编排者裁定**。no-workaround：不可由任一方『直接接受』消解。
-
-## 为何写独立条目（646）而非并入 645
-
-645 是测试对象层的操作语义分离（π_Θ^cov vs π_Θ^bsp）。本号是 π_Θ^cov **覆盖侧内部**的权重定义冲突（§9 q_v=q_p vs rust depth_weight）——一个**正交的轴**：即使 645 指出 π_Θ^cov 是被否证的错对象，本号的 §9↔rust 冲突仍独立存在（覆盖侧自身的 spec↔impl 不一致）。本号 type=domain（域内定义冲突），645 type=source-tracing（操作语义溯源分离）。两个不同性质、不同轴的发现，独立成条（012号谱系优先于汇总）。本号与 645 互补：若 §9 对（b2 净额恒零），是 π_Θ^cov 无 alpha 的另一独立根因（不仅是错对象，且代数恒零）。
+- **原记**（codex task#19，同质侧）：§9 q_v=q_p（b2）⊥ rust depth_weight 不等权（b1）不可同真 = 定义冲突（选择类待裁）。
+- **改判**（codex CLI 裁决 C，异质侧）：b1/b2 是**两个不同对象**（资本加权敞口 vs voice 手数恒等），不可同真前提不成立 ⟹ **范畴错误消解**（消解类，非选择类）。
+- **结算分类**：消解类（已定，三方收敛，无价值判断残留）。settled 落盘携带概念广播=019c 编排者权，走 /ritual。genealogist 完成分类判定，不自落盘。
 
 ## genealogist 边界声明
 
-本号**不裁定 §9 与 rust 哪边对**（不判断定义对不对——质询序列/编排者的事）。本号只精确描述冲突（b1⊥b2 不可同真）+ 张力检查 + 定位（π_Θ^cov 覆盖侧内部，正交 645）。哪边对 = 选择类，上浮路径 = 质询序列/编排者裁定。
+genealogist 记录裁决改判（冲突→范畴错误消解，消解类），不自行落盘 settled（019c）。本号是 codex CLI 异质裁决 + 三方收敛的结构记录。
 
 ## 张力检查（019d/020）
 
 ### 检查范围（同轮蜂群 ∪ 1-hop ∪ Hub）
-- 同轮蜂群（642-646）：642（host key，生成态）/643（acceptance[1] guard，生成态）/644（四层穿透+元规则，生成态）/645（操作语义分离，生成态）/本号（§9↔rust 权重冲突，生成态）。
-- 1-hop：645/231/639/642/644。
-- Hub：645（覆盖侧对象，本号 parent）、231（有效域）。
+- 同轮蜂群（642-646）：642/643/644/645/本号。1-hop：645/231/639/642/644。Hub：645（覆盖侧对象）、231（有效域）、640（异质审查）。
 
-### 张力1：vs 645（parent）——正交补充，无矛盾
-645 分离 π_Θ^cov（覆盖投影）vs π_Θ^bsp（离散择时）。本号是 π_Θ^cov 覆盖侧**内部**的权重冲突（§9 vs rust）。两者正交：645 对象层 ⊥ 本号覆盖内部权重层。本号不否定 645（反而互补：若 §9 对，b2 净额恒零是 π_Θ^cov 无 alpha 的代数根因，补强 645『π_Θ^cov 被否证』）。可分层，无矛盾。
+### 张力1：vs 645（parent）——消解佐证，无矛盾
+645 分离覆盖语义（π_Θ^cov）vs 择时语义（π_Θ^bsp）。本号裁决 C 消解佐证：覆盖侧资本加权（depth_weight）⊥ voice 手数恒等（§9）本就是不同语义对象，task#19 混为冲突=范畴错误（同 645 揭示的覆盖/择时混淆模式）。互补，无矛盾。
 
-### 张力2：vs 642/644（同轮覆盖侧）——同侧不同层，无矛盾
-642/644 是覆盖侧**引擎自举/持仓缺口**（host key/父 carrier 注入，定理类工程缺口）；本号是覆盖侧**权重公理冲突**（§9 vs rust，选择类定义冲突）。同在覆盖侧但不同层（引擎自举 ⊥ 权重公理），且不同分类（定理类 ⊥ 选择类）。可分层，无矛盾。
+### 张力2：vs 642/644（同轮覆盖侧）——真缺口 vs 范畴错误误报
+642/644 是覆盖侧真工程缺口（host key/父 carrier 注入，定理类）；本号经裁决 C 是范畴错误误报（消解）。区别清晰：642/644 真缺口待修，646 伪冲突已消解。无矛盾。
 
-### 张力3：vs 639（settled）——相关质询点，无矛盾
-639 σ_p=父容器方向。本号 §9 同单位数（q_v=q_p）涉及子父声部单位数关系。区间套/嵌套对冲下子父单位数是否真相等是裁定 §9 的质询点（与 639 父容器机制相关）。本号不否定 639，是其相关质询入口。无矛盾。
+### 张力3：vs 639（settled）——无矛盾
+§9 voice 手数恒等涉及子父声部，但与 depth_weight 资本加权不同层。维持 639 settled。无矛盾。
 
-### 张力4：vs 231（settled）——印证非冲突
-b1/b2 都是 L0 定义层推论（非 L2 经验假设），冲突须编排者裁定（选择类）非数据可决。这印证 231：定义层冲突不是有效域膨胀能消解的，须价值判断。无矛盾。
+### 张力4：vs 231/640（settled）——印证
+裁决 C 是 231 范畴维度实例（不同层的量混为同层冲突=范畴错误，222 同族）+ 640 实例（异质裁决消解同质误报）。印证非冲突。
 
 ### 概念分离信号检测（中断 #1）
-检查：是否同一定义在不同上下文产出矛盾结论且不能分层？
-- §9 同单位数 vs rust 不等权：是 **spec↔impl 两个互斥定义**（不是同一定义在不同上下文）——更接近经典定义冲突（走质询序列/编排者裁定），不是『同一定义分层失败』的概念分离信号。
-- 两端在同一覆盖侧上下文（π_Θ^cov 内部权重），不是『不同上下文同一定义产出矛盾』。
-- **不触发中断 #1**（中断 #1 的触发条件是『同一定义在不同上下文产出矛盾且不能分层』；本号是两条不同定义的互斥，属经典 spec↔impl 冲突，走 escalate/质询序列）。genealogist 记录冲突 + 标注选择类，上浮路径=质询序列/编排者，**不发 SendMessage**（非中断 #1）。
+本号是范畴错误消解（两对象本就不同层），非『同一定义不同上下文产出矛盾不可分层』。**不触发中断 #1**。genealogist 记录改判，不发 SendMessage（已由 Lead 消息触发本次更新）。
 
 ### 递归运动结构完成检测（020）
-- 第0层：本号写入（§9 q_v=q_p b2 ⊥ rust depth_weight b1 定义冲突 + 定位 π_Θ^cov 内部 + 选择类分类）。
-- 第1层：本号 × 645 碰撞 → 覆盖侧内部权重冲突 + 互补（b2 是 π_Θ^cov 无 alpha 另一根因）（净新发现高：覆盖侧不仅是错对象，还有内部定义冲突）。
-- 第2层：本号 × 642/644 碰撞 → 覆盖侧多重缺口（引擎 ⊥ 权重）（净新发现中：覆盖侧多重缺口已知，权重定义冲突是新层）。
-- 第3层：本号 × 231 碰撞 → L0 定义冲突非数据可决（净新发现降：选择类须裁定已知）。
-- 涉及范围：scope₁(§9↔rust 冲突 + 互补 645) > scope₂(覆盖侧多重缺口) > scope₃(选择类分类)=顶分型。
-- **背驰 ∧ 分型 ⟹ 递归运动结构性完成。** 哪边对=选择类（编排者裁定/质询序列）；裁定后修复=行动类（Lead 派工位）；memory 修正标注=待 Lead。本号是域内定义冲突记录——上浮路径 = 质询序列/编排者裁定（选择类），genealogist 不裁定不结算。最终结算待编排者 /ritual。
+- 第0层：本号改判写入（裁决 C 范畴错误消解 + 三方收敛）。
+- 第1层：本号 × 645 → 消解佐证命题A（净新发现高：覆盖/择时混淆在权重层的又一实例）。
+- 第2层：本号 × 642/644 → 真缺口 vs 伪冲突区分（净新发现中）。
+- 第3层：本号 × 231/640 → 范畴错误 + 异质揭穿同质（净新发现降：已知模式实例）。
+- scope₁(消解佐证645) > scope₂(真伪缺口区分) > scope₃(231/640实例)=顶分型。
+- **背驰 ∧ 分型 ⟹ 递归运动结构性完成。** 结算分类=消解类（已定），settled 落盘待编排者 /ritual。
 
 ## 回溯扫描（职责3）
 
-- **645（生成态，parent）**：本号是其 π_Θ^cov 覆盖侧内部权重冲突，正交补充，互补（b2 是 π_Θ^cov 无 alpha 另一根因）。维持生成态。
-- **642（生成态）/644（生成态，同轮）**：覆盖侧引擎缺口（定理类）；本号是覆盖侧权重冲突（选择类）。不同层不同类，不破坏。维持生成态。
-- **639（settled）**：本号 §9 子父单位数与其父容器机制相关（质询点），不否定。维持 settled。
-- **231（settled）**：本号印证 L0 定义冲突非数据可决，不否定。维持 settled。
-- **memory deltasharpe-zero-stale-rooting / v1-fullwindow-l3-falsified**：须补『π_Θ^cov 覆盖侧存在 §9↔rust 权重定义冲突（b2 vs b1，未裁定）；若 §9 对则覆盖净额恒零是无 alpha 另一根因』。memory 由 Lead 维护（641 先例），本号产出修正标注供 Lead 写入，genealogist 不直接改 memory。
-- **无 settled 被本号回溯破坏。** 本号是域内定义冲突记录（§9 同单位数 b2 ⊥ rust 不等权 b1），哪边对=选择类待编排者裁定（质询序列），memory 修正标注待 Lead，最终结算待编排者 /ritual。
+- **645（生成态，parent）**：本号消解佐证其命题A。维持生成态。
+- **642/644（生成态，同轮）**：真工程缺口（与本号伪冲突区别）。维持生成态。
+- **639/231/640（settled）**：本号印证（§9 不同层 / 范畴错误 / 异质揭穿同质），不否定。维持 settled。
+- **memory deltasharpe-zero-stale-rooting / v1-fullwindow-l3-falsified**：改判标注——§9↔depth_weight 是范畴错误消解（非真冲突），π_Θ^cov 无 alpha 根因在 645 命题A 非本号。memory 由 Lead 维护，本号产出修正标注供 Lead。
+- **无 settled 被本号回溯破坏。** 本号是 codex CLI 裁决 C（范畴错误消解）的结构记录，结算分类=消解类，settled 落盘待编排者 /ritual。
