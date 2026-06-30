@@ -133,14 +133,47 @@ pub fn marginal_return(
     trade_abs_pnl(entry_px, exit_px, qty, fee_rate, delta == 1)
 }
 
+/// 单 z 桶的 Welford 在线均值/方差累加器（Welford 1962，数值稳定，无 ΣX² 灾难性抵消）。
+///
+/// 状态 `(n, mean, m2)`：`mean = ΣX_γ/n`，`m2 = Σ(X_γ−mean)²`。样本方差 = `m2/(n−1)`
+/// （无偏，贝塞尔校正；n<2 时未定义 ⟹ 见 [`Welford::std_sample`]）。LCB 需方差 ⟹ 必须
+/// 存二阶量；选 Welford 而非 (ΣX,ΣX²) 因后者大样本下 ΣX² 与 (ΣX)²/n 相减灾难性抵消。
+#[derive(Debug, Clone, Copy, Default)]
+struct Welford {
+    n: u64,
+    mean: f64,
+    m2: f64,
+}
+
+impl Welford {
+    /// 累加一个观测（Welford 递推，O(1)）。
+    fn push(&mut self, x: f64) {
+        self.n += 1;
+        let delta = x - self.mean;
+        self.mean += delta / self.n as f64;
+        let delta2 = x - self.mean;
+        self.m2 += delta * delta2;
+    }
+
+    /// 样本标准差 √(m2/(n−1))（无偏方差开方）。`n<2` ⟹ `None`（方差未定义）。
+    fn std_sample(&self) -> Option<f64> {
+        if self.n < 2 {
+            None
+        } else {
+            Some((self.m2 / (self.n - 1) as f64).sqrt())
+        }
+    }
+}
+
 /// μ(z) 条件边际收益估计器（§12 line 2173 样本均值）。
 ///
-/// 按 [`MuClass`] z 分桶累加 X_γ 与计数，`mu(z) = sum_z / count_z`（条件期望的样本估计）。
-/// **不做** χ_θ 过滤 / argmax 选择（下游工位）——只产 μ 表供选择器消费。
+/// 按 [`MuClass`] z 分桶 Welford 累加 X_γ，`mu(z) = mean_z`（条件期望的样本估计），
+/// 并存方差供 [`MuEstimator::mu_lcb`] 算置信下界（§12 实操选择器 χ_t 用 LCB(μ) 非裸 μ，
+/// 防高维 z 过拟合估计噪声）。**不做** χ_θ 过滤 / argmax 选择（下游工位）。
 #[derive(Debug, Clone, Default)]
 pub struct MuEstimator {
-    /// z → (ΣX_γ, 计数)。样本均值 = ΣX_γ / 计数（[`MuEstimator::mu`]）。
-    buckets: HashMap<MuClass, (f64, u64)>,
+    /// z → Welford(n, mean, m2)。样本均值 = mean（[`MuEstimator::mu`]）。
+    buckets: HashMap<MuClass, Welford>,
 }
 
 impl MuEstimator {
@@ -148,11 +181,9 @@ impl MuEstimator {
         MuEstimator::default()
     }
 
-    /// 累加一笔观测到对应 z 桶（在线累加，O(1) 摊销）。
+    /// 累加一笔观测到对应 z 桶（Welford 在线递推，O(1) 摊销）。
     pub fn observe(&mut self, obs: MuObservation) {
-        let entry = self.buckets.entry(obs.class).or_insert((0.0, 0));
-        entry.0 += obs.x_gamma;
-        entry.1 += 1;
+        self.buckets.entry(obs.class).or_default().push(obs.x_gamma);
     }
 
     /// 批量累加（迭代器 fold，等价逐笔 [`MuEstimator::observe`]）。
@@ -164,22 +195,36 @@ impl MuEstimator {
 
     /// μ(z) = E[X_γ|Z=z] 样本估计（§12）。
     ///
-    /// 返回 `Some(sum/count)`（该 z 有观测），`None`（该 z 无样本——空类无估计，**不**冒充 μ=0；
+    /// 返回 `Some(mean)`（该 z 有观测），`None`（该 z 无样本——空类无估计，**不**冒充 μ=0；
     /// 空类与 μ=0 是不同认识状态：前者无数据，后者有数据且均值为 0）。
     pub fn mu(&self, class: &MuClass) -> Option<f64> {
-        self.buckets.get(class).map(|(sum, n)| sum / *n as f64)
+        self.buckets.get(class).map(|w| w.mean)
+    }
+
+    /// LCB(μ(z)) = mean − z_α·(std/√n) 单边置信下界（§12 实操选择器 χ_t 的准入量）。
+    ///
+    /// `z_alpha` 是单边正态分位（如 95%→1.645，99%→2.326）——由调用方按置信水平传入
+    /// （估计器不绑定分布表，下游 selector 决定置信水平）。语义（诚实标注）：
+    /// - `n≥2`：`Some(mean − z_alpha·std/√n)`，标准误 std/√n 随 √n 收敛 ⟹ LCB→mean。
+    /// - `n=1`：标准差未定义 ⟹ `None`（**不**冒充 LCB=mean——单样本无方差信息，给不出
+    ///   收缩后的保守下界；下游 selector 自行决定单样本是否准入，估计器不替它造数）。
+    /// - 无样本：`None`（与 [`MuEstimator::mu`] 一致——空类无估计）。
+    ///
+    /// LCB≤mean 恒成立（`z_alpha≥0` 且 std/√n≥0）⟹ 置信下界不超过点估计（不乐观）。
+    pub fn mu_lcb(&self, class: &MuClass, z_alpha: f64) -> Option<f64> {
+        let w = self.buckets.get(class)?;
+        let std = w.std_sample()?; // n<2 ⟹ None
+        Some(w.mean - z_alpha * std / (w.n as f64).sqrt())
     }
 
     /// 该 z 类的样本量 |S_z|（统计功效判定用——小样本 μ 估计不可靠）。
     pub fn count(&self, class: &MuClass) -> u64 {
-        self.buckets.get(class).map_or(0, |(_, n)| *n)
+        self.buckets.get(class).map_or(0, |w| w.n)
     }
 
     /// 已观测的全部 z 类及其 μ 估计（按需消费；顺序不定，HashMap 无序）。
     pub fn iter_mu(&self) -> impl Iterator<Item = (MuClass, f64)> + '_ {
-        self.buckets
-            .iter()
-            .map(|(z, (sum, n))| (*z, sum / *n as f64))
+        self.buckets.iter().map(|(z, w)| (*z, w.mean))
     }
 
     /// 已观测 z 类的数量（分桶覆盖了多少互斥类别）。
@@ -289,6 +334,55 @@ mod tests {
         let z = MuClass::from_certificate(5, 1, buy_bits(), 0, PositionState::Root);
         let est = MuEstimator::new();
         assert_eq!(est.mu(&z), None);
+        assert_eq!(est.mu_lcb(&z, 1.645), None);
         assert_eq!(est.count(&z), 0);
+    }
+
+    /// LCB ≤ mean 恒成立（置信下界不超过点估计——z_α≥0 且 std/√n≥0，不乐观）。
+    #[test]
+    fn lcb_never_exceeds_mean() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe_all([
+            MuObservation { class: z, x_gamma: 5.0 },
+            MuObservation { class: z, x_gamma: 15.0 },
+            MuObservation { class: z, x_gamma: 10.0 },
+        ]);
+        let mean = est.mu(&z).unwrap();
+        let lcb = est.mu_lcb(&z, 1.645).unwrap();
+        assert!(lcb <= mean, "LCB({lcb}) 必 ≤ mean({mean})");
+    }
+
+    /// LCB 单调性：固定均值/标准差，n 增大 ⟹ 标准误 std/√n 收缩 ⟹ LCB 单调逼近 mean。
+    /// 用同一对称样本 {mean−s, mean+s} 重复 k 份 ⟹ mean、样本 std 不变，仅 n 变。
+    #[test]
+    fn lcb_converges_to_mean_as_n_grows() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let (m, s) = (20.0_f64, 4.0_f64); // 每对 {16,24}：均值 20，n 趋大时样本 std→s
+        let lcb_at = |reps: usize| -> f64 {
+            let mut est = MuEstimator::new();
+            for _ in 0..reps {
+                est.observe(MuObservation { class: z, x_gamma: m - s });
+                est.observe(MuObservation { class: z, x_gamma: m + s });
+            }
+            est.mu_lcb(&z, 1.645).unwrap()
+        };
+        let (lcb_small, lcb_large) = (lcb_at(2), lcb_at(50)); // n=4 vs n=100
+        // 均值恒为 20，样本 std 在两规模下都 ≈4（对称样本）⟹ 仅 √n 不同。
+        assert!(lcb_large > lcb_small, "n↑ ⟹ LCB 上移逼近 mean：{lcb_large} > {lcb_small}");
+        assert!(lcb_large < m, "LCB 仍 < mean（n 有限，标准误 > 0）");
+        assert!((m - lcb_large) < (m - lcb_small) * 0.3, "√n 收敛：大样本 gap 显著缩小");
+    }
+
+    /// n=1 边界：单样本方差未定义 ⟹ mu_lcb 返回 None（不冒充 LCB=mean，诚实语义）。
+    /// mu(z) 仍返回该单点（点估计有定义，与 LCB 语义分离）。
+    #[test]
+    fn lcb_undefined_for_single_sample() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z, x_gamma: 42.0 });
+        assert_eq!(est.mu(&z), Some(42.0), "单样本点估计有定义");
+        assert_eq!(est.mu_lcb(&z, 1.645), None, "单样本方差未定义 ⟹ LCB None");
+        assert_eq!(est.count(&z), 1);
     }
 }
