@@ -114,12 +114,14 @@ pub struct PersistentElement {
 pub struct PersistentRegistry {
     /// pid → PersistentElement。
     elements: std::collections::HashMap<ElementId, PersistentElement>,
-    /// ★工位 K 性能：上一 bar snapshot_present=true 的 pid 集合（增量 merge 用）。
-    /// 旧 merge 每 bar 全量 `values_mut()` 扫 registry 把不在本 bar snapshot 的置 false（O(registry)，
-    /// registry 跨 bar 单调增 ⟹ O(n²)）。改增量：只把"上 bar present 但本 bar 不 present"的 pid 置 false
-    /// （O(上 bar snapshot)，非 O(registry)）。bit-exact：结果状态与全量扫等价——registry 中从未被任何
-    /// snapshot 置 true 的元素其 snapshot_present 本就保持 false（or_insert 初值/held leg 初值），无需扫。
-    present_last: std::collections::HashSet<ElementId>,
+    /// ★工位 K 性能：上一 bar snapshot_present=true 的 tree 段 pid 集合（增量 merge step 1' 用）。
+    /// 旧 merge 每 bar 全量 `values_mut()` 扫 registry 置 false（O(registry)，单调增 ⟹ O(n²)）。改增量：
+    /// 只把"上 bar present 但本 bar 不 present"的 pid 置 false（O(上 bar snapshot)）。
+    /// ★工位 4f：拆 tree/cand 两段——tree_dirty=false（TreeKey 命中）⟹ tree ids 同上 bar ⟹ 全 present
+    /// ⟹ step 1' 跳过 tree 段（不重建 snapshot_ids 全集，消第二处 O(tree)/bar）。
+    present_last_tree: std::collections::HashSet<ElementId>,
+    /// 上一 bar present 的 candidate 段 pid（每 bar 变，O(candidate) 有界，恒重建）。
+    present_last_cand: std::collections::HashSet<ElementId>,
 }
 
 impl PersistentRegistry {
@@ -205,23 +207,63 @@ impl PersistentRegistry {
     /// 只在 step 1 snapshot upsert 置 true（held/op_parent 用 `or_insert(false)` 不翻已存在的真值）⟹
     /// 任何 present=true 的元素必在上 bar snapshot ⟹ 必在 `present_last` ⟹ 全量扫与增量扫产同状态。
     pub fn merge_in_place(&mut self, snapshot: &[CoverageElement], held_legs: &[ActiveLeg]) {
-        let snapshot_ids: std::collections::HashSet<ElementId> =
-            snapshot.iter().map(|e| e.id).collect();
+        // 单段口径（tree 段恒 dirty=true，全量 upsert）= 旧行为；split 见 [`merge_in_place_split`]。
+        self.merge_in_place_split(snapshot, true, &[], held_legs);
+    }
+
+    /// **§9 merge 双段增量版（工位 4f：confirmed prefix 增量维护——消 step 1'/2' 的 O(tree)/bar）**。
+    ///
+    /// snapshot 拆为 `tree`（∝confirmed，TreeCache 缓存）+ `candidates`（每 bar 变，有界）。`tree_dirty=false`
+    /// （TreeKey 命中 ⟹ tree 逐字节同上 bar）⟹ **跳过 tree 段 step 1'/2'**（这些元素上 bar 已写同值 + 全 present）。
+    ///
+    /// bit-exact == 全量（`tree_dirty=true` 恒走全量）：
+    /// - step 2' 跳过：tree_dirty=false ⟹ tree 同上 bar ⟹ 上 bar upsert 值 == 本 bar 会写值（断言1）。candidate
+    ///   段恒 upsert，且 carrier id 碰撞时 upsert 覆盖**全部** tree-derived 字段 ⟹ 末态 = candidate 值（断言2）。
+    /// - step 1' 跳过 tree：tree_dirty=false ⟹ present_last_tree 中每 id 仍在本 bar tree ⟹ 全 present ⟹ 不该置
+    ///   false（断言3）。candidate 段恒查：present_last_cand 中本 bar 在 `cand_ids ∪ tree_ids` 找不到的才置 false
+    ///   （carrier id 上 bar 在 cand 本 bar 退回 tree 仍 present，不误置）。
+    pub fn merge_in_place_split(
+        &mut self,
+        tree: &[CoverageElement],
+        tree_dirty: bool,
+        candidates: &[CoverageElement],
+        held_legs: &[ActiveLeg],
+    ) {
+        let tree_ids: std::collections::HashSet<ElementId> = if tree_dirty {
+            tree.iter().map(|e| e.id).collect()
+        } else {
+            // tree_dirty=false ⟹ tree ids 同上 bar present_last_tree（不重建，消 O(tree)）。
+            self.present_last_tree.clone()
+        };
+        let cand_ids: std::collections::HashSet<ElementId> =
+            candidates.iter().map(|e| e.id).collect();
 
         // 1'. 增量重置：上 bar present 但本 bar snapshot 找不到 → snapshot_present=false（LiveDetached）。
-        //     只遍历 present_last（O(上 bar snapshot)），非全 registry（O(registry)）。
-        for pid in &self.present_last {
-            if !snapshot_ids.contains(pid) {
+        //     tree 段：tree_dirty=true 时按新 tree 重置上 bar present_last_tree 里不在新 tree 的；
+        //     tree_dirty=false 时跳过（present_last_tree 全在本 bar tree ⟹ 全 present，断言3）。
+        if tree_dirty {
+            for pid in &self.present_last_tree {
+                if !tree_ids.contains(pid) {
+                    if let Some(e) = self.elements.get_mut(pid) {
+                        e.snapshot_present = false;
+                    }
+                }
+            }
+        }
+        // candidate 段：本 bar 在 cand ∪ tree 都找不到的才置 false（carrier id 退回 tree 仍 present）。
+        for pid in &self.present_last_cand {
+            if !cand_ids.contains(pid) && !tree_ids.contains(pid) {
                 if let Some(e) = self.elements.get_mut(pid) {
                     e.snapshot_present = false;
                 }
             }
         }
 
-        // 2'. snapshot 中所有元素刷新 snapshot_present=true + 更新 structural_parent_id/rho（§9 rule 1）。
-        for e in snapshot {
+        // 2'. upsert：snapshot 中所有元素刷新 snapshot_present=true + structural_parent_id/rho（§9 rule 1）。
+        //     ★工位 4f：tree_dirty=false ⟹ 跳过 tree 段（上 bar 已写同值，断言1）；candidate 段恒 upsert。
+        let upsert = |elements: &mut std::collections::HashMap<ElementId, PersistentElement>, e: &CoverageElement| {
             let pid = e.id;
-            let entry = self.elements.entry(pid).or_insert(PersistentElement {
+            let entry = elements.entry(pid).or_insert(PersistentElement {
                 pid,
                 dir: e.eps,
                 level: e.level,
@@ -238,6 +280,15 @@ impl PersistentRegistry {
             entry.structural_parent_id = e.parent_id;
             entry.snapshot_present = true;
             // 不重置 invalidated（显式作废持久，§9 rule 5）。
+        };
+        if tree_dirty {
+            for e in tree {
+                upsert(&mut self.elements, e);
+            }
+        }
+        // candidate 段恒 upsert（断言2：碰撞 carrier id 覆盖全字段，须在 tree 之后保覆盖序与全量一致）。
+        for e in candidates {
+            upsert(&mut self.elements, e);
         }
 
         // 3'. held 引用但 snapshot 找不到的元素：**不删除**（§9 rule 2，I1 持久身份）。
@@ -267,8 +318,12 @@ impl PersistentRegistry {
             }
         }
 
-        // present_last 更新为本 bar snapshot ids（下 bar 增量重置基准）。
-        self.present_last = snapshot_ids;
+        // present_last 更新为本 bar snapshot ids（下 bar 增量重置基准）。tree 段：tree_dirty=true 用新
+        // tree_ids，false 复用旧（同上 bar，不变）。cand 段每 bar 重建（O(candidate) 有界）。
+        if tree_dirty {
+            self.present_last_tree = tree_ids;
+        }
+        self.present_last_cand = cand_ids;
     }
 
     /// held 腿四态分类（§10）。

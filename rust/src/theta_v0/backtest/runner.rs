@@ -526,6 +526,9 @@ where
     let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];
     // 工位 K 性能：tree-prefix 缓存（§16 confirmed prefix immutable；跨 bar 复用 extract_elements）。
     let mut tree_cache = interp::TreeCache::new();
+    // ★工位 4f：上一 bar merge 用的 tree Rc——`Rc::ptr_eq` 命中（同一 Rc::clone）⟹ tree 逐字节不变
+    // ⟹ merge tree 段跳过 step 1'/2'（confirmed prefix 增量维护，消 O(tree)/bar）。
+    let mut prev_merge_tree: Option<std::rc::Rc<Vec<coverage::CoverageElement>>> = None;
 
     let mut equity_curve = Vec::with_capacity(n);
     let mut trade_pnls: Vec<f64> = Vec::new();
@@ -614,10 +617,14 @@ where
                     interp::coverage_elements_and_gamma_with_tower_cached(
                         &classification_i, &tower_i, &mut Some(&mut tree_cache),
                     );
-                // 原地增量 merge（消除 self.clone() O(registry) + 全量 values_mut 扫）。merge 遍历全 snapshot
-                // 本就 O(snapshot)，as_contiguous materialize 同阶（不增 merge 阶；merge 自身 O(n²) 正交残留）。
-                let snapshot = coverage::ElementView::from_parts(&tree_ref, candidates_ref);
-                registry.merge_in_place(snapshot.as_contiguous().as_ref(), &next_active);
+                // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
+                // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
+                let tree_dirty = prev_merge_tree
+                    .as_ref()
+                    .map(|p| !std::rc::Rc::ptr_eq(p, &tree_ref))
+                    .unwrap_or(true);
+                registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, &next_active);
+                prev_merge_tree = Some(tree_ref);
             }
             prev_active = next_active;
         }

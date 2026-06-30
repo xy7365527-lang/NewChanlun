@@ -617,17 +617,17 @@ pub fn ancestors(elements: &[CoverageElement], e_idx: usize) -> Vec<usize> {
 ///
 /// 树深有限 ⟹ 链有限，无 fuel 需要。环不可能——parent_id 严格指向更高级别（`push_element_tree`
 /// 父 level > 子 level，descend 级别严格递减保证）。
-fn ancestors_by_id(
+fn ancestors_by_id_lookup(
     elements: &ElementView,
     e_idx: usize,
-    id_to_idx: &std::collections::HashMap<ElementId, usize>,
+    lookup: &impl Fn(&ElementId) -> Option<usize>,
 ) -> Vec<ElementId> {
     let mut chain = Vec::new();
     let mut cur = elements.get(e_idx).and_then(|e| e.parent_id);
     while let Some(pid) = cur {
         chain.push(pid);
-        // 按 parent_id 查下一级祖先（parent_id 指向的元素的 parent_id）。索引复用调用方预建表（H6）。
-        cur = id_to_idx.get(&pid).and_then(|&pidx| elements.get(pidx).and_then(|e| e.parent_id));
+        // 按 parent_id 查下一级祖先（双段 lookup：base 缓存 + overlay，§16 tree 前缀不变）。
+        cur = lookup(&pid).and_then(|pidx| elements.get(pidx).and_then(|e| e.parent_id));
     }
     chain
 }
@@ -688,13 +688,33 @@ fn ancestor_close_by_id(elements: &ElementView, raw: &[usize]) -> Vec<usize> {
     // raw_ids：raw 中元素的 id 集合（结构映射判据）。
     let raw_ids: std::collections::HashSet<ElementId> =
         raw.iter().filter_map(|&i| elements.get(i).map(|e| e.id)).collect();
-    // ponytail: id→idx 索引建一次（旧版 ancestors_by_id 内每元素 rebuild O(n)，raw×n=O(n²)）。
-    let id_to_idx: std::collections::HashMap<ElementId, usize> =
-        elements.iter().enumerate().map(|(i, e)| (e.id, i)).collect();
+    // ★工位 4f：id→idx 索引——base 段复用缓存 `base_id_idx`（§16 tree 前缀不变，O(1) 命中），仅 overlay
+    // 段（candidate++restore，绝大多数 bar 空）现建小 map（全局 idx = base_len + i）。旧版每 bar
+    // `elements.iter()` 全量 rebuild O(work)=O(tree)/bar=O(n²)。bit-exact：双段查 == 全量 map（base
+    // id 与 overlay id 不交叠——overlay 是候选叶子/restore 追加，与 tree id 碰撞时 base 优先，与旧
+    // `or_insert` 首次出现序一致：旧 collect 按 iter 序 base 在前 ⟹ base 先插，等价 base 优先）。
+    let base_id_idx_owned;
+    let base_id_idx: &std::collections::HashMap<ElementId, usize> = match &elements.base_id_idx {
+        Some(rc) => rc.as_ref(),
+        None => {
+            base_id_idx_owned = build_tree_id_index(elements.base);
+            &base_id_idx_owned
+        }
+    };
+    let base_len = elements.base.len();
+    let mut overlay_id_idx: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
+    for (i, e) in elements.overlay.iter().enumerate() {
+        overlay_id_idx.entry(e.id).or_insert(base_len + i);
+    }
+    // 查找闭包：base 优先（与旧全量 map iter 序 base 在前一致），overlay fallback。
+    let lookup = |pid: &ElementId| -> Option<usize> {
+        base_id_idx.get(pid).copied().or_else(|| overlay_id_idx.get(pid).copied())
+    };
     raw.iter()
         .copied()
         .filter(|&e_idx| {
-            ancestors_by_id(elements, e_idx, &id_to_idx)
+            ancestors_by_id_lookup(elements, e_idx, &lookup)
                 .iter()
                 .all(|a| raw_ids.contains(a))
         })

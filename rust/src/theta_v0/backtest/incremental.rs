@@ -485,6 +485,8 @@ mod profile {
             let mut t_merge = 0.0f64;
             let mut t_merge_tree = 0.0f64; // 仅 tree snapshot（无 candidate）→ 隔离 tree 段冗余 upsert 标度
             let mut last_cand = 0usize;
+            // ★工位 4f：镜像生产 runner 的 tree Rc ptr_eq 脏检查（命中⟹tree 段跳过 step 1'/2'）。
+            let mut prev_merge_tree: Option<std::rc::Rc<Vec<coverage::CoverageElement>>> = None;
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 // 生产 tree-prefix 提取：cached（命中 Rc::clone O(1)），candidate 段 overlay 不进树 clone。
@@ -495,14 +497,16 @@ mod profile {
                     );
                 t_extract += t.elapsed().as_secs_f64();
                 last_cand = candidates_ref.len();
-                // 生产 merge：含 candidate（runner.rs:619 口径）。
-                let snapshot = coverage::ElementView::from_parts(&tree_ref, candidates_ref);
+                // 生产 merge（runner split 口径）：tree_dirty=false（ptr_eq 命中）⟹ 跳过 tree 段。
+                let tree_dirty = prev_merge_tree.as_ref()
+                    .map(|p| !std::rc::Rc::ptr_eq(p, &tree_ref)).unwrap_or(true);
                 let t = std::time::Instant::now();
-                registry.merge_in_place(snapshot.as_contiguous().as_ref(), &[]);
+                registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, &[]);
                 t_merge += t.elapsed().as_secs_f64();
-                // 隔离测量：仅 tree 段（candidate 空）→ 量 tree 冗余 upsert 是否独立 O(n²)。
+                prev_merge_tree = Some(std::rc::Rc::clone(&tree_ref));
+                // 隔离测量：tree 段全量（candidate 空，tree_dirty=true）→ 旧 O(n²) 基底对照。
                 let t = std::time::Instant::now();
-                registry.merge_in_place(&tree_ref, &[]);
+                registry.merge_in_place_split(&tree_ref, true, &[], &[]);
                 t_merge_tree += t.elapsed().as_secs_f64();
             }
             let (xe, me) = prev.map(|(pn, px, pm)| (logexp(pn, px, n, t_extract), logexp(pn, pm, n, t_merge)))
