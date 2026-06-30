@@ -297,6 +297,32 @@ impl MuEstimator {
         MuEstimator { buckets }
     }
 
+    /// 合并另一估计器的全部桶（Chan/Welford 并行合并，bit-exact 等价逐笔顺序累加同一桶）。
+    ///
+    /// 用途（cross-fit OOS，acc-crossfit-oos）：K-fold 的 train 是**不连续时间块**（held-out fold
+    /// 在中间时 train=前段+后段）。各连续段独立 [`build_walk_forward_mu`] 估 μ 后合并到一个 est——
+    /// **不拼接成单 Dataset**（拼接会在接缝处制造虚假相邻笔/段，污染分类）。
+    ///
+    /// 合并公式（Chan et al. 1979 并行 Welford，无灾难性抵消）：
+    /// `n=n_a+n_b`，`δ=mean_b−mean_a`，`mean=mean_a+δ·n_b/n`，`m2=m2_a+m2_b+δ²·n_a·n_b/n`。
+    pub fn merge(&mut self, other: &MuEstimator) {
+        for (z, wb) in &other.buckets {
+            let wa = self.buckets.entry(*z).or_default();
+            if wb.n == 0 {
+                continue;
+            }
+            if wa.n == 0 {
+                *wa = *wb;
+                continue;
+            }
+            let n = wa.n + wb.n;
+            let delta = wb.mean - wa.mean;
+            let mean = wa.mean + delta * (wb.n as f64) / (n as f64);
+            let m2 = wa.m2 + wb.m2 + delta * delta * (wa.n as f64) * (wb.n as f64) / (n as f64);
+            *wa = Welford { n, mean, m2 };
+        }
+    }
+
     /// 已观测的全部 z 类及其 μ 估计（按需消费；顺序不定，HashMap 无序）。
     pub fn iter_mu(&self) -> impl Iterator<Item = (MuClass, f64)> + '_ {
         self.buckets.iter().map(|(z, w)| (*z, w.mean))
@@ -559,6 +585,37 @@ mod tests {
         let z = MuClass::from_certificate(9, 1, buy_bits(), 0, PositionState::Root);
         let est = MuEstimator::new();
         assert_eq!(est.mu_shrink(&z, 1.0), None);
+    }
+
+    /// merge：合并两 est bit-exact 等价单 est 顺序累加同一桶（Chan 并行 Welford，mean+方差）。
+    #[test]
+    fn merge_equals_sequential_accumulation() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let xs = [10.0, 12.0, 8.0, 30.0, 25.0, 5.0, 18.0];
+        // 单 est 顺序累加全部。
+        let mut single = MuEstimator::new();
+        for &x in &xs {
+            single.observe(MuObservation { class: z, x_gamma: x });
+        }
+        // 两 est 各累加一半再 merge。
+        let mut a = MuEstimator::new();
+        let mut b = MuEstimator::new();
+        for &x in &xs[..3] {
+            a.observe(MuObservation { class: z, x_gamma: x });
+        }
+        for &x in &xs[3..] {
+            b.observe(MuObservation { class: z, x_gamma: x });
+        }
+        a.merge(&b);
+        assert_eq!(a.count(&z), single.count(&z), "merge 后 n 一致");
+        assert!((a.mu(&z).unwrap() - single.mu(&z).unwrap()).abs() < 1e-12, "merge mean bit-exact");
+        // 方差（经 std）一致 ⟹ m2 合并正确（LCB 依赖）。
+        let (sa, ss) = (a.mu_lcb(&z, 1.645).unwrap(), single.mu_lcb(&z, 1.645).unwrap());
+        assert!((sa - ss).abs() < 1e-10, "merge LCB（含方差）bit-exact：{sa} vs {ss}");
+        // 空 merge / merge 空：恒等。
+        let mut c = single.clone();
+        c.merge(&MuEstimator::new());
+        assert_eq!(c.mu(&z), single.mu(&z), "merge 空 est 恒等");
     }
 
     /// shrunk_view：各桶 mean==mu_shrink、n/count 保留（n_L3 池大小不变，保功效卖点可验证）。
