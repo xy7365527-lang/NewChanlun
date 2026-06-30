@@ -40,6 +40,59 @@
 
 use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Direction, Stroke};
+use super::recursive_tower::LeveledMove;
+
+/// ∀e∈E 的 WF-Contain 违反计数（gap-B 数据层验证结果）。
+///
+/// `uncovered_elements` = 塔中 par(e) 区间**不包含** e 区间的元素数（违反闭端点包含
+/// λ_a≤λ_e ∧ ρ_e≤ρ_a）。`total_elements` = 检查的 (parent,sub) 对总数。
+///
+/// 认识论 **L2**（formalization-validity-domain 231号）：这是在**真实数据解析出的塔**上
+/// 验证 WF-Contain 不变量，可否证——`uncovered>0` 是否定性结果（暴露 par 实为 host^op
+/// 依附 = gap-B 反例真实存在），`uncovered=0` 是确认性结果（情况 A：par=host^struct 构成）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ContainmentReport {
+    /// 检查的 (parent, sub) 对总数（= 全塔所有上级走势的 sub_moves 之和）。
+    pub total_elements: usize,
+    /// WF-Contain 违反数（par 区间不包含 sub 区间）。情况 A 下应 = 0。
+    pub uncovered_elements: usize,
+}
+
+/// **∀e∈E WF-Contain 验证器**（gap-B 数据层确证，spec MR2/§D + on2.pdf 情况 A 判定）。
+///
+/// 遍历递归走势塔 `tower`（每级 = `Vec<LeveledMove>`，元素集 E = 全级别全走势），对每个
+/// 上级走势 `parent` 的每个构成子 `sub ∈ parent.sub_moves`，检查 WF-Contain：
+///
+/// ```text
+/// λ_a ≤ λ_e ∧ ρ_e ≤ ρ_a   即   parent.start_index ≤ sub.start_index ∧ sub.end_index ≤ parent.end_index
+/// ```
+///
+/// ★为何 `parent.sub_moves` 是 **host^struct 构成父**而非 **host^op 依附**（gap-B 成立关键，
+/// #24 + codex 异质审 2026-06-30）：`LeveledMove::compose`（recursive_tower.rs:132）令
+/// `parent.start = subs.first().start`、`parent.end = subs.last().end`——父区间 = 子元素并集
+/// `[λ_{e1},ρ_{em})`（WF-Par 构成关系），且 `descend(parent)==subs` 不变量保证 `sub_moves`
+/// 是真正构成 parent 的次级别走势，**不是**最近容器/右端点命中容器。故 codex 反例
+/// `a=[0,5),e=[2,8)`（依附 host）在此 carrier 下不可达。
+///
+/// ★L2 否定性：若真实数据跑出 `uncovered>0`，说明某处 par 实为依附（gap-B 反例真实存在），
+/// 须 escalate（定义冲突，no-workaround——不伪造覆盖）。`uncovered=0` 确认情况 A。
+///
+/// 递归性：`sub.sub_moves` 由本函数对 `tower` 各级遍历自然覆盖（塔已展开每级，无需在此再下钻）。
+pub fn verify_containment(tower: &[&[LeveledMove]]) -> ContainmentReport {
+    let mut report = ContainmentReport::default();
+    for level in tower {
+        for parent in *level {
+            for sub in &parent.sub_moves {
+                report.total_elements += 1;
+                // WF-Contain：闭端点包含。任一端点越界 ⟹ par 非构成父（依附 host）⟹ 违反。
+                if parent.start_index > sub.start_index || sub.end_index > parent.end_index {
+                    report.uncovered_elements += 1;
+                }
+            }
+        }
+    }
+    report
+}
 
 /// 几何方向 `ε_b` → 声部操作极性 `σ` 桥接（Up→Long，Down→Short）。
 ///
@@ -252,5 +305,78 @@ mod tests {
         let mut samples = full_active_samples(0, 3, 1);
         samples.reverse(); // 顺序打乱
         assert!(eat(VoiceSide::Long, &stroke, &samples));
+    }
+
+    // ── ∀e∈E WF-Contain 验证器（gap-B 数据层确证，MR2/§D）──────────────────
+
+    use super::super::recursive_tower::{compose_level, ElementId};
+    use super::super::center::UnitRange;
+    use super::super::descend::RMove;
+
+    fn unit(start: usize, end: usize, dir: Direction, lo: i64, hi: i64) -> UnitRange {
+        UnitRange { start_index: start, end_index: end, direction: dir, lo, hi }
+    }
+
+    /// 构造真实多级塔（compose_level 滑窗，生产路径 `n`）：≥3 段 L0 线段 → 上级走势塔。
+    /// 返回每级 LeveledMove（含 sub_moves 携坐标）。
+    fn build_real_tower() -> Vec<Vec<LeveledMove>> {
+        // 9 段 L0 线段，区间连续递增（真实塔的 K 序单调），价格上下交替成中枢。
+        let units: Vec<UnitRange> = (0..9)
+            .map(|i| {
+                let s = i * 4;
+                let (dir, lo, hi) = if i % 2 == 0 {
+                    (Direction::Up, 100 + i as i64 * 2, 120 + i as i64 * 2)
+                } else {
+                    (Direction::Down, 90 + i as i64 * 2, 110 + i as i64 * 2)
+                };
+                unit(s, s + 4, dir, lo, hi)
+            })
+            .collect();
+        let l0: Vec<LeveledMove> = units
+            .iter()
+            .enumerate()
+            .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+            .collect();
+        let (_c, l1) = compose_level(&units, &l0, true, 1);
+        vec![l0, l1]
+    }
+
+    /// ★L2 确认（情况 A）：真实数据塔上 `verify_containment` 的 uncovered_elements = 0。
+    /// par=host^struct 构成父（compose 令父区间=子并集），故 WF-Contain 恒成立 ⟹ gap-B 成立。
+    #[test]
+    fn verify_containment_zero_uncovered_on_real_tower() {
+        let tower = build_real_tower();
+        let refs: Vec<&[LeveledMove]> = tower.iter().map(|v| v.as_slice()).collect();
+        let report = verify_containment(&refs);
+        assert!(report.total_elements > 0, "塔须含上级走势（sub_moves 非空）");
+        assert_eq!(
+            report.uncovered_elements, 0,
+            "情况 A：par=host^struct 构成父 ⟹ WF-Contain 恒成立 ⟹ ∀e Eat(e) 数据层必要条件满足"
+        );
+    }
+
+    /// ★验证器非死代码（抓 host^op 依附反例）：手造 codex 反例 a=[0,5),e=[2,8)——
+    /// par 区间不包含 e 区间（依附 host）⟹ uncovered_elements=1。证明验证器能否证 gap-B。
+    #[test]
+    fn verify_containment_catches_dependency_host_counterexample() {
+        // 子 e=[2,8)，父 a=[0,5)：ρ_e=8 > ρ_a=5 违反 WF-Contain（依附 host，非构成父）。
+        let child = LeveledMove {
+            rmove: RMove::Segment { direction: Direction::Up, lo: 0, hi: 1 },
+            start_index: 2,
+            end_index: 8,
+            sub_moves: Vec::new(),
+            id: ElementId { level: 0, ordinal: 0 },
+        };
+        let parent = LeveledMove {
+            rmove: RMove::Segment { direction: Direction::Up, lo: 0, hi: 1 },
+            start_index: 0,
+            end_index: 5,
+            sub_moves: vec![child],
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+        let level = vec![parent];
+        let refs: Vec<&[LeveledMove]> = vec![level.as_slice()];
+        let report = verify_containment(&refs);
+        assert_eq!(report.uncovered_elements, 1, "依附 host 反例须被验证器抓到（否则 verifier 是死代码）");
     }
 }
