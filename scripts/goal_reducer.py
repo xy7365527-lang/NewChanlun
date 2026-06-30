@@ -7,6 +7,38 @@ def _validate_acceptance(acceptance: list[dict]) -> None:
         if not acc.get("falsifiable", False):
             raise ValueError(f"acceptance 项必须 falsifiable: {acc.get('check')}")
 
+
+def amend_gid(e: dict) -> str | None:
+    """goal id：规范 goal_id 优先，退化历史事件 fallback sub_goal_id（reader 有效域）。"""
+    return e.get("goal_id") or e.get("sub_goal_id")
+
+
+def apply_acceptance_amendments(
+    acceptance: list[dict], events: list[dict], gid: str
+) -> list[dict]:
+    """对 GOAL_SET 原始 acceptance 应用该 gid 的所有 GOAL_AMEND，得到当前 acceptance vector。
+
+    单一权威口径（#102）：reducer 与 writer 归属校验共用此函数，杜绝两份发散逻辑。
+    按物理序遍历：ACCEPTANCE_ID_BINDING 注入缺失 id；ACCEPTANCE_REPLACE 整体替换 vector
+    （最后写者胜）。reader 宽容——结构错误的 binding（ordinal 越界/slot 已绑）忠实跳过。
+    输入 acceptance 不被原地修改（返回新列表，dict 浅拷贝）。"""
+    current = [dict(a) for a in acceptance]
+    for e in events:
+        if e["event"] != "GOAL_AMEND" or amend_gid(e) != gid:
+            continue
+        kind = e.get("amendment_kind")
+        if kind == "ACCEPTANCE_ID_BINDING":
+            for b in e.get("bindings", []):
+                o = b.get("ordinal")
+                if isinstance(o, int) and 0 <= o < len(current) \
+                        and current[o].get("id") is None:
+                    current[o]["id"] = b.get("acceptance_id")
+        elif kind == "ACCEPTANCE_REPLACE":
+            new_acc = e.get("acceptance", [])
+            _validate_acceptance(new_acc)
+            current = [dict(a) for a in new_acc]
+    return current
+
 def reduce_goal(events: list[dict], facts: dict) -> dict:
     """events: list[dict]（events.jsonl 解析）；
     facts: {git_head(消费：base_head 对账), genealogy_pending/genealogy_settled/roadmap(§4 数据流输入契约
@@ -77,20 +109,9 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     # /base_head 不变）。重建 vector 后旧 acceptance 的 CHECK_PASS 自然失配（验收标准变了，
     # 旧通过作废=正确语义，codex「重建 acceptance vector」）。writer 守门 old_acceptance_vector_hash
     # 匹配 + 防篡改；reducer 只忠实应用结构正确的 REPLACE。多个 REPLACE 按物理序，最后写者胜。
-    for e in events:
-        if e["event"] != "GOAL_AMEND" or _gid(e) != gid:
-            continue
-        kind = e.get("amendment_kind")
-        if kind == "ACCEPTANCE_ID_BINDING":
-            for b in e.get("bindings", []):
-                o = b.get("ordinal")
-                if isinstance(o, int) and 0 <= o < len(goal["acceptance"]) \
-                        and goal["acceptance"][o].get("id") is None:
-                    goal["acceptance"][o]["id"] = b.get("acceptance_id")
-        elif kind == "ACCEPTANCE_REPLACE":
-            new_acc = e.get("acceptance", [])
-            _validate_acceptance(new_acc)
-            goal["acceptance"] = [dict(a, passed=False) for a in new_acc]
+    # 单一权威口径（#102）：amendment 应用抽到 apply_acceptance_amendments，writer 归属校验复用同函数。
+    amended = apply_acceptance_amendments(goal["acceptance"], events, gid)
+    goal["acceptance"] = [dict(a, passed=a.get("passed", False)) for a in amended]
     # base_head 是不可变历史锚（650 裁决，codex 议题二 verdict=B）：GOAL_SET 时刻的 git sha，
     # 永不被 RESUME 改写。base_head≠git_head 是正确的降级信号（base_head_stale=True，spec §9）——
     # 旧 EVIDENCE 可能未覆盖当前 HEAD。GOAL_RESUME 是纯审计事件（session 恢复留痕），不参与

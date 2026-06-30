@@ -632,6 +632,10 @@ def _check_acceptance_id_belongs_to_goal(event: dict, events: list[dict]) -> Non
     acceptance = gs.get("acceptance")
     if not isinstance(acceptance, list):
         return  # 退化 GOAL_SET 无结构化 acceptance，无可校验集
+    # #102：当前 acceptance 集须应用 ACCEPTANCE_REPLACE/BINDING（与 reducer 同口径，复用同函数），
+    # 否则 REPLACE 后裁决指向新 acceptance_id 会被原始集误判「解析到 0 项」。
+    from goal_reducer import apply_acceptance_amendments
+    acceptance = apply_acceptance_amendments(acceptance, events, sid)
     ids = [a.get("id") for a in acceptance if isinstance(a, dict) and a.get("id")]
     aid = event["acceptance_id"]
     matches = [x for x in ids if x == aid]

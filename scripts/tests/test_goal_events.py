@@ -706,6 +706,29 @@ def test_amend_replace_no_goal_set_rejected(tmp_path):
                      acceptance=[{"check": "c", "falsifiable": True}])
 
 
+def test_check_pass_after_acceptance_replace(tmp_path):
+    # #102（#92×#89 集成 bug）：GOAL_SET(acc-A) → ACCEPTANCE_REPLACE(acc-B) 后，
+    # 归属校验须看 REPLACE 后的集（与 reducer 同口径），不看原始 GOAL_SET。
+    #   - CHECK_PASS 指向新 acc-B → 通过（reducer 认，writer 也须认）。
+    #   - CHECK_PASS 指向旧 acc-A → 被拒（已被 REPLACE 移出当前集）。
+    ev_path = tmp_path / "events.jsonl"
+    old_acc = [{"id": "acc-A", "check": "原始", "falsifiable": True}]
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=old_acc, base_head="h")
+    append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                 amendment_kind="ACCEPTANCE_REPLACE", reason="改写验收",
+                 old_acceptance_vector_hash=acceptance_vector_hash(old_acc),
+                 acceptance=[{"id": "acc-B", "check": "新验收", "falsifiable": True}])
+    # 新 acc-B 在 REPLACE 后的集里 → 合法写入（修复前会 raise「解析到 0 项」）。
+    append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1", check="新验收",
+                 acceptance_id="acc-B", method="auto", command="x", verifier="ci")
+    assert _read_lines(ev_path)[-1]["acceptance_id"] == "acc-B"
+    # 旧 acc-A 已被 REPLACE 移出 → 拒绝（裁决指向已废弃验收项）。
+    with pytest.raises(ValueError, match="acceptance_id|不存在|解析到 0"):
+        append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1", check="原始",
+                     acceptance_id="acc-A", method="auto", command="x", verifier="ci")
+
+
 def test_check_pass_sub_goal_acceptance_id_not_goal_scoped(tmp_path):
     # 边界：CHECK_PASS 针对 sub_goal（sub_goal_id != goal_id）的 acceptance_id 不受 goal
     # acceptance 集约束——sub_goal 有自己的验收标识，不在 goal acceptance 集里是合法的。
