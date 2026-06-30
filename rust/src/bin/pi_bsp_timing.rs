@@ -529,7 +529,8 @@ fn main() -> std::process::ExitCode {
     // θ：成本+风险门槛（§13），**Θ_risk 参数，非缠论可导**（诚实标注）。默认 θ=0；可由 args[4] 覆盖。
     let theta: f64 = if args.len() >= 5 { args[4].parse().unwrap_or(0.0) } else { 0.0 };
     // z_alpha：LCB 置信分位（p25 §12，准入用 LCB(μ)=mean−z_alpha·std/√n 防高维 z 过拟合）。
-    // 默认 0.0（LCB=mean ⟹ 退化裸 μ，bit-exact 现有验收）；可由 args[5] 覆盖（如 1.645=95%）。
+    // 默认 0.0（LCB=mean ⟹ n≥2 类退化裸 μ；n=1 类 mu_lcb=None 走 empty=pass=true 全覆盖放行，
+    // 与裸 μ 正样本放行同决策——负 μ 的 n=1 例外，LCB 路径放行而裸 μ 拒，下游 L2 归因）；args[5] 覆盖。
     let z_alpha: f64 = if args.len() >= 6 { args[5].parse().unwrap_or(0.0) } else { 0.0 };
 
     let pass1 = run_state_machine(bars, &prices, &config, fee_rate, None);

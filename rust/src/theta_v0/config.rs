@@ -146,7 +146,9 @@ pub struct RiskConfig {
     pub chi_theta: Option<f64>,
     /// χ_t 准入的 LCB 置信分位 z_alpha（严格alpha.pdf p25 §12）：准入用 LCB(μ)=mean−z_alpha·std/√n
     /// 而非裸 μ，防高维 z 过拟合。单边正态分位（如 1.645=95%，2.326=99%）。**default 0.0**（LCB=mean
-    /// ⟹ 退化回裸 μ 门，frozen 行为 bit-exact 不变）；>0 启用置信下界收缩。Θ_risk 参数（非缠论可导）。
+    /// ⟹ **n≥2** 类退化回裸 μ 门；**n=1 类例外**——mu_lcb 返 None 走 treat_empty_as_pass，**不**退化
+    /// （n=1 无方差=无 LCB 证据，拒绝是 p25 正确语义，非回归）。frozen 默认 chi_theta=None 不走此路。
+    /// >0 启用置信下界收缩。Θ_risk 参数（非缠论可导）。
     pub chi_z_alpha: f64,
 }
 

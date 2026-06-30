@@ -171,7 +171,9 @@ pub fn z_of_candidate(c: &Candidate) -> MuClass {
 /// 在此不滤（χ 是开仓边际门，方向裁决是 interpret 职责，no-patch 不越界）。
 ///
 /// `z_alpha`：单边置信分位（如 1.645=95%）——准入量用 **LCB(μ)=mean−z_alpha·std/√n**（严格alpha.pdf
-/// p25 §12 防高维 z 过拟合），非裸 μ。`z_alpha=0` ⟹ LCB=mean ⟹ 退化回裸 μ 门（向后兼容）。
+/// p25 §12 防高维 z 过拟合），非裸 μ。`z_alpha=0` ⟹ LCB=mean ⟹ **n≥2 类**退化回裸 μ 门；
+/// **n=1 类例外**（mu_lcb 返 None ⟹ 走 treat_empty_as_pass，非裸 μ——n=1 无方差=无 LCB 证据，拒绝
+/// 是 p25 正确语义，no-patch §5 防声明膨胀）。
 ///
 /// `treat_empty_as_pass`：无 LCB 证据（μ=None 空类 **或** n<2 单样本，mu_lcb 皆 None）χ 取值
 /// （codex Q3）：`false` ⟹ χ=0 不交易（**最诚实**——无正边际证据不开，p25 一致）；`true` ⟹ 默认
