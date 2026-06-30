@@ -319,6 +319,10 @@ fn main() -> std::process::ExitCode {
                 return idx;
             }
             // 父声部：parent_id 有真父 ∧（父已 live 或父本 bar 有证书）⟹ 递归先开父（§9 生成父 voice）。
+            // ★Lift.Nest（递归证明.pdf §2.2，codex YES#1）：J_ℓ(d)⊆J_{ℓ+1}(c)（子区间⊆父区间）。
+            // K_i 真嵌套（push_element_tree 子 sub_moves 挂父，compose 父区间取首尾子）下**恒满足**
+            // ⟹ debug_assert 守卫足够（生产域无反例；只防手工乱序/伪造 LeveledMove）。本 bin 在 K_i 上
+            // 建 carrier，子 carrier 与父 carrier 的区间⊆关系由 extract_carrier_forest 真嵌套保证。
             let parent = parent_id.and_then(|pid| {
                 if active_voice_by_carrier.contains_key(&pid)
                     || opened_this_bar.contains_key(&pid)
