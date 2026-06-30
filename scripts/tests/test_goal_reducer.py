@@ -16,16 +16,51 @@ def test_goal_set_rebuilds_current():
     assert out["current_goal"]["goal_id"] == "g1"
     assert out["current_goal"]["status"] == "active"
 
-def test_goal_resume_reanchors_base_head():
-    # GOAL_RESUME 在新 HEAD 重锚定 → base_head 前移、stale 用新锚判定。
+def test_goal_resume_does_not_rewrite_base_head():
+    # base_head 不可变（650 verdict=B）：GOAL_RESUME 是纯审计事件，不重锚 base_head。
+    # 即使历史中存在带 base_head 的 RESUME（旧实现的遗留），reader 忠实忽略——base_head
+    # 永久停在 GOAL_SET 锚，base_head≠git_head 是正确的漂移降级信号（不被 RESUME 抹掉）。
     events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "x",
                "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "old", "ts": "t0"},
               {"event": "GOAL_RESUME", "goal_id": "g1", "base_head": "new", "ts": "t1"}]
+    # git_head=new（=RESUME 企图重锚的值）但 base_head 仍=GOAL_SET 锚 old → stale 信号保留
     out = reduce_goal(events, _facts(head="new"))
-    assert out["current_goal"]["base_head"] == "new"
-    assert out["current_goal"]["base_head_stale"] is False
-    # HEAD 与 resume 锚不符 → 仍 stale（信号未被删除）
-    assert reduce_goal(events, _facts(head="other"))["current_goal"]["base_head_stale"] is True
+    assert out["current_goal"]["base_head"] == "old"  # 不被 RESUME 改写
+    assert out["current_goal"]["base_head_stale"] is True  # 漂移预警未被抹掉
+    # git_head 回到 GOAL_SET 锚 → 不 stale
+    assert reduce_goal(events, _facts(head="old"))["current_goal"]["base_head_stale"] is False
+
+
+def test_check_pass_acceptance_id_closes_goal():
+    # CHECK_PASS 带 acceptance_id → 优先稳定身份匹配（650）。check 文本不同也能闭合。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"id": "acc-1", "check": "原始 check 文本", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "改写过的 check",
+         "acceptance_id": "acc-1", "method": "auto", "command": "cargo test",
+         "verifier": "ci", "ts": "t1"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["acceptance"][0]["passed"] is True
+    assert out["current_goal"]["status"] == "closed"
+
+
+def test_check_pass_wrong_acceptance_id_does_not_close_via_check_fallback():
+    # 两键互斥（codex v2 MAJOR）：CHECK_PASS 带 acceptance_id 时只走稳定身份键，不再
+    # fallback check 文本。acceptance_id 写错（不匹配 acc.id）即使 check 文本相同也不闭合。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"id": "acc-1", "check": "同名 check", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "同名 check",
+         "acceptance_id": "acc-WRONG", "method": "auto", "command": "x",
+         "verifier": "ci", "ts": "t1"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["acceptance"][0]["passed"] is False
+    assert out["current_goal"]["status"] != "closed"
+
 
 def test_decompose_ready_excludes_blocked():
     events = [

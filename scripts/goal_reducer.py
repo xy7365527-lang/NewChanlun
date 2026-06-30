@@ -49,13 +49,11 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
                 "blocked": [], "terminated": False}
 
     gid = goal["goal_id"]
-    # GOAL_RESUME re-anchor：/goal 恢复时在新 HEAD 重新锚定 goal，base_head 前移到 resume 时刻。
-    # 不认 RESUME → base_head 永久停在最初 GOAL_SET（fab1f08a），与真实 HEAD 永久 stale。
-    # base_head 语义=「goal 设定/恢复时刻的锚」，RESUME 是合法的再锚定事件，复用 SET 的 stale 逻辑。
-    for e in events:
-        if e["event"] == "GOAL_RESUME" and _gid(e) == gid and e.get("base_head"):
-            goal["base_head"] = e["base_head"]
-            goal["base_head_stale"] = e["base_head"] != facts.get("git_head")
+    # base_head 是不可变历史锚（650 裁决，codex 议题二 verdict=B）：GOAL_SET 时刻的 git sha，
+    # 永不被 RESUME 改写。base_head≠git_head 是正确的降级信号（base_head_stale=True，spec §9）——
+    # 旧 EVIDENCE 可能未覆盖当前 HEAD。GOAL_RESUME 是纯审计事件（session 恢复留痕），不参与
+    # base_head/acceptance/闭合语义。删 RESUME 重锚（A 立场=抹掉漂移预警，不自洽已否决）后，
+    # 历史中带 base_head 的 RESUME 事件被 reader 忠实忽略（不当语义输入，符合有效域分层）。
     # 2. 重建 sub-goal 树（DECOMPOSE）。schema 容错（630 开口①）：只处理含规范
     # goal_id + sub_goals[] 的 DECOMPOSE；退化事件（{event,sub_goal_id,artifact}，无
     # goal_id/sub_goals）忠实跳过——数据里确实无结构化分解，reducer 不伪造 sub-goal 树
@@ -67,11 +65,24 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
                 subs[sg["id"]] = {"id": sg["id"], "desc": sg["desc"],
                                   "blocked_by": list(sg.get("blocked_by", [])), "passed": False, "blocker": None}
     # 3. 应用 CHECK_PASS / BLOCKED（sub_goal_id 缺失的退化事件安全跳过）
+    # CHECK_PASS 匹配 goal acceptance 采两键（650：稳定身份优先）。两键都按 sub_goal_id
+    # 作用域隔离（codex MAJOR-2：acceptance_id 非全局唯一，任意 sub_goal 的 CHECK_PASS 不得
+    # 误闭合 goal acceptance——goal acceptance 的 CHECK_PASS.sub_goal_id 必须=gid）：
+    #  - passed_accept_ids：(sub_goal_id, acceptance_id) 集合（稳定身份，优先匹配）
+    #  - passed_checks：(sub_goal_id, check) 集合（check 文本匹配，reader 历史有效域 fallback——
+    #    历史 CHECK_PASS 无 acceptance_id）
     passed_checks = set()
+    passed_accept_ids = set()
     for e in events:
         if e["event"] == "CHECK_PASS":
             sid = e.get("sub_goal_id")
-            passed_checks.add((sid, e.get("check")))
+            # 两键互斥（codex v2 MAJOR）：带 acceptance_id → 只走稳定身份键；否则 fallback
+            # check 文本键。若两键都填，acceptance_id 写错但 check 文本恰巧相同会经 check 键
+            # 误闭合，违背 SCHEMA「acceptance_id 缺失时才 fallback check」契约。
+            if e.get("acceptance_id"):
+                passed_accept_ids.add((sid, e["acceptance_id"]))
+            else:
+                passed_checks.add((sid, e.get("check")))
             if sid in subs:
                 subs[sid]["passed"] = True
         elif e["event"] == "BLOCKED" and e.get("sub_goal_id") in subs:
@@ -89,8 +100,12 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     ready_details = [{"id": s["id"], "desc": subs[s["id"]]["desc"]} for s in
                      sorted((subs[i] for i in ready), key=lambda x: x["id"])]
     # 5. goal 验收：所有 acceptance CHECK_PASS → closed
+    # 匹配优先稳定身份（(gid, acc.id) ∈ passed_accept_ids），无 id 时 fallback check 文本
+    # （(gid, check)）。两键都 gid-scoped（codex MAJOR-2：防跨 sub_goal 的 acceptance_id/check
+    # 名碰撞误闭合，SCHEMA 未定义 rollup）。
     for acc in goal["acceptance"]:
-        if (gid, acc["check"]) in passed_checks:
+        if (acc.get("id") and (gid, acc["id"]) in passed_accept_ids) \
+                or (gid, acc["check"]) in passed_checks:
             acc["passed"] = True
     terminated = bool(goal["acceptance"]) and all(a["passed"] for a in goal["acceptance"])
     if terminated or gid in closed:

@@ -69,12 +69,31 @@ def test_supersede_valid_appends(tmp_path):
     assert e["new_goal_id"] == "g2"
 
 
-def test_check_pass_valid_appends(tmp_path):
+def test_check_pass_auto_valid_appends(tmp_path):
+    # CHECK_PASS 必带来源（650）：method=auto + command + verifier。
     ev_path = tmp_path / "events.jsonl"
-    append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done")
+    append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                 method="auto", command="cargo test --lib", verifier="ci")
     e = _read_lines(ev_path)[0]
     assert e["sub_goal_id"] == "g1.1"
     assert e["check"] == "done"
+    assert e["method"] == "auto"
+    assert e["command"] == "cargo test --lib"
+    assert e["verifier"] == "ci"
+
+
+def test_check_pass_manual_valid_appends(tmp_path):
+    # CHECK_PASS method=manual + judge + rationale + 非空 evidence_ids（须先有 EVIDENCE 可指）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("EVIDENCE", ev_path=str(ev_path), sub_goal_id="g1.1",
+                 artifact="证据材料", evidence_id="ev-1")
+    append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                 method="manual", judge="orchestrator", rationale="证据齐备",
+                 evidence_ids=["ev-1"], acceptance_id="acc-1")
+    e = _read_lines(ev_path)[1]
+    assert e["method"] == "manual"
+    assert e["evidence_ids"] == ["ev-1"]
+    assert e["acceptance_id"] == "acc-1"
 
 
 def test_blocked_valid_appends(tmp_path):
@@ -219,11 +238,127 @@ def test_evidence_missing_artifact_rejected(tmp_path):
 
 
 def test_unknown_event_type_rejected(tmp_path):
-    # SCHEMA.md 外的事件类型（CEREMONY/ESCALATE/ROUTING 等手搓叙事）→ 拒绝。
-    # no-patch：writer 只写 SCHEMA 定义的 7 种事件，不容退化事件类型扩散。
+    # SCHEMA.md 外的事件类型（CEREMONY/ESCALATE/ROUTING/DECISION 等手搓治理/叙事）→ 拒绝。
+    # no-patch：writer 只写 SCHEMA 定义的 8 种事件，不容退化事件类型扩散。
     ev_path = tmp_path / "events.jsonl"
     with pytest.raises(ValueError, match="event"):
         append_event("CEREMONY", ev_path=str(ev_path), sub_goal_id="g1", artifact="叙事")
+    with pytest.raises(ValueError, match="event"):
+        append_event("DECISION", ev_path=str(ev_path), goal_id="g1", artifact="裁决")
+
+
+# ── 650 提升协议：GOAL_RESUME / CHECK_PASS 来源 / EVIDENCE evidence_id ────────
+
+def test_goal_resume_valid_appends(tmp_path):
+    # GOAL_RESUME 纯审计事件（650）：goal_id + note，不带 base_head。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_RESUME", ev_path=str(ev_path), goal_id="g1", note="session 恢复续跑")
+    e = _read_lines(ev_path)[0]
+    assert e["event"] == "GOAL_RESUME"
+    assert e["goal_id"] == "g1"
+    assert e["note"] == "session 恢复续跑"
+    assert "base_head" not in e
+
+
+def test_goal_resume_with_base_head_rejected(tmp_path):
+    # base_head 不可变（650 verdict=B）：RESUME 带 base_head=重锚企图，拒绝。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="base_head"):
+        append_event("GOAL_RESUME", ev_path=str(ev_path), goal_id="g1",
+                     note="续跑", base_head="newsha")
+
+
+def test_goal_resume_missing_note_rejected(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="note"):
+        append_event("GOAL_RESUME", ev_path=str(ev_path), goal_id="g1")
+
+
+def test_check_pass_bare_rejected(tmp_path):
+    # 裸写 CHECK_PASS（无 method）→ 拒绝（650：EVIDENCE=材料，CHECK_PASS=裁决，禁裸写）。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="来源|method"):
+        append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done")
+
+
+def test_check_pass_auto_missing_command_rejected(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="command"):
+        append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                     method="auto", verifier="ci")
+
+
+def test_check_pass_manual_empty_evidence_ids_rejected(tmp_path):
+    # method=manual 须非空 evidence_ids（机器溯源，禁裸裁决）。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="evidence_ids"):
+        append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                     method="manual", judge="o", rationale="r", evidence_ids=[])
+
+
+def test_evidence_with_id_appends(tmp_path):
+    # EVIDENCE 可带 evidence_id（稳定身份，供 CHECK_PASS.evidence_ids 溯源）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("EVIDENCE", ev_path=str(ev_path), sub_goal_id="g1.1",
+                 artifact="commit abc", evidence_id="ev-1")
+    e = _read_lines(ev_path)[0]
+    assert e["evidence_id"] == "ev-1"
+
+
+def test_goal_set_acceptance_item_id_appends(tmp_path):
+    # GOAL_SET acceptance 稳定身份在 acceptance[].id（嵌套，非顶层；codex MAJOR-1）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"id": "acc-1", "check": "c", "falsifiable": True}],
+                 base_head="h")
+    e = _read_lines(ev_path)[0]
+    assert e["acceptance"][0]["id"] == "acc-1"
+
+
+def test_goal_set_top_level_acceptance_id_rejected(tmp_path):
+    # 顶层 acceptance_id 是 reducer 读不到的废字段（codex MAJOR-1）→ 多余字段拒绝。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="acceptance_id|多余|unexpected"):
+        append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                     acceptance=[{"check": "c", "falsifiable": True}],
+                     base_head="h", acceptance_id="废字段")
+
+
+def test_check_pass_manual_dangling_evidence_rejected(tmp_path):
+    # evidence_ids 指向不存在的 EVIDENCE → 拒绝（codex CRITICAL：机器溯源禁指向空气）。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="不存在|evidence_id"):
+        append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                     method="manual", judge="o", rationale="r", evidence_ids=["ev-ghost"])
+
+
+def test_evidence_id_uniqueness_enforced(tmp_path):
+    # 重复 evidence_id → 拒绝（codex CRITICAL：溯源歧义防护）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("EVIDENCE", ev_path=str(ev_path), sub_goal_id="g1.1",
+                 artifact="a", evidence_id="ev-1")
+    with pytest.raises(ValueError, match="已存在|唯一"):
+        append_event("EVIDENCE", ev_path=str(ev_path), sub_goal_id="g1.2",
+                     artifact="b", evidence_id="ev-1")
+
+
+def test_check_pass_auto_with_manual_field_rejected(tmp_path):
+    # method=auto 夹带 manual 专属字段 → 拒绝（codex MINOR-2：字段互斥）。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="manual 专属"):
+        append_event("CHECK_PASS", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                     method="auto", command="cargo test", verifier="ci", judge="混入")
+
+
+def test_goal_set_duplicate_acceptance_id_rejected(tmp_path):
+    # 同一 GOAL_SET 内 acceptance[].id 重复 → 拒绝（codex v2 MAJOR：重复 id 让一个
+    # (gid,acceptance_id) 同时闭合多个 acceptance）。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="重复|唯一"):
+        append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                     acceptance=[{"id": "dup", "check": "c1", "falsifiable": True},
+                                 {"id": "dup", "check": "c2", "falsifiable": True}],
+                     base_head="h")
 
 
 def test_extra_fields_rejected(tmp_path):
