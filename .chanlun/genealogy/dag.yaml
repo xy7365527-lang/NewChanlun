@@ -3485,6 +3485,28 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/659-filter-spec-cascade-cross-engine-category-error-627-first-violation-instance.md
+- id: '660'
+  title: ''
+  status: 生成态
+  type: bias-correction
+  file: pending/660-chi-t-l3-inconclusive-pseudo-negative-power-vs-true-no-signal-645-downstream.md
+- id: '661'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md
+- id: '662'
+  title: ''
+  status: 生成态
+  type: bias-correction
+  file: pending/662-660-orthogonality-falsified-pseudo-orthogonal-same-rejection-mass-two-projections.md
+- id: '663'
+  title: ★判据错误：『统计显著性 p<0.05』误当『可交易性』——真判据是 μ(z,a)>0（正条件期望）。编排者一句『高级别几个月一次也没关系』戳破前几轮（660
+    功效不足硬墙/三路对比/LCB 线）核心框架。功效不足不是问题属性，是错判据（要求高频统计显著）的产物。高级别信号几个月一次完全正常——10年30-50次，每次缠论结构保证方向性+大幅度，累积正期望可观。检验框架（16K短窗+跨品种符号检验显著）系统性惩罚低频高级别，框架本身偏向低级别。Le
+    Cam 有效域须收窄——仅对『短窗单品种区分±Δ』成立，不否定『长窗累积高级别正期望』。
+  status: 生成态
+  type: bias-correction
+  file: pending/663-criterion-error-statistical-significance-mistaken-for-tradeability-mu-positive-vs-sign-test.md
 edges:
   depends_on:
   - from: '136'
@@ -6745,6 +6767,24 @@ edges:
     to: '231'
   - from: '659'
     to: '627'
+  - from: '660'
+    to: '231'
+  - from: '660'
+    to: '645'
+  - from: '661'
+    to: '199'
+  - from: '661'
+    to: '231'
+  - from: '661'
+    to: '655'
+  - from: '662'
+    to: '660'
+  - from: '663'
+    to: '231'
+  - from: '663'
+    to: '645'
+  - from: '663'
+    to: '660'
   triggered:
   - from: '005'
     to: 005a
@@ -9948,6 +9988,84 @@ edges:
   - between:
     - '659'
     - diagnostic-coordinate-phantom
+  - between:
+    - '656'
+    - '660'
+  - between:
+    - '657'
+    - '660'
+  - between:
+    - '658'
+    - '660'
+  - between:
+    - '660'
+    - level-amplitude-gate
+  - between:
+    - '660'
+    - g-alpha-causal-selector
+  - between:
+    - '660'
+    - g-20260630T155255Z-f65436f2
+  - between:
+    - '660'
+    - project_zero_lookahead_backtest
+  - between:
+    - '077'
+    - '661'
+  - between:
+    - '208'
+    - '661'
+  - between:
+    - 090
+    - '661'
+  - between:
+    - '161'
+    - '662'
+  - between:
+    - '635'
+    - '662'
+  - between:
+    - '645'
+    - '662'
+  - between:
+    - '656'
+    - '662'
+  - between:
+    - '231'
+    - '662'
+  - between:
+    - '662'
+    - g-20260630T155255Z-f65436f2
+  - between:
+    - '661'
+    - '662'
+  - between:
+    - '656'
+    - '663'
+  - between:
+    - '657'
+    - '663'
+  - between:
+    - '658'
+    - '663'
+  - between:
+    - '663'
+    - g-20260630T155255Z-f65436f2
+  - between:
+    - '663'
+    - level-amplitude-gate
+  - between:
+    - '663'
+    - wc-proof-overfitting-winners-curse-lecam
+  - between:
+    - '663'
+    - alpha-pdf-mu-z-a-positive
+  - between:
+    - '663'
+    - project_zero_lookahead_backtest
+  - between:
+    - '663'
+    - project_btc_vs_bh_structural
   tensions_with:
   - between:
     - '007'
