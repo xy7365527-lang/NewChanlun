@@ -229,3 +229,38 @@ decisions:
       (B) [行动] task#3 l2l3-fullwindow-rejudge 前置已满足(K_i 实装)，可由现有业务工位推进。
       (C) [边界] 翻转点=L2 实测若子声部仍=0 ⟹ 648 被否证回退 C；当前 OKLO 已激活(腿20≠0)，不回退。
       (D) [观测] session 68088c95 在 ~/.claude/teams 无对应 config，roster 活性以 Lead 实时心跳为准。
+
+  - id: TOPO-20260629-012
+    timestamp: "2026-06-30T02:00:00+08:00"
+    type: 扩张评估（l2-fullwindow-8sym K_i 接入全窗 runner 评估）
+    trigger_signal: Lead 委派——l2-fullwindow-8sym 若需把 K_i 接入全窗 runner（跨文件 ripple）是否需 architect/codex 工位或子分解
+    workstations: [l2-fullwindow-8sym]
+    reasoning: >
+      关键拓扑事实（L2 源码实测）：K_i 视图（coverage.rs::extract_carrier_forest）当前只接入
+      standalone probe bin pi_bsp_timing.rs（TOPO-011 commit 37d282abb0），**未接入全窗 runner 路径**。
+      grep 实测 runner.rs + l3_fullwindow.rs：extract_carrier_forest / pi_bsp / subvoice / host^op / K_i
+      **零引用**。l3_fullwindow.rs 跑 run_theta_v0（runner 路径），其诚实标（行23-26）显式声明
+      『#5 多声部 depth=0 未补（次级别对冲 alpha 未启）』——这正是 K_i 子声部要填的缺口。
+      ⟹ l2-fullwindow-8sym 有两种 scope，拓扑后果不同：
+      (S1) 跑现有 v1 全窗 runner 原样（subvoice depth=0，诚实标已覆盖）= 无 refactor、无新工位。
+      (S2) 把 K_i 子声部接入 run_theta_v0，使全窗 L3 含多声部对冲 alpha = 真跨文件 ripple
+           （coverage K_i → interp 父 voice 生成 §10 定理1 → runner sizing → l3_fullwindow 归因），
+           是 pi_bsp_timing.rs probe 从未建过的 bridge（probe 是隔离读数，runner 是回测主路径）。
+      子分解判据：S2 触及 ≥3 文件且引入新 sizing 语义（子声部 leg.units 进 voice-state，与 646
+      depth_weight sizing 层交互）⟹ 满足『上下文膨胀 + 领域正交（结构 K_i 视图 ⊗ 回测会计）』扩张信号。
+      异质审查判据：S2 产出是 L3 实证（全窗多声部对冲 alpha 可证伪）⟹ 按 #41 spawn_mandate
+      『L2+L3 实证类不可免除异质审查』须配 codex/gemini-challenger 节点（同 TOPO-009-A 定理）。
+    verdict: >
+      (A) [条件扩张] 若 l2-fullwindow-8sym 暴露 S2（K_i 接入全窗 runner），建议 Lead 子分解为 DAG：
+          ①设计节点（architect：K_i 子声部如何进 run_theta_v0 sizing，与 646 depth_weight 层关系）
+          →②实装节点→③异质审查节点（codex-challenger，L3 实证不可免，#41 定理）→④归因/结晶。
+          理由：跨 ≥3 文件 ripple + 新 sizing 语义 = 单工位上下文膨胀，复杂度应靠工位数扩展（核心原则）。
+      (B) [扩张否] 若 l2-fullwindow-8sym 实为 S1（跑现有 runner 原样，subvoice depth=0），
+          诚实标已覆盖缺口 ⟹ 无 refactor、无新工位、无子分解。直接由现工位推进。
+      (C) [scope 自决归属] S1/S2 的判别是 l2-fullwindow-8sym 自身按其 task 定义可读出的事实
+          （它要不要 subvoice 信号），非拓扑职责裁定 —— 拓扑只提供条件建议，Lead 执行。
+          建议 Lead 先让 l2-fullwindow-8sym 声明 scope（读不读 K_i），再据本条 A/B 分派。
+      (D) [边界翻转] 若后续证实 runner 已通过其它入口间接消费 K_i（本次 grep 未覆盖的动态路径），
+          则 S2 ripple 评估失效，退回 S1。当前 grep 实测 runner.rs/l3_fullwindow.rs 零 K_i 引用。
+      (E) [观测] architect 工位仅在 S2 设计节点需要时 spawn（按需，非常设）；codex-challenger
+          已在本主线触达（TOPO-011 NO#2 审 K_i dedup），S2 复用同工位类型，非新增类型。

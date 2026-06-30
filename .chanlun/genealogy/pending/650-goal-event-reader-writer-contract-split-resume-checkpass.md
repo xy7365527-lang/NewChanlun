@@ -7,7 +7,7 @@ layer: 运维/工具层（D′ goal 事件系统，非缠论领域概念）
 session: 68088c95
 discovered_by: Lead（/goal 协议 commit→rescan→base_head 同步失败）
 created: 2026-06-30
-related: [575（goal events ≠ genealogy 分层防污染）, 630（写路径未实装开口①）, 624/teach-0004a（Lead 默认 goal）]
+related: ['630'（写路径未实装开口①——writer 整体未实装，本号是其演化态：writer 已实装但 GOAL_RESUME/CHECK_PASS 契约盲区）]
 rule_version_baseline:
   claude_md_commit: "4f040f0c31bb38a58b1adbbde5708096038eea65"
   rules_dir_mtime: "2026-03-14 23:27:42 +0000"
@@ -47,7 +47,8 @@ D′ goal 事件系统的 **reader（`goal_reducer.py`）与 writer（`goal_even
 ## 谱系比对结果
 
 - **630 开口①**（"写路径未实装"止血）：reducer 注释多处引用 630，承认 reader 宽容读历史 ⊋ writer 严格守新写是**有意的有效域分层**（formalization-validity-domain）。但 630 的分层针对的是"历史退化事件（sub_goal_id 当 goal id）"，**不覆盖** GOAL_RESUME 这种 reader 依赖但 writer 从未支持的事件——这是分层的**盲区**而非良性分层。
-- **575**（goal events ≠ genealogy 分层防污染）：本矛盾是 goal 事件系统**内部** reader/writer 契约，属"goal 定义/验收/分解原则语义"，按 575 达到升格 genealogy 的门槛。
+- **升格判定**：本矛盾是 goal 事件系统**内部** reader/writer 契约，属"goal 定义/验收/分解原则语义"，达到升格 genealogy 的门槛（goal 事件系统语义变更才升格 genealogy 的一般原则）。
+  - 注（genealogist R2 核查）：初稿误引 575 为"goal events ≠ genealogy 分层防污染"——系虚构（575 实为 clean-slate 重建消除双代共存，与本矛盾无语义关联），已移除。
 
 ## 需要决断的问题
 

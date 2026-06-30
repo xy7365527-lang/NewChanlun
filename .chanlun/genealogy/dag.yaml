@@ -3420,6 +3420,16 @@ nodes:
   status: 生成态
   type: 语法记录候选 + 工具层契约矛盾
   file: pending/650-goal-event-reader-writer-contract-split-resume-checkpass.md
+- id: '651'
+  title: 元规则观测——formalization-validity-domain 的有效域分层缺一个边界条件（reader 有效域 ⊋ writer 有效域时，"良性分层"与"分层盲区"无判据区分）
+  status: 生成态
+  type: meta-rule
+  file: pending/651-meta-validity-domain-layering-blind-spot-reader-depends-on-writer-never-supported.md
+- id: '652'
+  title: 元规则观测——"局部契约矛盾误判为全局 goal 阻塞"是 161 务实思维的镜像变体（把可推进工作误判为不可推进）
+  status: 生成态
+  type: meta-rule
+  file: pending/652-meta-local-contradiction-misread-as-global-blockage-pragmatism-variant.md
 edges:
   depends_on:
   - from: '136'
@@ -9640,7 +9650,7 @@ edges:
     - '640'
     - '649'
   - between:
-    - 575（goal events ≠ genealogy 分层防污染）
+    - '630'
     - '650'
   - between:
     - 630（写路径未实装开口①）
@@ -9648,6 +9658,30 @@ edges:
   - between:
     - 624/teach-0004a（Lead 默认 goal）
     - '650'
+  - between:
+    - 630（写路径未实装开口①，声明"有效域=读侧"）
+    - '651'
+  - between:
+    - 650（GOAL_RESUME 可读不可写——分层盲区揭露）
+    - '651'
+  - between:
+    - 231（formalization-validity-domain 规则谱系）
+    - '651'
+  - between:
+    - 222/223/230（有效域≠定义域三例）
+    - '651'
+  - between:
+    - 161（务实思维否定——把矛盾和缺口留到后面）
+    - '652'
+  - between:
+    - 275（局部依赖原则——附庸的附庸不是我的附庸）
+    - '652'
+  - between:
+    - 650（goal 事件契约分裂——本轮被误当全局停止理由）
+    - '652'
+  - between:
+    - '652'
+    - no-unnecessary-escalation（该走不走的对偶）
   tensions_with:
   - between:
     - '007'
