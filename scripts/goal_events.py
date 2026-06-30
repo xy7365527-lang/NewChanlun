@@ -40,6 +40,9 @@ _REQUIRED_FIELDS = {
     "DECOMPOSE": ("goal_id", "sub_goals"),
     "EVIDENCE": ("sub_goal_id", "artifact"),
     "CHECK_PASS": ("sub_goal_id", "check"),  # + 来源（method=auto/manual，见 _validate_check_pass）
+    # CHECK_FAIL（658 修复）：补偿事件——撤销先前 CHECK_PASS，把 acceptance 标回 not-passed。
+    # 不删历史（event-sourcing），reducer「最后写者胜」据此重开 goal。必带 reason（争议/否证依据）。
+    "CHECK_FAIL": ("sub_goal_id", "check", "reason"),
     "BLOCKED": ("sub_goal_id", "blocker"),
     "SUPERSEDE": ("old_goal_id", "new_goal_id"),
     "CLOSED": ("goal_id",),
@@ -61,6 +64,9 @@ _ALLOWED_FIELDS["EVIDENCE"] |= {"evidence_id"}
 _ALLOWED_FIELDS["CHECK_PASS"] |= {
     "acceptance_id", "method", "command", "verifier", "judge", "rationale", "evidence_ids",
 }
+# CHECK_FAIL：可带 acceptance_id（稳定身份撤销，对齐 CHECK_PASS 的两键匹配）+ evidence_ids
+# （指向 EVIDENCE，机器溯源争议依据，引用完整性在 append_event 校验）。
+_ALLOWED_FIELDS["CHECK_FAIL"] |= {"acceptance_id", "evidence_ids"}
 # GOAL_AMEND 可选审计字段（codex：definition_event_id 当前 events 的 GOAL_SET 无 event_id
 # 字段，故可选；recorded_head 记「补 id 发生在现在」的 HEAD，与不可变 base_head 分离）。
 _ALLOWED_FIELDS["GOAL_AMEND"] |= {"definition_event_id", "definition_base_head", "recorded_head"}
@@ -193,6 +199,20 @@ def _validate_check_pass(fields: dict) -> None:
         raise ValueError("CHECK_PASS.acceptance_id 必须是非空字符串")
 
 
+def _validate_check_fail(fields: dict) -> None:
+    """CHECK_FAIL（658 修复）：撤销 CHECK_PASS。reason 必填（已由 _REQUIRED_FIELDS 保证非空）。
+    acceptance_id 若带须非空（稳定身份撤销）；evidence_ids 若带须非空 str 的非空 list
+    （指向 EVIDENCE，引用完整性在 append_event 层校验，与 CHECK_PASS manual 一致）。"""
+    if "acceptance_id" in fields and not _nonempty_str(fields["acceptance_id"]):
+        raise ValueError("CHECK_FAIL.acceptance_id 必须是非空字符串")
+    if "evidence_ids" in fields:
+        eids = fields["evidence_ids"]
+        if not isinstance(eids, list) or not eids:
+            raise ValueError("CHECK_FAIL.evidence_ids 若提供须为非空 list")
+        if not all(_nonempty_str(x) for x in eids):
+            raise ValueError("CHECK_FAIL.evidence_ids 每项必须是非空字符串")
+
+
 def _validate_amend_bindings(fields: dict) -> None:
     """GOAL_AMEND 无状态结构校验（codex 严格解法）。跨事件校验（hash 匹配历史 GOAL_SET、
     ordinal 命中 slot、acceptance_id goal 内唯一、幂等）需历史 → 在 append_event 层。
@@ -239,7 +259,7 @@ def validate_event(event_type: str, fields: dict) -> dict:
     """
     if event_type not in _REQUIRED_FIELDS:
         raise ValueError(
-            f"未知 event 类型 {event_type!r}（仅接受 SCHEMA.md 定义的 9 种："
+            f"未知 event 类型 {event_type!r}（仅接受 SCHEMA.md 定义的 10 种："
             f"{', '.join(sorted(_REQUIRED_FIELDS))}）"
         )
 
@@ -277,6 +297,8 @@ def validate_event(event_type: str, fields: dict) -> dict:
         _validate_sub_goals(fields["sub_goals"])
     elif event_type == "CHECK_PASS":
         _validate_check_pass(fields)
+    elif event_type == "CHECK_FAIL":
+        _validate_check_fail(fields)
     elif event_type == "EVIDENCE":
         if "evidence_id" in fields and not _nonempty_str(fields["evidence_id"]):
             raise ValueError("EVIDENCE.evidence_id 必须是非空字符串")
@@ -442,6 +464,13 @@ def _check_reference_integrity(event: dict, ev_path: str) -> None:
             raise ValueError(
                 f"CHECK_PASS.evidence_ids 指向不存在的 EVIDENCE.evidence_id {missing}"
                 f"（机器溯源须真指向既有证据，禁指向空气）"
+            )
+    elif event["event"] == "CHECK_FAIL" and event.get("evidence_ids"):
+        missing = [eid for eid in event["evidence_ids"] if eid not in existing]
+        if missing:
+            raise ValueError(
+                f"CHECK_FAIL.evidence_ids 指向不存在的 EVIDENCE.evidence_id {missing}"
+                f"（争议依据须真指向既有证据，禁指向空气）"
             )
     elif event["event"] == "GOAL_AMEND":
         _check_amend_against_history(event, events)

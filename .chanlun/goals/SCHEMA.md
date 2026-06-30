@@ -10,6 +10,7 @@
 | DECOMPOSE | goal_id, sub_goals[]（{id, desc, blocked_by[]}）, ts | 分解为 sub-goal 树（containment 树 + blocked_by 执行 DAG） |
 | EVIDENCE | sub_goal_id, artifact, ts | 工位产出证据（可选 evidence_id 稳定身份，供 CHECK_PASS 机器溯源） |
 | CHECK_PASS | sub_goal_id, check, ts + **来源**（见下「CHECK_PASS 来源」） | 某验收项通过 |
+| CHECK_FAIL | sub_goal_id, check, reason, ts（可选 acceptance_id, evidence_ids） | **撤销** CHECK_PASS（658 修复）：把验收项标回 not-passed + contested=true。reducer「最后写者胜」据此重开 goal（防争议验收假闭合）。匹配键与 CHECK_PASS 对称（acceptance_id 优先，否则 check 文本） |
 | BLOCKED | sub_goal_id, blocker, ts | 阻塞（定义冲突/缺数据/需编排者裁决） |
 | SUPERSEDE | old_goal_id, new_goal_id, ts | goal 被替代 |
 | CLOSED | goal_id, ts | goal 闭合（所有 acceptance CHECK_PASS） |

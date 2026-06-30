@@ -77,27 +77,39 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
             for sg in e.get("sub_goals", []):
                 subs[sg["id"]] = {"id": sg["id"], "desc": sg["desc"],
                                   "blocked_by": list(sg.get("blocked_by", [])), "passed": False, "blocker": None}
-    # 3. 应用 CHECK_PASS / BLOCKED（sub_goal_id 缺失的退化事件安全跳过）
+    # 3. 应用 CHECK_PASS / CHECK_FAIL / BLOCKED（sub_goal_id 缺失的退化事件安全跳过）
     # CHECK_PASS 匹配 goal acceptance 采两键（650：稳定身份优先）。两键都按 sub_goal_id
     # 作用域隔离（codex MAJOR-2：acceptance_id 非全局唯一，任意 sub_goal 的 CHECK_PASS 不得
     # 误闭合 goal acceptance——goal acceptance 的 CHECK_PASS.sub_goal_id 必须=gid）：
-    #  - passed_accept_ids：(sub_goal_id, acceptance_id) 集合（稳定身份，优先匹配）
-    #  - passed_checks：(sub_goal_id, check) 集合（check 文本匹配，reader 历史有效域 fallback——
-    #    历史 CHECK_PASS 无 acceptance_id）
-    passed_checks = set()
-    passed_accept_ids = set()
+    #  - passed_accept_ids：(sub_goal_id, acceptance_id) → passed bool（稳定身份，优先匹配）
+    #  - passed_checks：(sub_goal_id, check) → passed bool（check 文本匹配，reader 历史有效域
+    #    fallback——历史 CHECK_PASS 无 acceptance_id）
+    # 658 修复：CHECK_PASS 单调累积无撤销 → 争议验收被误标 passed 后永久闭合 goal → 假闭合。
+    # 补偿事件标准模式（event-sourcing，不删历史）：CHECK_FAIL 对同一键写 passed=False。
+    # 按时间顺序「最后写者胜」——PASS→FAIL→PASS 序列正确反映最终态（用 dict 而非 set，
+    # 后到事件覆盖前者）。contested 集合记录被 CHECK_FAIL 标过的键，供下游区分「从未通过」
+    # 与「曾通过后被争议撤销」。
+    passed_checks: dict = {}
+    passed_accept_ids: dict = {}
+    contested_accept_ids = set()
+    contested_checks = set()
     for e in events:
-        if e["event"] == "CHECK_PASS":
+        if e["event"] in ("CHECK_PASS", "CHECK_FAIL"):
             sid = e.get("sub_goal_id")
+            ok = e["event"] == "CHECK_PASS"
             # 两键互斥（codex v2 MAJOR）：带 acceptance_id → 只走稳定身份键；否则 fallback
             # check 文本键。若两键都填，acceptance_id 写错但 check 文本恰巧相同会经 check 键
             # 误闭合，违背 SCHEMA「acceptance_id 缺失时才 fallback check」契约。
             if e.get("acceptance_id"):
-                passed_accept_ids.add((sid, e["acceptance_id"]))
+                passed_accept_ids[(sid, e["acceptance_id"])] = ok
+                if not ok:
+                    contested_accept_ids.add((sid, e["acceptance_id"]))
             else:
-                passed_checks.add((sid, e.get("check")))
+                passed_checks[(sid, e.get("check"))] = ok
+                if not ok:
+                    contested_checks.add((sid, e.get("check")))
             if sid in subs:
-                subs[sid]["passed"] = True
+                subs[sid]["passed"] = ok
         elif e["event"] == "BLOCKED" and e.get("sub_goal_id") in subs:
             subs[e["sub_goal_id"]]["blocker"] = e.get("blocker")
     # 4. ready = 未 passed + 未 blocker + 所有 blocked_by 已 passed
@@ -112,14 +124,23 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     # 工位无从知道做什么）。与 ready_workstations(id 列表)并存，按 id 同序，保持确定性。
     ready_details = [{"id": s["id"], "desc": subs[s["id"]]["desc"]} for s in
                      sorted((subs[i] for i in ready), key=lambda x: x["id"])]
-    # 5. goal 验收：所有 acceptance CHECK_PASS → closed
-    # 匹配优先稳定身份（(gid, acc.id) ∈ passed_accept_ids），无 id 时 fallback check 文本
+    # 5. goal 验收：所有 acceptance CHECK_PASS（未被 CHECK_FAIL 撤销）→ closed
+    # 匹配优先稳定身份（(gid, acc.id) → passed_accept_ids[k]），无 id 时 fallback check 文本
     # （(gid, check)）。两键都 gid-scoped（codex MAJOR-2：防跨 sub_goal 的 acceptance_id/check
-    # 名碰撞误闭合，SCHEMA 未定义 rollup）。
+    # 名碰撞误闭合，SCHEMA 未定义 rollup）。值为最后写者（PASS=True/FAIL=False）——658 修复：
+    # CHECK_FAIL 后该 acceptance.passed 翻 False，goal 不闭合。contested 标记曾被争议撤销
+    # （从未通过的 acceptance 不带 contested，与「曾 PASS 后被 FAIL 撤销」区分）。
     for acc in goal["acceptance"]:
-        if (acc.get("id") and (gid, acc["id"]) in passed_accept_ids) \
-                or (gid, acc["check"]) in passed_checks:
-            acc["passed"] = True
+        akey = (gid, acc["id"]) if acc.get("id") else None
+        ckey = (gid, acc["check"])
+        if akey is not None and akey in passed_accept_ids:
+            acc["passed"] = passed_accept_ids[akey]
+            if akey in contested_accept_ids:
+                acc["contested"] = True
+        elif ckey in passed_checks:
+            acc["passed"] = passed_checks[ckey]
+            if ckey in contested_checks:
+                acc["contested"] = True
     terminated = bool(goal["acceptance"]) and all(a["passed"] for a in goal["acceptance"])
     if terminated or gid in closed:
         goal["status"] = "closed"

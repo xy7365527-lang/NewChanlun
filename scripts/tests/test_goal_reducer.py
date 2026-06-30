@@ -171,6 +171,56 @@ def test_ready_details_empty_when_no_decompose():
     assert out["ready_details"] == []
 
 
+def test_check_fail_reverts_passed_and_reopens_goal():
+    # 658 修复：CHECK_PASS 后 CHECK_FAIL（补偿事件）→ acceptance.passed 翻 False →
+    # goal 不再 closed。模拟 acc-delta-r-alpha 被 codex 异质审判 underpowered 后争议撤销。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"id": "acc-1", "check": "L3 实证", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "L3 实证",
+         "acceptance_id": "acc-1", "method": "auto", "command": "x", "verifier": "ci", "ts": "t1"},
+        {"event": "CHECK_FAIL", "sub_goal_id": "g1", "check": "L3 实证",
+         "acceptance_id": "acc-1", "reason": "codex 异质审 underpowered，n=5 功效不足", "ts": "t2"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["acceptance"][0]["passed"] is False  # 撤销
+    assert out["current_goal"]["acceptance"][0]["contested"] is True  # 标记争议
+    assert out["current_goal"]["status"] != "closed"  # goal 重开
+    assert out["terminated"] is False
+
+
+def test_check_fail_then_pass_recloses_goal():
+    # 最后写者胜：FAIL 后再 PASS（争议解决/补强后重新通过）→ goal 恢复闭合。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"id": "acc-1", "check": "c", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c",
+         "acceptance_id": "acc-1", "method": "auto", "command": "x", "verifier": "ci", "ts": "t1"},
+        {"event": "CHECK_FAIL", "sub_goal_id": "g1", "check": "c",
+         "acceptance_id": "acc-1", "reason": "争议", "ts": "t2"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c",
+         "acceptance_id": "acc-1", "method": "auto", "command": "x", "verifier": "ci", "ts": "t3"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["acceptance"][0]["passed"] is True
+    assert out["current_goal"]["status"] == "closed"
+
+
+def test_check_fail_via_check_fallback_no_acceptance_id():
+    # 历史有效域：无 acceptance_id 的 CHECK_FAIL 走 check 文本键撤销（与 CHECK_PASS fallback 对称）。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c1", "ts": "t1"},
+        {"event": "CHECK_FAIL", "sub_goal_id": "g1", "check": "c1", "reason": "撤销", "ts": "t2"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["acceptance"][0]["passed"] is False
+    assert out["current_goal"]["status"] != "closed"
+
+
 def test_sub_goal_check_name_collision_does_not_close_goal():
     # sub_goal 的 check 名与 goal acceptance check 名相同，但 CHECK_PASS 只 target sub_goal，
     # 不应误判 goal acceptance 通过（gid-only 匹配，SCHEMA 未定义跨节点 rollup）。

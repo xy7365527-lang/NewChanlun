@@ -101,6 +101,32 @@ def test_check_pass_manual_valid_appends(tmp_path):
     assert e["acceptance_id"] == "acc-1"
 
 
+def test_check_fail_valid_appends(tmp_path):
+    # CHECK_FAIL（658 修复）：撤销 CHECK_PASS，必带 reason。可带 acceptance_id（稳定身份撤销）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("CHECK_FAIL", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                 acceptance_id="acc-1", reason="codex 异质审 underpowered")
+    e = _read_lines(ev_path)[0]
+    assert e["event"] == "CHECK_FAIL"
+    assert e["sub_goal_id"] == "g1.1"
+    assert e["acceptance_id"] == "acc-1"
+    assert e["reason"] == "codex 异质审 underpowered"
+
+
+def test_check_fail_requires_reason(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="reason"):
+        append_event("CHECK_FAIL", ev_path=str(ev_path), sub_goal_id="g1.1", check="done")
+
+
+def test_check_fail_evidence_ids_must_exist(tmp_path):
+    # evidence_ids 若提供，须真指向既有 EVIDENCE（引用完整性，与 CHECK_PASS manual 一致）。
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="不存在的 EVIDENCE"):
+        append_event("CHECK_FAIL", ev_path=str(ev_path), sub_goal_id="g1.1", check="done",
+                     reason="争议", evidence_ids=["ev-nonexistent"])
+
+
 def test_blocked_valid_appends(tmp_path):
     ev_path = tmp_path / "events.jsonl"
     append_event("BLOCKED", ev_path=str(ev_path), sub_goal_id="g1.1", blocker="缺数据")
