@@ -802,6 +802,230 @@ fn martingale_impossibility_guard() {
     );
 }
 
+/// **★LCB(μ) 选择器 vs 裸 μ 选择器 L2 对比（acc-lcb-l2-vs-naive，task #74）**。
+///
+/// 同一 8 品种 walk-forward harness（与 [`delta_r_alpha_multi_symbol`] 同 μ 表/同 split/同 θ），
+/// 唯一变量 = `config.risk.chi_z_alpha`：**0（裸 μ baseline）vs 1.645（95% LCB）**。检验 LCB 是否
+/// 改善退化（χ 空仓）品种数 + L3 inconclusive。
+///
+/// ## ★两条分离纪律（防 090 声明膨胀，genealogist 660 正交警示 + lcb-selector 两源归因）
+///
+/// **纪律1（660 正交）**：LCB 控**过拟合**，inconclusive 根因主项 = **功效不足（n=5+16K 短窗）**——
+/// 两维度正交，**分离报告**：
+/// - 维度①（过拟合）：LCB vs 裸 μ 的退化品种数 / χ 空仓率差异。
+/// - 维度②（功效）：L3 符号检验在两 selector 下是否**仍 inconclusive**（n_L3<5 ⟹ 全正也达不到 p<.05）。
+/// - **禁止**把二者混为「LCB 解决了 inconclusive」——LCB 单独不足以升 inconclusive（功效维度需更大池/更长窗）。
+///
+/// **纪律2（两源归因）**：χ 空仓率 LCB vs 裸 μ 的差异来自**两源**，必须分离：
+/// - **源 (a) n<2 无 LCB 证据被拒**：裸 μ 放行（n=1 mean 有定义）但 LCB 拒（mu_lcb=None ⟹ treat_empty=false
+///   ⟹ 滤）。**这是样本饥饿不是过拟合控制**——n=1 类裸 μ 本就是噪声单点，LCB 拒它是诚实但非 alpha 价值。
+/// - **源 (b) n≥2 高方差 LCB<θ 被拒**：裸 μ>θ 放行但 LCB=mean−z_α·std/√n<θ 拒。**只有 (b) 是 LCB 的真
+///   alpha 价值证据**（裸 μ 在高方差类过拟合估计噪声，LCB 正确收缩拒绝，p25 §12）。
+///
+/// ## 可证伪结果（二选一，都携信息增量）
+/// - **(a) LCB 改善**：源 (b) 显著 ⟹ 裸 μ 在这些类过拟合 ⟹ LCB 减少退化品种 / 改善 ΔR。
+/// - **(b) LCB 不改善**：源 (b) 微弱/为零 ⟹ inconclusive 根因非过拟合而是功效不足/真无信号 ⟹ 需更大池。
+///
+/// 认识论 **L2**（真实数据，可证伪，携信息增量）。有效域 caveat：{MAX_BARS}bar 截断 + 8 品种 + OOS 内 split。
+///
+/// `#[ignore]`：O(n²) 慢测（8 品种 × 2 z_alpha × 32K bar train+test 逐 bar 重分类），`--release` 必须。
+/// 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha::lcb_vs_naive_l2 -- --ignored --nocapture`
+#[test]
+#[ignore = "LCB vs 裸 μ L2 对比；O(n²) 8 品种 × 2 z_alpha × 32K bar；--release"]
+fn lcb_vs_naive_l2() {
+    let config = ThetaConfig::default();
+    let theta: f64 = 0.0; // 与 multi_symbol 同 θ 口径（滤 μ≤0 类）。
+    let z_alpha_lcb: f64 = 1.645; // 95% 单边 LCB（防高维 z 过拟合，p25 §12）。
+
+    eprintln!("\n===== ★LCB(μ) vs 裸 μ 选择器 L2 对比（acc-lcb-l2-vs-naive, θ={theta}, z_α_LCB={z_alpha_lcb}）=====");
+    eprintln!("★唯一变量 = config.risk.chi_z_alpha（0=裸 μ baseline vs {z_alpha_lcb}=95% LCB）；同 μ 表/同 split/同 θ");
+    eprintln!("★纪律1（660 正交）：LCB 控过拟合 ⊥ inconclusive 根因（功效不足 n=5+16K 短窗）——分离报告，不混为「LCB 解决 inconclusive」");
+    eprintln!("★纪律2（两源归因）：χ 空仓差异 = 源(a) n<2 无 LCB 证据被拒（样本饥饿）+ 源(b) n≥2 高方差 LCB<θ 被拒（真 alpha 价值）");
+    eprintln!(
+        "{:<6} {:>7} {:>7} {:>8} {:>8} {:>9} {:>9} {:>11} {:>11}",
+        "symbol", "test", "μ类", "χ0单", "χL单", "拒源a", "拒源b", "ΔR(裸μ)", "ΔR(LCB)",
+    );
+
+    // 两 selector 各自的 L3 池（χ 真改交易集的有效品种 ΔR 均值）。
+    let mut dr_naive: Vec<f64> = Vec::new();
+    let mut dr_lcb: Vec<f64> = Vec::new();
+    let mut n_degen_naive = 0usize; // 裸 μ 退化（χ 全滤空仓）品种数
+    let mut n_degen_lcb = 0usize; // LCB 退化品种数
+    let mut n_done = 0usize;
+    // 纪律2 两源汇总（跨品种）：源 (a) 样本饥饿拒、源 (b) 高方差拒。
+    let (mut tot_src_a, mut tot_src_b) = (0usize, 0usize);
+
+    for w in PREREG_WINDOWS {
+        let ds = match data::load_by_symbol(w.symbol, &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("{:<6} 加载失败：{e}（DATA BLOCKER，不伪造合成）", w.symbol);
+                continue;
+            }
+        };
+        let oos_full = ds.slice_date_window(w.oos.0, w.oos.1);
+        if oos_full.bars.is_empty() {
+            eprintln!("{:<6} OOS 窗空", w.symbol);
+            continue;
+        }
+        let cut = MAX_BARS.min(oos_full.bars.len());
+        let split = cut / 2;
+        let mk = |lo: usize, hi: usize| Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[lo..hi].to_vec(),
+            dates: oos_full.dates[lo..hi.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
+        };
+        let train = mk(0, split);
+        let test = mk(split, cut);
+        if train.bars.len() < MIN_TEST_BARS || test.bars.len() < MIN_TEST_BARS {
+            eprintln!("{:<6} train/test 样本不足 ⟹ inconclusive", w.symbol);
+            continue;
+        }
+        n_done += 1;
+
+        let (est, _n_sig) = build_walk_forward_mu(&train, &config);
+
+        let first_px = test
+            .bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * config.tick.tick_size)
+            .unwrap_or(1.0);
+        let nav = (first_px * 1000.0).max(1.0e6);
+        let bars_per_year = data::bars_per_year(60);
+        let years = (test.bars.len() as f64 / bars_per_year).max(0.01);
+
+        // χ≡1 baseline（chi_theta=None，与 z_alpha 无关——baseline 不过滤）。
+        let mut base_cfg = config.clone();
+        base_cfg.risk.chi_theta = None;
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true);
+
+        // 裸 μ selector（chi_z_alpha=0 ⟹ LCB=mean ⟹ 退化裸 μ 门；treat_empty=false 最诚实）。
+        let mut naive_cfg = config.clone();
+        naive_cfg.risk.chi_theta = Some(theta);
+        naive_cfg.risk.chi_z_alpha = 0.0;
+        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false);
+
+        // LCB selector（chi_z_alpha=1.645 ⟹ 准入用 LCB=mean−z_α·std/√n）。
+        let mut lcb_cfg = config.clone();
+        lcb_cfg.risk.chi_theta = Some(theta);
+        lcb_cfg.risk.chi_z_alpha = z_alpha_lcb;
+        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false);
+
+        let st_naive = delta_r_stats(&base.equity_curve, &naive.equity_curve, nav, bars_per_year);
+        let st_lcb = delta_r_stats(&base.equity_curve, &lcb.equity_curve, nav, bars_per_year);
+
+        // ── 纪律2 两源分解：test 候选 z 中「裸 μ 放行 ∧ LCB 拒」的两源（a 饥饿 / b 高方差）──
+        // 源 (a)：mu(z)=Some 且 >θ（裸 μ 放行）但 mu_lcb(z)=None（n<2 无 LCB 证据，treat_empty=false ⟹ 拒）。
+        // 源 (b)：mu(z)>θ（裸 μ 放行）且 mu_lcb(z)=Some 但 ≤θ（n≥2 高方差，LCB 收缩到阈值下，拒）。
+        let test_zs = enumerate_candidate_z(&test, &config);
+        let (mut src_a, mut src_b) = (0usize, 0usize);
+        for z in &test_zs {
+            let naive_pass = matches!(est.mu(z), Some(m) if m > theta);
+            if !naive_pass {
+                continue; // 裸 μ 本就拒，不计入「LCB 额外拒」差异
+            }
+            match est.mu_lcb(z, z_alpha_lcb) {
+                None => src_a += 1,                       // n<2：样本饥饿（非过拟合控制）
+                Some(l) if l <= theta => src_b += 1,      // n≥2 高方差 LCB<θ：真 alpha 价值
+                Some(_) => {}                              // LCB 仍 >θ：两 selector 一致放行，无差异
+            }
+        }
+        tot_src_a += src_a;
+        tot_src_b += src_b;
+
+        // 退化（χ 全滤空仓）判定（与 multi_symbol (d) 同口径）。
+        let degen_naive = naive.n_orders == 0 && base.n_orders > 0;
+        let degen_lcb = lcb.n_orders == 0 && base.n_orders > 0;
+        if degen_naive {
+            n_degen_naive += 1;
+        }
+        if degen_lcb {
+            n_degen_lcb += 1;
+        }
+
+        // L3 池（仅 χ 真改交易集且非退化的有效品种，与 multi_symbol l3_valid 同口径）。
+        if st_naive.chi_changed_trades && naive.n_orders > 0 && base.n_orders > 0 {
+            dr_naive.push(st_naive.mean);
+        }
+        if st_lcb.chi_changed_trades && lcb.n_orders > 0 && base.n_orders > 0 {
+            dr_lcb.push(st_lcb.mean);
+        }
+
+        eprintln!(
+            "{:<6} {:>7} {:>8} {:>8} {:>8} {:>9} {:>9} {:>11.3e} {:>11.3e}",
+            w.symbol,
+            test.bars.len(),
+            est.n_classes(),
+            naive.n_orders,
+            lcb.n_orders,
+            src_a,
+            src_b,
+            st_naive.mean,
+            st_lcb.mean,
+        );
+
+        assert!(st_naive.mean.is_finite() && st_lcb.mean.is_finite(), "{} ΔR 有限", w.symbol);
+    }
+
+    // ── 维度① 过拟合：退化品种数 + 两源分解（纪律2）──
+    eprintln!("\n===== 维度①（过拟合控制，纪律2 两源分离）=====");
+    eprintln!("完成品种数                              : {n_done}/{}", PREREG_WINDOWS.len());
+    eprintln!("退化品种数（χ 全滤空仓）：裸 μ={n_degen_naive} | LCB={n_degen_lcb}（LCB≥裸 μ ⟹ 更保守）");
+    eprintln!("跨品种「裸 μ 放行 ∧ LCB 拒」两源分解：");
+    eprintln!("  源(a) n<2 无 LCB 证据被拒（样本饥饿，非过拟合控制） : {tot_src_a}");
+    eprintln!("  源(b) n≥2 高方差 LCB<θ 被拒（★LCB 真 alpha 价值）   : {tot_src_b}");
+    eprintln!(
+        "  ★诚实判据：源(b)>0 ⟹ LCB 在高方差类正确收缩拒绝裸 μ 过拟合（alpha 价值证据）；\n  \
+         源(b)=0 ∧ 源(a)>0 ⟹ LCB 与裸 μ 差异**纯样本饥饿**（n<2），非过拟合控制 ⟹ LCB 无 alpha 价值。"
+    );
+
+    // ── 维度② 功效：L3 符号检验在两 selector 下（纪律1，与过拟合正交）──
+    const MIN_L3_POWER: usize = 5;
+    let l3 = |pool: &[f64]| -> (usize, usize, f64, f64) {
+        let n = pool.len();
+        let n_pos = pool.iter().filter(|&&m| m > 0.0).count();
+        let mean = if n > 0 { pool.iter().sum::<f64>() / n as f64 } else { 0.0 };
+        (n, n_pos, mean, sign_test_pvalue(n_pos, n))
+    };
+    let (n_n, pos_n, mean_n, p_n) = l3(&dr_naive);
+    let (n_l, pos_l, mean_l, p_l) = l3(&dr_lcb);
+    eprintln!("\n===== 维度②（统计功效，纪律1：与过拟合正交，不可混为「LCB 解决 inconclusive」）=====");
+    eprintln!("L3 符号检验（裸 μ）: n_L3={n_n} n_pos={pos_n}/{n_n} 池均值={mean_n:.3e} 符号 p={p_n:.4}");
+    eprintln!("L3 符号检验（LCB） : n_L3={n_l} n_pos={pos_l}/{n_l} 池均值={mean_l:.3e} 符号 p={p_l:.4}");
+    let verdict = |n: usize, p: f64, mean: f64| -> &'static str {
+        if n >= 2 && p < 0.05 && mean > 0.0 {
+            "系统性 alpha 成立"
+        } else if n < MIN_L3_POWER {
+            "inconclusive(功效不足 n_L3<5，全正也达不到 p<.05)"
+        } else {
+            "系统性 alpha 不成立（n≥5 但 p≥.05 或均值≤0）"
+        }
+    };
+    eprintln!("  裸 μ L3 裁定: {}", verdict(n_n, p_n, mean_n));
+    eprintln!("  LCB  L3 裁定: {}", verdict(n_l, p_l, mean_l));
+    eprintln!(
+        "\n★★最终裁定（纪律1+2，formalization-validity-domain 231号 + 660 正交）：\n  \
+         - 维度①（过拟合）：LCB 是否改善退化/χ 空仓 = 源(b) 是否显著（n≥2 高方差类被正确拒）。\n  \
+         - 维度②（功效）：L3 在两 selector 下若**仍 inconclusive**（n_L3<5）——这是**预期诚实结果**，\n    \
+           根因 = 功效不足（16K 短窗 + 8 品种），**非 LCB 失败**。LCB 单独不升 inconclusive（需更大池/更长窗）。\n  \
+         - **禁止**：把维度①的「LCB 改善退化」表述为「LCB 解决了 L3 inconclusive」——二者正交（660）。\n  \
+         - 若撞 O(n²) 性能墙无法扩大池/窗 ⟹ 功效维度诚实报 blocked，不粉饰为 goal 达成。"
+    );
+
+    // acceptance：管线在两 selector 下跑通（≥1 品种完成或全 DATA BLOCKER）。
+    // **不**断言 n_degen_lcb≥n_degen_naive——LCB 是裸 μ 放行集的子集（逐 z 更保守）只在
+    // **过滤层**成立；品种级退化（n_orders==0）受 runner RiskOK/ConflictOK/持仓树级联调制，
+    // 不一定单调（no-patch §5：不把预期结果硬编码为不变量，留给真实数据可证伪）。
+    // 子集关系单调性诊断打印（观测，非 assert）：
+    eprintln!(
+        "\n[子集单调性诊断] LCB 退化数({n_degen_lcb}) {} 裸 μ 退化数({n_degen_naive})——\
+         若 LCB<裸 μ 则 runner 级联非单调（值得查），若 ≥ 则与过滤层子集关系一致",
+        if n_degen_lcb >= n_degen_naive { "≥" } else { "<(非单调!)" }
+    );
+}
+
 /// **诊断：枚举一个窗的全部方向候选 z**（与 [`build_walk_forward_mu`] 同口径的因果逐 bar 枚举）。
 ///
 /// 复用 train μ 表构造里的同一枚举（`IncrementalClassifier` 逐 bar + append-only diff + assemble_gamma），
