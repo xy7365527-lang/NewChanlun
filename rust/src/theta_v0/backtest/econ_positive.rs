@@ -37,6 +37,8 @@ pub struct SignalDecomp {
     pub entry_bar: usize,
     /// 出场 bar（τout，下一反向确认信号 / 末 bar censored）。
     pub exit_bar: usize,
+    /// 触发买卖点所在 tower 级别（per-class 分桶键 (level,δ) 的 level 分量，MuClass.level 同口径）。
+    pub level: u32,
     /// 方向 δ：+1 多 / −1 空。
     pub delta: i8,
     /// Ab = εb(Pρb − Pλb)：结构端点价差（≥0，端点方向同义反复）。
@@ -117,9 +119,9 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     // ── 信号收集（同 build_walk_forward_mu）：逐 bar 因果分类，收新确认买卖点 (entry_bar, dir, λb_bar)。 ──
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
     let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
-    // 每条信号：(entry_bar=确认 bar τin, dir, lambda_bar=触发笔起点 bar λb, rho_bar=触发笔终点 bar ρb)。
+    // 每条信号：(entry_bar=确认 bar τin, dir, lambda_bar=触发笔起点 bar λb, rho_bar=触发笔终点 bar ρb, lvl=级别)。
     // 触发笔终点 ρb 的 bar 序 = p.source_index（coverage.rs:381 判准）。
-    let mut signals: Vec<(usize, VoiceSide, usize, usize)> = Vec::new();
+    let mut signals: Vec<(usize, VoiceSide, usize, usize, u32)> = Vec::new();
 
     for i in 0..n {
         let bar = &bars[i];
@@ -155,7 +157,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                     if c.dir == VoiceSide::Flat {
                         continue;
                     }
-                    signals.push((i, c.dir, lambda_bar, rho_bar));
+                    signals.push((i, c.dir, lambda_bar, rho_bar, lvl as u32));
                 }
             }
         }
@@ -165,7 +167,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     let mut decomps: Vec<SignalDecomp> = Vec::new();
     let mut agg = SpreadAttribution::default();
 
-    for (idx, &(entry_bar, dir, lambda_bar, rho_bar)) in signals.iter().enumerate() {
+    for (idx, &(entry_bar, dir, lambda_bar, rho_bar, level)) in signals.iter().enumerate() {
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
             VoiceSide::Short => -1,
@@ -174,8 +176,8 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         let opp = if delta == 1 { VoiceSide::Short } else { VoiceSide::Long };
         let exit_bar = signals[idx + 1..]
             .iter()
-            .find(|(eb, d, _, _)| *eb > entry_bar && *d == opp)
-            .map(|(eb, _, _, _)| *eb)
+            .find(|(eb, d, _, _, _)| *eb > entry_bar && *d == opp)
+            .map(|(eb, _, _, _, _)| *eb)
             .unwrap_or_else(|| {
                 (0..n)
                     .rev()
@@ -203,7 +205,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         let ce_unit = (p_tau_in + p_tau_out) * fee_rate;
         let captured = a_b - eta_in - eta_out - ce_unit;
 
-        decomps.push(SignalDecomp { entry_bar, exit_bar, delta, a_b, eta_in, eta_out, ce_unit, captured });
+        decomps.push(SignalDecomp { entry_bar, exit_bar, level, delta, a_b, eta_in, eta_out, ce_unit, captured });
         agg.n_signals += 1;
         agg.sum_a_b += a_b;
         agg.sum_eta_in += eta_in;
@@ -254,5 +256,157 @@ mod tests {
         assert!(agg.spread_eaten());
         agg.sum_captured = 0.1;
         assert!(!agg.spread_eaten());
+    }
+
+    /// L2 诊断「钱去哪了」：BTC 全历史逐信号可捕获价差分解（真实数据，可产否定性结果）。
+    ///
+    /// `#[ignore]`：需 BTC 全量数据（314M）+ O(n²) 逐 bar 重分类，`--release` 必须。重跑由 Lead。
+    /// 报告落盘 `.chanlun/review-results/econ-l2-btc-diagnosis-20260630.md`（确定性，可复算）。
+    ///
+    /// **L2 纪律**：spread_eaten=true ⟹ 该信号集执行损耗吃光结构价差（否证可交易，有效域收窄）；
+    /// spread_eaten=false ⟹ 该级别有可捕获 alpha——两者照实报，不粉饰（161/formalization-validity-domain）。
+    #[test]
+    #[ignore]
+    fn l2_btc_capturable_spread_diagnosis() {
+        use super::super::data;
+        use std::collections::BTreeMap;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+
+        // 截断窗（显式有效域边界，非全窗结论；l3_delta_r_alpha::MAX_BARS 同纪律）：
+        // BTC 全量 461 万 bar 逐 bar 增量重分类 cache（每 bar 一份 Rc<塔>）跨 bar 累积 ⟹ 内存不可行
+        // （实测 500K bar OOM 被杀，300K=67s 可行、是内存上限）。取**最后** MAX_BARS（近期行情，
+        // 与近期可交易性相关）作截断窗。env ECON_L2_MAX_BARS 覆盖供 Lead 调窗（50K/150K/300K 实测一致）。
+        const MAX_BARS: usize = 300_000;
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
+        let ds = if n_full > max_bars {
+            let start = ds_full.dates[n_full - max_bars].get(..10).unwrap_or("").to_string();
+            let end = ds_full.dates[n_full - 1].get(..10).unwrap_or("").to_string();
+            eprintln!("截断窗 [{start}→{end}]（最后 {max_bars} bar / 全量 {n_full}）= 显式有效域边界");
+            ds_full.slice_date_window(&start, &end)
+        } else {
+            ds_full
+        };
+        let untradable = ds.untradable_ratio();
+        let n_bars = ds.bars.len();
+        let window_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let window_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+
+        let (decomps, agg) = decompose_capturable_spread(&ds, &config);
+
+        // per-class (level, δ) 分桶：Σcaptured + n_captured_positive/n_signals（逐信号路径级正占比）。
+        // key=(level, δ)，value=(n, Σab, Σηin, Σηout, Σce, Σcaptured, n_pos)。
+        let mut buckets: BTreeMap<(u32, i8), (usize, f64, f64, f64, f64, f64, usize)> = BTreeMap::new();
+        for d in &decomps {
+            let e = buckets.entry((d.level, d.delta)).or_default();
+            e.0 += 1;
+            e.1 += d.a_b;
+            e.2 += d.eta_in;
+            e.3 += d.eta_out;
+            e.4 += d.ce_unit;
+            e.5 += d.captured;
+            if d.captured > 0.0 {
+                e.6 += 1;
+            }
+        }
+
+        // 失血三源占比（分母 = Σ(ηin+ηout+Ce) 总损耗；ΣAb 为正分母比对结构价差）。
+        let total_drain = agg.sum_eta_in + agg.sum_eta_out + agg.sum_ce;
+        let pct = |x: f64| if total_drain > 0.0 { 100.0 * x / total_drain } else { 0.0 };
+
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# 经济正条件③ L2 诊断：BTC 基线「钱去哪了」可捕获价差归因");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的逐信号确定性分解，可产否定性结果）。");
+        let _ = writeln!(rpt, "**口径**：captured = Ab − ηin − ηout − Ce/qe（PDF §5）；端点 close 口径；fee_rate=(comm+slip+tax)bps/1e4。");
+        let _ = writeln!(rpt, "**复算**：`cargo test -p <crate> --release l2_btc_capturable_spread_diagnosis -- --ignored --nocapture`（确定性）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 数据");
+        let _ = writeln!(rpt, "- 品种：BTC（btc_1m_full.json，全量 {n_full} bar，2017-08→2026-05）");
+        let _ = writeln!(rpt, "- **截断窗 [{window_start}→{window_end}]，bars={n_bars}**（最后 {max_bars} bar；全量 461万 OOM 不可行 ⟹ 截断窗=显式有效域边界，非全窗结论，l3 同纪律）");
+        let _ = writeln!(rpt, "- untradable_ratio={:.4}", untradable);
+        let _ = writeln!(rpt, "- 收集信号数 n_signals={}（locate_lambda_bar 跳过的信号不入此集——见跳过率）", agg.n_signals);
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 全局归因");
+        let _ = writeln!(rpt, "| 量 | 值 |");
+        let _ = writeln!(rpt, "|---|---|");
+        let _ = writeln!(rpt, "| ΣAb（结构理想总价差） | {:.6e} |", agg.sum_a_b);
+        let _ = writeln!(rpt, "| Σηin（入场滞后） | {:.6e} ({:.1}%) |", agg.sum_eta_in, pct(agg.sum_eta_in));
+        let _ = writeln!(rpt, "| Σηout（出场滞后） | {:.6e} ({:.1}%) |", agg.sum_eta_out, pct(agg.sum_eta_out));
+        let _ = writeln!(rpt, "| ΣCe（成本） | {:.6e} ({:.1}%) |", agg.sum_ce, pct(agg.sum_ce));
+        let _ = writeln!(rpt, "| Σ(η+Ce)（总损耗） | {:.6e} |", total_drain);
+        let _ = writeln!(rpt, "| Σcaptured（剩余 alpha） | {:.6e} |", agg.sum_captured);
+        let _ = writeln!(rpt, "| n_captured_positive/n_signals | {}/{} ({:.1}%) |",
+            agg.n_captured_positive, agg.n_signals,
+            if agg.n_signals > 0 { 100.0 * agg.n_captured_positive as f64 / agg.n_signals as f64 } else { 0.0 });
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## L2 判定");
+        let _ = writeln!(rpt, "- **spread_eaten = {}**（Σcaptured {} 0）", agg.spread_eaten(), if agg.spread_eaten() { "≤" } else { ">" });
+        if agg.spread_eaten() {
+            let _ = writeln!(rpt, "- **否定性结果**：执行损耗（含成本）吃光结构价差 ⟹ 该信号集无可捕获 alpha（PDF §5 前件失败）。有效域收窄——比确认性结果信息量大（161/formalization-validity-domain）。");
+        } else {
+            let _ = writeln!(rpt, "- **确认性结果**：Σcaptured>0 ⟹ 该信号集结构端点价差未被执行损耗吃光（PDF §5 前件成立）。注意：路径级正 ≠ 跨品种功效；仅 BTC 单标的 L2。");
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 失血三源对比（ΣAb 为结构上限）");
+        let _ = writeln!(rpt, "- 结构无价差：ΣAb={:.6e}（若 ΣAb 本身小则结构不给价差）", agg.sum_a_b);
+        let _ = writeln!(rpt, "- 执行吃光：Ση={:.6e}（入场+出场滞后）", agg.sum_eta_in + agg.sum_eta_out);
+        let _ = writeln!(rpt, "- 成本：ΣCe={:.6e}", agg.sum_ce);
+        if agg.sum_a_b < 0.0 {
+            let _ = writeln!(rpt);
+            let _ = writeln!(rpt, "**核心诊断（比执行滞后更根本）：ΣAb<0。** Ab=εb(Pρb−Pλb)，理论应 ≥0（端点方向同义反复：");
+            let _ = writeln!(rpt, "向上笔 ρ>λ）。ΣAb<0 ⟹ **信号方向 δ（assemble_gamma 给）与触发笔结构端点方向系统性错位**——");
+            let _ = writeln!(rpt, "买卖点在触发笔做了反向标注（如向下笔上标买点）。这不是执行问题：结构端点价差本身为负，");
+            let _ = writeln!(rpt, "执行损耗只是在负的结构价差上再扣。即使零滞后零成本（Ση=ΣCe=0），captured=ΣAb<0 仍无 alpha。");
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## per-class (level, δ) 分桶");
+        let _ = writeln!(rpt, "| level | δ | n | ΣAb | Ση | ΣCe | Σcaptured | n_pos/n (路径级正占比) |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
+        for ((lvl, dlt), (n, sab, sin, sout, sce, scap, npos)) in &buckets {
+            let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.1}%) |",
+                lvl, dlt, n, sab, sin + sout, sce, scap, npos, n,
+                if *n > 0 { 100.0 * *npos as f64 / *n as f64 } else { 0.0 });
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 663 原生口径（μ̂>0 状态类）");
+        let _ = writeln!(rpt, "Σcaptured>0 的 (level,δ) 类 = 该类逐信号路径级净正（出现即做，看路径级 captured，不做跨品种符号检验功效门）：");
+        let mut any_pos_class = false;
+        for ((lvl, dlt), (n, _, _, _, _, scap, npos)) in &buckets {
+            if *scap > 0.0 {
+                any_pos_class = true;
+                let _ = writeln!(rpt, "- (level={}, δ={:+}): Σcaptured={:.4e}, n_pos/n={}/{}", lvl, dlt, scap, npos, n);
+            }
+        }
+        if !any_pos_class {
+            let _ = writeln!(rpt, "- （无 Σcaptured>0 的类——全级别全方向执行损耗吃光，否定性结果）");
+        }
+
+        eprint!("{rpt}");
+
+        // 落盘（项目根 = CARGO_MANIFEST_DIR 上一级）。
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent().expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/econ-l2-btc-diagnosis-20260630.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
+        eprintln!("\n报告已落盘：{out:?}");
+
+        // 真封：分解恒等式逐信号成立（captured 精确等于五项分解，非概率）。
+        for d in &decomps {
+            let recomputed = d.a_b - d.eta_in - d.eta_out - d.ce_unit;
+            assert!((d.captured - recomputed).abs() < 1e-6,
+                "captured 分解恒等式破：level={} δ={} captured={} ≠ {}", d.level, d.delta, d.captured, recomputed);
+        }
+        // 聚合 Σcaptured = Σ逐信号 captured（无丢失）。
+        let sum_check: f64 = decomps.iter().map(|d| d.captured).sum();
+        assert!((agg.sum_captured - sum_check).abs() < 1e-3,
+            "Σcaptured 聚合 {} ≠ 逐信号和 {}", agg.sum_captured, sum_check);
     }
 }
