@@ -1690,6 +1690,161 @@ fn degeneracy_diagnosis() {
     eprintln!("\n===== 诊断完成（结果包六要素见 Lead 汇报）=====");
 }
 
+/// **★跨品种 pooling 同质性检验 L2/L3（acc-pooling-icc, task #86）**。
+///
+/// 8 品种各建 walk-forward μ 表（与 [`delta_r_alpha_multi_symbol`] 同 split/同因果保证），按 z 类
+/// 跨品种聚合（[`super::pooling_icc::collect_by_class`]）后逐类算 ICC（§16 方差分解）+ leave-one-
+/// asset-out 迁移检验（§16）。检验「同一 z 类在不同品种是否同分布」——pooling 前提（§15）。
+///
+/// ## 可证伪二选一（携信息增量）
+/// - **(a) 跨品种同质（pooling 有效）**：多数高样本 z 类 ICC 低（→0）∧ leave-one-out 迁移误差小
+///   ⟹ τ²≈0 ⟹ 跨品种 pooling 安全提升功效（§33 攻稀疏类）。
+/// - **(b) 跨品种异质（强 pooling 引偏差）**：多数 z 类 ICC 高（→1）或迁移误差大 ⟹ τ²>0 ⟹
+///   完全合并把异质均值拉平引偏差 ⟹ 应改用收缩（[`super::pooling_icc::pooling_weight`]）而非全 pool。
+///
+/// 认识论 **L2**（真实 8 品种数据，可证伪「跨品种同质」假设——否定性结果缩小有效域，231号）。
+/// 有效域 caveat：{MAX_BARS}bar 截断 + 8 品种 + walk-forward μ（OOS-split train 窗估 μ）。
+///
+/// `#[ignore]`：O(n²) 慢测（8 品种 × 32K bar train 逐 bar 重分类），`--release` 必须。重跑由 Lead。
+/// 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha::pooling_icc_multi_symbol -- --ignored --nocapture`
+#[test]
+#[ignore = "跨品种 pooling ICC L2/L3；O(n²) 8 品种 × 32K bar；--release"]
+fn pooling_icc_multi_symbol() {
+    use super::pooling_icc::{collect_by_class, icc, leave_one_asset_out, AssetClassStat};
+
+    let config = ThetaConfig::default();
+    /// 类内方差可估的最小品种样本量门（n≥2 才有 within 方差）。
+    const MIN_CLASS_N: u64 = 2;
+    /// 该 z 类计入「高功效 ICC 统计」的最小品种数（≥3 品种才有可信 between 散布）。
+    const MIN_ASSETS_FOR_ICC: usize = 3;
+
+    eprintln!("\n===== ★跨品种 pooling 同质性检验 L2/L3（acc-pooling-icc, task #86）=====");
+    eprintln!("★§15 随机效应：μ_{{a,z}}=μ_z+η, η~N(0,τ²)；τ²=0→同分布→pooling 有效；τ²大→异质→强 pooling 引偏差");
+    eprintln!("★§16 ICC=τ²/(τ²+σ²)∈[0,1]：→0 噪声主导(pooling 安全)；→1 品种差异主导(慎 pooling)");
+    eprintln!("★leave-one-asset-out：其他品种估 μ_{{−a}}，目标品种 OOS 测迁移——稳→pooling 可信/失败→拒绝");
+    eprintln!("★{MAX_BARS}bar 截断 = 显式有效域边界（非全窗结论）");
+
+    // 8 品种各建 walk-forward μ 表（train 窗，与 multi_symbol 同 split/因果保证）。
+    let mut ests: Vec<(&str, MuEstimator)> = Vec::new();
+    for w in PREREG_WINDOWS {
+        let ds = match data::load_by_symbol(w.symbol, &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("{:<6} 加载失败：{e}（DATA BLOCKER，不伪造合成）", w.symbol);
+                continue;
+            }
+        };
+        let oos_full = ds.slice_date_window(w.oos.0, w.oos.1);
+        if oos_full.bars.is_empty() {
+            eprintln!("{:<6} OOS 窗空", w.symbol);
+            continue;
+        }
+        let cut = MAX_BARS.min(oos_full.bars.len());
+        let split = cut / 2;
+        let train = Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[0..split].to_vec(),
+            dates: oos_full.dates[0..split.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
+        };
+        if train.bars.len() < MIN_TEST_BARS {
+            eprintln!("{:<6} train 样本不足 ⟹ 跳过", w.symbol);
+            continue;
+        }
+        let (est, n_sig) = build_walk_forward_mu(&train, &config);
+        eprintln!("{:<6} train={} μ类={} signals={n_sig}", w.symbol, train.bars.len(), est.n_classes());
+        ests.push((w.symbol, est));
+    }
+
+    if ests.len() < 2 {
+        eprintln!("\n[L3 BLOCKER] 有效品种<2（{}）⟹ 跨品种同质性不可检验（需 ≥2 品种估 between 散布）", ests.len());
+        eprintln!("  缩小样本量是 substrate/工程缺口（DATA BLOCKER / O(n²) 截断），非异质性结论。");
+        return;
+    }
+
+    // 按 z 类跨品种聚合 → 逐类 ICC + leave-one-out。
+    let by_class = collect_by_class(&ests);
+    eprintln!("\n跨品种聚合：唯一 z 类总数={}（≥{MIN_ASSETS_FOR_ICC} 品种共享的类才计入高功效 ICC 统计）", by_class.len());
+
+    // 高功效 ICC 池（≥MIN_ASSETS_FOR_ICC 品种 ∧ 至少 1 品种 n≥2 有 within 方差）。
+    let mut icc_pool: Vec<f64> = Vec::new();
+    let mut transfer_errs: Vec<f64> = Vec::new();
+    let mut n_shared_classes = 0usize; // ≥MIN_ASSETS_FOR_ICC 品种共享的 z 类数
+    eprintln!(
+        "\n{:<48} {:>6} {:>6} {:>10} {:>10} {:>7}",
+        "z 类（共享 ≥3 品种的前若干）", "品种", "n_pool", "τ²", "σ²", "ICC",
+    );
+    let mut printed = 0usize;
+    for (z, list) in &by_class {
+        let stats: Vec<AssetClassStat> = list.iter().map(|(_, s)| *s).collect();
+        if stats.len() < MIN_ASSETS_FOR_ICC {
+            continue;
+        }
+        // within 方差可估（≥1 品种 n≥MIN_CLASS_N）才计入——全 n=1 ⟹ σ²=0 ⟹ ICC=1 是饥饿伪饱和（icc 文档）。
+        let has_within = stats.iter().any(|s| s.n >= MIN_CLASS_N && s.var.is_some());
+        if !has_within {
+            continue;
+        }
+        n_shared_classes += 1;
+        let r = icc(&stats);
+        // 不变量（边界硬约束）。
+        assert!((0.0..=1.0).contains(&r.icc), "ICC∈[0,1]，实得 {} z={z:?}", r.icc);
+        assert!(r.tau_sq >= 0.0 && r.sigma_sq >= 0.0, "τ²/σ²≥0 z={z:?}");
+        icc_pool.push(r.icc);
+
+        // leave-one-out 迁移误差（逐品种留一，收集所有可定义的）。
+        for held in 0..stats.len() {
+            let lo = leave_one_asset_out(&stats, held);
+            if let Some(e) = lo.transfer_abs_err {
+                transfer_errs.push(e);
+            }
+        }
+
+        if printed < 15 {
+            eprintln!(
+                "ℓ{} δ{} I{:#04b} σp{} sd{} {:<10?}        {:>6} {:>6} {:>10.3e} {:>10.3e} {:>7.4}",
+                z.level, z.delta, z.i_class, z.parent_dir, z.short_swing as u8, z.position,
+                r.n_assets, r.n_total, r.tau_sq, r.sigma_sq, r.icc,
+            );
+            printed += 1;
+        }
+    }
+
+    // ── L3 跨品种同质性聚合裁定 ──
+    let median = |v: &mut [f64]| -> f64 {
+        if v.is_empty() { return f64::NAN; }
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let m = v.len() / 2;
+        if v.len() % 2 == 0 { (v[m - 1] + v[m]) / 2.0 } else { v[m] }
+    };
+    let mut icc_sorted = icc_pool.clone();
+    let icc_median = median(&mut icc_sorted);
+    let icc_mean = if icc_pool.is_empty() { f64::NAN } else { icc_pool.iter().sum::<f64>() / icc_pool.len() as f64 };
+    let n_low_icc = icc_pool.iter().filter(|&&v| v < 0.3).count(); // 同质阈（ICC<0.3 弱品种相关）
+    let n_high_icc = icc_pool.iter().filter(|&&v| v > 0.7).count(); // 异质阈（ICC>0.7 强品种相关）
+    let mut terr_sorted = transfer_errs.clone();
+    let terr_median = median(&mut terr_sorted);
+
+    eprintln!("\n===== L3 跨品种同质性聚合 =====");
+    eprintln!("有效品种数                          : {}/{}", ests.len(), PREREG_WINDOWS.len());
+    eprintln!("≥{MIN_ASSETS_FOR_ICC} 品种共享且 within 可估的 z 类 : {n_shared_classes}");
+    eprintln!("ICC 中位数 / 均值                   : {icc_median:.4} / {icc_mean:.4}");
+    eprintln!("低 ICC(<0.3 同质) / 高 ICC(>0.7 异质): {n_low_icc} / {n_high_icc}（共 {} 类）", icc_pool.len());
+    eprintln!("leave-one-out 迁移误差中位数        : {terr_median:.3e}（{} 个留一对）", transfer_errs.len());
+    eprintln!(
+        "\n★诚实裁定（§15/§16 + formalization-validity-domain 231号）：\n  \
+         - (a) 跨品种同质（pooling 有效）⟺ ICC 多数低(<0.3) ∧ 迁移误差小 ⟹ τ²≈0 ⟹ pooling 安全提升功效。\n  \
+         - (b) 跨品种异质（强 pooling 引偏差）⟺ ICC 多数高(>0.7) 或迁移误差大 ⟹ τ²>0 ⟹ 应收缩(pooling_weight)非全 pool。\n  \
+         - 功效边界：n_shared_classes 小（{MAX_BARS}bar 截断 + 8 品种）⟹ ICC 统计本身功效不足，\n    \
+           诚实报 blocked 而非「同质确认」（缺乏否证同质性的统计功效 ≠ 同质成立）。\n  \
+         - 单品种类（<{MIN_ASSETS_FOR_ICC} 品种）不计入——无法谈「品种间」相关（ICC 定义需 ≥2 品种 between 散布）。"
+    );
+
+    // acceptance：管线在多品种真实数据上跑通（≥2 品种 ∧ ICC 全部合法 ∈[0,1]）。
+    assert!(ests.len() >= 2, "≥2 品种才能检验跨品种同质性");
+    // 不硬编码 ICC 高低为不变量（no-patch §5：跨品种是否同质是经验问题非定理，留真实数据可证伪）。
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
