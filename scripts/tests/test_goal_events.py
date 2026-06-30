@@ -14,7 +14,12 @@ import json
 
 import pytest
 
-from goal_events import append_event, validate_event
+from goal_events import (
+    acceptance_hash,
+    acceptance_vector_hash,
+    append_event,
+    validate_event,
+)
 
 
 # ── 合法事件：每种 SCHEMA 事件类型的规范形态 ──────────────────────────────
@@ -386,3 +391,100 @@ def test_validate_event_pure_function():
     assert e == {"event": "CLOSED", "goal_id": "g1", "ts": "t0"}
     with pytest.raises(ValueError):
         validate_event("GOAL_SET", {"goal_id": "g1"})
+
+
+# ── GOAL_AMEND（codex 严格解法）：寻址层补 acceptance_id ──────────────────────
+
+def _seed_goal(ev_path, acceptance):
+    """写一个 GOAL_SET 作为 amend 目标。返回其 acceptance 数组。"""
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=acceptance, base_head="fab1f08a")
+    return acceptance
+
+
+def test_goal_amend_binds_acceptance_id(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    acc = _seed_goal(ev_path, [{"check": "c0", "falsifiable": True},
+                               {"check": "c1", "falsifiable": True}])
+    e = append_event(
+        "GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+        amendment_kind="ACCEPTANCE_ID_BINDING", reason="bind ids",
+        acceptance_vector_hash=acceptance_vector_hash(acc),
+        bindings=[{"ordinal": 0, "acceptance_hash": acceptance_hash(acc[0]), "acceptance_id": "acc-1"},
+                  {"ordinal": 1, "acceptance_hash": acceptance_hash(acc[1]), "acceptance_id": "acc-2"}],
+    )
+    assert e["event"] == "GOAL_AMEND"
+    assert e["bindings"][0]["acceptance_id"] == "acc-1"
+
+
+def test_goal_amend_wrong_vector_hash_rejected(tmp_path):
+    # acceptance_vector_hash 与目标 GOAL_SET 不符 → 拒绝（防对错误版本补 id）。
+    ev_path = tmp_path / "events.jsonl"
+    acc = _seed_goal(ev_path, [{"check": "c0", "falsifiable": True}])
+    with pytest.raises(ValueError, match="acceptance_vector_hash"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                     amendment_kind="ACCEPTANCE_ID_BINDING", reason="x",
+                     acceptance_vector_hash="sha256:篡改",
+                     bindings=[{"ordinal": 0, "acceptance_hash": acceptance_hash(acc[0]),
+                                "acceptance_id": "acc-1"}])
+
+
+def test_goal_amend_ordinal_hash_mismatch_rejected(tmp_path):
+    # ordinal 指向的 slot 的 hash 不符（ordinal/hash 错位）→ 拒绝。
+    ev_path = tmp_path / "events.jsonl"
+    acc = _seed_goal(ev_path, [{"check": "c0", "falsifiable": True},
+                               {"check": "c1", "falsifiable": True}])
+    with pytest.raises(ValueError, match="acceptance_hash 不匹配|错位"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                     amendment_kind="ACCEPTANCE_ID_BINDING", reason="x",
+                     acceptance_vector_hash=acceptance_vector_hash(acc),
+                     bindings=[{"ordinal": 0, "acceptance_hash": acceptance_hash(acc[1]),  # 错位
+                                "acceptance_id": "acc-1"}])
+
+
+def test_goal_amend_duplicate_id_rejected(tmp_path):
+    # acceptance_id 在 goal 内重复 → 拒绝。
+    ev_path = tmp_path / "events.jsonl"
+    acc = _seed_goal(ev_path, [{"check": "c0", "falsifiable": True},
+                               {"check": "c1", "falsifiable": True}])
+    with pytest.raises(ValueError, match="唯一|重复"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                     amendment_kind="ACCEPTANCE_ID_BINDING", reason="x",
+                     acceptance_vector_hash=acceptance_vector_hash(acc),
+                     bindings=[{"ordinal": 0, "acceptance_hash": acceptance_hash(acc[0]), "acceptance_id": "dup"},
+                               {"ordinal": 1, "acceptance_hash": acceptance_hash(acc[1]), "acceptance_id": "dup"}])
+
+
+def test_goal_amend_idempotent_rebind_noop(tmp_path):
+    # 重复 amend 绑同名 id → no-op 通过（幂等，重放安全）。
+    ev_path = tmp_path / "events.jsonl"
+    acc = _seed_goal(ev_path, [{"check": "c0", "falsifiable": True}])
+    b = [{"ordinal": 0, "acceptance_hash": acceptance_hash(acc[0]), "acceptance_id": "acc-1"}]
+    append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                 amendment_kind="ACCEPTANCE_ID_BINDING", reason="x",
+                 acceptance_vector_hash=acceptance_vector_hash(acc), bindings=b)
+    # 第二次同绑定——目标 slot 仍无 id（amend 不改 GOAL_SET 事件本身），所以再次合法
+    # （reducer 应用层幂等；writer 校验只看 GOAL_SET 的 slot 是否已被自带 id 占用）。
+    append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                 amendment_kind="ACCEPTANCE_ID_BINDING", reason="x",
+                 acceptance_vector_hash=acceptance_vector_hash(acc), bindings=b)
+
+
+def test_goal_amend_unknown_kind_rejected(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    acc = _seed_goal(ev_path, [{"check": "c0", "falsifiable": True}])
+    with pytest.raises(ValueError, match="amendment_kind"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                     amendment_kind="GOAL_RENAME", reason="x",
+                     acceptance_vector_hash=acceptance_vector_hash(acc),
+                     bindings=[{"ordinal": 0, "acceptance_hash": acceptance_hash(acc[0]),
+                                "acceptance_id": "acc-1"}])
+
+
+def test_goal_amend_no_goal_set_rejected(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="无对应 GOAL_SET"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="ghost",
+                     amendment_kind="ACCEPTANCE_ID_BINDING", reason="x",
+                     acceptance_vector_hash="sha256:x",
+                     bindings=[{"ordinal": 0, "acceptance_hash": "sha256:y", "acceptance_id": "acc-1"}])

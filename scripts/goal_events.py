@@ -27,6 +27,7 @@ escalation 文件（人读），writer 不让退化事件类型继续扩散。
 则拒绝 GOAL_SET）+ goal_reducer.py（reader 侧，本 writer 是其上游）+ codex 议题二 verdict=B。
 """
 import datetime
+import hashlib
 import json
 import os
 
@@ -41,6 +42,9 @@ _REQUIRED_FIELDS = {
     "BLOCKED": ("sub_goal_id", "blocker"),
     "SUPERSEDE": ("old_goal_id", "new_goal_id"),
     "CLOSED": ("goal_id",),
+    # GOAL_AMEND（codex 严格解法 2026-06-30）：寻址层修正——给历史 GOAL_SET 的无 id
+    # acceptance 补绑稳定 id，goal_id/base_head 不变（非 SUPERSEDE，不制造假 goal 更替）。
+    "GOAL_AMEND": ("goal_id", "amendment_kind", "reason", "acceptance_vector_hash", "bindings"),
 }
 # 每种事件类型允许出现的全部字段（必填 + 可选）。多余字段拒绝（防退化模式渗入：
 # 例如 GOAL_SET 误带 sub_goal_id 是退化写法的指纹）。ts 全局允许（自动或调用方提供）。
@@ -56,9 +60,33 @@ _ALLOWED_FIELDS["EVIDENCE"] |= {"evidence_id"}
 _ALLOWED_FIELDS["CHECK_PASS"] |= {
     "acceptance_id", "method", "command", "verifier", "judge", "rationale", "evidence_ids",
 }
+# GOAL_AMEND 可选审计字段（codex：definition_event_id 当前 events 的 GOAL_SET 无 event_id
+# 字段，故可选；recorded_head 记「补 id 发生在现在」的 HEAD，与不可变 base_head 分离）。
+_ALLOWED_FIELDS["GOAL_AMEND"] |= {"definition_event_id", "definition_base_head", "recorded_head"}
 
 
 _ACCEPTANCE_ALLOWED = {"check", "falsifiable", "id"}
+
+
+def acceptance_hash(acc: dict) -> str:
+    """acceptance 项去 id 后的 canonical sha256（codex slot_uid 的 acceptance_hash 分量）。
+
+    去 id：hash 只覆盖 check+falsifiable（语义内容），不含 id——否则补 id 会改 hash，
+    GOAL_AMEND 的 ordinal+hash 命中失败。canonical：sort_keys 消除字段序差异。
+    """
+    canonical = {k: acc[k] for k in ("check", "falsifiable") if k in acc}
+    blob = json.dumps(canonical, ensure_ascii=False, sort_keys=True)
+    return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def acceptance_vector_hash(acceptance: list[dict]) -> str:
+    """整个 acceptance 数组（每项去 id）的 canonical sha256（GOAL_AMEND 防篡改锚）。
+
+    锁定「amend 针对的 GOAL_SET acceptance 向量」——若 GOAL_SET 被改写，hash 不符，
+    amend 拒绝（防对错误 goal 版本补 id）。
+    """
+    blob = json.dumps([acceptance_hash(a) for a in acceptance], ensure_ascii=False)
+    return "sha256:" + hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def _validate_acceptance(acceptance: object) -> None:
@@ -164,6 +192,44 @@ def _validate_check_pass(fields: dict) -> None:
         raise ValueError("CHECK_PASS.acceptance_id 必须是非空字符串")
 
 
+def _validate_amend_bindings(fields: dict) -> None:
+    """GOAL_AMEND 无状态结构校验（codex 严格解法）。跨事件校验（hash 匹配历史 GOAL_SET、
+    ordinal 命中 slot、acceptance_id goal 内唯一、幂等）需历史 → 在 append_event 层。
+
+    amendment_kind 仅 ACCEPTANCE_ID_BINDING；bindings 非空 list，每项 {ordinal:int>=0,
+    acceptance_hash:非空 str, acceptance_id:非空 str}。ordinal/acceptance_id amend 内唯一。
+    """
+    if fields["amendment_kind"] != "ACCEPTANCE_ID_BINDING":
+        raise ValueError(
+            f"GOAL_AMEND.amendment_kind 仅支持 ACCEPTANCE_ID_BINDING，收到 {fields['amendment_kind']!r}"
+        )
+    if not _nonempty_str(fields["acceptance_vector_hash"]):
+        raise ValueError("GOAL_AMEND.acceptance_vector_hash 必须是非空字符串")
+    bindings = fields["bindings"]
+    if not isinstance(bindings, list) or not bindings:
+        raise ValueError("GOAL_AMEND.bindings 必须是非空 list")
+    seen_ord: set[int] = set()
+    seen_id: set[str] = set()
+    for i, b in enumerate(bindings):
+        if not isinstance(b, dict):
+            raise ValueError(f"bindings[{i}] 必须是 dict")
+        if not isinstance(b.get("ordinal"), int) or isinstance(b.get("ordinal"), bool) or b["ordinal"] < 0:
+            raise ValueError(f"bindings[{i}].ordinal 必须是非负 int")
+        if not _nonempty_str(b.get("acceptance_hash")):
+            raise ValueError(f"bindings[{i}].acceptance_hash 必须是非空字符串")
+        if not _nonempty_str(b.get("acceptance_id")):
+            raise ValueError(f"bindings[{i}].acceptance_id 必须是非空字符串")
+        extra = set(b) - {"ordinal", "acceptance_hash", "acceptance_id"}
+        if extra:
+            raise ValueError(f"bindings[{i}] 含多余字段 {sorted(extra)}")
+        if b["ordinal"] in seen_ord:
+            raise ValueError(f"bindings ordinal 重复 {b['ordinal']}（amend 内须唯一）")
+        if b["acceptance_id"] in seen_id:
+            raise ValueError(f"bindings acceptance_id 重复 {b['acceptance_id']!r}（amend 内须唯一）")
+        seen_ord.add(b["ordinal"])
+        seen_id.add(b["acceptance_id"])
+
+
 def validate_event(event_type: str, fields: dict) -> dict:
     """纯函数：校验 event_type + fields，合法则返回规范化事件 dict，非法 raise ValueError。
 
@@ -172,7 +238,7 @@ def validate_event(event_type: str, fields: dict) -> dict:
     """
     if event_type not in _REQUIRED_FIELDS:
         raise ValueError(
-            f"未知 event 类型 {event_type!r}（仅接受 SCHEMA.md 定义的 8 种："
+            f"未知 event 类型 {event_type!r}（仅接受 SCHEMA.md 定义的 9 种："
             f"{', '.join(sorted(_REQUIRED_FIELDS))}）"
         )
 
@@ -213,6 +279,8 @@ def validate_event(event_type: str, fields: dict) -> dict:
     elif event_type == "EVIDENCE":
         if "evidence_id" in fields and not _nonempty_str(fields["evidence_id"]):
             raise ValueError("EVIDENCE.evidence_id 必须是非空字符串")
+    elif event_type == "GOAL_AMEND":
+        _validate_amend_bindings(fields)
 
     # 规范化：event 字段置首，必填字段按 SCHEMA 顺序，可选字段（已通过多余字段检测）按序
     # 附后，ts 置尾。可选字段（acceptance_id/evidence_id/method/command/... 650 提升协议）
@@ -261,23 +329,95 @@ def append_event(event_type: str, *, ev_path: str | None = None, **fields) -> di
     return event
 
 
-def _existing_evidence_ids(ev_path: str) -> set[str]:
-    """读历史 events.jsonl，收集所有 EVIDENCE.evidence_id（reader 宽容口径：坏行/缺文件跳过）。"""
-    ids: set[str] = set()
+def _load_events(ev_path: str) -> list[dict]:
+    """宽容读历史 events.jsonl（reader 口径：坏行/缺文件跳过，不崩）。"""
+    out: list[dict] = []
     if not os.path.exists(ev_path):
-        return ids
+        return out
     with open(ev_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
                 continue
             try:
-                e = json.loads(line)
+                out.append(json.loads(line))
             except json.JSONDecodeError:
                 continue  # 历史坏行宽容跳过（reader 有效域）
-            if e.get("event") == "EVIDENCE" and e.get("evidence_id"):
-                ids.add(e["evidence_id"])
-    return ids
+    return out
+
+
+def _existing_evidence_ids(ev_path: str) -> set[str]:
+    """历史所有 EVIDENCE.evidence_id。"""
+    return {e["evidence_id"] for e in _load_events(ev_path)
+            if e.get("event") == "EVIDENCE" and e.get("evidence_id")}
+
+
+def _current_goal_set(events: list[dict], goal_id: str) -> dict | None:
+    """历史中该 goal_id 最后一个未被 SUPERSEDE 的 GOAL_SET（reader 口径与 reducer 一致）。"""
+    superseded = {e.get("old_goal_id") or e.get("sub_goal_id")
+                  for e in events if e.get("event") == "SUPERSEDE"}
+    found = None
+    for e in events:
+        if e.get("event") == "GOAL_SET":
+            gid = e.get("goal_id") or e.get("sub_goal_id")
+            if gid == goal_id and gid not in superseded:
+                found = e
+    return found
+
+
+def _check_amend_against_history(event: dict, events: list[dict]) -> None:
+    """GOAL_AMEND 跨事件校验（codex 严格解法 reducer 改动点4）。
+
+    - 目标 GOAL_SET 存在且有结构化 acceptance。
+    - acceptance_vector_hash 等于目标 GOAL_SET acceptance（去 id）的 canonical hash（防对
+      错误 goal 版本补 id）。
+    - 每个 binding 的 (ordinal, acceptance_hash) 命中目标唯一 slot。
+    - 幂等：若目标 acceptance[ordinal] 已绑同名 id → 该 binding no-op（允许）；绑不同 id →
+      invalid（同 slot 不可改绑）。
+    - acceptance_id 在目标 goal 内唯一（跨已有 + 本 amend）。
+    """
+    goal_id = event["goal_id"]
+    gs = _current_goal_set(events, goal_id)
+    if gs is None:
+        raise ValueError(f"GOAL_AMEND 目标 goal_id {goal_id!r} 无对应 GOAL_SET")
+    acceptance = gs.get("acceptance")
+    if not isinstance(acceptance, list) or not acceptance:
+        raise ValueError(f"GOAL_AMEND 目标 GOAL_SET {goal_id!r} 无结构化 acceptance（退化事件不可 amend）")
+
+    if event["acceptance_vector_hash"] != acceptance_vector_hash(acceptance):
+        raise ValueError(
+            "GOAL_AMEND.acceptance_vector_hash 与目标 GOAL_SET 不符"
+            "（GOAL_SET 已变更或 hash 算错，拒绝对错误版本补 id）"
+        )
+
+    # aid → 它已绑定的 ordinal（GOAL_SET 自带 + 历史 amend 绑定）。
+    # goal 内唯一 = 同一 aid 不得绑到不同 slot。同 aid 同 ordinal 的重放是幂等 no-op，
+    # 不是冲突（否则重放同一 amendment 会误报"已使用"——前一次相同 amend 把 aid 记进了历史）。
+    id_to_ordinal: dict[str, int] = {a["id"]: i for i, a in enumerate(acceptance) if a.get("id")}
+    for prev in events:
+        if prev.get("event") == "GOAL_AMEND" and prev.get("goal_id") == goal_id:
+            for b in prev.get("bindings", []):
+                id_to_ordinal.setdefault(b["acceptance_id"], b["ordinal"])
+
+    for b in event["bindings"]:
+        ordinal, ahash, aid = b["ordinal"], b["acceptance_hash"], b["acceptance_id"]
+        if ordinal >= len(acceptance):
+            raise ValueError(f"binding ordinal {ordinal} 越界（acceptance 仅 {len(acceptance)} 项）")
+        if acceptance_hash(acceptance[ordinal]) != ahash:
+            raise ValueError(
+                f"binding ordinal {ordinal} 的 acceptance_hash 不匹配目标 slot（ordinal/hash 错位）"
+            )
+        bound = acceptance[ordinal].get("id")
+        if bound is not None:
+            if bound == aid:
+                continue  # 幂等 no-op：GOAL_SET slot 已绑同名 id
+            raise ValueError(
+                f"binding ordinal {ordinal} 已绑 id {bound!r}，不可改绑为 {aid!r}（slot 身份不可变）"
+            )
+        prev_ordinal = id_to_ordinal.get(aid)
+        if prev_ordinal is not None and prev_ordinal != ordinal:
+            raise ValueError(f"acceptance_id {aid!r} 已在 goal {goal_id!r} 内使用（须唯一）")
+        id_to_ordinal[aid] = ordinal
 
 
 def _check_reference_integrity(event: dict, ev_path: str) -> None:
@@ -285,8 +425,11 @@ def _check_reference_integrity(event: dict, ev_path: str) -> None:
 
     - 新 EVIDENCE.evidence_id 须唯一（不与历史已存在的 evidence_id 撞）。
     - manual CHECK_PASS.evidence_ids 每项须指向历史已存在的 EVIDENCE.evidence_id。
+    - GOAL_AMEND 校验（hash 匹配 + ordinal/hash 命中 slot + acceptance_id 唯一 + 幂等）。
     """
-    existing = _existing_evidence_ids(ev_path)
+    events = _load_events(ev_path)
+    existing = {e["evidence_id"] for e in events
+                if e.get("event") == "EVIDENCE" and e.get("evidence_id")}
     if event["event"] == "EVIDENCE" and event.get("evidence_id"):
         if event["evidence_id"] in existing:
             raise ValueError(
@@ -299,3 +442,5 @@ def _check_reference_integrity(event: dict, ev_path: str) -> None:
                 f"CHECK_PASS.evidence_ids 指向不存在的 EVIDENCE.evidence_id {missing}"
                 f"（机器溯源须真指向既有证据，禁指向空气）"
             )
+    elif event["event"] == "GOAL_AMEND":
+        _check_amend_against_history(event, events)

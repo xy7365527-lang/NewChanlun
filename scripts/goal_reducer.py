@@ -49,6 +49,19 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
                 "blocked": [], "terminated": False}
 
     gid = goal["goal_id"]
+    # GOAL_AMEND 应用（codex 严格解法 2026-06-30）：寻址层补 id——把 bindings 的
+    # ordinal→acceptance_id 注入 acceptance slot（in-memory 补 id），使后续 CHECK_PASS 的
+    # acceptance_id 能稳定匹配。goal_id/base_head/acceptance 语义不变（非 SUPERSEDE）。
+    # reader 宽容：writer 已严格校验 amend（hash/ordinal/唯一/幂等）；reducer 只应用结构
+    # 正确的 binding——ordinal 越界或 slot 已绑 id 时忠实跳过（不崩，不覆盖已有 id）。
+    for e in events:
+        if e["event"] == "GOAL_AMEND" and _gid(e) == gid \
+                and e.get("amendment_kind") == "ACCEPTANCE_ID_BINDING":
+            for b in e.get("bindings", []):
+                o = b.get("ordinal")
+                if isinstance(o, int) and 0 <= o < len(goal["acceptance"]) \
+                        and goal["acceptance"][o].get("id") is None:
+                    goal["acceptance"][o]["id"] = b.get("acceptance_id")
     # base_head 是不可变历史锚（650 裁决，codex 议题二 verdict=B）：GOAL_SET 时刻的 git sha，
     # 永不被 RESUME 改写。base_head≠git_head 是正确的降级信号（base_head_stale=True，spec §9）——
     # 旧 EVIDENCE 可能未覆盖当前 HEAD。GOAL_RESUME 是纯审计事件（session 恢复留痕），不参与
