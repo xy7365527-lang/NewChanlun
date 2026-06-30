@@ -62,6 +62,11 @@ pub mod prereg_windows;
 pub mod runner;
 pub mod selector;
 
+/// 经济正条件逐信号分解（《经济正条件.pdf》§5 可捕获价差判据 L2 诊断）。
+/// 证明链 L0 见 `.chanlun/proofs/economic-positive-condition-chain.md`；实装设计见
+/// `economic-positive-impl-design.md`。非 cfg(test)——backtest_bin feature 下供真实数据 L2 诊断调用。
+pub mod econ_positive;
+
 /// 全窗 L3 定论测试模块（task #75，owner=l3-fullwindow 工位，Lead 登记）。
 /// 复现 [`runner`] 的 `l3_falsify_multi_symbol_significance` 但 `cut=全窗`（非 60K 截断），
 /// 定论缠论择时 alpha。整个 `backtest` 已被 `#[cfg(test)]` 门控（theta_v0/mod.rs:88），本子模块
