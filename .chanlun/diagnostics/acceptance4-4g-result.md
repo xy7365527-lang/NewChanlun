@@ -56,6 +56,20 @@ x_exp             2.14                     2.10（候选段 O(n²) 同阶支配�
 gen_hit%          —                        92.2%@16K（与 TreeKey-miss 26/16K + L0-root 早期强制 miss 一致）
 ```
 
+## codex 异质审 verdict 验证（议题一 S(N) vs R(N)，diag_candidate_s_vs_r_16k，L2）
+codex（gpt-5.5）verdict："O(1)摊还可达，当前 ≈2.0 是表示层下界非数学下界"。codex 提的三个 tree
+真凶候选（miss 大 n 端密集 / build_*_index 非 miss 隐式扫全树 / root-relative key 改名 Θ(n)）经我
+诊断**全否**：miss 成本 0.1%、非 miss 路径 tree+index 全 Rc::clone O(1)、ElementId 非 root-relative。
+真凶是 codex 框架未预设的 candidate(gamma) 段。套用 codex S/R 框架到 candidate：
+```
+S(N)=Σ每 bar 候选总数=353234（全量重建工作量）
+R(N)=Σ每 bar 相对上 bar 新增/变化候选=49（真增量工作量，按 (level,source_index,bits) 身份 diff）
+R/S=0.0001
+```
+**判定：R<<S ⟹ 表示层可修（candidate 前缀复用 O(R)≈O(49)），不是定义冲突。** 候选段每 bar 全量
+重建 22 候选/bar 是纯冗余——前缀跨 bar 几乎全同，仅新确认买卖点 + 偶尔 frontier 重判产生 49 次真变化。
+candidate 段 O(n) 增量化（codex 6 步范式：身份脱离全量重建 + 前缀冻结 + 尾部 dirty suffix）可达 O(n)。
+
 ## 认识论
 - L1：generation 快路逐 bar == nocache（bit-exact 裁判过 + debug 守卫抓漏修补）。
 - L2：TreeKey::of O(n²) 消除（确认性，CL 单标的，extract_s 降 33%）；全引擎 exp≈1.0 **未达**

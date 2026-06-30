@@ -712,6 +712,44 @@ mod profile {
         }
     }
 
+    /// **★工位 4g codex S(N) vs R(N)：candidate 段表示层 vs 数学下界判定**（L2）。
+    /// codex 框架（为 tree 设计，此处套 candidate 真凶）：S=Σ每 bar 候选总数（全量重建工作量）；
+    /// R=Σ每 bar 相对上 bar **新增/变化**的候选数（真增量工作量，按 (level,source_index,bits) 身份 diff）。
+    /// S 大 R 小 ⟹ 表示层可修（candidate 前缀复用 O(R)）；R=Θ(S) ⟹ 候选每 bar 真变全部（定义冲突，escalate）。
+    #[test]
+    #[ignore = "工位 4g：candidate S(N) vs R(N) 表示层判定；需 CL；--release --ignored"]
+    fn diag_candidate_s_vs_r_16k() {
+        use std::collections::HashSet;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 16_000.min(oos.bars.len());
+        let mut incr = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+        let mut s_total = 0u64;
+        let mut r_total = 0u64;
+        let mut prev: HashSet<(usize, usize, u8, u8)> = HashSet::new();
+        for i in 0..n {
+            let (cls, _tower) = incr.classify_at(i);
+            let mut cur: HashSet<(usize, usize, u8, u8)> = HashSet::new();
+            for (lvl, level) in cls.levels.iter().enumerate() {
+                for p in &level.bsp {
+                    let b = &p.bits;
+                    let buy = (b.buy1 as u8) | (b.buy2 as u8) << 1 | (b.buy3 as u8) << 2;
+                    let sell = (b.sell1 as u8) | (b.sell2 as u8) << 1 | (b.sell3 as u8) << 2;
+                    cur.insert((lvl, p.source_index, buy, sell));
+                }
+            }
+            s_total += cur.len() as u64;
+            r_total += cur.difference(&prev).count() as u64;
+            prev = cur;
+        }
+        eprintln!("\n===== candidate S(N) vs R(N)（CL OOS 16K，L2，codex 框架）=====");
+        eprintln!("S(N)=Σ候选总数={s_total}（全量重建工作量）");
+        eprintln!("R(N)=Σ新增/变化候选={r_total}（真增量工作量）");
+        eprintln!("R/S={:.4}（<<1 ⟹ 表示层可修前缀复用 O(R)；≈1 ⟹ 每 bar 真变全部=定义冲突）",
+            r_total as f64 / s_total.max(1) as f64);
+    }
+
     /// **★工位 4g bit-exact 守卫（debug 模式 debug_assert 生效）：generation 快路逐 bar == nocache**。
     ///
     /// 生产 `_gen` 路径的 debug_assert 在 release 不生效。本测试**默认 debug 构建**跑——代次快路命中时
