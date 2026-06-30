@@ -430,12 +430,32 @@ pub struct TreeCache {
     /// overlay 单独承载，[`coverage::operation_role_indexed_split`]），缓存不被 mutate。
     endpoint_idx: Rc<std::collections::HashMap<(u32, usize), usize>>,
     sibling_idx: Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
+    /// ★工位 4d 热点② O(n²) 消除：tree 前缀 `ElementId → idx` 索引——也是 `tree` 的纯函数，§16 前缀
+    /// 不变 ⟹ 索引不变 ⟹ 同缓存键复用。命中返 `Rc::clone` O(1)，旧 [`coverage::coverage_step_from_buckets`]
+    /// 每 bar `build_tree_id_index(tree_prefix)` O(tree)/bar=O(n²)。只读（held leg 对位查表，缓存不被 mutate）。
+    id_idx: Rc<std::collections::HashMap<ElementId, usize>>,
     valid: bool,
 }
 
 impl TreeCache {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// ★工位 4d：取回当前缓存的 tree 派生索引（`Rc::clone` O(1)）供 [`coverage::ElementView`] 注入。
+    /// 调用前必须先 [`coverage_elements_and_gamma_with_tower_cached`] 命中/建过同 tower（缓存已填）；
+    /// `valid=false`（未建过）⟹ 返 `None`，消费者 fallback 现建（bit-exact）。
+    pub(crate) fn tree_sibling_and_id(
+        &self,
+    ) -> Option<(
+        Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
+        Rc<std::collections::HashMap<ElementId, usize>>,
+    )> {
+        if self.valid {
+            Some((Rc::clone(&self.sibling_idx), Rc::clone(&self.id_idx)))
+        } else {
+            None
+        }
     }
 }
 
@@ -467,6 +487,8 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
                 let t = Rc::new(coverage::extract_elements(tower));
                 c.endpoint_idx = Rc::new(coverage::build_tree_endpoint_index(&t));
                 c.sibling_idx = Rc::new(coverage::build_prev_sibling_index(&t));
+                // ★工位 4d 热点②：tree 前缀 ElementId→idx 一并缓存（held leg 对位查表，§16 不变复用）。
+                c.id_idx = Rc::new(coverage::build_tree_id_index(&t));
                 c.tree = t;
                 c.key = key;
                 c.valid = true;

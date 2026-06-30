@@ -577,7 +577,12 @@ where
                 interp::coverage_elements_and_gamma_with_tower_cached(
                     &classification_step, &tower_i, &mut Some(&mut tree_cache),
                 );
-            let step_work = coverage::ElementView::from_parts(&step_tree, step_candidates);
+            // ★工位 4d 热点①②：注入缓存的 base（tree 前缀）兄弟/ID 索引（命中 Rc::clone O(1)），消除
+            // coverage_step_from_buckets 内每 bar build_prev_sibling_index/build_tree_id_index O(tree)/bar。
+            let mut step_work = coverage::ElementView::from_parts(&step_tree, step_candidates);
+            if let Some((sib, id)) = tree_cache.tree_sibling_and_id() {
+                step_work = step_work.with_base_indices(sib, id);
+            }
             let (next_active, _p_star, order) = coverage::pi_theta_step_prebuilt(
                 step_work,
                 &step_gamma,

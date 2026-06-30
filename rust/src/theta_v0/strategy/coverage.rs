@@ -110,17 +110,35 @@ pub struct CoverageElement {
 pub(crate) struct ElementView<'a> {
     base: &'a [CoverageElement],
     overlay: Vec<CoverageElement>,
+    /// ★工位 4d 热点①②：base（tree 前缀）的两个派生索引（`(parent,level)→idx` 兄弟表 + `ElementId→idx`
+    /// 表），由调用方从 [`super::interp::TreeCache`] 注入（命中返 `Rc::clone` O(1)）。`None` ⟹ 消费者
+    /// fallback 现建（[`coverage_step_from_buckets`] 测试路径/无缓存）。§16 tree 前缀不变 ⟹ 索引随
+    /// tree 缓存复用，消除每 bar `build_prev_sibling_index`/`build_tree_id_index` O(tree)/bar=O(n²)。
+    base_sibling_idx: Option<Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>>,
+    base_id_idx: Option<Rc<std::collections::HashMap<ElementId, usize>>>,
 }
 
 impl<'a> ElementView<'a> {
     fn new(base: &'a [CoverageElement]) -> Self {
-        ElementView { base, overlay: Vec::new() }
+        ElementView { base, overlay: Vec::new(), base_sibling_idx: None, base_id_idx: None }
     }
 
     /// 双段构造（base=持久树前缀借用零拷贝 + overlay=本 bar candidate 段 owned）。
     /// `_cached` 返回 `(tree_rc, candidates)` 后由消费者组装——消除旧 `tree.clone()` O(tree)/bar。
     pub(crate) fn from_parts(base: &'a [CoverageElement], overlay: Vec<CoverageElement>) -> Self {
-        ElementView { base, overlay }
+        ElementView { base, overlay, base_sibling_idx: None, base_id_idx: None }
+    }
+
+    /// ★工位 4d：注入 base 段缓存索引（runner 从 [`super::interp::TreeCache`] 取，bit-exact 与现建相等）。
+    /// 链式 builder：`ElementView::from_parts(..).with_base_indices(sib, id)`。
+    pub(crate) fn with_base_indices(
+        mut self,
+        sibling_idx: Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
+        id_idx: Rc<std::collections::HashMap<ElementId, usize>>,
+    ) -> Self {
+        self.base_sibling_idx = Some(sibling_idx);
+        self.base_id_idx = Some(id_idx);
+        self
     }
 
     /// 元素总数（base 前缀 + overlay 追加），= 旧 `work.len()`。
@@ -879,6 +897,66 @@ pub(crate) fn operation_role_indexed_split(
     OperationRole { h, v, delta }
 }
 
+/// ★工位 4d：双段兄弟索引的 [`operation_role_indexed`] 通用版——`base_sibling`（缓存的 tree-only，
+/// `Rc::clone` 复用）+ `overlay_sibling`（本 bar overlay 段 = candidate ++ restore，现建小索引）。
+/// 用于 [`strategy_target_legs`]：active 元素可能在 **base 段**（持仓腿对位回 tree 元素）**或 overlay 段**
+/// （candidate/restore），故对**两段都做** `partition_point(< e_idx)`（不同于 [`operation_role_indexed_split`]
+/// 假设 e_idx 恒在 candidate 段而 base 用 `.last()`）。
+///
+/// **bit-exact == [`operation_role_indexed`]（合并 sibling_idx）**：合并列表同键 = base 段同键 idx
+/// （全 `< base_len`）++ overlay 段同键 idx（全 `≥ base_len`），整体升序（base idx < overlay idx）。
+/// `partition_point(< e_idx)` 的前一个：overlay 段若有 `< e_idx` 的同键（其 idx > 任何 base idx）⟹ 取
+/// overlay 段 `< e_idx` 最大；否则 ⟹ base 段 `< e_idx` 最大。本函数先查 overlay（partition_point），
+/// 无则 fallback base（partition_point），与合并列表 partition_point 逐位等价。
+pub(crate) fn operation_role_two_segment(
+    elements: &ElementView,
+    e_idx: usize,
+    base_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+    overlay_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+) -> OperationRole {
+    let e = match elements.get(e_idx) {
+        Some(e) => e,
+        None => {
+            return OperationRole {
+                h: Horizontal::First,
+                v: Vertical::Ambient,
+                delta: Dir::Plus,
+            }
+        }
+    };
+    let delta = direction_of(e.eps);
+    let key = (e.parent, e.level);
+    let prev_lt = |idxs: &Vec<usize>| {
+        // idxs 升序（push 序）⟹ partition_point(< e_idx) 前一位 = < e_idx 的最大 idx（最近前兄弟）。
+        let pos = idxs.partition_point(|&i| i < e_idx);
+        (pos > 0).then(|| idxs[pos - 1])
+    };
+    let prev = overlay_sibling
+        .get(&key)
+        .and_then(prev_lt)
+        .or_else(|| base_sibling.get(&key).and_then(prev_lt));
+    let h = match prev {
+        Some(p) => {
+            let sigma_prev = dir_sign(direction_of(elements[p].eps));
+            if dir_sign(delta) == sigma_prev {
+                Horizontal::SameFollow
+            } else {
+                Horizontal::SameReverse
+            }
+        }
+        None => Horizontal::First,
+    };
+    let sigma_parent = parent_sign(e.attached_dir);
+    let v = if sigma_parent == 0 {
+        Vertical::Ambient
+    } else if dir_sign(delta) == sigma_parent {
+        Vertical::FollowParent
+    } else {
+        Vertical::ShortDiff
+    };
+    OperationRole { h, v, delta }
+}
+
 /// 垂直关系 V(g)（spec §7.2 / P6-P7，全函数唯一判定）。
 ///
 /// 按父容器方向 σ_{p(g)}（[`parent_sign`]）分：σ=0 → `Ambient`（去根化，spec P7）；
@@ -985,19 +1063,21 @@ pub fn leg_target(
     }
 }
 
-/// ponytail: H5 带预建索引的 leg_target 变体——热循环 strategy_target_legs 单次建索引、多次查。
-/// bit-exact == leg_target（role 经 operation_role_indexed 同逻辑）。
-fn leg_target_indexed(
+/// ★工位 4d：双段索引的 leg_target 变体——base 兄弟（缓存 tree-only）+ overlay 兄弟（本 bar candidate/
+/// restore 段），热循环 strategy_target_legs 单次建 overlay 索引、多次查。
+/// bit-exact == [`leg_target`]（role 经 [`operation_role_two_segment`] 双段 partition_point 同逻辑）。
+fn leg_target_two_segment(
     elements: &ElementView,
     e_idx: usize,
     base_units: f64,
     config: &VoiceConfig,
-    sibling_idx: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+    base_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
+    overlay_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>>,
 ) -> LegTarget {
     let e = &elements[e_idx];
     let depth = element_depth(elements, e_idx);
     let w = depth_weight(depth, config);
-    let role = operation_role_indexed(elements, e_idx, sibling_idx);
+    let role = operation_role_two_segment(elements, e_idx, base_sibling, overlay_sibling);
     LegTarget {
         e_idx,
         side: e.eps,
@@ -1029,14 +1109,33 @@ pub(crate) fn strategy_target_legs(
     base_units: f64,
     config: &VoiceConfig,
 ) -> Vec<LegTarget> {
-    // ponytail: H5 单次建 (parent,level)→last_idx 索引，每元素 O(1) 查前兄弟（消除 O(e_idx) 线性扫）。
-    // bit-exact：operation_role_indexed == operation_role（同 prev 判定）⟹ leg_target_indexed == leg_target。
-    // build_prev_sibling_index 仍接 slice：as_contiguous overlay 空借 base 零拷贝（常态），restore 罕触发 materialize。
-    let contiguous = elements.as_contiguous();
-    let sibling_idx = build_prev_sibling_index(contiguous.as_ref());
+    // ★工位 4d 热点① O(n²) 消除：base（tree 前缀）兄弟索引缓存命中复用 `Rc`（O(1)，§16 不变），
+    // 仅 overlay 段（candidate ++ restore，绝大多数 bar 仅 candidate）现建小索引。旧版每 bar
+    // build_prev_sibling_index(contiguous=tree+overlay) O(tree)/bar=O(n²)，现 base 段 O(1) 命中。
+    // bit-exact：operation_role_two_segment 双段 partition_point == 旧合并 sibling_idx partition_point
+    // （base idx 全 < base_len ≤ overlay idx ⟹ 合并列表升序，分段查等价；见 two_segment 函数 doc）。
+    let base_len = elements.base.len();
+    // overlay 段兄弟索引（全局 idx = base_len + i）。overlay 空（热循环常态）⟹ 空 HashMap，全查 base。
+    let mut overlay_sibling: std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
+        std::collections::HashMap::new();
+    for (i, e) in elements.overlay.iter().enumerate() {
+        overlay_sibling.entry((e.parent, e.level)).or_default().push(base_len + i);
+    }
+    // base 段兄弟：缓存命中复用 Rc（O(1)），缺失 fallback 现建 O(tree)（测试/无缓存路径）。
+    let base_sibling_owned;
+    let base_sibling: &std::collections::HashMap<(Option<usize>, u32), Vec<usize>> =
+        match &elements.base_sibling_idx {
+            Some(rc) => rc.as_ref(),
+            None => {
+                base_sibling_owned = build_prev_sibling_index(elements.base);
+                &base_sibling_owned
+            }
+        };
     active
         .iter()
-        .map(|&e_idx| leg_target_indexed(elements, e_idx, base_units, config, &sibling_idx))
+        .map(|&e_idx| {
+            leg_target_two_segment(elements, e_idx, base_units, config, base_sibling, &overlay_sibling)
+        })
         .collect()
 }
 
@@ -1116,7 +1215,7 @@ fn held_leg_tree_index(
 
 /// ponytail: H6 预建 `ElementId → idx` 索引（结构映射查表 O(1)，spec §13）。
 /// 确定性 ID 跨 bar 稳定 ⟹ 全量/增量产同 ID ⟹ 同一走势跨 bar 命中同 idx（父延伸也同 ID）。
-fn build_tree_id_index(
+pub(crate) fn build_tree_id_index(
     tree: &[CoverageElement],
 ) -> std::collections::HashMap<ElementId, usize> {
     let mut idx: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
@@ -1337,7 +1436,14 @@ pub(crate) fn coverage_step_from_buckets(
     // codex Q4：按 ElementId 结构映射查表（spec §13），替代旧 (level,ρ,eps)/(level,λ,eps) 值比较。
     // tree_prefix(tree_end) **借用 base**（candidate_start ≤ base.len()）⟹ build_tree_id_index 不 to_vec。
     let tree_end = candidate_start.min(work.len());
-    let id_idx = build_tree_id_index(work.tree_prefix(tree_end));
+    // ★工位 4d 热点②：缓存命中复用 `Rc<id_idx>`（`Rc::clone` O(1)，§16 tree 前缀不变 ⟹ ElementId→idx
+    // 不变；独立持有 ⟹ 不借 work，下游 restore push 可变借用 work 不冲突）；缺失（测试/无缓存路径）⟹
+    // fallback 现建 O(tree)。tree_end==candidate_start==base_len ⟹ 缓存覆盖范围 == tree_prefix(tree_end)
+    // == 完整 base，bit-exact 一致。
+    let id_idx: Rc<std::collections::HashMap<ElementId, usize>> = match &work.base_id_idx {
+        Some(rc) => Rc::clone(rc),
+        None => Rc::new(build_tree_id_index(work.tree_prefix(tree_end))),
+    };
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -3297,5 +3403,73 @@ mod tests {
         assert_eq!(order.action, StrictAction::Wait, "未持父 ⟹ ShortDiff 剔除 ⟹ Wait（639(c)）");
         assert_eq!(order.qty, 0, "Wait ⟹ qty=0（不建 naked 逆势仓）");
         assert_eq!(order.exec_index, 9, "订单携 exec_index（延迟成交 bar）");
+    }
+
+    /// **★工位 4d L1 bit-exact 守卫：注入缓存 base 索引 vs fallback 现建逐 bar 对拍**（真实 CL）。
+    ///
+    /// 热点①（`strategy_target_legs` 兄弟索引）+ ②（`held_leg_tree_index` ID 索引）改为 base 段复用
+    /// 缓存 `Rc` 索引（runner 从 TreeCache 注入）。本守卫逐 bar 跑**两条并行账本**：
+    /// - `with`：`ElementView::with_base_indices` 注入缓存 sibling/id 索引（生产路径）。
+    /// - `without`：不注入 ⟹ `coverage_step_from_buckets` fallback 现建（旧路径）。
+    /// 两路径各自独立演进 `prev_active`，断言每 bar `(next_active, p_tilde)` 逐字节相等。任何缓存路径
+    /// 与现建路径的发散（split partition_point ≠ 合并 partition_point、id_idx 覆盖范围错位）立即捕获。
+    ///
+    /// 认识论 L1（formalization-validity-domain 231号）：管线正确性验证（增量缓存 == 全量现建），
+    /// 非 L2 alpha。bit-exact == 旧 [`operation_role_indexed`]/[`build_tree_id_index`] 现建逻辑。
+    #[test]
+    #[ignore = "工位 4d L1 bit-exact：注入缓存 vs 现建逐 bar 对拍；需 CL；--release --ignored"]
+    fn bit_exact_cached_indices_vs_fallback() {
+        use super::super::super::backtest::data;
+        use super::super::super::config::ThetaConfig;
+        use super::super::super::{classifier, parser};
+        use super::super::interp::{self, TreeCache};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 4000.min(oos.bars.len());
+        let voice = config.voice.clone();
+        let mut cache = TreeCache::new();
+        let mut reg_with = super::super::persistent::PersistentRegistry::new();
+        let mut reg_without = super::super::persistent::PersistentRegistry::new();
+        let mut prev_with: Vec<ActiveLeg> = Vec::new();
+        let mut prev_without: Vec<ActiveLeg> = Vec::new();
+        let mut hits = 0usize;
+        for i in 0..n {
+            let l0 = parser::parse_layer(&oos.bars[..=i], &config);
+            let (cls, tower) = classifier::classify_with_tower(&l0, &config);
+            let (tree, candidates, gamma) =
+                interp::coverage_elements_and_gamma_with_tower_cached(&cls, &tower, &mut Some(&mut cache));
+
+            // with：注入缓存 base 索引（生产路径）。
+            let mut work_with = ElementView::from_parts(&tree, candidates.clone());
+            if let Some((sib, id)) = cache.tree_sibling_and_id() {
+                work_with = work_with.with_base_indices(sib, id);
+                hits += 1;
+            }
+            let (next_with, p_with) =
+                coverage_step_prebuilt(work_with, &gamma, &prev_with, 1000.0, &voice, &reg_with);
+
+            // without：不注入 ⟹ fallback 现建（旧路径）。
+            let work_without = ElementView::from_parts(&tree, candidates);
+            let (next_without, p_without) =
+                coverage_step_prebuilt(work_without, &gamma, &prev_without, 1000.0, &voice, &reg_without);
+
+            assert_eq!(
+                next_with, next_without,
+                "bar {i}: 缓存索引路径 next_active ≠ 现建路径（split partition_point/id_idx 发散）"
+            );
+            assert_eq!(
+                p_with.to_bits(), p_without.to_bits(),
+                "bar {i}: 缓存索引路径 p_tilde ≠ 现建路径（bit-exact 破裂）"
+            );
+
+            reg_with.merge_in_place(
+                ElementView::from_parts(&tree, Vec::new()).as_contiguous().as_ref(), &next_with);
+            reg_without.merge_in_place(
+                ElementView::from_parts(&tree, Vec::new()).as_contiguous().as_ref(), &next_without);
+            prev_with = next_with;
+            prev_without = next_without;
+        }
+        eprintln!("bit_exact_cached_indices_vs_fallback: {n} bars 全部 with==without，{hits} bars 缓存命中");
     }
 }

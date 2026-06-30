@@ -505,6 +505,66 @@ mod profile {
         }
     }
 
+    /// **★工位 4d L2 证据：`coverage_step` 路径标度（热点①② 消除验收）**。
+    ///
+    /// 工位 4c 的 `diag_strategy_hotspot_decompose_16k` 只测 extract（candidate 段重建）+ merge（③），
+    /// **不覆盖** `coverage_step_from_buckets`（热点① `strategy_target_legs` 兄弟索引 + ② `held_leg_tree_index`
+    /// ID 索引所在）。本 diag 镜像生产 runner 的完整 step 路径——`coverage_elements_and_gamma_with_tower_cached`
+    /// + 注入缓存 base 索引（[`coverage::ElementView::with_base_indices`]）+ `coverage_step_prebuilt`——
+    /// 测 step 总时间标度 `step_exp`，验收①② 缓存命中后 base 段 O(1)（不再每 bar `build_*_index` O(tree)）。
+    ///
+    /// 诚实诊断（formalization-validity-domain 231号 L2）：step 路径仍含 **candidate 段重建**（每 bar
+    /// candidate ∝ confirmed，§16 不可缓存——candidate 随 bar 变）+ `ancestor_close_by_id`（raw 闭包 O(raw)）
+    /// + `strategy_target_legs` 遍历 active（O(active)）。①②缓存只消除 base 段索引重建，candidate/active
+    /// 遍历是 step 的内禀工作量（非重复重建）。step_exp 反映这些残留的真实标度——若仍 >1.5 诚实报告，
+    /// 不强声明①② 已让 step≈1.0（candidate 重建是独立残留，非①②）。
+    #[test]
+    #[ignore = "工位 4d L2：coverage_step 路径标度（①② 缓存消除验收）；需 CL；--release"]
+    fn diag_coverage_step_scaling_16k() {
+        use super::super::super::strategy::{coverage, interp, persistent};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let voice = config.voice.clone();
+        eprintln!("\n===== coverage_step 路径标度（CL OOS，L2，①② 缓存注入）=====");
+        eprintln!("{:>7} | {:>10} | {:>8}", "n", "step_s", "step_exp");
+        let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [2000usize, 4000, 8000, 16000];
+        let mut prev: Option<(usize, f64)> = None;
+        for &n in &sizes {
+            if n > oos.bars.len() { break; }
+            let bars = &oos.bars[..n];
+            let mut incr = super::IncrementalClassifier::new(bars, &config);
+            let mut registry = persistent::PersistentRegistry::new();
+            let mut tree_cache = interp::TreeCache::new();
+            let mut prev_active: Vec<interp::ActiveLeg> = Vec::new();
+            let mut t_step = 0.0f64;
+            for i in 0..n {
+                let (cls, tower) = incr.classify_at(i);
+                let (tree, candidates, gamma) =
+                    interp::coverage_elements_and_gamma_with_tower_cached(
+                        &cls, &tower, &mut Some(&mut tree_cache));
+                // 生产路径：注入缓存 base 索引（①② O(1) 命中）。
+                let mut work = coverage::ElementView::from_parts(&tree, candidates);
+                if let Some((sib, id)) = tree_cache.tree_sibling_and_id() {
+                    work = work.with_base_indices(sib, id);
+                }
+                let t = std::time::Instant::now();
+                let (next_active, _p) =
+                    coverage::coverage_step_prebuilt(work, &gamma, &prev_active, 1000.0, &voice, &registry);
+                t_step += t.elapsed().as_secs_f64();
+                // merge 用纯 tree snapshot（与生产 candidate 含量差异不影响①② step 标度测量）。
+                registry.merge_in_place(
+                    coverage::ElementView::from_parts(&tree, Vec::new()).as_contiguous().as_ref(),
+                    &next_active);
+                prev_active = next_active;
+            }
+            let se = prev.map(|(pn, pt)| logexp(pn, pt, n, t_step)).unwrap_or(f64::NAN);
+            eprintln!("{n:>7} | {t_step:>10.3} | {se:>8.2}  registry_len={}", registry.len());
+            prev = Some((n, t_step));
+        }
+    }
+
     #[test]
     #[ignore = "profile: 增量 vs legacy 标度；需 CL；--release"]
     fn profile_incremental_vs_legacy_scaling() {
