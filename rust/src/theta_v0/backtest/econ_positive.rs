@@ -171,6 +171,11 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                 }
                 let pivot_bar = p.source_index; // 信号挂靠 pivot 端点（bsp.rs:103）= λ_rev / ρ_rev 取价处
                 // dir 经 assemble_gamma 拿（构造仅含该点的单级别分类，同 build_walk_forward_mu）。
+                // ponytail（fullhist-oom-fix-20260630）: single 的空 moves/centers 不是冗余——它**屏蔽其他层
+                // bsp**，只让这一个 bsp 产单候选。elements 从 tower 提取，classification 只供 bsp 做 Γ 组装；
+                // dir 来自该 bsp 的 coverage role 判定，非 tower 裸结构可读。此重建仅每新信号触发（600K bar=1682
+                // 次，万级噪声非 O(bar) 主导），勿当 O(N×L) 去重写 coverage 核心——会破 bit-exact。O(n²) 真因在
+                // classify_at 每 bar O(tree) 续算（#104/#105/#106 generation 快路）。
                 let single = super::super::classifier::Classification {
                     levels: cls_i
                         .levels
