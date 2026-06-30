@@ -264,6 +264,34 @@ pub fn run_theta_v0_pi(
     years: f64,
     initial_nav: f64,
 ) -> RunResult {
+    // χ≡1 全覆盖（默认入口，frozen Θ v0 bit-exact 不变）。χ 阈值过滤端到端入口见 [`run_theta_v0_pi_chi`]。
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, None)
+}
+
+/// ★χ_t 阈值过滤端到端入口（task #41 + delta-r-alpha #42）——`run_theta_v0_pi` 接 χ 过滤的版本。
+///
+/// θ 取 `config.risk.chi_theta`（`None` ⟹ 退化为 [`run_theta_v0_pi`] χ≡1）；μ 表 `est` 由调用方提供
+/// （其因果性由调用方负责并诚实标注：全窗 in-sample μ=泄漏 L1；walk-forward 增量 μ=L2/L3，#42）。
+/// `treat_empty_as_pass`：空类（μ=None）χ 取值（codex Q3：false=不交易最诚实）。
+pub fn run_theta_v0_pi_chi(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    est: &super::mu_estimator::MuEstimator,
+    treat_empty_as_pass: bool,
+) -> RunResult {
+    let chi = config.risk.chi_theta.map(|theta| ChiFilterCtx { est, theta, treat_empty_as_pass });
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
+}
+
+fn run_theta_v0_pi_inner(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    chi: Option<ChiFilterCtx>,
+) -> RunResult {
     let bars = &dataset.bars;
 
     // 闭环终态证据（与 run_theta_v0 同——bar 闭环驱动）。
@@ -301,6 +329,8 @@ pub fn run_theta_v0_pi(
         bars,
         initial_nav,
         config,
+        // χ 过滤上下文（None ⟹ χ≡1 全覆盖；Some ⟹ Γ_t^trade={γ:μ>θ}，来自 run_theta_v0_pi_chi）。
+        chi,
     );
 
     let bh_return = buy_and_hold_return(bars);
@@ -497,11 +527,29 @@ fn k_theta_risk_gate(
 ///
 /// **认识论 L1**（管线正确性，非 L2 alpha）：fill 模拟 + 账本推进确定，产 trades 是引擎管线串通
 /// 的物证；是否盈利由 L2/L3 否证（下个工位）。
+/// χ_t 阈值过滤上下文（task #41 chi-theta-filter）——`pi_theta_fill_loop` 的可选候选集过滤器。
+///
+/// `None`（不传）⟹ χ≡1 全覆盖（解释器处理全部 Γ_t，frozen Θ v0 bit-exact 不变）。`Some(ctx)` ⟹
+/// 每 bar 把 `step_gamma`（确认-bar 部署候选）过滤为 `Γ_t^trade={γ:μ(z_γ)>θ}`（[`selector::filter_gamma`]）。
+///
+/// **μ 表因果性由调用方负责**（selector.rs 模块头诚实声明）：`est` 若来自全窗 in-sample 交易 = 泄漏
+/// （L1 选择器逻辑生效证明，非 L2 alpha）；walk-forward 增量 μ 是下游 delta-r-alpha 工位（L2/L3）。
+/// θ 为**常数**（不从样本 μ 分布选，codex Q1 审查确认无前视）。
+pub struct ChiFilterCtx<'a> {
+    /// μ(z) 表（z 六维全互斥分类的样本边际收益）。
+    pub est: &'a super::mu_estimator::MuEstimator,
+    /// θ 阈值（成本/风险门槛，Θ_risk 参数，常数）。
+    pub theta: f64,
+    /// 空类（μ=None）χ 取值：false=不交易（最诚实，codex Q3）；true=全覆盖默认交易。
+    pub treat_empty_as_pass: bool,
+}
+
 fn pi_theta_fill_loop<F>(
     mut classify_at: F,
     bars: &[Bar],
     initial_nav: f64,
     config: &ThetaConfig,
+    chi: Option<ChiFilterCtx>,
 ) -> FillOutput
 where
     // ★工位 4g：闭包返回三元组——第三个 u64 = 塔代次（TreeCache O(1) 命中判据）。
@@ -594,9 +642,19 @@ where
             if let Some((sib, id)) = tree_cache.tree_sibling_and_id() {
                 step_work = step_work.with_base_indices(sib, id);
             }
+            // ── ③' χ_t 阈值过滤（task #41）：Γ_t → Γ_t^trade={γ:μ(z_γ)>θ}（§13）。 ──
+            // χ 仅滤候选集（喂 interpret 的 gamma）；step_work(tree/candidates) 不受影响——
+            // coverage_step_prebuilt 内 gamma→interpret 三桶 与 work→AncOK 准入解耦（gamma 滤掉
+            // μ≤θ 候选 ⟹ interpret 不归 open ⟹ 不开仓 = χ_t 语义）。None ⟹ χ≡1 全覆盖（不滤）。
+            let step_gamma_trade = match &chi {
+                Some(ctx) => super::selector::filter_gamma(
+                    &step_gamma, ctx.est, ctx.theta, ctx.treat_empty_as_pass,
+                ),
+                None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
+            };
             let (next_active, _p_star, order) = coverage::pi_theta_step_prebuilt(
                 step_work,
-                &step_gamma,
+                &step_gamma_trade,
                 &prev_active,
                 p_t,
                 exec_index.unwrap_or(i),
@@ -1395,11 +1453,92 @@ mod tests {
             &bars,
             1.0e6,
             &config,
+            None, // χ≡1（无过滤，本测试验 fill 机制）
         );
         // 七链：买点 bar 7 确认 → 确认-bar diff 部署 → 开 Long → 订单 → fill → 窗口终点强平 ⟹ trades≥1。
         assert!(fill.n_orders > 0, "π_Θ 确认-bar 部署买点 ⟹ 产订单（n_orders>0），实得 {}", fill.n_orders);
         assert!(!fill.trades.is_empty(), "开仓 + 窗口终点强平 ⟹ ≥1 笔交易轨迹，实得 {}", fill.trades.len());
         assert!(fill.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★★χ_t 阈值过滤对比（task #41 acc-chi-theta-filter 可证伪核心）：
+    //  χ≡1 全覆盖 vs χ=1[μ>θ] 阈值过滤——证明过滤确实改变交易集（非 no-op）。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 合成 classify 闭包工厂：买点 buy1@3 在 bar≥7 确认（同 `..produces_trades_nonempty`），空塔。
+    fn buy1_at3_confirmed_at7() -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64) {
+        let classification = Classification {
+            levels: vec![LevelState { bsp: vec![buy1_at(3)], ..Default::default() }],
+        };
+        move |i| {
+            if i >= 7 {
+                (classification.clone(), Vec::new(), i as u64)
+            } else {
+                (Classification::default(), Vec::new(), i as u64)
+            }
+        }
+    }
+
+    /// ★★χ≡1 vs χ=1[μ>θ] 对比（acc-chi-theta-filter 可证伪核心）：买点 z 的 μ≤θ ⟹ χ 滤掉它 ⟹
+    /// 交易集**收缩**（χ≡1 有交易，χ=1[μ>θ] 无）。这证明 χ 过滤**确实改变交易集**（非 no-op）。
+    ///
+    /// 构造：买点 buy1@3（z=level0,Long,buy1,Ambient/Root）的 μ=−50<θ=0 ⟹ χ_t(γ)=0 ⟹ 滤掉。
+    /// 认识论 L1（注入合成 μ 表验证选择器逻辑生效——过滤改变交易集；非 L2 alpha，μ 是合成的）。
+    #[test]
+    fn chi_filter_shrinks_trade_set_vs_full_coverage() {
+        use super::super::mu_estimator::{MuClass, MuEstimator, MuObservation, PositionState};
+        use super::super::super::types::BspBits;
+
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+
+        // χ≡1 全覆盖（chi=None）：买点开仓 ⟹ 有交易。
+        let fill_full = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        assert!(fill_full.n_orders > 0, "χ≡1：买点开仓 ⟹ 有订单（基线），实得 {}", fill_full.n_orders);
+
+        // χ=1[μ>θ]：买点 z 的 μ=−50≤θ=0 ⟹ χ=0 ⟹ 滤掉该候选 ⟹ 无开仓订单。
+        // z = 买点 buy1@3 的全互斥分类（level0,Long,buy1,父向0/Ambient,Root；空塔 ⟹ Ambient/Root）。
+        let z_buy = MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z_buy, x_gamma: -50.0 }); // μ(z)=−50 < θ=0
+        let chi = ChiFilterCtx { est: &est, theta: 0.0, treat_empty_as_pass: false };
+        let fill_chi = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, Some(chi));
+
+        // ★可证伪核心：χ 过滤改变交易集——μ≤θ 的买点被滤 ⟹ 订单数收缩（严格 <）。
+        assert!(
+            fill_chi.n_orders < fill_full.n_orders,
+            "χ=1[μ>θ] 滤掉 μ≤θ 买点 ⟹ 订单数收缩：χ过滤 {} < χ≡1 {}（若相等=过滤无效=fail）",
+            fill_chi.n_orders, fill_full.n_orders
+        );
+        // 本例 z 唯一买点被滤 ⟹ χ 路径无开仓（只剩窗口终点无持仓 ⟹ 无强平笔）。
+        assert_eq!(fill_chi.n_orders, 0, "唯一买点被 χ 滤掉 ⟹ 无订单");
+        assert!(fill_chi.trades.is_empty(), "无开仓 ⟹ 无交易轨迹");
+    }
+
+
+    /// ★χ μ>θ 放行（对偶）：买点 z 的 μ=+50>θ=0 ⟹ χ=1 ⟹ 保留 ⟹ 与 χ≡1 同交易集（bit-exact）。
+    /// 证明 χ 过滤**只滤 μ≤θ**——μ>θ 的候选不受影响（过滤是边际门，非全杀）。
+    #[test]
+    fn chi_filter_passes_positive_mu_same_as_full() {
+        use super::super::mu_estimator::{MuClass, MuEstimator, MuObservation, PositionState};
+        use super::super::super::types::BspBits;
+
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+
+        let fill_full = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+
+        // 买点 z 的 μ=+50>θ=0 ⟹ χ=1 ⟹ 放行（与 χ≡1 同）。
+        let z_buy = MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z_buy, x_gamma: 50.0 }); // μ(z)=+50 > θ=0
+        let chi = ChiFilterCtx { est: &est, theta: 0.0, treat_empty_as_pass: false };
+        let fill_chi = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, Some(chi));
+
+        // μ>θ 放行 ⟹ 与 χ≡1 同订单数/交易数（过滤只滤 μ≤θ，不动 μ>θ）。
+        assert_eq!(fill_chi.n_orders, fill_full.n_orders, "μ>θ 放行 ⟹ 订单数同 χ≡1");
+        assert_eq!(fill_chi.trades.len(), fill_full.trades.len(), "交易轨迹同 χ≡1");
     }
 
     /// ★run_theta_v0_pi 全链端到端（bars → parse → classify → π_Θ → fill）不破——结构性数据

@@ -37,7 +37,10 @@
 //! χ=1[μ>θ] 的 ΔN 序列非全等，**L1**），**不**证明 alpha 提升（**那需要 walk-forward μ，是后续
 //! 工位**）。本模块只提供选择器纯函数；μ 表的因果获取由调用方负责并诚实标注其泄漏状态。
 
-use super::mu_estimator::{MuClass, MuEstimator};
+use super::mu_estimator::{MuClass, MuEstimator, PositionState};
+use crate::theta_v0::strategy::coverage::Vertical;
+use crate::theta_v0::strategy::interp::Candidate;
+use crate::theta_v0::strategy::voice::VoiceSide;
 
 /// χ_t(γ) = 1 ⟺ μ(γ) > θ ∧ RiskOK ∧ ConflictOK（§13 line 2239）。
 ///
@@ -99,6 +102,72 @@ pub fn chi_open_gate(
     treat_empty_as_pass: bool,
 ) -> bool {
     chi_t(est.mu(z), theta, risk_ok, conflict_ok, treat_empty_as_pass)
+}
+
+/// 候选 γ ([`Candidate`]) → 全互斥分类 z ([`MuClass`])（§16 z 六维）的桥接。
+///
+/// `Candidate` 已带 `level`/`dir`(δ_g)/`bits`(I_γ)/`role`(R(g)=(H,V,δ))。z 的 `parent_dir` σ_p 与
+/// `position` 仓位态从 `role.v`（[`Vertical`]）推（与 [`MuClass::from_certificate`] 的 `short_swing`
+/// 推导口径一致）：
+/// - `Ambient`（σ_p=0，去根化无父）⟹ `position=Root`，`parent_dir=0`。
+/// - `FollowParent`（δ_g=σ_p，顺父）⟹ `position=Child`，`parent_dir=δ_g`（同向）。
+/// - `ShortDiff`（δ_g=−σ_p，短差）⟹ `position=Child`，`parent_dir=−δ_g`（反向）。
+///
+/// `Flat` 方向候选（不可交易，归 𝒦_x 记录）δ 占位 +1——其 z 不被 χ 用于开仓（interpret 已归 record）；
+/// 此桥接只服务**方向候选**的 χ 过滤，Flat 候选由 [`filter_gamma`] 在构 z 前按 `c.dir==Flat` 跳过。
+pub fn z_of_candidate(c: &Candidate) -> MuClass {
+    let delta: i8 = match c.dir {
+        VoiceSide::Long => 1,
+        VoiceSide::Short => -1,
+        VoiceSide::Flat => 1, // Flat 不可交易候选，δ 占位（调用方不对 Flat 构 z 做开仓门）
+    };
+    let (parent_dir, position) = match c.role.v {
+        Vertical::Ambient => (0, PositionState::Root),
+        Vertical::FollowParent => (delta, PositionState::Child), // σ_p = δ_g
+        Vertical::ShortDiff => (-delta, PositionState::Child),   // σ_p = −δ_g
+    };
+    MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
+}
+
+/// χ_t 候选集过滤（§13 line 2256）：`Γ_t → Γ_t^trade = {γ∈Γ_t : χ_t(γ)=1}`。
+///
+/// **诚实有效域声明（no-patch / no-claim-inflation）**：本函数只施加 χ_t 的 **μ>θ** 项——
+/// RiskOK/ConflictOK 在下游**已存在**（不重造，复用既有机制）：
+/// - **RiskOK**：`k_theta_risk_gate` 产 `KThetaRiskGate`（force_flat/stop）收窄 𝒦_Θ——风险否决在
+///   `pi_theta_position` 兑现，**非**本过滤层。
+/// - **ConflictOK**：[`interpret`](super::super::strategy::interp::interpret)（规则2/3/4）把冲突/重复
+///   候选归 𝒦_x 记录桶（不开仓）——冲突唯一裁决在解释器兑现，**非**本过滤层。
+///
+/// 故 χ_t(γ)=1[μ>θ ∧ RiskOK ∧ ConflictOK] = **本过滤(μ>θ)** ∘ **gate(RiskOK)** ∘ **interpret(ConflictOK)**
+/// 三机制合取兑现完整 χ_t；本函数兑现其中 μ 门（§13 唯一**新增**项，task #41 增量）。
+///
+/// **非方向候选（`dir==Flat` / `bsp_class==u8::MAX`）保留**——由 interpret 归 𝒦_x 记录（不执行），
+/// 在此不滤（χ 是开仓边际门，方向裁决是 interpret 职责，no-patch 不越界）。
+///
+/// `treat_empty_as_pass`：空类（μ=None，未观测 z）χ 取值（codex Q3）：`false` ⟹ χ=0 不交易
+/// （**最诚实**——无正边际证据不开，不引入泄漏）；`true` ⟹ 默认交易（探索/全覆盖）。
+///
+/// 认识论 **L1**（给定 μ 表/θ 过滤候选是确定性变换，验证选择器逻辑生效，零信息增量）——过滤是否
+/// 提升 alpha 是 **L2/L3**（需 walk-forward μ + 真实数据否证，下游 delta-r-alpha 工位）。
+pub fn filter_gamma(
+    gamma: &[Candidate],
+    est: &MuEstimator,
+    theta: f64,
+    treat_empty_as_pass: bool,
+) -> Vec<Candidate> {
+    gamma
+        .iter()
+        .filter(|c| {
+            // 非方向候选不滤（interpret 归 𝒦_x；χ 不越界做方向裁决）。
+            if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
+                return true;
+            }
+            // 方向候选：μ>θ 门（RiskOK/ConflictOK 下游已施，此处仅 μ 项 risk_ok=conflict_ok=true）。
+            let z = z_of_candidate(c);
+            chi_t(est.mu(&z), theta, true, true, treat_empty_as_pass)
+        })
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]

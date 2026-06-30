@@ -218,6 +218,7 @@ mod tests {
         assert_eq!(c.risk.gamma, 1.0);
         assert_eq!(c.risk.kappa, 2.0);
         assert_eq!(c.risk.default_lot, 1);
+        assert_eq!(c.risk.chi_theta, None); // frozen：默认 χ≡1 全覆盖（无阈值过滤，task #41）
         assert_eq!(c.exec.entry_delay_bars, 1);
         assert_eq!(c.exec.commission_bps, 1.0);
         assert_eq!(c.exec.slippage_bps, 2.0);

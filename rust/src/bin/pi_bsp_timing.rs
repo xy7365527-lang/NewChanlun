@@ -485,9 +485,9 @@ fn run_state_machine(
 
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    if args.len() != 2 && args.len() != 4 {
+    if args.len() != 2 && args.len() != 4 && args.len() != 5 {
         eprintln!(
-            "用法: {} <SYMBOL> [START_DATE END_DATE]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO",
+            "用法: {} <SYMBOL> [START_DATE END_DATE [THETA]]\n  SYMBOL: BTC/ES/CL/GC/BRN/DX/QQQ/OKLO\n  THETA: χ 阈值 θ（默认 0；负值趋近全覆盖，验收边界）",
             args.first().map(String::as_str).unwrap_or("pi_bsp_timing")
         );
         return std::process::ExitCode::from(2);
@@ -517,317 +517,33 @@ fn main() -> std::process::ExitCode {
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
     let years = (n as f64 / (365.25 * 24.0 * 60.0)).max(1e-9);
 
-    // ── π_Θ^bsp 多声部状态机 ──
-    // voices：所有曾创建的 position instance（append-only，parent 索引稳定）。
-    // active：当前 A_t（§4 活动声部索引集）。
-    let mut classifier = IncrementalClassifier::new(bars, &config);
-    let mut seen: HashSet<(usize, usize, u8)> = HashSet::new();
-    // ★Fresh（递归证明.pdf §2，codex NO#3）：独立 Lift 记忆——防同一 (carrier,方向) 重复 Lift。
-    // **不**复用 `seen`（seen 在证书发现去重，早于 Lift；会吞「先 U(g)=∅ 父未 live、后父成熟」的合法
-    // 迟到 Lift）。seen_lifted 只在真正 Lift 成功（子声部开成）时记 ⟹ 迟到 Lift 仍可激活。
-    let mut seen_lifted: HashSet<(ElementId, i8)> = HashSet::new();
-    let mut voices: Vec<Voice> = Vec::new();
-    let mut active: HashSet<usize> = HashSet::new();
-    // 每 carrier 的代数计数（§3 n_v：同 carrier 多次开仓）。carrier=hostOf ElementId（644）。
-    let mut gen_counter: HashMap<ElementId, u32> = HashMap::new();
-    // 净额 N_t^bsp 逐 bar 序列（§12/§18 头寸）。
-    let mut net_per_bar: Vec<f64> = vec![0.0; n];
+    // ── χ_t 阈值过滤的两遍对比（alpha2 §13，task #41 acc-chi-theta-filter 核心）──
+    // Pass 1：χ≡1 全覆盖（每条 Lift 通过证书都开仓），同时估出 μ 表。
+    // Pass 2：χ=1[μ(z)>θ]，用 Pass 1 的 μ 表过滤开仓。
+    // ★因果性诚实声明（alpha2 §5 / project_zero_lookahead_backtest / formalization-validity-domain）：
+    //   Pass 2 用 Pass 1 **全程** in-sample μ 过滤当前开仓 = 未来函数泄漏。故 ΔN 非全等只证明
+    //   **选择器逻辑生效（L1）**，**不**证明 alpha 提升（需 walk-forward μ，是 task #42 delta-r-alpha 后续工位）。
+    // θ：成本+风险门槛（§13），**Θ_risk 参数，非缠论可导**（诚实标注）。默认 θ=0；可由 args[4] 覆盖。
+    let theta: f64 = if args.len() >= 5 { args[4].parse().unwrap_or(0.0) } else { 0.0 };
 
-    // ── μ(z,a) 类别条件边际收益估计器（alpha2 §12，task #39 mu-estimator）──
-    // 每个声部 v 真实平仓（closing 触发 = 出场证书 δ=−σ_v 命中 τ_γ，**非**窗口强平）时构造一笔
-    // MuObservation：z=(level,δ,I_γ,父向,短差,仓位态)，X_γ=δ(P_τ−P_t)−C 用真实 entry/exit close 价。
-    // ★因果性（alpha2 §5 / project_bsp_direction_valid_friction_floor）：τ_γ=i 是出场证书命中的当前
-    // bar（F_i-可测），P 用 prices[entry_bar]/prices[i]（confirm close，可成交价）——**非**端点后视。
-    let mut mu_est = MuEstimator::new();
-    // 单笔强平计数（窗口末端仍 active 的声部用末 bar 强平喂 μ，标注 forced——退出非证书触发，
-    // 与真实 τ_γ 区分；codex 审退出时刻定义时此项需如实报，不混入「证书退出」μ）。
-    let mut mu_forced_obs = 0usize;
-    // 喂 μ 的辅助闭包载体：根声部父向=0；子声部父向=父 voice.dir（§16 σ_p）。
-    let parent_dir_of = |voices: &[Voice], v: usize| -> i8 {
-        voices[v].parent.map_or(0, |p| voices[p].dir)
-    };
+    let pass1 = run_state_machine(bars, &prices, &config, fee_rate, None);
+    let pass2 = run_state_machine(bars, &prices, &config, fee_rate, Some((&pass1.mu_est, theta)));
 
-    // ── 子声部可达性诊断（647 第四根因坐实，L2 否定性结果）──
-    // 647 诊断 π^bsp 子声部=0 根因为 bin 内三处逻辑（P3 出场优先 + 跨 carrier 方向匹配 +
-    // 单次快照），并提修复路径（按 carrier 匹配 + host-miss 不丢弃）。本实装已落该修复，但子
-    // 声部仍=0——揭示 647 未追到的第四根因：`extract_elements` 单最高级降序树只覆盖部分 L0 走势，
-    // bsp 点大多落树外（orphan frontier 段）⟹ host-miss ⟹ ∂ 根声部。这些统计量化联合条件
-    //（host-hit ∧ parent-container-voice-active）的真实有效域（231：L2 否定性结果有信息增量）。
-    let mut diag_certs = 0usize; // 方向证书总数
-    let mut diag_host_miss = 0usize; // hostOf 未命中（落 extract_elements 树外，∂ 根）
-    let mut diag_has_parent = 0usize; // host 命中且有真 Compose 父容器
-    let mut diag_parent_active_found = 0usize; // 父容器上有 active 声部（子声部可达的必要条件）
-    let mut diag_lift_pass = 0usize; // ★严格可提升数（Context∧Fresh 双门通过的子声部 Lift，≤裸 host-hit）
+    // ★可证伪对比（acc-chi-theta-filter 核心）：ΔN_t 序列 χ≡1 vs χ=1[μ>θ] 非全等。
+    let n_diff_bars =
+        (0..n).filter(|&i| (pass1.net_per_bar[i] - pass2.net_per_bar[i]).abs() > 1e-12).count();
+    let sequences_differ = n_diff_bars > 0;
 
-    for i in 0..n {
-        let (classification, tower) = classifier.classify_at(i);
+    // 下游 §18 指标对 **Pass 2（过滤后）** 算（χ=1[μ>θ] 策略的真实头寸序列）。
+    let net_per_bar = pass2.net_per_bar.clone();
+    let voices = &pass2.voices;
+    let mu_est = &pass2.mu_est;
+    let diag_certs = pass2.diag_certs;
+    let diag_host_miss = pass2.diag_host_miss;
+    let diag_has_parent = pass2.diag_has_parent;
+    let diag_parent_active_found = pass2.diag_parent_active_found;
+    let diag_lift_pass = pass2.diag_lift_pass;
 
-        // ── 方案D（视图分离，裁决648）：host^op 用 **K_i 操作 carrier forest**（非 T_i）──
-        // 旧版 `extract_elements`=T_i=↓r_i（只展开最高非空级别根，覆盖 ~36% L0）⟹ bsp 大量落 orphan
-        // frontier ⟹ host-miss ⟹ ∂ 根声部 ⟹ 子声部恒 0（PDF §8/§11，line 188-190 旧诊断坐实）。
-        // `extract_carrier_forest`=K_i=U_i=全量 tower 元素（endpoint-complete：∀bsp ∃c ρ(c)=s(g)）⟹
-        // host^op 不再 miss ⟹ 子声部 carrier/parent_id 真命中（PDF §3/§19，host 严格右端点命中不变）。
-        // 每个 `LeveledMove` 是元素 e；其 `sub_moves` 是真 Compose 子（push_element_tree 真父子）。
-        // hostOf 的 `parent_id`（真 Compose 父容器 ElementId）= 子声部的父声部 carrier（§9.1）。
-        let tree = extract_carrier_forest(&tower);
-        let tree_idx = build_tree_endpoint_index(&tree);
-
-        // 本 bar 新确认的方向证书（§1-2 γ）。每条证书携：
-        // (carrier=hostOf ElementId, parent_id=hostOf 真 Compose 父容器, σ_p=父方向)。
-        // append-only seen-set diff（644：与 runner newly_confirmed_step 同语义，无 look-ahead）。
-        // (carrier, parent_id, dir)：dir 是证书方向（买 +1 / 卖 −1），由 §5/§16 在 open 时按是否有父决定 final_dir。
-        // 元组：(carrier, parent_id, parent_level ℓ_c, parent_rho ρ_c, dir)。(ℓ_c,ρ_c) = 上级
-        // carrier c 坐标（Lift.Context 投影去 levels[ℓ_c].bsp 找 g 证成上级第 j 类的已确认买卖点）。
-        // 元组末位 `BspBits` = 该证书的 I_γ 类别（μ(z) i_class 分量，§P4 §5 不压扁）。
-        let mut new_certs: Vec<(
-            ElementId,
-            Option<ElementId>,
-            Option<u32>,
-            Option<usize>,
-            i8,
-            BspBits,
-        )> = Vec::new();
-        for (lvl, ls) in classification.levels.iter().enumerate() {
-            for p in &ls.bsp {
-                if seen.insert((lvl, p.source_index, p.bits.class_index())) {
-                    let c = cert_of(&p.bits);
-                    if c.buy || c.sell {
-                        diag_certs += 1;
-                    }
-                    // 638 hostOf 附着（生产同口径 interp.rs:498）：carrier 容器 hostOf(g) id（§13/§14
-                    // 工位 H：carrier 容器本身作 position node，非叶子 ordinal）。host-miss ⟹ carrier_id=None
-                    // ⟹ 叶子 ordinal id（边界胚元 ∂ = 根声部，**不**丢弃——旧版 continue 丢 97.6% 证书的根因）。
-                    let (host_parent_idx, _attached_dir, carrier_id) =
-                        attach_bsp_carrier_indexed(&tree_idx, &tree, lvl as u32, p.source_index);
-                    if (c.buy || c.sell) && carrier_id.is_none() {
-                        diag_host_miss += 1;
-                    }
-                    // carrier：hostOf 容器 id（找到）/ 叶子 ordinal id（host-miss = ∂ 根，§14 退化）。
-                    // 同 carrier 同 bar 多 bsp 共享 id（§14 简化，与生产 interp.rs:516 同口径）。
-                    let carrier = carrier_id
-                        .unwrap_or(ElementId { level: lvl as u32, ordinal: p.source_index as u64 });
-                    // 父声部 carrier = hostOf 的真 Compose 父容器 ElementId（§9.1 par_C(κ(u))=κ(v)）。
-                    let parent_id = host_parent_idx.map(|pi| tree[pi].id);
-                    if (c.buy || c.sell) && parent_id.is_some() {
-                        diag_has_parent += 1;
-                    }
-                    // 上级 carrier c 的 (level_c, rho_c)——Lift.Context 投影载体（codex 口径 A）。
-                    let parent_carrier = attach_bsp_parent_carrier_indexed(
-                        &tree_idx, &tree, lvl as u32, p.source_index,
-                    );
-                    let parent_level = parent_carrier.map(|(_, lc, _)| lc);
-                    let parent_rho = parent_carrier.map(|(_, _, rho_c)| rho_c);
-                    if c.buy {
-                        new_certs.push((carrier, parent_id, parent_level, parent_rho, 1, p.bits));
-                    }
-                    if c.sell {
-                        new_certs.push((carrier, parent_id, parent_level, parent_rho, -1, p.bits));
-                    }
-                }
-            }
-        }
-
-        // ── §9 先平后开 A^raw=(A_t\D_t)∪O_t ──
-        // D_t：出场声部集（§5 出场证书 δ(γ)=−σ_v）。出场证书 = **同 carrier** 上的反向证书
-        // （声部级 §5 δ=−σ_v，落在产出该声部的走势容器上）。
-        //
-        // 644 修复（根因 #3，task close-优先误平）：旧版把**任意**反向证书当出场（global any_sell），
-        // 导致父根声部被同 bar 出现的反向证书平掉 → §16 短差子声部永无机会附着（子声部恒 0）。
-        // 短差子声部（§16）是父持仓**期内**的对冲腿——反向证书应在**子 carrier**开子声部，**不**平父声部。
-        // 故出场证书严格按 carrier 配对：声部 v 的出场 = v 自身 carrier 上的反向证书（其他 carrier 反向
-        // 证书是开新声部/子声部的入场触发，与 v 出场无关）。
-        let mut closing: HashSet<usize> = HashSet::new();
-        for &v in &active {
-            let voice = &voices[v];
-            // 出场方向证书：dir>0（多头）出场=卖证书（−1）；dir<0（空头）出场=买证书（+1）。
-            let exit_dir = -voice.dir;
-            let exit_cert = new_certs
-                .iter()
-                .any(|&(c, _, _, _, d, _)| c == voice.carrier && d == exit_dir);
-            // §10-11 close 优先：风险关闭(本实装 risk_close=false, K_Θ 恒等)/父关闭/出场证书。
-            // 父关闭在 anc_ok 阶段级联处理，此处判出场证书（P3，同 carrier 反向）。
-            if should_close(exit_cert, true, false) {
-                closing.insert(v);
-            }
-        }
-        // D_t 应用：A_t \ D_t。真实平仓 ⟹ 喂 μ 估计器（τ_γ=i 出场证书命中，因果可测）。
-        for &v in &closing {
-            let voice = voices[v];
-            let entry_px = prices[voice.entry_bar.min(n - 1)];
-            let exit_px = prices[i]; // τ_γ=i：出场证书命中的当前 bar close（F_i-可测，非后视）
-            let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
-            let z = MuClass::from_certificate(
-                voice.level,
-                voice.dir,
-                voice.bits,
-                parent_dir_of(&voices, v),
-                if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
-            );
-            mu_est.observe(MuObservation { class: z, x_gamma });
-            active.remove(&v);
-        }
-
-        // O_t：开仓声部集（§5 入场证书 δ(γ)=σ_v）。
-        // 根声部（§5，host 父容器=∂，parent_id=None）：买侧证书 → 开多头根声部（σ_v=+1）；
-        //   卖侧证书 → 开空头根声部（σ_v=−1）。
-        // 短差子声部（§6/§16，host 有真 Compose 父容器 parent_id）：父声部 = parent_id carrier 上的
-        //   active 声部；子声部 σ_u=−σ_p（结构性，与同 bar 是否有反向证书无关——644 修复核心）。
-        //
-        // 644 结构父子：父子关系由 hostOf 的真 Compose 父容器 `parent_id`（§9.1 par_C）决定，
-        // 不再由「同 bar 同时出现的反向证书」伪造（旧版子声部恒 0 的根因）。父声部 = parent_id 容器
-        // 上当前 active 的声部（§4 父 active 子才 active；anc_ok 阶段对位）。
-
-        // 当前每 carrier 上的 active 声部索引（用于按 parent_id 反查父声部）。同 carrier 多声部取首个
-        // （generation 区分；anc_ok 用 parent 索引链剪枝，首个 active 即代表该容器的持仓节点）。
-        let active_voice_by_carrier: HashMap<ElementId, usize> =
-            active.iter().map(|&v| (voices[v].carrier, v)).collect();
-
-        // ★方案D §9（裁决648 / codex YES#3）：解释器**生成父 voice**（接受父子证书链），不靠子反推父。
-        // 本 bar 证书按 carrier 建表（carrier→(parent_id, cert_dir)）——open 子声部时，若其父 carrier
-        // **本 bar 也有证书**（父子证书链 γ_0..γ_d 同 bar 存在）或父已 live，则**同时开父 voice**再开子。
-        // codex 严格条件：父 voice 进 O_i **仅因**父证书同 bar 或父已 live（**非** AncOK 生成父——AncOK
-        // 仍是过滤器只剪孤儿子，§6/§7）。沿真 Compose parent 链上溯，对每个有同 bar 证书的祖先开 voice。
-        let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8, BspBits)> =
-            new_certs.iter().map(|&(c, p, _lc, _rho, d, b)| (c, (p, d, b))).collect();
-
-        // open_carrier：确保 carrier 上有 active voice（已 live ⟹ 复用首个；否则沿父链先开父再开本级）。
-        // 返回该 carrier 的 active voice 索引。父链上溯到 ∂（parent_id=None）或无同 bar 证书的祖先为止。
-        fn open_carrier(
-            voices: &mut Vec<Voice>,
-            active: &mut HashSet<usize>,
-            gen_counter: &mut HashMap<ElementId, u32>,
-            active_voice_by_carrier: &HashMap<ElementId, usize>,
-            certs_by_carrier: &HashMap<ElementId, (Option<ElementId>, i8, BspBits)>,
-            opened_this_bar: &mut HashMap<ElementId, usize>,
-            carrier: ElementId,
-            parent_id: Option<ElementId>,
-            cert_dir: i8,
-            cert_bits: BspBits,
-            entry_bar: usize,
-        ) -> usize {
-            // 已 live（上一 bar 留存）⟹ 复用（§9 父已 live 分支）。
-            if let Some(&idx) = active_voice_by_carrier.get(&carrier) {
-                return idx;
-            }
-            // 本 bar 已开过该 carrier ⟹ 复用（防同 bar 重复开，父链多子共享父）。
-            if let Some(&idx) = opened_this_bar.get(&carrier) {
-                return idx;
-            }
-            // 父声部：parent_id 有真父 ∧（父已 live 或父本 bar 有证书）⟹ 递归先开父（§9 生成父 voice）。
-            // ★Lift.Nest（递归证明.pdf §2.2，codex YES#1）：J_ℓ(d)⊆J_{ℓ+1}(c)（子区间⊆父区间）。
-            // K_i 真嵌套（push_element_tree 子 sub_moves 挂父，compose 父区间取首尾子）下**恒满足**
-            // ⟹ debug_assert 守卫足够（生产域无反例；只防手工乱序/伪造 LeveledMove）。本 bin 在 K_i 上
-            // 建 carrier，子 carrier 与父 carrier 的区间⊆关系由 extract_carrier_forest 真嵌套保证。
-            let parent = parent_id.and_then(|pid| {
-                if active_voice_by_carrier.contains_key(&pid)
-                    || opened_this_bar.contains_key(&pid)
-                    || certs_by_carrier.contains_key(&pid)
-                {
-                    let (ppid, pdir, pbits) =
-                        certs_by_carrier.get(&pid).copied().unwrap_or((None, cert_dir, cert_bits));
-                    Some(open_carrier(
-                        voices, active, gen_counter, active_voice_by_carrier,
-                        certs_by_carrier, opened_this_bar, pid, ppid, pdir, pbits, entry_bar,
-                    ))
-                } else {
-                    None // 父无同 bar 证书且未 live ⟹ 不生成父（codex 严格条件）⟹ 本级作根声部。
-                }
-            });
-            // 子声部方向 = −父方向（§6/§16 σ_u=−σ_p）；根声部方向 = 证书方向（§5）。
-            let final_dir = match parent {
-                Some(pidx) => Voice::child_dir(voices[pidx].dir),
-                None => cert_dir,
-            };
-            let g = gen_counter.entry(carrier).or_insert(0);
-            *g += 1;
-            let idx = voices.len();
-            voices.push(Voice {
-                carrier,
-                dir: final_dir,
-                parent,
-                qty: 1.0, // §7/§13 Q_Θ=1 单位（诚实简化）
-                generation: *g,
-                entry_bar,
-                bits: cert_bits, // 开仓证书 I_γ（μ(z) i_class，§P4 §5）
-                level: carrier.level, // ℓ（μ(z) level 分量）
-            });
-            active.insert(idx);
-            opened_this_bar.insert(carrier, idx);
-            idx
-        }
-
-        for &(_carrier, parent_id, _lc, _rho, _cert_dir, _bits) in &new_certs {
-            if let Some(pid) = parent_id {
-                if active_voice_by_carrier.contains_key(&pid) {
-                    diag_parent_active_found += 1;
-                }
-            }
-        }
-        let mut opened_this_bar: HashMap<ElementId, usize> = HashMap::new();
-        for &(carrier, parent_id, parent_level, parent_rho, cert_dir, cert_bits) in &new_certs {
-            // ── Lift 谓词链门（递归证明.pdf §2/§4：Lift=Host∧Nest∧Context∧Fresh，全 1 ⟹ U(g)≠∅）──
-            // Host：carrier 命中 hostOf（new_certs 已是命中结果）。Nest：K_i 真嵌套自动满足（debug_assert）。
-            // 有真父的证书 = 候选子声部 g（要 Lift 到上级 c）。无真父 = 根声部证书，无需 Lift 门，直接开根。
-            if parent_id.is_some() {
-                // ★Context^δ_j（codex 口径 A）：g 必须证成上级 carrier c 第 j 类（上级 ℓ_c 在 ρ_c 处
-                // 已独立分类出同向 δ 买卖点）。投影坐标 (ℓ_c=parent_level, ρ_c=parent_rho) 在证书收集
-                // 时由 attach_bsp_parent_carrier_indexed 取真 Compose 父 carrier 的 level/rho。
-                let lifts = match (parent_level, parent_rho) {
-                    (Some(lc), Some(rc)) => {
-                        // δ：子声部要 Lift 的证书方向 g（codex 审点 #2=σ_u/证书方向，非父 σ_p）。
-                        let side = if cert_dir > 0 { Side::Long } else { Side::Short };
-                        context_lifts(&classification, lc, rc, side)
-                    }
-                    _ => false, // ℓ_c/ρ_c 缺失（host 父坐标丢失）⟹ Context 不可判 ⟹ 不可提升。
-                };
-                if !lifts {
-                    continue; // Context 失败 ⟹ g 不可提升 ⟹ 不开子、不开父、不降级根（codex 审点 #3）。
-                }
-                // ★Fresh（codex NO#3）：独立 seen_lifted 防同一 Lift（carrier+方向）重复触发——
-                // **不**复用 seen（seen 早于 Lift 在证书发现去重，会吞「先 U(g)=∅ 后成熟」的合法迟到 Lift）。
-                // seen_lifted 只在真正 Lift 成功时记，故迟到 Lift（父成熟后）仍可激活。
-                if !seen_lifted.insert((carrier, cert_dir)) {
-                    continue; // 该 (carrier,方向) 已 Lift 过 ⟹ Fresh 失败 ⟹ 跳过（不重复开子声部）。
-                }
-                diag_lift_pass += 1;
-            }
-            open_carrier(
-                &mut voices, &mut active, &mut gen_counter, &active_voice_by_carrier,
-                &certs_by_carrier, &mut opened_this_bar, carrier, parent_id, cert_dir, cert_bits, i,
-            );
-        }
-
-        // ── §9 祖先闭合 A_{t+1}=AncOK(A^raw) ──（父不 active ⟹ 子声部被剪，§4）
-        active = anc_ok(std::mem::take(&mut active), &voices);
-
-        // §12 净额 N_t^bsp = Σ σ_v q_v（声部状态机持仓净额）。
-        net_per_bar[i] = net_target(&active, &voices);
-    }
-
-    // ── 窗口末端仍 active 的声部强平喂 μ（退出非证书触发，标注 forced，与真实 τ_γ 区分）──
-    // ★诚实（formalization-validity-domain）：forced 退出不是 alpha2 §12 的 τ_γ=出场证书时刻，
-    // 是窗口边界人为强平。混入会污染「证书退出」μ 的因果语义——故单独计数 mu_forced_obs 如实报，
-    // 但仍喂入 μ 桶（否则末端未平声部的已实现浮盈被丢弃，低估持仓期收益）。codex 审退出定义时需裁。
-    let last_bar = n - 1;
-    for v in 0..voices.len() {
-        if active.contains(&v) {
-            let voice = voices[v];
-            if last_bar > voice.entry_bar {
-                let entry_px = prices[voice.entry_bar.min(last_bar)];
-                let exit_px = prices[last_bar];
-                let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
-                let z = MuClass::from_certificate(
-                    voice.level,
-                    voice.dir,
-                    voice.bits,
-                    parent_dir_of(&voices, v),
-                    if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
-                );
-                mu_est.observe(MuObservation { class: z, x_gamma });
-                mu_forced_obs += 1;
-            }
-        }
-    }
 
     // ── §18 r^bsp = N^bsp·ΔP − C：逐 bar net-position MtM 权益曲线（同 π^cov NAV 口径）──
     // N_t^bsp 是连续净额（非 ±1 toggle）；equity 归一化初始=1。成本在净额变动 bar 按 |ΔN| 名义额扣。
@@ -866,7 +582,7 @@ fn main() -> std::process::ExitCode {
     // ★诚实：随机对照需逐笔 entry/exit；声部级精确平仓点需在状态机内记录（本实装记 entry，
     //   平仓在 closing 时未单独存 exit_bar）。为给 significance 提供 trades，按声部 entry→末 bar 强平。
     let mut trades: Vec<TradeRecord> = Vec::new();
-    for v in &voices {
+    for v in voices {
         if n - 1 > v.entry_bar {
             trades.push(TradeRecord {
                 entry_bar: v.entry_bar,
@@ -932,6 +648,25 @@ fn main() -> std::process::ExitCode {
     println!("indep  mean/p   : {:.6} / {:.4}", sig.indep_mean_return, sig.indep_pvalue);
     println!("beats_random    : {}", sig.theta_beats_random);
     println!("controls_degen  : {}", sig.controls_degenerate);
+    // ── χ_t=1[μ>θ] 阈值过滤对比（alpha2 §13，task #41 acc-chi-theta-filter 核心证据）──
+    // 可证伪断言：χ≡1（Pass 1 全覆盖）vs χ=1[μ>θ]（Pass 2 过滤）的 ΔN_t 序列**非全等**。
+    // sequences_differ=true ⟹ 过滤真生效（排除假实装）；θ 足够低（全覆盖退化）时 false 是合法边界。
+    // ★认识论：sequences_differ 是 **L1**（选择器逻辑生效，非 alpha 提升）——Pass 2 用 Pass 1 全程
+    //   in-sample μ 过滤当前 = 未来函数泄漏，见 selector.rs 模块头。
+    let pass1_voices = pass1.voices.len();
+    let pass2_voices = pass2.voices.len();
+    println!("--- χ_t=1[μ>θ] 阈值过滤对比（alpha2 §13，task #41；L1 过滤生效，非 L2 alpha）---");
+    println!("θ（Θ_risk 参数）: {theta:.6}（成本+风险门槛，**非缠论可导**，诚实标注）");
+    println!("χ 否决开仓证书数 : {}（μ(z)≤θ 被滤；Pass 1 χ≡1 恒 0）", pass2.chi_rejected);
+    println!("声部数 χ≡1/χ滤  : {pass1_voices} / {pass2_voices}（过滤后 ≤ 全覆盖，§13 Γ^trade⊆Γ）");
+    println!("ΔN 序列差异 bar  : {n_diff_bars} / {n}（非全等={sequences_differ}）");
+    if sequences_differ {
+        println!("  ⟹ 过滤真生效（χ≡1 与 χ=1[μ>θ] 产不同 N_t；排除假实装）。L1 选择器逻辑成立。");
+    } else if pass2.chi_rejected == 0 {
+        println!("  ⟹ χ 无否决（θ 低于所有已观测 μ ∨ 无负 μ 类）⟹ 全覆盖退化（§13 边界，合法）。");
+    } else {
+        println!("  ⚠ χ 有否决但 ΔN 全等——被滤声部不影响净额（被 anc_ok 剪/重复 carrier）。诚实标注。");
+    }
     // ── μ(z,a) 类别条件边际收益表（alpha2 §12，task #39，L2 真实数据可否证）──
     // 按 z=(ℓ,δ,I_γ,父向,短差,仓位态) 分桶；μ(z)=E[X_γ|z]=ΣX_γ/|S_z| 绝对收益（与 metrics 同单位）。
     // ★μ(z)>0 ⟹ 该类买卖点在此退出规则/成本/样本下有正边际期望（alpha 候选）；μ(z)≤0 ⟹ 无正期望
@@ -949,7 +684,6 @@ fn main() -> std::process::ExitCode {
         "z 类总数        : {}（μ>0: {n_pos} alpha候选 / μ≤0: {n_nonpos} 无正期望）",
         mu_rows.len()
     );
-    println!("强平观测(forced): {mu_forced_obs}（退出非证书τ_γ，窗口边界强平——与证书退出μ混桶，codex待裁）");
     if mu_rows.is_empty() {
         println!("（无平仓观测——无声部生命周期闭合，μ 表空，inconclusive）");
     } else {

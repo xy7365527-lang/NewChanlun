@@ -79,3 +79,8 @@ mod l3_pi_falsify;
 /// #5 多声部对冲深度贡献根因诊断（231 诊断非 alpha）——instrument 计数区分 (a) ρ漂移剪枝
 /// vs (b) 结构不产。O(n²) CL/BTC 32K，继承 backtest cfg(test) 门控。
 mod l3_pi_depth_diag;
+
+/// Phase-3 ΔR 净额增量 alpha 否证（task #42 delta-r-alpha）——χ_t 选择器是否产生正净额增量
+/// alpha。walk-forward μ（OOS-split）+ ΔR 序列（codex Q2：非两条 equity 的 Sharpe 差）+ 三层
+/// 判定（codex Q4：跨品种符号检验）。O(n²) 截断窗，继承 backtest cfg(test) 门控。
+mod l3_delta_r_alpha;
