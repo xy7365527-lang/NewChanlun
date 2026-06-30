@@ -51,14 +51,24 @@ pub struct SignalDecomp {
     /// Ab_rev = δ(P[ρ_rev] − P[λ_rev])：反转交易腿理想价差（λ_rev=入场信号 pivot，ρ_rev=出场信号 pivot；
     /// 664 号修复测错对象——非触发段价差，可正可负）。
     pub a_b: f64,
-    /// ηin = max(0, δ(Pτin − P[λ_rev]))：入场滞后损耗（相对入场 pivot）。
+    /// x = δ(Pτin − P[λ_rev])：**signed** 入场滑移（664-Q3 codex）。x<0=有利（确认价比 pivot 更优），x>0=不利。
+    /// ηin=max(0,x) 丢弃了 x<0 的有利滑移 ⟹ captured 系统性低估真实 PnL（min(x,0)≤0）。
+    pub x_in: f64,
+    /// y = δ(P[ρ_rev] − Pτout)：**signed** 出场滑移（664-Q3 codex）。y<0=有利，y>0=不利。
+    pub y_out: f64,
+    /// ηin = max(0, x_in)：入场滞后损耗（adverse-only，≥0）。
     pub eta_in: f64,
-    /// ηout = max(0, δ(P[ρ_rev] − Pτout))：出场损耗（相对出场 pivot）。
+    /// ηout = max(0, y_out)：出场损耗（adverse-only，≥0）。
     pub eta_out: f64,
+    /// actual_spread = δ(Pτout − Pτin) = Ab_rev − x_in − y_out：**真实成交价差**（无成本，664-Q3）。
+    /// 两个确认 bar（实际成交点）close 的有向差——含有利+不利滑移全部，非 adverse-only。
+    pub actual_spread: f64,
     /// Ce/qe：单位双边成本。
     pub ce_unit: f64,
-    /// captured = Ab_rev − ηin − ηout − Ce/qe（>0 ⟺ 路径级正收益，PDF §5）。
+    /// captured = Ab_rev − ηin − ηout − Ce/qe（adverse-only 保守压力测试，PDF §5；丢有利滑移）。
     pub captured: f64,
+    /// actual_pnl = actual_spread − Ce/qe = δ(Pτout − Pτin) − Ce：**真实成交 PnL 代理**（664-Q3，含全部滑移）。
+    pub actual_pnl: f64,
 }
 
 /// 聚合诊断「钱去哪了」（确定性分解，Σ 精确等于 Σ trade gross，非概率推断）。
@@ -67,24 +77,53 @@ pub struct SpreadAttribution {
     pub n_signals: usize,
     /// Σ Ab_rev：反转交易腿给的理想总价差（664 号：post-signal 腿，非触发段）。
     pub sum_a_b: f64,
-    /// Σ ηin：入场滞后吃掉。
+    /// Σ x_in：**signed** 入场滑移总和（664-Q3）。含有利（<0）+不利（>0），非 adverse-only。
+    pub sum_x_in: f64,
+    /// Σ y_out：**signed** 出场滑移总和（664-Q3）。
+    pub sum_y_out: f64,
+    /// Σ ηin = Σ max(0, x_in)：入场滞后吃掉（adverse-only，≥0）。
     pub sum_eta_in: f64,
-    /// Σ ηout：出场滞后吃掉。
+    /// Σ ηout = Σ max(0, y_out)：出场滞后吃掉（adverse-only，≥0）。
     pub sum_eta_out: f64,
+    /// Σ actual_spread = Σ δ(Pτout − Pτin)：**真实成交价差**总和（无成本，664-Q3，含全部滑移）。
+    pub sum_actual_spread: f64,
     /// Σ Ce/qe：成本吃掉。
     pub sum_ce: f64,
-    /// Σ captured：剩下的可捕获 alpha。
+    /// Σ captured：adverse-only 保守压力测试剩余 alpha（丢有利滑移，系统性偏负）。
     pub sum_captured: f64,
     /// 可捕获信号数（captured>0）——逐信号路径级正占比的分子。
     pub n_captured_positive: usize,
+    /// actual_pnl>0 信号数（真实成交口径）——区别于 n_captured_positive（adverse-only）。
+    pub n_actual_positive: usize,
+    /// 三审计统计①：rho_rev_bar>lambda_rev_bar 计数（出场 pivot 端点在入场 pivot 端点之后；codex Q1 不变量）。
+    pub n_rho_after_lambda: usize,
+    /// 三审计统计②：same_bar_opposite 计数（同 bar 出现反向信号被 eb>entry_bar 排除；codex Q2 边界）。
+    pub n_same_bar_opposite: usize,
+    /// 三审计统计③：n_unpaired 计数（入场信号无配对出场反转信号，右删失诚实跳过；codex Q4 边界）。
+    pub n_unpaired: usize,
 }
 
 impl SpreadAttribution {
-    /// L2 否证判据：执行损耗（含成本）是否吃光结构价差。
+    /// L2 否证判据（**adverse-only 保守口径**）：执行损耗（含成本）是否吃光结构价差。
     ///
-    /// `true` ⟺ Σ(ηin+ηout+Ce) ≥ ΣAb ⟺ Σcaptured ≤ 0 ⟹ 该信号集无可捕获 alpha（PDF §5 前件失败）。
+    /// `true` ⟺ Σcaptured ≤ 0。注意：captured 用 max(0,·) 丢弃有利滑移 ⟹ 系统性低估真实 PnL，
+    /// 这是**压力测试**口径，不等于真实成交。真实成交口径见 `actual_pnl_proxy`/`actual_pnl_eaten`。
     pub fn spread_eaten(&self) -> bool {
         self.sum_captured <= 0.0
+    }
+
+    /// 真实成交 PnL 代理（664-Q3 codex）：Σactual_spread − ΣCe = Σδ(Pτout−Pτin) − ΣCe。
+    /// 含全部滑移（有利+不利），是确认 bar 实际成交价差减成本——比 adverse-only captured 更接近真实成交。
+    pub fn actual_pnl_proxy(&self) -> f64 {
+        self.sum_actual_spread - self.sum_ce
+    }
+
+    /// 真实成交口径的「执行吃光」判据：actual_pnl_proxy ≤ 0。
+    ///
+    /// 与 `spread_eaten`（adverse-only）的分歧即 codex Q3 关注点：若 `spread_eaten`=true 但本判据=false，
+    /// 则「执行滞后吃光」是 adverse-only 伪结论（有利滑移被丢弃所致），真实成交其实可捕获。
+    pub fn actual_pnl_eaten(&self) -> bool {
+        self.actual_pnl_proxy() <= 0.0
     }
 }
 
@@ -167,6 +206,10 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
             VoiceSide::Flat => continue,
         };
         let opp = if delta == 1 { VoiceSide::Short } else { VoiceSide::Long };
+        // 三审计统计②（codex Q2）：同 bar 出现反向信号（被后续 eb>entry_bar 配对条件排除的边界）。
+        if signals[idx + 1..].iter().any(|(eb, d, _, _)| *eb == entry_bar && *d == opp) {
+            agg.n_same_bar_opposite += 1;
+        }
         // 配对出场信号（首个后续反向新确认信号，π^bsp owned）：取其 entry_bar(τout) + pivot_bar(ρ_rev)。
         let (exit_bar, rho_rev_bar) = match signals[idx + 1..]
             .iter()
@@ -174,7 +217,10 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
             .map(|&(eb, _, pivot, _)| (eb, pivot))
         {
             Some(pair) => pair,
-            None => continue, // 诚实跳过：无配对出场反转信号 ⟹ 无 ρ_rev，算不出 Ab_rev，不兜底
+            None => {
+                agg.n_unpaired += 1; // 三审计统计③（codex Q4）：右删失，无配对出场反转信号，诚实跳过不兜底
+                continue;
+            }
         };
         if exit_bar <= entry_bar {
             continue;
@@ -191,21 +237,37 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         }
         let eps = delta as f64; // 交易方向 δ（反转交易腿；664 号 δ≠ε 笔方向）
         let a_b = eps * (p_rho - p_lambda); // Ab_rev=δ(P[ρ_rev]−P[λ_rev])，可正可负（测对了对象）
-        let eta_in = (eps * (p_tau_in - p_lambda)).max(0.0);
-        let eta_out = (eps * (p_rho - p_tau_out)).max(0.0);
+        let x_in = eps * (p_tau_in - p_lambda); // signed 入场滑移（664-Q3）：<0 有利 / >0 不利
+        let y_out = eps * (p_rho - p_tau_out); // signed 出场滑移（664-Q3）
+        let eta_in = x_in.max(0.0); // adverse-only（丢 x<0 有利滑移）
+        let eta_out = y_out.max(0.0);
+        let actual_spread = eps * (p_tau_out - p_tau_in); // = a_b − x_in − y_out（真实成交价差，含全部滑移）
         // 单位双边成本：与 marginal_return 口径一致（fee 在 entry/exit 各扣一次）。
         let ce_unit = (p_tau_in + p_tau_out) * fee_rate;
-        let captured = a_b - eta_in - eta_out - ce_unit;
+        let captured = a_b - eta_in - eta_out - ce_unit; // adverse-only 保守压力测试
+        let actual_pnl = actual_spread - ce_unit; // 真实成交 PnL 代理（664-Q3）
 
-        decomps.push(SignalDecomp { entry_bar, exit_bar, level, delta, a_b, eta_in, eta_out, ce_unit, captured });
+        decomps.push(SignalDecomp {
+            entry_bar, exit_bar, level, delta, a_b, x_in, y_out,
+            eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl,
+        });
         agg.n_signals += 1;
         agg.sum_a_b += a_b;
+        agg.sum_x_in += x_in;
+        agg.sum_y_out += y_out;
         agg.sum_eta_in += eta_in;
         agg.sum_eta_out += eta_out;
+        agg.sum_actual_spread += actual_spread;
         agg.sum_ce += ce_unit;
         agg.sum_captured += captured;
         if captured > 0.0 {
             agg.n_captured_positive += 1;
+        }
+        if actual_pnl > 0.0 {
+            agg.n_actual_positive += 1;
+        }
+        if rho_rev_bar > lambda_rev_bar {
+            agg.n_rho_after_lambda += 1; // 三审计统计①（codex Q1 不变量）
         }
     }
 
@@ -268,6 +330,47 @@ mod tests {
         assert!(!agg.spread_eaten());
     }
 
+    /// 664-Q3 signed 分解恒等式自检（合成，L1）：actual_spread = Ab_rev − x_in − y_out 恒成立，
+    /// 覆盖有利滑移（x<0/y<0）——证明 actual_spread 含全部滑移，而 captured(adverse-only)=Ab−max(0,x)−max(0,y) 丢有利滑移。
+    #[test]
+    fn signed_decomp_actual_spread_identity() {
+        // 多头：λ_rev=100, ρ_rev=120 ⟹ Ab_rev=20。Pτin=98（确认价比入场 pivot 更优，x<0 有利），
+        // Pτout=125（出场比 pivot 更高，y<0 有利）。δ=+1。
+        for &(p_lambda, p_rho, p_tau_in, p_tau_out, delta) in &[
+            (100.0, 120.0, 98.0, 125.0, 1.0_f64),  // 双侧有利滑移
+            (100.0, 120.0, 105.0, 110.0, 1.0),     // 双侧不利滑移
+            (120.0, 100.0, 122.0, 95.0, -1.0),     // 空头：入场更高(有利)、出场更低(有利)
+        ] {
+            let a_b = delta * (p_rho - p_lambda);
+            let x_in = delta * (p_tau_in - p_lambda);
+            let y_out = delta * (p_rho - p_tau_out);
+            let actual_spread = delta * (p_tau_out - p_tau_in);
+            // 恒等式：actual_spread = Ab_rev − x_in − y_out（codex Q3）。
+            assert!((actual_spread - (a_b - x_in - y_out)).abs() < 1e-9,
+                "signed 分解恒等式破：actual_spread={actual_spread} ≠ Ab−x−y={}", a_b - x_in - y_out);
+            // adverse-only captured 与 actual_spread 的差 = min(x,0)+min(y,0) ≤ 0（系统性低估）。
+            let captured_no_cost = a_b - x_in.max(0.0) - y_out.max(0.0);
+            let diff = captured_no_cost - actual_spread;
+            assert!(diff <= 1e-9,
+                "adverse-only captured 应 ≤ actual_spread（丢有利滑移），diff={diff}");
+            assert!((diff - (x_in.min(0.0) + y_out.min(0.0))).abs() < 1e-9,
+                "captured−actual 应 = min(x,0)+min(y,0)");
+        }
+    }
+
+    /// actual_pnl_proxy / actual_pnl_eaten 判据自检：与 spread_eaten 可分歧（codex Q3 核心）。
+    #[test]
+    fn actual_pnl_proxy_diverges_from_adverse_only() {
+        let mut agg = SpreadAttribution::default();
+        // 构造：actual_spread 正、但 adverse-only captured 负（有利滑移被丢导致伪「吃光」）。
+        agg.sum_actual_spread = 100.0;
+        agg.sum_ce = 30.0;
+        agg.sum_captured = -50.0; // adverse-only 判定「吃光」
+        assert!(agg.spread_eaten(), "adverse-only 判吃光");
+        assert!((agg.actual_pnl_proxy() - 70.0).abs() < 1e-9);
+        assert!(!agg.actual_pnl_eaten(), "真实成交口径未吃光 ⟹ adverse-only 是伪结论");
+    }
+
     /// L2 重测「钱去哪了」：BTC 全历史逐信号反转交易腿 Ab_rev 可捕获价差分解（真实数据，可产否定性结果；664 号）。
     ///
     /// `#[ignore]`：需 BTC 全量数据（314M）+ O(n²) 逐 bar 重分类，`--release` 必须。重跑由 Lead。
@@ -311,9 +414,10 @@ mod tests {
 
         let (decomps, agg) = decompose_capturable_spread(&ds, &config);
 
-        // per-class (level, δ) 分桶：Σcaptured + n_captured_positive/n_signals（逐信号路径级正占比）。
-        // key=(level, δ)，value=(n, Σab, Σηin, Σηout, Σce, Σcaptured, n_pos)。
-        let mut buckets: BTreeMap<(u32, i8), (usize, f64, f64, f64, f64, f64, usize)> = BTreeMap::new();
+        // per-class (level, δ) 分桶：adverse-only Σcaptured + 真实成交 Σactual_pnl 双口径（664-Q3）。
+        // key=(level, δ)，value=(n, Σab, Σηin, Σηout, Σce, Σcaptured, n_cap_pos, Σactual_spread, Σactual_pnl, n_act_pos)。
+        type Bucket = (usize, f64, f64, f64, f64, f64, usize, f64, f64, usize);
+        let mut buckets: BTreeMap<(u32, i8), Bucket> = BTreeMap::new();
         for d in &decomps {
             let e = buckets.entry((d.level, d.delta)).or_default();
             e.0 += 1;
@@ -325,18 +429,27 @@ mod tests {
             if d.captured > 0.0 {
                 e.6 += 1;
             }
+            e.7 += d.actual_spread;
+            e.8 += d.actual_pnl;
+            if d.actual_pnl > 0.0 {
+                e.9 += 1;
+            }
         }
 
         // 失血三源占比（分母 = Σ(ηin+ηout+Ce) 总损耗；ΣAb 为正分母比对结构价差）。
         let total_drain = agg.sum_eta_in + agg.sum_eta_out + agg.sum_ce;
         let pct = |x: f64| if total_drain > 0.0 { 100.0 * x / total_drain } else { 0.0 };
 
+        let actual_pnl_proxy = agg.actual_pnl_proxy();
+
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# 经济正条件④ L2 重测：BTC 基线反转交易腿 Ab_rev「钱去哪了」可捕获价差归因（664 号对象错配修复）");
+        let _ = writeln!(rpt, "# 经济正条件⑤ L2 重测：BTC signed 滑移分解（adverse-only vs 真实成交，664-Q3 codex 口径修正）");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的逐信号确定性分解，可产否定性结果）。");
-        let _ = writeln!(rpt, "**664 号修复**：测量对象从「信号前触发段价差 Ab=εb(Pρ−Pλ)」改为「post-signal 反转交易腿价差 Ab_rev=δ(P[ρ_rev]−P[λ_rev])」。λ_rev=入场信号挂靠 pivot，ρ_rev=配对出场信号挂靠 pivot（均取 source_index 端点 close）。旧实装系统性 ΣAb<0（−1.8e4）是触发段错对象产物，非判据被否证。");
-        let _ = writeln!(rpt, "**口径**：captured = Ab_rev − ηin − ηout − Ce/qe（PDF §5）；pivot 端点 close 口径；fee_rate=(comm+slip+tax)bps/1e4。");
+        let _ = writeln!(rpt, "**664-Q3 修正**：旧 captured=Ab_rev−max(0,x)−max(0,y)−Ce 用 max(0,·) **丢有利滑移、全计不利滑移** ⟹ 系统性低估真实 PnL（captured−actual_pnl=min(x,0)+min(y,0)≤0）= **adverse-only 保守压力测试，非真实成交**。本报告补 signed Σx/Σy 与真实成交价差 actual_spread=δ(Pτout−Pτin)=Ab_rev−x−y。");
+        let _ = writeln!(rpt, "**两口径**：x=δ(Pτin−Pλ_rev)（signed 入场滑移）、y=δ(Pρ_rev−Pτout)（signed 出场滑移）。");
+        let _ = writeln!(rpt, "- **adverse-only captured** = Ab_rev−max(0,x)−max(0,y)−Ce（压力测试，保守，保留兼容旧口径）。");
+        let _ = writeln!(rpt, "- **真实成交 actual_pnl** = actual_spread−Ce = δ(Pτout−Pτin)−Ce（含全部滑移，更接近真实成交）。");
         let _ = writeln!(rpt, "**复算**：`cargo test -p <crate> --release l2_btc_capturable_spread_diagnosis -- --ignored --nocapture`（确定性）。");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 数据");
@@ -345,25 +458,41 @@ mod tests {
         let _ = writeln!(rpt, "- untradable_ratio={:.4}", untradable);
         let _ = writeln!(rpt, "- 收集信号数 n_signals={}（无配对出场反转信号的入场信号被诚实跳过，不入此集——无 ρ_rev 不兜底）", agg.n_signals);
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 全局归因");
+        let _ = writeln!(rpt, "## 三审计统计（codex #97 要求）");
+        let _ = writeln!(rpt, "| 统计 | 值 | 说明 |");
+        let _ = writeln!(rpt, "|---|---|---|");
+        let _ = writeln!(rpt, "| n_rho_after_lambda | {}/{} | rho_rev_bar>lambda_rev_bar（codex Q1 不变量：出场 pivot 端点在入场 pivot 之后） |", agg.n_rho_after_lambda, agg.n_signals);
+        let _ = writeln!(rpt, "| n_same_bar_opposite | {} | 同 bar 出现反向信号（被 eb>entry_bar 排除的边界，codex Q2） |", agg.n_same_bar_opposite);
+        let _ = writeln!(rpt, "| n_unpaired | {} | 无配对出场反转信号（右删失诚实跳过，codex Q4） |", agg.n_unpaired);
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 全局归因（双口径）");
         let _ = writeln!(rpt, "| 量 | 值 |");
         let _ = writeln!(rpt, "|---|---|");
         let _ = writeln!(rpt, "| ΣAb_rev（反转交易腿理想总价差） | {:.6e} |", agg.sum_a_b);
-        let _ = writeln!(rpt, "| Σηin（入场滞后） | {:.6e} ({:.1}%) |", agg.sum_eta_in, pct(agg.sum_eta_in));
-        let _ = writeln!(rpt, "| Σηout（出场滞后） | {:.6e} ({:.1}%) |", agg.sum_eta_out, pct(agg.sum_eta_out));
+        let _ = writeln!(rpt, "| Σx（signed 入场滑移） | {:.6e} |", agg.sum_x_in);
+        let _ = writeln!(rpt, "| Σy（signed 出场滑移） | {:.6e} |", agg.sum_y_out);
+        let _ = writeln!(rpt, "| Σmax(0,x)=Σηin（adverse-only 入场） | {:.6e} ({:.1}%) |", agg.sum_eta_in, pct(agg.sum_eta_in));
+        let _ = writeln!(rpt, "| Σmax(0,y)=Σηout（adverse-only 出场） | {:.6e} ({:.1}%) |", agg.sum_eta_out, pct(agg.sum_eta_out));
         let _ = writeln!(rpt, "| ΣCe（成本） | {:.6e} ({:.1}%) |", agg.sum_ce, pct(agg.sum_ce));
-        let _ = writeln!(rpt, "| Σ(η+Ce)（总损耗） | {:.6e} |", total_drain);
-        let _ = writeln!(rpt, "| Σcaptured（剩余 alpha） | {:.6e} |", agg.sum_captured);
-        let _ = writeln!(rpt, "| n_captured_positive/n_signals | {}/{} ({:.1}%) |",
+        let _ = writeln!(rpt, "| Σactual_spread（真实成交价差 δ(Pτout−Pτin)） | {:.6e} |", agg.sum_actual_spread);
+        let _ = writeln!(rpt, "| **Σcaptured（adverse-only 压力测试剩余）** | {:.6e} |", agg.sum_captured);
+        let _ = writeln!(rpt, "| **actual_pnl_proxy=Σactual_spread−ΣCe（真实成交 PnL 代理）** | {:.6e} |", actual_pnl_proxy);
+        let _ = writeln!(rpt, "| n_captured_positive/n（adverse-only 正占比） | {}/{} ({:.1}%) |",
             agg.n_captured_positive, agg.n_signals,
             if agg.n_signals > 0 { 100.0 * agg.n_captured_positive as f64 / agg.n_signals as f64 } else { 0.0 });
+        let _ = writeln!(rpt, "| n_actual_positive/n（真实成交正占比） | {}/{} ({:.1}%) |",
+            agg.n_actual_positive, agg.n_signals,
+            if agg.n_signals > 0 { 100.0 * agg.n_actual_positive as f64 / agg.n_signals as f64 } else { 0.0 });
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## L2 判定");
-        let _ = writeln!(rpt, "- **spread_eaten = {}**（Σcaptured {} 0）", agg.spread_eaten(), if agg.spread_eaten() { "≤" } else { ">" });
-        if agg.spread_eaten() {
-            let _ = writeln!(rpt, "- **否定性结果**：执行损耗（含成本）吃光反转交易腿价差 ⟹ 该信号集无可捕获 alpha（PDF §5 前件失败）。有效域收窄——比确认性结果信息量大（161/formalization-validity-domain）。");
+        let _ = writeln!(rpt, "## L2 判定（关键：两口径分歧 = codex Q3 核心）");
+        let _ = writeln!(rpt, "- **adverse-only spread_eaten = {}**（Σcaptured {} 0）", agg.spread_eaten(), if agg.spread_eaten() { "≤" } else { ">" });
+        let _ = writeln!(rpt, "- **真实成交 actual_pnl_eaten = {}**（actual_pnl_proxy {} 0）", agg.actual_pnl_eaten(), if agg.actual_pnl_eaten() { "≤" } else { ">" });
+        if agg.spread_eaten() && !agg.actual_pnl_eaten() {
+            let _ = writeln!(rpt, "- **翻案（codex Q3 坐实）**：adverse-only 判「执行吃光」但真实成交 actual_pnl_proxy>0 ⟹ 之前「执行滞后吃光」(Σcaptured=−2.33e5) 是 **adverse-only 伪结论**——有利滑移被 max(0,·) 丢弃所致。真实成交口径下反转腿可捕获。");
+        } else if agg.actual_pnl_eaten() {
+            let _ = writeln!(rpt, "- **「执行吃光」成立（真实成交口径）**：actual_pnl_proxy≤0 ⟹ 即便不丢有利滑移，真实成交价差减成本仍非正 ⟹ 该信号集真实亏（否定性结果，缩小有效域边界，161/formalization-validity-domain）。");
         } else {
-            let _ = writeln!(rpt, "- **确认性结果**：Σcaptured>0 ⟹ 该信号集反转交易腿价差未被执行损耗吃光（PDF §5 前件成立）。注意：路径级正 ≠ 跨品种功效；仅 BTC 单标的 L2。");
+            let _ = writeln!(rpt, "- **两口径一致正**：adverse-only 与真实成交均 >0 ⟹ 反转腿价差未被吃光（保守口径都过 ⟹ 真实更宽松）。仅 BTC 单标的 L2，非跨品种功效。");
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 失血三源对比（ΣAb_rev 为反转腿结构上限）");
@@ -382,46 +511,61 @@ mod tests {
             let _ = writeln!(rpt, "形成对照——后者是测错对象的伪否证）。剩余 alpha = ΣAb_rev − Ση − ΣCe（执行/成本是否吃光见上表 Σcaptured）。");
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## per-class (level, δ) 分桶");
-        let _ = writeln!(rpt, "| level | δ | n | ΣAb_rev | Ση | ΣCe | Σcaptured | n_pos/n (路径级正占比) |");
-        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
-        for ((lvl, dlt), (n, sab, sin, sout, sce, scap, npos)) in &buckets {
-            let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.1}%) |",
-                lvl, dlt, n, sab, sin + sout, sce, scap, npos, n,
-                if *n > 0 { 100.0 * *npos as f64 / *n as f64 } else { 0.0 });
+        let _ = writeln!(rpt, "## per-class (level, δ) 分桶（双口径）");
+        let _ = writeln!(rpt, "| level | δ | n | ΣAb_rev | Ση(adv) | ΣCe | Σcaptured(adv) | actual_pnl | n_cap+/n | n_act+/n |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
+        for ((lvl, dlt), (n, sab, sin, sout, sce, scap, ncap, _sact, sactpnl, nact)) in &buckets {
+            let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.0}%) | {}/{} ({:.0}%) |",
+                lvl, dlt, n, sab, sin + sout, sce, scap, sactpnl,
+                ncap, n, if *n > 0 { 100.0 * *ncap as f64 / *n as f64 } else { 0.0 },
+                nact, n, if *n > 0 { 100.0 * *nact as f64 / *n as f64 } else { 0.0 });
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 663 原生口径（μ̂>0 状态类）");
-        let _ = writeln!(rpt, "Σcaptured>0 的 (level,δ) 类 = 该类逐信号路径级净正（出现即做，看路径级 captured，不做跨品种符号检验功效门）：");
+        let _ = writeln!(rpt, "## 663 原生口径（真实成交 actual_pnl>0 状态类）");
+        let _ = writeln!(rpt, "actual_pnl>0 的 (level,δ) 类 = 该类真实成交逐信号路径级净正（出现即做，真实成交口径，非 adverse-only）：");
         let mut any_pos_class = false;
-        for ((lvl, dlt), (n, _, _, _, _, scap, npos)) in &buckets {
-            if *scap > 0.0 {
+        for ((lvl, dlt), (n, _, _, _, _, _, _, _, sactpnl, nact)) in &buckets {
+            if *sactpnl > 0.0 {
                 any_pos_class = true;
-                let _ = writeln!(rpt, "- (level={}, δ={:+}): Σcaptured={:.4e}, n_pos/n={}/{}", lvl, dlt, scap, npos, n);
+                let _ = writeln!(rpt, "- (level={}, δ={:+}): actual_pnl={:.4e}, n_act+/n={}/{}", lvl, dlt, sactpnl, nact, n);
             }
         }
         if !any_pos_class {
-            let _ = writeln!(rpt, "- （无 Σcaptured>0 的类——全级别全方向执行损耗吃光，否定性结果）");
+            let _ = writeln!(rpt, "- （无 actual_pnl>0 的类——全级别全方向真实成交亏，否定性结果）");
         }
 
         eprint!("{rpt}");
 
-        // 落盘新文件（不覆盖旧 econ-l2-btc-diagnosis-20260630.md——664 号 split 保留旧触发段 ΣAb=−1.8e4 数值）。
+        // 落盘 signed 报告（664-Q3，不覆盖 econ-abrev-l2-btc-20260630.md 旧 adverse-only-only 报告）。
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent().expect("rust/ 父目录 = 项目根")
-            .join(".chanlun/review-results/econ-abrev-l2-btc-20260630.md");
+            .join(".chanlun/review-results/econ-abrev-signed-l2-20260630.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
-        // 真封：分解恒等式逐信号成立（captured 精确等于五项分解，非概率）。
+        // 真封①：adverse-only captured 分解恒等式逐信号成立。
         for d in &decomps {
             let recomputed = d.a_b - d.eta_in - d.eta_out - d.ce_unit;
             assert!((d.captured - recomputed).abs() < 1e-6,
                 "captured 分解恒等式破：level={} δ={} captured={} ≠ {}", d.level, d.delta, d.captured, recomputed);
+            // 真封②（664-Q3 核心）：actual_spread = Ab_rev − x − y 逐信号恒成立（signed 分解）。
+            assert!((d.actual_spread - (d.a_b - d.x_in - d.y_out)).abs() < 1e-6,
+                "actual_spread 恒等式破：level={} δ={} actual_spread={} ≠ Ab−x−y={}",
+                d.level, d.delta, d.actual_spread, d.a_b - d.x_in - d.y_out);
+            // 真封③：eta = max(0, signed) 一致。
+            assert!((d.eta_in - d.x_in.max(0.0)).abs() < 1e-9 && (d.eta_out - d.y_out.max(0.0)).abs() < 1e-9,
+                "η 应 = max(0, signed)：level={} δ={}", d.level, d.delta);
+            // 真封④：captured ≤ actual_pnl（adverse-only 系统性 ≤ 真实成交；丢有利滑移）。
+            assert!(d.captured <= d.actual_pnl + 1e-6,
+                "adverse-only captured 应 ≤ actual_pnl：level={} δ={} captured={} > actual_pnl={}",
+                d.level, d.delta, d.captured, d.actual_pnl);
         }
-        // 聚合 Σcaptured = Σ逐信号 captured（无丢失）。
+        // 聚合 Σ 无丢失。
         let sum_check: f64 = decomps.iter().map(|d| d.captured).sum();
         assert!((agg.sum_captured - sum_check).abs() < 1e-3,
             "Σcaptured 聚合 {} ≠ 逐信号和 {}", agg.sum_captured, sum_check);
+        let sum_act: f64 = decomps.iter().map(|d| d.actual_spread).sum();
+        assert!((agg.sum_actual_spread - sum_act).abs() < 1e-3,
+            "Σactual_spread 聚合 {} ≠ 逐信号和 {}", agg.sum_actual_spread, sum_act);
     }
 }
