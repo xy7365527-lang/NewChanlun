@@ -1,11 +1,15 @@
 # Goal 契约与事件 Schema（D′ 唯一真相源）
 
 ## events.jsonl（append-only 事件源）
-每行一个 JSON 事件。事件类型（8 种）：
+每行一个 JSON 事件。事件类型（11 种）。所有事件可选 `idempotency_key`（#8/655：重试安全——
+同 key+同 payload[去 ts] → noop 返回既有事件不重复 append；同 key+异 payload → raise；
+不进 reducer 语义，纯写入去重锚）：
 
 | event | 必填字段 | 语义 |
 |-------|---------|------|
-| GOAL_SET | goal_id, description, acceptance[], base_head, ts | 设定 goal（acceptance 每项必须 falsifiable=true；可选 acceptance[].id 稳定身份） |
+| GOAL_SET | goal_id, description, acceptance[], base_head, ts | 设定 active goal（acceptance 每项必须 falsifiable=true；可选 acceptance[].id 稳定身份）。**同 goal_id 不可重复 GOAL_SET**（防重复 active/歧义） |
+| GOAL_DRAFT | goal_id, description, acceptance[], base_head, ts | **非 active 占位**（#2 两阶段）：裸 /goal 写 skeleton acceptance 落这里，reducer **不计入 active 集**（不进 current_goal/不触发 AMBIGUOUS）。Lead 补全真实可证伪 acceptance 后写正式 GOAL_SET（同 goal_id 转正，跨类型推进合法），或先 GOAL_AMEND ACCEPTANCE_REPLACE 补全再转正。同 goal_id 不可重复 GOAL_DRAFT |
+| GOAL_AMEND | goal_id, amendment_kind, reason, ts + kind 子字段 | 验收层修正（goal_id/base_head 不变）。**ACCEPTANCE_ID_BINDING**：给无 id 的 acceptance slot 补绑稳定 id（+acceptance_vector_hash 防篡改 +bindings）。**ACCEPTANCE_REPLACE**（#3）：整体替换 acceptance vector（DRAFT 转正/验收改写；+old_acceptance_vector_hash 匹配旧 vector 防并发改写 +acceptance 新 vector）。reducer 重建 vector，旧 CHECK_PASS 失配（改验收=重置闭合，正确语义） |
 | GOAL_RESUME | goal_id, note, ts | session 恢复审计事件（**纯审计，禁带 base_head**——见下「base_head 不可变」） |
 | DECOMPOSE | goal_id, sub_goals[]（{id, desc, blocked_by[]}）, ts | 分解为 sub-goal 树（containment 树 + blocked_by 执行 DAG） |
 | EVIDENCE | sub_goal_id, artifact, ts | 工位产出证据（可选 evidence_id 稳定身份，供 CHECK_PASS 机器溯源） |
