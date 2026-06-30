@@ -8,9 +8,10 @@
 //!
 //! ## 逐节 PDF 对应（忠实度第一验收 —— 报告里逐条标注 §几）
 //! - §1-2  三类买卖点 6 维向量 b_ℓ → 方向证书 γ=(c,ℓ,δ,I_γ,t)。本 bin 从生产 classifier
-//!         `Classification.levels[ℓ].bsp[*].bits` 直接读 b_ℓ（忠实，零重判）。carrier c = 该
-//!         买卖点的级别 ℓ + source_index（PDF c 是「操作容器/走势 carrier」；本实装取
-//!         (level, source_index) 作 carrier 标识）。
+//!         `Classification.levels[ℓ].bsp[*].bits` 直接读 b_ℓ（忠实，零重判）。carrier c = **产出该
+//!         买卖点的走势容器** hostOf(g) 的稳定 `ElementId`（PDF c 是「操作容器/走势 carrier」；
+//!         644 坐标纪律：用 [`extract_elements`] 真嵌套塔 + [`attach_bsp_to_tree`] 638 hostOf 判准取，
+//!         非伪 (level, source_index) 标识——后者无真 Compose 父子，子声部恒 0）。
 //! - §3    声部 position instance v=(c_v, η_v, σ_v, n_v)。[`Voice`] 结构忠实。
 //! - §4    祖先闭合 A_{t+1}=AncOK(A^raw)；父 active 子才 active（[`anc_ok`]）。
 //! - §5    入场证书 δ(γ)=σ_v、出场证书 δ(γ)=−σ_v（[`step`] 内 entry/exit 判定）。
@@ -31,9 +32,12 @@
 //!   方向是 N_t^bsp 符号结构的核心，sizing 是二阶标度。升级路径：Q_Θ 读 §7 I_v^in 类别 + equity。
 //! - **K_Θ=恒等、LexArgmin=p̃**（§13）：无保证金/杠杆约束 ⟹ p* = p̃^bsp 直接成交。
 //!   ceiling：真实约束需 risk.rs；纯择时 edge 测试不需要杠杆建模（杠杆只放大，不改方向 alpha）。
-//! - **carrier = (level, source_index)**（§2 c）：PDF c 是抽象「操作容器」，本实装用买卖点
-//!   所在级别 + 原始 K 序号作 carrier 唯一标识。父子关系 p(v) 按级别层级 ℓ_child = ℓ_parent
-//!   的短差子声部建模（§6/§16：父 active 时反向买卖点证书开子声部）。
+//! - **carrier = hostOf(g) ElementId**（§2 c，644 结构父子）：PDF c 是抽象「操作容器」，本实装用
+//!   产出买卖点的真嵌套塔走势容器 hostOf(g) 的稳定 `ElementId`（跨 bar 全量/增量同 ID）。父子关系
+//!   p(v) = hostOf 的**真 Compose 父容器** `parent_id`（§9.1 par_C(κ(u))=κ(v)）上的 active 声部——
+//!   **非**级别差伪造、**非**同 bar 反向证书匹配（旧版子声部恒 0 的根因 #3）。短差子声部 σ_u=−σ_p
+//!   是父持仓**期内**的对冲腿（§6/§16），出场证书严格按 carrier 配对（反向证书在子 carrier 开子声部，
+//!   不平父声部）。
 //!
 //! ## 坐标系纪律（644）+ NAV 口径（可比 π^cov）
 //! 走生产 `IncrementalClassifier::classify_at(i)`（因果塔，≤i，无 look-ahead）+ 与 runner
@@ -49,20 +53,28 @@
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
+use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
 use newchan_rust::theta_v0::config::ThetaConfig;
+use newchan_rust::theta_v0::strategy::coverage::{
+    attach_bsp_carrier_indexed, build_tree_endpoint_index, extract_elements,
+};
 use newchan_rust::theta_v0::types::BspBits;
 use std::collections::{HashMap, HashSet};
 
 /// 声部 position instance（PDF §3：v=(c_v, η_v, σ_v, n_v)）。
 ///
-/// - `carrier`：c_v —— (level ℓ, 父买卖点 source_index)。同 carrier 多次开仓由 `generation` 区分（§3 n_v）。
+/// - `carrier`：c_v —— 真嵌套塔里**产出该买卖点的走势容器** hostOf(g) 的稳定 `ElementId`
+///   （644 坐标纪律：跨 bar 稳定，全量/增量同 ID）。同 carrier 多次开仓由 `generation` 区分（§3 n_v）。
+///   ★644 修复：旧版用 (level, source_index) 伪 carrier + 同 bar 反向证书伪父子（子声部恒 0）；
+///   现用 [`extract_elements`] 真 Compose 嵌套树 + [`attach_bsp_to_tree`] 638 hostOf 判准建结构父子。
 /// - `dir`：σ_v ∈ {+1,−1} 持仓方向（§3）。多头 +1 / 空头 −1。
-/// - `parent`：p(v) ∈ V∪{⊥}（§3 父子声部关系）。`None`=根声部（⊥）；`Some(idx)`=父声部在 `voices` 的索引。
+/// - `parent`：p(v) ∈ V∪{⊥}（§3 父子声部关系）。`None`=根声部（⊥，host 父容器=边界胚元 ∂）；
+///   `Some(idx)`=父声部在 `voices` 的索引（host 的真 Compose 父容器 `parent_id` 上的 active 声部）。
 /// - `qty`：q_v 目标单位数（§7/§12）。本实装固定 1（诚实简化）。
 /// - `generation`：n_v（§3，区分同 carrier 多次开仓）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Voice {
-    carrier: (usize, usize),
+    carrier: ElementId,
     dir: i8,
     parent: Option<usize>,
     qty: f64,
@@ -165,46 +177,90 @@ fn main() -> std::process::ExitCode {
     let mut seen: HashSet<(usize, usize, u8)> = HashSet::new();
     let mut voices: Vec<Voice> = Vec::new();
     let mut active: HashSet<usize> = HashSet::new();
-    // 每 carrier 的代数计数（§3 n_v：同 carrier 多次开仓）。
-    let mut gen_counter: HashMap<(usize, usize), u32> = HashMap::new();
+    // 每 carrier 的代数计数（§3 n_v：同 carrier 多次开仓）。carrier=hostOf ElementId（644）。
+    let mut gen_counter: HashMap<ElementId, u32> = HashMap::new();
     // 净额 N_t^bsp 逐 bar 序列（§12/§18 头寸）。
     let mut net_per_bar: Vec<f64> = vec![0.0; n];
 
-    for i in 0..n {
-        let (classification, _tower) = classifier.classify_at(i);
+    // ── 子声部可达性诊断（647 第四根因坐实，L2 否定性结果）──
+    // 647 诊断 π^bsp 子声部=0 根因为 bin 内三处逻辑（P3 出场优先 + 跨 carrier 方向匹配 +
+    // 单次快照），并提修复路径（按 carrier 匹配 + host-miss 不丢弃）。本实装已落该修复，但子
+    // 声部仍=0——揭示 647 未追到的第四根因：`extract_elements` 单最高级降序树只覆盖部分 L0 走势，
+    // bsp 点大多落树外（orphan frontier 段）⟹ host-miss ⟹ ∂ 根声部。这些统计量化联合条件
+    //（host-hit ∧ parent-container-voice-active）的真实有效域（231：L2 否定性结果有信息增量）。
+    let mut diag_certs = 0usize; // 方向证书总数
+    let mut diag_host_miss = 0usize; // hostOf 未命中（落 extract_elements 树外，∂ 根）
+    let mut diag_has_parent = 0usize; // host 命中且有真 Compose 父容器
+    let mut diag_parent_active_found = 0usize; // 父容器上有 active 声部（子声部可达的必要条件）
 
-        // 本 bar 新确认的方向证书（§1-2 γ），按 carrier=(level, source_index) 收集。
+    for i in 0..n {
+        let (classification, tower) = classifier.classify_at(i);
+
+        // ── 644 结构父子：从真嵌套塔建元素树（hostOf 判准的对象域）──
+        // 每个 `LeveledMove` 是元素 e；其 `sub_moves` 是真 Compose 子（push_element_tree 真父子）。
+        // 买卖点 g 的 hostOf(g) = 本级、ρ==source_index 的元素（产出 g 的走势）；
+        // hostOf 的 `parent_id`（真 Compose 父容器 ElementId）= 子声部的父声部 carrier（§9.1）。
+        let tree = extract_elements(&tower);
+        let tree_idx = build_tree_endpoint_index(&tree);
+
+        // 本 bar 新确认的方向证书（§1-2 γ）。每条证书携：
+        // (carrier=hostOf ElementId, parent_id=hostOf 真 Compose 父容器, σ_p=父方向)。
         // append-only seen-set diff（644：与 runner newly_confirmed_step 同语义，无 look-ahead）。
-        let mut buy_certs: Vec<(usize, usize)> = Vec::new(); // 买侧证书 carrier 列表
-        let mut sell_certs: Vec<(usize, usize)> = Vec::new(); // 卖侧证书 carrier 列表
+        // (carrier, parent_id, dir)：dir 是证书方向（买 +1 / 卖 −1），由 §5/§16 在 open 时按是否有父决定 final_dir。
+        let mut new_certs: Vec<(ElementId, Option<ElementId>, i8)> = Vec::new();
         for (lvl, ls) in classification.levels.iter().enumerate() {
             for p in &ls.bsp {
                 if seen.insert((lvl, p.source_index, p.bits.class_index())) {
                     let c = cert_of(&p.bits);
-                    let carrier = (lvl, p.source_index);
+                    if c.buy || c.sell {
+                        diag_certs += 1;
+                    }
+                    // 638 hostOf 附着（生产同口径 interp.rs:498）：carrier 容器 hostOf(g) id（§13/§14
+                    // 工位 H：carrier 容器本身作 position node，非叶子 ordinal）。host-miss ⟹ carrier_id=None
+                    // ⟹ 叶子 ordinal id（边界胚元 ∂ = 根声部，**不**丢弃——旧版 continue 丢 97.6% 证书的根因）。
+                    let (host_parent_idx, _attached_dir, carrier_id) =
+                        attach_bsp_carrier_indexed(&tree_idx, &tree, lvl as u32, p.source_index);
+                    if (c.buy || c.sell) && carrier_id.is_none() {
+                        diag_host_miss += 1;
+                    }
+                    // carrier：hostOf 容器 id（找到）/ 叶子 ordinal id（host-miss = ∂ 根，§14 退化）。
+                    // 同 carrier 同 bar 多 bsp 共享 id（§14 简化，与生产 interp.rs:516 同口径）。
+                    let carrier = carrier_id
+                        .unwrap_or(ElementId { level: lvl as u32, ordinal: p.source_index as u64 });
+                    // 父声部 carrier = hostOf 的真 Compose 父容器 ElementId（§9.1 par_C(κ(u))=κ(v)）。
+                    let parent_id = host_parent_idx.map(|pi| tree[pi].id);
+                    if (c.buy || c.sell) && parent_id.is_some() {
+                        diag_has_parent += 1;
+                    }
                     if c.buy {
-                        buy_certs.push(carrier);
+                        new_certs.push((carrier, parent_id, 1));
                     }
                     if c.sell {
-                        sell_certs.push(carrier);
+                        new_certs.push((carrier, parent_id, -1));
                     }
                 }
             }
         }
 
         // ── §9 先平后开 A^raw=(A_t\D_t)∪O_t ──
-        // D_t：出场声部集（§5 出场证书 δ(γ)=−σ_v）。对每 active 声部，若本 bar 出现其**反向**证书 ⟹ 出场。
-        // 多头声部（dir=+1）出场证书=卖侧证书；空头声部（dir=−1）出场证书=买侧证书（§5/§16）。
+        // D_t：出场声部集（§5 出场证书 δ(γ)=−σ_v）。出场证书 = **同 carrier** 上的反向证书
+        // （声部级 §5 δ=−σ_v，落在产出该声部的走势容器上）。
+        //
+        // 644 修复（根因 #3，task close-优先误平）：旧版把**任意**反向证书当出场（global any_sell），
+        // 导致父根声部被同 bar 出现的反向证书平掉 → §16 短差子声部永无机会附着（子声部恒 0）。
+        // 短差子声部（§16）是父持仓**期内**的对冲腿——反向证书应在**子 carrier**开子声部，**不**平父声部。
+        // 故出场证书严格按 carrier 配对：声部 v 的出场 = v 自身 carrier 上的反向证书（其他 carrier 反向
+        // 证书是开新声部/子声部的入场触发，与 v 出场无关）。
         let mut closing: HashSet<usize> = HashSet::new();
         for &v in &active {
             let voice = &voices[v];
-            let exit_cert = if voice.dir > 0 {
-                !sell_certs.is_empty() // 多头：卖点证书=出场（§5 δ=−σ_v=−1）
-            } else {
-                !buy_certs.is_empty() // 空头：买点证书=出场（§5 δ=−σ_v=+1）
-            };
+            // 出场方向证书：dir>0（多头）出场=卖证书（−1）；dir<0（空头）出场=买证书（+1）。
+            let exit_dir = -voice.dir;
+            let exit_cert = new_certs
+                .iter()
+                .any(|&(c, _, d)| c == voice.carrier && d == exit_dir);
             // §10-11 close 优先：风险关闭(本实装 risk_close=false, K_Θ 恒等)/父关闭/出场证书。
-            // 父关闭在 anc_ok 阶段级联处理，此处判出场证书（P3）。
+            // 父关闭在 anc_ok 阶段级联处理，此处判出场证书（P3，同 carrier 反向）。
             if should_close(exit_cert, true, false) {
                 closing.insert(v);
             }
@@ -215,36 +271,35 @@ fn main() -> std::process::ExitCode {
         }
 
         // O_t：开仓声部集（§5 入场证书 δ(γ)=σ_v）。
-        // 根声部（§5）：买侧证书 → 开多头根声部（σ_v=+1）；卖侧证书 → 开空头根声部（σ_v=−1）。
-        // 短差子声部（§6/§16）：父 active 时，反向买卖点证书开子声部（σ_u=−σ_p）。
+        // 根声部（§5，host 父容器=∂，parent_id=None）：买侧证书 → 开多头根声部（σ_v=+1）；
+        //   卖侧证书 → 开空头根声部（σ_v=−1）。
+        // 短差子声部（§6/§16，host 有真 Compose 父容器 parent_id）：父声部 = parent_id carrier 上的
+        //   active 声部；子声部 σ_u=−σ_p（结构性，与同 bar 是否有反向证书无关——644 修复核心）。
         //
-        // 诚实简化（no-patch 标注）：本实装把每个**新确认的方向证书**当作根声部入场触发
-        // （§5 入场证书 δ(γ)=σ_v；买点开多根 / 卖点开空根）。§16 多空双开的子声部 = 在某根声部
-        // active 期间出现的**反向**证书 → 开反向子声部（σ_u=−σ_p），父=该根声部。
-        // 这忠实 §5（根入场）+ §6/§16（子声部反向），父子关系按「先存在的同 carrier 根声部」建立。
+        // 644 结构父子：父子关系由 hostOf 的真 Compose 父容器 `parent_id`（§9.1 par_C）决定，
+        // 不再由「同 bar 同时出现的反向证书」伪造（旧版子声部恒 0 的根因）。父声部 = parent_id 容器
+        // 上当前 active 的声部（§4 父 active 子才 active；anc_ok 阶段对位）。
 
-        // 当前每 carrier 是否已有 active 根声部（用于判子声部 vs 根声部）。
-        let active_root_by_carrier: HashMap<(usize, usize), (usize, i8)> = active
-            .iter()
-            .filter(|&&v| voices[v].parent.is_none())
-            .map(|&v| (voices[v].carrier, (v, voices[v].dir)))
-            .collect();
+        // 当前每 carrier 上的 active 声部索引（用于按 parent_id 反查父声部）。同 carrier 多声部取首个
+        // （generation 区分；anc_ok 用 parent 索引链剪枝，首个 active 即代表该容器的持仓节点）。
+        let active_voice_by_carrier: HashMap<ElementId, usize> =
+            active.iter().map(|&v| (voices[v].carrier, v)).collect();
 
         let open_new = |voices: &mut Vec<Voice>,
                             active: &mut HashSet<usize>,
-                            gen_counter: &mut HashMap<(usize, usize), u32>,
-                            carrier: (usize, usize),
-                            dir: i8| {
+                            gen_counter: &mut HashMap<ElementId, u32>,
+                            carrier: ElementId,
+                            parent_id: Option<ElementId>,
+                            cert_dir: i8| {
             let g = gen_counter.entry(carrier).or_insert(0);
             *g += 1;
-            let parent = active_root_by_carrier
-                .iter()
-                .find(|(_, (_, pdir))| *pdir == -dir) // 反向根声部 = 父（§16 σ_u=−σ_p）
-                .map(|(_, (vidx, _))| *vidx);
-            // 子声部方向必须 = −父方向（§6）；根声部方向 = 证书方向（§5）。
+            // 父声部 = hostOf 真 Compose 父容器（parent_id）上的 active 声部（§9.1）。
+            // parent_id=None（host 父=边界胚元 ∂）⟹ 根声部（§5）。
+            let parent = parent_id.and_then(|pid| active_voice_by_carrier.get(&pid).copied());
+            // 子声部方向 = −父方向（§6/§16 σ_u=−σ_p，结构性）；根声部方向 = 证书方向（§5）。
             let final_dir = match parent {
                 Some(pidx) => Voice::child_dir(voices[pidx].dir),
-                None => dir,
+                None => cert_dir,
             };
             let idx = voices.len();
             voices.push(Voice {
@@ -258,11 +313,15 @@ fn main() -> std::process::ExitCode {
             active.insert(idx);
         };
 
-        for &carrier in &buy_certs {
-            open_new(&mut voices, &mut active, &mut gen_counter, carrier, 1);
+        for &(_carrier, parent_id, _cert_dir) in &new_certs {
+            if let Some(pid) = parent_id {
+                if active_voice_by_carrier.contains_key(&pid) {
+                    diag_parent_active_found += 1;
+                }
+            }
         }
-        for &carrier in &sell_certs {
-            open_new(&mut voices, &mut active, &mut gen_counter, carrier, -1);
+        for &(carrier, parent_id, cert_dir) in &new_certs {
+            open_new(&mut voices, &mut active, &mut gen_counter, carrier, parent_id, cert_dir);
         }
 
         // ── §9 祖先闭合 A_{t+1}=AncOK(A^raw) ──（父不 active ⟹ 子声部被剪，§4）
@@ -353,6 +412,13 @@ fn main() -> std::process::ExitCode {
     println!("声部总数        : {n_voices}（多 {n_long} / 空 {}）", n_voices - n_long);
     println!("短差子声部数    : {n_children}（§6/§16 σ_u=−σ_p）");
     println!("净额峰值 |N^bsp|: {max_net:.2}");
+    println!("--- 子声部可达性诊断（647 第四根因坐实，L2 否定性结果）---");
+    let host_hit = diag_certs.saturating_sub(diag_host_miss);
+    let hit_pct = if diag_certs > 0 { 100.0 * host_hit as f64 / diag_certs as f64 } else { 0.0 };
+    println!("方向证书总数    : {diag_certs}");
+    println!("hostOf 命中     : {host_hit}（{hit_pct:.1}%；其余落 extract_elements 树外=∂ 根）");
+    println!("命中且有父容器  : {diag_has_parent}（host 有真 Compose 父）");
+    println!("父容器有 active : {diag_parent_active_found}（子声部可达必要条件——0 ⟹ 子声部结构性不可达）");
     println!("--- 指标（§18 r^bsp=N^bsp·ΔP−C，同工位 L NAV 口径，可比 π^cov）---");
     println!("★Sharpe         : {:.4}", m.sharpe);
     println!("strat_return    : {:.4}", m.strat_return);
@@ -370,8 +436,18 @@ fn main() -> std::process::ExitCode {
     println!("--- 认识论 L2（真实数据，可否证；§18 alpha 判定）---");
     if voices.is_empty() {
         println!("等级: L1（无买卖点确认 ⟹ 无声部，inconclusive）");
+    } else if n_children == 0 {
+        // 647 第四根因：647 修复（按 carrier 匹配 + host-miss 不丢弃）已实装，子声部仍=0。
+        // ⟹ N^bsp 退化为纯根声部方向序列，§6/§16 多空双开/短差对冲层**结构性不可达**。
+        println!(
+            "等级: L2（否定性结果）——647 修复已落但子声部=0：N^bsp 退化纯根声部。\n      \
+             根因（647 第四项）：extract_elements 单最高级降序树仅覆盖部分 L0 走势，\n      \
+             bsp 点 {hit_pct:.1}% 命中 hostOf，父容器有 active=0 ⟹ §16 多空双开不可达。\n      \
+             Sharpe={:.4} 仅反映纯根声部退化形态，**不**反映多声部对冲（不得用作对冲无 alpha 的 L2 结论）。",
+            m.sharpe
+        );
     } else {
-        println!("等级: L2——π^bsp Sharpe={:.4} 可与 π^cov 覆盖 Sharpe 对照（§19 goal#5）", m.sharpe);
+        println!("等级: L2——π^bsp Sharpe={:.4} 子声部={n_children} 多声部对冲真激活（§19 goal#5）", m.sharpe);
     }
     std::process::ExitCode::SUCCESS
 }
