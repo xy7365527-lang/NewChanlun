@@ -9682,6 +9682,9 @@ edges:
   - between:
     - '652'
     - no-unnecessary-escalation（该走不走的对偶）
+  - between:
+    - 036（spec-execution-gap 谱系——质询后改归源）
+    - '651'
   tensions_with:
   - between:
     - '007'

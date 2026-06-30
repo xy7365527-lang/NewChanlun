@@ -67,3 +67,26 @@ D′ goal 事件系统的 **reader（`goal_reducer.py`）与 writer（`goal_even
 - acceptance[3] O(n)@16K：**未封**（实测 exp≈2.0 FAILED，真修=task#16 ElementView 大重构需 fresh session）
 
 即 goal 实质完成 3/5，剩 2 项中 [3] 明确需 fresh session 专做大重构。本契约矛盾不阻塞 git 层真相，只阻塞 reducer 投影正确反映已封状态。
+
+## 立场对比（task#19 探查材料，供编排者裁决——非实施）
+
+> task#19 误把 codex 650-verdict 当权威方向实施了 A2+B（已被 Lead 还原）。以下是实施探查中坐实的材料，整理为裁决依据。**未实施、未 commit。**
+
+### codex 异质裁决细化（裁决材料，非终裁）
+- **A→A2 演化（第三方案，调和 A 与 B）**：codex 把立场 A 收窄为 A2——GOAL_RESUME 纳入 SCHEMA 但**不带 base_head**，base_head 永远=GOAL_SET 锚（这点采纳了立场 B 的核心主张），stale 保留为有价值告警。GOAL_RESUME 降为纯恢复记录（goal_id+note），reducer 仅记 last_resume_head 作运行态提示。即 A2 = 「A 的"补 writer/SCHEMA"」+「B 的"base_head 不被 RESUME 抹平、stale 是正确降级信号"」。
+- **B 细化**：保留 EVIDENCE/CHECK_PASS 二分（EVIDENCE 不自动=pass），补提升路径——CHECK_PASS 必带来源（auto: command+verifier+evidence_ids / manual: judge+rationale+evidence_ids，禁裸写），acceptance 引稳定 acceptance_id（非 check 文本匹配）。
+
+### 三立场后果对比
+| 维度 | 立场A（reducer 对，补 writer 带 base_head） | 立场A2（补 writer，RESUME 不带 base_head） | 立场B（删 reducer RESUME） |
+|------|------|------|------|
+| base_head_stale 信号 | 每次 resume 抹平 → 永 False，失去过时预警 | **保留**（HEAD≠GOAL_SET 锚即告警） | 保留 |
+| GOAL_RESUME 写路径 | 合法（带 base_head） | 合法（仅 goal_id+note，恢复记录） | 不存在（reducer 不读） |
+| 历史 line128/132 重放 | base_head 前移到 b235236 | base_head 守 fab1f08a，last_resume_head=b235236 | base_head 守 fab1f08a，RESUME 被忽略 |
+| /goal 热启动语义 | resume 重锚（624 Lead 默认 goal 的原始设想） | resume 仅留痕，不改锚 | resume 无事件载体 |
+
+### 实施探查发现的残留缺口（任一立场含 B 提升路径都会撞）
+- **EVIDENCE 无稳定 id**：现 schema=sub_goal_id+artifact，CHECK_PASS.evidence_ids 无法机器溯源到具体 EVIDENCE 事件。若采纳"CHECK_PASS 必带 evidence_ids 指向 EVIDENCE"，需先给 EVIDENCE 加稳定 id（否则 evidence_ids 只能是人类可读引用如 commit sha，机器无法验证）。这是 B 提升路径落地的前置缺口，独立于 A/A2/B 主选择。
+- **Lead 封装指令的 evidence_ids（acceptance0/acceptance5/acceptance2-648D）在 events.jsonl 不存在对应 EVIDENCE** ——封 CHECK_PASS 需先补 EVIDENCE 或定义 evidence_ids 取值规则。
+
+### 探查者倾向（仅供参考，非裁决）
+倾向 **A2**：它是 A/B 的扬弃而非折中——既给 GOAL_RESUME 合法写路径（消灭裸 append 扩散，满足 630 writer 设计目的），又保住 base_head_stale 的降级预警价值（立场 B 的正确洞察）。代价：EVIDENCE→CHECK_PASS 提升路径仍需解决 EVIDENCE 稳定 id 缺口（可作 A2 落地的子任务，或单独 /ritual）。但**这是选择类，等编排者裁决**。

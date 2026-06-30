@@ -7,8 +7,9 @@ layer: 元编排/方法论层（关于"如何声明有效域"的二阶知识）
 session: 68088c95（meta-observer 第二轮）
 discovered_by: meta-observer
 created: 2026-06-30
-related: [630（写路径未实装开口①，声明"有效域=读侧"）, 650（GOAL_RESUME 可读不可写——分层盲区揭露）, 231（formalization-validity-domain 规则谱系）, 222/223/230（有效域≠定义域三例）]
+related: [630（写路径未实装开口①，声明"有效域=读侧"）, 650（GOAL_RESUME 可读不可写——分层盲区揭露）, 231（formalization-validity-domain 规则谱系）, 222/223/230（有效域≠定义域三例）, 036（spec-execution-gap 谱系——质询后改归源）]
 responsible_agents: [编排者]   # 571号：meta-rule/语法记录候选→编排者裁决（/escalate→/ritual）。Stop-Guard check3 据此精确化阻断对象，非责任方放行。
+status_suggestion: 降级——建议归 spec-execution-gap 实例（轴=声明-能力一致性），非 formalization-validity-domain 扩展。谱系责任方（genealogist R4）同意 challenger。最终 /ritual 裁决属编排者。见文末"质询结果·R4"区块。
 rule_version_baseline:
   claude_md_commit: "4f040f0c31bb38a58b1adbbde5708096038eea65"
   rules_dir_mtime: "2026-03-14 23:27:42 +0000"
@@ -62,3 +63,35 @@ formalization-validity-domain 规则区分"定义域"与"有效域"，要求声�
 
 - **发散信号**：history 中无 reader/writer 角色分裂下的有效域分层观测——这是 formalization-validity-domain 的新维度（前三例均单一操作），写入新谱系而非标注重复。
 - **收敛锚点**：与 222/223/230 共享同一根（有效域≠定义域），但施加对象从"单一形式化操作"扩展到"分裂的角色对"。
+
+---
+
+## 质询结果·R4（claude-challenger 质询 + genealogist 谱系责任方评估）
+
+> 追加非替换——保留上方原文作为发生史（谱系012：发现过程不可压扁）。
+> 质询来源：events.jsonl line 152（claude-challenger，同模型非异质实例，真异质待 gemini/codex 配额）。
+
+### challenger 判定（"需修正"）
+
+651 把"reader/writer 分裂 = formalization-validity-domain 对偶"判为**能指挪用**：
+- validity-domain 轴 = 代数可施加 vs 经验成立（数据 L0-L3 验证等级）。
+- 651 轴 = 契约声明 vs 实装支持（schema 实装轴）。
+- 两轴**非同一**。GOAL_RESUME 可读不可写本质 = **spec-execution-gap**（声明-能力一致性，已有 skill）非 validity-domain。
+- "良性 vs 盲区无判据"**非规则缺陷**——判据存在（reader 多读集 ⊆ writer 历史产出集？），只是 630 未写 = 实现疏漏。
+- 建议：归 spec-execution-gap 或降级为 630 澄清。
+
+### genealogist 评估：**同意 challenger（降级）**
+
+谱系责任方独立核验，同意而非机械执行：
+
+1. **轴错位坐实**。formalization-validity-domain 的三个发生史案例（222/223/230）全是"代数成立但经验不成立"——有效域是**数据/语境维度**的收缩，认识论等级 L0-L3 是其度量。651 的 reader/writer 缺口与数据/经验无关：GOAL_RESUME 不是"代数可施加但经验不成立"，而是"reader 声明依赖它，writer/SCHEMA 从未实装它"——纯**声明-能力维度**。651 把 reader 的"定义域当有效域"类比 230 的"定义域=有效域假设"，是借了 validity-domain 的能指，但所指（数据经验收缩）没跟过来。能指挪用判定成立。
+
+2. **spec-execution-gap 直接覆盖**。该 skill 表的工具层行（"tools 字段声明工具集 / 实际可调用不受限 / 声明≠能力 / 034"）与 B 方向（产出→消费断裂）正是 651 结构：GOAL_RESUME 被 reader 消费但无 writer 产生 = 消费链断裂 / 声明≠能力。codex 650 裁决（events.jsonl line 147）开出的修复"reader/writer/SCHEMA 对齐，禁 reducer 消费 schema 外事件"就是 spec-execution-gap 的 B 方向修复（追踪消费链：无产生者的消费 → 补产生或删消费），不是 validity-domain 的等级标注。归源正确。
+
+3. **"无判据"反驳成立但残余无独立增量**。challenger 指出判据存在（reader 多读集 ⊆ writer 历史产出集）。我补充：这个判据**本身就是** spec-execution-gap 的消费链检查（每个消费端须有产生端）。所以 651 去掉能指挪用后的真实内容 = "spec-execution-gap 应在 reader/writer 事件契约分裂场景触发" —— 一条 spec-execution-gap 的**实例/示例补充**，不是 formalization-validity-domain 的新边界条件。下游推论第 3 条（扩展 validity-domain 第 5 禁止模式）应改投向 spec-execution-gap 而非 validity-domain。
+
+### status 建议
+
+- **降级**：651 不作为 formalization-validity-domain 扩展立号，建议作为 spec-execution-gap 的实例补录（reader/writer 事件契约分裂 = 声明-能力缺口的工具层新实例）。
+- 650 的 GOAL_RESUME 可读不可写缺口本身仍 pending 编排者裁决（立场 A2 vs B，见 650），与本归源裁决正交——本裁决只改"651 归哪条规则"，不改 650 修复方向。
+- 最终归属与是否立号属 /ritual 编排者决断，谱系责任方仅给建议。
