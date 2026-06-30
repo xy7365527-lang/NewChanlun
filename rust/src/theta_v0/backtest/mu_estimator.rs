@@ -222,6 +222,57 @@ impl MuEstimator {
         self.buckets.get(class).map_or(0, |w| w.n)
     }
 
+    /// pooled 均值 μ_pooled = (Σ_z n_z·mean_z)/(Σ_z n_z)，聚合范围 = 同 `(level, delta)`
+    /// 的所有 z 类（PDF §8 收缩目标 = 同级别同多空 pooled mean）。
+    ///
+    /// 加权合并各桶 `(n, mean)`——`Σ n·mean = ΣΣX_γ` ⟹ 等于把同 (level,delta) 全部 X_γ
+    /// 拉平后求总均值（与逐笔合并 bit-exact）。`None` ⟹ 该 (level,delta) 无任何样本。
+    fn pooled_mean(&self, level: u32, delta: i8) -> Option<f64> {
+        let mut sum = 0.0_f64;
+        let mut n_total = 0_u64;
+        for (z, w) in &self.buckets {
+            if z.level == level && z.delta == delta {
+                sum += w.mean * w.n as f64;
+                n_total += w.n;
+            }
+        }
+        if n_total == 0 {
+            None
+        } else {
+            Some(sum / n_total as f64)
+        }
+    }
+
+    /// 层级收缩 μ_shrink(z) = w_z·mean_z + (1−w_z)·μ_pooled（PDF §8，样本稀疏类抗过拟合）。
+    ///
+    /// `w_z = n_z/(n_z + σ²_z/τ²)`，`σ²_z` = 本类样本方差（Welford `m2/(n−1)`），`tau_sq` τ² =
+    /// 级别间先验方差（PDF θ_ℓ~N(0,τ_ℓ²)，由调用方传入）。`μ_pooled` = 同 (level,delta) 的
+    /// [`pooled_mean`]（收缩目标）。
+    ///
+    /// 语义（诚实标注，与 [`MuEstimator::mu_lcb`] 的 None 语义**区别**）：
+    /// - `n_z≥2`：σ²_z 有定义 ⟹ `Some(w_z·mean_z + (1−w_z)·μ_pooled)`。n_z 大 ⟹ w_z→1
+    ///   ⟹ 信本类均值；n_z 小 ⟹ w_z→0 ⟹ 收缩到 pooled。
+    /// - `n_z<2`：样本方差未定义 ⟹ `w_z=0` ⟹ **完全收缩到 μ_pooled**（样本太少就别信它，
+    ///   借 pooled 估计——这是收缩的意义，与 mu_lcb「拒绝返 None」相反：mu_shrink 保功效）。
+    /// - 该 (level,delta) 无任何样本（连 pooled 都没有）⟹ `None`（无可借的估计）。
+    ///
+    /// `tau_sq≤0` ⟹ debug 断言失败（先验方差须正——τ²=0 退化为分母 ∞ ⟹ w_z=0 全收缩，
+    /// τ²<0 无意义，fail-fast 非静默）。
+    pub fn mu_shrink(&self, class: &MuClass, tau_sq: f64) -> Option<f64> {
+        debug_assert!(tau_sq > 0.0, "τ²（tau_sq）须 > 0，收到 {tau_sq}");
+        let pooled = self.pooled_mean(class.level, class.delta)?;
+        let w = self.buckets.get(class)?;
+        // n<2 ⟹ 样本方差未定义 ⟹ w_z=0 ⟹ 完全收缩到 pooled（保功效，非拒绝）。
+        let w_z = match w.std_sample() {
+            None => 0.0,
+            Some(std) => {
+                let var_z = std * std; // σ²_z
+                w.n as f64 / (w.n as f64 + var_z / tau_sq)
+            }
+        };
+        Some(w_z * w.mean + (1.0 - w_z) * pooled)
+    }
+
     /// 已观测的全部 z 类及其 μ 估计（按需消费；顺序不定，HashMap 无序）。
     pub fn iter_mu(&self) -> impl Iterator<Item = (MuClass, f64)> + '_ {
         self.buckets.iter().map(|(z, w)| (*z, w.mean))
@@ -384,5 +435,105 @@ mod tests {
         assert_eq!(est.mu(&z), Some(42.0), "单样本点估计有定义");
         assert_eq!(est.mu_lcb(&z, 1.645), None, "单样本方差未定义 ⟹ LCB None");
         assert_eq!(est.count(&z), 1);
+    }
+
+    /// 收缩单调性：固定 mean_z/pooled/σ²_z，n_z↑ ⟹ w_z↑ ⟹ mu_shrink 单调逼近 mean_z。
+    /// 同一对称样本 {mean−s,mean+s} 重复 k 份 ⟹ mean_z、σ²_z 不变，仅 n 变。另设一个高样本
+    /// 同 (level,delta) 邻类拉低 pooled，使 mean_z≠pooled ⟹ 收缩方向可观测。
+    #[test]
+    fn shrink_converges_to_mean_as_n_grows() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        // 邻类：同 level=3 同 delta=+1，I_γ 不同 ⟹ 拉低 pooled（大量低收益样本）。
+        let neighbor = MuClass::from_certificate(
+            3,
+            1,
+            BspBits { buy2: true, ..Default::default() },
+            0,
+            PositionState::Root,
+        );
+        let (m, s) = (50.0_f64, 4.0_f64); // z 类均值 50，σ²_z 恒定
+        let shrink_at = |reps: usize| -> f64 {
+            let mut est = MuEstimator::new();
+            // 邻类灌 1000 笔 x=0 ⟹ pooled 被强拉向 0（远离 z 的 50）。
+            for _ in 0..1000 {
+                est.observe(MuObservation { class: neighbor, x_gamma: 0.0 });
+            }
+            for _ in 0..reps {
+                est.observe(MuObservation { class: z, x_gamma: m - s });
+                est.observe(MuObservation { class: z, x_gamma: m + s });
+            }
+            est.mu_shrink(&z, 1.0).unwrap()
+        };
+        let (small, large) = (shrink_at(1), shrink_at(50)); // n_z=2 vs n_z=100
+        assert!(large > small, "n_z↑ ⟹ w_z↑ ⟹ 收缩值上移逼近 mean：{large} > {small}");
+        assert!(large < m, "n_z 有限 ⟹ w_z<1 ⟹ 仍 < mean_z");
+        assert!(small > 0.0, "即使 n_z 小，w_z>0 ⟹ 未完全坍到 pooled(≈0)");
+    }
+
+    /// 收缩方向：n_z=1 高偏离类 ⟹ w_z=0 ⟹ mu_shrink 完全坍到 pooled（vs 裸 mu 不拉）。
+    /// 这是 n<2 保功效语义（借 pooled），与 mu_lcb 的 None 拒绝相反。
+    #[test]
+    fn shrink_single_sample_collapses_to_pooled() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let neighbor = MuClass::from_certificate(
+            3,
+            1,
+            BspBits { buy2: true, ..Default::default() },
+            0,
+            PositionState::Root,
+        );
+        let mut est = MuEstimator::new();
+        // 邻类大量 x=10 ⟹ 主导 pooled。
+        for _ in 0..100 {
+            est.observe(MuObservation { class: neighbor, x_gamma: 10.0 });
+        }
+        // z 单样本极端偏离值 1000。
+        est.observe(MuObservation { class: z, x_gamma: 1000.0 });
+        assert_eq!(est.mu(&z), Some(1000.0), "裸 μ 不拉，仍是单样本值");
+        // pooled = (100·10 + 1·1000)/101 ≈ 19.8；n_z=1 ⟹ w_z=0 ⟹ 完全坍到 pooled。
+        let pooled = (100.0 * 10.0 + 1000.0) / 101.0;
+        let shrunk = est.mu_shrink(&z, 1.0).unwrap();
+        assert!((shrunk - pooled).abs() < 1e-9, "n=1 ⟹ 完全收缩到 pooled：{shrunk} ≈ {pooled}");
+        assert_ne!(est.mu_lcb(&z, 1.645), Some(shrunk), "mu_lcb n=1 返 None，与 mu_shrink 语义分离");
+    }
+
+    /// pooled 聚合正确性：同 (level,delta) 按样本加权聚合，跨 level / 跨 delta 不混。
+    #[test]
+    fn pooled_mean_aggregates_same_level_delta_only() {
+        let z_a = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        // 同 level=3 同 delta=+1，I_γ 不同 ⟹ 进同一 pooled。
+        let z_b = MuClass::from_certificate(
+            3,
+            1,
+            BspBits { buy2: true, ..Default::default() },
+            0,
+            PositionState::Root,
+        );
+        // 跨 level（5≠3）⟹ 不进 pooled(3,+1)。
+        let z_other_level = MuClass::from_certificate(5, 1, buy_bits(), 0, PositionState::Root);
+        // 跨 delta（−1≠+1）⟹ 不进 pooled(3,+1)。
+        let z_other_delta = MuClass::from_certificate(3, -1, buy_bits(), 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z_a, x_gamma: 10.0 }); // n=1
+        est.observe(MuObservation { class: z_b, x_gamma: 30.0 }); // n=1
+        est.observe(MuObservation { class: z_b, x_gamma: 50.0 }); // n=2 ⟹ z_b 均值 40
+        est.observe(MuObservation { class: z_other_level, x_gamma: 1000.0 });
+        est.observe(MuObservation { class: z_other_delta, x_gamma: -1000.0 });
+        // pooled(3,+1) = (10 + 30 + 50)/3 = 30（z_a 1 笔 + z_b 2 笔；其他 level/delta 不混）。
+        assert_eq!(est.pooled_mean(3, 1), Some(30.0));
+        // pooled(5,+1) 只含 z_other_level。
+        assert_eq!(est.pooled_mean(5, 1), Some(1000.0));
+        // pooled(3,−1) 只含 z_other_delta。
+        assert_eq!(est.pooled_mean(3, -1), Some(-1000.0));
+        // 无样本的 (level,delta) ⟹ None。
+        assert_eq!(est.pooled_mean(7, 1), None);
+    }
+
+    /// 无样本 z 且其 (level,delta) 也无样本 ⟹ mu_shrink None（无可借估计）。
+    #[test]
+    fn shrink_none_when_no_pooled_sample() {
+        let z = MuClass::from_certificate(9, 1, buy_bits(), 0, PositionState::Root);
+        let est = MuEstimator::new();
+        assert_eq!(est.mu_shrink(&z, 1.0), None);
     }
 }
