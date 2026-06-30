@@ -228,10 +228,20 @@ struct DeltaRStats {
 }
 
 /// 计算 ΔR 序列统计（block bootstrap 单边 p，seed 冻结，复用 metrics 口径）。
-fn delta_r_stats(baseline_rets: &[f64], chi_rets: &[f64], nav0: f64, bars_per_year: f64) -> DeltaRStats {
-    // 逐 bar 配对差 = ΔR/nav0（codex Q2：ΔR 序列 = nav0·(r^χ−r^0)）。
-    let len = baseline_rets.len().min(chi_rets.len());
-    let dr_norm: Vec<f64> = (0..len).map(|i| chi_rets[i] - baseline_rets[i]).collect();
+///
+/// **口径（delta-r-audit P0 修复）**：输入是两条回测的**归一化绝对权益**序列 E_t=(cash+units·P)/nav0
+/// （[`super::runner::RunResult::equity_curve`]），逐 bar **绝对增量配对差**：
+/// ```text
+///   ΔR_t/nav0 = (E^χ_t − E^χ_{t−1}) − (E^0_t − E^0_{t−1})
+/// ```
+/// 这是 §10 线性可加的 ΔR（除数恒 nav0）。**不用百分比收益** `daily_returns`（除数 path-dependent
+/// 的 E_{t−1}，两条 NAV 发散时 r^χ−r^0 ≠ ΔR/nav0，被 sizing 路径污染）。成本已扣进 equity ⟹ ΔC 自含。
+fn delta_r_stats(baseline_eq: &[f64], chi_eq: &[f64], nav0: f64, bars_per_year: f64) -> DeltaRStats {
+    // 逐 bar 绝对增量配对差 = ΔR/nav0（§10 线性可加；E 已÷nav0，∴增量配对差直接是 ΔR/nav0）。
+    let len = baseline_eq.len().min(chi_eq.len());
+    let dr_norm: Vec<f64> = (1..len)
+        .map(|i| (chi_eq[i] - chi_eq[i - 1]) - (baseline_eq[i] - baseline_eq[i - 1]))
+        .collect();
     let n = dr_norm.len();
     if n < 2 {
         return DeltaRStats { n, mean: 0.0, sharpe: 0.0, boot_pvalue: 1.0, chi_changed_trades: false };
@@ -381,8 +391,8 @@ fn delta_r_alpha_multi_symbol() {
         chi_cfg.risk.chi_theta = Some(theta);
         let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false);
 
-        // ΔR 序列统计（codex Q2：ΔR = nav0·(r^χ−r^0) 逐 bar 配对差，主口径）。
-        let st = delta_r_stats(&base.daily_returns, &chi.daily_returns, nav, bars_per_year);
+        // ΔR 序列统计（delta-r-audit P0 修复：绝对增量配对差 = ΔR/nav0，用 equity_curve 不用百分比）。
+        let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year);
 
         // 分层诊断（强制；(a)/(c)/(d) 严禁谎报否证 (b) 或确认 (c')）。
         // ★(d) χ 退化空仓 guard（实证发现 + codex Q3）：chi.n_orders==0 ∧ base.n_orders>0 ⟹
@@ -432,6 +442,36 @@ fn delta_r_alpha_multi_symbol() {
         );
         let _ = n_sig;
 
+        // ── degeneracy 三路分解（delta-r-audit-2 攻击点2/4）：test 候选按 train μ 表分三路
+        //    (μ>θ 放行 / μ≤θ 被滤 / μ=None 未见恒滤) + 各级别 z 计数——使"退化=躲亏 vs 饥饿"可证伪。──
+        {
+            let test_zs = enumerate_candidate_z(&test, &config);
+            let n_cand = test_zs.len();
+            let (mut n_pass, mut n_filt_nonpos, mut n_unseen) = (0usize, 0usize, 0usize);
+            // 各级别 z 计数（按 z.level 分组，最多 8 级别足够覆盖涌现层）。
+            let mut by_level: [usize; 8] = [0; 8];
+            for z in &test_zs {
+                if (z.level as usize) < by_level.len() {
+                    by_level[z.level as usize] += 1;
+                }
+                match est.mu(z) {
+                    Some(m) if m > theta => n_pass += 1,
+                    Some(_) => n_filt_nonpos += 1,
+                    None => n_unseen += 1,
+                }
+            }
+            let lvl_str: Vec<String> = by_level
+                .iter()
+                .enumerate()
+                .filter(|(_, &c)| c > 0)
+                .map(|(l, c)| format!("ℓ{l}:{c}"))
+                .collect();
+            eprintln!(
+                "  └─[三路分解] test候选z={n_cand} | μ>θ放行={n_pass} μ≤θ被滤={n_filt_nonpos} 未见恒滤={n_unseen} | 级别分布[{}]",
+                lvl_str.join(" ")
+            );
+        }
+
         // 不变量：管线不崩 + 检验值合法。
         assert!(st.mean.is_finite(), "{} mean(ΔR) 有限", w.symbol);
         assert!((0.0..=1.0).contains(&st.boot_pvalue), "{} boot p∈[0,1]", w.symbol);
@@ -471,15 +511,22 @@ fn delta_r_alpha_multi_symbol() {
         "分层完备：每完成品种恰归一类",
     );
     // L3 系统性 alpha 判定（诚实记录，非强制 PASS——否定性结果是合法产出，231号）。
+    // ★n=5 功效门（delta-r-audit-2 攻击点3，定理类）：符号检验 8 品种需 ≥7/8 正才到 p<0.05；
+    // n_L3<5 时无论符号如何都达不到 p<0.05（C(n,n)/2^n: 4/4=0.0625, 3/3=0.125 均>0.05）⟹
+    // 检验功效不足，禁用"无系统性alpha"措辞（缺乏否证它的统计功效，非否证成立）。
+    const MIN_L3_POWER: usize = 5; // 符号检验达 p<.05 的最小品种数下界（5/5=1/32=0.03125<0.05）
     let l3_systematic = n_l3 >= 2 && sign_p < 0.05 && l3_mean > 0.0;
     eprintln!(
         "\n★★最终判定：{}",
         if l3_systematic {
             "L3 系统性净额增量 alpha 成立（符号检验 p<.05 ∧ 池均值>0）——χ 选择器捕获持续可预测性"
-        } else if n_l3 >= 2 {
-            "L3 系统性 alpha 不成立（符号检验未达 p<.05 或池均值≤0）——χ 选择器无系统性 alpha（鞅定理否证）"
+        } else if n_l3 < MIN_L3_POWER {
+            // 功效不足：n_L3<5 时符号检验无论全正都达不到 p<.05 ⟹ inconclusive(功效不足)，
+            // 不得声称"无系统性alpha"（缺乏否证的统计功效）。
+            "L3 inconclusive(功效不足)：χ 真改交易集的有效品种<5——符号检验全正也达不到 p<.05，\
+             无法否证亦无法确认系统性 alpha（缩小样本量是 substrate/工程缺口，非 alpha 结论）"
         } else {
-            "L3 不可判（χ 真改交易集的有效品种<2）——substrate/工程缺口主导，inconclusive"
+            "L3 系统性 alpha 不成立（n_L3≥5 且符号检验未达 p<.05 或池均值≤0）——χ 选择器无系统性 alpha（鞅定理否证）"
         }
     );
 }
@@ -665,15 +712,21 @@ fn martingale_impossibility_guard() {
         chi_cfg.risk.chi_theta = Some(theta);
         let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false);
 
-        let st = delta_r_stats(&base.daily_returns, &chi.daily_returns, nav, bars_per_year);
+        let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year);
 
-        // 毛收益剥离（codex 裁决）：ΔGross_t = ΔR_t + ΔC_t。逐 bar 净配对差 = r^χ−r^0（含成本，
-        // 成本已扣进 equity）；加回成本差 (cost_χ−cost_base)/nav 还原毛额。鞅上 E[ΔGross]=0。
-        let len = base.daily_returns.len().min(chi.daily_returns.len());
+        // 毛收益剥离（codex 裁决 + delta-r-audit P0 修复）：ΔGross_t = ΔR_t + ΔC_t。净配对差用
+        // **绝对增量** (E^χ_t−E^χ_{t−1})−(E^0_t−E^0_{t−1})（含成本，成本已扣进 equity，口径同
+        // [`delta_r_stats`]）；加回成本差 (cost_χ−cost_base) 还原毛额。鞅上 E[ΔGross]=0。
+        // 增量序列索引 i∈[1,len)，对应 bar i 的增量含 −cost_i ⟹ 加回 cost[i] 还原毛额。
+        let len = base.equity_curve.len().min(chi.equity_curve.len());
         let cost_base = rebuild_cost_series(&base, len, nav);
         let cost_chi = rebuild_cost_series(&chi, len, nav);
-        let gross: Vec<f64> = (0..len)
-            .map(|t| (chi.daily_returns[t] - base.daily_returns[t]) + (cost_chi[t] - cost_base[t]))
+        let gross: Vec<f64> = (1..len)
+            .map(|i| {
+                let net = (chi.equity_curve[i] - chi.equity_curve[i - 1])
+                    - (base.equity_curve[i] - base.equity_curve[i - 1]);
+                net + (cost_chi[i] - cost_base[i])
+            })
             .collect();
         let (gross_mean, gross_sharpe, gross_two_sided_p) = gross_stats(&gross, bars_per_year);
 
@@ -1005,33 +1058,76 @@ mod tests {
         assert_eq!(sign_test_pvalue(0, 0), 1.0, "无样本 p=1");
     }
 
-    /// ΔR 序列统计：恒等收益（χ==baseline）⟹ ΔR≡0 ⟹ chi_changed_trades=false（L1 机制门）。
+    /// ΔR 序列统计：恒等**权益曲线**（χ==baseline）⟹ ΔR≡0 ⟹ chi_changed_trades=false（L1 机制门）。
     #[test]
     fn delta_r_identical_returns_zero() {
-        let rets = vec![0.01, -0.02, 0.03, 0.0, 0.01];
-        let st = delta_r_stats(&rets, &rets, 1.0e6, 252.0);
+        // equity_curve 口径：归一化绝对权益序列（E_t）。χ==baseline ⟹ 绝对增量配对差≡0。
+        let eq = vec![1.0, 1.01, 0.99, 1.02, 1.02, 1.03];
+        let st = delta_r_stats(&eq, &eq, 1.0e6, 252.0);
         assert!(!st.chi_changed_trades, "χ==baseline ⟹ ΔR≡0 ⟹ χ 未改交易集");
         assert!(st.mean.abs() < 1e-15, "ΔR 均值=0");
     }
 
-    /// ΔR 序列统计：χ 收益恒高于 baseline ⟹ mean(ΔR)>0 ∧ boot p 小（确认管线产正结果能力）。
+    /// ΔR 序列统计：χ 权益增量恒大于 baseline ⟹ mean(ΔR)>0 ∧ boot p 小（确认管线产正结果能力）。
     #[test]
     fn delta_r_positive_when_chi_dominates() {
-        let base = vec![0.0; 300];
-        let chi: Vec<f64> = vec![0.001; 300]; // χ 每 bar +0.1% 超额
+        // baseline 权益恒定（增量 0）；χ 每 bar 绝对权益 +0.001（增量恒 +0.001>0）⟹ ΔR/nav0 恒正。
+        let base = vec![1.0; 300];
+        let chi: Vec<f64> = (0..300).map(|i| 1.0 + 0.001 * i as f64).collect();
         let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
         assert!(st.chi_changed_trades, "χ≠baseline ⟹ ΔN 非全等");
         assert!(st.mean > 0.0, "χ 主导 ⟹ mean(ΔR)>0，实得 {}", st.mean);
         assert!(st.boot_pvalue < 0.05, "恒正 ΔR ⟹ bootstrap p<0.05（拒绝 H0:ΔR≤0），实得 {}", st.boot_pvalue);
     }
 
-    /// ΔR 序列统计：χ 恒低于 baseline ⟹ mean(ΔR)<0 ∧ boot p≈1（否证能力——不冒充正 alpha）。
+    /// ΔR 序列统计：χ 权益增量恒小于 baseline ⟹ mean(ΔR)<0 ∧ boot p≈1（否证能力——不冒充正 alpha）。
     #[test]
     fn delta_r_negative_when_chi_worse() {
-        let base = vec![0.001; 300];
-        let chi = vec![0.0; 300]; // χ 每 bar 少赚 0.1%
+        let base: Vec<f64> = (0..300).map(|i| 1.0 + 0.001 * i as f64).collect(); // baseline 增量 +0.001
+        let chi = vec![1.0; 300]; // χ 权益恒定（增量 0）⟹ ΔR=0−base 增量<0
         let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
         assert!(st.mean < 0.0, "χ 劣于 baseline ⟹ mean(ΔR)<0");
         assert!(st.boot_pvalue > 0.95, "恒负 ΔR ⟹ bootstrap p≈1（无法拒绝 H0，正确否证），实得 {}", st.boot_pvalue);
+    }
+
+    /// **★P0 口径修复回归测试（delta-r-audit）**：NAV 路径发散时，绝对增量配对差 ≠ 百分比收益配对差。
+    ///
+    /// 构造两条 NAV 发散的归一化权益序列，证明：
+    /// (1) 现口径（绝对增量 E_t−E_{t−1}）= §10 ΔR/nav0，与发散无关；
+    /// (2) 旧口径（百分比 E_t/E_{t−1}−1 配对差）被 path-dependent 的 E_{t−1} 污染，≠ ΔR/nav0。
+    /// 两者数值显著不同 ⟹ 证明旧实装测的不是 §10 的 ΔR。
+    #[test]
+    fn delta_r_caliber_diverges_from_percent_when_nav_paths_diverge() {
+        // 两条发散 NAV：base 从 1.0 缓涨，chi 从 2.0 起（已发散的 E_{t−1}）但**绝对增量相同**。
+        // 绝对增量相同 ⟹ §10 ΔR 配对差应 ≡0；但百分比收益因除数 E_{t−1} 不同 ⟹ 配对差 ≠0。
+        let base = vec![1.0, 1.10, 1.20, 1.30, 1.40, 1.50];
+        let chi = vec![2.0, 2.10, 2.20, 2.30, 2.40, 2.50]; // 同绝对增量 +0.10/bar，E_{t−1} 发散
+
+        // (1) 现口径（绝对增量配对差）：增量都 +0.10 ⟹ 配对差恒 0 ⟹ mean=0。
+        let st = delta_r_stats(&base, &chi, 1.0e6, 252.0);
+        assert!(
+            st.mean.abs() < 1e-15,
+            "绝对增量相同 ⟹ §10 ΔR 配对差≡0（与 NAV 发散无关），实得 mean={}",
+            st.mean
+        );
+
+        // (2) 旧口径（百分比收益配对差）：r_t = E_t/E_{t−1}−1，除数发散 ⟹ 配对差 ≠0。
+        let pct = |e: &[f64]| -> Vec<f64> {
+            e.windows(2).map(|w| w[1] / w[0] - 1.0).collect()
+        };
+        let pct_base = pct(&base);
+        let pct_chi = pct(&chi);
+        let pct_pair_diff_mean: f64 = pct_chi
+            .iter()
+            .zip(&pct_base)
+            .map(|(c, b)| c - b)
+            .sum::<f64>()
+            / pct_base.len() as f64;
+        // base 首 bar 百分比 0.10/1.0=0.0909；chi 0.10/2.0=0.05 ⟹ 配对差 −0.0409≠0。
+        assert!(
+            pct_pair_diff_mean.abs() > 1e-3,
+            "旧百分比口径被 path-dependent E_{{t−1}} 污染 ⟹ 配对差≠0（实得 {pct_pair_diff_mean}）——\
+             与绝对增量口径（≡0）显著不同，证明旧实装测的不是 §10 的 ΔR"
+        );
     }
 }

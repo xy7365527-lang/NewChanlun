@@ -92,8 +92,16 @@ pub struct RunResult {
     /// （`theta_return_mtm`），**不是**随机对照比较基准。实际比较用 significance 内部算的
     /// `theta_return_same_caliber`（逐笔无复利同口径）——消除复利偏置（codex 实现审查缺陷①②）。
     pub theta_return_mtm: f64,
-    /// 逐 bar（聚合前）returns 序列——Sharpe 标准误（Lo 2002）与显著性检验的输入。
+    /// 逐 bar（聚合前）**百分比** returns 序列（`w[1]/w[0]−1`）——Sharpe 标准误（Lo 2002）与
+    /// 显著性检验的输入。**口径警告**：除数是前一 bar 权益 E_{t−1}（非 nav0），两条 NAV 路径发散
+    /// 时百分比配对差 ≠ ΔR/nav0（§10 线性可加要求绝对增量 ÷nav0）——ΔR 净额增量检验须用
+    /// [`equity_curve`]（归一化绝对权益）算逐 bar 绝对增量，不用本字段（delta-r-audit P0 修复）。
     pub daily_returns: Vec<f64>,
+    /// 逐 bar **归一化绝对权益**序列 `E_t=(cash_t+units_t·P_t)/nav0`（已÷nav0）——§10 ΔR 净额增量
+    /// 检验的口径正确输入。两条独立回测的绝对增量配对差 `(E^χ_t−E^χ_{t−1})−(E^0_t−E^0_{t−1})`
+    /// = ΔR_t/nav0（成本已扣进 equity，∴ ΔC 自动含入），**与 NAV 路径发散无关**（除数恒为 nav0，
+    /// 非 path-dependent 的 E_{t−1}）。区别于 [`daily_returns`]（百分比收益，喂 metrics 算 Sharpe）。
+    pub equity_curve: Vec<f64>,
 }
 
 /// 执行回测：把 [`Dataset`] 喂 frozen Θ v0 引擎，模拟 fill，算指标。
@@ -185,6 +193,7 @@ pub fn run_theta_v0(
         fee_rate,
         theta_return_mtm,
         daily_returns: fill.daily_returns,
+        equity_curve: fill.equity_curve,
     }
 }
 
@@ -368,6 +377,7 @@ fn run_theta_v0_pi_inner(
         fee_rate,
         theta_return_mtm,
         daily_returns: fill.daily_returns,
+        equity_curve: fill.equity_curve,
     }
 }
 
