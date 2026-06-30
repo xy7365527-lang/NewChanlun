@@ -290,7 +290,12 @@ pub fn run_theta_v0_pi_chi(
     est: &super::mu_estimator::MuEstimator,
     treat_empty_as_pass: bool,
 ) -> RunResult {
-    let chi = config.risk.chi_theta.map(|theta| ChiFilterCtx { est, theta, treat_empty_as_pass });
+    let chi = config.risk.chi_theta.map(|theta| ChiFilterCtx {
+        est,
+        theta,
+        z_alpha: config.risk.chi_z_alpha,
+        treat_empty_as_pass,
+    });
     run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
 }
 
@@ -550,7 +555,11 @@ pub struct ChiFilterCtx<'a> {
     pub est: &'a super::mu_estimator::MuEstimator,
     /// θ 阈值（成本/风险门槛，Θ_risk 参数，常数）。
     pub theta: f64,
-    /// 空类（μ=None）χ 取值：false=不交易（最诚实，codex Q3）；true=全覆盖默认交易。
+    /// z_alpha 单边置信分位（如 1.645=95%）：准入用 LCB(μ)=mean−z_alpha·std/√n（严格alpha.pdf p25
+    /// §12 防高维 z 过拟合）。z_alpha=0 ⟹ LCB=mean ⟹ 退化回裸 μ 门（向后兼容）。
+    pub z_alpha: f64,
+    /// 无 LCB 证据（空类 μ=None 或 n<2 单样本）χ 取值：false=不交易（最诚实，codex Q3）；
+    /// true=全覆盖默认交易。
     pub treat_empty_as_pass: bool,
 }
 
@@ -658,7 +667,7 @@ where
             // μ≤θ 候选 ⟹ interpret 不归 open ⟹ 不开仓 = χ_t 语义）。None ⟹ χ≡1 全覆盖（不滤）。
             let step_gamma_trade = match &chi {
                 Some(ctx) => super::selector::filter_gamma(
-                    &step_gamma, ctx.est, ctx.theta, ctx.treat_empty_as_pass,
+                    &step_gamma, ctx.est, ctx.theta, ctx.z_alpha, ctx.treat_empty_as_pass,
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
@@ -1507,12 +1516,14 @@ mod tests {
         let fill_full = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
         assert!(fill_full.n_orders > 0, "χ≡1：买点开仓 ⟹ 有订单（基线），实得 {}", fill_full.n_orders);
 
-        // χ=1[μ>θ]：买点 z 的 μ=−50≤θ=0 ⟹ χ=0 ⟹ 滤掉该候选 ⟹ 无开仓订单。
+        // χ=1[LCB(μ)>θ]：买点 z 的 LCB(μ)=−50≤θ=0 ⟹ χ=0 ⟹ 滤掉该候选 ⟹ 无开仓订单。
         // z = 买点 buy1@3 的全互斥分类（level0,Long,buy1,父向0/Ambient,Root；空塔 ⟹ Ambient/Root）。
+        // LCB 升级：n≥2 让 mu_lcb 有定义（否则 n=1 因"无 LCB 证据"被滤，机制不同——见任务 §3）。
         let z_buy = MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root);
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z_buy, x_gamma: -50.0 }); // μ(z)=−50 < θ=0
-        let chi = ChiFilterCtx { est: &est, theta: 0.0, treat_empty_as_pass: false };
+        est.observe(MuObservation { class: z_buy, x_gamma: -50.0 });
+        est.observe(MuObservation { class: z_buy, x_gamma: -50.0 }); // n=2,μ=−50,std=0 ⟹ LCB=−50≤θ=0
+        let chi = ChiFilterCtx { est: &est, theta: 0.0, z_alpha: 0.0, treat_empty_as_pass: false };
         let fill_chi = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, Some(chi));
 
         // ★可证伪核心：χ 过滤改变交易集——μ≤θ 的买点被滤 ⟹ 订单数收缩（严格 <）。
@@ -1539,11 +1550,14 @@ mod tests {
 
         let fill_full = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
 
-        // 买点 z 的 μ=+50>θ=0 ⟹ χ=1 ⟹ 放行（与 χ≡1 同）。
+        // 买点 z 的 LCB(μ)=+50>θ=0 ⟹ χ=1 ⟹ 放行（与 χ≡1 同）。
+        // LCB 升级：需 n≥2 让 mu_lcb 有定义（n=1 方差未定义 ⟹ mu_lcb=None ⟹ 走 empty 分支）。
+        // 喂 [50,50] ⟹ mean=50,std=0 ⟹ LCB=50−z_alpha·0=50>θ（z_alpha=0 时退化裸 μ=50）。
         let z_buy = MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root);
         let mut est = MuEstimator::new();
-        est.observe(MuObservation { class: z_buy, x_gamma: 50.0 }); // μ(z)=+50 > θ=0
-        let chi = ChiFilterCtx { est: &est, theta: 0.0, treat_empty_as_pass: false };
+        est.observe(MuObservation { class: z_buy, x_gamma: 50.0 });
+        est.observe(MuObservation { class: z_buy, x_gamma: 50.0 }); // n=2 ⟹ LCB 有定义；μ=50>θ=0
+        let chi = ChiFilterCtx { est: &est, theta: 0.0, z_alpha: 0.0, treat_empty_as_pass: false };
         let fill_chi = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, Some(chi));
 
         // μ>θ 放行 ⟹ 与 χ≡1 同订单数/交易数（过滤只滤 μ≤θ，不动 μ>θ）。

@@ -144,6 +144,10 @@ pub struct RiskConfig {
     /// 非缠论可导**（selector.rs 诚实标注）——θ 为**常数**（不从样本 μ 分布选，避免 in-sample
     /// 泄漏，codex Q1 审查确认）。default None（不改 frozen 默认）。
     pub chi_theta: Option<f64>,
+    /// χ_t 准入的 LCB 置信分位 z_alpha（严格alpha.pdf p25 §12）：准入用 LCB(μ)=mean−z_alpha·std/√n
+    /// 而非裸 μ，防高维 z 过拟合。单边正态分位（如 1.645=95%，2.326=99%）。**default 0.0**（LCB=mean
+    /// ⟹ 退化回裸 μ 门，frozen 行为 bit-exact 不变）；>0 启用置信下界收缩。Θ_risk 参数（非缠论可导）。
+    pub chi_z_alpha: f64,
 }
 
 impl Default for RiskConfig {
@@ -155,6 +159,7 @@ impl Default for RiskConfig {
             kappa: 2.0,
             default_lot: 1,
             chi_theta: None,
+            chi_z_alpha: 0.0,
         }
     }
 }

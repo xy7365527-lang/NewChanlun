@@ -271,8 +271,10 @@ struct PassResult {
 /// `chi_gate`：
 /// - `None` ⟹ **χ≡1 全覆盖**（Pass 1）：每条 Lift 通过的证书都开仓（现有 pi_bsp_timing 语义），
 ///   同时累加 μ 表供 Pass 2 用。
-/// - `Some((est, theta))` ⟹ **χ=1[μ>θ]**（Pass 2，§13）：开仓前用 Pass 1 的 μ 表 `est` 查 z 的
-///   μ(z)，仅当 `chi_t(μ, θ, RiskOK, ConflictOK, empty=pass)` 为真才开。
+/// - `Some((est, theta, z_alpha))` ⟹ **χ=1[LCB(μ)>θ]**（Pass 2，§13 + p25 §12 LCB 升级）：开仓前
+///   用 Pass 1 的 μ/std 表 `est` 查 z 的 **LCB(μ)=mean−z_alpha·std/√n**（非裸 μ，防高维 z 过拟合），
+///   仅当 `chi_t(LCB, θ, RiskOK, ConflictOK, empty=pass)` 为真才开。`z_alpha=0` ⟹ LCB=mean ⟹ 退化
+///   回裸 μ 门（bit-exact 现有验收）。n<2 单样本 ⟹ mu_lcb=None ⟹ 走 empty=pass 分支（与未见 z 合流）。
 ///   - RiskOK：本 bin K_Θ=恒等（无杠杆/保证金约束，文件头诚实简化）⟹ RiskOK≡true。
 ///   - ConflictOK：carrier 配对 + anc_ok 结构性保证同 carrier 唯一声部（§9/§4）⟹ ConflictOK≡true。
 ///     ★诚实（no-patch）：mutex.rs 8 谓词互斥化是覆盖路径解释器的 C_j 裁决；本 bin 用 carrier
@@ -284,7 +286,7 @@ fn run_state_machine(
     prices: &[f64],
     config: &ThetaConfig,
     fee_rate: f64,
-    chi_gate: Option<(&MuEstimator, f64)>,
+    chi_gate: Option<(&MuEstimator, f64, f64)>,
 ) -> PassResult {
     let n = bars.len();
     let mut classifier = IncrementalClassifier::new(bars, config);
@@ -415,7 +417,7 @@ fn run_state_machine(
             // z 的预构造：根声部父向=0/Root（cert_dir=最终方向）；子声部父向=父 carrier 的 active
             // voice.dir、方向=−父向、Child（§6/§16）。**与平仓喂 μ 时的 z 同口径**（同 MuClass 分量），
             // 保证 Pass 2 查的 μ 与 Pass 1 估的 μ 在同一 z 桶（否则查不到 ⟹ empty=pass 兜底）。
-            if let Some((est, theta)) = chi_gate {
+            if let Some((est, theta, z_alpha)) = chi_gate {
                 // 预判该证书将开成的 z（不真开，只查 μ）。复用 open_carrier 的父链解析逻辑判方向。
                 let parent_voice_dir = parent_id.and_then(|pid| {
                     active_voice_by_carrier.get(&pid).map(|&pi| voices[pi].dir)
@@ -428,8 +430,9 @@ fn run_state_machine(
                     carrier.level, z_dir, cert_bits, z_parent_dir, z_pos,
                 );
                 // RiskOK≡true（K_Θ 恒等）、ConflictOK≡true（carrier+anc_ok 结构唯一）——见 fn 文档。
-                // empty=pass=true：未见过的 z 放行（Pass 2 ⊆ Pass 1，过滤只移除已见的 μ≤θ 类）。
-                if !chi_t(est.mu(&z), theta, true, true, true) {
+                // empty=pass=true：未见 z 或 n<2 单样本（mu_lcb=None）放行（Pass 2 ⊆ Pass 1，过滤只
+                // 移除已见 n≥2 的 LCB≤θ 类）。准入用 LCB(μ) 而非裸 μ（p25 §12 防高维 z 过拟合）。
+                if !chi_t(est.mu_lcb(&z, z_alpha), theta, true, true, true) {
                     chi_rejected += 1;
                     continue; // χ=0 ⟹ 不开（Γ_t^trade 排除该证书，§13 line 2248）。
                 }
@@ -525,9 +528,12 @@ fn main() -> std::process::ExitCode {
     //   **选择器逻辑生效（L1）**，**不**证明 alpha 提升（需 walk-forward μ，是 task #42 delta-r-alpha 后续工位）。
     // θ：成本+风险门槛（§13），**Θ_risk 参数，非缠论可导**（诚实标注）。默认 θ=0；可由 args[4] 覆盖。
     let theta: f64 = if args.len() >= 5 { args[4].parse().unwrap_or(0.0) } else { 0.0 };
+    // z_alpha：LCB 置信分位（p25 §12，准入用 LCB(μ)=mean−z_alpha·std/√n 防高维 z 过拟合）。
+    // 默认 0.0（LCB=mean ⟹ 退化裸 μ，bit-exact 现有验收）；可由 args[5] 覆盖（如 1.645=95%）。
+    let z_alpha: f64 = if args.len() >= 6 { args[5].parse().unwrap_or(0.0) } else { 0.0 };
 
     let pass1 = run_state_machine(bars, &prices, &config, fee_rate, None);
-    let pass2 = run_state_machine(bars, &prices, &config, fee_rate, Some((&pass1.mu_est, theta)));
+    let pass2 = run_state_machine(bars, &prices, &config, fee_rate, Some((&pass1.mu_est, theta, z_alpha)));
 
     // ★可证伪对比（acc-chi-theta-filter 核心）：ΔN_t 序列 χ≡1 vs χ=1[μ>θ] 非全等。
     let n_diff_bars =

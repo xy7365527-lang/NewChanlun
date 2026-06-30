@@ -104,6 +104,32 @@ pub fn chi_open_gate(
     chi_t(est.mu(z), theta, risk_ok, conflict_ok, treat_empty_as_pass)
 }
 
+/// LCB 便利包装：准入量用 **LCB(μ)** 而非裸 μ（严格alpha.pdf p25 §12——置信下界防高维 z 过拟合）。
+///
+/// 与 [`chi_open_gate`] 同构，唯一区别：查 [`MuEstimator::mu_lcb`]（`mean − z_alpha·std/√n`）而非
+/// [`MuEstimator::mu`]。`z_alpha` 单边正态分位（如 1.645=95%）由调用方传。
+///
+/// **None 语义统一**（n<2 ⟹ mu_lcb=None；空类 ⟹ None）：二者皆「无 LCB 证据」，由
+/// `treat_empty_as_pass` 裁决——`false` = 无证据不交易（与 p25「无正边际收益证据时不交易」一致），
+/// `true` = 全覆盖默认放行。selector 不替无证据类伪造 LCB（mu_lcb 已诚实返 None）。
+///
+/// **退化**：θ=−∞ ⟹ LCB>−∞ 对任何有 LCB 的类恒真（全覆盖不滤已观测 n≥2 类）；None 类仍按
+/// `treat_empty_as_pass`。n→∞ ⟹ std/√n→0 ⟹ LCB→mean ⟹ 与裸 μ 门决策收敛。
+///
+/// 认识论 **L1**（给定 μ/std/θ/z_alpha 求 χ 是确定性布尔，验证选择器逻辑，零信息增量）。
+#[inline]
+pub fn chi_open_gate_lcb(
+    est: &MuEstimator,
+    z: &MuClass,
+    theta: f64,
+    z_alpha: f64,
+    risk_ok: bool,
+    conflict_ok: bool,
+    treat_empty_as_pass: bool,
+) -> bool {
+    chi_t(est.mu_lcb(z, z_alpha), theta, risk_ok, conflict_ok, treat_empty_as_pass)
+}
+
 /// 候选 γ ([`Candidate`]) → 全互斥分类 z ([`MuClass`])（§16 z 六维）的桥接。
 ///
 /// `Candidate` 已带 `level`/`dir`(δ_g)/`bits`(I_γ)/`role`(R(g)=(H,V,δ))。z 的 `parent_dir` σ_p 与
@@ -144,15 +170,20 @@ pub fn z_of_candidate(c: &Candidate) -> MuClass {
 /// **非方向候选（`dir==Flat` / `bsp_class==u8::MAX`）保留**——由 interpret 归 𝒦_x 记录（不执行），
 /// 在此不滤（χ 是开仓边际门，方向裁决是 interpret 职责，no-patch 不越界）。
 ///
-/// `treat_empty_as_pass`：空类（μ=None，未观测 z）χ 取值（codex Q3）：`false` ⟹ χ=0 不交易
-/// （**最诚实**——无正边际证据不开，不引入泄漏）；`true` ⟹ 默认交易（探索/全覆盖）。
+/// `z_alpha`：单边置信分位（如 1.645=95%）——准入量用 **LCB(μ)=mean−z_alpha·std/√n**（严格alpha.pdf
+/// p25 §12 防高维 z 过拟合），非裸 μ。`z_alpha=0` ⟹ LCB=mean ⟹ 退化回裸 μ 门（向后兼容）。
 ///
-/// 认识论 **L1**（给定 μ 表/θ 过滤候选是确定性变换，验证选择器逻辑生效，零信息增量）——过滤是否
-/// 提升 alpha 是 **L2/L3**（需 walk-forward μ + 真实数据否证，下游 delta-r-alpha 工位）。
+/// `treat_empty_as_pass`：无 LCB 证据（μ=None 空类 **或** n<2 单样本，mu_lcb 皆 None）χ 取值
+/// （codex Q3）：`false` ⟹ χ=0 不交易（**最诚实**——无正边际证据不开，p25 一致）；`true` ⟹ 默认
+/// 交易（探索/全覆盖）。LCB 升级后 None 多了「n<2 方差未定义」一源——与空类合流为「无证据」。
+///
+/// 认识论 **L1**（给定 μ/std 表/θ/z_alpha 过滤候选是确定性变换，验证选择器逻辑生效，零信息增量）——
+/// 过滤是否提升 alpha 是 **L2/L3**（需 walk-forward μ + 真实数据否证，下游 delta-r-alpha 工位）。
 pub fn filter_gamma(
     gamma: &[Candidate],
     est: &MuEstimator,
     theta: f64,
+    z_alpha: f64,
     treat_empty_as_pass: bool,
 ) -> Vec<Candidate> {
     gamma
@@ -162,9 +193,9 @@ pub fn filter_gamma(
             if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
                 return true;
             }
-            // 方向候选：μ>θ 门（RiskOK/ConflictOK 下游已施，此处仅 μ 项 risk_ok=conflict_ok=true）。
+            // 方向候选：LCB(μ)>θ 门（RiskOK/ConflictOK 下游已施，此处仅 μ 项 risk_ok=conflict_ok=true）。
             let z = z_of_candidate(c);
-            chi_t(est.mu(&z), theta, true, true, treat_empty_as_pass)
+            chi_t(est.mu_lcb(&z, z_alpha), theta, true, true, treat_empty_as_pass)
         })
         .cloned()
         .collect()
@@ -259,5 +290,102 @@ mod tests {
         assert_eq!(pi_bar(&actions, 5.0), None); // 无候选 μ>θ=5 ⟹ Hold/Flat
         // 空候选集 ⟹ Hold/Flat（§17 每个 z 都有动作，最坏 Hold）。
         assert_eq!(pi_bar::<&str>(&[], 0.0), None);
+    }
+
+    /// LCB 门控分离（严格alpha.pdf p25 §12 核心可证伪）：高方差低 n 类，裸 μ>θ 但 LCB<θ ⟹
+    /// LCB 选择器**拒绝**、裸 μ 选择器**准入**。二者决策分离 = LCB 升级有信息增量（非同义反复）。
+    #[test]
+    fn lcb_gate_rejects_high_variance_that_naive_mu_admits() {
+        let z = buy_z();
+        let theta = 5.0;
+        let z_alpha = 1.645; // 95% 单边
+        let mut est = MuEstimator::new();
+        // 两样本 [110, -80]：mean=15>θ=5（裸 μ 准入），但 std≈134 极大 ⟹ LCB=15−1.645·134/√2≈−141<θ。
+        est.observe(MuObservation { class: z, x_gamma: 110.0 });
+        est.observe(MuObservation { class: z, x_gamma: -80.0 });
+        let mu = est.mu(&z).unwrap();
+        let lcb = est.mu_lcb(&z, z_alpha).unwrap();
+        assert!(mu > theta, "裸 μ={mu} 应 >θ={theta}（裸门准入）");
+        assert!(lcb < theta, "LCB={lcb} 应 <θ={theta}（高方差收缩拒绝）");
+        // 裸 μ 门：准入。LCB 门：拒绝。决策分离（可证伪）。
+        assert!(chi_open_gate(&est, &z, theta, true, true, false));
+        assert!(!chi_open_gate_lcb(&est, &z, theta, z_alpha, true, true, false));
+        // filter_gamma 同路：z_alpha=0（裸 μ）准入 vs z_alpha=1.645（LCB）拒绝——但 filter_gamma 走
+        // Candidate，此处直接验便利包装已足（z_of_candidate 桥接由 chi_is_conjunction 等覆盖）。
+    }
+
+    /// n→∞ 收敛（mu_estimator 文档 std/√n→0）：大样本低方差 z，LCB 选择器与裸 μ 选择器决策一致。
+    /// LCB→mean ⟹ LCB 门退化回裸 μ 门（高样本时置信下界不再收缩）。
+    #[test]
+    fn lcb_converges_to_naive_mu_at_large_n() {
+        let z = buy_z();
+        let theta = 5.0;
+        let z_alpha = 1.645;
+        let mut est = MuEstimator::new();
+        // 大样本（n=2000）窄分布（围绕 10±0.5）⟹ std 小、√n 大 ⟹ std/√n→0 ⟹ LCB→mean≈10>θ。
+        for i in 0..2000 {
+            let x = if i % 2 == 0 { 10.5 } else { 9.5 }; // mean=10, 小方差
+            est.observe(MuObservation { class: z, x_gamma: x });
+        }
+        let mu = est.mu(&z).unwrap();
+        let lcb = est.mu_lcb(&z, z_alpha).unwrap();
+        assert!((mu - lcb).abs() < 0.1, "大样本 LCB({lcb}) 应 ≈ mean({mu})");
+        // 两门决策一致（都准入，因 LCB≈mean≈10>θ=5）。
+        assert_eq!(
+            chi_open_gate(&est, &z, theta, true, true, false),
+            chi_open_gate_lcb(&est, &z, theta, z_alpha, true, true, false),
+            "大样本下 LCB 门与裸 μ 门决策一致（收敛）"
+        );
+    }
+
+    /// θ=−∞ 退化全覆盖在 LCB 门下不变：LCB>−∞ 对任何有 LCB（n≥2）的类恒真；None（n<2/空类）
+    /// 仍按 treat_empty_as_pass。证明 LCB 升级保留 §13 全覆盖退化边界。
+    #[test]
+    fn lcb_theta_neg_inf_is_full_coverage() {
+        let z = buy_z();
+        let z_alpha = 1.645;
+        // n≥2 高方差类：θ=−∞ ⟹ 即使 LCB 极负也 >−∞ ⟹ 准入（全覆盖不滤已观测 n≥2 类）。
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z, x_gamma: 110.0 });
+        est.observe(MuObservation { class: z, x_gamma: -80.0 });
+        assert!(chi_open_gate_lcb(&est, &z, f64::NEG_INFINITY, z_alpha, true, true, true));
+        // None 类（空类）：θ=−∞ 不改 treat_empty_as_pass 裁决——true 放行，false 拒绝。
+        let empty = MuEstimator::new();
+        assert!(chi_open_gate_lcb(&empty, &z, f64::NEG_INFINITY, z_alpha, true, true, true));
+        assert!(!chi_open_gate_lcb(&empty, &z, f64::NEG_INFINITY, z_alpha, true, true, false));
+    }
+
+    /// None 语义统一（任务 §3）：n<2 单样本（mu_lcb=None）与空类同走 treat_empty_as_pass，
+    /// 不冒充 LCB=mean。无 LCB 证据时 false=不交易（p25「无正边际收益证据时不交易」）。
+    #[test]
+    fn lcb_single_sample_none_follows_empty_semantics() {
+        let z = buy_z();
+        let z_alpha = 1.645;
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z, x_gamma: 100.0 }); // n=1 ⟹ 方差未定义 ⟹ mu_lcb=None
+        assert_eq!(est.mu_lcb(&z, z_alpha), None, "n=1 ⟹ mu_lcb None");
+        assert_eq!(est.mu(&z), Some(100.0), "但裸 μ 有值（n=1 均值已定义）");
+        // 无 LCB 证据：false ⟹ 不交易（诚实），true ⟹ 全覆盖放行——与空类同。
+        assert!(!chi_open_gate_lcb(&est, &z, 0.0, z_alpha, true, true, false));
+        assert!(chi_open_gate_lcb(&est, &z, 0.0, z_alpha, true, true, true));
+    }
+
+    /// z_alpha=0 退化（向后兼容）：LCB=mean−0=mean ⟹ LCB 门 ≡ 裸 μ 门（filter_gamma/runner
+    /// 默认 z_alpha=0 保 frozen bit-exact）。
+    #[test]
+    fn lcb_z_alpha_zero_equals_naive_mu() {
+        let z = buy_z();
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z, x_gamma: 10.0 });
+        est.observe(MuObservation { class: z, x_gamma: 8.0 }); // n=2，LCB 有定义
+        // z_alpha=0 ⟹ LCB=mean=9，与裸 μ 门同决策。
+        assert_eq!(est.mu_lcb(&z, 0.0), est.mu(&z));
+        for theta in [-1.0, 8.5, 9.0, 100.0] {
+            assert_eq!(
+                chi_open_gate(&est, &z, theta, true, true, false),
+                chi_open_gate_lcb(&est, &z, theta, 0.0, true, true, false),
+                "z_alpha=0 时 LCB 门 ≡ 裸 μ 门（θ={theta}）"
+            );
+        }
     }
 }
