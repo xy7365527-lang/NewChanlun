@@ -360,7 +360,12 @@ pub fn coverage_elements_and_gamma_with_tower(
 pub struct TreeKey(Vec<(u32, u32, u64, usize, usize, u8, i64, i64, usize)>);
 
 impl TreeKey {
-    fn of(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
+    /// 指纹长度（诊断用：≈tree 节点数，量化 `of` 的 O(tree) 工作量标度）。
+    pub(crate) fn fp_len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub(crate) fn of(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
         for lvl in tower.iter().rev() {
             if !lvl.is_empty() {
                 let mut fp = Vec::new();
@@ -435,6 +440,10 @@ pub struct TreeCache {
     /// 每 bar `build_tree_id_index(tree_prefix)` O(tree)/bar=O(n²)。只读（held leg 对位查表，缓存不被 mutate）。
     id_idx: Rc<std::collections::HashMap<ElementId, usize>>,
     valid: bool,
+    /// ★工位 4g：缓存树对应的塔变更代次（`TowerCache::generation()`）。`Some(g)` ⟹ 缓存树由代次 g 的
+    /// 塔建得。下游传入同代次 ⟹ **跳过 O(tree) 的 `TreeKey::of` 全量重算**直接复用（exp≈2.0 真因消除）。
+    /// `None` ⟹ 未用 generation 路径建过（fallback TreeKey 比较，向后兼容合成闭包/全量路径）。
+    gen: Option<u64>,
 }
 
 impl TreeCache {
@@ -468,6 +477,26 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
+    // 向后兼容入口（无 generation——合成闭包/全量路径走 TreeKey 比较，O(tree)/bar）。
+    coverage_elements_and_gamma_with_tower_cached_gen(classification, tower, cache, None)
+}
+
+/// [`coverage_elements_and_gamma_with_tower_cached`] **带塔代次** `tower_gen`（★工位 4g：消 exp≈2.0
+/// 真因——每 bar 无条件 `TreeKey::of` 全量重算）。
+///
+/// **命中判据两级**（soundness 见 [`super::super::classifier::TowerCache::generation`]）：
+/// 1. **代次快路**（`tower_gen=Some(g)` 且 `c.valid && c.gen==Some(g)`）：塔代次未变 ⟹ `extract_elements`
+///    输出逐字节不变（generation 绑定可观察树变更）⟹ **跳过 `TreeKey::of`** 直接 `Rc::clone` 复用（O(1)）。
+///    这是 ~99.8% bar 的路径（CL 16K 仅 26 次塔变）。
+/// 2. **TreeKey fallback**（代次不匹配 / `tower_gen=None`）：算 `TreeKey::of` 比较（旧路径，bit-exact）。
+///
+/// bit-exact == 无缓存版：代次快路复用的 `tree` 与 `extract_elements(tower)` 逐字节相等（debug_assert 守卫）。
+pub fn coverage_elements_and_gamma_with_tower_cached_gen(
+    classification: &Classification,
+    tower: &[Rc<Vec<LeveledMove>>],
+    cache: &mut Option<&mut TreeCache>,
+    tower_gen: Option<u64>,
+) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
     // ★热点②③ O(n²) 消除：树前缀 + 两个派生索引 `Rc` 共享（命中返 `Rc::clone` O(1)，旧每 bar
     // `extract_elements` + `build_*_index` 全是 O(tree)/bar=O(n²)）。candidate 段不进树/索引 clone，
     // 单独 `candidates` Vec + candidate-only 兄弟 overlay 承载（消费者 ElementView + split 查询双段组装）。
@@ -477,11 +506,22 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
         Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
     ) = match cache {
         Some(c) => {
+            // ★工位 4g 代次快路：塔代次未变 ⟹ 跳过 O(tree) 的 TreeKey::of（exp≈2.0 真因消除）。
+            let gen_hit = matches!((tower_gen, c.gen), (Some(g), Some(cg)) if g == cg) && c.valid;
+            if gen_hit {
+                // soundness 守卫（debug/test）：代次命中必与全量 extract_elements 逐字节相等
+                // （generation 绑定可观察树变更——若假命中则 generation 维护有遗漏，立即暴露）。
+                debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
+                    "TreeCache 代次假命中——TowerCache::generation 维护遗漏变异点（codex Q3）");
+                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx)) // 三者 O(1)
+            } else {
             let key = TreeKey::of(tower);
             if c.valid && c.key == key {
                 // bit-exact 守卫（debug/test）：缓存命中必与全量 extract_elements 逐字节相等（§16 + 实测 0 假命中）。
                 debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
                     "TreeCache 假命中——§16 不变量破裂或 TreeKey 不 sound");
+                // 代次记录（TreeKey 命中但代次曾 miss——刷新 gen 让下 bar 走代次快路）。
+                c.gen = tower_gen;
                 (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx)) // 三者 O(1)
             } else {
                 let t = Rc::new(coverage::extract_elements(tower));
@@ -491,8 +531,10 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
                 c.id_idx = Rc::new(coverage::build_tree_id_index(&t));
                 c.tree = t;
                 c.key = key;
+                c.gen = tower_gen;
                 c.valid = true;
                 (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
+            }
             }
         }
         None => {

@@ -411,12 +411,30 @@ pub struct TowerCache {
     closes: Vec<f64>,
     /// merged_bars.source_index 增量缓存（与 `closes` 同步，坐标系映射用）。
     close_src: Vec<usize>,
+    /// ★工位 4g：塔变更代次（generation）——下游 [`super::strategy::interp::TreeCache`] 用其 O(1) 判断
+    /// 是否复用缓存树，**跳过每 bar O(tree) 的 `TreeKey::of(tower)` 全量重算**（exp≈2.0 真因）。
+    ///
+    /// **单调递增**，仅当 `extract_elements(tower)` **可观察输出可能变化**时 +1。维护点（codex 异质审
+    /// soundness 全覆盖）：(a) 任一级 `cascade_reset`（frontier 改写/回缩传播至最高级重扫）；(b) 任一级
+    /// `upper_moves` extend 非空 tail（含新级涌现首产 + 最高级 append）；(c) `clear()`（全量重扫）。
+    ///
+    /// soundness 充要（codex Q3）：generation 绑定"可观察树变更"非指针/len。低级 extend 不影响最高级
+    /// 输出时**过度** +1（保守——多算一次 TreeKey，绝不假命中），sound 安全。`extract_elements` 只读最高
+    /// 非空级，但 `sub_moves: Vec<LeveledMove>` 值拷贝（compose 时 `subs.to_vec()`）⟹ 低级静默变异必经
+    /// cascade 重建父级才更新副本（codex Q1 确认无静默路径）。
+    generation: u64,
 }
 
 impl TowerCache {
     /// 构造空缓存（首次调用全量扫，之后增量复用）。
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// ★工位 4g：当前塔变更代次（下游 `TreeCache` O(1) 命中判据）。同代次 ⟹ `extract_elements`
+    /// 输出逐字节不变（soundness 见 `generation` 字段文档）。
+    pub fn generation(&self) -> u64 {
+        self.generation
     }
 
     /// 重置缓存（退化为下次全量重扫）。
@@ -431,6 +449,9 @@ impl TowerCache {
         self.macd_closes_prefix.clear();
         self.closes.clear();
         self.close_src.clear();
+        // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
+        // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
+        self.generation += 1;
     }
 }
 
@@ -791,6 +812,9 @@ pub fn classify_with_tower_incremental(
     // 的易错判断（no-patch）：下级变异无条件向上传播，上级不依赖投影完备性。代价：变异 bar（16K 中
     // ~120 次稀疏）该级+所有上级全量重扫，amortized 仍 O(n)。
     let mut cascade_reset = false;
+    // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
+    // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
+    let mut did_extend = false;
 
     for level_idx in 0..=l_max {
         // 自然终止：单元数 < min_parts ⟹ 停止（与 classify_impl 同口径）。
@@ -852,6 +876,8 @@ pub fn classify_with_tower_incremental(
         lc.centers.extend(tail_centers);
         // make_mut：strong_count==1（caller 已 drop 上 bar snapshot）⟹ 原地 extend O(tail)；
         // >1（理论上 caller 跨 bar 持有，生产路径不发生）⟹ 写时复制再追加（仍 bit-exact）。
+        // ★工位 4g：非空 tail extend ⟹ 该级 upper_moves 树变 ⟹ 标记 did_extend（驱动 generation）。
+        did_extend |= !tail_upper.is_empty();
         Rc::make_mut(&mut lc.upper_moves).extend(tail_upper);
         lc.scan_cursor = new_cursor;
         debug_assert!(
@@ -926,6 +952,22 @@ pub fn classify_with_tower_incremental(
     // closes/close_src 缓冲放回 cache（mem::take 取出的所有权归还，下 bar 复用，零额外分配）。
     cache.closes = closes;
     cache.close_src = close_src;
+
+    // ★工位 4g：本 bar 若有 cascade 重扫或任一级 extend 非空 tail ⟹ extract_elements 可观察树变更 ⟹
+    // +generation（下游 TreeCache 据此 O(1) 跳过 TreeKey::of）。无变化 bar（~99.8%）generation 不变 ⟹
+    // 命中。soundness：保守过度计数（低级 extend 不动最高级输出时多算一次 TreeKey）安全，绝不假命中。
+    //
+    // ★L0-root 边界（codex Q3 漏洞 + gen_fastpath_bit_exact_debug bar 345 坐实）：当最高非空级是 **L0**
+    // （tower 无 compose 级，extract 直接读 `moves_tower_l0`），L0 走势塔每 bar 从 `l0.segments` 重建
+    // （非缓存 Rc），其增长/同 len 古怪线段重划**不经** cascade/did_extend（那两者只覆盖各级 upper_moves）。
+    // 故 L0-root 阶段**强制每 bar +generation**（走 TreeKey fallback）——此阶段 tree 极小（早期 bar），
+    // TreeKey O(small) 不影响大 n 标度。一旦 L1+ 出现（extract 读 L1），L0 任何变化必经 cascade 传播至
+    // L1（codex Q1：L0 frontier 改写→L1 units 投影变→L1 frontier_mutated→cascade），被完整捕获。
+    let highest_nonempty = tower_snapshots.iter().rposition(|s| !s.is_empty());
+    let l0_is_root = highest_nonempty == Some(0);
+    if cascade_reset || did_extend || l0_is_root {
+        cache.generation += 1;
+    }
 
     (Classification { levels }, tower_snapshots)
 }

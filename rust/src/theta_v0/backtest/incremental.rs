@@ -90,6 +90,12 @@ impl<'a> IncrementalClassifier<'a> {
         // 增量塔：cache 跨 bar 复用（身份稳定），bit-exact == 全量 classify_with_tower。
         classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache)
     }
+
+    /// ★工位 4g：当前塔变更代次（`classify_at` 后读取）。下游 `TreeCache` 据此 O(1) 判断是否复用
+    /// 缓存树，跳过每 bar O(tree) 的 `TreeKey::of`（exp≈2.0 真因）。同代次 ⟹ extract 输出不变。
+    pub fn tower_generation(&self) -> u64 {
+        self.tower_cache.generation()
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -613,6 +619,139 @@ mod profile {
             eprintln!("{n:>7} | {t_key:>10.4} | {ke:>8.2}  fp_len={last_fp_len}");
             prev = Some((n, t_key));
         }
+    }
+
+    /// **★工位 4g 验收：generation 快路 extract 标度（镜像生产 runner `_gen` 路径，L2）**。
+    ///
+    /// 镜像生产：`classify_at` + `tower_generation` → `_gen` 快路（代次未变跳过 `TreeKey::of`）。验收
+    /// x_exp 从 ≈2.0（每 bar 全量 `TreeKey::of`）→ ≈1.0（代次命中 O(1)）。同时统计代次命中率
+    /// （应 ≈99.8%，与 TreeKey-miss 26/16K 同源）。
+    #[test]
+    #[ignore = "工位 4g：generation 快路 extract 标度验收；需 CL；--release --ignored"]
+    fn diag_gen_fastpath_extract_scaling_16k() {
+        use super::super::super::strategy::interp;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [2000usize, 4000, 8000, 16000];
+        let mut prev: Option<(usize, f64)> = None;
+        eprintln!("\n===== generation 快路 extract 标度（CL OOS，L2，镜像生产 _gen）=====");
+        eprintln!("{:>7} | {:>10} | {:>8} {:>10}", "n", "extract_s", "x_exp", "gen_hit%");
+        for &n in &sizes {
+            if n > oos.bars.len() { break; }
+            let bars = &oos.bars[..n];
+            let mut incr = super::IncrementalClassifier::new(bars, &config);
+            let mut tree_cache = interp::TreeCache::new();
+            let mut t_extract = 0.0f64;
+            let mut prev_gen: Option<u64> = None;
+            let mut gen_hits = 0usize;
+            for i in 0..n {
+                let (cls, tower) = incr.classify_at(i);
+                let gen = incr.tower_generation();
+                if prev_gen == Some(gen) { gen_hits += 1; }
+                prev_gen = Some(gen);
+                let t = std::time::Instant::now();
+                let (_tree, _cand, _gamma) =
+                    interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                        &cls, &tower, &mut Some(&mut tree_cache), Some(gen),
+                    );
+                t_extract += t.elapsed().as_secs_f64();
+            }
+            let xe = prev.map(|(pn, pt)| logexp(pn, pt, n, t_extract)).unwrap_or(f64::NAN);
+            eprintln!("{n:>7} | {t_extract:>10.4} | {xe:>8.2} {:>9.2}%", 100.0 * gen_hits as f64 / n as f64);
+            prev = Some((n, t_extract));
+        }
+    }
+
+    /// **★工位 4g 候选段隔离：gen 快路命中后剩余工作（candidate 段）标度**（L2）。
+    /// gen 快路 tree/index 全 O(1)，剩 candidate 段重建。测其单独标度——若 cand_exp≈1 则候选段非真因
+    /// （extract exp=2 是测量噪声）；若 cand_exp≈2 则候选段内有隐藏 O(tree)。
+    #[test]
+    #[ignore = "工位 4g：候选段隔离标度；需 CL；--release --ignored"]
+    fn diag_candidate_segment_scaling_16k() {
+        use super::super::super::strategy::interp;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [2000usize, 4000, 8000, 16000];
+        let mut prev: Option<(usize, f64)> = None;
+        eprintln!("\n===== 候选段隔离标度（gen 快路命中，CL OOS，L2）=====");
+        eprintln!("{:>7} | {:>10} | {:>8} {:>10}", "n", "cand_s", "cand_exp", "cand_last");
+        for &n in &sizes {
+            if n > oos.bars.len() { break; }
+            let bars = &oos.bars[..n];
+            let mut incr = super::IncrementalClassifier::new(bars, &config);
+            let mut tree_cache = interp::TreeCache::new();
+            let mut t_cand = 0.0f64;
+            let mut last_cand = 0usize;
+            // 预热第一个 bar（填缓存），之后测命中路径的总时（含候选段）。
+            for i in 0..n {
+                let (cls, tower) = incr.classify_at(i);
+                let gen = incr.tower_generation();
+                let t = std::time::Instant::now();
+                let (_t, cand, _g) = interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen));
+                t_cand += t.elapsed().as_secs_f64();
+                last_cand = cand.len();
+            }
+            let ce = prev.map(|(pn, pt)| logexp(pn, pt, n, t_cand)).unwrap_or(f64::NAN);
+            // 用 nocache None 模式对比（每 bar 全量 extract+index+候选，作 O(n²) 上界基底）。
+            let mut incr2 = super::IncrementalClassifier::new(bars, &config);
+            let mut t_full = 0.0f64;
+            for i in 0..n {
+                let (cls, tower) = incr2.classify_at(i);
+                let t = std::time::Instant::now();
+                let _ = interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut None, None);
+                t_full += t.elapsed().as_secs_f64();
+            }
+            eprintln!("{n:>7} | {t_cand:>10.4} | {ce:>8.2} {last_cand:>9}  full_nocache={t_full:.4}");
+            prev = Some((n, t_cand));
+        }
+    }
+
+    /// **★工位 4g bit-exact 守卫（debug 模式 debug_assert 生效）：generation 快路逐 bar == nocache**。
+    ///
+    /// 生产 `_gen` 路径的 debug_assert 在 release 不生效。本测试**默认 debug 构建**跑——代次快路命中时
+    /// debug_assert_eq! 逐 bar 对比 cached 树 vs `extract_elements(tower)`，任何 generation 维护遗漏
+    /// （假命中返陈旧树，codex Q3 列的漏洞）立即 panic。覆盖真实 CL frontier 古怪线段重划（bar 1464 类）。
+    #[test]
+    #[ignore = "工位 4g：generation 快路 debug bit-exact 守卫；需 CL；debug 构建 --ignored"]
+    fn gen_fastpath_bit_exact_debug() {
+        use super::super::super::strategy::{coverage, interp};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 4000.min(oos.bars.len()); // debug 慢，4K 含足够 cascade（古怪线段）覆盖
+        let mut incr = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+        let mut tree_cache = interp::TreeCache::new();
+        let mut gen_hits = 0usize;
+        let mut prev_gen: Option<u64> = None;
+        for i in 0..n {
+            let (cls, tower) = incr.classify_at(i);
+            let gen = incr.tower_generation();
+            let prev_gen_snap = prev_gen;
+            if prev_gen == Some(gen) { gen_hits += 1; }
+            prev_gen = Some(gen);
+            let _ = prev_gen_snap;
+            // _gen 快路（debug_assert_eq 内部对比代次命中树 == extract_elements）。
+            let expect = coverage::extract_elements(&tower);
+            let (tree, _cand, _gamma) =
+                interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen));
+            // 显式再断一遍（不依赖 debug_assert，release 也保护本测试）。
+            if tree.as_ref() != &expect {
+                eprintln!("DIVERGE bar {i}：gen={gen} prev_gen={prev_gen_snap:?} cached_len={} expect_len={} tower_levels={}",
+                    tree.len(), expect.len(), tower.len());
+                for (j, (a, b)) in tree.iter().zip(expect.iter()).enumerate() {
+                    if a != b { eprintln!("  first diff idx {j}: cached={a:?}\n             expect={b:?}"); break; }
+                }
+                panic!("bar {i}：generation 快路返陈旧树（gen 维护遗漏变异点，codex Q3）");
+            }
+        }
+        eprintln!("gen_fastpath_bit_exact：{n} bars 全部 gen 快路==nocache，gen 命中 {gen_hits} bars");
     }
 
     /// **★工位 4d L2 证据：`coverage_step` 路径标度（热点①② 消除验收）**。

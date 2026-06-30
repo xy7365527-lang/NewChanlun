@@ -292,7 +292,12 @@ pub fn run_theta_v0_pi(
     // 注意：bit-exact 仅证明塔构造 O(n) 达成，不证明身份稳定→Stale 降根（后者被 L2 否证）。
     let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
     let fill = pi_theta_fill_loop(
-        |i| classifier_incr.classify_at(i),
+        // ★工位 4g：返回塔代次（TreeCache O(1) 命中判据，跳过 per-bar O(tree) TreeKey::of）。
+        |i| {
+            let (cls, tower) = classifier_incr.classify_at(i);
+            let gen = classifier_incr.tower_generation();
+            (cls, tower, gen)
+        },
         bars,
         initial_nav,
         config,
@@ -499,7 +504,8 @@ fn pi_theta_fill_loop<F>(
     config: &ThetaConfig,
 ) -> FillOutput
 where
-    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>),
+    // ★工位 4g：闭包返回三元组——第三个 u64 = 塔代次（TreeCache O(1) 命中判据）。
+    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64),
 {
     use super::super::strategy::coverage::{self, PiThetaWeights};
     use super::super::strategy::exec::fill_bar_index;
@@ -562,7 +568,7 @@ where
         if !bar.untradable && px > 0.0 {
             // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
             //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
-            let (classification_i, tower_i) = classify_at(i);
+            let (classification_i, tower_i, tower_gen) = classify_at(i);
             // ★当步候选 = 前缀因果塔里**本 bar 新确认**的买卖点（append-only diff vs seen，确认-bar
             // 部署）——非 source_index==i 切片（买卖点回溯确认，其触发点常在更晚 bar 才入前缀塔 ⟹
             // source_index==i 切恒空 ⟹ 零订单）。买卖点在被确认那根 bar（source_index≤i）部署=因果。
@@ -577,8 +583,8 @@ where
             // newly-confirmed step 候选；merge 用全 classification 候选——两者共享同一 tower tree-prefix 缓存。
             // ★热点② O(n²) 消除：tree=Rc::clone O(1)，candidate 段单独 Vec，ElementView 双段零拷贝。
             let (step_tree, step_candidates, step_gamma) =
-                interp::coverage_elements_and_gamma_with_tower_cached(
-                    &classification_step, &tower_i, &mut Some(&mut tree_cache),
+                interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &classification_step, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen),
                 );
             // ★工位 4d 热点①②：注入缓存的 base（tree 前缀）兄弟/ID 索引（命中 Rc::clone O(1)），消除
             // coverage_step_from_buckets 内每 bar build_prev_sibling_index/build_tree_id_index O(tree)/bar。
@@ -614,8 +620,8 @@ where
             {
                 // 工位 K 性能：共享 tree-prefix 缓存（merge 用全 classification 候选）。tree=Rc::clone O(1)。
                 let (tree_ref, candidates_ref, _gamma) =
-                    interp::coverage_elements_and_gamma_with_tower_cached(
-                        &classification_i, &tower_i, &mut Some(&mut tree_cache),
+                    interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                        &classification_i, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen),
                     );
                 // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
                 // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
@@ -1374,11 +1380,13 @@ mod tests {
             levels: vec![LevelState { bsp: vec![buy1_at(3)], ..Default::default() }],
         };
         let fill = pi_theta_fill_loop(
+            // ★工位 4g：第三元素 = 塔代次。合成闭包每 bar 用单调 `i as u64`（保守——每 bar 视作塔变 ⟹
+            // 走 TreeKey fallback，bit-exact；空塔下 TreeKey 亦平凡）。
             |i| {
                 if i >= 7 {
-                    (classification.clone(), Vec::new())
+                    (classification.clone(), Vec::new(), i as u64)
                 } else {
-                    (Classification::default(), Vec::new())
+                    (Classification::default(), Vec::new(), i as u64)
                 }
             },
             &bars,
