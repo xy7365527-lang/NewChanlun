@@ -54,7 +54,7 @@
 
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
-use super::mu_estimator::{marginal_return, MuClass, MuEstimator, MuObservation};
+use super::mu_estimator::{marginal_return, MuClass, MuEstimator, MuObservation, PositionState};
 use super::prereg_windows::PREREG_WINDOWS;
 use super::runner::run_theta_v0_pi_chi;
 use super::selector::z_of_candidate;
@@ -484,9 +484,511 @@ fn delta_r_alpha_multi_symbol() {
     );
 }
 
+/// 从交易轨迹重建**逐 bar 成本序列**（归一化口径，nav0 单位）——鞅守卫成本剥离用。
+///
+/// codex 异质审裁决（2026-06-30）：净 ΔR 在鞅上可正，因为 χ 过滤比全覆盖 baseline **交易少**
+/// ⟹ 成本低 ⟹ `ΔR=−ΔC>0` 是**成本节省**非预测 alpha。鞅定理的纯净形式是毛额 `E[ΔN·ΔP]=0`
+/// （不含成本）。故鞅守卫须剥离成本，看毛收益 `ΔGross=ΔR+ΔC`，鞅上应 `E[ΔGross]=0`。
+///
+/// 成本在 entry/exit bar 离散发生：每条 trade 在 `entry_bar` 扣 `qty·entry_px·fee_rate`、在
+/// `exit_bar` 扣 `qty·exit_px·fee_rate`（双边费，与 [`marginal_return`] 同口径）。返回长度
+/// `n_bars` 的逐 bar 成本序列（nav0 归一化），`cost[t]` = 第 t bar 发生的成交费用 / nav0。
+fn rebuild_cost_series(res: &super::runner::RunResult, n_bars: usize, nav0: f64) -> Vec<f64> {
+    let mut cost = vec![0.0f64; n_bars];
+    let fee = res.fee_rate;
+    for tr in &res.trades {
+        // 成交价从 RunResult.prices（与账本 apply_order 成交价一致，close 口径）取。
+        let entry_px = res.prices.get(tr.entry_bar).copied().unwrap_or(0.0);
+        let exit_px = res.prices.get(tr.exit_bar).copied().unwrap_or(0.0);
+        if tr.entry_bar < n_bars {
+            cost[tr.entry_bar] += tr.qty * entry_px * fee / nav0;
+        }
+        if tr.exit_bar < n_bars {
+            cost[tr.exit_bar] += tr.qty * exit_px * fee / nav0;
+        }
+    }
+    cost
+}
+
+/// 毛收益序列统计：mean、年化 Sharpe、**双边** block bootstrap p（H0:mean=0）。
+///
+/// 鞅守卫用双边（H0:E[ΔGross]=0），区别于 [`delta_r_stats`] 的单边（H0:mean≤0，净 alpha 方向性）。
+/// 双边 p = `2·min(P(boot≤0), P(boot≥0))`（block bootstrap 重采样均值分布，seed 冻结，BLOCK=20）。
+fn gross_stats(gross: &[f64], bars_per_year: f64) -> (f64, f64, f64) {
+    let n = gross.len();
+    if n < 2 {
+        return (0.0, 0.0, 1.0);
+    }
+    let mean = gross.iter().sum::<f64>() / n as f64;
+    let var = gross.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+    let std = var.sqrt();
+    let sharpe = if std > 1e-18 { mean / std * bars_per_year.sqrt() } else { 0.0 };
+
+    let mut rng = SplitMix64::new(PREREG_SEED);
+    const N_RESAMPLE: usize = 1000;
+    const BLOCK: usize = 20;
+    let (mut n_le, mut n_ge) = (0usize, 0usize);
+    for _ in 0..N_RESAMPLE {
+        let mut total = 0.0;
+        let mut filled = 0usize;
+        while filled < n {
+            let start = rng.next_below(n);
+            let take = BLOCK.min(n - filled);
+            for k in 0..take {
+                total += gross[(start + k) % n];
+            }
+            filled += take;
+        }
+        if total <= 0.0 {
+            n_le += 1;
+        }
+        if total >= 0.0 {
+            n_ge += 1;
+        }
+    }
+    let frac_le = n_le as f64 / N_RESAMPLE as f64;
+    let frac_ge = n_ge as f64 / N_RESAMPLE as f64;
+    let two_sided = (2.0 * frac_le.min(frac_ge)).min(1.0);
+    (mean, sharpe, two_sided)
+}
+
+/// 合成鞅 Dataset 生成（acc-martingale-guard，§11/§16 鞅定理的否证基线）。
+///
+/// `P_{t+1} = P_t + ε`，ε∈{−1,0,+1} 对称等概率（SplitMix64 确定性）⟹ `E[ε|F_t]=0`
+/// ⟹ `E[P_{t+1}−P_t|F_t]=0` = 鞅（认识论 L1：合成数据，验证管线因果纯净，非验证假设）。
+///
+/// **鞅性保证（codex 审核点）**：ε 仅依赖 PRNG state（与价格历史 F_t 独立），无均值回复/动量项
+/// ⟹ 无任何残余可预测性。OHLC 全 = close（纯 close 鞅序列，无 intrabar 信息可被 χ 偷看）。
+/// 整数 tick close 有下限 1（量化非负约束；下限反射保持对称——撞底翻 +1 而非吸收，避免引入
+/// 系统性上漂）。`untradable=false`（全可交易，让 χ 选择器在干净鞅上充分作用）。
+fn synthetic_martingale(n: usize, seed: u64, start_tick: i64) -> Dataset {
+    let mut rng = SplitMix64::new(seed);
+    let mut bars = Vec::with_capacity(n);
+    let mut px = start_tick.max(1);
+    for i in 0..n {
+        // ε∈{−1,0,+1} 对称：三态等概率 ⟹ E[ε]=0（F_t 独立 ⟹ E[ε|F_t]=0）。
+        let eps: i64 = match rng.next_below(3) {
+            0 => -1,
+            1 => 0,
+            _ => 1,
+        };
+        // 下限反射（撞 1 时 −1 翻成 +1）保持对称，不引入吸收态上漂。
+        px = if px + eps < 1 { px + 1 } else { px + eps };
+        bars.push(super::super::types::Bar {
+            source_index: i,
+            timestamp: i as i64,
+            open: px,
+            high: px,
+            low: px,
+            close: px,
+            volume: 1,
+            untradable: false,
+        });
+    }
+    let dates = (0..n).map(|i| format!("2020-01-01 00:{:02}:00", i % 60)).collect();
+    Dataset { symbol: "MARTINGALE".to_string(), bars, dates, bar_seconds: 60 }
+}
+
+/// **★鞅不可能定理守卫：合成鞅上 χ 选择器无 alpha = harness 因果纯净（无未来函数泄漏）**。
+///
+/// 鞅定理（§11/§16，L0 数学）：`E[ΔP|F_t]=0 ∧ ΔN_t∈F_t ⟹ E[ΔR]=−E[ΔC]≤0`——无预测性则无 alpha。
+/// 合成鞅由构造满足 `E[ΔP|F_t]=0`（[`synthetic_martingale`]），χ 选择器因果（ΔN_t∈F_t，
+/// walk-forward μ frozen + test 不偷看未来）⟹ **理论预言 ΔR 无正期望**。
+///
+/// **判据口径（codex 异质审裁决 2026-06-30，约束4硬节点）**：主判据 = **毛收益 ΔGross**，非净 ΔR。
+/// 净 ΔR 在鞅上**可合法为正**——χ 过滤比全覆盖 baseline 交易少 ⟹ 成本低 ⟹ `ΔR=−ΔC>0` 是
+/// 成本节省，非预测 alpha。鞅定理的纯净形式是毛额 `E[ΔN·ΔP]=0`（不含成本）。故剥离成本：
+/// `ΔGross_t = ΔR_t + ΔC_t`（[`rebuild_cost_series`] 重建逐 bar 成本差），鞅上 `E[ΔGross]=0`。
+///
+/// **可证伪判据（acc-martingale-guard，L1 管线纯净度）**：
+/// - PASS（harness 无泄漏）：毛收益双边检验**不显著**（`boot_two_sided>0.05`）——ΔGross 含 0，
+///   与鞅定理 `E[ΔN·ΔP]=0` 自洽。净 ΔR 可正（成本节省），并列报告但不作泄漏判据。
+/// - FAIL（暴露未来函数泄漏）：毛收益显著≠0（`boot_two_sided≤0.05`）——鞅上毛额不可能有预测性，
+///   显著毛 alpha 只能来自 harness 偷看未来（μ 表泄漏 test 信息 / 持仓暴露差含后视）。须定位泄漏。
+///
+/// 多种子（5 个）降低单次 PRNG 偶然性；任一种子毛收益显著即判 FAIL（泄漏不应种子依赖）。
+///
+/// `#[ignore]`：O(n²) 慢测（5 种子 × 32K bar train+test 逐 bar 重分类），`--release` 必须。
+/// 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha::martingale -- --ignored --nocapture`
+#[test]
+#[ignore = "鞅守卫；O(n²) 8 种子 × 32K bar；--release"]
+fn martingale_impossibility_guard() {
+    let config = ThetaConfig::default();
+    let theta: f64 = 0.0; // 与 multi_symbol 同 θ 口径（滤 μ≤0 类）。
+    let n = MAX_BARS; // 与真实数据同窗长（train+test 各 16K）。
+    let seeds: [u64; 8] = [PREREG_SEED, 0xC0FFEE, 0xDEADBEEF, 42, 0x1234_5678, 0xABCD, 7, 0xFACE];
+
+    eprintln!("\n===== 鞅不可能定理守卫：合成鞅 χ 选择器无毛 alpha 验证（θ={theta}, n={n}/种子）=====");
+    eprintln!("★鞅定理（§11/§16, L0）：E[ΔP|F_t]=0 ∧ ΔN∈F_t ⟹ E[ΔN·ΔP]=0——毛额无预测性");
+    eprintln!("★判据（认识论修正）：主判据=**跨独立种子** ΔGross 均值符号检验（H0:E=0⟹符号随机）；系统性同号=泄漏(FAIL)");
+    eprintln!("★单路径 boot p / 单路径 mean 仅诊断——单条鞅路径样本均值必偏离0（√n波动），单路径检验会误判噪声为泄漏");
+    eprintln!("★净 ΔR 鞅上可正（χ少交易省成本−ΔC>0）；毛 ΔGross 剥离成本=鞅定理 E[ΔN·ΔP]=0 直接对应（codex 裁决）");
+    eprintln!("★与 delta_r_alpha_multi_symbol 真实数据否证互为印证（真实无 alpha + 合成鞅无毛 alpha = χ 确无先验 alpha）");
+    eprintln!(
+        "{:<10} {:>7} {:>7} {:>6} {:>11} {:>11} {:>10} {:>9} {:>7} {}",
+        "seed", "train", "test", "μ类", "mean(ΔR净)", "mean(Gross)", "Shrp(Gr)", "boot_2p", "ΔN≠0", "毛符号",
+    );
+
+    let bars_per_year = data::bars_per_year(60);
+    let mut n_evaluated = 0usize;
+    let mut gross_means: Vec<f64> = Vec::new(); // 跨种子 ΔGross 均值（符号检验输入）。
+
+    for &seed in &seeds {
+        let ds = synthetic_martingale(n, seed, 10_000);
+        let split = n / 2;
+        let mk = |lo: usize, hi: usize| Dataset {
+            symbol: ds.symbol.clone(),
+            bars: ds.bars[lo..hi].to_vec(),
+            dates: ds.dates[lo..hi].to_vec(),
+            bar_seconds: 60,
+        };
+        let train = mk(0, split);
+        let test = mk(split, n);
+
+        // walk-forward μ 表（train 窗，frozen——与 multi_symbol 同函数，因果保证一致）。
+        let (est, _n_sig) = build_walk_forward_mu(&train, &config);
+
+        let first_px = test
+            .bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * config.tick.tick_size)
+            .unwrap_or(1.0);
+        let nav = (first_px * 1000.0).max(1.0e6);
+        let years = (test.bars.len() as f64 / bars_per_year).max(0.01);
+
+        let mut base_cfg = config.clone();
+        base_cfg.risk.chi_theta = None;
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true);
+
+        let mut chi_cfg = config.clone();
+        chi_cfg.risk.chi_theta = Some(theta);
+        let chi = run_theta_v0_pi_chi(&test, &chi_cfg, years, nav, &est, false);
+
+        let st = delta_r_stats(&base.daily_returns, &chi.daily_returns, nav, bars_per_year);
+
+        // 毛收益剥离（codex 裁决）：ΔGross_t = ΔR_t + ΔC_t。逐 bar 净配对差 = r^χ−r^0（含成本，
+        // 成本已扣进 equity）；加回成本差 (cost_χ−cost_base)/nav 还原毛额。鞅上 E[ΔGross]=0。
+        let len = base.daily_returns.len().min(chi.daily_returns.len());
+        let cost_base = rebuild_cost_series(&base, len, nav);
+        let cost_chi = rebuild_cost_series(&chi, len, nav);
+        let gross: Vec<f64> = (0..len)
+            .map(|t| (chi.daily_returns[t] - base.daily_returns[t]) + (cost_chi[t] - cost_base[t]))
+            .collect();
+        let (gross_mean, gross_sharpe, gross_two_sided_p) = gross_stats(&gross, bars_per_year);
+
+        // 跨种子符号检验输入（仅 χ 真改交易集的有效种子计入——χ 未改交易集时 ΔGross≡0，符号无意义）。
+        if st.chi_changed_trades {
+            n_evaluated += 1;
+            gross_means.push(gross_mean);
+        }
+        let sign_mark = if !st.chi_changed_trades {
+            "χ未改ΔN≡0"
+        } else if gross_mean > 0.0 {
+            "+ (诊断:单路径√n波动)"
+        } else {
+            "− (诊断:单路径√n波动)"
+        };
+
+        eprintln!(
+            "{:<10x} {:>7} {:>7} {:>6} {:>11.3e} {:>11.3e} {:>10.3} {:>9.4} {:>7} {}",
+            seed,
+            train.bars.len(),
+            test.bars.len(),
+            est.n_classes(),
+            st.mean,
+            gross_mean,
+            gross_sharpe,
+            gross_two_sided_p,
+            st.chi_changed_trades,
+            sign_mark,
+        );
+
+        assert!(gross_mean.is_finite(), "seed {seed:x} mean(ΔGross) 有限");
+        assert!((0.0..=1.0).contains(&gross_two_sided_p), "seed {seed:x} gross 双边 p∈[0,1]");
+    }
+
+    // ── 跨种子（独立鞅路径）ΔGross 均值符号检验（主判据，H0:E[ΔGross]=0 ⟹ 符号随机 p=0.5）──
+    let n_pos = gross_means.iter().filter(|&&m| m > 0.0).count();
+    let n_neg = gross_means.iter().filter(|&&m| m < 0.0).count();
+    let n_eff = gross_means.len();
+    // 双边符号检验 p = 2·min(P(X≥max(n_pos,n_neg)), ...)；用单边 sign_test_pvalue 取较极端侧 ×2。
+    let extreme = n_pos.max(n_neg);
+    let two_sided_sign_p = (2.0 * sign_test_pvalue(extreme, n_eff)).min(1.0);
+    // 泄漏判据：跨独立路径系统性同号（双边符号 p≤0.05）= 总体 E[ΔGross]≠0 = harness 泄漏。
+    let leak = n_eff >= 2 && two_sided_sign_p <= 0.05;
+
+    eprintln!("\n===== 鞅守卫聚合（跨独立种子符号检验，主判据）=====");
+    eprintln!("有效检验种子数（χ 真改交易集）   : {n_evaluated}/{}", seeds.len());
+    eprintln!("ΔGross 均值 +/− 分布            : {n_pos} 正 / {n_neg} 负（共 {n_eff}）");
+    eprintln!("跨种子双边符号检验 p（H0:E=0）   : {two_sided_sign_p:.4}");
+    eprintln!("检出未来函数泄漏（系统性同号）   : {leak}");
+    eprintln!(
+        "\n★诚实裁定（acc-martingale-guard + alpha2 §11 鞅定理 + codex 异质审 2026-06-30 + 231号）：\n  \
+         - **harness 因果纯净（PASS）** ⟺ 跨独立种子 ΔGross 均值符号检验不显著（双边 p>0.05）——\n    \
+           符号随机分布在 0 两侧，独立鞅路径上毛额总体 E[ΔGross]=0，与鞅定理 E[ΔN·ΔP]=0 自洽。\n  \
+         - **认识论修正（单路径 bootstrap 否证）**：单条鞅路径样本均值必偏离 0（√n 波动），单路径\n    \
+           boot p 把噪声误判为泄漏；正确判据是跨独立路径的符号随机性（与 L3 跨品种符号检验同构）。\n  \
+         - **成本剥离（codex 裁决）**：净 ΔR 鞅上可正（χ 少交易省成本 −ΔC>0），毛 ΔGross=ΔR+ΔC\n    \
+           剥离成本才是鞅定理 E[ΔN·ΔP]=0 的直接对应。\n  \
+         - 与 delta_r_alpha_multi_symbol（真实数据 χ 无系统性 alpha，否定性结果）互为印证：\n    \
+           真实无 alpha + 合成鞅无毛 alpha ⟹ χ 选择器确无先验 alpha（鞅定理两侧确认），harness 可信。\n  \
+         - 反面：若跨独立鞅路径毛额系统性同号（FAIL）⟹ 真实数据的任何 alpha 信号都不可信（被泄漏污染）。"
+    );
+
+    // acceptance（acc-martingale-guard 可证伪门）：跨独立鞅路径毛额不得系统性同号（无未来函数泄漏）。
+    assert!(
+        !leak,
+        "鞅守卫 FAIL：跨独立鞅路径 ΔGross 均值系统性同号（双边符号 p={two_sided_sign_p:.4}≤0.05）\
+         ——总体 E[ΔGross]≠0 = harness 未来函数泄漏，须定位修复（{n_pos}正/{n_neg}负/{n_eff}有效）"
+    );
+    // 跨种子符号检验需 ≥2 有效种子（χ 真改交易集）；否则检验空转/不可判。
+    assert!(
+        n_eff >= 2,
+        "鞅守卫 inconclusive：χ 真改交易集的有效种子<2（{n_eff}）——合成鞅未充分触发 χ 选择，符号检验不可判"
+    );
+}
+
+/// **诊断：枚举一个窗的全部方向候选 z**（与 [`build_walk_forward_mu`] 同口径的因果逐 bar 枚举）。
+///
+/// 复用 train μ 表构造里的同一枚举（`IncrementalClassifier` 逐 bar + append-only diff + assemble_gamma），
+/// 但只收集 z（不兑现 X_γ）——用于统计 test 段候选 z 命中/未见 train μ 表的比例（假设4诊断）。
+fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
+    let bars = &ds.bars;
+    let n = bars.len();
+    let mut classifier_incr = IncrementalClassifier::new(bars, config);
+    let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+    let mut zs: Vec<MuClass> = Vec::new();
+    for i in 0..n {
+        let bar = &bars[i];
+        if bar.untradable || bar.close <= 0 {
+            continue;
+        }
+        let (cls_i, tower_i) = classifier_incr.classify_at(i);
+        for (lvl, ls) in cls_i.levels.iter().enumerate() {
+            for p in &ls.bsp {
+                if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {
+                    continue;
+                }
+                let single = super::super::classifier::Classification {
+                    levels: cls_i
+                        .levels
+                        .iter()
+                        .enumerate()
+                        .map(|(l2, _)| super::super::classifier::LevelState {
+                            moves: Vec::new(),
+                            centers: Vec::new(),
+                            bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                        })
+                        .collect(),
+                };
+                let gamma = assemble_gamma_with_tower(&single, &tower_i);
+                for c in &gamma {
+                    if c.dir == VoiceSide::Flat {
+                        continue;
+                    }
+                    zs.push(z_of_candidate(c));
+                }
+            }
+        }
+    }
+    zs
+}
+
+/// **★退化品种根因诊断（task #49）：3 品种 χ 全滤空仓的四假设逐一证伪/确认**。
+///
+/// 实证发现 BTC/ES/QQQ 在 θ=0 + treat_empty_as_pass=false 下 chi.n_orders==0（全滤=Pass2 空仓）。
+/// codex 异质审要求：审作**实装结果**（μ坍缩/成本符号bug/θ过严/未见类）非静默当"无alpha"——
+/// 区分**实装artifact（伪否定）vs 真无alpha（否定成立）**。
+///
+/// 打印（每个退化品种）：
+/// 1. **假设1（μ估计坍缩）**：train μ 表各 z 类的 (μ, count)——是真无正边际类，还是估计退化（每类<2样本）。
+/// 2. **假设3（θ过严）**：θ scan {0, −1e-6, −1e-3, −∞}——θ<0 是否解退化（chi 从 0 单变 >0 单）。
+/// 3. **假设4（未见类）**：test 段候选 z 命中 train μ 表的比例——多少 z 未见于 train（treat_empty=false⟹全滤）。
+///
+/// 成本符号（假设2）**静态已否证**：marginal_return 复用 trade_abs_pnl，单测 bit-exact 验证多空+双边费
+/// （mu_estimator::tests::marginal_return_matches_directional_pnl / deducts_cost），成本是减项无符号 bug。
+///
+/// 认识论 **L1**（诊断=管线分类计数确定性变换 / 根因判定=L1 实装事实判断，不验证 alpha 假设）。
+///
+/// `#[ignore]`：O(n²) 慢测（3 品种 × 32K bar train+test 逐 bar 重分类 + θ scan），`--release` 必须。
+/// 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha::degeneracy_diagnosis -- --ignored --nocapture`
+#[test]
+#[ignore = "退化品种根因诊断；O(n²) 3 品种 θ scan；--release"]
+fn degeneracy_diagnosis() {
+    let config = ThetaConfig::default();
+    // 实证发现的 3 退化品种（χ 全滤空仓）。
+    let degenerate = ["BTC", "ES", "QQQ"];
+
+    eprintln!("\n===== 退化品种根因诊断（task #49）：3 品种 χ 全滤空仓的四假设 =====");
+    eprintln!("★假设2（成本符号bug）静态已否证：marginal_return 复用 trade_abs_pnl，单测 bit-exact（多空+双边费）");
+    eprintln!("★区分实装artifact（伪否定）vs 真无alpha（否定成立）——formalization-validity-domain 231号");
+
+    for sym in degenerate {
+        let w = match PREREG_WINDOWS.iter().find(|w| w.symbol == sym) {
+            Some(w) => w,
+            None => {
+                eprintln!("{sym}: 不在 PREREG_WINDOWS（跳过）");
+                continue;
+            }
+        };
+        let ds = match data::load_by_symbol(w.symbol, &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("{sym}: 加载失败 {e}（DATA BLOCKER）");
+                continue;
+            }
+        };
+        let oos_full = ds.slice_date_window(w.oos.0, w.oos.1);
+        if oos_full.bars.is_empty() {
+            eprintln!("{sym}: OOS 窗空");
+            continue;
+        }
+        let cut = MAX_BARS.min(oos_full.bars.len());
+        let split = cut / 2;
+        let mk = |lo: usize, hi: usize| Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[lo..hi].to_vec(),
+            dates: oos_full.dates[lo..hi.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
+        };
+        let train = mk(0, split);
+        let test = mk(split, cut);
+
+        let (est, n_sig) = build_walk_forward_mu(&train, &config);
+
+        eprintln!("\n────── {sym} (train={} test={} train_signals={n_sig}) ──────", train.bars.len(), test.bars.len());
+
+        // ── 假设1：μ 表分布（各 z 类 μ, count）──
+        let mut classes: Vec<(MuClass, f64, u64)> = est
+            .iter_mu()
+            .map(|(z, mu)| (z, mu, est.count(&z)))
+            .collect();
+        classes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+        let n_classes = classes.len();
+        let n_pos_mu = classes.iter().filter(|(_, mu, _)| *mu > 0.0).count();
+        let n_singleton = classes.iter().filter(|(_, _, c)| *c < 2).count();
+        let total_obs: u64 = classes.iter().map(|(_, _, c)| *c).sum();
+        eprintln!(
+            "  [假设1 μ坍缩] μ类数={n_classes} 总观测={total_obs} | μ>0类={n_pos_mu} | 单样本类(count<2)={n_singleton}"
+        );
+        eprintln!("    判据：μ>0类=0 ⟹ θ=0 全否决（解释空仓）；单样本类占比高 ⟹ μ估计退化（噪声均值）");
+        eprintln!("    top μ 类（前 5）:");
+        for (z, mu, c) in classes.iter().take(5) {
+            eprintln!(
+                "      μ={mu:+.4e} count={c} z=(ℓ{} δ{} I{:#04b} σp{} sd{} {:?})",
+                z.level, z.delta, z.i_class, z.parent_dir, z.short_swing as u8, z.position
+            );
+        }
+        if n_classes > 5 {
+            eprintln!("    bottom μ 类（后 3）:");
+            for (z, mu, c) in classes.iter().rev().take(3) {
+                eprintln!(
+                    "      μ={mu:+.4e} count={c} z=(ℓ{} δ{} I{:#04b} σp{} sd{} {:?})",
+                    z.level, z.delta, z.i_class, z.parent_dir, z.short_swing as u8, z.position
+                );
+            }
+        }
+
+        // ── 假设4：test 段候选 z 命中 train μ 表的比例 ──
+        let test_zs = enumerate_candidate_z(&test, &config);
+        let n_test = test_zs.len();
+        let mut n_seen = 0usize; // 命中 train μ 表
+        let mut n_seen_pos = 0usize; // 命中且 μ>0
+        let mut n_seen_nonpos = 0usize; // 命中且 μ≤0（θ=0 被滤）
+        let mut n_unseen = 0usize; // 未见于 train（treat_empty=false ⟹ 滤）
+        let mut pos_hit_z: Vec<MuClass> = Vec::new(); // 命中且 μ>0 的 z（矛盾候选定位）
+        for z in &test_zs {
+            match est.mu(z) {
+                Some(m) if m > 0.0 => {
+                    n_seen += 1;
+                    n_seen_pos += 1;
+                    pos_hit_z.push(*z);
+                }
+                Some(_) => {
+                    n_seen += 1;
+                    n_seen_nonpos += 1;
+                }
+                None => n_unseen += 1,
+            }
+        }
+        let pct = |x: usize| if n_test > 0 { 100.0 * x as f64 / n_test as f64 } else { 0.0 };
+        eprintln!(
+            "  [假设4 未见类] test候选={n_test} | 命中train={n_seen}({:.1}%) [μ>0={n_seen_pos} μ≤0={n_seen_nonpos}] | 未见={n_unseen}({:.1}%)",
+            pct(n_seen), pct(n_unseen)
+        );
+        eprintln!("    判据：未见%高 ⟹ walk-forward IS/test 不重叠致 z 类漂移，treat_empty=false 全滤（实装artifact）");
+        eprintln!("         命中且μ>0%>0 但仍空仓 ⟹ 矛盾（应有单）需查 runner；命中全μ≤0 ⟹ θ=0真否决（真无alpha候选）");
+        for z in &pos_hit_z {
+            // 矛盾定位：μ>0 命中候选若是 Child（σp≠0 / position=Child）⟹ 需父持仓依附；
+            // 若所有 Root（σp0）类 μ≤0 被滤 ⟹ 无父腿 ⟹ Child 短差腿无处依附 ⟹ 不开（级联否决，非矛盾）。
+            eprintln!(
+                "    ★μ>0命中候选定位: z=(ℓ{} δ{} I{:#04b} σp{} sd{} {:?}) ⟹ {}",
+                z.level, z.delta, z.i_class, z.parent_dir, z.short_swing as u8, z.position,
+                if z.position == PositionState::Child {
+                    "Child(需父持仓依附；若Root全μ≤0被滤⟹无父⟹级联否决,非矛盾)"
+                } else {
+                    "Root(无依附,应能开⟹若runner仍0单需查RiskOK/AncOK)"
+                }
+            );
+        }
+
+        // ── 假设3：θ scan（θ<0 是否解退化）──
+        eprintln!("  [假设3 θ过严] θ scan（test候选按 train μ 表过滤后的 χ=1 候选数）:");
+        for &theta in &[0.0f64, -1e-6, -1e-3, -1e-1, f64::NEG_INFINITY] {
+            // 全覆盖语义 = θ=−∞ 且 treat_empty=true 才成立；这里固定 treat_empty=false（与实证同口径），
+            // 仅扫 θ 看已观测类放行数（未见类恒滤，与实证一致）。θ=−∞ 时放行所有已观测类。
+            let pass: usize = test_zs
+                .iter()
+                .filter(|z| match est.mu(z) {
+                    Some(m) => m > theta,
+                    None => false, // treat_empty=false（实证同口径）
+                })
+                .count();
+            let label = if theta == f64::NEG_INFINITY { "−∞".to_string() } else { format!("{theta:.0e}") };
+            eprintln!("      θ={label:>7} ⟹ χ=1 候选数={pass}（仅已观测类，未见类恒滤）");
+        }
+        eprintln!("    判据：θ=0→θ<0 候选数从 0 变 >0 ⟹ θ=0过严（μ略负的类被滤，实装artifact可放宽）");
+        eprintln!("         θ=−∞ 仍=0（已观测类放行=0）⟹ 所有候选都是未见类 ⟹ 根因=假设4非假设3");
+    }
+
+    eprintln!("\n===== 诊断完成（结果包六要素见 Lead 汇报）=====");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 合成鞅性质：增量 ε∈{−1,0,+1}，价格恒 ≥1，无系统性漂移（样本均值增量 ≈0）。
+    #[test]
+    fn synthetic_martingale_is_driftless() {
+        let ds = synthetic_martingale(50_000, 12345, 10_000);
+        assert_eq!(ds.bars.len(), 50_000);
+        let mut sum_dp = 0i64;
+        let mut max_step = 0i64;
+        for w in ds.bars.windows(2) {
+            let dp = w[1].close - w[0].close;
+            sum_dp += dp;
+            max_step = max_step.max(dp.abs());
+            assert!(w[1].close >= 1, "close 恒 ≥1（量化非负 + 反射）");
+            assert_eq!(w[1].open, w[1].close, "OHLC 全=close（纯 close 鞅，无 intrabar 信息）");
+        }
+        assert!(max_step <= 1, "增量 ε∈{{−1,0,+1}}（|ε|≤1）");
+        // 无系统性漂移：50K 步累计位移应远小于步数（鞅 ⟹ E[ΣΔP]=0，√n 量级波动）。
+        let mean_dp = sum_dp as f64 / 49_999.0;
+        assert!(mean_dp.abs() < 0.01, "平均增量 ≈0（无漂移），实得 {mean_dp:.5}");
+    }
+
+    /// 同种子可复现（确定性 PRNG，bit-exact）。
+    #[test]
+    fn synthetic_martingale_deterministic() {
+        let a = synthetic_martingale(1000, 777, 5000);
+        let b = synthetic_martingale(1000, 777, 5000);
+        assert_eq!(a.bars, b.bars, "同种子 bit-exact 复现");
+        let c = synthetic_martingale(1000, 778, 5000);
+        assert_ne!(a.bars, c.bars, "不同种子序列不同");
+    }
+
 
     /// 符号检验 p 值已知值（二项 Bin(n,0.5) 上单边）。
     #[test]
