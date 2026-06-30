@@ -2001,7 +2001,7 @@ pub fn pi_theta_step(
 /// [`pi_theta_step`]，仅把内部 `coverage_elements_and_gamma_with_tower` 重建替换为 runner 缓存的
 /// 预建产物——消除 per-bar 双调建树 + 跨 bar 全前缀重建 O(confirmed)）。
 #[allow(clippy::too_many_arguments)]
-pub fn pi_theta_step_prebuilt(
+pub(crate) fn pi_theta_step_prebuilt(
     work: ElementView,
     gamma: &[Candidate],
     prev_active: &[ActiveLeg],

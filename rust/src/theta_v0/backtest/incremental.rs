@@ -483,6 +483,8 @@ mod profile {
             let mut tree_cache = interp::TreeCache::new(); // 跨 bar 复用（§16，与 runner 同）
             let mut t_extract = 0.0f64;
             let mut t_merge = 0.0f64;
+            let mut t_merge_tree = 0.0f64; // 仅 tree snapshot（无 candidate）→ 隔离 tree 段冗余 upsert 标度
+            let mut last_cand = 0usize;
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 // 生产 tree-prefix 提取：cached（命中 Rc::clone O(1)），candidate 段 overlay 不进树 clone。
@@ -492,15 +494,23 @@ mod profile {
                         &cls, &tower, &mut Some(&mut tree_cache),
                     );
                 t_extract += t.elapsed().as_secs_f64();
-                // 生产 merge：原地增量（overlay 空 ⟹ as_contiguous 借 base 零拷贝）。
+                last_cand = candidates_ref.len();
+                // 生产 merge：含 candidate（runner.rs:619 口径）。
                 let snapshot = coverage::ElementView::from_parts(&tree_ref, candidates_ref);
                 let t = std::time::Instant::now();
                 registry.merge_in_place(snapshot.as_contiguous().as_ref(), &[]);
                 t_merge += t.elapsed().as_secs_f64();
+                // 隔离测量：仅 tree 段（candidate 空）→ 量 tree 冗余 upsert 是否独立 O(n²)。
+                let t = std::time::Instant::now();
+                registry.merge_in_place(&tree_ref, &[]);
+                t_merge_tree += t.elapsed().as_secs_f64();
             }
             let (xe, me) = prev.map(|(pn, px, pm)| (logexp(pn, px, n, t_extract), logexp(pn, pm, n, t_merge)))
                 .unwrap_or((f64::NAN, f64::NAN));
-            eprintln!("{n:>7} | {t_extract:>10.3} {t_merge:>10.3} | {xe:>7.2} {me:>7.2}  registry_len={}", registry.len());
+            // tree_only=仅 tree snapshot merge（candidate 空）→ 隔离证：tree 段独立即 O(n²)，
+            // candidate（cand_last）极小且系统性复用 tree id（实测 collide≈cand），∴ merge O(n²)
+            // 根因=snapshot(tree prefix)∝confirmed 每 bar 全扫，与 extract 同根（§16 candidate 不可缓存 ceiling）。
+            eprintln!("{n:>7} | {t_extract:>10.3} {t_merge:>10.3} | {xe:>7.2} {me:>7.2}  registry_len={} tree_only={t_merge_tree:.3} cand_last={last_cand}", registry.len());
             prev = Some((n, t_extract, t_merge));
         }
     }
