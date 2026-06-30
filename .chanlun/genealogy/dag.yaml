@@ -3340,9 +3340,9 @@ nodes:
 - id: '641'
   title: 增量塔 API 声明『塔构造超线性消除 ⟹ exp≈1』但 exp 仍 1.65——centers.clone() O(k)/iter 残留热点未声明，声明膨胀（090号）+
     memory signal-on2 模式复发
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/641-incremental-tower-macd-root-cause-claim-inflation-centers-clone-residual.md
+  file: settled/641-incremental-tower-macd-root-cause-claim-inflation-centers-clone-residual.md
 - id: '642'
   title: acceptance[2] escalate『I5父结构live vs §13/639(c)父held仓位定义冲突』被codex异质+codex-challenger双向收敛降级为H2引擎自举缺口（定理类）；真因=coverage.rs:1253
     host注入key错（注入候选同级host(c.level,source_index)而AncOK需候选parent_id高一级容器）——可在coverage.rs内修不改任何定义；连带修正
