@@ -59,6 +59,7 @@ pub mod metrics;
 pub mod mu_estimator;
 pub mod prereg_windows;
 pub mod runner;
+pub mod selector;
 
 /// 全窗 L3 定论测试模块（task #75，owner=l3-fullwindow 工位，Lead 登记）。
 /// 复现 [`runner`] 的 `l3_falsify_multi_symbol_significance` 但 `cut=全窗`（非 60K 截断），

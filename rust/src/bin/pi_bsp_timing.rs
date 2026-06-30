@@ -53,6 +53,10 @@
 use newchan_rust::theta_v0::backtest::data::load_by_symbol;
 use newchan_rust::theta_v0::backtest::incremental::IncrementalClassifier;
 use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
+use newchan_rust::theta_v0::backtest::mu_estimator::{
+    marginal_return, MuClass, MuEstimator, MuObservation, PositionState,
+};
+use newchan_rust::theta_v0::backtest::selector::chi_t;
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::classifier::Classification;
@@ -115,6 +119,11 @@ struct Voice {
     qty: f64,
     generation: u32,
     entry_bar: usize,
+    /// 开仓证书的 I_γ 类别（§1-2 b_ℓ ∈ {0,1}^6）——μ(z) 分类的 i_class 分量（不压扁，§P4 §5）。
+    /// 子声部用父 carrier 反向证书的 bits（开子声部那条证书），根声部用自身证书 bits。
+    bits: BspBits,
+    /// 开仓证书所在级别 ℓ（μ(z) 的 level 分量；carrier.level，§12 γ=(c,ℓ,δ,I_γ,t)）。
+    level: u32,
 }
 
 impl Voice {
@@ -171,6 +180,285 @@ fn net_target(active: &HashSet<usize>, voices: &[Voice]) -> f64 {
     active.iter().map(|&v| voices[v].dir as f64 * voices[v].qty).sum()
 }
 
+/// 喂 μ 的父向：根声部父向=0；子声部父向=父 voice.dir（§16 σ_p）。
+fn parent_dir_of(voices: &[Voice], v: usize) -> i8 {
+    voices[v].parent.map_or(0, |p| voices[p].dir)
+}
+
+/// open_carrier：确保 carrier 上有 active voice（已 live ⟹ 复用首个；否则沿父链先开父再开本级）。
+/// 返回该 carrier 的 active voice 索引。父链上溯到 ∂（parent_id=None）或无同 bar 证书的祖先为止。
+#[allow(clippy::too_many_arguments)]
+fn open_carrier(
+    voices: &mut Vec<Voice>,
+    active: &mut HashSet<usize>,
+    gen_counter: &mut HashMap<ElementId, u32>,
+    active_voice_by_carrier: &HashMap<ElementId, usize>,
+    certs_by_carrier: &HashMap<ElementId, (Option<ElementId>, i8, BspBits)>,
+    opened_this_bar: &mut HashMap<ElementId, usize>,
+    carrier: ElementId,
+    parent_id: Option<ElementId>,
+    cert_dir: i8,
+    cert_bits: BspBits,
+    entry_bar: usize,
+) -> usize {
+    // 已 live（上一 bar 留存）⟹ 复用（§9 父已 live 分支）。
+    if let Some(&idx) = active_voice_by_carrier.get(&carrier) {
+        return idx;
+    }
+    // 本 bar 已开过该 carrier ⟹ 复用（防同 bar 重复开，父链多子共享父）。
+    if let Some(&idx) = opened_this_bar.get(&carrier) {
+        return idx;
+    }
+    // 父声部：parent_id 有真父 ∧（父已 live 或父本 bar 有证书）⟹ 递归先开父（§9 生成父 voice）。
+    // ★Lift.Nest（递归证明.pdf §2.2，codex YES#1）：J_ℓ(d)⊆J_{ℓ+1}(c)（子区间⊆父区间）。
+    // K_i 真嵌套（push_element_tree 子 sub_moves 挂父，compose 父区间取首尾子）下**恒满足**
+    // ⟹ debug_assert 守卫足够（生产域无反例；只防手工乱序/伪造 LeveledMove）。本 bin 在 K_i 上
+    // 建 carrier，子 carrier 与父 carrier 的区间⊆关系由 extract_carrier_forest 真嵌套保证。
+    let parent = parent_id.and_then(|pid| {
+        if active_voice_by_carrier.contains_key(&pid)
+            || opened_this_bar.contains_key(&pid)
+            || certs_by_carrier.contains_key(&pid)
+        {
+            let (ppid, pdir, pbits) =
+                certs_by_carrier.get(&pid).copied().unwrap_or((None, cert_dir, cert_bits));
+            Some(open_carrier(
+                voices, active, gen_counter, active_voice_by_carrier,
+                certs_by_carrier, opened_this_bar, pid, ppid, pdir, pbits, entry_bar,
+            ))
+        } else {
+            None // 父无同 bar 证书且未 live ⟹ 不生成父（codex 严格条件）⟹ 本级作根声部。
+        }
+    });
+    // 子声部方向 = −父方向（§6/§16 σ_u=−σ_p）；根声部方向 = 证书方向（§5）。
+    let final_dir = match parent {
+        Some(pidx) => Voice::child_dir(voices[pidx].dir),
+        None => cert_dir,
+    };
+    let g = gen_counter.entry(carrier).or_insert(0);
+    *g += 1;
+    let idx = voices.len();
+    voices.push(Voice {
+        carrier,
+        dir: final_dir,
+        parent,
+        qty: 1.0, // §7/§13 Q_Θ=1 单位（诚实简化）
+        generation: *g,
+        entry_bar,
+        bits: cert_bits, // 开仓证书 I_γ（μ(z) i_class，§P4 §5）
+        level: carrier.level, // ℓ（μ(z) level 分量）
+    });
+    active.insert(idx);
+    opened_this_bar.insert(carrier, idx);
+    idx
+}
+
+/// 单遍状态机的产出（净额序列 + 估出的 μ 表 + 诊断 + 全部声部）。
+struct PassResult {
+    net_per_bar: Vec<f64>,
+    mu_est: MuEstimator,
+    voices: Vec<Voice>,
+    diag_certs: usize,
+    diag_host_miss: usize,
+    diag_has_parent: usize,
+    diag_parent_active_found: usize,
+    diag_lift_pass: usize,
+    /// χ 门否决的开仓证书数（μ(z)≤θ ∨ ¬RiskOK ∨ ¬ConflictOK）。Pass 1（χ≡1）恒 0。
+    chi_rejected: usize,
+}
+
+/// 跑一遍 π_Θ^bsp 多声部状态机（§1-19）。
+///
+/// `chi_gate`：
+/// - `None` ⟹ **χ≡1 全覆盖**（Pass 1）：每条 Lift 通过的证书都开仓（现有 pi_bsp_timing 语义），
+///   同时累加 μ 表供 Pass 2 用。
+/// - `Some((est, theta))` ⟹ **χ=1[μ>θ]**（Pass 2，§13）：开仓前用 Pass 1 的 μ 表 `est` 查 z 的
+///   μ(z)，仅当 `chi_t(μ, θ, RiskOK, ConflictOK, empty=pass)` 为真才开。
+///   - RiskOK：本 bin K_Θ=恒等（无杠杆/保证金约束，文件头诚实简化）⟹ RiskOK≡true。
+///   - ConflictOK：carrier 配对 + anc_ok 结构性保证同 carrier 唯一声部（§9/§4）⟹ ConflictOK≡true。
+///     ★诚实（no-patch）：mutex.rs 8 谓词互斥化是覆盖路径解释器的 C_j 裁决；本 bin 用 carrier
+///     状态机已结构性保证唯一，**不**双重接入 mutex（那会与 carrier 配对产生两套互斥逻辑）。
+///   - empty=pass=true：Pass 1 见过的 z 才有 μ；Pass 2 中**未见过的 z**默认放行（全覆盖兜底），
+///     使 Pass 2 ⊆ Pass 1 的开仓集——过滤只可能移除（μ≤θ 的已见类），不会新增（保证 ΔN 可比）。
+fn run_state_machine(
+    bars: &[newchan_rust::theta_v0::types::Bar],
+    prices: &[f64],
+    config: &ThetaConfig,
+    fee_rate: f64,
+    chi_gate: Option<(&MuEstimator, f64)>,
+) -> PassResult {
+    let n = bars.len();
+    let mut classifier = IncrementalClassifier::new(bars, config);
+    let mut seen: HashSet<(usize, usize, u8)> = HashSet::new();
+    let mut seen_lifted: HashSet<(ElementId, i8)> = HashSet::new();
+    let mut voices: Vec<Voice> = Vec::new();
+    let mut active: HashSet<usize> = HashSet::new();
+    let mut gen_counter: HashMap<ElementId, u32> = HashMap::new();
+    let mut net_per_bar: Vec<f64> = vec![0.0; n];
+    let mut mu_est = MuEstimator::new();
+    let mut diag_certs = 0usize;
+    let mut diag_host_miss = 0usize;
+    let mut diag_has_parent = 0usize;
+    let mut diag_parent_active_found = 0usize;
+    let mut diag_lift_pass = 0usize;
+    let mut chi_rejected = 0usize;
+
+    for i in 0..n {
+        let (classification, tower) = classifier.classify_at(i);
+        let tree = extract_carrier_forest(&tower);
+        let tree_idx = build_tree_endpoint_index(&tree);
+
+        let mut new_certs: Vec<(
+            ElementId,
+            Option<ElementId>,
+            Option<u32>,
+            Option<usize>,
+            i8,
+            BspBits,
+        )> = Vec::new();
+        for (lvl, ls) in classification.levels.iter().enumerate() {
+            for p in &ls.bsp {
+                if seen.insert((lvl, p.source_index, p.bits.class_index())) {
+                    let c = cert_of(&p.bits);
+                    if c.buy || c.sell {
+                        diag_certs += 1;
+                    }
+                    let (host_parent_idx, _attached_dir, carrier_id) =
+                        attach_bsp_carrier_indexed(&tree_idx, &tree, lvl as u32, p.source_index);
+                    if (c.buy || c.sell) && carrier_id.is_none() {
+                        diag_host_miss += 1;
+                    }
+                    let carrier = carrier_id
+                        .unwrap_or(ElementId { level: lvl as u32, ordinal: p.source_index as u64 });
+                    let parent_id = host_parent_idx.map(|pi| tree[pi].id);
+                    if (c.buy || c.sell) && parent_id.is_some() {
+                        diag_has_parent += 1;
+                    }
+                    let parent_carrier = attach_bsp_parent_carrier_indexed(
+                        &tree_idx, &tree, lvl as u32, p.source_index,
+                    );
+                    let parent_level = parent_carrier.map(|(_, lc, _)| lc);
+                    let parent_rho = parent_carrier.map(|(_, _, rho_c)| rho_c);
+                    if c.buy {
+                        new_certs.push((carrier, parent_id, parent_level, parent_rho, 1, p.bits));
+                    }
+                    if c.sell {
+                        new_certs.push((carrier, parent_id, parent_level, parent_rho, -1, p.bits));
+                    }
+                }
+            }
+        }
+
+        // ── §9 先平后开 A^raw=(A_t\D_t)∪O_t ──（出场证书严格按 carrier 配对，§5/§16）
+        let mut closing: HashSet<usize> = HashSet::new();
+        for &v in &active {
+            let voice = &voices[v];
+            let exit_dir = -voice.dir;
+            let exit_cert = new_certs
+                .iter()
+                .any(|&(c, _, _, _, d, _)| c == voice.carrier && d == exit_dir);
+            if should_close(exit_cert, true, false) {
+                closing.insert(v);
+            }
+        }
+        // D_t 应用：A_t \ D_t。真实平仓 ⟹ 喂 μ 估计器（τ_γ=i 出场证书命中，因果可测）。
+        for &v in &closing {
+            let voice = voices[v];
+            let entry_px = prices[voice.entry_bar.min(n - 1)];
+            let exit_px = prices[i]; // τ_γ=i：出场证书命中的当前 bar close（F_i-可测，非后视）
+            let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
+            let z = MuClass::from_certificate(
+                voice.level,
+                voice.dir,
+                voice.bits,
+                parent_dir_of(&voices, v),
+                if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+            );
+            mu_est.observe(MuObservation { class: z, x_gamma });
+            active.remove(&v);
+        }
+
+        // O_t：开仓声部集（§5 入场证书 δ(γ)=σ_v）。
+        let active_voice_by_carrier: HashMap<ElementId, usize> =
+            active.iter().map(|&v| (voices[v].carrier, v)).collect();
+        let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8, BspBits)> =
+            new_certs.iter().map(|&(c, p, _lc, _rho, d, b)| (c, (p, d, b))).collect();
+
+        for &(_carrier, parent_id, _lc, _rho, _cert_dir, _bits) in &new_certs {
+            if let Some(pid) = parent_id {
+                if active_voice_by_carrier.contains_key(&pid) {
+                    diag_parent_active_found += 1;
+                }
+            }
+        }
+        let mut opened_this_bar: HashMap<ElementId, usize> = HashMap::new();
+        for &(carrier, parent_id, parent_level, parent_rho, cert_dir, cert_bits) in &new_certs {
+            // ── Lift 谓词链门（递归证明.pdf §2/§4）──
+            if parent_id.is_some() {
+                let lifts = match (parent_level, parent_rho) {
+                    (Some(lc), Some(rc)) => {
+                        let side = if cert_dir > 0 { Side::Long } else { Side::Short };
+                        context_lifts(&classification, lc, rc, side)
+                    }
+                    _ => false,
+                };
+                if !lifts {
+                    continue;
+                }
+                if !seen_lifted.insert((carrier, cert_dir)) {
+                    continue;
+                }
+                diag_lift_pass += 1;
+            }
+
+            // ── χ_t(γ) 阈值过滤门（alpha2 §13，task #41）──
+            // Pass 2（chi_gate=Some）：开仓前查 μ(z)，χ_t=1[μ>θ ∧ RiskOK ∧ ConflictOK] 才开。
+            // z 的预构造：根声部父向=0/Root（cert_dir=最终方向）；子声部父向=父 carrier 的 active
+            // voice.dir、方向=−父向、Child（§6/§16）。**与平仓喂 μ 时的 z 同口径**（同 MuClass 分量），
+            // 保证 Pass 2 查的 μ 与 Pass 1 估的 μ 在同一 z 桶（否则查不到 ⟹ empty=pass 兜底）。
+            if let Some((est, theta)) = chi_gate {
+                // 预判该证书将开成的 z（不真开，只查 μ）。复用 open_carrier 的父链解析逻辑判方向。
+                let parent_voice_dir = parent_id.and_then(|pid| {
+                    active_voice_by_carrier.get(&pid).map(|&pi| voices[pi].dir)
+                });
+                let (z_dir, z_parent_dir, z_pos) = match parent_voice_dir {
+                    Some(pdir) => (Voice::child_dir(pdir), pdir, PositionState::Child),
+                    None => (cert_dir, 0, PositionState::Root),
+                };
+                let z = MuClass::from_certificate(
+                    carrier.level, z_dir, cert_bits, z_parent_dir, z_pos,
+                );
+                // RiskOK≡true（K_Θ 恒等）、ConflictOK≡true（carrier+anc_ok 结构唯一）——见 fn 文档。
+                // empty=pass=true：未见过的 z 放行（Pass 2 ⊆ Pass 1，过滤只移除已见的 μ≤θ 类）。
+                if !chi_t(est.mu(&z), theta, true, true, true) {
+                    chi_rejected += 1;
+                    continue; // χ=0 ⟹ 不开（Γ_t^trade 排除该证书，§13 line 2248）。
+                }
+            }
+
+            open_carrier(
+                &mut voices, &mut active, &mut gen_counter, &active_voice_by_carrier,
+                &certs_by_carrier, &mut opened_this_bar, carrier, parent_id, cert_dir, cert_bits, i,
+            );
+        }
+
+        // ── §9 祖先闭合 A_{t+1}=AncOK(A^raw) ──（父不 active ⟹ 子声部被剪，§4）
+        active = anc_ok(std::mem::take(&mut active), &voices);
+        net_per_bar[i] = net_target(&active, &voices);
+    }
+
+    PassResult {
+        net_per_bar,
+        mu_est,
+        voices,
+        diag_certs,
+        diag_host_miss,
+        diag_has_parent,
+        diag_parent_active_found,
+        diag_lift_pass,
+        chi_rejected,
+    }
+}
+
 fn main() -> std::process::ExitCode {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 && args.len() != 4 {
@@ -221,6 +509,20 @@ fn main() -> std::process::ExitCode {
     // 净额 N_t^bsp 逐 bar 序列（§12/§18 头寸）。
     let mut net_per_bar: Vec<f64> = vec![0.0; n];
 
+    // ── μ(z,a) 类别条件边际收益估计器（alpha2 §12，task #39 mu-estimator）──
+    // 每个声部 v 真实平仓（closing 触发 = 出场证书 δ=−σ_v 命中 τ_γ，**非**窗口强平）时构造一笔
+    // MuObservation：z=(level,δ,I_γ,父向,短差,仓位态)，X_γ=δ(P_τ−P_t)−C 用真实 entry/exit close 价。
+    // ★因果性（alpha2 §5 / project_bsp_direction_valid_friction_floor）：τ_γ=i 是出场证书命中的当前
+    // bar（F_i-可测），P 用 prices[entry_bar]/prices[i]（confirm close，可成交价）——**非**端点后视。
+    let mut mu_est = MuEstimator::new();
+    // 单笔强平计数（窗口末端仍 active 的声部用末 bar 强平喂 μ，标注 forced——退出非证书触发，
+    // 与真实 τ_γ 区分；codex 审退出时刻定义时此项需如实报，不混入「证书退出」μ）。
+    let mut mu_forced_obs = 0usize;
+    // 喂 μ 的辅助闭包载体：根声部父向=0；子声部父向=父 voice.dir（§16 σ_p）。
+    let parent_dir_of = |voices: &[Voice], v: usize| -> i8 {
+        voices[v].parent.map_or(0, |p| voices[p].dir)
+    };
+
     // ── 子声部可达性诊断（647 第四根因坐实，L2 否定性结果）──
     // 647 诊断 π^bsp 子声部=0 根因为 bin 内三处逻辑（P3 出场优先 + 跨 carrier 方向匹配 +
     // 单次快照），并提修复路径（按 carrier 匹配 + host-miss 不丢弃）。本实装已落该修复，但子
@@ -252,8 +554,15 @@ fn main() -> std::process::ExitCode {
         // (carrier, parent_id, dir)：dir 是证书方向（买 +1 / 卖 −1），由 §5/§16 在 open 时按是否有父决定 final_dir。
         // 元组：(carrier, parent_id, parent_level ℓ_c, parent_rho ρ_c, dir)。(ℓ_c,ρ_c) = 上级
         // carrier c 坐标（Lift.Context 投影去 levels[ℓ_c].bsp 找 g 证成上级第 j 类的已确认买卖点）。
-        let mut new_certs: Vec<(ElementId, Option<ElementId>, Option<u32>, Option<usize>, i8)> =
-            Vec::new();
+        // 元组末位 `BspBits` = 该证书的 I_γ 类别（μ(z) i_class 分量，§P4 §5 不压扁）。
+        let mut new_certs: Vec<(
+            ElementId,
+            Option<ElementId>,
+            Option<u32>,
+            Option<usize>,
+            i8,
+            BspBits,
+        )> = Vec::new();
         for (lvl, ls) in classification.levels.iter().enumerate() {
             for p in &ls.bsp {
                 if seen.insert((lvl, p.source_index, p.bits.class_index())) {
@@ -285,10 +594,10 @@ fn main() -> std::process::ExitCode {
                     let parent_level = parent_carrier.map(|(_, lc, _)| lc);
                     let parent_rho = parent_carrier.map(|(_, _, rho_c)| rho_c);
                     if c.buy {
-                        new_certs.push((carrier, parent_id, parent_level, parent_rho, 1));
+                        new_certs.push((carrier, parent_id, parent_level, parent_rho, 1, p.bits));
                     }
                     if c.sell {
-                        new_certs.push((carrier, parent_id, parent_level, parent_rho, -1));
+                        new_certs.push((carrier, parent_id, parent_level, parent_rho, -1, p.bits));
                     }
                 }
             }
@@ -310,16 +619,28 @@ fn main() -> std::process::ExitCode {
             let exit_dir = -voice.dir;
             let exit_cert = new_certs
                 .iter()
-                .any(|&(c, _, _, _, d)| c == voice.carrier && d == exit_dir);
+                .any(|&(c, _, _, _, d, _)| c == voice.carrier && d == exit_dir);
             // §10-11 close 优先：风险关闭(本实装 risk_close=false, K_Θ 恒等)/父关闭/出场证书。
             // 父关闭在 anc_ok 阶段级联处理，此处判出场证书（P3，同 carrier 反向）。
             if should_close(exit_cert, true, false) {
                 closing.insert(v);
             }
         }
-        // D_t 应用：A_t \ D_t。
-        for v in &closing {
-            active.remove(v);
+        // D_t 应用：A_t \ D_t。真实平仓 ⟹ 喂 μ 估计器（τ_γ=i 出场证书命中，因果可测）。
+        for &v in &closing {
+            let voice = voices[v];
+            let entry_px = prices[voice.entry_bar.min(n - 1)];
+            let exit_px = prices[i]; // τ_γ=i：出场证书命中的当前 bar close（F_i-可测，非后视）
+            let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
+            let z = MuClass::from_certificate(
+                voice.level,
+                voice.dir,
+                voice.bits,
+                parent_dir_of(&voices, v),
+                if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+            );
+            mu_est.observe(MuObservation { class: z, x_gamma });
+            active.remove(&v);
         }
 
         // O_t：开仓声部集（§5 入场证书 δ(γ)=σ_v）。
@@ -342,8 +663,8 @@ fn main() -> std::process::ExitCode {
         // **本 bar 也有证书**（父子证书链 γ_0..γ_d 同 bar 存在）或父已 live，则**同时开父 voice**再开子。
         // codex 严格条件：父 voice 进 O_i **仅因**父证书同 bar 或父已 live（**非** AncOK 生成父——AncOK
         // 仍是过滤器只剪孤儿子，§6/§7）。沿真 Compose parent 链上溯，对每个有同 bar 证书的祖先开 voice。
-        let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8)> =
-            new_certs.iter().map(|&(c, p, _lc, _rho, d)| (c, (p, d))).collect();
+        let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8, BspBits)> =
+            new_certs.iter().map(|&(c, p, _lc, _rho, d, b)| (c, (p, d, b))).collect();
 
         // open_carrier：确保 carrier 上有 active voice（已 live ⟹ 复用首个；否则沿父链先开父再开本级）。
         // 返回该 carrier 的 active voice 索引。父链上溯到 ∂（parent_id=None）或无同 bar 证书的祖先为止。
@@ -352,11 +673,12 @@ fn main() -> std::process::ExitCode {
             active: &mut HashSet<usize>,
             gen_counter: &mut HashMap<ElementId, u32>,
             active_voice_by_carrier: &HashMap<ElementId, usize>,
-            certs_by_carrier: &HashMap<ElementId, (Option<ElementId>, i8)>,
+            certs_by_carrier: &HashMap<ElementId, (Option<ElementId>, i8, BspBits)>,
             opened_this_bar: &mut HashMap<ElementId, usize>,
             carrier: ElementId,
             parent_id: Option<ElementId>,
             cert_dir: i8,
+            cert_bits: BspBits,
             entry_bar: usize,
         ) -> usize {
             // 已 live（上一 bar 留存）⟹ 复用（§9 父已 live 分支）。
@@ -377,10 +699,11 @@ fn main() -> std::process::ExitCode {
                     || opened_this_bar.contains_key(&pid)
                     || certs_by_carrier.contains_key(&pid)
                 {
-                    let (ppid, pdir) = certs_by_carrier.get(&pid).copied().unwrap_or((None, cert_dir));
+                    let (ppid, pdir, pbits) =
+                        certs_by_carrier.get(&pid).copied().unwrap_or((None, cert_dir, cert_bits));
                     Some(open_carrier(
                         voices, active, gen_counter, active_voice_by_carrier,
-                        certs_by_carrier, opened_this_bar, pid, ppid, pdir, entry_bar,
+                        certs_by_carrier, opened_this_bar, pid, ppid, pdir, pbits, entry_bar,
                     ))
                 } else {
                     None // 父无同 bar 证书且未 live ⟹ 不生成父（codex 严格条件）⟹ 本级作根声部。
@@ -401,13 +724,15 @@ fn main() -> std::process::ExitCode {
                 qty: 1.0, // §7/§13 Q_Θ=1 单位（诚实简化）
                 generation: *g,
                 entry_bar,
+                bits: cert_bits, // 开仓证书 I_γ（μ(z) i_class，§P4 §5）
+                level: carrier.level, // ℓ（μ(z) level 分量）
             });
             active.insert(idx);
             opened_this_bar.insert(carrier, idx);
             idx
         }
 
-        for &(_carrier, parent_id, _lc, _rho, _cert_dir) in &new_certs {
+        for &(_carrier, parent_id, _lc, _rho, _cert_dir, _bits) in &new_certs {
             if let Some(pid) = parent_id {
                 if active_voice_by_carrier.contains_key(&pid) {
                     diag_parent_active_found += 1;
@@ -415,7 +740,7 @@ fn main() -> std::process::ExitCode {
             }
         }
         let mut opened_this_bar: HashMap<ElementId, usize> = HashMap::new();
-        for &(carrier, parent_id, parent_level, parent_rho, cert_dir) in &new_certs {
+        for &(carrier, parent_id, parent_level, parent_rho, cert_dir, cert_bits) in &new_certs {
             // ── Lift 谓词链门（递归证明.pdf §2/§4：Lift=Host∧Nest∧Context∧Fresh，全 1 ⟹ U(g)≠∅）──
             // Host：carrier 命中 hostOf（new_certs 已是命中结果）。Nest：K_i 真嵌套自动满足（debug_assert）。
             // 有真父的证书 = 候选子声部 g（要 Lift 到上级 c）。无真父 = 根声部证书，无需 Lift 门，直接开根。
@@ -444,7 +769,7 @@ fn main() -> std::process::ExitCode {
             }
             open_carrier(
                 &mut voices, &mut active, &mut gen_counter, &active_voice_by_carrier,
-                &certs_by_carrier, &mut opened_this_bar, carrier, parent_id, cert_dir, i,
+                &certs_by_carrier, &mut opened_this_bar, carrier, parent_id, cert_dir, cert_bits, i,
             );
         }
 
@@ -453,6 +778,31 @@ fn main() -> std::process::ExitCode {
 
         // §12 净额 N_t^bsp = Σ σ_v q_v（声部状态机持仓净额）。
         net_per_bar[i] = net_target(&active, &voices);
+    }
+
+    // ── 窗口末端仍 active 的声部强平喂 μ（退出非证书触发，标注 forced，与真实 τ_γ 区分）──
+    // ★诚实（formalization-validity-domain）：forced 退出不是 alpha2 §12 的 τ_γ=出场证书时刻，
+    // 是窗口边界人为强平。混入会污染「证书退出」μ 的因果语义——故单独计数 mu_forced_obs 如实报，
+    // 但仍喂入 μ 桶（否则末端未平声部的已实现浮盈被丢弃，低估持仓期收益）。codex 审退出定义时需裁。
+    let last_bar = n - 1;
+    for v in 0..voices.len() {
+        if active.contains(&v) {
+            let voice = voices[v];
+            if last_bar > voice.entry_bar {
+                let entry_px = prices[voice.entry_bar.min(last_bar)];
+                let exit_px = prices[last_bar];
+                let x_gamma = marginal_return(entry_px, exit_px, voice.qty, fee_rate, voice.dir);
+                let z = MuClass::from_certificate(
+                    voice.level,
+                    voice.dir,
+                    voice.bits,
+                    parent_dir_of(&voices, v),
+                    if voice.parent.is_some() { PositionState::Child } else { PositionState::Root },
+                );
+                mu_est.observe(MuObservation { class: z, x_gamma });
+                mu_forced_obs += 1;
+            }
+        }
     }
 
     // ── §18 r^bsp = N^bsp·ΔP − C：逐 bar net-position MtM 权益曲线（同 π^cov NAV 口径）──
@@ -558,6 +908,49 @@ fn main() -> std::process::ExitCode {
     println!("indep  mean/p   : {:.6} / {:.4}", sig.indep_mean_return, sig.indep_pvalue);
     println!("beats_random    : {}", sig.theta_beats_random);
     println!("controls_degen  : {}", sig.controls_degenerate);
+    // ── μ(z,a) 类别条件边际收益表（alpha2 §12，task #39，L2 真实数据可否证）──
+    // 按 z=(ℓ,δ,I_γ,父向,短差,仓位态) 分桶；μ(z)=E[X_γ|z]=ΣX_γ/|S_z| 绝对收益（与 metrics 同单位）。
+    // ★μ(z)>0 ⟹ 该类买卖点在此退出规则/成本/样本下有正边际期望（alpha 候选）；μ(z)≤0 ⟹ 无正期望
+    // （§12 line 2186）——否定性结果（formalization-validity-domain：μ≤0 比确认更有信息增量）。
+    let mut mu_rows: Vec<(MuClass, f64, u64)> = mu_est
+        .iter_mu()
+        .map(|(z, mu)| (z, mu, mu_est.count(&z)))
+        .collect();
+    // 按 μ 降序（正期望在前），便于读 alpha 候选。
+    mu_rows.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    let n_pos = mu_rows.iter().filter(|r| r.1 > 0.0).count();
+    let n_nonpos = mu_rows.len() - n_pos;
+    println!("--- μ(z,a) 类别条件边际收益表（alpha2 §12，task #39 mu-estimator）---");
+    println!(
+        "z 类总数        : {}（μ>0: {n_pos} alpha候选 / μ≤0: {n_nonpos} 无正期望）",
+        mu_rows.len()
+    );
+    println!("强平观测(forced): {mu_forced_obs}（退出非证书τ_γ，窗口边界强平——与证书退出μ混桶，codex待裁）");
+    if mu_rows.is_empty() {
+        println!("（无平仓观测——无声部生命周期闭合，μ 表空，inconclusive）");
+    } else {
+        println!(
+            "{:>3} {:>3} {:>4} {:>5} {:>6} {:>6} {:>6} {:>14}",
+            "ℓ", "δ", "Iγ", "父向", "短差", "仓位", "|S_z|", "μ(z)绝对"
+        );
+        for (z, mu, cnt) in &mu_rows {
+            let alpha = if *mu > 0.0 { "+" } else { "≤0" };
+            println!(
+                "{:>3} {:>3} {:>4} {:>5} {:>6} {:>6} {:>6} {:>14.4} {alpha}",
+                z.level,
+                z.delta,
+                z.i_class,
+                z.parent_dir,
+                if z.short_swing { "短差" } else { "顺势" },
+                match z.position {
+                    PositionState::Root => "根",
+                    PositionState::Child => "子",
+                },
+                cnt,
+                mu,
+            );
+        }
+    }
     println!("--- 认识论 L2（真实数据，可否证；§18 alpha 判定）---");
     if voices.is_empty() {
         println!("等级: L1（无买卖点确认 ⟹ 无声部，inconclusive）");
