@@ -531,6 +531,221 @@ fn delta_r_alpha_multi_symbol() {
     );
 }
 
+/// cross-fit OOS 的 fold 数（K=5）与 fold 边界 purge gap（bar）。
+/// gap 防退出兑现（持有到下一反向信号）从 train fold 跨界泄漏到 held-out fold（PDF §34 purged split）。
+const CROSSFIT_K: usize = 5;
+const CROSSFIT_GAP: usize = 200; // ponytail: 退出持有跨度上界（保守，比 train 末 censored 兑现宽），数据若示更长 gap 才泄漏则调大
+
+/// **★cross-fit OOS：K-fold purged split——选择在 train folds、评估在 held-out fold（PDF §34, task #85）**。
+///
+/// 修 [`delta_r_alpha_multi_symbol`] 单次 split 的 §6 winner's curse：单次 split 在 train 选 μ>θ 的赢家类，
+/// OOS（test）评估同一选择，赢家可能在 test 归零（训练选赢家 = 选择性偏差污染 OOS）。
+///
+/// **cross-fit 解（§34）**：OOS 窗切 K=5 连续 fold，每个 fold k 轮流作 **held-out**（评估），其余 fold
+/// 作 **train**（估 μ + selector 选 μ>θ）；汇总所有 held-out fold 的 ΔR——**选择与评估在不同 fold**，
+/// 选择性偏差不传导到评估窗。fold 边界两侧 purge `CROSSFIT_GAP` bar（held-out 不靠近 train 退出兑现跨度）。
+///
+/// **train 不连续 ⟹ merge 不拼接（no-workaround）**：held-out fold 在中间时 train=前段+后段，各连续段
+/// 独立 [`build_walk_forward_mu`] 后 [`MuEstimator::merge`]——拼接成单 Dataset 会在接缝制造虚假相邻笔/段，
+/// 污染分类（伪逻辑），故 merge 桶级合并。
+///
+/// 认识论 **L2**（真实数据，可证伪）。有效域 caveat：MAX_BARS 截断 + 8 品种 + OOS 内 K-fold。
+///
+/// `#[ignore]`：O(n²) 慢测（8 品种 × K=5 fold × ~6K train+test 逐 bar 重分类），`--release` 必须。
+/// 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha::crossfit_l2 -- --ignored --nocapture`
+#[test]
+#[ignore = "cross-fit OOS K-fold purged；O(n²) 8 品种 × 5 fold × 32K bar；--release"]
+fn crossfit_l2() {
+    let config = ThetaConfig::default();
+    let theta: f64 = 0.0;
+
+    eprintln!("\n===== ★cross-fit OOS K-fold purged（PDF §34, K={CROSSFIT_K}, gap={CROSSFIT_GAP}, θ={theta}）=====");
+    eprintln!("★修单次 split §6 winner's curse：选择在 train folds、评估在 held-out fold ⟹ 选择性偏差不传导评估窗");
+    eprintln!("★train 不连续(held-out 居中⟹前段+后段) ⟹ 各段独立 build_walk_forward_mu 后 merge（不拼接，防接缝伪相邻）");
+    eprintln!("★fold 边界 purge {CROSSFIT_GAP}bar ⟹ held-out 不含 train 退出兑现跨界泄漏（purged split）");
+    eprintln!("★对比基线 = delta_r_alpha_multi_symbol 单次 split（同 μ harness，唯一变量 = K-fold 选/评分离）");
+    eprintln!(
+        "{:<6} {:>8} {:>7} {:>10} {:>9} {:>9} {:>8} {}",
+        "symbol", "cf_bars", "μ类", "cf_mean(ΔR)", "Shrp", "boot_p", "ΔN≠0", "归因",
+    );
+
+    let mut cf_means: Vec<(String, f64, bool)> = Vec::new();
+    let mut n_done = 0usize;
+
+    for w in PREREG_WINDOWS {
+        let ds = match data::load_by_symbol(w.symbol, &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("{:<6} 加载失败：{e}（DATA BLOCKER，不伪造合成）", w.symbol);
+                continue;
+            }
+        };
+        let oos_full = ds.slice_date_window(w.oos.0, w.oos.1);
+        if oos_full.bars.is_empty() {
+            eprintln!("{:<6} OOS 窗空", w.symbol);
+            continue;
+        }
+        let cut = MAX_BARS.min(oos_full.bars.len());
+        let fold_len = cut / CROSSFIT_K;
+        if fold_len < MIN_TEST_BARS {
+            eprintln!("{:<6} fold 太短（fold_len={fold_len}<{MIN_TEST_BARS}）⟹ inconclusive", w.symbol);
+            continue;
+        }
+        let mk = |lo: usize, hi: usize| Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[lo..hi].to_vec(),
+            dates: oos_full.dates[lo..hi.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
+        };
+        n_done += 1;
+        let bars_per_year = data::bars_per_year(60);
+
+        // 跨 fold 汇总的 cross-fitted ΔR 序列（各 held-out fold 的逐 bar ΔR/nav0 拼接）。
+        let mut cf_dr: Vec<f64> = Vec::new();
+        let mut total_classes = 0usize;
+        let mut chi_changed_any = false;
+
+        for k in 0..CROSSFIT_K {
+            // held-out fold k = [k·fold_len, (k+1)·fold_len)（末 fold 吃 cut 余数）。
+            let ho_lo = k * fold_len;
+            let ho_hi = if k == CROSSFIT_K - 1 { cut } else { (k + 1) * fold_len };
+            let held = mk(ho_lo, ho_hi);
+            if held.bars.len() < MIN_TEST_BARS {
+                continue;
+            }
+
+            // train = 其余 fold 的连续段，各段从 held-out 边界向外 purge GAP（防退出兑现跨界）。
+            // 前段 [0, ho_lo−gap)、后段 [ho_hi+gap, cut)，各段独立估 μ 后 merge（不拼接）。
+            let mut est = MuEstimator::new();
+            if ho_lo >= CROSSFIT_GAP + MIN_TEST_BARS {
+                let (e, _) = build_walk_forward_mu(&mk(0, ho_lo - CROSSFIT_GAP), &config);
+                est.merge(&e);
+            }
+            if ho_hi + CROSSFIT_GAP + MIN_TEST_BARS <= cut {
+                let (e, _) = build_walk_forward_mu(&mk(ho_hi + CROSSFIT_GAP, cut), &config);
+                est.merge(&e);
+            }
+            if est.n_classes() == 0 {
+                continue; // 边 fold 单侧 train 太短 ⟹ 无 train 证据 ⟹ 跳过
+            }
+            total_classes = total_classes.max(est.n_classes());
+
+            let first_px = held
+                .bars
+                .iter()
+                .find(|b| !b.untradable && b.close > 0)
+                .map(|b| b.close as f64 * config.tick.tick_size)
+                .unwrap_or(1.0);
+            let nav = (first_px * 1000.0).max(1.0e6);
+            let years = (held.bars.len() as f64 / bars_per_year).max(0.01);
+
+            let mut base_cfg = config.clone();
+            base_cfg.risk.chi_theta = None;
+            let base = run_theta_v0_pi_chi(&held, &base_cfg, years, nav, &est, true);
+
+            let mut chi_cfg = config.clone();
+            chi_cfg.risk.chi_theta = Some(theta);
+            let chi = run_theta_v0_pi_chi(&held, &chi_cfg, years, nav, &est, false);
+
+            // 退化空仓 fold（χ 全滤）= 弃权 PnL 非选择 alpha（161号），不计入 cross-fitted ΔR。
+            if chi.n_orders == 0 && base.n_orders > 0 {
+                continue;
+            }
+            let st = delta_r_stats(&base.equity_curve, &chi.equity_curve, nav, bars_per_year);
+            if st.chi_changed_trades {
+                chi_changed_any = true;
+                // 逐 bar ΔR/nav0 拼进 cf_dr（与 delta_r_stats 内部绝对增量配对差口径一致）。
+                let len = base.equity_curve.len().min(chi.equity_curve.len());
+                for i in 1..len {
+                    cf_dr.push(
+                        (chi.equity_curve[i] - chi.equity_curve[i - 1])
+                            - (base.equity_curve[i] - base.equity_curve[i - 1]),
+                    );
+                }
+            }
+        }
+
+        // cross-fitted ΔR 统计（汇总序列 mean/sharpe/block-bootstrap 单边 p，与 delta_r_stats 同口径）。
+        let cf_n = cf_dr.len();
+        let (cf_mean, cf_sharpe, cf_boot_p) = if cf_n >= 2 {
+            let mean = cf_dr.iter().sum::<f64>() / cf_n as f64;
+            let var = cf_dr.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (cf_n - 1) as f64;
+            let std = var.sqrt();
+            let sharpe = if std > 1e-18 { mean / std * bars_per_year.sqrt() } else { 0.0 };
+            let mut rng = SplitMix64::new(PREREG_SEED);
+            let mut n_le_0 = 0usize;
+            for _ in 0..1000 {
+                let (mut total, mut filled) = (0.0, 0usize);
+                while filled < cf_n {
+                    let start = rng.next_below(cf_n);
+                    let take = 20.min(cf_n - filled);
+                    for j in 0..take {
+                        total += cf_dr[(start + j) % cf_n];
+                    }
+                    filled += take;
+                }
+                if total <= 0.0 {
+                    n_le_0 += 1;
+                }
+            }
+            (mean, sharpe, n_le_0 as f64 / 1000.0)
+        } else {
+            (0.0, 0.0, 1.0)
+        };
+
+        let verdict = if !chi_changed_any || cf_n < MIN_TEST_BARS {
+            "(c)cross-fit饥饿/χ未改"
+        } else if cf_mean > 0.0 && cf_boot_p <= 0.05 {
+            "(c')cf-L2确认:ΔR>0且p≤.05"
+        } else {
+            "(b)cf-L2否证:ΔR≤0或p>.05"
+        };
+        let l3_valid = chi_changed_any && cf_n >= MIN_TEST_BARS;
+        cf_means.push((w.symbol.to_string(), cf_mean, l3_valid));
+
+        eprintln!(
+            "{:<6} {:>8} {:>7} {:>10.3e} {:>9.3} {:>9.4} {:>8} {}",
+            w.symbol, cf_n, total_classes, cf_mean, cf_sharpe, cf_boot_p, chi_changed_any, verdict,
+        );
+        assert!(cf_mean.is_finite(), "{} cf_mean 有限", w.symbol);
+        assert!((0.0..=1.0).contains(&cf_boot_p), "{} cf boot p∈[0,1]", w.symbol);
+    }
+
+    // ── L3 跨品种系统性（符号检验，与 multi_symbol 同口径）──
+    let l3: Vec<f64> = cf_means.iter().filter(|(_, _, v)| *v).map(|(_, m, _)| *m).collect();
+    let n_l3 = l3.len();
+    let n_pos = l3.iter().filter(|&&m| m > 0.0).count();
+    let l3_mean = if n_l3 > 0 { l3.iter().sum::<f64>() / n_l3 as f64 } else { 0.0 };
+    let sign_p = sign_test_pvalue(n_pos, n_l3);
+    const MIN_L3_POWER: usize = 5;
+
+    eprintln!("\n===== cross-fit 跨品种聚合（vs delta_r_alpha_multi_symbol 单次 split）=====");
+    eprintln!("完成品种数      : {n_done}/{}", PREREG_WINDOWS.len());
+    eprintln!("L3 有效品种 n_L3 : {n_l3}");
+    eprintln!("cf ΔR 均值>0 品种: {n_pos}/{n_l3}");
+    eprintln!("cf 跨品种池均值  : {l3_mean:.3e}");
+    eprintln!("符号检验单边 p   : {sign_p:.4}");
+    eprintln!(
+        "\n★诚实裁定（PDF §34 + formalization-validity-domain 231号 + winner's curse §6）：\n  \
+         - cross-fit L3 系统性 alpha 成立 ⟺ n_L3≥5 ∧ 符号检验 p<0.05 ∧ 池均值>0。\n  \
+         - vs 单次 split：若单次 split 正 ΔR 而 cross-fit 归零 ⟹ 单次的 alpha 是 winner's curse 伪影\n    \
+           （训练选赢家污染 OOS），cross-fit 揭示真实 OOS 无 alpha（否定性结果，缩小有效域）。\n  \
+         - 若两者一致（都正/都负）⟹ 选择性偏差非主导，单次 split 结论稳健。\n  \
+         - n_L3<5 ⟹ inconclusive（功效不足，K-fold 进一步缩短 train ⟹ 更少非退化品种）。"
+    );
+    let cf_systematic = n_l3 >= 2 && sign_p < 0.05 && l3_mean > 0.0;
+    eprintln!(
+        "\n★★最终判定：{}",
+        if cf_systematic {
+            "cross-fit L3 系统性 alpha 成立（选/评分离后仍 p<.05 ∧ 池均值>0）——非 winner's curse 伪影"
+        } else if n_l3 < MIN_L3_POWER {
+            "cross-fit inconclusive(功效不足 n_L3<5)：K-fold 缩短 train ⟹ 更少非退化品种，符号检验全正也达不到 p<.05"
+        } else {
+            "cross-fit L3 系统性 alpha 不成立（n_L3≥5 但 p≥.05 或池均值≤0）——选/评分离后无系统性 alpha"
+        }
+    );
+}
+
 /// 从交易轨迹重建**逐 bar 成本序列**（归一化口径，nav0 单位）——鞅守卫成本剥离用。
 ///
 /// codex 异质审裁决（2026-06-30）：净 ΔR 在鞅上可正，因为 χ 过滤比全覆盖 baseline **交易少**
@@ -1523,6 +1738,43 @@ mod tests {
         assert!(sign_test_pvalue(4, 8) > 0.5, "4/8 正 p>0.5");
         // 边界：n=0 ⟹ p=1。
         assert_eq!(sign_test_pvalue(0, 0), 1.0, "无样本 p=1");
+    }
+
+    /// **★cross-fit purged split 无时间泄漏（K-fold 几何不变量，acc-crossfit-oos）**。
+    ///
+    /// 验证 crossfit_l2 的 fold 切分 + gap purge 算术：每个 held-out fold k 与其 train 段之间
+    /// 隔 ≥CROSSFIT_GAP bar（held-out 不与 train 退出兑现跨度相邻 ⟹ 无时间泄漏）。纯索引几何，
+    /// 不跑 harness（O(n²)，那是 ignored 慢测的事）——验证「选/评分离 + gap」的边界正确性。
+    #[test]
+    fn crossfit_folds_purged_no_overlap() {
+        let cut = MAX_BARS; // 32000
+        let fold_len = cut / CROSSFIT_K; // 6400
+        let gap = CROSSFIT_GAP;
+        for k in 0..CROSSFIT_K {
+            let ho_lo = k * fold_len;
+            let ho_hi = if k == CROSSFIT_K - 1 { cut } else { (k + 1) * fold_len };
+            // 前段 train [0, ho_lo−gap)：末端到 held-out 起隔 gap。
+            if ho_lo >= gap + MIN_TEST_BARS {
+                let pre_hi = ho_lo - gap;
+                assert!(pre_hi <= ho_lo, "前段 train 不进 held-out");
+                assert!(ho_lo - pre_hi >= gap, "前段 train 与 held-out 隔 ≥gap：{}", ho_lo - pre_hi);
+            }
+            // 后段 train [ho_hi+gap, cut)：起点到 held-out 末隔 gap。
+            if ho_hi + gap + MIN_TEST_BARS <= cut {
+                let post_lo = ho_hi + gap;
+                assert!(post_lo >= ho_hi, "后段 train 不进 held-out");
+                assert!(post_lo - ho_hi >= gap, "后段 train 与 held-out 隔 ≥gap：{}", post_lo - ho_hi);
+            }
+        }
+        // fold 覆盖完备（末 fold 吃余数）：Σfold = cut，无缝隙无重叠。
+        let mut covered = 0usize;
+        for k in 0..CROSSFIT_K {
+            let lo = k * fold_len;
+            let hi = if k == CROSSFIT_K - 1 { cut } else { (k + 1) * fold_len };
+            assert_eq!(lo, covered, "fold 无缝隙：fold {k} 起={lo} 应接上轮末={covered}");
+            covered = hi;
+        }
+        assert_eq!(covered, cut, "K 个 fold 覆盖全 cut（末 fold 吃余数）");
     }
 
     /// ΔR 序列统计：恒等**权益曲线**（χ==baseline）⟹ ΔR≡0 ⟹ chi_changed_trades=false（L1 机制门）。

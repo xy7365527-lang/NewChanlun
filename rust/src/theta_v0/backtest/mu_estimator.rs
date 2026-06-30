@@ -102,6 +102,71 @@ impl MuClass {
     }
 }
 
+/// 低维投影类 u（《全互斥定义策略2》§30 压缩映射 ϕ:Z→U 的像）。
+///
+/// ## 命题（维数控制，§29-§30）
+///
+/// 过拟合自由度 = 状态组合数 K（§29：`K=|ℓ|·2·|I_γ|·|σ_p|·|短差|·|仓位态|…`）。K 大 ⟹
+/// 每类样本 n̄=M/K 小 ⟹ winner's curse（高维 z 上 argmax μ 选中估计噪声）。压缩映射
+/// ϕ:Z→U 把高维 z 折叠到低维 u（§30），降 K ⟹ 升 n̄ ⟹ 抗过拟合。
+///
+/// 本投影（§30 给出的低维例 `u=(level_bucket, δ, role, divergence_bucket)`）：
+/// - `level_bucket`：级别分桶（[`UClass::level_bucket`]，把相邻 level 合并 ⟹ 压 |ℓ|）。
+/// - `delta` δ：持仓方向（保留——方向是不可折叠的操作极性，§16）。
+/// - `role`：仓位角色三值（Root / ChildTrend 顺势子 / ChildSwing 短差子）——把
+///   `(parent_dir, short_swing, position)` 三维 z 分量折叠为一维语义角色（§16 操作态本质）。
+/// - `divergence`：背驰二值（I_γ 6-bit 是否含一类买卖点 B1/S1）——把 {0,1}^6 的 I_γ 压成
+///   bool（§5 一类买卖点=背驰确认，是操作上最强信号；2/3 类与是否伴一类的细分对 μ 贡献小，
+///   §11 可被 OOS-value-gated 删维删去）。
+///
+/// **降维真实性**（测试断言）：|U| < |Z|——ϕ 是非单射满射（多个 z 映到同一 u），
+/// `n_classes(U) < n_classes(Z)`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct UClass {
+    pub level_bucket: u32,
+    pub delta: i8,
+    pub role: VoiceRole,
+    pub divergence: bool,
+}
+
+/// 仓位角色（u 的分量）——`(parent_dir, short_swing, position)` 的语义折叠（§16）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum VoiceRole {
+    /// 根声部（主趋势腿，无父）。
+    Root,
+    /// 顺势子声部（有父且同向，加仓腿）。
+    ChildTrend,
+    /// 短差子声部（有父且反向 δ=−σ_p，对冲腿）。
+    ChildSwing,
+}
+
+impl UClass {
+    /// 级别分桶（§30 压 |ℓ|）：相邻两级合并为一桶（`level/2`）。
+    ///
+    /// ponytail: `level/2` 整除分桶——最简单的相邻级别合并。若实测某分界点压掉了有 μ 区分度
+    /// 的级别，改为显式 match 边界即可（OOS-gated 删维会暴露该需求）。
+    pub fn level_bucket(level: u32) -> u32 {
+        level / 2
+    }
+
+    /// 压缩映射 ϕ:Z→U（§30）——把高维 z 折叠到低维 u（确定性，同 z 恒映同 u）。
+    pub fn project_to_u(z: &MuClass) -> UClass {
+        let role = match (z.position, z.short_swing) {
+            (PositionState::Root, _) => VoiceRole::Root,
+            (PositionState::Child, true) => VoiceRole::ChildSwing,
+            (PositionState::Child, false) => VoiceRole::ChildTrend,
+        };
+        // 背驰二值：I_γ 6-bit 是否含一类买卖点（B1=bit0=1 / S1=bit3=8，class_index 权重布局）。
+        let divergence = z.i_class & 0b001001 != 0;
+        UClass {
+            level_bucket: UClass::level_bucket(z.level),
+            delta: z.delta,
+            role,
+            divergence,
+        }
+    }
+}
+
 /// 单笔交易观测：分类值 z + 已实现交易收益 X_γ（§12 line 2147）。
 ///
 /// `x_gamma` 是**已兑现**的 `δ(P_τγ−P_t)−C`——由调用方用真实 entry/exit 价格经
@@ -328,10 +393,120 @@ impl MuEstimator {
         self.buckets.iter().map(|(z, w)| (*z, w.mean))
     }
 
+    /// 已观测的全部 z 类及其 `(n, mean, var_sample)`——跨品种 pooling/ICC 方差分解用
+    /// （[`super::pooling_icc`]）。`var_sample = m2/(n−1)`（无偏样本方差），`n<2` ⟹ `None`
+    /// （单样本类内方差未定义，与 [`MuEstimator::mu_lcb`] 同诚实语义）。顺序不定（HashMap）。
+    pub fn iter_class_stats(&self) -> impl Iterator<Item = (MuClass, u64, f64, Option<f64>)> + '_ {
+        self.buckets
+            .iter()
+            .map(|(z, w)| (*z, w.n, w.mean, w.std_sample().map(|s| s * s)))
+    }
+
     /// 已观测 z 类的数量（分桶覆盖了多少互斥类别）。
     pub fn n_classes(&self) -> usize {
         self.buckets.len()
     }
+}
+
+/// 低维 μ(u) 估计器（《全互斥定义策略2》§29-§30 维数控制 ϕ:Z→U 的聚合）。
+///
+/// 把高维 z 桶经压缩映射 [`UClass::project_to_u`] 重聚合到低维 u 桶——多个 z 映同一 u ⟹
+/// 各 z 的 X_γ 合流到一个 u 桶 ⟹ n̄(u)=M/|U| > n̄(z)=M/|Z|（§29 升每类样本，抗 winner's
+/// curse）。聚合用 Chan 并行 Welford（[`MuEstimator::merge`] 同核），与逐笔重路由 bit-exact。
+///
+/// 认识论等级：聚合逻辑 L1（确定性变换），真实数据驱动的 μ(u) 值 L2（同 [`MuEstimator`] 标注）。
+#[derive(Debug, Clone, Default)]
+pub struct UEstimator {
+    buckets: HashMap<UClass, Welford>,
+}
+
+impl UEstimator {
+    /// 从已估好的高维 [`MuEstimator`] 按 ϕ:Z→U 聚合（§30 折叠）。
+    ///
+    /// 每个 z 桶 `(n, mean, m2)` 经 [`UClass::project_to_u`] 并入其像 u 桶——用 Chan 并行
+    /// Welford 合并（与 [`MuEstimator::merge`] 同公式）⟹ μ(u) = 落入 u 的全部 X_γ 的总均值
+    /// （与逐笔按 u 累加 bit-exact），方差/n 同样合并（供功效判定）。
+    pub fn from_z(z_est: &MuEstimator) -> UEstimator {
+        let mut buckets: HashMap<UClass, Welford> = HashMap::new();
+        for (z, wb) in &z_est.buckets {
+            if wb.n == 0 {
+                continue;
+            }
+            let u = UClass::project_to_u(z);
+            let wa = buckets.entry(u).or_default();
+            if wa.n == 0 {
+                *wa = *wb;
+                continue;
+            }
+            let n = wa.n + wb.n;
+            let delta = wb.mean - wa.mean;
+            let mean = wa.mean + delta * (wb.n as f64) / (n as f64);
+            let m2 = wa.m2 + wb.m2 + delta * delta * (wa.n as f64) * (wb.n as f64) / (n as f64);
+            *wa = Welford { n, mean, m2 };
+        }
+        UEstimator { buckets }
+    }
+
+    /// μ(u) 样本均值（§12 类比，u 域）。`None` ⟹ 空类（与 [`MuEstimator::mu`] 同语义）。
+    pub fn mu(&self, class: &UClass) -> Option<f64> {
+        self.buckets.get(class).map(|w| w.mean)
+    }
+
+    /// 该 u 类样本量 |S_u|（功效判定——u 域 n̄ 应 > z 域）。
+    pub fn count(&self, class: &UClass) -> u64 {
+        self.buckets.get(class).map_or(0, |w| w.n)
+    }
+
+    /// 已观测 u 类数 |U|（降维真实性：应 < z 域 [`MuEstimator::n_classes`]）。
+    pub fn n_classes(&self) -> usize {
+        self.buckets.len()
+    }
+
+    /// 已观测 u 类及 μ 估计（顺序不定）。
+    pub fn iter_mu(&self) -> impl Iterator<Item = (UClass, f64)> + '_ {
+        self.buckets.iter().map(|(u, w)| (*u, w.mean))
+    }
+}
+
+/// 可删维度（《全互斥定义策略2》§11 OOS-value-gated 删维的候选轴）。
+///
+/// §11：「不能提升 OOS value 的维度删除/正则化」。本枚举列出 u 的可删维度轴——
+/// [`oos_gated_drop`] 对每个轴评估「删该维度后 OOS value 是否不降」，标可删维度。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DropAxis {
+    /// 级别桶维度（删 ⟹ 不按级别分类）。
+    LevelBucket,
+    /// 角色维度（删 ⟹ root/child 不分）。
+    Role,
+    /// 背驰维度（删 ⟹ 不按一类买卖点分）。
+    Divergence,
+}
+
+/// OOS-value-gated 删维评估（§11 骨架）。
+///
+/// §11：「不能提升 OOS value 的维度删除/正则化」。给定待评估维度轴与「删该轴后的 OOS value
+/// 评估函数」`oos_value`（由调用方提供——它依赖 walk-forward harness 兑现的样本外 ΔR，是
+/// L2/L3 量，估计器不内造），返回每个轴的「删除后 OOS value 不降 ⟹ 可删」判定。
+///
+/// **诚实声明（骨架边界）**：本函数只编排「逐轴调用 OOS 评估 + 比较基线」的判定逻辑——真正的
+/// OOS value（删维前/后两次 walk-forward 回测的样本外收益）由调用方 `oos_value` 闭包提供。
+/// 估计器**不计算** OOS value（那需完整回测管线 + 真实数据，是下游 acc-crossfit-oos 工位的
+/// 产出）。`baseline` = 不删任何维度（全维 u）的 OOS value。
+///
+/// 判定：`oos_value(axis) >= baseline − tol` ⟹ 该轴可删（删它 OOS 不降，§11）。`tol` 容忍
+/// 噪声（删维后 OOS value 微降在 tol 内仍算「不降」，避免噪声驱动的保留）。
+pub fn oos_gated_drop<F>(
+    axes: &[DropAxis],
+    baseline: f64,
+    tol: f64,
+    mut oos_value: F,
+) -> Vec<(DropAxis, bool)>
+where
+    F: FnMut(DropAxis) -> f64,
+{
+    axes.iter()
+        .map(|&axis| (axis, oos_value(axis) >= baseline - tol))
+        .collect()
 }
 
 #[cfg(test)]
