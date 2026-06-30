@@ -241,6 +241,67 @@ pub fn extract_elements(tower: &[Rc<Vec<LeveledMove>>]) -> Vec<CoverageElement> 
     elements
 }
 
+/// ★方案D（视图分离，裁决648 / 子声部.pdf §3/§19）：**K_i 操作 carrier forest**——
+/// host^op 的载体宇宙，**endpoint-complete**（∀g∈B_i ∃!c∈K_i: ρ(c)=s(g)）。
+///
+/// 与 [`extract_elements`]（T_i = ↓r_i，**只展开最高非空级别根**，覆盖 ~36% L0）的唯一区别：
+/// 本函数遍历 tower 的**所有级别**所有 `LeveledMove`（K_i = U_i = 全量 tower 元素），使每个产出
+/// 买卖点的走势（无论在哪一级）的右端点 ρ=end_index 都在 K_i 中可命中——消除 orphan frontier
+/// host-miss（PDF §8/§11：T_i 只覆盖最高 compose chain ⟹ 大量 bsp 落树外 host=⊥ ⟹ 子声部恒 0）。
+///
+/// ★host^op 仍**严格右端点命中**（PDF P2a 保留），只是宇宙从 T_i 扩到 K_i（P2b：T_i→K_i）。父子
+/// 关系仍来自真 Compose `sub_moves`（铁律：非级别差伪造，547），`parent_id` 仍是真 structural id。
+///
+/// ★dedup（codex 异质审查 NO#2 坐实）：同一 `LeveledMove` 会被遍历两次——一次作为**低级根**
+/// （某级 `level_moves` 的顶层），一次作为**高级父的 sub_move**（高一级 Compose 的子走势）。两次产
+/// 同 `ElementId`（确定性 ID）但 `parent` 不同（作根时 None，作子时指向父）。本函数按 `ElementId`
+/// dedup，**优先保留带真 `parent_id` 的出现**（作子声部时携真父，是 host^op 父链所需；作根时父=∂
+/// 丢失父信息）——保 K_i 中每元素唯一表示且父链最全（endpoint 唯一命中不二义）。
+///
+/// > **认识论 L0/L1**（formalization-validity-domain 231号）：纯结构遍历（全量 tower 展开 + dedup），
+/// > 不依赖经验数据。endpoint-complete 是 K_i 定义的代数性质（L0）。是否让 π^bsp 子声部激活 >0 是
+/// > 下游解释器（含父子证书链）+ L2 经验问题，本函数只提供 host^op 宇宙，**不**蕴含子声部激活。
+pub fn extract_carrier_forest(tower: &[Rc<Vec<LeveledMove>>]) -> Vec<CoverageElement> {
+    let mut elements: Vec<CoverageElement> = Vec::new();
+    // 遍历**所有级别**（不像 extract_elements 只 break 最高非空级），每级每个走势作根向下展开真嵌套。
+    for level_moves in tower.iter().rev() {
+        for lm in level_moves.iter() {
+            push_element_tree(&mut elements, lm, None, None, None);
+        }
+    }
+    // dedup（codex NO#2）：同一 ElementId 多次出现（作低级根 + 作高级父的 sub），保带真 parent_id 者。
+    let mut best_idx: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
+    for (i, e) in elements.iter().enumerate() {
+        match best_idx.get(&e.id) {
+            // 已有记录：仅当新出现带真 parent_id 而旧的无父时，替换（父链更全，host^op 父链所需）。
+            Some(&old) if elements[old].parent_id.is_none() && e.parent_id.is_some() => {
+                best_idx.insert(e.id, i);
+            }
+            Some(_) => {}                  // 旧已带父或新也无父 ⟹ 保旧（首次出现序）。
+            None => { best_idx.insert(e.id, i); }
+        }
+    }
+    // 重建去重 Vec：选中元素按原 idx 升序（父在子前不变量保持），parent 索引重映射到去重后位置。
+    let mut selected: Vec<usize> = best_idx.values().copied().collect();
+    selected.sort_unstable();
+    let pos_of: std::collections::HashMap<usize, usize> =
+        selected.iter().enumerate().map(|(new, &old)| (old, new)).collect();
+    selected
+        .iter()
+        .map(|&old| {
+            let e = elements[old];
+            CoverageElement {
+                // parent（per-bar Vec 索引）重映射：旧 parent idx → 其 id 的去重后选中位置。
+                parent: e.parent.and_then(|pidx| {
+                    let pid = elements[pidx].id;
+                    best_idx.get(&pid).and_then(|&sel| pos_of.get(&sel).copied())
+                }),
+                ..e
+            }
+        })
+        .collect()
+}
+
 /// 递归把一个 `LeveledMove` 及其真嵌套子走势压入元素集（父在子前，parent 索引真父子）。
 ///
 /// `lm`：当前走势（一个元素 e）。`parent_idx`：父元素在 `elements` 中的索引（根 None）。
@@ -2175,6 +2236,65 @@ mod tests {
         // (level,ρ) 身份 ⟹ ρ=16 唯一命中 b0（父 compose_b=Short），ρ=12 唯一命中 a2（父 Long）。
         assert_eq!(attach_bsp_to_tree(&tree, 0, 16).1, Some(VoiceSide::Short), "ρ=16 → b0 真父 Short");
         assert_eq!(attach_bsp_to_tree(&tree, 0, 12).1, Some(VoiceSide::Long), "ρ=12 → a2 真父 Long");
+    }
+
+    /// ★方案D K_i（裁决648）：extract_carrier_forest 含**所有级别**元素（不像 T_i 只最高级根），
+    /// dedup 后每 ElementId 唯一、parent 索引有效（codex NO#2 守卫）。
+    #[test]
+    fn carrier_forest_all_levels_dedup_unique_id() {
+        // two_parent_tower：L1 有 compose_a/compose_b（各 3 个 L0 sub），L0 级为空（sub 由 Compose 带出）。
+        let tower = two_parent_tower();
+        let t_i = extract_elements(&tower); // T_i：只展开最高非空级（L1）根 → 2 根 + 6 子 = 8
+        let k_i = extract_carrier_forest(&tower); // K_i：所有级别（L1 同上；L0 空 ⟹ 无额外根）
+        // 本塔 L0 级为空（sub_moves 携子），故 K_i 与 T_i 元素数相同（dedup 后），但 ElementId 必唯一。
+        let mut ids: Vec<_> = k_i.iter().map(|e| (e.id.level, e.id.ordinal)).collect();
+        let n_before = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), n_before, "K_i dedup 后无重复 ElementId（codex NO#2）");
+        // parent 索引有效（指向 K_i 内更早元素，父在子前不变量）。
+        for (i, e) in k_i.iter().enumerate() {
+            if let Some(p) = e.parent {
+                assert!(p < i, "parent 索引 {p} 必 < 子索引 {i}（父在子前）");
+                assert!(p < k_i.len(), "parent 索引越界");
+            }
+        }
+        // endpoint-complete 见证：每个 L0 子走势的 ρ 在 K_i 中可命中（host^op 不 miss）。
+        // a1.ρ=8（L0），compose_a.ρ=12（L1）都应在 K_i。
+        let kidx = build_tree_endpoint_index(&k_i);
+        assert!(kidx.contains_key(&(0, 8)), "L0 子 ρ=8 在 K_i（endpoint-complete）");
+        assert!(kidx.contains_key(&(1, 12)), "L1 根 ρ=12 在 K_i");
+    }
+
+    /// ★方案D K_i dedup **真触发**（codex NO#2 核心）：L0 级非空 ∧ 其元素同时是 L1 compose 的 sub
+    /// ⟹ 同一 ElementId 被遍历两次（作 L0 根 parent=None + 作 L1 子 parent=Some）。dedup 须保留**带
+    /// parent_id 的出现**（子声部父链所需），且最终无重复 ElementId、parent 索引有效。
+    #[test]
+    fn carrier_forest_dedup_triggers_when_l0_nonempty() {
+        let s0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let s1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
+        let s2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15), eid(0, 2));
+        let l1 = LeveledMove::compose(&[s0.clone(), s1.clone(), s2.clone()], ctr(0, 12), 1, eid(1, 0));
+        // L0 级**非空**（含 s0/s1/s2）+ L1 级含 compose（其 sub_moves 也是 s0/s1/s2，同 ElementId）。
+        let tower = rc_tower(vec![vec![s0, s1, s2], vec![l1]]);
+        let k_i = extract_carrier_forest(&tower);
+        // 4 个唯一元素：L1 根 (1,0) + 3 个 L0 (0,0)/(0,1)/(0,2)——dedup 合并了重复遍历。
+        let mut ids: Vec<_> = k_i.iter().map(|e| (e.id.level, e.id.ordinal)).collect();
+        let n = ids.len();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), n, "dedup 后无重复 ElementId");
+        assert_eq!(n, 4, "L1 根 + 3 L0 子 = 4 唯一元素（重复遍历被 dedup）");
+        // L0 元素保留**带 parent 的出现**（作 L1 子时 parent_id=Some(1,0)），非作根的 None。
+        let l0_child = k_i.iter().find(|e| e.id == eid(0, 0)).expect("s0 在 K_i");
+        assert_eq!(l0_child.parent_id, Some(eid(1, 0)), "dedup 保留带真 parent_id 的出现（codex NO#2）");
+        assert!(l0_child.parent.is_some(), "parent 索引指向 L1 根");
+        // parent 索引有效。
+        for (i, e) in k_i.iter().enumerate() {
+            if let Some(p) = e.parent {
+                assert!(p < i && p < k_i.len(), "parent 索引有效");
+            }
+        }
     }
 
     /// 638 边界：host 未找到（无 ρ==source_index 的本级元素）⟹ (None,None) 去根化 Ambient。

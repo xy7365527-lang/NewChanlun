@@ -56,7 +56,7 @@ use newchan_rust::theta_v0::backtest::metrics::{self, TradeRecord};
 use newchan_rust::theta_v0::classifier::recursive_tower::ElementId;
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::strategy::coverage::{
-    attach_bsp_carrier_indexed, build_tree_endpoint_index, extract_elements,
+    attach_bsp_carrier_indexed, build_tree_endpoint_index, extract_carrier_forest,
 };
 use newchan_rust::theta_v0::types::BspBits;
 use std::collections::{HashMap, HashSet};
@@ -196,11 +196,14 @@ fn main() -> std::process::ExitCode {
     for i in 0..n {
         let (classification, tower) = classifier.classify_at(i);
 
-        // ── 644 结构父子：从真嵌套塔建元素树（hostOf 判准的对象域）──
+        // ── 方案D（视图分离，裁决648）：host^op 用 **K_i 操作 carrier forest**（非 T_i）──
+        // 旧版 `extract_elements`=T_i=↓r_i（只展开最高非空级别根，覆盖 ~36% L0）⟹ bsp 大量落 orphan
+        // frontier ⟹ host-miss ⟹ ∂ 根声部 ⟹ 子声部恒 0（PDF §8/§11，line 188-190 旧诊断坐实）。
+        // `extract_carrier_forest`=K_i=U_i=全量 tower 元素（endpoint-complete：∀bsp ∃c ρ(c)=s(g)）⟹
+        // host^op 不再 miss ⟹ 子声部 carrier/parent_id 真命中（PDF §3/§19，host 严格右端点命中不变）。
         // 每个 `LeveledMove` 是元素 e；其 `sub_moves` 是真 Compose 子（push_element_tree 真父子）。
-        // 买卖点 g 的 hostOf(g) = 本级、ρ==source_index 的元素（产出 g 的走势）；
         // hostOf 的 `parent_id`（真 Compose 父容器 ElementId）= 子声部的父声部 carrier（§9.1）。
-        let tree = extract_elements(&tower);
+        let tree = extract_carrier_forest(&tower);
         let tree_idx = build_tree_endpoint_index(&tree);
 
         // 本 bar 新确认的方向证书（§1-2 γ）。每条证书携：
@@ -285,22 +288,58 @@ fn main() -> std::process::ExitCode {
         let active_voice_by_carrier: HashMap<ElementId, usize> =
             active.iter().map(|&v| (voices[v].carrier, v)).collect();
 
-        let open_new = |voices: &mut Vec<Voice>,
-                            active: &mut HashSet<usize>,
-                            gen_counter: &mut HashMap<ElementId, u32>,
-                            carrier: ElementId,
-                            parent_id: Option<ElementId>,
-                            cert_dir: i8| {
-            let g = gen_counter.entry(carrier).or_insert(0);
-            *g += 1;
-            // 父声部 = hostOf 真 Compose 父容器（parent_id）上的 active 声部（§9.1）。
-            // parent_id=None（host 父=边界胚元 ∂）⟹ 根声部（§5）。
-            let parent = parent_id.and_then(|pid| active_voice_by_carrier.get(&pid).copied());
-            // 子声部方向 = −父方向（§6/§16 σ_u=−σ_p，结构性）；根声部方向 = 证书方向（§5）。
+        // ★方案D §9（裁决648 / codex YES#3）：解释器**生成父 voice**（接受父子证书链），不靠子反推父。
+        // 本 bar 证书按 carrier 建表（carrier→(parent_id, cert_dir)）——open 子声部时，若其父 carrier
+        // **本 bar 也有证书**（父子证书链 γ_0..γ_d 同 bar 存在）或父已 live，则**同时开父 voice**再开子。
+        // codex 严格条件：父 voice 进 O_i **仅因**父证书同 bar 或父已 live（**非** AncOK 生成父——AncOK
+        // 仍是过滤器只剪孤儿子，§6/§7）。沿真 Compose parent 链上溯，对每个有同 bar 证书的祖先开 voice。
+        let certs_by_carrier: HashMap<ElementId, (Option<ElementId>, i8)> =
+            new_certs.iter().map(|&(c, p, d)| (c, (p, d))).collect();
+
+        // open_carrier：确保 carrier 上有 active voice（已 live ⟹ 复用首个；否则沿父链先开父再开本级）。
+        // 返回该 carrier 的 active voice 索引。父链上溯到 ∂（parent_id=None）或无同 bar 证书的祖先为止。
+        fn open_carrier(
+            voices: &mut Vec<Voice>,
+            active: &mut HashSet<usize>,
+            gen_counter: &mut HashMap<ElementId, u32>,
+            active_voice_by_carrier: &HashMap<ElementId, usize>,
+            certs_by_carrier: &HashMap<ElementId, (Option<ElementId>, i8)>,
+            opened_this_bar: &mut HashMap<ElementId, usize>,
+            carrier: ElementId,
+            parent_id: Option<ElementId>,
+            cert_dir: i8,
+            entry_bar: usize,
+        ) -> usize {
+            // 已 live（上一 bar 留存）⟹ 复用（§9 父已 live 分支）。
+            if let Some(&idx) = active_voice_by_carrier.get(&carrier) {
+                return idx;
+            }
+            // 本 bar 已开过该 carrier ⟹ 复用（防同 bar 重复开，父链多子共享父）。
+            if let Some(&idx) = opened_this_bar.get(&carrier) {
+                return idx;
+            }
+            // 父声部：parent_id 有真父 ∧（父已 live 或父本 bar 有证书）⟹ 递归先开父（§9 生成父 voice）。
+            let parent = parent_id.and_then(|pid| {
+                if active_voice_by_carrier.contains_key(&pid)
+                    || opened_this_bar.contains_key(&pid)
+                    || certs_by_carrier.contains_key(&pid)
+                {
+                    let (ppid, pdir) = certs_by_carrier.get(&pid).copied().unwrap_or((None, cert_dir));
+                    Some(open_carrier(
+                        voices, active, gen_counter, active_voice_by_carrier,
+                        certs_by_carrier, opened_this_bar, pid, ppid, pdir, entry_bar,
+                    ))
+                } else {
+                    None // 父无同 bar 证书且未 live ⟹ 不生成父（codex 严格条件）⟹ 本级作根声部。
+                }
+            });
+            // 子声部方向 = −父方向（§6/§16 σ_u=−σ_p）；根声部方向 = 证书方向（§5）。
             let final_dir = match parent {
                 Some(pidx) => Voice::child_dir(voices[pidx].dir),
                 None => cert_dir,
             };
+            let g = gen_counter.entry(carrier).or_insert(0);
+            *g += 1;
             let idx = voices.len();
             voices.push(Voice {
                 carrier,
@@ -308,10 +347,12 @@ fn main() -> std::process::ExitCode {
                 parent,
                 qty: 1.0, // §7/§13 Q_Θ=1 单位（诚实简化）
                 generation: *g,
-                entry_bar: i,
+                entry_bar,
             });
             active.insert(idx);
-        };
+            opened_this_bar.insert(carrier, idx);
+            idx
+        }
 
         for &(_carrier, parent_id, _cert_dir) in &new_certs {
             if let Some(pid) = parent_id {
@@ -320,8 +361,12 @@ fn main() -> std::process::ExitCode {
                 }
             }
         }
+        let mut opened_this_bar: HashMap<ElementId, usize> = HashMap::new();
         for &(carrier, parent_id, cert_dir) in &new_certs {
-            open_new(&mut voices, &mut active, &mut gen_counter, carrier, parent_id, cert_dir);
+            open_carrier(
+                &mut voices, &mut active, &mut gen_counter, &active_voice_by_carrier,
+                &certs_by_carrier, &mut opened_this_bar, carrier, parent_id, cert_dir, i,
+            );
         }
 
         // ── §9 祖先闭合 A_{t+1}=AncOK(A^raw) ──（父不 active ⟹ 子声部被剪，§4）
