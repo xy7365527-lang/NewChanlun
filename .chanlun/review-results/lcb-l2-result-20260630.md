@@ -1,114 +1,113 @@
-# L2 实证：LCB 选择器 vs 裸μ 选择器（acc-lcb-l2-vs-naive，task #74）
+# L2 实证：LCB 选择器 vs 裸μ 选择器（acc-lcb-l2-vs-naive，task #74/#78）
 
-- **测试**：`rust/src/theta_v0/backtest/l3_delta_r_alpha.rs::lcb_vs_naive_l2`（#77 授码实装，本工位 #74 跑实证 + 归因）
-- **认识论等级**：**L2**（真实数据 8 品种单标的对比，z_alpha 是唯一变量；可产否定性结果）
+> **2026-06-30 重判（task #78）**：codex 异质审（`codex-lcb-l2-audit-20260630-1218.md`）判原结论 (B) 缺陷，
+> 4 攻击点全 SUCCEEDS。本文档为**修复 + 诚实重判**版本，**撤回**原"LCB 有真 alpha 价值"结论。
+
+- **测试**：`rust/src/theta_v0/backtest/l3_delta_r_alpha.rs::lcb_vs_naive_l2`
+- **认识论等级**：**L2**（真实数据 8 品种单标的对比，z_alpha 是唯一变量；产出了**否定性结果**）
 - **n / 窗口 / z_alpha**：8 品种（BTC/ES/CL/GC/BRN/DX/QQQ/OKLO），OOS=(2023-01-01, 2025-06-30)（OKLO §2.4 特例），
   截断 MAX_BARS=32000 → train 16000 / **test 16000** bar；θ=0；**z_naive=0（裸μ）vs z_lcb=1.645（95% 单边 LCB）**
-- **唯一变量**：`config.risk.chi_z_alpha`（同 walk-forward μ 表 / 同 split / 同 θ / 同 test 窗），runner.rs:296 已接入 ChiFilterCtx
+- **唯一变量**：`config.risk.chi_z_alpha`（同 walk-forward μ 表 / 同 split / 同 θ / 同 test 窗）
 
-## 逐品种结果
+## 逐品种结果（修复后，含 src_b 分桶 + 退化弃权标记）
 
-| symbol | test bar | μ类 | 裸μ单/0单 | LCB单/0单 | 拒源(a)饥饿 | 拒源(b)真控 | ΔR(裸μ) | ΔR(LCB) |
-|--------|---------:|----:|----------:|----------:|------------:|------------:|--------:|--------:|
-| BTC  | 16000 |  9 | 0/0       | 0/0       | 0 | 0  | 1.220e-5 | 1.220e-5 |
-| ES   | 16000 |  8 | 0/0       | 0/0       | 1 | 0  | 3.737e-6 | 3.737e-6 |
-| CL   | 16000 |  7 | 8667/0    | 0/0       | 2 | 15 | 1.721e-5 | 1.995e-5 |
-| GC   | 16000 |  9 | 349/0     | 349/0     | 0 | 0  | 3.482e-6 | 3.482e-6 |
-| BRN  | 16000 | 10 | 7936/0    | 0/0       | 0 | 10 | **−1.323e-6** | **+1.415e-5** |
-| DX   | 16000 |  9 | 0/0       | 0/0       | 4 | 0  | 1.044e-5 | 1.044e-5 |
-| QQQ  | 16000 |  5 | 0/0       | 0/0       | 0 | 0  | 8.274e-6 | 8.274e-6 |
-| OKLO | 16000 |  7 | 3518/0    | 0/0       | 2 | 14 | 1.387e-6 | 9.558e-6 |
+| symbol | μ类 | 裸μ单 | LCB单 | 拒源(a)饥饿 | 拒源(b)总 | src_b鲁棒(n≥10) | src_b低dof(n<10) | LCB退化? | ΔR(裸μ) | ΔR(LCB) |
+|--------|----:|------:|------:|----:|----:|----:|----:|:--:|--------:|--------:|
+| BTC  |  9 | 0    | 0 | 0 | 0  | 0  | 0 | 弃权 | 1.220e-5 | 1.220e-5 |
+| ES   |  8 | 0    | 0 | 1 | 0  | 0  | 0 | 弃权 | 3.737e-6 | 3.737e-6 |
+| CL   |  7 | 8667 | 0 | 2 | 15 | 14 | 1 | **弃权** | 1.721e-5 | 1.995e-5 |
+| GC   |  9 | 349  | 349 | 0 | 0 | 0 | 0 | 否 | 3.482e-6 | 3.482e-6 |
+| BRN  | 10 | 7936 | 0 | 0 | 10 | 10 | 0 | **弃权** | −1.323e-6 | +1.415e-5 |
+| DX   |  9 | 0    | 0 | 4 | 0  | 0  | 0 | 弃权 | 1.044e-5 | 1.044e-5 |
+| QQQ  |  5 | 0    | 0 | 0 | 0  | 0  | 0 | 弃权 | 8.274e-6 | 8.274e-6 |
+| OKLO |  7 | 3518 | 0 | 2 | 14 | 14 | 0 | **弃权** | 1.387e-6 | 9.558e-6 |
 
-（"裸μ单/0单" = χ过滤路 n_orders / baseline n_orders；CL/BRN/OKLO 裸μ 有单而 LCB 全滤=0 单）
+（"弃权" = LCB.n_orders==0 且 base.n_orders>0：χ 全滤空仓，ΔR=flat-selector vs always-open base 非 alpha）
+
+**关键聚合**：
+- 源(a)=9，源(b)总=39（CL15+BRN10+OKLO14）
+- **源(b) 鲁棒(n≥10)=38，低dof(n<10)=1** ← codex 攻击点3（n=2 伪高方差）在本批数据上**基本不成立**（仅 CL 1 个低dof）
+- **源(b) 鲁棒 ∧ 非退化品种 = 0** ← codex 攻击点1+4 致命：全部 38 个鲁棒 src_b 落在 CL/BRN/OKLO，而这三个全是 LCB 退化品种
 
 ---
 
 ## 结果包六要素
 
-### 1. 结论
+### 1. 结论（撤回原"alpha 价值"，改为否定性结论）
 
-LCB 选择器在 **3/8 品种（CL/BRN/OKLO）有显著过拟合控制作用**，且 **BRN 的 ΔR 从裸μ 的负值
-（−1.323e-6）翻正为 LCB 的 +1.415e-5**——直接证据：裸μ 准入了 n≥2 高方差噪声类导致负净额增量，
-LCB 置信收缩拒绝后转正。这是**纪律2 源(b)=39 跨品种**的经济含义兑现。
+**LCB 选择器无 demonstrated alpha 价值**（`tot_src_b_robust_nondegen = 0`）。
 
-**但功效维度（L3 系统性 alpha）两 selector 下均 inconclusive**（裸μ n_L3=4、LCB n_L3=1，符号 p=0.31/0.50，
-均<MIN_L3_POWER=5）——这是 16K 短窗 + 8 品种的预期诚实结果，**与 LCB 正交**。
+剥离两层伪装后真相：
+- src_b=39 全部集中在 CL/BRN/OKLO，而这三个品种在 LCB 下 χ.n_orders→0（**全滤空仓 = 停止交易**）。
+- 停止交易 = 平凡零过拟合（按构造：从不交易则从不过拟合）。把"χ→0"算作"LCB 正确收缩高方差类"
+  是把**退化**用相反价值符号重贴标签为**alpha**（codex 攻击点1+4）。
+- BRN 的 ΔR「负转正」（−1.3e-6→+1.4e-5）**不是 alpha 改善**：LCB.n_orders=0 ⟹ delta_r_stats 比较
+  flat-selector vs always-open base，下跌窗里"空仓跑赢 always-long"是**弃权 PnL**，非信号质量发现（161 号）。
+
+**稳健陈述（codex 异质审 (B) 结论的可成立内核）**：LCB 比裸μ 更保守，把 3 个品种（CL/BRN/OKLO）从
+"有单"压成"全滤空仓"，这降低了表观过拟合度量、同时摧毁了统计功效（L3 池 4→1）。这是同一收紧机制的两面，
+不是"LCB 发现并修剪了真过拟合"。
 
 ### 2. 定义依据
 
 - 准入量定义（selector.rs:188-200）：`chi_t(est.mu_lcb(&z, z_alpha), θ, ...)`，`mu_lcb=mean−z_alpha·std/√n`
-  （mu_estimator.rs:214，n<2 返 None）。z_alpha=0 ⟹ LCB=mean ⟹ n≥2 退化裸μ；n=1 ⟹ mu_lcb=None 走
-  treat_empty_as_pass=false ⟹ 拒（严格alpha.pdf p25 §12「无正边际收益证据不交易」）。
+  （mu_estimator.rs:214，n<2 返 None）。
 - ΔR 口径（delta_r_stats，l3_delta_r_alpha.rs:239）：归一化绝对权益逐 bar 增量配对差 = §10 ΔR/nav0。
-- 输入特征满足条件：CL/BRN/OKLO 的 test 候选 z 中存在 n≥2 高方差类，裸μ>θ 准入但 LCB=mean−1.645·std/√n≤θ。
+  **退化品种（n_orders=0）的 ΔR = flat 权益 vs always-open base 权益的增量差**——这是弃权对照，非 alpha。
+- src_b 分桶依据（mu_estimator.rs:221 `count`）：est.count(z) = 该 z 在 train μ 表的样本量 n。
 
 ### 3. 边界条件（结论翻转的条件）
 
-- **维度①（LCB 价值）翻转**：若 test 窗扩大到 μ 表样本量 n 普遍上升 ⟹ std/√n→0 ⟹ LCB→mean ⟹ 源(b)→0
-  ⟹ LCB 与裸μ 决策收敛（lcb_converges_to_naive_mu_at_large_n 单测已证 L0）。本结论的 LCB 价值绑定
-  **16K 短窗的高方差低 n 情形**。
-- **BRN 翻正翻转**：若 BRN 高方差类在更长窗下 μ 估计稳定为正 ⟹ 裸μ 不再负 ⟹ LCB 翻正消失（翻正是
-  短窗噪声被 LCB 拒的伪影修正，非 LCB 创造 alpha——鞅定理：χ 过滤不创造预测性）。
-- **功效维度翻转**：n_L3 从 <5 升到 ≥7/8 正 ⟹ 符号检验 p<0.05 ⟹ inconclusive 解除。需更大池
-  （>8 品种）或更长窗（撞 O(n²) 墙——见影响声明）。
+- **否定结论翻转**：若在**更长窗 / 更大品种池**下，存在某品种满足 (LCB.n_orders>0 ∧ 存在 n≥10 高方差类被 LCB
+  拒) ⟹ `tot_src_b_robust_nondegen>0` ⟹ LCB 获得**有限**（窄）过拟合控制价值。当前 16K×8 品种数据下为 0。
+- **退化判定翻转**：退化由 runner.rs RiskOK/ConflictOK/持仓树级联调制，非纯过滤层单调。若某品种 LCB 收紧后
+  仍有 n_orders>0（非退化）且其 src_b 鲁棒 ⟹ 计入 alpha 候选。
+- **低dof 分桶阈值**：n≥10 为鲁棒阈（约 9 自由度方差估计可信）。若改阈值（如 n≥30）src_b_robust 会更小——
+  当前 38/39 已 n≥10，阈值敏感性低（codex 攻击点3 在本数据上钝化）。
 
 ### 4. 下游推论
 
-- LCB 升级在 χ 选择器层**有信息增量**（源(b)=39≠0，非同义反复）——可保留 chi_z_alpha=1.645 作生产默认
-  的候选（待 L3 功效验证再定）。
-- **覆盖≠盈利（645/653/654）再次兑现**：LCB 改变交易集（CL/BRN/OKLO 全滤 vs 裸μ 有单）≠ LCB 提升系统性
-  alpha（L3 仍 inconclusive）。维度①改善不蕴含维度②解决。
-- 退化数 LCB=7 > 裸μ=4：LCB 更保守，把更多低证据品种推向空仓。空仓躲亏（覆盖率↓）非选择 alpha——
-  这是为什么 L3 池只取 χ 真改交易集且 n_orders>0 的有效品种（CL/BRN/OKLO 中仅非退化者入池）。
+- **LCB 不应作为 chi_z_alpha 生产默认的 alpha 理由**：原"保留 1.645 作生产默认候选"的推论**撤回**——
+  本 L2 未给出 LCB 的 demonstrated alpha 证据，唯一可观测效应是"更保守地压品种空仓"。
+- **覆盖≠盈利（645/653/654）再次兑现**：LCB 改变交易集（CL/BRN/OKLO 全滤）≠ alpha；空仓躲亏 ≠ 选择 alpha。
+- **维度①②非正交**（codex 攻击点2）：收紧 LCB → 拒更多类（降过拟合度量）**同时** → 推品种向 n_orders=0
+  退化 → 排除 L3 池（降功效）。同一 rejection mass 两投影，不是两个独立维度。原"两维度正交"声明**删除**。
 
 ### 5. 谱系引用
 
-- **660（χ_t L3 inconclusive 伪否证 + 根因分离）**：本结果是 660 正交命题的 L2 验证——LCB 控过拟合维度
-  ⊥ inconclusive 根因（功效不足）。两维度分离报告，**未**声称「LCB 解决 inconclusive」。
-- **231（formalization-validity-domain）**：否定性结果（功效维度 inconclusive）照实报，标 L2 + 有效域 caveat
-  （16K 截断 + 8 品种 + OOS 内 split 非独立 train 历史）。
-- 严格alpha.pdf p25 §12（LCB 准入防高维 z 过拟合）；鞅定理 §11/§16（χ 不创造预测性，BRN 翻正是噪声修正非 alpha 创造）。
+- **161 号（务实/补丁思维否定）**：本修复的核心——"停止交易（χ→0 空仓）不可粉饰为改善"。原结论把退化
+  弃权 PnL 表述为"LCB 真 alpha 价值"撞 161 号，是声明膨胀（090 号）。
+- **660（χ_t L3 inconclusive 伪否证 + 根因分离）**：原引用 660 的"正交"框架被 codex 攻击点2 否证——
+  过拟合维度与功效维度**非正交**而是同源。保留 660 的"inconclusive 是功效不足非 LCB 失败"内核，
+  **撤回**"两维度正交"的形式化。
+- **231（formalization-validity-domain）**：否定性结果（`tot_src_b_robust_nondegen=0`）照实报，标 L2 +
+  有效域 caveat（16K 截断 + 8 品种 + OOS 内 split）。**否定性结果缩小了 LCB alpha 价值的有效域边界**——
+  比原确认性结果更有信息增量（231 号"否定性结果比确认性结果更有价值"）。
 
 ### 6. 影响声明
 
-- **未改任何 frozen 代码**：selector/estimator/runner 均未碰（已真封）。测试 `lcb_vs_naive_l2` 由 #77 授码工位
-  写入 l3_delta_r_alpha.rs，本工位 #74 仅执行 + 归因，无代码改动。
-- **测试计数不降**：`cargo test --lib theta_v0::backtest::l3_delta_r_alpha` → 7 passed / 4 ignored
-  （lcb_vs_naive_l2 正确标 #[ignore]，O(n²) --release 慢测）；全 lib 测试 baseline 1268 不降（filtered 1338/1348）。
-- L0 不变量在 acceptance 中验证：LCB 准入集 ⊆ 裸μ 准入集（mu_lcb≤mu）⟹ 退化数 7≥4，过滤层子集关系自洽。
+- **改动文件**：`rust/src/theta_v0/backtest/l3_delta_r_alpha.rs` 的 `lcb_vs_naive_l2`（测试代码，非 frozen 生产路径）：
+  - (a) src_b 按 train-class n 分桶（n≥10 鲁棒 vs n<10 低dof），剥离低自由度伪装。
+  - (b) 退化品种（LCB.n_orders=0）ΔR 标 `[LCB弃权PnL]`，新增 `tot_src_b_robust_nondegen`（排除退化）作唯一 alpha 判据。
+  - (c) 删除"两维度正交"声明，改为"同一 rejection mass 两投影"（codex 攻击点2）。
+- **未碰** selector/estimator/runner 生产代码（已真封）。
+- **测试计数不降**：`cargo test --lib` → **1268 passed / 0 failed**（baseline 不降）；
+  `cargo test --lib theta_v0::backtest::l3_delta_r_alpha` → 7 passed / 4 ignored。
+- **重跑数据**：`cargo test --release --lib ...::lcb_vs_naive_l2 -- --ignored --nocapture` → 1 passed（12.0s）。
 
 ---
 
-## 两条分离纪律的执行（强制，防 090 膨胀）
+## 诚实重判（防再次 090 膨胀）
 
-### 纪律1（660 正交）— 两维度分离
+| codex 攻击点 | 修复 | 修复后数据 | 判定 |
+|------|------|------|------|
+| 1+4（退化弃权伪装为 alpha） | 排除退化品种，`tot_src_b_robust_nondegen` | =0（全部 src_b 在退化品种） | **致命，结论翻转** |
+| 3（n=2 低自由度伪高方差） | src_b 按 n 分桶 | 38 鲁棒/1 低dof（n≥10 充足） | 本数据上钝化（非主因） |
+| 2（两维度正交虚假） | 删正交声明 | — | 接受，已删 |
 
-| 维度 | 指标 | 裸μ | LCB | 判定 |
-|------|------|-----|-----|------|
-| (1) 过拟合 | 退化空仓品种数 | 4/8 | 7/8 | LCB 更保守 |
-| (1) 过拟合 | 源(b) 真过拟合控制 | — | 39（CL15+BRN10+OKLO14） | **LCB 有价值** |
-| (2) 功效 | L3 符号检验 n_pos/n_L3 | 3/4 (p=0.31) | 1/1 (p=0.50) | **均 inconclusive(<5)** |
+**最终裁定**：原结论"LCB 在 3/8 品种有显著过拟合控制 + BRN 翻正是 alpha"**被否证**。
+诚实结论：**LCB 无 demonstrated alpha 价值**（src_b_robust_nondegen=0）——LCB 唯一可观测效应是更保守地
+把 CL/BRN/OKLO 压向空仓（弃权），而退化弃权 PnL 不是 alpha（161 号）。
 
-**结论**：维度(1) LCB 有价值（源 b≠0 + BRN 翻正）；维度(2) 仍 inconclusive 是**功效不足**（16K+8 品种），
-**与 LCB 正交**。禁止表述为「LCB 解决 inconclusive」。
-
-### 纪律2（两源归因）— χ 空仓差异分解
-
-跨品种「裸μ 准入 ∧ LCB 拒」候选 z 分两不相交源：
-
-- **源(a) n<2 mu_lcb=None（样本饥饿）= 9**（ES1+CL2+DX4+OKLO2）：非 LCB 价值，只是单样本无方差。
-- **源(b) n≥2 高方差 LCB≤θ（真过拟合控制）= 39**（CL15+BRN10+OKLO14）：**唯一**的 LCB 信息增量。
-
-源(b) ≫ 源(a) ⟹ LCB 与裸μ 的差异**主要来自真过拟合控制**（n≥2 高方差类被正确收缩拒），
-非样本饥饿。这是可证伪结果(a)「LCB 改善」成立的判据。
-
----
-
-## 可证伪裁定
-
-**结果(a) LCB 改善成立**（过拟合维度）：源(b)=39≫0 + BRN ΔR 翻正 ⟹ 裸μ 在 CL/BRN/OKLO 的高方差低 n 类
-过拟合估计噪声，LCB 正确收缩拒绝。
-
-**功效维度独立 inconclusive**（预期诚实结果，非 LCB 失败）：n_L3<5（16K 短窗 + 8 品种饥饿）⟹ 符号检验
-全正也达不到 p<0.05。解除需更大池/更长窗——撞 O(n²) 墙（test 16K 已是可行子集上限，全窗不可行），
-诚实报功效维度 **blocked on substrate 性能（O(n²) 全窗墙）**，不为 goal 闭合粉饰。
+功效维度独立 inconclusive（n_L3<5）不变——这与过拟合维度**同源**（非正交，codex 攻击点2），均是
+LCB 收紧 rejection mass 的投影；根因是 16K 短窗 + 8 品种功效不足（撞 O(n²) 全窗墙，诚实报 **blocked**）。
