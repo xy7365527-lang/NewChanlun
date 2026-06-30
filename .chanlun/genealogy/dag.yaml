@@ -3430,6 +3430,21 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/652-meta-local-contradiction-misread-as-global-blockage-pragmatism-variant.md
+- id: '653'
+  title: ★gap-B 祖先生命期包含不变量=成立(TRUE，Lean L0 真证) + M08「开区间真包含⊂ vs 闭端点包含」概念分离（首次显式化，codex
+    Q2 REVISE 异质确认）：∀a∈Anc(e) [λ_e,ρ_e)⊆[λ_a,ρ_a) 由走势分解定理二+走势必完美结构推出；正确形式是闭端点包含 λ_a≤λ_e∧ρ_e≤ρ_a（端点可重合），非
+    M08 的开区间真包含 I_e⊂I_{α_e}（排除端点重合，在父子共享端点处假命题）
+  status: 生成态
+  type: source-tracing
+  file: pending/653-gapb-ancestor-lifespan-closed-endpoint-containment-vs-m08-open-interval-separation.md
+- id: '654'
+  title: ★BSP 量身份分离（首次显式化，codex 异质确认）：规范树节点数 = O(n)（L0 结构定理，M26 par 单值树+≥3 规则+不相交划分蕴含，几何级数收敛）≠
+    实测 n^1.26（事件流/候选图/版本化重算计数，L2/L3 经验量）。两量混淆产生「结构否证 O(n)」假象。acceptance[4] O(n) 下界主张
+    Ω(n^1.26) 须精确化——只对「引擎枚举/处理超线性 BSP 事件/候选」成立；缠论规范 BSP 子集 O(n) 未被否证。O(n) 引擎真突破口=引擎对每规范
+    BSP 只 emit/process 一次（事件流去重/增量维护=工程问题），非缠论结构否证
+  status: 生成态
+  type: source-tracing
+  file: pending/654-bsp-quantity-identity-separation-canonical-node-On-vs-event-stream-n126.md
 edges:
   depends_on:
   - from: '136'
@@ -6650,6 +6665,14 @@ edges:
     to: 018
   - from: '649'
     to: 089
+  - from: '653'
+    to: '231'
+  - from: '653'
+    to: '638'
+  - from: '654'
+    to: '231'
+  - from: '654'
+    to: '653'
   triggered:
   - from: '005'
     to: 005a
@@ -9685,6 +9708,51 @@ edges:
   - between:
     - 036（spec-execution-gap 谱系——质询后改归源）
     - '651'
+  - between:
+    - '608'
+    - '653'
+  - between:
+    - '638'
+    - '653'
+  - between:
+    - '637'
+    - '653'
+  - between:
+    - '222'
+    - '653'
+  - between:
+    - '223'
+    - '653'
+  - between:
+    - '230'
+    - '653'
+  - between:
+    - '653'
+    - mutex-prove-result
+  - between:
+    - '653'
+    - mutex-derive-result
+  - between:
+    - '638'
+    - '654'
+  - between:
+    - '653'
+    - '654'
+  - between:
+    - '222'
+    - '654'
+  - between:
+    - '223'
+    - '654'
+  - between:
+    - '230'
+    - '654'
+  - between:
+    - '654'
+    - mutex-derive-result
+  - between:
+    - '654'
+    - mutex-prove-result
   tensions_with:
   - between:
     - '007'
