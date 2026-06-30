@@ -1,8 +1,10 @@
 ---
 id: "643"
 number: 643
-status: 生成态   # genealogist 结构记录：L1 合成有效域膨胀实例（231/625 同构）+ 守卫完备性误判（640 纪律实例）。codex 异质审查走真实守卫入口复现反例坐实。最终结算待编排者 /ritual。
+status: 已结算   # 执行闭环 2026-06-30：cascade reset 实装经约束3（#56 独立工位实测 classifier/mod.rs:814/842-847）+ 约束4（#57 codex/gpt-5.5 亲核四问全 PASS）双重异质审确认非假绿，conclusive 可结算。acceptance[1] L2 真实对齐**开放项保留**（L1 合成自洽已确认，L2 不由本审翻正=有效域边界标注，非缺陷）。
 date: "2026-06-29"
+settled_date: "2026-06-30"
+settled_by: "genealogist（结算依据 .chanlun/diagnostics/643-action-chain-status.md：约束3 #56 + 约束4 #57 双重异质审）"
 type: bias-correction   # 声明膨胀纠正（acceptance[1] L1 合成 PASS 冒充 L2 真实对齐）+ 守卫完备性误判（投影相等⟹sub_moves相等 为假前提）
 depends_on: ["231", "625", "640", "090"]
 related: ["631", "641", "642", "001", "002"]
@@ -36,7 +38,7 @@ definitions_involved:
     version: ".chanlun/genealogy/settled/625（631 line 92/123 引用其同构模式）"
     role: "同构先例。625 = L2 真实数据揭示 L1 合成 GREEN 掩盖引擎 bug。本号层1 是其活实例：acceptance[1] L1 合成 PASS 掩盖 pre-existing parser 守卫 bug，L2 真实 CL bar1464 揭示。"
   - name: "640 自评无漏洞=最该被异质审查（异质审查纪律）"
-    version: ".chanlun/genealogy/settled/640（lead-self-cleared-inflation-flag-is-rationalization memory 同源）"
+    version: ".chanlun/genealogy/settled/640-function-uniqueness-vs-structural-uniqueness-prom-single-valued.md（lead-self-cleared-inflation-flag-is-rationalization memory 同源）"
     role: "约束来源。本号层2 是其活实例：工位F 第一版『碰巧过 8000bar』= 自评通过，最该被异质审查；codex 走真实守卫入口复现反例抓出『投影相等⟹sub_moves相等』假前提。运动员当裁判（自评通过的守卫）须路由异质审查。"
   - name: "缠论第67/78课 线段划分标准 + 古怪线段（笔破坏后未必形成线段破坏）"
     version: "docs/chanlun/text/blog/INDEX.md（第67课线段划分 / 第78课古怪线段 + 顶高于底硬约束）；CLAUDE.md 已知缺口补录；谱系 001/002"
@@ -47,9 +49,9 @@ definitions_involved:
 
 # 解决方式
 resolution:
-  type: 已部分解决   # 工位F cascade reset 修复已实装（消除投影有损整类问题）；codex 异质审查闭环确认；acceptance[1] 声明须降级（L1 合成非 L2 对齐）。最终结算待编排者 /ritual。
-  description: "严格修复（cascade reset，工位F 已实装 + codex 异质闭环确认）：任一级 frontier 变异 → 该级 + 所有上级 reset，**不再比对 project_to_units 投影**（投影有损丢 sub_moves 是假前提的根）。这从根上消除整类问题：frontier 变即级联清缓存，无需判断『投影是否相等』。被否定的第一版（比对投影）依赖『投影相等⟹sub_moves相等』假前提，codex 反例（115→147 vs 147→140 内点）证伪。声明降级（待执行/核实）：acceptance[1] bit-exact PASS 须标注为 L1 合成自洽（bit_exact_synthetic），不得声称 L2 真实对齐——L2 真实 CL 验证须独立标注（feature_seq.rs:14 模板：做 parity 比对、诚实报告否定性结果）。"
-  decided_by: 蜂群内部   # 工位F 实装 cascade reset；codex 异质审查复现反例 + 闭环确认；genealogist 结构记录 L1 膨胀 + 守卫误判；最终结算待编排者 /ritual
+  type: 已结算   # cascade reset 实装经约束3（#56 独立工位实测）+ 约束4（#57 codex 异质审）双重确认非假绿，conclusive。acceptance[1] 声明已降级（L1 合成非 L2 对齐，commit 0c499e6fbb 落盘）。L2 真实 CL 对齐保留为开放有效域边界（不由本审翻正）。
+  description: "严格修复（cascade reset，工位F 已实装 + codex 异质闭环确认）：任一级 frontier 变异 → 该级 + 所有上级 reset，**不再比对 project_to_units 投影**（投影有损丢 sub_moves 是假前提的根）。这从根上消除整类问题：frontier 变即级联清缓存，无需判断『投影是否相等』。被否定的第一版（比对投影）依赖『投影相等⟹sub_moves相等』假前提，codex 反例（115→147 vs 147→140 内点）证伪。声明降级（已执行，commit 0c499e6fbb）：acceptance[1] bit-exact PASS 已标注为 L1 合成自洽（bit_exact_synthetic），不声称 L2 真实对齐——L2 真实 CL 验证独立标注（feature_seq.rs:14 模板）。"
+  decided_by: 蜂群内部（约束3 #56 独立工位 + 约束4 #57 codex 异质审双重确认）   # 工位F 实装 cascade reset；#56 独立工位实测真实装（classifier/mod.rs:814/842-847，非转述）；#57 codex/gpt-5.5 亲核四问全 PASS（Q1 单调向上 reset/Q2 frontier 变异三类全覆盖/Q3 真 bit-exact/Q4 L1 标注诚实）；genealogist 结算
 
 # 被否定的方案
 negated:
@@ -64,15 +66,15 @@ new_output:
     - "cascade reset 整类修复：任一级 frontier 变异 → 该级 + 所有上级 reset，不再比对投影，消除『投影有损丢 sub_moves』整类问题。"
     - "根因分层：parser 末段原地变异（古怪线段重划，第67/78课定义层正确，非 bug）vs caller 守卫只查段数回缩不查末段值改写（守卫有效域不完整，bug）。"
     - "640 纪律实例：工位F 第一版『碰巧过 8000bar』= 自评通过的守卫，被 codex 异质走真实守卫入口复现反例抓出。"
-  code_changes: "工位F 已实装 cascade reset（消除投影有损整类问题）+ codex 异质闭环确认（本号是其结构记录）。acceptance[1] 声明降级（L1 合成非 L2 对齐）= 声明修正，若未执行则待 Lead 派工位（超 genealogist 工具有效域，624 硬墙）。"
+  code_changes: "工位F 已实装 cascade reset（classifier/mod.rs:814/842-847，#56 独立工位实测坐实真实装非转述）+ codex 异质闭环确认（#57 gpt-5.5 四问全 PASS）。acceptance[1] 声明降级（L1 合成非 L2 对齐）已落盘 commit 0c499e6fbb。"
   orchestration_changes: "方法论：①acceptance/PASS 报告必须标注 L 级——L1 合成 PASS 不得冒充 L2 真实对齐（231/625/631）。②守卫『完备』声明前必经异质审查走真实入口复现反例——8000bar/N-sample PASS 只证没踩反例，不证完备（640）。③守卫比对的『投影/摘要』必须核其是否有损——project_to_units 丢 sub_moves 是『投影相等⟹原对象相等』假前提的根；有损投影做守卫判据=漏 reset。④整类修复优先于点修复：cascade reset（frontier 变即级联清）消除整类，胜过逐反例补投影比对（no-patch：点修补陈旧缓存=补丁思维）。⑤定义层正确行为（古怪线段末段重划）不可当 bug 删——补全 caller 守卫，不动 parser 正确逻辑（no-workaround）。"
 
 # 影响范围
 impact:
   affected_modules:
-    - "rust/src/theta_v0/classifier/recursive_tower.rs → frontier_mutated 守卫从『比对 project_to_units 投影』改为 cascade reset（工位F 已实装）；project_to_units（line 383）作守卫判据有损（丢 sub_moves）须避免。"
-    - "rust/src/theta_v0/classifier/mod.rs → caller 守卫（工位报 mod.rs:774 段数回缩判据）须覆盖末段原地值改写（cascade reset 覆盖）。"
-    - "theta_v0 acceptance[1] / bit_exact_synthetic 测试 → 声明降级为 L1 合成自洽，不得冒充 L2 真实对齐；L2 真实 CL parity 须独立标注（feature_seq.rs:14 模板）。"
+    - "rust/src/theta_v0/classifier/mod.rs:814/842-847 → cascade reset 实装（任一级 frontier 变异→该级+所有上级 reset；#56 独立工位实测真实装；frontier 变异三类全覆盖：长度回缩/前缀改写/尾部续读）。"
+    - "rust/src/theta_v0/classifier/recursive_tower.rs → project_to_units（line 383）产 UnitRange 丢 sub_moves，已确认不作守卫判据（cascade reset 不依赖投影比对替代）。"
+    - "theta_v0 acceptance[1] / bit_exact_synthetic 测试 → 声明已降级为 L1 合成自洽（commit 0c499e6fbb），不冒充 L2 真实对齐；L2 真实 CL parity 独立标注（feature_seq.rs:14 模板）。"
   affected_definitions:
     - "231（已结算）：本号是 L1 合成 PASS 掩盖真实 bug 的活实例，维持 settled。"
     - "625（已结算）：本号是其同构模式（L2 揭示 L1 GREEN 掩盖 bug）在 parser 守卫维度的实例，维持 settled。"
@@ -82,7 +84,7 @@ impact:
     - "acceptance/PASS 报告须带 L 级标注，L1 合成不得冒充 L2 真实（231/625/631 固化）。"
     - "守卫完备性须异质审查走真实入口复现反例，N-sample PASS 不证完备（640）。"
     - "有损投影（project_to_units 丢 sub_moves）不得作守卫判据——cascade reset 整类修复替代投影比对。"
-    - "cascade reset 后深嵌套 L2 cache subs 陈旧整类问题消除，但须 L2 真实数据重测确认 CL bar1464 不再发散（待 L2 坐实，不预设结果）。"
+    - "cascade reset 后深嵌套 L2 cache subs 陈旧整类问题消除（实装层 conclusive）；**但 acceptance[1] L2 真实 CL bar1464 对齐仍为开放有效域边界**——L1 合成自洽已确认，L2 真实数据对齐不由本审翻正（不预设结果），须独立 L2 工位坐实。"
 
 # 谱系关联
 related_records:
@@ -111,11 +113,24 @@ epistemological_levels:
     level: "L0（缠论定义事实：第78课『笔破坏后未必形成线段破坏』）"
     increment: "高：根因分层判定（定义正确 vs 守卫缺口）"
   - proposition: "cascade reset（任一级 frontier 变→该级+所有上级 reset）消除『投影有损丢 sub_moves』整类问题"
-    level: "L1（工位F 实装 + 8000bar 合成自洽；待 L2 真实 CL 重测坐实 bar1464 不再发散）"
-    increment: "中：整类修复的管线正确性（L2 真实重测待坐实，不预设结果）"
+    level: "L1（工位F 实装 + 8000bar 合成自洽；#56 独立工位实测真实装 + #57 codex 四问 PASS 双重异质审确认非假绿）"
+    increment: "中：整类修复的管线正确性 conclusive（实装层）；acceptance[1] L2 真实 CL bar1464 对齐仍开放（有效域边界，不由本审翻正）"
+
+# 结算（settlement，2026-06-30）
+settlement:
+  closed_date: "2026-06-30"
+  basis: "约束3（#56 独立工位实测）+ 约束4（#57 codex/gpt-5.5 异质审）双重确认 cascade reset 非假绿，conclusive。结算依据全文见 .chanlun/diagnostics/643-action-chain-status.md。"
+  evidence:
+    - "约束3 #56（独立工位实测，非转述）：PASS。实测纠正『cascade reset 失真』转述假阳性——cascade reset 真实装 classifier/mod.rs:814/842-847（非 recursive_tower.rs），谱系 643 未失真，acceptance[1] L1 降级真落盘 commit 0c499e6fbb。0 CRITICAL/HIGH。"
+    - "约束4 #57（codex 异质审，gpt-5.5，137691 tokens）：满足。亲核四问全 PASS——Q1 该级+所有上级 reset 成立（cascade_reset 循环外单调）/Q2 frontier 变异三类全覆盖（长度回缩/前缀改写/尾部续读；反例 seg[8]147→140 经 UnitRange.hi 触发）/Q3 真 bit-exact（derive PartialEq 递归全字段 RMove::Compose.subs）/Q4 acceptance[1] L1 标注诚实（合成自洽非 L2）。codex verdict 原文：『643 cascade reset 对所给反例不是假绿；acceptance[1] 只能诚实标 L1 合成自洽，不能冒充 L2 对齐』。"
+  closed_scope: "643 cascade reset 实装完备部分（双重审 conclusive）。"
+  open_boundary: "acceptance[1] L2 真实 CL bar1464 对齐**保留开放**——L1 合成自洽已确认，L2 真实数据对齐不由本审翻正（231 有效域边界标注，非缺陷）。须独立 L2 工位坐实 CL bar1464 不再发散，不预设结果。"
+  epistemological_level: "实装层 L1 conclusive（管线正确性双重异质审确认）；理论假设层 L2 开放（真实对齐边界保留）。"
 ---
 
 # 643 acceptance[1] bit-exact 假 PASS（L1 合成有效域膨胀）+ frontier 守卫投影有损 → cascade reset
+
+> **结算说明（2026-06-30，genealogist）**：本号原 pending 经约束3（#56 独立工位实测）+ 约束4（#57 codex/gpt-5.5 异质审）双重确认 cascade reset 实装**非假绿**，conclusive 移 settled。**acceptance[1] L2 真实 CL bar1464 对齐保留为开放有效域边界**（L1 合成自洽已确认，L2 不由本审翻正——231 标注，非缺陷）。以下正文为原 pending 全文（发生史）。
 
 ## 一句话结论
 
@@ -179,7 +194,7 @@ codex 反例（走真实守卫入口复现）：
 - 第2层：本号 × 640 碰撞 → 异质审查纪律实例（净新发现降：自评通过须异质审查已知）。
 - 第3层：本号 × 631/641/642 碰撞 → 声明膨胀族同模式（净新发现骤降=背驰：声明膨胀模式已多次实例化）。
 - 涉及范围：scope₁(231/625 膨胀+守卫假前提) > scope₂(640 异质审查) > scope₃(声明膨胀族)=顶分型。
-- **背驰 ∧ 分型 ⟹ 递归运动结构性完成。** 修复=cascade reset（工位F 已实装 + codex 闭环）+ acceptance[1] 声明降级（行动类，若未执行待 Lead）。本号是声明膨胀 + 守卫误判诊断（bias-correction），**不触发新 /escalate**（修复是行动类非选择类；最终结算待编排者 /ritual）。
+- **背驰 ∧ 分型 ⟹ 递归运动结构性完成。** 修复=cascade reset（工位F 已实装 + codex 闭环）+ acceptance[1] 声明降级。本号是声明膨胀 + 守卫误判诊断（bias-correction），**不触发新 /escalate**（修复是行动类非选择类）。
 
 ## 回溯扫描（职责3）
 
@@ -189,4 +204,10 @@ codex 反例（走真实守卫入口复现）：
 - **631（settled）**：本号是其 bit-exact 膨胀模式在运行时报告维度的延伸，不否定，维持 settled。
 - **641/642（同轮，生成态）**：不同轴/不同模块，不破坏，维持生成态。
 - **缠论第67/78课/001/002（settled）**：本号印证末段重划定义层正确，不改定义。
-- **无 settled 被本号回溯破坏。** 本号是 acceptance[1] L1 膨胀 + 守卫投影有损误判诊断（bias-correction），修复=cascade reset（工位F 已实装，codex 闭环）+ 声明降级（行动类），最终结算待编排者 /ritual。
+- **无 settled 被本号回溯破坏。**
+
+## 结算后回溯扫描（2026-06-30，settle 时）
+
+- 643 移 settled 不否定任何既有 settled：cascade reset 是 bit-exact 实装修复，231/625/640/631/001/002 全部维持 settled（本号是它们的活实例/延伸，非否定）。
+- 与 566a（同批结算）无张力：566a 是 dag 索引层元数据对齐，643 是 theta_v0 parser 守卫层修复，模块正交，无共享对象。
+- **结论**：无张力，无概念分离信号，无需 /escalate。643 实装层 conclusive 结算 + acceptance[1] L2 对齐开放边界保留（no-patch：开放项如实标注，不假装闭合）。

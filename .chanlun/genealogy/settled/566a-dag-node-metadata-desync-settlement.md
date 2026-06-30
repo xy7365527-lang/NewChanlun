@@ -3,9 +3,10 @@ id: "566a"
 number: 566a
 title: "dag.yaml nodes 段 567-575 元数据 desync 回溯结算 + 571/572 ID 对调修复 + TBD 孤儿清理——568号(结算≠认知更新)的索引层实例"
 type: "meta-rule"
-status: "已结算"   # genealogist 观测层结算（2026-06-26）：纯索引层元数据与 settled/ frontmatter 权威对齐，无概念矛盾；张力检查通过（§张力检查）；dag 节点段精确编辑规格已产出，待有 Edit 权限工位执行
+status: "已结算"   # genealogist 观测层结算（2026-06-26）；执行闭环（2026-06-30，commit c65aaf62d0，#56审查PASS）：dag nodes 段 567-575 + 566a 节点已对齐 settled/ frontmatter，TBD 孤儿已清，meta.json last_mapped→565（impl-566a-2 有消费者，同步更新非删）。规格附件 pending/566a-dag-edit-spec.md 随执行兑现移 settled 归档。
 date: "2026-06-26"
 settled_date: "2026-06-26"
+execution_closed_date: "2026-06-30"   # impl-566a-1/2 执行兑现（commit c65aaf62d0），#56 约束3 审查 PASS（纯工程 audit_exempt）
 observer: "genealogist (谱系维护工位, scan-backlog-clearing session)"
 source: "[新缠论:元编排层]"
 negation_source: genealogist   # 谱系维护扫描发现 dag nodes 段索引与 settled/ frontmatter 权威层不一致
@@ -18,7 +19,7 @@ topo_effect: "无 negates（纯元数据对齐，非否定）；dag nodes 段 56
 # 566a：dag.yaml nodes 段 567-575 元数据 desync 回溯结算
 
 ## 状态
-已结算（观测层——索引元数据修正规格已坐实；实际 dag.yaml 编辑由有 Edit 权限工位执行）
+已结算（观测层 2026-06-26 坐实规格；执行层 2026-06-30 闭环——commit c65aaf62d0 兑现 dag.yaml + meta.json 修复，#56 约束3 审查 PASS）
 
 ## 类型
 meta-rule（元编排层 / 谱系索引一致性）
@@ -71,14 +72,14 @@ dag nodes 段是收敛**前**的快照：id 571 错挂 trinity 标题、id 572 �
 - 若 settled/ frontmatter 与 dag nodes 段**两者皆错**（而非仅 dag 段失真），则不能单方面以 frontmatter 为权威——需回溯 git-move 历史与编排者批准记录裁决。**本号已核实 frontmatter 含编排者批准注释（2026-06-23），frontmatter 为权威成立。**
 - 若 571/572 的最终收敛在 #74 之后又被覆盖，则 ID 对调方向需重新核实。**当前 collision_note 是最新权威（#74 Lead Option A）。**
 
-## 下游推论
+## 下游推论（执行闭环 2026-06-30）
 
-- **impl-566a-1**（行动）：dag.yaml nodes 段 567-575 八条目按"编号异常清单"修正 + 删 TBD 孤儿节点。**genealogist 无 Edit 权限，修复规格已产出，由 Lead 派有 Edit 权限工位执行。** settlement_status: spec_ready_pending_executor
-- **impl-566a-2**（选择→559 skill）：`meta.json.last_mapped_genealogy` 字段失真（=530，实际 id_mapping 到 565）。该字段是否仍被任何消费者读取？若无消费者=声明膨胀（090）应删；若有=应同步更新。走 559 ceremony-scan-completeness skill 三问检测。settlement_status: pending_skill_check
-- **impl-566a-3**（行动→映射管线）：566-575 入 block-topology 的实际映射动作依赖 `map_genealogy_to_blocks.py`，但 **549 号已结算该管线 freeze**（relations.jsonl 沦为未实体化 LFS 指针，须操作者 `git lfs pull` 解冻，settlement_status: pending_infra）。566-575 的区块创建在管线解冻前**结构性阻塞**——与 549 的 freeze 一致，非本号可解。settlement_status: blocked_by_549_freeze
+- **impl-566a-1**（行动）：dag.yaml nodes 段 567-575 八条目按"编号异常清单"修正 + 删 TBD 孤儿节点。settlement_status: **closed**（commit c65aaf62d0 兑现；genealogist 复核 dag.yaml nodes 段 2962-3020：567-575 全 `status: 已结算` + `file: settled/`，566a 节点存在，无 `id: TBD` 孤儿；#56 约束3 审查 PASS 纯工程 audit_exempt）
+- **impl-566a-2**（选择→559 skill）：`meta.json.last_mapped_genealogy` 字段失真（=530，实际 id_mapping 到 565）。三问检测结论=**有消费者，同步更新**。settlement_status: **closed**（commit c65aaf62d0 已将 meta.json line 552 更新为 `565`；genealogist 复核坐实。非删字段=有消费者，排除 090 声明膨胀）
+- **impl-566a-3**（行动→映射管线）：566-575 入 block-topology 的实际映射动作依赖 `map_genealogy_to_blocks.py`，但 **549 号已结算该管线 freeze**（relations.jsonl 沦为未实体化 LFS 指针，须操作者 `git lfs pull` 解冻，settlement_status: pending_infra）。566-575 的区块创建在管线解冻前**结构性阻塞**——与 549 的 freeze 一致，非本号可解。settlement_status: **blocked_by_549_freeze（非本号有效域，维持 549 边界）**
 
 ## 影响声明
 
-- **改动**：dag.yaml nodes 段 567-575（修复规格，待执行）；新增本谱系记录。
-- **影响模块**：`.chanlun/genealogy/dag.yaml`（索引层）；`.chanlun/block-topology/meta.json`（last_mapped 字段，下游推论 impl-566a-2）。
+- **改动**：dag.yaml nodes 段 567-575（commit c65aaf62d0 已执行）；meta.json last_mapped→565（已执行）；新增本谱系记录 + 执行闭环更新；规格附件 `566a-dag-edit-spec.md` 随兑现移 settled 归档。
+- **影响模块**：`.chanlun/genealogy/dag.yaml`（索引层，已修）；`.chanlun/block-topology/meta.json`（last_mapped 字段，已修）。
 - **不影响**：settled/ frontmatter（已正确，本号以其为权威）；block-topology 区块库（映射被 549 freeze 阻塞，非本号范围）；597-621 概念谱系（本轮形式化簇 own，未碰）。
