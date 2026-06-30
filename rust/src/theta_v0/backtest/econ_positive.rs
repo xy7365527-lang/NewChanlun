@@ -738,4 +738,343 @@ mod tests {
     fn winrate(pos: usize, n: usize) -> f64 {
         if n > 0 { 100.0 * pos as f64 / n as f64 } else { 0.0 }
     }
+
+    /// **PDF §11 正确 OOS 验收（除 codex Q2 BIAS-FATAL 选择偏差）**：train-only 挑类 → 锁 holdout
+    /// 评估 + 多窗滚动 walk-forward + neff + block bootstrap + 剔最大赢家。
+    ///
+    /// 与 `acc_level0sell_oos`（被否证：从含 holdout 全样本挑 level0卖）的关键差异：
+    /// **选类只用 train 段**（codex/PDF§6：用挑赢家同一数据验证不能反驳挑赢家）。train 赢家可能 ≠ level0卖。
+    ///
+    /// `#[ignore]`：同上需 BTC 全量 + O(n²) 重分类 ×（1 主切分 + K 滚动窗），`--release`。
+    ///
+    /// **L2 纪律（161/formalization-validity-domain）**：任一结果照实报——
+    /// train 赢家=level0卖 且 holdout 正 ⟹ 缠论买卖点首个干净 OOS alpha 证据；
+    /// train 赢家≠level0卖 或 holdout 翻负 ⟹ +7.87e3 是选择偏差产物（诚实否证，缩有效域）。
+    #[test]
+    #[ignore]
+    fn acc_walkforward_trainonly() {
+        use super::super::data;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        const MAX_BARS: usize = 300_000;
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS);
+        let ds = if n_full > max_bars { ds_full.slice_bar_range(n_full - max_bars, n_full) } else { ds_full };
+        let n = ds.bars.len();
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+
+        // ══ 任务1+2：主切分 train-only 挑类 → 锁 holdout 评估（除 Q2 选择偏差核心）══
+        let train_frac = std::env::var("ECON_L2_TRAIN_FRAC").ok()
+            .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
+        let split = (n as f64 * train_frac) as usize;
+        let ds_train = ds.slice_bar_range(0, split);
+        let ds_hold = ds.slice_bar_range(split, n);
+        let split_day = ds.dates[split].get(..10).unwrap_or("").to_string();
+
+        let (decomps_train, _) = decompose_capturable_spread(&ds_train, &config);
+        let (decomps_hold, _) = decompose_capturable_spread(&ds_hold, &config);
+
+        // train-only 挑赢家（不看 holdout）。记录是否 level0卖。
+        let winner = train_winner_class(&decomps_train);
+        let is_level0_sell = winner == Some((0, -1));
+        let train_l0sell = class_actual_pnl(&decomps_train, 0, -1);
+
+        // 锁 holdout 评估 train 选出的类。
+        let (hd_n, hd_pnl, hd_pos, hd_ab, hd_pnls) = match winner {
+            Some((lv, dl)) => {
+                let (n_, pnl, npos, ab) = class_actual_pnl(&decomps_hold, lv, dl);
+                let pnls: Vec<f64> = decomps_hold.iter()
+                    .filter(|d| d.level == lv && d.delta == dl).map(|d| d.actual_pnl).collect();
+                (n_, pnl, npos, ab, pnls)
+            }
+            None => (0, 0.0, 0, 0.0, Vec::new()),
+        };
+        let oos_mu_positive = hd_pnl > 0.0 && winner.is_some(); // μ_OOS>0（弱：未扣不确定性）
+
+        // 任务4：neff vs nraw（holdout 赢家类逐笔 PnL 自相关）。
+        let nraw = hd_pnls.len();
+        let (neff, sum_rho) = neff_autocorr(&hd_pnls, 20);
+        let (mu_oos, se_oos, lcb_oos) = mean_se_lcb(&hd_pnls, neff);
+
+        // 任务5/Q4：剔最大赢家 + block bootstrap p。
+        let (q4_full, q4_d1, q4_d3, q4_d5) = drop_top_winners(&hd_pnls);
+        let q4_p = block_bootstrap_pvalue(&hd_pnls, 20, 2000);
+
+        // ══ 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱）══
+        let k_windows: usize = std::env::var("ECON_WF_WINDOWS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(4);
+        let wf_train_frac = 0.6;
+        let win_len = n / k_windows;
+        let mut wf_rows: Vec<(Option<(u32, i8)>, bool, usize, f64, f64, bool)> = Vec::new();
+        let mut lcb_pos_count = 0usize;
+        let mut l0sell_winner_count = 0usize;
+        for w in 0..k_windows {
+            let w_start = w * win_len;
+            let w_end = if w + 1 == k_windows { n } else { (w + 1) * win_len };
+            let w_mid = w_start + ((w_end - w_start) as f64 * wf_train_frac) as usize;
+            if w_mid <= w_start || w_end <= w_mid { continue; }
+            let dtr = decompose_capturable_spread(&ds.slice_bar_range(w_start, w_mid), &config).0;
+            let dos = decompose_capturable_spread(&ds.slice_bar_range(w_mid, w_end), &config).0;
+            let wwin = train_winner_class(&dtr);
+            let w_is_l0 = wwin == Some((0, -1));
+            if w_is_l0 { l0sell_winner_count += 1; }
+            let (on, opnl, lcb) = match wwin {
+                Some((lv, dl)) => {
+                    let pnls: Vec<f64> = dos.iter().filter(|d| d.level == lv && d.delta == dl)
+                        .map(|d| d.actual_pnl).collect();
+                    let (nf, _) = neff_autocorr(&pnls, 20);
+                    let (_, _, lcb) = mean_se_lcb(&pnls, nf);
+                    (pnls.len(), pnls.iter().sum::<f64>(), lcb)
+                }
+                None => (0, 0.0, 0.0),
+            };
+            if lcb > 0.0 { lcb_pos_count += 1; }
+            wf_rows.push((wwin, w_is_l0, on, opnl, lcb, opnl > 0.0));
+        }
+        let n_wf = wf_rows.len();
+        let lcb_pos_ratio = if n_wf > 0 { 100.0 * lcb_pos_count as f64 / n_wf as f64 } else { 0.0 };
+
+        // PDF §7.3 强判据 χ=1[LCB>θ]（θ=0）：μ>0 不够，须扣除不确定性后仍正。
+        // §11 全验收 = LCB>0 ∧ Q4 剔最大5仍正 ∧ bootstrap p<0.05 ∧ 多窗 LCB>0 占比高。
+        let oos_robust = lcb_oos > 0.0 && q4_d5 > 0.0 && q4_p < 0.05 && lcb_pos_ratio >= 100.0;
+
+        // ══ 报告 ══
+        let cls_str = |c: Option<(u32, i8)>| c.map(|(l, d)| format!("(level={l},δ={d:+})")).unwrap_or_else(|| "None(train无正类)".into());
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# PDF §11 walk-forward 验收：train-only 挑类（除 codex Q2 BIAS-FATAL 选择偏差）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的，train-only 选类已除选择偏差；仍单标的，非 L3 跨品种）。");
+        let _ = writeln!(rpt, "**与被否证 acc_level0sell_oos 的差异**：选类只用 train 段（PDF§6/codex：用挑赢家同一数据验证不能反驳挑赢家）。");
+        let _ = writeln!(rpt, "**复算**：`cargo test -p <crate> --release acc_walkforward_trainonly -- --ignored --nocapture`（确定性，含固定种子 bootstrap）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 数据 / 窗口");
+        let _ = writeln!(rpt, "- BTC 全量 {n_full} bar；截断窗 [{win_start}→{win_end}]，bars={n}（最后 {max_bars}，OOM 边界=显式有效域）。");
+        let _ = writeln!(rpt, "- 主切分 train_frac={train_frac}，split={split}（{split_day}，半开 train=[0,{split}) / holdout=[{split},{n}) 无重叠）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 任务1+2：train-only 挑类 → 锁 holdout 评估（核心：除 Q2）");
+        let _ = writeln!(rpt, "- **train 期最强正类 = {}**", cls_str(winner));
+        let _ = writeln!(rpt, "- **train 赢家是否 level0卖？{}**（level0卖 train 期 Σpnl={:.4e}/n={}）", if is_level0_sell { "是" } else { "否（⟹ level0卖不是 train-only 赢家！）" }, train_l0sell.1, train_l0sell.0);
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| holdout 评估 train 选定类 {} | 值 |", cls_str(winner));
+        let _ = writeln!(rpt, "|---|---|");
+        let _ = writeln!(rpt, "| holdout n (=nraw) | {hd_n} |");
+        let _ = writeln!(rpt, "| **holdout Σactual_pnl** | **{hd_pnl:.4e}** |");
+        let _ = writeln!(rpt, "| holdout 胜率 | {hd_pos}/{hd_n} ({:.0}%) |", winrate(hd_pos, hd_n));
+        let _ = writeln!(rpt, "| holdout Σab_rev | {hd_ab:.4e} |");
+        let _ = writeln!(rpt, "| μ_OOS | {mu_oos:.4e} |");
+        let _ = writeln!(rpt, "| se（用 neff） | {se_oos:.4e} |");
+        let _ = writeln!(rpt, "| **LCB（μ−1.645·se，单侧5%）** | **{lcb_oos:.4e}** |");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "**判定**：holdout μ_OOS {} 0，**LCB {} 0**（PDF§7.3 强判据 χ=1[LCB>0]={}）", if mu_oos > 0.0 { ">" } else { "≤" }, if lcb_oos > 0.0 { ">" } else { "≤" }, lcb_oos > 0.0);
+        if !is_level0_sell {
+            let _ = writeln!(rpt, "→ **train 赢家变了（level0卖被否证为选择偏差产物）**：train-only 选出的是 {}，不是 level0卖。+7.87e3 是「从含 holdout 全样本挑 level0卖」的选择偏差产物（codex Q2/PDF§6 坐实）。", cls_str(winner));
+        } else if !oos_mu_positive {
+            let _ = writeln!(rpt, "→ **holdout 翻负（否证）**：level0卖虽是 train-only 赢家，但 holdout Σpnl≤0 ⟹ 无 OOS alpha。+7.87e3 是窗口/选择偏差产物（诚实否证，缩有效域，161）。");
+        } else if lcb_oos > 0.0 {
+            let _ = writeln!(rpt, "→ **Q2 消除 + μ_OOS 正 + LCB>0**：level0卖是 train-only 赢家、holdout μ 正且扣除不确定性（neff 修正）后仍正 ⟹ 初步通过 §7.3 强判据。但 §11 全验收还需 Q4/bootstrap/多窗全过（见下，综合判定在结果包）。仍 BTC 单标的 L2。");
+        } else {
+            let _ = writeln!(rpt, "→ **Q2 消除，但 μ_OOS 正而 LCB≤0（未通过 §7.3 强判据）**：level0卖确是 train-only 赢家（选择偏差消除，这一点为正），但 holdout μ_OOS={mu_oos:.2e} 扣除不确定性后 LCB={lcb_oos:.2e}≤0 ⟹ **+7.87e3 不达可交易阈值**。neff/nraw 见下（事件聚集致有效样本远小于 nraw）。这不是「干净 OOS 正」——是「选择偏差消除后，弱正信号被不确定性吞没」。");
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 任务4：neff vs nraw（PDF§6 条件二，自相关修正）");
+        let _ = writeln!(rpt, "| 量 | 值 |");
+        let _ = writeln!(rpt, "|---|---|");
+        let _ = writeln!(rpt, "| nraw（holdout 赢家类原始信号数） | {nraw} |");
+        let _ = writeln!(rpt, "| Σρk（k=1..20，仅正自相关） | {sum_rho:.4} |");
+        let _ = writeln!(rpt, "| **neff = nraw/(1+2Σρk)** | **{neff:.1}** |");
+        let _ = writeln!(rpt, "| neff/nraw | {:.2} |", if nraw > 0 { neff / nraw as f64 } else { 0.0 });
+        let _ = writeln!(rpt, "（neff≪nraw ⟹ 事件高度聚集，有效检验力远低于原始 n；se 已用 neff）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 任务5/Q4：赢家集中度（剔最大赢家 + block bootstrap）");
+        let _ = writeln!(rpt, "| 剔除 | 剩余 Σpnl | 仍正? |");
+        let _ = writeln!(rpt, "|---|---|---|");
+        let _ = writeln!(rpt, "| 不剔（全量） | {q4_full:.4e} | {} |", if q4_full > 0.0 { "是" } else { "否" });
+        let _ = writeln!(rpt, "| 剔最大 1 | {q4_d1:.4e} | {} |", if q4_d1 > 0.0 { "是" } else { "否" });
+        let _ = writeln!(rpt, "| 剔最大 3 | {q4_d3:.4e} | {} |", if q4_d3 > 0.0 { "是" } else { "否" });
+        let _ = writeln!(rpt, "| 剔最大 5 | {q4_d5:.4e} | {} |", if q4_d5 > 0.0 { "是" } else { "否" });
+        let _ = writeln!(rpt, "- **block bootstrap p（H0:μ≤0，block_len=20，B=2000，固定种子）= {q4_p:.4}**（p<0.05 ⟹ 正均值稳健远离 0）。");
+        if q4_d5 <= 0.0 && q4_full > 0.0 {
+            let _ = writeln!(rpt, "→ **Q4 坐实少数大赢家驱动**：剔最大 5 后转负 ⟹ holdout 正总和由极少数大赢家撑起，非稳健 alpha。");
+        } else if q4_d5 > 0.0 {
+            let _ = writeln!(rpt, "→ **Q4 排除少数大赢家**：剔最大 5 仍正 ⟹ 正收益非单一赢家驱动。");
+        } else {
+            let _ = writeln!(rpt, "→ holdout 全量已非正，Q4 剔赢家不适用（无正可剔）。");
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 任务3：多窗滚动 walk-forward（除 Q5 单切分脆弱，K={k_windows}）");
+        let _ = writeln!(rpt, "每窗：窗内 train(前{:.0}%) 挑类 → OOS(后{:.0}%) 评估该类（每 train 只用窗内过去）。", wf_train_frac * 100.0, (1.0 - wf_train_frac) * 100.0);
+        let _ = writeln!(rpt, "| 窗 | train赢家 | =level0卖? | OOS n | OOS Σpnl | OOS LCB | LCB>0? |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|");
+        for (i, (w, isl0, on, opnl, lcb, _)) in wf_rows.iter().enumerate() {
+            let _ = writeln!(rpt, "| {} | {} | {} | {on} | {opnl:.4e} | {lcb:.4e} | {} |",
+                i + 1, cls_str(*w), if *isl0 { "是" } else { "否" }, if *lcb > 0.0 { "是" } else { "否" });
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- **各窗 OOS LCB>0 占比 = {lcb_pos_count}/{n_wf} ({lcb_pos_ratio:.0}%)**");
+        let _ = writeln!(rpt, "- level0卖为 train 赢家的窗数 = {l0sell_winner_count}/{n_wf}");
+        if lcb_pos_ratio >= 100.0 && n_wf > 0 {
+            let _ = writeln!(rpt, "→ 全窗 LCB>0 ⟹ Q5 单切分脆弱被排除，OOS 跨窗稳健正（仍单标的）。");
+        } else if lcb_pos_count > 0 {
+            let _ = writeln!(rpt, "→ 部分窗 LCB>0（{lcb_pos_ratio:.0}%）⟹ 非全窗稳健，单切分脆弱未完全排除（Q5 部分成立）。");
+        } else {
+            let _ = writeln!(rpt, "→ 无窗 LCB>0 ⟹ 扣除不确定性后无窗稳健正，OOS 不稳健（Q5 坐实）。");
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 结果包六要素（完整版）");
+        let _ = writeln!(rpt, "1. **结论**：train-only 赢家={}（{}level0卖，Q2 选择偏差{}），holdout μ_OOS={mu_oos:.4e}/**LCB={lcb_oos:.4e}**；多窗 LCB>0 占比={lcb_pos_ratio:.0}%（{lcb_pos_count}/{n_wf}）；neff/nraw={:.2}（{neff:.0}/{nraw}）；剔最大5 {}；bootstrap p={q4_p:.3}。**综合判定：{}**",
+            cls_str(winner), if is_level0_sell { "=" } else { "≠" },
+            if is_level0_sell { "消除" } else { "坐实——非 train 赢家" },
+            if nraw > 0 { neff / nraw as f64 } else { 0.0 },
+            if q4_d5 > 0.0 { "仍正" } else { "转负" },
+            if oos_robust { "通过 §11 全验收（缠论买卖点首个干净稳健 OOS alpha 证据，单标的 L2）" }
+            else if is_level0_sell && oos_mu_positive { "Q2 选择偏差消除（level0卖确为 train-only 赢家），但 §11 稳健性验收未过——LCB≤0/少数大赢家驱动/多窗不稳之一以上成立 ⟹ +7.87e3 不达可交易 alpha 阈值（诚实否证，161/formalization-validity-domain）" }
+            else { "level0卖 +7.87e3 是选择偏差/窗口产物（否证）" });
+        let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；train-only 挑类=PDF§11「train 决定规则」；neff=nraw/(1+2Σρk)=PDF§6 条件二；LCB=μ−1.645se=PDF§7.3。");
+        let _ = writeln!(rpt, "3. **边界条件**：单标的 BTC L2——结论翻转条件：(a) L3 跨标的若 level0卖不普遍赢则 BTC 是品种特例；(b) train_frac/窗数 K 改变 train 赢家身份则选类不稳；(c) holdout 仍为下跌段则卖优势含方向效应。");
+        let _ = writeln!(rpt, "4. **下游推论**：{}", if oos_robust { "level0卖可作信号层 entry 候选（§11 全验收过），但升基座仍需 L3 跨标的。" } else { "level0卖不可单独作 entry——§11 稳健性验收未过（LCB≤0/赢家集中/多窗不稳），下游策略勿基于 +7.87e3 升基座。Q2 消除只证「不是挑赢家产物」，不证「是可交易 alpha」——二者独立。" });
+        let _ = writeln!(rpt, "5. **谱系引用**：663 econpositive；664-Q3 真实成交口径；codex Q2 BIAS-FATAL（codex-oos-level0sell-audit-20260630.md）；PDF§6/§11（overfit-consult-20260630.txt）；161（务实=留缺口）；formalization-validity-domain（L2 有效域<定义域）。");
+        let _ = writeln!(rpt, "6. **影响声明**：新增 acc_walkforward_trainonly 测试 + train_winner_class/neff_autocorr/mean_se_lcb/drop_top_winners/block_bootstrap_pvalue helper（均纯函数，L1 自检 walkforward_helpers_l1）；复用 slice_bar_range/decompose_capturable_spread/class_actual_pnl；不改生产代码/TradeRecord/Order。被否证的 acc_level0sell_oos 保留（谱系：选择偏差的发生史）。");
+
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent().expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/econpositive-walkforward-20260630.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
+        eprintln!("\n报告已落盘：{out:?}");
+
+        // 真封：切片无重叠无遗漏 + holdout 聚合一致 + neff≤nraw。
+        assert!(ds_train.bars.len() + ds_hold.bars.len() == n, "train+holdout bar 数 ≠ 全窗（半开应无重叠无遗漏）");
+        let recomputed: f64 = hd_pnls.iter().sum();
+        assert!((hd_pnl - recomputed).abs() < 1e-6, "holdout 赢家类 Σpnl 聚合不一致");
+        assert!(neff <= nraw as f64 + 1e-9, "neff 应 ≤ nraw");
+    }
+
+    // ── PDF §11 walk-forward 验收 helper（纯函数，L1 自检见 mod 末 #[test]）──
+
+    /// train 段 per-class 选最强正类（PDF §11「train 决定规则」）：扫所有出现的 (level,δ)，
+    /// 取 Σactual_pnl 最大者；若全非正返 None（train 期无可交易候选）。
+    /// **关键反偏差**：选类只用 train 段 decomps，holdout 信息不进入选择环节（消 codex Q2 BIAS-FATAL）。
+    fn train_winner_class(decomps_train: &[SignalDecomp]) -> Option<(u32, i8)> {
+        use std::collections::BTreeMap;
+        let mut sums: BTreeMap<(u32, i8), f64> = BTreeMap::new();
+        for d in decomps_train {
+            *sums.entry((d.level, d.delta)).or_default() += d.actual_pnl;
+        }
+        sums.into_iter()
+            .filter(|(_, pnl)| *pnl > 0.0)
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+            .map(|(cls, _)| cls)
+    }
+
+    /// 有效样本数 neff = nraw/(1+2Σρk)（PDF §6 条件二）。ρk=逐笔 PnL 序列样本自相关，
+    /// k=1..=lag_max，仅累加 ρk>0（正自相关才膨胀方差；负自相关不缩 neff 以保守）。
+    /// 退化：n<2 或方差≈0 ⟹ neff=nraw（无相关信息）。返回 (neff, sum_rho_pos)。
+    fn neff_autocorr(pnls: &[f64], lag_max: usize) -> (f64, f64) {
+        let n = pnls.len();
+        if n < 2 { return (n as f64, 0.0); }
+        let mean = pnls.iter().sum::<f64>() / n as f64;
+        let var = pnls.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n as f64;
+        if var <= 1e-12 { return (n as f64, 0.0); }
+        let mut sum_rho = 0.0;
+        for k in 1..=lag_max.min(n - 1) {
+            let cov: f64 = (0..n - k).map(|i| (pnls[i] - mean) * (pnls[i + k] - mean)).sum::<f64>() / n as f64;
+            let rho = cov / var;
+            if rho > 0.0 { sum_rho += rho; }
+        }
+        let neff = n as f64 / (1.0 + 2.0 * sum_rho);
+        (neff.max(1.0).min(n as f64), sum_rho)
+    }
+
+    /// 单侧 5% LCB = μ − 1.645·se，se=σ/√neff（PDF §7.3，neff 而非 nraw）。返回 (mu, se, lcb)。
+    fn mean_se_lcb(pnls: &[f64], neff: f64) -> (f64, f64, f64) {
+        let n = pnls.len();
+        if n == 0 { return (0.0, 0.0, 0.0); }
+        let mu = pnls.iter().sum::<f64>() / n as f64;
+        let var = pnls.iter().map(|x| (x - mu).powi(2)).sum::<f64>() / n as f64;
+        let se = if neff > 1.0 { (var / neff).sqrt() } else { f64::INFINITY };
+        (mu, se, mu - 1.645 * se)
+    }
+
+    /// Q4 剔最大赢家：降序剔除 top-k 后剩余 Σ（>0 ⟹ 非少数大赢家驱动）。返回 (sum_full, sum_drop1, sum_drop3, sum_drop5)。
+    fn drop_top_winners(pnls: &[f64]) -> (f64, f64, f64, f64) {
+        let mut v = pnls.to_vec();
+        v.sort_by(|a, b| b.partial_cmp(a).unwrap()); // 降序
+        let full: f64 = v.iter().sum();
+        let drop = |k: usize| -> f64 { v.iter().skip(k.min(v.len())).sum() };
+        (full, drop(1), drop(3), drop(5))
+    }
+
+    /// Block bootstrap 右尾 p-value（H0:μ≤0，移动块重采样保留逐笔 PnL 自相关）：
+    /// 对原始序列做循环移动块重采样得 B 个 boot_mean，p = (#{boot_mean ≤ 0}+1)/(B+1)
+    /// = 重采样分布落在 0 及以下的占比 ⟹ 正均值越稳健远离 0 则 p 越小（PDF §11 block bootstrap）。
+    /// block_len 保块内时间相关（缠论同趋势段多信号相关，PDF §6）。确定性：固定 LCG（bit-exact 可复算）。
+    fn block_bootstrap_pvalue(pnls: &[f64], block_len: usize, b_iters: usize) -> f64 {
+        let n = pnls.len();
+        if n < 2 { return 1.0; }
+        let blk = block_len.max(1).min(n);
+        let mut seed: u64 = 0x9E3779B97F4A7C15; // 固定种子（确定性，无外部 rng）
+        let next = |seed: &mut u64| -> usize {
+            *seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            ((*seed >> 33) as usize) % n
+        };
+        let mut le_zero = 0usize;
+        for _ in 0..b_iters {
+            let (mut acc, mut cnt) = (0.0f64, 0usize);
+            while cnt < n {
+                let start = next(&mut seed);
+                for j in 0..blk {
+                    if cnt >= n { break; }
+                    acc += pnls[(start + j) % n]; // 循环移动块（原始序列，未居中）
+                    cnt += 1;
+                }
+            }
+            if acc / n as f64 <= 0.0 { le_zero += 1; }
+        }
+        (le_zero as f64 + 1.0) / (b_iters as f64 + 1.0)
+    }
+
+    /// neff/LCB/bootstrap helper L1 自检（合成数据，验证算术，零信息增量但保非平凡逻辑不破）。
+    #[test]
+    fn walkforward_helpers_l1() {
+        // train_winner：(0,-1) Σ=+5 最强，(1,1) Σ=−2 被滤。
+        let synth = |level: u32, delta: i8, pnl: f64| SignalDecomp {
+            entry_bar: 0, exit_bar: 1, level, delta, a_b: 0.0, x_in: 0.0, y_out: 0.0,
+            eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0, actual_pnl: pnl,
+        };
+        let ds = vec![synth(0, -1, 3.0), synth(0, -1, 2.0), synth(1, 1, -2.0)];
+        assert_eq!(train_winner_class(&ds), Some((0, -1)), "train 应选 Σpnl 最大正类 (0,-1)");
+        let all_neg = vec![synth(0, -1, -1.0)];
+        assert_eq!(train_winner_class(&all_neg), None, "全非正应返 None");
+
+        // neff 边界：始终 ∈[1, nraw]。块状正相关 ⟹ neff<nraw（事件聚集缩有效样本，PDF§6）。
+        let pos_corr = vec![1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, -1.0]; // 块状正相关 lag1>0
+        let (neff_pc, sr_pc) = neff_autocorr(&pos_corr, 4);
+        assert!(neff_pc < 8.0 && neff_pc >= 1.0 && sr_pc > 0.0,
+            "正自相关应缩 neff∈[1,nraw)，实得 neff={neff_pc} sr={sr_pc}");
+        // 常量序列方差≈0 ⟹ 退化 neff=nraw（无相关信息可缩）。
+        let (neff_const, _) = neff_autocorr(&[2.0; 6], 4);
+        assert!((neff_const - 6.0).abs() < 1e-9, "零方差退化 neff=nraw，实得 {neff_const}");
+
+        // LCB：μ>0 但 se 大 ⟹ LCB 可能<0（压制噪声赢家）。
+        let (mu, se, lcb) = mean_se_lcb(&[2.0, -1.0, 3.0, -2.0], 4.0);
+        assert!((mu - 0.5).abs() < 1e-9 && se > 0.0 && lcb < mu, "LCB=μ−1.645se<μ，实得 mu={mu} lcb={lcb}");
+
+        // drop_top：[10,1,1,1] 剔最大后 Σ=3>0（非单一赢家）；[10,-1,-1,-1] 剔后 Σ=−3<0（单一赢家驱动）。
+        let (f1, d1, _, _) = drop_top_winners(&[10.0, 1.0, 1.0, 1.0]);
+        assert!((f1 - 13.0).abs() < 1e-9 && (d1 - 3.0).abs() < 1e-9, "剔最大后剩余");
+        let (_, d1b, _, _) = drop_top_winners(&[10.0, -1.0, -1.0, -1.0]);
+        assert!(d1b < 0.0, "单一大赢家驱动：剔后转负");
+
+        // bootstrap：强正信号 p 小；纯噪声 p 接近 0.5（确定性，固定种子）。
+        let strong_pos = vec![5.0; 20];
+        let p_pos = block_bootstrap_pvalue(&strong_pos, 3, 500);
+        assert!(p_pos <= 0.05, "强正信号 block bootstrap p 应小，实得 {p_pos}");
+    }
 }
