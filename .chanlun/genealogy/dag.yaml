@@ -3356,9 +3356,9 @@ nodes:
     frontier_mutated 守卫比对 project_to_units 投影（有损丢 sub_moves）『碰巧过 8000bar 测试』被 codex
     走真实守卫入口复现反例（115→147 vs 147→140 内点）抓出深嵌套 L2 cache subs 陈旧；修复=cascade reset（任一级
     frontier 变异→该级+所有上级 reset），消除『投影有损丢 sub_moves』整类问题
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/643-acceptance1-bit-exact-false-pass-l1-validity-domain-inflation-frontier-guard-projection-lossy-cascade-reset.md
+  file: settled/643-acceptance1-bit-exact-cascade-reset-settlement.md
 - id: '644'
   title: acceptance[2] 在 642(host key) 之后继续穿透三层：①工位H carrier-keyed 修复后 active_depth_ge3
     报 14166 是**坐标系伪证**（诊断 elem_depth 走重建树 vs 生产 AncOK 走 work parent 链；active_restored=14137
