@@ -3507,6 +3507,16 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/663-criterion-error-statistical-significance-mistaken-for-tradeability-mu-positive-vs-sign-test.md
+- id: '664'
+  title: ★对象错配：经济正条件判据 Ab=εb(Pρb−Pλb) 隐含『顺笔交易』假设（εb=笔方向⟹Ab≥0 同义反复），但缠论买卖点是『反转交易』——底背驰买点
+    δ=+1 出现在下跌段末端 Pρ<Pλ⟹Ab<0。codex 异质审计坐实 ΣAb=−1.8e4（BTC L2）是对象错配概念发现非实装 bug：econ_positive.rs
+    locate_lambda_bar 定位的 end_index==source_index 段=信号前触发/背驰段，其几何方向内在地与交易方向 δ 相反（反转信号本性）。正确对象=post-signal
+    交易腿 Ab_rev=δ(g)·(P[ρ_rev]−P[λ_rev])，λ_rev=源 pivot，ρ_rev=π^bsp 出场策略 owned 的首个后续反向
+    BSP（post-signal，策略 owned，非触发段起点）。反补丁：改 eps 回 sign(Pρ−Pλ)=恢复同义反复掩盖错配（no-patch +
+    090 声明膨胀），正确解必须改测量对象。peer 645（π^cov≠π^bsp）/663（统计显著性≠可交易性）——三者同元模式『判据/对象错配』簇。
+  status: 生成态
+  type: object-mismatch
+  file: pending/664-ab-trigger-segment-vs-reversal-trade-leg-object-mismatch-eps-bi-direction-vs-delta-trade-direction-645-663-peer.md
 edges:
   depends_on:
   - from: '136'
@@ -6785,6 +6795,12 @@ edges:
     to: '645'
   - from: '663'
     to: '660'
+  - from: '664'
+    to: '231'
+  - from: '664'
+    to: '645'
+  - from: '664'
+    to: '663'
   triggered:
   - from: '005'
     to: 005a
@@ -10066,6 +10082,27 @@ edges:
   - between:
     - '663'
     - project_btc_vs_bh_structural
+  - between:
+    - '656'
+    - '664'
+  - between:
+    - '660'
+    - '664'
+  - between:
+    - '664'
+    - economic-positive-condition-chain
+  - between:
+    - '664'
+    - alpha-pdf-mu-z-a-positive
+  - between:
+    - '664'
+    - buying-selling-point-alpha-pdf
+  - between:
+    - '664'
+    - project_zero_lookahead_backtest
+  - between:
+    - '664'
+    - project_bsp_direction_valid_friction_floor
   tensions_with:
   - between:
     - '007'
