@@ -4,6 +4,7 @@
 """
 import base64
 import csv
+import datetime
 import io
 import json
 import math
@@ -69,7 +70,7 @@ print(f"下载 {buf.tell()/1e6:.1f} MB 用时 {time.time()-t0:.1f}s", flush=True
 
 buf.seek(0)
 reader = csv.DictReader(io.TextIOWrapper(buf, encoding="utf-8"))
-ts, opens, highs, lows, closes, vols = [], [], [], [], [], []
+ts, dates, opens, highs, lows, closes, vols = [], [], [], [], [], [], []
 dropped = 0
 for row in reader:
     o, h, l, c = (float(row["open"]), float(row["high"]),
@@ -77,7 +78,12 @@ for row in reader:
     if any(math.isnan(x) for x in (o, h, l, c)):
         dropped += 1
         continue
-    ts.append(int(row["ts_event"]))
+    tns = int(row["ts_event"])
+    ts.append(tns)
+    # theta_v0 加载器（data.rs:47/162）要 ISO 含秒串：dates[..10] 切日期窗，
+    # 全串解析 14 位 YYYYMMDDHHMMSS 排序。秒位区分同分钟 60 根 1s bar（B 点）。
+    dates.append(datetime.datetime.fromtimestamp(
+        tns / 1e9, tz=datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
     opens.append(o)
     highs.append(h)
     lows.append(l)
@@ -87,7 +93,7 @@ for row in reader:
 OUT.write_text(json.dumps({
     "symbol": "CL", "schema": "ohlcv-1s", "dataset": DATASET,
     "stype": "continuous(.v.0)", "start": START, "end": END,
-    "timestamps_ns": ts, "opens": opens, "highs": highs,
+    "timestamps_ns": ts, "dates": dates, "opens": opens, "highs": highs,
     "lows": lows, "closes": closes, "volumes": vols,
 }))
 print(f"写入 {OUT.name}: {len(closes)} bars (dropped {dropped} nan), "
