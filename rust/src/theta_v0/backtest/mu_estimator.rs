@@ -820,4 +820,96 @@ mod tests {
         assert!(shrunk_z < 50.0 && shrunk_z > 0.0, "收缩方向正确：0 < {shrunk_z} < 50");
         assert_eq!(view.n_classes(), est.n_classes(), "桶集合不变");
     }
+
+    /// project_to_u 确定性：同 z 恒映同 u（§30 ϕ 是函数，纯确定性变换）。
+    #[test]
+    fn project_to_u_is_deterministic() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 1, PositionState::Child);
+        assert_eq!(UClass::project_to_u(&z), UClass::project_to_u(&z), "同 z 恒映同 u");
+    }
+
+    /// ϕ 折叠真实性：相邻 level + 不压扁的 I_γ 在 z 域是不同类，在 u 域折叠为同一 u（§30 降维）。
+    #[test]
+    fn project_to_u_folds_distinct_z() {
+        // level 2 与 3 相邻（同 bucket=1），I_γ 只 B1 vs B1+B2（都含一类 ⟹ divergence 同 true），
+        // 同 δ=+1 同 Root ⟹ 折叠为同一 u。
+        let z_a = MuClass::from_certificate(2, 1, buy_bits(), 0, PositionState::Root);
+        let z_b = MuClass::from_certificate(
+            3,
+            1,
+            BspBits { buy1: true, buy2: true, ..Default::default() },
+            0,
+            PositionState::Root,
+        );
+        assert_ne!(z_a, z_b, "z 域不同类（level + I_γ 不同）");
+        assert_eq!(UClass::project_to_u(&z_a), UClass::project_to_u(&z_b), "u 域折叠为同一 u");
+    }
+
+    /// 短差/顺势/根 三角色折叠正确（§16 (parent_dir,short_swing,position)→role）。
+    #[test]
+    fn project_to_u_role_folding() {
+        let root = MuClass::from_certificate(2, 1, buy_bits(), 0, PositionState::Root);
+        let swing = MuClass::from_certificate(2, -1, buy_bits(), 1, PositionState::Child); // δ=−σ_p
+        let trend = MuClass::from_certificate(2, 1, buy_bits(), 1, PositionState::Child); // δ=σ_p
+        assert_eq!(UClass::project_to_u(&root).role, VoiceRole::Root);
+        assert_eq!(UClass::project_to_u(&swing).role, VoiceRole::ChildSwing);
+        assert_eq!(UClass::project_to_u(&trend).role, VoiceRole::ChildTrend);
+    }
+
+    /// 降维真实性 |U| < |Z|（§29 核心——ϕ 非单射 ⟹ u 类数严格少于 z 类数）。
+    /// 构造多个 z 折叠到少数 u，验证 UEstimator::from_z 后 n_classes(U) < n_classes(Z)。
+    #[test]
+    fn u_classes_fewer_than_z_classes() {
+        let mut est = MuEstimator::new();
+        // 4 个不同 z：level{2,3}（同 bucket=1）× I_γ{B1, B1+B2}（都 divergence=true），同 δ/Root
+        // ⟹ 全折叠为 1 个 u。
+        for level in [2, 3] {
+            for bits in [buy_bits(), BspBits { buy1: true, buy2: true, ..Default::default() }] {
+                let z = MuClass::from_certificate(level, 1, bits, 0, PositionState::Root);
+                est.observe(MuObservation { class: z, x_gamma: 10.0 });
+            }
+        }
+        let u_est = UEstimator::from_z(&est);
+        assert_eq!(est.n_classes(), 4, "z 域 4 类");
+        assert_eq!(u_est.n_classes(), 1, "u 域折叠为 1 类");
+        assert!(u_est.n_classes() < est.n_classes(), "降维真实：|U| < |Z|");
+    }
+
+    /// from_z 聚合 bit-exact：u 桶 μ = 落入它的全部 z 的 X_γ 总均值（Chan Welford 等价逐笔）。
+    #[test]
+    fn u_aggregation_is_bit_exact_pooled_mean() {
+        let mut est = MuEstimator::new();
+        // 两个 z 折叠到同一 u：各灌不同 X_γ。
+        let z_a = MuClass::from_certificate(2, 1, buy_bits(), 0, PositionState::Root);
+        let z_b = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root); // 同 bucket
+        est.observe_all([
+            MuObservation { class: z_a, x_gamma: 10.0 },
+            MuObservation { class: z_a, x_gamma: 20.0 },
+            MuObservation { class: z_b, x_gamma: 60.0 },
+        ]);
+        let u_est = UEstimator::from_z(&est);
+        let u = UClass::project_to_u(&z_a);
+        assert_eq!(u_est.count(&u), 3, "u 桶聚合 3 笔");
+        // (10+20+60)/3 = 30，u 域 n̄=3 > z 域各类 n̄（z_a=2, z_b=1）⟹ 升每类样本。
+        assert!((u_est.mu(&u).unwrap() - 30.0).abs() < 1e-12, "u μ = 全部 X_γ 总均值 30");
+    }
+
+    /// oos_gated_drop：OOS 不降的轴标可删，OOS 显著降的轴标保留（§11 OOS-value-gated）。
+    #[test]
+    fn oos_gated_drop_marks_droppable_axes() {
+        let baseline = 100.0;
+        let result = oos_gated_drop(
+            &[DropAxis::LevelBucket, DropAxis::Role, DropAxis::Divergence],
+            baseline,
+            1.0, // tol
+            |axis| match axis {
+                DropAxis::LevelBucket => 100.5, // OOS 微升 ⟹ 可删
+                DropAxis::Role => 99.5,         // 微降但在 tol 内 ⟹ 可删
+                DropAxis::Divergence => 80.0,   // 显著降 ⟹ 保留（背驰维度有 OOS 价值）
+            },
+        );
+        assert_eq!(result[0], (DropAxis::LevelBucket, true), "OOS 升 ⟹ 可删");
+        assert_eq!(result[1], (DropAxis::Role, true), "tol 内不降 ⟹ 可删");
+        assert_eq!(result[2], (DropAxis::Divergence, false), "OOS 显著降 ⟹ 保留");
+    }
 }

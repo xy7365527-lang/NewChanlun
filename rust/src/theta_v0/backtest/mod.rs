@@ -57,6 +57,7 @@ pub mod data;
 pub mod incremental;
 pub mod metrics;
 pub mod mu_estimator;
+pub mod pooling_icc;
 pub mod prereg_windows;
 pub mod runner;
 pub mod selector;
