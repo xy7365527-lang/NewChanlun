@@ -3471,6 +3471,15 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/657-alpha-pdf-part1-signifier-collision-downgrade-m24-causal-measurability-645-settle-eval.md
+- id: '658'
+  title: goal_reducer.py acceptance rollup SCHEMA 缺口：子目标 CHECK_PASS 是否冒泡到顶层 acceptance
+    未定义。代码自洽于自身契约(行81-83:顶层 acceptance 由 sub_goal_id==gid 的 CHECK_PASS 闭合,防任意子目标同名
+    acceptance_id 误闭合=codex MAJOR-2)。但 SCHEMA 未定义子目标完成→顶层 acceptance 的 rollup 映射 ⟹
+    所有子目标 CHECK_PASS 后顶层仍永 False ⟹ goal 永不 terminated(除非独立发 gid-scoped CHECK_PASS)。非实现笔误(选择类:两种
+    rollup 设计互斥待裁),不阻塞 L2/L3 推进(sub_goal ready 正确)
+  status: 生成态
+  type: domain
+  file: pending/658-reducer-acceptance-rollup-schema-undefined-subgoal-to-toplevel.md
 edges:
   depends_on:
   - from: '136'
@@ -6725,6 +6734,8 @@ edges:
     to: 651-652
   - from: '657'
     to: '036'
+  - from: '658'
+    to: '650'
   triggered:
   - from: '005'
     to: 005a
@@ -9907,6 +9918,15 @@ edges:
   - between:
     - '657'
     - project_trend_direction_proxy
+  - between:
+    - '630'
+    - '658'
+  - between:
+    - '036'
+    - '658'
+  - between:
+    - '658'
+    - g-alpha-causal-selector
   tensions_with:
   - between:
     - '007'
