@@ -573,7 +573,7 @@ fn random_entry_controls(
 ///
 /// 口径与 Θ 账本侧强平公式（`runner.rs`：`pos_sign·(px·(1−pos_sign·fee) − entry_cost)·|units|`）
 /// 一致——令 σ=pos_sign，两者代数等价（空头 σ=−1 时 `px_exit_net = exit·(1+fee)`，符号翻转）。
-fn trade_abs_pnl(entry_px: f64, exit_px: f64, qty: f64, fee_rate: f64, long: bool) -> f64 {
+pub(crate) fn trade_abs_pnl(entry_px: f64, exit_px: f64, qty: f64, fee_rate: f64, long: bool) -> f64 {
     if long {
         let proceeds = qty * exit_px * (1.0 - fee_rate);
         let cost = qty * entry_px * (1.0 + fee_rate);

@@ -56,6 +56,7 @@
 pub mod data;
 pub mod incremental;
 pub mod metrics;
+pub mod mu_estimator;
 pub mod prereg_windows;
 pub mod runner;
 

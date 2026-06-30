@@ -47,6 +47,8 @@ pub mod exit;
 /// R_Θ 解释器（七链环5）：候选集 Γ(x) → 平移不变全序 ≺_Θ → 三桶 (𝒟_x close / ℬ_x open / 𝒦_x record)。
 pub mod interp;
 pub mod intent;
+/// 全互斥买卖点解释器：可重叠谓词 P_1..P_8 固定优先级互斥化 C_j（alpha2 §5/§6，Σ1[C_j]=1 全定义）。
+pub mod mutex;
 pub mod ledger;
 /// 区间套递归证书 N^δ + Sel_Θ 固定选择器（对照 `Origin.IntervalNestCertificate`，L2-B 补全）。
 pub mod nest;
