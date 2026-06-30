@@ -31,3 +31,28 @@ Stop-Guard check (谱系 pending 非空 → 阻断 Lead 停止)与"pending 结�
 
 ## Lead 已尽动作(本轮~33 commit)
 alpha goal L0-L3真封 + 行动类链闭环(643/566a结算) + 五次假阳性纠正 + 选择类durable escalate + 责任方genealogist-3常设守。641待结算(下方同步spawn)。
+
+---
+
+## hook 根因定位(2026-06-30 补充,ceremony-completion-guard.sh 行号证据)
+
+死锁是**设计层确定行为**,非我漏条件:
+- **行 574-576**:`# 责任方判定：Lead 无条件责任方（全 swarm 判据）；teammate 按 responsible_agents 过滤` → Lead(main session 无 agentType)被无条件 `IS_RESPONSIBLE=1`。
+- **行 559**:`swarm 判据（负责全局调度/spawn 结算工位）→ 无条件阻断；责任方过滤仅作用于 teammate`。
+- **行 606**:`身份不可确定 → fail-safe 阻断`(main session 无 agent-setting)。
+- **行 560-561**:`responsible_agents 字段缺失的 pending → 视为责任方；agentType 不可确定 → 同样保守阻断`。
+
+⟹ **Lead 在任何 pending 非空时被无条件阻断**,唯一逃生阀是 check0 的 context≥85%(行 80 `RELEASE_PCT=85`)。
+
+## 死锁的确定形式(编排者裁决所需的精确命题)
+当满足:(1)所有剩余 pending 经 genealogist 018 分类为 orchestrator-gated(选择类/语法记录/待 /ritual/待 codex 裁/基础设施无权限) ∧ (2)Lead 已穷尽行动类结算 ∧ (3)genealogist 责任方常设存活 ∧ (4)context<85%
+则:Lead 无任何合法动作(自结算=越权 019c),但 Stop-Guard 无条件阻断 ⟹ **Lead 被迫空转 spawn 假工作或轮询直到 context 自然涨到 85%**。
+
+本轮实证:从此状态起 Lead 已多轮被阻断,每轮要么 spawn 工位(行动类已尽后只能制造假工作=违 no-patch)要么轮询(消耗 context)。escalate 后我选择**停止喂循环**——制造假 pending-reducing 工作是非严格产出,蜂群语法不合法(090号)。
+
+## 建议裁决(三选一,编排者)
+1. **hook 改**:check3 增 orchestrator-gated 豁免——当所有 pending 的 responsible_agents 均不含 Lead/swarm(即全是 genealogist/编排者责任)且 genealogist 责任方存活时,放行 Lead(蜂群级持续性已由存活责任方保证,无条件阻断 Lead 是空转)。
+2. **保持现状**:接受 Lead 空转至 85% context 逃生(浪费 ~5-9% context 但不改 hook)。
+3. **责任标记**:给 25 个 orchestrator-gated pending 的 frontmatter 加 responsible_agents 显式排除 Lead(但 638/645 等已有该字段?需核)——使 check3 的 teammate 过滤路径覆盖 Lead。
+
+我(Lead)倾向 1——这是 571 责任方过滤逻辑的自然延伸(责任方存活=持续性保证,不应无条件阻断无合法动作的 Lead)。但这是 hook/CLAUDE.md 层改动,触及基因组→020 阻断等待,**必须编排者裁,Lead 不自改**。
