@@ -90,3 +90,18 @@ D′ goal 事件系统的 **reader（`goal_reducer.py`）与 writer（`goal_even
 
 ### 探查者倾向（仅供参考，非裁决）
 倾向 **A2**：它是 A/B 的扬弃而非折中——既给 GOAL_RESUME 合法写路径（消灭裸 append 扩散，满足 630 writer 设计目的），又保住 base_head_stale 的降级预警价值（立场 B 的正确洞察）。代价：EVIDENCE→CHECK_PASS 提升路径仍需解决 EVIDENCE 稳定 id 缺口（可作 A2 落地的子任务，或单独 /ritual）。但**这是选择类，等编排者裁决**。
+
+## 编排者裁决（2026-06-30 "就按codex说的办吧"）
+
+**裁决：采纳 codex 最终建议 = B + A2 审计部分。** 650 从 pending 选择类 → 已裁决，实施合法。
+
+落地四点：
+1. 保留不可变 `GOAL_SET.base_head`，永不被 RESUME 改写。
+2. reducer 删 RESUME 重锚逻辑；`base_head_stale=True` 是正确降级信号，保留。
+3. `GOAL_RESUME` 合法化为无状态恢复记录（`goal_id+note+ts` 进 SCHEMA，不碰 base_head/acceptance/closure）。
+4. 新增 `EVIDENCE` 稳定 id + 授权 `CHECK_PASS` 提升协议（`method=auto(command+verifier)` / `manual(judge+rationale)` + `evidence_ids` 非空指向 EVIDENCE + 可选 `acceptance_id` 稳定身份匹配）。
+
+**实施附带发现**：DECISION/裁决无合法 event 类型（goal_events.py 拒），治理事件 schema 缺口一并在实施时解决。
+
+**此前 #19 两次实施被还原 = 裁决前的未授权；本裁决后实施为合法**（004号选择类经编排者裁决后下沉为定理实施）。
+status 转：生成态 → 已裁决待实施。
