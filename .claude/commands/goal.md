@@ -1,4 +1,21 @@
+---
+name: goal
+description: 自动建 GOAL_SET 写 events.jsonl 并进入 goal 持续运行循环
+argument-hint: [目标描述]
+allowed-tools: Bash(python:*)
+---
+
 # /goal — 目标驱动的持续运行模式（Lead runtime 承载层）
+
+## 自动写入 GOAL_SET
+
+!`python scripts/goal_events.py GOAL_SET --description "$ARGUMENTS"`
+
+上方是脚本执行结果（goal_id + base_head + falsifiable acceptance 骨架，已 append 到 `.chanlun/goals/events.jsonl`）。
+
+以 Lead 身份：审查上方 acceptance 骨架——骨架是占位（"待 Lead 补全可证伪验收标准"），结构合法但内容需补质量。用 GOAL_AMEND 给骨架 slot 绑具体可证伪 acceptance_id，或（若需多项验收）按 SCHEMA.md 追加修订，使每个 acceptance 项 falsifiable 且可机器判定闭合。然后调 `python scripts/ceremony_scan.py` 取 ready 工位，进入下方运行协议循环（评估→scan→spawn→监控→真封→commit→回步骤1，不每步等确认）。
+
+---
 
 设定一个**收敛目标**，让蜂群在该目标驱动下**持续自主运行蜂群循环**，直到目标达成、遇真实矛盾、或资源耗尽——**不每步等待编排者确认**。
 

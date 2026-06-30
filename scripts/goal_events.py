@@ -30,6 +30,7 @@ import datetime
 import hashlib
 import json
 import os
+import subprocess
 
 # 每种事件类型的必填字段（不含自动盖的 ts）。顺序即写入顺序（可读性，非语义）。
 # EVIDENCE 是叙事 schema（artifact 自由文本）；其余是结构 schema。
@@ -444,3 +445,57 @@ def _check_reference_integrity(event: dict, ev_path: str) -> None:
             )
     elif event["event"] == "GOAL_AMEND":
         _check_amend_against_history(event, events)
+
+
+def _slug_goal_id(description: str) -> str:
+    """从描述生成稳定+唯一的 goal_id（中文描述无法 ASCII slug，用 g-<时间戳>-<内容hash8>）。
+
+    时间戳保唯一（同描述多次 SET 不撞），hash8 锚定描述内容（同描述同 hash 段，可溯源）。
+    """
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    h = hashlib.sha256(description.encode("utf-8")).hexdigest()[:8]
+    return f"g-{ts}-{h}"
+
+
+def _cli_goal_set(description: str, ev_path: str | None = None) -> dict:
+    """CLI GOAL_SET：自动生成 goal_id + base_head + falsifiable acceptance 骨架，append 后返回事件。
+
+    acceptance 骨架结构合法（falsifiable=true + 非空 check + 稳定 id），内容是占位——
+    Lead 在 command 后审查质量并按需 GOAL_AMEND/SUPERSEDE 补全。骨架不是假数据：
+    它声明一个真实可证伪的占位验收项（"待 Lead 补全具体可证伪标准"本身可被"已补全"否证）。
+    """
+    base_head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    goal_id = _slug_goal_id(description)
+    acceptance = [{
+        "id": "a0-skeleton",
+        "check": f"待 Lead 补全可证伪验收标准（目标：{description}）",
+        "falsifiable": True,
+    }]
+    return append_event(
+        "GOAL_SET", ev_path=ev_path,
+        goal_id=goal_id, description=description,
+        acceptance=acceptance, base_head=base_head,
+    )
+
+
+def _main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="events.jsonl CLI writer（/goal command 入口）")
+    sub = parser.add_subparsers(dest="cmd", required=True)
+    p_set = sub.add_parser("GOAL_SET", help="自动建 GOAL_SET（goal_id+base_head+falsifiable骨架）")
+    p_set.add_argument("--description", required=True, help="目标描述")
+    p_set.add_argument("--ev-path", default=None, help="events.jsonl 路径（测试注入用）")
+    args = parser.parse_args()
+    if args.cmd == "GOAL_SET":
+        event = _cli_goal_set(args.description, ev_path=args.ev_path)
+        print(f"goal_id:   {event['goal_id']}")
+        print(f"base_head: {event['base_head']}")
+        print("acceptance 骨架（falsifiable，待 Lead 补质量）:")
+        for a in event["acceptance"]:
+            print(f"  - [{a['id']}] {a['check']}")
+
+
+if __name__ == "__main__":
+    _main()
