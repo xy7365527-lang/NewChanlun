@@ -1073,6 +1073,202 @@ fn lcb_vs_naive_l2() {
     );
 }
 
+/// **★三路对比 裸μ vs LCB vs hierarchical-shrinkage L2（acc-three-way-l2, task #83）**。
+///
+/// 同一 8 品种 walk-forward harness（与 [`lcb_vs_naive_l2`] 同 μ 表/同 split/同 θ）。三路选择器：
+/// - **裸μ**：`run_theta_v0_pi_chi(est, z_alpha=0)`——`mu(z)>θ` 准入。
+/// - **LCB**：`run_theta_v0_pi_chi(est, z_alpha=1.645)`——`mu_lcb(z)>θ` 准入。
+/// - **shrinkage**：`run_theta_v0_pi_chi(est.shrunk_view(τ²), z_alpha=0)`——`mu_shrink(z)>θ` 准入。
+///   **解 C**（编排者裁定走 C，定理类）：frozen selector **一行不改**，只换喂它的 est——
+///   [`MuEstimator::shrunk_view`] 把每桶 mean 收缩到 pooled、**保留原 n**（n_L3 可比）。
+///   shrunk_view 仅配 `z_alpha=0` 裸门（mean 收缩但 m2 原始，禁止再 LCB，见其 doc）。
+///
+/// ## 可证伪二选一（task #83，分离纪律守 660 正交 + 161 退化弃权）
+/// - **(a) shrinkage 真比 LCB 好**：在 **n_L3 不低于裸 μ**（保功效——shrinkage 卖点 = 不像 LCB 把低 n 类
+///   压成退化空仓）前提下，高级别稀疏类收缩后**非退化准入**且 ΔR 改善。
+/// - **(b) shrinkage 不改善或同样退化**：功效不足非估计方法可解（与 [`lcb_vs_naive_l2`] inconclusive 同根）。
+///
+/// **退化弃权（161 号）**：χ→0 空仓品种 ΔR = flat vs always-open 弃权 PnL，**非 alpha**，标 [弃权]。
+///
+/// 认识论 **L2**（真实数据，可证伪）。有效域 caveat：{MAX_BARS}bar 截断 + 8 品种 + OOS 内 split。
+///
+/// `#[ignore]`：O(n²) 慢测（8 品种 × 3 selector × 32K bar）。
+/// 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha::three_way_l2 -- --ignored --nocapture`
+#[test]
+#[ignore = "三路对比 L2；O(n²) 8 品种 × 3 selector × 32K bar；--release"]
+fn three_way_l2() {
+    let config = ThetaConfig::default();
+    let theta: f64 = 0.0;
+    let z_alpha_lcb: f64 = 1.645;
+    let tau_sq: f64 = 1.0; // 级别间先验方差 τ²（PDF §8 θ_ℓ~N(0,τ²)）；可调旋钮，1.0 = 中性先验。
+
+    eprintln!("\n===== ★三路对比 裸μ vs LCB vs shrinkage L2（acc-three-way-l2, θ={theta}, z_α={z_alpha_lcb}, τ²={tau_sq}）=====");
+    eprintln!("★三路同 walk-forward：裸μ=mu>θ | LCB=mu_lcb>θ | shrinkage=shrunk_view(τ²)+裸门（解C：frozen selector 不改）");
+    eprintln!("★保功效判据（shrinkage 卖点）：比三路 n_L3 池大小——shrinkage 应不像 LCB 把低 n 类压退化（n_L3 不降）");
+    eprintln!("★退化弃权（161号）：χ→0 空仓 ΔR = 弃权 PnL 非 alpha，标 [弃权]");
+    eprintln!(
+        "{:<6} {:>7} {:>7} {:>7} {:>7} {:>10} {:>10} {:>10}",
+        "symbol", "test", "χ0单", "χL单", "χS单", "ΔR(裸μ)", "ΔR(LCB)", "ΔR(shrink)",
+    );
+
+    let (mut dr_naive, mut dr_lcb, mut dr_shrink): (Vec<f64>, Vec<f64>, Vec<f64>) =
+        (Vec::new(), Vec::new(), Vec::new());
+    let (mut n_degen_naive, mut n_degen_lcb, mut n_degen_shrink) = (0usize, 0usize, 0usize);
+    let mut n_done = 0usize;
+
+    for w in PREREG_WINDOWS {
+        let ds = match data::load_by_symbol(w.symbol, &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("{:<6} 加载失败：{e}（DATA BLOCKER，不伪造合成）", w.symbol);
+                continue;
+            }
+        };
+        let oos_full = ds.slice_date_window(w.oos.0, w.oos.1);
+        if oos_full.bars.is_empty() {
+            eprintln!("{:<6} OOS 窗空", w.symbol);
+            continue;
+        }
+        let cut = MAX_BARS.min(oos_full.bars.len());
+        let split = cut / 2;
+        let mk = |lo: usize, hi: usize| Dataset {
+            symbol: oos_full.symbol.clone(),
+            bars: oos_full.bars[lo..hi].to_vec(),
+            dates: oos_full.dates[lo..hi.min(oos_full.dates.len())].to_vec(),
+            bar_seconds: 60,
+        };
+        let train = mk(0, split);
+        let test = mk(split, cut);
+        if train.bars.len() < MIN_TEST_BARS || test.bars.len() < MIN_TEST_BARS {
+            eprintln!("{:<6} train/test 样本不足 ⟹ inconclusive", w.symbol);
+            continue;
+        }
+        n_done += 1;
+
+        let (est, _n_sig) = build_walk_forward_mu(&train, &config);
+        let est_shrunk = est.shrunk_view(tau_sq); // 解 C：收缩视图，保留原 n。
+
+        let first_px = test
+            .bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * config.tick.tick_size)
+            .unwrap_or(1.0);
+        let nav = (first_px * 1000.0).max(1.0e6);
+        let bars_per_year = data::bars_per_year(60);
+        let years = (test.bars.len() as f64 / bars_per_year).max(0.01);
+
+        let mut base_cfg = config.clone();
+        base_cfg.risk.chi_theta = None;
+        let base = run_theta_v0_pi_chi(&test, &base_cfg, years, nav, &est, true);
+
+        let mut naive_cfg = config.clone();
+        naive_cfg.risk.chi_theta = Some(theta);
+        naive_cfg.risk.chi_z_alpha = 0.0;
+        let naive = run_theta_v0_pi_chi(&test, &naive_cfg, years, nav, &est, false);
+
+        let mut lcb_cfg = config.clone();
+        lcb_cfg.risk.chi_theta = Some(theta);
+        lcb_cfg.risk.chi_z_alpha = z_alpha_lcb;
+        let lcb = run_theta_v0_pi_chi(&test, &lcb_cfg, years, nav, &est, false);
+
+        // shrinkage：裸门（z_alpha=0）但喂收缩 est ⟹ mu_shrink>θ 准入（解 C）。
+        let mut shrink_cfg = config.clone();
+        shrink_cfg.risk.chi_theta = Some(theta);
+        shrink_cfg.risk.chi_z_alpha = 0.0;
+        let shrink = run_theta_v0_pi_chi(&test, &shrink_cfg, years, nav, &est_shrunk, false);
+
+        let st_naive = delta_r_stats(&base.equity_curve, &naive.equity_curve, nav, bars_per_year);
+        let st_lcb = delta_r_stats(&base.equity_curve, &lcb.equity_curve, nav, bars_per_year);
+        let st_shrink = delta_r_stats(&base.equity_curve, &shrink.equity_curve, nav, bars_per_year);
+
+        let degen_naive = naive.n_orders == 0 && base.n_orders > 0;
+        let degen_lcb = lcb.n_orders == 0 && base.n_orders > 0;
+        let degen_shrink = shrink.n_orders == 0 && base.n_orders > 0;
+        n_degen_naive += degen_naive as usize;
+        n_degen_lcb += degen_lcb as usize;
+        n_degen_shrink += degen_shrink as usize;
+
+        // L3 池（仅 χ 真改交易集且非退化的有效品种，与 lcb_vs_naive_l2 同口径）。
+        if st_naive.chi_changed_trades && naive.n_orders > 0 && base.n_orders > 0 {
+            dr_naive.push(st_naive.mean);
+        }
+        if st_lcb.chi_changed_trades && lcb.n_orders > 0 && base.n_orders > 0 {
+            dr_lcb.push(st_lcb.mean);
+        }
+        if st_shrink.chi_changed_trades && shrink.n_orders > 0 && base.n_orders > 0 {
+            dr_shrink.push(st_shrink.mean);
+        }
+
+        // 退化品种 ΔR 标弃权（161号）：shrinkage 退化 ⟹ 其 ΔR 是弃权 PnL 非 alpha。
+        let mark = if degen_shrink { " [shrink弃权PnL]" } else { "" };
+        eprintln!(
+            "{:<6} {:>7} {:>7} {:>7} {:>7} {:>10.3e} {:>10.3e} {:>10.3e}{}",
+            w.symbol,
+            test.bars.len(),
+            naive.n_orders,
+            lcb.n_orders,
+            shrink.n_orders,
+            st_naive.mean,
+            st_lcb.mean,
+            st_shrink.mean,
+            mark,
+        );
+        assert!(
+            st_naive.mean.is_finite() && st_lcb.mean.is_finite() && st_shrink.mean.is_finite(),
+            "{} 三路 ΔR 有限",
+            w.symbol
+        );
+    }
+
+    // ── 保功效维度：三路 n_L3 池大小（shrinkage 卖点 = n_L3 不低于裸 μ）──
+    let l3 = |pool: &[f64]| -> (usize, usize, f64, f64) {
+        let n = pool.len();
+        let n_pos = pool.iter().filter(|&&m| m > 0.0).count();
+        let mean = if n > 0 { pool.iter().sum::<f64>() / n as f64 } else { 0.0 };
+        (n, n_pos, mean, sign_test_pvalue(n_pos, n))
+    };
+    let (n_n, pos_n, mean_n, p_n) = l3(&dr_naive);
+    let (n_l, pos_l, mean_l, p_l) = l3(&dr_lcb);
+    let (n_s, pos_s, mean_s, p_s) = l3(&dr_shrink);
+
+    eprintln!("\n===== 保功效维度（n_L3 池大小三路对比，shrinkage 卖点）=====");
+    eprintln!("完成品种数 : {n_done}/{}", PREREG_WINDOWS.len());
+    eprintln!("退化品种数（χ 全滤空仓）：裸μ={n_degen_naive} | LCB={n_degen_lcb} | shrink={n_degen_shrink}");
+    eprintln!("L3 符号检验（裸μ）  : n_L3={n_n} n_pos={pos_n}/{n_n} 池均值={mean_n:.3e} 符号 p={p_n:.4}");
+    eprintln!("L3 符号检验（LCB）  : n_L3={n_l} n_pos={pos_l}/{n_l} 池均值={mean_l:.3e} 符号 p={p_l:.4}");
+    eprintln!("L3 符号检验（shrink）: n_L3={n_s} n_pos={pos_s}/{n_s} 池均值={mean_s:.3e} 符号 p={p_s:.4}");
+    const MIN_L3_POWER: usize = 5;
+    let verdict = |n: usize, p: f64, mean: f64| -> &'static str {
+        if n >= 2 && p < 0.05 && mean > 0.0 {
+            "系统性 alpha 成立"
+        } else if n < MIN_L3_POWER {
+            "inconclusive(功效不足 n_L3<5)"
+        } else {
+            "系统性 alpha 不成立（n≥5 但 p≥.05 或均值≤0）"
+        }
+    };
+    eprintln!("  裸μ   L3 裁定: {}", verdict(n_n, p_n, mean_n));
+    eprintln!("  LCB   L3 裁定: {}", verdict(n_l, p_l, mean_l));
+    eprintln!("  shrink L3 裁定: {}", verdict(n_s, p_s, mean_s));
+    eprintln!(
+        "\n★★最终裁定（可证伪二选一，161号 + 660 正交纪律）：\n  \
+         - (a) shrinkage 真比 LCB 好：n_L3(shrink)≥n_L3(裸μ)（保功效，未把稀疏类压退化）∧ 退化数(shrink)≤LCB\n    \
+           ∧ 非退化品种 ΔR(shrink)>ΔR(LCB) ⟹ 收缩比拒绝好（窄结论）。\n  \
+         - (b) shrinkage 不改善：n_L3(shrink)<裸μ（同 LCB 压退化）或 ΔR 无改善 ⟹\n    \
+           **功效不足非估计方法可解**（与 lcb_vs_naive_l2 inconclusive 同根：16K 短窗 + 8 品种）。\n  \
+         - **161号**：退化品种（标 [shrink弃权PnL]）ΔR = 停交易弃权 PnL，**不计** shrinkage 改善。\n  \
+         - **保功效是关键**：shrinkage 与 LCB 的本质区别 = 低 n 类借 pooled（不退化）vs 拒绝（退化）；\n    \
+           若 n_degen_shrink≈n_degen_lcb 则收缩在本数据未兑现保功效优势（落 (b)）。"
+    );
+
+    // acceptance：管线三路跑通。不硬编码 n_L3 关系为不变量（no-patch §5：留给真实数据可证伪——
+    // shrinkage 是否保功效是经验问题非定理）。
+    eprintln!(
+        "\n[保功效诊断] n_L3：裸μ={n_n} shrink={n_s}（shrink≥裸μ ⟹ 保功效兑现；< ⟹ 同 LCB 压退化，落 (b)）"
+    );
+}
+
 /// **诊断：枚举一个窗的全部方向候选 z**（与 [`build_walk_forward_mu`] 同口径的因果逐 bar 枚举）。
 ///
 /// 复用 train μ 表构造里的同一枚举（`IncrementalClassifier` 逐 bar + append-only diff + assemble_gamma），

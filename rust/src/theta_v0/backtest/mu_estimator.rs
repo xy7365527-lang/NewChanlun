@@ -273,6 +273,30 @@ impl MuEstimator {
         Some(w_z * w.mean + (1.0 - w_z) * pooled)
     }
 
+    /// 收缩视图：返回新 [`MuEstimator`]，每桶 `mean ← mu_shrink(z,τ²)`、**保留原 n/m2**（acc-three-way-l2）。
+    ///
+    /// 用途：让 frozen selector（[`super::runner::run_theta_v0_pi_chi`]，准入 `mu(z)>θ`）对**收缩后**
+    /// 的 μ 兑现 ΔR——selector 一行不改，只换喂给它的 est。三路对比中 shrinkage 路 = `shrunk_view(τ²)`
+    /// 配 `z_alpha=0`（裸 μ 门），与裸 μ/LCB 同 walk-forward harness。保留原 n ⟹ n_L3 池大小三路可比
+    /// （shrinkage 卖点 = 保功效，可被 [`MuEstimator::count`] / n_L3 验证）。
+    ///
+    /// **m2 保留是已知陷阱**：mean 被收缩但 m2（⟹ std）仍是原始样本 ⟹ 对 shrunk_view 再求
+    /// [`MuEstimator::mu_lcb`] 会得到 `shrunk_mean − z_α·orig_std/√n`，**LCB 语义失真**（下界基于的
+    /// mean 不再是该桶样本均值）。故 **shrunk_view 仅配 `z_alpha=0` 裸门用**，禁止再 LCB。
+    ///
+    /// n<2 桶：[`MuEstimator::mu_shrink`] 完全收缩到 pooled（w_z=0），新桶 mean=pooled、n/m2 不变。
+    /// `mu_shrink` 仅当 pooled None 才返 None，而该桶 ∈ 自己的 (level,delta) pooled ⟹ pooled 必 Some
+    /// ⟹ unwrap_or 的 fallback 不可达（保险保留原 mean，不 panic）。
+    pub fn shrunk_view(&self, tau_sq: f64) -> MuEstimator {
+        debug_assert!(tau_sq > 0.0, "τ²（tau_sq）须 > 0，收到 {tau_sq}");
+        let mut buckets = HashMap::with_capacity(self.buckets.len());
+        for (z, w) in &self.buckets {
+            let shrunk_mean = self.mu_shrink(z, tau_sq).unwrap_or(w.mean);
+            buckets.insert(*z, Welford { n: w.n, mean: shrunk_mean, m2: w.m2 });
+        }
+        MuEstimator { buckets }
+    }
+
     /// 已观测的全部 z 类及其 μ 估计（按需消费；顺序不定，HashMap 无序）。
     pub fn iter_mu(&self) -> impl Iterator<Item = (MuClass, f64)> + '_ {
         self.buckets.iter().map(|(z, w)| (*z, w.mean))
@@ -535,5 +559,33 @@ mod tests {
         let z = MuClass::from_certificate(9, 1, buy_bits(), 0, PositionState::Root);
         let est = MuEstimator::new();
         assert_eq!(est.mu_shrink(&z, 1.0), None);
+    }
+
+    /// shrunk_view：各桶 mean==mu_shrink、n/count 保留（n_L3 池大小不变，保功效卖点可验证）。
+    #[test]
+    fn shrunk_view_replaces_mean_keeps_n() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let neighbor =
+            MuClass::from_certificate(3, 1, BspBits { buy2: true, ..Default::default() }, 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        // 邻类大量低值拉低 pooled，z 高值 ⟹ 收缩可观测。
+        for _ in 0..100 {
+            est.observe(MuObservation { class: neighbor, x_gamma: 0.0 });
+        }
+        est.observe_all([
+            MuObservation { class: z, x_gamma: 40.0 },
+            MuObservation { class: z, x_gamma: 60.0 },
+        ]); // z 均值 50，n=2
+        let tau_sq = 1.0;
+        let view = est.shrunk_view(tau_sq);
+        // 各桶 mean 恰为 mu_shrink，n 保留（count 不变 ⟹ n_L3 可比）。
+        for (zc, _) in est.iter_mu() {
+            assert_eq!(view.mu(&zc), est.mu_shrink(&zc, tau_sq), "桶 mean 应==mu_shrink");
+            assert_eq!(view.count(&zc), est.count(&zc), "n 保留 ⟹ n_L3 池可比");
+        }
+        // z 收缩后 < 原 mean（被 pooled 向 0 拉）但 > 0（n=2 ⟹ w_z>0 未全坍）。
+        let shrunk_z = view.mu(&z).unwrap();
+        assert!(shrunk_z < 50.0 && shrunk_z > 0.0, "收缩方向正确：0 < {shrunk_z} < 50");
+        assert_eq!(view.n_classes(), est.n_classes(), "桶集合不变");
     }
 }
