@@ -10,20 +10,24 @@
 
 ## 1. 结论
 
-**当前引擎性能下，π^bsp 全窗 L2 重判仅能推进到 1/8（OKLO），其余 7/8 因 O(N²)/超线性墙诚实标 blocked。**
+**π^bsp 全窗 L2 重判推进到 1/8（OKLO），其余 7/8 受 engine 复杂度下界（Ω(n^1.26) per-bar，codex 裁决）永久限制——非临时性能问题。这是 L2/L3 有效域的边界结论，非失败。**
 
-| # | 品种 | bar 量级 | 状态 | Sharpe | strat_return | BH | beats_random (shift/indep p) | 子声部 | 分层诊断 |
+| # | 品种 | bar 数 | 状态 | Sharpe | strat_return | BH | beats_random (shift/indep p) | 子声部 | 分层诊断 |
 |---|------|---------|------|--------|--------------|-----|------------------------------|--------|----------|
 | 1 | **OKLO** | 343,282 (~0.65y) | **L2 跑完** | 0.0503 | −1.5195 | +2.0564 | **false** (0.999 / 1.000) | 18 | 产得出·不盈利 |
-| 2 | QQQ | ~1.6M (108MB) | **blocked** | — | — | — | — | — | 25min TIMEOUT_EXIT=124 |
-| 3 | DX | (132MB) | blocked | — | — | — | — | — | 引擎性能未达，> QQQ |
-| 4 | BRN | (149MB) | blocked | — | — | — | — | — | 引擎性能未达，> QQQ |
-| 5 | CL | (225MB) | blocked | — | — | — | — | — | 引擎性能未达，> QQQ |
-| 6 | GC | (239MB) | blocked | — | — | — | — | — | 引擎性能未达，> QQQ |
-| 7 | ES | (250MB) | blocked | — | — | — | — | — | 引擎性能未达，> QQQ |
-| 8 | BTC | (329MB) | blocked | — | — | — | — | — | 引擎性能未达，> QQQ |
+| 2 | QQQ | ~1.75M | **blocked-下界** | — | — | — | — | — | 实测 TIMEOUT_EXIT=124（>1500s 未完） |
+| 3 | DX | ~2.13M | blocked-下界 | — | — | — | — | — | est ≥36min |
+| 4 | BRN | ~2.41M | blocked-下界 | — | — | — | — | — | est ≥45min |
+| 5 | CL | ~3.63M | blocked-下界 | — | — | — | — | — | est ≥96min |
+| 6 | GC | ~3.86M | blocked-下界 | — | — | — | — | — | est ≥107min |
+| 7 | ES | ~4.04M | blocked-下界 | — | — | — | — | — | est ≥117min |
+| 8 | BTC | ~5.33M | blocked-下界 | — | — | — | — | — | est ≥193min |
 
-**认识论等级**：OKLO=**L2（单标的，否定性结果，有信息增量）**。8 品种齐了才是 L3——**当前 L3 未达成**。
+**blocked 性质修正（codex 裁决 2026-06-30，`.chanlun/codex-engine-on-verdict-2026-06-30.md`）**：大品种跑不完**不是临时性能问题，是复杂度下界**。codex 严格否证 strict O(n) 可达性——bit-exact + bsp~n^1.26 约束下 per-bar Ω(n^1.26)、全文 Ω(n^2.26)。这天不会来（除非改 spec 语义），不是"等 #21 优化后重跑"。
+
+**耗时估算（不盲跑，两真实点外推）**：用 OKLO（343K bar / ≤75s wall）+ QQQ（~1.75M bar / >1500s timeout 下界）拟合 wall=a·n^p 得 **p≥1.84**（QQQ 用 timeout 下界 ⟹ 真实指数更陡），印证 codex Ω(n^1.26) per-bar 方向。bar 数由 JSON 字节 / OKLO 字节每 bar（61.8 B/bar）粗估。在 ~25min 实用时限内只有 OKLO 能跑完；QQQ 临界外，DX 以上全部远超。
+
+**认识论等级**：OKLO=**L2（单标的，否定性结果，有信息增量）**。8 品种齐了才是 L3。**L3 在当前 spec 语义下受复杂度下界永久限制**——acceptance[3] 真实有效域 = 「小品种（≤~35万 bar）可全窗验、大品种受 Ω(n^1.26) per-bar 限制不可全窗验」。诚实的边界结论，非失败。
 
 ### OKLO L2 详情（确凿，唯一跑完）
 ```
@@ -51,7 +55,7 @@ beats_random    : false    controls_degen: false
 
 ## 3. 边界条件（结论翻转条件）
 
-- **L3 达成翻转**：acceptance[4] 全 O(n)（当前 bsp~n^1.26 超线性残余）后重跑——届时 QQQ/DX/BRN/CL/GC/ES/BTC 7 品种可在合理时限跑完，1/8 → 8/8 即 L3。本工位 blocked 标记的唯一解除条件是引擎性能达 O(n)。
+- **L3 达成翻转（永久受限）**：codex 已否证 strict O(n) 数学可达性（Ω(n^1.26) per-bar）。在当前 spec 语义下 7 大品种全窗回测不可在实用时限完成——L3 不可达。唯一翻转路径是**改 spec 语义**（放松 bit-exact 或 bsp 复杂度约束），非引擎优化。本工位 blocked 是复杂度下界，不是 bug。
 - **OKLO alpha 翻转**：若 OKLO 在更长/更短窗口或不同费率下 beats_random 转 true，则「不盈利」结论翻转。当前 shift/indep 双口径 p≈1.0，距翻转极远。
 - **子声部激活翻转**：若 task#17 之后某次重编译使 Lift 谓词链改动，n_children 可能再变（前任 20→现 18），但 >0 的「真激活」结论稳定。
 
@@ -71,7 +75,7 @@ beats_random    : false    controls_degen: false
 
 - **未改动任何代码**——本工位是纯回测测量（行动类，018 四分法）。
 - 产出：本结果文件 + OKLO L2 数据点。
-- blocked 标记给 acceptance[4]（全 O(n) 引擎优化）一个明确的下游消费者：性能达标后本工位可一键推进到 L3。
+- blocked 性质 = 复杂度下界（codex 裁决），非临时性能问题——L3 在当前 spec 语义下永久受限。下游决策：要全窗 L3 需先在 spec 层裁决是否放松 bit-exact/bsp 复杂度约束。
 
 ---
 
