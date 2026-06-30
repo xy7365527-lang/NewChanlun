@@ -174,3 +174,4 @@
 {"event": "GOAL_SET", "goal_id": "g-20260630T042951Z-56dfde07", "description": "对照pdf说全互斥定义策略理论上可以达成吃到缠论的每一个元素，你对照那个pdf，严格推导，严格数学证明，严格实现。", "acceptance": [{"id": "a0-skeleton", "check": "待 Lead 补全可证伪验收标准（目标：对照pdf说全互斥定义策略理论上可以达成吃到缠论的每一个元素，你对照那个pdf，严格推导，严格数学证明，严格实现。）", "falsifiable": true}], "base_head": "91d4e3f1fc1eb265636e0bac7971576d47d022f4", "ts": "2026-06-30T04:29:51Z"}
 {"event": "SUPERSEDE", "old_goal_id": "g-20260630T042951Z-56dfde07", "new_goal_id": "g-mutex-eat-every-element", "ts": "2026-06-30T05:05:13Z"}
 {"event": "GOAL_SET", "goal_id": "g-20260630T051942Z-d9fd926e", "description": "对照pdf严格推导，严格实现，严格证明。", "acceptance": [{"id": "a0-skeleton", "check": "待 Lead 补全可证伪验收标准（目标：对照pdf严格推导，严格实现，严格证明。）", "falsifiable": true}], "base_head": "4a04faba45d6718ff0920119eaa58ec70d8cff09", "ts": "2026-06-30T05:19:42Z"}
+{"event": "SUPERSEDE", "old_goal_id": "g-20260630T051942Z-d9fd926e", "new_goal_id": "g-mutex-eat-every-element", "ts": "2026-06-30T05:27:39Z"}
