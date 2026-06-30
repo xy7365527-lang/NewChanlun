@@ -18,3 +18,12 @@
 
 ## 本轮元模式(假阳性纠正链)
 本session四次假阳性全被异质节点纠正:(1)acc-delta-r-alpha过早CHECK_PASS→三审纠正inconclusive (2)我转述643"cascade失真"→#56实测纠正(找错目录) (3)#51 ΔR口径bug→equity_curve修复 (4)#57 codex首次hang输出代码dump→正确模式重跑真verdict。**严格性=识别并纠正自己的非严格倾向,异质节点(约束3/4)是物质保证。**
+
+
+## 环境陷阱纠正(codex-643-audit实测,2026-06-30)
+**#57 codex 第一次就成功返回干净 verdict(非hang)**——Lead误判"代码dump=未完成",实为codex读源码过程,verdict在6822行落盘/tmp/codex-643-out.txt后段。
+**codex hang根因纠正(与Lead建议相反)**:`--json` 是 hang/exit144 根因,**去掉--json**才成功。可复用模式:
+`codex exec --skip-git-repo-check --sandbox read-only -c 'mcp_servers={}' - < prompt.txt > out.txt 2>&1`
+(输出走stderr必须2>&1落盘;medium reasoning ~4min;不加--json;-c mcp_servers={}去MCP worker崩溃)
+codex verdict原文:「643 cascade reset对所给反例不是假绿;acceptance[1]只能诚实标L1合成自洽,不能冒充L2对齐」。
+**这是本轮第五次假阳性纠正:Lead误判#57 hang+误传--json是解法→工位实测纠正。** 连"codex是否hang"的判断都被异质纠正,印证约束3/4物质保证的彻底性。
