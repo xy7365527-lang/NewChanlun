@@ -56,3 +56,22 @@ alpha goal L0-L3真封 + 行动类链闭环(643/566a结算) + 五次假阳性纠
 3. **责任标记**:给 25 个 orchestrator-gated pending 的 frontmatter 加 responsible_agents 显式排除 Lead(但 638/645 等已有该字段?需核)——使 check3 的 teammate 过滤路径覆盖 Lead。
 
 我(Lead)倾向 1——这是 571 责任方过滤逻辑的自然延伸(责任方存活=持续性保证,不应无条件阻断无合法动作的 Lead)。但这是 hook/CLAUDE.md 层改动,触及基因组→020 阻断等待,**必须编排者裁,Lead 不自改**。
+
+---
+
+## 最终确认(穷尽所有Lead脱困路径,2026-06-30)
+
+逐一证伪所有"看似合法"的Lead脱困动作:
+1. **行动类pending结算**:已全做(643/566a/641→settled)。无残留。
+2. **646/648落盘**:status已裁但落盘锁`/ritual`(019c memory广播=编排者权,文件头明写"settled落盘走/ritual")。genealogist不能自落盘。
+3. **补responsible_agents字段排除Lead**:**对Lead无效**。hook行606+行23:main session无agent-setting→agentType不可确定→`print('1');sys.exit(0)` fail-safe阻断,**先于**parse_responsible(责任方字段检查是teammate路径)。Lead走不到字段检查就被无条件阻断。
+4. **decide()代理裁改hook**:hook/CLAUDE.md=基因组,改触发020阻断等待(需人类编排者)。
+
+⟹ **Lead(main session)在"全orchestrator-gated pending + context<85%"时,无任何数据层/动作层脱困路径。** 唯二出路:
+- (a) context≥85%触发check0逃生阀(行80 RELEASE_PCT=85)放行+autocompact
+- (b) 人类编排者裁决(改hook方案1 / 或/ritual结算pending清空 / 或手动覆盖)
+
+这是Stop-Guard"不允许停止"与no-patch"不允许非严格产出"的**真矛盾纯粹形式**:Lead无合法动作时,满足前者(产出动作)必违后者(动作=假工作)。本session已实证~12轮:每轮Stop-Guard block,Lead无真动作,拒绝假工作。
+
+## Lead最终姿态(no-workaround严格执行)
+停止产出任何动作。识别真矛盾、完整escalate、拒绝绕过(即使绕过=满足Stop-Guard让turn结束)。等编排者裁决或context自然逃生。继续动作=制造假推进=违090号声明膨胀/no-patch语法规则。
