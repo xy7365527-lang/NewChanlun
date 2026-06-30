@@ -339,6 +339,16 @@ fn build_open_order(
         risk::parent_cap(account.qty_at(d.depth - 1) as i64, &config.risk)
     };
 
+    // ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r}/GapBuffer 状态函数解析（PDF §3）：按当前决策的 (level, side) 取
+    // override；空 profile ⟹ 退化为 risk 标量 + gap=0（bit-exact 默认）。多空不强行镜像。
+    let side_key = match side {
+        VoiceSide::Long => crate::theta_v0::config::SideKey::Long,
+        VoiceSide::Short => crate::theta_v0::config::SideKey::Short,
+        VoiceSide::Flat => return None,
+    };
+    let (rho, gamma, gap_buffer) =
+        config.sizing_profile.resolve(d.level, side_key, &config.risk);
+
     // sizing（riskProj，唯一总仓位）。
     // tick_size 把整数 tick 价还原为美元，与 NAV（美元）量纲对齐（spec:47 分母是美元价格）。
     let sizing = SizingInput {
@@ -349,6 +359,9 @@ fn build_open_order(
         cost_per_unit: d.cost_per_unit,
         w_depth: voice::depth_weight(d.depth, &config.voice),
         parent_cap,
+        rho,
+        gamma,
+        gap_buffer,
     };
     let qty = risk::size_position(&sizing, &config.risk);
     if qty <= 0 {

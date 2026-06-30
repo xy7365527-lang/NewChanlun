@@ -190,9 +190,59 @@ impl Default for ExecConfig {
     }
 }
 
-/// 完整 Θ v0 配置（七组件聚合）。Phase 6 Θ 空间扫描扫的就是这个对象。
+/// 多空（root 方向 δ）键——sizing profile 的 (level, side) 索引的 side 分量。
 ///
-/// `Default::default()` = reference-theta-v0.md 冻结的 Θ v0 默认值。
+/// PDF《全互斥定义策略》§3：ρ_{ℓ,+} ≠ ρ_{ℓ,−}（多空**不强行镜像**——空头有借券费/保证金/
+/// 尾部风险不同）。`Flat` 无仓位需 sizing，不入表。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SideKey {
+    Long,
+    Short,
+}
+
+/// 单条 (level, side) sizing 参数 override（PDF §3：ρ/Γ 是按级别+多空取值的状态函数）。
+///
+/// `gap_buffer`（PDF §2 GapBuffer，美元）：隔夜跳空/尾部滑点的额外止损距离，加进风险归一化
+/// 分母 D。default 0（退化为无 gap）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SizingEntry {
+    pub level: u32,
+    pub side: SideKey,
+    pub rho: f64,
+    pub gamma: f64,
+    pub gap_buffer: f64,
+}
+
+/// (level, side) → (ρ, Γ, GapBuffer) override 表（PDF §3 ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r} 状态函数）。
+///
+/// **bit-exact 边界**：`entries` 为空（default）⟹ 所有 sizing 退化为 `RiskConfig` 的标量
+/// ρ/Γ + gap=0 ⟹ 与改动前逐位相同（frozen Θ v0 不破）。非空时按 (level, side) 精确匹配；
+/// 无匹配条目仍退化为标量（局部 override，未覆盖的 (level, side) 走默认）。
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SizingProfile {
+    pub entries: Vec<SizingEntry>,
+}
+
+impl SizingProfile {
+    /// 解析当前决策的 (level, side) → (ρ, Γ, GapBuffer)。
+    ///
+    /// 命中 override 条目 ⟹ 返回其 (rho, gamma, gap_buffer)；否则退化为 `risk` 标量 + gap=0
+    /// （bit-exact 默认路径）。线性扫描（表小，level×{Long,Short} ≤ 2·Lmax 条；不引哈希避免
+    /// `Copy` 破坏）。首个匹配生效（调用方保证 (level, side) 唯一）。
+    pub fn resolve(&self, level: u32, side: SideKey, risk: &RiskConfig) -> (f64, f64, f64) {
+        for e in &self.entries {
+            if e.level == level && e.side == side {
+                return (e.rho, e.gamma, e.gap_buffer);
+            }
+        }
+        (risk.rho, risk.gamma, 0.0) // 无 override ⟹ 标量退化（bit-exact）
+    }
+}
+
+/// 完整 Θ v0 配置（八组件聚合）。Phase 6 Θ 空间扫描扫的就是这个对象。
+///
+/// `Default::default()` = reference-theta-v0.md 冻结的 Θ v0 默认值（`sizing_profile` 空 ⟹
+/// sizing 退化为 `risk` 标量，bit-exact 不变）。
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ThetaConfig {
     pub tick: TickConfig,
@@ -202,6 +252,8 @@ pub struct ThetaConfig {
     pub voice: VoiceConfig,
     pub risk: RiskConfig,
     pub exec: ExecConfig,
+    /// ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r}/GapBuffer 状态函数 override（PDF §3）。空 ⟹ 全用 `risk` 标量。
+    pub sizing_profile: SizingProfile,
 }
 
 #[cfg(test)]
@@ -230,5 +282,38 @@ mod tests {
         assert_eq!(c.exec.commission_bps, 1.0);
         assert_eq!(c.exec.slippage_bps, 2.0);
         assert_eq!(c.exec.tax_bps, 0.0);
+        // frozen：sizing_profile 空 ⟹ 所有 sizing 退化为 risk 标量 + gap=0（bit-exact 不变）。
+        assert!(c.sizing_profile.entries.is_empty());
+    }
+
+    /// SizingProfile.resolve：空表 ⟹ 退化为 risk 标量 + gap=0（bit-exact 默认路径）。
+    #[test]
+    fn sizing_profile_empty_falls_back_to_scalar() {
+        let risk = RiskConfig::default(); // rho=0.005, gamma=1.0
+        let prof = SizingProfile::default();
+        assert_eq!(prof.resolve(0, SideKey::Long, &risk), (0.005, 1.0, 0.0));
+        assert_eq!(prof.resolve(3, SideKey::Short, &risk), (0.005, 1.0, 0.0));
+    }
+
+    /// SizingProfile.resolve（PDF §3）：(level, side) 命中 ⟹ override；多空不镜像；未命中退化。
+    #[test]
+    fn sizing_profile_per_level_side_override() {
+        let risk = RiskConfig::default();
+        let prof = SizingProfile {
+            entries: vec![
+                SizingEntry { level: 2, side: SideKey::Long, rho: 0.008, gamma: 1.2, gap_buffer: 5.0 },
+                // 同 level 空头不镜像：更保守的 rho。
+                SizingEntry { level: 2, side: SideKey::Short, rho: 0.003, gamma: 0.8, gap_buffer: 12.0 },
+            ],
+        };
+        assert_eq!(prof.resolve(2, SideKey::Long, &risk), (0.008, 1.2, 5.0));
+        assert_eq!(prof.resolve(2, SideKey::Short, &risk), (0.003, 0.8, 12.0));
+        // 多空不镜像（同 level 取值不同）。
+        assert_ne!(
+            prof.resolve(2, SideKey::Long, &risk),
+            prof.resolve(2, SideKey::Short, &risk)
+        );
+        // 未覆盖 level ⟹ 标量退化。
+        assert_eq!(prof.resolve(5, SideKey::Long, &risk), (0.005, 1.0, 0.0));
     }
 }

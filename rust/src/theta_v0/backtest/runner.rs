@@ -295,6 +295,28 @@ pub fn run_theta_v0_pi_chi(
         theta,
         z_alpha: config.risk.chi_z_alpha,
         treat_empty_as_pass,
+        shrink_tau_sq: None,
+    });
+    run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
+}
+
+/// shrinkage 准入入口（acc-three-way-l2 #83）：与 [`run_theta_v0_pi_chi`] 同 harness，唯一区别
+/// 准入量 = mu_shrink(z,τ²)（层级收缩抗稀疏）而非 LCB(μ)。`chi_theta=None` 时退化 χ≡1（同基线）。
+pub fn run_theta_v0_pi_chi_shrink(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+    est: &super::mu_estimator::MuEstimator,
+    tau_sq: f64,
+    treat_empty_as_pass: bool,
+) -> RunResult {
+    let chi = config.risk.chi_theta.map(|theta| ChiFilterCtx {
+        est,
+        theta,
+        z_alpha: config.risk.chi_z_alpha,
+        treat_empty_as_pass,
+        shrink_tau_sq: Some(tau_sq),
     });
     run_theta_v0_pi_inner(dataset, config, years, initial_nav, chi)
 }
@@ -561,6 +583,9 @@ pub struct ChiFilterCtx<'a> {
     /// 无 LCB 证据（空类 μ=None 或 n<2 单样本）χ 取值：false=不交易（最诚实，codex Q3）；
     /// true=全覆盖默认交易。
     pub treat_empty_as_pass: bool,
+    /// 准入量切换（acc-three-way-l2 #83）：`None` ⟹ 准入量 = LCB(μ)（默认，z_alpha 驱动，frozen
+    /// bit-exact）；`Some(τ²)` ⟹ 准入量 = mu_shrink(z,τ²) 层级收缩（z_alpha 忽略）。
+    pub shrink_tau_sq: Option<f64>,
 }
 
 fn pi_theta_fill_loop<F>(
@@ -666,8 +691,9 @@ where
             // coverage_step_prebuilt 内 gamma→interpret 三桶 与 work→AncOK 准入解耦（gamma 滤掉
             // μ≤θ 候选 ⟹ interpret 不归 open ⟹ 不开仓 = χ_t 语义）。None ⟹ χ≡1 全覆盖（不滤）。
             let step_gamma_trade = match &chi {
-                Some(ctx) => super::selector::filter_gamma(
-                    &step_gamma, ctx.est, ctx.theta, ctx.z_alpha, ctx.treat_empty_as_pass,
+                Some(ctx) => super::selector::filter_gamma_with_admission(
+                    &step_gamma, ctx.est, ctx.theta, ctx.z_alpha, ctx.shrink_tau_sq,
+                    ctx.treat_empty_as_pass,
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
@@ -1523,7 +1549,7 @@ mod tests {
         let mut est = MuEstimator::new();
         est.observe(MuObservation { class: z_buy, x_gamma: -50.0 });
         est.observe(MuObservation { class: z_buy, x_gamma: -50.0 }); // n=2,μ=−50,std=0 ⟹ LCB=−50≤θ=0
-        let chi = ChiFilterCtx { est: &est, theta: 0.0, z_alpha: 0.0, treat_empty_as_pass: false };
+        let chi = ChiFilterCtx { est: &est, theta: 0.0, z_alpha: 0.0, treat_empty_as_pass: false, shrink_tau_sq: None };
         let fill_chi = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, Some(chi));
 
         // ★可证伪核心：χ 过滤改变交易集——μ≤θ 的买点被滤 ⟹ 订单数收缩（严格 <）。
@@ -1557,7 +1583,7 @@ mod tests {
         let mut est = MuEstimator::new();
         est.observe(MuObservation { class: z_buy, x_gamma: 50.0 });
         est.observe(MuObservation { class: z_buy, x_gamma: 50.0 }); // n=2 ⟹ LCB 有定义；μ=50>θ=0
-        let chi = ChiFilterCtx { est: &est, theta: 0.0, z_alpha: 0.0, treat_empty_as_pass: false };
+        let chi = ChiFilterCtx { est: &est, theta: 0.0, z_alpha: 0.0, treat_empty_as_pass: false, shrink_tau_sq: None };
         let fill_chi = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, Some(chi));
 
         // μ>θ 放行 ⟹ 与 χ≡1 同订单数/交易数（过滤只滤 μ≤θ，不动 μ>θ）。

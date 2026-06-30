@@ -130,6 +130,16 @@ pub struct SizingInput {
     pub cost_per_unit: f64,
     pub w_depth: f64,
     pub parent_cap: i64,
+    /// 单笔风险预算 ρ_{ℓ,δ,r}（PDF《全互斥定义策略》§3：ρ 是**状态函数**，按 (level ℓ, delta δ,
+    /// root r) 取值，多空不强行镜像）。调用方（`build_open_order`）按当前决策的 (level, side) 从
+    /// [`super::super::config::SizingProfile`] 解析；无 override ⟹ 退化为 `RiskConfig.rho`（标量），
+    /// 此时 bit-exact 等于改动前。
+    pub rho: f64,
+    /// 名义上限 Γ_{ℓ,δ,r}（同上，PDF §3）。无 override ⟹ 退化为 `RiskConfig.gamma`。
+    pub gamma: f64,
+    /// 缺口缓冲 GapBuffer(z,a)（PDF §2：`D = M·|P−S| + Cost + GapBuffer`，美元）。隔夜跳空/
+    /// 滑点尾部的额外止损距离，加进项 1 分母 D ⟹ 风险归一化更保守。无 override ⟹ 0（bit-exact）。
+    pub gap_buffer: f64,
 }
 
 /// sizing：唯一目标手数 qty（bit-exact 对齐 reference-theta-v0.md:47 + Origin.RiskProj）。
@@ -183,19 +193,21 @@ pub fn size_position(input: &SizingInput, config: &RiskConfig) -> i64 {
     // |entry-stop|*tick_size = 每手最大亏损（美元），与 NAV（美元）量纲一致。
     let risk_dist_ticks = (input.entry - input.stop).abs() as f64; // tick 差，整数 → f64
     let risk_dist_usd = risk_dist_ticks * input.tick_size; // 美元亏损（量纲对齐）
-    let denom1 = risk_dist_usd + config.kappa * input.cost_per_unit; // 先乘 κ·cost 后加
+    // D = M·|P−S| + Cost + GapBuffer（PDF §2）：M·|P−S| = risk_dist_usd，κ·cost = Cost 项，
+    // gap_buffer = GapBuffer 项。约简顺序固定：先 risk_dist_usd，加 κ·cost，再加 gap_buffer。
+    let denom1 = risk_dist_usd + config.kappa * input.cost_per_unit + input.gap_buffer;
     let bound1: i64 = if denom1 <= 0.0 {
-        // 分母非正（entry=stop 且 cost=0）：风险预算不约束。
+        // 分母非正（entry=stop 且 cost=0 且 gap=0）：风险预算不约束。
         i64::MAX
     } else {
-        let numer1 = config.rho * input.nav; // ρ·NAV（美元）
+        let numer1 = input.rho * input.nav; // ρ_{ℓ,δ,r}·NAV（美元）
         floor_nonneg(numer1 / denom1)
     };
 
-    // ── 项 2：名义上限 floor(w_depth*γ*NAV / (entry*tick_size)) ──
+    // ── 项 2：名义上限 floor(w_depth*Γ*NAV / (entry*tick_size)) ──
     // entry*tick_size = 入场美元价，与 NAV（美元）量纲一致。
     let entry_usd = input.entry as f64 * input.tick_size; // 美元价格（量纲对齐）
-    let numer2 = input.w_depth * config.gamma * input.nav; // (w_depth·γ)·NAV，左结合
+    let numer2 = input.w_depth * input.gamma * input.nav; // (w_depth·Γ_{ℓ,δ,r})·NAV，左结合
     let bound2: i64 = floor_nonneg(numer2 / entry_usd);
 
     // ── 项 3：父子约束 parent_cap ──
@@ -585,6 +597,23 @@ mod tests {
         assert_eq!(structural_stop(StopSide::Long, &only_sell, &si), None);
     }
 
+    /// bit-exact 标量默认 SizingInput（rho/gamma 取 RiskConfig::default 标量、gap=0）——
+    /// 改动前的 sizing 行为（无 (level,side) override），所有现有 sizing 测试的期望值据此。
+    fn base_sizing() -> SizingInput {
+        SizingInput {
+            nav: 1_000_000.0,
+            entry: 100,
+            stop: 90,
+            tick_size: 1.0, // 测试用 tick_size=1 ⟹ tick=美元，期望值不变
+            cost_per_unit: 0.0,
+            w_depth: 0.6,
+            parent_cap: i64::MAX,
+            rho: 0.005,      // = RiskConfig::default().rho（标量退化）
+            gamma: 1.0,      // = RiskConfig::default().gamma
+            gap_buffer: 0.0, // 无 GapBuffer（bit-exact）
+        }
+    }
+
     /// sizing 三路 min（spec:47）：风险预算项约束最紧的情形。
     #[test]
     fn sizing_risk_budget_binds() {
@@ -593,15 +622,7 @@ mod tests {
         // 项1 = floor(0.005*1e6 / (10*1.0 + 2*0)) = floor(5000/10) = 500。
         // 项2 = floor(0.6*1.0*1e6 / (100*1.0)) = floor(6000) = 6000。
         // 项3 = MAX。 min = 500。
-        let inp = SizingInput {
-            nav: 1_000_000.0,
-            entry: 100,
-            stop: 90,
-            tick_size: 1.0, // 测试用 tick_size=1 ⟹ tick=美元，期望值不变
-            cost_per_unit: 0.0,
-            w_depth: 0.6,
-            parent_cap: i64::MAX,
-        };
+        let inp = base_sizing();
         assert_eq!(size_position(&inp, &cfg), 500);
     }
 
@@ -611,15 +632,7 @@ mod tests {
         let cfg = RiskConfig::default();
         // entry=100, stop=99 (|d_usd|=1*1.0=1) ⟹ 项1 = floor(5000/1)=5000；
         // w_depth=0.1: 项2 = floor(0.1*1e6/(100*1.0))=1000；项1=5000 ⟹ min=1000。
-        let inp = SizingInput {
-            nav: 1_000_000.0,
-            entry: 100,
-            stop: 99,
-            tick_size: 1.0,
-            cost_per_unit: 0.0,
-            w_depth: 0.1,
-            parent_cap: i64::MAX,
-        };
+        let inp = SizingInput { stop: 99, w_depth: 0.1, ..base_sizing() };
         assert_eq!(size_position(&inp, &cfg), 1000);
     }
 
@@ -627,15 +640,7 @@ mod tests {
     #[test]
     fn sizing_parent_cap_binds() {
         let cfg = RiskConfig::default();
-        let inp = SizingInput {
-            nav: 1_000_000.0,
-            entry: 100,
-            stop: 90,
-            tick_size: 1.0,
-            cost_per_unit: 0.0,
-            w_depth: 0.6,
-            parent_cap: 50, // 比项1=500、项2=6000 都小
-        };
+        let inp = SizingInput { parent_cap: 50, ..base_sizing() }; // 比项1=500、项2=6000 都小
         assert_eq!(size_position(&inp, &cfg), 50);
     }
 
@@ -643,15 +648,7 @@ mod tests {
     #[test]
     fn sizing_zero_qty_no_trade() {
         let cfg = RiskConfig::default();
-        let inp = SizingInput {
-            nav: 1_000_000.0,
-            entry: 100,
-            stop: 90,
-            tick_size: 1.0,
-            cost_per_unit: 0.0,
-            w_depth: 0.6,
-            parent_cap: 0,
-        };
+        let inp = SizingInput { parent_cap: 0, ..base_sizing() };
         assert_eq!(size_position(&inp, &cfg), 0);
     }
 
@@ -659,15 +656,7 @@ mod tests {
     #[test]
     fn sizing_nonpositive_entry_no_trade() {
         let cfg = RiskConfig::default();
-        let inp = SizingInput {
-            nav: 1_000_000.0,
-            entry: 0,
-            stop: -10,
-            tick_size: 1.0,
-            cost_per_unit: 0.0,
-            w_depth: 0.6,
-            parent_cap: i64::MAX,
-        };
+        let inp = SizingInput { entry: 0, stop: -10, ..base_sizing() };
         assert_eq!(size_position(&inp, &cfg), 0);
     }
 
@@ -782,19 +771,61 @@ mod tests {
         let mut cfg = RiskConfig::default();
         cfg.default_lot = 100; // lot=100
         // 项1=500 ⟹ floor(500/100)*100 = 500。
-        let inp = SizingInput {
-            nav: 1_000_000.0,
-            entry: 100,
-            stop: 90,
-            tick_size: 1.0,
-            cost_per_unit: 0.0,
-            w_depth: 0.6,
-            parent_cap: i64::MAX,
-        };
+        let inp = base_sizing();
         assert_eq!(size_position(&inp, &cfg), 500);
         // parent_cap=250, lot=100 ⟹ min(500,...,250)=250 ⟹ floor(250/100)*100=200。
         let inp2 = SizingInput { parent_cap: 250, ..inp };
         assert_eq!(size_position(&inp2, &cfg), 200);
+    }
+
+    /// ★PDF §2 风险归一化：q_Θ 随 D 增大（止损更远 / GapBuffer 更大）而单调减小。
+    /// D = M·|P−S| + Cost + GapBuffer；项1 = ρW/D，D↑ ⟹ q↓。
+    #[test]
+    fn sizing_q_decreases_with_distance() {
+        let cfg = RiskConfig::default(); // ρ=0.005
+        // 近止损（|P−S|=10）：项1 = floor(5000/10)=500。
+        let near = SizingInput { stop: 90, ..base_sizing() };
+        // 远止损（|P−S|=50）：项1 = floor(5000/50)=100。
+        let far = SizingInput { stop: 50, ..base_sizing() };
+        let q_near = size_position(&near, &cfg);
+        let q_far = size_position(&far, &cfg);
+        assert!(q_far < q_near, "止损更远 ⟹ D 更大 ⟹ q 更小（风险归一化）");
+        assert_eq!(q_near, 500);
+        assert_eq!(q_far, 100);
+        // GapBuffer 增大 D：gap=40 让近止损的 D 从 10 → 50 ⟹ q 退到 100。
+        let near_gap = SizingInput { stop: 90, gap_buffer: 40.0, ..base_sizing() };
+        assert_eq!(size_position(&near_gap, &cfg), 100, "GapBuffer 加进 D ⟹ q↓");
+    }
+
+    /// ★PDF §3：不同 ρ（按 level 解析）→ 不同 q（风险预算项缩放）。
+    #[test]
+    fn sizing_different_rho_different_q() {
+        let cfg = RiskConfig::default();
+        // ρ=0.005 ⟹ 项1=floor(0.005*1e6/10)=500。
+        let lo = SizingInput { rho: 0.005, ..base_sizing() };
+        // ρ=0.010（某 level override）⟹ 项1=floor(0.010*1e6/10)=1000。
+        let hi = SizingInput { rho: 0.010, ..base_sizing() };
+        assert_eq!(size_position(&lo, &cfg), 500);
+        assert_eq!(size_position(&hi, &cfg), 1000);
+        assert_ne!(size_position(&lo, &cfg), size_position(&hi, &cfg));
+    }
+
+    /// ★PDF §3：多空不强行镜像——ρ_{ℓ,+} ≠ ρ_{ℓ,−} ⟹ 同结构 q 不同。
+    /// 空头有借券费/保证金/尾部风险不同，故 ρ_{ℓ,−} 可独立于 ρ_{ℓ,+}。
+    #[test]
+    fn sizing_long_short_not_mirrored() {
+        let cfg = RiskConfig::default();
+        // 做多用 ρ_{ℓ,+}=0.006 ⟹ 项1=floor(6000/10)=600。
+        let long = SizingInput { rho: 0.006, ..base_sizing() };
+        // 做空用更保守的 ρ_{ℓ,−}=0.003 ⟹ 项1=floor(3000/10)=300（不镜像 = 不等于 long）。
+        let short = SizingInput { rho: 0.003, ..base_sizing() };
+        assert_eq!(size_position(&long, &cfg), 600);
+        assert_eq!(size_position(&short, &cfg), 300);
+        assert_ne!(
+            size_position(&long, &cfg),
+            size_position(&short, &cfg),
+            "ρ_{{ℓ,+}}≠ρ_{{ℓ,−}} ⟹ 多空 q 不镜像"
+        );
     }
 
     // ── §13 杠杆系统测试（strict §11 / FULL 十三，Lean Origin.LeverageCapital）──

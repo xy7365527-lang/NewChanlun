@@ -188,6 +188,25 @@ pub fn filter_gamma(
     z_alpha: f64,
     treat_empty_as_pass: bool,
 ) -> Vec<Candidate> {
+    filter_gamma_with_admission(gamma, est, theta, z_alpha, None, treat_empty_as_pass)
+}
+
+/// 准入量泛化版（acc-three-way-l2 #83）：`shrink_tau_sq=None` ⟹ 准入量 = LCB(μ)（与 [`filter_gamma`]
+/// bit-exact，z_alpha=0 退化裸 μ）；`shrink_tau_sq=Some(τ²)` ⟹ 准入量 = [`MuEstimator::mu_shrink`]
+/// 层级收缩（z_alpha 此时忽略——shrink 不用置信下界，用 pooled 收缩抗稀疏过拟合；§8 收缩 vs §12
+/// LCB 是两套机制）。三路对比唯一切换点：裸μ(None,z_alpha=0)/LCB(None,z_alpha>0)/shrink(Some)。
+///
+/// None 语义统一不变：mu_shrink 对无 pooled 样本的 (level,delta) 返 None ⟹ 走 treat_empty_as_pass。
+/// 与 mu_lcb 的 n<2→None 关键区别：mu_shrink 对 n<2 类**完全收缩到 pooled**（保功效，非拒绝）⟹
+/// 高级别稀疏类不被压退化空仓（#83 卖点判据：n_L3 不下降）。
+pub fn filter_gamma_with_admission(
+    gamma: &[Candidate],
+    est: &MuEstimator,
+    theta: f64,
+    z_alpha: f64,
+    shrink_tau_sq: Option<f64>,
+    treat_empty_as_pass: bool,
+) -> Vec<Candidate> {
     gamma
         .iter()
         .filter(|c| {
@@ -195,9 +214,13 @@ pub fn filter_gamma(
             if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
                 return true;
             }
-            // 方向候选：LCB(μ)>θ 门（RiskOK/ConflictOK 下游已施，此处仅 μ 项 risk_ok=conflict_ok=true）。
+            // 方向候选：准入量>θ 门（RiskOK/ConflictOK 下游已施，此处仅 μ 项 risk_ok=conflict_ok=true）。
             let z = z_of_candidate(c);
-            chi_t(est.mu_lcb(&z, z_alpha), theta, true, true, treat_empty_as_pass)
+            let admission = match shrink_tau_sq {
+                Some(tau_sq) => est.mu_shrink(&z, tau_sq),
+                None => est.mu_lcb(&z, z_alpha),
+            };
+            chi_t(admission, theta, true, true, treat_empty_as_pass)
         })
         .cloned()
         .collect()
