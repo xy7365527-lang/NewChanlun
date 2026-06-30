@@ -7,13 +7,17 @@ allowed-tools: Bash(python:*)
 
 # /goal — 目标驱动的持续运行模式（Lead runtime 承载层）
 
-## 自动写入 GOAL_SET
+## 自动写入 GOAL_DRAFT（#2 两阶段，阶段一）
 
 !`python scripts/goal_events.py GOAL_SET --description "$ARGUMENTS"`
 
-上方是脚本执行结果（goal_id + base_head + falsifiable acceptance 骨架，已 append 到 `.chanlun/goals/events.jsonl`）。
+上方是脚本执行结果——它写的是 **GOAL_DRAFT**（非 active 占位，含 goal_id + base_head + skeleton acceptance），已 append 到 `.chanlun/goals/events.jsonl`。GOAL_DRAFT **不进 active 集**：reducer 不把它当 current_goal，ceremony_scan 不产 goal 工位。这防止 skeleton 伪验收进入 active goal（codex #2）。
 
-以 Lead 身份：审查上方 acceptance 骨架——骨架是占位（"待 Lead 补全可证伪验收标准"），结构合法但内容需补质量。用 GOAL_AMEND 给骨架 slot 绑具体可证伪 acceptance_id，或（若需多项验收）按 SCHEMA.md 追加修订，使每个 acceptance 项 falsifiable 且可机器判定闭合。然后调 `python scripts/ceremony_scan.py` 取 ready 工位，进入下方运行协议循环（评估→scan→spawn→监控→真封→commit→回步骤1，不每步等确认）。
+以 Lead 身份完成**阶段二（转正）**：把 skeleton 替换为真实可证伪 acceptance，二选一（均合法）：
+1. **直接写正式 GOAL_SET**（同 goal_id，带真实 acceptance）——最简路径。`append_event("GOAL_SET", goal_id=<draft 的 goal_id>, description=..., acceptance=[真实可证伪项], base_head=<draft 的 base_head>)`。
+2. **先 GOAL_AMEND ACCEPTANCE_REPLACE 补全 DRAFT 的 acceptance**（带 `old_acceptance_vector_hash` 匹配 skeleton vector），再写正式 GOAL_SET。适用于想保留 amend 审计链时。
+
+每个 acceptance 项须 falsifiable 且可机器判定闭合。转正后 GOAL_SET 进 active。然后调 `python scripts/ceremony_scan.py` 取 ready 工位，进入下方运行协议循环（评估→scan→spawn→监控→真封→commit→回步骤1，不每步等确认）。
 
 ---
 
@@ -34,11 +38,13 @@ allowed-tools: Bash(python:*)
 
 ## 契约写入（D′）
 
-`/goal <目标>` 设定时：
-1. 校验目标可收敛 + 验收可证伪（每个 acceptance 项 falsifiable=true，否则拒绝——lesson 0011 锋利问题②；该校验由 `goal_reducer._validate_acceptance` 在 reduce 时强制，非 falsifiable 的 GOAL_SET 会在 reduce 时 raise）
-2. append GOAL_SET 事件到 `.chanlun/goals/events.jsonl`（含 goal_id, description, acceptance[], base_head=当前 git HEAD, ts）
+`/goal <目标>` 设定时（**两阶段**，#2 codex 修复）：
+1. **阶段一（草稿）**：CLI 自动 append **GOAL_DRAFT** 事件（含 goal_id, description, skeleton acceptance[], base_head=当前 git HEAD, ts）。GOAL_DRAFT 非 active——reducer 不计入 active 集，不进 current_goal（防 skeleton 伪验收进 active）。
+2. **阶段二（转正）**：Lead 把 skeleton 替换为真实可证伪 acceptance（每项 falsifiable=true，否则 writer/reducer raise——lesson 0011 锋利问题②），二选一：直接写正式 GOAL_SET（同 goal_id + 真 acceptance），或先 GOAL_AMEND ACCEPTANCE_REPLACE 补 DRAFT 再写 GOAL_SET。GOAL_SET 进 active。
 3. 调 `python scripts/ceremony_scan.py`（其 `_load_current_goal` 读 events.jsonl → `goal_reducer.reduce_goal` 纯函数 reduce）→ scan JSON 输出 current_goal projection + ready_workstations。**注**：`goal_reducer` 是纯函数（无 IO），reduce 结果仅以 projection 形式出现在 scan JSON 的 `current_goal` 字段中；`current.yaml` 文件物化当前**尚未实装**，由后续任务/Lead 承载——本协议不声称已写 current.yaml。
 4. 进入运行协议循环（下方）
+
+幂等（#8/655）：所有写事件可带 `idempotency_key`——CLI/Lead 重试时同 key+同 payload 是 noop（不重复 append），同 key+异 payload raise；同 goal_id 的 GOAL_SET/GOAL_DRAFT 不可重复声明（防重复 active）。
 
 恢复时（无参 /goal 或 /ceremony）：reduce events → 若有 active goal 继续；无则从 roadmap/中断点推导候选 GOAL_SET。
 **state 降 projection**：session/interrupt 仅 base_head 匹配时作 hint，不匹配则 reduce 重算（消除状态过时；reduce 输出 current_goal.base_head_stale 标记不匹配）。

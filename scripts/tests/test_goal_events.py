@@ -551,6 +551,161 @@ def test_check_fail_acceptance_id_not_in_goal_rejected(tmp_path):
                      acceptance_id="acc-GHOST", reason="争议")
 
 
+# ── #2 GOAL_DRAFT 两阶段：skeleton acceptance 落 DRAFT（非 active），补齐后转正 GOAL_SET ──
+
+def test_goal_draft_valid_appends(tmp_path):
+    # GOAL_DRAFT 与 GOAL_SET 同结构（goal_id+description+acceptance+base_head），但语义=非 active
+    # 占位（skeleton 落这里，reducer 不计入 active 集）。falsifiable 仍强制（占位也须可证伪结构）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_DRAFT", ev_path=str(ev_path), goal_id="g-draft", description="草稿目标",
+                 acceptance=[{"id": "a0-skeleton", "check": "待 Lead 补全", "falsifiable": True}],
+                 base_head="abc123")
+    e = _read_lines(ev_path)[0]
+    assert e["event"] == "GOAL_DRAFT"
+    assert e["goal_id"] == "g-draft"
+    assert e["acceptance"][0]["id"] == "a0-skeleton"
+    assert e["base_head"] == "abc123"
+
+
+def test_goal_draft_non_falsifiable_rejected(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="falsifiable"):
+        append_event("GOAL_DRAFT", ev_path=str(ev_path), goal_id="g1", description="x",
+                     acceptance=[{"check": "差不多", "falsifiable": False}], base_head="h")
+
+
+def test_goal_draft_missing_base_head_rejected(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="base_head"):
+        append_event("GOAL_DRAFT", ev_path=str(ev_path), goal_id="g1", description="x",
+                     acceptance=[{"check": "c", "falsifiable": True}])
+
+
+def test_cli_goal_set_writes_draft_not_active(tmp_path, monkeypatch):
+    # #2：裸 /goal（_cli_goal_set）默认写 GOAL_DRAFT（skeleton 不进 active），不写 GOAL_SET。
+    import goal_events
+    ev_path = tmp_path / "events.jsonl"
+    monkeypatch.setattr(goal_events.subprocess, "run",
+                        lambda *a, **k: type("R", (), {"stdout": "deadbeef\n"})())
+    event = goal_events._cli_goal_set("我的目标", ev_path=str(ev_path))
+    assert event["event"] == "GOAL_DRAFT"  # 不是 GOAL_SET
+    assert event["base_head"] == "deadbeef"
+    assert event["acceptance"][0]["falsifiable"] is True
+
+
+# ── #8 幂等（655号）：重复 goal_id / idempotency_key 防护 ─────────────────────
+
+def test_duplicate_goal_id_goal_set_raises(tmp_path):
+    # 重复 goal_id 的 GOAL_SET → raise（防同 goal_id 多次 SET 制造歧义/重复 active）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"check": "c", "falsifiable": True}], base_head="h")
+    with pytest.raises(ValueError, match="goal_id|已存在|重复"):
+        append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="y",
+                     acceptance=[{"check": "d", "falsifiable": True}], base_head="h")
+
+
+def test_duplicate_goal_id_draft_raises(tmp_path):
+    # 重复 goal_id 的 GOAL_DRAFT 也 raise（同身份不可重复声明）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_DRAFT", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"check": "c", "falsifiable": True}], base_head="h")
+    with pytest.raises(ValueError, match="goal_id|已存在|重复"):
+        append_event("GOAL_DRAFT", ev_path=str(ev_path), goal_id="g1", description="y",
+                     acceptance=[{"check": "d", "falsifiable": True}], base_head="h")
+
+
+def test_draft_then_goalset_same_goal_id_allowed(tmp_path):
+    # DRAFT → GOAL_SET 转正（同 goal_id）：合法。goal_id 唯一性是「同事件类型内」唯一，
+    # DRAFT 转 GOAL_SET 是跨类型的合法状态推进（DRAFT 占位 → GOAL_SET 正式）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_DRAFT", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"id": "a0-skeleton", "check": "待补全", "falsifiable": True}],
+                 base_head="h")
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"id": "acc-real", "check": "真验收", "falsifiable": True}],
+                 base_head="h")
+    assert len(_read_lines(ev_path)) == 2
+
+
+def test_idempotency_key_same_payload_noop(tmp_path):
+    # 同 idempotency_key + 同 payload → 返回既有事件，不重复 append（重试安全）。
+    ev_path = tmp_path / "events.jsonl"
+    e1 = append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                      acceptance=[{"check": "c", "falsifiable": True}], base_head="h",
+                      idempotency_key="k1")
+    e2 = append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                      acceptance=[{"check": "c", "falsifiable": True}], base_head="h",
+                      idempotency_key="k1")
+    assert len(_read_lines(ev_path)) == 1  # 第二次 noop，不 append
+    assert e1["goal_id"] == e2["goal_id"]
+
+
+def test_idempotency_key_diff_payload_raises(tmp_path):
+    # 同 idempotency_key + 不同 payload → raise（key 复用但内容变了=调用方逻辑错误）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"check": "c", "falsifiable": True}], base_head="h",
+                 idempotency_key="k1")
+    with pytest.raises(ValueError, match="idempotency_key|payload"):
+        append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g2", description="不同",
+                     acceptance=[{"check": "d", "falsifiable": True}], base_head="h",
+                     idempotency_key="k1")
+
+
+# ── #3 GOAL_AMEND ACCEPTANCE_REPLACE：替换整个 acceptance vector（DRAFT 转正/验收改写）──
+
+def test_amend_replace_rebuilds_acceptance_vector(tmp_path):
+    # ACCEPTANCE_REPLACE：old_acceptance_vector_hash 匹配目标 GOAL_SET → 替换为新 vector。
+    ev_path = tmp_path / "events.jsonl"
+    old_acc = [{"id": "a0-skeleton", "check": "待 Lead 补全", "falsifiable": True}]
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=old_acc, base_head="h")
+    e = append_event(
+        "GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+        amendment_kind="ACCEPTANCE_REPLACE", reason="Lead 补全真实可证伪验收",
+        old_acceptance_vector_hash=acceptance_vector_hash(old_acc),
+        acceptance=[{"id": "acc-1", "check": "cargo test 全绿", "falsifiable": True},
+                    {"id": "acc-2", "check": "L3 Sharpe>1", "falsifiable": True}],
+    )
+    assert e["amendment_kind"] == "ACCEPTANCE_REPLACE"
+    assert len(e["acceptance"]) == 2
+
+
+def test_amend_replace_wrong_old_hash_rejected(tmp_path):
+    # old_acceptance_vector_hash 不匹配目标 GOAL_SET → 拒绝（防对错误版本/并发改写 acceptance）。
+    ev_path = tmp_path / "events.jsonl"
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=[{"check": "c", "falsifiable": True}], base_head="h")
+    with pytest.raises(ValueError, match="acceptance_vector_hash|不符"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                     amendment_kind="ACCEPTANCE_REPLACE", reason="x",
+                     old_acceptance_vector_hash="sha256:篡改",
+                     acceptance=[{"check": "新", "falsifiable": True}])
+
+
+def test_amend_replace_non_falsifiable_rejected(tmp_path):
+    # 新 acceptance 须仍 falsifiable（REPLACE 不能引入不可证伪验收）。
+    ev_path = tmp_path / "events.jsonl"
+    old_acc = [{"check": "c", "falsifiable": True}]
+    append_event("GOAL_SET", ev_path=str(ev_path), goal_id="g1", description="x",
+                 acceptance=old_acc, base_head="h")
+    with pytest.raises(ValueError, match="falsifiable"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="g1",
+                     amendment_kind="ACCEPTANCE_REPLACE", reason="x",
+                     old_acceptance_vector_hash=acceptance_vector_hash(old_acc),
+                     acceptance=[{"check": "差不多", "falsifiable": False}])
+
+
+def test_amend_replace_no_goal_set_rejected(tmp_path):
+    ev_path = tmp_path / "events.jsonl"
+    with pytest.raises(ValueError, match="无对应 GOAL_SET"):
+        append_event("GOAL_AMEND", ev_path=str(ev_path), goal_id="ghost",
+                     amendment_kind="ACCEPTANCE_REPLACE", reason="x",
+                     old_acceptance_vector_hash="sha256:x",
+                     acceptance=[{"check": "c", "falsifiable": True}])
+
+
 def test_check_pass_sub_goal_acceptance_id_not_goal_scoped(tmp_path):
     # 边界：CHECK_PASS 针对 sub_goal（sub_goal_id != goal_id）的 acceptance_id 不受 goal
     # acceptance 集约束——sub_goal 有自己的验收标识，不在 goal acceptance 集里是合法的。

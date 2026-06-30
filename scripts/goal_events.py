@@ -13,7 +13,7 @@ GOAL_SET/DECOMPOSE/SUPERSEDE/CHECK_PASS/BLOCKED/CLOSED。
 
 校验是纯函数 validate_event；IO（盖时间戳 + append）隔离在 append_event。
 SCHEMA 外的事件类型（CEREMONY/ESCALATE/ROUTING/MILESTONE/DECISION/ADJUDICATION 等手搓
-治理/叙事类型）被拒绝——它们不在 SCHEMA.md 的 8 种之内，归 EVIDENCE(artifact 自由文本)+
+治理/叙事类型）被拒绝——它们不在 SCHEMA.md 的 11 种之内，归 EVIDENCE(artifact 自由文本)+
 escalation 文件（人读），writer 不让退化事件类型继续扩散。
 
 650 提升协议（编排者 2026-06-30 裁决=B+A2 审计部分）：
@@ -22,6 +22,13 @@ escalation 文件（人读），writer 不让退化事件类型继续扩散。
   禁裸写（EVIDENCE=材料，CHECK_PASS=裁决）。
 - EVIDENCE 可带 evidence_id（稳定身份），CHECK_PASS.evidence_ids 指向之（机器溯源）。
 - GOAL_SET/CHECK_PASS 可带 acceptance_id（acceptance 稳定身份，优于 check 文本匹配）。
+
+#2/#3/#8 选择类修复（codex goal-fix 2026-06-30，编排者裁决）：
+- GOAL_DRAFT（#2 两阶段）：裸 /goal 写非 active 占位，reducer 不计入 active 集——补全真实
+  可证伪 acceptance 后写 GOAL_SET 转正（防 skeleton 伪验收进 active goal）。
+- GOAL_AMEND ACCEPTANCE_REPLACE（#3）：整体替换 acceptance vector（DRAFT 转正/验收改写），
+  old_acceptance_vector_hash 匹配旧 vector 防并发改写。
+- 幂等（#8/655）：idempotency_key 重试安全 + 同 goal_id 的 GOAL_SET/GOAL_DRAFT 不可重复声明。
 
 依据：.chanlun/goals/SCHEMA.md（必填字段表 + 来源说明）+ spec §2/§6/§9（goal 无验收标准
 则拒绝 GOAL_SET）+ goal_reducer.py（reader 侧，本 writer 是其上游）+ codex 议题二 verdict=B。
@@ -36,6 +43,10 @@ import subprocess
 # EVIDENCE 是叙事 schema（artifact 自由文本）；其余是结构 schema。
 _REQUIRED_FIELDS = {
     "GOAL_SET": ("goal_id", "description", "acceptance", "base_head"),
+    # GOAL_DRAFT（#2 两阶段）：与 GOAL_SET 同结构，但语义=非 active 占位——skeleton acceptance
+    # 落这里，reducer 不计入 active 集（不进 current_goal/不触发 AMBIGUOUS）。Lead 补全真实
+    # 可证伪 acceptance 后写正式 GOAL_SET（同 goal_id 转正），DRAFT 留历史作审计。
+    "GOAL_DRAFT": ("goal_id", "description", "acceptance", "base_head"),
     "GOAL_RESUME": ("goal_id", "note"),  # 纯审计事件（650）：禁带 base_head
     "DECOMPOSE": ("goal_id", "sub_goals"),
     "EVIDENCE": ("sub_goal_id", "artifact"),
@@ -46,9 +57,13 @@ _REQUIRED_FIELDS = {
     "BLOCKED": ("sub_goal_id", "blocker"),
     "SUPERSEDE": ("old_goal_id", "new_goal_id"),
     "CLOSED": ("goal_id",),
-    # GOAL_AMEND（codex 严格解法 2026-06-30）：寻址层修正——给历史 GOAL_SET 的无 id
-    # acceptance 补绑稳定 id，goal_id/base_head 不变（非 SUPERSEDE，不制造假 goal 更替）。
-    "GOAL_AMEND": ("goal_id", "amendment_kind", "reason", "acceptance_vector_hash", "bindings"),
+    # GOAL_AMEND：寻址层/验收层修正——goal_id/base_head 不变（非 SUPERSEDE，不制造假 goal
+    # 更替）。两种 kind 有不同子字段（按 amendment_kind 分支校验）：
+    #  - ACCEPTANCE_ID_BINDING（codex 严格解法）：给无 id 的 acceptance slot 补绑稳定 id
+    #    （+ acceptance_vector_hash 防篡改 + bindings）。
+    #  - ACCEPTANCE_REPLACE（#3）：整体替换 acceptance vector（DRAFT 转正/验收改写）
+    #    （+ old_acceptance_vector_hash 匹配旧 vector 防并发改写 + acceptance 新 vector）。
+    "GOAL_AMEND": ("goal_id", "amendment_kind", "reason"),
 }
 # 每种事件类型允许出现的全部字段（必填 + 可选）。多余字段拒绝（防退化模式渗入：
 # 例如 GOAL_SET 误带 sub_goal_id 是退化写法的指纹）。ts 全局允许（自动或调用方提供）。
@@ -60,6 +75,10 @@ _REQUIRED_FIELDS = {
 #  - CHECK_PASS：acceptance_id（匹配 GOAL_SET.acceptance[].id）+ method +
 #    auto(command,verifier) / manual(judge,rationale,evidence_ids)
 _ALLOWED_FIELDS = {k: set(v) for k, v in _REQUIRED_FIELDS.items()}
+# idempotency_key（#8/655）：所有事件可选。重试安全——同 key+同 payload noop，同 key+异
+# payload raise。append_event 读历史判重；不进 reducer 语义（纯审计去重锚）。
+for _et in _ALLOWED_FIELDS:
+    _ALLOWED_FIELDS[_et].add("idempotency_key")
 _ALLOWED_FIELDS["EVIDENCE"] |= {"evidence_id"}
 _ALLOWED_FIELDS["CHECK_PASS"] |= {
     "acceptance_id", "method", "command", "verifier", "judge", "rationale", "evidence_ids",
@@ -67,9 +86,16 @@ _ALLOWED_FIELDS["CHECK_PASS"] |= {
 # CHECK_FAIL：可带 acceptance_id（稳定身份撤销，对齐 CHECK_PASS 的两键匹配）+ evidence_ids
 # （指向 EVIDENCE，机器溯源争议依据，引用完整性在 append_event 校验）。
 _ALLOWED_FIELDS["CHECK_FAIL"] |= {"acceptance_id", "evidence_ids"}
-# GOAL_AMEND 可选审计字段（codex：definition_event_id 当前 events 的 GOAL_SET 无 event_id
-# 字段，故可选；recorded_head 记「补 id 发生在现在」的 HEAD，与不可变 base_head 分离）。
-_ALLOWED_FIELDS["GOAL_AMEND"] |= {"definition_event_id", "definition_base_head", "recorded_head"}
+# GOAL_AMEND 子字段（两种 kind 共用 allowed 集，必填性按 kind 在 _validate_amend 分支检）：
+#  - ACCEPTANCE_ID_BINDING：acceptance_vector_hash + bindings
+#  - ACCEPTANCE_REPLACE：old_acceptance_vector_hash + acceptance
+# 可选审计字段（codex：definition_event_id 当前 GOAL_SET 无 event_id 故可选；recorded_head
+# 记「补 id 发生在现在」的 HEAD，与不可变 base_head 分离）。
+_ALLOWED_FIELDS["GOAL_AMEND"] |= {
+    "acceptance_vector_hash", "bindings",  # BINDING
+    "old_acceptance_vector_hash", "acceptance",  # REPLACE
+    "definition_event_id", "definition_base_head", "recorded_head",
+}
 
 
 _ACCEPTANCE_ALLOWED = {"check", "falsifiable", "id"}
@@ -213,17 +239,51 @@ def _validate_check_fail(fields: dict) -> None:
             raise ValueError("CHECK_FAIL.evidence_ids 每项必须是非空字符串")
 
 
-def _validate_amend_bindings(fields: dict) -> None:
-    """GOAL_AMEND 无状态结构校验（codex 严格解法）。跨事件校验（hash 匹配历史 GOAL_SET、
-    ordinal 命中 slot、acceptance_id goal 内唯一、幂等）需历史 → 在 append_event 层。
+def _validate_amend(fields: dict) -> None:
+    """GOAL_AMEND 无状态结构校验，按 amendment_kind 分发（跨事件校验在 append_event 层）。
 
-    amendment_kind 仅 ACCEPTANCE_ID_BINDING；bindings 非空 list，每项 {ordinal:int>=0,
-    acceptance_hash:非空 str, acceptance_id:非空 str}。ordinal/acceptance_id amend 内唯一。
+    支持两种 kind：ACCEPTANCE_ID_BINDING（补 id）/ ACCEPTANCE_REPLACE（替换 vector）。
     """
-    if fields["amendment_kind"] != "ACCEPTANCE_ID_BINDING":
+    kind = fields["amendment_kind"]
+    if kind == "ACCEPTANCE_ID_BINDING":
+        _validate_amend_bindings(fields)
+    elif kind == "ACCEPTANCE_REPLACE":
+        _validate_amend_replace(fields)
+    else:
         raise ValueError(
-            f"GOAL_AMEND.amendment_kind 仅支持 ACCEPTANCE_ID_BINDING，收到 {fields['amendment_kind']!r}"
+            f"GOAL_AMEND.amendment_kind 仅支持 ACCEPTANCE_ID_BINDING/ACCEPTANCE_REPLACE，"
+            f"收到 {kind!r}"
         )
+
+
+def _validate_amend_replace(fields: dict) -> None:
+    """ACCEPTANCE_REPLACE（#3）无状态校验：old_acceptance_vector_hash（非空 str，跨事件匹配
+    在 append_event 层）+ acceptance（新 vector，复用 GOAL_SET 的 acceptance 校验：非空、
+    每项 falsifiable、id 唯一）。BINDING 专属字段不应混入（防 kind 串味）。"""
+    if not _nonempty_str(fields.get("old_acceptance_vector_hash")):
+        raise ValueError("GOAL_AMEND[ACCEPTANCE_REPLACE].old_acceptance_vector_hash 必须是非空字符串")
+    if "acceptance" not in fields:
+        raise ValueError("GOAL_AMEND[ACCEPTANCE_REPLACE] 缺少 acceptance（新 vector）")
+    _validate_acceptance(fields["acceptance"])
+    misused = {"bindings", "acceptance_vector_hash"} & set(fields)
+    if misused:
+        raise ValueError(f"GOAL_AMEND[ACCEPTANCE_REPLACE] 不应带 BINDING 专属字段 {sorted(misused)}")
+
+
+def _validate_amend_bindings(fields: dict) -> None:
+    """ACCEPTANCE_ID_BINDING 无状态结构校验（codex 严格解法）。跨事件校验（hash 匹配历史
+    GOAL_SET、ordinal 命中 slot、acceptance_id goal 内唯一、幂等）需历史 → 在 append_event 层。
+
+    bindings 非空 list，每项 {ordinal:int>=0, acceptance_hash:非空 str, acceptance_id:非空
+    str}。ordinal/acceptance_id amend 内唯一。REPLACE 专属字段不应混入（防 kind 串味）。
+    """
+    if "acceptance_vector_hash" not in fields:
+        raise ValueError("GOAL_AMEND[ACCEPTANCE_ID_BINDING] 缺少 acceptance_vector_hash")
+    if "bindings" not in fields:
+        raise ValueError("GOAL_AMEND[ACCEPTANCE_ID_BINDING] 缺少 bindings")
+    misused = {"old_acceptance_vector_hash", "acceptance"} & set(fields)
+    if misused:
+        raise ValueError(f"GOAL_AMEND[ACCEPTANCE_ID_BINDING] 不应带 REPLACE 专属字段 {sorted(misused)}")
     if not _nonempty_str(fields["acceptance_vector_hash"]):
         raise ValueError("GOAL_AMEND.acceptance_vector_hash 必须是非空字符串")
     bindings = fields["bindings"]
@@ -259,7 +319,7 @@ def validate_event(event_type: str, fields: dict) -> dict:
     """
     if event_type not in _REQUIRED_FIELDS:
         raise ValueError(
-            f"未知 event 类型 {event_type!r}（仅接受 SCHEMA.md 定义的 10 种："
+            f"未知 event 类型 {event_type!r}（仅接受 SCHEMA.md 定义的 11 种："
             f"{', '.join(sorted(_REQUIRED_FIELDS))}）"
         )
 
@@ -291,7 +351,7 @@ def validate_event(event_type: str, fields: dict) -> dict:
             raise ValueError(f"{event_type} 缺少必填字段 {field}")
 
     # 类型化子校验
-    if event_type == "GOAL_SET":
+    if event_type in ("GOAL_SET", "GOAL_DRAFT"):
         _validate_acceptance(fields["acceptance"])
     elif event_type == "DECOMPOSE":
         _validate_sub_goals(fields["sub_goals"])
@@ -303,7 +363,7 @@ def validate_event(event_type: str, fields: dict) -> dict:
         if "evidence_id" in fields and not _nonempty_str(fields["evidence_id"]):
             raise ValueError("EVIDENCE.evidence_id 必须是非空字符串")
     elif event_type == "GOAL_AMEND":
-        _validate_amend_bindings(fields)
+        _validate_amend(fields)
 
     # 规范化：event 字段置首，必填字段按 SCHEMA 顺序，可选字段（已通过多余字段检测）按序
     # 附后，ts 置尾。可选字段（acceptance_id/evidence_id/method/command/... 650 提升协议）
@@ -341,6 +401,29 @@ def append_event(event_type: str, *, ev_path: str | None = None, **fields) -> di
 
     event = validate_event(event_type, fields)  # 无状态字段校验在 IO 之前——失败则文件不被触碰
 
+    history = _load_events(ev_path)
+
+    # 幂等（#8/655）：idempotency_key 重试安全。同 key+同 payload（去 ts 比较）→ 返回既有
+    # 事件不重复 append（noop）；同 key+异 payload → raise（key 复用但内容变=调用方逻辑错误）。
+    if "idempotency_key" in event:
+        existing = _find_by_idempotency_key(history, event["idempotency_key"])
+        if existing is not None:
+            if _payload_equal(existing, event):
+                return existing  # noop：重试命中，返回既有事件，文件不被触碰
+            raise ValueError(
+                f"idempotency_key {event['idempotency_key']!r} 已用于不同 payload"
+                "（key 复用但事件内容变更，调用方逻辑错误）"
+            )
+
+    # goal 身份唯一（#8）：同 goal_id 的 GOAL_SET/GOAL_DRAFT 不可重复声明（防重复 active/歧义）。
+    # DRAFT→GOAL_SET 转正是跨类型推进（合法）；同类型重复声明同 goal_id 才拒绝。
+    if event_type in ("GOAL_SET", "GOAL_DRAFT"):
+        if any(e.get("event") == event_type and e.get("goal_id") == event["goal_id"]
+               for e in history):
+            raise ValueError(
+                f"{event_type}.goal_id {event['goal_id']!r} 已存在（同类型不可重复声明，防重复 active/歧义）"
+            )
+
     # 跨事件引用完整性校验（codex CRITICAL：evidence_ids 须真指向已存在 EVIDENCE，否则
     # 「机器溯源」是空壳；evidence_id 须唯一，否则溯源歧义）。需读历史 events——故归
     # append_event 而非无状态 validate_event。读历史用 reader 宽容口径（坏行跳过，不崩）。
@@ -369,6 +452,19 @@ def _load_events(ev_path: str) -> list[dict]:
     return out
 
 
+def _find_by_idempotency_key(events: list[dict], key: str) -> dict | None:
+    """历史中首个带此 idempotency_key 的事件（同 key 至多一个有效——同 payload noop，异 raise）。"""
+    for e in events:
+        if e.get("idempotency_key") == key:
+            return e
+    return None
+
+
+def _payload_equal(a: dict, b: dict) -> bool:
+    """两事件 payload 是否等价（去 ts——重试盖不同时间戳不算 payload 变化）。"""
+    return {k: v for k, v in a.items() if k != "ts"} == {k: v for k, v in b.items() if k != "ts"}
+
+
 def _existing_evidence_ids(ev_path: str) -> set[str]:
     """历史所有 EVIDENCE.evidence_id。"""
     return {e["evidence_id"] for e in _load_events(ev_path)
@@ -389,7 +485,42 @@ def _current_goal_set(events: list[dict], goal_id: str) -> dict | None:
 
 
 def _check_amend_against_history(event: dict, events: list[dict]) -> None:
-    """GOAL_AMEND 跨事件校验（codex 严格解法 reducer 改动点4）。
+    """GOAL_AMEND 跨事件校验，按 kind 分发。"""
+    if event["amendment_kind"] == "ACCEPTANCE_REPLACE":
+        _check_amend_replace_against_history(event, events)
+    else:
+        _check_amend_bindings_against_history(event, events)
+
+
+def _check_amend_replace_against_history(event: dict, events: list[dict]) -> None:
+    """ACCEPTANCE_REPLACE（#3）跨事件校验：目标 GOAL_SET 存在 + old_acceptance_vector_hash
+    匹配目标当前 acceptance（去 id 的 canonical hash）。匹配旧 vector 防对错误版本/并发改写的
+    acceptance 施加替换（乐观锁语义：你看到的旧 vector 必须是历史里的当前 vector）。
+
+    「当前 acceptance」= GOAL_SET 自带 + 此前 REPLACE 应用后的最终 vector（多次 REPLACE 链式，
+    每次锚定上一次的结果），与 reducer 应用顺序（物理序最后写者胜）一致。"""
+    goal_id = event["goal_id"]
+    gs = _current_goal_set(events, goal_id)
+    if gs is None:
+        raise ValueError(f"GOAL_AMEND 目标 goal_id {goal_id!r} 无对应 GOAL_SET")
+    acceptance = gs.get("acceptance")
+    if not isinstance(acceptance, list) or not acceptance:
+        raise ValueError(f"GOAL_AMEND 目标 GOAL_SET {goal_id!r} 无结构化 acceptance（退化事件不可 amend）")
+    # 应用历史中已有的 REPLACE，得到「当前 vector」（与 reducer 同序：物理序最后写者胜）。
+    current = acceptance
+    for prev in events:
+        if prev.get("event") == "GOAL_AMEND" and prev.get("goal_id") == goal_id \
+                and prev.get("amendment_kind") == "ACCEPTANCE_REPLACE":
+            current = prev.get("acceptance", current)
+    if event["old_acceptance_vector_hash"] != acceptance_vector_hash(current):
+        raise ValueError(
+            "GOAL_AMEND[ACCEPTANCE_REPLACE].old_acceptance_vector_hash 与目标当前 acceptance 不符"
+            "（GOAL_SET 已变更或被其他 REPLACE 抢先，拒绝对错误版本施加替换）"
+        )
+
+
+def _check_amend_bindings_against_history(event: dict, events: list[dict]) -> None:
+    """ACCEPTANCE_ID_BINDING 跨事件校验（codex 严格解法 reducer 改动点4）。
 
     - 目标 GOAL_SET 存在且有结构化 acceptance。
     - acceptance_vector_hash 等于目标 GOAL_SET acceptance（去 id）的 canonical hash（防对
@@ -522,11 +653,12 @@ def _slug_goal_id(description: str) -> str:
 
 
 def _cli_goal_set(description: str, ev_path: str | None = None) -> dict:
-    """CLI GOAL_SET：自动生成 goal_id + base_head + falsifiable acceptance 骨架，append 后返回事件。
+    """CLI 裸 /goal（#2 两阶段）：写 GOAL_DRAFT（非 active 占位），不写 GOAL_SET。
 
-    acceptance 骨架结构合法（falsifiable=true + 非空 check + 稳定 id），内容是占位——
-    Lead 在 command 后审查质量并按需 GOAL_AMEND/SUPERSEDE 补全。骨架不是假数据：
-    它声明一个真实可证伪的占位验收项（"待 Lead 补全具体可证伪标准"本身可被"已补全"否证）。
+    skeleton acceptance 是占位（结构合法但内容待补）——若直接进 GOAL_SET 会让 skeleton 进
+    current_goal、reducer 在无真实验收时已视 goal active（codex #2 CRITICAL：伪验收进 active）。
+    两阶段修复：裸 /goal 落 GOAL_DRAFT（reducer 不计入 active 集），Lead 补全真实可证伪
+    acceptance 后写正式 GOAL_SET（同 goal_id 转正）或用 GOAL_AMEND ACCEPTANCE_REPLACE 后转正。
     """
     base_head = subprocess.run(
         ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
@@ -538,7 +670,7 @@ def _cli_goal_set(description: str, ev_path: str | None = None) -> dict:
         "falsifiable": True,
     }]
     return append_event(
-        "GOAL_SET", ev_path=ev_path,
+        "GOAL_DRAFT", ev_path=ev_path,
         goal_id=goal_id, description=description,
         acceptance=acceptance, base_head=base_head,
     )
@@ -548,15 +680,18 @@ def _main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="events.jsonl CLI writer（/goal command 入口）")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    p_set = sub.add_parser("GOAL_SET", help="自动建 GOAL_SET（goal_id+base_head+falsifiable骨架）")
+    # 子命令名 GOAL_SET 是 /goal 入口的历史标识（goal.md 依赖）；#2 后实际写 GOAL_DRAFT
+    # （非 active 占位）。ponytail: 不改子命令名（破坏 goal.md 调用），改文案说清产 DRAFT。
+    p_set = sub.add_parser("GOAL_SET", help="裸 /goal 入口：建 GOAL_DRAFT（非 active 占位，待 Lead 补全转正）")
     p_set.add_argument("--description", required=True, help="目标描述")
     p_set.add_argument("--ev-path", default=None, help="events.jsonl 路径（测试注入用）")
     args = parser.parse_args()
     if args.cmd == "GOAL_SET":
         event = _cli_goal_set(args.description, ev_path=args.ev_path)
+        print(f"event:     {event['event']}（非 active 草稿——补全真实可证伪 acceptance 后转正 GOAL_SET）")
         print(f"goal_id:   {event['goal_id']}")
         print(f"base_head: {event['base_head']}")
-        print("acceptance 骨架（falsifiable，待 Lead 补质量）:")
+        print("acceptance 骨架（占位，falsifiable，待 Lead 补质量后转正）:")
         for a in event["acceptance"]:
             print(f"  - [{a['id']}] {a['check']}")
 

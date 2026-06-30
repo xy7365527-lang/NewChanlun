@@ -277,6 +277,96 @@ def test_contested_prevents_close():
     assert out["current_goal"]["status"] != "closed"
 
 
+def test_goal_draft_not_active(self_ignored=None):
+    # #2 GOAL_DRAFT 两阶段：DRAFT 是非 active 占位（skeleton acceptance 落这里），reducer
+    # 不收集 DRAFT 进 active 集 → 不进 current_goal、不产 ready、不触发 AMBIGUOUS。
+    events = [
+        {"event": "GOAL_DRAFT", "goal_id": "g-draft", "description": "草稿目标",
+         "acceptance": [{"id": "a0-skeleton", "check": "待 Lead 补全", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"] is None  # DRAFT 不进 current_goal
+    assert out["ready_workstations"] == []
+    # 不触发 AMBIGUOUS（DRAFT 根本不在 active 集）
+    assert not [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+
+
+def test_goal_draft_does_not_count_toward_ambiguity():
+    # DRAFT + 一个真 GOAL_SET 共存：只有 GOAL_SET 是 active，DRAFT 被忽略 → 不歧义、正常选中。
+    events = [
+        {"event": "GOAL_DRAFT", "goal_id": "g-draft", "description": "草稿",
+         "acceptance": [{"id": "a0-skeleton", "check": "待补全", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "GOAL_SET", "goal_id": "g-real", "description": "真目标",
+         "acceptance": [{"check": "真验收", "falsifiable": True}], "base_head": "abc123", "ts": "t1"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["goal_id"] == "g-real"
+    assert not [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+
+
+def test_draft_to_goalset_promotion():
+    # 转正路径（最简自洽，ponytail）：DRAFT 补全后写真 GOAL_SET（同或异 goal_id）。
+    # GOAL_SET 进 active，DRAFT 留历史作审计。转正后 current_goal=真 GOAL_SET。
+    events = [
+        {"event": "GOAL_DRAFT", "goal_id": "g1", "description": "目标",
+         "acceptance": [{"id": "a0-skeleton", "check": "待补全", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "目标",
+         "acceptance": [{"id": "acc-real", "check": "lake build 绿", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t1"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["goal_id"] == "g1"
+    assert out["current_goal"]["status"] == "active"
+    assert out["current_goal"]["acceptance"][0]["check"] == "lake build 绿"
+
+
+def test_acceptance_replace_rebuilds_acceptance_vector():
+    # #3 ACCEPTANCE_REPLACE：GOAL_AMEND 替换整个 acceptance vector（DRAFT 转正/验收改写）。
+    # reducer 应用 REPLACE → current_goal.acceptance 变为新 vector（旧 skeleton 被替换）。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"id": "a0-skeleton", "check": "待 Lead 补全", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "GOAL_AMEND", "goal_id": "g1", "amendment_kind": "ACCEPTANCE_REPLACE",
+         "reason": "Lead 补全真实可证伪验收",
+         "old_acceptance_vector_hash": None,  # 占位，测试在 GREEN 后用真 hash 替换
+         "acceptance": [
+             {"id": "acc-1", "check": "cargo test --lib 全绿", "falsifiable": True},
+             {"id": "acc-2", "check": "L3 多标的实证 Sharpe>1", "falsifiable": True},
+         ], "ts": "t1"},
+    ]
+    out = reduce_goal(events, _facts())
+    accs = out["current_goal"]["acceptance"]
+    assert len(accs) == 2
+    assert accs[0]["check"] == "cargo test --lib 全绿"
+    assert accs[1]["id"] == "acc-2"
+    # 旧 skeleton 不再出现
+    assert all(a["check"] != "待 Lead 补全" for a in accs)
+
+
+def test_acceptance_replace_resets_stale_check_pass():
+    # REPLACE 重建 vector → 旧 acceptance 的 CHECK_PASS 失配（验收标准变了，旧通过作废）。
+    # 这是正确语义（codex「重建 acceptance vector」）：改验收 = 重置闭合状态。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"id": "old-acc", "check": "旧验收", "falsifiable": True}],
+         "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "旧验收",
+         "acceptance_id": "old-acc", "method": "auto", "command": "x", "verifier": "ci", "ts": "t1"},
+        {"event": "GOAL_AMEND", "goal_id": "g1", "amendment_kind": "ACCEPTANCE_REPLACE",
+         "reason": "改验收", "old_acceptance_vector_hash": None,
+         "acceptance": [{"id": "new-acc", "check": "新验收", "falsifiable": True}], "ts": "t2"},
+    ]
+    out = reduce_goal(events, _facts())
+    # 新 acceptance 未被旧 CHECK_PASS 闭合
+    assert out["current_goal"]["acceptance"][0]["passed"] is False
+    assert out["current_goal"]["status"] != "closed"
+    assert out["terminated"] is False
+
+
 def test_sub_goal_check_name_collision_does_not_close_goal():
     # sub_goal 的 check 名与 goal acceptance check 名相同，但 CHECK_PASS 只 target sub_goal，
     # 不应误判 goal acceptance 通过（gid-only 匹配，SCHEMA 未定义跨节点 rollup）。
