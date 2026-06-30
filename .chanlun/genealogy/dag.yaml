@@ -3414,6 +3414,12 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md
+- id: '650'
+  title: goal 事件系统 reader/writer 契约分裂——GOAL_RESUME 可读不可写 + acceptance 闭合只认 CHECK_PASS
+    不认 EVIDENCE
+  status: 生成态
+  type: 语法记录候选 + 工具层契约矛盾
+  file: pending/650-goal-event-reader-writer-contract-split-resume-checkpass.md
 edges:
   depends_on:
   - from: '136'
@@ -9633,6 +9639,15 @@ edges:
   - between:
     - '640'
     - '649'
+  - between:
+    - 575（goal events ≠ genealogy 分层防污染）
+    - '650'
+  - between:
+    - 630（写路径未实装开口①）
+    - '650'
+  - between:
+    - 624/teach-0004a（Lead 默认 goal）
+    - '650'
   tensions_with:
   - between:
     - '007'
