@@ -1,0 +1,47 @@
+pattern_id: diagnostic-coordinate-phantom
+status: candidate
+frequency: 2
+promotion_threshold: 3
+first_observed: 2026-06-28   # commit 8dda535709 restore 伪证（已裁）
+last_observed: 2026-06-29    # 644 号 active_depth_ge3=14166 伪证
+source_genealogy:
+  - 644   # active_depth_ge3=14166 坐标系伪证 + 元模式判定（≥2 次）
+related_genealogy:
+  - 633   # 数据层坐标系混用（不同亚型——数据切片局部坐标系 vs 全集坐标系）
+  - 635   # 自清膨胀=运动员当裁判（诊断指标自证准入=运动员当裁判）
+  - 640   # 自评无漏洞最该被异质审查（伪证由 codex+ChatGPT 异质抓出）
+instances:
+  - id: restore_overlay_8dda535709
+    description: "commit 8dda535709：restore overlay 坐标系污染产生第一个伪证（探针 active_depth 从生产 next_active 取值，codex 探针伪证已裁）"
+    coordinate_diagnostic: "restore overlay"
+    coordinate_production: "生产 next_active"
+  - id: active_depth_ge3_14166
+    description: "644 号：工位H carrier-keyed 后 active_depth_ge3 报 14166 而 depth1/2=0（祖先闭合下数学不可能，ChatGPT§7+codex 双向证伪）；active_restored=14137 实锤同一 restore overlay 污染；工位I 修诊断坐标系后 14166→0，四指标全=0"
+    coordinate_diagnostic: "重建树 elem_depth"
+    coordinate_production: "AncOK work parent 链"
+formal_pattern: |
+  当诊断指标 D 满足：
+    (a) D 度量的对象与生产判据（AncOK/A_t/持仓准入）度量同一对象 X
+    (b) D 走诊断路径自建坐标系（重建树 elem_depth / restore overlay）
+    (c) 生产判据走生产路径坐标系（work parent 链 / 同一份 A_t）
+    (d) 两坐标系不一致
+  则 D 是**坐标系伪证**——指标值（如 14166）在生产坐标系下不可达，误导归因（看似修复成功/腿已激活，实则真准入=0）。
+  这是 635 号"运动员当裁判"在诊断维度的复现：诊断指标自证准入 = 运动员（诊断路径）当裁判（生产路径的代理）。
+  消除条件：诊断指标必须走生产同坐标系——同一份 work parent 链 / 同一份 A_t，禁止诊断路径自建重建树/overlay 另算。
+candidate_skill_section:
+  target_skill: 待 promote（frequency 达 3 时由 skill-crystallizer 评估独立新建 vs 并入既有守卫纪律）
+  proposed_section: |
+    ## 诊断坐标系≠生产坐标系伪证检测
+
+    诊断指标若走诊断路径自建坐标系（重建树/overlay），其值在生产坐标系下不可达 → 伪证误导归因。
+
+    ### 检查清单（每次新增/读诊断指标时）
+    1. 该诊断指标度量的对象，是否与生产判据（AncOK/A_t）度量同一对象？
+    2. 若是，诊断路径是否走生产同坐标系（同一 work parent 链 / 同一 A_t）？
+    3. 若诊断路径自建重建树/restore overlay 另算 → 坐标系伪证，指标值无意义。
+    4. 异质验证：诊断指标的"修复成功"声明须走生产坐标系复测（635 运动员当裁判 + 640 异质审查）。
+notes:
+  - "本候选由 genealogist 工位于 2026-06-29 从 644 号元模式判定推送（644 把它判为元模式并'结构性防护建议移交 Lead'，但未走 pattern-buffer 注册——本分片补全该可观测化落地）。"
+  - "frequency=2 < promotion_threshold=3：尚未达 skill 结晶阈值。第三次诊断坐标系伪证复发时，genealogist 职责5 扫描将捕获 frequency>=3 并 spawn skill-crystallizer（051 号 Pull 模型）。"
+  - "633 是数据层坐标系混用（数据切片局部下标 vs 全集下标），与本模式（诊断层 restore overlay/重建树）同根不同亚型——644 明确分层，故不计入本诊断层 frequency，仅作 related。"
+  - "Lead 的结构性防护纪律（诊断指标走生产坐标系）= 本 candidate 的人工版本；本分片把它转为 buffer 计数器，使第三次复发自动触发结晶而非依赖人工记忆。"
