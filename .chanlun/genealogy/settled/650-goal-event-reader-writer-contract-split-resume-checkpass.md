@@ -8,7 +8,7 @@ layer: 运维/工具层（D′ goal 事件系统，非缠论领域概念）
 session: 68088c95
 discovered_by: Lead（/goal 协议 commit→rescan→base_head 同步失败）
 created: 2026-06-30
-related: ['630'（写路径未实装开口①——本号是其演化态）, 651（reader/writer 分裂盲区 meta 观测，降级 spec-execution-gap 实例）, 652（局部矛盾误判全局阻塞 meta 观测，降级并入 275）]
+related: ['630', '651', '652']   # 630=写路径未实装开口①(本号是其演化态); 651=reader/writer 分裂盲区 meta 观测(降级 spec-execution-gap 实例); 652=局部矛盾误判全局阻塞 meta 观测(降级并入 275)
 responsible_agents: [编排者]
 rule_version_baseline:
   claude_md_commit: "4f040f0c31bb38a58b1adbbde5708096038eea65"

@@ -8,7 +8,7 @@ layer: 元编排/方法论层
 session: 68088c95
 discovered_by: meta-observer（第二轮）
 created: 2026-06-30
-related: [651, 652, 036（spec-execution-gap 结晶谱系）, 275（局部依赖原则）, "no-unnecessary-escalation", 161, 231, 650]
+related: [651, 652, 036, 275, "no-unnecessary-escalation", 161, 231, 650]   # 036=spec-execution-gap 结晶谱系; 275=局部依赖原则
 decided_by: 编排者 /ritual 授权 + genealogist R4 谱系责任方独立论证（同意 claude-challenger 降级判定）
 
 # ============================================================

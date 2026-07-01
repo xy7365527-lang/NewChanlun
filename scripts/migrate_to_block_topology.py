@@ -34,6 +34,7 @@ from scripts.block_topology import (
     make_block,
     make_concept_id,
     make_relation,
+    read_meta,
     write_block,
     write_meta,
 )
@@ -135,6 +136,7 @@ def migrate_settled_files(
     settled_dir: Path,
     base: Path = DEFAULT_BASE,
     with_content_analysis: bool = False,
+    only_ids: set[str] | None = None,
 ) -> tuple[dict[str, str], list[dict]]:
     """Migrate settled/*.md → event blocks.
 
@@ -143,21 +145,48 @@ def migrate_settled_files(
         base: Block topology base directory
         with_content_analysis: If True, include content_analysis in block
             content for new files. Existing blocks are unchanged (idempotent).
+        only_ids: If given, only migrate files whose genealogy id is in this
+            set (incremental migration). None = migrate all (full migration).
 
     Returns:
         id_mapping: {old_genealogy_id: block_id}
         blocks: list of block dicts
+
+    Files whose frontmatter can't be parsed (malformed YAML, e.g. a schema
+    violation like a `related:` list with inline prose) are skipped rather
+    than crashing the whole migration, so one broken file doesn't block the
+    rest. The gap stays observable: any target id absent from the returned
+    id_mapping was skipped and can be fixed + re-migrated. This guards both
+    full and incremental callers (system-boundary error handling).
     """
     id_mapping: dict[str, str] = {}
     blocks: list[dict] = []
 
     for md_file in sorted(settled_dir.glob("*.md")):
         text = md_file.read_text(encoding="utf-8")
-        fm = parse_frontmatter(text)
+        try:
+            fm = parse_frontmatter(text)
+        except yaml.YAMLError:
+            continue  # malformed frontmatter — skip; caller diffs id_mapping
         if not fm.get("id"):
             continue
 
         old_id = str(fm["id"])
+
+        # Incremental mode keys on the FILENAME id (what ceremony_scan looks
+        # up), not the frontmatter id. These are identical for normal files;
+        # they diverge only for merged-node records whose frontmatter id is a
+        # range (e.g. filename 651-*.md but `id: "651-652"`). Keying on the
+        # filename id keeps migrator ↔ scanner aligned so the scan clears.
+        # Full mode (only_ids is None) keeps the frontmatter-id convention
+        # used by every existing entry — untouched.
+        if only_ids is not None:
+            fname_m = re.match(r"^(\d+[a-z]?)-", md_file.name)
+            map_key = fname_m.group(1) if fname_m else old_id
+            if map_key not in only_ids:
+                continue
+        else:
+            map_key = old_id
 
         # Build content from frontmatter fields
         content = {}
@@ -193,7 +222,7 @@ def migrate_settled_files(
         )
 
         write_block(block, base)
-        id_mapping[old_id] = block["id"]
+        id_mapping[map_key] = block["id"]
         blocks.append(block)
 
     return id_mapping, blocks
@@ -343,9 +372,251 @@ def run_migration(
     return meta
 
 
+def _compute_unmapped_ids(
+    settled_dir: Path, id_mapping: dict[str, str]
+) -> list[str]:
+    """Return settled genealogy ids (filename ids) absent from id_mapping.
+
+    Uses the same filename-id extraction as ceremony_scan.get_topo_context
+    so the incremental entry targets exactly what the scanner reports.
+    """
+    mapped = set(id_mapping.keys())
+    settled_ids: set[str] = set()
+    for md_file in settled_dir.glob("*.md"):
+        m = re.match(r"^(\d+[a-z]?)-", md_file.name)
+        if m:
+            settled_ids.add(m.group(1))
+    return sorted(
+        settled_ids - mapped,
+        key=lambda x: (int(re.match(r"\d+", x).group()), x),
+    )
+
+
+def run_incremental_migration(
+    project_root: Path | None = None,
+    base: Path | None = None,
+    ids: list[str] | None = None,
+) -> dict:
+    """Incrementally migrate newly-settled genealogy into block-topology.
+
+    Non-destructive counterpart to run_migration: creates event blocks only
+    for genealogy ids missing from the existing id_mapping, APPENDS them to
+    meta.json (preserving content_enrichment / genesis_block_id / every other
+    field), migrates those ids' dag edges (deduped against existing
+    relations), and advances last_mapped_genealogy.
+
+    626号: block-topology 的增量补齐入口。run_migration 是破坏性全量重建，
+    不能用于新增谱系；本入口只追加、不替换、不丢弃 content_enrichment。
+
+    Args:
+        project_root: Project root directory.
+        base: Block topology base directory.
+        ids: Explicit genealogy ids to migrate. None = auto-detect all
+            settled ids missing from id_mapping.
+
+    Returns:
+        Summary dict with migrated ids, blocks/relations written, new
+        last_mapped_genealogy.
+    """
+    if project_root is None:
+        project_root = PROJECT_ROOT
+    if base is None:
+        base = project_root / ".chanlun" / "block-topology"
+
+    settled_dir = project_root / ".chanlun" / "genealogy" / "settled"
+    dag_path = project_root / ".chanlun" / "genealogy" / "dag.yaml"
+
+    meta = read_meta(base)
+    if meta is None:
+        return {"error": "meta.json not found — run full migration first"}
+    id_mapping = meta.get("id_mapping", {})
+    genesis_id = meta.get("genesis_block_id")
+    if not genesis_id:
+        return {"error": "genesis_block_id missing in meta.json"}
+
+    targets = ids if ids is not None else _compute_unmapped_ids(
+        settled_dir, id_mapping)
+    if not targets:
+        return {"migrated": [], "blocks_created": 0, "relations_written": 0,
+                "last_mapped_genealogy": meta.get("last_mapped_genealogy"),
+                "note": "nothing to migrate (id_mapping already current)"}
+
+    # Step 1: create event blocks for the target ids, append to id_mapping.
+    new_mapping, blocks = migrate_settled_files(
+        settled_dir, base, only_ids=set(targets))
+    id_mapping.update(new_mapping)  # append, never replace
+
+    # Step 2: migrate dag edges for the (now-mapped) targets, deduped so the
+    # entry is idempotent across reruns. Edge migration writes relations.jsonl,
+    # so it data-depends on 549 (relations.jsonl is a git-lfs pointer, not
+    # checked out locally). If the pointer is unresolved, appending would
+    # corrupt it — skip edges and report blocked (275 局部依赖: id_mapping 层
+    # 不依赖 relations.jsonl, 照常补齐; edge 层 blocked on 549, 待 LFS 恢复后
+    # 重跑 --incremental 幂等补齐).
+    edges_blocked_on_549 = _relations_is_lfs_pointer(base)
+    if edges_blocked_on_549:
+        relations_written = 0
+    else:
+        relations_written = _migrate_edges_deduped(
+            dag_path, id_mapping, genesis_id, base,
+            restrict_to=set(new_mapping.values()))
+
+    # Step 3: advance last_mapped_genealogy (numeric ids only, matching the
+    # existing integer convention; lettered ids like 566a don't move it).
+    numeric_new = [int(m.group()) for k in new_mapping
+                   if (m := re.match(r"\d+$", k))]
+    prev_last = meta.get("last_mapped_genealogy", 0) or 0
+    meta["last_mapped_genealogy"] = max([prev_last] + numeric_new)
+
+    # Step 4: persist (content_enrichment and all other fields preserved).
+    meta["id_mapping"] = id_mapping
+    meta["block_count"] = meta.get("block_count", 0) + len(blocks)
+    meta["relation_count"] = meta.get("relation_count", 0) + relations_written
+    write_meta(meta, base)
+
+    still_unmapped = sorted(
+        set(targets) - set(new_mapping),
+        key=lambda x: (int(re.match(r"\d+", x).group()), x))
+
+    result = {
+        "migrated": sorted(new_mapping.keys(),
+                           key=lambda x: (int(re.match(r"\d+", x).group()), x)),
+        "blocks_created": len(blocks),
+        "relations_written": relations_written,
+        "last_mapped_genealogy": meta["last_mapped_genealogy"],
+    }
+    if still_unmapped:
+        result["skipped_unparseable_frontmatter"] = still_unmapped
+    if edges_blocked_on_549:
+        result["edges_blocked_on_549"] = (
+            "relations.jsonl is an unresolved git-lfs pointer; edge migration "
+            "skipped to avoid corrupting it. Rerun --incremental after LFS "
+            "checkout to append edges idempotently.")
+    return result
+
+
+def _relations_is_lfs_pointer(base: Path) -> bool:
+    """True if relations.jsonl is an unresolved git-lfs pointer (549号).
+
+    A checked-out relations.jsonl is JSONL (each line a JSON object). An
+    unresolved LFS pointer starts with the spec version line. Appending to a
+    pointer would corrupt it, so edge migration must skip when this is True.
+    """
+    path = base / "relations.jsonl"
+    if not path.exists():
+        return False
+    with open(path, "r", encoding="utf-8") as f:
+        first = f.readline().strip()
+    return first.startswith("version https://git-lfs.github.com/spec/")
+
+
+def _migrate_edges_deduped(
+    dag_path: Path,
+    id_mapping: dict[str, str],
+    genesis_id: str,
+    base: Path,
+    restrict_to: set[str],
+) -> int:
+    """Like migrate_edges but (a) only writes edges touching a target id and
+    (b) skips relations already present in relations.jsonl.
+
+    restrict_to: set of NEW block ids — an edge is written only if either
+    endpoint is one of these (avoids re-touching fully-migrated 001-565 edges).
+    """
+    from scripts.block_topology import read_all_relations
+
+    existing_keys: set[tuple] = set()
+    try:
+        for r in read_all_relations(base):
+            if r.get("from") and r.get("to") and r.get("relation"):
+                existing_keys.add(
+                    (r["from"], r["to"], r["relation"], r.get("order", 0)))
+    except FileNotFoundError:
+        pass
+
+    with open(dag_path, "r", encoding="utf-8") as f:
+        dag = yaml.safe_load(f)
+    edges = dag.get("edges", {})
+    count = 0
+
+    def emit(from_id: str, to_id: str, relation: str, **extra) -> None:
+        nonlocal count
+        if from_id not in restrict_to and to_id not in restrict_to:
+            return
+        key = (from_id, to_id, relation, 1)
+        if key in existing_keys:
+            return
+        existing_keys.add(key)
+        append_relation(
+            make_relation(from_id, to_id, relation, order=1,
+                          created_by=genesis_id, **extra), base)
+        count += 1
+
+    for edge in edges.get("depends_on", []) or []:
+        f_id, t_id = id_mapping.get(str(edge["from"])), id_mapping.get(str(edge["to"]))
+        if f_id and t_id:
+            emit(f_id, t_id, "depends_on")
+
+    for edge in edges.get("negates", []) or []:
+        f_id, t_id = id_mapping.get(str(edge["from"])), id_mapping.get(str(edge["to"]))
+        if f_id and t_id:
+            extra = {"scope": str(edge["scope"])} if "scope" in edge else {}
+            emit(f_id, t_id, "negates", **extra)
+
+    for edge in edges.get("related", []) or []:
+        pair = edge.get("between", [])
+        if len(pair) == 2:
+            a_id, b_id = id_mapping.get(str(pair[0])), id_mapping.get(str(pair[1]))
+            if a_id and b_id:
+                emit(a_id, b_id, "related")
+
+    for edge in edges.get("tensions_with", []) or []:
+        pair = edge.get("between", [])
+        if len(pair) == 2:
+            a_id, b_id = id_mapping.get(str(pair[0])), id_mapping.get(str(pair[1]))
+            if a_id and b_id:
+                extra = {}
+                if "valid_until" in edge:
+                    extra["valid_until"] = str(edge["valid_until"])
+                if "settled_by" in edge:
+                    extra["settled_by"] = str(edge["settled_by"])
+                emit(a_id, b_id, "tensions_with", **extra)
+
+    for edge in edges.get("negated_by", []) or []:
+        t_id, b_id = id_mapping.get(str(edge["target"])), id_mapping.get(str(edge["by"]))
+        if t_id and b_id:
+            extra = {"scope": str(edge["scope"])} if "scope" in edge else {}
+            emit(t_id, b_id, "negated_by", **extra)
+
+    return count
+
+
 if __name__ == "__main__":
-    meta = run_migration()
-    print(f"\nMigration complete.")
-    print(f"  Blocks: {meta['block_count']}")
-    print(f"  Relations: {meta['relation_count']}")
-    print(f"  Genesis: {meta['genesis_block_id'][:16]}...")
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Migrate genealogy → block topology")
+    parser.add_argument(
+        "--incremental", action="store_true",
+        help="Incremental append (626号): migrate only settled ids missing "
+             "from id_mapping; preserves content_enrichment. Default is "
+             "destructive full rebuild.")
+    parser.add_argument(
+        "--ids", nargs="*", default=None,
+        help="Explicit genealogy ids for --incremental (default: auto-detect)")
+    args = parser.parse_args()
+
+    if args.incremental:
+        summary = run_incremental_migration(ids=args.ids)
+        print("Incremental migration complete.")
+        for k, v in summary.items():
+            if k == "migrated":
+                print(f"  migrated ({len(v)}): {v}")
+            else:
+                print(f"  {k}: {v}")
+    else:
+        meta = run_migration()
+        print(f"\nMigration complete.")
+        print(f"  Blocks: {meta['block_count']}")
+        print(f"  Relations: {meta['relation_count']}")
+        print(f"  Genesis: {meta['genesis_block_id'][:16]}...")

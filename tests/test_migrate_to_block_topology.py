@@ -359,3 +359,90 @@ def test_run_migration_full(mock_project):
     assert "related" in rel_types
     assert "tensions_with" in rel_types
     assert "negated_by" in rel_types
+
+
+# ---------------------------------------------------------------------------
+# run_incremental_migration (626号)
+# ---------------------------------------------------------------------------
+
+
+def _add_settled(settled_dir: Path, filename: str, fm: dict) -> None:
+    content = "---\n" + yaml.dump(fm, allow_unicode=True) + "---\n\n# body\n"
+    (settled_dir / filename).write_text(content, encoding="utf-8")
+
+
+def test_incremental_appends_without_destroying(mock_project, mock_base):
+    """626号: incremental entry appends new ids, preserving existing meta
+    fields (content_enrichment) and every prior id_mapping key."""
+    from scripts.block_topology import read_meta, write_meta
+    from scripts.migrate_to_block_topology import run_incremental_migration, run_migration
+
+    # Seed via full migration, then simulate real meta state: enrichment +
+    # last_mapped_genealogy (which full migration does not itself write).
+    run_migration(mock_project, mock_base)
+    meta = read_meta(mock_base)
+    meta["content_enrichment"] = {"blocks_created": 7, "concepts_defined": 42}
+    meta["last_mapped_genealogy"] = 3
+    write_meta(meta, mock_base)
+    prev_keys = set(meta["id_mapping"])
+    prev_relcount = meta["relation_count"]
+
+    # New settled genealogy appears (004), plus a merged-node record whose
+    # frontmatter id is a range but filename id is 005.
+    settled = mock_project / ".chanlun" / "genealogy" / "settled"
+    _add_settled(settled, "004-new.md", {
+        "id": "004", "title": "four", "status": "已结算",
+        "type": "矛盾记录", "date": "2026-02-01", "depends_on": ["003"],
+    })
+    _add_settled(settled, "005-006-merged.md", {
+        "id": "005-006", "title": "merged", "status": "已结算",
+        "type": "回溯结算", "date": "2026-02-02", "related": ["004"],
+    })
+    # Add a dag edge for 004 so edge migration has something to do.
+    dag_path = mock_project / ".chanlun" / "genealogy" / "dag.yaml"
+    dag = yaml.safe_load(dag_path.read_text(encoding="utf-8"))
+    dag["edges"].setdefault("depends_on", []).append({"from": "004", "to": "003"})
+    dag_path.write_text(yaml.dump(dag, allow_unicode=True), encoding="utf-8")
+
+    result = run_incremental_migration(mock_project, mock_base)
+
+    assert set(result["migrated"]) == {"004", "005"}  # keyed by FILENAME id
+    after = read_meta(mock_base)
+    # append, not replace: every old key survives
+    assert prev_keys <= set(after["id_mapping"])
+    # content_enrichment preserved verbatim
+    assert after["content_enrichment"] == {"blocks_created": 7, "concepts_defined": 42}
+    # merged node keyed under filename id 005, block content keeps range id
+    assert "005" in after["id_mapping"]
+    blk = read_block(after["id_mapping"]["005"], mock_base)
+    assert blk["content"]["id"] == "005-006"
+    # last_mapped advanced (005 is not pure-numeric, so 004 drives it)
+    assert after["last_mapped_genealogy"] == 5
+    # edge for 004 migrated (mock base has no LFS pointer)
+    assert result["relations_written"] >= 1
+    assert after["relation_count"] == prev_relcount + result["relations_written"]
+
+
+def test_incremental_idempotent_and_skips_malformed(mock_project, mock_base):
+    """Rerun migrates nothing; a file with malformed frontmatter is skipped
+    (not crashing) and reported via the still-unmapped diff."""
+    from scripts.block_topology import read_meta, write_meta
+    from scripts.migrate_to_block_topology import run_incremental_migration, run_migration
+
+    run_migration(mock_project, mock_base)
+    settled = mock_project / ".chanlun" / "genealogy" / "settled"
+
+    # Malformed frontmatter: a flow sequence with inline prose (illegal YAML) —
+    # the exact 650/651 failure mode. Written raw to bypass yaml.dump.
+    (settled / "004-bad.md").write_text(
+        "---\nid: \"004\"\nrelated: ['003'(prose here), '002']\n---\n\n# body\n",
+        encoding="utf-8",
+    )
+
+    result = run_incremental_migration(mock_project, mock_base)
+    assert result["skipped_unparseable_frontmatter"] == ["004"]
+    assert "004" not in read_meta(mock_base)["id_mapping"]
+
+    # Idempotent: nothing new to migrate on rerun (004 still unparseable).
+    result2 = run_incremental_migration(mock_project, mock_base)
+    assert result2["blocks_created"] == 0
