@@ -301,3 +301,32 @@ decisions:
           执行时自检（生产同坐标系验证），非拓扑职责。
       (F) [边界声明] 基于文件系统可观测信号（filter-spec 落盘产出 + roadmap + 引擎 grep），
           无各成员实时心跳；roster 活性以 Lead 实时心跳为准。topology-manager 不执行变更，仅建议。
+
+  - id: TOPO-20260701-014
+    timestamp: "2026-07-01T14:24:50+00:00"
+    type: 扩张/收缩评估（μ̂奇偶=beta漂移主线：σ_higher门控+OOS重验拓扑复审）
+    trigger_signal: Lead 委派（compact 热启动）——3业务工位并行(σ_higher dump ⊥ Y_i残差 ⊥ 级别分布)拓扑健康度
+    workstations: [σ_higher-dump(#108), Yi-residual(#109), acc-multilevel-sample(#110)]
+    reasoning: >
+      (1) [工位数] TaskList 3个 pending(#108/#109/#110)。
+      (2) [依赖结构 275局部依赖] 源码实测：#109 读 btc_663_ledger_full.csv(14列)不读 #108 的
+          sigma.csv(15列)；#110 读 full.csv 的 level 列(不重跑引擎)。三工位读同一 full.csv 不同
+          列/不同处理，无相互数据依赖 → 三路真并行。#108 是 Step4 合流输入，但 #109 的置换检验
+          (Y_i 扣beta后 perm_p 是否翻0.69案)自身完整可判决，不等 #108。
+      (3) [扩张否] σ_higher(结构导出)⊗Y_i(统计检验)⊗级别分布(计数)三领域已正交且各单工位承载；
+          μ̂奇偶主线概念张力已收敛到单一L2判决点(残差是否携超漂移α)，非多口径竞争，无二次分离信号。
+      (4) [收缩否] 三工位均在活跃产出路径，无职责空置/收敛。
+      (5) [异质审查约束] codex配额429耗尽——但codex CLI迁移(commit 5de5a5d03b)已解429(走订阅认证配额独立)。
+          Step4合流异质审查可用 codex-challenger(CLI已通)或 gemini-challenger。
+    verdict: >
+      (A) [观测] 三工位无相互依赖，三路并行=正确形状。禁止把 #109/#110 判为"等 #108"(275局部依赖，
+          可推进误判为不可推进=161镜像)。
+      (B) [扩张否] 不新建工位——三领域正交已被三工位承载，无概念分离/上下文膨胀/串行瓶颈信号。
+      (C) [收缩否] 三工位活跃，结构工位常设不撤。
+      (D) [定理] Step4 σ_higher 残差 α 是 L2 实证(perm_p翻案携概念信息差)，须配异质审查节点
+          (#41 exemption 已结算)。约束：codex CLI已解429(5de5a5d03b)，优先用 codex-challenger 异质审查；
+          降级同质须标注"非异质"不得写 negation_source: heterogeneous(违090声明膨胀)。
+      (E) [边界翻转] 若后续证实 #109/#110 动态消费 #108 输出(运行时路径)，则并行评估失效退回串行。
+          当前实测三者读 full.csv 无 sigma 依赖。
+      (F) [边界声明] 基于 TaskList + 任务描述 + 内存主线，无各成员实时心跳；roster 活性以 Lead 实时心跳为准。
+          topology-manager 无写工具，本记录 Lead 代落(行动类)。
