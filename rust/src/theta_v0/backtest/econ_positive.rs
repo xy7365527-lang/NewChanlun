@@ -69,6 +69,14 @@ pub struct SignalDecomp {
     pub captured: f64,
     /// actual_pnl = actual_spread − Ce/qe = δ(Pτout − Pτin) − Ce：**真实成交 PnL 代理**（664-Q3，含全部滑移）。
     pub actual_pnl: f64,
+    /// σ_higher：入场确认时**上级方向态**（tower_i[lvl+1] 末走势端点价符号派生，666 号 σ_higher 实验）。
+    /// +1=上级走势净涨（Trend Up 等价）/ −1=净跌 / 0=持平或无上级层。
+    /// **可达性约束（不是补丁）**：上级层走势是 `RMove::Compose`（descend.rs:53），**无 direction 字段**，
+    /// 且 `LevelState.moves: Vec<MoveKind>` 的 `MoveKind::Trend` 也丢方向（不分 Up/Down）。走势裁决
+    /// `MoveOutcome::Trend(Direction)`（level.rs:37）内部有方向，但在信号收集作用域不可直接读。故取上级
+    /// LeveledMove 的 `start_index/end_index`（L0 原始 K 序端点，覆盖该走势全跨度）close 净差符号——
+    /// 与 Trend(Up)⟺端点净涨语义等价，是该作用域的严格可达解。用于分离「δ 顺上级 vs 逆上级」alpha 归因。
+    pub sigma_higher: i8,
 }
 
 /// 聚合诊断「钱去哪了」（确定性分解，Σ 精确等于 Σ trade gross，非概率推断）。
@@ -155,8 +163,9 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     // 反转交易腿 λ_rev = 入场信号 pivot 端点；ρ_rev 在退出配对时取配对出场信号的 pivot 端点。
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
     let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
-    // 每条信号：(entry_bar=确认 bar τin, dir=交易方向 δ, pivot_bar=信号挂靠 pivot 端点 source_index, lvl=级别)。
-    let mut signals: Vec<(usize, VoiceSide, usize, u32)> = Vec::new();
+    // 每条信号：(entry_bar=确认 bar τin, dir=交易方向 δ, pivot_bar=信号挂靠 pivot 端点 source_index,
+    // lvl=级别, sigma_higher=入场时上级方向态 666 号)。sigma_higher 在收集时算（此时有 lvl+tower_i）。
+    let mut signals: Vec<(usize, VoiceSide, usize, u32, i8)> = Vec::new();
 
     for i in 0..n {
         let bar = &bars[i];
@@ -188,11 +197,12 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                         })
                         .collect(),
                 };
+                let sigma_higher = sigma_higher_at(&tower_i, bars, lvl); // 666 号：入场时上级方向态
                 for c in &assemble_gamma_with_tower(&single, &tower_i) {
                     if c.dir == VoiceSide::Flat {
                         continue;
                     }
-                    signals.push((i, c.dir, pivot_bar, lvl as u32));
+                    signals.push((i, c.dir, pivot_bar, lvl as u32, sigma_higher));
                 }
             }
         }
@@ -218,7 +228,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         next_short[i] = if signals[i].1 == VoiceSide::Short { i } else { next_short[i + 1] };
     }
 
-    for (idx, &(entry_bar, dir, lambda_rev_bar, level)) in signals.iter().enumerate() {
+    for (idx, &(entry_bar, dir, lambda_rev_bar, level, sigma_higher)) in signals.iter().enumerate() {
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
             VoiceSide::Short => -1,
@@ -271,7 +281,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
 
         decomps.push(SignalDecomp {
             entry_bar, exit_bar, level, delta, a_b, x_in, y_out,
-            eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl,
+            eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl, sigma_higher,
         });
         agg.n_signals += 1;
         agg.sum_a_b += a_b;
@@ -299,6 +309,24 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
 /// bar close → 价格（close×tick），越界/非正返 0。
 fn px_at(bars: &[Bar], i: usize, tick: f64) -> f64 {
     bars.get(i).map(|b| b.close as f64 * tick).filter(|&p| p > 0.0).unwrap_or(0.0)
+}
+
+/// σ_higher：信号所在 level 的上级层（tower[level+1]）末走势端点价净差符号（666 号，见 SignalDecomp.sigma_higher）。
+/// +1 净涨 / −1 净跌 / 0 持平；level+1 越界或上级层空 → 0。端点越界/非正 close → 0（诚实，不兜底）。
+fn sigma_higher_at(
+    tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
+    bars: &[Bar],
+    level: usize,
+) -> i8 {
+    let Some(upper) = tower.get(level + 1) else { return 0 };
+    let Some(m) = upper.last() else { return 0 };
+    let (s, e) = (bars.get(m.start_index), bars.get(m.end_index));
+    match (s, e) {
+        (Some(sb), Some(eb)) if sb.close > 0 && eb.close > 0 => {
+            (eb.close - sb.close).signum() as i8
+        }
+        _ => 0,
+    }
 }
 
 #[cfg(test)]
@@ -606,7 +634,39 @@ mod tests {
             }
         }
 
+        // ── 666 号 σ_higher 分布 + 逐信号台账 CSV dump。 ──
+        // σ_higher 顺/逆/无：δ 与上级方向态一致(δ==σ_higher)/相反/上级无方向(σ_higher==0)。
+        let (mut n_align, mut n_against, mut n_none) = (0usize, 0usize, 0usize);
+        for d in &decomps {
+            match d.sigma_higher {
+                0 => n_none += 1,
+                s if s == d.delta => n_align += 1,
+                _ => n_against += 1,
+            }
+        }
+        let _ = writeln!(rpt, "## 666 号 σ_higher 分布（上级方向态 vs δ）");
+        let nsig = decomps.len().max(1);
+        let _ = writeln!(rpt, "- 顺上级（δ==σ_higher）：{n_align}/{} ({:.1}%)", decomps.len(), 100.0 * n_align as f64 / nsig as f64);
+        let _ = writeln!(rpt, "- 逆上级（δ==−σ_higher）：{n_against}/{} ({:.1}%)", decomps.len(), 100.0 * n_against as f64 / nsig as f64);
+        let _ = writeln!(rpt, "- 无上级（σ_higher==0）：{n_none}/{} ({:.1}%)", decomps.len(), 100.0 * n_none as f64 / nsig as f64);
+        let _ = writeln!(rpt);
+
         eprint!("{rpt}");
+
+        // 逐信号台账 CSV（666 号：alpha 分离下游依赖，15 列含 sigma_higher）。输出到 /tmp。
+        let csv_path = std::env::var("ECON_LEDGER_CSV")
+            .unwrap_or_else(|_| "/tmp/btc_663_ledger_sigma.csv".to_string());
+        let mut csv = String::from(
+            "idx,entry_bar,exit_bar,level,delta,a_b,x_in,y_out,eta_in,eta_out,actual_spread,ce_unit,captured,actual_pnl,sigma_higher\n",
+        );
+        for (i, d) in decomps.iter().enumerate() {
+            let _ = writeln!(csv, "{},{},{},{},{},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{}",
+                i, d.entry_bar, d.exit_bar, d.level, d.delta,
+                d.a_b, d.x_in, d.y_out, d.eta_in, d.eta_out, d.actual_spread,
+                d.ce_unit, d.captured, d.actual_pnl, d.sigma_higher);
+        }
+        std::fs::write(&csv_path, &csv).unwrap_or_else(|e| panic!("写台账 CSV {csv_path} 失败：{e}"));
+        eprintln!("逐信号台账 CSV 已落盘：{csv_path}（{} 行 + 表头）", decomps.len());
 
         // 落盘 signed 报告（664-Q3，不覆盖 econ-abrev-l2-btc-20260630.md 旧 adverse-only-only 报告）。
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -1124,6 +1184,7 @@ mod tests {
         let synth = |level: u32, delta: i8, pnl: f64| SignalDecomp {
             entry_bar: 0, exit_bar: 1, level, delta, a_b: 0.0, x_in: 0.0, y_out: 0.0,
             eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0, actual_pnl: pnl,
+            sigma_higher: 0,
         };
         let ds = vec![synth(0, -1, 3.0), synth(0, -1, 2.0), synth(1, 1, -2.0)];
         assert_eq!(train_winner_class(&ds), Some((0, -1)), "train 应选 Σpnl 最大正类 (0,-1)");
