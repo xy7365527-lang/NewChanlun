@@ -1842,10 +1842,12 @@ mod tests {
     /// - **profit 缺位（L0 同价）**：同价短差 TW-中性，`cum_net_cash` 零增长——退本金的真实资金来源
     ///   （已实现利润）在 L0 同价层不产生。
     ///
-    /// **结论（照实）**：κ=0 L0 同价闭环 stage 恒 CostReduction——EarningShares **结构可达**（机制正确，
-    /// 见 `stage_progression_reaches_earning_shares_with_funded_recovery`）但**此层级/此数据未触达**
-    /// （需 L2 价格升值 → 卖高 → 已实现利润 → free 超 notional → 才有 sound 退本金源）。这是有效域边界
-    /// （formalization-validity-domain），非 bug，非 placeholder。
+    /// **结论（照实）**：κ=0 L0 同价 funded campaign 闭环 stage 恒 CostReduction——**EarningShares 在
+    /// 此 sound closed-loop 路径上结构不可达**（TW 守恒下退本金前提与 cash-tight 互斥，证见
+    /// `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）。机制本身仅在**有外部
+    /// sound 利润/TW 注入前提**时可推进（需 L2 价格升值 → 卖高 → 已实现利润 → free 超 notional → 才有
+    /// sound 退本金源）——那属 L2 有效域（formalization-validity-domain）。当前 L0 路径不可达 = 照实结论，
+    /// 非 bug，非 placeholder。
     #[test]
     fn closed_loop_earning_shares_not_reached_l0_honest_gap3() {
         use super::super::super::strategy::ledger::TStage;
@@ -1875,8 +1877,13 @@ mod tests {
     }
 
     /// ★★GAP3 结构不可达定理（codex 复审#2 修正：删除硬凑的「已获利」见证态）：从 funded_campaign
-    /// 出发，**任何 TW 事件序列都无法 sound 地到达 CapitalRecovered**——EarningShares 在 TW 模型下
-    /// 从 campaign 起点结构上不可达（不只 L0 同价流不触达，是模型事件代数层面不可达）。
+    /// 出发，**在 sound closed-loop 路径上无法到达 CapitalRecovered**——EarningShares 结构不可达。
+    ///
+    /// ★口径收窄（codex 二轮）：这是 **sound 路径**（cash-tight w≤free 退本金）的不可达，**不是**
+    /// 「任何 raw 事件序列」不可达——raw `RecoverCapital(1)` 从 `free=Q, holding=0` 可推 CapitalRecovered
+    /// 但 **unsound**（会破坏现金-sound，被 transition_adapter 出口断言拒；见 transition.rs 现金-sound
+    /// gate）。故不可达域 = 引擎生产的 sound 转移路径（stage_progression 派生 + transition_adapter 出口
+    /// 断言钉死 free≥0），非模型全 raw 事件代数。
     ///
     /// **根因（codex 复审#2 逼出的更强结论）**：三个约束联合不可满足——
     /// - **TW 守恒**：funded_campaign 起 TW=Q（free=Q, holding=0）；所有 TW 事件保 `tw()=free+holding+

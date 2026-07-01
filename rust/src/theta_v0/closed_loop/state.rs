@@ -208,7 +208,11 @@ impl AssemblyState {
     ///
     /// 与 [`initial`](Self::initial) 的区别：`initial` 是零 TW 空 campaign（`tw()==0`，三阶段机 inert）；
     /// 本构造子开一个 `notional` 单位的 campaign（`free=notional, notional_in=notional`）——使
-    /// [`super::transition::stage_progression`] 能真推进（降成本建仓过基线→退本金→barrier 过关→增股数）。
+    /// ledger/仓位在真实建仓（现金充足）时真线程化（非 inert 空转）。
+    ///
+    /// ★诚实（codex 复审）：注资**不**使 L0 同价闭环达 EarningShares——TW 守恒（=notional）下退本金前提
+    /// `holding≥notional` 与 cash-tight `free>0` 互斥（见 `earning_shares_structurally_unreachable_from_
+    /// campaign_tw_conserved`）；EarningShares 真达需 L2 价格升值让已实现利润进 TW（超本 L0 模型事件集）。
     ///
     /// `i0`=本金基线（进 ledger.i0，EnterReady 的 W≥I0 门）；`notional`=本 campaign 名义敞口 Q（退本金
     /// 目标；建仓 `holding` 累积到 ≥notional 触发退本金）。TW 守恒：`tw()=notional`（全在 free）。

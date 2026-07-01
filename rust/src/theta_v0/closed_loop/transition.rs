@@ -289,9 +289,10 @@ fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> O
 /// 盈利/最优/实盘有效（L3）。
 ///
 /// ★三阶段推进（GAP3 修复）：base tw_step（订单派生事件）后，再经 [`stage_progression`]（barrier-gated）
-/// 派生**阶段推进事件**并 tw_step 一次——使 stage 能真推进到 EarningShares（RecoverCapital→EnterEarning）。
-/// 两个 tw_step 都保 TW 守恒 + stage 单向 + OQ-9 gate（各事件恒合法：RecoverCapital 无条件合法，
-/// EnterEarning 仅在 EnterReady⟹open_legacy_legs=0 时派生⟹`LegalEnterEarning` 满足）。
+/// 派生**阶段推进事件**并 tw_step 一次——stage_progression **仅在有 sound 资金源**（cash-tight
+/// 退本金 w≤free）时推进；L0 同价 funded campaign 下无源 ⟹ 恒不推进（EarningShares 结构不可达，见
+/// `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）。两个 tw_step 都保 TW 守恒 +
+/// stage 单向 + OQ-9 gate + 出口现金-sound 断言（见函数末 tw_next 非负断言）。
 pub fn transition_adapter(
     x: &AssemblyState,
     o: &OrderOut,
@@ -328,6 +329,19 @@ pub fn transition_adapter(
         }
         None => tw_after_order,
     };
+    // ★★现金-sound gate（codex 复审二轮致命1 根因修复：唯一 chokepoint 断言，覆盖全部调用方）：
+    // 转移后 TW 三量必须非负（free/holding/withdrawn ≥ 0）。这不只堵 schedule_adapter 生产路径，还堵
+    // **pub transition_adapter + pub OrderOut 的外部注入面**：外部即使传 ShortDiff(-1)（透支现金）或
+    // RecoverCapital(1)（空池借本金）绕过 OQ-9 gate（这两类 raw 恒合法），也在此 fail-fast，而非 release
+    // 静默写负 free/holding。生产路径（schedule cash-约束 + stage_progression w≤free）恒过 ⟹ 生产零
+    // 行为影响。这使「free≥0 全路径」成为 transition_adapter 出口不变量（不再只是生产路径性质）。
+    assert!(
+        tw_next.free >= 0 && tw_next.holding >= 0 && tw_next.withdrawn >= 0,
+        "现金-sound 违反：转移后 TW 三量出现负值（free={}, holding={}, withdrawn={}）——透支/空池借本金",
+        tw_next.free,
+        tw_next.holding,
+        tw_next.withdrawn
+    );
     AssemblyState {
         micro_state: micro_delta(&x.micro_state, e.parse_event),
         ledger_state: ledger_step(&x.ledger_state, o.ledger_event),

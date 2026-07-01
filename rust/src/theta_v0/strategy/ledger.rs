@@ -187,10 +187,11 @@ pub struct RiskPolicy {
     /// [`RiskPolicy::baseline`] / [`RiskPolicy::try_new`] 构造，二者都保证 κ≥0，使 κ≥0 成为**外部
     /// API 不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段，codex #5：外部不可构造负 κ）。
     ///
-    /// ★诚实（codex 复审#5）：字段 crate-private 而非模块-private ⟹ **本模块内测试**仍可用 struct
-    /// literal 构造负 κ（Rust 同模块可见性）——这是**故意的反向见证**（`RiskPolicy { kappa: -1 }`
-    /// 证 `kappa_nonneg()` 谓词对负值返 false），非漏洞。「不可构造」严格口径 = **crate 外部**不可
-    /// 构造（`try_new` 是唯一外部构造闸），非「任何位置不可构造」。
+    /// ★诚实（codex 复审#5 二轮口径修正）：字段是**模块私有**（default 私有 = 本模块 + 子模块可见），
+    /// 故 **crate 外部**（含 crate 内其他模块）都不可构造负 κ——唯一外部构造闸是 `try_new`（拒负）。
+    /// 但**本模块内测试**（同模块可见性）仍可用 struct literal 构造负 κ——这是**故意的反向见证**
+    /// （`RiskPolicy { kappa: -1 }` 证 `kappa_nonneg()` 谓词对负值返 false），非漏洞。严格口径 =
+    /// **public API / crate 外部不可构造负 κ**，非「任何位置不可构造」。
     kappa: i64,
 }
 
