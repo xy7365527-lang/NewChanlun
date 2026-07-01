@@ -43,6 +43,9 @@
 //!
 //! - **L1 机制**：ΔN 非全等（χ 真改变交易集）+ μ walk-forward 无泄漏（结构保证）。
 //! - **L2 单品种 alpha**：`mean(ΔR)>0 ∧ Sharpe(ΔR)>0` 且 ΔR block bootstrap 单边 p≤0.05。
+//! ★663 降级：跨品种符号检验 = 统计显著性判据，663 裁定非 alpha 判据（系统性惩罚低频高级别）+
+//!   MAX_BARS=32000 短窗与高级别样本冲突。真判据 = 全历史长窗逐信号 mu_hat>0（econ_positive
+//!   l2_btc_capturable_spread_diagnosis）。本模块保留作参考，不作 alpha 确认判据。
 //! - **L3 系统性 alpha**：8 品种 ΔR 均值跨品种**符号检验**（n_pos/8，二项单边 p）。codex：
 //!   8 品种符号检验需 ≥7/8 正才到单边 p<0.05；否则只是"局部探索性命中"非系统性。
 //!

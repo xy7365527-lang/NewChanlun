@@ -454,9 +454,10 @@ mod tests {
         let actual_pnl_proxy = agg.actual_pnl_proxy();
 
         let mut rpt = String::new();
-        let _ = writeln!(rpt, "# 经济正条件⑤ L2 重测：BTC signed 滑移分解（adverse-only vs 真实成交，664-Q3 codex 口径修正）");
+        let _ = writeln!(rpt, "# 663 判据：BTC 全级别×方向逐信号 μ̂>0 + 全历史长窗累积净值");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的逐信号确定性分解，可产否定性结果）。");
+        let _ = writeln!(rpt, "**663 判据**：可交易性=μ(z,a)>0（正条件期望，出现就做不统计显著），**非** p<0.05 统计显著/跨品种符号检验。全级别 0..L 照报（级别是缠论全互斥定义构成部分，稀疏高级别不剔不判 Le Cam 硬墙——663 收窄 Le Cam 有效域至短窗单品种区分±Δ）。全历史长窗累积净值（O(n²) 已解锁 exp1.18，461万 bar ~2.6min）。");
         let _ = writeln!(rpt, "**664-Q3 修正**：旧 captured=Ab_rev−max(0,x)−max(0,y)−Ce 用 max(0,·) **丢有利滑移、全计不利滑移** ⟹ 系统性低估真实 PnL（captured−actual_pnl=min(x,0)+min(y,0)≤0）= **adverse-only 保守压力测试，非真实成交**。本报告补 signed Σx/Σy 与真实成交价差 actual_spread=δ(Pτout−Pτin)=Ab_rev−x−y。");
         let _ = writeln!(rpt, "**两口径**：x=δ(Pτin−Pλ_rev)（signed 入场滑移）、y=δ(Pρ_rev−Pτout)（signed 出场滑移）。");
         let _ = writeln!(rpt, "- **adverse-only captured** = Ab_rev−max(0,x)−max(0,y)−Ce（压力测试，保守，保留兼容旧口径）。");
@@ -522,27 +523,70 @@ mod tests {
             let _ = writeln!(rpt, "形成对照——后者是测错对象的伪否证）。剩余 alpha = ΣAb_rev − Ση − ΣCe（执行/成本是否吃光见上表 Σcaptured）。");
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## per-class (level, δ) 分桶（双口径）");
-        let _ = writeln!(rpt, "| level | δ | n | ΣAb_rev | Ση(adv) | ΣCe | Σcaptured(adv) | actual_pnl | n_cap+/n | n_act+/n |");
+        let _ = writeln!(rpt, "## per-class (level, δ) 全级别分桶（663 判据：逐信号 μ̂=Σactual_pnl/n>0 + 累积净值）");
+        let _ = writeln!(rpt, "μ̂(z,a)=Σactual_pnl/n = 逐信号正条件期望估计（663 判据：>0 即可交易，不需统计显著/不判稀疏硬墙）。");
+        let _ = writeln!(rpt, "全级别 0..L 照报——级别是缠论全互斥定义的构成部分，稀疏高级别照列不剔（663：频率低是特征非 bug）。");
+        let _ = writeln!(rpt, "| level | δ | n | μ̂=Σactual_pnl/n | Σactual_pnl | ΣAb_rev | Ση(adv) | ΣCe | Σcaptured(adv) | n_act+/n |");
         let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
-        for ((lvl, dlt), (n, sab, sin, sout, sce, scap, ncap, _sact, sactpnl, nact)) in &buckets {
-            let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.0}%) | {}/{} ({:.0}%) |",
-                lvl, dlt, n, sab, sin + sout, sce, scap, sactpnl,
-                ncap, n, if *n > 0 { 100.0 * *ncap as f64 / *n as f64 } else { 0.0 },
+        for ((lvl, dlt), (n, sab, sin, sout, sce, scap, _ncap, _sact, sactpnl, nact)) in &buckets {
+            let mu_hat = if *n > 0 { sactpnl / *n as f64 } else { 0.0 };
+            let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.0}%) |",
+                lvl, dlt, n, mu_hat, sactpnl, sab, sin + sout, sce, scap,
                 nact, n, if *n > 0 { 100.0 * *nact as f64 / *n as f64 } else { 0.0 });
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## 663 原生口径（真实成交 actual_pnl>0 状态类）");
-        let _ = writeln!(rpt, "actual_pnl>0 的 (level,δ) 类 = 该类真实成交逐信号路径级净正（出现即做，真实成交口径，非 adverse-only）：");
-        let mut any_pos_class = false;
+        // ── 663 判据：全级别×方向 μ̂>0 分类（正条件期望，出现就做不统计显著）。 ──
+        let _ = writeln!(rpt, "## 663 判据：全级别×方向 μ̂(z,a)>0（正条件期望，出现就做不统计显著）");
+        let max_level = buckets.keys().map(|(l, _)| *l).max().unwrap_or(0);
+        let _ = writeln!(rpt, "涌现最高级别 L={max_level}（全级别 0..{max_level} 均列；稀疏高级别照报不判硬墙，663）。");
+        let _ = writeln!(rpt, "**有效域**：本窗 bars={n_bars}（{window_start}→{window_end}）。663 要求全历史长窗——");
+        let _ = writeln!(rpt, "若 bars<461万，高级别 L3+ 仍稀疏（n=个位数），累积净值是**本窗**结论非全历史（ECON_L2_MAX_BARS=5000000 跑全量，~6-7min）。");
+        let _ = writeln!(rpt, "μ̂>0 类 = 该 (level,δ) 逐信号正条件期望——出现即做累积正期望（非 p<0.05 统计显著）：");
+        let mut n_pos_class = 0usize;
+        let mut n_total_class = 0usize;
         for ((lvl, dlt), (n, _, _, _, _, _, _, _, sactpnl, nact)) in &buckets {
-            if *sactpnl > 0.0 {
-                any_pos_class = true;
-                let _ = writeln!(rpt, "- (level={}, δ={:+}): actual_pnl={:.4e}, n_act+/n={}/{}", lvl, dlt, sactpnl, nact, n);
-            }
+            n_total_class += 1;
+            let mu_hat = if *n > 0 { sactpnl / *n as f64 } else { 0.0 };
+            let mark = if mu_hat > 0.0 { n_pos_class += 1; "✓μ̂>0" } else { "✗μ̂≤0" };
+            let _ = writeln!(rpt, "- (level={lvl}, δ={dlt:+}) {mark}: μ̂={mu_hat:.4e}, Σ={sactpnl:.4e}, n_act+/n={nact}/{n}");
         }
-        if !any_pos_class {
-            let _ = writeln!(rpt, "- （无 actual_pnl>0 的类——全级别全方向真实成交亏，否定性结果）");
+        let _ = writeln!(rpt, "**{n_pos_class}/{n_total_class} 类 μ̂>0**（663 判据：正期望类可交易，不因稀疏判 inconclusive）。");
+        let _ = writeln!(rpt);
+
+        // ── 全历史累积净值曲线（长窗，按时间 entry_bar 序）：全级别 + per-level 分层。 ──
+        // 663：全历史长窗累积净值——每级别按时间累加 actual_pnl，看是否正期望累积。
+        let _ = writeln!(rpt, "## 全历史累积净值曲线（长窗，按 entry_bar 时间序）");
+        {
+            let mut ordered: Vec<&SignalDecomp> = decomps.iter().collect();
+            ordered.sort_by_key(|d| d.entry_bar);
+            // 全局累积 + per-level 累积（终值 + 是否单调正向）。
+            let mut cum_all = 0.0f64;
+            let mut cum_by_level: BTreeMap<u32, f64> = BTreeMap::new();
+            let mut min_cum_all = 0.0f64; // 最大回撤参考（累积曲线最低点）。
+            for d in &ordered {
+                cum_all += d.actual_pnl;
+                if cum_all < min_cum_all { min_cum_all = cum_all; }
+                *cum_by_level.entry(d.level).or_default() += d.actual_pnl;
+            }
+            let _ = writeln!(rpt, "- **全级别累积净值终值 = {cum_all:.4e}**（{} 信号，min 累积={min_cum_all:.4e} 曲线最低点）", ordered.len());
+            let _ = writeln!(rpt, "| level | 该级别累积净值 | 正期望? |");
+            let _ = writeln!(rpt, "|---|---|---|");
+            for (lvl, cum) in &cum_by_level {
+                let _ = writeln!(rpt, "| {} | {:.4e} | {} |", lvl, cum, if *cum > 0.0 { "✓" } else { "✗" });
+            }
+            // 曲线采样（10 点等信号间隔）——看累积轨迹形状（单调正 vs 前正后回吐）。
+            if ordered.len() >= 10 {
+                let _ = writeln!(rpt);
+                let _ = writeln!(rpt, "累积净值曲线采样（10 等分点，全级别）：");
+                let step = ordered.len() / 10;
+                let mut c = 0.0f64;
+                for (i, d) in ordered.iter().enumerate() {
+                    c += d.actual_pnl;
+                    if (i + 1) % step == 0 || i + 1 == ordered.len() {
+                        let _ = writeln!(rpt, "- [{}/{}] entry_bar={} 累积={:.4e}", i + 1, ordered.len(), d.entry_bar, c);
+                    }
+                }
+            }
         }
 
         eprint!("{rpt}");
@@ -550,7 +594,7 @@ mod tests {
         // 落盘 signed 报告（664-Q3，不覆盖 econ-abrev-l2-btc-20260630.md 旧 adverse-only-only 报告）。
         let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .parent().expect("rust/ 父目录 = 项目根")
-            .join(".chanlun/review-results/econ-abrev-signed-l2-20260630.md");
+            .join(".chanlun/review-results/econ-663-full-level-mu-20260701.md");
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告 {out:?} 失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
@@ -752,6 +796,11 @@ mod tests {
 
     /// **PDF §11 正确 OOS 验收（除 codex Q2 BIAS-FATAL 选择偏差）**：train-only 挑类 → 锁 holdout
     /// 评估 + 多窗滚动 walk-forward + neff + block bootstrap + 剔最大赢家。
+    ///
+    /// ★663 降级（判据错误更正）：neff/LCB/block_bootstrap/剔赢家/符号检验 = 统计显著性判据，
+    /// 663 裁定非 alpha 判据（统计显著性误当可交易性，系统性惩罚低频高级别）。真判据 = 逐信号
+    /// mu_hat>0（见 l2_btc_capturable_spread_diagnosis）。本测试保留作参考数据（过拟合诊断维度），
+    /// 不作 alpha 确认判据。ponytail: 不删（663 明确可保留作参考），仅标注判据降级。
     ///
     /// 与 `acc_level0sell_oos`（被否证：从含 holdout 全样本挑 level0卖）的关键差异：
     /// **选类只用 train 段**（codex/PDF§6：用挑赢家同一数据验证不能反驳挑赢家）。train 赢家可能 ≠ level0卖。
