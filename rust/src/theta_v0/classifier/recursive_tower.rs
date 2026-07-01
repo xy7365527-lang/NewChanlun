@@ -407,6 +407,28 @@ pub fn project_to_units(moves: &[LeveledMove]) -> Vec<UnitRange> {
         .collect()
 }
 
+/// ★O(n²) 真修（#106）：增量投影——`moves` 前缀不变仅尾部 append（§16）时，复用 `cache` 前缀，
+/// 只对 `moves[cache.len()..]` 续投影追加。结果 bit-exact == `project_to_units(moves)`：
+/// 单元 idx 的投影只依赖 `moves[idx]` + `moves[idx-1]`（`fold_direction(prev)`），前缀稳定 ⟹ 前缀投影
+/// 不变；tail 的 `prev` 是已存在的前缀末元素（`moves[idx-1]`），与全量同。
+///
+/// **契约**：调用方保证 `moves` 前缀（`[..cache.len()]`）与上次 append 一致（cascade_reset 清空 cache
+/// 后从 0 重投影 ⟹ 退化为全量，bit-exact）。前缀缩/改写 ⟹ 调用方须先 `cache.clear()`。
+pub fn project_to_units_resume(moves: &[LeveledMove], cache: &mut Vec<UnitRange>) {
+    debug_assert!(cache.len() <= moves.len(), "投影缓存比 moves 长 ⟹ 前缀回缩未清空（违反契约）");
+    for idx in cache.len()..moves.len() {
+        let m = &moves[idx];
+        let prev = if idx == 0 { None } else { Some(&moves[idx - 1]) };
+        cache.push(UnitRange {
+            start_index: m.start_index,
+            end_index: m.end_index,
+            direction: m.fold_direction(prev),
+            lo: m.rmove.lo(),
+            hi: m.rmove.hi(),
+        });
+    }
+}
+
 /// 携坐标下钻（`descend` 的坐标层镜像）：取回构成 `parent` 的**携坐标**次级别走势序列。
 ///
 /// `descend`（descend.rs）取回的是裸 `RMove`（坐标剥离）——无法反查 source_index。本函数取回
@@ -735,5 +757,35 @@ mod tests {
         for sub in descend(&l2[0].rmove) {
             assert_eq!(sub.level(), 1, "L2 descend 得 L1 走势");
         }
+    }
+
+    /// ★#106 O(n²) 真修守卫：`project_to_units_resume` 逐批追加 == `project_to_units` 全量（逐字段）。
+    /// 失败 ⟹ 增量投影破坏 bit-exact（下一级 units 输入与全量发散 ⟹ 整塔判定漂移）。
+    #[test]
+    fn project_to_units_resume_matches_full() {
+        let moves: Vec<LeveledMove> = (0..9)
+            .map(|i| {
+                let dir = if i % 2 == 0 { up() } else { down() };
+                // lo/hi 各异（非全 [0,100]）⟹ 验证投影确实读 rmove.lo()/hi() 而非常量。
+                let u = unit(i * 4, i * 4 + 4, dir, i as i64, 100 - i as i64);
+                LeveledMove::from_unit(&u, eid(0, i as u64))
+            })
+            .collect();
+
+        let full = project_to_units(&moves);
+
+        // 三批增量追加：[..4] → [..7] → 全 9（前缀不变仅尾部 append）。
+        let mut cache: Vec<UnitRange> = Vec::new();
+        project_to_units_resume(&moves[..4], &mut cache);
+        assert_eq!(&cache[..], &full[..4], "首批 4 == 全量前缀");
+        project_to_units_resume(&moves[..7], &mut cache);
+        assert_eq!(&cache[..], &full[..7], "次批 7 == 全量前缀");
+        project_to_units_resume(&moves, &mut cache);
+        assert_eq!(cache, full, "全量追加后 == project_to_units 全量（逐字段）");
+
+        // cascade_reset 退化：清空后从 0 重投影 == 全量。
+        cache.clear();
+        project_to_units_resume(&moves, &mut cache);
+        assert_eq!(cache, full, "清空重投影（cascade_reset 路径）== 全量");
     }
 }

@@ -79,12 +79,23 @@ mod profile;
 /// `parse_layer`（批量）从 `Rc::new(...)` O(n) 构造（单次，非每 bar）。
 /// 下游 `&layer.fractals` 等借用经 `Rc::deref → Vec::deref → &[T]`（透明）。
 /// ponytail: Rc 共享消除每 bar Vec clone（#93 incr_total exp 1.89 残余 O(n²)）。
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default)]
 pub struct ParseLayer {
     /// Rc 共享——`ParseLayerIncr::append` 从 `IncrInclusion.merged_rc()` O(1) clone，
     /// `parse_layer`（批量）从 `Rc::new(merged.to_vec())` O(n) 构造（单次，非每 bar）。
     /// 下游 `&layer.merged_bars` 借用经 `Rc::deref → Vec::deref → &[Bar]`（透明）。
     pub merged_bars: Rc<Vec<Bar>>,
+    /// merged_bars 跨 bar 稳定的 confirmed 前缀长度（O(n²)→O(n) 证书，#106）。
+    /// 相 B 稳态 = `merged_bars.len()-1`（仅末根 acc 可被下个 bar 改写）；相 A / 相 A→B
+    /// 迁移本 bar = `0`（保守，下游退化全量重建，bit-exact）。全量 `parse_layer` = `0`
+    /// （无增量血缘，退化）。classifier `update_closes_cache`/MACD 用它替代每 bar O(n) 前缀
+    /// 全量比较——下游 fractal/stroke/segment 已信任此 confirmed 边界（增量重算保留前缀），
+    /// classifier 之前是唯一每 bar 重新 O(n) 验证的冗余防御。
+    pub merged_confirmed_len: usize,
+    /// #106：segments 跨 bar 稳定的 confirmed 前缀长度（= IncrSegments.append 的 keep）。
+    /// classifier l0_tower 复用证书。全量 `parse_layer` = 0（无血缘，退化全量重建）。PartialEq 排除
+    /// （性能证书非结构语义）。**不可用 segments.len()-1**（codex：末段可古怪线段重划改写）。
+    pub segments_confirmed_len: usize,
     /// Rc 共享——`ParseLayerIncr::append` 从 `IncrFractals::to_result_rc()` O(1) clone。
     pub fractals: Rc<Vec<Fractal>>,
     /// Rc 共享——`ParseLayerIncr::append` 从 `IncrStrokes::to_result_rc()` O(1) clone。
@@ -93,6 +104,19 @@ pub struct ParseLayer {
     pub segments: Rc<Vec<Segment>>,
     /// Rc 共享——tail 全量重算结果 O(1) 共享（tail 小 Vec，重算本身 O(tail) 非 O(n)）。
     pub tail: Rc<Vec<PendingTail>>,
+}
+
+// #106：`merged_confirmed_len` 是性能证书（跨 bar 稳定前缀长度），非结构语义——增量版填真值、
+// 全量 `parse_layer` 填 0，两者结构内容（merged_bars/fractals/strokes/segments/tail）仍 bit-identical。
+// 手写 PartialEq 排除证书字段，使「增量==全量」bit-exact 对拍不被证书差异误判。
+impl PartialEq for ParseLayer {
+    fn eq(&self, other: &Self) -> bool {
+        self.merged_bars == other.merged_bars
+            && self.fractals == other.fractals
+            && self.strokes == other.strokes
+            && self.segments == other.segments
+            && self.tail == other.tail
+    }
 }
 
 /// Θ_parse 顶层入口（L0=1分钟线段账本的解析）。
@@ -177,11 +201,23 @@ impl<'c> ParseLayerIncr<'c> {
     /// 替代旧 `to_result().to_vec()` 的 O(n)/bar。tail 二分查找消除 O(merged_i) 线性扫描。
     pub fn append(&mut self, bar: Bar) -> ParseLayer {
         // append 消费 self（by-value，mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
+        // #106 证书：append 前的相位决定本 bar confirmed 前缀语义（O(1)）。
+        let was_open_tail = self.incr_inclusion.to_result_ref().only_open_tail;
         let prev = std::mem::replace(&mut self.incr_inclusion, inclusion::IncrInclusion::empty());
         self.incr_inclusion = prev.append(bar);
         // merged_rc: Rc 共享 clone（O(1)），替代旧 to_result_ref().merged.to_vec() 的 O(n)/bar。
         // 下游 fractal/stroke/segment/tail 借用 &merged（Rc::deref → &[Bar]，透明）。
         let merged = self.incr_inclusion.merged_rc();
+        // #106 confirmed 前缀长度（O(1) 证书）：相 B 稳态（append 前后均非 open_tail）⟹ 仅末根
+        // acc 可改写，前缀 [..len-1] 物理不变（append_folded 用 Rc::make_mut pop/push 末根，
+        // 前缀字节不动）⟹ confirmed = len-1。相 A（仍 open_tail）/ 相 A→B 迁移本 bar（was_open_tail
+        // 但现非）⟹ 0（整段折叠或无方向，对 classifier 旧 closes cache 无可复用前缀，退化全量）。
+        let now_open_tail = self.incr_inclusion.to_result_ref().only_open_tail;
+        let merged_confirmed_len = if was_open_tail || now_open_tail {
+            0
+        } else {
+            merged.len().saturating_sub(1)
+        };
 
         // 增量 fractal：保留 confirmed 前缀，重算尾部 2 个三元组。
         // by-value append（mem::take 重用 Vec 缓冲，消除 O(n)/bar clone）。
@@ -201,12 +237,16 @@ impl<'c> ParseLayerIncr<'c> {
         self.incr_segments = prev_segments.append(&strokes, &self.config.parse);
         let (segments, pending_start) = self.incr_segments.to_result_rc();
         let pending_start = pending_start;
+        // #106 segments 证书（O(1)）：l0_tower 复用边界。
+        let segments_confirmed_len = self.incr_segments.confirmed_len();
 
         // tail 全量重算（O(tail) 非 O(merged_i)——二分查找定位锚点 + 尾部延伸段扫描）。
         let tail = tail::build_tail(&merged, &fractals, &strokes, &segments, pending_start);
 
         ParseLayer {
             merged_bars: merged,
+            merged_confirmed_len,
+            segments_confirmed_len,
             fractals,
             strokes,
             segments,
@@ -234,6 +274,8 @@ fn parse_layer_from_merged(merged: &[Bar], config: &ThetaConfig) -> ParseLayer {
     let tail = tail::build_tail(merged, &fractals, &strokes, &segments, pending_start);
     ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),
+        merged_confirmed_len: 0, // 全量构造无增量血缘 ⟹ 0 = classifier 退化全量重建（bit-exact）。
+        segments_confirmed_len: 0,
         fractals: Rc::new(fractals),
         strokes: Rc::new(strokes),
         segments: Rc::new(segments),

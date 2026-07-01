@@ -382,6 +382,12 @@ struct LevelCache {
     /// BSP memo guard key = (centers.len, upper_moves.len, segments.len[L0 only])。三者不变 ⟹
     /// BSP 纯函数同输入同输出（confirmed 元素区间在稳定前缀，尾 bar 不影响）⟹ 复用缓存 bit-exact。
     cached_bsp_key: Option<(usize, usize, usize)>,
+    /// ★O(n²) 真修（#106）：本级 `upper_moves` 投影缓存（= `project_to_units(&upper_moves)`，下一级输入）。
+    /// `upper_moves` 前缀不变仅尾部 append（§16）⟹ 投影前缀不变（`fold_direction(prev)` 只依赖元素+前驱，
+    /// 前缀稳定 ⟹ 前缀投影稳定）。每 bar 只对新 append 的 tail 投影（`projected_units.len()..`），避免
+    /// per-bar 全量 `project_to_units` 递归 `rmove.lo()/hi()` 整棵子树 O(nodes)/bar=O(n²)。
+    /// cascade_reset（前缀重排）⟹ 与 upper_moves 同步清空（line 850 旁）重投影。
+    projected_units: Vec<UnitRange>,
 }
 
 /// 增量塔缓存（跨 bar 跨级复用）：每级 `LevelCache` + L0 段账本快照长度 + MACD 增量状态。
@@ -399,13 +405,26 @@ pub struct TowerCache {
     levels: Vec<LevelCache>,
     /// 上次处理的 L0 段数（前缀不变量校验用）。
     last_l0_segments_len: usize,
-    /// MACD 增量递推状态（None=未初始化；Some=已处理至 `macd_closes_prefix` 末）。
+    /// MACD 增量递推状态（None=未初始化；Some=已处理至 `macd_state_len` 末）。
     macd_state: Option<MacdState>,
     /// 已增量产出的 hist 前缀（不可变；尾部 append 续产）。bit-exact 等价于
-    /// `compute_macd(macd_closes_prefix).hist`。
+    /// `compute_macd(closes[..macd_state_len]).hist`。
     macd_hist: Vec<f64>,
-    /// 已处理的 `merged_bars.close` 前缀（前缀不变量校验 + append 边界）。
-    macd_closes_prefix: Vec<f64>,
+    /// MACD state 实际消费的 close 数（state 表示 `closes[..macd_state_len]` 的累积）。
+    /// #106：替代旧 `macd_closes_prefix: Vec<f64>`（每 bar O(n) 全量比较 + to_vec 克隆 = O(n²)）。
+    /// 增量边界 = `macd_state_len`；前缀稳定性靠 parser `confirmed_len` 证书（codex：绑 state_len
+    /// 而非 cached_len-1，修血缘断裂漏洞）。config 变更经 `clear()` 失效（ponytail: config 在 cache
+    /// 生命周期固定，clear 已覆盖，无需独立 macd_epoch）。
+    macd_state_len: usize,
+    /// #106：L0 走势塔增量缓存（前缀稳定，仅 segments 末段可古怪线段重划改写）。用 parser
+    /// `segments_confirmed_len` 证书复用前缀，只 map 新尾段——替代每 bar 全量 `from_unit` 重建
+    /// （O(segs)×n = O(n²)，profile 坐实 400K=5.8s）。bit-exact：from_unit 只依赖单 seg（无相邻
+    /// 依赖，codex 确认），前缀稳定 ⟹ moves_tower_l0 前缀稳定；ordinal=全局索引（reuse+i）跨 bar 稳定。
+    moves_tower_l0: Rc<Vec<LeveledMove>>,
+    /// #106：L0 输入单元（segment_to_unit 投影）增量缓存——同 moves_tower_l0 证书复用，消除每 bar
+    /// 全量 `l0.segments.map(segment_to_unit).collect()`（O(segs)×n，profile 坐实 400K=0.6s）。
+    /// segment_to_unit 只依赖单 seg ⟹ 前缀稳定 bit-exact。
+    l0_units_cache: Vec<UnitRange>,
     /// merged_bars.close 增量缓存（前缀稳定，仅尾 bar 可能 inclusion 改写）。每 bar mem::take 出借
     /// 给 BSP/MACD，用毕放回——避免每 bar 全量 `.map().collect()` 重建（O(n)/bar → O(n²) 根因）。
     closes: Vec<f64>,
@@ -446,7 +465,9 @@ impl TowerCache {
         self.last_l0_segments_len = 0;
         self.macd_state = None;
         self.macd_hist.clear();
-        self.macd_closes_prefix.clear();
+        self.macd_state_len = 0;
+        Rc::make_mut(&mut self.moves_tower_l0).clear();
+        self.l0_units_cache.clear();
         self.closes.clear();
         self.close_src.clear();
         // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
@@ -587,54 +608,30 @@ fn classify_move_incremental(
 /// - 长度 +k（新 bar 定稿）：旧尾现稳定 ⟹ 续 push 新元素。
 /// - 长度不变（inclusion 吸收）：尾元素可能改写 ⟹ 截尾重 push。
 /// - 长度回缩 / 前缀改写：全量重建（bit-exact 退化，同 cache clear 逻辑）。
-fn update_closes_cache(merged_bars: &[super::types::Bar], cache: &mut TowerCache) {
+fn update_closes_cache(
+    merged_bars: &[super::types::Bar],
+    confirmed_len: usize,
+    cache: &mut TowerCache,
+) {
     let n = merged_bars.len();
     let cached = cache.closes.len();
 
-    // ★O(1) 快路径（必须在 O(n) 校验前，否则累积 O(n²)；与 MACD fast-path 同口径）：
-    // 同长度 + 尾元素一致 ⟹ inclusion 未改写尾 acc + 前缀不动（merged_prefix confirmed 不可变，
-    // parser/mod.rs §confirmed）⟹ closes/close_src 整体未变，直接复用。测试模式（merged 跨迭代不变）
-    // 与 per-bar inclusion 吸收后尾未改写均命中。
-    if cached == n
-        && (n == 0
-            || (cache.closes[n - 1] == merged_bars[n - 1].close as f64
-                // ★codex 3a：尾校验须比对 source_index——close 相等但 source_index 变（inclusion 改写
-                // 尾 acc 的代表 bar）则 close_src 陈旧。仅比 close 不足（坐标系映射读 close_src）。
-                && cache.close_src.get(n - 1) == Some(&merged_bars[n - 1].source_index)))
-    {
-        return;
-    }
-
-    // 稳定前缀长度（排除可能被 inclusion 改写的尾元素）。
-    let stable = n.saturating_sub(1);
-    // 增量有效性：缓存覆盖稳定前缀 + 前缀逐值一致（O(stable) 校验仅在快路径 miss 时付出——
-    // 即段/合并结构真变时，频次 ≈ segments 变化次数 ≪ n，故不引入 O(n²)）。
-    // ★相 A（only_open_tail）方向翻转可整段重写 merged_prefix（非单调追加）⟹ 前缀逐值校验是
-    // bit-exact 必需（O(1) 尾校验不足，工位 E bar-1464 否证）。校验失败 ⟹ 全量重建（bit-exact 退化）。
-    // ★codex 3b：前缀校验须同时比对 close 与 source_index（裸前提不完备）——close 相等但
-    // source_index 前缀变（inclusion 合并边界移动）则 close_src 陈旧，坐标系映射（map_src_to_close_idx）
-    // 读到错位下标。两者都比 ⟹ bit-exact 完备。
-    let can_incremental = cached >= stable
-        && cache.close_src.len() >= stable
-        && cache.closes[..stable]
-            .iter()
-            .zip(merged_bars[..stable].iter())
-            .all(|(c, b)| *c == b.close as f64)
-        && cache.close_src[..stable]
-            .iter()
-            .zip(merged_bars[..stable].iter())
-            .all(|(s, b)| *s == b.source_index);
-    if !can_incremental {
-        cache.closes.clear();
-        cache.close_src.clear();
-        cache.closes.extend(merged_bars.iter().map(|b| b.close as f64));
-        cache.close_src.extend(merged_bars.iter().map(|b| b.source_index));
-        return;
-    }
-    // 增量：截到稳定前缀（去掉可能被 inclusion 改写的旧尾），从 stable 续 push 至 n。
-    cache.closes.truncate(stable);
-    cache.close_src.truncate(stable);
-    for b in &merged_bars[stable..] {
+    // ★#106 O(1) 证书路径（替代旧每 bar O(n) 前缀全量比较 = O(n²) 主导根因，profile 坐实
+    // 200K=15.3s/67%）：parser `merged_confirmed_len` 保证 `merged_bars[..confirmed_len]` 跨 bar
+    // **物理不变**（相 B append_folded 仅 Rc::make_mut pop/push 末根，前缀字节不动；codex 锚定）。
+    // ⟹ `cache.closes[..confirmed_len]` 与 `merged_bars[..confirmed_len]` 逐值一致（close + source_index
+    // 双稳定，codex 3a/3b 满足——同一 Bar 物理不变两字段都不变），无需 O(n) 比较。
+    //
+    // bit-exact 前提（codex 血缘）：cache 由 classifier 每 bar 同源维护（生产路径每 bar 调 classify_at），
+    // confirmed_len 单调 ⟹ cache[..confirmed_len] 是上轮前缀。前提失守（cached < confirmed_len，
+    // 跨 bar 漏调 / 血缘断裂）⟹ reuse = min(cached, confirmed_len)，余下全量重扫（保守 bit-exact）。
+    // confirmed_len=0（相 A / 相 A→B fold_all 整段重写 / 全量 parse_layer 无血缘）⟹ reuse=0 = 全量重建。
+    let reuse = confirmed_len.min(cached).min(cache.close_src.len());
+    cache.closes.truncate(reuse);
+    cache.close_src.truncate(reuse);
+    cache.closes.reserve(n.saturating_sub(reuse));
+    cache.close_src.reserve(n.saturating_sub(reuse));
+    for b in &merged_bars[reuse..] {
         cache.closes.push(b.close as f64);
         cache.close_src.push(b.source_index);
     }
@@ -642,6 +639,7 @@ fn update_closes_cache(merged_bars: &[super::types::Bar], cache: &mut TowerCache
 
 fn compute_macd_hist_incremental(
     closes: &[f64],
+    confirmed_len: usize,
     cfg: &super::config::MacdConfig,
     cache: &mut TowerCache,
 ) {
@@ -649,75 +647,159 @@ fn compute_macd_hist_incremental(
     if closes.is_empty() {
         cache.macd_state = None;
         cache.macd_hist.clear();
-        cache.macd_closes_prefix.clear();
+        cache.macd_state_len = 0;
         return;
     }
 
-    // 单 bar：state = init(closes[0])，hist = [0.0]（首 bar DIF=DEA=hist=0）。
+    // 单 bar：state = init(closes[0])，hist = [0.0]（首 bar DIF=DEA=hist=0）。state 覆盖 closes[..1]。
     if closes.len() == 1 {
         let state = MacdState::init(closes[0], cfg);
         cache.macd_hist = vec![state.current_point().hist];
         cache.macd_state = Some(state);
-        cache.macd_closes_prefix = closes.to_vec();
+        cache.macd_state_len = 1;
         return;
     }
 
-    // 稳定前缀长度（排除不稳定的尾 bar）。state 表示 closes[..stable_prefix]。
+    // 稳定前缀长度（排除不稳定的尾 bar）。state 续推目标 = closes[..stable_prefix]。
     let stable_prefix = closes.len() - 1;
-    let cached_len = cache.macd_closes_prefix.len();
-    let cached_stable = if cached_len == 0 { 0 } else { cached_len - 1 };
 
-    // ★O(1) 快路径：同长度 + 尾 bar 一致 + state 存在 ⟹ per-bar 语义下前缀稳定（仅尾 bar
-    // 可能改写，尾 bar 一致 ⟹ 无改写）⟹ hist 未变，直接复用。
-    // 测试模式（closes 跨迭代不变）与 per-bar inclusion 吸收后尾未改写均命中此路径。
-    // 必须在 O(n) 前缀逐值比较之前，否则累积 O(n²)（每 bar O(n) 比较 × n bar）。
-    if cache.macd_state.is_some()
-        && closes.len() == cached_len
-        && closes.last() == cache.macd_closes_prefix.last()
-    {
-        return;
-    }
+    // ★#106 O(1) 证书增量（替代旧每 bar O(n) 前缀比较 + `closes.to_vec()` 全量克隆 = O(n²)，
+    // profile 坐实 200K=4.7s/21%）：复用边界 = `min(macd_state_len, confirmed_len)`。
+    // - `macd_state_len`：state 已消费的 close 数（state 表示 closes[..macd_state_len] 累积）。
+    // - `confirmed_len`：parser 证书——closes[..confirmed_len] 跨 bar 物理不变（前缀未被 inclusion
+    //   改写）。取 min ⟹ state 覆盖的部分**全在稳定前缀内** ⟹ 续推不被改写污染（codex 血缘修复：
+    //   绑 state_len 非 cached_len-1）。
+    // resume_from > stable_prefix 不可能（resume_from <= macd_state_len <= 上轮 stable < 本轮 stable）；
+    // 但 confirmed_len 收缩（相 A→B fold_all=0）⟹ resume_from=0 ⟹ 从头全量重推（bit-exact 退化）。
+    let resume_from = cache.macd_state_len.min(confirmed_len).min(stable_prefix);
 
-    // 增量有效性：cached state 存在 + 稳定前缀未回缩 + 前缀逐值一致。
-    let can_incremental = cache
-        .macd_state
-        .is_some()
-        && stable_prefix >= cached_stable
-        && closes[..cached_stable] == cache.macd_closes_prefix[..cached_stable];
-
-    if can_incremental {
-        // 增量路径：state 续 append closes[cached_stable..stable_prefix]（新稳定的 bar）。
-        let mut state = cache.macd_state.clone().expect("can_incremental 已判 is_some");
-        // hist 前缀 = 已缓存的 closes[..cached_stable] 部分（不含旧尾 bar）。
-        // 截掉旧尾 bar 的 hist，续 append 新稳定 bar + 新尾 bar。
-        cache.macd_hist.truncate(cached_stable);
-        for &c in &closes[cached_stable..stable_prefix] {
-            state = divergence::compute_macd_append(&state, c);
-            cache.macd_hist.push(state.current_point().hist);
+    let mut state = if resume_from > 0 && cache.macd_state.is_some() {
+        // 增量：从 resume_from 的 state 续推。需要 state 恰好表示 closes[..resume_from]——
+        // 若 macd_state_len > resume_from（confirmed_len 收缩截断），state 比 resume_from 多消费了
+        // 已失效的 close ⟹ 不能直接用，须从头重推。故仅 macd_state_len == resume_from 时复用。
+        if cache.macd_state_len == resume_from {
+            cache.macd_hist.truncate(resume_from);
+            cache.macd_state.clone().expect("is_some 已判")
+        } else {
+            cache.macd_hist.clear();
+            rebuild_macd_state_to(closes, resume_from, cfg, &mut cache.macd_hist)
         }
-        // 尾 bar（不稳定）hist 由 state + 尾 close 派生。
-        let tail_state = divergence::compute_macd_append(&state, closes[stable_prefix]);
-        cache.macd_hist.push(tail_state.current_point().hist);
-        cache.macd_state = Some(state);
-        cache.macd_closes_prefix = closes.to_vec();
-        return;
-    }
+    } else {
+        // 全量重建（resume_from=0 或 state 空）。
+        cache.macd_hist.clear();
+        rebuild_macd_state_to(closes, 0, cfg, &mut cache.macd_hist)
+    };
 
-    // 退化路径：全量重建（bit-exact，与 compute_macd 同 EMA 约简）。
-    // 逐 bar append 重建 state 至 stable_prefix + 尾 bar hist 派生。
+    // 续推 closes[hist.len()..stable_prefix]（新稳定 bar）+ 尾 bar（不稳定）hist。
+    for &c in &closes[cache.macd_hist.len()..stable_prefix] {
+        state = divergence::compute_macd_append(&state, c);
+        cache.macd_hist.push(state.current_point().hist);
+    }
+    let tail_state = divergence::compute_macd_append(&state, closes[stable_prefix]);
+    cache.macd_hist.push(tail_state.current_point().hist);
+    cache.macd_state = Some(state);
+    cache.macd_state_len = stable_prefix;
+}
+
+/// MACD state 重建到 `closes[..target]`（target=0 ⟹ init(closes[0])，state_len=1）。
+/// `hist` 被 push 至 len==max(target,1)（首 bar hist=0 + 续 bar）。返回 closes[..hist.len()] 的 state。
+/// bit-exact：与全量 `compute_macd` 同 EMA 约简（逐 bar append）。
+fn rebuild_macd_state_to(
+    closes: &[f64],
+    target: usize,
+    cfg: &super::config::MacdConfig,
+    hist: &mut Vec<f64>,
+) -> MacdState {
     let mut state = MacdState::init(closes[0], cfg);
-    let mut hist = Vec::with_capacity(closes.len());
     hist.push(state.current_point().hist);
-    for &c in &closes[1..stable_prefix] {
+    let end = target.max(1);
+    for &c in &closes[1..end] {
         state = divergence::compute_macd_append(&state, c);
         hist.push(state.current_point().hist);
     }
-    // 尾 bar（不稳定）hist。
-    let tail_state = divergence::compute_macd_append(&state, closes[stable_prefix]);
-    hist.push(tail_state.current_point().hist);
-    cache.macd_state = Some(state);
-    cache.macd_hist = hist;
-    cache.macd_closes_prefix = closes.to_vec();
+    state
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  阶段计时插桩（profile-only，#106 真热点定位）
+// ════════════════════════════════════════════════════════════════════════════
+//
+// thread_local 累加器，env `THETA_PROFILE_STAGES=1` 时启用。只测时间不改逻辑（bit-exact 安全）。
+pub mod stage_profile {
+    use std::cell::RefCell;
+    use std::time::{Duration, Instant};
+
+    thread_local! {
+        static ACC: RefCell<Vec<(&'static str, Duration)>> = const { RefCell::new(Vec::new()) };
+        static ENABLED: bool = std::env::var("THETA_PROFILE_STAGES").is_ok();
+    }
+
+    pub fn enabled() -> bool {
+        ENABLED.with(|e| *e)
+    }
+
+    pub struct Guard {
+        label: &'static str,
+        start: Instant,
+    }
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            let d = self.start.elapsed();
+            let label = self.label;
+            ACC.with(|a| {
+                let mut a = a.borrow_mut();
+                if let Some(slot) = a.iter_mut().find(|(l, _)| *l == label) {
+                    slot.1 += d;
+                } else {
+                    a.push((label, d));
+                }
+            });
+        }
+    }
+
+    pub fn stage(label: &'static str) -> Option<Guard> {
+        if enabled() {
+            Some(Guard { label, start: Instant::now() })
+        } else {
+            None
+        }
+    }
+
+    /// 计时一个表达式（闭包包裹；env 未启用时零开销直通）。
+    pub fn time<T>(label: &'static str, f: impl FnOnce() -> T) -> T {
+        if !enabled() {
+            return f();
+        }
+        let start = Instant::now();
+        let r = f();
+        let d = start.elapsed();
+        ACC.with(|a| {
+            let mut a = a.borrow_mut();
+            if let Some(slot) = a.iter_mut().find(|(l, _)| *l == label) {
+                slot.1 += d;
+            } else {
+                a.push((label, d));
+            }
+        });
+        r
+    }
+
+    pub fn dump() {
+        if !enabled() {
+            return;
+        }
+        ACC.with(|a| {
+            let a = a.borrow();
+            eprintln!("=== THETA STAGE PROFILE ===");
+            let mut rows: Vec<_> = a.iter().collect();
+            rows.sort_by_key(|(_, d)| std::cmp::Reverse(*d));
+            for (label, d) in rows {
+                eprintln!("  {:<36} {:>10.3} ms", label, d.as_secs_f64() * 1000.0);
+            }
+            eprintln!("===========================");
+        });
+    }
 }
 
 /// ★增量塔入口：返回 `(Classification, tower_snapshots)` bit-exact 等价于
@@ -734,6 +816,16 @@ fn compute_macd_hist_incremental(
 /// - `Classification.levels[k].bsp`：从累积 centers + segments/hist 经同口径提取 == 全量提取。
 /// - `tower_snapshots[k]`：本级 compose 前的 `moves_tower`，前缀来自缓存 + 尾部续扫 == 全量 compose。
 ///
+/// ## 硬契约（#106 证书路径，codex 双轮审计锚定）
+///
+/// `cache: &mut TowerCache` 必须与 `l0` **同源逐 bar 推进**——即同一 `ParseLayerIncr` 血缘、同一
+/// `ThetaConfig`、每 bar 调用一次（无跳 bar、无跨数据流复用、config 不变）。`merged_confirmed_len`/
+/// `segments_confirmed_len` 证书只保证「本 parser 自己的前缀稳定」，不验证 cache 内旧前缀与本轮 l0 同源。
+/// 违反（同 cache 跑两条流不 clear / 中途换 config）⟹ MACD/L0 tower/closes/frontier 复用陈旧前缀
+/// （bit-exact 破裂）。生产路径满足：`IncrementalClassifier::new` 每实例新建 TowerCache + 同源逐 bar。
+/// 换流/换 config 的调用方须先 `cache.clear()`。
+/// ponytail: 不加运行时 lineage epoch——生产 IncrementalClassifier 结构保证同源，epoch 是为不存在的
+/// 滥用场景加防御（YAGNI）；契约由本文档 + clear() 入口声明。
 /// ## 增量有效性（exp≈1 前提）
 ///
 /// 段账本单调追加（前缀稳定）时，每级扫描从 `consumed` 续扫 O(tail) 而非 O(units) ⟹ 塔构造总扫描
@@ -752,8 +844,13 @@ pub fn classify_with_tower_incremental(
     let min_parts = config.level.min_parts_per_level as usize;
     let l_max = config.level.l_max as usize;
 
-    // L0 输入单元 = parser 线段账本。
-    let l0_units: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
+    // L0 输入单元 = parser 线段账本。#106 证书增量（同 moves_tower_l0，消除每 bar 全量 collect）。
+    stage_profile::time("00_l0_units_build", || {
+        let reuse = l0.segments_confirmed_len.min(cache.l0_units_cache.len());
+        cache.l0_units_cache.truncate(reuse);
+        cache.l0_units_cache.extend(l0.segments[reuse..].iter().map(segment_to_unit));
+    });
+    let l0_units: Vec<UnitRange> = cache.l0_units_cache.clone();
 
     // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
     if l0_units.is_empty() {
@@ -768,12 +865,23 @@ pub fn classify_with_tower_incremental(
     cache.last_l0_segments_len = l0.segments.len();
 
     // L0 走势塔 = 携坐标的 RMove::Segment（递归底）。
-    // ★codex Q4：确定性 ElementId 注入（ordinal = L0 段索引，跨 bar 稳定）。
-    let moves_tower_l0: Vec<LeveledMove> = l0_units
-        .iter()
-        .enumerate()
-        .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
-        .collect();
+    // ★#106 证书增量（替代每 bar 全量 from_unit 重建 = O(segs)×n，profile 坐实 400K=5.8s）：
+    // parser `segments_confirmed_len` 保证 segments[..confirmed_len] 跨 bar bit-stable（仅末段可古怪
+    // 线段重划，codex 确认）⟹ moves_tower_l0[..reuse] 复用（from_unit 只依赖单 seg，无相邻依赖）。
+    // ordinal=reuse+i 全局索引（前缀 reuse<=confirmed_len 时 ordinal 不变 = 全量 enumerate，bit-exact）。
+    // make_mut：caller 逐 bar drop 上轮 tower_snapshots[0] ⟹ strong_count==1 ⟹ 原地 O(tail)；
+    // >1（理论 caller 跨 bar 持有）⟹ 写时复制（仍 bit-exact）。clear() 已同步清空（退化全量）。
+    stage_profile::time("01_l0_tower_rebuild", || {
+        let reuse = l0.segments_confirmed_len.min(cache.moves_tower_l0.len());
+        let m = Rc::make_mut(&mut cache.moves_tower_l0);
+        m.truncate(reuse);
+        for (off, seg) in l0.segments[reuse..].iter().enumerate() {
+            let i = reuse + off;
+            let u = segment_to_unit(seg);
+            m.push(LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 }));
+        }
+    });
+    let moves_tower_l0: Rc<Vec<LeveledMove>> = Rc::clone(&cache.moves_tower_l0);
 
     // MACD hist（背驰真算，增量递推——231号纯性能，解 aed4d5f5 实证的 c_exp≈2.31 主导根因）。
     //
@@ -788,11 +896,15 @@ pub fn classify_with_tower_incremental(
     // closes/close_src 增量缓存（前缀稳定，仅尾 bar 可能 inclusion 改写——同 MACD stable_prefix 语义）。
     // 不每 bar 全量重建（O(n)/bar → O(n²) 根因之一，工位 E profile 坐实 t=0.085s@16K）。
     // mem::take 取出缓存 Vec（避免 &cache.closes 与下游 &mut cache 别名），用毕放回（缓冲复用，零额外分配）。
-    update_closes_cache(&l0.merged_bars, cache);
+    stage_profile::time("00_update_closes_cache", || {
+        update_closes_cache(&l0.merged_bars, l0.merged_confirmed_len, cache)
+    });
     let closes: Vec<f64> = std::mem::take(&mut cache.closes);
     let close_src: Vec<usize> = std::mem::take(&mut cache.close_src);
     // 增量 MACD：更新 cache.macd_hist（不返回克隆，直接借用缓存避免 O(n) 拷贝）。
-    compute_macd_hist_incremental(&closes, &config.macd, cache);
+    stage_profile::time("02_macd_incremental", || {
+        compute_macd_hist_incremental(&closes, l0.merged_confirmed_len, &config.macd, cache)
+    });
     let hist: &[f64] = &cache.macd_hist;
 
     let mut levels: Vec<LevelState> = Vec::new();
@@ -802,7 +914,7 @@ pub fn classify_with_tower_incremental(
 
     // 逐级增量构造。`units`/`moves_tower` 是本级输入（前缀来自缓存，尾部新增）。
     let mut units: Vec<UnitRange> = l0_units;
-    let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(moves_tower_l0);
+    let mut moves_tower: Rc<Vec<LeveledMove>> = moves_tower_l0;
 
     // ★cascade reset（codex 异质审查裁决：option 2）：任一级检出 frontier 变异 ⟹ 该级**及所有更高级**
     // 无条件 reset。根因：本级守卫只比对 `project_to_units` 投影（有损——丢弃 `sub_moves`/`rmove.subs`）。
@@ -839,7 +951,18 @@ pub fn classify_with_tower_incremental(
         //       守卫漏此例（bar 1464 seg[9] end 1384→1170，段数不变）。扫描区外（未读尾部）的变化
         //       无害（resume 从 consumed 续扫会读到新值），不触发重置。
         let scanned = (lc.scan_cursor.consumed + 2).min(units.len()).min(lc.cached_units.len());
-        let frontier_mutated = units[..scanned] != lc.cached_units[..scanned];
+        // #106 证书跳前缀（仅 L0 安全，codex 裁决）：L0 units = segments 投影，segments[..confirmed_len]
+        // 跨 bar bit-stable ⟹ units[..stable] 必等，只比 [stable..scanned]。L1+ units 来自上级投影
+        // （无 segments 证书）⟹ stable=0 全量比较（保守，不假定相等）。证书不证明 [stable..scanned]
+        // 没变（bar-1464 末段改写在 scanned frontier 内）⟹ 该区间仍逐值比，触发 cascade。
+        let stable = if is_l0 {
+            l0.segments_confirmed_len.min(scanned)
+        } else {
+            0
+        };
+        let frontier_mutated = stage_profile::time("03_frontier_compare", || {
+            units[stable..scanned] != lc.cached_units[stable..scanned]
+        });
         // 本级触发 reset ⟹ 置 cascade，所有更高级无条件跟随（投影有损，上级不能仅靠本级投影判断）。
         if units.len() < lc.last_input_len || frontier_mutated {
             cascade_reset = true;
@@ -852,33 +975,39 @@ pub fn classify_with_tower_incremental(
             lc.cached_outcome = None;
             lc.cached_bsp.clear();
             lc.cached_bsp_key = None;
+            lc.projected_units.clear(); // #106：upper_moves 前缀重排 ⟹ 投影缓存失效，重投影。
         }
         lc.last_input_len = units.len();
         // 快照本级输入（下 bar 比对 frontier 变异）。clone 是 O(units) memcpy（UnitRange: Copy）；
         // amortized 仍 O(n)——本就每 bar 全量重建 units（line 857 project_to_units）。
-        lc.cached_units.clear();
-        lc.cached_units.extend_from_slice(&units);
+        stage_profile::time("04_cached_units_copy", || {
+            lc.cached_units.clear();
+            lc.cached_units.extend_from_slice(&units);
+        });
 
         // ★增量扫描：从 `scan_cursor.consumed` 续扫，产出尾部 centers/upper（resume bit-exact）。
         // 单一来源：tail_centers 直接累积成完整 centers（与 upper_moves 一一对应，每窗口一中枢）。
         // ★codex Q4：prefix_count = lc.upper_moves.len()（已产出前缀数），tail ordinal 接续前缀
         // ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。
-        let (tail_centers, tail_upper, new_cursor) = compose_level_resume(
-            &units,
-            &moves_tower[..],
-            is_l0,
-            level_idx as u32 + 1,
-            lc.scan_cursor.consumed,
-            lc.upper_moves.len(),
-        );
+        let (tail_centers, tail_upper, new_cursor) =
+            stage_profile::time("05_compose_resume", || {
+                compose_level_resume(
+                    &units,
+                    &moves_tower[..],
+                    is_l0,
+                    level_idx as u32 + 1,
+                    lc.scan_cursor.consumed,
+                    lc.upper_moves.len(),
+                )
+            });
 
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
-        lc.centers.extend(tail_centers);
-        // make_mut：strong_count==1（caller 已 drop 上 bar snapshot）⟹ 原地 extend O(tail)；
-        // >1（理论上 caller 跨 bar 持有，生产路径不发生）⟹ 写时复制再追加（仍 bit-exact）。
-        // ★工位 4g：非空 tail extend ⟹ 该级 upper_moves 树变 ⟹ 标记 did_extend（驱动 generation）。
         did_extend |= !tail_upper.is_empty();
-        Rc::make_mut(&mut lc.upper_moves).extend(tail_upper);
+        stage_profile::time("06_extend_centers_upper", || {
+            lc.centers.extend(tail_centers);
+            // make_mut：strong_count==1 ⟹ 原地 extend O(tail)；>1 ⟹ 写时复制（bit-exact）。
+            Rc::make_mut(&mut lc.upper_moves).extend(tail_upper);
+        });
         lc.scan_cursor = new_cursor;
         debug_assert!(
             lc.centers.len() == lc.upper_moves.len(),
@@ -915,28 +1044,37 @@ pub fn classify_with_tower_incremental(
             lc.cached_bsp.clone()
         } else {
             let mut b: Vec<BspPoint> = if is_l0 {
-                signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, &close_src)
+                stage_profile::time("07a_extract_signals_l0", || {
+                    signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, &close_src)
+                })
             } else {
                 Vec::new()
             };
-            b.extend(extract_second_for_level(&lc.upper_moves[..], hist, &close_src));
+            let second = stage_profile::time("07b_extract_second", || {
+                extract_second_for_level(&lc.upper_moves[..], hist, &close_src)
+            });
+            b.extend(second);
             b.sort_by_key(|p| p.source_index);
             lc.cached_bsp = b.clone();
             lc.cached_bsp_key = Some(bsp_key);
             b
         };
 
+        let level_centers = stage_profile::time("08_levels_centers_clone", || lc.centers.clone());
         levels.push(LevelState {
             moves,
-            // ponytail: Center is Copy ⟹ clone = memcpy O(k)（非 LeveledMove 递归深拷贝）。
-            //           Arc<Vec<Center>> 引入原子计数开销反劣于 memcpy；此 clone 已是最优。
-            //           ceiling：若 Center 变大（>~64B），可考虑 Arc<Vec<Center>> 共享缓存。
-            centers: lc.centers.clone(),
+            centers: level_centers,
             bsp,
         });
 
         // 下一级输入 = 上级走势塔投影（前缀来自缓存 upper_moves 前缀，尾部来自续扫）。
-        units = project_to_units(&lc.upper_moves[..]);
+        // ★O(n²) 真修（#106）：增量投影——只对 upper_moves 新 tail 投影（`rmove.lo()/hi()` 递归整棵
+        // 子树 O(nodes) 仅算新元素），前缀复用 lc.projected_units。clone 给 units 是 O(level) memcpy
+        // （UnitRange: Copy，无递归）。cascade_reset 已清空 projected_units（line 855 旁）⟹ 退化全量。
+        stage_profile::time("09_project_to_units_resume", || {
+            recursive_tower::project_to_units_resume(&lc.upper_moves[..], &mut lc.projected_units);
+        });
+        units = stage_profile::time("10_projected_units_clone", || lc.projected_units.clone());
 
         if units.is_empty() {
             break;

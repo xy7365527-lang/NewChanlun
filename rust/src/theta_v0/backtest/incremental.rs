@@ -201,6 +201,53 @@ mod tests {
             bars.len()
         );
     }
+
+    /// **★#106 confirmed_len 证书 bit-exact（only_open_tail 前缀改写 + 相 A→B 迁移覆盖）**。
+    ///
+    /// 针对 merged_confirmed_len 证书路径：开头 N 根**互相包含**的 bar ⟹ 长时间停留相 A
+    /// （only_open_tail，confirmed_len=0）；随后方向出现触发相 A→B fold_all（整段重折叠，证书仍 0）；
+    /// 再后续相 B 稳态（证书 = len-1）。逐 bar 断言增量（走 confirmed_len 路径）== 全量（无证书，
+    /// 每 bar 从头重算）。若证书在 only_open_tail / 迁移边界给错值（非 0），update_closes/macd 会
+    /// 错误复用陈旧前缀 ⟹ classification bit-exact 破裂，此测试捕获。
+    #[test]
+    fn bit_exact_confirmed_len_open_tail() {
+        // 开头 12 根逐步收窄的互相包含 bar（无非包含严格对 ⟹ 相 A only_open_tail）；
+        // 随后突破上沿引入方向（相 A→B fold_all）；再正弦波动产段/中枢（相 B 稳态 + 古怪线段重划）。
+        let mut bars: Vec<Bar> = Vec::new();
+        for i in 0..12usize {
+            // 区间逐根收窄（后包含于前）⟹ 持续包含，无方向。
+            let half = 50i64 - (i as i64) * 3;
+            let close = 1000;
+            bars.push(Bar {
+                source_index: i, timestamp: i as i64,
+                open: close, high: close + half, low: close - half,
+                close, volume: 1000, untradable: false,
+            });
+        }
+        for i in 12..1500usize {
+            let base = 1000i64 + (i as i64);
+            let cycle = (((i as f64) / 23.0).sin() * 40.0) as i64;
+            let close = base + cycle;
+            bars.push(Bar {
+                source_index: i, timestamp: i as i64,
+                open: close - 1, high: close + 6, low: close - 6,
+                close, volume: 1000, untradable: false,
+            });
+        }
+
+        let config = ThetaConfig::default();
+        let mut incr = IncrementalClassifier::new(&bars, &config);
+        for i in 0..bars.len() {
+            let (incr_cls, incr_tower) = incr.classify_at(i);
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            assert_eq!(incr_cls, leg_cls, "confirmed_len bar {i}: classification bit-exact 破裂");
+            assert_eq!(incr_tower.len(), leg_tower.len(), "confirmed_len bar {i}: tower 层数破裂");
+            for (lvl, (il, ll)) in incr_tower.iter().zip(leg_tower.iter()).enumerate() {
+                assert_eq!(il, ll, "confirmed_len bar {i} lvl {lvl}: tower LeveledMove 破裂");
+            }
+        }
+    }
 }
 
 #[cfg(test)]

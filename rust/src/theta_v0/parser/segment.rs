@@ -421,6 +421,10 @@ pub struct IncrSegments {
     pending_start: Option<usize>,
     /// 上次快照时的 strokes 长度。
     strokes_len: usize,
+    /// #106：本次 append 保留的 confirmed segments 前缀长度（= keep，segments[..confirmed_len]
+    /// 不被本轮重算 ⟹ 跨 bar bit-stable）。classifier l0_tower 复用证书。**不可用 segments.len()-1
+    /// 替代**（codex 反例：末段可能 1384→1170 改写，keep 排除末段）。
+    confirmed_len: usize,
 }
 
 impl Default for IncrSegments {
@@ -430,6 +434,7 @@ impl Default for IncrSegments {
             end_indices: Vec::new(),
             pending_start: None,
             strokes_len: 0,
+            confirmed_len: 0,
         }
     }
 }
@@ -462,11 +467,13 @@ impl IncrSegments {
                 None => break, // 段端不在 strokes 中（数据不一致）——截断
             }
         }
+        let confirmed_len = end_indices.len();
         IncrSegments {
             segments_rc: Rc::new(segments.to_vec()),
             end_indices,
             pending_start,
             strokes_len: strokes.len(),
+            confirmed_len,
         }
     }
 
@@ -490,6 +497,7 @@ impl IncrSegments {
             mut end_indices,
             strokes_len: _,
             pending_start: _,
+            confirmed_len: _,
         } = self;
 
         // ponytail: 丢弃末段重算。confirmed_bound = 末段 end_array_idx（truncate 用 `<`
@@ -522,6 +530,7 @@ impl IncrSegments {
                         end_indices,
                         pending_start: if resume_seg_start < n { Some(resume_seg_start) } else { None },
                         strokes_len: n,
+                        confirmed_len: keep,
                     };
                 }
                 resume_seg_dir = strokes[resume_seg_start].direction;
@@ -534,6 +543,7 @@ impl IncrSegments {
                         end_indices,
                         pending_start: if n > 0 { Some(0) } else { None },
                         strokes_len: n,
+                        confirmed_len: keep,
                     };
                 }
                 let Some(start) = find_overlap_start(strokes, 0) else {
@@ -542,6 +552,7 @@ impl IncrSegments {
                         end_indices,
                         pending_start: Some(0),
                         strokes_len: n,
+                        confirmed_len: keep,
                     };
                 };
                 resume_seg_start = start;
@@ -600,6 +611,7 @@ impl IncrSegments {
             end_indices,
             pending_start,
             strokes_len: n,
+            confirmed_len: keep,
         }
     }
 
@@ -617,6 +629,11 @@ impl IncrSegments {
     /// 用此填 `ParseLayer.segments`，消除每 bar Vec clone。
     pub fn to_result_rc(&self) -> (Rc<Vec<Segment>>, Option<usize>) {
         (Rc::clone(&self.segments_rc), self.pending_start)
+    }
+
+    /// #106：本次 append 的 confirmed segments 前缀长度（l0_tower 复用证书）。
+    pub fn confirmed_len(&self) -> usize {
+        self.confirmed_len
     }
 }
 

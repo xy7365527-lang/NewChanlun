@@ -423,6 +423,7 @@ mod tests {
         let window_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
 
         let (decomps, agg) = decompose_capturable_spread(&ds, &config);
+        crate::theta_v0::classifier::stage_profile::dump();
 
         // per-class (level, δ) 分桶：adverse-only Σcaptured + 真实成交 Σactual_pnl 双口径（664-Q3）。
         // key=(level, δ)，value=(n, Σab, Σηin, Σηout, Σce, Σcaptured, n_cap_pos, Σactual_spread, Σactual_pnl, n_act_pos)。
