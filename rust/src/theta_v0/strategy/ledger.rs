@@ -183,9 +183,14 @@ impl TwState {
 /// 定点整数承载（bit-exact，barrier 比较在整数域；κ 用 i64 缩放系数，避免浮点非确定性）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RiskPolicy {
-    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——只能经
-    /// [`RiskPolicy::baseline`] / [`RiskPolicy::try_new`] 构造，二者都保证 κ≥0，使 κ≥0 成为
-    /// **Rust 类型层不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段，codex #5：负 κ 不可构造）。
+    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——**crate 外部只能经**
+    /// [`RiskPolicy::baseline`] / [`RiskPolicy::try_new`] 构造，二者都保证 κ≥0，使 κ≥0 成为**外部
+    /// API 不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段，codex #5：外部不可构造负 κ）。
+    ///
+    /// ★诚实（codex 复审#5）：字段 crate-private 而非模块-private ⟹ **本模块内测试**仍可用 struct
+    /// literal 构造负 κ（Rust 同模块可见性）——这是**故意的反向见证**（`RiskPolicy { kappa: -1 }`
+    /// 证 `kappa_nonneg()` 谓词对负值返 false），非漏洞。「不可构造」严格口径 = **crate 外部**不可
+    /// 构造（`try_new` 是唯一外部构造闸），非「任何位置不可构造」。
     kappa: i64,
 }
 
@@ -670,13 +675,17 @@ mod tests {
     //  RiskPolicy barrier κ + EnterReady + BuyCore（契约锚 PDF §10-11，GAP3 κ-gated）
     // ──────────────────────────────────────────────────────────────────────
 
-    /// κ≥0 不变量（PDF §11 `kappa_nonneg`）：baseline κ=0 满足；负 κ 违反。
+    /// κ≥0 不变量（PDF §11 `kappa_nonneg`）：baseline κ=0 满足；**外部构造闸 try_new 拒负 κ**（codex#5）。
     #[test]
     fn risk_policy_kappa_nonneg() {
         assert!(RiskPolicy::baseline().kappa_nonneg(), "baseline κ=0 满足 κ≥0");
-        assert_eq!(RiskPolicy::baseline().kappa, 0, "baseline κ=0（PDF §10 最小规范）");
-        assert!(RiskPolicy { kappa: 3 }.kappa_nonneg(), "κ=3 满足");
-        assert!(!RiskPolicy { kappa: -1 }.kappa_nonneg(), "κ=-1 违反 κ≥0（负缓冲非法）");
+        assert_eq!(RiskPolicy::baseline().kappa(), 0, "baseline κ=0（PDF §10 最小规范）");
+        // ★外部构造闸 try_new：κ≥0 ⟹ Some（且 κ() 读回）；κ<0 ⟹ None（外部不可构造负 κ）。
+        assert_eq!(RiskPolicy::try_new(3).map(|p| p.kappa()), Some(3), "try_new(3)=Some(κ=3)");
+        assert_eq!(RiskPolicy::try_new(0).map(|p| p.kappa()), Some(0), "try_new(0)=Some(κ=0)");
+        assert!(RiskPolicy::try_new(-1).is_none(), "★try_new(-1)=None（外部 API 拒负 κ，codex#5）");
+        // 模块内反向见证（故意 struct literal 构造负 κ，证谓词对负值返 false——非漏洞，见字段 doc）。
+        assert!(!RiskPolicy { kappa: -1 }.kappa_nonneg(), "in-module 反向见证：κ=-1 谓词返 false");
     }
 
     /// L^wc = max(0, notional_in − withdrawn)（在险本金，退本金推进 ⟹ L^wc→0）。
@@ -698,6 +707,23 @@ mod tests {
         let s = TwState { notional_in: 100, withdrawn: 30, ..TwState::initial() }; // L^wc=70, Q=100
         assert_eq!(RiskPolicy { kappa: 0 }.eta_star(&s), 70, "κ=0 ⟹ η⋆=L^wc=70");
         assert_eq!(RiskPolicy { kappa: 2 }.eta_star(&s), 70 + 2 * 100, "κ=2 ⟹ η⋆=70+200=270");
+    }
+
+    /// ★i128 有界域回归（codex 复审#6）：κ·Q 在 i64 域会 wrap 的量级，i128 中间域算精确值再 clamp
+    /// 到 i64::MAX（**失败安全**：超界 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。**非** Lean 无界
+    /// Int 的 bit-exact——是 Rust 有界失败安全近似（clamp 后语义 = 溢出即最严 barrier）。
+    #[test]
+    fn eta_star_bounded_no_wrap() {
+        // κ=i64::MAX, Q=large ⟹ i64 乘法会 wrap 成小/负值（误放行）；i128 算真值 > i64::MAX ⟹ clamp。
+        let big = TwState { notional_in: i64::MAX / 2, withdrawn: 0, ..TwState::initial() };
+        let pol = RiskPolicy::try_new(i64::MAX).expect("κ=i64::MAX≥0 合法");
+        // i64 直算 kappa*Q 会 wrap；i128 真值 = MAX·(MAX/2) ≫ i64::MAX ⟹ clamp 到 i64::MAX。
+        assert_eq!(pol.eta_star(&big), i64::MAX, "★超界 ⟹ η⋆=i64::MAX（失败安全，非 wrap 成小值）");
+        // buy_core_legal 同样 i128：巨额 a_n 不 wrap ⟹ 正确判非法（LHS≫RHS）。
+        assert!(
+            !pol.buy_core_legal(i64::MAX, 0, i64::MAX, 0, 0, 0),
+            "★i128：巨额建仓 LHS 不 wrap ⟹ 正确判非法（非 wrap 误判合法）"
+        );
     }
 
     /// ★EnterReady 严格五合取（PDF §10 步骤3）：五条件全真才 ready（比单纯 W≥I0 强得多）。

@@ -402,8 +402,9 @@ mod tests {
     fn buy_sell_closed_loop_A_mirror() {
         use super::super::transition::{hybrid_step_baseline, AssemblyEvent};
         use super::super::state::MicroEvent;
-        // 买侧：初始 Normal/PhaseI ⟹ Buy ⟹ Allocate(1) ⟹ A+1。
-        let x0 = AssemblyState::initial(1_000_000);
+        // 买侧：**现金充足** campaign（free>0）Normal/PhaseI ⟹ Buy ⟹ Allocate(1) ⟹ A+1。
+        // codex 复审#1 后买入受 free 约束，故用 funded_campaign 使买入真成交（initial free=0 会被约束到 0）。
+        let x0 = AssemblyState::funded_campaign(1_000_000, 8);
         let buy_e = AssemblyEvent { parse_event: MicroEvent::NewBar(true) };
         let buy_a = hybrid_step_baseline(&x0, &buy_e).ledger_state.a; // base + 1
         // 卖侧：第一类清仓 ⟹ A-1。

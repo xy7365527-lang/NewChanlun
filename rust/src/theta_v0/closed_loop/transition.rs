@@ -137,25 +137,40 @@ fn risk_adapter(x: &AssemblyState, intent: StrictAction) -> u64 {
 /// 只取 `ShortDiff`（不是 OpenShareLeg/CloseShareLeg/RecoverCapital/EnterEarning），故恒合法且不开/
 /// 不闭 legacy 腿——OQ-9 gate 自动满足（见 `assert_oq9_legal`）。
 ///
-/// ★诚实：账本事件的 dΠ/dA 取仓位增量 |Δ|（结构层单位数；具体金额 = |Δ|·price 是 Θ_risk/运行时
-/// 数据 L2，本结构层承载单位数增量，price 由下游 fill 侧填充）。tw_event 与 ledger_event 双侧由同一
-/// Δ 派生 ⟹ 两账本同步线程化。
+/// ★★现金约束（codex 复审#1 根因修复：买入侧 free 变负）：**建仓额受可用 free 上界约束**
+/// ——`affordable = min(Δ, free)`（花不出没有的现金）。若 free=0 ⟹ affordable=0 ⟹ 不建仓（`positions`
+/// 不推进）。这保证 `ShortDiff(-affordable)` 后 `free ≥ 0` **全路径成立**（不只退本金路径）：买入不能
+/// 透支现金，卖出只增 free。因此写回的 `target_pos` = `x.positions + affordable`（**实际成交后仓位**，
+/// 非请求仓位）——holding/positions 与 free 三者一致（不产生「请求 1 单位但无现金」的仓位/现金脱钩）。
+///
+/// ★诚实：账本事件的 dΠ/dA 取**实际成交**单位数（结构层；具体金额 = 单位数·price 是 Θ_risk/运行时
+/// 数据 L2，price 由下游 fill 侧填充）。tw_event 与 ledger_event 双侧由同一实际成交量派生 ⟹ 两账本
+/// 同步线程化。
 fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64) -> OrderOut {
-    // 真实仓位增量 Δ = target_pos − positions（i64 域，可正可负）。
-    let delta = target_pos as i64 - x.positions as i64;
-    let (ledger_event, tw_event) = if delta > 0 {
-        // 真实建仓：花 free 换 holding（free→holding）。
-        (LedgerEvent::Allocate(delta), TwEvent::ShortDiff(-delta))
-    } else if delta < 0 {
-        // 真实减/平仓：卖出 holding 回 free（holding→free）。
-        (LedgerEvent::Realize(-delta), TwEvent::ShortDiff(-delta))
+    // 请求仓位增量 Δ = target_pos − positions（i64 域，可正可负）。
+    let requested_delta = target_pos as i64 - x.positions as i64;
+    // ★现金约束：建仓（Δ>0）受可用 free 上界——affordable = min(Δ, free)，free<0 时下界 0（不透支）。
+    // 减/平仓（Δ≤0）不受现金约束（卖出生成现金）。
+    let filled_delta = if requested_delta > 0 {
+        requested_delta.min(x.tw_state.free.max(0))
     } else {
-        // 仓位不变：无资金转移。
+        requested_delta
+    };
+    // 实际成交后仓位 = positions + filled_delta（holding/positions/free 三者一致）。
+    let filled_pos = (x.positions as i64 + filled_delta).max(0) as u64;
+    let (ledger_event, tw_event) = if filled_delta > 0 {
+        // 真实建仓（现金充足部分）：花 free 换 holding（free→holding），free 退后 ≥0。
+        (LedgerEvent::Allocate(filled_delta), TwEvent::ShortDiff(-filled_delta))
+    } else if filled_delta < 0 {
+        // 真实减/平仓：卖出 holding 回 free（holding→free）。
+        (LedgerEvent::Realize(-filled_delta), TwEvent::ShortDiff(-filled_delta))
+    } else {
+        // 仓位不变（含 Hold/Wait / max(1) 饱和 / free=0 建仓被现金约束到 0）：无资金转移。
         (LedgerEvent::Noop, TwEvent::ShortDiff(0))
     };
     OrderOut {
         action: intent,
-        target_pos,
+        target_pos: filled_pos,
         ledger_event,
         tw_event,
     }
@@ -283,8 +298,12 @@ pub fn transition_adapter(
     e: &AssemblyEvent,
     policy: &RiskPolicy,
 ) -> AssemblyState {
-    // OQ-9 gate：订单 tw_event 必须合法（schedule_adapter 保证只派生合法转移）。
-    debug_assert!(
+    // OQ-9 gate：订单 tw_event 必须合法（schedule_adapter 保证只派生 ShortDiff——恒合法）。
+    // ★codex 复审#4：升 `debug_assert!` 为真 `assert!`——release 下亦 fail-fast 拒非法转移（pub
+    // transition_adapter + pub OrderOut 的外部注入面：即使外部构造非法 tw_event，也 panic 而非
+    // release 静默写入非法 TW 态。生产路径（hybrid_step→schedule 只派 ShortDiff）恒过此断言，
+    // 故对生产零行为影响；断言只对外部误用的非法订单触发）。
+    assert!(
         assert_oq9_legal(&x.tw_state, o.tw_event),
         "OQ-9 gate 违反：tw_event {:?} 在 stage {:?} 非法",
         o.tw_event,
@@ -292,11 +311,14 @@ pub fn transition_adapter(
     );
     // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 转移）。
     let tw_after_order = tw_step(&x.tw_state, o.tw_event);
-    // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning，使 EarningShares 可达。
-    // I₀ 由 stage_progression 内部取 campaign 本地本金 s.notional_in（非账户 NAV）。
+    // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning。stage_progression 只在有
+    // sound 资金源（cash-tight 退本金 w≤free）时推进；L0 同价下无源 ⟹ 恒不推进（照实不可达）。
     let tw_next = match stage_progression(policy, &tw_after_order, x.risk_mode) {
         Some(stage_event) => {
-            debug_assert!(
+            // ★codex 复审#4：真 assert（release 亦生效）——阶段推进事件（RecoverCapital/EnterEarning）
+            // 恒合法（RecoverCapital raw 恒合法；EnterEarning 由 enter_ready 要求 legs==0 ⟹ 与
+            // is_legal_from 一致）。断言钉死此不变量，release 下亦拒非法阶段推进。
+            assert!(
                 assert_oq9_legal(&tw_after_order, stage_event),
                 "OQ-9 gate 违反（阶段推进）：{:?} 在 stage {:?} 非法",
                 stage_event,
@@ -506,15 +528,17 @@ mod tests {
         assert_eq!(x3.orders, 3, "3 bar ⟹ orders=3");
     }
 
-    /// ★ledger_state 真被线程化（非恒等）：开仓侧动作 ⟹ Allocate ⟹ A/R 真变。
+    /// ★ledger_state 真被线程化（非恒等）：**现金充足**的开仓侧动作 ⟹ Allocate ⟹ A/R 真变。
+    /// codex 复审#1 后：买入受 free 约束，故用 funded_campaign（free=Q>0）使首 bar 真建仓（Δ=1 现金足）。
     #[test]
     fn hybrid_step_threads_ledger_state() {
-        let x = AssemblyState::initial(1_000_000); // Normal/PhaseI ⟹ Buy ⟹ Allocate(1)
+        let x = AssemblyState::funded_campaign(1_000_000, 8); // free=8 ⟹ Buy Δ=1 现金充足 ⟹ Allocate(1)
         let x1 = hybrid_step_baseline(&x, &bar_event(true));
-        // Allocate(1) ⟹ A += 1, R -= 1。
+        // Allocate(1) ⟹ A += 1, R -= 1（首 bar 仓位 0→1，现金 8>0 ⟹ 真成交）。
         assert_eq!(x1.ledger_state.a, 1, "Allocate ⟹ A 真变（非恒等）");
         assert_eq!(x1.ledger_state.r, -1, "Allocate ⟹ R 真变");
         assert!(x1.ledger_state.inv_holds(), "R=Π-A-W 保持");
+        assert!(x1.tw_state.free >= 0, "买入后 free≥0（8-1=7，codex 复审#1 现金约束）");
     }
 
     /// micro_delta 与 Dynamics.delta bit-exact（newStroke 清零 pending_rise 经 AssemblyEvent）。
