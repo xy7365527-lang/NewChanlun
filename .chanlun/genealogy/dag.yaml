@@ -3533,6 +3533,11 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/666-level-phase-parity-alternation-structural-variable-beta-alpha-naming-correction.md
+- id: '667'
+  title: ''
+  status: 生成态
+  type: concept-separation
+  file: pending/667-level-phase-alpha-vs-fullsample-beta-projection-sigma-higher-modulator-666-peer.md
 edges:
   depends_on:
   - from: '136'
