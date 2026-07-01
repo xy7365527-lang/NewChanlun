@@ -2023,4 +2023,260 @@ mod tests {
                 "holdout Σpnl 聚合不一致：level={} δ={}", r.level, r.delta);
         }
     }
+
+    /// **Task #7 acc-classification：level 塔中间级空洞 H1/H2/H3 判别（诊断，不预设）**。
+    ///
+    /// 反演：Π_full 全历史 level 分布 7741→0→0→0→0→1 高度反常（level1-4 全空但 level5=1）。
+    /// w-verify 提交 8d45dc449b 假设真稀疏(H1)但**未做判别实验**。本测试三路 instrument 信号收集循环
+    /// （bit-exact 复制 decompose_capturable_spread 的收集路径），在 N^δ 门**前后**分级别计数：
+    ///
+    /// | 计数点 | 语义 | 判别 |
+    /// |---|---|---|
+    /// | (a) bsp_pre[lvl] | classifier 该 level 提取的 bsp 总数（门前，按第一/二/三类分） | 门前是否有信号 |
+    /// | (b) gamma_nonflat[lvl] | Γ 组装非 Flat 候选数（N^δ 门前） | dir 是否可判 |
+    /// | (c) sig_post[lvl] | 通过 N^δ 门 push 进 signals 的数（门后） | 门滤了多少 |
+    /// | (d) tower_segs[lvl] | tower[lvl] 段数（结构存在性） | level 塔是否构造到该级 |
+    ///
+    /// **判别规则**（三路，不预设 H1/H2 二分）：
+    /// - 中间级 bsp_pre>0 但 sig_post=0 ⟹ **H1**（N^δ 门滤空——[J_{ℓ-1}⊆J_ℓ] 嵌套链严格）。
+    /// - 中间级 bsp_pre=0 ⟹ **H3**（架构：mod.rs:247 上级层只产第二类 B2/S2，第一/三类仅 L0；
+    ///   第二类稀疏 ⟹ 中间级天然空。不是运行时 bug，是 bsp 提取的 level 语义）。
+    /// - 300K bsp_pre/sig_post≫0 但全历史=0（跨窗对比，两次跑）⟹ **H2**（全历史路径 bug）。
+    ///
+    /// **结构 sanity（team-lead 要求③）**：level5 唯一信号的 rungs 链——它的 tower 各级 rung 存在吗？
+    /// 若 level5 结构含 level1-4 子结构却没算作 level1-4 信号 = 计数 bug。本测试 dump level5 信号的
+    /// N^δ 证书 rungs 层数 + 各级 cand。
+    ///
+    /// **认识论 L2**：真实 BTC 数据逐信号分级别计数，可产否定性结果（H1 缩有效域 / H2 复活高级别）。
+    /// `#[ignore]`：需 BTC 全量 + O(n²) 重分类，`--release`。
+    /// 命令：`ECON_L2_MAX_BARS=<N> cargo test --release acc_classification_level_hole_dx -- --ignored --nocapture`
+    /// （默认 300K；跑全历史用 ECON_L2_MAX_BARS=5000000）。
+    #[test]
+    #[ignore]
+    fn acc_classification_level_hole_dx() {
+        use super::super::data;
+        use super::super::super::classifier::divergence::compute_macd;
+        use super::super::super::strategy::interp::assemble_gamma_with_tower;
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::Side;
+        use super::super::incremental::IncrementalClassifier;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        const MAX_BARS_DEFAULT: usize = 300_000;
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let bars = &ds.bars;
+        let n = bars.len();
+        let tick = config.tick.tick_size;
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        eprintln!("[level-hole-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+
+        let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
+        let macd_hist = compute_macd(&closes, &config.macd).hist;
+
+        // 分级别计数器（L=8 上限足够；实测最高 level5）。
+        const LMAX: usize = 8;
+        let mut bsp_pre = [0usize; LMAX];      // (a) 门前 bsp 提取总数
+        let mut bsp_pre_first = [0usize; LMAX]; // 门前第一类（buy1/sell1）
+        let mut bsp_pre_second = [0usize; LMAX]; // 门前第二类（buy2/sell2）
+        let mut bsp_pre_third = [0usize; LMAX]; // 门前第三类（buy3/sell3）
+        let mut gamma_nonflat = [0usize; LMAX]; // (b) Γ 非 Flat 候选
+        let mut sig_post = [0usize; LMAX];     // (c) 通过 N^δ 门
+        let mut tower_segs_max = [0usize; LMAX]; // (d) tower[lvl] 段数（末次分类快照）
+        let mut levels_seen_max = 0usize;       // cls.levels.len() 最大值
+
+        // 结构 sanity：level≥1 通过门的信号，记其 (source_index, δ, bits, rung 层数)。
+        let mut highlevel_hits: Vec<(usize, usize, i8, u8, usize)> = Vec::new(); // (lvl, src, δ, bits_u8, n_rungs)
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            levels_seen_max = levels_seen_max.max(cls_i.levels.len());
+            for (l, rc) in tower_i.iter().enumerate() {
+                if l < LMAX {
+                    tower_segs_max[l] = tower_segs_max[l].max(rc.len());
+                }
+            }
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                for p in &ls.bsp {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    if lvl < LMAX {
+                        bsp_pre[lvl] += 1;
+                        if p.bits.buy1 || p.bits.sell1 { bsp_pre_first[lvl] += 1; }
+                        if p.bits.buy2 || p.bits.sell2 { bsp_pre_second[lvl] += 1; }
+                        if p.bits.buy3 || p.bits.sell3 { bsp_pre_third[lvl] += 1; }
+                    }
+                    // Γ 组装（bit-exact 复制生产路径）。
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i.levels.iter().enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(), centers: Vec::new(),
+                                bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                            })
+                            .collect(),
+                    };
+                    for c in &assemble_gamma_with_tower(&single, &tower_i) {
+                        if c.dir == VoiceSide::Flat { continue; }
+                        if lvl < LMAX { gamma_nonflat[lvl] += 1; }
+                        let delta_side = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        if !build_multilevel_nest_cert(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist) {
+                            continue;
+                        }
+                        if lvl < LMAX { sig_post[lvl] += 1; }
+                        if lvl >= 1 {
+                            // 结构 sanity：重算 rung 层数（tower[lvl+1..] 含 source_index 的段数）。
+                            let max_k = tower_i.len();
+                            let mut n_rungs = 0usize;
+                            for k in (lvl + 1)..max_k {
+                                let has = tower_i[k].iter().any(|m|
+                                    m.start_index <= p.source_index && p.source_index <= m.end_index);
+                                if has { n_rungs += 1; } else { break; }
+                            }
+                            let delta: i8 = if c.dir == VoiceSide::Long { 1 } else { -1 };
+                            highlevel_hits.push((lvl, p.source_index, delta, bsp_class, n_rungs));
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 报告 ──
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# Task #7 acc-classification：level 塔中间级空洞 H1/H2/H3 判别");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "**认识论等级**：L2（真实 BTC 数据逐信号分级别计数，可产否定性结果）。");
+        let _ = writeln!(rpt, "**窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}。");
+        let _ = writeln!(rpt, "**判别**：三路 instrument N^δ 门前后分级别计数（bit-exact 复制 decompose_capturable_spread 收集路径）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 分级别计数表（cls.levels.len() 最大={levels_seen_max}）");
+        let _ = writeln!(rpt, "| level | tower段数 | bsp_pre(门前) | 第一类 | 第二类 | 第三类 | Γ非Flat | sig_post(门后) | 门滤除 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|");
+        for l in 0..LMAX {
+            if tower_segs_max[l] == 0 && bsp_pre[l] == 0 && gamma_nonflat[l] == 0 && sig_post[l] == 0 {
+                continue;
+            }
+            let filtered = gamma_nonflat[l].saturating_sub(sig_post[l]);
+            let _ = writeln!(rpt, "| {l} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                tower_segs_max[l], bsp_pre[l], bsp_pre_first[l], bsp_pre_second[l], bsp_pre_third[l],
+                gamma_nonflat[l], sig_post[l], filtered);
+        }
+        let _ = writeln!(rpt);
+
+        // ── 三路判别判定 ──
+        let _ = writeln!(rpt, "## H1/H2/H3 判定（中间级 = level 1..levels_seen_max-1）");
+        let mid_hi = levels_seen_max.saturating_sub(1).min(LMAX);
+        let mut any_mid_bsp = false;      // 中间级门前有 bsp?
+        let mut any_mid_gate_filter = false; // 中间级门前有 Γ 但门后=0?
+        for l in 1..mid_hi {
+            if bsp_pre[l] > 0 { any_mid_bsp = true; }
+            if gamma_nonflat[l] > 0 && sig_post[l] == 0 { any_mid_gate_filter = true; }
+            let _ = writeln!(rpt, "- level{l}: bsp_pre={} (一/二/三={}/{}/{}) Γ非Flat={} sig_post={} → {}",
+                bsp_pre[l], bsp_pre_first[l], bsp_pre_second[l], bsp_pre_third[l],
+                gamma_nonflat[l], sig_post[l],
+                if bsp_pre[l] == 0 { "门前空(H3候选:架构)" }
+                else if sig_post[l] == 0 { "门滤空(H1候选)" }
+                else { "有信号" });
+        }
+        let verdict = if !any_mid_bsp {
+            "**H3（架构性，非运行时 bug）**：中间级 bsp_pre 全 0。根因=mod.rs:247 上级层（level≥1）\
+             bsp 提取只产第二类 B2/S2（extract_second_for_level），第一/三类仅 L0 层提取。\
+             第二类识别需 upper_moves 的 sub_moves 出现「第一类离开+回拉不创新高/低」结构且背驰——\
+             中间级此结构稀疏 ⟹ 中间级天然空洞。**不是 N^δ 门滤空，不是全历史路径 bug**。"
+        } else if any_mid_gate_filter {
+            "**H1（N^δ 门滤空）**：中间级 bsp_pre>0 但门后 sig_post=0 ⟹ [J_{ℓ-1}⊆J_ℓ] 嵌套链\
+             严格滤掉中间级。需 codex 异质确认（约束4）。"
+        } else {
+            "**中间级有信号**：与反演不符，可能 300K 窗与全历史窗差异（跨窗对比 H2 判别）。"
+        };
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "### 判定：{verdict}");
+        let _ = writeln!(rpt);
+
+        // ── 结构 sanity（team-lead ③）：level≥1 通过门信号的 rung 链 ──
+        let _ = writeln!(rpt, "## 结构 sanity：level≥1 通过门信号的 rung 链（team-lead ③）");
+        if highlevel_hits.is_empty() {
+            let _ = writeln!(rpt, "- 无 level≥1 通过 N^δ 门的信号（本窗）。");
+        } else {
+            let _ = writeln!(rpt, "| lvl | source_index | δ | bits(u8) | rung层数(tower[lvl+1..]含src) |");
+            let _ = writeln!(rpt, "|---|---|---|---|---|");
+            for (lvl, src, delta, bits, n_rungs) in &highlevel_hits {
+                let _ = writeln!(rpt, "| {lvl} | {src} | {delta} | {bits:#04x} | {n_rungs} |");
+            }
+            let _ = writeln!(rpt, "\n**读解**：level_L 信号的 rung 层数 = 它上方 tower 各级含该 source_index 的段数。\
+                这些是**上级语境**（N^δ 递归链），不是「该信号也算作 level_(L-1) 信号」——每个 bsp 只在\
+                提取它的那个 classifier level 计一次（mod.rs 分级提取），rung 链是 N^δ 门的准入语境，非计数重复。");
+        }
+
+        // ── 配对后 decomps level 分布（关键：sig_post 是门后配对前，decomps 是配对后）──
+        // 分水岭：若中间级 sig_post>0 但 decomps 该级=0 ⟹ 配对阶段丢失（非门滤空 H1，是右删失/跨级混合配对）。
+        let (decomps_prod, agg_prod) = decompose_capturable_spread(&ds, &config);
+        let mut decomp_by_level = [0usize; LMAX];
+        for d in &decomps_prod {
+            if (d.level as usize) < LMAX { decomp_by_level[d.level as usize] += 1; }
+        }
+        let _ = writeln!(rpt, "## 配对后 decomps level 分布（sig_post=门后配对前 vs decomps=配对后）");
+        let _ = writeln!(rpt, "| level | sig_post(门后) | decomps(配对后) | 配对丢失 |");
+        let _ = writeln!(rpt, "|---|---|---|---|");
+        let mut any_pairing_loss_mid = false;
+        for l in 0..LMAX {
+            if sig_post[l] == 0 && decomp_by_level[l] == 0 { continue; }
+            let lost = sig_post[l].saturating_sub(decomp_by_level[l]);
+            if l >= 1 && decomp_by_level[l] == 0 && sig_post[l] > 0 { any_pairing_loss_mid = true; }
+            let _ = writeln!(rpt, "| {l} | {} | {} | {} |", sig_post[l], decomp_by_level[l], lost);
+        }
+        let _ = writeln!(rpt, "\n- n_unpaired（无配对出场反转信号，右删失剔除）={}", agg_prod.n_unpaired);
+        let _ = writeln!(rpt, "- **配对机制**：next_opp 表跨级别混合（所有 level 信号按 entry_bar 排序）——\
+            中间级信号找「下一个反向信号」时不分级别，几乎总配 level0（信号 {}/{} 是 level0）。\
+            decomp.level=入场信号 level（配对出场 level 不影响）。", decomp_by_level[0], decomps_prod.len());
+        if any_pairing_loss_mid {
+            let _ = writeln!(rpt, "- **⚠ 配对丢失坐实**：中间级 sig_post>0 但 decomps=0 ⟹ 通过 N^δ 门的中间级信号\
+                在退出配对阶段被 n_unpaired（右删失）剔除。**H1 门滤空判定被修正**——中间级空洞不仅是门滤，\
+                还有配对丢失叠加（门后配对前 sig_post 已含中间级，配对后消失）。");
+        }
+        let _ = writeln!(rpt);
+
+        // 落盘
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent().expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/acc-classification-level-hole-20260701.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n报告已落盘：{out:?}");
+
+        // 真封：分级别 sig_post 之和 >= 生产路径 n_signals（门后信号含未配对出场者）。
+        let sig_post_sum: usize = sig_post.iter().sum();
+        assert!(sig_post_sum >= agg_prod.n_signals,
+            "sig_post_sum({sig_post_sum}) 应 >= n_signals({})：门后信号数含未配对出场者", agg_prod.n_signals);
+        // 真封②：配对后 decomps 逐级和 = n_signals（聚合完整性）。
+        let decomp_sum: usize = decomp_by_level.iter().sum();
+        assert_eq!(decomp_sum, agg_prod.n_signals,
+            "decomp 逐级和({decomp_sum}) 应 = n_signals({})", agg_prod.n_signals);
+        eprintln!("真封：sig_post_sum={sig_post_sum} >= n_signals={} = decomp_sum={decomp_sum}",
+            agg_prod.n_signals);
+    }
 }
