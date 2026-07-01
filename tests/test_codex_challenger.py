@@ -1,16 +1,18 @@
-"""codex_challenger 单元测试（mock API，不需要真实 key）
+"""codex_challenger 单元测试（mock codex CLI，不真调 subprocess）
+
+调用链已从 OpenAI API 迁移到 codex CLI（ChatGPT 订阅认证，配额独立）。
+测试在两层 mock：
+- modes 层：patch engine.call_codex_cli 直接返回 (text, model)
+- engine 层：patch subprocess.run 验证 CLI 参数组装与 --output-last-message 解析
 
 覆盖：
-1. CodexChallenger 初始化（key 缺失报错）
-2. review() 调用链和返回结构
-3. diagnose() 调用链和返回结构
-4. decide() 调用链和返回结构
-5. fallback (APIError → 降级)
-6. CLI 参数解析
-7. 模块级便捷函数
-8. missing key raises ValueError
-9. ReviewResult.to_markdown() 格式
-10. CLI 持久化文件写入
+1. CodexChallenger 构造（无需 key）
+2. review/diagnose/decide 调用链和返回结构
+3. engine.call_codex_cli 的 subprocess 参数、输出文件解析、失败路径
+4. CLI 参数解析
+5. 模块级便捷函数
+6. ReviewResult.to_markdown() 格式
+7. CLI 持久化文件写入
 """
 
 from __future__ import annotations
@@ -21,126 +23,75 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import openai as _real_openai
-
 from newchan.codex.modes import (
     CodexChallenger,
     ReviewResult,
 )
 
 
-# ── Helper: 构建 mock response ──
-
-def _make_mock_response(text: str) -> MagicMock:
-    """构建模拟 Responses API 返回对象。"""
-    text_block = MagicMock()
-    text_block.type = "output_text"
-    text_block.text = text
-
-    message_item = MagicMock()
-    message_item.type = "message"
-    message_item.content = [text_block]
-
-    response = MagicMock()
-    response.output = [message_item]
-    return response
-
-
-def _make_empty_response() -> MagicMock:
-    """构建空响应。"""
-    response = MagicMock()
-    response.output = []
-    return response
-
-
 class TestCodexChallengerInit:
-    """初始化行为。"""
+    """构造行为——CLI 版无需 API Key。"""
 
-    def test_missing_key_raises(self) -> None:
-        with patch.dict("os.environ", {}, clear=True):
-            with pytest.raises(ValueError, match="OPENAI_API_KEY"):
-                CodexChallenger(api_key="")
+    def test_no_key_needed(self) -> None:
+        # CLI 走 ChatGPT 订阅认证，构造不应报错、不读环境变量。
+        c = CodexChallenger()
+        assert c._model == "codex-cli"
 
-    def test_explicit_key(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            CodexChallenger(api_key="test-key-123")
-            mock_openai.OpenAI.assert_called_once_with(api_key="test-key-123")
-
-    def test_env_key(self) -> None:
-        with (
-            patch.dict("os.environ", {"OPENAI_API_KEY": "env-key-456"}),
-            patch("newchan.codex.modes.openai") as mock_openai,
-        ):
-            CodexChallenger()
-            mock_openai.OpenAI.assert_called_once_with(api_key="env-key-456")
+    def test_custom_model_tag(self) -> None:
+        c = CodexChallenger(model="codex-custom")
+        assert c._model == "codex-custom"
 
 
 class TestReview:
     """review() 方法。"""
 
     def test_returns_review_result(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_mock_response("无否定。代码逻辑自洽。")
-            )
+        with patch("newchan.codex.modes.call_codex_cli") as mock_cli:
+            mock_cli.return_value = ("无否定。代码逻辑自洽。", "codex-cli")
 
-            c = CodexChallenger(api_key="test")
+            c = CodexChallenger()
             result = c.review("中枢实现代码", context="src/newchan/core/zhongshu.py")
 
             assert isinstance(result, ReviewResult)
             assert result.mode == "review"
             assert result.subject == "中枢实现代码"
             assert result.response == "无否定。代码逻辑自洽。"
-            assert result.model == "gpt-5.3-codex"
+            assert result.model == "codex-cli"
             assert "中枢实现代码" in result.prompt
             assert "src/newchan/core/zhongshu.py" in result.prompt
 
-    def test_calls_api_with_correct_model(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_mock_response("ok")
-            )
+    def test_passes_system_and_prompt(self) -> None:
+        with patch("newchan.codex.modes.call_codex_cli") as mock_cli:
+            mock_cli.return_value = ("ok", "codex-custom")
 
-            c = CodexChallenger(api_key="test", model="codex-custom")
+            c = CodexChallenger(model="codex-custom")
             result = c.review("test subject")
 
-            call_args = mock_openai.OpenAI.return_value.responses.create.call_args
-            assert call_args.kwargs["model"] == "codex-custom"
+            # engine 接收 (prompt, system_prompt, model=...)
+            call = mock_cli.call_args
+            assert "test subject" in call.args[0]
+            assert call.kwargs["model"] == "codex-custom"
             assert result.model == "codex-custom"
 
     def test_empty_response(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_empty_response()
-            )
+        with patch("newchan.codex.modes.call_codex_cli") as mock_cli:
+            mock_cli.return_value = ("", "codex-cli")
 
-            c = CodexChallenger(api_key="test")
+            c = CodexChallenger()
             result = c.review("test")
             assert result.response == ""
-
-    def test_reasoning_effort_high(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_mock_response("result")
-            )
-
-            c = CodexChallenger(api_key="test")
-            c.review("test")
-
-            call_args = mock_openai.OpenAI.return_value.responses.create.call_args
-            assert call_args.kwargs["reasoning"] == {"effort": "high"}
 
 
 class TestDiagnose:
     """diagnose() 方法。"""
 
     def test_returns_diagnose_result(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_mock_response("根因：边界条件缺失。修复：添加空值检查。")
+        with patch("newchan.codex.modes.call_codex_cli") as mock_cli:
+            mock_cli.return_value = (
+                "根因：边界条件缺失。修复：添加空值检查。", "codex-cli",
             )
 
-            c = CodexChallenger(api_key="test")
+            c = CodexChallenger()
             result = c.diagnose(
                 "test_bi_merge FAILED",
                 context="AssertionError: expected 3, got 2",
@@ -151,27 +102,17 @@ class TestDiagnose:
             assert result.subject == "test_bi_merge FAILED"
             assert "根因" in result.response
 
-    def test_empty_response(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_empty_response()
-            )
-
-            c = CodexChallenger(api_key="test")
-            result = c.diagnose("test")
-            assert result.response == ""
-
 
 class TestDecide:
     """decide() 方法。"""
 
     def test_returns_decide_result(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_mock_response("决策：使用 frozenset。推理：不可变性优先。")
+        with patch("newchan.codex.modes.call_codex_cli") as mock_cli:
+            mock_cli.return_value = (
+                "决策：使用 frozenset。推理：不可变性优先。", "codex-cli",
             )
 
-            c = CodexChallenger(api_key="test")
+            c = CodexChallenger()
             result = c.decide(
                 "中枢内部线段集合用 list 还是 frozenset",
                 context="当前使用 list，但不需要有序访问",
@@ -179,65 +120,107 @@ class TestDecide:
 
             assert isinstance(result, ReviewResult)
             assert result.mode == "decide"
-            assert result.subject == "中枢内部线段集合用 list 还是 frozenset"
-            assert result.model == "gpt-5.3-codex"
+            assert result.model == "codex-cli"
 
 
-class TestFallback:
-    """主模型 5xx 时降级到 fallback。"""
+class TestEngineCLI:
+    """engine.call_codex_cli 的 subprocess 组装与解析。"""
 
-    def test_fallback_on_api_error(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            # 让 mock 的 APIError 指向真实异常类
-            mock_openai.APIError = _real_openai.APIError
-            mock_client = mock_openai.OpenAI.return_value
+    def _mock_run_writing(self, text: str, returncode: int = 0):
+        """返回一个 side_effect：把 text 写入 --output-last-message 文件。"""
 
-            mock_error = _real_openai.APIError(
-                message="unavailable",
-                request=MagicMock(),
-                body=None,
-            )
-            mock_ok = _make_mock_response("fallback response")
-            mock_client.responses.create.side_effect = [
-                mock_error,
-                mock_ok,
-            ]
+        def _side_effect(cmd, **kwargs):
+            # cmd 里 --output-last-message 的下一个元素是文件路径
+            idx = cmd.index("--output-last-message")
+            out_path = Path(cmd[idx + 1])
+            out_path.write_text(text, encoding="utf-8")
+            proc = MagicMock()
+            proc.returncode = returncode
+            proc.stdout = ""
+            proc.stderr = ""
+            return proc
 
-            c = CodexChallenger(api_key="test")
-            result = c.review("test subject")
+        return _side_effect
 
-            assert result.model == "gpt-5.2-codex"
-            assert result.response == "fallback response"
-            assert mock_client.responses.create.call_count == 2
+    def test_cli_args_and_parse(self) -> None:
+        from newchan.codex import engine
 
-    def test_no_fallback_when_primary_works(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.OpenAI.return_value.responses.create.return_value = (
-                _make_mock_response("primary ok")
-            )
+        captured: dict[str, object] = {}
 
-            c = CodexChallenger(api_key="test")
-            result = c.review("test")
+        def _side_effect(cmd, **kwargs):
+            captured["cmd"] = cmd
+            captured["cwd"] = kwargs.get("cwd")
+            idx = cmd.index("--output-last-message")
+            Path(cmd[idx + 1]).write_text("HELLO", encoding="utf-8")
+            proc = MagicMock()
+            proc.returncode = 0
+            return proc
 
-            assert result.model == "gpt-5.3-codex"
-            assert result.response == "primary ok"
+        with patch("newchan.codex.engine.subprocess.run", side_effect=_side_effect):
+            text, model = engine.call_codex_cli("PROMPT", "SYS", model="tag")
 
-    def test_both_fail_raises(self) -> None:
-        with patch("newchan.codex.modes.openai") as mock_openai:
-            mock_openai.APIError = _real_openai.APIError
-            mock_error = _real_openai.APIError(
-                message="unavailable",
-                request=MagicMock(),
-                body=None,
-            )
-            mock_openai.OpenAI.return_value.responses.create.side_effect = [
-                mock_error,
-                mock_error,
-            ]
+        assert text == "HELLO"
+        assert model == "tag"
+        cmd = captured["cmd"]
+        assert cmd[:2] == ["codex", "exec"]
+        assert "--skip-git-repo-check" in cmd
+        assert "--sandbox" in cmd and "read-only" in cmd
+        assert "--ephemeral" in cmd
+        assert "--output-last-message" in cmd
+        # system_prompt 合并进 prompt（最后一个位置参数）
+        assert cmd[-1] == "SYS\n\nPROMPT"
+        # cwd 是临时目录（非 None）
+        assert captured["cwd"] is not None
 
-            c = CodexChallenger(api_key="test")
-            with pytest.raises(_real_openai.APIError):
-                c.review("test")
+    def test_no_system_prompt(self) -> None:
+        from newchan.codex import engine
+
+        with patch(
+            "newchan.codex.engine.subprocess.run",
+            side_effect=self._mock_run_writing("R"),
+        ) as mock_run:
+            text, _ = engine.call_codex_cli("ONLY_PROMPT", "")
+
+        assert text == "R"
+        assert mock_run.call_args.args[0][-1] == "ONLY_PROMPT"
+
+    def test_nonzero_exit_raises(self) -> None:
+        from newchan.codex import engine
+
+        def _side_effect(cmd, **kwargs):
+            proc = MagicMock()
+            proc.returncode = 1
+            proc.stderr = "boom"
+            proc.stdout = ""
+            return proc
+
+        with patch("newchan.codex.engine.subprocess.run", side_effect=_side_effect):
+            with pytest.raises(RuntimeError, match="codex CLI 失败"):
+                engine.call_codex_cli("p", "s")
+
+    def test_missing_output_file_raises(self) -> None:
+        from newchan.codex import engine
+
+        def _side_effect(cmd, **kwargs):
+            proc = MagicMock()
+            proc.returncode = 0  # 成功但没写文件
+            return proc
+
+        with patch("newchan.codex.engine.subprocess.run", side_effect=_side_effect):
+            with pytest.raises(RuntimeError, match="未写入"):
+                engine.call_codex_cli("p", "s")
+
+    def test_timeout_raises(self) -> None:
+        import subprocess
+
+        from newchan.codex import engine
+
+        with patch(
+            "newchan.codex.engine.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="codex", timeout=1),
+        ):
+            with pytest.raises(RuntimeError, match="超时"):
+                engine.call_codex_cli("p", "s")
 
 
 class TestModuleLevelFunctions:
@@ -382,7 +365,7 @@ class TestReviewResultToMarkdown:
             mode="review",
             subject="中枢实现代码",
             response="无否定。代码逻辑自洽。",
-            model="codex-5.3",
+            model="codex-cli",
             prompt="## 审查目标\n\n中枢实现代码",
         )
         md = result.to_markdown(ts)
@@ -390,7 +373,7 @@ class TestReviewResultToMarkdown:
         assert "# Codex review — 2026-02-23 12:30:00 UTC" in md
         assert "- **mode**: review" in md
         assert "- **subject**: 中枢实现代码" in md
-        assert "- **model**: codex-5.3" in md
+        assert "- **model**: codex-cli" in md
         assert "- **timestamp**: 2026-02-23 12:30:00 UTC" in md
         assert "## Prompt" in md
         assert "## 审查目标" in md
@@ -403,7 +386,7 @@ class TestReviewResultToMarkdown:
             mode="diagnose",
             subject="test failure",
             response="根因：边界缺失",
-            model="codex-5.3",
+            model="codex-cli",
             context_file="/tmp/ctx.md",
         )
         md = result.to_markdown(ts)
@@ -416,7 +399,7 @@ class TestReviewResultToMarkdown:
             mode="decide",
             subject="data structure",
             response="use frozenset",
-            model="codex-5.3",
+            model="codex-cli",
         )
         md = result.to_markdown(ts)
 
@@ -428,7 +411,7 @@ class TestReviewResultToMarkdown:
             mode="review",
             subject="test",
             response="ok",
-            model="codex-5.3",
+            model="codex-cli",
             prompt="",
         )
         md = result.to_markdown(ts)
@@ -468,7 +451,7 @@ class TestCLISavesResult:
             mode="review",
             subject="test subject",
             response="审查通过",
-            model="codex-5.3",
+            model="codex-cli",
         )
         ts = datetime(2026, 2, 23, 14, 5, 0, tzinfo=timezone.utc)
 
@@ -489,7 +472,7 @@ class TestCLISavesResult:
             mode="diagnose",
             subject="failure",
             response="根因：X",
-            model="codex-5.3",
+            model="codex-cli",
             context_file="/tmp/ctx.md",
         )
         ts = datetime(2026, 1, 15, 9, 30, 0, tzinfo=timezone.utc)
@@ -517,7 +500,7 @@ class TestCLISavesResult:
                 mode="review",
                 subject="test subject",
                 response="ok",
-                model="codex-5.3",
+                model="codex-cli",
             )
             MockClass.return_value = mock_instance
 

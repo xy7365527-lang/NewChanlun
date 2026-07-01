@@ -1,21 +1,18 @@
 """各模式的具体实现 — CodexChallenger 类 + 模块级便捷函数。
 
-prompt 构建、输出解析、sync 调用入口。
-openai 在此模块级导入，测试通过 patch("newchan.codex.modes.openai") 拦截。
+prompt 构建、CLI 调用入口。
+调用走 codex CLI（engine.call_codex_cli），ChatGPT 订阅认证，配额独立。
 
-概念溯源: [新缠论] — 155号谱系：代码层异质审查（OpenAI Codex）
+概念溯源: [新缠论] — 155号谱系：代码层异质审查（Codex CLI）
 """
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
 
-import openai
-
-from newchan.codex.engine import _MODEL, call_with_fallback
+from newchan.codex.engine import _MODEL, call_codex_cli
 from newchan.codex.registry import ModeKey, get_mode_config
 
 
@@ -75,43 +72,19 @@ class ReviewResult:
         return "\n".join(lines)
 
 
-def _create_client(api_key: str | None = None) -> openai.OpenAI:
-    """创建 OpenAI 客户端，使用模块级 openai 引用（可被 mock 替换）。"""
-    import newchan.codex.modes as _self
-
-    key = api_key or os.environ.get("OPENAI_API_KEY", "")
-    if not key:
-        raise ValueError(
-            "OPENAI_API_KEY 未设置。"
-            "请在 .env 中设置或传入 api_key 参数。"
-        )
-    return _self.openai.OpenAI(api_key=key)
-
-
 class CodexChallenger:
     """Codex 代码层异质审查工位的核心类。
 
+    调用走 codex CLI（`codex exec`），ChatGPT 订阅认证，无需 API Key。
+
     Parameters
     ----------
-    api_key : str | None
-        OpenAI API Key。None 时从 OPENAI_API_KEY 环境变量读取。
     model : str
-        模型名称，默认 codex-5.3。
+        ReviewResult.model 的标记。实际模型由 codex config.toml 决定，默认 codex-cli。
     """
 
-    def __init__(
-        self,
-        api_key: str | None = None,
-        model: str = _MODEL,
-    ) -> None:
-        self._client = _create_client(api_key)
+    def __init__(self, model: str = _MODEL) -> None:
         self._model = model
-
-    def _get_openai_ref(self) -> object:
-        """获取当前模块级 openai 引用（支持 mock）。"""
-        import newchan.codex.modes as _self
-
-        return _self.openai
 
     def _run_mode(
         self,
@@ -122,11 +95,8 @@ class CodexChallenger:
         """通用同步模式执行。"""
         cfg = get_mode_config(mode)
         prompt = cfg.template.format(subject=subject, context=context)
-        openai_mod = self._get_openai_ref()
-        text, model_used = call_with_fallback(
-            self._client, self._model, prompt,
-            cfg.system_prompt, cfg.reasoning_effort,
-            openai_mod,
+        text, model_used = call_codex_cli(
+            prompt, cfg.system_prompt, model=self._model,
         )
         return ReviewResult(
             mode=mode, subject=subject,

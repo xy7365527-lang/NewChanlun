@@ -9,7 +9,6 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,11 +60,7 @@ def main() -> None:
         with open(args.context_file, encoding="utf-8") as f:
             ctx = f.read()
 
-    try:
-        challenger = CodexChallenger()
-    except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    challenger = CodexChallenger()
 
     if args.mode == "review":
         result = challenger.review(args.subject, ctx)
