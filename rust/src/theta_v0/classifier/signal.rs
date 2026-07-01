@@ -516,8 +516,9 @@ pub fn extract_signals(
 /// [`extract_signals`] + P2 破中枢结构候选 feature sidecar（codex-decide-20260701-2121）。
 ///
 /// 返回 `(Vec<BspPoint>, Vec<StructBreakFeature>)`：
-/// - `Vec<BspPoint>`：与 [`extract_signals`] **bit-identical** 的买卖点序列（下游消费；背驰确认的
-///   破中枢候选置 buy1/sell1，未背驰的置零 bit=Flat 候选进样本）。
+/// - `Vec<BspPoint>`：与 [`extract_signals`] 同 core 的买卖点序列（**同源包装一致**，非 vs 旧 veto
+///   bit-identical——codex-review-20260701-2139 重要#2 校正；本实现在 trend∧broke∧no-diverge 路径
+///   比旧 veto 多零 bit struct_break 点=候选进样本）。背驰确认的破中枢候选置 buy1/sell1，未背驰置零 bit。
 /// - `Vec<StructBreakFeature>`：破中枢结构候选的 MACD `macd_c_lt_a` feature（sidecar，按 source_index
 ///   升序，与对应 BspPoint 关联）。**独立于 BspPoint**——不进 `PartialEq`/排序/class/Gamma bit-exact。
 ///
@@ -1001,9 +1002,13 @@ mod tests {
     }
 
     #[test]
-    fn extract_signals_bit_exact_unchanged_by_feature_sidecar() {
-        // ★bit-exact 隔离守卫（codex 风险2）：extract_signals（下游消费的 BspPoint 序列）在**背驰
-        //   路径**上与旧实现逐字段相等——feature sidecar 不改 BspPoint 内容/顺序。复用背驰结构。
+    fn extract_signals_with_features_bsp_matches_plain_wrapper() {
+        // ★同源包装一致性（**非** vs 旧 veto oracle——codex-review-20260701-2139 重要#2 校正）：
+        //   extract_signals 与 extract_signals_with_features 是同一 core 的两个包装，BspPoint 序列
+        //   必然逐字段相等（feature sidecar 不改 BspPoint 内容/顺序）。这**不**证明「与旧 veto 实现
+        //   bit-identical」——新实现在 trend∧broke∧no-diverge 路径上比旧 veto **多一个零 bit
+        //   struct_break 点**（预期行为变更：候选进样本）。本测试只锁「包装一致」，不锁「旧行为不变」。
+        //   复用背驰结构（此结构不触发多点差异，两包装当然相等）。
         let c0 = dc(300, 400, 290, 410, 2);
         let c1 = dc(100, 200, 90, 210, 8);
         let segs = vec![

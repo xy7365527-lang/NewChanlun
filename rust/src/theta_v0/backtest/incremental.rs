@@ -252,6 +252,7 @@ mod tests {
 
 #[cfg(test)]
 mod profile {
+    use super::IncrementalClassifier;
     use super::super::data;
     use super::super::super::config::ThetaConfig;
     use super::super::super::{classifier, parser};
@@ -496,6 +497,135 @@ mod profile {
             }
         }
         eprintln!("no classifier-only divergence in 0..{n}");
+    }
+
+    /// **★决定性对拍（Task #10）：长历史终点 level 分布 增量生产路径 vs 全量 ground truth**。
+    ///
+    /// codex #8 攻击 acc-classification「窗口依赖非 bug」：用 L1 合成 bit-exact 排除 L2 真实 frontier
+    /// 发散（bar 1464，`detect_centers_windowed_resume` resume cursor 把未确认末窗当 immutable）。翻转
+    /// 条件 #2 = 增量 vs 全量对拍验证 frontier bug 在长历史/真实数据已修复。
+    ///
+    /// ## 判别设计（终点对拍，非每 bar——O(n) 可行到 300K）
+    ///
+    /// - **增量生产路径**：`IncrementalClassifier::new(bars[..n])` 逐 bar `classify_at` 到终点 → 最终
+    ///   classification（`run_theta_v0_pi` 实际跑的 substrate 路径）。
+    /// - **全量 ground truth**：`classify_with_tower(parse_layer(bars[..n]))` 单次全量重算（无增量）。
+    /// - **逐 level 对拍**：`centers` / `bsp` bit-exact 比较，报每级数量 + 首个发散字段。
+    ///
+    /// ## 决定性判读
+    ///
+    /// - **终点 level 分布 bit-exact 相等** ⟹ 增量在长历史无 frontier 发散（cascade_reset 修复有效）
+    ///   ⟹ 全历史 level2-4=0 **不是增量 bug 伪影**，窗口依赖判定升回坐实（H2 否证，alpha 不重开）。
+    /// - **高级别（level≥2）centers/bsp 发散** ⟹ frontier bug 使高级别塔退化 ⟹ level2-4=0 是 bug 伪影
+    ///   ⟹ H2 翻案，高级别信号可能复活，acc-alpha 对象重开。
+    ///
+    /// ## 认识论等级：**L2**（真实 CL/BTC 长历史，可否证 frontier bug 存否）
+    ///
+    /// 运行：`cargo test --release -p newchan_rust --lib \
+    ///   backtest::incremental::profile::decisive_endpoint_tower_parity_longhistory -- --ignored --nocapture`
+    #[test]
+    #[ignore = "决定性对拍 Task #10：长历史终点 level 分布增量 vs 全量；需 CL+BTC；--release"]
+    fn decisive_endpoint_tower_parity_longhistory() {
+        let config = ThetaConfig::default();
+        // CL：全历史切片（3.5M+）；BTC：全量（4.6M）。取递增窗口找发散点。
+        let symbols: [(&str, Option<(&str, &str)>); 2] =
+            [("CL", Some(("2015-01-01", "2025-06-30"))), ("BTC", None)];
+        let sizes = [50_000usize, 150_000, 300_000];
+
+        let mut any_divergence = false;
+        for (sym, window) in symbols {
+            let ds = match super::super::data::load_by_symbol(sym, &config) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("[{sym}] DATA BLOCKER: {e}（跳过）");
+                    continue;
+                }
+            };
+            let bars_all = match window {
+                Some((a, b)) => ds.slice_date_window(a, b).bars,
+                None => ds.bars.clone(),
+            };
+            eprintln!("\n===== [{sym}] 决定性对拍（终点 level 分布，增量生产 vs 全量 GT）total={} =====",
+                bars_all.len());
+
+            for &n in &sizes {
+                if n > bars_all.len() {
+                    eprintln!("[{sym}] n={n} > 可用 {}，跳过", bars_all.len());
+                    continue;
+                }
+                let bars = &bars_all[..n];
+
+                // ① 增量生产路径：逐 bar classify_at 到终点。
+                let mut incr = IncrementalClassifier::new(bars, &config);
+                let mut last = classifier::Classification::default();
+                for i in 0..n {
+                    let (cls, _) = incr.classify_at(i);
+                    last = cls;
+                }
+
+                // ② 全量 ground truth：单次全量重算。
+                let l0 = parser::parse_layer(bars, &config);
+                let (full, _) = classifier::classify_with_tower(&l0, &config);
+
+                // ③ 逐 level 对拍。
+                let n_lvl_i = last.levels.len();
+                let n_lvl_f = full.levels.len();
+                let levels_match = n_lvl_i == n_lvl_f;
+                eprint!("[{sym}] n={n:>7}: 增量 lvls={n_lvl_i} 全量 lvls={n_lvl_f}");
+                if !levels_match {
+                    eprintln!("  ★★层数发散");
+                    any_divergence = true;
+                }
+                let mut level_diverged = false;
+                for lvl in 0..n_lvl_i.min(n_lvl_f) {
+                    let li = &last.levels[lvl];
+                    let lf = &full.levels[lvl];
+                    let centers_eq = li.centers == lf.centers;
+                    let bsp_eq = li.bsp == lf.bsp;
+                    if !centers_eq || !bsp_eq {
+                        if !level_diverged {
+                            eprintln!();
+                        }
+                        level_diverged = true;
+                        any_divergence = true;
+                        eprintln!(
+                            "  ★L{lvl} 发散: centers({}/{}) eq={centers_eq}  bsp({}/{}) eq={bsp_eq}",
+                            li.centers.len(), lf.centers.len(), li.bsp.len(), lf.bsp.len()
+                        );
+                        // 首个 center 发散细节。
+                        if !centers_eq {
+                            for (ci, (a, b)) in li.centers.iter().zip(lf.centers.iter()).enumerate() {
+                                if a != b {
+                                    eprintln!("      center[{ci}] incr={a:?}\n              full={b:?}");
+                                    break;
+                                }
+                            }
+                            if li.centers.len() != lf.centers.len() {
+                                eprintln!("      (center 数不同：incr={} full={})", li.centers.len(), lf.centers.len());
+                            }
+                        }
+                    }
+                }
+                if !level_diverged && levels_match {
+                    // 全等：报每级 bsp 数（level 分布）以佐证「非 bug」。
+                    let dist: Vec<usize> = full.levels.iter().map(|l| l.bsp.len()).collect();
+                    eprintln!("  bit-exact ✓  bsp/lvl={dist:?}");
+                }
+                use std::io::Write;
+                std::io::stderr().flush().ok();
+            }
+        }
+
+        eprintln!(
+            "\n★决定性判读：\n  \
+             全 bit-exact ✓ ⟹ 增量长历史无 frontier 发散 ⟹ level2-4=0 非 bug 伪影（窗口依赖坐实，H2 否证）。\n  \
+             任一 level≥2 发散 ⟹ frontier bug 使高级别退化 ⟹ level2-4=0 是 bug 伪影（H2 翻案，alpha 重开）。"
+        );
+        assert!(
+            !any_divergence,
+            "★frontier bug 确认：增量生产路径与全量 ground truth 在长历史终点 level 分布发散——\
+             高级别塔退化，level2-4=0 是 bug 伪影，H2 翻案。见上方 ★L 发散明细。"
+        );
     }
 
     /// **★Profile：增量链 vs legacy 全量 标度对比**。

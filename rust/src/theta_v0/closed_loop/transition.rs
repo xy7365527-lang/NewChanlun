@@ -555,6 +555,18 @@ mod tests {
         assert!(x1.tw_state.free >= 0, "买入后 free≥0（8-1=7，codex 复审#1 现金约束）");
     }
 
+    /// ★codex/lead round-2 回归：**未注资 initial（free=0）闭环 free 从不为负**——Buy Δ=1 被现金约束
+    /// 到 0（filled=min(1, free=0)=0），positions 不推进，free 恒 0（旧版漏网 free=-1 已堵）。
+    #[test]
+    fn unfunded_initial_never_negative_free() {
+        let mut x = AssemblyState::initial(1_000_000); // free=0, positions=0
+        for i in 0..20 {
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
+            assert!(x.tw_state.free >= 0, "bar {i}: free={} 变负（buy 透支现金漏网）", x.tw_state.free);
+            assert_eq!(x.positions, 0, "free=0 ⟹ Buy 被现金约束 ⟹ positions 不推进");
+        }
+    }
+
     /// micro_delta 与 Dynamics.delta bit-exact（newStroke 清零 pending_rise 经 AssemblyEvent）。
     #[test]
     fn hybrid_step_micro_event_stroke() {
