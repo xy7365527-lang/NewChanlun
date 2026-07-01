@@ -32,10 +32,40 @@
 
 use super::data::Dataset;
 use super::incremental::IncrementalClassifier;
+use super::super::classifier::cand_predicate::ContextMove;
+use super::super::classifier::divergence::compute_macd;
+use super::super::classifier::nest::{NestCertificate, NestInterval, NestRung};
 use super::super::config::ThetaConfig;
 use super::super::strategy::interp::assemble_gamma_with_tower;
 use super::super::strategy::voice::VoiceSide;
-use super::super::types::{Bar, BspBits};
+use super::super::types::{Bar, BspBits, Side};
+
+/// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（sell.rs:50 CloseRoot/ReduceCore 对齐）。
+///
+/// **定义依据**：出场信号 bsp_class bits 已编码卖点判据（EndpointSituation → endpoint_to_bsp）。
+/// - `CloseRoot`：exit bits.sell1=true（第一类顶背驰，对应 sell.rs SellDecision::CloseRoot）。
+/// - `ReduceCore`：exit bits.sell3=true ∧ sell1=false（第三类，sell.rs SellDecision::ReduceCore）。
+/// - `Type2Missing`：exit bits.sell2=true（第二类卖点闭环 sell.rs:35 still-MISSING，诚实标注）。
+/// - `Hold`：exit 是反向方向信号但无正规卖点 bits（bits 全0 或仅 buy/sell 位未命中正规类）。
+///
+/// 对空头入场（δ=−1），exit 是多头信号，用 buy1/buy3/buy2 镜像判据（买点类型对应买侧正规出场）。
+///
+/// **第二类闭环 still-MISSING**：sell.rs:35 的诚实边界已声明"第二类卖点闭环需次级别递归，见 descend.rs"。
+/// 本枚举不臆造 Type2 实装（no-patch）——遇 sell2/buy2 入 `Type2Missing`，记入统计但不改账本口径。
+///
+/// **账本边界**：本枚举只影响 econ 的 exit_decision 字段（分析统计口径），不触碰 TW 三阶段（GAP3/576）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExitDecision {
+    /// 第一类正规出场（顶背驰清仓）→ sell.rs CloseRoot。
+    CloseRoot,
+    /// 第三类正规出场（减核）→ sell.rs ReduceCore。
+    ReduceCore,
+    /// 第二类卖点闭环 still-MISSING（sell.rs:35 诚实边界）。
+    #[default]
+    Type2Missing,
+    /// 非正规卖点出场（exit bits 无明确正规类别，或 Hold 信号）。
+    Hold,
+}
 
 /// 单信号的可捕获价差分解（PDF §5 五项 + captured = Ab−ηin−ηout−Ce/qe）。
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -77,6 +107,15 @@ pub struct SignalDecomp {
     /// LeveledMove 的 `start_index/end_index`（L0 原始 K 序端点，覆盖该走势全跨度）close 净差符号——
     /// 与 Trend(Up)⟺端点净涨语义等价，是该作用域的严格可达解。用于分离「δ 顺上级 vs 逆上级」alpha 归因。
     pub sigma_higher: i8,
+    /// bsp_class：买卖点类型位掩码（W4 类型透传）。bsp_disc(&p.bits) 同口径——
+    /// bit0=buy1, bit1=buy2, bit2=buy3, bit3=sell1, bit4=sell2, bit5=sell3（可同时多位）。
+    /// 完整保留一/二/三类+买卖侧信息，供类型分层 alpha 检验（避免混合池稀释掩盖单类型 alpha）。
+    /// 买卖侧另见 `delta`（+1 买 / −1 空，交易方向）——本字段是 bit 级类型，delta 是聚合方向。
+    pub bsp_class: u8,
+    /// P7 正规出场口径：配对出场信号的缠论卖（买）点类别（接 sell.rs CloseRoot/ReduceCore）。
+    /// 从配对出场信号的 bsp_class 派生（bsp_class bits 已编码卖点判据结果）。
+    /// `Type2Missing` = 第二类闭环 sell.rs:35 still-MISSING，诚实标注，不改账本口径。
+    pub exit_decision: ExitDecision,
 }
 
 /// 聚合诊断「钱去哪了」（确定性分解，Σ 精确等于 Σ trade gross，非概率推断）。
@@ -109,6 +148,14 @@ pub struct SpreadAttribution {
     pub n_same_bar_opposite: usize,
     /// 三审计统计③：n_unpaired 计数（入场信号无配对出场反转信号，右删失诚实跳过；codex Q4 边界）。
     pub n_unpaired: usize,
+    /// P7 正规出场统计：CloseRoot（第一类顶背驰）配对出场信号数。
+    pub n_exit_close_root: usize,
+    /// P7 正规出场统计：ReduceCore（第三类）配对出场信号数。
+    pub n_exit_reduce_core: usize,
+    /// P7 正规出场统计：Type2Missing（第二类 sell.rs:35 still-MISSING）配对出场信号数（诚实标注）。
+    pub n_exit_type2_missing: usize,
+    /// P7 正规出场统计：Hold（无正规卖点 bit 的反向信号出场）配对出场信号数。
+    pub n_exit_hold: usize,
 }
 
 impl SpreadAttribution {
@@ -158,14 +205,22 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
 
+    // ── MACD hist 预计算（DivCand 条件4 Weak 判据所需，W1 工位）。 ──
+    // Θ_MACD：全序列一次性计算（O(n)），供 bsp_div_cand 查询 bar 区间面积。
+    // ponytail: 预计算一次，信号收集循环 O(1) 查表，无 per-signal 重算。
+    let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
+    let macd_hist = compute_macd(&closes, &config.macd).hist;
+
     // ── 信号收集（同 build_walk_forward_mu）：逐 bar 因果分类，收新确认买卖点。 ──
     // 664 号：每条信号挂靠的 pivot 端点 = p.source_index（bsp.rs:103，L0 原始 K 序）。
     // 反转交易腿 λ_rev = 入场信号 pivot 端点；ρ_rev 在退出配对时取配对出场信号的 pivot 端点。
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
     let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
     // 每条信号：(entry_bar=确认 bar τin, dir=交易方向 δ, pivot_bar=信号挂靠 pivot 端点 source_index,
-    // lvl=级别, sigma_higher=入场时上级方向态 666 号)。sigma_higher 在收集时算（此时有 lvl+tower_i）。
-    let mut signals: Vec<(usize, VoiceSide, usize, u32, i8)> = Vec::new();
+    // lvl=级别, sigma_higher=入场时上级方向态 666 号, bsp_class=bsp_disc(&p.bits) 类型位掩码 W4)。
+    // W4 类型透传：bsp_class 是 buy1/2/3+sell1/2/3 的 u8 位掩码（bsp_disc 同口径，seen-set 键已在用），
+    // 完整保留一/二/三类+买卖侧信息（可同时置多位，如 buy1+buy3）。纯增字段，不改配对/信号集/识别逻辑。
+    let mut signals: Vec<(usize, VoiceSide, usize, u32, i8, u8)> = Vec::new();
 
     for i in 0..n {
         let bar = &bars[i];
@@ -175,7 +230,8 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         let (cls_i, tower_i) = classifier_incr.classify_at(i);
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
             for p in &ls.bsp {
-                if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {
+                let bsp_class = bsp_disc(&p.bits); // W4：类型位掩码（seen-set 键复用，纯透传）
+                if !seen.insert((lvl, p.source_index, bsp_class)) {
                     continue; // 已确认过
                 }
                 let pivot_bar = p.source_index; // 信号挂靠 pivot 端点（bsp.rs:103）= λ_rev / ρ_rev 取价处
@@ -202,7 +258,19 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                     if c.dir == VoiceSide::Flat {
                         continue;
                     }
-                    signals.push((i, c.dir, pivot_bar, lvl as u32, sigma_higher));
+                    // W1 返工：N^δ 多级区间套准入门（替换 bsp_div_cand 单级门）。
+                    // 调 build_multilevel_nest_cert：从塔构造完整 rungs 链，调 NestCertificate::n_delta()。
+                    // N^δ=false ⟹ 跳过（合法定位失败；任一级 Cand=0 或区间不收缩均拒）。
+                    // 认识论 L0（结构过滤，不声明 alpha；alpha 有效性待 W-VERIFY L2/L3）。
+                    let delta_side = match c.dir {
+                        VoiceSide::Long => Side::Long,
+                        VoiceSide::Short => Side::Short,
+                        VoiceSide::Flat => continue,
+                    };
+                    if !build_multilevel_nest_cert(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist) {
+                        continue;
+                    }
+                    signals.push((i, c.dir, pivot_bar, lvl as u32, sigma_higher, bsp_class));
                 }
             }
         }
@@ -228,7 +296,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         next_short[i] = if signals[i].1 == VoiceSide::Short { i } else { next_short[i + 1] };
     }
 
-    for (idx, &(entry_bar, dir, lambda_rev_bar, level, sigma_higher)) in signals.iter().enumerate() {
+    for (idx, &(entry_bar, dir, lambda_rev_bar, level, sigma_higher, bsp_class)) in signals.iter().enumerate() {
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
             VoiceSide::Short => -1,
@@ -247,9 +315,9 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         while j < ns && signals[j].0 <= entry_bar {
             j = next_opp[j + 1];
         }
-        // 配对出场信号（首个 eb>entry_bar 反向新确认信号，π^bsp owned）：entry_bar(τout) + pivot_bar(ρ_rev)。
-        let (exit_bar, rho_rev_bar) = if j < ns {
-            (signals[j].0, signals[j].2)
+        // 配对出场信号（首个 eb>entry_bar 反向新确认信号，π^bsp owned）：entry_bar(τout) + pivot_bar(ρ_rev) + exit_bsp_class(P7)。
+        let (exit_bar, rho_rev_bar, exit_bsp_class) = if j < ns {
+            (signals[j].0, signals[j].2, signals[j].5)
         } else {
             agg.n_unpaired += 1; // 三审计统计③（codex Q4）：右删失，无配对出场反转信号，诚实跳过不兜底
             continue;
@@ -278,10 +346,13 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         let ce_unit = (p_tau_in + p_tau_out) * fee_rate;
         let captured = a_b - eta_in - eta_out - ce_unit; // adverse-only 保守压力测试
         let actual_pnl = actual_spread - ce_unit; // 真实成交 PnL 代理（664-Q3）
+        // P7 正规出场口径：从配对出场信号 bsp_class 派生（接 sell.rs CloseRoot/ReduceCore）。
+        let exit_decision = exit_decision_from_bits(exit_bsp_class, delta);
 
         decomps.push(SignalDecomp {
             entry_bar, exit_bar, level, delta, a_b, x_in, y_out,
-            eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl, sigma_higher,
+            eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl, sigma_higher, bsp_class,
+            exit_decision,
         });
         agg.n_signals += 1;
         agg.sum_a_b += a_b;
@@ -301,14 +372,163 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         if rho_rev_bar > lambda_rev_bar {
             agg.n_rho_after_lambda += 1; // 三审计统计①（codex Q1 不变量）
         }
+        // P7 出场决策统计（接 sell.rs CloseRoot/ReduceCore，Type2Missing=still-MISSING 诚实标注）。
+        match exit_decision {
+            ExitDecision::CloseRoot => agg.n_exit_close_root += 1,
+            ExitDecision::ReduceCore => agg.n_exit_reduce_core += 1,
+            ExitDecision::Type2Missing => agg.n_exit_type2_missing += 1,
+            ExitDecision::Hold => agg.n_exit_hold += 1,
+        }
     }
 
     (decomps, agg)
 }
 
+/// P7 正规出场口径：从配对出场信号 bsp_class bits 派生 ExitDecision（接 sell.rs CloseRoot/ReduceCore）。
+///
+/// **定义依据**：
+/// - 多头入场（δ=+1），exit 是 Short 信号：看卖侧 bits（bit3=sell1, bit4=sell2, bit5=sell3）。
+///   - sell1=true → CloseRoot（第一类顶背驰，优先级最高，对应 recog_chanlun_sell 第一分支）。
+///   - sell1=false ∧ sell3=true → ReduceCore（第三类卖点）。
+///   - sell1=false ∧ sell3=false ∧ sell2=true → Type2Missing（sell.rs:35 still-MISSING 诚实标注）。
+///   - 否则（无正规卖侧 bit）→ Hold。
+/// - 空头入场（δ=−1），exit 是 Long 信号：看买侧 bits（bit0=buy1, bit1=buy2, bit2=buy3）。
+///   - buy1=true → CloseRoot（第一类底背驰，买侧镜像）。
+///   - buy1=false ∧ buy3=true → ReduceCore（第三类买点，买侧镜像）。
+///   - buy1=false ∧ buy3=false ∧ buy2=true → Type2Missing（buy2 闭环 still-MISSING）。
+///   - 否则 → Hold。
+///
+/// **边界条件**：若 bsp_class=0（无任何 bit）→ Hold（exit 为 Hold 信号，无正规出场依据）。
+/// **账本边界**：不触碰 TW 三阶段（GAP3/576 still-MISSING，econ 只用 R 账本 closed_loop 对齐）。
+/// **认识论 L0**：纯 bit 派生，不声明 alpha（alpha 待 W-VERIFY L2/L3）。
+pub(super) fn exit_decision_from_bits(exit_bsp_class: u8, delta: i8) -> ExitDecision {
+    // bsp_class 位掩码：bit0=buy1, bit1=buy2, bit2=buy3, bit3=sell1, bit4=sell2, bit5=sell3
+    const SELL1: u8 = 1 << 3;
+    const SELL2: u8 = 1 << 4;
+    const SELL3: u8 = 1 << 5;
+    const BUY1: u8 = 1 << 0;
+    const BUY2: u8 = 1 << 1;
+    const BUY3: u8 = 1 << 2;
+    if delta > 0 {
+        // 多头入场 → exit 是 Short 信号，看卖侧 bits
+        if exit_bsp_class & SELL1 != 0 {
+            ExitDecision::CloseRoot
+        } else if exit_bsp_class & SELL3 != 0 {
+            ExitDecision::ReduceCore
+        } else if exit_bsp_class & SELL2 != 0 {
+            ExitDecision::Type2Missing // sell.rs:35 still-MISSING，诚实标注
+        } else {
+            ExitDecision::Hold
+        }
+    } else {
+        // 空头入场 → exit 是 Long 信号，看买侧 bits（买点镜像）
+        if exit_bsp_class & BUY1 != 0 {
+            ExitDecision::CloseRoot
+        } else if exit_bsp_class & BUY3 != 0 {
+            ExitDecision::ReduceCore
+        } else if exit_bsp_class & BUY2 != 0 {
+            ExitDecision::Type2Missing // buy2 闭环 still-MISSING
+        } else {
+            ExitDecision::Hold
+        }
+    }
+}
+
 /// bar close → 价格（close×tick），越界/非正返 0。
 fn px_at(bars: &[Bar], i: usize, tick: f64) -> f64 {
     bars.get(i).map(|b| b.close as f64 * tick).filter(|&p| p > 0.0).unwrap_or(0.0)
+}
+
+/// W1 返工：多级 N^δ 区间套证书构造 + 真递归调用（替换 bsp_div_cand 单级门）。
+///
+/// ## 结果包（六要素）
+/// - **结论**：从塔构造 `NestCertificate`，调用 `n_delta()`，返回 N^δ_{ℓ↓e} ∈ {0,1}。
+/// - **定义依据**：spec P5 §6 `N^δ_{ℓ↓e} = Conf^δ_e`（基例 ℓ=e）或
+///   `Cand^δ_ℓ ∧ [J^δ_{ℓ-1}⊆J^δ_ℓ] ∧ N^δ_{ℓ-1↓e}`（递归步）。执行级 e=lvl（信号所在级），
+///   rungs 包含 lvl+1 到 tower 顶-1 的各级 Cand + 区间。
+/// - **边界条件**：tower 为空或 tower[lvl] 无 source_index 匹配段 ⟹ false。任一级 Cand=false
+///   ⟹ false。任一相邻级区间不满足 ⊆ ⟹ false。基例 Conf^δ_e=false ⟹ false。
+/// - **下游推论**：`decompose_capturable_spread` 的信号过滤改为本函数（多级 N^δ 门），
+///   取代 `bsp_div_cand` 单级门——信号集改变（只收多级链通过的信号）。
+/// - **谱系引用**：W1 工位 spec 三方一致（cand_predicate.rs docstring + codex C1 裁决 + 本文件）。
+///   不确定是否有相关概念分离谱系，保守声明。
+/// - **影响声明**：新增本函数；替换 decompose_capturable_spread 中的 bsp_div_cand 调用；
+///   信号集内容改变（L0 结构过滤，不声明 alpha）。
+///
+/// **认识论 L0**：纯结构构造 + 确定性算术。alpha 有效性待 L2/L3（W-VERIFY），不在此声明。
+pub(super) fn build_multilevel_nest_cert(
+    tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
+    lvl: usize,
+    source_index: usize,
+    delta: Side,
+    bits: &BspBits,
+    hist: &[f64],
+) -> bool {
+    // 执行级 tower[lvl] 中找 end_index == source_index 的段（候选段 s，执行级 e=lvl）。
+    let exec_moves = match tower.get(lvl) {
+        Some(rc) => rc.as_slice(),
+        None => return false,
+    };
+    let Some(s) = exec_moves.iter().find(|m| m.end_index == source_index) else {
+        return false;
+    };
+    let base_interval = NestInterval {
+        start_time: s.start_index as u64,
+        end_time: s.end_index as u64,
+        idx: s.id.ordinal,
+    };
+
+    // rungs：从高级向执行级降序（rungs[0]=最高级，rungs[last]=lvl+1 级）。
+    // 对每个上级 k = lvl+1 到 tower.len()-1：
+    //   - 找 tower[k] 中包含 source_index 的段（start_index ≤ source_index ≤ end_index）作为区间
+    //   - 在 tower[k] 的上级 tower[k+1] 的 sub_moves 中计算 Cand^δ_k
+    //   - 若任何级别找不到包含段 ⟹ 提前 false（无上级语境）
+    let max_k = tower.len();
+    let mut rung_buf: Vec<NestRung> = Vec::new(); // 从低到高先收集，最后反转
+    for k in (lvl + 1)..max_k {
+        let k_moves = tower[k].as_slice();
+        // 找 tower[k] 中包含 source_index 的段（k 级 Compose）。
+        let Some(knode) = k_moves.iter().find(|m| {
+            m.start_index <= source_index && source_index <= m.end_index
+        }) else {
+            break; // 无 k 级包含段 ⟹ 链断，不延伸
+        };
+        let interval_k = NestInterval {
+            start_time: knode.start_index as u64,
+            end_time: knode.end_index as u64,
+            idx: knode.id.ordinal,
+        };
+        // Cand^δ_k：在 k 级的 sub_moves 序列（下一级次级别走势）中，找 source_index 对应段，
+        // 计算 DivCand 四条件。k 级 knode 的 sub_moves 是 lvl 到 k-1 级的窗口序列；
+        // 在 sub_moves 中找 end_index == source_index 的段（即执行级候选段）。
+        let ctx: Vec<ContextMove> = knode.sub_moves.iter().map(|m| {
+            ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index)
+        }).collect();
+        let target_idx = knode.sub_moves.iter().position(|m| m.end_index == source_index);
+        let cand_k = match target_idx {
+            Some(tidx) => {
+                super::super::classifier::cand_predicate::div_cand(
+                    &super::super::classifier::cand_predicate::DivCandInput {
+                        context: &ctx,
+                        target_idx: tidx,
+                        hist,
+                        delta,
+                    }
+                )
+            }
+            None => false, // 执行级候选段不在 k 级次级别序列中 ⟹ 无 Cand
+        };
+        rung_buf.push(NestRung { interval: interval_k, cand: cand_k });
+    }
+    // n_delta 期望 rungs[0]=最高级，rungs[last]=lvl+1 级——rung_buf 是低到高，需反转。
+    rung_buf.reverse();
+    let cert = NestCertificate {
+        side: delta,
+        terminal: *bits,
+        base_interval,
+        rungs: rung_buf,
+    };
+    cert.n_delta()
 }
 
 /// σ_higher：信号所在 level 的上级层（tower[level+1]）末走势端点价净差符号（666 号，见 SignalDecomp.sigma_higher）。
@@ -332,6 +552,301 @@ fn sigma_higher_at(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── P7 正规出场口径测试（RED→GREEN：exit_decision_from_bits 派生，接 sell.rs CloseRoot/ReduceCore）────
+
+    /// **P7 多头入场 exit_decision_from_bits：sell1 → CloseRoot（优先级最高）**。
+    ///
+    /// 定义依据：recog_chanlun_sell 第一分支「sell1=顶背驰 → CloseRoot」。
+    /// 边界条件：sell1=1 即触发，不看 sell3/sell2（第一类优先）。
+    #[test]
+    fn p7_exit_decision_long_sell1_close_root() {
+        // bit3=sell1
+        let exit_class: u8 = 1 << 3;
+        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::CloseRoot,
+            "多头入场 sell1 → CloseRoot");
+    }
+
+    /// **P7 多头入场 exit_decision_from_bits：sell3（无 sell1）→ ReduceCore**。
+    ///
+    /// 定义依据：recog_chanlun_sell 第二分支「sell3=第三类 → ReduceCore」（sell1=false 前提）。
+    #[test]
+    fn p7_exit_decision_long_sell3_reduce_core() {
+        // bit5=sell3，bit3=sell1=0
+        let exit_class: u8 = 1 << 5;
+        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::ReduceCore,
+            "多头入场 sell3（无 sell1）→ ReduceCore");
+    }
+
+    /// **P7 多头入场 exit_decision_from_bits：sell1+sell3 同时 → CloseRoot（第一类优先）**。
+    ///
+    /// 边界条件：sell1 与 sell3 共存时，第一类优先（镜像 recog_chanlun_sell 分支顺序）。
+    #[test]
+    fn p7_exit_decision_long_sell1_sell3_priority() {
+        let exit_class: u8 = (1 << 3) | (1 << 5); // sell1+sell3
+        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::CloseRoot,
+            "sell1+sell3 共存 → CloseRoot（第一类优先）");
+    }
+
+    /// **P7 多头入场 exit_decision_from_bits：sell2（无 sell1/3）→ Type2Missing（still-MISSING 诚实标注）**。
+    ///
+    /// 定义依据：sell.rs:35 诚实边界「第二类卖点闭环 still-MISSING」。
+    /// 边界条件：Type2Missing 不改账本，只记入统计（no-patch）。
+    #[test]
+    fn p7_exit_decision_long_sell2_type2_missing() {
+        let exit_class: u8 = 1 << 4; // sell2
+        assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::Type2Missing,
+            "多头入场 sell2 → Type2Missing（sell.rs:35 still-MISSING）");
+    }
+
+    /// **P7 多头入场 exit_decision_from_bits：bsp_class=0（无任何 bit）→ Hold**。
+    ///
+    /// 边界条件：exit 信号无正规卖点 bit → Hold（无出场依据，不改账本）。
+    #[test]
+    fn p7_exit_decision_long_no_bit_hold() {
+        assert_eq!(exit_decision_from_bits(0, 1), ExitDecision::Hold,
+            "多头入场 bsp_class=0 → Hold");
+    }
+
+    /// **P7 空头入场 exit_decision_from_bits：买侧镜像判据**。
+    ///
+    /// 定义依据：空头入场 exit 是 Long 信号，buy1/3/2 镜像 sell1/3/2。
+    #[test]
+    fn p7_exit_decision_short_buy_mirror() {
+        // buy1 → CloseRoot
+        assert_eq!(exit_decision_from_bits(1 << 0, -1), ExitDecision::CloseRoot,
+            "空头入场 buy1 → CloseRoot");
+        // buy3 → ReduceCore
+        assert_eq!(exit_decision_from_bits(1 << 2, -1), ExitDecision::ReduceCore,
+            "空头入场 buy3 → ReduceCore");
+        // buy2 → Type2Missing
+        assert_eq!(exit_decision_from_bits(1 << 1, -1), ExitDecision::Type2Missing,
+            "空头入场 buy2 → Type2Missing");
+        // 0 → Hold
+        assert_eq!(exit_decision_from_bits(0, -1), ExitDecision::Hold,
+            "空头入场 bsp_class=0 → Hold");
+    }
+
+    /// **P7 ExitDecision 穷举分类完整性（多头）**：所有可能的 exit bsp_class（0..64）都映射到四态之一。
+    ///
+    /// 边界条件：完整覆盖 64 种 bsp_class，无 panic 无未定义。
+    #[test]
+    fn p7_exit_decision_exhaustive_long() {
+        for cls in 0u8..64 {
+            let d = exit_decision_from_bits(cls, 1);
+            assert!(matches!(d,
+                ExitDecision::CloseRoot | ExitDecision::ReduceCore |
+                ExitDecision::Type2Missing | ExitDecision::Hold
+            ), "bsp_class={cls:#04x} delta=+1 应映射到四态之一");
+        }
+    }
+
+    /// **P7 SpreadAttribution 统计字段完整性（L1）**：SignalDecomp 含 exit_decision 字段，
+    /// 四种出场决策可加入 agg 统计。
+    #[test]
+    fn p7_spread_attribution_exit_decision_fields() {
+        let mut agg = SpreadAttribution::default();
+        // 验证四个统计字段可正常累加
+        agg.n_exit_close_root += 1;
+        agg.n_exit_reduce_core += 2;
+        agg.n_exit_type2_missing += 3;
+        agg.n_exit_hold += 4;
+        assert_eq!(agg.n_exit_close_root, 1);
+        assert_eq!(agg.n_exit_reduce_core, 2);
+        assert_eq!(agg.n_exit_type2_missing, 3);
+        assert_eq!(agg.n_exit_hold, 4);
+        // 验证 SignalDecomp 含 exit_decision 字段
+        let d = SignalDecomp {
+            entry_bar: 0, exit_bar: 1, level: 0, delta: 1, a_b: 0.0, x_in: 0.0, y_out: 0.0,
+            eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0,
+            actual_pnl: 0.0, sigma_higher: 0, bsp_class: 1 << 3, // sell1
+            exit_decision: ExitDecision::CloseRoot,
+        };
+        assert_eq!(d.exit_decision, ExitDecision::CloseRoot,
+            "SignalDecomp.exit_decision 字段可读写（P7 接口存在）");
+    }
+
+    // ── 生产路径测试（RED→GREEN：W1 返工，多级 N^δ 递归真调用） ─────────────────
+
+    /// **生产路径：build_multilevel_nest_cert 存在且可调用（RED：函数不存在则编译失败）**。
+    ///
+    /// 验证 `build_multilevel_nest_cert` 函数签名正确：接受 tower + lvl + source_index +
+    /// delta + BspBits + macd_hist，返回 bool。基例（lvl=0，rungs 空，纯 Conf^δ_e）。
+    ///
+    /// **认识论 L1**（生产路径结构验证，非 L0 fixture 同义反复）：函数存在 + 接口正确。
+    #[test]
+    fn multilevel_nest_cert_function_exists() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::LeveledMove;
+        use super::super::super::types::{BspBits, Side};
+
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![];
+        let mut bits = BspBits::default();
+        bits.buy1 = true;
+        let hist: Vec<f64> = vec![];
+        // 空塔 → lvl=0 无法从塔拿区间 → false（无上级语境）。
+        // 函数本身必须存在（否则 RED）。
+        let result = build_multilevel_nest_cert(&tower, 0, 0, Side::Long, &bits, &hist);
+        // 空塔 ⟹ false（无上级 context，N^δ 不成立）。
+        assert!(!result, "空塔 ⟹ false（基例无 confirm 来源）");
+    }
+
+    /// **生产路径：多级 rungs 链（≥2 级），J 嵌套收缩验证（RED→GREEN 核心测试）**。
+    ///
+    /// 构造合成 2 级塔：L0 有 4 段（up/down/up/down），L1 有 1 个 Compose 包含全部 4 段。
+    /// 信号在 L1（lvl=1），source_index=19（最后 Down 段的 end_index），δ=Long。
+    /// 验证 `build_multilevel_nest_cert` 真调用 `n_delta()`（≥1 rung，非单级 bsp_div_cand）。
+    ///
+    /// **认识论 L1**：合成塔 + 合成 hist（条件4 力度满足），验证多级构造路径正确，
+    /// 非 alpha 声明（L2/L3 待 W-VERIFY）。
+    #[test]
+    fn multilevel_nest_cert_two_level_rung_chain() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::types::{BspBits, Center, Direction, Side};
+
+        // helper：构造 L0 Segment LeveledMove
+        let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
+            LeveledMove {
+                rmove: RMove::Segment { direction: dir, lo, hi },
+                start_index: s, end_index: e,
+                sub_moves: Rc::new(vec![]),
+                id: ElementId { level: 0, ordinal: ord },
+            }
+        };
+
+        // L0 四段：up(0-4) / down(5-9) / up(10-14) / down(15-19)
+        let s0 = seg(Direction::Up,   50, 100,  0,  4, 0);
+        let s1 = seg(Direction::Down, 40,  90,  5,  9, 1); // s'：lo=40
+        let s2 = seg(Direction::Up,   45,  95, 10, 14, 2);
+        let s3 = seg(Direction::Down, 30,  85, 15, 19, 3); // s：lo=30 < 40，Extreme ✓
+
+        // L1 Compose 包含全部4段
+        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
+        let lo = 30i64; let hi = 100i64;
+        let parent = LeveledMove {
+            rmove: RMove::Compose {
+                subs: sub_rmoves,
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                level: 1,
+            },
+            start_index: 0, end_index: 19,
+            sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
+            Rc::new(vec![s0, s1, s2, s3]),   // level 0
+            Rc::new(vec![parent]),            // level 1
+        ];
+
+        // hist：s'(5-9) area=5*2=10，s(15-19) area=5*1=5 < 10（条件4 Weak ✓）
+        let hist: Vec<f64> = (0..20usize).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+
+        // 买侧 bits（基例 Conf^+）：buy1=true
+        let mut bits = BspBits::default();
+        bits.buy1 = true;
+
+        // lvl=0，source_index=19（s3 的 end_index），δ=Long
+        // 期望：L0 基例 Conf^+ = bits.conf_plus() = true（buy1=true）
+        // 且 bsp_div_cand 四条件满足（Down，Extreme lo=30<40，Weak area=5<10）
+        // ⟹ build_multilevel_nest_cert ⟹ n_delta() = true
+        let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
+        assert!(result, "两级塔 + 四条件满足 + Conf^+ ⟹ n_delta()=true（多级链 J 嵌套收缩）");
+    }
+
+    /// **Cand=false ⟹ N^δ 整体=false（Cand 传播测试）**。
+    ///
+    /// 同塔结构，但 hist=0（条件4 area=0 < 0 = false ⟹ Cand=false）。
+    /// 验证 build_multilevel_nest_cert 真走 N^δ 路径（任一级 Cand=0 ⟹ 整体 0）。
+    #[test]
+    fn multilevel_nest_cert_cand_false_propagates_zero() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::types::{BspBits, Center, Direction, Side};
+
+        let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
+            LeveledMove {
+                rmove: RMove::Segment { direction: dir, lo, hi },
+                start_index: s, end_index: e,
+                sub_moves: Rc::new(vec![]),
+                id: ElementId { level: 0, ordinal: ord },
+            }
+        };
+        let s0 = seg(Direction::Up,   50, 100,  0,  4, 0);
+        let s1 = seg(Direction::Down, 40,  90,  5,  9, 1);
+        let s2 = seg(Direction::Up,   45,  95, 10, 14, 2);
+        let s3 = seg(Direction::Down, 30,  85, 15, 19, 3);
+        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
+        let lo = 30i64; let hi = 100i64;
+        let parent = LeveledMove {
+            rmove: RMove::Compose {
+                subs: sub_rmoves,
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                level: 1,
+            },
+            start_index: 0, end_index: 19,
+            sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
+            Rc::new(vec![s0, s1, s2, s3]),
+            Rc::new(vec![parent]),
+        ];
+        // hist 全 0 ⟹ area=0 ⟹ 条件4 0 < 0 = false ⟹ Cand=false ⟹ n_delta()=false
+        let hist = vec![0.0f64; 20];
+        let mut bits = BspBits::default();
+        bits.buy1 = true;
+        let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
+        assert!(!result, "Cand=false（hist=0）⟹ n_delta()=false（Cand 传播路径）");
+    }
+
+    /// **方向 dir=−δ 反测试**：信号 δ=Long 但 source_index 指向 Up 段（dir 不反）⟹ false。
+    #[test]
+    fn multilevel_nest_cert_wrong_direction_returns_false() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::types::{BspBits, Center, Direction, Side};
+
+        let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
+            LeveledMove {
+                rmove: RMove::Segment { direction: dir, lo, hi },
+                start_index: s, end_index: e,
+                sub_moves: Rc::new(vec![]),
+                id: ElementId { level: 0, ordinal: ord },
+            }
+        };
+        // 最后一段是 Up（非 Down），δ=Long 要求 Down → 条件1 失败
+        let s0 = seg(Direction::Down, 30, 90,  0,  4, 0);
+        let s1 = seg(Direction::Up,   40, 100,  5,  9, 1); // s'
+        let s2 = seg(Direction::Down, 35,  95, 10, 14, 2);
+        let s3 = seg(Direction::Up,   50, 110, 15, 19, 3); // s：Up，δ=Long 要求 Down → 失败
+        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
+        let lo = 30i64; let hi = 110i64;
+        let parent = LeveledMove {
+            rmove: RMove::Compose {
+                subs: sub_rmoves,
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                level: 1,
+            },
+            start_index: 0, end_index: 19,
+            sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
+            Rc::new(vec![s0, s1, s2, s3]),
+            Rc::new(vec![parent]),
+        ];
+        let hist: Vec<f64> = (0..20).map(|_| 2.0).collect();
+        let mut bits = BspBits::default();
+        bits.buy1 = true;
+        // s3 是 Up 段，δ=Long 要求 Down → 条件1 失败 → false
+        let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
+        assert!(!result, "dir(s)≠−δ（Up 段但 δ=Long）⟹ false（条件1 失败）");
+    }
 
     /// PDF §4 反例的分解算术自检（合成，L1 验证分解算术正确）：
     /// 多头反转交易腿 P[λ_rev]=10, P[ρ_rev]=12（Ab_rev=δ·2=2，δ=+1）；确认滞后 Pτin=11.8, Pτout=11.1。
@@ -470,12 +985,13 @@ mod tests {
         let (decomps, agg) = decompose_capturable_spread(&ds, &config);
         crate::theta_v0::classifier::stage_profile::dump();
 
-        // per-class (level, δ) 分桶：adverse-only Σcaptured + 真实成交 Σactual_pnl 双口径（664-Q3）。
-        // key=(level, δ)，value=(n, Σab, Σηin, Σηout, Σce, Σcaptured, n_cap_pos, Σactual_spread, Σactual_pnl, n_act_pos)。
+        // per-class (level, δ, bsp_class) 分桶：adverse-only Σcaptured + 真实成交 Σactual_pnl 双口径（664-Q3）。
+        // W4：key=(level, δ, bsp_class)，bsp_class 加入消除 buy1/buy2/buy3 混合池稀释（P4 codex 判决）。
+        // value=(n, Σab, Σηin, Σηout, Σce, Σcaptured, n_cap_pos, Σactual_spread, Σactual_pnl, n_act_pos)。
         type Bucket = (usize, f64, f64, f64, f64, f64, usize, f64, f64, usize);
-        let mut buckets: BTreeMap<(u32, i8), Bucket> = BTreeMap::new();
+        let mut buckets: BTreeMap<(u32, i8, u8), Bucket> = BTreeMap::new();
         for d in &decomps {
-            let e = buckets.entry((d.level, d.delta)).or_default();
+            let e = buckets.entry((d.level, d.delta, d.bsp_class)).or_default();
             e.0 += 1;
             e.1 += d.a_b;
             e.2 += d.eta_in;
@@ -521,6 +1037,16 @@ mod tests {
         let _ = writeln!(rpt, "| n_rho_after_lambda | {}/{} | rho_rev_bar>lambda_rev_bar（codex Q1 不变量：出场 pivot 端点在入场 pivot 之后） |", agg.n_rho_after_lambda, agg.n_signals);
         let _ = writeln!(rpt, "| n_same_bar_opposite | {} | 同 bar 出现反向信号（被 eb>entry_bar 排除的边界，codex Q2） |", agg.n_same_bar_opposite);
         let _ = writeln!(rpt, "| n_unpaired | {} | 无配对出场反转信号（右删失诚实跳过，codex Q4） |", agg.n_unpaired);
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## P7 正规出场口径统计（接 sell.rs CloseRoot/ReduceCore，n={}）", agg.n_signals);
+        let _ = writeln!(rpt, "| 出场决策 | 信号数 | 占比 | 说明 |");
+        let _ = writeln!(rpt, "|---|---|---|---|");
+        let pct_sig = |x: usize| if agg.n_signals > 0 { 100.0 * x as f64 / agg.n_signals as f64 } else { 0.0 };
+        let _ = writeln!(rpt, "| CloseRoot（第一类顶背驰） | {} | {:.1}% | sell.rs SellDecision::CloseRoot |", agg.n_exit_close_root, pct_sig(agg.n_exit_close_root));
+        let _ = writeln!(rpt, "| ReduceCore（第三类减核） | {} | {:.1}% | sell.rs SellDecision::ReduceCore |", agg.n_exit_reduce_core, pct_sig(agg.n_exit_reduce_core));
+        let _ = writeln!(rpt, "| Type2Missing（第二类 still-MISSING） | {} | {:.1}% | sell.rs:35 诚实边界，不改账本口径 |", agg.n_exit_type2_missing, pct_sig(agg.n_exit_type2_missing));
+        let _ = writeln!(rpt, "| Hold（无正规卖点 bit） | {} | {:.1}% | exit 信号无正规卖侧/买侧 bit |", agg.n_exit_hold, pct_sig(agg.n_exit_hold));
+        let _ = writeln!(rpt, "（认识论 L0：口径结构变，不声明 alpha；alpha 待 W-VERIFY L2/L3。第二类闭环 still-MISSING 见 sell.rs:35 诚实边界，不碰 TW 三阶段/576。）");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 全局归因（双口径）");
         let _ = writeln!(rpt, "| 量 | 值 |");
@@ -568,32 +1094,32 @@ mod tests {
             let _ = writeln!(rpt, "形成对照——后者是测错对象的伪否证）。剩余 alpha = ΣAb_rev − Ση − ΣCe（执行/成本是否吃光见上表 Σcaptured）。");
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## per-class (level, δ) 全级别分桶（663 判据：逐信号 μ̂=Σactual_pnl/n>0 + 累积净值）");
+        let _ = writeln!(rpt, "## per-class (level, δ, bsp_class) 三键分桶（W4 P4：消除 buy1/2/3 混合池稀释）");
         let _ = writeln!(rpt, "μ̂(z,a)=Σactual_pnl/n = 逐信号正条件期望估计（663 判据：>0 即可交易，不需统计显著/不判稀疏硬墙）。");
-        let _ = writeln!(rpt, "全级别 0..L 照报——级别是缠论全互斥定义的构成部分，稀疏高级别照列不剔（663：频率低是特征非 bug）。");
-        let _ = writeln!(rpt, "| level | δ | n | μ̂=Σactual_pnl/n | Σactual_pnl | ΣAb_rev | Ση(adv) | ΣCe | Σcaptured(adv) | n_act+/n |");
-        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|");
-        for ((lvl, dlt), (n, sab, sin, sout, sce, scap, _ncap, _sact, sactpnl, nact)) in &buckets {
+        let _ = writeln!(rpt, "bsp_class=u8 位掩码（bit0=buy1,bit1=buy2,bit2=buy3,bit3=sell1,bit4=sell2,bit5=sell3）。");
+        let _ = writeln!(rpt, "| level | δ | bsp_class | n | μ̂=Σactual_pnl/n | Σactual_pnl | ΣAb_rev | Ση(adv) | ΣCe | Σcaptured(adv) | n_act+/n |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|");
+        for ((lvl, dlt, cls), (n, sab, sin, sout, sce, scap, _ncap, _sact, sactpnl, nact)) in &buckets {
             let mu_hat = if *n > 0 { sactpnl / *n as f64 } else { 0.0 };
-            let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.0}%) |",
-                lvl, dlt, n, mu_hat, sactpnl, sab, sin + sout, sce, scap,
+            let _ = writeln!(rpt, "| {} | {:+} | 0x{:02x} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.0}%) |",
+                lvl, dlt, cls, n, mu_hat, sactpnl, sab, sin + sout, sce, scap,
                 nact, n, if *n > 0 { 100.0 * *nact as f64 / *n as f64 } else { 0.0 });
         }
         let _ = writeln!(rpt);
-        // ── 663 判据：全级别×方向 μ̂>0 分类（正条件期望，出现就做不统计显著）。 ──
-        let _ = writeln!(rpt, "## 663 判据：全级别×方向 μ̂(z,a)>0（正条件期望，出现就做不统计显著）");
-        let max_level = buckets.keys().map(|(l, _)| *l).max().unwrap_or(0);
+        // ── 663 判据：全级别×方向×类型 μ̂>0 分类（正条件期望，出现就做不统计显著）。 ──
+        let _ = writeln!(rpt, "## 663 判据：全级别×方向×类型 μ̂(z,a)>0（正条件期望，出现就做不统计显著）");
+        let max_level = buckets.keys().map(|(l, _, _)| *l).max().unwrap_or(0);
         let _ = writeln!(rpt, "涌现最高级别 L={max_level}（全级别 0..{max_level} 均列；稀疏高级别照报不判硬墙，663）。");
         let _ = writeln!(rpt, "**有效域**：本窗 bars={n_bars}（{window_start}→{window_end}）。663 要求全历史长窗——");
         let _ = writeln!(rpt, "若 bars<461万，高级别 L3+ 仍稀疏（n=个位数），累积净值是**本窗**结论非全历史（ECON_L2_MAX_BARS=5000000 跑全量，~6-7min）。");
-        let _ = writeln!(rpt, "μ̂>0 类 = 该 (level,δ) 逐信号正条件期望——出现即做累积正期望（非 p<0.05 统计显著）：");
+        let _ = writeln!(rpt, "μ̂>0 类 = 该 (level,δ,bsp_class) 逐信号正条件期望——出现即做累积正期望（非 p<0.05 统计显著）：");
         let mut n_pos_class = 0usize;
         let mut n_total_class = 0usize;
-        for ((lvl, dlt), (n, _, _, _, _, _, _, _, sactpnl, nact)) in &buckets {
+        for ((lvl, dlt, cls), (n, _, _, _, _, _, _, _, sactpnl, nact)) in &buckets {
             n_total_class += 1;
             let mu_hat = if *n > 0 { sactpnl / *n as f64 } else { 0.0 };
             let mark = if mu_hat > 0.0 { n_pos_class += 1; "✓μ̂>0" } else { "✗μ̂≤0" };
-            let _ = writeln!(rpt, "- (level={lvl}, δ={dlt:+}) {mark}: μ̂={mu_hat:.4e}, Σ={sactpnl:.4e}, n_act+/n={nact}/{n}");
+            let _ = writeln!(rpt, "- (level={lvl}, δ={dlt:+}, cls=0x{cls:02x}) {mark}: μ̂={mu_hat:.4e}, Σ={sactpnl:.4e}, n_act+/n={nact}/{n}");
         }
         let _ = writeln!(rpt, "**{n_pos_class}/{n_total_class} 类 μ̂>0**（663 判据：正期望类可交易，不因稀疏判 inconclusive）。");
         let _ = writeln!(rpt);
@@ -656,14 +1182,22 @@ mod tests {
         // 逐信号台账 CSV（666 号：alpha 分离下游依赖，15 列含 sigma_higher）。输出到 /tmp。
         let csv_path = std::env::var("ECON_LEDGER_CSV")
             .unwrap_or_else(|_| "/tmp/btc_663_ledger_sigma.csv".to_string());
+        // W4 类型透传：bsp_class（buy1/2/3+sell1/2/3 位掩码 u8）+ side（买/卖，delta 派生）+ exit_decision（P7）列。
         let mut csv = String::from(
-            "idx,entry_bar,exit_bar,level,delta,a_b,x_in,y_out,eta_in,eta_out,actual_spread,ce_unit,captured,actual_pnl,sigma_higher\n",
+            "idx,entry_bar,exit_bar,level,delta,a_b,x_in,y_out,eta_in,eta_out,actual_spread,ce_unit,captured,actual_pnl,sigma_higher,bsp_class,side,exit_decision\n",
         );
         for (i, d) in decomps.iter().enumerate() {
-            let _ = writeln!(csv, "{},{},{},{},{},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{}",
+            let side = if d.delta > 0 { "buy" } else { "sell" };
+            let exit_dec = match d.exit_decision {
+                ExitDecision::CloseRoot => "CloseRoot",
+                ExitDecision::ReduceCore => "ReduceCore",
+                ExitDecision::Type2Missing => "Type2Missing",
+                ExitDecision::Hold => "Hold",
+            };
+            let _ = writeln!(csv, "{},{},{},{},{},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{},{},{},{}",
                 i, d.entry_bar, d.exit_bar, d.level, d.delta,
                 d.a_b, d.x_in, d.y_out, d.eta_in, d.eta_out, d.actual_spread,
-                d.ce_unit, d.captured, d.actual_pnl, d.sigma_higher);
+                d.ce_unit, d.captured, d.actual_pnl, d.sigma_higher, d.bsp_class, side, exit_dec);
         }
         std::fs::write(&csv_path, &csv).unwrap_or_else(|e| panic!("写台账 CSV {csv_path} 失败：{e}"));
         eprintln!("逐信号台账 CSV 已落盘：{csv_path}（{} 行 + 表头）", decomps.len());
@@ -1177,6 +1711,39 @@ mod tests {
         (le_zero as f64 + 1.0) / (b_iters as f64 + 1.0)
     }
 
+    /// P4 类型分桶键 L1 自检：同 (level,δ) 不同 bsp_class 必须分到不同桶（W4 codex 判决）。
+    ///
+    /// 三个合成信号：(0,+1,buy1=0x01), (0,+1,buy2=0x02), (0,+1,buy1=0x01)。
+    /// 预期：桶键 (0,+1,0x01) n=2，桶键 (0,+1,0x02) n=1（混合池已消除）。
+    #[test]
+    fn bucket_key_includes_bsp_class_l1() {
+        use std::collections::BTreeMap;
+
+        let mk = |bsp_class: u8, actual_pnl: f64| SignalDecomp {
+            entry_bar: 0, exit_bar: 1, level: 0, delta: 1, a_b: 0.0, x_in: 0.0, y_out: 0.0,
+            eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0,
+            actual_pnl, sigma_higher: 0, bsp_class, exit_decision: ExitDecision::Hold,
+        };
+        // buy1 × 2, buy2 × 1：全部 (level=0, δ=+1)，仅 bsp_class 不同。
+        let decomps = vec![mk(0x01, 1.0), mk(0x02, 2.0), mk(0x01, 3.0)];
+
+        type Bucket = (usize, f64, f64, f64, f64, f64, usize, f64, f64, usize);
+        let mut buckets: BTreeMap<(u32, i8, u8), Bucket> = BTreeMap::new();
+        for d in &decomps {
+            let e = buckets.entry((d.level, d.delta, d.bsp_class)).or_default();
+            e.0 += 1;
+            e.8 += d.actual_pnl;
+        }
+
+        assert_eq!(buckets.len(), 2, "buy1/buy2 应分为 2 桶（不得混池）");
+        let buy1 = buckets.get(&(0, 1, 0x01)).expect("桶 (0,+1,buy1) 应存在");
+        assert_eq!(buy1.0, 2, "buy1 桶 n=2");
+        assert!((buy1.8 - 4.0).abs() < 1e-9, "buy1 Σactual_pnl=1+3=4");
+        let buy2 = buckets.get(&(0, 1, 0x02)).expect("桶 (0,+1,buy2) 应存在");
+        assert_eq!(buy2.0, 1, "buy2 桶 n=1");
+        assert!((buy2.8 - 2.0).abs() < 1e-9, "buy2 Σactual_pnl=2");
+    }
+
     /// neff/LCB/bootstrap helper L1 自检（合成数据，验证算术，零信息增量但保非平凡逻辑不破）。
     #[test]
     fn walkforward_helpers_l1() {
@@ -1184,7 +1751,7 @@ mod tests {
         let synth = |level: u32, delta: i8, pnl: f64| SignalDecomp {
             entry_bar: 0, exit_bar: 1, level, delta, a_b: 0.0, x_in: 0.0, y_out: 0.0,
             eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0, actual_pnl: pnl,
-            sigma_higher: 0,
+            sigma_higher: 0, bsp_class: 0, exit_decision: ExitDecision::Hold,
         };
         let ds = vec![synth(0, -1, 3.0), synth(0, -1, 2.0), synth(1, 1, -2.0)];
         assert_eq!(train_winner_class(&ds), Some((0, -1)), "train 应选 Σpnl 最大正类 (0,-1)");
@@ -1214,5 +1781,246 @@ mod tests {
         let strong_pos = vec![5.0; 20];
         let p_pos = block_bootstrap_pvalue(&strong_pos, 3, 500);
         assert!(p_pos <= 0.05, "强正信号 block bootstrap p 应小，实得 {p_pos}");
+    }
+
+    /// **全历史多级别信号分布 + level2+ 逐级别 train-only holdout μ̂/LCB/p（acc-multilevel-sample + acc-highlevel-mu）**。
+    ///
+    /// 同一次全量跑（ECON_L2_MAX_BARS=5000000，BTC 461万 bar）产出两条 acceptance 所需数据，避免重跑。
+    ///
+    /// ## acc-multilevel-sample（信号数分布）
+    /// 输出 level0-5 全历史信号数分布表。Le Cam 硬墙判定：
+    /// - level3+ 全历史 n < 30 ⟹ 结构性稀疏（高级别本身低频，Le Cam 硬墙；有效域 < 定义域）。
+    /// - level3+ n ≥ 50 ⟹ 窗口截断证实可 OOS 验（若截断窗则为截断窗结论，全量则为全历史结论）。
+    ///
+    /// ## acc-highlevel-mu（level2+ 逐级别 train-only holdout alpha）
+    /// 对 level>=2 的每个 (level,δ)：
+    /// - train_frac=0.6 按 bar 顺序切分（半开区间无重叠）。
+    /// - train 段全量跑 decompose，holdout 段全量跑 decompose（**不**从 train-only 挑类——每个 (level,δ) 独立评估）。
+    /// - holdout neff_autocorr + mean_se_lcb (LCB 单侧5%) + block_bootstrap_pvalue(block=20, B=2000)。
+    /// - 照实报 LCB>0 占比 + p 值（否定性结果 = 有效域收窄，161/formalization-validity-domain）。
+    ///
+    /// **认识论等级 L2**（真实数据单标的，可产否定性结果，非 L3 跨品种）。
+    /// **testing-override 生成态例外**：测试目的是产出可证伪经济结果，不是通过。
+    ///
+    /// `#[ignore]`：需 BTC 全量数据（314M）+ O(n²) 重分类 × 2（train/holdout 各跑一次），`--release`。
+    /// 命令：`ECON_L2_MAX_BARS=5000000 cargo test --release acc_multilevel_highlevel_mu -- --ignored --nocapture`。
+    #[test]
+    #[ignore]
+    fn acc_multilevel_highlevel_mu() {
+        use super::super::data;
+        use std::collections::BTreeMap;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+
+        // 显式有效域：全量为 ECON_L2_MAX_BARS=5000000（>4.6M=不截断）。
+        const MAX_BARS_DEFAULT: usize = 300_000; // 默认截断窗（时间墙保护）
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let n = ds.bars.len();
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        eprintln!("全量跑：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+
+        // ── Step1：全窗跑一次，产 level0-5 信号数分布表（acc-multilevel-sample）。 ──
+        eprintln!("[Step1] 全窗 decompose（信号分布表）...");
+        let (decomps_full, agg_full) = decompose_capturable_spread(&ds, &config);
+        eprintln!("[Step1] 完成：n_signals={}", agg_full.n_signals);
+
+        // per-(level,δ) 信号数 + μ̂（全窗，仅用于信号分布表，不作 OOS alpha）。
+        let mut dist: BTreeMap<(u32, i8), (usize, f64)> = BTreeMap::new();
+        for d in &decomps_full {
+            let e = dist.entry((d.level, d.delta)).or_default();
+            e.0 += 1;
+            e.1 += d.actual_pnl;
+        }
+        let max_level = dist.keys().map(|(l, _)| *l).max().unwrap_or(0);
+
+        // ── Step2：train/holdout 切分，分别跑 decompose（acc-highlevel-mu 防选择偏差）。 ──
+        let train_frac = std::env::var("ECON_L2_TRAIN_FRAC").ok()
+            .and_then(|s| s.parse::<f64>().ok()).unwrap_or(0.6);
+        let split = (n as f64 * train_frac) as usize;
+        let split_day = if split < ds.dates.len() {
+            ds.dates[split].get(..10).unwrap_or("").to_string()
+        } else { "末端".to_string() };
+        eprintln!("[Step2] train=[0,{split})，holdout=[{split},{n})，切分日={split_day}");
+
+        let ds_train = ds.slice_bar_range(0, split);
+        let ds_hold  = ds.slice_bar_range(split, n);
+        let (decomps_train, _) = decompose_capturable_spread(&ds_train, &config);
+        let (decomps_hold,  _) = decompose_capturable_spread(&ds_hold,  &config);
+        eprintln!("[Step2] train n_signals={}，holdout n_signals={}", decomps_train.len(), decomps_hold.len());
+
+        // level2+ 每个 (level,δ)：holdout 段的 μ̂/neff/LCB/p。
+        // 遍历全窗出现过的 level>=2 的 (level,δ)（train 中未出现的 holdout 也可能出现，照报）。
+        let high_keys: Vec<(u32, i8)> = {
+            let mut ks: std::collections::BTreeSet<(u32, i8)> = Default::default();
+            for d in decomps_full.iter().chain(decomps_train.iter()).chain(decomps_hold.iter()) {
+                if d.level >= 2 { ks.insert((d.level, d.delta)); }
+            }
+            ks.into_iter().collect()
+        };
+
+        // per-(level,δ) holdout 评估（train 段只用于「知道该 level 是否出现」，不挑赢家——每级独立评估）。
+        struct HighLevelResult {
+            level: u32,
+            delta: i8,
+            tr_n: usize,
+            tr_pnl: f64,
+            hd_n: usize,
+            hd_pnl: f64,
+            hd_pos: usize,
+            mu_oos: f64,
+            se_oos: f64,
+            lcb: f64,
+            neff: f64,
+            nraw: usize,
+            sum_rho: f64,
+            drop_d5: f64,
+            bootstrap_p: f64,
+        }
+        let mut hl_results: Vec<HighLevelResult> = Vec::new();
+        for &(lv, dl) in &high_keys {
+            let (tr_n, tr_pnl, _, _) = class_actual_pnl(&decomps_train, lv, dl);
+            let (hd_n, hd_pnl, hd_pos, _) = class_actual_pnl(&decomps_hold, lv, dl);
+            let pnls: Vec<f64> = decomps_hold.iter()
+                .filter(|d| d.level == lv && d.delta == dl)
+                .map(|d| d.actual_pnl).collect();
+            let nraw = pnls.len();
+            let (neff, sum_rho) = neff_autocorr(&pnls, 20);
+            let (mu_oos, se_oos, lcb) = mean_se_lcb(&pnls, neff);
+            let (_, _, _, drop_d5) = drop_top_winners(&pnls);
+            let bootstrap_p = block_bootstrap_pvalue(&pnls, 20, 2000);
+            hl_results.push(HighLevelResult {
+                level: lv, delta: dl, tr_n, tr_pnl, hd_n, hd_pnl, hd_pos,
+                mu_oos, se_oos, lcb, neff, nraw, sum_rho, drop_d5, bootstrap_p,
+            });
+        }
+
+        // ── 报告 ──
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# acc-multilevel-sample + acc-highlevel-mu：BTC 全历史多级别 alpha 检验");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "**认识论等级**：L2（真实数据单标的 BTC 2017-2026 全历史，可产否定性结果，非 L3 跨品种）。");
+        let _ = writeln!(rpt, "**目的**：同一次全量跑产出两条 acceptance 判定，避免重跑。");
+        let _ = writeln!(rpt, "**复算**：`ECON_L2_MAX_BARS=5000000 cargo test --release acc_multilevel_highlevel_mu -- --ignored --nocapture`");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 数据");
+        let _ = writeln!(rpt, "- 品种：BTC（btc_1m_full.json，全量 {n_full} bar，2017-08→2026-05）");
+        let _ = writeln!(rpt, "- 本次窗口：bars={n}（{win_start}→{win_end}，max_bars={max_bars}）");
+        let _ = writeln!(rpt, "- train_frac={train_frac}，切分 bar={split}（{split_day}），train=[0,{split}) / holdout=[{split},{n}) 无重叠");
+        let _ = writeln!(rpt, "- 全窗 n_signals={}", agg_full.n_signals);
+        let _ = writeln!(rpt);
+
+        // ── acc-multilevel-sample：信号数分布表 ──
+        let _ = writeln!(rpt, "## acc-multilevel-sample：level0-{max_level} 全历史信号数分布");
+        let _ = writeln!(rpt, "Le Cam 硬墙判定（level3+）：n<30 ⟹ 结构性稀疏；n≥50 ⟹ 可 OOS 验。");
+        let _ = writeln!(rpt, "| level | δ | n（全窗） | μ̂=Σactual_pnl/n（全窗，含选择偏差，仅参考） | Le Cam 判定（level3+）|");
+        let _ = writeln!(rpt, "|---|---|---|---|---|");
+        for ((lvl, dlt), (n_cls, pnl_cls)) in &dist {
+            let mu = if *n_cls > 0 { pnl_cls / *n_cls as f64 } else { 0.0 };
+            let lecam = if *lvl >= 3 {
+                if *n_cls < 30 { "结构性稀疏（<30，Le Cam 硬墙）" }
+                else if *n_cls >= 50 { "可 OOS 验（≥50）" }
+                else { "边界（30-49）" }
+            } else { "—" };
+            let _ = writeln!(rpt, "| {lvl} | {dlt:+} | {n_cls} | {mu:.4e} | {lecam} |");
+        }
+        let _ = writeln!(rpt);
+
+        // acc-multilevel-sample 判定
+        let high_level_sparse = {
+            let level3plus: Vec<_> = dist.iter().filter(|((l, _), _)| *l >= 3).collect();
+            level3plus.iter().all(|(_, (n, _))| *n < 30)
+        };
+        let _ = writeln!(rpt, "**acc-multilevel-sample 判定**：level3+ 全历史 n 分布——");
+        if high_level_sparse {
+            let _ = writeln!(rpt, "→ **level3+ 均 <30（Le Cam 硬墙成立）**：高级别结构性稀疏，全历史长窗也无足够样本做 OOS 验（有效域：高级别 alpha 可存在但不可功效检验）。");
+        } else {
+            let _ = writeln!(rpt, "→ **level3+ 存在 ≥30 的级别**：窗口截断导致的稀疏已排除（全量足够），level3+ 具备 OOS 验证能力。");
+        }
+        let _ = writeln!(rpt);
+
+        // ── acc-highlevel-mu：level2+ 逐级别 holdout alpha ──
+        let _ = writeln!(rpt, "## acc-highlevel-mu：level2+ 逐级别 train-only holdout μ̂/LCB/p");
+        let _ = writeln!(rpt, "train_frac={train_frac}，切分日 {split_day}。每个 (level,δ) 独立评估（不从 train-only 挑类——无跨级别选择偏差）。");
+        let _ = writeln!(rpt, "LCB=μ−1.645·se（单侧5%，se 用 neff），block bootstrap p（H0:μ≤0，block=20，B=2000，固定种子）。");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "| level | δ | train_n | train_Σpnl | holdout_n | holdout_Σpnl | μ̂_OOS | se | LCB | neff/nraw | drop_d5 | bootstrap_p | LCB>0? |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+        let mut lcb_pos_count = 0usize;
+        let mut total_hl = 0usize;
+        for r in &hl_results {
+            let wr = |pos: usize, n: usize| if n > 0 { format!("{pos}/{n} ({:.0}%)", 100.0 * pos as f64 / n as f64) } else { "0/0".to_string() };
+            let neff_ratio = if r.nraw > 0 { format!("{:.2}/{}", r.neff, r.nraw) } else { "—".to_string() };
+            let _ = writeln!(rpt, "| {} | {:+} | {} | {:.4e} | {} | {:.4e} | {:.4e} | {:.4e} | **{:.4e}** | {} | {:.4e} | {:.3} | {} |",
+                r.level, r.delta, r.tr_n, r.tr_pnl, r.hd_n, r.hd_pnl,
+                r.mu_oos, r.se_oos, r.lcb, neff_ratio, r.drop_d5, r.bootstrap_p,
+                if r.lcb > 0.0 { "✓" } else { "✗" });
+            let _ = writeln!(rpt, "  胜率={}", wr(r.hd_pos, r.hd_n));
+            total_hl += 1;
+            if r.lcb > 0.0 { lcb_pos_count += 1; }
+        }
+        let _ = writeln!(rpt);
+        let lcb_pos_ratio = if total_hl > 0 { 100.0 * lcb_pos_count as f64 / total_hl as f64 } else { 0.0 };
+        let _ = writeln!(rpt, "**acc-highlevel-mu 判定**：");
+        let _ = writeln!(rpt, "- level2+ holdout LCB>0 占比 = {lcb_pos_count}/{total_hl} ({lcb_pos_ratio:.0}%)");
+
+        // 判定逻辑：LCB>0 ⟹ 高级别 holdout alpha 成立；LCB≤0 ⟹ 否证（照实报）
+        if lcb_pos_count == 0 {
+            let _ = writeln!(rpt, "→ **否证（level2+ 全部 LCB≤0）**：高级别 holdout μ̂ 扣除不确定性后无一正 ⟹ 高级别无稳健 OOS alpha（否定性结果，缩小有效域边界，161/formalization-validity-domain）。");
+            let _ = writeln!(rpt, "→ 否定性结果价值：高级别 alpha 不存在于 BTC 单标的 L2，仅低级别候选（level0/1 待 L3 验）。");
+        } else if lcb_pos_count == total_hl {
+            let _ = writeln!(rpt, "→ **全部 LCB>0**：level2+ 每个 (level,δ) holdout μ̂ 均通过 §7.3 强判据 ⟹ 高级别具备稳健 OOS alpha 候选（仍 BTC 单标的 L2，需 L3 跨品种确认）。");
+        } else {
+            let _ = writeln!(rpt, "→ **部分 LCB>0（{lcb_pos_count}/{total_hl}）**：高级别 alpha 非全域稳健——部分 (level,δ) 通过强判据，其余否证。分别报告（见上表）。");
+        }
+        let _ = writeln!(rpt);
+
+        // ── 结果包六要素 ──
+        let _ = writeln!(rpt, "## 结果包六要素");
+        let _ = writeln!(rpt, "1. **结论**：");
+        let _ = writeln!(rpt, "   - acc-multilevel-sample：level0-{max_level} 全历史信号数分布见上表。level3+ {}。",
+            if high_level_sparse { "全部 <30（Le Cam 硬墙，结构性稀疏）" } else { "存在 ≥30（可 OOS 验）" });
+        let _ = writeln!(rpt, "   - acc-highlevel-mu：level2+ holdout LCB>0 占比={lcb_pos_count}/{total_hl}（{lcb_pos_ratio:.0}%）。{}",
+            if lcb_pos_count == 0 { "全否证，高级别无稳健 OOS alpha（L2）。" }
+            else { "部分或全部通过 §7.3 强判据（见明细表）。" });
+        let _ = writeln!(rpt, "2. **定义依据**：actual_pnl=δ(Pτout−Pτin)−Ce（664-Q3 真实成交口径）；LCB=μ−1.645se（PDF §7.3，se 用 neff_autocorr 修正）；train-only 每级独立评估（无跨级选择偏差）；Le Cam 硬墙判定（n<30）。");
+        let _ = writeln!(rpt, "3. **边界条件**：单标的 BTC L2——结论翻转条件：(a) max_bars={max_bars}（若<461万则为截断窗结论）；(b) train_frac={train_frac} 改变切分点结论可能变化；(c) 高级别 n 过少（Le Cam 约束）时 LCB 由 se 主导而非 μ；(d) 不同 bootstrap 种子理论上可影响 p（本实现固定 LCG 种子确定性）。");
+        let _ = writeln!(rpt, "4. **下游推论**：若 level2+ 全否证 ⟹ 策略信号层仅可依赖 level0/1（需 L3 跨品种升基座）。若存在 LCB>0 ⟹ 该 (level,δ) 可作 entry 候选（仍需 L3）。否定性结果意味着高级别配额应为 0 或纯结构性（不依赖 alpha 预期）。");
+        let _ = writeln!(rpt, "5. **谱系引用**：663 econpositive（可交易性=μ(z,a)>0）；664-Q3（真实成交口径）；formalization-validity-domain（L2 有效域<定义域，L3 待 L2 完成后）；testing-override 生成态例外（测试目的=产出可证伪结果，非通过）；161（否定性结果照实报）。不确定是否有 level2+ alpha 的独立谱系记录，保守声明无关联已知谱系。");
+        let _ = writeln!(rpt, "6. **影响声明**：新增 acc_multilevel_highlevel_mu 测试；复用 decompose_capturable_spread/class_actual_pnl/neff_autocorr/mean_se_lcb/drop_top_winners/block_bootstrap_pvalue；不改任何生产代码/TradeRecord/Order/信号收集逻辑。报告落盘 econ-multilevel-mu-20260701.md。");
+
+        // 落盘
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent().expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/econ-multilevel-mu-20260701.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n报告已落盘：{out:?}");
+
+        // 真封：切片无重叠 + neff≤nraw 逐结果。
+        assert_eq!(ds_train.bars.len() + ds_hold.bars.len(), n,
+            "train+holdout bar 数 ≠ 全窗（半开区间应无重叠无遗漏）");
+        for r in &hl_results {
+            assert!(r.neff <= r.nraw as f64 + 1e-9,
+                "neff({:.1}) 应 ≤ nraw({})：level={} δ={}", r.neff, r.nraw, r.level, r.delta);
+            // holdout Σpnl 与逐信号和一致（聚合完整性）。
+            let recomp: f64 = decomps_hold.iter()
+                .filter(|d| d.level == r.level && d.delta == r.delta)
+                .map(|d| d.actual_pnl).sum();
+            assert!((r.hd_pnl - recomp).abs() < 1e-6,
+                "holdout Σpnl 聚合不一致：level={} δ={}", r.level, r.delta);
+        }
     }
 }

@@ -61,6 +61,7 @@ pub mod nest;
 pub mod signal;
 pub mod six_state;
 pub mod voice_eat;
+pub mod cand_predicate;
 
 use bsp::BspPoint;
 use center::UnitRange;

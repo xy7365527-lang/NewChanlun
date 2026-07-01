@@ -392,22 +392,9 @@ mod tests {
 
     // ── 买卖闭环对偶对称（port SellClosedLoop §4）───────────────────────────
 
-    /// ★★买卖账本 delta·A 分量镜像（Lean `buy_sell_A_delta_mirror`）：
-    /// 买 openRoot dA=+1 ↔ 卖 closeRoot dA=-1；买 accreteCore dA=+2 ↔ 卖 reduceCore dA=-2。
-    ///
-    /// 买侧 delta 引 closed_loop/transition.rs schedule_adapter 的语义（Allocate(1)=建仓 A+1）+
-    /// strategy 增核（A+2）。本测试坐实卖侧 delta 与买侧严格相反号（A 分量镜像）。
-    #[test]
-    fn buy_sell_A_delta_mirror() {
-        // 卖侧 A 分量（本文件）。
-        let close_root_da = sell_decision_ledger_delta(SellDecision::CloseRoot).1; // -1
-        let reduce_core_da = sell_decision_ledger_delta(SellDecision::ReduceCore).1; // -2
-        // 买侧 A 分量（Lean decisionLedgerDelta：openRoot dA=+1, accreteCore dA=+2）。
-        let open_root_da: i64 = 1;
-        let accrete_core_da: i64 = 2;
-        assert_eq!(open_root_da, -close_root_da, "建根仓 A+1 ↔ 清根仓 A-1");
-        assert_eq!(accrete_core_da, -reduce_core_da, "增核 A+2 ↔ 减核 A-2");
-    }
+    // 注：买卖 delta·A 分量镜像见 [`super::buy::tests::buy_sell_A_delta_mirror_real_impl`]——
+    // 该测试调**真买侧 rust 函数** buy_decision_ledger_delta 取 A 分量与卖侧比（非本处曾用的硬编码
+    // open_root_da=1）。买侧 rust 已独立实装（buy.rs），硬编码手填版删除，消除 vacuous（GAP1）。
 
     /// ★★买卖闭环 A 分量镜像（Lean `buy_sell_closed_loop_A_mirror`）：
     /// 从同一初始态，买侧第一类建仓后 A+1，卖侧第一类清仓后 A-1，相对 base 偏移严格相反号。
