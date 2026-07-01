@@ -204,6 +204,20 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     let mut decomps: Vec<SignalDecomp> = Vec::new();
     let mut agg = SpreadAttribution::default();
 
+    // ★O(信号²)→O(信号) 配对预处理：next_opp[side][i] = 从位置 i 起第一个该 side 信号的 idx
+    // （无则 signals.len()）。signals 按 entry_bar 单调非降（逐 bar 收集）⟹ 从 i 起第一个 opp 方向
+    // 信号在 next 表 O(1) 查；配对须 eb>entry_bar（排同 bar），同 bar opp 聚在 entry_bar 批内且排在
+    // eb>entry_bar 的 opp 之前，故 while 跳同 bar 平摊 O(1)（同 bar 信号数有限）。bit-exact == 旧
+    // signals[idx+1..].find/any（同一"首个后续 opp"语义，仅从线性扫换 O(1) 表查）。
+    // ponytail: O(信号) 预处理替代每信号 O(信号) 扫，全历史 12626 信号 O(n²)→O(n)。
+    let ns = signals.len();
+    let mut next_long = vec![ns; ns + 1];
+    let mut next_short = vec![ns; ns + 1];
+    for i in (0..ns).rev() {
+        next_long[i] = if signals[i].1 == VoiceSide::Long { i } else { next_long[i + 1] };
+        next_short[i] = if signals[i].1 == VoiceSide::Short { i } else { next_short[i + 1] };
+    }
+
     for (idx, &(entry_bar, dir, lambda_rev_bar, level)) in signals.iter().enumerate() {
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
@@ -211,21 +225,24 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
             VoiceSide::Flat => continue,
         };
         let opp = if delta == 1 { VoiceSide::Short } else { VoiceSide::Long };
-        // 三审计统计②（codex Q2）：同 bar 出现反向信号（被后续 eb>entry_bar 配对条件排除的边界）。
-        if signals[idx + 1..].iter().any(|(eb, d, _, _)| *eb == entry_bar && *d == opp) {
+        let next_opp = if opp == VoiceSide::Long { &next_long } else { &next_short };
+        // 首个后续 opp 方向信号（O(1) 表查，替代 signals[idx+1..].find/any 的 O(信号)扫）。
+        let mut j = next_opp[idx + 1];
+        // 三审计统计②（codex Q2）：同 bar 反向信号（首个 opp 若 eb==entry_bar 即命中——单调非降 ⟹
+        // 同 bar opp 排在 eb>entry_bar opp 之前）。
+        if j < ns && signals[j].0 == entry_bar {
             agg.n_same_bar_opposite += 1;
         }
-        // 配对出场信号（首个后续反向新确认信号，π^bsp owned）：取其 entry_bar(τout) + pivot_bar(ρ_rev)。
-        let (exit_bar, rho_rev_bar) = match signals[idx + 1..]
-            .iter()
-            .find(|(eb, d, _, _)| *eb > entry_bar && *d == opp)
-            .map(|&(eb, _, pivot, _)| (eb, pivot))
-        {
-            Some(pair) => pair,
-            None => {
-                agg.n_unpaired += 1; // 三审计统计③（codex Q4）：右删失，无配对出场反转信号，诚实跳过不兜底
-                continue;
-            }
+        // 配对须 eb>entry_bar：跳过同 bar opp（平摊 O(1)，同 bar 信号有限）。
+        while j < ns && signals[j].0 <= entry_bar {
+            j = next_opp[j + 1];
+        }
+        // 配对出场信号（首个 eb>entry_bar 反向新确认信号，π^bsp owned）：entry_bar(τout) + pivot_bar(ρ_rev)。
+        let (exit_bar, rho_rev_bar) = if j < ns {
+            (signals[j].0, signals[j].2)
+        } else {
+            agg.n_unpaired += 1; // 三审计统计③（codex Q4）：右删失，无配对出场反转信号，诚实跳过不兜底
+            continue;
         };
         if exit_bar <= entry_bar {
             continue;
