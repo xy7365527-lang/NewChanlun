@@ -52,7 +52,7 @@ use super::super::strategy::ledger::{
     ledger_step, tw_step, LedgerEvent, RiskPolicy, TStage, TwEvent, TwState,
 };
 use super::super::types::StrictAction;
-use super::state::{micro_delta, AssemblyState, MicroEvent, RiskMode};
+use super::state::{micro_delta, AssemblyState, MicroEvent, Phase, RiskMode};
 
 /// 混合事件 `AssemblyEvent`（契约锚 `Origin.FullDefinitionSystem.Event`）：驱动闭环一步的外部事件 e。
 ///
@@ -116,44 +116,48 @@ fn risk_adapter(x: &AssemblyState, intent: StrictAction) -> u64 {
 }
 
 /// Schedule 段 `schedule_adapter`（契约锚 `Origin.FullDefinitionSystem.schedule : StrictState →
-/// Control → Order`）：把控制（目标仓位）+ 意图（动作）打包为订单，派生双账本事件。
+/// Control → Order`）：把控制（目标仓位）+ 意图（动作）打包为订单，**由真实仓位增量派生双账本事件**。
 ///
-/// 对齐 Origin `schedule` 字段（Control → Order）。动作→账本副作用映射（账户因果链）：
-/// - 开仓侧（Buy/Add，目标仓位 > 当前）⟹ `Allocate`（资本化建仓占用 R）+ `ShortDiff(-1)`
-///   （free→holding 买入降成本短差，TW 守恒，改变 tw_state free/holding 分量——非恒等）。
-/// - 平仓/减仓侧（Close/Reduce/Sell，目标仓位 ≤ 当前）⟹ `Realize`（回收实现盈亏）+
-///   `RecoverCapital(1)`（free→withdrawn 退本金 1 单位，TW 守恒，改变 tw_state free/withdrawn +
-///   推进 stage——非恒等）。
-/// - 保持/观望（Hold/Wait）⟹ `Noop`（无账本变化）+ `ShortDiff(0)`（TW 不变的零转移）。
+/// ★★codex #1 根因修复（幽灵买入）：账本事件由**真实仓位增量** `Δ = target_pos − x.positions` 派生，
+/// **不**由「每 bar 每个 Buy 意图」无条件派生。旧版对 Buy/Add 无条件派 `ShortDiff(-1)`——但闭环里
+/// intent 每 bar 恒 Buy 而 `risk_adapter` 首 bar 后恒返 `positions.max(1)=1`（仓位不再增），导致
+/// holding 被「幽灵买入」逐 bar 累积（时间门控），而非真实仓位增长（仓位门控）。修复后 Δ=0（仓位
+/// 未变）⟹ 无资金转移（`Noop` + `ShortDiff(0)`），holding 只在真实建仓（Δ>0）时增长。
 ///
-/// ★OQ-9 gate（契约锚 `Origin.TotalWealth.LegalTransition`，#127 native port）：`OpenShareLeg` 在
-/// stage=EarningShares **非法**（引擎层禁该转移）。本段派生的 tw_event 只取 `ShortDiff`/`RecoverCapital`
-/// （都不是 OpenShareLeg/CloseShareLeg），故不开 legacy 腿也不闭 legacy 腿——OQ-9 gate 自动满足
-/// （开 legacy 腿的非法转移不被本段产生，见 `assert_oq9_legal`）。
+/// 动作→账本副作用映射（**Δ 驱动**，账户因果链，TW 守恒）：
+/// - **Δ>0（真实建仓）**⟹ `Allocate(Δ)`（资本化建仓占用 R）+ `ShortDiff(-Δ)`（free→holding 买入，
+///   花 Δ 单位 free 换 Δ 单位 holding，TW 守恒——非恒等）。
+/// - **Δ<0（真实减/平仓）**⟹ `Realize(|Δ|)`（回收实现盈亏）+ `ShortDiff(+|Δ|)`（holding→free 卖出，
+///   |Δ| 单位 holding 变回 free 现金，TW 守恒——非恒等）。**卖出=holding→free**（现金回流），与
+///   「退本金 free→withdrawn」是不同转移：退本金由 [`stage_progression`] 阶段机派生，schedule 不派
+///   （codex #3 根因：schedule 不再把「卖出」误当「退本金」，避免从空 free 借本金）。
+/// - **Δ=0（仓位不变，含 Hold/Wait 或 max(1) 饱和）**⟹ `Noop` + `ShortDiff(0)`（TW 不变零转移）。
 ///
-/// ★诚实：账本事件的 dΠ/dA/dCash/w 取占位常量（1 单位）——具体数额是 Θ_risk/运行时数据（L2），
-/// 本结构层只承载「动作 ⟹ 账本事件类型」的映射，数额由下游填充。tw_event 与 ledger_event 双侧由
-/// 同一动作派生 ⟹ 两账本同步线程化。
+/// ★OQ-9 gate（契约锚 `Origin.TotalWealth.LegalTransition`，#127 native port）：本段派生的 tw_event
+/// 只取 `ShortDiff`（不是 OpenShareLeg/CloseShareLeg/RecoverCapital/EnterEarning），故恒合法且不开/
+/// 不闭 legacy 腿——OQ-9 gate 自动满足（见 `assert_oq9_legal`）。
+///
+/// ★诚实：账本事件的 dΠ/dA 取仓位增量 |Δ|（结构层单位数；具体金额 = |Δ|·price 是 Θ_risk/运行时
+/// 数据 L2，本结构层承载单位数增量，price 由下游 fill 侧填充）。tw_event 与 ledger_event 双侧由同一
+/// Δ 派生 ⟹ 两账本同步线程化。
 fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64) -> OrderOut {
-    match intent {
-        StrictAction::Buy | StrictAction::Add => OrderOut {
-            action: intent,
-            target_pos,
-            ledger_event: LedgerEvent::Allocate(1),
-            tw_event: TwEvent::ShortDiff(-1),
-        },
-        StrictAction::Close | StrictAction::Sell | StrictAction::Reduce => OrderOut {
-            action: intent,
-            target_pos,
-            ledger_event: LedgerEvent::Realize(1),
-            tw_event: TwEvent::RecoverCapital(1),
-        },
-        StrictAction::Hold | StrictAction::Wait => OrderOut {
-            action: intent,
-            target_pos: x.positions, // 不调仓
-            ledger_event: LedgerEvent::Noop,
-            tw_event: TwEvent::ShortDiff(0),
-        },
+    // 真实仓位增量 Δ = target_pos − positions（i64 域，可正可负）。
+    let delta = target_pos as i64 - x.positions as i64;
+    let (ledger_event, tw_event) = if delta > 0 {
+        // 真实建仓：花 free 换 holding（free→holding）。
+        (LedgerEvent::Allocate(delta), TwEvent::ShortDiff(-delta))
+    } else if delta < 0 {
+        // 真实减/平仓：卖出 holding 回 free（holding→free）。
+        (LedgerEvent::Realize(-delta), TwEvent::ShortDiff(-delta))
+    } else {
+        // 仓位不变：无资金转移。
+        (LedgerEvent::Noop, TwEvent::ShortDiff(0))
+    };
+    OrderOut {
+        action: intent,
+        target_pos,
+        ledger_event,
+        tw_event,
     }
 }
 
@@ -180,9 +184,10 @@ pub fn policy_output(x: &AssemblyState, e: &AssemblyEvent) -> OrderOut {
 /// tw_state 下必须合法。
 ///
 /// OpenShareLeg 在 stage=EarningShares 非法。本守卫断言订单携带的 tw_event 是当前态下的合法转移
-/// （schedule_adapter 只派生 ShortDiff/RecoverCapital，二者恒合法，故此守卫恒成立；它是引擎层
-/// 「禁非法转移」的显式落实，对齐 `Origin.TotalWealth.oq9inv_preserved` 的单步保持——TW/OQ-9 的
-/// Origin canonical 重锚已由 #127 `Origin.TotalWealth` native port 落地）。
+/// （schedule_adapter 只派生 `ShortDiff`，恒合法，故此守卫对订单 tw_event 恒成立；阶段推进事件
+/// RecoverCapital/EnterEarning 由 stage_progression 单独在推进侧 gate。它是引擎层「禁非法转移」的
+/// 显式落实，对齐 `Origin.TotalWealth.oq9inv_preserved` 的单步保持——TW/OQ-9 的 Origin canonical
+/// 重锚已由 #127 `Origin.TotalWealth` native port 落地）。
 fn assert_oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
     tw_event.is_legal_from(tw_state)
 }
@@ -212,9 +217,21 @@ fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> O
         // 降成本：持仓累积过名义基线 ⟹ 退本金（free→withdrawn），推进 CapitalRecovered。
         // notional_in>0（campaign 已开：funded_campaign 开局注资记 notional_in）时 holding≥notional_in
         // 才退——保证退本金有真实持仓支撑（非凭空退）。notional_in=0（未开 campaign）⟹ 不退（inert）。
+        //
+        // ★★codex #3 根因修复（负 free 退本金）：退本金额 `w` 受 **可用 free 上界约束**
+        // ——`w = min(退本金目标, free)`，使 `RecoverCapital(w)` 后 `free ≥ 0` 恒成立（不从空/负 free
+        // 借本金）。退本金目标 = `notional_in − withdrawn`（尚未退回的本金）。**若 free=0（建仓耗尽现金，
+        // 纯累积模型）⟹ w=0 ⟹ 不派事件**（照实：退本金需真实 free 现金，纯累积无 free 可退——这是
+        // 缠师「降成本=短差（买卖等量）」而非「纯建仓」的结构后果，见测试 `pure_accumulation_no_sound_recovery`）。
         TStage::CostReduction => {
             if s.notional_in > 0 && s.holding >= s.notional_in {
-                Some(TwEvent::RecoverCapital(s.notional_in))
+                let recover_target = (s.notional_in - s.withdrawn).max(0);
+                let w = recover_target.min(s.free); // 受可用 free 上界约束 ⟹ free 退后 ≥0
+                if w > 0 {
+                    Some(TwEvent::RecoverCapital(w))
+                } else {
+                    None // free 不足（纯累积耗尽现金）⟹ 无法退本金（照实，非负 free 借本金）
+                }
             } else {
                 None
             }
@@ -247,9 +264,11 @@ fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> O
 ///   ——task #93 真线程化：用订单携带的 tw_event 驱动 TW 账本一步；与 ledger_state 双层并置）。
 /// - `positions` := `o.target_pos`（写回新持仓）。
 /// - `orders` := `x.orders + 1`（订单计数推进）。
-/// - `memory`、`risk_mode`、`phase`：本骨架保持（转移阈值是 Θ_signal/Θ_risk，L2；结构层装配保持，
-///   不臆造阈值——诚实留白，非 workaround：阈值驱动转移属下游有效域，本文件闭合
-///   micro/ledger/tw_state/positions/orders 的结构闭环）。
+/// - `phase` := `phase_from_stage(tw_next.stage)`（**由取本金阶段派生写回**，codex #2 根因修复：
+///   phase 是 stage 的确定函数，非独立状态——stage 推进即驱动 phase 推进，消除双相位漂移）。
+/// - `memory`、`risk_mode`：本骨架保持（μ 取值阈值是 Θ_signal/Θ_risk，L2；结构层装配保持，不臆造
+///   阈值——诚实留白，非 workaround：阈值驱动 μ 转移属下游有效域，本文件闭合 micro/ledger/tw_state/
+///   positions/orders/phase 的结构闭环）。
 ///
 /// ★诚实标注（codex R3）：T **只声明闭环状态转移全定义**（产出确定的下一态），**不**声明该转移
 /// 盈利/最优/实盘有效（L3）。
@@ -271,7 +290,7 @@ pub fn transition_adapter(
         o.tw_event,
         x.tw_state.stage
     );
-    // base tw_step（订单派生事件：ShortDiff/RecoverCapital/Realize 侧）。
+    // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 转移）。
     let tw_after_order = tw_step(&x.tw_state, o.tw_event);
     // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning，使 EarningShares 可达。
     // I₀ 由 stage_progression 内部取 campaign 本地本金 s.notional_in（非账户 NAV）。
@@ -292,10 +311,31 @@ pub fn transition_adapter(
         ledger_state: ledger_step(&x.ledger_state, o.ledger_event),
         tw_state: tw_next,
         risk_mode: x.risk_mode,
-        phase: x.phase,
+        // ★codex #2 根因修复（phase/TStage 脱钩）：phase **由 tw_state.stage 派生写回**，不再原样
+        // 保留 x.phase。TStage 是资本相位的唯一真值状态机（CostReduction=建仓期/CapitalRecovered=
+        // 取本期/EarningShares=增股数期）；旧版 phase 恒 PhaseI 与 stage 分裂 ⟹ 即使 stage 到
+        // EarningShares，classify→intent 仍读 PhaseI ⟹ 恒 Buy。派生写回后 stage 推进即驱动 phase
+        // 推进 ⟹ intent 随相位变（PhaseII→Reduce/PhaseIII→Add），消除双相位漂移（state.rs「不冗余
+        // 存双份」原则的兑现：phase 是 stage 的确定函数 [`phase_from_stage`]，非独立状态）。
+        phase: phase_from_stage(tw_next.stage),
         positions: o.target_pos,
         orders: x.orders + 1,
         memory: x.memory,
+    }
+}
+
+/// 资本相位 `Phase` 由取本金阶段 `TStage` 派生（codex #2 根因修复：消除双相位漂移）。
+///
+/// `TStage` 是资本相位的**唯一真值状态机**（单向 CostReduction→CapitalRecovered→EarningShares）；
+/// `Phase` 是其在 classify→intent 数据流上消费的三态摘要，二者一一对应（非独立状态，避免双份漂移）：
+/// - `CostReduction`（降成本/建仓期）→ `PhaseI`（建根仓 ⟹ intent=Buy）。
+/// - `CapitalRecovered`（退本金期）→ `PhaseII`（取本减仓 ⟹ intent=Reduce）。
+/// - `EarningShares`（增股数期）→ `PhaseIII`（增核加仓 ⟹ intent=Add）。
+pub fn phase_from_stage(stage: TStage) -> Phase {
+    match stage {
+        TStage::CostReduction => Phase::PhaseI,
+        TStage::CapitalRecovered => Phase::PhaseII,
+        TStage::EarningShares => Phase::PhaseIII,
     }
 }
 
@@ -413,7 +453,7 @@ mod tests {
     }
 
     /// ★OQ-9 gate 闭环保持（契约锚 `Origin.TotalWealth.oq9inv_preserved` / `oq9inv_trace`——#127 native port）：
-    /// schedule_adapter 只派生 ShortDiff/RecoverCapital（不开/不闭 legacy 腿）⟹ open_legacy_legs 恒 0。
+    /// schedule_adapter 只派生 ShortDiff（不开/不闭 legacy 腿）⟹ open_legacy_legs 恒 0。
     #[test]
     fn hybrid_step_oq9_gate_preserved() {
         let mut x = AssemblyState::initial(1_000_000);

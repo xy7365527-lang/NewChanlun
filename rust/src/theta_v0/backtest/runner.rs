@@ -1812,67 +1812,126 @@ mod tests {
 
     /// ★督导见证②：闭环 ledger 在波动数据上真演化（开仓侧 Allocate / 平仓侧 Realize 交替）。
     ///
-    /// 初始 Normal/PhaseI ⟹ 每 bar intent=Buy ⟹ Allocate(1) ⟹ A 每 bar +1。证明 ledger_state
-    /// 不是恒等挂件——它随闭环每步真更新（A 累加到 = bar 数）。
+    /// ledger_state 随**真实仓位增量**演化（codex #1 修复后：非恒等挂件，也非幽灵累积）。
+    ///
+    /// ★codex #1 根因修复后：初始 Normal/PhaseI ⟹ intent 恒 Buy，但 `risk_adapter` 首 bar 后恒返
+    /// `positions.max(1)=1`（仓位 0→1 后不再增）⟹ **只有首 bar 有真实仓位增量 Δ=1**（Allocate(1)），
+    /// 其余 bar Δ=0 ⟹ Noop。故 A=1（一次真实建仓），**不是** A=5（旧版幽灵：每 bar 无条件 Allocate）。
+    /// 这证 ledger 由真实仓位增量驱动（仓位门控），非时间门控。
     #[test]
     fn closed_loop_ledger_evolves() {
         let bars: Vec<Bar> = (0..5).map(|i| mk_bar(i, 1000 + i as i64 * 10, false)).collect();
         let final_state = run_closed_loop(&bars, 1.0e6).expect("有终态");
-        // 5 bar 全 Normal/PhaseI ⟹ 5 次 Allocate(1) ⟹ A=5, R=-5（保 R=Π-A-W: 0-5-0=-5）。
-        assert_eq!(final_state.ledger_state.a, 5, "5 bar ⟹ A 累加到 5（ledger 真演化）");
-        assert_eq!(final_state.ledger_state.r, -5, "R=Π-A-W=-5");
+        // 首 bar 仓位 0→1（真实建仓 Δ=1 ⟹ Allocate(1)）；bar 2-5 仓位不变（Δ=0 ⟹ Noop）。
+        assert_eq!(final_state.positions, 1, "仓位 0→1（risk_adapter max(1) 饱和 ⟹ 只增一次）");
+        assert_eq!(final_state.ledger_state.a, 1, "只一次真实建仓 ⟹ A=1（非幽灵累积 A=5）");
+        assert_eq!(final_state.ledger_state.r, -1, "R=Π-A-W=-1（一次 Allocate(1)）");
         assert!(final_state.ledger_state.inv_holds(), "终态保恒等");
     }
 
-    /// ★★GAP3 可证伪判据：回测 ∃t TStage=III（EarningShares）触达，计数>0，非恒 placeholder。
+    /// ★★GAP3 返工（codex #9 三致命修复后）：`run_closed_loop` 在 L0 同价单标的流上 **EarningShares
+    /// 结构上不触达**——照实（161/no-workaround），非硬凑。
     ///
-    /// **可证伪性**（formalization-validity-domain，L1）：κ=0 基线（`RiskPolicy::baseline`）下，
-    /// 已注资 campaign 的闭环逐 bar 推进**必须**走完三阶段 CostReduction→CapitalRecovered→EarningShares。
-    /// 若终态 stage ≠ EarningShares ⟹ 三阶段结构缺口（EnterEarning 派生路径断裂）——本测试**证伪**该缺口
-    /// 不存在（GAP3 已修）。窗口须 > Q+1 才走得完（短窗口走不完=真实性质）。
+    /// **codex #9 判 FAIL 的根因（幽灵可达）已消除**：旧版 EarningShares「可达」是三重伪影叠加
+    /// （幽灵买入逐 bar 累 holding + 负 free 借本金 + phase 恒 PhaseI）。三者修复后，闭环的真实动力学是：
+    /// - **仓位门控**（codex #1）：intent 恒 Buy 但 `risk_adapter` 首 bar 后恒返 `max(1)=1` ⟹ 真实仓位
+    ///   增量只发生一次（0→1）⟹ holding 只到 1，**永达不到 Q**（Q=clamp(600/4,…)=128）。
+    /// - **现金守恒 anti-correlation**（codex #3）：TW=free+holding+withdrawn 守恒 ⟹ holding 高则 free 低。
+    ///   退本金 `RecoverCapital(w)` 受 `w≤free` 约束（不借负 free）；纯累积把 free 花光 ⟹ 无 free 可退。
+    /// - **profit 缺位（L0 同价）**：同价短差 TW-中性，`cum_net_cash` 零增长——退本金的真实资金来源
+    ///   （已实现利润）在 L0 同价层不产生。
+    ///
+    /// **结论（照实）**：κ=0 L0 同价闭环 stage 恒 CostReduction——EarningShares **结构可达**（机制正确，
+    /// 见 `stage_progression_reaches_earning_shares_with_funded_recovery`）但**此层级/此数据未触达**
+    /// （需 L2 价格升值 → 卖高 → 已实现利润 → free 超 notional → 才有 sound 退本金源）。这是有效域边界
+    /// （formalization-validity-domain），非 bug，非 placeholder。
     #[test]
-    fn closed_loop_reaches_earning_shares_gap3() {
+    fn closed_loop_earning_shares_not_reached_l0_honest_gap3() {
         use super::super::super::strategy::ledger::TStage;
-        // 600 bar 窗口（Q=clamp(600/4,1,128)=128；须 >Q+1=129 才走完三阶段，600≫129 ✓）。
         let bars: Vec<Bar> = (0..600).map(|i| mk_bar(i, 1000 + (i as i64 % 7) * 10, false)).collect();
         let final_state = run_closed_loop(&bars, 1.0e6).expect("非空 bars ⟹ 有闭环终态");
 
-        // ★可证伪判据①：EarningShares（TStage=III）**触达**（stage rank=2）。
+        // ★照实①：stage 恒 CostReduction（L0 同价流三阶段不推进——退本金无 sound 资金源）。
         assert_eq!(
             final_state.tw_state.stage,
-            TStage::EarningShares,
-            "GAP3 证伪：600 bar κ=0 基线闭环未达 EarningShares（终 stage={:?}）——三阶段推进路径断裂",
+            TStage::CostReduction,
+            "L0 同价闭环 stage 应恒 CostReduction（EarningShares 需 L2 利润，此层未触达）——终 stage={:?}",
             final_state.tw_state.stage
         );
-        assert_eq!(final_state.tw_state.stage.rank(), 2, "EarningShares rank=2（三阶段顶）");
 
-        // ★可证伪判据②：非恒 placeholder——本金已全退（withdrawn≥notional_in ⟹ L^wc=0），真走完退本金。
-        assert!(
-            final_state.tw_state.withdrawn >= final_state.tw_state.notional_in,
-            "本金全退（withdrawn={} ≥ notional_in={}）⟹ 非 placeholder 直接置 III",
-            final_state.tw_state.withdrawn, final_state.tw_state.notional_in
-        );
+        // ★照实②：仓位门控——真实仓位只增一次（0→1），holding 跟随真实仓位（≤1），**非**幽灵累积到 Q。
+        assert_eq!(final_state.positions, 1, "真实仓位 0→1 一次（risk_adapter max(1) 饱和）");
+        assert_eq!(final_state.tw_state.holding, 1, "holding=真实仓位=1（非幽灵累积到 Q=128）");
 
-        // ★结构不变量在三阶段推进后仍保持：TW 守恒（注资额 Q=128）+ R=Π-A-W + OQ-9 gate（legacy 腿=0）。
-        assert_eq!(final_state.tw_state.tw(), 128, "三阶段推进后 TW 守恒（Q=128）");
-        assert!(final_state.ledger_state.inv_holds(), "三阶段推进后保 R=Π-A-W");
-        assert_eq!(final_state.tw_state.open_legacy_legs, 0, "EarningShares 下 OQ-9 gate 保持（legacy 腿=0）");
+        // ★照实③：现金 sound——free 从不为负（codex #3 修复：退本金受 free 上界约束，此处未退本金）。
+        assert!(final_state.tw_state.free >= 0, "free 从不为负（codex #3：不借负 free）");
+        assert_eq!(final_state.tw_state.withdrawn, 0, "无 sound 资金源 ⟹ 未退本金（withdrawn=0）");
 
-        // ★反面对照（非 placeholder 见证）：**未注资** campaign（notional_in=0）闭环**永不**达 III
-        // ——funded_campaign 注资是 III 可达的**必要条件**（证 III 非无条件硬置，是 barrier-gated 结果）。
-        let mut x = AssemblyState::initial(1_000_000); // 零 TW，未注资
+        // ★结构不变量仍保持：TW 守恒（注资额 Q=128）+ R=Π-A-W + OQ-9 gate（legacy 腿=0）。
+        assert_eq!(final_state.tw_state.tw(), 128, "TW 守恒（注资额 Q=128）");
+        assert!(final_state.ledger_state.inv_holds(), "保 R=Π-A-W");
+        assert_eq!(final_state.tw_state.open_legacy_legs, 0, "OQ-9 gate 保持（legacy 腿=0）");
+    }
+
+    /// ★★GAP3 barrier 机制正确性（**实际 fill delta 见证**，codex #9 修复验证）：当退本金有**真实
+    /// sound 资金源**（free 充足）时，三阶段机**确实**能 position-gated + cash-tight + phase-synced 地
+    /// 推进到 EarningShares——证机制正确（非幽灵可达）。
+    ///
+    /// 与 `..._not_reached_l0_honest_gap3` 互补：那个证「L0 同价流不触达」（照实），本测试证「机制在有
+    /// sound 资金源时正确可达」（非 placeholder）。构造 free=Q ∧ holding=Q 的**已获利 campaign**（free
+    /// 来自先前已实现利润，与 holding 并存）——退本金 `w=min(Q,free=Q)=Q` 后 free=0（**≥0，cash-tight，
+    /// 不借负 free**），withdrawn=Q ⟹ CapitalRecovered ⟹ barrier 过 ⟹ EnterEarning ⟹ EarningShares。
+    #[test]
+    fn stage_progression_reaches_earning_shares_with_funded_recovery() {
+        use super::super::super::strategy::ledger::{TStage, TwState};
+        use super::super::super::closed_loop::transition::{transition_adapter, OrderOut};
+        use super::super::super::closed_loop::state::{AssemblyState, Phase};
+        use super::super::super::strategy::ledger::{LedgerEvent, TwEvent};
+
+        let q: i64 = 3;
+        // 已获利 campaign：free=Q（先前已实现利润）∧ holding=Q（已建仓）；notional_in=Q（退本金目标）。
+        let funded = AssemblyState {
+            tw_state: TwState { free: q, holding: q, withdrawn: 0, notional_in: q, ..TwState::initial() },
+            ..AssemblyState::funded_campaign(1_000_000, q)
+        };
+        assert_eq!(funded.tw_state.stage, TStage::CostReduction, "起点 CostReduction");
+        assert_eq!(funded.phase, Phase::PhaseI, "起点 phase 由 stage 派生 = PhaseI");
+
         let policy = RiskPolicy::baseline();
-        let mut prev = bars[0].close;
-        for bar in &bars {
-            let e = AssemblyEvent { parse_event: MicroEvent::NewBar(bar.close >= prev) };
-            x = hybrid_step(&x, &e, &policy);
-            prev = bar.close;
+        // Δ=0 订单（仓位不变，只让 stage_progression 驱动）——见证阶段推进不依赖幽灵买入。
+        let hold_order = OrderOut {
+            action: StrictAction::Hold,
+            target_pos: funded.positions,
+            ledger_event: LedgerEvent::Noop,
+            tw_event: TwEvent::ShortDiff(0),
+        };
+        let e = AssemblyEvent { parse_event: MicroEvent::NewBar(true) };
+
+        // 步①：CostReduction --RecoverCapital(w=min(Q,free=Q)=Q)--> CapitalRecovered。
+        let s1 = transition_adapter(&funded, &hold_order, &e, &policy);
+        assert_eq!(s1.tw_state.stage, TStage::CapitalRecovered, "步①退本金 ⟹ CapitalRecovered");
+        assert!(s1.tw_state.free >= 0, "★cash-tight：退本金后 free≥0（codex #3，free={}）", s1.tw_state.free);
+        assert_eq!(s1.tw_state.free, 0, "free=Q-Q=0（退本金 min(Q,free) 恰好退光 free）");
+        assert_eq!(s1.tw_state.withdrawn, q, "withdrawn=Q（本金全退）");
+        assert_eq!(s1.phase, Phase::PhaseII, "★phase-synced：stage→CapitalRecovered ⟹ phase→PhaseII（codex #2）");
+        assert_eq!(s1.tw_state.tw(), 2 * q, "TW 守恒（=free+holding+withdrawn=0+Q+Q=2Q）");
+
+        // 步②：CapitalRecovered --EnterEarning（barrier 过：withdrawn≥I0 ∧ tw≥η⋆=0）--> EarningShares。
+        let s2 = transition_adapter(&s1, &hold_order, &e, &policy);
+        assert_eq!(s2.tw_state.stage, TStage::EarningShares, "步②barrier 过 ⟹ EarningShares（rank=2）");
+        assert_eq!(s2.tw_state.stage.rank(), 2, "EarningShares rank=2（三阶段顶，真触达）");
+        assert_eq!(s2.phase, Phase::PhaseIII, "★phase-synced：stage→EarningShares ⟹ phase→PhaseIII（codex #2）");
+        assert!(s2.tw_state.free >= 0, "★cash-tight 全程：free 从不为负（free={}）", s2.tw_state.free);
+        assert_eq!(s2.tw_state.withdrawn >= s2.tw_state.notional_in, true, "本金全退（withdrawn≥notional_in）⟹ 非 placeholder");
+        assert_eq!(s2.tw_state.tw(), 2 * q, "EarningShares 后 TW 仍守恒（2Q）");
+        assert_eq!(s2.tw_state.open_legacy_legs, 0, "EarningShares 下 OQ-9 gate 保持");
+
+        // ★反面对照：未注资 campaign（notional_in=0）恒 CostReduction（三阶段机 inert ⟹ III 非无条件硬置）。
+        let mut x = AssemblyState::initial(1_000_000);
+        for _ in 0..10 {
+            x = transition_adapter(&x, &hold_order, &e, &policy);
         }
-        assert_eq!(
-            x.tw_state.stage,
-            TStage::CostReduction,
-            "未注资 campaign（notional_in=0）恒 CostReduction（三阶段机 inert）⟹ III 非硬置"
-        );
+        assert_eq!(x.tw_state.stage, TStage::CostReduction, "未注资 ⟹ 恒 CostReduction（III 非硬置）");
     }
 
     /// run_theta_v0 携带闭环终态证据（closed_loop_final 非 None ⟺ bars 非空）。

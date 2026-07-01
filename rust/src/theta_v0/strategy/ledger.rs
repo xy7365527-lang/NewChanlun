@@ -183,8 +183,10 @@ impl TwState {
 /// 定点整数承载（bit-exact，barrier 比较在整数域；κ 用 i64 缩放系数，避免浮点非确定性）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RiskPolicy {
-    /// barrier 缓冲系数 κ（≥0；默认 0=最小基线）。
-    pub kappa: i64,
+    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——只能经
+    /// [`RiskPolicy::baseline`] / [`RiskPolicy::try_new`] 构造，二者都保证 κ≥0，使 κ≥0 成为
+    /// **Rust 类型层不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段，codex #5：负 κ 不可构造）。
+    kappa: i64,
 }
 
 impl RiskPolicy {
@@ -193,7 +195,24 @@ impl RiskPolicy {
         RiskPolicy { kappa: 0 }
     }
 
-    /// κ≥0 不变量（契约锚 PDF §11 `kappa_nonneg`）：barrier 缓冲系数非负（负缓冲=不覆盖 L^wc=非法）。
+    /// **构造校验入口 `try_new`（codex #5：κ≥0 Rust 不变量）**：κ<0 ⟹ `None`（负缓冲=不覆盖 L^wc
+    /// =非法，不可构造）。κ≥0 ⟹ `Some(RiskPolicy)`。这把 Lean 侧 `kappa_nonneg` 证明字段的语义
+    /// 在 Rust 侧兑现为**构造时拒绝**——负 κ 的 RiskPolicy 值根本不存在（不是运行时检查后放行）。
+    pub fn try_new(kappa: i64) -> Option<RiskPolicy> {
+        if kappa >= 0 {
+            Some(RiskPolicy { kappa })
+        } else {
+            None
+        }
+    }
+
+    /// κ 只读访问（字段私有，barrier 缓冲系数 ≥0 由构造保证）。
+    pub fn kappa(&self) -> i64 {
+        self.kappa
+    }
+
+    /// κ≥0 不变量（契约锚 PDF §11 `kappa_nonneg`）：**构造时已强制**（[`try_new`](Self::try_new)
+    /// 拒绝负 κ，[`baseline`](Self::baseline) 恒 κ=0）——本谓词恒真，是不变量的可观测断言。
     pub fn kappa_nonneg(&self) -> bool {
         self.kappa >= 0
     }
@@ -202,8 +221,15 @@ impl RiskPolicy {
     ///
     /// 进入 EarningShares 的**在险权益门槛**：权益 η 须 ≥ η⋆ 才允许相变（barrier 保证覆盖最坏损失 +
     /// κ 倍名义缓冲）。κ=0 ⟹ η⋆=L^wc（最小基线，仅覆盖最坏损失）。
+    ///
+    /// ★有界算术（codex #6：Lean 无界 Int vs Rust i64 wrap）：`κ·Q` 在 **i128 中间域**计算再夹回
+    /// i64（`saturating`）——避免 release 下 i64 乘法 wrap（wrap 会让巨额 η⋆ 环绕成小值 ⟹ barrier
+    /// 误过）。i128 对现实量级（κ、Q ≤ 数百万）足够承载精确乘积，饱和只在极端溢出时兜底（失败安全：
+    /// 溢出 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。
     pub fn eta_star(&self, s: &TwState) -> i64 {
-        s.l_wc() + self.kappa * s.notional()
+        let kappa_q = (self.kappa as i128) * (s.notional() as i128);
+        let eta = (s.l_wc() as i128) + kappa_q;
+        eta.clamp(i64::MIN as i128, i64::MAX as i128) as i64
     }
 
     /// **EnterEarning 合法性谓词 `EnterReady`（严格 EnterReady，契约锚 PDF §10 步骤3 + Lean
@@ -234,6 +260,10 @@ impl RiskPolicy {
     ///
     /// 参数（PDF §10 记号）：`a_n`=建仓额、`l_wc_next`=建仓后 L^wc_{n+1}、`delta_q`=ΔQ_n 名义增量、
     /// `eta_n`=当前在险权益、`g_n`=已实现收益、`q_n`=当前名义 Q_n。
+    ///
+    /// ★有界算术（codex #6）：LHS/RHS 在 **i128 中间域**求值再比较——避免 i64 加乘 wrap（Lean 侧
+    /// `buyCore_preserves_kappa_floor` 是无界 Int 代数移项，Rust 用 i128 承载现实量级的精确值，与
+    /// Lean 语义对齐；比较本身无溢出风险，i128 加乘对 ≤ 数百万量级的输入恒精确）。
     pub fn buy_core_legal(
         &self,
         a_n: i64,
@@ -243,7 +273,10 @@ impl RiskPolicy {
         g_n: i64,
         q_n: i64,
     ) -> bool {
-        a_n + l_wc_next + self.kappa * delta_q <= eta_n + g_n - self.kappa * q_n
+        let k = self.kappa as i128;
+        let lhs = (a_n as i128) + (l_wc_next as i128) + k * (delta_q as i128);
+        let rhs = (eta_n as i128) + (g_n as i128) - k * (q_n as i128);
+        lhs <= rhs
     }
 }
 
