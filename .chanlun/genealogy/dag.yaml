@@ -3538,6 +3538,16 @@ nodes:
   status: 生成态
   type: concept-separation
   file: pending/667-level-phase-alpha-vs-fullsample-beta-projection-sigma-higher-modulator-666-peer.md
+- id: '668'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/668-meta-observation-lead-rule-scope-misprojection-suppress-business-spawn-onto-structural-bootstrap-623-instance6.md
+- id: '669'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md
 edges:
   depends_on:
   - from: '136'
@@ -6836,6 +6846,18 @@ edges:
     to: '657'
   - from: '666'
     to: '663'
+  - from: '668'
+    to: '623'
+  - from: '668'
+    to: '562'
+  - from: '668'
+    to: 097
+  - from: '669'
+    to: '623'
+  - from: '669'
+    to: '562'
+  - from: '669'
+    to: '075'
   triggered:
   - from: '005'
     to: 005a
@@ -10174,6 +10196,33 @@ edges:
   - between:
     - '666'
     - project_zero_lookahead_backtest
+  - between:
+    - '621'
+    - '668'
+  - between:
+    - '571'
+    - '668'
+  - between:
+    - '569'
+    - '668'
+  - between:
+    - '649'
+    - '668'
+  - between:
+    - '161'
+    - '668'
+  - between:
+    - '572'
+    - '668'
+  - between:
+    - '621'
+    - '669'
+  - between:
+    - '668'
+    - '669'
+  - between:
+    - '353'
+    - '669'
   tensions_with:
   - between:
     - '007'
