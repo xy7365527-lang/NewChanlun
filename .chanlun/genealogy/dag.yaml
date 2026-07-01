@@ -3522,6 +3522,17 @@ nodes:
   status: 生成态
   type: concept-separation
   file: pending/665-selection-bias-removal-vs-tradeable-alpha-logically-independent-663-664-peer.md
+- id: '666'
+  title: ★级别相位 (−1)^ℓ 作为结构状态变量 + beta/alpha 命名纠正。GPT《奇偶相位》12页回应全历史 BTC 12/12 级别×方向
+    μ̂ 奇偶交替（买 L0+L1−L2+L3−L4+L5−，卖反相，sign μℓ,δ=sign(δ(−1)^ℓ)，正期望 δ*ℓ=(−1)^ℓ 偶买奇卖）。三增量：①级别相位——「级别不是中性索引，携带相位信息；同一『买点』语法在不同级别不是同一经济状态」，状态须从
+    z=(ℓ,δ) 升级到 z=(ℓ,δ,(−1)^ℓ,σhigher,exit rule,确认滞后,父级容器状态)。这是 657「须纳 regime 代理 ρ」的具体分量指认（657
+    未捕获相位分量），也是 663 pooled 混合的机制化。②beta/alpha 命名纠正：方向签名 PnL 下 (μ++μ−)/2≈aℓ−C 更接近方向中性结构
+    edge，(μ+−μ−)/2≈bℓ 更接近市场漂移 beta——上一轮 parity 报告命名反了，须标注更正防下游误用。③不可识别性：仅 12 均值符号不能唯一识别主因（机制A
+    递归几何反相 / B 出场配对滞后 / C 级别=regime 三者都产生同样交替），须反事实（换出场规则/测滞后/加 σhigher/同容器配对）。正确操作=偶级别只做买奇级别只做卖（正类交易负类不交易，X_inv=−X−2C
+    仅 μ<−2C 反向才正）。peer 663（判据）/664（对象）/665（方法论）同簇。
+  status: 生成态
+  type: bias-correction
+  file: pending/666-level-phase-parity-alternation-structural-variable-beta-alpha-naming-correction.md
 edges:
   depends_on:
   - from: '136'
@@ -6814,6 +6825,12 @@ edges:
     to: '663'
   - from: '665'
     to: '664'
+  - from: '666'
+    to: '231'
+  - from: '666'
+    to: '657'
+  - from: '666'
+    to: '663'
   triggered:
   - from: '005'
     to: 005a
@@ -10116,6 +10133,42 @@ edges:
   - between:
     - '664'
     - project_bsp_direction_valid_friction_floor
+  - between:
+    - '656'
+    - '657'
+  - between:
+    - '657'
+    - '665'
+  - between:
+    - '657'
+    - project_regime_is_level_truncation_artifact
+  - between:
+    - '645'
+    - '666'
+  - between:
+    - '656'
+    - '666'
+  - between:
+    - '664'
+    - '666'
+  - between:
+    - '665'
+    - '666'
+  - between:
+    - '660'
+    - '666'
+  - between:
+    - '666'
+    - alpha-pdf-mu-z-a-positive
+  - between:
+    - '666'
+    - project_regime_is_level_truncation_artifact
+  - between:
+    - '666'
+    - project_recursive_t_architecture_v2
+  - between:
+    - '666'
+    - project_zero_lookahead_backtest
   tensions_with:
   - between:
     - '007'
