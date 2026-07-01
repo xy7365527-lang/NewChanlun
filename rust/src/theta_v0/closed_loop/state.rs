@@ -201,6 +201,23 @@ impl AssemblyState {
             memory: 0,
         }
     }
+
+    /// ★**已注资 campaign 开局态**（GAP3：三阶段推进需 TW 账本被注资，否则 `tw()==0`/`holding==0`
+    /// ⟹ 三阶段机恒 inert）。契约锚 `Origin.TotalWealth`（campaign 开局注资：本金 `notional` 入 free
+    /// 在险池，记 `notional_in`=退本金目标基线）。
+    ///
+    /// 与 [`initial`](Self::initial) 的区别：`initial` 是零 TW 空 campaign（`tw()==0`，三阶段机 inert）；
+    /// 本构造子开一个 `notional` 单位的 campaign（`free=notional, notional_in=notional`）——使
+    /// [`super::transition::stage_progression`] 能真推进（降成本建仓过基线→退本金→barrier 过关→增股数）。
+    ///
+    /// `i0`=本金基线（进 ledger.i0，EnterReady 的 W≥I0 门）；`notional`=本 campaign 名义敞口 Q（退本金
+    /// 目标；建仓 `holding` 累积到 ≥notional 触发退本金）。TW 守恒：`tw()=notional`（全在 free）。
+    pub fn funded_campaign(i0: i64, notional: i64) -> AssemblyState {
+        AssemblyState {
+            tw_state: TwState { free: notional, notional_in: notional, ..TwState::initial() },
+            ..AssemblyState::initial(i0)
+        }
+    }
 }
 
 #[cfg(test)]

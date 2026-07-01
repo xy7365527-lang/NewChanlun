@@ -48,9 +48,11 @@
 //! 不冒充已 conformant（重锚契约语义 ≠ 已过 bit-exact conformance）。
 
 use super::super::strategy::intent::{classify_adapter, intent_adapter, ClassLabel};
-use super::super::strategy::ledger::{ledger_step, tw_step, LedgerEvent, TwEvent, TwState};
+use super::super::strategy::ledger::{
+    ledger_step, tw_step, LedgerEvent, RiskPolicy, TStage, TwEvent, TwState,
+};
 use super::super::types::StrictAction;
-use super::state::{micro_delta, AssemblyState, MicroEvent};
+use super::state::{micro_delta, AssemblyState, MicroEvent, RiskMode};
 
 /// 混合事件 `AssemblyEvent`（契约锚 `Origin.FullDefinitionSystem.Event`）：驱动闭环一步的外部事件 e。
 ///
@@ -185,6 +187,52 @@ fn assert_oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
     tw_event.is_legal_from(tw_state)
 }
 
+/// ★三阶段推进算子 `stage_progression`（GAP3 根因修复：schedule_adapter 从不派 EnterEarning ⟹
+/// stage 恒 CostReduction ⟹ EarningShares 不可达）。契约锚 PDF §10 步骤2/3 + `Origin.TotalWealth`
+/// 单向阶段迁移（CostReduction→CapitalRecovered→EarningShares）。
+///
+/// 从当前 tw_state + RiskPolicy barrier 派生**下一个阶段推进事件**（`None`=本 bar 不推进阶段）：
+/// - **CostReduction 阶段**：持仓市值 `holding` 累积到 ≥ 名义基线 `notional_in`（降成本期建仓过基线
+///   ⟹ 本金可退）⟹ 派 `RecoverCapital(notional_in)`（free→withdrawn，退本金，推进 CapitalRecovered）。
+/// - **CapitalRecovered 阶段**：`EnterReady` 严格谓词成立（S=II ∧ W≥I0 ∧ legacy 腿=0 ∧ RiskNormal ∧
+///   η≥η⋆）⟹ 派 `EnterEarning`（切 EarningShares，单向不可逆相变，本金全退后纯利润增股数）。
+/// - **EarningShares 阶段**：已到顶阶段 ⟹ 不再推进（`None`）。
+///
+/// ★这是 GAP3 的**结构修复**（非补丁）：把「阶段推进」从缺失补成 barrier-gated 显式算子——EnterEarning
+/// 只在 barrier 过关时派生（κ=0 基线：η⋆=L^wc；κ>0：额外缓冲）。可证伪：κ=0 基线下若 barrier 仍不过
+/// ⟹ EarningShares 不可达=结构性缺口（照实，非硬凑）。
+///
+/// `risk_mode`=当前风控（EnterReady 的 RiskNormal 门）。**I₀（EnterReady 的 W≥I0 门）取 campaign 本地
+/// 本金 `s.notional_in`**（本 campaign 原始名义 = 退本金目标），**非账户 NAV**——「本金全退」是 campaign
+/// 本地性质（退回本 campaign 投入的本金），与账户总 NAV 无关（避免把账户 NAV 误当 campaign 本金 ⟹
+/// 巨额门 ⟹ 永不满足）。
+fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> Option<TwEvent> {
+    let risk_normal = matches!(risk_mode, RiskMode::Normal);
+    match s.stage {
+        // 降成本：持仓累积过名义基线 ⟹ 退本金（free→withdrawn），推进 CapitalRecovered。
+        // notional_in>0（campaign 已开：funded_campaign 开局注资记 notional_in）时 holding≥notional_in
+        // 才退——保证退本金有真实持仓支撑（非凭空退）。notional_in=0（未开 campaign）⟹ 不退（inert）。
+        TStage::CostReduction => {
+            if s.notional_in > 0 && s.holding >= s.notional_in {
+                Some(TwEvent::RecoverCapital(s.notional_in))
+            } else {
+                None
+            }
+        }
+        // 退本金：EnterReady 严格谓词成立 ⟹ 进增股数（barrier-gated 单向相变）。I₀=campaign 本金
+        // notional_in（本金全退 ⟺ withdrawn≥notional_in ⟹ L^wc=0）。
+        TStage::CapitalRecovered => {
+            if policy.enter_ready(s, s.notional_in, risk_normal) {
+                Some(TwEvent::EnterEarning)
+            } else {
+                None
+            }
+        }
+        // 增股数：顶阶段，不再推进。
+        TStage::EarningShares => None,
+    }
+}
+
 /// ★★T 段 `transition_adapter`（契约锚 `Origin.FullDefinitionSystem.transition : StrictState →
 /// Order → Event → StrictState`，闭环写回完整态）。
 ///
@@ -205,7 +253,17 @@ fn assert_oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
 ///
 /// ★诚实标注（codex R3）：T **只声明闭环状态转移全定义**（产出确定的下一态），**不**声明该转移
 /// 盈利/最优/实盘有效（L3）。
-pub fn transition_adapter(x: &AssemblyState, o: &OrderOut, e: &AssemblyEvent) -> AssemblyState {
+///
+/// ★三阶段推进（GAP3 修复）：base tw_step（订单派生事件）后，再经 [`stage_progression`]（barrier-gated）
+/// 派生**阶段推进事件**并 tw_step 一次——使 stage 能真推进到 EarningShares（RecoverCapital→EnterEarning）。
+/// 两个 tw_step 都保 TW 守恒 + stage 单向 + OQ-9 gate（各事件恒合法：RecoverCapital 无条件合法，
+/// EnterEarning 仅在 EnterReady⟹open_legacy_legs=0 时派生⟹`LegalEnterEarning` 满足）。
+pub fn transition_adapter(
+    x: &AssemblyState,
+    o: &OrderOut,
+    e: &AssemblyEvent,
+    policy: &RiskPolicy,
+) -> AssemblyState {
     // OQ-9 gate：订单 tw_event 必须合法（schedule_adapter 保证只派生合法转移）。
     debug_assert!(
         assert_oq9_legal(&x.tw_state, o.tw_event),
@@ -213,10 +271,26 @@ pub fn transition_adapter(x: &AssemblyState, o: &OrderOut, e: &AssemblyEvent) ->
         o.tw_event,
         x.tw_state.stage
     );
+    // base tw_step（订单派生事件：ShortDiff/RecoverCapital/Realize 侧）。
+    let tw_after_order = tw_step(&x.tw_state, o.tw_event);
+    // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning，使 EarningShares 可达。
+    // I₀ 由 stage_progression 内部取 campaign 本地本金 s.notional_in（非账户 NAV）。
+    let tw_next = match stage_progression(policy, &tw_after_order, x.risk_mode) {
+        Some(stage_event) => {
+            debug_assert!(
+                assert_oq9_legal(&tw_after_order, stage_event),
+                "OQ-9 gate 违反（阶段推进）：{:?} 在 stage {:?} 非法",
+                stage_event,
+                tw_after_order.stage
+            );
+            tw_step(&tw_after_order, stage_event)
+        }
+        None => tw_after_order,
+    };
     AssemblyState {
         micro_state: micro_delta(&x.micro_state, e.parse_event),
         ledger_state: ledger_step(&x.ledger_state, o.ledger_event),
-        tw_state: tw_step(&x.tw_state, o.tw_event),
+        tw_state: tw_next,
         risk_mode: x.risk_mode,
         phase: x.phase,
         positions: o.target_pos,
@@ -232,11 +306,22 @@ pub fn transition_adapter(x: &AssemblyState, o: &OrderOut, e: &AssemblyEvent) ->
 /// 由 Origin `hybrid_step_complete_unique` 证确定唯一。rec 段在 transition_adapter 的 micro_delta 中
 /// 体现；前五段经 [`policy_output`]（= Origin `policyTheta`）产订单；transition 写回。
 ///
-/// 这是引擎的闭环核心——runner 每 bar 调 `x = hybrid_step(x, e)`，micro_state/ledger_state/tw_state/
-/// positions/orders 每 bar 真更新喂回（消除开环单帧，对齐 Origin `transition_writes_full_state`）。
-pub fn hybrid_step(x: &AssemblyState, e: &AssemblyEvent) -> AssemblyState {
+/// 这是引擎的闭环核心——runner 每 bar 调 `x = hybrid_step(x, e, policy)`，micro_state/ledger_state/
+/// tw_state/positions/orders 每 bar 真更新喂回（消除开环单帧，对齐 Origin `transition_writes_full_state`）。
+///
+/// `policy`=RiskPolicy（barrier κ；驱动三阶段推进 RecoverCapital→EnterEarning，GAP3 修复）。κ=0 基线用
+/// [`hybrid_step_baseline`]（PDF §10 最小规范）。
+pub fn hybrid_step(x: &AssemblyState, e: &AssemblyEvent, policy: &RiskPolicy) -> AssemblyState {
     let order = policy_output(x, e);
-    transition_adapter(x, &order, e)
+    transition_adapter(x, &order, e, policy)
+}
+
+/// 闭环一步的 **κ=0 最小基线**便捷入口（PDF §10 canonical 默认 `RiskPolicy::baseline()`）。
+///
+/// `η⋆=L^wc`（仅覆盖最坏损失无额外缓冲）。这是 GAP3 可达性测试的基线政策——若 κ=0 下 EarningShares
+/// 仍不可达 ⟹ 结构性缺口（照实报，非硬凑）。
+pub fn hybrid_step_baseline(x: &AssemblyState, e: &AssemblyEvent) -> AssemblyState {
+    hybrid_step(x, e, &RiskPolicy::baseline())
 }
 
 #[cfg(test)]
@@ -260,7 +345,10 @@ mod tests {
         let x = AssemblyState::initial(1_000_000);
         let e = bar_event(true);
         let order = policy_output(&x, &e);
-        assert_eq!(hybrid_step(&x, &e), transition_adapter(&x, &order, &e));
+        assert_eq!(
+            hybrid_step_baseline(&x, &e),
+            transition_adapter(&x, &order, &e, &RiskPolicy::baseline())
+        );
     }
 
     /// ★factor-through-classify（契约锚 `Origin.FullDefinitionStrategy.policy_factors_through_classification`）：
@@ -289,7 +377,7 @@ mod tests {
         assert!(x.ledger_state.inv_holds());
         // 多 bar 闭环：每步后 ledger 恒等必须成立。
         for i in 0..50 {
-            x = hybrid_step(&x, &bar_event(i % 2 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
             assert!(
                 x.ledger_state.inv_holds(),
                 "bar {} 后 ledger 破坏 R=Π-A-W: {:?}",
@@ -304,7 +392,7 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         let tw0 = x.tw_state.tw();
         for i in 0..50 {
-            x = hybrid_step(&x, &bar_event(i % 3 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 3 == 0));
             assert_eq!(x.tw_state.tw(), tw0, "bar {} 后 TW 守恒被破坏", i);
         }
     }
@@ -315,7 +403,7 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         for i in 0..50 {
             let prev_rank = x.tw_state.stage.rank();
-            x = hybrid_step(&x, &bar_event(i % 2 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
             assert!(
                 prev_rank <= x.tw_state.stage.rank(),
                 "bar {} 后 stage 回退",
@@ -331,7 +419,7 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         assert_eq!(x.tw_state.open_legacy_legs, 0);
         for i in 0..50 {
-            x = hybrid_step(&x, &bar_event(i % 2 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
             assert_eq!(
                 x.tw_state.open_legacy_legs, 0,
                 "bar {} 后 OQ-9 gate 被破坏（开了 legacy 腿）",
@@ -344,7 +432,7 @@ mod tests {
             tw_state: TwState { stage: TStage::EarningShares, ..TwState::initial() },
             ..AssemblyState::initial(1_000_000)
         };
-        let x2 = hybrid_step(&earning, &bar_event(true));
+        let x2 = hybrid_step_baseline(&earning, &bar_event(true));
         assert_eq!(x2.tw_state.open_legacy_legs, 0, "earning 下 OQ-9 gate 保持");
     }
 
@@ -359,7 +447,7 @@ mod tests {
         let x = AssemblyState::initial(1_000_000);
         let e = bar_event(true);
         let order = policy_output(&x, &e);
-        let x1 = hybrid_step(&x, &e);
+        let x1 = hybrid_step_baseline(&x, &e);
         assert_eq!(x1.tw_state, tw_step(&x.tw_state, order.tw_event));
     }
 
@@ -367,13 +455,13 @@ mod tests {
     #[test]
     fn hybrid_step_threads_micro_state() {
         let x = AssemblyState::initial(1_000_000);
-        let x1 = hybrid_step(&x, &bar_event(true));
+        let x1 = hybrid_step_baseline(&x, &bar_event(true));
         assert_eq!(x1.micro_state.bar_count, 1, "bar_count 真推进");
         assert_eq!(x1.micro_state.bars_seen, 1, "bars_seen 真推进");
         assert_eq!(x1.orders, 1, "orders 计数真推进");
         // 与构造一次不更新对比：连续 3 bar ⟹ bar_count=3（每 bar 真喂回）。
-        let x2 = hybrid_step(&x1, &bar_event(false));
-        let x3 = hybrid_step(&x2, &bar_event(true));
+        let x2 = hybrid_step_baseline(&x1, &bar_event(false));
+        let x3 = hybrid_step_baseline(&x2, &bar_event(true));
         assert_eq!(x3.micro_state.bar_count, 3, "3 bar 闭环 ⟹ bar_count=3（喂回非构造一次）");
         assert_eq!(x3.orders, 3, "3 bar ⟹ orders=3");
     }
@@ -382,7 +470,7 @@ mod tests {
     #[test]
     fn hybrid_step_threads_ledger_state() {
         let x = AssemblyState::initial(1_000_000); // Normal/PhaseI ⟹ Buy ⟹ Allocate(1)
-        let x1 = hybrid_step(&x, &bar_event(true));
+        let x1 = hybrid_step_baseline(&x, &bar_event(true));
         // Allocate(1) ⟹ A += 1, R -= 1。
         assert_eq!(x1.ledger_state.a, 1, "Allocate ⟹ A 真变（非恒等）");
         assert_eq!(x1.ledger_state.r, -1, "Allocate ⟹ R 真变");
@@ -397,7 +485,7 @@ mod tests {
             ..AssemblyState::initial(1_000_000)
         };
         let e = AssemblyEvent { parse_event: MicroEvent::NewStroke(Direction::Up) };
-        let x1 = hybrid_step(&x, &e);
+        let x1 = hybrid_step_baseline(&x, &e);
         assert_eq!(x1.micro_state.stroke_count, 1);
         assert_eq!(x1.micro_state.pending_rise, 0, "新笔吸收尾部");
         assert_eq!(x1.micro_state.last_stroke_dir, Some(Direction::Up));
@@ -412,6 +500,6 @@ mod tests {
             ..AssemblyState::initial(1_000_000)
         };
         let e = bar_event(true);
-        assert_eq!(hybrid_step(&x, &e), hybrid_step(&x, &e));
+        assert_eq!(hybrid_step_baseline(&x, &e), hybrid_step_baseline(&x, &e));
     }
 }

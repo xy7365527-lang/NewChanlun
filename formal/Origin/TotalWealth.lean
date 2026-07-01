@@ -545,6 +545,106 @@ inductive IsomorphismVerdict where
   | notIsomorphic
 deriving DecidableEq, Repr
 
+/-! ════════════════════════════════════════════════════════════════════════
+  ## §11 RiskPolicy barrier κ + EnterReady + BuyCore（GAP3 κ-gated，acc-GAP3 工位）
+
+  ★契约锚 k的条件.pdf §10-11 canonical 规范。**不可识别性定理2**：κ 不是价格可推的值，是
+  **声明式风险政策参数**（operator 声明，可 walk-forward 优化）——故 `RiskPolicy` 承载 κ 作配置 knob。
+
+  Rust 侧 bit-exact 对齐 `theta_v0/strategy/ledger.rs` 的 `RiskPolicy`/`eta_star`/`enter_ready`/
+  `buy_core_legal`（整数域，同定义）。**认识论 L0**（纯代数：barrier 不等式的移项恒等，零信息增量）。
+  ════════════════════════════════════════════════════════════════════════ -/
+
+/--
+  ★风险政策 `RiskPolicy`（契约锚 PDF §11 `structure RiskPolicy`）：barrier 缓冲系数 κ + κ≥0 证据。
+
+  依赖类型字段 `kappa_nonneg` 在类型层钉死 **κ≥0**（PDF §11 `kappa_nonneg`）——任何 RiskPolicy 值在
+  构造时即携带 κ≥0 证据（Rust 侧无依赖类型，用运行时谓词 `kappa_nonneg()` 承载等价约束）。
+-/
+structure RiskPolicy where
+  kappa : Int
+  kappa_nonneg : kappa ≥ 0
+
+/--
+  最小基线政策（κ=0，PDF §10 canonical 默认）：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲。
+-/
+def RiskPolicy.baseline : RiskPolicy := { kappa := 0, kappa_nonneg := Int.le_refl 0 }
+
+/--
+  最坏损失 `lWc`（契约锚 PDF §10 `L^wc`，L0 缠论「降成本」语义）：仍在险的本金
+  `max(0, notionalIn − withdrawn)`。退本金推进 ⟹ 在险本金递减 ⟹ L^wc→0（缠师第31课「成本为0后」）。
+-/
+def lWc (s : TWState) : Int := max 0 (s.notionalIn - s.withdrawn)
+
+/-- `lWc` 下界 0（L0 辅助）：在险本金非负（`max 0 _ ≥ 0`）。 -/
+theorem lWc_nonneg (s : TWState) : lWc s ≥ 0 := by
+  unfold lWc; omega
+
+/--
+  状态依赖 barrier `etaStar`（契约锚 PDF §10 `η⋆(x_t)=L^wc_{t+1}(x_t)+κ·Q_t`）：进入 EarningShares 的
+  在险权益门槛。`Q`=名义敞口 = `notionalIn`。κ=0 ⟹ η⋆=L^wc。
+-/
+def etaStar (p : RiskPolicy) (s : TWState) : Int := lWc s + p.kappa * s.notionalIn
+
+/--
+  ★EnterEarning 合法性 `LegalEnterEarningStrict`（严格 EnterReady，契约锚 PDF §10 步骤3）：
+  `S=II ∧ W≥I0 ∧ openLegacyLegs=0 ∧ RiskNormal ∧ η≥η⋆`。比单纯 `LegalEnterEarning`（仅 legacy 腿=0）
+  **强得多**（五合取）。`i0`=campaign 本金 I₀，`riskNormal`=风控正常。
+
+  ★与 `LegalEnterEarning`（§1.5）的关系：本谓词的第三合取项**就是** `LegalEnterEarning s`
+  （openLegacyLegs=0）——严格 EnterReady 是 OQ-9 入口证书 `LegalEnterEarning` 的加强（见
+  `enterReadyStrict_implies_legalEnterEarning`）。
+-/
+def LegalEnterEarningStrict (p : RiskPolicy) (s : TWState) (i0 : Int) (riskNormal : Prop) : Prop :=
+  s.stage = TStage.capitalRecovered ∧ s.withdrawn ≥ i0 ∧ s.openLegacyLegs = 0
+    ∧ riskNormal ∧ s.tw ≥ etaStar p s
+
+/--
+  ★严格 EnterReady 蕴含 OQ-9 入口证书（L0）：`LegalEnterEarningStrict ⟹ LegalEnterEarning`
+  ——严格谓词的 openLegacyLegs=0 合取项正是 `LegalEnterEarning`（增股数入口的 OQ-9 gate 被严格谓词覆盖）。
+-/
+theorem enterReadyStrict_implies_legalEnterEarning
+    (p : RiskPolicy) (s : TWState) (i0 : Int) (riskNormal : Prop)
+    (h : LegalEnterEarningStrict p s i0 riskNormal) : LegalEnterEarning s :=
+  h.2.2.1
+
+/--
+  ★BuyCore 合法性 `LegalBuyCore`（契约锚 PDF §10 步骤4 定理1 充要）：
+  `a_n + L^wc_{n+1} + κ·ΔQ_n ≤ η_n + g_n − κ·Q_n`。增股数阶段建核仓的充要合法条件。
+-/
+def LegalBuyCore (p : RiskPolicy) (aN lWcNext deltaQ etaN gN qN : Int) : Prop :=
+  aN + lWcNext + p.kappa * deltaQ ≤ etaN + gN - p.kappa * qN
+
+/--
+  ★★`buyCore_preserves_kappa_floor`（契约锚 PDF §5 代数证明，L0）：BuyCore 合法 ⟹ 建仓后 κ-floor
+  不变量保持——建仓后在险权益 `η_n + g_n − a_n`（付建仓额 a_n、得已实现收益 g_n 后的权益）
+  ≥ 建仓后 barrier `L^wc_{n+1} + κ·(Q_n + ΔQ_n)`（建仓后名义 = Q_n+ΔQ_n）。
+
+  即：BuyCore 不等式移项 ⟺ post-buy `η ≥ η⋆`（barrier 覆盖不被建仓破坏）。纯整数移项恒等（L0）。
+-/
+theorem buyCore_preserves_kappa_floor
+    (p : RiskPolicy) (aN lWcNext deltaQ etaN gN qN : Int)
+    (h : LegalBuyCore p aN lWcNext deltaQ etaN gN qN) :
+    etaN + gN - aN ≥ lWcNext + p.kappa * (qN + deltaQ) := by
+  -- h : aN + lWcNext + κ·deltaQ ≤ etaN + gN − κ·qN
+  -- 目标 : lWcNext + κ·(qN+deltaQ) ≤ etaN + gN − aN
+  -- 移项：κ·(qN+deltaQ)=κ·qN+κ·deltaQ（Int.mul_add）展开后为线性不等式（omega）。
+  unfold LegalBuyCore at h
+  rw [Int.mul_add]
+  omega
+
+/--
+  ★κ=0 基线特化（L0）：baseline 政策下 `buyCore_preserves_kappa_floor` 退化为
+  `aN + lWcNext ≤ etaN + gN ⟹ etaN + gN − aN ≥ lWcNext`（barrier=L^wc，无 κ 缓冲）。
+  这是 GAP3 可达性的 Lean 侧证据：κ=0 时 barrier 仅需覆盖 L^wc（本金全退 ⟹ L^wc=0 ⟹ η⋆=0 ⟹ 恒过）。
+-/
+theorem buyCore_preserves_floor_baseline
+    (aN lWcNext deltaQ etaN gN qN : Int)
+    (h : LegalBuyCore RiskPolicy.baseline aN lWcNext deltaQ etaN gN qN) :
+    etaN + gN - aN ≥ lWcNext := by
+  have := buyCore_preserves_kappa_floor RiskPolicy.baseline aN lWcNext deltaQ etaN gN qN h
+  simpa [RiskPolicy.baseline] using this
+
 /--
   ★裁定见证（L0，gatekeeper）：账本裁定必是 notIsomorphic。三条结构反例
   （not_isomorphic_stage_collapses / _conservation_switches / _exogenous_price）共同支撑。

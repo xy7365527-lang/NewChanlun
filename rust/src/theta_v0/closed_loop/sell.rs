@@ -400,12 +400,12 @@ mod tests {
     /// 从同一初始态，买侧第一类建仓后 A+1，卖侧第一类清仓后 A-1，相对 base 偏移严格相反号。
     #[test]
     fn buy_sell_closed_loop_A_mirror() {
-        use super::super::transition::{hybrid_step, AssemblyEvent};
+        use super::super::transition::{hybrid_step_baseline, AssemblyEvent};
         use super::super::state::MicroEvent;
         // 买侧：初始 Normal/PhaseI ⟹ Buy ⟹ Allocate(1) ⟹ A+1。
         let x0 = AssemblyState::initial(1_000_000);
         let buy_e = AssemblyEvent { parse_event: MicroEvent::NewBar(true) };
-        let buy_a = hybrid_step(&x0, &buy_e).ledger_state.a; // base + 1
+        let buy_a = hybrid_step_baseline(&x0, &buy_e).ledger_state.a; // base + 1
         // 卖侧：第一类清仓 ⟹ A-1。
         let sell_a = sell_transition(&x0, &sample_type1_sell()).ledger_state.a; // base - 1
         assert_eq!(buy_a - x0.ledger_state.a, -(sell_a - x0.ledger_state.a),

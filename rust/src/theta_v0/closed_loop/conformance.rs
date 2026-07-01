@@ -47,7 +47,7 @@
 //!   对象是协议契约，非 Lean 数值轨迹。
 
 use super::state::AssemblyState;
-use super::transition::{hybrid_step, AssemblyEvent};
+use super::transition::{hybrid_step_baseline, AssemblyEvent};
 use super::super::strategy::intent::{classify_adapter, ClassLabel};
 use super::super::types::StrictAction;
 
@@ -103,7 +103,7 @@ impl ThetaV0Contract {
     /// 闭环单步 = `hybrid_step`（六段复合 + T 写回），对齐 Origin `hybridStep`。`StepSpec C s e s' :=
     /// step s e = s'`——本函数即 `step`，其确定唯一性由 `step_spec_total_unique` 逐态验证。
     pub fn step(s: &AssemblyState, e: &AssemblyEvent) -> AssemblyState {
-        hybrid_step(s, e)
+        hybrid_step_baseline(s, e)
     }
 }
 
@@ -112,7 +112,7 @@ mod tests {
     use super::*;
     use super::super::state::MicroEvent;
     use super::super::transition::{policy_output, transition_adapter};
-    use super::super::super::strategy::ledger::TStage;
+    use super::super::super::strategy::ledger::{RiskPolicy, TStage};
 
     fn bar_event(rising: bool) -> AssemblyEvent {
         AssemblyEvent { parse_event: MicroEvent::NewBar(rising) }
@@ -184,9 +184,9 @@ mod tests {
             bar_event(false), bar_event(true),
         ];
         for e in &trace {
-            // 逐态展开：step = transition_adapter(s, policy_output(s, e), e)。
+            // 逐态展开：step = transition_adapter(s, policy_output(s, e), e, baseline)。
             let order = policy_output(&s, e);
-            let expected = transition_adapter(&s, &order, e);
+            let expected = transition_adapter(&s, &order, e, &RiskPolicy::baseline());
             let got = ThetaV0Contract::step(&s, e);
             assert_eq!(got, expected, "六段同构逐态破坏：step ≠ transition∘policy");
             s = got;

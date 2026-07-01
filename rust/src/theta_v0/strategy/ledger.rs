@@ -147,6 +147,104 @@ impl TwState {
     pub fn tw(&self) -> i64 {
         self.free + self.holding + self.withdrawn
     }
+
+    /// 最坏损失 `L^wc`（契约锚 PDF §10 `L^wc_{t+1}`，L0 缠论「降成本」语义）：**仍在险的本金** =
+    /// `notional_in − withdrawn`（原始投入本金减已退回本金），下界 0。
+    ///
+    /// 缠师第31课「成本为0后」：退本金推进 ⟹ 在险本金递减 ⟹ L^wc→0（本金全退=无本金在险=真正拉抬
+    /// 不需要花钱）。这比「持仓市值 holding」更贴合降成本语义——holding 随建仓单调增（不反映本金退出），
+    /// 而在险本金 `notional_in−withdrawn` 随退本金单调减，正是 barrier `η≥η⋆` 在增股数阶段可满足的根因
+    /// （withdrawn≥notional_in ⟹ L^wc=0 ⟹ η⋆=κ·Q ⟹ κ=0 时 η⋆=0 ⟹ η≥0 恒过 barrier）。
+    ///
+    /// ★诚实（formalization-validity-domain）：真实 L^wc 含波动率/回撤分布（L2/L3）——本 L0 结构层取
+    /// 「在险本金」作最坏损失代理（同价下本金退出即在险额减少），不臆造价格分布。
+    pub fn l_wc(&self) -> i64 {
+        (self.notional_in - self.withdrawn).max(0)
+    }
+
+    /// 本 campaign 名义敞口 `Q`（契约锚 PDF §10 `Q_t`）：退本金目标基线 = 已记录本金 `notional_in`。
+    pub fn notional(&self) -> i64 {
+        self.notional_in
+    }
+}
+
+/// 风险政策 `RiskPolicy`（契约锚 PDF §10 `Θ_risk` / §11 Lean `structure RiskPolicy`）。
+///
+/// **不可识别性定理2（k的条件.pdf 编排者裁决）**：`κ` **不是价格可推的值**，是**声明式风险政策
+/// 参数**——不由缠论/价格识别，由 operator 声明（可 walk-forward 优化）。故本结构承载 `κ` 作配置
+/// knob，**不**从数据估计。
+///
+/// - `kappa`（κ）：状态依赖 barrier `η⋆ = L^wc + κ·Q` 的额外安全缓冲系数。**κ≥0**（不变量
+///   [`RiskPolicy::kappa_nonneg`]）。默认 **κ=0**（最小基线：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲，
+///   PDF §10 canonical 最小规范）——用于 acc-GAP3 可达性测试。
+///
+/// ★与 `RiskConfig.kappa`（config.rs：**成本倍数** κ=2.0，sizing 用）**是不同的 κ**——本 `RiskPolicy.
+/// kappa` 是**barrier 缓冲系数**（风险政策），二者同名不同义（PDF §10 barrier κ vs sizing κ）。
+/// 定点整数承载（bit-exact，barrier 比较在整数域；κ 用 i64 缩放系数，避免浮点非确定性）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RiskPolicy {
+    /// barrier 缓冲系数 κ（≥0；默认 0=最小基线）。
+    pub kappa: i64,
+}
+
+impl RiskPolicy {
+    /// 最小基线政策（κ=0，PDF §10 canonical 默认）：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲。
+    pub fn baseline() -> RiskPolicy {
+        RiskPolicy { kappa: 0 }
+    }
+
+    /// κ≥0 不变量（契约锚 PDF §11 `kappa_nonneg`）：barrier 缓冲系数非负（负缓冲=不覆盖 L^wc=非法）。
+    pub fn kappa_nonneg(&self) -> bool {
+        self.kappa >= 0
+    }
+
+    /// 状态依赖 barrier `η⋆(s) = L^wc(s) + κ·Q(s)`（契约锚 PDF §10 `η⋆(x_t)=L^wc_{t+1}+κ·Q_t`）。
+    ///
+    /// 进入 EarningShares 的**在险权益门槛**：权益 η 须 ≥ η⋆ 才允许相变（barrier 保证覆盖最坏损失 +
+    /// κ 倍名义缓冲）。κ=0 ⟹ η⋆=L^wc（最小基线，仅覆盖最坏损失）。
+    pub fn eta_star(&self, s: &TwState) -> i64 {
+        s.l_wc() + self.kappa * s.notional()
+    }
+
+    /// **EnterEarning 合法性谓词 `EnterReady`（严格 EnterReady，契约锚 PDF §10 步骤3 + Lean
+    /// `LegalEnterEarning`）**：`S=II ∧ W≥I0 ∧ openLegacyLegs=0 ∧ RiskNormal ∧ η≥η⋆`。
+    ///
+    /// 比单纯 `W≥I0` **强得多**——五合取（OQ-9 腿空 + 阶段=退本金 + 本金已全退 W≥I0 + 风控正常 +
+    /// 在险权益过 barrier）。`i0`=本金基线 I₀，`risk_normal`=风控模式正常（由调用方从 RiskMode 判）。
+    ///
+    /// - `S=II`：`stage==CapitalRecovered`（已进退本金阶段，rank≥1；退本金完成才谈进增股数）。
+    /// - `W≥I0`：`withdrawn ≥ i0`（本金已全额退出在险池——增股数阶段前提「本金全退」，缠师第31课）。
+    /// - `openLegacyLegs=0`：无未闭合 legacy 降成本腿（OQ-9 入口证书，`LegalEnterEarning`）。
+    /// - `RiskNormal`：风控正常（非破产/清算/去杠杆）。
+    /// - `η≥η⋆`：在险权益 `tw()` 过 barrier `eta_star`（覆盖最坏损失 + κ 缓冲）。
+    pub fn enter_ready(&self, s: &TwState, i0: i64, risk_normal: bool) -> bool {
+        s.stage == TStage::CapitalRecovered
+            && s.withdrawn >= i0
+            && s.open_legacy_legs == 0
+            && risk_normal
+            && s.tw() >= self.eta_star(s)
+    }
+
+    /// **BuyCore 合法性谓词（契约锚 PDF §10 步骤4 定理1 充要）**：
+    /// `a_n + L^wc_{n+1} + κ·ΔQ_n ≤ η_n + g_n − κ·Q_n`。
+    ///
+    /// 增股数阶段建核仓（BuyCore）的充要合法条件——建仓额 `a_n` 加上建仓后最坏损失加上 κ 倍名义
+    /// 增量，须 ≤ 当前在险权益 `η_n` 加已实现收益 `g_n` 减 κ 倍当前名义。移项即 barrier 约束
+    /// （PDF 定理1：BuyCore 保 κ-floor 不变量 `η ≥ η⋆`）。
+    ///
+    /// 参数（PDF §10 记号）：`a_n`=建仓额、`l_wc_next`=建仓后 L^wc_{n+1}、`delta_q`=ΔQ_n 名义增量、
+    /// `eta_n`=当前在险权益、`g_n`=已实现收益、`q_n`=当前名义 Q_n。
+    pub fn buy_core_legal(
+        &self,
+        a_n: i64,
+        l_wc_next: i64,
+        delta_q: i64,
+        eta_n: i64,
+        g_n: i64,
+        q_n: i64,
+    ) -> bool {
+        a_n + l_wc_next + self.kappa * delta_q <= eta_n + g_n - self.kappa * q_n
+    }
 }
 
 /// TW 账本事件 `TWEvent`（契约锚 `Origin.TotalWealth.TWEvent`，对齐 t_engine 三阶段算子 + OQ-9）。
@@ -533,5 +631,75 @@ mod tests {
         let no_leg = TwState { open_legacy_legs: 0, ..TwState::initial() };
         assert!(!TwEvent::ClearCampaign.is_legal_from(&with_leg), "带腿清 campaign 非法（不绕 gate）");
         assert!(TwEvent::ClearCampaign.is_legal_from(&no_leg), "无腿清 campaign 合法");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  RiskPolicy barrier κ + EnterReady + BuyCore（契约锚 PDF §10-11，GAP3 κ-gated）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// κ≥0 不变量（PDF §11 `kappa_nonneg`）：baseline κ=0 满足；负 κ 违反。
+    #[test]
+    fn risk_policy_kappa_nonneg() {
+        assert!(RiskPolicy::baseline().kappa_nonneg(), "baseline κ=0 满足 κ≥0");
+        assert_eq!(RiskPolicy::baseline().kappa, 0, "baseline κ=0（PDF §10 最小规范）");
+        assert!(RiskPolicy { kappa: 3 }.kappa_nonneg(), "κ=3 满足");
+        assert!(!RiskPolicy { kappa: -1 }.kappa_nonneg(), "κ=-1 违反 κ≥0（负缓冲非法）");
+    }
+
+    /// L^wc = max(0, notional_in − withdrawn)（在险本金，退本金推进 ⟹ L^wc→0）。
+    #[test]
+    fn l_wc_is_at_risk_principal() {
+        let s0 = TwState { notional_in: 100, withdrawn: 0, ..TwState::initial() };
+        assert_eq!(s0.l_wc(), 100, "退本金前 L^wc=notional_in（全本金在险）");
+        let s_half = TwState { notional_in: 100, withdrawn: 40, ..TwState::initial() };
+        assert_eq!(s_half.l_wc(), 60, "退 40 ⟹ L^wc=60（在险本金递减）");
+        let s_full = TwState { notional_in: 100, withdrawn: 100, ..TwState::initial() };
+        assert_eq!(s_full.l_wc(), 0, "本金全退 ⟹ L^wc=0（缠师「成本为0」）");
+        let s_over = TwState { notional_in: 100, withdrawn: 130, ..TwState::initial() };
+        assert_eq!(s_over.l_wc(), 0, "超退 ⟹ L^wc=0（下界 0，不为负）");
+    }
+
+    /// 状态依赖 barrier η⋆ = L^wc + κ·Q（PDF §10）：κ=0 ⟹ η⋆=L^wc；κ>0 ⟹ 额外缓冲。
+    #[test]
+    fn eta_star_barrier() {
+        let s = TwState { notional_in: 100, withdrawn: 30, ..TwState::initial() }; // L^wc=70, Q=100
+        assert_eq!(RiskPolicy { kappa: 0 }.eta_star(&s), 70, "κ=0 ⟹ η⋆=L^wc=70");
+        assert_eq!(RiskPolicy { kappa: 2 }.eta_star(&s), 70 + 2 * 100, "κ=2 ⟹ η⋆=70+200=270");
+    }
+
+    /// ★EnterReady 严格五合取（PDF §10 步骤3）：五条件全真才 ready（比单纯 W≥I0 强得多）。
+    #[test]
+    fn enter_ready_strict_conjunction() {
+        // 满足全部：stage=CapitalRecovered, withdrawn≥i0(100), legs=0, normal, η≥η⋆。
+        // free=0, holding=100, withdrawn=100, notional_in=100 ⟹ tw=200; L^wc=0 ⟹ η⋆(κ=0)=0; 200≥0 ✓。
+        let ready = TwState {
+            free: 0, holding: 100, withdrawn: 100, notional_in: 100,
+            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0,
+        };
+        let pol = RiskPolicy::baseline();
+        assert!(pol.enter_ready(&ready, 100, true), "五条件全满足 ⟹ EnterReady");
+        // 破坏 S=II：stage=CostReduction ⟹ 不 ready。
+        assert!(!pol.enter_ready(&TwState { stage: TStage::CostReduction, ..ready }, 100, true), "S≠II ⟹ 不 ready");
+        // 破坏 W≥I0：withdrawn<i0 ⟹ 不 ready。
+        assert!(!pol.enter_ready(&TwState { withdrawn: 99, ..ready }, 100, true), "W<I0 ⟹ 不 ready");
+        // 破坏 legacy 腿=0：open_legacy_legs=1 ⟹ 不 ready（OQ-9 入口证书）。
+        assert!(!pol.enter_ready(&TwState { open_legacy_legs: 1, ..ready }, 100, true), "有 legacy 腿 ⟹ 不 ready");
+        // 破坏 RiskNormal：risk_normal=false ⟹ 不 ready。
+        assert!(!pol.enter_ready(&ready, 100, false), "非 RiskNormal ⟹ 不 ready");
+        // 破坏 η≥η⋆：κ 拉高 barrier 到 η 之上 ⟹ 不 ready（此处 L^wc=0，用 κ·Q 抬门）。
+        assert!(
+            !RiskPolicy { kappa: 3 }.enter_ready(&ready, 100, true),
+            "η(200)<η⋆(0+3·100=300) ⟹ barrier 未过 ⟹ 不 ready"
+        );
+    }
+
+    /// BuyCore 合法性（PDF §10 步骤4 定理1 充要）：a_n+L^wc+κΔQ ≤ η+g−κQ。
+    #[test]
+    fn buy_core_legality() {
+        let pol = RiskPolicy { kappa: 1 };
+        // a_n=10, l_wc_next=5, ΔQ=3, η=100, g=0, Q=20 ⟹ LHS=10+5+3=18, RHS=100+0-20=80 ⟹ 18≤80 ✓。
+        assert!(pol.buy_core_legal(10, 5, 3, 100, 0, 20), "建仓额小 ⟹ BuyCore 合法");
+        // a_n=90（大建仓）⟹ LHS=90+5+3=98 > RHS=80 ⟹ 非法（超 barrier）。
+        assert!(!pol.buy_core_legal(90, 5, 3, 100, 0, 20), "建仓额过大 ⟹ 破 κ-floor ⟹ 非法");
     }
 }

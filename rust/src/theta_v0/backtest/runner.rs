@@ -48,6 +48,7 @@
 
 use super::super::closed_loop::state::{AssemblyState, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
+use super::super::strategy::ledger::RiskPolicy;
 use super::super::config::ThetaConfig;
 use super::super::strategy::exit::{exit_decision_for, record_held_voice, HeldVoice};
 use super::super::strategy::{AccountState, VoiceDecision};
@@ -805,15 +806,24 @@ pub fn run_closed_loop(bars: &[Bar], initial_nav: f64) -> Option<AssemblyState> 
     }
     // 初始闭环态（i0 = NAV 取整作账本基线；账本是结构分量，NAV 绝对额 fill 侧另算）。
     let i0 = if initial_nav > 0.0 { initial_nav as i64 } else { 1 };
-    let mut x = AssemblyState::initial(i0);
+    // ★GAP3：**已注资 campaign** 开局（非零 TW）——三阶段推进需 TW 被注资（`initial` 零 TW ⟹ 三阶段
+    // 机 inert，EarningShares 恒不可达，GAP3 根因之一）。campaign 名义敞口 Q = campaign_notional：
+    // 建仓（每 bar ShortDiff(-1) 累 holding +1）累积到 ≥Q 触发退本金，退本金后 barrier（κ=0⟹η⋆=L^wc=0）
+    // 过关 ⟹ EnterEarning ⟹ EarningShares 可达。窗口须 > Q+1 才能走完三阶段（短窗口走不完=真实性质，
+    // 非 bug）——故 Q 取 min(len/4, 128)（留足够 bar 走完；非平凡；不硬编码单一值）。
+    let campaign_notional = ((bars.len() as i64) / 4).clamp(1, 128);
+    let mut x = AssemblyState::funded_campaign(i0, campaign_notional);
+    // κ=0 最小基线政策（PDF §10 canonical 默认；η⋆=L^wc）。
+    let policy = RiskPolicy::baseline();
 
     // bar 闭环：每 bar 推进一步（rising = 相对前 bar 收涨）。第 0 根无前 bar，取 rising=true 起点。
     let mut prev_close = bars[0].close;
     for bar in bars {
         let rising = bar.close >= prev_close;
         let e = AssemblyEvent { parse_event: MicroEvent::NewBar(rising) };
-        // ★闭环喂回：x_{t+1} = hybrid_step(x_t, e)——闭环态每 bar 真更新（非构造一次）。
-        x = hybrid_step(&x, &e);
+        // ★闭环喂回：x_{t+1} = hybrid_step(x_t, e, policy)——闭环态每 bar 真更新（非构造一次）。
+        // policy 驱动三阶段推进（RecoverCapital→EnterEarning，GAP3 修复）。
+        x = hybrid_step(&x, &e, &policy);
         prev_close = bar.close;
     }
     Some(x)
@@ -1784,7 +1794,10 @@ mod tests {
 
         // ★双账本不变量在闭环每步保持（终态仍满足）。
         assert!(final_state.ledger_state.inv_holds(), "闭环终态保 R=Π-A-W");
-        assert_eq!(final_state.tw_state.tw(), 0, "闭环终态保 TW 守恒（初始 TW=0）");
+        // ★GAP3：run_closed_loop 现开**已注资 campaign**（TW=campaign_notional，非 0）——TW 守恒仍
+        // 成立（守恒值=注资额），非「初始 TW=0」。campaign_notional=clamp(len/4,1,128)；len=10 ⟹ Q=2。
+        let q = ((bars.len() as i64) / 4).clamp(1, 128);
+        assert_eq!(final_state.tw_state.tw(), q, "闭环终态保 TW 守恒（注资额 Q={}）", q);
         // OQ-9 gate：schedule_adapter 不开 legacy 腿 ⟹ open_legacy_legs 恒 0。
         assert_eq!(final_state.tw_state.open_legacy_legs, 0, "闭环终态 OQ-9 gate 保持");
 
@@ -1811,6 +1824,57 @@ mod tests {
         assert!(final_state.ledger_state.inv_holds(), "终态保恒等");
     }
 
+    /// ★★GAP3 可证伪判据：回测 ∃t TStage=III（EarningShares）触达，计数>0，非恒 placeholder。
+    ///
+    /// **可证伪性**（formalization-validity-domain，L1）：κ=0 基线（`RiskPolicy::baseline`）下，
+    /// 已注资 campaign 的闭环逐 bar 推进**必须**走完三阶段 CostReduction→CapitalRecovered→EarningShares。
+    /// 若终态 stage ≠ EarningShares ⟹ 三阶段结构缺口（EnterEarning 派生路径断裂）——本测试**证伪**该缺口
+    /// 不存在（GAP3 已修）。窗口须 > Q+1 才走得完（短窗口走不完=真实性质）。
+    #[test]
+    fn closed_loop_reaches_earning_shares_gap3() {
+        use super::super::super::strategy::ledger::TStage;
+        // 600 bar 窗口（Q=clamp(600/4,1,128)=128；须 >Q+1=129 才走完三阶段，600≫129 ✓）。
+        let bars: Vec<Bar> = (0..600).map(|i| mk_bar(i, 1000 + (i as i64 % 7) * 10, false)).collect();
+        let final_state = run_closed_loop(&bars, 1.0e6).expect("非空 bars ⟹ 有闭环终态");
+
+        // ★可证伪判据①：EarningShares（TStage=III）**触达**（stage rank=2）。
+        assert_eq!(
+            final_state.tw_state.stage,
+            TStage::EarningShares,
+            "GAP3 证伪：600 bar κ=0 基线闭环未达 EarningShares（终 stage={:?}）——三阶段推进路径断裂",
+            final_state.tw_state.stage
+        );
+        assert_eq!(final_state.tw_state.stage.rank(), 2, "EarningShares rank=2（三阶段顶）");
+
+        // ★可证伪判据②：非恒 placeholder——本金已全退（withdrawn≥notional_in ⟹ L^wc=0），真走完退本金。
+        assert!(
+            final_state.tw_state.withdrawn >= final_state.tw_state.notional_in,
+            "本金全退（withdrawn={} ≥ notional_in={}）⟹ 非 placeholder 直接置 III",
+            final_state.tw_state.withdrawn, final_state.tw_state.notional_in
+        );
+
+        // ★结构不变量在三阶段推进后仍保持：TW 守恒（注资额 Q=128）+ R=Π-A-W + OQ-9 gate（legacy 腿=0）。
+        assert_eq!(final_state.tw_state.tw(), 128, "三阶段推进后 TW 守恒（Q=128）");
+        assert!(final_state.ledger_state.inv_holds(), "三阶段推进后保 R=Π-A-W");
+        assert_eq!(final_state.tw_state.open_legacy_legs, 0, "EarningShares 下 OQ-9 gate 保持（legacy 腿=0）");
+
+        // ★反面对照（非 placeholder 见证）：**未注资** campaign（notional_in=0）闭环**永不**达 III
+        // ——funded_campaign 注资是 III 可达的**必要条件**（证 III 非无条件硬置，是 barrier-gated 结果）。
+        let mut x = AssemblyState::initial(1_000_000); // 零 TW，未注资
+        let policy = RiskPolicy::baseline();
+        let mut prev = bars[0].close;
+        for bar in &bars {
+            let e = AssemblyEvent { parse_event: MicroEvent::NewBar(bar.close >= prev) };
+            x = hybrid_step(&x, &e, &policy);
+            prev = bar.close;
+        }
+        assert_eq!(
+            x.tw_state.stage,
+            TStage::CostReduction,
+            "未注资 campaign（notional_in=0）恒 CostReduction（三阶段机 inert）⟹ III 非硬置"
+        );
+    }
+
     /// run_theta_v0 携带闭环终态证据（closed_loop_final 非 None ⟺ bars 非空）。
     #[test]
     fn run_theta_v0_carries_closed_loop_evidence() {
@@ -1827,7 +1891,8 @@ mod tests {
         // 闭环态每 bar 喂回：bar_count = 输入 bar 数。
         assert_eq!(cl.micro_state.bar_count, 20, "run_theta_v0 内闭环驱动 20 bar");
         assert!(cl.ledger_state.inv_holds(), "回测内闭环保 R=Π-A-W");
-        assert_eq!(cl.tw_state.tw(), 0, "回测内闭环保 TW 守恒");
+        // ★GAP3：已注资 campaign ⟹ TW 守恒于注资额 Q=clamp(20/4,1,128)=5（非 0）。
+        assert_eq!(cl.tw_state.tw(), 5, "回测内闭环保 TW 守恒（注资额 Q=5）");
     }
 
     /// 空 bars ⟹ run_closed_loop 返回 None（边界条件）。
