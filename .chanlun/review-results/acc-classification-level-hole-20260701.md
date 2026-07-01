@@ -62,7 +62,9 @@
 
 **300K ⊂ 全历史**（两窗尾部对齐，300K = 全历史最后 30万 bar）。子窗 level2/3/4 各 1 信号，母窗（全历史）却为 0。
 
-## 判定：**H2 的结构性变体——塔构造窗口依赖，不是运行时 bug**
+## 判定：塔构造窗口依赖（候选解释）
+
+> **⚠ 本节初判被 codex 异质审查降级——见文末「codex 异质确认」。保留：H1 被否证 + 窗口依赖是真实机制。降级：「不是运行时 bug」未证明（已知 frontier 中枢发散 bug 未排除）。以下按初判原样保留供追溯，"不是 bug"的强断言以文末降级判定为准。**
 
 **排除 H1（N^δ 门滤空）**：H1 声称"中间级 bsp 被门严格滤空"。但 300K 窗 level2/3/4 **各有 1 个信号通过门且配对成活**（sig_post=1 → decomps=1，无配对丢失）。门**没有**把中间级滤空——H1 被 300K 数据直接否证。（level1 确实门全滤，但那只是 level1 单级，非"中间级空洞"整体成因。）
 
@@ -92,7 +94,9 @@
 - **有效域边界**：本判定基于 300K vs 全历史两窗。未验证：(a) 全历史窗跑我的判别测试（O(n²) 461万 bar 数小时，不可行）——故"全历史 level2-4=0"依赖 acc-multilevel-mu 报告的既有数据，非本测试重跑；(b) 其他窗口大小（如 100K/1M）的 level 分布，可能进一步刻画窗口依赖曲线。
 - **照实 161**：这是**否定性结果**（H1 被否证 + 稀疏归因被修正），比确认 H1 更有价值——它缩小了"高级别 alpha 否证"的有效域（该否证是单窗塔路径伪影，非级别本质）。
 
-## 机制自验证（代码证据，排除"增量塔 stale/漂移真 bug"）
+## 机制自验证（代码证据）——⚠ 排除主张被 codex 否定
+
+> **codex 否定：下文引用的 bit-exact 测试是合成数据 L1（零信息），真实 CL 的 `bit_exact_per_bar` 未跑且代码留档 CL bar 1464 已知发散（incremental.rs:467）。用 L1 排除 L2 已知 bug = 认识论倒置。保留：窗口局部+因果（事实1）成立；删除有效性：事实2「bit-exact 排除增量 bug」不成立——见文末降级判定。**
 
 判定的两个承重代码事实（读 `incremental.rs:57/85-91/139-152` 坐实）：
 
@@ -102,7 +106,33 @@
 
 **联合结论**：全历史 level2-4=0 是**真实塔产出**（非 bug、非增量漂移），其成因是"全历史单窗塔路径 + 第二类稀疏 + 窗口依赖"三联合。判定 = 塔构造窗口依赖（正确因果设计的自然后果），**非运行时 bug、非 H1 门滤空、非级别本质稀疏**。
 
-## codex 异质确认（约束4，Task #8 pending）
+## codex 异质确认（约束4，Task #8）——判定降级（fail）
 
-判定推翻 w-verify 的 H1 假设——已 spawn codex-challenger（Task #8，parent_callback=level-anomaly-dx）攻击承重推理（质询1-4）。质询2/4 已由上文代码证据自验证（bit-exact 契约排除增量 bug）；质询1（全历史报告统计口径）/质询3（seen-set 坐标碰撞）待 codex 独立确认。codex 结果回调后并入本报告。
+codex 异质审查（.chanlun/review-results/codex-review-20260701-2042.md）**否定成立**，上文"非运行时 bug"的排除结论被降级。**保留**：H1（N^δ 门滤空）确实被 300K 数据否证（中间级通过门且配对成活，这点 codex 未推翻）；窗口依赖是真实代码机制（IncrementalClassifier::new 只接收窗口切片，codex 未推翻）。**降级**：从"坐实非 bug"降为"候选解释，非 bug 未证明"。
+
+codex 三处承重推理破裂：
+
+1. **bit-exact 认识论倒置（致命，质询3/4）**：上文"机制自验证"引用的排除证据（`bit_exact_synthetic` 等）是**合成数据 L1**（零信息增量，formalization-validity-domain）。真实 CL 的 `bit_exact_per_bar` 是 `#[ignore]` 未跑。**且代码自身留档已知发散**（incremental.rs:467-472 + mod.rs:952-958）：`classify_with_tower_incremental` 在真实 CL **bar 1464 与全量重算发散**（`detect_centers_windowed_resume` frontier 中枢 resume cursor 把未确认末窗口当 immutable，违反 bit-exact 充要条件#2；pre-existing，属上浮矛盾）。`diag_classifier_resume_frontier_divergence` 发现发散只打印不 panic ⟹ 不捕获。**用 L1 合成测试排除 L2 已知 frontier bug = 认识论倒置**。故"全历史 level 分布是真实塔产出、非增量伪影"**未证明**——BTC 全历史可能命中同类 frontier 发散使高级别塔退化。
+
+2. **level5 交叉验证推理不完备（质询4）**：上文"300K level5=buy2 vs 全历史 level5=sell2 ⟹ 非同一信号被 bug 丢弃"只排除了"简单丢信号 bug"，**未排除 frontier 中枢 bug 改写高级别结构**——bug 可在产出内容改变的同时令 level2-4 消失，两窗 level5 不同恰是改写结果。不构成"非 bug"的证明。
+
+3. **统计口径未对齐（质询1）**：全历史 level 分布来自 `decompose_capturable_spread` 后的 `decomps`（门后+配对后台账）按 (level,δ) 聚合；300K 诊断表有 bsp_pre/gamma_nonflat/sig_post 四层。本报告拿 300K 的 decomps 层（level2-4=1）对比全历史 decomps 层（level2-4=0）**层级对齐**（都是 decomps），但**未在全历史跑四层口径**——无法排除"全历史 bsp_pre 中间级也有，被 N^δ 门/配对滤到 decomps=0"（若如此则中间级空洞在全历史下部分是 H1 门滤，与 300K 的 level1 门滤同源）。
+
+codex 唯一否定不成立项（质询2）：seen-set 键 `(lvl, source_index, bsp_class)` 的 `lvl` 字段真隔离跨级别，无坐标碰撞误去重。
+
+### 降级后判定
+- **确证（未被推翻）**：H1「N^δ 门把中间级严格滤空」被否证（300K level2-4 通过门+配对成活）；窗口依赖是真实机制。
+- **未证明（降级）**："全历史 level2-4=0 = 窗口依赖非 bug"——已知 frontier 中枢发散 bug（CL bar 1464）未被系统性排除，全历史 level 分布可能含 bug 成分。
+- **acc-multilevel-mu 的 level2+ 全否证归因仍待厘清**：Le Cam 硬墙（n<30）判定成立，但"高级别稀疏"的根因（窗口依赖伪影 vs frontier bug vs 真稀疏）**未定**。
+
+### 结论翻转条件（codex 给出，本报告采纳）
+窗口依赖判定升回"坐实非 bug" ⟺ 满足**两个**条件：
+1. 全历史也跑 level-hole-dx 四层口径计数（bsp_pre/gamma_nonflat/sig_post/decomps 全报），确认全历史中间级 bsp_pre 分布；
+2. 增量 vs 全量对拍验证 frontier 中枢 bug（incremental.rs:467 bar 1464 类）在 **BTC 数据已修复**（`bit_exact_per_bar` 在 BTC 上跑通不发散）。
+
+二者任一不满足 ⟹ 判定停在"候选解释"。**这两条是后续工位（frontier bug 修复 = 已上浮矛盾；全历史四层重跑 = O(n²) 数小时）的输入，不在本诊断范围完成——诚实开口，不补丁遮盖。**
+
+## 影响声明（修正）
+- **本诊断的净产出**：否证 H1（门滤空）+ 暴露全历史 level 分布归因的**双重不确定性**（窗口依赖 vs frontier bug 未分离）。这本身是 L2 否定性结果（缩小了"高级别 alpha 否证"可依赖的确定性——该否证的根因未定，acc-alpha 不应把"高级别无 alpha"当已坐实前提）。
+- **未解决**：全历史 level2-4=0 的确切根因（需上述两翻转条件）。frontier 中枢发散 bug（CL bar 1464，incremental.rs:467）是已上浮矛盾，其在 BTC 上的表现待验证。
 
