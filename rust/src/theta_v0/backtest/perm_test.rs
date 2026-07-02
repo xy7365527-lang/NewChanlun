@@ -191,4 +191,58 @@ mod tests {
         assert_eq!(a, b, "置换后 δ 多重集不变");
         assert_eq!(v.iter().filter(|&&d| d == 1).count(), 4, "买标签计数不变");
     }
+
+    // ── 跨进程复现（预注册 §4 硬约束的真语义）──────────────────────────────
+    // same_seed_reproducible 仅证同进程连续调用一致；「跨进程可复现」需独立进程重跑。
+    // 机制：fork 自身测试二进制，只跑 worker（唯一子串 filter），种子经 env 传入，
+    // 逐字节比较序列化输出。HashMap 迭代序逐进程随机 → 序列化必须排序键，否则同结果也字节不同。
+    const XPROC_BEGIN: &str = "@@PERM_XPROC_BEGIN@@\n";
+    const XPROC_END: &str = "@@PERM_XPROC_END@@\n";
+
+    /// worker 入口：仅在 PERM_XPROC_SEED 置位时运行；普通 cargo test 下 no-op。
+    #[test]
+    fn perm_xproc_child() {
+        let seed = match std::env::var("PERM_XPROC_SEED") {
+            Ok(s) => s.parse::<u64>().expect("PERM_XPROC_SEED 须为 u64"),
+            Err(_) => return,
+        };
+        let trades: Vec<(u32, u8, i8, f64)> = (0..90)
+            .map(|i| {
+                ((i % 3) as u32, ((i / 3) % 3 + 1) as u8, if i % 2 == 0 { 1 } else { -1 }, (i as f64) * 0.31 - 14.0)
+            })
+            .collect();
+        let out = stratified_delta_perm_p(&trades, N_PERM, seed);
+        let mut keys: Vec<BucketKey> = out.keys().copied().collect();
+        keys.sort_unstable(); // 跨进程逐字节可比的前提
+        let mut body = String::new();
+        for k in keys {
+            body.push_str(&format!("{},{},{}={:.17}\n", k.0, k.1, k.2, out[&k]));
+        }
+        print!("{}{}{}", XPROC_BEGIN, body, XPROC_END);
+    }
+
+    fn run_child(seed: u64) -> String {
+        let exe = std::env::current_exe().expect("current_exe");
+        let out = std::process::Command::new(exe)
+            .args(["--nocapture", "perm_xproc_child"])
+            .env("PERM_XPROC_SEED", seed.to_string())
+            .output()
+            .expect("spawn 子测试进程");
+        assert!(out.status.success(), "子进程失败: {}", String::from_utf8_lossy(&out.stderr));
+        let s = String::from_utf8(out.stdout).expect("子进程 stdout 非 utf8");
+        let b = s.find(XPROC_BEGIN).expect("子进程输出缺 BEGIN marker") + XPROC_BEGIN.len();
+        let e = s.find(XPROC_END).expect("子进程输出缺 END marker");
+        s[b..e].to_string()
+    }
+
+    /// 跨进程：两独立进程同种子须逐字节一致；扰动种子须改变输出（内建 red demo 证鉴别力）。
+    #[test]
+    fn perm_xproc_reproducible() {
+        let a1 = run_child(PERM_SEED);
+        let a2 = run_child(PERM_SEED);
+        assert!(!a1.is_empty(), "worker 未产出（marker/env 未生效）");
+        assert_eq!(a1, a2, "跨进程同种子须逐字节一致");
+        let b = run_child(PERM_SEED ^ 0x9E37_79B9_7F4A_7C15);
+        assert_ne!(a1, b, "扰动种子应改变输出——否则本复现测试无鉴别力");
+    }
 }
