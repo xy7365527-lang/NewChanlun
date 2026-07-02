@@ -17,7 +17,7 @@ depends_on:
   - "606"   # ★上游权威——606 背驰/区间套完全分类明文「本号只覆盖趋势背驰⟹第一类 BSP」，有效域=Type1。本 bug=H1 N^δ 门无视 606 scoping，把 Type1 区间套候选谓词套到 Type2 上=违反 606 有效域标注。
   - "615"   # 同族：μ̂-f Layer1 ⊊ 缠论严格分类 Layer2。本号=该 subset 关系在「区间套候选谓词」层的实例（Cand^δ 力度/极值谓词 ⊊ 完整 Type1+Type2 结构判据）。
   - "671"   # 同族：P2 R2 MACD C≥A preveto 选择偏差。三号共模式=用力度/极值谓词污染结构分类致过度过滤（假阴性/预删）。
-related:
+related: "[[2026-07-02-source-tracing-type2-panzhengbeichi-vs-maimai-def4]]（定义层上游root：maimai#4过度泛化为本bug提供定义正当化，genealogist裁定/ritual同批处理）"
   - "670"   # 区间套 location 条件性决定性（已裁并入 606）。Cand^δ_ℓ 是区间套候选谓词的实装形态；670 的「区间套对象=背驰段」在本号被证实装层未按 bsp 类型分叉。
   - "231"   # 形式化有效域：Cand^δ_ℓ 有效域=Type1（背驰段）< 定义域=all bsp（含 Type2）。有效域<定义域的又一实例（231 已 settled 为规则 formalization-validity-domain.md，本号=实例累积非新结晶）。
   - "017"   # 第17课 line 60（一级权威）：Type2 买卖点判据=走势完备性/「不患」，非创新极值。Type1/Type2 判据互斥的原文依据（溯源核实=source-auditor 职责，本号仅引 Lead 转述的 codex 裁决）。
