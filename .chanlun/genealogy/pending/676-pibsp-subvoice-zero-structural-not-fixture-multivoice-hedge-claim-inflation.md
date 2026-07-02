@@ -1,6 +1,6 @@
 ---
-id: "647"
-number: 647
+id: "676"
+number: 676
 status: 生成态   # 同质代理质询（异质源 OpenAI GPT-5.5 429 insufficient_quota 不可用，降级）。结算待异质源恢复后补真异质验证 + 编排者 /ritual。
 date: "2026-06-29"
 type: bias-correction   # π^bsp「多声部对冲」声明膨胀诊断 + acceptance[1] parity 缺口坐实（631 #4 仍开放）

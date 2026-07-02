@@ -18,7 +18,7 @@ Lead 指名 4 类定理候选（673/671/576/665/663），核后 4/5 自陈不自
 
 | 号 | 一句话 | 待裁点 |
 |----|--------|--------|
-| 576-ledger | 账本 R=Π-A-W vs TW 三阶段不同构（machine-checked L0） | A/B/C 三选一：系统承载哪个会计范畴（存在论决定） |
+| 674（原576-ledger） | 账本 R=Π-A-W vs TW 三阶段不同构（machine-checked L0） | A/B/C 三选一：系统承载哪个会计范畴（存在论决定） |
 | 665 | 选择偏差消除 ≠ 可交易 alpha（逻辑独立两命题） | 概念分离辨认；与 663/664/645 同簇统一裁 |
 | 663 | 判据错误：统计显著 p<0.05 ≠ 可交易 μ>0 | 概念层判据更正；收窄 Le Cam 有效域 |
 | 637 | 中枢核心区间 ZG/ZD 三口径分离（两段/三段/端点） | 口径选择 |
@@ -37,8 +37,8 @@ Lead 指名 4 类定理候选（673/671/576/665/663），核后 4/5 自陈不自
 | 669 | 结构工位=skill vs teammate 存在方式分布式残留（623 实例7） |
 | 672 | 623 结晶门横跨 7 实例从未触发（每次找新维度规避背驰） |
 | 649 | 编排者裁决可超越上呈选项集（否定共享隐藏前提） |
-| 647-meta | 验收/否证设计前必先锁定被测对象同一性 |
-| 644-meta | 探针/诊断必须走生产路径，禁坐标系分叉 |
+| 647-meta（=647-object-identity，官方持有者） | 验收/否证设计前必先锁定被测对象同一性 |
+| 675（原644-meta-probe） | 探针/诊断必须走生产路径，禁坐标系分叉 |
 | 636 | 工位完成判据=commit+终报，非 idle 信号 |
 | 655 | /goal GOAL_SET 写入端非幂等（应去重？） |
 | 661 | inconclusive 第三态=方法升级 vs 有效域 + LCB supersede 继任健康 |
@@ -60,8 +60,8 @@ Lead 指名 4 类定理候选（673/671/576/665/663），核后 4/5 自陈不自
 | 667 | level-phase alpha vs fullsample beta 投影（σ_higher 调制，666 peer） |
 | 626 | block-topology 缺增量迁移入口（依赖 178） |
 | 622 | worktree 隔离 LFS smudge 失败降级（同根 549/476） |
-| 647-pibsp | π^bsp 子声部恒=0 实装根因（非 fixture）；异质源恢复后补验 |
-| 648 | π^bsp 647 修复不足（四类 root extract 树覆盖） |
+| 676（原647-pibsp） | π^bsp 子声部恒=0 实装根因（非 fixture）；异质源恢复后补验 |
+| 648 | π^bsp 676 修复不足（四类 root extract 树覆盖） |
 | 635 | 反膨胀守卫结晶 checkpoint + 守卫自膨胀新维度 |
 | 638 | 买卖点候选→走势元素附着判准（右端点命中非区间包含） |
 | 673-finding | Cand^δ 范围误用矛盾本身（codex#7+H2 坐实，L1；fix 在 §1） |
@@ -70,9 +70,9 @@ Lead 指名 4 类定理候选（673/671/576/665/663），核后 4/5 自陈不自
 
 ## §4 编号协调 / 碰撞（/ritual 统一编号空间必须解决）
 
-- **重复号 644**：`644-meta-rule-probe-must-traverse-production-path`（语法记录）vs `644-acceptance2-four-layer-penetration-14166-coordinate-phantom`（工程）——同号不同内容，/ritual 让一个向下空号。
-- **重复号 647**：`647-pibsp-subvoice-zero`（工程）vs `647-meta-observation-object-identity`（语法记录）——同号，/ritual 拆号。
-- **重复号 576**：`576-ledger-r-vs-tw`（本文 §1）vs `turning-node-topology-...-20260624`(id 576，跨 worktree 新概念分离「转折节点=中枢拓扑⊗力度公理正交双源」)——跨 fork 编号碰撞，见 escalate-cross-worktree-genealogy-fork。
+- **重复号 644**：**[裁决③已解]** `644-meta-rule-probe`（语法记录）→ **675**；`644-acceptance2-four-layer-penetration-14166-coordinate-phantom`（工程）保留 644。见 `codex-ritual-collisions-20260702.md`。
+- **重复号 647**：**[裁决③已解]** `647-pibsp-subvoice-zero`（工程）→ **676**；`647-meta-observation-object-identity`（语法记录）保留 647（canonical 后缀 647-object-identity）。
+- **重复号 576**：**[裁决③已解]** `576-ledger-r-vs-tw`（本文 §1）→ **674**；`turning-node-topology-...-20260624`(id 576，跨 worktree「转折节点=中枢拓扑⊗力度公理正交双源」) 保留 576。见 `codex-ritual-collisions-20260702.md` + escalate-cross-worktree-genealogy-fork。
 - **604-612 族**：Phase2 claim5-12 已 settled（606 Lean 闭合），待 /ritual 统一编号裁定（606 §立号建议已列⑤项关键裁定）。
 - **657 编号更正**：原 655 与已 commit 的 655-write-side-non-idempotent 撞车 → 改 657（656 已占）。
 
@@ -95,5 +95,5 @@ Lead 指名 4 类定理候选（673/671/576/665/663），核后 4/5 自陈不自
 ## §6 genealogist 结论
 - 直接结算：**0 条**（§0 推导）。
 - 全 40 条 → /ritual（§1 选择/§2 语法记录/§3 定理-grade-待编排者拍板）。
-- /ritual 必先解决 §4 编号碰撞（两个 644、两个 647、两个 576）。
+- §4 编号碰撞已由裁决③解决（644-probe→675 / 647-pibsp→676 / 576-ledger→674），改号已执行落库。
 - 无新矛盾涌现于清扫过程；无 settled 谱系被回溯破坏。

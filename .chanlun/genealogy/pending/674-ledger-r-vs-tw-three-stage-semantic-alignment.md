@@ -1,5 +1,5 @@
 ---
-id: 576
+id: 674
 title: "账本 R=Π-A-W vs 缠论取本金三阶段 TW=free+holding+withdrawn 不同构——语义对齐三选一"
 type: 概念分离（选择类裁定 escalate）
 status: 生成态

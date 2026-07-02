@@ -3391,7 +3391,7 @@ nodes:
   type: domain
   file: pending/646-section9-equal-unit-count-axiom-vs-rust-depth-weight-unequal-definition-conflict.md
 - id: '647'
-  title: ''
+  title: 否证设计前置同一性：验收/否证前须先锁定 O_impl=O_def（675 坐标系分叉 + 645 对象投影 共享元结构）
   status: 生成态
   type: meta-rule
   file: pending/647-meta-observation-object-identity-must-precede-falsification-design.md
@@ -3408,9 +3408,9 @@ nodes:
     宇宙不足(可修)非 goal#5 本质错误；命题A(645)π^cov≠π^bsp 仍成立
   status: 已结算
   type: domain
-  file: pending/648-pibsp-647-fix-insufficient-fourth-root-extract-elements-tree-coverage.md
+  file: pending/648-pibsp-676-fix-insufficient-fourth-root-extract-elements-tree-coverage.md
 - id: '649'
-  title: ''
+  title: 编排者裁决超越上呈选项集：机制=否定选项共享的隐藏前提（648 裁决 D 的元层抽象）
   status: 生成态
   type: meta-rule
   file: pending/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md
@@ -3574,6 +3574,23 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/2026-07-02-goal-loop-active-set-narrowed-to-live-goal-closed-demoted-to-audit-marker.md
+- id: '674'
+  title: 账本 R=Π-A-W vs 缠论取本金三阶段 TW=free+holding+withdrawn 不同构——语义对齐三选一
+  status: 生成态
+  type: 概念分离（选择类裁定 escalate）
+  file: pending/674-ledger-r-vs-tw-three-stage-semantic-alignment.md
+- id: '675'
+  title: 探针必须走生产路径，禁止诊断坐标系分叉（两次同构伪证的元结构）
+  status: 生成态
+  type: meta-rule
+  file: pending/675-meta-rule-probe-must-traverse-production-path-no-coordinate-fork.md
+- id: '676'
+  title: 'π^bsp 子声部恒=0 是实装逻辑根因（出场优先 P3 + 跨carrier错配），非 fixture——commit 自陈『致命缺陷』诚实但『多声部对冲层未真测』⟹
+    命题A『可分离』在实测上是 L0 代数可分非 L2 实测可分；acceptance[1] bit_exact 断言 incr==leg（L1 同引擎自洽）非
+    rust==Lean，coverage.rs ElementId 无 Lean parity assert（631 #4 缺口仍开放）'
+  status: 生成态
+  type: bias-correction
+  file: pending/676-pibsp-subvoice-zero-structural-not-fixture-multivoice-hedge-claim-inflation.md
 edges:
   depends_on:
   - from: '673'
@@ -6777,8 +6794,6 @@ edges:
   - from: '647'
     to: '231'
   - from: '647'
-    to: '644'
-  - from: '647'
     to: '645'
   - from: '647'
     to: '640'
@@ -6786,8 +6801,6 @@ edges:
     to: 090
   - from: '647'
     to: '643'
-  - from: '648'
-    to: '647'
   - from: '648'
     to: '644'
   - from: '648'
@@ -6896,6 +6909,26 @@ edges:
     to: '663'
   - from: '672'
     to: '623'
+  - from: '648'
+    to: '676'
+  - from: '675'
+    to: '231'
+  - from: '675'
+    to: '640'
+  - from: '675'
+    to: 090
+  - from: '676'
+    to: '231'
+  - from: '676'
+    to: '640'
+  - from: '676'
+    to: 090
+  - from: '676'
+    to: '643'
+  - from: '676'
+    to: '645'
+  - from: '647'
+    to: '675'
   triggered:
   - from: '005'
     to: 005a
@@ -10300,6 +10333,45 @@ edges:
   - between:
     - 090
     - '672'
+  - between:
+    - '534'
+    - '674'
+  - between:
+    - '538'
+    - '674'
+  - between:
+    - '231'
+    - '674'
+  - between:
+    - '050'
+    - '674'
+  - between:
+    - '633'
+    - '675'
+  - between:
+    - '627'
+    - '675'
+  - between:
+    - '625'
+    - '675'
+  - between:
+    - '643'
+    - '675'
+  - between:
+    - 643-frontier-guard
+    - '675'
+  - between:
+    - '631'
+    - '676'
+  - between:
+    - '642'
+    - '676'
+  - between:
+    - '644'
+    - '676'
+  - between:
+    - '646'
+    - '676'
   tensions_with:
   - between:
     - '007'

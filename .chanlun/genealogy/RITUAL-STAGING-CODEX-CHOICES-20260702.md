@@ -1,7 +1,7 @@
 # /ritual staging 清单 — codex 裁决①选择类 10 条（已裁决待迁移）
 
 **产出者**：genealogist（谱系规则把关者）
-**日期**：2026-07-02
+**日期**：2026-07-02（改号同步：裁决③ 576-ledger→674）
 **上游材料**：`.chanlun/review-results/codex-ritual-choices-20260702.md`（codex 判决全文，666 行）
 **队列上下文**：`.chanlun/review-results/ritual-queue-20260702.md`（§1 选择类 10 条）
 
@@ -15,9 +15,9 @@
 
 1. **139 分类权**（ritual-queue §0/§6 已确立）——概念层分类权归编排者 /ritual。这 10 条 frontmatter 均 `responsible_agents:[编排者]` / status 生成态 / 作者自陈不自结算。genealogist 中途 auto-settle = 越 139 分类权。
 2. **异质裁决 ≠ 实施授权**（记忆 `feedback_heterosource_verdict_not_implementation_authority`；650 号先例）——编排者「要裁决的全问 codex」（2026-07-02 明令）委托的是**技术裁决**，不是**状态迁移授权**。codex 判决是裁决材料，选择类的结算权/实施权在编排者。task#19 曾把 codex 650-verdict 当可实施 → Lead 还原 + INTERRUPT（重犯）。
-3. **编号碰撞未解**（ritual-queue §4）——settled/ 要求统一编号。576-ledger 与 576-turning-node 跨 worktree 重号；644×2、647×2 待 /ritual 拆号。genealogist 现在迁移会在 settled/ 制造重号。
+3. **编号碰撞**——~~576-ledger 与 576-turning-node 跨 worktree 重号；644×2、647×2 待拆号~~ **裁决③已解**（`codex-ritual-collisions-20260702.md`）：576-ledger→**674**、644-meta-probe→**675**、647-pibsp→**676**，647 canonical 后缀=647-object-identity；改号执行=task #49。本锁定随执行完成消解，锁定 1/2 仍各自独立成立。
 
-**staging 态语义**：pending 文件保持原物理位置、保持 `status: 生成态`（不抢占 /ritual 统一编号+最终分类）。本清单记录的是**裁决事件的状态推进**（生成态「待裁决」→「codex 已裁决·待 /ritual 物理迁移」），这是 genealogy-write 职责（记录状态变更），不是 settlement/migration。
+**staging 态语义**：pending 文件保持原物理位置、保持 `status: 生成态`（不抢占 /ritual 最终分类）。本清单记录的是**裁决事件的状态推进**（生成态「待裁决」→「codex 已裁决·待 /ritual 物理迁移」），这是 genealogy-write 职责（记录状态变更），不是 settlement/migration。
 
 **staging ≠ 实施授权**（把关者补充边界）：本清单标记「已裁决待迁移」仅表示技术裁决已到位，**不构成对应实装任务的实施授权**。选择类的实施权在编排者 /ritual。见 §3 把关提示。
 
@@ -27,9 +27,9 @@
 
 > 每条格式遵 `genealogy-template.md`。codex 判决全文见上游 doc 对应 `## 号` 节，此处不重贴，仅记 genealogy-settlement-layer overlay。
 
-### 576-ledger — 账本 R=Π-A-W vs TW 三阶段不同构
+### 674（原 576-ledger）— 账本 R=Π-A-W vs TW 三阶段不同构
 
-- **pending**：`pending/576-ledger-r-vs-tw-three-stage-semantic-alignment.md`
+- **pending**：`pending/674-ledger-r-vs-tw-three-stage-semantic-alignment.md`（裁决③改号自 576-ledger，task #49 执行）
 - **状态**：已裁决待迁移
 - **类型**：concept-separation（存在论决定：系统承载哪个会计范畴）
 - **codex 判决**：C 双层并置（LedgerState + TWState，单向有损投影，禁止暗示双向同构）
@@ -37,8 +37,8 @@
 - **推导链**：两模型状态空间/操作可逆性/守恒律有效域均不同 → 不可压成单一通用账本（强行统一=伪同构，Lean 已证伪）→ 双层并置但代码层显式分离，投影函数命名标注损失（`forgetStageToLedgerView` 而非 `toLedgerIso`）
 - **谱系链接**：GAP3 补桥（closed_loop TW 账本）；ritual-queue §5「GAP3 补桥」；642（h2 bootstrap gap 工程缺口，同族）
 - **topo_effect**：无否定边（C 是新架构决定，非否定既有编号节点）→ N/A
-- **影响**：`rust/src/theta_v0` 账本子系统（采纳 C 需新增 LedgerProjection/TWProjection 双投影层）；实装任务 #31
-- **/ritual 动作**：解决 576 跨 worktree 重号（576-ledger vs 576-turning-node）→ 编排者拍板 C（存在论决定）→ 迁移 settled/ + 统一编号
+- **影响**：`rust/src/theta_v0` 账本子系统（采纳 C 需新增 LedgerProjection/TWProjection 双投影层）；实装任务 #31（落库引用统一用 **674-ledger-r-vs-tw**，裁决③协调条款）
+- **/ritual 动作**：编排者拍板 C（存在论决定）→ 迁移 settled/（编号 674 已由裁决③定）
 
 ### 665 — 选择偏差消除 ≠ 可交易 alpha
 
@@ -48,7 +48,7 @@
 - **codex 判决**：两命题逻辑独立（P⇏Q，¬P⇏¬Q）；混淆=non sequitur
 - **权威链**：编排者委托 codex 裁决
 - **推导链**：¬H_bias 下有 H_alpha 与 H_null 两类可能 → ¬H_bias⊬H_alpha；H_bias 只否定「证据有效」不否定「alpha 本体」→ P/Q 是方法论清洁性 vs 经济正期望两层级命题
-- **谱系链接**：663/664/645/656/660/662/666-667/657 同 alpha 簇（ritual-queue §5「alpha 终判」，全簇 /ritual 统一裁）；含 665-Yi-addendum（单标的 beta 分离退化，231 实例，随 665 并）
+- **谱系链接**：663/664/645/656/660/662/666-667/657 同 alpha 簇（ritual-queue §5「alpha 终判」，全簇 /ritual 统一裁）；含 665-Yi-addendum（单标的 beta 分离退化，231 实例，随 665 并——注意裁决② codex 驳回该 addendum，tension 见 GRAMMAR-THEOREMS §5）
 - **topo_effect**：否定「P⇒Q 混淆」——但混淆非编号节点，bias-correction 无编号目标 → N/A（/ritual 确认）
 - **影响**：alpha 研究报告措辞规范（固定表述「仅支持选择偏差被排除；可交易 alpha 需独立 μ>0/扣成本/稳健性证明」）
 - **/ritual 动作**：全 alpha 簇统一裁（互相咬合，非独立结算）→ 迁移 + 编号
@@ -100,7 +100,7 @@
 - **codex 判决**：维持设计 A（gid-scoped 独立闭包）；不采用隐式 B 冒泡；可选增强=显式声明式 rollup（`rollup_from`，非默认）
 - **权威链**：编排者委托 codex 裁决
 - **推导链**：子目标完成 ≠ 顶层验收（工作分解 vs 验收标准不同领域概念）→ B「全子目标 PASS⇒顶层 PASS」仅在子目标集穷尽且无额外整体验收时成立（额外语义，不能默认推断）→ 隐式冒泡复活 MAJOR-2 误闭合窗口
-- **谱系链接**：MAJOR-2（误闭合风险）；ritual-queue §5「GAP3 补桥」goal 层 acceptance 上卷缺口
+- **谱系链接**：MAJOR-2（误闭合风险）；ritual-queue §5「GAP3 补桥」goal 层 acceptance 上卷缺口；2026-07-02 goal-loop active-set 谱系（CLOSED 降审计标记，goal-system 同域）
 - **topo_effect**：无否定边（维持现状 A，status quo 确认）→ N/A
 - **影响**：`scripts/goal_reducer.py`（维持现状 A；若未来加显式 rollup 需新增 schema 字段并禁同名隐式匹配）
 - **/ritual 动作**：确认维持 A → 迁移 + 编号
@@ -176,12 +176,12 @@ codex 对以下两个**子问题**如实标注 UNDECIDABLE（均为治理权限/
 
 **边界声明**（把关者职责）：本清单标「已裁决待迁移」= 技术裁决已到位、待 /ritual 物理迁移，**不等于对应实装任务的实施授权**。
 
-观察到实装任务 #31（576=C）/#32（637=口径B）/#33（673-fix）/#34（claim10+maimai#4 文档）/#36（634 ActivationPolicy）已 pending/in_progress。按记忆 `feedback_heterosource_verdict_not_implementation_authority` + 650 号先例：**选择类 codex 裁决在编排者 /ritual 结算前实施 = 650-pattern**（task#19 曾把 codex verdict 当可实施 → Lead 还原 + INTERRUPT 重犯）。尤其：
+观察到实装任务 #31（576=C，落库引用应用 674）/#32（637=口径B）/#33（673-fix）/#34（claim10+maimai#4 文档）/#36（634 ActivationPolicy）已 pending/in_progress。按记忆 `feedback_heterosource_verdict_not_implementation_authority` + 650 号先例：**选择类 codex 裁决在编排者 /ritual 结算前实施 = 650-pattern**（task#19 曾把 codex verdict 当可实施 → Lead 还原 + INTERRUPT 重犯）。尤其：
 
 - **#34 改 settled xianduan.md** 撞 claim10 的 UNDECIDABLE「拍板权=编排者」（§2）——definition 层改动 + settled 修正双重须编排者。
 - **#31/#32/#33/#36 代码实装** 是选择类裁决的实施，实施权在编排者 /ritual。
 
-此为把关者的 settlement-state 事实陈述（staged≠settled≠implementable），**是否推进 #31-#36 是 Lead/编排者裁量**——本清单只使 settlement-state 边界可观测，供决策。若编排者本轮已授权实施，则 #31-#36 合法，本提示自动消解。
+此为把关者的 settlement-state 事实陈述（staged≠settled≠implementable），**是否推进 #31-#36 是 Lead/编排者裁量**——本清单只使 settlement-state 边界可观测，供决策。若编排者本轮已授权实施（task #45「编排者裁决点：语义类裁决实装授权」正在处理此事），则 #31-#36 合法，本提示自动消解。
 
 ---
 
