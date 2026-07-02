@@ -1,7 +1,9 @@
+> **[判决归档 2026-07-02 · 结算待#37]** 本 staging 为 codex 裁决①-⑤判决全文归档。/ritual 已迁 settled 16 条（§1-A/§1-B 定理 14 + 674/637，编排者「并行全部推进」授权范围）；C 组待价值判断条目（选择/语法记录 19 条）+ 615 已迁回 pending，结算待 #37 codex 全权裁定（迁回 commit 7019f1b89b）。各条目「结算段」仅对已 settled 的 16 条生效。
+
 # /ritual staging 清单 — codex 裁决①选择类 10 条（已裁决待迁移）
 
 **产出者**：genealogist（谱系规则把关者）
-**日期**：2026-07-02（改号同步：裁决③ 576-ledger→674）
+**日期**：2026-07-02（改号同步：裁决③ 576-ledger→674；637 一级权威锚点补强）
 **上游材料**：`.chanlun/review-results/codex-ritual-choices-20260702.md`（codex 判决全文，666 行）
 **队列上下文**：`.chanlun/review-results/ritual-queue-20260702.md`（§1 选择类 10 条）
 
@@ -69,15 +71,15 @@
 ### 637 — 中枢核心区间 ZG/ZD 三口径分离
 
 - **pending**：`pending/637-zhongshu-core-interval-caliber-separation-two-segment-vs-three-segment-vs-endpoints.md`
-- **状态**：已裁决待迁移
+- **状态**：已裁决待迁移·**结算就绪**（一级权威锚点已补全，见权威链；主塔 A→B 迁移已于 `cefb29df69` 既成）
 - **类型**：domain（口径选择）
-- **codex 判决**：迁移口径 B（全三段交集 ZD=max(d1,d2,d3), ZG=min(g1,g2,g3)）；口径 A 保留为显式命名 legacy/compat（`TwoSegmentCore`），不再作主 tower 默认；C 已被 Lean 反例拒
-- **权威链**：编排者委托 codex 裁决；rust engine reference 已标注 B 为 canonical
-- **推导链**：中枢核心区间本质=三连续次级别走势类型重叠 → A 隐含额外不变量 `d3≤ZG_A && ZD_A≤g3`，未作类型/证明条件表达则不应当 canonical → 主 tower 用 A 会致跨 Lean/rust/分类器/买卖点长期漂移（成本持续放大 > 一次迁移回归成本）
+- **codex 判决**：迁移口径 B（全三段交集 ZD=max(d1,d2,d3), ZG=min(g1,g2,g3)）；口径 A 保留为显式命名 legacy/compat（`TwoSegmentCore`），不再作主 tower 默认；C 已被 Lean 反例拒。**codex 裁 B 与最终权威（一级博文严格公式）一致——非任意口径选择，而是回归缠师原文。**
+- **权威链**：编排者委托 codex 裁决；rust engine reference 已标注 B 为 canonical；**★一级权威锚点（最终权威·补强 2026-07-02，637B 设计稿 §3 决定性发现）：blog `018-第18课.md` line 24 缠师"严格的公式"——「次级别连续三个走势类型 A、B、C，高低点 a1\a2,b1\b2,c1\c2，则中枢区间=（max(a2,b2,c2), min(a1,b1,c1)）」（a2/b2/c2=各段低点、a1/b1/c1=各段高点 ⟹ ZD=max(三段低)、ZG=min(三段高) = 口径 B 全三段）。按 CLAUDE.md 三级权威链「层级有出入以更高层级为准」，blog 第18课（一级博文，最终权威）压倒 chan99 第八节 line 23=口径 A（二级编纂版再定义误差）。逐字考古见 `.chanlun/review-results/637b-design-20260702.md §3.1/§3.3`。**
+- **推导链**：中枢核心区间本质=三连续次级别走势类型重叠 → A 隐含额外不变量 `d3≤ZG_A && ZD_A≤g3`，未作类型/证明条件表达则不应当 canonical → 主 tower 用 A 会致跨 Lean/rust/分类器/买卖点长期漂移（成本持续放大 > 一次迁移回归成本）。**一级权威严格公式独立坐实此裁决：B 是缠师原文口径，A 是编纂版再定义误差——权威链裁 B 胜（无出入依赖 codex 价值判断，直接由最高权威原文定）。**
 - **谱系链接**：分类器/背驰判断/买卖点识别下游；与 673（Cand^δ 谓词）同为主 tower 中枢概念
 - **topo_effect**：`split:637:downstream`（候选）——口径 A-as-canonical 节点分裂：一保留 legacy `TwoSegmentCore`，一携带 canonical-B；scope=downstream（分类器/背驰/买卖点识别回归差异，codex 明列）；/ritual 确认
-- **影响**：`rust/src/theta_v0` 中枢核心区间计算（主 tower A→B）；实装任务 #32；历史 fixture/parity 测试/文档需重标口径
-- **/ritual 动作**：编排者拍板口径选择 → 迁移 + 编号
+- **影响**：`rust/src/theta_v0` 中枢核心区间计算（**主 tower A→B 迁移已于 `cefb29df69` 既成**，全库无中枢构造路径停留 A）；实装任务 #32（637B 设计稿判定：实质工作退化为三处 A/C 残留的命名/文档收口 + legacy 标注，无中枢数值逻辑改动 → 不触发 parity 漂移，见 637b-design §2/§4）；历史 fixture/parity 测试/文档需重标口径
+- **/ritual 动作**：编排者拍板口径选择 → 迁移 + 编号（一级权威锚点已就位，裁 B 无待补溯源）
 
 ### 646 — §9 等单元计数公理 vs rust depth-weight 不等
 
@@ -183,11 +185,14 @@ codex 对以下两个**子问题**如实标注 UNDECIDABLE（均为治理权限/
 
 此为把关者的 settlement-state 事实陈述（staged≠settled≠implementable），**是否推进 #31-#36 是 Lead/编排者裁量**——本清单只使 settlement-state 边界可观测，供决策。若编排者本轮已授权实施（task #45「编排者裁决点：语义类裁决实装授权」正在处理此事），则 #31-#36 合法，本提示自动消解。
 
+> **637 附注**：637 主塔 A→B 迁移已于 `cefb29df69` 既成（先于本 staging）。637B 设计稿判定剩余实装（#32）已退化为纯命名/文档/legacy 标注收口，无中枢数值逻辑改动。此既成事实不改变 §3 边界（选择类结算权仍在编排者 /ritual），仅使 637 的一级权威锚点补全后达「结算就绪」态。
+
 ---
 
 ## §4 genealogist 谱系职责结果
 
 - **张力检查**：10 条中 637（中枢口径迁移）/claim10（settled 定义镜像反转）触碰 settled 记录（637↦分类器/背驰/买卖点下游；claim10↦settled/003）——但两条张力均已在各自 pending 记录中捕获且已 flag /ritual，非新涌现矛盾，不触发 interrupt #1。
-- **回溯扫描**：这 10 条 staged（非 settled）→ 不产生新 settled 定义 → 不回溯结算其他 pending。maimai#4 是 673 定义层 root、663/665 属 645 alpha 簇——均同批捆绑裁，无独立跨条结算。
+- **637 一级权威补强（2026-07-02）**：637B 设计稿 §3 逐字考古坐实——blog `018-第18课.md` line 24 缠师「严格的公式 max(a2,b2,c2),min(a1,b1,c1)」= 口径 B（一级权威·最终权威），压倒 chan99 二级编纂版口径 A。原 637 谱系权威链仅引 chan99 §6.4（二级）+ codex 裁决，现补入一级博文严格公式锚点：**codex 裁 B 与最终权威一致，B canonical 无待补溯源 → 637 达「结算就绪」态**。同步补录已入 637 pending 记录 source-tracing。主塔迁移 `cefb29df69` 既成事实同步入 staging 条目影响列。
+- **回溯扫描**：这 10 条 staged（非 settled）→ 不产生新 settled 定义 → 不回溯结算其他 pending。maimai#4 是 673 定义层 root、663/665 属 645 alpha 簇——均同批捆绑裁，无独立跨条结算。637 一级权威锚点补录不改其 staged 态（仍待编排者 /ritual），仅补强裁决依据。
 - **结晶检测**：pattern-buffer 唯一 candidate（diagnostic-coordinate-phantom）frequency 2/3 未达阈值，无结晶动作。
-- **新矛盾**：清扫过程无新矛盾涌现；无 settled 谱系被回溯破坏。
+- **新矛盾**：清扫过程无新矛盾涌现；无 settled 谱系被回溯破坏。637 一级权威（B）与二级编纂版（A）的「出入」由三级权威链规则消解（更高层级胜），非不可分层矛盾。
