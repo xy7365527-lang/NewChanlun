@@ -560,6 +560,18 @@ mod tests {
         BspBits { buy1: true, ..Default::default() }
     }
 
+    #[test]
+    fn cv_is_std_over_abs_mean() {
+        let z = MuClass::from_certificate(1,1,buy_bits(),0,PositionState::Root);
+        let mut e = MuEstimator::new();
+        e.observe(MuObservation{class:z,x_gamma:8.0});
+        e.observe(MuObservation{class:z,x_gamma:12.0});
+        assert!((e.cv(&z).unwrap()-8.0_f64.sqrt()/10.0).abs()<1e-9);
+        let z2=MuClass::from_certificate(2,1,buy_bits(),0,PositionState::Root);
+        let mut e2=MuEstimator::new(); e2.observe(MuObservation{class:z2,x_gamma:5.0});
+        assert_eq!(e2.cv(&z2),None);
+    }
+
     /// X_γ = δ(P_τ−P_t)−C 与 metrics 方向感知 PnL bit-exact 一致（复用单一来源，无公式漂移）。
     #[test]
     fn marginal_return_matches_directional_pnl() {

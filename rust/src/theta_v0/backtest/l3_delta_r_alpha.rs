@@ -119,7 +119,7 @@ fn bsp_disc(b: &BspBits) -> u8 {
 /// - μ 表 frozen 后喂 test χ 过滤；test 决策不更新 μ（无 test 内未来）。
 ///
 /// 返回 `(MuEstimator, n_signals)`：μ 表 + train 窗新确认买卖点总数（诊断信号密度）。
-fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (MuEstimator, usize) {
+pub(super) fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (MuEstimator, usize) {
     let bars = &train.bars;
     let n = bars.len();
     let fee_rate =

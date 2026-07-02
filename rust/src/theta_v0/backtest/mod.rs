@@ -59,6 +59,8 @@ pub mod incremental;
 pub mod metrics;
 pub mod mu_estimator;
 pub mod perm_test;
+#[cfg(test)]
+mod wverify_run;
 pub mod pooling_icc;
 pub mod prereg_windows;
 pub mod runner;

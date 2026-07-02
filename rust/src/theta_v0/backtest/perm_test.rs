@@ -8,7 +8,7 @@
 //! 认识论 L0（纯代数：置换是逐笔明细的确定性重排统计）；施加于真实数据产出的逐笔明细时才是 L2。
 //! 冻结常量（N_PERM=200、种子 20260701）见 acc-alpha-estimand-prereg-20260701.md §4。
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// 预注册 §4 冻结：置换次数。
 pub const N_PERM: usize = 200;
@@ -61,7 +61,7 @@ pub fn stratified_delta_perm_p(
     n_perm: usize,
     seed: u64,
 ) -> HashMap<BucketKey, f64> {
-    let mut strata: HashMap<(u32, u8), (Vec<i8>, Vec<f64>)> = HashMap::new();
+    let mut strata: BTreeMap<(u32, u8), (Vec<i8>, Vec<f64>)> = BTreeMap::new(); // 确定序⟹跨进程 perm_p 可复现(prereg §4)
     for &(lv, bc, d, x) in trades {
         let e = strata.entry((lv, bc)).or_default();
         e.0.push(d);
@@ -99,6 +99,12 @@ pub fn stratified_delta_perm_p(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn multi_stratum_reproducible() {
+        let t: Vec<(u32,u8,i8,f64)> = (0..90).map(|i| ((i%3) as u32,((i/3)%3+1) as u8, if i%2==0 {1} else {-1}, (i as f64)*0.31-14.0)).collect();
+        assert_eq!(stratified_delta_perm_p(&t,N_PERM,PERM_SEED), stratified_delta_perm_p(&t,N_PERM,PERM_SEED), "多层同种子须 bit-exact");
+    }
 
     /// H0（δ 与 X_γ 独立）：δ 标签与幅度无系统关联 ⟹ perm_p 不显著（> 0.05）。
     #[test]
