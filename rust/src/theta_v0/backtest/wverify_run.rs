@@ -11,8 +11,9 @@
 //! - **G-A4**（walk-forward LCB）：`est` 不再由整个 OOS 窗单块 `build_mu_from_bars` 估计（那是
 //!   in-sample 正态近似——SE 用的是"同一批数据自己"的方差），而是消费 `prereg_windows.rs`
 //!   冻结的 BTC anchored walk-forward 窗口：只取 `test_start` 落在 OOS 起点之后的窗口，每窗
-//!   独立对 **test 段**估计（`build_mu_from_bars` 作用于该窗 test 切片），再用
-//!   [`MuEstimator::merge`]（cross-fit 惯例，见其文档）聚合——不拼接 Dataset 防接缝伪相邻。
+//!   独立对 **test 段**估计（`build_mu_from_bars` 作用于该窗 test 切片），再逐笔 `observe` 累积
+//!   （**非 `merge`**——`MuEstimator::merge` 只合并 Welford 桶不携带逐笔 `trades`，而下游需 `trades()`）
+//!   ——不拼接 Dataset 防接缝伪相邻。
 //!   聚合后的 `est.trades()` 里每一笔观测都来自"该窗训练截止之后"的样本外区间，LCB 由此
 //!   变成真正的 walk-forward 样本外统计，而非单窗 in-sample 近似。
 //! - **G-A2**（分层报告，部分）：报告加 σ^H 列（本模块）+ 按 walk-forward 窗口的 time block
@@ -23,7 +24,7 @@
 
 use super::super::config::ThetaConfig;
 use super::l3_delta_r_alpha::build_mu_from_bars;
-use super::mu_estimator::MuEstimator;
+use super::mu_estimator::{MuEstimator, MuObservation};
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
 use super::{data, decontam, perm_test};
 use std::collections::BTreeMap;
@@ -51,7 +52,14 @@ fn walk_forward_oos_mu(symbol: &str, ds: &data::Dataset, cfg: &ThetaConfig) -> (
             continue;
         }
         let est_i = build_mu_from_bars(&test_ds.bars, cfg);
-        agg.merge(&est_i);
+        // 逐笔 `observe` 累积（非 `merge`）：`MuEstimator::merge` 契约只合并 Welford 桶、不携带逐笔
+        // `trades`（cross-fit 只需桶聚合），而下游从 `est.trades()` 做逐桶 perm_test 投影 + Welford 再
+        // 分桶——必须要逐笔记录。用 `observe` 同时正确维护 buckets+trades，跨窗拼接保各笔不变（perm_test
+        // 层内 δ 置换/再聚合皆序无关，接缝不产生虚假相邻笔）。
+        for (c, x) in est_i.trades() {
+            agg.observe(MuObservation { class: *c, x_gamma: *x });
+        }
+        eprintln!("[wf-oos] win{} {}→{} bars={} trades={}", win.i, win.test_start, win.test_end, test_ds.bars.len(), est_i.trades().len());
         time_blocks.push((win.i, est_i));
     }
     (agg, time_blocks)

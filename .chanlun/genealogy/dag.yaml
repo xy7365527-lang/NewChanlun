@@ -3608,8 +3608,17 @@ nodes:
   status: 已结算
   type: meta-rule
   file: settled/635a-escalate-l0-inference-requires-l2-machine-evidence-checkpoint.md
+- id: '679'
+  title: BspCandType else=>Type3 分支仍吞并零 bit 破中枢未背驰候选（P2-R2）与真三类候选（judge_third）——两几何前提互斥，codex 终局裁决A 新增第四类 StructBreak 独立纤维，门控恒拒不复用 Nest/Xzd
+  status: 已结算
+  type: concept-separation
+  file: pending/679-bspcandtype-structbreak-fourth-fiber-zero-bit-gate-tightening.md
 edges:
   depends_on:
+  - from: '679'
+    to: '673'
+  - from: '679'
+    to: '615'
   - from: '673'
     to: '606'
   - from: '673'

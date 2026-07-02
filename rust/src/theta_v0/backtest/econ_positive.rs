@@ -580,15 +580,23 @@ fn descend_type1_anchor_depth(
 ///
 /// bits 非互斥（P4§5 六买卖点可重合），故按优先级 Type1>Type2>Type3 坍缩到单一候选类型。
 /// 保持旧 `is_type1` 语义：buy1/sell1 置位即走 Type1 的 `div_cand` 路径（bit-exact 不动）。
+/// StructBreak（codex 终局裁决A，2026-07-02）：`class_index()==0` 的零 bit 破中枢未背驰候选
+/// （P2-R2，`signal.rs:577-580`）——概念上与 Type3（未破核心区间回试）几何前提互斥，
+/// 不可再落 `else => Type3`（673 号先例：互斥语义混入同一分支须拆分谓词/分支）。
+/// 门控：样本层/`MuClass.bsp_class()==0` 统计保留，τ 门控层恒拒（无 BSP 证书）。
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum BspCandType {
     Type1,
     Type2,
     Type3,
+    StructBreak,
 }
 
-/// 从 `BspBits`+方向派生候选类型（优先级 Type1>Type2>Type3）。
+/// 从 `BspBits`+方向派生候选类型（优先级 StructBreak（六 bit 全零）>Type1>Type2>Type3）。
 fn bsp_cand_type(bits: &BspBits, delta: Side) -> BspCandType {
+    if bits.class_index() == 0 {
+        return BspCandType::StructBreak;
+    }
     match delta {
         Side::Long => {
             if bits.buy1 {
@@ -683,6 +691,7 @@ fn cand_delta(
     match cand_type {
         BspCandType::Type1 => cand_delta_type1_extreme(rung_subs, source_index, delta, hist),
         BspCandType::Type2 | BspCandType::Type3 => true,
+        BspCandType::StructBreak => false, // 门拒（codex 终局裁决A）：无对应确认语义，不复用 Type3 锚
     }
 }
 
@@ -702,6 +711,7 @@ fn cand_delta_base_gate(
         BspCandType::Type1 => true,
         BspCandType::Type2 => cand_delta_type2_completion(s, source_index, delta, hist, lvl),
         BspCandType::Type3 => cand_delta_type3_retest(s, source_index, delta, hist, lvl),
+        BspCandType::StructBreak => false, // 门拒（codex 终局裁决A）：无对应确认语义，不复用 Type3 锚
     }
 }
 
@@ -1153,6 +1163,7 @@ pub(super) fn build_gate_certificate(
     let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?]; // None=无定位候选 ⟹ 门拒
     match bsp_cand_type(bits, delta) {
         BspCandType::Type1 => None, // Type1 nest 失败=div_cand 假，非小转大 ⟹ 拒
+        BspCandType::StructBreak => None, // 门拒（codex 终局裁决A）：零 bit 破中枢未背驰候选无确认语义
         BspCandType::Type2 | BspCandType::Type3 => {
             // C3 新判据（codex #44(c)）所需次级走势序列——只读 slice，tower[lvl-1] 不存在时空切片
             // （lvl==0 不入本通道，见函数头注；防御性 `checked_sub` 不 panic）。
@@ -1541,6 +1552,60 @@ mod tests {
         // 卖侧对称。
         let mut sb = BspBits::default(); sb.sell2 = true;
         assert_eq!(bsp_cand_type(&sb, Side::Short), BspCandType::Type2);
+    }
+
+    /// **StructBreak 分派（codex 终局裁决A）：六 bit 全零 ⟹ StructBreak，优先于 Type1>2>3**。
+    ///
+    /// 真三类候选（buy3/sell3 置位，class_index()!=0）不受影响，仍走 Type3——
+    /// StructBreak 判别只截获零 bit 候选，不改变既有三类分派逻辑。
+    #[test]
+    fn bsp_cand_type_structbreak_zero_bits_dispatch() {
+        use super::super::super::types::{BspBits, Side};
+        assert_eq!(bsp_cand_type(&BspBits::default(), Side::Long), BspCandType::StructBreak);
+        assert_eq!(bsp_cand_type(&BspBits::default(), Side::Short), BspCandType::StructBreak);
+
+        let mut b3 = BspBits::default(); b3.buy3 = true;
+        assert_eq!(bsp_cand_type(&b3, Side::Long), BspCandType::Type3, "真三类 buy3 置位仍走 Type3，不受 StructBreak 影响");
+        let mut s3 = BspBits::default(); s3.sell3 = true;
+        assert_eq!(bsp_cand_type(&s3, Side::Short), BspCandType::Type3, "真三类 sell3 置位仍走 Type3，不受 StructBreak 影响");
+    }
+
+    /// **build_gate_certificate 护栏（codex 终局裁决A）：零 bit 候选恒 None（门拒）**。
+    ///
+    /// lvl==0 场景下 Type2/Type3 本有存在性免门（自由通道），但 StructBreak 候选即使在 lvl==0
+    /// 也恒被 `cand_delta_base_gate` 拒绝——证明 StructBreak 不会被免门通道误纳。
+    /// 对照组：同一 fixture 换成真三类 bits（buy3=true）时，lvl==0 正常放行 ⟹ Some（回归保护，
+    /// 证明本次改动只截获零 bit 候选，不影响真三类通路）。
+    #[test]
+    fn build_gate_certificate_structbreak_zero_bits_always_none() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::types::{BspBits, Side};
+
+        let s = LeveledMove {
+            rmove: RMove::Segment { direction: super::super::super::types::Direction::Down, lo: 30, hi: 85 },
+            start_index: 15, end_index: 19,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId { level: 0, ordinal: 0 },
+        };
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![s])];
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+
+        // 零 bit（StructBreak）：即使 lvl==0（Type2/3 免门场景）也恒 None。
+        let zero_bits = BspBits::default();
+        assert!(
+            build_gate_certificate(&tower, 0, 19, Side::Long, &zero_bits, &hist, 19, &[], &[], &[]).is_none(),
+            "零 bit 破中枢未背驰候选（StructBreak）恒门拒，不复用 Type3 lvl==0 免门通道"
+        );
+
+        // 对照：真三类（buy3 置位，class_index()!=0）同 fixture 下 lvl==0 正常放行 ⟹ Some。
+        let mut real_type3 = BspBits::default();
+        real_type3.buy3 = true;
+        assert!(
+            build_gate_certificate(&tower, 0, 19, Side::Long, &real_type3, &hist, 19, &[], &[], &[]).is_some(),
+            "真三类 buy3 置位候选不受 StructBreak 分流影响，仍走 Type3 正常放行"
+        );
     }
 
     /// **Type2/Type3 base gate：lvl==0 存在性免门；lvl>=1 无次级别锚 ⟹ 小转大门拒**。
@@ -3134,6 +3199,10 @@ mod tests {
         let mut nest_depth_by_level_pass = [[0usize; LMAX + 1]; LMAX]; // [exec_level][depth]
         let mut n_gate_pass_total = 0usize; // 通过门信号总数（应=sig_post_sum）
         let mut n_xzd_pass = 0usize; // 小转大通道通过（无区间套 depth，设计 §2.3）——depth 直方图外计
+        // StructBreak 收紧测量（task #62，codex 终局裁决A）：零 bit（bsp_class==0）候选中通过门的条数
+        // ——这批此前经旧 else=>Type3 分派可能走 Nest/Xzd 通过门，收紧后 bsp_cand_type 恒 StructBreak
+        // ⟹ build_gate_certificate 恒 None ⟹ 本计数器在新代码下恒为 0（收紧生效的直接证据）。
+        let mut n_zerobit_gate_pass = 0usize;
         // 小转大分项（消歧「严格门真 0」vs「C3 死门伪影」）：路由到 Xzd 的总数 + C2/C3 单项命中。
         let mut n_xzd_routed = 0usize; // build_gate_certificate 返回 Xzd 的信号数（=小转大域触达）
         let mut n_xzd_c2 = 0usize;     // 其中 C2（type2_confirmed）成立
@@ -3260,6 +3329,7 @@ mod tests {
                             }
                             None => (false, None, 0),
                         };
+                        if bsp_class == 0 && pass { n_zerobit_gate_pass += 1; }
                         if !pass {
                             continue;
                         }
@@ -3397,6 +3467,7 @@ mod tests {
         let n_nest_pass: usize = nest_depth_hist_pass.iter().sum();
         let _ = writeln!(rpt, "- 通道分离：区间套（descend=Some，depth 直方图 {n_nest_pass} 条）与小转大（descend=None，{n_xzd_pass} 条）输入域 Some/None 互斥（codex §6-4 构造同义反复，非经验重叠）。");
         let _ = writeln!(rpt, "- **小转大域触达/C2/旧C3 分项（诊断，旧 C3=same_side_same_center 不参门）**：路由到 Xzd={n_xzd_routed}，其中 C2 成立={n_xzd_c2}，旧 C3 成立={n_xzd_c3}，门通过={n_xzd_pass}。");
+        let _ = writeln!(rpt, "- **StructBreak 收紧测量（task #62，codex 终局裁决A）**：零 bit（bsp_class==0）候选中通过门={n_zerobit_gate_pass} 条（新代码下恒 0——`bsp_cand_type` 六 bit 全零恒 StructBreak ⟹ `build_gate_certificate` 恒 None，不再经旧 else=>Type3 分派误入 Nest/Xzd 通道）。");
         let _ = writeln!(rpt);
 
         // ── C3 死门诊断探针（codex 终局裁定 §5.4，task #41）：按 level 聚合 + lvl==1/lvl>=2 分裂断点 ──
@@ -3519,13 +3590,20 @@ mod tests {
             }
 
             let breakout_rate = xzd_l1_c3_new_center_breakout_ok as f64 / n_l1 as f64;
-            let _ = writeln!(rpt, "- **判据健康度**：命中率∈(0%,100%) ⟹ 判据在本窗有区分力（非死门/非全通过伪影）。");
-            assert!(
-                breakout_rate > 0.0 && breakout_rate < 1.0,
-                "C3 新判据 level==1 命中率={:.4}（breakout_ok={xzd_l1_c3_new_center_breakout_ok}/{n_l1}）——0%或100%均为判据实现问题信号\
-                 （task #47 边界条件：非 0%/100% 才是判据本身健康，命中率退化需回到 codex 复审，不得静默接受）。",
-                breakout_rate
-            );
+            // 终局语义（codex #55 `codex-decide-20260702-201450-8032.md` 裁定(5) + #56 探针
+            // `c3-overlap-probe-20260702.md` 候选(2)坐实）：level==1 C3「新中枢+突破」命中率恒 0
+            // 不是判据实现问题，而是**市场几何事实**——level==1 走势确认背驰反转期间（source_index
+            // 之后）在真实数据下几何上确无可反向突破的次级中枢，小转大 level==1 通道在当前定义下实践
+            // 关闭。故 rate==0 为**预期值**，不 panic。反向：若未来某窗 rate>0，说明出现了探针候选(2)
+            // 未覆盖的新中枢突破结构，值得注意（可能推翻 #56 终局，需回 codex 复审），打印通知而非中断。
+            let _ = writeln!(rpt, "- **判据健康度（终局语义，codex #55/#56）**：level==1 C3 命中率恒 0 为预期（market geometry，非死门伪影）；rate>0 才值得注意（可能推翻 #56 终局）。");
+            if breakout_rate > 0.0 {
+                eprintln!(
+                    "[c3-breakout-NOTICE] C3 新判据 level==1 命中率={:.4}（breakout_ok={xzd_l1_c3_new_center_breakout_ok}/{n_l1}）>0 \
+                     ——超出 #56 探针候选(2) 终局（恒 0）预期，出现可反向突破的 post-source 新中枢，值得注意，建议回 codex 复审（不中断，如实入册）。",
+                    breakout_rate
+                );
+            }
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "### lvl>=2 死门真封（sub_bsp_type3_count 预期恒为 0）");
@@ -3618,6 +3696,7 @@ mod tests {
         assert_eq!(n_gate_pass_total, sig_post_sum,
             "通过门总数({n_gate_pass_total}) 应 = sig_post_sum({sig_post_sum})（build_gate_certificate 二通道 bit-exact == 生产 collect_signals）");
         eprintln!("真封③（P1+小转大）：depth_hist_sum={depth_hist_sum}+n_xzd_pass={n_xzd_pass} = n_gate_pass_total={n_gate_pass_total} = sig_post_sum={sig_post_sum}");
+        eprintln!("[structbreak-tighten] 零 bit（bsp_class==0）候选通过门={n_zerobit_gate_pass}（task #62 收紧测量）");
     }
 
     /// H2 样本级验证（task #8）：level1-4 第二类信号的 N^δ 门拒绝阶段分解 + 互斥链实证。
