@@ -200,11 +200,24 @@ fn bsp_disc(b: &BspBits) -> u8 {
 ///
 /// **认识论 L2**：真实数据逐信号分解，可产否定性结果（spread_eaten=true ⟹ 信号集无 alpha）。
 pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec<SignalDecomp>, SpreadAttribution) {
-    let bars = &data.bars;
-    let n = bars.len();
+    // C1（algo-opt-plan-20260702 泳道 C）：拆 collect_signals（O(bar²) 逐 bar 收集）+ pair_signals
+    // （O(信号) 配对）。语义 bit-exact 旧实装——collect 再 pair 顺序调用 = 原单函数体，逐字未改。
+    // 拆分动机：让 acc_classification_level_hole_dx 复用 collect 输出，省二次全量重收集（dx harness ~2x）。
     let tick = config.tick.tick_size;
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let signals = collect_signals(data, config);
+    pair_signals(&signals, &data.bars, tick, fee_rate)
+}
+
+/// decompose 收集半边（纯函数）：逐 bar 因果分类 + N^δ 多级门 → 信号元组集。
+///
+/// C1 从 [`decompose_capturable_spread`] 拆出；`acc_classification_level_hole_dx` 复用本函数输出对拍。
+/// 元组 = (entry_bar τin, dir δ, pivot_bar source_index, lvl, sigma_higher 666号, bsp_class W4)。
+fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSide, usize, u32, i8, u8)> {
+    let bars = &data.bars;
+    let n = bars.len();
+    let tick = config.tick.tick_size;
 
     // ── MACD hist 预计算（DivCand 条件4 Weak 判据所需，W1 工位）。 ──
     // Θ_MACD：全序列一次性计算（O(n)），供 bsp_div_cand 查询 bar 区间面积。
@@ -230,7 +243,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         }
         let (cls_i, tower_i) = classifier_incr.classify_at(i);
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
-            for p in &ls.bsp {
+            for p in ls.bsp.iter() {
                 let bsp_class = bsp_disc(&p.bits); // W4：类型位掩码（seen-set 键复用，纯透传）
                 if !seen.insert((lvl, p.source_index, bsp_class)) {
                     continue; // 已确认过
@@ -249,7 +262,7 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                         .enumerate()
                         .map(|(l2, _)| super::super::classifier::LevelState {
                             moves: Vec::new(),
-                            centers: Vec::new(),
+                            centers: Rc::new(Vec::new()),
                             bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
                         })
                         .collect(),
@@ -281,6 +294,19 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
         }
     }
 
+    signals
+}
+
+/// decompose 配对半边（纯函数，O(信号)）：signals → (decomps, agg)，无分类无 IO。
+///
+/// C1 从 [`decompose_capturable_spread`] 拆出；`acc_classification_level_hole_dx` 尾部直接调用，
+/// 复用其手写循环自建的 `signals`（与生产 [`collect_signals`] 同序同门），省二次 O(bar²) 收集。
+fn pair_signals(
+    signals: &[(usize, VoiceSide, usize, u32, i8, u8)],
+    bars: &[Bar],
+    tick: f64,
+    fee_rate: f64,
+) -> (Vec<SignalDecomp>, SpreadAttribution) {
     // ── 退出配对（664 号反转交易腿）：持有到下一反向新确认信号，ρ_rev = 该配对出场信号的 pivot 端点。 ──
     // 与旧实装的关键差异：ρ_rev 是 **post-signal 且策略 owned**（配对出场信号挂靠 pivot），
     // 不是触发段起点（错对象）。无配对出场信号 ⟹ 诚实跳过（末 bar 不是 pivot 端点，无 ρ_rev，不兜底）。
@@ -838,7 +864,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -894,7 +920,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -942,7 +968,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -994,7 +1020,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -1038,7 +1064,7 @@ mod tests {
         LM2 {
             rmove: RM2::Compose {
                 subs: sub_rmoves,
-                centers: vec![Ct2 { zd: lo, zg: hi, dd: lo, gg: hi, start_index: start, end_index: end }],
+                centers: Rc::new(vec![Ct2 { zd: lo, zg: hi, dd: lo, gg: hi, start_index: start, end_index: end }]),
                 level,
             },
             start_index: start, end_index: end,
@@ -2399,6 +2425,8 @@ mod tests {
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        // C1：dx 手写门循环复用为 collect_signals 的对拍源——门后 push 与生产同序同字段的信号元组。
+        let mut signals_dx: Vec<(usize, VoiceSide, usize, u32, i8, u8)> = Vec::new();
 
         for i in 0..n {
             let bar = &bars[i];
@@ -2413,7 +2441,7 @@ mod tests {
                 }
             }
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
-                for p in &ls.bsp {
+                for p in ls.bsp.iter() {
                     let bsp_class = bsp_disc(&p.bits);
                     if !seen.insert((lvl, p.source_index, bsp_class)) {
                         continue;
@@ -2428,11 +2456,12 @@ mod tests {
                     let single = super::super::super::classifier::Classification {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
-                                moves: Vec::new(), centers: Vec::new(),
+                                moves: Vec::new(), centers: Rc::new(Vec::new()),
                                 bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
                             })
                             .collect(),
                     };
+                    let sigma_higher = sigma_higher_at(&tower_i, bars, lvl); // 666 号：与生产 collect_signals 同口径
                     for c in &assemble_gamma_with_tower(&single, &tower_i) {
                         if c.dir == VoiceSide::Flat { continue; }
                         if lvl < LMAX { gamma_nonflat[lvl] += 1; }
@@ -2450,6 +2479,7 @@ mod tests {
                             continue;
                         }
                         if lvl < LMAX { sig_post[lvl] += 1; }
+                        signals_dx.push((i, c.dir, p.source_index, lvl as u32, sigma_higher, bsp_class)); // C1：与生产 collect_signals 同序同字段
                         // 有效跨级深度（通过门 ⟹ 所有 rung cand=true ⟹ depth=rungs.len()）。
                         let depth = effective_nest_depth(&cert).min(LMAX);
                         nest_depth_hist_pass[depth] += 1;
@@ -2572,7 +2602,27 @@ mod tests {
 
         // ── 配对后 decomps level 分布（关键：sig_post 是门后配对前，decomps 是配对后）──
         // 分水岭：若中间级 sig_post>0 但 decomps 该级=0 ⟹ 配对阶段丢失（非门滤空 H1，是右删失/跨级混合配对）。
-        let (decomps_prod, agg_prod) = decompose_capturable_spread(&ds, &config);
+        // ── C1（algo-opt-plan-20260702 泳道 C）：配对复用 signals_dx，省二次 O(bar²) 全量重收集。──
+        // 原 decompose_capturable_spread(&ds,&config) = collect_signals(O bar²) + pair_signals(O 信号)；
+        // 复用后 pair_signals 直接吃 dx 手写循环自建的 signals_dx（与生产 collect_signals 同序同门），
+        // 全窗只跑一次 classify_at 收集 —— 本项 dx harness ~2x 提速来源。
+        //
+        // 真封退化诚实声明（no-patch）：agg_prod 改由 signals_dx 派生后，真封① sig_post_sum>=n_signals
+        // 从「dx 循环 vs 独立 decompose」交叉验证退化为 dx 收集内自证。恢复交叉验证需再跑一次
+        // collect_signals（O bar²）—— 与提速目标互斥。替代对拍（plan verdict 首选）：默认窗
+        // （≤300K，correctness tier）跑全量 collect_signals 逐元组对拍 signals_dx，坐实 dx 手写门
+        // （build_nest_certificate.n_delta）与生产门（build_multilevel_nest_cert）bit-exact 同收集；
+        // 全历史基准窗（ECON_L2_MAX_BARS 放大，perf tier）跳过对拍换取 2x，收集正确性由默认窗对拍背书。
+        let fee_rate =
+            (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+        if max_bars <= MAX_BARS_DEFAULT {
+            let signals_prod = collect_signals(&ds, &config);
+            assert_eq!(
+                signals_dx, signals_prod,
+                "dx 手写收集循环 ≠ 生产 collect_signals：门判定/字段漂移（n_delta vs build_multilevel_nest_cert，或 sigma_higher/bsp_class）"
+            );
+        }
+        let (decomps_prod, agg_prod) = pair_signals(&signals_dx, bars, tick, fee_rate);
         let mut decomp_by_level = [0usize; LMAX];
         for d in &decomps_prod {
             if (d.level as usize) < LMAX { decomp_by_level[d.level as usize] += 1; }
@@ -2606,7 +2656,10 @@ mod tests {
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
-        // 真封：分级别 sig_post 之和 >= 生产路径 n_signals（门后信号含未配对出场者）。
+        // 真封①：分级别 sig_post 之和 >= n_signals（门后信号含未配对出场者）。
+        // C1 后 agg_prod 源自 signals_dx（同 sig_post 的收集），此断言退化为收集内自证（sig_post_sum
+        // = signals_dx 门后计数，n_signals = 其配对子集）；跨实现交叉验证由上方 max_bars≤300K 的
+        // collect_signals 逐元组对拍承接（perf 窗跳过对拍，收集正确性由 correctness 窗背书）。
         let sig_post_sum: usize = sig_post.iter().sum();
         assert!(sig_post_sum >= agg_prod.n_signals,
             "sig_post_sum({sig_post_sum}) 应 >= n_signals({})：门后信号数含未配对出场者", agg_prod.n_signals);
@@ -2737,7 +2790,7 @@ mod tests {
                 if !in_scope(lvl) {
                     continue;
                 }
-                for p in &ls.bsp {
+                for p in ls.bsp.iter() {
                     let bsp_class = bsp_disc(&p.bits);
                     if !seen.insert((lvl, p.source_index, bsp_class)) {
                         continue;
@@ -2750,7 +2803,7 @@ mod tests {
                     let single = super::super::super::classifier::Classification {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
-                                moves: Vec::new(), centers: Vec::new(),
+                                moves: Vec::new(), centers: Rc::new(Vec::new()),
                                 bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
                             })
                             .collect(),
@@ -2979,6 +3032,245 @@ mod tests {
         assert_eq!(extreme_false + extreme_true_pass + extreme_true_reject, cond3_reached,
             "cond3 到达域守恒：Extreme必假({extreme_false})+Extreme真通过({extreme_true_pass})+Extreme真拒({extreme_true_reject}) 应 = cond3_reached({cond3_reached})");
         eprintln!("真封：Σ阶段={stage_sum}=n_total={n_total}；cond3_reached={cond3_reached}=必假{extreme_false}+真通过{extreme_true_pass}+真拒{extreme_true_reject}");
+    }
+
+    /// **L2-dist（task #23）：段2 全历史 depth/小转大分布收集器**（临时 collector，非交付、不入生产路径）。
+    ///
+    /// 复用 `h2_sample_exclusion_dx` 的 bit-exact classify 循环，对 level1-4 每条 Type2/3 信号
+    /// （per-delta `!is_type1 && (is_type2||is_type3)`）调私有 `descend_type1_anchor_depth`：
+    /// `None`=小转大（次级别无一类锚点，精确点无法下沉定位）计数；`Some(d)`=区间套下沉深度直方图。
+    /// 另抽样验证锚点正确性（`s.sub_moves` 中 `end_index==source_index` 段方向=−δ 回抽方向）。
+    ///
+    /// 命令：`ECON_L2_MAX_BARS=100000000 cargo test --release l2_depth_distribution_dx -- --ignored --nocapture`
+    /// （默认 max_bars=usize::MAX ⟹ 全历史；段1 全历史先例 ≈39min）。
+    #[test]
+    #[ignore]
+    fn l2_depth_distribution_dx() {
+        use super::super::data;
+        use super::super::super::classifier::divergence::compute_macd;
+        use super::super::super::classifier::cand_predicate::ContextMove;
+        use super::super::super::strategy::interp::assemble_gamma_with_tower;
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{Side, Direction};
+        use super::super::incremental::IncrementalClassifier;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(usize::MAX);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let bars = &ds.bars;
+        let n = bars.len();
+        let tick = config.tick.tick_size;
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        eprintln!("[l2-depth-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+
+        let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
+        let macd_hist = compute_macd(&closes, &config.macd).hist;
+
+        const LMIN: usize = 1;
+        const LMAX: usize = 4;
+        const DCAP: usize = 8; // depth 直方图桶上限（level4 下沉理论 ≤4，8 留冗余）
+        let in_scope = |lvl: usize| (LMIN..=LMAX).contains(&lvl);
+
+        // Type2/3 主群（per-delta `!is_type1 && (is_type2||is_type3)`）——task 报告口径。
+        let mut n_t23 = [0usize; LMAX + 1];         // 各级 Type2/3 信号总数
+        let mut base_none_t23 = [0usize; LMAX + 1]; // tower[lvl] 无 end==src 候选段（descent 未触达）
+        let mut xzd_t23 = [0usize; LMAX + 1];       // descend=None = 小转大（次级别无一类锚点）
+        let mut depth_t23 = [[0usize; DCAP + 1]; LMAX + 1]; // descend=Some(d) 深度直方图
+        let mut depth_overflow = 0usize;            // d>DCAP 溢出（clamp 记录）
+        let mut max_depth = 0usize;
+
+        // 残差群（`!is_type1` 但既非 type2 也非 type3）——诚实标注：门的 descent 域比 Type2/3 略宽。
+        let mut n_other = 0usize;
+        let mut none_other = 0usize; // base_none + descend=None 合并
+        let mut some_other = 0usize;
+
+        // 锚点正确性抽样（Some(d) 结果的 end==src ∧ 方向=−δ）。
+        const SAMPLE_CAP: usize = 200;
+        let mut sample_n = 0usize;
+        let mut sample_pass = 0usize;
+        let mut sample_fail_detail: Vec<String> = Vec::new();
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if !in_scope(lvl) {
+                    continue;
+                }
+                for p in ls.bsp.iter() {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    // 预过滤：至少带一个 type2/3 bit（type1-only 与无 bsp bit 信号非本群，省 Γ 组装）。
+                    if !(p.bits.buy2 || p.bits.sell2 || p.bits.buy3 || p.bits.sell3) {
+                        continue;
+                    }
+                    // Γ 组装（bit-exact 复制生产路径）取交易方向 δ。
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i.levels.iter().enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                            })
+                            .collect(),
+                    };
+                    for c in &assemble_gamma_with_tower(&single, &tower_i) {
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        let src = p.source_index;
+                        // per-delta 类型（与 build_nest_certificate 的 is_type1 同源）。
+                        let is_type1 = match delta { Side::Long => p.bits.buy1, Side::Short => p.bits.sell1 };
+                        if is_type1 {
+                            continue; // Type1 走本级 div_cand，不下沉——非本群
+                        }
+                        let is_type2 = match delta { Side::Long => p.bits.buy2, Side::Short => p.bits.sell2 };
+                        let is_type3 = match delta { Side::Long => p.bits.buy3, Side::Short => p.bits.sell3 };
+                        let is_t23 = is_type2 || is_type3;
+
+                        // 执行级候选段 s（build_nest_certificate line 542 同逻辑）。
+                        let s_opt = tower_i.get(lvl).and_then(|mv| mv.iter().find(|m| m.end_index == src));
+                        // descent 结果（s 缺失 ⟹ 生产门早退 None，视作 base_none）。
+                        let descend = s_opt.map(|s| descend_type1_anchor_depth(s, src, delta, &macd_hist));
+
+                        if is_t23 {
+                            n_t23[lvl] += 1;
+                            match descend {
+                                None => base_none_t23[lvl] += 1,       // 无候选段
+                                Some(None) => xzd_t23[lvl] += 1,       // 小转大
+                                Some(Some(d)) => {
+                                    max_depth = max_depth.max(d);
+                                    if d > DCAP { depth_overflow += 1; }
+                                    depth_t23[lvl][d.min(DCAP)] += 1;
+                                    // 抽样锚点正确性
+                                    if sample_n < SAMPLE_CAP {
+                                        sample_n += 1;
+                                        let s = s_opt.unwrap();
+                                        let subs = s.sub_moves.as_slice();
+                                        let tidx = subs.iter().position(|m| m.end_index == src)
+                                            .expect("Some(d) ⟹ 存在 end==src 锚段");
+                                        let cm = ContextMove::from_rmove(
+                                            &subs[tidx].rmove, subs[tidx].start_index, subs[tidx].end_index);
+                                        let expected = match delta { Side::Long => Direction::Down, Side::Short => Direction::Up };
+                                        let end_ok = subs[tidx].end_index == src;
+                                        let dir_ok = cm.direction == expected;
+                                        if end_ok && dir_ok {
+                                            sample_pass += 1;
+                                        } else if sample_fail_detail.len() < 20 {
+                                            sample_fail_detail.push(format!(
+                                                "| {lvl} | {src} | {} | end_ok={end_ok} dir_ok={dir_ok}（got {:?} exp {:?}）|",
+                                                if delta == Side::Long { "+1" } else { "-1" }, cm.direction, expected));
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            n_other += 1;
+                            match descend {
+                                Some(Some(_)) => some_other += 1,
+                                _ => none_other += 1,
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 报告 ──
+        let pct = |x: usize, tot: usize| if tot == 0 { 0.0 } else { 100.0 * x as f64 / tot as f64 };
+        let tot_t23: usize = n_t23.iter().sum();
+        let tot_base_none: usize = base_none_t23.iter().sum();
+        let tot_xzd: usize = xzd_t23.iter().sum();
+        let tot_some: usize = tot_t23 - tot_base_none - tot_xzd;
+
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# L2-dist 原始数据：段2 全历史 depth/小转大分布（level1-4 Type2/3）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- task: #23（acc-optB-l2dist）");
+        let _ = writeln!(rpt, "- **认识论等级**：L2（真实 BTC 全历史逐信号结构下钻，确定性 div_cand，可产否定性计数）");
+        let _ = writeln!(rpt, "- 窗口：{win_start}→{win_end}，bars={n}（全量={n_full}），max_bars={max_bars}");
+        let _ = writeln!(rpt, "- 群定义：per-delta `!is_type1 && (is_type2||is_type3)`（Type2/3 主群，域=生产门 descent 触发域子集）");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 1. Type2/3 主群：各 level 分布");
+        let _ = writeln!(rpt, "| lvl | 信号总数 | base_none(无候选段) | 小转大(descend None) | 有锚(Some d) | 小转大% |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for lvl in LMIN..=LMAX {
+            let some_l = n_t23[lvl] - base_none_t23[lvl] - xzd_t23[lvl];
+            let _ = writeln!(rpt, "| {lvl} | {} | {} | {} | {} | {:.2}% |",
+                n_t23[lvl], base_none_t23[lvl], xzd_t23[lvl], some_l, pct(xzd_t23[lvl], n_t23[lvl]));
+        }
+        let _ = writeln!(rpt, "| **合计** | **{tot_t23}** | **{tot_base_none}** | **{tot_xzd}** | **{tot_some}** | **{:.2}%** |",
+            pct(tot_xzd, tot_t23));
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 2. depth 直方图（descend=Some(d)，逐 level × 深度）");
+        let _ = write!(rpt, "| lvl \\ d ");
+        for d in 1..=DCAP { let _ = write!(rpt, "| d={d} "); }
+        let _ = writeln!(rpt, "|");
+        let _ = write!(rpt, "|---");
+        for _ in 1..=DCAP { let _ = write!(rpt, "|---"); }
+        let _ = writeln!(rpt, "|");
+        for lvl in LMIN..=LMAX {
+            let _ = write!(rpt, "| {lvl} ");
+            for d in 1..=DCAP { let _ = write!(rpt, "| {} ", depth_t23[lvl][d]); }
+            let _ = writeln!(rpt, "|");
+        }
+        let _ = writeln!(rpt, "\n- max_depth 观测 = {max_depth}；depth>DCAP({DCAP}) 溢出 = {depth_overflow}");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 3. 锚点正确性抽样（Some(d) 结果 end_index==src ∧ 方向=−δ）");
+        let _ = writeln!(rpt, "- 抽样数：{sample_n}（cap={SAMPLE_CAP}）；通过：{sample_pass}；失败：{}",
+            sample_n - sample_pass);
+        if !sample_fail_detail.is_empty() {
+            let _ = writeln!(rpt, "\n失败明细（前 {} 条）：", sample_fail_detail.len());
+            let _ = writeln!(rpt, "| lvl | src | δ | 校验 |");
+            let _ = writeln!(rpt, "|---|---|---|---|");
+            for line in &sample_fail_detail { let _ = writeln!(rpt, "{line}"); }
+        }
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## 4. 残差群（`!is_type1` 但非 type2/3，门 descent 域内、本报告群外）");
+        let _ = writeln!(rpt, "- 总数：{n_other}；有锚(Some d)：{some_other}；无锚(None/base_none)：{none_other}");
+        let _ = writeln!(rpt, "- 诚实标注：生产门 descent 触发域=`!is_type1 && lvl>=1`，比 Type2/3 主群宽 {n_other} 条；");
+        let _ = writeln!(rpt, "  这些是 Γ 定向为非 Flat、带 δ 但该方向无 type2/3 bit 的信号（多为对侧 bit 或纯结构 voice）。");
+        let _ = writeln!(rpt);
+
+        // 落盘原始数据（六要素结果包由 owner 用 Write 单独落盘 l2-depth-distribution）。
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent().expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/l2-depth-raw-20260702.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n原始数据已落盘：{out:?}");
+
+        // ── 真封（计数不变量）：主群逐 level 三桶穷举 = 信号总数。 ──
+        for lvl in LMIN..=LMAX {
+            let sum = base_none_t23[lvl] + xzd_t23[lvl]
+                + (0..=DCAP).map(|d| depth_t23[lvl][d]).sum::<usize>();
+            assert_eq!(sum, n_t23[lvl],
+                "level{lvl} 三桶穷举：base_none+小转大+Σdepth({sum}) 应 = 信号总数({})", n_t23[lvl]);
+        }
+        assert_eq!(tot_base_none + tot_xzd + tot_some, tot_t23, "合计三桶穷举");
+        eprintln!("真封：Type2/3 主群={tot_t23}=base_none{tot_base_none}+小转大{tot_xzd}+有锚{tot_some}；\
+            抽样 {sample_pass}/{sample_n} 锚点正确；残差群={n_other}");
     }
 
     /// **P1 FullNest L1：effective_nest_depth 前缀语义（build_nest_certificate 与门共用构造的读数）**。
