@@ -2794,6 +2794,18 @@ mod tests {
         let mut cond3_reached = 0usize;     // rung lvl+1 到达 cond3（cond1∧cond2 通过）
         let mut extreme_true_pass = 0usize; // Extreme 真 ∧ gate 通过
         let mut extreme_true_reject = 0usize; // Extreme 真 ∧ gate 拒绝（cond4 或 elsewhere）= codex 缺口坐实
+        // cond3 到达但 cert=None（落 base_none 短路，绕过 extreme 三桶）。673 号段2 landing 后新增：
+        // Type2/3 信号下沉次级别无 Type1 锚点（小转大）⟹ build_nest_certificate 段2 门 return None（line 599），
+        // 而 cond3_reach（tower[lvl+1] cond1∧cond2）独立成立 ⟹ 该信号在 cond3 到达域内但不入 extreme 分桶。
+        let mut extreme_cert_none = 0usize;
+        // cond3 到达 ∧ gate 通过 ∧ r_extreme 假：生产门 n_delta 经 base-case/其他 rung 通过，
+        // 但 test 侧 lvl+1 rung 的 Extreme 假 ⟹ 落 gate_pass 但不入 extreme_true_pass（只计 cond3∧r_extreme）。
+        // 与段2 正交的第二个潜在漏计（段2 前即存在，只是历史窗口未触发；段2 改门语义后暴露）。
+        let mut extreme_gate_noext = 0usize;
+        // 路径A 判别（塔一致性回归探针）：cond3_reach ⟹ knode.sub_moves 有 end==src ⟹ tower[lvl] 必有 end==src
+        // （sub_moves 是 tower[lvl] 窗口的携坐标副本，recursive_tower 不变量）⟹ base 定位（line 580）必成功。
+        // 若 base 定位失败 ⟹ 塔不一致（B4 换装/增量塔重标定引入的真回归），计入 cert_none_path_a。
+        let mut cert_none_path_a = 0usize;
         let mut leg_gap_hist = [0usize; 16]; // cond3 到达域的 target_idx−j（s_prev 与 s 间距，=2 ⟹ 单条反向腿=codex 常见结构 s_prev==m1）
         let mut base_conf_false = 0usize;   // confirm_side(δ) 假（δ 与 bits 侧不符 ⟹ base 拒，非互斥）
 
@@ -2906,9 +2918,16 @@ mod tests {
                             st_gate_pass += 1;
                             stage = "gate_pass";
                             if cond3_reach && r_extreme { extreme_true_pass += 1; }
+                            else if cond3_reach { extreme_gate_noext += 1; }
                         } else if cert_opt.is_none() {
                             st_base_none += 1;
                             stage = "base_none";
+                            if cond3_reach {
+                                extreme_cert_none += 1;
+                                if find_move_by_end_index(tower_i[lvl].as_slice(), src).is_none() {
+                                    cert_none_path_a += 1; // base 定位失败 = 塔不一致回归
+                                }
+                            }
                         } else if !r_knode {
                             st_no_upper += 1;
                             stage = "no_upper";
@@ -3053,9 +3072,20 @@ mod tests {
             + st_cond2_noprev + st_cond3_extreme + st_cond4_weak + st_reject_elsewhere + st_gate_pass;
         assert_eq!(stage_sum, n_total,
             "阶段分解穷举：Σ阶段({stage_sum}) 应 = n_total({n_total})");
-        assert_eq!(extreme_false + extreme_true_pass + extreme_true_reject, cond3_reached,
-            "cond3 到达域守恒：Extreme必假({extreme_false})+Extreme真通过({extreme_true_pass})+Extreme真拒({extreme_true_reject}) 应 = cond3_reached({cond3_reached})");
-        eprintln!("真封：Σ阶段={stage_sum}=n_total={n_total}；cond3_reached={cond3_reached}=必假{extreme_false}+真通过{extreme_true_pass}+真拒{extreme_true_reject}");
+        // 673 号段2 landing 后守恒扩展：cond3 到达域现分四桶（Extreme必假 / Extreme真通过 / Extreme真拒 /
+        // cert=None 段2 小转大门拒）。旧三桶守恒（写于段2 前，隐含 cond3_reach⟹cert.is_some）已过时——
+        // 段2 门（build_nest_certificate line 599）合法地对 Type2/3 小转大信号 return None，这些信号 cond3 到达
+        // 但落 base_none 短路，绕过 extreme 三桶。补第四桶 extreme_cert_none 使分解重新穷举。
+        assert_eq!(cert_none_path_a, 0,
+            "塔一致性回归探针：cond3_reach 信号 base 定位失败 {cert_none_path_a} 例 ⟹ tower[lvl] 与 knode.sub_moves \
+             不一致（B4 换装/增量塔重标定引入的真回归，非段2 小转大）。应为 0。");
+        assert_eq!(
+            extreme_false + extreme_true_pass + extreme_true_reject + extreme_cert_none + extreme_gate_noext,
+            cond3_reached,
+            "cond3 到达域守恒（五桶穷举）：Extreme必假({extreme_false})+Extreme真通过({extreme_true_pass})\
+             +Extreme真拒({extreme_true_reject})+cert=None段2门拒({extreme_cert_none})\
+             +gate通过∧Extreme假({extreme_gate_noext}) 应 = cond3_reached({cond3_reached})");
+        eprintln!("真封：Σ阶段={stage_sum}=n_total={n_total}；cond3_reached={cond3_reached}=必假{extreme_false}+真通过{extreme_true_pass}+真拒{extreme_true_reject}+段2门拒{extreme_cert_none}+门通过Ext假{extreme_gate_noext}（path_a回归={cert_none_path_a}）");
     }
 
     /// **L2-dist（task #23）：段2 全历史 depth/小转大分布收集器**（临时 collector，非交付、不入生产路径）。
