@@ -64,7 +64,7 @@ use super::selector::z_of_candidate;
 use super::super::config::ThetaConfig;
 use super::super::strategy::interp::assemble_gamma_with_tower;
 use super::super::strategy::voice::VoiceSide;
-use super::super::types::BspBits;
+use super::super::types::{Bar, BspBits};
 
 /// 预注册随机种子（§4，与 metrics 同值，bit-exact 可复现）。
 const PREREG_SEED: u64 = 20260625;
@@ -118,9 +118,10 @@ fn bsp_disc(b: &BspBits) -> u8 {
 /// - 退出落在 train 窗内（≤ train 末）——跨边界样本截断到 train 末（censored，不偷看 test）。
 /// - μ 表 frozen 后喂 test χ 过滤；test 决策不更新 μ（无 test 内未来）。
 ///
-/// 返回 `(MuEstimator, n_signals)`：μ 表 + train 窗新确认买卖点总数（诊断信号密度）。
-pub(super) fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (MuEstimator, usize) {
-    let bars = &train.bars;
+/// 返回 `MuEstimator`：全候选集 μ 表（无 N^δ 门——选择器是下游工位，估 μ 覆盖全定义域）。
+/// 复用点（W-VERIFY 全定义域跑批 wverify_run）：传全 OOS 窗 bars ⟹ censored 兑现截断到 OOS 末，
+/// 不偷看 Holdout（Holdout 在 OOS 末之后，不在 bars 切片内）。
+pub fn build_mu_from_bars(bars: &[Bar], config: &ThetaConfig) -> MuEstimator {
     let n = bars.len();
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
@@ -177,7 +178,6 @@ pub(super) fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (M
     // 退出兑现（事前固定规则：持有到下一个反向新确认信号确认 bar，或 train 末 censored）。
     // signals 已按确认 bar i 升序（逐 bar 收集），同 bar 多信号保留。
     let mut est = MuEstimator::new();
-    let n_signals = signals.len();
     for (idx, &(entry_bar, z, dir)) in signals.iter().enumerate() {
         let entry_px = bars[entry_bar].close as f64 * tick;
         if entry_px <= 0.0 {
@@ -213,7 +213,15 @@ pub(super) fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (M
         est.observe(MuObservation { class: z, x_gamma });
     }
 
-    (est, n_signals)
+    est
+}
+
+/// [`build_mu_from_bars`] 的 Dataset 包装（walk-forward 调用点复用，保原 `(est, n_obs)` 签名）。
+/// `n_obs` = 兑现观测数（est.trades().len()，诊断信号密度；调用方均丢弃此值）。
+pub(super) fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (MuEstimator, usize) {
+    let est = build_mu_from_bars(&train.bars, config);
+    let n_obs = est.trades().len();
+    (est, n_obs)
 }
 
 /// ΔR 序列统计（§10 净额增量收益的均值/Sharpe/bootstrap p）。

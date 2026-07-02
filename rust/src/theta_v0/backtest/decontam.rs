@@ -51,13 +51,41 @@ pub enum AcceptanceVerdict {
     Inconclusive,
 }
 
-/// 功效门槛（预注册 §4 / 667）：`n_eff ≥ (z_α · CV)²`。
+/// 事件聚集/自相关校正后的有效样本数（预注册 §1.3，665 号 `neff/nraw` 口径）。
+///
+/// `n_eff = n / (1 + 2·Σρk)`，Σρk 用 Geyer 初始正序列估计（首个非正 ρk 处截断），
+/// 保证 Σρk≥0 ⟹ n_eff≤n——同方向信号的时间聚集只会**降低**有效样本，不凭空增加。
+/// ρk 为滞后 k 的样本自相关（分母用全序列离差平方和，标准 ESS 口径）；常数序列或
+/// n<2 无自相关信息，退回 n_eff=n。序列须按**成交时间序**传入（wverify_run 逐 bar 因果收集）。
+pub fn effective_n(x: &[f64]) -> f64 {
+    let n = x.len();
+    if n < 2 {
+        return n as f64;
+    }
+    let mean = x.iter().sum::<f64>() / n as f64;
+    let c0: f64 = x.iter().map(|v| (v - mean).powi(2)).sum();
+    if c0 == 0.0 {
+        return n as f64; // 常数序列无自相关
+    }
+    let mut sum_rho = 0.0_f64;
+    for k in 1..n {
+        let ck: f64 = (0..n - k).map(|i| (x[i] - mean) * (x[i + k] - mean)).sum();
+        let rho = ck / c0;
+        if rho <= 0.0 {
+            break; // 初始正序列：首个非正自相关处截断，Σρk≥0
+        }
+        sum_rho += rho;
+    }
+    n as f64 / (1.0 + 2.0 * sum_rho)
+}
+
+/// 功效门槛（预注册 §4 / 667）：`n_eff ≥ (z_α · CV)²`。`n_eff` 为 `effective_n` 的自相关校正量。
 ///
 /// `CV`（变异系数 = std/|mean|）刻画桶内相对噪声；`n_eff` 是桶有效样本数。样本不足以把
 /// `z_α` 倍相对噪声压到均值量级下 ⟹ ¬powered ⟹ `LCB≤0` 是无检出力的必然结果，不判纯 beta。
-pub fn powered(n_eff: usize, cv: f64, z_alpha: f64) -> bool {
+pub fn powered(n_eff: f64, cv: f64, z_alpha: f64) -> bool {
     let threshold = (z_alpha * cv).powi(2);
-    (n_eff as f64) >= threshold
+    n_eff >= threshold
 }
 
 /// 逐桶三态判定（预注册 §3.1）。`perm_p` 为去污置换 p 值（路径 A/B 产出）；`z_alpha=1.645`、
@@ -68,7 +96,7 @@ pub fn classify_bucket(
     lcb: f64,
     ucb: f64,
     perm_p: f64,
-    n_eff: usize,
+    n_eff: f64,
     cv: f64,
     z_alpha: f64,
     perm_alpha: f64,
@@ -108,20 +136,20 @@ mod tests {
     fn powered_gate_at_threshold() {
         let cv = 10.0;
         let thr = (Z * cv).powi(2); // ≈270.6
-        assert!(powered(thr.ceil() as usize, cv, Z));
-        assert!(!powered(thr.floor() as usize - 1, cv, Z));
+        assert!(powered(thr.ceil(), cv, Z));
+        assert!(!powered(thr.floor() - 1.0, cv, Z));
     }
 
     /// VALIDATED：powered ∧ μ̂>0 ∧ 去污显著 ∧ LCB>0。
     #[test]
     fn validated_requires_all_four() {
-        let s = classify_bucket(0.5, 0.1, 0.9, 0.01, 500, 10.0, Z, PA);
+        let s = classify_bucket(0.5, 0.1, 0.9, 0.01, 500.0, 10.0, Z, PA);
         assert_eq!(s, AlphaState::Validated);
         // LCB≤0 ⟹ 掉出 VALIDATED（此处跨零 ⟹ INCONCLUSIVE）。
-        let s2 = classify_bucket(0.5, -0.1, 0.9, 0.01, 500, 10.0, Z, PA);
+        let s2 = classify_bucket(0.5, -0.1, 0.9, 0.01, 500.0, 10.0, Z, PA);
         assert_eq!(s2, AlphaState::Inconclusive);
         // 去污不显著（perm_p≥α）⟹ 非 VALIDATED（LCB>0 但 UCB>0 ⟹ 跨零 INCONCLUSIVE）。
-        let s3 = classify_bucket(0.5, 0.1, 0.9, 0.20, 500, 10.0, Z, PA);
+        let s3 = classify_bucket(0.5, 0.1, 0.9, 0.20, 500.0, 10.0, Z, PA);
         assert_eq!(s3, AlphaState::Inconclusive);
     }
 
@@ -129,17 +157,17 @@ mod tests {
     #[test]
     fn falsified_requires_powered_not_just_lcb_le_zero() {
         // powered ∧ LCB≤0 ∧ UCB≤0 ⟹ FALSIFIED（有功效判 μ≤0）。
-        let s = classify_bucket(-0.5, -0.9, -0.1, 0.5, 500, 10.0, Z, PA);
+        let s = classify_bucket(-0.5, -0.9, -0.1, 0.5, 500.0, 10.0, Z, PA);
         assert_eq!(s, AlphaState::Falsified);
         // 同符号但 ¬powered（n_eff 不足）⟹ INCONCLUSIVE，**不判纯 beta**（不落 161）。
-        let s2 = classify_bucket(-0.5, -0.9, -0.1, 0.5, 3, 10.0, Z, PA);
+        let s2 = classify_bucket(-0.5, -0.9, -0.1, 0.5, 3.0, 10.0, Z, PA);
         assert_eq!(s2, AlphaState::Inconclusive);
     }
 
     /// powered 但 UCB>0（跨零）⟹ INCONCLUSIVE，非 FALSIFIED（LCB≤0<UCB）。
     #[test]
     fn straddle_zero_is_inconclusive_not_falsified() {
-        let s = classify_bucket(-0.1, -0.5, 0.3, 0.5, 500, 10.0, Z, PA);
+        let s = classify_bucket(-0.1, -0.5, 0.3, 0.5, 500.0, 10.0, Z, PA);
         assert_eq!(s, AlphaState::Inconclusive);
     }
 
@@ -152,5 +180,17 @@ mod tests {
         assert_eq!(global_verdict(&[Falsified, Falsified]), AcceptanceVerdict::Falsified);
         // 空桶集 ⟹ Inconclusive（无证据不 161）。
         assert_eq!(global_verdict(&[]), AcceptanceVerdict::Inconclusive);
+    }
+
+    /// effective_n：短序列/常数退回 n；正相关聚集 ⟹ n_eff<n；反相关 ⟹ 首个非正处截断 ⟹ n_eff=n。
+    #[test]
+    fn effective_n_autocorr_correction() {
+        assert_eq!(effective_n(&[]), 0.0);
+        assert_eq!(effective_n(&[5.0]), 1.0);
+        assert_eq!(effective_n(&[3.0, 3.0, 3.0, 3.0]), 4.0); // 常数：c0=0 退回 n
+        let ramp: Vec<f64> = (0..40).map(|i| i as f64).collect();
+        assert!(effective_n(&ramp) < 40.0); // 强正自相关 ⟹ Σρk>0 ⟹ n_eff 显著缩水
+        let alt: Vec<f64> = (0..40).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
+        assert!((effective_n(&alt) - 40.0).abs() < 1e-9); // ρ1<0 立即截断 ⟹ Σρk=0
     }
 }
