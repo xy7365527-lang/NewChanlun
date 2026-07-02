@@ -3811,6 +3811,15 @@ mod tests {
         let mut leg_gap_hist = [0usize; 16]; // cond3 到达域的 target_idx−j（s_prev 与 s 间距，=2 ⟹ 单条反向腿=codex 常见结构 s_prev==m1）
         let mut base_conf_false = 0usize;   // confirm_side(δ) 假（δ 与 bits 侧不符 ⟹ base 拒，非互斥）
 
+        // ── 阶段0 诊断探针（区间套问题①：端点相等 vs 区间包含 base 级定位）。 ──
+        // 端点相等 find_move_by_end_index(tower[lvl],src) vs 区间包含 start≤src≤end（同一 exec_moves）。
+        // false negative = 区间包含命中 ∧ 端点相等未命中（=区间套.pdf §一 3 反例的系统性表现）。
+        // 若 base_false_neg=0 ⟹ 差异为零 ⟹ NO-SHIP（端点相等结论获区间包含加固，depth 归零非本口径伪影）。
+        let mut base_ep_hit = 0usize;              // 端点相等口径命中
+        let mut base_ct_hit = 0usize;              // 区间包含口径命中
+        let mut base_false_neg = 0usize;           // 包含命中 ∧ 端点未命中 = 问题① false negative
+        let mut base_fn_by_level = [0usize; LMAX + 1];
+
         // 逐信号明细（前 60 条拒绝样本，spot-check）。
         let mut detail: Vec<String> = Vec::new();
         const DETAIL_CAP: usize = 60;
@@ -3857,6 +3866,16 @@ mod tests {
                         n_by_level[lvl] += 1;
                         if !p.bits.confirm_side(delta) {
                             base_conf_false += 1;
+                        }
+
+                        // 阶段0 探针：base 级两口径对照（无条件，覆盖全信号）。
+                        {
+                            let exec_moves = tower_i[lvl].as_slice();
+                            let ep = find_move_by_end_index(exec_moves, src).is_some();
+                            let ct = exec_moves.iter().any(|m| m.start_index <= src && src <= m.end_index);
+                            if ep { base_ep_hit += 1; }
+                            if ct { base_ct_hit += 1; }
+                            if ct && !ep { base_false_neg += 1; base_fn_by_level[lvl] += 1; }
                         }
 
                         // 门判定（生产同源）。
@@ -4003,6 +4022,20 @@ mod tests {
         let _ = writeln!(rpt, "| gate_pass | {} | {:.2}% | 通过门 |", st_gate_pass, pct(st_gate_pass));
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "- confirm_side(δ) 假（δ 与 bits 侧不符，base 层拒，与互斥正交）：{base_conf_false}");
+        let _ = writeln!(rpt);
+
+        // ── 阶段0 诊断探针：区间套问题① base 级两口径对照 ──
+        let _ = writeln!(rpt, "## 2b. 阶段0 诊断探针：区间套问题①（端点相等 vs 区间包含 base 级定位）");
+        let _ = writeln!(rpt, "| 口径 | 命中数 | 占比 |");
+        let _ = writeln!(rpt, "|---|---|---|");
+        let _ = writeln!(rpt, "| 端点相等 find_move_by_end_index(tower[lvl],src) | {base_ep_hit} | {:.2}% |", pct(base_ep_hit));
+        let _ = writeln!(rpt, "| 区间包含 start≤src≤end（同 exec_moves） | {base_ct_hit} | {:.2}% |", pct(base_ct_hit));
+        let _ = writeln!(rpt, "| **false negative（包含命中∧端点未命中）** | **{base_false_neg}** | **{:.2}%** |", pct(base_false_neg));
+        for l in LMIN..=LMAX {
+            let _ = writeln!(rpt, "| ↳ level {l} FN | {} | |", base_fn_by_level[l]);
+        }
+        let _ = writeln!(rpt, "- **判据**：base_false_neg=0 ⟹ 两口径无差异 ⟹ **NO-SHIP**（端点相等结论获区间包含加固，depth 归零非本口径伪影，无须改生产）。");
+        let _ = writeln!(rpt, "- base_false_neg>0 ⟹ 端点相等系统性漏检坐实 ⟹ 按区间套.pdf §一 4 改区间包含定位（bottom-up + Sel_Θ 唯一），重跑三件套。");
         let _ = writeln!(rpt);
 
         // ── deliverable (a)：Extreme必假占比（cond3 到达域）──
