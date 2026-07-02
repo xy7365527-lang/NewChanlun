@@ -94,7 +94,7 @@
 
 - **acceptance s3-strict-alpha-retest = INCONCLUSIVE**：严格残差口径下预注册 estimand 无 confirmed alpha。#13 的 PASS 在残差口径下不成立——M1 里程碑不得以本 estimand 的 alpha 存在性为独立通行凭证。
 - **提功效链（667 pending）**：降 CV（收益率尺度归一）、L0 聚合、跨标的 L3 池化——是 INCONCLUSIVE→可判的下一 goal 候选。
-- **full-z 细化在残差口径只会降功效**（§8 关键推论）：full-z 把已稀疏的桶进一步碎裂 ⟹ 每桶 n 更小 ⟹ 功效更低 ⟹ 严格 full-z 残差判定结构上被推向 INCONCLUSIVE，**不可能**产生新的 VALIDATED。预注册 4 元组已是残差口径下**最大功效的诚实 estimand**。full-z 的价值在 oracle μ̂ 上界（X_γ，s1），不在残差 alpha 判定。
+- **full-z 细化在残差口径倾向降功效（条件性，codex #85 数学核验修正）**：功效门 `n_eff≥(1.645·CV)²` **同时依赖 n 与 CV**。full-z 把已稀疏的桶进一步碎裂 ⟹ 每桶 n 更小，**在子桶 CV 与父桶同质的假设下**功效更低、判定被推向 INCONCLUSIVE。但此假设非恒成立：若细化剥离出异质子群使某子桶 CV 骤降，n 减小的失分可能被 CV 减小的得分抵消甚至反超 ⟹ 该子桶功效**可能提升**。故不断言 full-z「不可能产生新 VALIDATED」——只能说同质假设下倾向降功效；异质剥离下个别子桶可翻为 powered，须实测。预注册 4 元组是残差口径下的**当前诚实 estimand**（非"最大功效"——功效随 CV 异质性可变）。full-z 的即时价值在 oracle μ̂ 上界（X_γ，s1）。codex #85 裁定选 C：跨标的 L3 提功效优先，full-z 延后。
 
 ---
 
