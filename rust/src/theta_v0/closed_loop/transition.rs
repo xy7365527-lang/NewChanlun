@@ -69,7 +69,7 @@ pub struct AssemblyEvent {
     /// 事件字母表原只承载 `parse_event`（解析层只需 rising 布尔——分型/笔与价格幅度无关），价格幅度
     /// 在到达账本前被投影掉（codex 审计丢弃点1/2）。补桥在**账本层**（非解析层）承载幅度：`price` 由
     /// 成交侧（`schedule_adapter` 的 `affordable = free/price` 现金约束）与重估侧（`transition_adapter`
-    /// 的 `Revalue` 浮盈入账）消费。`price=1`=单位价归一（L0 同价模型，值模型退化为旧单位模型）；
+    /// 的 `Revalue` 诊断高水位推进，codex R3 C' 后零承重）消费。`price=1`=单位价归一（L0 同价模型，值模型退化为旧单位模型）；
     /// `price=0`=不可交易 bar（无成交、无重估）。
     pub price: i64,
 }
@@ -344,10 +344,11 @@ fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> O
 /// ★诚实标注（codex R3）：T **只声明闭环状态转移全定义**（产出确定的下一态），**不**声明该转移
 /// 盈利/最优/实盘有效（L3）。
 ///
-/// ★三阶段推进（GAP3 修复）：base tw_step（订单派生事件）后，再经 [`stage_progression`]（barrier-gated）
-/// 派生**阶段推进事件**并 tw_step 一次——stage_progression **仅在有 sound 资金源**（cash-tight
-/// 退本金 w≤free）时推进；L0 同价 funded campaign 下无源 ⟹ 恒不推进（EarningShares 结构不可达，见
-/// `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）。两个 tw_step 都保 TW 守恒 +
+/// ★三阶段推进（GAP3 修复 + codex R3 C' 终局裁定）：base tw_step（订单派生事件）后，再经诊断重估步
+/// （只推进 hwm_gain，零承重）与 [`stage_progression`]（barrier-gated）各 tw_step 一次——stage_progression
+/// **仅在有 sound 资金源**（cash-tight 退本金 w≤free）时推进；浮盈经 hwm_gain 诊断不入 free（C'），故 L0
+/// 同价与 L2 变价下均无非回补资金源 ⟹ 恒不推进（EarningShares 结构不可达，见
+/// `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）。各 tw_step 都保 TW 守恒 +
 /// stage 单向 + OQ-9 gate + 出口现金-sound 检查。
 ///
 /// ★★codex R3 §9.3（release 语义）：两道 gate（OQ-9 + 现金-sound）从 `assert!` panic 改为
@@ -370,28 +371,29 @@ pub fn transition_adapter(
     }
     // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 值转移）。
     let tw_after_order = tw_step(&x.tw_state, o.tw_event);
-    // ★★GAP3 补桥重估步（丢弃点1/2/3 联合修复：价格幅度打通到 TW 账本）：把外生市价浮盈入账为可分配
-    // 权益。unrealized = positions·price − holding（成本基）；只对**超过 hwm_gain 高水位的增量**派
-    // `Revalue(credit)`，credit = max(0, unrealized − hwm_gain) ⟹ free 单调不减于重估侧 ⟹ **free≥0**
-    // （价格回撤不透支现金，出口 cash-sound gate 不触发）。语义分层：
-    // - price=1（L0 单位价归一）⟹ holding=成本基=positions·1 ⟹ unrealized=0 ⟹ credit=0 ⟹ Revalue 不派发
-    //   ⟹ **退化为旧 L0 守恒语义**（TW 守恒，结构不可达定理不受影响）。
-    // - price>1 且浮盈创新高（L2 变价）⟹ credit>0 ⟹ Revalue 使 TW 增 credit ⟹ free 累积 ⟹ 三阶段机可
-    //   推进（达 EarningShares 的可达通道，acc-GAP3）。
+    // ★★GAP3 桥重估步（codex R3 C' 终局裁定：hwm_gain 降为纯诊断，零承重）：价格幅度管线保留（§5.4），
+    // 但重估浮盈**只推进诊断高水位 hwm_gain**，**不入账 free/cum_net_cash，不驱动 stage_progression**。
+    // unrealized = positions·price − holding（成本基）；只对**超过 hwm_gain 高水位的增量**派 `Revalue(delta)`，
+    // delta = max(0, unrealized − hwm_gain)。Revalue 现为诊断-only（保 TW 守恒），故 free 恒不受重估影响 ⟹
+    // stage_progression 只在真实卖出现金源（ShortDiff 回流）可 sound 退本金时推进：
+    // - price=1（L0 单位价归一）⟹ unrealized=0 ⟹ delta=0 ⟹ Revalue 不派发（退化为守恒单位模型）。
+    // - price>1 浮盈创新高（L2 变价）⟹ delta>0 ⟹ 只推进诊断 hwm_gain，free/stage 不变 ⟹ EarningShares
+    //   在 L0/L2 均**结构不可达**（GAP3「∃t TStage=III」恢复 FALSIFIED——codex R3 C'：无非回补资金源）。
     let tw_after_revalue = if e.price > 0 {
         let unrealized = (o.target_pos as i64) * e.price - tw_after_order.holding;
-        let credit = (unrealized - tw_after_order.hwm_gain).max(0);
-        if credit > 0 {
-            tw_step(&tw_after_order, TwEvent::Revalue(credit))
+        let hwm_delta = (unrealized - tw_after_order.hwm_gain).max(0);
+        if hwm_delta > 0 {
+            tw_step(&tw_after_order, TwEvent::Revalue(hwm_delta))
         } else {
             tw_after_order
         }
     } else {
         tw_after_order
     };
-    // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning。stage_progression 在重估后的态
-    // 上评估——L2 浮盈入 free 后满足「足额退本金 free≥recover_target」时推进；L0 同价（credit=0）下无源 ⟹
-    // 恒不推进（照实不可达）。
+    // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning。stage_progression 在诊断重估后的
+    // 态上评估——但 hwm_gain 诊断不入 free（codex R3 C'），故推进只依赖真实卖出现金回流的 sound free；
+    // L0 同价与 L2 变价下浮盈均不入 free ⟹ 「足额退本金 free≥recover_target」不因浮盈满足 ⟹ 恒不推进
+    // （EarningShares 结构不可达，GAP3「∃t TStage=III」FALSIFIED——codex R3 C' 终局裁定）。
     let tw_next = match stage_progression(policy, &tw_after_revalue, x.risk_mode) {
         Some(stage_event) => {
             // ★codex R3 §9.3：阶段推进事件（RecoverCapital/EnterEarning）非法 ⟹ Err（RecoverCapital

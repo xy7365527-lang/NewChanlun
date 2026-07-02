@@ -1817,17 +1817,17 @@ mod tests {
 
         // ★双账本不变量在闭环每步保持（终态仍满足）。
         assert!(final_state.ledger_state.inv_holds(), "闭环终态保 R=Π-A-W");
-        // ★GAP3 补桥后：run_closed_loop 注资额 = 首个可交易市价（closes[0]=1000）=notional_in。TW 不再
-        // 守恒（价格重估浮盈 hwm_gain 入账）——上行波动（峰值 1050）使 hwm_gain=50 入 free。TW 恒等分解
-        // `tw() = notional_in + hwm_gain`（六守恒构造子 + Revalue(hwm) 的净效应）。
+        // ★codex R3 C' 终局裁定后：run_closed_loop 注资额 = 首个可交易市价（closes[0]=1000）=notional_in。
+        // hwm_gain 降为纯诊断（零承重，不入 free）⟹ **TW 守恒** tw()=notional_in（诊断浮盈不进 TW 三量）。
+        // hwm_gain 仍如实追踪浮盈峰值（上行 1050 ⟹ 峰值 50），但只作可观测诊断，不入账 free。
         assert_eq!(final_state.tw_state.notional_in, 1000, "注资额 = 首个可交易市价 closes[0]");
         assert_eq!(
             final_state.tw_state.tw(),
-            final_state.tw_state.notional_in + final_state.tw_state.hwm_gain,
-            "TW 恒等分解：tw()=notional_in+hwm_gain（补桥后 Revalue 使 TW 非守恒）"
+            final_state.tw_state.notional_in,
+            "TW 守恒：tw()=notional_in（C' 后 Revalue 诊断-only，浮盈不入 TW）"
         );
-        assert_eq!(final_state.tw_state.hwm_gain, 50, "上行峰值 1050 ⟹ 1·(1050−1000)=50 浮盈入账高水位");
-        assert!(final_state.tw_state.tw() > final_state.tw_state.notional_in, "价格重估使 TW>注资额");
+        assert_eq!(final_state.tw_state.hwm_gain, 50, "诊断高水位如实追踪上行峰值 1050 ⟹ 1·(1050−1000)=50");
+        assert_eq!(final_state.tw_state.free, 0, "free 恒 0（诊断浮盈不入账 free，承重已移除）");
         // OQ-9 gate：schedule_adapter 不开 legacy 腿 ⟹ open_legacy_legs 恒 0。
         assert_eq!(final_state.tw_state.open_legacy_legs, 0, "闭环终态 OQ-9 gate 保持");
 
@@ -1861,20 +1861,19 @@ mod tests {
         assert!(final_state.ledger_state.inv_holds(), "终态保恒等");
     }
 
-    /// ★★GAP3 补桥后：`run_closed_loop` 在**有界振荡**价格流上 EarningShares **仍不触达**——照实
-    /// （161/no-workaround），但机制随补桥更新：不再是「TW 守恒」，而是「重估浮盈高水位不足足额退本金」。
+    /// ★★codex R3 C' 终局裁定后：`run_closed_loop` 在**有界振荡**价格流上 EarningShares **不触达**——照实
+    /// （161/no-workaround）。C' 移除 hwm_gain 棘轮承重后，机制恢复为「TW 守恒 + 浮盈只作诊断不入 free」。
     ///
-    /// **补桥前后对照**：补桥前 EarningShares 不可达因 TW 守恒（价格幅度被投影掉，holding=1 单位永达不到 Q）。
-    /// 补桥后引擎消费真实市价：
+    /// **机制（C' 后）**：引擎消费真实市价，但重估浮盈**只推进诊断高水位，不入账 free**：
     /// - **建仓值模型**：首 bar close=1000 建 1 单位，holding=1000（成本基）=notional_in（注资额=首市价）。
-    /// - **价格重估**：每 bar 派 `Revalue(credit)`，credit=浮盈超高水位增量。有界振荡（closes∈[1000,1060]）⟹
-    ///   浮盈峰值 = 1·(1060−1000)=60 ⟹ hwm_gain 封顶 60。
+    /// - **诊断重估**：每 bar 派 `Revalue(delta)` 只推进 hwm_gain。有界振荡（closes∈[1000,1060]）⟹
+    ///   浮盈峰值 = 1·(1060−1000)=60 ⟹ hwm_gain 封顶 60（**纯诊断，不入 free**）。
     /// - **足额退本金门**：CostReduction→CapitalRecovered 需 `free ≥ recover_target = notional_in = 1000`。
-    ///   而 free = hwm_gain = 60 ≪ 1000 ⟹ 永不足额退本金 ⟹ stage 恒 CostReduction。
+    ///   而 free 恒 0（诊断浮盈不入 free，无真实卖出现金回流）⟹ 永不足额退本金 ⟹ stage 恒 CostReduction。
     ///
-    /// **结论（照实）**：有界振荡价格的重估浮盈（60）不足以退回本金（1000），三阶段不推进——EarningShares
-    /// 不可达 = 照实结论（非 bug）。达 EarningShares 需**持续升值**（价格 ≥ 2×建仓价，使 hwm_gain ≥ notional_in）——
-    /// 见 `price_magnitude_drives_tw_closed_loop`（violent 升值达 EarningShares）与 L2 真实 BTC 可达性回测。
+    /// **结论（照实，FALSIFIED）**：合法账本语义下无非回补资金源，三阶段不推进——EarningShares 结构不可达
+    /// （GAP3「∃t TStage=III」FALSIFIED，codex R3 C'）。达 EarningShares 需重装「已实现利润」入账/可正可负
+    /// MTM 账本并重新提交裁决（见 `price_magnitude_drives_diagnostic_hwm_not_tw_closed_loop` 与 L2 BTC 不可达回测）。
     #[test]
     fn closed_loop_earning_shares_not_reached_l0_honest_gap3() {
         use super::super::super::strategy::ledger::TStage;
@@ -1894,17 +1893,16 @@ mod tests {
         assert_eq!(final_state.tw_state.holding, 1000, "holding=成本基=1 单位×首市价 1000（值模型）");
         assert_eq!(final_state.tw_state.notional_in, 1000, "注资额=首市价 1000");
 
-        // ★照实③：重估浮盈高水位封顶 60（有界振荡峰值），< 本金 1000 ⟹ free 不足足额退本金 ⟹ 未退本金。
-        assert_eq!(final_state.tw_state.hwm_gain, 60, "有界振荡浮盈峰值 1·(1060−1000)=60");
-        assert!(final_state.tw_state.hwm_gain < final_state.tw_state.notional_in, "浮盈 < 本金 ⟹ 退本金门不开");
-        assert!(final_state.tw_state.free >= 0, "free 从不为负（重估只增 free，退本金受 free 上界约束）");
-        assert_eq!(final_state.tw_state.withdrawn, 0, "浮盈不足足额退本金 ⟹ 未退本金（withdrawn=0）");
+        // ★照实③：诊断高水位封顶 60（有界振荡峰值），但 hwm_gain 零承重（不入 free）⟹ free 恒 0 ⟹ 未退本金。
+        assert_eq!(final_state.tw_state.hwm_gain, 60, "诊断浮盈峰值 1·(1060−1000)=60（纯诊断，不入 free）");
+        assert_eq!(final_state.tw_state.free, 0, "free 恒 0（C' 后诊断浮盈不入账 free，承重已移除）");
+        assert_eq!(final_state.tw_state.withdrawn, 0, "无 sound 资金源 ⟹ 未退本金（withdrawn=0）");
 
-        // ★结构不变量仍保持：TW 恒等分解 tw()=notional_in+hwm_gain + R=Π-A-W + OQ-9 gate（legacy 腿=0）。
+        // ★结构不变量仍保持：TW 守恒 tw()=notional_in（诊断浮盈不进 TW）+ R=Π-A-W + OQ-9 gate（legacy 腿=0）。
         assert_eq!(
             final_state.tw_state.tw(),
-            final_state.tw_state.notional_in + final_state.tw_state.hwm_gain,
-            "TW 恒等分解：tw()=notional_in+hwm_gain=1060"
+            final_state.tw_state.notional_in,
+            "TW 守恒：tw()=notional_in=1000（C' 后 Revalue 诊断-only，浮盈不进 TW）"
         );
         assert!(final_state.ledger_state.inv_holds(), "保 R=Π-A-W");
         assert_eq!(final_state.tw_state.open_legacy_legs, 0, "OQ-9 gate 保持（legacy 腿=0）");
@@ -1995,16 +1993,17 @@ mod tests {
         assert!(x1.tw_state.free >= 0, "全程 free≥0（codex 复审#1：买入侧亦受 free 约束）");
     }
 
-    /// ★★GAP3 补桥确证——价格幅度**驱动** TW（决定性，非 ignore，秒级确定）：`run_closed_loop` 现消费
-    /// 真实价格幅度——**同 rising 布尔序列**下，平缓涨与暴涨产出**不同**的 TW 终态与 stage。这是补桥前
-    /// `price_magnitude_invariance_closed_loop_tw`（断言不变性）的**反转**——丢弃点1/2/3 修复后，价格幅度
-    /// 打通到 TW 账本，acc-GAP3「L2 变价逃生舱」不再为空。
+    /// ★★codex R3 C' 终局裁定后——价格幅度**驱动诊断高水位 hwm_gain，但不驱动 TW/stage**（决定性，秒级）：
+    /// `run_closed_loop` 消费真实价格幅度（价格管线保留 §5.4），**同 rising 布尔序列**下平缓涨与暴涨产出
+    /// **不同**的诊断 hwm_gain——但因 hwm_gain 零承重（不入 free），两组 TW 均守恒（=notional_in）且 stage
+    /// 均恒 CostReduction（EarningShares 不可达=FALSIFIED，acc-GAP3「∃t TStage=III」恢复未证成）。
     ///
     /// 对照设计：两组 rising 布尔序列相同（隔 bar 涨），仅幅度不同：
-    /// - gentle（涨到 1001）：浮盈峰值 1 ≪ 本金 1000 ⟹ stage=CostReduction（退本金门不开）。
-    /// - violent（涨到 100000）：浮盈峰值 99000 ≥ 本金 1000 ⟹ 足额退本金 → EnterEarning → **EarningShares**。
+    /// - gentle（涨到 1001）：诊断浮盈峰值 1 ⟹ hwm_gain=1。
+    /// - violent（涨到 100000）：诊断浮盈峰值 99000 ⟹ hwm_gain=99000。
+    /// 两组 hwm_gain 不同（价格幅度驱动诊断），但 stage 均 CostReduction、TW 均 =notional_in（承重移除）。
     #[test]
-    fn price_magnitude_drives_tw_closed_loop() {
+    fn price_magnitude_drives_diagnostic_hwm_not_tw_closed_loop() {
         use super::super::super::strategy::ledger::TStage;
         let n = 64usize;
         let gentle: Vec<Bar> = (0..n)
@@ -2020,28 +2019,29 @@ mod tests {
         assert_eq!(rising_of(&gentle), rising_of(&violent), "对照前提：两组 rising 布尔序列相同");
         let a = run_closed_loop(&gentle, 1.0e6).expect("非空");
         let b = run_closed_loop(&violent, 1.0e6).expect("非空");
-        // ★核心确证：同 rising 序列下价格幅度产出**不同** TW 终态 ⟹ 引擎消费价格幅度（补桥打通）。
-        assert_ne!(a.tw_state, b.tw_state, "价格幅度**驱动** TW 终态（补桥反转：不再是不变性）");
-        assert!(b.tw_state.tw() > a.tw_state.tw(), "暴涨的 TW（重估浮盈）> 平缓涨的 TW");
-        // gentle：浮盈不足 ⟹ 停 CostReduction；TW=notional_in+hwm_gain。
-        assert_eq!(a.tw_state.stage, TStage::CostReduction, "平缓涨浮盈(1)<本金(1000) ⟹ 停 CostReduction");
-        assert_eq!(a.tw_state.tw(), a.tw_state.notional_in + a.tw_state.hwm_gain, "gentle TW 恒等分解");
-        // violent：浮盈足额 ⟹ 达 EarningShares（本金已退，withdrawn=notional_in）。
-        assert_eq!(b.tw_state.stage, TStage::EarningShares, "暴涨浮盈(99000)≥本金(1000) ⟹ 达 EarningShares");
-        assert_eq!(b.tw_state.withdrawn, b.tw_state.notional_in, "达 EarningShares 前本金全退");
-        assert!(b.tw_state.tw() > b.tw_state.notional_in, "重估浮盈使 TW>本金");
-        assert!(b.tw_state.free >= 0 && a.tw_state.free >= 0, "两组 free 全程≥0（重估只增 free）");
+        // ★核心确证：同 rising 序列下价格幅度产出**不同**诊断 hwm_gain ⟹ 引擎消费价格幅度（管线保留 §5.4）。
+        assert_ne!(a.tw_state, b.tw_state, "价格幅度驱动诊断 hwm_gain（tw_state 因 hwm_gain 不同而异）");
+        assert!(b.tw_state.hwm_gain > a.tw_state.hwm_gain, "暴涨诊断高水位 > 平缓涨（价格幅度驱动诊断）");
+        // ★C' 承重移除：两组 stage 均 CostReduction（浮盈不入 free ⟹ 退本金门不开），TW 均守恒 =notional_in。
+        assert_eq!(a.tw_state.stage, TStage::CostReduction, "gentle：诊断浮盈零承重 ⟹ 停 CostReduction");
+        assert_eq!(b.tw_state.stage, TStage::CostReduction, "violent：诊断浮盈零承重 ⟹ 停 CostReduction（EarningShares 不可达=FALSIFIED）");
+        assert_eq!(a.tw_state.tw(), a.tw_state.notional_in, "gentle TW 守恒 =notional_in（诊断不进 TW）");
+        assert_eq!(b.tw_state.tw(), b.tw_state.notional_in, "violent TW 守恒 =notional_in（承重移除，浮盈不进 TW）");
+        assert_eq!(a.tw_state.withdrawn, 0, "gentle 未退本金（无 sound 资金源）");
+        assert_eq!(b.tw_state.withdrawn, 0, "violent 未退本金（诊断浮盈不构成退本金资金源）");
+        assert!(b.tw_state.free == 0 && a.tw_state.free == 0, "两组 free 恒 0（诊断浮盈不入账 free）");
     }
 
-    /// ★★L2 可达性实证（#[ignore]，真实 BTC 变价数据）：补桥后把 closed_loop 三阶段闭环接真实 BTC 变价
-    /// 数据流，验收 acc-GAP3 判据「∃t TStage=III」在 L2 有效域**可达**（EarningShares count>0）。
-    /// 复算：`cargo test --lib l2_btc_earning_shares_reachability -- --ignored --nocapture`
-    /// （默认全历史；`ECON_L2_MAX_BARS=N` 可截尾提速）。run_closed_loop 是 O(n)（每 bar O(1) hybrid_step）。
-    /// 补桥前 count=0（价格幅度被投影掉）；补桥后价格重估浮盈入账，BTC 长期升值使 hwm_gain≥本金 ⟹ 足额
-    /// 退本金 → EnterEarning → **count>0**（acc-GAP3 字面 PASS）。
+    /// ★★L2 不可达实证（#[ignore]，真实 BTC 变价数据——codex R3 C' 终局裁定后）：closed_loop 三阶段闭环
+    /// 接真实 BTC 变价数据流，acc-GAP3 判据「∃t TStage=III」在合法账本语义下**恢复 FALSIFIED**
+    /// （EarningShares count=0）。复算：`cargo test --lib l2_btc_earning_shares_unreachable_hwm_debearing
+    /// -- --ignored --nocapture`（默认全历史；`ECON_L2_MAX_BARS=N` 可截尾）。run_closed_loop 是 O(n)。
+    /// C' 前 count=1（hwm_gain 棘轮把浮盈入 free 驱动退本金，被裁定为 PDF p8③ 语义回补）；C' 后 hwm_gain
+    /// 降为纯诊断（不入 free），即便 BTC 长期升值使诊断 hwm_gain≫本金，free 恒不受浮盈影响 ⟹ 无 sound
+    /// 退本金资金源 ⟹ stage 恒 CostReduction ⟹ **count=0**（FALSIFIED，直到「已实现利润」/MTM 账本重装）。
     #[test]
     #[ignore]
-    fn l2_btc_earning_shares_reachability() {
+    fn l2_btc_earning_shares_unreachable_hwm_debearing() {
         use super::super::super::strategy::ledger::TStage;
         let config = ThetaConfig::default();
         let ds_full = match super::super::data::load_by_symbol("BTC", &config) {
@@ -2064,11 +2064,12 @@ mod tests {
             "[L2-BTC] bars={} (全量{}) final_stage={:?} EarningShares_count={} | TW={} free={} holding={} withdrawn={} notional_in={} cum_net_cash={} hwm_gain={}",
             bars.len(), n_full, s.stage, count, s.tw(), s.free, s.holding, s.withdrawn, s.notional_in, s.cum_net_cash, s.hwm_gain,
         );
-        // ★acc-GAP3 验收：L2 真实 BTC 变价数据上 EarningShares 可达（count>0）。
-        assert!(count > 0, "补桥后 L2 变价 BTC 应达 EarningShares（count>0）——实测 final_stage={:?}", s.stage);
-        // 达 EarningShares ⟹ 本金全退 + 重估浮盈使 TW>本金（非守恒，补桥语义）。
-        assert!(s.withdrawn >= s.notional_in, "达 EarningShares 前本金全退（withdrawn≥notional_in）");
-        assert!(s.tw() > s.notional_in, "重估浮盈使 TW>本金（补桥非守恒语义）");
+        // ★acc-GAP3 恢复 FALSIFIED（codex R3 C'）：L2 真实 BTC 变价数据上 EarningShares 不可达（count=0）。
+        assert_eq!(count, 0, "C' 后 L2 BTC EarningShares 不可达（count=0，FALSIFIED）——实测 final_stage={:?}", s.stage);
+        assert_eq!(s.stage, TStage::CostReduction, "hwm_gain 诊断零承重 ⟹ stage 恒 CostReduction（无 sound 资金源）");
+        // ★TW 守恒（诊断浮盈不进 TW 三量）；诊断 hwm_gain 可远超本金但不入 free ⟹ 未退本金。
+        assert_eq!(s.tw(), s.notional_in, "TW 守恒 tw()=notional_in（C' 后 Revalue 诊断-only）");
+        assert_eq!(s.withdrawn, 0, "无 sound 退本金资金源 ⟹ 未退本金（withdrawn=0）");
     }
 
     /// run_theta_v0 携带闭环终态证据（closed_loop_final 非 None ⟺ bars 非空）。
@@ -2087,14 +2088,14 @@ mod tests {
         // 闭环态每 bar 喂回：bar_count = 输入 bar 数。
         assert_eq!(cl.micro_state.bar_count, 20, "run_theta_v0 内闭环驱动 20 bar");
         assert!(cl.ledger_state.inv_holds(), "回测内闭环保 R=Π-A-W");
-        // ★GAP3 补桥后：注资额=首市价 closes[0]=1000=notional_in；有界振荡（1000-1020）浮盈峰值
-        // 1·(1020−1000)=20 入账 ⟹ TW 恒等分解 tw()=notional_in+hwm_gain=1020（非守恒，浮盈不足退本金）。
+        // ★codex R3 C' 终局裁定后：注资额=首市价 closes[0]=1000=notional_in；有界振荡（1000-1020）诊断
+        // 浮盈峰值 1·(1020−1000)=20（纯诊断，不入 free）⟹ TW 守恒 tw()=notional_in=1000（承重已移除）。
         assert_eq!(cl.tw_state.notional_in, 1000, "注资额=首市价 1000");
-        assert_eq!(cl.tw_state.hwm_gain, 20, "有界振荡浮盈峰值 20");
+        assert_eq!(cl.tw_state.hwm_gain, 20, "诊断浮盈峰值 20（纯诊断，不入 free）");
         assert_eq!(
             cl.tw_state.tw(),
-            cl.tw_state.notional_in + cl.tw_state.hwm_gain,
-            "TW 恒等分解 tw()=notional_in+hwm_gain=1020"
+            cl.tw_state.notional_in,
+            "TW 守恒 tw()=notional_in=1000（C' 后 Revalue 诊断-only，浮盈不进 TW）"
         );
     }
 

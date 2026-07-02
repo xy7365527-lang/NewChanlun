@@ -133,16 +133,17 @@ pub struct TwState {
     pub stage: TStage,
     pub open_legacy_legs: u32,
     pub cum_net_cash: i64,
-    /// 价格重估已入账高水位 `hwm_gain`（GAP3 补桥：非对称 `Revalue` 事件的记账基线）。
+    /// 未实现浮盈高水位 `hwm_gain`（**纯诊断字段，零承重**——codex R3 C' 终局裁定）。
     ///
-    /// 累计已通过 [`TwEvent::Revalue`] 计入 `free` 的**未实现浮盈高水位**（Σunits·c − 成本基
-    /// 的历史最大值，下界 0）。桥消费者（`transition_adapter`）每 bar 计算 `unrealized =
-    /// positions·c − holding_cost`，只对**超过 hwm_gain 的增量**派 `Revalue(credit)`（credit≥0），
-    /// 从而 `free` 单调不减于重估侧 ⟹ **free≥0 全路径成立**（不因价格回撤透支现金）。
+    /// 累计的**未实现浮盈高水位**（Σunits·c − 成本基的历史最大值，下界 0），由 [`TwEvent::Revalue`]
+    /// 逐 bar 推进。**只作可观测诊断**——记录「曾见过的浮盈峰值」，**不入账 `free`/`cum_net_cash`，
+    /// 不驱动 `stage`（RecoverCapital/EnterEarning）**。桥消费者（`transition_adapter`）每 bar 计算
+    /// `unrealized = positions·c − holding_cost`，只对超过 hwm_gain 的增量派 `Revalue(delta)` 推进高水位。
     ///
-    /// ★诚实标注（formalization-validity-domain）：这是**外生市价浮盈的高水位口径**（L0/L1 结构桥），
-    /// **不**声明为已卖出的实现现金，**不**声明盈利/实盘有效——它把「见过的浮盈峰值」当可分配权益
-    /// 计入 TW，使三阶段机在 L2 变价数据上可推进（acc-GAP3 判据「∃t TStage=III」的可达通道）。
+    /// ★codex R3 C' 终局裁定（PDF p8③ 禁止语义回补）：旧版把 hwm_gain 高水位棘轮入账 `free`（可分配
+    /// 权益）并驱动足额退本金→EnterEarning，被裁定为**语义回补**（回撤后仍保留已入账解释权 = 延续被否定的
+    /// 最低条件）。承重链路已移除——hwm_gain 降为纯诊断，GAP3「∃t TStage=III」可达性恢复 **FALSIFIED**
+    /// （合法账本语义下无非回补资金源，直到「已实现利润」/可正可负 MTM 账本重装并重新提交裁决）。
     pub hwm_gain: i64,
 }
 
@@ -161,12 +162,12 @@ impl TwState {
         }
     }
 
-    /// 总财富 `TW = free + holding + withdrawn`（契约锚 `Origin.TotalWealth.TWState.tw`，守恒量）。
+    /// 总财富 `TW = free + holding + withdrawn`（契约锚 `Origin.TotalWealth.TWState.tw`，**守恒量**）。
     ///
-    /// ★GAP3 补桥后语义变更：`tw()` 在 L0（同价/`Revalue` 从不派）路径上仍**守恒**（六构造子保 TW）；
-    /// 在 L2（变价 + `Revalue` 派发）路径上**按设计非守恒**——`Revalue(g)` 使 `tw()` 增 g（价格重估浮盈
-    /// 入账）。守恒定理 [`tw_step_preserves_tw`] 仅覆盖六守恒构造子，`Revalue` 的非对称效应由独立引理
-    /// [`tw_step_revalue_adds_gain`] 刻画（六构造子定理不受影响）。
+    /// ★codex R3 C' 终局裁定后：全七构造子（含 `Revalue`）**保 TW 守恒**——`Revalue(g)` 只推进诊断
+    /// 高水位 `hwm_gain`（不属 TW 三量），不入账 `free`，故 `tw()` 恒守恒。守恒定理 [`tw_step_preserves_tw`]
+    /// 覆盖全部资金转移构造子；`Revalue` 的诊断-only 效应（hwm_gain 单增，TW 不变）由独立引理
+    /// [`tw_step_revalue_diagnostic_only`] 刻画。
     pub fn tw(&self) -> i64 {
         self.free + self.holding + self.withdrawn
     }
@@ -323,12 +324,12 @@ impl RiskPolicy {
 /// - `EnterEarning`：本金全退后切 EarningShares（单向不可逆相变，无资金变动）。
 /// - `ClearCampaign`：campaign 结束（withdrawn→free 归还，stage 重置 CostReduction，legacy
 ///   腿/cum_net_cash 清零）。
-/// - `Revalue(g)`（GAP3 补桥，**第 7 个非对称构造子**）：价格重估浮盈入账——`free += g`
-///   （可分配权益增加）、`cum_net_cash += g`（并入净现金口径，桥接 R 账本已实现口径）、
-///   `hwm_gain += g`（重估高水位推进）。**非守恒**：TW 增 g（`g≥0` 生产约束）。前六构造子保 TW
-///   守恒（[`tw_step_preserves_tw`]），本构造子的非对称效应由**独立引理**
-///   [`tw_step_revalue_adds_gain`] 刻画——**不塞进 `ShortDiff`**（塞进会使守恒定理变假）。
-///   ★诚实：g 是外生市价浮盈高水位增量（L0/L1 结构桥），非已卖出实现现金，非盈利声明。
+/// - `Revalue(g)`（**第 7 个构造子，纯诊断——codex R3 C' 终局裁定**）：只推进诊断高水位
+///   `hwm_gain += g`（未实现浮盈峰值记录），**不入账 `free`/`cum_net_cash`，不驱动 `stage`**。
+///   **保 TW 守恒**（TW 三量 free/holding/withdrawn 均不变，`g≥0` 生产约束）。诊断-only 效应由独立
+///   引理 [`tw_step_revalue_diagnostic_only`] 刻画。★codex R3 C'：旧版 `Revalue` 把浮盈棘轮入账
+///   `free` 并驱动足额退本金→EnterEarning，被裁定为 PDF p8③ 语义回补（回撤不撤销的已入账解释权），
+///   承重已移除；hwm_gain 仅供可观测诊断，g 是外生市价浮盈增量，非已实现现金，非盈利声明。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TwEvent {
     ShortDiff(i64),
@@ -337,7 +338,7 @@ pub enum TwEvent {
     RecoverCapital(i64),
     EnterEarning,
     ClearCampaign,
-    /// 价格重估浮盈入账（GAP3 补桥，非对称/非守恒；见枚举文档与 [`tw_step_revalue_adds_gain`]）。
+    /// 价格重估诊断高水位推进（codex R3 C' 纯诊断，保 TW 守恒；见枚举文档与 [`tw_step_revalue_diagnostic_only`]）。
     Revalue(i64),
 }
 
@@ -416,13 +417,11 @@ pub fn tw_step(s: &TwState, e: TwEvent) -> TwState {
             cum_net_cash: 0,
             hwm_gain: 0,
         },
-        // ★GAP3 补桥（非对称/非守恒）：价格重估浮盈入账。free += g（可分配权益）、cum_net_cash += g
-        // （净现金口径，桥接 R 账本已实现口径）、hwm_gain += g（重估高水位推进）。**TW 增 g**——与
-        // 前六守恒构造子正交，守恒定理 tw_step_preserves_tw 不覆盖本 arm；非对称效应见独立引理
-        // tw_step_revalue_adds_gain。g 由 transition_adapter 以「浮盈超高水位增量」派发（g≥0 生产约束）。
+        // ★codex R3 C' 终局裁定（PDF p8③ 禁止语义回补）：Revalue 降为**纯诊断**——只推进诊断高水位
+        // hwm_gain += g，**不入账 free/cum_net_cash，不驱动 stage**。TW 三量不变 ⟹ **保 TW 守恒**（承重
+        // 链路已移除：旧版 free += g 的浮盈棘轮入账被裁定为语义回补）。诊断-only 效应见独立引理
+        // tw_step_revalue_diagnostic_only。g 由 transition_adapter 以「浮盈超高水位增量」派发（g≥0）。
         TwEvent::Revalue(g) => TwState {
-            free: s.free + g,
-            cum_net_cash: s.cum_net_cash + g,
             hwm_gain: s.hwm_gain + g,
             ..*s
         },
@@ -640,7 +639,7 @@ mod tests {
             hwm_gain: 0,
         };
         let tw0 = s0.tw();
-        // ★前六守恒构造子（不含 Revalue）——守恒定理的覆盖域严格是这六个。
+        // ★codex R3 C' 后全七守恒构造子（含 Revalue 诊断-only）——守恒定理覆盖全部资金转移构造子。
         let events = [
             TwEvent::ShortDiff(100),   // holding→free
             TwEvent::ShortDiff(-50),   // free→holding
@@ -648,6 +647,7 @@ mod tests {
             TwEvent::CloseShareLeg(-20), // profit 进 cum_net_cash，不进 TW
             TwEvent::RecoverCapital(200), // free→withdrawn
             TwEvent::EnterEarning,     // 无资金变动
+            TwEvent::Revalue(30),      // 诊断高水位推进，TW 三量不变（C' 后保守恒）
         ];
         let mut s = s0;
         for e in events {
@@ -660,14 +660,13 @@ mod tests {
         assert_eq!(s_clear.withdrawn, 0);
     }
 
-    /// ★★GAP3 补桥新引理 `tw_step_revalue_adds_gain`（第 7 个非对称构造子的独立守恒破坏刻画）。
+    /// ★★codex R3 C' 终局裁定后 `tw_step_revalue_diagnostic_only`（第 7 个构造子纯诊断，保 TW 守恒）。
     ///
-    /// 与 [`tw_step_preserves_tw`] 正交：`Revalue(g)` **不守恒**——`tw()` 增 g（价格重估浮盈入账），
-    /// 同时 `free`/`cum_net_cash`/`hwm_gain` 各增 g，`holding`/`withdrawn`/`notional_in`/`stage`/
-    /// `open_legacy_legs` 不变。这单独证明「不许把重估塞进 `ShortDiff`」的必要性：`ShortDiff` 保 TW
-    /// 守恒（六构造子定理），重估破坏守恒——二者语义不可合并（合并会使守恒定理变假）。
+    /// `Revalue(g)` **只推进诊断高水位 hwm_gain += g**——**不入账 free/cum_net_cash，不驱动 stage**，
+    /// TW 三量（free/holding/withdrawn）全不变 ⟹ **保 TW 守恒**。这单独证明承重链路已移除：旧版
+    /// `Revalue` 把浮盈棘轮入账 free 并驱动足额退本金（被裁定为 PDF p8③ 语义回补），现降为纯诊断。
     #[test]
-    fn tw_step_revalue_adds_gain() {
+    fn tw_step_revalue_diagnostic_only() {
         let s0 = TwState {
             free: 100,
             holding: 500,
@@ -681,12 +680,12 @@ mod tests {
         let tw0 = s0.tw();
         let g = 250;
         let s1 = tw_step(&s0, TwEvent::Revalue(g));
-        // ★非对称：TW 增 g（守恒被设计性破坏）。
-        assert_eq!(s1.tw(), tw0 + g, "Revalue(g) 使 TW 增 g（价格重估浮盈入账）");
-        // free / cum_net_cash / hwm_gain 各增 g；其余分量不变。
-        assert_eq!(s1.free, s0.free + g, "重估浮盈入 free（可分配权益）");
-        assert_eq!(s1.cum_net_cash, s0.cum_net_cash + g, "并入净现金口径（桥接 R 账本）");
-        assert_eq!(s1.hwm_gain, s0.hwm_gain + g, "重估高水位推进 g");
+        // ★保 TW 守恒（承重已移除：Revalue 不再入账 free）。
+        assert_eq!(s1.tw(), tw0, "Revalue(g) 保 TW 守恒（诊断-only，不入账 free）");
+        // 只 hwm_gain 诊断高水位推进 g；free/cum_net_cash/其余分量全不变。
+        assert_eq!(s1.hwm_gain, s0.hwm_gain + g, "诊断高水位推进 g");
+        assert_eq!(s1.free, s0.free, "free 不变（承重移除：浮盈不入可分配权益）");
+        assert_eq!(s1.cum_net_cash, s0.cum_net_cash, "cum_net_cash 不变（不桥接已实现口径）");
         assert_eq!(s1.holding, s0.holding, "holding（成本基）不动");
         assert_eq!(s1.withdrawn, s0.withdrawn, "withdrawn 不动");
         assert_eq!(s1.stage, s0.stage, "stage 不动（重估非阶段推进）");
