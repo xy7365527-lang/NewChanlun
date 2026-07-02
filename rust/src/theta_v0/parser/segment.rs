@@ -411,7 +411,10 @@ pub fn divide_segments(strokes: &[Stroke], config: &ParseConfig) -> Vec<Segment>
 // ============================================================================
 
 /// 增量 segment 状态（bit-exact 对齐 `divide_segments_with_tail`）。
-#[derive(Debug, Clone, PartialEq)]
+///
+/// PartialEq 手写（#93 codex91）：排除 `last_rescan_euf` 纯诊断字段——本轮重扫值不参与状态相等，
+/// 否则 idempotent/bit-exact 对拍会因诊断值差异假发散。
+#[derive(Debug, Clone)]
 pub struct IncrSegments {
     /// confirmed segments 前缀（Rc 共享——`to_result_rc()` O(1) clone 给 `ParseLayer.segments`）。
     segments_rc: Rc<Vec<Segment>>,
@@ -440,6 +443,25 @@ pub struct IncrSegments {
     /// **认识论/性能**（codex 边界条件3）：历史最小值单调非增 ⟹ 若锚定过早、几乎不前移，退化为
     /// O(n²) 全重扫（候选 C 的性能特征）。是否触发由 `earliest_unsealed_from` 前移轨迹实测判定。
     earliest_unsealed_from: Option<usize>,
+    /// #93（codex91 H1/H2 判别，纯诊断，PartialEq 排除）：本次 append 重扫区间 [resume, n) 内新算的
+    /// unsealed 起点（`euf_rescan`，**未**跨 append 取历史最小值）。与持久化 `earliest_unsealed_from`
+    /// 对照区分 H1（本轮仍复现锚点候选 ⟹ 恒 O(n²)）vs H2（本轮 None/前移 ⟹ 持久值已陈旧，
+    /// advancing 变体可退回 O(n)）。生产判定逻辑不消费此字段。
+    last_rescan_euf: Option<usize>,
+}
+
+/// #93：手写 PartialEq——排除 `last_rescan_euf`（纯诊断），其余字段全比（含 production 态
+/// `earliest_unsealed_from`），与旧 derive 行为一致，仅排除新诊断字段。
+impl PartialEq for IncrSegments {
+    fn eq(&self, other: &Self) -> bool {
+        self.segments_rc == other.segments_rc
+            && self.end_indices == other.end_indices
+            && self.pending_start == other.pending_start
+            && self.strokes_len == other.strokes_len
+            && self.confirmed_len == other.confirmed_len
+            && self.last_stroke == other.last_stroke
+            && self.earliest_unsealed_from == other.earliest_unsealed_from
+    }
 }
 
 impl Default for IncrSegments {
@@ -452,6 +474,7 @@ impl Default for IncrSegments {
             confirmed_len: 0,
             last_stroke: None,
             earliest_unsealed_from: None,
+            last_rescan_euf: None,
         }
     }
 }
@@ -499,6 +522,7 @@ impl IncrSegments {
             confirmed_len,
             last_stroke: strokes.last().copied(),
             earliest_unsealed_from: None,
+            last_rescan_euf: None,
         }
     }
 
@@ -533,6 +557,7 @@ impl IncrSegments {
             confirmed_len: _,
             last_stroke: _,
             earliest_unsealed_from: euf_persisted,
+            last_rescan_euf: _,
         } = self;
 
         // #88 frontier 修复（codex #87 修补版 A）：confirmed_bound 回退到
@@ -573,6 +598,7 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
+                        last_rescan_euf: None,
                     };
                 }
                 resume_seg_dir = strokes[resume_seg_start].direction;
@@ -588,6 +614,7 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
+                        last_rescan_euf: None,
                     };
                 }
                 let Some(start) = find_overlap_start(strokes, 0) else {
@@ -599,6 +626,7 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
+                        last_rescan_euf: None,
                     };
                 };
                 resume_seg_start = start;
@@ -674,6 +702,7 @@ impl IncrSegments {
             confirmed_len: keep,
             last_stroke,
             earliest_unsealed_from,
+            last_rescan_euf: euf_rescan,
         }
     }
 
@@ -701,6 +730,13 @@ impl IncrSegments {
     /// #88：当前持久化的 unsealed 起点（性能诊断——前移轨迹/锚定深度实测）。
     pub fn earliest_unsealed_from(&self) -> Option<usize> {
         self.earliest_unsealed_from
+    }
+
+    /// #93（codex91 H1/H2 判别）：本次 append 重扫区间新算的 euf（未持久化历史最小值）。
+    /// 与 `earliest_unsealed_from()` 对照：相等且非 None ⟹ 本轮仍复现锚点（H1）；
+    /// None 或 > 持久值 ⟹ 持久值已陈旧、advancing 可前移（H2）。
+    pub fn last_rescan_euf(&self) -> Option<usize> {
+        self.last_rescan_euf
     }
 }
 

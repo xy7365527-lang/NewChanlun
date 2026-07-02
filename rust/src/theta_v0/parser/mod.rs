@@ -197,6 +197,11 @@ impl<'c> ParseLayerIncr<'c> {
         }
     }
 
+    /// #93（codex91 H1/H2 判别，纯诊断）：最近一次 `append` 重扫区间新算的 euf（未持久化）。
+    pub fn segments_last_rescan_euf(&self) -> Option<usize> {
+        self.incr_segments.last_rescan_euf()
+    }
+
     /// 追加 1 bar，返回该 bar 后的 `ParseLayer`（bit-exact 对齐 `parse_layer(&bars[..=i])`）。
     ///
     /// 内部：增量 inclusion → 增量 fractal → 增量 stroke → 增量 segment → tail 重算。

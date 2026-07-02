@@ -855,6 +855,57 @@ mod profile {
              exp≈2.0 + euf 长期锚定早点（euf_min≈0、rs_max≈segs 全量）⟹ 退化候选C 性能，须上浮重评。");
     }
 
+    /// **★#93 H1/H2 判别探针（codex #91 裁定）**：区分 O(n²) 是内在（H1，锚点候选恒复现）还是
+    /// 持久化陈旧伪影（H2，advancing 变体可救）。
+    ///
+    /// 每 bar 对照持久化 `segments_earliest_unsealed`（euf_p，恒锚 stroke 10）vs 本轮重扫新算
+    /// `segments_last_rescan_euf`（euf_r，未持久化）：
+    /// - **reproduce**：euf_r == euf_p（本轮仍在锚点复现 SecondKind-skip）⟹ 候选真未 resolve。
+    /// - **advanced**：euf_r > euf_p（锚点已 resolve，本轮 min-skip 在更右）⟹ advancing 可前移到 euf_r。
+    /// - **none**：euf_r == None（重扫区间无任何 skip）⟹ advancing 可彻底前移（退回 O(n)）。
+    ///
+    /// 判据（裁定边界）：后期（后 20% bar）reproduce 占比高 ⟹ **H1**（accept O(n²)，收口）；
+    /// 后期 advanced+none 占比高 ⟹ **H2**（advancing 变体需专门 soundness 论证，送 codex 再审）。
+    ///
+    /// **L1**（结构计数，零信息增量，231号）。语义零改动（诊断字段不进生产判定/PartialEq）。
+    #[test]
+    #[ignore = "#93 H1/H2 判别：euf 本轮复现率 + 后期 None 占比；需 CL；--release"]
+    fn euf_h1h2_discriminator_probe_93() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2015-01-01", "2025-06-30");
+        eprintln!("\n===== #93 euf H1/H2 判别探针（CL，euf_persisted vs euf_rescan 本轮）=====");
+        eprintln!("{:>8} | {:>8} {:>8} {:>8} {:>8} | {:>9} {:>9} {:>9} | verdict",
+            "n", "repro", "advanced", "none", "clean", "late_repro", "late_adv", "late_none");
+        for &n in &[50_000usize, 150_000] {
+            if n > oos.bars.len() { eprintln!("(n={n}>{}，跳过)", oos.bars.len()); continue; }
+            let bars = &oos.bars[..n];
+            let mut incr = parser::ParseLayerIncr::new(&config);
+            let (mut repro, mut advanced, mut none, mut clean) = (0usize, 0usize, 0usize, 0usize);
+            let late_from = (n as f64 * 0.8) as usize; // 后 20% bar
+            let (mut l_repro, mut l_adv, mut l_none) = (0usize, 0usize, 0usize);
+            for i in 0..n {
+                let l0 = incr.append(bars[i]);
+                let euf_p = l0.segments_earliest_unsealed;
+                let euf_r = incr.segments_last_rescan_euf();
+                let late = i >= late_from;
+                match (euf_p, euf_r) {
+                    (None, _) => clean += 1,
+                    (Some(_), None) => { none += 1; if late { l_none += 1; } }
+                    (Some(p), Some(r)) if r == p => { repro += 1; if late { l_repro += 1; } }
+                    (Some(_), Some(_)) => { advanced += 1; if late { l_adv += 1; } } // r>p 或 r<p
+                }
+            }
+            let late_n = (l_repro + l_adv + l_none).max(1);
+            let verdict = if l_repro as f64 / late_n as f64 > 0.5 { "H1(恒复现→accept O(n²))" }
+                          else { "H2(可前移→advancing 送 codex)" };
+            eprintln!("{n:>8} | {repro:>8} {advanced:>8} {none:>8} {clean:>8} | {l_repro:>9} {l_adv:>9} {l_none:>9} | {verdict}");
+            use std::io::Write; std::io::stderr().flush().ok();
+        }
+        eprintln!("\n判读：late_repro 占后期变化主导 ⟹ H1（锚点候选恒未 resolve，O(n²) 内在，accept 收口）；\n  \
+             late_none/late_adv 主导 ⟹ H2（持久值陈旧，advancing 变体不持久化历史最小值可退 O(n)，须 codex 专门 soundness 再审，不单方实装）。");
+    }
+
     /// **★诊断（frontier-bit-exact 首发散 bar 定位）：IncrementalClassifier 逐 bar vs 全量**。
     ///
     /// 精确复现生产路径（增量 parser + 增量塔 + cache 跨 bar 连续复用）的**首个** incr≠full bar，
