@@ -252,7 +252,9 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         //   走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高），产 B2/S2。背驰力度由
         //   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
         let mut bsp: Vec<BspPoint> = if is_l0 {
-            signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &close_src)
+            // 生产热路径不消费 force ⟹ 传空 dif/closes_tick（force=None 丢弃 `.1`，BspPoint 逐字段不变
+            // ⟹ GOLDEN/bit-exact 恒等）。离线力度并置走 signal::extract_signals_force（Step1/2）。
+            signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &[], &[], &close_src).0
         } else {
             Vec::new()
         };
@@ -1091,7 +1093,8 @@ pub fn classify_with_tower_incremental(
         } else {
             let mut b: Vec<BspPoint> = if is_l0 {
                 stage_profile::time("07a_extract_signals_l0", || {
-                    signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, &close_src)
+                    // 增量热路径不消费 force ⟹ 空 dif/closes_tick（force=None 丢弃 `.1`，bit-exact 恒等）。
+                    signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, &[], &[], &close_src).0
                 })
             } else {
                 Vec::new()

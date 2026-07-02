@@ -311,6 +311,19 @@ pub struct ForceFeatures {
     pub price_speed: f64,
 }
 
+/// A/C 段力度 proxy 对（趋势背驰的两段并置——`Weak_Θ(seg_a, seg_c)` 用它比较）。
+///
+/// 一类候选（趋势背驰）由 A 段（倒数第二中枢离开）+ C 段（破最后中枢）配对，每段一个
+/// [`ForceFeatures`]。这是 selector Weak_Θ 力度门 / 离线多 proxy 交叉验证（W-VERIFY #13）的输入。
+/// **认识论 L1**：段坐标→proxy 是确定性算术；「哪个 proxy 有 alpha」是 L2/L3（本层不声明）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForceProxies {
+    /// A 段（前趋势离开段）力度。
+    pub seg_a: ForceFeatures,
+    /// C 段（破最后中枢段）力度。
+    pub seg_c: ForceFeatures,
+}
+
 /// DIF 段峰值绝对值（黄白线主判据原语，第17课；移植旧引擎 `dif_peak_for_range` 到 theta_v0）。
 ///
 /// `dif` 是 `compute_macd(...).dif` 序列（黄白线，与 hist 同坐标系）。`[start,end]` 闭区间 bar
