@@ -398,6 +398,14 @@ struct LevelCache {
     /// per-bar 全量 `project_to_units` 递归 `rmove.lo()/hi()` 整棵子树 O(nodes)/bar=O(n²)。
     /// cascade_reset（前缀重排）⟹ 与 upper_moves 同步清空（line 850 旁）重投影。
     projected_units: Vec<UnitRange>,
+    /// ★07b frontier 门控（A 泳道 resume 家族，与 A3/07c 同族）：confirmed 前缀 `upper_moves` 的第二类
+    /// B2/S2 输出缓存。`extract_second_for_level` 每 memo-miss 全塔重扫 O(U)=O(n²)，但每个 parent 的 B2
+    /// 只依赖该 parent（`c1`/subs）+ hist/close_src——confirmed 前缀 parent 的源区间落稳定前缀、hist 前缀
+    /// append-only 稳定 ⟹ 其 B2 跨 bar 不变。缓存前缀 B2（稀疏：多数 parent 产 0 个 B2），每 bar 只重算
+    /// frontier tail。cascade_reset（前缀重排）⟹ 同步清空（与 cached_bsp 一致，line 1119 旁）。
+    cached_second: Vec<BspPoint>,
+    /// `cached_second` 已覆盖的 `upper_moves` 前缀数（推进锚，= 上次门控的 prefix_count）。
+    cached_second_count: usize,
 }
 
 /// 增量塔缓存（跨 bar 跨级复用）：每级 `LevelCache` + L0 段账本快照长度 + MACD 增量状态。
@@ -1118,6 +1126,8 @@ pub fn classify_with_tower_incremental(
             lc.cached_outcome = None;
             Rc::make_mut(&mut lc.cached_bsp).clear();
             lc.cached_bsp_key = None;
+            lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
+            lc.cached_second_count = 0;
             lc.projected_units.clear(); // #106：upper_moves 前缀重排 ⟹ 投影缓存失效，重投影。
         }
         lc.last_input_len = units.len();
@@ -1234,7 +1244,16 @@ pub fn classify_with_tower_incremental(
                 Vec::new()
             };
             let second = stage_profile::time("07b_extract_second", || {
-                extract_second_for_level(&lc.upper_moves[..], hist, &close_src)
+                // ★07b frontier 门控：confirmed 前缀 parent 的 B2 缓存复用（跳过其重复背驰扫描），
+                // 只对 frontier tail 每 bar 重算。消 confirmed-parent 全塔重扫 O(U²)。
+                extract_second_resume(
+                    &mut lc.cached_second,
+                    &mut lc.cached_second_count,
+                    &lc.upper_moves[..],
+                    prefix_count,
+                    hist,
+                    &close_src,
+                )
             });
             b.extend(second);
             b.sort_by_key(|p| p.source_index);
@@ -1340,32 +1359,96 @@ fn extract_second_for_level(
 ) -> Vec<BspPoint> {
     let mut points = Vec::new();
     for parent in upper_moves {
-        // 次级别中枢（RMove::Compose.centers 首个，窗口真派生 B 口径核心区间）。
-        let c1 = match &parent.rmove {
-            descend::RMove::Compose { centers, .. } => match centers.first() {
-                Some(c) => *c,
-                None => continue, // 无中枢载荷 ⟹ 跳过（compose_level 必带中枢，防御性）。
-            },
-            // L0 线段（递归底）不会出现在 upper_moves（compose_level 只产 Compose），防御性跳过。
-            descend::RMove::Segment { .. } => continue,
-        };
-        // 坐标侧车：构成 parent 的次级别 LeveledMove 序列（与 descend parent 同序同长）。
-        let subs = descend_leveled(parent);
-        // 双侧识别第二类结构（B2=Long / S2=Short），各产至多一个端点。
-        for side in [Side::Long, Side::Short] {
-            let pts = signal::extract_second_signals(
-                &parent.rmove,
-                side,
-                &c1,
-                // 背驰：次级别走势 source_index 区间 → hist 面积，相对前一同向次级别走势严格变小。
-                |m| sublevel_diverges(m, &subs[..], hist, close_src),
-                // 坐标：从侧车按结构身份查回次级别走势的原始 K 序（end_index）。
-                |m| index_of_in(&subs[..], m),
-            );
-            points.extend(pts);
-        }
+        second_for_parent(parent, hist, close_src, &mut points);
     }
     points
+}
+
+/// 单个上级走势 `parent` 的第二类 B2/S2 端点（[`extract_second_for_level`] 的 per-parent 主体）。
+///
+/// ★纯函数于 `parent`：只依赖 `parent`（`c1`=Compose 首中枢、subs=坐标侧车）+ 全局 hist/close_src，
+/// **不依赖其它 parent**。这是 07b frontier 门控（[`extract_second_resume`]）的正确性基础——confirmed
+/// 前缀 parent 的 B2 跨 bar 不变（源区间落稳定前缀，hist 前缀 append-only 稳定）⟹ 可缓存。
+fn second_for_parent(
+    parent: &LeveledMove,
+    hist: &[f64],
+    close_src: &[usize],
+    out: &mut Vec<BspPoint>,
+) {
+    // 次级别中枢（RMove::Compose.centers 首个，窗口真派生 B 口径核心区间）。
+    let c1 = match &parent.rmove {
+        descend::RMove::Compose { centers, .. } => match centers.first() {
+            Some(c) => *c,
+            None => return, // 无中枢载荷 ⟹ 跳过（compose_level 必带中枢，防御性）。
+        },
+        // L0 线段（递归底）不会出现在 upper_moves（compose_level 只产 Compose），防御性跳过。
+        descend::RMove::Segment { .. } => return,
+    };
+    // 坐标侧车：构成 parent 的次级别 LeveledMove 序列（与 descend parent 同序同长）。
+    let subs = descend_leveled(parent);
+    // 双侧识别第二类结构（B2=Long / S2=Short），各产至多一个端点。
+    for side in [Side::Long, Side::Short] {
+        let pts = signal::extract_second_signals(
+            &parent.rmove,
+            side,
+            &c1,
+            // 背驰：次级别走势 source_index 区间 → hist 面积，相对前一同向次级别走势严格变小。
+            |m| sublevel_diverges(m, &subs[..], hist, close_src),
+            // 坐标：从侧车按结构身份查回次级别走势的原始 K 序（end_index）。
+            |m| index_of_in(&subs[..], m),
+        );
+        out.extend(pts);
+    }
+}
+
+/// 07b frontier 门控（A 泳道 resume 家族，与 A3/07c 同族）：增量热路径的 [`extract_second_for_level`]
+/// 每 memo-miss 全塔重扫 O(U)、跨 N bar 累积 O(U²)（profile 坐实 CL 1M 修前 3990ms、修后 1026ms，74%↓）。
+/// 每个 parent 的 B2 只依赖该 parent（[`second_for_parent`] 纯函数于 parent）——confirmed 前缀 parent
+/// （`upper_moves[..prefix_count]`，源区间落稳定前缀 + hist 前缀 append-only 稳定）的 B2 跨 bar 不变，
+/// 可缓存。故**跳过 confirmed 前缀 parent 的重复背驰扫描**（`sublevel_diverges` 的 O(range) MACD 面积
+/// 累加），只对 frontier tail `[prefix_count..]` 每 bar 重算，前缀 B2 一生一算。
+///
+/// ★门控消解的是「confirmed 前缀 parent 的重复扫描」这一 O(U²) 源。**残余 O(n²) 仍在**（profile 坐实
+/// 门控后 90ms@300K→1026ms@1M 仍指数≈2.03）——根因是 frontier parent 的 `segments_diverge` MACD 面积
+/// 累加：其对照走势 `prev` 的 close 区间随 n 增长，`|hist|` 逐点求和 O(range) 随窗口线性增长。这是
+/// **B3 #4 area-memo（(start,end)→area 冻结缓存）的领域**，门控消除 confirmed 前缀重扫恰是 B3 判定的
+/// area-memo 翻转条件；两者正交叠加才能把 07b 完全线性化（本工位只做门控，area-memo 未接入）。
+/// 缓存 clone O(|前缀 B2|) 在此非瓶颈（profile 坐实与原地增量版 1022ms 同噪声，area 累加主导）。
+///
+/// ★bit-exact 铁律：返回值逐字段 == [`extract_second_for_level`]（parent 序拼接：前缀 B2 + tail B2
+/// = 全 parent 序，与全量重扫同序同集）。debug/test 护栏逐 bar 对拍全量重算锁定。
+///
+/// 前提（`prefix_count` = confirmed 前缀数，由主循环 pop 后 `lc.upper_moves.len()` 给出）：
+/// `upper_moves[..prefix_count]` 跨 bar immutable（anc.pdf §16），故其 B2 一旦算出即永久稳定。
+fn extract_second_resume(
+    cached: &mut Vec<BspPoint>,
+    cached_count: &mut usize,
+    upper_moves: &[LeveledMove],
+    prefix_count: usize,
+    hist: &[f64],
+    close_src: &[usize],
+) -> Vec<BspPoint> {
+    // 单调性守卫（§16：confirmed 前缀单调非降 ⟹ 正常永不触发；cascade 已在别处 clear 缓存）。若违反
+    // ⟹ 缓存越过 confirmed 边界（曾判 confirmed 的 parent 又变 frontier 可变）⟹ 保守全量重算重置缓存。
+    if *cached_count > prefix_count {
+        cached.clear();
+        *cached_count = 0;
+    }
+    // 推进：新晋 confirmed 的 parent [cached_count..prefix_count] 的 B2 一次性算入缓存（一生一算）。
+    for parent in &upper_moves[*cached_count..prefix_count] {
+        second_for_parent(parent, hist, close_src, cached);
+    }
+    *cached_count = prefix_count;
+    // 结果 = confirmed 前缀 B2（缓存 clone）+ frontier tail B2（每 bar 重算，tail 小）。
+    let mut out = cached.clone();
+    for parent in &upper_moves[prefix_count..] {
+        second_for_parent(parent, hist, close_src, &mut out);
+    }
+    debug_assert!(
+        out == extract_second_for_level(upper_moves, hist, close_src),
+        "07b frontier 门控破裂：门控输出 != 全量重扫（前缀 immutable/hist 前缀稳定不变式被违反）"
+    );
+    out
 }
 
 /// 次级别走势的 MACD 背驰判定（reference:34，`divergence.rs` 真算 L1）。
