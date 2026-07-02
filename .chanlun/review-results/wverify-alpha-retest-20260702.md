@@ -1,5 +1,14 @@
 # W-VERIFY alpha 全量重测（全实装收敛收口，task #13）
 
+> **【效力域降级】编排者裁定 (a)（2026-07-02，task #80）**：本报告 §1 全局裁决 PASS 为 **L2 条件性正结果**，非原文 `alpha检验.pdf`/`alpha分离.pdf` 定义的 confirmed structural alpha（`dlpdf-b-bsp-alpha-20260702.md` §1 对照坐实四条阻塞缺口）：
+> ① **beta 未分离**——估计量 `actual_pnl=δ(P_out−P_in)−C` 是原始 X_i，未做残差减法 `Y_i=δ(H−B̂)−C`（alpha分离.pdf §1/§4.1 强制项）；
+> ② **分层缺 h + time block**——置换分层键仅 `(ℓ,bsp_class,σ^H)`，缺 `(h bucket, time block)`（alpha分离.pdf §4.2），beta 可能从分层漏进 perm_p；
+> ③ **买腿+单标的 selection bias**——主桶为做多方向单标的 BTC，原文两处明确警告"BTC 全历史强上涨，做多正收益不能自动算 alpha"、"level0 买腿两窗巨亏，卖腿为正"，跨标的 L3 复验为硬前置非可选；
+> ④ **删尾稳健性未做**——主桶 CV=7.278 极高（疑似尾部主导），未做删前3赢家重估（alpha检验.pdf §6）。
+> 另（`dlpdf-a-mutex-classification-20260702.md`）本报告桶键 `(ℓ,bsp_class,δ,σ^H)` 是原文完全分类 `z=(ℓ,δ,I_γ,r,σ_p,ω,β,κ,d,c,m)` 的**粗投影**——缺角色 r、父声部 σ_p、64类非坍缩 bsp、区间套严格嵌套证书等 4 维，不得声称已认证原文细状态 alpha。
+>
+> 本报告原文（§1-§8）保留不删，作为该条件域内的诚实记录。**真验收 = goal `g-full-mutex-impl` acceptance b4**（残差减法+分层补全+跨标的+删尾+P0缺维接入后重跑）——本报告 PASS 在此之前不得作为 M1 里程碑的独立通行凭证。
+
 **工位**：swarm/ws-wverify | goal g-abfb9eaa acceptance a4 | 编排者明令「实装全部然后回测 alpha」的最终收口
 **git head**：跑批锚 60ecc64da6；**并发已推进**——merge→observe 修复（§0.2）已被 lead commit 于 `5cd9e17303`（含 #62 StructBreak 第四类纤维并入），当前 HEAD=`8de522a519`。**在当前 HEAD 重跑 wverify_full 结果逐值一致**（3427 笔/28 桶/Pass/V=2 F=2 I=24，StructBreak 门拒且独立于 `MuClass::bsp_class()`，对本 estimand 无影响）。仅 econ_positive.rs 硬断言（§0.1）未 commit。task 约束不 git 操作。
 **认识论等级**：**L2**（真实 BTC 单标的 walk-forward OOS，可产否定性结果）。**非 L3**（未跨标的）。

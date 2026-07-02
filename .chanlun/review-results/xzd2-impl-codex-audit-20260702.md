@@ -1,5 +1,7 @@
 # codex 审计：小转大通道阶段2实装——C3 死门裁定（全权裁定）
 
+> **【效力域降级】编排者裁定 (a)（2026-07-02，task #80）**：本报告依赖 tower/rung 跨级定位口径。`rung-interval-containment-20260702.md`（task #77）已用 350K BTC 实测**否证**"端点相等 rung 定位系统性 false negative"（区间套问题①）——两口径 bit-identical，FN=0，本报告计数**不受该项影响，结论获加固**。但 **frontier 问题②（tail 宽度/cached_units 快照）污染仍未清除**（task #65/#75 跟踪中）——本报告的分布/命中率数字尚未排除该项干扰，在 frontier 问题②收口前，结论视为**条件性**（原文数据保留不改）。
+
 - task: #33（ws-xzd2audit，codex-challenger 工位）
 - date: 2026-07-02
 - 调用方式：`codex exec --skip-git-repo-check --sandbox read-only -`（强制 CLI，编排者指令）
