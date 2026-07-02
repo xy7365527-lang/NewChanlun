@@ -469,6 +469,58 @@ pub(super) fn build_multilevel_nest_cert(
     }
 }
 
+/// 673 号段2：定律一下沉锚定深度（第29课L396「二三类精确的都要下次级别以下找第一类」）。
+///
+/// Type2/3@ℓ 的精确点 = 次级别 Type1（回抽这个次级别走势的结束点=次级别一类背驰点，定律一 第17课L66）。
+/// 从候选段 `s`（=回抽次级别走势，`end_index==source_index`）向次级别下钻：在 `s.sub_moves`
+/// （次级别 ℓ-1 走势序列）中找 `end_index==source_index` 的段，跑**完整** `div_cand`（Extreme+Weak
+/// 四条件，含盘整背驰——背驰段定义第27课L21 涵盖趋势/盘整，非弱化版）。真递归下沉：锚定成立后继续
+/// 钻入该次级别 Type1 段，逐级收缩到最低可用级别（`sub_moves` 空=递归底 level0）。
+///
+/// - `Some(d)`（d≥1）：次级别 Type1 锚点成立，区间套逐级收缩穿越 d 层（d=最低可用级别的下沉深度）。
+/// - `None`：次级别存在但无 Type1 锚点（`div_cand` 假 / 无回抽端点对齐段 / `s` 已是递归底无次级别）
+///   = **小转大**（该级别无一类买卖点，精确点无法下沉定位——知识库 L410「区间套和背驰不可解释情况
+///   的补充」）。显式可测判别（非 catch-all fallback），门直接拒。
+///
+/// 区间套 `[J_{ℓ-1}⊆J_ℓ]` 由下钻**结构性保证**：`sub_move` 的 `[start,end]` ⊆ parent 的 `[start,end]`
+/// （recursive_tower Compose 由连续 `sub_moves` 组装的不变量），故不重复 `is_sub` 检查（invariant 非条件）。
+///
+/// **认识论 L0**：纯结构下钻 + 确定性 `div_cand`。复用 N^δ 上钻路径同一 `div_cand` 判据
+/// （no-patch，非平行简化版；上钻找 parent，下钻用 sub_moves，是同一区间套的对偶方向）。
+fn descend_type1_anchor_depth(
+    s: &super::super::classifier::recursive_tower::LeveledMove,
+    source_index: usize,
+    delta: Side,
+    hist: &[f64],
+) -> Option<usize> {
+    let subs = s.sub_moves.as_slice();
+    if subs.is_empty() {
+        return None; // 递归底（level0 无次级别）⟹ 无可下沉的一类锚点 = 小转大
+    }
+    // 次级别 Type1 背驰段判据：s.sub_moves 中 end_index==source_index 段跑完整 div_cand。
+    let tidx = subs.iter().position(|m| m.end_index == source_index)?; // 无回抽端点对齐段 ⟹ 小转大
+    let ctx: Vec<ContextMove> = subs
+        .iter()
+        .map(|m| ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index))
+        .collect();
+    let anchor_ok = super::super::classifier::cand_predicate::div_cand(
+        &super::super::classifier::cand_predicate::DivCandInput {
+            context: &ctx,
+            target_idx: tidx,
+            hist,
+            delta,
+        },
+    );
+    if !anchor_ok {
+        return None; // 次级别无一类背驰锚点 ⟹ 小转大
+    }
+    // 真递归下沉：钻入该次级别 Type1 段，逐级收缩到最低可用级别（深层无锚/到底 ⟹ 本级即最低可用锚）。
+    match descend_type1_anchor_depth(&subs[tidx], source_index, delta, hist) {
+        Some(d) => Some(d + 1),
+        None => Some(1),
+    }
+}
+
 /// 从塔构造 `NestCertificate`（区间套证书的**构造**，与 `n_delta()` **判定**分离）。
 ///
 /// 门函数 `build_multilevel_nest_cert` = 本函数 + `.n_delta()`；诊断函数
@@ -502,6 +554,14 @@ pub(super) fn build_nest_certificate(
         Side::Short => bits.sell1,
     };
 
+    // 673 号段2：Type2/3 定律一下沉锚定（第29课L396 精确定位锚次级别 Type1）。
+    //   lvl>=1（有次级别）：下沉找次级别 Type1 锚点；None=小转大（该级别无一类，精确点无法下沉定位）
+    //     ⟹ 整证书 None（门直接拒；显式可测判别，非 catch-all fallback）。
+    //   lvl==0（最低可用级别，无次级别）：下沉不适用，存在性免门（段1 保留，Type3@level0 不误拒）。
+    if !is_type1 && lvl >= 1 && descend_type1_anchor_depth(s, source_index, delta, hist).is_none() {
+        return None;
+    }
+
     // rungs：从高级向执行级降序（rungs[0]=最高级，rungs[last]=lvl+1 级）。
     // 对每个上级 k = lvl+1 到 tower.len()-1：
     //   - 找 tower[k] 中包含 source_index 的段（start_index ≤ source_index ≤ end_index）作为区间
@@ -532,7 +592,9 @@ pub(super) fn build_nest_certificate(
         //   Type2/Type3 → 次级别锚：定律一下沉（下次级别找第一类 Type1 区间套），由段2（task #13）实装。
         // 段1 只装存在性（免本级背驰段门），非「Type2/3 永远无 nest」——rung 结构照建，段2 替换分支体。
         let cand_k = if !is_type1 {
-            // ponytail: 段1 存在性占位（cand=true）；段2（#13）在此接入次级别 Type1 区间套真锚点。
+            // 段2：精确定位（次级别 Type1 锚点）已在函数入口 descend_type1_anchor_depth 门控——
+            // 到此为 lvl==0（无次级别，存在性免门）或 lvl>=1 且锚点成立（小转大已 return None）。
+            // 上级 rung 载存在性/上级语境（第17课L60 完备性保证 Type2/3 存在），cand=true。
             true
         } else {
             // k 级 knode 的 sub_moves 是 lvl 到 k-1 级的窗口序列；找 end_index == source_index 的段
@@ -949,6 +1011,115 @@ mod tests {
         // s3 是 Up 段，δ=Long 要求 Down → 条件1 失败 → false
         let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
         assert!(!result, "dir(s)≠−δ（Up 段但 δ=Long）⟹ false（条件1 失败）");
+    }
+
+    // ── 673 号段2：定律一下沉锚定（Type2/3 精确定位锚次级别 Type1）─────────────────
+
+    use super::super::super::classifier::recursive_tower::{ElementId as EId2, LeveledMove as LM2};
+    use super::super::super::classifier::descend::RMove as RM2;
+    use super::super::super::types::{Center as Ct2, Direction as Dir2};
+    use std::rc::Rc as Rc2;
+
+    fn seg2(dir: Dir2, lo: i64, hi: i64, s: usize, e: usize, ord: u64) -> LM2 {
+        LM2 {
+            rmove: RM2::Segment { direction: dir, lo, hi },
+            start_index: s, end_index: e,
+            sub_moves: Rc2::new(vec![]),
+            id: EId2 { level: 0, ordinal: ord },
+        }
+    }
+
+    fn compose2(subs: Vec<LM2>, level: u32, ord: u64) -> LM2 {
+        let start = subs.first().map(|m| m.start_index).unwrap_or(0);
+        let end = subs.last().map(|m| m.end_index).unwrap_or(0);
+        let lo = subs.iter().map(|m| m.rmove.lo()).min().unwrap_or(0);
+        let hi = subs.iter().map(|m| m.rmove.hi()).max().unwrap_or(0);
+        let sub_rmoves: Vec<RM2> = subs.iter().map(|m| m.rmove.clone()).collect();
+        LM2 {
+            rmove: RM2::Compose {
+                subs: sub_rmoves,
+                centers: vec![Ct2 { zd: lo, zg: hi, dd: lo, gg: hi, start_index: start, end_index: end }],
+                level,
+            },
+            start_index: start, end_index: end,
+            sub_moves: Rc2::new(subs),
+            id: EId2 { level, ordinal: ord },
+        }
+    }
+
+    /// 段2 正例：Type2@lvl1 的回抽次级别走势 m2 内部含次级别 Type1 背驰段（end==source_index）
+    /// ⟹ 下沉锚定 Some(1) ⟹ 证书非 None ⟹ n_delta=true（存在性 buy2 基例 + 精确定位已门控）。
+    #[test]
+    fn nest_cert_type2_sublevel_type1_anchor_passes() {
+        // m2（level1 回抽走势）的次级别（level0）：up/down(s')/up/down(s@19)，趋势背驰。
+        let s0 = seg2(Dir2::Up,   50, 100,  0,  4, 0);
+        let s1 = seg2(Dir2::Down, 40,  90,  5,  9, 1); // s'：Down lo=40
+        let s2 = seg2(Dir2::Up,   45,  95, 10, 14, 2);
+        let s3 = seg2(Dir2::Down, 30,  85, 15, 19, 3); // s：Down lo=30<40 Extreme，end=19
+        let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![
+            Rc2::new(vec![s0, s1, s2, s3]),
+            Rc2::new(vec![m2.clone()]),
+        ];
+        // s3(15-19) area=5*1=5 < s1(5-9) area=5*2=10（Weak ✓）。
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+
+        assert_eq!(super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist), Some(1),
+            "次级别 Type1 锚点成立 ⟹ 下沉深度 Some(1)");
+        let mut buy2 = super::super::super::types::BspBits::default();
+        buy2.buy2 = true;
+        assert!(build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
+            "Type2@lvl1 次级别锚点成立 ⟹ 证书非 None ⟹ n_delta=true");
+    }
+
+    /// 段2 小转大（可证伪判别）：同结构但次级别无一类背驰锚点（hist=0 ⟹ div_cand Weak 假）
+    /// ⟹ 下沉锚定 None ⟹ 证书 None ⟹ 门拒（build_multilevel_nest_cert=false）。
+    #[test]
+    fn nest_cert_type2_no_sublevel_anchor_is_xiaozhuandaa_none() {
+        let s0 = seg2(Dir2::Up,   50, 100,  0,  4, 0);
+        let s1 = seg2(Dir2::Down, 40,  90,  5,  9, 1);
+        let s2 = seg2(Dir2::Up,   45,  95, 10, 14, 2);
+        let s3 = seg2(Dir2::Down, 30,  85, 15, 19, 3);
+        let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![
+            Rc2::new(vec![s0, s1, s2, s3]),
+            Rc2::new(vec![m2.clone()]),
+        ];
+        let hist = vec![0.0f64; 20]; // area=0 ⟹ 0<0 false ⟹ div_cand 假 ⟹ 次级别无一类锚点
+
+        assert_eq!(super::descend_type1_anchor_depth(&m2, 19, Side::Long, &hist), None,
+            "次级别无一类背驰锚点 ⟹ 小转大 ⟹ None（显式可测判别）");
+        let mut buy2 = super::super::super::types::BspBits::default();
+        buy2.buy2 = true;
+        assert!(!build_multilevel_nest_cert(&tower, 1, 19, Side::Long, &buy2, &hist),
+            "小转大（次级别无 Type1）⟹ 证书 None ⟹ 门拒");
+    }
+
+    /// 段2 真递归下沉：次级别 Type1 段本身内部再含次次级别 Type1 背驰段（end 同为 source_index）
+    /// ⟹ 逐级收缩到最低可用级别，深度 Some(2)（不是只下沉一级就停）。
+    #[test]
+    fn descend_anchor_recurses_below_one_level() {
+        // hist 递减：靠后 bar 力度更小（Weak 各级满足）。
+        let hist: Vec<f64> = (0..20).map(|i| (20 - i) as f64).collect();
+        // A0（level1 Down @0-9）：a0(Up)/a1(Down)。
+        let a0 = seg2(Dir2::Up,   60, 100, 0, 4, 0);
+        let a1 = seg2(Dir2::Down, 40,  95, 5, 9, 1);
+        let big_a0 = compose2(vec![a0, a1], 1, 0); // lo=40
+        // Amid（level1 Up @10-13）。
+        let am0 = seg2(Dir2::Down, 45, 90, 10, 11, 2);
+        let am1 = seg2(Dir2::Up,   50, 110, 12, 13, 3);
+        let amid = compose2(vec![am0, am1], 1, 1);
+        // A1（level1 Down @14-19，内部 level0 趋势背驰 @19）。
+        let b0 = seg2(Dir2::Up,   48, 105, 14, 15, 4);
+        let b1 = seg2(Dir2::Down, 42,  92, 16, 16, 5); // 次次级别 s' Down lo=42
+        let b2 = seg2(Dir2::Up,   46,  96, 17, 17, 6);
+        let b3 = seg2(Dir2::Down, 30,  85, 18, 19, 7); // 次次级别 s Down lo=30<42，end=19
+        let big_a1 = compose2(vec![b0, b1, b2, b3], 1, 2); // lo=30
+        // s（level2）：[A0(Down), Amid(Up), A1(Down@19)]。
+        let s = compose2(vec![big_a0, amid, big_a1], 2, 0);
+
+        assert_eq!(super::descend_type1_anchor_depth(&s, 19, Side::Long, &hist), Some(2),
+            "次级别 Type1 + 次次级别 Type1 ⟹ 真递归下沉深度 Some(2)");
     }
 
     /// PDF §4 反例的分解算术自检（合成，L1 验证分解算术正确）：
