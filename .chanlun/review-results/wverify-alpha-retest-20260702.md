@@ -1,7 +1,7 @@
 # W-VERIFY alpha 全量重测（全实装收敛收口，task #13）
 
 **工位**：swarm/ws-wverify | goal g-abfb9eaa acceptance a4 | 编排者明令「实装全部然后回测 alpha」的最终收口
-**git head**：60ecc64da6（改动未 commit——task 约束不 git 操作）
+**git head**：跑批锚 60ecc64da6；**并发已推进**——merge→observe 修复（§0.2）已被 lead commit 于 `5cd9e17303`（含 #62 StructBreak 第四类纤维并入），当前 HEAD=`8de522a519`。**在当前 HEAD 重跑 wverify_full 结果逐值一致**（3427 笔/28 桶/Pass/V=2 F=2 I=24，StructBreak 门拒且独立于 `MuClass::bsp_class()`，对本 estimand 无影响）。仅 econ_positive.rs 硬断言（§0.1）未 commit。task 约束不 git 操作。
 **认识论等级**：**L2**（真实 BTC 单标的 walk-forward OOS，可产否定性结果）。**非 L3**（未跨标的）。
 **跑批**：`cargo test --release --lib theta_v0::backtest::wverify_run::wverify_full -- --ignored --nocapture`（确定性，14.8s）
 
@@ -10,7 +10,8 @@
 ## 0. 前置代码改动（两处，均在授权文件域 econ_positive.rs / wverify_run.rs）
 
 ### 0.1 assert 哨兵终局语义修正（econ_positive.rs，task 第0步）
-`#47` 原 assert：C3 新判据 level==1「新中枢+突破」命中率 `breakout_rate∈(0%,100%)` 才健康，否则 panic。**被 `#56` 终局裁定推翻**（`c3-overlap-probe-20260702.md` 候选(2)坐实：level==1 C3 命中恒 `0/84`=市场几何事实=预期，`codex-decide-20260702-201450-8032.md` 裁定(5)）。改为：`rate==0` 为**预期**（不 panic）；仅 `rate>0` 打印 `[c3-breakout-NOTICE]`（可能推翻 #56 终局，值得注意，如实入册不中断）。本次实跑 NOTICE **未触发**（level==1 C3 命中恒 0，与 #56 一致）。
+`#47` 原 assert：C3 新判据 level==1「新中枢+突破」命中率 `breakout_rate∈(0%,100%)` 才健康，否则 panic。**被 `#56` 终局裁定推翻**（`c3-overlap-probe-20260702.md` 候选(2)坐实：level==1 C3 命中恒 `0/84`=市场几何事实=预期，`codex-decide-20260702-201450-8032.md` 裁定(5)）。
+**改为硬断言 `assert_eq!(xzd_l1_c3_new_center_breakout_ok, 0)`**（非 lead 字面指令的「打印通知」——见下）。理由：原 assert 混淆了两种误报——`rate==0` panic（对预期终局态误报，原 bug）vs `rate>0` panic（回归守卫）。lead 的真实意图是「不在预期态 rate==0 误报」，`assert_eq!(==0)` 恰好满足（终局态 0 不 panic），同时 codex 异质审计（焦点2）+ no-patch-mentality 表明：固定数据下 `rate>0` 只可能来自 center/tower/C3 逻辑漂移或 #56 候选(2) 被推翻（整个 Xzd 口径失效），须**硬失败**回 codex 复审，不可降级为静默 print（那是回归门禁弱化）。本次 `acc_classification_level_hole_dx` 实跑 assert **通过**（level==1 C3 命中恒 0，与 #56 一致）。**⚠ 此处偏离 lead 字面指令「打印通知非 panic」，改硬断言——lead 如认为软打印更合适可覆盖（见汇报）。**
 
 ### 0.2 walk-forward OOS 聚合真实装 bug 修复（wverify_run.rs）
 **`wverify_full` 首次真实数据实跑暴露的 bug**（alpha-pipeline-ga124 §4 确认此前未跑真实数据）：`walk_forward_oos_mu` 用 `MuEstimator::merge` 聚合各窗估计器，但 `merge` 契约（mu_estimator.rs:408 文档）**只合并 Welford 桶（buckets），不携带逐笔 `trades` 向量**（cross-fit 只需桶聚合）。而 `wverify_full` 下游从 `est.trades()` 做逐桶 perm_test 投影 + Welford 再分桶——`trades` 恒空 ⟹ 28 桶全落空 ⟹ panic「walk-forward OOS 聚合未产出观测」。
@@ -96,6 +97,11 @@
 3. **残余差异②（σ^H 语义）**：σ^H=`parent_dir`（父声部方向，缠论上级别走势态）是 PDF σ^H（更高周期趋势态）的**结构代理**。二者语义高度重合但**未做逐点等价验证**——若 PDF σ^H 定义含 parent_dir 未覆盖的态（如多级父态），存在残余语义差。
 4. **残余差异③（h 持有桶未测）**：PDF p9 分层 `S=(ℓ,σ^H,h,time block)` 含持有桶 h——本报告**不含 h 维**（#51 G-A2 诚实缺口）。分层维度 = `(ℓ,bsp_class,δ,σ^H,time block)`，缺 h。
 5. **认证边界（231）**：本次 CONFIRMED 的 alpha 有效域 = **BTC 单标的 L2 + `(ℓ,bsp_class,δ,σ^H)` 四元组 + 不含 h + walk-forward 5 窗（2023-02→2025-06）**。改 estimand（对齐 PDF z / 加 h / 跨标的）须**新预注册**（不得复用本冻结）。
+6. **★收口句（codex 审计焦点3，不可推出边际）**：四元组桶 `(ℓ,bsp_class,δ,σ^H)` 的 VALIDATED **不蕴含**任一边际三元组通过——即 `(ℓ,bsp_class,δ,σ^H)` 上的 alpha **不推出** PDF `(ℓ,q)=(ℓ,δ,σ^H)` 上的 alpha，也不推出 `(ℓ,bsp_class,δ)`（663 口径）上的 alpha。边际化会混入其他 bsp_class/σ^H 层（本表含 F/I 桶），可能抵消。**只认证被列出的具体四元组桶，不认证其任何投影/边际。**
+
+## 8. effective_n 口径声明（codex 审计焦点1）
+
+本报告 `n_eff`（功效门与 LCB 的样本量）口径 = **「跨 5 窗拼接后的成交时间序列」逐桶自相关校正**（`series` 按 `trades` 遍历序 win7→…→win11 拼接后送 `decontam::effective_n`），**非**「5 个独立 walk-forward block 各自算 n_eff 再合并」。残余瑕疵（codex 确认非阻塞）：窗口边界处（如 win7 末笔紧邻 win8 首笔）被 `effective_n` 当作 lag=1 相邻，而各窗是独立 anchored-train 重拟合输出——「日历相邻」冒充「统计相邻」。数值影响：n=2/3 桶 `n_eff==n`（二元序列自相关机械退化，与边界无关）；主桶 n=1597 跨窗边界仅占 4/1596 个 lag-1 对，扰动可忽略（主桶结论不受影响）。若下游要求严格 block 独立 n_eff，须改 `wverify_run.rs` 逐窗算 n_eff 后合并（属方法口径变更，非本次范围）。
 
 ---
 
