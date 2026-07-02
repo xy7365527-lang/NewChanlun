@@ -507,7 +507,7 @@ mod tests {
         let sub_rmoves: Vec<_> = subs.iter().map(|m| m.rmove.clone()).collect();
         LeveledMove {
             rmove: TestRMove::Compose {
-                subs: sub_rmoves,
+                subs: Rc::new(sub_rmoves),
                 centers: vec![Center { zd: lo_of(&subs), zg: hi_of(&subs), dd: lo_of(&subs), gg: hi_of(&subs), start_index: start, end_index: end }],
                 level,
             },

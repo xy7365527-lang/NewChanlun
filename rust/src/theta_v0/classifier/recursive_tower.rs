@@ -154,18 +154,35 @@ impl LeveledMove {
     /// 映射 source_index）。两者同序同长（`sub_moves[i].rmove == rmove.subs[i]`）。子走势 `id` 继承
     /// subs 各自的 ID（已携带，非父派生）。
     pub fn compose(subs: &[LeveledMove], center: Center, level: u32, id: ElementId) -> LeveledMove {
-        let sub_rmoves: Vec<RMove> = subs.iter().map(|m| m.rmove.clone()).collect();
+        // ★A3 task#40 阶段0插桩（env-gated，THETA_PROFILE_STAGES 未启用时零开销直通）保留：分辨
+        // compose 内部 rmove 拷贝（05c2a）vs sub_moves 侧车分配（05c2b）耗时——codex 审计要求先
+        // 切分项计时再决定优化形态，不假设某一项主导。stage-0 实测（1M CL）：05c1（调用点临时数组
+        // clone）/05c2a（本函数 rmove 拷贝）/05c2b（本函数 sub_moves 分配）三者耗时相当（各约
+        // 05c 的 23%），非单一大头 ⟹ 两处同修：
+        // (A) 调用点（compose_level/compose_level_resume）改传连续切片 `&subs_moves[i..i+3]`
+        //     替代 `[a.clone(),b.clone(),c.clone()]`（win 恒为 `[i,i+1,i+2]` 连续索引，见
+        //     `detect_centers_windowed{,_resume}`）——消灭 05c1 整段冗余 clone。
+        // (B) `RMove::Compose.subs` 由 `Vec<RMove>` 改 `Rc<Vec<RMove>>`（descend.rs，A1 Rc 化家族
+        //     延伸 #104 之后第二处）——`m.rmove.clone()`（05c2a）对 Compose 变体退化为 O(1) 引用
+        //     计数（不再递归深拷贝子树），间接使 `subs.to_vec()`（05c2b，克隆 3 个 LeveledMove，
+        //     其 rmove 字段现也 O(1)）一并变廉价。bit-exact：Rc<Vec<T>> 的 PartialEq/Eq/Debug 均按
+        //     内容比较/打印，descend() 的 subs.as_slice()/.iter()/.first()/.last() 经自动解引用
+        //     透明工作，无需改调用点。
+        let sub_rmoves: Vec<RMove> = super::stage_profile::time("05c2a_rmove_clone", || {
+            subs.iter().map(|m| m.rmove.clone()).collect()
+        });
         let start_index = subs.first().map(|m| m.start_index).unwrap_or(0);
         let end_index = subs.last().map(|m| m.end_index).unwrap_or(0);
+        let sub_moves = super::stage_profile::time("05c2b_submoves_alloc", || Rc::new(subs.to_vec()));
         LeveledMove {
             rmove: RMove::Compose {
-                subs: sub_rmoves,
+                subs: Rc::new(sub_rmoves),
                 centers: vec![center],
                 level,
             },
             start_index,
             end_index,
-            sub_moves: Rc::new(subs.to_vec()),
+            sub_moves,
             id,
         }
     }
@@ -251,13 +268,12 @@ pub fn compose_level(
         .iter()
         .enumerate()
         .map(|(i, (c, win))| {
-            let subs = [
-                subs_moves[win[0]].clone(),
-                subs_moves[win[1]].clone(),
-                subs_moves[win[2]].clone(),
-            ];
+            // ★task#40 fix A：win 恒为 `[start, start+1, start+2]`（detect_centers_windowed 连续
+            // 窗口）⟹ 直接借用连续切片，消灭临时数组的 3 次 `.clone()`（05c1 冗余拷贝，见 compose()
+            // 文档）。`LeveledMove::compose` 本就只需 `&[LeveledMove]`，无需先拥有一份拷贝。
+            let subs = &subs_moves[win[0]..win[0] + 3];
             let id = ElementId { level, ordinal: i as u64 };
-            LeveledMove::compose(&subs, *c, level, id)
+            LeveledMove::compose(subs, *c, level, id)
         })
         .collect();
     (centers, upper)
@@ -416,19 +432,21 @@ pub fn compose_level_resume(
     });
     let tail_centers: Vec<Center> =
         super::stage_profile::time("05b_tail_centers", || windowed.iter().map(|(c, _)| *c).collect());
+    // ★A3 task#40 阶段0插桩（保留，env-gated）+ fix A/B 落地：05c1（临时数组 clone）已由直接切片
+    // 消灭（见下 `&subs_moves[win[0]..win[0]+3]`），05c2 内部再分 05c2a/05c2b（compose() 内，
+    // fix B 后两者均 O(1)）。三者 stage-0 实测（1M CL）曾各占 05c ~23%——非单一大头，两处同修。
     let tail_upper: Vec<LeveledMove> = super::stage_profile::time("05c_tail_upper_build", || {
         windowed
             .iter()
             .enumerate()
             .map(|(i, (c, win))| {
-                let subs = [
-                    subs_moves[win[0]].clone(),
-                    subs_moves[win[1]].clone(),
-                    subs_moves[win[2]].clone(),
-                ];
+                // win 恒连续 `[start,start+1,start+2]`——直接借用切片，不先 clone 成临时数组。
+                let subs = &subs_moves[win[0]..win[0] + 3];
                 // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。
                 let id = ElementId { level, ordinal: (prefix_count + i) as u64 };
-                LeveledMove::compose(&subs, *c, level, id)
+                super::stage_profile::time("05c2_compose_call", || {
+                    LeveledMove::compose(subs, *c, level, id)
+                })
             })
             .collect()
     });

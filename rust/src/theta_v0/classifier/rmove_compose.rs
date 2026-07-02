@@ -67,7 +67,7 @@ use super::descend::{descend, sub_level_type1, RMove};
 /// 回拉走势）。组装-取回对偶：`descend(compose_move(subs, ..)) == subs`（见测试）。
 pub fn compose_move(subs: Vec<RMove>, centers: Vec<Center>, level: u32) -> RMove {
     RMove::Compose {
-        subs,
+        subs: std::rc::Rc::new(subs),
         centers,
         level,
     }

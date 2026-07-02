@@ -303,9 +303,10 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSid
                         VoiceSide::Short => Side::Short,
                         VoiceSide::Flat => continue,
                     };
-                    // 二通道准入门（小转大 landing）：区间套 Nest→n_delta；小转大 Xzd→仅 C2 gate_pass
-                    // （C3 硬门退化，codex 终局裁定 xzd2-impl-codex-audit-20260702.md §5.2，C2-only xzd）。
-                    // 次级别（lvl-1）中枢/bsp 供 C3 as-of 判据；小转大域 lvl≥1，lvl==0 走区间套不消费此二值。
+                    // 二通道准入门（小转大 landing）：区间套 Nest→n_delta；小转大 Xzd→gate_pass
+                    // （level==1 时 C2∧C3(新中枢+突破) 硬门，level!=1 维持 C2-only，codex #44 终局裁定(c)，
+                    // C2+C3(breakout) xzd）。次级别（lvl-1）中枢/bsp/走势供 C3 判据；小转大域 lvl≥1，
+                    // lvl==0 走区间套不消费此三值。
                     let sub_centers: &[Center] = if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
                     let sub_bsp: &[BspPoint] = if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
                     let pass = match build_gate_certificate(
@@ -802,23 +803,26 @@ pub(super) fn effective_nest_depth(cert: &NestCertificate) -> usize {
 ///
 /// ## 结果包（六要素）
 /// - **结论**：Type2/3 信号在 `descend_type1_anchor_depth==None`（小转大域）时，用二类买卖点代替
-///   区间套定位；门通行 = **仅 C2**（C3 硬门退化，codex 终局裁定 §5.2）。C3 保留为诊断字段，
-///   输出须标注 `C2-only xzd`，不得声明 C3 必要条件已满足。
-/// - **定义依据**：`053:28`（二类点补充小转大）；设计稿 `xiaozhuanda-design-20260702.md` §2 +
-///   codex 审查三修正预留的「C3 降为软标注，门退化仅 C2」处置路径（§6-3）；codex 终局裁定
-///   `xzd2-impl-codex-audit-20260702.md` §5.2/§5.4（C3=部分死门伪影，退化处置+诊断探针规格）。
-/// - **边界条件**：若诊断探针（`same_side_same_center` 按 level 聚合）显示 level==1 子集命中率
-///   显著 >0（即 level==1 本身 C3 非死门），处置应改为分级——lvl>=2 走 C2-only、lvl==1 保留
-///   C2∧C3 硬门——而非本次全域退化（裁定 §边界条件，唯一给出的翻转条件）。
+///   区间套定位；门通行 = **level==1 时 C2∧C3(新中枢+突破) 硬门，level!=1 维持 C2-only**（#41 判据
+///   即 `same_side_same_center` 经 #44 探针确定性证伪为归属链错位——判据换为第43课「背驰后新中枢+
+///   反向突破」，codex #44 终局裁定(c)）。输出标注 `C2+C3(breakout) xzd`，不得沿用旧 `C2-only xzd` 标签。
+/// - **定义依据**：`053:28`（二类点补充小转大）；第43课「背驰后新中枢+反向突破」原文语义；codex #44
+///   终局裁定(c)（judge_third 归属链 vs last_zs 选择链结构性不重合，见 `.chanlun/review-results/
+///   codex-decide-20260702-193853-5bbe.md`）。
+/// - **边界条件**：若 L2 复测显示 level==1 子集 `c3_new_center_breakout_ok` 命中率为 0% 或 100%，
+///   说明判据本身有实现问题（非死门/非全通过的真实结构应产生中间命中率），需回到 codex 复审，不得
+///   静默接受（`acc_classification_level_hole_dx` 断言守护）。
 /// - **下游推论**：Type2/3 小转大域从「证书 None 门直接拒」改为二通道分派；两通道输入域不相交
-///   = Some/None 互斥（codex §6-4 同义反复，非经验命题）。仅 C2 会明显放宽吞吐（Type2 信号自身
-///   对 C2 近似自证，裁定 §5.2 已预告）。
-/// - **谱系引用**：606（区间套有效域=Type1）、673（Cand^δ 三分拆）、知识库 L410（小转大补充定位）。
-/// - **影响声明**：`gate_pass()` 改为仅读 `type2_confirmed`；新增 4 项 C3 死门诊断字段
-///   （`last_zs_exists`/`same_side_l0_type3_any`/`same_center_any`/`same_side_causal_ok`）+
-///   `sub_bsp_type3_count`（lvl>=2 死门真封计数）；不改 build_nest_certificate/n_delta。
+///   = Some/None 互斥（codex §6-4 同义反复，非经验命题）。level==1 硬门收紧吞吐（C2∧C3 而非仅 C2），
+///   level>=2 维持既定 C2-only 吞吐（本次翻案范围限 level==1，裁定(c)）。
+/// - **谱系引用**：606（区间套有效域=Type1）、673（Cand^δ 三分拆）、知识库 L410（小转大补充定位）、
+///   #44 探针（C3 center 匹配口径重设计裁决：结构性不重合）。
+/// - **影响声明**：`gate_pass()` 改为 `type2_confirmed && (level != 1 || c3_new_center_breakout_ok)`；
+///   新增 `c3_new_center_exists`/`c3_new_center_breakout_ok` 两参门字段；旧 4 项 C3 死门诊断字段
+///   （`last_zs_exists`/`same_side_l0_type3_any`/`same_center_any`/`same_side_causal_ok`）全部保留为
+///   诊断字段（不再是本次唯一分级依据）；不改 build_nest_certificate/n_delta。
 ///
-/// **认识论 L0**：纯结构判据（二类点存在性）。C3 诊断字段的 level==1 死门判定认识论等级见
+/// **认识论 L0**：纯结构判据（新中枢存在性+突破几何）。C3 新判据的 level==1 命中率认识论等级见
 /// `acc_classification_level_hole_dx` 测试（L2，真实 BTC 数据）。alpha 有效性待 W-VERIFY(#13)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct XzdEvidence {
@@ -847,13 +851,20 @@ pub(super) struct XzdEvidence {
     pub same_side_causal_ok: bool,
     /// 诊断（§5.4）：次级 bsp（sub_bsp）中 Type3 点总数——lvl>=2 时预期恒为 0（死门真封）。
     pub sub_bsp_type3_count: usize,
+    /// C3 新判据（codex #44 终局裁定(c)）：`source_index`~`confirm_index` 间是否存在新确认次级中枢。
+    pub c3_new_center_exists: bool,
+    /// C3 新判据（codex #44 终局裁定(c)）：新中枢是否被其后次级走势反向突破（第43课「背驰后新中枢+
+    /// 反向突破」）。**level==1 硬门参门项**；level>=2 维持既定 C2-only（本次翻案不改 lvl>=2）。
+    pub c3_new_center_breakout_ok: bool,
 }
 
 impl XzdEvidence {
-    /// 门通行 = **仅 C2**（codex 终局裁定 §5.2：C3 硬门退化）。C3 降为诊断字段，不参门；
-    /// C4 从未参门（GGDD 需完整中枢序列不可全编码，不冒充硬门，设计 §2.3）。
+    /// 门通行（codex #44 终局裁定(c)）：`level==1` 时 C2 ∧ C3(新中枢突破) 硬门；`level!=1`
+    /// 维持既定 C2-only（#41 裁定，本次翻案范围限 level==1）。旧字段
+    /// （`sub_last_zs_type3`/`same_side_l0_type3_any`/`same_center_any`/`same_side_causal_ok`）
+    /// 全部保留为诊断字段，不参门。
     pub(super) fn gate_pass(&self) -> bool {
-        self.type2_confirmed
+        self.type2_confirmed && (self.level != 1 || self.c3_new_center_breakout_ok)
     }
 }
 
@@ -952,7 +963,47 @@ fn xzd_c3_diag(
     }
 }
 
-/// 小转大确认（设计 §2.2 C1∧C2；C3 降为诊断，门通行由 [`XzdEvidence::gate_pass`] 判=仅 C2）。
+/// C3 死门诊断分项二：「背驰后新中枢+反向突破」（第43课语义，codex #44 终局裁定(c)）。
+struct XzdC3BreakoutDiag {
+    /// `source_index`（背驰确认点）之后、`confirm_index` 之前是否存在已确认的次级中枢。
+    new_center_exists: bool,
+    /// 该新中枢之后、`confirm_index` 之前的次级走势是否反向突破其核心区间（ZG/ZD）。
+    new_center_breakout_ok: bool,
+}
+
+/// C3 新判据（codex #44 终局裁定(c) 精确规格）：新中枢 = `sub_centers` 中
+/// `start_index >= source_index && end_index <= confirm_index` 者（小转大 source 之后、confirm
+/// 之前已确认的次级中枢）；突破 = 该中枢之后、confirm 之前的次级走势 `m` 满足
+/// `Side::Long ⟹ m.rmove.hi() > z.zg`（向上破）/ `Side::Short ⟹ m.rmove.lo() < z.zd`（向下破）。
+///
+/// **off-by-one**：`start_index >= source_index` 是硬约束（不用 `>`）——中枢起点与 source 同 bar
+/// 仍算「source 之后已确认」，最小单测钉住此边界（见 tests）。ZG/ZD 是最小结构突破口径；
+/// GG/DD 属 C4，不混入本判据（裁定原文边界条件）。
+fn xzd_c3_new_center_breakout(
+    source_index: usize,
+    confirm_index: usize,
+    side: Side,
+    sub_centers: &[Center],
+    sub_moves: &[LeveledMove],
+) -> XzdC3BreakoutDiag {
+    let new_centers: Vec<&Center> = sub_centers
+        .iter()
+        .filter(|c| c.start_index >= source_index && c.end_index <= confirm_index)
+        .collect();
+    let new_center_breakout_ok = new_centers.iter().any(|z| {
+        sub_moves
+            .iter()
+            .filter(|m| m.start_index >= z.end_index && m.end_index <= confirm_index)
+            .any(|m| match side {
+                Side::Long => m.rmove.hi() > z.zg,
+                Side::Short => m.rmove.lo() < z.zd,
+            })
+    });
+    XzdC3BreakoutDiag { new_center_exists: !new_centers.is_empty(), new_center_breakout_ok }
+}
+
+/// 小转大确认（设计 §2.2 C1∧C2；C3 改为「新中枢+突破」硬门——仅 level==1，codex #44 终局裁定(c)，
+/// 门通行判据见 [`XzdEvidence::gate_pass`]）。
 ///
 /// 前提（调用侧路由保证）：`s` 是执行级 tower[lvl] 中 end_index==source_index 的候选段，且信号已判为
 /// 小转大域（Type2/3 ∧ descend anchor None ⟹ build_nest_certificate 返回 None）。C1（descend=None）由
@@ -967,8 +1018,10 @@ fn xiaozhuanda_confirm(
     bsp_of_level: &[BspPoint],
     sub_centers: &[Center],
     sub_bsp: &[BspPoint],
+    sub_moves: &[LeveledMove],
 ) -> XzdEvidence {
     let diag = xzd_c3_diag(s, sub_centers, sub_bsp, side, confirm_index);
+    let breakout = xzd_c3_new_center_breakout(source_index, confirm_index, side, sub_centers, sub_moves);
     XzdEvidence {
         source_index,
         level: lvl,
@@ -981,6 +1034,8 @@ fn xiaozhuanda_confirm(
         same_center_any: diag.same_center_any,
         same_side_causal_ok: diag.same_side_causal_ok,
         sub_bsp_type3_count: diag.sub_bsp_type3_count,
+        c3_new_center_exists: breakout.new_center_exists,
+        c3_new_center_breakout_ok: breakout.new_center_breakout_ok,
     }
 }
 
@@ -1013,16 +1068,26 @@ pub(super) fn build_gate_certificate(
     let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?]; // None=无定位候选 ⟹ 门拒
     match bsp_cand_type(bits, delta) {
         BspCandType::Type1 => None, // Type1 nest 失败=div_cand 假，非小转大 ⟹ 拒
-        BspCandType::Type2 | BspCandType::Type3 => Some(GateCertificate::Xzd(xiaozhuanda_confirm(
-            s,
-            source_index,
-            confirm_index,
-            lvl,
-            delta,
-            bsp_of_level,
-            sub_centers,
-            sub_bsp,
-        ))),
+        BspCandType::Type2 | BspCandType::Type3 => {
+            // C3 新判据（codex #44(c)）所需次级走势序列——只读 slice，tower[lvl-1] 不存在时空切片
+            // （lvl==0 不入本通道，见函数头注；防御性 `checked_sub` 不 panic）。
+            let sub_moves: &[LeveledMove] = lvl
+                .checked_sub(1)
+                .and_then(|l| tower.get(l))
+                .map(|m| m.as_slice())
+                .unwrap_or(&[]);
+            Some(GateCertificate::Xzd(xiaozhuanda_confirm(
+                s,
+                source_index,
+                confirm_index,
+                lvl,
+                delta,
+                bsp_of_level,
+                sub_centers,
+                sub_bsp,
+                sub_moves,
+            )))
+        }
     }
 }
 
@@ -1070,6 +1135,19 @@ mod tests {
         }
     }
 
+    /// 次级走势，配置 hi（C3 突破判据测试用：`m.rmove.hi() > z.zg` 是否成立由此控制）。
+    fn xzd_seg_hi(s: usize, e: usize, hi: i64) -> LeveledMove {
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::super::classifier::descend::RMove;
+        LeveledMove {
+            rmove: RMove::Segment { direction: super::super::super::types::Direction::Up, lo: 0, hi },
+            start_index: s,
+            end_index: e,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId { level: 1, ordinal: 0 },
+        }
+    }
+
     /// C2 跨条目（codex §6-1）：Type3-only 信号自身无 buy2，须在同级列表查共生 B2 条目。
     #[test]
     fn xzd_c2_cross_entry_finds_cobsp_second() {
@@ -1108,19 +1186,53 @@ mod tests {
         assert!(!xzd_sub_last_zs_type3(&s, &[], &bsp_last, Side::Long), "无次级中枢 ⟹ C3 假");
     }
 
-    /// gate_pass 退化：门通行 = **仅 C2**（codex 终局裁定 §5.2，C3 硬门退化为诊断字段，不参门）。
+    /// C3 新判据（codex #44(c)）：新中枢存在+突破 / 存在未突破 / 无新中枢 三态。
     #[test]
-    fn xzd_gate_pass_is_c2_only() {
-        let mk = |c2, c3| XzdEvidence {
-            source_index: 1, level: 2, side: Side::Long, confirm_index: 5,
-            type2_confirmed: c2, sub_last_zs_type3: c3,
+    fn xzd_c3_new_center_breakout_cases() {
+        let source_index = 50;
+        let confirm_index = 100;
+        // 新中枢 [55,70]（start>=source_index, end<=confirm_index），其后走势 [71,90] 上破 ZG=20。
+        let centers = vec![xzd_center(10, 20, 55, 70)];
+        let moves_break = vec![xzd_seg_hi(71, 90, 25)]; // hi=25 > zg=20 ⟹ 突破
+        let diag = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers, &moves_break);
+        assert!(diag.new_center_exists, "新中枢在 [source_index,confirm_index] 区间内 ⟹ 存在");
+        assert!(diag.new_center_breakout_ok, "其后走势 hi>zg ⟹ 突破成立");
+
+        // 中枢存在但其后走势未突破（hi=15 <= zg=20）。
+        let moves_no_break = vec![xzd_seg_hi(71, 90, 15)];
+        let diag2 = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers, &moves_no_break);
+        assert!(diag2.new_center_exists, "新中枢仍存在");
+        assert!(!diag2.new_center_breakout_ok, "未破 ZG ⟹ 突破假");
+
+        // 无新中枢（中枢 start_index < source_index，不满足 off-by-one 硬约束）。
+        let centers_old = vec![xzd_center(10, 20, 40, 45)];
+        let diag3 = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers_old, &moves_break);
+        assert!(!diag3.new_center_exists, "中枢 start_index<source_index ⟹ 非新中枢");
+        assert!(!diag3.new_center_breakout_ok, "无新中枢 ⟹ 突破假");
+
+        // off-by-one：start_index == source_index 仍算「source 之后已确认」（硬约束用 >=，非 >）。
+        let centers_eq = vec![xzd_center(10, 20, source_index, 70)];
+        let diag4 = xzd_c3_new_center_breakout(source_index, confirm_index, Side::Long, &centers_eq, &moves_break);
+        assert!(diag4.new_center_exists, "start_index==source_index ⟹ 新中枢存在（>= 非 >）");
+    }
+
+    /// gate_pass（codex #44(c) 终局裁定）：level==1 时 C2∧C3(突破) 硬门；level!=1 维持 C2-only。
+    #[test]
+    fn xzd_gate_pass_level1_c3_breakout_hard_gate() {
+        let mk = |level, c2, c3_breakout| XzdEvidence {
+            source_index: 1, level, side: Side::Long, confirm_index: 5,
+            type2_confirmed: c2, sub_last_zs_type3: false,
             last_zs_exists: false, same_side_l0_type3_any: false,
             same_center_any: false, same_side_causal_ok: false, sub_bsp_type3_count: 0,
+            c3_new_center_exists: c3_breakout, c3_new_center_breakout_ok: c3_breakout,
         };
-        assert!(mk(true, true).gate_pass(), "C2 真（C3 亦真）⟹ 通过");
-        assert!(mk(true, false).gate_pass(), "C2 真、C3 假 ⟹ 仍通过（C3 已退化，不参门）");
-        assert!(!mk(false, true).gate_pass(), "C2 假（C3 真）⟹ 仍拒——C2 是唯一参门项");
-        assert!(!mk(false, false).gate_pass(), "均假 ⟹ 拒");
+        // level==1：C2∧C3 硬门。
+        assert!(mk(1, true, true).gate_pass(), "level1 C2 真∧C3 真 ⟹ 通过");
+        assert!(!mk(1, true, false).gate_pass(), "level1 C2 真、C3 假 ⟹ 拒（C3 已是硬门参门项）");
+        assert!(!mk(1, false, true).gate_pass(), "level1 C2 假 ⟹ 仍拒");
+        // level!=1：C2-only（既定 #41 裁定不变）。
+        assert!(mk(2, true, false).gate_pass(), "level2 C2 真、C3 假 ⟹ 仍通过（lvl>=2 维持 C2-only）");
+        assert!(!mk(2, false, true).gate_pass(), "level2 C2 假 ⟹ 拒");
     }
 
     // ── P7 正规出场口径测试（RED→GREEN：exit_decision_from_bits 派生，接 sell.rs CloseRoot/ReduceCore）────
@@ -1297,7 +1409,7 @@ mod tests {
         let lo = 30i64; let hi = 100i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
-                subs: sub_rmoves,
+                subs: Rc::new(sub_rmoves),
                 centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
@@ -1433,7 +1545,7 @@ mod tests {
         let lo = 30i64; let hi = 100i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
-                subs: sub_rmoves,
+                subs: Rc::new(sub_rmoves),
                 centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
@@ -1481,7 +1593,7 @@ mod tests {
         let lo = 30i64; let hi = 100i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
-                subs: sub_rmoves,
+                subs: Rc::new(sub_rmoves),
                 centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
@@ -1533,7 +1645,7 @@ mod tests {
         let lo = 30i64; let hi = 110i64;
         let parent = LeveledMove {
             rmove: RMove::Compose {
-                subs: sub_rmoves,
+                subs: Rc::new(sub_rmoves),
                 centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
@@ -1577,7 +1689,7 @@ mod tests {
         let sub_rmoves: Vec<RM2> = subs.iter().map(|m| m.rmove.clone()).collect();
         LM2 {
             rmove: RM2::Compose {
-                subs: sub_rmoves,
+                subs: Rc::new(sub_rmoves),
                 centers: vec![Ct2 { zd: lo, zg: hi, dd: lo, gg: hi, start_index: start, end_index: end }],
                 level,
             },
@@ -2950,6 +3062,9 @@ mod tests {
         let mut xzd_l1_same_center_any = 0usize;
         let mut xzd_l1_same_side_causal_ok = 0usize;
         let mut xzd_lge2_sub_bsp_type3_total = 0usize; // 死门真封：lvl>=2 预期恒为 0
+        // C3 新判据命中率探针（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率。
+        let mut xzd_l1_c3_new_center_exists = 0usize;
+        let mut xzd_l1_c3_new_center_breakout_ok = 0usize;
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
@@ -3030,6 +3145,8 @@ mod tests {
                                     if ev.same_side_l0_type3_any { xzd_l1_same_side_l0_type3_any += 1; }
                                     if ev.same_center_any { xzd_l1_same_center_any += 1; }
                                     if ev.same_side_causal_ok { xzd_l1_same_side_causal_ok += 1; }
+                                    if ev.c3_new_center_exists { xzd_l1_c3_new_center_exists += 1; }
+                                    if ev.c3_new_center_breakout_ok { xzd_l1_c3_new_center_breakout_ok += 1; }
                                 } else if lvl >= 2 {
                                     xzd_lge2_sub_bsp_type3_total += ev.sub_bsp_type3_count; // 死门真封：预期恒为 0
                                 }
@@ -3166,13 +3283,14 @@ mod tests {
         };
         let _ = writeln!(rpt, "\n### P1 判定：{p1_verdict}");
         let _ = writeln!(rpt);
-        // ── 小转大通道（阶段2 landing，task #41 退化为 C2-only）：门通过数 = 新增可交易信号（区间套之外，输入域 Some/None 不相交）──
-        let _ = writeln!(rpt, "## 小转大通道命中（阶段2 landing，无区间套 depth，**C2-only xzd**——codex 终局裁定 §5.2 C3 硬门退化）");
-        let _ = writeln!(rpt, "**小转大通过（C2-only）**：{n_xzd_pass} 条（占通过门总数 {n_gate_pass_total} 的 {:.2}%）。C3 不再是必要条件，仅作诊断字段随附输出。",
+        // ── 小转大通道（task #47：**C2+C3(breakout) xzd**——level==1 硬门改为 C2∧新中枢突破，
+        // level>=2 维持 #41 的 C2-only）：门通过数 = 新增可交易信号（区间套之外，输入域 Some/None 不相交）──
+        let _ = writeln!(rpt, "## 小转大通道命中（**C2+C3(breakout) xzd**——codex #44 终局裁定(c)：level==1 硬门=C2∧C3新中枢突破，level>=2 维持 C2-only）");
+        let _ = writeln!(rpt, "**小转大通过**：{n_xzd_pass} 条（占通过门总数 {n_gate_pass_total} 的 {:.2}%）。level==1 的通过数已隐含 C3(新中枢+突破) 硬门；level>=2 仍为 C2-only（旧 C3 same_side_same_center 字段降为诊断，不参门）。",
             if n_gate_pass_total > 0 { 100.0 * n_xzd_pass as f64 / n_gate_pass_total as f64 } else { 0.0 });
         let n_nest_pass: usize = nest_depth_hist_pass.iter().sum();
         let _ = writeln!(rpt, "- 通道分离：区间套（descend=Some，depth 直方图 {n_nest_pass} 条）与小转大（descend=None，{n_xzd_pass} 条）输入域 Some/None 互斥（codex §6-4 构造同义反复，非经验重叠）。");
-        let _ = writeln!(rpt, "- **小转大域触达/C2/C3 分项（诊断，C3 不参门）**：路由到 Xzd={n_xzd_routed}，其中 C2 成立={n_xzd_c2}，C3 成立={n_xzd_c3}，门通过（=C2 成立）={n_xzd_pass}。");
+        let _ = writeln!(rpt, "- **小转大域触达/C2/旧C3 分项（诊断，旧 C3=same_side_same_center 不参门）**：路由到 Xzd={n_xzd_routed}，其中 C2 成立={n_xzd_c2}，旧 C3 成立={n_xzd_c3}，门通过={n_xzd_pass}。");
         let _ = writeln!(rpt);
 
         // ── C3 死门诊断探针（codex 终局裁定 §5.4，task #41）：按 level 聚合 + lvl==1/lvl>=2 分裂断点 ──
@@ -3209,6 +3327,26 @@ mod tests {
                 )
             };
             let _ = writeln!(rpt, "- {l1_verdict}");
+        }
+        let _ = writeln!(rpt);
+
+        // ── C3 新判据命中率（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率 ──
+        let _ = writeln!(rpt, "### C3 新判据（新中枢+突破）level==1 命中率（task #47，codex #44 终局裁定(c)）");
+        if n_l1 == 0 {
+            let _ = writeln!(rpt, "- 本窗无 lvl==1 路由到 Xzd 的信号，无法裁断。");
+        } else {
+            let pct = |x: usize| 100.0 * x as f64 / n_l1 as f64;
+            let _ = writeln!(rpt, "- c3_new_center_exists={} ({:.2}%)：source_index~confirm_index 间存在新确认次级中枢", xzd_l1_c3_new_center_exists, pct(xzd_l1_c3_new_center_exists));
+            let _ = writeln!(rpt, "- c3_new_center_breakout_ok={} ({:.2}%)：新中枢被其后次级走势反向突破（level==1 硬门参门项）", xzd_l1_c3_new_center_breakout_ok, pct(xzd_l1_c3_new_center_breakout_ok));
+            eprintln!("[c3-breakout-dx] lvl1 routed={n_l1} new_center_exists={xzd_l1_c3_new_center_exists} breakout_ok={xzd_l1_c3_new_center_breakout_ok}");
+            let breakout_rate = xzd_l1_c3_new_center_breakout_ok as f64 / n_l1 as f64;
+            let _ = writeln!(rpt, "- **判据健康度**：命中率∈(0%,100%) ⟹ 判据在本窗有区分力（非死门/非全通过伪影）。");
+            assert!(
+                breakout_rate > 0.0 && breakout_rate < 1.0,
+                "C3 新判据 level==1 命中率={:.4}（breakout_ok={xzd_l1_c3_new_center_breakout_ok}/{n_l1}）——0%或100%均为判据实现问题信号\
+                 （task #47 边界条件：非 0%/100% 才是判据本身健康，命中率退化需回到 codex 复审，不得静默接受）。",
+                breakout_rate
+            );
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "### lvl>=2 死门真封（sub_bsp_type3_count 预期恒为 0）");
