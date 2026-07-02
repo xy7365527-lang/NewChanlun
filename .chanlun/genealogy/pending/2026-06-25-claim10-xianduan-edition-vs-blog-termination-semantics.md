@@ -1,3 +1,18 @@
+---
+id: "claim10-xianduan-termination"   # slug id（避免伪造数字排序 + 跨 worktree 撞号；dag.yaml 已支持 slug id 如 coverage-engine-needs-tower-export-bridge）。最终数字编号待 /ritual 由编排者在统一编号空间分配。
+status: 生成态
+type: 语法记录   # settled 定义(xianduan.md v1.3)与一级权威博文(第67课)原文镜像反转；settled 改动权属编排者/genealogist，发现工位不擅自改。
+date: "2026-06-25"   # 取文件名日期（本工位无 Bash，git 首 commit 时间戳结构不可达，同 655 号记录的工具边界）。文件名日期=创建标记，仓库约定。
+source: claim10-segment-v1 工位（task #37，Phase2 线段 v1 特征序列法形式化）；异工位复核 + codex 异质审计双源指出。
+authority_chain: [缠师博文第67课(一级权威), codex异质审查, spec/Lean源头审计]
+negation_source: heterogeneous
+negation_form: separation   # 「第一种/第二种情况的终结语义」在两份项目文档(编纂层 vs 博文原文)被赋予镜像相反的时序，同一范畴内暴露不兼容异质性。
+related:
+  - '002'   # source-incompleteness——本矛盾是编纂版已知遗漏(第67课)的下游污染
+  - '003'   # 线段两口径分离——本号是 003 关联领域的新张力(编纂层 vs 原文语义反转)，需核查 003:88-89 是否同源错误
+title: "xianduan.md:169-170(编纂层 settled) 对第67课两种情况终结语义与博文原文镜像反转——第一种情况(无缺口)原文=分型形成即直接终结 / 第二种情况(有缺口)原文=须第二特征序列分型才终结；编纂层写反。settled 改动权属编排者/genealogist(选择类待裁)。"
+---
+
 ## 矛盾报告
 
 **发现工位**：claim10-segment-v1（Phase2 线段 v1 特征序列法形式化，task #37）
