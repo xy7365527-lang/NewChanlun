@@ -5,7 +5,8 @@
 
 ## 全局约束（先于一切泳道）
 
-1. **基线协议**：每泳道落地前后各跑一次计时对照——400K bar THETA_PROFILE_STAGES=1（现基线 8.7s）+ 全历史 decompose（现基线 ~6-7min）。**基线跑与修后跑之间不得夹入 #13 落地**（econ verdict 程序性约束：#13 改信号集，夹入即对照失效）。
+1. **基线协议**：每泳道落地前后各跑一次计时对照——400K bar THETA_PROFILE_STAGES=1（现基线 8.7s）+ 全历史 decompose（现基线 ~6-7min）。
+   > **[2026-07-02 基线过时订正（B1 实测 + quality-guard 判定）]** 括号内基线数字系 confirmed_len perf 提交前的陈旧值：400K 端到端实测已是 ~18-27s wall / stage-sum ~23s（并发噪声内），350K decompose 窗实测 ~30s。**各泳道落地前必须在当前 HEAD 重测自己的基线**，target 按重测值降准（A1 锁 1.13-1.17x 缩窗上限、B2 落地前先重测 signal-stage 基线）；本表「预期增益」列的绝对秒数不再作数，相对比值仍供参考。**基线跑与修后跑之间不得夹入 #13 落地**（econ verdict 程序性约束：#13 改信号集，夹入即对照失效）。
 2. **YAGNI 重开门（A0）**：mod.rs 克隆簇已被 Lead 2026-06-30 裁定 YAGNI 暂缓。三份 verdict 一致指出量级声称（35min/60-70% memcpy/5-10x）陈旧或无据。重开该裁定的唯一合法证据 = A0 实测（全历史或 ≥1M bar profile + :854/:1081 补插桩标签）。**A0 不通过（克隆簇占比低）则 A1 缩水或撤项。**
 3. **bit-exact 语法**：所有项以现有守卫封门——GOLDEN digest、bit_exact_per_bar / bit_exact_synthetic / gen_fastpath_bit_exact_debug oracle、incremental_tower_* 守卫、bit_exact_incr_segments_per_bar 电池。high 风险项额外要求 codex 审 + 新增定向 oracle（见「护航组」）。
 
@@ -52,6 +53,7 @@
 
 ### 泳道 D — backtest/perm_test.rs（单项，立即可做）
 - **D1**：(a) perm_ds 缓冲提外+copy_from_slice（RNG 消耗序不变）；(b) 单遍融合累加 sum_plus/sum_minus（勿用 total−plus 派生）；(c) ge/obs 引用提外。**正确性半边单列**：多 stratum 下 HashMap 迭代序 × RNG 串行消耗 = 冻结种子不可复现（违反预注册硬约束）——修复（BTreeMap/排序迭代）会改多 stratum 输出，**走 /escalate 连同预注册一起裁决**，不与性能半边捆绑落地。
+  > **[2026-07-02 状态订正（codex 裁决④，codex-permtest-correctness-ruling-20260702.md）]** 本条状态标签过时：该 bug 真实存在于创世提交 8ccbe58137，但**同日下一提交 7682aa4024 已改 BTreeMap 修复**并加 multi_stratum_reproducible 测试，当前 HEAD 延续修复。裁决：实装 bug 修复不改 estimand（留 errata 不标方法学修订）；W-VERIFY 11 桶 Inconclusive 结果产出晚于修复、不受影响；无需再走 /escalate。遗留独立测试缺口：跨进程复现（父进程 spawn 子进程两跑逐字节比对）未覆盖，单列 follow-up。
 - **验收**：same_seed_reproducible + 新增多 stratum 复现测试（裁决后）；无生产调用点，W-VERIFY 接入前落地最省。
 
 ### 泳道 E — parser/segment.rs + tail.rs（单项，立即可做）

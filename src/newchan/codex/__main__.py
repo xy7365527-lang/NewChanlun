@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,8 +45,10 @@ def _print_result(result: ReviewResult) -> None:
 def _save_result(result: ReviewResult, timestamp: datetime) -> Path:
     """将审查结果持久化到 .chanlun/review-results/。"""
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    ts_tag = timestamp.strftime("%Y%m%d-%H%M")
-    filename = f"codex-{result.mode}-{ts_tag}.md"
+    # 秒级时间戳 + 4-hex 随机后缀：同分钟/同秒并行调用不互相覆盖。
+    ts_tag = timestamp.strftime("%Y%m%d-%H%M%S")
+    suffix = os.urandom(2).hex()
+    filename = f"codex-{result.mode}-{ts_tag}-{suffix}.md"
     path = _RESULTS_DIR / filename
     path.write_text(result.to_markdown(timestamp), encoding="utf-8")
     return path
