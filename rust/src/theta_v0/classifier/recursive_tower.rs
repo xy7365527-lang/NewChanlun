@@ -106,6 +106,20 @@ pub struct LeveledMove {
     pub id: ElementId,
 }
 
+/// 在按 `end_index` 升序排列的走势序列中定位 `end_index == target` 的段（leftmost）。
+///
+/// 不变量：`moves` 按 `end_index` 升序——tower 各级 / `sub_moves` 由 `compose_level` 的连续
+/// 非重叠窗口产出（`end_index` 严格递增）。partition_point 前提由 debug 断言守护（release 编译掉）。
+/// O(log n) 替换 `iter().position/find(|m| m.end_index == target)` 线性扫描。
+pub fn find_move_by_end_index(moves: &[LeveledMove], target: usize) -> Option<usize> {
+    debug_assert!(
+        moves.windows(2).all(|w| w[0].end_index <= w[1].end_index),
+        "LeveledMove 序列须按 end_index 升序（partition_point 前提）"
+    );
+    let i = moves.partition_point(|m| m.end_index < target);
+    (i < moves.len() && moves[i].end_index == target).then_some(i)
+}
+
 impl LeveledMove {
     /// L0 线段单元 → 携坐标的 `RMove::Segment`（递归底，level 0，`sub_moves` 空）。
     ///

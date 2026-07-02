@@ -55,6 +55,7 @@
 //!
 //! 跑法：`cargo test --release --lib theta_v0::backtest::l3_delta_r_alpha -- --ignored --nocapture`
 
+use std::rc::Rc;
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
 use super::mu_estimator::{marginal_return, MuClass, MuEstimator, MuObservation, PositionState};
@@ -141,7 +142,7 @@ pub fn build_mu_from_bars(bars: &[Bar], config: &ThetaConfig) -> MuEstimator {
         let (cls_i, tower_i) = classifier_incr.classify_at(i);
         // 本 bar 新确认买卖点（append-only diff）。
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
-            for p in &ls.bsp {
+            for p in ls.bsp.iter() {
                 if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {
                     continue; // 已确认过，跳过
                 }
@@ -154,12 +155,12 @@ pub fn build_mu_from_bars(bars: &[Bar], config: &ThetaConfig) -> MuEstimator {
                         .enumerate()
                         .map(|(l2, _)| super::super::classifier::LevelState {
                             moves: Vec::new(),
-                            centers: Vec::new(),
-                            bsp: if l2 == lvl {
+                            centers: Rc::new(Vec::new()),
+                            bsp: Rc::new(if l2 == lvl {
                                 vec![p.clone()]
                             } else {
                                 Vec::new()
-                            },
+                            }),
                         })
                         .collect(),
                 };
@@ -1512,7 +1513,7 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
         }
         let (cls_i, tower_i) = classifier_incr.classify_at(i);
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
-            for p in &ls.bsp {
+            for p in ls.bsp.iter() {
                 if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {
                     continue;
                 }
@@ -1523,8 +1524,8 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
                         .enumerate()
                         .map(|(l2, _)| super::super::classifier::LevelState {
                             moves: Vec::new(),
-                            centers: Vec::new(),
-                            bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                            centers: Rc::new(Vec::new()),
+                            bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                         })
                         .collect(),
                 };

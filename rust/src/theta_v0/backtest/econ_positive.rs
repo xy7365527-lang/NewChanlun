@@ -30,10 +30,11 @@
 //! 持有 BspPoint——其 `source_index`（bsp.rs:103，L0 原始 K 序的 pivot 端点位置）即信号挂靠的 pivot 端点
 //! bar，取其 close 作 P[λ_rev]（入场信号）/P[ρ_rev]（配对出场信号）。故走 μ 路径无需透传 Order 端点价。
 
+use std::rc::Rc;
 use super::data::Dataset;
 use super::incremental::IncrementalClassifier;
-use super::super::classifier::cand_predicate::ContextMove;
 use super::super::classifier::divergence::compute_macd;
+use super::super::classifier::recursive_tower::find_move_by_end_index;
 use super::super::classifier::nest::{NestCertificate, NestInterval, NestRung};
 use super::super::closed_loop::sell::{sell_decision_of, SellDecision};
 use super::super::config::ThetaConfig;
@@ -263,7 +264,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSid
                         .map(|(l2, _)| super::super::classifier::LevelState {
                             moves: Vec::new(),
                             centers: Rc::new(Vec::new()),
-                            bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                            bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                         })
                         .collect(),
                 };
@@ -524,14 +525,10 @@ fn descend_type1_anchor_depth(
         return None; // 递归底（level0 无次级别）⟹ 无可下沉的一类锚点 = 小转大
     }
     // 次级别 Type1 背驰段判据：s.sub_moves 中 end_index==source_index 段跑完整 div_cand。
-    let tidx = subs.iter().position(|m| m.end_index == source_index)?; // 无回抽端点对齐段 ⟹ 小转大
-    let ctx: Vec<ContextMove> = subs
-        .iter()
-        .map(|m| ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index))
-        .collect();
+    let tidx = find_move_by_end_index(subs, source_index)?; // 无回抽端点对齐段 ⟹ 小转大
     let anchor_ok = super::super::classifier::cand_predicate::div_cand(
         &super::super::classifier::cand_predicate::DivCandInput {
-            context: &ctx,
+            context: subs,
             target_idx: tidx,
             hist,
             delta,
@@ -565,7 +562,7 @@ pub(super) fn build_nest_certificate(
 ) -> Option<NestCertificate> {
     // 执行级 tower[lvl] 中找 end_index == source_index 的段（候选段 s，执行级 e=lvl）。
     let exec_moves = tower.get(lvl)?.as_slice();
-    let s = exec_moves.iter().find(|m| m.end_index == source_index)?;
+    let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?];
     let base_interval = NestInterval {
         start_time: s.start_index as u64,
         end_time: s.end_index as u64,
@@ -597,10 +594,14 @@ pub(super) fn build_nest_certificate(
     let mut rung_buf: Vec<NestRung> = Vec::new(); // 从低到高先收集，最后反转
     for k in (lvl + 1)..max_k {
         let k_moves = tower[k].as_slice();
-        // 找 tower[k] 中包含 source_index 的段（k 级 Compose）。
-        let Some(knode) = k_moves.iter().find(|m| {
-            m.start_index <= source_index && source_index <= m.end_index
-        }) else {
+        // 找 tower[k] 中包含 source_index 的段（k 级 Compose；leftmost end>=src 且 start<=src）。
+        // ponytail: 单生产调用点，partition_point 内联——含段查找非 end== 精确匹配，不套 find_move_by_end_index。
+        debug_assert!(
+            k_moves.windows(2).all(|w| w[0].end_index <= w[1].end_index),
+            "tower[k] 须按 end_index 升序（partition_point 前提）"
+        );
+        let ki = k_moves.partition_point(|m| m.end_index < source_index);
+        let Some(knode) = k_moves.get(ki).filter(|m| m.start_index <= source_index) else {
             // 无 k 级包含段 ⟹ 链断，不延伸。**设计选择：partial chain 合法**（codex #39 Q1 裁定）。
             // N^δ_{ℓ↓e} 的执行级 e=信号级 lvl（非 tower 顶）；rungs 是「e 之上到首个无包含段」的
             // 上级语境层。链断 = 该 source_index 在更高层无覆盖段 = 上级语境到此为止，**不是**要求
@@ -625,14 +626,11 @@ pub(super) fn build_nest_certificate(
         } else {
             // k 级 knode 的 sub_moves 是 lvl 到 k-1 级的窗口序列；找 end_index == source_index 的段
             // （即执行级候选段），计算 DivCand 四条件。
-            let ctx: Vec<ContextMove> = knode.sub_moves.iter().map(|m| {
-                ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index)
-            }).collect();
-            match knode.sub_moves.iter().position(|m| m.end_index == source_index) {
+            match find_move_by_end_index(knode.sub_moves.as_slice(), source_index) {
                 Some(tidx) => {
                     super::super::classifier::cand_predicate::div_cand(
                         &super::super::classifier::cand_predicate::DivCandInput {
-                            context: &ctx,
+                            context: knode.sub_moves.as_slice(),
                             target_idx: tidx,
                             hist,
                             delta,
@@ -864,7 +862,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -920,7 +918,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -968,7 +966,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -1020,7 +1018,7 @@ mod tests {
         let parent = LeveledMove {
             rmove: RMove::Compose {
                 subs: sub_rmoves,
-                centers: Rc::new(vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }]),
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
                 level: 1,
             },
             start_index: 0, end_index: 19,
@@ -1064,7 +1062,7 @@ mod tests {
         LM2 {
             rmove: RM2::Compose {
                 subs: sub_rmoves,
-                centers: Rc::new(vec![Ct2 { zd: lo, zg: hi, dd: lo, gg: hi, start_index: start, end_index: end }]),
+                centers: vec![Ct2 { zd: lo, zg: hi, dd: lo, gg: hi, start_index: start, end_index: end }],
                 level,
             },
             start_index: start, end_index: end,
@@ -2457,7 +2455,7 @@ mod tests {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
-                                bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                             })
                             .collect(),
                     };
@@ -2804,7 +2802,7 @@ mod tests {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
-                                bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                             })
                             .collect(),
                     };
@@ -2864,7 +2862,7 @@ mod tests {
                                         }
                                     }
                                     r_divcand = div_cand(&DivCandInput {
-                                        context: &ctx, target_idx: tidx, hist: &macd_hist, delta,
+                                        context: knode.sub_moves.as_slice(), target_idx: tidx, hist: &macd_hist, delta,
                                     });
                                 }
                             }
@@ -3129,7 +3127,7 @@ mod tests {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
-                                bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                             })
                             .collect(),
                     };

@@ -461,6 +461,58 @@ mod profile {
         );
     }
 
+    /// **★A0（YAGNI 重开门）：克隆簇阶段占比 profile（THETA_PROFILE_STAGES 全阶段拆解，BTC ≥1M bar）**。
+    ///
+    /// 泳道 A A0（algo-opt-plan-20260702.md）：`classify_with_tower_incremental` 逐 bar 驱动 BTC
+    /// 前 N bar（默认 1M，env `A0_PROFILE_BARS` 可调），`THETA_PROFILE_STAGES=1` 时 `dump()` 打印
+    /// 15 阶段耗时。克隆簇 = {00b_l0_units_clone, 04_cached_units_copy, 07c_bsp_memo_clone,
+    /// 08_levels_centers_clone, 10_projected_units_clone}（A1 的 Rc/借用 目标段）占分类器总耗时之比
+    /// = A1 是否值得重开的唯一合法证据。占比高 ⟹ A1 全量；占比低 ⟹ 缩水/撤项。
+    ///
+    /// ## 认识论等级：**L1**（CPU 度量，零信息增量，231号）——耗时可复现，不验证 Θ 市场有效。
+    ///
+    /// 运行：`THETA_PROFILE_STAGES=1 A0_PROFILE_BARS=1000000 cargo test --release -p newchan_rust \
+    ///   --lib backtest::incremental::profile::profile_clone_cluster_a0 -- --ignored --nocapture`
+    #[test]
+    #[ignore = "A0 克隆簇占比 profile；需 BTC；THETA_PROFILE_STAGES=1；--release"]
+    fn profile_clone_cluster_a0() {
+        let config = ThetaConfig::default();
+        let ds = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("DATA BLOCKER: {e}");
+                panic!("需 BTC 数据");
+            }
+        };
+        let n_avail = ds.bars.len();
+        let n: usize = std::env::var("A0_PROFILE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1_000_000)
+            .min(n_avail);
+        eprintln!(
+            "\n===== A0 克隆簇占比 profile（BTC 前 {n}/{n_avail} bar，classify_with_tower_incremental）====="
+        );
+        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+            eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空（零开销直通）。设 env 后重跑才有数据。");
+        }
+        let bars = &ds.bars[..n];
+        let mut parser_incr = parser::ParseLayerIncr::new(&config);
+        let mut tower_cache = classifier::TowerCache::default();
+        let t0 = std::time::Instant::now();
+        for i in 0..n {
+            let l0_i = parser_incr.append(bars[i]);
+            let _ = classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+        }
+        let wall = t0.elapsed().as_secs_f64();
+        eprintln!("[A0] {n} bar 逐 bar classify_with_tower_incremental 墙钟={wall:.2}s");
+        classifier::stage_profile::dump();
+        eprintln!(
+            "★A0 克隆簇 = {{00b_l0_units_clone, 04_cached_units_copy, 07c_bsp_memo_clone, \
+             08_levels_centers_clone, 10_projected_units_clone}}；占比 = 克隆簇Σ / 全阶段Σ（见 dump）。L1。"
+        );
+    }
+
     /// **★诊断（工位 E 留档）：classifier 增量 vs 全量 bit-exact 隔离**。
     ///
     /// 同一 legacy `parse_layer(&bars[..=i])` 输入喂 `classify_with_tower_incremental`（持久 cache）
@@ -994,7 +1046,7 @@ mod profile {
             let (cls, _tower) = incr.classify_at(i);
             let mut cur: HashSet<(usize, usize, u8, u8)> = HashSet::new();
             for (lvl, level) in cls.levels.iter().enumerate() {
-                for p in &level.bsp {
+                for p in level.bsp.iter() {
                     let b = &p.bits;
                     let buy = (b.buy1 as u8) | (b.buy2 as u8) << 1 | (b.buy3 as u8) << 2;
                     let sell = (b.sell1 as u8) | (b.sell2 as u8) << 1 | (b.sell3 as u8) << 2;

@@ -541,7 +541,7 @@ pub fn from_classification_levels(classification: &Classification) -> Vec<Covera
     // 须从真 `LeveledMove` 塔（[`extract_elements`] 的 `rmove_side` 读外缘趋势/线段方向）取——完整
     // element-coverage（含方向感知 + ShortDiff）用真塔，本扁平入口仅作根级覆盖区间基线。
     for (level_idx, level) in classification.levels.iter().enumerate() {
-        for center in &level.centers {
+        for center in level.centers.iter() {
             elements.push(CoverageElement {
                 lambda: center.start_index,
                 rho: center.end_index,
@@ -2550,12 +2550,12 @@ mod tests {
             levels: vec![
                 LevelState {
                     moves: vec![MoveKind::Consolidation],
-                    centers: vec![ctr(0, 12)],
+                    centers: Rc::new(vec![ctr(0, 12)]),
                     ..Default::default()
                 },
                 LevelState {
                     moves: vec![MoveKind::Trend],
-                    centers: vec![ctr(0, 30)],
+                    centers: Rc::new(vec![ctr(0, 30)]),
                     ..Default::default()
                 },
             ],
@@ -2848,7 +2848,7 @@ mod tests {
             struct_break_dir: None,
         };
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![bsp], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
         };
         // 空 A_t：买候选开启 ⟹ A_{t+1} 一条 Long 腿，p̃ = 600。
         // 空塔（tower &[]）⟹ 候选父=∂ ⟹ Ambient（与扁平一致）；本测试只验开腿/p̃，角色不约束。
@@ -2871,7 +2871,7 @@ mod tests {
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
         };
-        let c_buy = Classification { levels: vec![LevelState { bsp: vec![buy], ..Default::default() }] };
+        let c_buy = Classification { levels: vec![LevelState { bsp: Rc::new(vec![buy]), ..Default::default() }] };
         let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), &reg);
         assert_eq!(active_t1.len(), 1, "买点开 Long 腿");
         // bar t+1：卖点（反向）→ A_{t+1} 回喂 interpret ⟹ 关闭 Long 腿 ⟹ A_{t+2}=∅。
@@ -2882,7 +2882,7 @@ mod tests {
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
         };
-        let c_sell = Classification { levels: vec![LevelState { bsp: vec![sell], ..Default::default() }] };
+        let c_sell = Classification { levels: vec![LevelState { bsp: Rc::new(vec![sell]), ..Default::default() }] };
         let (active_t2, p2) = coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg(), &reg);
         assert!(active_t2.is_empty(), "反向卖点关闭持仓 Long（𝒟_x）⟹ A_{{t+2}}=∅（闭环）");
         assert_eq!(p2, 0.0, "无活动腿 ⟹ p̃=0");
@@ -2903,7 +2903,7 @@ mod tests {
         ]);
         // L0 卖候选 src=8 ⟹ host=sub(4,8) ⟹ 真父 L1 Long ⟹ ShortDiff（δ=Short=−σ_p）。
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
@@ -2943,7 +2943,7 @@ mod tests {
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
         ]);
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
@@ -2980,7 +2980,7 @@ mod tests {
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
         ]);
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
@@ -3010,7 +3010,7 @@ mod tests {
         use super::super::interp::{assemble_gamma_with_tower, coverage_elements_with_tower, interpret};
         let tower: Vec<Rc<Vec<LeveledMove>>> = Vec::new(); // 缺塔 ⟹ 候选父=∂ ⟹ Ambient 根
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![buy_bsp(4)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![buy_bsp(4)]), ..Default::default() }],
         };
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
@@ -3034,8 +3034,8 @@ mod tests {
         // 同 bar 两候选：L1 卖（反向关闭 L1 Long 父腿）+ L0 卖（ShortDiff 子腿）。
         let classification = Classification {
             levels: vec![
-                LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }, // L0：ShortDiff 子
-                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() }, // L1：反向关父
+                LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }, // L0：ShortDiff 子
+                LevelState { bsp: Rc::new(vec![sell_bsp(12)]), ..Default::default() }, // L1：反向关父
             ],
         };
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
@@ -3080,8 +3080,8 @@ mod tests {
         //  - L0 卖点（src=8=sub(4,8) ρ，host=sub，真父=L1 容器 ⟹ ShortDiff depth=1 子腿）。
         let classification = Classification {
             levels: vec![
-                LevelState { bsp: vec![sell_bsp(8)], ..Default::default() },  // L0：ShortDiff 子
-                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() }, // L1：容器自身买卖点
+                LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() },  // L0：ShortDiff 子
+                LevelState { bsp: Rc::new(vec![sell_bsp(12)]), ..Default::default() }, // L1：容器自身买卖点
             ],
         };
         // ★空 prev_active：无外部预注入持仓父腿（死循环场景）。
@@ -3109,7 +3109,7 @@ mod tests {
         ]);
         // 仅 L0 ShortDiff 候选，**无** L1 容器 BSP ⟹ 容器不开腿 ⟹ 子腿父不在 raw ⟹ 剪枝（639(c)）。
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active, p) =
             coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), &reg);
@@ -3149,7 +3149,7 @@ mod tests {
         let bar1 = Classification {
             levels: vec![
                 LevelState::default(),                                    // L0：无 BSP
-                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() }, // L1：容器自身卖点
+                LevelState { bsp: Rc::new(vec![sell_bsp(12)]), ..Default::default() }, // L1：容器自身卖点
             ],
         };
         let (active1, _p1) =
@@ -3165,7 +3165,7 @@ mod tests {
 
         // bar2：仅 L0 子卖点（src=8，**无** L1 BSP）+ prev_active=bar1 容器腿。
         let bar2 = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active2, _p2) =
             coverage_step_classification(&bar2, &tower, &active1, 1000.0, &cfg(), &reg2);
@@ -3202,7 +3202,7 @@ mod tests {
         let bar1 = Classification {
             levels: vec![
                 LevelState::default(),
-                LevelState { bsp: vec![sell_bsp(12)], ..Default::default() },
+                LevelState { bsp: Rc::new(vec![sell_bsp(12)]), ..Default::default() },
             ],
         };
         let (active1, _p1) =
@@ -3214,7 +3214,7 @@ mod tests {
         // bar2：仅 L0 子卖点（src=8，**无** L1 BSP）+ **prev_active 为空**（父 carrier 非持仓腿）。
         // 父 carrier 仅在 reg2 中 LiveDetached 存活 ⟹ 唯有 open 候选父注入恢复祖先链才能准入子腿。
         let bar2 = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active2, _p2) =
             coverage_step_classification(&bar2, &tower, &[], 1000.0, &cfg(), &reg2);
@@ -3283,7 +3283,7 @@ mod tests {
         ]);
         // 空 registry（父 carrier 从未出现在任何 snapshot）+ 仅 L0 ShortDiff 子卖点 + 空 prev_active。
         let bar = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active, p) =
             coverage_step_classification(&bar, &tower, &[], 1000.0, &cfg(), &reg);
@@ -3307,7 +3307,7 @@ mod tests {
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
         ]);
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![sell_bsp(8)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (elements, cstart) = coverage_elements_with_tower(&classification, &tower);
         let gamma = assemble_gamma_with_tower(&classification, &tower);
@@ -3481,7 +3481,7 @@ mod tests {
             struct_break_dir: None,
         };
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![bsp], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
         };
         let r = rcfg();
         let (active, p_star, order) = pi_theta_step(
@@ -3508,7 +3508,7 @@ mod tests {
             struct_break_dir: None,
         };
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![bsp], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
         };
         let r = rcfg();
         let w = PiThetaWeights::from_risk(&r);
@@ -3568,7 +3568,7 @@ mod tests {
             struct_break_dir: None,
         };
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![sell], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![sell]), ..Default::default() }],
         };
         // ★639 核心坐实：空 prev_active（未持仓）+ 有向父容器 ⟹ ShortDiff（σ_p=父容器方向，非持仓父腿）。
         let gamma = assemble_gamma_with_tower(&classification, &tower);

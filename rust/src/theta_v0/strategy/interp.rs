@@ -167,7 +167,7 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
     let mut raw: Vec<(u32, usize, BspBits, VoiceSide, u8, bool)> = Vec::new();
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
-        for point in &level.bsp {
+        for point in level.bsp.iter() {
             let dir = candidate_dir(point);
             let cls = min_class(&point.bits, dir);
             let nest_ok = nest_confirm(lvl, point.source_index, &point.bits, dir);
@@ -792,7 +792,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
-        for point in &level.bsp {
+        for point in level.bsp.iter() {
             // ★工位 4h：单一来源 build_candidate_element（与 PART1 gamma-free 路径共享，no-patch）。
             let e = build_candidate_element(&tree, &tree_endpoint_idx, lvl, point, ci);
             let parent = e.parent;
@@ -810,7 +810,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
-        for point in &level.bsp {
+        for point in level.bsp.iter() {
             let dir = candidate_dir(point);
             gamma.push(Candidate {
                 level: lvl,
@@ -1042,7 +1042,7 @@ mod tests {
         Classification {
             levels: levels
                 .into_iter()
-                .map(|bsp| LevelState { bsp, ..Default::default() })
+                .map(|bsp| LevelState { bsp: Rc::new(bsp), ..Default::default() })
                 .collect(),
         }
     }
@@ -1603,8 +1603,8 @@ mod candidate_profile {
         }
         let cls = |l0: Vec<usize>, l1: Vec<usize>| Classification {
             levels: vec![
-                LevelState { bsp: l0.into_iter().map(buy3).collect(), ..Default::default() },
-                LevelState { bsp: l1.into_iter().map(buy3).collect(), ..Default::default() },
+                LevelState { bsp: l0.into_iter().map(buy3).collect::<Vec<_>>().into(), ..Default::default() },
+                LevelState { bsp: l1.into_iter().map(buy3).collect::<Vec<_>>().into(), ..Default::default() },
             ],
         };
         // 空 tower ⟹ extract_elements 空 ⟹ tree 空 ⟹ 全 candidate carrier-miss（fallback ordinal）。

@@ -912,7 +912,7 @@ mod tests {
             struct_break_dir: None,
         }];
         Classification {
-            levels: vec![LevelState { bsp, ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
         }
     }
 
@@ -976,7 +976,7 @@ mod tests {
             struct_break_dir: None,
         }];
         let classification = Classification {
-            levels: vec![LevelState { bsp, ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
         };
         let bars = vec![
             tradable_bar(0, 0, 100, 110, 90, 105),
@@ -1025,7 +1025,7 @@ mod tests {
         }];
         let classification = Classification {
             levels: vec![
-                LevelState { bsp: l0_bsp, ..Default::default() }, // L0：非空 bsp（l_star=0）
+                LevelState { bsp: Rc::new(l0_bsp), ..Default::default() }, // L0：非空 bsp（l_star=0）
                 LevelState::default(),                            // L1：空 bsp（level_idx 1 > l_star 0）
                 LevelState::default(),                            // L2：空 bsp（level_idx 2 > l_star 0）
             ],
@@ -1067,7 +1067,7 @@ mod tests {
             struct_break_dir: None,
         }];
         let classification = Classification {
-            levels: vec![LevelState { bsp, ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
         };
         let bars = vec![
             tradable_bar(0, 0, 100, 110, 90, 105),

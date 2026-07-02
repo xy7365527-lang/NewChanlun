@@ -77,13 +77,19 @@ use super::types::Side;
 pub struct LevelState {
     /// 该级别识别出的走势类型序列（Trend/Consolidation；HigherCenterCandidate 不入 moves）。
     pub moves: Vec<MoveKind>,
-    pub centers: Vec<Center>,
+    /// ★A1（07c/08）：`Rc` 共享——增量塔 `lc.centers` 经 `Rc::clone`（O(1)）投影到 LevelState，
+    /// 消除 per-bar per-level 全量 `centers.clone()`（A0 profile 坐实 08 段 1M=1.58s）。前缀不可变，
+    /// 尾部经 `Rc::make_mut` 追加（caller 逐 bar drop 上轮 Classification ⟹ strong_count==1 ⟹ 原地
+    /// O(tail)；对拍 harness 跨 bar 持有 ⟹ 写时复制退化全拷，仍 bit-exact，生产路径不受影响）。
+    pub centers: Rc<Vec<Center>>,
     /// 各买卖点条目（非互斥 bit-vector + 结构止损价 single source，BSP.lean + reference:46）。
     ///
     /// 路 B（Lead 接口契约裁定）：每个 `BspPoint` 携带 pivot_low/pivot_high/center——
     /// strategy 直接构造 `StopInput`，**不**从 bars 重算结构 pivot。classifier 是结构
     /// 止损价的唯一来源（识别买卖点时已定位 pivot，避免两处结构逻辑漂移）。
-    pub bsp: Vec<BspPoint>,
+    /// ★A1（07c）：`Rc` 共享——memo 命中经 `Rc::clone`（O(1)）投影到 LevelState，消除 per-bar
+    /// per-level 全量 `cached_bsp.clone()`（A0 profile 坐实 07c 段 1M=1.80s）+ miss 路径 `b.clone()`。
+    pub bsp: Rc<Vec<BspPoint>>,
 }
 
 /// 多级别递归分类输出（L0..Lmax；某层自然终止则该层及以上为空）。
@@ -255,8 +261,8 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
 
         levels.push(LevelState {
             moves,
-            centers: centers.clone(),
-            bsp,
+            centers: Rc::new(centers.clone()),
+            bsp: Rc::new(bsp),
         });
 
         // L(k+1) 输入单元 = 上级走势塔的 `UnitRange` 投影（外缘区间 + 坐标 + 外缘趋势方向）。
@@ -368,7 +374,7 @@ struct LevelCache {
     /// snapshot ⟹ 下 bar extend 时 strong_count==1 ⟹ 原地追加 O(tail)，不触发写时复制。
     upper_moves: Rc<Vec<LeveledMove>>,
     /// 已识别中枢序列（与 `upper_moves` 一一对应，每窗口一中枢；前缀不可变，尾部续扫追加）。
-    centers: Vec<Center>,
+    centers: Rc<Vec<Center>>,
     last_input_len: usize,
     /// 上次扫描的本级输入单元快照（前缀变异检测）。`detect_centers_windowed_resume` 充要条件 #2
     /// 要求 `units[..consumed]` 跨 bar 不可变；但 parser frontier 末段会**原地改写**（缠论古怪线段
@@ -379,7 +385,7 @@ struct LevelCache {
     /// 增量 classify_move 缓存（None=未初始化；Some=对应 `centers` 当前序列的裁决）。
     cached_outcome: Option<level::MoveOutcome>,
     /// BSP memo 缓存：上次提取的 BSP 序列（与 `cached_bsp_key` 配对）。
-    cached_bsp: Vec<BspPoint>,
+    cached_bsp: Rc<Vec<BspPoint>>,
     /// BSP memo guard key = (centers.len, upper_moves.len, segments.len[L0 only])。三者不变 ⟹
     /// BSP 纯函数同输入同输出（confirmed 元素区间在稳定前缀，尾 bar 不影响）⟹ 复用缓存 bit-exact。
     cached_bsp_key: Option<(usize, usize, usize)>,
@@ -851,7 +857,8 @@ pub fn classify_with_tower_incremental(
         cache.l0_units_cache.truncate(reuse);
         cache.l0_units_cache.extend(l0.segments[reuse..].iter().map(segment_to_unit));
     });
-    let l0_units: Vec<UnitRange> = cache.l0_units_cache.clone();
+    let l0_units: Vec<UnitRange> =
+        stage_profile::time("00b_l0_units_clone", || cache.l0_units_cache.clone());
 
     // DIAG(frontier-bit-exact): 对拍复用版 l0_units_cache vs 全量 segment_to_unit（隔离 L0 units 前缀复用是否陈旧）。
     if std::env::var("DIAG_L0UNITS").is_ok() {
@@ -987,9 +994,9 @@ pub fn classify_with_tower_incremental(
             lc.scan_cursor = WindowScanCursor::default();
             // make_mut：若上 bar snapshot 仍持引用则写时复制再 clear（退化 bit-exact）；否则原地清。
             Rc::make_mut(&mut lc.upper_moves).clear();
-            lc.centers.clear();
+            Rc::make_mut(&mut lc.centers).clear();
             lc.cached_outcome = None;
-            lc.cached_bsp.clear();
+            Rc::make_mut(&mut lc.cached_bsp).clear();
             lc.cached_bsp_key = None;
             lc.projected_units.clear(); // #106：upper_moves 前缀重排 ⟹ 投影缓存失效，重投影。
         }
@@ -1021,7 +1028,7 @@ pub fn classify_with_tower_incremental(
                 !lc.centers.is_empty() && !lc.upper_moves.is_empty(),
                 "had_emitted_window ⟹ 至少一个已产出中枢可回退"
             );
-            lc.centers.pop();
+            Rc::make_mut(&mut lc.centers).pop();
             Rc::make_mut(&mut lc.upper_moves).pop();
         }
         // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
@@ -1041,8 +1048,8 @@ pub fn classify_with_tower_incremental(
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
         did_extend |= !tail_upper.is_empty();
         stage_profile::time("06_extend_centers_upper", || {
-            lc.centers.extend(tail_centers);
             // make_mut：strong_count==1 ⟹ 原地 extend O(tail)；>1 ⟹ 写时复制（bit-exact）。
+            Rc::make_mut(&mut lc.centers).extend(tail_centers);
             Rc::make_mut(&mut lc.upper_moves).extend(tail_upper);
         });
         lc.scan_cursor = new_cursor;
@@ -1077,8 +1084,9 @@ pub fn classify_with_tower_incremental(
         // 缓存。与无 memo 版逐字段相等（同 extract_signals_with_hist/extract_second_for_level 代码路径）。
         let seg_len = if is_l0 { l0.segments.len() } else { 0 };
         let bsp_key = (lc.centers.len(), lc.upper_moves.len(), seg_len);
-        let bsp: Vec<BspPoint> = if lc.cached_bsp_key == Some(bsp_key) {
-            lc.cached_bsp.clone()
+        let bsp: Rc<Vec<BspPoint>> = if lc.cached_bsp_key == Some(bsp_key) {
+            // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
+            stage_profile::time("07c_bsp_memo_clone", || Rc::clone(&lc.cached_bsp))
         } else {
             let mut b: Vec<BspPoint> = if is_l0 {
                 stage_profile::time("07a_extract_signals_l0", || {
@@ -1092,12 +1100,15 @@ pub fn classify_with_tower_incremental(
             });
             b.extend(second);
             b.sort_by_key(|p| p.source_index);
-            lc.cached_bsp = b.clone();
+            // miss 路径：`Rc::new` 一次，cache 与 LevelState 共享同一 buffer（消除旧 `b.clone()`）。
+            let rc = Rc::new(b);
+            lc.cached_bsp = Rc::clone(&rc);
             lc.cached_bsp_key = Some(bsp_key);
-            b
+            rc
         };
 
-        let level_centers = stage_profile::time("08_levels_centers_clone", || lc.centers.clone());
+        // 08：`Rc::clone`（O(1)）投影增量塔 centers 到 LevelState，替代全量 `centers.clone()`。
+        let level_centers = stage_profile::time("08_levels_centers_clone", || Rc::clone(&lc.centers));
         levels.push(LevelState {
             moves,
             centers: level_centers,
@@ -1363,7 +1374,7 @@ mod tests {
         let layer = ParseLayer { segments: Rc::new(segments), merged_bars: Rc::new(bars_from_closes(&closes)), ..Default::default() };
         let out = classify(&layer, &cfg);
         // L0 级别 bsp 不含第二类（三段交替窗口结构上界）。
-        for p in &out.levels[0].bsp {
+        for p in out.levels[0].bsp.iter() {
             assert!(!p.bits.buy2, "L0→L1 三段交替窗口不产 B2（still-MISSING-窗口，codex 裁决）");
             assert!(!p.bits.sell2, "L0→L1 三段交替窗口不产 S2（still-MISSING-窗口，codex 裁决）");
         }

@@ -46,6 +46,7 @@
 //! 轨迹），与 strategy::exec（产出 `Order` 的执行语义）分工不同——后者决定"成交价/方向"，
 //! 前者决定"权益如何随成交演化"。引擎稳定后二者口径对齐（fill 价取 Order 已定的成交价）。
 
+use std::rc::Rc;
 use super::super::closed_loop::state::{AssemblyState, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
 use super::super::strategy::ledger::RiskPolicy;
@@ -448,14 +449,15 @@ fn newly_confirmed_step(
             .enumerate()
             .map(|(lvl, ls)| LevelState {
                 moves: Vec::new(),
-                centers: Vec::new(),
+                centers: Rc::new(Vec::new()),
                 // append-only：seen.insert 为真=本 bar 首次确认 ⟹ 保留；副作用把所有 bsp 标记 seen。
                 bsp: ls
                     .bsp
                     .iter()
                     .filter(|p| seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits))))
                     .cloned()
-                    .collect(),
+                    .collect::<Vec<_>>()
+                    .into(),
             })
             .collect(),
     }
@@ -499,7 +501,7 @@ fn k_theta_risk_gate(
     let mut bsp_index: std::collections::HashMap<(usize, usize), &classifier::bsp::BspPoint> =
         std::collections::HashMap::new();
     for (lvl_idx, lvl) in classification.levels.iter().enumerate() {
-        for p in &lvl.bsp {
+        for p in lvl.bsp.iter() {
             bsp_index.insert((lvl_idx, p.source_index), p);
         }
     }
@@ -1514,7 +1516,7 @@ mod tests {
         // source_index=3≤7=因果）首次 diff 出该新确认买卖点 → 部署。+ 空塔（候选父=∂ ⟹ Ambient，足以
         // 验 fill 机制；σ_p 由 tower 专测）。
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![buy1_at(3)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
         };
         let fill = pi_theta_fill_loop(
             // ★工位 4g：第三元素 = 塔代次。合成闭包每 bar 用单调 `i as u64`（保守——每 bar 视作塔变 ⟹
@@ -1545,7 +1547,7 @@ mod tests {
     /// 合成 classify 闭包工厂：买点 buy1@3 在 bar≥7 确认（同 `..produces_trades_nonempty`），空塔。
     fn buy1_at3_confirmed_at7() -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64) {
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![buy1_at(3)], ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
         };
         move |i| {
             if i >= 7 {
@@ -1704,12 +1706,12 @@ mod tests {
         let tower: Vec<std::rc::Rc<Vec<_>>> = vec![Vec::new(), vec![l1]].into_iter().map(std::rc::Rc::new).collect();
         // 切片当步 L0 卖候选 source_index=12（host=sub(8,12) ⟹ 真父 L1 Long ⟹ σ_p=Long）。
         let classification = Classification {
-            levels: vec![LevelState { bsp: vec![{
+            levels: vec![LevelState { bsp: Rc::new(vec![{
                 let mut p = buy1_at(12);
                 p.bits = BspBits { sell1: true, ..Default::default() };
                 p.pivot_low = 0; p.pivot_high = 11_000_000_000;
                 p
-            }], ..Default::default() }],
+            }]), ..Default::default() }],
         };
         // 单候选分类（bsp@12，moves/centers 空）——直接作当步候选喂 σ_p 派生（与确认-bar 部署产物同形）。
         let sliced = classification.clone();
@@ -2757,7 +2759,7 @@ mod tests {
                 let mut max_src_idx = 0usize;
                 let mut first_fail_dump: Option<(usize, usize, bool)> = None;
                 for level in &classification.levels {
-                    for point in &level.bsp {
+                    for point in level.bsp.iter() {
                         max_src_idx = max_src_idx.max(point.source_index);
                         let b = &point.bits;
                         let has_buy = b.buy1 || b.buy2 || b.buy3;

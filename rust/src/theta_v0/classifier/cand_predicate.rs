@@ -54,7 +54,7 @@ use std::rc::Rc;
 
 use super::descend::RMove;
 use super::divergence::{is_divergence, segment_macd_area};
-use super::recursive_tower::LeveledMove;
+use super::recursive_tower::{LeveledMove, find_move_by_end_index};
 use super::super::types::{Direction, Side};
 
 /// δ 交易方向（Long=买/+1，Short=卖/−1）。
@@ -68,44 +68,14 @@ pub use super::super::types::Side as Delta;
 /// `hist`：MACD hist 序列（全 bar 域，bar 索引对齐）。
 /// `delta`：交易方向 δ（Long=买候选找下跌背驰，Short=卖候选找上涨背驰）。
 pub struct DivCandInput<'a> {
-    /// 候选段所在上级走势的次级别走势序列（来自 `LeveledMove.sub_moves`）。
-    pub context: &'a [ContextMove],
+    /// 候选段所在上级走势的次级别走势序列（`parent.sub_moves` 切片，直读不投影）。
+    pub context: &'a [LeveledMove],
     /// 目标段在 `context` 中的索引。
     pub target_idx: usize,
     /// MACD hist 序列（全 bar 域，从 bar 0 开始）。
     pub hist: &'a [f64],
     /// 交易方向 δ。
     pub delta: Delta,
-}
-
-/// 简化的走势坐标（从 `LeveledMove` 提取，只携带 DivCand 需要的字段）。
-///
-/// 不持有 `LeveledMove` 引用（避免递归借用），调用方显式提取。
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ContextMove {
-    /// 走势方向（Segment.direction / Compose 外缘派生，见 `rmove_dir`）。
-    pub direction: Direction,
-    /// 走势区间下沿（= `RMove::lo()`）。
-    pub lo: i64,
-    /// 走势区间上沿（= `RMove::hi()`）。
-    pub hi: i64,
-    /// 该走势覆盖的 bar 起点（L0 原始 K 序，来自 `LeveledMove.start_index`）。
-    pub start_index: usize,
-    /// 该走势覆盖的 bar 终点（L0 原始 K 序，来自 `LeveledMove.end_index`）。
-    pub end_index: usize,
-}
-
-impl ContextMove {
-    /// 从 `RMove` + 坐标构建（调用方从 `LeveledMove` 提取）。
-    pub fn from_rmove(rmove: &RMove, start_index: usize, end_index: usize) -> Self {
-        ContextMove {
-            direction: rmove_dir(rmove),
-            lo: rmove.lo(),
-            hi: rmove.hi(),
-            start_index,
-            end_index,
-        }
-    }
 }
 
 /// 走势方向判定（Segment 直接取；Compose 取外缘趋势——首次级 hi vs 末次级 hi）。
@@ -146,27 +116,29 @@ pub fn div_cand(input: &DivCandInput<'_>) -> bool {
         return false;
     }
     let s = &context[target_idx];
+    // 方向/lo/hi 从 LeveledMove 惰性派生（== ContextMove 旧投影：dir=rmove_dir，lo/hi=rmove.lo()/hi()）。
+    let s_dir = rmove_dir(&s.rmove);
 
     // 条件1：dir(s) = −δ。
     let expected_dir = match delta {
         Side::Long => Direction::Down,  // δ=买 → 背驰段方向 = 下跌
         Side::Short => Direction::Up,   // δ=卖 → 背驰段方向 = 上涨
     };
-    if s.direction != expected_dir {
+    if s_dir != expected_dir {
         return false;
     }
 
     // 条件2：找前序最近同向段 s'（Comparable = 同父次级别序列中前序最近同向段）。
-    // ponytail: 取最近（最大 i < target_idx，s.direction == s'.direction）。
+    // ponytail: 取最近（最大 i < target_idx，dir(s') == dir(s)）；rfind 逐元素派生方向，命中即停。
     let prev = context[..target_idx]
         .iter()
-        .rfind(|m| m.direction == s.direction);
+        .rfind(|m| rmove_dir(&m.rmove) == s_dir);
     let Some(s_prev) = prev else { return false };
 
     // 条件3：Extreme。
     let extreme_ok = match delta {
-        Side::Long => s.lo < s_prev.lo,   // 下跌段更低低点
-        Side::Short => s.hi > s_prev.hi,  // 上涨段更高高点
+        Side::Long => s.rmove.lo() < s_prev.rmove.lo(),   // 下跌段更低低点
+        Side::Short => s.rmove.hi() > s_prev.rmove.hi(),  // 上涨段更高高点
     };
     if !extreme_ok {
         return false;
@@ -207,7 +179,7 @@ pub fn bsp_div_cand(
 ) -> bool {
     // 1. 找候选段 s（end_index == source_index）。
     let level_moves = tower.get(level).map(|rc| rc.as_slice()).unwrap_or(&[]);
-    let Some(target_pos) = level_moves.iter().position(|m| m.end_index == source_index) else {
+    let Some(target_pos) = find_move_by_end_index(level_moves, source_index) else {
         return false;
     };
     let s = &level_moves[target_pos];
@@ -224,16 +196,12 @@ pub fn bsp_div_cand(
         return false;
     }
 
-    // 3. 将 sub_moves 转换为 ContextMove 序列，找 target_idx（end_index 匹配）。
-    let ctx: Vec<ContextMove> = context_subs.iter().map(|m| {
-        ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index)
-    }).collect();
-    // ponytail: end_index 唯一性在同一 sub_moves 序列内假设成立（Compose 窗口不重叠）。
-    let Some(target_idx) = context_subs.iter().position(|m| m.end_index == source_index) else {
+    // 3. 在 sub_moves 上直接二分找 target_idx（div_cand 直读 LeveledMove，不再投影 ContextMove）。
+    let Some(target_idx) = find_move_by_end_index(context_subs.as_slice(), source_index) else {
         return false;
     };
 
-    div_cand(&DivCandInput { context: &ctx, target_idx, hist, delta })
+    div_cand(&DivCandInput { context: context_subs.as_slice(), target_idx, hist, delta })
 }
 
 #[cfg(test)]
@@ -242,12 +210,23 @@ mod tests {
 
     // ── 测试工具 ──────────────────────────────────────────────────────────────
 
-    fn down_seg(lo: i64, hi: i64, start: usize, end: usize) -> ContextMove {
-        ContextMove { direction: Direction::Down, lo, hi, start_index: start, end_index: end }
+    /// div_cand 现直读 LeveledMove——测试段用 RMove::Segment 承载 lo/hi/direction（L0，sub_moves 空）。
+    fn seg(direction: Direction, lo: i64, hi: i64, start: usize, end: usize) -> LeveledMove {
+        LeveledMove {
+            rmove: RMove::Segment { direction, lo, hi },
+            start_index: start,
+            end_index: end,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId { level: 0, ordinal: 0 },
+        }
     }
 
-    fn up_seg(lo: i64, hi: i64, start: usize, end: usize) -> ContextMove {
-        ContextMove { direction: Direction::Up, lo, hi, start_index: start, end_index: end }
+    fn down_seg(lo: i64, hi: i64, start: usize, end: usize) -> LeveledMove {
+        seg(Direction::Down, lo, hi, start, end)
+    }
+
+    fn up_seg(lo: i64, hi: i64, start: usize, end: usize) -> LeveledMove {
+        seg(Direction::Up, lo, hi, start, end)
     }
 
     /// hist 序列：每 bar 固定值，面积 = 值 × bar 数。
