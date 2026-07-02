@@ -104,7 +104,15 @@ evidence:
 
 ## 结论
 
-603 确立的「真完全分类 = 递归数据类型构造子穷尽」是**正确但不完整**的：它给出的是 **Layer1（语法生成无遗漏）**，而数学上最严格的完全分类是 **Layer2（缠论式 6 部分动态双射）**。Layer1 ⊊ Layer2。本轮蜂群把所有声称完全分类的产出（14 项，毫无遗漏）从 Layer1 升级到 Layer2 的两层定理形式，全集 Lean machine-check 通过（33 jobs，无 sorry/admit/axiom），并用命名诚实性 gatekeeper（6 标签）防止把 Layer1 冒充 Layer2。
+603 确立的「真完全分类 = 递归数据类型构造子穷尽」是**正确但不完整**的：它给出的是 **Layer1（语法生成无遗漏）**，而数学上最严格的完全分类是 **Layer2（缠论式 6 部分动态双射）**。Layer1 ⊊ Layer2（**按标准强度序读，且已证部分限定为 ExclusiveSumLayer1 版本——见下方「codex 裁决⑤ 修订注」**）。本轮蜂群把所有声称完全分类的产出（14 项，毫无遗漏）从 Layer1 升级到 Layer2 的两层定理形式，全集 Lean machine-check 通过（33 jobs，无 sorry/admit/axiom），并用命名诚实性 gatekeeper（6 标签）防止把 Layer1 冒充 Layer2。
+
+## codex 裁决⑤ 修订注（2026-07-02，依据 codex-ritual-resubmit-20260702.md §615）
+
+codex 重裁判决「部分成立（反例合格但对象须收紧）」，本节按裁决收紧全文「⊊」的读法：
+
+1. **已证的「⊊」限定为 ExclusiveSumLayer1 版本**。Lean `BSPLabels.lean:105 twoB_threeB_can_coincide`（vReversalEndpoint 同时携带 2B/3B）是 `ExclusiveSumLayer1 ⊊ Layer2` 的有效 witness——互斥 sum-type 把 2B/3B 共现状态编码成不可能事件，而 Layer2 需要非互斥表示。它**不**直接证明原始 603 版 `ConstructorExhaustiveLayer1 ⊊ Layer2`：若 603 Layer1 的定义只是「所有输入落入某构造子无遗漏」且与 Layer2 共享 BSPLabelSet 载体，则 Layer1 本身不排斥 {2B,3B} 共现。
+2. **ConstructorExhaustive 版本的缺口已另立定理闭合**（codex 裁决⑤ 指定的补全）：`rust/src/theta_v0/classifier/bsp.rs::tests::theorem_615_constructor_exhaustive_not_complete`——`endpoint_to_bsp` 对全部 2^6 端点语义组合穷尽（Layer1 成立），但存在语义不等价（after_first_buy 历史不同）却同标签 {3B} 的端点对，违反 Layer2 complete（I(x)=I(y)⟹x∼y，∼ 取端点语义字段等同而非标签核，避开边界条件1的 QuotientByLabel 同义反复）。二者合取后 `ConstructorExhaustiveLayer1 ⊊ Layer2` 闭合。
+3. **方向写法显式区分**（codex 方向订正）：本文一切「Layer1 ⊊ Layer2」按**标准强度序**读——Layer1 的要求集是 Layer2 要求集的真子集（Layer2 更严格）。若改按**实现集合序**（满足标准的分类器实现集合）写，方向反转为 `Layer2 ⊊ Layer1`（要求更强 ⟹ 实现集合更小）。两种写法不区分则断言不稳；本文固定采用前者。
 
 ## 定义依据
 

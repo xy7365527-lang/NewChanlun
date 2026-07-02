@@ -222,6 +222,30 @@ mod tests {
         assert_eq!(endpoint_to_bsp(&e), BspBits::default());
     }
 
+    /// ★615 定理（codex 裁决⑤ §615，codex-ritual-resubmit-20260702.md）：
+    /// 构造子穷尽（ConstructorExhaustiveLayer1，603 定义「所有输入落入某构造子无遗漏」）
+    /// 不蕴含 Layer2 complete。Lean `twoB_threeB_can_coincide` 只闭合
+    /// `ExclusiveSumLayer1 ⊊ Layer2`；本定理补齐 ConstructorExhaustive 版本：
+    /// `endpoint_to_bsp` 对全输入空间穷尽（语法无逃逸，Layer1 成立），却违反
+    /// Layer2 complete（I(x)=I(y) ⟹ x∼y，其中 ∼ = 端点语义字段等同，非标签核——
+    /// 若取标签核则落入 QuotientByLabel 同义反复，615 边界条件1）。
+    #[test]
+    fn theorem_615_constructor_exhaustive_not_complete() {
+        // (a) 穷尽性（Layer1）：全部 2^6 端点语义组合都落入某 BspBits 标签，无逃逸。
+        for m in 0u8..64 {
+            let e = situ(m & 1 != 0, m & 2 != 0, m & 4 != 0, m & 16 != 0, m & 8 != 0, m & 32 != 0);
+            let _label: BspBits = endpoint_to_bsp(&e); // 全函数：任何输入必得标签（含空标签）
+        }
+        // (b) complete 失败：x、y 语义不等价（after_first_buy 历史字段不同 ⟹ ¬(x∼y)）
+        //     却同标签 {3B}——I(x)=I(y) ∧ ¬(x∼y)，双射 X/∼≅P 所需的商集单射破。
+        let x = situ(false, false, true, true, false, false);
+        let y = situ(true, false, true, true, false, false);
+        assert_ne!(x, y, "语义层不等价：after_first_buy 历史不同");
+        assert_eq!(endpoint_to_bsp(&x), endpoint_to_bsp(&y), "标签层等同：同为 3B 单标签");
+        let bits = endpoint_to_bsp(&x);
+        assert!(bits.buy3 && !bits.buy1 && !bits.buy2);
+    }
+
     /// property：1B 与 2/3B 互斥（任意端点，wf_type1_exclusive）。
     #[test]
     fn property_first_excludes_second_third() {
