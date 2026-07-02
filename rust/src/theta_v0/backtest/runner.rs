@@ -1965,6 +1965,61 @@ mod tests {
         assert!(x1.tw_state.free >= 0, "全程 free≥0（codex 复审#1：买入侧亦受 free 约束）");
     }
 
+    /// ★L2 可达性——价格幅度不变性对照（决定性，非 ignore，秒级确定）：证明 `run_closed_loop` 的 TW
+    /// 账本不消费价格幅度——同 rising 布尔序列下，平缓涨与暴涨暴跌产出逐字段相同的 TW 终态。钉死
+    /// acc-GAP3「L2 变价逃生舱」为空（价格幅度与 L0/L2 无关，引擎只消费 rising 布尔）。
+    #[test]
+    fn price_magnitude_invariance_closed_loop_tw() {
+        use super::super::super::strategy::ledger::TStage;
+        let n = 64usize;
+        let gentle: Vec<Bar> = (0..n)
+            .map(|i| mk_bar(i, if i % 2 == 0 { 1000 } else { 1001 }, false))
+            .collect();
+        let violent: Vec<Bar> = (0..n)
+            .map(|i| mk_bar(i, if i % 2 == 0 { 1000 } else { 100_000 }, false))
+            .collect();
+        let rising_of = |bars: &[Bar]| -> Vec<bool> {
+            let mut prev = bars[0].close;
+            bars.iter().map(|b| { let r = b.close >= prev; prev = b.close; r }).collect()
+        };
+        assert_eq!(rising_of(&gentle), rising_of(&violent), "对照前提：两组 rising 布尔序列相同");
+        let a = run_closed_loop(&gentle, 1.0e6).expect("非空");
+        let b = run_closed_loop(&violent, 1.0e6).expect("非空");
+        assert_eq!(a.tw_state, b.tw_state, "价格幅度不影响 TW 终态（L2 变价=L0 同价，引擎不消费价格幅度）");
+        assert_eq!(a.tw_state.stage, TStage::CostReduction, "两组均恒 CostReduction");
+        assert_eq!(a.tw_state.tw(), a.tw_state.notional_in, "TW 守恒=Q");
+    }
+
+    /// ★L2 可达性实证（#[ignore]，真实 BTC 变价数据）：把 closed_loop 三阶段闭环接真实 BTC 变价数据流，
+    /// 报告 EarningShares 计数（acc-GAP3 判据「∃t TStage=III」在 L2 有效域的实证侧）。
+    /// 复算：`ECON_L2_MAX_BARS=5000000 cargo test --lib l2_btc_earning_shares_reachability -- --ignored --nocapture`。
+    /// run_closed_loop 是 O(n)（每 bar O(1) hybrid_step），全量 461万 bar 可跑。预期 count=0（结构预定）。
+    #[test]
+    #[ignore]
+    fn l2_btc_earning_shares_reachability() {
+        use super::super::super::strategy::ledger::TStage;
+        let config = ThetaConfig::default();
+        let ds_full = match super::super::data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）");
+                return;
+            }
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars: usize = std::env::var("ECON_L2_MAX_BARS")
+            .ok().and_then(|s| s.parse().ok()).unwrap_or(300_000);
+        let bars: &[Bar] = if n_full > max_bars { &ds_full.bars[n_full - max_bars..] } else { &ds_full.bars };
+        let x = run_closed_loop(bars, 1.0e6).expect("非空 BTC bars ⟹ 闭环终态");
+        let s = x.tw_state;
+        let count = if s.stage == TStage::EarningShares { 1 } else { 0 };
+        eprintln!(
+            "[L2-BTC] bars={} (全量{}) final_stage={:?} EarningShares_count={} | TW={} free={} holding={} withdrawn={} notional_in={} cum_net_cash={}",
+            bars.len(), n_full, s.stage, count, s.tw(), s.free, s.holding, s.withdrawn, s.notional_in, s.cum_net_cash,
+        );
+        assert_eq!(s.tw(), s.notional_in, "L2 实测 TW 仍守恒=Q（价格幅度不进 TW，架构必然）");
+    }
+
     /// run_theta_v0 携带闭环终态证据（closed_loop_final 非 None ⟺ bars 非空）。
     #[test]
     fn run_theta_v0_carries_closed_loop_evidence() {
