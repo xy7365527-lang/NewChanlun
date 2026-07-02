@@ -1,25 +1,32 @@
-//! 路径 A 分层内 δ 置换检验（acc-alpha 预注册 §1.4，perm_p 生产者）。
+//! 路径 A 分层内 δ 置换检验（**残差口径**，alpha分离.pdf §4.2 + acc-alpha 预注册 §1.4，perm_p 生产者）。
 //!
 //! decontam.rs 三态判据消费逐桶 perm_p 但不生产它（Welford 聚合量算不出置换——需逐笔明细）。
-//! 本模块消费 MuEstimator 留存的逐笔 (ℓ,bsp_class,δ,σ^H,X_γ)，按 §1.4 路径 A 产出逐桶 perm_p：
-//! 每个 (ℓ,bsp_class,σ^H) 层内随机置换 δ 标签重算 μ̂_perm，perm_p = #{μ̂_perm ≥ μ̂_obs}/N（单边）。
-//! 层内置换保留 (ℓ,bsp_class,σ^H) 边际，只打乱 δ↔X_γ 关联。
+//! 本模块消费 [`ResidualTrade`]（逐笔 δ-free 残差基 r_i=H_i−B̂_i + 成本 C_i + 分层维 h桶/time block），
+//! 按 alpha分离.pdf §4.2（p5-6）产出逐桶 perm_p。
 //!
-//! ## σ^H（父声部方向）桶键（a0 盘点 G-A1，task #51）
+//! ## 残差置换（alpha分离.pdf §4.2 / §1，task #82 gap#1+#2）
 //!
-//! level-sigma PDF p3-4/p8/p11 要求 `z=(ℓ,δ,σ^H)`。`σ^H`（父声部方向，[`MuClass::parent_dir`]）
-//! 此前在投影到统计层时被丢弃（仅 wverify_run.rs 侧漏，本模块签名不变但语义不足）——现在
-//! [`BucketKey`] 与分层键均加入 σ^H 维：bsp_class 是结构先验（一/二/三类买卖点），与 σ^H
-//! （父声部方向）正交，不是它的等价替代，故是**加维**而非替换。
+//! 原 retest 在 δ-baked 的 X_γ 上置换 δ（把固定 X_γ 在买/卖桶间重排）——但 §4.2 的置换统计是
+//! **残差** `T^res_π = Σ δ_{π(i)}(H_i − B̂_i) − Σ C_i`：δ-free 基 `r_i=H_i−B̂_i` 固定，置换 δ 后
+//! 重算 `Y=δ·r − C`。故本模块对每次置换用 [`ResidualTrade::resid_base`] 重新赋 δ 算 Y，而非重排 X_γ。
 //!
-//! 加维代价（663 pending 稀释方向）：同一 (ℓ,bsp_class) 层被 σ^H 进一步细分 ⟹ 每层样本量 n
-//! 下降 ⟹ 更容易落入 decontam::powered() 的 UNDERPOWERED 门（这是如实反映，非缺陷——细分类别
-//! 本就该更少样本，含糊掉 σ^H 才是虚假的高功效）。
+//! ## 分层键 (ℓ, h桶, time block, σ^H)（alpha分离.pdf §4.2，p5，task #82 gap#2）
+//!
+//! `s(i) = (ℓ_i, h bucket, time block, σ_higher)`——补齐 h（持有期桶）+ time block 两维（retest 此前
+//! 只有 (ℓ,bsp_class,σ^H)，缺 h/time block ⟹ 同层 B̂_i 不同质 ⟹ beta 从分层漏进 perm_p，§1.2）。
+//! **bsp_class 不入分层键**：§4.2 明确分层键只含 (ℓ,h,time,σ_higher)——bsp_class 是被检验的 Z 维
+//! （买卖点结构类别），不是要控制的混杂变量。层内置换 δ 时跨 bsp_class 打乱方向标签，检验的是
+//! 「给定 (ℓ,h,time,σ^H)，δ 是否携带残差解释力」（§4.2 H0）。输出桶键仍保留 bsp_class 供逐桶三态判据。
+//!
+//! 加维代价（663 稀释方向）：同一 (ℓ,σ^H) 层被 h/time 进一步细分 ⟹ 每层样本量 n 下降 ⟹ 更容易落入
+//! decontam::powered() 的 UNDERPOWERED 门（如实反映——细分层本就更少样本，含糊掉分层维才是虚假高功效）。
 //!
 //! 认识论 L0（纯代数：置换是逐笔明细的确定性重排统计）；施加于真实数据产出的逐笔明细时才是 L2。
 //! 冻结常量（N_PERM=200、种子 20260701）见 acc-alpha-estimand-prereg-20260701.md §4。
 
 use std::collections::{BTreeMap, HashMap};
+
+use super::mu_estimator::ResidualTrade;
 
 /// 预注册 §4 冻结：置换次数。
 pub const N_PERM: usize = 200;
@@ -56,75 +63,103 @@ fn fisher_yates<T>(v: &mut [T], rng: &mut SplitMix64) {
     }
 }
 
-/// 层内两桶均值单遍融合：δ=+1 与 δ=−1 各自独立累加（勿用 total−plus 派生——
-/// 独立累加保 mp/mm 与旧 bucket_mean 逐加序 bit-exact）。
-fn bucket_means(ds: &[i8], xs: &[f64]) -> (Option<f64>, Option<f64>) {
-    let (mut sum_p, mut n_p) = (0.0_f64, 0_usize);
-    let (mut sum_m, mut n_m) = (0.0_f64, 0_usize);
-    for (&d, &x) in ds.iter().zip(xs) {
-        if d == 1 {
-            sum_p += x;
-            n_p += 1;
-        } else if d == -1 {
-            sum_m += x;
-            n_m += 1;
-        }
-    }
-    (
-        (n_p > 0).then(|| sum_p / n_p as f64),
-        (n_m > 0).then(|| sum_m / n_m as f64),
-    )
-}
-
-/// 每层记录：obs 均值 + ge 计数内联，消 perm 内 HashMap 查找（引用提外，c）。
-struct Stratum {
-    key: (u32, u8, i8),
-    ds: Vec<i8>,
-    xs: Vec<f64>,
-    obs_plus: Option<f64>,
-    obs_minus: Option<f64>,
+/// 输出桶 (ℓ, bsp, σ^H) 的置换累加器：成员（δ-agnostic）+ 观测残差均值 + ge 计数（右尾）。
+struct OutBucket {
+    base: (u32, u8, i8), // (level, bsp_class, σ^H)
+    members: Vec<usize>, // 该桶全部信号索引（δ 无关；层内置换后按 perm δ 分 +/−）
+    obs_plus: Option<f64>,  // 观测 δ=+1 子桶残差均值 mean(r−C)
+    obs_minus: Option<f64>, // 观测 δ=−1 子桶残差均值 mean(−r−C)
     ge_plus: usize,
     ge_minus: usize,
 }
 
-/// 路径 A 分层内 δ 置换，产出逐桶 perm_p（预注册 §1.4，单边右尾）。
-/// trades：逐笔 (ℓ, bsp_class, δ, σ^H, X_γ)。层键=(ℓ,bsp_class,σ^H)，层内只置换 δ。空 ⟹ 空 map。
+/// 路径 A 残差分层 δ 置换，产出逐桶 perm_p（alpha分离.pdf §4.2，单边右尾）。
+///
+/// 分层键 = (ℓ, h_bucket, time_block, σ^H)；层内置换 δ；输出桶键 = (ℓ, bsp, δ, σ^H)。
+/// 置换统计用残差 `Y=δ·resid_base−cost`（δ-free 基重新赋 δ，§4.2 T^res）。空 ⟹ 空 map。
 pub fn stratified_delta_perm_p(
-    trades: &[(u32, u8, i8, i8, f64)],
+    trades: &[ResidualTrade],
     n_perm: usize,
     seed: u64,
 ) -> HashMap<BucketKey, f64> {
-    let mut grouped: BTreeMap<(u32, u8, i8), (Vec<i8>, Vec<f64>)> = BTreeMap::new(); // 确定序⟹跨进程 perm_p 可复现(prereg §4)
-    for &(lv, bc, d, pd, x) in trades {
-        let e = grouped.entry((lv, bc, pd)).or_default();
-        e.0.push(d);
-        e.1.push(x);
+    let n = trades.len();
+    // 逐笔并行数组（δ-free 基/成本/原始 δ）——置换只改 δ，基与成本恒定。
+    let resid: Vec<f64> = trades.iter().map(|t| t.resid_base).collect();
+    let cost: Vec<f64> = trades.iter().map(|t| t.cost).collect();
+    let delta0: Vec<i8> = trades.iter().map(|t| t.class.delta).collect();
+
+    // 分层键 (ℓ, h桶, time block, σ^H)（§4.2；bsp 不入分层）。BTreeMap 确定序 ⟹ RNG 消耗序不可变（跨进程可复现）。
+    let mut strata_map: BTreeMap<(u32, u8, u32, i8), Vec<usize>> = BTreeMap::new();
+    for (i, t) in trades.iter().enumerate() {
+        strata_map
+            .entry((t.class.level, t.h_bucket, t.time_block, t.class.parent_dir))
+            .or_default()
+            .push(i);
     }
-    // BTreeMap 序 → Vec：锁定 stratum 迭代序（= RNG 消耗序，不可变），并内联 obs/ge。
-    let mut strata: Vec<Stratum> = grouped
+    let strata: Vec<Vec<usize>> = strata_map.into_values().collect();
+
+    // 输出桶 (ℓ, bsp, σ^H)：δ-agnostic 成员 + 观测残差均值（用原始 δ0）。BTreeMap 确定序。
+    let mut bucket_members: BTreeMap<(u32, u8, i8), Vec<usize>> = BTreeMap::new();
+    for (i, t) in trades.iter().enumerate() {
+        bucket_members
+            .entry((t.class.level, t.class.bsp_class(), t.class.parent_dir))
+            .or_default()
+            .push(i);
+    }
+    let mut buckets: Vec<OutBucket> = bucket_members
         .into_iter()
-        .map(|(key, (ds, xs))| {
-            let (obs_plus, obs_minus) = bucket_means(&ds, &xs);
-            Stratum { key, ds, xs, obs_plus, obs_minus, ge_plus: 0, ge_minus: 0 }
+        .map(|(base, members)| {
+            let (mut sp, mut np, mut sm, mut nm) = (0.0_f64, 0usize, 0.0_f64, 0usize);
+            for &idx in &members {
+                match delta0[idx] {
+                    1 => { sp += resid[idx] - cost[idx]; np += 1; }
+                    -1 => { sm += -resid[idx] - cost[idx]; nm += 1; }
+                    _ => {}
+                }
+            }
+            OutBucket {
+                base,
+                members,
+                obs_plus: (np > 0).then(|| sp / np as f64),
+                obs_minus: (nm > 0).then(|| sm / nm as f64),
+                ge_plus: 0,
+                ge_minus: 0,
+            }
         })
         .collect();
 
+    // 置换：层内打乱 δ（perm_delta），再逐输出桶按 perm δ 重算残差均值比观测。
     let mut rng = SplitMix64::new(seed);
-    let mut perm_ds: Vec<i8> = Vec::new(); // 缓冲提外，逐 stratum copy_from_slice 复用容量（a）
+    let mut perm_delta = vec![0i8; n];
+    let mut buf: Vec<i8> = Vec::new();
     for _ in 0..n_perm {
-        for s in &mut strata {
-            perm_ds.resize(s.ds.len(), 0);
-            perm_ds.copy_from_slice(&s.ds);
-            fisher_yates(&mut perm_ds, &mut rng);
-            let (mp, mm) = bucket_means(&perm_ds, &s.xs);
-            if let (Some(mp), Some(o)) = (mp, s.obs_plus) {
-                if mp >= o {
-                    s.ge_plus += 1;
+        for members in &strata {
+            buf.clear();
+            for &idx in members {
+                buf.push(delta0[idx]);
+            }
+            fisher_yates(&mut buf, &mut rng);
+            for (k, &idx) in members.iter().enumerate() {
+                perm_delta[idx] = buf[k];
+            }
+        }
+        for b in &mut buckets {
+            let (mut sp, mut np, mut sm, mut nm) = (0.0_f64, 0usize, 0.0_f64, 0usize);
+            for &idx in &b.members {
+                match perm_delta[idx] {
+                    1 => { sp += resid[idx] - cost[idx]; np += 1; }
+                    -1 => { sm += -resid[idx] - cost[idx]; nm += 1; }
+                    _ => {}
                 }
             }
-            if let (Some(mm), Some(o)) = (mm, s.obs_minus) {
-                if mm >= o {
-                    s.ge_minus += 1;
+            if let (Some(o), true) = (b.obs_plus, np > 0) {
+                if sp / np as f64 >= o {
+                    b.ge_plus += 1;
+                }
+            }
+            if let (Some(o), true) = (b.obs_minus, nm > 0) {
+                if sm / nm as f64 >= o {
+                    b.ge_minus += 1;
                 }
             }
         }
@@ -132,80 +167,216 @@ pub fn stratified_delta_perm_p(
 
     let inv = n_perm as f64;
     let mut out: HashMap<BucketKey, f64> = HashMap::new();
-    for s in &strata {
-        let (lv, bc, pd) = s.key;
-        if s.obs_plus.is_some() {
-            out.insert((lv, bc, 1, pd), s.ge_plus as f64 / inv);
+    for b in &buckets {
+        let (lv, bc, pd) = b.base;
+        if b.obs_plus.is_some() {
+            out.insert((lv, bc, 1, pd), b.ge_plus as f64 / inv);
         }
-        if s.obs_minus.is_some() {
-            out.insert((lv, bc, -1, pd), s.ge_minus as f64 / inv);
+        if b.obs_minus.is_some() {
+            out.insert((lv, bc, -1, pd), b.ge_minus as f64 / inv);
         }
     }
     out
 }
 
+/// 删尾稳健：删除前 `k` 个最大值后的均值（alpha检验.pdf §6，p4：尾部依赖诊断）。
+///
+/// 返回 `(删尾后均值, 是否符号翻转)`——「剔除前 3 个最大赢家后转负」= 收益依赖数尾部事件（§6）。
+/// 主桶 CV 极高（尾部主导疑似）尤需此诊断。样本 ≤k ⟹ 删尾后空 ⟹ 返回 `(0, false)`（无法诊断）。
+pub fn drop_top_k_mean(values: &[f64], k: usize) -> (f64, bool) {
+    if values.len() <= k {
+        return (0.0, false);
+    }
+    let full_mean = values.iter().sum::<f64>() / values.len() as f64;
+    let mut v = values.to_vec();
+    // 降序 ⟹ 前 k 大在头部 ⟹ 取 [k..] 即删尾。
+    v.sort_by(|a, b| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
+    let trimmed = &v[k..];
+    let trimmed_mean = trimmed.iter().sum::<f64>() / trimmed.len() as f64;
+    let flipped = full_mean != 0.0
+        && trimmed_mean != 0.0
+        && full_mean.signum() != trimmed_mean.signum();
+    (trimmed_mean, flipped)
+}
+
+/// 方向不对称回归 `X_i = α + βD_i + ε`（D=1 卖 / 0 买；β=μ_sell−μ_buy），alpha检验.pdf §7-§8/§13 Step1 H2。
+///
+/// 单 dummy OLS ⟹ `β̂ = mean(sell) − mean(buy)`。检验 `H0: β≤0 vs H1: β>0`；事件聚集不能用 iid SE，
+/// 用 **block bootstrap** 单边 p（§8：block bootstrap 或 cluster-robust SE）。返回 `(β̂, p)`；任一侧空 ⟹ `(0, 1)`。
+/// 输入用残差 Y（alpha分离.pdf §1「所有后续 alpha 检验只看 Y」）——买/卖各自的残差 PnL 序列。
+pub fn direction_asymmetry_beta_pvalue(
+    buy: &[f64],
+    sell: &[f64],
+    n_resample: usize,
+    block: usize,
+    seed: u64,
+) -> (f64, f64) {
+    if buy.is_empty() || sell.is_empty() {
+        return (0.0, 1.0);
+    }
+    let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len() as f64;
+    let beta = mean(sell) - mean(buy);
+    // block bootstrap 均值（块长保留事件聚集自相关；start 环绕取样）。
+    fn boot_mean(v: &[f64], block: usize, rng: &mut SplitMix64) -> f64 {
+        let n = v.len();
+        let (mut total, mut filled) = (0.0_f64, 0usize);
+        while filled < n {
+            let start = rng.below(n);
+            let take = block.min(n - filled);
+            for k in 0..take {
+                total += v[(start + k) % n];
+            }
+            filled += take;
+        }
+        total / n as f64
+    }
+    let mut rng = SplitMix64::new(seed);
+    let mut n_le_0 = 0usize;
+    for _ in 0..n_resample {
+        // H0:β≤0 单边 p = #{bootstrap β* ≤ 0}/N。
+        let b = boot_mean(sell, block, &mut rng) - boot_mean(buy, block, &mut rng);
+        if b <= 0.0 {
+            n_le_0 += 1;
+        }
+    }
+    (beta, n_le_0 as f64 / n_resample as f64)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::theta_v0::backtest::mu_estimator::{MuClass, PositionState};
+    use crate::theta_v0::types::BspBits;
+
+    /// 构造残差记录：给定 (level, bsp主类, δ, σ^H, resid_base, h_bucket, time_block)，cost=0（置换检验主看基）。
+    fn rt(level: u32, bsp: u8, delta: i8, sigma_h: i8, resid_base: f64, h_bucket: u8, time_block: u32) -> ResidualTrade {
+        let bits = match (bsp, delta > 0) {
+            (1, true) => BspBits { buy1: true, ..Default::default() },
+            (1, false) => BspBits { sell1: true, ..Default::default() },
+            (2, true) => BspBits { buy2: true, ..Default::default() },
+            (2, false) => BspBits { sell2: true, ..Default::default() },
+            (_, true) => BspBits { buy3: true, ..Default::default() },
+            (_, false) => BspBits { sell3: true, ..Default::default() },
+        };
+        let class = MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root);
+        ResidualTrade { class, resid_base, cost: 0.0, h_bucket, time_block }
+    }
 
     #[test]
     fn multi_stratum_reproducible() {
-        let t: Vec<(u32,u8,i8,i8,f64)> = (0..90).map(|i| ((i%3) as u32,((i/3)%3+1) as u8, if i%2==0 {1} else {-1}, if i%4<2 {1} else {-1}, (i as f64)*0.31-14.0)).collect();
-        assert_eq!(stratified_delta_perm_p(&t,N_PERM,PERM_SEED), stratified_delta_perm_p(&t,N_PERM,PERM_SEED), "多层同种子须 bit-exact");
+        let t: Vec<ResidualTrade> = (0..90)
+            .map(|i| {
+                rt(
+                    (i % 3) as u32,
+                    ((i / 3) % 3 + 1) as u8,
+                    if i % 2 == 0 { 1 } else { -1 },
+                    if i % 4 < 2 { 1 } else { -1 },
+                    (i as f64) * 0.31 - 14.0,
+                    (i % 4) as u8,
+                    (i % 2) as u32,
+                )
+            })
+            .collect();
+        assert_eq!(
+            stratified_delta_perm_p(&t, N_PERM, PERM_SEED),
+            stratified_delta_perm_p(&t, N_PERM, PERM_SEED),
+            "多层同种子须 bit-exact"
+        );
     }
 
-    /// H0（δ 与 X_γ 独立）：δ 标签与幅度无系统关联 ⟹ perm_p 不显著（> 0.05）。σ^H(parent_dir) 恒 0（根声部）。
+    /// H0（δ 与残差独立）：δ 标签与残差基无系统关联 ⟹ perm_p 不显著（> 0.05）。σ^H 恒 0、单 h桶/time block。
     #[test]
     fn h0_independent_delta_not_significant() {
-        let trades: Vec<(u32, u8, i8, i8, f64)> = (0..40)
-            .map(|i| (0u32, 1u8, if i % 2 == 0 { 1 } else { -1 }, 0i8, (i % 5) as f64 - 2.0))
+        let trades: Vec<ResidualTrade> = (0..40)
+            .map(|i| rt(0, 1, if i % 2 == 0 { 1 } else { -1 }, 0, (i % 5) as f64 - 2.0, 0, 0))
             .collect();
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
         assert!(p[&(0, 1, 1, 0)] > 0.05, "买桶 H0 不应显著: {}", p[&(0, 1, 1, 0)]);
         assert!(p[&(0, 1, -1, 0)] > 0.05, "卖桶 H0 不应显著: {}", p[&(0, 1, -1, 0)]);
     }
 
-    /// 强关联（δ=+1 全高、δ=−1 全低）：买桶 μ̂ 是层内极右 ⟹ perm_p 极小（检出）。
+    /// 强关联（δ=+1 全高残差基、δ=−1 全低）：买桶残差均值层内极右 ⟹ perm_p 极小（检出）。
     #[test]
     fn strong_delta_signal_is_significant() {
-        let mut trades: Vec<(u32, u8, i8, i8, f64)> = Vec::new();
+        let mut trades: Vec<ResidualTrade> = Vec::new();
         for _ in 0..30 {
-            trades.push((2, 1, 1, 0, 10.0));
-            trades.push((2, 1, -1, 0, -10.0));
+            trades.push(rt(2, 1, 1, 0, 10.0, 0, 0));
+            trades.push(rt(2, 1, -1, 0, -10.0, 0, 0));
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
         assert!(p[&(2, 1, 1, 0)] < 0.05, "强信号买桶应显著: {}", p[&(2, 1, 1, 0)]);
     }
 
-    /// σ^H 分层生效：同 (ℓ,bsp_class) 但 parent_dir 不同 ⟹ 不同层，互不污染置换（G-A1 核心断言）。
-    /// 构造 parent_dir=+1 层强信号、parent_dir=-1 层强反信号，二者若被误合并会互相稀释。
+    /// h桶分层生效：跨 h桶的一致信号被分层置换检出（§4.2 gap#2）。h桶0 买 r=+10、h桶1 买 r=+20
+    /// （同向），输出买桶聚合 obs mean=15；层内置换各桶均值→0 ⟹ obs 极右 ⟹ 显著。
     #[test]
-    fn parent_dir_stratifies_independently() {
-        let mut trades: Vec<(u32, u8, i8, i8, f64)> = Vec::new();
+    fn h_bucket_stratifies_independently() {
+        let mut trades: Vec<ResidualTrade> = Vec::new();
         for _ in 0..30 {
-            trades.push((2, 1, 1, 1, 10.0));   // σ^H=+1 层：买桶强正
-            trades.push((2, 1, -1, 1, -10.0));
-            trades.push((2, 1, 1, -1, -10.0));  // σ^H=-1 层：买桶强负（若混层会抵消上层信号）
-            trades.push((2, 1, -1, -1, 10.0));
+            trades.push(rt(2, 1, 1, 0, 10.0, 0, 0)); // h桶0：买 r=+10
+            trades.push(rt(2, 1, -1, 0, -10.0, 0, 0)); // h桶0：卖 r=−10
+            trades.push(rt(2, 1, 1, 0, 20.0, 1, 0)); // h桶1：买 r=+20（同向，不同量级）
+            trades.push(rt(2, 1, -1, 0, -20.0, 1, 0)); // h桶1：卖 r=−20
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(2, 1, 1, 1)] < 0.05, "σ^H=+1 层买桶应独立检出显著: {}", p[&(2, 1, 1, 1)]);
-        assert!(p[&(2, 1, -1, -1)] < 0.05, "σ^H=-1 层卖桶应独立检出显著: {}", p[&(2, 1, -1, -1)]);
-        assert_eq!(p.len(), 4, "两个 σ^H 层各产 2 个 δ 桶，互不合并");
+        assert!(p[&(2, 1, 1, 0)] < 0.05, "跨 h桶一致买信号经分层置换应检出: {}", p[&(2, 1, 1, 0)]);
+    }
+
+    /// σ^H 分层生效：同 (ℓ,h桶) 但 σ^H 不同 ⟹ 不同层，各层独立检出（G-A1 保留）。
+    /// 两 σ^H 层各买 r=+10/卖 r=−10，层内置换不跨 σ^H ⟹ 各层买桶独立显著。
+    #[test]
+    fn parent_dir_stratifies_independently() {
+        let mut trades: Vec<ResidualTrade> = Vec::new();
+        for _ in 0..30 {
+            trades.push(rt(2, 1, 1, 1, 10.0, 0, 0)); // σ^H=+1 层：买 r=+10
+            trades.push(rt(2, 1, -1, 1, -10.0, 0, 0));
+            trades.push(rt(2, 1, 1, -1, 10.0, 0, 0)); // σ^H=−1 层：买 r=+10
+            trades.push(rt(2, 1, -1, -1, -10.0, 0, 0));
+        }
+        let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
+        assert!(p[&(2, 1, 1, 1)] < 0.05, "σ^H=+1 层买桶应独立检出: {}", p[&(2, 1, 1, 1)]);
+        assert!(p[&(2, 1, 1, -1)] < 0.05, "σ^H=−1 层买桶应独立检出: {}", p[&(2, 1, 1, -1)]);
+        assert_eq!(p.len(), 4, "两个 σ^H 层各产 2 个 δ 桶");
+    }
+
+    /// 残差口径生效：置换用 δ-free 基 resid_base（非 δ-baked X_γ）——当 r 与真实 δ **无关**（买卖同 r）
+    /// 时，置换 δ 不改变桶均值 ⟹ perm_p≈1（残差检验正确判无结构）。这与旧 X_γ 置换的关键区别：
+    /// X_γ=δ·H 把 δ 烘进值，即使 r 无结构，重排 X_γ 也会让买桶均值随机偏离 obs ⟹ 虚假显著。
+    #[test]
+    fn residual_permutation_finds_no_structure_when_r_constant() {
+        // resid_base 全相同（=5），Y=δ·5 完全由 δ 决定。买桶 obs mean(r−c)=5，任何 δ 置换后买桶仍全是
+        // r=5 的成员 ⟹ mean 恒 5=obs ⟹ perm_p=1（δ 标签对残差无解释力，§4.2 H0 不拒绝）。
+        let mut trades: Vec<ResidualTrade> = Vec::new();
+        for _ in 0..30 {
+            trades.push(rt(1, 1, 1, 0, 5.0, 0, 0));
+            trades.push(rt(1, 1, -1, 0, 5.0, 0, 0)); // 同 resid_base，δ 号相反
+        }
+        let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
+        assert!(p[&(1, 1, 1, 0)] > 0.5, "r 无结构 ⟹ 残差置换判无显著（区别于 X_γ 置换的虚假显著）: {}", p[&(1, 1, 1, 0)]);
     }
 
     /// 同种子两跑 bit-exact（预注册可复现硬约束）。
     #[test]
     fn same_seed_reproducible() {
-        let trades: Vec<(u32, u8, i8, i8, f64)> = (0..50)
-            .map(|i| (1u32, 2u8, if i % 3 == 0 { 1 } else { -1 }, if i % 5 == 0 { 1 } else { 0 }, (i as f64) * 0.37 - 9.0))
+        let trades: Vec<ResidualTrade> = (0..50)
+            .map(|i| {
+                rt(
+                    1,
+                    2,
+                    if i % 3 == 0 { 1 } else { -1 },
+                    if i % 5 == 0 { 1 } else { 0 },
+                    (i as f64) * 0.37 - 9.0,
+                    (i % 3) as u8,
+                    0,
+                )
+            })
             .collect();
         let a = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
         let b = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
         assert_eq!(a, b);
     }
 
-    /// 置换保留 δ 边际（多重集与计数不变，§1.4）。
+    /// 置换保留 δ 边际（多重集与计数不变，§4.2）。
     #[test]
     fn permutation_preserves_delta_marginal() {
         let mut rng = SplitMix64::new(PERM_SEED);
@@ -220,7 +391,38 @@ mod tests {
         assert_eq!(v.iter().filter(|&&d| d == 1).count(), 4, "买标签计数不变");
     }
 
-    // ── 跨进程复现（预注册 §4 硬约束的真语义）──────────────────────────────
+    /// 删尾稳健（§6）：正均值靠少数尾部赢家 ⟹ 删前 3 后转负（符号翻转）。
+    #[test]
+    fn drop_top_k_flips_sign_when_tail_dominated() {
+        // 20 笔 −1 + 3 笔巨赢 +100 ⟹ 全量均值 = (−20 + 300)/23 ≈ +12.2>0；删前 3 赢家 ⟹ 全 −1 ⟹ −1<0。
+        let mut v = vec![-1.0_f64; 20];
+        v.extend([100.0, 100.0, 100.0]);
+        let (trimmed, flipped) = drop_top_k_mean(&v, 3);
+        assert!(trimmed < 0.0, "删前3赢家后转负: {trimmed}");
+        assert!(flipped, "符号翻转（尾部依赖）");
+        // 均匀正样本：删尾不翻转。
+        let (_, f2) = drop_top_k_mean(&[5.0, 6.0, 5.5, 6.5, 5.0, 6.0], 3);
+        assert!(!f2, "均匀正样本删尾不翻转");
+        // 样本 ≤k ⟹ 无法诊断。
+        assert_eq!(drop_top_k_mean(&[1.0, 2.0], 3), (0.0, false));
+    }
+
+    /// H2 方向不对称（§7-§8）：sell 残差系统性高于 buy ⟹ β>0 且单边 p 小（拒绝 H0:β≤0）。
+    #[test]
+    fn direction_asymmetry_detects_sell_over_buy() {
+        let buy = vec![-5.0_f64; 60];
+        let sell = vec![5.0_f64; 60];
+        let (beta, p) = direction_asymmetry_beta_pvalue(&buy, &sell, 1000, 20, PERM_SEED);
+        assert!((beta - 10.0).abs() < 1e-9, "β=μ_sell−μ_buy=5−(−5)=10: {beta}");
+        assert!(p < 0.05, "sell≫buy ⟹ 拒绝 H0:β≤0: {p}");
+        // 对称（buy=sell）⟹ β≈0 ⟹ p 不显著。
+        let (b2, p2) = direction_asymmetry_beta_pvalue(&vec![1.0; 40], &vec![1.0; 40], 1000, 20, PERM_SEED);
+        assert!((b2).abs() < 1e-9 && p2 > 0.05, "对称 ⟹ β=0 p 不显著: β={b2} p={p2}");
+        // 空侧 ⟹ (0,1)。
+        assert_eq!(direction_asymmetry_beta_pvalue(&[], &sell, 1000, 20, PERM_SEED), (0.0, 1.0));
+    }
+
+    // ── 跨进程复现（预注册 §4 硬约束的真语义，D1）──────────────────────────────
     // same_seed_reproducible 仅证同进程连续调用一致；「跨进程可复现」需独立进程重跑。
     // 机制：fork 自身测试二进制，只跑 worker（唯一子串 filter），种子经 env 传入，
     // 逐字节比较序列化输出。HashMap 迭代序逐进程随机 → 序列化必须排序键，否则同结果也字节不同。
@@ -234,9 +436,19 @@ mod tests {
             Ok(s) => s.parse::<u64>().expect("PERM_XPROC_SEED 须为 u64"),
             Err(_) => return,
         };
-        let trades: Vec<(u32, u8, i8, i8, f64)> = (0..90)
+        // 粗分层（level∈{0,1} × h桶∈{0,1}，σ^H=0/time_block=0）⟹ 每层 ~22 混合-δ 成员 ⟹ 置换随种子变化
+        // （细分层会让每层单 δ ⟹ 置换恒等 ⟹ perm_p 全 1.0 无种子敏感度，红 demo 失去鉴别力）。
+        let trades: Vec<ResidualTrade> = (0..88)
             .map(|i| {
-                ((i % 3) as u32, ((i / 3) % 3 + 1) as u8, if i % 2 == 0 { 1 } else { -1 }, if i % 4 < 2 { 1 } else { -1 }, (i as f64) * 0.31 - 14.0)
+                rt(
+                    ((i / 44) % 2) as u32,        // level：前 44 level0 / 后 44 level1
+                    1,
+                    if i % 2 == 0 { 1 } else { -1 }, // δ 每步交替（与 level/h 解耦 ⟹ 层内混合-δ）
+                    0,
+                    (i as f64) * 0.31 - 14.0,
+                    ((i / 22) % 2) as u8,          // h桶：每 22 一段
+                    0,
+                )
             })
             .collect();
         let out = stratified_delta_perm_p(&trades, N_PERM, seed);

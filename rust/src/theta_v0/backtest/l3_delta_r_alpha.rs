@@ -58,7 +58,9 @@
 use std::rc::Rc;
 use super::data::{self, Dataset};
 use super::incremental::IncrementalClassifier;
-use super::mu_estimator::{marginal_return, MuClass, MuEstimator, MuObservation, PositionState};
+use super::mu_estimator::{
+    h_bucket, marginal_return, MuClass, MuEstimator, MuObservation, PositionState, ResidualTrade,
+};
 use super::prereg_windows::PREREG_WINDOWS;
 use super::runner::run_theta_v0_pi_chi;
 use super::selector::z_of_candidate;
@@ -119,14 +121,34 @@ fn bsp_disc(b: &BspBits) -> u8 {
 /// - 退出落在 train 窗内（≤ train 末）——跨边界样本截断到 train 末（censored，不偷看 test）。
 /// - μ 表 frozen 后喂 test χ 过滤；test 决策不更新 μ（无 test 内未来）。
 ///
-/// 返回 `MuEstimator`：全候选集 μ 表（无 N^δ 门——选择器是下游工位，估 μ 覆盖全定义域）。
+/// 返回 `(MuEstimator, Vec<ResidualTrade>)`：
+/// - `MuEstimator`：全候选集 μ 表（喂 X_γ，供下游 χ 选择器；无 N^δ 门，估 μ 覆盖全定义域）。
+/// - `Vec<ResidualTrade>`：逐笔残差记录（δ-free 基 r_i=H_i−B̂_i + 成本 + h桶/time block），供 wverify_run
+///   的**残差口径** alpha 检验（alpha分离.pdf §1「所有后续 alpha 检验只看 Y_i」，task #82 gap#1+#2）。
+///   估 μ 与残差检验分离：μ 表仍是 X_γ（选择器语义不变，残差化是独立 gap #9 LCB 门控），
+///   残差检验消费本 records（wverify 逐笔算 Y=δ(H−B̂)−C）。
+///
+/// **B̂_i（持有窗市场漂移，alpha分离.pdf §1/§4.1）**：`B̂_i = ĝ·(exit_bar−entry_bar)`，`ĝ` = **因果**
+/// 扩张窗漂移 `(P_entry−P_first)/(entry_bar−first_bar)`——只用 ≤entry_bar 的价（F_entry-可测，无前视）。
+/// ponytail: 扩张窗（slice 内 entry 前全段）均值漂移；若窗内 regime 切换需更局部估计，改滚动窗/因子模型
+/// （alpha分离.pdf §4.1 允许「滚动均值/同窗口平均/因子模型」，只要 train/过去信息）。
+///
+/// `time_block_base`（§4.2 分层维 time block 的窗间偏移）：wverify 逐窗聚合时传 `win.i·stride` 使不同
+/// walk-forward 窗的 time block 不碰撞；单窗调用（L3 train）传 0。窗内 time block = entry_bar/TIME_BLOCK_BARS。
+///
 /// 复用点（W-VERIFY 全定义域跑批 wverify_run）：传全 OOS 窗 bars ⟹ censored 兑现截断到 OOS 末，
 /// 不偷看 Holdout（Holdout 在 OOS 末之后，不在 bars 切片内）。
-pub fn build_mu_from_bars(bars: &[Bar], config: &ThetaConfig) -> MuEstimator {
+pub fn build_mu_from_bars(
+    bars: &[Bar],
+    config: &ThetaConfig,
+    time_block_base: u32,
+) -> (MuEstimator, Vec<ResidualTrade>) {
     let n = bars.len();
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
     let tick = config.tick.tick_size;
+    // 因果 B̂ 估计锚：slice 内首个可交易 bar（价/索引）。ĝ=(P_entry−P_first)/(entry−first) 只用过去信息。
+    let first_tradable = (0..n).find(|&j| !bars[j].untradable && bars[j].close > 0);
 
     // 逐 bar 因果分类，收集新确认买卖点的 (确认 bar, z, dir, entry_px)。
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
@@ -179,6 +201,7 @@ pub fn build_mu_from_bars(bars: &[Bar], config: &ThetaConfig) -> MuEstimator {
     // 退出兑现（事前固定规则：持有到下一个反向新确认信号确认 bar，或 train 末 censored）。
     // signals 已按确认 bar i 升序（逐 bar 收集），同 bar 多信号保留。
     let mut est = MuEstimator::new();
+    let mut records: Vec<ResidualTrade> = Vec::new();
     for (idx, &(entry_bar, z, dir)) in signals.iter().enumerate() {
         let entry_px = bars[entry_bar].close as f64 * tick;
         if entry_px <= 0.0 {
@@ -209,20 +232,46 @@ pub fn build_mu_from_bars(bars: &[Bar], config: &ThetaConfig) -> MuEstimator {
             continue;
         }
         let delta: i8 = if dir == VoiceSide::Long { 1 } else { -1 };
-        // X_γ = δ(P_exit−P_entry) − C（qty=1 名义单位，μ 是单位边际收益的类条件均值）。
+        // X_γ = δ(P_exit−P_entry) − C（qty=1 名义单位，μ 是单位边际收益的类条件均值）。喂 est 供 χ 选择器。
         let x_gamma = marginal_return(entry_px, exit_px, 1.0, fee_rate, delta);
         est.observe(MuObservation { class: z, x_gamma });
+
+        // ── 残差记录（alpha分离.pdf §1/§4.1，task #82）──
+        // H_i = P_out−P_in（δ-free 原始持有窗涨跌）；C_i = fee·(P_in+P_out)（双边费，与 marginal_return 同口径）。
+        let h = exit_px - entry_px;
+        let c = fee_rate * (entry_px + exit_px);
+        // B̂_i = ĝ·(exit_bar−entry_bar)，ĝ=因果扩张窗漂移 (P_entry−P_first)/(entry−first)（只用 ≤entry 价，F_entry-可测）。
+        let hold = exit_bar - entry_bar;
+        let b_hat = match first_tradable {
+            Some(fb) if entry_bar > fb => {
+                let first_px = bars[fb].close as f64 * tick;
+                let g_hat = (entry_px - first_px) / (entry_bar - fb) as f64;
+                g_hat * hold as f64
+            }
+            _ => 0.0, // entry 即 slice 首可交易 bar ⟹ 无过去可估漂移 ⟹ B̂=0（不外推）
+        };
+        records.push(ResidualTrade {
+            class: z,
+            resid_base: h - b_hat, // r_i = H_i − B̂_i（δ-free；Y=δ·r−C 见 ResidualTrade::y）
+            cost: c,
+            h_bucket: h_bucket(hold),
+            time_block: time_block_base + (entry_bar / TIME_BLOCK_BARS) as u32,
+        });
     }
 
-    est
+    (est, records)
 }
 
+/// 时间块 bar 宽度（alpha分离.pdf §4.2 分层维 time block）。1-min bar ≈ 30 天/块（控月级 regime 漂移）。
+/// ponytail: 固定 30 天块；若需按标的日历切块（对齐涨/跌 regime 窗）改按 `dates` 分段。窗间碰撞由
+/// 调用方 `time_block_base` 偏移隔开（wverify 逐窗 `win.i·stride`）。
+const TIME_BLOCK_BARS: usize = 43_200;
+
 /// [`build_mu_from_bars`] 的 Dataset 包装（walk-forward 调用点复用，保原 `(est, n_obs)` 签名）。
-/// `n_obs` = 兑现观测数（est.trades().len()，诊断信号密度；调用方均丢弃此值）。
+/// `n_obs` = 兑现残差记录数（诊断信号密度；调用方均丢弃此值）。单窗 train ⟹ time_block_base=0。
 pub(super) fn build_walk_forward_mu(train: &Dataset, config: &ThetaConfig) -> (MuEstimator, usize) {
-    let est = build_mu_from_bars(&train.bars, config);
-    let n_obs = est.trades().len();
-    (est, n_obs)
+    let (est, records) = build_mu_from_bars(&train.bars, config, 0);
+    (est, records.len())
 }
 
 /// ΔR 序列统计（§10 净额增量收益的均值/Sharpe/bootstrap p）。

@@ -185,6 +185,48 @@ pub struct MuObservation {
     pub x_gamma: f64,
 }
 
+/// 单信号残差记录（alpha分离.pdf §1/§4.2 去污管线的逐笔载体，task #82）。
+///
+/// 残差减法 `Y_i = δ_i(H_i − B̂_i) − C_i`（alpha分离.pdf §1，p1-2）与分层置换（§4.2，p5-6：
+/// 分层键 `s(i)=(ℓ, h bucket, time block, σ_higher)`）都在**残差**上做——[`MuObservation`] /
+/// [`MuEstimator::trades`] 只携带 δ-baked 的 X_γ，无法支持残差置换（层内重新赋 δ 需 **δ-free**
+/// 基 `H−B̂`，X_γ 已把原始 δ 烘进值里）。本记录补全该管线：
+/// - `resid_base` r_i = H_i − B̂_i（**δ-free**；H_i=P_out−P_in 原始持有窗涨跌，B̂_i=持有窗市场漂移积分）。
+/// - `cost` C_i（成本，与 δ 无关 ⟹ 置换 δ 时恒定）。
+/// - `h_bucket` 持有期桶（§4.2 分层维；h_i=exit_bar−entry_bar 分桶，[`h_bucket`]）。
+/// - `time_block` 时间块（§4.2 分层维；控制市场 regime 漂移，entry 位置分块）。
+///
+/// `class` 提供 (ℓ,δ,bsp_class,σ^H) 供分层/分桶。残差方向签名 PnL 见 [`ResidualTrade::y`]。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ResidualTrade {
+    pub class: MuClass,
+    pub resid_base: f64,
+    pub cost: f64,
+    pub h_bucket: u8,
+    pub time_block: u32,
+}
+
+impl ResidualTrade {
+    /// 残差方向签名 PnL `Y_i = δ_i·(H_i−B̂_i) − C_i`（alpha分离.pdf §1，去 beta 后的可交易结构 alpha 基）。
+    /// 与 X_i=δ_i·H_i−C_i 的关系：`Y_i = X_i − δ_i·B̂_i`（残差 = 原始 PnL 减去方向签名的持有窗 beta）。
+    pub fn y(&self) -> f64 {
+        self.class.delta as f64 * self.resid_base - self.cost
+    }
+}
+
+/// 持有期桶（alpha分离.pdf §4.2 分层维 `h bucket`，p5）。`h`=exit_bar−entry_bar（bar 计）。
+///
+/// ponytail: 1-min bar 固定边界 <1h / 1-4h / 4h-1d / >1d（4 桶）。分层目的是把同持有量级的信号
+/// 归组以控 B̂_i 同质性——若某标的 bar 频率不同或分位边界更贴合，改按标的分位切边即可（当前固定边界够用）。
+pub fn h_bucket(h: usize) -> u8 {
+    match h {
+        0..=59 => 0,
+        60..=239 => 1,
+        240..=1439 => 2,
+        _ => 3,
+    }
+}
+
 /// 交易收益 X_γ = δ(P_τγ−P_t) − C_{t:τγ}（§12 line 2147）。
 ///
 /// **复用** [`trade_abs_pnl`]（metrics.rs 单一来源的方向感知 PnL：多头 `q(P_τ(1−f)−P_t(1+f))`，
@@ -581,6 +623,36 @@ mod tests {
         assert_eq!(marginal_return(120.0, 100.0, 1.0, 0.0, -1), 20.0);
         // 空头在上涨(100→110)亏损 ⟹ −10。
         assert_eq!(marginal_return(100.0, 110.0, 1.0, 0.0, -1), -10.0);
+    }
+
+    /// 残差 Y_i = δ(H−B̂)−C，且 Y_i = X_i − δ·B̂（alpha分离.pdf §1）。
+    #[test]
+    fn residual_trade_y_is_signed_debeta_minus_cost() {
+        let z = MuClass::from_certificate(0, 1, buy_bits(), 0, PositionState::Root);
+        // H=100, B̂=30, C=5, δ=+1 ⟹ Y = 1·(100−30) − 5 = 65。
+        let rt = ResidualTrade { class: z, resid_base: 100.0 - 30.0, cost: 5.0, h_bucket: 0, time_block: 0 };
+        assert!((rt.y() - 65.0).abs() < 1e-12);
+        // Y = X − δ·B̂：X = δ·H − C = 100 − 5 = 95；δ·B̂ = 30 ⟹ Y = 95 − 30 = 65。
+        let (h, b_hat, c) = (100.0, 30.0, 5.0);
+        let x = 1.0 * h - c;
+        assert!((rt.y() - (x - 1.0 * b_hat)).abs() < 1e-12, "Y = X − δ·B̂");
+        // 卖方向 δ=−1：H=−40（下跌）, B̂=−20（下漂）, C=3 ⟹ Y = −1·(−40−(−20)) − 3 = 20 − 3 = 17。
+        let z_sell = MuClass::from_certificate(0, -1, BspBits { sell1: true, ..Default::default() }, 0, PositionState::Root);
+        let rt_s = ResidualTrade { class: z_sell, resid_base: -40.0 - (-20.0), cost: 3.0, h_bucket: 0, time_block: 0 };
+        assert!((rt_s.y() - 17.0).abs() < 1e-12);
+    }
+
+    /// 持有期桶单调边界（§4.2 h bucket，1-min bar：<1h/1-4h/4h-1d/>1d）。
+    #[test]
+    fn h_bucket_monotone_edges() {
+        assert_eq!(h_bucket(0), 0);
+        assert_eq!(h_bucket(59), 0);
+        assert_eq!(h_bucket(60), 1);
+        assert_eq!(h_bucket(239), 1);
+        assert_eq!(h_bucket(240), 2);
+        assert_eq!(h_bucket(1439), 2);
+        assert_eq!(h_bucket(1440), 3);
+        assert_eq!(h_bucket(100_000), 3);
     }
 
     /// 成本 C_{t:τ} 双边扣（建+平仓各 ·(1±fee)）⟹ X_γ 比零成本低。
