@@ -3518,9 +3518,9 @@ mod tests {
             eprintln!("[c3-breakout-dx] lvl1 routed={n_l1} new_center_exists={xzd_l1_c3_new_center_exists} breakout_ok={xzd_l1_c3_new_center_breakout_ok}");
 
             // ── C3 L1 零命中根因判别探针报告落盘（codex #55 终局裁定(5)，task #56）──
-            // 放在下方健康度 assert **之前**：该 assert 是 #47 既定判据健康度真封（命中率∈(0%,100%)
-            // 才是判据本身健康），本任务不改动其语义/不放宽；0/84 会使其 panic，探针结果须先落盘，
-            // 不受该 panic 影响（探针纯只读旁路，独立于 gate_pass 判据本身的健康度真封）。
+            // 放在下方终局不变量 assert **之前**：assert 现为 `assert_eq!(breakout_ok, 0)`（#56 终局，
+            // 见下），命中恒 0 时 assert **通过**不 panic；探针报告先落盘以在任何情形（含未来 rate>0
+            // 触发 assert 失败）下都保留诊断证据（探针纯只读旁路，独立于终局不变量真封）。
             if overlap_probe_enabled {
                 let overlap_new_center_signals = xzd_l1_overlap_rows.iter().filter(|r| r.2 >= 1).count();
                 let overlap_hit_signals = xzd_l1_overlap_rows.iter().filter(|r| r.3 >= 1).count();
@@ -3589,21 +3589,27 @@ mod tests {
                 );
             }
 
-            let breakout_rate = xzd_l1_c3_new_center_breakout_ok as f64 / n_l1 as f64;
             // 终局语义（codex #55 `codex-decide-20260702-201450-8032.md` 裁定(5) + #56 探针
-            // `c3-overlap-probe-20260702.md` 候选(2)坐实）：level==1 C3「新中枢+突破」命中率恒 0
-            // 不是判据实现问题，而是**市场几何事实**——level==1 走势确认背驰反转期间（source_index
+            // `c3-overlap-probe-20260702.md` 候选(2)坐实）：level==1 C3「新中枢+突破」命中恒 0
+            // 是**市场几何事实**（非判据实现问题）——level==1 走势确认背驰反转期间（source_index
             // 之后）在真实数据下几何上确无可反向突破的次级中枢，小转大 level==1 通道在当前定义下实践
-            // 关闭。故 rate==0 为**预期值**，不 panic。反向：若未来某窗 rate>0，说明出现了探针候选(2)
-            // 未覆盖的新中枢突破结构，值得注意（可能推翻 #56 终局，需回 codex 复审），打印通知而非中断。
-            let _ = writeln!(rpt, "- **判据健康度（终局语义，codex #55/#56）**：level==1 C3 命中率恒 0 为预期（market geometry，非死门伪影）；rate>0 才值得注意（可能推翻 #56 终局）。");
-            if breakout_rate > 0.0 {
-                eprintln!(
-                    "[c3-breakout-NOTICE] C3 新判据 level==1 命中率={:.4}（breakout_ok={xzd_l1_c3_new_center_breakout_ok}/{n_l1}）>0 \
-                     ——超出 #56 探针候选(2) 终局（恒 0）预期，出现可反向突破的 post-source 新中枢，值得注意，建议回 codex 复审（不中断，如实入册）。",
-                    breakout_rate
-                );
-            }
+            // 关闭。故终局不变量 = `breakout_ok == 0`。
+            //
+            // 判据方向的两种误报须分清（原 assert `rate∈(0,1)` 混淆了二者）：
+            //   • `rate==0` panic = 对**预期终局态**误报（原 bug，#56 已坐实 0 为正确态）——须消除。
+            //   • `rate>0` **不** panic = 放过**回归**（固定数据+当前定义下 rate>0 只可能来自 center/tower/
+            //     C3 逻辑漂移或 #56 候选(2) 被推翻，二者都令整个 Xzd 信号口径失效）——须硬失败。
+            // 故用 `assert_eq!(breakout_ok, 0)`：预期态 0 不 panic（消除原 bug），rate>0 硬失败作 #56 终局
+            // 的回归守卫（codex 异质审计 `codex-diagnose-20260702-205437-358f.md` 焦点2 + no-patch-mentality：
+            // 终局不变量在确定性数据上须硬断言，不降级为静默 print）。
+            let _ = writeln!(rpt, "- **判据健康度（终局不变量，codex #55/#56）**：level==1 C3 命中恒 0 为市场几何事实；breakout_ok>0 ⟹ #56 候选(2) 被推翻 / center-tower 漂移 ⟹ Xzd 口径失效，硬失败回 codex 复审。");
+            assert_eq!(
+                xzd_l1_c3_new_center_breakout_ok, 0,
+                "C3 新判据 level==1 命中={xzd_l1_c3_new_center_breakout_ok}/{n_l1}>0——推翻 #56 探针候选(2) 终局（level==1 通道\
+                 恒无可反向突破新中枢）：固定数据下这只能来自 center/tower/C3 逻辑漂移或 #56 被证伪，整个 Xzd level≥2 \
+                 C2-only 信号口径失效，须回 codex 复审（c3-overlap-probe-20260702.md 边界条件：转候选(1)，center/tower \
+                 延伸中枢实装 + golden digest 全路径重验）。"
+            );
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "### lvl>=2 死门真封（sub_bsp_type3_count 预期恒为 0）");
