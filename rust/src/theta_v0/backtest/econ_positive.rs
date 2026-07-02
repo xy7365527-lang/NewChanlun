@@ -2385,6 +2385,361 @@ mod tests {
         eprintln!("真封③（P1）：depth_hist_sum={depth_hist_sum} = n_gate_pass_total={n_gate_pass_total} = sig_post_sum={sig_post_sum}");
     }
 
+    /// H2 样本级验证（task #8）：level1-4 第二类信号的 N^δ 门拒绝阶段分解 + 互斥链实证。
+    ///
+    /// **来源**：codex H2 裁决（`.chanlun/review-results/codex-h1-ndelta-gate-20260702.md`）的
+    /// L0 推导需 L2 样本级收口。codex 断言：`build_nest_certificate` 在 rung k=lvl+1 把 `Cand^δ`
+    /// 操作化为 `div_cand` 的 **Extreme**（Long: `s.lo<s_prev.lo`），与第二类分类前提
+    /// `retrace_no_break`（Long: `m2.lo>=m1.lo`）在 `s=m2 / s_prev=m1` 时结构性互斥。
+    /// **边界条件缺口**（codex 自留）：若 B1/B2 间有多段同向子腿，`div_cand` 条件2的 `rfind` 命中
+    /// 比 m1 更近的 q≠m1，`m2.lo>=m1.lo`（分类前提）与 `m2.lo<q.lo`（Extreme）可同真，互斥链不
+    /// 必然成立。codex 给出**等价可测判据**：「s_prev 的低点仍高于/接近 m2 使 Extreme 必假」
+    /// ⟹ 直接测 rung k=lvl+1 的 Extreme 真假即等价于「s_prev 使互斥成立」。
+    ///
+    /// **级别对齐（本测试的关键前提，非假设）**：level-lvl 第二类信号由 `extract_second_for_level`
+    /// 从 level-(lvl+1) 的 `parent`（`RMove::Compose`）产出——`m1`/`m2` 是 `descend(parent)` 的
+    /// **level-lvl** 次级别走势，`source_index = m2.end_index`。而 `build_nest_certificate` 的 rung
+    /// k=lvl+1 的 `knode` **正是**该 `parent`（`tower[lvl+1]` 中含 source_index 的段），
+    /// `knode.sub_moves = [m1, m2, …]`，`target_idx = i2`（m2 位置），`s = m2`。故 codex 的
+    /// 「s_prev vs m1」是同级别对象比较，无级别偏移。
+    ///
+    /// **产出**（三 deliverable）：
+    /// - (a) rung k=lvl+1 到达 cond3 的信号中 **Extreme必假占比**（codex 等价 s_prev 使互斥成立）；
+    /// - (b) **Extreme可满足（gap）**样本（`s_prev=q≠m1` 且 m2 创新极值）的门通过/拒绝分布；
+    /// - (c) 结论：level1-4 100%归零是否**完全**由 cond3 互斥链解释（还是 cond1 方向/cond2 无前段/
+    ///   base 等其他机制叠加）。
+    ///
+    /// **bit-exact 铁律**：门判定用 `build_nest_certificate` + `n_delta`（与生产 `build_multilevel_nest_cert`
+    /// 共用构造），rung 分解的 `div_cand`/`ContextMove` 与生产同源；cond4(Weak) 用「cond1∧2∧3 通过但
+    /// div_cand=false ⟹ cond4 失败」推断（不触碰私有 `segment_macd_area`）。macd_hist 与生产 econ 路径
+    /// 同口径（全 bar 域 close）。
+    ///
+    /// **认识论 L2**：真实 BTC 全历史逐信号分解，可产否定性结果（互斥链不完全解释 ⟹ codex 裁决部分转向）。
+    /// `#[ignore]`：需 BTC 全量 + O(n²) 重分类，`--release`。
+    /// 命令：`ECON_L2_MAX_BARS=5000000 cargo test --release h2_sample_exclusion_dx -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn h2_sample_exclusion_dx() {
+        use super::super::data;
+        use super::super::super::classifier::divergence::compute_macd;
+        use super::super::super::classifier::cand_predicate::{div_cand, DivCandInput, ContextMove};
+        use super::super::super::strategy::interp::assemble_gamma_with_tower;
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{Side, Direction};
+        use super::super::incremental::IncrementalClassifier;
+        use std::fmt::Write as _;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        const MAX_BARS_DEFAULT: usize = 300_000;
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let bars = &ds.bars;
+        let n = bars.len();
+        let tick = config.tick.tick_size;
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        eprintln!("[h2-exclusion-dx] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+
+        let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
+        let macd_hist = compute_macd(&closes, &config.macd).hist;
+
+        // ── 目标域：level ∈ 1..=4（acc 报告的 1473 中间级第二类信号）。 ──
+        const LMIN: usize = 1;
+        const LMAX: usize = 4;
+        let in_scope = |lvl: usize| (LMIN..=LMAX).contains(&lvl);
+
+        // ── 分解计数器（rung k=lvl+1 div_cand 拒绝阶段，互斥优先序 = div_cand 检查序）。 ──
+        let mut n_total = 0usize;                 // 进入 Γ 的 level1-4 信号（每 (信号,dir) 一次，同 acc 口径）
+        let mut n_by_level = [0usize; LMAX + 1];  // 各级 n_total
+        // 拒绝阶段（当 gate=false 时归入首个失败检查）+ gate_pass。互斥穷举。
+        let mut st_base_none = 0usize;      // build_nest_certificate=None（tower[lvl] 无 end==src 候选段）
+        let mut st_no_upper = 0usize;       // rung lvl+1 无 knode（tower[lvl+1] 无含 src 段 ⟹ rungs 空，退化 base-case）
+        let mut st_no_target = 0usize;      // knode.sub_moves 无 end==src（target_idx 缺失）
+        let mut st_cond1_dir = 0usize;      // dir(s=m2) ≠ −δ（m2 方向不是背驰段要求方向）
+        let mut st_cond2_noprev = 0usize;   // 无前序同向段（s_prev 不存在）
+        let mut st_cond3_extreme = 0usize;  // ★Extreme 假（m2 未创新极值）= codex 互斥链
+        let mut st_cond4_weak = 0usize;     // cond1∧2∧3 通过但 div_cand=false ⟹ cond4(Weak) 失败
+        let mut st_reject_elsewhere = 0usize; // rung lvl+1 div_cand=true 但 gate=false（更高 rung / is_sub / base）
+        let mut st_gate_pass = 0usize;      // n_delta=true（通过门）
+
+        // ── 互斥链核心统计（cond3 到达域）。 ──
+        let mut cond3_reached = 0usize;     // rung lvl+1 到达 cond3（cond1∧cond2 通过）
+        let mut extreme_true_pass = 0usize; // Extreme 真 ∧ gate 通过
+        let mut extreme_true_reject = 0usize; // Extreme 真 ∧ gate 拒绝（cond4 或 elsewhere）= codex 缺口坐实
+        let mut leg_gap_hist = [0usize; 16]; // cond3 到达域的 target_idx−j（s_prev 与 s 间距，=2 ⟹ 单条反向腿=codex 常见结构 s_prev==m1）
+        let mut base_conf_false = 0usize;   // confirm_side(δ) 假（δ 与 bits 侧不符 ⟹ base 拒，非互斥）
+
+        // 逐信号明细（前 60 条拒绝样本，spot-check）。
+        let mut detail: Vec<String> = Vec::new();
+        const DETAIL_CAP: usize = 60;
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if !in_scope(lvl) {
+                    continue;
+                }
+                for p in &ls.bsp {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    // 只看第二类（buy2/sell2）——acc 报告 level1-4 全为第二类，防御性过滤。
+                    if !(p.bits.buy2 || p.bits.sell2) {
+                        continue;
+                    }
+                    // Γ 组装（bit-exact 复制生产路径）。
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i.levels.iter().enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(), centers: Vec::new(),
+                                bsp: if l2 == lvl { vec![p.clone()] } else { Vec::new() },
+                            })
+                            .collect(),
+                    };
+                    for c in &assemble_gamma_with_tower(&single, &tower_i) {
+                        let delta = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        let src = p.source_index;
+                        n_total += 1;
+                        n_by_level[lvl] += 1;
+                        if !p.bits.confirm_side(delta) {
+                            base_conf_false += 1;
+                        }
+
+                        // 门判定（生产同源）。
+                        let cert_opt = build_nest_certificate(&tower_i, lvl, src, delta, &p.bits, &macd_hist);
+                        let gate = cert_opt.as_ref().map(|c| c.n_delta()).unwrap_or(false);
+
+                        // rung k=lvl+1 div_cand 分解（独立于 gate，用于阶段归因 + 互斥统计）。
+                        let mut r_knode = false;
+                        let mut r_target = false;
+                        let mut r_cond1 = false;
+                        let mut r_cond2 = false;
+                        let mut r_extreme = false; // cond3
+                        let mut r_divcand = false; // rung lvl+1 完整 div_cand
+                        let mut r_leggap = 0usize;
+                        let mut s_ext = 0i64;      // s 的极值（Long=lo / Short=hi），明细用
+                        let mut sp_ext = 0i64;     // s_prev 的极值，明细用
+                        if let Some(upper) = tower_i.get(lvl + 1) {
+                            if let Some(knode) = upper.iter().find(|m| m.start_index <= src && src <= m.end_index) {
+                                r_knode = true;
+                                let ctx: Vec<ContextMove> = knode.sub_moves.iter()
+                                    .map(|m| ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index))
+                                    .collect();
+                                if let Some(tidx) = knode.sub_moves.iter().position(|m| m.end_index == src) {
+                                    r_target = true;
+                                    let s = ctx[tidx];
+                                    let expected = match delta {
+                                        Side::Long => Direction::Down,
+                                        Side::Short => Direction::Up,
+                                    };
+                                    r_cond1 = s.direction == expected;
+                                    if r_cond1 {
+                                        if let Some((j, sp)) = ctx[..tidx].iter().enumerate().rev()
+                                            .find(|(_, m)| m.direction == s.direction)
+                                        {
+                                            r_cond2 = true;
+                                            r_leggap = tidx - j;
+                                            r_extreme = match delta {
+                                                Side::Long => s.lo < sp.lo,
+                                                Side::Short => s.hi > sp.hi,
+                                            };
+                                            s_ext = match delta { Side::Long => s.lo, Side::Short => s.hi };
+                                            sp_ext = match delta { Side::Long => sp.lo, Side::Short => sp.hi };
+                                        }
+                                    }
+                                    r_divcand = div_cand(&DivCandInput {
+                                        context: &ctx, target_idx: tidx, hist: &macd_hist, delta,
+                                    });
+                                }
+                            }
+                        }
+
+                        let cond3_reach = r_knode && r_target && r_cond1 && r_cond2;
+                        if cond3_reach {
+                            cond3_reached += 1;
+                            leg_gap_hist[r_leggap.min(15)] += 1;
+                        }
+
+                        // 阶段归因（互斥）。
+                        let stage: &str;
+                        if gate {
+                            st_gate_pass += 1;
+                            stage = "gate_pass";
+                            if cond3_reach && r_extreme { extreme_true_pass += 1; }
+                        } else if cert_opt.is_none() {
+                            st_base_none += 1;
+                            stage = "base_none";
+                        } else if !r_knode {
+                            st_no_upper += 1;
+                            stage = "no_upper";
+                        } else if !r_target {
+                            st_no_target += 1;
+                            stage = "no_target";
+                        } else if !r_cond1 {
+                            st_cond1_dir += 1;
+                            stage = "cond1_dir";
+                        } else if !r_cond2 {
+                            st_cond2_noprev += 1;
+                            stage = "cond2_noprev";
+                        } else if !r_extreme {
+                            st_cond3_extreme += 1; // ★互斥链
+                            stage = "cond3_extreme";
+                        } else if !r_divcand {
+                            st_cond4_weak += 1;
+                            extreme_true_reject += 1; // cond3 通过（Extreme 真）但 cond4 拒
+                            stage = "cond4_weak";
+                        } else {
+                            st_reject_elsewhere += 1;
+                            extreme_true_reject += 1; // rung lvl+1 cand 真但 gate 拒（更高 rung/is_sub）
+                            stage = "reject_elsewhere";
+                        }
+
+                        if stage != "gate_pass" && detail.len() < DETAIL_CAP {
+                            let dbits = bsp_class;
+                            detail.push(format!(
+                                "| {lvl} | {src} | {} | {dbits:#04x} | {stage} | c1={} c2={} ext={} dc={} | gap={} | s={} sp={} |",
+                                if delta == Side::Long { "+1" } else { "-1" },
+                                r_cond1 as u8, r_cond2 as u8, r_extreme as u8, r_divcand as u8,
+                                r_leggap, s_ext, sp_ext,
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── 报告 ──
+        let mut rpt = String::new();
+        let _ = writeln!(rpt, "# H2 样本级验证原始数据：level1-4 第二类信号 N^δ 门拒绝阶段分解");
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- task: #8（codex H2 边界条件 L2 收口）");
+        let _ = writeln!(rpt, "- **认识论等级**：L2（真实 BTC 全历史逐信号分解，可产否定性结果）");
+        let _ = writeln!(rpt, "- **窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+        let _ = writeln!(rpt, "- **目标域**：level {LMIN}..={LMAX} 第二类(buy2/sell2)信号，进入 Γ 后逐信号分解");
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(rpt, "## 1. 信号计数（各级进入 Γ 的第二类信号数）");
+        let _ = writeln!(rpt, "| level | 进入Γ信号数 |");
+        let _ = writeln!(rpt, "|---|---|");
+        for l in LMIN..=LMAX {
+            let _ = writeln!(rpt, "| {l} | {} |", n_by_level[l]);
+        }
+        let _ = writeln!(rpt, "| **合计** | **{n_total}** |");
+        let _ = writeln!(rpt);
+
+        let _ = writeln!(rpt, "## 2. N^δ 门拒绝阶段分解（rung k=lvl+1 div_cand，互斥优先序）");
+        let _ = writeln!(rpt, "| 阶段 | 信号数 | 占比 | 含义 |");
+        let _ = writeln!(rpt, "|---|---|---|---|");
+        let pct = |x: usize| if n_total > 0 { 100.0 * x as f64 / n_total as f64 } else { 0.0 };
+        let _ = writeln!(rpt, "| base_none | {} | {:.2}% | tower[lvl] 无 end==src 候选段（无定位） |", st_base_none, pct(st_base_none));
+        let _ = writeln!(rpt, "| no_upper | {} | {:.2}% | tower[lvl+1] 无含 src 段 ⟹ rungs 空退化 base-case |", st_no_upper, pct(st_no_upper));
+        let _ = writeln!(rpt, "| no_target | {} | {:.2}% | knode.sub_moves 无 end==src |", st_no_target, pct(st_no_target));
+        let _ = writeln!(rpt, "| cond1_dir | {} | {:.2}% | dir(m2)≠−δ（m2 非背驰段要求方向） |", st_cond1_dir, pct(st_cond1_dir));
+        let _ = writeln!(rpt, "| cond2_noprev | {} | {:.2}% | 无前序同向段 s_prev |", st_cond2_noprev, pct(st_cond2_noprev));
+        let _ = writeln!(rpt, "| **cond3_extreme** | **{}** | **{:.2}%** | **Extreme 假（m2 未创新极值）= codex 互斥链** |", st_cond3_extreme, pct(st_cond3_extreme));
+        let _ = writeln!(rpt, "| cond4_weak | {} | {:.2}% | cond1∧2∧3 过但 div_cand=false ⟹ MACD 力度未衰减 |", st_cond4_weak, pct(st_cond4_weak));
+        let _ = writeln!(rpt, "| reject_elsewhere | {} | {:.2}% | rung lvl+1 cand=true 但 gate=false（更高 rung/is_sub） |", st_reject_elsewhere, pct(st_reject_elsewhere));
+        let _ = writeln!(rpt, "| gate_pass | {} | {:.2}% | 通过门 |", st_gate_pass, pct(st_gate_pass));
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "- confirm_side(δ) 假（δ 与 bits 侧不符，base 层拒，与互斥正交）：{base_conf_false}");
+        let _ = writeln!(rpt);
+
+        // ── deliverable (a)：Extreme必假占比（cond3 到达域）──
+        let _ = writeln!(rpt, "## 3. deliverable (a)：Extreme 必假占比（codex 等价 s_prev 使互斥成立）");
+        let extreme_false = st_cond3_extreme; // cond3 到达且 Extreme 假 ⟹ 必然归入 cond3_extreme（全拒）
+        let extreme_true = cond3_reached.saturating_sub(extreme_false);
+        let ext_false_pct = if cond3_reached > 0 { 100.0 * extreme_false as f64 / cond3_reached as f64 } else { 0.0 };
+        let _ = writeln!(rpt, "- 到达 cond3 的信号数（cond1∧cond2 通过）：{cond3_reached}");
+        let _ = writeln!(rpt, "- 其中 **Extreme 必假**（互斥成立，s_prev 使 m2 无法创新极值）：{extreme_false}（{ext_false_pct:.2}%）");
+        let _ = writeln!(rpt, "- 其中 **Extreme 可满足**（m2 创新极值 vs 最近同向 s_prev=q）：{extreme_true}");
+        let _ = writeln!(rpt, "\n**s_prev 与 s 间距（leg_gap=target_idx−j）分布**（=2 ⟹ 单条反向腿=codex「常见结构 s_prev==m1」；>2 ⟹ 多同向腿=可能 q≠m1）：");
+        let _ = writeln!(rpt, "| leg_gap | 信号数 |");
+        let _ = writeln!(rpt, "|---|---|");
+        for g in 0..16 {
+            if leg_gap_hist[g] == 0 { continue; }
+            let _ = writeln!(rpt, "| {}{} | {} |", if g == 15 { "≥" } else { "" }, g, leg_gap_hist[g]);
+        }
+        let _ = writeln!(rpt);
+
+        // ── deliverable (b)：Extreme 可满足（gap）样本的门分布 ──
+        let _ = writeln!(rpt, "## 4. deliverable (b)：s_prev≠m1（Extreme 可满足 gap）样本的门通过/拒绝分布");
+        let _ = writeln!(rpt, "- Extreme 可满足样本总数：{extreme_true}");
+        let _ = writeln!(rpt, "  - 门**通过**（gate_pass）：{extreme_true_pass}");
+        let _ = writeln!(rpt, "  - 门**拒绝**（cond4_weak / reject_elsewhere）：{extreme_true_reject}");
+        let _ = writeln!(rpt, "\n**读解**：若 extreme_true=0 ⟹ 无 gap 样本，互斥链在 cond3 到达域内完全成立（Extreme 必假）。\
+            若 extreme_true>0 且门拒 ⟹ 这些 gap 样本被 cond4/更高 rung/is_sub 拒（非 cond3 互斥）——\
+            互斥链**不**是它们归零的原因。");
+        let _ = writeln!(rpt);
+
+        // ── deliverable (c)：100% 归零是否完全由互斥链解释 ──
+        let _ = writeln!(rpt, "## 5. deliverable (c)：level1-4 100%归零是否完全由 cond3 互斥链解释");
+        let reject_total = n_total.saturating_sub(st_gate_pass);
+        let excl_pct = if reject_total > 0 { 100.0 * st_cond3_extreme as f64 / reject_total as f64 } else { 0.0 };
+        let _ = writeln!(rpt, "- 被门拒信号数：{reject_total} / {n_total}（gate_pass={st_gate_pass}）");
+        let _ = writeln!(rpt, "- 其中 cond3 互斥链（Extreme 必假）解释：{}（占拒绝 {excl_pct:.2}%）", st_cond3_extreme);
+        let other = reject_total.saturating_sub(st_cond3_extreme);
+        let _ = writeln!(rpt, "- 其他机制（base_none/no_upper/no_target/cond1/cond2/cond4/elsewhere）解释：{other}");
+        let verdict = if st_gate_pass > 0 {
+            "**部分归零**：存在通过门的 level1-4 信号 ⟹ 与 acc「100%归零」不符（窗口差异，跨窗核对）。"
+        } else if other == 0 {
+            "**完全由互斥链解释**：所有拒绝都是 cond3 Extreme 必假（s_prev 使 m2 无法创新极值）——codex H2 互斥链 100% 坐实，边界缺口未实现（无 s_prev≠m1 使 Extreme 可满足的样本）。"
+        } else if st_cond3_extreme == 0 {
+            "**完全不由互斥链解释**：无信号止于 cond3——归零由其他机制（方向/无前段/base/更高级 rung）主导，codex 互斥链在本域不是主因。"
+        } else {
+            "**混合（互斥链非唯一机制）**：cond3 互斥链解释部分归零，其余由 cond1 方向/cond2 无前段/base/cond4/更高 rung 解释——codex H2 互斥链在 level1-4 **部分成立**，边界缺口（其他机制）实证存在，裁决需标注「互斥链是子集机制，非全部」。"
+        };
+        let _ = writeln!(rpt, "\n### 判定：{verdict}");
+        let _ = writeln!(rpt);
+
+        // ── 明细（前 {DETAIL_CAP} 条拒绝样本）──
+        let _ = writeln!(rpt, "## 6. 拒绝样本明细（前 {} 条，spot-check）", detail.len());
+        let _ = writeln!(rpt, "| lvl | src | δ | bits | 阶段 | cond flags | leg_gap | s极值 s_prev极值 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|");
+        for line in &detail {
+            let _ = writeln!(rpt, "{line}");
+        }
+        let _ = writeln!(rpt);
+
+        // 落盘（原始数据；六要素结果包由 owner 用 Write 工具单独落盘 h2-sample-verification）。
+        eprint!("{rpt}");
+        let out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent().expect("rust/ 父目录 = 项目根")
+            .join(".chanlun/review-results/h2-sample-raw-20260702.md");
+        std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
+        eprintln!("\n原始数据已落盘：{out:?}");
+
+        // ── 真封（计数不变量）──
+        let stage_sum = st_base_none + st_no_upper + st_no_target + st_cond1_dir
+            + st_cond2_noprev + st_cond3_extreme + st_cond4_weak + st_reject_elsewhere + st_gate_pass;
+        assert_eq!(stage_sum, n_total,
+            "阶段分解穷举：Σ阶段({stage_sum}) 应 = n_total({n_total})");
+        assert_eq!(extreme_false + extreme_true_pass + extreme_true_reject, cond3_reached,
+            "cond3 到达域守恒：Extreme必假({extreme_false})+Extreme真通过({extreme_true_pass})+Extreme真拒({extreme_true_reject}) 应 = cond3_reached({cond3_reached})");
+        eprintln!("真封：Σ阶段={stage_sum}=n_total={n_total}；cond3_reached={cond3_reached}=必假{extreme_false}+真通过{extreme_true_pass}+真拒{extreme_true_reject}");
+    }
+
     /// **P1 FullNest L1：effective_nest_depth 前缀语义（build_nest_certificate 与门共用构造的读数）**。
     ///
     /// depth = 从 rungs[0]（最高级）起连续 cand=true 的层数。混合 cand 时在首个 false 处截断。
