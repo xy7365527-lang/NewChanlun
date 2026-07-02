@@ -120,9 +120,10 @@ fn segment_to_unit(seg: &Segment) -> UnitRange {
 
 /// 从 L0 线段单元序列识别中枢序列（**完整判据**，契约锚 `Origin.CenterComplete.CenterConfirmedComplete`）。
 ///
-/// L0 线段有内在方向 ⟹ 用 `center::center_from_segments`（完整判据：方向交替 ∧ 前两段核心非空 ∧
-/// 第三段贯穿）。从左到右扫描：连续三段构成真中枢则前进 3 段（已确认中枢不回写，reference:16）；
-/// 任一支不成立（无方向交替/核心空/第三段不贯穿）则前进一段继续找（对齐 `Origin.centersOf` 滑窗：
+/// L0 线段有内在方向 ⟹ 用 `center::center_from_segments`（完整判据：方向交替 ∧ 全三段核心非空，
+/// 口径 B——第三段贯穿已被全三段核心非空吸收，637号 codex L0 等价）。从左到右扫描：连续三段构成
+/// 真中枢则前进 3 段（已确认中枢不回写，reference:16）；
+/// 任一支不成立（无方向交替/全三段核心空）则前进一段继续找（对齐 `Origin.centersOf` 滑窗：
 /// 成立支消费 3、不成立支消费 1）。
 ///
 /// ★诚实范围：v0 用**非重叠三段窗口**识别中枢（连续三段成真枢则前进 3 段）。延伸中枢
@@ -134,7 +135,7 @@ fn detect_centers_complete(units: &[UnitRange]) -> Vec<Center> {
 /// 从上级走势单元序列识别中枢序列（**几何路径**，契约锚 `Origin.centerHolds` + 三段共同重叠）。
 ///
 /// 上级单元是中枢外缘区间（**无内在缠论方向**，方向由 Move 趋势裁决携带）⟹ 用
-/// `center::center_from_window`（几何三支：前两段核心非空 + 第三段贯穿，无方向交替）。上级发展
+/// `center::center_from_window`（几何判据：全三段核心非空，口径 B——第三段贯穿已吸收，637号；无方向交替）。上级发展
 /// 裁决用 `Origin.CenterStates.classifyDevelopment`（外缘判据，无方向交替要求）——见 `center.rs`
 /// 诚实有效域声明。
 fn detect_centers_geometric(units: &[UnitRange]) -> Vec<Center> {

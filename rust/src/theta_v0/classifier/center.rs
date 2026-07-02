@@ -118,7 +118,7 @@ pub fn dir_alternates(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> bool {
     a.direction != b.direction && b.direction != c.direction
 }
 
-/// 第三段贯穿核心判定（**派生谓词**，口径 B 下被核心非空蕴含，637号）。
+/// [口径 A legacy 派生谓词] 第三段贯穿核心判定（**派生谓词**，口径 B 下被核心非空蕴含，637号）。
 ///
 /// 原 A 口径定义"第三段 `[lo,hi]` 落入**前两段**核心 `[max(d₁,d₂), min(g₁,g₂)]`"（§6.3 三段共同
 /// 重叠的独立判据支）。口径 B 迁移后核心已是**全三段** `[ZD_B,ZG_B]`，第三段贯穿语义被
@@ -336,7 +336,7 @@ mod tests {
     // ──────────────────────────────────────────────────────────────────────
 
     #[test]
-    fn geometric_window_two_segment_core_bit_exact() {
+    fn geometric_window_three_segment_core_bit_exact() {
         // 全三段定核心（口径 B）：a=[0,10], b=[3,12], c=[5,15]。
         // zd=max(0,3,5)=5, zg=min(10,12,15)=10。第三段 [5,15] 收窄核心下沿（A 口径 zd=3 → B zd=5）。
         // dd=min(0,3,5)=0, gg=max(10,12,15)=15。
