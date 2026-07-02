@@ -87,6 +87,8 @@
 
 **主判据 = C1 ∧ C2**（二类买卖点是原文钦定的最佳确认，`053:28`）。C3 是思维导图给的**必要条件**（可作为 C2 的前置过滤，降低误报）。C4 是娇注的加强项，作为凭据的**置信度标注**而非硬门（GGDD 位置判定依赖完整中枢序列，边界见 §3）。
 
+> ⚠ **[codex审查修正 · §6-1/§6-3]**：C3「最后一个次级中枢出现三类买卖点」是原文的**必要非充分**条件（表述勿强化为充分）；且 C3 与 C4 同样依赖「动态最后次级中枢」（`044:56`），有同一零前视问题——若只能用最终塔判，C3 应降为软标注，门通行退化为**仅 C2**（与 §0 一句话结论一致）。
+
 ### 2.3 凭据结构（最小设计）
 
 ```
@@ -101,6 +103,8 @@ XzdCertificate {
 ```
 门通行判据：`type2_confirmed && sub_last_zs_type3`（C2∧C3）。`reverse_break_or_gg` 仅作分级/统计，不参与硬门（诚实：C4 的 GGDD 分支不可完全编码，不能冒充硬门）。
 
+> ⚠ **[codex审查修正 · §6-2]**：凭据**不要**用平行 `XzdCertificate` 结构体，也**严禁**复用空 `rungs` 的 `NestCertificate`——`nest.rs:200-217` 的 `n_delta()` 在空 rungs 时直接返回 `terminal.confirm_side(side)`，而进 None 分支的信号本就满足该析取，会导致小转大凭据被现有门**无条件放行**（与 C2/C3 是否成立无关）。改用 `enum GateCertificate{ Nest(NestCertificate), Xzd(XzdEvidence) }`，`effective_nest_depth` 只吃 `Nest` 分支。
+
 ### 2.4 与区间套通道的关系（架构分离）
 
 | 维度 | 区间套通道（现有） | 小转大通道（本设计） |
@@ -112,6 +116,8 @@ XzdCertificate {
 | 认识论 | 大→小终结 | 小→大生长确认 |
 
 两通道**并列互补、输入域不相交**（`descend=Some` 走区间套，`descend=None` 走小转大），这正是 `053:28`「第一类最佳，小转大时二类最佳」的架构映射。
+
+> ⚠ **[codex审查修正 · §6-4]**：「输入域不相交」是 `Option` 两支的同义反复（Some/None 互斥），**不需要 L2 经验验证**。阶段2该验证的是 **None 域的语义纯度**（None 是否全为真小转大，而非坐标断裂/提取 bug 的伪 None），不是「是否重叠」。
 
 ---
 
@@ -149,3 +155,19 @@ XzdCertificate {
 3. C4 口径（首次塔 vs 最终塔）**上浮/codex 审后**再定（§3.3）。
 4. level 相关判据切换（线段级用几何、非线段级可用 MACD，§3.5）。
 5. L2 重测：1353 输入域上跑通道，产出命中率 + 与区间套 120 条不相交性验证。
+
+---
+
+## 6. codex 审查修正（阶段2实装前强制并入 · supersedes 上文标注处）
+
+审查：ws-xzdaudit 用本机 codex CLI 对本稿 diagnose，全文 `.chanlun/review-results/xiaozhuanda-codex-audit-20260702.md`。结论：溯源基本可靠、无定义层矛盾、不需 escalate；但下列四点在动工前必须并入（前两点为正确性硬缺口）。
+
+**§6-1 C2 的 bits 不合并（硬缺口）**：`extract_signals_with_hist`（B1/B3）与 `extract_second_for_level`（B2）在 `mod.rs:253/259` 是独立提取 + extend + `sort_by_key(source_index)`，**未按 source_index 合并 bits**。进 None 分支的 Type3-only 信号（`bits.buy2=false`）直接读自身 bits 拿不到共生 B2 信息——`xiaozhuanda_confirm` 必须显式按 source_index/结构关联去同级 bsp 列表查 B2 条目，C2 才可能成立。「复用现有二类 bsp 定义」不能免费拿到这个关联。
+
+**§6-2 空 rungs 凭据无条件放行（正确性陷阱）**：`nest.rs:200-217` 的 `n_delta()` 在空 `rungs` 时返回 `terminal.confirm_side(side)`，进 None 分支的信号本已满足该析取——用 `NestCertificate{rungs:vec![],...}` 冒充小转大凭据会被现有门无条件放行。改用 `enum GateCertificate{ Nest(NestCertificate), Xzd(XzdEvidence) }`，`effective_nest_depth` 只吃 `Nest` 分支（比平行 XzdCertificate 少一层类型体系）。
+
+**§6-3 C3 同 C4 的零前视问题**：C3 找的「最后一个次级中枢」与 C4 是同一个「动态最后中枢」（`044:56`）。原稿 §3.3 只把风险标给 C4。若只能用最终塔判 C3，C3 须与 C4 一样降为软标注，门通行退化为**仅 C2**——反而与 §0 一句话结论（未提 C3 硬门）内部更一致。C3 溯源成立但 §2.2 表述偏强：原文只给必要条件，非充分。
+
+**§6-4 §2.4「输入域不相交」是同义反复**：Some/None 互斥是 `Option` 定义使然，不需 L2 验证。阶段2 该验证的是 **None 域语义纯度**（None 全为真小转大 vs 坐标断裂/提取 bug 的伪 None）。
+
+> 阶段2 工位（task #24）以本节四点为强制验收项。
