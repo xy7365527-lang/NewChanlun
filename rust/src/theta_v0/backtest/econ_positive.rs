@@ -559,6 +559,135 @@ fn descend_type1_anchor_depth(
     }
 }
 
+/// 673-fix（codex 裁决①§673-fix）：Cand^δ_ℓ 候选类型——接口级三分拆的分派键。
+///
+/// bits 非互斥（P4§5 六买卖点可重合），故按优先级 Type1>Type2>Type3 坍缩到单一候选类型。
+/// 保持旧 `is_type1` 语义：buy1/sell1 置位即走 Type1 的 `div_cand` 路径（bit-exact 不动）。
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum BspCandType {
+    Type1,
+    Type2,
+    Type3,
+}
+
+/// 从 `BspBits`+方向派生候选类型（优先级 Type1>Type2>Type3）。
+fn bsp_cand_type(bits: &BspBits, delta: Side) -> BspCandType {
+    match delta {
+        Side::Long => {
+            if bits.buy1 {
+                BspCandType::Type1
+            } else if bits.buy2 {
+                BspCandType::Type2
+            } else {
+                BspCandType::Type3
+            }
+        }
+        Side::Short => {
+            if bits.sell1 {
+                BspCandType::Type1
+            } else if bits.sell2 {
+                BspCandType::Type2
+            } else {
+                BspCandType::Type3
+            }
+        }
+    }
+}
+
+/// 673-fix Type1 候选谓词：本级趋势背驰段（区间套原文对象，606 号有效域）。
+///
+/// per-rung `Cand^δ_k`——在 rung 的次级别走势序列 `rung_subs` 中找 `end_index==source_index`
+/// 的执行级候选段，跑 `div_cand`（Extreme+Weak 四条件）。bit-exact 复用旧 Type1 分支逻辑。
+fn cand_delta_type1_extreme(
+    rung_subs: &[super::super::classifier::recursive_tower::LeveledMove],
+    source_index: usize,
+    delta: Side,
+    hist: &[f64],
+) -> bool {
+    match find_move_by_end_index(rung_subs, source_index) {
+        Some(tidx) => super::super::classifier::cand_predicate::div_cand(
+            &super::super::classifier::cand_predicate::DivCandInput {
+                context: rung_subs,
+                target_idx: tidx,
+                hist,
+                delta,
+            },
+        ),
+        None => false, // 执行级候选段不在 k 级次级别序列中 ⟹ 无 Cand
+    }
+}
+
+/// 673-fix Type2 候选谓词：一类点后回抽走势完成（第17课L60 完备性）。
+///
+/// **保护边界 = 一类点极值**（回抽不破一类点）——由上游结构分类器置 buy2/sell2 位时强制，
+/// 本谓词不在 Cand 层重门保护位（no-patch 双门）。存在性锚 = 次级别 Type1（定律一下沉，
+/// 第29课L396「二三类精确点要下次级别以下找第一类」）。`lvl==0`（无次级别，递归底）⟹ 存在性
+/// 免门（Type2@level0 不误拒）；`None`（无锚）= 小转大（该级无一类精确点无法下沉定位）⟹ 门拒。
+fn cand_delta_type2_completion(
+    s: &super::super::classifier::recursive_tower::LeveledMove,
+    source_index: usize,
+    delta: Side,
+    hist: &[f64],
+    lvl: usize,
+) -> bool {
+    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist).is_some()
+}
+
+/// 673-fix Type3 候选谓词：离开中枢后回抽/反抽走势完成（**独立分支**，codex 裁决①）。
+///
+/// **保护边界 = 中枢 ZG/ZD**（离开中枢回抽不入 `c.zg`/`c.zd`，几何见 `descend.rs`
+/// `sub_broke_above`/`sub_broke_below`）——与 Type2 的「一类点极值」锚点/失效条件不同，故 Type3
+/// **不复用 Type2 顶层谓词**（codex：「Type2 保护位是一类点极值，Type3 保护边界是中枢区间边界」）。
+/// ZG/ZD 边界由上游 `six_state.rs` 置 buy3/sell3 位时强制（V型反转回试不入中枢已判），本谓词不在
+/// Cand 层重门 ZG/ZD（上游已滤 ⟹ 双门=dead gate，信号集差 0）——保护边界**归属**记录于此，语义与
+/// Type2 分离。存在性锚复用 `descend_type1_anchor_depth`（codex 允许「Type3 最多复用 Type2 的
+/// 反向走势完成 helper」）：精确点=次级别 Type1（定律一下沉）；`lvl==0` 免门，`None`=小转大门拒。
+fn cand_delta_type3_retest(
+    s: &super::super::classifier::recursive_tower::LeveledMove,
+    source_index: usize,
+    delta: Side,
+    hist: &[f64],
+    lvl: usize,
+) -> bool {
+    lvl == 0 || descend_type1_anchor_depth(s, source_index, delta, hist).is_some()
+}
+
+/// 673-fix 薄 dispatcher：per-rung `Cand^δ_k` 按候选类型分派（不承载判据逻辑，codex 裁决①）。
+///
+/// Type1 → 本级背驰段 `div_cand`；Type2/3 存在性已由 [`cand_delta_base_gate`] 门控（base 一次），
+/// 上级 rung 载上级语境（第17课L60 完备性保证 Type2/3 存在）⟹ cand=true。
+fn cand_delta(
+    cand_type: BspCandType,
+    rung_subs: &[super::super::classifier::recursive_tower::LeveledMove],
+    source_index: usize,
+    delta: Side,
+    hist: &[f64],
+) -> bool {
+    match cand_type {
+        BspCandType::Type1 => cand_delta_type1_extreme(rung_subs, source_index, delta, hist),
+        BspCandType::Type2 | BspCandType::Type3 => true,
+    }
+}
+
+/// 673-fix base 存在性门（一次，非 per-rung）：Type2/3 定律一下沉锚定，按类型分派。
+///
+/// Type1 无 base gate（判据在 per-rung `div_cand`）⟹ true。Type2/3 委托各自谓词（存在性锚 +
+/// 保护边界归属记录）。返回 false ⟹ 整证书拒（小转大：该级无一类精确点无法下沉定位）。
+fn cand_delta_base_gate(
+    cand_type: BspCandType,
+    s: &super::super::classifier::recursive_tower::LeveledMove,
+    source_index: usize,
+    delta: Side,
+    hist: &[f64],
+    lvl: usize,
+) -> bool {
+    match cand_type {
+        BspCandType::Type1 => true,
+        BspCandType::Type2 => cand_delta_type2_completion(s, source_index, delta, hist, lvl),
+        BspCandType::Type3 => cand_delta_type3_retest(s, source_index, delta, hist, lvl),
+    }
+}
+
 /// 从塔构造 `NestCertificate`（区间套证书的**构造**，与 `n_delta()` **判定**分离）。
 ///
 /// 门函数 `build_multilevel_nest_cert` = 本函数 + `.n_delta()`；诊断函数
@@ -584,19 +713,15 @@ pub(super) fn build_nest_certificate(
         idx: s.id.ordinal,
     };
 
-    // 673 号段1：Cand^δ_ℓ 按 bsp 类型分流。Type1（本级趋势背驰段=区间套原文对象，606 号有效域）
-    // 走 div_cand；Type2/Type3 存在性由结构分类前提保证（Type2=一买后回抽不破 第17课L60 完备性，
-    // Type3=离开中枢回抽不破 ZG/ZD），免本级背驰段门（消费点见循环内 cand_k）。
-    let is_type1 = match delta {
-        Side::Long => bits.buy1,
-        Side::Short => bits.sell1,
-    };
+    // 673-fix（codex 裁决①）：Cand^δ_ℓ 按 bsp 类型**接口级三分拆**——分派键 + base gate + per-rung
+    // 均经 [`bsp_cand_type`]/[`cand_delta_base_gate`]/[`cand_delta`] 命名谓词，函数内不再 if bsp_class
+    // 混跑。Type1 走 div_cand；Type2/Type3 存在性由定律一下沉锚定，保护边界（Type2=一类点极值 /
+    // Type3=中枢 ZG/ZD）归属记录于各谓词 docstring（上游 bit 置位时已强制，Cand 层不双门）。
+    let cand_type = bsp_cand_type(bits, delta);
 
-    // 673 号段2：Type2/3 定律一下沉锚定（第29课L396 精确定位锚次级别 Type1）。
-    //   lvl>=1（有次级别）：下沉找次级别 Type1 锚点；None=小转大（该级别无一类，精确点无法下沉定位）
-    //     ⟹ 整证书 None（门直接拒；显式可测判别，非 catch-all fallback）。
-    //   lvl==0（最低可用级别，无次级别）：下沉不适用，存在性免门（段1 保留，Type3@level0 不误拒）。
-    if !is_type1 && lvl >= 1 && descend_type1_anchor_depth(s, source_index, delta, hist).is_none() {
+    // base gate：Type2/3 定律一下沉锚定（第29课L396）。None=小转大 ⟹ 整证书拒（显式可测判别，
+    // 非 catch-all fallback）。Type1 无 base gate（判据在 per-rung）；lvl==0 存在性免门。
+    if !cand_delta_base_gate(cand_type, s, source_index, delta, hist, lvl) {
         return None;
     }
 
@@ -629,32 +754,11 @@ pub(super) fn build_nest_certificate(
             end_time: knode.end_index as u64,
             idx: knode.id.ordinal,
         };
-        // Cand^δ_k：候选谓词按 bsp 类型分流（673 号）——此分流点即锚定接口，同时容纳两类锚：
-        //   Type1 → 本级锚：本级趋势背驰段判据 div_cand（区间套原文对象，606 号有效域；bit-exact 不动）。
-        //   Type2/Type3 → 次级别锚：定律一下沉（下次级别找第一类 Type1 区间套），由段2（task #13）实装。
-        // 段1 只装存在性（免本级背驰段门），非「Type2/3 永远无 nest」——rung 结构照建，段2 替换分支体。
-        let cand_k = if !is_type1 {
-            // 段2：精确定位（次级别 Type1 锚点）已在函数入口 descend_type1_anchor_depth 门控——
-            // 到此为 lvl==0（无次级别，存在性免门）或 lvl>=1 且锚点成立（小转大已 return None）。
-            // 上级 rung 载存在性/上级语境（第17课L60 完备性保证 Type2/3 存在），cand=true。
-            true
-        } else {
-            // k 级 knode 的 sub_moves 是 lvl 到 k-1 级的窗口序列；找 end_index == source_index 的段
-            // （即执行级候选段），计算 DivCand 四条件。
-            match find_move_by_end_index(knode.sub_moves.as_slice(), source_index) {
-                Some(tidx) => {
-                    super::super::classifier::cand_predicate::div_cand(
-                        &super::super::classifier::cand_predicate::DivCandInput {
-                            context: knode.sub_moves.as_slice(),
-                            target_idx: tidx,
-                            hist,
-                            delta,
-                        }
-                    )
-                }
-                None => false, // 执行级候选段不在 k 级次级别序列中 ⟹ 无 Cand
-            }
-        };
+        // Cand^δ_k：薄 dispatcher（673-fix）——per-rung 候选谓词按类型分派。
+        //   Type1 → 本级趋势背驰段 div_cand（区间套原文对象，606 号有效域；bit-exact 不动）。
+        //   Type2/3 → 存在性已由 base gate 门控（descend anchor），上级 rung 载上级语境 ⟹ true。
+        // knode.sub_moves 是 lvl 到 k-1 级的窗口序列（Type1 在其中找执行级候选段算四条件）。
+        let cand_k = cand_delta(cand_type, knode.sub_moves.as_slice(), source_index, delta, hist);
         rung_buf.push(NestRung { interval: interval_k, cand: cand_k });
     }
     // n_delta 期望 rungs[0]=最高级，rungs[last]=lvl+1 级——rung_buf 是低到高，需反转。
@@ -903,6 +1007,86 @@ mod tests {
         // ⟹ build_multilevel_nest_cert ⟹ n_delta() = true
         let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
         assert!(result, "两级塔 + 四条件满足 + Conf^+ ⟹ n_delta()=true（多级链 J 嵌套收缩）");
+    }
+
+    // ── 673-fix：接口级三分拆独立单元测试（Type1/2/3 分派 + Type2/3 谓词） ──────────
+
+    /// **bsp_cand_type 优先级分派（Type1>Type2>Type3，保持旧 is_type1 语义）**。
+    #[test]
+    fn bsp_cand_type_priority_dispatch() {
+        use super::super::super::types::{BspBits, Side};
+        let mk = |b1, b2, b3| {
+            let mut bits = BspBits::default();
+            bits.buy1 = b1; bits.buy2 = b2; bits.buy3 = b3;
+            bits
+        };
+        // buy1 置位 ⟹ Type1（即使 buy2/buy3 同置，非互斥 P4§5，优先级坍缩）。
+        assert_eq!(bsp_cand_type(&mk(true, true, true), Side::Long), BspCandType::Type1);
+        assert_eq!(bsp_cand_type(&mk(false, true, true), Side::Long), BspCandType::Type2);
+        assert_eq!(bsp_cand_type(&mk(false, false, true), Side::Long), BspCandType::Type3);
+        // 卖侧对称。
+        let mut sb = BspBits::default(); sb.sell2 = true;
+        assert_eq!(bsp_cand_type(&sb, Side::Short), BspCandType::Type2);
+    }
+
+    /// **Type2/Type3 base gate：lvl==0 存在性免门；lvl>=1 无次级别锚 ⟹ 小转大门拒**。
+    ///
+    /// Type2/3 谓词是**独立函数**（codex 裁决①），但当前存在性锚共用 `descend_type1_anchor_depth`
+    /// （codex 允许复用反向走势完成 helper），故对同一 fixture 行为一致——语义分离体现于保护边界
+    /// 归属（Type2=一类点极值 / Type3=中枢 ZG/ZD），记录于各 docstring，非本级信号集差。
+    #[test]
+    fn cand_delta_type23_base_gate_level0_and_small_to_big() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::types::Side;
+
+        // 递归底段（无 sub_moves）：lvl==0 免门 ⟹ true；lvl>=1 无锚 ⟹ 小转大 false。
+        let s = LeveledMove {
+            rmove: RMove::Segment { direction: super::super::super::types::Direction::Down, lo: 30, hi: 85 },
+            start_index: 15, end_index: 19,
+            sub_moves: Rc::new(vec![]),
+            id: ElementId { level: 0, ordinal: 3 },
+        };
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+
+        // lvl==0：存在性免门 ⟹ Type2/Type3 均 true。
+        assert!(cand_delta_type2_completion(&s, 19, Side::Long, &hist, 0));
+        assert!(cand_delta_type3_retest(&s, 19, Side::Long, &hist, 0));
+        // lvl>=1 但 s.sub_moves 空（无次级别 Type1 锚）⟹ 小转大 ⟹ false。
+        assert!(!cand_delta_type2_completion(&s, 19, Side::Long, &hist, 1));
+        assert!(!cand_delta_type3_retest(&s, 19, Side::Long, &hist, 1));
+        // dispatcher：base gate Type1 恒 true（判据在 per-rung），Type2/3 委托上述。
+        assert!(cand_delta_base_gate(BspCandType::Type1, &s, 19, Side::Long, &hist, 1));
+        assert!(!cand_delta_base_gate(BspCandType::Type2, &s, 19, Side::Long, &hist, 1));
+    }
+
+    /// **cand_delta per-rung dispatcher：Type1→div_cand，Type2/3→true（存在性已 base 门控）**。
+    #[test]
+    fn cand_delta_rung_dispatch() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::types::{Direction, Side};
+        let seg = |dir, lo, hi, s, e, ord| LeveledMove {
+            rmove: RMove::Segment { direction: dir, lo, hi },
+            start_index: s, end_index: e, sub_moves: Rc::new(vec![]),
+            id: ElementId { level: 0, ordinal: ord },
+        };
+        // rung 次级别序列：s'(down lo=40) ... s(down lo=30<40 Extreme✓)，hist 力度衰减 Weak✓。
+        let subs = vec![
+            seg(Direction::Down, 40, 90, 5, 9, 1),
+            seg(Direction::Up, 45, 95, 10, 14, 2),
+            seg(Direction::Down, 30, 85, 15, 19, 3),
+        ];
+        let hist: Vec<f64> = (0..20usize).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        // Type1 → div_cand（四条件满足 ⟹ true）。
+        assert!(cand_delta(BspCandType::Type1, &subs, 19, Side::Long, &hist));
+        // Type2/Type3 → true（per-rung 存在性已 base 门控，rung 载上级语境）。
+        assert!(cand_delta(BspCandType::Type2, &subs, 19, Side::Long, &hist));
+        assert!(cand_delta(BspCandType::Type3, &subs, 19, Side::Long, &hist));
+        // Type1 无对齐候选段（source_index 不存在）⟹ false。
+        assert!(!cand_delta(BspCandType::Type1, &subs, 99, Side::Long, &hist));
     }
 
     /// **Cand=false ⟹ N^δ 整体=false（Cand 传播测试）**。
