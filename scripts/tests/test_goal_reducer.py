@@ -424,3 +424,88 @@ def test_decompose_still_drives_ready_when_present():
                "sub_goals": [{"id": "s1", "desc": "sub1", "blocked_by": []}]}]
     out = reduce_goal(events, {"git_head": "h"})
     assert out["ready_workstations"] == ["s1"]
+
+
+def test_dangling_terminated_does_not_block_new_goal():
+    # dangling-active 根治（核心回归）：g1 全 acceptance CHECK_PASS（terminated）但
+    # loop 尚未写 CLOSED，此时新 GOAL_SET g2 抢先追加。旧实现把 terminated-未-CLOSED 的 g1 计入
+    # active 歧义 → AMBIGUOUS_ACTIVE_GOALS → current_goal=None（本 session 实发，靠手工补录
+    # CLOSED 解除）。修复：歧义只在 live goal（有未竟工作）间判定，terminated g1 不参与 → 命中 g2。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "旧目标",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c1", "ts": "t1"},
+        {"event": "GOAL_SET", "goal_id": "g2", "description": "新目标",
+         "acceptance": [{"check": "c2", "falsifiable": True}], "base_head": "abc123", "ts": "t2"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["goal_id"] == "g2"  # 命中新 goal，非 None，非 g1
+    assert out["current_goal"]["status"] == "active"
+    assert not [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+
+
+def test_terminated_goal_surfaces_when_no_live_goal():
+    # 无 live goal 时 terminated goal 仍作 current_goal 上报（status=closed/terminated=True），
+    # 供 ceremony_scan 停 spawn（codex#5）+ loop 写 CLOSED 审计——CLOSED 的显式审计价值不因根治丢失。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c1", "ts": "t1"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"]["goal_id"] == "g1"
+    assert out["current_goal"]["status"] == "closed"
+    assert out["terminated"] is True
+
+
+def test_ambiguity_only_among_live_goals():
+    # 根治不削弱 codex#1：两个 live goal 仍 AMBIGUOUS。terminated g0 已完成、非竞争方向，不进
+    # 歧义 ids——歧义只含真正竞争的 g1/g2。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g0", "description": "done",
+         "acceptance": [{"check": "c0", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g0", "check": "c0", "ts": "t1"},
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "live一",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t2"},
+        {"event": "GOAL_SET", "goal_id": "g2", "description": "live二",
+         "acceptance": [{"check": "c2", "falsifiable": True}], "base_head": "abc123", "ts": "t3"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert out["current_goal"] is None
+    amb = [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+    assert len(amb) == 1
+    assert amb[0]["ids"] == ["g1", "g2"]  # g0(terminated) 不在内
+
+
+def test_multiple_terminated_no_ambiguity_drains_one():
+    # 两个 terminated goal、零 live：不歧义（done goal 不竞争）。current 取字典序末位待闭合，
+    # loop 逐个写 CLOSED 排空——done goal 无 goal-loss 风险，与 codex#1 只防 live goal 静默丢失一致。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c1", "ts": "t1"},
+        {"event": "GOAL_SET", "goal_id": "g2", "description": "y",
+         "acceptance": [{"check": "c2", "falsifiable": True}], "base_head": "abc123", "ts": "t2"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g2", "check": "c2", "ts": "t3"},
+    ]
+    out = reduce_goal(events, _facts())
+    assert not [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+    assert out["current_goal"]["goal_id"] == "g2"  # 字典序末位
+    assert out["terminated"] is True
+
+
+def test_contested_goal_stays_live_not_drained():
+    # 658 交互：g1 曾 CHECK_PASS 后被 CHECK_FAIL 争议 → 未闭合（contested）→ 仍 live。它与新 g2
+    # 都 live → AMBIGUOUS（争议撤销的 goal 不被误当 terminated 排空，严格闭合优先安全）。
+    events = [
+        {"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+         "acceptance": [{"check": "c1", "falsifiable": True}], "base_head": "abc123", "ts": "t0"},
+        {"event": "CHECK_PASS", "sub_goal_id": "g1", "check": "c1", "ts": "t1"},
+        {"event": "CHECK_FAIL", "sub_goal_id": "g1", "check": "c1", "reason": "争议", "ts": "t2"},
+        {"event": "GOAL_SET", "goal_id": "g2", "description": "y",
+         "acceptance": [{"check": "c2", "falsifiable": True}], "base_head": "abc123", "ts": "t3"},
+    ]
+    out = reduce_goal(events, _facts())
+    amb = [b for b in out["blocked"] if b.get("type") == "AMBIGUOUS_ACTIVE_GOALS"]
+    assert len(amb) == 1
+    assert amb[0]["ids"] == ["g1", "g2"]  # g1 仍 live（contested 未闭合）

@@ -39,6 +39,73 @@ def apply_acceptance_amendments(
             current = [dict(a) for a in new_acc]
     return current
 
+
+def _build_pass_state(events: list[dict]) -> tuple[dict, dict, set, set]:
+    """从 CHECK_PASS/CHECK_FAIL 重建验收态（goal 无关，一次构建供全体 gid 复用）。
+
+    两键都按 sub_goal_id 作用域隔离（codex MAJOR-2：acceptance_id 非全局唯一，任意
+    sub_goal 的 CHECK_PASS 不得误闭合 goal acceptance）。两键互斥（codex v2 MAJOR）：带
+    acceptance_id → 只走稳定身份键 (sub_goal_id, acceptance_id)；否则 fallback check 文本键
+    (sub_goal_id, check)。值=最后写者（PASS=True/FAIL=False）——658 补偿事件序：CHECK_FAIL
+    对同一键写 False，PASS→FAIL→PASS 正确反映最终态。contested 集记曾被 CHECK_FAIL 撤销的
+    键，供严格闭合区分「从未通过」与「曾通过后被争议撤销」。"""
+    passed_accept_ids: dict = {}
+    passed_checks: dict = {}
+    contested_accept_ids: set = set()
+    contested_checks: set = set()
+    for e in events:
+        if e["event"] not in ("CHECK_PASS", "CHECK_FAIL"):
+            continue
+        sid = e.get("sub_goal_id")
+        ok = e["event"] == "CHECK_PASS"
+        if e.get("acceptance_id"):
+            passed_accept_ids[(sid, e["acceptance_id"])] = ok
+            if not ok:
+                contested_accept_ids.add((sid, e["acceptance_id"]))
+        else:
+            passed_checks[(sid, e.get("check"))] = ok
+            if not ok:
+                contested_checks.add((sid, e.get("check")))
+    return passed_accept_ids, passed_checks, contested_accept_ids, contested_checks
+
+
+def _apply_pass_state(
+    acceptance: list[dict], gid: str,
+    pass_state: tuple[dict, dict, set, set],
+) -> list[dict]:
+    """把验收态应用到 gid 的 acceptance 向量，返回带 passed/contested 的新向量（不改入参）。
+
+    单一权威口径（#102）：active-set 剔 terminated 与主路径闭合判定共用此函数，杜绝两份
+    发散的闭合逻辑。匹配优先稳定身份 (gid, acc.id)，无 id 时 fallback check 文本 (gid, check)，
+    两键都 gid-scoped（防跨 sub_goal 的 id/check 名碰撞误闭合）。"""
+    passed_accept_ids, passed_checks, contested_accept_ids, contested_checks = pass_state
+    out = []
+    for a in acceptance:
+        acc = dict(a, passed=a.get("passed", False))
+        akey = (gid, acc["id"]) if acc.get("id") else None
+        ckey = (gid, acc["check"])
+        if akey is not None and akey in passed_accept_ids:
+            acc["passed"] = passed_accept_ids[akey]
+            if akey in contested_accept_ids:
+                acc["contested"] = True
+        elif ckey in passed_checks:
+            acc["passed"] = passed_checks[ckey]
+            if ckey in contested_checks:
+                acc["contested"] = True
+        out.append(acc)
+    return out
+
+
+def _is_terminated(acceptance: list[dict]) -> bool:
+    """严格闭合（codex #7 MAJOR + 编排者裁定 CHOICE）：非空且每项 passed 且 **not contested**。
+
+    曾被 CHECK_FAIL 争议的 acceptance 即使后续 CHECK_PASS（passed=True+contested=True）仍不
+    闭合——保守安全，防 PASS→FAIL→PASS 误闭合。复判路径（CHECK_RESOLVE 显式清 contested）
+    是未实装的升级点（编排者裁定保守优先）。"""
+    return bool(acceptance) and all(
+        a["passed"] and not a.get("contested") for a in acceptance)
+
+
 def reduce_goal(events: list[dict], facts: dict) -> dict:
     """events: list[dict]（events.jsonl 解析）；
     facts: {git_head(消费：base_head 对账), genealogy_pending/genealogy_settled/roadmap(§4 数据流输入契约
@@ -80,14 +147,34 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     for e in events:
         if e["event"] == "GOAL_SET":
             goal_sets[_gid(e)] = e
+    # 验收态一次构建（goal 无关），供 active-set 剔 terminated 与主路径闭合判定复用（#102）。
+    pass_state = _build_pass_state(events)
+
+    def _terminated_gid(g):
+        # g 的全部 acceptance 是否 CHECK_PASS 且未 contested（严格闭合，从验收事实派生）。
+        # 供下方歧义判定剔 terminated——terminated goal 已完成、无未竟工作，不是竞争中的方向。
+        amended = apply_acceptance_amendments(goal_sets[g].get("acceptance", []), events, g)
+        return _is_terminated(_apply_pass_state(amended, g, pass_state))
+
     active_ids = sorted(gid for gid in goal_sets if gid not in superseded and gid not in closed)
-    if len(active_ids) > 1:
+    # dangling-active 根治（codex#1 active-set 语义的精化）：歧义只在「有未竟工作」的 live goal
+    # 间判定。terminated
+    # goal（全 acceptance CHECK_PASS 且未 contested）已完成，不是竞争中的方向——不参与歧义计数。
+    # 原实现把 terminated-未-CLOSED goal 计入 active 歧义：一旦新 GOAL_SET 抢在 loop 写 CLOSED 前
+    # 追加，active 集出现两元素 → AMBIGUOUS_ACTIVE_GOALS → current_goal=None（本 session 实发）。
+    # 根因是歧义域误用（等冗余 CLOSED 事件补录才消歧，而非从验收事实派生「已完成→不竞争」）。
+    live_ids = [gid for gid in active_ids if not _terminated_gid(gid)]
+    if len(live_ids) > 1:
         return {"current_goal": None, "ready_workstations": [], "ready_details": [],
-                "blocked": [{"type": "AMBIGUOUS_ACTIVE_GOALS", "ids": active_ids}],
+                "blocked": [{"type": "AMBIGUOUS_ACTIVE_GOALS", "ids": live_ids}],
                 "terminated": False}
+    # 选择：优先唯一 live goal；无 live 但 active 非空时取字典序末位 terminated goal——它待闭合
+    # （status=closed/terminated=True），供 ceremony_scan 停 spawn（codex#5）+ loop 写 CLOSED 审计
+    # 并逐个排空（done goal 无 goal-loss 风险，与 codex#1 只防 live goal 静默丢失一致）。全空→None。
+    sel_gid = live_ids[0] if len(live_ids) == 1 else (active_ids[-1] if active_ids else None)
     goal = None
-    if len(active_ids) == 1:
-        e = goal_sets[active_ids[0]]
+    if sel_gid is not None:
+        e = goal_sets[sel_gid]
         acceptance = e.get("acceptance", [])
         _validate_acceptance(acceptance)
         goal = {"goal_id": _gid(e),
@@ -127,39 +214,12 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
             for sg in e.get("sub_goals", []):
                 subs[sg["id"]] = {"id": sg["id"], "desc": sg["desc"],
                                   "blocked_by": list(sg.get("blocked_by", [])), "passed": False, "blocker": None}
-    # 3. 应用 CHECK_PASS / CHECK_FAIL / BLOCKED（sub_goal_id 缺失的退化事件安全跳过）
-    # CHECK_PASS 匹配 goal acceptance 采两键（650：稳定身份优先）。两键都按 sub_goal_id
-    # 作用域隔离（codex MAJOR-2：acceptance_id 非全局唯一，任意 sub_goal 的 CHECK_PASS 不得
-    # 误闭合 goal acceptance——goal acceptance 的 CHECK_PASS.sub_goal_id 必须=gid）：
-    #  - passed_accept_ids：(sub_goal_id, acceptance_id) → passed bool（稳定身份，优先匹配）
-    #  - passed_checks：(sub_goal_id, check) → passed bool（check 文本匹配，reader 历史有效域
-    #    fallback——历史 CHECK_PASS 无 acceptance_id）
-    # 658 修复：CHECK_PASS 单调累积无撤销 → 争议验收被误标 passed 后永久闭合 goal → 假闭合。
-    # 补偿事件标准模式（event-sourcing，不删历史）：CHECK_FAIL 对同一键写 passed=False。
-    # 按时间顺序「最后写者胜」——PASS→FAIL→PASS 序列正确反映最终态（用 dict 而非 set，
-    # 后到事件覆盖前者）。contested 集合记录被 CHECK_FAIL 标过的键，供下游区分「从未通过」
-    # 与「曾通过后被争议撤销」。
-    passed_checks: dict = {}
-    passed_accept_ids: dict = {}
-    contested_accept_ids = set()
-    contested_checks = set()
+    # 3. 应用 CHECK_PASS / CHECK_FAIL / BLOCKED 到 sub-goal 树（sub_goal_id 缺失的退化事件
+    # 安全跳过）。goal acceptance 的闭合态已由 pass_state（_build_pass_state）统一重建，此处只
+    # 把 CHECK_PASS/FAIL 的最后写者态与 BLOCKED 落到 subs（DECOMPOSE 声明的 sub-goal）。
     for e in events:
-        if e["event"] in ("CHECK_PASS", "CHECK_FAIL"):
-            sid = e.get("sub_goal_id")
-            ok = e["event"] == "CHECK_PASS"
-            # 两键互斥（codex v2 MAJOR）：带 acceptance_id → 只走稳定身份键；否则 fallback
-            # check 文本键。若两键都填，acceptance_id 写错但 check 文本恰巧相同会经 check 键
-            # 误闭合，违背 SCHEMA「acceptance_id 缺失时才 fallback check」契约。
-            if e.get("acceptance_id"):
-                passed_accept_ids[(sid, e["acceptance_id"])] = ok
-                if not ok:
-                    contested_accept_ids.add((sid, e["acceptance_id"]))
-            else:
-                passed_checks[(sid, e.get("check"))] = ok
-                if not ok:
-                    contested_checks.add((sid, e.get("check")))
-            if sid in subs:
-                subs[sid]["passed"] = ok
+        if e["event"] in ("CHECK_PASS", "CHECK_FAIL") and e.get("sub_goal_id") in subs:
+            subs[e["sub_goal_id"]]["passed"] = e["event"] == "CHECK_PASS"
         elif e["event"] == "BLOCKED" and e.get("sub_goal_id") in subs:
             subs[e["sub_goal_id"]]["blocker"] = e.get("blocker")
     # 4. ready = 未 passed + 未 blocker + 所有 blocked_by 已 passed
@@ -174,23 +234,9 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     # 工位无从知道做什么）。与 ready_workstations(id 列表)并存，按 id 同序，保持确定性。
     ready_details = [{"id": s["id"], "desc": subs[s["id"]]["desc"]} for s in
                      sorted((subs[i] for i in ready), key=lambda x: x["id"])]
-    # 5. goal 验收：所有 acceptance CHECK_PASS（未被 CHECK_FAIL 撤销）→ closed
-    # 匹配优先稳定身份（(gid, acc.id) → passed_accept_ids[k]），无 id 时 fallback check 文本
-    # （(gid, check)）。两键都 gid-scoped（codex MAJOR-2：防跨 sub_goal 的 acceptance_id/check
-    # 名碰撞误闭合，SCHEMA 未定义 rollup）。值为最后写者（PASS=True/FAIL=False）——658 修复：
-    # CHECK_FAIL 后该 acceptance.passed 翻 False，goal 不闭合。contested 标记曾被争议撤销
-    # （从未通过的 acceptance 不带 contested，与「曾 PASS 后被 FAIL 撤销」区分）。
-    for acc in goal["acceptance"]:
-        akey = (gid, acc["id"]) if acc.get("id") else None
-        ckey = (gid, acc["check"])
-        if akey is not None and akey in passed_accept_ids:
-            acc["passed"] = passed_accept_ids[akey]
-            if akey in contested_accept_ids:
-                acc["contested"] = True
-        elif ckey in passed_checks:
-            acc["passed"] = passed_checks[ckey]
-            if ckey in contested_checks:
-                acc["contested"] = True
+    # 5. goal 验收：把统一重建的 pass_state 应用到本 goal acceptance（闭合逻辑见
+    # _apply_pass_state：稳定身份优先、gid-scoped、658 最后写者+contested 撤销语义）。
+    goal["acceptance"] = _apply_pass_state(goal["acceptance"], gid, pass_state)
     # 严格闭合（codex #7 MAJOR + 编排者裁定 CHOICE：严格闭合 vs 复判）：terminated 要求每个
     # acceptance passed 且 **not contested**。曾被 CHECK_FAIL 争议的 acceptance 即使后续
     # CHECK_PASS（passed=True+contested=True），仍不闭合 goal——保守安全，防 PASS→FAIL→PASS
@@ -213,8 +259,10 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
                          for a in open_acc]
         ready = sorted(d["id"] for d in ready_details)
         ready_details.sort(key=lambda d: d["id"])
-    terminated = bool(goal["acceptance"]) and all(
-        a["passed"] and not a.get("contested") for a in goal["acceptance"])
+    # current_goal 优先取 live goal（此时 terminated=False）；仅当无 live goal 时取待闭合的
+    # terminated goal（terminated=True/status=closed，供 loop 写 CLOSED 审计 + ceremony_scan 停
+    # spawn）。dangling-active 根治把「歧义」限定在 live goal 间，见上方 live_ids 注释。
+    terminated = _is_terminated(goal["acceptance"])
     # gid 不再可能 in closed（active-set 已剔 closed），保留 status=closed 仅由 terminated 驱动。
     if terminated:
         goal["status"] = "closed"
