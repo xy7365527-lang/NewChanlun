@@ -425,6 +425,9 @@ pub struct IncrSegments {
     /// 不被本轮重算 ⟹ 跨 bar bit-stable）。classifier l0_tower 复用证书。**不可用 segments.len()-1
     /// 替代**（codex 反例：末段可能 1384→1170 改写，keep 排除末段）。
     confirmed_len: usize,
+    /// 上次 append 见到的末笔（相同输入早退用）。增量不变式：confirmed 前缀不可变，仅末笔可改写
+    /// ⟹ (strokes_len, 末笔) 相同蕴含整个 strokes 相同 ⟹ 结果与 self 逐字段等。
+    last_stroke: Option<Stroke>,
 }
 
 impl Default for IncrSegments {
@@ -435,6 +438,7 @@ impl Default for IncrSegments {
             pending_start: None,
             strokes_len: 0,
             confirmed_len: 0,
+            last_stroke: None,
         }
     }
 }
@@ -474,6 +478,7 @@ impl IncrSegments {
             pending_start,
             strokes_len: strokes.len(),
             confirmed_len,
+            last_stroke: strokes.last().copied(),
         }
     }
 
@@ -490,6 +495,14 @@ impl IncrSegments {
     /// ponytail: Rc::make_mut + truncate 复用 Vec 缓冲，替代旧 take_while().collect() 的 O(n)/bar。
     pub fn append(self, strokes: &[Stroke], config: &ParseConfig) -> IncrSegments {
         let n = strokes.len();
+        let last_stroke = strokes.last().copied();
+
+        // 相同输入早退：strokes 长度同 ∧ 末笔逐字段等 ⟹ 结果与 self 逐字段等（confirmed 前缀
+        // 不可变，仅末笔可改写，故 (len,末笔) 相同蕴含整个 strokes 相同）。confirmed_len 保 self
+        // 旧值——同输入重算得同值，故精确（计划注为合法收窄，sound）。
+        if n == self.strokes_len && last_stroke == self.last_stroke {
+            return self;
+        }
 
         // 移出 self 字段（by-value 消费）。
         let IncrSegments {
@@ -498,6 +511,7 @@ impl IncrSegments {
             strokes_len: _,
             pending_start: _,
             confirmed_len: _,
+            last_stroke: _,
         } = self;
 
         // ponytail: 丢弃末段重算。confirmed_bound = 末段 end_array_idx（truncate 用 `<`
@@ -531,6 +545,7 @@ impl IncrSegments {
                         pending_start: if resume_seg_start < n { Some(resume_seg_start) } else { None },
                         strokes_len: n,
                         confirmed_len: keep,
+                        last_stroke,
                     };
                 }
                 resume_seg_dir = strokes[resume_seg_start].direction;
@@ -544,6 +559,7 @@ impl IncrSegments {
                         pending_start: if n > 0 { Some(0) } else { None },
                         strokes_len: n,
                         confirmed_len: keep,
+                        last_stroke,
                     };
                 }
                 let Some(start) = find_overlap_start(strokes, 0) else {
@@ -553,6 +569,7 @@ impl IncrSegments {
                         pending_start: Some(0),
                         strokes_len: n,
                         confirmed_len: keep,
+                        last_stroke,
                     };
                 };
                 resume_seg_start = start;
@@ -612,6 +629,7 @@ impl IncrSegments {
             pending_start,
             strokes_len: n,
             confirmed_len: keep,
+            last_stroke,
         }
     }
 
@@ -790,6 +808,46 @@ mod tests {
                 incr_pending, full_pending,
                 "strokes len {end}: 增量 pending_start != 全量（bit-exact 破裂）"
             );
+        }
+    }
+
+    /// property：重复 append 同一输入幂等（相同输入早退路径）——第二次 append 同 strokes ⟹
+    /// segments/pending/confirmed_len 与第一次逐字段等，且仍与全量 bit-exact。
+    #[test]
+    fn idempotent_repeat_append_same_input() {
+        let strokes: Vec<Stroke> = (0..40usize)
+            .flat_map(|i| {
+                let b = i * 20;
+                vec![
+                    stroke(Direction::Up, b, b + 4, 5 + i as i64, 20 + i as i64),
+                    stroke(Direction::Down, b + 4, b + 8, 20 + i as i64, 10 + i as i64),
+                    stroke(Direction::Up, b + 8, b + 12, 10 + i as i64, 25 + i as i64),
+                    stroke(Direction::Down, b + 12, b + 16, 25 + i as i64, 12 + i as i64),
+                ]
+            })
+            .collect();
+
+        let cfg = ParseConfig::default();
+        let mut incr = IncrSegments::empty();
+        for end in 3..=strokes.len() {
+            incr = incr.append(&strokes[..end], &cfg);
+            let first = incr.to_result_vec();
+            let first_confirmed = incr.confirmed_len();
+            // 第二次 append 同输入——走相同输入早退，返回 self 不变。
+            incr = incr.append(&strokes[..end], &cfg);
+            assert_eq!(
+                incr.to_result_vec(),
+                first,
+                "strokes len {end}: 重复 append 同输入改变了结果（幂等破裂）"
+            );
+            assert_eq!(
+                incr.confirmed_len(),
+                first_confirmed,
+                "strokes len {end}: 重复 append 同输入改变了 confirmed_len"
+            );
+            // 早退后仍与全量 bit-exact。
+            let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
+            assert_eq!(incr.to_result_vec(), (full_segs, full_pending));
         }
     }
 }

@@ -181,6 +181,9 @@ pub struct IncrStrokes {
     /// 最后一个 confirmed stroke 笔尾在 alt_prefix 中的索引（续扫起点）。
     // ponytail: O(1) 继承替代 O(n²) 逐笔重扫 new_alt（hotspot 2，ae0118c0 增量 bug）。
     last_end_alt_idx: usize,
+    /// 上次 append 见到的末分型（相同输入早退用）。confirmed 前缀不可变，仅末分型可被 collapse
+    /// 改写 ⟹ (fractals_len, 末分型) 相同蕴含整个 fractals 相同 ⟹ 结果与 self 逐字段等。
+    last_fractal: Option<Fractal>,
 }
 
 impl Default for IncrStrokes {
@@ -192,6 +195,7 @@ impl Default for IncrStrokes {
             confirmed_alt_len: 0,
             confirmed_strokes_len: 0,
             last_end_alt_idx: 0,
+            last_fractal: None,
         }
     }
 }
@@ -244,6 +248,7 @@ impl IncrStrokes {
             confirmed_alt_len,
             confirmed_strokes_len,
             last_end_alt_idx,
+            last_fractal: fractals.last().copied(),
         }
     }
 
@@ -255,6 +260,11 @@ impl IncrStrokes {
     /// 重算尾部 collapse + 保留 confirmed strokes 前缀并续扫配对。
     /// ponytail: collapse 尾部局部重算 + 配对续扫（O(尾部)/bar，非 O(n)）。
     pub fn append(self, fractals: &[Fractal], config: &ParseConfig) -> IncrStrokes {
+        // 相同输入早退：fractals 长度同 ∧ 末分型逐字段等 ⟹ 结果与 self 逐字段等（confirmed 前缀
+        // 不可变，仅末分型可被 collapse 改写，故 (len,末分型) 相同蕴含整个 fractals 相同）。
+        if fractals.len() == self.fractals_len && fractals.last().copied() == self.last_fractal {
+            return self;
+        }
         let old_len = self.fractals_len;
         // collapse 末元素可能被新 fractal 修改（同类连续），故保留 fractal_idx < old_len-1 的，
         // 从 old_len-1 起重算（含重叠 1 个保边界）。
@@ -356,6 +366,7 @@ impl IncrStrokes {
             confirmed_alt_len: new_confirmed_alt_len,
             confirmed_strokes_len: new_confirmed_strokes_len,
             last_end_alt_idx: new_last_end_alt_idx,
+            last_fractal: fractals.last().copied(),
         }
     }
 
@@ -496,6 +507,39 @@ mod tests {
                 full.as_slice(),
                 "fractals len {end}: 增量 stroke != 全量（bit-exact 破裂）"
             );
+        }
+    }
+
+    /// property：重复 append 同一输入幂等（相同输入早退路径）——第二次 append 同 fractals ⟹
+    /// strokes 与第一次逐字段等，且仍与全量 build_strokes bit-exact。
+    #[test]
+    fn idempotent_repeat_append_same_input() {
+        let fractals: Vec<Fractal> = (0..150usize)
+            .flat_map(|i| {
+                let base = i * 10;
+                vec![
+                    frac(FractalKind::Bottom, base, 100 + i as i64),
+                    frac(FractalKind::Top, base + 4, 200 + i as i64),
+                    frac(FractalKind::Top, base + 6, 210 + i as i64),
+                    frac(FractalKind::Bottom, base + 8, 90 + i as i64),
+                ]
+            })
+            .collect();
+
+        let cfg = cfg(3);
+        let mut incr = IncrStrokes::empty();
+        for end in 1..=fractals.len() {
+            incr = incr.append(&fractals[..end], &cfg);
+            let first = incr.to_result().to_vec();
+            // 第二次 append 同输入——走相同输入早退，返回 self 不变。
+            incr = incr.append(&fractals[..end], &cfg);
+            assert_eq!(
+                incr.to_result(),
+                first.as_slice(),
+                "fractals len {end}: 重复 append 同输入改变了结果（幂等破裂）"
+            );
+            let full = build_strokes(&fractals[..end], &cfg);
+            assert_eq!(incr.to_result(), full.as_slice());
         }
     }
 }

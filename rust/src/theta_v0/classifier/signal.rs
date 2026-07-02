@@ -599,11 +599,17 @@ pub fn extract_signals_with_hist(
     // 保留旧语义，正向扫 `centers_sorted`、仅在 key 不存在时插入 ⟹ 保留首匹配下标。主循环 O(1) 查表取
     // `pos`（替代旧 O(C) 线性反查），`c`（last_center）仍取 `centers_sorted[c_idx]`（最近中枢语义正确）。
     // 建表 O(C)。
+    // ★B1 性能（algo-opt-plan-20260702 泳道B）：唯一消费点在 :632 `if let Some(dir) = trend_dir` 分支内
+    // ⟹ 非趋势 τ（trend_dir=None）永不查表。建表移入 trend_dir.is_some() 守卫——非趋势时略过 O(C) 建表 +
+    // 分配（空表从不被 get 查询 ⟹ 逐位恒等 bit-exact；仅趋势 τ 才产第一类，非趋势无第一类路径）。
     let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
-        std::collections::HashMap::with_capacity(centers_sorted.len());
-    for (idx, c) in centers_sorted.iter().enumerate() {
-        // 仅在 key 不存在时插入 ⟹ 首匹配（最小 idx）胜出，与旧 `.position()` 逐位一致。
-        first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
+        std::collections::HashMap::new();
+    if trend_dir.is_some() {
+        first_match_idx.reserve(centers_sorted.len());
+        for (idx, c) in centers_sorted.iter().enumerate() {
+            // 仅在 key 不存在时插入 ⟹ 首匹配（最小 idx）胜出，与旧 `.position()` 逐位一致。
+            first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
+        }
     }
 
     // ★A 段缓存（热点②修复，#93）：key = last_center_idx（趋势 τ 下 prev_center = centers_sorted[pos-1]

@@ -45,13 +45,35 @@ fn fisher_yates<T>(v: &mut [T], rng: &mut SplitMix64) {
     }
 }
 
-fn bucket_mean(deltas: &[i8], xs: &[f64], want: i8) -> Option<f64> {
-    let (sum, n) = deltas
-        .iter()
-        .zip(xs)
-        .filter(|(d, _)| **d == want)
-        .fold((0.0_f64, 0_usize), |(s, c), (_, x)| (s + x, c + 1));
-    if n == 0 { None } else { Some(sum / n as f64) }
+/// 层内两桶均值单遍融合：δ=+1 与 δ=−1 各自独立累加（勿用 total−plus 派生——
+/// 独立累加保 mp/mm 与旧 bucket_mean 逐加序 bit-exact）。
+fn bucket_means(ds: &[i8], xs: &[f64]) -> (Option<f64>, Option<f64>) {
+    let (mut sum_p, mut n_p) = (0.0_f64, 0_usize);
+    let (mut sum_m, mut n_m) = (0.0_f64, 0_usize);
+    for (&d, &x) in ds.iter().zip(xs) {
+        if d == 1 {
+            sum_p += x;
+            n_p += 1;
+        } else if d == -1 {
+            sum_m += x;
+            n_m += 1;
+        }
+    }
+    (
+        (n_p > 0).then(|| sum_p / n_p as f64),
+        (n_m > 0).then(|| sum_m / n_m as f64),
+    )
+}
+
+/// 每层记录：obs 均值 + ge 计数内联，消 perm 内 HashMap 查找（引用提外，c）。
+struct Stratum {
+    key: (u32, u8),
+    ds: Vec<i8>,
+    xs: Vec<f64>,
+    obs_plus: Option<f64>,
+    obs_minus: Option<f64>,
+    ge_plus: usize,
+    ge_minus: usize,
 }
 
 /// 路径 A 分层内 δ 置换，产出逐桶 perm_p（预注册 §1.4，单边右尾）。
@@ -61,39 +83,54 @@ pub fn stratified_delta_perm_p(
     n_perm: usize,
     seed: u64,
 ) -> HashMap<BucketKey, f64> {
-    let mut strata: BTreeMap<(u32, u8), (Vec<i8>, Vec<f64>)> = BTreeMap::new(); // 确定序⟹跨进程 perm_p 可复现(prereg §4)
+    let mut grouped: BTreeMap<(u32, u8), (Vec<i8>, Vec<f64>)> = BTreeMap::new(); // 确定序⟹跨进程 perm_p 可复现(prereg §4)
     for &(lv, bc, d, x) in trades {
-        let e = strata.entry((lv, bc)).or_default();
+        let e = grouped.entry((lv, bc)).or_default();
         e.0.push(d);
         e.1.push(x);
     }
-    let mut obs: HashMap<BucketKey, f64> = HashMap::new();
-    let mut ge: HashMap<BucketKey, usize> = HashMap::new();
-    for ((lv, bc), (ds, xs)) in &strata {
-        for want in [1_i8, -1_i8] {
-            if let Some(m) = bucket_mean(ds, xs, want) {
-                obs.insert((*lv, *bc, want), m);
-                ge.insert((*lv, *bc, want), 0);
-            }
-        }
-    }
+    // BTreeMap 序 → Vec：锁定 stratum 迭代序（= RNG 消耗序，不可变），并内联 obs/ge。
+    let mut strata: Vec<Stratum> = grouped
+        .into_iter()
+        .map(|(key, (ds, xs))| {
+            let (obs_plus, obs_minus) = bucket_means(&ds, &xs);
+            Stratum { key, ds, xs, obs_plus, obs_minus, ge_plus: 0, ge_minus: 0 }
+        })
+        .collect();
+
     let mut rng = SplitMix64::new(seed);
+    let mut perm_ds: Vec<i8> = Vec::new(); // 缓冲提外，逐 stratum copy_from_slice 复用容量（a）
     for _ in 0..n_perm {
-        for ((lv, bc), (ds, xs)) in &strata {
-            let mut perm_ds = ds.clone();
+        for s in &mut strata {
+            perm_ds.resize(s.ds.len(), 0);
+            perm_ds.copy_from_slice(&s.ds);
             fisher_yates(&mut perm_ds, &mut rng);
-            for want in [1_i8, -1_i8] {
-                if let Some(mp) = bucket_mean(&perm_ds, xs, want) {
-                    if let Some(&o) = obs.get(&(*lv, *bc, want)) {
-                        if mp >= o {
-                            *ge.get_mut(&(*lv, *bc, want)).unwrap() += 1;
-                        }
-                    }
+            let (mp, mm) = bucket_means(&perm_ds, &s.xs);
+            if let (Some(mp), Some(o)) = (mp, s.obs_plus) {
+                if mp >= o {
+                    s.ge_plus += 1;
+                }
+            }
+            if let (Some(mm), Some(o)) = (mm, s.obs_minus) {
+                if mm >= o {
+                    s.ge_minus += 1;
                 }
             }
         }
     }
-    obs.keys().map(|k| (*k, ge[k] as f64 / n_perm as f64)).collect()
+
+    let inv = n_perm as f64;
+    let mut out: HashMap<BucketKey, f64> = HashMap::new();
+    for s in &strata {
+        let (lv, bc) = s.key;
+        if s.obs_plus.is_some() {
+            out.insert((lv, bc, 1), s.ge_plus as f64 / inv);
+        }
+        if s.obs_minus.is_some() {
+            out.insert((lv, bc, -1), s.ge_minus as f64 / inv);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
