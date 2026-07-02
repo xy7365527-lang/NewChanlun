@@ -106,6 +106,15 @@ time_block_base(symbol_index, win.i) = symbol_index · SYMBOL_STRIDE + win.i · 
 
 全局：`decontam::global_verdict`——有 VALIDATED ⟹ PASS；全桶 powered-FALSIFIED ⟹ 161；否则 INCONCLUSIVE。**判据链不改**（裁定：只增池化域，不改统计机器）。
 
+### 4.1 ★level≥2 桶的 frontier 污染条件效力域（231，Lead 强制，非可选）
+
+区间套问题② #84 阶段0 坐实：增量/全量在 **level≥2 真发散**（BTC 300K L2 bsp 19 vs 17），根因在 parser 线段增量回退深度（`frontier-bt-consumed-20260702.md`，修复在审 #87）。因此本冻结判据附加条件效力域：
+
+- **ℓ≥2 桶**：所有结论**条件化于「frontier-bug 污染未排除」**，显式引用 `frontier-bt-consumed-20260702.md` 挂标注，**不作独立否证/确认**（231：有效域<定义域，ℓ≥2 桶键的输入本身受污染）。
+- **ℓ∈{0,1} 桶**：**不受影响**（50K bit-exact + 发散仅 ℓ≥2），结论按 §4 三态直接生效。
+
+阶段2 报告 per-symbol/池化两级表中，所有 ℓ≥2 行必须挂此标注。
+
 ---
 
 ## 5. 冻结常量表（看结果前锁定）
@@ -132,7 +141,7 @@ time_block_base(symbol_index, win.i) = symbol_index · SYMBOL_STRIDE + win.i · 
 - **per-symbol 表**：逐品种逐桶 (n, μ̂, LCB, perm_p, state)——暴露品种异质性。
 - **池化表**：7 品种拼接后逐桶三态 + 全局裁决（主判据）。
 - **与 BTC 单标的差分**：池化主桶 vs s3 BTC 主桶（n_eff 166→池化后、mean、LCB、state 是否翻转 INCONCLUSIVE→VALIDATED）。
-- **高级别桶（ℓ≥1）**：结论标注 **frontier 污染条件效力域**（区间套问题② #84 在途未修，perm_p=1 单-δ 层退化未排除）——不作独立否证。
+- **高级别桶（ℓ≥2）**：结论挂 **frontier 污染条件效力域**标注，显式引用 `frontier-bt-consumed-20260702.md`（增量/全量 level≥2 真发散未修，#87 在审）——不作独立否证/确认（§4.1，231）。ℓ∈{0,1} 不受影响（50K bit-exact）。
 - 结果包 `.chanlun/review-results/l3-cross-symbol-alpha-20260702.md`（六要素 + 认识论 L3）。
 
 ---
