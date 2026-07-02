@@ -198,6 +198,21 @@ def reduce_goal(events: list[dict], facts: dict) -> dict:
     # 当前取严格闭合。复判路径（需 CHECK_RESOLVE 事件显式清 contested 后才闭合）是未实装的
     # 扩展点：新增 amendment_kind/event 清 contested 标记，再让 terminated 忽略已 resolve 的
     # contested。本工位不实装复判（编排者裁定保守优先），留此注释为升级路径锚点。
+    # 4b. acceptance-驱动 ready（630 开口②闭合）：goal 有 acceptance 但**无 DECOMPOSE**
+    # （subs 空）时，open(passed=False) 的 acceptance 项**本身就是工位单元**——每项一个
+    # ready 条目，蜂群 spawn 去把该验收做 pass。此前 ready 只从 DECOMPOSE sub_goals 派生，
+    # 无分解的 goal 恒产 ready=[]（实证：g-20260701T200047Z-8f4f50e7 有 4 open acceptance
+    # 却 ready 空）→ /goal 循环无工位可 spawn。DECOMPOSE 是可选的更细分解：subs 非空时
+    # 由 sub_goals 驱动（不变），subs 空时 fall back 到 acceptance。二者互斥不重复计数。
+    # id 取 acceptance_id（无则 fallback check 文本，与闭合匹配同口径）。blocked 不虚构：
+    # BLOCKED 事件键在 sub_goal_id，acceptance 项无对应机器可读 blocker，acceptance 文本里
+    # 的依赖声明（如「κ未定则blocked」）是自然语言，不发明 NLP 解析——照实全 open 项为 ready。
+    if not subs:
+        open_acc = [a for a in goal["acceptance"] if not a["passed"]]
+        ready_details = [{"id": a.get("id") or a["check"], "desc": a["check"]}
+                         for a in open_acc]
+        ready = sorted(d["id"] for d in ready_details)
+        ready_details.sort(key=lambda d: d["id"])
     terminated = bool(goal["acceptance"]) and all(
         a["passed"] and not a.get("contested") for a in goal["acceptance"])
     # gid 不再可能 in closed（active-set 已剔 closed），保留 status=closed 仅由 terminated 驱动。

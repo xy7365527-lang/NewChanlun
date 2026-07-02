@@ -163,12 +163,22 @@ def test_ready_details_carry_desc_for_workstation_naming():
     assert out["ready_details"] == [{"id": "g1.1", "desc": "做 A"}]  # g1.2 blocked，不在 ready
 
 
-def test_ready_details_empty_when_no_decompose():
-    # 退化数据（无结构化 DECOMPOSE）→ ready_details 为空，与 ready_workstations 一致。
+def test_ready_from_open_acceptance_when_no_decompose():
+    # 630 开口②：无 DECOMPOSE 但有 open acceptance → 每项 open acceptance 派生一个 ready 工位。
     events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "x",
                "acceptance": [{"check": "c", "falsifiable": True}], "base_head": "abc123", "ts": "t0"}]
     out = reduce_goal(events, _facts())
+    assert out["ready_details"] == [{"id": "c", "desc": "c"}]
+    assert out["ready_workstations"] == ["c"]
+
+
+def test_ready_details_empty_when_no_decompose_and_no_open_acceptance():
+    # 无 DECOMPOSE 且无 acceptance → ready 为空（真退化数据）。
+    events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "x",
+               "acceptance": [], "base_head": "abc123", "ts": "t0"}]
+    out = reduce_goal(events, _facts())
     assert out["ready_details"] == []
+    assert out["ready_workstations"] == []
 
 
 def test_check_fail_reverts_passed_and_reopens_goal():
@@ -380,3 +390,37 @@ def test_sub_goal_check_name_collision_does_not_close_goal():
     out = reduce_goal(events, _facts())
     assert out["current_goal"]["status"] != "closed"  # 不应因 sub_goal 同名 check 而闭合
     assert out["current_goal"]["acceptance"][0]["passed"] is False
+
+
+def test_open_acceptance_derives_ready_without_decompose():
+    """630 开口②：active goal 有 open acceptance 但无 DECOMPOSE → ready 从 acceptance 派生。
+    此前 ready 只从 sub_goals 派生，无分解 goal 恒空。"""
+    events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "d",
+               "base_head": "h", "acceptance": [
+                   {"id": "a1", "check": "c1", "falsifiable": True},
+                   {"id": "a2", "check": "c2", "falsifiable": True}]}]
+    out = reduce_goal(events, {"git_head": "h"})
+    assert out["ready_workstations"] == ["a1", "a2"]
+    assert out["ready_details"] == [{"id": "a1", "desc": "c1"}, {"id": "a2", "desc": "c2"}]
+    assert out["blocked"] == []
+    assert out["terminated"] is False
+
+
+def test_passed_acceptance_excluded_from_ready():
+    """已 CHECK_PASS 的 acceptance 不再进 ready；全 pass → terminated。"""
+    events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "d", "base_head": "h",
+               "acceptance": [{"id": "a1", "check": "c1", "falsifiable": True},
+                              {"id": "a2", "check": "c2", "falsifiable": True}]},
+              {"event": "CHECK_PASS", "sub_goal_id": "g1", "acceptance_id": "a1", "check": "c1"}]
+    out = reduce_goal(events, {"git_head": "h"})
+    assert out["ready_workstations"] == ["a2"]
+
+
+def test_decompose_still_drives_ready_when_present():
+    """回归：有 DECOMPOSE 时仍由 sub_goals 驱动 ready，不被 acceptance fallback 覆盖。"""
+    events = [{"event": "GOAL_SET", "goal_id": "g1", "description": "d", "base_head": "h",
+               "acceptance": [{"id": "a1", "check": "c1", "falsifiable": True}]},
+              {"event": "DECOMPOSE", "goal_id": "g1",
+               "sub_goals": [{"id": "s1", "desc": "sub1", "blocked_by": []}]}]
+    out = reduce_goal(events, {"git_head": "h"})
+    assert out["ready_workstations"] == ["s1"]
