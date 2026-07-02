@@ -3569,6 +3569,11 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/673-cand-delta-predicate-scope-misuse-type1-divergence-vs-type2-completeness-h2-overfiltering.md
+- id: 待/ritual编号（日期前缀避 §4 编号碰撞，同 claim10/maimai#4 惯例）
+  title: ''
+  status: 生成态
+  type: bias-correction
+  file: pending/2026-07-02-goal-loop-active-set-narrowed-to-live-goal-closed-demoted-to-audit-marker.md
 edges:
   depends_on:
   - from: '673'
