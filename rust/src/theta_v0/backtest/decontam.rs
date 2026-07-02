@@ -53,30 +53,59 @@ pub enum AcceptanceVerdict {
 
 /// 事件聚集/自相关校正后的有效样本数（预注册 §1.3，665 号 `neff/nraw` 口径）。
 ///
-/// `n_eff = n / (1 + 2·Σρk)`，Σρk 用 Geyer 初始正序列估计（首个非正 ρk 处截断），
-/// 保证 Σρk≥0 ⟹ n_eff≤n——同方向信号的时间聚集只会**降低**有效样本，不凭空增加。
-/// ρk 为滞后 k 的样本自相关（分母用全序列离差平方和，标准 ESS 口径）；常数序列或
-/// n<2 无自相关信息，退回 n_eff=n。序列须按**成交时间序**传入（wverify_run 逐 bar 因果收集）。
+/// `n_eff = n / τ`，`τ = 1 + 2·Σ_{k≥1}ρk`（积分自相关时间）。Σρk 用**标准 Geyer 配对初始
+/// 正序列（IPS）**估计：配对自相关 `Γ_m = ρ_{2m}+ρ_{2m+1}`（ρ_0=1），在**首个 `Γ_m≤0` 处
+/// 截断**。配对（而非单 lag `ρk≤0` 截断）防止中段单个噪声负 ρk 提前掐断仍显著为正的尾部——
+/// 单 lag 法在该情形**低估 Σρk ⟹ 高估 n_eff**，对 VALIDATED 判定不保守；配对法捕获更多正尾，
+/// 是不利于 VALIDATED 方向的修正（codex-r2-audit Q1）。ρk 分母用全序列离差平方和（标准 ESS
+/// 口径）。反相关（`τ<1`）clamp 到 `τ=1 ⟹ n_eff≤n`：同方向信号的时间聚集只**降低**有效样本，
+/// 不凭空增加（预注册 n_eff≤n 口径）。lag 上限 = `⌊n/2⌋`（bandwidth 保护：每个 ρk 至少
+/// `⌊n/2⌋` 个样本对，挡远 lag 少样本对的噪声）。常数序列/`n<2` 无自相关信息 ⟹ `n_eff=n`；
+/// 含非有限值 ⟹ `NaN` 上浮（下游 `powered()` 判 false ⟹ Inconclusive，不静默膨胀 n_eff）。
+/// 序列须按**成交时间序**传入（wverify_run 逐 bar 因果收集）。
 pub fn effective_n(x: &[f64]) -> f64 {
     let n = x.len();
     if n < 2 {
         return n as f64;
+    }
+    if x.iter().any(|v| !v.is_finite()) {
+        return f64::NAN; // 入口校验：非有限值无法估计自相关，上浮而非静默退回 n
     }
     let mean = x.iter().sum::<f64>() / n as f64;
     let c0: f64 = x.iter().map(|v| (v - mean).powi(2)).sum();
     if c0 == 0.0 {
         return n as f64; // 常数序列无自相关
     }
+    let max_lag = n / 2; // bandwidth 上限：每个 ρk 至少 ⌊n/2⌋ 个样本对
+    let rho = |k: usize| -> f64 {
+        (0..n - k).map(|i| (x[i] - mean) * (x[i + k] - mean)).sum::<f64>() / c0
+    };
+    let sum_rho = geyer_paired_sum(rho, max_lag);
+    let tau = (1.0 + 2.0 * sum_rho).max(1.0); // clamp：反相关不增有效样本（n_eff≤n）
+    n as f64 / tau
+}
+
+/// Geyer 配对初始正序列的 `Σ_{k≥1}ρk`：`Γ_m = ρ_{2m}+ρ_{2m+1}`（`rho(0)=1`），首个 `Γ_m≤0`
+/// 或无法凑成完整配对（`2m+1>max_lag`）时截断。只累加 **k≥1** 部分（ρ_0=1 已归入 τ 的常数项）。
+fn geyer_paired_sum(rho: impl Fn(usize) -> f64, max_lag: usize) -> f64 {
     let mut sum_rho = 0.0_f64;
-    for k in 1..n {
-        let ck: f64 = (0..n - k).map(|i| (x[i] - mean) * (x[i + k] - mean)).sum();
-        let rho = ck / c0;
-        if rho <= 0.0 {
-            break; // 初始正序列：首个非正自相关处截断，Σρk≥0
+    let mut m = 0usize;
+    loop {
+        let (lo, hi) = (2 * m, 2 * m + 1);
+        if hi > max_lag {
+            break; // 只累加完整配对，末尾单 lag 不入（避免少样本对噪声）
         }
-        sum_rho += rho;
+        let (r_lo, r_hi) = (rho(lo), rho(hi)); // rho(0)=1
+        if r_lo + r_hi <= 0.0 {
+            break; // 初始正序列：首个非正配对处截断
+        }
+        if lo >= 1 {
+            sum_rho += r_lo; // m=0 时 lo=0 是 ρ_0=1，不入 Σ_{k≥1}
+        }
+        sum_rho += r_hi; // hi=2m+1≥1 恒成立
+        m += 1;
     }
-    n as f64 / (1.0 + 2.0 * sum_rho)
+    sum_rho
 }
 
 /// 功效门槛（预注册 §4 / 667）：`n_eff ≥ (z_α · CV)²`。`n_eff` 为 `effective_n` 的自相关校正量。
@@ -182,7 +211,8 @@ mod tests {
         assert_eq!(global_verdict(&[]), AcceptanceVerdict::Inconclusive);
     }
 
-    /// effective_n：短序列/常数退回 n；正相关聚集 ⟹ n_eff<n；反相关 ⟹ 首个非正处截断 ⟹ n_eff=n。
+    /// effective_n：短序列/常数退回 n；正相关聚集 ⟹ n_eff<n；反相关 ⟹ clamp τ=1 ⟹ n_eff=n；
+    /// 非有限值 ⟹ NaN 上浮。
     #[test]
     fn effective_n_autocorr_correction() {
         assert_eq!(effective_n(&[]), 0.0);
@@ -191,6 +221,34 @@ mod tests {
         let ramp: Vec<f64> = (0..40).map(|i| i as f64).collect();
         assert!(effective_n(&ramp) < 40.0); // 强正自相关 ⟹ Σρk>0 ⟹ n_eff 显著缩水
         let alt: Vec<f64> = (0..40).map(|i| if i % 2 == 0 { 1.0 } else { -1.0 }).collect();
-        assert!((effective_n(&alt) - 40.0).abs() < 1e-9); // ρ1<0 立即截断 ⟹ Σρk=0
+        assert!((effective_n(&alt) - 40.0).abs() < 1e-9); // 反相关 τ<1 ⟹ clamp τ=1 ⟹ n_eff=n
+        assert!(effective_n(&[1.0, f64::NAN, 2.0, 3.0]).is_nan()); // 非有限值上浮 NaN
+    }
+
+    /// 保真度方向（codex-r2-audit Q1）：中段单个噪声负 ρk 场景，配对 IPS 的 Σρk ≥ 单 lag IPS——
+    /// 配对不被中段噪声提前截断 ⟹ 捕获更多正尾 ⟹ 更大 Σρk ⟹ 更小 n_eff ⟹ 对 VALIDATED 更保守。
+    #[test]
+    fn geyer_paired_ge_single_lag_on_noise_dip() {
+        // ρ_1..ρ_6（ρ_0=1 隐含）。ρ_2 为中段噪声负值，但 ρ_2+ρ_3>0（配对存活）；ρ_4+ρ_5<0（截断）。
+        let rho_vals = [0.5, -0.05, 0.30, 0.10, -0.40, -0.30_f64];
+        let rho = |k: usize| if k == 0 { 1.0 } else { rho_vals[k - 1] };
+        let max_lag = rho_vals.len();
+        // 单 lag 法：k=1 加 0.5，k=2 遇 -0.05≤0 立即截断 ⟹ Σρk=0.5。
+        let single = {
+            let mut s = 0.0_f64;
+            for k in 1..=max_lag {
+                let r = rho(k);
+                if r <= 0.0 {
+                    break;
+                }
+                s += r;
+            }
+            s
+        };
+        // 配对法：Γ_0=1+0.5>0 加 ρ_1；Γ_1=ρ_2+ρ_3=0.25>0 加 ρ_2+ρ_3；Γ_2=ρ_4+ρ_5=-0.30≤0 截断。
+        let paired = geyer_paired_sum(rho, max_lag);
+        assert!((single - 0.5).abs() < 1e-12, "单 lag 截断于噪声 dip: {single}");
+        assert!((paired - 0.75).abs() < 1e-12, "配对捕获正尾 ρ_1+ρ_2+ρ_3: {paired}");
+        assert!(paired >= single, "配对 Σρk ≥ 单 lag（保守方向）: {paired} vs {single}");
     }
 }
