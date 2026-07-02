@@ -236,6 +236,13 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSid
     // W4 类型透传：bsp_class 是 buy1/2/3+sell1/2/3 的 u8 位掩码（bsp_disc 同口径，seen-set 键已在用），
     // 完整保留一/二/三类+买卖侧信息（可同时置多位，如 buy1+buy3）。纯增字段，不改配对/信号集/识别逻辑。
     let mut signals: Vec<(usize, VoiceSide, usize, u32, i8, u8)> = Vec::new();
+    // C2（algo-opt-plan-20260702 泳道 C）：各级 bsp 上一 bar 的 Rc 强引用。`Rc::ptr_eq` 命中 ⟹ 同一
+    // allocation 且内容未变（强引用在手 ⟹ strong_count>1 ⟹ classifier 端任何 `Rc::make_mut` 必写时
+    // 复制换新指针，见 mod.rs cascade_reset/07c memo）⟹ 该级全部 (lvl, source_index, bsp_class) 键
+    // 上一 bar 已入 seen ⟹ 整级跳过 bit-exact（内层循环 seen 命中外无副作用）。禁裸指针：强引用保证
+    // allocation 不释放、地址不复用，无 ABA 假命中。塔收缩后槽位残留旧 Rc 无害——级别重现且 memo 复用
+    // 同一 Rc 时命中仍蕴含"已 seen"（ptr_eq 不变量与级别连续性无关）。
+    let mut prev_bsp = Vec::new();
 
     for i in 0..n {
         let bar = &bars[i];
@@ -244,6 +251,14 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSid
         }
         let (cls_i, tower_i) = classifier_incr.classify_at(i);
         for (lvl, ls) in cls_i.levels.iter().enumerate() {
+            if prev_bsp.get(lvl).map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp)) {
+                continue; // C2：同 Rc ⟹ 全键已 seen，跳级
+            }
+            if lvl < prev_bsp.len() {
+                prev_bsp[lvl] = Rc::clone(&ls.bsp);
+            } else {
+                prev_bsp.push(Rc::clone(&ls.bsp)); // enumerate 连续 ⟹ 恰在 lvl==len 时到达
+            }
             for p in ls.bsp.iter() {
                 let bsp_class = bsp_disc(&p.bits); // W4：类型位掩码（seen-set 键复用，纯透传）
                 if !seen.insert((lvl, p.source_index, bsp_class)) {
@@ -2425,6 +2440,9 @@ mod tests {
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
         // C1：dx 手写门循环复用为 collect_signals 的对拍源——门后 push 与生产同序同字段的信号元组。
         let mut signals_dx: Vec<(usize, VoiceSide, usize, u32, i8, u8)> = Vec::new();
+        // C2：与生产 collect_signals 同改——Rc::ptr_eq 命中跳级（同 Rc ⟹ 全键已 seen ⟹ 内层
+        // bsp_pre/gamma_nonflat/sig_post 等计数均在 seen.insert 成功后，跳过 bit-exact）。
+        let mut prev_bsp = Vec::new();
 
         for i in 0..n {
             let bar = &bars[i];
@@ -2439,6 +2457,14 @@ mod tests {
                 }
             }
             for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if prev_bsp.get(lvl).map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp)) {
+                    continue; // C2：同 Rc ⟹ 全键已 seen，跳级
+                }
+                if lvl < prev_bsp.len() {
+                    prev_bsp[lvl] = Rc::clone(&ls.bsp);
+                } else {
+                    prev_bsp.push(Rc::clone(&ls.bsp));
+                }
                 for p in ls.bsp.iter() {
                     let bsp_class = bsp_disc(&p.bits);
                     if !seen.insert((lvl, p.source_index, bsp_class)) {
@@ -2702,7 +2728,7 @@ mod tests {
     ///   base 等其他机制叠加）。
     ///
     /// **bit-exact 铁律**：门判定用 `build_nest_certificate` + `n_delta`（与生产 `build_multilevel_nest_cert`
-    /// 共用构造），rung 分解的 `div_cand`/`ContextMove` 与生产同源；cond4(Weak) 用「cond1∧2∧3 通过但
+    /// 共用构造），rung 分解的 `div_cand`/`rmove_dir` 与生产同源；cond4(Weak) 用「cond1∧2∧3 通过但
     /// div_cand=false ⟹ cond4 失败」推断（不触碰私有 `segment_macd_area`）。macd_hist 与生产 econ 路径
     /// 同口径（全 bar 域 close）。
     ///
@@ -2714,7 +2740,7 @@ mod tests {
     fn h2_sample_exclusion_dx() {
         use super::super::data;
         use super::super::super::classifier::divergence::compute_macd;
-        use super::super::super::classifier::cand_predicate::{div_cand, DivCandInput, ContextMove};
+        use super::super::super::classifier::cand_predicate::{div_cand, DivCandInput, rmove_dir};
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
         use super::super::super::types::{Side, Direction};
@@ -2836,33 +2862,33 @@ mod tests {
                         if let Some(upper) = tower_i.get(lvl + 1) {
                             if let Some(knode) = upper.iter().find(|m| m.start_index <= src && src <= m.end_index) {
                                 r_knode = true;
-                                let ctx: Vec<ContextMove> = knode.sub_moves.iter()
-                                    .map(|m| ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index))
-                                    .collect();
-                                if let Some(tidx) = knode.sub_moves.iter().position(|m| m.end_index == src) {
+                                // C3 后新形态：直读 LeveledMove（rmove_dir + rmove.lo()/hi() 惰性派生），与生产 div_cand 同源。
+                                let subs = knode.sub_moves.as_slice();
+                                if let Some(tidx) = subs.iter().position(|m| m.end_index == src) {
                                     r_target = true;
-                                    let s = ctx[tidx];
+                                    let s = &subs[tidx];
+                                    let s_dir = rmove_dir(&s.rmove);
                                     let expected = match delta {
                                         Side::Long => Direction::Down,
                                         Side::Short => Direction::Up,
                                     };
-                                    r_cond1 = s.direction == expected;
+                                    r_cond1 = s_dir == expected;
                                     if r_cond1 {
-                                        if let Some((j, sp)) = ctx[..tidx].iter().enumerate().rev()
-                                            .find(|(_, m)| m.direction == s.direction)
+                                        if let Some((j, sp)) = subs[..tidx].iter().enumerate().rev()
+                                            .find(|(_, m)| rmove_dir(&m.rmove) == s_dir)
                                         {
                                             r_cond2 = true;
                                             r_leggap = tidx - j;
                                             r_extreme = match delta {
-                                                Side::Long => s.lo < sp.lo,
-                                                Side::Short => s.hi > sp.hi,
+                                                Side::Long => s.rmove.lo() < sp.rmove.lo(),
+                                                Side::Short => s.rmove.hi() > sp.rmove.hi(),
                                             };
-                                            s_ext = match delta { Side::Long => s.lo, Side::Short => s.hi };
-                                            sp_ext = match delta { Side::Long => sp.lo, Side::Short => sp.hi };
+                                            s_ext = match delta { Side::Long => s.rmove.lo(), Side::Short => s.rmove.hi() };
+                                            sp_ext = match delta { Side::Long => sp.rmove.lo(), Side::Short => sp.rmove.hi() };
                                         }
                                     }
                                     r_divcand = div_cand(&DivCandInput {
-                                        context: knode.sub_moves.as_slice(), target_idx: tidx, hist: &macd_hist, delta,
+                                        context: subs, target_idx: tidx, hist: &macd_hist, delta,
                                     });
                                 }
                             }
@@ -3046,7 +3072,7 @@ mod tests {
     fn l2_depth_distribution_dx() {
         use super::super::data;
         use super::super::super::classifier::divergence::compute_macd;
-        use super::super::super::classifier::cand_predicate::ContextMove;
+        use super::super::super::classifier::cand_predicate::rmove_dir;
         use super::super::super::strategy::interp::assemble_gamma_with_tower;
         use super::super::super::strategy::voice::VoiceSide;
         use super::super::super::types::{Side, Direction};
@@ -3168,17 +3194,16 @@ mod tests {
                                         let subs = s.sub_moves.as_slice();
                                         let tidx = subs.iter().position(|m| m.end_index == src)
                                             .expect("Some(d) ⟹ 存在 end==src 锚段");
-                                        let cm = ContextMove::from_rmove(
-                                            &subs[tidx].rmove, subs[tidx].start_index, subs[tidx].end_index);
+                                        let cm_dir = rmove_dir(&subs[tidx].rmove);
                                         let expected = match delta { Side::Long => Direction::Down, Side::Short => Direction::Up };
                                         let end_ok = subs[tidx].end_index == src;
-                                        let dir_ok = cm.direction == expected;
+                                        let dir_ok = cm_dir == expected;
                                         if end_ok && dir_ok {
                                             sample_pass += 1;
                                         } else if sample_fail_detail.len() < 20 {
                                             sample_fail_detail.push(format!(
                                                 "| {lvl} | {src} | {} | end_ok={end_ok} dir_ok={dir_ok}（got {:?} exp {:?}）|",
-                                                if delta == Side::Long { "+1" } else { "-1" }, cm.direction, expected));
+                                                if delta == Side::Long { "+1" } else { "-1" }, cm_dir, expected));
                                         }
                                     }
                                 }
