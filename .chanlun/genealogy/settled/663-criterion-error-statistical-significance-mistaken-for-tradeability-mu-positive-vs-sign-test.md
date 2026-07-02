@@ -1,7 +1,9 @@
 ---
 id: "663"
 number: 663
-status: 生成态   # genealogist 结构记录：判据错误（criterion-error）——把「统计检验显著 p<0.05」误当「可交易性」，真判据是「正条件期望 μ(z,a)>0」。编排者 2026-06-30 反问「高级别几个月一次也没关系，这有什么问题呢？」一句戳破前几轮（660/三路对比/LCB线）的核心框架。本号重新定性 660 根因 + 收窄 Le Cam 有效域。**不自结算**（概念层重大判据更正属编排者 /ritual）。（待#37 codex 裁定）
+status: 已结算   # genealogist 结构记录：判据错误（criterion-error）——把「统计检验显著 p<0.05」误当「可交易性」，真判据是「正条件期望 μ(z,a)>0」。编排者 2026-06-30 反问「高级别几个月一次也没关系，这有什么问题呢？」一句戳破前几轮（660/三路对比/LCB线）的核心框架。本号重新定性 660 根因 + 收窄 Le Cam 有效域。**不自结算**（概念层重大判据更正属编排者 /ritual）。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-30"
 type: bias-correction   # 判据错误更正：660 把「功效不足→inconclusive」当作硬墙根因，本号揭示功效不足是错判据（统计显著性）的产物，非问题属性。判据从「跨品种符号检验显著」更正为「逐信号 μ̂>0 + 全历史长窗累积净值」。
 depends_on: ["231", "645", "660"]
@@ -266,3 +268,10 @@ genealogist 记录判据错误更正（统计显著性 vs μ>0 可交易性）+ 
 - **三路对比/LCB 线 inconclusive 结论**：topo_effect freeze——错判据下伪结论，待 μ>0 长窗判据重测后回溯解冻。
 - **第5份PDF Le Cam 证明**：topo_effect sever——有效域收窄到短窗单品种区分 ±Δ，越界声称（长窗累积也判不出）被切断，本域证明保留。
 - **无 settled 被本号回溯破坏。** 本号是 bias-correction（判据错误更正 + 660 根因重新定性 + Le Cam 有效域收窄），新方向（全历史长窗测高级别买卖点累积净值）=行动类（Lead 派工位），最终结算待编排者 /ritual。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算。维持技术裁决理由——可交易性主判据为 μ_net(z,a)>0；p<0.05 降级为证据强度/仓位治理门槛，不作可交易性定义（交易对象是收益分布而非假设检验结论）。

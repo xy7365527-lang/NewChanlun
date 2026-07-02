@@ -2,6 +2,8 @@
 id: "648"
 number: 648
 status: 已结算   # 【编排者裁决 D 视图分离，chat「子声部.pdf」27页严格推导，2026-06-29】超越上呈 A/B/C 三选一。根因精确化=host^op=host^struct 混用(非 P1∧P2 不可避免定理)；解法 D=分离结构视图树 T_i(↓r_i,保留P1) 与操作 carrier forest K_i(endpoint-complete,host^op 定义域)，host^op 仍严格右端点命中(保留P2a,不违638)，只改 host 宇宙 T_i→K_i(P2b)。非 workaround(PDF§11:不伪父链/不级别差/不区间包含)=真扬弃。§10定理1:endpoint-complete K_i + 解释器生成父voice ⟹ 子声部可激活。settled 落盘走 /ritual(019c)。task#14 实装 K_i。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-29"
 type: domain   # 改判：编排者裁决=视图分离（结构视图 ⊥ 操作视图）。原 type=contradiction（A/B/C 待裁），裁决 D 消解为双视图分离（host^op≠host^struct）。
 depends_on: ["676", "644", "231", "090"]
@@ -138,6 +140,9 @@ epistemological_levels:
     level: "L0（「子声部.pdf」§10 定理1）+ 待 L2（task#14 K_i 实装后实测，不预设结果）"
     increment: "高：子声部可激活性的 L0 判定；L2 待 K_i 实装坐实"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A。判决摘要：记录准确（转述编排者裁决忠实），裁决本身已 settled，合法性来源=编排者。
+
 
 # 648 π^bsp 子声部=0【编排者裁决 D 视图分离消解】
 

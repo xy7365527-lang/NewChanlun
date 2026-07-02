@@ -1,7 +1,9 @@
 ---
 id: "665"
 number: 665
-status: 生成态   # genealogist 结构记录：概念分离——「选择偏差消除」≠「可交易 alpha」，两命题逻辑独立。#101 walk-forward 决定性检验（train-only 挑类除偏差）产出双结论分裂：①Q2 BIAS-FATAL 翻案（选择偏差确被消除）②§11 稳健性否证（不达可交易 alpha）。除掉选择偏差 ⊬ 证明 alpha——只排除了一个伪因。peer 663（判据错误）/664（对象错配），同簇「判据/对象/方法论错配」。**不自结算**（概念层重大分离属编排者 /ritual）。★2026-07-01 强化 addendum：Y_i beta 残差检验在 BTC 单标的上数学退化（corr(raw,B_market)=1.0 恒等⟹残差≡−ce），加强命题②否证（beta 伪结构从 perm_p=0.69 升到「扣净 beta 后残差恒为纯成本」）+ 231 新实例（Y_i 有效域=多标的⊊定义域含单标的）。定理类（corr=1.0 数学必然），不 escalate。
+status: 已结算   # genealogist 结构记录：概念分离——「选择偏差消除」≠「可交易 alpha」，两命题逻辑独立。#101 walk-forward 决定性检验（train-only 挑类除偏差）产出双结论分裂：①Q2 BIAS-FATAL 翻案（选择偏差确被消除）②§11 稳健性否证（不达可交易 alpha）。除掉选择偏差 ⊬ 证明 alpha——只排除了一个伪因。peer 663（判据错误）/664（对象错配），同簇「判据/对象/方法论错配」。**不自结算**（概念层重大分离属编排者 /ritual）。★2026-07-01 强化 addendum：Y_i beta 残差检验在 BTC 单标的上数学退化（corr(raw,B_market)=1.0 恒等⟹残差≡−ce），加强命题②否证（beta 伪结构从 perm_p=0.69 升到「扣净 beta 后残差恒为纯成本」）+ 231 新实例（Y_i 有效域=多标的⊊定义域含单标的）。定理类（corr=1.0 数学必然），不 escalate。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-30"
 type: concept-separation   # 概念分离：「除偏差」与「证 alpha」此前被隐式当作同一命题（"翻案=可交易"），本号分离为逻辑独立两命题。
 negation_source: "cc（蜂群内部·经济正条件主线终点 #101 walk-forward 决定性检验，train-only 挑类除选择偏差）+ codex Q2 BIAS-FATAL 翻案 + §11 稳健性否证 + ★2026-07-01 Y_i beta 残差检验单标的退化（yi-residual-permutation-20260701.md，corr=1.0）"
@@ -109,6 +111,9 @@ epistemological_levels:
     increment: "★高（否定性 + 有效域）：Y_i 残差检验在单标的退化——不是残差消失是操作不可执行（减数≡被减数）。加强命题②否证（beta 剥离后 alpha 数学归零）+ 揭示单标的方法论上限（检验 alpha 须 L3 多标的或因果 beta）。231 有效域⊊定义域又一实例。待 L3 多标的（独立市场因子）复验。"
 
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：CHOICES 665 + GRAMMAR §1-B 665-Yi（裁决⑤升格）。判决摘要：选择偏差消除≠可交易 alpha，P/Q 逻辑独立成立 + 单标的 beta 分离退化成立（231 实例，随 665 并入）。 **限定语（强制随行，脱落=声明膨胀090）：** alpha 研究措辞规范：仅支持选择偏差被排除；可交易 alpha 需独立 μ>0/扣成本/稳健性证明
+
 
 # concept-separation 665：「选择偏差消除」≠「可交易 alpha」（逻辑独立两命题）
 

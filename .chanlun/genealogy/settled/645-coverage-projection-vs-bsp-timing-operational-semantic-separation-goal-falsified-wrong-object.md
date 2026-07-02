@@ -1,7 +1,9 @@
 ---
 id: "645"
 number: 645
-status: 生成态   # genealogist 结构记录：操作语义分离（结构覆盖净额投影 π_Θ^cov ≠ 买卖点离散择时 π_Θ^bsp）。ChatGPT「买卖点alpha.pdf」17页严格证明（T1-T4 四定理 + §10 判定）+ Lead 双向收敛推导 + codex 多方坐实。这是本轮最重要发现——澄清整个 goal 六层穿透的否证有效域（一直否证错对象）。最终结算待编排者 /ritual。
+status: 已结算   # genealogist 结构记录：操作语义分离（结构覆盖净额投影 π_Θ^cov ≠ 买卖点离散择时 π_Θ^bsp）。ChatGPT「买卖点alpha.pdf」17页严格证明（T1-T4 四定理 + §10 判定）+ Lead 双向收敛推导 + codex 多方坐实。这是本轮最重要发现——澄清整个 goal 六层穿透的否证有效域（一直否证错对象）。最终结算待编排者 /ritual。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-29"
 type: source-tracing   # 操作语义溯源分离：把 goal 一直在测的 π_Θ^cov（结构覆盖净额投影）与从未测的 π_Θ^bsp（缠论买卖点离散择时）分离为两个不同的形式对象——澄清否证对象
 depends_on: ["231", "642", "644"]
@@ -134,6 +136,9 @@ epistemological_levels:
     level: "L0（独立推导收敛：两条独立路径（ChatGPT 证明 + Lead 推导）到同一结论 ⟹ 鲁棒）"
     increment: "高：分离结论的独立性验证（双向收敛）"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A（簇根置顶）。判决摘要：π^cov≠π^bsp 四属性均不同，目标变量≠可执行决策语义，成立。
+
 
 # 645 ★命题A：π_Θ^cov（结构覆盖净额投影）≠ π_Θ^bsp（买卖点离散择时）——goal 六层穿透一直否证错对象
 

@@ -1,6 +1,8 @@
 ---
 id: "claim10-xianduan-termination"   # slug id（避免伪造数字排序 + 跨 worktree 撞号；dag.yaml 已支持 slug id 如 coverage-engine-needs-tower-export-bridge）。最终数字编号待 /ritual 由编排者在统一编号空间分配。
-status: 生成态   # 待#37 codex 裁定
+status: 已结算   # codex #37 终局裁定：需修订后结算，本次裁定即构成 settled 定义文档修正授权
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定——UNDECIDABLE子问题终局裁定：本次codex裁定即构成settled定义文档修正授权，无需另等编排者复核)"
 type: 语法记录   # settled 定义(xianduan.md v1.3)与一级权威博文(第67课)原文镜像反转；settled 改动权属编排者/genealogist，发现工位不擅自改。
 date: "2026-06-25"   # 取文件名日期（本工位无 Bash，git 首 commit 时间戳结构不可达，同 655 号记录的工具边界）。文件名日期=创建标记，仓库约定。
 source: claim10-segment-v1 工位（task #37，Phase2 线段 v1 特征序列法形式化）；异工位复核 + codex 异质审计双源指出。
@@ -80,3 +82,13 @@ title: "xianduan.md:169-170(编纂层 settled) 对第67课两种情况终结语�
 3. "笔破坏 / 特征序列分型形成 / 线段终结"三层次的区分（古怪线段 = 第一种情况笔破坏后分型形不成，第78课:30）是否应在 xianduan.md 显式补录，以防再次把"古怪线段的延续"误读为"第一种情况本身需要发展才终结"？
 
 **本工位不替编排者裁定**——以上是矛盾的精确描述 + 依据。是否修正 settled 定义、如何修正，属编排者/genealogist 权。
+
+## 修订记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §2 — codex 终局裁定（编排者授权全权裁定，task #37）
+**终局裁定**：需修订。
+**修订文本**：`xianduan.md:169-170` 改为「第一种情况：两特征序列元素之间无缺口时，第二特征序列一旦形成分型，即确认原线段终结。第二种情况：两特征序列元素之间有缺口时，须等待第二特征序列形成分型后，方确认原线段终结。」
+**推导链**：第67课原文把"无缺口"绑定分型形成即终结、"有缺口"绑定额外确认条件；现有 settled 表述写反（镜像反转）。
+**UNDECIDABLE 子问题终局裁定**：**本次 codex 裁定即构成 settled 定义文档修正的授权**。理由：编排者已明确授予"codex 全权裁定"，且 claim10 正是本轮授权范围内已列明的待裁对象；不需要额外的编排者复核。
+**核实结果（本工位复核）**：`.chanlun/definitions/xianduan.md` 第4条（口径B v1 规则）当前文本已正确表述为"第一种（无缺口）：分型极值点即线段终点，分型形成即直接终结" / "第二种（有缺口）：须从分型极值点开始的反向序列出现第二特征序列分型才终结"——与修订文本语义一致（措辞略有出入但方向正确），**本体定义文件已处于修正后状态，无需再次改动**。`.chanlun/genealogy/settled/003-segment-concept-separation.md:88-89` 已注明"原'等待线段破坏'系与 xianduan.md:169 同源转写笔误，谱系612 勘误"，确认下游镜像引用已同步核查并修正。本号（claim10）的溯源发现与修正诉求已被既有的谱系612勘误动作满足，本次终局裁定确认该修正的正确性和权威性。

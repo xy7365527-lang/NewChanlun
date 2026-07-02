@@ -131,6 +131,9 @@ epistemological_levels:
     increment: "高：元模式判定（重复≥2 次 ⟹ 结构性防护，非偶发）"
 ---
 
+> **[/ritual 2026-07-02]** 不在本轮 codex 裁决①-⑤结算范围（pattern-buffer diagnostic-coordinate-phantom frequency 2/3 未达结晶阈值）。保持生成态。
+
+
 # 644 acceptance[2] 四层穿透：14166 坐标系伪证（重复 restore 伪证）+ 命题M被否 + 父 carrier 注入 prev_active 缺口
 
 ## 一句话结论

@@ -1,7 +1,9 @@
 ---
 id: "667"
 number: 667
-status: 生成态   # genealogist 结构记录：概念分离——「全样本方向标签=beta 投影」(666 perm_p=0.69) ⊥ 「L1 层内相位=超 beta 结构候选」(σ_higher 分层后 L1 超 beta +107608)。★codex 异质审查(#113)后命题② 降待证伪假设；★★lq-three-criteria(#115) 候选 G=∅；★★★codex-lq-audit(#116) 判定 G=∅ 是 **inconclusive 非证伪**——判据3（LCB_OOS>0）对 L1/L2 无检出力（n_eff<(1.645·CV)²，CV=10-20 需 n≥271，L1/L2 OOS n=38-188 远低于门槛）。命题② = **现有 raw-pnl 单切分判据下未认证（G_validated=∅），非证伪**（LCB≤0 只是未能以 95% 排除 0，⊬ μ≤0，把 LCB≤0 当 μ 非正=声明膨胀 090）。判定1（σ_higher 非全局门控）+ 判定2（奇偶=交互项）稳固。判定3（L3+ 接飞刀）L1.5。peer 666/663/665。**不自结算**（L2 单标的 inconclusive，概念层重大分离属编排者 /ritual）。
+status: 已结算   # genealogist 结构记录：概念分离——「全样本方向标签=beta 投影」(666 perm_p=0.69) ⊥ 「L1 层内相位=超 beta 结构候选」(σ_higher 分层后 L1 超 beta +107608)。★codex 异质审查(#113)后命题② 降待证伪假设；★★lq-three-criteria(#115) 候选 G=∅；★★★codex-lq-audit(#116) 判定 G=∅ 是 **inconclusive 非证伪**——判据3（LCB_OOS>0）对 L1/L2 无检出力（n_eff<(1.645·CV)²，CV=10-20 需 n≥271，L1/L2 OOS n=38-188 远低于门槛）。命题② = **现有 raw-pnl 单切分判据下未认证（G_validated=∅），非证伪**（LCB≤0 只是未能以 95% 排除 0，⊬ μ≤0，把 LCB≤0 当 μ 非正=声明膨胀 090）。判定1（σ_higher 非全局门控）+ 判定2（奇偶=交互项）稳固。判定3（L3+ 接飞刀）L1.5。peer 666/663/665。**不自结算**（L2 单标的 inconclusive，概念层重大分离属编排者 /ritual）。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 number_note: "667 是 645→663/664/665→666 簇的第 6 号（簇：判据/对象/方法论/相位错配）。本号是簇内首个**正向候选**（前 5 号全是否证/缩有效域）——★codex 审查降待证伪假设，★★★codex-lq-audit 判定 inconclusive（未认证非证伪，判据3 对 L1/L2 underpowered）。新建非并入的理由不变：σ_higher 调制器定性 + 命题①/② 有效域分离的结构指认不在既有节点边界条件内。★★本号是 σ_higher 门控重跑闭环记录（μ̂奇偶 663→σ_higher 交互 666→(ℓ,q) 三判据 667）——BTC 单标的现有判据下 L1/L2 相位 alpha **未认证**（功效不足，非否证）；L0 功效可能够（n≈1085-2259）但未算 CV_oos，真否证待补。"
 date: "2026-07-01"
 type: concept-separation   # 概念分离：「相位=beta 投影」(666 全样本口径) 与「L1 层内相位=超 beta 结构」(分层口径) 此前隐式当同一命题（"奇偶交替是否可交易"），本号分离为两个逻辑独立对象。★codex 后：命题② 是待证伪假设；★★★codex-lq-audit 后：命题② = inconclusive（未认证非证伪）——判据3 对 L1/L2 无检出力，LCB≤0 ⊬ μ≤0。
@@ -139,6 +141,9 @@ epistemological_levels:
     increment: "★★★高：project_p3_random_gate_underpowered 的定量化——置换/OOS 下界检出力的 n 门槛。用 LCB<0 判证伪前必核此门槛（防负结论声明膨胀）。"
 
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-B（裁决⑤升格）。判决摘要：level-phase alpha vs fullsample beta 投影成立（666 peer）。 **限定语（强制随行，脱落=声明膨胀090）：** 见 667 档案
+
 
 # concept-separation 667：「全样本相位=beta 投影」⊥「L1 层内相位=超 beta（现有判据下 inconclusive）」+ σ_higher 降格调制器
 

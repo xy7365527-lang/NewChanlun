@@ -1,7 +1,9 @@
 ---
 id: "664"
 number: 664
-status: 生成态   # genealogist 结构记录：对象错配（object-mismatch）——经济正条件判据 Ab=εb(Pρb−Pλb) 测的是「信号前触发/背驰段端点价差」，缠论买卖点执行是「反转交易」，正确对象是「post-signal 交易腿」Ab_rev=δ·(P[ρ_rev]−P[λ_rev])。codex 异质审计（diagnose，read-only，2026-06-30）坐实：ΣAb<0（BTC L2）是对象错配概念发现，非实装 bug。peer 645/663（判据/对象错配同簇）。**不自结算**（概念层重大发现属编排者 /ritual）。
+status: 已结算   # genealogist 结构记录：对象错配（object-mismatch）——经济正条件判据 Ab=εb(Pρb−Pλb) 测的是「信号前触发/背驰段端点价差」，缠论买卖点执行是「反转交易」，正确对象是「post-signal 交易腿」Ab_rev=δ·(P[ρ_rev]−P[λ_rev])。codex 异质审计（diagnose，read-only，2026-06-30）坐实：ΣAb<0（BTC L2）是对象错配概念发现，非实装 bug。peer 645/663（判据/对象错配同簇）。**不自结算**（概念层重大发现属编排者 /ritual）。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-30"
 type: object-mismatch   # 测量对象错配：把信号前触发段端点价差当结构理想价差。笔方向 ε ≠ 交易方向 δ；触发段价差 ≠ 反转交易价差。
 depends_on: ["231", "645", "663"]
@@ -171,6 +173,9 @@ epistemological_levels:
     level: "L0（代数：eps=sign(Pρ−Pλ)⟹Ab=|Pρ−Pλ|≥0 恒真，零信息；命题S 已标同义反复 chain.md:51）"
     increment: "高：反补丁判定（补丁掩盖对象错配，非修复）"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A。判决摘要：A/B 触发段≠反转交易腿，测错对象，成立。
+
 
 # 664 ★对象错配：触发段价差 Ab=εb(Pρ−Pλ) ≠ 反转交易腿价差 Ab_rev=δ(P[ρ_rev]−P[λ_rev])
 

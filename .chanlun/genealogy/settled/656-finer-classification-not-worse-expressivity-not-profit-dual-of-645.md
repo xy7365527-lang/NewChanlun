@@ -2,7 +2,9 @@
 id: "656"
 number: 656
 type: domain   # 域内新定理：细分类不劣 V(Z)≥V(Y) + 优势=表达力/统计识别非盈利保证。645 覆盖≠盈利（反面）的对偶正面。
-status: 生成态   # genealogist 结构记录：alpha2 Doc3 §13 定理2（peer 漏纳）。L0 结构定理（V(Z)≥V(Y)），盈利仍需 L2/L3 μ>0。最终结算待编排者 /ritual。
+status: 已结算   # genealogist 结构记录：alpha2 Doc3 §13 定理2（peer 漏纳）。L0 结构定理（V(Z)≥V(Y)），盈利仍需 L2/L3 μ>0。最终结算待编排者 /ritual。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-30"
 source: genealogist（编排者 alpha2.pdf 38页对照，Doc3 p25-38 全互斥分类 C_Θ:X→Z；Lead 全读核验 peer goal 5项 acceptance 忠实，本号是 Doc3 §13 独有增量）
 depends_on: ["231", "645"]
@@ -105,6 +107,9 @@ epistemological_levels:
     level: "L0（231/645 T2：L0 恒真命题加 acceptance=测恒真信息增量零）"
     increment: "中：acceptance 边界判定（手段 ⊥ 验收目标）"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A。判决摘要：细分类不劣表达力 V(Z)⊇V(Y)；表达力不劣⊬正期望（两命题独立），成立。
+
 
 # 656 alpha2 §13 定理2「细分类不劣」V(Z)≥V(Y)——645 覆盖≠盈利的对偶正面
 

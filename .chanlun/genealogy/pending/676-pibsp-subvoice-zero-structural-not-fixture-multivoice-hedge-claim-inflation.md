@@ -98,6 +98,9 @@ epistemological_levels:
     increment: "零信息增量声明（诚实标注降级，不冒充）"
 ---
 
+> **[/ritual 2026-07-02]** 裁决⑤ §4-B：同质自证不能替代异质审计（呼应 640）。**待配额恢复后须重做真异质审计——不走 codex 重裁（codex 重裁仍同质）**。「忠实实装」措辞/命题A等级/bit_exact 比较对象须修订限定后确认。保持生成态。
+
+
 # 647 π^bsp 子声部恒=0 是实装根因 + acceptance[1] bit_exact 非 Lean parity（同质代理质询，异质源降级）
 
 ## 一句话结论

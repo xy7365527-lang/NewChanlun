@@ -1,7 +1,9 @@
 ---
 id: "659"
 number: 659
-status: 生成态   # genealogist 结构记录。概念层有效域判定（filter-spec 跨引擎范畴错误），不自结算——属编排者 /ritual 辨认域。L2 源码事实由 backtest-e1 自检 + Lead 独立核实双向坐实。
+status: 已结算   # genealogist 结构记录。概念层有效域判定（filter-spec 跨引擎范畴错误），不自结算——属编排者 /ritual 辨认域。L2 源码事实由 backtest-e1 自检 + Lead 独立核实双向坐实。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-30"
 type: bias-correction   # filter-spec 报告把 rec 引擎特性（547 cascade）误作 t_backtest_8x3 引擎前提=有效域跨定义域外推。同 231/627/644 族。
 source: genealogist（Lead 推送，本轮 roadmap 主线 signal_resolution_1s_bi_a0 / backtest-e1 工位[task#68] 自检产出）
@@ -41,6 +43,9 @@ epistemological_levels:
     level: "L0（commit 事实：源码 grep 无该函数名）"
     increment: "高：坐标漂移第二维=声明的坐标≠生产坐标（644 同模式）"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-B（裁决⑤升格）。判决摘要：filter-spec 跨引擎范畴错误成立（627 首违实例）。 **限定语（强制随行，脱落=声明膨胀090）：** 见 659 档案
+
 
 # 659 filter-spec 跨引擎范畴错误（627 预警风险的首次违规实例化 + 644 坐标漂移第二维）
 

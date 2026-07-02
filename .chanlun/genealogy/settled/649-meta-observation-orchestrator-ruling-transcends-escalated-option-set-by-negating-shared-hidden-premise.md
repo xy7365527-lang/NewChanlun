@@ -2,7 +2,9 @@
 id: "649"
 number: 649
 type: meta-rule
-status: 生成态   # meta-observer 二阶观察。语法记录候选：编排者裁决可超越蜂群上呈的选项集（A/B/C），机制=否定选项集共享的未察觉隐藏前提。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+status: 已结算   # meta-observer 二阶观察。语法记录候选：编排者裁决可超越蜂群上呈的选项集（A/B/C），机制=否定选项集共享的未察觉隐藏前提。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-29"
 source: meta-observer（二阶观察，goal g-sigma-complete-l2-nautilus session 68088c95 触发，观测点1=648 裁决 D）
 
@@ -167,3 +169,12 @@ related_records_tension_check:
 ## genealogist 边界声明
 
 本号是 meta-observer 二阶观察的语法记录候选，status=生成态，待编排者 /escalate → /ritual 辨认。genealogist 在轴线汇报时扫描摘要，不自落盘 settled。规则版本基线 PENDING_CAPTURE 待 Lead 补全实际 git hash（meta-observer 无 Bash，不伪造）。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算。规则文本①：正式上呈多选一必须列出『选项共享隐藏前提』。规则文本②（推论②）：退化为『无法解决的定理/结构必然』前必须先证根因真不可避免（纳入 no-patch-mentality 禁止模式补充；与 161 号『务实否定』互为对偶——161 否定『把矛盾留后』，本推论否定『把可修封为不可修』；限制证明标准以避免误伤真不可解案例）。
+
+**说明**：649 与『649-推论②』并非两份独立文件/独立谱系节点，而是同一份本文档内的两条命题，原 GRAMMAR-THEOREMS staging 表已将两者同列『确认结算』类别（同一处置，无争议），故本次终局裁定的『结算』覆盖两条规则文本，物理迁移已一并写入本结算记录，未只落一条。

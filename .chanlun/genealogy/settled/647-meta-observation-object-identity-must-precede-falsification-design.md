@@ -2,7 +2,9 @@
 id: "647"
 number: 647
 type: meta-rule
-status: 生成态   # meta-observer 二阶观察。语法记录候选：验收/否证设计前必先锁定被测对象的同一性（实装构造的形式对象 = 该对象声称代表的概念定义对象）。本轮 675(坐标系分叉)+645(对象投影分离)暴露同一更普遍元结构。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+status: 已结算   # meta-observer 二阶观察。语法记录候选：验收/否证设计前必先锁定被测对象的同一性（实装构造的形式对象 = 该对象声称代表的概念定义对象）。本轮 675(坐标系分叉)+645(对象投影分离)暴露同一更普遍元结构。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-29"
 source: meta-observer（二阶观察，goal g-sigma-complete-l2-nautilus session 触发）
 
@@ -141,3 +143,10 @@ related_records_tension_check:
 - 不直接结晶（skill-crystallizer 行使，051 Pull 模型）。
 - 不直接改 675 的 pattern-buffer 计数语义（genealogist 职责 + 编排者 /ritual 裁决合并）。
 - 本号通过文件系统产出（谱系 pending），Lead 轴线汇报时摘要——不主动 SendMessage 洪泛。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算。规则文本：否证设计前须先锁定 O_impl=O_def（被测对象与目标概念定义对象同一或有明确等价映射），否则测试对象可能不是目标概念对象。

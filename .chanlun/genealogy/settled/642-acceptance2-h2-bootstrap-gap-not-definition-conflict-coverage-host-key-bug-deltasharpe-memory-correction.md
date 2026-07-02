@@ -1,7 +1,9 @@
 ---
 id: "642"
 number: 642
-status: 生成态   # genealogist 结构记录：误判降级（定义冲突/选择类 → 工程缺口/定理类）。codex异质 + codex-challenger 双向收敛坐实。memory 修正标注待 Lead（memory 由 Lead 维护，641 先例）。最终结算待编排者 /ritual。
+status: 已结算   # genealogist 结构记录：误判降级（定义冲突/选择类 → 工程缺口/定理类）。codex异质 + codex-challenger 双向收敛坐实。【2026-07-02 回溯结算更新：ΔSharpe L2 重测已交付(commit 792305023b)，机制层 ΔN≠0(b2→b1)坐实、NAV 层 ΔSharpe=0.000(8/8)照实，开放子句关闭；裁决⑤已升格「成立」并入 staging §1-B。memory 修正已由 Lead 落盘。最终结算待编排者 /ritual。】
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-29"
 type: bias-correction   # 误判纠正：把误升级的"定义冲突/选择类"降级为"工程bug/定理类"
 depends_on: ["639"]
@@ -25,7 +27,7 @@ topo_effect: "demotes:acceptance2-escalate-as-definition-conflict; demotes:delta
 
 # 矛盾（type=bias-correction 必填）
 contradiction:
-  description: "两次产出把一个引擎自举工程缺口误判为概念层冲突，从而误归为『选择类』需编排者方向裁定（no-unnecessary-escalation 四分法）。误判A：工位C escalate 把『高级别走势 structure-live（I5/§7.2 σ 来源）vs 该走势未被持有（§13 AncOK 父在 A_t）』判为定义冲突。误判B：deltasharpe-zero-stale-rooting memory（ab5f5a29d 修订后 line 24）把 depth>0 对冲腿零贡献的根因判为『因果性 vs 身份连续性在 held_leg_tree_index 值比较下不可兼得 = 真定义层冲突 = 编排者方向裁定（选择类）非补丁可解』。两者实为同一机器事实：高级别容器从不入 raw（open 集 100% 是 BSP 叶子点 lambda==rho==source_index）⟹ depth>0 子腿的真 Compose 父永不在 raw ⟹ AncOK 永剪 ⟹ active depth>0 腿=0 ⟹ ΔSharpe=0。codex 核实 held_registry_alive=100% 但 held_op_parent_alive=0（腿活父不活），pid 已 parent-path-independent（I3）跨bar身份本应匹配 → 否定『substrate 跨bar身份断裂』(Y)。真 bug 是 coverage.rs:1253 host 注入用错 key：`tree_endpoint_idx.get(&(c.level, c.source_index))` 取候选**同级**（c.level, c.rho）host，而 ancestor_close_by_id 要求候选的 parent_id（c.level+1 高一级 Compose 父容器）在 raw——注入同级 host 不满足高一级父在场，AncOK 仍剪 depth>0 腿。修复 = 注入候选 parent_id 容器（非同级 host），可在 coverage.rs 内完成，不改 §7.2/§13/639 任何定义。按 testing-override.md 判据（不改定义即可修实现=实现错误），这是定理类（实现错误，正常修复），非选择类（定义冲突）。"
+  description: "两次产出把一个引擎自举工程缺口误判为概念层冲突，从而误归为『选择类』需编排者方向裁定（no-unnecessary-escalation 四分法）。误判A：工位C escalate 把『高级别走势 structure-live（I5/§7.2 σ 来源）vs 该走势未被持有（§13 AncOK）』判为定义冲突。误判B：deltasharpe-zero-stale-rooting memory（ab5f5a29d 修订后 line 24）把 depth>0 对冲腿零贡献的根因判为『因果性 vs 身份连续性在 held_leg_tree_index 值比较下不可兼得 = 真定义层冲突 = 编排者方向裁定（选择类）非补丁可解』。两者实为同一机器事实：高级别容器从不入 raw（open 集 100% 是 BSP 叶子点 lambda==rho==source_index）⟹ depth>0 子腿的真 Compose 父永不在 raw ⟹ AncOK 永剪 ⟹ active depth>0 腿=0 ⟹ ΔSharpe=0。codex 核实 held_registry_alive=100% 但 held_op_parent_alive=0（腿活父不活），pid 已 parent-path-independent（I3）跨bar身份本应匹配 → 否定『substrate 跨bar身份断裂』(Y)。真 bug 是 coverage.rs:1253 host 注入用错 key：`tree_endpoint_idx.get(&(c.level, c.source_index))` 取候选**同级**（c.level, c.rho）host，而 ancestor_close_by_id 要求候选的 parent_id（c.level+1 高一级 Compose 父容器）在 raw——注入同级 host 不满足高一级父在场，AncOK 仍剪 depth>0 腿。修复 = 注入候选 parent_id 容器（非同级 host），可在 coverage.rs 内完成，不改 §7.2/§13/639 任何定义。按 testing-override.md 判据（不改定义即可修实现=实现错误），这是定理类（实现错误，正常修复），非选择类（定义冲突）。"
   layer: 实装   # rust/theta_v0/strategy/coverage.rs 引擎自举层；非缠论域、非 Lean 形式化层、非定义层
   trigger: "本轮 goal g-sigma-complete-l2-nautilus 推进：工位G 实装容器入场后 L2 仍 active_depth>0=0，归因 Y（substrate 跨bar身份断裂，需 anc.pdf §16 增量parser大架构）。codex 核实推翻：held_op_parent_alive=0=腿活父不活，pid 已 I3 路径无关→Y 否；真 bug 在 coverage.rs:1253 host 注入 key 错（X 工程最后一公里）。codex-challenger 明确建议 genealogist 标注修正 deltasharpe memory 的『选择类/定义冲突』结论。"
 
@@ -42,13 +44,13 @@ definitions_involved:
     role: "分类判据。『如果你能在不改变任何定义的前提下修复实现 → 实现错误，正常修复；如果修复需要改变某条定义的含义/边界/适用范围 → 定义冲突，上浮』。本号两误判的修复（注入 parent_id 容器 / open 集补容器入场）均不改 §7.2/§13/639 任何定义 → 实现错误（定理类），非定义冲突（选择类）。"
   - name: "memory newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass"
     version: "~/.claude/projects/-Users-silencehan/memory/newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass.md"
-    role: "被纠正对象。该 memory（ab5f5a29d 修订后）line 24 把 depth>0 对冲腿零贡献判为『真定义层冲突…编排者方向裁定（选择类）非补丁可解』，line 28 修复方向定为『父腿追踪/CoordDrift 语义』。codex 决定性裁决否定 substrate 身份断裂（Y），真因是 coverage.rs:1253 host key 错（X 工程 bug）。memory 的『选择类/定义冲突』结论是误判，须降级为『定理类/工程 bug』。**memory 由 Lead 维护（641 先例），本号产出修正标注供 Lead 写入，genealogist 不直接改 memory。**"
+    role: "被纠正对象。该 memory（ab5f5a29d 修订后）line 24 把 depth>0 对冲腿零贡献判为『真定义层冲突…编排者方向裁定（选择类）非补丁可解』，line 28 修复方向定为『父腿追踪/CoordDrift 语义』。codex 决定性裁决否定 substrate 身份断裂（Y），真因是 coverage.rs:1253 host key 错（X 工程 bug）。memory 的『选择类/定义冲突』结论是误判，须降级为『定理类/工程 bug』。**memory 由 Lead 维护（641 先例），本号产出修正标注供 Lead 写入，genealogist 不直接改 memory。【2026-07-02 更新：Lead 已落盘 memory 修正（Lead 消息确认「memory 侧我已更新」）。】**"
 
 # 解决方式
 resolution:
-  type: 未解决   # 概念误判已诊断澄清（定义冲突→工程bug，选择类→定理类）；行动类修复（coverage.rs:1253 host 注入 parent_id 容器）待 Lead 派有 Write 工位执行；memory 修正标注待 Lead；最终结算待编排者 /ritual。
-  description: "概念澄清（已完成）：acceptance[2] 与 deltasharpe 零贡献均非定义冲突，是 H2 引擎自举工程缺口（定理类）。机器事实坐实：coverage.rs:1253 `tree_endpoint_idx.get(&(c.level, c.source_index))` 注入候选**同级** host，而 line 1262 ancestor_close_by_id 经 ancestors_by_id 要求候选的高一级 parent_id 容器在 raw——同级 host 不满足高一级父在场。严格修复（行动类，待 Lead 派工位）：把 host 注入改为注入候选的 parent_id 容器（c.level+1 Compose 父），使 depth>0 子腿的真 Compose 父进入 raw，AncOK 不再剪。修复在 coverage.rs 内完成，不改 §7.2/§13/639 任何定义。memory 修正（待 Lead）：deltasharpe memory line 24『真定义层冲突…编排者方向裁定（选择类）』改为『工程 bug：coverage.rs:1253 host 注入 key 错（注入同级 host 而 AncOK 需高一级 parent_id 容器）=定理类，可在 coverage.rs 内修不改定义』；line 28『父腿追踪/CoordDrift 语义』修复方向降级（CoordDrift/Stale 不是真根因，held_op_parent_alive=0 才是，pid 已 I3 路径无关身份本应匹配）。"
-  decided_by: 蜂群内部   # codex异质+codex-challenger 双向收敛诊断 H2；genealogist 结构记录降级 + memory 修正标注；行动类修复待 Lead 派工位；最终结算待编排者 /ritual
+  type: 部分解决   # 【2026-07-02 更新】概念误判已诊断澄清（定义冲突→工程bug，选择类→定理类）；机制层修复已落地并经 ΔSharpe L2 重测坐实（commit 792305023b，ΔN≠0/b2→b1）；memory 修正已由 Lead 落盘。剩余：NAV 层零贡献照实（ΔSharpe=0.000 8/8，仅 NAV 层成立、净头寸层已证伪）；裁决⑤已升格「成立」入 staging §1-B；最终结算待编排者 /ritual。
+  description: "概念澄清（已完成）：acceptance[2] 与 deltasharpe 零贡献均非定义冲突，是 H2 引擎自举工程缺口（定理类）。机器事实坐实：coverage.rs:1253 `tree_endpoint_idx.get(&(c.level, c.source_index))` 注入候选**同级** host，而 line 1262 ancestor_close_by_id 经 ancestors_by_id 要求候选的高一级 parent_id 容器在 raw——同级 host 不满足高一级父在场。严格修复（行动类，Lead 已派工位执行）：把 host 注入改为注入候选的 parent_id 容器（c.level+1 Compose 父），使 depth>0 子腿的真 Compose 父进入 raw，AncOK 不再剪。修复在 coverage.rs 内完成，不改 §7.2/§13/639 任何定义。memory 修正（Lead 已落盘）：deltasharpe memory line 24『真定义层冲突…编排者方向裁定（选择类）』改为『工程 bug：coverage.rs:1253 host 注入 key 错（注入同级 host 而 AncOK 需高一级 parent_id 容器）=定理类，可在 coverage.rs 内修不改定义』；line 28『父腿追踪/CoordDrift 语义』修复方向降级（CoordDrift/Stale 不是真根因，held_op_parent_alive=0 才是，pid 已 I3 路径无关身份本应匹配）。"
+  decided_by: 蜂群内部   # codex异质+codex-challenger 双向收敛诊断 H2；genealogist 结构记录降级 + memory 修正标注；行动类修复已由 Lead 派工位执行并 L2 重测坐实；最终结算待编排者 /ritual
 
 # 被否定的方案
 negated:
@@ -62,20 +64,21 @@ new_output:
     - "真 bug 定位：coverage.rs:1253 host 注入 key 错——注入候选同级 host（c.level, c.source_index），而 AncOK（line 1262 ancestor_close_by_id）需候选 parent_id（c.level+1 高一级 Compose 父容器）在 raw。"
     - "memory 修正：deltasharpe-zero-stale-rooting line 24『真定义层冲突/编排者方向裁定（选择类）』+ line 28『父腿追踪/CoordDrift 语义』修复方向被 codex 决定性裁决否定（held_op_parent_alive=0=腿活父不活，pid 已 I3 路径无关，Y 被否；真因 X=coverage.rs:1253 host key）。"
     - "误判模式：把工程缺口误判为定义冲突 = 反向越级上浮（把定理类误升为选择类）——no-unnecessary-escalation 四分法的对偶面违规。"
-  code_changes: "无（本号是概念误判降级诊断 + memory 修正标注，纯谱系产出）。coverage.rs:1253 host 注入改 parent_id 容器 = 行动类修复，超出 genealogist 工具有效域（Read/Grep/Glob，624 硬墙），待 Lead 派有 Write 工位执行。"
-  orchestration_changes: "方法论：①escalate『定义冲突』前必查正交机制是否已被既有谱系分离（639 已分离 σ 来源/持仓准入）——把已分离的正交机制当冲突=概念混淆。②归因『需大架构（Y）』前必先排除工程最后一公里（X）——codex 核实 held_op_parent_alive=0 直指 X，Y 是被否的过度归因。③testing-override.md 判据双向适用：不仅『定义冲突勿当实现错误硬修』，也『实现错误勿当定义冲突上浮』（反向越级）。④escalate-requires-l2-evidence 同理双向：L0 推测既不能据以判定冲突，也不能据以判定『需大架构』——本号 X 由源码事实（coverage.rs:1253/1262）+ codex 机器证据（held_op_parent_alive=0）坐实。"
+    - "【2026-07-02 L2 坐实增量】机制级已解决≠盈利（231 铁律）：ΔSharpe L2 重测（commit 792305023b）机制层 depth>0 流动 ΔN≠0（b2→b1，降级证据成立）、NAV 层 ΔSharpe=0.000（8/8 照实）。**口径限定：零贡献仅 NAV 净值层成立、净头寸层已证伪。**"
+  code_changes: "genealogist 侧无（本号是概念误判降级诊断 + memory 修正标注，纯谱系产出）。coverage.rs:1253 host 注入改 parent_id 容器 = 行动类修复，已由 Lead 派有 Write 工位执行（超出 genealogist 工具有效域 Read/Grep/Glob，624 硬墙）；L2 重测坐实机制层 ΔN≠0（commit 792305023b）。"
+  orchestration_changes: "方法论：①escalate『定义冲突』前必查正交机制是否已被既有谱系分离（639 已分离 σ 来源/持仓准入）——把已分离的正交机制当冲突=概念混淆。②归因『需大架构（Y）』前必先排除工程最后一公里（X）——codex 核实 held_op_parent_alive=0 直指 X，Y 是被否的过度归因。③testing-override.md 判据双向适用：不仅『定义冲突勿当实现错误硬修』，也『实现错误勿当定义冲突上浮』（反向越级）。④escalate-requires-l2-evidence 同理双向：L0 推测既不能据以判定冲突，也不能据以判定『需大架构』——本号 X 由源码事实（coverage.rs:1253/1262）+ codex 机器证据（held_op_parent_alive=0）坐实。⑤机制级修复坐实（trades/ΔN 变动）≠盈利坐实（NAV/ΔSharpe）——231 铁律的操作化：L2 重测须分层报口径（净头寸层 vs NAV 层），零贡献结论的有效域仅覆盖被证伪的那一层。"
 
 # 影响范围
 impact:
   affected_modules:
-    - "rust/src/theta_v0/strategy/coverage.rs:1253 → host 注入 key 须改：注入候选 parent_id 容器（c.level+1 Compose 父），非同级 host（c.level, c.source_index）。修复后 depth>0 子腿真 Compose 父入 raw，AncOK（line 1262）不再剪。"
+    - "rust/src/theta_v0/strategy/coverage.rs:1253 → host 注入 key 已改：注入候选 parent_id 容器（c.level+1 Compose 父），非同级 host（c.level, c.source_index）。修复后 depth>0 子腿真 Compose 父入 raw，AncOK（line 1262）不再剪。L2 重测坐实 ΔN≠0（b2→b1）。"
     - "rust/src/theta_v0/strategy/coverage.rs:1233-1257 → §8 引擎自举入口（开启候选时把 hostOf 容器加 raw）的有效域注释须核：当前注释（line 1243-1245）声称 host 命中其右端点即兑现 §8 持仓，但注入的是同级 host 非高一级 parent_id，未真正使 depth>0 子腿父在场。"
   affected_definitions:
     - "639（已结算）：本号印证其正交机制分离（σ 来源 §7.2 vs 持仓准入 §13），并兑现其 line 79-81 预言（per-bar 因果塔=工程缺口非定义冲突）。维持 settled。"
-    - "memory newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass：line 24『定义冲突/选择类』+ line 28 修复方向须降级为『工程 bug/定理类（coverage.rs:1253 host key）』。memory 由 Lead 维护，本号产出修正标注供 Lead 写入。"
+    - "memory newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass：line 24『定义冲突/选择类』+ line 28 修复方向已降级为『工程 bug/定理类（coverage.rs:1253 host key）』。memory 由 Lead 维护，Lead 已落盘（2026-07-02）。"
   downstream_implications:
     - "acceptance[2] escalate 撤销（误升级）——按定理类（实现错误）正常修复，不需编排者方向裁定。"
-    - "deltasharpe 8/8 否证的有效域不变（仍是保守欠对冲版，不否定完整 #5 alpha）——但根因从『CoordDrift 身份判据/定义冲突』修正为『coverage.rs:1253 host key 工程 bug』。修复后 depth>0 腿可准入，ΔSharpe 重测有望非零（待 L2 坐实，不预设结果——231 铁律：修复≠盈利，trades≠alpha）。"
+    - "deltasharpe 8/8 否证的有效域不变（仍是保守欠对冲版，不否定完整 #5 alpha）——根因从『CoordDrift 身份判据/定义冲突』修正为『coverage.rs:1253 host key 工程 bug』。**修复后 L2 重测坐实（commit 792305023b）：机制层 depth>0 腿准入 ΔN≠0（b2→b1），NAV 层 ΔSharpe=0.000（8/8 照实）——零贡献仅 NAV 层成立、净头寸层已证伪。231 铁律兑现：修复≠盈利，ΔN 变动≠ΔSharpe 非零。**"
     - "未来 escalate『定义冲突』前查正交机制分离 + 排除工程最后一公里（X）后才归因大架构（Y）。"
 
 # 谱系关联
@@ -103,7 +106,13 @@ epistemological_levels:
   - proposition: "修复（注入 parent_id 容器）不改 §7.2/§13/639 任何定义 ⟹ 实现错误（定理类），非定义冲突（选择类）"
     level: "L0（testing-override.md 判据 + 源码可达性：coverage.rs 内可改 host 注入 key，无需触定义文件）"
     increment: "高：误判分类（选择类→定理类）的降级判定"
+  - proposition: "修复落地后 depth>0 腿准入 ΔN≠0（b2→b1），但 NAV 层 ΔSharpe=0.000（8/8）——机制级已解决≠盈利，零贡献仅 NAV 层成立、净头寸层已证伪"
+    level: "L2（ΔSharpe L2 重测机器证据：commit 792305023b / 642-delta-sharpe-retest-20260702.md，CL/BTC 真实数据 8/8）"
+    increment: "高：口径限定的分层坐实——修复≠盈利（231 铁律），零贡献结论有效域收窄至 NAV 层"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-B（裁决⑤升格，L2 证据齐备 commit 792305023b）。判决摘要：误判降级（定义冲突→工程缺口）成立；机制层 depth>0 流动 ΔN≠0（b2→b1）L2 坐实。 **限定语（强制随行，脱落=声明膨胀090）：** 限机制级已解决（≠盈利，231 铁律）；口径限定：零贡献仅 NAV 净值层成立（ΔSharpe=0.000 8/8）、净头寸层 ΔN≠0 已证伪
+
 
 # 642 acceptance[2] H2 引擎自举缺口（非定义冲突）+ deltasharpe memory 误判修正
 
@@ -141,6 +150,24 @@ coverage.rs:1262  let next_idx = ancestor_close_by_id(&work, &raw);
 
 误判 A/B 把它当『定义冲突/选择类』= **反向越级上浮**（把定理类误升为选择类）——no-unnecessary-escalation 四分法的对偶面违规。
 
+## 回溯结算 addendum（2026-07-02 · L2 证据齐备）
+
+**触发**：ΔSharpe L2 重测交付（commit `792305023b` / `642-delta-sharpe-retest-20260702.md`，task #6/#47）——本记录原开放子句「修复后 depth>0 腿可准入，ΔSharpe 重测有望非零（待 L2 坐实，不预设结果）」的坐实。
+
+**分层坐实结果**：
+
+| 层 | 度量 | 结果 | 结论 |
+|----|------|------|------|
+| 机制层（净头寸） | depth>0 流动 ΔN | **ΔN≠0（裁定 b2→b1）** | host key 修复生效，depth>0 腿真准入——误判降级证据成立，「零贡献」被证伪 |
+| NAV 层（净值） | ΔSharpe | **0.000（8/8 照实）** | 净值层零贡献照实——修复≠盈利（231 铁律） |
+
+**口径限定（强制随行入 settled，脱落=声明膨胀 090）**：**零贡献仅 NAV 净值层成立、净头寸层已证伪**。即：
+- 「depth>0 腿零贡献」这一原结论的有效域**收窄至 NAV 层**；
+- 净头寸层 ΔN≠0 已**证伪**「零贡献」——机制确实产生了持仓流动；
+- 但机制级已解决 **≠** 盈利（ΔSharpe 仍 0.000）——231 铁律：修复≠alpha，ΔN 变动≠ΔSharpe 非零。
+
+**状态更新**：resolution.type 未解决→**部分解决**（概念误判已澄清 + 机制修复已 L2 坐实 + memory 已由 Lead 落盘；剩余仅编排者 /ritual 最终结算）。裁决⑤已将 642 从原「证据不足待重裁」**升格为「成立」**并入 staging §1-B（限定语随行）。**开放子句关闭。**
+
 ## 张力检查（019d/020）
 
 ### 检查范围（同轮蜂群 ∪ 1-hop ∪ Hub）
@@ -174,6 +201,6 @@ testing-override 通常用于『定义冲突勿当实现错误硬修』。本号
 - **638（settled）**：本号触及 coverage host 注入（(level, ρ) 端点命中，638 来源），不否定，维持 settled。
 - **640（settled，同轮）**：不同轴，维持 settled。
 - **641（生成态，同轮）**：相关但不同轴（性能 vs 正确性），不破坏，维持生成态。
-- **memory deltasharpe-zero-stale-rooting**：line 24『定义冲突/选择类』+ line 28 修复方向被本号降级为『工程 bug/定理类（coverage.rs:1253 host key）』。**memory 由 Lead 维护（641 先例：『不修改 memory，memory 是 Lead 维护』），本号产出修正标注供 Lead 写入，genealogist 不直接改 memory。**
+- **memory deltasharpe-zero-stale-rooting**：line 24『定义冲突/选择类』+ line 28 修复方向已被本号降级为『工程 bug/定理类（coverage.rs:1253 host key）』。**memory 由 Lead 维护（641 先例），Lead 已落盘（2026-07-02，「memory 侧我已更新」）。**
 - **memory l2-falsify-dual-barrier / sigma-p-is-parent-container**：本号细化『身份』障碍真因（coverage.rs:1253 host key 工程，非 CoordDrift 定义）；σ_p 口径本身对（印证）。供 Lead 同步。
-- **无 settled 被本号回溯破坏。** 本号是误判降级（bias-correction），修复=改 host key（行动类，Lead 派工位）+ memory 修正标注（Lead），最终结算待编排者 /ritual。
+- **无 settled 被本号回溯破坏。** 本号是误判降级（bias-correction），修复=改 host key（行动类，Lead 已派工位并 L2 坐实）+ memory 修正（Lead 已落盘），最终结算待编排者 /ritual。

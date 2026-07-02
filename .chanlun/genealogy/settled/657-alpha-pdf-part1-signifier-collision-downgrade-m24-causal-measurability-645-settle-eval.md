@@ -2,7 +2,9 @@
 id: "657"
 number: 657
 type: bias-correction   # 三段：候选1 能指碰撞(降级归并,同651范式) + 候选2 M24 因果可测性标注 refinement + 645 结算条件评估
-status: 生成态   # genealogist 结构记录。候选1=降级归并(同651,不独立立号,待编排者/escalate裁是否并入651)；候选2=mutex-derive M24标注增量；645结算评估=条件满足但落盘走/ritual(019c)。最终待编排者/ritual。【编号 655→657：原 655 与已 commit(HEAD 482962d7d8)的 655-write-side-non-idempotent 撞车，本记录改 657（656=细分类不劣已占）】（待#37 codex 裁定）
+status: 已结算   # genealogist 结构记录。候选1=降级归并(同651,不独立立号,待编排者/escalate裁是否并入651)；候选2=mutex-derive M24标注增量；645结算评估=条件满足但落盘走/ritual(019c)。最终待编排者/ritual。【编号 655→657：原 655 与已 commit(HEAD 482962d7d8)的 655-write-side-non-idempotent 撞车，本记录改 657（656=细分类不劣已占）】（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-30"
 source: genealogist（编排者 alpha.pdf 33页对照产出，Part1 p1-15「覆盖≠alpha」；p16-33=on2.pdf 同源→653/654 已处理）
 depends_on: ["231", "645", "651-652", "036"]
@@ -201,3 +203,10 @@ alpha.pdf Part1 + 《推导完全分类》PDF 对照的结构记录。
 - **231（settled）**：候选1/2 均其实例（L标签标轴 / M24 L0同义反复）；regime 两记录张力=231 有效域在「regime 存在论层级」维度的实例（统计层有效域 vs 存在论层有效域）。印证。维持 settled。
 - **MEMORY project_regime_is_level_truncation_artifact**：PDF 定理1 不否定 MEMORY——PDF 的 Rₜ=f(Zₜ) 吸收条件=MEMORY 主张的形式化承载，MEMORY 是更强版本。可分层。维持。
 - **无 settled 被回溯破坏。** 候选1 降级归并待编排者 /escalate（是否并入 651）；候选2 标注=行动类（改 mutex-derive-result.md §2）；645 结算待编排者 /ritml；PDF 两定理强化 656/663（不新建 666）；regime 张力可分层落盘（不 escalate）。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算（确认为工程治理选择，非纯逻辑定理）。能指碰撞可作为命名消歧/降级治理选择的证据，同时是 645 号的辅助证据之一，但本身不是可结算为定理的逻辑命题。

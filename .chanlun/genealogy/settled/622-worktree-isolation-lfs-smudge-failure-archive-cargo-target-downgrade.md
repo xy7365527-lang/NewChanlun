@@ -1,7 +1,9 @@
 ---
 id: "622"
 number: 622
-status: 生成态   # 本轮蜂群并行隔离方案降级的缺口落盘（worktree checkout LFS smudge 失败 → git archive + CARGO_TARGET_DIR）。同根因 549/476（125MB LFS object 本地不可达），新显形面（隔离层，非映射管线层）。最终结算待编排者 /ritual。
+status: 已结算   # 本轮蜂群并行隔离方案降级的缺口落盘（worktree checkout LFS smudge 失败 → git archive + CARGO_TARGET_DIR）。同根因 549/476（125MB LFS object 本地不可达），新显形面（隔离层，非映射管线层）。最终结算待编排者 /ritual。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-26"
 type: 矛盾发现
 depends_on: ["549", "476"]
@@ -105,6 +107,9 @@ epistemological_levels:
     increment: "中：与 549 共享解冻条件（一个 A 解冻两 scope）"
 
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A。判决摘要：worktree 隔离 LFS smudge 失败同根 549/476，成立。
+
 
 # 矛盾发现 622：worktree 隔离 LFS smudge 失败 = 549/476 同根因在『蜂群并行隔离层』的新显形面
 

@@ -1,7 +1,9 @@
 ---
 id: "655"
 number: 655
-status: 生成态   # meta-observer 二阶观察：/goal 命令的 GOAL_SET 写入端非幂等——_cli_goal_set 无条件 append 新 skeleton，从不查询是否已存在等价(active/closed)goal，与已 closed 的等价 goal(g-mutex-eat-every-element)机械撞车，靠 Lead 事后 SUPERSEDE 收拾。1 条语法记录/选择候选(写入端是否应去重)。辨认待编排者 /ritual。依赖 353/621/624/636。（待#37 codex 裁定）
+status: 已结算   # meta-observer 二阶观察：/goal 命令的 GOAL_SET 写入端非幂等——_cli_goal_set 无条件 append 新 skeleton，从不查询是否已存在等价(active/closed)goal，与已 closed 的等价 goal(g-mutex-eat-every-element)机械撞车，靠 Lead 事后 SUPERSEDE 收拾。依赖 353/621/624/636。
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-30"
 type: meta-rule
 source: meta-observer（二阶观察，compact 恢复 session 触发——/goal ! 预处理重调时自动新建 skeleton goal g-20260630T042951Z-56dfde07 重复已 closed 的 g-mutex-eat-every-element）
@@ -108,3 +110,11 @@ Lead 用 SUPERSEDE 退役了这个冗余 skeleton。
 
 本观察的核心问题（"应否去重"）是**选择/语法记录**类，meta-observer 不自决（no-unnecessary-escalation 允许此类 /escalate）。
 建议 Lead 通过 `/escalate` 上浮 → `/ritual` 辨认。三方案与等价性判据前提见 front matter `quadrant_reasoning`。
+
+## 修订记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §2 — codex 终局裁定（编排者授权全权裁定，task #37）
+**终局裁定**：需修订。
+**修订文本**：「写入端不得无条件 append 语义重复 goal；实施顺序为 C→A：先定义 goal 等价性，再做写入端幂等。」
+**推导链**：单独采纳方案 A（写入端去重）或方案 B（保持非幂等，Lead 事后 SUPERSEDE）均会漏掉"语义重复"这一根因——当前 `goal_id=sha256(description)` 仅捕获**字面等价**，本轮 skeleton 与已 closed goal 是**语义等价**（同一目标的不同措辞重述），字面 hash 不同，方案 A 若直接在 `_cli_goal_set` 加"查字面 hash 去重"仍会漏判本轮这类语义重复。必须先有方案 C（goal 等价性的可判定形式化定义——不限于字面 sha256，须覆盖语义等价类）作为前提，写入端幂等（方案 A）的实现才有意义基础。**实施顺序**：先做 C（定义 goal 等价性判据），再做 A（写入端依该判据幂等化，append 前查询是否存在等价 active/closed goal）。方案 B（维持现状靠 Lead 审查）不采纳为终态——137号 RLHF 基底约束下 Lead 行为层审查不可靠，且此为写入端结构缺口，应由机制而非人工审查兜底。

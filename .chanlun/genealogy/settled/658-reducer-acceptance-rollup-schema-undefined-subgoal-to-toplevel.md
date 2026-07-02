@@ -2,7 +2,9 @@
 id: "658"
 number: 658
 type: domain   # SCHEMA 缺口：子目标 CHECK_PASS → 顶层 acceptance 的 rollup 映射未定义（选择类）
-status: 生成态   # genealogist 结构记录。非实现笔误——goal_reducer.py 逻辑自洽于其自身契约(行81-83:顶层acceptance由sub_goal_id==gid的CHECK_PASS闭合)。真缺口=SCHEMA未定义rollup语义。选择类待编排者/escalate。（待#37 codex 裁定）
+status: 已结算   # genealogist 结构记录。非实现笔误——goal_reducer.py 逻辑自洽于其自身契约(行81-83:顶层acceptance由sub_goal_id==gid的CHECK_PASS闭合)。真缺口=SCHEMA未定义rollup语义。选择类待编排者/escalate。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-30"
 source: genealogist（Lead 在 goal g-alpha-causal-selector 推进中报「reducer acceptance.passed 键不一致」；核源码确认=SCHEMA rollup 缺口非实现笔误）
 depends_on: ["650"]
@@ -140,3 +142,10 @@ genealogist 判定分类(SCHEMA 缺口/选择类)+ 记录,不改代码、不裁�
 - **650(settled)**：未覆盖 rollup 维度,本号补充,不否定。维持 settled。
 - **630/036**：rollup 是其下游/变体,印证。
 - **无 settled 被破坏。** SCHEMA rollup 设计(A/B)=选择类待编排者 /escalate;裁决后修复=行动类(待 Lead 派工位);genealogist 不改代码不裁定。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算（维持设计 A）。子目标 PASS 不默认冒泡为顶层 PASS（工作分解 vs 验收标准是不同领域概念）；若未来需要 rollup，必须显式 schema 声明（rollup_from，非默认隐式冒泡）。

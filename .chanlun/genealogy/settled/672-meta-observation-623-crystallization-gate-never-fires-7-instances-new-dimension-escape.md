@@ -2,7 +2,9 @@
 id: "672"
 number: 672   # 候选编号（当前最大=671）。最终编号由 genealogist/编排者在 /ritual 统一分配；撞车让向下一空号。
 type: meta-rule
-status: 生成态   # meta-observer 三阶观察（对 623 计数器自身的元观察）。发现：623 结晶「背驰=无新维度的同构复现」触发条件横跨 7 个实例从未触发——每个观察者结构性地为新实例找到「新维度」以规避背驰。这本身是「某规则从未被触发」模式（meta-observer 上浮条件）。分类权属编排者 → /escalate → /ritual（139）。（待#37 codex 裁定）
+status: 已结算   # meta-observer 三阶观察（对 623 计数器自身的元观察）。发现：623 结晶「背驰=无新维度的同构复现」触发条件横跨 7 个实例从未触发——每个观察者结构性地为新实例找到「新维度」以规避背驰。这本身是「某规则从未被触发」模式（meta-observer 上浮条件）。分类权属编排者 → /escalate → /ritual（139）。
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-07-01"
 source: meta-observer（三阶观察，team-lead 委派「668/669 结构性模式是否需上浮 + goal 循环 RLHF 串行残余」触发；观测对象=623 计数器跨实例 3→7 的结晶不触发史，非任一单实例）
 
@@ -83,3 +85,11 @@ team-lead 委派的第二观测点。**可及证据范围内未发现串行残�
 - **可观察**（L0 实读 `.chanlun/.interrupt-point.md`）：本 goal（g-20260701T200047Z）4 条 acceptance → 4 个 ready_workstations 1:1 派生（630号 open acceptance→goal_ready_workstations，最新 commit 6fba4696e8），列为并行 spawn 列表，无 priority 全局排序字段消费，无串行序标记。结构上符合 lead-parallel-dispatch（218/275）。
 - **有效域边界（不可观察）**：meta-observer 无 Bash、无 session transcript 访问权，无法核验 Lead 逐轮实际 spawn 行为（commit 后是否有「先总结再行动」143号停顿、是否逐个轮询工位）。git log 的 commit 顺序是 git 固有序（git add→commit→push 允许串行），不构成串行派发证据。
 - **诚实结论**：**「未发现串行残余」的有效域=interrupt-point artifact 层，非 Lead 行为层。** 不声明「Lead 无串行残余」（那需 transcript 级验证，超出 meta-observer 工具有效域，624号硬墙）。行为层串行残余的观测须由具 transcript/Bash 访问权的位补足，或由 hook 层（ceremony-completion-guard）数据支撑。
+
+## 修订记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §2 — codex 终局裁定（编排者授权全权裁定，task #37）
+**终局裁定**：需修订。
+**修订文本**：「长期不触发时，应审查阈值/粒度是否错设；须定义 N、样本范围、同一触发器下连续实例判据。」
+**推导链**：『7次未触发→应结晶』逻辑上推不出；正确读法（本号原文读法B）="长期不触发"应触发的是"审查阈值/粒度设定是否合理"，而非直接结晶新规则。本号 §三 中的"读法A/读法B"二选一框架须收窄为：无论 A 或 B 成立，直接结论只能是**"触发一次阈值/粒度审查"**（本身是可执行的元层动作），而非跳过审查直接断言"背驰判定应改到母结构层"（读法B 的具体结晶方案）。审查须先明确三要素：(1) N=多少个同构复现实例才算"审查触发阈值"（当前隐式用了 7，未显式定义）；(2) 样本范围=计入哪些实例（623/668/669 等，是否包括本号自身第8个实例）；(3) 同一触发器下"连续实例"的判据（连续/累计/加权，未定义）。三要素未定义前，读法A/B 的裁定本身不具可执行性。

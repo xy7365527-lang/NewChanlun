@@ -2,7 +2,9 @@
 id: 674
 title: "账本 R=Π-A-W vs 缠论取本金三阶段 TW=free+holding+withdrawn 不同构——语义对齐三选一"
 type: 概念分离（选择类裁定 escalate）
-status: 生成态
+status: 已结算
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: 2026-06-26
 escalated_by: cc-gap90-totalwealth 工位（task #90）
 related:
@@ -13,6 +15,9 @@ related:
 provenance: "[新缠论:形式化] machine-checked 不同构（formal/Tlayers/Accounting/TotalWealth.lean，lake build 全绿，无 sorry/admit/axiom）+ codex gpt-5.5 异质审查确认 + 缠师第31课一级权威"
 epistemological_level: "不同构裁定 = L0（两模型代数/状态结构推导，有效域=定义域）；三选一方向 = 产品级价值判断（不可由 L0 定理决定）"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：CHOICES 674（原 576-ledger，实装#8 编排者已授权）。判决摘要：C 双层并置（LedgerState+TWState，单向有损投影，禁双向同构；Lean L0 已证两者不同构）。 **限定语（强制随行，脱落=声明膨胀090）：** 投影函数命名须标注损失（forgetStageToLedgerView 而非 toLedgerIso）
+
 
 # 576号：账本 R=Π-A-W vs 缠论取本金三阶段 TW 不同构——语义对齐三选一
 

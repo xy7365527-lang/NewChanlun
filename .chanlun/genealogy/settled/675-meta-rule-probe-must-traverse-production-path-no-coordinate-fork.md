@@ -2,7 +2,9 @@
 id: "675"
 number: 675
 type: meta-rule
-status: 生成态   # meta-observer 二阶观察。语法记录候选：探针/诊断坐标系必须走生产路径，禁止坐标系分叉。两次同构伪证（8dda restore 伪证 / 14166 active_depth 伪证）暴露同一元结构。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+status: 已结算   # meta-observer 二阶观察。语法记录候选：探针/诊断坐标系必须走生产路径，禁止坐标系分叉。两次同构伪证（8dda restore 伪证 / 14166 active_depth 伪证）暴露同一元结构。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-29"
 source: meta-observer（二阶观察，goal g-sigma-complete-l2-nautilus session 触发）
 
@@ -125,3 +127,10 @@ epistemological_levels:
 - **625（settled）**：本号是其伪证模式在「探针坐标系」维度的元层抽象，不否定，维持 settled。
 - **643（同轮，生成态）**：本号是其元结构提炼（643 是 675 两实例之一），不破坏，维持生成态。
 - **无 settled 被本号回溯破坏。** 本号是语法记录候选（探针走生产路径，禁坐标系分叉），上浮路径 /escalate（语法记录辨认）→ /ritual。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算。规则文本：探针必须走生产路径，禁诊断坐标系分叉；独立 oracle 需另证一致性。

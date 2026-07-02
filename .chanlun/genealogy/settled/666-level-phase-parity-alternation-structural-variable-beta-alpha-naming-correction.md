@@ -1,7 +1,9 @@
 ---
 id: "666"
 number: 666
-status: 生成态   # genealogist 结构记录：级别相位 (−1)^ℓ 作为结构状态变量（新概念，657 addendum_C 未捕获）+ beta/alpha 命名纠正（上一轮 parity 报告反了，本 PDF §7 纠正）+ 奇偶交替不可识别性三机制 A/B/C。基于 GPT 咨询《奇偶相位》(parity-phase-consult-20260701.txt 12页)。**不自结算**（级别相位是否「缠论正确形式」须 L2+ 反事实实证 = parity-analysis 正在做；命名纠正=事实更正）。
+status: 已结算   # genealogist 结构记录：级别相位 (−1)^ℓ 作为结构状态变量（新概念，657 addendum_C 未捕获）+ beta/alpha 命名纠正（上一轮 parity 报告反了，本 PDF §7 纠正）+ 奇偶交替不可识别性三机制 A/B/C。基于 GPT 咨询《奇偶相位》(parity-phase-consult-20260701.txt 12页)。**不自结算**（级别相位是否「缠论正确形式」须 L2+ 反事实实证 = parity-analysis 正在做；命名纠正=事实更正）。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 # ★证伪更新（2026-07-01，commit f212c9323c/b7cc9e9bdc，报告 review-results/oddeven-causation-counterfactual-20260701.md）：
 # 增量① 的**可交易 alpha 断言被 L2 反事实证伪**——随机置换方向标签检验（ChatGPT 方法1，200次固定种子，保入场/出场/持有期/成本+买卖总数，只 shuffle δ）：
 # perm_p=0.6915≫0.05，S_obs=1050.80 < S_perm均值=1154.83（打乱δ后结构量反增）⟹ 方向标签不携超随机漂移的结构信息
@@ -198,6 +200,9 @@ epistemological_levels:
     level: "L2（★2026-07-01 修正：perm 已否证独立可交易性 ⟹ 不建议建仓，除非先加 σhigher regime 门控 + OOS 重验；665 已示 level0 卖 §11 OOS 否证）"
     increment: "★负→条件正：原 oracle 策略被 perm 证伪（in-sample 12/12 ⊬ 可交易，方向标签不携超漂移信息）；仅在 σhigher 门控内 perm_p<0.05 复验通过时成立。"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A。判决摘要：命名纠正+级别相位(−1)^ℓ 结构状态变量部分确认。 **限定语（强制随行，脱落=声明膨胀090）：** alpha 部分驳回维持（perm_p=0.6915 否证机制A、坐实机制C beta 漂移，与记忆 project_oddeven_mu_identity 一致，此分裂不在裁决⑤范围）
+
 
 # 666 ★级别相位 (−1)^ℓ 作为结构状态变量 + beta/alpha 命名纠正
 

@@ -1,7 +1,9 @@
 ---
 id: "636"
 number: 636
-status: 生成态   # meta-observer 二阶观察：本轮 idle_notification 语义歧义 × Lead spawn 决策耦合产生竞态(SG-D-L2/SG-L2-backtest 发 idle 后继续坐实+commit → Lead 误判 idle=完成 → 误 spawn 冗余工位 SG-coordsys)。1 条语法记录候选(工位完成判据=commit+终报，非 idle 信号)+ 3 现象复现确认(现象1/2/4 已被现有谱系覆盖=背驰)。最终辨认待编排者 /ritual。依赖 353/621/624。（待#37 codex 裁定）
+status: 已结算   # meta-observer 二阶观察：本轮 idle_notification 语义歧义 × Lead spawn 决策耦合产生竞态(SG-D-L2/SG-L2-backtest 发 idle 后继续坐实+commit → Lead 误判 idle=完成 → 误 spawn 冗余工位 SG-coordsys)。1 条语法记录候选(工位完成判据=commit+终报，非 idle 信号)+ 3 现象复现确认(现象1/2/4 已被现有谱系覆盖=背驰)。最终辨认待编排者 /ritual。依赖 353/621/624。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-27"
 type: meta-rule
 source: meta-observer（二阶观察，本轮 M1 双引擎线 + D′ 架构改造 session 触发）
@@ -190,3 +192,10 @@ Lead 提交的本轮四现象中，**只有现象3(idle 时序竞态)是未被�
 - **623/627/625(生成态)**：本号引用 623/627 为姊妹 231 实例、625/627 为现象1 复现载体,不修改其内容。
 - **630(生成态)**：本号声明与其 goal events 判据接口,不修改其内容。
 - **无 settled 被本号回溯破坏。** 本号是二阶模式识别(meta-rule):现象3 净新结晶候选 + 现象1/2/4 复现确认,辨认待编排者 /ritual。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算。规则文本：工位完成判据=commit+终报，非 idle 信号（idle=available≠task_complete）。

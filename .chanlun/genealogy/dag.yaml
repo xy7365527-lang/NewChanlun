@@ -3309,24 +3309,24 @@ nodes:
     settled 自迁移后未入 id_mapping(meta.json 仅到565)→ceremony_scan 两检测器(genealogy_anomalies/scan_topology_mapping_gap)持续报
     missing_block_mapping+unmapped；(2)last_mapped_genealogy=530 与实际(565)脱节(全量重建丢该字段，无增量入口更新它)；(3)run_migration
     全量重跑会清空 content_enrichment(314blocks/1148concepts)元数据并因 settled 内容漂移产生重复区块=178号Q1『一次性升格』决断的下游缺口(升格路径未配增量入口)
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/626-block-topology-no-incremental-migration-path-only-destructive-rebuild.md
+  file: settled/626-block-topology-no-incremental-migration-path-only-destructive-rebuild.md
 - id: '634'
   title: ''
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/634-supervisor-persistent-vs-quadrant3-hardwall-conflict-event-vs-resident-station-taxonomy.md
+  file: settled/634-supervisor-persistent-vs-quadrant3-hardwall-conflict-event-vs-resident-station-taxonomy.md
 - id: '635'
-  title: ''
+  title: '守卫层自指膨胀（新维度，观察中）——635 前半已拆分独立结算为 635a'
   status: 生成态
   type: meta-rule
   file: pending/635-anti-inflation-guard-crystallize-checkpoint-and-guard-self-inflation-new-dimension.md
 - id: '636'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/636-meta-observation-idle-notification-semantics-vs-lead-spawn-race.md
+  file: settled/636-meta-observation-idle-notification-semantics-vs-lead-spawn-race.md
 - id: '637'
   title: 中枢核心区间 ZG/ZD 的三口径分离
   status: 已结算
@@ -3334,9 +3334,9 @@ nodes:
   file: settled/637-zhongshu-core-interval-caliber-separation-two-segment-vs-three-segment-vs-endpoints.md
 - id: '638'
   title: 买卖点候选→走势元素附着判准（本级右端点命中，非区间包含）
-  status: 生成态
+  status: 已结算
   type: 语法记录
-  file: pending/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
+  file: settled/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
 - id: '641'
   title: 增量塔 API 声明『塔构造超线性消除 ⟹ exp≈1』但 exp 仍 1.65——centers.clone() O(k)/iter 残留热点未声明，声明膨胀（090号）+
     memory signal-on2 模式复发
@@ -3387,14 +3387,14 @@ nodes:
   title: §9 同单位数公理（q_v=q_p ⟹ 多空腿精确抵消 → b2 净额为零）vs rust 实装 depth_weight 不等权 [0.6,0.3,0.1]（⟹
     不抵消 → b1 净额非零）= spec↔impl 定义冲突（codex task#19 发现）。接受 §9（同单位数）则 b2 精确抵消、覆盖净额恒零；接受
     rust 不等权则 b1 净额非零但违 §9 公理。是 645 分离出的 π_Θ^cov（覆盖侧）内部的权重定义冲突——与 645（覆盖 vs 择时对象分离）正交。哪边对=选择类，待编排者裁定
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/646-section9-equal-unit-count-axiom-vs-rust-depth-weight-unequal-definition-conflict.md
+  file: settled/646-section9-equal-unit-count-axiom-vs-rust-depth-weight-unequal-definition-conflict.md
 - id: '647'
   title: 否证设计前置同一性：验收/否证前须先锁定 O_impl=O_def（675 坐标系分叉 + 645 对象投影 共享元结构）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/647-meta-observation-object-identity-must-precede-falsification-design.md
+  file: settled/647-meta-observation-object-identity-must-precede-falsification-design.md
 - id: 647-WITHDRAWN
   title: ''
   status: 已撤回
@@ -3411,9 +3411,9 @@ nodes:
   file: settled/648-pibsp-676-fix-insufficient-fourth-root-extract-elements-tree-coverage.md
 - id: '649'
   title: 编排者裁决超越上呈选项集：机制=否定选项共享的隐藏前提（648 裁决 D 的元层抽象）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md
+  file: settled/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md
 - id: '650'
   title: goal 事件系统 reader/writer 契约分裂——GOAL_RESUME 可读不可写 + acceptance 闭合只认 CHECK_PASS
     不认 EVIDENCE
@@ -3452,9 +3452,9 @@ nodes:
   file: settled/651-652-downgrade-merge-spec-execution-gap-and-275.md
 - id: '655'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md
+  file: settled/655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md
 - id: '656'
   title: alpha2 Doc3 §13 定理2「细分类不劣于粗分类」V(Z)≥V(Y)——编排者「全互斥更有优势」的严格回答。优势=表达力优势(粗策略可被细策略模拟,sup_Z≥sup_Y)+统计识别优势(μ(z,a)可分类估计)，**不是**先验盈利保证。§19：全互斥=alpha命题形式化实验台(使「三类买卖点有用」从模糊句变严格命题
     ∃z,a:E[R|C_Θ=z]>0)。645 覆盖≠盈利(反面)的对偶正面：覆盖不保证盈利，全互斥分类提供识别盈利的表达力。V(Z)≥V(Y) 是 L0 结构定理，盈利仍需
@@ -3468,18 +3468,18 @@ nodes:
     标 M24「无 gap」是推导链内自洽，但 M24→盈利有 gap：L0 同义反复 + ε_e 用未来端点非 F_λe 可测=因果失败，蜂群 M24 漏标，=645
     T2/T3 在 M24 的实例）；③645 结算评估：alpha §15 χ_t 因果选择器=645 wrong-object 外部权威确认，结算条件满足但落盘走
     /ritual
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/657-alpha-pdf-part1-signifier-collision-downgrade-m24-causal-measurability-645-settle-eval.md
+  file: settled/657-alpha-pdf-part1-signifier-collision-downgrade-m24-causal-measurability-645-settle-eval.md
 - id: '658'
   title: goal_reducer.py acceptance rollup SCHEMA 缺口：子目标 CHECK_PASS 是否冒泡到顶层 acceptance
     未定义。代码自洽于自身契约(行81-83:顶层 acceptance 由 sub_goal_id==gid 的 CHECK_PASS 闭合,防任意子目标同名
     acceptance_id 误闭合=codex MAJOR-2)。但 SCHEMA 未定义子目标完成→顶层 acceptance 的 rollup 映射 ⟹
     所有子目标 CHECK_PASS 后顶层仍永 False ⟹ goal 永不 terminated(除非独立发 gid-scoped CHECK_PASS)。非实现笔误(选择类:两种
     rollup 设计互斥待裁),不阻塞 L2/L3 推进(sub_goal ready 正确)
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/658-reducer-acceptance-rollup-schema-undefined-subgoal-to-toplevel.md
+  file: settled/658-reducer-acceptance-rollup-schema-undefined-subgoal-to-toplevel.md
 - id: '659'
   title: ''
   status: 已结算
@@ -3492,9 +3492,9 @@ nodes:
   file: settled/660-chi-t-l3-inconclusive-pseudo-negative-power-vs-true-no-signal-645-downstream.md
 - id: '661'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md
+  file: settled/661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md
 - id: '662'
   title: ''
   status: 已结算
@@ -3504,9 +3504,9 @@ nodes:
   title: ★判据错误：『统计显著性 p<0.05』误当『可交易性』——真判据是 μ(z,a)>0（正条件期望）。编排者一句『高级别几个月一次也没关系』戳破前几轮（660
     功效不足硬墙/三路对比/LCB 线）核心框架。功效不足不是问题属性，是错判据（要求高频统计显著）的产物。高级别信号几个月一次完全正常——10年30-50次，每次缠论结构保证方向性+大幅度，累积正期望可观。检验框架（16K短窗+跨品种符号检验显著）系统性惩罚低频高级别，框架本身偏向低级别。Le
     Cam 有效域须收窄——仅对『短窗单品种区分±Δ』成立，不否定『长窗累积高级别正期望』。
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/663-criterion-error-statistical-significance-mistaken-for-tradeability-mu-positive-vs-sign-test.md
+  file: settled/663-criterion-error-statistical-significance-mistaken-for-tradeability-mu-positive-vs-sign-test.md
 - id: '664'
   title: ★对象错配：经济正条件判据 Ab=εb(Pρb−Pλb) 隐含『顺笔交易』假设（εb=笔方向⟹Ab≥0 同义反复），但缠论买卖点是『反转交易』——底背驰买点
     δ=+1 出现在下跌段末端 Pρ<Pλ⟹Ab<0。codex 异质审计坐实 ΣAb=−1.8e4（BTC L2）是对象错配概念发现非实装 bug：econ_positive.rs
@@ -3540,14 +3540,14 @@ nodes:
   file: settled/667-level-phase-alpha-vs-fullsample-beta-projection-sigma-higher-modulator-666-peer.md
 - id: '668'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/668-meta-observation-lead-rule-scope-misprojection-suppress-business-spawn-onto-structural-bootstrap-623-instance6.md
+  file: settled/668-meta-observation-lead-rule-scope-misprojection-suppress-business-spawn-onto-structural-bootstrap-623-instance6.md
 - id: '669'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md
+  file: settled/669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md
 - id: '671'
   title: P2-R2 消 MACD C≥A 预删选择偏差——struct_break_dir 独立方向源 bit-exact 恢复；力度判据本身未接通生产（defer
   status: 已结算
@@ -3556,14 +3556,14 @@ nodes:
 - id: claim10-xianduan-termination
   title: xianduan.md:169-170(编纂层 settled) 对第67课两种情况终结语义与博文原文镜像反转——第一种情况(无缺口)原文=分型形成即直接终结
     / 第二种情况(有缺口)原文=须第二特征序列分型才终结；编纂层写反。settled 改动权属编排者/genealogist(选择类待裁)。
-  status: 生成态
+  status: 已结算
   type: 语法记录
-  file: pending/2026-06-25-claim10-xianduan-edition-vs-blog-termination-semantics.md
+  file: settled/2026-06-25-claim10-xianduan-edition-vs-blog-termination-semantics.md
 - id: '672'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/672-meta-observation-623-crystallization-gate-never-fires-7-instances-new-dimension-escape.md
+  file: settled/672-meta-observation-623-crystallization-gate-never-fires-7-instances-new-dimension-escape.md
 - id: '673'
   title: ''
   status: 已结算
@@ -3581,9 +3581,9 @@ nodes:
   file: settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md
 - id: '675'
   title: 探针必须走生产路径，禁止诊断坐标系分叉（两次同构伪证的元结构）
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/675-meta-rule-probe-must-traverse-production-path-no-coordinate-fork.md
+  file: settled/675-meta-rule-probe-must-traverse-production-path-no-coordinate-fork.md
 - id: '676'
   title: 'π^bsp 子声部恒=0 是实装逻辑根因（出场优先 P3 + 跨carrier错配），非 fixture——commit 自陈『致命缺陷』诚实但『多声部对冲层未真测』⟹
     命题A『可分离』在实测上是 L0 代数可分非 L2 实测可分；acceptance[1] bit_exact 断言 incr==leg（L1 同引擎自洽）非
@@ -3597,6 +3597,17 @@ nodes:
   status: 已结算
   type: bias-correction
   file: pending/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md
+- id: '678'
+  title: 同一能指『中枢』在 judge_third 归属链 vs last_zs 跨度选择链下指向不同对象——两条中枢选择链在真实 BTC 1m 几何下结构性不重合（same_center_any=0/84），对象身份分裂第三例
+  status: 生成态
+  type: concept-separation
+  file: pending/678-center-signifier-identity-split-judge-third-vs-last-zs-two-selection-chains-nonoverlap.md
+- id: 635a
+  title: escalate（矛盾上浮）或『定义冲突』判定前必须先经一次 L2 机器证据坐实——本轮反膨胀守卫三次生效（621/623/627）共享同一拦截语法(L0
+    推测被当已成立结论)，结晶为可执行检查点纪律
+  status: 已结算
+  type: meta-rule
+  file: settled/635a-escalate-l0-inference-requires-l2-machine-evidence-checkpoint.md
 edges:
   depends_on:
   - from: '673'
@@ -6941,6 +6952,18 @@ edges:
     to: 090
   - from: '647'
     to: '675'
+  - from: '678'
+    to: '673'
+  - from: '678'
+    to: '647'
+  - from: '678'
+    to: '675'
+  - from: 635a
+    to: '231'
+  - from: 635a
+    to: 090
+  - from: 635a
+    to: '137'
   triggered:
   - from: '005'
     to: 005a
@@ -10395,6 +10418,42 @@ edges:
   - between:
     - 090
     - '677'
+  - between:
+    - '637'
+    - '678'
+  - between:
+    - '673'
+    - '678'
+  - between:
+    - '675'
+    - '678'
+  - between:
+    - '647'
+    - '678'
+  - between:
+    - '231'
+    - '678'
+  - between:
+    - '678'
+    - level-hole-series
+  - between:
+    - '621'
+    - 635a
+  - between:
+    - '623'
+    - 635a
+  - between:
+    - '627'
+    - 635a
+  - between:
+    - '625'
+    - 635a
+  - between:
+    - '600'
+    - 635a
+  - between:
+    - '635'
+    - 635a
   tensions_with:
   - between:
     - '007'

@@ -2,7 +2,9 @@
 id: "662"
 number: 662
 type: bias-correction   # 660 内部一条命题的自我否证：DIM-1(过拟合)⊥DIM-2(功效)「正交」被证伪为「同一 rejection mass 机制两投影」
-status: 生成态   # genealogist 结构记录。codex 异质审(4fef076dab)+L2修复(73df0499d7)否证 660 正交命题。660 主结论(inconclusive 伪否证+根因分离)仍立，只更正「两维度正交」这一条。概念层更正不自结算(编排者 /ritual 辨认域)。
+status: 已结算   # genealogist 结构记录。codex 异质审(4fef076dab)+L2修复(73df0499d7)否证 660 正交命题。660 主结论(inconclusive 伪否证+根因分离)仍立，只更正「两维度正交」这一条。概念层更正不自结算(编排者 /ritual 辨认域)。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-30"
 source: genealogist（Lead 报本轮 L2 修复产出否证 660 正交命题的概念发现）
 depends_on: ["660"]
@@ -126,6 +128,9 @@ epistemological_levels:
     level: "L0/L2(660 原证据链不受本号影响)"
     increment: "零(保留，本号不动主结论)；高(明确 split 边界:主结论 ⊥ 正交子命题)"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-B（裁决⑤升格）。判决摘要：660 正交命题否证成立（伪正交=同拒绝质量两投影）。 **限定语（强制随行，脱落=声明膨胀090）：** 限代码层操作定义
+
 
 # 662 660 正交命题否证：伪正交 → 同一 rejection mass 机制两投影
 

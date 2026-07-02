@@ -2,7 +2,9 @@
 id: "660"
 number: 660
 type: bias-correction   # 误判降级：把 χ_t 的 L3「无 alpha 否证」降级为 inconclusive（伪否证识别）+ inconclusive 根因分离（功效/短窗 vs 真无信号）
-status: 生成态   # genealogist 结构记录。delta-r-alpha L3 否证经三轮异质审(codex)+P0口径修复后 CHECK_FAIL(events 209)降级 inconclusive。645 改对对象(π^bsp)后实测仍非 falsification 非 confirmation。新 goal f65436f2(LCB) 诞生依据。最终结算待编排者(escalate-delta-r-alpha-premature-checkpass.md A/B/C 待裁)。
+status: 已结算   # genealogist 结构记录。delta-r-alpha L3 否证经三轮异质审(codex)+P0口径修复后 CHECK_FAIL(events 209)降级 inconclusive。645 改对对象(π^bsp)后实测仍非 falsification 非 confirmation。新 goal f65436f2(LCB) 诞生依据。最终结算待编排者(escalate-delta-r-alpha-premature-checkpass.md A/B/C 待裁)。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-06-30"
 source: genealogist（events.jsonl 198-209 delta-r-alpha L3 链 + codex-diagnose-20260630-deltar-l3.md 异质裁定 (B) + escalate-delta-r-alpha-premature-checkpass.md）
 depends_on: ["231", "645"]
@@ -149,6 +151,9 @@ epistemological_levels:
     level: "L0(过拟合=低n类乐观偏差 vs 功效=样本量，不同机制)"
     increment: "高：防『LCB 解决了 inconclusive』声明膨胀(新 goal 约束)"
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-B（裁决⑤升格）。判决摘要：χ_t L3 inconclusive 成立（645 下游）。 **限定语（强制随行，脱落=声明膨胀090）：** 见 660 档案（裁决⑤ codex-ritual-resubmit-20260702.md）
+
 
 # 660 χ_t L3「无 alpha」否证 → inconclusive：伪否证识别 + 根因分离（645 下游续章）
 

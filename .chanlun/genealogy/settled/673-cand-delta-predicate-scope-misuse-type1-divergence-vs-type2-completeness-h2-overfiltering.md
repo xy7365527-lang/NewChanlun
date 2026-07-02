@@ -2,7 +2,9 @@
 id: "673"
 number: 673   # 671 后续号（672 已被占用=dag.yaml 存根节点 title:'' + edge 672→623；按 668「撞车让向下一空号」用 673）。最终编号待 /ritual 由编排者在统一编号空间裁定。
 type: bias-correction   # 结构分类被力度/极值谓词污染致过度过滤——615/671 同族。核心发现有缠论域根基（Type1/Type2 判据互斥），但签名=过滤偏差矫正对象，故 bias-correction。
-status: 生成态   # 矛盾报告=区间套候选谓词 Cand^δ_ℓ 范围误用。修复方案（Cand^δ_ℓ 按 bsp 类型分叉）=选择类，待编排者 /ritual（Lead 2026-07-02 指名）。genealogist 不自裁修复分叉方案。
+status: 已结算   # 矛盾报告=区间套候选谓词 Cand^δ_ℓ 范围误用。修复方案（Cand^δ_ℓ 按 bsp 类型分叉）=选择类，待编排者 /ritual（Lead 2026-07-02 指名）。genealogist 不自裁修复分叉方案。
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 date: "2026-07-02"
 source: codex #7 异质裁决（H2-overfiltering-bug；裁决文件 .chanlun/review-results/codex-h1-ndelta-gate-20260702.md；对应 task #7「codex 异质确认 H1：N^δ 门滤中间级信号是定义正确的严格性还是过滤过严 bug」→ 裁定=过滤过严 bug）+ H2 样本级实证（.chanlun/review-results/h2-sample-verification-20260702.md，task #8 完成，见 §addendum）
 negation_source: heterogeneous
@@ -76,3 +78,5 @@ addendum_h2_mechanism_correction:
     note: "实测 leg_gap 全为 1（257/257，s_prev 是 m2 在父 sub_moves 内紧邻同向前驱），codex 假设的 leg_gap=2（跨反向腿命中 m1）不出现。字面 s_prev==m1 身份未逐信号重建（用 codex 授权的等价物『Extreme 真假』，见 h2 报告 §诚实边界1）——若后续 bit-exact 重建 i1 发现字面≠m1 但 Extreme 仍必假，结论不变（建立在 Extreme 可测判据上，不依赖字面 m1 身份）。"
   # 有效域声明（诚实边界，231/formalization-validity-domain）
   validity_domain: "L1 全窗（1473 信号）实证；gate_pass=0 是全窗性质（h2 报告 §诚实边界3：任意 50-bar 子窗测得 level1 gate_pass=2/50，中间级归零是全窗非任意子窗恒成立）。可交易 alpha=L2 未做。"
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A（673-finding 定理）+ CHOICES 673-fix（实装#12 编排者已授权）。判决摘要：Type1/Type2 判据结构互斥机制成立（1473 真实信号分解支撑）+ 接口级三分拆（type1/type2/type3 三独立函数+dispatcher）。

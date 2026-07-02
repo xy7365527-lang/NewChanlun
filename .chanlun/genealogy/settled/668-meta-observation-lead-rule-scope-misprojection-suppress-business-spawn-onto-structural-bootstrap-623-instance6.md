@@ -2,7 +2,9 @@
 id: "668"
 number: 668   # 候选编号（当前最大=667）。最终编号由 genealogist/编排者在 /ritual 统一分配；若撞车让向下一空号。
 type: meta-rule
-status: 生成态   # meta-observer 二阶观察。623计数器实例6（带新维度）+ 语法记录候选（Lead 侧「562合法阻断 vs 097越界」辨认判据未显式化）+ 兄弟观测（571下游：Lead 责任方身份⊥无结算权，§十）。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+status: 已结算   # meta-observer 二阶观察。623计数器实例6（带新维度）+ 语法记录候选（Lead 侧「562合法阻断 vs 097越界」辨认判据未显式化）+ 兄弟观测（571下游：Lead 责任方身份⊥无结算权，§十）。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-07-01"
 source: meta-observer（二阶观察，goal g-20260630T2010Z-fullhist-multilevel session 4de3f3cb 触发；观测点=本回合 Lead 对 Stop-Guard「spawn 结构工位」路由的一拒一纠）
 
@@ -200,3 +202,10 @@ if [ -n "$LEAD_TEAM" ]; then
 - **辨认**（Lead 责任方身份⊥无结算权）= 语法记录候选（已在运作的 hook 权责错配，未显式化）。
 - **修复方向**（仅辨认，不裁决）：可能方向=(a) reason 字符串应把 Lead 的合法动作明确为"编排者 /ritual 排期"而非"结算"（Lead 责任=推动排期，非自结算）；(b) check3 对 Lead 增加"编排者-blocked 生成态"为合法非停机态（569 §结算注记已提同方向）。实装形式=选择，元层 /ritual。
 - **升格判断**：本观测印证 meta-observer（571）与 genealogist 的既有观测方向（"pending 阻断对象应是编排者 /ritual 排期而非 Lead/蜂群结算"）。**是否升格为独立语法记录候选（脱离 668 主线单立）由编排者辨认**——meta-observer 判其为 571 决断点A 的下游张力（属 571 簇），并入本号足以标点；若编排者认为其独立价值足够（Lead 权责错配是普适问题，非本回合个案），可单立。**meta-observer 不自裁升格**（避免碎片 vs 独立的边界=分类权，139号，待编排者行使）。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算。规则文本：拒绝路由前须先自检『拒绝理由的适用域是否覆盖被拒对象』。

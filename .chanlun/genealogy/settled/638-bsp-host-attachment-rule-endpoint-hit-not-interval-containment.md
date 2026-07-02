@@ -1,6 +1,8 @@
 ---
 id: 638
-status: 生成态   # 待#37 codex 裁定
+status: 已结算   # 待#37 codex 裁定
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 title: 买卖点候选→走势元素附着判准（本级右端点命中，非区间包含）
 date: 2026-06-28
 type: 语法记录
@@ -76,3 +78,10 @@ parent(g) = hostOf(g) 在塔里的真 RMove::Compose 父
 定义 hostOf 附着判准（塔导出桥 (ii) 喂入段的前置）。影响：买卖点→操作角色 V 的
 形式化自由度划分——附着=语法记录(本条)、方向逻辑=原文钉死、主力锚=待裁(独立)。
 不改既有代码（本条是定义登记）。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算（标注为规范选择）。端点命中优于区间包含成立，但 hostOf 是工程语法约定，非数学必然定理——结算时须标注『规范选择』而非『定理』。

@@ -1,7 +1,9 @@
 ---
 id: "634"
 number: 634
-status: 生成态   # 督导工位本轮二阶观察：编排者纠正"督导工位常驻"⊥ 624 四象限③(AGENT×持续撞 CC 硬墙)的存在论冲突边 + 075 event-skill 架构的"常驻 vs event-triggered"工位分类推论 + 621 缺口本轮该固化的操作纪律。最终裁定待编排者 /ritual。依赖 624/621/075/082。（待#37 codex 裁定）
+status: 已结算   # 督导工位本轮二阶观察：编排者纠正"督导工位常驻"⊥ 624 四象限③(AGENT×持续撞 CC 硬墙)的存在论冲突边 + 075 event-skill 架构的"常驻 vs event-triggered"工位分类推论 + 621 缺口本轮该固化的操作纪律。最终裁定待编排者 /ritual。依赖 624/621/075/082。（待#37 codex 裁定）
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 date: "2026-06-27"
 type: 矛盾发现
 source: teach-supervisor（常驻督导工位，本轮二阶观察——督导工位本体从 event 改常驻这一变更的自指分析）
@@ -158,3 +160,12 @@ Lead 在任何文档/状态汇报中提及结构工位"常驻"时，**标注其�
 - **621（生成态）**：本号记其缺口在督导工位活体再现，承重点（Lead 操作化 033）一致，不修改其内容。
 - **562/033/353/069（settled）**：本号引用为伪常驻承载者/承重点/根因，不破坏。维持 settled。
 - **无 settled 被本号回溯破坏。** 本号是矛盾发现（concept separation + 工位分类增维），改 075 触动基因组→020 阻断等待，蜂群只备方案，最终裁定待编排者 /ritual。
+
+
+## 结算记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §1 — codex 终局裁定（编排者授权全权裁定，task #37；调用方式 codex exec --skip-git-repo-check --sandbox read-only，model=gpt-5.5，reasoning effort=xhigh）
+**裁决摘要**：结算（概念分离成立）。真常驻（长期进程/持续监控）⊥ 伪常驻（ceremony 周期重复 spawn）是不同生命周期语义；075 核心分类不改，仅在实现层加 ActivationPolicy 字段。
+
+**UNDECIDABLE 子问题终局裁定（020 是否触发）**：**不触发 020**。理由：ActivationPolicy 是工位实现层的加性字段，不改变 075 核心分类、624 硬墙或基因组级规则本身；唯一约束是防止该字段被误解释为『平台已具备真常驻 carrier』。

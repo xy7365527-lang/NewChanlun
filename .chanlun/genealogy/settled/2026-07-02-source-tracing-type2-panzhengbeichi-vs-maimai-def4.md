@@ -1,6 +1,8 @@
 ---
 type: source-tracing
-status: pending   # 待#37 codex 裁定
+status: 已结算   # codex #37 终局裁定：需修订后结算
+settled_date: "2026-07-02"
+settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 subject: maimai.md「#4 盘整背驰与买卖点」结算结论过度泛化，与一级权威第27课L18冲突
 authority_conflict: 一级权威(blog 第27课L18) vs 当前定义(definitions/maimai.md #4)
 interrupt_class: 非中断（可边界修正消除，非中断#1）
@@ -58,3 +60,12 @@ maimai.md #4 结论限定域从"三类"收窄为"第一类"，并新增一条：
 - [[maimai]] 定义文件未结算问题#4
 - [[beichi]] 背驰/盘整背驰定义（第27课L21 背驰段含盘整背驰）
 - Cand^δ A/B 裁决前置考古：`.chanlun/review-results/source-audit-type2-divergence-20260702.md`
+
+## 修订记录（codex #37 终局裁定）
+
+**结算日期**：2026-07-02
+**结算依据**：`.chanlun/review-results/codex-cgroup-ruling-20260702.md` §2 — codex 终局裁定（编排者授权全权裁定，task #37）
+**终局裁定**：需修订。
+**修订文本**：麦麦定义#4 收窄为「盘整背驰不产生第一类买卖点」。补充 L2 确认层条款：「Type2/Type3 的结构位置由各自定义决定；盘整背驰只可作为确认层证据，不替代定义层条件；`trend` 背驰门仅应用于 Type1。」
+**推导链**：第27课"多数第二、三类买点由盘整背驰构成"（一级权威博文）直接反驳原"三类全排除"表述；最小修正=分层收窄，保留 #4 有效内核（Type1 排除）。
+**影响文件**：`.chanlun/definitions/maimai.md`（定义收窄+补条款，本次已同步修改）；`rust/src/theta_v0/backtest`（cand_delta 谓词按 bsp 类型分叉，与 673-fix 同批，代码改动不在本工位范围，属另行 Lead 派工位）。

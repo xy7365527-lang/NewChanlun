@@ -2,7 +2,9 @@
 id: "671"
 number: 671
 title: P2-R2 消 MACD C≥A 预删选择偏差——struct_break_dir 独立方向源 bit-exact 恢复；力度判据本身未接通生产（defer #42）
-status: 生成态
+status: 已结算
+settled_date: "2026-07-02"
+settled_by: "genealogist via /ritual（编排者明令『并行全部推进』授权；裁决来源 codex 裁决①-⑤ + staging 归档）"
 type: bias-correction
 date: 2026-07-01
 depends_on: [615, 663]
@@ -14,6 +16,9 @@ links:
 epistemic_level: L1（方向恢复=合成管线验证）; L2 未做（可交易 alpha=W-VERIFY #23）
 heterosource: codex-p2-impl-audit-20260701.md（conditional-pass，五维全不阻塞）
 ---
+
+> **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A。判决摘要：struct_break_dir 仅消歧不进核心分类，五项安全检查闭合，成立。
+
 
 # 671 号：P2-R2 选择偏差消除（结构方向恢复层）与力度判据 defer 的分层裁定
 
