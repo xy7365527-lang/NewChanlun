@@ -494,6 +494,14 @@ pub(super) fn build_nest_certificate(
         idx: s.id.ordinal,
     };
 
+    // 673 号段1：Cand^δ_ℓ 按 bsp 类型分流。Type1（本级趋势背驰段=区间套原文对象，606 号有效域）
+    // 走 div_cand；Type2/Type3 存在性由结构分类前提保证（Type2=一买后回抽不破 第17课L60 完备性，
+    // Type3=离开中枢回抽不破 ZG/ZD），免本级背驰段门（消费点见循环内 cand_k）。
+    let is_type1 = match delta {
+        Side::Long => bits.buy1,
+        Side::Short => bits.sell1,
+    };
+
     // rungs：从高级向执行级降序（rungs[0]=最高级，rungs[last]=lvl+1 级）。
     // 对每个上级 k = lvl+1 到 tower.len()-1：
     //   - 找 tower[k] 中包含 source_index 的段（start_index ≤ source_index ≤ end_index）作为区间
@@ -519,25 +527,32 @@ pub(super) fn build_nest_certificate(
             end_time: knode.end_index as u64,
             idx: knode.id.ordinal,
         };
-        // Cand^δ_k：在 k 级的 sub_moves 序列（下一级次级别走势）中，找 source_index 对应段，
-        // 计算 DivCand 四条件。k 级 knode 的 sub_moves 是 lvl 到 k-1 级的窗口序列；
-        // 在 sub_moves 中找 end_index == source_index 的段（即执行级候选段）。
-        let ctx: Vec<ContextMove> = knode.sub_moves.iter().map(|m| {
-            ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index)
-        }).collect();
-        let target_idx = knode.sub_moves.iter().position(|m| m.end_index == source_index);
-        let cand_k = match target_idx {
-            Some(tidx) => {
-                super::super::classifier::cand_predicate::div_cand(
-                    &super::super::classifier::cand_predicate::DivCandInput {
-                        context: &ctx,
-                        target_idx: tidx,
-                        hist,
-                        delta,
-                    }
-                )
+        // Cand^δ_k：候选谓词按 bsp 类型分流（673 号）——此分流点即锚定接口，同时容纳两类锚：
+        //   Type1 → 本级锚：本级趋势背驰段判据 div_cand（区间套原文对象，606 号有效域；bit-exact 不动）。
+        //   Type2/Type3 → 次级别锚：定律一下沉（下次级别找第一类 Type1 区间套），由段2（task #13）实装。
+        // 段1 只装存在性（免本级背驰段门），非「Type2/3 永远无 nest」——rung 结构照建，段2 替换分支体。
+        let cand_k = if !is_type1 {
+            // ponytail: 段1 存在性占位（cand=true）；段2（#13）在此接入次级别 Type1 区间套真锚点。
+            true
+        } else {
+            // k 级 knode 的 sub_moves 是 lvl 到 k-1 级的窗口序列；找 end_index == source_index 的段
+            // （即执行级候选段），计算 DivCand 四条件。
+            let ctx: Vec<ContextMove> = knode.sub_moves.iter().map(|m| {
+                ContextMove::from_rmove(&m.rmove, m.start_index, m.end_index)
+            }).collect();
+            match knode.sub_moves.iter().position(|m| m.end_index == source_index) {
+                Some(tidx) => {
+                    super::super::classifier::cand_predicate::div_cand(
+                        &super::super::classifier::cand_predicate::DivCandInput {
+                            context: &ctx,
+                            target_idx: tidx,
+                            hist,
+                            delta,
+                        }
+                    )
+                }
+                None => false, // 执行级候选段不在 k 级次级别序列中 ⟹ 无 Cand
             }
-            None => false, // 执行级候选段不在 k 级次级别序列中 ⟹ 无 Cand
         };
         rung_buf.push(NestRung { interval: interval_k, cand: cand_k });
     }
@@ -834,6 +849,61 @@ mod tests {
         bits.buy1 = true;
         let result = build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &bits, &hist);
         assert!(!result, "Cand=false（hist=0）⟹ n_delta()=false（Cand 传播路径）");
+    }
+
+    /// **673 号段1：Type2 存在性免本级背驰段门**。
+    ///
+    /// 与 `multilevel_nest_cert_cand_false_propagates_zero` 同塔（hist=0 ⟹ div_cand 条件4 false），
+    /// 对照两类信号：Type1（buy1）div_cand 守门 ⟹ false（bit-exact 不动）；Type2（buy2）存在性由
+    /// 结构分类前提保证（第17课L60 完备性），不经本级背驰段谓词 ⟹ 免门 ⟹ n_delta()=true。
+    #[test]
+    fn multilevel_nest_cert_type2_bypasses_divergence_gate() {
+        use std::rc::Rc;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::types::{BspBits, Center, Direction, Side};
+
+        let seg = |dir: Direction, lo: i64, hi: i64, s: usize, e: usize, ord: u64| -> LeveledMove {
+            LeveledMove {
+                rmove: RMove::Segment { direction: dir, lo, hi },
+                start_index: s, end_index: e,
+                sub_moves: Rc::new(vec![]),
+                id: ElementId { level: 0, ordinal: ord },
+            }
+        };
+        let s0 = seg(Direction::Up,   50, 100,  0,  4, 0);
+        let s1 = seg(Direction::Down, 40,  90,  5,  9, 1);
+        let s2 = seg(Direction::Up,   45,  95, 10, 14, 2);
+        let s3 = seg(Direction::Down, 30,  85, 15, 19, 3);
+        let sub_rmoves: Vec<RMove> = vec![s0.rmove.clone(), s1.rmove.clone(), s2.rmove.clone(), s3.rmove.clone()];
+        let lo = 30i64; let hi = 100i64;
+        let parent = LeveledMove {
+            rmove: RMove::Compose {
+                subs: sub_rmoves,
+                centers: vec![Center { zd: lo, zg: hi, dd: lo, gg: hi, start_index: 0, end_index: 19 }],
+                level: 1,
+            },
+            start_index: 0, end_index: 19,
+            sub_moves: Rc::new(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()]),
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
+            Rc::new(vec![s0, s1, s2, s3]),
+            Rc::new(vec![parent]),
+        ];
+        let hist = vec![0.0f64; 20]; // div_cand 条件4 area=0<0=false（Type1 会被守门）
+
+        // Type1（buy1）：div_cand 守门不变 ⟹ false。
+        let mut t1 = BspBits::default();
+        t1.buy1 = true;
+        assert!(!build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t1, &hist),
+            "Type1 div_cand 条件4 false ⟹ n_delta()=false（本级背驰段门守 Type1 bit-exact）");
+
+        // Type2（buy2）：存在性免本级背驰段门 ⟹ true。
+        let mut t2 = BspBits::default();
+        t2.buy2 = true;
+        assert!(build_multilevel_nest_cert(&tower, 0, 19, Side::Long, &t2, &hist),
+            "Type2 存在性免本级背驰段门（673 段1）⟹ n_delta()=true");
     }
 
     /// **方向 dir=−δ 反测试**：信号 δ=Long 但 source_index 指向 Up 段（dir 不反）⟹ false。
