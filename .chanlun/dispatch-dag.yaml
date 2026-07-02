@@ -166,8 +166,19 @@ genealogical_coordinates:
 event_skill_map:
   # 每个 skill 由事件触发，不再作为 teammate spawn
   # agent 文件保留为 skill 的指令源（读取后按指令执行）
+  #
+  # activation_policy（634号：真常驻⊥平台硬墙 vs 伪常驻=ceremony周期重复spawn）
+  #   codex 裁决（codex-ritual-choices-20260702.md §634）：概念分离成立，实现层加激活策略字段，
+  #   075号核心分类不改。三值枚举——工位「何时被激活」的调度语义（与 triggers 正交）：
+  #     EventTriggered    — 由具体事件触发（task_complete / file_write / command / genealogy_settlement …）
+  #     CeremonyScheduled — 每 ceremony 周期重复 spawn（伪常驻；调度不变量≠进程存活不变量，
+  #                         无 carrier 时 624号硬墙成立，不是 TrueResident）
+  #     Manual            — 仅手动认领（manual_invocation）
+  #   注：本字段是描述性分类字段，ceremony_scan.py 不消费（.get() 忽略未知键）；
+  #      「是否触发020号阻断」为 UNDECIDABLE（治理权限），不在本字段实装范围内。
   - id: genealogist
     skill_type: structural
+    activation_policy: EventTriggered
     agent: ".claude/agents/genealogist.md"
     purpose: "谱系写入、张力检查、回溯扫描、结晶检测与执行"
     triggers:
@@ -182,6 +193,7 @@ event_skill_map:
 
   - id: quality-guard
     skill_type: structural
+    activation_policy: EventTriggered
     agent: ".claude/agents/quality-guard.md"
     heterogeneous_agent: ".claude/agents/gemini-challenger.md"  # 362号-5：异质审查默认，同质降级为 fallback
     purpose: "结果包检查、代码违规扫描（默认由 gemini-challenger 异质审查）"
@@ -200,6 +212,7 @@ event_skill_map:
 
   - id: meta-observer
     skill_type: structural
+    activation_policy: EventTriggered
     agent: ".claude/agents/meta-observer.md"
     purpose: "二阶反馈回路、元编排进化、dispatch-dag 修改提案"
     triggers:
@@ -211,6 +224,7 @@ event_skill_map:
 
   - id: code-verifier
     skill_type: structural
+    activation_policy: EventTriggered
     agent: ".claude/agents/code-verifier.md"
     heterogeneous_agent: ".claude/agents/codex-challenger.md"  # 362号-5：异质审查默认，同质降级为 fallback
     purpose: "代码验证——pytest运行、import检查、构建验证（默认由 codex-challenger 异质审查）"
@@ -226,6 +240,9 @@ event_skill_map:
 
   - id: teach-supervisor
     skill_type: structural
+    # 634号 codex 裁决：编排者要求「常驻」，但无 carrier→624号硬墙成立。
+    # 实现为伪常驻（Lead 每 ceremony 周期重复 spawn），不是 TrueResident。
+    activation_policy: CeremonyScheduled
     agent: ".claude/agents/teach-supervisor.md"
     purpose: "双角色——(教师) 蜂群结算概念→出一课给编排者学；(督导) 课的锋利问题反向施加于蜂群产出，闸住声明膨胀（supervision-loop 台账）"
     triggers:
@@ -248,6 +265,7 @@ event_skill_map:
 
   - id: skill-crystallizer
     skill_type: terminal_sink
+    activation_policy: EventTriggered
     agent: ".claude/agents/skill-crystallizer.md"
     purpose: "pattern-buffer 达标模式结晶为 skill（043号谱系）"
     triggers:
@@ -259,6 +277,7 @@ event_skill_map:
 
   - id: gemini-challenger
     skill_type: conditional
+    activation_policy: EventTriggered
     agent: ".claude/agents/gemini-challenger.md"
     purpose: "异质否定源 + 编排者代理 + 概念层谱系异质否定（030a/041/175号谱系）"
     triggers:
@@ -279,6 +298,7 @@ event_skill_map:
 
   - id: claude-challenger
     skill_type: conditional
+    activation_policy: Manual  # 087号：唯一触发=manual_invocation（虚假事件声明已删）
     agent: ".claude/agents/claude-challenger.md"
     purpose: "反向质询——对 Gemini 和 Codex 产出进行再质询，指出不可消化点"
     # 087号谱系修复（B选项）：删除虚假事件声明（re_challenge/stale_generative 从未有 hook 产生）
@@ -289,6 +309,7 @@ event_skill_map:
 
   - id: codex-challenger
     skill_type: conditional
+    activation_policy: EventTriggered
     agent: ".claude/agents/codex-challenger.md"
     purpose: "代码层异质否定源（OpenAI Codex）——155号谱系"
     triggers:
@@ -306,6 +327,7 @@ event_skill_map:
 
   - id: topology-analyst
     skill_type: conditional
+    activation_policy: EventTriggered
     agent: ".claude/agents/topology-analyst.md"
     purpose: "拓扑分析家——冷读区块拓扑，标点重复/积累/奇点模式（179号：第四位置）"
     triggers:
@@ -318,6 +340,7 @@ event_skill_map:
 
   - id: source-auditor
     skill_type: conditional
+    activation_policy: EventTriggered
     agent: ".claude/agents/source-auditor.md"
     purpose: "溯源标签验证、引用准确性检查"
     triggers:
@@ -328,6 +351,7 @@ event_skill_map:
 
   - id: topology-manager
     skill_type: conditional
+    activation_policy: EventTriggered
     agent: ".claude/agents/topology-manager.md"
     purpose: "谱系拓扑分析、hub 节点监控、蜂群收缩信号"
     triggers:
@@ -337,6 +361,7 @@ event_skill_map:
 
   - id: topology-mutator
     skill_type: structural
+    activation_policy: EventTriggered
     agent: ".claude/agents/topology-manager.md"
     purpose: "检测到否定事件时执行拓扑操作"
     triggers:

@@ -6,7 +6,7 @@
 ## 全局约束（先于一切泳道）
 
 1. **基线协议**：每泳道落地前后各跑一次计时对照——400K bar THETA_PROFILE_STAGES=1（现基线 8.7s）+ 全历史 decompose（现基线 ~6-7min）。
-   > **[2026-07-02 基线过时订正（B1 实测 + quality-guard 判定）]** 括号内基线数字系 confirmed_len perf 提交前的陈旧值：400K 端到端实测已是 ~18-27s wall / stage-sum ~23s（并发噪声内），350K decompose 窗实测 ~30s。**各泳道落地前必须在当前 HEAD 重测自己的基线**，target 按重测值降准（A1 锁 1.13-1.17x 缩窗上限、B2 落地前先重测 signal-stage 基线）；本表「预期增益」列的绝对秒数不再作数，相对比值仍供参考。**基线跑与修后跑之间不得夹入 #13 落地**（econ verdict 程序性约束：#13 改信号集，夹入即对照失效）。
+   > **[2026-07-02 基线过时订正（B1 实测 + quality-guard 判定）]** 括号内基线数字系 confirmed_len perf 提交前的陈旧值：400K 端到端实测已是 ~18-27s wall / stage-sum ~23s（并发噪声内），350K decompose 窗实测 ~30s。**各泳道落地前必须在当前 HEAD 重测自己的基线**，target 按重测值降准（A1 锁 1.13-1.17x 缩窗上限、B2 落地前先重测 signal-stage 基线）；本表「预期增益」列的绝对秒数不再作数，相对比值仍供参考。**全历史 decompose 基线「~6-7min」同样陈旧且被 C1 否证：实测为 O(bar²) 小时级不可直跑（4.6M bar）——C 泳道（C1/C2/C3）验收的「全历史 decompose 计时对照」一律改为「≤350K 代表窗比值对照」（C1 实测 350K 基线 ~30s→14.4s=2.08x；比值按常数因子 scale-invariance 外推，全历史未实测，231号有效域如实标注）。****基线跑与修后跑之间不得夹入 #13 落地**（econ verdict 程序性约束：#13 改信号集，夹入即对照失效）。
 2. **YAGNI 重开门（A0）**：mod.rs 克隆簇已被 Lead 2026-06-30 裁定 YAGNI 暂缓。三份 verdict 一致指出量级声称（35min/60-70% memcpy/5-10x）陈旧或无据。重开该裁定的唯一合法证据 = A0 实测（全历史或 ≥1M bar profile + :854/:1081 补插桩标签）。**A0 不通过（克隆簇占比低）则 A1 缩水或撤项。**
 3. **bit-exact 语法**：所有项以现有守卫封门——GOLDEN digest、bit_exact_per_bar / bit_exact_synthetic / gen_fastpath_bit_exact_debug oracle、incremental_tower_* 守卫、bit_exact_incr_segments_per_bar 电池。high 风险项额外要求 codex 审 + 新增定向 oracle（见「护航组」）。
 
@@ -49,7 +49,7 @@
 - **C2（数据依赖：泳道 A 的 A1 先落地）**：收集循环保存上一 bar 各级 bsp 的 **Rc::clone 强引用**（禁裸指针，防 ABA 假命中），Rc::ptr_eq 命中即跳级。decompose 与 dx 复刻循环同改。
 - **C3**：end_index 精确匹配/含段查找改 partition_point（leftmost 语义 + debug_assert 排序不变量）；div_cand 直接在 sub_moves 上取 target+rfind，删 per-rung Vec。
 - **C4（撤项）**：FxHashSet——C2 落地后收益归零，仅作 C2 失败的 fallback。
-- **验收**：GOLDEN digest + dx 真封检测器全绿（含 C1 的替代对拍）+ 全历史 decompose 计时对照（基线 ~6-7min，C1 目标减半，C2 再 2-3x）。
+- **验收**：GOLDEN digest + dx 真封检测器全绿（含 C1 的替代对拍）+ ~~全历史 decompose 计时对照（基线 ~6-7min，C1 目标减半，C2 再 2-3x）~~ **[2026-07-02 订正]** ≤350K 代表窗比值对照（全历史 O(bar²) 不可直跑；C1 已实测 350K 2.08x 达标，C2/C3 沿用代表窗口径）。
 
 ### 泳道 D — backtest/perm_test.rs（单项，立即可做）
 - **D1**：(a) perm_ds 缓冲提外+copy_from_slice（RNG 消耗序不变）；(b) 单遍融合累加 sum_plus/sum_minus（勿用 total−plus 派生）；(c) ge/obs 引用提外。**正确性半边单列**：多 stratum 下 HashMap 迭代序 × RNG 串行消耗 = 冻结种子不可复现（违反预注册硬约束）——修复（BTreeMap/排序迭代）会改多 stratum 输出，**走 /escalate 连同预注册一起裁决**，不与性能半边捆绑落地。
