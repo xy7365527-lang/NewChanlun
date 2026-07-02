@@ -1131,6 +1131,10 @@ pub struct LegTarget {
     /// ε_e：腿方向（Long=多腿 / Short=空腿）。
     pub side: VoiceSide,
     /// s_e：目标单位数（role/depth 权重）。
+    ///
+    /// ★646号 rider（命名区分，不改语义）：`LegTarget.units` 是 **sizing 层资本加权目标敞口**
+    /// （`base_units × w_depth`，f64 连续量），**不是** §9 voice 层的单位计数 `q_v`（手数，整数）——
+    /// 二者是不同投影空间的量（646号裁决 CONFIRM：范畴错误，depth_weight 不等权应保留）。
     pub units: f64,
     /// R(g)=(H,V,δ)：元素 18 类角色（`role.v==Vertical::ShortDiff`=反向子声部腿）。
     pub role: OperationRole,

@@ -47,6 +47,12 @@
 //! canonical**：R=Π-A-W 锚 `Origin.FullDefinitionStrategy.LedgerState`，TW/OQ-9 锚
 //! `Origin.TotalWealth`（不再有 legacy 锚点缺位）。
 //!
+//! ★674号裁决C 落地（codex ritual 2026-07-02，拒 A/B 取 C）：两账本**显式分离**（两独立结构
+//! `LedgerComp`/`TwState`，各自 native 锚 Origin），二者间**唯一被允许的转换**是命名明确的**单向
+//! 有损投影** [`forget_stage_to_ledger_view`]（TW→R账本视角，遗忘 stage/legs 维度）。**禁止**任何
+//! 暗示双向同构的命名/函数（如 `to_ledger_iso`）——不同构是 L0 定理（#90 machine-checked），双向
+//! 同构不存在。单向性由非单射测试 `projection_forgets_stage_non_injective` 锚定。
+//!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
 //! - 本文件 = **L0/L1**（结构镜像：Rust 类型/算子与 Origin/legacy 定义结构对齐 = 验证管线
@@ -518,6 +524,42 @@ pub fn ledger_step(l: &LedgerComp, e: LedgerEvent) -> LedgerComp {
     }
 }
 
+/// TW 账本在 R 账本视角下的**有损投影目标** `LedgerView`（674号立场C：单向有损投影，非双向同构）。
+///
+/// 只承载 TW 的 **stage-无关财务标量**（free/holding/withdrawn/notional_in/cum_net_cash/hwm_gain）；
+/// **遗忘**取本金状态机维度 `stage`（单向不可逆相位）与 `open_legacy_legs`（OQ-9 腿计数）——这两分量
+/// 在 R=Π-A-W 账本里**无对应物**（R 账本是可逆平移系统，无阶段无腿）。
+///
+/// ★674号裁决C 的可执行护栏：投影**单向**（TW→view）**且有损**（stage/legs 丢失）。**不提供逆**
+/// `view→TwState`——两个仅 stage 不同的 TwState 投到同一 view（[`forget_stage_to_ledger_view`] 的
+/// 非单射测试 `projection_forgets_stage_non_injective`），故逆不存在（对齐 `Origin.TotalWealth.
+/// not_isomorphic_stage_collapses` L0 反例）。禁止任何暗示双向同构的命名/函数（如 `to_ledger_iso`）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LedgerView {
+    pub free: i64,
+    pub holding: i64,
+    pub withdrawn: i64,
+    pub notional_in: i64,
+    pub cum_net_cash: i64,
+    pub hwm_gain: i64,
+}
+
+/// 单向有损投影 `forget_stage_to_ledger_view`（674号立场C）：TW→R账本视角，**遗忘 stage 维度**。
+///
+/// 名字明示遗忘（`forget_stage`）——非 `to_ledger_iso`（禁止暗示双向同构，674号）。丢弃 `stage`
+/// （单向不可逆相位）与 `open_legacy_legs`（OQ-9 腿计数），保留财务标量。**有损 ⟹ 无逆**（不提供
+/// `view→TwState`）。这是两个不同构账本范畴（#90/674号 machine-checked）之间**唯一**被允许的转换。
+pub fn forget_stage_to_ledger_view(s: &TwState) -> LedgerView {
+    LedgerView {
+        free: s.free,
+        holding: s.holding,
+        withdrawn: s.withdrawn,
+        notional_in: s.notional_in,
+        cum_net_cash: s.cum_net_cash,
+        hwm_gain: s.hwm_gain,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! ★★模块级诚实标注（codex §9.2，照实 161/no-workaround）：本模块的机制单元测试
@@ -859,5 +901,43 @@ mod tests {
         assert!(pol.buy_core_legal(10, 5, 3, 100, 0, 20), "建仓额小 ⟹ BuyCore 合法");
         // a_n=90（大建仓）⟹ LHS=90+5+3=98 > RHS=80 ⟹ 非法（超 barrier）。
         assert!(!pol.buy_core_legal(90, 5, 3, 100, 0, 20), "建仓额过大 ⟹ 破 κ-floor ⟹ 非法");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  674号立场C 投影单向性护栏（forget_stage_to_ledger_view 非单射 = 有损 = 无逆）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★674号立场C 投影单向性：`forget_stage_to_ledger_view` **非单射**（有损 ⟹ 无逆 ⟹ 单向）。
+    ///
+    /// 两个仅 `stage` 不同的 TwState 投到同一 `LedgerView` ⟹ 不能从 view 反推 stage ⟹ 逆不存在
+    /// ⟹ 投影**单向**。这是 `Origin.TotalWealth.not_isomorphic_stage_collapses`（L0 反例：两态三量
+    /// 全同仅 stage 不同 ⟹ B→A 投影非单射）在 Rust 投影层的可执行兑现。禁止双向同构（无 `to_ledger_iso`）。
+    #[test]
+    fn projection_forgets_stage_non_injective() {
+        let base = TwState {
+            free: 100, holding: 500, withdrawn: 30, notional_in: 500,
+            stage: TStage::CostReduction, open_legacy_legs: 2, cum_net_cash: 7, hwm_gain: 12,
+        };
+        // 仅 stage 不同 ⟹ 同一 view（stage 被遗忘 = not_isomorphic_stage_collapses）。
+        let differ_stage = TwState { stage: TStage::EarningShares, ..base };
+        assert_eq!(
+            forget_stage_to_ledger_view(&base),
+            forget_stage_to_ledger_view(&differ_stage),
+            "仅 stage 不同 ⟹ 投影相同（stage 被遗忘，非单射 ⟹ 无逆）"
+        );
+        // 仅 open_legacy_legs 不同 ⟹ 同一 view（OQ-9 腿计数被遗忘）。
+        let differ_legs = TwState { open_legacy_legs: 0, ..base };
+        assert_eq!(
+            forget_stage_to_ledger_view(&base),
+            forget_stage_to_ledger_view(&differ_legs),
+            "仅 open_legacy_legs 不同 ⟹ 投影相同（OQ-9 腿被遗忘，非单射）"
+        );
+        // 财务标量被保留（投影只丢状态机维度，不丢财务信息）。
+        let v = forget_stage_to_ledger_view(&base);
+        assert_eq!(
+            (v.free, v.holding, v.withdrawn, v.notional_in, v.cum_net_cash, v.hwm_gain),
+            (100, 500, 30, 500, 7, 12),
+            "财务标量保留（stage-无关分量无损）"
+        );
     }
 }
