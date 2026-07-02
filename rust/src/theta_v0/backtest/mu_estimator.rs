@@ -400,7 +400,9 @@ impl MuEstimator {
             let shrunk_mean = self.mu_shrink(z, tau_sq).unwrap_or(w.mean);
             buckets.insert(*z, Welford { n: w.n, mean: shrunk_mean, m2: w.m2 });
         }
-        MuEstimator { buckets }
+        // 收缩仅改 bucket 的 mean，不改原始逐笔——perm_test 置换基于 trades，故视图须保留 trades。
+        // （预存编译缺口修复：commit 8ccbe58137 加 `trades` 字段时漏改本构造子；见 ws-gap3-bridge 汇报。）
+        MuEstimator { buckets, trades: self.trades.clone() }
     }
 
     /// 合并另一估计器的全部桶（Chan/Welford 并行合并，bit-exact 等价逐笔顺序累加同一桶）。
