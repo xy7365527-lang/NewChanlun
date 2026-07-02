@@ -524,7 +524,11 @@ pub fn ledger_step(l: &LedgerComp, e: LedgerEvent) -> LedgerComp {
     }
 }
 
-/// TW 账本在 R 账本视角下的**有损投影目标** `LedgerView`（674号立场C：单向有损投影，非双向同构）。
+/// TW 账本（`TwState`）的**stage-free 视图** `StageFreeTwLedgerView`（674号立场C：单向有损投影，非双向同构）。
+///
+/// ★命名精度（codex 576C 审计）：这**不是** `LedgerComp`（R=Π-A-W 账本）的状态投影——字段集是
+/// `TwState` **去 stage/legs 的子集**（TW 账本自身的视图），与 R 账本的 r/pi/a/w 字段**无对应关系**。
+/// 故名 `StageFreeTwLedgerView`（TW 账本的 stage-free 视图），非 `LedgerView`（后者暗示 R 账本视角，不精确）。
 ///
 /// 只承载 TW 的 **stage-无关财务标量**（free/holding/withdrawn/notional_in/cum_net_cash/hwm_gain）；
 /// **遗忘**取本金状态机维度 `stage`（单向不可逆相位）与 `open_legacy_legs`（OQ-9 腿计数）——这两分量
@@ -535,7 +539,7 @@ pub fn ledger_step(l: &LedgerComp, e: LedgerEvent) -> LedgerComp {
 /// 非单射测试 `projection_forgets_stage_non_injective`），故逆不存在（对齐 `Origin.TotalWealth.
 /// not_isomorphic_stage_collapses` L0 反例）。禁止任何暗示双向同构的命名/函数（如 `to_ledger_iso`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LedgerView {
+pub struct StageFreeTwLedgerView {
     pub free: i64,
     pub holding: i64,
     pub withdrawn: i64,
@@ -549,8 +553,8 @@ pub struct LedgerView {
 /// 名字明示遗忘（`forget_stage`）——非 `to_ledger_iso`（禁止暗示双向同构，674号）。丢弃 `stage`
 /// （单向不可逆相位）与 `open_legacy_legs`（OQ-9 腿计数），保留财务标量。**有损 ⟹ 无逆**（不提供
 /// `view→TwState`）。这是两个不同构账本范畴（#90/674号 machine-checked）之间**唯一**被允许的转换。
-pub fn forget_stage_to_ledger_view(s: &TwState) -> LedgerView {
-    LedgerView {
+pub fn forget_stage_to_ledger_view(s: &TwState) -> StageFreeTwLedgerView {
+    StageFreeTwLedgerView {
         free: s.free,
         holding: s.holding,
         withdrawn: s.withdrawn,
@@ -909,7 +913,7 @@ mod tests {
 
     /// ★674号立场C 投影单向性：`forget_stage_to_ledger_view` **非单射**（有损 ⟹ 无逆 ⟹ 单向）。
     ///
-    /// 两个仅 `stage` 不同的 TwState 投到同一 `LedgerView` ⟹ 不能从 view 反推 stage ⟹ 逆不存在
+    /// 两个仅 `stage` 不同的 TwState 投到同一 `StageFreeTwLedgerView` ⟹ 不能从 view 反推 stage ⟹ 逆不存在
     /// ⟹ 投影**单向**。这是 `Origin.TotalWealth.not_isomorphic_stage_collapses`（L0 反例：两态三量
     /// 全同仅 stage 不同 ⟹ B→A 投影非单射）在 Rust 投影层的可执行兑现。禁止双向同构（无 `to_ledger_iso`）。
     #[test]
