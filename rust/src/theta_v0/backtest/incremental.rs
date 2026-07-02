@@ -248,6 +248,164 @@ mod tests {
             }
         }
     }
+
+    // ================= A3 证书半边 always-run 稀疏变异 oracle（codex 审计第6条根修）=================
+    //
+    // 逐 bar 对拍「证书增量路径」（classify_with_tower_incremental，走 03 dirty_from / 04 truncate+
+    // extend / 09 truncate(prefix_count)）vs「强制全量路径」（classify_with_tower(parse_layer(..=i))，
+    // 无证书，每 bar 从头全量重算），断言 (Classification, tower) 逐字段 bit-identical。cached_units==
+    // units 与 projected_units==project_to_units(upper_moves) 两条内不变量由 classify_with_tower_
+    // incremental 内 debug_assert（04 前缀证书 + 09 投影证书）逐 bar 在 test/debug 构建自动护栏。
+    //
+    // 两独立 fixture（re-audit 精修：两处早停边界 level_idx vs level_idx+1 不同，须拆开）：
+    // - fixture1：`units.len() < min_parts` 早停 break（truncate(level_idx) 代码路径，§2.6 路径1）。
+    // - fixture2：`units.is_empty()` 早停 break（truncate(level_idx+1) 代码路径，§2.6 路径2）
+    //   + had_emitted_window pop-and-rescan，覆盖 T==1（重扫仅复现被 pop 窗口，did_extend 证伪
+    //   正向锁）与 T>1（重扫产出多窗口，frontier 值改写，bar-1464 型 cascade）。
+    //
+    // ★实施期发现（覆盖边界修正，非设计缺陷）：§2.6 的 **removal 子例**——早停 truncate 实际删掉
+    // 已建级（塔深下降、级别被移除后重入）——经实测**不可达**：600K 真实 CL bar（塔深至 l_max=6
+    // 上限）+ synthetic 9000 bar，reentry_minparts=reentry_empty=**0**。根因：中枢计数单调非降
+    // （一级越过 min_parts 后 frontier 重划只改末中枢的值不减其计数，cascade 重扫复现同数或更多），
+    // 故任何级越过 min_parts 后不回落，早停 break 恒为「塔生长边界」而非「已建级移除」。truncate
+    // 语句仍每终止 bar 执行（no-op 分支），其 removal 语义正确性由 re-audit LevelCache::default
+    // 重建等价论证（代码不变量）保证，**非**测试覆盖——不可达路径无法 always-run 覆盖，此为诚实
+    // 边界，reentry_* 计数打印留证但不作断言。证据见 `a3_oracle_probe_cl_diag`（#[ignore]，需 CL）。
+    //
+    // 覆盖证明：probe 断言 pop-rescan T==1/T>1（第6条核心）+ 两处早停 break 代码路径确执行
+    // （防「always-run 但覆盖为零」陷阱）。逐 bar cached_units==units / projected_units==
+    // project_to_units(upper_moves) 两内不变量由 classify_with_tower_incremental 内 debug_assert
+    // 自动护栏（04 前缀证书 + 09 投影证书），本 oracle 的每 bar 运行即触发。
+
+    fn run_oracle(bars: &[Bar], label: &str) -> classifier::oracle_probe::Probe {
+        let config = ThetaConfig::default();
+        classifier::oracle_probe::reset();
+        let mut incr = IncrementalClassifier::new(bars, &config);
+        let mut max_depth = 0usize;
+        for i in 0..bars.len() {
+            let (incr_cls, incr_tower) = incr.classify_at(i);
+            max_depth = max_depth.max(incr_tower.len());
+            // 强制全量路径（无证书，每 bar 从头重算）——ground truth。
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (full_cls, full_tower) = classifier::classify_with_tower(&l0, &config);
+            assert_eq!(incr_cls, full_cls, "[{label}] bar {i}: 证书增量 classification != 强制全量（bit-exact 破裂）");
+            assert_eq!(incr_tower.len(), full_tower.len(), "[{label}] bar {i}: 证书增量 tower 层数 != 全量");
+            for (lvl, (il, fl)) in incr_tower.iter().zip(full_tower.iter()).enumerate() {
+                assert_eq!(il, fl, "[{label}] bar {i} lvl {lvl}: 证书增量 tower LeveledMove != 全量（身份/值破裂）");
+            }
+        }
+        let p = classifier::oracle_probe::snapshot();
+        eprintln!(
+            "[oracle:{label}] n={} max_depth={} T==1={} T>1={} minparts_break={} empty_break={} \
+             reentry_minparts={} reentry_empty={}",
+            bars.len(), max_depth, p.t_eq1, p.t_gt1, p.minparts_break, p.empty_break,
+            p.reentry_minparts, p.reentry_empty
+        );
+        p
+    }
+
+    fn synth_bar(i: usize, close: i64) -> Bar {
+        Bar {
+            source_index: i,
+            timestamp: i as i64,
+            open: close - 1,
+            high: close + 7,
+            low: close - 7,
+            close,
+            volume: 1000,
+            untradable: false,
+        }
+    }
+
+    /// 确定性伪随机游走（反射边界保持区间）：制造真实数据式的不规则多尺度结构——高级中枢
+    /// 频繁在 min_parts 边界附近徘徊 + frontier 古怪线段重划频发，是触发早停缓存血缘失效
+    /// （§2.6：某级恰在 min_parts、重划夺走一个中枢 → 跌破 → truncate 已建高级）的现实条件。
+    /// LCG（Numerical Recipes 常数）纯整数，跨平台确定性。
+    fn pseudo_walk(n: usize, seed: u64, step_span: i64, lo: i64, hi: i64) -> Vec<Bar> {
+        let mut s = seed;
+        let mut p: i64 = (lo + hi) / 2;
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let step = ((s >> 33) as i64).rem_euclid(2 * step_span + 1) - step_span;
+            p += step;
+            if p > hi {
+                p = hi - (p - hi);
+            }
+            if p < lo {
+                p = lo + (lo - p);
+            }
+            out.push(synth_bar(i, p));
+        }
+        out
+    }
+
+    /// §2.6 removal 子例不可达性的证据（记录用）：CL 真实数据逐窗口探针——2K~9K 小窗全量对拍
+    /// bit-exact + 50K~600K O(n) 探针。实测所有窗口 reentry_minparts=reentry_empty=0（塔深至
+    /// l_max=6 上限仍无级别移除），坐实「中枢计数单调非降 ⟹ 早停 removal 不可达」。
+    #[test]
+    #[ignore = "诊断：CL 真实数据早停 removal 不可达性证据（需 CL 数据，O(n²) 小窗对拍 + O(n) 大窗探针）"]
+    fn a3_oracle_probe_cl_diag() {
+        let config = ThetaConfig::default();
+        let ds = super::super::data::load_by_symbol("CL", &config).expect("CL 数据");
+        for n in [2000usize, 4000, 6000, 9000] {
+            let bars = &ds.bars[..n.min(ds.bars.len())];
+            let p = run_oracle(bars, &format!("CL_{n}"));
+            let _ = p;
+        }
+        // O(n) 大规模探针（仅增量路径，无全量对拍）——测早停重入是否在深塔规模才触发。
+        for n in [50_000usize, 200_000, 600_000] {
+            let n = n.min(ds.bars.len());
+            classifier::oracle_probe::reset();
+            let mut incr = IncrementalClassifier::new(&ds.bars[..n], &config);
+            let mut max_depth = 0usize;
+            for i in 0..n {
+                let (_, tower) = incr.classify_at(i);
+                max_depth = max_depth.max(tower.len());
+            }
+            let p = classifier::oracle_probe::snapshot();
+            eprintln!(
+                "[probe-only:CL_{n}] max_depth={} T==1={} T>1={} reentry_minparts={} reentry_empty={}",
+                max_depth, p.t_eq1, p.t_gt1, p.reentry_minparts, p.reentry_empty
+            );
+        }
+    }
+
+    /// fixture1：伪随机游走——每 bar 塔在某级经 `units.len() < min_parts` 早停终止，执行
+    /// `cache.levels.truncate(level_idx)`（§2.6 路径1 代码路径）。断言该早停 break 确实触发
+    /// （truncate 语句每终止 bar 执行）。**注**：其 removal 子例（depth 下降、truncate 删掉已建级）
+    /// 经 600K 真实 CL bar（深至 l_max=6）+ synthetic 实测 = 0，因中枢计数单调非降（一级越过
+    /// min_parts 后不回落）——见 `a3_oracle_probe_cl_diag` 证据。故 reentry_minparts 不作断言
+    /// （不可达路径，truncate 为 bit-exact 安全的防御性护栏，正确性由 re-audit LevelCache::default
+    /// 重建等价论证保证，非测试覆盖）。
+    #[test]
+    fn a3_oracle_minparts_reentry() {
+        let bars = pseudo_walk(9000, 0x9E37_79B9_7F4A_7C15, 34, 700, 3300);
+        let p = run_oracle(&bars, "minparts_reentry");
+        assert!(
+            p.minparts_break > 0,
+            "fixture1 未触发 min_parts 早停 break（truncate(level_idx) 代码路径未执行）"
+        );
+    }
+
+    /// fixture2：多尺度锐锯齿——快尺度制造密集中枢 + 频繁 pop-and-rescan，慢尺度偶发簇发段完成
+    /// 产 T>1；同时高级 units 偶尔归零触发 units.is_empty 早停（§2.6 路径2 + 第6条 pop 覆盖）。
+    #[test]
+    fn a3_oracle_pop_rescan_empty() {
+        let bars = pseudo_walk(9000, 0xD1B5_4A32_D192_ED03, 46, 500, 3500);
+        let p = run_oracle(&bars, "pop_rescan_empty");
+        // ★核心覆盖（第6条 refuted 根修）：pop-and-rescan 两分支都命中——T==1（重扫仅复现被 pop
+        // 窗口，did_extend 恒 false 而尾部改写，did_extend 证伪正向锁）+ T>1（frontier 值改写，
+        // bar-1464 型 cascade 路径）。re-audit：T = tail_upper.len() 精确定义，两分支都断言。
+        assert!(p.t_eq1 > 0, "fixture2 未触发 had_emitted_window pop T==1（did_extend 证伪正向锁覆盖为零）");
+        assert!(p.t_gt1 > 0, "fixture2 未触发 had_emitted_window pop T>1（frontier 值改写路径覆盖为零）");
+        // units.is_empty 早停 truncate(level_idx+1) 代码路径（§2.6 路径2）。removal 子例同 fixture1
+        // 不可达（reentry_empty 不作断言，见 a3_oracle_minparts_reentry doc + CL diag 证据）。
+        assert!(
+            p.empty_break > 0,
+            "fixture2 未触发 units.is_empty 早停 break（truncate(level_idx+1) 代码路径未执行）"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -511,6 +669,43 @@ mod profile {
             "★A0 克隆簇 = {{00b_l0_units_clone, 04_cached_units_copy, 07c_bsp_memo_clone, \
              08_levels_centers_clone, 10_projected_units_clone}}；占比 = 克隆簇Σ / 全阶段Σ（见 dump）。L1。"
         );
+    }
+
+    /// **★A3 验收：证书半边 03/04 阶段计时（CL 1M bar，THETA_PROFILE_STAGES=1）**。
+    ///
+    /// A3 后 03_frontier_compare（L1+ stable 抬到 dirty_from）+ 04_cached_units_copy（truncate+
+    /// extend O(tail)）应从 A0 基线（1M：03=2446ms/4.7%、04=4010ms/7.7%）降至近零占比。
+    /// 运行：`THETA_PROFILE_STAGES=1 A3_PROFILE_BARS=1000000 cargo test --release -p newchan_rust \
+    ///   profile_stage_a3_cl -- --ignored --nocapture`。
+    #[test]
+    #[ignore = "A3 stage 03/04 计时；需 CL；THETA_PROFILE_STAGES=1；--release"]
+    fn profile_stage_a3_cl() {
+        let config = ThetaConfig::default();
+        let ds = match data::load_by_symbol("CL", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("DATA BLOCKER: {e}");
+                panic!("需 CL 数据");
+            }
+        };
+        let n: usize = std::env::var("A3_PROFILE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1_000_000)
+            .min(ds.bars.len());
+        eprintln!("\n===== A3 stage 计时（CL 前 {n} bar，classify_with_tower_incremental）=====");
+        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+            eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空。");
+        }
+        let mut parser_incr = parser::ParseLayerIncr::new(&config);
+        let mut tower_cache = classifier::TowerCache::default();
+        let t0 = std::time::Instant::now();
+        for i in 0..n {
+            let l0_i = parser_incr.append(ds.bars[i]);
+            let _ = classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+        }
+        eprintln!("[A3] {n} bar 墙钟={:.2}s", t0.elapsed().as_secs_f64());
+        classifier::stage_profile::dump();
     }
 
     /// **★诊断（工位 E 留档）：classifier 增量 vs 全量 bit-exact 隔离**。

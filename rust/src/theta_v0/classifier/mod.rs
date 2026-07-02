@@ -741,11 +741,31 @@ pub mod stage_profile {
 
     thread_local! {
         static ACC: RefCell<Vec<(&'static str, Duration)>> = const { RefCell::new(Vec::new()) };
+        // 跨度累加器（(label, sum, max, count)）——区分 H-detect（跨度随 n 增长）vs H-detect-bounded
+        // （跨度 O(1)）。env-gated，未启用时 record_span 直通。
+        static SPANS: RefCell<Vec<(&'static str, u64, u64, u64)>> = const { RefCell::new(Vec::new()) };
         static ENABLED: bool = std::env::var("THETA_PROFILE_STAGES").is_ok();
     }
 
     pub fn enabled() -> bool {
         ENABLED.with(|e| *e)
+    }
+
+    /// 记录一次跨度样本（如 05 续扫的 `units.len() - start_i`）。env 未启用时零开销直通。
+    pub fn record_span(label: &'static str, v: u64) {
+        if !enabled() {
+            return;
+        }
+        SPANS.with(|s| {
+            let mut s = s.borrow_mut();
+            if let Some(slot) = s.iter_mut().find(|(l, ..)| *l == label) {
+                slot.1 += v;
+                slot.2 = slot.2.max(v);
+                slot.3 += 1;
+            } else {
+                s.push((label, v, v, 1));
+            }
+        });
     }
 
     pub struct Guard {
@@ -809,6 +829,87 @@ pub mod stage_profile {
             }
             eprintln!("===========================");
         });
+        SPANS.with(|s| {
+            let s = s.borrow();
+            if s.is_empty() {
+                return;
+            }
+            eprintln!("=== THETA STAGE SPANS ===");
+            for (label, sum, max, count) in s.iter() {
+                let avg = if *count > 0 { *sum as f64 / *count as f64 } else { 0.0 };
+                eprintln!(
+                    "  {:<24} sum={:>14} max={:>10} count={:>10} avg={:>12.2}",
+                    label, sum, max, count, avg
+                );
+            }
+            eprintln!("=========================");
+        });
+    }
+}
+
+/// ★A3 证书 oracle 探针（仅 test 构建）：记录证书热路径分支命中，供 always-run oracle 断言
+/// 「fixture 确实触发了 had_emitted_window pop（T==1/T>1）与两处早停缓存血缘失效」——防止
+/// 「always-run 但覆盖为零」的陷阱（codex 审计第6条根修）。release/非 test 构建完全不编译。
+#[cfg(test)]
+pub mod oracle_probe {
+    use std::cell::RefCell;
+
+    #[derive(Default, Clone, Debug)]
+    pub struct Probe {
+        /// had_emitted_window pop 后重扫仅复现被 pop 窗口（`tail_upper.len() == 1`）——did_extend 证伪正向锁。
+        pub t_eq1: u64,
+        /// had_emitted_window pop 后重扫产出 >1 窗口（frontier 值改写，bar-1464 型）。
+        pub t_gt1: u64,
+        /// `units.len() < min_parts` 早停 break 触发次数（truncate(level_idx) 语句执行——含 no-op）。
+        pub minparts_break: u64,
+        /// `units.is_empty()` 早停 break 触发次数（truncate(level_idx+1) 语句执行——含 no-op）。
+        pub empty_break: u64,
+        /// `units.len() < min_parts` 早停且实际 truncate 掉已建级（§2.6 血缘失效路径1，depth 下降）。
+        pub reentry_minparts: u64,
+        /// `units.is_empty()` 早停且实际 truncate 掉已建级（§2.6 血缘失效路径2，depth 下降）。
+        pub reentry_empty: u64,
+    }
+
+    thread_local! {
+        static PROBE: RefCell<Probe> = RefCell::new(Probe::default());
+    }
+
+    pub fn reset() {
+        PROBE.with(|p| *p.borrow_mut() = Probe::default());
+    }
+    pub fn snapshot() -> Probe {
+        PROBE.with(|p| p.borrow().clone())
+    }
+    /// `t` = `tail_upper.len()`（本 bar 本级 compose 产出窗口数），had_emitted_window 时调用。
+    pub fn on_pop_rescan(t: usize) {
+        PROBE.with(|p| {
+            let mut p = p.borrow_mut();
+            if t == 1 {
+                p.t_eq1 += 1;
+            } else if t > 1 {
+                p.t_gt1 += 1;
+            }
+        });
+    }
+    /// min_parts 早停：`removed` = 本次 truncate 是否实际删掉已建级（depth 下降）。
+    pub fn on_minparts_break(removed: bool) {
+        PROBE.with(|p| {
+            let mut p = p.borrow_mut();
+            p.minparts_break += 1;
+            if removed {
+                p.reentry_minparts += 1;
+            }
+        });
+    }
+    /// units.is_empty 早停：`removed` = 本次 truncate 是否实际删掉已建级（depth 下降）。
+    pub fn on_empty_break(removed: bool) {
+        PROBE.with(|p| {
+            let mut p = p.borrow_mut();
+            p.empty_break += 1;
+            if removed {
+                p.reentry_empty += 1;
+            }
+        });
     }
 }
 
@@ -855,10 +956,13 @@ pub fn classify_with_tower_incremental(
     let l_max = config.level.l_max as usize;
 
     // L0 输入单元 = parser 线段账本。#106 证书增量（同 moves_tower_l0，消除每 bar 全量 collect）。
-    stage_profile::time("00_l0_units_build", || {
+    // 返回 `reuse` = L0 units 复用前缀长度 = dirty_from[0]（§2.3：L0 不可变前缀，units[..reuse]
+    // 逐字段等上 bar，units[reuse..] 本 bar 新 extend）。
+    let l0_dirty_from = stage_profile::time("00_l0_units_build", || {
         let reuse = l0.segments_confirmed_len.min(cache.l0_units_cache.len());
         cache.l0_units_cache.truncate(reuse);
         cache.l0_units_cache.extend(l0.segments[reuse..].iter().map(segment_to_unit));
+        reuse
     });
     let l0_units: Vec<UnitRange> =
         stage_profile::time("00b_l0_units_clone", || cache.l0_units_cache.clone());
@@ -953,10 +1057,20 @@ pub fn classify_with_tower_incremental(
     // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
     // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
     let mut did_extend = false;
+    // ★A3 证书（per-level dirty_from，§2.4）：本级 units 的不可变前缀长度。L0 = l0_dirty_from
+    // （§2.3）；L≥1 = 父级 prefix_count（loop 尾 `dirty_from = prefix_count`）。驱动 03（L1+ stable
+    // 从 0 抬起）+ 04（cached_units truncate+extend O(tail)）。
+    let mut dirty_from: usize = l0_dirty_from;
 
     for level_idx in 0..=l_max {
         // 自然终止：单元数 < min_parts ⟹ 停止（与 classify_impl 同口径）。
         if units.len() < min_parts {
+            // ★§2.6：level_idx 及所有更高级本 bar 全跳过（循环顶部 break，lc 未触碰）——truncate 掉
+            // 这段不可达尾巴的陈旧 LevelCache，令其恢复时走 LevelCache::default() 全扫（血缘自洽，
+            // 防 stable=dirty_from.min(scanned) 坍缩假阴）。
+            #[cfg(test)]
+            oracle_probe::on_minparts_break(level_idx < cache.levels.len());
+            cache.levels.truncate(level_idx);
             break;
         }
 
@@ -981,10 +1095,13 @@ pub fn classify_with_tower_incremental(
         // 跨 bar bit-stable ⟹ units[..stable] 必等，只比 [stable..scanned]。L1+ units 来自上级投影
         // （无 segments 证书）⟹ stable=0 全量比较（保守，不假定相等）。证书不证明 [stable..scanned]
         // 没变（bar-1464 末段改写在 scanned frontier 内）⟹ 该区间仍逐值比，触发 cascade。
+        // ★A3 §3.3：L0 保持 confirmed_len 证书（不变）；L1+ 从保守 0 抬升到父级 prefix_count
+        // （dirty_from），前缀跳过不比较（可证不可变）——收益全在 L1+。frontier 窗 [stable..scanned]
+        // 仍逐值比（bar-1464 末段改写在 scanned 内），不漏 cascade。
         let stable = if is_l0 {
             l0.segments_confirmed_len.min(scanned)
         } else {
-            0
+            dirty_from.min(scanned)
         };
         let frontier_mutated = stage_profile::time("03_frontier_compare", || {
             units[stable..scanned] != lc.cached_units[stable..scanned]
@@ -1004,11 +1121,19 @@ pub fn classify_with_tower_incremental(
             lc.projected_units.clear(); // #106：upper_moves 前缀重排 ⟹ 投影缓存失效，重投影。
         }
         lc.last_input_len = units.len();
-        // 快照本级输入（下 bar 比对 frontier 变异）。clone 是 O(units) memcpy（UnitRange: Copy）；
-        // amortized 仍 O(n)——本就每 bar 全量重建 units（line 857 project_to_units）。
+        // 快照本级输入（下 bar 比对 frontier 变异）。★A3 §3.2 证书化：cached_units[..dirty_from]
+        // == units[..dirty_from]（前缀可证不可变，上 bar 04 已写同值）⟹ 前缀无需重拷，truncate
+        // + extend tail = O(tail)。三重 min 保证终长 == units.len()（含 units 回缩）。
+        // debug_assert = debug/test 护栏（release profile 按 Rust 语义剥离——省下的即此全前缀比较）。
         stage_profile::time("04_cached_units_copy", || {
-            lc.cached_units.clear();
-            lc.cached_units.extend_from_slice(&units);
+            let keep = dirty_from.min(lc.cached_units.len()).min(units.len());
+            debug_assert!(
+                units[..keep] == lc.cached_units[..keep],
+                "dirty_from 证书违反：cached_units[..{}] 应等于 units 前缀（bit-exact 护栏）",
+                keep
+            );
+            lc.cached_units.truncate(keep);
+            lc.cached_units.extend_from_slice(&units[keep..]);
         });
 
         // ★frontier 修复（task #47/#21，区间套.pdf 六~十节裁决②）：resume 起点用 `resume_from`
@@ -1035,7 +1160,9 @@ pub fn classify_with_tower_incremental(
             Rc::make_mut(&mut lc.upper_moves).pop();
         }
         // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
-        // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。
+        // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。★A3 §2.2：prefix_count 同时是本级
+        // projected_units 的不可变前缀（§2.5 truncate 锚）+ 下一级 units 的 dirty_from（§2.4 loop 尾）。
+        let prefix_count = lc.upper_moves.len();
         let (tail_centers, tail_upper, new_cursor) =
             stage_profile::time("05_compose_resume", || {
                 compose_level_resume(
@@ -1044,9 +1171,16 @@ pub fn classify_with_tower_incremental(
                     is_l0,
                     level_idx as u32 + 1,
                     resume_start,
-                    lc.upper_moves.len(),
+                    prefix_count,
                 )
             });
+
+        // ★A3 oracle 探针：had_emitted_window pop 后 T = tail_upper.len()（本 bar 本级重扫产出窗口数）。
+        // T==1 = did_extend 证伪正向锁（重扫仅复现被 pop 窗口，tail_upper 恰 1）；T>1 = frontier 值改写。
+        #[cfg(test)]
+        if had_emitted_window {
+            oracle_probe::on_pop_rescan(tail_upper.len());
+        }
 
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
         did_extend |= !tail_upper.is_empty();
@@ -1123,12 +1257,30 @@ pub fn classify_with_tower_incremental(
         // ★O(n²) 真修（#106）：增量投影——只对 upper_moves 新 tail 投影（`rmove.lo()/hi()` 递归整棵
         // 子树 O(nodes) 仅算新元素），前缀复用 lc.projected_units。clone 给 units 是 O(level) memcpy
         // （UnitRange: Copy，无递归）。cascade_reset 已清空 projected_units（line 855 旁）⟹ 退化全量。
+        // ★A3 §2.5 证书化加固：pop 非 cascade 时 append-only 投影不感知 pop（保留上 bar frontier
+        // 投影，隐式依赖 cascade 兜底）。显式 truncate 到 prefix_count 丢弃 pop 掉的 frontier 投影，
+        // 从 prefix_count 起重投影（O(tail)）——消除 did_extend 类漏判。cascade 时 prefix_count=0，
+        // 与 §上 projected_units.clear() 一致（truncate(0)==clear，冗余无害）。
         stage_profile::time("09_project_to_units_resume", || {
+            lc.projected_units.truncate(prefix_count);
             recursive_tower::project_to_units_resume(&lc.upper_moves[..], &mut lc.projected_units);
         });
+        // ★A3 投影证书护栏（debug/test）：truncate(prefix_count)+resume 必逐字段等全量 project_to_units。
+        debug_assert!(
+            lc.projected_units == recursive_tower::project_to_units(&lc.upper_moves),
+            "投影证书违反：projected_units != 全量 project_to_units（truncate(prefix_count)/resume 破裂）"
+        );
         units = stage_profile::time("10_projected_units_clone", || lc.projected_units.clone());
 
+        // ★A3 §2.4：本级 prefix_count 是下一级 units 的不可变前缀（父 confirmed 前缀投影稳定）。
+        dirty_from = prefix_count;
+
         if units.is_empty() {
+            // ★§2.6：level_idx 已处理完（尾部 break），level_idx+1 及更高级本 bar 因空 units 全跳过——
+            // truncate 掉这段不可达尾巴的陈旧 LevelCache（血缘自洽，恢复时全扫重建）。
+            #[cfg(test)]
+            oracle_probe::on_empty_break(level_idx + 1 < cache.levels.len());
+            cache.levels.truncate(level_idx + 1);
             break;
         }
         // ★O(n) 重构：moves_tower = Rc::clone(&lc.upper_moves) —— O(1) 引用计数，消除 per-bar 全塔

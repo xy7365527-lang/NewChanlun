@@ -406,22 +406,32 @@ pub fn compose_level_resume(
     } else {
         super::center::center_from_window
     };
-    let (windowed, cursor) = detect_centers_windowed_resume(units, build, start_i);
-    let tail_centers: Vec<Center> = windowed.iter().map(|(c, _)| *c).collect();
-    let tail_upper: Vec<LeveledMove> = windowed
-        .iter()
-        .enumerate()
-        .map(|(i, (c, win))| {
-            let subs = [
-                subs_moves[win[0]].clone(),
-                subs_moves[win[1]].clone(),
-                subs_moves[win[2]].clone(),
-            ];
-            // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。
-            let id = ElementId { level, ordinal: (prefix_count + i) as u64 };
-            LeveledMove::compose(&subs, *c, level, id)
-        })
-        .collect();
+    // ★A3 任务(a) 05 拆解插桩（env-gated，THETA_PROFILE_STAGES 未启用时零开销直通）：三子标签
+    // 05a/05b/05c 分辨 detect 循环 vs tail collect vs compose build 的耗时占比；span 累加器记录
+    // 续扫跨度 `units.len()-start_i`——若 avg 跨度随 n 线性增长 ⟹ H-detect（O(n²) 续扫，A4 域）；
+    // O(1) ⟹ H-detect-bounded / H-clone。bit-exact：`time`/`record_span` 仅计时，不改逻辑。
+    super::stage_profile::record_span("05_span", (units.len().saturating_sub(start_i)) as u64);
+    let (windowed, cursor) = super::stage_profile::time("05a_detect_windowed", || {
+        detect_centers_windowed_resume(units, build, start_i)
+    });
+    let tail_centers: Vec<Center> =
+        super::stage_profile::time("05b_tail_centers", || windowed.iter().map(|(c, _)| *c).collect());
+    let tail_upper: Vec<LeveledMove> = super::stage_profile::time("05c_tail_upper_build", || {
+        windowed
+            .iter()
+            .enumerate()
+            .map(|(i, (c, win))| {
+                let subs = [
+                    subs_moves[win[0]].clone(),
+                    subs_moves[win[1]].clone(),
+                    subs_moves[win[2]].clone(),
+                ];
+                // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。
+                let id = ElementId { level, ordinal: (prefix_count + i) as u64 };
+                LeveledMove::compose(&subs, *c, level, id)
+            })
+            .collect()
+    });
     (tail_centers, tail_upper, cursor)
 }
 
