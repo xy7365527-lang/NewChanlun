@@ -1,9 +1,20 @@
 //! 路径 A 分层内 δ 置换检验（acc-alpha 预注册 §1.4，perm_p 生产者）。
 //!
 //! decontam.rs 三态判据消费逐桶 perm_p 但不生产它（Welford 聚合量算不出置换——需逐笔明细）。
-//! 本模块消费 MuEstimator 留存的逐笔 (ℓ,bsp_class,δ,X_γ)，按 §1.4 路径 A 产出逐桶 perm_p：
-//! 每个 (ℓ,bsp_class) 层内随机置换 δ 标签重算 μ̂_perm，perm_p = #{μ̂_perm ≥ μ̂_obs}/N（单边）。
-//! 层内置换保留 (ℓ,bsp_class) 边际，只打乱 δ↔X_γ 关联。
+//! 本模块消费 MuEstimator 留存的逐笔 (ℓ,bsp_class,δ,σ^H,X_γ)，按 §1.4 路径 A 产出逐桶 perm_p：
+//! 每个 (ℓ,bsp_class,σ^H) 层内随机置换 δ 标签重算 μ̂_perm，perm_p = #{μ̂_perm ≥ μ̂_obs}/N（单边）。
+//! 层内置换保留 (ℓ,bsp_class,σ^H) 边际，只打乱 δ↔X_γ 关联。
+//!
+//! ## σ^H（父声部方向）桶键（a0 盘点 G-A1，task #51）
+//!
+//! level-sigma PDF p3-4/p8/p11 要求 `z=(ℓ,δ,σ^H)`。`σ^H`（父声部方向，[`MuClass::parent_dir`]）
+//! 此前在投影到统计层时被丢弃（仅 wverify_run.rs 侧漏，本模块签名不变但语义不足）——现在
+//! [`BucketKey`] 与分层键均加入 σ^H 维：bsp_class 是结构先验（一/二/三类买卖点），与 σ^H
+//! （父声部方向）正交，不是它的等价替代，故是**加维**而非替换。
+//!
+//! 加维代价（663 pending 稀释方向）：同一 (ℓ,bsp_class) 层被 σ^H 进一步细分 ⟹ 每层样本量 n
+//! 下降 ⟹ 更容易落入 decontam::powered() 的 UNDERPOWERED 门（这是如实反映，非缺陷——细分类别
+//! 本就该更少样本，含糊掉 σ^H 才是虚假的高功效）。
 //!
 //! 认识论 L0（纯代数：置换是逐笔明细的确定性重排统计）；施加于真实数据产出的逐笔明细时才是 L2。
 //! 冻结常量（N_PERM=200、种子 20260701）见 acc-alpha-estimand-prereg-20260701.md §4。
@@ -15,8 +26,8 @@ pub const N_PERM: usize = 200;
 /// 预注册 §4 冻结：Fisher-Yates 起始种子。
 pub const PERM_SEED: u64 = 20260701;
 
-/// 逐桶键 (ℓ, bsp_class, δ)。
-pub type BucketKey = (u32, u8, i8);
+/// 逐桶键 (ℓ, bsp_class, δ, σ^H)。σ^H=parent_dir（父声部方向；根声部=0）。
+pub type BucketKey = (u32, u8, i8, i8);
 
 /// SplitMix64 确定性 PRNG（手写，不引入 rand 依赖——固定种子可复现是预注册硬约束）。
 struct SplitMix64 {
@@ -67,7 +78,7 @@ fn bucket_means(ds: &[i8], xs: &[f64]) -> (Option<f64>, Option<f64>) {
 
 /// 每层记录：obs 均值 + ge 计数内联，消 perm 内 HashMap 查找（引用提外，c）。
 struct Stratum {
-    key: (u32, u8),
+    key: (u32, u8, i8),
     ds: Vec<i8>,
     xs: Vec<f64>,
     obs_plus: Option<f64>,
@@ -77,15 +88,15 @@ struct Stratum {
 }
 
 /// 路径 A 分层内 δ 置换，产出逐桶 perm_p（预注册 §1.4，单边右尾）。
-/// trades：逐笔 (ℓ, bsp_class, δ, X_γ)。空 ⟹ 空 map。
+/// trades：逐笔 (ℓ, bsp_class, δ, σ^H, X_γ)。层键=(ℓ,bsp_class,σ^H)，层内只置换 δ。空 ⟹ 空 map。
 pub fn stratified_delta_perm_p(
-    trades: &[(u32, u8, i8, f64)],
+    trades: &[(u32, u8, i8, i8, f64)],
     n_perm: usize,
     seed: u64,
 ) -> HashMap<BucketKey, f64> {
-    let mut grouped: BTreeMap<(u32, u8), (Vec<i8>, Vec<f64>)> = BTreeMap::new(); // 确定序⟹跨进程 perm_p 可复现(prereg §4)
-    for &(lv, bc, d, x) in trades {
-        let e = grouped.entry((lv, bc)).or_default();
+    let mut grouped: BTreeMap<(u32, u8, i8), (Vec<i8>, Vec<f64>)> = BTreeMap::new(); // 确定序⟹跨进程 perm_p 可复现(prereg §4)
+    for &(lv, bc, d, pd, x) in trades {
+        let e = grouped.entry((lv, bc, pd)).or_default();
         e.0.push(d);
         e.1.push(x);
     }
@@ -122,12 +133,12 @@ pub fn stratified_delta_perm_p(
     let inv = n_perm as f64;
     let mut out: HashMap<BucketKey, f64> = HashMap::new();
     for s in &strata {
-        let (lv, bc) = s.key;
+        let (lv, bc, pd) = s.key;
         if s.obs_plus.is_some() {
-            out.insert((lv, bc, 1), s.ge_plus as f64 / inv);
+            out.insert((lv, bc, 1, pd), s.ge_plus as f64 / inv);
         }
         if s.obs_minus.is_some() {
-            out.insert((lv, bc, -1), s.ge_minus as f64 / inv);
+            out.insert((lv, bc, -1, pd), s.ge_minus as f64 / inv);
         }
     }
     out
@@ -139,38 +150,55 @@ mod tests {
 
     #[test]
     fn multi_stratum_reproducible() {
-        let t: Vec<(u32,u8,i8,f64)> = (0..90).map(|i| ((i%3) as u32,((i/3)%3+1) as u8, if i%2==0 {1} else {-1}, (i as f64)*0.31-14.0)).collect();
+        let t: Vec<(u32,u8,i8,i8,f64)> = (0..90).map(|i| ((i%3) as u32,((i/3)%3+1) as u8, if i%2==0 {1} else {-1}, if i%4<2 {1} else {-1}, (i as f64)*0.31-14.0)).collect();
         assert_eq!(stratified_delta_perm_p(&t,N_PERM,PERM_SEED), stratified_delta_perm_p(&t,N_PERM,PERM_SEED), "多层同种子须 bit-exact");
     }
 
-    /// H0（δ 与 X_γ 独立）：δ 标签与幅度无系统关联 ⟹ perm_p 不显著（> 0.05）。
+    /// H0（δ 与 X_γ 独立）：δ 标签与幅度无系统关联 ⟹ perm_p 不显著（> 0.05）。σ^H(parent_dir) 恒 0（根声部）。
     #[test]
     fn h0_independent_delta_not_significant() {
-        let trades: Vec<(u32, u8, i8, f64)> = (0..40)
-            .map(|i| (0u32, 1u8, if i % 2 == 0 { 1 } else { -1 }, (i % 5) as f64 - 2.0))
+        let trades: Vec<(u32, u8, i8, i8, f64)> = (0..40)
+            .map(|i| (0u32, 1u8, if i % 2 == 0 { 1 } else { -1 }, 0i8, (i % 5) as f64 - 2.0))
             .collect();
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(0, 1, 1)] > 0.05, "买桶 H0 不应显著: {}", p[&(0, 1, 1)]);
-        assert!(p[&(0, 1, -1)] > 0.05, "卖桶 H0 不应显著: {}", p[&(0, 1, -1)]);
+        assert!(p[&(0, 1, 1, 0)] > 0.05, "买桶 H0 不应显著: {}", p[&(0, 1, 1, 0)]);
+        assert!(p[&(0, 1, -1, 0)] > 0.05, "卖桶 H0 不应显著: {}", p[&(0, 1, -1, 0)]);
     }
 
     /// 强关联（δ=+1 全高、δ=−1 全低）：买桶 μ̂ 是层内极右 ⟹ perm_p 极小（检出）。
     #[test]
     fn strong_delta_signal_is_significant() {
-        let mut trades: Vec<(u32, u8, i8, f64)> = Vec::new();
+        let mut trades: Vec<(u32, u8, i8, i8, f64)> = Vec::new();
         for _ in 0..30 {
-            trades.push((2, 1, 1, 10.0));
-            trades.push((2, 1, -1, -10.0));
+            trades.push((2, 1, 1, 0, 10.0));
+            trades.push((2, 1, -1, 0, -10.0));
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
-        assert!(p[&(2, 1, 1)] < 0.05, "强信号买桶应显著: {}", p[&(2, 1, 1)]);
+        assert!(p[&(2, 1, 1, 0)] < 0.05, "强信号买桶应显著: {}", p[&(2, 1, 1, 0)]);
+    }
+
+    /// σ^H 分层生效：同 (ℓ,bsp_class) 但 parent_dir 不同 ⟹ 不同层，互不污染置换（G-A1 核心断言）。
+    /// 构造 parent_dir=+1 层强信号、parent_dir=-1 层强反信号，二者若被误合并会互相稀释。
+    #[test]
+    fn parent_dir_stratifies_independently() {
+        let mut trades: Vec<(u32, u8, i8, i8, f64)> = Vec::new();
+        for _ in 0..30 {
+            trades.push((2, 1, 1, 1, 10.0));   // σ^H=+1 层：买桶强正
+            trades.push((2, 1, -1, 1, -10.0));
+            trades.push((2, 1, 1, -1, -10.0));  // σ^H=-1 层：买桶强负（若混层会抵消上层信号）
+            trades.push((2, 1, -1, -1, 10.0));
+        }
+        let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
+        assert!(p[&(2, 1, 1, 1)] < 0.05, "σ^H=+1 层买桶应独立检出显著: {}", p[&(2, 1, 1, 1)]);
+        assert!(p[&(2, 1, -1, -1)] < 0.05, "σ^H=-1 层卖桶应独立检出显著: {}", p[&(2, 1, -1, -1)]);
+        assert_eq!(p.len(), 4, "两个 σ^H 层各产 2 个 δ 桶，互不合并");
     }
 
     /// 同种子两跑 bit-exact（预注册可复现硬约束）。
     #[test]
     fn same_seed_reproducible() {
-        let trades: Vec<(u32, u8, i8, f64)> = (0..50)
-            .map(|i| (1u32, 2u8, if i % 3 == 0 { 1 } else { -1 }, (i as f64) * 0.37 - 9.0))
+        let trades: Vec<(u32, u8, i8, i8, f64)> = (0..50)
+            .map(|i| (1u32, 2u8, if i % 3 == 0 { 1 } else { -1 }, if i % 5 == 0 { 1 } else { 0 }, (i as f64) * 0.37 - 9.0))
             .collect();
         let a = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
         let b = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
@@ -206,9 +234,9 @@ mod tests {
             Ok(s) => s.parse::<u64>().expect("PERM_XPROC_SEED 须为 u64"),
             Err(_) => return,
         };
-        let trades: Vec<(u32, u8, i8, f64)> = (0..90)
+        let trades: Vec<(u32, u8, i8, i8, f64)> = (0..90)
             .map(|i| {
-                ((i % 3) as u32, ((i / 3) % 3 + 1) as u8, if i % 2 == 0 { 1 } else { -1 }, (i as f64) * 0.31 - 14.0)
+                ((i % 3) as u32, ((i / 3) % 3 + 1) as u8, if i % 2 == 0 { 1 } else { -1 }, if i % 4 < 2 { 1 } else { -1 }, (i as f64) * 0.31 - 14.0)
             })
             .collect();
         let out = stratified_delta_perm_p(&trades, N_PERM, seed);
@@ -216,7 +244,7 @@ mod tests {
         keys.sort_unstable(); // 跨进程逐字节可比的前提
         let mut body = String::new();
         for k in keys {
-            body.push_str(&format!("{},{},{}={:.17}\n", k.0, k.1, k.2, out[&k]));
+            body.push_str(&format!("{},{},{},{}={:.17}\n", k.0, k.1, k.2, k.3, out[&k]));
         }
         print!("{}{}{}", XPROC_BEGIN, body, XPROC_END);
     }
