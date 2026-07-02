@@ -1,7 +1,7 @@
 ---
 id: "661"
 number: 661
-status: 生成态   # meta-observer 二阶观察：两个独立元事件。(1) "inconclusive→不是否证而是方法学缺陷(缺LCB)→升级估计量重测"这一处置模式，与199号"inconclusive=定义域约束下的正确行为"正交——发散信号(新维度)，元谱系未覆盖第三态处置规范。(2) g-alpha-causal-selector→LCB goal 作为"goal 语义续作"——SUPERSEDE 链健康性观测：本轮是收窄式续作(同对象+方法升级)非逃避式续作，暂健康；但缺"续作 vs 逃避"的可判定边界。0 自决，标注候选供 /ritual。依赖 199/231/655/077。
+status: 生成态   # meta-observer 二阶观察：两个独立元事件。(1) "inconclusive→不是否证而是方法学缺陷(缺LCB)→升级估计量重测"这一处置模式，与199号"inconclusive=定义域约束下的正确行为"正交——发散信号(新维度)，元谱系未覆盖第三态处置规范。(2) g-alpha-causal-selector→LCB goal 作为"goal 语义续作"——SUPERSEDE 链健康性观测：本轮是收窄式续作(同对象+方法升级)非逃避式续作，暂健康；但缺"续作 vs 逃避"的可判定边界。0 自决，标注候选供 /ritual。依赖 199/231/655/077。（待#37 codex 裁定）
 date: "2026-06-30"
 type: meta-rule
 source: meta-observer（二阶观察，team-lead structural spawn 触发——严格alpha.pdf 作为 alpha.pdf/alpha2.pdf 严格化续作，LCB 置信下界修复 acc-delta-r-alpha n=5 inconclusive 卡点）

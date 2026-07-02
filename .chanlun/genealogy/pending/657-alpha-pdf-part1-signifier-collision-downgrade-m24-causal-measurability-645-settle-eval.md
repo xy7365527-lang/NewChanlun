@@ -2,7 +2,7 @@
 id: "657"
 number: 657
 type: bias-correction   # 三段：候选1 能指碰撞(降级归并,同651范式) + 候选2 M24 因果可测性标注 refinement + 645 结算条件评估
-status: 生成态   # genealogist 结构记录。候选1=降级归并(同651,不独立立号,待编排者/escalate裁是否并入651)；候选2=mutex-derive M24标注增量；645结算评估=条件满足但落盘走/ritual(019c)。最终待编排者/ritual。【编号 655→657：原 655 与已 commit(HEAD 482962d7d8)的 655-write-side-non-idempotent 撞车，本记录改 657（656=细分类不劣已占）】
+status: 生成态   # genealogist 结构记录。候选1=降级归并(同651,不独立立号,待编排者/escalate裁是否并入651)；候选2=mutex-derive M24标注增量；645结算评估=条件满足但落盘走/ritual(019c)。最终待编排者/ritual。【编号 655→657：原 655 与已 commit(HEAD 482962d7d8)的 655-write-side-non-idempotent 撞车，本记录改 657（656=细分类不劣已占）】（待#37 codex 裁定）
 date: "2026-06-30"
 source: genealogist（编排者 alpha.pdf 33页对照产出，Part1 p1-15「覆盖≠alpha」；p16-33=on2.pdf 同源→653/654 已处理）
 depends_on: ["231", "645", "651-652", "036"]

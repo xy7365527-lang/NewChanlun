@@ -2,7 +2,7 @@
 id: "649"
 number: 649
 type: meta-rule
-status: 生成态   # meta-observer 二阶观察。语法记录候选：编排者裁决可超越蜂群上呈的选项集（A/B/C），机制=否定选项集共享的未察觉隐藏前提。最终辨认待编排者 /escalate → /ritual。
+status: 生成态   # meta-observer 二阶观察。语法记录候选：编排者裁决可超越蜂群上呈的选项集（A/B/C），机制=否定选项集共享的未察觉隐藏前提。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
 date: "2026-06-29"
 source: meta-observer（二阶观察，goal g-sigma-complete-l2-nautilus session 68088c95 触发，观测点1=648 裁决 D）
 

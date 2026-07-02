@@ -1,6 +1,6 @@
 ---
 id: "claim10-xianduan-termination"   # slug id（避免伪造数字排序 + 跨 worktree 撞号；dag.yaml 已支持 slug id 如 coverage-engine-needs-tower-export-bridge）。最终数字编号待 /ritual 由编排者在统一编号空间分配。
-status: 生成态
+status: 生成态   # 待#37 codex 裁定
 type: 语法记录   # settled 定义(xianduan.md v1.3)与一级权威博文(第67课)原文镜像反转；settled 改动权属编排者/genealogist，发现工位不擅自改。
 date: "2026-06-25"   # 取文件名日期（本工位无 Bash，git 首 commit 时间戳结构不可达，同 655 号记录的工具边界）。文件名日期=创建标记，仓库约定。
 source: claim10-segment-v1 工位（task #37，Phase2 线段 v1 特征序列法形式化）；异工位复核 + codex 异质审计双源指出。

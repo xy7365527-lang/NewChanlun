@@ -1,6 +1,6 @@
 ---
 type: source-tracing
-status: pending
+status: pending   # 待#37 codex 裁定
 subject: maimai.md「#4 盘整背驰与买卖点」结算结论过度泛化，与一级权威第27课L18冲突
 authority_conflict: 一级权威(blog 第27课L18) vs 当前定义(definitions/maimai.md #4)
 interrupt_class: 非中断（可边界修正消除，非中断#1）

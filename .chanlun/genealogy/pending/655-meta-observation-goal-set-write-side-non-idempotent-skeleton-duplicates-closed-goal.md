@@ -1,7 +1,7 @@
 ---
 id: "655"
 number: 655
-status: 生成态   # meta-observer 二阶观察：/goal 命令的 GOAL_SET 写入端非幂等——_cli_goal_set 无条件 append 新 skeleton，从不查询是否已存在等价(active/closed)goal，与已 closed 的等价 goal(g-mutex-eat-every-element)机械撞车，靠 Lead 事后 SUPERSEDE 收拾。1 条语法记录/选择候选(写入端是否应去重)。辨认待编排者 /ritual。依赖 353/621/624/636。
+status: 生成态   # meta-observer 二阶观察：/goal 命令的 GOAL_SET 写入端非幂等——_cli_goal_set 无条件 append 新 skeleton，从不查询是否已存在等价(active/closed)goal，与已 closed 的等价 goal(g-mutex-eat-every-element)机械撞车，靠 Lead 事后 SUPERSEDE 收拾。1 条语法记录/选择候选(写入端是否应去重)。辨认待编排者 /ritual。依赖 353/621/624/636。（待#37 codex 裁定）
 date: "2026-06-30"
 type: meta-rule
 source: meta-observer（二阶观察，compact 恢复 session 触发——/goal ! 预处理重调时自动新建 skeleton goal g-20260630T042951Z-56dfde07 重复已 closed 的 g-mutex-eat-every-element）

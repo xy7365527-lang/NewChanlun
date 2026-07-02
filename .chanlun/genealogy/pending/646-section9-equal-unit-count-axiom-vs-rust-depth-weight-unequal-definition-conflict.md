@@ -1,7 +1,7 @@
 ---
 id: "646"
 number: 646
-status: 生成态   # 【改判 2026-06-29，codex CLI 裁决=C 范畴错误/消解，非真定义冲突】原记"定义冲突候选待裁(选择类)"。codex CLI(gpt-5.5 xhigh)独立裁决：rust leg.units=base_units·depth_weight 是下游资本加权目标敞口，**不是** §9 的 q_v 手数；§9 是条件式 a_v=1⟹q_v=q_parent(治理 active voice 手数恒等)，depth_weight 是资金帽设计参数——不等权不违反 §9，唯有把 leg.units 重释为 q_v 才违反，那个重释本身=范畴错误。b1/b2 不是同一对象的两个互斥定义，是两个不同对象 ⟹ "不可同真"前提不成立 ⟹ 冲突消解。codex+代理侧+Lead 三方收敛。改判为**消解类**(非选择类)。settled 落盘走 /ritual(019c 编排者权)。详见正文"codex CLI 裁决C"段。
+status: 生成态   # 【改判 2026-06-29，codex CLI 裁决=C 范畴错误/消解，非真定义冲突】原记"定义冲突候选待裁(选择类)"。codex CLI(gpt-5.5 xhigh)独立裁决：rust leg.units=base_units·depth_weight 是下游资本加权目标敞口，**不是** §9 的 q_v 手数；§9 是条件式 a_v=1⟹q_v=q_parent(治理 active voice 手数恒等)，depth_weight 是资金帽设计参数——不等权不违反 §9，唯有把 leg.units 重释为 q_v 才违反，那个重释本身=范畴错误。b1/b2 不是同一对象的两个互斥定义，是两个不同对象 ⟹ "不可同真"前提不成立 ⟹ 冲突消解。codex+代理侧+Lead 三方收敛。改判为**消解类**(非选择类)。settled 落盘走 /ritual(019c 编排者权)。详见正文"codex CLI 裁决C"段。（待#37 codex 裁定）
 date: "2026-06-29"
 type: domain   # 改判后：范畴错误消解（原记"域内定义冲突"，codex 裁决证伪冲突前提——leg.units≠q_v）
 depends_on: ["231", "645"]

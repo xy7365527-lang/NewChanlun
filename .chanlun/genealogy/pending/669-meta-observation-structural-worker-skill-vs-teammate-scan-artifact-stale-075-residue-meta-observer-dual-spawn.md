@@ -2,7 +2,7 @@
 id: "669"
 number: 669   # 候选编号（当前最大=668）。最终编号由 genealogist/编排者在 /ritual 统一分配；撞车让向下一空号。
 type: meta-rule
-status: 生成态   # meta-observer 二阶观察。三处声明扫描（doc/scan artifact/stop-hook）对「结构工位=skill 还是 teammate」——两处已收敛（562 扬弃 075），一处（scan artifact + ceremony 步骤10a）残留 075 语义。语法记录候选 + 623 计数器实例7（判断对象=同一 artifact 内两 spawn 路径语义分裂）。最终辨认待编排者 /escalate → /ritual。§九 二阶复核（2026-07-01 第二次 meta-observer pass）：残留分布比本号原刻画更宽——分裂贯穿 agent 基因组头 + ceremony 步骤5b + event_skill_map，非 scan artifact 单点，把结算推向选择/ritual 而非注释膨胀定理。
+status: 生成态   # meta-observer 二阶观察。三处声明扫描（doc/scan artifact/stop-hook）对「结构工位=skill 还是 teammate」——两处已收敛（562 扬弃 075），一处（scan artifact + ceremony 步骤10a）残留 075 语义。语法记录候选 + 623 计数器实例7（判断对象=同一 artifact 内两 spawn 路径语义分裂）。最终辨认待编排者 /escalate → /ritual。§九 二阶复核（2026-07-01 第二次 meta-observer pass）：残留分布比本号原刻画更宽——分裂贯穿 agent 基因组头 + ceremony 步骤5b + event_skill_map，非 scan artifact 单点，把结算推向选择/ritual 而非注释膨胀定理。（待#37 codex 裁定）
 date: "2026-07-01"
 source: meta-observer（二阶观察，team-lead 委派「075 Stop-Guard bootstrap scan spawn_condition 三处声明是否矛盾」有界任务触发；观测点=三处源码实读。§九=后续 meta-observer pass 对本号自身的三阶复核，team-lead 委派「评估 669 双重 spawn 矛盾是否具备结算条件」触发）
 

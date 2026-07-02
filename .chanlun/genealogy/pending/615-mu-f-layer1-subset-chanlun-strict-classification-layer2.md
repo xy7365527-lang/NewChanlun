@@ -1,7 +1,7 @@
 ---
 id: "615"
 number: 615
-status: 生成态   # 严格分类纲领核心概念发现，由 Lead 落盘（genealogist teammate 受 harness .md 写入限制，内容已全备：标准文档+6 codex 物证+全 Lean 结果）。最终结算待编排者 /ritual 在统一编号空间裁定。依赖 598/603（生成态）。
+status: 生成态   # 严格分类纲领核心概念发现，由 Lead 落盘（genealogist teammate 受 harness .md 写入限制，内容已全备：标准文档+6 codex 物证+全 Lean 结果）。最终结算待编排者 /ritual 在统一编号空间裁定。依赖 598/603（生成态）。（待 task#48 前置闭合）
 date: "2026-06-25"
 type: 概念分离
 depends_on: ["598", "603"]

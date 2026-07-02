@@ -2,7 +2,7 @@
 id: "647"
 number: 647
 type: meta-rule
-status: 生成态   # meta-observer 二阶观察。语法记录候选：验收/否证设计前必先锁定被测对象的同一性（实装构造的形式对象 = 该对象声称代表的概念定义对象）。本轮 675(坐标系分叉)+645(对象投影分离)暴露同一更普遍元结构。最终辨认待编排者 /escalate → /ritual。
+status: 生成态   # meta-observer 二阶观察。语法记录候选：验收/否证设计前必先锁定被测对象的同一性（实装构造的形式对象 = 该对象声称代表的概念定义对象）。本轮 675(坐标系分叉)+645(对象投影分离)暴露同一更普遍元结构。最终辨认待编排者 /escalate → /ritual。（待#37 codex 裁定）
 date: "2026-06-29"
 source: meta-observer（二阶观察，goal g-sigma-complete-l2-nautilus session 触发）
 

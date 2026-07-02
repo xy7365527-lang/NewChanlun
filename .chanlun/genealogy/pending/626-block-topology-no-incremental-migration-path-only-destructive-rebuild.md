@@ -1,7 +1,7 @@
 ---
 id: "626"
 number: 626
-status: 生成态   # genealogist 结构维护诊断：block-topology 缺增量迁移入口的结构缺口精确化。最终结算待编排者 /ritual。依赖 178。
+status: 生成态   # genealogist 结构维护诊断：block-topology 缺增量迁移入口的结构缺口精确化。最终结算待编排者 /ritual。依赖 178。（待#37 codex 裁定）
 date: "2026-06-27"
 type: 矛盾发现
 depends_on: ["178"]

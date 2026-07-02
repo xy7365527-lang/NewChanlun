@@ -2,7 +2,7 @@
 id: "658"
 number: 658
 type: domain   # SCHEMA 缺口：子目标 CHECK_PASS → 顶层 acceptance 的 rollup 映射未定义（选择类）
-status: 生成态   # genealogist 结构记录。非实现笔误——goal_reducer.py 逻辑自洽于其自身契约(行81-83:顶层acceptance由sub_goal_id==gid的CHECK_PASS闭合)。真缺口=SCHEMA未定义rollup语义。选择类待编排者/escalate。
+status: 生成态   # genealogist 结构记录。非实现笔误——goal_reducer.py 逻辑自洽于其自身契约(行81-83:顶层acceptance由sub_goal_id==gid的CHECK_PASS闭合)。真缺口=SCHEMA未定义rollup语义。选择类待编排者/escalate。（待#37 codex 裁定）
 date: "2026-06-30"
 source: genealogist（Lead 在 goal g-alpha-causal-selector 推进中报「reducer acceptance.passed 键不一致」；核源码确认=SCHEMA rollup 缺口非实现笔误）
 depends_on: ["650"]

@@ -1,7 +1,7 @@
 ---
 id: "636"
 number: 636
-status: 生成态   # meta-observer 二阶观察：本轮 idle_notification 语义歧义 × Lead spawn 决策耦合产生竞态(SG-D-L2/SG-L2-backtest 发 idle 后继续坐实+commit → Lead 误判 idle=完成 → 误 spawn 冗余工位 SG-coordsys)。1 条语法记录候选(工位完成判据=commit+终报，非 idle 信号)+ 3 现象复现确认(现象1/2/4 已被现有谱系覆盖=背驰)。最终辨认待编排者 /ritual。依赖 353/621/624。
+status: 生成态   # meta-observer 二阶观察：本轮 idle_notification 语义歧义 × Lead spawn 决策耦合产生竞态(SG-D-L2/SG-L2-backtest 发 idle 后继续坐实+commit → Lead 误判 idle=完成 → 误 spawn 冗余工位 SG-coordsys)。1 条语法记录候选(工位完成判据=commit+终报，非 idle 信号)+ 3 现象复现确认(现象1/2/4 已被现有谱系覆盖=背驰)。最终辨认待编排者 /ritual。依赖 353/621/624。（待#37 codex 裁定）
 date: "2026-06-27"
 type: meta-rule
 source: meta-observer（二阶观察，本轮 M1 双引擎线 + D′ 架构改造 session 触发）
