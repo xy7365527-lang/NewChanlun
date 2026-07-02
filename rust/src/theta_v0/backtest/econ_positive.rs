@@ -43,6 +43,8 @@ use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Bar, BspBits, Center, Side};
 use super::super::classifier::bsp::BspPoint;
 use super::super::classifier::recursive_tower::LeveledMove;
+use super::super::classifier::center::{center_from_segments, UnitRange};
+use super::super::classifier::descend::RMove;
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（sell.rs:50 CloseRoot/ReduceCore 对齐）。
 ///
@@ -1000,6 +1002,89 @@ fn xzd_c3_new_center_breakout(
             })
     });
     XzdC3BreakoutDiag { new_center_exists: !new_centers.is_empty(), new_center_breakout_ok }
+}
+
+/// C3 L1 零命中根因判别探针（codex #55 终局裁定(5) 精确规格）：**纯只读旁路**，区分「非重叠
+/// 三段窗口压掉新中枢」（候选1，`detect_centers_with` 算法限制）vs「真实几何无新中枢」（候选2，
+/// 市场事实）。不写 `Classification.levels[*].centers`，不改 `tower`，不改正常输出 digest；
+/// 默认不调用（调用现场 `ECON_C3_OVERLAP_PROBE` 环境变量门控，生产/默认测试路径零开销）。
+struct XzdC3OverlapProbeDiag {
+    /// 滑动一格扫描（非 `detect_centers_with` 的非重叠三段消费）产出的 post-source 新中枢窗口数
+    /// （`start_index >= source_index && end_index <= confirm_index`，可能同一中枢被多个重叠窗口
+    /// 重复命中——诊断计数，非去重集合）。
+    overlapping_new_center_count: usize,
+    /// 上述新中枢中，被其后次级走势反向突破者的窗口数（突破规则完全复用
+    /// [`xzd_c3_new_center_breakout`]：`Side::Long ⟹ hi>zg` / `Side::Short ⟹ lo<zd`）。
+    overlapping_breakout_count: usize,
+    /// 第一个 post-source 新中枢的 `(start_index, end_index)`（调试用，无命中为 `None`）。
+    first_overlapping_center: Option<(usize, usize)>,
+}
+
+/// 滑动重叠窗口扫描（`sub_units.windows(3)`，步长1）——与生产 `detect_centers_with`（成立支+3、
+/// 不成立支+1，非重叠）唯一的差异点。复用同一中枢构造函数 `center_from_segments`（方向交替+全三段
+/// 核心非空，L0 完整判据——本探针只在 `lvl==1` 调用，`sub_units` 恒为 L0 段，`center_from_window`
+/// 的几何路径不适用于此层）+ 同一突破规则（`xzd_c3_new_center_breakout`）。
+fn xzd_c3_overlap_window_probe(
+    source_index: usize,
+    confirm_index: usize,
+    side: Side,
+    sub_units: &[UnitRange],
+    sub_moves: &[LeveledMove],
+) -> XzdC3OverlapProbeDiag {
+    let mut new_centers: Vec<Center> = Vec::new();
+    for w in sub_units.windows(3) {
+        if let Some(c) = center_from_segments(&w[0], &w[1], &w[2]) {
+            if c.start_index >= source_index && c.end_index <= confirm_index {
+                new_centers.push(c);
+            }
+        }
+    }
+    let first_overlapping_center = new_centers.first().map(|c| (c.start_index, c.end_index));
+    let overlapping_breakout_count = new_centers
+        .iter()
+        .filter(|z| {
+            sub_moves
+                .iter()
+                .filter(|m| m.start_index >= z.end_index && m.end_index <= confirm_index)
+                .any(|m| match side {
+                    Side::Long => m.rmove.hi() > z.zg,
+                    Side::Short => m.rmove.lo() < z.zd,
+                })
+        })
+        .count();
+    XzdC3OverlapProbeDiag {
+        overlapping_new_center_count: new_centers.len(),
+        overlapping_breakout_count,
+        first_overlapping_center,
+    }
+}
+
+/// 从 L0 层携坐标走势塔（`tower[0]`，恒为 `RMove::Segment` 变体——递归底）还原 `UnitRange` 序列，
+/// 供 [`xzd_c3_overlap_window_probe`] 的滑窗输入。**必须**取真实线段方向（`RMove::Segment.direction`），
+/// 不能用 `recursive_tower::project_to_units` 的外缘折叠方向（`fold_direction` 是几何路径占位，
+/// L0 完整判据 `DirAlternates` 需要真方向——见 center.rs 诚实有效域声明）。`tower[0]` 本就是
+/// `moves_tower = units.iter().map(LeveledMove::from_unit).collect()`（mod.rs `classify_impl`
+/// level0 处理前的初始塔）的逐字段包装，故此还原与 `detect_centers_with` 原本消费的 L0 段账本
+/// bit-exact 一致（同 start/end/direction/lo/hi）。
+fn l0_units_from_tower(moves: &[LeveledMove]) -> Vec<UnitRange> {
+    moves
+        .iter()
+        .map(|m| {
+            let direction = match &m.rmove {
+                RMove::Segment { direction, .. } => *direction,
+                RMove::Compose { .. } => {
+                    unreachable!("tower[0] 恒为 L0 RMove::Segment（递归底，调用侧只在 lvl==1 用本函数）")
+                }
+            };
+            UnitRange {
+                start_index: m.start_index,
+                end_index: m.end_index,
+                direction,
+                lo: m.rmove.lo(),
+                hi: m.rmove.hi(),
+            }
+        })
+        .collect()
 }
 
 /// 小转大确认（设计 §2.2 C1∧C2；C3 改为「新中枢+突破」硬门——仅 level==1，codex #44 终局裁定(c)，
@@ -3065,6 +3150,10 @@ mod tests {
         // C3 新判据命中率探针（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率。
         let mut xzd_l1_c3_new_center_exists = 0usize;
         let mut xzd_l1_c3_new_center_breakout_ok = 0usize;
+        // C3 L1 零命中根因判别探针（codex #55 终局裁定(5)，task #56）：默认关闭，只读旁路
+        // （不写 Classification.levels[*].centers/tower/正常输出）。开关：ECON_C3_OVERLAP_PROBE=1。
+        let overlap_probe_enabled = std::env::var("ECON_C3_OVERLAP_PROBE").ok().as_deref() == Some("1");
+        let mut xzd_l1_overlap_rows: Vec<(usize, usize, usize, usize, Option<(usize, usize)>)> = Vec::new();
 
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
@@ -3147,6 +3236,23 @@ mod tests {
                                     if ev.same_side_causal_ok { xzd_l1_same_side_causal_ok += 1; }
                                     if ev.c3_new_center_exists { xzd_l1_c3_new_center_exists += 1; }
                                     if ev.c3_new_center_breakout_ok { xzd_l1_c3_new_center_breakout_ok += 1; }
+                                    // 探针（只读旁路，见函数头注）：lvl==1 时 sub_units=L0 段账本（tower[0]），
+                                    // sub_moves 同 build_gate_certificate 内部消费的 tower[lvl-1]。
+                                    if overlap_probe_enabled {
+                                        let l0_moves: &[LeveledMove] =
+                                            tower_i.get(0).map(|m| m.as_slice()).unwrap_or(&[]);
+                                        let sub_units = l0_units_from_tower(l0_moves);
+                                        let probe = xzd_c3_overlap_window_probe(
+                                            p.source_index, i, delta_side, &sub_units, l0_moves,
+                                        );
+                                        xzd_l1_overlap_rows.push((
+                                            p.source_index,
+                                            i,
+                                            probe.overlapping_new_center_count,
+                                            probe.overlapping_breakout_count,
+                                            probe.first_overlapping_center,
+                                        ));
+                                    }
                                 } else if lvl >= 2 {
                                     xzd_lge2_sub_bsp_type3_total += ev.sub_bsp_type3_count; // 死门真封：预期恒为 0
                                 }
@@ -3339,6 +3445,79 @@ mod tests {
             let _ = writeln!(rpt, "- c3_new_center_exists={} ({:.2}%)：source_index~confirm_index 间存在新确认次级中枢", xzd_l1_c3_new_center_exists, pct(xzd_l1_c3_new_center_exists));
             let _ = writeln!(rpt, "- c3_new_center_breakout_ok={} ({:.2}%)：新中枢被其后次级走势反向突破（level==1 硬门参门项）", xzd_l1_c3_new_center_breakout_ok, pct(xzd_l1_c3_new_center_breakout_ok));
             eprintln!("[c3-breakout-dx] lvl1 routed={n_l1} new_center_exists={xzd_l1_c3_new_center_exists} breakout_ok={xzd_l1_c3_new_center_breakout_ok}");
+
+            // ── C3 L1 零命中根因判别探针报告落盘（codex #55 终局裁定(5)，task #56）──
+            // 放在下方健康度 assert **之前**：该 assert 是 #47 既定判据健康度真封（命中率∈(0%,100%)
+            // 才是判据本身健康），本任务不改动其语义/不放宽；0/84 会使其 panic，探针结果须先落盘，
+            // 不受该 panic 影响（探针纯只读旁路，独立于 gate_pass 判据本身的健康度真封）。
+            if overlap_probe_enabled {
+                let overlap_new_center_signals = xzd_l1_overlap_rows.iter().filter(|r| r.2 >= 1).count();
+                let overlap_hit_signals = xzd_l1_overlap_rows.iter().filter(|r| r.3 >= 1).count();
+                let mut probe_rpt = String::new();
+                let _ = writeln!(probe_rpt, "# C3 L1 零命中根因判别探针（codex #55 终局裁定(5)，task #56）");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "**认识论等级**：L2（真实 BTC 数据，逐 level==1 信号滑动重叠窗口扫描，可产否定性结果）。");
+                let _ = writeln!(probe_rpt, "**窗口**：bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}。");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "## 结论");
+                let _ = writeln!(probe_rpt, "- level==1 Xzd routed 样本数={}", xzd_l1_overlap_rows.len());
+                let _ = writeln!(probe_rpt, "- 存在 ≥1 个滑动重叠窗口 post-source 新中枢的信号数={overlap_new_center_signals}");
+                let _ = writeln!(probe_rpt, "- 存在 ≥1 个滑动重叠窗口新中枢被突破（overlapping_breakout_count>=1）的信号数={overlap_hit_signals}");
+                let judgement = if overlap_hit_signals >= 1 {
+                    "**判别=候选(1)成立**：overlapping_breakout_count>=1 出现 ⟹ 推翻当前生产中枢扫描策略\
+                     （非重叠三段窗口是命中率为0的算法性根因），需转向实装可表达延伸/滑动确认的新中枢，用\
+                     golden digest 重验全部受影响路径（codex #55 边界条件，回 codex 复审，大动作）。"
+                } else {
+                    "**判别=候选(2)坐实**：滑动重叠窗口下 overlapping_breakout_count 恒为 0（`overlapping_new_center_count`\
+                     是否非零不改变本判别——边界条件二支均归候选(2)）⟹ 排除「非重叠窗口压掉新中枢」的算法限制假设，\
+                     level==1 走势尚未确认背驰反转期间（source_index 之后）在真实数据窗口下几何上确无可反向突破的\
+                     次级中枢——level==1 小转大通道在当前定义下实践关闭，不再为它改定义（codex #55 边界条件，终局）。"
+                };
+                let _ = writeln!(probe_rpt, "- {judgement}");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "## 定义依据");
+                let _ = writeln!(probe_rpt, "codex #55 终局裁定(5) 精确规格（`.chanlun/review-results/codex-decide-20260702-201450-8032.md`）：\
+                    `xzd_c3_overlap_window_probe` 对 `sub_units.windows(3)` 做滑动一格扫描（非 `detect_centers_with` 的非重叠\
+                    三段消费），复用同一中枢构造函数 `center_from_segments`（方向交替+全三段核心非空）+ 同一突破规则\
+                    `xzd_c3_new_center_breakout`（`Side::Long⟹hi>zg` / `Side::Short⟹lo<zd`）；只统计\
+                    `start_index>=source_index && end_index<=confirm_index` 的 post-source 新中枢。");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "## 边界条件（codex 原文，决定本裁定是否被推翻）");
+                let _ = writeln!(probe_rpt, "- 若 `overlapping_breakout_count>=1`（本窗任一信号）：推翻本判别，转候选(1)——先修 `detect_centers_with`/`center.rs` 支持延伸/重叠中枢，全受影响路径 golden digest 重验。");
+                let _ = writeln!(probe_rpt, "- 若 `overlapping_new_center_count==0`，或有滑动新中枢但 `overlapping_breakout_count==0`：候选(2)坐实，终局。");
+                let _ = writeln!(probe_rpt, "- 若未来权威规格把「旧中枢 source 后延伸并突破」定义为 C3：重开候选(3)（本探针不判别候选(3)，候选(3)另需形式化裁定）。");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "## 下游推论");
+                let _ = writeln!(probe_rpt, "#13（W-VERIFY alpha 全量重测）的最终签收阻塞到本探针结果。候选(2)坐实 ⟹ Xzd 有效通道收窄为 level>=2 的 C2-only（30 条）+ Nest 862，#13 可基于该口径解锁；候选(1)成立 ⟹ #13 继续阻塞，需先完成 center/tower 延伸中枢实装+golden digest 重验全部受影响路径。");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "## 谱系引用");
+                let _ = writeln!(probe_rpt, "#44（`codex-decide-20260702-193853-5bbe.md`，C3 判据从「center 精确匹配」重设计为「新中枢+突破」）、\
+                    #47（`c3-breakout-impl-20260702.md`，判据实装）、678（center 对象身份分裂——本次判定不适用于新判据，见 codex #55 原文 §678 摘要）、\
+                    codex #55（`codex-decide-20260702-201450-8032.md`，本探针精确规格来源+判别边界条件来源）。");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "## 影响声明");
+                let _ = writeln!(probe_rpt, "新增 `XzdC3OverlapProbeDiag`/`xzd_c3_overlap_window_probe`/`l0_units_from_tower`（`rust/src/theta_v0/backtest/econ_positive.rs`），\
+                    纯只读旁路，默认不调用，`ECON_C3_OVERLAP_PROBE=1` 门控。不改 `gate_pass()`、不改 `Classification.levels[*].centers`、\
+                    不改 `tower`、不改任何生产 `collect_signals`/正常输出 digest——仅本诊断测试内新增探针调用+独立报告落盘\
+                    （`.chanlun/review-results/c3-overlap-probe-20260702.md`），不影响既有 `acc-classification-level-hole-20260701.md` 报告内容。");
+                let _ = writeln!(probe_rpt);
+                let _ = writeln!(probe_rpt, "## 逐信号统计表（level==1 routed={}）", xzd_l1_overlap_rows.len());
+                let _ = writeln!(probe_rpt, "| # | source_index | confirm_index | overlapping_new_center_count | overlapping_breakout_count | first_overlapping_center |");
+                let _ = writeln!(probe_rpt, "|---|---|---|---|---|---|");
+                for (idx, (src, confirm, new_cnt, brk_cnt, first)) in xzd_l1_overlap_rows.iter().enumerate() {
+                    let first_str = first.map(|(s, e)| format!("({s},{e})")).unwrap_or_else(|| "—".to_string());
+                    let _ = writeln!(probe_rpt, "| {} | {src} | {confirm} | {new_cnt} | {brk_cnt} | {first_str} |", idx + 1);
+                }
+                let probe_out = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .parent().expect("rust/ 父目录 = 项目根")
+                    .join(".chanlun/review-results/c3-overlap-probe-20260702.md");
+                std::fs::write(&probe_out, &probe_rpt).unwrap_or_else(|e| panic!("写探针报告失败：{e}"));
+                eprintln!(
+                    "\n[c3-overlap-probe] 探针报告已落盘：{probe_out:?}（routed={} new_center_signals={overlap_new_center_signals} breakout_hit_signals={overlap_hit_signals}）",
+                    xzd_l1_overlap_rows.len()
+                );
+            }
+
             let breakout_rate = xzd_l1_c3_new_center_breakout_ok as f64 / n_l1 as f64;
             let _ = writeln!(rpt, "- **判据健康度**：命中率∈(0%,100%) ⟹ 判据在本窗有区分力（非死门/非全通过伪影）。");
             assert!(
