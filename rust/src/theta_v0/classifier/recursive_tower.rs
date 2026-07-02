@@ -295,10 +295,25 @@ pub fn compose_level(
 ///
 /// `consumed` 满足 `consumed + 2 >= units.len()`（while 终止条件）。尾部追加 units 后，
 /// `consumed + 2 < new_len` 可能成立 ⟹ 从 `consumed` 续扫正确（见模块文档增量证明）。
+///
+/// ★frontier bug 修复（task #47/#21，区间套.pdf 六~十节裁决②）：`consumed` **不能**直接作
+/// resume 起点——成立支 `+3` 后 `consumed` 越过最后一个成立窗口 `[i,i+1,i+2]`，把它当 sealed
+/// prefix。但该窗口第三段 `i+2` 可能是 frontier（未确认段），新 bar 到来后（后续新段使全量非重叠
+/// 扫描在此窗口后续段落产出不同中枢，或古怪线段重划改写 `i+2`）该中枢应重算。PDF：只有**完全
+/// 结束于最后 sealed 边界 `b_t` 前**的窗口 sealed；`b_t` 之后（含最后一个成立窗口，因其可能依赖
+/// frontier 段）必须重算。保守版（PDF §八）：`b_t = 当前活跃候选前最后稳定端点`，rollback 重算。
+///
+/// `resume_from` = **最后一个成立窗口的起点**（`win[0]`），即保守 `b_t` 锚。resume 从 `resume_from`
+/// 重扫（而非 `consumed`）⟹ 最后一个中枢每 bar 重算，其真正 sealed（后面又出现成立窗口把它推进
+/// prefix）后自然稳定。无成立窗口 ⟹ `resume_from == start_i`（无中枢可回退，续进语义不变）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct WindowScanCursor {
     /// 已扫描到的游标位置（退出点；`units[..consumed]` 的扫描路径已确定）。
     pub consumed: usize,
+    /// ★frontier 修复锚：本次扫描最后一个成立窗口的起点（`win[0]`）。下次 resume 起点用此
+    /// （而非 `consumed`）⟹ 最后一个（frontier）中枢重算。无成立窗口 ⟹ == 本次 `start_i`
+    /// （无回退，续进不变）。
+    pub resume_from: usize,
 }
 
 /// 增量窗口扫描：从 `start_i` 续扫三段窗口，返回新产出的 `(Center, [usize;3])` 序列 + 退出断点。
@@ -311,11 +326,17 @@ pub struct WindowScanCursor {
 ///   `(tail, c1)`，则全量扫描 `detect_centers_windowed(units, build)` == `prefix ++ tail`（bit-exact）。
 ///
 /// **bit-exact 充要条件**（调用方必须保证，否则增量破裂）：
-/// 1. `start_i` 必须是前缀 `units[..start_i]` 的真实退出断点（上次扫描返回的 `consumed`）。
-/// 2. `units[..start_i]` 在两次扫描间**不可变**（只允许尾部追加）。
-/// 3. 已产出的前缀 centers 不可变（成立支 +3 ⟹ 永不重访，自动满足）。
+/// 1. `start_i` 必须是一个**确定性扫描断点**：全量扫描从 0 出发到达 `start_i` 时游标路径确定
+///    （成立支 +3、不成立支 +1 的确定性左折叠）。合法取值有二——(a) 上次扫描的退出点 `consumed`
+///    （续进，不重算任何已产出中枢）；(b) 上次扫描**最后一个成立窗口的起点** `resume_from`
+///    （frontier 修复：从此重扫会重算最后一个中枢，调用方须对应 pop 该中枢——见 `WindowScanCursor`
+///    文档与 mod.rs::classify_with_tower_incremental 回退逻辑）。两者都是确定性断点（前缀路径不变）。
+/// 2. `units[..start_i]` 在两次扫描间**不可变**（只允许尾部追加或 frontier 段原地改写后重扫；
+///    改写落在 `start_i` 之后时无害，落在之前须调用方 cascade 全量重置）。
+/// 3. 保留的前缀 centers（`units[..start_i]` 上完全结束者）不可变（成立支 +3 ⟹ 永不重访）；
+///    跨越 `start_i` 的最后一个成立窗口**不**在保留前缀内（frontier，须重算）。
 ///
-/// 三个条件满足时，从 `start_i` 续扫产出的 tail 与全量重扫到达 `start_i` 后继续的产出逐位相同。
+/// 条件满足时，从 `start_i` 续扫产出的 tail 与全量重扫到达 `start_i` 后继续的产出逐位相同。
 pub fn detect_centers_windowed_resume(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
@@ -323,10 +344,15 @@ pub fn detect_centers_windowed_resume(
 ) -> (Vec<(Center, [usize; 3])>, WindowScanCursor) {
     let mut out = Vec::new();
     let mut i = start_i;
+    // ★frontier 修复锚：最后一个成立窗口的起点。无成立窗口 ⟹ None（下面折叠为 consumed，续进语义）。
+    // 不能用 start_i 兜底——None 支 +1 推进后 i > start_i，会让 `resume_from < consumed` 误判为
+    // "有窗口产出"，导致调用方 pop 空 centers（见 mod.rs had_emitted_window 守卫）。
+    let mut last_window_start: Option<usize> = None;
     while i + 2 < units.len() {
         match build(&units[i], &units[i + 1], &units[i + 2]) {
             Some(c) => {
                 out.push((c, [i, i + 1, i + 2]));
+                last_window_start = Some(i);
                 i += 3;
             }
             None => {
@@ -334,7 +360,8 @@ pub fn detect_centers_windowed_resume(
             }
         }
     }
-    (out, WindowScanCursor { consumed: i })
+    // 无成立窗口 ⟹ resume_from = consumed（续进，不回退）；有窗口 ⟹ 该窗口起点（回退重算 frontier 中枢）。
+    (out, WindowScanCursor { consumed: i, resume_from: last_window_start.unwrap_or(i) })
 }
 
 /// 增量 compose：从 `start_i` 续扫窗口 + 把新产出的窗口 compose 为上级 `LeveledMove`。

@@ -35,6 +35,7 @@ use super::incremental::IncrementalClassifier;
 use super::super::classifier::cand_predicate::ContextMove;
 use super::super::classifier::divergence::compute_macd;
 use super::super::classifier::nest::{NestCertificate, NestInterval, NestRung};
+use super::super::closed_loop::sell::{sell_decision_of, SellDecision};
 use super::super::config::ThetaConfig;
 use super::super::strategy::interp::assemble_gamma_with_tower;
 use super::super::strategy::voice::VoiceSide;
@@ -259,9 +260,13 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
                         continue;
                     }
                     // W1 返工：N^δ 多级区间套准入门（替换 bsp_div_cand 单级门）。
-                    // 调 build_multilevel_nest_cert：从塔构造完整 rungs 链，调 NestCertificate::n_delta()。
+                    // 调 build_multilevel_nest_cert：从塔构造 rungs 链，调 NestCertificate::n_delta()。
                     // N^δ=false ⟹ 跳过（合法定位失败；任一级 Cand=0 或区间不收缩均拒）。
                     // 认识论 L0（结构过滤，不声明 alpha；alpha 有效性待 W-VERIFY L2/L3）。
+                    // **有效域诚实（codex #39 + task#22 实测）**：接通 ≠ 多级执行。执行级 e=lvl，
+                    // rungs 从 tower[lvl+1..] 收集上级语境。**BTC 300K 实测 95.36% 通过门信号 rungs 空
+                    // ⟹ n_delta 退化为 base-case Conf^δ_e（单 bit 方向确认），仅 4.64% 真跨级 J 嵌套
+                    // （max 深度=1）**。有效深度分布见 acc_classification_level_hole_dx（effective_nest_depth）。
                     let delta_side = match c.dir {
                         VoiceSide::Long => Side::Long,
                         VoiceSide::Short => Side::Short,
@@ -384,23 +389,23 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     (decomps, agg)
 }
 
-/// P7 正规出场口径：从配对出场信号 bsp_class bits 派生 ExitDecision（接 sell.rs CloseRoot/ReduceCore）。
+/// P7 正规出场口径：配对出场信号 bsp_class bits → ExitDecision，**委托 closed_loop 平仓决策权威**。
+///
+/// **接线（非新逻辑）**：type1>type3 优先级 + CloseRoot/ReduceCore 语义由
+/// [`closed_loop::sell::sell_decision_of`](super::super::closed_loop::sell::sell_decision_of) 单一决定，
+/// 本函数只做「bsp bits → (is_type1, is_type3, is_type2) 判据」的解包与方向选择，再把 [`SellDecision`]
+/// 提升为 [`ExitDecision`]（加诊断态 Type2Missing）。优先级不在此重编码 ⟹ 与 `recog_chanlun_sell`
+/// 共用同一来源（no-patch）。
 ///
 /// **定义依据**：
 /// - 多头入场（δ=+1），exit 是 Short 信号：看卖侧 bits（bit3=sell1, bit4=sell2, bit5=sell3）。
-///   - sell1=true → CloseRoot（第一类顶背驰，优先级最高，对应 recog_chanlun_sell 第一分支）。
-///   - sell1=false ∧ sell3=true → ReduceCore（第三类卖点）。
-///   - sell1=false ∧ sell3=false ∧ sell2=true → Type2Missing（sell.rs:35 still-MISSING 诚实标注）。
-///   - 否则（无正规卖侧 bit）→ Hold。
-/// - 空头入场（δ=−1），exit 是 Long 信号：看买侧 bits（bit0=buy1, bit1=buy2, bit2=buy3）。
-///   - buy1=true → CloseRoot（第一类底背驰，买侧镜像）。
-///   - buy1=false ∧ buy3=true → ReduceCore（第三类买点，买侧镜像）。
-///   - buy1=false ∧ buy3=false ∧ buy2=true → Type2Missing（buy2 闭环 still-MISSING）。
-///   - 否则 → Hold。
+/// - 空头入场（δ=−1），exit 是 Long 信号：看买侧 bits（bit0=buy1, bit1=buy2, bit2=buy3，买点镜像卖点）。
+/// - `sell_decision_of` 返回 `CloseRoot`（type1 命中，优先）/ `ReduceCore`（type3 命中）/ `Hold`。
+/// - `Hold` 且命中 type2 → `Type2Missing`（sell.rs:35 第二类闭环 still-MISSING 诚实标注）；否则 `Hold`。
 ///
-/// **边界条件**：若 bsp_class=0（无任何 bit）→ Hold（exit 为 Hold 信号，无正规出场依据）。
+/// **边界条件**：若出场方向无 type1/type2/type3 bit（含 bsp_class=0）→ Hold（无正规出场依据）。
 /// **账本边界**：不触碰 TW 三阶段（GAP3/576 still-MISSING，econ 只用 R 账本 closed_loop 对齐）。
-/// **认识论 L0**：纯 bit 派生，不声明 alpha（alpha 待 W-VERIFY L2/L3）。
+/// **认识论 L0**：纯 bit 解包 + closed_loop 权威映射，不声明 alpha（alpha 待 W-VERIFY L2/L3）。
 pub(super) fn exit_decision_from_bits(exit_bsp_class: u8, delta: i8) -> ExitDecision {
     // bsp_class 位掩码：bit0=buy1, bit1=buy2, bit2=buy3, bit3=sell1, bit4=sell2, bit5=sell3
     const SELL1: u8 = 1 << 3;
@@ -409,28 +414,22 @@ pub(super) fn exit_decision_from_bits(exit_bsp_class: u8, delta: i8) -> ExitDeci
     const BUY1: u8 = 1 << 0;
     const BUY2: u8 = 1 << 1;
     const BUY3: u8 = 1 << 2;
-    if delta > 0 {
-        // 多头入场 → exit 是 Short 信号，看卖侧 bits
-        if exit_bsp_class & SELL1 != 0 {
-            ExitDecision::CloseRoot
-        } else if exit_bsp_class & SELL3 != 0 {
-            ExitDecision::ReduceCore
-        } else if exit_bsp_class & SELL2 != 0 {
-            ExitDecision::Type2Missing // sell.rs:35 still-MISSING，诚实标注
-        } else {
-            ExitDecision::Hold
-        }
+    // 出场方向选 bits：多头出场看卖侧，空头出场看买侧（买点镜像卖点，同一平仓优先级）。
+    let (t1, t2, t3) = if delta > 0 {
+        (SELL1, SELL2, SELL3)
     } else {
-        // 空头入场 → exit 是 Long 信号，看买侧 bits（买点镜像）
-        if exit_bsp_class & BUY1 != 0 {
-            ExitDecision::CloseRoot
-        } else if exit_bsp_class & BUY3 != 0 {
-            ExitDecision::ReduceCore
-        } else if exit_bsp_class & BUY2 != 0 {
-            ExitDecision::Type2Missing // buy2 闭环 still-MISSING
-        } else {
-            ExitDecision::Hold
-        }
+        (BUY1, BUY2, BUY3)
+    };
+    let is_type1 = exit_bsp_class & t1 != 0;
+    let is_type2 = exit_bsp_class & t2 != 0;
+    let is_type3 = exit_bsp_class & t3 != 0;
+    // closed_loop 权威：type1>type3 优先级 + 平仓语义单一来源。
+    match sell_decision_of(is_type1, is_type3) {
+        SellDecision::CloseRoot => ExitDecision::CloseRoot,
+        SellDecision::ReduceCore => ExitDecision::ReduceCore,
+        // Hold（无 type1/type3）：命中 type2 则诚实标注闭环缺口，否则真 Hold。
+        SellDecision::Hold if is_type2 => ExitDecision::Type2Missing,
+        SellDecision::Hold => ExitDecision::Hold,
     }
 }
 
@@ -464,14 +463,31 @@ pub(super) fn build_multilevel_nest_cert(
     bits: &BspBits,
     hist: &[f64],
 ) -> bool {
+    match build_nest_certificate(tower, lvl, source_index, delta, bits, hist) {
+        Some(cert) => cert.n_delta(),
+        None => false, // 执行级无候选段（tower[lvl] 无 end_index==source_index）⟹ 无定位
+    }
+}
+
+/// 从塔构造 `NestCertificate`（区间套证书的**构造**，与 `n_delta()` **判定**分离）。
+///
+/// 门函数 `build_multilevel_nest_cert` = 本函数 + `.n_delta()`；诊断函数
+/// `effective_nest_depth` = 本函数 + `take_while(cand)` 前缀长度。两者**共用同一构造代码** ⟹
+/// 诊断读到的 rung 深度与生产门实际消费的 rung 链 **bit-exact 同源**（不是外部近似重算）。
+///
+/// **认识论 L0**：纯结构构造 + 确定性算术（同 `build_multilevel_nest_cert`）。
+/// 返回 `None` ⟺ 执行级 tower[lvl] 无 end_index==source_index 段（无定位候选，门直接拒）。
+pub(super) fn build_nest_certificate(
+    tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
+    lvl: usize,
+    source_index: usize,
+    delta: Side,
+    bits: &BspBits,
+    hist: &[f64],
+) -> Option<NestCertificate> {
     // 执行级 tower[lvl] 中找 end_index == source_index 的段（候选段 s，执行级 e=lvl）。
-    let exec_moves = match tower.get(lvl) {
-        Some(rc) => rc.as_slice(),
-        None => return false,
-    };
-    let Some(s) = exec_moves.iter().find(|m| m.end_index == source_index) else {
-        return false;
-    };
+    let exec_moves = tower.get(lvl)?.as_slice();
+    let s = exec_moves.iter().find(|m| m.end_index == source_index)?;
     let base_interval = NestInterval {
         start_time: s.start_index as u64,
         end_time: s.end_index as u64,
@@ -491,7 +507,12 @@ pub(super) fn build_multilevel_nest_cert(
         let Some(knode) = k_moves.iter().find(|m| {
             m.start_index <= source_index && source_index <= m.end_index
         }) else {
-            break; // 无 k 级包含段 ⟹ 链断，不延伸
+            // 无 k 级包含段 ⟹ 链断，不延伸。**设计选择：partial chain 合法**（codex #39 Q1 裁定）。
+            // N^δ_{ℓ↓e} 的执行级 e=信号级 lvl（非 tower 顶）；rungs 是「e 之上到首个无包含段」的
+            // 上级语境层。链断 = 该 source_index 在更高层无覆盖段 = 上级语境到此为止，**不是**要求
+            // 从 tower 顶完整下钻（spec ℓ=信号级，无「必须到顶」约束）。故 break 而非 return None——
+            // return None 会强加 spec 没有的「完整 tower 链」约束，拒绝合法的部分语境信号（no-patch）。
+            break;
         };
         let interval_k = NestInterval {
             start_time: knode.start_index as u64,
@@ -522,13 +543,25 @@ pub(super) fn build_multilevel_nest_cert(
     }
     // n_delta 期望 rungs[0]=最高级，rungs[last]=lvl+1 级——rung_buf 是低到高，需反转。
     rung_buf.reverse();
-    let cert = NestCertificate {
+    Some(NestCertificate {
         side: delta,
         terminal: *bits,
         base_interval,
         rungs: rung_buf,
-    };
-    cert.n_delta()
+    })
+}
+
+/// 诊断：通过门信号的 N^δ 证书**有效跨级深度** = 从最高级 rung 起连续 `cand==true` 的层数。
+///
+/// **为什么不是 `rungs.len()`**：`n_delta` 逐级 `cand ∧ is_sub ∧ 递归`——任一级 `cand==false`
+/// 即短路拒绝。故对**通过门**（n_delta=true）的信号，其所有 rung 的 cand 必为 true（否则被拒），
+/// `effective_nest_depth = rungs.len()`。但本函数对**任意**证书通用：返回从 rungs[0]（最高级）
+/// 起连续 cand=true 的前缀长度——即 N^δ 递归实际穿越的跨级层数。深度 0 = 纯 base-case
+/// `confirm_side`（退化，等价单 bit 检查，无区间套跨级）；深度 ≥1 = 真跨级 `[J_{ℓ-1}⊆J_ℓ]` 触达。
+///
+/// **认识论 L0**：纯结构读数（不重跑分类）。用于 P1 验收「区间套是否真触达 ≥2 层」的 bit-exact 证据。
+pub(super) fn effective_nest_depth(cert: &NestCertificate) -> usize {
+    cert.rungs.iter().take_while(|r| r.cand).count()
 }
 
 /// σ_higher：信号所在 level 的上级层（tower[level+1]）末走势端点价净差符号（666 号，见 SignalDecomp.sigma_higher）。
@@ -1235,8 +1268,21 @@ mod tests {
             "Σactual_spread 聚合 {} ≠ 逐信号和 {}", agg.sum_actual_spread, sum_act);
     }
 
-    /// per-class (level,δ) 真实成交统计：(n, Σactual_pnl, n_act+, Σab_rev)。OOS 测试复用，避免重复分桶。
-    fn class_actual_pnl(decomps: &[SignalDecomp], level: u32, delta: i8) -> (usize, f64, usize, f64) {
+    /// per-class `(level, δ, bsp_class)` 真实成交统计：(n, Σactual_pnl, n_act+, Σab_rev)。
+    /// P4（codex E-3）：分桶键含 bsp_class ⟹ 单类型 α 可辨——混合 (level,δ) 池会把 buy1/buy2/buy3
+    /// 混一桶，桶均值只给混合均值（稀释是 L0 结构必然，codex E-2）。estimand 桶键 `(ℓ,δ,bsp_class)`。
+    fn class_actual_pnl(decomps: &[SignalDecomp], level: u32, delta: i8, bsp_class: u8) -> (usize, f64, usize, f64) {
+        decomps.iter().filter(|d| d.level == level && d.delta == delta && d.bsp_class == bsp_class).fold(
+            (0usize, 0.0f64, 0usize, 0.0f64),
+            |(n, pnl, npos, ab), d| {
+                (n + 1, pnl + d.actual_pnl, npos + (d.actual_pnl > 0.0) as usize, ab + d.a_b)
+            },
+        )
+    }
+
+    /// `(level, δ)` 聚合（Σ over bsp_class）真实成交统计——用于 δ 方向不对称对照（level0 卖 vs 买，
+    /// 与 bsp_class 正交）+ 诊断报告。**非 estimand 桶**（estimand 桶是 per-class [`class_actual_pnl`]）。
+    fn class_actual_pnl_agg(decomps: &[SignalDecomp], level: u32, delta: i8) -> (usize, f64, usize, f64) {
         decomps.iter().filter(|d| d.level == level && d.delta == delta).fold(
             (0usize, 0.0f64, 0usize, 0.0f64),
             |(n, pnl, npos, ab), d| {
@@ -1297,10 +1343,10 @@ mod tests {
 
         let (decomps_train, _) = decompose_capturable_spread(&ds_train, &config);
         let (decomps_hold, _) = decompose_capturable_spread(&ds_hold, &config);
-        let (tr_n, tr_pnl, tr_pos, tr_ab) = class_actual_pnl(&decomps_train, 0, -1);
-        let (hd_n, hd_pnl, hd_pos, hd_ab) = class_actual_pnl(&decomps_hold, 0, -1);
+        let (tr_n, tr_pnl, tr_pos, tr_ab) = class_actual_pnl_agg(&decomps_train, 0, -1);
+        let (hd_n, hd_pnl, hd_pos, hd_ab) = class_actual_pnl_agg(&decomps_hold, 0, -1);
         // 对照：买（δ=+1，in-sample 亏损主源）OOS 是否仍亏。
-        let (hd_buy_n, hd_buy_pnl, hd_buy_pos, _) = class_actual_pnl(&decomps_hold, 0, 1);
+        let (hd_buy_n, hd_buy_pnl, hd_buy_pos, _) = class_actual_pnl_agg(&decomps_hold, 0, 1);
 
         let train_ret = window_net_return(&ds_train);
         let hold_ret = window_net_return(&ds_hold);
@@ -1312,10 +1358,10 @@ mod tests {
         let ds_w2 = ds.slice_bar_range(half, n);
         let (dw1, _) = decompose_capturable_spread(&ds_w1, &config);
         let (dw2, _) = decompose_capturable_spread(&ds_w2, &config);
-        let (w1_s_n, w1_sell, _, _) = class_actual_pnl(&dw1, 0, -1);
-        let (w1_b_n, w1_buy, _, _) = class_actual_pnl(&dw1, 0, 1);
-        let (w2_s_n, w2_sell, _, _) = class_actual_pnl(&dw2, 0, -1);
-        let (w2_b_n, w2_buy, _, _) = class_actual_pnl(&dw2, 0, 1);
+        let (w1_s_n, w1_sell, _, _) = class_actual_pnl_agg(&dw1, 0, -1);
+        let (w1_b_n, w1_buy, _, _) = class_actual_pnl_agg(&dw1, 0, 1);
+        let (w2_s_n, w2_sell, _, _) = class_actual_pnl_agg(&dw2, 0, -1);
+        let (w2_b_n, w2_buy, _, _) = class_actual_pnl_agg(&dw2, 0, 1);
         let w1_ret = window_net_return(&ds_w1);
         let w2_ret = window_net_return(&ds_w2);
 
@@ -1454,15 +1500,15 @@ mod tests {
 
         // train-only 挑赢家（不看 holdout）。记录是否 level0卖。
         let winner = train_winner_class(&decomps_train);
-        let is_level0_sell = winner == Some((0, -1));
-        let train_l0sell = class_actual_pnl(&decomps_train, 0, -1);
+        let is_level0_sell = matches!(winner, Some((0, -1, _)));
+        let train_l0sell = class_actual_pnl_agg(&decomps_train, 0, -1);
 
         // 锁 holdout 评估 train 选出的类。
         let (hd_n, hd_pnl, hd_pos, hd_ab, hd_pnls) = match winner {
-            Some((lv, dl)) => {
-                let (n_, pnl, npos, ab) = class_actual_pnl(&decomps_hold, lv, dl);
+            Some((lv, dl, bc)) => {
+                let (n_, pnl, npos, ab) = class_actual_pnl(&decomps_hold, lv, dl, bc);
                 let pnls: Vec<f64> = decomps_hold.iter()
-                    .filter(|d| d.level == lv && d.delta == dl).map(|d| d.actual_pnl).collect();
+                    .filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc).map(|d| d.actual_pnl).collect();
                 (n_, pnl, npos, ab, pnls)
             }
             None => (0, 0.0, 0, 0.0, Vec::new()),
@@ -1483,7 +1529,7 @@ mod tests {
             .and_then(|s| s.parse().ok()).unwrap_or(4);
         let wf_train_frac = 0.6;
         let win_len = n / k_windows;
-        let mut wf_rows: Vec<(Option<(u32, i8)>, bool, usize, f64, f64, bool)> = Vec::new();
+        let mut wf_rows: Vec<(Option<(u32, i8, u8)>, bool, usize, f64, f64, bool)> = Vec::new();
         let mut lcb_pos_count = 0usize;
         let mut l0sell_winner_count = 0usize;
         for w in 0..k_windows {
@@ -1494,11 +1540,11 @@ mod tests {
             let dtr = decompose_capturable_spread(&ds.slice_bar_range(w_start, w_mid), &config).0;
             let dos = decompose_capturable_spread(&ds.slice_bar_range(w_mid, w_end), &config).0;
             let wwin = train_winner_class(&dtr);
-            let w_is_l0 = wwin == Some((0, -1));
+            let w_is_l0 = matches!(wwin, Some((0, -1, _)));
             if w_is_l0 { l0sell_winner_count += 1; }
             let (on, opnl, lcb) = match wwin {
-                Some((lv, dl)) => {
-                    let pnls: Vec<f64> = dos.iter().filter(|d| d.level == lv && d.delta == dl)
+                Some((lv, dl, bc)) => {
+                    let pnls: Vec<f64> = dos.iter().filter(|d| d.level == lv && d.delta == dl && d.bsp_class == bc)
                         .map(|d| d.actual_pnl).collect();
                     let (nf, _) = neff_autocorr(&pnls, 20);
                     let (_, _, lcb) = mean_se_lcb(&pnls, nf);
@@ -1517,7 +1563,7 @@ mod tests {
         let oos_robust = lcb_oos > 0.0 && q4_d5 > 0.0 && q4_p < 0.05 && lcb_pos_ratio >= 100.0;
 
         // ══ 报告 ══
-        let cls_str = |c: Option<(u32, i8)>| c.map(|(l, d)| format!("(level={l},δ={d:+})")).unwrap_or_else(|| "None(train无正类)".into());
+        let cls_str = |c: Option<(u32, i8, u8)>| c.map(|(l, d, b)| format!("(level={l},δ={d:+},cls={b:#04x})")).unwrap_or_else(|| "None(train无正类)".into());
         let mut rpt = String::new();
         let _ = writeln!(rpt, "# PDF §11 walk-forward 验收：train-only 挑类（除 codex Q2 BIAS-FATAL 选择偏差）");
         let _ = writeln!(rpt);
@@ -1629,14 +1675,15 @@ mod tests {
 
     // ── PDF §11 walk-forward 验收 helper（纯函数，L1 自检见 mod 末 #[test]）──
 
-    /// train 段 per-class 选最强正类（PDF §11「train 决定规则」）：扫所有出现的 (level,δ)，
+    /// train 段 per-class 选最强正类（PDF §11「train 决定规则」）：扫所有出现的 `(level, δ, bsp_class)`
+    /// （P4/codex E-3：含类型 ⟹ 与 estimand 桶键一致，选类不跨 buy1/buy2/buy3 稀释），
     /// 取 Σactual_pnl 最大者；若全非正返 None（train 期无可交易候选）。
     /// **关键反偏差**：选类只用 train 段 decomps，holdout 信息不进入选择环节（消 codex Q2 BIAS-FATAL）。
-    fn train_winner_class(decomps_train: &[SignalDecomp]) -> Option<(u32, i8)> {
+    fn train_winner_class(decomps_train: &[SignalDecomp]) -> Option<(u32, i8, u8)> {
         use std::collections::BTreeMap;
-        let mut sums: BTreeMap<(u32, i8), f64> = BTreeMap::new();
+        let mut sums: BTreeMap<(u32, i8, u8), f64> = BTreeMap::new();
         for d in decomps_train {
-            *sums.entry((d.level, d.delta)).or_default() += d.actual_pnl;
+            *sums.entry((d.level, d.delta, d.bsp_class)).or_default() += d.actual_pnl;
         }
         sums.into_iter()
             .filter(|(_, pnl)| *pnl > 0.0)
@@ -1754,7 +1801,7 @@ mod tests {
             sigma_higher: 0, bsp_class: 0, exit_decision: ExitDecision::Hold,
         };
         let ds = vec![synth(0, -1, 3.0), synth(0, -1, 2.0), synth(1, 1, -2.0)];
-        assert_eq!(train_winner_class(&ds), Some((0, -1)), "train 应选 Σpnl 最大正类 (0,-1)");
+        assert_eq!(train_winner_class(&ds), Some((0, -1, 0)), "train 应选 Σpnl 最大正类 (0,-1,cls=0)");
         let all_neg = vec![synth(0, -1, -1.0)];
         assert_eq!(train_winner_class(&all_neg), None, "全非正应返 None");
 
@@ -1891,8 +1938,8 @@ mod tests {
         }
         let mut hl_results: Vec<HighLevelResult> = Vec::new();
         for &(lv, dl) in &high_keys {
-            let (tr_n, tr_pnl, _, _) = class_actual_pnl(&decomps_train, lv, dl);
-            let (hd_n, hd_pnl, hd_pos, _) = class_actual_pnl(&decomps_hold, lv, dl);
+            let (tr_n, tr_pnl, _, _) = class_actual_pnl_agg(&decomps_train, lv, dl);
+            let (hd_n, hd_pnl, hd_pos, _) = class_actual_pnl_agg(&decomps_hold, lv, dl);
             let pnls: Vec<f64> = decomps_hold.iter()
                 .filter(|d| d.level == lv && d.delta == dl)
                 .map(|d| d.actual_pnl).collect();
@@ -2100,6 +2147,15 @@ mod tests {
         // 结构 sanity：level≥1 通过门的信号，记其 (source_index, δ, bits, rung 层数)。
         let mut highlevel_hits: Vec<(usize, usize, i8, u8, usize)> = Vec::new(); // (lvl, src, δ, bits_u8, n_rungs)
 
+        // ── P1 FullNest 验收（task #22）：通过门信号的**有效跨级深度**分布（含 level0）。 ──
+        // effective_nest_depth(cert) = n_delta 递归实际穿越的连续 cand=true 跨级层数。
+        // depth==0 ⟹ 纯 base-case confirm_side（退化，等价单 bit，无区间套跨级触达）；
+        // depth>=1 ⟹ 真跨级 [J_{ℓ-1}⊆J_ℓ] 触达（≥2 层证书 e→ℓ）。用 build_nest_certificate
+        // （与生产门共用构造）⟹ bit-exact 同源，非外部近似重算。索引=深度（LMAX 足够，实测塔≤6 级）。
+        let mut nest_depth_hist_pass = [0usize; LMAX + 1]; // 通过门信号（n_delta=true）的有效深度分布
+        let mut nest_depth_by_level_pass = [[0usize; LMAX + 1]; LMAX]; // [exec_level][depth]
+        let mut n_gate_pass_total = 0usize; // 通过门信号总数（应=sig_post_sum）
+
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
 
@@ -2144,21 +2200,23 @@ mod tests {
                             VoiceSide::Short => Side::Short,
                             VoiceSide::Flat => continue,
                         };
-                        if !build_multilevel_nest_cert(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist) {
+                        // P1 FullNest：用 build_nest_certificate（与生产门共用构造）拿证书，
+                        // 门判定 = cert.n_delta()（bit-exact == build_multilevel_nest_cert）。
+                        let Some(cert) = build_nest_certificate(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist) else {
+                            continue; // 执行级无候选段 ⟹ 门拒（同 build_multilevel_nest_cert None 分支）
+                        };
+                        if !cert.n_delta() {
                             continue;
                         }
                         if lvl < LMAX { sig_post[lvl] += 1; }
+                        // 有效跨级深度（通过门 ⟹ 所有 rung cand=true ⟹ depth=rungs.len()）。
+                        let depth = effective_nest_depth(&cert).min(LMAX);
+                        nest_depth_hist_pass[depth] += 1;
+                        if lvl < LMAX { nest_depth_by_level_pass[lvl][depth] += 1; }
+                        n_gate_pass_total += 1;
                         if lvl >= 1 {
-                            // 结构 sanity：重算 rung 层数（tower[lvl+1..] 含 source_index 的段数）。
-                            let max_k = tower_i.len();
-                            let mut n_rungs = 0usize;
-                            for k in (lvl + 1)..max_k {
-                                let has = tower_i[k].iter().any(|m|
-                                    m.start_index <= p.source_index && p.source_index <= m.end_index);
-                                if has { n_rungs += 1; } else { break; }
-                            }
                             let delta: i8 = if c.dir == VoiceSide::Long { 1 } else { -1 };
-                            highlevel_hits.push((lvl, p.source_index, delta, bsp_class, n_rungs));
+                            highlevel_hits.push((lvl, p.source_index, delta, bsp_class, cert.rungs.len()));
                         }
                     }
                 }
@@ -2232,6 +2290,45 @@ mod tests {
                 提取它的那个 classifier level 计一次（mod.rs 分级提取），rung 链是 N^δ 门的准入语境，非计数重复。");
         }
 
+        // ── P1 FullNest 验收（task #22）：通过门信号的有效跨级深度分布（含 level0，bit-exact 同源）──
+        let _ = writeln!(rpt);
+        let _ = writeln!(rpt, "## P1 FullNest 验收：通过门信号有效跨级深度分布（task #22，含 level0）");
+        let _ = writeln!(rpt, "**有效跨级深度** = n_delta 递归实际穿越的连续 cand=true 跨级层数（build_nest_certificate 与生产门共用构造，bit-exact）。");
+        let _ = writeln!(rpt, "- depth=0 ⟹ 纯 base-case confirm_side（**退化**：等价单 bit 检查，**无区间套跨级触达**，与旧单级门弱化）。");
+        let _ = writeln!(rpt, "- depth≥1 ⟹ 真跨级 [J_{{ℓ-1}}⊆J_ℓ] 触达（N^δ ≥2 层证书 e→ℓ，Q5 验收要求）。");
+        let _ = writeln!(rpt, "| 有效深度 | 通过门信号数 | 占比 |");
+        let _ = writeln!(rpt, "|---|---|---|");
+        for d in 0..=LMAX {
+            if nest_depth_hist_pass[d] == 0 { continue; }
+            let p = if n_gate_pass_total > 0 { 100.0 * nest_depth_hist_pass[d] as f64 / n_gate_pass_total as f64 } else { 0.0 };
+            let _ = writeln!(rpt, "| {d} | {} | {p:.2}% |", nest_depth_hist_pass[d]);
+        }
+        let n_depth0 = nest_depth_hist_pass[0];
+        let n_depth_ge1: usize = nest_depth_hist_pass[1..].iter().sum();
+        let _ = writeln!(rpt, "\n**depth=0（退化 base-case）：{n_depth0}/{n_gate_pass_total}；depth≥1（真跨级触达）：{n_depth_ge1}/{n_gate_pass_total}**");
+        let _ = writeln!(rpt, "\n### 逐执行级 × 深度矩阵");
+        let _ = writeln!(rpt, "| exec_level | depth0 | depth1 | depth2 | depth3 | depth≥4 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|");
+        for l in 0..LMAX {
+            let row = &nest_depth_by_level_pass[l];
+            if row.iter().sum::<usize>() == 0 { continue; }
+            let ge4: usize = row[4..].iter().sum();
+            let _ = writeln!(rpt, "| {l} | {} | {} | {} | {} | {} |", row[0], row[1], row[2], row[3], ge4);
+        }
+        let p1_verdict = if n_gate_pass_total == 0 {
+            "**无信号通过门（本窗）**——无法判定触达深度。"
+        } else if n_depth_ge1 == 0 {
+            "**退化坐实（FullNest 未触达）**：全部通过门信号 depth=0 ⟹ N^δ 门在本窗**完全退化为 base-case confirm_side**（单 bit 方向确认），\
+             **区间套跨级 [J_{ℓ-1}⊆J_ℓ] 从未被消费**。代码是真递归但有效域内 rungs 恒空——「区间套已接入」是声明膨胀（090/spec-execution-gap）。"
+        } else if n_depth0 == 0 {
+            "**FullNest 全触达**：全部通过门信号 depth≥1 ⟹ 每个信号都消费了跨级区间套（≥2 层证书）。"
+        } else {
+            "**FullNest 部分触达（混合）**：部分信号跨级（depth≥1），部分退化（depth=0）。区间套在有效域内**真触达但非全覆盖**——\
+             如实标注：depth=0 那部分等价 base-case，depth≥1 那部分是真 N^δ。"
+        };
+        let _ = writeln!(rpt, "\n### P1 判定：{p1_verdict}");
+        let _ = writeln!(rpt);
+
         // ── 配对后 decomps level 分布（关键：sig_post 是门后配对前，decomps 是配对后）──
         // 分水岭：若中间级 sig_post>0 但 decomps 该级=0 ⟹ 配对阶段丢失（非门滤空 H1，是右删失/跨级混合配对）。
         let (decomps_prod, agg_prod) = decompose_capturable_spread(&ds, &config);
@@ -2278,5 +2375,54 @@ mod tests {
             "decomp 逐级和({decomp_sum}) 应 = n_signals({})", agg_prod.n_signals);
         eprintln!("真封：sig_post_sum={sig_post_sum} >= n_signals={} = decomp_sum={decomp_sum}",
             agg_prod.n_signals);
+        // 真封③（P1 FullNest）：深度直方图总数 = 通过门总数 = sig_post_sum（build_nest_certificate
+        // 与 build_multilevel_nest_cert 门判定 bit-exact 同源，通过门信号无遗漏）。
+        let depth_hist_sum: usize = nest_depth_hist_pass.iter().sum();
+        assert_eq!(depth_hist_sum, n_gate_pass_total,
+            "深度直方图和({depth_hist_sum}) 应 = 通过门总数({n_gate_pass_total})");
+        assert_eq!(n_gate_pass_total, sig_post_sum,
+            "通过门总数({n_gate_pass_total}) 应 = sig_post_sum({sig_post_sum})（build_nest_certificate.n_delta bit-exact == build_multilevel_nest_cert）");
+        eprintln!("真封③（P1）：depth_hist_sum={depth_hist_sum} = n_gate_pass_total={n_gate_pass_total} = sig_post_sum={sig_post_sum}");
+    }
+
+    /// **P1 FullNest L1：effective_nest_depth 前缀语义（build_nest_certificate 与门共用构造的读数）**。
+    ///
+    /// depth = 从 rungs[0]（最高级）起连续 cand=true 的层数。混合 cand 时在首个 false 处截断。
+    /// **认识论 L1**（合成证书结构验证，非 alpha）：验证深度读数与 n_delta 短路语义一致。
+    #[test]
+    fn effective_nest_depth_prefix_semantics() {
+        use super::super::super::classifier::nest::{NestCertificate, NestInterval, NestRung};
+        let mut bits = BspBits::default();
+        bits.buy1 = true;
+        let iv = |et: u64| NestInterval { end_time: et, start_time: 0, idx: 0 };
+        // 全 cand=true 的 3 级证书 ⟹ depth=3（100⊇80⊇60，均 cand=true，且 base⊆最低 rung）。
+        let cert_full = NestCertificate {
+            side: Side::Long, terminal: bits, base_interval: iv(50),
+            rungs: vec![
+                NestRung { interval: iv(100), cand: true },
+                NestRung { interval: iv(80),  cand: true },
+                NestRung { interval: iv(60),  cand: true },
+            ],
+        };
+        assert_eq!(effective_nest_depth(&cert_full), 3, "全 cand=true ⟹ depth=rungs.len()=3");
+        // 空 rungs ⟹ depth=0（纯 base-case，退化）。
+        let cert_base = NestCertificate { rungs: vec![], ..cert_full.clone() };
+        assert_eq!(effective_nest_depth(&cert_base), 0, "空 rungs ⟹ depth=0（base-case 退化）");
+        // 中间 cand=false ⟹ 前缀在首个 false 处截断（depth=1，只数 rungs[0]）。
+        let cert_mid = NestCertificate {
+            rungs: vec![
+                NestRung { interval: iv(100), cand: true },
+                NestRung { interval: iv(80),  cand: false }, // 截断处
+                NestRung { interval: iv(60),  cand: true },
+            ],
+            ..cert_full.clone()
+        };
+        assert_eq!(effective_nest_depth(&cert_mid), 1, "中间 cand=false ⟹ 前缀截断 depth=1");
+        // 首级 cand=false ⟹ depth=0（即便有 rungs，n_delta 立即在最高级短路）。
+        let cert_top_false = NestCertificate {
+            rungs: vec![NestRung { interval: iv(100), cand: false }],
+            ..cert_full
+        };
+        assert_eq!(effective_nest_depth(&cert_top_false), 0, "首级 cand=false ⟹ depth=0");
     }
 }

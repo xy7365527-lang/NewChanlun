@@ -47,7 +47,7 @@ use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
 use std::rc::Rc;
 use super::super::classifier::Classification;
 use super::super::classifier::bsp::BspPoint;
-use super::super::types::BspBits;
+use super::super::types::{BspBits, Side};
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
 use super::exec::reverse_signal;
 use super::nest::{self, Interval, NestLevel};
@@ -168,7 +168,7 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
         for point in &level.bsp {
-            let dir = candidate_dir(&point.bits);
+            let dir = candidate_dir(point);
             let cls = min_class(&point.bits, dir);
             let nest_ok = nest_confirm(lvl, point.source_index, &point.bits, dir);
             elements.push(CoverageElement {
@@ -203,11 +203,36 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
 }
 
 /// 候选方向 σ_g（root_sel 镜像反对称消歧）：买侧→Long、卖侧→Short、双侧/空→Flat（不可交易）。
-fn candidate_dir(bits: &BspBits) -> VoiceSide {
-    root_sel(RootCandidates {
+///
+/// ★P2-R2 回退（p2-plan §2 + codex-review-20260701-2251 **护栏1 [致命]**）：当**且仅当**六 bit
+/// 完全无方向（`!conf_plus() && !conf_minus()`——严格零 bit，**不是** `root_sel(...)==Flat`）且
+/// `struct_break_dir=Some(s)` 时，用破中枢结构方向 s 恢复方向。这让零 bit 破中枢候选（MACD C≥A
+/// 未背驰但几何破了最后中枢）进 μ 样本（消选择偏差），不再被 `dir==Flat` 预删。
+///
+/// ★护栏1 严格性（**为什么禁用 `root_sel(...)==Flat`**）：`root_sel` 对 `(1,1)` 双触发（buy 位
+/// 与 sell 位同时置，非互斥可重合）也返回 `Flat`（镜像不动点反对称消歧，voice.rs:270）。若用
+/// `root_sel(...)==Flat` 作回退条件，则**双触发冲突候选**（有六 bit 方向但被消歧为 Flat）会被
+/// struct_break_dir 误改向——那是错的（冲突候选应保持 Flat 归 𝒦 记录，不该被结构方向覆盖）。
+/// 严格零 bit `!conf_plus() && !conf_minus()` 只匹配 `(0,0)` 真无方向，排除 `(1,1)` 冲突。
+///
+/// bit-exact：`struct_break_dir` 不进 `class_index()`/`MuClass`/桶 key（只在本消歧层读）——
+/// 有六 bit 方向的候选（`conf_plus() || conf_minus()`）走原 `root_sel` 路径，dir 逐字段不变。
+fn candidate_dir(point: &BspPoint) -> VoiceSide {
+    let bits = &point.bits;
+    let base = root_sel(RootCandidates {
         long_trigger: bits.conf_plus(),
         short_trigger: bits.conf_minus(),
-    })
+    });
+    // 严格零 bit（(0,0)，排除 (1,1) 双触发冲突）+ 破中枢结构方向 ⟹ 恢复方向（护栏1）。
+    if !bits.conf_plus() && !bits.conf_minus() {
+        if let Some(side) = point.struct_break_dir {
+            return match side {
+                Side::Long => VoiceSide::Long,
+                Side::Short => VoiceSide::Short,
+            };
+        }
+    }
+    base
 }
 
 /// 最小成立类号（spec:54 同 level 1<2<3）。方向感知：Long 看买点位、Short 看卖点位；无类→u8::MAX。
@@ -533,7 +558,7 @@ fn build_candidate_element(
     point: &BspPoint,
     ci: usize,
 ) -> CoverageElement {
-    let dir = candidate_dir(&point.bits);
+    let dir = candidate_dir(point);
     let (parent, attached_dir, carrier_id) =
         coverage::attach_bsp_carrier_indexed(tree_endpoint_idx, tree, lvl, point.source_index);
     CoverageElement {
@@ -786,7 +811,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
         for point in &level.bsp {
-            let dir = candidate_dir(&point.bits);
+            let dir = candidate_dir(point);
             gamma.push(Candidate {
                 level: lvl,
                 source_index: point.source_index,
@@ -993,6 +1018,7 @@ mod tests {
             pivot_low: 90,
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
         }
     }
 
@@ -1008,6 +1034,7 @@ mod tests {
             pivot_low: 0,
             pivot_high: 210,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
         }
     }
 
@@ -1018,6 +1045,62 @@ mod tests {
                 .map(|bsp| LevelState { bsp, ..Default::default() })
                 .collect(),
         }
+    }
+
+    /// BspPoint 构造：给定 bits + struct_break_dir（P2-R2 守卫测试用）。
+    fn pt(bits: BspBits, sbd: Option<Side>) -> BspPoint {
+        BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: None, struct_break_dir: sbd }
+    }
+
+    /// ★P2-R2 护栏2（codex-review-20260701-2251 [guard]）：struct_break_dir 恢复方向**只改
+    /// candidate_dir，绝不改 class_index**。同一 bits 下六 bit + class_index() 完全不变——
+    /// struct_break_dir 不进 BspBits/MuClass/class_index/桶 key。
+    #[test]
+    fn struct_break_dir_recovers_direction_without_touching_class_index() {
+        // 零 bit + struct_break_dir=Some(Long) ⟹ candidate_dir 恢复 Long，class_index 仍 0（六 bit 全零）。
+        let zero_long = pt(BspBits::default(), Some(Side::Long));
+        assert_eq!(candidate_dir(&zero_long), VoiceSide::Long, "零 bit 破中枢候选恢复 Long 方向");
+        assert_eq!(zero_long.bits.class_index(), 0, "六 bit 全零 ⟹ class_index=0（struct_break_dir 不进桶键）");
+
+        // 零 bit + Some(Short) ⟹ Short，class_index 仍 0。
+        let zero_short = pt(BspBits::default(), Some(Side::Short));
+        assert_eq!(candidate_dir(&zero_short), VoiceSide::Short);
+        assert_eq!(zero_short.bits.class_index(), 0);
+
+        // 零 bit + None（非破中枢候选）⟹ Flat（无恢复源），class_index 0。
+        let zero_none = pt(BspBits::default(), None);
+        assert_eq!(candidate_dir(&zero_none), VoiceSide::Flat, "无 struct_break_dir ⟹ 保持 Flat");
+        assert_eq!(zero_none.bits.class_index(), 0);
+    }
+
+    /// ★P2-R2 护栏1（codex [致命]）：**有六 bit 方向**的候选走原 root_sel 路径，struct_break_dir
+    /// **不覆盖**其方向。且 class_index 由六 bit 唯一决定，与 struct_break_dir 无关（同 bits 下不变）。
+    #[test]
+    fn six_bit_direction_not_overridden_by_struct_break_dir() {
+        let buy1_bits = BspBits { buy1: true, ..Default::default() };
+        // buy1 候选（Long）+ 矛盾的 struct_break_dir=Some(Short)：candidate_dir 仍 Long（六 bit 优先）。
+        let buy1_conflict_sbd = pt(buy1_bits, Some(Side::Short));
+        assert_eq!(candidate_dir(&buy1_conflict_sbd), VoiceSide::Long,
+            "有 buy1 六 bit ⟹ 走 root_sel=Long，struct_break_dir=Short 不覆盖（护栏1 严格零 bit 前提不满足）");
+        // class_index 只由六 bit：buy1=true ⟹ 1，与 struct_break_dir 取值无关（None/Some 同值）。
+        assert_eq!(pt(buy1_bits, None).bits.class_index(), 1);
+        assert_eq!(pt(buy1_bits, Some(Side::Short)).bits.class_index(), 1);
+        assert_eq!(pt(buy1_bits, Some(Side::Long)).bits.class_index(), 1,
+            "class_index 恒 =1（buy1），struct_break_dir 三种取值下逐字节不变");
+    }
+
+    /// ★P2-R2 护栏1（**为什么禁 root_sel==Flat**）：(1,1) 双触发（buy1+sell1 非互斥可重合）经
+    /// root_sel 消歧为 Flat（镜像不动点），但**不是**严格零 bit ⟹ struct_break_dir **不**恢复方向
+    /// （冲突候选保持 Flat 归 𝒦 记录，不被结构方向误改向）。若用 `root_sel==Flat` 作回退条件则此处
+    /// 会误改向——本测试锁定严格零 bit `!conf_plus && !conf_minus` 排除 (1,1)。
+    #[test]
+    fn double_trigger_conflict_stays_flat_not_recovered() {
+        let conflict_bits = BspBits { buy1: true, sell1: true, ..Default::default() };
+        // root_sel(1,1)=Flat（voice.rs:270），但 conf_plus()=true ⟹ 严格零 bit 前提不满足 ⟹ 不恢复。
+        assert!(conflict_bits.conf_plus() && conflict_bits.conf_minus(), "前提：(1,1) 双触发");
+        let conflict = pt(conflict_bits, Some(Side::Long));
+        assert_eq!(candidate_dir(&conflict), VoiceSide::Flat,
+            "(1,1) 冲突候选保持 Flat——struct_break_dir=Some(Long) 不误改向（护栏1 严格零 bit 排除 (1,1)）");
     }
 
     /// 环3 Γ 组装：每个 BspPoint → 一个候选（方向/类号/角色/区间套确认/gamma_index 1:1）。
@@ -1046,6 +1129,7 @@ mod tests {
             pivot_low: 90,
             pivot_high: 210,
             center: None,
+            struct_break_dir: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
         assert_eq!(gamma.len(), 1);
@@ -1106,6 +1190,7 @@ mod tests {
             pivot_low: 90,
             pivot_high: 210,
             center: None,
+            struct_break_dir: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
         let b = interpret(&gamma, &[]);
@@ -1514,7 +1599,7 @@ mod candidate_profile {
     fn candidate_cache_fallback_ordinal_prefix_shift() {
         fn buy3(si: usize) -> BspPoint {
             BspPoint { source_index: si, bits: BspBits { buy3: true, ..Default::default() },
-                pivot_low: 1, pivot_high: 0, center: None }
+                pivot_low: 1, pivot_high: 0, center: None, struct_break_dir: None }
         }
         let cls = |l0: Vec<usize>, l1: Vec<usize>| Classification {
             levels: vec![

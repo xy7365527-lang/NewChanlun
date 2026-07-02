@@ -78,6 +78,7 @@
 
 use super::super::config::MacdConfig;
 use super::super::types::{Center, Direction, Segment, Side, Tick};
+// Side 已在上行 import（judge_first_cached 用它构造 BspPoint.struct_break_dir，P2-R2）。
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
 use super::divergence::{compute_macd, locate_trend_seg_a, trend_class, AbcDivergence, TrendClass};
 use super::super::types::BspBits;
@@ -87,26 +88,13 @@ use super::rmove_compose::find_second_type_structure;
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
 pub use super::bsp::BspPoint;
 
-/// 破中枢结构候选的 MACD 背驰 feature（P2 sidecar，codex-decide-20260701-2121）。
-///
-/// ★存在论位置（codex 裁决 Q6 Fix1 + B 语义纪律）：MACD C<A 从**候选 gate** 降为**feature**——
-/// 破中枢的结构候选（趋势 ∧ 破最后中枢，L0 整数几何）不再被 MACD 预删，全部进样本（消选择偏差，
-/// 下游 χ selector 可学习/否证 MACD 有效性）。C<A 记为本 feature（`macd_c_lt_a`），**独立于 BspPoint**：
-/// - **不进 `BspPoint`**（不参与 `PartialEq`/`Eq`/`sort_by_key`/`class_index`/`from_class_index`/
-///   Gamma bit-exact 输入）⟹ 核心不变量代数零污染（codex 风险2）。
-/// - 命名 `macd_c_lt_a`（**非 `diverged`**，codex 风险1）——避免与「背驰」定义冲突：C<A 是背驰的
-///   工程常用充分证据，非唯一充要条件。
-///
-/// `source_index` 与对应破中枢候选端点的 `BspPoint.source_index` 一致（sidecar 按 source_index 关联）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct StructBreakFeature {
-    /// 破中枢候选端点在 L0 原始 K 序的位置（与对应 `BspPoint.source_index` 一致）。
-    pub source_index: usize,
-    /// C 段（破最后中枢段）MACD 面积是否严格小于 A 段（倒数第二中枢离开段）面积。
-    /// `true` = C<A（力度衰减，趋势背驰确认，该候选置 buy1/sell1）；`false` = C≥A（力度延续，
-    /// struct_break 候选进样本但不置 buy1/sell1，不冒充第一类）。
-    pub macd_c_lt_a: bool,
-}
+// ★P2-R2（codex-review-20260701-2251 护栏7）：`StructBreakFeature` sidecar 已删除。
+// 它从未接通生产（mod.rs 全走 `extract_signals(...).0` / `extract_signals_with_hist(...).0` 丢弃
+// sidecar，零生产消费者）。macd_c_lt_a（C<A 背驰）信息**完全可从产出 BspPoint 派生**：
+//   `struct_break_dir=Some ∧ (bits.buy1 ∨ bits.sell1)` ⟺ macd_c_lt_a=true（破中枢 ∧ 背驰确认）；
+//   `struct_break_dir=Some ∧ 六 bit 全零`                ⟺ macd_c_lt_a=false（破中枢 ∧ 未背驰）。
+// 删除死 sidecar（no-patch 死代码清除）零信息损失——R2 的 struct_break_dir 直接承载破中枢方向，
+// 候选恢复方向进样本不再需要「零 bit 候选 + feature 供 χ 学 MACD」这条从未接通的迂回路径。
 
 /// 线段端点投影（信号候选点：每条线段的终止端点 = 一个潜在买卖点）。
 struct SegEnd {
@@ -275,7 +263,7 @@ fn judge_first_cached(
     hist: &[f64],
     src_to_idx: &[usize],
     a_seg: Option<(usize, usize)>,
-) -> (Option<BspPoint>, Option<StructBreakFeature>) {
+) -> Option<BspPoint> {
     let end = seg_end(seg);
     // C 段破最后中枢几何（L0）+ 方向必须 = 趋势方向（下跌趋势=向下破=底背驰；上涨=向上破=顶背驰）。
     let (broke, is_sell) = match (end.dir, trend_dir) {
@@ -286,28 +274,31 @@ fn judge_first_cached(
         _ => (false, false),
     };
     if !broke {
-        return (None, None); // 未破最后中枢 ⟹ 非第一类结构候选（几何分量不足）。
+        return None; // 未破最后中枢 ⟹ 非第一类结构候选（几何分量不足）。
     }
     // A 段由调用方预算传入（缓存复用，消解热点②）。无 A 段候选 ⟹ A/C 无法配对 ⟹ 无趋势背驰对照。
     let Some((a_start, a_end)) = a_seg else {
-        return (None, None); // 无 prev_center 同向离开段 ⟹ A/C 无法配对 ⟹ 无 struct_break 候选。
+        return None; // 无 prev_center 同向离开段 ⟹ A/C 无法配对 ⟹ 无 struct_break 候选。
     };
     // A 段（前中枢离开段）+ C 段（破最后中枢段）source_index → closes 下标区间（MACD 面积坐标系）。
     let (Some(c_idx), Some(a_idx)) = (
         map_src_range_to_close_idx(src_to_idx, seg.start_index, seg.end_index),
         map_src_range_to_close_idx(src_to_idx, a_start, a_end),
     ) else {
-        // 段无法映射到 closes 区间（越界/空）⟹ 无 MACD 面积 ⟹ 无法算 C<A feature ⟹ 无 struct_break 候选。
-        return (None, None);
+        // 段无法映射到 closes 区间（越界/空）⟹ 无 MACD 面积 ⟹ 无法算 C<A ⟹ 无 struct_break 候选。
+        return None;
     };
     // ★A/B/C 背驰段对（结构化，对齐 Lean `Origin.Divergence.DivergencePair { forceA, forceC, isTrend }`）：
     // A 段 + C 段（source_index 区间）+ is_trend=true（趋势背驰，第一类只由趋势背驰产）。
     let abc = AbcDivergence { seg_a: (a_start, a_end), seg_c: (seg.start_index, seg.end_index), is_trend: true };
-    // ★P2（codex-decide-20260701-2121）：C<A 从 gate 降为 feature——**不 return None**，而是记 macd_c_lt_a。
-    // 破中枢结构候选（趋势 ∧ 破最后中枢 ∧ A/C 可配对）全部进样本，消选择偏差（下游 χ 可否证 MACD）。
-    // 趋势背驰（L1 真算）：C 段面积是否严格小于 A 段面积（第24课:24）。
+    // ★P2-R2（codex-decide-20260701-2121 → p2-plan §2）：C<A 从 gate 降为「buy1 判据」——**不 return
+    // None**，破中枢结构候选（趋势 ∧ 破最后中枢 ∧ A/C 可配对）全部进样本（消选择偏差，下游 χ 可否证
+    // MACD）。趋势背驰（L1 真算）：C 段面积严格小于 A 段面积（第24课:24）。
+    // ★macd_c_lt_a 不再作独立 StructBreakFeature sidecar（P2-R2 删除死代码，codex 护栏7）——它**完全
+    // 可从产出 BspPoint 派生**：`struct_break_dir=Some ∧ bits.buy1/sell1=true` ⟺ macd_c_lt_a=true
+    // （背驰确认）；`struct_break_dir=Some ∧ 六 bit 全零` ⟺ macd_c_lt_a=false（未背驰）。sidecar 从
+    // 未接通生产（mod.rs 全走 `.0`），删除比接通更干净且零信息损失。
     let macd_c_lt_a = abc.diverges(hist, a_idx, c_idx);
-    let feature = StructBreakFeature { source_index: end.source_index, macd_c_lt_a };
     // buy1/sell1 保严格「趋势背驰」语义：仅背驰确认（C<A）才置第一类 bit。未背驰的破中枢候选
     // 进样本但**零 buy1/sell1**（Flat 候选，assemble_gamma 归 𝒦 不冒充第一类，codex 语义纪律）。
     let situ = EndpointSituation {
@@ -319,9 +310,14 @@ fn judge_first_cached(
         is_sell_side: is_sell,
     };
     let bits = endpoint_to_bsp(&situ);
+    // ★P2-R2（p2-plan §2 + codex 护栏1/2）：破中枢方向源——买侧向下破=Long，卖侧向上破=Short。
+    // **无条件置**（只要几何破了最后中枢 ∧ A/C 可配对就到这里，不管 macd_c_lt_a 背驰与否）。
+    // buy1/sell1 仍严格按 macd_c_lt_a（上方 situ.below_last_center）——class_index 语义冻结。
+    // 零 bit（C≥A）候选靠 struct_break_dir 在 candidate_dir 恢复方向进样本（消选择偏差）。
+    let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
     // 结构候选端点：背驰确认 ⟹ buy1/sell1 止损源 pivot（破中枢段端点极值）；未背驰 ⟹ 零 bit，
     // pivot 仍按 bit 方向填（零 bit ⟹ 两侧 0，与 make_first_point 一致）。
-    (Some(make_first_point(end.source_index, bits, end.price)), Some(feature))
+    Some(make_first_point(end.source_index, bits, end.price, struct_break_dir))
 }
 
 /// 第三类买卖点判定（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。
@@ -379,7 +375,17 @@ fn judge_third(c: &Center, leave_seg: &Segment, retest_seg: &Segment) -> Option<
 ///
 /// 1/2 类止损取 `pivot_low`(买)/`pivot_high`(卖)（破中枢段端点极值），非 center.zg/zd（那是 3 类）。
 /// 故第一类 center=None（1 类不用 center 止损，与 3 类区分）。pivot 按 bit 方向填，另一侧 0。
-fn make_first_point(source_index: usize, bits: BspBits, pivot_price: Tick) -> BspPoint {
+///
+/// ★P2-R2（p2-plan §2）：`struct_break_dir=Some(破中枢方向)`——由 [`judge_first_cached`] 传入
+/// （买侧向下破=Long，卖侧向上破=Short），**与 bits 是否置 buy1/sell1 无关**。零 bit 破中枢候选
+/// （C≥A 未背驰）靠此字段在 `candidate_dir` 恢复方向进样本（消选择偏差）。pivot 仍按 bit 方向填
+/// （零 bit ⟹ 两侧 0，止损源留待背驰确认——未背驰候选不置 buy1，无 1 类 pivot 止损语义）。
+fn make_first_point(
+    source_index: usize,
+    bits: BspBits,
+    pivot_price: Tick,
+    struct_break_dir: Option<Side>,
+) -> BspPoint {
     BspPoint {
         source_index,
         bits,
@@ -387,6 +393,7 @@ fn make_first_point(source_index: usize, bits: BspBits, pivot_price: Tick) -> Bs
         pivot_low: if bits.buy1 { pivot_price } else { 0 },
         pivot_high: if bits.sell1 { pivot_price } else { 0 },
         center: None,
+        struct_break_dir,
     }
 }
 
@@ -402,6 +409,7 @@ fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &
         pivot_low: if bits.buy3 { retest_price } else { 0 },
         pivot_high: if bits.sell3 { retest_price } else { 0 },
         center: Some(*c),
+        struct_break_dir: None, // 第三类=离开后回抽，非破中枢结构候选（P2-R2 语义：None）
     }
 }
 
@@ -419,6 +427,7 @@ fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick) -> 
         pivot_low: if bits.buy2 { second_point } else { 0 },
         pivot_high: if bits.sell2 { second_point } else { 0 },
         center: None,
+        struct_break_dir: None, // 第二类=中枢内部回拉，非破中枢结构候选（P2-R2 语义：None）
     }
 }
 
@@ -509,64 +518,30 @@ pub fn extract_signals(
     close_src: &[usize],
     macd_cfg: &MacdConfig,
 ) -> Vec<BspPoint> {
-    // 下游（mod.rs::classify / assemble_gamma）零改动入口：丢弃 P2 feature sidecar，只回 BspPoint 序列。
-    extract_signals_with_features(centers, segments, closes, close_src, macd_cfg).0
-}
-
-/// [`extract_signals`] + P2 破中枢结构候选 feature sidecar（codex-decide-20260701-2121）。
-///
-/// 返回 `(Vec<BspPoint>, Vec<StructBreakFeature>)`：
-/// - `Vec<BspPoint>`：与 [`extract_signals`] 同 core 的买卖点序列（**同源包装一致**，非 vs 旧 veto
-///   bit-identical——codex-review-20260701-2139 重要#2 校正；本实现在 trend∧broke∧no-diverge 路径
-///   比旧 veto 多零 bit struct_break 点=候选进样本）。背驰确认的破中枢候选置 buy1/sell1，未背驰置零 bit。
-/// - `Vec<StructBreakFeature>`：破中枢结构候选的 MACD `macd_c_lt_a` feature（sidecar，按 source_index
-///   升序，与对应 BspPoint 关联）。**独立于 BspPoint**——不进 `PartialEq`/排序/class/Gamma bit-exact。
-///
-/// ★消选择偏差（codex Q6 Fix1）：MACD C<A 从**候选 gate** 降为**feature**——破中枢结构候选（趋势 ∧
-/// 破最后中枢 ∧ A/C 可配对）不再被 MACD 预删，全部进样本 ⟹ 下游 χ selector 可学习/否证 MACD 有效性。
-/// buy1/sell1 保严格「趋势背驰」语义（仅 C<A 才置第一类 bit，未背驰不冒充第一类）。
-pub fn extract_signals_with_features(
-    centers: &[Center],
-    segments: &[Segment],
-    closes: &[f64],
-    close_src: &[usize],
-    macd_cfg: &MacdConfig,
-) -> (Vec<BspPoint>, Vec<StructBreakFeature>) {
     // MACD hist（趋势背驰真算，浮点域隔离在 divergence.rs）。空 closes ⟹ 空 hist ⟹ 第一类结构候选
-    // 不产（段无法映射 closes 区间 ⟹ 无 macd_c_lt_a feature），第三类仍正常产（纯整数几何）。
+    // 不产（段无法映射 closes 区间 ⟹ 无 C<A 判据），第三类仍正常产（纯整数几何）。
     let hist = compute_macd(closes, macd_cfg).hist;
-    extract_signals_with_hist_features(centers, segments, &hist, close_src)
+    extract_signals_with_hist(centers, segments, &hist, close_src)
 }
 
 /// 增量 MACD 接入点（231号纯性能，bit-exact 铁律）：与 [`extract_signals`] 同逻辑，但接受
-/// 预计算 `hist`（由调用方增量产出，避免全量 `compute_macd` 重算）。
+/// 预计算 `hist`（由调用方增量产出，避免全量 `compute_macd` 重算）。这是**第一/三类买卖点提取的
+/// core**（[`extract_signals`] 委托本函数，只差 hist 来源：全量 `compute_macd` vs 增量缓存）。
 ///
 /// `hist` 须与 `compute_macd(closes, macd_cfg).hist` 逐元素 bit-identical（ac75d4b3 已证
 /// `MacdState::append` bit-exact）。调用方负责 hist 的增量产出与缓存（见
 /// `classify_with_tower_incremental` 的 `compute_macd_hist_incremental`）。
 ///
-/// ★bit-exact 保证：本函数与 [`extract_signals`] 在相同 (centers, segments, hist, close_src)
-/// 输入下产出 bit-identical BSP——唯一差异是 hist 来源（全量 `compute_macd` vs 增量缓存）。
+/// ★P2-R2（codex-decide-20260701-2121 → p2-plan §2）：破中枢结构候选（趋势 ∧ 破最后中枢 ∧ A/C 可
+/// 配对）全部进样本（消选择偏差），背驰确认（C<A）置 buy1/sell1，未背驰置零 bit + `struct_break_dir`
+/// （下游 candidate_dir 恢复方向）。**不再产 StructBreakFeature sidecar**（护栏7 死代码删除，macd_c_lt_a
+/// 可从 BspPoint 派生，见模块头）。
 pub fn extract_signals_with_hist(
     centers: &[Center],
     segments: &[Segment],
     hist: &[f64],
     close_src: &[usize],
 ) -> Vec<BspPoint> {
-    // 增量路径（mod.rs::classify_with_tower_incremental）零改动入口：丢弃 P2 feature sidecar。
-    extract_signals_with_hist_features(centers, segments, hist, close_src).0
-}
-
-/// [`extract_signals_with_hist`] + P2 破中枢结构候选 feature sidecar（core，见 `StructBreakFeature`）。
-///
-/// 返回 `(Vec<BspPoint>, Vec<StructBreakFeature>)`。BspPoint 序列与 [`extract_signals_with_hist`]
-/// bit-identical（feature 独立于 BspPoint，不改内容/顺序）。
-pub fn extract_signals_with_hist_features(
-    centers: &[Center],
-    segments: &[Segment],
-    hist: &[f64],
-    close_src: &[usize],
-) -> (Vec<BspPoint>, Vec<StructBreakFeature>) {
     // ★线段按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格单调
     // 递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等）。稳定
     // 排序保证 start_index 相同时保留原序。中枢归属用 start_index，单趟扫描需线段时间序。
@@ -618,8 +593,6 @@ pub fn extract_signals_with_hist_features(
     //   多段共享同一 `(prev_center, last_center)` 对 ⟹ A 段每对至多算一次，替代旧每段重算（热点②，
     //   `scale_timing_breaking_path` exp≈1.99 已 profile 坐实）。
     let mut points = Vec::new();
-    // P2 破中枢结构候选 feature sidecar（macd_c_lt_a，独立于 BspPoint，见 `StructBreakFeature`）。
-    let mut features: Vec<StructBreakFeature> = Vec::new();
 
     // ★首匹配下标表（热点① bit-exact 修复，#93）：旧 `.position(|x| 三元组==c 三元组)` 在重复三元组下
     // 返回**首匹配**（最小下标），非 `nearest_confirmed_center_idx` 给出的前缀末下标。为严格 bit-exact
@@ -665,16 +638,10 @@ pub fn extract_signals_with_hist_features(
                     let a_seg_entry = a_seg_cache
                         .entry(c_idx)
                         .or_insert_with(|| locate_trend_seg_a(&sorted, prev_center, c, dir));
-                    // P2：judge_first_cached 回 (Option<BspPoint>, Option<StructBreakFeature>)——
-                    // 破中枢结构候选（背驰=buy1/未背驰=零 bit）进 points，C<A feature 进 sidecar。
-                    let (pt, feat) = judge_first_cached(
-                        c, dir, seg, &hist, close_src, *a_seg_entry,
-                    );
-                    if let Some(p) = pt {
+                    // P2-R2：judge_first_cached 回 Option<BspPoint>——破中枢结构候选（背驰=buy1/未背驰
+                    // =零 bit + struct_break_dir）进 points。macd_c_lt_a 不再单产 sidecar（护栏7 删除）。
+                    if let Some(p) = judge_first_cached(c, dir, seg, &hist, close_src, *a_seg_entry) {
                         points.push(p);
-                    }
-                    if let Some(f) = feat {
-                        features.push(f);
                     }
                 }
             }
@@ -694,11 +661,9 @@ pub fn extract_signals_with_hist_features(
             }
         }
     }
-    // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。BspPoint 序列与旧实现
-    // bit-identical（feature 独立，不改 points 内容/顺序）。features 同键升序（sidecar 关联）。
+    // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。
     points.sort_by_key(|p| p.source_index);
-    features.sort_by_key(|f| f.source_index);
-    (points, features)
+    points
 }
 
 #[cfg(test)]
@@ -955,26 +920,26 @@ mod tests {
             150, 60, 240,         // 9..11 C 段：大幅（hist 大 ⟹ 力度延续 ⟹ 非背驰）
         ];
         let (closes, src) = closes_seq(&prices);
-        let (points, features) =
-            extract_signals_with_features(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+        let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
         // buy1 保严格语义：未背驰 ⟹ 不置 buy1（不冒充第一类）。
         assert!(points.iter().all(|p| !p.bits.buy1), "C 段力度延续 ⟹ 非趋势背驰 ⟹ buy1 不置位（保严格语义）");
-        // 但破中枢结构候选**仍产出**（进样本，消选择偏差）——source_index=11（C 段破中枢端点）。
-        let sb: Vec<_> = features.iter().filter(|f| f.source_index == 11).collect();
-        assert_eq!(sb.len(), 1, "破中枢 struct_break 候选进样本（不被 MACD 预删）——消选择偏差");
-        // feature macd_c_lt_a==false（C 面积 ≥ A ⟹ 未背驰），记 sidecar 供下游 χ selector 检验。
-        assert_eq!(sb[0].macd_c_lt_a, false, "C 段力度延续 ⟹ macd_c_lt_a==false（feature，非 gate）");
-        // struct_break 候选也进入 extract_signals 的 BspPoint 样本（零 buy1 bit=Flat 候选，可检验非冒充）。
-        assert!(
-            points.iter().any(|p| p.source_index == 11),
+        // 破中枢结构候选**仍产出**（进样本，消选择偏差）——source_index=11（C 段破中枢端点）。
+        let sb_pt: Vec<_> = points.iter().filter(|p| p.source_index == 11).collect();
+        assert_eq!(sb_pt.len(), 1,
             "struct_break 候选进 BspPoint 样本（零 buy1=Flat 候选，assemble_gamma 归 𝒦 不冒充第一类）"
         );
+        // ★P2-R2（p2-plan §2）：该零 bit 候选带 struct_break_dir=Some(Long)——下游 candidate_dir 用它
+        // 恢复 Long 方向进 μ 样本（消选择偏差）。买侧向下破 ⟹ Long。bit-vector 仍全零（class_index=0）。
+        assert_eq!(sb_pt[0].struct_break_dir, Some(Side::Long),
+            "零 bit 破中枢候选带 struct_break_dir=Some(Long)（下游 candidate_dir 恢复方向进样本，消选择偏差）");
+        assert_eq!(sb_pt[0].bits.class_index(), 0,
+            "六 bit 全零（未背驰不置 buy1）⟹ class_index=0——struct_break_dir 不进桶键（bit-exact 冻结）");
     }
 
     #[test]
-    fn diverging_break_records_macd_c_lt_a_true_and_sets_buy1() {
-        // ★P2 对偶（背驰确认路径）：C 段力度衰减（C<A ⟹ macd_c_lt_a==true）⟹ 严格第一类（置 buy1）
-        //   ∧ feature 同步记 true。复用 first_buy_extracted_with_trend_divergence 的标准背驰结构。
+    fn diverging_break_sets_buy1_and_struct_break_dir() {
+        // ★P2-R2 对偶（背驰确认路径）：C 段力度衰减（C<A）⟹ 严格第一类（置 buy1）∧ struct_break_dir
+        //   =Some(Long)。macd_c_lt_a=true 从产出派生（bits.buy1=true ⟺ C<A，护栏7 删 sidecar 后的等价）。
         let c0 = dc(300, 400, 290, 410, 2);
         let c1 = dc(100, 200, 90, 210, 8);
         let segs = vec![
@@ -989,26 +954,25 @@ mod tests {
             248, 246, 244,        // C 段缓动（弱力度=背驰）
         ];
         let (closes, src) = closes_seq(&prices);
-        let (points, features) =
-            extract_signals_with_features(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
-        // 背驰 ⟹ 置 buy1（严格第一类）。
+        let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+        // 背驰 ⟹ 置 buy1（严格第一类）。macd_c_lt_a=true 从 bits.buy1=true 派生（护栏7 删 sidecar 等价）。
         let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
-        assert_eq!(buy1.len(), 1, "C<A 趋势背驰 ⟹ 一个严格第一类 1 买（buy1 置位）");
+        assert_eq!(buy1.len(), 1, "C<A 趋势背驰 ⟹ 一个严格第一类 1 买（buy1 置位 ⟺ macd_c_lt_a=true）");
         assert_eq!(buy1[0].source_index, 11);
-        // feature macd_c_lt_a==true（背驰确认），source_index 与 1 买端点一致。
-        let sb: Vec<_> = features.iter().filter(|f| f.source_index == 11).collect();
-        assert_eq!(sb.len(), 1);
-        assert_eq!(sb[0].macd_c_lt_a, true, "C<A 背驰 ⟹ macd_c_lt_a==true（feature 与 buy1 语义一致）");
+        // ★P2-R2：背驰确认的破中枢点也带 struct_break_dir=Some(Long)——**无条件置**（不管背驰）。
+        // 此点有 buy1 六 bit ⟹ candidate_dir 走 root_sel=Long，struct_break_dir 与之一致（不改结果，护栏1）。
+        assert_eq!(buy1[0].struct_break_dir, Some(Side::Long),
+            "破中枢方向无条件置（背驰确认路径同样 Some(Long)）——与 buy1 的 root_sel 方向一致");
     }
 
+    /// ★P2-R2 验收（判据「|结构候选域|>|MACD-veto候选域|」的可机器验证形式）：同一 C≥A 破中枢输入下，
+    /// 结构版 `extract_signals`（无 veto，破中枢候选全进样本）产出的候选**严格多于** MACD-veto oracle
+    /// `extract_signals_orig`（`judge_first_orig` 的 `!diverges ⟹ return None`，pre-P2-R2 面积门语义）。
+    /// 差集恰是被 MACD C≥A 预删、经 `struct_break_dir` 恢复的零 bit 破中枢候选（下游 χ 可否证 MACD）。
     #[test]
-    fn extract_signals_with_features_bsp_matches_plain_wrapper() {
-        // ★同源包装一致性（**非** vs 旧 veto oracle——codex-review-20260701-2139 重要#2 校正）：
-        //   extract_signals 与 extract_signals_with_features 是同一 core 的两个包装，BspPoint 序列
-        //   必然逐字段相等（feature sidecar 不改 BspPoint 内容/顺序）。这**不**证明「与旧 veto 实现
-        //   bit-identical」——新实现在 trend∧broke∧no-diverge 路径上比旧 veto **多一个零 bit
-        //   struct_break 点**（预期行为变更：候选进样本）。本测试只锁「包装一致」，不锁「旧行为不变」。
-        //   复用背驰结构（此结构不触发多点差异，两包装当然相等）。
+    fn struct_candidate_domain_strictly_supersets_macd_veto_domain() {
+        let cfg = MacdConfig::default();
+        // first_buy_rejected_without_divergence 的输入：趋势 ∧ 破最后中枢 ∧ C≥A（力度延续，非背驰）。
         let c0 = dc(300, 400, 290, 410, 2);
         let c1 = dc(100, 200, 90, 210, 8);
         let segs = vec![
@@ -1017,16 +981,29 @@ mod tests {
             seg(Direction::Down, 9, 11, 150, 80),
         ];
         let prices: Vec<Tick> = vec![
-            300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244,
+            300, 300, 300,
+            300, 295, 305,
+            250, 280, 260,
+            150, 60, 240,
         ];
         let (closes, src) = closes_seq(&prices);
-        let cfg = MacdConfig::default();
-        let via_plain = extract_signals(&[c0, c1], &segs, &closes, &src, &cfg);
-        let (via_features, _) =
-            extract_signals_with_features(&[c0, c1], &segs, &closes, &src, &cfg);
-        assert_eq!(
-            via_plain, via_features,
-            "extract_signals 与 extract_signals_with_features 的 BspPoint 序列 bit-identical（feature 隔离）"
+        let structural = extract_signals(&[c0, c1], &segs, &closes, &src, &cfg);
+        let veto = extract_signals_orig(&[c0, c1], &segs, &closes, &src, &cfg);
+        // C≥A 破中枢候选：veto oracle 预删，结构版恢复进样本 ⟹ 结构候选域严格 ⊋ veto 候选域。
+        assert!(
+            structural.len() > veto.len(),
+            "结构候选域 |{}| 须严格 > MACD-veto 候选域 |{}|（C≥A 破中枢候选被 veto 预删，结构版恢复进样本）",
+            structural.len(),
+            veto.len()
+        );
+        // 差集载体：带 struct_break_dir=Some ∧ 零 bit（class_index=0，未冒充第一类）的破中枢候选。
+        let recovered: Vec<_> = structural
+            .iter()
+            .filter(|p| p.struct_break_dir.is_some() && p.bits.class_index() == 0)
+            .collect();
+        assert!(
+            !recovered.is_empty(),
+            "被恢复的候选带 struct_break_dir=Some ∧ 零 bit（未冒充第一类，class_index=0）"
         );
     }
 
@@ -1565,7 +1542,9 @@ fn diag_first_buy() {
             is_sell_side: is_sell,
         };
         let bits = endpoint_to_bsp(&situ);
-        Some(make_first_point(end.source_index, bits, end.price))
+        // oracle 是 veto 语义（只产背驰确认第一类）——这些点必破中枢，struct_break_dir 同新版逻辑。
+        let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
+        Some(make_first_point(end.source_index, bits, end.price, struct_break_dir))
     }
 
     /// ★仅测试用：优化前 `extract_signals`（oracle，逐字从 git HEAD 复制）。
@@ -1667,10 +1646,18 @@ fn diag_first_buy() {
         // 缓存）后摘要必须 = 优化前 oracle（git HEAD b8667b968f `extract_signals`）在同电池上的输出。
         //
         // ★GOLDEN 校准（no-patch）：本 GOLDEN = oracle `extract_signals_orig`（从 git HEAD 逐字复制的
-        // 优化前实现）在同电池上的 FNV 摘要。`diag_compare_vs_orig` 逐 case 坐实优化版与 oracle 逐字段
-        // 相等（14/14 case ✓ 一致）⟹ 此 GOLDEN 同等于优化版输出。旧值 `0x06b3_7c2f_3a5e_9d41` 来自一个
-        // 与 git HEAD oracle 不一致的历史电池状态（输入生成器或摘要拼接不同），已校准为 oracle 真值。
-        const GOLDEN: u64 = 0x37d2_45a7_cdc5_505a;
+        // 优化前实现）在同电池上的 FNV 摘要。`extract_signals_bit_exact_vs_orig_per_case` 逐 case 坐实
+        // 优化版与 oracle **逐字段**相等（含新增 struct_break_dir 字段）⟹ 此 GOLDEN 同等于优化版输出。
+        //
+        // ★P2-R2 诚实更新（codex-review-20260701-2251 护栏4 方案A）：`BspPoint` 新增 `struct_break_dir:
+        // Option<Side>` 字段（p2-plan §2 破中枢方向源，消选择偏差）进入 `#[derive(Debug)]` ⟹ FNV 对
+        // `{pts:?}` 的摘要必然翻转（新字段改变 Debug 字符串）。这是**诚实的、可证的**代价——**不**通过
+        // 自定义 Debug 隐藏 struct_break_dir 假装 digest 不变（那是声明膨胀，护栏4 禁止）。六 bit
+        // （buy1/2/3+sell1/2/3）逐字段不变由 `extract_signals_bit_exact_vs_orig_per_case`（逐 case
+        // assert_eq 全字段比较）锁定——GOLDEN 翻转**仅**因新增字段，非六 bit 语义变化。
+        // 历史值：`0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
+        //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。
+        const GOLDEN: u64 = 0x56ed_dd65_1c59_5733;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,

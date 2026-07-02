@@ -183,15 +183,17 @@ impl TwState {
 /// 定点整数承载（bit-exact，barrier 比较在整数域；κ 用 i64 缩放系数，避免浮点非确定性）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RiskPolicy {
-    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——**crate 外部只能经**
-    /// [`RiskPolicy::baseline`] / [`RiskPolicy::try_new`] 构造，二者都保证 κ≥0，使 κ≥0 成为**外部
-    /// API 不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段，codex #5：外部不可构造负 κ）。
+    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——**唯一构造闸是**
+    /// [`RiskPolicy::baseline`]（恒 κ=0）/ [`RiskPolicy::try_new`]（拒负 κ），二者都保证 κ≥0，使
+    /// κ≥0 成为 **constructor-only 类型不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段）。
     ///
-    /// ★诚实（codex 复审#5 二轮口径修正）：字段是**模块私有**（default 私有 = 本模块 + 子模块可见），
-    /// 故 **crate 外部**（含 crate 内其他模块）都不可构造负 κ——唯一外部构造闸是 `try_new`（拒负）。
-    /// 但**本模块内测试**（同模块可见性）仍可用 struct literal 构造负 κ——这是**故意的反向见证**
-    /// （`RiskPolicy { kappa: -1 }` 证 `kappa_nonneg()` 谓词对负值返 false），非漏洞。严格口径 =
-    /// **public API / crate 外部不可构造负 κ**，非「任何位置不可构造」。
+    /// ★codex R3 §9.4（类型边界闭合）：字段**模块私有** + 仅 `baseline`/`try_new` 构造 ⟹ **负 κ 的
+    /// `RiskPolicy` 值在任何路径都不存在**（含本模块非构造路径与全 crate）。**不保留任何反向见证**
+    /// （旧版模块内测试用 struct literal 构造 `RiskPolicy { kappa: -1 }` 已删——那使类型边界在测试
+    /// 可见性下未闭，codex R3 判为漏点）。负 κ 拒绝的证据由**外部 API `try_new(-1)=None`** 承载
+    /// （正向：外部构造闸拒负），非「构造非法值再验谓词」的反向见证。这是 constructor-only pattern
+    /// （PDF §9.4 二选一的可行分支——`is_legal_from` 式关系型非法用 Result，此处 κ≥0 是绝对约束用
+    /// constructor-only 类型不变量）。
     kappa: i64,
 }
 
@@ -481,6 +483,14 @@ pub fn ledger_step(l: &LedgerComp, e: LedgerEvent) -> LedgerComp {
 
 #[cfg(test)]
 mod tests {
+    //! ★★模块级诚实标注（codex §9.2，照实 161/no-workaround）：本模块的机制单元测试
+    //! （`eta_star_barrier` / `enter_ready_strict_conjunction` / `buy_core_legality` / `stage_rank_monotone`
+    //! 等，在**手工构造态**上验 eta_star/enter_ready/buy_core/tw_step 谓词与守恒）均为
+    //! **synthetic-state legality tests, NOT reachability tests** —— 它们验「给定前提则机制正确」，
+    //! **不**证该前提态从 `funded_campaign` 起点可达。可达性由 `runner.rs::
+    //! earning_shares_structurally_unreachable_from_campaign_tw_conserved` 的结构不可达定理界定
+    //! （L0 同价 TW 守恒下 EarningShares 不可达）。**机制正确 ≠ 前提可达**（有效域区分，
+    //! formalization-validity-domain）。不为过审硬凑「已获利」witness（codex 复审#2 判致命，已删）。
     use super::*;
 
     // ──────────────────────────────────────────────────────────────────────
@@ -684,9 +694,11 @@ mod tests {
         // ★外部构造闸 try_new：κ≥0 ⟹ Some（且 κ() 读回）；κ<0 ⟹ None（外部不可构造负 κ）。
         assert_eq!(RiskPolicy::try_new(3).map(|p| p.kappa()), Some(3), "try_new(3)=Some(κ=3)");
         assert_eq!(RiskPolicy::try_new(0).map(|p| p.kappa()), Some(0), "try_new(0)=Some(κ=0)");
-        assert!(RiskPolicy::try_new(-1).is_none(), "★try_new(-1)=None（外部 API 拒负 κ，codex#5）");
-        // 模块内反向见证（故意 struct literal 构造负 κ，证谓词对负值返 false——非漏洞，见字段 doc）。
-        assert!(!RiskPolicy { kappa: -1 }.kappa_nonneg(), "in-module 反向见证：κ=-1 谓词返 false");
+        assert!(RiskPolicy::try_new(-1).is_none(), "★try_new(-1)=None（外部 API 拒负 κ，codex R3 §9.4）");
+        // ★codex R3 §9.4：不保留反向见证（旧版 `RiskPolicy { kappa: -1 }` struct literal 已删）——
+        // 负 κ 的 RiskPolicy 值在任何路径都不存在（constructor-only 类型不变量），κ≥0 拒绝证据由
+        // 上面 try_new(-1)=None 正向承载，非「构造非法值验谓词」的反向见证（那使类型边界在测试可见性
+        // 下未闭）。kappa_nonneg() 恒真（构造保证），baseline().kappa_nonneg() 正向断言已覆盖谓词。
     }
 
     /// L^wc = max(0, notional_in − withdrawn)（在险本金，退本金推进 ⟹ L^wc→0）。
@@ -728,10 +740,20 @@ mod tests {
     }
 
     /// ★EnterReady 严格五合取（PDF §10 步骤3）：五条件全真才 ready（比单纯 W≥I0 强得多）。
+    ///
+    /// ★★诚实标注（codex §9.2，照实 161/no-workaround）：**this is a synthetic-state legality test,
+    /// not a reachability test.** 本测试在**显式构造**的 `ready` 态（free=0, holding=100, withdrawn=100
+    /// ⟹ tw=200）上验证 `enter_ready` 谓词的五合取逻辑（给定前提则谓词正确）——它**不**声称该态从
+    /// `funded_campaign` 起点可达。事实上 tw=200=2·notional 在 TW 守恒下从 campaign 起点（tw=Q）
+    /// **不可达**（见 `runner.rs::earning_shares_structurally_unreachable_from_campaign_tw_conserved`：
+    /// 退本金前提 holding≥Q 与 cash-tight free>0 在 TW=Q 下互斥）。有效域区分：**机制正确 ≠ 前提可达**
+    /// ——本测试锚前者（谓词逻辑），可达性由 runner 不可达定理锚后者（L0 同价下 EarningShares 不可达，
+    /// 真达需 L2 价格升值让已实现利润进 TW）。不为通过而硬凑「已获利」witness（codex 复审#2 判致命，已删）。
     #[test]
     fn enter_ready_strict_conjunction() {
         // 满足全部：stage=CapitalRecovered, withdrawn≥i0(100), legs=0, normal, η≥η⋆。
         // free=0, holding=100, withdrawn=100, notional_in=100 ⟹ tw=200; L^wc=0 ⟹ η⋆(κ=0)=0; 200≥0 ✓。
+        // ★注：tw=200 是 synthetic 态（合法性验证用），非 campaign 可达态（见上「诚实标注」）。
         let ready = TwState {
             free: 0, holding: 100, withdrawn: 100, notional_in: 100,
             stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0,

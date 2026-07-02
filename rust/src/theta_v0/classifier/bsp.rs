@@ -22,7 +22,7 @@
 //! 字段（belowLastCenter/afterFirstBuy/...）由 Θ_signal 从走势结构 + 背驰判据计算——
 //! 这些是 Θ-参数化运行输入（reference-theta-v0.md:34-37），不由缠论结构无参数导出。
 
-use super::super::types::{BspBits, Center, Tick};
+use super::super::types::{BspBits, Center, Side, Tick};
 
 /// 端点语义状态（契约锚 `Origin.BspClassification.BspEndpoint`）。
 ///
@@ -112,6 +112,28 @@ pub struct BspPoint {
     /// `None` = 无中枢（不可能出现 3 类 bit——3 类判据要求离开中枢，`is_third` 蕴含 left_center；
     /// 故含 3 类 bit 时本字段必 `Some`）。1/2 类只用 pivot，center 可为 `None`。
     pub center: Option<Center>,
+    /// ★P2-R2（p2-plan-20260701.md 分叉1 + codex-review-20260701-2251 护栏1/2）：破中枢结构方向源。
+    ///
+    /// `None` = 非破中枢结构候选（第二/三类端点，或未破最后中枢的段）；
+    /// `Some(Long/Short)` = 破最后中枢的趋势方向（买侧向下破=Long，卖侧向上破=Short），
+    /// 由 `signal::judge_first_cached` 在 `broke ∧ trend ∧ A/C可配对` 时置——**与 macd_c_lt_a
+    /// （背驰）无关**，只要几何上破了最后中枢就置。
+    ///
+    /// ## 为什么需要（选择偏差消除的实质，p2-plan §1-§2）
+    ///
+    /// 破中枢候选若 C≥A（MACD 面积未衰减）⟹ `below_last_center=false` ⟹ 零 buy1/sell1 bit ⟹
+    /// `candidate_dir` 消歧为 `Flat` ⟹ 被 μ 门/信号收集按 `dir==Flat` 跳过 ⟹ 从不进 μ 样本。
+    /// 本字段让 `interp::candidate_dir` 在**零六 bit**时用它恢复 Long/Short 方向，使这些破中枢
+    /// 候选进样本（下游 χ selector 可学习/否证 MACD 是否有用），不再被 MACD C≥A 预删。
+    ///
+    /// ## bit-exact 铁律（codex 护栏1/2，**关键**）
+    ///
+    /// 本字段**绝不进** `BspBits`/`MuClass`/`class_index()`/分桶 key——它只在 `candidate_dir`
+    /// 消歧层被读，`class_index()` 仍只读六 bit（types.rs:229）。buy1/sell1 判据**完全不动**
+    /// （仍仅 macd_c_lt_a 才置）。新增字段进入 `Debug` ⟹ `bit_exact_battery_digest` GOLDEN 翻转
+    /// （因 FNV 对 `{pts:?}` 计算）——这是**诚实的**受控代价（GOLDEN 已重算 + 逐 case 证六 bit
+    /// 逐字段不变，signal.rs digest guard），不通过隐藏字段假装未变（禁止声明膨胀）。
+    pub struct_break_dir: Option<Side>,
 }
 
 #[cfg(test)]
@@ -234,6 +256,7 @@ mod tests {
             pivot_low: 1000,
             pivot_high: 0,
             center: None,
+            struct_break_dir: None,
         };
         // strategy 1 买止损 = pivot_low（reference:46）——直接读，不从 bars 重算。
         assert_eq!(p.pivot_low, 1000);
@@ -251,6 +274,7 @@ mod tests {
             pivot_low: 0,
             pivot_high: 0,
             center: Some(c),
+            struct_break_dir: None,
         };
         // strategy 3 买止损 = center.zg（ZG，reference:46）——条目直接关联中枢，无需 strategy 猜。
         assert_eq!(p.center.map(|c| c.zg), Some(1200));
@@ -267,7 +291,7 @@ mod tests {
         // classifier 顶层为含 3 类 bit 的端点填 center=Some（离开的那个中枢）——契约见 mod.rs。
         // 本测试锁定语义：strategy 读 3 类止损时 center 必可用。
         let c = center(800, 1200);
-        let p = BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(c) };
+        let p = BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(c), struct_break_dir: None };
         assert!(p.bits.buy3 && p.center.is_some());
     }
 
@@ -282,6 +306,7 @@ mod tests {
             pivot_low: 0,
             pivot_high: 1500,
             center: Some(c),
+            struct_break_dir: None,
         };
         assert_eq!(p.pivot_high, 1500); // 1/2 卖止损源
         assert_eq!(p.center.map(|c| c.zd), Some(800)); // 3 卖止损源

@@ -282,6 +282,24 @@ impl MuEstimator {
         Some(w.mean - z_alpha * std / (w.n as f64).sqrt())
     }
 
+    /// UCB(μ(z)) = mean + z_α·(std/√n) 单边置信上界（三态判据 FALSIFIED 的准入量）。
+    ///
+    /// 与 [`MuEstimator::mu_lcb`] 严格对称——同 `z_alpha`、同标准误 std/√n，符号相反。
+    /// 用途（acc-alpha 预注册 §3.1 三态判定）：`powered ∧ LCB≤0 ∧ UCB≤0` ⟹ FALSIFIED
+    /// （有功效地判定 μ≤0，真纯 beta）；`LCB≤0<UCB` ⟹ INCONCLUSIVE（判据无检出力，
+    /// `LCB≤0 ⊬ μ≤0`，667/231）。缺 UCB 则无法区分「有功效地否证」与「underpowered」——
+    /// 这是 §6 上报矛盾的形式化落点。语义（诚实标注，镜像 mu_lcb）：
+    /// - `n≥2`：`Some(mean + z_alpha·std/√n)`，标准误随 √n 收敛 ⟹ UCB→mean。
+    /// - `n=1`：标准差未定义 ⟹ `None`（不冒充 UCB=mean——单样本无方差信息）。
+    /// - 无样本：`None`（空类无估计）。
+    ///
+    /// UCB≥mean 恒成立（`z_alpha≥0` 且 std/√n≥0）⟹ 置信上界不低于点估计（不悲观）。
+    pub fn mu_ucb(&self, class: &MuClass, z_alpha: f64) -> Option<f64> {
+        let w = self.buckets.get(class)?;
+        let std = w.std_sample()?; // n<2 ⟹ None
+        Some(w.mean + z_alpha * std / (w.n as f64).sqrt())
+    }
+
     /// 该 z 类的样本量 |S_z|（统计功效判定用——小样本 μ 估计不可靠）。
     pub fn count(&self, class: &MuClass) -> u64 {
         self.buckets.get(class).map_or(0, |w| w.n)
@@ -648,6 +666,33 @@ mod tests {
         assert!(lcb_large > lcb_small, "n↑ ⟹ LCB 上移逼近 mean：{lcb_large} > {lcb_small}");
         assert!(lcb_large < m, "LCB 仍 < mean（n 有限，标准误 > 0）");
         assert!((m - lcb_large) < (m - lcb_small) * 0.3, "√n 收敛：大样本 gap 显著缩小");
+    }
+
+    /// UCB 与 LCB 对称：同 z_α 下 LCB≤mean≤UCB，且 UCB−mean = mean−LCB（同标准误，符号相反）。
+    /// FALSIFIED 判据（powered ∧ LCB≤0 ∧ UCB≤0）依赖 UCB 与 LCB 的这层对称——mean<0 时二者才可能同 ≤0。
+    #[test]
+    fn ucb_symmetric_to_lcb_straddles_mean() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe_all([
+            MuObservation { class: z, x_gamma: 5.0 },
+            MuObservation { class: z, x_gamma: 15.0 },
+            MuObservation { class: z, x_gamma: 10.0 },
+        ]);
+        let mean = est.mu(&z).unwrap();
+        let lcb = est.mu_lcb(&z, 1.645).unwrap();
+        let ucb = est.mu_ucb(&z, 1.645).unwrap();
+        assert!(lcb <= mean && mean <= ucb, "LCB({lcb}) ≤ mean({mean}) ≤ UCB({ucb})");
+        assert!((ucb - mean) - (mean - lcb) < 1e-9, "对称：UCB−mean = mean−LCB");
+    }
+
+    /// n=1 边界：UCB 与 LCB 同诚实语义——单样本方差未定义 ⟹ 均返回 None。
+    #[test]
+    fn ucb_undefined_for_single_sample() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z, x_gamma: 42.0 });
+        assert_eq!(est.mu_ucb(&z, 1.645), None, "单样本方差未定义 ⟹ UCB None");
     }
 
     /// n=1 边界：单样本方差未定义 ⟹ mu_lcb 返回 None（不冒充 LCB=mean，诚实语义）。

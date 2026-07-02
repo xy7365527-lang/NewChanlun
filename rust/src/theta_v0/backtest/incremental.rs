@@ -499,6 +499,91 @@ mod profile {
         eprintln!("no classifier-only divergence in 0..{n}");
     }
 
+    /// **★诊断（frontier-bit-exact 根因隔离）：增量 parser segments vs 全量 parser segments**。
+    ///
+    /// `decisive_endpoint` 用 `IncrementalClassifier`（增量 parser + 增量塔）对拍 `parse_layer`（全量
+    /// parser + 全量塔），~bar 15650 发散；但 `diag_classifier_resume_frontier_divergence`（**同一** 全量
+    /// `parse_layer` 输入喂增量塔 vs 全量塔）到 20000 **无发散** ⟹ classifier 增量塔在同输入下 bit-exact。
+    /// 两者唯一区别 = parser 路径。本测试逐 bar 对拍 `ParseLayerIncr::append(bars[i]).segments` vs
+    /// `parse_layer(&bars[..=i]).segments`，定位发散是否源于 **parser 增量 bit-exact 破裂**（非 classifier）。
+    /// **L2**（真实 CL）。
+    #[test]
+    #[ignore = "诊断：parser 增量 vs 全量 segments bit-exact（frontier 根因隔离）；需 CL"]
+    fn diag_parser_incr_vs_full_segments() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 50000.min(oos.bars.len());
+        let bars = &oos.bars[..n];
+        let mut incr = parser::ParseLayerIncr::new(&config);
+        let mut div_count = 0usize;
+        let mut first_div: Option<usize> = None;
+        for i in 0..n {
+            let l0_incr = incr.append(bars[i]);
+            let l0_full = parser::parse_layer(&bars[..=i], &config);
+            let segs_i: &[_] = &l0_incr.segments;
+            let segs_f: &[_] = &l0_full.segments;
+            if segs_i != segs_f {
+                div_count += 1;
+                if first_div.is_none() {
+                    first_div = Some(i);
+                    eprintln!("★parser segments divergence at bar {i}: incr.len={} full.len={} confirmed_len={}",
+                        segs_i.len(), segs_f.len(), l0_incr.segments_confirmed_len);
+                    let m = segs_i.len().min(segs_f.len());
+                    for k in 0..m {
+                        if segs_i[k] != segs_f[k] {
+                            eprintln!("  seg[{k}] incr={:?}\n          full={:?}", segs_i[k], segs_f[k]);
+                            eprintln!("  发散段是末段? {} (segs.len-1={})", k == segs_i.len().saturating_sub(1).min(segs_f.len().saturating_sub(1)), segs_i.len().saturating_sub(1));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("\n★parser 发散统计 in 0..{n}：div_count={div_count} first={first_div:?} \
+                   （持续发散⟹持久 bit-exact 破裂；单点⟹瞬时 frontier 波动）");
+    }
+
+    /// **★诊断（frontier-bit-exact 首发散 bar 定位）：IncrementalClassifier 逐 bar vs 全量**。
+    ///
+    /// 精确复现生产路径（增量 parser + 增量塔 + cache 跨 bar 连续复用）的**首个** incr≠full bar，
+    /// dump 该 bar 的 segments/merged 长度 + L0 首个发散 center。区别于 `diag_classifier_resume_frontier_divergence`
+    /// （喂全量 parse_layer，confirmed_len=0）——本测试喂增量 parser（confirmed_len>0，走缓存复用分支）。
+    /// **L2**（真实 CL）。
+    #[test]
+    #[ignore = "诊断：IncrementalClassifier 逐 bar vs 全量首发散定位；需 CL"]
+    fn diag_incremental_classifier_first_divergence() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 50000.min(oos.bars.len());
+        let bars = &oos.bars[..n];
+        let mut incr = IncrementalClassifier::new(bars, &config);
+        for i in 0..n {
+            let (inc_cls, _) = incr.classify_at(i);
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (full_cls, _) = classifier::classify_with_tower(&l0, &config);
+            if inc_cls != full_cls {
+                eprintln!("★IncrementalClassifier divergence at bar {i}: segs={} merged={} confirmed_len={}",
+                    l0.segments.len(), l0.merged_bars.len(), l0.segments_confirmed_len);
+                for (lvl, (il, fl)) in inc_cls.levels.iter().zip(full_cls.levels.iter()).enumerate() {
+                    if il.centers != fl.centers {
+                        let m = il.centers.len().min(fl.centers.len());
+                        let k = (0..m).find(|&k| il.centers[k] != fl.centers[k]);
+                        eprintln!("  L{lvl} centers DIFFER (inc={} full={}) first_diff={:?}",
+                            il.centers.len(), fl.centers.len(), k);
+                        if let Some(k) = k {
+                            eprintln!("    inc [{k}]={:?}\n    full[{k}]={:?}", il.centers[k], fl.centers[k]);
+                        }
+                        break;
+                    }
+                }
+                return;
+            }
+        }
+        eprintln!("no IncrementalClassifier divergence in 0..{n}");
+    }
+
     /// **★决定性对拍（Task #10）：长历史终点 level 分布 增量生产路径 vs 全量 ground truth**。
     ///
     /// codex #8 攻击 acc-classification「窗口依赖非 bug」：用 L1 合成 bit-exact 排除 L2 真实 frontier

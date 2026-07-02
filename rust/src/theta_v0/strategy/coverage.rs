@@ -2693,6 +2693,7 @@ mod tests {
             pivot_low: 0,
             pivot_high: 210,
             center: Some(ctr(0, si)),
+            struct_break_dir: None,
         }
     }
 
@@ -2704,6 +2705,7 @@ mod tests {
             pivot_low: 90,
             pivot_high: 0,
             center: Some(ctr(0, si)),
+            struct_break_dir: None,
         }
     }
 
@@ -2843,6 +2845,7 @@ mod tests {
             pivot_low: 90,
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![bsp], ..Default::default() }],
@@ -2866,6 +2869,7 @@ mod tests {
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90, pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
         };
         let c_buy = Classification { levels: vec![LevelState { bsp: vec![buy], ..Default::default() }] };
         let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), &reg);
@@ -2876,6 +2880,7 @@ mod tests {
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0, pivot_high: 210,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
         };
         let c_sell = Classification { levels: vec![LevelState { bsp: vec![sell], ..Default::default() }] };
         let (active_t2, p2) = coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg(), &reg);
@@ -3473,6 +3478,7 @@ mod tests {
             pivot_low: 90,
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![bsp], ..Default::default() }],
@@ -3499,6 +3505,7 @@ mod tests {
             pivot_low: 90,
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![bsp], ..Default::default() }],
@@ -3558,6 +3565,7 @@ mod tests {
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0, pivot_high: 210,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 }),
+            struct_break_dir: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: vec![sell], ..Default::default() }],

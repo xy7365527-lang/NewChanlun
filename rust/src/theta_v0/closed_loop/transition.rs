@@ -195,15 +195,35 @@ pub fn policy_output(x: &AssemblyState, e: &AssemblyEvent) -> OrderOut {
     schedule_adapter(x, intent, target_pos)
 }
 
-/// OQ-9 gate 守卫（契约锚 `Origin.TotalWealth.LegalTransition`，#127 native port）：tw_event 在当前
-/// tw_state 下必须合法。
+/// 闭环转移错误 `TransitionError`（GAP3 codex R3 §9.3：illegal 转移拦截 = **release 语义 `Result::Err`**，
+/// 非 `assert!`/`debug_assert!` panic）。
 ///
-/// OpenShareLeg 在 stage=EarningShares 非法。本守卫断言订单携带的 tw_event 是当前态下的合法转移
-/// （schedule_adapter 只派生 `ShortDiff`，恒合法，故此守卫对订单 tw_event 恒成立；阶段推进事件
-/// RecoverCapital/EnterEarning 由 stage_progression 单独在推进侧 gate。它是引擎层「禁非法转移」的
+/// ★codex R3 §9.3 根因（panic 非 release 错误处理语义）：`assert!` 拦截非法转移 = 进程 abort（release
+/// 下 crash 而非可恢复错误）。裁决要求把 illegal `tw_event` 拦截写成 `Result::Err`——调用方决定如何处理
+/// 非法输入（而非无条件崩溃）。非法性是**关系型**（`(tw_event, tw_state)` 组合，同一 event 在不同 stage
+/// 合法性不同——见 `TwEvent::is_legal_from`），**无法在 `OrderOut` 构造时静态排除**（类型层不可构造不
+/// 适用），故走 `Result::Err` 路径（PDF §9.3 二选一的可行分支）。
+///
+/// 两类非法（transition_adapter 的两道 gate）：
+/// - `Oq9Illegal`：OQ-9 gate 违反（`tw_event` 在当前 `stage` 非法，如 EarningShares 阶段开 legacy 腿）。
+/// - `CashUnsound`：现金-sound gate 违反（转移后 TW 三量出现负值——透支现金 / 空池借本金）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TransitionError {
+    /// OQ-9 gate 违反：`event` 在 `stage` 下非法（`TwEvent::is_legal_from` 返 false）。
+    Oq9Illegal { event: TwEvent, stage: TStage },
+    /// 现金-sound 违反：转移后 TW 三量出现负值（透支 / 空池借本金）。
+    CashUnsound { free: i64, holding: i64, withdrawn: i64 },
+}
+
+/// OQ-9 gate 判定（契约锚 `Origin.TotalWealth.LegalTransition`，#127 native port）：tw_event 在当前
+/// tw_state 下是否合法。
+///
+/// OpenShareLeg 在 stage=EarningShares 非法。本判定检查订单携带的 tw_event 是否当前态下的合法转移
+/// （schedule_adapter 只派生 `ShortDiff`，恒合法，故对订单 tw_event 恒真；阶段推进事件
+/// RecoverCapital/EnterEarning 由 stage_progression 单独在推进侧检查。它是引擎层「禁非法转移」的
 /// 显式落实，对齐 `Origin.TotalWealth.oq9inv_preserved` 的单步保持——TW/OQ-9 的 Origin canonical
 /// 重锚已由 #127 `Origin.TotalWealth` native port 落地）。
-fn assert_oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
+fn oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
     tw_event.is_legal_from(tw_state)
 }
 
@@ -292,57 +312,57 @@ fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> O
 /// 派生**阶段推进事件**并 tw_step 一次——stage_progression **仅在有 sound 资金源**（cash-tight
 /// 退本金 w≤free）时推进；L0 同价 funded campaign 下无源 ⟹ 恒不推进（EarningShares 结构不可达，见
 /// `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）。两个 tw_step 都保 TW 守恒 +
-/// stage 单向 + OQ-9 gate + 出口现金-sound 断言（见函数末 tw_next 非负断言）。
+/// stage 单向 + OQ-9 gate + 出口现金-sound 检查。
+///
+/// ★★codex R3 §9.3（release 语义）：两道 gate（OQ-9 + 现金-sound）从 `assert!` panic 改为
+/// **`Result::Err`**——非法转移返回 [`TransitionError`]（release 下可恢复错误，非 abort），调用方决定
+/// 处理。**生产路径恒 `Ok`**（hybrid_step→schedule 只派 `ShortDiff`——恒合法；cash 约束 + stage_progression
+/// w≤free ⟹ 出口三量恒非负），故 `Err` 仅对**外部注入非法 `OrderOut`** 触发（pub transition_adapter +
+/// pub OrderOut 外部注入面）。这使「free≥0 全路径」成为出口不变量：**任何返回 `Ok(x)` 的转移，`x` 的
+/// TW 三量恒非负**（否则返 `Err`，不产出非法态）。
 pub fn transition_adapter(
     x: &AssemblyState,
     o: &OrderOut,
     e: &AssemblyEvent,
     policy: &RiskPolicy,
-) -> AssemblyState {
+) -> Result<AssemblyState, TransitionError> {
     // OQ-9 gate：订单 tw_event 必须合法（schedule_adapter 保证只派生 ShortDiff——恒合法）。
-    // ★codex 复审#4：升 `debug_assert!` 为真 `assert!`——release 下亦 fail-fast 拒非法转移（pub
-    // transition_adapter + pub OrderOut 的外部注入面：即使外部构造非法 tw_event，也 panic 而非
-    // release 静默写入非法 TW 态。生产路径（hybrid_step→schedule 只派 ShortDiff）恒过此断言，
-    // 故对生产零行为影响；断言只对外部误用的非法订单触发）。
-    assert!(
-        assert_oq9_legal(&x.tw_state, o.tw_event),
-        "OQ-9 gate 违反：tw_event {:?} 在 stage {:?} 非法",
-        o.tw_event,
-        x.tw_state.stage
-    );
+    // ★codex R3 §9.3：非法 ⟹ `Result::Err`（release 语义，非 panic）。外部注入非法 tw_event 时返
+    // Err 而非 abort；生产路径（schedule 只派 ShortDiff）恒 Ok，对生产零行为影响。
+    if !oq9_legal(&x.tw_state, o.tw_event) {
+        return Err(TransitionError::Oq9Illegal { event: o.tw_event, stage: x.tw_state.stage });
+    }
     // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 转移）。
     let tw_after_order = tw_step(&x.tw_state, o.tw_event);
     // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning。stage_progression 只在有
     // sound 资金源（cash-tight 退本金 w≤free）时推进；L0 同价下无源 ⟹ 恒不推进（照实不可达）。
     let tw_next = match stage_progression(policy, &tw_after_order, x.risk_mode) {
         Some(stage_event) => {
-            // ★codex 复审#4：真 assert（release 亦生效）——阶段推进事件（RecoverCapital/EnterEarning）
-            // 恒合法（RecoverCapital raw 恒合法；EnterEarning 由 enter_ready 要求 legs==0 ⟹ 与
-            // is_legal_from 一致）。断言钉死此不变量，release 下亦拒非法阶段推进。
-            assert!(
-                assert_oq9_legal(&tw_after_order, stage_event),
-                "OQ-9 gate 违反（阶段推进）：{:?} 在 stage {:?} 非法",
-                stage_event,
-                tw_after_order.stage
-            );
+            // ★codex R3 §9.3：阶段推进事件（RecoverCapital/EnterEarning）非法 ⟹ Err（RecoverCapital
+            // raw 恒合法；EnterEarning 由 enter_ready 要求 legs==0 ⟹ 与 is_legal_from 一致，故生产恒
+            // 合法）。release 语义拒非法阶段推进。
+            if !oq9_legal(&tw_after_order, stage_event) {
+                return Err(TransitionError::Oq9Illegal { event: stage_event, stage: tw_after_order.stage });
+            }
             tw_step(&tw_after_order, stage_event)
         }
         None => tw_after_order,
     };
-    // ★★现金-sound gate（codex 复审二轮致命1 根因修复：唯一 chokepoint 断言，覆盖全部调用方）：
-    // 转移后 TW 三量必须非负（free/holding/withdrawn ≥ 0）。这不只堵 schedule_adapter 生产路径，还堵
-    // **pub transition_adapter + pub OrderOut 的外部注入面**：外部即使传 ShortDiff(-1)（透支现金）或
-    // RecoverCapital(1)（空池借本金）绕过 OQ-9 gate（这两类 raw 恒合法），也在此 fail-fast，而非 release
-    // 静默写负 free/holding。生产路径（schedule cash-约束 + stage_progression w≤free）恒过 ⟹ 生产零
-    // 行为影响。这使「free≥0 全路径」成为 transition_adapter 出口不变量（不再只是生产路径性质）。
-    assert!(
-        tw_next.free >= 0 && tw_next.holding >= 0 && tw_next.withdrawn >= 0,
-        "现金-sound 违反：转移后 TW 三量出现负值（free={}, holding={}, withdrawn={}）——透支/空池借本金",
-        tw_next.free,
-        tw_next.holding,
-        tw_next.withdrawn
-    );
-    AssemblyState {
+    // ★★现金-sound gate（codex 复审二轮致命1 根因：唯一 chokepoint，覆盖全部调用方）：转移后 TW 三量
+    // 必须非负（free/holding/withdrawn ≥ 0）。这不只堵 schedule_adapter 生产路径，还堵 **pub
+    // transition_adapter + pub OrderOut 的外部注入面**：外部即使传 ShortDiff(-1)（透支现金）或
+    // RecoverCapital(1)（空池借本金）绕过 OQ-9 gate（这两类 raw 恒合法），也在此**返回 Err**（codex R3
+    // §9.3：release 语义），而非 panic 或静默写负 free/holding。生产路径（schedule cash-约束 +
+    // stage_progression w≤free）恒过 ⟹ 生产恒 Ok。这使「free≥0 全路径」成为 transition_adapter 出口
+    // 不变量（返回 Ok(x) ⟹ x 的 TW 三量非负；否则 Err，不产出非法态）。
+    if tw_next.free < 0 || tw_next.holding < 0 || tw_next.withdrawn < 0 {
+        return Err(TransitionError::CashUnsound {
+            free: tw_next.free,
+            holding: tw_next.holding,
+            withdrawn: tw_next.withdrawn,
+        });
+    }
+    Ok(AssemblyState {
         micro_state: micro_delta(&x.micro_state, e.parse_event),
         ledger_state: ledger_step(&x.ledger_state, o.ledger_event),
         tw_state: tw_next,
@@ -357,7 +377,7 @@ pub fn transition_adapter(
         positions: o.target_pos,
         orders: x.orders + 1,
         memory: x.memory,
-    }
+    })
 }
 
 /// 资本相位 `Phase` 由取本金阶段 `TStage` 派生（codex #2 根因修复：消除双相位漂移）。
@@ -387,7 +407,15 @@ pub fn phase_from_stage(stage: TStage) -> Phase {
 ///
 /// `policy`=RiskPolicy（barrier κ；驱动三阶段推进 RecoverCapital→EnterEarning，GAP3 修复）。κ=0 基线用
 /// [`hybrid_step_baseline`]（PDF §10 最小规范）。
-pub fn hybrid_step(x: &AssemblyState, e: &AssemblyEvent, policy: &RiskPolicy) -> AssemblyState {
+///
+/// ★codex R3 §9.3：透传 [`transition_adapter`] 的 `Result`——非法转移（外部注入非法 OrderOut）返
+/// [`TransitionError`]。生产路径（policy_output→schedule 只派 ShortDiff）恒 `Ok`；调用方（如
+/// `run_closed_loop`）在生产边界用 `.expect("生产路径恒 Ok")` 收敛，把「生产恒合法」变成显式契约。
+pub fn hybrid_step(
+    x: &AssemblyState,
+    e: &AssemblyEvent,
+    policy: &RiskPolicy,
+) -> Result<AssemblyState, TransitionError> {
     let order = policy_output(x, e);
     transition_adapter(x, &order, e, policy)
 }
@@ -396,7 +424,12 @@ pub fn hybrid_step(x: &AssemblyState, e: &AssemblyEvent, policy: &RiskPolicy) ->
 ///
 /// `η⋆=L^wc`（仅覆盖最坏损失无额外缓冲）。这是 GAP3 可达性测试的基线政策——若 κ=0 下 EarningShares
 /// 仍不可达 ⟹ 结构性缺口（照实报，非硬凑）。
-pub fn hybrid_step_baseline(x: &AssemblyState, e: &AssemblyEvent) -> AssemblyState {
+///
+/// ★codex R3 §9.3：透传 `Result`（生产路径恒 `Ok`；见 [`hybrid_step`]）。
+pub fn hybrid_step_baseline(
+    x: &AssemblyState,
+    e: &AssemblyEvent,
+) -> Result<AssemblyState, TransitionError> {
     hybrid_step(x, e, &RiskPolicy::baseline())
 }
 
@@ -453,7 +486,7 @@ mod tests {
         assert!(x.ledger_state.inv_holds());
         // 多 bar 闭环：每步后 ledger 恒等必须成立。
         for i in 0..50 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert!(
                 x.ledger_state.inv_holds(),
                 "bar {} 后 ledger 破坏 R=Π-A-W: {:?}",
@@ -468,7 +501,7 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         let tw0 = x.tw_state.tw();
         for i in 0..50 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 3 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 3 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert_eq!(x.tw_state.tw(), tw0, "bar {} 后 TW 守恒被破坏", i);
         }
     }
@@ -479,7 +512,7 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         for i in 0..50 {
             let prev_rank = x.tw_state.stage.rank();
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert!(
                 prev_rank <= x.tw_state.stage.rank(),
                 "bar {} 后 stage 回退",
@@ -495,7 +528,7 @@ mod tests {
         let mut x = AssemblyState::initial(1_000_000);
         assert_eq!(x.tw_state.open_legacy_legs, 0);
         for i in 0..50 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert_eq!(
                 x.tw_state.open_legacy_legs, 0,
                 "bar {} 后 OQ-9 gate 被破坏（开了 legacy 腿）",
@@ -508,7 +541,7 @@ mod tests {
             tw_state: TwState { stage: TStage::EarningShares, ..TwState::initial() },
             ..AssemblyState::initial(1_000_000)
         };
-        let x2 = hybrid_step_baseline(&earning, &bar_event(true));
+        let x2 = hybrid_step_baseline(&earning, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x2.tw_state.open_legacy_legs, 0, "earning 下 OQ-9 gate 保持");
     }
 
@@ -523,7 +556,7 @@ mod tests {
         let x = AssemblyState::initial(1_000_000);
         let e = bar_event(true);
         let order = policy_output(&x, &e);
-        let x1 = hybrid_step_baseline(&x, &e);
+        let x1 = hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x1.tw_state, tw_step(&x.tw_state, order.tw_event));
     }
 
@@ -531,13 +564,13 @@ mod tests {
     #[test]
     fn hybrid_step_threads_micro_state() {
         let x = AssemblyState::initial(1_000_000);
-        let x1 = hybrid_step_baseline(&x, &bar_event(true));
+        let x1 = hybrid_step_baseline(&x, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x1.micro_state.bar_count, 1, "bar_count 真推进");
         assert_eq!(x1.micro_state.bars_seen, 1, "bars_seen 真推进");
         assert_eq!(x1.orders, 1, "orders 计数真推进");
         // 与构造一次不更新对比：连续 3 bar ⟹ bar_count=3（每 bar 真喂回）。
-        let x2 = hybrid_step_baseline(&x1, &bar_event(false));
-        let x3 = hybrid_step_baseline(&x2, &bar_event(true));
+        let x2 = hybrid_step_baseline(&x1, &bar_event(false)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
+        let x3 = hybrid_step_baseline(&x2, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x3.micro_state.bar_count, 3, "3 bar 闭环 ⟹ bar_count=3（喂回非构造一次）");
         assert_eq!(x3.orders, 3, "3 bar ⟹ orders=3");
     }
@@ -547,7 +580,7 @@ mod tests {
     #[test]
     fn hybrid_step_threads_ledger_state() {
         let x = AssemblyState::funded_campaign(1_000_000, 8); // free=8 ⟹ Buy Δ=1 现金充足 ⟹ Allocate(1)
-        let x1 = hybrid_step_baseline(&x, &bar_event(true));
+        let x1 = hybrid_step_baseline(&x, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         // Allocate(1) ⟹ A += 1, R -= 1（首 bar 仓位 0→1，现金 8>0 ⟹ 真成交）。
         assert_eq!(x1.ledger_state.a, 1, "Allocate ⟹ A 真变（非恒等）");
         assert_eq!(x1.ledger_state.r, -1, "Allocate ⟹ R 真变");
@@ -561,7 +594,7 @@ mod tests {
     fn unfunded_initial_never_negative_free() {
         let mut x = AssemblyState::initial(1_000_000); // free=0, positions=0
         for i in 0..20 {
-            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0));
+            x = hybrid_step_baseline(&x, &bar_event(i % 2 == 0)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
             assert!(x.tw_state.free >= 0, "bar {i}: free={} 变负（buy 透支现金漏网）", x.tw_state.free);
             assert_eq!(x.positions, 0, "free=0 ⟹ Buy 被现金约束 ⟹ positions 不推进");
         }
@@ -575,7 +608,7 @@ mod tests {
             ..AssemblyState::initial(1_000_000)
         };
         let e = AssemblyEvent { parse_event: MicroEvent::NewStroke(Direction::Up) };
-        let x1 = hybrid_step_baseline(&x, &e);
+        let x1 = hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x1.micro_state.stroke_count, 1);
         assert_eq!(x1.micro_state.pending_rise, 0, "新笔吸收尾部");
         assert_eq!(x1.micro_state.last_stroke_dir, Some(Direction::Up));
@@ -591,5 +624,68 @@ mod tests {
         };
         let e = bar_event(true);
         assert_eq!(hybrid_step_baseline(&x, &e), hybrid_step_baseline(&x, &e));
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★codex R3 §9.3：release 语义 Result::Err 路径（外部注入非法 OrderOut ⟹ Err，非 panic）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★9.3 生产路径恒 Ok（release 语义回归）：hybrid_step（policy_output→schedule 只派 ShortDiff）在
+    /// 任意态/事件下恒返 `Ok`——release 下不 panic 不 Err，正常闭环。
+    #[test]
+    fn transition_production_path_always_ok() {
+        let mut x = AssemblyState::funded_campaign(1_000_000, 8);
+        for i in 0..50 {
+            let r = hybrid_step(&x, &bar_event(i % 2 == 0), &RiskPolicy::baseline());
+            assert!(r.is_ok(), "生产路径 bar {i} 返 Err（应恒 Ok）：{:?}", r);
+            x = r.unwrap();
+        }
+    }
+
+    /// ★9.3 OQ-9 gate Err 路径（外部注入非法 OrderOut）：EarningShares 阶段注入 `OpenShareLeg`
+    /// tw_event（`is_legal_from` 返 false，rank 2<2 假）⟹ transition_adapter 返
+    /// `Err(Oq9Illegal)`——**非 panic**（release 可恢复错误）。
+    #[test]
+    fn transition_oq9_illegal_returns_err() {
+        let x = AssemblyState {
+            tw_state: TwState { stage: TStage::EarningShares, ..TwState::initial() },
+            ..AssemblyState::initial(1_000_000)
+        };
+        // 外部注入非法订单：EarningShares 阶段开 legacy 腿（OQ-9 gate 拒）。
+        let illegal = OrderOut {
+            action: StrictAction::Hold,
+            target_pos: x.positions,
+            ledger_event: LedgerEvent::Noop,
+            tw_event: TwEvent::OpenShareLeg,
+        };
+        let r = transition_adapter(&x, &illegal, &bar_event(true), &RiskPolicy::baseline());
+        assert_eq!(
+            r,
+            Err(TransitionError::Oq9Illegal { event: TwEvent::OpenShareLeg, stage: TStage::EarningShares }),
+            "外部注入 EarningShares+OpenShareLeg ⟹ Err(Oq9Illegal)（release 语义，非 panic）"
+        );
+    }
+
+    /// ★9.1/9.3 现金-sound gate Err 路径（外部注入透支订单）：free=0 态注入 `ShortDiff(-1)`
+    /// （`tw_step` 语义 `ShortDiff(d): free+=d, holding-=d` ⟹ d=-1 ⟹ free 0→-1, holding 0→+1，
+    /// raw 恒合法过 OQ-9，但转移后 free=-1 透支）⟹ 返 `Err(CashUnsound)`——**非 panic**。这钉死
+    /// 「free≥0 全 transition 出口不变量」（codex §9.1）：**任何**返 Ok 的转移 TW 三量非负，否则 Err
+    /// （不产出非法态）。
+    #[test]
+    fn transition_cash_unsound_returns_err() {
+        let x = AssemblyState::initial(1_000_000); // free=0
+        // 外部注入透支订单：ShortDiff(-1) ⟹ free 0→-1（透支现金），holding 0→+1（raw 合法过 OQ-9）。
+        let overdraft = OrderOut {
+            action: StrictAction::Buy,
+            target_pos: x.positions + 1,
+            ledger_event: LedgerEvent::Allocate(1),
+            tw_event: TwEvent::ShortDiff(-1),
+        };
+        let r = transition_adapter(&x, &overdraft, &bar_event(true), &RiskPolicy::baseline());
+        assert_eq!(
+            r,
+            Err(TransitionError::CashUnsound { free: -1, holding: 1, withdrawn: 0 }),
+            "外部注入透支 ShortDiff(-1) 从 free=0 ⟹ Err(CashUnsound{{free:-1}})（release 语义，非 panic）"
+        );
     }
 }

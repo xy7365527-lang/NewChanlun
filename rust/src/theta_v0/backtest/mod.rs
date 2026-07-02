@@ -54,6 +54,7 @@
 //! [`Bar`]: super::types::Bar
 
 pub mod data;
+pub mod decontam;
 pub mod incremental;
 pub mod metrics;
 pub mod mu_estimator;

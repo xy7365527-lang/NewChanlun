@@ -102,8 +102,13 @@ impl ThetaV0Contract {
     ///
     /// 闭环单步 = `hybrid_step`（六段复合 + T 写回），对齐 Origin `hybridStep`。`StepSpec C s e s' :=
     /// step s e = s'`——本函数即 `step`，其确定唯一性由 `step_spec_total_unique` 逐态验证。
+    ///
+    /// ★codex R3 §9.3：`StepSpec` 是**全函数**（State→Event→State），非 State→Event→Result——生产
+    /// step 走 hybrid_step_baseline（policy_output→schedule 只派 ShortDiff）**恒 `Ok`**，故此处
+    /// `.expect()` 把「conformance step 恒合法」显式化为契约（与 StepSpec 全函数语义一致；Err 仅对
+    /// 外部注入非法 OrderOut 触发，不经 conformance step 路径）。
     pub fn step(s: &AssemblyState, e: &AssemblyEvent) -> AssemblyState {
-        hybrid_step_baseline(s, e)
+        hybrid_step_baseline(s, e).expect("conformance step 走生产路径恒 Ok（schedule 只派 ShortDiff）")
     }
 }
 
@@ -186,7 +191,8 @@ mod tests {
         for e in &trace {
             // 逐态展开：step = transition_adapter(s, policy_output(s, e), e, baseline)。
             let order = policy_output(&s, e);
-            let expected = transition_adapter(&s, &order, e, &RiskPolicy::baseline());
+            let expected = transition_adapter(&s, &order, e, &RiskPolicy::baseline())
+                .expect("生产路径恒 Ok（policy_output→schedule 只派 ShortDiff + cash 约束）");
             let got = ThetaV0Contract::step(&s, e);
             assert_eq!(got, expected, "六段同构逐态破坏：step ≠ transition∘policy");
             s = got;

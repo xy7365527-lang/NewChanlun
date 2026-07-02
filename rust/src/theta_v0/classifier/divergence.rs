@@ -58,7 +58,7 @@
 //! 趋势/盘整门控判据（中枢同向关系）是 **L0**（纯整数几何，不依赖经验数据）。
 
 use super::super::config::MacdConfig;
-use super::super::types::{Center, Direction, Segment};
+use super::super::types::{Center, Direction, Segment, Tick};
 use super::center::{classify_relation, CenterRelation};
 
 /// MACD 逐 bar 输出（DIF/DEA/hist，浮点域，隔离在本结构）。
@@ -249,6 +249,21 @@ pub fn is_divergence(prev_area: f64, curr_area: f64) -> bool {
 ///
 /// `prev_seg`/`curr_seg` 是 `(start,end)` 闭区间 bar 索引对。后段面积严格小于前段 ⟹ 力度衰减
 /// （力度原语，A/B/C 框架层 §B 用它比较已定位的 A/C 段）。
+///
+/// ## ★诚实 gap（缠师第17课，编排者 2026-07-01 坐实——识别非实装）
+///
+/// 缠师第17课原文（017-第17课.md:248/250）：「用均线或 MACD 看背驰都是**辅助性**的，都不是最
+/// 重要的」「没有 MACD 就判断不了背驰？显然不是。**那只是辅助**」。背驰的**定义**是「两相邻同向
+/// 趋势间后者比前者的**走势力度**减弱」——**走势力度**才是判据，MACD 面积只是一个 proxy。
+///
+/// 本实装的背驰**仅由 MACD 段面积**判定（`segment_macd_area` = Σ|hist|），**无独立的走势力度
+/// 判据**（价格振幅/速度/成交量力度等）。`force_conformance.rs` 的 `ForceMeasure.strength` 亦只
+/// 包 MACD area（见其模块头 L2 未验证声明）。这是比 P2 veto **更根本的简化**：辅助指标（MACD）
+/// 被当成了背驰的**唯一判据**，与缠师原文相悖（同构：区间套同一性证书零调用、简化被当完整）。
+///
+/// ponytail: MACD-area-only 力度判据，真走势力度（振幅/速度/量能，第17课定义）留待后续大工程；
+/// 本 gap 已诚实标注（编排者裁定：识别并标注，不顺手实装）。升级路径 = ForceMeasure 增非-MACD
+/// strength 实例（价格振幅/速度），MACD area 降为多 proxy 之一，与 P2「MACD 降 feature」同精神。
 pub fn segments_diverge(
     hist: &[f64],
     prev_seg: (usize, usize),
@@ -257,6 +272,155 @@ pub fn segments_diverge(
     let prev_area = segment_macd_area(hist, prev_seg.0, prev_seg.1);
     let curr_area = segment_macd_area(hist, curr_seg.0, curr_seg.1);
     is_divergence(prev_area, curr_area)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// § A2. 多力度原语 + Weak_Θ 词典序（P2 方案A §4/§7 改点5；第17课「黄白线主，面积次」+ 第34课）
+//
+// ★存在论位置（p2-plan §4 + codex-review-20260701-2251 护栏3/6）：这些是**力度原语层**——
+// 供 **selector 层** Weak_Θ 力度门消费的多 proxy（DIF/价格振幅/速度），**不下沉 buy1 定义层**
+// （buy1 判据仍 `segments_diverge`=MACD 面积，class_index 语义冻结，护栏3）。DIF 逻辑移植 rust
+// 顶层旧引擎 `src/divergence.rs`（dif_peak/T6），坐标系改为 theta_v0 的 `dif` 序列 + 段闭区间。
+//
+// ★认识论（formalization-validity-domain 231号，强制）：
+// - **L1**：原语接口正确性（给定 dif/closes 求峰值/振幅/速度是确定性算术，逐例可验）。
+// - **L2/L3**：「哪个 mode 有 alpha / 词典序优于单 MACD」需三套 OOS（MACD/Force/LEX），
+//   **本层不声明**，留 W-VERIFY（#23）。weak_theta 只提供判定纯函数，不声明择时有效性。
+//
+// ★诚实有效域边界（no-workaround，**不造死字段**）：本层原语当前**无生产消费者接通**——
+// selector `filter_gamma` 的 Weak_Θ 力度门要接通需 `Candidate` 携 A/C 段力度 feature，但
+// `assemble_gamma` 的候选构造作用域只有 `BspPoint`（无段 close 序列 ⟹ 算不了振幅/速度）。
+// 按 no-patch 不在 Candidate 造填不满的 force 字段（那是「换个死字段」，护栏7）。本层是**可用
+// 且可测的原语 + Weak_Θ 判定**，接通 selector 力度门留待「段力度透传进 gamma 组装」的独立工位
+// （需大改 Candidate/gamma 管线，超出本 R2 范围）。诚实声明：原语实装 ✓，端到端接通 ✗（标 gap）。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 段力度多 proxy（P2 §6 selector 状态 z 的力度分量：MACD 面积 / DIF 峰值 / 价格振幅 / 速度）。
+///
+/// 三 proxy 对应第17课「黄白线（DIF）最重要，面积次之」+ 价格振幅/速度（走势力度的直接度量，
+/// 非 MACD proxy）。由 [`force_features`] 从段区间算出，供 [`weak_theta`] 词典序比较。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForceFeatures {
+    /// MACD 段面积 = Σ|hist|（力度原语，`segment_macd_area`）。
+    pub macd_area: f64,
+    /// DIF 段峰值绝对值（黄白线主判据，第17课「黄白线最重要」；移植旧引擎 dif_peak）。
+    pub dif_peak: f64,
+    /// 价格振幅 |端价差|（L0 整数 tick，走势力度直接度量，非 MACD proxy）。
+    pub price_amplitude: i64,
+    /// 价格速度 |端价差|/Δbar（f64，单位时间价格变动）。
+    pub price_speed: f64,
+}
+
+/// DIF 段峰值绝对值（黄白线主判据原语，第17课；移植旧引擎 `dif_peak_for_range` 到 theta_v0）。
+///
+/// `dif` 是 `compute_macd(...).dif` 序列（黄白线，与 hist 同坐标系）。`[start,end]` 闭区间 bar
+/// 下标。向上段取区间内 `max(dif)`（正峰），向下段取 `min(dif)` 的绝对值（负峰）——与旧引擎
+/// `dif_peak_for_range(up)` 语义一致（up→max 正值 / down→|min 负值|）。越界/空 ⟹ 0.0。
+///
+/// bit-exact：按 bar 升序扫描取极值（固定顺序），`f64` 比较用 `max`/`min`（无 NaN 前提，dif 由
+/// EMA 差得，有限）。
+pub fn segment_dif_peak(dif: &[f64], start: usize, end: usize, direction: Direction) -> f64 {
+    if start > end || end >= dif.len() {
+        return 0.0;
+    }
+    let slice = &dif[start..=end];
+    match direction {
+        // 向上段：黄白线正峰（max）。缠师顶背驰看黄白线新高与否。
+        Direction::Up => slice.iter().copied().fold(f64::NEG_INFINITY, f64::max).max(0.0),
+        // 向下段：黄白线负峰（|min|）。底背驰看黄白线新低。
+        Direction::Down => slice.iter().copied().fold(f64::INFINITY, f64::min).min(0.0).abs(),
+    }
+}
+
+/// 段价格振幅 |端价差|（L0 整数 tick，走势力度的直接度量，第17课「走势力度」非 MACD proxy）。
+///
+/// `closes` 段端点（下标 `start`/`end`）close 的有向差绝对值。越界 ⟹ 0（空段无振幅）。
+/// **整数域**（无浮点）——close 已量化为 tick（types.rs），振幅是 tick 差。
+pub fn segment_price_amplitude(closes: &[Tick], start: usize, end: usize) -> i64 {
+    if start > end || end >= closes.len() {
+        return 0;
+    }
+    (closes[end] - closes[start]).abs()
+}
+
+/// 段价格速度 |端价差|/Δbar（单位时间价格变动，f64）。
+///
+/// 振幅 / 段跨度（`end-start`，至少 1 避免除零）。越界 ⟹ 0.0。
+pub fn segment_price_speed(closes: &[Tick], start: usize, end: usize) -> f64 {
+    if start > end || end >= closes.len() {
+        return 0.0;
+    }
+    let amp = (closes[end] - closes[start]).abs() as f64;
+    let span = (end - start).max(1) as f64;
+    amp / span
+}
+
+/// 从段区间算全部力度 proxy（`ForceFeatures`）——MACD 面积 + DIF 峰值 + 价格振幅 + 速度。
+///
+/// `hist`/`dif` 是 `compute_macd` 的 hist/dif 序列；`closes` 是 close(tick) 序列；三者同坐标系
+/// （bar 下标对齐）。`(start,end)` 闭区间，`direction` 段方向（DIF 峰值方向敏感）。
+pub fn force_features(
+    hist: &[f64],
+    dif: &[f64],
+    closes: &[Tick],
+    start: usize,
+    end: usize,
+    direction: Direction,
+) -> ForceFeatures {
+    ForceFeatures {
+        macd_area: segment_macd_area(hist, start, end),
+        dif_peak: segment_dif_peak(dif, start, end, direction),
+        price_amplitude: segment_price_amplitude(closes, start, end),
+        price_speed: segment_price_speed(closes, start, end),
+    }
+}
+
+/// Weak_Θ 力度比较模式（第34课 Θ=(level,DIF,area,amplitude,speed,…) 参数化；「三套 OOS」+ 默认 Lex）。
+///
+/// 每个 mode 定义「后段力度 `<` 前段力度」（背驰=力度衰减）的判据用哪个 proxy。`Lex` 是缠师第17课
+/// 「黄白线主 ▷ 面积次」的词典序（DIF 可判用 DIF，否则退面积）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeakThetaMode {
+    /// 纯 MACD 面积（`segments_diverge` 同判据，与 buy1 冻结判据一致——作对照基线）。
+    MacdArea,
+    /// 纯 DIF 峰值（黄白线主判据，第17课「黄白线最重要」）。
+    Dif,
+    /// 纯价格振幅（走势力度直接度量，非 MACD proxy）。
+    PriceAmplitude,
+    /// 词典序（第17课/第34课默认）：DIF 主 ▷ 面积次——DIF 严格可判则用 DIF，DIF 相等则退面积。
+    Lex,
+}
+
+/// Weak_Θ 力度衰减判定（第34课参数化弱化关系，`Weak_Θ(A段,C段)` = C 段力度**严格小于** A 段）。
+///
+/// **词典序语义**（p2-plan §4 + 第17课「黄白线最重要，面积次之」+ swarm 待判点 B「非 AND/OR」）：
+/// - `MacdArea`：`C.macd_area < A.macd_area`（与 buy1 冻结判据一致，对照基线）。
+/// - `Dif`：`C.dif_peak < A.dif_peak`（黄白线主）。
+/// - `PriceAmplitude`：`C.price_amplitude < A.price_amplitude`。
+/// - `Lex`：DIF 主 ▷ 面积次——`C.dif < A.dif` ⟹ true（背驰）；`C.dif > A.dif` ⟹ false（力度延续）；
+///   `C.dif == A.dif`（DIF 不可判）⟹ 退面积 `C.area < A.area`。**非 AND/OR**（027:30「只要其中
+///   一个符合就可以」否证 AND；第34课「黄白线最重要」否证纯 OR）。
+///
+/// ★护栏3（codex 语义诚实）：本函数供 **selector 层** Weak_Θ 力度门，**不喂 buy1**（buy1 判据
+/// 冻结为 `segments_diverge`=MACD 面积，class_index 语义不动）。level 元门（级别配套）不在此函数
+/// （selector 已按 level 分桶，元门由 MuClass.level 承载）——本函数是同级别内的力度词典序。
+///
+/// ★认识论 L1（给定 A/C ForceFeatures 求 Weak 是确定性布尔，验证判定逻辑）——「哪个 mode 有
+/// alpha」是 L2/L3（W-VERIFY，本函数不声明）。
+pub fn weak_theta(mode: WeakThetaMode, seg_a: &ForceFeatures, seg_c: &ForceFeatures) -> bool {
+    match mode {
+        WeakThetaMode::MacdArea => seg_c.macd_area < seg_a.macd_area,
+        WeakThetaMode::Dif => seg_c.dif_peak < seg_a.dif_peak,
+        WeakThetaMode::PriceAmplitude => seg_c.price_amplitude < seg_a.price_amplitude,
+        WeakThetaMode::Lex => {
+            // 词典序：DIF 主判据。DIF 严格可判（≠）时用 DIF；DIF 相等则退面积（次判据）。
+            if seg_c.dif_peak != seg_a.dif_peak {
+                seg_c.dif_peak < seg_a.dif_peak
+            } else {
+                seg_c.macd_area < seg_a.macd_area
+            }
+        }
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -553,6 +717,89 @@ mod tests {
         // 反向：C 段面积大 ⟹ 力度延续 ⟹ 非背驰。
         let abc_cont = AbcDivergence { seg_a: (2, 3), seg_c: (0, 1), is_trend: true };
         assert!(!abc_cont.diverges(&hist, (2, 3), (0, 1)), "C段面积10 ≥ A段面积2 ⟹ 力度延续=非背驰");
+    }
+
+    // ===== § A2. 多力度原语 + Weak_Θ 词典序（P2 §4/§7 改点5，L1 接口正确性）=====
+
+    #[test]
+    fn dif_peak_up_takes_positive_max_down_takes_abs_min() {
+        // 向上段：黄白线正峰（max）。dif=[1,3,2] ⟹ 峰=3。
+        let dif = vec![1.0, 3.0, 2.0, -1.0];
+        assert_eq!(segment_dif_peak(&dif, 0, 2, Direction::Up), 3.0);
+        // 向下段：黄白线负峰（|min|）。dif=[−1,−4,−2] ⟹ 峰=|−4|=4。
+        let dif2 = vec![-1.0, -4.0, -2.0];
+        assert_eq!(segment_dif_peak(&dif2, 0, 2, Direction::Down), 4.0);
+        // 越界 ⟹ 0。
+        assert_eq!(segment_dif_peak(&dif, 0, 10, Direction::Up), 0.0);
+        // 向上段但区间全负 ⟹ 正峰 = 0（max(neg,0)=0，无正黄白线）。
+        assert_eq!(segment_dif_peak(&dif2, 0, 2, Direction::Up), 0.0);
+    }
+
+    #[test]
+    fn price_amplitude_and_speed_from_close_endpoints() {
+        // 振幅 = |端价差|（整数 tick）。closes[0..=3]=[100,?,?,150] ⟹ |150−100|=50。
+        let closes: Vec<Tick> = vec![100, 120, 90, 150];
+        assert_eq!(segment_price_amplitude(&closes, 0, 3), 50);
+        // 速度 = 振幅 / 跨度 = 50 / 3。
+        assert!((segment_price_speed(&closes, 0, 3) - (50.0 / 3.0)).abs() < 1e-12);
+        // 越界 ⟹ 0。
+        assert_eq!(segment_price_amplitude(&closes, 0, 9), 0);
+        assert_eq!(segment_price_speed(&closes, 0, 9), 0.0);
+    }
+
+    fn ff(area: f64, dif: f64, amp: i64, speed: f64) -> ForceFeatures {
+        ForceFeatures { macd_area: area, dif_peak: dif, price_amplitude: amp, price_speed: speed }
+    }
+
+    #[test]
+    fn weak_theta_each_mode_compares_correct_proxy() {
+        // A 段力度大，C 段力度小 ⟹ 各 mode 都判 Weak（背驰=力度衰减）。
+        let a = ff(10.0, 8.0, 100, 20.0);
+        let c = ff(5.0, 4.0, 50, 10.0);
+        assert!(weak_theta(WeakThetaMode::MacdArea, &a, &c), "C.area<A.area ⟹ Weak");
+        assert!(weak_theta(WeakThetaMode::Dif, &a, &c), "C.dif<A.dif ⟹ Weak");
+        assert!(weak_theta(WeakThetaMode::PriceAmplitude, &a, &c), "C.amp<A.amp ⟹ Weak");
+        // C 力度 ≥ A ⟹ 各 mode 非 Weak（力度延续）。
+        assert!(!weak_theta(WeakThetaMode::MacdArea, &c, &a));
+        assert!(!weak_theta(WeakThetaMode::Dif, &c, &a));
+    }
+
+    /// ★Lex 词典序核心（第17课「黄白线主 ▷ 面积次」，非 AND/OR）：DIF 可判用 DIF，DIF 相等退面积。
+    #[test]
+    fn weak_theta_lex_dif_dominates_area_secondary() {
+        // (1) DIF 严格可判：C.dif<A.dif ⟹ Weak，**即使面积相反**（DIF 主判据压过面积）。
+        let a1 = ff(5.0, 8.0, 0, 0.0);  // A: 面积小、DIF 大
+        let c1 = ff(10.0, 4.0, 0, 0.0); // C: 面积大、DIF 小
+        assert!(weak_theta(WeakThetaMode::Lex, &a1, &c1),
+            "DIF 主：C.dif(4)<A.dif(8) ⟹ Weak，即使 C.area(10)>A.area(5)（黄白线压过面积）");
+        // 对照：纯面积 mode 会判非 Weak（面积延续）——证明 Lex ≠ 纯面积。
+        assert!(!weak_theta(WeakThetaMode::MacdArea, &a1, &c1),
+            "纯面积：C.area(10)≥A.area(5) ⟹ 非 Weak（与 Lex 分歧，证 DIF 主判据生效）");
+
+        // (2) DIF 相等（不可判）⟹ 退面积次判据：C.area<A.area ⟹ Weak。
+        let a2 = ff(10.0, 5.0, 0, 0.0);
+        let c2 = ff(4.0, 5.0, 0, 0.0); // DIF 相等（5==5）⟹ 退面积
+        assert!(weak_theta(WeakThetaMode::Lex, &a2, &c2),
+            "DIF 相等 ⟹ 退面积次判据：C.area(4)<A.area(10) ⟹ Weak");
+        // DIF 相等 + 面积也延续 ⟹ 非 Weak。
+        let c3 = ff(20.0, 5.0, 0, 0.0);
+        assert!(!weak_theta(WeakThetaMode::Lex, &a2, &c3),
+            "DIF 相等 + C.area(20)≥A.area(10) ⟹ 非 Weak");
+    }
+
+    #[test]
+    fn force_features_assembles_all_proxies() {
+        // hist=[3,-3,1,-1]（A[0,1] 面积6，C[2,3] 面积2），dif=[2,4,1,0.5]，closes=[100,110,105,102]。
+        let hist = vec![3.0, -3.0, 1.0, -1.0];
+        let dif = vec![2.0, 4.0, 1.0, 0.5];
+        let closes: Vec<Tick> = vec![100, 110, 105, 102];
+        let a = force_features(&hist, &dif, &closes, 0, 1, Direction::Up);
+        assert_eq!(a.macd_area, 6.0);
+        assert_eq!(a.dif_peak, 4.0); // up 段 max(dif[0..=1])=max(2,4)=4
+        assert_eq!(a.price_amplitude, 10); // |110−100|
+        // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
+        let c = force_features(&hist, &dif, &closes, 2, 3, Direction::Up);
+        assert!(weak_theta(WeakThetaMode::Lex, &a, &c), "C 段 DIF 峰(1)<A 段 DIF 峰(4) ⟹ Lex Weak");
     }
 
     // ===== 增量 MACD API（231号纯性能，bit-exact 对照全量版）=====

@@ -824,7 +824,11 @@ pub fn run_closed_loop(bars: &[Bar], initial_nav: f64) -> Option<AssemblyState> 
         let e = AssemblyEvent { parse_event: MicroEvent::NewBar(rising) };
         // ★闭环喂回：x_{t+1} = hybrid_step(x_t, e, policy)——闭环态每 bar 真更新（非构造一次）。
         // policy 携 barrier（stage_progression 在有 sound 资金源时才推进；L0 同价下无源 ⟹ 恒 CostReduction）。
-        x = hybrid_step(&x, &e, &policy);
+        // ★codex R3 §9.3：hybrid_step 返 Result；生产路径（schedule 只派 ShortDiff + cash 约束）恒 Ok，
+        // 此处 `.expect()` 在生产边界把「闭环恒合法」显式化为契约（run_closed_loop 对上游仍返 Option，
+        // Result 的 Err 语义只在外部注入非法 OrderOut 时触发，不经此生产闭环）。
+        x = hybrid_step(&x, &e, &policy)
+            .expect("run_closed_loop 生产闭环恒 Ok（schedule 只派 ShortDiff + cash 约束 + stage_progression w≤free）");
         prev_close = bar.close;
     }
     Some(x)
@@ -1479,6 +1483,7 @@ mod tests {
             pivot_low: 9_000_000_000, // px 90 < 入场 100 ⟹ 止损在下方不触及
             pivot_high: 0,
             center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
+            struct_break_dir: None,
         }
     }
 
@@ -1901,6 +1906,12 @@ mod tests {
     /// 机制本身正确性（enter_ready/tw_step 各分支）由 `strategy::ledger` 单元测试（`enter_ready_strict_
     /// conjunction`/`stage_rank_monotone` 等）在**显式假设态**上验证——那是「给定前提则机制正确」的单元
     /// 断言，**不**声明该前提从 campaign 起点可达（有效域区分：机制正确 ≠ 前提可达）。
+    ///
+    /// ★★codex §9.2（诚实标注路线）：those `strategy::ledger` unit tests are **synthetic-state
+    /// legality tests, not reachability tests** — they验 mechanism legality on assumed states, 不构造
+    /// (nor claim) a real trade path x0→…→xT reaching η_T≥I0−W_T+η⋆. THIS test (below) is the
+    /// **reachability** side: it proves EarningShares is structurally unreachable on sound closed-loop
+    /// paths from `funded_campaign` under L0 same-price（TW 守恒）. 二者互补，无 fabricated witness。
     #[test]
     fn earning_shares_structurally_unreachable_from_campaign_tw_conserved() {
         use super::super::super::strategy::ledger::{TStage, TwState, TwEvent, tw_step};
@@ -1944,7 +1955,9 @@ mod tests {
         // free=0 ⟹ 无 sound 退本金源 ⟹ stage 不推进（经闭环一步验证 stage 保持 CostReduction）。
         let x = AssemblyState { tw_state: holding_ready, ..AssemblyState::funded_campaign(1_000_000, q) };
         let e = AssemblyEvent { parse_event: MicroEvent::NewBar(true) };
-        let x1 = hybrid_step(&x, &e, &RiskPolicy::baseline());
+        // codex R3 §9.3：生产路径恒 Ok（此处 holding=Q/free=0，schedule 派 ShortDiff + stage_progression w=0 不推进）。
+        let x1 = hybrid_step(&x, &e, &RiskPolicy::baseline())
+            .expect("生产恒 Ok（schedule 只派 ShortDiff + stage_progression w≤free）");
         assert_eq!(
             x1.tw_state.stage, TStage::CostReduction,
             "holding≥Q 但 free=0 ⟹ 退本金 w=0 ⟹ stage 不推进（机制拒 unsound 退本金，非负 free 借款）"

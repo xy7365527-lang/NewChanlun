@@ -853,6 +853,21 @@ pub fn classify_with_tower_incremental(
     });
     let l0_units: Vec<UnitRange> = cache.l0_units_cache.clone();
 
+    // DIAG(frontier-bit-exact): 对拍复用版 l0_units_cache vs 全量 segment_to_unit（隔离 L0 units 前缀复用是否陈旧）。
+    if std::env::var("DIAG_L0UNITS").is_ok() {
+        let full: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
+        if l0_units != full {
+            let m = l0_units.len().min(full.len());
+            let first = (0..m).find(|&i| l0_units[i] != full[i]);
+            eprintln!(
+                "[DIAG-L0UNITS] segs={} confirmed_len={} cache.len(reuse前)={} ★l0_units陈旧 first_diff={:?} \
+                 lens=({},{})",
+                l0.segments.len(), l0.segments_confirmed_len, cache.l0_units_cache.len(),
+                first, l0_units.len(), full.len()
+            );
+        }
+    }
+
     // 空 L0：无可构造级别 + 清空缓存（下次从头扫）。
     if l0_units.is_empty() {
         cache.clear();
@@ -986,10 +1001,31 @@ pub fn classify_with_tower_incremental(
             lc.cached_units.extend_from_slice(&units);
         });
 
-        // ★增量扫描：从 `scan_cursor.consumed` 续扫，产出尾部 centers/upper（resume bit-exact）。
-        // 单一来源：tail_centers 直接累积成完整 centers（与 upper_moves 一一对应，每窗口一中枢）。
-        // ★codex Q4：prefix_count = lc.upper_moves.len()（已产出前缀数），tail ordinal 接续前缀
-        // ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。
+        // ★frontier 修复（task #47/#21，区间套.pdf 六~十节裁决②）：resume 起点用 `resume_from`
+        // （上次扫描最后一个成立窗口的起点）**而非** `consumed`——`consumed` 越过了最后一个成立
+        // 窗口，把它当 sealed prefix，但该窗口第三段可能是 frontier（新 bar 后其后续段落使全量非
+        // 重叠扫描产出不同中枢）。回退：从 `resume_from` 重扫 ⟹ 最后一个（frontier）中枢每 bar 重算，
+        // 真正 sealed（后面又出现成立窗口）后自然稳定。对应地 **pop 最后一个 center/upper_move**
+        // （它会被重扫重新产出），`prefix_count` 用 pop 后的长度（ordinal 接续，全量/增量同 ID）。
+        //
+        // 保守正确性（PDF §九增量等价定理）：`resume_from <= consumed` 恒成立（窗口起点 ≤ 退出点），
+        // 从更早处重扫产出的 tail ⊇ 从 consumed 重扫的 tail（多含重算的末窗口）。cascade_reset 后
+        // `scan_cursor = default`（resume_from=0=consumed）⟹ 无回退，从 0 全扫（bit-exact 退化）。
+        // 无成立窗口时 `resume_from == 上次 start_i`（无中枢可 pop），guard `resume_from < consumed`
+        // 为假 ⟹ 不 pop、从 resume_from(=上次start_i) 续扫（续进语义，仅不成立支推进过的区间）。
+        let resume_start = lc.scan_cursor.resume_from;
+        let had_emitted_window = lc.scan_cursor.resume_from < lc.scan_cursor.consumed;
+        if had_emitted_window {
+            // pop 最后一个中枢（frontier 中枢，重扫会重新产出）——前缀不变量不破（pop 的是尾部）。
+            debug_assert!(
+                !lc.centers.is_empty() && !lc.upper_moves.is_empty(),
+                "had_emitted_window ⟹ 至少一个已产出中枢可回退"
+            );
+            lc.centers.pop();
+            Rc::make_mut(&mut lc.upper_moves).pop();
+        }
+        // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
+        // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。
         let (tail_centers, tail_upper, new_cursor) =
             stage_profile::time("05_compose_resume", || {
                 compose_level_resume(
@@ -997,7 +1033,7 @@ pub fn classify_with_tower_incremental(
                     &moves_tower[..],
                     is_l0,
                     level_idx as u32 + 1,
-                    lc.scan_cursor.consumed,
+                    resume_start,
                     lc.upper_moves.len(),
                 )
             });
