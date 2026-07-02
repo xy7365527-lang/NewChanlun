@@ -3591,6 +3591,12 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/676-pibsp-subvoice-zero-structural-not-fixture-multivoice-hedge-claim-inflation.md
+- id: '677'
+  title: GAP3 hwm_gain 高水位棘轮被 codex 终局裁定为 PDF p8③ 语义回补——不能作 acceptance bridge，GAP3
+    判据 (∃t,TStage=EarningShares) 恢复 FALSIFIED
+  status: 已结算
+  type: bias-correction
+  file: pending/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md
 edges:
   depends_on:
   - from: '673'
@@ -6927,6 +6933,12 @@ edges:
     to: '643'
   - from: '676'
     to: '645'
+  - from: '677'
+    to: '576'
+  - from: '677'
+    to: '231'
+  - from: '677'
+    to: 090
   - from: '647'
     to: '675'
   triggered:
@@ -7128,6 +7140,8 @@ edges:
     to: 隐含命题『恢复语境下，post-interrupt 的文件系统/session 快照是可信真值，恢复只需补全缺失的结构元数据（201号模式）』——被证伪：post-interrupt
       快照即便看似忠实也可能携带污染；污染边界由内容 provenance 而非 commit 时间戳判定；派生的 session 文件可能引入错误分类（把
       pre-interrupt 在制品误标为污染）
+  - from: '677'
+    to: 'gap3-bridge acc-GAP3 『字面 PASS』承重节点（task #10 产出 / gap3-bridge-20260702.md）'
   related:
   - between:
     - '001'
@@ -10372,6 +10386,15 @@ edges:
   - between:
     - '646'
     - '676'
+  - between:
+    - '576'
+    - '677'
+  - between:
+    - '231'
+    - '677'
+  - between:
+    - 090
+    - '677'
   tensions_with:
   - between:
     - '007'

@@ -16,7 +16,7 @@
 |----|---------|--------|------|---------|
 | **R1 · 637 口径未冻结（A/B 双塔并行）** | 5（组1 偏离 1-4 + 小转大时间维 1 条独立） | 选择类（已上浮）+ 1 行动类可自决 | #11「637=口径B 迁移」已完成 → **PDF3 §3.5 本体权威站队 B，与已授权迁移同向** | B 批软阻塞，迁移落地即解 |
 | **R2 · alpha 桶键省略 σ^H（用 bsp_class 占第三维）** | 3（D1 桶键 + D2 分层 + D3 prereg 文本 vs 实跑） | 选择类（挂 663 pending）+ D3 行动类 | 收口=Inconclusive，未产生假 alpha；但认证的 estimand ≠ PDF 的 z=(ℓ,q) | 不阻塞诚实 Inconclusive 收口，**阻塞任何「已按 PDF 认证 (ℓ,q) alpha」声明** |
-| **R3 · gap3-bridge FALSIFIED→PASS 翻转 vs Ledger 禁语义回补** | 1 | 选择类（已上浮，触 576 边界） | hwm_gain 棘轮已如实标 L0 口径 | 需编排者裁桥合法性；建议 A 批叙述收窄为「机制可触发，盈利可达性仍 FALSIFIED」 |
+| **R3 · gap3-bridge FALSIFIED→PASS 翻转 vs Ledger 禁语义回补** | 1 | **偏离（确认，codex R3 终局裁决 2026-07-02）** | **已裁定：hwm_gain 棘轮=语义回补，acc-GAP3 恢复 FALSIFIED** | 裁决=C'（移除棘轮承重，非仅改措辞）；裁决文件 `codex-r3-ruling-20260702.md` |
 
 **零硬矛盾的强一致项**：673（按 bsp 类型分叉）、小转大（通道分离/无 depth）、acc 分类（单调完备/稀疏≠空洞）、GAP3 可证伪否定条件方法论——均被 PDF **强支持或加固**，非阻塞。
 
@@ -143,10 +143,12 @@ PDF 三判据骨架（p8-11）：核心状态 **z=(ℓ,δ,σ^H)=(ℓ,q), q=δσ^
 | gap3-l2-reachability A/B 分析+上浮 | 给否定一个与你无关的外部参照 | **一致（强）** | PDF p5②/p7；reach L54-63 |
 | codex 异质审计（CONFIRM_GAP）独立否定机制 | 「与你无关的否定机制」 | **一致** | PDF p5②；codex-audit L9-13 |
 | 根因判「实装缺口」：价格幅度经 NewBar(bool) 三处投影丢弃 | 不变量=生成过程能否持续的最低条件 | **一致** | PDF p8②；reach L27-38 |
-| **gap3-bridge 新增 Revalue(g)/hwm_gain 高水位棘轮，把 L2 count=0 FALSIFIED 翻为 count=1 PASS** | Ledger 禁语义回补（级别/调整/延续保活） | **偏离（潜在）** | PDF p8③；gap3-bridge L30-32/L59-61 |
+| **gap3-bridge 新增 Revalue(g)/hwm_gain 高水位棘轮，把 L2 count=0 FALSIFIED 翻为 count=1 PASS** | Ledger 禁语义回补（级别/调整/延续保活） | **偏离（确认，codex R3 终局裁决 2026-07-02）** | PDF p8③；gap3-bridge L30-32/L59-61；裁决 `codex-r3-ruling-20260702.md` |
 | 认识论标注 gap3-bridge=L2(真实BTC)+L0(重估桥)，声明非盈利 | 承载判据强度须与声明匹配 | **一致（诚实，但承重项骑 L0 桥）** | gap3-bridge L6/L56-61 |
 
-**组3 偏离项（选择类，已上浮）**：gap3-bridge 的 hwm_gain 棘轮（只增不还）把浮盈峰值当可分配权益，使 FALSIFIED 翻 PASS。张力=L2 真实盈利读数仍 count=0，count=1 仅乐观棘轮口径；棘轮「只增不还」结构上是「延续」式保活，有 PDF 禁止的语义回补之嫌。减轻=桥已如实标 L0/L1 结构口径、非盈利声明，reachability 已主动上浮（触 576 双账本边界）。**四分法=选择类**，不可蜂群自决（恰合 PDF「否定须有与你无关的外部参照」），应由编排者裁桥合法性。**建议 A 批「已落地」对该项降级为「机制可触发（有效域=L0 高水位口径），盈利可达性仍 FALSIFIED」**，与桥自身边界标注严格一致（no-patch-mentality：声明不得超出 hwm_gain 的 L0 有效域）。
+**组3 偏离项（确认偏离 · codex R3 终局裁决 2026-07-02）**：gap3-bridge 的 hwm_gain 棘轮（只增不还）把浮盈峰值当可分配权益，使 FALSIFIED 翻 PASS。张力=L2 真实盈利读数仍 count=0，count=1 仅乐观棘轮口径；棘轮「只增不还」结构上是「延续」式保活，有 PDF 禁止的语义回补之嫌。减轻=桥已如实标 L0/L1 结构口径、非盈利声明，reachability 已主动上浮（触 576 双账本边界）。
+
+> **【订正 2026-07-02】** 本项此前判为「偏离（潜在）· 选择类 · 待编排者裁」，建议仅 A 批降级叙述。**codex 已终局裁定（`.chanlun/review-results/codex-r3-ruling-20260702.md`）：裁定 = C'——`hwm_gain` 高水位棘轮违反 PDF p8③ 禁止语义回补，须移除其对 `free`/`cum_net_cash`/`stage_progression`/`acc-GAP3 PASS` 的承重作用（不是仅改措辞——候选 A「仅降级叙述」与候选 B「维持现状」均被明确否定）。** 因此本项从「偏离（潜在）」升级为「偏离（确认）」；`EarningShares_count=1` 仅为 hwm 棘轮口径下的诊断性触发，**acc-GAP3 判据（`∃t TStage=III`）在真实 BTC L2 数据上恢复 FALSIFIED / 未证成**，直到出现非回补的资金源语义。下游行动：代码需移除棘轮承重（行动类工位）、genealogist 需落谱系裁决记录（原判决文本保留，订正≠删史）。
 
 其余 5 项与 PDF 最小验证框架**高度一致**（可证伪否定条件+外部异质否定+定理化 FALSIFIED=教科书式落地），对 A 批加固而非削弱。
 
