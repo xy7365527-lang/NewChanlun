@@ -285,3 +285,90 @@ seen-key κ 含 ℓ（`:266`）⟹ **同一 pivot `s` 可在多个 ℓ 生成不
 5. **谱系引用**: 606（区间套有效域=Type1）、673（Cand^δ 三分拆 / 谓词范围误用，G2 镜像）、637/637B（中枢口径B 唯一化 = Type3/C3 center 判别单一化）、230（直积退化）、231/formalization-validity-domain（L0/L2 分离、有效域≠定义域）、xzd C2-only §2.3（G3 的 L2 几何脆弱证据）、#44 pending（C3 center 匹配口径重设计——与 G3 同根）。**不确定是否有专门"分划"谱系条目**: 本文件建议 genealogist 评估是否结晶"分类空间分划=L0 同义反复、语义在 L2"为独立元规则（与 231 有效域规则同族，可能是实例累积非新结晶）。
 
 6. **影响声明**: 本文件为只读数学证明，零代码/零 git/零生产改动。产出 = (a) 分划定理 L0 严格证明（存在性+唯一性双向）；(b) 6 条诚实缺口清单，G1/G2/G3 为可证伪反例候选 + L2 检验路径；(c) G4 闭合（通道补 Reject 为第三值）；(d) 澄清对象粒度=信号元组（G5）与 pass≠通道（§5.3）。不改任何 settled 定理/守恒律/谱系（606/637/673 分类逻辑不动）。认识论如实: 分划=L0 同义反复，纤维语义对齐=L2 未测（G1/G2 待跑、G3 部分已证脆弱）。
+
+---
+
+## 9. v2 修订（task #54，codex #46 审计 `codex-review-20260702-194946-b1f0.md` fail 项处置）
+
+**修订原则**：只增补，不删改 §0-§8 原文（原文保留作生成史）。本节四项逐一处置审计 fail 项，每项给出新结论 + 取代原文哪一句 + 依据。
+
+### 9.1（a）§5.3 例证：改用 gate_pass 终局语义
+
+**审计原文指出**（Response 第一条，致命）：§5.3 用的 `Xzd ⟹ gate_pass() 可仍 false（:315，C2 不成立）` 是过期语义——彼时 `gate_pass()` 仅读 `type2_confirmed`（C2-only）。当前工作树（#47 实装 + #55/#56 复审收口后）`gate_pass()` 定义已改为（`econ_positive.rs:868-869`，逐字）：
+
+```rust
+pub(super) fn gate_pass(&self) -> bool {
+    self.type2_confirmed && (self.level != 1 || self.c3_new_center_breakout_ok)
+}
+```
+
+即 `level==1` 时为 `C2 ∧ C3(新中枢+突破)` 硬门，`level>=2` 维持 `C2-only`。
+
+**#56 终局裁定坐实候选(2)**（`.chanlun/review-results/c3-overlap-probe-20260702.md`）：level==1 子集真实 BTC 350K 数据 routed=84 全部信号，`overlapping_new_center_count` 与 `overlapping_breakout_count` 恒为 0/84——即便放宽为滑动重叠窗口扫描（非 `detect_centers_with` 的非重叠消费），source 之后、confirm 之前也从未出现可反向突破的次级新中枢。判别边界条件（codex 终局）：`overlapping_breakout_count==0` ⟹ 候选(2)坐实、终局，不再为 level==1 改定义。
+
+**修订后的 §5.3 例证**（取代原文「`Xzd ⟹ gate_pass() 可仍 false（:315，C2 不成立）`」一句）：
+- `Nest ⟹ n_delta()` 可仍 false（结构不变，未受本次 C3 判据修订影响）。
+- `Xzd ∧ level==1 ⟹ gate_pass()` **恒为 false**（84/84，L2 实证，非"可仍 false"的或然语气——level==1 通道在当前判据+真实数据窗口下**实践关闭**，`c3_new_center_breakout_ok` 项永远不满足）。
+- `Xzd ∧ level>=2 ⟹ gate_pass()` 可真可假（`type2_confirmed` 是否成立，C2-only，结构与原文一致）。
+- **有效 Xzd 域收窄声明**：小转大（xzd）唯一实践可达的通过信号集 = `{x : γ(x)=Xzd ∧ level(x)>=2 ∧ type2_confirmed(x)}`（C2-only, level≥2），计 30 条（`c3-overlap-probe-20260702.md` 下游推论行）。level==1 的 84 条 routed 信号全部结构性拒门，是「入 Xzd 通道」但「通过门」为空集的具体实例——呼应原文 §5.3 「通道≠通过」论证本身不变，只是**具体例证的真值从"或然"订正为"恒定"**。
+
+**认识论**：本项是 L2 实证更新（#56 真实数据裁定），不改变 §5.3 的 L0 论证结构（pass 是独立于 γ 的过滤谓词，仍成立）。
+
+### 9.2（b）G1 升级：从「开放 L2 候选」到「已确认 L0 设计事实」+ T3 纤维语义重估
+
+**审计原文指出**（Response 第二条，重要）：证明文档 §1.1 声称进入分类域有 `b≠0` 前提，但当前代码明确允许零 bit 破中枢候选进入候选集（`signal.rs:577` 附近 P2-R2 注释「全部进样本」+ `interp.rs:227` `candidate_dir` 的零 bit 恢复分支）。审计立场：`b_nonzero_domain_precondition: reject`，且 `g1_type3_fallback: accept_stronger_than_documented`。
+
+**独立代码核实（本次修订，逐行读码确认，非转述审计）**：
+
+1. `signal.rs:578`（P2-R2 设计原文）：「破中枢结构候选（趋势 ∧ 破最后中枢 ∧ A/C 可配对）**全部进样本**（消选择偏差），背驰确认（C<A）置 buy1/sell1，未背驰置**零 bit** + `struct_break_dir`」——未背驰的破中枢候选是**生产路径的常规产出**，不是边界情形。
+2. `interp.rs:220-236`（`candidate_dir`，逐字）：仅当 `!bits.conf_plus() && !bits.conf_minus()`（严格六 bit 全零）时，用 `struct_break_dir` 恢复方向；否则走 `root_sel`（方向由 bits 自身置位侧决定）。`interp.rs:1059-1072` 的护栏测试（`struct_break_dir_recovers_direction_without_touching_class_index`）锁定此行为——零 bit + `struct_break_dir=Some(Long)` ⟹ `candidate_dir` 返回 `Long`，且 `class_index()` 仍为 0。这是**被测试钉死的设计**，非未覆盖的隐藏分支。
+3. `econ_positive.rs:249-321`（生产信号采集循环，逐行读码确认）：`for p in ls.bsp.iter()` 对**任意** `bsp_class`（含 0）计算 `seen` 键并继续处理，**无 `bsp_class==0` 前置过滤**；`assemble_gamma_with_tower` 内部 `dir = candidate_dir(point)`（`interp.rs:814`，与 (2) 同一函数）；`delta_side` 直接取自此 `dir`；`build_gate_certificate(..., &p.bits, ...)` 用此 `delta_side` + 原始（零）`bits` 调用 `bsp_cand_type`。**零 bit 候选确定性地到达 `bsp_cand_type`，无任何旁路拦截**。
+
+**修正审计的"δ/b 不对齐"表述（精确化，非否定审计结论）**：`δ`（`candidate_dir`）并非独立于 `b` 的"coverage role"——对六 bit 非全零的候选，`δ` 由 `root_sel` 从 `b` 自身置位侧推出，恒对齐（原 G1 假设的"δ=Long ∧ b 仅置 sell 位"这一具体错位场景，在当前 `candidate_dir` 实现下**不会发生**，因为方向就是从 bits 读出的）。真正确定发生、且被测试锁定的现象是**更窄但同样致命的另一件事**：`bits` **严格全零**（无 buy1/buy2/buy3/sell1/sell2/sell3 任何一位）的候选，被赋予一个来自 `struct_break_dir` 的方向后，**无条件**落入 `bsp_cand_type` 的 else 分支（`τ=T3`）。
+
+**结论：G1 升级为已确认 L0 设计事实**（不再是"是否发生未证"的开放候选）：
+> `τ⁻¹(T3)` 确定性地是两个互不相容对象群的并集：
+> (i) 真三类候选——`judge_third`（离开中枢后回抽不破 ZG/ZD）产生的、`bits.buy3`/`sell3` 可能为真的点；
+> (ii) P2-R2 零 bit 破中枢候选——结构上**已破**最后中枢、但 MACD C≥A（未背驰确认）而被保留入样本（消选择偏差）的点，`bits` 全零。
+
+**T3 纤维语义重估（结论：「T3=三类点」语义不可挽救）**：
+- (i)（真三类）的几何前提是「未破核心区间」（离开中枢后回抽**不**破 ZG/ZD）；
+- (ii)（零 bit 破中枢候选）的几何前提是「**已破**中枢」（P2-R2 判据的入样本条件即「破最后中枢」，见 `signal.rs:578`「破最后中枢」字面）；
+- 二者的核心几何谓词**互斥**（一个要求未破核心区间，一个要求已破中枢）——不存在能同时满足两者的对象，也不存在把二者合理解释为同一"三类点"语义下的方式。这不是"精度不够"（如原 G1 缺 buy3 前件那样可以加一个 guard 补上），而是**两个不同缠论概念（三类点 vs 一类候选-未确认背驰）被同一 enum 分支收容**。
+- **判定：「T3=三类点」的语义断言不可挽救**——只要 `bsp_cand_type` 的 else 分支继续无差别接收群体 (ii)，`τ⁻¹(T3)` 就不可能等于「三类点集」。修复需要 `BspCandType` 增加第四类（如 `StructBreak`）作为独立纤维，把群体 (ii) 从 T3 分离出去——但这改变 `bsp_cand_type` 签名/`cand_delta`/`cand_delta_base_gate`/`build_gate_certificate` 的 match 分支数量，属于设计决策（影响 `XzdEvidence` 门控路径与下游 alpha 桶键），**本次修订不自行改代码**，已 `TaskCreate` 提交 codex 裁决任务（见下）。
+
+**边界条件（若翻转）**：若能证明群体 (ii) 在生产信号流中实际数量为 0（即 P2-R2 零 bit 候选从未真正走到 `bsp_cand_type` 调用点，例如被上游某处过滤），则 G1 降级为纯 L0 结构可能性、不发生于真实数据，语义断言不必翻案。但本次代码核实（econ_positive.rs 249-321 无过滤）已排除此翻转路径——除非未来改代码加过滤。
+
+### 9.3（c）G3 证据等级统一降级：「类比证据」
+
+**审计原文指出**（Response 第三条，重要）：`same_center_any=0/84` 是**旧 C3 center 判据**（`judge_third` 归属链 vs `last_zs` 选择链）的证据，不是 `descend_type1_anchor_depth`（G3 讨论的对象）的直接反例；且当前代码已引入**新** C3 突破判据（#47/#55/#56），旧证据的适用対象已变。
+
+**处置**：原文 §0 表格「G3 ... L2 实证证据已在（§2.3 xzd）」、§3.4「L2 实证证据已在」、§6 表格「L2 证据已在」三处**统一降级措辞**为：
+
+> **「L2 类比证据（非直接反例）」**——`same_center_any=0/84`（350K BTC）证明的是「同一信号的两条合法几何选择链（`judge_third` 归属链 vs `last_zs` 跨度链）结构性不重合」，这与 G3 讨论的「`descend_type1_anchor_depth` 的 Some/None 在 Obs 等价信号间是否可能不同」是**同构但不同的具体判据对**——都属于"几何选择链在合法多解下产生不同分派"这一模式，但 `same_center_any` 不是对 `descend` 本身的直接采样。真正的 G3 反例仍须：定义 `descend_type1_anchor_depth` 输入侧的 Obs 投影，找到 `Obs(a)=Obs(b) ∧ descend(a)≠descend(b)`（沿用 codex Response 第四面「G3 没有机器化 Obs 等价定义前不可判定」的判断）。
+
+**认识论订正**：G3 的等级从「L0 全性 + L2 实证证据已在」改为「L0 全性 + L2 类比证据（同构模式，非直接反例；真正反例待 Obs 投影形式化后方可判定）」。
+
+### 9.4（d）G4-a2 衔接：显式域声明
+
+**审计原文第四面**（Response）：若 a2（机器强制穷举 dx 守恒）对全候选做核算，公式须为三桶 `dx = dx_Nest + dx_Xzd + dx_Reject`；若只对 post-pass 信号核算，须显式限域为 `γ≠Reject ∧ pass=true`。§5.3 的"pass 是细化非新维度"论证不能单独消解这个选择——**必须二选一并声明**。
+
+**裁定：取全候选三桶** `dx = dx_Nest + dx_Xzd + dx_Reject`（不取 post-pass 限域）。
+
+**依据**：
+1. **与 G4 闭合一致**：本证明 §3.2 已把通道陪域从 task 声明的二值 {Nest,Xzd} 修正为三值 {Nest,Xzd,Reject}，理由是二值相对全空间 X 不完备（漏 `γ⁻¹(Reject)`）。若 a2 的 dx 核算反过来只对 `post-pass`（即 `γ≠Reject`）domain 做守恒，等于**在下游账目层重新引入 G4 刚关闭的同一个不完备**——分类空间声称覆盖 X，核算却只覆盖 `X_pass ⊊ X`，两层口径不一致。
+2. **`pass` 是细化不是新维度**（§5.3 原文论证不变）：`pass` 把每个通道纤维再切成 pass/reject 两半，这意味着完整核算天然是 `dx = dx_Nest + dx_Xzd + dx_Reject`（三桶，通道维）之后，**每桶内部可选**再拆 `pass/fail` 两小桶（六细分格），而不是先按 `pass` 过滤掉 `Reject` 桶再核算——后者会把「候选连通道都没进」和「候选进了通道但没过 pass」两种不同性质的空混为一谈。
+3. **可证伪性更强**：三桶核算能直接检验 G4 声称的空胞结构（`(T1,Xzd,·)=∅`、`(·,Xzd,0)=∅`，见 §5.2）——若限域到 post-pass，这些空胞验证会因为定义域已排除而变得不可观测，降低 a2 的诊断力。
+
+**结论**：a2 若要对 dx 做机器强制穷举核算，覆盖域必须声明为**全候选空间 X**（三桶 `Nest/Xzd/Reject`），`pass/fail` 作为桶内可选细分，不作为限域条件。
+
+---
+
+## 10. v2 结果包补充（六要素，仅本次修订部分）
+
+1. **结论**：处置 codex #46 审计四项 fail：(a) §5.3 例证换用 gate_pass 终局语义（level==1 恒 false，非"可仍 false"）；(b) G1 从开放候选升级为已确认 L0 设计事实，且判定「T3=三类点」语义不可挽救，需第四类独立纤维（设计决策，已提交 codex 裁决，不自行改代码）；(c) G3 证据统一降级为类比证据；(d) a2 dx 守恒式裁定取全候选三桶域。
+2. **定义依据**：`econ_positive.rs:868-869`（gate_pass 现行定义）、`c3-overlap-probe-20260702.md`（#56 终局 84/84 数据）、`signal.rs:578` + `interp.rs:220-236,814,1059-1072`（零 bit 候选生产路径 + 测试锁定）、`econ_positive.rs:249-321`（无过滤逐行核实）。
+3. **边界条件**：(b) 若未来代码在 `bsp_cand_type` 调用前新增 `bsp_class==0` 过滤，则群体 (ii) 消失，G1 降级为纯理论可能性；(a) 若 codex 未来推翻候选(2)（转候选(1)，改中枢/塔表达），level==1 恒 false 的结论需重估；(d) 若 a2 只需诊断 pass 后信号的经济效应（非分类完备性核算），post-pass 限域仍可作为**另一个、需另行声明**的受限指标，不与三桶全域核算互斥（二者服务不同问题，但不可省略声明二选哪个）。
+4. **下游推论**：T3 纤维语义不可挽救的判定 ⟹ 未来任何读取 `BspCandType::Type3` 做"三类点"语义推理的下游代码（若有）都需先排除零 bit 群体（`bits.class_index()==0`）才能声称对应缠论三类点；alpha 桶键若用 `bsp_class`（64 类掩码，非坍缩 τ）不受影响（零 bit 候选的 `bsp_class=0` 本身就是可辨识桶）。
+5. **谱系引用**：#44/#47/#55/#56（C3 判据裁定链）、codex-review-20260702-194946-b1f0.md（本次修订的审计来源）、P2-R2（`codex-decide-20260701-2121`，零 bit 候选设计裁定原始来源）、673（谓词范围误用镜像）。
+6. **影响声明**：仅新增本文件 §9/§10 两节，§0-§8 原文不删不改（生成史保留）。零代码/零 git 改动。已就「T3 第四类独立纤维」设计决策提交 TaskCreate 供 codex 裁决，本次修订不预判该裁决结果。
