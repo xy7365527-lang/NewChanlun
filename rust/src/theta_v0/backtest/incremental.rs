@@ -791,6 +791,70 @@ mod profile {
                    （持续发散⟹持久 bit-exact 破裂；单点⟹瞬时 frontier 波动）");
     }
 
+    /// **★#88 性能计数器（codex #87 验收项2）：earliest_unsealed_from 前移轨迹 + frontier rescan
+    /// 长度 + 墙钟标度**——判定修补版 A 是否退化为候选 C 的 O(n²)（边界条件3）。
+    ///
+    /// 逐 bar `ParseLayerIncr::append`（生产 parser 路径），记录：
+    /// - **euf 轨迹**：euf 变化次数（advance=前移/regress=后退）；每 bar euf 单调非增 ⟹ regress=0 期望，
+    ///   advance>0 说明 confirmed_bound 未被永久锚死在早点（否则退化 O(n²)）。
+    /// - **rescan 长度**：`segments.len() - segments_confirmed_len`（重扫段数代理）；max/p95/均值。
+    /// - **墙钟 exp**：相邻 n 的 log-log 斜率 ≈1.0=O(n)、≈2.0=O(n²)。cascade_count=N/A（未启用候选C）。
+    ///
+    /// **L1**（CPU/结构计数，零信息增量，231号）——不验证 Θ 市场有效，仅证性能红线。
+    #[test]
+    #[ignore = "#88 性能计数器：euf 前移轨迹 + rescan 长度 + 墙钟标度；需 CL；--release"]
+    fn perf_frontier_rescan_counters_88() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2015-01-01", "2025-06-30");
+        eprintln!("\n===== #88 frontier rescan 性能计数器（CL，ParseLayerIncr 生产路径）=====");
+        eprintln!("{:>8} | {:>8} | {:>10} {:>8} {:>7} {:>7} | {:>9} {:>9} {:>6}",
+            "n", "wall_s", "exp", "euf_adv", "rs_max", "rs_p95", "euf_fin", "euf_min", "adv_r");
+        let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [50_000usize, 150_000, 300_000];
+        let mut prev: Option<(usize, f64)> = None;
+        for &n in &sizes {
+            if n > oos.bars.len() { eprintln!("(n={n} > {}，跳过)", oos.bars.len()); continue; }
+            let bars = &oos.bars[..n];
+            let mut incr = parser::ParseLayerIncr::new(&config);
+            let mut rescans: Vec<usize> = Vec::with_capacity(n);
+            let mut euf_prev: Option<usize> = None;
+            let mut euf_adv = 0usize; // 前移（值增大——unsealed 起点右移，重扫区间缩小）
+            let mut euf_reg = 0usize; // 后退（值减小——历史最小值被更早候选拉低）
+            let mut euf_min_ever: Option<usize> = None;
+            let mut euf_final: Option<usize> = None;
+            let t0 = std::time::Instant::now();
+            for i in 0..n {
+                let l0 = incr.append(bars[i]);
+                rescans.push(l0.segments.len().saturating_sub(l0.segments_confirmed_len));
+                let euf = l0.segments_earliest_unsealed;
+                if euf != euf_prev {
+                    match (euf_prev, euf) {
+                        (Some(a), Some(b)) if b > a => euf_adv += 1,
+                        (Some(a), Some(b)) if b < a => euf_reg += 1,
+                        (None, Some(_)) => euf_adv += 1,
+                        _ => {}
+                    }
+                    euf_prev = euf;
+                }
+                if let Some(e) = euf { euf_min_ever = Some(euf_min_ever.map_or(e, |m| m.min(e))); }
+                euf_final = euf;
+            }
+            let wall = t0.elapsed().as_secs_f64();
+            rescans.sort_unstable();
+            let rs_max = *rescans.last().unwrap_or(&0);
+            let rs_p95 = rescans[(rescans.len() as f64 * 0.95) as usize];
+            let exp = prev.map(|(pn, pt)| logexp(pn, pt, n, wall)).unwrap_or(f64::NAN);
+            // adv_r = euf 前移次数 / 总变化次数（接近 1 ⟹ euf 主要在前移，未锚死 ⟹ 非 O(n²)）。
+            let adv_r = if euf_adv + euf_reg > 0 { euf_adv as f64 / (euf_adv + euf_reg) as f64 } else { f64::NAN };
+            eprintln!("{n:>8} | {wall:>8.2} | {exp:>10.2} {euf_adv:>8} {rs_max:>7} {rs_p95:>7} | {euf_final:>9?} {euf_min_ever:>9?} {adv_r:>6.2}",);
+            use std::io::Write; std::io::stderr().flush().ok();
+            prev = Some((n, wall));
+        }
+        eprintln!("\n判读（边界条件3）：wall exp≈1.0 + rs_max/p95 有界 ⟹ 修补版A 非退化 O(n²)（前移有效）；\n  \
+             exp≈2.0 + euf 长期锚定早点（euf_min≈0、rs_max≈segs 全量）⟹ 退化候选C 性能，须上浮重评。");
+    }
+
     /// **★诊断（frontier-bit-exact 首发散 bar 定位）：IncrementalClassifier 逐 bar vs 全量**。
     ///
     /// 精确复现生产路径（增量 parser + 增量塔 + cache 跨 bar 连续复用）的**首个** incr≠full bar，

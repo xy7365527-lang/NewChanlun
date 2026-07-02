@@ -428,6 +428,18 @@ pub struct IncrSegments {
     /// 上次 append 见到的末笔（相同输入早退用）。增量不变式：confirmed 前缀不可变，仅末笔可改写
     /// ⟹ (strokes_len, 末笔) 相同蕴含整个 strokes 相同 ⟹ 结果与 self 逐字段等。
     last_stroke: Option<Stroke>,
+    /// #88 frontier 修复（codex #87 修补版 A）：曾被跳过的 SecondKind 候选所属段的最早 seg_start
+    /// （跨 append 持久化的历史最小值，不因候选后续 confirm 或被新 confirmed 段覆盖而丢弃）。
+    ///
+    /// **为何需要**：`second_seq_scan_window=0`（无限）下，新 bar 引入的同向笔可让**任意早**的
+    /// SecondKindPending 复活（第二特征序列出现分形），级联改写一个**已 confirmed 的更早段**
+    /// （报告 §三 反例：seg[404] < confirmed_len=406 被全量重划到更早端点）。故固定 1 段回退不 sound
+    /// ——`append` 的 `confirmed_bound` 须回退到 `min(末段end, earliest_unsealed_from)` 之前的最深
+    /// 稳定段端。cascade 只向前传播 ⟹ [0, earliest_unsealed_from) 稳定，重扫 [起点, n) 与全量 bit-exact。
+    ///
+    /// **认识论/性能**（codex 边界条件3）：历史最小值单调非增 ⟹ 若锚定过早、几乎不前移，退化为
+    /// O(n²) 全重扫（候选 C 的性能特征）。是否触发由 `earliest_unsealed_from` 前移轨迹实测判定。
+    earliest_unsealed_from: Option<usize>,
 }
 
 impl Default for IncrSegments {
@@ -439,6 +451,7 @@ impl Default for IncrSegments {
             strokes_len: 0,
             confirmed_len: 0,
             last_stroke: None,
+            earliest_unsealed_from: None,
         }
     }
 }
@@ -450,6 +463,12 @@ impl IncrSegments {
     }
 
     /// 从全量结果恢复增量状态（断点续算，需 strokes 以重建 end_array_idx）。
+    ///
+    /// ★#88 边界（诚实声明，no-patch-mentality）：本函数**不重建** `earliest_unsealed_from`
+    /// skip 历史——全量结果不记录哪些段曾跳过 SecondKind 候选。故恢复态设 `None`，首次 append 仅
+    /// 1 段回退。**仅在恢复前缀无 unsealed 候选时 bit-exact 安全**。生产路径是 `empty()` + 逐 bar
+    /// `append`（skip 历史跨 append 持久累积），**不经** `from_full`（当前无生产调用者）。若未来要
+    /// 在有 unsealed 前缀处恢复，须同时持久化/重建 `earliest_unsealed_from`。
     pub fn from_full(segments: &[Segment], pending_start: Option<usize>, strokes: &[Stroke]) -> Self {
         // 重建 end_array_idx：段端 = strokes[s1].end_index，找 s1 在 strokes 中的位置。
         let mut end_indices: Vec<usize> = Vec::with_capacity(segments.len());
@@ -479,6 +498,7 @@ impl IncrSegments {
             strokes_len: strokes.len(),
             confirmed_len,
             last_stroke: strokes.last().copied(),
+            earliest_unsealed_from: None,
         }
     }
 
@@ -504,7 +524,7 @@ impl IncrSegments {
             return self;
         }
 
-        // 移出 self 字段（by-value 消费）。
+        // 移出 self 字段（by-value 消费）。#88：捕获持久化 earliest_unsealed_from。
         let IncrSegments {
             mut segments_rc,
             mut end_indices,
@@ -512,12 +532,18 @@ impl IncrSegments {
             pending_start: _,
             confirmed_len: _,
             last_stroke: _,
+            earliest_unsealed_from: euf_persisted,
         } = self;
 
-        // ponytail: 丢弃末段重算。confirmed_bound = 末段 end_array_idx（truncate 用 `<`
-        // 排除末段）。无 confirmed 段时 confirmed_bound=0（全扫）。
+        // #88 frontier 修复（codex #87 修补版 A）：confirmed_bound 回退到
+        // `min(末段end, earliest_unsealed_from)`——不是固定 1 段。无 unsealed 记录时退化为旧行为
+        // （末段 end_array_idx，仅丢末段）。truncate 用 `<` ⟹ 保留完全结束于 confirmed_bound 前的段。
+        // cascade 只向前传播 ⟹ [0, confirmed_bound) 稳定，从其后重扫与全量 bit-exact。
         let confirmed_bound = match end_indices.last() {
-            Some(&last_end_idx) => last_end_idx,
+            Some(&last_end_idx) => match euf_persisted {
+                Some(euf) => last_end_idx.min(euf),
+                None => last_end_idx,
+            },
             None => 0,
         };
 
@@ -538,7 +564,7 @@ impl IncrSegments {
             Some(&last_end_idx) => {
                 resume_seg_start = last_end_idx + 1;
                 if resume_seg_start >= n {
-                    // 无剩余笔——全部 confirmed，无 pending。
+                    // 无剩余笔——全部 confirmed，无 pending。euf 持久化（过去的 skip 仍是风险标记）。
                     return IncrSegments {
                         segments_rc,
                         end_indices,
@@ -546,6 +572,7 @@ impl IncrSegments {
                         strokes_len: n,
                         confirmed_len: keep,
                         last_stroke,
+                        earliest_unsealed_from: euf_persisted,
                     };
                 }
                 resume_seg_dir = strokes[resume_seg_start].direction;
@@ -560,6 +587,7 @@ impl IncrSegments {
                         strokes_len: n,
                         confirmed_len: keep,
                         last_stroke,
+                        earliest_unsealed_from: euf_persisted,
                     };
                 }
                 let Some(start) = find_overlap_start(strokes, 0) else {
@@ -570,6 +598,7 @@ impl IncrSegments {
                         strokes_len: n,
                         confirmed_len: keep,
                         last_stroke,
+                        earliest_unsealed_from: euf_persisted,
                     };
                 };
                 resume_seg_start = start;
@@ -588,6 +617,8 @@ impl IncrSegments {
             config.second_seq_scan_window,
         );
         let mut cursor = seg_start;
+        // #88：本次重扫区间内跳过过 SecondKind 候选的最早 seg_start（含 pending 尾段）。
+        let mut euf_rescan: Option<usize> = None;
 
         while cursor < n {
             let sk = &strokes[cursor];
@@ -602,7 +633,13 @@ impl IncrSegments {
                 (sk.end_price, sk.start_price)
             };
             feat.append(cursor, h, l, strokes);
-            let Some(hit) = feat.scan_trigger(strokes) else {
+            let trig = feat.scan_trigger(strokes);
+            // #88：本段（seg_start）扫描期间若跳过过 SecondKind 候选（append 探针或本次 scan），
+            // seg_start 是 unsealed 起点。feat 在 reset 前累积该标志，故在 emit/reset 前读取。
+            if feat.skipped_secondkind() {
+                euf_rescan = Some(euf_rescan.map_or(seg_start, |e| e.min(seg_start)));
+            }
+            let Some(hit) = trig else {
                 cursor += 1;
                 continue;
             };
@@ -623,6 +660,12 @@ impl IncrSegments {
         }
 
         let pending_start = if seg_start < n { Some(seg_start) } else { None };
+        // #88：历史最小值持久化——不因候选后续 confirm 或被新 confirmed 段覆盖而丢弃。
+        let earliest_unsealed_from = match (euf_persisted, euf_rescan) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (Some(a), None) => Some(a),
+            (None, b) => b,
+        };
         IncrSegments {
             segments_rc,
             end_indices,
@@ -630,6 +673,7 @@ impl IncrSegments {
             strokes_len: n,
             confirmed_len: keep,
             last_stroke,
+            earliest_unsealed_from,
         }
     }
 
@@ -652,6 +696,11 @@ impl IncrSegments {
     /// #106：本次 append 的 confirmed segments 前缀长度（l0_tower 复用证书）。
     pub fn confirmed_len(&self) -> usize {
         self.confirmed_len
+    }
+
+    /// #88：当前持久化的 unsealed 起点（性能诊断——前移轨迹/锚定深度实测）。
+    pub fn earliest_unsealed_from(&self) -> Option<usize> {
+        self.earliest_unsealed_from
     }
 }
 
@@ -809,6 +858,86 @@ mod tests {
                 "strokes len {end}: 增量 pending_start != 全量（bit-exact 破裂）"
             );
         }
+    }
+
+    /// 伪随机 gappy stroke 序列（LCG）：交替方向 + 变幅 ⟹ 特征序列频繁出现缺口
+    /// （SecondKind），且缺口候选随后续笔复活/改写更早段——#88 修复的目标结构。
+    /// 纯整数 LCG（Numerical Recipes 常数），跨平台确定性。
+    fn gappy_strokes(n: usize, seed: u64) -> Vec<Stroke> {
+        let mut s = seed;
+        let mut next = |lo: i64, hi: i64| {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            lo + ((s >> 33) as i64).rem_euclid(hi - lo + 1)
+        };
+        let mut out = Vec::with_capacity(n);
+        let mut price: i64 = 100_000;
+        let mut idx = 0usize;
+        for i in 0..n {
+            let dir = if i % 2 == 0 { Direction::Up } else { Direction::Down };
+            // 变幅：多数中等，偶发大跳（制造缺口）。
+            let amp = if next(0, 9) < 2 { next(400, 900) } else { next(60, 300) };
+            let start = price;
+            let end = match dir {
+                Direction::Up => price + amp,
+                Direction::Down => price - amp,
+            };
+            out.push(Stroke {
+                direction: dir,
+                start_index: idx,
+                end_index: idx + 4,
+                start_price: start,
+                end_price: end,
+            });
+            price = end;
+            idx += 4;
+        }
+        out
+    }
+
+    /// ★#88 级联复活 bit-exact（验收项3）：早期 SecondKindPending 后续被确认，改写其后已 confirm
+    /// 的段——修复前 1 段回退永不重访该段（div），修复后 earliest_unsealed_from 回退到其前重扫。
+    ///
+    /// 逐 strokes 长度断言增量 `IncrSegments::append` == 全量 `divide_segments_with_tail`。
+    /// **覆盖率自证**（防「always-run 但覆盖为零」）：断言运行期间 (a) `earliest_unsealed_from`
+    /// 曾被置 Some（SecondKind-skip 路径确被触发）；(b) 至少一次深回退（euf < 末段端 ⟹ confirmed_len
+    /// 比"仅丢末段"更靠前，即多段回退）——这正是修复前会 div 的结构。
+    #[test]
+    fn cascade_revival_bit_exact_incr_vs_full() {
+        let cfg = ParseConfig::default();
+        let strokes = gappy_strokes(1200, 0xC0FF_EE12_3456_789A);
+        let mut incr = IncrSegments::empty();
+        let mut euf_ever_some = false;
+        let mut deep_rollback_seen = false;
+        for end in 3..=strokes.len() {
+            incr = incr.append(&strokes[..end], &cfg);
+            let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
+            let (incr_segs, incr_pending) = incr.to_result_vec();
+            assert_eq!(
+                incr_segs, full_segs,
+                "strokes len {end}: 级联复活场景增量 != 全量（bit-exact 破裂）"
+            );
+            assert_eq!(
+                incr_pending, full_pending,
+                "strokes len {end}: 级联复活场景 pending != 全量"
+            );
+            if let Some(euf) = incr.earliest_unsealed_from() {
+                euf_ever_some = true;
+                // 深回退：unsealed 起点落在某个已 confirm 段的端点之前（confirmed_len 因此比
+                // 「仅末段」更靠前）。用全量段数 vs confirmed_len 判定多段回退。
+                if incr.confirmed_len() + 1 < full_segs.len() && euf < end {
+                    deep_rollback_seen = true;
+                }
+            }
+        }
+        assert!(
+            euf_ever_some,
+            "覆盖为零：gappy 序列从未触发 SecondKind-skip（earliest_unsealed_from 恒 None）——\
+             本测试未实际覆盖 #88 修复路径，须调 gappy_strokes 参数"
+        );
+        assert!(
+            deep_rollback_seen,
+            "覆盖为零：从未发生深回退（euf < 末段端）——未覆盖「改写已 confirm 段」的级联路径"
+        );
     }
 
     /// property：重复 append 同一输入幂等（相同输入早退路径）——第二次 append 同 strokes ⟹
