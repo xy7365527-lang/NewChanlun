@@ -64,6 +64,14 @@ use super::state::{micro_delta, AssemblyState, MicroEvent, Phase, RiskMode};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AssemblyEvent {
     pub parse_event: MicroEvent,
+    /// ★GAP3 补桥（丢弃点2 修复）：本 bar 外生市价（整数 tick 域，成交/重估侧消费）。
+    ///
+    /// 事件字母表原只承载 `parse_event`（解析层只需 rising 布尔——分型/笔与价格幅度无关），价格幅度
+    /// 在到达账本前被投影掉（codex 审计丢弃点1/2）。补桥在**账本层**（非解析层）承载幅度：`price` 由
+    /// 成交侧（`schedule_adapter` 的 `affordable = free/price` 现金约束）与重估侧（`transition_adapter`
+    /// 的 `Revalue` 浮盈入账）消费。`price=1`=单位价归一（L0 同价模型，值模型退化为旧单位模型）；
+    /// `price=0`=不可交易 bar（无成交、无重估）。
+    pub price: i64,
 }
 
 /// 订单 `OrderOut`（契约锚 `Origin.FullDefinitionSystem.Order`，Schedule 段输出）。
@@ -137,35 +145,56 @@ fn risk_adapter(x: &AssemblyState, intent: StrictAction) -> u64 {
 /// 只取 `ShortDiff`（不是 OpenShareLeg/CloseShareLeg/RecoverCapital/EnterEarning），故恒合法且不开/
 /// 不闭 legacy 腿——OQ-9 gate 自动满足（见 `assert_oq9_legal`）。
 ///
-/// ★★现金约束（codex 复审#1 根因修复：买入侧 free 变负）：**建仓额受可用 free 上界约束**
-/// ——`affordable = min(Δ, free)`（花不出没有的现金）。若 free=0 ⟹ affordable=0 ⟹ 不建仓（`positions`
-/// 不推进）。这保证 `ShortDiff(-affordable)` 后 `free ≥ 0` **全路径成立**（不只退本金路径）：买入不能
-/// 透支现金，卖出只增 free。因此写回的 `target_pos` = `x.positions + affordable`（**实际成交后仓位**，
-/// 非请求仓位）——holding/positions 与 free 三者一致（不产生「请求 1 单位但无现金」的仓位/现金脱钩）。
+/// ★★现金约束（codex 复审#1 + GAP3 补桥维度修复）：**建仓额受可用 free 上界约束**——
+/// `affordable_units = min(Δ, free/price)`（现金能买的单位数）。
 ///
-/// ★诚实：账本事件的 dΠ/dA 取**实际成交**单位数（结构层；具体金额 = 单位数·price 是 Θ_risk/运行时
-/// 数据 L2，price 由下游 fill 侧填充）。tw_event 与 ledger_event 双侧由同一实际成交量派生 ⟹ 两账本
-/// 同步线程化。
-fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64) -> OrderOut {
+/// **维度修复（codex 独立发现，丢弃点3）**：旧 `min(Δ, free)` 把「单位数增量 Δ」与「现金 free」直接取
+/// min，**隐含单价=1**（维度错误：Δ 是单位数，free 是现金/价值）。正确上界是「现金能买的单位数」=
+/// `free/price`。`price` 由事件承载（`AssemblyEvent.price`，丢弃点2 修复）：
+/// - `price ≤ 0`（不可交易 bar）⟹ 不成交（避免除零，且不可交易 bar 无成交是正确退化）。
+/// - `price = 1`（L0 单位价归一）⟹ `free/price = free` ⟹ **退化为旧单位模型**（值模型的 L0 特例）。
+/// - `price > 1`（L2 真实市价）⟹ 单位成交额 = `filled_delta · price`（值模型：holding = Σunits·成本价）。
+///
+/// 若 free=0 或现金不足一单位 ⟹ affordable_units=0 ⟹ 不建仓。保证 `ShortDiff(-cost_flow)` 后 `free ≥ 0`
+/// **全路径成立**：买入不透支现金，卖出只增 free。写回 `target_pos` = 实际成交后仓位（holding/positions/
+/// free 三者一致）。
+///
+/// ★诚实：`holding` 是**成本基价值**（Σ 成交单位数·成交价）；未实现浮盈不入 holding，由 `Revalue`
+/// 单独入 free（见 transition_adapter 重估步）。tw_event 与 ledger_event 双侧由同一实际成交额派生。
+fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64, price: i64) -> OrderOut {
     // 请求仓位增量 Δ = target_pos − positions（i64 域，可正可负）。
     let requested_delta = target_pos as i64 - x.positions as i64;
-    // ★现金约束：建仓（Δ>0）受可用 free 上界——affordable = min(Δ, free)，free<0 时下界 0（不透支）。
-    // 减/平仓（Δ≤0）不受现金约束（卖出生成现金）。
-    let filled_delta = if requested_delta > 0 {
-        requested_delta.min(x.tw_state.free.max(0))
+    // ★现金约束（维度修复）：建仓（Δ>0）受可用 free 上界——affordable_units = min(Δ, free/price)。
+    // price≤0（不可交易）⟹ 不成交；减/平仓（Δ≤0）不受现金约束（卖出生成现金）。
+    let filled_delta = if price <= 0 {
+        0
+    } else if requested_delta > 0 {
+        requested_delta.min(x.tw_state.free.max(0) / price)
     } else {
         requested_delta
     };
     // 实际成交后仓位 = positions + filled_delta（holding/positions/free 三者一致）。
     let filled_pos = (x.positions as i64 + filled_delta).max(0) as u64;
-    let (ledger_event, tw_event) = if filled_delta > 0 {
-        // 真实建仓（现金充足部分）：花 free 换 holding（free→holding），free 退后 ≥0。
-        (LedgerEvent::Allocate(filled_delta), TwEvent::ShortDiff(-filled_delta))
-    } else if filled_delta < 0 {
-        // 真实减/平仓：卖出 holding 回 free（holding→free）。
-        (LedgerEvent::Realize(-filled_delta), TwEvent::ShortDiff(-filled_delta))
+    // 成交现金流（free⇄holding 转移的**价值**）：
+    // - 建仓（Δ≥0）：按现价成为成本基 ⟹ cost_flow = Δ·price。
+    // - 减/平仓（Δ<0）：按**持仓均成本基**移出 holding ⟹ cost_flow = Δ·(holding/positions)。
+    //   现价浮盈已由 `Revalue` 计入 free（不重复计价），卖出只归还成本基 ⟹ **holding 恒≥0**（|Δ|≤positions
+    //   ⟹ |Δ|·avg_cost ≤ holding，不下溢）。若按现价扣（holding−|Δ|·price）则在现价>成本价时下溢（bug）。
+    //   price=1 时 avg_cost = holding/positions = 1 ⟹ 退化为旧单位模型。
+    let cost_flow = if filled_delta >= 0 {
+        filled_delta * price
     } else {
-        // 仓位不变（含 Hold/Wait / max(1) 饱和 / free=0 建仓被现金约束到 0）：无资金转移。
+        let avg_cost = if x.positions > 0 { x.tw_state.holding / x.positions as i64 } else { 0 };
+        filled_delta * avg_cost
+    };
+    let (ledger_event, tw_event) = if filled_delta > 0 {
+        // 真实建仓（现金充足部分）：花 free 换 holding（free→holding 值），free 退后 ≥0。
+        (LedgerEvent::Allocate(cost_flow), TwEvent::ShortDiff(-cost_flow))
+    } else if filled_delta < 0 {
+        // 真实减/平仓：卖出 holding 回 free（holding→free 值）。
+        (LedgerEvent::Realize(-cost_flow), TwEvent::ShortDiff(-cost_flow))
+    } else {
+        // 仓位不变（含 Hold/Wait / max(1) 饱和 / 现金不足一单位 / 不可交易 bar）：无资金转移。
         (LedgerEvent::Noop, TwEvent::ShortDiff(0))
     };
     OrderOut {
@@ -191,8 +220,8 @@ pub fn policy_output(x: &AssemblyState, e: &AssemblyEvent) -> OrderOut {
     let intent: StrictAction = intent_adapter(x, label);
     // Risk 段：意图经有限网格确定选择器投到唯一目标仓位。
     let target_pos: u64 = risk_adapter(x, intent);
-    // Schedule 段：打包订单 + 派生双账本事件。
-    schedule_adapter(x, intent, target_pos)
+    // Schedule 段：打包订单 + 派生双账本事件（e.price 承载外生市价——现金约束 affordable=free/price）。
+    schedule_adapter(x, intent, target_pos, e.price)
 }
 
 /// 闭环转移错误 `TransitionError`（GAP3 codex R3 §9.3：illegal 转移拦截 = **release 语义 `Result::Err`**，
@@ -261,11 +290,18 @@ fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> O
         TStage::CostReduction => {
             if s.notional_in > 0 && s.holding >= s.notional_in {
                 let recover_target = (s.notional_in - s.withdrawn).max(0);
-                let w = recover_target.min(s.free); // 受可用 free 上界约束 ⟹ free 退后 ≥0
-                if w > 0 {
-                    Some(TwEvent::RecoverCapital(w))
+                // ★★足额一次性退本金（GAP3 补桥必需）：仅当 free ≥ recover_target（可 sound 退回**全部**
+                // 尚未退本金）时才派 `RecoverCapital(recover_target)`；否则等待（None）让重估浮盈继续累积 free。
+                //
+                // 理由：`RecoverCapital` 单次即推进 CostReduction→CapitalRecovered（一次性相变），而 EnterReady
+                // 严格谓词要求 `withdrawn ≥ notional_in`（本金全退）。若做**部分**退本金 ⟹ withdrawn<notional_in
+                // 即搁浅 CapitalRecovered（该 stage 不再退本金，无回退通道）⟹ EnterReady 永假。故足额门是达
+                // EarningShares 的必要条件，且保 `free ≥ 0`（recover_target ≤ free）。free 不足（含 free=0 纯累积、
+                // 浮盈未达本金额）⟹ 等待（照实：退本金需真实可用 free，见 `pure_accumulation_no_sound_recovery`）。
+                if recover_target > 0 && s.free >= recover_target {
+                    Some(TwEvent::RecoverCapital(recover_target))
                 } else {
-                    None // free 不足（纯累积耗尽现金）⟹ 无法退本金（照实，非负 free 借本金）
+                    None
                 }
             } else {
                 None
@@ -332,21 +368,41 @@ pub fn transition_adapter(
     if !oq9_legal(&x.tw_state, o.tw_event) {
         return Err(TransitionError::Oq9Illegal { event: o.tw_event, stage: x.tw_state.stage });
     }
-    // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 转移）。
+    // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 值转移）。
     let tw_after_order = tw_step(&x.tw_state, o.tw_event);
-    // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning。stage_progression 只在有
-    // sound 资金源（cash-tight 退本金 w≤free）时推进；L0 同价下无源 ⟹ 恒不推进（照实不可达）。
-    let tw_next = match stage_progression(policy, &tw_after_order, x.risk_mode) {
+    // ★★GAP3 补桥重估步（丢弃点1/2/3 联合修复：价格幅度打通到 TW 账本）：把外生市价浮盈入账为可分配
+    // 权益。unrealized = positions·price − holding（成本基）；只对**超过 hwm_gain 高水位的增量**派
+    // `Revalue(credit)`，credit = max(0, unrealized − hwm_gain) ⟹ free 单调不减于重估侧 ⟹ **free≥0**
+    // （价格回撤不透支现金，出口 cash-sound gate 不触发）。语义分层：
+    // - price=1（L0 单位价归一）⟹ holding=成本基=positions·1 ⟹ unrealized=0 ⟹ credit=0 ⟹ Revalue 不派发
+    //   ⟹ **退化为旧 L0 守恒语义**（TW 守恒，结构不可达定理不受影响）。
+    // - price>1 且浮盈创新高（L2 变价）⟹ credit>0 ⟹ Revalue 使 TW 增 credit ⟹ free 累积 ⟹ 三阶段机可
+    //   推进（达 EarningShares 的可达通道，acc-GAP3）。
+    let tw_after_revalue = if e.price > 0 {
+        let unrealized = (o.target_pos as i64) * e.price - tw_after_order.holding;
+        let credit = (unrealized - tw_after_order.hwm_gain).max(0);
+        if credit > 0 {
+            tw_step(&tw_after_order, TwEvent::Revalue(credit))
+        } else {
+            tw_after_order
+        }
+    } else {
+        tw_after_order
+    };
+    // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning。stage_progression 在重估后的态
+    // 上评估——L2 浮盈入 free 后满足「足额退本金 free≥recover_target」时推进；L0 同价（credit=0）下无源 ⟹
+    // 恒不推进（照实不可达）。
+    let tw_next = match stage_progression(policy, &tw_after_revalue, x.risk_mode) {
         Some(stage_event) => {
             // ★codex R3 §9.3：阶段推进事件（RecoverCapital/EnterEarning）非法 ⟹ Err（RecoverCapital
             // raw 恒合法；EnterEarning 由 enter_ready 要求 legs==0 ⟹ 与 is_legal_from 一致，故生产恒
             // 合法）。release 语义拒非法阶段推进。
-            if !oq9_legal(&tw_after_order, stage_event) {
-                return Err(TransitionError::Oq9Illegal { event: stage_event, stage: tw_after_order.stage });
+            if !oq9_legal(&tw_after_revalue, stage_event) {
+                return Err(TransitionError::Oq9Illegal { event: stage_event, stage: tw_after_revalue.stage });
             }
-            tw_step(&tw_after_order, stage_event)
+            tw_step(&tw_after_revalue, stage_event)
         }
-        None => tw_after_order,
+        None => tw_after_revalue,
     };
     // ★★现金-sound gate（codex 复审二轮致命1 根因：唯一 chokepoint，覆盖全部调用方）：转移后 TW 三量
     // 必须非负（free/holding/withdrawn ≥ 0）。这不只堵 schedule_adapter 生产路径，还堵 **pub
@@ -441,7 +497,8 @@ mod tests {
     use super::super::super::types::Direction;
 
     fn bar_event(rising: bool) -> AssemblyEvent {
-        AssemblyEvent { parse_event: MicroEvent::NewBar(rising) }
+        // price=1：L0 单位价归一（值模型退化为旧单位模型，重估 credit=0，测试语义不变）。
+        AssemblyEvent { parse_event: MicroEvent::NewBar(rising), price: 1 }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -470,7 +527,7 @@ mod tests {
         let label = classify_adapter(&x, &rec_struct);
         let intent = intent_adapter(&x, label);
         let target = risk_adapter(&x, intent);
-        assert_eq!(policy_output(&x, &e), schedule_adapter(&x, intent, target));
+        assert_eq!(policy_output(&x, &e), schedule_adapter(&x, intent, target, e.price));
         // 初始 Normal/PhaseI ⟹ intent=Buy ⟹ 订单是建仓侧。
         assert_eq!(policy_output(&x, &e).action, StrictAction::Buy);
     }
@@ -607,7 +664,7 @@ mod tests {
             micro_state: MicroState { pending_rise: 5, ..MicroState::initial() },
             ..AssemblyState::initial(1_000_000)
         };
-        let e = AssemblyEvent { parse_event: MicroEvent::NewStroke(Direction::Up) };
+        let e = AssemblyEvent { parse_event: MicroEvent::NewStroke(Direction::Up), price: 1 };
         let x1 = hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x1.micro_state.stroke_count, 1);
         assert_eq!(x1.micro_state.pending_rise, 0, "新笔吸收尾部");

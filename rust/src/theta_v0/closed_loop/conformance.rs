@@ -120,7 +120,8 @@ mod tests {
     use super::super::super::strategy::ledger::{RiskPolicy, TStage};
 
     fn bar_event(rising: bool) -> AssemblyEvent {
-        AssemblyEvent { parse_event: MicroEvent::NewBar(rising) }
+        // price=1：L0 单位价归一（值模型退化为旧单位模型，重估 credit=0，一致性测试语义不变）。
+        AssemblyEvent { parse_event: MicroEvent::NewBar(rising), price: 1 }
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -149,7 +150,7 @@ mod tests {
             },
         ];
         let events = [bar_event(true), bar_event(false),
-            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up) }];
+            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up), price: 1 }];
 
         for s in &states {
             for e in &events {
@@ -185,7 +186,7 @@ mod tests {
         let mut s = ThetaV0Contract::initial(1_000_000);
         let trace = [
             bar_event(true), bar_event(false), bar_event(true), bar_event(true),
-            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Down) },
+            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Down), price: 1 },
             bar_event(false), bar_event(true),
         ];
         for e in &trace {
@@ -240,7 +241,7 @@ mod tests {
     fn full_trace_state_by_state_reproducible() {
         let trace = [
             bar_event(true), bar_event(false), bar_event(true),
-            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up) },
+            AssemblyEvent { parse_event: MicroEvent::NewStroke(super::super::super::types::Direction::Up), price: 1 },
             bar_event(false), bar_event(true), bar_event(false),
         ];
         // 两次独立运行，逐态记录轨迹。

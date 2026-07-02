@@ -419,7 +419,7 @@ mod tests {
         // 买侧：**现金充足** campaign（free>0）Normal/PhaseI ⟹ Buy ⟹ Allocate(1) ⟹ A+1。
         // codex 复审#1 后买入受 free 约束，故用 funded_campaign 使买入真成交（initial free=0 会被约束到 0）。
         let x0 = AssemblyState::funded_campaign(1_000_000, 8);
-        let buy_e = AssemblyEvent { parse_event: MicroEvent::NewBar(true) };
+        let buy_e = AssemblyEvent { parse_event: MicroEvent::NewBar(true), price: 1 };
         // codex R3 §9.3：hybrid_step_baseline 返 Result；funded free>0 建仓生产路径恒 Ok。
         let buy_a = hybrid_step_baseline(&x0, &buy_e)
             .expect("生产恒 Ok（funded free>0 建仓，schedule 只派 ShortDiff）")

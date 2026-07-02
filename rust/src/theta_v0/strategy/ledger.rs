@@ -127,6 +127,17 @@ pub struct TwState {
     pub stage: TStage,
     pub open_legacy_legs: u32,
     pub cum_net_cash: i64,
+    /// 价格重估已入账高水位 `hwm_gain`（GAP3 补桥：非对称 `Revalue` 事件的记账基线）。
+    ///
+    /// 累计已通过 [`TwEvent::Revalue`] 计入 `free` 的**未实现浮盈高水位**（Σunits·c − 成本基
+    /// 的历史最大值，下界 0）。桥消费者（`transition_adapter`）每 bar 计算 `unrealized =
+    /// positions·c − holding_cost`，只对**超过 hwm_gain 的增量**派 `Revalue(credit)`（credit≥0），
+    /// 从而 `free` 单调不减于重估侧 ⟹ **free≥0 全路径成立**（不因价格回撤透支现金）。
+    ///
+    /// ★诚实标注（formalization-validity-domain）：这是**外生市价浮盈的高水位口径**（L0/L1 结构桥），
+    /// **不**声明为已卖出的实现现金，**不**声明盈利/实盘有效——它把「见过的浮盈峰值」当可分配权益
+    /// 计入 TW，使三阶段机在 L2 变价数据上可推进（acc-GAP3 判据「∃t TStage=III」的可达通道）。
+    pub hwm_gain: i64,
 }
 
 impl TwState {
@@ -140,10 +151,16 @@ impl TwState {
             stage: TStage::CostReduction,
             open_legacy_legs: 0,
             cum_net_cash: 0,
+            hwm_gain: 0,
         }
     }
 
     /// 总财富 `TW = free + holding + withdrawn`（契约锚 `Origin.TotalWealth.TWState.tw`，守恒量）。
+    ///
+    /// ★GAP3 补桥后语义变更：`tw()` 在 L0（同价/`Revalue` 从不派）路径上仍**守恒**（六构造子保 TW）；
+    /// 在 L2（变价 + `Revalue` 派发）路径上**按设计非守恒**——`Revalue(g)` 使 `tw()` 增 g（价格重估浮盈
+    /// 入账）。守恒定理 [`tw_step_preserves_tw`] 仅覆盖六守恒构造子，`Revalue` 的非对称效应由独立引理
+    /// [`tw_step_revalue_adds_gain`] 刻画（六构造子定理不受影响）。
     pub fn tw(&self) -> i64 {
         self.free + self.holding + self.withdrawn
     }
@@ -300,6 +317,12 @@ impl RiskPolicy {
 /// - `EnterEarning`：本金全退后切 EarningShares（单向不可逆相变，无资金变动）。
 /// - `ClearCampaign`：campaign 结束（withdrawn→free 归还，stage 重置 CostReduction，legacy
 ///   腿/cum_net_cash 清零）。
+/// - `Revalue(g)`（GAP3 补桥，**第 7 个非对称构造子**）：价格重估浮盈入账——`free += g`
+///   （可分配权益增加）、`cum_net_cash += g`（并入净现金口径，桥接 R 账本已实现口径）、
+///   `hwm_gain += g`（重估高水位推进）。**非守恒**：TW 增 g（`g≥0` 生产约束）。前六构造子保 TW
+///   守恒（[`tw_step_preserves_tw`]），本构造子的非对称效应由**独立引理**
+///   [`tw_step_revalue_adds_gain`] 刻画——**不塞进 `ShortDiff`**（塞进会使守恒定理变假）。
+///   ★诚实：g 是外生市价浮盈高水位增量（L0/L1 结构桥），非已卖出实现现金，非盈利声明。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TwEvent {
     ShortDiff(i64),
@@ -308,6 +331,8 @@ pub enum TwEvent {
     RecoverCapital(i64),
     EnterEarning,
     ClearCampaign,
+    /// 价格重估浮盈入账（GAP3 补桥，非对称/非守恒；见枚举文档与 [`tw_step_revalue_adds_gain`]）。
+    Revalue(i64),
 }
 
 impl TwEvent {
@@ -320,14 +345,15 @@ impl TwEvent {
     /// - `OpenShareLeg`：须 `stage.rank < EarningShares.rank`（修正1：earning 阶段不再开 legacy 腿）。
     /// - `CloseShareLeg`：须 `open_legacy_legs >= 1`（有腿才能闭——否则凭空闭不存在的腿 = 幽灵）。
     /// - `ClearCampaign`：须 `open_legacy_legs == 0`（修正4(b)：结束前先清 legacy 腿，不绕 gate）。
-    /// - 其余（ShortDiff/RecoverCapital）：恒合法（不动 legacy 腿/stage 的资金转移）。
+    /// - 其余（ShortDiff/RecoverCapital/Revalue）：恒合法（不动 legacy 腿/stage 的资金转移；
+    ///   `Revalue` raw 恒合法，负 g 透支现金由 `transition_adapter` 出口现金-sound gate 拦截）。
     pub fn is_legal_from(&self, s: &TwState) -> bool {
         match self {
             TwEvent::EnterEarning => s.open_legacy_legs == 0,
             TwEvent::OpenShareLeg => s.stage.rank() < TStage::EarningShares.rank(),
             TwEvent::CloseShareLeg(_) => s.open_legacy_legs >= 1,
             TwEvent::ClearCampaign => s.open_legacy_legs == 0,
-            TwEvent::ShortDiff(_) | TwEvent::RecoverCapital(_) => true,
+            TwEvent::ShortDiff(_) | TwEvent::RecoverCapital(_) | TwEvent::Revalue(_) => true,
         }
     }
 }
@@ -382,6 +408,17 @@ pub fn tw_step(s: &TwState, e: TwEvent) -> TwState {
             stage: TStage::CostReduction,
             open_legacy_legs: 0,
             cum_net_cash: 0,
+            hwm_gain: 0,
+        },
+        // ★GAP3 补桥（非对称/非守恒）：价格重估浮盈入账。free += g（可分配权益）、cum_net_cash += g
+        // （净现金口径，桥接 R 账本已实现口径）、hwm_gain += g（重估高水位推进）。**TW 增 g**——与
+        // 前六守恒构造子正交，守恒定理 tw_step_preserves_tw 不覆盖本 arm；非对称效应见独立引理
+        // tw_step_revalue_adds_gain。g 由 transition_adapter 以「浮盈超高水位增量」派发（g≥0 生产约束）。
+        TwEvent::Revalue(g) => TwState {
+            free: s.free + g,
+            cum_net_cash: s.cum_net_cash + g,
+            hwm_gain: s.hwm_gain + g,
+            ..*s
         },
     }
 }
@@ -554,8 +591,10 @@ mod tests {
             stage: TStage::CostReduction,
             open_legacy_legs: 0,
             cum_net_cash: 0,
+            hwm_gain: 0,
         };
         let tw0 = s0.tw();
+        // ★前六守恒构造子（不含 Revalue）——守恒定理的覆盖域严格是这六个。
         let events = [
             TwEvent::ShortDiff(100),   // holding→free
             TwEvent::ShortDiff(-50),   // free→holding
@@ -573,6 +612,43 @@ mod tests {
         let s_clear = tw_step(&s, TwEvent::ClearCampaign);
         assert_eq!(s_clear.tw(), tw0, "clearCampaign 破坏 TW 守恒");
         assert_eq!(s_clear.withdrawn, 0);
+    }
+
+    /// ★★GAP3 补桥新引理 `tw_step_revalue_adds_gain`（第 7 个非对称构造子的独立守恒破坏刻画）。
+    ///
+    /// 与 [`tw_step_preserves_tw`] 正交：`Revalue(g)` **不守恒**——`tw()` 增 g（价格重估浮盈入账），
+    /// 同时 `free`/`cum_net_cash`/`hwm_gain` 各增 g，`holding`/`withdrawn`/`notional_in`/`stage`/
+    /// `open_legacy_legs` 不变。这单独证明「不许把重估塞进 `ShortDiff`」的必要性：`ShortDiff` 保 TW
+    /// 守恒（六构造子定理），重估破坏守恒——二者语义不可合并（合并会使守恒定理变假）。
+    #[test]
+    fn tw_step_revalue_adds_gain() {
+        let s0 = TwState {
+            free: 100,
+            holding: 500,
+            withdrawn: 30,
+            notional_in: 500,
+            stage: TStage::CostReduction,
+            open_legacy_legs: 0,
+            cum_net_cash: 7,
+            hwm_gain: 12,
+        };
+        let tw0 = s0.tw();
+        let g = 250;
+        let s1 = tw_step(&s0, TwEvent::Revalue(g));
+        // ★非对称：TW 增 g（守恒被设计性破坏）。
+        assert_eq!(s1.tw(), tw0 + g, "Revalue(g) 使 TW 增 g（价格重估浮盈入账）");
+        // free / cum_net_cash / hwm_gain 各增 g；其余分量不变。
+        assert_eq!(s1.free, s0.free + g, "重估浮盈入 free（可分配权益）");
+        assert_eq!(s1.cum_net_cash, s0.cum_net_cash + g, "并入净现金口径（桥接 R 账本）");
+        assert_eq!(s1.hwm_gain, s0.hwm_gain + g, "重估高水位推进 g");
+        assert_eq!(s1.holding, s0.holding, "holding（成本基）不动");
+        assert_eq!(s1.withdrawn, s0.withdrawn, "withdrawn 不动");
+        assert_eq!(s1.stage, s0.stage, "stage 不动（重估非阶段推进）");
+        assert_eq!(s1.open_legacy_legs, s0.open_legacy_legs, "legacy 腿不动");
+        // Revalue raw 恒合法（OQ-9 gate）。
+        assert!(TwEvent::Revalue(g).is_legal_from(&s0), "Revalue raw 恒合法");
+        // g=0 是恒等（不派发时的 no-op 语义）。
+        assert_eq!(tw_step(&s0, TwEvent::Revalue(0)), s0, "Revalue(0) 恒等");
     }
 
     /// ★stage 单向不可逆（契约锚 `Origin.TotalWealth.stage_rank_monotone`）：非 clearCampaign 算子下 rank 只增不减。
@@ -756,7 +832,7 @@ mod tests {
         // ★注：tw=200 是 synthetic 态（合法性验证用），非 campaign 可达态（见上「诚实标注」）。
         let ready = TwState {
             free: 0, holding: 100, withdrawn: 100, notional_in: 100,
-            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0,
+            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0,
         };
         let pol = RiskPolicy::baseline();
         assert!(pol.enter_ready(&ready, 100, true), "五条件全满足 ⟹ EnterReady");
