@@ -3548,8 +3548,35 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md
+- id: '671'
+  title: P2-R2 消 MACD C≥A 预删选择偏差——struct_break_dir 独立方向源 bit-exact 恢复；力度判据本身未接通生产（defer
+  status: 生成态
+  type: bias-correction
+  file: pending/671-p2-r2-macd-c-ge-a-preveto-selection-bias-struct-break-dir-recovery-force-layer-defer-42.md
+- id: claim10-xianduan-termination
+  title: xianduan.md:169-170(编纂层 settled) 对第67课两种情况终结语义与博文原文镜像反转——第一种情况(无缺口)原文=分型形成即直接终结
+    / 第二种情况(有缺口)原文=须第二特征序列分型才终结；编纂层写反。settled 改动权属编排者/genealogist(选择类待裁)。
+  status: 生成态
+  type: 语法记录
+  file: pending/2026-06-25-claim10-xianduan-edition-vs-blog-termination-semantics.md
+- id: '672'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/672-meta-observation-623-crystallization-gate-never-fires-7-instances-new-dimension-escape.md
+- id: '673'
+  title: ''
+  status: 生成态
+  type: bias-correction
+  file: pending/673-cand-delta-predicate-scope-misuse-type1-divergence-vs-type2-completeness-h2-overfiltering.md
 edges:
   depends_on:
+  - from: '673'
+    to: '606'
+  - from: '673'
+    to: '615'
+  - from: '673'
+    to: '671'
   - from: '136'
     to: '130'
   - from: '136'
@@ -6858,6 +6885,12 @@ edges:
     to: '562'
   - from: '669'
     to: '075'
+  - from: '671'
+    to: '615'
+  - from: '671'
+    to: '663'
+  - from: '672'
+    to: '623'
   triggered:
   - from: '005'
     to: 005a
@@ -10223,6 +10256,45 @@ edges:
   - between:
     - '353'
     - '669'
+  - between:
+    - '650'
+    - '651'
+  - between:
+    - '650'
+    - '652'
+  - between:
+    - '30'
+    - 651-652
+  - between:
+    - '275'
+    - 651-652
+  - between:
+    - '002'
+    - claim10-xianduan-termination
+  - between:
+    - '003'
+    - claim10-xianduan-termination
+  - between:
+    - 090
+    - '669'
+  - between:
+    - '139'
+    - '669'
+  - between:
+    - '668'
+    - '672'
+  - between:
+    - '669'
+    - '672'
+  - between:
+    - 018
+    - '672'
+  - between:
+    - '139'
+    - '672'
+  - between:
+    - 090
+    - '672'
   tensions_with:
   - between:
     - '007'

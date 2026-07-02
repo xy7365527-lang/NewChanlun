@@ -90,7 +90,7 @@ impact:
 # 谱系关联
 related_records:
   parent: "603号 §五（L_confirm=构造子字段）——本号是 603 §五的 Lean 落地（nestingDepth 绑真实 chain + chain_nonempty + lconfirm_depth_pos）"
-  children: []
+  children: ["670"]
   related:
     - "602号（G' 否定链）：本号 L_confirm 绑 chain + 非空 = 602 否定链关闭的见证"
     - "002号（背驰-买卖点定理，settled）：本号 producesType1BSP 是 002 一支，诚实标注完整充要不在范围"
@@ -271,3 +271,101 @@ claim7 第一类 BSP ↔ claim6 操作触发 ↔ claim9 中枢位置用不同类
 - **修复闭合的认识论分层（formalization-validity-domain）**：chain_nonempty 代码层落地（L0 代码）→ 019effd3 lake GREEN 重验（L1 验证管线）→ codex 确认赘类关死（异质确认）。三层齐备才升级 fully /ritual-ready，不跳层声称。
 
 **下游同步**：611（Phase2 统一结晶）升级 606 ritual-ready（fully ready，整族 604-612 全部 fully ready）；tmp/formalization-result.md §六/§Phase2 范式状态表 claim7 行须补 019effca FAIL→019effd3 验证闭合迭代（汇总层，建议 integrator/claim7-divergence 补，谱系层本号已权威记录）。codex C 点（全局无赘类）作 known-boundary（Phase2+ 背驰语义层范式选择）。
+
+---
+
+## §670-refinement（2026-07-02 物理吸收，genealogist 四分法裁定：定理类同链 refinement，非独立节点）
+
+> 原 pending/670 全文吸收如下。裁定依据：670 自述为 606 的推导展开；其 T2 建于 606 的 nested_level_decreases（Lean）；location/existence 边界 = 606 chain_nonempty 条件的显式化——三证据同链无新链。
+
+
+---
+id: "670"
+number: 670
+status: 已结算（并入 606 as refinement）   # genealogist 2026-07-01 按 Lead「同链=并入 / 新链=独立」判据裁定：670 与 606 同一推导链（见下方 §genealogist 裁定），并入 606 lineage as refinement，非独立节点。670 本无独立 dag 节点=与本裁定一致（无需新增）。物理吸收进 606 正文 §670-refinement + 本 pending git rm = Lead 机械后续（genealogist 无 Edit/Bash，不擅改 273 行 Lean 锚定 settled 606）。
+date: "2026-07-01"
+type: domain
+title: "缠师\"100%背驰法\" = location 精确定位的条件性结构决定性（若 R_n 存在 + 递归合法 + 每级候选非空 + Sel_Θ 固定 ⟹ p⋆ 唯一，L0），≠ existence 神谕；证明经三轮异质验证诚实降级（R1 codex fail：Cantor/Banach 误用 + T1 夸大 → v2 重写用有限步 well-founded 递归 + Sel_Θ 选择器 → R2 codex conditional：T2 缺候选集非空前件 → 前件闭合转 pass）"
+negation_source: heterogeneous
+negation_model: "约束4 codex-cli（异质源 OpenAI Codex）三轮：R1 verdict=fail（4致命/重要点：①Cantor 闭集套+完备性对有限递归多余 ②diam→0 无穷极限符号在有限链无意义+统一压缩常数 λ 无原文依据 ③Banach 是缠师 030:26 类比修辞非数学依据 ④T1「R_n⊇R_{n-1}」被夸大为「构造性定理」实为定义 2.1 直接展开）→ v2 重写（删 Cantor/Banach，改有限步递归+Sel_Θ 选择器，T1 降为引理 L1，location 标条件命题）→ R2 verdict=conditional（v2 修好 R1 四点无过修正，但新引入前提遗漏：T2 的 Sel_Θ 唯一性缺「候选集非空」前件，base level 无 BSP 时 C_0=∅ 选不出 p⋆）→ 前件闭合（T2 前件 (iii) + §5.1 + §5.4 三处补「∀k C_k 非空且有限、key 严格全序」）→ R2 conditional 转 pass"
+negation_form: refinement
+# refinement：缠师「100%」从「无条件绝对定位神谕（v1 Cantor/Banach 收敛 + T1 构造性定理 + location 无条件 L0）」精炼为「location 精确定位的条件性结构决定性（有限步 well-founded 递归 + Sel_Θ 选择器，前件=R_n 存在+递归合法+每级候选非空+Sel_Θ 固定）；existence 非 100% 神谕；经验有效性 L2 未做（零调用）」。非概念分离——同一「100%背驰法」claim 的忠实性精炼，逼到诚实有效域边界。
+
+topo_effect: "refine:hundred-percent-unconditional-oracle-inflation:location-conditional-structural-determinism-vs-existence"
+# refine：把缠师 100% 从「无条件 existence 神谕（声明膨胀）」精炼为「location 条件性 L0 决定性 + existence 结构读数非预言 + L2 空白」；
+#   scope=背驰法数学本体（区间套=有限步递归+选择器）+ MACD/振幅/速度=base-case 力度代理（辅助层非 100% 替代）
+
+# ============================================================
+# §genealogist 裁定（2026-07-01，Lead 委派「670 张力：升 settled 独立节点 or 并入 606」）
+# ============================================================
+# 裁定 = 并入 606 as refinement（同一推导链）。四分法=定理（可由 Lead 给的判据判定，非价值判断），故直接裁并写入，不留编排者。
+#
+# 判据（Lead）：从 606 的推导链可判定——同一链=并入 / 新链=独立。
+#
+# 判定=同一链（三条独立证据同指 606 的推导链，无新链）：
+#   (1) 670 自述「本号是 606 的推导展开+诚实边界结晶」（definitions_involved:606 role 字段原话）。「推导展开」=展开 606 已含之物，非新发现。
+#   (2) 670 核心形式对象 T2（有限步 well-founded 递归 + Sel_Θ 选择器 ⟹ 唯一定位见证 p⋆）直接建于 606 的 nested_level_decreases（有限下降终止，Lean machine-checked）——670 role 字段亲证「606 的 nested_level_decreases = T2 有限终止的机器验证」。唯一新增形式元素=Sel_Θ 字典序选择器（在既有候选集上选取，是同链上的选择函数，非新链）。
+#   (3) 670 的 location/existence 边界 = 606 的 chain_nonempty/lconfirm_depth_pos 条件（nestingDepth≥1）显式化。606 已立「空链不定位任何转折点」（606 negated.description + 正文）——即 606 已知「有非空 chain⟹定位；不保证 chain 存在」= location/existence 分离的形式内核。670 把此隐含边界读成认识论命题=同链推导展开。
+#   (4) 231 张力（location L0 ≠ 可交易 alpha L2）非新链——606 related_records 已列 231（「几何骨架有效域<完整 002/003 定义域」）。670 §5.3 是 606 已有 231 关系在「100%=可交易 alpha?」子命题上的延续，同链。
+#
+# negation_form 佐证：606 与 670 均为 refinement（同一背驰/区间套域的忠实性精炼），670 明文「非概念分离」。refinement-of-same-claim ⟹ 同链。
+#
+# ⟹ 670 不立独立 settled 节点（否则 DAG 膨胀出一个与 606 同链的伪 peer 发现）。并入 606 lineage：
+#   - 606 §670-refinement（Lead Edit 吸收）：追加「606 有限递归 机械交付的是 location 精确定位的条件性结构决定性（前件=非空 chain=606 的 chain_nonempty），非 existence 神谕（606 不保证 chain 存在/每级候选非空），亦非可交易 alpha（L2 零调用，同 606 已列 231 有效域<定义域）」。
+#   - 606 related_records / children：追加 670（as refinement，同链推导展开）。
+#   - dag.yaml：670 本无节点、无需新增（merge=无独立节点，与现状一致）。
+#   - 本 pending 文件：Lead 吸收后 git rm（genealogist 无 Bash）。
+#
+# 翻转边界：若编排者认为 location/existence 认识论分离携 606 未含的独立信息差而应立 peer 节点（新链），则退回独立节点(a)。当前三证据一致指向同链，无新链信号，genealogist 不见此翻转条件成立。
+
+# 涉及的定义
+definitions_involved:
+  - name: "背驰-买卖点定理（002，第24课，已结算）"
+    version: ".chanlun/genealogy/settled/002-source-incompleteness"
+    role: "第24课 024:50「配合上中枢，那是 100% 绝对的，因为这可以用纯数学的推理逻辑地证明」= 100% 载体是中枢非 MACD 的原文依据；024:18 背驰-买卖点定理 = L1 上游"
+  - name: "区间套定理（003，第27课，已结算）"
+    version: ".chanlun/genealogy/settled/003-segment-concept-separation"
+    role: "区间套几何骨架 L0 依据（Nested 收缩+级别递减+有限链）；第29课 An+1=F(An) 递归式 + 「5分钟背驰段通过1分钟以下精确定位」= 定义 2.1 递归背驰的原文出处"
+  - name: "606号（背驰/区间套完全分类，已结算，Lean machine-checked）"
+    version: ".chanlun/genealogy/settled/606-divergence-nesting-complete-classification-lconfirm-constructor-field"
+    role: "★直接上游锚点——606 的 nested_level_decreases（有限下降终止，与 Phase1 r* 终余代数同构）= T2 有限终止的机器验证；★关键修正锚点：606 证「有限下降」非「Cantor 收敛」，v1 却搬 Cantor/Banach 绕道引 606 本不需要也没证的重机械。本号是 606 的推导展开+诚实边界结晶（location vs existence 分离候选）。【genealogist 2026-07-01：此 role 字段=同链判定第一证据——「推导展开」+ 建于 606 nested_level_decreases 之上 ⟹ 并入 606】"
+
+# 解决方式
+resolution:
+  type: domain
+  description: "缠师 100% 背驰法 = 中枢结构 + 区间套递归（非任何单级 proxy），命题确证（L0），但「100%」严格限定为 location（精确定位）的条件性结构决定性。数学本体：力度递归定义（定义 2.1，不含 MACD，第29课 An+1=F(An) 直译）+ 引理 L1（R_n⊇R_{n-1}=定义 2.1 直接展开，非独立定理；价值在钉住实装契约「子取自父窗」，554/555 实证）+ 定理 T2（有限步 well-founded 递归 + Sel_Θ 字典序选择器 ⟹ 唯一定位见证 p⋆，前件=R_n 存在+级别严格递减有下界+∀k 候选集非空且有限 key 严格全序）。三轮异质验证诚实降级：R1 codex fail（Cantor/Banach 误用+diam→0 无穷极限符号+T1 夸大）→ v2 重写（有限递归+选择器，删 Cantor/Banach，T1 降引理，location 标条件命题）→ R2 codex conditional（新引入 T2 缺候选集非空前件）→ 前件闭合转 pass。MACD/振幅/速度/DIF 全是 base-case 力度代理（辅助层），共同上位=「力度减弱」结构判据，完整形式=区间套递归。100% 是结构性质非 proxy 性质（否证「找更好单级 proxy 达 100%」路线）。"
+  epistemic_level: "核心证明（L1/T2+力度递归定义+N^δ 同构）=L0（几何/拓扑/代码事实，606 有 Lean 机器验证）；经验有效性=L2 未做（区间套完整证书回测零调用，project_interval_nesting_not_called_in_backtest）"
+
+# 认识论边界（本条目核心信息差）
+boundary:
+  location_100_conditional:
+    verdict: "✅ 条件成立（L0，606 Lean 有限递归+选择器，非 Cantor）"
+    precondition: "R_n 存在 + 递归各级合法（取自父窗）+ ∀k 每级候选集非空 + Sel_Θ 固定"
+    note: "前件不成立（如 base level 无 BSP，C_0=∅）时无 p⋆——条件命题，非无条件绝对。R2 闭合此前件遗漏。"
+  existence_not_oracle:
+    verdict: "❌ 不是 100% 神谕"
+    note: "base case 背驰_0 判定仍是当下结构比较（创新高低×本级力度衰减），几何读数非预言；区间套不保证 R_n 存在、不保证每级候选非空"
+  tradeable_alpha:
+    verdict: "❓ L2 未决（零调用）"
+    note: "区间套完整证书（N^δ NestCertificate）在下单回测主循环+alpha 检验链零调用；所有 alpha 否证（奇偶交替/σ_higher/(ℓ,q)/夏普）覆盖 bsp 端点方向投影，不含区间套递归定位 ⟹ 假否证风险：否证的是端点方向投影 alpha，非区间套定位 alpha。location 100% 是 L0 几何真理；是否转化为可交易 alpha 是 L2 未决（形式化有效域规则核心）"
+
+# 张力检查（genealogist 已裁——2026-07-01）
+tensions:
+  - target: "606"
+    question: "本号 vs 606 的关系——(a) 升 settled 独立节点 or (b) 并入 606 as refinement"
+    verdict: "【已裁：(b) 并入 606 as refinement】按 Lead『同链=并入』判据——670 自述『606 的推导展开』、T2 建于 606 nested_level_decreases、location/existence 边界=606 chain_nonempty 条件显式化，三证据同链，无新链。见文首 §genealogist 裁定。物理吸收=Lead Edit 606 §670-refinement。"
+  - target: "231"
+    question: "本号 §5.3「location 100% L0 真理 ≠ 可交易 alpha（L2 零调用）」是否登记为 231 下游 instance"
+    verdict: "【已裁：非新登记，同链承接】606 related_records 已列 231（几何骨架有效域<完整 002/003 定义域）。670 §5.3 是 606 已有 231 关系在『100%=可交易 alpha?』子命题的延续，随 606 并入承接，不另立 231 instance 记录。671（力度判据 L2 未做、force_features 生产零调用）与本号同属『L0/L1 已立、L2 零调用』失效模式（interval_nesting 同构），均 231 既有规则（formalization-validity-domain.md，已 settled）下的实例累积——无需新结晶。"
+
+# 下游待裁（证明文档 §6 已挂——与 606 并入正交，独立工位承接，275 局部依赖）
+downstream_pending:
+  - "source-auditor：裁定区间套终止级别是否含盘背（语法记录，606 §6.3 已挂）——若严格要求每级趋势背驰则系统排除盘背级联收缩有效域"
+  - "P1 工位（verdict-p1）：接通 N^δ 完整证书到回测生产链 → L2 检验区间套定位大转折 buy/sell 是否产生 alpha（当前假否证风险的唯一解；对应 task #3 W-VERIFY）"
+
+# 影响声明
+impact:
+  - "证明文档 .chanlun/review-results/hundred-percent-divergence-proof-20260701.md（v2+R2 前件闭合）"
+  - "三轮异质审计留档：R1 codex-hundred-percent-proof-audit-20260701.md（fail）+ R2 codex-hundred-percent-proof-audit-r2-20260701.md（conditional→前件闭合转 pass）+ 汇总审查 #36 PASS"
+  - "不改任何 .rs / 任何定理 / 任何守恒律"
+  - "【genealogist 2026-07-01 更新】裁定=并入 606 as refinement（同链，非独立节点）。genealogist 已在本文件记录裁定+派生链；物理吸收进 606 正文 §670-refinement + related_records/children 追加 670 + 本 pending git rm = Lead 机械后续（genealogist 无 Edit 不擅改 Lean 锚定 settled 606，无 Bash 不能 rm）。dag.yaml 无需改（670 本无节点，merge=无独立节点=与现状一致）。"
