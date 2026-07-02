@@ -1578,7 +1578,12 @@ mod tests {
         // χ=1[LCB(μ)>θ]：买点 z 的 LCB(μ)=−50≤θ=0 ⟹ χ=0 ⟹ 滤掉该候选 ⟹ 无开仓订单。
         // z = 买点 buy1@3 的全互斥分类（level0,Long,buy1,父向0/Ambient,Root；空塔 ⟹ Ambient/Root）。
         // LCB 升级：n≥2 让 mu_lcb 有定义（否则 n=1 因"无 LCB 证据"被滤，机制不同——见任务 §3）。
-        let z_buy = MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root);
+        // b2（task #83）：fill loop 的 χ 门经 z_of_candidate 查 μ ⟹ 查询 z 携带 H=Some(role.h)。
+        // 本例 buy1@3 无同级前兄弟 ⟹ H=First。手建 est 的 z 须同口径（否则 None vs Some(First) 桶不命中）。
+        let z_buy = MuClass {
+            horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
+            ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
+        };
         let mut est = MuEstimator::new();
         est.observe(MuObservation { class: z_buy, x_gamma: -50.0 });
         est.observe(MuObservation { class: z_buy, x_gamma: -50.0 }); // n=2,μ=−50,std=0 ⟹ LCB=−50≤θ=0
@@ -1612,7 +1617,12 @@ mod tests {
         // 买点 z 的 LCB(μ)=+50>θ=0 ⟹ χ=1 ⟹ 放行（与 χ≡1 同）。
         // LCB 升级：需 n≥2 让 mu_lcb 有定义（n=1 方差未定义 ⟹ mu_lcb=None ⟹ 走 empty 分支）。
         // 喂 [50,50] ⟹ mean=50,std=0 ⟹ LCB=50−z_alpha·0=50>θ（z_alpha=0 时退化裸 μ=50）。
-        let z_buy = MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root);
+        // b2（task #83）：fill loop 的 χ 门经 z_of_candidate 查 μ ⟹ 查询 z 携带 H=Some(role.h)。
+        // 本例 buy1@3 无同级前兄弟 ⟹ H=First。手建 est 的 z 须同口径（否则 None vs Some(First) 桶不命中）。
+        let z_buy = MuClass {
+            horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
+            ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
+        };
         let mut est = MuEstimator::new();
         est.observe(MuObservation { class: z_buy, x_gamma: 50.0 });
         est.observe(MuObservation { class: z_buy, x_gamma: 50.0 }); // n=2 ⟹ LCB 有定义；μ=50>θ=0

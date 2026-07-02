@@ -152,7 +152,12 @@ pub fn z_of_candidate(c: &Candidate) -> MuClass {
         Vertical::FollowParent => (delta, PositionState::Child), // σ_p = δ_g
         Vertical::ShortDiff => (-delta, PositionState::Child),   // σ_p = −δ_g
     };
-    MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
+    // H 轴（codex #81 `h_axis_in_canonical_z: accept`）：真候选带 role.h ⟹ 填 Some(h)，升 canonical z
+    // 到完整 R(g)=(H,V,δ)。from_certificate 只填 V 投影 + horizontal=None，此处 struct-update 覆盖 H。
+    MuClass {
+        horizontal: Some(c.role.h),
+        ..MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
+    }
 }
 
 /// χ_t 候选集过滤（§13 line 2256）：`Γ_t → Γ_t^trade = {γ∈Γ_t : χ_t(γ)=1}`。

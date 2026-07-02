@@ -45,6 +45,9 @@ use super::super::classifier::bsp::BspPoint;
 use super::super::classifier::recursive_tower::LeveledMove;
 use super::super::classifier::center::{center_from_segments, UnitRange};
 use super::super::classifier::descend::RMove;
+use super::mu_estimator::{MuClass, PositionState};
+use super::selector::z_of_candidate;
+use super::super::strategy::coverage::Horizontal;
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（sell.rs:50 CloseRoot/ReduceCore 对齐）。
 ///
@@ -122,6 +125,10 @@ pub struct SignalDecomp {
     /// 从配对出场信号的 bsp_class 派生（bsp_class bits 已编码卖点判据结果）。
     /// `Type2Missing` = 第二类闭环 sell.rs:35 still-MISSING，诚实标注，不改账本口径。
     pub exit_decision: ExitDecision,
+    /// z：完整 [`MuClass`] 全互斥分类键（b2 升 Z 分桶；含 level/δ/i_class/parent_dir/short_swing/position）。
+    /// 分桶/dx 投影**一律用 `z.i_class`**（未压缩 6-bit），**禁止 `z.bsp_class()`**（会丢 2B/3B 重合，
+    /// 违反 P4 codex 判决）。`bsp_class` 旧字段保留供旧口径对照（CSV/旧报告），不作分桶键。
+    pub z: MuClass,
 }
 
 /// 聚合诊断「钱去哪了」（确定性分解，Σ 精确等于 Σ trade gross，非概率推断）。
@@ -215,11 +222,32 @@ pub fn decompose_capturable_spread(data: &Dataset, config: &ThetaConfig) -> (Vec
     pair_signals(&signals, &data.bars, tick, fee_rate)
 }
 
-/// decompose 收集半边（纯函数）：逐 bar 因果分类 + N^δ 多级门 → 信号元组集。
+/// 一条收集信号（b2：原 7 元组升具名 struct——7 字段两处生产者需 bit-exact 同步，具名字段消除位置错配）。
+///
+/// `z` 携带完整 [`MuClass`]（升 Z 分桶键）；`bsp_class` 旧字段保留供旧口径对照。生产 [`collect_signals`]
+/// 与诊断 dx 手写循环各产一份，`acc_classification_level_hole_dx` 尾部 `assert_eq!` 逐条对拍（含 z）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct RawSignal {
+    /// 入场确认 bar τin。
+    entry_bar: usize,
+    /// 交易方向候选 δ_g（VoiceSide）。
+    dir: VoiceSide,
+    /// 信号挂靠 pivot 端点 source_index（λ_rev/ρ_rev 取价处）。
+    pivot_bar: usize,
+    /// 级别 ℓ。
+    level: u32,
+    /// 入场时上级方向态（666 号）。
+    sigma_higher: i8,
+    /// bsp_class：bsp_disc(&p.bits) 类型位掩码（W4，旧口径对照，非分桶键）。
+    bsp_class: u8,
+    /// z：完整 MuClass 全互斥分类键（b2）。用 z.i_class 分桶，非 z.bsp_class()。
+    z: MuClass,
+}
+
+/// decompose 收集半边（纯函数）：逐 bar 因果分类 + N^δ 多级门 → 信号集。
 ///
 /// C1 从 [`decompose_capturable_spread`] 拆出；`acc_classification_level_hole_dx` 复用本函数输出对拍。
-/// 元组 = (entry_bar τin, dir δ, pivot_bar source_index, lvl, sigma_higher 666号, bsp_class W4)。
-fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSide, usize, u32, i8, u8)> {
+fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
     let bars = &data.bars;
     let n = bars.len();
     let tick = config.tick.tick_size;
@@ -239,7 +267,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSid
     // lvl=级别, sigma_higher=入场时上级方向态 666 号, bsp_class=bsp_disc(&p.bits) 类型位掩码 W4)。
     // W4 类型透传：bsp_class 是 buy1/2/3+sell1/2/3 的 u8 位掩码（bsp_disc 同口径，seen-set 键已在用），
     // 完整保留一/二/三类+买卖侧信息（可同时置多位，如 buy1+buy3）。纯增字段，不改配对/信号集/识别逻辑。
-    let mut signals: Vec<(usize, VoiceSide, usize, u32, i8, u8)> = Vec::new();
+    let mut signals: Vec<RawSignal> = Vec::new();
     // C2（algo-opt-plan-20260702 泳道 C）：各级 bsp 上一 bar 的 Rc 强引用。`Rc::ptr_eq` 命中 ⟹ 同一
     // allocation 且内容未变（强引用在手 ⟹ strong_count>1 ⟹ classifier 端任何 `Rc::make_mut` 必写时
     // 复制换新指针，见 mod.rs cascade_reset/07c memo）⟹ 该级全部 (lvl, source_index, bsp_class) 键
@@ -321,7 +349,19 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSid
                     if !pass {
                         continue;
                     }
-                    signals.push((i, c.dir, pivot_bar, lvl as u32, sigma_higher, bsp_class));
+                    // b2（task #83）：升 Z 分桶——从候选构造完整 z（含 σ_p/role/H），非事后从
+                    // (level,δ,bsp_class) 粗投影重推。z_of_candidate 复用 selector 既有 role→z 桥
+                    // （codex #81 修正1：信号携带 z:MuClass，不再扩位置易错的裸元组）。
+                    let z = z_of_candidate(c);
+                    signals.push(RawSignal {
+                        entry_bar: i,
+                        dir: c.dir,
+                        pivot_bar,
+                        level: lvl as u32,
+                        sigma_higher,
+                        bsp_class,
+                        z,
+                    });
                 }
             }
         }
@@ -335,7 +375,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<(usize, VoiceSid
 /// C1 从 [`decompose_capturable_spread`] 拆出；`acc_classification_level_hole_dx` 尾部直接调用，
 /// 复用其手写循环自建的 `signals`（与生产 [`collect_signals`] 同序同门），省二次 O(bar²) 收集。
 fn pair_signals(
-    signals: &[(usize, VoiceSide, usize, u32, i8, u8)],
+    signals: &[RawSignal],
     bars: &[Bar],
     tick: f64,
     fee_rate: f64,
@@ -356,11 +396,12 @@ fn pair_signals(
     let mut next_long = vec![ns; ns + 1];
     let mut next_short = vec![ns; ns + 1];
     for i in (0..ns).rev() {
-        next_long[i] = if signals[i].1 == VoiceSide::Long { i } else { next_long[i + 1] };
-        next_short[i] = if signals[i].1 == VoiceSide::Short { i } else { next_short[i + 1] };
+        next_long[i] = if signals[i].dir == VoiceSide::Long { i } else { next_long[i + 1] };
+        next_short[i] = if signals[i].dir == VoiceSide::Short { i } else { next_short[i + 1] };
     }
 
-    for (idx, &(entry_bar, dir, lambda_rev_bar, level, sigma_higher, bsp_class)) in signals.iter().enumerate() {
+    for (idx, s) in signals.iter().enumerate() {
+        let RawSignal { entry_bar, dir, pivot_bar: lambda_rev_bar, level, sigma_higher, bsp_class, z } = *s;
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
             VoiceSide::Short => -1,
@@ -372,16 +413,16 @@ fn pair_signals(
         let mut j = next_opp[idx + 1];
         // 三审计统计②（codex Q2）：同 bar 反向信号（首个 opp 若 eb==entry_bar 即命中——单调非降 ⟹
         // 同 bar opp 排在 eb>entry_bar opp 之前）。
-        if j < ns && signals[j].0 == entry_bar {
+        if j < ns && signals[j].entry_bar == entry_bar {
             agg.n_same_bar_opposite += 1;
         }
         // 配对须 eb>entry_bar：跳过同 bar opp（平摊 O(1)，同 bar 信号有限）。
-        while j < ns && signals[j].0 <= entry_bar {
+        while j < ns && signals[j].entry_bar <= entry_bar {
             j = next_opp[j + 1];
         }
         // 配对出场信号（首个 eb>entry_bar 反向新确认信号，π^bsp owned）：entry_bar(τout) + pivot_bar(ρ_rev) + exit_bsp_class(P7)。
         let (exit_bar, rho_rev_bar, exit_bsp_class) = if j < ns {
-            (signals[j].0, signals[j].2, signals[j].5)
+            (signals[j].entry_bar, signals[j].pivot_bar, signals[j].bsp_class)
         } else {
             agg.n_unpaired += 1; // 三审计统计③（codex Q4）：右删失，无配对出场反转信号，诚实跳过不兜底
             continue;
@@ -416,6 +457,7 @@ fn pair_signals(
         decomps.push(SignalDecomp {
             entry_bar, exit_bar, level, delta, a_b, x_in, y_out,
             eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl, sigma_higher, bsp_class,
+            z, // b2：入场信号完整 z（升 Z 分桶键；entry 信号的 MuClass 携带 σ_p/role/H）
             exit_decision,
         });
         agg.n_signals += 1;
@@ -1438,6 +1480,7 @@ mod tests {
             entry_bar: 0, exit_bar: 1, level: 0, delta: 1, a_b: 0.0, x_in: 0.0, y_out: 0.0,
             eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0,
             actual_pnl: 0.0, sigma_higher: 0, bsp_class: 1 << 3, // sell1
+            z: MuClass::from_certificate(0, 1, BspBits::from_class_index(1 << 3), 0, PositionState::Root),
             exit_decision: ExitDecision::CloseRoot,
         };
         assert_eq!(d.exit_decision, ExitDecision::CloseRoot,
@@ -2061,13 +2104,15 @@ mod tests {
         let (decomps, agg) = decompose_capturable_spread(&ds, &config);
         crate::theta_v0::classifier::stage_profile::dump();
 
-        // per-class (level, δ, bsp_class) 分桶：adverse-only Σcaptured + 真实成交 Σactual_pnl 双口径（664-Q3）。
-        // W4：key=(level, δ, bsp_class)，bsp_class 加入消除 buy1/buy2/buy3 混合池稀释（P4 codex 判决）。
+        // b2（task #83）：per-class 分桶键从粗投影 Y=(level,δ,bsp_class) 升到完整状态 Z=[`MuClass`]
+        // （含 σ_p/短差/仓位态/H=完整 R(g)）——编排者点破「回测跑在 Y 粗投影上」的接入点闭合。
+        // 分桶载体 `d.z`（`MuClass` 派生 Ord ⟹ BTreeMap 有序）；同 (level,δ,I_γ) 按 σ_p/role 再细分。
+        // codex #81 修正2：z 的类型位用 `z.i_class`（未压缩 6-bit），报告列展示避免 `bsp_class()` 压主类。
         // value=(n, Σab, Σηin, Σηout, Σce, Σcaptured, n_cap_pos, Σactual_spread, Σactual_pnl, n_act_pos)。
         type Bucket = (usize, f64, f64, f64, f64, f64, usize, f64, f64, usize);
-        let mut buckets: BTreeMap<(u32, i8, u8), Bucket> = BTreeMap::new();
+        let mut buckets: BTreeMap<MuClass, Bucket> = BTreeMap::new();
         for d in &decomps {
-            let e = buckets.entry((d.level, d.delta, d.bsp_class)).or_default();
+            let e = buckets.entry(d.z).or_default();
             e.0 += 1;
             e.1 += d.a_b;
             e.2 += d.eta_in;
@@ -2082,6 +2127,19 @@ mod tests {
             if d.actual_pnl > 0.0 {
                 e.9 += 1;
             }
+        }
+
+        // ── dx 守恒（分划细化保 Σ，codex #81 修正5：细 key 求和回粗 key，写维度无关通用形式）──
+        // Z 桶是 Y=(level,δ,bsp_class) 桶的不相交细分（同 Y 按 σ_p/role/H 再分）⟹ 分划细化。
+        // 逐笔 actual_pnl 与分桶无关 ⟹ Σ_{z∈Z} 桶内和 == Σ_{y∈Y} 桶内和 == Σ_全体 decomps（守恒）。
+        // 不写死 σ_p 一维——对任意细化维（σ_p/role/H/未来新维）恒成立（维度无关）。
+        {
+            let sum_z: f64 = buckets.values().map(|b| b.8).sum(); // Σ over Z 桶
+            let sum_flat: f64 = decomps.iter().map(|d| d.actual_pnl).sum(); // Σ over 全体（粗 key 极限）
+            debug_assert!(
+                (sum_z - sum_flat).abs() <= 1e-6 * (1.0 + sum_flat.abs()),
+                "dx 守恒破：Σ_Z 桶 actual_pnl={sum_z} ≠ Σ 全体={sum_flat}（分划细化应保 Σ）"
+            );
         }
 
         // 失血三源占比（分母 = Σ(ηin+ηout+Ce) 总损耗；ΣAb 为正分母比对结构价差）。
@@ -2170,32 +2228,46 @@ mod tests {
             let _ = writeln!(rpt, "形成对照——后者是测错对象的伪否证）。剩余 alpha = ΣAb_rev − Ση − ΣCe（执行/成本是否吃光见上表 Σcaptured）。");
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## per-class (level, δ, bsp_class) 三键分桶（W4 P4：消除 buy1/2/3 混合池稀释）");
+        // b2（task #83）：z 角色维紧凑格式化（σ_p / 短差 / 仓位态 / H）——报告展示 Z 细分，
+        // 使同 (level,δ,I_γ) 按 σ_p/role/H 再分的桶不显示为重复行（诚实展示分桶键升维）。
+        let z_role_str = |z: &MuClass| -> String {
+            let h = match z.horizontal {
+                Some(Horizontal::First) => "F",
+                Some(Horizontal::SameFollow) => "SF",
+                Some(Horizontal::SameReverse) => "SR",
+                None => "-", // 裸证书口径未定 H（本 alpha 路径 z_of_candidate 恒 Some，None 不应现）
+            };
+            let pos = match z.position { PositionState::Root => "R", PositionState::Child => "C" };
+            format!("{:+}|{}|{}|{}", z.parent_dir, if z.short_swing { "sw" } else { "tr" }, pos, h)
+        };
+        let _ = writeln!(rpt, "## per-class 完整状态 Z=(level, δ, I_γ, σ_p, 短差, 仓位态, H) 分桶（b2 #83：Y 粗投影→Z 细状态）");
         let _ = writeln!(rpt, "μ̂(z,a)=Σactual_pnl/n = 逐信号正条件期望估计（663 判据：>0 即可交易，不需统计显著/不判稀疏硬墙）。");
-        let _ = writeln!(rpt, "bsp_class=u8 位掩码（bit0=buy1,bit1=buy2,bit2=buy3,bit3=sell1,bit4=sell2,bit5=sell3）。");
-        let _ = writeln!(rpt, "| level | δ | bsp_class | n | μ̂=Σactual_pnl/n | Σactual_pnl | ΣAb_rev | Ση(adv) | ΣCe | Σcaptured(adv) | n_act+/n |");
-        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|");
-        for ((lvl, dlt, cls), (n, sab, sin, sout, sce, scap, _ncap, _sact, sactpnl, nact)) in &buckets {
+        let _ = writeln!(rpt, "I_γ=u8 位掩码（bit0=buy1,bit1=buy2,bit2=buy3,bit3=sell1,bit4=sell2,bit5=sell3，未压缩 6-bit=z.i_class）。");
+        let _ = writeln!(rpt, "role=σ_p|短差(sw/tr)|仓位态(R/C)|H(F/SF/SR)——R(g)=(H,V,δ) 完整角色（codex #81 H 进 canonical Z）。");
+        let _ = writeln!(rpt, "| level | δ | I_γ | role(σ_p\\|sw\\|pos\\|H) | n | μ̂=Σactual_pnl/n | Σactual_pnl | ΣAb_rev | Ση(adv) | ΣCe | Σcaptured(adv) | n_act+/n |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|---|---|---|---|---|---|---|");
+        for (z, (n, sab, sin, sout, sce, scap, _ncap, _sact, sactpnl, nact)) in &buckets {
             let mu_hat = if *n > 0 { sactpnl / *n as f64 } else { 0.0 };
-            let _ = writeln!(rpt, "| {} | {:+} | 0x{:02x} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.0}%) |",
-                lvl, dlt, cls, n, mu_hat, sactpnl, sab, sin + sout, sce, scap,
+            let _ = writeln!(rpt, "| {} | {:+} | 0x{:02x} | {} | {} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {:.4e} | {}/{} ({:.0}%) |",
+                z.level, z.delta, z.i_class, z_role_str(z), n, mu_hat, sactpnl, sab, sin + sout, sce, scap,
                 nact, n, if *n > 0 { 100.0 * *nact as f64 / *n as f64 } else { 0.0 });
         }
         let _ = writeln!(rpt);
         // ── 663 判据：全级别×方向×类型 μ̂>0 分类（正条件期望，出现就做不统计显著）。 ──
         let _ = writeln!(rpt, "## 663 判据：全级别×方向×类型 μ̂(z,a)>0（正条件期望，出现就做不统计显著）");
-        let max_level = buckets.keys().map(|(l, _, _)| *l).max().unwrap_or(0);
+        let max_level = buckets.keys().map(|z| z.level).max().unwrap_or(0);
         let _ = writeln!(rpt, "涌现最高级别 L={max_level}（全级别 0..{max_level} 均列；稀疏高级别照报不判硬墙，663）。");
         let _ = writeln!(rpt, "**有效域**：本窗 bars={n_bars}（{window_start}→{window_end}）。663 要求全历史长窗——");
         let _ = writeln!(rpt, "若 bars<461万，高级别 L3+ 仍稀疏（n=个位数），累积净值是**本窗**结论非全历史（ECON_L2_MAX_BARS=5000000 跑全量，~6-7min）。");
-        let _ = writeln!(rpt, "μ̂>0 类 = 该 (level,δ,bsp_class) 逐信号正条件期望——出现即做累积正期望（非 p<0.05 统计显著）：");
+        let _ = writeln!(rpt, "μ̂>0 类 = 该完整状态 z 逐信号正条件期望——出现即做累积正期望（非 p<0.05 统计显著）：");
         let mut n_pos_class = 0usize;
         let mut n_total_class = 0usize;
-        for ((lvl, dlt, cls), (n, _, _, _, _, _, _, _, sactpnl, nact)) in &buckets {
+        for (z, (n, _, _, _, _, _, _, _, sactpnl, nact)) in &buckets {
             n_total_class += 1;
             let mu_hat = if *n > 0 { sactpnl / *n as f64 } else { 0.0 };
             let mark = if mu_hat > 0.0 { n_pos_class += 1; "✓μ̂>0" } else { "✗μ̂≤0" };
-            let _ = writeln!(rpt, "- (level={lvl}, δ={dlt:+}, cls=0x{cls:02x}) {mark}: μ̂={mu_hat:.4e}, Σ={sactpnl:.4e}, n_act+/n={nact}/{n}");
+            let _ = writeln!(rpt, "- (level={}, δ={:+}, I_γ=0x{:02x}, role={}) {mark}: μ̂={mu_hat:.4e}, Σ={sactpnl:.4e}, n_act+/n={nact}/{n}",
+                z.level, z.delta, z.i_class, z_role_str(z));
         }
         let _ = writeln!(rpt, "**{n_pos_class}/{n_total_class} 类 μ̂>0**（663 判据：正期望类可交易，不因稀疏判 inconclusive）。");
         let _ = writeln!(rpt);
@@ -2801,37 +2873,47 @@ mod tests {
         (le_zero as f64 + 1.0) / (b_iters as f64 + 1.0)
     }
 
-    /// P4 类型分桶键 L1 自检：同 (level,δ) 不同 bsp_class 必须分到不同桶（W4 codex 判决）。
+    /// b2 完整状态 Z 分桶键 L1 自检（task #83，升级自 W4 bsp_class 三键版）：
+    /// 桶键 = 完整 [`MuClass`] z（含 I_γ + σ_p/role），同 (level,δ) 按 I_γ **和** σ_p 均细分。
     ///
-    /// 三个合成信号：(0,+1,buy1=0x01), (0,+1,buy2=0x02), (0,+1,buy1=0x01)。
-    /// 预期：桶键 (0,+1,0x01) n=2，桶键 (0,+1,0x02) n=1（混合池已消除）。
+    /// 五个合成信号：buy1×2 + buy2×1（同 σ_p=0 Root）验 I_γ 细分；再 buy1×2 中一条改 σ_p=+1 Child
+    /// 验 σ_p 细分（b2 相对旧 Y=(level,δ,bsp_class) 的新增维——同 (0,+1,buy1) 按 σ_p 再分两桶）。
     #[test]
-    fn bucket_key_includes_bsp_class_l1() {
+    fn bucket_key_is_full_z_l1() {
         use std::collections::BTreeMap;
 
-        let mk = |bsp_class: u8, actual_pnl: f64| SignalDecomp {
+        // z 由 (level,δ,bsp_class,parent_dir,position) 构（合成路径 horizontal=None，同一路径恒定不改分桶）。
+        let mk = |bsp_class: u8, parent_dir: i8, position: PositionState, actual_pnl: f64| SignalDecomp {
             entry_bar: 0, exit_bar: 1, level: 0, delta: 1, a_b: 0.0, x_in: 0.0, y_out: 0.0,
             eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0,
-            actual_pnl, sigma_higher: 0, bsp_class, exit_decision: ExitDecision::Hold,
+            actual_pnl, sigma_higher: 0, bsp_class,
+            z: MuClass::from_certificate(0, 1, BspBits::from_class_index(bsp_class), parent_dir, position),
+            exit_decision: ExitDecision::Hold,
         };
-        // buy1 × 2, buy2 × 1：全部 (level=0, δ=+1)，仅 bsp_class 不同。
-        let decomps = vec![mk(0x01, 1.0), mk(0x02, 2.0), mk(0x01, 3.0)];
+        // buy1 Root ×2, buy2 Root ×1, buy1 Child(σ_p=+1) ×1：同 (level=0,δ=+1)，按 I_γ+σ_p 应分 3 桶。
+        let decomps = vec![
+            mk(0x01, 0, PositionState::Root, 1.0),
+            mk(0x02, 0, PositionState::Root, 2.0),
+            mk(0x01, 0, PositionState::Root, 3.0),
+            mk(0x01, 1, PositionState::Child, 5.0), // σ_p=+1：与 buy1 Root 同 Y 桶、异 Z 桶（b2 细分）
+        ];
 
-        type Bucket = (usize, f64, f64, f64, f64, f64, usize, f64, f64, usize);
-        let mut buckets: BTreeMap<(u32, i8, u8), Bucket> = BTreeMap::new();
+        type Bucket = (usize, f64);
+        let mut buckets: BTreeMap<MuClass, Bucket> = BTreeMap::new();
         for d in &decomps {
-            let e = buckets.entry((d.level, d.delta, d.bsp_class)).or_default();
+            let e = buckets.entry(d.z).or_insert((0, 0.0));
             e.0 += 1;
-            e.8 += d.actual_pnl;
+            e.1 += d.actual_pnl;
         }
 
-        assert_eq!(buckets.len(), 2, "buy1/buy2 应分为 2 桶（不得混池）");
-        let buy1 = buckets.get(&(0, 1, 0x01)).expect("桶 (0,+1,buy1) 应存在");
-        assert_eq!(buy1.0, 2, "buy1 桶 n=2");
-        assert!((buy1.8 - 4.0).abs() < 1e-9, "buy1 Σactual_pnl=1+3=4");
-        let buy2 = buckets.get(&(0, 1, 0x02)).expect("桶 (0,+1,buy2) 应存在");
-        assert_eq!(buy2.0, 1, "buy2 桶 n=1");
-        assert!((buy2.8 - 2.0).abs() < 1e-9, "buy2 Σactual_pnl=2");
+        assert_eq!(buckets.len(), 3, "buy1-Root / buy2-Root / buy1-Child(σ_p+1) 应分 3 桶（I_γ+σ_p 细分）");
+        let buy1_root = MuClass::from_certificate(0, 1, BspBits::from_class_index(0x01), 0, PositionState::Root);
+        let e = buckets.get(&buy1_root).expect("桶 buy1-Root 应存在");
+        assert_eq!(e.0, 2, "buy1-Root 桶 n=2");
+        assert!((e.1 - 4.0).abs() < 1e-9, "buy1-Root Σactual_pnl=1+3=4");
+        let buy1_child = MuClass::from_certificate(0, 1, BspBits::from_class_index(0x01), 1, PositionState::Child);
+        assert_eq!(buckets.get(&buy1_child).expect("桶 buy1-Child 应存在").0, 1,
+            "buy1-Child(σ_p=+1) 独立成桶——b2 相对旧 Y 桶的新增 σ_p 细分维");
     }
 
     /// neff/LCB/bootstrap helper L1 自检（合成数据，验证算术，零信息增量但保非平凡逻辑不破）。
@@ -2841,7 +2923,9 @@ mod tests {
         let synth = |level: u32, delta: i8, pnl: f64| SignalDecomp {
             entry_bar: 0, exit_bar: 1, level, delta, a_b: 0.0, x_in: 0.0, y_out: 0.0,
             eta_in: 0.0, eta_out: 0.0, actual_spread: 0.0, ce_unit: 0.0, captured: 0.0, actual_pnl: pnl,
-            sigma_higher: 0, bsp_class: 0, exit_decision: ExitDecision::Hold,
+            sigma_higher: 0, bsp_class: 0,
+            z: MuClass::from_certificate(level, delta, BspBits::from_class_index(0), 0, PositionState::Root),
+            exit_decision: ExitDecision::Hold,
         };
         let ds = vec![synth(0, -1, 3.0), synth(0, -1, 2.0), synth(1, 1, -2.0)];
         assert_eq!(train_winner_class(&ds), Some((0, -1, 0)), "train 应选 Σpnl 最大正类 (0,-1,cls=0)");
@@ -3227,7 +3311,7 @@ mod tests {
         let mut classifier_incr = IncrementalClassifier::new(bars, &config);
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
         // C1：dx 手写门循环复用为 collect_signals 的对拍源——门后 push 与生产同序同字段的信号元组。
-        let mut signals_dx: Vec<(usize, VoiceSide, usize, u32, i8, u8)> = Vec::new();
+        let mut signals_dx: Vec<RawSignal> = Vec::new();
         // C2：与生产 collect_signals 同改——Rc::ptr_eq 命中跳级（同 Rc ⟹ 全键已 seen ⟹ 内层
         // bsp_pre/gamma_nonflat/sig_post 等计数均在 seen.insert 成功后，跳过 bit-exact）。
         let mut prev_bsp = Vec::new();
@@ -3334,7 +3418,17 @@ mod tests {
                             continue;
                         }
                         if lvl < LMAX { sig_post[lvl] += 1; }
-                        signals_dx.push((i, c.dir, p.source_index, lvl as u32, sigma_higher, bsp_class)); // C1：与生产 collect_signals 同序同字段
+                        // C1：与生产 collect_signals 同序同字段（含 b2 完整 z——z_of_candidate 同一桥，
+                        // 保证 dx 手写门与生产收集 bit-exact，尾部 signals_dx vs signals_prod 逐条对拍含 z）。
+                        signals_dx.push(RawSignal {
+                            entry_bar: i,
+                            dir: c.dir,
+                            pivot_bar: p.source_index,
+                            level: lvl as u32,
+                            sigma_higher,
+                            bsp_class,
+                            z: z_of_candidate(c),
+                        });
                         match nest_depth {
                             Some(d) => {
                                 // 区间套通过 ⟹ 所有 rung cand=true ⟹ depth=rungs.len()。

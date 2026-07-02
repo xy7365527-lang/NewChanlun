@@ -37,13 +37,14 @@
 use std::collections::HashMap;
 
 use super::metrics::trade_abs_pnl;
+use crate::theta_v0::strategy::coverage::Horizontal;
 use crate::theta_v0::types::BspBits;
 
 /// 仓位态（z 的分量，§16 line 3262「仓位态」）。
 ///
 /// 区分声部在持仓树中的角色：根声部（无父，主趋势腿）vs 子声部（有父，对冲/短差腿）。
 /// 这是 z 全互斥分类的一维——不同仓位态不混（alpha2 §18「多空双开状态不会混在一起」）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PositionState {
     /// 根声部（§3 ⊥，host 父容器=边界胚元 ∂，无父声部）。主趋势持仓腿。
     Root,
@@ -62,10 +63,19 @@ pub enum PositionState {
 /// - `short_swing` 短差/顺势：子声部 σ_u=−σ_p ⟹ 短差（true）；同向 ⟹ 顺势（false）。
 ///   `Voice::child_dir(parent_dir) = −parent_dir`（pi_bsp_timing.rs:122 §6/§16）。
 /// - `position` 仓位态：[`PositionState`]。
+/// - `horizontal` H(g) 水平关系（同父前兄弟顺/反/无，[`Horizontal`]）：R(g)=(H,V,δ) 的 H 轴
+///   （codex #81 裁定 `h_axis_in_canonical_z: accept`——补入 canonical Z 保 R(g)18 类忠实）。
+///   `Some(h)` 由 [`super::selector::z_of_candidate`] 从 `Candidate.role.h` 填（真候选路径）；
+///   `None` = 本构造口径未定 H（[`MuClass::from_certificate`] 的裸证书分量不含前兄弟关系，
+///   pi_bsp_timing 从 Voice 构 z 无 H 源——**诚实标 None 不伪造 First**，231号/no-claim-inflation）。
+///   `None` 在同一消费路径内恒定 ⟹ 不改分桶（如 perm_test/wverify 按 (ℓ,bsp,δ,σ_p) 4 维分桶不读 H）。
+///   winner selection 不用 H（codex `h_axis_in_default_selection: conditional`）：H 只进 z 报告，
+///   降维 [`UClass::project_to_u`] 默认丢 H（§30 抗 winner's curse）。
 ///
-/// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）。**全互斥**：每个 z 是 {0,1}^6 × 级别 ×
-/// 方向 × 父向 × 短差 × 仓位态 的唯一组合，无重叠（§13 精细分类优势定理的可计算落点）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）；`Ord` ⟹ 可作 BTreeMap key（有序报告）。
+/// **全互斥**：每个 z 是 {0,1}^6 × 级别 × 方向 × 父向 × 短差 × 仓位态 × H 的唯一组合，无重叠
+/// （§13 精细分类优势定理的可计算落点；补 H 后升 R(g)18 类完整表达）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MuClass {
     pub level: u32,
     pub delta: i8,
@@ -73,6 +83,8 @@ pub struct MuClass {
     pub parent_dir: i8,
     pub short_swing: bool,
     pub position: PositionState,
+    /// H(g) 水平关系（`Some`=真候选 z_of_candidate 填；`None`=裸证书口径未定 H，见类型文档）。
+    pub horizontal: Option<Horizontal>,
 }
 
 impl MuClass {
@@ -89,6 +101,10 @@ impl MuClass {
     /// `i_class` 取 [`BspBits::class_index`]——**不压扁** I_γ（2B/3B 重合保留为不同 z）。
     /// `short_swing` 由 `delta` 与 `parent_dir` 关系判定：子声部且 δ=−σ_p ⟹ 短差（§6/§16）；
     /// 根声部（`parent_dir=0`）恒顺势（无父可对冲，short_swing=false）。
+    ///
+    /// `horizontal=None`：裸证书分量（ℓ,δ,I_γ,σ_p,仓位态）不含前兄弟关系 H——H 需 `Candidate.role.h`
+    /// （见 [`super::selector::z_of_candidate`]，真候选路径填 `Some(h)`）。此构造口径（pi_bsp_timing
+    /// 从 Voice 构 z、合成测试）无 H 源，诚实标 `None` 不伪造 `First`（231号/no-claim-inflation）。
     pub fn from_certificate(
         level: u32,
         delta: i8,
@@ -106,6 +122,7 @@ impl MuClass {
             parent_dir,
             short_swing,
             position,
+            horizontal: None,
         }
     }
 }
@@ -158,6 +175,10 @@ impl UClass {
     }
 
     /// 压缩映射 ϕ:Z→U（§30）——把高维 z 折叠到低维 u（确定性，同 z 恒映同 u）。
+    ///
+    /// **H 轴丢弃**（codex #81 `h_axis_in_default_selection: conditional`）：`z.horizontal` 不进 u——
+    /// H(g) 是结构关系非操作极性，selection/降维层折叠掉以抗 winner's curse（§29-30）；H 只在 z
+    /// 层报告保 R(g) 忠实。故本函数不读 `z.horizontal`（多个 H 的 z 映同一 u）。
     pub fn project_to_u(z: &MuClass) -> UClass {
         let role = match (z.position, z.short_swing) {
             (PositionState::Root, _) => VoiceRole::Root,

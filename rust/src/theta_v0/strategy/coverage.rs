@@ -754,7 +754,8 @@ pub enum Dir {
 /// - `First`：prev(g)=∅（无前兄弟——去根化：顶层元素亦是边界胚元 ∂ 容器下的兄弟，`First` 非根特例）。
 /// - `SameFollow`：prev(g)≠∅ ∧ δ_g = σ_{prev(g)}（与前兄弟同向延续）。
 /// - `SameReverse`：prev(g)≠∅ ∧ δ_g = −σ_{prev(g)}（相对前兄弟反向，方向二值下非顺即反）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// Hash/Ord：作为 [`MuClass::horizontal`] 分量进 z（HashMap 桶键 + BTreeMap 有序报告）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Horizontal {
     /// prev(g)=∅（无前兄弟）。
     First,
