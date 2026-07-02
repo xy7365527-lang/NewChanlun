@@ -58,6 +58,7 @@ pub mod decontam;
 pub mod incremental;
 pub mod metrics;
 pub mod mu_estimator;
+pub mod perm_test;
 pub mod pooling_icc;
 pub mod prereg_windows;
 pub mod runner;

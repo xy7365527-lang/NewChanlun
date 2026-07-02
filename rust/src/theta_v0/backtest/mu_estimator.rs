@@ -76,6 +76,14 @@ pub struct MuClass {
 }
 
 impl MuClass {
+    /// prereg §1.1 bsp_class 主类号（1/2/3 取最低；买卖由 delta 编码，1 类=buy1|sell1）。
+    /// 从 i_class 6-bit 掩码恢复（bit0=buy1..bit5=sell3；class_index 可逆）。
+    pub fn bsp_class(&self) -> u8 {
+        let b = self.i_class;
+        if b & 0b001_001 != 0 { 1 } else if b & 0b010_010 != 0 { 2 }
+        else if b & 0b100_100 != 0 { 3 } else { 0 }
+    }
+
     /// 从证书原始分量构造 z（§12 `γ=(c,ℓ,δ,I_γ,t)` + §16 扩展态）。
     ///
     /// `i_class` 取 [`BspBits::class_index`]——**不压扁** I_γ（2B/3B 重合保留为不同 z）。
@@ -237,6 +245,8 @@ impl Welford {
 /// 防高维 z 过拟合估计噪声）。**不做** χ_θ 过滤 / argmax 选择（下游工位）。
 #[derive(Debug, Clone, Default)]
 pub struct MuEstimator {
+    // ponytail: 全量逐笔留存供 perm_test 置换（Welford 聚合量算不出置换）；OOS BTC 数万笔可接受。
+    trades: Vec<(MuClass, f64)>,
     /// z → Welford(n, mean, m2)。样本均值 = mean（[`MuEstimator::mu`]）。
     buckets: HashMap<MuClass, Welford>,
 }
@@ -249,6 +259,19 @@ impl MuEstimator {
     /// 累加一笔观测到对应 z 桶（Welford 在线递推，O(1) 摊销）。
     pub fn observe(&mut self, obs: MuObservation) {
         self.buckets.entry(obs.class).or_default().push(obs.x_gamma);
+        self.trades.push((obs.class, obs.x_gamma));
+    }
+
+    /// 逐笔明细（perm_test 输入，投影为 (ℓ,bsp_class,δ,X_γ)）。
+    pub fn trades(&self) -> &[(MuClass, f64)] {
+        &self.trades
+    }
+
+    /// 变异系数 CV = σ̂/|μ̂|（§3.1 功效门输入）。None ⟹ n<2 或 μ̂=0（判 ¬powered）。
+    pub fn cv(&self, class: &MuClass) -> Option<f64> {
+        let w = self.buckets.get(class)?;
+        let std = w.std_sample()?;
+        if w.mean == 0.0 { None } else { Some(std / w.mean.abs()) }
     }
 
     /// 批量累加（迭代器 fold，等价逐笔 [`MuEstimator::observe`]）。
