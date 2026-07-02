@@ -45,6 +45,8 @@ use super::config::ThetaConfig;
 use super::parser::ParseLayer;
 use super::types::{Center, Direction, MoveKind, Segment};
 use divergence::MacdState;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 pub mod center;
@@ -408,6 +410,18 @@ struct LevelCache {
     cached_second_count: usize,
 }
 
+/// B3 #4 area-memo（07b 残余 O(n²) 根治）：`(start,end)→segment_macd_area` 冻结缓存，跨 bar 持久
+/// （挂 [`TowerCache`]，非 per-level——`hist` 全局单份，键值与 level 无关）。B3 profile 坐实：同一
+/// (start,end) 被 [`sublevel_diverges`] 跨 bar 重复查询（calls=4.19M / distinct=2314 @ 300K，冗余
+/// 99.94%）——07b 门控消除了「confirmed 前缀 parent 每 bar 重扫」，但 frontier parent 每 bar 仍对
+/// 其固定 `prev_seg`（已稳定、远端）重新线性求和一次，O(range) 逐 bar 累积 = 残余 O(n²)。
+///
+/// 值一旦写入永久有效（hist 前缀 append-only 稳定，见 [`TowerCache::macd_hist`]）——**只对
+/// `end < stable_len` 的查询读写缓存**（[`cached_segment_area`]），`stable_len` = 当前 bar 的
+/// `TowerCache::macd_state_len`（`compute_macd_hist_incremental` 每 bar 末元素是 unstable tail，
+/// 下 bar 可能被改写覆盖，见其函数头注释——绝不缓存该越界查询，防污染未来错值）。
+type AreaCache = HashMap<(usize, usize), f64>;
+
 /// 增量塔缓存（跨 bar 跨级复用）：每级 `LevelCache` + L0 段账本快照长度 + MACD 增量状态。
 ///
 /// **使用契约**（bit-exact 充要，违反则增量破裂）：
@@ -460,6 +474,9 @@ pub struct TowerCache {
     /// 非空级，但 `sub_moves: Vec<LeveledMove>` 值拷贝（compose 时 `subs.to_vec()`）⟹ 低级静默变异必经
     /// cascade 重建父级才更新副本（codex Q1 确认无静默路径）。
     generation: u64,
+    /// B3 #4 area-memo：[`AreaCache`]（见其文档）——`sublevel_diverges` 的 `(start,end)→area`
+    /// 冻结缓存，跨 bar 持久。
+    area_cache: AreaCache,
 }
 
 impl TowerCache {
@@ -488,6 +505,7 @@ impl TowerCache {
         self.l0_units_cache.clear();
         self.closes.clear();
         self.close_src.clear();
+        self.area_cache.clear(); // hist 全量重扫 ⟹ 旧 (start,end)→area 键值可能不再对应新 hist。
         // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
         // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
         self.generation += 1;
@@ -1044,6 +1062,13 @@ pub fn classify_with_tower_incremental(
         compute_macd_hist_incremental(&closes, l0.merged_confirmed_len, &config.macd, cache)
     });
     let hist: &[f64] = &cache.macd_hist;
+    // B3 #4 area-memo：`stable_len` = 本 bar hist 的确认边界（[`AreaCache`] 文档）——`area_cache`
+    // 跨 bar 持久（mem::take 出借，用毕放回，同 closes/close_src 模式）。`RefCell` 包裹：
+    // `divergence_of` 闭包接口是 `impl Fn(&RMove) -> bool`（`signal::extract_second_signals`），
+    // `Fn` 只给闭包体 `&self` 访问——捕获的可变缓存须走内部可变性（共享引用 + `borrow_mut`），
+    // 不能捕获 `&mut AreaCache`（Long/Short 两侧各建一个闭包，同一 `&mut` 不能捕获两次）。
+    let stable_len = cache.macd_state_len;
+    let area_cache: RefCell<AreaCache> = RefCell::new(std::mem::take(&mut cache.area_cache));
 
     let mut levels: Vec<LevelState> = Vec::new();
     // ★O(n) 重构：snapshots 存 Rc——L≥1 级 push Rc::clone(&lc.upper_moves)（O(1)）；L0 级 push
@@ -1253,6 +1278,8 @@ pub fn classify_with_tower_incremental(
                     prefix_count,
                     hist,
                     &close_src,
+                    &area_cache,
+                    stable_len,
                 )
             });
             b.extend(second);
@@ -1313,6 +1340,7 @@ pub fn classify_with_tower_incremental(
     // closes/close_src 缓冲放回 cache（mem::take 取出的所有权归还，下 bar 复用，零额外分配）。
     cache.closes = closes;
     cache.close_src = close_src;
+    cache.area_cache = area_cache.into_inner(); // B3 #4 area-memo：缓冲放回，下 bar 复用（同上模式）。
 
     // ★工位 4g：本 bar 若有 cascade 重扫或任一级 extend 非空 tail ⟹ extract_elements 可观察树变更 ⟹
     // +generation（下游 TreeCache 据此 O(1) 跳过 TreeKey::of）。无变化 bar（~99.8%）generation 不变 ⟹
@@ -1358,8 +1386,12 @@ fn extract_second_for_level(
     close_src: &[usize],
 ) -> Vec<BspPoint> {
     let mut points = Vec::new();
+    // 单次全量调用：无跨 bar 复用需求，本地缓存仅消同一调用内的重复 (start,end)（若有），
+    // `stable_len=hist.len()` 视全 hist 为稳定（一次性快照，调用期间不会被改写）。
+    let area_cache = RefCell::new(AreaCache::new());
+    let stable_len = hist.len();
     for parent in upper_moves {
-        second_for_parent(parent, hist, close_src, &mut points);
+        second_for_parent(parent, hist, close_src, &area_cache, stable_len, &mut points);
     }
     points
 }
@@ -1373,6 +1405,8 @@ fn second_for_parent(
     parent: &LeveledMove,
     hist: &[f64],
     close_src: &[usize],
+    area_cache: &RefCell<AreaCache>,
+    stable_len: usize,
     out: &mut Vec<BspPoint>,
 ) {
     // 次级别中枢（RMove::Compose.centers 首个，窗口真派生 B 口径核心区间）。
@@ -1393,7 +1427,7 @@ fn second_for_parent(
             side,
             &c1,
             // 背驰：次级别走势 source_index 区间 → hist 面积，相对前一同向次级别走势严格变小。
-            |m| sublevel_diverges(m, &subs[..], hist, close_src),
+            |m| sublevel_diverges(m, &subs[..], hist, close_src, area_cache, stable_len),
             // 坐标：从侧车按结构身份查回次级别走势的原始 K 序（end_index）。
             |m| index_of_in(&subs[..], m),
         );
@@ -1427,6 +1461,8 @@ fn extract_second_resume(
     prefix_count: usize,
     hist: &[f64],
     close_src: &[usize],
+    area_cache: &RefCell<AreaCache>,
+    stable_len: usize,
 ) -> Vec<BspPoint> {
     // 单调性守卫（§16：confirmed 前缀单调非降 ⟹ 正常永不触发；cascade 已在别处 clear 缓存）。若违反
     // ⟹ 缓存越过 confirmed 边界（曾判 confirmed 的 parent 又变 frontier 可变）⟹ 保守全量重算重置缓存。
@@ -1436,13 +1472,13 @@ fn extract_second_resume(
     }
     // 推进：新晋 confirmed 的 parent [cached_count..prefix_count] 的 B2 一次性算入缓存（一生一算）。
     for parent in &upper_moves[*cached_count..prefix_count] {
-        second_for_parent(parent, hist, close_src, cached);
+        second_for_parent(parent, hist, close_src, area_cache, stable_len, cached);
     }
     *cached_count = prefix_count;
     // 结果 = confirmed 前缀 B2（缓存 clone）+ frontier tail B2（每 bar 重算，tail 小）。
     let mut out = cached.clone();
     for parent in &upper_moves[prefix_count..] {
-        second_for_parent(parent, hist, close_src, &mut out);
+        second_for_parent(parent, hist, close_src, area_cache, stable_len, &mut out);
     }
     debug_assert!(
         out == extract_second_for_level(upper_moves, hist, close_src),
@@ -1465,6 +1501,8 @@ fn sublevel_diverges(
     subs: &[LeveledMove],
     hist: &[f64],
     close_src: &[usize],
+    area_cache: &RefCell<AreaCache>,
+    stable_len: usize,
 ) -> bool {
     // 定位 m 在 subs 中的位置（结构身份匹配）。
     let Some(idx) = subs.iter().position(|x| &x.rmove == m) else {
@@ -1483,7 +1521,38 @@ fn sublevel_diverges(
     ) else {
         return false; // 区间越界/空 ⟹ 无面积 ⟹ 不冒充背驰。
     };
-    divergence::segments_diverge(hist, prev_seg, curr_seg)
+    // B3 #4 area-memo：面积经 (start,end)→f64 冻结缓存（[`cached_segment_area`]），逐字段
+    // == `divergence::segments_diverge`（同一 `segment_macd_area` 结果，仅省重复求和）。
+    let prev_area = cached_segment_area(area_cache, hist, stable_len, prev_seg.0, prev_seg.1);
+    let curr_area = cached_segment_area(area_cache, hist, stable_len, curr_seg.0, curr_seg.1);
+    divergence::is_divergence(prev_area, curr_area)
+}
+
+/// B3 #4 area-memo：`(start,end)`→`segment_macd_area` 冻结缓存查询/写入（[`AreaCache`] 文档）。
+///
+/// 只有 `end < stable_len`（区间落在本 bar 已确认的 hist 前缀内）才读写缓存——`end >= stable_len`
+/// 触及仍可能被下一 bar 改写的 unstable tail（`compute_macd_hist_incremental` 每 bar 末元素语义），
+/// 缓存这类值会在下 bar 值变化后返回过期错值，故每次现算、绝不写入缓存（bit-exact 铁律）。
+///
+/// bit-exact：返回值逐位 == `divergence::segment_macd_area(hist, start, end)`——本函数只做**结果**
+/// 记忆化（首次算出后原样存取），不做前缀和差分（B3 报告明确禁止：浮点求和顺序改变可能破 bit-exact）。
+fn cached_segment_area(
+    cache: &RefCell<AreaCache>,
+    hist: &[f64],
+    stable_len: usize,
+    start: usize,
+    end: usize,
+) -> f64 {
+    if end < stable_len {
+        if let Some(&area) = cache.borrow().get(&(start, end)) {
+            return area;
+        }
+        let area = divergence::segment_macd_area(hist, start, end);
+        cache.borrow_mut().insert((start, end), area);
+        area
+    } else {
+        divergence::segment_macd_area(hist, start, end)
+    }
 }
 
 /// 走势方向（`RMove::Segment` 直接取 direction；`Compose` 取外缘趋势方向占位——首子升=Up）。
