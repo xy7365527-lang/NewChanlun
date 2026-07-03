@@ -1915,7 +1915,8 @@ fn feasible_net_cap(risk: &RiskConfig) -> f64 {
 /// ## 认识论 L0（formalization-validity-domain 231号）
 /// 给定风控读出后，约束门是 𝒦_Θ 区间收窄的布尔代数（确定）。风控读出本身（`stop_hit`/
 /// `global_risk_close`）由 runner discharge（账户层运行时输入 E_t/价格触及，**非缠论可导**）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+// no_increase_cap: Option<f64> ⟹ 不能 derive Eq（f64 非 Eq）；PartialEq 足够（无 HashSet/Ord 用途）。
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct KThetaRiskGate {
     /// GlobalRiskClose（Insolvent/Liquidation，P1 最高优先级）⟹ 𝒦_Θ={0}（强制全平）。
     pub force_flat: bool,
@@ -1923,12 +1924,15 @@ pub struct KThetaRiskGate {
     pub stop_long: bool,
     /// 空头风控触发（结构止损触及，`close_pred(stop_short)`）⟹ 𝒦_Θ 禁净空仓（lo_cap=0）。
     pub stop_short: bool,
+    /// M2/M3（Deleverage/CloseOnly）净幅上限=当前 |net|（margin-design §2.8；单位同 `cap`，lot 幅度）。
+    /// `None`=不约束（M0/M1/M4 或未接保证金）；`Some(c)`=净持仓幅度不得超 c（禁增仓，真改订单流）。
+    pub no_increase_cap: Option<f64>,
 }
 
 impl KThetaRiskGate {
     /// 无约束门（𝒦_Θ=[−cap,+cap] 全开，风控未触发）——执行层默认 + 既有 π_Θ 测试用。
     pub fn open() -> Self {
-        KThetaRiskGate { force_flat: false, stop_long: false, stop_short: false }
+        KThetaRiskGate { force_flat: false, stop_long: false, stop_short: false, no_increase_cap: None }
     }
 
     /// 应用约束门到对称 cap，产 `(lo_cap, hi_cap)` 幅度（`force_flat` 优先收到 {0}）。
@@ -1936,6 +1940,11 @@ impl KThetaRiskGate {
         if self.force_flat {
             return (0.0, 0.0); // GlobalRiskClose ⟹ 𝒦_Θ={0}（净持仓只能 0）
         }
+        // M2/M3：净幅上限压到当前 |net|（margin-design §2.8，禁开新增仓；stop 仍各自禁一侧）。
+        let cap = match self.no_increase_cap {
+            Some(c) => cap.min(c.max(0.0)),
+            None => cap,
+        };
         let hi = if self.stop_long { 0.0 } else { cap }; // 禁净多 ⟹ 上限 0
         let lo = if self.stop_short { 0.0 } else { cap }; // 禁净空 ⟹ 下限 0
         (lo, hi)
@@ -3583,9 +3592,25 @@ mod tests {
         // 无门：p̃=600 cap 内 ⟹ p*=600。force_flat 门：𝒦_Θ={0} ⟹ p*=0（不论 p̃）。
         let open = pi_theta_position(600.0, 600.0, 1000.0, &r, w, KThetaRiskGate::open());
         assert!((open - 600.0).abs() < 1e-9, "全开门 ⟹ p*=600");
-        let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false };
+        let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
         let p_star = pi_theta_position(600.0, 600.0, 1000.0, &r, w, flat);
         assert_eq!(p_star, 0.0, "force_flat ⟹ 𝒦_Θ={{0}} ⟹ p*=0（持仓 600 → Close）");
+    }
+
+    /// ★M2/M3 no_increase_cap（margin-design §2.8 真改订单流）：持仓 300 + 信号要 800，但净幅上限
+    /// 压到当前 |net|=300 ⟹ p*≤300（禁增仓）；无 cap 时 p*=800（对照）。
+    #[test]
+    fn pi_theta_position_no_increase_cap_forbids_growth() {
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        // 无 cap：p̃=800 cap=1000 内 ⟹ p*=800。
+        let grow = pi_theta_position(800.0, 300.0, 1000.0, &r, w, KThetaRiskGate::open());
+        assert!((grow - 800.0).abs() < 1e-9, "无 cap ⟹ p*=800");
+        // no_increase_cap=300（当前 |net|）：净幅不得超 300 ⟹ p*≤300（禁增仓，M2/M3 真改订单流）。
+        let gate = KThetaRiskGate { force_flat: false, stop_long: false, stop_short: false, no_increase_cap: Some(300.0) };
+        let capped = pi_theta_position(800.0, 300.0, 1000.0, &r, w, gate);
+        assert!(capped <= 300.0 + 1e-9, "no_increase_cap=300 ⟹ p*≤300（禁增仓），实得 {capped}");
+        assert!(capped < grow, "接 no_increase_cap 后订单流确改变（{capped} < {grow}）");
     }
 
     /// ★Q2 stop_long 门：禁净多 ⟹ 持多 p_t=600 + p̃=600（信号仍要多）⟹ p*=0（止损经 𝒦_Θ 平多，
@@ -3594,7 +3619,7 @@ mod tests {
     fn pi_theta_position_stop_long_gate_forbids_net_long() {
         let r = rcfg();
         let w = PiThetaWeights::from_risk(&r);
-        let gate = KThetaRiskGate { force_flat: false, stop_long: true, stop_short: false };
+        let gate = KThetaRiskGate { force_flat: false, stop_long: true, stop_short: false, no_increase_cap: None };
         // 持多 600 + 信号要多 600，但 stop_long 禁净多 ⟹ 𝒦_Θ⊆[−cap,0] ⟹ p*=0（平多，单出口）。
         let p_star = pi_theta_position(600.0, 600.0, 1000.0, &r, w, gate);
         assert!(p_star <= 1e-9, "stop_long ⟹ 禁净多 ⟹ p*≤0（止损平多走 𝒦_Θ，非第二出口），实得 {p_star}");

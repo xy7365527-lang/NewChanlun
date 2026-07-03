@@ -254,6 +254,9 @@ pub struct ThetaConfig {
     pub exec: ExecConfig,
     /// ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r}/GapBuffer 状态函数 override（PDF §3）。空 ⟹ 全用 `risk` 标量。
     pub sizing_profile: SizingProfile,
+    /// 真保证金模型（D2 task #113，margin-model-design v2）。`None` ⟹ MM=0 退化口径（bit-exact 现状，
+    /// M1/M2/M3 不可达）；`Some` ⟹ 真实分级 MM/liq_flag/M2-M3 接线（改订单流 ⟹ MM=0 口径 alpha 冻结失效）。
+    pub margin: Option<super::strategy::risk::MarginModel>,
 }
 
 #[cfg(test)]

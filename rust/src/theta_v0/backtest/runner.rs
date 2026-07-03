@@ -477,24 +477,41 @@ fn k_theta_risk_gate(
     classification: &classifier::Classification,
     bar: &Bar,
     equity: f64,
+    p_t: f64,
+    px: f64,
+    margin: Option<&super::super::strategy::risk::MarginModel>,
 ) -> super::super::strategy::coverage::KThetaRiskGate {
     use super::super::strategy::coverage::KThetaRiskGate;
     use super::super::strategy::exec::{close_pred, stop_hit, CloseTriggers, FillSide};
     use super::super::strategy::risk::{
-        global_risk_close, risk_mode, structural_stop, RiskModeInput, StopInput, StopSide,
+        global_risk_close, margin_inputs, risk_mode, structural_stop, RiskMode, RiskModeInput,
+        StopInput, StopSide,
     };
     use super::super::strategy::voice::VoiceSide;
     use super::super::types::Center;
 
-    // risk：GlobalRiskClose（v0 退化为 Insolvent E_t≤0；账户层输入未建模，置 0/false 占位）。
-    let mode = risk_mode(&RiskModeInput {
-        equity,
-        maint_margin: 0.0,
-        buffer1: 0.0,
-        buffer2: 0.0,
-        liq_flag: false,
-    });
+    // risk mode：有 margin 注入且 bar 时间落某快照段 ⟹ 真实 MM/liq/buffer（as_of 零前视，
+    // margin-design §2.7）；否则退化 MM=0（bit-exact 现状，M1/M2/M3 不可达）。
+    let mode = match margin.and_then(|m| m.book.as_of(bar.timestamp).map(|s| (m, s))) {
+        Some((m, sched)) => {
+            // p_t 净 lot × mark = 净名义（美元，margin-design §2.2：net_notional 已折算勿再乘价）。
+            let net_notional_usd = p_t.abs() * px;
+            risk_mode(&margin_inputs(net_notional_usd, equity, sched, &m.cushions))
+        }
+        None => risk_mode(&RiskModeInput {
+            equity,
+            maint_margin: 0.0,
+            buffer1: 0.0,
+            buffer2: 0.0,
+            liq_flag: false,
+        }),
+    };
     let risk_close = global_risk_close(mode);
+    // M2/M3（Deleverage/CloseOnly）：净幅上限=当前 |p_t|（margin-design §2.8，禁增仓 → 真改订单流）。
+    let no_increase_cap = match mode {
+        RiskMode::Deleverage | RiskMode::CloseOnly => Some(p_t.abs()),
+        _ => None,
+    };
 
     // stop：per 活动腿结构止损触及（从全窗 classification 查 BspPoint，与 v1 同一 structural_stop）。
     // ponytail: 循环前预建 HashMap<(level,source_index),&BspPoint>，bsp.iter().find O(n) → map.get O(1)
@@ -549,6 +566,7 @@ fn k_theta_risk_gate(
             stop: short_stop,
             risk_close,
         }),
+        no_increase_cap, // M2/M3 净幅上限（margin-design §2.8）
     }
 }
 
@@ -672,7 +690,7 @@ where
             let classification_step = newly_confirmed_step(&classification_i, &mut seen_bsps);
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
-            let gate = k_theta_risk_gate(&prev_active, &classification_i, bar, equity_nav);
+            let gate = k_theta_risk_gate(&prev_active, &classification_i, bar, equity_nav, p_t, px, config.margin.as_ref());
             // exec_index：延迟成交 bar（spec:50；尾部无可成交 bar ⟹ 不挂单）。
             let exec_index = fill_bar_index(i, bars, &config.exec);
             // 环5+6+7：pi_theta_step（父容器 σ_p=attach_bsp_to_tree(因果塔) + 风控门）→ (A_{t+1}, p*, O)。
@@ -1794,10 +1812,10 @@ mod tests {
         let classification = Classification { levels: vec![LevelState::default()] };
         let bar = px100_bar(0);
         // equity≤0 ⟹ Insolvent ⟹ GlobalRiskClose ⟹ force_flat（𝒦_Θ={0}）。
-        let gate_insolvent = k_theta_risk_gate(&[], &classification, &bar, -1.0);
+        let gate_insolvent = k_theta_risk_gate(&[], &classification, &bar, -1.0, 0.0, 100.0, None);
         assert!(gate_insolvent.force_flat, "equity≤0 ⟹ Insolvent ⟹ force_flat（𝒦_Θ={{0}}）");
         // equity>0 + 无活动腿 ⟹ 门全开（无风控触发）。
-        let gate_open = k_theta_risk_gate(&[], &classification, &bar, 1.0e6);
+        let gate_open = k_theta_risk_gate(&[], &classification, &bar, 1.0e6, 0.0, 100.0, None);
         assert!(!gate_open.force_flat && !gate_open.stop_long && !gate_open.stop_short, "正常态 ⟹ 门全开");
     }
 
