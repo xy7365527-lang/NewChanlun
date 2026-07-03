@@ -23,6 +23,7 @@
 //! 这些是 Θ-参数化运行输入（reference-theta-v0.md:34-37），不由缠论结构无参数导出。
 
 use super::super::types::{BspBits, Center, Side, Tick};
+use super::divergence::ForceProxies;
 
 /// 端点语义状态（契约锚 `Origin.BspClassification.BspEndpoint`）。
 ///
@@ -97,7 +98,18 @@ pub fn endpoint_to_bsp(e: &EndpointSituation) -> BspBits {
 /// 结构止损规则（reference:46，由 Θ_risk 选取，strategy 消费）：
 /// - 1/2 买止损 = `pivot_low`；3 买止损 = `center.zg`（ZG）。
 /// - 1/2 卖止损 = `pivot_high`；3 卖止损 = `center.zd`（ZD）。镜像。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// ## `PartialEq`/`Eq` 手写排除 `force`（β^div 力度铁律，beta-route Task #115）
+///
+/// `force` 含 `f64`（`ForceProxies` 无 `Eq`）⟹ 不能进 `derive(Eq)`。更本质地：`force` **绝不参与
+/// BspPoint 的相等/去重/分桶**——它是旁挂的力度 proxy（供 selector `z_of_candidate_with_force` 读，
+/// A4 支配序进 `MuClass.force_state` 第 8 维），**不进** `class_index`/`BspBits`/结构相等。故手写
+/// `PartialEq` 逐字段比较**除 force 外全部**（同 `struct_break_dir` 精神但更强：force 连相等都不参与），
+/// `Eq` 为标记 impl（其余字段 usize/BspBits/Tick/Option<Center>/Option<Side> 均 Eq，比较自反）。
+/// 后果：force 仅 Some↔None 之差的两点相等（去重/bit-exact assert_eq 忽略 force）；但 `Debug` 含 force
+/// （derive）⟹ `bit_exact_battery_digest` GOLDEN 因新字段翻转（诚实重算，同 struct_break_dir 先例——
+/// 不自定义 Debug 隐藏 force 假装未变）。
+#[derive(Debug, Clone, Copy)]
 pub struct BspPoint {
     /// 候选点在 L0 原始 K 序的位置（平局裁决 + 回溯定位，reference:16）。
     pub source_index: usize,
@@ -134,7 +146,32 @@ pub struct BspPoint {
     /// （因 FNV 对 `{pts:?}` 计算）——这是**诚实的**受控代价（GOLDEN 已重算 + 逐 case 证六 bit
     /// 逐字段不变，signal.rs digest guard），不通过隐藏字段假装未变（禁止声明膨胀）。
     pub struct_break_dir: Option<Side>,
+    /// ★β^div 力度支配态 proxy（beta-route Task #115，force_state 生产热路由）。
+    ///
+    /// `Some` = 一类趋势背驰候选（A/C 段可配对）的 A/C 段 [`ForceProxies`]（4 proxy：MACD 面积/DIF
+    /// 峰/振幅/速度），由 `signal::judge_first_cached` 在有 dif/closes_tick 输入时算得；`None` = 二/
+    /// 三类（无 A/C 对）或未接线路径。selector `z_of_candidate_with_force` 读它，调 `ForceProxies::
+    /// force_state()`（唯一支配序原语）填 `MuClass.force_state` 第 8 维。
+    ///
+    /// ★铁律：**不进** `PartialEq`/`Eq`/`class_index`/`BspBits`/分桶 key（见结构头 `PartialEq` 手写
+    /// 说明）——纯旁挂力度量，不改任何结构相等/去重/分桶语义。
+    pub force: Option<ForceProxies>,
 }
+
+/// 手写 `PartialEq`（排除 `force`，见 [`BspPoint`] 头 β^div 力度铁律说明）。
+impl PartialEq for BspPoint {
+    fn eq(&self, other: &Self) -> bool {
+        self.source_index == other.source_index
+            && self.bits == other.bits
+            && self.pivot_low == other.pivot_low
+            && self.pivot_high == other.pivot_high
+            && self.center == other.center
+            && self.struct_break_dir == other.struct_break_dir
+        // force 不参与——旁挂力度 proxy 不改结构相等（去重/bit-exact assert_eq 忽略之）。
+    }
+}
+/// 标记 `Eq`：除 force 外全字段均 `Eq`，手写 `eq` 自反/对称/传递（force 恒不参与 ⟹ 关系合法）。
+impl Eq for BspPoint {}
 
 #[cfg(test)]
 mod tests {
@@ -281,6 +318,7 @@ mod tests {
             pivot_high: 0,
             center: None,
             struct_break_dir: None,
+            force: None,
         };
         // strategy 1 买止损 = pivot_low（reference:46）——直接读，不从 bars 重算。
         assert_eq!(p.pivot_low, 1000);
@@ -299,6 +337,7 @@ mod tests {
             pivot_high: 0,
             center: Some(c),
             struct_break_dir: None,
+            force: None,
         };
         // strategy 3 买止损 = center.zg（ZG，reference:46）——条目直接关联中枢，无需 strategy 猜。
         assert_eq!(p.center.map(|c| c.zg), Some(1200));
@@ -315,7 +354,7 @@ mod tests {
         // classifier 顶层为含 3 类 bit 的端点填 center=Some（离开的那个中枢）——契约见 mod.rs。
         // 本测试锁定语义：strategy 读 3 类止损时 center 必可用。
         let c = center(800, 1200);
-        let p = BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(c), struct_break_dir: None };
+        let p = BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(c), struct_break_dir: None, force: None };
         assert!(p.bits.buy3 && p.center.is_some());
     }
 
@@ -331,6 +370,7 @@ mod tests {
             pivot_high: 1500,
             center: Some(c),
             struct_break_dir: None,
+            force: None,
         };
         assert_eq!(p.pivot_high, 1500); // 1/2 卖止损源
         assert_eq!(p.center.map(|c| c.zd), Some(800)); // 3 卖止损源

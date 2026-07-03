@@ -268,7 +268,7 @@ fn judge_first_cached(
     closes_tick: &[Tick],
     src_to_idx: &[usize],
     a_seg: Option<(usize, usize)>,
-) -> Option<(BspPoint, Option<ForceProxies>)> {
+) -> Option<BspPoint> {
     let end = seg_end(seg);
     // C 段破最后中枢几何（L0）+ 方向必须 = 趋势方向（下跌趋势=向下破=底背驰；上涨=向上破=顶背驰）。
     let (broke, is_sell) = match (end.dir, trend_dir) {
@@ -320,14 +320,11 @@ fn judge_first_cached(
     // buy1/sell1 仍严格按 macd_c_lt_a（上方 situ.below_last_center）——class_index 语义冻结。
     // 零 bit（C≥A）候选靠 struct_break_dir 在 candidate_dir 恢复方向进样本（消选择偏差）。
     let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
-    // 结构候选端点：背驰确认 ⟹ buy1/sell1 止损源 pivot（破中枢段端点极值）；未背驰 ⟹ 零 bit，
-    // pivot 仍按 bit 方向填（零 bit ⟹ 两侧 0，与 make_first_point 一致）。
-    let point = make_first_point(end.source_index, bits, end.price, struct_break_dir);
-    // ★力度多 proxy 并置（Step1/2，force-proxy-survey-20260702.md）：A/C 段 close 下标区间已算出
+    // ★力度多 proxy（beta-route #115，force-proxy-survey-20260702.md）：A/C 段 close 下标区间已算出
     // （a_idx/c_idx），复用 force_features 算 4 proxy（MACD 面积/DIF 峰/振幅/速度）。**不进 buy1 判据**
-    // （class_index 冻结，671 力度=feature 非 veto）——纯 feature 并置，供离线 W-VERIFY(#13) 交叉验证。
-    // 生产热路径传空 dif/closes_tick（force=None，不算无消费者的死计算）；离线 `extract_signals_force`
-    // 传真序列填 Some。A/C 同趋势方向（A=前趋势离开、C=破最后中枢，同向）。
+    // （class_index 冻结，671 力度=feature 非 veto）——纯 feature，收进 BspPoint.force 单一来源，供
+    // selector z_of_candidate_with_force 读进 force_state 第 8 维。有 dif/closes_tick 输入时 Some
+    // （生产热路径已接线，Batch 2）；空输入（旧测试/合成入口）⟹ None（诚实不造死字段）。A/C 同趋势方向。
     let force = if dif.is_empty() || closes_tick.is_empty() {
         None
     } else {
@@ -336,7 +333,9 @@ fn judge_first_cached(
             seg_c: force_features(hist, dif, closes_tick, c_idx.0, c_idx.1, trend_dir),
         })
     };
-    Some((point, force))
+    // 结构候选端点：背驰确认 ⟹ buy1/sell1 止损源 pivot（破中枢段端点极值）；未背驰 ⟹ 零 bit，
+    // pivot 仍按 bit 方向填（零 bit ⟹ 两侧 0）。force 旁挂进点（单一来源，不进任何 bit 判据）。
+    Some(make_first_point(end.source_index, bits, end.price, struct_break_dir, force))
 }
 
 /// 第三类买卖点判定（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。
@@ -404,6 +403,7 @@ fn make_first_point(
     bits: BspBits,
     pivot_price: Tick,
     struct_break_dir: Option<Side>,
+    force: Option<ForceProxies>,
 ) -> BspPoint {
     BspPoint {
         source_index,
@@ -413,6 +413,9 @@ fn make_first_point(
         pivot_high: if bits.sell1 { pivot_price } else { 0 },
         center: None,
         struct_break_dir,
+        // ★β^div 力度（beta-route #115）：一类趋势背驰候选的 A/C 段 4 proxy（有 dif/closes_tick 输入时
+        // Some，否则 None）——单一来源就在此字段，selector z_of_candidate_with_force 读它进 force_state。
+        force,
     }
 }
 
@@ -429,6 +432,7 @@ fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &
         pivot_high: if bits.sell3 { retest_price } else { 0 },
         center: Some(*c),
         struct_break_dir: None, // 第三类=离开后回抽，非破中枢结构候选（P2-R2 语义：None）
+        force: None,            // 第三类无 A/C 趋势段对 ⟹ 无力度 proxy（诚实 None，231号）
     }
 }
 
@@ -447,6 +451,7 @@ fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick) -> 
         pivot_high: if bits.sell2 { second_point } else { 0 },
         center: None,
         struct_break_dir: None, // 第二类=中枢内部回拉，非破中枢结构候选（P2-R2 语义：None）
+        force: None,            // 第二类无 A/C 趋势段对 ⟹ 无力度 proxy（诚实 None，231号）
     }
 }
 
@@ -540,30 +545,30 @@ pub fn extract_signals(
     // MACD hist（趋势背驰真算，浮点域隔离在 divergence.rs）。空 closes ⟹ 空 hist ⟹ 第一类结构候选
     // 不产（段无法映射 closes 区间 ⟹ 无 C<A 判据），第三类仍正常产（纯整数几何）。
     let hist = compute_macd(closes, macd_cfg).hist;
-    // 生产/测试 BspPoint 入口不消费 force ⟹ 传空 dif/closes_tick（force=None，不算无消费者的死计算）。
-    extract_signals_with_hist(centers, segments, &hist, &[], &[], close_src).0
+    // 简易入口传空 dif/closes_tick ⟹ 各点 force=None（此入口不算力度；GOLDEN 电池走此路，force 恒 None
+    // ⟹ 结构 bit-exact，仅 Debug 多 `, force: None` 常量，见 digest guard 诚实重算说明）。
+    extract_signals_with_hist(centers, segments, &hist, &[], &[], close_src)
 }
 
-/// 力度并置离线入口（Step1/2，force-proxy-survey-20260702.md）：与 [`extract_signals`] 同产
-/// BspPoint，但**并置**每个候选的 A/C 段力度 proxy（[`ForceProxies`]）——供 W-VERIFY(#13) 多 proxy
-/// 交叉验证。第一类趋势背驰候选算得 `Some`（A/C 段可配对），第二/三类无 A/C 对 ⟹ `None`。
+/// 力度离线入口（force-proxy-survey-20260702.md）：与 [`extract_signals`] 同产 BspPoint，但传真
+/// dif/closes_tick ⟹ 一类趋势背驰候选的 `point.force` 算得 `Some`（A/C 段可配对，4 proxy）；第二/
+/// 三类无 A/C 对 ⟹ `point.force=None`。供 W-VERIFY(#13) 多 proxy 交叉验证读 `p.force`。
 ///
 /// **认识论 L1**（formalization-validity-domain 231号）：段坐标→proxy 是确定性算术（管线正确性）。
-/// **不改 buy1 判据**（class_index 冻结，671 力度=feature 非 veto）：返回的 BspPoint 与
-/// [`extract_signals`] 逐字段相同，force 是旁挂并置量，不进任何 bit 判定。**离线专用**（非增量热路径）。
+/// **不改 buy1 判据**（class_index 冻结，671 力度=feature 非 veto）：返回的 BspPoint 结构字段（六
+/// bit/pivot/center/struct_break_dir）与 [`extract_signals`] 逐字段相同（`PartialEq` 排除 force），
+/// force 是旁挂量，不进任何 bit 判定。**与生产热路径同接线**（beta-route #115 后，增量路径亦传真 dif）。
 pub fn extract_signals_force(
     centers: &[Center],
     segments: &[Segment],
     closes: &[f64],
     close_src: &[usize],
     macd_cfg: &MacdConfig,
-) -> Vec<(BspPoint, Option<ForceProxies>)> {
+) -> Vec<BspPoint> {
     let series = compute_macd(closes, macd_cfg);
     // closes 是 merged_bars.close(Tick) 的 as f64（mod.rs:217），整值往返 as i64 精确（振幅=tick 差）。
     let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
-    let (bsp, force) =
-        extract_signals_with_hist(centers, segments, &series.hist, &series.dif, &closes_tick, close_src);
-    bsp.into_iter().zip(force).collect()
+    extract_signals_with_hist(centers, segments, &series.hist, &series.dif, &closes_tick, close_src)
 }
 
 /// 增量 MACD 接入点（231号纯性能，bit-exact 铁律）：与 [`extract_signals`] 同逻辑，但接受
@@ -585,7 +590,7 @@ pub fn extract_signals_with_hist(
     dif: &[f64],
     closes_tick: &[Tick],
     close_src: &[usize],
-) -> (Vec<BspPoint>, Vec<Option<ForceProxies>>) {
+) -> Vec<BspPoint> {
     // ★线段按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格单调
     // 递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等）。稳定
     // 排序保证 start_index 相同时保留原序。中枢归属用 start_index，单趟扫描需线段时间序。
@@ -708,15 +713,15 @@ pub fn extract_signals_with_hist(
             {
                 let c_leave = &centers_sorted[c_leave_idx];
                 if let Some(p) = judge_third(c_leave, leave_seg, seg) {
-                    // 第三类无 A/C 趋势段对 ⟹ 无力度 proxy（force=None，诚实不造死字段）。
-                    points.push((p, None));
+                    // 第三类无 A/C 趋势段对 ⟹ p.force=None（make_third_point 已置，诚实不造死字段）。
+                    points.push(p);
                 }
             }
         }
     }
-    // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。force 向量与 bsp 逐元素对齐同排。
-    points.sort_by_key(|(p, _): &(BspPoint, Option<ForceProxies>)| p.source_index);
-    points.into_iter().unzip()
+    // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。force 已收进各 BspPoint.force。
+    points.sort_by_key(|p: &BspPoint| p.source_index);
+    points
 }
 
 #[cfg(test)]
@@ -928,33 +933,29 @@ mod tests {
             300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244,
         ];
         let (closes, src) = closes_seq(&prices);
-        let paired = extract_signals_force(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+        let pts = extract_signals_force(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
 
-        // BspPoint 与 extract_signals 逐字段一致（force 是旁挂并置，不改判据）。
+        // BspPoint 结构字段与 extract_signals 逐字段一致（PartialEq 排除 force ⟹ Some/None 不改相等）。
         let plain = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
-        let bsp_only: Vec<_> = paired.iter().map(|(p, _)| *p).collect();
-        assert_eq!(bsp_only, plain, "extract_signals_force 的 BspPoint 与 extract_signals 逐字段相同");
+        assert_eq!(pts, plain, "extract_signals_force 的 BspPoint 结构字段与 extract_signals 相同（force 旁挂）");
 
-        // 一类候选（buy1）并置 Some(ForceProxies)，且 C<A（背驰=力度衰减，第24课:24）。
-        let (b1, f1) = paired
-            .iter()
-            .find(|(p, _)| p.bits.buy1)
-            .expect("fixture 产一个 1 买");
-        let force = f1.expect("一类趋势背驰候选并置 Some(force)（A/C 段可配对）");
+        // 一类候选（buy1）的 point.force = Some(ForceProxies)，且 C<A（背驰=力度衰减，第24课:24）。
+        let b1 = pts.iter().find(|p| p.bits.buy1).expect("fixture 产一个 1 买");
+        let force = b1.force.expect("一类趋势背驰候选 point.force = Some（A/C 段可配对）");
         assert_eq!(b1.source_index, 11);
         assert!(force.seg_c.macd_area < force.seg_a.macd_area, "C 段面积 < A 段面积（趋势背驰）");
         assert!(force.seg_a.dif_peak > 0.0 || force.seg_c.dif_peak > 0.0, "DIF 峰 proxy 已填充");
         assert!(force.seg_a.price_amplitude > 0, "A 段价格振幅 proxy 已填充（tick 域）");
 
-        // 填充率报告（force 字段填充率 = Some / 一类候选数；三类候选 force=None 是诚实缺省非漏填）。
-        let first_class = paired.iter().filter(|(p, _)| p.bits.buy1 || p.bits.sell1).count();
-        let filled = paired.iter().filter(|(p, f)| (p.bits.buy1 || p.bits.sell1) && f.is_some()).count();
+        // 填充率报告（force 填充率 = Some / 一类候选数；三类候选 force=None 是诚实缺省非漏填）。
+        let first_class = pts.iter().filter(|p| p.bits.buy1 || p.bits.sell1).count();
+        let filled = pts.iter().filter(|p| (p.bits.buy1 || p.bits.sell1) && p.force.is_some()).count();
         eprintln!(
-            "[force 填充率] 候选总数={} 一类={} force并置={} 填充率={:.0}%",
-            paired.len(), first_class, filled,
+            "[force 填充率] 候选总数={} 一类={} force填充={} 填充率={:.0}%",
+            pts.len(), first_class, filled,
             if first_class > 0 { 100.0 * filled as f64 / first_class as f64 } else { 0.0 }
         );
-        assert_eq!(filled, first_class, "所有一类趋势背驰候选（A/C 可配对）均并置 force");
+        assert_eq!(filled, first_class, "所有一类趋势背驰候选（A/C 可配对）point.force 均 Some");
     }
 
     #[test]
@@ -1641,7 +1642,8 @@ fn diag_first_buy() {
         let bits = endpoint_to_bsp(&situ);
         // oracle 是 veto 语义（只产背驰确认第一类）——这些点必破中枢，struct_break_dir 同新版逻辑。
         let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
-        Some(make_first_point(end.source_index, bits, end.price, struct_break_dir))
+        // oracle 不算力度（前 force 时代实现）⟹ force=None，与优化版空-dif 电池路径逐字段相等。
+        Some(make_first_point(end.source_index, bits, end.price, struct_break_dir, None))
     }
 
     /// ★仅测试用：优化前 `extract_signals`（oracle，逐字从 git HEAD 复制）。
@@ -1752,9 +1754,17 @@ fn diag_first_buy() {
         // 自定义 Debug 隐藏 struct_break_dir 假装 digest 不变（那是声明膨胀，护栏4 禁止）。六 bit
         // （buy1/2/3+sell1/2/3）逐字段不变由 `extract_signals_bit_exact_vs_orig_per_case`（逐 case
         // assert_eq 全字段比较）锁定——GOLDEN 翻转**仅**因新增字段，非六 bit 语义变化。
-        // 历史值：`0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
+        //
+        // ★beta-route #115 诚实更新（force_state 生产热路由）：`BspPoint` 再新增 `force: Option<ForceProxies>`
+        // 字段（β^div 力度 proxy）进入 `#[derive(Debug)]` ⟹ 每点 Debug 尾多 `, force: None`（本电池经
+        // `extract_signals` 传**空 dif/closes_tick** ⟹ force 恒 None，非力度值差）⟹ FNV 摘要再翻转。同
+        // struct_break_dir 先例：**诚实、可证、均匀**（全 None 常量），**不**自定义 Debug 隐藏 force。六 bit
+        // + pivot + center + struct_break_dir 逐字段不变仍由 per-case（PartialEq 排除 force，本电池 force
+        // 恒 None 无差可漏）锁定——翻转**仅**因新增 `, force: None` 常量串。
+        // 历史值：`0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
+        //         `0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
         //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。
-        const GOLDEN: u64 = 0x56ed_dd65_1c59_5733;
+        const GOLDEN: u64 = 0x90c7_9ee6_17e1_1392;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,

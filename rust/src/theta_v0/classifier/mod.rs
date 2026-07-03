@@ -151,15 +151,19 @@ fn unit_to_segment(u: &UnitRange) -> Segment {
 ///   `sublevel_diverges` 同族的 `segment_macd_area`/`is_divergence`）——**禁第二套力度引擎**满足。
 /// - **三类**：`judge_third` 在级别-N units（外缘区间）+ centers（几何中枢）的离开/回试关系上判定。
 ///
-/// 生产热路径传空 `dif/closes_tick`（force=None 丢弃 `.1`，bit-exact 恒等，同 L0 分支口径）。
+/// ★force_state 生产热路由（beta-route #115）：传真 `dif/closes_tick`（与 L0 层同源，L0 唯一可达
+/// close 序列，级别-N A/C 段经 source_index 坐标映射同坐标系）⟹ 级别-N 一类趋势背驰候选的
+/// `point.force` 亦算得 `Some`（4 proxy），进 selector force_state 第 8 维。二/三类 force=None。
 fn extract_first_third_for_level(
     centers: &[Center],
     units: &[UnitRange],
     hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
     close_src: &[usize],
 ) -> Vec<BspPoint> {
     let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
-    signal::extract_signals_with_hist(centers, &segs, hist, &[], &[], close_src).0
+    signal::extract_signals_with_hist(centers, &segs, hist, dif, closes_tick, close_src)
 }
 
 /// 从 L0 线段单元序列识别中枢序列（**完整判据**，契约锚 `Origin.CenterComplete.CenterConfirmedComplete`）。
@@ -260,7 +264,12 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
     // 次级别 close 区间由 source_index 坐标定位，见 macd 接入点）。
     let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
     let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
-    let hist = divergence::compute_macd(&closes, &config.macd).hist;
+    // ★force_state 生产热路由（beta-route #115）：dif（黄白线）+ closes_tick（整数 close）供一类候选
+    // A/C 段 4 proxy（DIF 峰/振幅/速度）。hist/dif 同一 compute_macd 单趟产出（无额外 O(n) 扫描）。
+    let series = divergence::compute_macd(&closes, &config.macd);
+    let hist = series.hist;
+    let dif = series.dif;
+    let closes_tick: Vec<Tick> = l0.merged_bars.iter().map(|b| b.close).collect();
 
     let mut levels: Vec<LevelState> = Vec::new();
     let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
@@ -296,12 +305,13 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         //   走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高），产 B2/S2。背驰力度由
         //   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
         let mut bsp: Vec<BspPoint> = if is_l0 {
-            // 生产热路径不消费 force ⟹ 传空 dif/closes_tick（force=None 丢弃 `.1`，BspPoint 逐字段不变
-            // ⟹ GOLDEN/bit-exact 恒等）。离线力度并置走 signal::extract_signals_force（Step1/2）。
-            signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &[], &[], &close_src).0
+            // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选 point.force
+            // = Some（4 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进 class_index/
+            // 分桶 key，PartialEq 排除），GOLDEN 因 Debug 含 force 诚实翻转（signal.rs digest guard）。
+            signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &dif, &closes_tick, &close_src)
         } else {
-            // 级别-N 一/三类（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据。
-            extract_first_third_for_level(&centers, &units, &hist, &close_src)
+            // 级别-N 一/三类（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。
+            extract_first_third_for_level(&centers, &units, &hist, &dif, &closes_tick, &close_src)
         };
         // 递归组装层 B2/S2（#53 接入）：对每个上级走势的次级别走势序列识别第二类结构。
         bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
@@ -1150,11 +1160,16 @@ pub fn classify_with_tower_incremental(
     });
     let closes: Vec<f64> = std::mem::take(&mut cache.closes);
     let close_src: Vec<usize> = std::mem::take(&mut cache.close_src);
-    // 增量 MACD：更新 cache.macd_hist（不返回克隆，直接借用缓存避免 O(n) 拷贝）。
+    // ★force_state 生产热路由（beta-route #115）：closes_tick（整数 close）mem::take 出借（同 closes
+    // 模式，避免与下游 &mut cache 别名），供一类候选 A/C 段振幅/速度 proxy。用毕放回（下同 closes）。
+    let closes_tick: Vec<Tick> = std::mem::take(&mut cache.closes_tick);
+    // 增量 MACD：更新 cache.macd_hist + cache.macd_dif（锁步；不返回克隆，直接借用缓存避免 O(n) 拷贝）。
     stage_profile::time("02_macd_incremental", || {
         compute_macd_hist_incremental(&closes, l0.merged_confirmed_len, &config.macd, cache)
     });
     let hist: &[f64] = &cache.macd_hist;
+    // dif 借用（与 hist 同——disjoint field 借用；force DIF 峰 proxy 输入，bit-exact 等价全量）。
+    let dif: &[f64] = &cache.macd_dif;
     // B3 #4 area-memo：`stable_len` = 本 bar hist 的确认边界（[`AreaCache`] 文档）——`area_cache`
     // 跨 bar 持久（mem::take 出借，用毕放回，同 closes/close_src 模式）。`RefCell` 包裹：
     // `divergence_of` 闭包接口是 `impl Fn(&RMove) -> bool`（`signal::extract_second_signals`），
@@ -1361,15 +1376,16 @@ pub fn classify_with_tower_incremental(
         } else {
             let mut b: Vec<BspPoint> = if is_l0 {
                 stage_profile::time("07a_extract_signals_l0", || {
-                    // 增量热路径不消费 force ⟹ 空 dif/closes_tick（force=None 丢弃 `.1`，bit-exact 恒等）。
-                    signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, &[], &[], &close_src).0
+                    // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选
+                    // point.force=Some（进 force_state 第 8 维）。结构六 bit 不变（force 不进分桶 key）。
+                    signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, dif, &closes_tick, &close_src)
                 })
             } else {
                 stage_profile::time("07a_extract_first_third_ln", || {
-                    // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。memo miss 才重算
+                    // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。memo miss 才重算
                     // （bsp_key 含 units.len，见上）；命中走 07c Rc::clone O(1)。units_L 随级别几何衰减
                     // ⟹ 每 miss O(units_L) 全扫，struct 变化次数 ≪ bar 数 ⟹ 摊还 O(n)（同 L0 memo 特性）。
-                    extract_first_third_for_level(&lc.centers, &units, hist, &close_src)
+                    extract_first_third_for_level(&lc.centers, &units, hist, dif, &closes_tick, &close_src)
                 })
             };
             let second = stage_profile::time("07b_extract_second", || {
@@ -1444,6 +1460,7 @@ pub fn classify_with_tower_incremental(
     // closes/close_src 缓冲放回 cache（mem::take 取出的所有权归还，下 bar 复用，零额外分配）。
     cache.closes = closes;
     cache.close_src = close_src;
+    cache.closes_tick = closes_tick; // force 价格振幅/速度 proxy 缓冲放回，下 bar 复用（同 closes 模式）。
     cache.area_cache = area_cache.into_inner(); // B3 #4 area-memo：缓冲放回，下 bar 复用（同上模式）。
 
     // ★工位 4g：本 bar 若有 cascade 重扫或任一级 extend 非空 tail ⟹ extract_elements 可观察树变更 ⟹
@@ -1881,7 +1898,8 @@ mod tests {
         let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
         let close_src: Vec<usize> = (0..prices.len()).collect();
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
-        let bsp = extract_first_third_for_level(&[c0, c1], &units, &hist, &close_src);
+        // 本测试只验结构六 bit（force 旁挂不改），传空 dif/closes_tick ⟹ force=None（不影响 buy1 判据）。
+        let bsp = extract_first_third_for_level(&[c0, c1], &units, &hist, &[], &[], &close_src);
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
         assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢单元）终止 source_index");
@@ -1903,8 +1921,8 @@ mod tests {
             // 回试单元：向下，终点=lo=210 > zg=200（不重入闭区间中枢）⟹ 3 买。
             UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
         ];
-        // 三类无 MACD 依赖（纯整数几何），hist 空亦可——传空 hist（第一类自然不产）。
-        let bsp = extract_first_third_for_level(&[c], &units, &[], &(0..24).collect::<Vec<_>>());
+        // 三类无 MACD 依赖（纯整数几何），hist 空亦可——传空 hist/dif/closes_tick（第一类自然不产，force=None）。
+        let bsp = extract_first_third_for_level(&[c], &units, &[], &[], &[], &(0..24).collect::<Vec<_>>());
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
         assert_eq!(buy3.len(), 1, "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）");
         assert_eq!(buy3[0].source_index, 20, "3 买端点 = 回试单元终止 source_index");
