@@ -1743,7 +1743,11 @@ pub(crate) fn coverage_step_from_buckets(
     let next_idx = ancestor_close_by_id(&work, &raw);
 
     // p̃=Σ Leg(g)（depth 权重沿真父链 + 方向净额聚合，ShortDiff 空腿部分对冲父多腿）。
-    let legs = strategy_target_legs(&work, &next_idx, base_units, config);
+    let mut legs = strategy_target_legs(&work, &next_idx, base_units, config);
+    // f3 反事实（config.disable_shortdiff）：剔 ShortDiff 腿的净头寸贡献，测多重赋格对冲增量。default false→bit-exact。
+    if config.disable_shortdiff {
+        legs.retain(|l| l.role.v != Vertical::ShortDiff);
+    }
     let p_tilde = net_target_units(&legs);
 
     // A_{t+1} 回 ActiveLeg（638 身份，喂下一 bar interpret 闭环 + 跨 bar 对位）。

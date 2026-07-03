@@ -2,13 +2,13 @@
 
 - **工位** swarm/ws-f3 | task #114 | 冻结 commit=**9c97ff7580**（prereg-f3-fugue-20260703.md，看结果前锁定）| 跑数在冻结**之后**（acc 硬约束满足）
 - **隔离执行**：主工作树 risk.rs 被并行工位（#113 margin）改动致 `cargo test --lib` 编译红（`RiskMode: Hash` test 码），本轮 B 全部在**冻结 commit 的 git worktree**（`/tmp/f3-wt`，risk.rs=冻结绿版）跑，数据 cache symlink 主树——与 #112/#113 域零交叠，结果确定性归属冻结 commit。
-- **认识论**：A（多声部结构）= **L0**（信号级结构计数）；B（残差 μ̂ 三态）= **L2**（真实 BTC+CL walk-forward OOS）；NestTrigger 质量对照 = L2（选择偏差，非 OOS alpha）；C（ShortDiff π 反事实）= **未跑**（Lead 裁定等 #113 落定 + 需 π-loop harness，见 §4）。判据本身 L0。
+- **认识论**：A（多声部结构）= **L0**（信号级结构计数）；B（残差 μ̂ 三态）= **L2**（真实 BTC+CL walk-forward OOS）；NestTrigger 质量对照 = L2（选择偏差，非 OOS alpha）；C（ShortDiff π 反事实）= **L2**（#113 落定后续跑，`disable_shortdiff` flag，见 §5）。判据本身 L0。
 
 ---
 
 ## 1. 结论（一句话）
 
-**(B) 残差 μ̂ 三态在 (σ_p × L0 bsp_class 压缩 × δ) 桶键下 = INCONCLUSIVE（BTC V=0/F=5/I=23，CL V=0/F=3/I=20，7 品种池化 V=0/F=5/I=24）——与 p3 一致，无 confirmed alpha，如诚实预承诺。关键正结果：主桶 perm_p=0.020（未退化到 1.000），实证坐实预注册 §1.2 的 δ-共线检查——(σ_p×bsp压缩×δ) 桶键结构性免疫 full-z 的 i_class⊥δ 退化。** **(A) 多声部结构薄**：96.0% 入场信号为根声部（单声部），仅 4.0% 子声部、1.2% ShortDiff 对冲腿——「多重赋格」在生产链结构性稀薄。**(C) ShortDiff π 反事实未跑**（域协调延后），但 A 的 1.2% 占比预示 C 增量近零（照实预承诺）。
+**(B) 残差 μ̂ 三态在 (σ_p × L0 bsp_class 压缩 × δ) 桶键下 = INCONCLUSIVE（BTC V=0/F=5/I=23，CL V=0/F=3/I=20，7 品种池化 V=0/F=5/I=24）——与 p3 一致，无 confirmed alpha，如诚实预承诺。关键正结果：主桶 perm_p=0.020（未退化到 1.000），实证坐实预注册 §1.2 的 δ-共线检查——(σ_p×bsp压缩×δ) 桶键结构性免疫 full-z 的 i_class⊥δ 退化。** **(A) 多声部结构薄**：96.0% 入场信号为根声部（单声部），仅 4.0% 子声部、1.2% ShortDiff 对冲腿——「多重赋格」在生产链结构性稀薄。**(C) ShortDiff π 反事实：对冲增量 ≈0**——BTC ΔΣpnl +63.6K（基线 −15.68M 的 +0.4%）/ CL −1.56K（负），**符号跨标的翻转、幅度 <0.5%、两口径均深负未转正**，坐实 A 的近零预判（多重赋格对冲声部无稳健组合级增量）。
 
 ---
 
@@ -72,13 +72,22 @@ BTC 3468 walk-forward OOS 残差记录的声部结构（跑数：/tmp/wv_full_ro
 
 ---
 
-## 5. (C) ShortDiff π 反事实对照 — 未跑（域协调延后）
+## 5. (C) ShortDiff π 反事实对照（L2，#113 落定后续跑）
 
-**状态**：未执行。Lead 裁定（2026-07-03）：C 的 harness 改动（ShortDiff 声部禁用 flag + π equity）与 #113（ws-margin：runner/coverage）实装域交叠，等 #113 落定后再动。本轮 #113 从 in_progress→completed 但其 runner/coverage 改动尚未 commit（主树 risk.rs 仍 `M` 且 test 编译红），C 的 π 回测无法在稳定 runner 上跑。
+跑批：`policy_backtest`（BTC+CL，单折有界 train 6月→OOS 6月，no-χ 口径，margin=None 默认=p3 可比）。反事实=全赋格（`VoiceConfig.disable_shortdiff=false`）vs 剔 ShortDiff（`=true`，仅剔 ShortDiff 腿对 p̃ 净头寸贡献，coverage.rs:1747）。
 
-**预判（A 结构推论，非跑数）**：A 坐实 ShortDiff 对冲腿仅占 1.2%（42/3468 信号）⟹ 剔除 ShortDiff 的反事实 π 与全赋格 π 的差分 **‖ΔN‖ 驱动源极小** ⟹ ΔΣpnl 预期近零（多重赋格对冲声部的组合级增量 ≈0）。C 跑数将证实/证伪此预判——归 #113 稳定后的续跑（升级路径，非本轮 blocker）。
+| 标的 | 全赋格 Σpnl | 剔 ShortDiff Σpnl | **ShortDiff 增量 ΔΣpnl** | Δn_orders | Δmax_dd |
+|------|-------------|-------------------|--------------------------|-----------|---------|
+| BTC | −15,677,577.94 | −15,741,148.47 | **+63,570.54** | +52 | −0.0011 |
+| CL | −54,493.39 | −52,935.45 | **−1,557.94** | +988 | +0.0212 |
 
-**升级路径**：#113 runner/coverage commit 落定 → 加 ShortDiff 禁用 flag（最小 diff）→ 复用 `policy_backtest` 双口径跑 BTC+CL → 与 p3 §4（1c977a5c23）差分。
+**读出（多重赋格对冲增量价值判定）**：
+- **增量微小且符号不一致**：BTC ShortDiff 增量 +63.6K（=全赋格基 −15.68M 的 **+0.4%**），CL −1.56K（负）——**符号跨标的翻转**（BTC 正 / CL 负），幅度均 <0.5% 基线，**无一致正增量**。
+- **两口径均深度净负**：加/不加 ShortDiff，BTC/CL 都远未转正（ShortDiff 不改亏损量级）。
+- **订单占比薄**：ShortDiff 仅新增 BTC 52 单（33067 的 0.16%）/ CL 988 单——与 A 的 1.2% 信号占比一致（结构性稀薄）。
+- **★A 预判坐实**：A（信号级 ShortDiff 1.2%）预判「ΔΣpnl 近零」——C 跑数**证实**（BTC +0.4% / CL 负，均近零、符号不定）。多重赋格对冲声部的**组合级增量价值 ≈ 0**（非稳健正 alpha，非显著风控增量）。
+
+**bit-exact 护航**：全赋格臂（`disable_shortdiff=false`）Σpnl/max_dd/n_orders **逐位复现 p3 §4 BTC 无χ基线**（−15,677,577.94 / 0.9524 / 33067）——default 路径未改，flag 加法零回归；coverage 模块 64 test 全绿。
 
 ---
 
@@ -86,7 +95,7 @@ BTC 3468 walk-forward OOS 残差记录的声部结构（跑数：/tmp/wv_full_ro
 
 - **A = L0**：信号级声部结构，有效域 = BTC entered signals。否定性倾向：多重赋格结构薄（96% 单声部），限缩「多声部并行」的经验幅度。逐 bar ‖ΔN‖_1 = L2（未跑，ceiling）。
 - **B = L2**：BTC+CL walk-forward OOS + 7 品种池化。否定性结果（V=0）缩小有效域：**(σ_p×bsp压缩×δ) 细分不产可交易 alpha**，主桶维持欠功效。正结果：perm_p=0.020 实证桶键免疫 δ-共线退化（比 full-z 信息量高）。
-- **C = 未跑**：认识论等级待定（跑后 L2）。
+- **C = L2**：BTC+CL 单折 OOS 反事实。否定性倾向：ShortDiff 增量符号跨标的翻转（BTC +0.4%/CL 负）、幅度 <0.5%、两口径均净负 ⟹ 多重赋格对冲无稳健组合级 alpha（缩小「多重赋格增量价值」的有效域）。
 
 ---
 
@@ -103,7 +112,7 @@ BTC 3468 walk-forward OOS 残差记录的声部结构（跑数：/tmp/wv_full_ro
 
 - **B**：残差口径 (σ_p×bsp×δ) 无 alpha ⟹ 维持 p3「4 元组是残差口径诚实 estimand」；σ_p 细分未增功效（子声部样本薄）。主桶 perm_p=0.020 坐实压缩桶键是正确的抗退化选择（对照 full-z）。
 - **A**：多重赋格结构薄（4% 子声部 / 1.2% 对冲）⟹ 缠师「多级别声部并行」在本引擎 L0 下沉入场落点上覆盖率低——非引擎 bug，是信号稀疏性（下沉锚+Xzd 通道主导，Type1 近窗为 0）。
-- **C**：预期增量近零（A 推论），跑数归 #113 稳定后。M1 里程碑：多重赋格结构已实装且可量化，但对冲声部占比薄 ⟹ 其风控增量幅度有限（区别于 μ̂ χ 门的显著减损，p3 §4）。
+- **C**：ShortDiff 反事实实测增量近零（BTC +0.4%/CL 负，符号不定），坐实 A 推论。M1 里程碑：多重赋格结构已实装且可量化，但对冲声部占比薄（1.2%）⟹ 组合级增量 ≈0（区别于 μ̂ χ 门的显著减损 +14.5M，p3 §4）——多重赋格的价值在结构表达，非 P&L 增量。
 
 ---
 
@@ -121,6 +130,6 @@ BTC 3468 walk-forward OOS 残差记录的声部结构（跑数：/tmp/wv_full_ro
 
 ## 10. 影响声明
 
-- **代码改动**：**零**。B/A 全复用现有引擎（`stratified_delta_perm_p`/`decontam`/`verdict_by`/`acc_nest_trigger_quality_probe`）；A 从 B 残差记录聚合（awk 后处理，非代码）。C 的 harness（ShortDiff flag + π-loop 采集器）未建（延后）。护航 1407：worktree 冻结 commit `cargo test --release --lib wverify*` 3 test 全绿（2+1 passed）。
+- **代码改动**：B/A **零改动**（全复用现有引擎）。C **最小 diff**：`VoiceConfig.disable_shortdiff: bool`（config.rs，default false）+ coverage.rs:1747 反事实门（`if config.disable_shortdiff { legs.retain(≠ShortDiff) }`）+ policy_backtest 第三臂。default false ⟹ bit-exact（全赋格臂逐位复现 p3 §4）。护航：coverage 模块 64 test 全绿 + worktree B 3 test 全绿。
 - **产出**：本结果包 + /tmp/wv_full_rows.md（BTC 28 桶）+ /tmp/wv_xsym_persymbol.md（7 品种含 CL）+ /tmp/wv_xsym_pooled.md + NestTrigger 质量对照（§4.3）。
 - **未改**：残差减法、桶键引擎、decontam 判据、既有冻结文件、#112/#113 域文件（risk/coverage/runner/divergence/mu_estimator/perm_test 一字未动）。

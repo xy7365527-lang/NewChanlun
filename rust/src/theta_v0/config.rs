@@ -115,6 +115,9 @@ pub struct VoiceConfig {
     pub max_depth: u32,
     /// 深度资金权重 `w=[0.60,0.30,0.10]`。未用部分保留现金不重分配。
     pub depth_weights: Vec<f64>,
+    /// f3 反事实开关：剔除 ShortDiff（多空对冲）子声部腿对净头寸的贡献（多重赋格增量价值测量）。
+    /// default `false`=全赋格生产口径（bit-exact 不变）。`true` 仅用于 policy_backtest 反事实对照。
+    pub disable_shortdiff: bool,
 }
 
 impl Default for VoiceConfig {
@@ -122,6 +125,7 @@ impl Default for VoiceConfig {
         VoiceConfig {
             max_depth: 3,
             depth_weights: vec![0.60, 0.30, 0.10],
+            disable_shortdiff: false,
         }
     }
 }
