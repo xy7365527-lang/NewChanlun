@@ -153,8 +153,9 @@ pub struct Buckets {
 /// 避免两权威镜像（codex-q2-d1 删 `closed_loop/mutex_interp.rs` 同款矛盾）。P1..P10↔ExitType
 /// 映射见 `.chanlun/review-results/g5-interpreter-mapping-20260703.md` §6.1。
 ///
-/// ponytail: 现纯类型定义未接线（interp close 桶仍单一未 typed，见 [`interpret`] 规则2）——
-/// bit-exact 零影响。typed 拆分接线在 G5 实装阶段（#124，blockedBy G7-impl #133 + #122 裁定4）。
+/// **接线状态**：G4（#134）已在统计层接线——[`reverse_exit_type`] 单源判据 + 生产 π fill loop
+/// 的 `TypedTradeLedger`（runner.rs）消费本枚举；interp close 桶本体仍单一未 typed（生产订单流
+/// bit-exact 不变），P5/P6/P7 生产拆分在 G5 实装阶段（#124，须复用 [`reverse_exit_type`]）。
 /// `closed_loop/sell.rs::SellDecision` 已有 CloseRoot/ReduceCore 重叠（disjoint 路径，G4 把 μ 管线
 /// 重接生产 π 后该路径废）——统一收敛到本枚举，届时删 SellDecision 侧（升级路径，非现在做）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -169,6 +170,29 @@ pub enum ExitType {
     RiskExit,
     /// P0 Hold：无出场。
     Hold,
+}
+
+/// 反向关闭的 typed exit 判据（PDF §9 / G5 映射 §6.1，**G4/G5 单源**——统计层 ledger 与
+/// 生产 P5/P6/P7 拆分必须共用本函数，不得镜像）。
+///
+/// 输入 = 被关腿的**入场角色垂直轴** `entry_v`（腿声部身份在入场时固定，不随塔演化漂移）+
+/// 触发关闭的反向候选的 `bsp_class`（[`interpret`] 规则2 的触发者，最小成立类 1<2<3）：
+/// - `entry_v == ShortDiff` ⟹ [`ExitType::CloseShortDiff`]（P7：短差子声部反向确认关闭，
+///   优先于触发类判定——子声部关闭语义压过触发信号语义）。
+/// - 否则 `trigger_class == 3` ⟹ [`ExitType::ReduceCore`]（P6：三类反向点=核心仓减仓）。
+/// - 否则 ⟹ [`ExitType::CloseRoot`]（P5：一类反向点=根清仓；**二类反向归 CloseRoot**——
+///   PDF §9 五枚举无二类单列，二类是一类的次级确认，同属根反转语义；三类才是中枢离开
+///   确认=减仓语义。此读法已向 ws-g5interp 征求意见，翻转条件见 g4-impl 结果包边界条件）。
+///
+/// `FollowParent` 子腿被反向关闭按触发类走 P5/P6（跟随父方向的级联核心仓，非短差对冲腿）。
+pub fn reverse_exit_type(entry_v: Vertical, trigger_class: u8) -> ExitType {
+    if entry_v == Vertical::ShortDiff {
+        ExitType::CloseShortDiff
+    } else if trigger_class == 3 {
+        ExitType::ReduceCore
+    } else {
+        ExitType::CloseRoot
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -964,6 +988,23 @@ pub fn theta_lt(a: &Candidate, b: &Candidate) -> bool {
 /// **边界条件**：`active` 空 ⟹ `close` 必空（无腿可关，规则2 不触发）；此时全部可交易候选按 slot
 /// 唯一化分流 open/record。`gamma` 空 ⟹ 三桶皆空。
 pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
+    interpret_with_close_triggers(gamma, active).0
+}
+
+/// [`interpret`] 的**单源 fold 本体** + close 触发归因（G4 typed exit 组合层原料，#134）。
+///
+/// 返回 `(Buckets, Vec<Candidate>)`：第二分量与 `buckets.close` **一一对应**（第 k 条被关腿的
+/// 关闭触发候选 = 第 k 个归因，规则2 的消费配对）——组合层（coverage `pi_theta_step_traced` /
+/// runner ledger builder）据此经 [`reverse_exit_type`] 产 typed exit，**不在外部重放 fold 配对**
+/// （fold 顺序敏感，外部重放 = 平行实现漂移）。
+///
+/// **∃! 证明锚不动**：[`interpret`] 签名/行为不变（委托本函数丢弃归因），归因是 fold 的确定性
+/// 副产品——同一 fold 单实现，非第二权威（分歧A 裁决：typed 语义在 interpret 与
+/// coverage_step_from_buckets 之间的组合层产生，interpret 本体不扩定义域）。
+pub fn interpret_with_close_triggers(
+    gamma: &[Candidate],
+    active: &[ActiveLeg],
+) -> (Buckets, Vec<Candidate>) {
     // ① ≺_Θ 排序（拷贝引用，不 mutate 输入）。
     let mut ordered: Vec<&Candidate> = gamma.iter().collect();
     ordered.sort_by(|a, b| theta_key(a).cmp(&theta_key(b)));
@@ -972,6 +1013,8 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
     let mut working: Vec<(ActiveLeg, bool)> = active.iter().map(|&l| (l, false)).collect();
     let mut opened: Vec<(u32, VoiceSide)> = Vec::new();
     let mut buckets = Buckets::default();
+    // close 触发归因（与 buckets.close 同步 push，一一对应）。
+    let mut close_triggers: Vec<Candidate> = Vec::new();
 
     // ponytail: H8 预索引——level → legs idx 列表（reverse_signal 需逐腿判 bits，无法纯 key 查表；
     // 但 level 索引把 O(|working|) 全扫缩为只遍历同 level 的腿，通常 1-2 条）。
@@ -1004,6 +1047,7 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
             // 标记关闭（不从索引移除——bit-exact：旧 working.iter().position 也跳过已关闭腿）。
             working[pos].1 = true;
             buckets.close.push(working[pos].0);
+            close_triggers.push(*c); // 归因：本腿由候选 c 反向关闭（typed exit 原料）
             continue;
         }
         // 规则3/4：开启 vs 记录（slot = (level, σ_g)）。
@@ -1022,7 +1066,12 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
             buckets.record.push(*c); // 规则4：冲突/重复 ⟹ 记录不执行
         }
     }
-    buckets
+    debug_assert_eq!(
+        buckets.close.len(),
+        close_triggers.len(),
+        "close 桶与触发归因一一对应（同步 push 不变量）"
+    );
+    (buckets, close_triggers)
 }
 
 #[cfg(test)]
@@ -1045,6 +1094,7 @@ mod tests {
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
+            force: None,
         }
     }
 
@@ -1061,6 +1111,7 @@ mod tests {
             pivot_high: 210,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
+            force: None,
         }
     }
 
@@ -1075,7 +1126,7 @@ mod tests {
 
     /// BspPoint 构造：给定 bits + struct_break_dir（P2-R2 守卫测试用）。
     fn pt(bits: BspBits, sbd: Option<Side>) -> BspPoint {
-        BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: None, struct_break_dir: sbd }
+        BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: None, struct_break_dir: sbd, force: None }
     }
 
     /// ★P2-R2 护栏2（codex-review-20260701-2251 [guard]）：struct_break_dir 恢复方向**只改
@@ -1156,6 +1207,7 @@ mod tests {
             pivot_high: 210,
             center: None,
             struct_break_dir: None,
+            force: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
         assert_eq!(gamma.len(), 1);
@@ -1173,6 +1225,53 @@ mod tests {
         assert_eq!(b.close[0].dir, VoiceSide::Long);
         assert!(b.open.is_empty(), "关闭触发候选被消费，不再开启");
         assert!(b.record.is_empty());
+    }
+
+    /// ★G4 close 触发归因：`interpret_with_close_triggers` 的归因与 close 桶一一对应，
+    /// 且 `.0` 与 [`interpret`] 逐字段相等（委托单源，bit-exact）。
+    #[test]
+    fn close_triggers_pair_with_close_bucket() {
+        // 两条不同 level 的持仓 Long 腿 + 各自 level 的反向卖候选（sell1 @L0，sell3 @L1）。
+        let gamma = assemble_gamma(&classification(vec![
+            vec![sell_point(10, 1)], // L0 一类卖 → 关 L0 Long 腿
+            vec![sell_point(12, 3)], // L1 三类卖 → 关 L1 Long 腿
+        ]));
+        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(1, VoiceSide::Long, 2, 2)];
+        let (b, triggers) = interpret_with_close_triggers(&gamma, &active);
+        assert_eq!(b.close.len(), 2, "两腿各被反向候选关闭");
+        assert_eq!(triggers.len(), b.close.len(), "归因与 close 桶一一对应");
+        // 第 k 条被关腿的触发候选同 level（规则2 只关同级腿）。
+        for (leg, trig) in b.close.iter().zip(&triggers) {
+            assert_eq!(leg.level, trig.level, "触发候选与被关腿同级");
+        }
+        // 委托单源 bit-exact：interpret == interpret_with_close_triggers.0。
+        let b2 = interpret(&gamma, &active);
+        assert_eq!(b.close, b2.close);
+        assert_eq!(
+            b.open.iter().map(|c| c.gamma_index).collect::<Vec<_>>(),
+            b2.open.iter().map(|c| c.gamma_index).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            b.record.iter().map(|c| c.gamma_index).collect::<Vec<_>>(),
+            b2.record.iter().map(|c| c.gamma_index).collect::<Vec<_>>()
+        );
+    }
+
+    /// ★G4/G5 单源判据 [`reverse_exit_type`]（PDF §9 / G5 映射 §6.1）：
+    /// ShortDiff 腿→P7；三类反向→P6；一/二类反向→P5（二类归 CloseRoot 读法）。
+    #[test]
+    fn reverse_exit_type_criteria_table() {
+        use ExitType::*;
+        // ShortDiff 腿：任何触发类都是 CloseShortDiff（子声部关闭语义压过触发类）。
+        assert_eq!(reverse_exit_type(Vertical::ShortDiff, 1), CloseShortDiff);
+        assert_eq!(reverse_exit_type(Vertical::ShortDiff, 3), CloseShortDiff);
+        // 根腿（Ambient）：三类反向 → ReduceCore；一/二类 → CloseRoot。
+        assert_eq!(reverse_exit_type(Vertical::Ambient, 3), ReduceCore);
+        assert_eq!(reverse_exit_type(Vertical::Ambient, 1), CloseRoot);
+        assert_eq!(reverse_exit_type(Vertical::Ambient, 2), CloseRoot);
+        // FollowParent 子腿：按触发类走 P5/P6（非短差对冲腿）。
+        assert_eq!(reverse_exit_type(Vertical::FollowParent, 3), ReduceCore);
+        assert_eq!(reverse_exit_type(Vertical::FollowParent, 1), CloseRoot);
     }
 
     /// 环5 ℬ_x：空活动集 ⟹ 可交易候选开启（𝒟_x 必空）。
@@ -1217,6 +1316,7 @@ mod tests {
             pivot_high: 210,
             center: None,
             struct_break_dir: None,
+            force: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
         let b = interpret(&gamma, &[]);
@@ -1625,7 +1725,7 @@ mod candidate_profile {
     fn candidate_cache_fallback_ordinal_prefix_shift() {
         fn buy3(si: usize) -> BspPoint {
             BspPoint { source_index: si, bits: BspBits { buy3: true, ..Default::default() },
-                pivot_low: 1, pivot_high: 0, center: None, struct_break_dir: None }
+                pivot_low: 1, pivot_high: 0, center: None, struct_break_dir: None, force: None }
         }
         let cls = |l0: Vec<usize>, l1: Vec<usize>| Classification {
             levels: vec![
