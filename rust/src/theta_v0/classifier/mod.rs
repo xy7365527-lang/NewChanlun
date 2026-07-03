@@ -166,53 +166,42 @@ fn extract_first_third_for_level(
     signal::extract_signals_with_hist(centers, &segs, hist, dif, closes_tick, close_src)
 }
 
-/// 从 L0 线段单元序列识别中枢序列（**完整判据**，契约锚 `Origin.CenterComplete.CenterConfirmedComplete`）。
+/// 从 L0 线段单元序列识别 canonical 中枢序列（**完整判据** seed + 延伸吸收，契约锚
+/// `Origin.CenterComplete.CenterConfirmedComplete` + 第20课中心定理一）。
 ///
-/// L0 线段有内在方向 ⟹ 用 `center::center_from_segments`（完整判据：方向交替 ∧ 全三段核心非空，
-/// 口径 B——第三段贯穿已被全三段核心非空吸收，637号 codex L0 等价）。从左到右扫描：连续三段构成
-/// 真中枢则前进 3 段（已确认中枢不回写，reference:16）；
-/// 任一支不成立（无方向交替/全三段核心空）则前进一段继续找（对齐 `Origin.centersOf` 滑窗：
-/// 成立支消费 3、不成立支消费 1）。
-///
-/// ★诚实范围：v0 用**非重叠三段窗口**识别中枢（连续三段成真枢则前进 3 段）。延伸中枢
-/// （同一中枢吸收后续段）的完整 start/finish 区间识别留待后续（Origin `centersOf` 当前亦三段窗口）。
+/// L0 线段有内在方向 ⟹ seed 用 `center::center_from_segments`（完整判据：方向交替 ∧ 全三段核心
+/// 非空，口径 B——第三段贯穿已被全三段核心非空吸收，637号 codex L0 等价）。seed 成立后进入延伸
+/// 吸收（中心定理一：后续段区间触及 [ZD,ZG] ⟹ 同一中枢延伸，task #142），仅 non-extension
+/// （`d_j>ZG ∨ g_j<ZD`）终止；seed 不成立则前进一段继续找。算法单一来源 = `recursive_tower::
+/// detect_centers_windowed_resume`（全量/增量同一扫描，bit-exact 定义性）。
 fn detect_centers_complete(units: &[UnitRange]) -> Vec<Center> {
     detect_centers_with(units, center::center_from_segments)
 }
 
-/// 从上级走势单元序列识别中枢序列（**几何路径**，契约锚 `Origin.centerHolds` + 三段共同重叠）。
+/// 从上级走势单元序列识别 canonical 中枢序列（**几何路径** seed + 延伸吸收，契约锚
+/// `Origin.centerHolds` + 三段共同重叠 + 第20课中心定理一）。
 ///
-/// 上级单元是中枢外缘区间（**无内在缠论方向**，方向由 Move 趋势裁决携带）⟹ 用
-/// `center::center_from_window`（几何判据：全三段核心非空，口径 B——第三段贯穿已吸收，637号；无方向交替）。上级发展
-/// 裁决用 `Origin.CenterStates.classifyDevelopment`（外缘判据，无方向交替要求）——见 `center.rs`
+/// 上级单元是中枢外缘区间（**无内在缠论方向**，方向由 Move 趋势裁决携带）⟹ seed 用
+/// `center::center_from_window`（几何判据：全三段核心非空，口径 B——第三段贯穿已吸收，637号；无方向交替）。
+/// 延伸吸收与 L0 同一几何判据（区间触及 [ZD,ZG]，task #142）。上级发展裁决用
+/// `Origin.CenterStates.classifyDevelopment`（外缘判据，无方向交替要求）——见 `center.rs`
 /// 诚实有效域声明。
 fn detect_centers_geometric(units: &[UnitRange]) -> Vec<Center> {
     detect_centers_with(units, center::center_from_window)
 }
 
-/// 三段窗口扫描骨架（成立支消费 3 段、不成立支消费 1 段，对齐 `Origin.centersOf` 滑窗终止性）。
-///
-/// `build` 是中枢构造函数（L0=完整判据 `center_from_segments`；上级=几何 `center_from_window`）。
+/// canonical 中枢扫描（seed + 延伸吸收 + non-extension 终止）——**单一来源委托**
+/// `recursive_tower::detect_centers_windowed_resume`（全量 = `start_i=0`；增量塔走同一函数的
+/// resume 路径 ⟹ T^inc == T^full 定义性成立，非对拍性成立）。
 fn detect_centers_with(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
 ) -> Vec<Center> {
-    let mut centers = Vec::new();
-    let mut i = 0usize;
-    while i + 2 < units.len() {
-        match build(&units[i], &units[i + 1], &units[i + 2]) {
-            Some(c) => {
-                centers.push(c);
-                // 成立支：前进 3 段（已确认中枢不回写，reference:16）。
-                i += 3;
-            }
-            None => {
-                // 不成立支：前进 1 段继续找（对齐 Origin centersOf 滑窗）。
-                i += 1;
-            }
-        }
-    }
-    centers
+    recursive_tower::detect_centers_windowed_resume(units, build, 0)
+        .0
+        .into_iter()
+        .map(|(c, _)| c)
+        .collect()
 }
 
 /// 把一级走势单元序列规约为该级走势裁决 + 中枢（reference:29 `classifyMove`）。
@@ -1293,6 +1282,9 @@ pub fn classify_with_tower_incremental(
         // 为假 ⟹ 不 pop、从 resume_from(=上次start_i) 续扫（续进语义，仅不成立支推进过的区间）。
         let resume_start = lc.scan_cursor.resume_from;
         let had_emitted_window = lc.scan_cursor.resume_from < lc.scan_cursor.consumed;
+        // ★task #142 延伸语义：pop 前留存 frontier 中枢值——重扫后与 tail 首元素比对，判定
+        // cached_outcome 的 append-only 前提是否仍成立（延伸会改写 frontier 中枢值）。
+        let popped_center: Option<Center> = if had_emitted_window { lc.centers.last().copied() } else { None };
         if had_emitted_window {
             // pop 最后一个中枢（frontier 中枢，重扫会重新产出）——前缀不变量不破（pop 的是尾部）。
             debug_assert!(
@@ -1325,6 +1317,17 @@ pub fn classify_with_tower_incremental(
             oracle_probe::on_pop_rescan(tail_upper.len());
         }
 
+        // ★task #142：`classify_move_incremental` 的续判前提 = 「centers 不变或恰好追加 1 个、
+        // 已有元素值不变」。延伸语义下两种破口：(a) frontier 中枢 pop 后重扫**改值**（吸收了新
+        // 延伸段）——尾对关系可 Up/Down→Overlap 翻转且不止最后一对可查；(b) 一次重扫产出多个
+        // 中枢——中间新对不被单尾对续判覆盖。任一破口 ⟹ 置 None 走全量裁决（O(centers) 单趟，
+        // 增量有效域声明本就不含 moves 裁决，见模块头「不在有效域」）。
+        let frontier_changed =
+            popped_center.is_some_and(|pc| tail_centers.first() != Some(&pc));
+        let appended = tail_centers.len().saturating_sub(popped_center.is_some() as usize);
+        if frontier_changed || appended > 1 {
+            lc.cached_outcome = None;
+        }
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
         did_extend |= !tail_upper.is_empty();
         stage_profile::time("06_extend_centers_upper", || {

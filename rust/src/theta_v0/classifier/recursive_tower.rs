@@ -208,35 +208,29 @@ impl LeveledMove {
     }
 }
 
-/// 从携坐标的次级别走势序列识别中枢序列 + **每个中枢的构成窗口**（窗口化 compose 的核心）。
+/// 从携坐标的次级别走势序列识别**canonical 中枢序列**（seed + 延伸吸收）+ 每个中枢的构成窗口。
 ///
-/// 三段窗口扫描（成立支消费 3 段、不成立支消费 1 段，对齐 `Origin.centersOf` 滑窗终止性）。
-/// 与 `mod.rs::detect_centers_with` 的扫描骨架**同构**，但额外返回每个中枢的构成三段索引
-/// `(i, i+1, i+2)`——这是窗口封装为上级走势所需的 subs 来源（旧 `detect_centers_with` 只返回
-/// 中枢，丢弃了构成窗口 ⟹ 无法 compose）。
+/// canonical 中枢链三步构造（一类买卖点.pdf §5，第20课中心定理一，task #142）：
+/// - **Step1 seed**：首个三元组经 `build` 成真中枢（L0=完整判据方向交替+核心非空；上级=几何核心非空）。
+/// - **Step2 extension**：后续单元 `u_j` 区间 `[d_j,g_j] ∩ [ZD,ZG] ≠ ∅` ⟹ **同一中枢延伸**——
+///   `end_index := u_j.end_index`、`DD := min(DD,d_j)`、`GG := max(GG,g_j)`；**ZD/ZG 核心冻结**
+///   （现行中枢约定：核心由 seed 三段全交定，口径 B，延伸只扩外缘不改核心）。u_j 留在同一中枢，
+///   不开新同级别中枢（Q2 裁决：连续围绕同一区间震荡 = 一个延伸中枢，不拆成多个重叠碎片）。
+/// - **Step3 non-extension**：仅当 `d_j > ZG ∨ g_j < ZD` 停止延伸；扫描从 u_j（离开单元）继续，
+///   之后才可能 seed 新同级别中枢。
+///
+/// 与旧「非重叠三段窗口、成立支 +3」的差异：旧版把围绕同一核心的持续震荡拆成多个外缘互相重叠的
+/// 同级别中枢（L0 全历史 94.4% 相邻重叠，#141 问题包 §3-b 坐实）；canonical 版把它们吸收进一个
+/// 延伸中枢。升级语义（延伸后与前中枢重叠 ⟹ 高级别中枢，中心定理二）不在本层——归走势分解（#143+）。
 ///
 /// `build`：中枢构造函数（L0=完整判据 `center_from_segments`；上级=几何 `center_from_window`）。
-/// 返回 `Vec<(Center, [usize; 3])>`：每个中枢 + 构成它的三段次级别走势在 `units` 中的索引。
+/// 返回 `Vec<(Center, (usize, usize))>`：每个中枢 + 构成它的单元闭区间 `[start, end]`（seed 三段 +
+/// 延伸段，`end - start + 1 >= 3`）。
 fn detect_centers_windowed(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
-) -> Vec<(Center, [usize; 3])> {
-    let mut out = Vec::new();
-    let mut i = 0usize;
-    while i + 2 < units.len() {
-        match build(&units[i], &units[i + 1], &units[i + 2]) {
-            Some(c) => {
-                out.push((c, [i, i + 1, i + 2]));
-                // 成立支：前进 3 段（已确认中枢不回写，reference:16）。
-                i += 3;
-            }
-            None => {
-                // 不成立支：前进 1 段继续找（对齐 Origin centersOf 滑窗）。
-                i += 1;
-            }
-        }
-    }
-    out
+) -> Vec<(Center, (usize, usize))> {
+    detect_centers_windowed_resume(units, build, 0).0
 }
 
 /// 把携坐标的走势序列规约为上级走势塔的一级（中枢序列 + 上级 `LeveledMove` 序列）。
@@ -262,16 +256,15 @@ pub fn compose_level(
     };
     let windowed = detect_centers_windowed(units, build);
     let centers: Vec<Center> = windowed.iter().map(|(c, _)| *c).collect();
-    // 每个中枢的构成窗口（三段次级别 LeveledMove）→ compose 为一个上级走势。
+    // 每个中枢的构成窗口（seed 三段 + 延伸段，连续切片）→ compose 为一个上级走势。
     // ★codex Q4：确定性 ID 注入——ordinal = 窗口在该级产出序（enumerate）。全量从 0 起。
     let upper: Vec<LeveledMove> = windowed
         .iter()
         .enumerate()
         .map(|(i, (c, win))| {
-            // ★task#40 fix A：win 恒为 `[start, start+1, start+2]`（detect_centers_windowed 连续
-            // 窗口）⟹ 直接借用连续切片，消灭临时数组的 3 次 `.clone()`（05c1 冗余拷贝，见 compose()
-            // 文档）。`LeveledMove::compose` 本就只需 `&[LeveledMove]`，无需先拥有一份拷贝。
-            let subs = &subs_moves[win[0]..win[0] + 3];
+            // ★task#40 fix A：win 是连续闭区间 ⟹ 直接借用连续切片，无临时数组 clone。
+            // ★task#142：窗口变长（seed 三段 + 延伸段），subs = 中枢吸收的全部次级别走势。
+            let subs = &subs_moves[win.0..=win.1];
             let id = ElementId { level, ordinal: i as u64 };
             LeveledMove::compose(subs, *c, level, id)
         })
@@ -289,32 +282,26 @@ pub fn compose_level(
 //（mod.rs:206）每级 `compose_level` → `detect_centers_windowed` 从 `units[0..]` 全量滑窗
 // 扫描。前级 confirmed 前缀稳定时重复扫描 ⟹ 超线性（classify c_exp≈2.31 主导）。
 //
-// ## 增量正确性（L0 纯结构证明，no-patch：非套用 zhongshu ScanResume 语义）
+// ## 增量正确性（L0 纯结构证明）
 //
-// `detect_centers_windowed` 是**确定性左折叠**：游标 `i` 从 0 严格递增（成立支 +3、不成立支
-// +1），每步决策 `build(units[i],units[i+1],units[i+2])` 是纯函数（不依赖历史）。三条推论：
+// `detect_centers_windowed` 是**确定性左折叠**：游标 `i` 从 0 严格递增（seed 成立支消费
+// `[i..=window_end]`（三段 + 延伸段）、不成立支 +1），每步决策是纯函数——seed 判定读
+// `units[i..=i+2]`，延伸判定读单个 `units[j]` vs seed 冻结核心 [ZD,ZG]（不依赖其它历史）。三条推论：
 //
 // 1. **路径确定性**：给定 `units[0..k]`，扫描到达位置 `k` 时的游标路径与已产出 centers 序列
 //    完全确定（前缀的确定性函数）。
-// 2. **已产出 centers 是不可变前缀**：成立支产出 center 后 `i+=3`，该 center 窗口 `[i,i+1,i+2]`
-//    永不被后续重访（i 严格递增 ⟹ 窗口不重叠）。故已产出 centers 序列可缓存，续扫只追加尾部。
-// 3. **续扫等价于全量重扫到达断点后继续**：从 `consumed` 续扫 == 全量重扫到达 `consumed`（前缀
-//    路径不变）然后继续扫尾部新 units。
-//
-// `consumed`（退出断点）= while 退出时的游标 `i`（满足 `i+2 >= len`）。尾部追加后
-// `consumed+2 < new_len` 可能成立 ⟹ 从 `consumed` 续扫的新窗口 `[consumed,consumed+1,consumed+2]`
-// 可能横跨旧/新段——全量重扫也会到达同一 `consumed` 后扫同一窗口（前缀不变 ⟹ 同路径）。
-//
-// **与 zhongshu `ScanResume` 的严格区分**（no-patch：不套用不同语义）：zhongshu 处理中枢
-// **延伸吸收**（unsettled 中枢携 extend 状态 gg/dd 吸收后续段），其 `Unsettled` 状态机在塔的
-// 非重叠三段窗口扫描中**不存在**（塔成立支 +3 永不回头、不 extend）。塔增量基元是无状态的
-// 游标续进（仅 `consumed` + 已产出不可变前缀），状态机更简单，直接基于左折叠的确定性。
+// 2. **sealed 前缀 centers 不可变**：非末位的已产出 center 其延伸被一个显式 non-extension 单元
+//    终止（判定冻结），窗口永不被后续重访（i 严格递增 ⟹ 窗口不重叠）。
+// 3. **末位 center 是开放 frontier**（task #142 延伸语义）：其延伸终止于「units 用尽」而非
+//    non-extension 单元时，尾部追加的新单元可延伸它 ⟹ 从 `consumed` 直接续进**不再合法**
+//    （会把开放中枢误当 sealed）。唯一合法 resume 协议 = pop 末位 center + 从 `resume_from`
+//    （其 seed 起点）重扫——重扫在同一确定性路径上重算该中枢并吸收新延伸段。
 //
 // ## 真 Fugue 547（铁律保留）
 //
-// 增量 compose 的 `LeveledMove::compose` 父子仍用真 sub_moves（窗口三段次级别 LeveledMove），
-// `descend` 取回真 subs ⟹ B2/S2 真可产。增量只改"扫描从何处起"，不改"compose 的 subs 来源"——
-// subs 永远是真窗口三段（禁级别差伪造）。
+// 增量 compose 的 `LeveledMove::compose` 父子仍用真 sub_moves（窗口内全部次级别 LeveledMove，
+// seed 三段 + 延伸段），`descend` 取回真 subs ⟹ B2/S2 真可产。增量只改"扫描从何处起"，
+// 不改"compose 的 subs 来源"——subs 永远是真窗口切片（禁级别差伪造）。
 //
 // ## 认识论等级（formalization-validity-domain 231号）
 //
@@ -327,11 +314,14 @@ pub fn compose_level(
 /// `consumed + 2 < new_len` 可能成立 ⟹ 从 `consumed` 续扫正确（见模块文档增量证明）。
 ///
 /// ★frontier bug 修复（task #47/#21，区间套.pdf 六~十节裁决②）：`consumed` **不能**直接作
-/// resume 起点——成立支 `+3` 后 `consumed` 越过最后一个成立窗口 `[i,i+1,i+2]`，把它当 sealed
-/// prefix。但该窗口第三段 `i+2` 可能是 frontier（未确认段），新 bar 到来后（后续新段使全量非重叠
-/// 扫描在此窗口后续段落产出不同中枢，或古怪线段重划改写 `i+2`）该中枢应重算。PDF：只有**完全
-/// 结束于最后 sealed 边界 `b_t` 前**的窗口 sealed；`b_t` 之后（含最后一个成立窗口，因其可能依赖
-/// frontier 段）必须重算。保守版（PDF §八）：`b_t = 当前活跃候选前最后稳定端点`，rollback 重算。
+/// resume 起点——成立支消费整个窗口后 `consumed` 越过最后一个成立窗口，把它当 sealed prefix。
+/// 但该窗口尾段可能是 frontier（未确认段），新 bar 到来后（后续新段使全量扫描在此窗口后续段落
+/// 产出不同中枢，或古怪线段重划改写尾段）该中枢应重算。PDF：只有**完全结束于最后 sealed 边界
+/// `b_t` 前**的窗口 sealed；`b_t` 之后（含最后一个成立窗口，因其可能依赖 frontier 段）必须重算。
+/// 保守版（PDF §八）：`b_t = 当前活跃候选前最后稳定端点`，rollback 重算。
+/// ★task #142 延伸语义后此协议从「保守正确」升为**必需**：末位中枢在未被 non-extension 单元
+/// 终止前开放（新单元可延伸它），从 `consumed` 续进恒不合法——见 `detect_centers_windowed_resume`
+/// 充要条件 #1。
 ///
 /// `resume_from` = **最后一个成立窗口的起点**（`win[0]`），即保守 `b_t` 锚。resume 从 `resume_from`
 /// 重扫（而非 `consumed`）⟹ 最后一个中枢每 bar 重算，其真正 sealed（后面又出现成立窗口把它推进
@@ -346,32 +336,34 @@ pub struct WindowScanCursor {
     pub resume_from: usize,
 }
 
-/// 增量窗口扫描：从 `start_i` 续扫三段窗口，返回新产出的 `(Center, [usize;3])` 序列 + 退出断点。
+/// 增量窗口扫描：从 `start_i` 续扫（seed + 延伸吸收），返回新产出的 `(Center, (start,end))` 序列 +
+/// 退出断点。
 ///
 /// 与 `detect_centers_windowed(units, build)` 的关系：
 /// - 全量等价：`detect_centers_windowed(units, build)` == `detect_centers_windowed_resume(units, build, 0).0`
 ///   （`start_i=0` 续扫 == 全量扫描）。
-/// - 增量等价：设上次扫描在 `units[..old_len]` 上退出断点为 `c0`（`c0.consumed`），产出前缀
-///   `prefix`。追加到 `new_len` 后，`detect_centers_windowed_resume(units, build, c0.consumed)` 返回
-///   `(tail, c1)`，则全量扫描 `detect_centers_windowed(units, build)` == `prefix ++ tail`（bit-exact）。
 ///
 /// **bit-exact 充要条件**（调用方必须保证，否则增量破裂）：
-/// 1. `start_i` 必须是一个**确定性扫描断点**：全量扫描从 0 出发到达 `start_i` 时游标路径确定
-///    （成立支 +3、不成立支 +1 的确定性左折叠）。合法取值有二——(a) 上次扫描的退出点 `consumed`
-///    （续进，不重算任何已产出中枢）；(b) 上次扫描**最后一个成立窗口的起点** `resume_from`
-///    （frontier 修复：从此重扫会重算最后一个中枢，调用方须对应 pop 该中枢——见 `WindowScanCursor`
-///    文档与 mod.rs::classify_with_tower_incremental 回退逻辑）。两者都是确定性断点（前缀路径不变）。
+/// 1. `start_i` 必须是一个**确定性扫描断点**，且**唯一合法取值 = 上次扫描的 `resume_from`**（最后一个
+///    成立窗口的起点；无窗口时 == 退出点 `consumed`），调用方须对应 pop 最后一个已产出中枢（frontier
+///    协议，见 `WindowScanCursor` 文档与 mod.rs::classify_with_tower_incremental 回退逻辑）。
+///    ★延伸语义（task #142）使旧合法取值 (a)「退出点 `consumed` 直接续进」**失效**：最后一个中枢在
+///    未出现 non-extension 单元前是**开放**的（尾部追加单元可延伸它），从 `consumed` 续进会把开放
+///    中枢误当 sealed、对本应延伸进它的新单元开新中枢（与全量分叉）。frontier 协议天然正确：pop 开放
+///    中枢 + 从其 seed 起点重扫 ⟹ 延伸在重扫中吸收新单元，bit-exact。
 /// 2. `units[..start_i]` 在两次扫描间**不可变**（只允许尾部追加或 frontier 段原地改写后重扫；
 ///    改写落在 `start_i` 之后时无害，落在之前须调用方 cascade 全量重置）。
-/// 3. 保留的前缀 centers（`units[..start_i]` 上完全结束者）不可变（成立支 +3 ⟹ 永不重访）；
-///    跨越 `start_i` 的最后一个成立窗口**不**在保留前缀内（frontier，须重算）。
+/// 3. 保留的前缀 centers（seed 与延伸全部结束于 `start_i` 前者）不可变——每个前缀中枢的延伸由一个
+///    显式 non-extension 单元终止（该单元的判定只读该单元 vs 冻结核心，units 前缀不可变 ⟹ 判定冻结），
+///    扫描永不回访其窗口。
 ///
-/// 条件满足时，从 `start_i` 续扫产出的 tail 与全量重扫到达 `start_i` 后继续的产出逐位相同。
+/// 条件满足时，从 `start_i` 续扫产出的 tail 与全量重扫到达 `start_i` 后继续的产出逐位相同
+/// （确定性左折叠：seed 判定读 `units[i..=i+2]`、延伸判定读单个 `units[j]` vs 冻结核心，均为纯函数）。
 pub fn detect_centers_windowed_resume(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
     start_i: usize,
-) -> (Vec<(Center, [usize; 3])>, WindowScanCursor) {
+) -> (Vec<(Center, (usize, usize))>, WindowScanCursor) {
     let mut out = Vec::new();
     let mut i = start_i;
     // ★frontier 修复锚：最后一个成立窗口的起点。无成立窗口 ⟹ None（下面折叠为 consumed，续进语义）。
@@ -380,10 +372,21 @@ pub fn detect_centers_windowed_resume(
     let mut last_window_start: Option<usize> = None;
     while i + 2 < units.len() {
         match build(&units[i], &units[i + 1], &units[i + 2]) {
-            Some(c) => {
-                out.push((c, [i, i + 1, i + 2]));
+            Some(seed) => {
+                // Step2 extension（中心定理一，PDF §5）：u_j 区间触及冻结核心 [ZD,ZG]（闭区间相交
+                // `d_j <= ZG ∧ g_j >= ZD`）⟹ 同一中枢延伸——end/DD/GG 吸收，核心不动。
+                // Step3 non-extension：`d_j > ZG ∨ g_j < ZD` ⟹ 停止延伸，扫描从 u_j 继续。
+                let mut c = seed;
+                let mut j = i + 3;
+                while j < units.len() && units[j].lo <= c.zg && units[j].hi >= c.zd {
+                    c.end_index = units[j].end_index;
+                    c.dd = c.dd.min(units[j].lo);
+                    c.gg = c.gg.max(units[j].hi);
+                    j += 1;
+                }
+                out.push((c, (i, j - 1)));
                 last_window_start = Some(i);
-                i += 3;
+                i = j;
             }
             None => {
                 i += 1;
@@ -403,8 +406,8 @@ pub fn detect_centers_windowed_resume(
 ///   `cursor.consumed` 是退出断点（下次续扫起点）。
 ///
 /// `subs_moves` 必须与 `units` 同序同长（`units` 是 `subs_moves` 的投影）。增量只追加产出，
-/// **不修改**已缓存的 `LeveledMove` 前缀——真 Fugue 547：每个新 compose 的 subs 仍是真窗口三段
-/// 次级别 LeveledMove（`subs_moves[win[0..3]]`），descend 取回真 subs。
+/// **不修改**已缓存的 `LeveledMove` 前缀——真 Fugue 547：每个新 compose 的 subs 仍是真窗口切片
+/// （seed 三段 + 延伸段，`subs_moves[win.0..=win.1]`，task #142），descend 取回真 subs。
 ///
 /// ★codex Q4 确定性 ID：`prefix_count` = 已产出前缀数（调用方传 `lc.upper_moves.len()`），
 /// tail ordinal = `prefix_count + i`（接续前缀，全量/增量产同 ID）。`start_i=0, prefix_count=0`
@@ -440,8 +443,8 @@ pub fn compose_level_resume(
             .iter()
             .enumerate()
             .map(|(i, (c, win))| {
-                // win 恒连续 `[start,start+1,start+2]`——直接借用切片，不先 clone 成临时数组。
-                let subs = &subs_moves[win[0]..win[0] + 3];
+                // win 是连续闭区间（seed 三段 + 延伸段，task #142）——直接借用切片，不 clone 临时数组。
+                let subs = &subs_moves[win.0..=win.1];
                 // ★确定性 ID：tail ordinal 接续前缀（全量/增量产同 ID）。
                 let id = ElementId { level, ordinal: (prefix_count + i) as u64 };
                 super::stage_profile::time("05c2_compose_call", || {
