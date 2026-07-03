@@ -163,13 +163,17 @@ fn unit_to_segment(u: &UnitRange) -> Segment {
 fn extract_first_third_for_level(
     centers: &[Center],
     units: &[UnitRange],
+    anchors: &[Option<Direction>],
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
     close_src: &[usize],
 ) -> (Vec<BspPoint>, Vec<signal::PanDivCert>) {
     let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
-    signal::extract_signals_with_hist(centers, &segs, hist, dif, closes_tick, close_src)
+    // ★Q7-#1 裁定C（codex-q7-fallback-20260703，收窄 #121 裁定A）：`anchors[i]` = 产生本级 units
+    // 的下级 blocks 的 ownership 方向（`center_own_dir_at` 同一来源，与 `project_to_units` 方向
+    // 派生锁步）。None = endpoint fallback 单元——保留为序列/区间/面积成员，不作一/三类方向锚。
+    signal::extract_signals_with_hist_anchored(centers, &segs, Some(anchors), hist, dif, closes_tick, close_src)
 }
 
 /// 从 L0 线段单元序列识别 canonical 中枢序列（**完整判据** seed + 延伸吸收，契约锚
@@ -236,6 +240,8 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
 
     // L0 输入单元 = parser 线段账本（reference:29 L0=1分钟线段账本）。
     let mut units: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
+    // Q7-#1 裁定C：units 的方向锚资格（与 units 同步循环携带；L0 分支不消费，级别-N 在投影点派生）。
+    let mut units_anchors: Vec<Option<Direction>> = Vec::new();
 
     // 空 L0：无可构造级别（自然终止于 L0 之前）。
     if units.is_empty() {
@@ -304,7 +310,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
             signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &dif, &closes_tick, &close_src)
         } else {
             // 级别-N 一/三类（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。
-            extract_first_third_for_level(&centers, &units, &hist, &dif, &closes_tick, &close_src)
+            extract_first_third_for_level(&centers, &units, &units_anchors, &hist, &dif, &closes_tick, &close_src)
         };
         // 递归组装层 B2/S2（#53 接入）：对每个上级走势的次级别走势序列识别第二类结构。
         bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
@@ -321,7 +327,12 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         // 上级走势携 subs（`RMove::Compose`），投影只为下一级几何中枢检测提供 [lo,hi] 区间——
         // 真递归 subs 在 `moves_tower` 里保留（不丢弃，旧塔丢弃 subs 是 B2 不可产的根因）。
         // Q7（task #145）：方向源 = 本级中枢 ownership 块方向（刚 push 的 LevelState.moves 单一来源）。
-        units = project_to_units(&upper_moves, &levels.last().expect("本级 LevelState 已 push").moves);
+        {
+            let pb = &levels.last().expect("本级 LevelState 已 push").moves;
+            units = project_to_units(&upper_moves, pb);
+            // Q7-#1 裁定C：锚资格与投影方向同一 provenance 来源（center_own_dir_at，None=fallback）。
+            units_anchors = (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
+        }
         moves_tower = Rc::new(upper_moves);
 
         // 本级无中枢 ⟹ 无上级输入单元，停止递归（自然终止）。
@@ -1092,6 +1103,8 @@ pub fn classify_with_tower_incremental(
 
     // 逐级增量构造。`units`/`moves_tower` 是本级输入（前缀来自缓存，尾部新增）。
     let mut units: Vec<UnitRange> = l0_units;
+    // Q7-#1 裁定C：units 方向锚资格（循环携带，级别-N 在投影点与 units 同步派生；L0 分支不消费）。
+    let mut units_anchors: Vec<Option<Direction>> = Vec::new();
     let mut moves_tower: Rc<Vec<LeveledMove>> = moves_tower_l0;
 
     // ★cascade reset（codex 异质审查裁决：option 2）：任一级检出 frontier 变异 ⟹ 该级**及所有更高级**
@@ -1301,7 +1314,7 @@ pub fn classify_with_tower_incremental(
                     // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。memo miss 才重算
                     // （bsp_key 含 units.len，见上）；命中走 07c Rc::clone O(1)。units_L 随级别几何衰减
                     // ⟹ 每 miss O(units_L) 全扫，struct 变化次数 ≪ bar 数 ⟹ 摊还 O(n)（同 L0 memo 特性）。
-                    extract_first_third_for_level(&lc.centers, &units, hist, dif, &closes_tick, &close_src)
+                    extract_first_third_for_level(&lc.centers, &units, &units_anchors, hist, dif, &closes_tick, &close_src)
                 })
             };
             let second = stage_profile::time("07b_extract_second", || {
@@ -1367,6 +1380,12 @@ pub fn classify_with_tower_incremental(
             "投影证书违反：projected_units != 全量 project_to_units（truncate(prefix_count)/resume 破裂）"
         );
         units = stage_profile::time("10_projected_units_clone", || lc.projected_units.clone());
+        // Q7-#1 裁定C：锚资格与投影同源同步派生（deterministic 于 (moves, len) ⟹ resume bit-exact：
+        // 全量与增量在同一 (pb, units.len()) 上得同一锚数组，无缓存陈旧面）。
+        units_anchors = {
+            let pb = &levels.last().expect("本级 LevelState 已 push").moves;
+            (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect()
+        };
 
         // ★A3 §2.4：本级 prefix_count 是下一级 units 的不可变前缀（父 confirmed 前缀投影稳定）。
         dirty_from = prefix_count;
@@ -1838,7 +1857,9 @@ mod tests {
         let close_src: Vec<usize> = (0..prices.len()).collect();
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
         // 本测试只验结构六 bit（force 旁挂不改），传空 dif/closes_tick ⟹ force=None（不影响 buy1 判据）。
-        let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &hist, &[], &[], &close_src);
+        // Q7-#1 裁定C：显式全锚（本测试验证的是 Trend ownership 单元的 gap-fill 路径）。
+        let anchors = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)];
+        let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &anchors, &hist, &[], &[], &close_src);
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
         assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢单元）终止 source_index");
@@ -1861,12 +1882,59 @@ mod tests {
             UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
         ];
         // 三类无 MACD 依赖（纯整数几何），hist 空亦可——传空 hist/dif/closes_tick（第一类自然不产，force=None）。
-        let (bsp, _pan) = extract_first_third_for_level(&[c], &units, &[], &[], &[], &(0..24).collect::<Vec<_>>());
+        // Q7-#1 裁定C：显式全锚（leave 单元有 Trend ownership 资格的三类路径）。
+        let anchors = [Some(Direction::Up), Some(Direction::Down)];
+        let (bsp, _pan) = extract_first_third_for_level(&[c], &units, &anchors, &[], &[], &[], &(0..24).collect::<Vec<_>>());
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
         assert_eq!(buy3.len(), 1, "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）");
         assert_eq!(buy3[0].source_index, 20, "3 买端点 = 回试单元终止 source_index");
         assert_eq!(buy3[0].pivot_low, 210, "3 买止损源 = pivot_low（回试低点）");
         assert_eq!(buy3[0].center.map(|c| c.zg), Some(200), "3 买 center=Some（止损=zg）");
+    }
+
+    /// ★Q7-#1 裁定C（codex-q7-fallback-20260703）：Consolidation ownership 的 endpoint fallback
+    /// 单元（anchor=None）不得作一/三类方向锚，但保留为序列成员。三向验证（同 fixture 对照）：
+    /// 全锚 ⟹ 1 买产（对照组）；A 段 fallback ⟹ 无 A 候选 ⟹ 不产；C 段 fallback ⟹ broke 不触发
+    /// ⟹ 不产。三类：leave 段 fallback ⟹ 不产 3 买。成员身份不变（centers/分解不受锚门影响）。
+    #[test]
+    fn q7_ruling_c_fallback_unit_not_direction_anchor_but_stays_member() {
+        use super::center::UnitRange;
+        // fixture 同 level_ge1_extract_first_third_fills_type1_gap（两下行中枢 + A/B/C 三单元）。
+        let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
+        let c1 = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 8 };
+        let units = vec![
+            UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 },
+            UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },
+            UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 },
+        ];
+        let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
+        let close_src: Vec<usize> = (0..prices.len()).collect();
+        let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
+        let n_buy1 = |anchors: &[Option<Direction>]| {
+            let (bsp, _) = extract_first_third_for_level(&[c0, c1], &units, anchors, &hist, &[], &[], &close_src);
+            bsp.iter().filter(|p| p.bits.buy1).count()
+        };
+        // 对照组：全锚 ⟹ 1 买产（gap-fill 路径活）。
+        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)]), 1);
+        // A 段单元 fallback ⟹ A 候选无法定位 ⟹ 不产（成员仍在：episode/区间扫描含该单元）。
+        assert_eq!(n_buy1(&[None, Some(Direction::Up), Some(Direction::Down)]), 0,
+            "fallback 单元不得作 A 段方向锚");
+        // C 段（破中枢段）单元 fallback ⟹ broke 不触发 ⟹ 不产。
+        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), None]), 0,
+            "fallback 单元不得作破中枢段方向锚");
+        // 三类：leave 段 fallback ⟹ 不产 3 买（retest 是几何角色不设锚门）。
+        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let u3 = vec![
+            UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
+            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
+        ];
+        let src24: Vec<usize> = (0..24).collect();
+        let (bsp, _) = extract_first_third_for_level(&[c], &u3, &[None, Some(Direction::Down)], &[], &[], &[], &src24);
+        assert_eq!(bsp.iter().filter(|p| p.bits.buy3).count(), 0, "fallback 单元不得作三类离开段方向锚");
+        // 成员身份不变：同 fixture 全锚下产出恢复（锚门不改变序列成员/中枢几何）。
+        let (bsp2, _) = extract_first_third_for_level(&[c], &u3, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[], &src24);
+        assert_eq!(bsp2.iter().filter(|p| p.bits.buy3).count(), 1);
     }
 
     /// ★L2 信号普查诊断（裁定 A gap-fill 真实数据核验，`--ignored` 手动跑，依赖 analysis/data_cache）：

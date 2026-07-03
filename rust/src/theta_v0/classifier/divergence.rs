@@ -538,6 +538,7 @@ impl AbcDivergence {
 /// 离开走势方向 = 趋势方向（向下趋势=向下离开=底背驰候选；向上趋势=顶背驰候选）。
 pub fn locate_departure_move_a(
     segments: &[Segment],
+    anchors: &[Option<Direction>],
     prev_center: &Center,
     last_center: &Center,
     trend_dir: Direction,
@@ -545,8 +546,14 @@ pub fn locate_departure_move_a(
     let lo = segments.partition_point(|s| s.start_index < prev_center.end_index);
     let hi = segments.partition_point(|s| s.start_index < last_center.end_index);
     let win = &segments[lo..hi];
-    let lambda_a = episode_start_in(win, prev_center, trend_dir)?;
-    let mut it = win.iter().filter(|s| s.direction == trend_dir && s.start_index >= lambda_a);
+    let awin = &anchors[lo..hi];
+    let lambda_a = episode_start_in(win, awin, prev_center, trend_dir)?;
+    // ★Q7-#1 裁定C：A 段候选筛选用 anchor 方向——fallback 单元不作 A 段方向锚（仍是区间成员）。
+    let mut it = win
+        .iter()
+        .zip(awin)
+        .filter(|(s, a)| **a == Some(trend_dir) && s.start_index >= lambda_a)
+        .map(|(s, _)| s);
     let first = it.next()?;
     let last = it.last().unwrap_or(first);
     // I(A) = [episode 首段起点, episode 末同向段终点]（Q5：多段时含中间反向段 bar）。
@@ -562,7 +569,20 @@ pub fn locate_departure_move_a(
 ///
 /// 生产（signal.rs extract 循环 λ_C）/漏斗探针/oracle/judge_pan_div 全部经本函数取 episode 起点
 /// ——单一来源，无坐标 fork（675号）。
-pub fn episode_start_in(win: &[Segment], c: &Center, dir: Direction) -> Option<usize> {
+/// L0/测试便捷（Q7-#1 裁定C）：段方向即锚方向——L0 线段有内在缠论方向，锚资格 ≡ 结构方向。
+pub fn self_anchors(segs: &[Segment]) -> Vec<Option<Direction>> {
+    segs.iter().map(|s| Some(s.direction)).collect()
+}
+
+/// ★Q7-#1 裁定C（codex-q7-fallback-20260703）：`anchors` 与 `win` 平行——离开段（首同向段）
+/// 选取用 anchor 方向（`anchors[j] == Some(dir)`），fallback 单元（None）不得作离开段方向锚。
+/// 回中枢段边界（reenters）用结构方向（`s.direction`）——回中枢是几何角色，非裁决三锚之一。
+pub fn episode_start_in(
+    win: &[Segment],
+    anchors: &[Option<Direction>],
+    c: &Center,
+    dir: Direction,
+) -> Option<usize> {
     let reenters = |s: &Segment| {
         s.direction != dir
             && match dir {
@@ -572,8 +592,9 @@ pub fn episode_start_in(win: &[Segment], c: &Center, dir: Direction) -> Option<u
     };
     let boundary = win.iter().rev().find(|s| reenters(s)).map_or(0, |r| r.end_index);
     win.iter()
-        .find(|s| s.direction == dir && s.start_index >= boundary)
-        .map(|s| s.start_index)
+        .zip(anchors)
+        .find(|(s, a)| **a == Some(dir) && s.start_index >= boundary)
+        .map(|(s, _)| s.start_index)
 }
 
 /// λ_C（Q5 + codex ac4 审查 #2 修复）：离开中枢 `c` 的**当前** episode 首同向段起点，窗口截至
@@ -585,13 +606,14 @@ pub fn episode_start_in(win: &[Segment], c: &Center, dir: Direction) -> Option<u
 /// (c, dir, until_start) 逐段计算（λ_C 依赖 seg 前的回中枢段集合，不再可按 c_idx 缓存）。
 pub fn departure_move_c_start(
     segments: &[Segment],
+    anchors: &[Option<Direction>],
     c: &Center,
     dir: Direction,
     until_start: usize,
 ) -> Option<usize> {
     let lo = segments.partition_point(|s| s.start_index < c.end_index);
     let hi = segments.partition_point(|s| s.start_index <= until_start);
-    episode_start_in(&segments[lo..hi], c, dir)
+    episode_start_in(&segments[lo..hi], &anchors[lo..hi], c, dir)
 }
 
 #[cfg(test)]
@@ -704,7 +726,7 @@ mod tests {
             Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
             Segment { direction: Direction::Down, start_index: 13, end_index: 15, start_price: 200, end_price: 80 }, // 在 last_center 之后（C 区，非 A）
         ];
-        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
         assert_eq!(seg_a, Some((6, 11)), "Q5：A = 整个离开走势区间（首匹配段起点..末匹配段终点，含中间反向段）");
     }
 
@@ -720,7 +742,7 @@ mod tests {
             Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 }, // 回中枢：end 395 ≥ zd=300
             Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
         ];
-        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
         assert_eq!(seg_a, Some((10, 11)), "回中枢段切开两个 episode ⟹ A = 当前（最后）episode，不桥接");
         // 对照：中间反向段未回核心（end 280 < zd=300）⟹ 同一 episode ⟹ 全区间（covers_whole_interval 语义）。
         let no_reentry = vec![
@@ -728,7 +750,7 @@ mod tests {
             Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 },
             Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
         ];
-        let seg_a2 = locate_departure_move_a(&no_reentry, &prev_c, &last_c, Direction::Down);
+        let seg_a2 = locate_departure_move_a(&no_reentry, &self_anchors(&no_reentry), &prev_c, &last_c, Direction::Down);
         assert_eq!(seg_a2, Some((6, 11)), "反向段未回核心 ⟹ 同一 episode ⟹ 整区间");
     }
 
@@ -742,10 +764,10 @@ mod tests {
             Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 },
             Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
         ];
-        assert_eq!(departure_move_c_start(&segments, &c, Direction::Down, 10), Some(10),
+        assert_eq!(departure_move_c_start(&segments, &self_anchors(&segments), &c, Direction::Down, 10), Some(10),
             "回中枢段之后重新离开 ⟹ λ_C = 当前 episode 首同向段起点");
         // 无回中枢段 ⟹ 整窗口一个 episode ⟹ λ_C = 首个同向段起点（单段兼容口径）。
-        assert_eq!(departure_move_c_start(&segments[..1], &c, Direction::Down, 6), Some(6),
+        assert_eq!(departure_move_c_start(&segments[..1], &self_anchors(&segments[..1]), &c, Direction::Down, 6), Some(6),
             "无回中枢段 ⟹ λ_C = 中枢后首个同向段起点");
     }
 
@@ -758,7 +780,7 @@ mod tests {
             Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
             Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 }, // 未回核心（<zd=300）
         ];
-        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
         assert_eq!(seg_a, Some((6, 8)), "单匹配段 ⟹ 与旧单段返回值 bit 相同（兼容）");
     }
 
@@ -771,7 +793,7 @@ mod tests {
             // [5,12) 内只有向上段，无向下离开段 ⟹ A（向下）无候选。
             Segment { direction: Direction::Up, start_index: 6, end_index: 8, start_price: 280, end_price: 380 },
         ];
-        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
         assert_eq!(seg_a, None, "无 prev_center 同向离开段 ⟹ A 无法定位");
     }
 

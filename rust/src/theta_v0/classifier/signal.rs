@@ -274,6 +274,7 @@ fn judge_first_cached(
     last_center: &Center,
     trend_dir: Direction,
     seg: &Segment,
+    anchor_dir: Option<Direction>,
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
@@ -284,11 +285,13 @@ fn judge_first_cached(
     let end = seg_end(seg);
     // C 破最后中枢几何（L0）+ 方向必须 = 趋势方向（下跌趋势=向下破=底背驰；上涨=向上破=顶背驰）。
     // 因果触发点 = 破中枢段端点（Q5 等价性注记见函数头）。
-    let (broke, is_sell) = match (end.dir, trend_dir) {
+    // Q7-#1 裁定C：破中枢段方向锚用 anchor_dir（provenance 资格）——fallback 单元（None）不触发。
+    // L0 恒 anchor_dir==Some(end.dir)（线段内在方向）⟹ 与旧 (end.dir, trend_dir) 匹配逐位一致。
+    let (broke, is_sell) = match (anchor_dir, trend_dir) {
         // 1 买：下跌趋势中向下破最后中枢下沿（底背驰候选）。
-        (Direction::Down, Direction::Down) if end.price < last_center.zd => (true, false),
+        (Some(Direction::Down), Direction::Down) if end.price < last_center.zd => (true, false),
         // 1 卖：上涨趋势中向上破最后中枢上沿（顶背驰候选）。
-        (Direction::Up, Direction::Up) if last_center.zg < end.price => (true, true),
+        (Some(Direction::Up), Direction::Up) if last_center.zg < end.price => (true, true),
         _ => (false, false),
     };
     if !broke {
@@ -372,12 +375,19 @@ fn judge_first_cached(
 /// bit-exact 边界：严格口径（`> zg` / `< zd`，等号排除）——retest==zg=单点重叠仍触及闭区间中枢
 /// `[ZD,ZG]`（中心定理一：重叠=中枢延伸，非终结）⟹ 非第三类。逐字段对齐 Lean `IsType3Buy`
 /// （`zg < retracePrice` 严格，BspClassification.lean:113）。codex 裁决 2026-06-27（中枢终结语义）。
-fn judge_third(c: &Center, leave_seg: &Segment, retest_seg: &Segment) -> Option<BspPoint> {
+/// ★Q7-#1 裁定C：`leave_anchor` = leave 段的方向锚资格——三类的离开/突破段须有锚（fallback ⟹
+/// None ⟹ 非三类结构）。retest 段是几何回试角色（回试不触中枢的区间判据），不设锚门。
+fn judge_third(
+    c: &Center,
+    leave_seg: &Segment,
+    leave_anchor: Option<Direction>,
+    retest_seg: &Segment,
+) -> Option<BspPoint> {
     let leave = seg_end(leave_seg);
     let retest = seg_end(retest_seg);
-    match (leave.dir, retest.dir) {
+    match (leave_anchor, retest.dir) {
         // 3 买：向上离开（leave 端点 > c.zg）+ 向下回试（retest 低点 > c.zg，不触及闭区间中枢）。
-        (Direction::Up, Direction::Down) if leave.price > c.zg && retest.price > c.zg => {
+        (Some(Direction::Up), Direction::Down) if leave.price > c.zg && retest.price > c.zg => {
             let situ = EndpointSituation {
                 after_first_buy: false,
                 is_pullback_end: false,
@@ -390,7 +400,7 @@ fn judge_third(c: &Center, leave_seg: &Segment, retest_seg: &Segment) -> Option<
             Some(make_third_point(retest.source_index, bits, retest.price, c))
         }
         // 3 卖：向下离开（leave 端点 < c.zd）+ 向上回抽（retest 高点 < c.zd，不触及闭区间中枢）。
-        (Direction::Down, Direction::Up) if leave.price < c.zd && retest.price < c.zd => {
+        (Some(Direction::Down), Direction::Up) if leave.price < c.zd && retest.price < c.zd => {
             let situ = EndpointSituation {
                 after_first_buy: false,
                 is_pullback_end: false,
@@ -519,6 +529,7 @@ fn judge_pan_div(
     c: &Center,
     seg: &Segment,
     segments: &[Segment],
+    anchors_self: &[Option<Direction>],
     hist: &[f64],
     src_to_idx: &[usize],
 ) -> Option<PanDivCert> {
@@ -548,7 +559,7 @@ fn judge_pan_div(
     win.iter().rev().filter(|s| s.end_index <= seg.start_index).find(|s| reenters(s))?;
     // λ_C = r 之后首个同向段起点（[`departure_move_c_start`] 单一来源；r = 窗口内最后回中枢段 ⟹
     // helper 的 episode 边界与 r 相同；seg 自身满足过滤 ⟹ 必 Some）。
-    let lambda_c = departure_move_c_start(segments, c, dir, seg.start_index)?;
+    let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
     // 3. A = 同一中枢的**前一次同向离开 episode 区间**（Q5 区间口径，codex ac4 复审：A 侧与 C 侧
     //    对称 episode 化，不再只取末段）。锚 = λ_C 之前端点破核心的末个同向段（存在性 = 前次离开
     //    确认）；I(A) = [λ_A, ρ_A]——λ_A 经共享 helper（锚所在 episode 起点），ρ_A = episode 内
@@ -568,7 +579,7 @@ fn judge_pan_div(
     {
         return None;
     }
-    let lambda_a = departure_move_c_start(segments, c, dir, a_anchor.start_index)?;
+    let lambda_a = departure_move_c_start(segments, anchors_self, c, dir, a_anchor.start_index)?;
     // episode 终界 = 锚后首个回中枢段起点（分隔段，上一检查保证存在；fallback λ_C 防御性等价）。
     let episode_end = win
         .iter()
@@ -735,21 +746,51 @@ pub fn extract_signals_with_hist(
     closes_tick: &[Tick],
     close_src: &[usize],
 ) -> (Vec<BspPoint>, Vec<PanDivCert>) {
+    // L0 入口：线段有内在缠论方向 ⟹ 锚方向 ≡ 结构方向（域定理）。Q7-#1 裁定C 的锚门只约束
+    // 级别-N fallback 单元（经 [`extract_signals_with_hist_anchored`] 传 provenance 派生锚）。
+    extract_signals_with_hist_anchored(centers, segments, None, hist, dif, closes_tick, close_src)
+}
+
+/// ★Q7-#1 裁定C（codex-q7-fallback-20260703，收窄 #121 裁定A）：`anchor_dirs[i]` = `segments[i]`
+/// 的**方向锚资格**——级别-N 传 `center_own_dir_at` ownership 方向（provenance 派生）；`None` 元素
+/// = endpoint fallback 单元，保留为序列/区间/面积成员，但不得作 A 段候选、C 段/破中枢段、离开段
+/// 方向锚。整参 `None` = L0（段方向即锚方向）。盘整背驰路径（[`judge_pan_div`]）不受锚门约束
+/// （盘整是独立范畴，腿方向即结构方向——恒用 `anchors_self`）。
+pub fn extract_signals_with_hist_anchored(
+    centers: &[Center],
+    segments: &[Segment],
+    anchor_dirs: Option<&[Option<Direction>]>,
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+) -> (Vec<BspPoint>, Vec<PanDivCert>) {
     // ★线段按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格单调
     // 递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等）。稳定
     // 排序保证 start_index 相同时保留原序。中枢归属用 start_index，单趟扫描需线段时间序。
     // ★O(1) 优化：检测已有序则直接借用引用（避免 O(k) clone+sort）。生产路径 + 测试合成数据均有序。
     let sorted_owned: Vec<Segment>;
-    let sorted: &[Segment] = if segments.windows(2).all(|w| w[0].start_index <= w[1].start_index) {
-        segments
-    } else {
-        sorted_owned = {
-            let mut v = segments.to_vec();
-            v.sort_by_key(|s| s.start_index);
-            v
+    let anchors_perm: Vec<Option<Direction>>;
+    let (sorted, anchors_in): (&[Segment], Option<&[Option<Direction>]>) =
+        if segments.windows(2).all(|w| w[0].start_index <= w[1].start_index) {
+            (segments, anchor_dirs)
+        } else {
+            // 稳定排序经下标置换——anchor_dirs 与 segments 平行数组，须同一置换（Q7-#1 裁定C）。
+            let mut idx: Vec<usize> = (0..segments.len()).collect();
+            idx.sort_by_key(|&i| segments[i].start_index);
+            sorted_owned = idx.iter().map(|&i| segments[i].clone()).collect();
+            match anchor_dirs {
+                Some(a) => {
+                    anchors_perm = idx.iter().map(|&i| a[i]).collect();
+                    (&sorted_owned[..], Some(&anchors_perm[..]))
+                }
+                None => (&sorted_owned[..], None),
+            }
         };
-        &sorted_owned
-    };
+    // 锚资格平行数组（与 `sorted` 等长）：anchors_self = 结构方向（L0 语义 + 盘整背驰路径专用）。
+    let anchors_self: Vec<Option<Direction>> = sorted.iter().map(|s| Some(s.direction)).collect();
+    let anchors: &[Option<Direction>] = anchors_in.unwrap_or(&anchors_self);
+    debug_assert_eq!(anchors.len(), sorted.len(), "anchor_dirs 与 segments 必等长");
 
     // ★中枢归属用 centers 按 end_index 升序（`detect_centers_with` 非重叠扫描已保证，mod.rs:136；
     // 公开函数不假设入参有序 ⟹ 本入口稳定排序，`nearest_confirmed_center` 二分前缀依赖升序）。
@@ -846,14 +887,15 @@ pub fn extract_signals_with_hist(
                     // 每段重算的 O(S²)。
                     let a_seg_entry = *a_seg_cache
                         .entry(c_idx)
-                        .or_insert_with(|| locate_departure_move_a(&sorted, prev_center, c, dir));
+                        .or_insert_with(|| locate_departure_move_a(&sorted, anchors, prev_center, c, dir));
                     // Q5 λ_C（codex ac4 #2）：当前 episode 首同向段起点（共享 helper，逐段计算）。
                     let c_start_entry =
-                        departure_move_c_start(&sorted, c, dir, seg.start_index);
+                        departure_move_c_start(&sorted, anchors, c, dir, seg.start_index);
                     // P2-R2：judge_first_cached 回 Option<BspPoint>——破中枢结构候选（背驰=buy1/未背驰
                     // =零 bit + struct_break_dir）进 points。macd_c_lt_a 不再单产 sidecar（护栏7 删除）。
                     if let Some(pf) = judge_first_cached(
-                        c, dir, seg, hist, dif, closes_tick, close_src, a_seg_entry, c_start_entry,
+                        c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
+                        c_start_entry,
                     ) {
                         points.push(pf);
                     }
@@ -865,7 +907,7 @@ pub fn extract_signals_with_hist(
         // 背驰证书路径（同一中枢两次同向离开 + C<A）。不产 BspPoint、不置 six-bit——证书由
         // econ 层经 Nest/XZD 二通道承接（PanDiv^δ_ℓ ⟹ ∃e<ℓ Conf^δ_e ∨ XZD^δ_{ℓ↓e}）。
         if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
-            if let Some(cert) = judge_pan_div(c, seg, &sorted, hist, close_src) {
+            if let Some(cert) = judge_pan_div(c, seg, &sorted, &anchors_self, hist, close_src) {
                 pan_divs.push(cert);
             }
         }
@@ -878,7 +920,8 @@ pub fn extract_signals_with_hist(
                 nearest_confirmed_center_idx(&centers_sorted, leave_seg.start_index)
             {
                 let c_leave = &centers_sorted[c_leave_idx];
-                if let Some(p) = judge_third(c_leave, leave_seg, seg) {
+                // Q7-#1 裁定C：leave 段（三类离开/突破段）须有方向锚资格；retest 段是几何回试角色。
+                if let Some(p) = judge_third(c_leave, leave_seg, anchors[i - 1], seg) {
                     // 第三类无 A/C 趋势段对 ⟹ p.force=None（make_third_point 已置，诚实不造死字段）。
                     points.push(p);
                 }
@@ -958,6 +1001,8 @@ pub(crate) fn type1_funnel_dx(
     }
     let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
         std::collections::HashMap::new();
+    // Q7-#1 裁定C：漏斗是 L0 探针（parity 断言对 L0 入口）——自锚（段方向即锚方向），与生产一致。
+    let anchors_self = super::divergence::self_anchors(segments);
     for seg in segments {
         let Some(c_idx) = nearest_confirmed_center_idx(centers, seg.start_index) else {
             continue;
@@ -985,11 +1030,11 @@ pub(crate) fn type1_funnel_dx(
         let prev_center = &centers[pos - 1];
         let a = *a_seg_cache
             .entry(c_idx)
-            .or_insert_with(|| locate_departure_move_a(segments, prev_center, c, dir));
+            .or_insert_with(|| locate_departure_move_a(segments, &anchors_self, prev_center, c, dir));
         let Some((a_start, a_end)) = a else { continue };
         f.s_a_paired += 1;
         // Q5 λ_C（生产同款共享 helper，codex ac4 #2）：I(C)=[λ_C, seg.end]（broke ⟹ 必 Some）。
-        let Some(lambda_c) = departure_move_c_start(segments, c, dir, seg.start_index) else {
+        let Some(lambda_c) = departure_move_c_start(segments, &anchors_self, c, dir, seg.start_index) else {
             continue;
         };
         let (Some(c_i), Some(a_i)) = (
@@ -1591,7 +1636,7 @@ mod tests {
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         // λ_C 直接锁定（共享 helper 单一来源）。
-        assert_eq!(departure_move_c_start(&segs, &c1, Direction::Down, 13), Some(13),
+        assert_eq!(departure_move_c_start(&segs, &super::super::divergence::self_anchors(&segs), &c1, Direction::Down, 13), Some(13),
             "回中枢段之后 ⟹ λ_C = 当前 episode 首同向段起点");
         // 前置自证：episode I(C) < A < 桥接 [9,15]——修复前后布尔翻转的见证条件。
         let (c_ep, a_area, c_bridged) = (
@@ -1623,7 +1668,7 @@ mod tests {
         let prices: Vec<Tick> = vec![300, 300, 300, 300, 180, 170, 250, 300, 300, 298, 296, 294];
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
-        assert_eq!(departure_move_c_start(&segs, &c1, Direction::Down, 9), Some(9),
+        assert_eq!(departure_move_c_start(&segs, &super::super::divergence::self_anchors(&segs), &c1, Direction::Down, 9), Some(9),
             "单段离开 ⟹ λ_C = seg.start_index（与旧单段口径 bit 相同）");
         let (c_area, a_area) = (segment_macd_area(&hist, 9, 11), segment_macd_area(&hist, 3, 5));
         assert!(c_area < a_area, "前置：C 面积({c_area:.3}) < A 面积({a_area:.3})（背驰成立）");
@@ -2057,7 +2102,7 @@ fn diag_first_buy() {
         Segment{direction:Direction::Up,start_index:5,end_index:7,start_price:250,end_price:280},
         Segment{direction:Direction::Down,start_index:9,end_index:11,start_price:150,end_price:80},
     ];
-    let a = locate_departure_move_a(&segs, &c0, &c1, Direction::Down);
+    let a = locate_departure_move_a(&segs, &super::super::divergence::self_anchors(&segs), &c0, &c1, Direction::Down);
     println!("A seg = {:?}", a);
     println!("A area [3,5] = {}", segment_macd_area(&hist, 3, 5));
     println!("C area [9,11] = {}", segment_macd_area(&hist, 9, 11));
@@ -2177,13 +2222,13 @@ fn diag_first_buy() {
             return None;
         }
         let Some((a_start, a_end)) =
-            locate_departure_move_a(segments, prev_center, last_center, trend_dir)
+            locate_departure_move_a(segments, &super::super::divergence::self_anchors(segments), prev_center, last_center, trend_dir)
         else {
             return None;
         };
         // Q5 λ_C（oracle 与生产同一共享 helper——codex ac4 #4：无平行实现 ⟹ 无坐标 fork）。
         let Some(lambda_c) =
-            departure_move_c_start(segments, last_center, trend_dir, seg.start_index)
+            departure_move_c_start(segments, &super::super::divergence::self_anchors(segments), last_center, trend_dir, seg.start_index)
         else {
             return None;
         };
@@ -2253,7 +2298,7 @@ fn diag_first_buy() {
                     let leave_seg = &sorted[i - 1];
                     if let Some(c_leave) = nearest_confirmed_center(&centers_sorted, leave_seg.start_index)
                     {
-                        if let Some(p) = judge_third(c_leave, leave_seg, seg) {
+                        if let Some(p) = judge_third(c_leave, leave_seg, Some(leave_seg.direction), seg) {
                             points.push(p);
                         }
                     }
