@@ -481,6 +481,164 @@ fn policy_backtest() {
     std::fs::write("/tmp/policy_backtest.md", &report).ok();
 }
 
+/// `d`（ISO "YYYY-MM-DD"）前推 6 个月，day 钳到 28（合法日期；slice_date_window 字典序比较）。
+fn q4_shift_back_6m(d: &str) -> String {
+    let y: i32 = d[0..4].parse().unwrap();
+    let m: u32 = d[5..7].parse().unwrap();
+    let day: u32 = d[8..10].parse().unwrap();
+    let (y2, m2) = if m > 6 { (y, m - 6) } else { (y - 1, m + 6) };
+    format!("{y2:04}-{m2:02}-{:02}", day.min(28))
+}
+
+/// `d` 的前一天（day=1 时取上月 28 日——窗口边界钳位，合法且不与相邻 test 窗重叠）。
+fn q4_prev_day(d: &str) -> String {
+    let day: u32 = d[8..10].parse().unwrap();
+    if day > 1 {
+        format!("{}-{:02}", &d[0..7], day - 1)
+    } else {
+        let y: i32 = d[0..4].parse().unwrap();
+        let m: u32 = d[5..7].parse().unwrap();
+        let (y2, m2) = if m > 1 { (y, m - 1) } else { (y - 1, 12u32) };
+        format!("{y2:04}-{m2:02}-28")
+    }
+}
+
+/// q4 margin 口径（prereg-q4-fullpi-20260703 §④，冻结）：CME-simple 单段近似全历史——
+/// `cme_simple(0.37, 1.10)`（risk.rs L1 golden 同值）+ cushions `B1=0.02·nav₀, B2=0.05·nav₀`。
+/// **有效域声明（231）**：非 SPAN、非交易所逐段历史快照、非实盘保证金——报告一律带「CME-simple」标签。
+fn q4_margin_model(nav0: f64) -> super::super::strategy::risk::MarginModel {
+    use super::super::strategy::risk::{MarginModel, MarginSchedule, MarginScheduleBook, RiskCushions};
+    let sched = MarginSchedule::cme_simple(0.37, 1.10).expect("CME-simple 参数合法（冻结值）");
+    let book = MarginScheduleBook::new(vec![(i64::MIN, i64::MAX, sched)]).expect("单段全域快照簿");
+    let cushions = RiskCushions::new(0.02 * nav0, 0.05 * nav0).expect("0<B1<B2（冻结比例）");
+    MarginModel { book, cushions }
+}
+
+/// q4 π^full 四臂 policy 回测（prereg-q4-fullpi-20260703 §⑥ R2，冻结 commit 388a9ebc16）。
+///
+/// 臂位（冻结）：Arm0=无χ/gross off/margin None（漂移归因）；Arm1=χ(teap=false)/gross **on**/
+/// margin **CME-simple**（π^full 主臂）；Arm2=Arm1 但 teap=true（χ 空类语义敏感臂）；
+/// Arm3=χ(teap=false)/gross off/margin None（隔离 G7+margin：Arm1−Arm3）。
+/// 窗口：p3 可比单折（train 2022-07..12 → OOS 2023-01..06）+ walk-forward 逐窗（PREREG_WINDOWS
+/// anchored，test_start≥OOS_START，train=test_start 前推 6 月有界）。品种 BTC 主判据 + CL 对照。
+/// est 按臂自身生产口径训练（treatment-on-the-treated 的训练/生产分布一致；Arm1/Arm2 共享
+/// fullpi-est，Arm3 用 plain-est，χ 不参与训练段 fill loop 故臂内一致）。
+/// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::q4_fullpi_policy -- --ignored --nocapture`。
+#[test]
+#[ignore]
+fn q4_fullpi_policy() {
+    use super::runner::{run_theta_v0_pi, run_theta_v0_pi_chi, RunResult};
+
+    let plain_cfg = ThetaConfig::default(); // Arm0/Arm3 基（margin=None, gross off）
+    let mk_chi = |gross: bool| {
+        let mut c = ThetaConfig::default();
+        c.risk.chi_theta = Some(0.0); // χ=1[LCB(μ)>0]（§12 口径，z_α=1.645，非 p<0.05）
+        c.risk.chi_z_alpha = 1.645;
+        c.risk.enforce_gross_cap = gross;
+        c
+    };
+    let nav_of = |ds: &data::Dataset, cfg: &ThetaConfig| {
+        ds.bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * cfg.tick.tick_size)
+            .unwrap_or(1.0)
+            * 1000.0
+    };
+    let fmt_arm = |name: &str, r: &RunResult| {
+        let pnl: f64 = r.trade_pnls_with_forced.iter().sum();
+        format!(
+            "| {name} | {pnl:+.2} | {:.4} | {} | {} | {:+.4} |\n",
+            r.metrics.max_drawdown, r.n_orders, r.trade_pnls_with_forced.len(), r.metrics.strat_return
+        )
+    };
+
+    let mut report = String::from(
+        "# q4 π^full 四臂 policy 回测（prereg-q4-fullpi-20260703 §⑥，margin=CME-simple 单段近似）\n\n\
+         口径：Σpnl=含浮盈（trade_pnls_with_forced）；nav₀=窗首可交易价×1000（p3 同源）。\n\n",
+    );
+    for sym in ["BTC", "CL"] {
+        let ds = match data::load_by_symbol(sym, &plain_cfg) {
+            Ok(d) => d,
+            Err(e) => {
+                report.push_str(&format!("## {sym}\n加载失败：{e}\n\n"));
+                continue;
+            }
+        };
+        // 窗清单：p3 可比单折 + anchored walk-forward（test_start≥OOS_START，train=前推 6 月）。
+        let mut wins: Vec<(String, String, String, String, String)> = vec![(
+            "p3fold".into(), "2022-07-01".into(), "2022-12-31".into(), "2023-01-01".into(), "2023-06-30".into(),
+        )];
+        if let Some(sw) = PREREG_WINDOWS.iter().find(|w| w.symbol == sym) {
+            for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START) {
+                wins.push((
+                    format!("wf{}{}", w.i, if w.clipped { "*" } else { "" }),
+                    q4_shift_back_6m(w.test_start), q4_prev_day(w.test_start),
+                    w.test_start.into(), w.test_end.into(),
+                ));
+            }
+        }
+        // 聚合器：wf 窗（不含 p3fold）四臂 Σpnl / n_orders。
+        let mut agg: BTreeMap<&'static str, (f64, u64)> = BTreeMap::new();
+        for (tag, tr_lo, tr_hi, te_lo, te_hi) in &wins {
+            let train = ds.slice_date_window(tr_lo, tr_hi);
+            let test = ds.slice_date_window(te_lo, te_hi);
+            if train.bars.is_empty() || test.bars.is_empty() {
+                report.push_str(&format!("## {sym} {tag}\ntrain/test 段空（数据不覆盖）\n\n"));
+                continue;
+            }
+            let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+            let nav_te = nav_of(&test, &plain_cfg);
+            // fullpi 口径 cfg（gross on + margin per-window nav₀）：训练/生产各按所在窗 nav₀。
+            let mut fullpi_tr = mk_chi(true);
+            fullpi_tr.margin = Some(q4_margin_model(nav_of(&train, &plain_cfg)));
+            let mut fullpi_te = mk_chi(true);
+            fullpi_te.margin = Some(q4_margin_model(nav_te));
+            eprintln!("[q4] {sym} {tag} train={tr_lo}..{tr_hi}({}) test={te_lo}..{te_hi}({}) est×2…", train.bars.len(), test.bars.len());
+            let (est_fullpi, _) = build_mu_from_bars(&train.bars, &fullpi_tr, 0);
+            let (est_plain, _) = build_mu_from_bars(&train.bars, &plain_cfg, 0);
+
+            let arm0 = run_theta_v0_pi(&test, &plain_cfg, years, nav_te);
+            let arm1 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, false);
+            let arm2 = run_theta_v0_pi_chi(&test, &fullpi_te, years, nav_te, &est_fullpi, true);
+            let arm3 = run_theta_v0_pi_chi(&test, &mk_chi(false), years, nav_te, &est_plain, false);
+
+            report.push_str(&format!(
+                "## {sym} {tag}（train {tr_lo}..{tr_hi}, test {te_lo}..{te_hi}, μ类数 fullpi={}/plain={}）\n\n\
+                 | 臂 | Σpnl | max_dd | n_orders | n_trades | strat_return |\n|---|---|---|---|---|---|\n",
+                est_fullpi.n_classes(), est_plain.n_classes()
+            ));
+            for (name, r) in [("Arm0 无χ", &arm0), ("Arm1 π^full", &arm1), ("Arm2 teap=true", &arm2), ("Arm3 隔离", &arm3)] {
+                report.push_str(&fmt_arm(name, r));
+            }
+            let p = |r: &RunResult| r.trade_pnls_with_forced.iter().sum::<f64>();
+            report.push_str(&format!(
+                "- Arm1−Arm3（G7+margin 增量）：ΔΣpnl={:+.2} Δorders={}\n- Arm1−Arm2（χ 空类语义）：ΔΣpnl={:+.2} Δorders={}\n\n",
+                p(&arm1) - p(&arm3), arm1.n_orders as i64 - arm3.n_orders as i64,
+                p(&arm1) - p(&arm2), arm1.n_orders as i64 - arm2.n_orders as i64,
+            ));
+            eprintln!(
+                "Q4 {sym} {tag}: A0={:+.0}/{} A1={:+.0}/{} A2={:+.0}/{} A3={:+.0}/{} (Σpnl/orders)",
+                p(&arm0), arm0.n_orders, p(&arm1), arm1.n_orders, p(&arm2), arm2.n_orders, p(&arm3), arm3.n_orders
+            );
+            if *tag != "p3fold" {
+                for (k, r) in [("Arm0", &arm0), ("Arm1", &arm1), ("Arm2", &arm2), ("Arm3", &arm3)] {
+                    let e = agg.entry(k).or_insert((0.0, 0));
+                    e.0 += p(r);
+                    e.1 += r.n_orders as u64;
+                }
+            }
+        }
+        report.push_str(&format!("## {sym} walk-forward 聚合（wf 窗 Σ，不含 p3fold）\n\n| 臂 | ΣΣpnl | Σorders |\n|---|---|---|\n"));
+        for (k, (pnl, ord)) in &agg {
+            report.push_str(&format!("| {k} | {pnl:+.2} | {ord} |\n"));
+        }
+        report.push('\n');
+    }
+    std::fs::write("/tmp/q4_fullpi_policy.md", &report).ok();
+    eprintln!("[q4] 报告落盘 /tmp/q4_fullpi_policy.md");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -497,6 +655,17 @@ mod tests {
         let max_offset = (L3_UNIVERSE.len() as u32 - 1) * SYMBOL_STRIDE + per_symbol_span;
         assert!(max_offset < u32::MAX, "7 品种最大 time_block 偏移不溢出 u32");
         assert!(!L3_UNIVERSE.contains(&"OKLO"), "OKLO 剔除（Observation 池，无 walk-forward OOS）");
+    }
+
+    /// L1 自检（q4 harness 日期算术，零信息增量）：前推 6 月跨年/钳日 + 前一天跨月。
+    #[test]
+    fn q4_date_helpers_hand_calc() {
+        assert_eq!(q4_shift_back_6m("2023-02-17"), "2022-08-17"); // 跨年
+        assert_eq!(q4_shift_back_6m("2023-08-17"), "2023-02-17");
+        assert_eq!(q4_shift_back_6m("2023-08-31"), "2023-02-28"); // 钳日
+        assert_eq!(q4_prev_day("2023-02-17"), "2023-02-16");
+        assert_eq!(q4_prev_day("2023-03-01"), "2023-02-28"); // 跨月钳位
+        assert_eq!(q4_prev_day("2023-01-01"), "2022-12-28"); // 跨年钳位
     }
 
     /// L1 自检（prereg-l3norm §5，管线正确性零信息增量）：σ̂ 计算核心 = 逐 bar 差分样本 std。
