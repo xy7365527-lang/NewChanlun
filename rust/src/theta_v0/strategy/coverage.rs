@@ -2347,6 +2347,9 @@ pub fn pi_theta_step(
 /// **工位 K 性能：`pi_theta_step` 用预建 `(elements, candidate_start, gamma)`**（bit-exact ==
 /// [`pi_theta_step`]，仅把内部 `coverage_elements_and_gamma_with_tower` 重建替换为 runner 缓存的
 /// 预建产物——消除 per-bar 双调建树 + 跨 bar 全前缀重建 O(confirmed)）。
+///
+/// G4（#134）后委托 [`pi_theta_step_traced`] 丢弃 trace（单源组装，决策路径 bit-exact 不变；
+/// trace 构造在活动腿规模 O(|A_t|) 上，实测 |A_t|~9@16K bar，开销可忽略）。
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn pi_theta_step_prebuilt(
     work: ElementView,
@@ -2361,11 +2364,88 @@ pub(crate) fn pi_theta_step_prebuilt(
     config: &VoiceConfig,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64, Order) {
+    let (next_active, p_star, order, _trace) = pi_theta_step_traced(
+        work, gamma, prev_active, p_t, exec_index, base_units, risk, weights, gate, config, registry,
+    );
+    (next_active, p_star, order)
+}
+
+/// G4 typed exit 组合层 trace（#134，裁定4 I_Θ 组合层雏形——G5 #124 升级 I_Θ 时在此层加
+/// RiskState/TwState 输入与 tw_event/exit_kind 输出）。
+///
+/// 记录本步腿级生命周期事件的**原料**（ExitType 判定在消费端 runner ledger builder 做——
+/// 需要腿的入场角色，经 [`interp::reverse_exit_type`] 单源判据）：
+/// - `closed`：被 interpret 规则2 反向关闭的腿 + 触发候选（一一对应归因）。
+/// - `silent_drops`：不在 close 桶但从 active 消失的腿（§13 AncOK 连带剪 / Stale prune）。
+/// - `opened`：open 桶候选中**真正准入** `next_active` 的（AncOK 后），携对应新腿。
+///   restore 恢复的祖先 carrier 腿不在此列（非信号入场，无 z，不入 ledger）。
+///
+/// **RiskExit 预留通道**：当前架构 `force_flat` 不清活动腿（幽灵腿缺口归 #124 P1 短路修，
+/// 补记裁决——本层不提前堵避免双改）；#124 落地"P1 成立 ⟹ prev_active 逐条 RiskExit 清空"后，
+/// 该事件应经本 trace 的 closed/silent 通道外化为 `ExitType::RiskExit`。
+#[derive(Debug, Clone, Default)]
+pub(crate) struct StepTrace {
+    pub closed: Vec<(ActiveLeg, Candidate)>,
+    pub silent_drops: Vec<ActiveLeg>,
+    pub opened: Vec<(Candidate, ActiveLeg)>,
+}
+
+/// [`pi_theta_step_prebuilt`] 的 trace 版（G4 #134 组合层）：同一决策路径（interpret →
+/// coverage_step_from_buckets → pi_theta_position → schedule_order，单源无平行状态机）+
+/// 腿级生命周期差分 [`StepTrace`]。
+///
+/// bit-exact 见证：`interpret_with_close_triggers(..).0 == interpret(..)`（interp.rs 委托单源），
+/// 其余三环逐字调用同函数 ⟹ `(next_active, p*, order)` 与 prebuilt 完全一致。
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn pi_theta_step_traced(
+    work: ElementView,
+    gamma: &[Candidate],
+    prev_active: &[ActiveLeg],
+    p_t: f64,
+    exec_index: usize,
+    base_units: f64,
+    risk: &RiskConfig,
+    weights: PiThetaWeights,
+    gate: KThetaRiskGate,
+    config: &VoiceConfig,
+    registry: &super::persistent::PersistentRegistry,
+) -> (Vec<ActiveLeg>, f64, Order, StepTrace) {
+    // 环5：解释器三桶 + close 触发归因（fold 单源，interp.rs）。
+    let (buckets, close_triggers) = interp::interpret_with_close_triggers(gamma, prev_active);
+    // open 候选 → 其 638 附着元素 id（work 即将 move 进 coverage_step_from_buckets，先抓）。
+    let candidate_start = work.base_len();
+    let open_cand_ids: Vec<(Candidate, ElementId)> = buckets
+        .open
+        .iter()
+        .filter_map(|c| work.get(candidate_start + c.gamma_index).map(|e| (*c, e.id)))
+        .collect();
+    // 环6：活动集递归 + AncOK + G7 毛约束（原样单源）。
     let (next_active, p_tilde) =
-        coverage_step_prebuilt(work, gamma, prev_active, base_units, config, Some(risk), registry);
+        coverage_step_from_buckets(work, prev_active, &buckets, base_units, config, Some(risk), registry);
+    // 环7：LexArgmin + Schedule（原样单源）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
-    (next_active, p_star, order)
+
+    // ── trace 差分（决策已定，纯只读观测）──
+    let next_ids: std::collections::HashSet<ElementId> =
+        next_active.iter().map(|l| l.id).collect();
+    let closed: Vec<(ActiveLeg, Candidate)> =
+        buckets.close.iter().copied().zip(close_triggers).collect();
+    let closed_ids: std::collections::HashSet<ElementId> =
+        closed.iter().map(|(l, _)| l.id).collect();
+    // 静默离场：prev_active 中既未被 close 桶认领、也不在 next_active（AncOK 剪/Stale prune）。
+    let silent_drops: Vec<ActiveLeg> = prev_active
+        .iter()
+        .filter(|l| !closed_ids.contains(&l.id) && !next_ids.contains(&l.id))
+        .copied()
+        .collect();
+    // 真正准入的 open 候选：其附着元素 id 出现在 next_active（AncOK 未剪）。
+    let opened: Vec<(Candidate, ActiveLeg)> = open_cand_ids
+        .into_iter()
+        .filter_map(|(c, id)| next_active.iter().find(|l| l.id == id).map(|l| (c, *l)))
+        .collect();
+
+    (next_active, p_star, order, StepTrace { closed, silent_drops, opened })
 }
 
 #[cfg(test)]
@@ -3926,6 +4006,81 @@ mod tests {
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert!((p_star - 600.0).abs() < 1e-9, "p̃=600 cap 内 ⟹ p*=600");
         assert_eq!((order.action, order.qty, order.exec_index), (StrictAction::Buy, 600, 5));
+    }
+
+    /// ★G4 组合层 [`StepTrace`]：opened=准入信号腿；traced 决策三分量 == prebuilt（委托 bit-exact 见证）。
+    #[test]
+    fn pi_theta_step_traced_opened_and_bitexact() {
+        let bsp = BspPoint {
+            source_index: 4,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 90,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let classification = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
+        };
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work_t = ElementView::from_parts(&tree, candidates.clone());
+        let (na_t, ps_t, o_t, trace) = pi_theta_step_traced(
+            work_t, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
+        );
+        // opened：唯一买点候选准入为信号腿（空 A_t ⟹ closed/silent 必空）。
+        assert_eq!(trace.opened.len(), 1, "买点候选准入 ⟹ opened 恰一条");
+        assert_eq!(trace.opened[0].0.dir, VoiceSide::Long);
+        assert_eq!(trace.opened[0].1.id, na_t[0].id, "opened 腿 = next_active 中的新腿");
+        assert!(trace.closed.is_empty() && trace.silent_drops.is_empty());
+        // 委托 bit-exact：prebuilt 决策三分量 == traced。
+        let work_p = ElementView::from_parts(&tree, candidates);
+        let (na_p, ps_p, o_p) = pi_theta_step_prebuilt(
+            work_p, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
+        );
+        assert_eq!(na_t, na_p);
+        assert_eq!(ps_t, ps_p);
+        assert_eq!(o_t, o_p);
+    }
+
+    /// ★G4 组合层 [`StepTrace`] 关闭归因：持仓 Long 腿遇反向卖候选 ⟹ closed=[(腿,触发卖候选)]，
+    /// 被关腿不入 next_active、不入 silent_drops（close 认领互斥于静默离场）。
+    #[test]
+    fn pi_theta_step_traced_reverse_close_attribution() {
+        let sell = BspPoint {
+            source_index: 10,
+            bits: BspBits { sell1: true, ..Default::default() },
+            pivot_low: 0,
+            pivot_high: 210,
+            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let classification = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![sell]), ..Default::default() }],
+        };
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let held = aleg(0, VoiceSide::Long, 0, 0);
+        let (next_active, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
+        );
+        assert_eq!(trace.closed.len(), 1, "反向卖候选关闭持仓 Long 腿");
+        let (leg, trig) = &trace.closed[0];
+        assert_eq!(leg.id, held.id, "被关腿 = 持仓腿");
+        assert_eq!(trig.bsp_class, 1, "触发归因 = 一类卖候选（reverse_exit_type ⟹ CloseRoot）");
+        assert!(!next_active.iter().any(|l| l.id == held.id), "被关腿不入 next_active");
+        assert!(trace.silent_drops.is_empty(), "close 认领互斥于静默离场");
     }
 
     /// ★∀x ∃! O_{t+1}（spec §16）：同输入 ⟹ 同订单 + 同 p*（确定唯一）。
