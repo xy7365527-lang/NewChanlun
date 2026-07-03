@@ -120,26 +120,77 @@ fi
 # session_id 为空或无匹配 team（solo 会话）→ LEAD_TASK_DIR 为空 → 不强制任务队列（与检查1.5同构）。
 SESSION_ID=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('session_id',''))" 2>/dev/null || echo "")
 LEAD_TASK_DIR=""
-if [ -n "$SESSION_ID" ]; then
-    LEAD_TEAM=$(python -c "
+LEAD_TEAM=""
+
+# ── teammate 判定：首条 transcript 记录 type=agent-setting（spawn 时冻结的 subagent_type）──
+# teammate 不领 team，也不负责 ceremony/结构工位——LEAD_TEAM 解析与 check1.5 均须排除。
+IS_TEAMMATE=0
+if [ -n "$TRANSCRIPT_PATH" ] && [ -f "$TRANSCRIPT_PATH" ]; then
+    IS_TEAMMATE=$(python -c '
+import json, sys
+tp = sys.argv[1]
+try:
+    with open(tp, encoding="utf-8") as fh:
+        for i, line in enumerate(fh):
+            if i > 10:
+                break
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except Exception:
+                continue
+            a = rec.get("agentSetting")
+            if isinstance(a, str) and a:
+                print("1"); sys.exit(0)
+except Exception:
+    pass
+print("0")
+' "$TRANSCRIPT_PATH" 2>/dev/null || echo "0")
+fi
+
+# ── 本 session→team 绑定解析（#129 修复：session 延续后 leadSessionId 精确匹配永久误报）──
+# 根因：隐式 team 的 leadSessionId 冻结在首建 session id；compact/续接后当前 session_id 漂移，
+#   leadSessionId==session_id 永假 → 误判「无 team」→ check1.5 __NO_TEAM__ 永久 block。
+# 信号（按可靠性降序）：1) leadSessionId==session_id（compact 前精确；fresh team 无 spawn 回执时唯一可靠）；
+#   2) fallback：本 session transcript 里引用某活 team 成员 agentId 后缀 @<teamName>（spawn 回执 /
+#      teammate 消息 = 本 session 与 team 的直接绑定证据），取引用最多的活 team。续接 session 会把
+#      agentId 重写成当前 session 后缀（无 team 目录），故按「活 team 目录存在」过滤自动排除幻影后缀。
+# teammate 会引用自身 team 后缀，故须由 IS_TEAMMATE 排除以免误判为 Lead。
+# ponytail: fallback 全量读 transcript（实测 37M/0.16s）；若将来 transcript 巨大到影响 Stop 延迟，
+#   升级路径=命中活 team 计数达阈值即早退。
+if [ "$IS_TEAMMATE" -eq 0 ] && [ -n "$SESSION_ID" ]; then
+    LEAD_TEAM=$(python -c '
 import json, os, sys
-sid = sys.argv[1]; teams = sys.argv[2]
+session_id = sys.argv[1]; teams = sys.argv[2]; transcript = sys.argv[3]
+live = []
 if os.path.isdir(teams):
     for name in sorted(os.listdir(teams)):
-        cfg = os.path.join(teams, name, 'config.json')
+        cfg = os.path.join(teams, name, "config.json")
         if not os.path.isfile(cfg):
             continue
         try:
             d = json.load(open(cfg))
         except Exception:
             continue
-        if d.get('leadSessionId','') == sid:
-            print(name)
-            break
-" "$SESSION_ID" "$HOME/.claude/teams" 2>/dev/null || echo "")
-    if [ -n "$LEAD_TEAM" ] && [ -d "$HOME/.claude/tasks/$LEAD_TEAM" ]; then
-        LEAD_TASK_DIR="$HOME/.claude/tasks/$LEAD_TEAM"
-    fi
+        live.append(name)
+        if d.get("leadSessionId", "") == session_id:
+            print(name); sys.exit(0)
+if transcript and os.path.isfile(transcript):
+    try:
+        with open(transcript, encoding="utf-8") as f:
+            text = f.read()
+    except Exception:
+        text = ""
+    counts = {n: text.count("@" + n) for n in live}
+    counts = {k: v for k, v in counts.items() if v}
+    if counts:
+        print(max(counts, key=counts.get))
+' "$SESSION_ID" "$HOME/.claude/teams" "$TRANSCRIPT_PATH" 2>/dev/null || echo "")
+fi
+if [ -n "$LEAD_TEAM" ] && [ -d "$HOME/.claude/tasks/$LEAD_TEAM" ]; then
+    LEAD_TASK_DIR="$HOME/.claude/tasks/$LEAD_TEAM"
 fi
 
 # ─── 熔断检查（145号：智能熔断，计数器格式 COUNT:LAST_ACTIVE_TASKS） ───
@@ -232,69 +283,35 @@ fi
 # 检测信号（严格可靠，非模糊匹配）：team config.json 的 member.agentType。
 #   - agentType 是 Task(subagent_type=…) 落盘的规范结构类型；业务命名（如 geneal-p4）
 #     不改变 agentType=genealogist，故 geneal-p4/geneal-560 自动算 genealogist 已覆盖。
-#   - 仅对 LEAD session 生效：config.leadSessionId == 本 session_id（teammate session 不匹配 → 跳过，
-#     teammate 无法也不负责 spawn 结构工位）。
+#   - 仅对 LEAD session 生效：team 归属由上方 LEAD_TEAM 统一解析（#129：leadSessionId 精确匹配在
+#     compact/续接后 session_id 漂移永久误报，改为 leadSessionId 主 + transcript @<teamName> 绑定 fallback）；
+#     teammate（IS_TEAMMATE=1）→ 跳过（teammate 无法也不负责 spawn 结构工位）。
 #   - 无 team（未形成蜂群）→ 不强制（solo 会话无蜂群约束）。
 # 145号兼容：沿用检查3/4 的计数器写法（增量 COUNT + 存 PRE_ACTIVE_TASKS），
 #   连续3次任务态不变由顶部熔断放行，避免死锁。
-SESSION_ID=$(echo "$input" | python -c "import sys,json; print(json.loads(sys.stdin.read()).get('session_id',''))" 2>/dev/null || echo "")
 if [ -n "$SESSION_ID" ]; then
-    STRUCT_MISSING=$(python -c "
+    STRUCT_MISSING=$(python -c '
 import json, os, sys
-session_id = sys.argv[1]
-teams_dir = sys.argv[2]
-transcript = sys.argv[3] if len(sys.argv) > 3 else ''
-required = ['meta-lead','genealogist','quality-guard','code-verifier','meta-observer','topology-manager']
-team_cfg = None
-if os.path.isdir(teams_dir):
-    for name in sorted(os.listdir(teams_dir)):
-        cfg = os.path.join(teams_dir, name, 'config.json')
-        if not os.path.isfile(cfg):
-            continue
-        try:
-            with open(cfg) as f:
-                d = json.load(f)
-        except Exception:
-            continue
-        if d.get('leadSessionId','') == session_id:
-            team_cfg = d
-            break
-if team_cfg is None:
-    # 闭合 check1.5 鸡生蛋缺口（option A 强化逼迫，编排者裁决 2026-06-25）：
-    # 无 team = ceremony 未 bootstrap。仅对 Lead/主 session（无 agentType）强制 ceremony；
-    # teammate（transcript 首条有 agent-setting）不负责 ceremony → 放行。
-    # 无待推进工作（pending 谱系空）→ 不强制（solo/已清空）。
-    is_teammate = False
-    if transcript and os.path.isfile(transcript):
-        try:
-            with open(transcript, encoding='utf-8') as fh:
-                for i, line in enumerate(fh):
-                    if i > 10:
-                        break
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        rec = json.loads(line)
-                    except Exception:
-                        continue
-                    a = rec.get('agentSetting')
-                    if isinstance(a, str) and a:
-                        is_teammate = True
-                        break
-        except Exception:
-            pass
-    if is_teammate:
-        sys.exit(0)
-    pending_dir = '.chanlun/genealogy/pending'
-    has_work = os.path.isdir(pending_dir) and any(fn.endswith('.md') for fn in os.listdir(pending_dir))
-    if has_work:
-        print('__NO_TEAM__')
+lead_team = sys.argv[1]; teams_dir = sys.argv[2]
+is_teammate = sys.argv[3] == "1"; pending_dir = sys.argv[4]
+required = ["meta-lead","genealogist","quality-guard","code-verifier","meta-observer","topology-manager"]
+if lead_team:
+    try:
+        with open(os.path.join(teams_dir, lead_team, "config.json")) as f:
+            d = json.load(f)
+    except Exception:
+        sys.exit(0)   # 配置不可读 → fail-open 不阻断
+    types = set(m.get("agentType","") for m in d.get("members", []))
+    print(",".join(r for r in required if r not in types))
     sys.exit(0)
-types = set(m.get('agentType','') for m in team_cfg.get('members', []))
-missing = [r for r in required if r not in types]
-print(','.join(missing))
-" "$SESSION_ID" "$HOME/.claude/teams" "$TRANSCRIPT_PATH" 2>/dev/null || echo "")
+# 无 team（LEAD_TEAM 空）：闭合 check1.5 鸡生蛋缺口（option A 强化逼迫，编排者裁决 2026-06-25）。
+# teammate 不负责 ceremony → 放行；Lead/主 session 且 pending 谱系非空 → 强制 ceremony bootstrap。
+if is_teammate:
+    sys.exit(0)
+has_work = os.path.isdir(pending_dir) and any(fn.endswith(".md") for fn in os.listdir(pending_dir))
+if has_work:
+    print("__NO_TEAM__")
+' "$LEAD_TEAM" "$HOME/.claude/teams" "$IS_TEAMMATE" ".chanlun/genealogy/pending" 2>/dev/null || echo "")
     if [ -n "$STRUCT_MISSING" ]; then
         echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
         if [ "$STRUCT_MISSING" = "__NO_TEAM__" ]; then
