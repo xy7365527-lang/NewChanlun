@@ -411,10 +411,7 @@ pub fn divide_segments(strokes: &[Stroke], config: &ParseConfig) -> Vec<Segment>
 // ============================================================================
 
 /// 增量 segment 状态（bit-exact 对齐 `divide_segments_with_tail`）。
-///
-/// PartialEq 手写（#93 codex91）：排除 `last_rescan_euf` 纯诊断字段——本轮重扫值不参与状态相等，
-/// 否则 idempotent/bit-exact 对拍会因诊断值差异假发散。
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IncrSegments {
     /// confirmed segments 前缀（Rc 共享——`to_result_rc()` O(1) clone 给 `ParseLayer.segments`）。
     segments_rc: Rc<Vec<Segment>>,
@@ -431,37 +428,19 @@ pub struct IncrSegments {
     /// 上次 append 见到的末笔（相同输入早退用）。增量不变式：confirmed 前缀不可变，仅末笔可改写
     /// ⟹ (strokes_len, 末笔) 相同蕴含整个 strokes 相同 ⟹ 结果与 self 逐字段等。
     last_stroke: Option<Stroke>,
-    /// #88 frontier 修复（codex #87 修补版 A）：曾被跳过的 SecondKind 候选所属段的最早 seg_start
-    /// （跨 append 持久化的历史最小值，不因候选后续 confirm 或被新 confirmed 段覆盖而丢弃）。
+    /// #88 frontier 修复（codex #87）+ #93 advancing 变体（codex #91 §五）：本轮 append 重扫区间
+    /// [resume, n) 新算的 unsealed 起点（被跳过的 SecondKind 候选所属段最早 seg_start）——**直接持久化，
+    /// 不与历史取 min**（advancing）。
     ///
-    /// **为何需要**：`second_seq_scan_window=0`（无限）下，新 bar 引入的同向笔可让**任意早**的
-    /// SecondKindPending 复活（第二特征序列出现分形），级联改写一个**已 confirmed 的更早段**
-    /// （报告 §三 反例：seg[404] < confirmed_len=406 被全量重划到更早端点）。故固定 1 段回退不 sound
-    /// ——`append` 的 `confirmed_bound` 须回退到 `min(末段end, earliest_unsealed_from)` 之前的最深
-    /// 稳定段端。cascade 只向前传播 ⟹ [0, earliest_unsealed_from) 稳定，重扫 [起点, n) 与全量 bit-exact。
+    /// **为何需要回退**：`second_seq_scan_window=0`（无限）下，新 bar 引入的同向笔可让 SecondKindPending
+    /// 复活（第二特征序列出现分形），级联改写已 confirmed 的更早段（#88 报告反例 seg[404]<confirmed_len=406）。
+    /// 故 `append` 的 `confirmed_bound = min(末段end, earliest_unsealed_from)` 回退到 unsealed 起点前。
     ///
-    /// **认识论/性能**（codex 边界条件3）：历史最小值单调非增 ⟹ 若锚定过早、几乎不前移，退化为
-    /// O(n²) 全重扫（候选 C 的性能特征）。是否触发由 `earliest_unsealed_from` 前移轨迹实测判定。
+    /// **advancing soundness**（codex #91 §二）：second_seq_has_fractal 一旦真则永真（构建由既定前缀
+    /// 决定）+ 段连续性 ⟹ 未 resolve 的候选必在下轮重扫被重新发现；候选 resolve 后 euf 前移/清零 ⟹
+    /// confirmed_bound 前移 ⟹ 退回 O(n)（#93 H2 探针 late_repro=0 坐实）。取代 #88 的历史最小值持久化
+    /// （后者 euf 单调非增锚死早点 ⟹ O(n²)，边界条件3）。
     earliest_unsealed_from: Option<usize>,
-    /// #93（codex91 H1/H2 判别，纯诊断，PartialEq 排除）：本次 append 重扫区间 [resume, n) 内新算的
-    /// unsealed 起点（`euf_rescan`，**未**跨 append 取历史最小值）。与持久化 `earliest_unsealed_from`
-    /// 对照区分 H1（本轮仍复现锚点候选 ⟹ 恒 O(n²)）vs H2（本轮 None/前移 ⟹ 持久值已陈旧，
-    /// advancing 变体可退回 O(n)）。生产判定逻辑不消费此字段。
-    last_rescan_euf: Option<usize>,
-}
-
-/// #93：手写 PartialEq——排除 `last_rescan_euf`（纯诊断），其余字段全比（含 production 态
-/// `earliest_unsealed_from`），与旧 derive 行为一致，仅排除新诊断字段。
-impl PartialEq for IncrSegments {
-    fn eq(&self, other: &Self) -> bool {
-        self.segments_rc == other.segments_rc
-            && self.end_indices == other.end_indices
-            && self.pending_start == other.pending_start
-            && self.strokes_len == other.strokes_len
-            && self.confirmed_len == other.confirmed_len
-            && self.last_stroke == other.last_stroke
-            && self.earliest_unsealed_from == other.earliest_unsealed_from
-    }
 }
 
 impl Default for IncrSegments {
@@ -474,7 +453,6 @@ impl Default for IncrSegments {
             confirmed_len: 0,
             last_stroke: None,
             earliest_unsealed_from: None,
-            last_rescan_euf: None,
         }
     }
 }
@@ -522,7 +500,6 @@ impl IncrSegments {
             confirmed_len,
             last_stroke: strokes.last().copied(),
             earliest_unsealed_from: None,
-            last_rescan_euf: None,
         }
     }
 
@@ -557,7 +534,6 @@ impl IncrSegments {
             confirmed_len: _,
             last_stroke: _,
             earliest_unsealed_from: euf_persisted,
-            last_rescan_euf: _,
         } = self;
 
         // #88 frontier 修复（codex #87 修补版 A）：confirmed_bound 回退到
@@ -598,7 +574,6 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
-                        last_rescan_euf: None,
                     };
                 }
                 resume_seg_dir = strokes[resume_seg_start].direction;
@@ -614,7 +589,6 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
-                        last_rescan_euf: None,
                     };
                 }
                 let Some(start) = find_overlap_start(strokes, 0) else {
@@ -626,13 +600,21 @@ impl IncrSegments {
                         confirmed_len: keep,
                         last_stroke,
                         earliest_unsealed_from: euf_persisted,
-                        last_rescan_euf: None,
                     };
                 };
                 resume_seg_start = start;
                 resume_seg_dir = strokes[start].direction;
             }
         }
+
+        // #93（codex #91 §六.4 continuity 守卫）：resume_seg_start 绝不越过 unsealed flag（euf_persisted）
+        // ——否则会把未 sealed 的段封进保留前缀（漏扫）。soundness (a) 项固化，覆盖主循环 + find_overlap_start
+        // 边界分支。「≤」而非「==」：drop-末段（euf≥末段端/None）时 resume 落在末段起点（< 末段端），
+        // 是 sound 的过量重扫；违规是 resume > flag（漏扫）。
+        debug_assert!(
+            euf_persisted.map_or(true, |flag| resume_seg_start <= flag),
+            "resume_seg_start {resume_seg_start} 越过 unsealed flag {euf_persisted:?}（漏扫 unsealed 段）"
+        );
 
         // 从 resume_seg_start 续扫（镜像 divide_segments_with_tail 主循环）。
         let min_seg = config.seg_min_strokes as usize;
@@ -688,12 +670,13 @@ impl IncrSegments {
         }
 
         let pending_start = if seg_start < n { Some(seg_start) } else { None };
-        // #88：历史最小值持久化——不因候选后续 confirm 或被新 confirmed 段覆盖而丢弃。
-        let earliest_unsealed_from = match (euf_persisted, euf_rescan) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (Some(a), None) => Some(a),
-            (None, b) => b,
-        };
+        // #93 advancing 变体（codex #91 补充裁定 §五）：直接持久化本轮重扫的新鲜 euf，**不**与历史取 min。
+        // soundness（§二）：second_seq_has_fractal 一旦真则永真（构建由既定前缀决定，追加笔不改已算
+        // elements）+ 段连续性（resume_seg_start 精确重合 flag 位置，见 append 内 debug_assert）⟹ 未
+        // resolve 的候选必在下轮从 resume 重扫时被重新发现；仅当从 resume 到 n 全程零 flag（euf_rescan
+        // =None）才前移/清零，此时等价于 divide_segments 直接跑该后缀，无级联残留。效果：候选 resolve 后
+        // euf 前移 ⟹ confirmed_bound 前移 ⟹ 退回 O(n)（#93 H2 探针坐实 late_repro=0）。
+        let earliest_unsealed_from = euf_rescan;
         IncrSegments {
             segments_rc,
             end_indices,
@@ -702,7 +685,6 @@ impl IncrSegments {
             confirmed_len: keep,
             last_stroke,
             earliest_unsealed_from,
-            last_rescan_euf: euf_rescan,
         }
     }
 
@@ -727,16 +709,9 @@ impl IncrSegments {
         self.confirmed_len
     }
 
-    /// #88：当前持久化的 unsealed 起点（性能诊断——前移轨迹/锚定深度实测）。
+    /// #88/#93：当前 unsealed 起点（= 本轮重扫新鲜值，advancing）。性能诊断——前移轨迹实测。
     pub fn earliest_unsealed_from(&self) -> Option<usize> {
         self.earliest_unsealed_from
-    }
-
-    /// #93（codex91 H1/H2 判别）：本次 append 重扫区间新算的 euf（未持久化历史最小值）。
-    /// 与 `earliest_unsealed_from()` 对照：相等且非 None ⟹ 本轮仍复现锚点（H1）；
-    /// None 或 > 持久值 ⟹ 持久值已陈旧、advancing 可前移（H2）。
-    pub fn last_rescan_euf(&self) -> Option<usize> {
-        self.last_rescan_euf
     }
 }
 
@@ -974,6 +949,42 @@ mod tests {
             deep_rollback_seen,
             "覆盖为零：从未发生深回退（euf < 末段端）——未覆盖「改写已 confirm 段」的级联路径"
         );
+    }
+
+    /// ★#93 advancing 变体守卫（codex #91 §六.2+3）：候选 resolve 后 `earliest_unsealed_from`
+    /// 前移/清零（非持久化历史最小值），且后续更晚候选被跳过时 euf 移到**新位置**（非退回旧值）。
+    ///
+    /// 逐 strokes 长度断言 bit-exact（正确性硬门）。**覆盖率自证**：断言运行期间观测到 (a) 前移/清零
+    /// （euf 从 Some(a) 变 None 或 Some(b>a)——持久化历史最小值单调非增下这**不可能**发生，故此断言
+    /// 直接证伪 persist-forever、坐实 advancing）；(b) reflag（清零/前移后 euf 又变 Some——§六.3 later
+    /// reflag）。二者皆命中方证守卫有效。
+    #[test]
+    fn advancing_euf_resolves_and_reflags() {
+        let cfg = ParseConfig::default();
+        let strokes = gappy_strokes(1200, 0xAD0A_9C13_2718_2818);
+        let mut incr = IncrSegments::empty();
+        let mut prev_euf: Option<usize> = None;
+        let mut saw_advance = false; // Some(a) → None 或 Some(b>a)（前移/清零）
+        let mut saw_reflag = false; // 前移/清零后 euf 再次变 Some
+        let mut advanced_once = false;
+        for end in 3..=strokes.len() {
+            incr = incr.append(&strokes[..end], &cfg);
+            let (full_segs, full_pending) = divide_segments_with_tail(&strokes[..end], &cfg);
+            assert_eq!(incr.to_result_vec(), (full_segs, full_pending),
+                "strokes len {end}: advancing 变体 bit-exact 破裂");
+            let euf = incr.earliest_unsealed_from();
+            match (prev_euf, euf) {
+                (Some(_), None) => { saw_advance = true; advanced_once = true; }
+                (Some(a), Some(b)) if b > a => { saw_advance = true; advanced_once = true; }
+                (_, Some(_)) if advanced_once => { saw_reflag = true; }
+                _ => {}
+            }
+            prev_euf = euf;
+        }
+        assert!(saw_advance,
+            "覆盖为零：euf 从未前移/清零——persist-forever 未被证伪（advancing 未生效或序列不触发 resolve）");
+        assert!(saw_reflag,
+            "覆盖为零：前移后 euf 从未 reflag 到新位置——未覆盖 §六.3 later reflag 路径");
     }
 
     /// property：重复 append 同一输入幂等（相同输入早退路径）——第二次 append 同 strokes ⟹
