@@ -40,7 +40,7 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 由假设 1–4 ⟹ 证书集合 Γ_t 唯一；由 5 ⟹ 状态 z_t 唯一；由 6 ⟹ 全互斥类别唯一；由 7 ⟹ 活动声部集合 A_{t+1} 唯一；由 8 ⟹ 三阶段事件唯一；由仓位函数 ⟹ p̃ 唯一；由 9–10 ⟹ 风险投影最优点 p\* 唯一；由 11 ⟹ 订单 O 唯一。链上每一步都是全函数且输出唯一 ⟹ 复合全函数 ⟹ ∃! O_{t+1}。
 
-**机器证明看守（∃! 结论）**：`rust/src/theta_v0/strategy/coverage.rs:4457` `pi_theta_step_deterministic_unique_order`——同状态两次调用 `pi_theta_step` 产逐字段相等订单（决定性＝全函数的可观测面）。生产入口 `coverage.rs:2327` `pi_theta_step` / `coverage.rs:2205` `pi_theta_position` / `coverage.rs:2239` `schedule_order`。
+**机器证明看守（∃! 结论）**：`rust/src/theta_v0/strategy/coverage.rs:4491` `pi_theta_step_deterministic_unique_order`——同状态两次调用 `pi_theta_step` 产逐字段相等订单（决定性＝全函数的可观测面）。**看守≠证明本体**（阶段三双审补）：∃! 的论证主体是上述 11 假设复合链（L0 演绎），determinism 测试是回归哨兵——只看守实装不漂移出该性质，不替代数学证明（231号分级中的机器证明层语义）。生产入口 `coverage.rs:2327` `pi_theta_step` / `coverage.rs:2205` `pi_theta_position` / `coverage.rs:2239` `schedule_order`。
 
 ### 11 条假设逐条：数学陈述 + 实装锚点 + 证明状态
 
@@ -72,7 +72,7 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 **假设 3：N^δ_{ℓ↓e} 全定义**（真递归区间套）
 
-- **(a) 数学陈述**：方向化区间套证书 `N^δ_{ℓ↓e}(x) ∈ {0,1}` 对任意输入有确定值；基例 `N^δ_{e↓e}=Conf^δ_e`，递归步 `N^δ_{ℓ↓e}=Cand^δ_ℓ ∧ [J^δ_{ℓ-1}⊆J^δ_ℓ] ∧ N^δ_{ℓ-1↓e}`。**区间包含非端点相等**（PDF §3）。
+- **(a) 数学陈述**：方向化区间套证书 `N^δ_{ℓ↓e}(x) ∈ {0,1}` 对任意输入有确定值；基例 `N^δ_{e↓e}=Conf^δ_e`，递归步 `N^δ_{ℓ↓e}=Cand^δ_ℓ ∧ [J^δ_{ℓ-1}⊆J^δ_ℓ] ∧ N^δ_{ℓ-1↓e}`。**区间包含非端点相等**（PDF §3）。**隐含域显式化（阶段三双审补）**：定义域为 ℓ≥e（e>ℓ 递归未定义，spec 明文）；实装中 `rungs` 长度非负使 e>ℓ 不可表达——前置 e≤ℓ 由结构保证（`nest.rs:190` 文档明注）。
 - **(b) 实装锚点**：
   - `rust/src/theta_v0/classifier/nest.rs:200` `NestCertificate::n_delta(&self) -> bool`（全定义，返回 bool ⟹ ∃!∈{0,1}）；`classifier/nest.rs:205` `n_delta_rec`（级别结构递归，rungs 从高到低）。
   - `rust/src/theta_v0/classifier/nest.rs:62` `is_sub(inner, outer)`：`inner.start_time>=outer.start_time ∧ inner.end_time<=outer.end_time`——子⊆父闭口径区间包含。
@@ -101,7 +101,7 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 **假设 6：解释器 I_Θ 使用固定优先级**
 
-- **(a) 数学陈述**：`I_Θ(A_t, Γ_t) = (D_t, O_t, L_t)`——候选按固定优先级 `≺_Θ` 全序裁决为关/开/记录三桶，无二义。等价于原始可重叠谓词 `P_1..P_m` 的固定优先级互斥化（见 §B）。
+- **(a) 数学陈述**（阶段三双审补：对齐 PDF §16 压缩公式，4 输入 4 输出）：`(D_t, O_t, L_t, TWEvent_t) = I_Θ(A_t, {γ: N^δ_{ℓ↓e}(γ)=1}, TW_t, Risk_t)`——候选按固定优先级 `≺_Θ` 全序裁决为关/开/记录三桶，无二义。`TWEvent_t` 分量的唯一性由假设 8（TStage/TW 事件全定义）独立覆盖——§A 证明链「由 8 ⟹ 三阶段事件唯一」单列一步与此对应；本假设承担的是固定优先级裁决无二义，非 TW 事件全定义本身。等价于原始可重叠谓词 `P_1..P_m` 的固定优先级互斥化（见 §B）。
 - **(b) 实装锚点**：`rust/src/theta_v0/strategy/interp.rs:990` `interpret`（候选按 `theta_key` `≺_Θ` 全序 fold；G4 后委托 `interp.rs:1004` `interpret_with_close_triggers` 单源本体，签名/行为不变）；固定优先级谓词互斥化 `strategy/mutex.rs:143` `mutex_class`；桶级等价对拍 `strategy/mutex.rs:574` `shadow_fold_bucket_equivalence`（12 场景，interp `≺_Θ` 序 == mutex P1..P10 优先级序 + typed 精确类号，零分叉）。
 - **(c) 证明状态**：**机器证明**（§B 互斥定理 + D1 桶级等价 12 场景）。
   - **有效域声明（阶段二闭合，#124 G5）**：P1 风险强平与 TW/GAP3 事件已统一进 PDF §7 单一 P1..P10 固定优先级序，生产以**两级结构**兑现（codex-ruling4-addendum 分歧A 裁决：`interpret` 签名与本 ∃! 证明锚不动，I_Θ=组合层）——bar 级 P1..P4 在 `coverage.rs:2435` `pi_theta_step_traced`（P1 上游短路 `coverage.rs:2449` / P2 CloseOverlay `coverage.rs:2472` / P3/P4 消耗当步裁决 `coverage.rs:2510`），候选级 P5..P10 在 interpret fold（结构原样）。逐谓词锚点表与可达性证明（L0 同价不可达定理 + #140 L1 生产可达见证）见 §D-5。
@@ -162,7 +162,7 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 ### §A 结论
 
-11 条假设中：假设 1（bit-exact）、假设 4（六态 partition）、假设 6（互斥）、假设 10（LexArgmin）有**机器证明**看守；假设 1/3/8 附 **L2** 真实数据有效域声明；其余为 **L0** 全函数性质。链复合 ⟹ ∃! O_{t+1}=π_Θ(x)，机器证明看守 `coverage.rs:4457`。
+11 条假设中：假设 1（bit-exact）、假设 4（六态 partition）、假设 6（互斥）、假设 10（LexArgmin）有**机器证明**看守；假设 1/3/8 附 **L2** 真实数据有效域声明；其余为 **L0** 全函数性质。链复合 ⟹ ∃! O_{t+1}=π_Θ(x)，机器证明看守 `coverage.rs:4491`。
 
 **阶段二闭合（2026-07-03）**：阶段一登记的三处「部分 OPEN」——假设 4 高级别候选生成（#123，`0a35f0167c`）、假设 6 P1..P10 统一（#124，§D-5）、假设 9 毛头寸约束（#133 G7，§D-7）——均已落地并补锚点，∃! 唯一性的有效域从已稳定层扩展至 q2 新增层（完整 §6 z 13 维 + 统一 P1..P10 + gross cap）。残余诚实缺口不影响 ∃! 结论（均为分桶维装配/生产可达性问题，非全函数性破裂），逐项见 §D。
 
@@ -221,6 +221,8 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 
 见 §A 假设 7（锚点 coverage.rs:698/675/740、mod.rs:57-58 不变量 I1–I5）。**L0**——`AncOK` 过滤祖先不齐者 ⟹ `v∈A_{t+1} ⟹ Anc(v)⊆A_{t+1}`。
 
+**显式前提（时序同步，阶段三双审补）**：AncOK 直接保证的是**集合成员资格**闭包（祖先必须在场）；由它推出**生命期区间**包含 `[λ_e,ρ_e]⊆[λ_a,ρ_a]` 还需一条连接前提——元素移出活动集 D_t 的时刻与其生命期右端点 ρ 严格同步（不早不晚）。若去激活滞后（结构上已过 ρ 仍留 A_t 一拍），集合闭包依然通过而区间保证静默失效——这是 Q4 修复史「提前剪」（LiveDetached 误判 Stale）的互补方向「该剪未剪」。该前提此前隐含于假设 7，现显式声明。
+
 ### C.3 区间套 `J_child ⊆ J_parent`
 
 - **数学陈述**：区间套是**区间包含**非端点相等（PDF §3）——`J_child ⊆ J_parent`，即 `child.lo≥parent.lo ∧ child.hi≤parent.hi`（闭口径）。端点相等仅用于「买卖点挂到本级走势段右端点」，不作跨级 rung 定义。
@@ -233,7 +235,7 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 
 ### C.4 运行时守恒断言（信号漏分类/双分类当场断言失败）
 
-- **数学陈述**：每个候选恰落一桶（open ⊎ record over 候选；close over 活动腿），计数守恒 `|open|+|record|+|关闭触发|=|Γ|`；漏分类/双分类当场断言失败。
+- **数学陈述**：每个候选恰落一桶（open ⊎ record over 候选；close over 活动腿），计数守恒 `|open|+|record|+|关闭触发|=|Γ|`；漏分类/双分类当场断言失败。**可数域消歧（阶段三双审补）**：「关闭触发」按**触发候选**计数而非按被关腿计数——fold 规则 2 每个触发候选至多关闭一条同级反向腿后即被消费（`interp.rs:1049-1050` close 桶与 close_triggers 同步 push；`interp.rs:1069` debug_assert `|close|==|close_triggers|` 一一对应），两论域在构造上恒等 ⟹ 等式三项全部 over 候选论域，不存在一候选连锁关多腿的失衡路径。
 - **实装锚点**：
   - `rust/src/theta_v0/strategy/interp.rs:1372` `interpret_buckets_partition_candidates`——环5 互斥分流，`interp.rs:1385` 断言「候选守恒：open + record + 关闭触发 = |Γ|」。
   - `strategy/interp.rs:568` / `interp.rs:574` `debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower))`——代次快路复用 tree 与全量 extract 逐字节相等（bit-exact 守卫）。
@@ -352,17 +354,27 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 - **认识论等级**：**L0**（KKT 闭式投影推导——K_Θ 成员约束下每根子树只剩整体尺度一个自由度 ⟹ 等权 W 下投影=逐根 water-filling，推导链在 `apply_gross_cap` doc + decide 5b46）+ **机器证明**。
 - **诚实声明（激活口径，非缺口）**：default `enforce_gross_cap=false` ⟹ 当前 frozen 口径生产仍无毛 cap——这是 #122「约束未配置=不激活」+ frozen bit-exact 的钦定组合，非遗漏；**#135 π^full 收口跑批必须显式 `enforce_gross_cap=true`，否则 PDF §11 一致性声明不成立**（新 prereg 冻结项）。
 
+### 后续加固清单（阶段三双审登记，OPEN——非当前缺陷，不冒充已修）
+
+三项均为审计确认的前瞻性加固空间（当前代码路径下前提成立且有配套机器测试覆盖当前行为），登记不阻塞 q3 验收：
+
+1. **rungs 排序前提的类型级强制**（codex CONCERN 4）：`n_delta_rec`（`nest.rs:205`）依赖 `rungs` 从高到低排列，当前由文档注释声明；`NestCertificate.rungs` 为 `pub` 字段，理论上外部可构造违序实例。生产路径单一构造点 + `is_sub_nesting_bit_exact`（`nest.rs:326`）覆盖当前行为。加固方向：运行时断言或构造子私有化（类型级前提强制 > 注释级）。
+2. **stage 白名单的类型级投影**（codex CONCERN 4）：`stage_progression` 白名单/黑名单边界（`transition.rs:309-316`）由注释声明，函数签名接收完整 `TwState`（含黑名单字段 `hwm_gain`）；当前函数体只读白名单字段，无违反。风险=未来重构可无声破坏此边界且无编译期/测试兜底。加固方向：白名单字段投影结构，使黑名单字段编译期不可读。
+3. **d_pi 边界的架构分层说明**（gemini 审计项 4）：`Realize(d_pi)` 的 d_pi 符号无关（可正可负，§C.5），其非负 free 约束不由 `tw_step` 自身拦截，而由 `transition_adapter` 出口的独立 cash-sound gate 处理（raw 层全函数 + 独立合法性过滤的分层）。该 gate 的合法性证明不在本文档范围（账本适配层义务）——登记此分层边界，防止将来误以为 tw_step 自带负 free 防护。
+
+**升级条件**（codex 边界条件继承）：若 rungs 顺序或 stage 白名单边界被证实在生产路径中实际违反过（非仅理论风险），对应项从加固建议升级为 BLOCKER。
+
 ---
 
 ## §E. 结果包（result-package 六要素）
 
-1. **结论**：本文档整合了全定义互斥策略已稳定层的严格数学证明——§A 全定义唯一性定理（11 假设逐条锚点 + ∃! 机器证明看守）、§B 策略互斥定理（Σ_j 1[C_j]=1 完整证明 + 2^8 穷举 + 9 场景桶级等价机器证明）、§C 四层不变量（bit-exact/AncOK/区间套/守恒断言）。所有 37+ 处代码锚点写前经 Read 验证行号真实存在。
+1. **结论**：本文档整合了全定义互斥策略已稳定层的严格数学证明——§A 全定义唯一性定理（11 假设逐条锚点 + ∃! 机器证明看守）、§B 策略互斥定理（Σ_j 1[C_j]=1 完整证明 + 2^10 穷举 + 12 场景桶级等价机器证明）、§C 四层不变量（bit-exact/AncOK/区间套/守恒断言）。所有 37+ 处代码锚点写前经 Read 验证行号真实存在。
 
 2. **定义依据**：PDF `完整的策略.pdf` §13（11 假设）、§14（互斥）、§2.1（bit-exact）、§2.2/§8（AncOK）、§3（区间套 J_child⊆J_parent）；互斥化数学出处 `买卖点alpha2.pdf` Doc2§5/Doc3§6 定理1。每条假设的输入数据特征（有限结构塔 ⟹ 有限 Γ；lot 网格离散 ⟹ K_Θ 有限；字典序键单射 ⟹ argmin 唯一）满足定义条件已逐条说明。
 
 3. **边界条件**（结论翻转条件）：
-   - §A ∃! 翻转：若任一假设的全函数性破裂（如 K_Θ=∅、LexArgmin 键非单射、Schedule 非确定）⟹ ∃! 失效。机器证明 `coverage.rs:3571` 决定性断言是看守。
-   - §B Σ=1 翻转：若存在谓词组合 Σ≠1 ⟹ `mutex_total_exhaustive_2pow8` 红；若 interp ≺_Θ 与 P1..P8 分叉 ⟹ `shadow_fold_bucket_equivalence` 红。
+   - §A ∃! 翻转：若任一假设的全函数性破裂（如 K_Θ=∅、LexArgmin 键非单射、Schedule 非确定）⟹ ∃! 失效。机器证明 `coverage.rs:4491` 决定性断言是看守。
+   - §B Σ=1 翻转：若存在谓词组合 Σ≠1 ⟹ `mutex_total_exhaustive_2pow10` 红；若 interp ≺_Θ 与 P1..P10 分叉 ⟹ `shadow_fold_bucket_equivalence` 红。
    - §C.3 区间套翻转：若生产 descend 与 bottom-up 定位不一致 ⟹ `acc_bottomup_nest_parity_probe` 断言红（现差异 0）。
 
 4. **下游推论**：本文档证明的是**策略 L0 结构性质**（全函数 + 互斥 + 唯一订单），**不蕴含 L2 alpha**——μ(z,a)>0 属 §12 选择器层，实证四口径全 INCONCLUSIVE。系统的经验价值定位＝风险控制（μ̂ 门减损减回撤），非产生正 alpha（`strategy-spec-for-external-review-20260703.md` 六/七节）。阶段二 6 项 OPEN 义务闭合后，∃! 唯一性的有效域从已稳定层扩展至完整 §6 z + 统一 P1..P10。
@@ -385,3 +397,8 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 3. **影响声明**：只改本文档（`docs/formal-chain/proofs-full-strategy-20260703.md`），零代码/测试改动。下游消费：**阶段三 codex+gemini 双异质审**审全文档——审前必须告知：假设 1（高级别 bit-exact）的 L2 锚点是 `#[ignore]` 真实数据测试的历史手工跑（commit `c546b5633c`），CI 不自动跑，文档已诚实披露，此为已知验证态边界非声明膨胀（quality-guard 验收注记 2026-07-03）；**#135** 消费 D-4 功效警告、D-7 激活口径（`enforce_gross_cap=true` 冻结项）、D-3 装配归属；**#139** 是 D-5 可达性子项的关闭闸门。
 
 > **增量注记（#140 后，本节正文保留为阶段二时点记录）**：上述「D-5 可达性依赖 #139」已闭合——#139 裁 A' + #140 落地，见文档头增量说明与 §D-5/§C.5。阶段二边界条件「#139 裁通过 ⟹ 订单流非 bit-exact ⟹ GOLDEN 真重算」的实际结果：非忽略测试集**零 GOLDEN diff**（既有场景 P3 触发门不满足），GOLDEN 真重算移交 #135 全历史跑批（两类 bit-exact 风险已在 `gap3-realize-impl-20260703.md` §4 标注）。新增独立义务 D-8（Lean 侧）进登记表。
+
+**阶段三双审状态（2026-07-03，Task #131）**：
+
+- **codex 侧（negation_source=heterogeneous）✅ 已执行**：`.chanlun/review-results/q3-audit-codex-20260703.md`——总判定「部分成立」（1 BLOCKER：§E 阶段一 stale 引用；4 CONCERN：1 行号精度确认成立、1 看守/证明边界措辞降级、1 驳回、1 前瞻加固）。BLOCKER 与 CONCERN 精度项已由本次修复现值化（§E 2^10/12场景/4491 + §A 看守边界句 + §D 加固清单登记）；修复后通过判定待 Lead 确认。
+- **gemini 侧 degraded-homogeneous**：OpenAI 配额 429 外部阻塞（gpt-5.5-pro/gpt-5.5 双级 insufficient_quota），按既定降级策略由同质代理执行——`.chanlun/review-results/q3-audit-gemini-20260703.md`，`negation_source: homogeneous` 诚实标注不冒充异质。3 CONCERN（假设 6 signature 对齐 PDF §16 / C.2 时序同步前提 / C.4 可数域消歧）已由本次修复落地；**异质补验 pending**，配额恢复后补跑，如有分歧以异质结果为准。
