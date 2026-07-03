@@ -38,6 +38,7 @@
 //! 工位**）。本模块只提供选择器纯函数；μ 表的因果获取由调用方负责并诚实标注其泄漏状态。
 
 use super::mu_estimator::{MuClass, MuEstimator, PositionState};
+use crate::theta_v0::classifier::divergence::ForceProxies;
 use crate::theta_v0::strategy::coverage::Vertical;
 use crate::theta_v0::strategy::interp::Candidate;
 use crate::theta_v0::strategy::voice::VoiceSide;
@@ -158,6 +159,15 @@ pub fn z_of_candidate(c: &Candidate) -> MuClass {
         horizontal: Some(c.role.h),
         ..MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
     }
+}
+
+/// 携力度支配态的候选 z 构造（beta-bucket-design v2 第 8 维接入点）。
+///
+/// 在 [`z_of_candidate`] 基础上填 `force_state = fp.map(|f| f.force_state())`——**调
+/// divergence.rs 唯一支配序原语 [`ForceProxies::force_state`]，不在此重算比较**（no-patch，路由 ⑤）。
+/// `fp=None`（该候选无 A/C 段力度对，如二/三类）⟹ `force_state=None`（诚实，同 horizontal None）。
+pub fn z_of_candidate_with_force(c: &Candidate, fp: Option<ForceProxies>) -> MuClass {
+    MuClass { force_state: fp.map(|f| f.force_state()), ..z_of_candidate(c) }
 }
 
 /// χ_t 候选集过滤（§13 line 2256）：`Γ_t → Γ_t^trade = {γ∈Γ_t : χ_t(γ)=1}`。

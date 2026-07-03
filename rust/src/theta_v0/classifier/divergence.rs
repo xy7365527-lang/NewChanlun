@@ -324,6 +324,57 @@ pub struct ForceProxies {
     pub seg_c: ForceFeatures,
 }
 
+/// 力度支配态（`关于背驰.pdf` §9.1 `ForceState`，4-proxy 近似 = `ForceStateA4`）。
+///
+/// 支配序四态（§5-6 p6 `s ≺_𝒜 s'`）：C 段（后离开段）相对 A 段（前离开段）在允许力度族
+/// 𝒜₄={macd_area, dif_peak, price_amplitude, price_speed} 上的支配关系。**背驰 = C 力度衰减 =
+/// `Dominated`**（C 在全部 4 proxy 上 ≤ A 且至少一个 <）。
+///
+/// **命名（beta-bucket-design v2 §2.3 / codex-beta ②）**：`A4` 后缀诚实标注只用现有 4 proxy——
+/// 原文完整 𝒜_ℓ 还含 TV（全变差）与递归次级别力度。补齐后可升名 `ForceState`。单调性：补维只会把
+/// `Dominated`/`Dominates`/`Tie` 变 `Incomparable`（新增口径可能冲突），反向不会 ⟹ `ForceStateA4`
+/// 的 `Dominated` 是完整支配序 `Dominated` 的**超集（宽判背驰）**。
+///
+/// **认识论 L1**：给定 A/C ForceFeatures 求支配态是确定性算术（管线正确性）。「哪个态有 alpha」=L2/L3。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ForceStateA4 {
+    /// C 在全部 4 proxy 上 ≤ A 且至少一个 <——**确定背驰**（C 力度衰减）。
+    Dominated,
+    /// C 在全部 4 proxy 上 ≥ A 且至少一个 >——确定力度延续（非背驰）。
+    Dominates,
+    /// C 与 A 全部 4 proxy 相等。
+    Tie,
+    /// 口径冲突（部分 proxy C<A、部分 C>A）——**不作背驰确认**（codex-beta ②）。
+    Incomparable,
+}
+
+impl ForceProxies {
+    /// 𝒜₄ 支配序比较（唯一支配序原语，beta-bucket-design v2 §6 路由 ⑤——不在别处重算）。
+    ///
+    /// 逐 proxy 比较 C(`seg_c`) vs A(`seg_a`)：任一 proxy `c<a` 记 weaker，`c>a` 记 stronger。
+    /// 全 ≤ 且有 weaker ⟹ `Dominated`；全 ≥ 且有 stronger ⟹ `Dominates`；全等 ⟹ `Tie`；
+    /// 既有 weaker 又有 stronger ⟹ `Incomparable`。price_amplitude 是 i64，其余 f64（严格 `<`/`>`，
+    /// 与 `is_divergence` 同「等值不算衰减」口径）。
+    pub fn force_state(&self) -> ForceStateA4 {
+        let (a, c) = (&self.seg_a, &self.seg_c);
+        // 四 proxy 的 (c<a, c>a) 布尔对。amplitude 为 i64，比较前统一到同类型无损。
+        let cmps = [
+            (c.macd_area < a.macd_area, c.macd_area > a.macd_area),
+            (c.dif_peak < a.dif_peak, c.dif_peak > a.dif_peak),
+            (c.price_amplitude < a.price_amplitude, c.price_amplitude > a.price_amplitude),
+            (c.price_speed < a.price_speed, c.price_speed > a.price_speed),
+        ];
+        let weaker = cmps.iter().any(|&(lt, _)| lt);
+        let stronger = cmps.iter().any(|&(_, gt)| gt);
+        match (weaker, stronger) {
+            (true, false) => ForceStateA4::Dominated,
+            (false, true) => ForceStateA4::Dominates,
+            (false, false) => ForceStateA4::Tie,
+            (true, true) => ForceStateA4::Incomparable,
+        }
+    }
+}
+
 /// DIF 段峰值绝对值（黄白线主判据原语，第17课；移植旧引擎 `dif_peak_for_range` 到 theta_v0）。
 ///
 /// `dif` 是 `compute_macd(...).dif` 序列（黄白线，与 hist 同坐标系）。`[start,end]` 闭区间 bar
@@ -775,6 +826,23 @@ mod tests {
         // C 力度 ≥ A ⟹ 各 mode 非 Weak（力度延续）。
         assert!(!weak_theta(WeakThetaMode::MacdArea, &c, &a));
         assert!(!weak_theta(WeakThetaMode::Dif, &c, &a));
+    }
+
+    #[test]
+    fn force_state_four_dominance_cases() {
+        let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
+        let strong = ff(10.0, 8.0, 100, 20.0);
+        let weak = ff(5.0, 4.0, 50, 10.0);
+        // C 全弱于 A ⟹ Dominated（确定背驰）。
+        assert_eq!(fp(strong, weak).force_state(), ForceStateA4::Dominated);
+        // C 全强于 A ⟹ Dominates。
+        assert_eq!(fp(weak, strong).force_state(), ForceStateA4::Dominates);
+        // 全等 ⟹ Tie。
+        assert_eq!(fp(strong, strong).force_state(), ForceStateA4::Tie);
+        // 口径冲突：C.area 弱但 C.dif 强 ⟹ Incomparable。
+        let mixed_a = ff(10.0, 4.0, 100, 20.0);
+        let mixed_c = ff(5.0, 8.0, 50, 10.0);
+        assert_eq!(fp(mixed_a, mixed_c).force_state(), ForceStateA4::Incomparable);
     }
 
     /// ★Lex 词典序核心（第17课「黄白线主 ▷ 面积次」，非 AND/OR）：DIF 可判用 DIF，DIF 相等退面积。

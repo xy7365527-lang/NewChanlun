@@ -201,8 +201,13 @@ pub fn stratified_delta_perm_p(
     )
 }
 
-/// full-z 桶键 = 完整 [`MuClass`] 7 维逐桶 perm_p（prereg-fullz-policy A3.2）。
-/// δ-free base = (level, i_class, parent_dir, position, horizontal)；short_swing 由 perm-δ 重构。
+/// full-z 桶键 = 完整 [`MuClass`] 8 维逐桶 perm_p（prereg-fullz-policy A3.2 + beta-bucket-design v2 §5.3）。
+/// δ-free base = (level, i_class, parent_dir, position, horizontal, force_state)；short_swing 由 perm-δ 重构。
+///
+/// **force_state δ-free**：力度支配态由 A/C 段绝对量算，置换 δ 时恒定（§3.1 mirror-invariant）⟹ 合法进 base。
+/// ponytail: force_state 生产未接线前恒 `None`（同一 None 常量分量 ⟹ 分桶不变，向后兼容）；接线后
+/// 进 base 前须逐层过 §3.2 δ-共线检查（谱系 iclass-delta-collinearity：δ-纯桶降级仅 μ 分层不置换）。
+/// fill-rate 断言（防生产全 None 静默）属 L2 回测报告消费点，随路由接线落地——非本 lib 单元层。
 pub fn stratified_delta_perm_p_fullz(
     trades: &[ResidualTrade],
     n_perm: usize,
@@ -212,7 +217,7 @@ pub fn stratified_delta_perm_p_fullz(
         trades,
         n_perm,
         seed,
-        |c| (c.level, c.i_class, c.parent_dir, c.position, c.horizontal),
+        |c| (c.level, c.i_class, c.parent_dir, c.position, c.horizontal, c.force_state),
         |c, d| MuClass { delta: d, short_swing: c.parent_dir != 0 && d == -c.parent_dir, ..*c },
     )
 }

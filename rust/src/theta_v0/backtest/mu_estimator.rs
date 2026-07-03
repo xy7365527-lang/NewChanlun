@@ -37,6 +37,7 @@
 use std::collections::HashMap;
 
 use super::metrics::trade_abs_pnl;
+use crate::theta_v0::classifier::divergence::ForceStateA4;
 use crate::theta_v0::strategy::coverage::Horizontal;
 use crate::theta_v0::types::BspBits;
 
@@ -85,6 +86,10 @@ pub struct MuClass {
     pub position: PositionState,
     /// H(g) 水平关系（`Some`=真候选 z_of_candidate 填；`None`=裸证书口径未定 H，见类型文档）。
     pub horizontal: Option<Horizontal>,
+    /// β^div 力度支配态（`关于背驰.pdf` §9.1，beta-bucket-design v2 第 8 维）。`Some`=真候选路径
+    /// `z_of_candidate_with_force` 从 A/C 段 `ForceProxies::force_state()` 填；`None`=无力度源口径
+    /// （`from_certificate`/无 ForceProxies 候选，同 `horizontal` 的诚实 None，231号不伪造）。
+    pub force_state: Option<ForceStateA4>,
 }
 
 impl MuClass {
@@ -123,6 +128,7 @@ impl MuClass {
             short_swing,
             position,
             horizontal: None,
+            force_state: None,
         }
     }
 }
