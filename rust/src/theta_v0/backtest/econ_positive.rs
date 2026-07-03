@@ -3686,7 +3686,10 @@ mod tests {
         let mut bsp_pre_second = [0usize; LMAX]; // 门前第二类（buy2/sell2）
         let mut bsp_pre_third = [0usize; LMAX]; // 门前第三类（buy3/sell3）
         let mut gamma_nonflat = [0usize; LMAX]; // (b) Γ 非 Flat 候选
-        let mut sig_post = [0usize; LMAX];     // (c) 通过 N^δ 门
+        let mut sig_post = [0usize; LMAX];     // (c) 通过 N^δ 门（bsp/Γ 通道，PanDiv 外计）
+        // Q4（#147）：PanDiv 承接通过门计数（Γ 外通道——不经 assemble_gamma，混入 sig_post 会
+        // 污染 H1 门滤诊断的 gamma_nonflat−sig_post 列）。真封①口径 = sig_post + sig_post_pan。
+        let mut sig_post_pan = [0usize; LMAX];
         let mut tower_segs_max = [0usize; LMAX]; // (d) tower[lvl] 段数（末次分类快照）
         let mut levels_seen_max = 0usize;       // cls.levels.len() 最大值
 
@@ -3910,6 +3913,7 @@ mod tests {
                     ) {
                         continue;
                     }
+                    if lvl < LMAX { sig_post_pan[lvl] += 1; } // Q4（#147）：门后记账与 push 同步
                     let (dir, delta_i8): (VoiceSide, i8) = match cert.side {
                         Side::Long => (VoiceSide::Long, 1),
                         Side::Short => (VoiceSide::Short, -1),
@@ -4272,14 +4276,16 @@ mod tests {
             if (d.level as usize) < LMAX { decomp_by_level[d.level as usize] += 1; }
         }
         let _ = writeln!(rpt, "## 配对后 decomps level 分布（sig_post=门后配对前 vs decomps=配对后）");
-        let _ = writeln!(rpt, "| level | sig_post(门后) | decomps(配对后) | 配对丢失 |");
-        let _ = writeln!(rpt, "|---|---|---|---|");
+        let _ = writeln!(rpt, "| level | sig_post(门后Γ) | pan(承接) | decomps(配对后) | 配对丢失 |");
+        let _ = writeln!(rpt, "|---|---|---|---|---|");
         let mut any_pairing_loss_mid = false;
         for l in 0..LMAX {
-            if sig_post[l] == 0 && decomp_by_level[l] == 0 { continue; }
-            let lost = sig_post[l].saturating_sub(decomp_by_level[l]);
-            if l >= 1 && decomp_by_level[l] == 0 && sig_post[l] > 0 { any_pairing_loss_mid = true; }
-            let _ = writeln!(rpt, "| {l} | {} | {} | {} |", sig_post[l], decomp_by_level[l], lost);
+            let gate_total = sig_post[l] + sig_post_pan[l]; // 门后全通道（Γ 二通道 + PanDiv 承接）
+            if gate_total == 0 && decomp_by_level[l] == 0 { continue; }
+            let lost = gate_total.saturating_sub(decomp_by_level[l]);
+            if l >= 1 && decomp_by_level[l] == 0 && gate_total > 0 { any_pairing_loss_mid = true; }
+            let _ = writeln!(rpt, "| {l} | {} | {} | {} | {} |",
+                sig_post[l], sig_post_pan[l], decomp_by_level[l], lost);
         }
         let _ = writeln!(rpt, "\n- n_unpaired（无配对出场反转信号，右删失剔除）={}", agg_prod.n_unpaired);
         let _ = writeln!(rpt, "- **配对机制**：next_opp 表跨级别混合（所有 level 信号按 entry_bar 排序）——\
@@ -4300,18 +4306,24 @@ mod tests {
         std::fs::write(&out, &rpt).unwrap_or_else(|e| panic!("写报告失败：{e}"));
         eprintln!("\n报告已落盘：{out:?}");
 
-        // 真封①：分级别 sig_post 之和 >= n_signals（门后信号含未配对出场者）。
-        // C1 后 agg_prod 源自 signals_dx（同 sig_post 的收集），此断言退化为收集内自证（sig_post_sum
-        // = signals_dx 门后计数，n_signals = 其配对子集）；跨实现交叉验证由上方 max_bars≤300K 的
+        // 真封①：分级别门后计数之和 >= n_signals（门后信号含未配对出场者）。门后全通道 =
+        // sig_post（Γ 二通道）+ sig_post_pan（PanDiv 承接，#145 新入口，#147 补记账——此前漏计
+        // 致 sig_post_sum < n_signals 假红）。C1 后 agg_prod 源自 signals_dx（同收集），此断言退化
+        // 为收集内自证（n_signals = 其配对子集）；跨实现交叉验证由上方 max_bars≤300K 的
         // collect_signals 逐元组对拍承接（perf 窗跳过对拍，收集正确性由 correctness 窗背书）。
         let sig_post_sum: usize = sig_post.iter().sum();
-        assert!(sig_post_sum >= agg_prod.n_signals,
-            "sig_post_sum({sig_post_sum}) 应 >= n_signals({})：门后信号数含未配对出场者", agg_prod.n_signals);
+        let pan_pass_sum: usize = sig_post_pan.iter().sum();
+        // 收集闭合（#147 防再漂移）：每条 push 恰有一次门后计数 ⟹ 新增信号通道漏记账即红。
+        assert_eq!(sig_post_sum + pan_pass_sum, signals_dx.len(),
+            "门后计数和({sig_post_sum}+{pan_pass_sum}) 应 = signals_dx.len({})：信号通道记账漏计",
+            signals_dx.len());
+        assert!(sig_post_sum + pan_pass_sum >= agg_prod.n_signals,
+            "sig_post_sum({sig_post_sum})+pan({pan_pass_sum}) 应 >= n_signals({})：门后信号数含未配对出场者", agg_prod.n_signals);
         // 真封②：配对后 decomps 逐级和 = n_signals（聚合完整性）。
         let decomp_sum: usize = decomp_by_level.iter().sum();
         assert_eq!(decomp_sum, agg_prod.n_signals,
             "decomp 逐级和({decomp_sum}) 应 = n_signals({})", agg_prod.n_signals);
-        eprintln!("真封：sig_post_sum={sig_post_sum} >= n_signals={} = decomp_sum={decomp_sum}",
+        eprintln!("真封：sig_post_sum={sig_post_sum}+pan={pan_pass_sum} >= n_signals={} = decomp_sum={decomp_sum}",
             agg_prod.n_signals);
         // 真封③（P1 FullNest + 小转大二通道）：区间套深度直方图和 + 小转大通过 = 通过门总数 = sig_post_sum
         // （build_gate_certificate 二通道 bit-exact 同源；小转大通道无区间套 depth，depth 直方图外计 n_xzd_pass）。
