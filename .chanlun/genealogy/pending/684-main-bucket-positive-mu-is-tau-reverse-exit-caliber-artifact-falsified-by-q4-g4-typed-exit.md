@@ -10,7 +10,7 @@ negation_source: heterogeneous   # codex #122 G4 终裁（致命缺口拒中间�
 negation_model: codex-cli
 negation_form: separation   # 正 μ̂ 信号从「市场结构 alpha」路径切离——被揭示为 τ^reverse 出场口径的独立伪影路径
 depends_on: []
-related: ["231", "663", "665", "645", "660", "project_wverify_alpha_retest_pass", "project_oddeven_mu_identity", "project_iclass_delta_collinearity_perm_degeneracy"]
+related: ["231", "663", "665", "645", "660", "685", "project_wverify_alpha_retest_pass", "project_oddeven_mu_identity", "project_iclass_delta_collinearity_perm_degeneracy"]
 
 # 拓扑效果标注（147号下游推论3）
 # negates：旧口径结论「(L0,type3,买,σ0) 主桶正 μ̂ +178~185/笔 = 可交易市场结构 alpha」。
@@ -109,6 +109,12 @@ related_records:
     - "663（p<0.05≠μ>0）：本号更进一层——连点估计正号本身都可能是出场口径伪影，非仅显著性问题。"
     - "645（π^cov≠π^bsp）：alpha 簇根；本号是簇内 typed-exit 口径下的否定性收口。"
     - "[[project_iclass_delta_collinearity_perm_degeneracy]]：双 goal 终局四口径全 INCONCLUSIVE——本号在出场口径维补充：唯一非 INCONCLUSIVE 的正候选也被证伪。"
+    - "685（一类买卖点全历史 0=市场事实被推翻）：同期独立发现，**无直接矛盾**——684 是出场口径维度
+      （出场规则与信号方向的会计耦合），685 是信号生成候选维度（趋势门累积链+缺中枢延伸）。两者
+      正交，样本互不覆盖（684 桶=type3，685 死点在环1 只影响 type1 候选；type2/type3 生成路径不
+      经过趋势门，外部审查报告 §0 明确"第二类、第三类正常产出"）。共享同构方法论：全战役范围内
+      「核心量化结论的异常值（恒正/恒0）优先假定为实现层缺陷，而非市场结构/事实」——张力检查判定：
+      同轮产出、无待处理矛盾，仅作交叉引用，不生成新谱系记录。
 
 # 认识论等级标注（formalization-validity-domain 231号，强制）
 epistemological_levels:
@@ -154,4 +160,6 @@ codex #122 G4 终裁（typed exit 致命缺口，拒 τ^reverse 中间态）→ 
 ## 影响声明
 
 概念级谱系补记，零代码改动（架构重装=#134，已落地）。当前无经 canonical typed-exit 口径确认的可交易
-正 μ̂ 桶——否定性结果，缩小 alpha 有效域边界（231号）。最终结算待编排者 /ritual。
+正 μ̂ 桶——否定性结果，缩小 alpha 有效域边界（231号）。最终结算待编排者 /ritual。**685号交叉检查**：
+与685（一类买卖点全历史0=趋势门/中枢延伸缺陷）无逻辑矛盾，两者维度正交（出场口径 vs 信号生成候选），
+已互相补充 related 引用，无需生成新谱系记录。
