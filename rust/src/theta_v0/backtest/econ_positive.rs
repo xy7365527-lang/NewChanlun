@@ -35,7 +35,7 @@ use super::data::Dataset;
 use super::incremental::IncrementalClassifier;
 use super::super::classifier::divergence::compute_macd;
 use super::super::classifier::recursive_tower::find_move_by_end_index;
-use super::super::classifier::nest::{NestCertificate, NestInterval, NestRung};
+use super::super::classifier::nest::{is_sub, NestCertificate, NestInterval, NestRung};
 use super::super::closed_loop::sell::{sell_decision_of, SellDecision};
 use super::super::config::ThetaConfig;
 use super::super::strategy::interp::assemble_gamma_with_tower;
@@ -832,6 +832,19 @@ pub(super) fn build_nest_certificate(
     }
     // n_delta 期望 rungs[0]=最高级，rungs[last]=lvl+1 级——rung_buf 是低到高，需反转。
     rung_buf.reverse();
+    // #100 问题① 看守：定位区间链逐级相套 J_e⊆…⊆J_ℓ（区间包含口径）——tower 层级 Compose 不变量
+    // 隐式保证的显式断言。降序链 rungs[0](最高)…rungs[last](lvl+1)…base(执行级)，相邻须 inner⊆outer。
+    // debug-only（release 编译掉，零行为改动，同 line 808 既有 debug_assert）。空 rungs 平凡成立。
+    debug_assert!(
+        rung_buf
+            .iter()
+            .map(|r| r.interval)
+            .chain(std::iter::once(base_interval))
+            .collect::<Vec<_>>()
+            .windows(2)
+            .all(|w| is_sub(&w[1], &w[0])),
+        "#100 嵌套链破裂 J_e⊆…⊆J_ℓ（Compose 不变量违反）：base={base_interval:?} rungs={rung_buf:?}"
+    );
     Some(NestCertificate {
         side: delta,
         terminal: *bits,
@@ -1284,6 +1297,41 @@ mod tests {
             sub_moves: Rc::new(vec![]),
             id: ElementId { level: 1, ordinal: 0 },
         }
+    }
+
+    /// ★#100 问题① 验收（分歧案例，ChatGPT 裁决）：J0⊂J1⊂J2 但 end(J1)≠source(J0)——旧「端点
+    /// 相等」口径（`find_move_by_end_index`，end==src）定位不到上级 rung；#77 现「区间包含」口径
+    /// （`build_nest_certificate` line 812-813，start≤src≤end）正确定位。补 #77 探针只测两口径**等价**、
+    /// 未测**分歧案例上新口径正确**的缺口。
+    #[test]
+    fn nest_containment_locates_rung_where_endpoint_equality_fails() {
+        use super::super::super::classifier::recursive_tower::find_move_by_end_index;
+        let src = 50usize;
+        // 三层塔：J0(exec,end==src) ⊂ J1(含 src,end 80≠50) ⊂ J2(含 src,end 100≠50)。
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
+            Rc::new(vec![xzd_seg(40, 50)]),  // tower[0]=J0 执行级：end==src
+            Rc::new(vec![xzd_seg(20, 80)]),  // tower[1]=J1：含 50，end 80≠50
+            Rc::new(vec![xzd_seg(0, 100)]),  // tower[2]=J2：含 50，end 100≠50
+        ];
+        let hist: Vec<f64> = vec![];
+        let bits = BspBits { buy1: true, ..Default::default() };
+
+        // 旧「端点相等」口径：上级 tower[1]/tower[2] 无 end==src 段 ⟹ 定位失败（旧会漏掉 J1/J2）。
+        assert!(find_move_by_end_index(&tower[1], src).is_none(), "J1 end 80≠src 50，端点相等应定位失败");
+        assert!(find_move_by_end_index(&tower[2], src).is_none(), "J2 end 100≠src 50，端点相等应定位失败");
+
+        // 新「区间包含」口径：build_nest_certificate 定位到两级 rung，三层嵌套 J0⊂J1⊂J2 可见。
+        let cert = build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist)
+            .expect("区间包含口径应定位到执行级段");
+        assert_eq!(cert.rungs.len(), 2, "含 src 的两上级 rung 均被区间包含口径定位（端点相等口径为 0）");
+        // rungs 从高到低：rungs[0]=J2[0,100]、rungs[1]=J1[20,80]，且 end≠src（分歧标记）。
+        assert_eq!((cert.rungs[0].interval.start_time, cert.rungs[0].interval.end_time), (0, 100));
+        assert_eq!((cert.rungs[1].interval.start_time, cert.rungs[1].interval.end_time), (20, 80));
+        assert_ne!(cert.rungs[0].interval.end_time, src as u64);
+        assert_ne!(cert.rungs[1].interval.end_time, src as u64);
+        // 嵌套链 J0⊆J1⊆J2（区间包含口径下才可见的三层套）——同时验证 build_nest_certificate 内看守放行。
+        assert!(is_sub(&cert.base_interval, &cert.rungs[1].interval), "J0⊆J1");
+        assert!(is_sub(&cert.rungs[1].interval, &cert.rungs[0].interval), "J1⊆J2");
     }
 
     /// C2 跨条目（codex §6-1）：Type3-only 信号自身无 buy2，须在同级列表查共生 B2 条目。
