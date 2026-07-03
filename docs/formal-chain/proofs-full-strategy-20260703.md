@@ -9,6 +9,8 @@
 > **阶段边界（诚实声明，非 TODO 遗留）**：本文档阶段一覆盖**已稳定层**（parser bit-exact / §14 互斥 / AncOK / 区间套 / LexArgmin / Schedule），其证明完整无缺。q2 实装在飞（G1 Cand 力度门 #115 / G3 z 扩维 #122+#123 / G5 解释器统一 #124 / 高级别一三类候选 #123）会新增锚点——这些项登记在 §D「证明义务登记表」，由阶段二任务闭合。
 >
 > **阶段二（2026-07-03，Task #131）已执行**：q2 六工位（#115/#132/#138/#134/#124/#133）全部落地后，§D 六项 OPEN 义务已逐项闭合（实装锚点+机器证明锚点+认识论等级，见 §D 闭合明细），§A/§B/§C 受 q2 改动影响的锚点行号已全部重新 Read 验证并修正漂移（interp.rs / coverage.rs / mutex.rs / econ_positive.rs / transition.rs 五文件）。残余诚实缺口（D-1 A4 缺 TV/SubMovePower、D-3 TStage/ηBucket/CostBucket 装配与 Live 轴、D-5 P2/P3/P4 生产可达性依赖 #139 账本重裁）照实标注为 OPEN 子项，不并入 CLOSED 声明（090号）。阶段二结果包见 §F。
+>
+> **增量（2026-07-03，#140 gap3-realize 落地后，Task #131 送审前置）**：#139 已裁——codex 终局裁定 A'「已实现利润入 TW 账本」（`.chanlun/review-results/codex-gap3-ledger-20260703.md`），#140 三实装 commit + 结果包（`f3e3709252`→`49f0821584`→`3987926ba5`→`334487e309`，`gap3-realize-impl-20260703.md`）落地 `TwEvent::Realize` ⟹ D-5 可达性子项闭合：GAP3「∃t TStage=III」从结构不可达 FALSIFIED 翻转为 **L1 生产可达**（不可达定理限定为 L0 同价无盈亏版本）。§C 新增 C.5（TW 账本不变量新形式）；§D 新增 D-8（Lean 侧独立证明义务）。测试基线 1447→1452 全绿。本文档受影响的可达性陈述（假设 8 / §B / §D-5 / §F 交叉引用）已同步更新，锚点写前 Read 重验。
 
 ---
 
@@ -100,9 +102,9 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 **假设 6：解释器 I_Θ 使用固定优先级**
 
 - **(a) 数学陈述**：`I_Θ(A_t, Γ_t) = (D_t, O_t, L_t)`——候选按固定优先级 `≺_Θ` 全序裁决为关/开/记录三桶，无二义。等价于原始可重叠谓词 `P_1..P_m` 的固定优先级互斥化（见 §B）。
-- **(b) 实装锚点**：`rust/src/theta_v0/strategy/interp.rs:990` `interpret`（候选按 `theta_key` `≺_Θ` 全序 fold；G4 后委托 `interp.rs:1004` `interpret_with_close_triggers` 单源本体，签名/行为不变）；固定优先级谓词互斥化 `strategy/mutex.rs:141` `mutex_class`；桶级等价对拍 `strategy/mutex.rs:572` `shadow_fold_bucket_equivalence`（12 场景，interp `≺_Θ` 序 == mutex P1..P10 优先级序 + typed 精确类号，零分叉）。
+- **(b) 实装锚点**：`rust/src/theta_v0/strategy/interp.rs:990` `interpret`（候选按 `theta_key` `≺_Θ` 全序 fold；G4 后委托 `interp.rs:1004` `interpret_with_close_triggers` 单源本体，签名/行为不变）；固定优先级谓词互斥化 `strategy/mutex.rs:143` `mutex_class`；桶级等价对拍 `strategy/mutex.rs:574` `shadow_fold_bucket_equivalence`（12 场景，interp `≺_Θ` 序 == mutex P1..P10 优先级序 + typed 精确类号，零分叉）。
 - **(c) 证明状态**：**机器证明**（§B 互斥定理 + D1 桶级等价 12 场景）。
-  - **有效域声明（阶段二闭合，#124 G5）**：P1 风险强平与 TW/GAP3 事件已统一进 PDF §7 单一 P1..P10 固定优先级序，生产以**两级结构**兑现（codex-ruling4-addendum 分歧A 裁决：`interpret` 签名与本 ∃! 证明锚不动，I_Θ=组合层）——bar 级 P1..P4 在 `coverage.rs:2435` `pi_theta_step_traced`（P1 上游短路 `coverage.rs:2449` / P2 CloseOverlay `coverage.rs:2472` / P3/P4 消耗当步裁决 `coverage.rs:2510`），候选级 P5..P10 在 interpret fold（结构原样）。逐谓词锚点表与结构不可达证明见 §D-5。
+  - **有效域声明（阶段二闭合，#124 G5）**：P1 风险强平与 TW/GAP3 事件已统一进 PDF §7 单一 P1..P10 固定优先级序，生产以**两级结构**兑现（codex-ruling4-addendum 分歧A 裁决：`interpret` 签名与本 ∃! 证明锚不动，I_Θ=组合层）——bar 级 P1..P4 在 `coverage.rs:2435` `pi_theta_step_traced`（P1 上游短路 `coverage.rs:2449` / P2 CloseOverlay `coverage.rs:2472` / P3/P4 消耗当步裁决 `coverage.rs:2510`），候选级 P5..P10 在 interpret fold（结构原样）。逐谓词锚点表与可达性证明（L0 同价不可达定理 + #140 L1 生产可达见证）见 §D-5。
 
 ---
 
@@ -121,10 +123,10 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 - **(a) 数学陈述**：`TStage∈{CostReduction, CapitalRecovered, EarningShares}`，单向阶段迁移；TW 事件 `{ShortDiff, RecoverCapital, Withdraw, EnterEarning, BuyCore}` 经 OQ-9 门在当前 stage 下合法性判定确定。
 - **(b) 实装锚点**：
-  - `rust/src/theta_v0/closed_loop/transition.rs:282` `stage_progression`（单向 `CostReduction→CapitalRecovered→EarningShares`，PDF §10 步骤2/3；#124 后 `pub(crate)` 化为 G5 P3/P4 谓词的单源判据，生产 TW 状态由 π fill loop 真实交易流驱动 `runner.rs:679`——见 §D-5）。
-  - `closed_loop/transition.rs:242` `TransitionError::Oq9Illegal{event, stage}`——OQ-9 门（如 EarningShares 阶段开 legacy 腿非法）。
-- **(c) 证明状态**：**L0**（阶段迁移＋OQ-9 门是确定状态机）。
-  - **有效域声明（诚实边界）**：`closed_loop/state.rs:213`——注资**不**使 L0 同价闭环达 EarningShares；EarningShares 真达需 **L2 价格升值**让已实现利润进 TW（超本 L0 模型事件集）。故 TStage *转移语义*是 L0 全定义；EarningShares 阶段的*可达性*在纯 L0 同价模型下不触达，是数据依赖（L2）而非定义缺陷（memory：`project_gap3_l2_unreachable_architecture`）。P2/P3/P4 生产触发在合法账本语义下结构不可达的 TW 守恒代数证明见 §D-5；「已实现利润入账」账本重装归 #139（in-flight），是可达性的唯一剩余阻塞。
+  - `rust/src/theta_v0/closed_loop/transition.rs:319` `stage_progression`（单向 `CostReduction→CapitalRecovered→EarningShares`，PDF §10 步骤2/3；#124 后 `pub(crate)` 化为 G5 P3/P4 谓词的单源判据，生产 TW 状态由 π fill loop 真实交易流驱动 `runner.rs:680`——见 §D-5）。
+  - `closed_loop/transition.rs:268` `TransitionError::Oq9Illegal{event, stage}`——OQ-9 门（如 EarningShares 阶段开 legacy 腿非法）。
+- **(c) 证明状态**：**L0**（阶段迁移＋OQ-9 门是确定状态机）。TW 事件集经 #139 裁定 A' + #140 落地扩至八构造子（`ledger.rs:364` `TwEvent::Realize(i64)`，唯一 TW 漂移构造子），不变量新形式见 §C.5。
+  - **有效域声明（#140 更新）**：TStage *转移语义*是 L0 全定义。EarningShares *可达性*分两个有效域：(i) **L0 同价无盈亏模型下不可达**——定理保留，测试改名 `runner.rs:2550` `earning_shares_unreachable_l0_same_price_zero_pnl`（同价 ⟹ 平仓 PnL≡0 ⟹ 无 Realize 漂移 ⟹ 退本金前提代数矛盾不变）；(ii) **L1 生产可达**——已实现利润经 `Realize` 入 free 后，生产 π fill loop 见证 `runner.rs:2148` `pi_loop_realized_profit_reaches_earning_shares`（合成变价序列，P3 RecoverCapital → P4 EnterEarning，终态 TStage=EarningShares，全链生产路径无 fixture 直捅）。GAP3「∃t TStage=III」从 FALSIFIED 翻转 L1 可达；真实数据触发频率归 L2（#135）。旧「结构不可达」归因订正史见 memory `project_gap3_l2_unreachable_architecture` 与 §D-5。
 
 ---
 
@@ -195,17 +197,17 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 
 ### 机器证明锚点
 
-- **D1 oracle 身份**：`rust/src/theta_v0/strategy/mutex.rs` 模块文档 `mutex.rs:58-64` 声明——`mutex_class` **零生产消费者**（生产裁决走 interp fold + I_Θ 组合层），保留唯一用途＝**P1..P10 等价 property test 的对拍参照**。裁定4 反装饰约束：#124 的 oracle 扩展与生产接线（`f9333e21b2` TW 进 fold + `c4c2a027ad` P1 全局分支 + `8150acb97f` typed close 归因）同批落，P1..P4 谓词均有真实生产分支对应。
-- **互斥化实装**：`strategy/mutex.rs:141` `mutex_class(&Predicates) -> MutexClass`——取最小成立谓词索引 r（C_r 唯一）或 C_0（无成立）。构造即证明形式。
-- **Σ=1 穷举机器证明**：`strategy/mutex.rs:294` `mutex_total_exhaustive_2pow10`——穷举全部 2^10=1024 谓词组合，**独立重算**每个 `1[C_j]`（不调 `mutex_class`，避免循环论证），逐组合断言 `Σ_j 1[C_j]==1`，并交叉验证命中类号 == `mutex_class` 返回（实装＝独立定义）。全定义兜底 `mutex.rs:331` `mutex_total_definedness`。
-- **优先级屏蔽**：`mutex.rs:340` `priority_p1_masks_all`（P1 成立屏蔽 P2..P10 ⟹ C_1）；`mutex.rs:347` `priority_bar_level_chain`（bar 级 P1≻P2≻P3≻P4 链）；`mutex.rs:361` `priority_min_index`（取最小成立索引 ⟹ C_r）。
-- **桶级等价（≺_Θ vs P1..P10，12 场景零分叉）**：`strategy/mutex.rs:231` `predicates_of`（生产候选 + fold 状态 → PDF 谓词向量，独立于 interp 规则序**重新推导**每个 P_j，使对拍非循环；typed close 经 `interp.rs:188` `reverse_exit_type` 同一单源）；`mutex.rs:210` `bridge_bucket`（MutexClass → interp 三桶 close/open/record）；`mutex.rs:572` `shadow_fold_bucket_equivalence`——12 场景（生成域覆盖：空/同级同向/同级反向/双向腿/跨级/fold 内重复 slot/ShortDiff/无类无向 + typed close 精确类号）断言 interp `≺_Θ` 桶归属 == mutex P1..P10 桶归属，分叉即红（真矛盾 ⟹ /escalate）；bar 级屏蔽对拍 `mutex.rs:424` `bar_level_ctx_masks_candidate_predicates`（C1..C4 成立 ⟹ bridge_bucket=None，候选无桶归属——与组合层「gamma 全部推迟 record」行为一致）。
+- **D1 oracle 身份**：`rust/src/theta_v0/strategy/mutex.rs` 模块文档 `mutex.rs:62-68` 声明——`mutex_class` **零生产消费者**（生产裁决走 interp fold + I_Θ 组合层），保留唯一用途＝**P1..P10 等价 property test 的对拍参照**。裁定4 反装饰约束：#124 的 oracle 扩展与生产接线（`f9333e21b2` TW 进 fold + `c4c2a027ad` P1 全局分支 + `8150acb97f` typed close 归因）同批落，P1..P4 谓词均有真实生产分支对应。
+- **互斥化实装**：`strategy/mutex.rs:143` `mutex_class(&Predicates) -> MutexClass`——取最小成立谓词索引 r（C_r 唯一）或 C_0（无成立）。构造即证明形式。
+- **Σ=1 穷举机器证明**：`strategy/mutex.rs:296` `mutex_total_exhaustive_2pow10`——穷举全部 2^10=1024 谓词组合，**独立重算**每个 `1[C_j]`（不调 `mutex_class`，避免循环论证），逐组合断言 `Σ_j 1[C_j]==1`，并交叉验证命中类号 == `mutex_class` 返回（实装＝独立定义）。全定义兜底 `mutex.rs:333` `mutex_total_definedness`。
+- **优先级屏蔽**：`mutex.rs:342` `priority_p1_masks_all`（P1 成立屏蔽 P2..P10 ⟹ C_1）；`mutex.rs:349` `priority_bar_level_chain`（bar 级 P1≻P2≻P3≻P4 链）；`mutex.rs:363` `priority_min_index`（取最小成立索引 ⟹ C_r）。
+- **桶级等价（≺_Θ vs P1..P10，12 场景零分叉）**：`strategy/mutex.rs:233` `predicates_of`（生产候选 + fold 状态 → PDF 谓词向量，独立于 interp 规则序**重新推导**每个 P_j，使对拍非循环；typed close 经 `interp.rs:188` `reverse_exit_type` 同一单源）；`mutex.rs:212` `bridge_bucket`（MutexClass → interp 三桶 close/open/record）；`mutex.rs:574` `shadow_fold_bucket_equivalence`——12 场景（生成域覆盖：空/同级同向/同级反向/双向腿/跨级/fold 内重复 slot/ShortDiff/无类无向 + typed close 精确类号）断言 interp `≺_Θ` 桶归属 == mutex P1..P10 桶归属，分叉即红（真矛盾 ⟹ /escalate）；bar 级屏蔽对拍 `mutex.rs:426` `bar_level_ctx_masks_candidate_predicates`（C1..C4 成立 ⟹ bridge_bucket=None，候选无桶归属——与组合层「gamma 全部推迟 record」行为一致）。
 
 ### 认识论等级
 
-**L0 结构定理**（非 L2 alpha）：`Σ_j 1[C_j]=1` 是固定优先级互斥化的组合逻辑恒等式（`mutex.rs:51-56` 强制标注：alpha2 Doc2§9 定理1/Doc3§6 构造证毕，零信息增量同义反复）。Rust 穷举 2^10 ＝ **L1 管线正确性**（验证互斥化无 bug，不验证谓词 P_j 经验有效——P_j 触发率/盈利性是 L2 未覆盖；特别地 P2/P3/P4 在 codex R3 C' 合法账本语义下生产触发**结构不可达**，TW 守恒代数证明见 §D-5，#139 账本重裁 pending）。
+**L0 结构定理**（非 L2 alpha）：`Σ_j 1[C_j]=1` 是固定优先级互斥化的组合逻辑恒等式（`mutex.rs:53-60` 强制标注：alpha2 Doc2§9 定理1/Doc3§6 构造证毕，零信息增量同义反复）。Rust 穷举 2^10 ＝ **L1 管线正确性**（验证互斥化无 bug，不验证谓词 P_j 经验有效——P_j 触发率/盈利性是 L2 未覆盖；P2/P3/P4 经 #139 裁定 A' + #140 落地后**生产可达 L1**——L0 同价无盈亏版不可达定理保留，见 §D-5 增量与假设 8 有效域声明）。
 
-**边界更新（#124 后 P1 已进对拍范围）**：阶段一「P1 不在 D1 范围」的边界声明已被 §D-5 闭合取代——P1..P4 现为 bar 级谓词（`StepPredicateCtx`），成立时屏蔽全部候选的 P5..P10；对拍锚＝生产分支测试 `coverage.rs:4217/4274/4313/4352`（P1/P2/P3/P4）+ oracle 侧 `mutex.rs:424` bar 级屏蔽。
+**边界更新（#124 后 P1 已进对拍范围）**：阶段一「P1 不在 D1 范围」的边界声明已被 §D-5 闭合取代——P1..P4 现为 bar 级谓词（`StepPredicateCtx`），成立时屏蔽全部候选的 P5..P10；对拍锚＝生产分支测试 `coverage.rs:4217/4278/4327/4377`（P1/P2/P3/P4，#140 清单⑤后含 tw=None 订单流对照断言）+ oracle 侧 `mutex.rs:426` bar 级屏蔽。
 
 ---
 
@@ -238,6 +240,17 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
   - `classifier/six_state.rs:179` 六态 partition 非退化断言（六态全可达）。
 - **证明状态**：**机器证明**（候选守恒计数 partition + bit-exact debug_assert 守卫）。**L0** 分类穷尽性（六态/三桶 partition）。
 
+### C.5 TW 账本不变量（#140 新形式：非 Realize 守恒 + Realize 漂移 = Σd_pi）
+
+- **数学陈述**：`TwEvent` 八构造子中，**非 Realize 七构造子（含诊断-only `Revalue`）逐事件保 `tw()=free+holding+withdrawn` 守恒**；`Realize(d_pi)` 是**唯一 TW 漂移构造子**，混入任意事件流时终态漂移恰 = Σd_pi（d_pi 可正可负——只入正数会重造利润棘轮，codex A' 推导链第 5 条）。旧不变量「全构造子守恒」经 #139 裁定 A' 分裂为这对新定理（守恒集收窄 + 漂移精确刻画）。
+- **实装锚点**：
+  - `rust/src/theta_v0/strategy/ledger.rs:364` `TwEvent::Realize(i64)`（第 8 构造子；`ledger.rs:383` `is_legal_from` 归恒合法——OQ-9 门不管它，真约束在 producer/source-validity 唯一资金源 + cash-sound gate 拦负 free，裁定清单②⑦）。
+  - 机器证明：`ledger.rs:676` `tw_step_preserves_tw`（前半：七个非 Realize 构造子逐事件守恒）+ `ledger.rs:735` `tw_step_realize_drift_equals_dpi`（后半：漂移恰 = d_pi + 分量正交（stage/legs/hwm_gain 全不变）+ Realize 后 stage 不回退——推导链第 8 条）。
+  - 生产端到端：`backtest/runner.rs:2102` `tw_ledger_producer_drift_equals_quantized_realized_pnl`（π fill loop 上 `tw() = ⌊nav0⌋ + ⌊Σ费后已实现PnL⌋`——利润不再凭空消失；旧具名测试断言「恒守恒」按裁定清单⑥重写非删除）。
+- **stage 驱动字段白名单/黑名单（p8③ 语义回补禁令的字段级兑现）**：`closed_loop/transition.rs:309-316` `stage_progression` 文档硬边界——**白名单**（允许驱动 stage 判据）：`free`/`holding`/`withdrawn`/`notional_in`/`open_legacy_legs`/`risk_mode`（tw() 三量均成本基口径）；**黑名单**（不得驱动）：`hwm_gain`（未实现峰值，R3 已裁语义回补）/当前 MTM equity/`forced_pnl`（报告用假设强平）/任何未平仓路径依赖浮盈。已实现 PnL 与未实现浮盈的分界＝**平仓 fill 结算事实后续价格不能否定**（`codex-gap3-ledger-20260703.md` 裁定 A' 推导链第 4/6 条，清单⑧）。黑名单字段进判据即触发 A' 边界条件 (b)，须重新提交裁决。
+- **证明状态**：**L0**（构造子代数：逐分支检查 tw() 增量）+ **机器证明**（守恒/漂移双测试 + 生产端到端，1452 全绿）。
+- **诚实留白（独立证明义务，登记 §D D-8）**：`Origin.TotalWealth.TWEvent`（Lean）**尚无 Realize 对应构造子**——与 `Revalue` 同为 Rust 先行，`ledger.rs:405-407` tw_step 文档已诚实标注不冒充已锚；Lean `twStep_preserves_tw` 的陈述须扩展为「非 Realize 守恒 + Realize 漂移」两定理后契约锚才闭合。
+
 ---
 
 ## §D. 证明义务登记表（阶段二已闭合，2026-07-03，Task #131）
@@ -250,11 +263,12 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 | **D-2 (G2)** | 完整互斥状态 z 必含 (ℓ,δ,σ_higher) | **CLOSED**（codex-q1 G2 终裁翻转 #81 误读，PDF 权威） | **#132**：`c3ed1ccb81` | 假设 5（状态 z 唯一）有效域 |
 | **D-3 (G3)** | z 扩维至 §6 完整形态（13 维 + 全 20 条目逐条裁定）；UClass 并列防碎裂 | **CLOSED**（残余 OPEN 子项：TStage/ηBucket 装配、CostBucket、CandType Live 轴——共 3.5 项） | **#138**：`1eac54ca08`；高级别候选生成 **#123**：`0a35f0167c` | 假设 4（I_γ 高级别生成）、假设 5 |
 | **D-4 (G4)** | 统计层出场用 τ^typed 非 τ^reverse | **CLOSED**（τ^reverse 状态机整体删除，不留 fallback） | **#134**：`8150acb97f`→`cd2f326a52`→`3bd26ac3ee`→`99bab5ad68`（+`1a4d931b3e` 剪枝标记） | 假设 5（成本/出场）有效域 |
-| **D-5 (G5)** | 解释器统一 P1..P10 固定优先级（强平 + TW/GAP3 纳入单一序） | **CLOSED**（P2/P3/P4 生产可达性依赖 #139 账本重裁，pending） | **#124**：`c4c2a027ad`→`f9333e21b2`→`972d5cfefa` | 假设 6（解释器固定优先级）完整域 |
+| **D-5 (G5)** | 解释器统一 P1..P10 固定优先级（强平 + TW/GAP3 纳入单一序） | **CLOSED**（可达性子项亦闭合：#139 裁 A' + #140 落地，P2/P3/P4 生产可达 L1） | **#124**：`c4c2a027ad`→`f9333e21b2`→`972d5cfefa`；**#140**：`f3e3709252`→`49f0821584`→`3987926ba5` | 假设 6（解释器固定优先级）完整域 |
 | **D-6 (G6)** | 全定义证明整合文档 | **已交付**（阶段一 #125 + 阶段二 #131 本次更新） | `1ce80641ce` + 本 commit | — |
 | **D-7 (G7)** | K_Θ 含最大毛头寸约束（gross exposure cap） | **CLOSED**（default 不激活=frozen bit-exact；#135 须显式激活） | **#133**：`f1c9700332`→`6a282f5f46` | 假设 9（K_Θ 有限）完整域 |
+| **D-8** | Lean 侧 TW 不变量扩展：`Origin.TotalWealth.TWEvent` 增 Realize 构造子，`twStep_preserves_tw` 分裂为「非 Realize 守恒 + Realize 漂移」两定理 | **OPEN**（Rust 先行，`ledger.rs:405-407` 已诚实标注不冒充已锚；#140 增量登记） | 待 Lean 工位（与 Revalue 同批） | 假设 8（TW 事件全定义）契约锚 |
 
-**登记表条目数：7**（D-1 至 D-7）。**阶段二闭合：6 项全部 CLOSED**；残余 OPEN 子项 5 处（D-1 一处、D-3 三处半、D-5 可达性一处）——均为数据源不存在/账本语义前置的诚实缺口，照实登记，关闭条件逐条见下方明细。
+**登记表条目数：8**（D-1 至 D-7 + #140 增量登记的 D-8）。**阶段二闭合：6 项全部 CLOSED**；残余 OPEN 项：D-1 一处、D-3 三处半（子项）+ D-8 整项（Lean 侧契约锚）——D-5 可达性子项已由 #139 裁定 A' + #140 落地闭合，不再计入。余项均为数据源不存在/Lean 侧未跟进的诚实缺口，照实登记，关闭条件逐条见下方明细。
 
 ### D-1 闭合明细（G1 Cand 力度门——#115 beta-route，结果包 `beta-route-impl-20260703.md`）
 
@@ -285,7 +299,7 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 - **§6 全 20 条目对照表**＝`g3-impl-20260703.md` §3（本文档引用不复制）：已接（含前置）11 条；G3 新接 4 字段覆盖 4 条；代数派生/分解承载 2 条（Jchain≅(ℓ,e) 级别签名无独立自由度 / role 分解承载）；诚实缺口 3.5 条（见下）。
 - **认识论等级**：**L0**（维度定义+装配恒等式）+ **机器证明**（新测试+基线）；BTC 95.36% 基例退化在 μ̂ 分桶层就此可观测=L2 市场几何事实。
 - **残余诚实缺口（OPEN 子项，状态与理由本次更新）**：
-  - **TStage（§6 #15）/ ηBucket（§6 #16）**：G3 时点的前提「closed_loop 未接 fill loop」**已被 #124 消除**——生产者已就位（TStage=`runner.rs:679` `TwState.stage` 逐 bar 真值；η=`tw.tw()`，η⋆=`strategy/ledger.rs:261` `eta_star`）。仍 OPEN 的理由更新为两条：(a) 装配进 z=动 MuClass 桶键=统计层决策，归 #135 prereg 冻结，不静默扩维；(b) 当前合法账本语义下 stage 恒 CostReduction ⟹ 维度在真实数据上单值零信息——扩维前须先裁 #139 账本重装，否则是死维度（`g5-impl-20260703.md` §4）。
+  - **TStage（§6 #15）/ ηBucket（§6 #16）**：G3 时点的前提「closed_loop 未接 fill loop」**已被 #124 消除**——生产者已就位（TStage=`runner.rs:680` `TwState.stage` 逐 bar 真值；η=`tw.tw()`，η⋆=`strategy/ledger.rs:264` `eta_star`）。仍 OPEN 的理由（#140 后更新）：装配进 z=动 MuClass 桶键=统计层决策，归 #135 prereg 冻结，不静默扩维。原理由 (b)「stage 恒 CostReduction ⟹ 死维度」已被 #139 裁 A' + #140 落地部分消解——stage 不再结构恒值（L1 可达见证 §D-5），但真实数据上 P3 触发门（已实现利润 ≥ ~1.5×NAV 且再投资足额）的满足频率未知，维度信息量仍待 #135 全历史重跑证实。
   - **CostBucket（§6 #18）**：仍无 bar 级时变成本状态生产者（费率是 run 级常量配置非「状态」，填之即变相常量占位）。关闭条件：动态滑点/冲击成本模型实装。
   - **CandType Live 轴（§6 #6 半条）**：确认-bar 部署架构下候选恒 Settled 口径，Live（未确认活动候选）无生产者——架构口径缺口。翻转条件：异质审计若裁定 PDF 字面三分必须为独立维 ⟹ `cand_channel` 重命名 + Live 生产者升级为实装缺口上浮。
 
@@ -307,23 +321,25 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 
 | PDF §7 谓词 | 生产实装锚点 | oracle 锚点（mutex.rs Predicates 字段） | 测试见证 |
 |---|---|---|---|
-| P1 强平 | `coverage.rs:2449`（force_flat 上游短路：RiskExit 全清 + next_active=∅ 幽灵腿堵口） | `mutex.rs:90` `risk_liquidate` | `coverage.rs:4217` `_p1_force_flat_risk_exits_all` |
-| P2 CloseOverlay | `coverage.rs:2472`（StageII∧H>0 ⟹ 合成 close 桶**真产订单**进同一 schedule/fill/ledger）；`runner.rs:897`（typed=CloseShortDiff 入 ledger） | `mutex.rs:92` `close_overlay` | `coverage.rs:4274` `_p2_close_overlay` |
-| P3 Withdraw | `coverage.rs:2510`（`transition.rs:282` `stage_progression` 单源 ⟹ TWEvent_t，**消耗当步裁决**——gamma 全 record，分歧B 裁决） | `mutex.rs:94` `tw_withdraw` | `coverage.rs:4313` `_p3_withdraw_consumes_step` |
-| P4 EnterEarning | 同 P3 分支（stage_progression→EnterEarning） | `mutex.rs:96` `tw_enter_earning` | `coverage.rs:4352` `_p4_enter_earning` |
-| P5 CloseRoot | interp fold 规则2 + `interp.rs:188` `reverse_exit_type`（一/二类反向） | `mutex.rs:98` `close_root` | shadow-fold typed 精确类号 |
-| P6 ReduceCore | 同上（三类反向） | `mutex.rs:100` `reduce_core` | shadow-fold |
-| P7 CloseShortDiff | 同上（ShortDiff 入场角色压过触发类） | `mutex.rs:102` `close_short_diff` | shadow-fold |
-| P8 Open Root | interp fold 规则3（非 ShortDiff 角色） | `mutex.rs:104` `open_root` | shadow-fold |
-| P9 Open ShortDiff | 同上（ShortDiff 角色） | `mutex.rs:106` `open_short_diff` | shadow-fold |
-| P10 Record | interp fold 规则1/4（Flat/无类/slot 冲突） | `mutex.rs:109` `record_struct_break` | shadow-fold |
-| P0 Hold | 无谓词命中 ⟹ p\* 不变 | `MutexClass::C0`（`mutex.rs:79`） | `mutex.rs:331` `mutex_total_definedness` |
+| P1 强平 | `coverage.rs:2449`（force_flat 上游短路：RiskExit 全清 + next_active=∅ 幽灵腿堵口） | `mutex.rs:92` `risk_liquidate` | `coverage.rs:4217` `_p1_force_flat_risk_exits_all` |
+| P2 CloseOverlay | `coverage.rs:2472`（StageII∧H>0 ⟹ 合成 close 桶**真产订单**进同一 schedule/fill/ledger）；`runner.rs:937`（typed=CloseShortDiff 入 ledger） | `mutex.rs:94` `close_overlay` | `coverage.rs:4278` `_p2_close_overlay`（#140 清单⑤：+tw=None 对照断言 Order 本身不同） |
+| P3 Withdraw | `coverage.rs:2510`（`transition.rs:319` `stage_progression` 单源 ⟹ TWEvent_t，**消耗当步裁决**——gamma 全 record，分歧B 裁决） | `mutex.rs:96` `tw_withdraw` | `coverage.rs:4327` `_p3_withdraw_consumes_step`（#140：+tw=None 对照——同 bar 普通开仓 qty >0 变 0） |
+| P4 EnterEarning | 同 P3 分支（stage_progression→EnterEarning） | `mutex.rs:98` `tw_enter_earning` | `coverage.rs:4377` `_p4_enter_earning`（#140：+tw=None 对照） |
+| P5 CloseRoot | interp fold 规则2 + `interp.rs:188` `reverse_exit_type`（一/二类反向） | `mutex.rs:100` `close_root` | shadow-fold typed 精确类号 |
+| P6 ReduceCore | 同上（三类反向） | `mutex.rs:102` `reduce_core` | shadow-fold |
+| P7 CloseShortDiff | 同上（ShortDiff 入场角色压过触发类） | `mutex.rs:104` `close_short_diff` | shadow-fold |
+| P8 Open Root | interp fold 规则3（非 ShortDiff 角色） | `mutex.rs:106` `open_root` | shadow-fold |
+| P9 Open ShortDiff | 同上（ShortDiff 角色） | `mutex.rs:108` `open_short_diff` | shadow-fold |
+| P10 Record | interp fold 规则1/4（Flat/无类/slot 冲突） | `mutex.rs:111` `record_struct_break` | shadow-fold |
+| P0 Hold | 无谓词命中 ⟹ p\* 不变 | `MutexClass::C0`（`mutex.rs:81`） | `mutex.rs:333` `mutex_total_definedness` |
 
-- **TW 状态单一生产源**：`runner.rs:679` `TwState`（π fill loop 内，由真实交易流驱动——成本基方向差分→ShortDiff 划转 `runner.rs:713`；腿开/平计数 `runner.rs:931/941` `tw_step`，OQ-9 守卫）；`run_closed_loop` 降级纯结构验证工具（裁定4 明文）。
-- **机器证明锚点**：2^10 穷举 `mutex.rs:294` + typed shadow-fold `mutex.rs:572`（12 场景）+ bar 级屏蔽 `mutex.rs:424` + TW 守恒端到端 `runner.rs:2060` `tw_ledger_producer_in_place_and_conserved`。交付基线 1447 全绿。
-- **P2/P3/P4 结构不可达证明（TW 守恒代数，L0）**：codex R3 C' 合法账本语义下无已实现/未实现利润入 free 通道（全部构造子保 TW 守恒）⟹ 退本金前提 `holding≥notional_in ∧ free≥recover_target` 联立要求 `TW ≥ 2·notional_in−withdrawn > TW`（代数矛盾）⟹ stage 恒 CostReduction ⟹ 三谓词恒 false ⟹ **生产订单流 bit-exact**（1447 绿含全部既有 golden 为物证，判据评估纯读无副作用）。
-- **残余（OPEN 子项，#139 pending）**：「已实现利润入账」账本重装（codex R3 C' 显式留白）是 P2/P3/P4 生产可达性的唯一剩余阻塞，已提裁 #139（in-flight）。若裁通过 ⟹ 三谓词生产可达 ⟹ 订单流非 bit-exact ⟹ GOLDEN 须真重算（触发点在账本重装工位，非本义务遗留）。
-- **认识论等级**：互斥定理 **L0**；2^10 穷举/shadow-fold = **L1 管线正确性**；TW 谓词的市场触发率 = L2 未覆盖（结构不可达本身是 L0 代数结论）。
+- **TW 状态单一生产源**：`runner.rs:680` `TwState`（π fill loop 内，由真实交易流驱动——成本基方向差分→ShortDiff 划转 `runner.rs:721`；#140 ②'' 已实现 PnL 量化差分→`Realize(d_pi)` `runner.rs:752`（唯一资金源=apply_order 返回的实际平仓 fill 费后 PnL，forced_pnl 结构性隔离——推导链第 10/11 条）；腿平/开计数 `runner.rs:930/956` `tw_step`，OQ-9 守卫）；`run_closed_loop` 降级纯结构验证工具（裁定4 明文）。
+- **机器证明锚点**：2^10 穷举 `mutex.rs:296` + typed shadow-fold `mutex.rs:574`（12 场景）+ bar 级屏蔽 `mutex.rs:426` + TW 生产端到端 `runner.rs:2102` `tw_ledger_producer_drift_equals_quantized_realized_pnl`（#124 原具名测试 `tw_ledger_producer_in_place_and_conserved` 断言「恒守恒」= 正 PnL 凭空消失，按 #139 裁定清单⑥**重写非删除**：新断言 TW 漂移 = ⌊Σ费后已实现PnL⌋）。#124 交付基线 1447 全绿；#140 后 1452 全绿。
+- **可达性（#140 增量：FALSIFIED → L1 可达）**：
+  - **L0 同价无盈亏不可达定理（限定版保留）**：`runner.rs:2550` `earning_shares_unreachable_l0_same_price_zero_pnl`（原名 `earning_shares_structurally_unreachable_from_campaign_tw_conserved`，按裁定改名+收窄有效域）——同价 ⟹ 平仓 PnL≡0 ⟹ `Realize(0)` 守恒退化 ⟹ 退本金前提 `holding≥notional_in ∧ free≥recover_target` 联立仍要求 `TW ≥ 2·notional_in−withdrawn > TW`（代数矛盾不变）⟹ L0 模型下 stage 恒 CostReduction。原「结构不可达」证明的 TW 守恒代数**在此收窄域内继续成立**；L2 realized-PnL 路径不再被该定理覆盖。
+  - **L1 生产可达见证**：`runner.rs:2148` `pi_loop_realized_profit_reaches_earning_shares`——合成变价序列（px 100→1000）上生产 π fill loop 全链（buy1 开仓→sell1 平仓 realized≈+5.4e6 经 `Realize` 入 free→再建仓）⟹ P3 派 `RecoverCapital`（stage II）⟹ P4 `EnterEarning` ⟹ **终态 TStage=EarningShares**，且 TW 漂移恒 = 已实现 PnL 量化和（资金源唯一性端到端审计，无 fixture 直捅 stage）。**GAP3「∃t TStage=III」从 FALSIFIED 翻转 L1 可达**。
+  - **bit-exact 边界（#135 消费）**：现有非忽略测试集零 GOLDEN diff（P3 触发门在既有场景不满足）；全历史 L2 重跑中任一 bar 触发 P2/P3/P4 即订单流分叉——两类风险（P2 直接产订单 / P3/P4 masking 间接改同 bar 订单）已在 `gap3-realize-impl-20260703.md` §4 标注，GOLDEN 真重算归 #135。
+- **认识论等级**：互斥定理 **L0**；2^10 穷举/shadow-fold = **L1 管线正确性**；L0 同价不可达定理 = **L0 代数结论（收窄域）**；EarningShares 可达性 = **L1**（合成序列生产路径见证）；TW 谓词的真实数据触发频率/盈利性 = L2 未覆盖（#135）。
 
 ### D-7 闭合明细（G7 毛头寸约束——#133，结果包 `g7-impl-20260703.md`）
 
@@ -367,3 +383,5 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
    - 各 CLOSED 项的翻转条件继承其结果包边界条件节（如 D-4 codex 原文：若逐笔对照证明 τ^typed≈τ^reverse 则旧口径可复活——BTC 冒烟已初步反证；D-5 (a)：#139 裁通过 ⟹ 订单流非 bit-exact ⟹ GOLDEN 真重算）。
 
 3. **影响声明**：只改本文档（`docs/formal-chain/proofs-full-strategy-20260703.md`），零代码/测试改动。下游消费：**阶段三 codex+gemini 双异质审**审全文档——审前必须告知：假设 1（高级别 bit-exact）的 L2 锚点是 `#[ignore]` 真实数据测试的历史手工跑（commit `c546b5633c`），CI 不自动跑，文档已诚实披露，此为已知验证态边界非声明膨胀（quality-guard 验收注记 2026-07-03）；**#135** 消费 D-4 功效警告、D-7 激活口径（`enforce_gross_cap=true` 冻结项）、D-3 装配归属；**#139** 是 D-5 可达性子项的关闭闸门。
+
+> **增量注记（#140 后，本节正文保留为阶段二时点记录）**：上述「D-5 可达性依赖 #139」已闭合——#139 裁 A' + #140 落地，见文档头增量说明与 §D-5/§C.5。阶段二边界条件「#139 裁通过 ⟹ 订单流非 bit-exact ⟹ GOLDEN 真重算」的实际结果：非忽略测试集**零 GOLDEN diff**（既有场景 P3 触发门不满足），GOLDEN 真重算移交 #135 全历史跑批（两类 bit-exact 风险已在 `gap3-realize-impl-20260703.md` §4 标注）。新增独立义务 D-8（Lean 侧）进登记表。
