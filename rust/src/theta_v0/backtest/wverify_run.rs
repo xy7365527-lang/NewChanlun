@@ -23,10 +23,10 @@
 
 use super::super::config::ThetaConfig;
 use super::l3_delta_r_alpha::build_mu_from_bars;
-use super::mu_estimator::ResidualTrade;
+use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
 use super::{data, decontam, perm_test};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// walk-forward 窗间 time block 偏移步长（§4.2：不同窗的 time block 不碰撞；窗内块 <stride）。
 const WF_TIME_STRIDE: u32 = 10_000;
@@ -189,7 +189,8 @@ struct BucketStat {
 }
 
 /// 残差记录 → 逐桶 (ℓ,bsp,δ,σ^H) 三态判定（与 wverify_full 同口径：Welford + 残差分层 δ 置换 + decontam）。
-/// 返回 (逐桶统计 map, markdown 表, 全局裁决 debug 串, (V,F,I) 计数)。frontier 污染标注 ℓ≥2（预注册 §4.1）。
+/// 返回 (逐桶统计 map, markdown 表, 全局裁决 debug 串, (V,F,I) 计数)。frontier 列标注 ℓ≥2（预注册 §4.1；
+/// 污染已于 c546b5633c 修复解除，见列内字符串）。
 fn bucket_verdict(records: &[ResidualTrade]) -> (BTreeMap<(u32, u8, i8, i8), BucketStat>, String, String, (usize, usize, usize)) {
     let mut agg: BTreeMap<(u32, u8, i8, i8), (u64, f64, f64)> = BTreeMap::new();
     let mut series: BTreeMap<(u32, u8, i8, i8), Vec<f64>> = BTreeMap::new();
@@ -218,7 +219,7 @@ fn bucket_verdict(records: &[ResidualTrade]) -> (BTreeMap<(u32, u8, i8, i8), Buc
         let n_eff = decontam::effective_n(ys);
         let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
         states.push(st);
-        let frontier = if lv >= 2 { "⚠污染未排除(frontier-bt-consumed)" } else { "—" };
+        let frontier = if lv >= 2 { "frontier已修(c546b5633c bit-exact)，污染标注解除" } else { "—" };
         rows.push_str(&format!(
             "| L{} | {} | {:+} | σ{:+} | {} | {:.2} | {:.6} | {:.6} | {:.6} | {:.3} | {:.3} | {:?} | {} |\n",
             lv, bc, d, pd, n, n_eff, mean, lcb, ucb, cv, perm_p, st, frontier
@@ -278,6 +279,142 @@ fn wverify_cross_symbol() {
         format!("# 池化（7 品种）verdict={pverdict} V={nv}/F={nf}/I={ni}\n\n{prows}\n\n## {diff}\n"),
     )
     .ok();
+}
+
+/// 逐桶三态判定（泛化键 K）——消费预算好的 perm_p map。full-z（K=MuClass）/ UClass（K=UClass）复用。
+/// `BTreeMap<K>` 确定序报告；`level_of` 提供 frontier 标注的级别（污染已于 c546b5633c 修复解除；UClass 无干净级别 ⟹ None）。
+fn verdict_by<K: Ord + Copy + std::fmt::Debug + std::hash::Hash>(
+    records: &[ResidualTrade],
+    key_of: impl Fn(&MuClass) -> K,
+    perm: &HashMap<K, f64>,
+    level_of: impl Fn(&K) -> Option<u32>,
+) -> (String, String, (usize, usize, usize)) {
+    let mut agg: BTreeMap<K, (u64, f64, f64)> = BTreeMap::new();
+    let mut series: BTreeMap<K, Vec<f64>> = BTreeMap::new();
+    for r in records {
+        let key = key_of(&r.class);
+        let y = r.y();
+        let e = agg.entry(key).or_insert((0, 0.0, 0.0));
+        e.0 += 1;
+        let dl = y - e.1;
+        e.1 += dl / e.0 as f64;
+        e.2 += dl * (y - e.1);
+        series.entry(key).or_default().push(y);
+    }
+    let (za, pa) = (1.645_f64, 0.05_f64);
+    let mut states = Vec::new();
+    let mut rows = String::from("| key | n | n_eff | mean(Y) | lcb | ucb | cv | perm_p | state | frontier(≥2) |\n");
+    for (key, &(n, mean, m2)) in &agg {
+        let std = if n < 2 { f64::NAN } else { (m2 / (n - 1) as f64).sqrt() };
+        let se = std / (n as f64).sqrt();
+        let (lcb, ucb) = (mean - za * se, mean + za * se);
+        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
+        let perm_p = *perm.get(key).unwrap_or(&1.0);
+        let ys = series.get(key).map(Vec::as_slice).unwrap_or(&[]);
+        let n_eff = decontam::effective_n(ys);
+        let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
+        states.push(st);
+        let frontier = match level_of(key) {
+            Some(l) if l >= 2 => "frontier已修(c546b5633c bit-exact)，污染标注解除",
+            _ => "—",
+        };
+        rows.push_str(&format!(
+            "| {key:?} | {n} | {n_eff:.2} | {mean:.6} | {lcb:.6} | {ucb:.6} | {cv:.3} | {perm_p:.3} | {st:?} | {frontier} |\n"
+        ));
+    }
+    let v = decontam::global_verdict(&states);
+    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
+    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
+    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
+    (rows, format!("{v:?}"), (nv, nf, ni))
+}
+
+/// full-z×残差逐桶判定（prereg-fullz-policy 阶段2 (A)）：BTC 单标的 walk-forward OOS，桶键=完整 MuClass
+/// 7 维 + UClass 降维并列（桶碎裂防护）。`#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::wverify_fullz -- --ignored --nocapture`。
+#[test]
+#[ignore]
+fn wverify_fullz() {
+    let cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let (records, _tb) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
+    assert!(!records.is_empty(), "walk-forward OOS 残差空——窗口/数据不匹配");
+
+    // full-z（完整 MuClass 7 维，horizontal=Some 走生产路径）。
+    let pf = perm_test::stratified_delta_perm_p_fullz(&records, perm_test::N_PERM, perm_test::PERM_SEED);
+    let (frows, fverdict, (fv, ff, fi)) = verdict_by(&records, |c| *c, &pf, |k: &MuClass| Some(k.level));
+    let n_fullz = { let mut s: Vec<MuClass> = records.iter().map(|r| r.class).collect(); s.sort(); s.dedup(); s.len() };
+
+    // UClass 降维并列（(level_bucket,δ,role,divergence)，抗碎裂）。
+    let pu = perm_test::stratified_delta_perm_p_uclass(&records, perm_test::N_PERM, perm_test::PERM_SEED);
+    let (urows, uverdict, (uv, uf, ui)) = verdict_by(&records, UClass::project_to_u, &pu, |_k: &UClass| None);
+    let n_uclass = { let mut s: Vec<UClass> = records.iter().map(|r| UClass::project_to_u(&r.class)).collect(); s.sort(); s.dedup(); s.len() };
+
+    eprintln!(
+        "WV_FULLZ residuals={} | full-z: buckets={n_fullz} verdict={fverdict} V={fv}/F={ff}/I={fi} | UClass: buckets={n_uclass} verdict={uverdict} V={uv}/F={uf}/I={ui}",
+        records.len()
+    );
+    std::fs::write("/tmp/wv_fullz_rows.md", format!("# full-z（完整 MuClass 7 维）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}")).ok();
+    std::fs::write("/tmp/wv_uclass_rows.md", format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}")).ok();
+}
+
+/// 完整策略级 π 回测（prereg-fullz-policy 阶段2 (B)）：BTC+CL，χ门μ̂注入 vs 无χ基线。
+/// est 由 **train 段** `build_mu_from_bars` 建（无 in-sample 泄漏，L2），test 段跑生产 π；输出 Σpnl(含浮盈)
+/// / max_drawdown / n_orders 的 χ-vs-基线差分（μ̂ 选择器增量价值）。
+/// ponytail: 单折有界 train（18 月，OOS 前）——限 est-build 成本；若 μ̂ 增量信号需更细 OOS 鲁棒性，
+/// 改逐 wf_anchored 窗 walk-forward（成本随窗数×train 扩张增长）。
+/// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::policy_backtest -- --ignored --nocapture`。
+#[test]
+#[ignore]
+fn policy_backtest() {
+    use super::runner::{run_theta_v0_pi, run_theta_v0_pi_chi};
+    let base_cfg = ThetaConfig::default();
+    let mut chi_cfg = ThetaConfig::default();
+    chi_cfg.risk.chi_theta = Some(0.0); // χ=1[LCB(μ)>0]（p8-9 选择器）
+    chi_cfg.risk.chi_z_alpha = 1.645;
+    let (train_lo, train_hi) = ("2022-07-01", "2022-12-31"); // OOS 前 6 月（有界 train，限跑批成本）
+    let (test_lo, test_hi) = ("2023-01-01", "2023-06-30"); // OOS 6 月单折（ponytail 有界；逐窗 walk-forward 是升级路径）
+
+    let mut report = String::from(
+        "# 策略级 π 回测（BTC+CL，χ门μ̂ vs 无χ基线，单折有界 train 6月→OOS 6月）\n\n\
+         口径：Σpnl=含浮盈已实现（trade_pnls_with_forced）；max_dd=metrics.max_drawdown；nav=首可交易价×1000。\n\n",
+    );
+    for sym in ["BTC", "CL"] {
+        let ds = match data::load_by_symbol(sym, &base_cfg) {
+            Ok(d) => d,
+            Err(e) => { report.push_str(&format!("## {sym}\n加载失败：{e}\n\n")); continue; }
+        };
+        let train_ds = ds.slice_date_window(train_lo, train_hi);
+        let test_ds = ds.slice_date_window(test_lo, test_hi);
+        if train_ds.bars.is_empty() || test_ds.bars.is_empty() {
+            report.push_str(&format!("## {sym}\ntrain/test 段空（数据不覆盖窗口）\n\n"));
+            continue;
+        }
+        eprintln!("[policy] {sym} train_bars={} test_bars={} 建 est…", train_ds.bars.len(), test_ds.bars.len());
+        let (est, _r) = build_mu_from_bars(&train_ds.bars, &base_cfg, 0);
+        let first_px = test_ds.bars.iter().find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * base_cfg.tick.tick_size).unwrap_or(1.0);
+        let nav = first_px * 1000.0;
+        let years = test_ds.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+
+        let chi_r = run_theta_v0_pi_chi(&test_ds, &chi_cfg, years, nav, &est, false);
+        let base_r = run_theta_v0_pi(&test_ds, &base_cfg, years, nav);
+        let sum = |v: &[f64]| v.iter().sum::<f64>();
+        let (chi_pnl, base_pnl) = (sum(&chi_r.trade_pnls_with_forced), sum(&base_r.trade_pnls_with_forced));
+        report.push_str(&format!(
+            "## {sym}（μ̂ 桶数={}, test_bars={}）\n\
+             - χ门 μ̂  : Σpnl={chi_pnl:+.2} max_dd={:.4} n_orders={} n_trades={} strat_return={:+.4}\n\
+             - 无χ基线: Σpnl={base_pnl:+.2} max_dd={:.4} n_orders={} n_trades={} strat_return={:+.4}\n\
+             - 差分   : ΔΣpnl={:+.2} Δmax_dd={:+.4} Δn_orders={}（μ̂ 门增量价值）\n\n",
+            est.n_classes(), test_ds.bars.len(),
+            chi_r.metrics.max_drawdown, chi_r.n_orders, chi_r.trade_pnls_with_forced.len(), chi_r.metrics.strat_return,
+            base_r.metrics.max_drawdown, base_r.n_orders, base_r.trade_pnls_with_forced.len(), base_r.metrics.strat_return,
+            chi_pnl - base_pnl, chi_r.metrics.max_drawdown - base_r.metrics.max_drawdown,
+            chi_r.n_orders as i64 - base_r.n_orders as i64,
+        ));
+        eprintln!("POLICY {sym}: χ Σpnl={chi_pnl:+.2} dd={:.4} ord={} | base Σpnl={base_pnl:+.2} dd={:.4} ord={} | ΔΣpnl={:+.2}",
+            chi_r.metrics.max_drawdown, chi_r.n_orders, base_r.metrics.max_drawdown, base_r.n_orders, chi_pnl - base_pnl);
+    }
+    std::fs::write("/tmp/policy_backtest.md", &report).ok();
 }
 
 #[cfg(test)]

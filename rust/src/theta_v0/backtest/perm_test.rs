@@ -26,7 +26,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
-use super::mu_estimator::ResidualTrade;
+use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 
 /// 预注册 §4 冻结：置换次数。
 pub const N_PERM: usize = 200;
@@ -63,32 +63,29 @@ fn fisher_yates<T>(v: &mut [T], rng: &mut SplitMix64) {
     }
 }
 
-/// 输出桶 (ℓ, bsp, σ^H) 的置换累加器：成员（δ-agnostic）+ 观测残差均值 + ge 计数（右尾）。
-struct OutBucket {
-    base: (u32, u8, i8), // (level, bsp_class, σ^H)
-    members: Vec<usize>, // 该桶全部信号索引（δ 无关；层内置换后按 perm δ 分 +/−）
-    obs_plus: Option<f64>,  // 观测 δ=+1 子桶残差均值 mean(r−C)
-    obs_minus: Option<f64>, // 观测 δ=−1 子桶残差均值 mean(−r−C)
-    ge_plus: usize,
-    ge_minus: usize,
-}
-
-/// 路径 A 残差分层 δ 置换，产出逐桶 perm_p（alpha分离.pdf §4.2，单边右尾）。
+/// 通用分层内 δ 置换引擎（残差口径，alpha分离.pdf §4.2，单边右尾）。
 ///
-/// 分层键 = (ℓ, h_bucket, time_block, σ^H)；层内置换 δ；输出桶键 = (ℓ, bsp, δ, σ^H)。
-/// 置换统计用残差 `Y=δ·resid_base−cost`（δ-free 基重新赋 δ，§4.2 T^res）。空 ⟹ 空 map。
-pub fn stratified_delta_perm_p(
+/// 分层键恒 = (ℓ, h_bucket, time_block, σ^H)（§4.2，跨口径同序 ⟹ 跨进程复现根据）；层内置换 δ；
+/// 输出桶由 `base_of`（δ-free 输出基，BTreeMap 确定序）+ `out_key`（从代表类+赋予δ 重构完整输出键，
+/// short_swing 等 δ-派生量在此重算，prereg-fullz-policy A3.2）决定。4 元组 / full-z / UClass 三口径
+/// 共用本引擎——RNG 只在分层遍历消耗（与输出桶聚合无关）⟹ 三口径切换不影响 4 元组 bit-exact。
+fn stratified_delta_perm_p_by<B, K>(
     trades: &[ResidualTrade],
     n_perm: usize,
     seed: u64,
-) -> HashMap<BucketKey, f64> {
+    base_of: impl Fn(&MuClass) -> B,
+    out_key: impl Fn(&MuClass, i8) -> K,
+) -> HashMap<K, f64>
+where
+    B: Ord + Copy,
+    K: Eq + std::hash::Hash,
+{
     let n = trades.len();
-    // 逐笔并行数组（δ-free 基/成本/原始 δ）——置换只改 δ，基与成本恒定。
     let resid: Vec<f64> = trades.iter().map(|t| t.resid_base).collect();
     let cost: Vec<f64> = trades.iter().map(|t| t.cost).collect();
     let delta0: Vec<i8> = trades.iter().map(|t| t.class.delta).collect();
 
-    // 分层键 (ℓ, h桶, time block, σ^H)（§4.2；bsp 不入分层）。BTreeMap 确定序 ⟹ RNG 消耗序不可变（跨进程可复现）。
+    // 分层键 (ℓ, h桶, time block, σ^H)——恒定，跨口径同序（RNG 消耗序不可变 ⟹ 跨进程可复现）。
     let mut strata_map: BTreeMap<(u32, u8, u32, i8), Vec<usize>> = BTreeMap::new();
     for (i, t) in trades.iter().enumerate() {
         strata_map
@@ -98,17 +95,27 @@ pub fn stratified_delta_perm_p(
     }
     let strata: Vec<Vec<usize>> = strata_map.into_values().collect();
 
-    // 输出桶 (ℓ, bsp, σ^H)：δ-agnostic 成员 + 观测残差均值（用原始 δ0）。BTreeMap 确定序。
-    let mut bucket_members: BTreeMap<(u32, u8, i8), Vec<usize>> = BTreeMap::new();
+    // 输出桶按 δ-free base 聚合（BTreeMap 确定序）；存代表类（首成员）供 out_key 重构 + obs 均值。
+    struct OutBucket<K> {
+        plus_key: K,
+        minus_key: K,
+        members: Vec<usize>,
+        obs_plus: Option<f64>,
+        obs_minus: Option<f64>,
+        ge_plus: usize,
+        ge_minus: usize,
+    }
+    let mut base_map: BTreeMap<B, (MuClass, Vec<usize>)> = BTreeMap::new();
     for (i, t) in trades.iter().enumerate() {
-        bucket_members
-            .entry((t.class.level, t.class.bsp_class(), t.class.parent_dir))
-            .or_default()
+        base_map
+            .entry(base_of(&t.class))
+            .or_insert_with(|| (t.class, Vec::new()))
+            .1
             .push(i);
     }
-    let mut buckets: Vec<OutBucket> = bucket_members
+    let mut buckets: Vec<OutBucket<K>> = base_map
         .into_iter()
-        .map(|(base, members)| {
+        .map(|(_b, (rep, members))| {
             let (mut sp, mut np, mut sm, mut nm) = (0.0_f64, 0usize, 0.0_f64, 0usize);
             for &idx in &members {
                 match delta0[idx] {
@@ -118,7 +125,8 @@ pub fn stratified_delta_perm_p(
                 }
             }
             OutBucket {
-                base,
+                plus_key: out_key(&rep, 1),
+                minus_key: out_key(&rep, -1),
                 members,
                 obs_plus: (np > 0).then(|| sp / np as f64),
                 obs_minus: (nm > 0).then(|| sm / nm as f64),
@@ -166,17 +174,69 @@ pub fn stratified_delta_perm_p(
     }
 
     let inv = n_perm as f64;
-    let mut out: HashMap<BucketKey, f64> = HashMap::new();
-    for b in &buckets {
-        let (lv, bc, pd) = b.base;
+    let mut out: HashMap<K, f64> = HashMap::new();
+    for b in buckets {
         if b.obs_plus.is_some() {
-            out.insert((lv, bc, 1, pd), b.ge_plus as f64 / inv);
+            out.insert(b.plus_key, b.ge_plus as f64 / inv);
         }
         if b.obs_minus.is_some() {
-            out.insert((lv, bc, -1, pd), b.ge_minus as f64 / inv);
+            out.insert(b.minus_key, b.ge_minus as f64 / inv);
         }
     }
     out
+}
+
+/// 4 元组桶键 (ℓ, bsp, δ, σ^H) 逐桶 perm_p（s3/wverify 现口径，bit-exact 不变）。
+pub fn stratified_delta_perm_p(
+    trades: &[ResidualTrade],
+    n_perm: usize,
+    seed: u64,
+) -> HashMap<BucketKey, f64> {
+    stratified_delta_perm_p_by(
+        trades,
+        n_perm,
+        seed,
+        |c| (c.level, c.bsp_class(), c.parent_dir),
+        |c, d| (c.level, c.bsp_class(), d, c.parent_dir),
+    )
+}
+
+/// full-z 桶键 = 完整 [`MuClass`] 7 维逐桶 perm_p（prereg-fullz-policy A3.2）。
+/// δ-free base = (level, i_class, parent_dir, position, horizontal)；short_swing 由 perm-δ 重构。
+pub fn stratified_delta_perm_p_fullz(
+    trades: &[ResidualTrade],
+    n_perm: usize,
+    seed: u64,
+) -> HashMap<MuClass, f64> {
+    stratified_delta_perm_p_by(
+        trades,
+        n_perm,
+        seed,
+        |c| (c.level, c.i_class, c.parent_dir, c.position, c.horizontal),
+        |c, d| MuClass { delta: d, short_swing: c.parent_dir != 0 && d == -c.parent_dir, ..*c },
+    )
+}
+
+/// UClass 降维桶键逐桶 perm_p（prereg-fullz-policy A3.4，桶碎裂/winner's curse 防护）。
+/// δ-free base = (level_bucket, position, parent_dir, divergence)；role 由 perm-δ 经 project_to_u 重构。
+pub fn stratified_delta_perm_p_uclass(
+    trades: &[ResidualTrade],
+    n_perm: usize,
+    seed: u64,
+) -> HashMap<UClass, f64> {
+    stratified_delta_perm_p_by(
+        trades,
+        n_perm,
+        seed,
+        |c| (UClass::level_bucket(c.level), c.position, c.parent_dir, c.i_class & 0b001001 != 0),
+        |c, d| {
+            UClass::project_to_u(&MuClass {
+                delta: d,
+                short_swing: c.parent_dir != 0 && d == -c.parent_dir,
+                ..*c
+            })
+        },
+    )
 }
 
 /// 删尾稳健：删除前 `k` 个最大值后的均值（alpha检验.pdf §6，p4：尾部依赖诊断）。
@@ -353,6 +413,44 @@ mod tests {
         }
         let p = stratified_delta_perm_p(&trades, N_PERM, PERM_SEED);
         assert!(p[&(1, 1, 1, 0)] > 0.5, "r 无结构 ⟹ 残差置换判无显著（区别于 X_γ 置换的虚假显著）: {}", p[&(1, 1, 1, 0)]);
+    }
+
+    /// full-z / UClass 扩维 L1 自检（prereg-fullz-policy A3.3）：(1) 同种子复现；(2) full-z 是 4 元组
+    /// 的细化——每个 full-z 桶键投影到 (ℓ,bsp,δ,σ^H) 必落在 4 元组输出里（细分不产新粗桶）。
+    #[test]
+    fn fullz_uclass_reproducible_and_refines() {
+        let t: Vec<ResidualTrade> = (0..120)
+            .map(|i| {
+                rt(
+                    (i % 3) as u32,
+                    ((i / 3) % 3 + 1) as u8,
+                    if i % 2 == 0 { 1 } else { -1 },
+                    if i % 4 < 2 { 1 } else { -1 }, // σ^H ∈ {+1,−1} ⟹ short_swing 随 δ 可变
+                    (i as f64) * 0.29 - 17.0,
+                    (i % 4) as u8,
+                    (i % 2) as u32,
+                )
+            })
+            .collect();
+        // (1) 同种子复现。
+        assert_eq!(
+            stratified_delta_perm_p_fullz(&t, N_PERM, PERM_SEED),
+            stratified_delta_perm_p_fullz(&t, N_PERM, PERM_SEED),
+            "full-z 同种子须 bit-exact"
+        );
+        assert_eq!(
+            stratified_delta_perm_p_uclass(&t, N_PERM, PERM_SEED),
+            stratified_delta_perm_p_uclass(&t, N_PERM, PERM_SEED),
+            "UClass 同种子须 bit-exact"
+        );
+        // (2) full-z 细化：每个 full-z 键投影为 4 元组必存在于 4 元组输出（细分不越出粗桶集）。
+        let coarse = stratified_delta_perm_p(&t, N_PERM, PERM_SEED);
+        let fullz = stratified_delta_perm_p_fullz(&t, N_PERM, PERM_SEED);
+        assert!(fullz.len() >= coarse.len(), "full-z 桶数 ≥ 4 元组桶数（细化）");
+        for z in fullz.keys() {
+            let proj = (z.level, z.bsp_class(), z.delta, z.parent_dir);
+            assert!(coarse.contains_key(&proj), "full-z 桶 {z:?} 投影 {proj:?} 须落在 4 元组输出");
+        }
     }
 
     /// 同种子两跑 bit-exact（预注册可复现硬约束）。

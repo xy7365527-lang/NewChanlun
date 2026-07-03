@@ -146,7 +146,7 @@ impl MuClass {
 ///
 /// **降维真实性**（测试断言）：|U| < |Z|——ϕ 是非单射满射（多个 z 映到同一 u），
 /// `n_classes(U) < n_classes(Z)`。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct UClass {
     pub level_bucket: u32,
     pub delta: i8,
@@ -155,7 +155,7 @@ pub struct UClass {
 }
 
 /// 仓位角色（u 的分量）——`(parent_dir, short_swing, position)` 的语义折叠（§16）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum VoiceRole {
     /// 根声部（主趋势腿，无父）。
     Root,
