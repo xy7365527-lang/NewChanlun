@@ -139,6 +139,19 @@ Phase1 已落地：Origin canonical base 建成，lake build 65 jobs 绿；删 #
 
 新建 formal/Origin/ 六层为唯一 canonical base(65 jobs 绿)。降 Strict/Tlayers/Foundation/theta_v0 为待重锚库。删 #95 吸收物(620)。Foundation 标 legacy docstring。钉死诚实 gap register(#89/#90/#91 仍开，迁移不自动关)。重定义 formal/ 架构(单一 canonical + port 重锚机制)。三方收敛裁决物证(codex bimg5je09 + 编排者直觉 + Lead 答)。
 
+## 适用域声明（治理对象边界）
+
+**本裁定治理对象 = `formal/` 目录下的 Lean 形式化基座**（Origin 六层及其待重锚库）。**不覆盖 `rust/src/` 生产代码树**。
+
+**目录树区分**：`formal/theta_v0`（Lean 形式化）与 `rust/src/theta_v0`（生产 Rust 实现）为两棵**不同目录树**，代表不同的表达范式（形式化 vs 工程）和版本迭代（Origin canonical base vs 工程版本）。
+
+- formal/theta_v0 = 形式化谱系的正式声明（基于 Origin canonical base，受本号 A′ 裁定约束）
+- rust/src/theta_v0 = 生产实现的独立演化（工程优化、性能迭代，勿因同名混淆为同一物理对象）
+
+**禁止**：因同名 theta_v0 把形式化层（formal/）的约束错推到生产层（rust/src/）。
+
+依据 = codex-q2-tiebreak-ruling-20260702.md（619 原文三处枚举全为 formal/ 路径）。
+
 ## 认识论诚实（formalization-validity-domain）
 
 - Origin 六层 lake build 65 jobs 绿 = **L0**(逻辑/构造正确，非缺口已解、非经验有效)。
