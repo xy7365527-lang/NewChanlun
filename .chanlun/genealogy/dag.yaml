@@ -10552,6 +10552,9 @@ edges:
   - between:
     - '682'
     - '683'
+  - between:
+    - '683'
+    - project_oddeven_mu_identity
   tensions_with:
   - between:
     - '007'

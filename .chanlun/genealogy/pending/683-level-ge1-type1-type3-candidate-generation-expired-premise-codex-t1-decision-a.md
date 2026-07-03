@@ -1,15 +1,15 @@
 ---
 id: "683"
 number: 683
-status: 生成态   # 决断已定（codex-t1 裁 A），实装未完（#123 hl13-impl in_progress）——待 GOLDEN 重冻结后回溯结算。
+status: 生成态   # 决断已定（codex-t1 裁 A），实装未完（#123 hl13-impl in_progress）——待 GOLDEN 重冻结后回溯结算。【task #130 对齐：本条目=#130「谱系补记 mod.rs:256 过期未复核简化 / spec-execution-gap 候选」的落盘，genealogist 2026-07-03 认领对齐后 #130 completed。】
 date: "2026-07-03"
-type: bias-correction   # level≥1 一/三类买卖点信号系统性缺失（架构性禁闭于 L0）被识别并订正。
-source: "[新缠论] mod.rs:256-262 else{Vec::new()} 分支 + codex-decide-20260703-025537-8d3c.md"
+type: bias-correction   # level≥1 一/三类买卖点信号系统性缺失（架构性禁闭于 L0）被识别并订正。定性=spec-execution-gap 候选（codex-decide-20260703 裁：是），下文 new_output 显式化。
+source: "[新缠论] mod.rs:256-262 else{Vec::new()} 分支 + codex-decide-20260703-025537-8d3c.md（裁定：spec-execution-gap 候选=是）"
 negation_source: heterogeneous   # 主裁定=codex-t1（codex-cli decide A）；git blame 溯源审计由 #119(type1-arch-audit)/#123(hl13-impl) 工位完成（homogeneous）。
 negation_model: codex-cli
 negation_form: waiting   # c570d2ebf6 提交注释原文自陈"是后续增量"（显式 waiting 型延迟），非静默简化。
 depends_on: []
-related: ["090", "231", "682"]
+related: ["090", "231", "682", "project_oddeven_mu_identity"]
 
 # 拓扑效果标注（147号下游推论3）
 # negates：commit c570d2ebf6 的假设——"units 无 direction，level≥1 一/三类判据无法 bit-exact 判定，
@@ -77,9 +77,11 @@ negated:
 # 新产出
 new_output:
   definitions:
-    - "过期未复核的文档化简化（expired-unaudited documented simplification）：commit 内写明理由的简化，
-      若其阻塞前提在后续提交（甚至同一提交）内被满足，而简化分支本身未随之复核，则该简化从'有效延迟'
-      退化为'过期占位'——须定期对 else/TODO 类分支做前提复核，不能只信任 commit message 的时效性。"
+    - "过期未复核的文档化简化（expired-unaudited documented simplification）= **spec-execution-gap 候选**
+      （codex-decide-20260703 裁定：是）：commit 内写明理由的简化，若其阻塞前提在后续提交（甚至同一提交）
+      内被满足，而简化分支本身未随之复核，则该简化从'有效延迟'退化为'过期占位'——声明（commit message
+      的'后续增量'）与能力（fold_direction 已提供方向）脱节 = spec-execution-gap。须定期对 else/TODO 类
+      分支做前提复核，不能只信任 commit message 的时效性。"
     - "级别-N 判定的适配层设计：级别-N '线段'角色由 UnitRange/LeveledMove 承担（end_price 按 direction
       取 hi/lo）、A 段定位复用 second_for_parent 的'序列序最近同向前驱'模式、趋势门槛取该级
       classify_move 的 Trend(dir)。"
@@ -106,11 +108,11 @@ retroactive_settlement:
 
 # 谱系关联
 related_records:
-  parent: "无直接父记录（首次审计 else{Vec::new()} 分支的历史裁决）。"
+  parent: "无直接父记录（首次审计 else{Vec::new()} 分支的历史裁决；谱系检索无直接讨论该问题的已结算条目）。"
   children: []
 ---
 
-# bias-correction 683：level≥1 一/三类买卖点候选生成——过期未复核的文档化简化，codex-t1 裁 A 订正
+# bias-correction 683：level≥1 一/三类买卖点候选生成——过期未复核的文档化简化（spec-execution-gap 候选），codex-t1 裁 A 订正
 
 ## 结论
 
@@ -120,7 +122,7 @@ related_records:
 `UnitRange.direction = m.fold_direction(prev)`（`recursive_tower.rs:195`）与 `else` 分支同一提交产出。
 此后两次提交（`98609b7821`、`5011c2e5b0`）均未触碰 `else` 分支，导致 level≥1 一/三类买卖点候选
 **架构性从不生成**，持续到本次审计（`#119 type1-arch-audit` → `#121 codex-t1` 裁 A → `#123 hl13-impl`
-实装中）。
+实装中）。**codex-decide-20260703 定性为 spec-execution-gap 候选（声明「后续增量」vs 能力「方向已具备」脱节）。**
 
 codex-t1 裁定：**A（级别-N 直接判定）**，拒绝 B（递归relabel，因其候选集合 ⊆ L0 一类候选集合而
 L0 一类恒为 0 ⟹ B 恒空），不选 C（无需新架构）。
@@ -155,10 +157,16 @@ L0 一类恒为 0 ⟹ B 恒空），不选 C（无需新架构）。
 
 - 姊妹：`682`（移植增量归属须核目标文件存在性）——同族方法论：声明/简化须核实际前提是否仍然成立，
   不能假设 commit message 的时效性会被后续开发者自动继承。
+- 关联：`[[project_oddeven_mu_identity]]`（μ̂ 奇偶交替=beta 漂移伪结构）——level≥1 信号仅二类覆盖是
+  「level1-4 全第二类」观测（#116）的架构成因，而奇偶 level 相位结构的可识别性讨论以「每级信号集
+  完整」为隐含前提；本条目解除该架构禁闭后，#116/奇偶观测须用新信号集重测（下游推论第一条）。
 - 约束：`090`（声明膨胀禁止）、`231`（形式化有效域规则——else 分支的"暂时留空"声明的有效域不能
   无限期覆盖后续提交）。
 - 溯源链：Task #116（type1-zero-probe）→ Task #119（type1-arch-audit，定位 else 分支+发起 git blame
   子项）→ Task #121（codex-t1，异质裁定 A）→ Task #123（hl13-impl，实装中）。
+- **task #130 对齐**：本条目即 #130「谱系补记：mod.rs:256 过期未复核的文档化简化（spec-execution-gap
+  候选）」的落盘产出。#130 要求引用 #116/#119/#121 + codex-t1 裁定 A + 记完整生成史（简化引入→阻塞前提
+  同 commit 失效→过期未复核→裁定 A 解除）——均已在本条目覆盖。genealogist 2026-07-03 认领对齐后 #130 completed。
 
 ## 影响声明
 
