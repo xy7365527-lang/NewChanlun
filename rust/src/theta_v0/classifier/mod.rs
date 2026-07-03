@@ -120,6 +120,48 @@ fn segment_to_unit(seg: &Segment) -> UnitRange {
     }
 }
 
+/// 级别-N 输入单元 → `Segment`（`segment_to_unit` 的逆，端点价按 `fold_direction` 取 hi/lo）。
+///
+/// codex-decide-20260703 裁定 A 的最大实现风险点（end_price 忠实性，须单测）：级别-N 的「线段」
+/// 角色由输入单元 [`UnitRange`] 承担——向上单元起点=lo/终点=hi（`seg_end` 取 end_price=hi）；
+/// 向下单元起点=hi/终点=lo。与 [`segment_to_unit`] 互逆：L0 段经 `segment_to_unit` → `unit_to_segment`
+/// round-trip bit-exact（向上段 start<end ⟹ lo=start/hi=end ⟹ 还原 (start,end)；向下段镜像）。
+/// `start_index/end_index` 是 source_index（原始 K 序）——A/C 段 MACD 面积经 close_src 映射用同坐标系。
+fn unit_to_segment(u: &UnitRange) -> Segment {
+    let (start_price, end_price) = match u.direction {
+        Direction::Up => (u.lo, u.hi),
+        Direction::Down => (u.hi, u.lo),
+    };
+    Segment {
+        direction: u.direction,
+        start_index: u.start_index,
+        end_index: u.end_index,
+        start_price,
+        end_price,
+    }
+}
+
+/// 级别-N 一/三类买卖点提取（codex-decide-20260703 裁定 A：级别-N 直接判定，非 L0 relabel）。
+///
+/// 把级别-N 输入单元 `units`（承担「线段」角色）还原为 `Segment` 后**复用 L0 的
+/// [`signal::extract_signals_with_hist`]**——同一套逻辑，只换输入算子（is_l0 分支消失于领域层）：
+/// - **趋势门控**：内部 `trend_class(centers)` 与本级 [`classify_move`] 逐分支同构（level.rs `all_adjacent`
+///   ≡ divergence.rs `all_same_relation`，均经 `classify_relation`）⟹ 「一类只在该级 Trend(dir) 产」忠实。
+/// - **A/C 段力度**：内部 `AbcDivergence`/`locate_trend_seg_a` 复用 divergence.rs 面积原语（与
+///   `sublevel_diverges` 同族的 `segment_macd_area`/`is_divergence`）——**禁第二套力度引擎**满足。
+/// - **三类**：`judge_third` 在级别-N units（外缘区间）+ centers（几何中枢）的离开/回试关系上判定。
+///
+/// 生产热路径传空 `dif/closes_tick`（force=None 丢弃 `.1`，bit-exact 恒等，同 L0 分支口径）。
+fn extract_first_third_for_level(
+    centers: &[Center],
+    units: &[UnitRange],
+    hist: &[f64],
+    close_src: &[usize],
+) -> Vec<BspPoint> {
+    let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+    signal::extract_signals_with_hist(centers, &segs, hist, &[], &[], close_src).0
+}
+
 /// 从 L0 线段单元序列识别中枢序列（**完整判据**，契约锚 `Origin.CenterComplete.CenterConfirmedComplete`）。
 ///
 /// L0 线段有内在方向 ⟹ 用 `center::center_from_segments`（完整判据：方向交替 ∧ 全三段核心非空，
@@ -258,7 +300,8 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
             // ⟹ GOLDEN/bit-exact 恒等）。离线力度并置走 signal::extract_signals_force（Step1/2）。
             signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &[], &[], &close_src).0
         } else {
-            Vec::new()
+            // 级别-N 一/三类（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据。
+            extract_first_third_for_level(&centers, &units, &hist, &close_src)
         };
         // 递归组装层 B2/S2（#53 接入）：对每个上级走势的次级别走势序列识别第二类结构。
         bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
@@ -1254,8 +1297,14 @@ pub fn classify_with_tower_incremental(
         //
         // bit-exact 铁律：guard 命中 ⟹ 复用上次输出（纯函数同输入）；guard miss ⟹ 全量重算并刷新
         // 缓存。与无 memo 版逐字段相等（同 extract_signals_with_hist/extract_second_for_level 代码路径）。
-        let seg_len = if is_l0 { l0.segments.len() } else { 0 };
-        let bsp_key = (lc.centers.len(), lc.upper_moves.len(), seg_len);
+        // ★裁定 A memo soundness：level≥1 的一/三类依赖本级输入 `units`（不止 upper_moves）——units
+        // 尾部 append（新级别-N 单元，可能破最后中枢=新一类 C 段 / 与前段构成新三类回试对）会改变
+        // 一/三类输出却**不**改 centers.len/upper_moves.len（新单元未凑齐三段窗口 ⟹ 无新中枢/上级走势）。
+        // 故 level≥1 的结构长度键用 `units.len()`（L0 用 segments.len()）——append 变长即触 miss 重算。
+        // frontier **同长改写**由 cascade_reset（frontier_mutated 比对，scan 窗覆盖全 units 因
+        // consumed+2≥units.len()）清 cached_bsp_key 兜底；回缩由 last_input_len 守卫触 cascade。三情形全覆盖。
+        let struct_len = if is_l0 { l0.segments.len() } else { units.len() };
+        let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
         let bsp: Rc<Vec<BspPoint>> = if lc.cached_bsp_key == Some(bsp_key) {
             // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
             stage_profile::time("07c_bsp_memo_clone", || Rc::clone(&lc.cached_bsp))
@@ -1266,7 +1315,12 @@ pub fn classify_with_tower_incremental(
                     signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, &[], &[], &close_src).0
                 })
             } else {
-                Vec::new()
+                stage_profile::time("07a_extract_first_third_ln", || {
+                    // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。memo miss 才重算
+                    // （bsp_key 含 units.len，见上）；命中走 07c Rc::clone O(1)。units_L 随级别几何衰减
+                    // ⟹ 每 miss O(units_L) 全扫，struct 变化次数 ≪ bar 数 ⟹ 摊还 O(n)（同 L0 memo 特性）。
+                    extract_first_third_for_level(&lc.centers, &units, hist, &close_src)
+                })
             };
             let second = stage_profile::time("07b_extract_second", || {
                 // ★07b frontier 门控：confirmed 前缀 parent 的 B2 缓存复用（跳过其重复背驰扫描），
@@ -1685,6 +1739,145 @@ mod tests {
         for p in out.levels[0].bsp.iter() {
             assert!(!p.bits.buy2, "L0→L1 三段交替窗口不产 B2（still-MISSING-窗口，codex 裁决）");
             assert!(!p.bits.sell2, "L0→L1 三段交替窗口不产 S2（still-MISSING-窗口，codex 裁决）");
+        }
+    }
+
+    /// ★codex-decide-20260703 裁定 A 最大实现风险点（end_price 忠实性，单测强制）：级别-N 输入单元
+    /// → Segment 的端点价按 fold_direction 取 hi/lo，且与 `segment_to_unit` 互逆（L0 段 round-trip
+    /// bit-exact）。此测试失败 ⟹ 级别-N「线段」端点价错位 ⟹ A/C 破中枢几何 + judge_third 判据全错。
+    #[test]
+    fn unit_to_segment_endpoint_faithful_and_roundtrips() {
+        use super::center::UnitRange;
+        // 向上单元：起点=lo、终点=hi（seg_end 取 end_price=hi=高点）。
+        let up = UnitRange { start_index: 4, end_index: 8, direction: Direction::Up, lo: 90, hi: 150 };
+        let s_up = unit_to_segment(&up);
+        assert_eq!((s_up.start_price, s_up.end_price), (90, 150), "向上单元 end_price=hi（终点=高点）");
+        assert_eq!(s_up.direction, Direction::Up);
+        assert_eq!((s_up.start_index, s_up.end_index), (4, 8), "source_index 坐标保留（A/C 面积映射用）");
+        // 向下单元：起点=hi、终点=lo（终点=低点）。
+        let down = UnitRange { start_index: 8, end_index: 12, direction: Direction::Down, lo: 90, hi: 150 };
+        let s_down = unit_to_segment(&down);
+        assert_eq!((s_down.start_price, s_down.end_price), (150, 90), "向下单元 end_price=lo（终点=低点）");
+        // round-trip：L0 段 → segment_to_unit → unit_to_segment == 原段（互逆 bit-exact）。
+        for orig in [seg(Direction::Up, 0, 4, 100, 200), seg(Direction::Down, 4, 8, 200, 50)] {
+            let back = unit_to_segment(&segment_to_unit(&orig));
+            assert_eq!(
+                (back.direction, back.start_index, back.end_index, back.start_price, back.end_price),
+                (orig.direction, orig.start_index, orig.end_index, orig.start_price, orig.end_price),
+                "segment_to_unit ∘ unit_to_segment = id（round-trip bit-exact）"
+            );
+        }
+    }
+
+    /// ★裁定 A gap-fill 非 no-op（结构合法性）：`extract_first_third_for_level` 在级别-N 下跌趋势
+    /// units（承担线段角色）+ ≥2 依次向下中枢（Trend(Down)）+ C 段破最后中枢 + C<A 背驰上产 1 买。
+    /// 复用 signal.rs `first_buy_extracted_with_trend_divergence` 的 A/B/C 几何，但以 UnitRange 表达
+    /// ——证明级别-N 一/三类判定真接线（旧 `else { Vec::new() }` 恒产 0，此测试产 1 = 缺口已填）。
+    #[test]
+    fn level_ge1_extract_first_third_produces_type1_via_units() {
+        use super::center::UnitRange;
+        // 两依次向下中枢（c1.gg=210 < c0.dd=290 ⟹ DownContinuation ⟹ trend_class=Trend(Down)）。
+        let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
+        let c1 = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 8 };
+        // Down 单元：lo=终点价、hi=起点价（unit_to_segment 还原 start=hi/end=lo）。
+        let units = vec![
+            UnitRange { start_index: 3, end_index: 5, direction: Direction::Down, lo: 250, hi: 350 }, // A 段（C0 离开）
+            UnitRange { start_index: 5, end_index: 7, direction: Direction::Up, lo: 250, hi: 280 },   // B 段连接
+            UnitRange { start_index: 9, end_index: 11, direction: Direction::Down, lo: 80, hi: 150 }, // C 段破 C1（<100）
+        ];
+        // A 段 bar[3,5] 急跌（hist 面积大）、C 段 bar[9,11] 缓动（面积小=背驰）——同 signal.rs fixture。
+        let prices: Vec<i64> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
+        let close_src: Vec<usize> = (0..prices.len()).collect();
+        let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
+        let bsp = extract_first_third_for_level(&[c0, c1], &units, &hist, &close_src);
+        let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
+        assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
+        assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢单元）终止 source_index");
+        assert_eq!(buy1[0].pivot_low, 80, "1 买止损源 = pivot_low（C 段破中枢端点极值）");
+        assert!(buy1[0].center.is_none(), "1 类止损用 pivot 非 center ⟹ center=None");
+    }
+
+    /// ★裁定 A 三类（高级别「中枢外缘区间」边界语义，codex 风险点单独 snapshot）：级别-N 离开中枢
+    /// + 回试不重入 ⟹ 3 买。`judge_third` 在级别-N units（外缘区间端点 hi/lo）vs 几何中枢 [zd,zg]
+    /// 上判定——离开单元终点 > c.zg ∧ 回试单元终点 > c.zg（严格不触闭区间）。
+    #[test]
+    fn level_ge1_extract_first_third_produces_type3_via_units() {
+        use super::center::UnitRange;
+        // 单中枢 [100,200]（盘整 τ ⟹ 无一类）——三类是纯几何位置判据，不依赖趋势门控。
+        let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
+        let units = vec![
+            // 离开单元：向上，终点=hi=250 > zg=200（离开中枢上方）。
+            UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
+            // 回试单元：向下，终点=lo=210 > zg=200（不重入闭区间中枢）⟹ 3 买。
+            UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
+        ];
+        // 三类无 MACD 依赖（纯整数几何），hist 空亦可——传空 hist（第一类自然不产）。
+        let bsp = extract_first_third_for_level(&[c], &units, &[], &(0..24).collect::<Vec<_>>());
+        let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
+        assert_eq!(buy3.len(), 1, "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）");
+        assert_eq!(buy3[0].source_index, 20, "3 买端点 = 回试单元终止 source_index");
+        assert_eq!(buy3[0].pivot_low, 210, "3 买止损源 = pivot_low（回试低点）");
+        assert_eq!(buy3[0].center.map(|c| c.zg), Some(200), "3 买 center=Some（止损=zg）");
+    }
+
+    /// ★L2 信号普查诊断（裁定 A gap-fill 真实数据核验，`--ignored` 手动跑，依赖 analysis/data_cache）：
+    /// 逐级别统计 BTC 全量分类的 buy1/sell1/buy2/sell2/buy3/sell3 计数 + 抽样 level≥1 一类端点。
+    /// 修前 level≥1 一/三类恒 0（audit #119 `else{Vec::new()}`），故 level≥1 的 type1/type3 计数 =
+    /// 本次实装引入的净增信号。运行：`cargo test --lib -- --ignored --nocapture level_signal_census_btc`。
+    #[test]
+    #[ignore = "L2 真实数据普查：cargo test --lib -- --ignored --nocapture level_signal_census_btc"]
+    fn level_signal_census_btc() {
+        use super::super::backtest::data::load_by_symbol;
+        use super::super::parser::parse_layer;
+        let cfg = ThetaConfig::default();
+        let full = load_by_symbol("BTC", &cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+        // 可选日期窗（CENSUS_WINDOW="2020-10-01,2021-04-01"）——检验 type1 的水平线依赖性：
+        // 全历史中枢链全局非单调 ⟹ trend_class=Degenerate ⟹ type1=0；单向牛/熊窗内某级链可单调 ⟹ type1>0。
+        let ds = match std::env::var("CENSUS_WINDOW") {
+            Ok(w) => {
+                let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
+                eprintln!("[census] window={s}..{e}");
+                full.slice_date_window(s, e)
+            }
+            Err(_) => full,
+        };
+        eprintln!("[census] BTC bars={}", ds.bars.len());
+        let layer = parse_layer(&ds.bars, &cfg);
+        eprintln!("[census] L0 segments={} merged_bars={}", layer.segments.len(), layer.merged_bars.len());
+        let out = classify(&layer, &cfg);
+        eprintln!("[census] levels={}", out.levels.len());
+        for (li, lv) in out.levels.iter().enumerate() {
+            let trend = lv.moves.iter().filter(|m| matches!(m, MoveKind::Trend)).count();
+            let (mut b1, mut s1, mut b2, mut s2, mut b3, mut s3) = (0, 0, 0, 0, 0, 0);
+            for p in lv.bsp.iter() {
+                b1 += p.bits.buy1 as usize; s1 += p.bits.sell1 as usize;
+                b2 += p.bits.buy2 as usize; s2 += p.bits.sell2 as usize;
+                b3 += p.bits.buy3 as usize; s3 += p.bits.sell3 as usize;
+            }
+            eprintln!(
+                "[census] L{li}: centers={} moves={}(trend={}) bsp={} | buy1={b1} sell1={s1} buy2={b2} sell2={s2} buy3={b3} sell3={s3}",
+                lv.centers.len(), lv.moves.len(), trend, lv.bsp.len()
+            );
+            // 抽样：level≥1 的前 3 个一类端点（若有）+ 前 3 个三类端点（人工核结构合法性——
+            // source_index + center[zd,zg] + pivot（回试端点极值）；三类不重入判据由 judge_third 保证）。
+            if li >= 1 {
+                let t1: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy1 || p.bits.sell1).take(3).collect();
+                for (k, p) in t1.iter().enumerate() {
+                    eprintln!(
+                        "[census]   L{li} type1#{k}: src_idx={} buy1={} sell1={} break_dir={:?} pivot_low={} pivot_high={}",
+                        p.source_index, p.bits.buy1, p.bits.sell1, p.struct_break_dir, p.pivot_low, p.pivot_high
+                    );
+                }
+                let t3: Vec<_> = lv.bsp.iter().filter(|p| p.bits.buy3 || p.bits.sell3).take(3).collect();
+                for (k, p) in t3.iter().enumerate() {
+                    eprintln!(
+                        "[census]   L{li} type3#{k}: src_idx={} buy3={} sell3={} center_zd={:?} center_zg={:?} pivot_low={} pivot_high={}",
+                        p.source_index, p.bits.buy3, p.bits.sell3,
+                        p.center.map(|c| c.zd), p.center.map(|c| c.zg), p.pivot_low, p.pivot_high
+                    );
+                }
+            }
         }
     }
 
