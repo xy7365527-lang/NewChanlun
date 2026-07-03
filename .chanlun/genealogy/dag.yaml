@@ -3615,20 +3615,25 @@ nodes:
   type: concept-separation
   file: pending/679-bspcandtype-structbreak-fourth-fiber-zero-bit-gate-tightening.md
 - id: '680'
-  title: '分类层算出 ≠ alpha 回测消费（231 消费侧形态）'
+  title: 分类层算出 ≠ alpha 回测消费（231 消费侧形态）
   status: 生成态
   type: bias-correction
   file: pending/680-classification-layer-computed-not-alpha-consumed-231-consumption-side-form.md
 - id: '681'
-  title: 'z.r 两粒度源分离：源A结构唯一性 ⊇ 源B收益估计'
+  title: z.r 两粒度源分离：源A结构唯一性 ⊇ 源B收益估计
   status: 生成态
   type: 概念分离
   file: pending/681-z-r-source-a-structural-rg-vs-source-b-alpha-r-two-granularities-h-axis-faithful-omission.md
 - id: '682'
-  title: '移植增量归属须核目标文件存在性（分叉线可能缺失被优化对象）'
+  title: 移植增量归属须核目标文件存在性（分叉线可能缺失被优化对象）
   status: 生成态
   type: meta-rule
   file: pending/682-optimization-increment-attribution-must-check-target-file-existence-fork-may-lack-optimized-object.md
+- id: '683'
+  title: ''
+  status: 生成态
+  type: bias-correction
+  file: pending/683-level-ge1-type1-type3-candidate-generation-expired-premise-codex-t1-decision-a.md
 edges:
   depends_on:
   - from: '679'
@@ -10538,6 +10543,15 @@ edges:
   - between:
     - '680'
     - '682'
+  - between:
+    - 090
+    - '683'
+  - between:
+    - '231'
+    - '683'
+  - between:
+    - '682'
+    - '683'
   tensions_with:
   - between:
     - '007'
@@ -10673,7 +10687,7 @@ edges:
     - '637'
   - between:
     - '682'
-    - '090'
+    - 090
   - between:
     - '682'
     - '659'
