@@ -481,6 +481,14 @@ pub fn attach_bsp_to_tree_indexed(
 /// ★简化标注（PDF §14）：本实装用 carrier id 作位置节点身份（= PDF §14 简化版 `host.active=true`），
 /// **同一 carrier 同 bar 多买卖点会共享 id**（损失 entry-level 区分）。PDF 更严格版 = `posId =
 /// hash(carrier_id, entry_signal, side, generation)` position instance——见 §H ceiling。
+///
+/// ★P0-2 设计边界裁定（codex-f2 问题4，选项 (a)）：**单 carrier 单 active instance**。
+/// 当前策略每 carrier 至多持一个 active 仓位（无加仓/分批/多 generation），故 §14 的 carrier-id
+/// 简化 = 正确身份，共享 id 不产生错误——不升级 §13 四元组 hash（YAGNI：加仓/多批次未实装前
+/// 四元组是无消费者的死机制）。此边界由 [`coverage_step_from_buckets`] 出口的 `next_active`
+/// ElementId 唯一性 `debug_assert`（见该函数）看守：若同 carrier 以两个不同 (dir/entry) 同时进
+/// active，assert 触发即暴露越界。**升级触发条件**（何时上四元组）：策略引入同 carrier 加仓 / 反手
+/// 双开 / 分批建仓（需区分 entry_signal/side/generation）时，本简化失效，改 `posId=hash(...)`。
 pub fn attach_bsp_carrier_indexed(
     tree_idx: &std::collections::HashMap<(u32, usize), usize>,
     tree: &[CoverageElement],
@@ -1277,6 +1285,31 @@ pub fn net_target_units(legs: &[LegTarget]) -> f64 {
 /// 用于诊断净额降维丢失的毛敞口（净 ≤ 毛，element-coverage 的分账本毛收益级覆盖见证）。
 pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
     legs.iter().map(|leg| leg.units.abs()).sum()
+}
+
+/// ★P0-3 overlay 净贡献诊断 **ΔN_t**（多空对冲.pdf §5 / codex-f2 问题5,6）——**只读**，非账本。
+///
+/// `ΔN_t = N^#5_t − N^base_t = net_target(全腿) − net_target(剔 ShortDiff 腿)`，代数上 = ShortDiff
+/// 反向子声部腿的净贡献（= 多空对冲.pdf 的 overlay 头寸 H_t=−σ_parent·h_t）。∑_t|ΔN_t| = ‖ΔN‖_1，
+/// 即「depth>0 子声部是否真改变净头寸」的净额可见层度量（多空对冲.pdf p13 三层判定第二层）。
+///
+/// ★第三会计范畴（674号：R/TW 账本不同构，overlay 不挂靠任一）：本函数**只读**从 legs 净目标差算，
+/// 不建账本、不投影到 R/TW。ΔN_t 只是 sizing 层目标敞口差，非成交 PnL——`Π^overlay=H_tΔP−ΔC`
+/// 需 hedge 腿独立成本，**不能从此净目标反推**（codex 问题5）。
+///
+/// ★升级触发条件：一旦诊断结果驱动**真实对冲交易执行**（ShortDiff 腿实际下单），必须升级为独立
+/// `OverlayState` 账本（第三范畴，标注对 R/TW 的投影损失），不得继续用只读净目标差充当账本。
+///
+/// > 认识论 L0：纯结构算术（腿方向×单位数的条件求和），不依赖经验数据、不声明 alpha。
+pub fn overlay_net_delta(legs: &[LegTarget]) -> f64 {
+    legs.iter()
+        .filter(|leg| leg.role.v == Vertical::ShortDiff)
+        .map(|leg| match leg.side {
+            VoiceSide::Long => leg.units,
+            VoiceSide::Short => -leg.units,
+            VoiceSide::Flat => 0.0,
+        })
+        .sum()
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2539,6 +2572,25 @@ mod tests {
         ];
         assert!((net_target_units(&legs)).abs() < 1e-9, "等单位多空 ⟹ 净 0");
         assert!((gross_target_units(&legs) - 800.0).abs() < 1e-9, "毛 800（双开满额）");
+    }
+
+    /// ★P0-3 overlay_net_delta：ΔN_t = ShortDiff 腿净贡献 = net(全腿)−net(剔 ShortDiff)。
+    #[test]
+    fn overlay_net_delta_is_shortdiff_contribution() {
+        // 根多 600 + 顺势子多 300 + 短差子空 300 ⟹ 全净=600，剔短差净=900 ⟹ ΔN=600−900=−300。
+        let legs = vec![
+            LegTarget { e_idx: 0, side: VoiceSide::Long, units: 600.0, role: role(Horizontal::First, Vertical::Ambient, Dir::Plus) },
+            LegTarget { e_idx: 1, side: VoiceSide::Long, units: 300.0, role: role(Horizontal::First, Vertical::FollowParent, Dir::Plus) },
+            LegTarget { e_idx: 2, side: VoiceSide::Short, units: 300.0, role: role(Horizontal::SameReverse, Vertical::ShortDiff, Dir::Minus) },
+        ];
+        let dn = overlay_net_delta(&legs);
+        assert!((dn + 300.0).abs() < 1e-9, "ΔN = 短差空腿净贡献 = −300");
+        // 恒等式：ΔN = net(全腿) − net(剔 ShortDiff)。
+        let net_base: f64 = legs.iter().filter(|l| l.role.v != Vertical::ShortDiff)
+            .map(|l| if l.side == VoiceSide::Long { l.units } else { -l.units }).sum();
+        assert!((net_target_units(&legs) - net_base - dn).abs() < 1e-9, "ΔN 恒等式");
+        // 无 ShortDiff ⟹ ΔN=0（overlay 不改净头寸，多空对冲.pdf b2 净额不可见）。
+        assert!(overlay_net_delta(&legs[..2]).abs() < 1e-9, "无短差腿 ⟹ ΔN=0");
     }
 
     // ── §3 活动集递归原语（λ_e 区间，Lean M16 对齐——非生产入场，见 §3 GAP-5 note）已在上方测 ──
