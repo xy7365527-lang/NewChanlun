@@ -2380,14 +2380,17 @@ pub(crate) fn pi_theta_step_prebuilt(
 /// - `opened`：open 桶候选中**真正准入** `next_active` 的（AncOK 后），携对应新腿。
 ///   restore 恢复的祖先 carrier 腿不在此列（非信号入场，无 z，不入 ledger）。
 ///
-/// **RiskExit 预留通道**：当前架构 `force_flat` 不清活动腿（幽灵腿缺口归 #124 P1 短路修，
-/// 补记裁决——本层不提前堵避免双改）；#124 落地"P1 成立 ⟹ prev_active 逐条 RiskExit 清空"后，
-/// 该事件应经本 trace 的 closed/silent 通道外化为 `ExitType::RiskExit`。
+/// **RiskExit 通道**（#124 P1 落地）：`force_flat`（PDF §7 全互斥 C_1 强平，屏蔽 P2..P10）⟹
+/// [`pi_theta_step_traced`] 在解释器上游短路，prev_active 全部经 `risk_exits` 外化为
+/// `ExitType::RiskExit`、next_active=∅（幽灵腿堵口，映射设计 §6.7）。RiskExit 无触发候选（非反向
+/// 信号），故独立于 `closed`（后者携触发候选喂 [`interp::reverse_exit_type`]）。
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StepTrace {
     pub closed: Vec<(ActiveLeg, Candidate)>,
     pub silent_drops: Vec<ActiveLeg>,
     pub opened: Vec<(Candidate, ActiveLeg)>,
+    /// P1 强平清空的活动腿（force_flat ⟹ RiskExit）——无触发候选，独立通道。
+    pub risk_exits: Vec<ActiveLeg>,
 }
 
 /// [`pi_theta_step_prebuilt`] 的 trace 版（G4 #134 组合层）：同一决策路径（interpret →
@@ -2410,6 +2413,22 @@ pub(crate) fn pi_theta_step_traced(
     config: &VoiceConfig,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64, Order, StepTrace) {
+    // P1 强平（PDF §7 全互斥 C_1=P_1 屏蔽 P2..P10）：force_flat ⟹ 活动腿全部 RiskExit 清空、无开仓、
+    // 目标 flat。**在 interpret/coverage_step 上游短路**——open 桶不进 next_active（幽灵腿堵口 §6.7）、
+    // held 逐条 RiskExit 经 StepTrace 外化（G4 预留通道兑现）。触发不依赖候选集非空（gamma 空也清仓，
+    // 裁定4 P1 语义）。p_star bit-exact 原路径：force_flat ⟹ 𝒦_Θ={0} ⟹ pi_theta_position=0（与 p̃ 无关，
+    // 见 `pi_theta_position_force_flat_gate_clamps_to_zero`）——仅 next_active 从含幽灵腿变 ∅（跨 bar 语义
+    // 修正，非本 bar order 变）。
+    if gate.force_flat {
+        let p_star = pi_theta_position(0.0, p_t, base_units, risk, weights, gate);
+        let order = schedule_order(p_star, p_t, exec_index);
+        return (
+            Vec::new(),
+            p_star,
+            order,
+            StepTrace { risk_exits: prev_active.to_vec(), ..Default::default() },
+        );
+    }
     // 环5：解释器三桶 + close 触发归因（fold 单源，interp.rs）。
     let (buckets, close_triggers) = interp::interpret_with_close_triggers(gamma, prev_active);
     // open 候选 → 其 638 附着元素 id（work 即将 move 进 coverage_step_from_buckets，先抓）。
@@ -2445,7 +2464,7 @@ pub(crate) fn pi_theta_step_traced(
         .filter_map(|(c, id)| next_active.iter().find(|l| l.id == id).map(|l| (c, *l)))
         .collect();
 
-    (next_active, p_star, order, StepTrace { closed, silent_drops, opened })
+    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, risk_exits: Vec::new() })
 }
 
 #[cfg(test)]
@@ -4081,6 +4100,45 @@ mod tests {
         assert_eq!(trig.bsp_class, 1, "触发归因 = 一类卖候选（reverse_exit_type ⟹ CloseRoot）");
         assert!(!next_active.iter().any(|l| l.id == held.id), "被关腿不入 next_active");
         assert!(trace.silent_drops.is_empty(), "close 认领互斥于静默离场");
+    }
+
+    /// ★#124 P1 强平（PDF §7 全互斥 C_1 屏蔽 P2..P10）：force_flat ⟹ 活动腿全部 RiskExit 清空、
+    /// next_active=∅、无 open/close/silent（幽灵腿堵口 §6.7）。持仓 Long + 同 bar 买候选（正常 P8 会 open）
+    /// ⟹ 均被 P1 屏蔽，open 不入 next_active（否则跨 bar 幽灵腿）。
+    #[test]
+    fn pi_theta_step_traced_p1_force_flat_risk_exits_all() {
+        let buy = BspPoint {
+            source_index: 4,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 90,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let classification = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy]), ..Default::default() }],
+        };
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let held = aleg(0, VoiceSide::Long, 0, 0);
+        let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
+        let (next_active, p_star, _order, trace) = pi_theta_step_traced(
+            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, flat, &cfg(), &reg,
+        );
+        assert!(next_active.is_empty(), "P1 强平 ⟹ next_active=∅（open 不入账 = 幽灵腿堵口）");
+        assert_eq!(trace.risk_exits.len(), 1, "prev_active 全部 RiskExit（无触发候选）");
+        assert_eq!(trace.risk_exits[0].id, held.id);
+        assert!(
+            trace.closed.is_empty() && trace.opened.is_empty() && trace.silent_drops.is_empty(),
+            "P1 屏蔽 P2..P10：无 close/open/silent 分量"
+        );
+        assert_eq!(p_star, 0.0, "force_flat ⟹ 𝒦_Θ={{0}} ⟹ p*=0");
     }
 
     /// ★∀x ∃! O_{t+1}（spec §16）：同输入 ⟹ 同订单 + 同 p*（确定唯一）。

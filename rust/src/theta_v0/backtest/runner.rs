@@ -787,6 +787,21 @@ where
                     });
                 }
             }
+            // 强平清空（#124 P1，PDF §7 C_1 屏蔽 P2..P10）：force_flat ⟹ prev_active 全部 RiskExit
+            // （无触发候选；pi_theta_step_traced 上游短路清空 next_active，见 StepTrace.risk_exits）。
+            for leg in &step_trace.risk_exits {
+                if let Some(open) = open_trades.remove(&leg.id) {
+                    typed_ledger.push(TypedTrade {
+                        entry_z: open.entry_z,
+                        voice_id: leg.id,
+                        entry_bar: open.entry_bar,
+                        exit_bar: i,
+                        exit_type: super::super::strategy::interp::ExitType::RiskExit,
+                        entry_px: open.entry_px,
+                        exit_px: px,
+                    });
+                }
+            }
             // ── ④ 挂单到 exec_index（延迟成交；qty>0 才挂）。 ──
             if order.qty > 0 {
                 if let Some(ei) = exec_index {
