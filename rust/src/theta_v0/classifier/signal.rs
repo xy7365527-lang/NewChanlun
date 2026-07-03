@@ -1102,21 +1102,54 @@ mod tests {
     }
 
     #[test]
-    fn first_buy_rejected_in_mixed_centers_tau_gate() {
-        // ★τ 门控：≥2 中枢但**非全链同向**（扩张/方向混合 ⟹ Degenerate）⟹ 第一类不产
-        // （第24课:22「连成大中枢」=级别扩张，本级非趋势）。
+    fn first_buy_rejected_when_segment_in_consolidation_block() {
+        // ★局部趋势门（Q1/Q8，task #144）：段所在块为 **Consolidation**（链尾扩张关系）⟹ 第一类
+        // 不产。链 = [Trend(Up) 0..1, Consolidation 1..2]——早期趋势块不为后续盘整块内的段开门
+        // （门作用域=段当时所在块，非任意历史块；盘整背驰承接路由归 #145/Q4）。
         let c0 = dc(100, 200, 90, 210, 2);
         let c1 = dc(300, 400, 290, 410, 5);   // c0→c1 上涨
-        let c2 = dc(350, 450, 250, 460, 8);   // c1→c2 扩张（非全链同向 ⟹ Degenerate）
+        let c2 = dc(350, 450, 250, 460, 8);   // c1→c2 扩张 ⟹ c2 落在盘整块（gate[2]=None）
         let segs = vec![
-            seg(Direction::Down, 9, 11, 150, 80),  // 破 c2... 但 τ=Degenerate ⟹ 不产第一类
+            seg(Direction::Down, 9, 11, 150, 80),  // 破 c2，但段所在块=Consolidation ⟹ 门关
         ];
         let prices: Vec<Tick> = vec![100, 100, 100, 100, 60, 140, 100, 95, 105, 150, 145, 80];
         let (closes, src) = closes_seq(&prices);
         let points = extract_signals(&[c0, c1, c2], &segs, &closes, &src, &MacdConfig::default());
         assert!(
             points.iter().all(|p| !p.bits.buy1),
-            "≥2 中枢非全链同向=Degenerate τ ⟹ 第一类不产（级别扩张非趋势）"
+            "段的最近中枢落在盘整块 ⟹ 局部趋势门关 ⟹ 第一类不产"
+        );
+    }
+
+    #[test]
+    fn first_buy_fires_after_early_overlap_no_global_lock_in() {
+        // ★§10 不锁死性质（PDF §10，task #144 机器验证）：早期 overlap 关系 + 后续局部同向块
+        // ⟹ 门开、第一类照产。旧 AllTrend 谓词下本链 ∃r_j=Overlap ⟹ 永久 Degenerate ⟹ 0
+        // （吸收锁死，外审坐实 BTC 全历史第 1-17 天锁死 8.8 年）；分解门下早期历史不传导。
+        let c_pre = dc(280, 420, 270, 430, 1); // 与 c0 overlap（非 GG/DD 完全分离）
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);     // c0→c1 Down（GG=210 < DD(c0)=290）
+        let centers = [c_pre, c0, c1];
+        // §10 前件断言：链首关系确为 overlap（产盘整块），尾部为局部同向趋势块。
+        let blocks = decompose(&centers);
+        assert_eq!(
+            blocks.iter().map(|b| b.kind).collect::<Vec<_>>(),
+            vec![MoveKind::Consolidation, MoveKind::Trend],
+            "前件：早期 overlap ⟹ 首块盘整；后续同向 ⟹ 尾块 Trend"
+        );
+        // fixture 同 force 测试的 buy1 见证：A 段深 V 大力度，C 段缓降破 zd(c1)=100 ⟹ 背驰。
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> =
+            vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&centers, &segs, &closes, &src, &MacdConfig::default());
+        assert!(
+            points.iter().any(|p| p.bits.buy1 && p.source_index == 11),
+            "§10：早期 overlap 不锁死——尾部局部趋势块内破中枢背驰段照产第一类"
         );
     }
 

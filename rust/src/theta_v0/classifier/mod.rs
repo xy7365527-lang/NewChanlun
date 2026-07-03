@@ -2041,6 +2041,24 @@ mod tests {
                 "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1有前驱中枢={} → 环2过局部趋势门={} → 环3破最后中枢={} → 环4 A/C配对={} → 环5坐标映射={} → 环6背驰C<A={}",
                 f.s_with_center, f.s_pos_ge1, f.s_gate_open, f.s_broke, f.s_a_paired, f.s_mapped, f.s_diverge
             );
+            // ★task #144 验收证据：2021 顶区 sell1 在全历史因果重放中出现（先例窗反差闭合的正验证，
+            // 生产 classify 输出直读——非探针另算）。窗口 = #141 外审切窗 2020-10-01..2021-04-15。
+            {
+                let top_sell1: Vec<&str> = out.levels[level_idx]
+                    .bsp
+                    .iter()
+                    .filter(|p| p.bits.sell1)
+                    .filter_map(|p| ds.dates.get(p.source_index).map(|d| d.get(..10).unwrap_or("?")))
+                    .filter(|d| ("2020-10-01".."2021-04-15").contains(d))
+                    .collect();
+                let n_sell1 =
+                    out.levels[level_idx].bsp.iter().filter(|p| p.bits.sell1).count();
+                let n_buy1 = out.levels[level_idx].bsp.iter().filter(|p| p.bits.buy1).count();
+                eprintln!(
+                    "[funnel] L{level_idx}: 全历史 buy1={} sell1={} | 2021顶区(2020-10-01..2021-04-15) sell1×{}: {:?}",
+                    n_buy1, n_sell1, top_sell1.len(), top_sell1
+                );
+            }
 
             let (_cw, upper_moves) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
             units = project_to_units(&upper_moves);
