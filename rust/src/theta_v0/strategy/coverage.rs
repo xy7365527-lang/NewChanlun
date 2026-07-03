@@ -1294,6 +1294,8 @@ pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
 /// >   按根子树分组求缩放系数 `c_r∈[0,1]`（water-filling），每腿 `units·=c_{root(leg)}`；
 /// >   未超限/空腿集不动（不触发路径 bit-exact）。缩放**先于** [`net_target_units`] 折叠——
 /// >   净标量已丢失毛敞口信息，事后诊断门被 #122 终裁拒绝（反例 Long100+Short100：净0毛200）。
+/// >   返回被**整体零化**（c_r=0/Ḡ=0）的腿 e_idx——调用方（[`coverage_step_from_buckets`]）据此
+/// >   把零化的开仓腿排除出 next_active（裁定4 幽灵腿防护：从未建仓的腿不作持仓身份跨 bar 延续）。
 /// > - **定义依据**：strict §11（毛 `G_t=Σ|n_v|` 与净必须**同时**约束，line 359 同单位数双开
 /// >   反例）+ §12 K_Θ 17 项约束含杠杆上界 + 互斥 spec M18（`p*=LexArgmin_{p∈K_Θ}J_t(p)`，主键
 /// >   `‖p−p̃‖²_W`）。毛约束触发后的处置**不是自由缩放规则**，而是 J_t 主键在 K_Θ 上的投影：
@@ -1326,11 +1328,11 @@ pub(crate) fn apply_gross_cap(
     legs: &mut [LegTarget],
     base_units: f64,
     risk: &RiskConfig,
-) {
+) -> Vec<usize> {
     let g = gross_target_units(legs);
     // 空腿集或未超限 ⟹ 不动（判定走 risk.rs units 空间 predicate，不私写比较）。
     if g == 0.0 || super::risk::gross_units_ok(g, base_units, risk.gamma) {
-        return;
+        return Vec::new();
     }
     let cap = super::risk::gross_units_cap(base_units, risk.gamma);
     if cap <= 0.0 {
@@ -1338,7 +1340,7 @@ pub(crate) fn apply_gross_cap(
         for leg in legs.iter_mut() {
             leg.units = 0.0;
         }
-        return;
+        return legs.iter().map(|l| l.e_idx).collect();
     }
 
     // ── 根子树分组（parent_id 结构映射；lookup 双段模式同 ancestor_close_by_id）──
@@ -1421,9 +1423,17 @@ pub(crate) fn apply_gross_cap(
             break;
         }
     }
+    // 返回被整体零化（c_r=0）的腿 e_idx——幽灵腿防护（裁定4）：调用方据此把零化的**开仓**腿
+    // 排除出 next_active（从未建仓的腿不得作为持仓身份跨 bar 延续）。部分缩放（c∈(0,1)）的腿
+    // 真实开仓（缩小目标流入 p̃→订单），不在此列。
+    let mut zeroed = Vec::new();
     for (leg, &gi) in legs.iter_mut().zip(&leg_group) {
         leg.units *= c[gi];
+        if c[gi] == 0.0 {
+            zeroed.push(leg.e_idx);
+        }
     }
+    zeroed
 }
 
 /// ★P0-3 overlay 净贡献诊断 **ΔN_t**（多空对冲.pdf §5 / codex-f2 问题5,6）——**只读**，非账本。
@@ -1890,15 +1900,33 @@ pub(crate) fn coverage_step_from_buckets(
     }
     // ★G7 毛头寸约束（#122 终裁 + decide 5b46）：净额折叠**之前**施加（净标量已丢失毛敞口信息，
     // 事后诊断门被拒）。enforce_gross_cap=false（default）/risk=None ⟹ 不激活（frozen bit-exact）。
+    // gross_zeroed = 被整体零化（c_r=0/Ḡ=0）的腿 e_idx（幽灵腿防护消费，见下）。
+    let mut gross_zeroed: Vec<usize> = Vec::new();
     if let Some(r) = risk {
         if r.enforce_gross_cap {
-            apply_gross_cap(&work, &mut legs, base_units, r);
+            gross_zeroed = apply_gross_cap(&work, &mut legs, base_units, r);
         }
     }
     let p_tilde = net_target_units(&legs);
 
     // A_{t+1} 回 ActiveLeg（638 身份，喂下一 bar interpret 闭环 + 跨 bar 对位）。
-    let next_active: Vec<ActiveLeg> = next_idx.iter().map(|&i| element_as_leg(&work[i])).collect();
+    // ★幽灵腿防护（裁定4，#124 force_flat 同款模式禁止复制）：被毛约束**整体零化**（c_r=0/Ḡ=0）
+    // 的**开仓**腿不入 next_active——目标为 0 的开仓从未建仓，照常延续 = 从未建仓的幽灵腿跨 bar
+    // 传播（腿账本与订单效果必须一致）。部分缩放（c∈(0,1)）真实开仓（缩小目标流入 p̃→订单），
+    // 账本只携身份不携 units ⟹ 一致，保留。held 腿零化时保留身份：其减仓/平仓经净订单真实兑现，
+    // 账本身份的关闭归 typed close/𝒟_x 路径（#124 范围，本路径不越界删 held）。
+    // gross_zeroed 恒空（default 不激活/未触发/仅部分缩放）⟹ 走原路径，逐位不变。
+    let next_active: Vec<ActiveLeg> = if gross_zeroed.is_empty() {
+        next_idx.iter().map(|&i| element_as_leg(&work[i])).collect()
+    } else {
+        let open_idx: std::collections::HashSet<usize> =
+            buckets.open.iter().map(|c| candidate_start + c.gamma_index).collect();
+        next_idx
+            .iter()
+            .filter(|&&i| !(open_idx.contains(&i) && gross_zeroed.contains(&i)))
+            .map(|&i| element_as_leg(&work[i]))
+            .collect()
+    };
     // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
     // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。
     // restore_ancestor_chain_from_registry 已复用现有 idx 保证唯一；此 assert 锁不变量防回归。
@@ -2788,7 +2816,8 @@ mod tests {
         let mut legs: Vec<LegTarget> =
             [0usize, 1, 2].iter().map(|&i| leg_target(&elements, i, 1000.0, &c)).collect();
         let risk = RiskConfig { enforce_gross_cap: true, ..RiskConfig::default() }; // γ=1 ⟹ Ḡ=1000
-        apply_gross_cap(&ElementView::new(&elements), &mut legs, 1000.0, &risk);
+        let zeroed = apply_gross_cap(&ElementView::new(&elements), &mut legs, 1000.0, &risk);
+        assert!(zeroed.is_empty(), "部分缩放无零化腿");
         // 单根 ⟹ c = Ḡ/G = 1000/1200 = 5/6，全腿等比例（比率约束族内 LexArgmin 主键投影）。
         assert!((legs[0].units - 500.0).abs() < 1e-9, "根 600×5/6");
         assert!((legs[1].units - 250.0).abs() < 1e-9, "子 300×5/6");
@@ -2809,7 +2838,7 @@ mod tests {
         assert!((net_target_units(&legs)).abs() < 1e-9, "前提：净 0（净检查恒过）");
         assert!((gross_target_units(&legs) - 1200.0).abs() < 1e-9, "前提：毛 1200");
         let risk = RiskConfig { enforce_gross_cap: true, gamma: 0.5, ..RiskConfig::default() }; // Ḡ=500
-        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk);
+        assert!(apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk).is_empty());
         // 两根等阈值 t=1200 ⟹ 同 c = 1−700/1200 = 5/12 ⟹ 各 250。
         assert!((legs[0].units - 250.0).abs() < 1e-9);
         assert!((legs[1].units - 250.0).abs() < 1e-9);
@@ -2835,7 +2864,7 @@ mod tests {
             gleg(2, VoiceSide::Short, 300.0), // 根0 的子腿（分组沿 parent_id 归根0）
         ];
         let risk = RiskConfig { enforce_gross_cap: true, gamma: 0.6, ..RiskConfig::default() }; // Ḡ=600
-        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk);
+        assert!(apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk).is_empty());
         // μ = (1200−600)/(900/1000+300/600) = 600/1.4 = 3000/7；c0 = 1−μ/1000 = 4/7；c1 = 1−μ/600 = 2/7。
         assert!((legs[0].units - 600.0 * 4.0 / 7.0).abs() < 1e-9, "根0 父腿 ×4/7");
         assert!((legs[2].units - 300.0 * 4.0 / 7.0).abs() < 1e-9, "根0 子腿同 c（子树内比率保持）");
@@ -2849,32 +2878,33 @@ mod tests {
         let els = vec![gce(1, 0, None, VoiceSide::Long), gce(1, 1, None, VoiceSide::Long)];
         let mut legs = vec![gleg(0, VoiceSide::Long, 600.0), gleg(1, VoiceSide::Long, 300.0)];
         let risk = RiskConfig { enforce_gross_cap: true, gamma: 0.2, ..RiskConfig::default() }; // Ḡ=200
-        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk);
+        let zeroed = apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk);
         // t0=1200, t1=600；全活 μ=700>600 ⟹ 根1 零化；重解 μ=800≤1200 ⟹ c0=1/3。
         assert!((legs[0].units - 200.0).abs() < 1e-9, "高阈值根 600×1/3 = Ḡ");
         assert_eq!(legs[1].units, 0.0, "低阈值根整体归零");
         assert!((gross_target_units(&legs) - 200.0).abs() < 1e-9);
+        assert_eq!(zeroed, vec![1], "零化腿 e_idx 上报（幽灵腿防护消费）");
     }
 
     /// 边界：Ḡ=0（γ=0）⟹ 全腿归零（毛可行集退化 {0}）；G≤Ḡ / G=0 ⟹ 逐位不动。
     #[test]
     fn gross_cap_boundary_zero_cap_and_no_trigger() {
         let els = vec![gce(1, 0, None, VoiceSide::Long), gce(1, 1, None, VoiceSide::Short)];
-        // Ḡ=0：全零。
+        // Ḡ=0：全零 + 全部上报零化。
         let mut legs = vec![gleg(0, VoiceSide::Long, 600.0), gleg(1, VoiceSide::Short, 300.0)];
         let risk0 = RiskConfig { enforce_gross_cap: true, gamma: 0.0, ..RiskConfig::default() };
-        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk0);
+        let zeroed = apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk0);
         assert!(legs.iter().all(|l| l.units == 0.0), "Ḡ=0 ⟹ 全腿归零");
+        assert_eq!(zeroed, vec![0, 1], "Ḡ=0 ⟹ 全腿上报零化");
         // G ≤ Ḡ：逐位不动（bit-exact ==，非近似）。
         let orig = vec![gleg(0, VoiceSide::Long, 600.0), gleg(1, VoiceSide::Short, 300.0)];
         let mut legs2 = orig.clone();
         let risk2 = RiskConfig { enforce_gross_cap: true, gamma: 2.0, ..RiskConfig::default() }; // Ḡ=2000>900
-        apply_gross_cap(&ElementView::new(&els), &mut legs2, 1000.0, &risk2);
+        assert!(apply_gross_cap(&ElementView::new(&els), &mut legs2, 1000.0, &risk2).is_empty());
         assert_eq!(legs2, orig, "未超限 ⟹ 不缩放（逐位相同）");
         // G=0（空腿集）：no-op 不 panic。
         let mut empty: Vec<LegTarget> = vec![];
-        apply_gross_cap(&ElementView::new(&els), &mut empty, 1000.0, &risk0);
-        assert!(empty.is_empty());
+        assert!(apply_gross_cap(&ElementView::new(&els), &mut empty, 1000.0, &risk0).is_empty());
     }
 
     /// ★生产接线集成：coverage_step_from_buckets 默认路径（None / enforce=false）逐位不变；
@@ -2904,10 +2934,32 @@ mod tests {
         assert_eq!(p_off, p_none, "default 不激活 ⟹ bit-exact");
         // enforce=true, γ=0.9 ⟹ Ḡ=900 < 1800：三等根 c=0.5 ⟹ 净 600×0.5=300。
         let risk_on = RiskConfig { enforce_gross_cap: true, gamma: 0.9, ..RiskConfig::default() };
-        let (_, p_on) = coverage_step_from_buckets(
+        let (active_on, p_on) = coverage_step_from_buckets(
             view_split(&els, 0), &[], &buckets, 1000.0, &cfg(), Some(&risk_on), &reg,
         );
         assert!((p_on - 300.0).abs() < 1e-9, "毛约束在净额折叠前压缩 p̃");
+        // 部分缩放（c=0.5>0）真实开仓 ⟹ 腿保留在 next_active（账本身份与订单效果一致）。
+        assert_eq!(active_on.len(), 3, "部分缩放腿保留");
+    }
+
+    /// ★幽灵腿防护（裁定4，#124 force_flat 同款模式禁止复制）：被毛约束整体零化（Ḡ=0）的
+    /// 开仓腿不入 next_active——目标 0 的开仓从未建仓，不得作为持仓身份跨 bar 延续。
+    #[test]
+    fn gross_cap_zeroed_open_legs_do_not_enter_active_set() {
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let buckets = Buckets {
+            close: vec![],
+            open: vec![cand(0, 1, VoiceSide::Long, 0), cand(1, 2, VoiceSide::Short, 1)],
+            record: vec![],
+        };
+        let els = flat_elements(&buckets.open);
+        // Ḡ=0（γ=0，enforce=true）：全部开仓腿零化 ⟹ p̃=0 且 next_active 空（无幽灵腿）。
+        let risk0 = RiskConfig { enforce_gross_cap: true, gamma: 0.0, ..RiskConfig::default() };
+        let (active, p) = coverage_step_from_buckets(
+            view_split(&els, 0), &[], &buckets, 1000.0, &cfg(), Some(&risk0), &reg,
+        );
+        assert_eq!(p, 0.0, "Ḡ=0 ⟹ p̃=0");
+        assert!(active.is_empty(), "零化开仓腿不入 next_active（从未建仓 ⟹ 无持仓身份延续）");
     }
 
     // ── §3 活动集递归原语（λ_e 区间，Lean M16 对齐——非生产入场，见 §3 GAP-5 note）已在上方测 ──
