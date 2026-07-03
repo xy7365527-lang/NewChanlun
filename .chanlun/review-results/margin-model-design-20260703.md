@@ -1,11 +1,23 @@
-# D2 真保证金模型设计（阶段1 纯设计，只读）
+# D2 真保证金模型设计 v2（阶段1 纯设计，只读）
 
 - **工位**：ws-margin（topo_address: swarm/ws-margin，parent_callback: main）
-- **任务**：TaskCreate #103，D2 真保证金模型设计
-- **日期**：2026-07-03
-- **上游裁定**：`.chanlun/review-results/codex-p2-design-ruling-20260702.md` §D2（fail）
-- **状态**：纯设计（只读），**实装等 codex 审计后**。本文件不改任何生产代码。
+- **任务**：TaskCreate #103（v1 设计）+ #111（v2 修订）
+- **日期**：2026-07-03（v2）
+- **上游裁定**：`codex-p2-design-ruling-20260702.md` §D2（fail）→ `codex-margin-ruling-20260703.md`（conditional-pass，3致命+2重要缺口）
+- **状态**：纯设计（只读），**实装等 team-lead 排工**。本文件不改任何生产代码。
 - **认识论等级**：本设计文档 = 设计层（L0 定义 + L1 规则一致性方案）。文档本身不产出 L2/L3 经验结论。
+
+## v2 修订摘要（对照 codex-margin conditional-pass）
+
+| # | 缺口 | 修订位置 |
+|---|------|---------|
+| ① | 历史快照时间对齐缺失（用最新快照跑历史=时间错配） | §1.1 + 新增 §2.7 MarginScheduleBook |
+| ② | 单位错误：net_notional 已是美元，公式二次乘 mark_price | §2.2（去掉 ·mark_price） |
+| ③ | liquidation_flag 签名缺 equity 参数（判据 E≤MM 不可算） | §2.4（补 equity 参数） |
+| ④ | M2/M3 枚举值算对但无下游消费者（订单流不变=半成品） | 新增 §2.8 KThetaRiskGate 扩展（纳入实装范围） |
+| ⑤ | risk_mode 输入无校验（NaN/负 buffer/未排序 bracket 静默退化 Normal） | 新增 §2.9 fail-loud 构造期校验 |
+| ⑥ | 影响声明只提 alpha 冻结，遗漏 RunResult 全字段 + L3 管线 | §4（补全下游产物清单） |
+| ⑦ | 三选择项落裁定 | §7（buffer 归 Θ_risk+敏感性网格 / 默认 one-way / CME-simple 标签） |
 
 ---
 
@@ -111,10 +123,12 @@ struct MarginTier { notional_floor: f64, notional_cap: f64, mmr: f64, maint_amou
 
 **Binance 分级 / one-way·net 账户模型**（多空对冲.pdf §10.1：`N = Σ σ_v q_v`，只看净敞口）：
 ```
-1. net_notional N_t = |Σ_v signed_notional(v)| · mark_price   （复用 risk.rs:478 net_notional）
+1. net_notional N_t = net_notional(voices)   （直接复用 risk.rs:478；结果已是美元，勿再乘价）
 2. tier = brackets 中满足 notional_floor ≤ N_t < notional_cap 的档   （partition_point 二分）
 3. MM_t = N_t · tier.mmr − tier.maint_amount
 ```
+
+**★v2 单位修正（codex 致命缺口②）**：`VoiceNotional.notional_mag`（risk.rs:437 文档「单位美元」）已完成 `M_v·P_v·q_v` 折算，`net_notional()`（risk.rs:478）对这些美元值求和取绝对值，**结果已是美元**。v1 公式 `|Σ signed_notional| · mark_price` 对已是美元的量二次乘价 → 量纲错（美元→美元·价格）。修正：直接用 `net_notional(voices)`，不再乘 `mark_price`。§1.1 的「`notional = mark_price·|q|`」是**构造 `notional_mag` 时**（价×手数×乘数）的一次折算，发生在填 `VoiceNotional` 之前；MM 计算链消费的是已折算的美元值，不重复折算。
 
 **Binance 分级 / hedge 账户模型**（多空对冲.pdf §10.2：position book 存 (Q⁺,Q⁻)，腿的保证金可分开）：
 ```
@@ -140,12 +154,16 @@ MM_t = pct_maint · (contract_mult · mark_price · |contracts|) · retail_multi
 
 codex 裁定 §D2：「`liq_flag` 声称由模拟撮合产，但回测侧不存在任何模拟撮合生产 liq_flag 的模块或契约——D2 把问题转移给一个不存在的模块」。
 
-**本设计补上命名产者**：
+**本设计补上命名产者**（**v2 修正 codex 致命缺口③：补 equity 参数**）：
 ```
-// 模拟保证金引擎：对持仓 + mark 价应用交易所强平规则，产 liq_flag。
-fn liquidation_flag(positions: &[VoiceNotional], mark: f64, schedule: &MarginSchedule) -> bool
+// 模拟保证金引擎：对持仓 + mark 价 + 权益应用交易所强平规则，产 liq_flag。
+fn liquidation_flag(positions: &[VoiceNotional], equity: f64, mark: f64, schedule: &MarginSchedule) -> bool
 ```
-**v0 强平谓词**（单 venue 逐仓 BTC perp）：`liq_flag ⟺ E_t ≤ MM_t`（交易所维持保证金触及即强平）。此时 M1 的两个析取项 `liq_flag ∨ E_t < MM_t` 在 v0 退化为等价（`≤` vs `<` 边界外一致）。`liq_flag` 作为独立字段保留是为**未来扩展**（ADL/funding/跨 venue 触发，届时 liq_flag ≠ E<MM）——v0 诚实标注「liq_flag = 价格触发子集，ADL/funding 缺口」。产者是 `SimMarginEngine::liquidation_flag`，不再是「不存在的模块」。
+**v0 强平谓词**（单 venue 逐仓 BTC perp）：`liq_flag ⟺ equity ≤ MM(positions, schedule)`。v1 签名 `(positions, mark, schedule)` **缺 equity**，无法算所声称的判据 `E≤MM` ——自相矛盾。修正：补 `equity` 参数。
+
+**★更干净的方案（采纳）**：`liquidation_flag` **不单独暴露**，而由 `margin_inputs()`（§2.1）统一算 `MM_t` 与 `liq_flag` 并填进 `RiskModeInput`——单一数据源，避免签名分叉不自洽。`margin_inputs` 已持有 `equity/positions/schedule` 全部入参，内部 `liq_flag = equity ≤ MM_t`。独立 `liquidation_flag` 仅作可选内部 helper（若拆分则带全三参）。
+
+此时 M1 的两析取项 `liq_flag ∨ E_t < MM_t` 在 v0 退化为等价（`≤` vs `<` 边界外一致）。`liq_flag` 独立字段保留是为**未来扩展**（ADL/funding/跨 venue 触发，届时 liq_flag ≠ E≤MM）——v0 诚实标注「liq_flag = 价格触发子集，ADL/funding 缺口」。产者是 `SimMarginEngine`，不再是「不存在的模块」。
 
 ### 2.5 与 GAP3 注资流 / TW 三阶段账本的合并边界
 
@@ -163,11 +181,62 @@ fn liquidation_flag(positions: &[VoiceNotional], mark: f64, schedule: &MarginSch
 |----|------|---------|-----------|
 | M0 | Insolvent | `E_t ≤ 0` | GlobalRiskClose → 全局平根仓（级联全平） |
 | M1 | Liquidation | `¬M0 ∧ (liq_flag ∨ E_t < MM_t)` | GlobalRiskClose → 全局平仓 |
-| M2 | Deleverage | `¬M0∧¬M1 ∧ E_t < MM_t + B1` | 限增仓（G(q')≤G(q_t)，strict §12），不强平 |
-| M3 | CloseOnly | `¬M0∧¬M1∧¬M2 ∧ E_t < MM_t + B2` | 只许平仓，不许开新仓 |
+| M2 | Deleverage | `¬M0∧¬M1 ∧ E_t < MM_t + B1` | 限增仓（G(q')≤G(q_t)，strict §12），不强平 → **须经 §2.8 gate 通道** |
+| M3 | CloseOnly | `¬M0∧¬M1∧¬M2 ∧ E_t < MM_t + B2` | 只许平仓，不许开新仓 → **须经 §2.8 gate 通道** |
 | M4 | Normal | 以上皆否 | 正常交易 |
 
 前提 `0 < B1 < B2`（strict §11，risk.rs:332 边界条件）。GlobalRiskClose 仅 {M0,M1} 触发（risk.rs:370，strict §16 P1），M2/M3 限增仓不强平——**接入真实 MM 后这三态首次可达**（现状 MM=0 使 M1/M2/M3 恒不可达，只 M0 由 E≤0 可达）。
+
+**★v2 关键（codex 重要缺口④）**：M2/M3 在 `risk_mode()` 层可达 ≠ 改变订单流。现有 `KThetaRiskGate`（coverage.rs:1919）只有 `force_flat/stop_long/stop_short` 三字段，`k_theta_risk_gate`（runner.rs:489）只把 `global_risk_close(mode)`（=M0/M1）接进 `force_flat`——**M2/M3 无任何下游消费者**，接入后只是「算对枚举值但订单流不变」的空转。故 M2/M3 接线扩展**纳入 §2.8 实装范围**（否则半成品，conditional-pass 不能升 pass）。
+
+### 2.7 历史快照时间对齐（codex 致命缺口①）
+
+**问题**：交易所规则「These values change over time」。用**最新**快照跑历史区间 = 时间错配（历史 bar 用了当时不存在的规则）。
+
+**修正——分段快照簿 `MarginScheduleBook`**：
+```
+struct MarginScheduleBook { snapshots: Vec<MarginSchedule> }  // 各 MarginSchedule 带 effective_from/effective_to
+impl MarginScheduleBook {
+    // 回测 bar 的时间戳 → 该时刻生效的快照（as-of 查找，禁未来快照泄漏）
+    fn as_of(&self, bar_ts: Timestamp) -> &MarginSchedule   // effective_from ≤ bar_ts < effective_to
+}
+```
+`margin_inputs()` 按当前 bar 时间戳取 `book.as_of(bar_ts)`，不用全局最新表。**zero-lookahead**：`as_of` 硬禁 `effective_from > bar_ts` 的快照进入（与回测零前视一致）。
+
+**诚实的有效域降级（若拿不到历史分段）**：Binance leverageBracket 端点只返回**当前**表，历史 bracket 需交易所公告考古（可能不全）。若只能取单快照，则**限定有效域**：诚实声明「本快照仅对 `snapshot_date` 之后的 OOS 段 L1 有效；之前的回测段 = as-of forward 近似，不声称历史 L2 精度」——把有效域限死在快照日之后，不假装历史精确（formalization-validity-domain 231号：有效域 ≠ 定义域）。二者取一由数据可得性决定，实装时明确标注选了哪个。
+
+### 2.8 M2/M3 订单流接线（KThetaRiskGate 扩展，纳入实装范围）
+
+**现状**（coverage.rs:1919-1943）：`KThetaRiskGate.caps(cap)` 把 `force_flat→(0,0)`、`stop_long→hi=0`、`stop_short→lo=0`。M2/M3 无对应字段。
+
+**扩展（最小改动）**：`KThetaRiskGate` 加**一个** `no_increase_cap: Option<f64>` 字段——M2/M3 时 = 当前净持仓幅度 `|net_t|`（美元或 lot，与 cap 同单位）：
+```
+pub struct KThetaRiskGate { force_flat: bool, stop_long: bool, stop_short: bool,
+                            no_increase_cap: Option<f64> }   // v2 新增：M2/M3 净幅上限
+fn caps(&self, cap) -> (lo, hi):
+    if force_flat { return (0,0) }                    // M0/M1 优先（不变）
+    let cap = match no_increase_cap { Some(c) => cap.min(c), None => cap };  // M2/M3：净幅不得超当前
+    (stop_short?0:cap, stop_long?0:cap)
+```
+**为什么一个字段够**（ponytail）：strict §12 M2 去杠杆 = `G(q')≤G(q_t)`，M3 只平仓 = 净幅不增；在 **one-way/net**（v0 默认账户模型，§7 裁定 b）两者都坍缩为「净持仓幅度 `|net|` 不得超过当前」——因为 one-way 下任一订单非增即减净幅，"不许开新仓"="净幅不增"。M2 与 M3 的差异（去杠杆须主动减 vs 只平仓可持有）在 `≤` 形式约束下同为「上限=当前幅度」，v0 不细分（M2 的严格「主动减」延后，标 gap）。
+
+`k_theta_risk_gate`（runner.rs:489）接线：`mode==Deleverage|CloseOnly ⟹ gate.no_increase_cap = Some(current_net_magnitude)`。**这一改才让 M2/M3 真改订单流**（feasible_candidates 的 hi/lo 被压到当前幅度 → 不再产增仓候选）。
+
+// ponytail: M2/M3 在 one-way 坍缩为同一 no_increase_cap；hedge 模式需分别约束毛/净，届时再拆字段。
+
+### 2.9 输入校验（fail-loud，codex 重要缺口⑤）
+
+**问题**：`risk_mode()`（risk.rs:333）对 NaN/负 buffer/未排序 bracket 无防线。NaN 参与所有比较判假 → 落 `else` → **静默退化 Normal**（数据污染冒充「一切正常」，风控最危险的静默失败）。
+
+**修正——构造期校验，fail-loud 不静默**：`MarginSchedule`/`RiskCushions` 的构造函数（或 `margin_inputs` 入口）显式 reject：
+```
+// MarginSchedule::new / RiskCushions::new 返回 Result，非法输入即 Err（禁静默）
+- equity/mark/mmr/maint_amount/buffer 任一 NaN 或 ∞  → Err
+- buffer1 < 0 或 buffer2 < 0 或 ¬(0 < B1 < B2)        → Err（strict §11 前提）
+- brackets 未按 notional_floor 升序 / 有重叠/空洞     → Err（二分查找前提）
+- mmr ∉ (0,1] 或 maint_amount < 0                    → Err
+```
+回测入口构造一次即校验；`risk_mode()` 内层保持纯函数（不重复校验，输入已在边界净化）。**原则**：污染在**系统边界**拦截并报错（coding-style「validate at system boundaries / fail fast」），不让它流进风控判定后静默变 Normal。
 
 ---
 
@@ -204,7 +273,11 @@ assert!(mm_oneway(double_open) < mm_hedge(double_open));
 ### 3.4 五态可达性测试（接入后首次可达）
 构造 `E_t` 落入每个 `[MM, MM+B1), [MM+B1, MM+B2), …` 区间，断言 risk_mode 返回对应态——验证 M1/M2/M3 在真实 MM 下**可达**（现状 MM=0 时这些区间为空）。
 
-**认识论标注**：以上全是 **L1**（规则转录正确性 + 管线正确性，golden 来自交易所文档）。**不含 L2**——不验证「这套保证金规则在真实回测里盈利」，那需真实数据回测（§4）。
+### 3.5 buffer 敏感性网格（codex 三选择项(a) 强制项）
+
+buffer1/2 归 Θ_risk（§7 裁定 a），但**必须暴露其影响**——否则「归 Θ_risk」只是把自由参数诚实藏起来。设计一组敏感性测试：在 `(B1, B2)` 网格上（如 B1∈{0.1,0.2,0.3}·MM、B2∈{0.3,0.5,0.8}·MM，满足 0<B1<B2）跑同一回测段，记录每格的 **M2/M3 触发次数、forced_close 次数、n_orders、equity_curve 末值** 的变化范围。目的不是选「最优 buffer」（那是 L2 校准，不做），而是**报告 buffer 扰动 → 订单流/触发时机的敏感区间**，让 buffer 的自由度可观测（认识论：这是 L1 管线敏感性，不是 L2 参数校准）。
+
+**认识论标注**：§3.1-3.4 全是 **L1**（规则转录正确性 + 管线正确性，golden 来自交易所文档）；§3.5 是 L1 敏感性诊断（暴露 Θ 自由度，非 L2 校准）。**均不含 L2**——不验证「这套保证金规则在真实回测里盈利」，那需真实数据回测（§4）。
 
 ---
 
@@ -223,6 +296,19 @@ assert!(mm_oneway(double_open) < mm_hedge(double_open));
 - 接入真实 MM 后的 π 与接入前的 π 是**不同的订单流**。任何用 MM=0 退化保证金算出的 μ̂/alpha 结果，是在**另一个 π** 上测的。
 - ⟹ **接入使此前所有 MM=0 口径下的 alpha 冻结失效**，必须在真实保证金口径下**重跑并重新冻结**，且结果标注「保证金口径：真实分级 vs 退化 MM=0」。
 - 不接受「MM=0 的旧结果继续用」——那是口径混用（务实思维，161号禁止）。
+
+**v2 补全：受影响的下游产物清单（codex 缺口⑥——不止 alpha 冻结一项）**。π 变化后必然联动失效、须同步重跑重冻结并标口径的具体产物：
+
+| 产物 | 位置/字段 | 为何失效 |
+|------|----------|---------|
+| `RunResult.trade_pnls_with_forced` | 回测输出 | forced_close（M1 强平）新增/改变 → PnL 序列变 |
+| `RunResult.daily_returns` / `equity_curve` | 回测输出 | 订单流变 → 权益轨迹变 |
+| `trades.forced_close` | 逐笔标记 | M1 触发的强平笔首次出现 |
+| `RunResult.n_orders` / `is_l2` | 回测输出 | M2/M3 限增仓 → 订单数变；is_l2 口径随之 |
+| μ̂ 估计管线输入 | econ_positive.rs / classifier | 交易分布变 → μ̂ 输入分布变 |
+| L3 report 管线 | `l3_fullwindow.rs` 等 | 全窗 alpha/perm_p 在新 π 上须重算 |
+
+**残留路径标注**：`closed_loop_final` 若仍固定走 Normal 分支（未接 margin_inputs），须在实装中**显式标注为「尚未接线的残留路径」**——避免与已接线路径（runner/exit）口径混用（一半真实 MM、一半 MM=0 的混合口径是无效的）。
 
 ---
 
@@ -257,12 +343,16 @@ assert!(mm_oneway(double_open) < mm_hedge(double_open));
 
 5. **谱系引用**：formalization-validity-domain（231号）——MM 数据 vs Θ 参数的有效域区分是本设计的核心（避免重蹈 D2 覆辙）；no-patch-mentality（090号）——删除虚构 config 率、用真实规则表替换，非在虚构率上打补丁；674号裁决C——双账本分离，保证金模型只读 E_t 不引入双向同构；275号局部依赖——保证金模型只依赖 E_t 值不依赖 stage 转移逻辑。codex-p2-design-ruling-20260702.md §D2 是本设计的直接上游否定。
 
-6. **影响声明**：本文件**纯设计，未改任何生产代码**。若 codex 审计通过，实装将影响：`strategy/risk.rs`（新增 `margin_inputs`/`MarginSchedule`/`SimMarginEngine`）、`backtest/runner.rs:489-496`（替换 0/false 占位）、`strategy/exit.rs:108-117`（替换占位）、`strategy/mod.rs`（AccountState 派生链，结构不变）。**改动 μ̂ 输入分布 → 影响所有 alpha 测量口径**（须重冻结）。
+6. **影响声明**：本文件**纯设计，未改任何生产代码**。实装（team-lead 排工）将影响：`strategy/risk.rs`（新增 `margin_inputs`/`MarginSchedule`/`MarginScheduleBook`/`SimMarginEngine` + 构造期 fail-loud 校验 §2.9）、`strategy/coverage.rs:1919`（`KThetaRiskGate` 加 `no_increase_cap` 字段 + `caps()` 扩展 §2.8）、`backtest/runner.rs:489-496`（替换 0/false 占位 + M2/M3 接 no_increase_cap）、`strategy/exit.rs:108-117`（替换占位）、`strategy/mod.rs`（AccountState 派生链，结构不变）。**改动 μ̂ 输入分布 → 影响 §4 全部下游产物（RunResult 全字段 + L3 管线）**（须重冻结并标口径）。
 
 ---
 
-## 7. 待编排者/codex 裁定的选择项（不自决，走审计）
+## 7. 三选择项裁定（codex-margin-ruling-20260703.md 已裁，v2 落定）
 
-1. **buffer1/2 归属**：本设计定为 Θ_risk 协变参数（§2.3）。若审计认为应另立 `EmpiricalDomain` 显式分支（codex 裁定 §4 下游推论提的二选一之一），需裁定。
-2. **账户模型默认**：v0 默认 one-way/net 还是 hedge？（影响双开 MM，多空对冲.pdf §10 两者 MM 差异大）——建议 one-way（Binance BTC perp 默认单向），hedge 作可选。
-3. **CME 简化口径 vs SPAN**：v0 用百分比×名义（§1.2 简化），SPAN 全场景 L2 延后——是否接受此简化。
+| 项 | 裁定 | 理由（codex） | 本设计落地 |
+|----|------|--------------|-----------|
+| (a) buffer1/2 归属 | **归 Θ_risk，不另立 EmpiricalDomain，但强制敏感性网格** | 归类诚实（交易所不公布策略减仓垫）；但 buffer 直接决定 M1/M2/M3 边界，须暴露影响，否则只是把自由参数藏起来 | §2.3 归 Θ_risk 协变参数 + §3.5 敏感性网格测试（强制） |
+| (b) 账户模型默认 | **one-way/net** | 现有 `AccountState`（mod.rs:119）+ Nautilus adapter 均净仓骨架，hedge 需额外双腿簿记；one-way 最小改动 | §2.2 默认 one-way；§2.8 gate 的 no_increase_cap 在 one-way 下单字段够；hedge 显式 opt-in |
+| (c) CME 简化口径 | **条件接受，强制「CME-simple」口径标签** | 百分比×名义可作 v0，但产出须显式标注非 SPAN/portfolio/FCM 实盘保证金，避免声明膨胀（090号） | §1.2 标注「CME 简化口径（非 SPAN 全场景）」；实装时任何报告/日志带 `CME-simple` 标签 |
+
+三项均已 codex 裁定，无待编排者上浮项——实装按此执行。

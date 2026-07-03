@@ -1,18 +1,28 @@
-# β^div 背驰强度进桶键——设计稿（阶段1 纯设计，只读）
+# β^div 背驰强度进桶键——设计稿 v2（阶段1 纯设计，只读）
 
-- 工位：ws-beta（task #104，编排者令「候选后续全做」）
-- 日期：2026-07-03
+- 工位：ws-beta（task #104 v1 / task #110 v2，编排者令「候选后续全做」）
+- 日期：2026-07-03（v2）
 - 规格来源：`docs/formal-chain/关于背驰.pdf`（14 页，标题「推导完全分类」，力度=支配序主论证）+ `docs/formal-chain/alpha分离.pdf` p2 方框 `Z_i=(ℓ,δ,I_γ,σ_higher,r,ω,β^div,d,c)` + `z-bucket-impl-20260702.md`（九维对照，β^div 行标「数据源部分在，未接入 z」）
 - 认识论等级：**L0**（本稿是纯定义/结构设计，不含数据验证，零信息增量）——分箱边界的 alpha 有效性是 L2/L3，须 OOS，本稿不声明
-- 状态：**设计冻结待 codex 审计**。实装排期由 team-lead 送审后定。
+- 状态：**v2 已落 codex 4 必修，可进实装排期**（`codex-beta-ruling-20260703.md` conditional→按 4 项修复）。
+
+## v2 修订记录（codex-beta-ruling-20260703.md 逐条落地）
+
+| # | codex 裁定 | v2 修复 | 落点 |
+|---|-----------|---------|------|
+| ① | 定理2「非法」措辞 fail | 「非法」→「非 canonical，需 Θ 预注册」 | §1 |
+| ② | ForceState 命名 conditional | 定名 **`ForceStateA4`**（4-proxy sufficient state，非完整 𝒜_ℓ）；补 TV 后可升名 `ForceState` | §2.2 |
+| ③ | δ-共线证明力度 conditional | 构造级措辞改 mirror-invariant；mix 加最小双侧样本阈值 + Cramér's V / exact test | §3 |
+| ④ | full-z 接入不完整 conditional | `stratified_delta_perm_p_fullz` 六元组 base 加 `force_state` + 报告维 + fill-rate 断言 | §5.3（新）|
+| ⑤ | 路由方案 (b) 就地重算 fail | 改 `divergence.rs` 单一原语 `ForceProxies::force_state()` + 透传 `Option<ForceProxies>` 到 Candidate + `z_of_candidate_with_force` | 实装可行性 |
 
 ---
 
-## 1. 结论（核心：β^div 不是标量，原文忠实形态是 ForceState 四值支配序）
+## 1. 结论（核心：β^div 无 canonical 标量，原文最忠实进桶键是 ForceStateA4 四值支配序）
 
-`关于背驰.pdf` 的定理 2（p7）**证明了**：允许力度族 𝒜_ℓ 上不存在无额外公理的唯一全序力度。存在 s,s' 与两个力度函数 m₁,m₂ 使 `m₁(s)<m₁(s')` 但 `m₂(s)>m₂(s')`——任意 AND/OR/词典序/加权和都是**额外选择 Θ**，非原文唯一推出。因此：
+`关于背驰.pdf` 的定理 2（p7）**证明了**：允许力度族 𝒜_ℓ 上不存在无额外公理的唯一全序力度 / 唯一二值判定。存在 s,s' 与两个力度函数 m₁,m₂ 使 `m₁(s)<m₁(s')` 但 `m₂(s)>m₂(s')`——PDF 原文结论（p7 逐字）：任意 AND、OR、词典序、加权和，**都是额外选择 Θ，不是原文唯一推出**。因此：
 
-> **把「背驰强度 β^div」实现为单一 proxy 的连续标量（MACD 面积比、DIF 比、振幅比之一）在原文上是非法的**——它是 Θ_SCORE 一条预注册路线，不是 β^div 的定义。
+> **把「背驰强度 β^div」实现为单一 proxy 的连续标量（MACD 面积比、DIF 比、振幅比之一）不是原文强制推出的 canonical β 定义**——它是**合法但需预注册的工程选择**（Θ_SCORE / Θ_LEX 路线），不是原文唯一 β。（v2：codex ① 复核确认原文未用「非法」措辞——单 proxy/词典序/加权和是需预注册的 Θ，非非法；删除 v1「非法」表述。）
 
 原文自己给出的 z 力度分量（§9.1，p10）是：
 
@@ -21,11 +31,11 @@ ForceState_ℓ(s,s') = {Dominated, Dominates, Incomparable, Tie}
 Z = (ℓ, δ, I_γ, ForceState, MACD, DIF, Amplitude, Speed, …)  → 进入 μ(z,a) 或选择器
 ```
 
-**故 β^div 的原文忠实进桶键 = `ForceState`（四值支配序），不是连续量 K 分箱。** 这直接细化了现有 `UClass.divergence: bool`：
+**故 β^div 的最忠实进桶键 = `ForceStateA4`（四值支配序，4-proxy 近似完整 𝒜_ℓ 支配序，见 §2.2 命名理由），不是连续量 K 分箱。** 这直接细化了现有 `UClass.divergence: bool`：
 - 现 `divergence bool` = C 段在**冻结 MACD 面积**判据上弱于 A 段（`z.i_class & 0b001001 != 0`，即 I_γ 含一类点 B1/S1）。这是单 proxy 二值（Θ=MACD 面积）。
-- `ForceState` 把它细化为**多 proxy 支配四态**：`Dominated`（C 在所有允许口径上 ≤ A 且至少一个 <，=确定背驰）/`Dominates`（C 在所有口径上 ≥ A，=确定非背驰/力度延续）/`Tie`（全等）/`Incomparable`（口径冲突，第17课「黄白线弱但面积强」类）。
+- `ForceStateA4` 把它细化为**4-proxy 支配四态**：`Dominated`（C 在所有 4 proxy 上 ≤ A 且至少一个 <，=确定背驰）/`Dominates`（C 在所有 proxy 上 ≥ A，=确定非背驰/力度延续）/`Tie`（全等）/`Incomparable`（口径冲突，第17课「黄白线弱但面积强」类）。（原文记号 `ForceState_ℓ` 指完整 𝒜_ℓ 支配序；本稿实装类型定名 `ForceStateA4` 诚实标注只用现有 4 proxy，§2.2。）
 
-**「候选后续全做」的诚实回应**：任务标题写「连续量进桶键」，但源文档的形式化结论否定了连续标量作为 β^div 定义。本稿不 workaround（不硬造一个标量塞进去假装是 β^div，no-patch §5），而是：**主键 = ForceState（原文直接支持，无额外公理）；连续标量 K 分箱作为 Θ_SCORE 预注册候选之一（§9.2 三套 OOS 之一），不作默认**。
+**「候选后续全做」的诚实回应**：任务标题写「连续量进桶键」，但源文档的形式化结论表明连续标量非 canonical β 定义。本稿不 workaround（不硬造一个标量塞进去假装是 canonical β，no-patch §5），而是：**主键 = ForceStateA4（原文支配序的 4-proxy 忠实近似，无额外公理）；连续标量 K 分箱作为 Θ_SCORE 预注册候选之一（§9.2 三套 OOS 之一），不作默认**。
 
 ---
 
@@ -50,28 +60,41 @@ Z = (ℓ, δ, I_γ, ForceState, MACD, DIF, Amplitude, Speed, …)  → 进入 μ
 - **不用任何单一 proxy 作 β 标量**（定理 2 p7）。
 - **用支配序**（§5-6 p6）：`s ≺_𝒜 s' ⟺ ∀m∈𝒜, m(s)≤m(s') ∧ ∃m, m(s)<m(s')`。三值 `{Weak, NotWeak, Incomparable}`（§7.2 p8），工程二值化须引入 Θ 处理 Incomparable（§7.2）。
 
-**β^div := ForceState（4 值），𝒜 = {macd_area, dif_peak, price_amplitude, price_speed}**（现有四 proxy）。
+**β^div := `ForceStateA4`（4 值），𝒜₄ = {macd_area, dif_peak, price_amplitude, price_speed}**（现有四 proxy）。
 
-**诚实有效域标注（formalization-validity-domain）**：原文 §5（p6）的完整 𝒜_ℓ 还含 `TV=Σ\|P_{t+1}−P_t\|`（全变差）和 `Σ_{次级别同向段} m_{ℓ-1}(u)`（递归力度）。现有 `ForceFeatures` **缺 TV 和递归力度**。故本 ForceState 是**四 proxy 上的支配序，是完整支配序的近似（有效域 < 定义域）**。补 TV 是低成本（`segment_total_variation` 一个纯函数），补递归力度需塔的次级别段力度递归（大工程）。**本稿诚实声明：ForceState = 4-proxy 支配序，非原文完整 𝔉_ℓ 支配序**，不虚报（231号）。
+### 2.3 命名裁决（v2，codex ② 二选一）——定名 `ForceStateA4`
+
+codex 给二选一：改名 `ForceStateA4` 诚实标注四 proxy 近似，**或**先补 `segment_total_variation` 进 `ForceFeatures` 再定名 `ForceState`。**本稿选改名 `ForceStateA4`**，理由：
+
+1. **命名诚实零成本，且不阻塞实装**——改名是纯符号决定，立即消除「完整 𝒜_ℓ 支配序」的声明膨胀（231号）；补 TV 是实装工位的代码工作（改 `ForceFeatures` + `force_features` + 全部构造点），把它前置到设计稿反而拖慢实装排期。
+2. **A4 后缀是可升级契约**：`ForceStateA4` 显式携「4-proxy sufficient state」语义，升级路径清晰——补齐 TV + 递归次级别力度后，𝒜₄→𝒜_ℓ，类型可重命名 `ForceState`（届时支配序覆盖完整口径族）。
+3. **单调性保证（codex ② 认定）**：补 TV/递归后，现 `Dominated`/`Dominates`/`Tie` **只可能**变 `Incomparable`（新增口径可能冲突），反向不会（已有冲突不因加维消失）。故 `ForceStateA4` 的 `Dominated` 是完整支配序 `Dominated` 的**超集**（宽判背驰）——用作 μ 分层安全，但**须知它可能把完整口径下的 `Incomparable` 误判为 `Dominated`**。
+
+**诚实有效域标注（formalization-validity-domain 231号）**：`ForceStateA4` = 𝒜₄ 上的支配序，是完整 𝒜_ℓ 支配序的**宽近似**（有效域 < 定义域）。原文 §5（p6）完整 𝒜_ℓ 还含 `TV=Σ\|P_{t+1}−P_t\|`（全变差）和 `Σ_{次级别同向段} m_{ℓ-1}(u)`（递归力度），现有 `ForceFeatures` 缺此二者。不虚报为原文完整 𝔉_ℓ 支配序。
+
+**Incomparable 用法约束（codex ②）**：`Incomparable` 单列一态进 μ 分层（不并入 `Dominated`），但**不得作为背驰确认**（口径冲突≠力度衰减）。
 
 ---
 
 ## 3. δ-共线检查设计
 
-### 3.1 构造级（结构论证，已完成）
+### 3.1 构造级（结构论证）——mirror-invariant，非「⊥δ by construction」（v2，codex ③）
 
-见 §2.1 表：四 proxy 全绝对量 ⟹ ForceState 由方向无关的量比较得出 ⟹ β ⊥ δ **by construction**。无带符号分量渗入。
+见 §2.1 表：四 proxy 全绝对量（`.abs()`）⟹ 每个 proxy **不直接编码方向符号**（sign-agnostic / mirror-invariant：把整段价格镜像翻转，proxy 值不变）。故 `ForceStateA4` 的支配比较**不由 δ 的符号直接决定**。
 
-### 3.2 经验级（L2 验证设计，实装后跑）
+**v2 订正（codex ③ 复核）**：`.abs()` 只证明「proxy 不 sign-coded」，**不能**证明「支配序输出统计独立于 δ」。数据生成过程仍可能让涨/跌两方向的支配态**经验分布**产生相关（非逻辑必然，但经验可能——如上涨段普遍力度更强 ⟹ `Dominates` 在 δ=+1 富集）。故 v1「β ⊥ δ by construction」是过强声明，删除；正确表述：**`ForceStateA4` 对方向镜像不变（构造级），经验独立性须 §3.2 数据验证**。
 
-构造级非共线是必要不充分——须核实**经验分布**上 ForceState 与 δ 在桶内混合（记忆的教训：共线维在置换检验上自毁）。设计：
+### 3.2 经验级（L2 验证设计，实装后跑）——加样本阈值 + Cramér's V/exact（v2，codex ③）
 
-1. **联合分布交叉表**：对每个 `(ℓ, i_class)` 层（固定级别与买卖点类型），构造 `ForceState × δ` 2×4 列联表（δ∈{+1,−1} × 4 态）。
-2. **混合度判据**：每个 ForceState 值内，δ=+1 与 δ=−1 的观测数都须 >0（非 δ-纯）。定义混合度 `mix(fs) = min(n_{fs,+1}, n_{fs,−1}) / max(1, n_{fs,+1}+n_{fs,−1})`。`mix=0`（δ-纯桶）⟹ 该 ForceState 桶完全由单方向占据 ⟹ 与 δ 共线 ⟹ 在该桶上对 δ 做置换检验自毁（S_perm 退化）。
-3. **卡方独立性**：χ²(ForceState ⊥ δ | ℓ, i_class)。p 值大（不拒独立）= 非共线（期望结果）；p 小（拒独立）= 共线警告，须回查 proxy 是否漏了符号。
-4. **报告**：每 `(ℓ,i_class)` 层输出 mix 向量 + χ² p 值。任一 δ-纯桶 ⟹ 该 β 分桶在该层不可用于 δ-置换，降级到「仅作 μ 分层不作置换单元」。
+构造级 mirror-invariance 是必要不充分——须核实**经验分布**上 `ForceStateA4` 与 δ 在桶内混合（记忆 [[project_oddeven_mu_identity]]：共线维在置换检验上自毁）。设计：
 
-**对称化方案（若检查失败）**：若某 proxy 事后发现带符号污染，方案是**取绝对值 + 分箱对称化**——把 β 值域折叠为 `\|β_signed\|` 或对 δ=+1/−1 分别中心化后合并。但**当前四 proxy 无需对称化**（已全绝对量）。
+1. **联合分布交叉表**：对每个 `(ℓ, i_class)` 层，构造 `ForceStateA4 × δ` 2×4 列联表（δ∈{+1,−1} × 4 态）。
+2. **混合度判据（v2 加最小双侧样本阈值）**：定义 `mix(fs) = min(n_{fs,+1}, n_{fs,−1}) / max(1, n_{fs,+1}+n_{fs,−1})`。v1 的「mix>0」判据太弱（1 vs 999 也通过，codex ③）。**v2 强化**：通过条件 = `min(n_{fs,+1}, n_{fs,−1}) ≥ n_min` **且** `mix(fs) ≥ mix_min`，冻结 `n_min = 5`、`mix_min = 0.1`（双侧至少 5 笔且弱侧占比 ≥10%）。`min(n_{fs,+1}, n_{fs,−1}) < n_min`（含 δ-纯，弱侧=0）⟹ 该桶不足以支撑 δ-置换，**降级为仅 μ 分层不作置换单元**（不是「自毁」而是「证据不足禁用」，与 [[project_oddeven_mu_identity]] 的 underpowered-非证伪同精神）。
+3. **关联强度检验（v2 替换裸卡方）**：卡方在小样本（期望频数 <5）功效与适用条件不足（codex ③）。改用 **Cramér's V**（关联强度，`V = √(χ²/(n·min(r-1,c-1)))`，值域 [0,1]，与样本量解耦）+ **Fisher exact / permutation test**（小样本精确 p，替代卡方的渐近近似）。判据：`V ≤ V_max`（冻结 `V_max = 0.2`，弱关联）**且** exact p > 0.05（不拒独立）⟹ 非共线（期望）；否则共线警告，回查 proxy 符号污染。
+4. **报告**：每 `(ℓ,i_class)` 层输出 `{mix 向量, min 双侧样本, Cramér's V, exact p}`。任一桶不过阈值 ⟹ 该层该 β 桶降级仅 μ 分层；低样本桶按 §3.2.2 合并或禁用置换。
+5. **低样本桶合并规则（v2）**：若 `(ℓ,i_class)` 层内某 `ForceStateA4` 桶双侧样本不足 `n_min`，先尝试与语义相邻态合并（`Tie`→并入较近的 `Dominated`/`Dominates` 前须人工核，`Incomparable` 不合并）；合并后仍不足则该桶整体禁用 δ-置换（只报 μ，不做统计推断）。
+
+**对称化方案（若检查失败）**：若某 proxy 事后发现带符号污染（Cramér's V 高 + exact p<0.05），方案 = 取绝对值 + 分箱对称化。**当前四 proxy 已全绝对量，构造级无需对称化**——但经验共线（若出现）不能靠对称化消除，须回查是否力度本身随方向系统性偏移（那是真结构，non-tradeable beta，记忆 [[project_oddeven_mu_identity]] 的机制 C）。
 
 ---
 
@@ -118,17 +141,18 @@ ForceState 是**分类量**（4 值枚举），不是连续量，**不需要 K �
 ```
 prereg-beta-div-20260703（草案，待 codex 审计后冻结）:
 
-  允许力度族 𝒜 = {macd_area, dif_peak, price_amplitude, price_speed}   # 冻结：4 proxy（缺 TV/递归，诚实近似）
+  允许力度族 𝒜₄ = {macd_area, dif_peak, price_amplitude, price_speed}   # 冻结：4 proxy（缺 TV/递归，ForceStateA4 诚实近似 §2.3）
 
   Θ_DOM（主，推荐默认）:
-    β^div := ForceState_ℓ(C, A) ∈ {Dominated, Dominates, Tie, Incomparable}
+    β^div := ForceStateA4(C, A) ∈ {Dominated, Dominates, Tie, Incomparable}   # divergence.rs ForceProxies::force_state() 唯一原语
     判据:
-      Dominated    = ∀m∈𝒜, m_C ≤ m_A  ∧  ∃m, m_C < m_A        # 确定背驰（C 力度衰减）
-      Dominates    = ∀m∈𝒜, m_C ≥ m_A  ∧  ∃m, m_C > m_A        # 确定力度延续
-      Tie          = ∀m∈𝒜, m_C = m_A
-      Incomparable = 否则（口径冲突）                              # 工程处理：单列一态，不并入 Dominated
-    进桶: MuClass.force_state = Some(ForceState)（真候选路径）; None（裸证书口径）
+      Dominated    = ∀m∈𝒜₄, m_C ≤ m_A  ∧  ∃m, m_C < m_A       # 确定背驰（C 力度衰减）
+      Dominates    = ∀m∈𝒜₄, m_C ≥ m_A  ∧  ∃m, m_C > m_A       # 确定力度延续
+      Tie          = ∀m∈𝒜₄, m_C = m_A
+      Incomparable = 否则（口径冲突）                              # 单列一态，不并入 Dominated，不作背驰确认
+    进桶: MuClass.force_state = Some(ForceStateA4)（真候选路径 z_of_candidate_with_force）; None（裸证书口径）
     selection: 默认不进（UClass 保 divergence bool）
+    fullz 置换: force_state 进 base 前逐层过 §3.2 δ-共线检查（谱系 iclass-delta-collinearity；不无条件全进）
 
   Θ_LEX（备选）:
     β^div := WeakLex(C, A) ∈ {Weak, NotWeak}
@@ -149,7 +173,21 @@ prereg-beta-div-20260703（草案，待 codex 审计后冻结）:
 
 ### 5.2 与已冻结 estimand 的关系
 
-现 `MuClass` 的 estimand（含 `horizontal` 7 维）已冻结（codex #81）。加 `force_state` 是**第 8 维扩展**——须作 estimand 版本升级（`z-bucket-impl` 已有先例：加 `horizontal` 时 `from_certificate` 40+ 调用点填 None 零改动）。`force_state: Option<ForceState>` 默认 None ⟹ 现有全部路径（perm_test/wverify 按 (ℓ,bsp,δ,σ_p) 4 维手取键、pi_bsp_timing 从 Voice 构 z）**零改动**，只有真候选路径 `z_of_candidate` 显式填 Some。
+现 `MuClass` 的 estimand（含 `horizontal` 7 维）已冻结（codex #81）。加 `force_state` 是**第 8 维扩展**——须作 estimand 版本升级（`z-bucket-impl` 已有先例：加 `horizontal` 时 `from_certificate` 40+ 调用点填 None 零改动）。`force_state: Option<ForceStateA4>` 默认 None ⟹ `from_certificate` 全部调用点 + pi_bsp_timing 从 Voice 构 z **零改动**，只有真候选路径 `z_of_candidate_with_force` 显式填 Some。
+
+**v1 声明订正（codex ④，非零改动路径）**：v1 称「现有全部路径零改动」**不成立**。`perm_test.rs:206 stratified_delta_perm_p_fullz` 的 δ-free base key 已显式列 **五元组** `(c.level, c.i_class, c.parent_dir, c.position, c.horizontal)`（perm_test.rs:216 坐实）——这是 full-z 置换路径。`force_state` 若不进这个 base，不同背驰支配态被并入同一置换层，**稀释检验力度**。故 fullz base 必须与第 8 维同步扩到六元组（见 §5.3）。
+
+### 5.3 full-z 置换路径同步（v2，codex ④ 必修）
+
+`force_state` 进 canonical Z 后，以下三处**必须同步改动**（否则 fullz 置换检验静默失真）：
+
+1. **base key 扩六元组**：`stratified_delta_perm_p_fullz`（perm_test.rs:216）的 δ-free base key 从
+   `(level, i_class, parent_dir, position, horizontal)` → `(level, i_class, parent_dir, position, horizontal, force_state)`。
+   `force_state` 是 δ-free（力度支配态由绝对量算，置换 δ 时恒定，§3.1 mirror-invariant）⟹ 合法进 base。
+2. **报告格式加 force 维**：fullz 报告表加 `force_state` 列（同 `z-bucket-impl` 加 role/H 列）。
+3. **fill-rate 断言（防静默）**：加断言「fullz 置换路径的 `ResidualTrade.class.force_state` 非全 `None`」——生产路径若因路由未接（实装可行性节）导致全 `None`，六元组退化回五元组，测试须 fail-fast 暴露，不静默通过。
+
+**⚠ δ-共线前置门（谱系 [[project_iclass_delta_collinearity_perm_degeneracy]]，2026-07-03 坐实）**：该记忆记录 **i_class 进 fullz base 与 δ 共线导致 δ-置换退化**（主 root buy 子桶 n=1612 大样本，perm_p 从 4 元组的 0.005 退化到六元组口径的 1.000——加样本救不了，比碎裂更根本）。`force_state` 进 base **前必须过 §3.2 δ-共线检查**：若某 `(ℓ,i_class)` 层内 `force_state` 桶 δ-纯（min 双侧样本 < n_min 或 Cramér's V > V_max），该桶**不进 fullz base 的置换单元**（降级仅 μ 分层，报告展示但不做 δ 推断）。这是 §5.3.1 与 §3.2 的强耦合——**force_state 是否进 fullz 置换 base，由 §3.2 检查结果逐层决定，不是无条件全进**。
 
 ---
 
@@ -167,11 +205,19 @@ prereg-beta-div-20260703（草案，待 codex 审计后冻结）:
 
 **数据源路由缺口（诚实标注，非本稿修复）**：`z_of_candidate(c)` 的 `c: Candidate`（`interp.rs`）**不携带 ForceProxies**——字段仅 `{level, source_index, bits, dir, bsp_class, role, nest_confirmed, gamma_index}`。ForceProxies 在 `signal.rs` 的 `Vec<(BspPoint, Option<ForceProxies>)>` 已并置（段坐标透传，#10/#19），但**未透传到 collect_signals 的 z 构造点**。这与 `divergence.rs` §A2 记录的同一结构缺口（「接通需 Candidate 携 A/C 段力度 feature，但 assemble_gamma 候选构造作用域只有 BspPoint」）。
 
-实装 ForceState 进 z 需二选一（**实装工位定，非本设计稿定**）：
-- **(a) Candidate 携 ForceProxies**：`interp.rs`/`assemble_gamma` 把 A/C 段力度透传进 `Candidate.force`，`z_of_candidate` 从 `c.force` 算 ForceState。改动面大（改 Candidate 构造管线）。
-- **(b) collect_signals 就地重算**：在 `collect_signals` 用 `entry_bar` 从并置的 BspPoint ForceProxies vec 取 A/C 段，算 ForceState 后 struct-update 进 z。改动面小（局部），但 collect_signals 需能访问 ForceProxies vec（当前用 Candidate 不用并置 vec）。
+**v2 路由裁决（codex ⑤ 必修，废除 v1 方案 (b)）**：v1 推荐的「collect_signals 就地重算 ForceState」被 codex 裁 **fail（致命）**——它会在 `collect_signals` 独立重实现支配序比较，构成**第二套力度比较逻辑**（`divergence.rs` 已有 `ForceFeatures`/`weak_theta` 一套原语），是 no-patch-mentality 明确禁止的重复实装，且诊断/dx 手写循环须同步维护，两套逻辑漂移风险高。
 
-**推荐 (b)**（局部、低耦合），但最终由实装工位在 codex 审计后定。本稿只声明：**数据源在（ForceProxies 已算），路由未接（z 构造点拿不到）**——这是实装成本，不是定义缺口。
+**v2 唯一路由（单一原语 + 数据透传，不重算）**：
+
+1. **`divergence.rs` 新增单一支配序原语**：
+   - `enum ForceStateA4 { Dominated, Dominates, Tie, Incomparable }`。
+   - `impl ForceProxies { pub fn force_state(&self) -> ForceStateA4 }`——`𝒜₄` 上支配序比较的**唯一实现**（C=`seg_c` vs A=`seg_a`，四 proxy 全 ≤/≥ 判 Dominated/Dominates，混合判 Incomparable，全等 Tie）。
+   - `force_state()` 与既有 `weak_theta` **不互相替代但共享同一 `ForceProxies` 数据结构**（`weak_theta` 是 Θ 布尔判据=单口径/词典序弱化；`force_state` 是 DOM 四态=多口径支配。二者是 §5.1 prereg 的 Θ_LEX vs Θ_DOM，各自独立方法，同一份 proxy）。
+2. **数据透传到候选**（codex ⑤ 认定的正确路由，即 v1 方案 (a) 的坐实）：`Option<ForceProxies>`（或更小的 `Option<ForceStateA4>`）从 `signal.rs` 的 `Vec<(BspPoint, Option<ForceProxies>)>` 透传进 `Candidate`/`RawSignal`。
+   - **前置修复**：`signal.rs:543 extract_signals` 生产路径现传空 `dif`/`closes_tick` ⟹ `force` 恒 `None`（注释自陈「生产 BspPoint 入口不消费 force」）。实装须让生产路径**真透传 dif/closes**，否则 `force_state` 恒 None，第 8 维退化（§5.3 fill-rate 断言正是防此静默）。
+3. **`z_of_candidate_with_force(c, fs)` 构 z**：新构造器在 `z_of_candidate` 基础上 struct-update `force_state: Some(fs.force_state())`——**调 divergence.rs 唯一原语，不在此重算比较**。
+
+**本稿声明**：数据源在（ForceProxies 已算），路由未接（z 构造点拿不到 + 生产 extract_signals 传空 dif/closes）。实装 = 单一原语 `ForceProxies::force_state()` + 透传，非重算。改动面大于 v1 (b) 但消除 no-patch 违规（team-lead 已裁 v2 直接排实装）。
 
 ---
 
@@ -187,8 +233,8 @@ prereg-beta-div-20260703（草案，待 codex 审计后冻结）:
    - (c) 若 OOS-value-gated 证明 ForceState 4 态比 `divergence bool` 无额外 μ 区分度 ⟹ 不进 UClass，甚至从 canonical Z 删维（退回 7 维）。
    - (d) 若补齐 TV/递归力度进 𝒜 ⟹ ForceState 支配序改变（更多口径 ⟹ 更多 Incomparable），有效域从 4-proxy 扩到完整 𝔉_ℓ。
 
-4. **下游推论**：`MuClass` 6→7（H 轴，已做）→8（force_state）；`from_certificate` 全部路径填 None 零改动；perm_test/wverify 4 维手取键不读 force_state 不受影响；实装须先解数据源路由缺口（Candidate 不携 ForceProxies，推荐 collect_signals 就地重算方案 b）。
+4. **下游推论**：`MuClass` 6→7（H 轴，已做）→8（`force_state: Option<ForceStateA4>`）；`from_certificate` + pi_bsp_timing 路径填 None 零改动；**但 `stratified_delta_perm_p_fullz` 五元组 base 须扩六元组 + fill-rate 断言（v2 §5.3，非零改动）**；force_state 进 fullz 置换 base 前逐层过 §3.2 δ-共线检查（谱系 iclass-delta 覆辙）；实装须解路由（透传 `Option<ForceProxies>` 到 Candidate + `signal.rs:543` 生产路径真传 dif/closes，非 collect_signals 重算）。
 
-5. **谱系引用**：[[project_oddeven_mu_identity]]（i_class×δ 共线=置换自毁，β 用绝对量 proxy 规避的直接依据）；231/formalization-validity-domain（ForceState=4-proxy 支配序是完整 𝔉_ℓ 的近似，有效域<定义域，诚实标注缺 TV/递归）；codex #81（H 轴 accept in Z / conditional in selection 的同构裁决，ForceState 沿用）；`z-bucket-impl-20260702.md`（β^div 行「数据源部分在未接入 z」，本稿=接入设计）；no-patch §5（不硬造标量假装 β，直面定理 2）。
+5. **谱系引用**：[[project_oddeven_mu_identity]]（β 用绝对量 proxy 规避 δ-共线）；[[project_iclass_delta_collinearity_perm_degeneracy]]（**v2 新增，2026-07-03 坐实 i_class 进 fullz base 致 δ-置换退化 0.005→1.000——force_state 进 base 前必过 §3 检查的直接依据**）；231/formalization-validity-domain（`ForceStateA4`=4-proxy 支配序是完整 𝔉_ℓ 宽近似，有效域<定义域）；codex #81（H 轴 accept in Z / conditional in selection 同构，ForceStateA4 沿用）；`z-bucket-impl-20260702.md`（β^div 行「数据源部分在未接入 z」，本稿=接入设计）；no-patch §5（路由不重算=单一原语 `ForceProxies::force_state()`）；`codex-beta-ruling-20260703.md`（本 v2 的 4 必修来源）。
 
-6. **影响声明**：本稿是纯设计（L0），**不改任何代码**。设计对象：`MuClass`（提议加 `force_state: Option<ForceState>` 第 8 维）、`UClass.divergence`（提议升级路径，OOS-gated）、新预注册 `prereg-beta-div-20260703`（三套 Θ）、`divergence.rs`（提议加 `ForceState` 枚举 + `force_state(seg_a, seg_c, 𝒜)` 纯函数 + `segment_total_variation` 补 TV proxy）。实装排期待 codex 审计。
+6. **影响声明**：本稿 v2 是纯设计（L0），**不改任何代码**。设计对象（实装工位的直接改动清单）：`divergence.rs`（加 `enum ForceStateA4` + `ForceProxies::force_state()` 唯一支配序原语；可选补 `segment_total_variation` 升 𝒜₄→𝒜_ℓ）、`interp.rs`/`selector.rs`（`Candidate`/`RawSignal` 携 `Option<ForceProxies>` + `z_of_candidate_with_force` + `signal.rs:543` 生产路径真传 dif/closes）、`MuClass`（加 `force_state: Option<ForceStateA4>` 第 8 维）、`perm_test.rs:216`（`stratified_delta_perm_p_fullz` base 扩六元组 + 报告 force 列 + fill-rate 断言）、`UClass.divergence`（升级路径 OOS-gated）、新预注册 `prereg-beta-div-20260703`（三套 Θ）。**v2 已落 codex 4 必修，team-lead 裁定不再送审，可直接排实装。**
