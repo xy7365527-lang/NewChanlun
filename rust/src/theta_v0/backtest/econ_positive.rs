@@ -26,9 +26,19 @@
 //! 不是同义反复（命题S L0 恒真仅在顺笔/触发段成立）。
 //!
 //! **端点价缺口的严格解（不改 TradeRecord/Order）**：理想 pivot 端点价 P[λ_rev]/P[ρ_rev] 不在 fill
-//! 配对链（`TradeRecord` 只有 entry/exit bar），但**信号收集路径**（同 `build_walk_forward_mu`）在确认点
+//! 配对链（`TradeRecord` 只有 entry/exit bar），但**信号收集路径**在确认点
 //! 持有 BspPoint——其 `source_index`（bsp.rs:103，L0 原始 K 序的 pivot 端点位置）即信号挂靠的 pivot 端点
 //! bar，取其 close 作 P[λ_rev]（入场信号）/P[ρ_rev]（配对出场信号）。故走 μ 路径无需透传 Order 端点价。
+//!
+//! **口径降级标注 `legacy_reverse_exit_diagnostic`（#137，G4 #134 移交处置）**：本模块的出场配对口径
+//! = τ^reverse（下一个任意反向新确认信号出场，[`pair_signals`]）；入场口径 = 全部新确认 bsp 信号
+//! （[`collect_signals`]，非生产 π 真开腿子集）。生产 μ 管线已在 G4（99bab5ad68）重接 typed exit
+//! （`typed_ledger_from_bars`：P5/P6/P7 反向关腿/§13 结构剪枝/censored Hold）并整体删除 τ^reverse
+//! 状态机——本模块**有意保留**旧口径而非重接：econ-663/664 谱系历史结论（可捕获价差分解、逐信号
+//! μ̂ 诊断）的可比性依赖此口径，且 dx harness（`acc_classification_level_hole_dx`）的门诊断对象是
+//! **信号集本身**（门前后计数/配对丢失），不是 fill 腿。这是诊断口径，不是生产出场口径；两口径的
+//! μ̂ 不可直接互比（G4 commit：typed 口径样本量低约两个数量级）。旧注释中「同 `build_walk_forward_mu`」
+//! 的同源声明自 G4 起失效，已随本标注移除。
 
 use std::rc::Rc;
 use super::data::Dataset;
@@ -207,7 +217,8 @@ fn bsp_disc(b: &BspBits) -> u8 {
         | (b.sell3 as u8) << 5
 }
 
-/// 逐信号可捕获价差分解（L2）。复用 `build_walk_forward_mu` 的信号收集 + 退出配对模板，
+/// 逐信号可捕获价差分解（L2）。信号收集 + τ^reverse 退出配对（`legacy_reverse_exit_diagnostic`，
+/// 见模块头——G4 99bab5ad68 后生产 μ 已改 typed exit，本函数保留旧口径作 econ-663/664 诊断），
 /// 取入场信号与配对出场信号的 pivot 端点（source_index）算 PDF §5 反转交易腿分解（664 号）。
 ///
 /// 返回 `(Vec<SignalDecomp>, SpreadAttribution)`：逐信号分解 + 聚合归因。
@@ -262,7 +273,8 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
     let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
     let macd_hist = compute_macd(&closes, &config.macd).hist;
 
-    // ── 信号收集（同 build_walk_forward_mu）：逐 bar 因果分类，收新确认买卖点。 ──
+    // ── 信号收集（legacy_reverse_exit_diagnostic 收集半边，见模块头；G4 前与旧 build_walk_forward_mu
+    // 同源，G4 后生产入场已收敛为 π 真开腿子集）：逐 bar 因果分类，收全部新确认买卖点。 ──
     // 664 号：每条信号挂靠的 pivot 端点 = p.source_index（bsp.rs:103，L0 原始 K 序）。
     // 反转交易腿 λ_rev = 入场信号 pivot 端点；ρ_rev 在退出配对时取配对出场信号的 pivot 端点。
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
@@ -301,7 +313,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     continue; // 已确认过
                 }
                 let pivot_bar = p.source_index; // 信号挂靠 pivot 端点（bsp.rs:103）= λ_rev / ρ_rev 取价处
-                // dir 经 assemble_gamma 拿（构造仅含该点的单级别分类，同 build_walk_forward_mu）。
+                // dir 经 assemble_gamma 拿（构造仅含该点的单级别分类；G4 前与旧 build_walk_forward_mu 同源）。
                 // ponytail（fullhist-oom-fix-20260630）: single 的空 moves/centers 不是冗余——它**屏蔽其他层
                 // bsp**，只让这一个 bsp 产单候选。elements 从 tower 提取，classification 只供 bsp 做 Γ 组装；
                 // dir 来自该 bsp 的 coverage role 判定，非 tower 裸结构可读。此重建仅每新信号触发（600K bar=1682
@@ -398,7 +410,9 @@ fn pair_signals(
     tick: f64,
     fee_rate: f64,
 ) -> (Vec<SignalDecomp>, SpreadAttribution) {
-    // ── 退出配对（664 号反转交易腿）：持有到下一反向新确认信号，ρ_rev = 该配对出场信号的 pivot 端点。 ──
+    // ── 退出配对（664 号反转交易腿）：持有到下一反向新确认信号 = τ^reverse 口径（PDF §9 点名废弃于
+    // 生产 μ，G4 99bab5ad68 已删；此处 legacy_reverse_exit_diagnostic 保留，见模块头），
+    // ρ_rev = 该配对出场信号的 pivot 端点。 ──
     // 与旧实装的关键差异：ρ_rev 是 **post-signal 且策略 owned**（配对出场信号挂靠 pivot），
     // 不是触发段起点（错对象）。无配对出场信号 ⟹ 诚实跳过（末 bar 不是 pivot 端点，无 ρ_rev，不兜底）。
     let mut decomps: Vec<SignalDecomp> = Vec::new();
@@ -1014,7 +1028,9 @@ pub(super) struct XzdEvidence {
     /// 诊断（§5.4）：同侧 Type3 候选中是否存在 `source_index <= confirm_index` 者——为 false 时
     /// 说明同侧 Type3 只存在于 confirm_index 之后（时间确认问题），而非 center 归属问题。
     pub same_side_causal_ok: bool,
-    /// 诊断（§5.4）：次级 bsp（sub_bsp）中 Type3 点总数——lvl>=2 时预期恒为 0（死门真封）。
+    /// 诊断（§5.4）：次级 bsp（sub_bsp）中 Type3 点总数。原「lvl>=2 恒 0」死门前提
+    /// （extract_second_for_level 只产 B2/S2）已被 codex-t1 裁定A + #123（0a35f0167c，级别≥1
+    /// 一/三类候选生成实装，三类净增 2364）合法作废——lvl>=2 现可非 0，dx 死门改锁基线数值。
     pub sub_bsp_type3_count: usize,
     /// C3 新判据（codex #44 终局裁定(c)）：`source_index`~`confirm_index` 间是否存在新确认次级中枢。
     pub c3_new_center_exists: bool,
@@ -3408,8 +3424,8 @@ mod tests {
     ///
     /// **判别规则**（三路，不预设 H1/H2 二分）：
     /// - 中间级 bsp_pre>0 但 sig_post=0 ⟹ **H1**（N^δ 门滤空——[J_{ℓ-1}⊆J_ℓ] 嵌套链严格）。
-    /// - 中间级 bsp_pre=0 ⟹ **H3**（架构：mod.rs:247 上级层只产第二类 B2/S2，第一/三类仅 L0；
-    ///   第二类稀疏 ⟹ 中间级天然空。不是运行时 bug，是 bsp 提取的 level 语义）。
+    /// - 中间级 bsp_pre=0 ⟹ **H3**（架构：原「上级层只产第二类 B2/S2」前提已被裁定A+#123 作废——
+    ///   级别≥1 现产一/二/三类；若仍 bsp_pre=0 则是该窗结构稀疏，非提取禁闭）。
     /// - 300K bsp_pre/sig_post≫0 但全历史=0（跨窗对比，两次跑）⟹ **H2**（全历史路径 bug）。
     ///
     /// **结构 sanity（team-lead 要求③）**：level5 唯一信号的 rungs 链——它的 tower 各级 rung 存在吗？
@@ -3494,7 +3510,7 @@ mod tests {
         let mut xzd_l1_same_side_l0_type3_any = 0usize;
         let mut xzd_l1_same_center_any = 0usize;
         let mut xzd_l1_same_side_causal_ok = 0usize;
-        let mut xzd_lge2_sub_bsp_type3_total = 0usize; // 死门真封：lvl>=2 预期恒为 0
+        let mut xzd_lge2_sub_bsp_type3_total = 0usize; // 死门重封（裁定A+#123）：lvl>=2 sub_bsp 可含 Type3，锁基线
         // C3 新判据命中率探针（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率。
         let mut xzd_l1_c3_new_center_exists = 0usize;
         let mut xzd_l1_c3_new_center_breakout_ok = 0usize;
@@ -3602,7 +3618,7 @@ mod tests {
                                         ));
                                     }
                                 } else if lvl >= 2 {
-                                    xzd_lge2_sub_bsp_type3_total += ev.sub_bsp_type3_count; // 死门真封：预期恒为 0
+                                    xzd_lge2_sub_bsp_type3_total += ev.sub_bsp_type3_count; // 死门重封：裁定A+#123 后可非 0，尾部锁基线
                                 }
                                 (ev.gate_pass(), None, 0) // 小转大无区间套 depth
                             }
@@ -3686,10 +3702,9 @@ mod tests {
                 else { "有信号" });
         }
         let verdict = if !any_mid_bsp {
-            "**H3（架构性，非运行时 bug）**：中间级 bsp_pre 全 0。根因=mod.rs:247 上级层（level≥1）\
-             bsp 提取只产第二类 B2/S2（extract_second_for_level），第一/三类仅 L0 层提取。\
-             第二类识别需 upper_moves 的 sub_moves 出现「第一类离开+回拉不创新高/低」结构且背驰——\
-             中间级此结构稀疏 ⟹ 中间级天然空洞。**不是 N^δ 门滤空，不是全历史路径 bug**。"
+            "**H3（架构性，非运行时 bug）**：中间级 bsp_pre 全 0。注意：原「level≥1 只产第二类 B2/S2」\
+             提取禁闭前提已被裁定A+#123（0a35f0167c）作废——级别≥1 现产一/二/三类；\
+             此判仅意味着该窗中间级结构稀疏。**不是 N^δ 门滤空，不是全历史路径 bug**。"
         } else if any_mid_gate_filter {
             "**H1（N^δ 门滤空）**：中间级 bsp_pre>0 但门后 sig_post=0 ⟹ [J_{ℓ-1}⊆J_ℓ] 嵌套链\
              严格滤掉中间级。需 codex 异质确认（约束4）。"
@@ -3906,16 +3921,23 @@ mod tests {
             );
         }
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "### lvl>=2 死门真封（sub_bsp_type3_count 预期恒为 0）");
+        let _ = writeln!(rpt, "### lvl>=2 死门重封（裁定A+#123：sub_bsp 可含 Type3，锁基线数值）");
         let n_lge2_routed: usize = xzd_routed_by_level[2..].iter().sum();
         let _ = writeln!(rpt, "- lvl>=2 routed={n_lge2_routed}，sub_bsp Type3 点总数={xzd_lge2_sub_bsp_type3_total}");
-        if n_lge2_routed > 0 {
-            assert_eq!(xzd_lge2_sub_bsp_type3_total, 0,
-                "lvl>=2 死门真封：sub_bsp（=cls_i.levels[lvl-1].bsp，lvl-1>=1）预期恒无 Type3 点\
-                 （extract_second_for_level 只产 B2/S2），若非 0 说明上游 BSP 生产链已变化，需重新审计");
-            let _ = writeln!(rpt, "- **真封通过**：lvl>=2 结构性死门坐实（sub_bsp_type3_count=0），与 codex §5.1 静态代码分析一致。");
+        eprintln!("[deadgate-reseal] lvl>=2 routed={n_lge2_routed} sub_bsp_type3_total={xzd_lge2_sub_bsp_type3_total}");
+        // 死门重封（#137）：原前提「lvl>=2 sub_bsp 恒无 Type3（extract_second_for_level 只产 B2/S2）」
+        // 已被 codex-t1 裁定A + #123（0a35f0167c，级别≥1 一/三类候选生成，三类净增 2364）合法作废。
+        // 重封形式 = 锁默认窗确定性基线（BTC 冻结数据全量 4613599 bar，末 300K 窗 2025-11-04→2026-05-31，
+        // 2026-07-03 实测）。基线是窗口函数 ⟹ 仅默认窗断言；窗口/数据变 ⟹ 重测重锁，不放宽为范围断言。
+        if max_bars == MAX_BARS_DEFAULT {
+            assert_eq!(
+                (n_lge2_routed, xzd_lge2_sub_bsp_type3_total), (75, 3150),
+                "lvl>=2 死门基线漂移（裁定A+#123 后基线：routed=75/sub_bsp_type3_total=3150）——\
+                 上游 BSP 生产链（extract/hl13 级别-N 判定）或 Xzd 路由变化，需重测重锁并审计来源"
+            );
+            let _ = writeln!(rpt, "- **重封通过**：默认 300K 窗基线锁定 routed=75 / sub_bsp_type3_total=3150（裁定A+#123 后新真值，2026-07-03 测定）。");
         } else {
-            let _ = writeln!(rpt, "- 本窗无 lvl>=2 路由到 Xzd 的信号，真封断言跳过（无样本）。");
+            let _ = writeln!(rpt, "- 非默认窗（max_bars={max_bars}），基线断言跳过（基线仅对默认 300K 窗定义）。");
         }
         let _ = writeln!(rpt);
 
