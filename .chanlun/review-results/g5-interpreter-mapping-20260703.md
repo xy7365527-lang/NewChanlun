@@ -113,14 +113,34 @@ G4 裁定的修复=让生产 π loop 输出 `TypedTradeLedger { entry_z, voice_i
 
 G7：毛敞口约束在 `coverage.rs:1745` legs 折叠成 net 前用 `gross_target_units(&legs)` 约束（K_Θ 从"标量净可行集"升级为"声部组合可行集"）。P1（RiskExit）在 fold 内的投影 = force_flat 命中时该层直接产 flat 目标。**G7 impl 工位即将动 coverage.rs:1745，本工位续做时 rebase 到其后**（team-lead 已告知）。P1 判据口径以 G7 改后的 K_Θ 可行集语义为准。
 
-### 6.4 待裁定4（TW-into-fold）
+### 6.4 裁定4（已落定，codex-q1-spec-rulings-20260703.md）：选(ii)真统一
 
-P2 CloseOverlay/P3 Withdraw/P4 EnterEarning 的 fold 投影口径待 #122 裁定4。P2 CloseOverlay 优先级在 P5 CloseRoot 之上（PDF §7 序），是三处语义变更中唯一新增订单者（§2）。
+裁定4 选**(ii) 真统一**，拒(i) 分层 output-等价——**明确判定「只扩 mutex.rs oracle 到 P1..P10、不改真实订单流」为「装饰性 oracle / 留简化占位」**（生产从不触发 P2/P3/P4 分支 ⟹ oracle 对应分支无法对真实生产行为做有意义验证）。⟹ **mutex.rs P1..P10 扩展不可先于生产 typed 接线单独做**（否则正是被拒的装饰路径 + 破坏现working 的 P1..P8 shadow_fold）。P2 CloseOverlay/P3 Withdraw/P4 EnterEarning 必须进**同一** schedule/fill/typed ledger（不走 closed_loop 玩具动作集）。
 
-### 6.5 实装排序（据 G4/G7 顺序 G2→G7→G4 + 裁定4）
+### 6.5 实装排序（据 G4/G7 顺序 G2→G7→G4 + 裁定4；接口级重构非字段扩维）
 
-1. 等 G7 impl 落地（coverage.rs:1745 毛约束）→ rebase。
-2. 与 G4 impl 对齐 `ExitType` 枚举单源 → interp close 桶 typed 拆（P5/P6/P7）+ KThetaRiskGate 发 RiskExit（P1）。
-3. 裁定4 落地 → TW 投影进 fold（P2/P3/P4）+ I_Θ 发 TWEvent。
-4. mutex.rs P1..P10 predicates_of + 2^10 机器证明 + shadow-fold 扩展（§4 场景清单）。
-5. 受影响 BTC GOLDEN 重算 + 与旧基线 diff（q4 验收；G7 已声明非 bit-exact，语义修正预期数值变化）。
+1. 等 G7 impl（#133，coverage.rs:1745 毛约束/声部级可行集）落地 → rebase。
+2. 与 G4 impl（#134）对齐 `ExitType` 单源（已落 e96bfbff32）→ interp close 桶 typed 拆（P5/P6/P7）+ KThetaRiskGate 发 RiskExit（P1）+ TypedTradeLedger 消费。
+3. I_Θ 接口升级（§6.6）：+RiskState/TwState/LegBook 输入、+order_effect/tw_event/exit_kind 输出；P1 最高全局分支（gamma 空也触发）、P2 CloseOverlay 进 schedule/fill、P3/P4 发 TWEvent 并消耗本步裁决。
+4. mutex.rs P1..P10 predicates_of + 2^10 证明 + shadow-fold 扩展——**与步骤2/3 原子同落**（predicates_of 投影生产 typed 输出，非先于生产单独扩，避免装饰性 oracle）。
+5. 受影响 BTC GOLDEN 重算 + 与旧基线 diff（q4 验收；G7/裁定4 已声明非 bit-exact，语义修正预期数值变化）。
+
+### 6.6 I_Θ 接口 delta（裁定4 给定签名，接口级重构非字段扩维）
+
+裁定4 目标签名：
+```
+I_Θ(ctx: RiskState + TwState + Active/LegBook, gamma) -> { buckets, order_effect, tw_event, exit_kind }
+```
+对齐 PDF §16 四元组 `(D_t, O_t, L_t, TWEvent_t)`。与现 `interpret(gamma, active) -> Buckets` 的 delta：
+
+| 维度 | 现 `interpret` | 新 `I_Θ` |
+|---|---|---|
+| 输入 | `gamma: &[Candidate]`, `active: &[ActiveLeg]` | +`RiskState`（P1 判据源）+`TwState`（P2/P3/P4 源，单一生产真值）+`Active/LegBook`（声部级，供 G7 毛约束） |
+| 输出 | `Buckets{close,open,record}` | +`order_effect`（P2 CloseOverlay 等 typed close 进 schedule/fill）+`tw_event`（P3/P4，PDF TWEvent_t）+`exit_kind`（[`ExitType`]，供 G4 TypedTradeLedger） |
+
+关键语义（裁定4 逐项）：
+- **P1（强平）= 最高优先级全局分支**，`gamma` 空也触发（账户爆仓无新信号仍须清仓）⟹ 不能实现成"所有候选归 close 桶"。清活动腿 + 目标仓强制 0 + 屏蔽 P2..P10（对应 `C_1=P_1` 屏蔽后续谓词，但触发不依赖候选集非空）。
+- **`KThetaRiskGate.force_flat` 降级**为由同一 `RiskState` 派生的执行层安全网/可行集二次校验，**不再是独立第二语义权威**（"解释器 P1 未触发但 force_flat 独立触发" = 设计缺陷，两权威源不同步）。
+- **P3/P4** 作 `tw_event` 分量，成立时**消耗本步裁决**（普通候选开/平/记录被屏蔽或推迟 record 桶），非并行各走各。
+- **P2 CloseOverlay** 输出真实 typed close 进**同一** schedule/fill/typed ledger（closed_loop 玩具动作集无 CloseOverlay 类型）。
+- **`run_closed_loop`** 降级为纯结构验证工具（TW 真值源移到 I_Θ ctx.TwState）。
