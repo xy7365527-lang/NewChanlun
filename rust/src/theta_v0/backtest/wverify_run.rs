@@ -382,7 +382,16 @@ fn wverify_fullz() {
 
     // full-z（MuClass 8 维，horizontal=Some 走生产路径；σ_higher 投影 None 与 perm 表键同口径——G2）。
     let pf = perm_test::stratified_delta_perm_p_fullz(&records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let fullz_key = |c: &MuClass| MuClass { sigma_higher: None, ..*c };
+    // G3 第 10-13 维同投影（#138）：records 侧 risk_mode=Some(bar 真值)/origin_level=Some(level)，
+    // perm 表键侧四维显式 None——判定键必须同投影，否则重演 G2 修过的全表 miss。
+    let fullz_key = |c: &MuClass| MuClass {
+        sigma_higher: None,
+        cand_channel: None,
+        nest_depth: None,
+        origin_level: None,
+        risk_mode: None,
+        ..*c
+    };
     let (frows, fverdict, (fv, ff, fi)) = verdict_by(&records, fullz_key, &pf, |k: &MuClass| Some(k.level));
     let n_fullz = { let mut s: Vec<MuClass> = records.iter().map(|r| fullz_key(&r.class)).collect(); s.sort(); s.dedup(); s.len() };
 

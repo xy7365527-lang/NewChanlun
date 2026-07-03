@@ -74,12 +74,21 @@ pub enum PositionState {
 ///   降维 [`UClass::project_to_u`] 默认丢 H（§30 抗 winner's curse）。
 /// - `sigma_higher` σ^higher 上级方向态（第 9 维，codex-q1 G2）：canonical z 含之（oracle 上界/
 ///   完整性声明用），[`UClass::project_to_u`] 同 H 丢弃（selection 抗碎片化）——复用 H 轴分层先例。
+/// - `cand_channel`/`nest_depth`/`origin_level`/`risk_mode` 第 10-13 维（G3 #138，《完整的策略》§6
+///   z 完整形态的 CandType/Ndepth/ℓ 起始级/RiskMode+MarginState 四条目）：见各字段文档。
+///   §6 其余条目的承载/缺口声明见 `.chanlun/review-results/g3-impl-20260703.md` 维度对照表
+///   （Jchain=由 (ℓ,e) 代数派生；ExitType=TypedTrade ledger 层已接（G4）不进 F_t 可测桶键；
+///   TStage/ηBucket/CostBucket=生产路径无数据源，诚实缺口+证明义务）。
 ///
 /// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）；`Ord` ⟹ 可作 BTreeMap key（有序报告）。
 /// **全互斥**：每个 z 是 {0,1}^6 × 级别 × 方向 × 父向 × 短差 × 仓位态 × H 的唯一组合，无重叠
 /// （§13 精细分类优势定理的可计算落点；补 H 后升 R(g)18 类完整表达）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MuClass {
+    /// 执行级别 e（§6 的 e，**G3 语义澄清**：本字段自始装的是候选/买卖点所在级别 = 信号执行级
+    /// ——econ 门路径「执行级 e=lvl，rungs 从 tower[lvl+1..] 收集上级语境」（econ_positive
+    /// collect_signals 有效域注释）。§6 的起始级 ℓ 是独立维，见 `origin_level`。旧文档把本字段
+    /// 标注为 ℓ 系口径漂移，G3 更正（诚实：字段值语义从未变，变的是标注）。
     pub level: u32,
     pub delta: i8,
     pub i_class: u8,
@@ -99,6 +108,39 @@ pub struct MuClass {
     /// 无 tower/bars 源（[`MuClass::from_certificate`]），诚实 None 不伪造（231号，同 `horizontal`）。
     /// 与 σ_p（`parent_dir`，持仓树父声部方向）**并列独立**，不合并（#81 反对合并的原理由仍成立）。
     pub sigma_higher: Option<i8>,
+    /// Cand 门通道类型（第 10 维，§6 CandType，G3 #138）。`Some`=经 econ 统计层二通道准入门
+    /// （[`super::econ_positive::NestTrigger`]：Type1 趋势背驰段 / Type2/3 次级 Type1 下沉锚 /
+    /// 小转大 Xzd），collect_signals 从已 pass 的 GateCertificate 派生（P0-1 同源，非重算）；
+    /// `None`=本构造口径未经准入门（runner π 路径候选不过 Nest/Xzd 门、from_certificate 裸口径），
+    /// 诚实 None 不伪造（231号，同 horizontal 先例）。
+    ///
+    /// **§6 域声明**：PDF 域 {LiveCand, SettledCand, Force}——当前管线确认-bar 部署下候选恒为
+    /// Settled 口径（Live 未确认候选无生产者，架构口径缺口见 g3 结果包），Force 口径已由
+    /// `force_state` 第 8 维独立承载；本维承载的是「门通道」轴（任务 #138 对 CandType 的裁定读法）。
+    pub cand_channel: Option<super::econ_positive::NestTrigger>,
+    /// 区间套下沉深度 Ndepth（第 11 维，§6，G3 #138）= `NestCertificate.rungs.len()`。
+    /// `Some(0)`=经 Nest 门且基例（ℓ=e，纯 Conf^δ_e——0 是计算结果非未知，G2 口径）；
+    /// `Some(d>0)`=真跨级 J 嵌套 d 级；`None`=未经区间套门（Xzd 通道无下沉概念 / runner π 路径 /
+    /// 裸口径）——**不是 0**，深度概念在该口径未定义。BTC 实测 95.36% 基例、4.64% d=1
+    /// （econ_positive 有效域注释），本维使该退化在 μ̂ 分桶层可观测。
+    pub nest_depth: Option<u8>,
+    /// 起始级别 ℓ（第 12 维，§6 的 ℓ，G3 #138）：区间套链顶级别。Nest 通道 = `level + rungs.len()`
+    /// （从高级 ℓ 背驰段逐级下沉定位到执行级 e=level）；Xzd/无门候选 = `level`（起始=执行，
+    /// 无下沉——真值非占位：级别事实对任何候选有定义）；`None`=from_certificate 裸口径
+    /// （无链语境，不伪造 ℓ=e）。恒等式 `origin_level = level + nest_depth`（Nest 通道，
+    /// debug_assert 见 z 装配点）——Jchain（§6 区间套包含链）由 N^δ 定义强制逐级相邻
+    /// （nest.rs `rungs[0]`=级ℓ..`rungs[last]`=级e+1 连续、无跳级），链签名 ≅ (ℓ,e)，
+    /// 故 Jchain 无独立自由度，由本维 + `level` 完整携带（对照表论证，非缺口）。
+    pub origin_level: Option<u32>,
+    /// 账户风险模式（第 13 维，§6 RiskMode+MarginState 双覆盖，G3 #138）。
+    /// [`RiskMode`](crate::theta_v0::strategy::risk::RiskMode) M0-M4 是 margin-design §2.4-§2.7
+    /// 从保证金输入 (equity, MM, B1, B2, liq_flag) 派生的完整保证金状态机——同时是 §6「RiskMode:
+    /// 正常/去杠杆/强平」的细化（M4 / M2∪M3 / M0∪M1）与「MarginState: 保证金状态」的离散化
+    /// （equity 对 {0, MM, MM+B1, MM+B2} 阈值划分），单字段双覆盖，粒度 ⊇ 二者。
+    /// `Some`=runner π fill loop 账本态真值（k_theta_risk_gate 每 bar 已算，bar 级同值 ⟹
+    /// 训练 entry_z 与 χ 查询同口径，G2 护航点同款保证）；`None`=无账本口径（econ 统计层信号
+    /// 收集无 equity/持仓、裸口径），诚实 None。
+    pub risk_mode: Option<crate::theta_v0::strategy::risk::RiskMode>,
 }
 
 impl MuClass {
@@ -139,6 +181,11 @@ impl MuClass {
             horizontal: None,
             force_state: None,
             sigma_higher: None,
+            // G3 四维（#138）：裸证书口径无准入门/链语境/账本态——诚实 None 同 horizontal 先例。
+            cand_channel: None,
+            nest_depth: None,
+            origin_level: None,
+            risk_mode: None,
         }
     }
 }

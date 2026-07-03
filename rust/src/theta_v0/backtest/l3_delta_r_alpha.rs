@@ -66,7 +66,7 @@ use super::mu_estimator::{
 };
 use super::prereg_windows::PREREG_WINDOWS;
 use super::runner::run_theta_v0_pi_chi;
-use super::selector::z_of_candidate;
+use super::selector::{z_of_candidate, ZExt};
 use super::super::config::ThetaConfig;
 use super::super::strategy::interp::assemble_gamma_with_tower;
 use super::super::strategy::voice::VoiceSide;
@@ -449,6 +449,8 @@ fn delta_r_alpha_multi_symbol() {
         //    (μ>θ 放行 / μ≤θ 被滤 / μ=None 未见恒滤) + 各级别 z 计数——使"退化=躲亏 vs 饥饿"可证伪。──
         {
             let test_zs = enumerate_candidate_z(&test, &config);
+            // G3：枚举无账本口径 ⟹ 表侧 risk_mode 投影对齐（project_mu_for_enum_diag 文档）。
+            let est_diag = project_mu_for_enum_diag(&est);
             let n_cand = test_zs.len();
             let (mut n_pass, mut n_filt_nonpos, mut n_unseen) = (0usize, 0usize, 0usize);
             // 各级别 z 计数（按 z.level 分组，最多 8 级别足够覆盖涌现层）。
@@ -457,7 +459,7 @@ fn delta_r_alpha_multi_symbol() {
                 if (z.level as usize) < by_level.len() {
                     by_level[z.level as usize] += 1;
                 }
-                match est.mu(z) {
+                match est_diag.mu(z) {
                     Some(m) if m > theta => n_pass += 1,
                     Some(_) => n_filt_nonpos += 1,
                     None => n_unseen += 1,
@@ -1162,19 +1164,21 @@ fn lcb_vs_naive_l2() {
         // 源 (b)：mu(z)>θ（裸 μ 放行）且 mu_lcb(z)=Some 但 ≤θ（n≥2 高方差，LCB 收缩到阈值下，拒）。
         //   codex 攻击点3：src_b 再按 train-class n 分桶——n∈{2,3} 低自由度（方差超敏伪高方差）vs n≥10 鲁棒。
         let test_zs = enumerate_candidate_z(&test, &config);
+        // G3：枚举无账本口径 ⟹ 表侧 risk_mode 投影对齐（project_mu_for_enum_diag 文档）。
+        let est_diag = project_mu_for_enum_diag(&est);
         let (mut src_a, mut src_b) = (0usize, 0usize);
         let (mut src_b_lowdof, mut src_b_robust) = (0usize, 0usize);
         for z in &test_zs {
-            let naive_pass = matches!(est.mu(z), Some(m) if m > theta);
+            let naive_pass = matches!(est_diag.mu(z), Some(m) if m > theta);
             if !naive_pass {
                 continue; // 裸 μ 本就拒，不计入「LCB 额外拒」差异
             }
-            match est.mu_lcb(z, z_alpha_lcb) {
+            match est_diag.mu_lcb(z, z_alpha_lcb) {
                 None => src_a += 1, // n<2：样本饥饿（非过拟合控制）
                 Some(l) if l <= theta => {
                     src_b += 1; // n≥2 高方差 LCB<θ
                     // train-class n 分桶（est.count 是该 z 在 train μ 表的样本量）。
-                    if est.count(z) >= 10 {
+                    if est_diag.count(z) >= 10 {
                         src_b_robust += 1; // n≥10：方差估计鲁棒 ⟹ 真过拟合控制候选
                     } else {
                         src_b_lowdof += 1; // n∈{2..9}：低自由度，方差超敏 ⟹ 伪高方差，剥离
@@ -1487,10 +1491,29 @@ fn three_way_l2() {
     );
 }
 
+/// G3（#138）诊断口径投影：把 train μ 表按「无账本枚举口径」精确边缘化（样本级重聚）。
+///
+/// [`enumerate_candidate_z`] 不跑 fill loop ⟹ 其 z 的 `risk_mode=None`；train 表键（fill loop
+/// 生态）`risk_mode=Some(bar 真值)`——键不投影则三路分解/假设4/两源分解**全落「未见」**（G2 修过
+/// 的训练 Some/查询 None 全表 miss 同款，records↔诊断侧变体）。投影 = 逐笔观测把 `risk_mode`
+/// 置 None 后重聚：条件均值塔性质 ⟹ 投影桶 μ = 子桶样本加权平均（数学精确非近似）；其余 G3 维
+/// 在 fill loop 生态本就与枚举口径一致（cand_channel/nest_depth 两侧 None，origin_level 两侧
+/// Some(level)），不动。投影后形态维（1-9 维）分桶与 G3 前 bit-一致——诊断语义不变：
+/// 「test 候选**形态**是否见过」（账本态是正交条件维，非形态）。
+fn project_mu_for_enum_diag(est: &MuEstimator) -> MuEstimator {
+    let mut p = MuEstimator::new();
+    p.observe_all(est.trades().iter().map(|&(c, x)| MuObservation {
+        class: MuClass { risk_mode: None, ..c },
+        x_gamma: x,
+    }));
+    p
+}
+
 /// **诊断：枚举一个窗的全部方向候选 z**（与 [`build_walk_forward_mu`] 同口径的因果逐 bar 枚举）。
 ///
 /// 复用 train μ 表构造里的同一枚举（`IncrementalClassifier` 逐 bar + append-only diff + assemble_gamma），
 /// 但只收集 z（不兑现 X_γ）——用于统计 test 段候选 z 命中/未见 train μ 表的比例（假设4诊断）。
+/// G3 后消费点须以 [`project_mu_for_enum_diag`] 投影表查询（枚举无账本口径，见该函数文档）。
 fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
     let bars = &ds.bars;
     let n = bars.len();
@@ -1525,7 +1548,11 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
                     if c.dir == VoiceSide::Flat {
                         continue;
                     }
-                    zs.push(z_of_candidate(c, &tower_i, bars));
+                    // G3（#138）：本诊断枚举不跑 fill loop ⟹ 无账本态（risk_mode=None）、无准入门
+                    // （cand_channel/nest_depth=None），显式 ZExt::NONE。与 train μ 表（fill loop 生态
+                    // z 带 risk_mode=Some(bar 真值)）的键匹配由消费点经 [`project_mu_for_enum_diag`]
+                    // 投影对齐——不在此伪造账本态。
+                    zs.push(z_of_candidate(c, &tower_i, bars, &ZExt::NONE));
                 }
             }
         }
@@ -1630,6 +1657,8 @@ fn degeneracy_diagnosis() {
 
         // ── 假设4：test 段候选 z 命中 train μ 表的比例 ──
         let test_zs = enumerate_candidate_z(&test, &config);
+        // G3：枚举无账本口径 ⟹ 表侧 risk_mode 投影对齐（project_mu_for_enum_diag 文档）。
+        let est_diag = project_mu_for_enum_diag(&est);
         let n_test = test_zs.len();
         let mut n_seen = 0usize; // 命中 train μ 表
         let mut n_seen_pos = 0usize; // 命中且 μ>0
@@ -1637,7 +1666,7 @@ fn degeneracy_diagnosis() {
         let mut n_unseen = 0usize; // 未见于 train（treat_empty=false ⟹ 滤）
         let mut pos_hit_z: Vec<MuClass> = Vec::new(); // 命中且 μ>0 的 z（矛盾候选定位）
         for z in &test_zs {
-            match est.mu(z) {
+            match est_diag.mu(z) {
                 Some(m) if m > 0.0 => {
                     n_seen += 1;
                     n_seen_pos += 1;

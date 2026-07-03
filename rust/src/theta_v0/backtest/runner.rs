@@ -480,7 +480,7 @@ fn k_theta_risk_gate(
     p_t: f64,
     px: f64,
     margin: Option<&super::super::strategy::risk::MarginModel>,
-) -> super::super::strategy::coverage::KThetaRiskGate {
+) -> (super::super::strategy::coverage::KThetaRiskGate, super::super::strategy::risk::RiskMode) {
     use super::super::strategy::coverage::KThetaRiskGate;
     use super::super::strategy::exec::{close_pred, stop_hit, CloseTriggers, FillSide};
     use super::super::strategy::risk::{
@@ -552,22 +552,26 @@ fn k_theta_risk_gate(
     }
 
     // close_pred 折 𝒦_Θ（契约锚保留）：风控项（stop ∨ risk）→ 方向约束门。
-    KThetaRiskGate {
-        force_flat: risk_close, // GlobalRiskClose ⟹ 𝒦_Θ={0}
-        stop_long: close_pred(&CloseTriggers {
-            parent_invalid: false,
-            reverse_signal: false,
-            stop: long_stop,
-            risk_close,
-        }),
-        stop_short: close_pred(&CloseTriggers {
-            parent_invalid: false,
-            reverse_signal: false,
-            stop: short_stop,
-            risk_close,
-        }),
-        no_increase_cap, // M2/M3 净幅上限（margin-design §2.8）
-    }
+    // G3（#138）：mode 一并透出——z 第 13 维 risk_mode 的账本态真值源（每 bar 已算，零重算）。
+    (
+        KThetaRiskGate {
+            force_flat: risk_close, // GlobalRiskClose ⟹ 𝒦_Θ={0}
+            stop_long: close_pred(&CloseTriggers {
+                parent_invalid: false,
+                reverse_signal: false,
+                stop: long_stop,
+                risk_close,
+            }),
+            stop_short: close_pred(&CloseTriggers {
+                parent_invalid: false,
+                reverse_signal: false,
+                stop: short_stop,
+                risk_close,
+            }),
+            no_increase_cap, // M2/M3 净幅上限（margin-design §2.8）
+        },
+        mode,
+    )
 }
 
 /// ★七链 π_Θ per-bar fill 循环（三适配器 [A][B][C] + 执行层父容器 σ_p + close_pred 折 𝒦_Θ）。
@@ -696,7 +700,12 @@ where
             let classification_step = newly_confirmed_step(&classification_i, &mut seen_bsps);
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
-            let gate = k_theta_risk_gate(&prev_active, &classification_i, bar, equity_nav, p_t, px, config.margin.as_ref());
+            let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &classification_i, bar, equity_nav, p_t, px, config.margin.as_ref());
+            // G3（#138）z 第 10-13 维装配：π 路径候选不经 Nest/Xzd 准入门（cand_channel/nest_depth
+            // None 诚实口径，origin_level 由 z_of_candidate 填 Some(c.level) 起始=执行真值）；
+            // risk_mode = 当 bar 账本态真值。**同一 ext_i 同时喂 χ 查询（filter）与训练登记
+            // （entry_z）** ⟹ 训练/查询同口径在共享变量层保证（G2 护航点同款）。
+            let ext_i = super::selector::ZExt { risk_mode: Some(risk_mode_i), ..super::selector::ZExt::NONE };
             // exec_index：延迟成交 bar（spec:50；尾部无可成交 bar ⟹ 不挂单）。
             let exec_index = fill_bar_index(i, bars, &config.exec);
             // 环5+6+7：pi_theta_step（父容器 σ_p=attach_bsp_to_tree(因果塔) + 风控门）→ (A_{t+1}, p*, O)。
@@ -722,7 +731,7 @@ where
                 // 训练 Some/查询 None 的静默"未见类别"退化在此被接口封死。
                 Some(ctx) => super::selector::filter_gamma_with_admission(
                     &step_gamma, ctx.est, ctx.theta, ctx.z_alpha, ctx.shrink_tau_sq,
-                    ctx.treat_empty_as_pass, &tower_i, bars,
+                    ctx.treat_empty_as_pass, &tower_i, bars, &ext_i,
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
@@ -745,7 +754,8 @@ where
                 open_trades.insert(leg.id, LedgerOpen {
                     entry_bar: i,
                     entry_px: px,
-                    entry_z: super::selector::z_of_candidate(c, &tower_i, bars),
+                    // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
+                    entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
                     entry_v: c.role.v,
                 });
             }
@@ -1775,9 +1785,14 @@ mod tests {
         // b2（task #83）：fill loop 的 χ 门经 z_of_candidate 查 μ ⟹ 查询 z 携带 H=Some(role.h)。
         // 本例 buy1@3 无同级前兄弟 ⟹ H=First。手建 est 的 z 须同口径（否则 None vs Some(First) 桶不命中）。
         // G2 σ_higher 第 9 维：合成闭包塔恒空 ⟹ 查询侧 sigma_higher_at(&[],..)=0 ⟹ Some(0)，手建 z 同口径。
+        // G3 第 10-13 维口径（#138）：fill loop 查询键 origin_level=Some(c.level)（无链默认）、
+        // risk_mode=Some(Normal)（equity>0 无 margin 注入 ⟹ 每 bar mode 恒 Normal 真值）；
+        // cand_channel/nest_depth 两侧 None（π 路径无准入门）。手建 est 的 z 须同口径。
         let z_buy = MuClass {
             horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
             sigma_higher: Some(0),
+            origin_level: Some(0),
+            risk_mode: Some(crate::theta_v0::strategy::risk::RiskMode::Normal),
             ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
         };
         let mut est = MuEstimator::new();
@@ -1816,9 +1831,14 @@ mod tests {
         // b2（task #83）：fill loop 的 χ 门经 z_of_candidate 查 μ ⟹ 查询 z 携带 H=Some(role.h)。
         // 本例 buy1@3 无同级前兄弟 ⟹ H=First。手建 est 的 z 须同口径（否则 None vs Some(First) 桶不命中）。
         // G2 σ_higher 第 9 维：合成闭包塔恒空 ⟹ 查询侧 sigma_higher_at(&[],..)=0 ⟹ Some(0)，手建 z 同口径。
+        // G3 第 10-13 维口径（#138）：fill loop 查询键 origin_level=Some(c.level)（无链默认）、
+        // risk_mode=Some(Normal)（equity>0 无 margin 注入 ⟹ 每 bar mode 恒 Normal 真值）；
+        // cand_channel/nest_depth 两侧 None（π 路径无准入门）。手建 est 的 z 须同口径。
         let z_buy = MuClass {
             horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
             sigma_higher: Some(0),
+            origin_level: Some(0),
+            risk_mode: Some(crate::theta_v0::strategy::risk::RiskMode::Normal),
             ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
         };
         let mut est = MuEstimator::new();
@@ -1888,6 +1908,12 @@ mod tests {
         assert_eq!(t.exit_type, ExitType::CloseRoot, "根腿 + 一类反向 ⟹ P5 CloseRoot");
         assert_eq!(t.entry_z.delta, 1, "Long 腿 δ=+1");
         assert!(t.entry_px > 0.0 && t.exit_px > t.entry_px, "微涨数据 ⟹ exit_px>entry_px");
+        // G3（#138）：训练侧 entry_z 携账本态真值（equity>0 无 margin ⟹ Normal）+ π 路径
+        // 无准入门（cand_channel/nest_depth None）+ origin_level=Some(level)（无链默认）。
+        use super::super::super::strategy::risk::RiskMode;
+        assert_eq!(t.entry_z.risk_mode, Some(RiskMode::Normal), "fill loop entry_z 携 bar 级账本态");
+        assert_eq!(t.entry_z.cand_channel, None, "π 路径不经 Nest/Xzd 准入门");
+        assert_eq!(t.entry_z.origin_level, Some(t.entry_z.level), "无链口径 ℓ=e");
     }
 
     /// ★G4：三类反向卖候选 ⟹ ReduceCore（P6，reverse_exit_type 判据经 fill loop 端到端兑现）。
@@ -2075,11 +2101,14 @@ mod tests {
         let classification = Classification { levels: vec![LevelState::default()] };
         let bar = px100_bar(0);
         // equity≤0 ⟹ Insolvent ⟹ GlobalRiskClose ⟹ force_flat（𝒦_Θ={0}）。
-        let gate_insolvent = k_theta_risk_gate(&[], &classification, &bar, -1.0, 0.0, 100.0, None);
+        let (gate_insolvent, mode_insolvent) = k_theta_risk_gate(&[], &classification, &bar, -1.0, 0.0, 100.0, None);
         assert!(gate_insolvent.force_flat, "equity≤0 ⟹ Insolvent ⟹ force_flat（𝒦_Θ={{0}}）");
+        // G3：透出的 mode 与门语义一致（z 第 13 维数据源同一真值）。
+        assert_eq!(mode_insolvent, super::super::super::strategy::risk::RiskMode::Insolvent);
         // equity>0 + 无活动腿 ⟹ 门全开（无风控触发）。
-        let gate_open = k_theta_risk_gate(&[], &classification, &bar, 1.0e6, 0.0, 100.0, None);
+        let (gate_open, mode_open) = k_theta_risk_gate(&[], &classification, &bar, 1.0e6, 0.0, 100.0, None);
         assert!(!gate_open.force_flat && !gate_open.stop_long && !gate_open.stop_short, "正常态 ⟹ 门全开");
+        assert_eq!(mode_open, super::super::super::strategy::risk::RiskMode::Normal);
     }
 
     // ──────────────────────────────────────────────────────────────────────

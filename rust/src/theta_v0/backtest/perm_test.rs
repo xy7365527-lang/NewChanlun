@@ -228,6 +228,14 @@ pub fn stratified_delta_perm_p_fullz(
             delta: d,
             short_swing: c.parent_dir != 0 && d == -c.parent_dir,
             sigma_higher: None, // 第 9 维不分层（G2 裁定），键不携带代表值伪信息
+            // G3 第 10-13 维同 G2 口径（#138；置换桶键不动，分层留待 #135 prereg）：base 不分层
+            // ⟹ 输出键显式 None，防 stratum 代表值经 ..*c 泄漏——risk_mode 随 bar 变、同
+            // stratum 内可异值，泄漏真实存在（非防御性）；cand_channel/nest_depth 本管线恒 None、
+            // origin_level 恒 =level（fill loop 无门口径），显式化保不变量不依赖上游口径。
+            cand_channel: None,
+            nest_depth: None,
+            origin_level: None,
+            risk_mode: None,
             ..*c
         },
     )

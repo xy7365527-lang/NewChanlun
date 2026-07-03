@@ -56,7 +56,7 @@ use super::super::classifier::recursive_tower::LeveledMove;
 use super::super::classifier::center::{center_from_segments, UnitRange};
 use super::super::classifier::descend::RMove;
 use super::mu_estimator::{MuClass, PositionState};
-use super::selector::{sigma_higher_at, z_of_candidate, z_of_candidate_with_force};
+use super::selector::{sigma_higher_at, z_of_candidate, z_of_candidate_with_force, ZExt};
 use super::super::strategy::coverage::Horizontal;
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（sell.rs:50 CloseRoot/ReduceCore 对齐）。
@@ -378,7 +378,27 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     // z_of_candidate_with_force 调 ForceProxies::force_state() 填 force_state 第 8 维（δ-free
                     // A4 支配序，perm_test 已按 c.force_state 分桶；二/三类 p.force=None ⟹ force_state=None）。
                     // ★σ_higher 第 9 维（G2 #132）：塔真值经 z_of_candidate 内 sigma_higher_at 填。
-                    let z = z_of_candidate_with_force(c, p.force, &tower_i, bars);
+                    // ★G3 第 10-12 维（#138）：从已 pass 的 gate_cert 装配——cand_channel=trigger（P0-1
+                    // 同源）；Nest 通道 nest_depth=rungs.len()（0=基例真值）、origin_level=lvl+depth
+                    // （链顶 ℓ，「执行级 e=lvl，rungs 收集上级语境」的有效域口径）；Xzd 通道无下沉
+                    // 概念 ⟹ depth=None、origin_level 走 z_of_candidate 默认 Some(c.level)（起始=执行）。
+                    // risk_mode=None：统计层信号收集无账本（equity/持仓），诚实 None（第 13 维在
+                    // runner π fill loop 生态填真值）。
+                    let ext = match gate_cert.as_ref().expect("pass ⟹ gate_cert Some") {
+                        GateCertificate::Nest(cert) => ZExt {
+                            cand_channel: Some(trigger),
+                            nest_depth: Some(cert.rungs.len() as u8),
+                            origin_level: Some(lvl as u32 + cert.rungs.len() as u32),
+                            risk_mode: None,
+                        },
+                        GateCertificate::Xzd(_) => ZExt {
+                            cand_channel: Some(trigger),
+                            nest_depth: None,
+                            origin_level: None, // ⟹ z 填 Some(c.level)（起始=执行真值）
+                            risk_mode: None,
+                        },
+                    };
+                    let z = z_of_candidate_with_force(c, p.force, &tower_i, bars, &ext);
                     // G2 一致性护栏：z 内 σ_higher（按 c.level 取）须与信号分解口径（按 lvl 取）同值
                     // ——同函数同塔，仅 level 来源不同（c.level 由 assemble 自 lvl 单级分类产生）。
                     debug_assert_eq!(z.sigma_higher, Some(sigma_higher), "z.sigma_higher 与 SignalDecomp 口径分叉");
@@ -1065,8 +1085,12 @@ pub(super) enum GateCertificate {
 /// 显式化，供每桶 μ̂ 质量归因。**核心裁决**：所谓「高级别背驰段前置门」只对 Type1 通道有意义
 /// （Type1 = 本级趋势背驰段，第29课 A3），Xzd 通道由 C2/C3 小转大判据独立准入，**不受「无高级别
 /// 背驰段」一票否决**（codex #1：现状已 Nest/Xzd 二通道，单一 bool 背驰前置门外延过窄会误杀 Xzd）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum NestTrigger {
+/// G3（#138）可见性/derive 说明：`pub` + `Hash/Ord` 因本枚举作为 [`super::mu_estimator::MuClass`]
+/// 第 10 维 `cand_channel` 的分量（§6 CandType「Cand 门通道类型」）——MuClass 是 pub 结构且派生
+/// `Hash+Ord`（HashMap 桶键 + BTreeMap 有序报告），分量类型必须同级。定义留在本文件（单源，
+/// 不镜像到 mu_estimator——生产者在此，nest_trigger() 是唯一构造点）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum NestTrigger {
     /// 高级别趋势背驰段（Type1 → `Nest`，div_cand 准入；第29课 A3 先看大级别背驰段）。
     Type1TrendDivergence,
     /// 二三类经次级别第一类下沉锚（Type2/3 → `Nest`，`descend_type1_anchor_depth` base gate 准入）。
@@ -3631,6 +3655,27 @@ mod tests {
                         if lvl < LMAX { sig_post[lvl] += 1; }
                         // C1：与生产 collect_signals 同序同字段（含 b2 完整 z——z_of_candidate_with_force
                         // 同一桥，保证 dx 手写门与生产收集 bit-exact，尾部 signals_dx vs signals_prod 逐条对拍含 z）。
+                        // P0-1：与生产 collect_signals 同源触发分类（pass ⟹ gate_cert Some）。
+                        let trigger_dx = nest_trigger(
+                            gate_cert.as_ref().expect("pass ⟹ gate_cert Some"),
+                            bsp_cand_type(&p.bits, delta_side),
+                        );
+                        // ★G3 ext（#138，与生产装配 bit-exact 同源）：Nest→depth=rungs.len()（pass ⟹
+                        // effective_nest_depth==rungs.len()，前缀定理）+ origin=lvl+depth；Xzd→无下沉。
+                        let ext_dx = match gate_cert.as_ref().expect("pass ⟹ gate_cert Some") {
+                            GateCertificate::Nest(_) => ZExt {
+                                cand_channel: Some(trigger_dx),
+                                nest_depth: Some(rungs_len as u8),
+                                origin_level: Some(lvl as u32 + rungs_len as u32),
+                                risk_mode: None,
+                            },
+                            GateCertificate::Xzd(_) => ZExt {
+                                cand_channel: Some(trigger_dx),
+                                nest_depth: None,
+                                origin_level: None,
+                                risk_mode: None,
+                            },
+                        };
                         signals_dx.push(RawSignal {
                             entry_bar: i,
                             dir: c.dir,
@@ -3638,12 +3683,8 @@ mod tests {
                             level: lvl as u32,
                             sigma_higher,
                             bsp_class,
-                            z: z_of_candidate_with_force(c, p.force, &tower_i, bars), // ★force+σ_higher（与生产 368 同源）
-                            // P0-1：与生产 collect_signals 同源触发分类（pass ⟹ gate_cert Some）。
-                            trigger: nest_trigger(
-                                gate_cert.as_ref().expect("pass ⟹ gate_cert Some"),
-                                bsp_cand_type(&p.bits, delta_side),
-                            ),
+                            z: z_of_candidate_with_force(c, p.force, &tower_i, bars, &ext_dx), // ★force+σ_higher+G3 ext（与生产同源）
+                            trigger: trigger_dx,
                         });
                         match nest_depth {
                             Some(d) => {

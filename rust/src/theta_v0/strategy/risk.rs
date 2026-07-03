@@ -280,7 +280,11 @@ pub fn root_parent_cap() -> i64 {
 ///
 /// 按优先级穷尽互斥（strict §11 line 369-374 / FULL 十三 line 1026-1046）：
 /// M0 > M1 > M2 > M3 > M4，每个 M_i 含 `¬M0 ∧ … ∧ ¬M_{i-1}` 前缀，故恰一态成立。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Hash/Ord`（G3 #138）：本枚举作为 [`MuClass`](crate::theta_v0::backtest::mu_estimator::MuClass)
+/// 第 13 维 `risk_mode` 的分量（§6 RiskMode+MarginState），需与 MuClass 的 derive 全家桶同级。
+/// derive `Ord` 取声明序 Insolvent<…<Normal（= 严重度降序），仅供 BTreeMap 有序报告，无业务比较语义。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum RiskMode {
     /// M0：`E_t ≤ 0`——权益耗尽（破产）。
     Insolvent,
