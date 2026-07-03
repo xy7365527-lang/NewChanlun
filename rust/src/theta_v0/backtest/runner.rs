@@ -49,7 +49,7 @@
 use std::rc::Rc;
 use super::super::closed_loop::state::{AssemblyState, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
-use super::super::strategy::ledger::RiskPolicy;
+use super::super::strategy::ledger::{tw_step, RiskPolicy, TwEvent, TwState};
 use super::super::config::ThetaConfig;
 use super::super::strategy::exit::{exit_decision_for, record_held_voice, HeldVoice};
 use super::super::strategy::{AccountState, VoiceDecision};
@@ -666,6 +666,25 @@ where
         LedgerOpen,
     > = std::collections::HashMap::new();
     let mut typed_ledger: Vec<TypedTrade> = Vec::new();
+    // ── #124 裁定4：TW 账本单一生产真值源（TwState 接入 π 路径；run_closed_loop 降级纯结构
+    //    验证工具）。注资口径 = funded_campaign 同款（state.rs:219）：整窗 = 一个 campaign，
+    //    投入 = 初始 NAV 取整（free = notional_in = ⌊nav0⌋）。i64 取整粒度诚实声明：TW 账本是
+    //    **结构谓词源**（P2/P3/P4 判据消费 stage/open_legacy_legs/holding/free/withdrawn），
+    //    非逐分对账账本——其在生产 π 的唯一消费者是 I_Θ 组合层 TW 谓词 + tw_final 物证。
+    //    可达性诚实声明（codex R3 C' 终局裁定）：合法账本语义下已实现/未实现利润均无入 free
+    //    通道（无非回补资金源）⟹ holding≥notional_in ∧ free≥recover_target 联立不可满足
+    //    （TW 守恒代数，见 earning_shares_structurally_unreachable_*）⟹ P3/P4/P2 生产触发
+    //    结构不可达——接线真实（判据真接账本、账本真接交易流），触发恒 false 照实，直到
+    //    「已实现利润入账」账本重装并重新提交裁决（codex R3 C' 显式留白，非本工位擅裁）。
+    let mut tw = TwState {
+        free: nav0 as i64,
+        notional_in: (nav0 as i64).max(1),
+        ..TwState::initial()
+    };
+    let tw_policy = RiskPolicy::baseline(); // κ=0 最小基线（PDF §10 canonical 默认）
+    // TW 侧已见的真实成本基（i64 shadow；方向差分派 ShortDiff 划转，入账量 cash-sound 钳制
+    // ——真实划转超出 free/holding 时部分承载 ⟹ holding 低估 ⟹ 退本金门更难过 = 安全侧）。
+    let mut tw_seen_basis: i64 = 0;
 
     for i in 0..n {
         let bar = &bars[i];
@@ -689,6 +708,25 @@ where
         let p_t = units;
         let current_nav = cash + units * px;
         let equity_nav = if current_nav > 0.0 { current_nav } else { nav0 };
+
+        // ── ②' TW 成本划转（#124）：真实成本基（|units|·均价，空头取绝对额=在险市值）方向差分
+        //    ⟹ ShortDiff 划转（free⇄holding，TW 守恒构造子）。shadow 追真实、入账钳制（cash-sound）。──
+        {
+            let basis_now = (units.abs() * entry_cost.abs()) as i64;
+            let d = basis_now - tw_seen_basis;
+            tw_seen_basis = basis_now;
+            if d > 0 {
+                let inflow = d.min(tw.free); // 买入 free→holding，不透支 free
+                if inflow > 0 {
+                    tw = tw_step(&tw, TwEvent::ShortDiff(-inflow));
+                }
+            } else if d < 0 {
+                let outflow = (-d).min(tw.holding); // 卖出 holding→free，成本基回流
+                if outflow > 0 {
+                    tw = tw_step(&tw, TwEvent::ShortDiff(outflow));
+                }
+            }
+        }
 
         if !bar.untradable && px > 0.0 {
             // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
@@ -735,6 +773,33 @@ where
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
+            // ── #124 裁定4 TW 谓词 ctx（P2/P3/P4 进 fold）：ShortDiff 腿 id 从 typed ledger
+            //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）；risk_mode 从
+            //    strategy::risk 五态投影到 closed_loop::state 五态（两枚举同锚 Origin 五构造子，
+            //    此处只读逐变体映射，非第二权威源——判定仍单源 k_theta_risk_gate）。 ──
+            let shortdiff_ids: std::collections::HashSet<classifier::recursive_tower::ElementId> =
+                open_trades
+                    .iter()
+                    .filter(|(_, o)| o.entry_v == super::super::strategy::coverage::Vertical::ShortDiff)
+                    .map(|(id, _)| *id)
+                    .collect();
+            let tw_risk_mode = {
+                use super::super::closed_loop::state::RiskMode as ClRiskMode;
+                use super::super::strategy::risk::RiskMode as StRiskMode;
+                match risk_mode_i {
+                    StRiskMode::Insolvent => ClRiskMode::Insolvent,
+                    StRiskMode::Liquidation => ClRiskMode::Liquidation,
+                    StRiskMode::Deleverage => ClRiskMode::Deleverage,
+                    StRiskMode::CloseOnly => ClRiskMode::CloseOnly,
+                    StRiskMode::Normal => ClRiskMode::Normal,
+                }
+            };
+            let twc = coverage::TwStepCtx {
+                state: &tw,
+                policy: &tw_policy,
+                risk_mode: tw_risk_mode,
+                shortdiff_leg_ids: &shortdiff_ids,
+            };
             let (next_active, _p_star, order, step_trace) = coverage::pi_theta_step_traced(
                 step_work,
                 &step_gamma_trade,
@@ -747,6 +812,7 @@ where
                 gate,
                 &config.voice,
                 &registry,
+                Some(&twc),
             );
             // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
             // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
@@ -762,6 +828,11 @@ where
             // 反向关闭：typed 判据单源 reverse_exit_type（入场角色 + 触发候选类）。
             for (leg, trig) in &step_trace.closed {
                 if let Some(open) = open_trades.remove(&leg.id) {
+                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff
+                        && tw.open_legacy_legs >= 1
+                    {
+                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0)); // TW 腿计数（#124）
+                    }
                     typed_ledger.push(TypedTrade {
                         entry_z: open.entry_z,
                         voice_id: leg.id,
@@ -782,6 +853,9 @@ where
                 if let Some(open) = open_trades.remove(&leg.id) {
                     use super::super::strategy::coverage::Vertical;
                     use super::super::strategy::interp::ExitType;
+                    if open.entry_v == Vertical::ShortDiff && tw.open_legacy_legs >= 1 {
+                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0)); // TW 腿计数（#124）
+                    }
                     let exit_type = if open.entry_v != Vertical::Ambient {
                         ExitType::CloseShortDiff
                     } else {
@@ -803,6 +877,11 @@ where
             // （无触发候选；pi_theta_step_traced 上游短路清空 next_active，见 StepTrace.risk_exits）。
             for leg in &step_trace.risk_exits {
                 if let Some(open) = open_trades.remove(&leg.id) {
+                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff
+                        && tw.open_legacy_legs >= 1
+                    {
+                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0));
+                    }
                     typed_ledger.push(TypedTrade {
                         entry_z: open.entry_z,
                         voice_id: leg.id,
@@ -814,6 +893,52 @@ where
                         via_structural_prune: false, // 强平=风险信号平仓，非结构剪枝
                     });
                 }
+            }
+            // P2 CloseOverlay（#124 裁定4，PDF §7 C_2）：TW StageII 重叠腿关闭——真实订单已经
+            // 同一 schedule/fill（组合层合成 close 桶复用 𝒟_x 通道）；typed 归 CloseShortDiff
+            // （关的正是 legacy ShortDiff 重叠腿，PDF §9 五枚举内最近语义）。
+            for leg in &step_trace.overlay_closes {
+                if let Some(open) = open_trades.remove(&leg.id) {
+                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff
+                        && tw.open_legacy_legs >= 1
+                    {
+                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0));
+                    }
+                    typed_ledger.push(TypedTrade {
+                        entry_z: open.entry_z,
+                        voice_id: leg.id,
+                        entry_bar: open.entry_bar,
+                        exit_bar: i,
+                        exit_type: super::super::strategy::interp::ExitType::CloseShortDiff,
+                        entry_px: open.entry_px,
+                        exit_px: px,
+                        via_structural_prune: false, // TW 账本谓词驱动的真实平仓，非结构剪枝
+                    });
+                }
+            }
+            // TW 腿事件（#124）：legacy ShortDiff 腿开仓驱动 open_legacy_legs 计数（P2 的 H
+            // 判据与生产腿同源同步；关侧在上方四个消费循环内经 open.entry_v 判定派
+            // CloseShareLeg）。CloseShareLeg(0) 口径声明：净额架构无腿级损益分账 ⟹ profit
+            // 口径量 0 承载（cum_net_cash 非承重分量——P2/P3/P4 谓词不消费它；唯一承重 =
+            // open_legacy_legs 计数），非簿记伪造。
+            // OQ-9 守卫：EarningShares 阶段开 legacy 腿 PDF 定义为非法（is_legal_from）——
+            // 该 stage 当前结构不可达（见 TW 初始化注释）；真达时此腿不计 legacy 计数，关侧
+            // legs>=1 守卫对称跳过（合法性语义，非掩盖）。
+            for (c, _leg) in &step_trace.opened {
+                if c.role.v == super::super::strategy::coverage::Vertical::ShortDiff
+                    && TwEvent::OpenShareLeg.is_legal_from(&tw)
+                {
+                    tw = tw_step(&tw, TwEvent::OpenShareLeg);
+                }
+            }
+            // P3/P4 TWEvent_t（#124 裁定4）：账本推进单点（组合层只读产出事件分量，此处是
+            // 生产 π 内唯一的 stage 推进写点——stage_progression 派生事件生产恒合法）。
+            if let Some(ev) = step_trace.tw_event {
+                debug_assert!(
+                    ev.is_legal_from(&tw),
+                    "stage_progression 派生事件恒合法（OQ-9 生产不变量）"
+                );
+                tw = tw_step(&tw, ev);
             }
             // ── ④ 挂单到 exec_index（延迟成交；qty>0 才挂）。 ──
             if order.qty > 0 {
@@ -907,6 +1032,7 @@ where
         trades,
         n_orders: n_orders_executed,
         typed_ledger,
+        tw_final: Some(tw),
     }
 }
 
@@ -954,6 +1080,12 @@ pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<
 ///
 /// ★认识论等级：闭环驱动 = **L1**（bit-exact 管线：Rust hybrid_step 逐 bar 推进与 Lean
 /// assemblyStep 结构对齐 = 验证管线正确性，零信息增量）。真实数据回测的指标才是 L2。
+///
+/// ★★身份降级（#124 裁定4 明文）：本函数是**纯结构验证工具**（Lean 契约锚 bit-exact 对齐
+/// 见证），**不再是 TW 机制的候选实装路径**——TW 账本的生产真值源已移到 [`pi_theta_fill_loop`]
+/// 内的 `TwState`（真实交易事件流驱动，I_Θ 组合层 P2/P3/P4 谓词消费）。本函数的极简摘要事件流
+/// （`NewBar(rising)` 布尔）与生产 π 订单流 disjoint，其输出仅作 `closed_loop_final` 结构证据，
+/// 不喂任何 alpha 判定。
 pub fn run_closed_loop(bars: &[Bar], initial_nav: f64) -> Option<AssemblyState> {
     if bars.is_empty() {
         return None;
@@ -1025,9 +1157,10 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
 /// 单位口径，与旧训练路径同价格语义——G4 只改出场时点规则，不改价格口径）；非账户 fill 价
 /// （腿级无独立成交，净持仓聚合后账户级 P&L 归 equity_curve 路径）。
 ///
-/// **RiskExit 有效域**（诚实声明）：当前架构 `force_flat` 不清活动腿（幽灵腿缺口归 #124 P1
-/// 短路修）⟹ 本 ledger 现阶段不产 `RiskExit`——这是生产 π 语义的忠实记录，非本层简化；
-/// #124 落地后经 StepTrace 通道自动跟进。
+/// **RiskExit 通道**（#124 P1 已落地）：`force_flat` ⟹ 组合层上游短路清活动腿，经
+/// `StepTrace.risk_exits` 产 `RiskExit`（幽灵腿堵口）。**CloseOverlay 通道**（#124 裁定4）：
+/// TW StageII 重叠腿经 `StepTrace.overlay_closes` 产 `CloseShortDiff`（生产触发可达性受
+/// 账本语义约束，见 fill loop TW 初始化注释）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct TypedTrade {
     /// 开腿候选的全互斥分类 z（`z_of_candidate` 塔真值，与生产 χ 查询同口径）。
@@ -1077,6 +1210,9 @@ struct FillOutput {
     /// 腿级 typed 交易 ledger（G4；π 路径 [`pi_theta_fill_loop`] 产出，v1 路径
     /// [`plan_and_fill_mtm`] 无腿级台账 ⟹ 恒空，诚实不伪造）。
     typed_ledger: Vec<TypedTrade>,
+    /// TW 账本终态（#124 裁定4：TwState 生产真值源在 π fill loop；TStage/ηBucket「生产者已
+    /// 就位」的可观测物证——G3 ZExt 桥/诊断消费）。v1 路径无 TW 接线 ⟹ `None`（诚实不伪造）。
+    tw_final: Option<TwState>,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -1333,6 +1469,7 @@ fn plan_and_fill_mtm(
         trades,
         n_orders: n_orders_executed,
         typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
+        tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
     }
 }
 
@@ -1914,6 +2051,27 @@ mod tests {
         assert_eq!(t.entry_z.risk_mode, Some(RiskMode::Normal), "fill loop entry_z 携 bar 级账本态");
         assert_eq!(t.entry_z.cand_channel, None, "π 路径不经 Nest/Xzd 准入门");
         assert_eq!(t.entry_z.origin_level, Some(t.entry_z.level), "无链口径 ℓ=e");
+    }
+
+    /// ★#124 裁定4：TW 账本生产真值源端到端物证——π fill loop 输出 `tw_final`（TStage/ηBucket
+    /// 生产者就位），TW 守恒经真实交易流保持，stage 恒 CostReduction（codex R3 C' 合法账本
+    /// 语义下 P3 结构不可达的**生产见证**，非 fixture 硬凑触发）。
+    #[test]
+    fn tw_ledger_producer_in_place_and_conserved() {
+        use super::super::super::strategy::ledger::TStage;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        let tw = fill.tw_final.expect("π 路径 TW 生产者就位（tw_final=Some）");
+        // TW 守恒：ShortDiff/CloseShareLeg 划转构造子全守恒 ⟹ tw() == 初始注资 ⌊nav0⌋。
+        assert_eq!(tw.tw(), 1_000_000, "TW=free+holding+withdrawn 经真实交易流守恒");
+        // 生产语义诚实见证：无已实现利润入 free 通道 ⟹ holding≥notional_in ∧ free 足额
+        // 联立不可满足 ⟹ 退本金恒不派 ⟹ stage 恒 CostReduction（P3/P4 结构不可达照实）。
+        assert_eq!(tw.stage, TStage::CostReduction, "合法账本语义下 stage 不推进（照实）");
+        assert_eq!(tw.withdrawn, 0, "无退本金事件");
+        assert_eq!(tw.open_legacy_legs, 0, "本场景无 ShortDiff 腿 ⟹ legacy 计数 0");
+        // 成本划转真发生过（腿 bar7 开 bar14 关：holding 曾>0，关后成本基回流 ⟹ holding 回落）。
+        assert!(tw.free > 0, "成本基回流后 free>0");
     }
 
     /// ★G4：三类反向卖候选 ⟹ ReduceCore（P6，reverse_exit_type 判据经 fill loop 端到端兑现）。

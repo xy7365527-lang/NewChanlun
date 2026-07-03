@@ -51,8 +51,11 @@ use std::rc::Rc;
 use super::super::classifier::Classification;
 use super::super::config::{RiskConfig, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
+use super::super::closed_loop::state::RiskMode;
+use super::super::closed_loop::transition::stage_progression;
 use super::intent::{lex_argmin, JThetaKey, LexCandidate};
 use super::interp::{self, ActiveLeg, Buckets, Candidate};
+use super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
 use super::voice::{depth_weight, VoiceSide};
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2366,6 +2369,7 @@ pub(crate) fn pi_theta_step_prebuilt(
 ) -> (Vec<ActiveLeg>, f64, Order) {
     let (next_active, p_star, order, _trace) = pi_theta_step_traced(
         work, gamma, prev_active, p_t, exec_index, base_units, risk, weights, gate, config, registry,
+        None, // 旧调用方无 TW 源：P2/P3/P4 不评估（bit-exact 原路径）
     );
     (next_active, p_star, order)
 }
@@ -2391,6 +2395,34 @@ pub(crate) struct StepTrace {
     pub opened: Vec<(Candidate, ActiveLeg)>,
     /// P1 强平清空的活动腿（force_flat ⟹ RiskExit）——无触发候选，独立通道。
     pub risk_exits: Vec<ActiveLeg>,
+    /// P2 CloseOverlay 关闭的重叠腿（TW StageII ∧ H>0 ⟹ 关 legacy ShortDiff 腿，PDF §7 C_2）
+    /// ——无触发候选（TW 账本谓词驱动，非反向信号），独立于 `closed`；真产订单进同一
+    /// schedule/fill/typed ledger（裁定4），消费端归 `ExitType::CloseShortDiff`。
+    pub overlay_closes: Vec<ActiveLeg>,
+    /// P3/P4 TW 账本事件分量 `TWEvent_t`（PDF §16 四元组 `(D,O,L,TWEvent)`；裁定4：P3
+    /// RecoverCapital / P4 EnterEarning 无订单，成立时**消耗当步裁决**——gamma 全部推迟
+    /// record 桶，屏蔽 P5..P10）。账本推进（`tw_step`）由消费端 runner 单点做。
+    pub tw_event: Option<TwEvent>,
+}
+
+/// I_Θ 组合层 TW/风控上下文（#124 裁定4：解释器接口升级 `I_Θ(ctx: RiskState+TwState+LegBook,
+/// gamma) -> {buckets, order_effect, tw_event, exit_kind}` 的 ctx 分量；分歧A 裁决——
+/// [`interp::interpret`] 签名不变，本 ctx 只进组合层 [`pi_theta_step_traced`]）。
+///
+/// `None`（旧调用方）⟹ TW 谓词 P2/P3/P4 不评估（bit-exact 原路径）；生产 π fill loop 传
+/// `Some`（TW 真值源 = fill loop 内逐 bar 推进的 [`TwState`]，裁定4：`run_closed_loop`
+/// 降级纯结构验证工具）。
+pub(crate) struct TwStepCtx<'a> {
+    /// TW 账本态（生产真值源，fill loop 维护）。
+    pub state: &'a TwState,
+    /// barrier 政策（P3/P4 判据经 [`stage_progression`] 单源）。
+    pub policy: &'a RiskPolicy,
+    /// 当前风控模式（EnterReady 的 RiskNormal 门）。
+    pub risk_mode: RiskMode,
+    /// 生产 legacy ShortDiff 活动腿 id（P2 的 H>0 判据 + 关腿对象；runner 从 typed ledger
+    /// 在飞表 `entry_v == ShortDiff` 取——腿声部身份入场固定，与 TW `open_legacy_legs`
+    /// 计数同源同步）。
+    pub shortdiff_leg_ids: &'a std::collections::HashSet<ElementId>,
 }
 
 /// [`pi_theta_step_prebuilt`] 的 trace 版（G4 #134 组合层）：同一决策路径（interpret →
@@ -2412,13 +2444,14 @@ pub(crate) fn pi_theta_step_traced(
     gate: KThetaRiskGate,
     config: &VoiceConfig,
     registry: &super::persistent::PersistentRegistry,
+    tw: Option<&TwStepCtx>,
 ) -> (Vec<ActiveLeg>, f64, Order, StepTrace) {
     // P1 强平（PDF §7 全互斥 C_1=P_1 屏蔽 P2..P10）：force_flat ⟹ 活动腿全部 RiskExit 清空、无开仓、
     // 目标 flat。**在 interpret/coverage_step 上游短路**——open 桶不进 next_active（幽灵腿堵口 §6.7）、
     // held 逐条 RiskExit 经 StepTrace 外化（G4 预留通道兑现）。触发不依赖候选集非空（gamma 空也清仓，
     // 裁定4 P1 语义）。p_star bit-exact 原路径：force_flat ⟹ 𝒦_Θ={0} ⟹ pi_theta_position=0（与 p̃ 无关，
     // 见 `pi_theta_position_force_flat_gate_clamps_to_zero`）——仅 next_active 从含幽灵腿变 ∅（跨 bar 语义
-    // 修正，非本 bar order 变）。
+    // 修正，非本 bar order 变）。P1 成立时 TW 谓词 P2/P3/P4 一并被屏蔽（本分支先于 tw 检查）。
     if gate.force_flat {
         let p_star = pi_theta_position(0.0, p_t, base_units, risk, weights, gate);
         let order = schedule_order(p_star, p_t, exec_index);
@@ -2428,6 +2461,81 @@ pub(crate) fn pi_theta_step_traced(
             order,
             StepTrace { risk_exits: prev_active.to_vec(), ..Default::default() },
         );
+    }
+    // ── TW 谓词 P2/P3/P4（#124 裁定4「真统一」：TW 三阶段进 fold，PDF §7 C_2/C_3/C_4）──
+    // 优先级 P2 ≻ P3 ≻ P4 ≻ P5..P10；成立时**消耗当步裁决**（gamma 全部推迟 record 桶，屏蔽
+    // P5..P10 的开/平；§13 结构剪枝 AncOK/Stale 照常——那是活动集与树的状态同步，非解释器裁决）。
+    // P2/P3 判据天然互斥（P2 要求 StageII，P3 的 RecoverCapital 只在 StageI 派）；P4 的
+    // enter_ready 要求 open_legacy_legs==0 ⟹ P2 成立（有重叠腿）时 P4 自动不成立——优先级链
+    // 与账本合法性谓词一致。tw=None（旧调用方/无 TW 源）⟹ 本段跳过，bit-exact 原路径。
+    if let Some(twc) = tw {
+        // P2 CloseOverlay：TW StageII ∧ H>0（legacy ShortDiff 重叠腿仍开）⟹ 关重叠腿。
+        // 真产订单：合成 close 桶复用生产关腿路径（coverage_step_from_buckets 的 𝒟_x 通道 +
+        // p̃ 重算 + LexArgmin + Schedule 全部原样单源），非平行订单机制。
+        if twc.state.stage == TStage::CapitalRecovered {
+            let overlay: Vec<ActiveLeg> = prev_active
+                .iter()
+                .filter(|l| twc.shortdiff_leg_ids.contains(&l.id))
+                .copied()
+                .collect();
+            if !overlay.is_empty() {
+                let buckets = Buckets {
+                    close: overlay.clone(),
+                    open: Vec::new(),
+                    record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决）
+                };
+                let (next_active, p_tilde) = coverage_step_from_buckets(
+                    work, prev_active, &buckets, base_units, config, Some(risk), registry,
+                );
+                let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
+                let order = schedule_order(p_star, p_t, exec_index);
+                // §13 结构剪枝（AncOK/Stale）照常 ⟹ 被剪腿仍须外化（消费端在飞表不泄漏）。
+                let next_ids: std::collections::HashSet<ElementId> =
+                    next_active.iter().map(|l| l.id).collect();
+                let overlay_ids: std::collections::HashSet<ElementId> =
+                    overlay.iter().map(|l| l.id).collect();
+                let silent_drops = prev_active
+                    .iter()
+                    .filter(|l| !overlay_ids.contains(&l.id) && !next_ids.contains(&l.id))
+                    .copied()
+                    .collect();
+                return (
+                    next_active,
+                    p_star,
+                    order,
+                    StepTrace { overlay_closes: overlay, silent_drops, ..Default::default() },
+                );
+            }
+        }
+        // P3 RecoverCapital / P4 EnterEarning：无订单账本事件（stage_progression 单源判据，
+        // 与 closed_loop 结构验证共用同一函数——不镜像）。输出 TWEvent_t 分量；账本推进
+        // （tw_step）由消费端 runner 单点做（组合层只读 ctx，不 mutate 账本）。
+        if let Some(ev) = stage_progression(twc.policy, twc.state, twc.risk_mode) {
+            let buckets = Buckets {
+                close: Vec::new(),
+                open: Vec::new(),
+                record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决，屏蔽 P5..P10）
+            };
+            let (next_active, p_tilde) = coverage_step_from_buckets(
+                work, prev_active, &buckets, base_units, config, Some(risk), registry,
+            );
+            let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
+            let order = schedule_order(p_star, p_t, exec_index);
+            // §13 结构剪枝（AncOK/Stale）照常 ⟹ 被剪腿仍须外化（消费端在飞表不泄漏）。
+            let next_ids: std::collections::HashSet<ElementId> =
+                next_active.iter().map(|l| l.id).collect();
+            let silent_drops = prev_active
+                .iter()
+                .filter(|l| !next_ids.contains(&l.id))
+                .copied()
+                .collect();
+            return (
+                next_active,
+                p_star,
+                order,
+                StepTrace { tw_event: Some(ev), silent_drops, ..Default::default() },
+            );
+        }
     }
     // 环5：解释器三桶 + close 触发归因（fold 单源，interp.rs）。
     let (buckets, close_triggers) = interp::interpret_with_close_triggers(gamma, prev_active);
@@ -2464,7 +2572,7 @@ pub(crate) fn pi_theta_step_traced(
         .filter_map(|(c, id)| next_active.iter().find(|l| l.id == id).map(|l| (c, *l)))
         .collect();
 
-    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, risk_exits: Vec::new() })
+    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, ..Default::default() })
 }
 
 #[cfg(test)]
@@ -4050,7 +4158,7 @@ mod tests {
             interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
         let work_t = ElementView::from_parts(&tree, candidates.clone());
         let (na_t, ps_t, o_t, trace) = pi_theta_step_traced(
-            work_t, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
+            work_t, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg, None,
         );
         // opened：唯一买点候选准入为信号腿（空 A_t ⟹ closed/silent 必空）。
         assert_eq!(trace.opened.len(), 1, "买点候选准入 ⟹ opened 恰一条");
@@ -4092,7 +4200,7 @@ mod tests {
         let work = ElementView::from_parts(&tree, candidates);
         let held = aleg(0, VoiceSide::Long, 0, 0);
         let (next_active, _ps, _o, trace) = pi_theta_step_traced(
-            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
+            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg, None,
         );
         assert_eq!(trace.closed.len(), 1, "反向卖候选关闭持仓 Long 腿");
         let (leg, trig) = &trace.closed[0];
@@ -4129,7 +4237,7 @@ mod tests {
         let held = aleg(0, VoiceSide::Long, 0, 0);
         let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
         let (next_active, p_star, _order, trace) = pi_theta_step_traced(
-            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, flat, &cfg(), &reg,
+            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, flat, &cfg(), &reg, None,
         );
         assert!(next_active.is_empty(), "P1 强平 ⟹ next_active=∅（open 不入账 = 幽灵腿堵口）");
         assert_eq!(trace.risk_exits.len(), 1, "prev_active 全部 RiskExit（无触发候选）");
@@ -4139,6 +4247,209 @@ mod tests {
             "P1 屏蔽 P2..P10：无 close/open/silent 分量"
         );
         assert_eq!(p_star, 0.0, "force_flat ⟹ 𝒦_Θ={{0}} ⟹ p*=0");
+    }
+
+    // ── #124 裁定4 TW 谓词 P2/P3/P4 组合层分支（L0/L1：分支逻辑正确性；生产触发可达性
+    //    是账本语义问题——codex R3 C' 合法语义下 StageII 结构不可达，见 runner TW 接线注释）──
+
+    fn buy_gamma() -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
+        let buy = BspPoint {
+            source_index: 4,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 90,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        (
+            Classification { levels: vec![LevelState { bsp: Rc::new(vec![buy]), ..Default::default() }] },
+            rc_tower(vec![]),
+        )
+    }
+
+    /// ★P2 CloseOverlay（PDF §7 C_2）：TW StageII ∧ 持 legacy ShortDiff 腿 ⟹ 关重叠腿
+    /// （overlay_closes），普通买候选被消耗当步裁决（不开仓）；非 ShortDiff 腿保留。
+    #[test]
+    fn pi_theta_step_traced_p2_close_overlay() {
+        use super::super::ledger::{RiskPolicy, TStage, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let sd_leg = aleg(0, VoiceSide::Short, 7, 7); // legacy ShortDiff 重叠腿
+        let root_leg = aleg(1, VoiceSide::Long, 3, 3); // 非重叠根腿（保留）
+        let sd_ids: std::collections::HashSet<ElementId> = [sd_leg.id].into_iter().collect();
+        let tw_state = TwState {
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 1,
+            ..TwState::initial()
+        };
+        let policy = RiskPolicy::baseline();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            shortdiff_leg_ids: &sd_ids,
+        };
+        let (next_active, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[sd_leg, root_leg], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+        );
+        assert_eq!(trace.overlay_closes.len(), 1, "P2 关重叠腿恰一条");
+        assert_eq!(trace.overlay_closes[0].id, sd_leg.id);
+        assert!(!next_active.iter().any(|l| l.id == sd_leg.id), "重叠腿不入 next_active");
+        assert!(next_active.iter().any(|l| l.id == root_leg.id), "非重叠根腿保留");
+        assert!(trace.opened.is_empty(), "P2 消耗当步裁决 ⟹ 买候选不开仓（屏蔽 P8）");
+        assert!(trace.tw_event.is_none(), "P2 屏蔽 P3/P4：无 TW 事件");
+    }
+
+    /// ★P3 RecoverCapital（PDF §7 C_3）：TW CostReduction ∧ holding≥notional_in ∧ free 足额
+    /// ⟹ tw_event=RecoverCapital（无订单），普通候选消耗当步裁决（不开仓），活动腿保持。
+    #[test]
+    fn pi_theta_step_traced_p3_withdraw_consumes_step() {
+        use super::super::ledger::{RiskPolicy, TwEvent, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let tw_state = TwState {
+            free: 100,
+            holding: 100,
+            notional_in: 100,
+            ..TwState::initial()
+        }; // CostReduction + holding≥notional_in + free≥recover_target=100 ⟹ P3 成立
+        let policy = RiskPolicy::baseline();
+        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            shortdiff_leg_ids: &empty_ids,
+        };
+        let (next_active, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+        );
+        assert_eq!(
+            trace.tw_event,
+            Some(TwEvent::RecoverCapital(100)),
+            "P3 成立 ⟹ TWEvent_t=RecoverCapital(足额退本金目标)"
+        );
+        assert!(trace.opened.is_empty(), "P3 消耗当步裁决 ⟹ 买候选不开仓（屏蔽 P5..P10）");
+        assert!(next_active.is_empty(), "无持仓腿 ⟹ next_active 空（无开仓）");
+    }
+
+    /// ★P4 EnterEarning（PDF §7 C_4）：TW CapitalRecovered ∧ EnterReady 五合取成立 ⟹
+    /// tw_event=EnterEarning（无订单相变）。无 ShortDiff 腿 ⟹ P2 不触发（H=0），落到 P4。
+    #[test]
+    fn pi_theta_step_traced_p4_enter_earning() {
+        use super::super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        // EnterReady 五合取：S=II ∧ withdrawn≥notional_in ∧ legs=0 ∧ RiskNormal ∧ tw()≥η⋆
+        // （κ=0 ⟹ η⋆=L^wc=(notional_in−withdrawn)⁺=0）。
+        let tw_state = TwState {
+            withdrawn: 100,
+            notional_in: 100,
+            stage: TStage::CapitalRecovered,
+            ..TwState::initial()
+        };
+        let policy = RiskPolicy::baseline();
+        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            shortdiff_leg_ids: &empty_ids,
+        };
+        let (_na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+        );
+        assert_eq!(trace.tw_event, Some(TwEvent::EnterEarning), "P4 ⟹ EnterEarning 相变事件");
+        assert!(trace.opened.is_empty(), "P4 消耗当步裁决 ⟹ 不开仓");
+    }
+
+    /// ★优先级 C_1≻C_2（PDF §7）：P1 force_flat 与 P2 条件同时成立 ⟹ P1 赢（risk_exits，
+    /// 无 overlay_closes/tw_event）。TW 谓词恒被 P1 屏蔽。
+    #[test]
+    fn pi_theta_step_traced_p1_masks_tw_predicates() {
+        use super::super::ledger::{RiskPolicy, TStage, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let sd_leg = aleg(0, VoiceSide::Short, 7, 7);
+        let sd_ids: std::collections::HashSet<ElementId> = [sd_leg.id].into_iter().collect();
+        let tw_state = TwState {
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 1,
+            ..TwState::initial()
+        };
+        let policy = RiskPolicy::baseline();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            shortdiff_leg_ids: &sd_ids,
+        };
+        let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
+        let (next_active, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[sd_leg], 0.0, 11, 1000.0, &r, w, flat, &cfg(), &reg, Some(&twc),
+        );
+        assert!(next_active.is_empty());
+        assert_eq!(trace.risk_exits.len(), 1, "P1 赢：RiskExit 通道");
+        assert!(trace.overlay_closes.is_empty() && trace.tw_event.is_none(), "P2/P3/P4 被 P1 屏蔽");
+    }
+
+    /// ★TW ctx 存在但无 TW 谓词成立 ⟹ 与 tw=None 逐分量一致（P5..P10 原路径 bit-exact）。
+    #[test]
+    fn pi_theta_step_traced_tw_ctx_inert_bitexact() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let tw_state = TwState::initial(); // notional_in=0 ⟹ stage_progression inert；StageI ⟹ P2 不评估
+        let policy = RiskPolicy::baseline();
+        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            shortdiff_leg_ids: &empty_ids,
+        };
+        let work_a = ElementView::from_parts(&tree, candidates.clone());
+        let (na_a, ps_a, o_a, tr_a) = pi_theta_step_traced(
+            work_a, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
+            Some(&twc),
+        );
+        let work_b = ElementView::from_parts(&tree, candidates);
+        let (na_b, ps_b, o_b, tr_b) = pi_theta_step_traced(
+            work_b, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg, None,
+        );
+        assert_eq!(na_a, na_b);
+        assert_eq!(ps_a, ps_b);
+        assert_eq!(o_a, o_b);
+        assert_eq!(tr_a.opened.len(), tr_b.opened.len());
+        assert!(tr_a.tw_event.is_none() && tr_a.overlay_closes.is_empty());
     }
 
     /// ★∀x ∃! O_{t+1}（spec §16）：同输入 ⟹ 同订单 + 同 p*（确定唯一）。

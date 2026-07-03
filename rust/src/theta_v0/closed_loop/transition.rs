@@ -275,7 +275,11 @@ fn oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
 /// 本金 `s.notional_in`**（本 campaign 原始名义 = 退本金目标），**非账户 NAV**——「本金全退」是 campaign
 /// 本地性质（退回本 campaign 投入的本金），与账户总 NAV 无关（避免把账户 NAV 误当 campaign 本金 ⟹
 /// 巨额门 ⟹ 永不满足）。
-fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> Option<TwEvent> {
+///
+/// **pub(crate)（#124 裁定4）**：本算子是 P3（RecoverCapital）/P4（EnterEarning）谓词的**单一来源**
+/// ——生产 I_Θ 组合层（`strategy::coverage::pi_theta_step_traced`）与本 closed_loop（降级为纯结构
+/// 验证工具后）共用，不得镜像重写判据。
+pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> Option<TwEvent> {
     let risk_normal = matches!(risk_mode, RiskMode::Normal);
     match s.stage {
         // 降成本：持仓累积过名义基线 ⟹ 退本金（free→withdrawn），推进 CapitalRecovered。
