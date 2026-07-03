@@ -79,12 +79,27 @@ pub struct AssemblyEvent {
 /// 对齐 Origin `schedule : StrictState → Control → Order` 的 `Order` 输出位。携带动作 + 目标仓位 +
 /// 双账本事件——使 T 的双账本（ledger R=Π-A-W 锚 Origin.LedgerState + tw_state TW 锚 Origin.TotalWealth）更新都有据
 /// （账户因果链；task #93 双层并置）。
+///
+/// ★A'（codex GAP3 裁定清单④「必要时 OrderOut 携 TW 事件序列」）：减仓订单的账本效应是
+/// **两事件序列**——成本基事件（`ledger_event`/`tw_event`）+ 利润分量（`realized_pnl`）。
+/// 固定形状 (成本基, 利润) 即本闭环文法所需的全部事件序列；`transition_adapter` 按序应用：
+/// 先成本基 `ShortDiff`/`Allocate`，后 `TwEvent::Realize`/`LedgerEvent::Realize`（硬边界2：
+/// Realize 进 stage 判据前须先完成同一成交的成本基更新）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OrderOut {
     pub action: StrictAction,
     pub target_pos: u64,
+    /// 成本基账本事件（R=Π-A-W 侧）：建仓 `Allocate(+basis)` / 减仓 `Allocate(−basis)`（解除
+    /// 资本化，与建仓对称）/ 无成交 `Noop`。★裁定清单④：减仓**不再**把成本基释放记
+    /// `LedgerEvent::Realize`（旧版让 Π 被成本基污染——利润与成本基混称）。
     pub ledger_event: LedgerEvent,
+    /// 成本基 TW 事件：`ShortDiff(±basis)`（free⇄holding 同成本基转移，保 TW）。
     pub tw_event: TwEvent,
+    /// 本次成交的已实现 PnL（**可正可负**，0=无平仓分量）。唯一合法来源 = 实际减/平仓成交的
+    /// `|Δ|·(price − avg_cost)`（结算事实，codex A' 推导链第 4 条）。由 `transition_adapter`
+    /// 在成本基事件之后分别以 [`TwEvent::Realize`]（TW `free`）与 [`LedgerEvent::Realize`]
+    /// （R 账本 `Π`）双账本入账——二者是不同账本的构造子，不混称（裁定清单⑨）。
+    pub realized_pnl: i64,
 }
 
 /// Rec 段 `rec_adapter`（契约锚 `Origin.FullDefinitionSystem.recStruct : StrictState → Event →
@@ -132,12 +147,15 @@ fn risk_adapter(x: &AssemblyState, intent: StrictAction) -> u64 {
 /// holding 被「幽灵买入」逐 bar 累积（时间门控），而非真实仓位增长（仓位门控）。修复后 Δ=0（仓位
 /// 未变）⟹ 无资金转移（`Noop` + `ShortDiff(0)`），holding 只在真实建仓（Δ>0）时增长。
 ///
-/// 动作→账本副作用映射（**Δ 驱动**，账户因果链，TW 守恒）：
-/// - **Δ>0（真实建仓）**⟹ `Allocate(Δ)`（资本化建仓占用 R）+ `ShortDiff(-Δ)`（free→holding 买入，
-///   花 Δ 单位 free 换 Δ 单位 holding，TW 守恒——非恒等）。
-/// - **Δ<0（真实减/平仓）**⟹ `Realize(|Δ|)`（回收实现盈亏）+ `ShortDiff(+|Δ|)`（holding→free 卖出，
-///   |Δ| 单位 holding 变回 free 现金，TW 守恒——非恒等）。**卖出=holding→free**（现金回流），与
-///   「退本金 free→withdrawn」是不同转移：退本金由 [`stage_progression`] 阶段机派生，schedule 不派
+/// 动作→账本副作用映射（**Δ 驱动**，账户因果链）：
+/// - **Δ>0（真实建仓）**⟹ `Allocate(Δ·price)`（资本化建仓占用 R）+ `ShortDiff(-Δ·price)`
+///   （free→holding 买入，TW 守恒——非恒等）。`realized_pnl=0`（建仓无平仓分量）。
+/// - **Δ<0（真实减/平仓，★A' 裁定清单④：成本基与利润分离）**⟹
+///   `Allocate(−basis)`（解除资本化，与建仓对称——**不再**误记 `LedgerEvent::Realize`）+
+///   `ShortDiff(+basis)`（成本基 holding→free 回流，保 TW）+ `realized_pnl = |Δ|·price − basis`
+///   （本次实际平仓 fill 的已实现 PnL，**可正可负**，由 transition_adapter 随后 Realize 双账本
+///   入账 ⟹ TW 漂移 = realized_pnl）。**卖出=holding→free**（现金回流），与「退本金
+///   free→withdrawn」是不同转移：退本金由 [`stage_progression`] 阶段机派生，schedule 不派
 ///   （codex #3 根因：schedule 不再把「卖出」误当「退本金」，避免从空 free 借本金）。
 /// - **Δ=0（仓位不变，含 Hold/Wait 或 max(1) 饱和）**⟹ `Noop` + `ShortDiff(0)`（TW 不变零转移）。
 ///
@@ -187,21 +205,29 @@ fn schedule_adapter(x: &AssemblyState, intent: StrictAction, target_pos: u64, pr
         let avg_cost = if x.positions > 0 { x.tw_state.holding / x.positions as i64 } else { 0 };
         filled_delta * avg_cost
     };
-    let (ledger_event, tw_event) = if filled_delta > 0 {
+    let (ledger_event, tw_event, realized_pnl) = if filled_delta > 0 {
         // 真实建仓（现金充足部分）：花 free 换 holding（free→holding 值），free 退后 ≥0。
-        (LedgerEvent::Allocate(cost_flow), TwEvent::ShortDiff(-cost_flow))
+        (LedgerEvent::Allocate(cost_flow), TwEvent::ShortDiff(-cost_flow), 0)
     } else if filled_delta < 0 {
-        // 真实减/平仓：卖出 holding 回 free（holding→free 值）。
-        (LedgerEvent::Realize(-cost_flow), TwEvent::ShortDiff(-cost_flow))
+        // ★真实减/平仓（codex GAP3 裁定 A' 清单④：成本基与利润分离）：
+        // - 成本基回流 basis = |Δ|·avg_cost = −cost_flow：TW 侧 ShortDiff(basis)（holding→free，
+        //   保 TW）；R 账本侧 Allocate(cost_flow)（负 dA = 解除资本化，与建仓 Allocate(+basis)
+        //   对称）——旧版把成本基释放记 LedgerEvent::Realize(−cost_flow)，令 Π 被成本基污染
+        //   （利润与成本基混称，codex 裁定判为与生产层同构的平行缺口）。
+        // - 利润分量 realized = 卖出所得 |Δ|·price − basis（本次实际平仓 fill 的已实现 PnL，
+        //   可正可负），由 transition_adapter 在成本基事件之后 Realize 双账本入账（硬边界2）。
+        let proceeds = -filled_delta * price;
+        (LedgerEvent::Allocate(cost_flow), TwEvent::ShortDiff(-cost_flow), proceeds + cost_flow)
     } else {
         // 仓位不变（含 Hold/Wait / max(1) 饱和 / 现金不足一单位 / 不可交易 bar）：无资金转移。
-        (LedgerEvent::Noop, TwEvent::ShortDiff(0))
+        (LedgerEvent::Noop, TwEvent::ShortDiff(0), 0)
     };
     OrderOut {
         action: intent,
         target_pos: filled_pos,
         ledger_event,
         tw_event,
+        realized_pnl,
     }
 }
 
@@ -279,6 +305,17 @@ fn oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
 /// **pub(crate)（#124 裁定4）**：本算子是 P3（RecoverCapital）/P4（EnterEarning）谓词的**单一来源**
 /// ——生产 I_Θ 组合层（`strategy::coverage::pi_theta_step_traced`）与本 closed_loop（降级为纯结构
 /// 验证工具后）共用，不得镜像重写判据。
+///
+/// ★★stage 驱动字段边界（codex GAP3 裁定 A' 推导链第 6 条，清单⑧——**白名单/黑名单硬边界**）：
+/// - **白名单（允许驱动 stage 判据）**：`free`（成本基回流 + 已实现 PnL 后）、`holding`、
+///   `withdrawn`、`notional_in`、`open_legacy_legs`、`risk_mode`。本算子及其调用的
+///   [`RiskPolicy::enter_ready`]（消费 stage/withdrawn/legs/risk_normal/`tw()`——tw() 三量均为
+///   成本基口径，不含未实现浮盈）只读白名单字段。
+/// - **黑名单（不得驱动 stage）**：`hwm_gain`（未实现峰值，R3 已裁语义回补）、当前 MTM equity、
+///   `forced_pnl`（报告用假设强平）、任何未平仓路径依赖浮盈。本算子不读任何黑名单字段——
+///   若未来修改让黑名单字段进入判据，即触发 A' 边界条件 (b)，须重新提交裁决。
+/// - **Realize 后不回退 stage**（推导链第 8 条）：本金已退（withdrawn≥notional_in）是历史事实，
+///   后续亏损只降 free/权益，不否定已发生的相变（`advance_to` rank 单向 + Realize 不触 stage）。
 pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> Option<TwEvent> {
     let risk_normal = matches!(risk_mode, RiskMode::Normal);
     match s.stage {
@@ -332,11 +369,12 @@ pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: Ris
 /// `transition_writes_full_state`（hybridStep = transition x (policyTheta x e) e）证 T 写回完整下一态。
 /// 闭环写回各分量（δ 只更新 micro_state，**ledger/accounting 更新放进 T**）：
 /// - `micro_state` := `micro_delta(x.micro_state, e.parse_event)`（解析层在线推进一步，T-causal）。
-/// - `ledger_state` := `ledger_step(x.ledger_state, o.ledger_event)`（**账本更新，保 R=Π-A-W**，契约锚
-///   `Origin.ledgerStep` + `ledger_invariant_preservation`——用订单携带的账本事件，使账户态生成进入
-///   闭环，补账户因果洞）。
-/// - `tw_state` := `tw_step(x.tw_state, o.tw_event)`（**取本金三阶段账本更新，保 TW 守恒 + stage 单向**
-///   ——task #93 真线程化：用订单携带的 tw_event 驱动 TW 账本一步；与 ledger_state 双层并置）。
+/// - `ledger_state` := 成本基事件 `ledger_step(x.ledger_state, o.ledger_event)` 后接利润分量
+///   `LedgerEvent::Realize(o.realized_pnl)`（非零时）——**保 R=Π-A-W**，契约锚 `Origin.ledgerStep` +
+///   `ledger_invariant_preservation`。★A' 清单④：Π 只收真实利润，成本基走 Allocate（不混称）。
+/// - `tw_state` := 成本基 `tw_step(x.tw_state, o.tw_event)` 后接 `TwEvent::Realize(o.realized_pnl)`
+///   （非零时，硬边界2 顺序）——**非 Realize 事件保 TW 守恒，Realize 漂移 = 已实现 PnL** + stage 单向
+///   ——task #93 真线程化 + A' 利润入账；与 ledger_state 双层并置。
 /// - `positions` := `o.target_pos`（写回新持仓）。
 /// - `orders` := `x.orders + 1`（订单计数推进）。
 /// - `phase` := `phase_from_stage(tw_next.stage)`（**由取本金阶段派生写回**，codex #2 根因修复：
@@ -348,12 +386,13 @@ pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: Ris
 /// ★诚实标注（codex R3）：T **只声明闭环状态转移全定义**（产出确定的下一态），**不**声明该转移
 /// 盈利/最优/实盘有效（L3）。
 ///
-/// ★三阶段推进（GAP3 修复 + codex R3 C' 终局裁定）：base tw_step（订单派生事件）后，再经诊断重估步
-/// （只推进 hwm_gain，零承重）与 [`stage_progression`]（barrier-gated）各 tw_step 一次——stage_progression
-/// **仅在有 sound 资金源**（cash-tight 退本金 w≤free）时推进；浮盈经 hwm_gain 诊断不入 free（C'），故 L0
-/// 同价与 L2 变价下均无非回补资金源 ⟹ 恒不推进（EarningShares 结构不可达，见
-/// `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）。各 tw_step 都保 TW 守恒 +
-/// stage 单向 + OQ-9 gate + 出口现金-sound 检查。
+/// ★三阶段推进（GAP3 修复 + codex R3 C' + A' 终局裁定）：base tw_step（成本基事件）→ Realize
+/// （同一成交的已实现 PnL，硬边界2 顺序）→ 诊断重估步（只推进 hwm_gain，零承重）→
+/// [`stage_progression`]（barrier-gated）。stage_progression **仅在有 sound 资金源**（cash-tight
+/// 退本金 w≤free）时推进——A' 后 free 的合法来源 = 成本基回流 + **已实现 PnL**（白名单，推导链
+/// 第 6 条）；未实现浮盈仍只进诊断 hwm_gain（黑名单）。L0 同价下平仓 PnL ≡ 0 ⟹ 无漂移 ⟹
+/// EarningShares 不可达（L0 同价无盈亏定理，见 runner `earning_shares_unreachable_l0_same_price_zero_pnl`）；
+/// L2 变价下已实现利润真入 free ⟹ P3/P4 现实可达。各步保 stage 单向 + OQ-9 gate + 出口现金-sound 检查。
 ///
 /// ★★codex R3 §9.3（release 语义）：两道 gate（OQ-9 + 现金-sound）从 `assert!` panic 改为
 /// **`Result::Err`**——非法转移返回 [`TransitionError`]（release 下可恢复错误，非 abort），调用方决定
@@ -375,29 +414,39 @@ pub fn transition_adapter(
     }
     // base tw_step（订单派生事件：schedule 只派 ShortDiff——Δ 驱动的 free⇄holding 值转移）。
     let tw_after_order = tw_step(&x.tw_state, o.tw_event);
-    // ★★GAP3 桥重估步（codex R3 C' 终局裁定：hwm_gain 降为纯诊断，零承重）：价格幅度管线保留（§5.4），
-    // 但重估浮盈**只推进诊断高水位 hwm_gain**，**不入账 free/cum_net_cash，不驱动 stage_progression**。
-    // unrealized = positions·price − holding（成本基）；只对**超过 hwm_gain 高水位的增量**派 `Revalue(delta)`，
-    // delta = max(0, unrealized − hwm_gain)。Revalue 现为诊断-only（保 TW 守恒），故 free 恒不受重估影响 ⟹
-    // stage_progression 只在真实卖出现金源（ShortDiff 回流）可 sound 退本金时推进：
-    // - price=1（L0 单位价归一）⟹ unrealized=0 ⟹ delta=0 ⟹ Revalue 不派发（退化为守恒单位模型）。
-    // - price>1 浮盈创新高（L2 变价）⟹ delta>0 ⟹ 只推进诊断 hwm_gain，free/stage 不变 ⟹ EarningShares
-    //   在 L0/L2 均**结构不可达**（GAP3「∃t TStage=III」恢复 FALSIFIED——codex R3 C'：无非回补资金源）。
-    let tw_after_revalue = if e.price > 0 {
-        let unrealized = (o.target_pos as i64) * e.price - tw_after_order.holding;
-        let hwm_delta = (unrealized - tw_after_order.hwm_gain).max(0);
-        if hwm_delta > 0 {
-            tw_step(&tw_after_order, TwEvent::Revalue(hwm_delta))
-        } else {
-            tw_after_order
-        }
+    // ★★A' 利润入账（codex GAP3 裁定，硬边界2）：同一成交的**成本基 ShortDiff 已在上一步完成**，
+    // 利润分量 realized_pnl（实际减/平仓 fill 的 |Δ|·(price−avg_cost)，可正可负）随后 Realize 入
+    // free——顺序不可换（Realize 进 stage 判据前须先完成同一成交的成本基更新）。Realize raw 恒合法
+    // （OQ-9，推导链第 7 条），负值透支由下方现金-sound gate 统一拦截（不静默落盘，清单②）。
+    let tw_after_realize = if o.realized_pnl != 0 {
+        tw_step(&tw_after_order, TwEvent::Realize(o.realized_pnl))
     } else {
         tw_after_order
     };
+    // ★★GAP3 桥重估步（codex R3 C' 终局裁定：hwm_gain 降为纯诊断，零承重）：价格幅度管线保留（§5.4），
+    // 但重估浮盈**只推进诊断高水位 hwm_gain**，**不入账 free/cum_net_cash，不驱动 stage_progression**。
+    // unrealized = positions·price − holding（成本基）；只对**超过 hwm_gain 高水位的增量**派 `Revalue(delta)`，
+    // delta = max(0, unrealized − hwm_gain)。Revalue 为诊断-only（保 TW 守恒），free 恒不受重估影响 ⟹
+    // stage_progression 的资金源边界（A' 推导链第 6 条白名单）：**已实现 PnL（Realize）与成本基回流
+    // （ShortDiff）可驱动 free 进 stage 判据；未实现浮盈（hwm_gain/MTM）不可**：
+    // - price=1（L0 单位价归一）⟹ unrealized=0 且 realized=0（同价平仓无盈亏）⟹ 退化为守恒单位模型
+    //   ⟹ EarningShares 在 L0 同价下不可达（L0 同价无盈亏定理，见 runner 具名测试）。
+    // - price>1（L2 变价）⟹ 浮盈只进诊断 hwm_gain；**已实现平仓盈亏经 Realize 真入 free** ⟹
+    //   足额退本金可由已实现利润满足 ⟹ P3/P4 现实可达（A' 落地，GAP3 留白解除）。
+    let tw_after_revalue = if e.price > 0 {
+        let unrealized = (o.target_pos as i64) * e.price - tw_after_realize.holding;
+        let hwm_delta = (unrealized - tw_after_realize.hwm_gain).max(0);
+        if hwm_delta > 0 {
+            tw_step(&tw_after_realize, TwEvent::Revalue(hwm_delta))
+        } else {
+            tw_after_realize
+        }
+    } else {
+        tw_after_realize
+    };
     // ★阶段推进（GAP3）：barrier-gated 派生 RecoverCapital→EnterEarning。stage_progression 在诊断重估后的
-    // 态上评估——但 hwm_gain 诊断不入 free（codex R3 C'），故推进只依赖真实卖出现金回流的 sound free；
-    // L0 同价与 L2 变价下浮盈均不入 free ⟹ 「足额退本金 free≥recover_target」不因浮盈满足 ⟹ 恒不推进
-    // （EarningShares 结构不可达，GAP3「∃t TStage=III」FALSIFIED——codex R3 C' 终局裁定）。
+    // 态上评估——hwm_gain 诊断不入 free（codex R3 C'），推进只依赖 sound free（成本基回流 + 已实现
+    // PnL，A' 白名单）；「足额退本金 free≥recover_target」在 L2 变价下可由已实现利润满足（A' 落地）。
     let tw_next = match stage_progression(policy, &tw_after_revalue, x.risk_mode) {
         Some(stage_event) => {
             // ★codex R3 §9.3：阶段推进事件（RecoverCapital/EnterEarning）非法 ⟹ Err（RecoverCapital
@@ -426,7 +475,16 @@ pub fn transition_adapter(
     }
     Ok(AssemblyState {
         micro_state: micro_delta(&x.micro_state, e.parse_event),
-        ledger_state: ledger_step(&x.ledger_state, o.ledger_event),
+        // R=Π-A-W 账本：成本基事件（Allocate/Noop）后，同一成交的利润分量以 LedgerEvent::Realize
+        // 入 Π（与 TwEvent::Realize 是**不同账本**的构造子，不混称——A' 裁定清单⑨）。
+        ledger_state: {
+            let after_order = ledger_step(&x.ledger_state, o.ledger_event);
+            if o.realized_pnl != 0 {
+                ledger_step(&after_order, LedgerEvent::Realize(o.realized_pnl))
+            } else {
+                after_order
+            }
+        },
         tw_state: tw_next,
         risk_mode: x.risk_mode,
         // ★codex #2 根因修复（phase/TStage 脱钩）：phase **由 tw_state.stage 派生写回**，不再原样
@@ -613,14 +671,18 @@ mod tests {
     // ──────────────────────────────────────────────────────────────────────
 
     /// ★tw_state 真被线程化（契约锚 `Origin.TotalWealth.twStep`——#127 native port，非恒等挂件）：
-    /// 闭环后 tw_state = tw_step(x.tw_state, policy_output(x).tw_event)——非恒等挂件。
+    /// 闭环后 tw_state = 成本基 tw_step ∘ Realize（A' 事件序列，硬边界2 顺序）——非恒等挂件。
     #[test]
     fn hybrid_step_threads_tw_state() {
         let x = AssemblyState::initial(1_000_000);
         let e = bar_event(true);
         let order = policy_output(&x, &e);
         let x1 = hybrid_step_baseline(&x, &e).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
-        assert_eq!(x1.tw_state, tw_step(&x.tw_state, order.tw_event));
+        let mut expect = tw_step(&x.tw_state, order.tw_event);
+        if order.realized_pnl != 0 {
+            expect = tw_step(&expect, TwEvent::Realize(order.realized_pnl));
+        }
+        assert_eq!(x1.tw_state, expect);
     }
 
     /// ★micro_state 真被推进（非恒等）：闭环后 bars_seen + bar_count 真增长。
@@ -720,6 +782,7 @@ mod tests {
             target_pos: x.positions,
             ledger_event: LedgerEvent::Noop,
             tw_event: TwEvent::OpenShareLeg,
+            realized_pnl: 0,
         };
         let r = transition_adapter(&x, &illegal, &bar_event(true), &RiskPolicy::baseline());
         assert_eq!(
@@ -743,12 +806,119 @@ mod tests {
             target_pos: x.positions + 1,
             ledger_event: LedgerEvent::Allocate(1),
             tw_event: TwEvent::ShortDiff(-1),
+            realized_pnl: 0,
         };
         let r = transition_adapter(&x, &overdraft, &bar_event(true), &RiskPolicy::baseline());
         assert_eq!(
             r,
             Err(TransitionError::CashUnsound { free: -1, holding: 1, withdrawn: 0 }),
             "外部注入透支 ShortDiff(-1) 从 free=0 ⟹ Err(CashUnsound{{free:-1}})（release 语义，非 panic）"
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★★codex GAP3 裁定 A' 清单④：减仓成本基与利润分离（schedule 分解 + transition 双账本入账）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★A' 清单④（schedule 层分解）：减仓订单 = 成本基事件 + 利润分量两件套——
+    /// 成本基走 `Allocate(−basis)`/`ShortDiff(+basis)`（**不再**把成本基释放误记
+    /// `LedgerEvent::Realize`），利润 `realized_pnl = |Δ|·(price − avg_cost)` 可正可负。
+    #[test]
+    fn schedule_reduce_separates_cost_basis_and_realized_pnl() {
+        // 建仓后态：positions=2，holding=16（avg_cost=8），free=0。
+        let x = AssemblyState {
+            positions: 2,
+            tw_state: TwState { holding: 16, notional_in: 16, ..TwState::initial() },
+            ..AssemblyState::initial(1_000_000)
+        };
+        // 盈利平仓：price=13 > avg_cost=8 ⟹ basis=16 回流 + realized=2·(13−8)=+10。
+        let o_gain = schedule_adapter(&x, StrictAction::Sell, 0, 13);
+        assert_eq!(o_gain.target_pos, 0, "全平");
+        assert_eq!(o_gain.ledger_event, LedgerEvent::Allocate(-16), "成本基解除资本化（非 Realize 混称）");
+        assert_eq!(o_gain.tw_event, TwEvent::ShortDiff(16), "成本基 holding→free 回流");
+        assert_eq!(o_gain.realized_pnl, 10, "利润分量 = |Δ|·(price−avg_cost) = 2·5");
+        // 亏损平仓：price=5 < avg_cost=8 ⟹ realized=2·(5−8)=−6（可负，非利润棘轮——推导链第 5 条）。
+        let o_loss = schedule_adapter(&x, StrictAction::Sell, 0, 5);
+        assert_eq!(o_loss.realized_pnl, -6, "亏损如实结算（只入正数=重造棘轮，裁定禁止）");
+        assert_eq!(o_loss.tw_event, TwEvent::ShortDiff(16), "成本基回流与盈亏无关（同一 basis）");
+        // 建仓侧无利润分量。
+        let funded = AssemblyState::funded_campaign(1_000_000, 8);
+        let o_buy = schedule_adapter(&funded, StrictAction::Buy, 1, 1);
+        assert_eq!(o_buy.realized_pnl, 0, "建仓无平仓分量");
+        // L0 同价（price=avg_cost=8）⟹ realized=0（L0 同价无盈亏引理——runner 具名定理的 schedule 层根）。
+        let o_same = schedule_adapter(&x, StrictAction::Sell, 0, 8);
+        assert_eq!(o_same.realized_pnl, 0, "同价平仓零盈亏（L0 退化）");
+    }
+
+    /// ★A' 清单④（transition 层入账）：同一减仓成交经 transition_adapter 后，利润分别进
+    /// **两个账本**——TW `free`（TwEvent::Realize，TW 漂移 = realized）与 R 账本 `Π`
+    /// （LedgerEvent::Realize，成本基 Allocate 对称清零）。硬边界2：成本基先于 Realize。
+    #[test]
+    fn transition_realize_profit_and_loss_enters_both_ledgers() {
+        use super::super::super::strategy::ledger::LedgerComp;
+        let post_entry = AssemblyState {
+            positions: 2,
+            tw_state: TwState { holding: 16, notional_in: 16, ..TwState::initial() },
+            // 建仓后 R 账本：Allocate(+16) 已发生 ⟹ a=16, r=−16（inv 保持）。
+            ledger_state: LedgerComp { i0: 1_000_000, pi: 0, a: 16, w: 0, r: -16 },
+            ..AssemblyState::initial(1_000_000)
+        };
+        let tw0 = post_entry.tw_state.tw();
+        // 盈利平仓 price=13：realized=+10。
+        let e_gain = AssemblyEvent { parse_event: MicroEvent::NewBar(true), price: 13 };
+        let o_gain = schedule_adapter(&post_entry, StrictAction::Sell, 0, 13);
+        let x1 = transition_adapter(&post_entry, &o_gain, &e_gain, &RiskPolicy::baseline())
+            .expect("生产减仓恒 Ok（卖出所得 ≥ 0 不透支）");
+        assert_eq!(x1.tw_state.free, 26, "free = 成本基 16 + 利润 10（先 ShortDiff 后 Realize）");
+        assert_eq!(x1.tw_state.holding, 0, "成本基全部回流");
+        assert_eq!(x1.tw_state.tw(), tw0 + 10, "TW 漂移恰 = 已实现 PnL（非守恒 bug，结算事实）");
+        assert_eq!(x1.ledger_state.pi, 10, "Π 只收真实利润（成本基不再污染 Π）");
+        assert_eq!(x1.ledger_state.a, 0, "Allocate(−16) 与建仓 Allocate(+16) 对称清零");
+        assert!(x1.ledger_state.inv_holds(), "R=Π-A-W 保持");
+        // 亏损平仓 price=5：realized=−6（可负入账）。
+        let e_loss = AssemblyEvent { parse_event: MicroEvent::NewBar(true), price: 5 };
+        let o_loss = schedule_adapter(&post_entry, StrictAction::Sell, 0, 5);
+        let x2 = transition_adapter(&post_entry, &o_loss, &e_loss, &RiskPolicy::baseline())
+            .expect("亏损平仓仍 sound（free = 16−6 = 10 ≥ 0）");
+        assert_eq!(x2.tw_state.free, 10, "free = 成本基 16 − 亏损 6");
+        assert_eq!(x2.tw_state.tw(), tw0 - 6, "TW 漂移 = −6（亏损如实，非棘轮）");
+        assert_eq!(x2.ledger_state.pi, -6, "Π 收真实亏损");
+        assert!(x2.ledger_state.inv_holds());
+        assert_eq!(x2.tw_state.stage, TStage::CostReduction, "亏损平仓不触发阶段推进（holding<notional）");
+    }
+
+    /// ★A' 清单②（cash-sound gate 防负 free 静默落盘）：负 `Realize` 使 free 透支时，
+    /// transition_adapter 返 `Err(CashUnsound)`——**不静默写负 free**。两条注入路径都被拦：
+    /// `realized_pnl` 字段与直接注入 `tw_event=Realize(−n)`（Realize raw 恒合法过 OQ-9，
+    /// 约束正是在此 gate——推导链第 7 条「真正约束在 producer/source-validity 和 cash-sound gate」）。
+    #[test]
+    fn transition_negative_realize_overdraft_returns_err() {
+        let x = AssemblyState::initial(1_000_000); // free=0
+        // 路径1：realized_pnl 字段透支。
+        let via_field = OrderOut {
+            action: StrictAction::Sell,
+            target_pos: 0,
+            ledger_event: LedgerEvent::Noop,
+            tw_event: TwEvent::ShortDiff(0),
+            realized_pnl: -5,
+        };
+        assert_eq!(
+            transition_adapter(&x, &via_field, &bar_event(true), &RiskPolicy::baseline()),
+            Err(TransitionError::CashUnsound { free: -5, holding: 0, withdrawn: 0 }),
+            "realized_pnl=−5 从 free=0 ⟹ Err(CashUnsound)（负 free 不静默落盘，清单②）"
+        );
+        // 路径2：tw_event 直接注入 Realize(−7)（raw 恒合法 ⟹ 过 OQ-9 gate，被 cash-sound gate 拦）。
+        let via_event = OrderOut {
+            action: StrictAction::Hold,
+            target_pos: 0,
+            ledger_event: LedgerEvent::Noop,
+            tw_event: TwEvent::Realize(-7),
+            realized_pnl: 0,
+        };
+        assert_eq!(
+            transition_adapter(&x, &via_event, &bar_event(true), &RiskPolicy::baseline()),
+            Err(TransitionError::CashUnsound { free: -7, holding: 0, withdrawn: 0 }),
+            "注入 Realize(−7)：OQ-9 恒合法但现金-sound gate 拦截（约束位置 = 推导链第 7 条）"
         );
     }
 }
