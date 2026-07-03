@@ -227,6 +227,22 @@ if [ "$COUNT" -ge 3 ] && [ "$PRE_ACTIVE_TASKS" -eq "$LAST_ACTIVE" ]; then
     exit 0
 fi
 
+# ─── 熔断计数器唯一写点（#136 口径统一修复） ───
+# 根因：check2 写点曾写 ACTIVE_TASKS（自算口径，排除 blocked pending，实测 5），而放行
+#   判断用 PRE_ACTIVE_TASKS（全部 pending+in_progress，实测 9）——两口径分叉致 LAST_ACTIVE
+#   恒 5、PRE 恒 9 永不相等，熔断死锁（counter=11:5 仍不放行）。
+# 统一：所有 block 分支经本函数写入，与放行判断同口径 PRE_ACTIVE_TASKS。「状态停滞」语义
+#   = Lead 任务目录的 pending+in_progress 全集不变（blocked pending 也是状态的一部分——
+#   解除阻塞即状态变化，须 reset）。ACTIVE_TASKS 仅用于 check2 路由文本，不进计数器。
+# 145号语义：任务态变化 → reset 1:新值；不变 → COUNT+1，连续 3 次由顶部放行。
+write_counter() {
+    if [ "$PRE_ACTIVE_TASKS" -ne "$LAST_ACTIVE" ]; then
+        echo "1:$PRE_ACTIVE_TASKS" > "$COUNTER"
+    else
+        echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+    fi
+}
+
 # ─── 检查 1：069号下游推论或 session 中断点有未执行的工作 ───
 # 检测"有活干但没人在干"：session 记录有下一轮方向，但没有活跃蜂群
 HAS_PENDING_WORK=0
@@ -265,7 +281,7 @@ print(' | '.join(items[:5]))
 fi
 
 if [ "$HAS_PENDING_WORK" -gt 0 ]; then
-    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+    write_counter
     python -c "
 import json, sys
 work = sys.argv[1]
@@ -313,7 +329,7 @@ if has_work:
     print("__NO_TEAM__")
 ' "$LEAD_TEAM" "$HOME/.claude/teams" "$IS_TEAMMATE" ".chanlun/genealogy/pending" 2>/dev/null || echo "")
     if [ -n "$STRUCT_MISSING" ]; then
-        echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+        write_counter
         if [ "$STRUCT_MISSING" = "__NO_TEAM__" ]; then
             python -c "
 import json
@@ -411,13 +427,8 @@ print(f'{status}\t{\"BLOCKED\" if has_open_blockers else \"UNBLOCKED\"}\t{owner}
 fi
 
 if [ "$ACTIVE_TASKS" -gt 0 ]; then
-    # 145号智能熔断：写入 COUNT:ACTIVE_TASKS 格式
-    if [ "$ACTIVE_TASKS" -ne "$LAST_ACTIVE" ]; then
-        # 状态发生变化，重置计数器
-        echo "1:$ACTIVE_TASKS" > "$COUNTER"
-    else
-        echo "$((COUNT + 1)):$ACTIVE_TASKS" > "$COUNTER"
-    fi
+    # #136：计数器统一走 write_counter（PRE 口径）；ACTIVE_TASKS 仅用于下方路由文本
+    write_counter
     # ─── (c) 生产端 spawn mandate（#41 机制化，约束4 093号）───
     # canonical 单一源：.claude/team-topology.json spawn_mandate.template（唯一权威，编辑只此一处）。
     # 降级 fallback（codex 异质审计 D 修复）：canonical 不可读时启用，明确标注 [降级 fallback]，
@@ -545,7 +556,7 @@ print(','.join(idle))
 fi
 
 if [ -n "$IDLE_TEAMMATES" ]; then
-    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+    write_counter
     python -c "
 import json, sys
 idle = sys.argv[1]
@@ -675,7 +686,7 @@ print(str(is_resp))
     fi
 
     if [ "$IS_RESPONSIBLE" -eq 1 ]; then
-        echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+        write_counter
         python -c "
 import json, sys
 n = sys.argv[1]
@@ -706,7 +717,7 @@ if [ -d "spec" ] || [ -d "src" ] || [ -d ".chanlun" ]; then
 fi
 
 if [ "$PROOF_REQUIRED" -gt 0 ]; then
-    echo "$((COUNT + 1)):$PRE_ACTIVE_TASKS" > "$COUNTER"
+    write_counter
     python -c "
 import json, sys
 n = sys.argv[1]
