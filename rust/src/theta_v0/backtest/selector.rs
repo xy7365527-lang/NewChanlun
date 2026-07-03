@@ -37,11 +37,15 @@
 //! χ=1[μ>θ] 的 ΔN 序列非全等，**L1**），**不**证明 alpha 提升（**那需要 walk-forward μ，是后续
 //! 工位**）。本模块只提供选择器纯函数；μ 表的因果获取由调用方负责并诚实标注其泄漏状态。
 
+use std::rc::Rc;
+
 use super::mu_estimator::{MuClass, MuEstimator, PositionState};
 use crate::theta_v0::classifier::divergence::ForceProxies;
+use crate::theta_v0::classifier::recursive_tower::LeveledMove;
 use crate::theta_v0::strategy::coverage::Vertical;
 use crate::theta_v0::strategy::interp::Candidate;
 use crate::theta_v0::strategy::voice::VoiceSide;
+use crate::theta_v0::types::Bar;
 
 /// χ_t(γ) = 1 ⟺ μ(γ) > θ ∧ RiskOK ∧ ConflictOK（§13 line 2239）。
 ///
@@ -131,7 +135,26 @@ pub fn chi_open_gate_lcb(
     chi_t(est.mu_lcb(z, z_alpha), theta, risk_ok, conflict_ok, treat_empty_as_pass)
 }
 
-/// 候选 γ ([`Candidate`]) → 全互斥分类 z ([`MuClass`])（§16 z 六维）的桥接。
+/// σ_higher：信号所在 level 的上级层（tower[level+1]）末走势端点价净差符号（666 号，见
+/// SignalDecomp.sigma_higher；667 号实证级别依赖调制器）。+1 净涨 / −1 净跌 / 0 持平；
+/// level+1 越界或上级层空 → 0。端点越界/非正 close → 0（诚实，不兜底）。
+///
+/// **单一来源**（codex-q1 G2）：z 构造（[`z_of_candidate`]）与 econ_positive 信号分解
+/// （SignalDecomp.sigma_higher）共用本函数——训练表与生产 χ 查询同口径，防"训练填真值/
+/// 查询填 None"的静默桶不命中（H 轴接入时修过的同类陷阱，z-bucket-impl 边界条件(a)）。
+pub(super) fn sigma_higher_at(tower: &[Rc<Vec<LeveledMove>>], bars: &[Bar], level: usize) -> i8 {
+    let Some(upper) = tower.get(level + 1) else { return 0 };
+    let Some(m) = upper.last() else { return 0 };
+    let (s, e) = (bars.get(m.start_index), bars.get(m.end_index));
+    match (s, e) {
+        (Some(sb), Some(eb)) if sb.close > 0 && eb.close > 0 => {
+            (eb.close - sb.close).signum() as i8
+        }
+        _ => 0,
+    }
+}
+
+/// 候选 γ ([`Candidate`]) → 全互斥分类 z ([`MuClass`])（§16 z 基六维 + H/force/σ_higher）的桥接。
 ///
 /// `Candidate` 已带 `level`/`dir`(δ_g)/`bits`(I_γ)/`role`(R(g)=(H,V,δ))。z 的 `parent_dir` σ_p 与
 /// `position` 仓位态从 `role.v`（[`Vertical`]）推（与 [`MuClass::from_certificate`] 的 `short_swing`
@@ -140,9 +163,14 @@ pub fn chi_open_gate_lcb(
 /// - `FollowParent`（δ_g=σ_p，顺父）⟹ `position=Child`，`parent_dir=δ_g`（同向）。
 /// - `ShortDiff`（δ_g=−σ_p，短差）⟹ `position=Child`，`parent_dir=−δ_g`（反向）。
 ///
+/// `tower`/`bars`（codex-q1 G2 护航点）：σ_higher 第 9 维从塔真值取（[`sigma_higher_at`]，按
+/// `c.level`）——**签名强制**携塔，使"训练表填真值/生产查询无塔填 None"的静默退化在类型层不可
+/// 构造（不存在无塔重载）。所有真候选路径（collect_signals/build_mu_from_bars/fill loop χ 门）
+/// 均有 `tower_i`/`bars` 在手。
+///
 /// `Flat` 方向候选（不可交易，归 𝒦_x 记录）δ 占位 +1——其 z 不被 χ 用于开仓（interpret 已归 record）；
 /// 此桥接只服务**方向候选**的 χ 过滤，Flat 候选由 [`filter_gamma`] 在构 z 前按 `c.dir==Flat` 跳过。
-pub fn z_of_candidate(c: &Candidate) -> MuClass {
+pub fn z_of_candidate(c: &Candidate, tower: &[Rc<Vec<LeveledMove>>], bars: &[Bar]) -> MuClass {
     let delta: i8 = match c.dir {
         VoiceSide::Long => 1,
         VoiceSide::Short => -1,
@@ -155,8 +183,10 @@ pub fn z_of_candidate(c: &Candidate) -> MuClass {
     };
     // H 轴（codex #81 `h_axis_in_canonical_z: accept`）：真候选带 role.h ⟹ 填 Some(h)，升 canonical z
     // 到完整 R(g)=(H,V,δ)。from_certificate 只填 V 投影 + horizontal=None，此处 struct-update 覆盖 H。
+    // σ_higher 第 9 维（codex-q1 G2）：塔真值 Some(v)——v=0 是计算结果（上级持平/无上级），非未知。
     MuClass {
         horizontal: Some(c.role.h),
+        sigma_higher: Some(sigma_higher_at(tower, bars, c.level as usize)),
         ..MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
     }
 }
@@ -166,8 +196,13 @@ pub fn z_of_candidate(c: &Candidate) -> MuClass {
 /// 在 [`z_of_candidate`] 基础上填 `force_state = fp.map(|f| f.force_state())`——**调
 /// divergence.rs 唯一支配序原语 [`ForceProxies::force_state`]，不在此重算比较**（no-patch，路由 ⑤）。
 /// `fp=None`（该候选无 A/C 段力度对，如二/三类）⟹ `force_state=None`（诚实，同 horizontal None）。
-pub fn z_of_candidate_with_force(c: &Candidate, fp: Option<ForceProxies>) -> MuClass {
-    MuClass { force_state: fp.map(|f| f.force_state()), ..z_of_candidate(c) }
+pub fn z_of_candidate_with_force(
+    c: &Candidate,
+    fp: Option<ForceProxies>,
+    tower: &[Rc<Vec<LeveledMove>>],
+    bars: &[Bar],
+) -> MuClass {
+    MuClass { force_state: fp.map(|f| f.force_state()), ..z_of_candidate(c, tower, bars) }
 }
 
 /// χ_t 候选集过滤（§13 line 2256）：`Γ_t → Γ_t^trade = {γ∈Γ_t : χ_t(γ)=1}`。
@@ -202,8 +237,10 @@ pub fn filter_gamma(
     theta: f64,
     z_alpha: f64,
     treat_empty_as_pass: bool,
+    tower: &[Rc<Vec<LeveledMove>>],
+    bars: &[Bar],
 ) -> Vec<Candidate> {
-    filter_gamma_with_admission(gamma, est, theta, z_alpha, None, treat_empty_as_pass)
+    filter_gamma_with_admission(gamma, est, theta, z_alpha, None, treat_empty_as_pass, tower, bars)
 }
 
 /// 准入量泛化版（acc-three-way-l2 #83）：`shrink_tau_sq=None` ⟹ 准入量 = LCB(μ)（与 [`filter_gamma`]
@@ -221,6 +258,8 @@ pub fn filter_gamma_with_admission(
     z_alpha: f64,
     shrink_tau_sq: Option<f64>,
     treat_empty_as_pass: bool,
+    tower: &[Rc<Vec<LeveledMove>>],
+    bars: &[Bar],
 ) -> Vec<Candidate> {
     gamma
         .iter()
@@ -230,7 +269,9 @@ pub fn filter_gamma_with_admission(
                 return true;
             }
             // 方向候选：准入量>θ 门（RiskOK/ConflictOK 下游已施，此处仅 μ 项 risk_ok=conflict_ok=true）。
-            let z = z_of_candidate(c);
+            // σ_higher 真值查询（codex-q1 G2 护航点）：与训练表同经 z_of_candidate 取塔真值——
+            // 训练 Some(v)/查询 Some(v) 同口径，无静默"未见类别"退化。
+            let z = z_of_candidate(c, tower, bars);
             let admission = match shrink_tau_sq {
                 Some(tau_sq) => est.mu_shrink(&z, tau_sq),
                 None => est.mu_lcb(&z, z_alpha),

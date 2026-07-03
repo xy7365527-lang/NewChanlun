@@ -368,8 +368,10 @@ fn verdict_by<K: Ord + Copy + std::fmt::Debug + std::hash::Hash>(
     (rows, format!("{v:?}"), (nv, nf, ni))
 }
 
-/// full-z×残差逐桶判定（prereg-fullz-policy 阶段2 (A)）：BTC 单标的 walk-forward OOS，桶键=完整 MuClass
-/// 7 维 + UClass 降维并列（桶碎裂防护）。`#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::wverify_fullz -- --ignored --nocapture`。
+/// full-z×残差逐桶判定（prereg-fullz-policy 阶段2 (A)）：BTC 单标的 walk-forward OOS，桶键=MuClass
+/// 8 维（force_state 第 8 维；σ_higher 第 9 维**不进** prereg 桶键——codex-q1 G2 裁定留待新 prereg，
+/// 判定键与 perm 表同投影 sigma_higher→None，防 records Some(v) vs 表键 None 的全表 miss）
+/// + UClass 降维并列（桶碎裂防护）。`#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::wverify_fullz -- --ignored --nocapture`。
 #[test]
 #[ignore]
 fn wverify_fullz() {
@@ -378,10 +380,11 @@ fn wverify_fullz() {
     let (records, _tb) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
     assert!(!records.is_empty(), "walk-forward OOS 残差空——窗口/数据不匹配");
 
-    // full-z（完整 MuClass 7 维，horizontal=Some 走生产路径）。
+    // full-z（MuClass 8 维，horizontal=Some 走生产路径；σ_higher 投影 None 与 perm 表键同口径——G2）。
     let pf = perm_test::stratified_delta_perm_p_fullz(&records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let (frows, fverdict, (fv, ff, fi)) = verdict_by(&records, |c| *c, &pf, |k: &MuClass| Some(k.level));
-    let n_fullz = { let mut s: Vec<MuClass> = records.iter().map(|r| r.class).collect(); s.sort(); s.dedup(); s.len() };
+    let fullz_key = |c: &MuClass| MuClass { sigma_higher: None, ..*c };
+    let (frows, fverdict, (fv, ff, fi)) = verdict_by(&records, fullz_key, &pf, |k: &MuClass| Some(k.level));
+    let n_fullz = { let mut s: Vec<MuClass> = records.iter().map(|r| fullz_key(&r.class)).collect(); s.sort(); s.dedup(); s.len() };
 
     // UClass 降维并列（(level_bucket,δ,role,divergence)，抗碎裂）。
     let pu = perm_test::stratified_delta_perm_p_uclass(&records, perm_test::N_PERM, perm_test::PERM_SEED);
@@ -392,7 +395,7 @@ fn wverify_fullz() {
         "WV_FULLZ residuals={} | full-z: buckets={n_fullz} verdict={fverdict} V={fv}/F={ff}/I={fi} | UClass: buckets={n_uclass} verdict={uverdict} V={uv}/F={uf}/I={ui}",
         records.len()
     );
-    std::fs::write("/tmp/wv_fullz_rows.md", format!("# full-z（完整 MuClass 7 维）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}")).ok();
+    std::fs::write("/tmp/wv_fullz_rows.md", format!("# full-z（MuClass 8 维，σ_higher 不进 prereg 桶键）verdict={fverdict} V={fv}/F={ff}/I={fi}\n\n{frows}")).ok();
     std::fs::write("/tmp/wv_uclass_rows.md", format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}")).ok();
 }
 

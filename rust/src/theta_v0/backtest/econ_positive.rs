@@ -46,7 +46,7 @@ use super::super::classifier::recursive_tower::LeveledMove;
 use super::super::classifier::center::{center_from_segments, UnitRange};
 use super::super::classifier::descend::RMove;
 use super::mu_estimator::{MuClass, PositionState};
-use super::selector::z_of_candidate;
+use super::selector::{sigma_higher_at, z_of_candidate, z_of_candidate_with_force};
 use super::super::strategy::coverage::Horizontal;
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（sell.rs:50 CloseRoot/ReduceCore 对齐）。
@@ -359,10 +359,17 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                         gate_cert.as_ref().expect("pass ⟹ gate_cert Some"),
                         bsp_cand_type(&p.bits, delta_side),
                     );
-                    // b2（task #83）：升 Z 分桶——从候选构造完整 z（含 σ_p/role/H），非事后从
+                    // b2（task #83）：升 Z 分桶——从候选构造完整 z（含 σ_p/role/H/σ_higher），非事后从
                     // (level,δ,bsp_class) 粗投影重推。z_of_candidate 复用 selector 既有 role→z 桥
                     // （codex #81 修正1：信号携带 z:MuClass，不再扩位置易错的裸元组）。
-                    let z = z_of_candidate(c);
+                    // ★force_state 生产热路由（beta-route #115）：一类候选带 p.force（A/C 段 4 proxy），
+                    // z_of_candidate_with_force 调 ForceProxies::force_state() 填 force_state 第 8 维（δ-free
+                    // A4 支配序，perm_test 已按 c.force_state 分桶；二/三类 p.force=None ⟹ force_state=None）。
+                    // ★σ_higher 第 9 维（G2 #132）：塔真值经 z_of_candidate 内 sigma_higher_at 填。
+                    let z = z_of_candidate_with_force(c, p.force, &tower_i, bars);
+                    // G2 一致性护栏：z 内 σ_higher（按 c.level 取）须与信号分解口径（按 lvl 取）同值
+                    // ——同函数同塔，仅 level 来源不同（c.level 由 assemble 自 lvl 单级分类产生）。
+                    debug_assert_eq!(z.sigma_higher, Some(sigma_higher), "z.sigma_higher 与 SignalDecomp 口径分叉");
                     signals.push(RawSignal {
                         entry_bar: i,
                         dir: c.dir,
@@ -1365,23 +1372,8 @@ pub(super) fn build_gate_certificate(
     }
 }
 
-/// σ_higher：信号所在 level 的上级层（tower[level+1]）末走势端点价净差符号（666 号，见 SignalDecomp.sigma_higher）。
-/// +1 净涨 / −1 净跌 / 0 持平；level+1 越界或上级层空 → 0。端点越界/非正 close → 0（诚实，不兜底）。
-fn sigma_higher_at(
-    tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
-    bars: &[Bar],
-    level: usize,
-) -> i8 {
-    let Some(upper) = tower.get(level + 1) else { return 0 };
-    let Some(m) = upper.last() else { return 0 };
-    let (s, e) = (bars.get(m.start_index), bars.get(m.end_index));
-    match (s, e) {
-        (Some(sb), Some(eb)) if sb.close > 0 && eb.close > 0 => {
-            (eb.close - sb.close).signum() as i8
-        }
-        _ => 0,
-    }
-}
+// σ_higher_at 已上移 selector.rs（codex-q1 G2 单一来源）：z 构造（第 9 维）与信号分解
+// （SignalDecomp.sigma_higher，666 号）共用同一函数，防训练/查询口径分叉。本文件顶部导入消费。
 
 #[cfg(test)]
 mod tests {
@@ -1390,7 +1382,7 @@ mod tests {
     // ── 小转大通道阶段2（xiaozhuanda）：C2 跨条目 / C3 as-of 最后次级中枢 / gate_pass 二通道 ──
 
     fn xzd_bsp(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
-        BspPoint { source_index, bits, pivot_low: 0, pivot_high: 0, center, struct_break_dir: None }
+        BspPoint { source_index, bits, pivot_low: 0, pivot_high: 0, center, struct_break_dir: None, force: None }
     }
 
     fn xzd_center(zd: i64, zg: i64, s: usize, e: usize) -> Center {
@@ -3614,8 +3606,8 @@ mod tests {
                             continue;
                         }
                         if lvl < LMAX { sig_post[lvl] += 1; }
-                        // C1：与生产 collect_signals 同序同字段（含 b2 完整 z——z_of_candidate 同一桥，
-                        // 保证 dx 手写门与生产收集 bit-exact，尾部 signals_dx vs signals_prod 逐条对拍含 z）。
+                        // C1：与生产 collect_signals 同序同字段（含 b2 完整 z——z_of_candidate_with_force
+                        // 同一桥，保证 dx 手写门与生产收集 bit-exact，尾部 signals_dx vs signals_prod 逐条对拍含 z）。
                         signals_dx.push(RawSignal {
                             entry_bar: i,
                             dir: c.dir,
@@ -3623,7 +3615,7 @@ mod tests {
                             level: lvl as u32,
                             sigma_higher,
                             bsp_class,
-                            z: z_of_candidate(c),
+                            z: z_of_candidate_with_force(c, p.force, &tower_i, bars), // ★force+σ_higher（与生产 368 同源）
                             // P0-1：与生产 collect_signals 同源触发分类（pass ⟹ gate_cert Some）。
                             trigger: nest_trigger(
                                 gate_cert.as_ref().expect("pass ⟹ gate_cert Some"),
@@ -3940,6 +3932,29 @@ mod tests {
             assert_eq!(
                 signals_dx, signals_prod,
                 "dx 手写收集循环 ≠ 生产 collect_signals：门判定/字段漂移（n_delta vs build_multilevel_nest_cert，或 sigma_higher/bsp_class）"
+            );
+        }
+
+        // ★force_state 生产热路由 fill-rate 断言（beta-route #115 step7；perm_test.rs:207-210 指明属 L2
+        // 回测报告消费点，非 lib 单元层）。防「生产全 None 静默」：一类信号（i_class 含 buy1|sell1，
+        // bit0|bit3）⟹ 必有 A/C 段配对（macd_c_lt_a 判据前提）⟹ z.force_state 须 Some（A4 支配序已填）。
+        // 若路由断裂（增量 dif 空 / 透传丢失），一类信号 force_state 全 None ⟹ 此断言 fire。
+        // δ-共线核对（memory「方向性维进桶键=检验自毁」）：force_state 由 A/C 段**绝对量**算，δ-free
+        // （perm_test.rs:220 置于 base_of δ-free 键，置换 δ 时恒定）⟹ 非方向性 A4 支配序，不引入 δ-共线。
+        let type1_sigs = signals_dx.iter().filter(|s| s.z.i_class & 0b001_001 != 0).count();
+        let type1_forced = signals_dx
+            .iter()
+            .filter(|s| s.z.i_class & 0b001_001 != 0 && s.z.force_state.is_some())
+            .count();
+        eprintln!(
+            "[force_state 生产路由] 信号总数={} 一类(buy1|sell1)={} force_state=Some={} 填充率={:.0}%",
+            signals_dx.len(), type1_sigs, type1_forced,
+            if type1_sigs > 0 { 100.0 * type1_forced as f64 / type1_sigs as f64 } else { 0.0 }
+        );
+        if type1_sigs > 0 {
+            assert_eq!(
+                type1_forced, type1_sigs,
+                "force_state 生产热路由：每个一类信号（A/C 段可配对）z.force_state 须 Some（防增量 dif 空/透传丢失致全 None 静默）"
             );
         }
         let (decomps_prod, agg_prod) = pair_signals(&signals_dx, bars, tick, fee_rate);

@@ -72,6 +72,8 @@ pub enum PositionState {
 ///   `None` 在同一消费路径内恒定 ⟹ 不改分桶（如 perm_test/wverify 按 (ℓ,bsp,δ,σ_p) 4 维分桶不读 H）。
 ///   winner selection 不用 H（codex `h_axis_in_default_selection: conditional`）：H 只进 z 报告，
 ///   降维 [`UClass::project_to_u`] 默认丢 H（§30 抗 winner's curse）。
+/// - `sigma_higher` σ^higher 上级方向态（第 9 维，codex-q1 G2）：canonical z 含之（oracle 上界/
+///   完整性声明用），[`UClass::project_to_u`] 同 H 丢弃（selection 抗碎片化）——复用 H 轴分层先例。
 ///
 /// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）；`Ord` ⟹ 可作 BTreeMap key（有序报告）。
 /// **全互斥**：每个 z 是 {0,1}^6 × 级别 × 方向 × 父向 × 短差 × 仓位态 × H 的唯一组合，无重叠
@@ -90,6 +92,13 @@ pub struct MuClass {
     /// `z_of_candidate_with_force` 从 A/C 段 `ForceProxies::force_state()` 填；`None`=无力度源口径
     /// （`from_certificate`/无 ForceProxies 候选，同 `horizontal` 的诚实 None，231号不伪造）。
     pub force_state: Option<ForceStateA4>,
+    /// σ_higher 上级方向态（第 9 维，codex-q1 G2 终裁翻转 #81：《完整的策略》§6 要求 z ⊇
+    /// (ℓ,δ,σ_higher)；667号实证——级别依赖调制器，效应符号随 level 翻转，不进 z 会把符号相反
+    /// 子群体平均掉）。`Some(v)`=生产路径由 [`super::selector::sigma_higher_at`] 从塔真值填
+    /// （+1 上级净涨 / −1 净跌 / 0 持平或无上级——**0 是计算结果非未知**）；`None`=裸证书口径
+    /// 无 tower/bars 源（[`MuClass::from_certificate`]），诚实 None 不伪造（231号，同 `horizontal`）。
+    /// 与 σ_p（`parent_dir`，持仓树父声部方向）**并列独立**，不合并（#81 反对合并的原理由仍成立）。
+    pub sigma_higher: Option<i8>,
 }
 
 impl MuClass {
@@ -129,6 +138,7 @@ impl MuClass {
             position,
             horizontal: None,
             force_state: None,
+            sigma_higher: None,
         }
     }
 }
@@ -185,6 +195,8 @@ impl UClass {
     /// **H 轴丢弃**（codex #81 `h_axis_in_default_selection: conditional`）：`z.horizontal` 不进 u——
     /// H(g) 是结构关系非操作极性，selection/降维层折叠掉以抗 winner's curse（§29-30）；H 只在 z
     /// 层报告保 R(g) 忠实。故本函数不读 `z.horizontal`（多个 H 的 z 映同一 u）。
+    /// **σ_higher 同 H 丢弃**（codex-q1 G2 碎片化防护）：canonical z 完备 vs UClass 降维 selection
+    /// 的既有分层直接复用——本函数不读 `z.sigma_higher`。
     pub fn project_to_u(z: &MuClass) -> UClass {
         let role = match (z.position, z.short_swing) {
             (PositionState::Root, _) => VoiceRole::Root,

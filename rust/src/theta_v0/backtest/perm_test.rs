@@ -201,8 +201,12 @@ pub fn stratified_delta_perm_p(
     )
 }
 
-/// full-z 桶键 = 完整 [`MuClass`] 8 维逐桶 perm_p（prereg-fullz-policy A3.2 + beta-bucket-design v2 §5.3）。
+/// full-z 桶键 = [`MuClass`] 8 维逐桶 perm_p（prereg-fullz-policy A3.2 + beta-bucket-design v2 §5.3）。
 /// δ-free base = (level, i_class, parent_dir, position, horizontal, force_state)；short_swing 由 perm-δ 重构。
+///
+/// **σ_higher（第 9 维）不进本桶键**（codex-q1 G2 裁定明文：置换桶键口径留待未来 prereg 另行处理，
+/// i_class×δ 共线教训在案）——base 不分层 σ_higher，输出键显式 `sigma_higher: None`（诚实"本口径未
+/// 分层"；不能经 `..*c` 泄漏 stratum 首条 trade 的代表值——那会让键携带未分层的伪信息）。
 ///
 /// **force_state δ-free**：力度支配态由 A/C 段绝对量算，置换 δ 时恒定（§3.1 mirror-invariant）⟹ 合法进 base。
 /// ponytail: force_state 生产未接线前恒 `None`（同一 None 常量分量 ⟹ 分桶不变，向后兼容）；接线后
@@ -218,7 +222,12 @@ pub fn stratified_delta_perm_p_fullz(
         n_perm,
         seed,
         |c| (c.level, c.i_class, c.parent_dir, c.position, c.horizontal, c.force_state),
-        |c, d| MuClass { delta: d, short_swing: c.parent_dir != 0 && d == -c.parent_dir, ..*c },
+        |c, d| MuClass {
+            delta: d,
+            short_swing: c.parent_dir != 0 && d == -c.parent_dir,
+            sigma_higher: None, // 第 9 维不分层（G2 裁定），键不携带代表值伪信息
+            ..*c
+        },
     )
 }
 
