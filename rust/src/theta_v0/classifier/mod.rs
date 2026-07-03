@@ -1990,6 +1990,130 @@ mod tests {
         }
     }
 
+    /// ★#141 一类判据链漏斗普查（外审问题包证据，`--ignored` 手动跑，依赖 analysis/data_cache）：
+    /// 逐级别逐环真实计数——候选评估→趋势门→≥2中枢→broke→A/C配对→背驰。级别循环与 `classify_impl`
+    /// 同一批私有函数（classify_level/compose_level/project_to_units），每级 centers 与生产 `classify`
+    /// 输出 assert 对拍（675号：探针走生产路径）。另产每级中枢链关系直方图 + 前缀 τ 时间线（因果
+    /// 重放中趋势门何时永久锁死 Degenerate）+ 反事实局部同向 run 计数（若按走势分解的局部趋势数）。
+    /// 运行：`cargo test --release --lib -- --ignored --nocapture type1_funnel_census_btc`
+    /// 窗口对照：`CENSUS_WINDOW="2020-10-01,2021-04-01" cargo test --release --lib -- --ignored --nocapture type1_funnel_census_btc`
+    #[test]
+    #[ignore = "L2 真实数据漏斗普查：cargo test --release --lib -- --ignored --nocapture type1_funnel_census_btc"]
+    fn type1_funnel_census_btc() {
+        use super::super::backtest::data::load_by_symbol;
+        use super::super::parser::parse_layer;
+        use super::center::{classify_relation, CenterRelation};
+        let cfg = ThetaConfig::default();
+        let full = load_by_symbol("BTC", &cfg).expect("BTC 数据加载（analysis/data_cache/btc_1m_full.json）");
+        let ds = match std::env::var("CENSUS_WINDOW") {
+            Ok(w) => {
+                let (s, e) = w.split_once(',').expect("CENSUS_WINDOW 格式 start,end");
+                eprintln!("[funnel] window={s}..{e}");
+                full.slice_date_window(s, e)
+            }
+            Err(_) => full,
+        };
+        eprintln!("[funnel] BTC bars={}", ds.bars.len());
+        let layer = parse_layer(&ds.bars, &cfg);
+        eprintln!("[funnel] L0 segments={} merged_bars={}", layer.segments.len(), layer.merged_bars.len());
+
+        // 生产对拍源（675号守卫：级别循环不分叉）。
+        let out = classify(&layer, &cfg);
+
+        // classify_impl 同源输入（同一批私有函数，非重写）。
+        let min_parts = cfg.level.min_parts_per_level as usize;
+        let l_max = cfg.level.l_max as usize;
+        let mut units: Vec<UnitRange> = layer.segments.iter().map(segment_to_unit).collect();
+        assert!(!units.is_empty(), "空 L0 无漏斗对象");
+        let closes: Vec<f64> = layer.merged_bars.iter().map(|b| b.close as f64).collect();
+        let close_src: Vec<usize> = layer.merged_bars.iter().map(|b| b.source_index).collect();
+        let series = divergence::compute_macd(&closes, &cfg.macd);
+        let closes_tick: Vec<Tick> = layer.merged_bars.iter().map(|b| b.close).collect();
+        let mut moves_tower: Rc<Vec<LeveledMove>> = Rc::new(
+            units
+                .iter()
+                .enumerate()
+                .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
+                .collect(),
+        );
+
+        for level_idx in 0..=l_max {
+            if units.len() < min_parts {
+                break;
+            }
+            let is_l0 = level_idx == 0;
+            let (centers, _outcome) = classify_level(&units, is_l0);
+            assert_eq!(
+                centers, *out.levels[level_idx].centers,
+                "L{level_idx} 中枢对拍（探针级别循环须与生产 classify 逐字段一致）"
+            );
+
+            // 中枢链相邻关系直方图 + 前缀 τ 时间线 + 反事实局部同向 run。
+            let rels: Vec<CenterRelation> =
+                centers.windows(2).map(|w| classify_relation(&w[0], &w[1])).collect();
+            let n_up = rels.iter().filter(|r| **r == CenterRelation::UpContinuation).count();
+            let n_down = rels.iter().filter(|r| **r == CenterRelation::DownContinuation).count();
+            let n_exp = rels.iter().filter(|r| **r == CenterRelation::LevelExpansion).count();
+            // 前缀 τ：τ(前k中枢)=Trend ⟺ k≥2 ∧ rels[0..k-1] 全等且非 Expansion。锁死点=首个异关系下标。
+            let trend_open = !rels.is_empty() && rels[0] != CenterRelation::LevelExpansion;
+            let lock_at = if rels.is_empty() {
+                None
+            } else if !trend_open {
+                Some(0) // 首关系即 Expansion ⟹ 第3个中枢确认时 τ 已锁死 Degenerate
+            } else {
+                rels.iter().position(|r| *r != rels[0])
+            };
+            // 反事实（若走势分解为局部走势类型）：同向关系（Up/Down）的极大 run，每个 run 长 L = 局部
+            // 趋势含 L+1 个中枢。计 run 数与最长 run。
+            let (mut runs_ge1, mut longest_run, mut cur_run) = (0usize, 0usize, 0usize);
+            for (k, r) in rels.iter().enumerate() {
+                let same_dir = *r != CenterRelation::LevelExpansion;
+                let cont = same_dir && (k == 0 || rels[k - 1] == *r);
+                if same_dir {
+                    cur_run = if cont { cur_run + 1 } else { 1 };
+                    if cur_run == 1 {
+                        runs_ge1 += 1;
+                    }
+                    longest_run = longest_run.max(cur_run);
+                } else {
+                    cur_run = 0;
+                }
+            }
+            let lock_desc = match lock_at {
+                None if trend_open => format!("全链同向（不锁死）"),
+                None => format!("链长<2 无关系"),
+                Some(i) => {
+                    let c_end = centers[i + 1].end_index;
+                    let date = ds.dates.get(c_end).map(|d| d.get(..10).unwrap_or("?")).unwrap_or("?");
+                    format!("中枢#{}（end_src={} {date}）", i + 1, c_end)
+                }
+            };
+
+            let segs: Vec<Segment> = if is_l0 {
+                layer.segments.to_vec()
+            } else {
+                units.iter().map(unit_to_segment).collect()
+            };
+            let f = signal::type1_funnel_dx(&centers, &segs, &series.hist, &series.dif, &closes_tick, &close_src);
+            eprintln!(
+                "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} tau={:?} | 锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
+                f.n_centers, f.n_segments, n_up, n_down, n_exp, f.tau,
+                lock_desc, runs_ge1, longest_run, longest_run + 1
+            );
+            eprintln!(
+                "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1过趋势门={} → 环2有前驱中枢={} → 环3破最后中枢={} → 环4 A/C配对={} → 环5坐标映射={} → 环6背驰C<A={}",
+                f.s_with_center, f.s_gate_open, f.s_pos_ge1, f.s_broke, f.s_a_paired, f.s_mapped, f.s_diverge
+            );
+
+            let (_cw, upper_moves) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+            units = project_to_units(&upper_moves);
+            moves_tower = Rc::new(upper_moves);
+            if units.is_empty() {
+                break;
+            }
+        }
+    }
+
     #[test]
     fn classify_empty_layer_yields_empty() {
         let cfg = ThetaConfig::default();

@@ -724,6 +724,121 @@ pub fn extract_signals_with_hist(
     points
 }
 
+/// 一类判据链漏斗计数（#141 外审问题包诊断探针，仅 test 构建）。
+///
+/// 与 [`extract_signals_with_hist`] **同一批判据函数**逐环计数（675号 meta-rule：探针走生产路径，
+/// 不另起坐标系）——nearest_confirmed_center_idx / trend_class / first_match_idx / broke 几何 /
+/// locate_trend_seg_a / map_src_range_to_close_idx / AbcDivergence::diverges 全部原函数调用。
+/// 尾部 parity 断言：漏斗幸存数须与生产提取输出逐一相等（分叉即 panic，不产生伪计数）。
+#[cfg(test)]
+pub(crate) struct Type1Funnel {
+    pub tau: TrendClass,
+    pub n_centers: usize,
+    pub n_segments: usize,
+    /// 环1：有「最近已确认中枢」的段数（候选评估入口）。
+    pub s_with_center: usize,
+    /// 环2：趋势门开（τ=Trend）时评估的段数。
+    pub s_gate_open: usize,
+    /// 环3：last_center 有前驱中枢（pos≥1，即 ≥2 中枢可配 A/B/C）。
+    pub s_pos_ge1: usize,
+    /// 环4：C 段破最后中枢几何成立（方向=趋势方向 ∧ 端点越 zd/zg）。
+    pub s_broke: usize,
+    /// 环5：A 段可配对（locate_trend_seg_a=Some）。
+    pub s_a_paired: usize,
+    /// 环6：A/C 段均可映射到 closes 坐标（=生产 struct_break 候选数）。
+    pub s_mapped: usize,
+    /// 环7：MACD 背驰 C<A 成立（=生产 buy1/sell1 数）。
+    pub s_diverge: usize,
+}
+
+#[cfg(test)]
+pub(crate) fn type1_funnel_dx(
+    centers: &[Center],
+    segments: &[Segment],
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+) -> Type1Funnel {
+    let tau = trend_class(centers);
+    let trend_dir = match tau {
+        TrendClass::Trend(d) => Some(d),
+        TrendClass::Consolidation | TrendClass::Degenerate => None,
+    };
+    let mut f = Type1Funnel {
+        tau,
+        n_centers: centers.len(),
+        n_segments: segments.len(),
+        s_with_center: 0,
+        s_gate_open: 0,
+        s_pos_ge1: 0,
+        s_broke: 0,
+        s_a_paired: 0,
+        s_mapped: 0,
+        s_diverge: 0,
+    };
+    let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
+        std::collections::HashMap::new();
+    for (idx, c) in centers.iter().enumerate() {
+        first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
+    }
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+        std::collections::HashMap::new();
+    for seg in segments {
+        let Some(c_idx) = nearest_confirmed_center_idx(centers, seg.start_index) else {
+            continue;
+        };
+        f.s_with_center += 1;
+        let Some(dir) = trend_dir else { continue };
+        f.s_gate_open += 1;
+        let c = &centers[c_idx];
+        let Some(&pos) = first_match_idx.get(&(c.end_index, c.zd, c.zg)) else { continue };
+        if pos < 1 {
+            continue;
+        }
+        f.s_pos_ge1 += 1;
+        // broke 几何（judge_first_cached :274-283 同判据同顺序）。
+        let end = seg_end(seg);
+        let broke = match (end.dir, dir) {
+            (Direction::Down, Direction::Down) => end.price < c.zd,
+            (Direction::Up, Direction::Up) => c.zg < end.price,
+            _ => false,
+        };
+        if !broke {
+            continue;
+        }
+        f.s_broke += 1;
+        let prev_center = &centers[pos - 1];
+        let a = *a_seg_cache
+            .entry(c_idx)
+            .or_insert_with(|| locate_trend_seg_a(segments, prev_center, c, dir));
+        let Some((a_start, a_end)) = a else { continue };
+        f.s_a_paired += 1;
+        let (Some(c_i), Some(a_i)) = (
+            map_src_range_to_close_idx(close_src, seg.start_index, seg.end_index),
+            map_src_range_to_close_idx(close_src, a_start, a_end),
+        ) else {
+            continue;
+        };
+        f.s_mapped += 1;
+        let abc = AbcDivergence {
+            seg_a: (a_start, a_end),
+            seg_c: (seg.start_index, seg.end_index),
+            is_trend: true,
+        };
+        if abc.diverges(hist, a_i, c_i) {
+            f.s_diverge += 1;
+        }
+    }
+    // parity 守卫（675号：探针不分叉）——漏斗幸存数须与生产提取逐一相等。
+    let prod = extract_signals_with_hist(centers, segments, hist, dif, closes_tick, close_src);
+    let prod_t1 = prod.iter().filter(|p| p.bits.buy1 || p.bits.sell1).count();
+    let prod_sb = prod.iter().filter(|p| p.struct_break_dir.is_some()).count();
+    assert_eq!(prod_t1, f.s_diverge, "漏斗环7（背驰）须=生产 buy1/sell1 数");
+    assert_eq!(prod_sb, f.s_mapped, "漏斗环6（mapped 候选）须=生产 struct_break 候选数");
+    f
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
