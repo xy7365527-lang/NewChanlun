@@ -656,6 +656,12 @@ where
     let mut trades: Vec<metrics::TradeRecord> = Vec::new();
     let mut pos_entry_bar: Option<usize> = None;
     let mut n_orders_executed: usize = 0;
+    // ── G4 typed ledger（#134）：腿级在飞表（voice_id → 入场登记）+ 已结算 typed 交易。 ──
+    let mut open_trades: std::collections::HashMap<
+        classifier::recursive_tower::ElementId,
+        LedgerOpen,
+    > = std::collections::HashMap::new();
+    let mut typed_ledger: Vec<TypedTrade> = Vec::new();
 
     for i in 0..n {
         let bar = &bars[i];
@@ -712,13 +718,15 @@ where
             // coverage_step_prebuilt 内 gamma→interpret 三桶 与 work→AncOK 准入解耦（gamma 滤掉
             // μ≤θ 候选 ⟹ interpret 不归 open ⟹ 不开仓 = χ_t 语义）。None ⟹ χ≡1 全覆盖（不滤）。
             let step_gamma_trade = match &chi {
+                // σ_higher 真值穿透（codex-q1 G2 护航点）：生产 χ 查询与训练表同经塔真值构 z——
+                // 训练 Some/查询 None 的静默"未见类别"退化在此被接口封死。
                 Some(ctx) => super::selector::filter_gamma_with_admission(
                     &step_gamma, ctx.est, ctx.theta, ctx.z_alpha, ctx.shrink_tau_sq,
-                    ctx.treat_empty_as_pass,
+                    ctx.treat_empty_as_pass, &tower_i, bars,
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
-            let (next_active, _p_star, order) = coverage::pi_theta_step_prebuilt(
+            let (next_active, _p_star, order, step_trace) = coverage::pi_theta_step_traced(
                 step_work,
                 &step_gamma_trade,
                 &prev_active,
@@ -731,6 +739,54 @@ where
                 &config.voice,
                 &registry,
             );
+            // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
+            // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
+            for (c, leg) in &step_trace.opened {
+                open_trades.insert(leg.id, LedgerOpen {
+                    entry_bar: i,
+                    entry_px: px,
+                    entry_z: super::selector::z_of_candidate(c, &tower_i, bars),
+                    entry_v: c.role.v,
+                });
+            }
+            // 反向关闭：typed 判据单源 reverse_exit_type（入场角色 + 触发候选类）。
+            for (leg, trig) in &step_trace.closed {
+                if let Some(open) = open_trades.remove(&leg.id) {
+                    typed_ledger.push(TypedTrade {
+                        entry_z: open.entry_z,
+                        voice_id: leg.id,
+                        entry_bar: open.entry_bar,
+                        exit_bar: i,
+                        exit_type: interp::reverse_exit_type(open.entry_v, trig.bsp_class),
+                        entry_px: open.entry_px,
+                        exit_px: px,
+                    });
+                }
+                // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
+            }
+            // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：子声部随父失效 ⟹
+            // CloseShortDiff；根腿结构失效 ⟹ CloseRoot（PDF §9 五枚举全集下的最近语义归置，
+            // 判据声明见 g4-impl 结果包边界条件）。
+            for leg in &step_trace.silent_drops {
+                if let Some(open) = open_trades.remove(&leg.id) {
+                    use super::super::strategy::coverage::Vertical;
+                    use super::super::strategy::interp::ExitType;
+                    let exit_type = if open.entry_v != Vertical::Ambient {
+                        ExitType::CloseShortDiff
+                    } else {
+                        ExitType::CloseRoot
+                    };
+                    typed_ledger.push(TypedTrade {
+                        entry_z: open.entry_z,
+                        voice_id: leg.id,
+                        entry_bar: open.entry_bar,
+                        exit_bar: i,
+                        exit_type,
+                        entry_px: open.entry_px,
+                        exit_px: px,
+                    });
+                }
+            }
             // ── ④ 挂单到 exec_index（延迟成交；qty>0 才挂）。 ──
             if order.qty > 0 {
                 if let Some(ei) = exec_index {
@@ -792,6 +848,27 @@ where
         }
     }
 
+    // ── G4 typed ledger 窗口终点 censored（PDF §9 P0 Hold）：未离场腿兑现到末可交易 bar
+    //    close（与旧 build_mu_from_bars censored 语义/窗口终点强平含浮盈同理，不偷看窗外）。──
+    if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
+        let last_px = bars[last_i].close as f64 * config.tick.tick_size;
+        // 确定序输出（HashMap 迭代序不定 ⟹ 按 (entry_bar, voice_id) 排序，bit-exact 可复现）。
+        let mut censored: Vec<(classifier::recursive_tower::ElementId, LedgerOpen)> =
+            open_trades.drain().collect();
+        censored.sort_by_key(|(id, o)| (o.entry_bar, id.level, id.ordinal));
+        for (id, open) in censored {
+            typed_ledger.push(TypedTrade {
+                entry_z: open.entry_z,
+                voice_id: id,
+                entry_bar: open.entry_bar,
+                exit_bar: last_i,
+                exit_type: super::super::strategy::interp::ExitType::Hold,
+                entry_px: open.entry_px,
+                exit_px: last_px,
+            });
+        }
+    }
+
     let daily_returns = bar_returns(&equity_curve);
     FillOutput {
         equity_curve,
@@ -800,7 +877,35 @@ where
         trade_pnls_with_forced,
         trades,
         n_orders: n_orders_executed,
+        typed_ledger,
     }
+}
+
+/// G4（#134）：训练管线的 typed ledger 入口——**生产 π fill loop**（χ≡1 全覆盖）在 `bars` 上
+/// 跑一遍，返回不可变 [`TypedTrade`] ledger（`build_mu_from_bars` 消费，替换 τ^reverse）。
+///
+/// nav 口径与 L3 harness 同（首可交易价×1000，下限 1e6）——腿级生命周期事件（interpret/
+/// AncOK）不依赖 nav 绝对值；nav 只进 base_units/风控门（equity>0 常态下门全开）。
+pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<TypedTrade> {
+    let first_px = bars
+        .iter()
+        .find(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * config.tick.tick_size)
+        .unwrap_or(1.0);
+    let nav = (first_px * 1000.0).max(1.0e6);
+    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    let fill = pi_theta_fill_loop(
+        |i| {
+            let (cls, tower) = classifier_incr.classify_at(i);
+            let gen = classifier_incr.tower_generation();
+            (cls, tower, gen)
+        },
+        bars,
+        nav,
+        config,
+        None, // χ≡1 全覆盖：训练对全候选集估 μ（μ 表尚不存在，无 χ 可查）
+    );
+    fill.typed_ledger
 }
 
 /// ★闭环 S_Θ 驱动（task #94 引擎实装核心）：把 bar 序列逐 bar 喂入闭环 [`hybrid_step`]。
@@ -879,6 +984,48 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
     }
 }
 
+/// 腿级 typed 交易记录（G4 #134：《完整的策略.pdf》§9 typed exit 的统计层载体）。
+///
+/// 由**生产 π fill loop**（[`pi_theta_fill_loop`]，唯一状态机）逐腿输出——腿进 `next_active`
+/// 开条目、腿离场（interpret 规则2 反向关闭 / §13 AncOK 剪 / 窗口终点 censored）关条目，
+/// `exit_type` 经 [`super::super::strategy::interp::reverse_exit_type`] 单源判据产出。
+/// 下游 `build_mu_from_bars` 从本记录构造 `MuObservation`/`ResidualTrade`（替换 PDF §9
+/// 点名废弃的 τ^reverse 平行简化状态机，codex-q1-spec G4 终裁）。
+///
+/// **价格口径**：`entry_px`/`exit_px` = 腿进/出 active 的**决策 bar close**（F_t 可测，名义
+/// 单位口径，与旧训练路径同价格语义——G4 只改出场时点规则，不改价格口径）；非账户 fill 价
+/// （腿级无独立成交，净持仓聚合后账户级 P&L 归 equity_curve 路径）。
+///
+/// **RiskExit 有效域**（诚实声明）：当前架构 `force_flat` 不清活动腿（幽灵腿缺口归 #124 P1
+/// 短路修）⟹ 本 ledger 现阶段不产 `RiskExit`——这是生产 π 语义的忠实记录，非本层简化；
+/// #124 落地后经 StepTrace 通道自动跟进。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TypedTrade {
+    /// 开腿候选的全互斥分类 z（`z_of_candidate` 塔真值，与生产 χ 查询同口径）。
+    pub entry_z: super::mu_estimator::MuClass,
+    /// 腿声部身份（`ActiveLeg.id`，跨 bar 稳定 ElementId）。
+    pub voice_id: classifier::recursive_tower::ElementId,
+    /// 腿进 active 的决策 bar。
+    pub entry_bar: usize,
+    /// 腿离场决策 bar（`Hold` censored = 窗口末可交易 bar）。
+    pub exit_bar: usize,
+    /// PDF §9 typed exit（interp.rs 单源五枚举）。
+    pub exit_type: super::super::strategy::interp::ExitType,
+    /// 入场决策 bar close（×tick，名义单位口径）。
+    pub entry_px: f64,
+    /// 离场决策 bar close（×tick）。
+    pub exit_px: f64,
+}
+
+/// ledger 在飞条目（开腿登记，关腿时结算为 [`TypedTrade`]）。
+struct LedgerOpen {
+    entry_bar: usize,
+    entry_px: f64,
+    entry_z: super::mu_estimator::MuClass,
+    /// 入场角色垂直轴（腿声部身份入场时固定）——`reverse_exit_type`/silent drop 判据输入。
+    entry_v: super::super::strategy::coverage::Vertical,
+}
+
 /// [`plan_and_fill_mtm`] 的完整产出（双口径 trade_pnls + 操作语义随机对照的输入）。
 struct FillOutput {
     /// 逐 bar 归一化权益曲线（MtM 含浮盈）。
@@ -893,6 +1040,9 @@ struct FillOutput {
     trades: Vec<metrics::TradeRecord>,
     /// 执行订单数（n_orders_executed > 0 ⟺ is_l2）。
     n_orders: usize,
+    /// 腿级 typed 交易 ledger（G4；π 路径 [`pi_theta_fill_loop`] 产出，v1 路径
+    /// [`plan_and_fill_mtm`] 无腿级台账 ⟹ 恒空，诚实不伪造）。
+    typed_ledger: Vec<TypedTrade>,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -1148,6 +1298,7 @@ fn plan_and_fill_mtm(
         trade_pnls_with_forced,
         trades,
         n_orders: n_orders_executed,
+        typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
     }
 }
 
@@ -1519,6 +1670,7 @@ mod tests {
             pivot_high: 0,
             center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
             struct_break_dir: None,
+            force: None,
         }
     }
 
@@ -1598,8 +1750,10 @@ mod tests {
         // LCB 升级：n≥2 让 mu_lcb 有定义（否则 n=1 因"无 LCB 证据"被滤，机制不同——见任务 §3）。
         // b2（task #83）：fill loop 的 χ 门经 z_of_candidate 查 μ ⟹ 查询 z 携带 H=Some(role.h)。
         // 本例 buy1@3 无同级前兄弟 ⟹ H=First。手建 est 的 z 须同口径（否则 None vs Some(First) 桶不命中）。
+        // G2 σ_higher 第 9 维：合成闭包塔恒空 ⟹ 查询侧 sigma_higher_at(&[],..)=0 ⟹ Some(0)，手建 z 同口径。
         let z_buy = MuClass {
             horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
+            sigma_higher: Some(0),
             ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
         };
         let mut est = MuEstimator::new();
@@ -1637,8 +1791,10 @@ mod tests {
         // 喂 [50,50] ⟹ mean=50,std=0 ⟹ LCB=50−z_alpha·0=50>θ（z_alpha=0 时退化裸 μ=50）。
         // b2（task #83）：fill loop 的 χ 门经 z_of_candidate 查 μ ⟹ 查询 z 携带 H=Some(role.h)。
         // 本例 buy1@3 无同级前兄弟 ⟹ H=First。手建 est 的 z 须同口径（否则 None vs Some(First) 桶不命中）。
+        // G2 σ_higher 第 9 维：合成闭包塔恒空 ⟹ 查询侧 sigma_higher_at(&[],..)=0 ⟹ Some(0)，手建 z 同口径。
         let z_buy = MuClass {
             horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
+            sigma_higher: Some(0),
             ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
         };
         let mut est = MuEstimator::new();
@@ -1650,6 +1806,89 @@ mod tests {
         // μ>θ 放行 ⟹ 与 χ≡1 同订单数/交易数（过滤只滤 μ≤θ，不动 μ>θ）。
         assert_eq!(fill_chi.n_orders, fill_full.n_orders, "μ>θ 放行 ⟹ 订单数同 χ≡1");
         assert_eq!(fill_chi.trades.len(), fill_full.trades.len(), "交易轨迹同 χ≡1");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★★G4 typed ledger（#134）：生产 π fill loop 输出腿级 TypedTrade——
+    //  PDF §9 typed exit 替换 τ^reverse（codex-q1-spec G4 终裁）。
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 卖点（class=1 一类 / 3 三类；pivot_high 远高于价 ⟹ 不触及 Short 止损——本测试只用它反向关 Long）。
+    fn sell_at(si: usize, class: u8) -> BspPoint {
+        let bits = match class {
+            1 => BspBits { sell1: true, ..Default::default() },
+            _ => BspBits { sell3: true, ..Default::default() },
+        };
+        BspPoint {
+            source_index: si,
+            bits,
+            pivot_low: 0,
+            pivot_high: 20_000_000_000, // px 200 ≫ 100 ⟹ 不触及
+            center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
+    /// 两阶段合成闭包：bar≥7 出 buy1@3；bar≥14 追加 sell@12（class 可选）。
+    fn buy_then_sell(sell_class: u8) -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64) {
+        let cls_buy = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
+        };
+        let cls_both = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3), sell_at(12, sell_class)]), ..Default::default() }],
+        };
+        move |i| {
+            if i >= 14 {
+                (cls_both.clone(), Vec::new(), i as u64)
+            } else if i >= 7 {
+                (cls_buy.clone(), Vec::new(), i as u64)
+            } else {
+                (Classification::default(), Vec::new(), i as u64)
+            }
+        }
+    }
+
+    /// ★G4：Long 腿被一类反向卖候选关闭 ⟹ TypedTrade{entry_bar=7, exit_bar=14, CloseRoot}。
+    /// τ^typed vs τ^reverse 的可观测差异载体：出场由生产 interpret 规则2 决定，非"任意反向信号"。
+    #[test]
+    fn typed_ledger_reverse_close_root() {
+        use super::super::super::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1, "恰一条腿级 typed 交易");
+        let t = &fill.typed_ledger[0];
+        assert_eq!(t.entry_bar, 7, "买点 bar 7 确认部署 ⟹ 腿进 active");
+        assert_eq!(t.exit_bar, 14, "一类卖 bar 14 确认 ⟹ interpret 规则2 关腿");
+        assert_eq!(t.exit_type, ExitType::CloseRoot, "根腿 + 一类反向 ⟹ P5 CloseRoot");
+        assert_eq!(t.entry_z.delta, 1, "Long 腿 δ=+1");
+        assert!(t.entry_px > 0.0 && t.exit_px > t.entry_px, "微涨数据 ⟹ exit_px>entry_px");
+    }
+
+    /// ★G4：三类反向卖候选 ⟹ ReduceCore（P6，reverse_exit_type 判据经 fill loop 端到端兑现）。
+    #[test]
+    fn typed_ledger_reverse_reduce_core() {
+        use super::super::super::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(3), &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1);
+        assert_eq!(fill.typed_ledger[0].exit_type, ExitType::ReduceCore, "根腿 + 三类反向 ⟹ P6 ReduceCore");
+    }
+
+    /// ★G4：无反向信号 ⟹ 窗口终点 censored（P0 Hold，兑现到末可交易 bar——旧 censored 语义保留）。
+    #[test]
+    fn typed_ledger_censored_hold_at_window_end() {
+        use super::super::super::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1);
+        let t = &fill.typed_ledger[0];
+        assert_eq!(t.exit_type, ExitType::Hold, "未离场腿 ⟹ censored Hold");
+        assert_eq!(t.exit_bar, 19, "censored 到末可交易 bar");
+        assert_eq!(t.entry_bar, 7);
     }
 
     /// ★run_theta_v0_pi 全链端到端（bars → parse → classify → π_Θ → fill）不破——结构性数据
