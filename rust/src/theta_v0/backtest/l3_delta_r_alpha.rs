@@ -1873,8 +1873,12 @@ mod tests {
         eprintln!("CloseRoot (P5)       : {}", count(ExitType::CloseRoot));
         eprintln!("ReduceCore (P6)      : {}", count(ExitType::ReduceCore));
         eprintln!("CloseShortDiff (P7)  : {}", count(ExitType::CloseShortDiff));
-        eprintln!("RiskExit (P1)        : {}（现架构 force_flat 不清腿 ⟹ 预期 0，#124 后非零）", count(ExitType::RiskExit));
+        eprintln!("RiskExit (P1)        : {}（#124 P1 短路已落地——Insolvent/Liquidation 触发才非零）", count(ExitType::RiskExit));
         eprintln!("Hold censored (P0)   : {}", count(ExitType::Hold));
+        eprintln!(
+            "via_structural_prune : {}（§13 剪枝腿，μ 侧可分离——ws-g5interp flag 采纳）",
+            ledger.iter().filter(|t| t.via_structural_prune).count()
+        );
 
         let (est, records) = build_mu_from_bars(train_bars, &config, 0);
         eprintln!("μ 表类数 / 残差记录  : {} / {}", est.n_classes(), records.len());

@@ -760,6 +760,7 @@ where
                         exit_type: interp::reverse_exit_type(open.entry_v, trig.bsp_class),
                         entry_px: open.entry_px,
                         exit_px: px,
+                        via_structural_prune: false, // 真信号平仓（反向候选触发）
                     });
                 }
                 // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
@@ -784,6 +785,7 @@ where
                         exit_type,
                         entry_px: open.entry_px,
                         exit_px: px,
+                        via_structural_prune: true, // §13 父驱动连带剪枝，非独立信号（μ 侧可分离）
                     });
                 }
             }
@@ -799,6 +801,7 @@ where
                         exit_type: super::super::strategy::interp::ExitType::RiskExit,
                         entry_px: open.entry_px,
                         exit_px: px,
+                        via_structural_prune: false, // 强平=风险信号平仓，非结构剪枝
                     });
                 }
             }
@@ -880,6 +883,7 @@ where
                 exit_type: super::super::strategy::interp::ExitType::Hold,
                 entry_px: open.entry_px,
                 exit_px: last_px,
+                via_structural_prune: false, // censored 窗口边界，非结构剪枝
             });
         }
     }
@@ -1030,6 +1034,11 @@ pub struct TypedTrade {
     pub entry_px: f64,
     /// 离场决策 bar close（×tick）。
     pub exit_px: f64,
+    /// 离场是否来自 §13 结构剪枝（AncOK 连带剪/Stale prune，父驱动同 bar 连带、非独立反向
+    /// 信号触发）——ws-g5interp flag：结构剪枝的 P&L 分布与真信号平仓不同，混桶偏 μ。本标记
+    /// 使 μ 侧**可分离**；`build_mu_from_bars` 现口径仍全部入 μ（排除/分桶是新统计决策，
+    /// 归 #135 prereg，不在此静默改口径）。反向关闭/RiskExit/censored Hold 恒 false。
+    pub via_structural_prune: bool,
 }
 
 /// ledger 在飞条目（开腿登记，关腿时结算为 [`TypedTrade`]）。
