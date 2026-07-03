@@ -33,11 +33,14 @@
 //!
 //! ## walk-forward μ 表（codex Q1：train 内未来打标签合法，test 决策不偷看 test 未来）
 //!
-//! OOS 窗内 split：前半 = train（估 μ），后半 = test（χ 过滤 + baseline 对比）。μ 估计在 train
-//! 窗逐 bar 因果分类（[`super::incremental::IncrementalClassifier`]），对**新确认**买卖点取 z
-//! （[`super::selector::z_of_candidate`]），用确认 bar 后**下一个反向新确认信号**（或 train 末
-//! **censored 截断**——codex Q1 边界泄漏 guard）兑现 X_γ（[`super::mu_estimator::marginal_return`]）。
-//! θ 常数（不从样本 μ 分布选，无 in-sample 泄漏）。test 窗的 χ 决策只读 frozen μ 表。
+//! OOS 窗内 split：前半 = train（估 μ），后半 = test（χ 过滤 + baseline 对比）。μ 估计
+//! **G4 typed exit 口径**（#134，codex-q1-spec 终裁）：train 窗跑**生产 π fill loop**
+//! （`typed_ledger_from_bars`，χ≡1）产腿级 `TypedTrade`——入场 = interpret open 桶 + AncOK
+//! 准入的开腿信号（z 经 [`super::selector::z_of_candidate`] 塔真值），出场 = typed exit
+//! （P5/P6/P7 反向关腿 / §13 结构剪枝 / train 末 **censored Hold**——codex Q1 边界泄漏 guard），
+//! 兑现 X_γ（[`super::mu_estimator::marginal_return`]）。PDF §9 点名废弃的 τ^reverse
+//! （下一个任意反向信号出场）已删除。θ 常数（不从样本 μ 分布选，无 in-sample 泄漏）。
+//! test 窗的 χ 决策只读 frozen μ 表。
 //!
 //! ## 判定（codex Q4：三层，否定"1/8 ΔSharpe≠0"弱判据）
 //!
@@ -109,20 +112,26 @@ fn bsp_disc(b: &BspBits) -> u8 {
         | (b.sell3 as u8) << 5
 }
 
-/// 在 train 窗上构造 **walk-forward μ(z) 表**（codex Q1：train 内未来兑现合法，无 test 泄漏）。
+/// 在 train 窗上构造 **walk-forward μ(z) 表**（G4 #134：typed exit 口径，codex-q1-spec 终裁）。
 ///
-/// 逐 bar 因果分类（`IncrementalClassifier`，只用 ≤i 数据）→ 对本 bar **新确认**买卖点（append-only
-/// diff vs seen）取 z（[`z_of_candidate`]）→ 记 (确认 bar i, z, dir, level)。退出规则**事前固定**：
-/// 该候选持有到**下一个反向方向**新确认买卖点的确认 bar（或 train 末 **censored 截断**）兑现 X_γ。
+/// **G4 重接（PDF §9）**：出场口径 = **生产 π fill loop 的 typed exit**（[`super::runner`]
+/// `typed_ledger_from_bars`——interpret 规则2 反向关腿 P5/P6/P7 + §13 AncOK 结构剪枝 +
+/// 窗口终点 censored Hold），**替换** PDF §9 点名废弃的 τ^reverse（"下一个任意反向信号出场"
+/// 平行简化状态机，已整体删除，不留 fallback）。同时入场口径收敛：X_i 观测对象 = 生产 π
+/// 真正**开腿**的信号（interpret open 桶 + AncOK 准入）——record 桶/slot 冲突/AncOK 被剪的
+/// 候选不再入 μ（旧口径为它们估 μ = 训练/生产分布错配；新口径 = μ 估"生产会真正入场的
+/// 候选"的类条件收益，treatment-on-the-treated）。
 ///
-/// **因果/泄漏 guard（codex Q1）**：
-/// - z 在确认时点（确认 bar i，F_i 可测）取——非回填 vertex retro-entry。
-/// - X_γ 用确认 bar 的 close 作 entry、退出 bar 的 close 作 exit（F-可测真实兑现，非端点后视）。
-/// - 退出落在 train 窗内（≤ train 末）——跨边界样本截断到 train 末（censored，不偷看 test）。
+/// **因果/泄漏 guard（codex Q1，G4 后全部保持）**：
+/// - z 在开腿决策 bar（F_i 可测，`z_of_candidate` 塔真值——fill loop 内与 χ 查询同口径）取。
+/// - X_γ 用开腿 bar 的 close 作 entry、离场 bar 的 close 作 exit（价格口径与旧一致——G4 只改
+///   出场**时点规则**，不改价格语义）。
+/// - 离场落在 train 窗内（fill loop 只见 `bars` 切片）——窗末未离场腿 censored 到末可交易 bar
+///   （`ExitType::Hold`，不偷看 test）。
 /// - μ 表 frozen 后喂 test χ 过滤；test 决策不更新 μ（无 test 内未来）。
 ///
 /// 返回 `(MuEstimator, Vec<ResidualTrade>)`：
-/// - `MuEstimator`：全候选集 μ 表（喂 X_γ，供下游 χ 选择器；无 N^δ 门，估 μ 覆盖全定义域）。
+/// - `MuEstimator`：开腿信号 μ 表（喂 X_γ，供下游 χ 选择器）。
 /// - `Vec<ResidualTrade>`：逐笔残差记录（δ-free 基 r_i=H_i−B̂_i + 成本 + h桶/time block），供 wverify_run
 ///   的**残差口径** alpha 检验（alpha分离.pdf §1「所有后续 alpha 检验只看 Y_i」，task #82 gap#1+#2）。
 ///   估 μ 与残差检验分离：μ 表仍是 X_γ（选择器语义不变，残差化是独立 gap #9 LCB 门控），
@@ -150,112 +159,45 @@ pub fn build_mu_from_bars(
     // 因果 B̂ 估计锚：slice 内首个可交易 bar（价/索引）。ĝ=(P_entry−P_first)/(entry−first) 只用过去信息。
     let first_tradable = (0..n).find(|&j| !bars[j].untradable && bars[j].close > 0);
 
-    // 逐 bar 因果分类，收集新确认买卖点的 (确认 bar, z, dir, entry_px)。
-    let mut classifier_incr = IncrementalClassifier::new(bars, config);
-    let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
-    // 每条新确认信号：(确认 bar i, z, dir)。entry_px 用确认 bar i 的 close（F_i 可测）。
-    let mut signals: Vec<(usize, MuClass, VoiceSide)> = Vec::new();
+    // ── G4：生产 π fill loop 产 typed ledger（唯一状态机——interpret/AncOK/KThetaRiskGate/
+    //    censored Hold；τ^reverse 平行简化状态机已删除）。──
+    let ledger = super::runner::typed_ledger_from_bars(bars, config);
 
-    for i in 0..n {
-        let bar = &bars[i];
-        if bar.untradable || bar.close <= 0 {
-            continue;
-        }
-        let (cls_i, tower_i) = classifier_incr.classify_at(i);
-        // 本 bar 新确认买卖点（append-only diff）。
-        for (lvl, ls) in cls_i.levels.iter().enumerate() {
-            for p in ls.bsp.iter() {
-                if !seen.insert((lvl, p.source_index, bsp_disc(&p.bits))) {
-                    continue; // 已确认过，跳过
-                }
-                // 新确认：取 z（确认时点 F_i 可测）。需经 assemble_gamma_with_tower 拿
-                // Candidate（带 dir/role）——构造仅含该点的单级别分类喂 assemble。
-                let single = super::super::classifier::Classification {
-                    levels: cls_i
-                        .levels
-                        .iter()
-                        .enumerate()
-                        .map(|(l2, _)| super::super::classifier::LevelState {
-                            moves: Vec::new(),
-                            centers: Rc::new(Vec::new()),
-                            bsp: Rc::new(if l2 == lvl {
-                                vec![p.clone()]
-                            } else {
-                                Vec::new()
-                            }),
-                        })
-                        .collect(),
-                };
-                let gamma = assemble_gamma_with_tower(&single, &tower_i);
-                for c in &gamma {
-                    if c.dir == VoiceSide::Flat {
-                        continue; // Flat 不可交易候选，不入 μ
-                    }
-                    let z = z_of_candidate(c);
-                    signals.push((i, z, c.dir));
-                }
-            }
-        }
-    }
-
-    // 退出兑现（事前固定规则：持有到下一个反向新确认信号确认 bar，或 train 末 censored）。
-    // signals 已按确认 bar i 升序（逐 bar 收集），同 bar 多信号保留。
     let mut est = MuEstimator::new();
     let mut records: Vec<ResidualTrade> = Vec::new();
-    for (idx, &(entry_bar, z, dir)) in signals.iter().enumerate() {
-        let entry_px = bars[entry_bar].close as f64 * tick;
-        if entry_px <= 0.0 {
+    for t in &ledger {
+        if t.exit_bar <= t.entry_bar {
+            continue; // 末 bar 开腿同 bar censored ⟹ 无兑现跨度（与旧 censored 边界同语义）
+        }
+        if t.entry_px <= 0.0 || t.exit_px <= 0.0 {
             continue;
         }
-        // 找下一个反向方向信号的确认 bar（exit）；无则 censored 到 train 末可交易 bar。
-        let opp = match dir {
-            VoiceSide::Long => VoiceSide::Short,
-            VoiceSide::Short => VoiceSide::Long,
-            VoiceSide::Flat => continue,
-        };
-        let exit_bar = signals[idx + 1..]
-            .iter()
-            .find(|(eb, _, d)| *eb > entry_bar && *d == opp)
-            .map(|(eb, _, _)| *eb)
-            // censored：无反向信号 ⟹ 截断到 train 末最后可交易 bar（不偷看 test）。
-            .unwrap_or_else(|| {
-                (0..n)
-                    .rev()
-                    .find(|&j| j > entry_bar && !bars[j].untradable && bars[j].close > 0)
-                    .unwrap_or(entry_bar)
-            });
-        if exit_bar <= entry_bar {
-            continue; // 无合法退出（entry 已是末 bar）⟹ 不兑现
-        }
-        let exit_px = bars[exit_bar].close as f64 * tick;
-        if exit_px <= 0.0 {
-            continue;
-        }
-        let delta: i8 = if dir == VoiceSide::Long { 1 } else { -1 };
-        // X_γ = δ(P_exit−P_entry) − C（qty=1 名义单位，μ 是单位边际收益的类条件均值）。喂 est 供 χ 选择器。
-        let x_gamma = marginal_return(entry_px, exit_px, 1.0, fee_rate, delta);
-        est.observe(MuObservation { class: z, x_gamma });
+        // X_γ = δ(P_exit−P_entry) − C（qty=1 名义单位，μ 是单位边际收益的类条件均值）。
+        // δ 从 entry_z 取（开腿候选方向；opened 腿非 Flat，interpret 规则1 保证 δ∈{±1}）。
+        let delta = t.entry_z.delta;
+        let x_gamma = marginal_return(t.entry_px, t.exit_px, 1.0, fee_rate, delta);
+        est.observe(MuObservation { class: t.entry_z, x_gamma });
 
-        // ── 残差记录（alpha分离.pdf §1/§4.1，task #82）──
+        // ── 残差记录（alpha分离.pdf §1/§4.1，task #82——B̂/成本/分层维逻辑不变，G4 只换出场源）──
         // H_i = P_out−P_in（δ-free 原始持有窗涨跌）；C_i = fee·(P_in+P_out)（双边费，与 marginal_return 同口径）。
-        let h = exit_px - entry_px;
-        let c = fee_rate * (entry_px + exit_px);
+        let h = t.exit_px - t.entry_px;
+        let c = fee_rate * (t.entry_px + t.exit_px);
         // B̂_i = ĝ·(exit_bar−entry_bar)，ĝ=因果扩张窗漂移 (P_entry−P_first)/(entry−first)（只用 ≤entry 价，F_entry-可测）。
-        let hold = exit_bar - entry_bar;
+        let hold = t.exit_bar - t.entry_bar;
         let b_hat = match first_tradable {
-            Some(fb) if entry_bar > fb => {
+            Some(fb) if t.entry_bar > fb => {
                 let first_px = bars[fb].close as f64 * tick;
-                let g_hat = (entry_px - first_px) / (entry_bar - fb) as f64;
+                let g_hat = (t.entry_px - first_px) / (t.entry_bar - fb) as f64;
                 g_hat * hold as f64
             }
             _ => 0.0, // entry 即 slice 首可交易 bar ⟹ 无过去可估漂移 ⟹ B̂=0（不外推）
         };
         records.push(ResidualTrade {
-            class: z,
+            class: t.entry_z,
             resid_base: h - b_hat, // r_i = H_i − B̂_i（δ-free；Y=δ·r−C 见 ResidualTrade::y）
             cost: c,
             h_bucket: h_bucket(hold),
-            time_block: time_block_base + (entry_bar / TIME_BLOCK_BARS) as u32,
+            time_block: time_block_base + (t.entry_bar / TIME_BLOCK_BARS) as u32,
         });
     }
 
@@ -1583,7 +1525,7 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
                     if c.dir == VoiceSide::Flat {
                         continue;
                     }
-                    zs.push(z_of_candidate(c));
+                    zs.push(z_of_candidate(c, &tower_i, bars));
                 }
             }
         }
@@ -1909,6 +1851,43 @@ fn pooling_icc_multi_symbol() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ★G4 诊断（#134，L2 冒烟）：真实 BTC train 窗上 typed ledger 非空 + exit_type 分布 +
+    /// μ 表统计——τ^reverse → typed exit 语义变更的量级证据（#135 全量重跑前的管线可用性见证）。
+    #[test]
+    #[ignore = "G4 typed ledger BTC 冒烟；需 BTC 数据；--release 推荐"]
+    fn typed_ledger_btc_smoke() {
+        use super::super::runner::typed_ledger_from_bars;
+        use crate::theta_v0::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let w = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+        let ds = data::load_by_symbol(w.symbol, &config).expect("BTC 数据（DATA BLOCKER 不伪造）");
+        let oos = ds.slice_date_window(w.oos.0, w.oos.1);
+        let cut = MAX_BARS.min(oos.bars.len());
+        let train_bars = &oos.bars[0..cut / 2];
+
+        let ledger = typed_ledger_from_bars(train_bars, &config);
+        let count = |et: ExitType| ledger.iter().filter(|t| t.exit_type == et).count();
+        eprintln!("\n===== G4 typed ledger BTC 冒烟（train {} bars）=====", train_bars.len());
+        eprintln!("ledger 总腿数        : {}", ledger.len());
+        eprintln!("CloseRoot (P5)       : {}", count(ExitType::CloseRoot));
+        eprintln!("ReduceCore (P6)      : {}", count(ExitType::ReduceCore));
+        eprintln!("CloseShortDiff (P7)  : {}", count(ExitType::CloseShortDiff));
+        eprintln!("RiskExit (P1)        : {}（现架构 force_flat 不清腿 ⟹ 预期 0，#124 后非零）", count(ExitType::RiskExit));
+        eprintln!("Hold censored (P0)   : {}", count(ExitType::Hold));
+
+        let (est, records) = build_mu_from_bars(train_bars, &config, 0);
+        eprintln!("μ 表类数 / 残差记录  : {} / {}", est.n_classes(), records.len());
+        assert!(!ledger.is_empty(), "真实 BTC train 窗产非空 typed ledger");
+        assert!(est.n_classes() > 0, "μ 表非空（开腿信号真实兑现）");
+        // 全分类完备：五枚举计数守恒。
+        assert_eq!(
+            count(ExitType::CloseRoot) + count(ExitType::ReduceCore) + count(ExitType::CloseShortDiff)
+                + count(ExitType::RiskExit) + count(ExitType::Hold),
+            ledger.len(),
+            "exit_type 五枚举全分类守恒"
+        );
+    }
 
     /// 合成鞅性质：增量 ε∈{−1,0,+1}，价格恒 ≥1，无系统性漂移（样本均值增量 ≈0）。
     #[test]
