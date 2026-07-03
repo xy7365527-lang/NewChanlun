@@ -2350,6 +2350,13 @@ mod tests {
         let _ = writeln!(rpt, "- **截断窗 [{window_start}→{window_end}]，bars={n_bars}**（最后 {max_bars} bar；全量 461万 OOM 不可行 ⟹ 截断窗=显式有效域边界，非全窗结论，l3 同纪律）");
         let _ = writeln!(rpt, "- untradable_ratio={:.4}", untradable);
         let _ = writeln!(rpt, "- 收集信号数 n_signals={}（无配对出场反转信号的入场信号被诚实跳过，不入此集——无 ρ_rev 不兜底）", agg.n_signals);
+        // #115 (e) fill-rate 断言（防 β^div 路由全 None 静默）——re-scope 到 force 真实流经的本报告
+        // （fullz 置换管线的 records 经 fill loop z_of_candidate，Candidate 边界无 force 源，断言加在
+        // 那边必然误报；见 g2-impl-20260703.md）。零一类信号的窗不假失败（force 仅一类 A/C 对候选有源）。
+        let n_type1 = decomps.iter().filter(|d| d.z.i_class & 0b001_001 != 0).count();
+        let n_force_some = decomps.iter().filter(|d| d.z.force_state.is_some()).count();
+        assert!(n_type1 == 0 || n_force_some > 0, "β^div 路由静默断裂：{n_type1} 条一类信号 force_state 全 None");
+        let _ = writeln!(rpt, "- β^div force fill-rate：{}/{}（一类信号 {} 条；断言=有一类则 force 非全 None，#115 (e)）", n_force_some, agg.n_signals, n_type1);
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 三审计统计（codex #97 要求）");
         let _ = writeln!(rpt, "| 统计 | 值 | 说明 |");

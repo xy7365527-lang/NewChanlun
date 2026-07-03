@@ -209,9 +209,11 @@ pub fn stratified_delta_perm_p(
 /// 分层"；不能经 `..*c` 泄漏 stratum 首条 trade 的代表值——那会让键携带未分层的伪信息）。
 ///
 /// **force_state δ-free**：力度支配态由 A/C 段绝对量算，置换 δ 时恒定（§3.1 mirror-invariant）⟹ 合法进 base。
-/// ponytail: force_state 生产未接线前恒 `None`（同一 None 常量分量 ⟹ 分桶不变，向后兼容）；接线后
-/// 进 base 前须逐层过 §3.2 δ-共线检查（谱系 iclass-delta-collinearity：δ-纯桶降级仅 μ 分层不置换）。
-/// fill-rate 断言（防生产全 None 静默）属 L2 回测报告消费点，随路由接线落地——非本 lib 单元层。
+/// ponytail: 本置换管线的 records 来自 fill loop `z_of_candidate`（Candidate 边界无 force 源）⟹
+/// force_state 在此恒 `None`（同一 None 常量分量 ⟹ 分桶不变）。force 真值仅流经 econ RawSignal 侧
+/// （#115 (c)）。fill-rate 断言（防路由全 None 静默）已落 force 真实流经处——econ_positive
+/// `l2_btc_capturable_spread_diagnosis` L2 报告（#115 (e) re-scope）；§3.2 δ-共线逐层检查（谱系
+/// iclass-delta-collinearity：δ-纯桶降级仅 μ 分层不置换）随"force 真值进置换管线"的未来 prereg 同批落。
 pub fn stratified_delta_perm_p_fullz(
     trades: &[ResidualTrade],
     n_perm: usize,
