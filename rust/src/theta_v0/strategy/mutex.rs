@@ -1,127 +1,141 @@
-//! 全互斥买卖点解释器——固定优先级互斥化 `C_j = P_j ∧ ⋀_{k<j} ¬P_k`（买卖点alpha2.pdf
-//! Doc2 §5 + Doc3 §6 + Doc2 §9 定理1）。
+//! 全互斥买卖点解释器——固定优先级互斥化 `C_j = P_j ∧ ⋀_{k<j} ¬P_k`（《完整的策略.pdf》
+//! §7 P1..P10 + 买卖点alpha2.pdf Doc2 §9 定理1 的互斥化构造）。
 //!
-//! ## 契约锚（`/Users/silencehan/Downloads/买卖点alpha2.pdf` Doc2 §5 / Doc3 §6，逐字）
+//! ## 契约锚（`docs/formal-chain/完整的策略.pdf` §7，#124 真统一重分解）
 //!
-//! 原始谓词 `P_1..P_m`（m=8）**可重叠**（同一时刻多个 P_j 同时成立）：
-//! - `P1` = 风险强平
-//! - `P2` = 已有多头且出现卖点，平多
-//! - `P3` = 已有空头且出现买点，平空
-//! - `P4` = 父声部 active 且出现反父方向证书，开短差
-//! - `P5` = 空仓/ambient 状态下出现买点，开多
-//! - `P6` = 空仓/ambient 状态下出现卖点，开空
-//! - `P7` = 已有同向声部，记录或加仓
-//! - `P8` = 无有效动作，保持
+//! 原始谓词 `P_1..P_m`（m=10）**可重叠**（同一时刻多个 P_j 同时成立）：
+//! - `P1` = 风险强平（force_flat ⟹ K_Θ={0} + 活动腿全 RiskExit）
+//! - `P2` = TW StageII ∧ H>0，CloseOverlay（关 legacy ShortDiff 重叠腿，真产订单）
+//! - `P3` = TW 可退本金，Withdraw（无订单账本事件 RecoverCapital）
+//! - `P4` = TW EnterEarning（无订单相变事件）
+//! - `P5` = 正规 CloseRoot（一/二类反向 ⟹ 根清仓）
+//! - `P6` = 正规 ReduceCore（三类反向 ⟹ 核心仓减仓）
+//! - `P7` = Close ShortDiff（短差子声部反向确认关闭）
+//! - `P8` = Open Root（Ambient/root 候选，slot 空）
+//! - `P9` = Open ShortDiff（ShortDiff 角色候选，父声部 active）
+//! - `P10` = Record StructBreak（Flat/无类/slot 冲突 ⟹ 记录不执行）
+//! - `P0` = Hold（无谓词命中，C_0 兜底）
 //!
-//! **固定优先级互斥化**（Doc3 §6）：
+//! **历史**：本模块原锚 alpha2 §5 的 P1..P8 分解（P2/P3=close_long/close_short 未 typed、
+//! 无 TW 谓词）。#124 裁定4「真统一」后按 PDF §7 重分解——不是「加两谓词」，是 close 桶
+//! typed 拆（P5/P6/P7 经 [`reverse_exit_type`] 单源）+ TW 三阶段进链（P2/P3/P4）+ open
+//! 拆 root/shortdiff（P8/P9）。alpha2 定理 1 的互斥化构造形式不变。
+//!
+//! **固定优先级互斥化**（alpha2 Doc3 §6 构造，PDF §7 同型）：
 //! ```text
 //! C_1 = P_1
 //! C_j = P_j ∧ ⋀_{k<j} ¬P_k    (j = 2..m)
-//! C_0 = ⋀_{j=1}^m ¬P_j         （兜底）
+//! C_0 = ⋀_{j=1}^m ¬P_j         （兜底 Hold）
 //! ```
 //!
-//! **定理 1（Doc2 §9 / Doc3 §6）**：`Σ_{j=0}^m 1[C_j] = 1`（全互斥 + 全定义）。
+//! **定理 1（alpha2 Doc2 §9）**：`Σ_{j=0}^m 1[C_j] = 1`（全互斥 + 全定义）。
 //! 证明：若无 P_j 成立则 C_0 唯一成立；否则取最小成立索引 r，则 C_r 唯一成立
 //! （所有 j<r 因 P_j=0 不成立，所有 j>r 因 ¬P_r=0 不成立）。
 //!
-//! 全定义解释器（Doc2 §5）：`I_Θ(A_t, Γ_t) = (D_t, O_t, L_t)`——D=关闭声部 / O=开启声部 /
-//! L=记录但不执行的信号。本模块产出该三元组的语义裁决码（[`MutexClass`]），下游
-//! [`super::interp`] 的三桶 fold 据此分流（D↔close / O↔open / L↔record）。
+//! 全定义解释器（PDF §16）：`I_Θ(A_t, Γ_t, TW_t, Risk_t) = (D_t, O_t, L_t, TWEvent_t)`。
+//! 生产实装 = [`super::interp::interpret`]（候选级三桶 fold，P5..P10）+
+//! [`super::coverage::pi_theta_step_traced`] I_Θ 组合层（bar 级 P1..P4 全局分支：P1 上游
+//! 短路 RiskExit / P2 合成 close 桶 CloseOverlay / P3/P4 产 TWEvent_t 消耗当步裁决）。
 //!
-//! ## 与既有模块的关系（no-patch-mentality：不重造，显式化既有隐式优先级）
+//! ## 两级谓词结构（bar 级 × 候选级）
 //!
-//! - [`super::intent::action_priority`]：把 10 级优先级**压缩进 match 分支顺序**——优先级隐式编码在
-//!   分支序里，输入是 `ClassLabel`（risk_mode×phase 摘要），**无显式可重叠谓词向量**，故无法机器
-//!   判定「可重叠谓词互斥化恰好一个成立」（Rust match 穷尽性 = 输入域全覆盖，**不是** alpha2 定理）。
-//! - [`super::interp::interpret`]：候选集 Γ 按 ≺_Θ 全序 fold（买卖点**重合时的候选唯一化**），不是
-//!   动作意图谓词 P_j 的互斥化。
-//!
-//! 本模块补的是 alpha2 定理 1 的**显式机器判定**：给定可重叠谓词向量 `P ∈ {0,1}^8`，固定优先级
-//! 互斥化为唯一 C_j，可证伪核心 = 穷举 2^8 组合断言 `Σ_j 1[C_j]=1`（[`tests`] 的 `mutex_total`）。
+//! PDF §7 的裁决链在生产中分两层兑现，本 oracle 相应分两层对拍：
+//! - **bar 级 P1..P4**（[`StepPredicateCtx`]）：不依赖单个候选，成立时屏蔽全部候选的
+//!   P5..P10（组合层短路/合成桶/消耗裁决）。谓词向量中每个候选同值注入 ⟹ 每个候选的
+//!   互斥化裁决都落 C_1..C_4 ⟹ 候选不产 close/open 动作——与组合层「gamma 全部推迟
+//!   record」行为一致。对拍锚：coverage tests `pi_theta_step_traced_p1_*`/`_p2_*`/`_p3_*`/`_p4_*`。
+//! - **候选级 P5..P10**（[`predicates_of`]）：ctx 全 false 时逐候选从 PDF 谓词语义独立
+//!   重推导（不引用 interp 规则序），typed close 经 [`reverse_exit_type`] 单源。对拍锚：
+//!   [`tests`] 的 `shadow_fold_bucket_equivalence`（桶级 + typed 精确类号）。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
 //! **L0 结构定理**（非 L2 alpha）：`Σ_{j=0}^m 1[C_j]=1` 是固定优先级互斥化的**组合逻辑恒等式**
-//! （alpha2 Doc2§5 / Doc3§6 证毕，零信息增量同义反复）。Rust 穷举 2^8 验证 = **L1 管线正确性**
-//! （验证互斥化实装无 bug，不验证谓词 P_j 经验有效——P_j 的市场触发率/盈利性是 L2 未覆盖）。
+//! （alpha2 Doc2§9 证毕，零信息增量同义反复）。Rust 穷举 2^10 验证 = **L1 管线正确性**
+//! （验证互斥化实装无 bug，不验证谓词 P_j 经验有效——P_j 的市场触发率/盈利性是 L2 未覆盖；
+//! 特别地 P2/P3/P4 在 codex R3 C' 合法账本语义下生产触发**结构不可达**，见 runner TW 注释）。
 //!
-//! ## 身份：D1 等价测试 oracle，**非生产路径**（codex-q2-d1 §Q2 裁定）
+//! ## 身份：D1 等价测试 oracle，**非生产路径**（codex-q2-d1 §Q2 裁定 + 裁定4 反装饰约束）
 //!
-//! 本模块 `mutex_class` **零生产消费者**——生产 π 的候选级裁决走 [`super::interp::interpret`]（≺_Θ
-//! 全序三桶）。`mutex_class` 保留的唯一用途是作 **D1 逐候选级等价 property test 的对拍参照**
-//! （PDF Part B 四 P1..P8 固定优先级 vs interp ≺_Θ 序，桶级一致性）。[`predicates_of`] 把生产
-//! 候选 + fold 状态投影成 PDF 谓词向量，[`bridge_bucket`] 把 `MutexClass` 映射到 interp 三桶
-//! （close/open/record），测试断言二者桶级一致（见 `tests::shadow_fold_bucket_equivalence`）。
-//! 曾并存的 `closed_loop/mutex_interp.rs`（9 谓词 Lean 镜像）已按 §Q2 删除（no-patch：不留两个
-//! 零消费者权威镜像）。**P1 风险强平不在本对拍范围**（由 `KThetaRiskGate.force_flat` 上层独立兜，
-//! 见 codex-q2-d1 §3 边界）。
+//! 本模块 `mutex_class` **零生产消费者**——生产裁决走 interp fold + I_Θ 组合层。保留用途 =
+//! P1..P10 等价 property test 对拍参照。裁定4 明文：本 oracle 扩展**不得先于生产 typed 接线
+//! 单独落**（否则为装饰性 oracle）——本次扩展与生产接线（f9333e21b2 TW 进 fold + c4c2a027ad
+//! P1 全局分支 + 8150acb97f typed close 归因）同批，P1..P4 谓词均有真实生产分支对应。
+//! 曾并存的 `closed_loop/mutex_interp.rs`（9 谓词 Lean 镜像）已按 §Q2 删除。
 
-use super::interp::{ActiveLeg, Candidate};
+use super::coverage::Vertical;
+use super::interp::{reverse_exit_type, ActiveLeg, Candidate, ExitType};
 use super::voice::VoiceSide;
 
-/// 谓词数 m=8（P_1..P_8）。
-pub const M: usize = 8;
+/// 谓词数 m=10（P_1..P_10，PDF §7）。
+pub const M: usize = 10;
 
-/// 互斥化裁决类号（Doc3 §6）。`C_0`=兜底（无谓词成立），`C_j`(j=1..8)=最小成立谓词索引。
+/// 互斥化裁决类号。`C_0`=兜底 Hold（无谓词成立），`C_j`(j=1..10)=最小成立谓词索引。
 ///
-/// `Σ_{j=0}^8 1[C_j]=1`：给定任意谓词向量恰好对应一个 `MutexClass`（全互斥 + 全定义）。
+/// `Σ_{j=0}^10 1[C_j]=1`：给定任意谓词向量恰好对应一个 `MutexClass`（全互斥 + 全定义）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MutexClass {
-    /// C_0：⋀_j ¬P_j（无任何谓词成立，兜底）。
+    /// C_0：⋀_j ¬P_j（无任何谓词成立，Hold 兜底）。
     C0,
-    /// C_j：P_j ∧ ⋀_{k<j} ¬P_k（最小成立索引 j∈1..=8，存 1-based 谓词号）。
+    /// C_j：P_j ∧ ⋀_{k<j} ¬P_k（最小成立索引 j∈1..=10，存 1-based 谓词号）。
     Cj(u8),
 }
 
-/// 原始谓词向量 `P ∈ {0,1}^8`（可重叠——多个分量可同时为 true，alpha2 §5）。
+/// 原始谓词向量 `P ∈ {0,1}^10`（可重叠——多个分量可同时为 true）。
 ///
-/// 字段名对齐 alpha2 §5/§6 谓词语义（1-based 谓词号见各字段）。
+/// 字段名对齐 PDF §7 谓词语义（1-based 谓词号见各字段）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Predicates {
-    /// P1：风险强平。
+    /// P1：风险强平（`KThetaRiskGate.force_flat`——同一 RiskState 派生，裁定4 单权威源）。
     pub risk_liquidate: bool,
-    /// P2：已有多头且出现卖点，平多。
-    pub close_long: bool,
-    /// P3：已有空头且出现买点，平空。
-    pub close_short: bool,
-    /// P4：父声部 active 且出现反父方向证书，开短差。
+    /// P2：TW StageII ∧ H>0 ⟹ CloseOverlay（关 legacy ShortDiff 重叠腿，真产订单）。
+    pub close_overlay: bool,
+    /// P3：TW 退本金 Withdraw（`stage_progression` → RecoverCapital，无订单账本事件）。
+    pub tw_withdraw: bool,
+    /// P4：TW EnterEarning（`stage_progression` → EnterEarning，无订单相变）。
+    pub tw_enter_earning: bool,
+    /// P5：正规 CloseRoot（一/二类反向 ⟹ 根清仓；[`reverse_exit_type`] 单源判据）。
+    pub close_root: bool,
+    /// P6：正规 ReduceCore（三类反向 ⟹ 核心仓减仓）。
+    pub reduce_core: bool,
+    /// P7：Close ShortDiff（短差子声部反向确认关闭——入场角色压过触发类）。
+    pub close_short_diff: bool,
+    /// P8：Open Root（非 ShortDiff 角色候选，slot 空 ⟹ 开根/级联腿）。
+    pub open_root: bool,
+    /// P9：Open ShortDiff（ShortDiff 角色候选，slot 空 ⟹ 开短差子声部）。
     pub open_short_diff: bool,
-    /// P5：空仓/ambient 出现买点，开多。
-    pub open_long: bool,
-    /// P6：空仓/ambient 出现卖点，开空。
-    pub open_short: bool,
-    /// P7：已有同向 slot 占用 ⟹ 记录。**诚实命名**（codex-q2-d1 §4）：PDF P7 字面是「记录**或加仓**」，
-    /// 但生产 `interp::interpret` 只有 record 桶、无「加仓」子动作，本字段只覆盖「记录」半句——故命名
-    /// `same_slot_record`（非 `same_dir_record_add`），不暗示不存在的加仓语义。
-    pub same_slot_record: bool,
-    /// P8：无有效动作，保持。
-    pub hold: bool,
+    /// P10：Record StructBreak——**诚实口径**：覆盖 interp record 桶全部三源（Flat 无向 /
+    /// 无类 / slot 冲突「记录不加仓」，codex-q2-d1 §4 加仓子动作不存在的声明沿袭）。
+    pub record_struct_break: bool,
 }
 
 impl Predicates {
-    /// 谓词向量按 1-based 索引读 `P_j`（j∈1..=8）。索引越界 ⟹ panic（内部不变量，j 来自 0..M 循环）。
+    /// 谓词向量按 1-based 索引读 `P_j`（j∈1..=10）。索引越界 ⟹ panic（内部不变量）。
     fn p(&self, j: usize) -> bool {
         match j {
             1 => self.risk_liquidate,
-            2 => self.close_long,
-            3 => self.close_short,
-            4 => self.open_short_diff,
-            5 => self.open_long,
-            6 => self.open_short,
-            7 => self.same_slot_record,
-            8 => self.hold,
+            2 => self.close_overlay,
+            3 => self.tw_withdraw,
+            4 => self.tw_enter_earning,
+            5 => self.close_root,
+            6 => self.reduce_core,
+            7 => self.close_short_diff,
+            8 => self.open_root,
+            9 => self.open_short_diff,
+            10 => self.record_struct_break,
             _ => unreachable!("谓词索引 j={j} 越界（合法 1..={M}）"),
         }
     }
 }
 
-/// 固定优先级互斥化（Doc3 §6）：`C_j = P_j ∧ ⋀_{k<j} ¬P_k`，兜底 `C_0 = ⋀_j ¬P_j`。
+/// 固定优先级互斥化：`C_j = P_j ∧ ⋀_{k<j} ¬P_k`，兜底 `C_0 = ⋀_j ¬P_j`。
 ///
 /// 实装即定理证明的构造形式——取**最小成立谓词索引** r（C_r 唯一成立）；无成立谓词 ⟹ C_0。
 /// 全定义（任意输入返回唯一 [`MutexClass`]）+ 全互斥（`Σ_j 1[C_j]=1`，构造保证恰一个）。
 ///
 /// **边界条件**：全 false ⟹ C0；存在 true ⟹ Cj(最小成立索引)。优先级**不可交换**——更小索引的
-/// 谓词成立时屏蔽所有更大索引（P1 风险强平 ≻ … ≻ P8 保持，alpha2 §16 优先级链）。
+/// 谓词成立时屏蔽所有更大索引（P1 强平 ≻ P2 CloseOverlay ≻ P3/P4 TW ≻ P5..P7 typed close ≻
+/// P8/P9 open ≻ P10 record，PDF §7 优先级链）。
 ///
 /// **认识论 L0**：纯组合逻辑（无数据依赖），互斥性是定义内蕴的同义反复。
 pub fn mutex_class(p: &Predicates) -> MutexClass {
@@ -133,81 +147,136 @@ pub fn mutex_class(p: &Predicates) -> MutexClass {
     MutexClass::C0
 }
 
-/// interp 三桶动作类（[`super::interp::interpret`] 的候选归属：close/open/record）。
+/// bar 级谓词上下文（P1..P4——不依赖单个候选，成立时屏蔽全部候选的 P5..P10）。
 ///
-/// D1 对拍的比较粒度——`mutex_class` 只能充当**三桶级 oracle**（不区分「记录」vs「加仓」子动作，
-/// codex-q2-d1 §1c）。故等价断言在桶级，不在精确 Cj。
+/// 生产对应物（裁定4 真统一，f9333e21b2）：
+/// - `force_flat` ↔ `KThetaRiskGate.force_flat`（组合层上游短路，StepTrace.risk_exits）。
+/// - `tw_close_overlay` ↔ 组合层 P2 分支（`stage==CapitalRecovered ∧ shortdiff 活动腿非空`）。
+/// - `tw_withdraw`/`tw_enter_earning` ↔ `stage_progression` 派生事件的 pattern match。
+///
+/// [`StepPredicateCtx::from_tw`] 把判据从 TW 账本态显式重推导（oracle 独立性——与组合层
+/// if 条件对拍的第二实现，分叉即测试红）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StepPredicateCtx {
+    /// P1：风险强平。
+    pub force_flat: bool,
+    /// P2：TW StageII ∧ H>0（legacy ShortDiff 重叠腿仍开）。
+    pub tw_close_overlay: bool,
+    /// P3：TW 退本金 ready（CostReduction ∧ holding≥notional_in ∧ free 足额）。
+    pub tw_withdraw: bool,
+    /// P4：TW EnterEarning ready（EnterReady 五合取）。
+    pub tw_enter_earning: bool,
+}
+
+impl StepPredicateCtx {
+    /// 从 TW 账本态独立重推导 bar 级谓词（PDF §7 语义显式化，oracle 第二实现）。
+    ///
+    /// - P2 = `stage==CapitalRecovered ∧ has_overlay_legs`（H>0 = 生产 legacy ShortDiff
+    ///   活动腿非空，与 `TwState.open_legacy_legs` 计数同源）。
+    /// - P3/P4 = [`stage_progression`](super::super::closed_loop::transition::stage_progression)
+    ///   派生事件（单源判据——此处不重写阶段推进逻辑，只做事件→谓词投影）。
+    pub fn from_tw(
+        force_flat: bool,
+        tw: &super::ledger::TwState,
+        policy: &super::ledger::RiskPolicy,
+        risk_mode: super::super::closed_loop::state::RiskMode,
+        has_overlay_legs: bool,
+    ) -> StepPredicateCtx {
+        use super::super::closed_loop::transition::stage_progression;
+        use super::ledger::{TStage, TwEvent};
+        let tw_close_overlay = tw.stage == TStage::CapitalRecovered && has_overlay_legs;
+        let (tw_withdraw, tw_enter_earning) = match stage_progression(policy, tw, risk_mode) {
+            Some(TwEvent::RecoverCapital(_)) => (true, false),
+            Some(TwEvent::EnterEarning) => (false, true),
+            _ => (false, false),
+        };
+        StepPredicateCtx { force_flat, tw_close_overlay, tw_withdraw, tw_enter_earning }
+    }
+}
+
+/// interp 三桶动作类（候选级裁决 C5..C10/C0 的桶归属：close/open/record）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActionBucket {
-    /// 𝒟_x：关闭活动腿（interp 规则2 反向平仓）。
+    /// 𝒟_x：关闭活动腿（interp 规则2 反向平仓，typed P5/P6/P7）。
     Close,
-    /// ℬ_x：开启新 slot（interp 规则3）。
+    /// ℬ_x：开启新 slot（interp 规则3，P8/P9）。
     Open,
-    /// 𝒦_x：记录不执行（interp 规则1 无类/无向、规则4 slot 冲突）。
+    /// 𝒦_x：记录不执行（interp 规则1 无类/无向、规则4 slot 冲突，P10；C0 Hold 同桶）。
     Record,
 }
 
-/// `MutexClass` → interp 三桶（codex-q2-d1 §1b 桥接表）。
-///
-/// `C1(风险,本范围不触发)/C2/C3 → Close`；`C4/C5/C6 → Open`；`C7/C8(hold)/C0 → Record`。
-pub fn bridge_bucket(c: MutexClass) -> ActionBucket {
+/// `MutexClass` → 候选级三桶（`None` = bar 级全局分支 C1..C4，无候选桶归属——组合层
+/// 短路/合成桶/消耗裁决，候选不经 interp fold 分流；对拍锚在 coverage tests，非本桥）。
+pub fn bridge_bucket(c: MutexClass) -> Option<ActionBucket> {
     match c {
-        MutexClass::Cj(1) | MutexClass::Cj(2) | MutexClass::Cj(3) => ActionBucket::Close,
-        MutexClass::Cj(4) | MutexClass::Cj(5) | MutexClass::Cj(6) => ActionBucket::Open,
-        _ => ActionBucket::Record, // Cj(7) 记录 / Cj(8) 保持 / C0 兜底
+        MutexClass::Cj(1) | MutexClass::Cj(2) | MutexClass::Cj(3) | MutexClass::Cj(4) => None,
+        MutexClass::Cj(5) | MutexClass::Cj(6) | MutexClass::Cj(7) => Some(ActionBucket::Close),
+        MutexClass::Cj(8) | MutexClass::Cj(9) => Some(ActionBucket::Open),
+        _ => Some(ActionBucket::Record), // Cj(10) 记录 / C0 Hold 兜底
     }
 }
 
-/// **D1 桥接：生产候选 + fold 状态 → PDF 谓词向量 P∈{0,1}^8**（codex-q2-d1 §1a 修正签名）。
+/// **D1 桥接：生产候选 + fold 状态 + bar 级 ctx → PDF 谓词向量 P∈{0,1}^10**。
 ///
-/// 独立于 `interp::interpret` 的规则序，从 PDF 谓词语义**重新推导**每个 P_j——这样
-/// `bridge_bucket(mutex_class(predicates_of(..)))` 与 interp 实际桶归属的对拍才非循环（若 interp
-/// 的 ≺_Θ 序与 PDF P1..P8 优先级分叉，对拍会红，见 `tests::shadow_fold_bucket_equivalence`）。
+/// 独立于 `interp::interpret` 的规则序，从 PDF §7 谓词语义**重新推导**每个 P_j——这样
+/// `bridge_bucket(mutex_class(predicates_of(..)))` 与 interp 实际桶归属的对拍才非循环（若
+/// interp 的 ≺_Θ 序与 PDF 优先级分叉，对拍会红，见 `tests::shadow_fold_bucket_equivalence`）。
 ///
-/// 参数（`working`/`opened_slots` 是 interp fold 的**同一份**内部状态快照，§1a 修正——缺 `opened_slots`
-/// 则 fold 内已开 slot 无法判 P7）：
-/// - `working`：`(ActiveLeg, closed)`——A_t 的工作拷贝，`closed=true` 表本 fold 已关。
-/// - `opened_slots`：`(level, dir)`——本 fold 已开过的 slot（interp.rs `opened`）。
-///
-/// **P1（风险强平）恒 false**——不在 D1 范围（codex-q2-d1 §3；由 `KThetaRiskGate` 上层兜）。
-/// **P8（保持）不主动置位**——真实候选若无类/无向已落 record（C0），有类必触发 P2..P7 之一。
+/// 参数：
+/// - `ctx`：bar 级 P1..P4（成立 ⟹ 该候选的裁决落 C_1..C_4，P5..P10 被互斥化屏蔽——
+///   与组合层「消耗当步裁决」一致）。
+/// - `working`/`opened_slots`：interp fold 的**同一份**内部状态快照。
+/// - `entry_v_of`：被关腿的入场角色查询（腿声部身份入场固定；生产对应 runner 在飞表
+///   `LedgerOpen.entry_v`）——P5/P6/P7 typed 拆分经 [`reverse_exit_type`] 单源。
 pub fn predicates_of(
+    ctx: &StepPredicateCtx,
     c: &Candidate,
     working: &[(ActiveLeg, bool)],
     opened_slots: &[(u32, VoiceSide)],
+    entry_v_of: &dyn Fn(&ActiveLeg) -> Vertical,
 ) -> Predicates {
-    let mut p = Predicates::default();
-    // 规则1 语义：非方向 / 无类候选 ⟹ 无买卖点动作 ⟹ C0（record）。
+    let mut p = Predicates {
+        risk_liquidate: ctx.force_flat,
+        close_overlay: ctx.tw_close_overlay,
+        tw_withdraw: ctx.tw_withdraw,
+        tw_enter_earning: ctx.tw_enter_earning,
+        ..Predicates::default()
+    };
+    // 规则1 语义：非方向 / 无类候选 ⟹ 无买卖点动作 ⟹ P10（记录）。
     if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
-        return p; // 全 false ⟹ C0
+        p.record_struct_break = true;
+        return p;
     }
-    // P2/P3 平多/平空：同级别有未关闭 Long/Short 腿 ∧ 候选携反向信号（reverse_signal 复用 §9）。
-    let has_open_long =
-        working.iter().any(|(l, closed)| !closed && l.level == c.level && l.dir == VoiceSide::Long);
-    let has_open_short =
-        working.iter().any(|(l, closed)| !closed && l.level == c.level && l.dir == VoiceSide::Short);
-    p.close_long = has_open_long && super::exec::reverse_signal(VoiceSide::Long, &c.bits);
-    p.close_short = has_open_short && super::exec::reverse_signal(VoiceSide::Short, &c.bits);
-    if p.close_long || p.close_short {
-        return p; // 平仓优先（P2/P3 ≺ 开仓/记录），mutex_class 取最小索引
+    // P5/P6/P7 typed close：同级别首个未关闭且被 g 反向的腿（interp 规则2 同判据），
+    // typed 经 reverse_exit_type(入场角色, 触发类) 单源——与 runner ledger 消费端同函数。
+    let closed_leg = working
+        .iter()
+        .find(|(l, closed)| !closed && l.level == c.level && super::exec::reverse_signal(l.dir, &c.bits))
+        .map(|(l, _)| l);
+    if let Some(leg) = closed_leg {
+        match reverse_exit_type(entry_v_of(leg), c.bsp_class) {
+            ExitType::CloseShortDiff => p.close_short_diff = true, // P7
+            ExitType::ReduceCore => p.reduce_core = true,          // P6
+            ExitType::CloseRoot => p.close_root = true,            // P5
+            ExitType::RiskExit | ExitType::Hold => {
+                unreachable!("reverse_exit_type 只产三 close 枚举")
+            }
+        }
+        return p;
     }
-    // slot 占用：同级别同向未关闭腿 ∨ 本 fold 已开同 slot。
+    // slot 占用：同级别同向未关闭腿 ∨ 本 fold 已开同 slot ⟹ P10（记录，无加仓子动作）。
     let slot_occupied = working
         .iter()
         .any(|(l, closed)| !closed && l.level == c.level && l.dir == c.dir)
         || opened_slots.iter().any(|&(lv, d)| lv == c.level && d == c.dir);
     if slot_occupied {
-        p.same_slot_record = true; // P7：同向 slot 已占 ⟹ 记录（无加仓子动作，见字段诚实声明）
+        p.record_struct_break = true;
         return p;
     }
-    // slot 空 ⟹ 开仓。P4 开短差（ShortDiff 角色）/ P5 开多 / P6 开空——三者同属 Open 桶。
+    // slot 空 ⟹ 开仓：P9 Open ShortDiff（ShortDiff 角色）/ P8 Open Root（其余）。
     match c.role.v {
-        super::coverage::Vertical::ShortDiff => p.open_short_diff = true, // P4
-        _ => match c.dir {
-            VoiceSide::Long => p.open_long = true,   // P5
-            VoiceSide::Short => p.open_short = true, // P6
-            VoiceSide::Flat => {}                    // 不可达（上方已 return）
-        },
+        Vertical::ShortDiff => p.open_short_diff = true, // P9
+        _ => p.open_root = true,                         // P8
     }
     p
 }
@@ -216,19 +285,16 @@ pub fn predicates_of(
 mod tests {
     use super::*;
 
-    /// ★可证伪核心（alpha2 Doc2§9 定理 1）：穷举全部 2^8=256 谓词组合，断言每个组合
-    /// **恰好一个** C_j 成立（`Σ_{j=0}^8 1[C_j]=1`）。若存在组合 Σ≠1 则 fail。
+    /// ★可证伪核心（alpha2 Doc2§9 定理 1，m=10）：穷举全部 2^10=1024 谓词组合，断言每个
+    /// 组合**恰好一个** C_j 成立（`Σ_{j=0}^10 1[C_j]=1`）。若存在组合 Σ≠1 则 fail。
     ///
-    /// 互斥化由 [`mutex_class`] 产唯一 [`MutexClass`]——本测试独立重算每个 C_j 的指示函数
-    /// `1[C_j]`（不调 `mutex_class`，避免循环论证），逐组合求和断言 ==1，并交叉验证求和命中的
-    /// 那个 j 与 `mutex_class` 返回的类号一致（实装 == 独立定义）。
+    /// 本测试独立重算每个 C_j 的指示函数 `1[C_j]`（不调 `mutex_class`，避免循环论证），
+    /// 逐组合求和断言 ==1，并交叉验证命中类号与 `mutex_class` 一致（实装 == 独立定义）。
     #[test]
-    fn mutex_total_exhaustive_2pow8() {
+    fn mutex_total_exhaustive_2pow10() {
         for bits in 0u32..(1 << M) {
             let p = decode(bits);
 
-            // 独立重算指示函数（不调 mutex_class）。
-            // 1[C_j] = P_j ∧ ⋀_{k<j} ¬P_k；1[C_0] = ⋀_j ¬P_j。
             let mut sum = 0usize;
             let mut hit_class: Option<MutexClass> = None;
 
@@ -238,7 +304,7 @@ mod tests {
                 sum += 1;
                 hit_class = Some(MutexClass::C0);
             }
-            // C_j。
+            // C_j = P_j ∧ ⋀_{k<j} ¬P_k。
             for j in 1..=M {
                 let prefix_all_false = (1..j).all(|k| !p.p(k));
                 let cj = p.p(j) && prefix_all_false;
@@ -250,54 +316,56 @@ mod tests {
 
             assert_eq!(
                 sum, 1,
-                "bits={bits:08b}: Σ_j 1[C_j]={sum} ≠ 1（互斥性/全定义破裂，alpha2 定理 1 反例）"
+                "bits={bits:010b}: Σ_j 1[C_j]={sum} ≠ 1（互斥性/全定义破裂，定理 1 反例）"
             );
-            // 实装 == 独立定义（交叉验证）。
             assert_eq!(
                 mutex_class(&p),
                 hit_class.unwrap(),
-                "bits={bits:08b}: mutex_class 实装 ≠ 独立重算的命中类号"
+                "bits={bits:010b}: mutex_class 实装 ≠ 独立重算的命中类号"
             );
         }
     }
 
-    /// 全定义：任意输入返回唯一 MutexClass（穷举已覆盖；此处显式断言无 panic + 全 false → C0）。
+    /// 全定义：任意输入返回唯一 MutexClass（穷举已覆盖；显式断言无 panic + 全 false → C0）。
     #[test]
     fn mutex_total_definedness() {
-        // 全 false → 兜底 C0。
         assert_eq!(mutex_class(&Predicates::default()), MutexClass::C0);
-        // 穷举不 panic（决定性全函数）。
         for bits in 0u32..(1 << M) {
             let _ = mutex_class(&decode(bits));
         }
     }
 
-    /// 优先级屏蔽：P1（风险强平）成立时屏蔽所有更高索引（即使 P2..P8 全 true）⟹ C_1。
+    /// 优先级屏蔽：P1（风险强平）成立时屏蔽所有更高索引（即使 P2..P10 全 true）⟹ C_1。
     #[test]
     fn priority_p1_masks_all() {
-        let p = Predicates {
-            risk_liquidate: true,
-            close_long: true,
-            close_short: true,
-            open_short_diff: true,
-            open_long: true,
-            open_short: true,
-            same_slot_record: true,
-            hold: true,
-        };
-        assert_eq!(mutex_class(&p), MutexClass::Cj(1), "P1 成立 ⟹ C_1（屏蔽 P2..P8）");
+        let p = decode((1 << M) - 1); // 全 true
+        assert_eq!(mutex_class(&p), MutexClass::Cj(1), "P1 成立 ⟹ C_1（屏蔽 P2..P10）");
     }
 
-    /// 优先级取最小成立索引：P1 false、P4 起为 true ⟹ C_4（P2/P3 false 不屏蔽，P4 最小成立）。
+    /// bar 级链序：P2 CloseOverlay 屏蔽 P3/P4（TW 事件）与 P5..P10；P3 屏蔽 P4..P10。
+    #[test]
+    fn priority_bar_level_chain() {
+        let p2 = Predicates {
+            close_overlay: true,
+            tw_withdraw: true,
+            close_root: true,
+            ..Default::default()
+        };
+        assert_eq!(mutex_class(&p2), MutexClass::Cj(2), "P2 ≻ P3 ≻ P5");
+        let p3 = Predicates { tw_withdraw: true, tw_enter_earning: true, open_root: true, ..Default::default() };
+        assert_eq!(mutex_class(&p3), MutexClass::Cj(3), "P3 ≻ P4 ≻ P8");
+    }
+
+    /// 优先级取最小成立索引：typed close P5..P7 内部与 open P8/P9 的链序。
     #[test]
     fn priority_min_index() {
         let p = Predicates {
-            open_short_diff: true, // P4
-            open_long: true,       // P5
-            hold: true,            // P8
+            reduce_core: true,      // P6
+            open_short_diff: true,  // P9
+            record_struct_break: true, // P10
             ..Default::default()
         };
-        assert_eq!(mutex_class(&p), MutexClass::Cj(4), "最小成立索引 r=4 ⟹ C_4");
+        assert_eq!(mutex_class(&p), MutexClass::Cj(6), "最小成立索引 r=6 ⟹ C_6");
     }
 
     /// bits → Predicates 解码（bit j-1 ↔ P_j，1-based）。
@@ -305,27 +373,78 @@ mod tests {
         let b = |j: usize| (bits >> (j - 1)) & 1 == 1;
         Predicates {
             risk_liquidate: b(1),
-            close_long: b(2),
-            close_short: b(3),
-            open_short_diff: b(4),
-            open_long: b(5),
-            open_short: b(6),
-            same_slot_record: b(7),
-            hold: b(8),
+            close_overlay: b(2),
+            tw_withdraw: b(3),
+            tw_enter_earning: b(4),
+            close_root: b(5),
+            reduce_core: b(6),
+            close_short_diff: b(7),
+            open_root: b(8),
+            open_short_diff: b(9),
+            record_struct_break: b(10),
         }
     }
 
     // ──────────────────────────────────────────────────────────────────────
-    //  D1 逐候选级等价 shadow-fold property test（codex-q2-d1 §1b）
-    //  断言：interp::interpret 的 ≺_Θ 三桶归属 == mutex P1..P8 优先级桶归属（桶级）。
-    //  桶级一致必须过；精确 Cj 一致为可选诊断（本测试只查桶级——§1c 第一层）。
+    //  bar 级谓词 ctx 派生对拍（StepPredicateCtx::from_tw vs 组合层分支判据）
+    // ──────────────────────────────────────────────────────────────────────
+    use super::super::super::closed_loop::state::RiskMode;
+    use super::super::ledger::{RiskPolicy, TStage, TwState};
+
+    /// ★P2/P3/P4 判据派生：from_tw 与组合层 pi_theta_step_traced 分支使用同一判据源
+    /// （stage==II∧H>0 / stage_progression），此处对拍谓词投影正确性。
+    #[test]
+    fn step_ctx_from_tw_predicates() {
+        let pol = RiskPolicy::baseline();
+        // P2：StageII + 有重叠腿。
+        let s2 = TwState { stage: TStage::CapitalRecovered, open_legacy_legs: 1, ..TwState::initial() };
+        let c2 = StepPredicateCtx::from_tw(false, &s2, &pol, RiskMode::Normal, true);
+        assert!(c2.tw_close_overlay && !c2.tw_withdraw && !c2.tw_enter_earning);
+        // P3：CostReduction + holding≥notional_in + free 足额。
+        let s3 = TwState { free: 100, holding: 100, notional_in: 100, ..TwState::initial() };
+        let c3 = StepPredicateCtx::from_tw(false, &s3, &pol, RiskMode::Normal, false);
+        assert!(c3.tw_withdraw && !c3.tw_close_overlay && !c3.tw_enter_earning);
+        // P4：EnterReady 五合取。
+        let s4 = TwState {
+            withdrawn: 100,
+            notional_in: 100,
+            stage: TStage::CapitalRecovered,
+            ..TwState::initial()
+        };
+        let c4 = StepPredicateCtx::from_tw(false, &s4, &pol, RiskMode::Normal, false);
+        assert!(c4.tw_enter_earning && !c4.tw_withdraw);
+        // inert：initial（notional_in=0）全 false。
+        let c0 = StepPredicateCtx::from_tw(false, &TwState::initial(), &pol, RiskMode::Normal, false);
+        assert_eq!(c0, StepPredicateCtx::default());
+    }
+
+    /// ★bar 级谓词注入 ⟹ 任意候选的裁决落 C_1..C_4（P5..P10 被互斥化屏蔽）——与组合层
+    /// 「消耗当步裁决」行为对应（行为侧见 coverage tests `pi_theta_step_traced_p2/p3/p4_*`）。
+    #[test]
+    fn bar_level_ctx_masks_candidate_predicates() {
+        let c = cand(0, 0, 10, VoiceSide::Long, 1, buy(1), Vertical::Ambient);
+        let ambient = |_: &ActiveLeg| Vertical::Ambient;
+        for (ctx, expect) in [
+            (StepPredicateCtx { force_flat: true, ..Default::default() }, MutexClass::Cj(1)),
+            (StepPredicateCtx { tw_close_overlay: true, ..Default::default() }, MutexClass::Cj(2)),
+            (StepPredicateCtx { tw_withdraw: true, ..Default::default() }, MutexClass::Cj(3)),
+            (StepPredicateCtx { tw_enter_earning: true, ..Default::default() }, MutexClass::Cj(4)),
+        ] {
+            let cls = mutex_class(&predicates_of(&ctx, &c, &[], &[], &ambient));
+            assert_eq!(cls, expect, "bar 级谓词 ⟹ 候选裁决落对应 C_j（open 候选被屏蔽）");
+            assert_eq!(bridge_bucket(cls), None, "C_1..C_4 = bar 级全局分支，无候选桶归属");
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  D1 逐候选级等价 shadow-fold property test（ctx 全 false：P5..P10 vs interp 三桶）
+    //  桶级一致必须过；typed close 场景另断言精确 Cj（P5/P6/P7 与消费端判据同源见证）。
     // ──────────────────────────────────────────────────────────────────────
     use super::super::super::classifier::recursive_tower::ElementId;
-    use super::super::coverage::{Dir, Horizontal, OperationRole, Vertical};
+    use super::super::coverage::{Dir, Horizontal, OperationRole};
     use super::super::exec::reverse_signal;
-    use super::super::interp::{interpret, theta_key, ActiveLeg, Candidate};
+    use super::super::interp::{interpret, theta_key};
     use super::super::super::types::BspBits;
-    use super::VoiceSide;
     use std::collections::HashSet;
 
     fn role(v: Vertical) -> OperationRole {
@@ -382,10 +501,17 @@ mod tests {
         }
     }
 
-    /// shadow fold：按 theta_key 排序，逐候选对拍 mutex 桶 vs 真 interp 桶。interp 桶从
-    /// `interpret` 聚合输出按 `gamma_index` 反查（open/record 桶含候选；否则该候选被消费为关闭者
-    /// ⟹ Close）。shadow `working`/`opened` 用 authoritative interp 桶推进（镜像 interp 规则2/3）。
-    fn assert_bucket_equiv(gamma: &[Candidate], active: &[ActiveLeg]) {
+    /// shadow fold：按 theta_key 排序，逐候选对拍 mutex 桶 vs 真 interp 桶（ctx 全 false）。
+    /// `entry_v_of` 给腿入场角色（typed P5/P6/P7 判据输入）；`expect_cj` 非空时按 gamma_index
+    /// 另断言精确类号（typed close 见证）。shadow `working`/`opened` 用 authoritative interp
+    /// 桶推进（镜像 interp 规则2/3）。
+    fn assert_bucket_equiv_typed(
+        gamma: &[Candidate],
+        active: &[ActiveLeg],
+        entry_v_of: &dyn Fn(&ActiveLeg) -> Vertical,
+        expect_cj: &[(usize, u8)],
+    ) {
+        let ctx = StepPredicateCtx::default();
         let real = interpret(gamma, active);
         let open_idx: HashSet<usize> = real.open.iter().map(|c| c.gamma_index).collect();
         let rec_idx: HashSet<usize> = real.record.iter().map(|c| c.gamma_index).collect();
@@ -397,7 +523,9 @@ mod tests {
         let mut opened: Vec<(u32, VoiceSide)> = Vec::new();
 
         for c in ordered {
-            let mbucket = bridge_bucket(mutex_class(&predicates_of(c, &working, &opened)));
+            let cls = mutex_class(&predicates_of(&ctx, c, &working, &opened, entry_v_of));
+            let mbucket = bridge_bucket(cls)
+                .expect("ctx 全 false ⟹ 候选级裁决 C5..C10/C0，恒有桶归属");
             let ibucket = if open_idx.contains(&c.gamma_index) {
                 ActionBucket::Open
             } else if rec_idx.contains(&c.gamma_index) {
@@ -407,9 +535,17 @@ mod tests {
             };
             assert_eq!(
                 mbucket, ibucket,
-                "候选 gamma_index={} 桶级分叉：mutex(P1..P8)={:?} vs interp(≺_Θ)={:?}（真矛盾 ⟹ /escalate）",
+                "候选 gamma_index={} 桶级分叉：mutex(P1..P10)={:?} vs interp(≺_Θ)={:?}（真矛盾 ⟹ /escalate）",
                 c.gamma_index, mbucket, ibucket
             );
+            if let Some(&(_, want)) = expect_cj.iter().find(|&&(gi, _)| gi == c.gamma_index) {
+                assert_eq!(
+                    cls,
+                    MutexClass::Cj(want),
+                    "候选 gamma_index={} 精确类号分叉（typed close 判据 vs 消费端）",
+                    c.gamma_index
+                );
+            }
             // 推进 shadow 状态镜像 interp（authoritative = ibucket）。
             match ibucket {
                 ActionBucket::Close => {
@@ -426,7 +562,12 @@ mod tests {
         }
     }
 
-    /// ★D1 桶级等价（生成域覆盖：空/同级同向/同级反向/双向腿/跨级/fold内重复slot/ShortDiff/无类无向）。
+    fn ambient(_: &ActiveLeg) -> Vertical {
+        Vertical::Ambient
+    }
+
+    /// ★D1 桶级等价（生成域覆盖：空/同级同向/同级反向/双向腿/跨级/fold内重复slot/ShortDiff/
+    /// 无类无向）+ typed close 精确类号（P5 一类反向根清仓）。
     #[test]
     fn shadow_fold_bucket_equivalence() {
         use Vertical::{Ambient, ShortDiff};
@@ -435,35 +576,93 @@ mod tests {
         let f = VoiceSide::Flat;
 
         // S1 空 active，两 slot 开仓（跨级 + 多空）。
-        assert_bucket_equiv(
+        assert_bucket_equiv_typed(
             &[cand(0, 0, 10, l, 1, buy(1), Ambient), cand(1, 1, 11, s, 1, sell(1), Ambient)],
             &[],
+            &ambient,
+            &[(0, 8), (1, 8)], // P8 Open Root
         );
-        // S2 fold 内重复同 slot：第一开，第二记录（slot_this_fold）。
-        assert_bucket_equiv(
+        // S2 fold 内重复同 slot：第一开（P8），第二记录（P10 slot_this_fold）。
+        assert_bucket_equiv_typed(
             &[cand(0, 0, 10, l, 1, buy(1), Ambient), cand(1, 0, 12, l, 2, buy(2), Ambient)],
             &[],
+            &ambient,
+            &[(0, 8), (1, 10)],
         );
-        // S3 反向平仓：持多 L0 + 卖候选 ⟹ close。
-        assert_bucket_equiv(&[cand(0, 0, 20, s, 1, sell(1), Ambient)], &[leg(0, l, 5)]);
-        // S4 同向 slot 占用 ⟹ record（buy 候选不反向持多腿）。
-        assert_bucket_equiv(&[cand(0, 0, 20, l, 1, buy(1), Ambient)], &[leg(0, l, 5)]);
-        // S5 无类无向候选 ⟹ record（规则1 / C0）。
-        assert_bucket_equiv(&[cand(0, 0, 20, f, u8::MAX, BspBits::default(), Ambient)], &[]);
-        // S6 ShortDiff 角色开仓（P4）⟹ open。
-        assert_bucket_equiv(&[cand(0, 0, 20, s, 1, sell(1), ShortDiff)], &[]);
-        // S7 跨级同向不冲突：持多 L0 + buy L1 ⟹ open（不同 slot）。
-        assert_bucket_equiv(&[cand(0, 1, 20, l, 1, buy(1), Ambient)], &[leg(0, l, 5)]);
-        // S8 双向腿共存 + 反向候选：sell 候选反向平掉 Long 腿（P2 优先）⟹ close。
-        assert_bucket_equiv(&[cand(0, 0, 20, s, 1, sell(1), Ambient)], &[leg(0, l, 5), leg(0, s, 6)]);
-        // S9 多候选同刻混合：L0 反向平 + L1 开 + L0 无类记录（三桶同刻）。
-        assert_bucket_equiv(
+        // S3 反向平仓：持多 L0（Ambient 根）+ 一类卖候选 ⟹ close，typed=P5 CloseRoot。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, s, 1, sell(1), Ambient)],
+            &[leg(0, l, 5)],
+            &ambient,
+            &[(0, 5)],
+        );
+        // S4 同向 slot 占用 ⟹ record（P10）。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, l, 1, buy(1), Ambient)],
+            &[leg(0, l, 5)],
+            &ambient,
+            &[(0, 10)],
+        );
+        // S5 无类无向候选 ⟹ record（P10）。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, f, u8::MAX, BspBits::default(), Ambient)],
+            &[],
+            &ambient,
+            &[(0, 10)],
+        );
+        // S6 ShortDiff 角色开仓 ⟹ open，typed=P9 Open ShortDiff。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, s, 1, sell(1), ShortDiff)],
+            &[],
+            &ambient,
+            &[(0, 9)],
+        );
+        // S7 跨级同向不冲突：持多 L0 + buy L1 ⟹ open（不同 slot，P8）。
+        assert_bucket_equiv_typed(
+            &[cand(0, 1, 20, l, 1, buy(1), Ambient)],
+            &[leg(0, l, 5)],
+            &ambient,
+            &[(0, 8)],
+        );
+        // S8 双向腿共存 + 反向候选：sell 候选反向平掉 Long 腿 ⟹ close（P5）。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, s, 1, sell(1), Ambient)],
+            &[leg(0, l, 5), leg(0, s, 6)],
+            &ambient,
+            &[(0, 5)],
+        );
+        // S9 多候选同刻混合：L0 反向平（P5）+ L1 开（P8）+ L0 无类记录（P10）。
+        assert_bucket_equiv_typed(
             &[
-                cand(0, 0, 30, s, 1, sell(1), Ambient),        // 平 L0 Long
-                cand(1, 1, 31, l, 1, buy(1), Ambient),          // 开 L1
-                cand(2, 0, 32, f, u8::MAX, BspBits::default(), Ambient), // 记录
+                cand(0, 0, 30, s, 1, sell(1), Ambient),
+                cand(1, 1, 31, l, 1, buy(1), Ambient),
+                cand(2, 0, 32, f, u8::MAX, BspBits::default(), Ambient),
             ],
             &[leg(0, l, 5)],
+            &ambient,
+            &[(0, 5), (1, 8), (2, 10)],
+        );
+        // S10 三类反向 ⟹ P6 ReduceCore（typed 拆分：trigger_class=3 减核，非根清仓）。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, s, 3, sell(3), Ambient)],
+            &[leg(0, l, 5)],
+            &ambient,
+            &[(0, 6)],
+        );
+        // S11 ShortDiff 入场腿被反向关 ⟹ P7 CloseShortDiff（入场角色压过触发类——
+        //     即使一类触发也归 P7，reverse_exit_type 单源语义）。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, l, 1, buy(1), Ambient)],
+            &[leg(0, s, 5)],
+            &|_| Vertical::ShortDiff,
+            &[(0, 7)],
+        );
+        // S12 二类反向 ⟹ P5 CloseRoot（二类是一类的次级确认，同属根反转——G4 判据表）。
+        assert_bucket_equiv_typed(
+            &[cand(0, 0, 20, s, 2, sell(2), Ambient)],
+            &[leg(0, l, 5)],
+            &ambient,
+            &[(0, 5)],
         );
     }
 }
