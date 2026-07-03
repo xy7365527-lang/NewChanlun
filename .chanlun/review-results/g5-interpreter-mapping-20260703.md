@@ -154,3 +154,14 @@ I_Θ(ctx: RiskState + TwState + Active/LegBook, gamma) -> { buckets, order_effec
 **约束**：P1 全局分支实装时，`force_flat` 成立 ⟹ **open 桶不得进 `next_active`**，且须对 `prev_active` 逐条产 `ExitType::RiskExit` 清空活动腿（不能只跳过 open——旧腿也须清）。这落在 I_Θ 组合层（P1 分支短路 `coverage_step_from_buckets` 的 raw 构造），非改 `interpret`。
 
 **现状影响**：force_flat 现仅 Insolvent/Liquidation（equity≤0）触发，当前 BTC 回测近乎不触发（M2/M3 不可达）⟹ 幽灵腿潜伏未污染现基线 ⟹ 修复随 P1 impl（post-G7）落 + GOLDEN 重算，不单独提前改（避免计划外 bit-exact 破坏）。
+
+**P1 短路点必须在 raw 构造层**（读 coverage.rs 新版核实 1747-1901）：`next_active ← next_idx ← raw`（1883/1901），而 `legs`/`p̃` 是从 `next_idx` **另起**的派生（`strategy_target_legs` 1886）。⟹ 只把 `legs`/`p̃` 清零**不够**（next_active 仍从 next_idx 带旧腿=幽灵腿）；P1 必须在 held-leg push（1747-1831）+ open push（1850-1879）**上游**短路：raw=∅ → next_idx=∅ → next_active=∅，prev_active 逐条产 RiskExit。
+
+### 6.8 P1 × G7 gross_cap 耦合核对（G7 #133 落地 f1c9700332 后，team-lead 请求）
+
+**核实**（读 coverage.rs:1850-1898）：G7 `apply_gross_cap`（1893-1897）作用于 `legs`、在 `net_target_units` 折叠**前**、raw/AncOK/`strategy_target_legs`**后**。新签名 `coverage_step_from_buckets(..., risk: Option<&RiskConfig>, ...)`（1709），gross_cap 门控 `RiskConfig.enforce_gross_cap`（default false）。
+
+**结论：无语义冲突，P1 与 gross_cap 按优先级天然复合（对齐 PDF §7 C_1 屏蔽）**：
+- P1（强平）在 raw 层上游短路 ⟹ legs=∅ ⟹ gross_cap 作用于空 legs = 恒等 no-op ⟹ p̃=0。P1 触发时 gross_cap 无事可做，非"先后打架"。
+- P1 **不**触发 ⟹ 正常 raw→legs→gross_cap→net。gross_cap 仅在 P1 静默时生效。先后 = P1 上游优先，gross_cap 次之——正是 `C_1=P_1` 屏蔽 P2..P10 的语义。
+- **单一 risk 源一致性**：force_flat（P1 判据）与 enforce_gross_cap（G7 门）都 key off `RiskState`/`RiskConfig` ⟹ 与裁定4「force_flat 降级为同一 RiskState 派生」一致——I_Θ 组合层用同一 risk 源喂 P1 分支 + 传 `risk` 给 coverage_step_from_buckets。无双权威源。
