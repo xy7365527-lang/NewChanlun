@@ -624,7 +624,7 @@ mod tests {
         assert_eq!(windowed.len(), 1);
         let (c, win) = &windowed[0];
         assert_eq!((c.zd, c.zg), (5, 10));
-        assert_eq!(*win, [0, 1, 2]); // 构成窗口三段索引
+        assert_eq!(*win, (0, 2)); // 构成窗口闭区间（seed 三段，无延伸段）
     }
 
     /// ★compose_level：三段 L0 线段 → 一个上级走势（RMove::Compose 携 subs）。
@@ -703,13 +703,15 @@ mod tests {
         assert_eq!(cursor.consumed, 9, "9 段全消费，退出断点 consumed=9");
     }
 
-    /// ★增量核心 bit-exact：尾部追加后续扫 == 全量重扫。
+    /// ★增量核心 bit-exact：尾部追加后按 frontier 协议续扫 == 全量重扫。
     ///
-    /// 前 6 段（2 窗口）扫描断点缓存，追加 3 段后从断点续扫 ⟹ 产出 == 全量 9 段扫描。
-    /// 验证「已产出前缀不可变 + 从 consumed 续扫 == 全量」的增量不变量。
+    /// 9 段全重叠（延伸语义下全量 = 1 个延伸中枢），前 6 段先扫 → 追加 3 段。
+    /// 唯一合法 resume 协议（task #142 充要条件 #1）：pop 末位开放中枢 + 从 `resume_from`
+    /// 重扫（末位中枢未被 non-extension 单元终止 ⟹ 开放，新单元可延伸它；从 `consumed`
+    /// 直接续进会对本应延伸的新单元开新中枢，与全量分叉）。
     #[test]
     fn resume_after_append_matches_full_rescan() {
-        // 9 段交替（3 窗口），分两批：前 6 段 → 追加 3 段。
+        // 9 段交替全重叠，分两批：前 6 段 → 追加 3 段。
         let all_units: Vec<UnitRange> = (0..9)
             .map(|i| {
                 let dir = if i % 2 == 0 { up() } else { down() };
@@ -718,13 +720,19 @@ mod tests {
             .collect();
         let build = super::super::center::center_from_segments;
 
-        // 全量基准。
+        // 全量基准（延伸语义：seed [0..=2] 吸收 3..=8 ⟹ 1 个延伸中枢）。
         let full = detect_centers_windowed(&all_units, build);
+        assert_eq!(full.len(), 1, "9 段全重叠 = 1 个延伸中枢（PDF §5 Q2）");
+        assert_eq!(full[0].1, (0, 8), "延伸窗口吸收全部 9 段");
 
-        // 增量：前 6 段先扫。
-        let (prefix, cursor6) = detect_centers_windowed_resume(&all_units[..6], build, 0);
-        // 追加到 9 段后从 cursor6 续扫（前缀 units[..6] 不变，仅尾部追加）。
-        let (tail, _cursor9) = detect_centers_windowed_resume(&all_units, build, cursor6.consumed);
+        // 增量：前 6 段先扫（产出 1 个开放中枢 (0,5)）。
+        let (mut prefix, cursor6) = detect_centers_windowed_resume(&all_units[..6], build, 0);
+        // frontier 协议：pop 末位开放中枢 + 从 resume_from（seed 起点）重扫。
+        if cursor6.resume_from < cursor6.consumed {
+            prefix.pop();
+        }
+        let (tail, _cursor9) =
+            detect_centers_windowed_resume(&all_units, build, cursor6.resume_from);
 
         // 拼接 == 全量。
         let mut combined = prefix.clone();
@@ -756,10 +764,15 @@ mod tests {
         assert_eq!(rc, full_c, "resume(0) centers == 全量");
         assert_eq!(ru, full_u, "resume(0) upper == 全量");
 
-        // 增量：前 6 段 compose。
-        let (pc, pu, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
-        // 追加续扫（prefix_count = pu.len()，tail ordinal 接续前缀）。
-        let (tc, tu, _) = compose_level_resume(&units, &moves, true, 1, cursor6.consumed, pu.len());
+        // 增量：前 6 段 compose（产出 1 个开放中枢 + 其上级走势）。
+        let (mut pc, mut pu, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+        // frontier 协议（task #142 充要条件 #1）：pop 末位开放中枢及其上级走势 + 从 resume_from 重扫。
+        if cursor6.resume_from < cursor6.consumed {
+            pc.pop();
+            pu.pop();
+        }
+        let (tc, tu, _) =
+            compose_level_resume(&units, &moves, true, 1, cursor6.resume_from, pu.len());
 
         let mut comb_c = pc.clone();
         comb_c.extend(tc);
@@ -802,17 +815,26 @@ mod tests {
     /// 多级递归塔：L0 → L1 → L2，每级 descend 取回下级走势（级别严格递减）。
     #[test]
     fn multi_level_tower_descend_decreases_level() {
-        // 9 段 L0 全重叠 [0,100]（交替方向），逐级 compose。
-        let units: Vec<UnitRange> = (0..9)
-            .map(|i| {
+        // 9 段 L0 三组「核心分离、外缘重叠」（task #142 延伸语义：全重叠 fixture 会被吸收为
+        // 1 个延伸中枢，多级塔须组间 non-extension 分离——首段 d>ZG 终止前组延伸；
+        // 三组外缘共同重叠 [152,180] 非空 ⟹ L2 几何中枢成立）。
+        let ranges = [
+            (0, 50), (40, 200), (40, 50),        // 组1 核心 [40,50]，外缘 [0,200]
+            (55, 150), (52, 180), (55, 160),     // 组2 核心 [55,150]（首段 55>50 non-ext），外缘 [52,180]
+            (155, 300), (152, 280), (155, 290),  // 组3 核心 [155,280]（首段 155>150 non-ext），外缘 [152,300]
+        ];
+        let units: Vec<UnitRange> = ranges
+            .iter()
+            .enumerate()
+            .map(|(i, &(lo, hi))| {
                 let dir = if i % 2 == 0 { up() } else { down() };
-                unit(i * 4, i * 4 + 4, dir, 0, 100)
+                unit(i * 4, i * 4 + 4, dir, lo, hi)
             })
             .collect();
         let moves: Vec<LeveledMove> = units.iter().enumerate().map(|(i, u)| LeveledMove::from_unit(u, eid(0, i as u64))).collect();
         // L0 → L1（完整判据，方向交替）。
         let (_c1, l1) = compose_level(&units, &moves, true, 1);
-        assert_eq!(l1.len(), 3, "9 段 → 3 窗口 → 3 个 L1 走势");
+        assert_eq!(l1.len(), 3, "三组核心分离 → 3 个中枢 → 3 个 L1 走势");
         for m in &l1 {
             assert_eq!(m.rmove.level(), 1);
             // L1 走势 descend 取回 3 段 L0 线段（level 0）。

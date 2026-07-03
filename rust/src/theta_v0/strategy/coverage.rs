@@ -3971,9 +3971,22 @@ mod tests {
     /// ★codex Q4 确定性 ElementId 跨 bar 稳定测试：全量/增量产同 ID。
     #[test]
     fn element_id_deterministic_full_vs_incremental() {
-        // 全量 compose_level 产 ID (level, ordinal) 从 0 起。
-        let units: Vec<UnitRange> = (0..9)
-            .map(|i| unit(i * 4, i * 4 + 4, if i % 2 == 0 { Direction::Up } else { Direction::Down }, 0, 100))
+        // ★task #142 延伸语义诚实重算：旧全重叠 [0,100] fixture 在 canonical 扫描（PDF §5）下被
+        // 吸收为 1 个延伸中枢 ⟹ 只有 1 个 ID，测不出接续。改三组「核心分离」fixture：
+        // 组1 核心 [max(0,40,40),min(50,200,50)]=[40,50]；组2 首段 lo=55>ZG₁=50 ⟹ non-extension，
+        // 核心 [55,150]；组3 首段 lo=155>ZG₂=150 ⟹ non-extension，核心 [155,280]。
+        // ⟹ 全量 3 个中枢/3 个上级走势，ID (1,0)(1,1)(1,2)。
+        let ranges = [
+            (0, 50), (40, 200), (40, 50),
+            (55, 150), (52, 180), (55, 160),
+            (155, 300), (152, 280), (155, 290),
+        ];
+        let units: Vec<UnitRange> = ranges
+            .iter()
+            .enumerate()
+            .map(|(i, &(lo, hi))| {
+                unit(i * 4, i * 4 + 4, if i % 2 == 0 { Direction::Up } else { Direction::Down }, lo, hi)
+            })
             .collect();
         let moves: Vec<LeveledMove> = units
             .iter()
@@ -3981,15 +3994,22 @@ mod tests {
             .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
             .collect();
         let (_fc, full_upper) = compose_level(&units, &moves, true, 1);
+        assert_eq!(full_upper.len(), 3, "三组核心分离 ⟹ 3 个中枢/3 个上级走势");
         // 增量 resume(prefix_count=0) == 全量。
         let (_tc, tail_upper, _) = compose_level_resume(&units, &moves, true, 1, 0, 0);
         assert_eq!(full_upper.len(), tail_upper.len());
         for (f, t) in full_upper.iter().zip(tail_upper.iter()) {
             assert_eq!(f.id, t.id, "全量/增量产同 ElementId（确定性）");
         }
-        // 增量续扫：前 6 段 + 追加 3 段，tail ID 接续前缀（prefix_count + i）。
-        let (_pc, prefix_upper, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
-        let (_tc2, tail_upper2, _) = compose_level_resume(&units, &moves, true, 1, cursor6.consumed, prefix_upper.len());
+        // 增量续扫：前 6 段（产 2 中枢，末位开放——其延伸终止于 units 用尽而非 non-extension）+
+        // 追加 3 段。★task #142 唯一合法 resume 协议：pop 末位开放中枢的上级走势 + 从 resume_from
+        // （其 seed 起点）重扫；tail ID 接续 prefix_count（pop 后 =1）⟹ 重算中枢仍得 ID (1,1)。
+        let (_pc, mut prefix_upper, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+        if cursor6.resume_from < cursor6.consumed {
+            prefix_upper.pop();
+        }
+        let (_tc2, tail_upper2, _) =
+            compose_level_resume(&units, &moves, true, 1, cursor6.resume_from, prefix_upper.len());
         let mut comb = prefix_upper.clone();
         comb.extend(tail_upper2);
         assert_eq!(comb.len(), full_upper.len());

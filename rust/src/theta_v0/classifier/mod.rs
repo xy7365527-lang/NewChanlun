@@ -1783,23 +1783,31 @@ mod tests {
     #[test]
     fn end_to_end_second_buy_via_l1_l2_geometric() {
         let cfg = ThetaConfig::default();
-        // 9 段 L0：三组 up-down-up（每组 → 一个 L1 走势）。三个 L1 走势外缘重叠成 L2 中枢，
-        // 但 L1[1] 向下深破核心下沿（第一类离开候选，Side::Long），L1[2] 回拉不创新低。
-        // L1 走势外缘 = 组内三段 [dd,gg]：A=[110,150], B=[80,145], C=[115,148]。
-        // L2 核心 = max(110,80,115)=115 .. min(150,145,148)=145 → [115,145] 非空（盘整 L2 中枢）。
+        // 9 段 L0：三组（每组 → 一个 L1 走势）。★中枢延伸语义下的诚实重算（PDF §5，task #142）：
+        // 组间首段必须与前组**冻结核心 [ZD,ZG]** 不相交（Step3 non-extension），否则整串被 Step2
+        // 吸收为 1 个延伸中枢 ⟹ 塔不生长（旧全触及 fixture 的坍缩后果）。推导：
+        // - 组A up-down-up：核心 K_A=[max(110,120,120),min(150,150,148)]=[120,148]，外缘 O_A=[110,150]。
+        // - 组B down-up-down：首段 [80,115] hi=115 < ZD_A=120 ⟹ non-extension（组间分离）；
+        //   核心 K_B=[max(80,80,85),min(115,125,114)]=[85,114]，外缘 O_B=[80,125]。
+        // - 组C up-down-up：首段 [115,148] lo=115 > ZG_B=114 ⟹ non-extension；
+        //   核心 K_C=[max(115,112,112),min(148,148,147)]=[115,147]，外缘 O_C=[112,148]。
+        // L2 核心（几何路径，三 L1 外缘交）= [max(110,80,112), min(150,125,148)] = [112,125] 非空。
+        // B2 结构：L1[1].lo=80 < ZD2=112 深破 L2 核心下沿（第一类离开候选，Side::Long）；
+        // L1[2] 回拉不创新低（lo=112 >= L1[1].lo=80）；L1[0]/L1[1] 外缘占位方向同 Down
+        // （末子 hi < 首子 hi：148<150 / 114<115）⟹ 背驰可配对（closes 前大后小）。
         let segments = vec![
-            // 组A（L1[0]）：up-down-up，外缘 [110,150]
+            // 组A（L1[0]）：up-down-up，核心 [120,148]，外缘 [110,150]
             seg(Direction::Up,   0,  4, 110, 150),
             seg(Direction::Down, 4,  8, 150, 120),
             seg(Direction::Up,   8, 12, 120, 148),
-            // 组B（L1[1]）：up-down-up，外缘 [80,145]，lo=80 深破 L2 核心下沿 115
-            seg(Direction::Up,  12, 16, 130, 145),
-            seg(Direction::Down,16, 20, 145, 80),
-            seg(Direction::Up,  20, 24, 80, 144),
-            // 组C（L1[2]）：up-down-up，外缘 [115,148]，回拉不创新低（lo=115 >= L1[1].lo=80）
-            seg(Direction::Up,  24, 28, 120, 148),
-            seg(Direction::Down,28, 32, 148, 115),
-            seg(Direction::Up,  32, 36, 115, 147),
+            // 组B（L1[1]）：down-up-down，首段 hi=115<ZD_A=120 non-ext，lo=80 深破 L2 核心下沿 112
+            seg(Direction::Down,12, 16, 115,  80),
+            seg(Direction::Up,  16, 20,  80, 125),
+            seg(Direction::Down,20, 24, 114,  85),
+            // 组C（L1[2]）：up-down-up，首段 lo=115>ZG_B=114 non-ext，回拉不创新低（lo=112 >= 80）
+            seg(Direction::Up,  24, 28, 115, 148),
+            seg(Direction::Down,28, 32, 148, 112),
+            seg(Direction::Up,  32, 36, 112, 147),
         ];
         // closes 让 L1[1] 区间（source_index [12,24]）MACD 面积 < L1[0] 区间（[0,12]）= 背驰（真算）。
         // 前段大幅波动（面积大），后段小幅（面积小）。
@@ -2051,6 +2059,33 @@ mod tests {
                 "L{level_idx} 中枢对拍（探针级别循环须与生产 classify 逐字段一致）"
             );
 
+            // ★task #142 量化验收：延伸段数分布（窗口段数 = seed 3 + 延伸段；同一 build 直调
+            // detect_centers_windowed_resume 取窗口，中枢序列与生产 classify_level 对拍）。
+            {
+                let build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center> = if is_l0 {
+                    center::center_from_segments
+                } else {
+                    center::center_from_window
+                };
+                let windowed = recursive_tower::detect_centers_windowed_resume(&units, build, 0).0;
+                assert_eq!(
+                    windowed.iter().map(|(c, _)| *c).collect::<Vec<_>>(),
+                    centers,
+                    "L{level_idx} 窗口探针中枢序列 == 生产中枢序列"
+                );
+                let mut hist = [0usize; 4]; // 桶：=3（无延伸）/4-5/6-9/≥10 段
+                let mut max_w = 0usize;
+                for (_, (s, e)) in &windowed {
+                    let w = e - s + 1;
+                    max_w = max_w.max(w);
+                    hist[if w <= 3 { 0 } else if w <= 5 { 1 } else if w <= 9 { 2 } else { 3 }] += 1;
+                }
+                eprintln!(
+                    "[funnel] L{level_idx}: 窗口段数分布 =3段:{} 4-5:{} 6-9:{} ≥10:{} max={}",
+                    hist[0], hist[1], hist[2], hist[3], max_w
+                );
+            }
+
             // 中枢链相邻关系直方图 + 前缀 τ 时间线 + 反事实局部同向 run。
             let rels: Vec<CenterRelation> =
                 centers.windows(2).map(|w| classify_relation(&w[0], &w[1])).collect();
@@ -2219,15 +2254,17 @@ mod tests {
     #[test]
     fn end_to_end_third_buy_signal() {
         let cfg = ThetaConfig::default();
-        // 段0-2：三段在 [100,200] 重叠 ⟹ 中枢 zd=100,zg=200,end_index=12。
-        // 段3：向上离开（端点 250 > zg=200）。段4：向下回试低点 210 >= zg=200 ⟹ 3 买。
+        // 段0-2：三段在 [100,200] 重叠 ⟹ seed 中枢，核心 [ZD,ZG]=[100,200] 冻结，end_index=12。
+        // 段3：向上离开——延伸语义下（PDF §5 Step3，task #142）离开段必须与冻结核心不相交：
+        //   lo=205 > ZG=200 ⟹ non-extension（旧 fixture lo=150 ≤ 200 会被 Step2 吸收进中枢 ⟹ 无离开段）。
+        // 段4：向下回试低点 210 > zg=200（严格不触闭区间）⟹ 3 买 @ source_index=20。
         let layer = ParseLayer {
             segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 100, 200),
                 seg(Direction::Down, 4, 8, 200, 100),
                 seg(Direction::Up, 8, 12, 100, 200),
-                seg(Direction::Up, 12, 16, 150, 250),   // 离开中枢上方
-                seg(Direction::Down, 16, 20, 250, 210), // 回试低点 >= zg → 3 买
+                seg(Direction::Up, 12, 16, 205, 250),   // 离开中枢上方（lo=205>ZG ⟹ non-extension）
+                seg(Direction::Down, 16, 20, 250, 210), // 回试低点 > zg → 3 买
             ]),
             ..Default::default()
         };
@@ -2275,16 +2312,19 @@ mod tests {
     fn classify_with_tower_depth_ge1_true_nesting() {
         let cfg = ThetaConfig::default();
         // 9 段：三组 up-down-up（每组 → 一个 L1 走势），三个 L1 走势外缘重叠成 L2 中枢。
+        // ★task #142 延伸语义诚实重算（同 end_to_end_second_buy_via_l1_l2_geometric 推导）：三组
+        // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
+        // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
         let segments = vec![
             seg(Direction::Up,   0,  4, 110, 150),
             seg(Direction::Down, 4,  8, 150, 120),
             seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Up,  12, 16, 130, 145),
-            seg(Direction::Down,16, 20, 145,  80),
-            seg(Direction::Up,  20, 24,  80, 144),
-            seg(Direction::Up,  24, 28, 120, 148),
-            seg(Direction::Down,28, 32, 148, 115),
-            seg(Direction::Up,  32, 36, 115, 147),
+            seg(Direction::Down,12, 16, 115,  80),
+            seg(Direction::Up,  16, 20,  80, 125),
+            seg(Direction::Down,20, 24, 114,  85),
+            seg(Direction::Up,  24, 28, 115, 148),
+            seg(Direction::Down,28, 32, 148, 112),
+            seg(Direction::Up,  32, 36, 112, 147),
         ];
         let mut closes: Vec<i64> = Vec::new();
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
@@ -2303,16 +2343,19 @@ mod tests {
     #[test]
     fn classify_with_tower_classification_equals_classify() {
         let cfg = ThetaConfig::default();
+        // ★task #142 延伸语义诚实重算（同 end_to_end_second_buy_via_l1_l2_geometric 推导）：三组
+        // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
+        // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
         let segments = vec![
             seg(Direction::Up,   0,  4, 110, 150),
             seg(Direction::Down, 4,  8, 150, 120),
             seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Up,  12, 16, 130, 145),
-            seg(Direction::Down,16, 20, 145,  80),
-            seg(Direction::Up,  20, 24,  80, 144),
-            seg(Direction::Up,  24, 28, 120, 148),
-            seg(Direction::Down,28, 32, 148, 115),
-            seg(Direction::Up,  32, 36, 115, 147),
+            seg(Direction::Down,12, 16, 115,  80),
+            seg(Direction::Up,  16, 20,  80, 125),
+            seg(Direction::Down,20, 24, 114,  85),
+            seg(Direction::Up,  24, 28, 115, 148),
+            seg(Direction::Down,28, 32, 148, 112),
+            seg(Direction::Up,  32, 36, 112, 147),
         ];
         let mut closes: Vec<i64> = Vec::new();
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
@@ -2441,16 +2484,19 @@ mod tests {
     #[test]
     fn incremental_tower_preserves_b2_second_buy() {
         let cfg = ThetaConfig::default();
+        // ★task #142 延伸语义诚实重算（同 end_to_end_second_buy_via_l1_l2_geometric 推导）：三组
+        // 核心分离（组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5
+        // Step3），外缘 O_A=[110,150]/O_B=[80,125]/O_C=[112,148] 共同相交 ⟹ L2 核心 [112,125] 非空。
         let segments = vec![
             seg(Direction::Up,   0,  4, 110, 150),
             seg(Direction::Down, 4,  8, 150, 120),
             seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Up,  12, 16, 130, 145),
-            seg(Direction::Down,16, 20, 145,  80),
-            seg(Direction::Up,  20, 24,  80, 144),
-            seg(Direction::Up,  24, 28, 120, 148),
-            seg(Direction::Down,28, 32, 148, 115),
-            seg(Direction::Up,  32, 36, 115, 147),
+            seg(Direction::Down,12, 16, 115,  80),
+            seg(Direction::Up,  16, 20,  80, 125),
+            seg(Direction::Down,20, 24, 114,  85),
+            seg(Direction::Up,  24, 28, 115, 148),
+            seg(Direction::Down,28, 32, 148, 112),
+            seg(Direction::Up,  32, 36, 112, 147),
         ];
         let mut closes: Vec<i64> = Vec::new();
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
@@ -2474,30 +2520,32 @@ mod tests {
     /// ★codex 反例（cascade reset 完备性，L1 构造）：L0 frontier 末段**内点改写**——
     /// 上级投影 `UnitRange(lo,hi)` bit-identical 但底层 `sub_moves` 变。
     ///
-    /// 场景：9 段三组 up-down-up，末段 seg[8] `Up[32,36]` end_price 从 147 改写为 140。
-    /// 140 是组 C 外缘内点（组 C max-hi=148(seg[6]) / min-lo=115(seg[7]) 不变）⟹ L0 该窗口
-    /// 中枢 gg/dd 不变 ⟹ L1 输入投影 `project_to_units` bit-identical。但 seg[8] 的 lo/hi 从
-    /// [115,147] 变 [115,140] ⟹ L0 upper_moves[2].sub_moves[2] 深嵌套坐标变。
+    /// 场景：9 段三组（task #142 核心分离 fixture），末段 seg[8] `Up[32,36]` end_price 从 147 改写
+    /// 为 140。140 是组 C 外缘内点（组 C max-hi=148(seg[6]/seg[7]) / min-lo=112(seg[7]/seg[8].sp)
+    /// 不变）⟹ L0 该窗口中枢 gg/dd 不变 ⟹ L1 输入投影 `project_to_units` bit-identical。但 seg[8]
+    /// 的 lo/hi 从 [112,147] 变 [112,140] ⟹ L0 upper_moves[2].sub_moves[2] 深嵌套坐标变。
     ///
     /// 旧守卫（仅比对本级 `project_to_units` 投影）：L0 reset 正确，但 L1 frontier_mutated=false
-    /// 漏 reset ⟹ `cache.levels[1].upper_moves` 深嵌套 sub_moves 陈旧（仍 [115,147]）+ BSP memo
+    /// 漏 reset ⟹ `cache.levels[1].upper_moves` 深嵌套 sub_moves 陈旧（仍 [112,147]）+ BSP memo
     /// （key 仅三长度）复用陈旧 BSP ⟹ 与全量发散。
-    /// cascade reset 修复：L0 变异 → 强制 reset L1+（无条件跟随下级），深嵌套 sub_moves 重建为 [115,140]。
+    /// cascade reset 修复：L0 变异 → 强制 reset L1+（无条件跟随下级），深嵌套 sub_moves 重建为 [112,140]。
     ///
     /// **L1**（合成构造，验证管线完备性，非真实数据假设——formalization-validity-domain 231号）。
     #[test]
     fn cascade_reset_on_frontier_interior_rewrite() {
         let cfg = ThetaConfig::default();
+        // ★task #142 延伸语义诚实重算：三组核心分离 fixture（同 end_to_end_second_buy_via_l1_l2_geometric
+        // 推导——组B 首段 hi=115<ZD_A=120、组C 首段 lo=115>ZG_B=114 ⟹ non-extension，PDF §5 Step3）。
         let base = vec![
             seg(Direction::Up,   0,  4, 110, 150),
             seg(Direction::Down, 4,  8, 150, 120),
             seg(Direction::Up,   8, 12, 120, 148),
-            seg(Direction::Up,  12, 16, 130, 145),
-            seg(Direction::Down,16, 20, 145,  80),
-            seg(Direction::Up,  20, 24,  80, 144),
-            seg(Direction::Up,  24, 28, 120, 148),
-            seg(Direction::Down,28, 32, 148, 115),
-            seg(Direction::Up,  32, 36, 115, 147), // v1 末段
+            seg(Direction::Down,12, 16, 115,  80),
+            seg(Direction::Up,  16, 20,  80, 125),
+            seg(Direction::Down,20, 24, 114,  85),
+            seg(Direction::Up,  24, 28, 115, 148),
+            seg(Direction::Down,28, 32, 148, 112),
+            seg(Direction::Up,  32, 36, 112, 147), // v1 末段
         ];
         let mut closes: Vec<i64> = Vec::new();
         for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
@@ -2531,16 +2579,17 @@ mod tests {
         let (full_v2, full_tower_v2) = classify_with_tower(&layer_v2, &cfg);
 
         // ★核心断言（latent 陈旧检测，非仅返回值）：cache 内 L1 深嵌套 sub_moves 末段坐标必须 == v2
-        // 的 [115,140]。返回的 Classification/tower 不消费 cache 内 L1 upper_moves 的深 subs（tower 用
+        // 的 [112,140]。返回的 Classification/tower 不消费 cache 内 L1 upper_moves 的深 subs（tower 用
         // 新鲜 moves_tower 快照），故陈旧在返回值里 latent——但它喂 BSP（extract_second_for_level）+
         // 下一 bar 的 L2 投影。直接断言 cache 深 subs，捕获 latent 陈旧（640：不靠返回值碰巧相等）。
+        // 推导（task #142 fixture）：v2 seg[8] = Up 112→140 ⟹ 区间 [112,140]（v1 为 [112,147]）。
         let l0_seg8_full = classify_with_tower(&layer_v2, &cfg).1[0].last().unwrap().rmove.clone();
-        assert_eq!(l0_seg8_full, descend::RMove::Segment { direction: Direction::Up, lo: 115, hi: 140 },
-            "前提：v2 全量 L0 末段 == [115,140]");
-        // cache.L1.upper_moves[0].sub_moves[2](groupC).sub_moves[2](seg[8]) 应 == [115,140]。
+        assert_eq!(l0_seg8_full, descend::RMove::Segment { direction: Direction::Up, lo: 112, hi: 140 },
+            "前提：v2 全量 L0 末段 == [112,140]");
+        // cache.L1.upper_moves[0].sub_moves[2](groupC).sub_moves[2](seg[8]) 应 == [112,140]。
         let l1_deep = &cache.levels[1].upper_moves[0].sub_moves[2].sub_moves[2].rmove;
-        assert_eq!(*l1_deep, descend::RMove::Segment { direction: Direction::Up, lo: 115, hi: 140 },
-            "cascade: cache L1 深嵌套 seg[8] == v2 [115,140]（陈旧则 [115,147]——L1 漏 cascade reset）");
+        assert_eq!(*l1_deep, descend::RMove::Segment { direction: Direction::Up, lo: 112, hi: 140 },
+            "cascade: cache L1 深嵌套 seg[8] == v2 [112,140]（陈旧则 [112,147]——L1 漏 cascade reset）");
 
         // 返回值也须 bit-exact（cascade 后 L1 重建，tower/Classification 全对齐）。
         assert_eq!(inc_v2, full_v2, "cascade: v2 增量 Classification == 全量");

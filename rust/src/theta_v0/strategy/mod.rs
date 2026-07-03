@@ -1100,14 +1100,15 @@ mod tests {
             start_price: sp,
             end_price: ep,
         };
-        // cc-classifier 端到端 fixture：三段在 [100,200] 重叠 ⟹ 中枢 zd=100,zg=200,end=12；
-        // 段3 向上离开（端点 250>200）；段4 向下回试低点 210>=200 ⟹ 3 买 @ source_index=20。
+        // cc-classifier 端到端 fixture：三段在 [100,200] 重叠 ⟹ seed 中枢 zd=100,zg=200,end=12
+        // （核心冻结，PDF §5 task #142）；段3 向上离开（lo=205 > ZG=200 ⟹ non-extension——延伸语义
+        // 下离开段必须与冻结核心不相交，旧 lo=150 会被吸收）；段4 向下回试低点 210>200 ⟹ 3 买 @ 20。
         let l0 = ParseLayer {
             segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 100, 200),
                 seg(Direction::Down, 4, 8, 200, 100),
                 seg(Direction::Up, 8, 12, 100, 200),
-                seg(Direction::Up, 12, 16, 150, 250),
+                seg(Direction::Up, 12, 16, 205, 250),
                 seg(Direction::Down, 16, 20, 250, 210),
             ]),
             ..Default::default()
