@@ -3634,6 +3634,12 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/683-level-ge1-type1-type3-candidate-generation-expired-premise-codex-t1-decision-a.md
+- id: '684'
+  title: 旧口径主桶正 μ̂（L0,type3,买,σ0 +178~185/笔 p=0.005，全战役唯一候选 alpha）被 q4 证伪为 τ^reverse
+    出场口径伪影——G4 typed exit 重装后同桶 mean −0.37/LCB −42.6，正点估计完全消失
+  status: 生成态
+  type: bias-correction
+  file: pending/684-main-bucket-positive-mu-is-tau-reverse-exit-caliber-artifact-falsified-by-q4-g4-typed-exit.md
 edges:
   depends_on:
   - from: '679'
@@ -10555,6 +10561,30 @@ edges:
   - between:
     - '683'
     - project_oddeven_mu_identity
+  - between:
+    - '231'
+    - '684'
+  - between:
+    - '663'
+    - '684'
+  - between:
+    - '665'
+    - '684'
+  - between:
+    - '645'
+    - '684'
+  - between:
+    - '660'
+    - '684'
+  - between:
+    - '684'
+    - project_wverify_alpha_retest_pass
+  - between:
+    - '684'
+    - project_oddeven_mu_identity
+  - between:
+    - '684'
+    - project_iclass_delta_collinearity_perm_degeneracy
   tensions_with:
   - between:
     - '007'
