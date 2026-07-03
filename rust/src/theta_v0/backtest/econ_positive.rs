@@ -853,6 +853,85 @@ pub(super) fn build_nest_certificate(
     })
 }
 
+/// 阶段0 对拍探针（cfg(test)，NO-SHIP）：PDF §二「最严格实现 = bottom-up」区间套构造。
+///
+/// 与生产 [`build_nest_certificate`] 的**唯一差异**在 rung 锚定口径：
+/// - 生产：每级 rung 用 **source_index 点包含**（`start≤source≤end`，partition_point 定位含点段）。
+/// - 本探针：每级 rung 用 **子区间包含** `J_{k-1} ⊆ I(c)`（`c.start≤child.start ∧ child.end≤c.end`，
+///   PDF §二/p4），`Sel_Θ` 作用于「包含 child 的候选集」（PDF p4 反例：先全局 Sel 再检包含会 false
+///   negative），且 child 逐级加宽（k=lvl+1 取 base_interval，之后取上一级 J_k）。
+///
+/// base gate / base_interval / cand 判据全部复用生产同一私有谓词（唯一变量是 knode 选取），故对拍
+/// 差异纯粹归因于「点包含 vs 区间包含 + Sel 域」。PDF §三.1：良式分解（recursive_tower Compose
+/// refinement，tower[k] 边界 ⊆ tower[k-1] 边界）下含段唯一 ⟹ 二者应逐信号 bit-exact。差异>0 ⟹ 塔
+/// 在某处非严格 refinement，须把生产改成 bottom-up（PDF §五最终裁决 b）。
+#[cfg(test)]
+pub(super) fn build_nest_certificate_bottomup(
+    tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
+    lvl: usize,
+    source_index: usize,
+    delta: Side,
+    bits: &BspBits,
+    hist: &[f64],
+) -> Option<NestCertificate> {
+    use super::super::classifier::nest::sel_order;
+    // 基例 e=lvl：与生产同——tower[lvl] 中 end_index==source_index 的执行级候选段（PDF 基例 J^δ_e）。
+    let exec_moves = tower.get(lvl)?.as_slice();
+    let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?];
+    let base_interval = NestInterval {
+        start_time: s.start_index as u64,
+        end_time: s.end_index as u64,
+        idx: s.id.ordinal,
+    };
+    let cand_type = bsp_cand_type(bits, delta);
+    if !cand_delta_base_gate(cand_type, s, source_index, delta, hist, lvl) {
+        return None;
+    }
+    let max_k = tower.len();
+    let mut rung_buf: Vec<NestRung> = Vec::new();
+    let mut child = base_interval; // J_{k-1}：k=lvl+1 时 = J_e（base），之后逐级加宽为 J_k。
+    for k in (lvl + 1)..max_k {
+        let k_moves = tower[k].as_slice();
+        // bottom-up 候选集 C^δ_k(J_{k-1}) = {c ∈ tower[k] : J_{k-1} ⊆ I(c)}，Sel_Θ 选最优（PDF §二/§三.2）。
+        let mut chosen: Option<&LeveledMove> = None;
+        for m in k_moves {
+            if (m.start_index as u64) <= child.start_time && child.end_time <= (m.end_index as u64) {
+                let mi = NestInterval {
+                    start_time: m.start_index as u64,
+                    end_time: m.end_index as u64,
+                    idx: m.id.ordinal,
+                };
+                let take = match chosen {
+                    None => true,
+                    Some(b) => sel_order(&mi, &NestInterval {
+                        start_time: b.start_index as u64,
+                        end_time: b.end_index as u64,
+                        idx: b.id.ordinal,
+                    }),
+                };
+                if take { chosen = Some(m); }
+            }
+        }
+        // 无包含父候选 ⟹ 链断（与生产同：partial chain 合法，codex #39 Q1）。
+        let Some(knode) = chosen else { break; };
+        let interval_k = NestInterval {
+            start_time: knode.start_index as u64,
+            end_time: knode.end_index as u64,
+            idx: knode.id.ordinal,
+        };
+        let cand_k = cand_delta(cand_type, knode.sub_moves.as_slice(), source_index, delta, hist);
+        rung_buf.push(NestRung { interval: interval_k, cand: cand_k });
+        child = interval_k; // 加宽：下一级用本级 J_k 作 child（真 bottom-up 递归）。
+    }
+    rung_buf.reverse();
+    Some(NestCertificate {
+        side: delta,
+        terminal: *bits,
+        base_interval,
+        rungs: rung_buf,
+    })
+}
+
 /// 诊断：通过门信号的 N^δ 证书**有效跨级深度** = 从最高级 rung 起连续 `cand==true` 的层数。
 ///
 /// **为什么不是 `rungs.len()`**：`n_delta` 逐级 `cand ∧ is_sub ∧ 递归`——任一级 `cand==false`
@@ -3867,6 +3946,175 @@ mod tests {
             "通过门总数({n_gate_pass_total}) 应 = sig_post_sum({sig_post_sum})（build_gate_certificate 二通道 bit-exact == 生产 collect_signals）");
         eprintln!("真封③（P1+小转大）：depth_hist_sum={depth_hist_sum}+n_xzd_pass={n_xzd_pass} = n_gate_pass_total={n_gate_pass_total} = sig_post_sum={sig_post_sum}");
         eprintln!("[structbreak-tighten] 零 bit（bsp_class==0）候选通过门={n_zerobit_gate_pass}（task #62 收紧测量）");
+    }
+
+    /// 阶段0 对拍（bottomup-nest task #101，PDF §二/§四/§十二问题①）：现行生产 descend（source_index
+    /// **点包含**）vs PDF bottom-up（`J_{k-1}⊆I(c)` **子区间包含** + Sel_Θ 作用于包含集）在真实 BTC
+    /// 逐信号对拍——Γ 成员（n_delta）差异计数 + 有效深度分布差异 + rung 结构差异。
+    ///
+    /// **假设**（PDF §三.1）：recursive_tower Compose 是良式分解 refinement（tower[k] 边界 ⊆
+    /// tower[k-1] 边界），故含段唯一、Sel 平凡、点包含 ≡ 区间包含 ⟹ 二者逐信号 bit-exact，差异=0。
+    /// 差异=0 ⟹ 本测试即**等价固化**（NO-SHIP，生产 descend 无需改）；差异>0 ⟹ 塔非严格 refinement，
+    /// 须把生产改成 bottom-up（PDF §五裁决 b），届时本测试的 assert 会红，暴露分歧信号。
+    ///
+    /// **认识论 L2**：真实 BTC 单标的全历史逐信号对拍，可产否定性结果（差异>0 = 现口径非最严格）。
+    /// `#[ignore]`：需 BTC 全量 + O(n²) 重分类，`--release`。
+    /// 命令：`ECON_L2_MAX_BARS=<N> cargo test --release acc_bottomup_nest_parity_probe -- --ignored --nocapture`
+    /// （默认 300K；全历史用 ECON_L2_MAX_BARS=5000000）。
+    #[test]
+    #[ignore]
+    fn acc_bottomup_nest_parity_probe() {
+        use super::super::data;
+        use super::super::super::classifier::divergence::compute_macd;
+        use super::super::super::strategy::interp::assemble_gamma_with_tower;
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::Side;
+        use super::super::incremental::IncrementalClassifier;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        const MAX_BARS_DEFAULT: usize = 300_000;
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let bars = &ds.bars;
+        let n = bars.len();
+        let tick = config.tick.tick_size;
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        eprintln!("[bottomup-parity] bars={n}（{win_start}→{win_end}，全量={n_full}），max_bars={max_bars}");
+
+        let closes: Vec<f64> = bars.iter().map(|b| b.close as f64 / tick as f64).collect();
+        let macd_hist = compute_macd(&closes, &config.macd).hist;
+
+        const LMAX: usize = 8;
+        let mut n_cert_attempt = 0usize;   // 到达 cert 构造点的候选总数（gamma 非 Flat）
+        let mut n_prod_some = 0usize;      // 生产 cert = Some
+        let mut n_bu_some = 0usize;        // bottom-up cert = Some
+        let mut n_some_mismatch = 0usize;  // Some/None 不一致
+        let mut n_gamma_diff = 0usize;     // n_delta（Γ 成员）不一致
+        let mut n_depth_diff = 0usize;     // effective_nest_depth 不一致（两者均 Some）
+        let mut n_rungs_len_diff = 0usize; // rungs.len() 不一致
+        let mut n_interval_diff = 0usize;  // 任一 rung 区间/base 不一致（结构差，即便 n_delta 同）
+        let mut gamma_prod = 0usize;       // 生产 Γ 规模（n_delta=true）
+        let mut gamma_bu = 0usize;         // bottom-up Γ 规模
+        let mut depth_prod = [0usize; LMAX + 1];
+        let mut depth_bu = [0usize; LMAX + 1];
+        // 分歧样本前 20 条（诊断用）：(bar_i, lvl, source_index, δ, prod_ndelta, bu_ndelta, prod_depth, bu_depth)
+        let mut diff_samples: Vec<(usize, usize, usize, i8, bool, bool, usize, usize)> = Vec::new();
+
+        let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+        let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+        let mut prev_bsp: Vec<Rc<Vec<BspPoint>>> = Vec::new();
+
+        for i in 0..n {
+            let bar = &bars[i];
+            if bar.untradable || bar.close <= 0 {
+                continue;
+            }
+            let (cls_i, tower_i) = classifier_incr.classify_at(i);
+            for (lvl, ls) in cls_i.levels.iter().enumerate() {
+                if prev_bsp.get(lvl).map_or(false, |prev| Rc::ptr_eq(prev, &ls.bsp)) {
+                    continue;
+                }
+                if lvl < prev_bsp.len() {
+                    prev_bsp[lvl] = Rc::clone(&ls.bsp);
+                } else {
+                    prev_bsp.push(Rc::clone(&ls.bsp));
+                }
+                for p in ls.bsp.iter() {
+                    let bsp_class = bsp_disc(&p.bits);
+                    if !seen.insert((lvl, p.source_index, bsp_class)) {
+                        continue;
+                    }
+                    let single = super::super::super::classifier::Classification {
+                        levels: cls_i.levels.iter().enumerate()
+                            .map(|(l2, _)| super::super::super::classifier::LevelState {
+                                moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                            })
+                            .collect(),
+                    };
+                    for c in &assemble_gamma_with_tower(&single, &tower_i) {
+                        let delta_side = match c.dir {
+                            VoiceSide::Long => Side::Long,
+                            VoiceSide::Short => Side::Short,
+                            VoiceSide::Flat => continue,
+                        };
+                        n_cert_attempt += 1;
+                        // 两口径 cert 构造（同一 tower/lvl/source_index/δ/bits/hist）——唯一变量是 rung 锚定口径。
+                        let prod = build_nest_certificate(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist);
+                        let bu = build_nest_certificate_bottomup(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist);
+                        let (prod_nd, prod_depth) = match &prod {
+                            Some(cert) => { n_prod_some += 1; (cert.n_delta(), effective_nest_depth(cert)) }
+                            None => (false, 0),
+                        };
+                        let (bu_nd, bu_depth) = match &bu {
+                            Some(cert) => { n_bu_some += 1; (cert.n_delta(), effective_nest_depth(cert)) }
+                            None => (false, 0),
+                        };
+                        if prod.is_some() != bu.is_some() { n_some_mismatch += 1; }
+                        if prod_nd { gamma_prod += 1; }
+                        if bu_nd { gamma_bu += 1; }
+                        if prod.is_some() { depth_prod[prod_depth.min(LMAX)] += 1; }
+                        if bu.is_some() { depth_bu[bu_depth.min(LMAX)] += 1; }
+                        if prod_nd != bu_nd { n_gamma_diff += 1; }
+                        if prod.is_some() && bu.is_some() && prod_depth != bu_depth { n_depth_diff += 1; }
+                        // 结构差：rungs.len 或任一 interval（含 base）不同。
+                        if let (Some(pc), Some(bc)) = (&prod, &bu) {
+                            if pc.rungs.len() != bc.rungs.len() { n_rungs_len_diff += 1; }
+                            let struct_diff = pc.base_interval != bc.base_interval
+                                || pc.rungs.len() != bc.rungs.len()
+                                || pc.rungs.iter().zip(bc.rungs.iter()).any(|(a, b)| a.interval != b.interval || a.cand != b.cand);
+                            if struct_diff { n_interval_diff += 1; }
+                        }
+                        if prod_nd != bu_nd || (prod.is_some() && bu.is_some() && prod_depth != bu_depth) {
+                            if diff_samples.len() < 20 {
+                                let dl: i8 = if delta_side == Side::Long { 1 } else { -1 };
+                                diff_samples.push((i, lvl, p.source_index, dl, prod_nd, bu_nd, prod_depth, bu_depth));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eprintln!("\n════════ bottomup-nest 阶段0 对拍结果（BTC {n} bar，{win_start}→{win_end}）════════");
+        eprintln!("到达 cert 构造点候选数 n_cert_attempt = {n_cert_attempt}");
+        eprintln!("cert=Some：生产 {n_prod_some} / bottom-up {n_bu_some}（Some/None 不一致 n_some_mismatch={n_some_mismatch}）");
+        eprintln!("Γ 规模（n_delta=true）：生产 gamma_prod={gamma_prod} / bottom-up gamma_bu={gamma_bu}");
+        eprintln!("── 差异计数（全 0 ⟹ 两口径 bit-exact 等价）──");
+        eprintln!("Γ 成员差异 n_gamma_diff      = {n_gamma_diff}");
+        eprintln!("有效深度差异 n_depth_diff    = {n_depth_diff}");
+        eprintln!("rungs.len 差异 n_rungs_len_diff = {n_rungs_len_diff}");
+        eprintln!("结构差异 n_interval_diff     = {n_interval_diff}");
+        eprint!("有效深度分布（生产）：");
+        for (d, c) in depth_prod.iter().enumerate() { if *c > 0 { eprint!("d{d}={c} "); } }
+        eprintln!();
+        eprint!("有效深度分布（bottom-up）：");
+        for (d, c) in depth_bu.iter().enumerate() { if *c > 0 { eprint!("d{d}={c} "); } }
+        eprintln!();
+        if !diff_samples.is_empty() {
+            eprintln!("── 分歧样本（前 {}）(bar,lvl,src,δ,prod_nd,bu_nd,prod_depth,bu_depth) ──", diff_samples.len());
+            for s in &diff_samples { eprintln!("  {s:?}"); }
+        }
+        eprintln!("════════════════════════════════════════════════════════════════════\n");
+
+        // 等价固化（PDF §三.1 良式分解定位天然唯一）：差异全 0 ⟹ 生产点包含 descend ≡ PDF bottom-up
+        // 区间包含 descend。此 assert 是等价的机器守卫——将来塔构造改动若破坏 refinement，本测试转红，
+        // 逼出 bottom-up 实装（不静默把非严格 refinement 当等价，formalization-validity-domain L2）。
+        assert_eq!(n_some_mismatch, 0, "Some/None 分歧：生产 descend 与 bottom-up 定位存在性不一致");
+        assert_eq!(n_gamma_diff, 0, "Γ 成员分歧：n_delta 不一致——现口径非 PDF bottom-up 等价，须实装 bottom-up");
+        assert_eq!(n_depth_diff, 0, "有效深度分歧：区间套跨级层数不一致");
+        assert_eq!(n_interval_diff, 0, "rung 结构分歧：定位区间/cand 不一致（点包含选段 ≠ 区间包含 Sel 选段）");
     }
 
     /// H2 样本级验证（task #8）：level1-4 第二类信号的 N^δ 门拒绝阶段分解 + 互斥链实证。
