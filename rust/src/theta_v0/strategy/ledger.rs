@@ -612,9 +612,10 @@ mod tests {
     //! （`eta_star_barrier` / `enter_ready_strict_conjunction` / `buy_core_legality` / `stage_rank_monotone`
     //! 等，在**手工构造态**上验 eta_star/enter_ready/buy_core/tw_step 谓词与守恒）均为
     //! **synthetic-state legality tests, NOT reachability tests** —— 它们验「给定前提则机制正确」，
-    //! **不**证该前提态从 `funded_campaign` 起点可达。可达性由 `runner.rs::
-    //! earning_shares_structurally_unreachable_from_campaign_tw_conserved` 的结构不可达定理界定
-    //! （L0 同价 TW 守恒下 EarningShares 不可达）。**机制正确 ≠ 前提可达**（有效域区分，
+    //! **不**证该前提态从 `funded_campaign` 起点可达。可达性两侧（GAP3 裁定 A' 后）：L0 同价侧由
+    //! `runner.rs::earning_shares_unreachable_l0_same_price_zero_pnl`（L0 同价无盈亏定理）界定
+    //! 不可达；L2 变价侧由 `runner.rs::pi_loop_realized_profit_reaches_earning_shares`（已实现
+    //! 利润入账 Realize）见证可达。**机制正确 ≠ 前提可达**（有效域区分，
     //! formalization-validity-domain）。不为过审硬凑「已获利」witness（codex 复审#2 判致命，已删）。
     use super::*;
 
@@ -981,11 +982,11 @@ mod tests {
     /// ★★诚实标注（codex §9.2，照实 161/no-workaround）：**this is a synthetic-state legality test,
     /// not a reachability test.** 本测试在**显式构造**的 `ready` 态（free=0, holding=100, withdrawn=100
     /// ⟹ tw=200）上验证 `enter_ready` 谓词的五合取逻辑（给定前提则谓词正确）——它**不**声称该态从
-    /// `funded_campaign` 起点可达。事实上 tw=200=2·notional 在 TW 守恒下从 campaign 起点（tw=Q）
-    /// **不可达**（见 `runner.rs::earning_shares_structurally_unreachable_from_campaign_tw_conserved`：
-    /// 退本金前提 holding≥Q 与 cash-tight free>0 在 TW=Q 下互斥）。有效域区分：**机制正确 ≠ 前提可达**
-    /// ——本测试锚前者（谓词逻辑），可达性由 runner 不可达定理锚后者（L0 同价下 EarningShares 不可达，
-    /// 真达需 L2 价格升值让已实现利润进 TW）。不为通过而硬凑「已获利」witness（codex 复审#2 判致命，已删）。
+    /// `funded_campaign` 起点可达。tw=200=2·notional 在 **L0 同价**下从 campaign 起点（tw=Q）不可达
+    /// （见 `runner.rs::earning_shares_unreachable_l0_same_price_zero_pnl`：L0 同价无盈亏定理）；
+    /// **L2 变价**下已实现利润经 `TwEvent::Realize` 入 TW 后此类态可达（GAP3 裁定 A' 落地，生产见证
+    /// `runner.rs::pi_loop_realized_profit_reaches_earning_shares`）。有效域区分：**机制正确 ≠ 前提
+    /// 可达**——本测试锚前者（谓词逻辑）。不为通过而硬凑「已获利」witness（codex 复审#2 判致命，已删）。
     #[test]
     fn enter_ready_strict_conjunction() {
         // 满足全部：stage=CapitalRecovered, withdrawn≥i0(100), legs=0, normal, η≥η⋆。

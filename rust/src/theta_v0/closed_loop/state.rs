@@ -210,9 +210,11 @@ impl AssemblyState {
     /// 本构造子开一个 `notional` 单位的 campaign（`free=notional, notional_in=notional`）——使
     /// ledger/仓位在真实建仓（现金充足）时真线程化（非 inert 空转）。
     ///
-    /// ★诚实（codex 复审）：注资**不**使 L0 同价闭环达 EarningShares——TW 守恒（=notional）下退本金前提
-    /// `holding≥notional` 与 cash-tight `free>0` 互斥（见 `earning_shares_structurally_unreachable_from_
-    /// campaign_tw_conserved`）；EarningShares 真达需 L2 价格升值让已实现利润进 TW（超本 L0 模型事件集）。
+    /// ★诚实（codex 复审 + GAP3 裁定 A' 后有效域收窄）：注资**不**使 L0 同价闭环达 EarningShares——
+    /// L0 同价下平仓 PnL≡0（`TwEvent::Realize` 分量恒 0）⟹ TW 守恒（=notional）⟹ 退本金前提
+    /// `holding≥notional` 与 cash-tight `free>0` 互斥（见 runner `earning_shares_unreachable_l0_
+    /// same_price_zero_pnl`，L0 同价无盈亏定理）；L2 变价下已实现利润经 Realize 真入 TW ⟹ 可达
+    /// （生产见证 `pi_loop_realized_profit_reaches_earning_shares`）。
     ///
     /// `i0`=本金基线（进 ledger.i0，EnterReady 的 W≥I0 门）；`notional`=本 campaign 名义敞口 Q（退本金
     /// 目标；建仓 `holding` 累积到 ≥notional 触发退本金）。TW 守恒：`tw()=notional`（全在 free）。

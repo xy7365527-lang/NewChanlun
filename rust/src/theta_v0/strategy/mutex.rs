@@ -53,7 +53,9 @@
 //! **L0 结构定理**（非 L2 alpha）：`Σ_{j=0}^m 1[C_j]=1` 是固定优先级互斥化的**组合逻辑恒等式**
 //! （alpha2 Doc2§9 证毕，零信息增量同义反复）。Rust 穷举 2^10 验证 = **L1 管线正确性**
 //! （验证互斥化实装无 bug，不验证谓词 P_j 经验有效——P_j 的市场触发率/盈利性是 L2 未覆盖；
-//! 特别地 P2/P3/P4 在 codex R3 C' 合法账本语义下生产触发**结构不可达**，见 runner TW 注释）。
+//! P2/P3/P4 生产触发在 codex GAP3 裁定 A' 后**现实可达**——已实现利润经 `TwEvent::Realize`
+//! 入 free，可达性见证 runner `pi_loop_realized_profit_reaches_earning_shares`；L0 同价下仍
+//! 不可达，见 `earning_shares_unreachable_l0_same_price_zero_pnl`）。
 //!
 //! ## 身份：D1 等价测试 oracle，**非生产路径**（codex-q2-d1 §Q2 裁定 + 裁定4 反装饰约束）
 //!

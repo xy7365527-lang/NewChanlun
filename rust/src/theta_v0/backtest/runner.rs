@@ -671,11 +671,12 @@ where
     //    投入 = 初始 NAV 取整（free = notional_in = ⌊nav0⌋）。i64 取整粒度诚实声明：TW 账本是
     //    **结构谓词源**（P2/P3/P4 判据消费 stage/open_legacy_legs/holding/free/withdrawn），
     //    非逐分对账账本——其在生产 π 的唯一消费者是 I_Θ 组合层 TW 谓词 + tw_final 物证。
-    //    可达性诚实声明（codex R3 C' 终局裁定）：合法账本语义下已实现/未实现利润均无入 free
-    //    通道（无非回补资金源）⟹ holding≥notional_in ∧ free≥recover_target 联立不可满足
-    //    （TW 守恒代数，见 earning_shares_structurally_unreachable_*）⟹ P3/P4/P2 生产触发
-    //    结构不可达——接线真实（判据真接账本、账本真接交易流），触发恒 false 照实，直到
-    //    「已实现利润入账」账本重装并重新提交裁决（codex R3 C' 显式留白，非本工位擅裁）。
+    //    ★可达性（codex GAP3 终局裁定 A' 落地，2026-07-03）：**已实现利润有入 free 通道**——
+    //    每笔实际平仓 fill 的费后 PnL 经 ②'' `TwEvent::Realize` 入账（可正可负），TW 漂移 =
+    //    量化已实现 PnL 累计 ⟹ holding≥notional_in ∧ free≥recover_target 在 L2 变价 + 足额
+    //    已实现利润下可满足 ⟹ P2/P3/P4 生产触发**现实可达**（可达性见证 `pi_loop_realized_
+    //    profit_reaches_earning_shares`）。L0 同价下平仓 PnL≡0 ⟹ 仍不可达（L0 同价无盈亏
+    //    定理，见 earning_shares_unreachable_l0_same_price_zero_pnl）。
     let mut tw = TwState {
         free: nav0 as i64,
         notional_in: (nav0 as i64).max(1),
@@ -685,6 +686,12 @@ where
     // TW 侧已见的真实成本基（i64 shadow；方向差分派 ShortDiff 划转，入账量 cash-sound 钳制
     // ——真实划转超出 free/holding 时部分承载 ⟹ holding 低估 ⟹ 退本金门更难过 = 安全侧）。
     let mut tw_seen_basis: i64 = 0;
+    // ★A'（裁定清单③）：费后已实现 PnL 累计（f64 真值，仅实际平仓 fill 累加——apply_order
+    // 返回值；forced_pnl 是窗口终点报告用假设强平，不改 units/cash，**不得**入此累计，推导链
+    // 第 11 条）+ TW 侧已入账的量化累计 shadow（同 tw_seen_basis 模式：对**累计值**量化再派
+    // 差分 ⟹ 截断误差有界不累积，TW 漂移恒 = ⌊Σ已实现PnL⌋）。
+    let mut realized_cum: f64 = 0.0;
+    let mut tw_seen_realized: i64 = 0;
 
     for i in 0..n {
         let bar = &bars[i];
@@ -696,7 +703,8 @@ where
             for o in &orders {
                 if o.qty > 0 {
                     let units_before = units;
-                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
+                    realized_cum += apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
                     // 轨迹配对（v1 方向中性）：units 跨 0 / 回 0 ⟹ 完整交易闭合。
                     track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
                     n_orders_executed += 1;
@@ -725,6 +733,23 @@ where
                 if outflow > 0 {
                     tw = tw_step(&tw, TwEvent::ShortDiff(outflow));
                 }
+            }
+        }
+
+        // ── ②'' TW 已实现利润入账（codex GAP3 裁定 A' 清单③）：本 bar 平仓 fill 的费后 PnL
+        //    聚合（推导链第 9 条：同 bar 多 fill 聚合）经 `TwEvent::Realize(d_pi)` 入 free。
+        //    ★硬边界2：置于 ②' 成本基 ShortDiff **之后**、③ TwStepCtx（stage 判据）之前——
+        //    同一成交先成本基后利润。★量化口径：对累计值取整再派差分（tw_seen_basis 同款
+        //    shadow 模式）⟹ 截断误差有界不累积，TW 漂移恒 = ⌊realized_cum⌋（清单⑥不变量）。
+        //    ★可正可负（推导链第 5 条）：亏损如实入账——负 d_pi 使 free 下降；若累计亏损超
+        //    free（做空爆亏），free 为负是真实现金透支的诚实镜像（f64 账本 cash 同步为负），
+        //    非静默账目错误——stage 门（free≥recover_target>0）在负 free 下恒不过 = 安全侧。
+        {
+            let realized_now = realized_cum as i64;
+            let d_pi = realized_now - tw_seen_realized;
+            if d_pi != 0 {
+                tw_seen_realized = realized_now;
+                tw = tw_step(&tw, TwEvent::Realize(d_pi));
             }
         }
 
@@ -922,8 +947,8 @@ where
             // 口径量 0 承载（cum_net_cash 非承重分量——P2/P3/P4 谓词不消费它；唯一承重 =
             // open_legacy_legs 计数），非簿记伪造。
             // OQ-9 守卫：EarningShares 阶段开 legacy 腿 PDF 定义为非法（is_legal_from）——
-            // 该 stage 当前结构不可达（见 TW 初始化注释）；真达时此腿不计 legacy 计数，关侧
-            // legs>=1 守卫对称跳过（合法性语义，非掩盖）。
+            // A' 后该 stage 生产可达（已实现利润入账，见 TW 初始化注释）；达 earning 后此腿
+            // 不计 legacy 计数，关侧 legs>=1 守卫对称跳过（合法性语义，非掩盖）。
             for (c, _leg) in &step_trace.opened {
                 if c.role.v == super::super::strategy::coverage::Vertical::ShortDiff
                     && TwEvent::OpenShareLeg.is_legal_from(&tw)
@@ -1092,12 +1117,14 @@ pub fn run_closed_loop(bars: &[Bar], initial_nav: f64) -> Option<AssemblyState> 
     }
     // 初始闭环态（i0 = NAV 取整作账本基线；账本是结构分量，NAV 绝对额 fill 侧另算）。
     let i0 = if initial_nav > 0.0 { initial_nav as i64 } else { 1 };
-    // ★GAP3（codex 复审后修正诚实声明）：**已注资 campaign** 开局（非零 TW，Q=campaign_notional 名义
-    // 敞口）。**EarningShares 在此 L0 同价闭环结构上不触达**（stage 恒 CostReduction）——TW 守恒
-    // （=Q）⟹ holding↑则free↓；退本金前提 holding≥Q 时 free≤0 ⟹ cash-tight 退本金（w≤free）不可能
-    // （见 `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）。真达需 L2 价格升值让
-    // 已实现利润进 TW（超出本 L0 模型事件集，照实 161——非 bug 非 placeholder）。注资仍必要：使 ledger/
-    // 仓位在真实建仓（首 bar 现金充足 Δ=1）时真线程化（非 inert 空转），验证闭环双账本每 bar 真更新。
+    // ★GAP3（codex 复审 + 裁定 A' 后口径）：**已注资 campaign** 开局（非零 TW，Q=campaign_notional
+    // 名义敞口）。**本闭环在生产策略下不触达 EarningShares**（stage 恒 CostReduction）——A' 后
+    // 已实现利润通道（schedule 减仓分支 realized_pnl→Realize）已存在，但 PhaseI intent 恒 Buy
+    // （intent_adapter：Normal×PhaseI→Buy）⟹ 生产闭环无平仓 fill ⟹ 无已实现 PnL 产生 ⟹ 退本金门
+    // （holding≥Q ∧ free≥target）在 TW=Q 守恒下互斥（L0 同价无盈亏定理同型，见 runner
+    // `earning_shares_unreachable_l0_same_price_zero_pnl`）。生产 π 路径（pi_theta_fill_loop）有
+    // 反向候选平仓 ⟹ 已实现利润真入 TW ⟹ 可达（见 `pi_loop_realized_profit_reaches_earning_shares`）。
+    // 注资仍必要：使 ledger/仓位在真实建仓（首 bar 现金充足 Δ=1）时真线程化（非 inert 空转）。
     // ★GAP3 补桥（丢弃点1/2/3 修复后）注资口径：`campaign_notional = 首个可交易 bar 的市价`——使首 bar
     // 建 1 单位仓位现金恰足（affordable = free/price = notional/c₀ = 1），且 `holding(成本基)=c₀=notional_in`
     // ⟹ 退本金前提 `holding≥notional_in` 于建仓即满足。旧口径 `clamp(len/4,1,128)`（单位数尺度）在
@@ -1659,13 +1686,15 @@ fn apply_order(
     units: &mut f64,
     entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
-) {
+) -> f64 {
     let qty = o.qty as f64;
     // 订单 → (有符号成交方向 δ, 是否纯平仓 close_only)。
     // ★信号成交（Buy/Add/Sell）：可「先平后开」翻转（开多 δ+1 / 开空 δ−1）。
     // ★纯平仓（Close/Reduce，v1 做空腿方向感知）：平掉当前持仓——平多=卖（δ−1），平空=买（δ+1），
     //   **只平不反向开**（close_only=true，剩余 qty 超持仓时不借机开反向仓）。build_exit_order 对
     //   多空两腿都产 `StrictAction::Close`（不带方向），故成交方向由**当前持仓符号**决定；空仓 ⟹ 无操作。
+    // ★A'（codex GAP3 裁定清单③）：返回本次 fill 的费后已实现 PnL（透传 [`apply_fill`]，
+    //   无平仓分量 = 0.0）——TW 账本 Realize 的唯一合法资金源。
     let (delta, close_only): (f64, bool) = match o.action {
         StrictAction::Buy | StrictAction::Add => (1.0, false),
         StrictAction::Sell => (-1.0, false),
@@ -1675,12 +1704,12 @@ fn apply_order(
             } else if *units < 0.0 {
                 (1.0, true) // 持空 ⟹ 买回平空
             } else {
-                return; // 空仓无仓可平
+                return 0.0; // 空仓无仓可平
             }
         }
-        StrictAction::Hold | StrictAction::Wait => return, // 不动
+        StrictAction::Hold | StrictAction::Wait => return 0.0, // 不动
     };
-    apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls);
+    apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls)
 }
 
 /// **方向中性成交**（v1 做空腿核心，先平后开）：有符号方向 `delta`（+1 买/−1 卖）× 绝对手数 `qty`。
@@ -1704,9 +1733,13 @@ fn apply_fill(
     units: &mut f64,
     entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
-) {
+) -> f64 {
+    // ★A'（codex GAP3 裁定清单③）：返回本次 fill 的**费后已实现 PnL**（仅段 1 平仓分量产生；
+    // 无平仓 = 0.0）。结算时点硬边界（推导链第 9 条）：只锚实际平仓 fill 的 close 分支——
+    // partial close 按平掉数量结算；flip（先平后开）只对先平的反向段结算（段 2 开新仓不产 PnL）。
+    let mut realized = 0.0;
     if qty <= 0.0 || px <= 0.0 {
-        return;
+        return realized;
     }
     let mut remaining = qty;
 
@@ -1729,6 +1762,7 @@ fn apply_fill(
             // 平多（units=+N, delta=−1）⟹ N+(−1)·N=0；平空（units=−N, delta=+1）⟹ −N+1·N=0。
             *units += delta * close_qty;
             trade_pnls.push(pnl);
+            realized = pnl; // A'：平仓结算事实（与 trade_pnls 同一值，返回给 TW Realize 生产者）
             remaining -= close_qty;
             // 全平 ⟹ 成本基归零（无持仓）；未全平 ⟹ 同方向剩余成本基不变（同价同费基）。
             if *units == 0.0 {
@@ -1747,7 +1781,7 @@ fn apply_fill(
         let need_cash = delta > 0.0; // 仅开多需现金
         let cost = remaining * px * (1.0 + fee_rate);
         if need_cash && *cash < cost {
-            return; // 现金不足，不开多（对齐 v0 现金约束；开空无此约束）
+            return realized; // 现金不足，不开多（对齐 v0 现金约束；开空无此约束）
         }
         // 每单位含费成本基（多=买入均价含买入费；空=卖出均价扣卖出费净收）。
         // 单笔成交成本基 = px × (1 + delta×fee_rate)：多 px(1+fee)，空 px(1−fee)。
@@ -1762,6 +1796,7 @@ fn apply_fill(
         *units = new_units;
         *cash += cash_flow;
     }
+    realized
 }
 
 /// bar-级 returns（占位；日聚合接通前的 L1 口径）。
@@ -2053,25 +2088,122 @@ mod tests {
         assert_eq!(t.entry_z.origin_level, Some(t.entry_z.level), "无链口径 ℓ=e");
     }
 
-    /// ★#124 裁定4：TW 账本生产真值源端到端物证——π fill loop 输出 `tw_final`（TStage/ηBucket
-    /// 生产者就位），TW 守恒经真实交易流保持，stage 恒 CostReduction（codex R3 C' 合法账本
-    /// 语义下 P3 结构不可达的**生产见证**，非 fixture 硬凑触发）。
+    /// ★#124 裁定4 + codex GAP3 裁定 A' 清单⑥（重写自 `tw_ledger_producer_in_place_and_conserved`）：
+    /// TW 账本生产真值源端到端物证——**TW 增量 = 已实现 PnL 量化和**。
+    ///
+    /// 旧断言「TW 经真实交易流守恒 = 1_000_000」在 A' 前成立的原因是**利润在账本里凭空消失**
+    /// （正 PnL 平仓后 TW 不变——codex 裁定判为具名确定要重写的测试）。A' 后的正确不变量：
+    /// `tw() = ⌊nav0⌋ + ⌊Σ 费后已实现 PnL⌋`（②'' shadow 对累计值量化再派差分 ⟹ 望远镜求和
+    /// 使终态漂移**恰**等于累计 PnL 的截断量化，误差有界不累积）。
+    ///
+    /// 结算时点硬边界同时被见证：`trade_pnls_realized`（实际平仓 fill）是唯一资金源——
+    /// 窗口终点 `forced_pnl`（假设强平，不改 units/cash）**不**入 TW（推导链第 11 条）。
     #[test]
-    fn tw_ledger_producer_in_place_and_conserved() {
+    fn tw_ledger_producer_drift_equals_quantized_realized_pnl() {
         use super::super::super::strategy::ledger::TStage;
         let config = ThetaConfig::default();
         let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
         let fill = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
         let tw = fill.tw_final.expect("π 路径 TW 生产者就位（tw_final=Some）");
-        // TW 守恒：ShortDiff/CloseShareLeg 划转构造子全守恒 ⟹ tw() == 初始注资 ⌊nav0⌋。
-        assert_eq!(tw.tw(), 1_000_000, "TW=free+holding+withdrawn 经真实交易流守恒");
-        // 生产语义诚实见证：无已实现利润入 free 通道 ⟹ holding≥notional_in ∧ free 足额
-        // 联立不可满足 ⟹ 退本金恒不派 ⟹ stage 恒 CostReduction（P3/P4 结构不可达照实）。
-        assert_eq!(tw.stage, TStage::CostReduction, "合法账本语义下 stage 不推进（照实）");
+        // ★清单⑥核心不变量：TW 漂移 = 已实现 PnL 量化和（f64 累加序与生产循环一致 ⟹ bit-exact）。
+        let realized_sum: f64 = fill.trade_pnls_realized.iter().sum();
+        assert_eq!(
+            tw.tw(),
+            1_000_000 + realized_sum as i64,
+            "TW 增量 = ⌊Σ费后已实现PnL⌋（利润不再凭空消失；A' 清单⑥）"
+        );
+        // 本场景微涨平仓 ⟹ 正 PnL 真进账本（旧版此值恒 1_000_000 = 利润消失）。
+        assert!(realized_sum > 0.0, "微涨买卖场景产正已实现 PnL");
+        assert!(tw.tw() > 1_000_000, "正 PnL ⟹ TW 真增长（利润入账见证）");
+        // forced_pnl 隔离见证：本场景腿在 bar 14 已信号平仓（无窗口终点持仓）⟹ with_forced 与
+        // realized 同长；即便有 forced 尾巴，②'' 只消费 apply_order 返回值，forced 不经该路径。
+        assert!(
+            fill.trade_pnls_with_forced.len() >= fill.trade_pnls_realized.len(),
+            "forced 口径仅报告用（不入 TW）"
+        );
+        // 小额 PnL ≪ notional_in=1e6 ⟹ 退本金门（holding≥notional ∧ free≥target）仍不满足 ⟹
+        // stage 不推进（可达性需足额利润，见 pi_loop_realized_profit_reaches_earning_shares）。
+        assert_eq!(tw.stage, TStage::CostReduction, "小额利润不足退本金门（照实）");
         assert_eq!(tw.withdrawn, 0, "无退本金事件");
         assert_eq!(tw.open_legacy_legs, 0, "本场景无 ShortDiff 腿 ⟹ legacy 计数 0");
-        // 成本划转真发生过（腿 bar7 开 bar14 关：holding 曾>0，关后成本基回流 ⟹ holding 回落）。
-        assert!(tw.free > 0, "成本基回流后 free>0");
+        assert!(tw.free > 0, "成本基回流 + 利润入账后 free>0");
+    }
+
+    /// ★★GAP3 可达性生产见证（codex 裁定 A' 落地的 L1 证明——「结构不可达」→「现实可达」）：
+    /// **带真实盈亏的序列上，生产 π fill loop 的 stage 真推进到 EarningShares**。
+    ///
+    /// 资金源全程只有实际平仓 fill 的费后已实现 PnL（②'' Realize），无任何未实现浮盈/棘轮参与：
+    /// - bar 0-9 px≈100：buy1@3 于 bar 7 确认部署 → bar 8 开多（投 w₀=0.60·NAV=6e5）。
+    /// - bar 10-19 px≈1000：sell1@12 于 bar 14 确认 → bar 15 平仓——realized ≈ 6e3 units ×
+    ///   (1000−100) ≈ +5.4e6 经 Realize 入 free ⟹ free ≈ 6.4e6 ≫ notional_in=1e6。
+    /// - buy1@16 于 bar 17 确认 → bar 18 再建仓（投 0.6·E ≈ 3.8e6 ⟹ holding≥notional_in ∧
+    ///   free≈2.5e6≥recover_target=1e6 同时满足——旧 TW 守恒代数下的互斥被已实现利润打破）⟹
+    ///   P3 于 bar 18 派 RecoverCapital(1e6)（stage II，withdrawn=notional_in）⟹ P4 于 bar 19
+    ///   EnterReady 五合取全真（S=II ∧ W≥I0 ∧ legs=0 ∧ Normal ∧ tw≥η⋆，κ=0 ⟹ η⋆=L^wc=0）⟹
+    ///   EnterEarning ⟹ **TStage=EarningShares**。
+    ///
+    /// 认识论 L1（合成价格序列验证机制可达性——生产判据/账本/事件链全走生产路径，无 fixture
+    /// 直捅 stage）；真实数据上的触发频率/盈利性归 L2/L3（#135 重跑）。
+    #[test]
+    fn pi_loop_realized_profit_reaches_earning_shares() {
+        use super::super::super::strategy::ledger::TStage;
+        let config = ThetaConfig::default();
+        // px 100（bar 0-9）→ px 1000（bar 10-19）：tick_size=1e-8 ⟹ close_tick=1e10/1e11。
+        let bars: Vec<Bar> = (0..20)
+            .map(|i| mk_bar(i, if i < 10 { 10_000_000_000 } else { 100_000_000_000 }, false))
+            .collect();
+        // 三段合成闭包：buy1@3（bar7 确认）→ +sell1@12（bar14 确认）→ +buy1@16（bar17 确认）。
+        let cls_buy = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
+        };
+        let cls_sell = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3), sell_at(12, 1)]), ..Default::default() }],
+        };
+        let cls_rebuy = Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![buy1_at(3), sell_at(12, 1), buy1_at(16)]),
+                ..Default::default()
+            }],
+        };
+        let fill = pi_theta_fill_loop(
+            move |i| {
+                if i >= 17 {
+                    (cls_rebuy.clone(), Vec::new(), i as u64)
+                } else if i >= 14 {
+                    (cls_sell.clone(), Vec::new(), i as u64)
+                } else if i >= 7 {
+                    (cls_buy.clone(), Vec::new(), i as u64)
+                } else {
+                    (Classification::default(), Vec::new(), i as u64)
+                }
+            },
+            &bars,
+            1.0e6,
+            &config,
+            None,
+        );
+        let tw = fill.tw_final.expect("π 路径 TW 生产者就位");
+        // ★核心：stage 真推进到 EarningShares（GAP3「∃t TStage=III」从 FALSIFIED → 生产可达）。
+        assert_eq!(
+            tw.stage,
+            TStage::EarningShares,
+            "已实现利润入账后三阶段走完：终 stage={:?}（P3 bar18 退本金 → P4 bar19 增股数）",
+            tw.stage
+        );
+        // 本金全退（P3 足额一次性）：withdrawn = notional_in = ⌊nav0⌋。
+        assert_eq!(tw.withdrawn, 1_000_000, "RecoverCapital 足额退本金（withdrawn=notional_in）");
+        // 资金源审计：TW 漂移不变量在阶段推进后仍成立（RecoverCapital/EnterEarning 保 TW ⟹
+        // 漂移仍恰 = 已实现 PnL 量化和——资金源唯一性的端到端见证）。
+        let realized_sum: f64 = fill.trade_pnls_realized.iter().sum();
+        assert_eq!(
+            tw.tw(),
+            1_000_000 + realized_sum as i64,
+            "阶段推进不产生/不消灭财富：TW 漂移仍 = ⌊Σ已实现PnL⌋"
+        );
+        assert!(realized_sum > 1_500_000.0, "资金源 = 足额已实现利润（>150% 本金）");
+        // 结构不变量保持：free 非负、无 legacy 腿（OQ-9 EnterEarning 入口证书曾满足）。
+        assert!(tw.free >= 0, "全程 cash-sound");
+        assert_eq!(tw.open_legacy_legs, 0, "EnterEarning 入口证书 legs=0");
     }
 
     /// ★G4：三类反向卖候选 ⟹ ReduceCore（P6，reverse_exit_type 判据经 fill loop 端到端兑现）。
@@ -2349,9 +2481,11 @@ mod tests {
     /// - **足额退本金门**：CostReduction→CapitalRecovered 需 `free ≥ recover_target = notional_in = 1000`。
     ///   而 free 恒 0（诊断浮盈不入 free，无真实卖出现金回流）⟹ 永不足额退本金 ⟹ stage 恒 CostReduction。
     ///
-    /// **结论（照实，FALSIFIED）**：合法账本语义下无非回补资金源，三阶段不推进——EarningShares 结构不可达
-    /// （GAP3「∃t TStage=III」FALSIFIED，codex R3 C'）。达 EarningShares 需重装「已实现利润」入账/可正可负
-    /// MTM 账本并重新提交裁决（见 `price_magnitude_drives_diagnostic_hwm_not_tw_closed_loop` 与 L2 BTC 不可达回测）。
+    /// **结论（照实；A' 落地后口径更新）**：本闭环三阶段不推进的根因有二——①未实现浮盈只作诊断
+    /// 不入 free（C'）；②生产闭环 PhaseI intent 恒 Buy（intent_adapter）⟹ 无平仓 fill ⟹ 已实现
+    /// 利润通道（A' 的 `Realize`，schedule 减仓分支已实装）**无事发生**。故 stage 恒 CostReduction
+    /// 照实。达 EarningShares 的生产路径在 π fill loop（反向候选真平仓产生已实现 PnL），见
+    /// `pi_loop_realized_profit_reaches_earning_shares` 可达性见证。
     #[test]
     fn closed_loop_earning_shares_not_reached_l0_honest_gap3() {
         use super::super::super::strategy::ledger::TStage;
@@ -2386,39 +2520,34 @@ mod tests {
         assert_eq!(final_state.tw_state.open_legacy_legs, 0, "OQ-9 gate 保持（legacy 腿=0）");
     }
 
-    /// ★★GAP3 结构不可达定理（codex 复审#2 修正：删除硬凑的「已获利」见证态）：从 funded_campaign
-    /// 出发，**在 sound closed-loop 路径上无法到达 CapitalRecovered**——EarningShares 结构不可达。
+    /// ★★L0 同价无盈亏定理（codex GAP3 裁定 A' 清单⑦，改名/改断言自
+    /// `earning_shares_structurally_unreachable_from_campaign_tw_conserved`）：从 funded_campaign
+    /// 出发，**L0 同价（price = avg_cost 恒等）下 sound closed-loop 路径无法到达 CapitalRecovered**
+    /// ——EarningShares 在 L0 同价下不可达。
     ///
-    /// ★口径收窄（codex 二轮）：这是 **sound 路径**（cash-tight w≤free 退本金）的不可达，**不是**
-    /// 「任何 raw 事件序列」不可达——raw `RecoverCapital(1)` 从 `free=Q, holding=0` 可推 CapitalRecovered
-    /// 但 **unsound**（会破坏现金-sound，被 transition_adapter 出口断言拒；见 transition.rs 现金-sound
-    /// gate）。故不可达域 = 引擎生产的 sound 转移路径（stage_progression 派生 + transition_adapter 出口
-    /// 断言钉死 free≥0），非模型全 raw 事件代数。
+    /// ★★有效域收窄（A' 落地后的关键变化）：本定理**不再**覆盖 L2 realized-PnL 路径——
+    /// `TwEvent::Realize` 是合法 TW 漂移构造子，L2 变价下平仓 PnL≠0 ⟹ TW 可增长 ⟹ 三约束
+    /// 互斥被打破 ⟹ EarningShares **现实可达**（生产见证 `pi_loop_realized_profit_reaches_
+    /// earning_shares`）。本定理的有效域 = **L0 同价**：卖价 ≡ 成本价 ⟹ 每笔平仓 PnL ≡ 0 ⟹
+    /// `Realize` 分量恒 0 ⟹ TW 守恒代数照旧成立（无盈亏引理的可执行形式见
+    /// `transition.rs::schedule_reduce_separates_cost_basis_and_realized_pnl` 的同价分支）。
     ///
-    /// **根因（codex 复审#2 逼出的更强结论）**：三个约束联合不可满足——
-    /// - **TW 守恒**：funded_campaign 起 TW=Q（free=Q, holding=0）；所有 TW 事件保 `tw()=free+holding+
-    ///   withdrawn` 不变 ⟹ TW 恒 =Q（ShortDiff 中性 / CloseShareLeg 落 cum_net_cash 在 TW 外 /
-    ///   RecoverCapital 是 free→withdrawn 内部转移）。**无任何事件让 TW>Q**（利润在 L0 同价不产生）。
-    /// - **退本金前提**：stage_progression 的 CostReduction→退本金要求 `holding ≥ notional_in = Q`。
+    /// ★口径收窄（codex 二轮，沿袭）：这是 **sound 路径**（cash-tight w≤free 退本金）的不可达，
+    /// 非「任何 raw 事件序列」不可达（raw 越权事件被 transition_adapter 现金-sound gate 拒）。
+    ///
+    /// **根因（三约束在 L0 同价下联合不可满足）**：
+    /// - **L0 同价 TW 守恒**：funded_campaign 起 TW=Q；非 Realize 事件全守恒，Realize 分量在
+    ///   同价下恒 0 ⟹ TW 恒 =Q（利润在 L0 同价不产生）。
+    /// - **退本金前提**：stage_progression 要求 `holding ≥ notional_in = Q`。
     /// - **cash-tight**（codex#3 修复）：sound 退本金要求 `free > 0`（w=min(·,free)>0）。
     ///
-    /// holding≥Q ∧ TW=Q ⟹ free+withdrawn = Q−holding ≤ 0 ⟹ free ≤ 0（withdrawn≥0）⟹ **sound 退本金
-    /// 的 free>0 与退本金前提 holding≥Q 在 TW=Q 下互斥**。故从 funded_campaign 永远到不了 sound 的
-    /// CapitalRecovered ⟹ EarningShares 不可达。这是 **model-level 结构结论（照实 161/no-workaround）**：
-    /// 旧「free=Q∧holding=Q」见证态 TW=2Q，**从 campaign 起点 TW 守恒下不可达**，是硬凑 harness（codex
-    /// 复审#2 判致命，已删）。EarningShares 真达需 **L2 价格升值让已实现利润进 TW**（超出本 L0 模型事件集）。
+    /// holding≥Q ∧ TW=Q ⟹ free ≤ 0 ⟹ 与 free>0 互斥。真达 EarningShares 需 **L2 价格变动让
+    /// 已实现利润经 Realize 进 TW**（A' 已实装该通道——本定理界定的是它的 L0 退化边界）。
     ///
-    /// 机制本身正确性（enter_ready/tw_step 各分支）由 `strategy::ledger` 单元测试（`enter_ready_strict_
-    /// conjunction`/`stage_rank_monotone` 等）在**显式假设态**上验证——那是「给定前提则机制正确」的单元
-    /// 断言，**不**声明该前提从 campaign 起点可达（有效域区分：机制正确 ≠ 前提可达）。
-    ///
-    /// ★★codex §9.2（诚实标注路线）：those `strategy::ledger` unit tests are **synthetic-state
-    /// legality tests, not reachability tests** — they验 mechanism legality on assumed states, 不构造
-    /// (nor claim) a real trade path x0→…→xT reaching η_T≥I0−W_T+η⋆. THIS test (below) is the
-    /// **reachability** side: it proves EarningShares is structurally unreachable on sound closed-loop
-    /// paths from `funded_campaign` under L0 same-price（TW 守恒）. 二者互补，无 fabricated witness。
+    /// 机制正确性（enter_ready/tw_step 各分支）由 `strategy::ledger` 单元测试在显式假设态上验证
+    /// （synthetic-state legality tests，机制正确 ≠ 前提可达）；本测试是 L0 reachability 侧。
     #[test]
-    fn earning_shares_structurally_unreachable_from_campaign_tw_conserved() {
+    fn earning_shares_unreachable_l0_same_price_zero_pnl() {
         use super::super::super::strategy::ledger::{TStage, TwState, TwEvent, tw_step};
 
         let q: i64 = 3;
@@ -2426,15 +2555,16 @@ mod tests {
         let tw0 = funded.tw_state.tw();
         assert_eq!(tw0, q, "funded_campaign 起 TW=Q（free=Q, holding=0）");
 
-        // ★TW 守恒：枚举所有 TW 事件，无一让 TW≠Q（利润在 L0 同价不产生 ⟹ TW 恒 =Q）。
+        // ★L0 同价守恒：非 Realize 事件全守恒 + Realize 在同价下分量恒 0（无盈亏引理）⟹ TW 恒 =Q。
         let s = funded.tw_state;
         let events = [
             TwEvent::ShortDiff(2), TwEvent::ShortDiff(-2),
             TwEvent::OpenShareLeg, TwEvent::CloseShareLeg(5), TwEvent::CloseShareLeg(-5),
             TwEvent::RecoverCapital(1), TwEvent::EnterEarning,
+            TwEvent::Realize(0), // L0 同价 ⟹ 平仓 PnL≡0 ⟹ Realize 分量恒 0（漂移 0 = 守恒）
         ];
         for e in events {
-            assert_eq!(tw_step(&s, e).tw(), tw0, "TW 事件 {:?} 保 TW=Q（无利润注入）", e);
+            assert_eq!(tw_step(&s, e).tw(), tw0, "L0 同价事件 {:?} 保 TW=Q（无利润注入）", e);
         }
 
         // ★互斥证明：任何 TW=Q 且 holding≥notional_in=Q 的态，free≤0 ⟹ sound 退本金（free>0）不可能。
@@ -2473,8 +2603,10 @@ mod tests {
 
     /// ★★codex R3 C' 终局裁定后——价格幅度**驱动诊断高水位 hwm_gain，但不驱动 TW/stage**（决定性，秒级）：
     /// `run_closed_loop` 消费真实价格幅度（价格管线保留 §5.4），**同 rising 布尔序列**下平缓涨与暴涨产出
-    /// **不同**的诊断 hwm_gain——但因 hwm_gain 零承重（不入 free），两组 TW 均守恒（=notional_in）且 stage
-    /// 均恒 CostReduction（EarningShares 不可达=FALSIFIED，acc-GAP3「∃t TStage=III」恢复未证成）。
+    /// **不同**的诊断 hwm_gain——但因 hwm_gain 零承重（不入 free），且本闭环 PhaseI 恒 Buy 无平仓
+    /// fill（A' 的已实现利润通道无事发生），两组 TW 均守恒（=notional_in）且 stage 均恒
+    /// CostReduction。**未实现浮盈无论多大都不驱动 stage**（A' 推导链第 6 条黑名单的行为见证）；
+    /// 已实现利润驱动 stage 的生产见证在 π 路径（`pi_loop_realized_profit_reaches_earning_shares`）。
     ///
     /// 对照设计：两组 rising 布尔序列相同（隔 bar 涨），仅幅度不同：
     /// - gentle（涨到 1001）：诊断浮盈峰值 1 ⟹ hwm_gain=1。
@@ -2502,7 +2634,7 @@ mod tests {
         assert!(b.tw_state.hwm_gain > a.tw_state.hwm_gain, "暴涨诊断高水位 > 平缓涨（价格幅度驱动诊断）");
         // ★C' 承重移除：两组 stage 均 CostReduction（浮盈不入 free ⟹ 退本金门不开），TW 均守恒 =notional_in。
         assert_eq!(a.tw_state.stage, TStage::CostReduction, "gentle：诊断浮盈零承重 ⟹ 停 CostReduction");
-        assert_eq!(b.tw_state.stage, TStage::CostReduction, "violent：诊断浮盈零承重 ⟹ 停 CostReduction（EarningShares 不可达=FALSIFIED）");
+        assert_eq!(b.tw_state.stage, TStage::CostReduction, "violent：未实现浮盈无论多大不驱动 stage（A' 黑名单行为见证）");
         assert_eq!(a.tw_state.tw(), a.tw_state.notional_in, "gentle TW 守恒 =notional_in（诊断不进 TW）");
         assert_eq!(b.tw_state.tw(), b.tw_state.notional_in, "violent TW 守恒 =notional_in（承重移除，浮盈不进 TW）");
         assert_eq!(a.tw_state.withdrawn, 0, "gentle 未退本金（无 sound 资金源）");
@@ -2510,13 +2642,15 @@ mod tests {
         assert!(b.tw_state.free == 0 && a.tw_state.free == 0, "两组 free 恒 0（诊断浮盈不入账 free）");
     }
 
-    /// ★★L2 不可达实证（#[ignore]，真实 BTC 变价数据——codex R3 C' 终局裁定后）：closed_loop 三阶段闭环
-    /// 接真实 BTC 变价数据流，acc-GAP3 判据「∃t TStage=III」在合法账本语义下**恢复 FALSIFIED**
-    /// （EarningShares count=0）。复算：`cargo test --lib l2_btc_earning_shares_unreachable_hwm_debearing
-    /// -- --ignored --nocapture`（默认全历史；`ECON_L2_MAX_BARS=N` 可截尾）。run_closed_loop 是 O(n)。
-    /// C' 前 count=1（hwm_gain 棘轮把浮盈入 free 驱动退本金，被裁定为 PDF p8③ 语义回补）；C' 后 hwm_gain
-    /// 降为纯诊断（不入 free），即便 BTC 长期升值使诊断 hwm_gain≫本金，free 恒不受浮盈影响 ⟹ 无 sound
-    /// 退本金资金源 ⟹ stage 恒 CostReduction ⟹ **count=0**（FALSIFIED，直到「已实现利润」/MTM 账本重装）。
+    /// ★★L2 closed_loop 不触达实证（#[ignore]，真实 BTC 变价数据）：closed_loop 三阶段闭环接真实
+    /// BTC 变价数据流，EarningShares count=0。复算：`cargo test --lib
+    /// l2_btc_earning_shares_unreachable_hwm_debearing -- --ignored --nocapture`（默认全历史；
+    /// `ECON_L2_MAX_BARS=N` 可截尾）。run_closed_loop 是 O(n)。
+    /// 发生史：C' 前 count=1（hwm_gain 棘轮，被裁 PDF p8③ 语义回补）；C' 后浮盈只作诊断 ⟹ count=0。
+    /// ★A' 落地后本测试语义收窄为「**closed_loop 生产策略**不触达」：已实现利润通道已实装
+    /// （schedule 减仓分支 realized_pnl→Realize），但本闭环 PhaseI intent 恒 Buy ⟹ 无平仓 fill ⟹
+    /// 无已实现 PnL 产生 ⟹ stage 恒 CostReduction（策略性不触达，非账本结构不可达——后者已被
+    /// `pi_loop_realized_profit_reaches_earning_shares` 在 π 生产路径上否证）。
     #[test]
     #[ignore]
     fn l2_btc_earning_shares_unreachable_hwm_debearing() {
@@ -2543,8 +2677,8 @@ mod tests {
             bars.len(), n_full, s.stage, count, s.tw(), s.free, s.holding, s.withdrawn, s.notional_in, s.cum_net_cash, s.hwm_gain,
         );
         // ★acc-GAP3 恢复 FALSIFIED（codex R3 C'）：L2 真实 BTC 变价数据上 EarningShares 不可达（count=0）。
-        assert_eq!(count, 0, "C' 后 L2 BTC EarningShares 不可达（count=0，FALSIFIED）——实测 final_stage={:?}", s.stage);
-        assert_eq!(s.stage, TStage::CostReduction, "hwm_gain 诊断零承重 ⟹ stage 恒 CostReduction（无 sound 资金源）");
+        assert_eq!(count, 0, "closed_loop 生产策略（PhaseI 恒 Buy 无平仓）L2 BTC 不触达 EarningShares（count=0）——实测 final_stage={:?}", s.stage);
+        assert_eq!(s.stage, TStage::CostReduction, "无平仓 fill ⟹ 无已实现 PnL ⟹ stage 恒 CostReduction（策略性不触达）");
         // ★TW 守恒（诊断浮盈不进 TW 三量）；诊断 hwm_gain 可远超本金但不入 free ⟹ 未退本金。
         assert_eq!(s.tw(), s.notional_in, "TW 守恒 tw()=notional_in（C' 后 Revalue 诊断-only）");
         assert_eq!(s.withdrawn, 0, "无 sound 退本金资金源 ⟹ 未退本金（withdrawn=0）");

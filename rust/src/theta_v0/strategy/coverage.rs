@@ -4249,8 +4249,12 @@ mod tests {
         assert_eq!(p_star, 0.0, "force_flat ⟹ 𝒦_Θ={{0}} ⟹ p*=0");
     }
 
-    // ── #124 裁定4 TW 谓词 P2/P3/P4 组合层分支（L0/L1：分支逻辑正确性；生产触发可达性
-    //    是账本语义问题——codex R3 C' 合法语义下 StageII 结构不可达，见 runner TW 接线注释）──
+    // ── #124 裁定4 TW 谓词 P2/P3/P4 组合层分支（L0/L1：分支逻辑正确性；生产触发可达性在
+    //    codex GAP3 裁定 A' 后现实可达——已实现利润经 Realize 入 free，见 runner
+    //    `pi_loop_realized_profit_reaches_earning_shares`）。★A' 清单⑤：P2/P3/P4 成立时
+    //    **消耗当步裁决**（gamma 推迟 record）不仅改 trace 桶归属，还**真改同 bar 订单流**
+    //    ——各测试以 tw=None 对照断言 Order 本身不同（masking 的 bit-exact 风险载体，
+    //    #135 重跑清单第二类风险：P3/P4 无订单事件但间接改普通开平仓订单）。──
 
     fn buy_gamma() -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
         let buy = BspPoint {
@@ -4279,8 +4283,10 @@ mod tests {
         let reg = super::super::persistent::PersistentRegistry::new();
         let (tree, candidates, gamma) =
             interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
-        let work = ElementView::from_parts(&tree, candidates);
-        let sd_leg = aleg(0, VoiceSide::Short, 7, 7); // legacy ShortDiff 重叠腿
+        let work = ElementView::from_parts(&tree, candidates.clone());
+        // legacy ShortDiff 重叠腿。dir 取 Long：使 tw=None 对照的 p̃ 不落在「候选开仓 +600 与
+        // Short 腿 −600 恰好抵消」的巧合点上（P2 关腿 vs 对照保腿的订单差异可观测）。
+        let sd_leg = aleg(0, VoiceSide::Long, 7, 7);
         let root_leg = aleg(1, VoiceSide::Long, 3, 3); // 非重叠根腿（保留）
         let sd_ids: std::collections::HashSet<ElementId> = [sd_leg.id].into_iter().collect();
         let tw_state = TwState {
@@ -4295,7 +4301,7 @@ mod tests {
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &sd_ids,
         };
-        let (next_active, _ps, _o, trace) = pi_theta_step_traced(
+        let (next_active, _ps, order_p2, trace) = pi_theta_step_traced(
             work, &gamma, &[sd_leg, root_leg], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
         );
@@ -4305,6 +4311,14 @@ mod tests {
         assert!(next_active.iter().any(|l| l.id == root_leg.id), "非重叠根腿保留");
         assert!(trace.opened.is_empty(), "P2 消耗当步裁决 ⟹ 买候选不开仓（屏蔽 P8）");
         assert!(trace.tw_event.is_none(), "P2 屏蔽 P3/P4：无 TW 事件");
+        // ★A' 清单⑤（masking 真改订单流）：同输入 tw=None 走普通路径（买候选开仓 + 无 overlay
+        // 关腿）⟹ Order 与 P2 路径**不同**——P2 直接产订单是 #135 重跑清单的第一类 bit-exact 风险。
+        let work_none = ElementView::from_parts(&tree, candidates);
+        let (_na, _ps2, order_none, _tr) = pi_theta_step_traced(
+            work_none, &gamma, &[sd_leg, root_leg], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, None,
+        );
+        assert_ne!(order_p2, order_none, "P2 CloseOverlay 真改同 bar 订单（非仅 trace 差异）");
     }
 
     /// ★P3 RecoverCapital（PDF §7 C_3）：TW CostReduction ∧ holding≥notional_in ∧ free 足额
@@ -4318,7 +4332,7 @@ mod tests {
         let reg = super::super::persistent::PersistentRegistry::new();
         let (tree, candidates, gamma) =
             interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
-        let work = ElementView::from_parts(&tree, candidates);
+        let work = ElementView::from_parts(&tree, candidates.clone());
         let tw_state = TwState {
             free: 100,
             holding: 100,
@@ -4333,7 +4347,7 @@ mod tests {
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &empty_ids,
         };
-        let (next_active, _ps, _o, trace) = pi_theta_step_traced(
+        let (next_active, _ps, order_p3, trace) = pi_theta_step_traced(
             work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
         );
@@ -4344,6 +4358,17 @@ mod tests {
         );
         assert!(trace.opened.is_empty(), "P3 消耗当步裁决 ⟹ 买候选不开仓（屏蔽 P5..P10）");
         assert!(next_active.is_empty(), "无持仓腿 ⟹ next_active 空（无开仓）");
+        // ★A' 清单⑤（P3 masking 真改订单流）：P3 无订单账本事件，但消耗当步裁决使同 bar 普通
+        // 开仓被推迟 ⟹ 订单 qty=0；tw=None 对照下买候选正常开仓 qty>0——「P3/P4 无直接订单但
+        // 间接改订单流」正是 codex §4 修正认定的第二类 bit-exact 风险（#135 重跑清单）。
+        assert_eq!(order_p3.qty, 0, "P3 屏蔽开仓 ⟹ 本 bar 无订单量");
+        let work_none = ElementView::from_parts(&tree, candidates);
+        let (_na, _ps2, order_none, _tr) = pi_theta_step_traced(
+            work_none, &gamma, &[], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, None,
+        );
+        assert!(order_none.qty > 0, "tw=None 对照：买候选正常开仓（qty>0）");
+        assert_ne!(order_p3, order_none, "P3 masking 真改同 bar 订单流");
     }
 
     /// ★P4 EnterEarning（PDF §7 C_4）：TW CapitalRecovered ∧ EnterReady 五合取成立 ⟹
@@ -4357,7 +4382,7 @@ mod tests {
         let reg = super::super::persistent::PersistentRegistry::new();
         let (tree, candidates, gamma) =
             interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
-        let work = ElementView::from_parts(&tree, candidates);
+        let work = ElementView::from_parts(&tree, candidates.clone());
         // EnterReady 五合取：S=II ∧ withdrawn≥notional_in ∧ legs=0 ∧ RiskNormal ∧ tw()≥η⋆
         // （κ=0 ⟹ η⋆=L^wc=(notional_in−withdrawn)⁺=0）。
         let tw_state = TwState {
@@ -4374,12 +4399,21 @@ mod tests {
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &empty_ids,
         };
-        let (_na, _ps, _o, trace) = pi_theta_step_traced(
+        let (_na, _ps, order_p4, trace) = pi_theta_step_traced(
             work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
         );
         assert_eq!(trace.tw_event, Some(TwEvent::EnterEarning), "P4 ⟹ EnterEarning 相变事件");
         assert!(trace.opened.is_empty(), "P4 消耗当步裁决 ⟹ 不开仓");
+        // ★A' 清单⑤（P4 masking 真改订单流）：同 P3——相变事件无订单，但同 bar 普通开仓被推迟。
+        assert_eq!(order_p4.qty, 0, "P4 屏蔽开仓 ⟹ 本 bar 无订单量");
+        let work_none = ElementView::from_parts(&tree, candidates);
+        let (_na2, _ps2, order_none, _tr) = pi_theta_step_traced(
+            work_none, &gamma, &[], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, None,
+        );
+        assert!(order_none.qty > 0, "tw=None 对照：买候选正常开仓（qty>0）");
+        assert_ne!(order_p4, order_none, "P4 masking 真改同 bar 订单流");
     }
 
     /// ★优先级 C_1≻C_2（PDF §7）：P1 force_flat 与 P2 条件同时成立 ⟹ P1 赢（risk_exits，
