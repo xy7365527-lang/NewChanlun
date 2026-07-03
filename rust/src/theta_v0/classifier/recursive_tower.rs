@@ -903,4 +903,39 @@ mod tests {
         project_to_units_resume(&moves, &[], &mut cache);
         assert_eq!(cache, full, "清空重投影（cascade_reset 路径）== 全量");
     }
+
+    /// Q7 覆盖见证（codex ac4-r2 Q7 #3：空 blocks 测试只锁 fallback，须锁「块方向覆盖 endpoint」）：
+    /// fold_direction（外缘 hi 递减 ⟹ Down）与 ownership Trend(Up) 块相反 ⟹ 方向取块方向 Up；
+    /// i==0（无入边关系）降级 fallback（prev=None ⟹ Up 占位）；full 与 resume 逐字段一致。
+    #[test]
+    fn project_to_units_block_dir_overrides_endpoint_fallback() {
+        use super::super::decompose::MoveStatus;
+        use super::super::super::types::MoveKind;
+        // hi 严格递减（100,99,98）⟹ fold_direction 对 i≥1 给 Down。
+        let moves: Vec<LeveledMove> = (0..3)
+            .map(|i| {
+                let u = unit(i * 4, i * 4 + 4, down(), 0, 100 - i as i64);
+                LeveledMove::from_unit(&u, eid(0, i as u64))
+            })
+            .collect();
+        let blocks = [MoveBlock {
+            start_center: 0,
+            end_center: 2,
+            kind: MoveKind::Trend,
+            dir: Some(Direction::Up),
+            status: MoveStatus::Active,
+        }];
+        let full = project_to_units(&moves, &blocks);
+        assert_eq!(full[0].direction, Direction::Up, "i=0 无入边关系 ⟹ fallback（prev=None 占位 Up）");
+        assert_eq!(full[1].direction, Direction::Up, "Trend(Up) 块方向覆盖 endpoint Down");
+        assert_eq!(full[2].direction, Direction::Up, "Trend(Up) 块方向覆盖 endpoint Down");
+        // 对照：无块 ⟹ endpoint fallback 给 Down（证明上面的 Up 确实来自块，非 fold 巧合）。
+        let no_blocks = project_to_units(&moves, &[]);
+        assert_eq!(no_blocks[1].direction, Direction::Down, "对照：空 blocks ⟹ endpoint Down");
+        // resume 与 full 逐字段一致（含块方向路径）。
+        let mut cache: Vec<UnitRange> = Vec::new();
+        project_to_units_resume(&moves[..2], &blocks, &mut cache);
+        project_to_units_resume(&moves, &blocks, &mut cache);
+        assert_eq!(cache, full, "resume（块方向路径）== 全量");
+    }
 }
