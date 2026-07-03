@@ -9,7 +9,7 @@ negation_source: heterogeneous   # 主裁定=codex-t1（codex-cli decide A）；
 negation_model: codex-cli
 negation_form: waiting   # c570d2ebf6 提交注释原文自陈"是后续增量"（显式 waiting 型延迟），非静默简化。
 depends_on: []
-related: ["090", "231", "682", "project_oddeven_mu_identity"]
+related: ["090", "231", "682", "685", "project_oddeven_mu_identity"]
 
 # 拓扑效果标注（147号下游推论3）
 # negates：commit c570d2ebf6 的假设——"units 无 direction，level≥1 一/三类判据无法 bit-exact 判定，
@@ -109,7 +109,7 @@ retroactive_settlement:
 # 谱系关联
 related_records:
   parent: "无直接父记录（首次审计 else{Vec::new()} 分支的历史裁决；谱系检索无直接讨论该问题的已结算条目）。"
-  children: []
+  children: ["685"]   # 685号推翻本记录边界条件第三条（见下方"边界条件"订正标注）。
 ---
 
 # bias-correction 683：level≥1 一/三类买卖点候选生成——过期未复核的文档化简化（spec-execution-gap 候选），codex-t1 裁 A 订正
@@ -142,7 +142,11 @@ L0 一类恒为 0 ⟹ B 恒空），不选 C（无需新架构）。
 - 若 `#123 hl13-impl` 实装后 GOLDEN 重算发现级别-N 判据存在 bit-exact 偏差（如 `end_price` 取
   hi/lo 的方向映射有误），则本记录的"决策已定"状态需回退为"决策待修正"，`retroactive_settlement`
   不得填入直至偏差修复。
-- 本记录不涉及 level0 一类=0 的市场事实结论（该结论维持 `#119` 的独立裁定，不受本记录订正影响）。
+- ~~本记录不涉及 level0 一类=0 的市场事实结论（该结论维持 `#119` 的独立裁定，不受本记录订正影响）。~~
+  **【685号订正，2026-07-03】此条已作废。** #141 漏斗真跑（`4d37f1eab9`）坐实 level0 一类=0 同样死于
+  趋势门（环1，全级别 100% 候选未过），是趋势门累积链判据缺第18课走势分解 + 缺第20课中枢延伸（第20课
+  中心定理一）两条确定性实现缺陷制造的伪影，**不是** `#119` 独立裁定的市场事实。详见
+  `685-type1-zero-not-market-fact-trend-gate-accumulation-chain-plus-missing-center-extension.md`。
 
 ## 下游推论
 
@@ -167,9 +171,15 @@ L0 一类恒为 0 ⟹ B 恒空），不选 C（无需新架构）。
 - **task #130 对齐**：本条目即 #130「谱系补记：mod.rs:256 过期未复核的文档化简化（spec-execution-gap
   候选）」的落盘产出。#130 要求引用 #116/#119/#121 + codex-t1 裁定 A + 记完整生成史（简化引入→阻塞前提
   同 commit 失效→过期未复核→裁定 A 解除）——均已在本条目覆盖。genealogist 2026-07-03 认领对齐后 #130 completed。
+- **子记录 `685`**：#141 漏斗真跑推翻本记录"边界条件"第三条（level0 一类=0 是趋势门实现缺陷伪影，
+  非 `#119` 独立市场事实裁定）。本记录的 level≥1 架构禁闭（else 分支）与 685 的全级别趋势门锁死是
+  **两条独立且叠加的缺陷**：即便 683 的 else 分支修复（#123 hl13-impl）让 level≥1 走级别-N 直接判定，
+  该判定仍需先通过趋势门——685 未修复前，level≥1 一类同样会死于趋势门（环1），候选生成端（683）与
+  过滤端（685）需分别修复才能让一类信号非 0。
 
 ## 影响声明
 
 谱系补记，零代码改动（代码变更归属 `#123 hl13-impl`，本记录追踪其裁定依据与"过期未复核"定性）。
 影响模块：`rust/src/theta_v0/classifier/mod.rs`、`signal.rs`；影响下游：GOLDEN/backtest digest
-需在 `#123` 完成后诚实重算。
+需在 `#123` 完成后诚实重算。**685号订正**：本记录"level0 市场事实"免责边界条件已作废，683/685 需
+在 #142-#146 修复序（中枢延伸→走势分解→局部趋势门→A/C次级别化→全下游重跑）完成后共同结算。

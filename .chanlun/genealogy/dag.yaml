@@ -3640,6 +3640,12 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/684-main-bucket-positive-mu-is-tau-reverse-exit-caliber-artifact-falsified-by-q4-g4-typed-exit.md
+- id: '685'
+  title: 「一类买卖点全历史 0=市场事实」被推翻——#141 漏斗真跑定位死点=趋势门（环1），全级别 100% 死于此环，真因是两条确定性实现缺陷（缺第18课走势分解
+    + 缺第20课中枢延伸），非市场结构
+  status: 生成态
+  type: bias-correction
+  file: pending/685-type1-zero-not-market-fact-trend-gate-accumulation-chain-plus-missing-center-extension.md
 edges:
   depends_on:
   - from: '679'
@@ -10585,6 +10591,21 @@ edges:
   - between:
     - '684'
     - project_iclass_delta_collinearity_perm_degeneracy
+  - between:
+    - '683'
+    - '685'
+  - between:
+    - '231'
+    - '685'
+  - between:
+    - 090
+    - '685'
+  - between:
+    - '685'
+    - project_interval_nesting_not_called_in_backtest
+  - between:
+    - '685'
+    - project_level_hole_window_dependence
   tensions_with:
   - between:
     - '007'
