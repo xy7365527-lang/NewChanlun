@@ -38,6 +38,34 @@ const SYMBOL_STRIDE: u32 = 10_000_000;
 const L3_UNIVERSE: &[&str] = &["BTC", "ES", "CL", "GC", "BRN", "DX", "QQQ"];
 /// 删尾稳健删除的赢家数（alpha检验.pdf §6：删前 3 最大赢家）。
 const TRIM_K: usize = 3;
+/// 归一化 σ̂ 估计的 pre-OOS 可交易 bar 下限（prereg-l3norm-20260703 §1）：不足则诚实剔除，不静默兜底。
+const SIGMA_MIN_BARS: usize = 1000;
+
+/// 连续价的逐 bar 差分样本标准差（σ̂ 计算核心，money path）。`pxs` = 时间序可交易价序列。
+fn stdev_consecutive_diffs(pxs: &[f64]) -> f64 {
+    let diffs: Vec<f64> = pxs.windows(2).map(|w| w[1] - w[0]).collect();
+    let n = diffs.len();
+    if n < 2 {
+        return 0.0;
+    }
+    let mean = diffs.iter().sum::<f64>() / n as f64;
+    let var = diffs.iter().map(|d| (d - mean).powi(2)).sum::<f64>() / (n - 1) as f64;
+    var.sqrt()
+}
+
+/// 品种归一化尺度 σ̂_symbol（prereg-l3norm-20260703 §1，跨品种残差通约）：pre-OOS（date<OOS_START）
+/// 全体可交易 bar 逐 bar close-to-close $ 涨跌的样本 std。**因果无前视**：池化残差 entry 全 ≥OOS_START，
+/// σ̂ 由严格早于 OOS 的数据估 ⟹ F_entry-可测。返回 (σ̂, pre-OOS 可交易 bar 数)。
+fn sigma_pre_oos(ds: &data::Dataset, cfg: &ThetaConfig) -> (f64, usize) {
+    let pre = ds.slice_date_window("1900-01-01", "2022-12-31"); // 严格早于 OOS_START=2023-01-01（闭区间）
+    let pxs: Vec<f64> = pre
+        .bars
+        .iter()
+        .filter(|b| !b.untradable && b.close > 0)
+        .map(|b| b.close as f64 * cfg.tick.tick_size)
+        .collect();
+    (stdev_consecutive_diffs(&pxs), pxs.len())
+}
 
 /// walk-forward OOS 残差聚合（G-A4）：取 `symbol` 在 `PREREG_WINDOWS` 冻结 anchored 窗口中
 /// `test_start ≥ OOS_START` 的子集，逐窗对 **test 段** 独立 [`build_mu_from_bars`]（time_block_base
@@ -244,11 +272,21 @@ fn wverify_cross_symbol() {
 
     let mut pooled: Vec<ResidualTrade> = Vec::new();
     let mut per_symbol_md = String::new();
+    let mut sigma_md = String::from("| symbol | σ̂_symbol | pre-OOS bars |\n|---|---|---|\n");
     let mut btc_main: Option<BucketStat> = None;
     for (idx, &sym) in L3_UNIVERSE.iter().enumerate() {
         let ds = data::load_by_symbol(sym, &cfg).unwrap_or_else(|e| panic!("{sym} 数据加载失败：{e}"));
-        let (recs, _tb) = walk_forward_oos_residuals(sym, idx as u32, &ds, &cfg);
-        eprintln!("[xsym] {sym} residuals={}", recs.len());
+        let (mut recs, _tb) = walk_forward_oos_residuals(sym, idx as u32, &ds, &cfg);
+        // ── σ̂ 归一化（prereg-l3norm-20260703）：Ỹ=Y/σ̂，缩放 resid_base+cost 两字段 ⟹ y()=δ·resid_base−cost 自动归一化。
+        //    perm_test/decontam/bucket_verdict 透明消费归一化 records（零改动 bit-exact）。σ̂ 因果无前视（见 sigma_pre_oos）。
+        let (sigma, n_pre) = sigma_pre_oos(&ds, &cfg);
+        assert!(sigma > 0.0 && n_pre >= SIGMA_MIN_BARS, "{sym} σ̂ 不可估（σ̂={sigma} pre-OOS bars={n_pre}<{SIGMA_MIN_BARS}）——诚实剔除，不静默兜底");
+        sigma_md.push_str(&format!("| {sym} | {sigma:.6} | {n_pre} |\n"));
+        for r in &mut recs {
+            r.resid_base /= sigma;
+            r.cost /= sigma;
+        }
+        eprintln!("[xsym] {sym} residuals={} σ̂={sigma:.6} pre_bars={n_pre}", recs.len());
         let (mut stats, rows, verdict, (nv, nf, ni)) = bucket_verdict(&recs);
         per_symbol_md.push_str(&format!("\n### {sym}（residuals={}, verdict={verdict} V={nv}/F={nf}/I={ni}）\n\n{rows}", recs.len()));
         if sym == "BTC" {
@@ -264,7 +302,7 @@ fn wverify_cross_symbol() {
     // 与 BTC 单标的主桶差分（裁定 C 目标：池化增 n 是否使主桶 INCONCLUSIVE→VALIDATED）。
     let diff = match (btc_main.as_ref(), pooled_main) {
         (Some(b), Some(p)) => format!(
-            "主桶 {MAIN:?} 差分：\n  BTC 单标的 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  7 品种池化 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  n_eff {:.0}→{:.0}（功效门 290），翻转={}",
+            "主桶 {MAIN:?} 差分（σ̂-归一化 Ỹ 单位）：\n  BTC 单标的 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  7 品种池化 : n={} n_eff={:.2} mean={:+.4} lcb={:+.4} perm_p={:.3} → {:?}\n  n_eff {:.0}→{:.0}（功效门=(1.645·CV)²逐桶重算，不复用 v1 的 290），翻转={}",
             b.n, b.n_eff, b.mean, b.lcb, b.perm_p, b.state,
             p.n, p.n_eff, p.mean, p.lcb, p.perm_p, p.state,
             b.n_eff, p.n_eff, if format!("{:?}", b.state) != format!("{:?}", p.state) { "是" } else { "否" },
@@ -272,11 +310,12 @@ fn wverify_cross_symbol() {
         _ => "主桶差分不可算（BTC 或池化缺主桶）".to_string(),
     };
 
-    eprintln!("WV_XSYM pooled_residuals={} buckets={} verdict={pverdict} V={nv} F={nf} I={ni}\n{diff}", pooled.len(), pstats.len());
+    eprintln!("WV_XSYM(σ̂-归一化) pooled_residuals={} buckets={} verdict={pverdict} V={nv} F={nf} I={ni}\n{sigma_md}\n{diff}", pooled.len(), pstats.len());
+    std::fs::write("/tmp/wv_xsym_sigma.md", &sigma_md).ok();
     std::fs::write("/tmp/wv_xsym_persymbol.md", &per_symbol_md).ok();
     std::fs::write(
         "/tmp/wv_xsym_pooled.md",
-        format!("# 池化（7 品种）verdict={pverdict} V={nv}/F={nf}/I={ni}\n\n{prows}\n\n## {diff}\n"),
+        format!("# 池化（7 品种，σ̂-归一化 Ỹ）verdict={pverdict} V={nv}/F={nf}/I={ni}\n\n## σ̂ 表\n\n{sigma_md}\n\n{prows}\n\n## {diff}\n"),
     )
     .ok();
 }
@@ -433,5 +472,14 @@ mod tests {
         let max_offset = (L3_UNIVERSE.len() as u32 - 1) * SYMBOL_STRIDE + per_symbol_span;
         assert!(max_offset < u32::MAX, "7 品种最大 time_block 偏移不溢出 u32");
         assert!(!L3_UNIVERSE.contains(&"OKLO"), "OKLO 剔除（Observation 池，无 walk-forward OOS）");
+    }
+
+    /// L1 自检（prereg-l3norm §5，管线正确性零信息增量）：σ̂ 计算核心 = 逐 bar 差分样本 std。
+    /// 手算对照：pxs=[1,2,4,7] ⟹ diffs=[1,2,3] mean=2 var=((1)+0+(1))/2=1 std=1。防 σ̂ 估计 bug。
+    #[test]
+    fn sigma_stdev_matches_hand_calc() {
+        assert!((stdev_consecutive_diffs(&[1.0, 2.0, 4.0, 7.0]) - 1.0).abs() < 1e-12);
+        assert_eq!(stdev_consecutive_diffs(&[5.0]), 0.0, "单点无差分 ⟹ 0（守卫）");
+        assert_eq!(stdev_consecutive_diffs(&[]), 0.0, "空序列 ⟹ 0（守卫）");
     }
 }
