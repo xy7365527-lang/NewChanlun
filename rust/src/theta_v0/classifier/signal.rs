@@ -484,7 +484,8 @@ fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick) -> 
 /// 结构语义（第24课:34-36 + beichi.md:113 盘整背驰 = **同一中枢**两次同向离开，
 /// `AbcDivergence.is_trend=false`）：
 /// - `seg_c`：当前离开走势区间 I(C)（Q5 同款区间语义，source_index 闭区间），末段破中枢核心。
-/// - `seg_a`：前一次同向离开的末段（端点破核心），与 C 之间存在回中枢段（否则是同一次离开）。
+/// - `seg_a`：**前一次同向离开 episode 区间** I(A)（Q5 区间口径，A/C 对称）——锚段端点破核心，
+///   与 C 之间存在回中枢段（否则是同一次离开）。
 /// - Weak = MACD 面积 C < A（与 buy1 同一冻结力度原语 `segments_diverge`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PanDivCert {
@@ -494,7 +495,7 @@ pub struct PanDivCert {
     pub side: Side,
     /// 盘整背驰所在的中枢（A/C 两次离开的同一中枢 = B）。
     pub center: Center,
-    /// A（前一次同向离开末段）source_index 闭区间。
+    /// I(A)（前一次同向离开 episode 区间，Q5 区间口径）source_index 闭区间。
     pub seg_a: (usize, usize),
     /// I(C)（当前离开走势区间）source_index 闭区间。
     pub seg_c: (usize, usize),
@@ -548,8 +549,11 @@ fn judge_pan_div(
     // λ_C = r 之后首个同向段起点（[`departure_move_c_start`] 单一来源；r = 窗口内最后回中枢段 ⟹
     // helper 的 episode 边界与 r 相同；seg 自身满足过滤 ⟹ 必 Some）。
     let lambda_c = departure_move_c_start(segments, c, dir, seg.start_index)?;
-    // 3. A = λ_C 之前、端点破核心的末个同向段（同一中枢的前一次同向离开）。
-    let a = win
+    // 3. A = 同一中枢的**前一次同向离开 episode 区间**（Q5 区间口径，codex ac4 复审：A 侧与 C 侧
+    //    对称 episode 化，不再只取末段）。锚 = λ_C 之前端点破核心的末个同向段（存在性 = 前次离开
+    //    确认）；I(A) = [λ_A, ρ_A]——λ_A 经共享 helper（锚所在 episode 起点），ρ_A = episode 内
+    //    （首个后续回中枢段之前）末个同向段终点。
+    let a_anchor = win
         .iter()
         .rev()
         .filter(|s| s.direction == dir && s.end_index <= lambda_c)
@@ -557,12 +561,28 @@ fn judge_pan_div(
             Direction::Down => s.end_price < c.zd,
             Direction::Up => s.end_price > c.zg,
         })?;
-    // A 与 C 之间存在回中枢段（显式区间检查：a.end ≤ 回段 ≤ λ_C——否则 A 与 C 是同一次离开）。
-    if !win.iter().any(|s| reenters(s) && s.start_index >= a.end_index && s.end_index <= lambda_c) {
+    // A 与 C 之间存在回中枢段（显式区间检查：锚后 ≤ 回段 ≤ λ_C——否则 A 与 C 是同一次离开）。
+    if !win
+        .iter()
+        .any(|s| reenters(s) && s.start_index >= a_anchor.end_index && s.end_index <= lambda_c)
+    {
         return None;
     }
+    let lambda_a = departure_move_c_start(segments, c, dir, a_anchor.start_index)?;
+    // episode 终界 = 锚后首个回中枢段起点（分隔段，上一检查保证存在；fallback λ_C 防御性等价）。
+    let episode_end = win
+        .iter()
+        .find(|s| reenters(s) && s.start_index >= a_anchor.end_index)
+        .map_or(lambda_c, |r| r.start_index);
+    // ρ_A = episode 内末个同向段终点（多段前次离开含中间未回核心的反向段 bar，与趋势侧 A 同口径）。
+    let rho_a = win
+        .iter()
+        .rev()
+        .filter(|s| s.direction == dir && s.start_index >= lambda_a && s.end_index <= episode_end)
+        .map(|s| s.end_index)
+        .next()?;
     // 4. Weak：MACD 面积 C < A（同 buy1 冻结原语；is_trend=false = 盘整背驰语义）。
-    let (c_span, a_span) = ((lambda_c, seg.end_index), (a.start_index, a.end_index));
+    let (c_span, a_span) = ((lambda_c, seg.end_index), (lambda_a, rho_a));
     let (Some(c_idx), Some(a_idx)) = (
         map_src_range_to_close_idx(src_to_idx, c_span.0, c_span.1),
         map_src_range_to_close_idx(src_to_idx, a_span.0, a_span.1),
@@ -1650,6 +1670,34 @@ mod tests {
         assert_eq!((cert.center.zd, cert.center.zg), (350, 450), "证书携同一中枢（两次离开的 B）");
         assert_eq!(cert.seg_a, (9, 11), "A = 前一次同向离开末段");
         assert_eq!(cert.seg_c, (13, 15), "I(C) = 当前离开走势区间（Q5 同款区间语义）");
+    }
+
+    /// Q4×Q5 对称（codex ac4-r2）：前一次离开为**多段 episode**（破核心腿 + 未回核心的中间反向
+    /// 段 + 再破更深腿）⟹ I(A) = 整个 episode 区间 [λ_A, ρ_A]，非仅末段锚。
+    #[test]
+    fn pan_div_a_side_multi_segment_episode_interval() {
+        use super::super::divergence::segment_macd_area;
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 5);
+        let c2 = dc(350, 450, 250, 460, 8); // 扩张 ⟹ ownership 盘整块
+        let segs = vec![
+            seg(Direction::Down, 9, 11, 460, 330),  // A 腿1：破核心（330 < zd=350）
+            seg(Direction::Up, 11, 12, 330, 340),   // A 内部反向段（340 < 350 未回核心 ⟹ 同 episode）
+            seg(Direction::Down, 12, 13, 340, 300), // A 腿2：再破（episode 锚）
+            seg(Direction::Up, 13, 15, 300, 380),   // 回中枢段（380 ≥ 350，A/C 分隔）
+            seg(Direction::Down, 15, 17, 380, 295), // C：第二次离开破核心
+        ];
+        let prices: Vec<Tick> = vec![
+            100, 100, 100, 100, 60, 140, 100, 95, 105, 40, 45, 35, 30, 25, 60, 90, 88, 86,
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let (a_area, c_area) = (segment_macd_area(&hist, 9, 13), segment_macd_area(&hist, 15, 17));
+        assert!(c_area < a_area, "前置：C 面积({c_area:.3}) < A episode 面积({a_area:.3})");
+        let (_points, pan) = extract_signals_with_hist(&[c0, c1, c2], &segs, &hist, &[], &[], &src);
+        assert_eq!(pan.len(), 1, "多段前次离开 + 回中枢 + 再破 + C<A ⟹ 恰一张证书");
+        assert_eq!(pan[0].seg_a, (9, 13), "I(A) = 前次离开整个 episode 区间（λ_A=腿1起点, ρ_A=腿2终点）");
+        assert_eq!(pan[0].seg_c, (15, 17), "I(C) = 当前离开区间");
     }
 
     /// Q4 负例：无回中枢段（两 Down 段之间的反向段未回到核心内侧）⟹ 同一次离开 ⟹ 无 A/C

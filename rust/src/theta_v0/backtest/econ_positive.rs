@@ -430,7 +430,11 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     Side::Short => 1u8,
                 };
                 if !seen_pan.insert((lvl, cert.source_index, side_disc)) {
-                    continue; // 已承接判定过（首见 bar 即 entry_bar）。
+                    // 首见即终局（冻结约定，与 bsp 通道 seen.insert 同时序——:316 先例）：承接门
+                    // 在证书首见 bar 用当时可得证据评一次，两门皆闭 ⟹ 永久丢弃不重试。codex
+                    // ac4-r2 #2 显式化：这是全通道统一的 τin 语义（信号在确认 bar 评定），非
+                    // PanDiv 特例；若裁决改为「证据出现即承接」须全通道同改。
+                    continue;
                 }
                 let sub_centers: &[Center] =
                     if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
