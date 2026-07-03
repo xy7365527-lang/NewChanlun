@@ -145,6 +145,32 @@ pub struct Buckets {
     pub record: Vec<Candidate>,
 }
 
+/// 正规出场类型 `Exit_Θ`（《完整的策略.pdf》§9 typed exit）——close 桶的类型化出场理由。
+///
+/// `Exit_Θ(v,x_t) ∈ {CloseRoot, ReduceCore, CloseShortDiff, RiskExit, Hold}`。这是 G4（统计层
+/// typed exit：生产 π loop 输出 `TypedTradeLedger.exit_type`）与 G5（解释器 P5/P6/P7/P1 typed
+/// close 拆分）的**单一来源**枚举（team-lead 2026-07-03 裁定：由 interp.rs 定义，G4 工位复用），
+/// 避免两权威镜像（codex-q2-d1 删 `closed_loop/mutex_interp.rs` 同款矛盾）。P1..P10↔ExitType
+/// 映射见 `.chanlun/review-results/g5-interpreter-mapping-20260703.md` §6.1。
+///
+/// ponytail: 现纯类型定义未接线（interp close 桶仍单一未 typed，见 [`interpret`] 规则2）——
+/// bit-exact 零影响。typed 拆分接线在 G5 实装阶段（#124，blockedBy G7-impl #133 + #122 裁定4）。
+/// `closed_loop/sell.rs::SellDecision` 已有 CloseRoot/ReduceCore 重叠（disjoint 路径，G4 把 μ 管线
+/// 重接生产 π 后该路径废）——统一收敛到本枚举，届时删 SellDecision 侧（升级路径，非现在做）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExitType {
+    /// P5 CloseRoot：关 depth-0 根腿（一类反向点=根清仓）。
+    CloseRoot,
+    /// P6 ReduceCore：减核心仓（三类反向点=核心仓减仓）。
+    ReduceCore,
+    /// P7 CloseShortDiff：关 ShortDiff carrier 子声部（短差反向确认）。
+    CloseShortDiff,
+    /// P1 RiskExit：保证金/强平（`KThetaRiskGate.force_flat`/stop）。
+    RiskExit,
+    /// P0 Hold：无出场。
+    Hold,
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  环3：候选集 Γ(x) 组装（所有级别 × 买卖点 × 区间套确认）
 // ════════════════════════════════════════════════════════════════════════════
