@@ -56,9 +56,9 @@ full-z 按完整 `i_class` 分桶：buy3=`i_class 4`、sell3=`i_class 32` **是�
 
 预注册 A5(c)：若某 full-z 子桶同时 n_eff≥功效门 + CV 大幅低于父桶 + perm_p 未退化 + walk-forward 稳定 ⟹ full-z 产信息增量。**52 桶无一满足**——正点估计子桶 perm_p 退化，perm_p<0.05 的子桶（如 n=9 的 σ−1 短差桶 perm_p=0.010）mean 为负（−309）或欠功效。故维持「full-z 不产新 VALIDATED」，full-z 仅作 oracle 上界（s1）。
 
-### 3.5 level≥2 frontier 污染标注
+### 3.5 level≥2 frontier 标注（污染已修解除）
 
-full-z/UClass 表中 level≥2 桶（如 UClass lb2 = level≥4）挂 frontier 污染标注（`frontier-bt-consumed`，#87 在审），不作独立否证/确认（231）。ℓ∈{0,1} 不受影响。全表 frontier 列已标。
+frontier 污染已于 **c546b5633c 修复（bit-exact）**，经 ws-rerun #97 复核解除（原 `frontier-bt-consumed` 条件效力域取消）。full-z/UClass 表 level≥2 桶标注同步为「已修解除」——level≥2 结论**可作独立读出**（仍受小样本限制，非污染限制）。这不改本轮全局裁决（level≥2 桶多为小样本 Inconclusive/弱 Falsified，无 VALIDATED）。
 
 ---
 
