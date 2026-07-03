@@ -3648,11 +3648,16 @@ nodes:
   file: pending/685-type1-zero-not-market-fact-trend-gate-accumulation-chain-plus-missing-center-extension.md
 - id: '686'
   title: Q7-#1 codex 裁定C：UnitRange.direction 两种来源（趋势 ownership 方向 vs endpoint fallback
-    方向）概念分离——收窄（非推翻）#121 裁定A 的隐含消费假设；实装后 L≥1 一类信号 77~95% 被识别为
-    fallback 泄漏伪信号
+    方向）概念分离——收窄（非推翻）#121 裁定A 的隐含消费假设；实装后 L≥1 一类信号 77~95% 被识别为 fallback 泄漏伪信号
   status: 生成态
   type: 概念分离
   file: pending/686-q7-fallback-direction-anchor-separation-narrows-121-decision-a.md
+- id: '687'
+  title: 多写点计数器在新增数据通道时口径分叉（meta-rule候选）：dx真封①(sig_post漏计PanDiv)
+    与 Stop-Guard熔断计数器同构；均非675号坐标系分叉
+  status: 生成态
+  type: meta-rule
+  file: pending/687-multi-writepoint-counter-desync-on-channel-extension.md
 edges:
   depends_on:
   - from: '679'
@@ -10622,6 +10627,9 @@ edges:
   - between:
     - '685'
     - '686'
+  - between:
+    - '675'
+    - '687'
   tensions_with:
   - between:
     - '007'
