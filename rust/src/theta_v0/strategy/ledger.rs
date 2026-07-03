@@ -142,8 +142,10 @@ pub struct TwState {
     ///
     /// ★codex R3 C' 终局裁定（PDF p8③ 禁止语义回补）：旧版把 hwm_gain 高水位棘轮入账 `free`（可分配
     /// 权益）并驱动足额退本金→EnterEarning，被裁定为**语义回补**（回撤后仍保留已入账解释权 = 延续被否定的
-    /// 最低条件）。承重链路已移除——hwm_gain 降为纯诊断，GAP3「∃t TStage=III」可达性恢复 **FALSIFIED**
-    /// （合法账本语义下无非回补资金源，直到「已实现利润」/可正可负 MTM 账本重装并重新提交裁决）。
+    /// 最低条件）。承重链路已移除——hwm_gain 降为纯诊断，**永久排除在 stage 驱动链之外**。
+    /// ★GAP3 重装落地（codex 裁定 A'，2026-07-03）：合法的非回补资金源已由 [`TwEvent::Realize`]
+    /// 承载（实际平仓 fill 的费后已实现 PnL，可正可负）——hwm_gain（未实现峰值）与它的本质区别：
+    /// 前者的"条件"（浮盈峰值）会被价格回撤否定，后者的"条件"（已发生的平仓）永不被否定。
     pub hwm_gain: i64,
 }
 
@@ -162,11 +164,12 @@ impl TwState {
         }
     }
 
-    /// 总财富 `TW = free + holding + withdrawn`（契约锚 `Origin.TotalWealth.TWState.tw`，**守恒量**）。
+    /// 总财富 `TW = free + holding + withdrawn`（契约锚 `Origin.TotalWealth.TWState.tw`）。
     ///
-    /// ★codex R3 C' 终局裁定后：全七构造子（含 `Revalue`）**保 TW 守恒**——`Revalue(g)` 只推进诊断
-    /// 高水位 `hwm_gain`（不属 TW 三量），不入账 `free`，故 `tw()` 恒守恒。守恒定理 [`tw_step_preserves_tw`]
-    /// 覆盖全部资金转移构造子；`Revalue` 的诊断-only 效应（hwm_gain 单增，TW 不变）由独立引理
+    /// ★守恒边界（codex GAP3 裁定 A' 后）：**非 Realize 的七构造子（含 `Revalue`）保 TW 守恒**
+    /// （守恒定理 [`tw_step_preserves_tw`]）；**`Realize(d_pi)` 使 TW 漂移恰 = d_pi**（唯一漂移
+    /// 构造子，漂移不变量 [`tw_step_realize_drift_equals_dpi`]）——已实现利润是结算事实入账，
+    /// 不是守恒破缺 bug。`Revalue` 的诊断-only 效应（hwm_gain 单增，TW 不变）由独立引理
     /// [`tw_step_revalue_diagnostic_only`] 刻画。
     pub fn tw(&self) -> i64 {
         self.free + self.holding + self.withdrawn
@@ -330,6 +333,22 @@ impl RiskPolicy {
 ///   引理 [`tw_step_revalue_diagnostic_only`] 刻画。★codex R3 C'：旧版 `Revalue` 把浮盈棘轮入账
 ///   `free` 并驱动足额退本金→EnterEarning，被裁定为 PDF p8③ 语义回补（回撤不撤销的已入账解释权），
 ///   承重已移除；hwm_gain 仅供可观测诊断，g 是外生市价浮盈增量，非已实现现金，非盈利声明。
+/// - `Realize(d_pi)`（**第 8 个构造子，唯一 TW 漂移构造子——codex GAP3 终局裁定 A'**，
+///   `.chanlun/review-results/codex-gap3-ledger-20260703.md` §3）：**已实现利润入账** `free += d_pi`，
+///   **可正可负**（推导链第 5 条：只入正数 = 重造利润棘轮）。TW 漂移 = d_pi（非守恒构造子——
+///   守恒定理 [`tw_step_preserves_tw`] 覆盖其余七构造子，Realize 的漂移不变量由
+///   [`tw_step_realize_drift_equals_dpi`] 单独刻画）。
+///
+///   **资金源硬边界（裁定 A' 两条硬边界之一）**：`d_pi` 的唯一合法来源 = **实际平仓 fill 结算的
+///   费后已实现 PnL**（`runner.rs::apply_fill` 的 `pnl = pos_sign·(px_exit_net−entry_cost)·close_qty`
+///   ——平仓一旦发生即为结算事实，后续价格不能否定，故不落入 PDF p8③ 语义回补禁止范围）。
+///   **不得**来自：逐 bar MTM 累计（推导链第 10 条）、`hwm_gain`/未实现浮盈峰值（R3 已裁违法）、
+///   `forced_pnl`（报告用假设强平，不改 units/cash，推导链第 11 条）。
+///
+///   **与 [`LedgerEvent::Realize`] 不混称（裁定清单⑨）**：二者是**不同账本**的构造子——
+///   `TwEvent::Realize` 驱动 TW 账本 `free`（现金流+持仓视角）；`LedgerEvent::Realize` 驱动
+///   R=Π-A-W 账本 `pi`（收益表视角）。两账本不同构（#90/674号），同一笔已实现 PnL 分别入账，
+///   不存在跨账本的单一 "Realize" 概念。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TwEvent {
     ShortDiff(i64),
@@ -340,6 +359,9 @@ pub enum TwEvent {
     ClearCampaign,
     /// 价格重估诊断高水位推进（codex R3 C' 纯诊断，保 TW 守恒；见枚举文档与 [`tw_step_revalue_diagnostic_only`]）。
     Revalue(i64),
+    /// 已实现利润入账 `free += d_pi`（codex GAP3 裁定 A'，可正可负，唯一 TW 漂移构造子；
+    /// 资金源硬边界见枚举文档与 [`tw_step_realize_drift_equals_dpi`]）。
+    Realize(i64),
 }
 
 impl TwEvent {
@@ -352,24 +374,37 @@ impl TwEvent {
     /// - `OpenShareLeg`：须 `stage.rank < EarningShares.rank`（修正1：earning 阶段不再开 legacy 腿）。
     /// - `CloseShareLeg`：须 `open_legacy_legs >= 1`（有腿才能闭——否则凭空闭不存在的腿 = 幽灵）。
     /// - `ClearCampaign`：须 `open_legacy_legs == 0`（修正4(b)：结束前先清 legacy 腿，不绕 gate）。
-    /// - 其余（ShortDiff/RecoverCapital/Revalue）：恒合法（不动 legacy 腿/stage 的资金转移；
-    ///   `Revalue` raw 恒合法，负 g 透支现金由 `transition_adapter` 出口现金-sound gate 拦截）。
+    /// - 其余（ShortDiff/RecoverCapital/Revalue/Realize）：恒合法（不动 legacy 腿/stage 的资金转移；
+    ///   `Revalue` raw 恒合法，负 g 透支现金由 `transition_adapter` 出口现金-sound gate 拦截；
+    ///   **`Realize(_)` 恒合法**——codex GAP3 裁定 A' 推导链第 7 条：它不改 stage、不开闭 legacy 腿，
+    ///   与 ShortDiff 同类。真正约束在 **producer/source-validity**（唯一资金源 = 实际平仓 fill 费后
+    ///   PnL，见枚举文档）与 **cash-sound gate**（负 d_pi 透支 free 由 `transition_adapter` 出口
+    ///   `CashUnsound` 拦截，防负 free 静默落盘——裁定清单②）。
     pub fn is_legal_from(&self, s: &TwState) -> bool {
         match self {
             TwEvent::EnterEarning => s.open_legacy_legs == 0,
             TwEvent::OpenShareLeg => s.stage.rank() < TStage::EarningShares.rank(),
             TwEvent::CloseShareLeg(_) => s.open_legacy_legs >= 1,
             TwEvent::ClearCampaign => s.open_legacy_legs == 0,
-            TwEvent::ShortDiff(_) | TwEvent::RecoverCapital(_) | TwEvent::Revalue(_) => true,
+            TwEvent::ShortDiff(_)
+            | TwEvent::RecoverCapital(_)
+            | TwEvent::Revalue(_)
+            | TwEvent::Realize(_) => true,
         }
     }
 }
 
-/// TW 更新 `tw_step`（契约锚 `Origin.TotalWealth.twStep`，全函数，**保 TW 守恒**）。
+/// TW 更新 `tw_step`（契约锚 `Origin.TotalWealth.twStep`，全函数）。
 ///
-/// 同价 c 固定下 free/holding/withdrawn 间转移，三量之和 TW 不变（同价中性，design §6.3 L0）。
+/// 同价 c 固定下 free/holding/withdrawn 间转移，**非 Realize 构造子三量之和 TW 不变**（同价中性，
+/// design §6.3 L0）；**`Realize(d_pi)` 使 TW 漂移 = d_pi**（codex GAP3 裁定 A'：已实现利润入账，
+/// 可正可负——L2 变价下平仓结算的费后 PnL 是 TW 的唯一非回补资金源）。
 /// raw 层全函数——对所有 (s, e) 都有定义（包括非法的 EnterEarning，保留 violation witness）；
 /// 合法性由 [`TwEvent::is_legal_from`] 标注。
+///
+/// ★契约锚诚实标注：`Realize` 是 Rust 侧 A' 裁定新增构造子，`Origin.TotalWealth.TWEvent`
+/// （six 构造子 native port）**尚无对应物**——与 `Revalue`（R3 新增第 7 构造子）同为待 Lean 侧
+/// 扩展的 Rust 先行构造子，不冒充已锚 Origin（声明与实际一致，090号）。
 ///
 /// 不可变模式（coding-style）：返回新 [`TwState`]，不就地修改。
 pub fn tw_step(s: &TwState, e: TwEvent) -> TwState {
@@ -423,6 +458,14 @@ pub fn tw_step(s: &TwState, e: TwEvent) -> TwState {
         // tw_step_revalue_diagnostic_only。g 由 transition_adapter 以「浮盈超高水位增量」派发（g≥0）。
         TwEvent::Revalue(g) => TwState {
             hwm_gain: s.hwm_gain + g,
+            ..*s
+        },
+        // ★codex GAP3 终局裁定 A'（推导链第 4/5 条）：已实现利润入账 free += d_pi（可正可负）。
+        // 唯一 TW 漂移构造子——TW 漂移 = d_pi（tw_step_realize_drift_equals_dpi）。不动 stage/legs/
+        // holding/withdrawn/cum_net_cash/hwm_gain。资金源硬边界（实际平仓 fill 费后 PnL）由 producer
+        // 保证（runner ②'' / schedule_adapter 减仓分支），raw 层不设门（与 ShortDiff 同类恒合法）。
+        TwEvent::Realize(d_pi) => TwState {
+            free: s.free + d_pi,
             ..*s
         },
     }
@@ -625,7 +668,9 @@ mod tests {
     //  `stage_rank_monotone`——#127 native port，两端均锚 Origin canonical）
     // ──────────────────────────────────────────────────────────────────────
 
-    /// ★tw_step 保 TW 守恒（契约锚 `Origin.TotalWealth.twStep_preserves_tw`）：逐事件 TW=free+holding+withdrawn 不变。
+    /// ★tw_step 非 Realize 构造子保 TW 守恒（契约锚 `Origin.TotalWealth.twStep_preserves_tw`；
+    /// codex GAP3 裁定 A' 清单①：新不变量 =「非 Realize 保 TW，Realize 使 TW 漂移 = Σd_pi」——
+    /// 本测试锚前半（七个非 Realize 构造子逐事件守恒），后半见 [`tw_step_realize_drift_equals_dpi`]。
     #[test]
     fn tw_step_preserves_tw() {
         let s0 = TwState {
@@ -639,7 +684,7 @@ mod tests {
             hwm_gain: 0,
         };
         let tw0 = s0.tw();
-        // ★codex R3 C' 后全七守恒构造子（含 Revalue 诊断-only）——守恒定理覆盖全部资金转移构造子。
+        // 非 Realize 的七构造子（含 Revalue 诊断-only）全守恒。
         let events = [
             TwEvent::ShortDiff(100),   // holding→free
             TwEvent::ShortDiff(-50),   // free→holding
@@ -658,6 +703,73 @@ mod tests {
         let s_clear = tw_step(&s, TwEvent::ClearCampaign);
         assert_eq!(s_clear.tw(), tw0, "clearCampaign 破坏 TW 守恒");
         assert_eq!(s_clear.withdrawn, 0);
+        // ★Realize 不在守恒集内（裁定 A' 新不变量后半）：混入事件流时 TW 漂移恰 = Σd_pi。
+        let mut s2 = s0;
+        let mut drift: i64 = 0;
+        for e in [
+            TwEvent::ShortDiff(100),
+            TwEvent::Realize(70),      // 平仓盈利入账
+            TwEvent::RecoverCapital(200),
+            TwEvent::Realize(-30),     // 平仓亏损入账（可负，非棘轮）
+            TwEvent::Revalue(5),
+        ] {
+            s2 = tw_step(&s2, e);
+            if let TwEvent::Realize(d) = e {
+                drift += d;
+            }
+            assert_eq!(s2.tw(), tw0 + drift, "混合事件流 TW 漂移 ≠ Σd_pi（事件 {:?}）", e);
+        }
+        assert_eq!(s2.tw(), tw0 + 40, "终态 TW 漂移 = Σd_pi = 70−30 = 40");
+    }
+
+    /// ★★codex GAP3 裁定 A' 清单①/⑧：`Realize(d_pi)` 漂移不变量 + 分量正交性 + stage 不回退。
+    ///
+    /// - **TW 漂移恰 = d_pi**（可正可负——推导链第 5 条：只入正数 = 重造利润棘轮）。
+    /// - **只动 free**：holding/withdrawn/notional_in/stage/open_legacy_legs/cum_net_cash/hwm_gain
+    ///   全不变（Realize 是已实现现金入账，不是阶段推进、不是重估、不是腿操作）。
+    /// - **Realize 后不回退 stage**（推导链第 8 条）：本金已退是历史事实，之后亏损只降 free，
+    ///   不否定 `withdrawn ≥ notional_in`——EarningShares 态吃大额负 Realize，stage 不动。
+    /// - raw 恒合法（OQ-9 gate，推导链第 7 条）；`Realize(0)` 恒等。
+    #[test]
+    fn tw_step_realize_drift_equals_dpi() {
+        let s0 = TwState {
+            free: 100,
+            holding: 500,
+            withdrawn: 30,
+            notional_in: 500,
+            stage: TStage::CostReduction,
+            open_legacy_legs: 2,
+            cum_net_cash: 7,
+            hwm_gain: 12,
+        };
+        let tw0 = s0.tw();
+        for d_pi in [250i64, -80, 1, -1] {
+            let s1 = tw_step(&s0, TwEvent::Realize(d_pi));
+            assert_eq!(s1.tw(), tw0 + d_pi, "Realize({d_pi}) TW 漂移恰 = d_pi");
+            assert_eq!(s1.free, s0.free + d_pi, "已实现 PnL 入 free");
+            assert_eq!(s1.holding, s0.holding, "holding（成本基）不动");
+            assert_eq!(s1.withdrawn, s0.withdrawn, "withdrawn 不动");
+            assert_eq!(s1.notional_in, s0.notional_in, "notional_in 不动");
+            assert_eq!(s1.stage, s0.stage, "stage 不动（Realize 非阶段推进）");
+            assert_eq!(s1.open_legacy_legs, s0.open_legacy_legs, "legacy 腿不动");
+            assert_eq!(s1.cum_net_cash, s0.cum_net_cash, "cum_net_cash 口径量不动");
+            assert_eq!(s1.hwm_gain, s0.hwm_gain, "诊断高水位不动（已实现 ≠ 未实现）");
+            assert!(TwEvent::Realize(d_pi).is_legal_from(&s0), "Realize raw 恒合法（OQ-9）");
+        }
+        // Realize(0) 恒等。
+        assert_eq!(tw_step(&s0, TwEvent::Realize(0)), s0, "Realize(0) 恒等");
+        // ★推导链第 8 条：EarningShares 态吃大额亏损 Realize ⟹ stage 不回退（free 降，历史不否定）。
+        let earning = TwState {
+            free: 50,
+            withdrawn: 500,
+            notional_in: 500,
+            stage: TStage::EarningShares,
+            ..TwState::initial()
+        };
+        let after_loss = tw_step(&earning, TwEvent::Realize(-1000));
+        assert_eq!(after_loss.stage, TStage::EarningShares, "Realize 后不回退 stage（推导链第 8 条）");
+        assert_eq!(after_loss.free, -950, "亏损如实入账（raw 层不钳制；cash-sound 由消费端 gate 拦截）");
+        assert_eq!(after_loss.withdrawn, 500, "已退本金是历史事实，不被后续亏损否定");
     }
 
     /// ★★codex R3 C' 终局裁定后 `tw_step_revalue_diagnostic_only`（第 7 个构造子纯诊断，保 TW 守恒）。
@@ -706,6 +818,8 @@ mod tests {
             TwEvent::CloseShareLeg(5),
             TwEvent::RecoverCapital(50),
             TwEvent::EnterEarning,
+            TwEvent::Revalue(5),
+            TwEvent::Realize(-100), // A'：亏损入账也不降 rank（推导链第 8 条）
         ]; // 全部非 ClearCampaign
         for stage in stages {
             let s = TwState { stage, ..TwState::initial() };
@@ -730,6 +844,8 @@ mod tests {
             TwEvent::CloseShareLeg(5),
             TwEvent::RecoverCapital(50), // 试图推回 capitalRecovered（rank 1<2）⟹ advance_to 保持 earning
             TwEvent::EnterEarning,
+            TwEvent::Revalue(5),
+            TwEvent::Realize(-1_000_000), // A' 推导链第 8 条：巨额亏损入账不回退 earning
         ];
         for e in events {
             assert_eq!(
