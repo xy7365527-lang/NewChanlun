@@ -863,7 +863,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
 /// 4. 方向码 / 角色码（H,V,δ）：固定枚举序（确定性，S_k 无关）。
 /// 5. `gamma_index`：**终局 tiebreak**——保证任意两候选可比 ⟹ ≺_Θ 是**全序**（非偏序，∃! 前提2）。
 ///    S_k 不重排 Γ ⟹ gamma_index 平移不变。
-fn theta_key(c: &Candidate) -> (Reverse<u32>, u8, usize, u8, u8, u8, u8, usize) {
+pub(crate) fn theta_key(c: &Candidate) -> (Reverse<u32>, u8, usize, u8, u8, u8, u8, usize) {
     (
         Reverse(c.level),
         c.bsp_class,
