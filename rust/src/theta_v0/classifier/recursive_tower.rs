@@ -47,6 +47,7 @@ use std::rc::Rc;
 
 use super::super::types::{Center, Direction};
 use super::center::UnitRange;
+use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
 
 /// 确定性元素身份（codex Q4：spec §13 `p:C_ℓ→C_{ℓ+1}` 结构映射的 rust 对象身份）。
@@ -189,6 +190,10 @@ impl LeveledMove {
 
     /// 该走势的方向投影（L0 线段直接取方向；上级走势取外缘趋势——次级别坐标侧车折叠为
     /// `UnitRange` 时用，与旧塔 `classify_relation` 外缘判据同源）。
+    ///
+    /// ★Q7 降级标注（task #145）：本函数对上级走势是 **fallback**——`project_to_units` 的方向
+    /// 主来源是次级别走势类型方向（ownership Trend 块，[`center_own_dir_at`]），仅当中枢落
+    /// Consolidation 块（盘整无方向）或 i==0（无入边关系）时降级到本 endpoint 比较。
     ///
     /// ★诚实有效域：上级走势的方向是**外缘占位**（首单元下移/上移），**不**冒充 §6.1 意义的
     /// 线段方向交替（上级中枢检测用几何路径 `center_from_window`，不读方向——见 center.rs）。
@@ -460,9 +465,16 @@ pub fn compose_level_resume(
 /// 几何路径用——上级中枢检测在外缘区间上做，方向是外缘占位）。
 ///
 /// 上级走势的 `UnitRange` = `[rmove.lo, rmove.hi]`（外缘下沿/上沿，由 subs 区间聚合，descend.rs
-/// `RMove::lo/hi`）+ 坐标 + 外缘趋势方向。**不**读取方向交替（几何路径 center_from_window 用，
-/// 见 center.rs 诚实有效域）——方向是结构占位使 UnitRange 类型完整。
-pub fn project_to_units(moves: &[LeveledMove]) -> Vec<UnitRange> {
+/// `RMove::lo/hi`）+ 坐标 + 方向。
+///
+/// ★Q7（一类买卖点.pdf 裁决，task #145）：「The direction of a higher-level unit = the direction
+/// of the lower-level move type it represents」。`blocks` = 本级中枢链的走势类型分解（与 upper_moves
+/// 1:1 的 centers 经 `decompose`，单一来源同趋势门）。单元 i 的方向：
+/// - 中枢 i 按 ownership 落 **Trend(d) 块**（[`center_own_dir_at`]）⟹ 方向 = d（次级别走势类型方向）；
+/// - Consolidation 块 / i==0（无入边关系）⟹ 非方向性 ⟹ **endpoint 比较降级 fallback**
+///   （[`LeveledMove::fold_direction`] 外缘占位，标注：此路径的方向不携带走势类型语义，仅结构占位
+///   ——盘整离开腿的方向消解归小转大/区间套语境，econ 层 XZD/Nest 通道）。
+pub fn project_to_units(moves: &[LeveledMove], blocks: &[MoveBlock]) -> Vec<UnitRange> {
     moves
         .iter()
         .enumerate()
@@ -471,7 +483,8 @@ pub fn project_to_units(moves: &[LeveledMove]) -> Vec<UnitRange> {
             UnitRange {
                 start_index: m.start_index,
                 end_index: m.end_index,
-                direction: m.fold_direction(prev),
+                direction: center_own_dir_at(blocks, idx)
+                    .unwrap_or_else(|| m.fold_direction(prev)),
                 lo: m.rmove.lo(),
                 hi: m.rmove.hi(),
             }
@@ -486,7 +499,15 @@ pub fn project_to_units(moves: &[LeveledMove]) -> Vec<UnitRange> {
 ///
 /// **契约**：调用方保证 `moves` 前缀（`[..cache.len()]`）与上次 append 一致（cascade_reset 清空 cache
 /// 后从 0 重投影 ⟹ 退化为全量，bit-exact）。前缀缩/改写 ⟹ 调用方须先 `cache.clear()`。
-pub fn project_to_units_resume(moves: &[LeveledMove], cache: &mut Vec<UnitRange>) {
+///
+/// ★Q7 前缀稳定性：单元 i 的方向只依赖关系 R(i-1,i)（两端中枢 sealed 后标签冻结，decompose 模块头）
+/// ——confirmed 前缀单元的方向跨 bar 不变；frontier 单元（临时尾关系可翻标签）由调用方
+/// `truncate(prefix_count)` 每 bar 重投影覆盖（mod.rs A3 §2.5 证书化加固，先于本 Q7 存在）。
+pub fn project_to_units_resume(
+    moves: &[LeveledMove],
+    blocks: &[MoveBlock],
+    cache: &mut Vec<UnitRange>,
+) {
     debug_assert!(cache.len() <= moves.len(), "投影缓存比 moves 长 ⟹ 前缀回缩未清空（违反契约）");
     for idx in cache.len()..moves.len() {
         let m = &moves[idx];
@@ -494,7 +515,7 @@ pub fn project_to_units_resume(moves: &[LeveledMove], cache: &mut Vec<UnitRange>
         cache.push(UnitRange {
             start_index: m.start_index,
             end_index: m.end_index,
-            direction: m.fold_direction(prev),
+            direction: center_own_dir_at(blocks, idx).unwrap_or_else(|| m.fold_direction(prev)),
             lo: m.rmove.lo(),
             hi: m.rmove.hi(),
         });
@@ -668,7 +689,7 @@ mod tests {
         let s2 = LeveledMove::from_unit(&unit(8, 12, up(), 5, 15), eid(0, 2));
         let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
         let parent = LeveledMove::compose(&[s0, s1, s2], c, 1, eid(1, 0));
-        let units = project_to_units(&[parent.clone()]);
+        let units = project_to_units(&[parent.clone()], &[]); // 无块信息 ⟹ Q7 fallback（本测试只验坐标）
         assert_eq!(units.len(), 1);
         // 外缘 = subs 区间聚合（lo=min=0, hi=max=15）。
         assert_eq!((units[0].lo, units[0].hi), (0, 15));
@@ -843,7 +864,7 @@ mod tests {
             }
         }
         // L1 → L2（几何路径）。
-        let l1_units = project_to_units(&l1);
+        let l1_units = project_to_units(&l1, &[]); // 无块信息 ⟹ Q7 fallback（本测试只验区间聚合）
         let (_c2, l2) = compose_level(&l1_units, &l1, false, 2);
         assert_eq!(l2.len(), 1, "3 个 L1 走势 → 1 窗口 → 1 个 L2 走势");
         assert_eq!(l2[0].rmove.level(), 2);
@@ -866,20 +887,20 @@ mod tests {
             })
             .collect();
 
-        let full = project_to_units(&moves);
+        let full = project_to_units(&moves, &[]);
 
         // 三批增量追加：[..4] → [..7] → 全 9（前缀不变仅尾部 append）。
         let mut cache: Vec<UnitRange> = Vec::new();
-        project_to_units_resume(&moves[..4], &mut cache);
+        project_to_units_resume(&moves[..4], &[], &mut cache);
         assert_eq!(&cache[..], &full[..4], "首批 4 == 全量前缀");
-        project_to_units_resume(&moves[..7], &mut cache);
+        project_to_units_resume(&moves[..7], &[], &mut cache);
         assert_eq!(&cache[..], &full[..7], "次批 7 == 全量前缀");
-        project_to_units_resume(&moves, &mut cache);
+        project_to_units_resume(&moves, &[], &mut cache);
         assert_eq!(cache, full, "全量追加后 == project_to_units 全量（逐字段）");
 
         // cascade_reset 退化：清空后从 0 重投影 == 全量。
         cache.clear();
-        project_to_units_resume(&moves, &mut cache);
+        project_to_units_resume(&moves, &[], &mut cache);
         assert_eq!(cache, full, "清空重投影（cascade_reset 路径）== 全量");
     }
 }

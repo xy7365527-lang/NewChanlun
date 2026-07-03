@@ -53,6 +53,7 @@ use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Bar, BspBits, Center, Side};
 use super::super::classifier::bsp::BspPoint;
 use super::super::classifier::recursive_tower::LeveledMove;
+use super::super::classifier::signal::PanDivCert;
 use super::super::classifier::center::{center_from_segments, UnitRange};
 use super::super::classifier::descend::RMove;
 use super::mu_estimator::{MuClass, PositionState};
@@ -279,6 +280,9 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
     // 反转交易腿 λ_rev = 入场信号 pivot 端点；ρ_rev 在退出配对时取配对出场信号的 pivot 端点。
     let mut classifier_incr = IncrementalClassifier::new(bars, config);
     let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
+    // Q4：盘整背驰证书去重键 (lvl, source_index, side判别码)——证书跨 bar 复现，首见 bar 即 entry_bar。
+    let mut seen_pan: std::collections::HashSet<(usize, usize, u8)> =
+        std::collections::HashSet::new();
     // 每条信号：(entry_bar=确认 bar τin, dir=交易方向 δ, pivot_bar=信号挂靠 pivot 端点 source_index,
     // lvl=级别, sigma_higher=入场时上级方向态 666 号, bsp_class=bsp_disc(&p.bits) 类型位掩码 W4)。
     // W4 类型透传：bsp_class 是 buy1/2/3+sell1/2/3 的 u8 位掩码（bsp_disc 同口径，seen-set 键已在用），
@@ -328,6 +332,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                             moves: Vec::new(),
                             centers: Rc::new(Vec::new()),
                             bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                            pan_div: Rc::new(Vec::new()), // Q4：single 屏蔽层无盘整背驰载荷（只供 Γ 组装）
                         })
                         .collect(),
                 };
@@ -413,6 +418,60 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                         trigger,
                     });
                 }
+            }
+
+            // ── Q4 盘整背驰承接（task #145）：消费该级 pan_div 证书，走 Nest/XZD 二通道门。──
+            // 证书不携 six-bit（不冒充 B1/S1）；任一通道通过 ⟹ 组 RawSignal 入信号流
+            // （trigger=PanDivConsolidation，供 μ̂ 归因分桶）；两门皆闭 ⟹ 诚实丢弃。
+            // 既有 Nest/Xzd 信号判定路径零改动（PanDiv 是新增入口，既有信号集 bit 不变）。
+            for cert in ls.pan_div.iter() {
+                let side_disc = match cert.side {
+                    Side::Long => 0u8,
+                    Side::Short => 1u8,
+                };
+                if !seen_pan.insert((lvl, cert.source_index, side_disc)) {
+                    continue; // 已承接判定过（首见 bar 即 entry_bar）。
+                }
+                let sub_centers: &[Center] =
+                    if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
+                let sub_bsp: &[BspPoint] = if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
+                if !pan_div_gate_pass(
+                    &tower_i, lvl, cert, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp,
+                ) {
+                    continue; // 两门皆闭 ⟹ 承接失败诚实丢弃（不入信号）。
+                }
+                let (dir, delta_i8): (VoiceSide, i8) = match cert.side {
+                    Side::Long => (VoiceSide::Long, 1),
+                    Side::Short => (VoiceSide::Short, -1),
+                };
+                let sigma_higher = sigma_higher_at(&tower_i, bars, lvl);
+                // z：裸证书口径 + 真值维——PanDiv 无 BspPoint/coverage role（不经 assemble_gamma），
+                // i_class=0（零 bit，StructBreak 零类先例）、parent_dir=0/Root（无声部父）、
+                // horizontal/force_state 诚实 None（from_certificate 口径）；sigma_higher 塔真值、
+                // cand_channel=PanDivConsolidation、origin_level=Some(lvl)（起始=执行）、
+                // nest_depth=None（rungs 下沉深度概念不适用，同 Xzd 口径）。
+                let z = MuClass {
+                    sigma_higher: Some(sigma_higher),
+                    cand_channel: Some(NestTrigger::PanDivConsolidation),
+                    origin_level: Some(lvl as u32),
+                    ..MuClass::from_certificate(
+                        lvl as u32,
+                        delta_i8,
+                        BspBits::default(),
+                        0,
+                        PositionState::Root,
+                    )
+                };
+                signals.push(RawSignal {
+                    entry_bar: i,
+                    dir,
+                    pivot_bar: cert.source_index,
+                    level: lvl as u32,
+                    sigma_higher,
+                    bsp_class: 0, // 零 bit（盘整背驰非买卖点，不置 six-bit——诚实零类）。
+                    z,
+                    trigger: NestTrigger::PanDivConsolidation,
+                });
             }
         }
     }
@@ -1097,6 +1156,10 @@ pub enum NestTrigger {
     Type23SublevelType1,
     /// 小转大通道（Type2/3 → `Xzd`，C2/C3 小转大判据准入；**不受背驰门一票否决**）。
     XiaoZhuanDa,
+    /// Q4 盘整背驰承接（task #145，`PanDivCert` → Nest/XZD 二通道任一通过）：盘整背驰不冒充
+    /// 同级 B1/S1，经 `PanDiv^δ_ℓ ⟹ ∃e<ℓ Conf^δ_e ∨ XZD^δ_{ℓ↓e}` 承接入信号流（provenance，
+    /// 供每桶 μ̂ 归因分桶；两门皆闭的 PanDiv 不入信号 ⟹ 本变体只标记承接成功者）。
+    PanDivConsolidation,
 }
 
 /// 从已决 `GateCertificate` + 候选类型派生 `NestTrigger`（纯分类，零行为改动）。
@@ -1114,6 +1177,58 @@ pub(super) fn nest_trigger(cert: &GateCertificate, cand_type: BspCandType) -> Ne
             }
         },
     }
+}
+
+/// Q4 盘整背驰承接门（task #145 裁决：「盘整背驰不能消失：它必须被某级别买卖点或小转大/区间套
+/// 证书承接。Route it through N^δ_{ℓ↓e} or a pan-divergence certificate：PanDiv^δ_ℓ ⟹ ∃e<ℓ,
+/// Conf^δ_e，或 PanDiv^δ_ℓ ⟹ XZD^δ_{ℓ↓e}」）。
+///
+/// 二通道复用现有判据基础设施（不 fork 第二套门，不改动既有 Nest/Xzd 信号判定路径——本函数是
+/// PanDiv 的**新增入口**，既有信号集 bit 不变）：
+/// - **Nest 通道**（∃e<ℓ Conf^δ_e）：[`descend_type1_anchor_depth`]——次级别 Type1 下沉锚
+///   （定律一，第29课L396；与 Type2/3 base gate 同一判据函数）。`Some(d)` ⟹ e=ℓ−d 的下级确认存在。
+/// - **XZD 通道**：[`xiaozhuanda_confirm`] → [`XzdEvidence::gate_pass`]（level==1 C2∧C3 硬门 /
+///   其余 C2-only，单一来源）。
+///
+/// 任一通过 ⟹ true（承接成立，调用方组 RawSignal，trigger=[`NestTrigger::PanDivConsolidation`]）；
+/// 两门皆闭 / tower[lvl] 无 end_index==source_index 执行段 ⟹ false（承接失败，诚实丢弃）。
+#[allow(clippy::too_many_arguments)]
+pub(super) fn pan_div_gate_pass(
+    tower: &[Rc<Vec<LeveledMove>>],
+    lvl: usize,
+    cert: &PanDivCert,
+    hist: &[f64],
+    confirm_index: usize,
+    bsp_of_level: &[BspPoint],
+    sub_centers: &[Center],
+    sub_bsp: &[BspPoint],
+) -> bool {
+    // 执行段定位（与 build_nest_certificate 同口径）：tower[lvl] 中 end_index==source_index 的段。
+    let Some(exec_moves) = tower.get(lvl).map(|m| m.as_slice()) else { return false };
+    let Some(si) = find_move_by_end_index(exec_moves, cert.source_index) else { return false };
+    let s = &exec_moves[si];
+    // 通道1（Nest 语义 ∃e<ℓ Conf^δ_e）：次级别 Type1 下沉锚。lvl==0（递归底无次级别）恒 None ⟹ 走通道2。
+    if descend_type1_anchor_depth(s, cert.source_index, cert.side, hist).is_some() {
+        return true;
+    }
+    // 通道2（XZD^δ_{ℓ↓e}）：小转大确认（gate_pass 单一来源，不重判 C1）。
+    let sub_moves: &[LeveledMove] = lvl
+        .checked_sub(1)
+        .and_then(|l| tower.get(l))
+        .map(|m| m.as_slice())
+        .unwrap_or(&[]);
+    xiaozhuanda_confirm(
+        s,
+        cert.source_index,
+        confirm_index,
+        lvl,
+        cert.side,
+        bsp_of_level,
+        sub_centers,
+        sub_bsp,
+        sub_moves,
+    )
+    .gate_pass()
 }
 
 /// C2 跨条目查找（codex §6-1）：同级 bsp 列表按 source_index 找共生二类买卖点。
@@ -2191,6 +2306,71 @@ mod tests {
 
         assert_eq!(super::descend_type1_anchor_depth(&s, 19, Side::Long, &hist), Some(2),
             "次级别 Type1 + 次次级别 Type1 ⟹ 真递归下沉深度 Some(2)");
+    }
+
+    // ── Q4（task #145）：盘整背驰承接门 pan_div_gate_pass（Nest/XZD 二通道）─────────
+
+    fn pan_cert(source_index: usize, side: Side) -> PanDivCert {
+        PanDivCert {
+            source_index,
+            side,
+            center: xzd_center(40, 50, 0, 4),
+            seg_a: (5, 9),
+            seg_c: (15, 19),
+        }
+    }
+
+    /// Nest 通道正例：复用 `nest_cert_type2_sublevel_type1_anchor_passes` 的塔——m2@tower[1]
+    /// 的次级别含 Type1 背驰锚（descend Some(1)）⟹ ∃e<ℓ Conf^δ_e ⟹ PanDiv 承接成立
+    /// （collect_signals 据此组 RawSignal，trigger=PanDivConsolidation）。
+    #[test]
+    fn pan_div_gate_nest_channel_passes_via_sublevel_type1_anchor() {
+        let s0 = seg2(Dir2::Up, 50, 100, 0, 4, 0);
+        let s1 = seg2(Dir2::Down, 40, 90, 5, 9, 1);
+        let s2 = seg2(Dir2::Up, 45, 95, 10, 14, 2);
+        let s3 = seg2(Dir2::Down, 30, 85, 15, 19, 3);
+        let m2 = compose2(vec![s0.clone(), s1.clone(), s2.clone(), s3.clone()], 1, 0);
+        let tower: Vec<Rc2<Vec<LM2>>> =
+            vec![Rc2::new(vec![s0, s1, s2, s3]), Rc2::new(vec![m2])];
+        let hist: Vec<f64> = (0..20).map(|i| if i < 10 { 2.0 } else { 1.0 }).collect();
+        assert!(
+            super::pan_div_gate_pass(&tower, 1, &pan_cert(19, Side::Long), &hist, 19, &[], &[], &[]),
+            "Nest 通道：次级别 Type1 锚（descend Some）⟹ PanDiv^δ_ℓ ⟹ ∃e<ℓ Conf^δ_e 承接成立"
+        );
+    }
+
+    /// XZD 通道正例：递归底（sub_moves 空 ⟹ descend None ⟹ Nest 闭）+ 同点共生 buy2
+    /// （C2，level=0 ≠1 ⟹ C2-only gate_pass）⟹ XZD 通道承接成立。
+    #[test]
+    fn pan_div_gate_xzd_channel_passes_via_type2_confirmed() {
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![xzd_seg(10, 19)])];
+        let hist = vec![0.0f64; 20];
+        let mut buy2 = BspBits::default();
+        buy2.buy2 = true;
+        let bsp_of_level = vec![xzd_bsp(19, buy2, None)];
+        assert!(
+            super::pan_div_gate_pass(
+                &tower, 0, &pan_cert(19, Side::Long), &hist, 19, &bsp_of_level, &[], &[],
+            ),
+            "XZD 通道：Nest 闭（递归底无次级别锚）+ C2 共生 buy2 ⟹ XZD^δ 承接成立"
+        );
+    }
+
+    /// 两门皆闭：递归底无次级别锚（Nest 闭）∧ 无共生 buy2（XZD C2 假）⟹ 承接失败 ⟹
+    /// collect_signals 诚实丢弃该 PanDiv（不入信号流，不兜底）。
+    #[test]
+    fn pan_div_gate_both_channels_closed_rejects() {
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![xzd_seg(10, 19)])];
+        let hist = vec![0.0f64; 20];
+        assert!(
+            !super::pan_div_gate_pass(&tower, 0, &pan_cert(19, Side::Long), &hist, 19, &[], &[], &[]),
+            "两门皆闭 ⟹ PanDiv 承接失败（诚实丢弃）"
+        );
+        // 执行段缺失（tower[lvl] 无 end_index==source_index）⟹ 同样拒。
+        assert!(
+            !super::pan_div_gate_pass(&tower, 0, &pan_cert(7, Side::Long), &hist, 7, &[], &[], &[]),
+            "无执行段定位 ⟹ 承接失败"
+        );
     }
 
     /// PDF §4 反例的分解算术自检（合成，L1 验证分解算术正确）：
@@ -3547,6 +3727,9 @@ mod tests {
         let mut seen: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
         // C1：dx 手写门循环复用为 collect_signals 的对拍源——门后 push 与生产同序同字段的信号元组。
         let mut signals_dx: Vec<RawSignal> = Vec::new();
+        // Q4（task #145）：盘整背驰承接 dx 镜像去重集（与生产 seen_pan 同键同序）。
+        let mut seen_pan_dx: std::collections::HashSet<(usize, usize, u8)> =
+            std::collections::HashSet::new();
         // C2：与生产 collect_signals 同改——Rc::ptr_eq 命中跳级（同 Rc ⟹ 全键已 seen ⟹ 内层
         // bsp_pre/gamma_nonflat/sig_post 等计数均在 seen.insert 成功后，跳过 bit-exact）。
         let mut prev_bsp = Vec::new();
@@ -3589,6 +3772,7 @@ mod tests {
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })
                             .collect(),
                     };
@@ -3701,6 +3885,54 @@ mod tests {
                             highlevel_hits.push((lvl, p.source_index, delta, bsp_class, rungs_len));
                         }
                     }
+                }
+
+                // ── Q4（task #145）盘整背驰承接 dx 镜像（bit-exact 复制生产 collect_signals 的
+                // pan_div 消费块——尾部 signals_dx vs signals_prod 逐条对拍含 PanDiv 信号）。──
+                for cert in ls.pan_div.iter() {
+                    let side_disc = match cert.side {
+                        Side::Long => 0u8,
+                        Side::Short => 1u8,
+                    };
+                    if !seen_pan_dx.insert((lvl, cert.source_index, side_disc)) {
+                        continue;
+                    }
+                    let sub_centers: &[Center] =
+                        if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
+                    let sub_bsp: &[BspPoint] =
+                        if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
+                    if !pan_div_gate_pass(
+                        &tower_i, lvl, cert, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp,
+                    ) {
+                        continue;
+                    }
+                    let (dir, delta_i8): (VoiceSide, i8) = match cert.side {
+                        Side::Long => (VoiceSide::Long, 1),
+                        Side::Short => (VoiceSide::Short, -1),
+                    };
+                    let sigma_higher = sigma_higher_at(&tower_i, bars, lvl);
+                    let z = MuClass {
+                        sigma_higher: Some(sigma_higher),
+                        cand_channel: Some(NestTrigger::PanDivConsolidation),
+                        origin_level: Some(lvl as u32),
+                        ..MuClass::from_certificate(
+                            lvl as u32,
+                            delta_i8,
+                            BspBits::default(),
+                            0,
+                            PositionState::Root,
+                        )
+                    };
+                    signals_dx.push(RawSignal {
+                        entry_bar: i,
+                        dir,
+                        pivot_bar: cert.source_index,
+                        level: lvl as u32,
+                        sigma_higher,
+                        bsp_class: 0,
+                        z,
+                        trigger: NestTrigger::PanDivConsolidation,
+                    });
                 }
             }
         }
@@ -4177,6 +4409,7 @@ mod tests {
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })
                             .collect(),
                     };
@@ -4296,6 +4529,7 @@ mod tests {
             NestTrigger::Type1TrendDivergence => 0u8,
             NestTrigger::Type23SublevelType1 => 1u8,
             NestTrigger::XiaoZhuanDa => 2u8,
+            NestTrigger::PanDivConsolidation => 3u8, // Q4 #145：盘整背驰承接桶（独立归因，不并入他桶）
         };
         for d in &decomps {
             let e = bucket.entry(key(d.trigger)).or_insert((0, 0.0));
@@ -4308,6 +4542,7 @@ mod tests {
         let (t1_n, t1_pnl) = get(0);
         let (t23_n, t23_pnl) = get(1);
         let (xzd_n, xzd_pnl) = get(2);
+        let (pan_n, pan_pnl) = get(3); // Q4 #145：盘整背驰承接桶
         let mu = |n: usize, s: f64| if n > 0 { s / n as f64 } else { 0.0 };
         let vetoed_n = t23_n + xzd_n;
         let vetoed_pnl = t23_pnl + xzd_pnl;
@@ -4317,6 +4552,7 @@ mod tests {
         eprintln!("| Type1TrendDivergence | {t1_n} | {t1_pnl:.4e} | {:.4e} |", mu(t1_n, t1_pnl));
         eprintln!("| Type23SublevelType1  | {t23_n} | {t23_pnl:.4e} | {:.4e} |", mu(t23_n, t23_pnl));
         eprintln!("| XiaoZhuanDa          | {xzd_n} | {xzd_pnl:.4e} | {:.4e} |", mu(xzd_n, xzd_pnl));
+        eprintln!("| PanDivConsolidation  | {pan_n} | {pan_pnl:.4e} | {:.4e} |", mu(pan_n, pan_pnl));
         eprintln!("── 过滤前后（codex #1：单一 bool 背驰门若套全通道）──");
         eprintln!("交叉校验：decomp.bsp_class 含一类位(buy1/sell1)的条数 = {first_class_n}（应≈Type1TrendDivergence 桶 n={t1_n}）");
         eprintln!("过滤前候选总数 = {total}");
@@ -4324,8 +4560,8 @@ mod tests {
         eprintln!("被否决桶 μ̂ = {:.4e}（Σpnl={vetoed_pnl:.4e}）——非负/可观 ⟹ 一票否决误杀有质量信号（codex 裁决 Xzd 不受否决）", mu(vetoed_n, vetoed_pnl));
         eprintln!("════════════════════════════════════════════════════════════════════\n");
 
-        // 自检（partition 不变量）：三桶计数和 = 配对信号总数（trigger 标注无遗漏无重复）。
-        assert_eq!(t1_n + t23_n + xzd_n, total, "NestTrigger 三桶未完全覆盖配对信号——trigger 标注有洞");
+        // 自检（partition 不变量）：四桶计数和 = 配对信号总数（trigger 标注无遗漏无重复；Q4 #145 增 PanDiv 桶）。
+        assert_eq!(t1_n + t23_n + xzd_n + pan_n, total, "NestTrigger 四桶未完全覆盖配对信号——trigger 标注有洞");
     }
 
     /// H2 样本级验证（task #8）：level1-4 第二类信号的 N^δ 门拒绝阶段分解 + 互斥链实证。
@@ -4475,6 +4711,7 @@ mod tests {
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })
                             .collect(),
                     };
@@ -4842,6 +5079,7 @@ mod tests {
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
+                                pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })
                             .collect(),
                     };

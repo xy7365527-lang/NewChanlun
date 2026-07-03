@@ -157,6 +157,46 @@ pub fn center_trend_gate(n_centers: usize, blocks: &[MoveBlock]) -> Vec<Option<D
     gate
 }
 
+/// 单中枢 ownership 块方向查询（Q7 高级别方向，task #145——[`center_trend_gate`] 的逐点版，
+/// `project_to_units{,_resume}` tail 投影消费，不 materialize 全 gate 向量——增量路径每 bar 只投影
+/// 新 tail，全向量分配是 O(m·bars) 回归）。
+///
+/// 语义与 `center_trend_gate` 逐点相等（等价性测试锁定）：`Some(d)` ⟺ 关系 R(i-1,i) 属 Trend(d)
+/// 块（ownership：C_i 归其入边关系的块）。`None` ⟺ i==0（C_0 无入边关系——ownership 的「C_0 归
+/// B₁」需要 R(0,1) 即未来信息，因果投影层不可消费，降级 endpoint fallback；与 [`center_block_kind`]
+/// 的 C_0 规则**有意不同**——kind 版是批式查询无前缀稳定约束）或 R(i-1,i) 属 Consolidation 块
+/// （第31课盘整无方向 ⟹ 投影层降级 endpoint fallback）。
+pub fn center_own_dir_at(blocks: &[MoveBlock], i: usize) -> Option<Direction> {
+    if i == 0 {
+        return None;
+    }
+    // 关系 R(i-1,i)（关系下标 i-1）属块 b ⟺ b.start_center ≤ i-1 < b.end_center ⟺ start < i ≤ end。
+    // blocks 按 span 升序（fold 从左到右）⟹ partition_point 二分。
+    let bi = blocks.partition_point(|b| b.end_center < i);
+    blocks.get(bi).filter(|b| b.start_center < i).and_then(|b| b.dir)
+}
+
+/// 每中枢 ownership 块类别（Q4 盘整背驰承接路由，task #145——signal.rs 盘整块判定消费）。
+///
+/// `kind[i] = Some(k)` ⟺ 中枢 i 按 **ownership 分区**（模块头：C_i 归包含关系 R(i-1,i) 的块，
+/// 转折中枢归前块，C_0 归 B₁）属于类别 k 的块。与 [`center_trend_gate`] 同一 `blocks` 单一来源
+/// （不 fork 第二套分解）；区别：trend gate 只对 Trend 块开门且块首不开（关系起点无 A 段前驱），
+/// 本函数给出**全部**中枢的块类别（含单中枢盘整块的 C_0——PDF §6 情形1，盘整=恰1中枢）。
+pub fn center_block_kind(n_centers: usize, blocks: &[MoveBlock]) -> Vec<Option<MoveKind>> {
+    let mut kinds = vec![None; n_centers];
+    for b in blocks {
+        // 关系 R(i-1,i) 属块 b ⟺ i ∈ (start_center, end_center]（ownership：转折中枢归前块）。
+        for k in &mut kinds[(b.start_center + 1).min(n_centers)..(b.end_center + 1).min(n_centers)] {
+            *k = Some(b.kind);
+        }
+    }
+    // C_0 归 B₁（模块头 ownership 分区；单中枢链 blocks=[Consolidation 0..0] 由此覆盖）。
+    if let (Some(first), Some(b0)) = (kinds.first_mut(), blocks.first()) {
+        *first = Some(b0.kind);
+    }
+    kinds
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -222,6 +262,46 @@ mod tests {
             vec![
                 (MoveKind::Trend, Some(Direction::Up), 0, 1),
                 (MoveKind::Trend, Some(Direction::Down), 1, 2),
+            ]
+        );
+    }
+
+    #[test]
+    fn center_own_dir_at_equals_trend_gate_pointwise() {
+        // Q7 等价性锁定：逐点查询版 == center_trend_gate 全向量（含块首/盘整块/C_0 的 None）。
+        let chains: Vec<Vec<Center>> = vec![
+            vec![c_up(0)],
+            vec![c_up(0), c_up(1), c_up(2)],
+            vec![c_up(0), c_overlap(0), c_up(2), c_up(3), c_up(4)],
+            vec![c_up(5), c_up(3), c_overlap(3), c_up(6)], // down→expansion→up 混合链
+        ];
+        for cs in &chains {
+            let blocks = decompose(cs);
+            let gate = center_trend_gate(cs.len(), &blocks);
+            for i in 0..cs.len() {
+                assert_eq!(center_own_dir_at(&blocks, i), gate[i],
+                    "逐点 ownership 方向须 == trend gate[{i}]（链长 {}）", cs.len());
+            }
+        }
+    }
+
+    #[test]
+    fn center_block_kind_ownership_partition() {
+        // 单中枢：blocks=[Consolidation 0..0] ⟹ C_0 归 B₁ = Consolidation。
+        let single = decompose(&[c_up(0)]);
+        assert_eq!(center_block_kind(1, &single), vec![Some(MoveKind::Consolidation)]);
+        // 混合链 [Consolidation 0..1, Trend(Up) 1..4]：C_0 归 B₁（盘整）、C_1 转折中枢归前块
+        // （盘整）、C_2..C_4 归趋势块——与 center_trend_gate 同 blocks 单一来源，ownership 分区。
+        let cs = [c_up(0), c_overlap(0), c_up(2), c_up(3), c_up(4)];
+        let b = decompose(&cs);
+        assert_eq!(
+            center_block_kind(cs.len(), &b),
+            vec![
+                Some(MoveKind::Consolidation),
+                Some(MoveKind::Consolidation),
+                Some(MoveKind::Trend),
+                Some(MoveKind::Trend),
+                Some(MoveKind::Trend),
             ]
         );
     }

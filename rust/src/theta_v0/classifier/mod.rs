@@ -94,6 +94,10 @@ pub struct LevelState {
     /// ★A1（07c）：`Rc` 共享——memo 命中经 `Rc::clone`（O(1)）投影到 LevelState，消除 per-bar
     /// per-level 全量 `cached_bsp.clone()`（A0 profile 坐实 07c 段 1M=1.80s）+ miss 路径 `b.clone()`。
     pub bsp: Rc<Vec<BspPoint>>,
+    /// ★Q4（task #145）：该级盘整背驰证书（`signal::PanDivCert`，与 bsp 同一 extract 调用产出、
+    /// 同 memo 键缓存）。**不是买卖点**（零 six-bit，不冒充 B1/S1）——承接路由在 econ 统计层
+    /// （collect_signals 走 Nest/XZD 二通道，两门皆闭诚实丢弃）。
+    pub pan_div: Rc<Vec<signal::PanDivCert>>,
 }
 
 /// 多级别递归分类输出（L0..Lmax；某层自然终止则该层及以上为空）。
@@ -163,7 +167,7 @@ fn extract_first_third_for_level(
     dif: &[f64],
     closes_tick: &[Tick],
     close_src: &[usize],
-) -> Vec<BspPoint> {
+) -> (Vec<BspPoint>, Vec<signal::PanDivCert>) {
     let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
     signal::extract_signals_with_hist(centers, &segs, hist, dif, closes_tick, close_src)
 }
@@ -293,7 +297,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         //   （买卖点定律一 §10.2）。对本级**每个上级走势** `RMove::Compose`，从 descend 取回的次级别
         //   走势序列内识别第二类走势结构（第一类离开 + 回拉不创新低/新高），产 B2/S2。背驰力度由
         //   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
-        let mut bsp: Vec<BspPoint> = if is_l0 {
+        let (mut bsp, pan_div): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
             // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选 point.force
             // = Some（4 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进 class_index/
             // 分桶 key，PartialEq 排除），GOLDEN 因 Debug 含 force 诚实翻转（signal.rs digest guard）。
@@ -310,12 +314,14 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
             moves,
             centers: Rc::new(centers.clone()),
             bsp: Rc::new(bsp),
+            pan_div: Rc::new(pan_div),
         });
 
         // L(k+1) 输入单元 = 上级走势塔的 `UnitRange` 投影（外缘区间 + 坐标 + 外缘趋势方向）。
         // 上级走势携 subs（`RMove::Compose`），投影只为下一级几何中枢检测提供 [lo,hi] 区间——
         // 真递归 subs 在 `moves_tower` 里保留（不丢弃，旧塔丢弃 subs 是 B2 不可产的根因）。
-        units = project_to_units(&upper_moves);
+        // Q7（task #145）：方向源 = 本级中枢 ownership 块方向（刚 push 的 LevelState.moves 单一来源）。
+        units = project_to_units(&upper_moves, &levels.last().expect("本级 LevelState 已 push").moves);
         moves_tower = Rc::new(upper_moves);
 
         // 本级无中枢 ⟹ 无上级输入单元，停止递归（自然终止）。
@@ -434,6 +440,9 @@ struct LevelCache {
     decompose_state: decompose::DecomposeState,
     /// BSP memo 缓存：上次提取的 BSP 序列（与 `cached_bsp_key` 配对）。
     cached_bsp: Rc<Vec<BspPoint>>,
+    /// ★Q4（task #145）：盘整背驰证书 memo 缓存——与 `cached_bsp` 同一 extract 调用产出、同一
+    /// `cached_bsp_key` 守卫（hit/miss/cascade 三态与 bsp 锁步 ⟹ 下游 Rc::ptr_eq(bsp) 蕴含 pan_div 同批）。
+    cached_pan_div: Rc<Vec<signal::PanDivCert>>,
     /// BSP memo guard key = (centers.len, upper_moves.len, segments.len[L0 only])。三者不变 ⟹
     /// BSP 纯函数同输入同输出（confirmed 元素区间在稳定前缀，尾 bar 不影响）⟹ 复用缓存 bit-exact。
     cached_bsp_key: Option<(usize, usize, usize)>,
@@ -1156,6 +1165,7 @@ pub fn classify_with_tower_incremental(
             Rc::make_mut(&mut lc.centers).clear();
             lc.decompose_state.reset();
             Rc::make_mut(&mut lc.cached_bsp).clear();
+            Rc::make_mut(&mut lc.cached_pan_div).clear(); // Q4：与 cached_bsp 同批失效（同 key 守卫）。
             lc.cached_bsp_key = None;
             lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
             lc.cached_second_count = 0;
@@ -1271,11 +1281,16 @@ pub fn classify_with_tower_incremental(
         // consumed+2≥units.len()）清 cached_bsp_key 兜底；回缩由 last_input_len 守卫触 cascade。三情形全覆盖。
         let struct_len = if is_l0 { l0.segments.len() } else { units.len() };
         let bsp_key = (lc.centers.len(), lc.upper_moves.len(), struct_len);
-        let bsp: Rc<Vec<BspPoint>> = if lc.cached_bsp_key == Some(bsp_key) {
+        let (bsp, pan_div): (Rc<Vec<BspPoint>>, Rc<Vec<signal::PanDivCert>>) = if lc.cached_bsp_key
+            == Some(bsp_key)
+        {
             // 07c：memo 命中 ⟹ `Rc::clone`（引用计数 O(1)），替代全量 `cached_bsp.clone()`。
-            stage_profile::time("07c_bsp_memo_clone", || Rc::clone(&lc.cached_bsp))
+            // Q4：pan_div 同批命中（同 key 守卫 ⟹ 同一 extract 产出的两半锁步复用）。
+            stage_profile::time("07c_bsp_memo_clone", || {
+                (Rc::clone(&lc.cached_bsp), Rc::clone(&lc.cached_pan_div))
+            })
         } else {
-            let mut b: Vec<BspPoint> = if is_l0 {
+            let (mut b, pan): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
                 stage_profile::time("07a_extract_signals_l0", || {
                     // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选
                     // point.force=Some（进 force_state 第 8 维）。结构六 bit 不变（force 不进分桶 key）。
@@ -1307,9 +1322,11 @@ pub fn classify_with_tower_incremental(
             b.sort_by_key(|p| p.source_index);
             // miss 路径：`Rc::new` 一次，cache 与 LevelState 共享同一 buffer（消除旧 `b.clone()`）。
             let rc = Rc::new(b);
+            let rc_pan = Rc::new(pan);
             lc.cached_bsp = Rc::clone(&rc);
+            lc.cached_pan_div = Rc::clone(&rc_pan); // Q4：与 bsp 同批缓存（同 key）。
             lc.cached_bsp_key = Some(bsp_key);
-            rc
+            (rc, rc_pan)
         };
 
         // 08：`Rc::clone`（O(1)）投影增量塔 centers 到 LevelState，替代全量 `centers.clone()`。
@@ -1318,6 +1335,7 @@ pub fn classify_with_tower_incremental(
             moves,
             centers: level_centers,
             bsp,
+            pan_div,
         });
 
         // 下一级输入 = 上级走势塔投影（前缀来自缓存 upper_moves 前缀，尾部来自续扫）。
@@ -1330,11 +1348,22 @@ pub fn classify_with_tower_incremental(
         // 与 §上 projected_units.clear() 一致（truncate(0)==clear，冗余无害）。
         stage_profile::time("09_project_to_units_resume", || {
             lc.projected_units.truncate(prefix_count);
-            recursive_tower::project_to_units_resume(&lc.upper_moves[..], &mut lc.projected_units);
+            // Q7（task #145）：方向源 = 本级中枢 ownership 块方向（levels 尾 = 本级刚 push 的
+            // LevelState.moves，与 batch 同一 decompose 单一来源）。confirmed 前缀方向冻结
+            // （R(i-1,i) sealed 后标签不变），frontier 由 truncate(prefix_count) 每 bar 重投影。
+            recursive_tower::project_to_units_resume(
+                &lc.upper_moves[..],
+                &levels.last().expect("本级 LevelState 已 push").moves,
+                &mut lc.projected_units,
+            );
         });
         // ★A3 投影证书护栏（debug/test）：truncate(prefix_count)+resume 必逐字段等全量 project_to_units。
         debug_assert!(
-            lc.projected_units == recursive_tower::project_to_units(&lc.upper_moves),
+            lc.projected_units
+                == recursive_tower::project_to_units(
+                    &lc.upper_moves,
+                    &levels.last().expect("本级 LevelState 已 push").moves
+                ),
             "投影证书违反：projected_units != 全量 project_to_units（truncate(prefix_count)/resume 破裂）"
         );
         units = stage_profile::time("10_projected_units_clone", || lc.projected_units.clone());
@@ -1809,7 +1838,7 @@ mod tests {
         let close_src: Vec<usize> = (0..prices.len()).collect();
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
         // 本测试只验结构六 bit（force 旁挂不改），传空 dif/closes_tick ⟹ force=None（不影响 buy1 判据）。
-        let bsp = extract_first_third_for_level(&[c0, c1], &units, &hist, &[], &[], &close_src);
+        let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &hist, &[], &[], &close_src);
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
         assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢单元）终止 source_index");
@@ -1832,7 +1861,7 @@ mod tests {
             UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
         ];
         // 三类无 MACD 依赖（纯整数几何），hist 空亦可——传空 hist/dif/closes_tick（第一类自然不产，force=None）。
-        let bsp = extract_first_third_for_level(&[c], &units, &[], &[], &[], &(0..24).collect::<Vec<_>>());
+        let (bsp, _pan) = extract_first_third_for_level(&[c], &units, &[], &[], &[], &(0..24).collect::<Vec<_>>());
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
         assert_eq!(buy3.len(), 1, "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）");
         assert_eq!(buy3[0].source_index, 20, "3 买端点 = 回试单元终止 source_index");
@@ -1875,8 +1904,8 @@ mod tests {
                 b3 += p.bits.buy3 as usize; s3 += p.bits.sell3 as usize;
             }
             eprintln!(
-                "[census] L{li}: centers={} moves={}(trend={}) bsp={} | buy1={b1} sell1={s1} buy2={b2} sell2={s2} buy3={b3} sell3={s3}",
-                lv.centers.len(), lv.moves.len(), trend, lv.bsp.len()
+                "[census] L{li}: centers={} moves={}(trend={}) bsp={} pan_div={} | buy1={b1} sell1={s1} buy2={b2} sell2={s2} buy3={b3} sell3={s3}",
+                lv.centers.len(), lv.moves.len(), trend, lv.bsp.len(), lv.pan_div.len()
             );
             // 抽样：level≥1 的前 3 个一类端点（若有）+ 前 3 个三类端点（人工核结构合法性——
             // source_index + center[zd,zg] + pivot（回试端点极值）；三类不重入判据由 judge_third 保证）。
@@ -2061,7 +2090,7 @@ mod tests {
             }
 
             let (_cw, upper_moves) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
-            units = project_to_units(&upper_moves);
+            units = project_to_units(&upper_moves, &out.levels[level_idx].moves); // Q7：生产同源块
             moves_tower = Rc::new(upper_moves);
             if units.is_empty() {
                 break;
@@ -2485,8 +2514,8 @@ mod tests {
             let l0_units: Vec<UnitRange> = segs.iter().map(segment_to_unit).collect();
             let moves_l0: Vec<LeveledMove> = l0_units.iter().enumerate()
                 .map(|(i,u)| LeveledMove::from_unit(u, recursive_tower::ElementId{level:0,ordinal:i as u64})).collect();
-            let (_c, upper) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1);
-            recursive_tower::project_to_units(&upper)
+            let (c, upper) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1);
+            recursive_tower::project_to_units(&upper, &decompose::decompose(&c))
         };
         assert_eq!(mk_l1_units(&layer_v1.segments), mk_l1_units(&layer_v2.segments),
             "前提：L1 投影输入 v1==v2（守卫的本级投影比对看不到此变异）");

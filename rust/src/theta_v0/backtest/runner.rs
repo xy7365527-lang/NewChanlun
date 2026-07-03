@@ -450,6 +450,7 @@ fn newly_confirmed_step(
             .map(|(lvl, ls)| LevelState {
                 moves: Vec::new(),
                 centers: Rc::new(Vec::new()),
+                pan_div: Rc::new(Vec::new()), // Q4：新确认投影只携 bsp（盘整背驰承接在 econ 层，此处无消费者）
                 // append-only：seen.insert 为真=本 bar 首次确认 ⟹ 保留；副作用把所有 bsp 标记 seen。
                 bsp: ls
                     .bsp

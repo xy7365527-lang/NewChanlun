@@ -1539,6 +1539,7 @@ fn enumerate_candidate_z(ds: &Dataset, config: &ThetaConfig) -> Vec<MuClass> {
                         .map(|(l2, _)| super::super::classifier::LevelState {
                             moves: Vec::new(),
                             centers: Rc::new(Vec::new()),
+                            pan_div: Rc::new(Vec::new()),
                             bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                         })
                         .collect(),

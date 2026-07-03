@@ -513,34 +513,85 @@ impl AbcDivergence {
     }
 }
 
-/// 趋势背驰的 A/C 段定位（第24课:22-24，趋势 τ=Trend）。
+/// 趋势背驰的 A **离开走势区间**定位（第24课:22-24 + Q5 裁决 task #145，趋势 τ=Trend）。
 ///
-/// 在 ≥2 同向中枢的趋势中，C 段 = **最后一个中枢**之后破中枢的离开段（`c_seg`，已由 judge_first
-/// 定位为破中枢段）；A 段 = **倒数第二个中枢**之后、同向的离开段（相邻前一中枢的离开段）。
+/// ★Q5 谱系（一类买卖点.pdf 裁决，2026-07 #145）：「A/C 应为次级别走势类型，不应默认是单一线段。
+/// If a lower-level departure move consists of multiple segments, the MACD/force comparison should
+/// cover the whole lower-level move type interval：I(A)=[λ_A,ρ_A]，Area(A)=Σ_{t∈I(A)}|hist_t|。」
+/// A = 离开 C_prev 的次级别走势类型（同向 d）——**不是**其中最后一个同向段。
+///
+/// 在 ≥2 同向中枢的趋势中，C = **最后一个中枢**之后破中枢的离开走势（由 judge_first 定位）；
+/// A = **倒数第二个中枢**之后的同向离开走势区间。窗口过滤与旧单段实现相同
+/// （direction==trend_dir ∧ start_index ≥ prev_center.end_index ∧ start_index < last_center.end_index），
+/// 区间 = **当前离开 episode**（首匹配段起点..末匹配段终点，含中间反向段 bar，Q5 面积口径）。
+///
+/// ★episode 定界（codex ac4 审查 #1 修复）：「失败离开→回中枢→重新离开」是两个独立 episode，
+/// 不桥接。边界 = 窗口内**最后一个回中枢段**（[`departure_episode_start`]，与 judge_pan_div
+/// `reenters` 同一判据——反向段端点回到 prev_center 核心 [zd,zg] 内侧）。无回中枢段 ⟹ 整窗口
+/// 一个 episode（与修复前行为相同）；恰一个匹配段 ⟹ 与旧单段返回值 bit 相同（兼容）。
 ///
 /// ★A/C 跨相邻中枢配对（消解退化的「任意前同向段」）：A 不是序列序任意前同向段，而是趋势中**相邻
-/// 前一中枢**的离开段——第24课:24「A 之前已有一个中枢，B 是这个大趋势的另一个中枢」。`segments`
+/// 前一中枢**的离开走势——第24课:24「A 之前已有一个中枢，B 是这个大趋势的另一个中枢」。`segments`
 /// 按 start_index 升序；`last_center`/`prev_center` 是趋势的最后两个相邻中枢。
 ///
-/// 返回 A 段（前一中枢离开段）的 `(start_index, end_index)`；找不到（无符合的前中枢离开段）⟹ None。
-/// 离开段方向 = 趋势方向（向下趋势=向下离开段=底背驰候选；向上趋势=向上离开段=顶背驰候选）。
-pub fn locate_trend_seg_a(
+/// 返回 A 区间 `(λ_A, ρ_A)`（source_index 闭区间）；无匹配段/最后回中枢段之后无同向段 ⟹ None。
+/// 离开走势方向 = 趋势方向（向下趋势=向下离开=底背驰候选；向上趋势=顶背驰候选）。
+pub fn locate_departure_move_a(
     segments: &[Segment],
     prev_center: &Center,
     last_center: &Center,
     trend_dir: Direction,
 ) -> Option<(usize, usize)> {
-    // A 段 = prev_center 之后、last_center 之前、方向 = trend_dir 的离开段（相邻前中枢的离开段）。
-    // 取该区间内**最后一个**同向段（最接近后一中枢=离开 prev_center 进入 last_center 的趋势腿）。
-    segments
-        .iter()
-        .filter(|s| {
-            s.direction == trend_dir
-                && s.start_index >= prev_center.end_index
-                && s.start_index < last_center.end_index
-        })
-        .next_back()
-        .map(|s| (s.start_index, s.end_index))
+    let lo = segments.partition_point(|s| s.start_index < prev_center.end_index);
+    let hi = segments.partition_point(|s| s.start_index < last_center.end_index);
+    let win = &segments[lo..hi];
+    let lambda_a = episode_start_in(win, prev_center, trend_dir)?;
+    let mut it = win.iter().filter(|s| s.direction == trend_dir && s.start_index >= lambda_a);
+    let first = it.next()?;
+    let last = it.last().unwrap_or(first);
+    // I(A) = [episode 首段起点, episode 末同向段终点]（Q5：多段时含中间反向段 bar）。
+    Some((first.start_index, last.end_index))
+}
+
+/// 当前离开 episode 的起点 λ（Q5 + codex ac4 审查 #1/#2 修复的共享定界原语）。
+///
+/// `win` = 离开中枢 `c` 的候选段窗口（start_index 升序切片）；episode 边界 = 窗口内**最后一个
+/// 回中枢段**（反向段端点回到 c 核心 [zd,zg] 内侧——Down 离开侧 end ≥ zd / Up 离开侧 end ≤ zg，
+/// 与 judge_pan_div `reenters` 同一判据）。λ = 边界之后首个同向段的 start_index；无回中枢段 ⟹
+/// 窗口首个同向段（整窗口一个 episode）；边界后无同向段 ⟹ None（episode 无同向体，诚实无定位）。
+///
+/// 生产（signal.rs extract 循环 λ_C）/漏斗探针/oracle/judge_pan_div 全部经本函数取 episode 起点
+/// ——单一来源，无坐标 fork（675号）。
+pub fn episode_start_in(win: &[Segment], c: &Center, dir: Direction) -> Option<usize> {
+    let reenters = |s: &Segment| {
+        s.direction != dir
+            && match dir {
+                Direction::Down => s.end_price >= c.zd,
+                Direction::Up => s.end_price <= c.zg,
+            }
+    };
+    let boundary = win.iter().rev().find(|s| reenters(s)).map_or(0, |r| r.end_index);
+    win.iter()
+        .find(|s| s.direction == dir && s.start_index >= boundary)
+        .map(|s| s.start_index)
+}
+
+/// λ_C（Q5 + codex ac4 审查 #2 修复）：离开中枢 `c` 的**当前** episode 首同向段起点，窗口截至
+/// `until_start`（含——判破段 seg 自身在窗口内）。窗口 = start_index ∈ [c.end_index, until_start]
+/// 的段；episode 定界经 [`episode_start_in`]（回中枢段边界，单一来源）。
+///
+/// 旧实现（c_start_cache 按 c_idx 缓存「中枢后第一个同向段起点」）无 reentry 检测——「失败离开→
+/// 回中枢→重新离开触发 broke」场景下 λ_C 过早，污染 I(C) 面积（codex #2 致命）。本函数按
+/// (c, dir, until_start) 逐段计算（λ_C 依赖 seg 前的回中枢段集合，不再可按 c_idx 缓存）。
+pub fn departure_move_c_start(
+    segments: &[Segment],
+    c: &Center,
+    dir: Direction,
+    until_start: usize,
+) -> Option<usize> {
+    let lo = segments.partition_point(|s| s.start_index < c.end_index);
+    let hi = segments.partition_point(|s| s.start_index <= until_start);
+    episode_start_in(&segments[lo..hi], c, dir)
 }
 
 #[cfg(test)]
@@ -640,33 +691,88 @@ mod tests {
     // ── § B. A/B/C 框架层：趋势背驰 A 段定位（locate_trend_seg_a）─────────────────
 
     #[test]
-    fn locate_seg_a_picks_prev_center_leave_segment() {
-        // 趋势 τ=Trend(Down)：prev_center end=5，last_center end=12。A 段 = prev_center 之后、
-        // last_center 之前、向下方向的离开段（相邻前中枢的离开段，非任意前同向段）。
+    fn locate_departure_move_a_covers_whole_interval() {
+        // Q5：趋势 τ=Trend(Down)，prev_center end=5，last_center end=12。多段离开走势——
+        // I(A) = (首个匹配段起点, 末个匹配段终点) = (6, 11)，覆盖中间反向段 [8,10] 的 bar。
         let prev_c = ctr(300, 400, 290, 410, 5);
         let last_c = ctr(100, 200, 90, 210, 12);
         let segments = vec![
-            // start_index 升序。向下段在 [5,12) 区间内（A 段候选）。
+            // start_index 升序。向下段在 [5,12) 区间内（离开走势的组成段）。中间反向段端点 295
+            // < prev_c.zd=300——趋势内部正常回撤，未回中枢核心 ⟹ 同一 episode（codex ac4 #1）。
             Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
-            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 350 },
-            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 350, end_price: 250 }, // 最接近 last_center 的向下段
-            Segment { direction: Direction::Down, start_index: 13, end_index: 15, start_price: 200, end_price: 80 }, // 在 last_center 之后（C 段区，非 A）
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 },
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
+            Segment { direction: Direction::Down, start_index: 13, end_index: 15, start_price: 200, end_price: 80 }, // 在 last_center 之后（C 区，非 A）
         ];
-        let seg_a = locate_trend_seg_a(&segments, &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a, Some((10, 11)), "A 段 = prev_center 离开段中最接近 last_center 的向下段");
+        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, Some((6, 11)), "Q5：A = 整个离开走势区间（首匹配段起点..末匹配段终点，含中间反向段）");
     }
 
     #[test]
-    fn locate_seg_a_none_when_no_prev_leave() {
-        // prev_center 与 last_center 之间无同向离开段 ⟹ A 段无法定位 ⟹ None（无背驰对照）。
+    fn locate_departure_move_a_reentry_splits_episodes() {
+        // codex ac4 #1 修复见证：失败离开（[6,8]）→ 回中枢段（[8,10] 端点 395 回到 prev core
+        // [300,400] 内侧 ≥ zd=300）→ 重新离开（[10,11]）。两个独立 episode 不桥接——
+        // A = 最后 episode [10,11]，非旧桥接区间 [6,11]。
         let prev_c = ctr(300, 400, 290, 410, 5);
         let last_c = ctr(100, 200, 90, 210, 12);
         let segments = vec![
-            // [5,12) 内只有向上段，无向下离开段 ⟹ A 段（向下）无候选。
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 }, // 回中枢：end 395 ≥ zd=300
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
+        ];
+        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, Some((10, 11)), "回中枢段切开两个 episode ⟹ A = 当前（最后）episode，不桥接");
+        // 对照：中间反向段未回核心（end 280 < zd=300）⟹ 同一 episode ⟹ 全区间（covers_whole_interval 语义）。
+        let no_reentry = vec![
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 },
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
+        ];
+        let seg_a2 = locate_departure_move_a(&no_reentry, &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a2, Some((6, 11)), "反向段未回核心 ⟹ 同一 episode ⟹ 整区间");
+    }
+
+    #[test]
+    fn departure_move_c_start_reentry_bounds_episode() {
+        // codex ac4 #2 修复见证：中枢后失败离开 [6,8] → 回中枢段 [8,10]（end 395 ≥ zd=300）→
+        // 重新离开 [10,11]（判破段）。λ_C = 10（当前 episode 起点），非旧口径 6（首个同向段）。
+        let c = ctr(300, 400, 290, 410, 5);
+        let segments = vec![
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 },
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
+        ];
+        assert_eq!(departure_move_c_start(&segments, &c, Direction::Down, 10), Some(10),
+            "回中枢段之后重新离开 ⟹ λ_C = 当前 episode 首同向段起点");
+        // 无回中枢段 ⟹ 整窗口一个 episode ⟹ λ_C = 首个同向段起点（单段兼容口径）。
+        assert_eq!(departure_move_c_start(&segments[..1], &c, Direction::Down, 6), Some(6),
+            "无回中枢段 ⟹ λ_C = 中枢后首个同向段起点");
+    }
+
+    #[test]
+    fn locate_departure_move_a_single_segment_bit_compatible() {
+        // Q5 兼容性：恰一个匹配段 ⟹ 返回值与旧单段实现 bit 相同。
+        let prev_c = ctr(300, 400, 290, 410, 5);
+        let last_c = ctr(100, 200, 90, 210, 12);
+        let segments = vec![
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 }, // 未回核心（<zd=300）
+        ];
+        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, Some((6, 8)), "单匹配段 ⟹ 与旧单段返回值 bit 相同（兼容）");
+    }
+
+    #[test]
+    fn locate_departure_move_a_none_when_no_prev_leave() {
+        // prev_center 与 last_center 之间无同向离开段 ⟹ A 区间无法定位 ⟹ None（无背驰对照）。
+        let prev_c = ctr(300, 400, 290, 410, 5);
+        let last_c = ctr(100, 200, 90, 210, 12);
+        let segments = vec![
+            // [5,12) 内只有向上段，无向下离开段 ⟹ A（向下）无候选。
             Segment { direction: Direction::Up, start_index: 6, end_index: 8, start_price: 280, end_price: 380 },
         ];
-        let seg_a = locate_trend_seg_a(&segments, &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a, None, "无 prev_center 同向离开段 ⟹ A 段无法定位");
+        let seg_a = locate_departure_move_a(&segments, &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, None, "无 prev_center 同向离开段 ⟹ A 无法定位");
     }
 
     #[test]
