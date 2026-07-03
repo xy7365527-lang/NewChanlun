@@ -968,6 +968,7 @@ pub(crate) struct Type1Funnel {
 pub(crate) fn type1_funnel_dx(
     centers: &[Center],
     segments: &[Segment],
+    anchor_dirs: Option<&[Option<Direction>]>,
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
@@ -1001,9 +1002,11 @@ pub(crate) fn type1_funnel_dx(
     }
     let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
         std::collections::HashMap::new();
-    // Q7-#1 裁定C：漏斗是 L0 探针（parity 断言对 L0 入口）——自锚（段方向即锚方向），与生产一致。
-    let anchors_self = super::divergence::self_anchors(segments);
-    for seg in segments {
+    // Q7-#1 裁定C + 675号（探针走生产路径）：锚与生产同源——L0 传 None（自锚），级别-N 由
+    // census 传 `center_own_dir_at` 派生锚。漏斗环判据与生产 extract 逐锚一致，parity 断言收口。
+    let anchors_owned = super::divergence::self_anchors(segments);
+    let anchors: &[Option<Direction>] = anchor_dirs.unwrap_or(&anchors_owned);
+    for (si, seg) in segments.iter().enumerate() {
         let Some(c_idx) = nearest_confirmed_center_idx(centers, seg.start_index) else {
             continue;
         };
@@ -1018,9 +1021,10 @@ pub(crate) fn type1_funnel_dx(
         f.s_gate_open += 1;
         // broke 几何（judge_first_cached 同判据同顺序）。
         let end = seg_end(seg);
-        let broke = match (end.dir, dir) {
-            (Direction::Down, Direction::Down) => end.price < c.zd,
-            (Direction::Up, Direction::Up) => c.zg < end.price,
+        // Q7-#1 裁定C：broke 锚门与 judge_first_cached 同判据（fallback ⟹ 不触发）。
+        let broke = match (anchors[si], dir) {
+            (Some(Direction::Down), Direction::Down) => end.price < c.zd,
+            (Some(Direction::Up), Direction::Up) => c.zg < end.price,
             _ => false,
         };
         if !broke {
@@ -1030,11 +1034,11 @@ pub(crate) fn type1_funnel_dx(
         let prev_center = &centers[pos - 1];
         let a = *a_seg_cache
             .entry(c_idx)
-            .or_insert_with(|| locate_departure_move_a(segments, &anchors_self, prev_center, c, dir));
+            .or_insert_with(|| locate_departure_move_a(segments, anchors, prev_center, c, dir));
         let Some((a_start, a_end)) = a else { continue };
         f.s_a_paired += 1;
         // Q5 λ_C（生产同款共享 helper，codex ac4 #2）：I(C)=[λ_C, seg.end]（broke ⟹ 必 Some）。
-        let Some(lambda_c) = departure_move_c_start(segments, &anchors_self, c, dir, seg.start_index) else {
+        let Some(lambda_c) = departure_move_c_start(segments, anchors, c, dir, seg.start_index) else {
             continue;
         };
         let (Some(c_i), Some(a_i)) = (
@@ -1054,7 +1058,8 @@ pub(crate) fn type1_funnel_dx(
         }
     }
     // parity 守卫（675号：探针不分叉）——漏斗幸存数须与生产提取逐一相等。
-    let (prod, _pan) = extract_signals_with_hist(centers, segments, hist, dif, closes_tick, close_src);
+    let (prod, _pan) =
+        extract_signals_with_hist_anchored(centers, segments, anchor_dirs, hist, dif, closes_tick, close_src);
     let prod_t1 = prod.iter().filter(|p| p.bits.buy1 || p.bits.sell1).count();
     let prod_sb = prod.iter().filter(|p| p.struct_break_dir.is_some()).count();
     assert_eq!(prod_t1, f.s_diverge, "漏斗环7（背驰）须=生产 buy1/sell1 数");

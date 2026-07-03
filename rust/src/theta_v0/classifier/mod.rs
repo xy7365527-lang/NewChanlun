@@ -2123,12 +2123,17 @@ mod tests {
                 }
             };
 
-            let segs: Vec<Segment> = if is_l0 {
-                layer.segments.to_vec()
+            let (segs, funnel_anchors): (Vec<Segment>, Option<Vec<Option<Direction>>>) = if is_l0 {
+                (layer.segments.to_vec(), None)
             } else {
-                units.iter().map(unit_to_segment).collect()
+                // Q7-#1 裁定C + 675号：漏斗探针锚与生产 units_anchors 同源（producer blocks 派生）。
+                let pb = &out.levels[level_idx - 1].moves;
+                (
+                    units.iter().map(unit_to_segment).collect(),
+                    Some((0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect()),
+                )
             };
-            let f = signal::type1_funnel_dx(&centers, &segs, &series.hist, &series.dif, &closes_tick, &close_src);
+            let f = signal::type1_funnel_dx(&centers, &segs, funnel_anchors.as_deref(), &series.hist, &series.dif, &closes_tick, &close_src);
             eprintln!(
                 "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} blocks(trend/consol)={}/{} 最长趋势块={}中枢 | 旧AllTrend锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
                 f.n_centers, f.n_segments, n_up, n_down, n_exp, f.n_trend_blocks, f.n_consol_blocks,

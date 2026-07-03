@@ -4207,12 +4207,15 @@ mod tests {
         // 重封形式 = 锁默认窗确定性基线（BTC 冻结数据全量 4613599 bar，末 300K 窗 2025-11-04→2026-05-31，
         // 2026-07-03 实测）。基线是窗口函数 ⟹ 仅默认窗断言；窗口/数据变 ⟹ 重测重锁，不放宽为范围断言。
         if max_bars == MAX_BARS_DEFAULT {
+            // Q7-#1 裁定C 重封（codex-q7-fallback-20260703，2026-07-03 实测）：fallback 单元非
+            // 方向锚 ⟹ 上级一/三类收缩（一类 1057→614、type3 总数 3150→657），XZD 路由候选构成
+            // 随中枢/信号结构变化 routed 75→160（codex 裁决预告「不保证单调」的实证）。
             assert_eq!(
-                (n_lge2_routed, xzd_lge2_sub_bsp_type3_total), (75, 3150),
-                "lvl>=2 死门基线漂移（裁定A+#123 后基线：routed=75/sub_bsp_type3_total=3150）——\
-                 上游 BSP 生产链（extract/hl13 级别-N 判定）或 Xzd 路由变化，需重测重锁并审计来源"
+                (n_lge2_routed, xzd_lge2_sub_bsp_type3_total), (160, 657),
+                "lvl>=2 死门基线漂移（裁定C 后基线：routed=160/sub_bsp_type3_total=657）——\
+                 上游 BSP 生产链（extract/hl13 级别-N 判定/Q7 锚门）或 Xzd 路由变化，需重测重锁并审计来源"
             );
-            let _ = writeln!(rpt, "- **重封通过**：默认 300K 窗基线锁定 routed=75 / sub_bsp_type3_total=3150（裁定A+#123 后新真值，2026-07-03 测定）。");
+            let _ = writeln!(rpt, "- **重封通过**：默认 300K 窗基线锁定 routed=160 / sub_bsp_type3_total=657（Q7-#1 裁定C 后新真值，2026-07-03 测定）。");
         } else {
             let _ = writeln!(rpt, "- 非默认窗（max_bars={max_bars}），基线断言跳过（基线仅对默认 300K 窗定义）。");
         }
