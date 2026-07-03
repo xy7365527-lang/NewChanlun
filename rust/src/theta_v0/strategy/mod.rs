@@ -910,6 +910,7 @@ mod tests {
             pivot_high: 0,
             center: Some(mk_center(100, 200, 3)),
             struct_break_dir: None,
+            force: None,
         }];
         Classification {
             levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
@@ -974,6 +975,7 @@ mod tests {
             pivot_high: 90,
             center: Some(mk_center(100, 200, 3)),
             struct_break_dir: None,
+            force: None,
         }];
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
@@ -1022,6 +1024,7 @@ mod tests {
             pivot_high: 0,
             center: Some(mk_center(100, 200, 3)),
             struct_break_dir: None,
+            force: None,
         }];
         let classification = Classification {
             levels: vec![
@@ -1065,6 +1068,7 @@ mod tests {
             pivot_high: 0,
             center: None, // 不变量违反
             struct_break_dir: None,
+            force: None,
         }];
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
