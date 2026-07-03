@@ -155,7 +155,9 @@ I_Θ(ctx: RiskState + TwState + Active/LegBook, gamma) -> { buckets, order_effec
 
 **现状影响**：force_flat 现仅 Insolvent/Liquidation（equity≤0）触发，当前 BTC 回测近乎不触发（M2/M3 不可达）⟹ 幽灵腿潜伏未污染现基线 ⟹ 修复随 P1 impl（post-G7）落 + GOLDEN 重算，不单独提前改（避免计划外 bit-exact 破坏）。
 
-**P1 短路点必须在 raw 构造层**（读 coverage.rs 新版核实 1747-1901）：`next_active ← next_idx ← raw`（1883/1901），而 `legs`/`p̃` 是从 `next_idx` **另起**的派生（`strategy_target_legs` 1886）。⟹ 只把 `legs`/`p̃` 清零**不够**（next_active 仍从 next_idx 带旧腿=幽灵腿）；P1 必须在 held-leg push（1747-1831）+ open push（1850-1879）**上游**短路：raw=∅ → next_idx=∅ → next_active=∅，prev_active 逐条产 RiskExit。
+**★P1 复用 G7 已建的幽灵腿防护机制**（读 coverage.rs 6a282f5f46 核实）：G7 补充落地已建正解——`apply_gross_cap` 返回被零化腿 `e_idx: Vec<usize>`（`gross_zeroed`），`coverage_step_from_buckets` 建 `next_active` 时 `.filter(|&i| !(open_idx.contains(&i) && gross_zeroed.contains(&i)))` 排除「被零化 ∩ open 候选段」。**代码注释已显式标「幽灵腿防护（裁定4，#124 force_flat 同款模式禁止复制）」**——即 P1 force_flat 必须**复用**此 next_active 后置过滤（非 raw 层另起短路、非重造）：force_flat ⟹ 全 open 候选段 e_idx 进 rejected 集 → 同一 filter 排除出 next_active。
+- **open 腿**：与 gross 零化**同款**——rejected open 不入 next_active（reuse）。
+- **held 腿**：与 gross **不同**（G7 注释：gross 零化 held 保账本身份，减仓经净订单兑现）——P1 force_flat 的 held 须**关闭**（逐条产 `ExitType::RiskExit`，走 𝒟_x/P1 typed close 路径退账本，非保留）。这是 P1 与 gross 唯一语义差，其余复用。
 
 ### 6.8 P1 × G7 gross_cap 耦合核对（G7 #133 落地 f1c9700332 后，team-lead 请求）
 
