@@ -131,12 +131,14 @@ G7：毛敞口约束在 `coverage.rs:1745` legs 折叠成 net 前用 `gross_targ
 ```
 I_Θ(ctx: RiskState + TwState + Active/LegBook, gamma) -> { buckets, order_effect, tw_event, exit_kind }
 ```
-对齐 PDF §16 四元组 `(D_t, O_t, L_t, TWEvent_t)`。与现 `interpret(gamma, active) -> Buckets` 的 delta：
+对齐 PDF §16 四元组 `(D_t, O_t, L_t, TWEvent_t)`。
 
-| 维度 | 现 `interpret` | 新 `I_Θ` |
+**★分歧1 裁决（team-lead 2026-07-03，补记 ws-codexq2-2）：`interpret(gamma, active) -> Buckets` 签名不变。** I_Θ 是**新组合层函数**（包在 `interpret()` 与 `coverage_step_from_buckets` 之间），不改 `interpret` 本体。理由：现唯一性证明（q3 §A，`coverage.rs:3571`）绑定的对象是 ℛ_Θ(Γ,A)——改 `interpret` 签名 = 破坏已交付证明 + 扩大重证面。故 I_Θ 的 RiskState/TwState/LegBook 输入 + order_effect/tw_event/exit_kind 输出全在**组合层**承载，`interpret` 仍只吃 `gamma`/`active` 产三桶：
+
+| 层 | 签名 | 职责 |
 |---|---|---|
-| 输入 | `gamma: &[Candidate]`, `active: &[ActiveLeg]` | +`RiskState`（P1 判据源）+`TwState`（P2/P3/P4 源，单一生产真值）+`Active/LegBook`（声部级，供 G7 毛约束） |
-| 输出 | `Buckets{close,open,record}` | +`order_effect`（P2 CloseOverlay 等 typed close 进 schedule/fill）+`tw_event`（P3/P4，PDF TWEvent_t）+`exit_kind`（[`ExitType`]，供 G4 TypedTradeLedger） |
+| `interpret`（不变） | `(gamma, active) -> Buckets` | ℛ_Θ(Γ,A) 三桶（P5-P10 结构裁决），唯一性证明锚点不动 |
+| I_Θ 组合层（新） | `(RiskState, TwState, Active/LegBook, gamma) -> {buckets, order_effect, tw_event, exit_kind}` | P1 全局分支 + P2/P3/P4 TW 投影 + ExitType 产出；内部**调** `interpret` 取三桶 |
 
 关键语义（裁定4 逐项）：
 - **P1（强平）= 最高优先级全局分支**，`gamma` 空也触发（账户爆仓无新信号仍须清仓）⟹ 不能实现成"所有候选归 close 桶"。清活动腿 + 目标仓强制 0 + 屏蔽 P2..P10（对应 `C_1=P_1` 屏蔽后续谓词，但触发不依赖候选集非空）。
@@ -144,3 +146,11 @@ I_Θ(ctx: RiskState + TwState + Active/LegBook, gamma) -> { buckets, order_effec
 - **P3/P4** 作 `tw_event` 分量，成立时**消耗本步裁决**（普通候选开/平/记录被屏蔽或推迟 record 桶），非并行各走各。
 - **P2 CloseOverlay** 输出真实 typed close 进**同一** schedule/fill/typed ledger（closed_loop 玩具动作集无 CloseOverlay 类型）。
 - **`run_closed_loop`** 降级为纯结构验证工具（TW 真值源移到 I_Θ ctx.TwState）。
+
+### 6.7 幽灵腿 bug（P1 实装必堵，已行级核实；补记 ws-codexq2-2 + team-lead 裁决）
+
+**核实**（读 `coverage.rs:1710-1714`）：`coverage_step_from_buckets` 对每个 `c in &buckets.open` 无条件 `raw.push(idx)`（无 `force_flat` 检查，该函数根本不收 gate），随后 `raw` → `ancestor_close_by_id` → `next_idx`（= 下一 bar `prev_active`）。⟹ 强平 bar 上若同 bar 有新候选命中 P8 Open Root，`interpret`（不知 force_flat）正常放行进 open 桶 → 该腿进 `next_active`，即使当 bar 实际订单被 clamp 成 Close/Hold ⟹ **从未真实建仓的"幽灵腿"跨 bar 传播**（下一 bar 参与关闭匹配 / 仓位计算 / AncOK 判定）。
+
+**约束**：P1 全局分支实装时，`force_flat` 成立 ⟹ **open 桶不得进 `next_active`**，且须对 `prev_active` 逐条产 `ExitType::RiskExit` 清空活动腿（不能只跳过 open——旧腿也须清）。这落在 I_Θ 组合层（P1 分支短路 `coverage_step_from_buckets` 的 raw 构造），非改 `interpret`。
+
+**现状影响**：force_flat 现仅 Insolvent/Liquidation（equity≤0）触发，当前 BTC 回测近乎不触发（M2/M3 不可达）⟹ 幽灵腿潜伏未污染现基线 ⟹ 修复随 P1 impl（post-G7）落 + GOLDEN 重算，不单独提前改（避免计划外 bit-exact 破坏）。
