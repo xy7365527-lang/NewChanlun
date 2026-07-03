@@ -43,7 +43,7 @@
 
 use super::config::ThetaConfig;
 use super::parser::ParseLayer;
-use super::types::{Center, Direction, MoveKind, Segment};
+use super::types::{Center, Direction, MoveKind, Segment, Tick};
 use divergence::MacdState;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -485,6 +485,11 @@ pub struct TowerCache {
     /// 已增量产出的 hist 前缀（不可变；尾部 append 续产）。bit-exact 等价于
     /// `compute_macd(closes[..macd_state_len]).hist`。
     macd_hist: Vec<f64>,
+    /// 已增量产出的 dif 前缀（黄白线，与 `macd_hist` **逐 bar 锁步**——同一 `MacdState::current_point`
+    /// 派生，同一 truncate/push 边界）。bit-exact 等价于 `compute_macd(closes[..macd_state_len]).dif`
+    /// （dif 是 hist 的子表达式 `hist=dif-dea`，hist 增量已证 bit-exact ⟹ dif 同证）。force_state 生产
+    /// 热路由（一类候选 A/C 段 `segment_dif_peak`）消费——`extract_signals_with_hist` 收 dif 才算 force。
+    macd_dif: Vec<f64>,
     /// MACD state 实际消费的 close 数（state 表示 `closes[..macd_state_len]` 的累积）。
     /// #106：替代旧 `macd_closes_prefix: Vec<f64>`（每 bar O(n) 全量比较 + to_vec 克隆 = O(n²)）。
     /// 增量边界 = `macd_state_len`；前缀稳定性靠 parser `confirmed_len` 证书（codex：绑 state_len
@@ -505,6 +510,10 @@ pub struct TowerCache {
     closes: Vec<f64>,
     /// merged_bars.source_index 增量缓存（与 `closes` 同步，坐标系映射用）。
     close_src: Vec<usize>,
+    /// merged_bars.close 的 **Tick（整数）** 增量缓存（与 `closes` 同步，force 价格振幅/速度 proxy 用）。
+    /// `closes_tick[i] == merged_bars[i].close`（Tick 本身，非 f64 往返）——与 `extract_signals_force`
+    /// 的 `closes as f64 as Tick` 逐值一致（整值 Tick 往返 f64 精确）。热路径 mem::take 出借，用毕放回。
+    closes_tick: Vec<Tick>,
     /// ★工位 4g：塔变更代次（generation）——下游 [`super::strategy::interp::TreeCache`] 用其 O(1) 判断
     /// 是否复用缓存树，**跳过每 bar O(tree) 的 `TreeKey::of(tower)` 全量重算**（exp≈2.0 真因）。
     ///
@@ -534,6 +543,22 @@ impl TowerCache {
         self.generation
     }
 
+    /// 当前增量产出的 MACD dif 前缀（黄白线，force_state 生产热路由输入；bit-exact 等价全量
+    /// `compute_macd(closes).dif`）。与 [`Self::macd_hist_for_test`] 逐 bar 锁步、等长。
+    pub fn macd_dif(&self) -> &[f64] {
+        &self.macd_dif
+    }
+
+    /// 当前增量产出的 MACD hist 前缀（对拍锚：dif 增量正确性由 `dif==全量` ∧ `hist==全量` 双证）。
+    pub fn macd_hist_for_test(&self) -> &[f64] {
+        &self.macd_hist
+    }
+
+    /// 当前增量产出的 close(Tick) 前缀（force 价格振幅/速度 proxy 输入；`== merged_bars.close`）。
+    pub fn closes_tick(&self) -> &[Tick] {
+        &self.closes_tick
+    }
+
     /// 重置缓存（退化为下次全量重扫）。
     ///
     /// 调用时机：段账本前缀非单调追加（回缩/改写）、或 config 变更、或 merged_bars
@@ -543,11 +568,13 @@ impl TowerCache {
         self.last_l0_segments_len = 0;
         self.macd_state = None;
         self.macd_hist.clear();
+        self.macd_dif.clear(); // 与 macd_hist 锁步（同 truncate/rebuild 边界，见 compute_macd_hist_incremental）。
         self.macd_state_len = 0;
         Rc::make_mut(&mut self.moves_tower_l0).clear();
         self.l0_units_cache.clear();
         self.closes.clear();
         self.close_src.clear();
+        self.closes_tick.clear(); // 与 closes 锁步（同 update_closes_cache 前缀复用）。
         self.area_cache.clear(); // hist 全量重扫 ⟹ 旧 (start,end)→area 键值可能不再对应新 hist。
         // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
         // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
@@ -705,14 +732,20 @@ fn update_closes_cache(
     // confirmed_len 单调 ⟹ cache[..confirmed_len] 是上轮前缀。前提失守（cached < confirmed_len，
     // 跨 bar 漏调 / 血缘断裂）⟹ reuse = min(cached, confirmed_len)，余下全量重扫（保守 bit-exact）。
     // confirmed_len=0（相 A / 相 A→B fold_all 整段重写 / 全量 parse_layer 无血缘）⟹ reuse=0 = 全量重建。
-    let reuse = confirmed_len.min(cached).min(cache.close_src.len());
+    let reuse = confirmed_len
+        .min(cached)
+        .min(cache.close_src.len())
+        .min(cache.closes_tick.len());
     cache.closes.truncate(reuse);
     cache.close_src.truncate(reuse);
+    cache.closes_tick.truncate(reuse);
     cache.closes.reserve(n.saturating_sub(reuse));
     cache.close_src.reserve(n.saturating_sub(reuse));
+    cache.closes_tick.reserve(n.saturating_sub(reuse));
     for b in &merged_bars[reuse..] {
         cache.closes.push(b.close as f64);
         cache.close_src.push(b.source_index);
+        cache.closes_tick.push(b.close); // Tick 本身（整数），force 价格振幅/速度 proxy 用（与 closes 锁步）。
     }
 }
 
@@ -726,6 +759,7 @@ fn compute_macd_hist_incremental(
     if closes.is_empty() {
         cache.macd_state = None;
         cache.macd_hist.clear();
+        cache.macd_dif.clear();
         cache.macd_state_len = 0;
         return;
     }
@@ -733,7 +767,9 @@ fn compute_macd_hist_incremental(
     // 单 bar：state = init(closes[0])，hist = [0.0]（首 bar DIF=DEA=hist=0）。state 覆盖 closes[..1]。
     if closes.len() == 1 {
         let state = MacdState::init(closes[0], cfg);
-        cache.macd_hist = vec![state.current_point().hist];
+        let p = state.current_point();
+        cache.macd_hist = vec![p.hist];
+        cache.macd_dif = vec![p.dif]; // 首 bar DIF=0（close-close），与 hist 同点派生。
         cache.macd_state = Some(state);
         cache.macd_state_len = 1;
         return;
@@ -752,49 +788,63 @@ fn compute_macd_hist_incremental(
     // 但 confirmed_len 收缩（相 A→B fold_all=0）⟹ resume_from=0 ⟹ 从头全量重推（bit-exact 退化）。
     let resume_from = cache.macd_state_len.min(confirmed_len).min(stable_prefix);
 
+    // macd_dif 与 macd_hist **逐 bar 锁步**：同一 truncate/clear/push 边界，同一 `current_point` 派生
+    // （dif 是 hist 的子表达式）。任一分支对 hist 的操作都对 dif 做同样操作 ⟹ len 恒等、bit-exact。
     let mut state = if resume_from > 0 && cache.macd_state.is_some() {
         // 增量：从 resume_from 的 state 续推。需要 state 恰好表示 closes[..resume_from]——
         // 若 macd_state_len > resume_from（confirmed_len 收缩截断），state 比 resume_from 多消费了
         // 已失效的 close ⟹ 不能直接用，须从头重推。故仅 macd_state_len == resume_from 时复用。
         if cache.macd_state_len == resume_from {
             cache.macd_hist.truncate(resume_from);
+            cache.macd_dif.truncate(resume_from);
             cache.macd_state.clone().expect("is_some 已判")
         } else {
             cache.macd_hist.clear();
-            rebuild_macd_state_to(closes, resume_from, cfg, &mut cache.macd_hist)
+            cache.macd_dif.clear();
+            rebuild_macd_state_to(closes, resume_from, cfg, &mut cache.macd_hist, &mut cache.macd_dif)
         }
     } else {
         // 全量重建（resume_from=0 或 state 空）。
         cache.macd_hist.clear();
-        rebuild_macd_state_to(closes, 0, cfg, &mut cache.macd_hist)
+        cache.macd_dif.clear();
+        rebuild_macd_state_to(closes, 0, cfg, &mut cache.macd_hist, &mut cache.macd_dif)
     };
 
-    // 续推 closes[hist.len()..stable_prefix]（新稳定 bar）+ 尾 bar（不稳定）hist。
+    // 续推 closes[hist.len()..stable_prefix]（新稳定 bar）+ 尾 bar（不稳定）hist/dif。
     for &c in &closes[cache.macd_hist.len()..stable_prefix] {
         state = divergence::compute_macd_append(&state, c);
-        cache.macd_hist.push(state.current_point().hist);
+        let p = state.current_point();
+        cache.macd_hist.push(p.hist);
+        cache.macd_dif.push(p.dif);
     }
     let tail_state = divergence::compute_macd_append(&state, closes[stable_prefix]);
-    cache.macd_hist.push(tail_state.current_point().hist);
+    let tail_p = tail_state.current_point();
+    cache.macd_hist.push(tail_p.hist);
+    cache.macd_dif.push(tail_p.dif);
     cache.macd_state = Some(state);
     cache.macd_state_len = stable_prefix;
 }
 
 /// MACD state 重建到 `closes[..target]`（target=0 ⟹ init(closes[0])，state_len=1）。
-/// `hist` 被 push 至 len==max(target,1)（首 bar hist=0 + 续 bar）。返回 closes[..hist.len()] 的 state。
-/// bit-exact：与全量 `compute_macd` 同 EMA 约简（逐 bar append）。
+/// `hist`/`dif` 被 push 至 len==max(target,1)（首 bar hist=dif=0 + 续 bar），逐 bar 同点派生锁步。
+/// 返回 closes[..hist.len()] 的 state。bit-exact：与全量 `compute_macd` 同 EMA 约简（逐 bar append）。
 fn rebuild_macd_state_to(
     closes: &[f64],
     target: usize,
     cfg: &super::config::MacdConfig,
     hist: &mut Vec<f64>,
+    dif: &mut Vec<f64>,
 ) -> MacdState {
     let mut state = MacdState::init(closes[0], cfg);
-    hist.push(state.current_point().hist);
+    let p0 = state.current_point();
+    hist.push(p0.hist);
+    dif.push(p0.dif);
     let end = target.max(1);
     for &c in &closes[1..end] {
         state = divergence::compute_macd_append(&state, c);
-        hist.push(state.current_point().hist);
+        let p = state.current_point();
+        hist.push(p.hist);
+        dif.push(p.dif);
     }
     state
 }
@@ -1653,6 +1703,47 @@ mod tests {
                 untradable: false,
             })
             .collect()
+    }
+
+    /// ★批1（force_state 生产热路由 step4）：TowerCache 的 dif 增量通路 bit-exact 对拍全量。
+    ///
+    /// 严格路线（Lead 裁定，拒绝「增量恒 None」降级）：`compute_macd_hist_incremental` 逐 bar 产出的
+    /// `macd_dif` 必与全量 `compute_macd(&closes[..k]).dif` **逐位相等**（非 tolerance——bit-exact 是
+    /// 断言，不是近似；tolerance 会把非 bit-exact 藏进容差 = 声明膨胀）。同证 `macd_hist`（dif/hist
+    /// 锁步的锚），并证 `closes_tick == merged_bars.close`（force 价格振幅 proxy 输入的整数往返）。
+    ///
+    /// 覆盖：resume 增量路径（append-only 前缀稳定，confirmed_len=k-1）逐 bar 生长——每步驱动
+    /// truncate+append+tail 三段（含单 bar 分支 k=1）。dif 是 hist 子表达式（hist=dif-dea），hist
+    /// 增量已证 bit-exact（tower 测试锁 BspPoint）⟹ dif 同证；本测试直接坐实 dif 数组本身。
+    #[test]
+    fn incremental_macd_dif_and_closes_tick_bit_exact() {
+        let cfg = super::super::config::MacdConfig::default();
+        // 合成 closes：上升 + 震荡 + 下降（EMA 充分递推，覆盖 dif 正负峰）。整值 ⟹ closes_tick 往返精确。
+        let vals: Vec<i64> = (0..90)
+            .map(|i| 1000 + (30.0 * ((i as f64) * 0.3).sin()) as i64 + i as i64)
+            .collect();
+        let closes: Vec<f64> = vals.iter().map(|&v| v as f64).collect();
+
+        // ── dif/hist 增量 vs 全量（逐 bar 生长，resume 增量路径）──
+        let mut cache = TowerCache::new();
+        for k in 1..=closes.len() {
+            let prefix = &closes[..k];
+            let confirmed = k.saturating_sub(1); // append-only：前 k-1 稳定，尾 bar 不稳定。
+            compute_macd_hist_incremental(prefix, confirmed, &cfg, &mut cache);
+            let full = divergence::compute_macd(prefix, &cfg);
+            assert_eq!(cache.macd_dif(), full.dif.as_slice(), "bar {k}: dif 增量 ≠ 全量（bit-exact 破）");
+            assert_eq!(cache.macd_hist_for_test(), full.hist.as_slice(), "bar {k}: hist 增量 ≠ 全量");
+            assert_eq!(cache.macd_dif().len(), cache.macd_hist_for_test().len(), "dif/hist 锁步等长");
+        }
+
+        // ── closes_tick 增量 == merged_bars.close（整数域，force 振幅/速度 proxy 输入）──
+        let bars = bars_from_closes(&vals);
+        let mut cache2 = TowerCache::new();
+        for k in 1..=bars.len() {
+            update_closes_cache(&bars[..k], k.saturating_sub(1), &mut cache2);
+            let expect: Vec<Tick> = bars[..k].iter().map(|b| b.close).collect();
+            assert_eq!(cache2.closes_tick(), expect.as_slice(), "bar {k}: closes_tick ≠ merged_bars.close");
+        }
     }
 
     /// ★端到端 B2 真产出（#53 验证门，L1 管线正确性）：升级后的递归塔（`RMove::Compose` 携 subs）
