@@ -129,6 +129,8 @@ pub struct SignalDecomp {
     /// 分桶/dx 投影**一律用 `z.i_class`**（未压缩 6-bit），**禁止 `z.bsp_class()`**（会丢 2B/3B 重合，
     /// 违反 P4 codex 判决）。`bsp_class` 旧字段保留供旧口径对照（CSV/旧报告），不作分桶键。
     pub z: MuClass,
+    /// P0-1：准入触发通道（[`NestTrigger`]，codex-f2 #1）——signal-provenance，供每桶 μ̂ 质量归因。
+    pub(super) trigger: NestTrigger,
 }
 
 /// 聚合诊断「钱去哪了」（确定性分解，Σ 精确等于 Σ trade gross，非概率推断）。
@@ -242,6 +244,8 @@ struct RawSignal {
     bsp_class: u8,
     /// z：完整 MuClass 全互斥分类键（b2）。用 z.i_class 分桶，非 z.bsp_class()。
     z: MuClass,
+    /// P0-1：准入触发通道（[`NestTrigger`]，codex-f2 #1）——signal-provenance，供每桶 μ̂ 质量归因。
+    trigger: NestTrigger,
 }
 
 /// decompose 收集半边（纯函数）：逐 bar 因果分类 + N^δ 多级门 → 信号集。
@@ -339,9 +343,10 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     // lvl==0 走区间套不消费此三值。
                     let sub_centers: &[Center] = if lvl > 0 { &cls_i.levels[lvl - 1].centers } else { &[] };
                     let sub_bsp: &[BspPoint] = if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
-                    let pass = match build_gate_certificate(
+                    let gate_cert = build_gate_certificate(
                         &tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp,
-                    ) {
+                    );
+                    let pass = match &gate_cert {
                         Some(GateCertificate::Nest(cert)) => cert.n_delta(),
                         Some(GateCertificate::Xzd(ev)) => ev.gate_pass(),
                         None => false,
@@ -349,6 +354,11 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     if !pass {
                         continue;
                     }
+                    // P0-1：准入触发通道（signal-provenance）——gate 已 pass ⟹ gate_cert 必 Some。
+                    let trigger = nest_trigger(
+                        gate_cert.as_ref().expect("pass ⟹ gate_cert Some"),
+                        bsp_cand_type(&p.bits, delta_side),
+                    );
                     // b2（task #83）：升 Z 分桶——从候选构造完整 z（含 σ_p/role/H），非事后从
                     // (level,δ,bsp_class) 粗投影重推。z_of_candidate 复用 selector 既有 role→z 桥
                     // （codex #81 修正1：信号携带 z:MuClass，不再扩位置易错的裸元组）。
@@ -361,6 +371,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                         sigma_higher,
                         bsp_class,
                         z,
+                        trigger,
                     });
                 }
             }
@@ -401,7 +412,7 @@ fn pair_signals(
     }
 
     for (idx, s) in signals.iter().enumerate() {
-        let RawSignal { entry_bar, dir, pivot_bar: lambda_rev_bar, level, sigma_higher, bsp_class, z } = *s;
+        let RawSignal { entry_bar, dir, pivot_bar: lambda_rev_bar, level, sigma_higher, bsp_class, z, trigger } = *s;
         let delta: i8 = match dir {
             VoiceSide::Long => 1,
             VoiceSide::Short => -1,
@@ -459,6 +470,7 @@ fn pair_signals(
             eta_in, eta_out, actual_spread, ce_unit, captured, actual_pnl, sigma_higher, bsp_class,
             z, // b2：入场信号完整 z（升 Z 分桶键；entry 信号的 MuClass 携带 σ_p/role/H）
             exit_decision,
+            trigger, // P0-1：入场信号准入触发通道（每桶 μ̂ 归因）
         });
         agg.n_signals += 1;
         agg.sum_a_b += a_b;
@@ -627,7 +639,7 @@ fn descend_type1_anchor_depth(
 /// 不可再落 `else => Type3`（673 号先例：互斥语义混入同一分支须拆分谓词/分支）。
 /// 门控：样本层/`MuClass.bsp_class()==0` 统计保留，τ 门控层恒拒（无 BSP 证书）。
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum BspCandType {
+pub(super) enum BspCandType {
     Type1,
     Type2,
     Type3,
@@ -1023,6 +1035,38 @@ impl XzdEvidence {
 pub(super) enum GateCertificate {
     Nest(NestCertificate),
     Xzd(XzdEvidence),
+}
+
+/// P0-1 下沉触发枚举（codex-f2 修正案 #1，`codex-f2-design-ruling-20260703.md`）：**已存在**的三路
+/// 准入 dispatch 的显式命名——非新增门，是把 `GateCertificate` 变体 × `BspCandType` 的现有分派语义
+/// 显式化，供每桶 μ̂ 质量归因。**核心裁决**：所谓「高级别背驰段前置门」只对 Type1 通道有意义
+/// （Type1 = 本级趋势背驰段，第29课 A3），Xzd 通道由 C2/C3 小转大判据独立准入，**不受「无高级别
+/// 背驰段」一票否决**（codex #1：现状已 Nest/Xzd 二通道，单一 bool 背驰前置门外延过窄会误杀 Xzd）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum NestTrigger {
+    /// 高级别趋势背驰段（Type1 → `Nest`，div_cand 准入；第29课 A3 先看大级别背驰段）。
+    Type1TrendDivergence,
+    /// 二三类经次级别第一类下沉锚（Type2/3 → `Nest`，`descend_type1_anchor_depth` base gate 准入）。
+    Type23SublevelType1,
+    /// 小转大通道（Type2/3 → `Xzd`，C2/C3 小转大判据准入；**不受背驰门一票否决**）。
+    XiaoZhuanDa,
+}
+
+/// 从已决 `GateCertificate` + 候选类型派生 `NestTrigger`（纯分类，零行为改动）。
+///
+/// StructBreak/Type1 nest 失败不产 `GateCertificate`（`build_gate_certificate` 返 None），故到达本函数的
+/// `Nest` 变体必为 Type1（div_cand 过）或 Type2/3（descend anchor 过）。`Xzd` 恒 XiaoZhuanDa。
+pub(super) fn nest_trigger(cert: &GateCertificate, cand_type: BspCandType) -> NestTrigger {
+    match cert {
+        GateCertificate::Xzd(_) => NestTrigger::XiaoZhuanDa,
+        GateCertificate::Nest(_) => match cand_type {
+            BspCandType::Type1 => NestTrigger::Type1TrendDivergence,
+            // Type2/3 走 Nest = 经次级别 Type1 下沉锚（base gate 过）；StructBreak 不产 Nest（None 门拒）。
+            BspCandType::Type2 | BspCandType::Type3 | BspCandType::StructBreak => {
+                NestTrigger::Type23SublevelType1
+            }
+        },
+    }
 }
 
 /// C2 跨条目查找（codex §6-1）：同级 bsp 列表按 source_index 找共生二类买卖点。
@@ -1631,6 +1675,7 @@ mod tests {
             actual_pnl: 0.0, sigma_higher: 0, bsp_class: 1 << 3, // sell1
             z: MuClass::from_certificate(0, 1, BspBits::from_class_index(1 << 3), 0, PositionState::Root),
             exit_decision: ExitDecision::CloseRoot,
+            trigger: NestTrigger::Type1TrendDivergence,
         };
         assert_eq!(d.exit_decision, ExitDecision::CloseRoot,
             "SignalDecomp.exit_decision 字段可读写（P7 接口存在）");
@@ -3038,6 +3083,7 @@ mod tests {
             actual_pnl, sigma_higher: 0, bsp_class,
             z: MuClass::from_certificate(0, 1, BspBits::from_class_index(bsp_class), parent_dir, position),
             exit_decision: ExitDecision::Hold,
+            trigger: NestTrigger::Type1TrendDivergence,
         };
         // buy1 Root ×2, buy2 Root ×1, buy1 Child(σ_p=+1) ×1：同 (level=0,δ=+1)，按 I_γ+σ_p 应分 3 桶。
         let decomps = vec![
@@ -3075,6 +3121,7 @@ mod tests {
             sigma_higher: 0, bsp_class: 0,
             z: MuClass::from_certificate(level, delta, BspBits::from_class_index(0), 0, PositionState::Root),
             exit_decision: ExitDecision::Hold,
+            trigger: NestTrigger::XiaoZhuanDa,
         };
         let ds = vec![synth(0, -1, 3.0), synth(0, -1, 2.0), synth(1, 1, -2.0)];
         assert_eq!(train_winner_class(&ds), Some((0, -1, 0)), "train 应选 Σpnl 最大正类 (0,-1,cls=0)");
@@ -3577,6 +3624,11 @@ mod tests {
                             sigma_higher,
                             bsp_class,
                             z: z_of_candidate(c),
+                            // P0-1：与生产 collect_signals 同源触发分类（pass ⟹ gate_cert Some）。
+                            trigger: nest_trigger(
+                                gate_cert.as_ref().expect("pass ⟹ gate_cert Some"),
+                                bsp_cand_type(&p.bits, delta_side),
+                            ),
                         });
                         match nest_depth {
                             Some(d) => {
@@ -4115,6 +4167,80 @@ mod tests {
         assert_eq!(n_gamma_diff, 0, "Γ 成员分歧：n_delta 不一致——现口径非 PDF bottom-up 等价，须实装 bottom-up");
         assert_eq!(n_depth_diff, 0, "有效深度分歧：区间套跨级层数不一致");
         assert_eq!(n_interval_diff, 0, "rung 结构分歧：定位区间/cand 不一致（点包含选段 ≠ 区间包含 Sel 选段）");
+    }
+
+    /// P0-1 验收（p01-nest-trigger task #108，codex-f2 #1/#2）：per-`NestTrigger` 桶的候选数 + μ̂
+    /// 质量对照——**证明「高级别背驰段前置门」只作用于 Type1，Xzd 不受一票否决**。
+    ///
+    /// 「过滤前后」框架（codex #1）：若把 f1 提议的单一 bool「须有高级别背驰段」门套到**全通道**，只有
+    /// `Type1TrendDivergence` 存活，`Type23SublevelType1`+`XiaoZhuanDa` 被一票否决。本探针量化被否决桶的
+    /// 候选数与 μ̂——若这些桶 μ̂ 非负/可观，一票否决即误杀有质量信号（codex 裁决「Xzd 不受否决」的 L2 证据）。
+    /// **不绑 depth≥2**（codex #2：加门只减候选不制造深 rungs）。
+    ///
+    /// **认识论 L2**：真实 BTC 单标的全历史，per-trigger μ̂ 含选择偏差（全窗，仅质量对照非 OOS alpha）。
+    /// `#[ignore]`：需 BTC 全量 + O(n²) 重分类。命令：
+    /// `ECON_L2_MAX_BARS=<N> cargo test --release acc_nest_trigger_quality_probe -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn acc_nest_trigger_quality_probe() {
+        use super::super::data;
+
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）"),
+        };
+        let n_full = ds_full.bars.len();
+        const MAX_BARS_DEFAULT: usize = 300_000;
+        let max_bars = std::env::var("ECON_L2_MAX_BARS").ok()
+            .and_then(|s| s.parse().ok()).unwrap_or(MAX_BARS_DEFAULT);
+        let ds = if n_full > max_bars {
+            ds_full.slice_bar_range(n_full - max_bars, n_full)
+        } else {
+            ds_full
+        };
+        let win_start = ds.dates.first().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+        let win_end = ds.dates.last().map(|d| d.get(..10).unwrap_or("").to_string()).unwrap_or_default();
+
+        let (decomps, _agg) = decompose_capturable_spread(&ds, &config);
+        let total = decomps.len();
+
+        // per-trigger 桶：(count, Σactual_pnl)。
+        let mut bucket: std::collections::BTreeMap<u8, (usize, f64)> = std::collections::BTreeMap::new();
+        let key = |t: NestTrigger| match t {
+            NestTrigger::Type1TrendDivergence => 0u8,
+            NestTrigger::Type23SublevelType1 => 1u8,
+            NestTrigger::XiaoZhuanDa => 2u8,
+        };
+        for d in &decomps {
+            let e = bucket.entry(key(d.trigger)).or_insert((0, 0.0));
+            e.0 += 1;
+            e.1 += d.actual_pnl;
+        }
+        // 交叉校验（防 trigger 标注 bug）：直接数 decomp.bsp_class 的一类位（bit0=buy1 / bit3=sell1）。
+        let first_class_n = decomps.iter().filter(|d| d.bsp_class & (1 << 0) != 0 || d.bsp_class & (1 << 3) != 0).count();
+        let get = |k: u8| bucket.get(&k).copied().unwrap_or((0, 0.0));
+        let (t1_n, t1_pnl) = get(0);
+        let (t23_n, t23_pnl) = get(1);
+        let (xzd_n, xzd_pnl) = get(2);
+        let mu = |n: usize, s: f64| if n > 0 { s / n as f64 } else { 0.0 };
+        let vetoed_n = t23_n + xzd_n;
+        let vetoed_pnl = t23_pnl + xzd_pnl;
+
+        eprintln!("\n════════ P0-1 NestTrigger 质量对照（BTC {total} 配对信号，{win_start}→{win_end}）════════");
+        eprintln!("| trigger | n | Σactual_pnl | μ̂ |");
+        eprintln!("| Type1TrendDivergence | {t1_n} | {t1_pnl:.4e} | {:.4e} |", mu(t1_n, t1_pnl));
+        eprintln!("| Type23SublevelType1  | {t23_n} | {t23_pnl:.4e} | {:.4e} |", mu(t23_n, t23_pnl));
+        eprintln!("| XiaoZhuanDa          | {xzd_n} | {xzd_pnl:.4e} | {:.4e} |", mu(xzd_n, xzd_pnl));
+        eprintln!("── 过滤前后（codex #1：单一 bool 背驰门若套全通道）──");
+        eprintln!("交叉校验：decomp.bsp_class 含一类位(buy1/sell1)的条数 = {first_class_n}（应≈Type1TrendDivergence 桶 n={t1_n}）");
+        eprintln!("过滤前候选总数 = {total}");
+        eprintln!("过滤后（仅 Type1 存活）= {t1_n}；被一票否决 = {vetoed_n}（Type23 {t23_n} + Xzd {xzd_n}）");
+        eprintln!("被否决桶 μ̂ = {:.4e}（Σpnl={vetoed_pnl:.4e}）——非负/可观 ⟹ 一票否决误杀有质量信号（codex 裁决 Xzd 不受否决）", mu(vetoed_n, vetoed_pnl));
+        eprintln!("════════════════════════════════════════════════════════════════════\n");
+
+        // 自检（partition 不变量）：三桶计数和 = 配对信号总数（trigger 标注无遗漏无重复）。
+        assert_eq!(t1_n + t23_n + xzd_n, total, "NestTrigger 三桶未完全覆盖配对信号——trigger 标注有洞");
     }
 
     /// H2 样本级验证（task #8）：level1-4 第二类信号的 N^δ 门拒绝阶段分解 + 互斥链实证。
