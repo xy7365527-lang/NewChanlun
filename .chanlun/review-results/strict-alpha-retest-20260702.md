@@ -1,5 +1,7 @@
 # s3 严格口径 alpha 重测 — 结果包（goal g-full-mutex-impl acceptance s3-strict-alpha-retest）
 
+> **[2026-07-03 addendum]** frontier 污染效力域标注已解除，依据=`highlevel-rerun-post-frontier-20260703.md`（三项复核全维持：全局仍 INCONCLUSIVE，主桶仍欠功效，H2 L1 显著性增强）。
+
 **工位**：swarm/ws-s3 | 基线 HEAD=122c918da9（含 s1 桶键扩维 + s2 残差管线）| 不 git
 **原文权威**：`docs/formal-chain/alpha分离.pdf`（残差 p1/§4.1、分层 p5 §4.2）+ `alpha检验.pdf`（删尾 p4 §6、方向不对称 p5 §7-§8）
 **预注册**：`acc-alpha-estimand-prereg-20260701.md`（冻结 v0，估计量 estimand 冻结于看结果前）

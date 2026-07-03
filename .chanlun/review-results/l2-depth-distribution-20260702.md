@@ -1,5 +1,7 @@
 # L2-dist：段2 全历史 depth/小转大分布（level1-4 Type2/3）——结果包
 
+> **[2026-07-03 addendum]** frontier 污染效力域标注已解除，依据=`highlevel-rerun-post-frontier-20260703.md`（三项复核全维持：小转大 91.85%→92.17%，方向不变）。
+
 > **【效力域降级】编排者裁定 (a)（2026-07-02，task #80）**：本报告依赖 tower/rung 跨级定位口径。`rung-interval-containment-20260702.md`（task #77）已用 350K BTC 实测**否证**"端点相等 rung 定位系统性 false negative"（区间套问题①）——两口径 bit-identical，FN=0，本报告计数**不受该项影响，结论获加固**。但 **frontier 问题②（tail 宽度/cached_units 快照）污染仍未清除**（task #65/#75 跟踪中）——本报告的分布/命中率数字尚未排除该项干扰，在 frontier 问题②收口前，结论视为**条件性**（原文数据保留不改）。
 
 - task: #23（acc-optB-l2dist）
