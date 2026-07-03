@@ -1415,7 +1415,7 @@ mod profile {
                 }
                 let t = std::time::Instant::now();
                 let (next_active, _p) =
-                    coverage::coverage_step_prebuilt(work, &gamma, &prev_active, 1000.0, &voice, &registry);
+                    coverage::coverage_step_prebuilt(work, &gamma, &prev_active, 1000.0, &voice, None, &registry);
                 t_step += t.elapsed().as_secs_f64();
                 // merge 用纯 tree snapshot（与生产 candidate 含量差异不影响①② step 标度测量）。
                 registry.merge_in_place(

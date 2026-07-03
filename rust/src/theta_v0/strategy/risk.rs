@@ -543,6 +543,33 @@ pub fn leverage_ok(metrics: LeverageMetrics, caps: LeverageCaps) -> bool {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+//  §13' 毛头寸约束的 units 空间形式（G7：codex #122 终裁 + codex decide 5b46）
+//
+//  strict §11 的毛杠杆约束 `L^G = G_t/E_t ≤ L̄^G` 在单标的 units 空间的精确等价形式：
+//  `G_t = gross_units·px`、`E_t = base_units·px`（runner `base_units = NAV/px`）⟹
+//  `L^G ≤ γ̄ ⟺ gross_units ≤ γ̄·base_units`（px>0 两侧对消，f64 精确，无 i64 量化）。
+//  生产 K_Θ 的毛约束判定走本节（coverage.rs `apply_gross_cap` 调用，不私写同义比较）；
+//  [`gross_notional`]/[`leverage_metrics`]/[`leverage_ok`] 保留为美元空间 Lean 镜像
+//  （`Origin.LeverageCapital`），两空间等价由测试 `gross_units_ok_iff_leverage_ok` 锁死。
+// ──────────────────────────────────────────────────────────────────────────
+
+/// 毛敞口 units 上限 `Ḡ = γ̄·U_ℓ`（无量纲毛杠杆上限 × 协变资本单位，d_j=1 名义协变，
+/// 与 coverage.rs `feasible_net_cap` 净 cap 同构——毛/净共用同一 `γ` 参数，#122 裁定
+/// 暂不拆 gross_gamma/net_gamma）。
+pub fn gross_units_cap(base_units: f64, gamma: f64) -> f64 {
+    gamma.abs() * base_units.abs()
+}
+
+/// 毛头寸约束判定（units 空间，= strict §11 `L^G ≤ L̄^G` 单标的精确等价形式，见 §13' 节头）。
+///
+/// 返回 `true` ⟺ `gross_units ≤ γ̄·base_units`。与 [`leverage_ok`] 的毛分量在
+/// `E = base_units·px` 下逐点等价（等价性测试锁死）；净分量由 coverage.rs
+/// `pi_theta_position` 的净 cap（同一 `γ`）承担——毛+净同时约束（strict §11 line 359）。
+pub fn gross_units_ok(gross_units: f64, base_units: f64, gamma: f64) -> bool {
+    gross_units <= gross_units_cap(base_units, gamma)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 //  真保证金模型（D2，task #113；设计锚 `.chanlun/review-results/margin-model-design-20260703.md` v2）
 //
 //  存在论：MM/liq_flag 来自交易所公开规则表的**版本化 datum**（非 Θ 参数，避免 codex-p2 §D2 否定的
@@ -1101,6 +1128,53 @@ mod tests {
         let m = leverage_metrics(&voices, 0.0);
         let caps = LeverageCaps { gross_cap: 100.0, net_cap: 100.0 };
         assert!(!leverage_ok(m, caps)); // ∞ > 任何有限上限
+    }
+
+    /// ★G7 等价性锁（codex decide 5b46）：units 空间毛判定 [`gross_units_ok`] ⟺ 美元空间
+    /// [`leverage_ok`] 毛分量（`G=gross_units·px`、`E=base_units·px`，px 两侧对消）。
+    /// 整数精确取值（无浮点近似），跨激活/违反两侧验证 iff。
+    #[test]
+    fn gross_units_ok_iff_leverage_ok() {
+        let px = 50.0; // 美元/unit（整数精确乘法）
+        let gamma = 1.0;
+        let base_units = 20.0; // E = 20×50 = $1000
+        let equity = base_units * px;
+        // 情形1：双开 12+12 units ⟹ gross_units=24 > γ̄·base=20（违反）。
+        // 美元侧：G=24×50=1200，L^G=1.2 > 1.0（同判违反）。
+        let voices_bad = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: (12.0 * px) as i64 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: (12.0 * px) as i64 },
+        ];
+        let m_bad = leverage_metrics(&voices_bad, equity);
+        let caps = LeverageCaps { gross_cap: gamma, net_cap: f64::INFINITY }; // 只比毛分量
+        assert!(!gross_units_ok(24.0, base_units, gamma));
+        assert!(!leverage_ok(m_bad, caps));
+        // 情形2：双开 8+8 units ⟹ gross_units=16 ≤ 20（满足）。美元侧 L^G=0.8 ≤ 1.0（同判满足）。
+        let voices_ok = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: (8.0 * px) as i64 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: (8.0 * px) as i64 },
+        ];
+        let m_ok = leverage_metrics(&voices_ok, equity);
+        assert!(gross_units_ok(16.0, base_units, gamma));
+        assert!(leverage_ok(m_ok, caps));
+        // 边界：gross_units 恰 = cap（20）⟹ 两侧同判满足（≤ 含界）。
+        let voices_eq = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: (10.0 * px) as i64 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: (10.0 * px) as i64 },
+        ];
+        assert!(gross_units_ok(20.0, base_units, gamma));
+        assert!(leverage_ok(leverage_metrics(&voices_eq, equity), caps));
+    }
+
+    /// G7 毛 cap：`Ḡ = γ̄·U_ℓ`（绝对值，与净 cap `feasible_net_cap·base_units` 同构）。
+    #[test]
+    fn gross_units_cap_covariant() {
+        assert!((gross_units_cap(1000.0, 1.0) - 1000.0).abs() < 1e-12);
+        assert!((gross_units_cap(1000.0, 0.5) - 500.0).abs() < 1e-12);
+        // 协变：base_units 缩放 a 倍 ⟹ cap 缩放 a 倍（d_j=1）。
+        assert!((gross_units_cap(2000.0, 0.5) - 2.0 * gross_units_cap(1000.0, 0.5)).abs() < 1e-12);
+        // 符号鲁棒（abs）：负 gamma/base 不产生负 cap。
+        assert!((gross_units_cap(-1000.0, -1.0) - 1000.0).abs() < 1e-12);
     }
 
     // ── 真保证金模型（#113，margin-model-design v2）──

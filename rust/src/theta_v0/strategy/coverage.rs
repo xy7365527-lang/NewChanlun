@@ -1287,6 +1287,145 @@ pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
     legs.iter().map(|leg| leg.units.abs()).sum()
 }
 
+/// **K_Θ 毛头寸约束（G7）：legs 折叠成净持仓之前施加毛敞口上限——逐根子树 KKT 投影**。
+///
+/// > **结果包六要素**
+/// > - **结论**：毛敞口 `G=Σ|s_e|` 超上限 `Ḡ=γ̄·U_ℓ`（[`super::risk::gross_units_cap`]）时，
+/// >   按根子树分组求缩放系数 `c_r∈[0,1]`（water-filling），每腿 `units·=c_{root(leg)}`；
+/// >   未超限/空腿集不动（不触发路径 bit-exact）。缩放**先于** [`net_target_units`] 折叠——
+/// >   净标量已丢失毛敞口信息，事后诊断门被 #122 终裁拒绝（反例 Long100+Short100：净0毛200）。
+/// > - **定义依据**：strict §11（毛 `G_t=Σ|n_v|` 与净必须**同时**约束，line 359 同单位数双开
+/// >   反例）+ §12 K_Θ 17 项约束含杠杆上界 + 互斥 spec M18（`p*=LexArgmin_{p∈K_Θ}J_t(p)`，主键
+/// >   `‖p−p̃‖²_W`）。毛约束触发后的处置**不是自由缩放规则**，而是 J_t 主键在 K_Θ 上的投影：
+/// >   Θ 钉死腿间比率（同单位数 C04 / κ §6 / depth_weights）⟹ 每根子树只剩整体尺度 c_r 一个
+/// >   自由度；跨根无 spec 比率绑定 ⟹ 逐根独立。等权 W（rust 无 per-voice w_v）下投影 =
+/// >   `min Σ_r A_r(c_r−1)² s.t. Σ_r G_r·c_r ≤ Ḡ, c_r∈[0,1]`（`G_r=Σ|units|`、`A_r=Σunits²`），
+/// >   KKT 闭式 `c_r = max(0, 1−μ/t_r)`（`t_r=2A_r/G_r`），μ 取约束等号（water-filling 扫描）。
+/// >   **单根退化为等比例** `c=Ḡ/G`（codex decide 5b46：方案A只是单根退化情形，非多根语义）。
+/// > - **边界条件**：① `G=0`（空腿/全零）或 `G≤Ḡ` ⟹ 不动。② `Ḡ=0`（γ̄=0 或 U_ℓ=0）⟹ 全腿
+/// >   归零（K_Θ 毛可行集退化 {0}）。③ 若引入真 per-voice `w_v` 或腿级 lot 网格，`A_r=Σunits²`
+/// >   须升级为对应主键权重/离散 LexArgmin（decide 5b46 翻转条件）。④ 若 spec 后续明确要求跨根
+/// >   比例保持，则翻转为全腿等比例。⑤ 缩放只改 `LegTarget.units`（sizing 层目标敞口），不碰
+/// >   活动集身份（`next_active` 不携 units）——跨 bar 状态不受污染。
+/// > - **下游推论**：`p̃=net_target_units(legs')` 随缩放变小（毛超限 bar 的净目标被压缩）⟹
+/// >   激活时历史成交序列改变（语义修正非重构，#122 §4 预期）；默认 `enforce_gross_cap=false`
+/// >   不激活 ⟹ frozen Θ v0 bit-exact。
+/// > - **谱系引用**：codex #122 终裁（`codex-q1-spec-rulings-20260703.md` G7 节）+ codex decide
+/// >   `codex-decide-20260703-034046-5b46.md`（方案B：逐根 KKT，A/C/D 拒绝理由在卷）+
+/// >   formalization-validity-domain 231号（净约束有效域覆盖不了毛约束——信息论层面不可恢复）。
+/// > - **影响声明**：仅在 `enforce_gross_cap=true` 且触发时改 legs；判定走
+/// >   [`super::risk::gross_units_ok`]（units 空间 = strict §11 `L^G≤L̄^G` 单标的精确等价形式，
+/// >   coverage 不私写同义比较——risk.rs 死代码毛/净杠杆数学的生产接入点）。
+///
+/// 根子树分组按 `parent_id` 结构映射（spec §13 `p:C_ℓ→C_{ℓ+1}`，与 [`ancestor_close_by_id`]
+/// 同一判据——非 per-bar 索引链；restore 段腿 `parent: None` 但 `parent_id` 携真父，索引链会
+/// 误判其为独立根）。确定性：分组按腿序首次出现，排序按 `(t_r, root_id)`（平局按根 id 定序），
+/// 求和顺序固定 ⟹ bit-exact 可重放。
+pub(crate) fn apply_gross_cap(
+    elements: &ElementView,
+    legs: &mut [LegTarget],
+    base_units: f64,
+    risk: &RiskConfig,
+) {
+    let g = gross_target_units(legs);
+    // 空腿集或未超限 ⟹ 不动（判定走 risk.rs units 空间 predicate，不私写比较）。
+    if g == 0.0 || super::risk::gross_units_ok(g, base_units, risk.gamma) {
+        return;
+    }
+    let cap = super::risk::gross_units_cap(base_units, risk.gamma);
+    if cap <= 0.0 {
+        // Ḡ=0：毛可行集退化 {0}——全腿归零（安全侧，等价 force_flat 的腿级形式）。
+        for leg in legs.iter_mut() {
+            leg.units = 0.0;
+        }
+        return;
+    }
+
+    // ── 根子树分组（parent_id 结构映射；lookup 双段模式同 ancestor_close_by_id）──
+    let base_id_idx_owned;
+    let base_id_idx: &std::collections::HashMap<ElementId, usize> = match &elements.base_id_idx {
+        Some(rc) => rc.as_ref(),
+        None => {
+            base_id_idx_owned = build_tree_id_index(elements.base);
+            &base_id_idx_owned
+        }
+    };
+    let base_len = elements.base.len();
+    let mut overlay_id_idx: std::collections::HashMap<ElementId, usize> =
+        std::collections::HashMap::new();
+    for (i, e) in elements.overlay.iter().enumerate() {
+        overlay_id_idx.entry(e.id).or_insert(base_len + i);
+    }
+    let lookup = |pid: &ElementId| -> Option<usize> {
+        base_id_idx.get(pid).copied().or_else(|| overlay_id_idx.get(pid).copied())
+    };
+    // 腿的根键 = parent_id 链顶端 id（无父 ⟹ 自身即根）。链顶可为不在本 view 的 id（registry
+    // 祖先未恢复的极端情形）——ElementId 跨 bar 稳定，作组键仍确定。
+    let root_key = |e_idx: usize| -> ElementId {
+        let e_id = elements.get(e_idx).map(|e| e.id).expect("legs.e_idx 来自 next_idx，必在 view 内");
+        ancestors_by_id_lookup(elements, e_idx, &lookup).last().copied().unwrap_or(e_id)
+    };
+
+    // 每根聚合 (G_r, A_r)：分组按腿序首次出现（确定序）。
+    let mut order: Vec<ElementId> = Vec::new();
+    let mut group_of: std::collections::HashMap<ElementId, usize> = std::collections::HashMap::new();
+    let mut leg_group: Vec<usize> = Vec::with_capacity(legs.len());
+    let mut g_r: Vec<f64> = Vec::new();
+    let mut a_r: Vec<f64> = Vec::new();
+    for leg in legs.iter() {
+        let rk = root_key(leg.e_idx);
+        let gi = *group_of.entry(rk).or_insert_with(|| {
+            order.push(rk);
+            g_r.push(0.0);
+            a_r.push(0.0);
+            order.len() - 1
+        });
+        leg_group.push(gi);
+        g_r[gi] += leg.units.abs();
+        a_r[gi] += leg.units * leg.units;
+    }
+
+    // ── water-filling：μ 使 Σ_r G_r·max(0, 1−μ/t_r) = Ḡ（t_r=2A_r/G_r 为 c_r 归零阈值）──
+    // G_r=0 组无敞口贡献（units 全零），c_r=1 恒可行，不参与求解。
+    let threshold = |r: usize| -> f64 { 2.0 * a_r[r] / g_r[r] };
+    let mut idxs: Vec<usize> = (0..order.len()).filter(|&r| g_r[r] > 0.0).collect();
+    idxs.sort_by(|&a, &b| {
+        threshold(a)
+            .partial_cmp(&threshold(b))
+            .expect("有限 units 平方和 ⟹ 阈值有限可序")
+            .then_with(|| (order[a].level, order[a].ordinal).cmp(&(order[b].level, order[b].ordinal)))
+    });
+    // 后缀和 SG_i=Σ_{j≥i}G_r、SQ_i=Σ_{j≥i}G_r/t_r（=G_r²/2A_r），单趟反向扫（求和顺序固定）。
+    let n = idxs.len();
+    let mut sg = vec![0.0f64; n + 1];
+    let mut sq = vec![0.0f64; n + 1];
+    for i in (0..n).rev() {
+        let r = idxs[i];
+        sg[i] = sg[i + 1] + g_r[r];
+        sq[i] = sq[i + 1] + g_r[r] / threshold(r);
+    }
+    // 扫描首个 μ_i ≤ t_(i) 的截断点：0..i 组 c=0（阈值低于水位），i.. 组 c_r=1−μ/t_r。
+    // 数学保证 i=n−1 必满足（μ_{n−1}=t_{n−1}·(1−Ḡ/G_{n−1})≤t_{n−1}，Ḡ>0）——`i+1==n` 臂
+    // 只挡浮点舍入把 ≤ 抖成 >，语义同一。
+    let mut c = vec![1.0f64; order.len()];
+    for i in 0..n {
+        let t_i = threshold(idxs[i]);
+        let mu = (sg[i] - cap) / sq[i];
+        if mu <= t_i || i + 1 == n {
+            for &r in &idxs[..i] {
+                c[r] = 0.0;
+            }
+            for &r in &idxs[i..] {
+                c[r] = (1.0 - mu / threshold(r)).clamp(0.0, 1.0);
+            }
+            break;
+        }
+    }
+    for (leg, &gi) in legs.iter_mut().zip(&leg_group) {
+        leg.units *= c[gi];
+    }
+}
+
 /// ★P0-3 overlay 净贡献诊断 **ΔN_t**（多空对冲.pdf §5 / codex-f2 问题5,6）——**只读**，非账本。
 ///
 /// `ΔN_t = N^#5_t − N^base_t = net_target(全腿) − net_target(剔 ShortDiff 腿)`，代数上 = ShortDiff
@@ -1567,6 +1706,7 @@ pub(crate) fn coverage_step_from_buckets(
     buckets: &Buckets,
     base_units: f64,
     config: &VoiceConfig,
+    risk: Option<&RiskConfig>,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
     // ★热点② O(n²) 消除：work = ElementView{base=持久树前缀借用零拷贝, overlay=本 bar candidate 段}。
@@ -1748,6 +1888,13 @@ pub(crate) fn coverage_step_from_buckets(
     if config.disable_shortdiff {
         legs.retain(|l| l.role.v != Vertical::ShortDiff);
     }
+    // ★G7 毛头寸约束（#122 终裁 + decide 5b46）：净额折叠**之前**施加（净标量已丢失毛敞口信息，
+    // 事后诊断门被拒）。enforce_gross_cap=false（default）/risk=None ⟹ 不激活（frozen bit-exact）。
+    if let Some(r) = risk {
+        if r.enforce_gross_cap {
+            apply_gross_cap(&work, &mut legs, base_units, r);
+        }
+    }
     let p_tilde = net_target_units(&legs);
 
     // A_{t+1} 回 ActiveLeg（638 身份，喂下一 bar interpret 闭环 + 跨 bar 对位）。
@@ -1798,6 +1945,7 @@ pub fn coverage_step_classification(
     prev_active: &[ActiveLeg],
     base_units: f64,
     config: &VoiceConfig,
+    risk: Option<&RiskConfig>,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
     // H2 优化：单次建树产 (elements, candidate_start) + gamma——消除旧版每 bar 双调
@@ -1806,7 +1954,7 @@ pub fn coverage_step_classification(
     let (tree, candidates, gamma) =
         interp::coverage_elements_and_gamma_with_tower(classification, tower);
     let work = ElementView::from_parts(&tree, candidates);
-    coverage_step_prebuilt(work, &gamma, prev_active, base_units, config, registry)
+    coverage_step_prebuilt(work, &gamma, prev_active, base_units, config, risk, registry)
 }
 
 /// **工位 K 性能：环5+环6 用预建 `(elements, candidate_start, gamma)`**（消除 runner per-bar
@@ -1819,12 +1967,14 @@ pub(crate) fn coverage_step_prebuilt(
     prev_active: &[ActiveLeg],
     base_units: f64,
     config: &VoiceConfig,
+    risk: Option<&RiskConfig>,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
     // 环5：解释器三桶（𝒟_x 反向关闭喂 prev_active）。
     let buckets = interp::interpret(gamma, prev_active);
-    // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ShortDiff 未持父则剔除，639(c)）。
-    coverage_step_from_buckets(work, prev_active, &buckets, base_units, config, registry)
+    // 环6：A_{t+1}=AncOK[(A_t∖𝒟_x)∪ℬ_x] + p̃（§13 持仓准入：ShortDiff 未持父则剔除，639(c)）
+    //      + G7 毛头寸约束（legs 折叠前，risk.enforce_gross_cap 门控）。
+    coverage_step_from_buckets(work, prev_active, &buckets, base_units, config, risk, registry)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2159,7 +2309,7 @@ pub fn pi_theta_step(
     // 环5+6：买卖点 Γ 入场 → A_{t+1} + p̃（GAP-5：入场源 = BspPoint.source_index 买卖点）。
     // 执行层 σ_p=父容器方向（639；coverage_step_classification 内 assemble_gamma_with_tower 喂因果塔）。
     let (next_active, p_tilde) =
-        coverage_step_classification(classification, tower, prev_active, base_units, voice, registry);
+        coverage_step_classification(classification, tower, prev_active, base_units, voice, Some(risk), registry);
     // 环7：p* = LexArgmin J_x（𝒦_Θ，风控门收窄）→ O = Schedule_Θ(p*−p_t)（单一决策出口 §16）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
@@ -2184,7 +2334,7 @@ pub(crate) fn pi_theta_step_prebuilt(
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64, Order) {
     let (next_active, p_tilde) =
-        coverage_step_prebuilt(work, gamma, prev_active, base_units, config, registry);
+        coverage_step_prebuilt(work, gamma, prev_active, base_units, config, Some(risk), registry);
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
     (next_active, p_star, order)
@@ -2606,6 +2756,160 @@ mod tests {
         assert!(overlay_net_delta(&legs[..2]).abs() < 1e-9, "无短差腿 ⟹ ΔN=0");
     }
 
+    // ── G7 毛头寸约束（#122 终裁 + codex decide 5b46：逐根 KKT 投影）─────────────
+
+    /// G7 测试用根元素/子元素构造（parent_id 结构映射真值——分组判据与 AncOK 同源）。
+    fn gce(level: u32, ordinal: u64, parent_id: Option<ElementId>, eps: VoiceSide) -> CoverageElement {
+        CoverageElement {
+            lambda: 0,
+            rho: 10,
+            eps,
+            level,
+            parent: None,
+            attached_dir: None,
+            id: ElementId { level, ordinal },
+            parent_id,
+        }
+    }
+
+    fn gleg(e_idx: usize, side: VoiceSide, units: f64) -> LegTarget {
+        LegTarget { e_idx, side, units, role: role(Horizontal::First, Vertical::Ambient, Dir::Plus) }
+    }
+
+    /// ★单根退化 = 等比例缩放（decide 5b46：方案A是单根退化情形）。真嵌套塔（父+顺势子+短差子），
+    /// 默认 VoiceConfig（disable_shortdiff=false）——多空双开生产默认场景。
+    #[test]
+    fn gross_cap_single_root_scales_proportionally() {
+        let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
+        let elements = extract_elements(&tower);
+        let c = cfg();
+        // legs = [根 600 L, 顺势子 300 L, 短差子 300 S] ⟹ 净 600、毛 1200。
+        let mut legs: Vec<LegTarget> =
+            [0usize, 1, 2].iter().map(|&i| leg_target(&elements, i, 1000.0, &c)).collect();
+        let risk = RiskConfig { enforce_gross_cap: true, ..RiskConfig::default() }; // γ=1 ⟹ Ḡ=1000
+        apply_gross_cap(&ElementView::new(&elements), &mut legs, 1000.0, &risk);
+        // 单根 ⟹ c = Ḡ/G = 1000/1200 = 5/6，全腿等比例（比率约束族内 LexArgmin 主键投影）。
+        assert!((legs[0].units - 500.0).abs() < 1e-9, "根 600×5/6");
+        assert!((legs[1].units - 250.0).abs() < 1e-9, "子 300×5/6");
+        assert!((legs[2].units - 250.0).abs() < 1e-9, "短差 300×5/6（同单位数比率保持）");
+        assert!((gross_target_units(&legs) - 1000.0).abs() < 1e-9, "毛投影到边界 Ḡ");
+        assert!((net_target_units(&legs) - 500.0).abs() < 1e-9, "净随比例缩 600×5/6");
+    }
+
+    /// ★#122 终裁反例坐实：等单位多空双开净 p̃=0（净检查恒过）、毛 G=1200 超限——腿层毛约束
+    /// 正确捕获并压缩到 Ḡ，净保持 0（缩放不破坏对冲结构）。
+    #[test]
+    fn gross_cap_constrains_hedged_net_zero() {
+        let els = vec![
+            gce(0, 0, None, VoiceSide::Long),
+            gce(0, 1, None, VoiceSide::Short),
+        ];
+        let mut legs = vec![gleg(0, VoiceSide::Long, 600.0), gleg(1, VoiceSide::Short, 600.0)];
+        assert!((net_target_units(&legs)).abs() < 1e-9, "前提：净 0（净检查恒过）");
+        assert!((gross_target_units(&legs) - 1200.0).abs() < 1e-9, "前提：毛 1200");
+        let risk = RiskConfig { enforce_gross_cap: true, gamma: 0.5, ..RiskConfig::default() }; // Ḡ=500
+        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk);
+        // 两根等阈值 t=1200 ⟹ 同 c = 1−700/1200 = 5/12 ⟹ 各 250。
+        assert!((legs[0].units - 250.0).abs() < 1e-9);
+        assert!((legs[1].units - 250.0).abs() < 1e-9);
+        assert!((gross_target_units(&legs) - 500.0).abs() < 1e-9, "毛压到 Ḡ=500");
+        assert!((net_target_units(&legs)).abs() < 1e-9, "净仍 0（对冲结构保持）");
+    }
+
+    /// ★多根非均匀 water-filling（decide 5b46 方案B 核心）：子树内比率保持（同 c_r），跨根
+    /// 按阈值 t_r=2A_r/G_r 非均匀分配（大子树 c 高）——非全腿同一比例。
+    #[test]
+    fn gross_cap_multi_root_waterfilling_nonuniform() {
+        // 根0（id (1,0)）：父腿 600 L + 短差子腿 300 S（parent_id→根0）⟹ G_r0=900, A_r0=45e4, t0=1000。
+        // 根1（id (1,1)）：单腿 300 L ⟹ G_r1=300, A_r1=9e4, t1=600。
+        let root0 = ElementId { level: 1, ordinal: 0 };
+        let els = vec![
+            gce(1, 0, None, VoiceSide::Long),
+            gce(1, 1, None, VoiceSide::Long),
+            gce(0, 0, Some(root0), VoiceSide::Short),
+        ];
+        let mut legs = vec![
+            gleg(0, VoiceSide::Long, 600.0),
+            gleg(1, VoiceSide::Long, 300.0),
+            gleg(2, VoiceSide::Short, 300.0), // 根0 的子腿（分组沿 parent_id 归根0）
+        ];
+        let risk = RiskConfig { enforce_gross_cap: true, gamma: 0.6, ..RiskConfig::default() }; // Ḡ=600
+        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk);
+        // μ = (1200−600)/(900/1000+300/600) = 600/1.4 = 3000/7；c0 = 1−μ/1000 = 4/7；c1 = 1−μ/600 = 2/7。
+        assert!((legs[0].units - 600.0 * 4.0 / 7.0).abs() < 1e-9, "根0 父腿 ×4/7");
+        assert!((legs[2].units - 300.0 * 4.0 / 7.0).abs() < 1e-9, "根0 子腿同 c（子树内比率保持）");
+        assert!((legs[1].units - 300.0 * 2.0 / 7.0).abs() < 1e-9, "根1 ×2/7（非均匀：小子树缩更多）");
+        assert!((gross_target_units(&legs) - 600.0).abs() < 1e-9, "毛 = Ḡ（约束取等）");
+    }
+
+    /// water-filling 零化分支：cap 足够小时低阈值根被整体归零（c_r=0），高阈值根承接余量。
+    #[test]
+    fn gross_cap_waterfilling_zeroes_low_threshold_root() {
+        let els = vec![gce(1, 0, None, VoiceSide::Long), gce(1, 1, None, VoiceSide::Long)];
+        let mut legs = vec![gleg(0, VoiceSide::Long, 600.0), gleg(1, VoiceSide::Long, 300.0)];
+        let risk = RiskConfig { enforce_gross_cap: true, gamma: 0.2, ..RiskConfig::default() }; // Ḡ=200
+        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk);
+        // t0=1200, t1=600；全活 μ=700>600 ⟹ 根1 零化；重解 μ=800≤1200 ⟹ c0=1/3。
+        assert!((legs[0].units - 200.0).abs() < 1e-9, "高阈值根 600×1/3 = Ḡ");
+        assert_eq!(legs[1].units, 0.0, "低阈值根整体归零");
+        assert!((gross_target_units(&legs) - 200.0).abs() < 1e-9);
+    }
+
+    /// 边界：Ḡ=0（γ=0）⟹ 全腿归零（毛可行集退化 {0}）；G≤Ḡ / G=0 ⟹ 逐位不动。
+    #[test]
+    fn gross_cap_boundary_zero_cap_and_no_trigger() {
+        let els = vec![gce(1, 0, None, VoiceSide::Long), gce(1, 1, None, VoiceSide::Short)];
+        // Ḡ=0：全零。
+        let mut legs = vec![gleg(0, VoiceSide::Long, 600.0), gleg(1, VoiceSide::Short, 300.0)];
+        let risk0 = RiskConfig { enforce_gross_cap: true, gamma: 0.0, ..RiskConfig::default() };
+        apply_gross_cap(&ElementView::new(&els), &mut legs, 1000.0, &risk0);
+        assert!(legs.iter().all(|l| l.units == 0.0), "Ḡ=0 ⟹ 全腿归零");
+        // G ≤ Ḡ：逐位不动（bit-exact ==，非近似）。
+        let orig = vec![gleg(0, VoiceSide::Long, 600.0), gleg(1, VoiceSide::Short, 300.0)];
+        let mut legs2 = orig.clone();
+        let risk2 = RiskConfig { enforce_gross_cap: true, gamma: 2.0, ..RiskConfig::default() }; // Ḡ=2000>900
+        apply_gross_cap(&ElementView::new(&els), &mut legs2, 1000.0, &risk2);
+        assert_eq!(legs2, orig, "未超限 ⟹ 不缩放（逐位相同）");
+        // G=0（空腿集）：no-op 不 panic。
+        let mut empty: Vec<LegTarget> = vec![];
+        apply_gross_cap(&ElementView::new(&els), &mut empty, 1000.0, &risk0);
+        assert!(empty.is_empty());
+    }
+
+    /// ★生产接线集成：coverage_step_from_buckets 默认路径（None / enforce=false）逐位不变；
+    /// enforce=true 且触发 ⟹ p̃ 被腿层毛约束压缩（净额折叠前，事后诊断门不可能做到）。
+    #[test]
+    fn gross_cap_integration_default_bit_exact_enabled_scales() {
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let buckets = Buckets {
+            close: vec![],
+            open: vec![
+                cand(0, 1, VoiceSide::Long, 0),
+                cand(1, 2, VoiceSide::Long, 1),
+                cand(2, 3, VoiceSide::Short, 2),
+            ],
+            record: vec![],
+        };
+        let els = flat_elements(&buckets.open);
+        // 基线（risk=None）：三根腿各 600 ⟹ 净 600+600−600=600，毛 1800。
+        let (_, p_none) =
+            coverage_step_from_buckets(view_split(&els, 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
+        assert!((p_none - 600.0).abs() < 1e-9);
+        // enforce_gross_cap=false（default）：与 None 逐位相同（约束未配置=不激活）。
+        let risk_off = RiskConfig::default();
+        let (_, p_off) = coverage_step_from_buckets(
+            view_split(&els, 0), &[], &buckets, 1000.0, &cfg(), Some(&risk_off), &reg,
+        );
+        assert_eq!(p_off, p_none, "default 不激活 ⟹ bit-exact");
+        // enforce=true, γ=0.9 ⟹ Ḡ=900 < 1800：三等根 c=0.5 ⟹ 净 600×0.5=300。
+        let risk_on = RiskConfig { enforce_gross_cap: true, gamma: 0.9, ..RiskConfig::default() };
+        let (_, p_on) = coverage_step_from_buckets(
+            view_split(&els, 0), &[], &buckets, 1000.0, &cfg(), Some(&risk_on), &reg,
+        );
+        assert!((p_on - 300.0).abs() < 1e-9, "毛约束在净额折叠前压缩 p̃");
+    }
+
     // ── §3 活动集递归原语（λ_e 区间，Lean M16 对齐——非生产入场，见 §3 GAP-5 note）已在上方测 ──
 
     /// ★扁平入口 from_classification_levels：从 Classification 的中枢提取根级覆盖元素
@@ -2764,6 +3068,7 @@ mod tests {
             pivot_high: 210,
             center: Some(ctr(0, si)),
             struct_break_dir: None,
+            force: None,
         }
     }
 
@@ -2776,6 +3081,7 @@ mod tests {
             pivot_high: 0,
             center: Some(ctr(0, si)),
             struct_break_dir: None,
+            force: None,
         }
     }
 
@@ -2788,7 +3094,7 @@ mod tests {
             open: vec![cand(0, 5, VoiceSide::Long, 0)],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
         assert_eq!(active.len(), 1, "ℬ_x 开启 ⟹ A_{{t+1}} 一条新腿");
         assert_eq!(active[0], aleg(0, VoiceSide::Long, 5, 5 ));
         // p̃ = 1000×w_depth(0)=1000×0.60=600（根 depth 0，多腿正号）。
@@ -2805,7 +3111,7 @@ mod tests {
             open: vec![],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[leg], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[leg], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(active.is_empty(), "𝒟_x 关闭活动腿 ⟹ A_{{t+1}} 空");
         assert_eq!(p, 0.0, "无活动腿 ⟹ p̃=0");
     }
@@ -2822,7 +3128,7 @@ mod tests {
             ],
             record: vec![],
         };
-        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
         assert_eq!(active.len(), 2);
         // 两腿同根 depth 0（w[0]=0.60）：Long +600，Short −600 ⟹ 净 0。
         assert!(p.abs() < 1e-9, "p̃ = +600 −600 = 0（方向净额聚合）");
@@ -2839,7 +3145,7 @@ mod tests {
             open: vec![cand(0, 9, VoiceSide::Long, 0)],  // 开 candC（level 0 Long）
             record: vec![],
         };
-        let (active, _p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[leg_a, leg_b], &buckets, 1000.0, &cfg(), &reg);
+        let (active, _p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[leg_a, leg_b], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(!active.contains(&leg_a), "legA 被 𝒟_x 关闭");
         assert!(active.contains(&leg_b), "legB（不在 𝒟_x）保留");
         assert!(
@@ -2860,7 +3166,7 @@ mod tests {
             aleg(2, VoiceSide::Short, 2, 2 ),
         ];
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
-        let (active, _p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &legs, &buckets, 1000.0, &cfg(), &reg);
+        let (active, _p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &legs, &buckets, 1000.0, &cfg(), None, &reg);
         assert_eq!(active.len(), 3, "扁平根全保留（AncOK 恒等——无父子可剔孤儿）");
         let reg = super::super::persistent::PersistentRegistry::new();
     }
@@ -2876,7 +3182,7 @@ mod tests {
             open: vec![cand(1, 3, VoiceSide::Short, 0)],
             record: vec![],
         };
-        let _ = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &prev, &buckets, 1000.0, &cfg(), &reg);
+        let _ = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
         assert_eq!(prev, snapshot, "桶驱动递归不 mutate prev_active（纯函数）");
     }
 
@@ -2889,7 +3195,7 @@ mod tests {
             open: vec![],
             record: vec![cand(0, 7, VoiceSide::Long, 0)], // 𝒦_x：记录不执行
         };
-        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(active.is_empty(), "𝒦_x 不入活动集");
         assert_eq!(p, 0.0);
     }
@@ -2899,7 +3205,7 @@ mod tests {
     fn buckets_empty_yields_empty_and_zero() {
         let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
         let reg = super::super::persistent::PersistentRegistry::new();
-        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&flat_elements(&buckets.open), 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(active.is_empty());
         assert_eq!(p, 0.0);
     }
@@ -2916,13 +3222,14 @@ mod tests {
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
+            force: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
         };
         // 空 A_t：买候选开启 ⟹ A_{t+1} 一条 Long 腿，p̃ = 600。
         // 空塔（tower &[]）⟹ 候选父=∂ ⟹ Ambient（与扁平一致）；本测试只验开腿/p̃，角色不约束。
-        let (active, p) = coverage_step_classification(&classification, &[], &[], 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_classification(&classification, &[], &[], 1000.0, &cfg(), None, &reg);
         assert_eq!(active.len(), 1, "买点 ℬ_x 开启 ⟹ 一条活动腿");
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert_eq!(active[0].source_index, 4);
@@ -2940,9 +3247,10 @@ mod tests {
             pivot_low: 90, pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
+            force: None,
         };
         let c_buy = Classification { levels: vec![LevelState { bsp: Rc::new(vec![buy]), ..Default::default() }] };
-        let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), &reg);
+        let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), None, &reg);
         assert_eq!(active_t1.len(), 1, "买点开 Long 腿");
         // bar t+1：卖点（反向）→ A_{t+1} 回喂 interpret ⟹ 关闭 Long 腿 ⟹ A_{t+2}=∅。
         let sell = BspPoint {
@@ -2951,9 +3259,10 @@ mod tests {
             pivot_low: 0, pivot_high: 210,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
+            force: None,
         };
         let c_sell = Classification { levels: vec![LevelState { bsp: Rc::new(vec![sell]), ..Default::default() }] };
-        let (active_t2, p2) = coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg(), &reg);
+        let (active_t2, p2) = coverage_step_classification(&c_sell, &[], &active_t1, 1000.0, &cfg(), None, &reg);
         assert!(active_t2.is_empty(), "反向卖点关闭持仓 Long（𝒟_x）⟹ A_{{t+2}}=∅（闭环）");
         assert_eq!(p2, 0.0, "无活动腿 ⟹ p̃=0");
     }
@@ -2987,7 +3296,7 @@ mod tests {
         let buckets = interpret(&gamma, &[held_parent]);
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "持父仓 ⟹ ShortDiff 子腿准入（AncOK 祖先齐全）；实得 {active:?}"
@@ -3028,7 +3337,7 @@ mod tests {
         let buckets = interpret(&gamma, &[held_parent]);
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(
             active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "ID 匹配（确定性 ElementId）⟹ 延伸父仍在 raw ⟹ ShortDiff 子腿准入（Q4 假阴性消除）；实得 {active:?}"
@@ -3065,7 +3374,7 @@ mod tests {
             "候选携非空真 Compose 父指针（AncOK 剪枝的前提是父存在但未持，非父=None）"
         );
         let reg = super::super::persistent::PersistentRegistry::new();
-        let (active, p) = coverage_step_from_buckets(view_split(&elements, cstart), &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&elements, cstart), &[], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(
             active.is_empty(),
             "未持父 ⟹ ShortDiff 子腿被 AncOK 剪枝（639(c)：不开 naked 逆势仓）；实得 {active:?}"
@@ -3086,7 +3395,7 @@ mod tests {
         let gamma = assemble_gamma_with_tower(&classification, &tower);
         assert_eq!(gamma[0].role.v, Vertical::Ambient, "缺塔 ⟹ 候选父=∂ ⟹ Ambient 根");
         let buckets = interpret(&gamma, &[]); // 空持仓
-        let (active, p) = coverage_step_from_buckets(view_split(&elements, cstart), &[], &buckets, 1000.0, &cfg(), &reg);
+        let (active, p) = coverage_step_from_buckets(view_split(&elements, cstart), &[], &buckets, 1000.0, &cfg(), None, &reg);
         assert_eq!(active.len(), 1, "Ambient 根腿无父要求 ⟹ 空持仓也准入");
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert!((p - 600.0).abs() < 1e-9, "根 depth 0 ⟹ p̃=base×w[0]=600");
@@ -3120,7 +3429,7 @@ mod tests {
         assert!(buckets.close.iter().any(|l| l.level == 1), "L1 卖反向关闭 L1 Long 父腿（𝒟_x）");
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, _p) =
-            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[held_parent], &buckets, 1000.0, &cfg(), None, &reg);
         assert!(
             !active.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "父腿同 bar 关闭 ⟹ ShortDiff 子腿连带剪枝（覆盖不漂浮）；实得 {active:?}"
@@ -3156,7 +3465,7 @@ mod tests {
         };
         // ★空 prev_active：无外部预注入持仓父腿（死循环场景）。
         let (active, _p) =
-            coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), &reg);
+            coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), None, &reg);
         // 自举后：L1 容器腿开（其 BSP 确认）+ L0 ShortDiff 子腿准入（父=L1 容器在 raw）。
         assert!(
             active.iter().any(|l| l.level == 1),
@@ -3182,7 +3491,7 @@ mod tests {
             levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active, p) =
-            coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), &reg);
+            coverage_step_classification(&classification, &tower, &[], 1000.0, &cfg(), None, &reg);
         assert!(
             active.is_empty(),
             "无容器 BSP ⟹ ShortDiff 子腿仍剪枝（自举不膨胀，639(c) 保护）；实得 {active:?}"
@@ -3223,7 +3532,7 @@ mod tests {
             ],
         };
         let (active1, _p1) =
-            coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), &reg);
+            coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), None, &reg);
         assert!(
             active1.iter().any(|l| l.level == 1),
             "bar1：L1 容器 BSP ⟹ 容器腿开（§8 σ_r 持仓根）；实得 {active1:?}"
@@ -3238,7 +3547,7 @@ mod tests {
             levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active2, _p2) =
-            coverage_step_classification(&bar2, &tower, &active1, 1000.0, &cfg(), &reg2);
+            coverage_step_classification(&bar2, &tower, &active1, 1000.0, &cfg(), None, &reg2);
         // 持仓容器腿（prev_active）= L0 子腿真 Compose 父在 A_t ⟹ AncOK 准入 depth>0 子腿。
         assert!(
             active2.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
@@ -3276,7 +3585,7 @@ mod tests {
             ],
         };
         let (active1, _p1) =
-            coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), &reg);
+            coverage_step_classification(&bar1, &tower, &[], 1000.0, &cfg(), None, &reg);
         let (elements1, _c1) =
             super::super::interp::coverage_elements_with_tower(&bar1, &tower);
         let reg2 = reg.merge(&elements1, &active1);
@@ -3287,7 +3596,7 @@ mod tests {
             levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active2, _p2) =
-            coverage_step_classification(&bar2, &tower, &[], 1000.0, &cfg(), &reg2);
+            coverage_step_classification(&bar2, &tower, &[], 1000.0, &cfg(), None, &reg2);
         assert!(
             active2.iter().any(|l| l.level == 0 && l.dir == VoiceSide::Short),
             "bar2：L0 ShortDiff 子腿借 registry-live 父 carrier（非持仓腿）经 open 父注入准入 depth>0；实得 {active2:?}"
@@ -3356,7 +3665,7 @@ mod tests {
             levels: vec![LevelState { bsp: Rc::new(vec![sell_bsp(8)]), ..Default::default() }],
         };
         let (active, p) =
-            coverage_step_classification(&bar, &tower, &[], 1000.0, &cfg(), &reg);
+            coverage_step_classification(&bar, &tower, &[], 1000.0, &cfg(), None, &reg);
         assert!(
             active.is_empty(),
             "父 carrier 不在 registry ⟹ open 父注入不恢复 ⟹ 子腿仍剪枝（非膨胀）；实得 {active:?}"
@@ -3390,7 +3699,7 @@ mod tests {
         let buckets = interpret(&gamma, &[stale_non_root]);
         let reg = super::super::persistent::PersistentRegistry::new();
         let (active, p) =
-            coverage_step_from_buckets(view_split(&elements, cstart), &[stale_non_root], &buckets, 1000.0, &cfg(), &reg);
+            coverage_step_from_buckets(view_split(&elements, cstart), &[stale_non_root], &buckets, 1000.0, &cfg(), None, &reg);
         // Stale 非边界根 ⟹ prune（不入 raw）⟹ 不在 A_{t+1}。
         assert!(
             !active.iter().any(|l| l.id == eid(99, 99)),
@@ -3549,6 +3858,7 @@ mod tests {
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
+            force: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
@@ -3576,6 +3886,7 @@ mod tests {
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
             struct_break_dir: None,
+            force: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
@@ -3652,6 +3963,7 @@ mod tests {
             pivot_low: 0, pivot_high: 210,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 }),
             struct_break_dir: None,
+            force: None,
         };
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![sell]), ..Default::default() }],
@@ -3720,12 +4032,12 @@ mod tests {
                 hits += 1;
             }
             let (next_with, p_with) =
-                coverage_step_prebuilt(work_with, &gamma, &prev_with, 1000.0, &voice, &reg_with);
+                coverage_step_prebuilt(work_with, &gamma, &prev_with, 1000.0, &voice, None, &reg_with);
 
             // without：不注入 ⟹ fallback 现建（旧路径）。
             let work_without = ElementView::from_parts(&tree, candidates);
             let (next_without, p_without) =
-                coverage_step_prebuilt(work_without, &gamma, &prev_without, 1000.0, &voice, &reg_without);
+                coverage_step_prebuilt(work_without, &gamma, &prev_without, 1000.0, &voice, None, &reg_without);
 
             assert_eq!(
                 next_with, next_without,

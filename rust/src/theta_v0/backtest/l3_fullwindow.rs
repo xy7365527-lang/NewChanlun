@@ -453,6 +453,7 @@ fn instrument_bar(
         prev_active,
         base_units,
         &cfg.voice,
+        Some(&cfg.risk), // 探针走生产路径（675号：不 fork 坐标）——default 不激活毛约束，bit-exact
         registry,
     );
     let (elements, candidate_start) =

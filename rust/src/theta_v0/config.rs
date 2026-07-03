@@ -154,6 +154,12 @@ pub struct RiskConfig {
     /// （n=1 无方差=无 LCB 证据，拒绝是 p25 正确语义，非回归）。frozen 默认 chi_theta=None 不走此路。
     /// >0 启用置信下界收缩。Θ_risk 参数（非缠论可导）。
     pub chi_z_alpha: f64,
+    /// K_Θ 毛头寸约束激活开关（G7，codex #122 终裁 + codex decide 5b46）。`false`（default）⟹
+    /// 不激活（frozen Θ v0 bit-exact——净持仓约束照旧，毛敞口不设上限）；`true` ⟹ legs 折叠成净
+    /// 持仓**之前**施加毛敞口上限 `Σ|s_e| ≤ γ·U_ℓ`（strict §11「毛+净必须同时约束」，缩放语义 =
+    /// 逐根子树 KKT 投影，见 coverage.rs `apply_gross_cap`）。毛 cap **复用** `gamma`（与净 cap
+    /// 共用同一 Θ_risk 参数，#122 裁定暂不拆 gross_gamma/net_gamma）。
+    pub enforce_gross_cap: bool,
 }
 
 impl Default for RiskConfig {
@@ -166,6 +172,7 @@ impl Default for RiskConfig {
             default_lot: 1,
             chi_theta: None,
             chi_z_alpha: 0.0,
+            enforce_gross_cap: false,
         }
     }
 }
@@ -285,6 +292,7 @@ mod tests {
         assert_eq!(c.risk.kappa, 2.0);
         assert_eq!(c.risk.default_lot, 1);
         assert_eq!(c.risk.chi_theta, None); // frozen：默认 χ≡1 全覆盖（无阈值过滤，task #41）
+        assert!(!c.risk.enforce_gross_cap); // frozen：毛头寸约束默认不激活（G7 约束未配置=不激活）
         assert_eq!(c.exec.entry_delay_bars, 1);
         assert_eq!(c.exec.commission_bps, 1.0);
         assert_eq!(c.exec.slippage_bps, 2.0);
