@@ -305,6 +305,23 @@ mod tests {
         assert_eq!(b1.sel_key(), b2.sel_key());
     }
 
+    /// ★#100 问题① 验收（多个包含父候选）：J_child⊂J_a ∧ J_child⊂J_b——Sel_Θ（`select_best`/
+    /// `sel_order`）从多个包含父中选**唯一且 bit-exact**（重排候选集选出同键，确定性选择器可复现）。
+    #[test]
+    fn sel_theta_unique_among_multiple_containing_parents() {
+        let child = interval(50, 40, 0);
+        // 两父都包含 child（is_sub(child, a) ∧ is_sub(child, b)），三键不同。
+        let j_a = interval(80, 20, 3);
+        let j_b = interval(90, 10, 7);
+        assert!(is_sub(&child, &j_a));
+        assert!(is_sub(&child, &j_b));
+        // Sel_Θ 选唯一（end_time 大优先 ⟹ j_b 90>80）。
+        let best = select_best(&[j_a, j_b]).unwrap();
+        assert_eq!(best, j_b);
+        // bit-exact 可复现：重排候选集选出同键。
+        assert_eq!(select_best(&[j_b, j_a]).unwrap().sel_key(), best.sel_key());
+    }
+
     #[test]
     fn is_sub_nesting_bit_exact() {
         // inner [start>=, end<=] 套在 outer 内。

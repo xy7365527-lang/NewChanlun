@@ -1334,6 +1334,28 @@ mod tests {
         assert!(is_sub(&cert.rungs[1].interval, &cert.rungs[0].interval), "J1⊆J2");
     }
 
+    /// ★#100 问题① 验收（边界等号 source==end(m)）：上级 rung 的 end 恰等于 source_index——
+    /// 旧「端点相等」（`find_move_by_end_index`）与新「区间包含」（`build_nest_certificate`）口径
+    /// **定位到同一段**（新口径是旧口径的真扩展，边界重合处一致，非分歧）。
+    #[test]
+    fn nest_boundary_source_equals_end_both_criteria_agree() {
+        use super::super::super::classifier::recursive_tower::find_move_by_end_index;
+        let src = 50usize;
+        let tower: Vec<Rc<Vec<LeveledMove>>> = vec![
+            Rc::new(vec![xzd_seg(40, 50)]),  // exec：end==src
+            Rc::new(vec![xzd_seg(10, 50)]),  // J1：end==src（边界等号）
+        ];
+        let hist: Vec<f64> = vec![];
+        let bits = BspBits { buy1: true, ..Default::default() };
+        // 旧端点相等口径定位到 tower[1] move[0]（end==src）。
+        assert_eq!(find_move_by_end_index(&tower[1], src), Some(0));
+        // 新区间包含口径定位到同一段——rung interval == tower[1][0]，且 end_time==src（与旧一致）。
+        let cert = build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist).expect("定位成功");
+        assert_eq!(cert.rungs.len(), 1);
+        assert_eq!((cert.rungs[0].interval.start_time, cert.rungs[0].interval.end_time), (10, 50));
+        assert_eq!(cert.rungs[0].interval.end_time, src as u64, "边界等号：新口径与旧端点相等一致");
+    }
+
     /// C2 跨条目（codex §6-1）：Type3-only 信号自身无 buy2，须在同级列表查共生 B2 条目。
     #[test]
     fn xzd_c2_cross_entry_finds_cobsp_second() {
