@@ -3176,18 +3176,22 @@ mod tests {
     /// ⟹ 父=胚元 σ=0，V 恒 Ambient（无 FollowParent/ShortDiff，短差需真 Compose 塔，用 extract_elements）。
     #[test]
     fn from_classification_levels_flat_root_coverage() {
+        use super::super::super::classifier::decompose::{MoveBlock, MoveStatus};
         use super::super::super::classifier::{Classification, LevelState};
         use super::super::super::types::MoveKind;
+        let blk = |kind: MoveKind| MoveBlock {
+            start_center: 0, end_center: 0, kind, dir: None, status: MoveStatus::Active,
+        };
         // L0 一个中枢（盘整），L1 一个中枢（盘整）——两个根级覆盖元素（同级兄弟，无父子）。
         let classification = Classification {
             levels: vec![
                 LevelState {
-                    moves: vec![MoveKind::Consolidation],
+                    moves: vec![blk(MoveKind::Consolidation)],
                     centers: Rc::new(vec![ctr(0, 12)]),
                     ..Default::default()
                 },
                 LevelState {
-                    moves: vec![MoveKind::Trend],
+                    moves: vec![blk(MoveKind::Trend)],
                     centers: Rc::new(vec![ctr(0, 30)]),
                     ..Default::default()
                 },

@@ -19,7 +19,7 @@
 //! - **第一类**（B1/S1）：reference:34 + `Origin.BspClassification.IsType1 = brokeCenter ∧
 //!   IsDivergence(divPair)`。**第一类 = 趋势背驰点**（A/B/C 框架，第24课:22-24 + maimai.md:103-112）。
 //!   三分量分层：
-//!   · **走势类型 τ 门控**（`trend_class`）：第一类**只由趋势背驰产生**——L0 中枢序列 ≥2 全链同向
+//!   · **局部趋势门**（`decompose`+`center_trend_gate`，task #143）：第一类**只由趋势背驰产生**——段所在走势类型块 ≥2 同向中枢
 //!     ⟹ Trend(方向)，才产第一类；1 中枢（盘整）/mixed（扩张）**不产**（盘整背驰不产第一类，
 //!     beichi #4 + maimai.md:56 已结算）。**L0**（中枢同向外缘关系，纯整数几何）。这是「假背驰=
 //!     假买卖点」头号缺口的修复——退化实现跳过 τ 门控，单中枢/任意段都产第一类=噪声。
@@ -78,11 +78,13 @@
 
 use super::super::config::MacdConfig;
 use super::super::types::{Center, Direction, Segment, Side, Tick};
+#[cfg(test)]
+use super::super::types::MoveKind;
 // Side 已在上行 import（judge_first_cached 用它构造 BspPoint.struct_break_dir，P2-R2）。
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
+use super::decompose::{center_trend_gate, decompose};
 use super::divergence::{
-    compute_macd, force_features, locate_trend_seg_a, trend_class, AbcDivergence, ForceProxies,
-    TrendClass,
+    compute_macd, force_features, locate_trend_seg_a, AbcDivergence, ForceProxies,
 };
 use super::super::types::BspBits;
 use super::descend::RMove;
@@ -227,7 +229,7 @@ fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize) -> Option<
 ///   C段面积 < A段面积（底背驰）⟹ 1 买。
 /// - **1卖**：上涨趋势（τ=Trend(Up)）镜像——向上端点 `> last_center.zg`，顶背驰 ⟹ 1 卖。
 ///
-/// ★τ 门控（消解假背驰=假买卖点头号缺口）：调用方（[`extract_signals`]）已用 `trend_class`
+/// ★τ 门控（消解假背驰=假买卖点头号缺口）：调用方（[`extract_signals`]）已用局部趋势门（decompose，#143）
 /// 确认 τ=Trend 才判第一类；`trend_dir`（趋势方向）= τ 的方向，破中枢方向必须与趋势方向一致
 /// （下跌趋势=向下破=底背驰；上涨趋势=向上破=顶背驰）——盘整（Consolidation）/退化（mixed/扩张）
 /// **不产第一类**（盘整背驰不产第一类，beichi #4 + maimai.md:56 已结算）。
@@ -520,7 +522,7 @@ pub fn extract_second_signals(
 /// 已确认结构不回写，时间序天然升序）。
 ///
 /// ★第一类 = 趋势背驰（A/B/C 框架，第24课:22-24 + maimai.md:103-112，消解 grammar-audit 头号缺口）：
-/// 本函数在 L0 层从 `centers` 派生走势类型 τ（[`trend_class`]），**只在 τ=Trend 时产第一类**——
+/// 本函数在 L0 层从 `centers` 派生走势类型分解（[`decompose`]，Q1/Q8），**只在段所在块为 Trend 时产第一类**——
 /// A 段 = 倒数第二中枢离开段，C 段 = 破最后中枢段，C段面积<A段面积（跨相邻中枢配对，非退化的「任意
 /// 前同向段」）。盘整（Consolidation）/退化（mixed/扩张）τ **不产第一类**（盘整背驰不产第一类，
 /// beichi #4 + maimai.md:56 已结算）。这是「假背驰=假买卖点」头号缺口的修复点。
@@ -621,14 +623,14 @@ pub fn extract_signals_with_hist(
         &centers_owned
     };
 
-    // ★走势类型 τ 门控（A/B/C 框架，第一类只在趋势背驰产）：从全 L0 中枢序列派生 τ。≥2 全链同向
-    // ⟹ Trend(方向)，产第一类（趋势背驰）；1 中枢 ⟹ Consolidation（盘整背驰不产第一类）；mixed/
-    // 扩张/0 中枢 ⟹ Degenerate（不产第一类）。reference:34「趋势≥两同向中枢后」+ maimai.md:105。
-    let tau = trend_class(&centers_sorted);
-    let trend_dir = match tau {
-        TrendClass::Trend(d) => Some(d),
-        TrendClass::Consolidation | TrendClass::Degenerate => None, // 非趋势 ⟹ 不产第一类
-    };
+    // ★局部趋势门（Q1/Q8 裁决，task #143）：τ 从「全历史累积链 AllTrend」（吸收锁死谓词，
+    // PDF §2 + 外审漏斗坐实）换为「段当时所在走势类型块」。分解块前缀稳定（decompose.rs 模块头）
+    // ⟹ 批式逐段查表 = 因果判定：段的最近已确认中枢 c 在其当时的当前块中恒为尾中枢；
+    // gate[pos]=Some(d) ⟺ 该块为 Trend(d) 且 pos>块首（prev=pos-1 同块前驱，A 段所在，PDF §7）。
+    // 盘整/扩张 run 内不产第一类（盘整背驰承接路由归 #145；「刚完成趋势块」时限窗口归 #144）。
+    let blocks = decompose(centers_sorted);
+    let center_gate = center_trend_gate(centers_sorted.len(), &blocks);
+    let any_trend = center_gate.iter().any(|g| g.is_some());
 
     // ★单趟扫描（消解旧 `for c in centers` 对前驱中枢重复产出，codex 裁决 2026-06-27）：每个线段端点
     // 只相对其**最近已确认中枢**（"当下之前最后一个中枢"，第18课定理三「该中枢」+ 第49课）判第一/三
@@ -653,7 +655,7 @@ pub fn extract_signals_with_hist(
     // 分配（空表从不被 get 查询 ⟹ 逐位恒等 bit-exact；仅趋势 τ 才产第一类，非趋势无第一类路径）。
     let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
         std::collections::HashMap::new();
-    if trend_dir.is_some() {
+    if any_trend {
         first_match_idx.reserve(centers_sorted.len());
         for (idx, c) in centers_sorted.iter().enumerate() {
             // 仅在 key 不存在时插入 ⟹ 首匹配（最小 idx）胜出，与旧 `.position()` 逐位一致。
@@ -677,15 +679,15 @@ pub fn extract_signals_with_hist(
         };
         let c = &centers_sorted[c_idx];
 
-        // 第一类（趋势背驰，A/B/C 框架）：仅趋势 τ + 破最后中枢段触发。
-        // last_center = c（该段最近中枢="最后一个中枢"，maimai.md:103）；prev_center = c 的相邻
-        // 前一中枢（趋势的倒数第二中枢，A 段所在）。τ 已确认 ≥2 全链同向 ⟹ c 必有前驱中枢。
-        if let Some(dir) = trend_dir {
+        // 第一类（趋势背驰，A/B/C 框架）：仅段所在趋势块 + 破最后中枢段触发（Q8：「最后一个
+        // 中枢」= 当前走势类型的最后中枢 = c）；prev_center = pos-1（同块前驱，A 段所在）。
+        // center_gate[pos]=Some ⟹ pos > 块首 ≥ 0 ⟹ 前驱存在且同块。
+        if any_trend {
             // 热点①修复：`pos` 由 `first_match_idx` O(1) 查表给出（首匹配下标，bit-exact 等价旧
             // `.position()`），替代旧 `centers.iter().position(...)` O(C) 线性反查。`c`（last_center）
             // 仍取 `centers_sorted[c_idx]`（最近中枢语义正确）。
             if let Some(&pos) = first_match_idx.get(&(c.end_index, c.zd, c.zg)) {
-                if pos >= 1 {
+                if let Some(dir) = center_gate[pos] {
                     let prev_center = &centers_sorted[pos - 1];
                     // 热点②修复：A 段按 last_center_idx=c_idx 缓存（与 C 段 `seg` 无关，见 a_seg_cache
                     // 注释）。首次 miss 才调 `locate_trend_seg_a` O(S)，后续 hit O(1) 复用——消解每段
@@ -732,15 +734,18 @@ pub fn extract_signals_with_hist(
 /// 尾部 parity 断言：漏斗幸存数须与生产提取输出逐一相等（分叉即 panic，不产生伪计数）。
 #[cfg(test)]
 pub(crate) struct Type1Funnel {
-    pub tau: TrendClass,
+    /// 分解块统计（task #143：AllTrend τ 已删，改报趋势/盘整块数 + 最长趋势 run 跨中枢数）。
+    pub n_trend_blocks: usize,
+    pub n_consol_blocks: usize,
+    pub longest_trend_run: usize,
     pub n_centers: usize,
     pub n_segments: usize,
     /// 环1：有「最近已确认中枢」的段数（候选评估入口）。
     pub s_with_center: usize,
-    /// 环2：趋势门开（τ=Trend）时评估的段数。
-    pub s_gate_open: usize,
-    /// 环3：last_center 有前驱中枢（pos≥1，即 ≥2 中枢可配 A/B/C）。
+    /// 环2：last_center 有前驱中枢（pos≥1，即 ≥2 中枢可配 A/B/C）。
     pub s_pos_ge1: usize,
+    /// 环3：局部趋势门开（center_gate[pos]=Some，段所在块为 Trend 且 pos>块首）⊆ 环2。
+    pub s_gate_open: usize,
     /// 环4：C 段破最后中枢几何成立（方向=趋势方向 ∧ 端点越 zd/zg）。
     pub s_broke: usize,
     /// 环5：A 段可配对（locate_trend_seg_a=Some）。
@@ -760,13 +765,17 @@ pub(crate) fn type1_funnel_dx(
     closes_tick: &[Tick],
     close_src: &[usize],
 ) -> Type1Funnel {
-    let tau = trend_class(centers);
-    let trend_dir = match tau {
-        TrendClass::Trend(d) => Some(d),
-        TrendClass::Consolidation | TrendClass::Degenerate => None,
-    };
+    let blocks = decompose(centers);
+    let center_gate = center_trend_gate(centers.len(), &blocks);
     let mut f = Type1Funnel {
-        tau,
+        n_trend_blocks: blocks.iter().filter(|b| b.kind == MoveKind::Trend).count(),
+        n_consol_blocks: blocks.iter().filter(|b| b.kind == MoveKind::Consolidation).count(),
+        longest_trend_run: blocks
+            .iter()
+            .filter(|b| b.kind == MoveKind::Trend)
+            .map(|b| b.end_center - b.start_center + 1)
+            .max()
+            .unwrap_or(0),
         n_centers: centers.len(),
         n_segments: segments.len(),
         s_with_center: 0,
@@ -789,14 +798,14 @@ pub(crate) fn type1_funnel_dx(
             continue;
         };
         f.s_with_center += 1;
-        let Some(dir) = trend_dir else { continue };
-        f.s_gate_open += 1;
         let c = &centers[c_idx];
         let Some(&pos) = first_match_idx.get(&(c.end_index, c.zd, c.zg)) else { continue };
         if pos < 1 {
             continue;
         }
         f.s_pos_ge1 += 1;
+        let Some(dir) = center_gate[pos] else { continue };
+        f.s_gate_open += 1;
         // broke 几何（judge_first_cached :274-283 同判据同顺序）。
         let end = seg_end(seg);
         let broke = match (end.dir, dir) {
@@ -1602,10 +1611,11 @@ mod tests {
     }
 #[test]
 fn diag_first_buy() {
-    use super::super::divergence::{compute_macd, segment_macd_area, locate_trend_seg_a, trend_class, TrendClass};
+    use super::super::divergence::{compute_macd, segment_macd_area, locate_trend_seg_a};
+    use super::super::decompose::decompose;
     let c0 = Center { zd:300, zg:400, dd:290, gg:410, start_index:0, end_index:2 };
     let c1 = Center { zd:100, zg:200, dd:90, gg:210, start_index:0, end_index:8 };
-    println!("tau = {:?}", trend_class(&[c0, c1]));
+    println!("blocks = {:?}", decompose(&[c0, c1]));
     let prices: Vec<Tick> = vec![300,300,300,300,200,400,250,280,260,150,145,155];
     let closes: Vec<f64> = prices.iter().map(|&v| v as f64).collect();
     let src: Vec<usize> = (0..prices.len()).collect();
@@ -1774,21 +1784,21 @@ fn diag_first_buy() {
         sorted.sort_by_key(|s| s.start_index);
         let mut centers_sorted: Vec<Center> = centers.to_vec();
         centers_sorted.sort_by_key(|c| c.end_index);
-        let tau = trend_class(&centers_sorted);
-        let trend_dir = match tau {
-            TrendClass::Trend(d) => Some(d),
-            TrendClass::Consolidation | TrendClass::Degenerate => None,
-        };
+        // task #143：oracle 门与生产同步换局部趋势门（本 oracle 守卫热点①②的 O(n) 优化等价性，
+        // 非门语义快照——保留 naive .position() 反查与每段 locate_trend_seg_a 重算）。
+        let blocks = decompose(&centers_sorted);
+        let center_gate = center_trend_gate(centers_sorted.len(), &blocks);
+        let any_trend = center_gate.iter().any(|g| g.is_some());
         let mut points = Vec::new();
         for (i, seg) in sorted.iter().enumerate() {
             let center_for_seg = nearest_confirmed_center(&centers_sorted, seg.start_index);
             if let Some(c) = center_for_seg {
-                if let Some(dir) = trend_dir {
+                if any_trend {
                     let last_pos = centers_sorted
                         .iter()
                         .position(|x| x.end_index == c.end_index && x.zd == c.zd && x.zg == c.zg);
                     if let Some(pos) = last_pos {
-                        if pos >= 1 {
+                        if let Some(dir) = center_gate[pos] {
                             let prev_center = &centers_sorted[pos - 1];
                             if let Some(p) = judge_first_orig(
                                 prev_center, c, dir, seg, &sorted, &hist, close_src,

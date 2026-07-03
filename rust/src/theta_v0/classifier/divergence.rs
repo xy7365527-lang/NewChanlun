@@ -22,7 +22,7 @@
 //!     一中枢**的离开段，C=相邻**后一中枢**的离开段（破中枢段）。C段面积 < A段面积 ⟹ 趋势背驰。
 //!   · **盘整背驰**（[`consolidation_divergence`]）：τ=Consolidation（恰 1 中枢，zoushi.md:107）。
 //!     A、C 是**同一中枢**的两次同向离开段（第24课:34-36 + beichi.md:113）。C < A ⟹ 盘整背驰。
-//!   · **τ 门控**（[`trend_class`]）：复用 `center::classify_relation` 派生走势类型——
+//!   · **τ 门控**：已迁 decompose.rs（task #143 局部趋势门，复用 `center::classify_relation`）——
 //!     ≥2 全链同向 → Trend；1 中枢 → Consolidation；mixed/扩张 → 非趋势非盘整（不产第一类）。
 //!     第一类买卖点**只由趋势背驰产生**（盘整背驰不产第一类，beichi.md #4 + maimai.md:56 已结算）。
 //!
@@ -31,7 +31,7 @@
 //! MACD 是 v0 的**辅助**度量（结构前提优先）。MACD 浮点运算**隔离在本文件**，按固定
 //! 约简顺序计算，**不漏入整数 tick 域**（types.rs 的结构判定全在 i64）。背驰输出是
 //! bool（严格变小），bool 无浮点歧义——浮点只在内部面积比较时出现，且用严格 `<`。
-//! A/B/C 框架层的中枢关系判定（趋势门控）在**整数 tick 域**（`center::classify_relation`），
+//! A/B/C 框架层的中枢关系判定（趋势门控，decompose.rs）在**整数 tick 域**（`center::classify_relation`），
 //! 浮点只在力度原语层（面积比较）出现——两域不混。
 //!
 //! ## MACD(12,26,9) 算法（reference-theta-v0.md:37，固定约简顺序）
@@ -59,7 +59,6 @@
 
 use super::super::config::MacdConfig;
 use super::super::types::{Center, Direction, Segment, Tick};
-use super::center::{classify_relation, CenterRelation};
 
 /// MACD 逐 bar 输出（DIF/DEA/hist，浮点域，隔离在本结构）。
 #[derive(Debug, Clone, PartialEq)]
@@ -491,57 +490,6 @@ pub fn weak_theta(mode: WeakThetaMode, seg_a: &ForceFeatures, seg_c: &ForceFeatu
 // § B. A/B/C 趋势/盘整背驰框架层（第24课:22-24 + beichi.md v1.1 已结算）
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// 走势类型 τ（背驰门控，契约锚 `Origin.TrendCompleteClassification.TrendClass`）。
-///
-/// 比 `level::MoveOutcome` 轻量——本层只需区分背驰相关的三态：趋势（携方向，产趋势背驰=第一类）、
-/// 盘整（产盘整背驰，不产第一类）、退化（mixed/扩张/0中枢，不产任何背驰型买卖点）。逐分支对齐
-/// `classify_move`（level.rs），但本层独立计算（signal.rs 内从 `centers` 自派生，不改 mod.rs 签名）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrendClass {
-    /// 趋势（≥2 全链同向中枢，携方向）——产**趋势背驰**（第一类买卖点，reference:34）。
-    Trend(Direction),
-    /// 盘整（恰 1 中枢，zoushi.md:107）——产**盘整背驰**（不产第一类，beichi #4 已结算）。
-    Consolidation,
-    /// 退化（0 中枢 / 中枢非全链同向 = 扩张/方向混合）——不产趋势背驰也不产盘整背驰。
-    Degenerate,
-}
-
-/// 全链同向判定（契约锚 `Origin.CenterStates` 外缘趋势判据全链推广，对齐 level.rs `all_adjacent`）。
-///
-/// 中枢序列每对相邻中枢的 `classify_relation` 都等于 `rel`。趋势要求**全链**同向（非仅首两个）：
-/// `[up,up,扩张]` 或 `[up,down]` 不是趋势（第24课:22「否则就连成一个大趋势或大中枢」的反面=混合）。
-fn all_same_relation(rel: CenterRelation, centers: &[Center]) -> bool {
-    centers
-        .windows(2)
-        .all(|w| classify_relation(&w[0], &w[1]) == rel)
-}
-
-/// 从中枢序列派生走势类型 τ（背驰门控，第24课 + reference:34 + zoushi.md:107-109）。
-///
-/// - **0 中枢** → `Degenerate`（无中枢=未完成走势，无背驰对象）。
-/// - **1 中枢** → `Consolidation`（盘整定义，zoushi.md:107）。
-/// - **≥2 中枢全链上涨延续** → `Trend(Up)`；全链下跌延续 → `Trend(Down)`（reference:34
-///   「趋势≥两同向中枢」+ maimai.md:105-112「≥2个依次同向的同级别中枢」）。
-/// - **≥2 中枢非全链一致**（扩张/方向混合）→ `Degenerate`（第24课:22「连成大中枢」=级别扩张，
-///   本级非趋势非盘整，交父级；本层不产背驰）。
-///
-/// L0 纯整数几何（中枢外缘 dd/gg 比较），不依赖经验数据。
-pub fn trend_class(centers: &[Center]) -> TrendClass {
-    match centers.len() {
-        0 => TrendClass::Degenerate,
-        1 => TrendClass::Consolidation,
-        _ => {
-            if all_same_relation(CenterRelation::UpContinuation, centers) {
-                TrendClass::Trend(Direction::Up)
-            } else if all_same_relation(CenterRelation::DownContinuation, centers) {
-                TrendClass::Trend(Direction::Down)
-            } else {
-                TrendClass::Degenerate
-            }
-        }
-    }
-}
-
 /// A/B/C 背驰段对（第24课:22-24 走势级别三段；契约锚 `Origin.Divergence.DivergencePair`）。
 ///
 /// - `seg_a`：A 段（前一离开段）的 source_index 闭区间 `(start,end)`。
@@ -687,57 +635,6 @@ mod tests {
                 assert!(segment_macd_area(&m.hist, start, end) >= 0.0);
             }
         }
-    }
-
-    // ── § B. A/B/C 框架层：走势类型 τ 门控（trend_class）────────────────────────
-
-    #[test]
-    fn trend_class_zero_center_degenerate() {
-        // 0 中枢 → 退化（无走势对象，无背驰）。
-        assert_eq!(trend_class(&[]), TrendClass::Degenerate);
-    }
-
-    #[test]
-    fn trend_class_one_center_consolidation() {
-        // 1 中枢 → 盘整（zoushi.md:107）。盘整背驰可产，第一类不产。
-        let c = ctr(100, 200, 90, 210, 5);
-        assert_eq!(trend_class(&[c]), TrendClass::Consolidation);
-    }
-
-    #[test]
-    fn trend_class_two_up_centers_trend_up() {
-        // ≥2 全链上涨延续（后 dd > 前 gg）→ Trend(Up)（reference:34，maimai.md:112）。
-        let c0 = ctr(100, 200, 90, 210, 5);
-        let c1 = ctr(300, 400, 290, 410, 12); // c1.dd=290 > c0.gg=210 ⟹ 上涨延续
-        assert_eq!(trend_class(&[c0, c1]), TrendClass::Trend(Direction::Up));
-    }
-
-    #[test]
-    fn trend_class_two_down_centers_trend_down() {
-        // ≥2 全链下跌延续（后 gg < 前 dd）→ Trend(Down)（底背驰候选，1买）。
-        let c0 = ctr(300, 400, 290, 410, 5);
-        let c1 = ctr(100, 200, 90, 210, 12); // c1.gg=210 < c0.dd=290 ⟹ 下跌延续
-        assert_eq!(trend_class(&[c0, c1]), TrendClass::Trend(Direction::Down));
-    }
-
-    #[test]
-    fn trend_class_mixed_centers_degenerate() {
-        // ≥2 中枢非全链同向（c0→c1 上涨，c1→c2 扩张）→ 退化（第24课:22「连成大中枢」=级别扩张）。
-        // 第一类**不产**：mixed/扩张本级非趋势非盘整，交父级。这是 τ 门控的核心否决路径。
-        let c0 = ctr(100, 200, 90, 210, 5);
-        let c1 = ctr(300, 400, 290, 410, 12); // c0→c1 上涨延续
-        let c2 = ctr(350, 450, 250, 460, 20); // c1→c2：c2.dd=250 ≤ c1.gg=410 且 c2.gg=460 ≥ c1.dd=290 ⟹ 扩张
-        assert_eq!(classify_relation(&c1, &c2), CenterRelation::LevelExpansion);
-        assert_eq!(trend_class(&[c0, c1, c2]), TrendClass::Degenerate);
-    }
-
-    #[test]
-    fn trend_class_three_up_centers_trend_up() {
-        // ≥3 全链同向仍是趋势（趋势延伸，第24课:22「连成大趋势」=多中枢同向趋势）。
-        let c0 = ctr(100, 200, 90, 210, 5);
-        let c1 = ctr(300, 400, 290, 410, 12);
-        let c2 = ctr(500, 600, 490, 610, 20); // c2.dd=490 > c1.gg=410 ⟹ 续涨
-        assert_eq!(trend_class(&[c0, c1, c2]), TrendClass::Trend(Direction::Up));
     }
 
     // ── § B. A/B/C 框架层：趋势背驰 A 段定位（locate_trend_seg_a）─────────────────

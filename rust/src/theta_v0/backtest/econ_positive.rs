@@ -120,9 +120,9 @@ pub struct SignalDecomp {
     pub actual_pnl: f64,
     /// σ_higher：入场确认时**上级方向态**（tower_i[lvl+1] 末走势端点价符号派生，666 号 σ_higher 实验）。
     /// +1=上级走势净涨（Trend Up 等价）/ −1=净跌 / 0=持平或无上级层。
-    /// **可达性约束（不是补丁）**：上级层走势是 `RMove::Compose`（descend.rs:53），**无 direction 字段**，
-    /// 且 `LevelState.moves: Vec<MoveKind>` 的 `MoveKind::Trend` 也丢方向（不分 Up/Down）。走势裁决
-    /// `MoveOutcome::Trend(Direction)`（level.rs:37）内部有方向，但在信号收集作用域不可直接读。故取上级
+    /// **可达性约束（不是补丁）**：上级层走势是 `RMove::Compose`（descend.rs:53），**无 direction 字段**。
+    /// task #143 后 `LevelState.moves: Vec<MoveBlock>` 已携块方向（decompose.rs），但本实验冻结于端点
+    /// 净差口径（666 号已跑数），且信号收集作用域读的是 tower（非 LevelState）。故保留取上级
     /// LeveledMove 的 `start_index/end_index`（L0 原始 K 序端点，覆盖该走势全跨度）close 净差符号——
     /// 与 Trend(Up)⟺端点净涨语义等价，是该作用域的严格可达解。用于分离「δ 顺上级 vs 逆上级」alpha 归因。
     pub sigma_higher: i8,

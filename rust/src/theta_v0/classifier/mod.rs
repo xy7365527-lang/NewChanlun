@@ -43,7 +43,7 @@
 
 use super::config::ThetaConfig;
 use super::parser::ParseLayer;
-use super::types::{Center, Direction, MoveKind, Segment, Tick};
+use super::types::{Center, Direction, Segment, Tick};
 use divergence::MacdState;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -51,7 +51,7 @@ use std::rc::Rc;
 
 pub mod center;
 pub mod ref_v1;
-pub mod level;
+pub mod decompose;
 pub mod level_state;
 pub mod bsp;
 pub mod divergence;
@@ -67,7 +67,7 @@ pub mod cand_predicate;
 
 use bsp::BspPoint;
 use center::UnitRange;
-use level::{classify_move, outcome_to_kind, MoveOutcome};
+use decompose::{decompose, decompose_resume, MoveBlock};
 use recursive_tower::{
     compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units,
     ElementId, LeveledMove,
@@ -77,8 +77,10 @@ use super::types::Side;
 /// 单级别分类状态（R6 态 + 走势类型 + 中枢 + 买卖点）。
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct LevelState {
-    /// 该级别识别出的走势类型序列（Trend/Consolidation；HigherCenterCandidate 不入 moves）。
-    pub moves: Vec<MoveKind>,
+    /// 该级别的走势类型分解 C_ℓ = B₁⊕…⊕B_k（PDF §6，task #143）：maximal 同向趋势块/盘整块
+    /// 真序列（替代旧 AllTrend 全链裁决的 ≤1 元素投影）。链尾块 Active = Q8 CurrentMove；
+    /// 块携方向（econ_positive 旧注释抱怨的 MoveKind 丢方向由此消解）。
+    pub moves: Vec<MoveBlock>,
     /// ★A1（07c/08）：`Rc` 共享——增量塔 `lc.centers` 经 `Rc::clone`（O(1)）投影到 LevelState，
     /// 消除 per-bar per-level 全量 `centers.clone()`（A0 profile 坐实 08 段 1M=1.58s）。前缀不可变，
     /// 尾部经 `Rc::make_mut` 追加（caller 逐 bar drop 上轮 Classification ⟹ strong_count==1 ⟹ 原地
@@ -145,8 +147,8 @@ fn unit_to_segment(u: &UnitRange) -> Segment {
 ///
 /// 把级别-N 输入单元 `units`（承担「线段」角色）还原为 `Segment` 后**复用 L0 的
 /// [`signal::extract_signals_with_hist`]**——同一套逻辑，只换输入算子（is_l0 分支消失于领域层）：
-/// - **趋势门控**：内部 `trend_class(centers)` 与本级 [`classify_move`] 逐分支同构（level.rs `all_adjacent`
-///   ≡ divergence.rs `all_same_relation`，均经 `classify_relation`）⟹ 「一类只在该级 Trend(dir) 产」忠实。
+/// - **趋势门控**：内部 `decompose(centers)` 局部趋势门（Q1/Q8，task #143）与本级 [`classify_level`]
+///   同一 `decompose` 单一来源 ⟹ 「一类只在该级当前趋势块内产」忠实。
 /// - **A/C 段力度**：内部 `AbcDivergence`/`locate_trend_seg_a` 复用 divergence.rs 面积原语（与
 ///   `sublevel_diverges` 同族的 `segment_macd_area`/`is_divergence`）——**禁第二套力度引擎**满足。
 /// - **三类**：`judge_third` 在级别-N units（外缘区间）+ centers（几何中枢）的离开/回试关系上判定。
@@ -204,17 +206,18 @@ fn detect_centers_with(
         .collect()
 }
 
-/// 把一级走势单元序列规约为该级走势裁决 + 中枢（reference:29 `classifyMove`）。
+/// 把一级走势单元序列规约为该级走势类型分解 + 中枢（PDF §6，task #143，替代旧 AllTrend
+/// `classifyMove` 全链裁决——吸收锁死谓词，见 decompose.rs 模块头）。
 ///
-/// `is_l0`：L0 用完整判据（方向交替），上级用几何路径（外缘）。返回 `(中枢序列, 走势裁决)`。
-fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, MoveOutcome) {
+/// `is_l0`：L0 用完整判据（方向交替），上级用几何路径（外缘）。返回 `(中枢序列, 分解块序列)`。
+fn classify_level(units: &[UnitRange], is_l0: bool) -> (Vec<Center>, Vec<MoveBlock>) {
     let centers = if is_l0 {
         detect_centers_complete(units)
     } else {
         detect_centers_geometric(units)
     };
-    let outcome = classify_move(&centers);
-    (centers, outcome)
+    let blocks = decompose(&centers);
+    (centers, blocks)
 }
 
 /// Θ_level + Θ_signal 分类内部实现（`classify` / `classify_with_tower` 共享单一来源）。
@@ -275,10 +278,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
 
         // L0（level_idx==0）用完整判据（方向交替，线段有方向）；上级用几何路径（外缘，单元无方向）。
         let is_l0 = level_idx == 0;
-        let (centers, outcome) = classify_level(&units, is_l0);
-
-        // 走势裁决 → MoveKind（HigherCenterCandidate 退化态映 None，不入 moves）。
-        let moves: Vec<MoveKind> = outcome_to_kind(outcome).into_iter().collect();
+        let (centers, moves) = classify_level(&units, is_l0);
 
         // L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
         // 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。`upper_moves` 是携坐标的上级走势
@@ -335,8 +335,8 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
 ///
 /// ★边界条件：
 /// - L0 线段数 < `min_parts_per_level` ⟹ `levels` 仅含 L0（或为空，见下）—— 自然终止。
-/// - 任一级中枢序列裁决为 `HigherCenterCandidate`（退化）⟹ 该级 moves 不收录该裁决
-///   （outcome_to_kind → None），但中枢/bsp 仍保留（结构事实）。
+/// - 任一级走势分解（PDF §6）产出完整块序列进 moves（混合链不再是级别整体退化裁决，
+///   task #143——旧 AllTrend 的 HigherCenterCandidate 由多块序列吸收）。
 /// - 空 ParseLayer（无线段）⟹ `Classification::default()`（空 levels，无可构造级别）。
 pub fn classify(l0: &ParseLayer, config: &ThetaConfig) -> Classification {
     classify_impl(l0, config).0
@@ -377,7 +377,7 @@ pub fn classify_with_tower(
 // 中枢是不可变前缀，尾部追加续扫产出 bit-exact 尾部。
 //
 // **不在有效域**（诚实声明，no-声明膨胀）：
-// - `LevelState.moves`（走势裁决）：`classify_move(&centers)` 在完整 centers 序列上裁决趋势，
+// - `LevelState.moves`（走势分解）：`decompose(&centers)` 在完整 centers 序列上折块，
 //   尾部追加中枢可改变整体裁决 ⟹ 须每 bar 从累积 centers 全量裁决（非增量）。但裁决是 O(centers)
 //   单趟，不是超线性源。
 // - `LevelState.bsp`：依赖 MACD hist（每 bar 变）+ 完整 centers ⟹ 每 bar 全量重算。
@@ -411,7 +411,7 @@ use recursive_tower::{compose_level_resume, WindowScanCursor};
 /// - `scan_cursor.consumed`：本级窗口扫描退出断点（上次扫到此处，`units[..consumed]` 路径确定）。
 /// - `upper_moves`：本级已 compose 的上级走势序列（前缀不可变；尾部续扫追加）。
 /// - `last_input_len`：上次扫描时本级 `subs_moves`（= units）长度——再次进入时前缀须不大于此。
-/// - `cached_outcome`：上次 `classify_move` 结果（增量续算用，O(1) 续判新尾对）。
+/// - `decompose_state`：增量走势分解冻结前缀（sealed 关系折出的块，O(1)/bar 续折）。
 #[derive(Debug, Clone, Default)]
 struct LevelCache {
     scan_cursor: WindowScanCursor,
@@ -429,8 +429,9 @@ struct LevelCache {
     /// 守卫漏掉「长度不变/增长但末段值改写」的 frontier 变异。本快照逐值比对扫描区，变异 ⟹ 该级
     /// 缓存全量重置（anc.pdf §16：confirmed prefix immutable 可跳，frontier mutable 必须每 bar 重算）。
     cached_units: Vec<UnitRange>,
-    /// 增量 classify_move 缓存（None=未初始化；Some=对应 `centers` 当前序列的裁决）。
-    cached_outcome: Option<level::MoveOutcome>,
+    /// 增量走势分解状态（decompose.rs resume 单一来源；冻结不变量见其模块头——只折 sealed
+    /// 关系，临时尾关系每 bar 重折 ⟹ frontier 中枢改写/一次多产无需额外失效钩子）。
+    decompose_state: decompose::DecomposeState,
     /// BSP memo 缓存：上次提取的 BSP 序列（与 `cached_bsp_key` 配对）。
     cached_bsp: Rc<Vec<BspPoint>>,
     /// BSP memo guard key = (centers.len, upper_moves.len, segments.len[L0 only])。三者不变 ⟹
@@ -579,98 +580,6 @@ impl TowerCache {
         // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
         self.generation += 1;
     }
-}
-
-/// 增量走势裁决（bit-exact 等价于 `classify_move(centers)`，O(1) 续判）。
-///
-/// 利用 centers 前缀不可变 + `cached_outcome` 续算：
-/// - **HigherCenterCandidate（0 centers）→ 1 center**：Consolidation（首中枢=盘整）。
-/// - **Consolidation（1 center）→ 2 centers**：判首对关系，全 Up ⟹ Trend(Up)，全 Down ⟹
-///   Trend(Down)，否则 HigherCenterCandidate。
-/// - **Trend(rel) → +1 center**：判新尾对（倒数第二，末）关系==rel ⟹ 保持 Trend(rel)；
-///   否则 HigherCenterCandidate（全链同向破裂）。
-/// - **HigherCenterCandidate（≥2 centers，mixed）→ +1 center**：保持 HigherCenterCandidate
-///   （全链同向一旦破裂不可恢复——追加 center 不能修复已有的 mixed 对）。
-///
-/// bit-exact：与 `classify_move` 在相同 centers 序列上产出相同 `MoveOutcome`（全链同向判据一致）。
-/// `cached` 为 None 时全量计算首初始化（与 `classify_move` 一致），之后续判 O(1)。
-fn classify_move_incremental(
-    centers: &[Center],
-    cached: &mut Option<level::MoveOutcome>,
-) -> level::MoveOutcome {
-    use level::MoveOutcome;
-    use center::CenterRelation;
-
-    // 全量首初始化或 centers 回缩（centers.len() < 上次）⟹ 全量重算。
-    let need_full = cached.is_none()
-        || match cached {
-            Some(MoveOutcome::HigherCenterCandidate) => centers.len() <= 1,
-            Some(MoveOutcome::Consolidation) => centers.len() <= 1,
-            Some(MoveOutcome::Trend(_)) => centers.len() <= 1,
-            None => true,
-        };
-    if need_full {
-        let outcome = classify_move(centers);
-        *cached = Some(outcome);
-        return outcome;
-    }
-
-    let prev = cached.unwrap();
-    // 从 prev 状态 + prev 时的 centers 长度续算到当前 centers。
-    // prev 对应的 centers 长度推断：
-    //   HigherCenterCandidate(0) → len 0; Consolidation → len 1; Trend → len ≥2
-    //   HigherCenterCandidate(≥2 mixed) → len ≥2
-    // 但 HigherCenterCandidate 可能来自 0 或 ≥2 mixed。用 centers.len() 推断 prev_len。
-    // 简化：从 prev_len = centers.len() - (新增数) 续算。但增量只 +1~few centers。
-    // 更简单：直接全量重算 if prev 与当前 centers 长度推断不匹配。
-    //
-    // ★严格增量：从 prev_outcome + prev_centers_len 续算。prev_centers_len = centers 增长前的长度。
-    // 但 LevelCache 不存 prev_centers_len。故用 cached_outcome 的语义反推：
-    //   Consolidation ⟹ prev_len == 1; Trend ⟹ prev_len ≥ 2; HCC ⟹ prev_len == 0 或 ≥2.
-    // HCC 歧义：0 vs ≥2 mixed。0→1 是 Consolidation；≥2 mixed→+1 仍是 HCC。
-    // 用 centers.len() 判：如果 centers.len() == 1 且 prev 是 HCC ⟹ prev_len=0 ⟹ Consolidation.
-    // 如果 centers.len() >= 2 且 prev 是 HCC ⟹ prev_len≥2 mixed ⟹ 保持 HCC.
-    let outcome = match (prev, centers.len()) {
-        (MoveOutcome::HigherCenterCandidate, 1) => MoveOutcome::Consolidation,
-        (MoveOutcome::HigherCenterCandidate, _) => MoveOutcome::HigherCenterCandidate, // ≥2 mixed 保持
-        (MoveOutcome::Consolidation, 2) => {
-            // 首对关系：全 Up ⟹ Trend(Up)，全 Down ⟹ Trend(Down)，否则 HCC。
-            let rel = center::classify_relation(&centers[0], &centers[1]);
-            match rel {
-                CenterRelation::UpContinuation => MoveOutcome::Trend(Direction::Up),
-                CenterRelation::DownContinuation => MoveOutcome::Trend(Direction::Down),
-                _ => MoveOutcome::HigherCenterCandidate,
-            }
-        }
-        (MoveOutcome::Consolidation, _) => {
-            // len > 2 从 Consolidation 续算不应发生（Consolidation 仅 len==1）。
-            // 防御性：全量重算。
-            let o = classify_move(centers);
-            *cached = Some(o);
-            return o;
-        }
-        (MoveOutcome::Trend(dir), n) if n >= 2 => {
-            // Trend(rel) + 新尾 center：判新尾对（n-2, n-1）关系是否保持 rel。
-            let rel = center::classify_relation(&centers[n - 2], &centers[n - 1]);
-            let expected = match dir {
-                Direction::Up => CenterRelation::UpContinuation,
-                Direction::Down => CenterRelation::DownContinuation,
-            };
-            if rel == expected {
-                MoveOutcome::Trend(dir)
-            } else {
-                MoveOutcome::HigherCenterCandidate
-            }
-        }
-        _ => {
-            // 防御性：全量重算。
-            let o = classify_move(centers);
-            *cached = Some(o);
-            return o;
-        }
-    };
-    *cached = Some(outcome);
-    outcome
 }
 
 /// 增量 MACD hist 计算（231号纯性能，bit-exact 铁律）。
@@ -1041,7 +950,7 @@ pub mod oracle_probe {
 /// bit-identical：
 /// - `Classification.levels[k].centers`：增量累积的中枢序列 == 全量 `detect_centers`（resume bit-exact，
 ///   见 recursive_tower.rs 证明）。
-/// - `Classification.levels[k].moves`：从累积 centers 经 `classify_move` 裁决 == 全量裁决（同 centers 输入）。
+/// - `Classification.levels[k].moves`：从累积 centers 经 `decompose_resume` 续折 == 全量分解（resume 单一来源）。
 /// - `Classification.levels[k].bsp`：从累积 centers + segments/hist 经同口径提取 == 全量提取。
 /// - `tower_snapshots[k]`：本级 compose 前的 `moves_tower`，前缀来自缓存 + 尾部续扫 == 全量 compose。
 ///
@@ -1245,7 +1154,7 @@ pub fn classify_with_tower_incremental(
             // make_mut：若上 bar snapshot 仍持引用则写时复制再 clear（退化 bit-exact）；否则原地清。
             Rc::make_mut(&mut lc.upper_moves).clear();
             Rc::make_mut(&mut lc.centers).clear();
-            lc.cached_outcome = None;
+            lc.decompose_state.reset();
             Rc::make_mut(&mut lc.cached_bsp).clear();
             lc.cached_bsp_key = None;
             lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
@@ -1282,9 +1191,6 @@ pub fn classify_with_tower_incremental(
         // 为假 ⟹ 不 pop、从 resume_from(=上次start_i) 续扫（续进语义，仅不成立支推进过的区间）。
         let resume_start = lc.scan_cursor.resume_from;
         let had_emitted_window = lc.scan_cursor.resume_from < lc.scan_cursor.consumed;
-        // ★task #142 延伸语义：pop 前留存 frontier 中枢值——重扫后与 tail 首元素比对，判定
-        // cached_outcome 的 append-only 前提是否仍成立（延伸会改写 frontier 中枢值）。
-        let popped_center: Option<Center> = if had_emitted_window { lc.centers.last().copied() } else { None };
         if had_emitted_window {
             // pop 最后一个中枢（frontier 中枢，重扫会重新产出）——前缀不变量不破（pop 的是尾部）。
             debug_assert!(
@@ -1317,17 +1223,10 @@ pub fn classify_with_tower_incremental(
             oracle_probe::on_pop_rescan(tail_upper.len());
         }
 
-        // ★task #142：`classify_move_incremental` 的续判前提 = 「centers 不变或恰好追加 1 个、
-        // 已有元素值不变」。延伸语义下两种破口：(a) frontier 中枢 pop 后重扫**改值**（吸收了新
-        // 延伸段）——尾对关系可 Up/Down→Overlap 翻转且不止最后一对可查；(b) 一次重扫产出多个
-        // 中枢——中间新对不被单尾对续判覆盖。任一破口 ⟹ 置 None 走全量裁决（O(centers) 单趟，
-        // 增量有效域声明本就不含 moves 裁决，见模块头「不在有效域」）。
-        let frontier_changed =
-            popped_center.is_some_and(|pc| tail_centers.first() != Some(&pc));
-        let appended = tail_centers.len().saturating_sub(popped_center.is_some() as usize);
-        if frontier_changed || appended > 1 {
-            lc.cached_outcome = None;
-        }
+        // ★task #143：走势分解增量无需 frontier 失效钩子——decompose_resume 只冻结 sealed
+        // 关系（i < m-2，两端中枢均有后继），触 frontier 中枢的临时尾关系每 bar 重折。frontier
+        // pop 后重扫改值 / 一次重扫多产两种破口均被冻结不变量覆盖（decompose.rs 模块头 + 随机
+        // 事件流 parity 测试）。
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
         did_extend |= !tail_upper.is_empty();
         stage_profile::time("06_extend_centers_upper", || {
@@ -1347,9 +1246,8 @@ pub fn classify_with_tower_incremental(
         // bit-exact：snapshots 内容 == 全量版（Rc 指向的 Vec 值不变，仅所有权/引用计数变）。
         tower_snapshots.push(std::mem::take(&mut moves_tower));
 
-        // 走势裁决（增量续算：从 cached_outcome + 新尾对 O(1) 续判，与全量 classify_move bit-exact）。
-        let outcome = classify_move_incremental(&lc.centers, &mut lc.cached_outcome);
-        let moves: Vec<MoveKind> = outcome_to_kind(outcome).into_iter().collect();
+        // 走势分解（增量续折：resume 单一来源 ⟹ 与全量 decompose 定义性 bit-exact）。
+        let moves = decompose_resume(&lc.centers, &mut lc.decompose_state);
 
         // BSP 提取（同 classify_impl：L0 线段层 + 递归组装层）。
         // ★增量接入：传预计算 hist（从 cache 增量产出），避免 extract_signals 内部全量 compute_macd。
@@ -1700,6 +1598,7 @@ fn rmove_direction(m: &descend::RMove) -> Direction {
 
 #[cfg(test)]
 mod tests {
+    use super::super::types::MoveKind;
     use super::*;
     use super::super::parser::ParseLayer;
     use super::super::types::Direction;
@@ -1968,7 +1867,7 @@ mod tests {
         let out = classify(&layer, &cfg);
         eprintln!("[census] levels={}", out.levels.len());
         for (li, lv) in out.levels.iter().enumerate() {
-            let trend = lv.moves.iter().filter(|m| matches!(m, MoveKind::Trend)).count();
+            let trend = lv.moves.iter().filter(|m| m.kind == MoveKind::Trend).count();
             let (mut b1, mut s1, mut b2, mut s2, mut b3, mut s3) = (0, 0, 0, 0, 0, 0);
             for p in lv.bsp.iter() {
                 b1 += p.bits.buy1 as usize; s1 += p.bits.sell1 as usize;
@@ -2134,13 +2033,13 @@ mod tests {
             };
             let f = signal::type1_funnel_dx(&centers, &segs, &series.hist, &series.dif, &closes_tick, &close_src);
             eprintln!(
-                "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} tau={:?} | 锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
-                f.n_centers, f.n_segments, n_up, n_down, n_exp, f.tau,
-                lock_desc, runs_ge1, longest_run, longest_run + 1
+                "[funnel] L{level_idx}: centers={} segs={} rel(up/down/exp)={}/{}/{} blocks(trend/consol)={}/{} 最长趋势块={}中枢 | 旧AllTrend锁死点={} 局部同向run≥2中枢数={} 最长run={}(={}中枢)",
+                f.n_centers, f.n_segments, n_up, n_down, n_exp, f.n_trend_blocks, f.n_consol_blocks,
+                f.longest_trend_run, lock_desc, runs_ge1, longest_run, longest_run + 1
             );
             eprintln!(
-                "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1过趋势门={} → 环2有前驱中枢={} → 环3破最后中枢={} → 环4 A/C配对={} → 环5坐标映射={} → 环6背驰C<A={}",
-                f.s_with_center, f.s_gate_open, f.s_pos_ge1, f.s_broke, f.s_a_paired, f.s_mapped, f.s_diverge
+                "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1有前驱中枢={} → 环2过局部趋势门={} → 环3破最后中枢={} → 环4 A/C配对={} → 环5坐标映射={} → 环6背驰C<A={}",
+                f.s_with_center, f.s_pos_ge1, f.s_gate_open, f.s_broke, f.s_a_paired, f.s_mapped, f.s_diverge
             );
 
             let (_cw, upper_moves) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
@@ -2191,8 +2090,10 @@ mod tests {
         assert_eq!(l0.centers.len(), 1, "三段方向交替+贯穿 ⟹ 一个真中枢");
         // 核心取全三段（口径 B，637号 computeZD/computeZG s1 s2 s3）——第三段收窄核心下沿至 5。
         assert_eq!((l0.centers[0].zd, l0.centers[0].zg), (5, 10));
-        // 一个中枢 ⟹ classifyMove = consolidation ⟹ moves=[Consolidation]。
-        assert_eq!(l0.moves, vec![MoveKind::Consolidation]);
+        // 一个中枢 ⟹ 分解 = 单盘整块（PDF §6 情形1）。
+        assert_eq!(l0.moves.len(), 1);
+        assert_eq!((l0.moves[0].kind, l0.moves[0].start_center, l0.moves[0].end_center),
+                   (MoveKind::Consolidation, 0, 0));
     }
 
     #[test]
@@ -2658,7 +2559,7 @@ mod tests {
             inc_times[2] / full_times[2].max(1e-12)
         );
 
-        // 增量须显著快于全量（MACD 增量 + 塔构造增量 + classify_move 增量 综合加速）。
+        // 增量须显著快于全量（MACD 增量 + 塔构造增量 + 走势分解增量 综合加速）。
         // ★判据：最大规模下增量/全量时间比 < 0.7（即增量至少 ~1.43x 加速）为稳健下界。
         // exp 差距在小规模 debug 噪声大（两者均 O(n²) 受限于 LevelState/tower_snapshots clone
         // 的 API 所需 O(k)/iter，故此合成尺度只能验证常数因子优势，asymptotic 分离须看
@@ -2672,7 +2573,7 @@ mod tests {
         let ratio_at_max = inc_times[2] / full_times[2].max(1e-12);
         assert!(
             ratio_at_max < 0.7,
-            "增量/全量比 @n={} = {ratio_at_max:.3} 须 < 0.7（增量至少 ~1.43x 加速；MACD+塔+classify_move 增量）\n\
+            "增量/全量比 @n={} = {ratio_at_max:.3} 须 < 0.7（增量至少 ~1.43x 加速；MACD+塔+分解增量）\n\
              full_exp≈{full_exp:.2}, inc_exp≈{inc_exp:.2}",
             sizes[2]
         );
