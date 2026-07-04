@@ -471,7 +471,11 @@ struct LevelCache {
     /// 前缀稳定 ⟹ 前缀投影稳定）。每 bar 只对新 append 的 tail 投影（`projected_units.len()..`），避免
     /// per-bar 全量 `project_to_units` 递归 `rmove.lo()/hi()` 整棵子树 O(nodes)/bar=O(n²)。
     /// cascade_reset（前缀重排）⟹ 与 upper_moves 同步清空（line 850 旁）重投影。
-    projected_units: Vec<UnitRange>,
+    /// ★H7 Rc 化：stage 10 下一级 `units = Rc::clone`（O(1)）替代全量 `projected_units.clone()`
+    /// （O(units_L)/bar=O(n²)）。truncate/resume 前经 `Rc::make_mut`：caller 逐 bar drop 上轮
+    /// `units`（loop 尾/下 bar 重赋）⟹ strong_count==1 ⟹ 原地写（stage 09 O(tail) 不退化）；
+    /// >1（理论跨 bar 持有）⟹ 写时复制（bit-exact）。同 A1 泳道 centers/bsp Rc 化。
+    projected_units: Rc<Vec<UnitRange>>,
     /// ★07b frontier 门控（A 泳道 resume 家族，与 A3/07c 同族）：confirmed 前缀 `upper_moves` 的第二类
     /// B2/S2 输出缓存。`extract_second_for_level` 每 memo-miss 全塔重扫 O(U)=O(n²)，但每个 parent 的 B2
     /// 只依赖该 parent（`c1`/subs）+ hist/close_src——confirmed 前缀 parent 的源区间落稳定前缀、hist 前缀
@@ -533,7 +537,10 @@ pub struct TowerCache {
     /// #106：L0 输入单元（segment_to_unit 投影）增量缓存——同 moves_tower_l0 证书复用，消除每 bar
     /// 全量 `l0.segments.map(segment_to_unit).collect()`（O(segs)×n，profile 坐实 400K=0.6s）。
     /// segment_to_unit 只依赖单 seg ⟹ 前缀稳定 bit-exact。
-    l0_units_cache: Vec<UnitRange>,
+    /// ★[H4] Rc 化（同 moves_tower_l0 先例）：消除每 bar 全量 `.clone()`（O(segments)×n=O(n²)，
+    /// profile 坐实 400K=380ms）——消费点 `Rc::clone` O(1)，`units` 循环变量统一为 `Rc<Vec>`
+    /// （L0=此缓存 Rc::clone，L1+=投影 Rc::new）。units 全程只读不原地改（仅整体重赋值）⟹ bit-exact。
+    l0_units_cache: Rc<Vec<UnitRange>>,
     /// merged_bars.close 增量缓存（前缀稳定，仅尾 bar 可能 inclusion 改写）。每 bar mem::take 出借
     /// 给 BSP/MACD，用毕放回——避免每 bar 全量 `.map().collect()` 重建（O(n)/bar → O(n²) 根因）。
     closes: Vec<f64>,
@@ -600,7 +607,7 @@ impl TowerCache {
         self.macd_dif.clear(); // 与 macd_hist 锁步（同 truncate/rebuild 边界，见 compute_macd_hist_incremental）。
         self.macd_state_len = 0;
         Rc::make_mut(&mut self.moves_tower_l0).clear();
-        self.l0_units_cache.clear();
+        Rc::make_mut(&mut self.l0_units_cache).clear(); // ★H4：Rc<Vec>，make_mut 后清（同 moves_tower_l0）。
         self.closes.clear();
         self.close_src.clear();
         self.closes_tick.clear(); // 与 closes 锁步（同 update_closes_cache 前缀复用）。
@@ -1016,17 +1023,22 @@ pub fn classify_with_tower_incremental(
     // 逐字段等上 bar，units[reuse..] 本 bar 新 extend）。
     let l0_dirty_from = stage_profile::time("00_l0_units_build", || {
         let reuse = l0.segments_confirmed_len.min(cache.l0_units_cache.len());
-        cache.l0_units_cache.truncate(reuse);
-        cache.l0_units_cache.extend(l0.segments[reuse..].iter().map(segment_to_unit));
+        // make_mut：上 bar 的 l0_units Rc 已在循环内被投影重赋值 drop ⟹ strong_count==1 ⟹ 原地
+        // truncate+extend O(tail)；>1（caller 跨 bar 持有）⟹ 写时复制（bit-exact，同 moves_tower_l0）。
+        let c = Rc::make_mut(&mut cache.l0_units_cache);
+        c.truncate(reuse);
+        c.extend(l0.segments[reuse..].iter().map(segment_to_unit));
         reuse
     });
-    let l0_units: Vec<UnitRange> =
-        stage_profile::time("00b_l0_units_clone", || cache.l0_units_cache.clone());
+    // ★[H4] Rc::clone（引用计数 O(1)）替代全量 `.clone()`（O(segments)/bar × n = O(n²)，profile 坐实
+    // 400K=380ms）。下游 `units` 只读消费（compose/extract 借 &[UnitRange]），bit-exact：值不变仅所有权。
+    let l0_units: Rc<Vec<UnitRange>> =
+        stage_profile::time("00b_l0_units_clone", || Rc::clone(&cache.l0_units_cache));
 
     // DIAG(frontier-bit-exact): 对拍复用版 l0_units_cache vs 全量 segment_to_unit（隔离 L0 units 前缀复用是否陈旧）。
     if std::env::var("DIAG_L0UNITS").is_ok() {
         let full: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
-        if l0_units != full {
+        if *l0_units != full {
             let m = l0_units.len().min(full.len());
             let first = (0..m).find(|&i| l0_units[i] != full[i]);
             eprintln!(
@@ -1111,7 +1123,11 @@ pub fn classify_with_tower_incremental(
     let mut tower_snapshots: Vec<Rc<Vec<LeveledMove>>> = Vec::new();
 
     // 逐级增量构造。`units`/`moves_tower` 是本级输入（前缀来自缓存，尾部新增）。
-    let mut units: Vec<UnitRange> = l0_units;
+    // ★H7 Rc 化：loop 内 units 只读（读 len/切片/传 &[]，从不原地改），下一级由 stage 10
+    // `Rc::clone(&lc.projected_units)` O(1) 重赋，替代全量 clone。
+    // ★H4：L0 首级 units = l0_units（本身已是 Rc<Vec<UnitRange>>，00b 阶段 Rc::clone 出借缓存），
+    // 直接 move 入 units（无 Rc::new 双重包裹）。
+    let mut units: Rc<Vec<UnitRange>> = l0_units;
     // Q7-#1 裁定C：units 方向锚资格（循环携带，级别-N 在投影点与 units 同步派生；L0 分支不消费）。
     let mut units_anchors: Vec<Option<Direction>> = Vec::new();
     let mut moves_tower: Rc<Vec<LeveledMove>> = moves_tower_l0;
@@ -1191,7 +1207,7 @@ pub fn classify_with_tower_incremental(
             lc.cached_bsp_key = None;
             lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
             lc.cached_second_count = 0;
-            lc.projected_units.clear(); // #106：upper_moves 前缀重排 ⟹ 投影缓存失效，重投影。
+            Rc::make_mut(&mut lc.projected_units).clear(); // #106：upper_moves 前缀重排 ⟹ 投影缓存失效，重投影。
         }
         lc.last_input_len = units.len();
         // 快照本级输入（下 bar 比对 frontier 变异）。★A3 §3.2 证书化：cached_units[..dirty_from]
@@ -1386,26 +1402,32 @@ pub fn classify_with_tower_incremental(
         // 从 prefix_count 起重投影（O(tail)）——消除 did_extend 类漏判。cascade 时 prefix_count=0，
         // 与 §上 projected_units.clear() 一致（truncate(0)==clear，冗余无害）。
         stage_profile::time("09_project_to_units_resume", || {
-            lc.projected_units.truncate(prefix_count);
+            // make_mut：下一级 units 由 stage 10 `Rc::clone` 共享同一 buffer；本 bar 头部 truncate 前
+            // 上轮 units 已被 loop 尾/下 bar 重赋 drop ⟹ strong_count==1 ⟹ 原地 O(tail)；>1 ⟹ 写时
+            // 复制（bit-exact 退化）。resume 契约要求 cache.len()<=moves.len()，truncate(prefix_count) 保证。
+            let proj = Rc::make_mut(&mut lc.projected_units);
+            proj.truncate(prefix_count);
             // Q7（task #145）：方向源 = 本级中枢 ownership 块方向（levels 尾 = 本级刚 push 的
             // LevelState.moves，与 batch 同一 decompose 单一来源）。confirmed 前缀方向冻结
             // （R(i-1,i) sealed 后标签不变），frontier 由 truncate(prefix_count) 每 bar 重投影。
             recursive_tower::project_to_units_resume(
                 &lc.upper_moves[..],
                 &levels.last().expect("本级 LevelState 已 push").moves,
-                &mut lc.projected_units,
+                proj,
             );
         });
         // ★A3 投影证书护栏（debug/test）：truncate(prefix_count)+resume 必逐字段等全量 project_to_units。
         debug_assert!(
-            lc.projected_units
+            *lc.projected_units
                 == recursive_tower::project_to_units(
                     &lc.upper_moves,
                     &levels.last().expect("本级 LevelState 已 push").moves
                 ),
             "投影证书违反：projected_units != 全量 project_to_units（truncate(prefix_count)/resume 破裂）"
         );
-        units = stage_profile::time("10_projected_units_clone", || lc.projected_units.clone());
+        // 10：`Rc::clone`（O(1)）替代全量 `projected_units.clone()`（O(units_L)/bar）。下一级借
+        // &units[..] 只读；stage 09 头部 make_mut 时本 Rc 已 drop（loop 尾重赋）⟹ 原地写不退化。
+        units = stage_profile::time("10_projected_units_clone", || Rc::clone(&lc.projected_units));
         // Q7-#1 裁定C：锚资格与投影同源同步派生（deterministic 于 (moves, len) ⟹ resume bit-exact：
         // 全量与增量在同一 (pb, units.len()) 上得同一锚数组，无缓存陈旧面）。
         units_anchors = {
