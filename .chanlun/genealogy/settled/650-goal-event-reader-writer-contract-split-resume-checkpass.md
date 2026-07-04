@@ -1,5 +1,6 @@
 ---
 id: 650
+date: "2026-06-30"
 title: goal 事件系统 reader/writer 契约分裂——GOAL_RESUME 可读不可写 + acceptance 闭合只认 CHECK_PASS 不认 EVIDENCE【已结算 2026-06-30：编排者裁决 B+A2 + #22 实施完成】
 status: 已结算
 settlement_date: "2026-06-30"
