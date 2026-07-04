@@ -894,9 +894,16 @@ where
                     side: c.dir,
                     generation,
                 };
+                // ★A6（prereg-rev2-20260704）：入场结构止损距离 d=|entry_px−stop|（美元，ex-ante）。
+                // 决策 bar 因果分类 classification_i 查开腿候选 BspPoint（(level,source_index) 键，与
+                // k_theta_risk_gate 止损回查同源 structural_stop），stop_side 由候选方向定。None =
+                // structural_stop 返 None（非该方向交易点）/ BspPoint 缺失 ⟹ μ_R 剔除（诚实缺口）。
+                let entry_stop_dist =
+                    candidate_stop_dist(c, &classification_i, px, config.tick.tick_size);
                 open_trades.insert(leg.id, LedgerOpen {
                     entry_bar: i,
                     entry_px: px,
+                    entry_stop_dist,
                     // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
                     entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
                     entry_v: c.role.v,
@@ -921,6 +928,7 @@ where
                         exit_px: px,
                         via_structural_prune: false, // 真信号平仓（反向候选触发）
                         position_node_id: open.position_node_id,
+                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
@@ -951,6 +959,7 @@ where
                         exit_px: px,
                         via_structural_prune: true, // §13 父驱动连带剪枝，非独立信号（μ 侧可分离）
                         position_node_id: open.position_node_id,
+                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
@@ -974,6 +983,7 @@ where
                         exit_px: px,
                         via_structural_prune: false, // 强平=风险信号平仓，非结构剪枝
                         position_node_id: open.position_node_id,
+                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
@@ -998,6 +1008,7 @@ where
                         exit_px: px,
                         via_structural_prune: false, // TW 账本谓词驱动的真实平仓，非结构剪枝
                         position_node_id: open.position_node_id,
+                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
@@ -1113,6 +1124,7 @@ where
                 exit_px: last_px,
                 via_structural_prune: false, // censored 窗口边界，非结构剪枝
                 position_node_id: open.position_node_id,
+                entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                 // A7 #165：censored 出场账本态取末决策点 last_ext（末可交易 bar 决策点真值，
                 // 与 last_px 兑现价同 bar 口径）；全窗无决策点 ⟹ ZExt::NONE 账本态维诚实 None。
                 exit_z: super::selector::exit_z_of(open.entry_z, &last_ext),
@@ -1131,6 +1143,40 @@ where
         typed_ledger,
         tw_final: Some(tw),
     }
+}
+
+/// ★A6（prereg-rev2-20260704）：开腿候选的入场结构止损距离 `d=|entry_px−stop|`（美元，ex-ante）。
+///
+/// 在决策 bar 因果分类 `classification` 上按候选 `(level, source_index)` 查 [`BspPoint`]
+/// （与 `k_theta_risk_gate` 止损回查同一 `structural_stop` 函数、同一键），方向由候选 `dir` 定
+/// （Long→pivot_low / Short→pivot_high，3 类→center）。返回美元距离；`None` = structural_stop 返 None
+/// （该方向无止损可定 = 非交易点，防御性）或 BspPoint 缺失。μ_R 分母，non-Some ⟹ 下游剔除（231号）。
+fn candidate_stop_dist(
+    c: &super::super::strategy::interp::Candidate,
+    classification: &super::super::classifier::Classification,
+    entry_px: f64,
+    tick_size: f64,
+) -> Option<f64> {
+    use super::super::strategy::risk::{structural_stop, StopInput, StopSide};
+    use super::super::strategy::voice::VoiceSide;
+    use super::super::types::Center;
+    let stop_side = match c.dir {
+        VoiceSide::Long => StopSide::Long,
+        VoiceSide::Short => StopSide::Short,
+        VoiceSide::Flat => return None, // Flat 候选不开仓，无止损距离可言
+    };
+    let lvl = classification.levels.get(c.level as usize)?;
+    let bsp = lvl.bsp.iter().find(|p| p.source_index == c.source_index)?;
+    let stop_in = StopInput {
+        pivot_low: bsp.pivot_low,
+        pivot_high: bsp.pivot_high,
+        center: bsp
+            .center
+            .unwrap_or(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 }),
+    };
+    let stop = structural_stop(stop_side, &bsp.bits, &stop_in)?;
+    let d = (entry_px - stop as f64 * tick_size).abs();
+    Some(d)
 }
 
 /// G4（#134）：训练管线的 typed ledger 入口——**生产 π fill loop**（χ≡1 全覆盖）在 `bars` 上
@@ -1288,6 +1334,11 @@ pub struct TypedTrade {
     /// `position_node_id` 不碰撞（generation +1）。供跨笔同 carrier campaign 归因/去重（当前 μ 层
     /// 按 `entry_z` 逐笔独立观测，不消费本字段——它是身份完备性的账本层载体，非 μ 统计输入）。
     pub position_node_id: super::super::strategy::interp::PositionNodeId,
+    /// ★A6（prereg-rev2-20260704，codex-ruling-696）：入场结构止损距离 d=|entry_px−stop|（美元）。
+    /// μ_R=E[Y/d] co-primary 门的分母，ex-ante 可得（risk.rs structural_stop 在决策 bar 因果算）。
+    /// `None` = 不可得（μ_R 剔除，raw μ 保留）。透传自 `LedgerOpen::entry_stop_dist`，
+    /// `build_mu_from_bars` 塞进 [`ResidualTrade::d`](super::mu_estimator::ResidualTrade)。
+    pub entry_stop_dist: Option<f64>,
     /// ★A7（Task #165，《完整的策略.pdf》§6 z「两次快照」+ §9 typed exit）：出场时刻的 z 快照。
     ///
     /// 与 `entry_z` 是**同一 [`MuClass`](super::mu_estimator::MuClass) 类型的两次快照**（时刻不同、
@@ -1310,13 +1361,17 @@ pub struct TypedTrade {
 /// = `{class, x_gamma}`）**未变**——A7 只在账本层增列，μ 消费侧仍按 `entry_z`（见 `exit_z` 字段文档
 /// 消费侧边界）。任何后续把 `exit_z` 接入 μ 分桶键的工位（codex 裁决后）须新开 prereg 冻结口径，
 /// 不得静默改分桶（formalization-validity-domain / B30 前置清单）。
-pub const TYPED_TRADE_SCHEMA_VERSION: u32 = 2;
+pub const TYPED_TRADE_SCHEMA_VERSION: u32 = 3;
 
 /// ledger 在飞条目（开腿登记，关腿时结算为 [`TypedTrade`]）。
 struct LedgerOpen {
     entry_bar: usize,
     entry_px: f64,
     entry_z: super::mu_estimator::MuClass,
+    /// ★A6（prereg-rev2-20260704）：入场结构止损距离 d=|entry_px−stop|（美元，ex-ante）。
+    /// `Some(d)` = 决策 bar 因果 BspPoint + structural_stop 可算；`None` = structural_stop 返 None
+    /// （非该方向交易点）/ BspPoint 缺失 ⟹ 下游 μ_R 剔除（诚实缺口，231号）。
+    entry_stop_dist: Option<f64>,
     /// 入场角色垂直轴（腿声部身份入场时固定）——`reverse_exit_type`/silent drop 判据输入。
     entry_v: super::super::strategy::coverage::Vertical,
     /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 严格身份四元组

@@ -270,6 +270,7 @@ mod self_check {
             cost: 0.0,
             h_bucket: 0,
             time_block: tb,
+            d: 1.0, // A6：合成自检 d=1（μ_R 分母占位，切片逻辑不依赖 d）
         }
     }
 

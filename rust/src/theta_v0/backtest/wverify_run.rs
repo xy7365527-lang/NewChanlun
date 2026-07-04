@@ -21,12 +21,91 @@
 //! BTC anchored walk-forward 窗口：只取 `test_start ≥ OOS_START` 的窗，每窗独立对 **test 段** 估计后逐笔
 //! 累积（不拼接 Dataset 防接缝伪相邻）。聚合后每笔残差都来自"该窗训练截止之后"的样本外区间。
 
+use super::super::classifier::divergence::ForceStateA5;
 use super::super::config::ThetaConfig;
 use super::l3_delta_r_alpha::build_mu_from_bars;
 use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
 use super::{data, decontam, perm_test};
 use std::collections::{BTreeMap, HashMap};
+
+/// ★A1（prereg-rev2-20260704）：force_state 第 8 维的 dump 编码（离线 round-trip 无损）。
+/// None=0 / Dominated=1 / Dominates=2 / Tie=3 / Incomparable=4——`load_deltafree_dump` 逆映射。
+fn force_state_code(fs: Option<ForceStateA5>) -> u8 {
+    match fs {
+        None => 0,
+        Some(ForceStateA5::Dominated) => 1,
+        Some(ForceStateA5::Dominates) => 2,
+        Some(ForceStateA5::Tie) => 3,
+        Some(ForceStateA5::Incomparable) => 4,
+    }
+}
+
+/// force_state 报告标签（None/Dom-/Dom+/Tie/Inc，δ-free 主裁决桶表可读列）。
+fn force_state_label(fs: Option<ForceStateA5>) -> &'static str {
+    match fs {
+        None => "None",
+        Some(ForceStateA5::Dominated) => "Dom-",
+        Some(ForceStateA5::Dominates) => "Dom+",
+        Some(ForceStateA5::Tie) => "Tie",
+        Some(ForceStateA5::Incomparable) => "Inc",
+    }
+}
+
+/// ★A1（prereg-rev2 §1.2）ForceState⊥δ 检验：对每个出现的 force_state 态统计 δ∈{+1,−1} 计数。
+///
+/// 判据（i_class×δ 共线自毁铁律 memory `iclass_delta_collinearity_perm_degeneracy`）：
+/// - **PASS**：每态 δ 两向都非空（min(n+,n−)≥1）⟹ 置换在该态内有交换自由度，非共线 ⟹ ForceState 合法进
+///   主裁决聚合基。
+/// - **FAIL**：任一态 δ 完全单向（n+=0 或 n−=0）⟹ 进基即毁其内 δ 置换 ⟹ A1 判 FALSIFIED，退出主裁决基
+///   （仅报告桶维），停下上浮（fail 条件 3）。
+/// 返回 markdown 报告串（含 PASS/FAIL 结论 + 逐态计数）——**不 panic**：FAIL 是诚实产出（照实入结果包，
+/// 由 Lead/上浮决策 A1 处置），非管线错误（161 否定性照实）。
+fn forcestate_delta_orthogonality(records: &[ResidualTrade]) -> String {
+    // 逐 force_state 态计 (n_δ+1, n_δ−1)。只检 Some(态)——None 是「无力度源」大桶，δ 两向天然混合
+    // （不细分即不改置换），非 A1 关心的方向性维共线风险。
+    let mut counts: BTreeMap<u8, (usize, usize)> = BTreeMap::new();
+    for r in records {
+        if let Some(fs) = r.class.force_state {
+            let e = counts.entry(force_state_code(Some(fs))).or_insert((0, 0));
+            match r.class.delta {
+                1 => e.0 += 1,
+                -1 => e.1 += 1,
+                _ => {}
+            }
+        }
+    }
+    let mut fail_states: Vec<String> = Vec::new();
+    let mut rows = String::from("| force_state | n(δ+1) | n(δ−1) | 交换自由度 |\n|---|---|---|---|\n");
+    for (&code, &(np, nm)) in &counts {
+        let lbl = force_state_label(force_state_decode(code));
+        let ok = np >= 1 && nm >= 1;
+        rows.push_str(&format!("| {lbl} | {np} | {nm} | {} |\n", if ok { "有(非共线)" } else { "无(单向共线)" }));
+        if !ok {
+            fail_states.push(format!("{lbl}(n+={np},n−={nm})"));
+        }
+    }
+    let verdict = if counts.is_empty() {
+        "PASS(空——无 Some(force_state) 记录，force_state 全 None ⟹ A1 细分退化为单 None 桶，不改置换)"
+            .to_string()
+    } else if fail_states.is_empty() {
+        "PASS(每态 δ 两向非空，ForceState⊥δ 有交换自由度 ⟹ 合法进主裁决聚合基)".to_string()
+    } else {
+        format!("FAIL(单向共线态: {}) ⟹ A1 判 FALSIFIED，ForceState 退出主裁决基，停下上浮(fail 条件 3)", fail_states.join(", "))
+    };
+    format!("**ForceState⊥δ 检验结论**：{verdict}\n\n{rows}")
+}
+
+/// force_state 编码逆映射（[`force_state_code`]），离线 dump 复现器还原第 8 维。
+fn force_state_decode(code: u8) -> Option<ForceStateA5> {
+    match code {
+        1 => Some(ForceStateA5::Dominated),
+        2 => Some(ForceStateA5::Dominates),
+        3 => Some(ForceStateA5::Tie),
+        4 => Some(ForceStateA5::Incomparable),
+        _ => None,
+    }
+}
 
 /// walk-forward 窗间 time block 偏移步长（§4.2：不同窗的 time block 不碰撞；窗内块 <stride）。
 const WF_TIME_STRIDE: u32 = 10_000;
@@ -105,8 +184,9 @@ fn walk_forward_oos_residuals(
 
 /// Z_decision 逐笔序列落盘（问题F 一等输出：`wverify_full` 主路径无条件外化）。
 ///
-/// 每笔外化 δ-free 主裁决键 Z_decision=(level,bsp_class,parent_dir)=(col0,col1,col3) + 残差成分（TSV：
-/// level bsp δ σ^H h_bucket time_block resid_base_bits cost_bits）。默认落 `/tmp/wv_full_zdecision.tsv`
+/// 每笔外化 δ-free 主裁决键 Z_decision=(level,bsp_class,parent_dir,force_state) + 残差成分（TSV：
+/// level bsp δ σ^H force_state h_bucket time_block resid_base_bits cost_bits d_bits，A1/A6 增
+/// force_state+d 两列）。默认落 `/tmp/wv_full_zdecision.tsv`
 /// （与 /tmp/wv_full_rows.md 等主路径产物同级，无 env 门控）；`DELTAFREE_DUMP=<path>` 覆盖路径（离线
 /// 复算/自检指定用）。resid_base/cost 用 `f64::to_bits` 十六进制（round-trip 精确）——离线
 /// [`deltafree_exact_recompute`] 逐字节还原内存值，n_eff（Geyer IPS）/ δ-free perm_p 与在线口径 bit-exact
@@ -118,12 +198,15 @@ fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
         .ok()
         .filter(|p| !p.is_empty())
         .unwrap_or_else(|| "/tmp/wv_full_zdecision.tsv".into());
-    let mut out = String::from("level\tbsp\tdelta\tsigma_h\th_bucket\ttime_block\tresid_base_bits\tcost_bits\n");
+    // A1/A6（prereg-rev2-20260704）：dump 增 force_state（δ-free 主裁决基第 8 维）+ d_bits（μ_R 分母）
+    // 两列——离线复现器 [`deltafree_exact_recompute`] 逐字节还原 ⟹ 与在线主裁决/μ_R bit-exact。
+    let mut out = String::from("level\tbsp\tdelta\tsigma_h\tforce_state\th_bucket\ttime_block\tresid_base_bits\tcost_bits\td_bits\n");
     for r in records {
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{:016x}\t{:016x}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:016x}\t{:016x}\t{:016x}\n",
             r.class.level, r.class.bsp_class(), r.class.delta, r.class.parent_dir,
-            r.h_bucket, r.time_block, r.resid_base.to_bits(), r.cost.to_bits()
+            force_state_code(r.class.force_state),
+            r.h_bucket, r.time_block, r.resid_base.to_bits(), r.cost.to_bits(), r.d.to_bits()
         ));
     }
     std::fs::write(&path, &out).unwrap_or_else(|e| panic!("Z_decision dump 落盘失败 {path}：{e}"));
@@ -143,11 +226,14 @@ fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
 fn deltafree_verdict(
     records: &[ResidualTrade],
 ) -> (String, decontam::AcceptanceVerdict, (usize, usize, usize), String) {
-    // δ-free 基 (level,bsp_class,parent_dir)：池化两 δ 方向，保时间序 Y 序列（records 已按 walk-forward 序）。
-    let mut series: BTreeMap<(u32, u8, i8), Vec<f64>> = BTreeMap::new();
+    // δ-free 主裁决基 (level,bsp_class,parent_dir,force_state)：池化两 δ 方向，保时间序 Y 序列
+    // （records 已按 walk-forward 序）。★A1（prereg-rev2-20260704）：force_state 第 8 维进主裁决基
+    // （dfonline-a2 §4 两注入点之一，与 perm_test.rs base_map 键同步——否则 records Some(态) vs 键缺维
+    // 全表 miss，fullz G2 前例）。
+    let mut series: BTreeMap<perm_test::DeltaFreeKey, Vec<f64>> = BTreeMap::new();
     for r in records {
         series
-            .entry((r.class.level, r.class.bsp_class(), r.class.parent_dir))
+            .entry((r.class.level, r.class.bsp_class(), r.class.parent_dir, r.class.force_state))
             .or_default()
             .push(r.y());
     }
@@ -155,11 +241,11 @@ fn deltafree_verdict(
     let (za, pa) = (1.645_f64, 0.05_f64);
 
     let mut rows = String::from(
-        "| L | bsp | σ^H | N | n_eff | mean(Y) | std | lcb | ucb | cv | perm_p | state |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+        "| L | bsp | σ^H | force | N | n_eff | mean(Y) | std | lcb | ucb | cv | perm_p | state |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
     let mut states = Vec::new();
     let mut lcb_pos: Vec<String> = Vec::new();
-    for ((lv, bc, pd), ys) in &series {
+    for ((lv, bc, pd, fs), ys) in &series {
         let n = ys.len();
         let mean = ys.iter().sum::<f64>() / n as f64;
         // 精确 Welford std（样本 std，n−1 分母）——非由 LCB 反推的正态近似 std。
@@ -172,14 +258,15 @@ fn deltafree_verdict(
         let (lcb, ucb) = (mean - za * se, mean + za * se);
         let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
         let n_eff = decontam::effective_n(ys); // 精确 Geyer IPS
-        let perm_p = *pp.get(&(*lv, *bc, *pd)).unwrap_or(&1.0);
+        let perm_p = *pp.get(&(*lv, *bc, *pd, *fs)).unwrap_or(&1.0);
         let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
         states.push(st);
+        let fs_lbl = force_state_label(*fs);
         if lcb > 0.0 {
-            lcb_pos.push(format!("L{lv} bsp{bc} σ{pd:+} (mean{mean:+.2} lcb{lcb:+.2} n_eff{n_eff:.1} perm_p{perm_p:.3} {st:?})"));
+            lcb_pos.push(format!("L{lv} bsp{bc} σ{pd:+} f={fs_lbl} (mean{mean:+.2} lcb{lcb:+.2} n_eff{n_eff:.1} perm_p{perm_p:.3} {st:?})"));
         }
         rows.push_str(&format!(
-            "| L{lv} | {bc} | σ{pd:+} | {n} | {n_eff:.2} | {mean:+.4} | {std:.2} | {lcb:+.4} | {ucb:+.4} | {cv:.3} | {perm_p:.3} | {st:?} |\n"
+            "| L{lv} | {bc} | σ{pd:+} | {fs_lbl} | {n} | {n_eff:.2} | {mean:+.4} | {std:.2} | {lcb:+.4} | {ucb:+.4} | {cv:.3} | {perm_p:.3} | {st:?} |\n"
         ));
     }
     let v = decontam::global_verdict(&states);
@@ -275,21 +362,68 @@ fn wverify_full() {
     std::fs::write("/tmp/wv_full_rows.md", &rows).ok();
     std::fs::write("/tmp/wv_full_h2_asymmetry.md", &h2_rows).ok();
 
-    // ── δ-free 主裁决（prereg §3.2 主判据，问题F 在线收口）──
-    // 直接在内存 records 上按 Z_decision=(level,bsp_class,parent_dir) 池化两 δ 方向算主裁决——**不读
-    // 任何 dump**（deltafree_verdict 纯函数）。含 δ 4 元组降为上方描述性报告桶；本块是 verdict 主路径。
+    // ── A1 ForceState⊥δ 前置检验（prereg-rev2 §1.2，i_class×δ 共线自毁铁律）──
+    // ForceState 进主裁决聚合基前须验：每个出现的 force_state 态内 δ 两向都非空（有交换自由度，非共线）。
+    // FAIL（任一态 δ 完全单向）⟹ A1 判 FALSIFIED，ForceState 退出主裁决基（fail 条件 3，停下上浮）。
+    let ortho_report = forcestate_delta_orthogonality(&records);
+    eprintln!("WV_FULL A1 ForceState⊥δ 检验:\n{ortho_report}");
+    std::fs::write("/tmp/wv_full_forcestate_ortho.md", &ortho_report).ok();
+
+    // ── δ-free 主裁决（prereg §3.2 主判据 + A1 force_state 第 8 维进聚合基）──
+    // 直接在内存 records 上按 Z_decision=(level,bsp_class,parent_dir,force_state) 池化两 δ 方向算主裁决
+    // ——**不读任何 dump**（deltafree_verdict 纯函数）。含 δ 4 元组降为上方描述性报告桶；本块是主路径。
     let (df_rows, df_v, (df_nv, df_nf, df_ni), df_lcb) = deltafree_verdict(&records);
     eprintln!(
-        "WV_FULL δ-free 主裁决 records={} δ-free基桶={} verdict={df_v:?} V={df_nv}/F={df_nf}/I={df_ni} | LCB>0: {df_lcb}",
+        "WV_FULL δ-free 主裁决(A1 含 force_state) records={} δ-free基桶={} verdict={df_v:?} V={df_nv}/F={df_nf}/I={df_ni} | LCB>0: {df_lcb}",
         records.len(), df_nv + df_nf + df_ni,
     );
     std::fs::write(
         "/tmp/wv_full_deltafree.md",
         format!(
-            "# δ-free 主裁决（在线直出，prereg §3.2 Z_decision=(level,bsp_class,parent_dir)，问题F 收口）\n\n\
+            "# δ-free 主裁决（在线直出，prereg-rev2 §1 Z_decision=(level,bsp_class,parent_dir,force_state)）\n\n\
              - records={} δ-free基桶={} verdict={df_v:?} V={df_nv}/F={df_nf}/I={df_ni}\n\
-             - LCB>0 桶：{df_lcb}\n\n{df_rows}\n",
+             - LCB>0 桶：{df_lcb}\n\n## ForceState⊥δ 检验\n\n{ortho_report}\n\n## δ-free 桶表\n\n{df_rows}\n",
             records.len(), df_nv + df_nf + df_ni,
+        ),
+    )
+    .ok();
+
+    // ── A6 μ_R=E[Y/d] co-primary 双门（prereg-rev2 §2，codex-ruling-696 选项 B）──
+    // μ_R 样本 = {i : d_i ≥ D_MIN}，逐笔 resid_base/=d; cost/=d ⟹ y()=δ·resid_base−cost 自动 = Y/d
+    // （与 σ̂ 跨品种归一化 bit-exact 同模式）。喂**同一** deltafree_verdict（含 A1 force_state 键）——
+    // perm/decontam/Welford 透明消费归一化 records。raw μ（上方 df_*）现口径 bit-exact 不受影响。
+    let d_min = cfg.tick.tick_size; // 最小合法止损距离 = 1 tick 美元值（prereg §2.3 冻结）
+    let mut mu_r_records: Vec<ResidualTrade> = Vec::new();
+    let (mut n_dmin_drop, mut n_nan_drop) = (0usize, 0usize);
+    for r in &records {
+        if !r.d.is_finite() {
+            n_nan_drop += 1; // d 不可得（structural_stop None / BspPoint 缺失）⟹ μ_R 剔除
+            continue;
+        }
+        if r.d < d_min {
+            n_dmin_drop += 1; // 近零止损距离（D_MIN 守护，防分母放大灾难）⟹ μ_R 剔除
+            continue;
+        }
+        let mut rr = *r;
+        rr.resid_base /= r.d;
+        rr.cost /= r.d;
+        mu_r_records.push(rr);
+    }
+    let (mur_rows, mur_v, (mur_nv, mur_nf, mur_ni), mur_lcb) = deltafree_verdict(&mu_r_records);
+    eprintln!(
+        "WV_FULL μ_R co-primary(E[Y/d]) raw_n={} μ_R_n={}（剔除 NAN={n_nan_drop} d<D_MIN={n_dmin_drop}）δ-free基桶={} verdict={mur_v:?} V={mur_nv}/F={mur_nf}/I={mur_ni} | LCB>0: {mur_lcb}",
+        records.len(), mu_r_records.len(), mur_nv + mur_nf + mur_ni,
+    );
+    std::fs::write(
+        "/tmp/wv_full_mu_r.md",
+        format!(
+            "# μ_R=E[Y/d] co-primary 双门（prereg-rev2 §2，codex-ruling-696，桶键不加 d）\n\n\
+             - raw_n={} μ_R_n={}（剔除：d 不可得 NAN={n_nan_drop}，d<D_MIN({d_min:.2e}) {n_dmin_drop}）\n\
+             - δ-free基桶={} verdict={mur_v:?} V={mur_nv}/F={mur_nf}/I={mur_ni}\n\
+             - LCB>0 桶：{mur_lcb}\n\n\
+             口径：μ_R 与 raw μ **不可比**（#135：μ_R 除 d + D_MIN 过滤样本集不同）；双 estimand 各自过门，\
+             Holm 全族校正（见结果包）。\n\n{mur_rows}\n",
+            records.len(), mu_r_records.len(), mur_nv + mur_nf + mur_ni,
         ),
     )
     .ok();
@@ -814,9 +948,10 @@ fn q4_fullpi_policy() {
 }
 
 /// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
-/// resid_base/cost 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
-/// position 不入任何 δ-free/报告桶分层键（键只读 level/bsp_class/parent_dir/delta/h_bucket/time_block）
-/// ⟹ 重建恒用 `PositionState::Root`（占位，不影响统计）。bsp_class→BspBits 由 (bsp,δ) 唯一确定。
+/// resid_base/cost/d 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
+/// A1/A6：force_state（第 8 维，code 编码）+ d（μ_R 分母）随 dump 还原——force_state 进 δ-free 主裁决基。
+/// position 不入任何 δ-free/报告桶分层键 ⟹ 重建恒用 `PositionState::Root`（占位，不影响统计）。
+/// bsp_class→BspBits 由 (bsp,δ) 唯一确定；force_state 经 struct-update 覆盖（from_certificate 恒 None）。
 fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
     use super::mu_estimator::PositionState;
     use crate::theta_v0::types::BspBits;
@@ -828,15 +963,17 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
             continue;
         }
         let f: Vec<&str> = line.split('\t').collect();
-        assert_eq!(f.len(), 8, "δ-free dump 行须 8 列，得 {}：{line}", f.len());
+        assert_eq!(f.len(), 10, "δ-free dump 行须 10 列（A1/A6 增 force_state+d_bits），得 {}：{line}", f.len());
         let level: u32 = f[0].parse().unwrap();
         let bsp: u8 = f[1].parse().unwrap();
         let delta: i8 = f[2].parse().unwrap();
         let sigma_h: i8 = f[3].parse().unwrap();
-        let h_bucket: u8 = f[4].parse().unwrap();
-        let time_block: u32 = f[5].parse().unwrap();
-        let resid_base = f64::from_bits(u64::from_str_radix(f[6], 16).unwrap());
-        let cost = f64::from_bits(u64::from_str_radix(f[7], 16).unwrap());
+        let force_state = force_state_decode(f[4].parse().unwrap());
+        let h_bucket: u8 = f[5].parse().unwrap();
+        let time_block: u32 = f[6].parse().unwrap();
+        let resid_base = f64::from_bits(u64::from_str_radix(f[7], 16).unwrap());
+        let cost = f64::from_bits(u64::from_str_radix(f[8], 16).unwrap());
+        let d = f64::from_bits(u64::from_str_radix(f[9], 16).unwrap());
         let bits = match (bsp, delta > 0) {
             (1, true) => BspBits { buy1: true, ..Default::default() },
             (1, false) => BspBits { sell1: true, ..Default::default() },
@@ -845,8 +982,11 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
             (_, true) => BspBits { buy3: true, ..Default::default() },
             (_, false) => BspBits { sell3: true, ..Default::default() },
         };
-        let class = MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root);
-        out.push(ResidualTrade { class, resid_base, cost, h_bucket, time_block });
+        let class = MuClass {
+            force_state, // A1：δ-free 主裁决基第 8 维还原
+            ..MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root)
+        };
+        out.push(ResidualTrade { class, resid_base, cost, h_bucket, time_block, d });
     }
     out
 }
@@ -895,7 +1035,7 @@ mod tests {
         let mk = |delta: i8, resid: f64, tb: u32| {
             let bits = if delta > 0 { BspBits { buy3: true, ..Default::default() } } else { BspBits { sell3: true, ..Default::default() } };
             let class = MuClass::from_certificate(0, delta, bits, 1, PositionState::Root);
-            ResidualTrade { class, resid_base: resid, cost: 0.1, h_bucket: 0, time_block: tb }
+            ResidualTrade { class, resid_base: resid, cost: 0.1, h_bucket: 0, time_block: tb, d: 1.0 }
         };
         let recs: Vec<ResidualTrade> = (0..40)
             .map(|i| mk(if i % 2 == 0 { 1 } else { -1 }, 3.14159_f64 * (i as f64 + 1.0), (i % 2) as u32))
@@ -926,8 +1066,9 @@ mod tests {
             h0.push(mk(if i % 2 == 0 { 1 } else { -1 }, (i % 5) as f64 - 2.0, 0));
         }
         let pp = perm_test::stratified_delta_perm_p_deltafree(&h0, perm_test::N_PERM, perm_test::PERM_SEED);
-        assert!(pp.contains_key(&(0, 3, 1)), "δ-free 基键 (0,3,+1) 应存在");
-        assert!(pp[&(0, 3, 1)] > 0.05, "H0 独立 δ ⟹ δ-free 池化 perm_p 不显著: {}", pp[&(0, 3, 1)]);
+        // A1：δ-free 基键含 force_state 第 8 维——mk 走 from_certificate ⟹ force_state=None。
+        assert!(pp.contains_key(&(0, 3, 1, None)), "δ-free 基键 (0,3,+1,None) 应存在");
+        assert!(pp[&(0, 3, 1, None)] > 0.05, "H0 独立 δ ⟹ δ-free 池化 perm_p 不显著: {}", pp[&(0, 3, 1, None)]);
     }
 
     /// L1 自检（预注册 §3 承重不变量）：单品种 time_block 值域必须 < SYMBOL_STRIDE，否则跨品种 stratum

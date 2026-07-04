@@ -198,6 +198,9 @@ pub fn build_mu_from_bars(
             cost: c,
             h_bucket: h_bucket(hold),
             time_block: time_block_base + (t.entry_bar / TIME_BLOCK_BARS) as u32,
+            // A6（prereg-rev2-20260704）：入场止损距离 d（μ_R=E[Y/d] 分母）。None（不可得）⟹ NAN
+            // ⟹ wverify μ_R 侧剔除该笔（raw μ 保留）；raw μ 现口径 bit-exact 不受影响（不读 d）。
+            d: t.entry_stop_dist.unwrap_or(f64::NAN),
         });
     }
 

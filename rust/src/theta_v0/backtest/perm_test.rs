@@ -26,6 +26,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use super::super::classifier::divergence::ForceStateA5;
 use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 
 /// 预注册 §4 冻结：置换次数。
@@ -35,6 +36,11 @@ pub const PERM_SEED: u64 = 20260701;
 
 /// 逐桶键 (ℓ, bsp_class, δ, σ^H)。σ^H=parent_dir（父声部方向；根声部=0）。
 pub type BucketKey = (u32, u8, i8, i8);
+
+/// ★A1（prereg-rev2-20260704）：δ-free 主裁决聚合基键 (ℓ, bsp_class, σ^H, force_state)。
+/// force_state 第 8 维（`Option<ForceStateA5>`）进主裁决基（dfonline-a2 §4，问题D/#4）——
+/// δ **不进**（657 置换免疫），force_state δ-free（绝对量算，mirror-invariant）合法进基。
+pub type DeltaFreeKey = (u32, u8, i8, Option<ForceStateA5>);
 
 /// SplitMix64 确定性 PRNG（手写，不引入 rand 依赖——固定种子可复现是预注册硬约束）。
 struct SplitMix64 {
@@ -281,7 +287,7 @@ pub fn stratified_delta_perm_p_deltafree(
     trades: &[ResidualTrade],
     n_perm: usize,
     seed: u64,
-) -> HashMap<(u32, u8, i8), f64> {
+) -> HashMap<DeltaFreeKey, f64> {
     let n = trades.len();
     let resid: Vec<f64> = trades.iter().map(|t| t.resid_base).collect();
     let cost: Vec<f64> = trades.iter().map(|t| t.cost).collect();
@@ -297,11 +303,15 @@ pub fn stratified_delta_perm_p_deltafree(
     }
     let strata: Vec<Vec<usize>> = strata_map.into_values().collect();
 
-    // δ-free 输出基 (level, bsp_class, parent_dir)：池化两 δ 方向成员（BTreeMap 确定序）。
-    let mut base_map: BTreeMap<(u32, u8, i8), Vec<usize>> = BTreeMap::new();
+    // δ-free 输出基 (level, bsp_class, parent_dir, force_state)：池化两 δ 方向成员（BTreeMap 确定序）。
+    // ★A1（prereg-rev2-20260704）：force_state 第 8 维进主裁决聚合基（dfonline-a2 §4 两注入点之一）。
+    // force_state δ-free（绝对量算，mirror-invariant，perm_test 模块文档 + fullz base 先例）⟹ 进基
+    // 合法；ForceState⊥δ 前置检验在 wverify_run 跑数侧兑现（prereg §1.2）。**分层键 strata_map 不动**
+    // （恒 (ℓ,h,time,σ^H)）——force_state 进的是输出基键，非置换分层键。
+    let mut base_map: BTreeMap<DeltaFreeKey, Vec<usize>> = BTreeMap::new();
     for (i, t) in trades.iter().enumerate() {
         base_map
-            .entry((t.class.level, t.class.bsp_class(), t.class.parent_dir))
+            .entry((t.class.level, t.class.bsp_class(), t.class.parent_dir, t.class.force_state))
             .or_default()
             .push(i);
     }
@@ -310,7 +320,7 @@ pub fn stratified_delta_perm_p_deltafree(
         let s: f64 = members.iter().map(|&idx| d[idx] as f64 * resid[idx] - cost[idx]).sum();
         s / members.len() as f64
     };
-    let mut bases: Vec<((u32, u8, i8), Vec<usize>, f64, usize)> = base_map
+    let mut bases: Vec<(DeltaFreeKey, Vec<usize>, f64, usize)> = base_map
         .into_iter()
         .map(|(k, members)| {
             let obs = pooled_mean(&members, &delta0);
@@ -422,7 +432,7 @@ mod tests {
             (_, false) => BspBits { sell3: true, ..Default::default() },
         };
         let class = MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root);
-        ResidualTrade { class, resid_base, cost: 0.0, h_bucket, time_block }
+        ResidualTrade { class, resid_base, cost: 0.0, h_bucket, time_block, d: 1.0 }
     }
 
     #[test]
