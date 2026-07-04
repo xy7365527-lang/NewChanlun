@@ -225,6 +225,28 @@ def get_frozen_nodes(root):
     return frozen_ids
 
 
+def _read_frontmatter_head(filepath, min_bytes=8192):
+    """读取文件头部：YAML frontmatter 完整读到闭合 `---`，无 frontmatter 时返回前 min_bytes 字节。
+
+    旧实现 f.read(1500/2000) 按字节截断——中文 UTF-8 每字 3 字节，长 title
+    （如 626号 frontmatter title 单行 >3000 字节）会把真实存在的字段挤出窗口，
+    造成 missing_frontmatter/漏检假报（genealogist 605号案例确诊）。
+    找到闭合标记时返回截到 frontmatter 结束处的文本，避免 id 等字段误匹配正文。
+    """
+    with open(filepath, encoding="utf-8") as f:
+        head = f.read(min_bytes)
+        if not head.startswith("---"):
+            return head
+        while True:
+            m = re.search(r"\n---\s*(?:\n|$)", head[3:])
+            if m:
+                return head[:3 + m.end()]
+            more = f.read(min_bytes)
+            if not more:
+                return head
+            head += more
+
+
 def detect_pending_topo_effects(root):
     """177号：扫描含结构化 topo_effect 但未执行的谱系文件。
 
@@ -237,8 +259,7 @@ def detect_pending_topo_effects(root):
     pending = []
     for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
         try:
-            with open(settled_file, encoding="utf-8") as f:
-                head = f.read(2000)
+            head = _read_frontmatter_head(settled_file)
             fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
             if not fm_match:
                 continue
@@ -286,8 +307,7 @@ def detect_genealogy_anomalies(root):
         num_to_files.setdefault(file_num, []).append(basename)
 
         try:
-            with open(filepath, encoding="utf-8") as f:
-                head = f.read(1500)
+            head = _read_frontmatter_head(filepath)
             id_match = re.search(r'(?:^|\n)\s*\*?\*?id\*?\*?:\s*["\']?(\d+)["\']?', head)
             if id_match:
                 internal_id = int(id_match.group(1))
@@ -961,8 +981,7 @@ def _scan_genealogy_proposals(root, gangmu_data):
     for _, fname in all_settled:
         fpath = os.path.join(settled_dir, fname)
         try:
-            with open(fpath, encoding="utf-8") as f:
-                head = f.read(2000)
+            head = _read_frontmatter_head(fpath)
             fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
             if not fm_match:
                 continue
@@ -1307,8 +1326,7 @@ def scan_meta_rule_genealogies(root):
         reverse=True,
     ):
         try:
-            with open(filepath, encoding="utf-8") as f:
-                head = f.read(2000)
+            head = _read_frontmatter_head(filepath)
             fm_match = re.match(r"^---\s*\n(.+?)\n---", head, re.DOTALL)
             if not fm_match:
                 continue
@@ -1752,8 +1770,7 @@ def main():
     tensions_found = []
     for settled_file in glob.glob(os.path.join(root, ".chanlun/genealogy/settled/*.md")):
         try:
-            with open(settled_file, encoding="utf-8") as f:
-                first_lines = f.read(2000)
+            first_lines = _read_frontmatter_head(settled_file)
             # 快速检查 YAML frontmatter 中的 tensions_with
             if "tensions_with:" in first_lines and "tensions_with: []" not in first_lines:
                 fname = os.path.basename(settled_file)
