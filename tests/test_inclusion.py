@@ -186,6 +186,21 @@ class TestDirectionRule:
         assert m["high"].iloc[0] == 20.0
         assert m["low"].iloc[0] == 2.0  # max(1,2)=2, 不是 min
 
+    def test_dir_none_defaults_up_even_when_first_bar_bearish(self):
+        """dir=None 的默认 UP 不得被首根K线阴阳覆盖。"""
+        # 首根是阴线（close < open），但包含方向只能由无包含相邻K线确定；
+        # 直接包含链没有方向证据，仍按 UP: H=max(20,19)=20, L=max(1,2)=2。
+        df = pd.DataFrame({
+            "open":  [20, 2],
+            "high":  [20, 19],
+            "low":   [1, 2],
+            "close": [5, 10],
+        })
+        m, _ = merge_inclusion(df)
+        assert len(m) == 1
+        assert m["high"].iloc[0] == 20.0
+        assert m["low"].iloc[0] == 2.0
+
     def test_chain_default_up(self):
         """dir=None 全程包含链 → 持续按 UP 合并。"""
         df = pd.DataFrame({
