@@ -96,6 +96,13 @@ impl<'a> IncrementalClassifier<'a> {
     pub fn tower_generation(&self) -> u64 {
         self.tower_cache.generation()
     }
+
+    /// ★on2w2：当前塔森林代次（`forest_epoch`）——下游 `TreeCache` 据此 O(1) 判断是否复用 K_i 森林
+    /// （`extract_carrier_forest`，读全塔含 L0），跳过每 bar O(全塔) 的 `TreeKey::of_forest`（H6 O(n²)
+    /// 真因）。同代次 ⟹ 森林逐字节不变（soundness 见 `TowerCache::forest_epoch` 字段文档）。
+    pub fn forest_epoch(&self) -> u64 {
+        self.tower_cache.forest_epoch()
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1222,12 +1229,13 @@ mod profile {
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 let gen = incr.tower_generation();
-                if prev_gen == Some(gen) { gen_hits += 1; }
-                prev_gen = Some(gen);
+                let fe = incr.forest_epoch();
+                if prev_gen == Some(fe) { gen_hits += 1; }
+                prev_gen = Some(fe);
                 let t = std::time::Instant::now();
                 let (_tree, _cand, _gamma) =
                     interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                        &cls, &tower, &mut Some(&mut tree_cache), Some(gen),
+                        &cls, &tower, &mut Some(&mut tree_cache), Some(gen), Some(fe),
                     );
                 t_extract += t.elapsed().as_secs_f64();
             }
@@ -1235,6 +1243,70 @@ mod profile {
             eprintln!("{n:>7} | {t_extract:>10.4} | {xe:>8.2} {:>9.2}%", 100.0 * gen_hits as f64 / n as f64);
             prev = Some((n, t_extract));
         }
+    }
+
+    /// ★on2w2 诊断（临时）：forest_epoch bump 率 vs of_forest 真变率对拍。
+    #[test]
+    #[ignore = "on2w2 诊断：epoch bump 率 vs 真变率；需 CL；--release --ignored"]
+    fn diag_forest_epoch_bump_vs_true_change() {
+        use super::super::super::strategy::{coverage, interp::TreeKey};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 8000.min(oos.bars.len());
+        let mut incr = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+        let mut prev_fe: Option<u64> = None;
+        let mut prev_fp: Option<TreeKey> = None;
+        let mut epoch_bumps = 0usize;
+        let mut true_changes = 0usize;
+        let mut false_hits = 0usize; // epoch 相等但森林真变（=假命中，soundness 破裂）
+        for i in 0..n {
+            let (_cls, tower) = incr.classify_at(i);
+            let fe = incr.forest_epoch();
+            let fp = TreeKey::of_forest(&tower);
+            let _forest = coverage::extract_carrier_forest(&tower);
+            let epoch_changed = prev_fe.map(|p| p != fe).unwrap_or(true);
+            let fp_changed = prev_fp.as_ref().map(|p| *p != fp).unwrap_or(true);
+            if epoch_changed { epoch_bumps += 1; }
+            if fp_changed { true_changes += 1; }
+            if !epoch_changed && fp_changed { false_hits += 1; }
+            prev_fe = Some(fe);
+            prev_fp = Some(fp);
+        }
+        // ★on2w2 forest 段隔离计时：只量 tree_segment（forest 命中/重建），排除 candidate/gamma 段。
+        // before（of_forest 每 bar O(全塔)）= 传 None；after（epoch O(1) 命中）= 传 Some(fe)。
+        {
+            use super::super::super::strategy::interp::TreeCache;
+            let mut before = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+            let mut tc_b = TreeCache::new();
+            let t = std::time::Instant::now();
+            for i in 0..n {
+                let (cls, tower) = before.classify_at(i);
+                // None ⟹ of_forest 指纹判据（实装前形态）。
+                let _ = coverage::extract_carrier_forest(&tower); // 保底触达（None miss 时同）
+                let _ = super::super::super::strategy::interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut Some(&mut tc_b), None, None);
+            }
+            let t_before = t.elapsed().as_secs_f64();
+            let mut after = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+            let mut tc_a = TreeCache::new();
+            let t = std::time::Instant::now();
+            for i in 0..n {
+                let (cls, tower) = after.classify_at(i);
+                let fe = after.forest_epoch();
+                let _ = super::super::super::strategy::interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut Some(&mut tc_a), None, Some(fe));
+            }
+            let t_after = t.elapsed().as_secs_f64();
+            eprintln!("forest 段计时（含 candidate 段共同基底）：before(None/of_forest)={t_before:.4}s after(Some/epoch)={t_after:.4}s ({:.2}x)",
+                t_before / t_after.max(1e-9));
+        }
+        let pr = super::super::super::classifier::oracle_probe::snapshot();
+        eprintln!("\n===== on2w2 epoch bump vs 真变（CL {n}）=====");
+        eprintln!("epoch_bumps={epoch_bumps} ({:.2}%) | true_changes(of_forest)={true_changes} ({:.2}%) | false_hits={false_hits}",
+            100.0*epoch_bumps as f64/n as f64, 100.0*true_changes as f64/n as f64);
+        eprintln!("E-site 分解：calls={} fd_any={} | E1(l0)={} E2(extend)={} E3(cascade)={}",
+            pr.fd_calls, pr.fd_any, pr.fd_l0, pr.fd_extend, pr.fd_cascade);
     }
 
     /// **★工位 4g 候选段隔离：gen 快路命中后剩余工作（candidate 段）标度**（L2）。
@@ -1263,9 +1335,10 @@ mod profile {
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 let gen = incr.tower_generation();
+                let fe = incr.forest_epoch();
                 let t = std::time::Instant::now();
                 let (_t, cand, _g) = interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen));
+                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen), Some(fe));
                 t_cand += t.elapsed().as_secs_f64();
                 last_cand = cand.len();
             }
@@ -1277,7 +1350,7 @@ mod profile {
                 let (cls, tower) = incr2.classify_at(i);
                 let t = std::time::Instant::now();
                 let _ = interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut None, None);
+                    &cls, &tower, &mut None, None, None);
                 t_full += t.elapsed().as_secs_f64();
             }
             eprintln!("{n:>7} | {t_cand:>10.4} | {ce:>8.2} {last_cand:>9}  full_nocache={t_full:.4}");
@@ -1343,15 +1416,18 @@ mod profile {
         for i in 0..n {
             let (cls, tower) = incr.classify_at(i);
             let gen = incr.tower_generation();
+            let fe = incr.forest_epoch();
             let prev_gen_snap = prev_gen;
-            if prev_gen == Some(gen) { gen_hits += 1; }
-            prev_gen = Some(gen);
+            if prev_gen == Some(fe) { gen_hits += 1; }
+            prev_gen = Some(fe);
             let _ = prev_gen_snap;
-            // _gen 快路（debug_assert_eq 内部对比代次命中树 == extract_elements）。
-            let expect = coverage::extract_elements(&tower);
+            // ★on2w2：K_i 命中判据 = forest_epoch。debug_assert_eq 内部对比 epoch 命中树 ==
+            // extract_carrier_forest。此处再显式对 extract_elements（T_i）——注意 cached_gen 的 tree
+            // 段现是 K_i（extract_carrier_forest），故显式对拍改用 carrier_forest（与生产判据同源）。
+            let expect = coverage::extract_carrier_forest(&tower);
             let (tree, _cand, _gamma) =
                 interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen));
+                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen), Some(fe));
             // 显式再断一遍（不依赖 debug_assert，release 也保护本测试）。
             if tree.as_ref() != &expect {
                 eprintln!("DIVERGE bar {i}：gen={gen} prev_gen={prev_gen_snap:?} cached_len={} expect_len={} tower_levels={}",

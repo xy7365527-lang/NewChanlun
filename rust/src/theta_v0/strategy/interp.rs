@@ -604,7 +604,12 @@ pub struct TreeCache {
     id_idx: Rc<std::collections::HashMap<ElementId, usize>>,
     valid: bool,
     // ★A12：旧 4g `gen: Option<u64>` 代次快路字段已删——K_i（全塔含 L0）下 gen 命中 ≠ 森林不变
-    // （L0 尾段古怪线段重划不 bump gen，bar 3020 坐实），唯一命中判据 = TreeKey::of_forest。
+    // （L0 尾段古怪线段重划不 bump gen，bar 3020 坐实）。
+    // ★on2w2：K_i 命中判据 = classifier 域独立 `forest_epoch`（在塔实际字节变更站点直接 ++，覆盖 L0）——
+    // 取代每 bar O(全塔) 的 `TreeKey::of_forest` 指纹（H6 O(n²) 真因）。`key`（of_forest 指纹）保留作
+    // `None`（合成/全量非增量）路径的 fallback 判据 + 双 key 失效不变量（§5.4）。
+    // `key_epoch`：`Some(e)` 生产增量路径命中判据；`None` 路径此字段不参与（用 `key` 比对）。
+    key_epoch: Option<u64>,
 }
 
 impl TreeCache {
@@ -638,16 +643,25 @@ impl TreeCache {
 /// host^op 仍严格右端点命中（P2a 保留，不违 638），只改 host 宇宙（P2b：T_i→K_i）。T_i/
 /// `extract_elements` 本身**不动**（结构可视化/bit-exact extract/compose chain 侧，648 保留项）。
 ///
-/// ★gen 快路移除（K_i soundness）：`TowerCache::generation` 维护点只覆盖 upper 级
-/// cascade/extend/clear——**L0 段尾部古怪线段重划不 bump gen**（CandidateCache bar 3020 坐实）。
-/// T_i 只读最高非空级 ⟹ gen 快路 sound；K_i 读全塔含 L0 ⟹ gen 命中 ≠ K_i 不变 ⟹ 假命中返陈旧
-/// 森林。故 K_i 缓存唯一命中判据 = [`TreeKey::of_forest`]（全级别指纹，覆盖 K_i 输出全部决定字段）。
-/// ponytail: 每 bar O(全塔) 指纹构造是已知 ceiling（4g 消除的热点部分回归）；升级路径 = 把 parser
-/// `segments_confirmed_len` 证书传入 TreeCache 做 L0 增量指纹（前缀免重扫）。
+/// ★on2w2（H6 O(n²) sound 修复）：K_i 命中判据从每 bar O(全塔) 的 [`TreeKey::of_forest`] 指纹降为
+/// classifier 域独立 `forest_epoch`（O(1) u64 比较）。`forest_epoch` 在塔实际字节变更站点（E1-E4，
+/// mod.rs）直接 ++，**直接覆盖 L0**（无需 gen 的 cascade 间接传播 + l0_is_root blunt 兜底）——既修
+/// A12 所指的 L0-root/L0-尾段-重划 soundness 漏洞，又把 bump 率从 gen 的 98.5% 压回 forest 真变率
+/// ≈0.8%（gen 复用无收益的根因，见 on2w2-epoch-design §2）。
+///
+/// 双路命中判据（§5.4，no-patch 保 fallback 非补丁）：
+/// - `forest_epoch=Some(e)`（生产增量路径，runner）：命中 = `c.valid && c.key_epoch == Some(e)`，O(1)。
+/// - `forest_epoch=None`（合成闭包 / 全量非增量路径，无 epoch 语义——不跨 bar 复用 TowerCache）：
+///   fallback 到 `TreeKey::of_forest` 指纹比对（O(tree)，但这些路径不在 per-bar 热循环，无 O(n²) 暴露）。
+///
+/// 双 key 失效不变量（§5.4）：miss 重建时**同时刷新** `c.key`（of_forest）与 `c.key_epoch`——两 key
+/// 恒指向同一份已缓存 tree ⟹ 同一 TreeCache 被 Some/None 交替调用也无陈旧命中（生产恒 Some，交替只
+/// 在混用测试出现，但不变量无条件成立）。
 fn tree_segment_cached_gen(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
+    forest_epoch: Option<u64>,
 ) -> (
     Rc<Vec<CoverageElement>>,
     Rc<std::collections::HashMap<(u32, usize), usize>>,
@@ -656,10 +670,14 @@ fn tree_segment_cached_gen(
     let _ = classification; // 操作宇宙段不消费 classification（candidate 段才用），保签名一致。
     match cache {
         Some(c) => {
-            let key = TreeKey::of_forest(tower);
-            if c.valid && c.key == key {
+            // 命中判据：Some(e) 走 O(1) epoch 比较；None 走 of_forest 指纹（fallback，§5.4）。
+            let hit = match forest_epoch {
+                Some(e) => c.valid && c.key_epoch == Some(e),
+                None => c.valid && c.key == TreeKey::of_forest(tower),
+            };
+            if hit {
                 debug_assert_eq!(c.tree.as_ref(), &coverage::extract_carrier_forest(tower),
-                    "TreeCache 假命中——§16 不变量破裂或 TreeKey::of_forest 不 sound");
+                    "TreeCache 假命中——§16 不变量破裂或 forest_epoch 漏 bump（枚举不完备，on2w2 §3.1）");
                 (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
             } else {
                 let t = Rc::new(coverage::extract_carrier_forest(tower));
@@ -674,7 +692,10 @@ fn tree_segment_cached_gen(
                 c.sibling_idx = Rc::new(coverage::build_prev_sibling_index(&t));
                 c.id_idx = Rc::new(coverage::build_tree_id_index(&t));
                 c.tree = t;
-                c.key = key;
+                // ★双 key 失效不变量（§5.4）：miss 重建时同刷两 key（of_forest 只在 miss 算一次，
+                // 非每 bar，不回归 O(n²)）——两 key 恒指同一 tree，Some/None 交替无陈旧命中。
+                c.key = TreeKey::of_forest(tower);
+                c.key_epoch = forest_epoch;
                 c.valid = true;
                 (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
             }
@@ -813,11 +834,12 @@ pub fn coverage_elements_with_tower_cached_gen(
     tree_cache: &mut TreeCache,
     cand_cache: &mut CandidateCache,
     tower_gen: Option<u64>,
+    forest_epoch: Option<u64>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>) {
-    // ── 操作宇宙段（K_i，A12：of_forest 指纹命中——gen 快路对 K_i 不 sound 已删）。 ──
+    // ── 操作宇宙段（K_i，on2w2：forest_epoch O(1) 命中——取代 of_forest O(全塔) 指纹）。 ──
     let (tree, tree_endpoint_idx) = {
         let mut opt = Some(tree_cache);
-        let (t, ep, _sb) = tree_segment_cached_gen(classification, tower, &mut opt);
+        let (t, ep, _sb) = tree_segment_cached_gen(classification, tower, &mut opt, forest_epoch);
         (t, ep)
     };
     let candidate_start = tree.len();
@@ -902,8 +924,9 @@ pub fn coverage_elements_and_gamma_with_tower_cached(
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
-    // 向后兼容入口（无 generation——合成闭包/全量路径走 TreeKey 比较，O(tree)/bar）。
-    coverage_elements_and_gamma_with_tower_cached_gen(classification, tower, cache, None)
+    // 向后兼容入口（无 generation / 无 forest_epoch——合成闭包/全量路径走 of_forest 指纹比较，
+    // O(tree)/bar；这些路径不在 per-bar 热循环，无 O(n²) 暴露，§5.4 fallback）。
+    coverage_elements_and_gamma_with_tower_cached_gen(classification, tower, cache, None, None)
 }
 
 /// [`coverage_elements_and_gamma_with_tower_cached`] 带塔代次 `tower_gen`（签名保留，A12 后本路径
@@ -921,6 +944,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
     tower_gen: Option<u64>,
+    forest_epoch: Option<u64>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
     let _ = tower_gen; // A12：gen 快路对 K_i 不 sound 已删（见函数文档）；参数保留签名兼容。
     // ★热点②③ O(n²) 消除：树前缀 + 两个派生索引 `Rc` 共享（命中返 `Rc::clone` O(1)，旧每 bar
@@ -930,7 +954,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     // （PART1 gamma-free 路径共享同逻辑，no-patch 不复制缓存）。A12：宇宙=K_i（tower_gen 只供
     // candidate 段 CandidateCache 消费，K_i 段判据=of_forest）。
     let (tree, tree_endpoint_idx, tree_sibling_idx) =
-        tree_segment_cached_gen(classification, tower, cache);
+        tree_segment_cached_gen(classification, tower, cache, forest_epoch);
     let candidate_start = tree.len();
 
     // ── 遍历1：构建 candidate 段（parent/id/parent_id 只读 tree 前缀，无需 candidate 段连续）。 ──
@@ -1939,13 +1963,57 @@ mod tests {
             // cached 路径（带 TreeCache，跨 bar 复用 Rc 树前缀）。
             let (cached_tree, _candidates, _) =
                 coverage_elements_and_gamma_with_tower_cached(&cls, &tower, &mut Some(&mut cache));
-            // nocache 路径（每 bar 全量 extract_elements）。
-            let nocache_elems = coverage::extract_elements(&tower);
+            // nocache 路径（每 bar 全量重建）。★A12（#160）后 cached 段宇宙 = K_i
+            // （extract_carrier_forest），非 T_i（extract_elements）——oracle 须同源（旧比 extract_elements
+            // 是 A12 前遗留的陈旧断言，K_i≠T_i 必然发散）。on2w2 订正为 carrier_forest（生产判据同源）。
+            let nocache_elems = coverage::extract_carrier_forest(&tower);
             assert_eq!(cached_tree[..], nocache_elems[..],
-                "bar {i}：cached Rc 树 ≠ nocache（TreeCache 假命中——陈旧树）");
+                "bar {i}：cached Rc 树 ≠ nocache（TreeCache 假命中——陈旧树 / epoch 漏 bump）");
             if cache.valid { hits += 1; }
         }
         eprintln!("bit_exact_per_bar：{n} bars 全部 cached==nocache，{hits} bars 缓存有效");
+    }
+
+    /// ★on2w2 G7（§5.4 双 key 失效不变量）：同一 TreeCache 被 Some(epoch)/None 两模式**交替**调用，
+    /// 不产生陈旧命中。构造两个不同 tower（森林不同），交替喂：
+    ///   1. Some(e0) 建 towerA 缓存
+    ///   2. None 喂 towerB（of_forest 判据 miss ⟹ 重建 towerB，同刷 key_epoch=None）
+    ///   3. Some(e0) 再喂 towerA —— 若只比 key_epoch 会假命中 towerB 的陈旧森林；双 key 失效不变量
+    ///      要求 miss 重建时同刷两 key ⟹ 此步 key_epoch 已被步2 刷成 None ≠ Some(e0) ⟹ 正确 miss 重建。
+    /// 断言：步3 返回的森林 == towerA 现算 extract_carrier_forest（非 towerB 陈旧）。
+    #[test]
+    fn tree_cache_dual_key_some_none_alternation_no_stale() {
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::center::UnitRange;
+        use super::super::super::types::Direction;
+        // 两个不同的单级 tower（森林不同：坐标不同）。from_unit 从 UnitRange 建（同生产构造路径）。
+        let mv = |lo: i64, hi: i64, dir: Direction, ord: u64| {
+            let u = UnitRange { start_index: ord as usize, end_index: ord as usize + 1,
+                direction: dir, lo, hi };
+            LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: ord })
+        };
+        let tower_a: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![
+            mv(100, 150, Direction::Up, 0), mv(120, 150, Direction::Down, 1), mv(120, 160, Direction::Up, 2),
+        ])];
+        let tower_b: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![
+            mv(200, 250, Direction::Up, 0), mv(210, 250, Direction::Down, 1), mv(210, 280, Direction::Up, 2),
+        ])];
+        let cls = Classification::default();
+        let mut cache = TreeCache::new();
+
+        // 步1：Some(e0) 建 towerA。
+        let (_a1, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
+            &cls, &tower_a, &mut Some(&mut cache), None, Some(42));
+        // 步2：None 喂 towerB（of_forest 判据 ⟹ miss 重建 towerB，双 key 同刷 key_epoch=None）。
+        let (_b, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
+            &cls, &tower_b, &mut Some(&mut cache), None, None);
+        // 步3：Some(e0=42) 再喂 towerA —— 双 key 失效不变量下 key_epoch 已被步2 刷成 None ⟹ miss 重建。
+        let (a3, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
+            &cls, &tower_a, &mut Some(&mut cache), None, Some(42));
+
+        let expect_a = coverage::extract_carrier_forest(&tower_a);
+        assert_eq!(a3[..], expect_a[..],
+            "双 key 失效不变量破裂：Some/None 交替后 Some(42) 假命中返 towerB 陈旧森林");
     }
 }
 
@@ -1994,16 +2062,16 @@ mod candidate_profile {
 
         // bar t：L0=[10,20], L1=[30]。
         let cls_t = cls(vec![10, 20], vec![30]);
-        let (_t0, _c0) = coverage_elements_with_tower_cached_gen(&cls_t, &tower, &mut tree_cache, &mut cand_cache, gen);
+        let (_t0, _c0) = coverage_elements_with_tower_cached_gen(&cls_t, &tower, &mut tree_cache, &mut cand_cache, gen, None);
 
         // bar t+1：L0 增长到 3（[10,20,25]），L1 前缀不变（[30]）。
         let cls_t1 = cls(vec![10, 20, 25], vec![30]);
-        let (_t1, inc) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut tree_cache, &mut cand_cache, gen);
+        let (_t1, inc) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut tree_cache, &mut cand_cache, gen, None);
 
         // 全量基准（fresh cache，从零全量 build）。
         let mut fresh_tree = TreeCache::new();
         let mut fresh_cand = CandidateCache::new();
-        let (_tf, full) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut fresh_tree, &mut fresh_cand, gen);
+        let (_tf, full) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut fresh_tree, &mut fresh_cand, gen, None);
 
         assert_eq!(inc, full, "base_ci 偏移修复：L0 增长后 L1 fallback ordinal 须重建（codex A/C 反例）");
         // 显式验证 L1 fallback ordinal = 全局 flat idx 3（candidate_start=0 + L0 3 个 + L1 第 0 个）。
@@ -2035,13 +2103,14 @@ mod candidate_profile {
         for i in 0..n {
             let (cls, tower) = incr.classify_at(i);
             let gen = incr.tower_generation();
+            let fe = incr.forest_epoch();
             // 全路径（含遍历2，丢 gamma 取 candidates）。
             let (_t_full, cand_full, _g) = coverage_elements_and_gamma_with_tower_cached_gen(
-                &cls, &tower, &mut Some(&mut tree_cache_full), Some(gen),
+                &cls, &tower, &mut Some(&mut tree_cache_full), Some(gen), Some(fe),
             );
             // gamma-free + 前缀缓存路径。
             let (_t_gf, cand_gf) = coverage_elements_with_tower_cached_gen(
-                &cls, &tower, &mut tree_cache_gf, &mut cand_cache, Some(gen),
+                &cls, &tower, &mut tree_cache_gf, &mut cand_cache, Some(gen), Some(fe),
             );
             assert_eq!(cand_gf, cand_full,
                 "bar {i}: gamma-free 增量 candidates != 全路径（前缀复用陈旧/gen 假命中/ci 错位）");
@@ -2082,8 +2151,9 @@ mod candidate_profile {
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 let gen = incr.tower_generation();
+                let fe = incr.forest_epoch();
                 let _ = coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut Some(&mut tc), Some(gen));
+                    &cls, &tower, &mut Some(&mut tc), Some(gen), Some(fe));
             }
             old_t.push(t0.elapsed().as_secs_f64());
 
@@ -2095,8 +2165,9 @@ mod candidate_profile {
             for i in 0..n {
                 let (cls, tower) = incr2.classify_at(i);
                 let gen = incr2.tower_generation();
+                let fe = incr2.forest_epoch();
                 let _ = coverage_elements_with_tower_cached_gen(
-                    &cls, &tower, &mut tc2, &mut cc, Some(gen));
+                    &cls, &tower, &mut tc2, &mut cc, Some(gen), Some(fe));
             }
             new_t.push(t1.elapsed().as_secs_f64());
             used.push(n);

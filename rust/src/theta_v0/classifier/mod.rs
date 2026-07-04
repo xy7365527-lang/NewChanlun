@@ -562,6 +562,21 @@ pub struct TowerCache {
     /// 非空级，但 `sub_moves: Vec<LeveledMove>` 值拷贝（compose 时 `subs.to_vec()`）⟹ 低级静默变异必经
     /// cascade 重建父级才更新副本（codex Q1 确认无静默路径）。
     generation: u64,
+    /// ★forest_epoch（on2w2：K_i 判据，独立于 `generation`）——下游 [`super::strategy::interp::TreeCache`]
+    /// 用其 O(1) 命中判断 `extract_carrier_forest(tower)`（K_i，读**全塔含 L0**）是否可复用，取代每 bar
+    /// O(全塔) 的 [`super::strategy::interp::TreeKey::of_forest`] 指纹（H6 O(n²) 真因）。
+    ///
+    /// **与 `generation` 的本质区别**（不复用的理由，见 on2w2-epoch-design §2/§3）：`generation` 服务
+    /// T_i（`extract_elements`，只读最高非空级），靠 L0→cascade→L1 **间接**传播 + `l0_is_root` 每-bar
+    /// blunt 兜底覆盖 L0，bump 率 98.5%（过度 124×，无法修 K_i 的 O(n²)）。forest_epoch 在**塔实际发生
+    /// 字节变更的写入站点直接 ++**（E1 L0 重建 / E2 upper extend / E2a frontier pop / E3 cascade clear /
+    /// E4 全量 clear），bump 率贴近 forest 真变率（≈0.8%），且 E1 直接捕获 L0 变更（覆盖 L0-root ∧
+    /// L0-尾段-重划-under-L1，无需 blunt 兜底）。
+    ///
+    /// **单调递增**，永不 reset（含 E4 clear 也是 ++，与 `generation` 同规格——下游缓存旧 epoch 可能恰
+    /// 为 0 ⟹ reset 会造假命中）。**over-invalidate**：写入站点无条件 ++（即便重扫复现相同字节），宁可
+    /// 多失效不可假命中。假命中不可能性证明见 on2w2-epoch-design §4。
+    forest_epoch: u64,
     /// B3 #4 area-memo：[`AreaCache`]（见其文档）——`sublevel_diverges` 的 `(start,end)→area`
     /// 冻结缓存，跨 bar 持久。
     area_cache: AreaCache,
@@ -577,6 +592,13 @@ impl TowerCache {
     /// 输出逐字节不变（soundness 见 `generation` 字段文档）。
     pub fn generation(&self) -> u64 {
         self.generation
+    }
+
+    /// ★on2w2：当前塔森林代次（`forest_epoch`）——下游 [`super::strategy::interp::TreeCache`] 用其 O(1)
+    /// 判断 `extract_carrier_forest(tower)`（K_i）是否可复用，取代每 bar O(全塔) 的 `TreeKey::of_forest`。
+    /// 同代次 ⟹ K_i 森林输出逐字节不变（soundness 见 `forest_epoch` 字段文档 + on2w2-epoch-design §4）。
+    pub fn forest_epoch(&self) -> u64 {
+        self.forest_epoch
     }
 
     /// 当前增量产出的 MACD dif 前缀（黄白线，force_state 生产热路由输入；bit-exact 等价全量
@@ -615,6 +637,10 @@ impl TowerCache {
         // ★工位 4g：clear=全量重扫 ⟹ extract 输出会变 ⟹ +generation（不 reset 为 0——下游缓存旧
         // generation 可能恰为 0 ⟹ 假命中复用陈旧树）。单调递增保 sound。
         self.generation += 1;
+        // ★on2w2 E4：clear = moves_tower_l0.clear（tower[0] 字节变更）⟹ forest 变 ⟹ +forest_epoch
+        // （不 reset，同 generation 规格）。clear() 是 public 方法，此 bump 独立于增量循环的 forest_dirty
+        // 折叠——一个 bar 若既 clear() 又走增量循环可能 ++2，多失效恒 sound（见 on2w2-epoch-design §5.1）。
+        self.forest_epoch += 1;
     }
 }
 
@@ -931,6 +957,12 @@ pub mod oracle_probe {
         pub reentry_minparts: u64,
         /// `units.is_empty()` 早停且实际 truncate 掉已建级（§2.6 血缘失效路径2，depth 下降）。
         pub reentry_empty: u64,
+        /// on2w2 诊断：forest_dirty 由各 E-site 触发的分解计数（E1 L0 塔 / E2 did_extend / E3 cascade）。
+        pub fd_l0: u64,
+        pub fd_extend: u64,
+        pub fd_cascade: u64,
+        pub fd_any: u64,
+        pub fd_calls: u64,
     }
 
     thread_local! {
@@ -952,6 +984,17 @@ pub mod oracle_probe {
             } else if t > 1 {
                 p.t_gt1 += 1;
             }
+        });
+    }
+    /// on2w2：forest_dirty 各 E-site 分解计数。
+    pub fn on_forest_dirty(l0: bool, extend: bool, cascade: bool) {
+        PROBE.with(|p| {
+            let mut p = p.borrow_mut();
+            p.fd_calls += 1;
+            if l0 { p.fd_l0 += 1; }
+            if extend { p.fd_extend += 1; }
+            if cascade { p.fd_cascade += 1; }
+            if l0 || extend || cascade { p.fd_any += 1; }
         });
     }
     /// min_parts 早停：`removed` = 本次 truncate 是否实际删掉已建级（depth 下降）。
@@ -1069,6 +1112,27 @@ pub fn classify_with_tower_incremental(
     // ordinal=reuse+i 全局索引（前缀 reuse<=confirmed_len 时 ordinal 不变 = 全量 enumerate，bit-exact）。
     // make_mut：caller 逐 bar drop 上轮 tower_snapshots[0] ⟹ strong_count==1 ⟹ 原地 O(tail)；
     // >1（理论 caller 跨 bar 持有）⟹ 写时复制（仍 bit-exact）。clear() 已同步清空（退化全量）。
+    // ★on2w2 E1：L0 塔（tower[0]）字节变更判据。`moves_tower_l0` 是 `l0.segments` 的纯函数
+    // （from_unit∘segment_to_unit，ordinal=index）⟹ 内容变更 ⟺ segments 变更。parser 证书保
+    // segments[..confirmed_len] 跨 bar bit-stable（同 line 1069）⟹ 只需比 tail [reuse..]。
+    // ★实证订正（on2w2 实装，CL 8K）：初版设计用「reuse<len ∨ segments[reuse..]非空」长度判据，
+    // 但 frontier resume 使 truncate+repush 每 bar 发生（segments 有未确认尾段 ⟹ reuse<len 恒真），
+    // 而 repush 的尾段字节 99.2% 与旧值相同（inclusion-only 不改段）⟹ 长度判据 bump 率 100%，
+    // O(n²) 未消除。故改为**逐值比对 tail**（O(未确认尾段)=O(1) 摊还，非全塔）——精确匹配
+    // of_forest 真变率 0.78%。over-invalidate 方向保留：长度不等或任一尾段值不等即 dirty。
+    let forest_dirty_l0 = {
+        let old = &cache.moves_tower_l0;
+        let old_len = old.len();
+        if old_len != l0.segments.len() {
+            true
+        } else {
+            let reuse = l0.segments_confirmed_len.min(old_len);
+            (reuse..old_len).any(|i| {
+                let u = segment_to_unit(&l0.segments[i]);
+                old[i] != LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: i as u64 })
+            })
+        }
+    };
     stage_profile::time("01_l0_tower_rebuild", || {
         let reuse = l0.segments_confirmed_len.min(cache.moves_tower_l0.len());
         let m = Rc::make_mut(&mut cache.moves_tower_l0);
@@ -1143,6 +1207,10 @@ pub fn classify_with_tower_incremental(
     // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
     // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
     let mut did_extend = false;
+    // ★on2w2 forest_epoch dirty 累积器（E1-E3 折叠，循环后统一 bump——避开与循环内 `lc` 可变别名，
+    // 同 did_extend/cascade_reset 模式）。E1（L0 塔重建）在循环前置位；E2（upper extend）/E2a
+    // （frontier pop）/E3（cascade clear）在循环内 `|=`。E4（clear()）不经此，方法内直接 bump。
+    let mut forest_dirty = forest_dirty_l0;
     // ★A3 证书（per-level dirty_from，§2.4）：本级 units 的不可变前缀长度。L0 = l0_dirty_from
     // （§2.3）；L≥1 = 父级 prefix_count（loop 尾 `dirty_from = prefix_count`）。驱动 03（L1+ stable
     // 从 0 抬起）+ 04（cached_units truncate+extend O(tail)）。
@@ -1197,6 +1265,8 @@ pub fn classify_with_tower_incremental(
             cascade_reset = true;
         }
         if cascade_reset {
+            // ★on2w2 E3：cascade clear = 本级 upper_moves.clear（tower[level+1] 字节变更）⟹ forest 变。
+            forest_dirty = true;
             lc.scan_cursor = WindowScanCursor::default();
             // make_mut：若上 bar snapshot 仍持引用则写时复制再 clear（退化 bit-exact）；否则原地清。
             Rc::make_mut(&mut lc.upper_moves).clear();
@@ -1239,6 +1309,11 @@ pub fn classify_with_tower_incremental(
         // 为假 ⟹ 不 pop、从 resume_from(=上次start_i) 续扫（续进语义，仅不成立支推进过的区间）。
         let resume_start = lc.scan_cursor.resume_from;
         let had_emitted_window = lc.scan_cursor.resume_from < lc.scan_cursor.consumed;
+        // ★on2w2：本级 upper_moves（=tower[level+1]，forest 输入）字节变更判据。upper_moves 前缀
+        // [..prefix_count] 不可变（§16 confirmed），本 bar 只改尾部：pop 掉 `popped_upper`（末窗产出）
+        // 后 extend `tail_upper`（重扫产出）⟹ **变更 ⟺ popped_upper != tail_upper**（逐值）。无 pop
+        // 时 popped_upper 空 ⟹ 变更 ⟺ tail_upper 非空（纯追加，=E2）。捕获 pop 掉的 upper 尾段以供比对。
+        let mut popped_upper: Vec<LeveledMove> = Vec::new();
         if had_emitted_window {
             // pop 最后成立窗口的**全部**产出（frontier 域 = 整窗，重扫从窗口起点重产）——
             // ★#148 升级重切后一窗可产 k 个子中枢（`last_window_emitted`），只 pop 1 会残留旧
@@ -1251,7 +1326,9 @@ pub fn classify_with_tower_incremental(
             let cs = Rc::make_mut(&mut lc.centers);
             cs.truncate(cs.len().saturating_sub(pop_n));
             let um = Rc::make_mut(&mut lc.upper_moves);
-            um.truncate(um.len().saturating_sub(pop_n));
+            let keep = um.len().saturating_sub(pop_n);
+            popped_upper = um[keep..].to_vec(); // on2w2：pop 前捕获（与重扫 tail_upper 逐值比）。
+            um.truncate(keep);
         }
         // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
         // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。★A3 §2.2：prefix_count 同时是本级
@@ -1282,6 +1359,12 @@ pub fn classify_with_tower_incremental(
         // 事件流 parity 测试）。
         // 追加到已缓存前缀（前缀不可变，仅尾部追加）⟹ 累积 centers/upper == 全量扫描结果。
         did_extend |= !tail_upper.is_empty();
+        // ★on2w2 E2+E2a（合并逐值判据）：本级 upper_moves 尾部从 popped_upper 换成 tail_upper。
+        // 变更 ⟺ 两者不逐值相等（含长度）。frontier resume 每 bar pop+重扫复现相同窗口（tail_upper
+        // == popped_upper）时**不置 dirty**——这是把 bump 率从 did_extend 的 ~96% 压回 forest 真变率
+        // 0.78% 的机制（实证订正：初版 `|=!tail_upper.is_empty()` 对每 bar 重扫复现的相同窗口误 bump）。
+        // over-invalidate 保留：长度或任一值不等即 dirty。O(tail) 比对，非全塔。
+        forest_dirty |= tail_upper != popped_upper;
         stage_profile::time("06_extend_centers_upper", || {
             // make_mut：strong_count==1 ⟹ 原地 extend O(tail)；>1 ⟹ 写时复制（bit-exact）。
             Rc::make_mut(&mut lc.centers).extend(tail_centers);
@@ -1475,6 +1558,17 @@ pub fn classify_with_tower_incremental(
     if cascade_reset || did_extend || l0_is_root {
         cache.generation += 1;
     }
+
+    // ★on2w2 forest_epoch：E1-E3 折叠（forest_dirty，含 E1 L0 塔重建 / E2 upper extend / E2a frontier
+    // pop / E3 cascade clear）循环后统一 bump。E4（clear()）不经此（方法内已 bump）。与 generation 的
+    // 关键区别：generation 靠 l0_is_root 每-bar blunt 兜底（bump 率 98.5%）；forest_epoch 只在塔实际字节
+    // 变更时 bump（E1 直接捕获 L0 变更，无需 blunt 兜底）⟹ bump 率贴近 forest 真变率 ≈0.8%（on2w2 §2）。
+    // over-invalidate：写入站点无条件 dirty，宁可多失效不可假命中（假命中不可能性证明 on2w2 §4）。
+    if forest_dirty {
+        cache.forest_epoch += 1;
+    }
+    #[cfg(test)]
+    oracle_probe::on_forest_dirty(forest_dirty_l0, forest_dirty && !forest_dirty_l0 && !cascade_reset, cascade_reset);
 
     (Classification { levels }, tower_snapshots)
 }
@@ -2672,6 +2766,77 @@ mod tests {
         for (lvl, (il, fl)) in inc_tower_v2.iter().zip(full_tower_v2.iter()).enumerate() {
             assert_eq!(il, fl, "cascade: level {lvl} LeveledMove == 全量");
         }
+    }
+
+    /// ★on2w2 G7（epoch 递增覆盖性）：L0 尾段重划场景（= A12 bar3020 假命中场景）**必须** bump
+    /// forest_epoch。复用 `cascade_reset_on_frontier_interior_rewrite` 的 v1→v2 fixture——v2 仅末段
+    /// end_price 147→140（组 C 外缘内点，L1 投影 bit-identical，L0 sub_moves 变）。这是 gen 快路当年
+    /// 假命中返陈旧森林的精确形态（TowerCache::generation 靠 l0_is_root blunt 兜底才没漏）。
+    ///
+    /// 断言：喂 v1 后喂 v2，forest_epoch **严格递增**（若 epoch 漏 bump ⟹ 下游 TreeCache 假命中返
+    /// v1 陈旧森林 ⟹ bit-exact 破裂）。E1 逐值判据在此场景 [reuse..] 尾段值变（147→140）⟹ dirty。
+    #[test]
+    fn forest_epoch_bumps_on_l0_tail_redivision() {
+        let cfg = ThetaConfig::default();
+        let base = vec![
+            seg(Direction::Up,   0,  4, 110, 150),
+            seg(Direction::Down, 4,  8, 150, 120),
+            seg(Direction::Up,   8, 12, 120, 148),
+            seg(Direction::Down,12, 16, 115,  80),
+            seg(Direction::Up,  16, 20,  80, 125),
+            seg(Direction::Down,20, 24, 114,  85),
+            seg(Direction::Up,  24, 28, 115, 148),
+            seg(Direction::Down,28, 32, 148, 112),
+            seg(Direction::Up,  32, 36, 112, 147), // v1 末段
+        ];
+        let mut closes: Vec<i64> = Vec::new();
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 { 40 } else { -40 }); }
+        for i in 0..12 { closes.push(100 + if i % 2 == 0 {  5 } else {  -5 }); }
+        for i in 0..16 { closes.push(100 + if i % 2 == 0 {  3 } else {  -3 }); }
+        let merged = Rc::new(bars_from_closes(&closes));
+        let layer_v1 = ParseLayer { segments: Rc::new(base.clone()), merged_bars: merged.clone(), ..Default::default() };
+        let mut v2_segs = base.clone();
+        v2_segs[8].end_price = 140; // L0 尾段重划（内点改写）——A12 bar3020 假命中场景。
+        let layer_v2 = ParseLayer { segments: Rc::new(v2_segs), merged_bars: merged.clone(), ..Default::default() };
+
+        let mut cache = TowerCache::new();
+        let _ = classify_with_tower_incremental(&layer_v1, &cfg, &mut cache);
+        let epoch_after_v1 = cache.forest_epoch();
+        let _ = classify_with_tower_incremental(&layer_v2, &cfg, &mut cache);
+        let epoch_after_v2 = cache.forest_epoch();
+        assert!(
+            epoch_after_v2 > epoch_after_v1,
+            "L0 尾段重划（147→140）必须 bump forest_epoch（漏 bump ⟹ TreeCache 假命中返陈旧森林）：\
+             v1_epoch={epoch_after_v1} v2_epoch={epoch_after_v2}"
+        );
+    }
+
+    /// ★on2w2：无字节变更 bar（inclusion-only，L0 尾段值不变）**不** bump forest_epoch——O(n²) 消除
+    /// 的机制（bump 率贴近 forest 真变率而非每 bar）。喂完全相同的 layer 两次，第二次 epoch 不应变。
+    #[test]
+    fn forest_epoch_stable_on_no_change() {
+        let cfg = ThetaConfig::default();
+        let base = vec![
+            seg(Direction::Up,   0,  4, 110, 150),
+            seg(Direction::Down, 4,  8, 150, 120),
+            seg(Direction::Up,   8, 12, 120, 148),
+            seg(Direction::Down,12, 16, 115,  80),
+            seg(Direction::Up,  16, 20,  80, 125),
+            seg(Direction::Down,20, 24, 114,  85),
+            seg(Direction::Up,  24, 28, 115, 148),
+        ];
+        let mut closes: Vec<i64> = Vec::new();
+        for i in 0..28 { closes.push(100 + if i % 2 == 0 { 30 } else { -30 }); }
+        let merged = Rc::new(bars_from_closes(&closes));
+        let layer = ParseLayer { segments: Rc::new(base.clone()), merged_bars: merged.clone(), ..Default::default() };
+
+        let mut cache = TowerCache::new();
+        let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+        let e1 = cache.forest_epoch();
+        // 完全相同输入再喂一次——无任何塔字节变更 ⟹ epoch 不应 bump。
+        let _ = classify_with_tower_incremental(&layer, &cfg, &mut cache);
+        let e2 = cache.forest_epoch();
+        assert_eq!(e1, e2, "无变更 bar 不应 bump forest_epoch（否则退化每 bar bump = O(n²) 未消除）：e1={e1} e2={e2}");
     }
 
     // ──────────────────────────────────────────────────────────────────────

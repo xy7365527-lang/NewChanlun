@@ -362,7 +362,8 @@ fn run_theta_v0_pi_inner(
         |i| {
             let (cls, tower) = classifier_incr.classify_at(i);
             let gen = classifier_incr.tower_generation();
-            (cls, tower, gen)
+            let fe = classifier_incr.forest_epoch(); // ★on2w2：K_i O(1) 命中判据。
+            (cls, tower, gen, fe)
         },
         bars,
         initial_nav,
@@ -622,8 +623,9 @@ fn pi_theta_fill_loop<F>(
     chi: Option<ChiFilterCtx>,
 ) -> FillOutput
 where
-    // ★工位 4g：闭包返回三元组——第三个 u64 = 塔代次（TreeCache O(1) 命中判据）。
-    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64),
+    // ★工位 4g/on2w2：闭包返回四元组——第三个 u64 = 塔代次（candidate 段判据）；第四个 u64 =
+    // forest_epoch（K_i 森林段 O(1) 命中判据，on2w2 O(n²) 修复）。
+    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64),
 {
     use super::super::strategy::coverage::{self, PiThetaWeights};
     use super::super::strategy::exec::fill_bar_index;
@@ -771,7 +773,7 @@ where
         if !bar.untradable && px > 0.0 {
             // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
             //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
-            let (classification_i, tower_i, tower_gen) = classify_at(i);
+            let (classification_i, tower_i, tower_gen, forest_epoch) = classify_at(i);
             // ★当步候选 = 前缀因果塔里**本 bar 新确认**的买卖点（append-only diff vs seen，确认-bar
             // 部署）——非 source_index==i 切片（买卖点回溯确认，其触发点常在更晚 bar 才入前缀塔 ⟹
             // source_index==i 切恒空 ⟹ 零订单）。买卖点在被确认那根 bar（source_index≤i）部署=因果。
@@ -806,7 +808,7 @@ where
             // ★热点② O(n²) 消除：tree=Rc::clone O(1)，candidate 段单独 Vec，ElementView 双段零拷贝。
             let (step_tree, step_candidates, step_gamma) =
                 interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &classification_step, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen),
+                    &classification_step, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen), Some(forest_epoch),
                 );
             // ★工位 4d 热点①②：注入缓存的 base（tree 前缀）兄弟/ID 索引（命中 Rc::clone O(1)），消除
             // coverage_step_from_buckets 内每 bar build_prev_sibling_index/build_tree_id_index O(tree)/bar。
@@ -1039,7 +1041,7 @@ where
                 // 消费 candidates（不读 gamma/role，codex Q1）⟹ 跳遍历2 + candidate 前缀复用（codex Q2/Q3）。
                 let (tree_ref, candidates_ref) =
                     interp::coverage_elements_with_tower_cached_gen(
-                        &classification_i, &tower_i, &mut tree_cache, &mut cand_cache, Some(tower_gen),
+                        &classification_i, &tower_i, &mut tree_cache, &mut cand_cache, Some(tower_gen), Some(forest_epoch),
                     );
                 // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
                 // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
@@ -1139,7 +1141,8 @@ pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<
         |i| {
             let (cls, tower) = classifier_incr.classify_at(i);
             let gen = classifier_incr.tower_generation();
-            (cls, tower, gen)
+            let fe = classifier_incr.forest_epoch(); // ★on2w2：K_i O(1) 命中判据。
+            (cls, tower, gen, fe)
         },
         bars,
         nav,
@@ -1994,9 +1997,9 @@ mod tests {
             // 走 TreeKey fallback，bit-exact；空塔下 TreeKey 亦平凡）。
             |i| {
                 if i >= 7 {
-                    (classification.clone(), Vec::new(), i as u64)
+                    (classification.clone(), Vec::new(), i as u64, i as u64)
                 } else {
-                    (Classification::default(), Vec::new(), i as u64)
+                    (Classification::default(), Vec::new(), i as u64, i as u64)
                 }
             },
             &bars,
@@ -2016,15 +2019,15 @@ mod tests {
     // ──────────────────────────────────────────────────────────────────────
 
     /// 合成 classify 闭包工厂：买点 buy1@3 在 bar≥7 确认（同 `..produces_trades_nonempty`），空塔。
-    fn buy1_at3_confirmed_at7() -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64) {
+    fn buy1_at3_confirmed_at7() -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64) {
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
         };
         move |i| {
             if i >= 7 {
-                (classification.clone(), Vec::new(), i as u64)
+                (classification.clone(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64)
+                (Classification::default(), Vec::new(), i as u64, i as u64)
             }
         }
     }
@@ -2152,7 +2155,7 @@ mod tests {
     }
 
     /// 两阶段合成闭包：bar≥7 出 buy1@3；bar≥14 追加 sell@12（class 可选）。
-    fn buy_then_sell(sell_class: u8) -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64) {
+    fn buy_then_sell(sell_class: u8) -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64) {
         let cls_buy = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
         };
@@ -2161,11 +2164,11 @@ mod tests {
         };
         move |i| {
             if i >= 14 {
-                (cls_both.clone(), Vec::new(), i as u64)
+                (cls_both.clone(), Vec::new(), i as u64, i as u64)
             } else if i >= 7 {
-                (cls_buy.clone(), Vec::new(), i as u64)
+                (cls_buy.clone(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64)
+                (Classification::default(), Vec::new(), i as u64, i as u64)
             }
         }
     }
@@ -2262,8 +2265,8 @@ mod tests {
         };
         let fill = pi_theta_fill_loop(
             move |i| {
-                if i >= 7 { (cls_buy.clone(), Vec::new(), i as u64) }
-                else { (Classification::default(), Vec::new(), i as u64) }
+                if i >= 7 { (cls_buy.clone(), Vec::new(), i as u64, i as u64) }
+                else { (Classification::default(), Vec::new(), i as u64, i as u64) }
             },
             &bars, 1.0e6, &config, None,
         );
@@ -2334,13 +2337,13 @@ mod tests {
         let fill = pi_theta_fill_loop(
             move |i| {
                 if i >= 17 {
-                    (cls_rebuy.clone(), Vec::new(), i as u64)
+                    (cls_rebuy.clone(), Vec::new(), i as u64, i as u64)
                 } else if i >= 14 {
-                    (cls_sell.clone(), Vec::new(), i as u64)
+                    (cls_sell.clone(), Vec::new(), i as u64, i as u64)
                 } else if i >= 7 {
-                    (cls_buy.clone(), Vec::new(), i as u64)
+                    (cls_buy.clone(), Vec::new(), i as u64, i as u64)
                 } else {
-                    (Classification::default(), Vec::new(), i as u64)
+                    (Classification::default(), Vec::new(), i as u64, i as u64)
                 }
             },
             &bars,
@@ -2447,13 +2450,13 @@ mod tests {
         let fill = pi_theta_fill_loop(
             move |i| {
                 if i >= 17 {
-                    (cls_rebuy.clone(), Vec::new(), i as u64)
+                    (cls_rebuy.clone(), Vec::new(), i as u64, i as u64)
                 } else if i >= 14 {
-                    (cls_sell.clone(), Vec::new(), i as u64)
+                    (cls_sell.clone(), Vec::new(), i as u64, i as u64)
                 } else if i >= 7 {
-                    (cls_buy.clone(), Vec::new(), i as u64)
+                    (cls_buy.clone(), Vec::new(), i as u64, i as u64)
                 } else {
-                    (Classification::default(), Vec::new(), i as u64)
+                    (Classification::default(), Vec::new(), i as u64, i as u64)
                 }
             },
             &bars,
