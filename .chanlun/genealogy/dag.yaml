@@ -3658,6 +3658,11 @@ nodes:
   status: 生成态
   type: meta-rule
   file: pending/687-multi-writepoint-counter-desync-on-channel-extension.md
+- id: '688'
+  title: level0 免门破去根化平移自相似——231 级别域形态（有限塔截断，有效域=内部域 lvl>=1；codex 裁接受性截断）
+  status: 生成态
+  type: bias-correction
+  file: pending/688-level0-exempt-gate-breaks-rootfree-shift-equivariance-finite-tower-truncation.md
 edges:
   depends_on:
   - from: '679'
@@ -7038,6 +7043,10 @@ edges:
     to: '675'
   - from: '682'
     to: '231'
+  - from: '688'
+    to: '231'
+  - from: '688'
+    to: 090
   triggered:
   - from: '005'
     to: 005a
@@ -10630,6 +10639,24 @@ edges:
   - between:
     - '675'
     - '687'
+  - between:
+    - '680'
+    - '688'
+  - between:
+    - '625'
+    - '688'
+  - between:
+    - '623'
+    - '688'
+  - between:
+    - '673'
+    - '688'
+  - between:
+    - '199'
+    - '688'
+  - between:
+    - '656'
+    - '688'
   tensions_with:
   - between:
     - '007'
