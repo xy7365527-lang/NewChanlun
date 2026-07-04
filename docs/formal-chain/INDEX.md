@@ -50,6 +50,12 @@
 | 回测的问题.pdf | 7-02 晚 ChatGPT 双裁决：区间套 rung=区间包含（定义层）+ 增量塔未确认 frontier 必重算（实现层）——两问题已于 7-02/03 session 闭环（#77 否证归因/#84-#93 修复 bit-exact+O(n)/#97 高级别重测维持） |
 | 区间套.pdf | 区间套 |
 
+## 7-04：初检收口与 M0-M8 主线
+| 文件 | 主题 |
+|---|---|
+| 问题1.pdf | Π_tested≠Π_max-full 十裁定点 + 三路线分叉（deep research 对象） |
+| 路线.pdf | ChatGPT 回执裁定：signal-full 收口版可搞 + M0→M8 完整主线图（当前 M3/M4 交界）+ 四硬问题（μ_R co-primary/δ-free 在线/AncOK waiver-or-MUST/高低配 prereg） |
+
 ## 阅读状态
 - 全量逐页阅读：任务 #70-#74（A 互斥分类核心 / B 买卖点+alpha / C 级别+递归 / D 结构概念 / E gap+检验），2026-07-02 启动
 - 此前仅零散被引用：anc.pdf §16、级别和sigma、gap 系列——系统性全读首次执行
