@@ -806,10 +806,12 @@ where
             // 工位 K 性能：tree-prefix 缓存（§16，命中省 extract_elements 重建）。pi_theta_step 用
             // newly-confirmed step 候选；merge 用全 classification 候选——两者共享同一 tower tree-prefix 缓存。
             // ★热点② O(n²) 消除：tree=Rc::clone O(1)，candidate 段单独 Vec，ElementView 双段零拷贝。
-            let (step_tree, step_candidates, step_gamma) =
+            let (step_tree, step_candidates, step_gamma) = {
+                let _g = classifier::stage_profile::stage("cand_build_step");
                 interp::coverage_elements_and_gamma_with_tower_cached_gen(
                     &classification_step, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen), Some(forest_epoch),
-                );
+                )
+            };
             // ★工位 4d 热点①②：注入缓存的 base（tree 前缀）兄弟/ID 索引（命中 Rc::clone O(1)），消除
             // coverage_step_from_buckets 内每 bar build_prev_sibling_index/build_tree_id_index O(tree)/bar。
             let mut step_work = coverage::ElementView::from_parts(&step_tree, step_candidates);
@@ -1039,17 +1041,24 @@ where
             {
                 // ★工位 4h：caller B gamma-free + candidate 前缀缓存路径（源(b) O(n²) 真修）。merge 只
                 // 消费 candidates（不读 gamma/role，codex Q1）⟹ 跳遍历2 + candidate 前缀复用（codex Q2/Q3）。
-                let (tree_ref, candidates_ref) =
+                let (tree_ref, candidates_ref) = {
+                    let _g = classifier::stage_profile::stage("cand_build_merge");
                     interp::coverage_elements_with_tower_cached_gen(
                         &classification_i, &tower_i, &mut tree_cache, &mut cand_cache, Some(tower_gen), Some(forest_epoch),
-                    );
+                    )
+                };
+                classifier::stage_profile::record_span("cand_count", candidates_ref.len() as u64);
+                let cand_dirty = cand_cache.dirty; // ★on2w3：candidates 逐字节变？否 ⟹ merge cand 段跳过。
                 // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
                 // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
                 let tree_dirty = prev_merge_tree
                     .as_ref()
                     .map(|p| !std::rc::Rc::ptr_eq(p, &tree_ref))
                     .unwrap_or(true);
-                registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, &next_active);
+                {
+                    let _g = classifier::stage_profile::stage("cand_merge_consume");
+                    registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, cand_dirty, &next_active);
+                }
                 prev_merge_tree = Some(tree_ref);
             }
             prev_active = next_active;
@@ -2664,6 +2673,29 @@ mod tests {
         assert!(res.closed_loop_final.is_some(), "非空 bars ⟹ 闭环终态");
         assert!(res.metrics.strat_return.is_finite(), "strat 有限（前缀因果路径不产 NaN/Inf）");
         assert!(res.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
+    }
+
+    /// ★on2w3 merge skip 神谕深覆盖（debug 构建）：真实 CL 全引擎 run_theta_v0_pi。生产路径 forest_epoch
+    /// 稳定（bump 率 2.17%）⟹ merge cand 段大量走 skip；`merge_in_place_split` 内嵌 debug_assert 逐 bar
+    /// 对拍 skip vs 强制全量末态——任一 bar 发散立即 panic（O(n²) 修复的 bit-exact 铁律守卫）。
+    /// **须 debug 构建**（release 不编译 oracle）。`cargo test --lib`（非 --release）自动跑。
+    #[test]
+    #[ignore = "on2w3 merge skip 神谕深覆盖；需 CL；debug 构建（oracle 仅 debug_assertions）"]
+    fn merge_skip_oracle_real_cl_debug() {
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("需 CL 数据");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 4_000.min(oos.bars.len());
+        let prefix = Dataset {
+            symbol: oos.symbol.clone(),
+            bars: oos.bars[..n].to_vec(),
+            dates: oos.dates[..n].to_vec(),
+            bar_seconds: 60,
+        };
+        let res = run_theta_v0_pi(&prefix, &config, (n as f64) / (252.0 * 390.0), 1.0e6);
+        assert!(res.metrics.strat_return.is_finite(), "strat 有限");
+        eprintln!("on2w3 merge skip 神谕：{n} bar 全 merge 调用逐 bar skip==全量（debug_assert 未 panic）");
     }
 
     /// ★Q2 close_pred 折 𝒦_Θ（loop 内见证）：风控门把退出折进可行集（非第二出口）——

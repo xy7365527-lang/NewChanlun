@@ -662,6 +662,41 @@ mod profile {
         assert!(!rows.is_empty(), "至少 profile 一个窗口（n=2000 应可用）");
     }
 
+    /// **★on2w3 candidate 残余定位：strategy 段 stage 拆解（THETA_PROFILE_STAGES=1）**。
+    ///
+    /// 全引擎 `run_theta_v0_pi` 在 CL 上跑，dump cand_build_step / cand_build_merge /
+    /// cand_merge_consume 三 stage 计时 + cand_count 跨度。定位 strategy exp≈1.9 的 O(n²) 是
+    /// candidate 构建（拼接/attach）还是 merge 消费（HashSet 全量重建）。
+    /// 运行：`THETA_PROFILE_STAGES=1 CAND_PROFILE_BARS=16000 cargo test --release -p newchan_rust \
+    ///   --lib backtest::incremental::profile::profile_cand_stages -- --ignored --nocapture`。
+    #[test]
+    #[ignore = "on2w3 candidate stage 拆解；需 CL；THETA_PROFILE_STAGES=1；--release"]
+    fn profile_cand_stages() {
+        use super::super::runner::run_theta_v0_pi;
+        use super::super::data::Dataset;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("需 CL 数据");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+            eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空。");
+        }
+        for &n in &[8000usize, 16000] {
+            let n = n.min(oos.bars.len());
+            classifier::stage_profile::reset();
+            let prefix = Dataset {
+                symbol: oos.symbol.clone(),
+                bars: oos.bars[..n].to_vec(),
+                dates: oos.dates[..n].to_vec(),
+                bar_seconds: 60,
+            };
+            let years = (n as f64) / (252.0 * 390.0);
+            let t = std::time::Instant::now();
+            let _ = run_theta_v0_pi(&prefix, &config, years, 1.0);
+            eprintln!("\n===== profile_cand_stages n={n}（墙钟={:.2}s）=====", t.elapsed().as_secs_f64());
+            classifier::stage_profile::dump();
+        }
+    }
+
     /// **★classify_at 内部拆解：parser-append 累计 vs classify_with_tower_incremental 累计（定位 O(n²) 段）**。
     ///
     /// `profile_full_engine_scaling_16k` 测出 classify(整) exp≈2.17 O(n²)，但 parser::profile
@@ -1180,12 +1215,12 @@ mod profile {
                 let tree_dirty = prev_merge_tree.as_ref()
                     .map(|p| !std::rc::Rc::ptr_eq(p, &tree_ref)).unwrap_or(true);
                 let t = std::time::Instant::now();
-                registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, &[]);
+                registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, true, &[]);
                 t_merge += t.elapsed().as_secs_f64();
                 prev_merge_tree = Some(std::rc::Rc::clone(&tree_ref));
                 // 隔离测量：tree 段全量（candidate 空，tree_dirty=true）→ 旧 O(n²) 基底对照。
                 let t = std::time::Instant::now();
-                registry.merge_in_place_split(&tree_ref, true, &[], &[]);
+                registry.merge_in_place_split(&tree_ref, true, &[], true, &[]);
                 t_merge_tree += t.elapsed().as_secs_f64();
             }
             let (xe, me) = prev.map(|(pn, px, pm)| (logexp(pn, px, n, t_extract), logexp(pn, pm, n, t_merge)))

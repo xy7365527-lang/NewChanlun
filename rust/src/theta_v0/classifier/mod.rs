@@ -932,6 +932,15 @@ pub mod stage_profile {
         r
     }
 
+    /// 清空累加器（多窗口 profile 隔离，避免跨 n 累计污染）。env 未启用时直通。
+    pub fn reset() {
+        if !enabled() {
+            return;
+        }
+        ACC.with(|a| a.borrow_mut().clear());
+        SPANS.with(|s| s.borrow_mut().clear());
+    }
+
     pub fn dump() {
         if !enabled() {
             return;

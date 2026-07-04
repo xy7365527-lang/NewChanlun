@@ -769,7 +769,16 @@ fn build_candidate_element(
 #[derive(Default)]
 pub struct CandidateCache {
     /// 缓存对应的塔代次（`TowerCache::generation()`）。`Some(g)` ⟹ candidates 由代次 g 的 tree 建得。
+    /// ★on2w3：仅 `forest_epoch=None`（合成/全量非增量）路径的 fallback 判据——生产路径用 `epoch`。
     gen: Option<u64>,
+    /// ★on2w3 candidate 残余修复：森林 epoch（on2w2 `TowerCache::forest_epoch()`）——**生产路径的
+    /// whole-cache 树稳定判据**。`gen`（blunt `l0_is_root` 每-bar bump，98.5%）令 CandidateCache 前缀
+    /// 复用在生产**从不命中**（实测 cand_tail_built sum == cand_count sum，每 bar 全量重建）。forest_epoch
+    /// 是 on2w2 已证 sound 的紧信号（bump 率 2.17%，false_hits=0）：epoch 稳定 ⟺ tower 全级字节不变 ⟺
+    /// `extract_carrier_forest(tower)`（tree）字节不变 ⟹ 同 bsp.source_index 的 `attach_bsp_carrier_indexed`
+    /// 结果（parent/id/attached_dir）不变。与 per-level `prefix_fp`（bsp 内容，centers 驱动的变化）+
+    /// `base_ci`（ordinal）组合 ⟹ 缓存前缀逐字节稳定（`candidate_incremental_bit_exact_vs_full` 神谕守卫）。
+    epoch: Option<u64>,
     /// ★per-level 分段存储（修正扁平 Vec 顺序 bug）：candidates 按 level 顺序拼接成扁平 Vec
     /// `[L0..., L1..., ...]`。命中时 L0 新增 bsp 必须插在 L0 段末尾（L1 之前），不是整个 Vec 末尾。
     /// 故按级分段存 `per_level[lvl]`，返回时按级拼接 ⟹ level 顺序 bit-exact。
@@ -786,6 +795,13 @@ pub struct CandidateCache {
     /// 命中时逐级比对 base_ci，变化则重建该级（保 fallback ordinal bit-exact）。
     base_ci: Vec<usize>,
     valid: bool,
+    /// ★on2w3 merge 增量信号：本次 build 产出的 `candidates` 是否**逐字节不同于上 bar 输出**。
+    /// `false` ⟺ 全 whole-cache 命中（forest_epoch 稳）+ 每级全命中（base/fp 稳）+ 零新尾 ⟹ candidates
+    /// 与上 bar 逐字节相同。runner 读此值传 [`PersistentRegistry::merge_in_place_split`]：`!cand_dirty`
+    /// 且 `!tree_dirty` ⟹ merge 整段 candidate 工作是 no-op（同 id 集全 present、同值上 bar 已 upsert、
+    /// present_last_cand 不变）⟹ 跳过（O(1)）。否则全量（bit-exact 退化）。
+    /// merge 消费顺序无关（按 id upsert 进 HashMap + 建 id 集），故用「整体是否变」而非 flat 前缀长度。
+    pub dirty: bool,
 }
 
 /// bsp 内容指纹（codex Q3 前缀校验）：(source_index, bits 判别码)。candidate 的 lambda/rho/eps/level
@@ -849,9 +865,16 @@ pub fn coverage_elements_with_tower_cached_gen(
     // ci = candidate_start + 已拼接元素数。命中路径 L_k 的尾部 ci 必须接 **L_k 段** 末尾（不是整个
     // Vec 末尾，否则 L0 新增插到 L1 之后乱序——bar 3020 bit-exact 失败坐实）。故按级分段存 per_level，
     // ci 由"前 k 级 bsp 总数 + 本级偏移"算（保 fallback id ordinal 全量 bit-exact）。
-    let gen_match = matches!((tower_gen, cand_cache.gen), (Some(g), Some(cg)) if g == cg);
+    // ★on2w3 whole-cache 树稳定判据：生产走 forest_epoch（紧、sound——on2w2 §4 假命中不可能性），
+    // 合成/全量（forest_epoch=None）fallback gen。gen 每-bar blunt bump（l0_is_root，98.5%）令前缀
+    // 复用在生产从不命中；epoch 只在 tower 真变时 bump（2.17%）⟹ 树前缀稳定 ⟹ cached candidate 的
+    // attach 结果（parent/id）稳定，per-level prefix_fp/base_ci 独立守 bsp/ordinal 变化。
+    let tree_stable = match forest_epoch {
+        Some(e) => cand_cache.epoch == Some(e),
+        None => matches!((tower_gen, cand_cache.gen), (Some(g), Some(cg)) if g == cg),
+    };
     let level_match = cand_cache.per_level.len() == classification.levels.len();
-    let cache_usable = gen_match && cand_cache.valid && level_match;
+    let cache_usable = tree_stable && cand_cache.valid && level_match;
 
     if !cache_usable {
         // miss：全量重建（bit-exact 退化）。per_level/fp/base_ci 清空重建。
@@ -864,6 +887,7 @@ pub fn coverage_elements_with_tower_cached_gen(
             cand_cache.base_ci.push(0);
         }
         cand_cache.gen = tower_gen;
+        cand_cache.epoch = forest_epoch;
         cand_cache.valid = true;
     }
 
@@ -872,6 +896,8 @@ pub fn coverage_elements_with_tower_cached_gen(
     //   (1) base_ci 不变（codex A/C：前置级未增长 ⟹ fallback ordinal 不偏移）；
     //   (2) bsp 单调追加（len >= cached）；
     //   (3) 前缀指纹 bit-exact（codex Q3：gen 不变但 L0 bsp 内容变——古怪线段重划——须逐元素验身份）。
+    // ★on2w3 cand_dirty：whole-cache miss（整段重建）或任一级重建/长新尾 ⟹ candidates 逐字节变 ⟹ dirty。
+    let mut cand_dirty = !cache_usable;
     let mut level_offset = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
@@ -890,10 +916,14 @@ pub fn coverage_elements_with_tower_cached_gen(
             // 重建该级（base_ci 偏移 / 前缀指纹不符）⟹ 清空该级，全量 build（fallback ordinal 用新 base）。
             cand_cache.per_level[level_idx].clear();
             cand_cache.prefix_fp[level_idx].clear();
+            cand_dirty = true; // 该级重建 ⟹ 输出变。
         }
         let seg = &mut cand_cache.per_level[level_idx];
         let fp = &mut cand_cache.prefix_fp[level_idx];
         let cached = seg.len(); // level_hit ⟹ 前缀保留续 build 尾部；否则 0 ⟹ 全量 build。
+        if cached < level.bsp.len() {
+            cand_dirty = true; // 有新尾 build ⟹ 输出变。
+        }
         for (off, point) in level.bsp[cached..].iter().enumerate() {
             let ci = level_offset + cached + off;
             seg.push(build_candidate_element(&tree, &tree_endpoint_idx, lvl, point, ci));
@@ -902,6 +932,7 @@ pub fn coverage_elements_with_tower_cached_gen(
         cand_cache.base_ci[level_idx] = level_offset;
         level_offset += level.bsp.len();
     }
+    cand_cache.dirty = cand_dirty;
 
     // 按级顺序拼接成扁平 candidates（[L0..., L1...]）供 merge 消费。
     // ponytail: 拼接 = O(总 bsp) memcpy（CoverageElement: Copy）。这是 merge 接口所需全量 Vec 的下界
