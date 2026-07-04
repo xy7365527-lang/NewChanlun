@@ -3667,6 +3667,11 @@ nodes:
   status: 生成态
   type: source-tracing
   file: pending/689-upgrade-9seg-provenance-course33-multiplicity-not-course20-central-theorem2-q2-domain-narrowed.md
+- id: '690'
+  title: 两PDF z形态差异权威裁定——完整的策略.pdf §16（20维含Jchain不含d）为唯一权威(INDEX.md裁定+§16自述最完整最严格)；d=非拓扑度量(缠论的全互斥定义策略.pdf §十明定)归风险投影层(risk.rs已生产消费)非μ分类z维缺口；Jchain≅(origin_level,level)代数派生已覆盖(selector.rs:251恒等式护栏)；A1两残余both消解无z装配可做(gap-master2继承shard4读示意§九z未与权威§16交叉核对错源订正)
+  status: 生成态
+  type: source-tracing
+  file: pending/690-two-pdf-z-shape-authority-ruling-complete-strategy-s16-authoritative-d-belongs-risk-layer.md
 edges:
   depends_on:
   - from: '679'
@@ -7057,6 +7062,12 @@ edges:
     to: '002'
   - from: '689'
     to: 090
+  - from: '690'
+    to: '002'
+  - from: '690'
+    to: 090
+  - from: '690'
+    to: '231'
   triggered:
   - from: '005'
     to: 005a
@@ -10673,6 +10684,15 @@ edges:
   - between:
     - '685'
     - '689'
+  - between:
+    - '689'
+    - '690'
+  - between:
+    - '685'
+    - '690'
+  - between:
+    - '138'
+    - '690'
   tensions_with:
   - between:
     - '007'
