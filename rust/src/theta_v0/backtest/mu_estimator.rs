@@ -37,7 +37,7 @@
 use std::collections::HashMap;
 
 use super::metrics::trade_abs_pnl;
-use crate::theta_v0::classifier::divergence::ForceStateA4;
+use crate::theta_v0::classifier::divergence::ForceStateA5;
 use crate::theta_v0::strategy::coverage::Horizontal;
 use crate::theta_v0::types::BspBits;
 
@@ -78,7 +78,11 @@ pub enum PositionState {
 ///   z 完整形态的 CandType/Ndepth/ℓ 起始级/RiskMode+MarginState 四条目）：见各字段文档。
 ///   §6 其余条目的承载/缺口声明见 `.chanlun/review-results/g3-impl-20260703.md` 维度对照表
 ///   （Jchain=由 (ℓ,e) 代数派生；ExitType=TypedTrade ledger 层已接（G4）不进 F_t 可测桶键；
-///   TStage/ηBucket/CostBucket=生产路径无数据源，诚实缺口+证明义务）。
+///   TStage=第 14 维已接（#149，GAP3 桥后 π fill loop `tw.stage` 真值，见 `t_stage` 字段文档）；
+///   ηBucket=缺口维持（#149 核验：ledger η⋆/`TwState::tw` 是 `enter_ready` barrier 谓词分量
+///   ——相变准入判据非账本缓冲态桶实体；#158 专项终裁=确认性缺口：底层连续量 η/L^wc/Q/κ 已
+///   承载、离散四态 γ_t 未承载（a5-gamma4-confirm-20260703.md），实装枚举+路由后接入，处置
+///   详见 zdims-impl-20260704.md）；CostBucket=生产路径无数据源，诚实缺口+证明义务）。
 ///
 /// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）；`Ord` ⟹ 可作 BTreeMap key（有序报告）。
 /// **全互斥**：每个 z 是 {0,1}^6 × 级别 × 方向 × 父向 × 短差 × 仓位态 × H 的唯一组合，无重叠
@@ -100,7 +104,7 @@ pub struct MuClass {
     /// β^div 力度支配态（`关于背驰.pdf` §9.1，beta-bucket-design v2 第 8 维）。`Some`=真候选路径
     /// `z_of_candidate_with_force` 从 A/C 段 `ForceProxies::force_state()` 填；`None`=无力度源口径
     /// （`from_certificate`/无 ForceProxies 候选，同 `horizontal` 的诚实 None，231号不伪造）。
-    pub force_state: Option<ForceStateA4>,
+    pub force_state: Option<ForceStateA5>,
     /// σ_higher 上级方向态（第 9 维，codex-q1 G2 终裁翻转 #81：《完整的策略》§6 要求 z ⊇
     /// (ℓ,δ,σ_higher)；667号实证——级别依赖调制器，效应符号随 level 翻转，不进 z 会把符号相反
     /// 子群体平均掉）。`Some(v)`=生产路径由 [`super::selector::sigma_higher_at`] 从塔真值填
@@ -141,6 +145,15 @@ pub struct MuClass {
     /// 训练 entry_z 与 χ 查询同口径，G2 护航点同款保证）；`None`=无账本口径（econ 统计层信号
     /// 收集无 equity/持仓、裸口径），诚实 None。
     pub risk_mode: Option<crate::theta_v0::strategy::risk::RiskMode>,
+    /// 取本金三阶段 TStage（第 14 维，§6 TStage，#149 zdims）。
+    /// [`TStage`](crate::theta_v0::strategy::ledger::TStage) = 缠师第31课降成本/退本金/增股数
+    /// 三阶段（`Origin.TotalWealth.TStage`，OQ-9 单向不可逆）。生产者 = π fill loop 的 TW 账本
+    /// `tw.stage`（#124 裁定4 单一真值源，#140 A' 后 P3/P4 现实可达）——G3 时该缺口的关闭条件
+    /// 「GAP3 桥落地」已成立（g3 结果包 #15 行证明义务履行）。
+    /// `Some`=runner π fill loop 当 bar 决策点账本相位真值（与 `TwStepCtx.state` 同一 `tw` 变量
+    /// ⟹ 与 P2/P3/P4 谓词同口径；训练 entry_z 与 χ 查询共用同一 ext ⟹ 同口径，G2/G3 护航点
+    /// 同款）；`None`=无 TW 账本口径（econ 统计层信号收集、裸证书），诚实 None（231号）。
+    pub t_stage: Option<crate::theta_v0::strategy::ledger::TStage>,
 }
 
 impl MuClass {
@@ -186,6 +199,7 @@ impl MuClass {
             nest_depth: None,
             origin_level: None,
             risk_mode: None,
+            t_stage: None, // #149：裸证书口径无 TW 账本，同 risk_mode 诚实 None。
         }
     }
 }

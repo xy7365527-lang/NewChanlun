@@ -148,7 +148,7 @@ pub struct BspPoint {
     pub struct_break_dir: Option<Side>,
     /// ★β^div 力度支配态 proxy（beta-route Task #115，force_state 生产热路由）。
     ///
-    /// `Some` = 一类趋势背驰候选（A/C 段可配对）的 A/C 段 [`ForceProxies`]（4 proxy：MACD 面积/DIF
+    /// `Some` = 一类趋势背驰候选（A/C 段可配对）的 A/C 段 [`ForceProxies`]（5 proxy：MACD 面积/DIF
     /// 峰/振幅/速度），由 `signal::judge_first_cached` 在有 dif/closes_tick 输入时算得；`None` = 二/
     /// 三类（无 A/C 对）或未接线路径。selector `z_of_candidate_with_force` 读它，调 `ForceProxies::
     /// force_state()`（唯一支配序原语）填 `MuClass.force_state` 第 8 维。

@@ -75,7 +75,12 @@
 ///
 /// 单向不可逆迁移（OQ-9）：CostReduction(0) → CapitalRecovered(1) → EarningShares(2)。
 /// `rank` 把三阶段映到 {0,1,2}，是单向偏序的载体（rank 只增不减，见 [`tw_step`]）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Hash/Ord`（#149 zdims）：本枚举作为 [`MuClass`](crate::theta_v0::backtest::mu_estimator::MuClass)
+/// 第 14 维 `t_stage` 的分量（§6 TStage），需与 MuClass 的 derive 全家桶同级。derive `Ord`
+/// 取声明序 = `rank` 序（CostReduction<CapitalRecovered<EarningShares），仅供 BTreeMap 有序
+/// 报告——阶段推进的业务偏序仍单源 [`TStage::rank`]/[`advance_to`]。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum TStage {
     /// ① 降成本：短差，Σ|units| 守恒（"买入多少卖出多少不增仓"）。
     CostReduction,

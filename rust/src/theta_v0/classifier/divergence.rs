@@ -308,6 +308,8 @@ pub struct ForceFeatures {
     pub price_amplitude: i64,
     /// 价格速度 |端价差|/Δbar（f64，单位时间价格变动）。
     pub price_speed: f64,
+    /// 段全变差 TV = Σ|P_{t+1}−P_t|（原文 §5 p6 𝒜_ℓ 成员；整数 tick 域，路径长度 ≥ |端价差|）。
+    pub tv: i64,
 }
 
 /// A/C 段力度 proxy 对（趋势背驰的两段并置——`Weak_Θ(seg_a, seg_c)` 用它比较）。
@@ -323,53 +325,56 @@ pub struct ForceProxies {
     pub seg_c: ForceFeatures,
 }
 
-/// 力度支配态（`关于背驰.pdf` §9.1 `ForceState`，4-proxy 近似 = `ForceStateA4`）。
+/// 力度支配态（`关于背驰.pdf` §9.1 `ForceState`，5-proxy 近似 = `ForceStateA5`）。
 ///
 /// 支配序四态（§5-6 p6 `s ≺_𝒜 s'`）：C 段（后离开段）相对 A 段（前离开段）在允许力度族
-/// 𝒜₄={macd_area, dif_peak, price_amplitude, price_speed} 上的支配关系。**背驰 = C 力度衰减 =
-/// `Dominated`**（C 在全部 4 proxy 上 ≤ A 且至少一个 <）。
+/// 𝒜₅={macd_area, dif_peak, price_amplitude, price_speed, tv} 上的支配关系。**背驰 = C 力度衰减 =
+/// `Dominated`**（C 在全部 5 proxy 上 ≤ A 且至少一个 <）。
 ///
-/// **命名（beta-bucket-design v2 §2.3 / codex-beta ②）**：`A4` 后缀诚实标注只用现有 4 proxy——
-/// 原文完整 𝒜_ℓ 还含 TV（全变差）与递归次级别力度。补齐后可升名 `ForceState`。单调性：补维只会把
-/// `Dominated`/`Dominates`/`Tie` 变 `Incomparable`（新增口径可能冲突），反向不会 ⟹ `ForceStateA4`
-/// 的 `Dominated` 是完整支配序 `Dominated` 的**超集（宽判背驰）**。
+/// **命名（beta-bucket-design v2 §2.3 / codex-beta ② / q3 D-1 残余）**：`A5` 后缀诚实标注现有
+/// 5 proxy——TV（全变差）已并入本口径族；原文完整 𝒜_ℓ 仍缺递归次级别力度 SubMovePower
+/// （Σ_{次级别同向段} m_{ℓ-1}(u)），其数据源未达 signal 抽取层（signal.rs 只有 hist/dif/closes，
+/// 无塔次级别段），登记诚实缺口——裁定见 codex-a4-force-20260704.md。补齐后可升名 `ForceState`。
+/// 单调性：补维只会把 `Dominated`/`Dominates`/`Tie` 变 `Incomparable`（新增口径可能冲突），反向
+/// 不会 ⟹ `ForceStateA5` 的 `Dominated` 是完整支配序 `Dominated` 的**超集（宽判背驰）**。
 ///
 /// **认识论 L1**：给定 A/C ForceFeatures 求支配态是确定性算术（管线正确性）。「哪个态有 alpha」=L2/L3。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ForceStateA4 {
-    /// C 在全部 4 proxy 上 ≤ A 且至少一个 <——**确定背驰**（C 力度衰减）。
+pub enum ForceStateA5 {
+    /// C 在全部 5 proxy 上 ≤ A 且至少一个 <——**确定背驰**（C 力度衰减）。
     Dominated,
-    /// C 在全部 4 proxy 上 ≥ A 且至少一个 >——确定力度延续（非背驰）。
+    /// C 在全部 5 proxy 上 ≥ A 且至少一个 >——确定力度延续（非背驰）。
     Dominates,
-    /// C 与 A 全部 4 proxy 相等。
+    /// C 与 A 全部 5 proxy 相等。
     Tie,
     /// 口径冲突（部分 proxy C<A、部分 C>A）——**不作背驰确认**（codex-beta ②）。
     Incomparable,
 }
 
 impl ForceProxies {
-    /// 𝒜₄ 支配序比较（唯一支配序原语，beta-bucket-design v2 §6 路由 ⑤——不在别处重算）。
+    /// 𝒜₅ 支配序比较（唯一支配序原语，beta-bucket-design v2 §6 路由 ⑤——不在别处重算）。
     ///
     /// 逐 proxy 比较 C(`seg_c`) vs A(`seg_a`)：任一 proxy `c<a` 记 weaker，`c>a` 记 stronger。
     /// 全 ≤ 且有 weaker ⟹ `Dominated`；全 ≥ 且有 stronger ⟹ `Dominates`；全等 ⟹ `Tie`；
-    /// 既有 weaker 又有 stronger ⟹ `Incomparable`。price_amplitude 是 i64，其余 f64（严格 `<`/`>`，
-    /// 与 `is_divergence` 同「等值不算衰减」口径）。
-    pub fn force_state(&self) -> ForceStateA4 {
+    /// 既有 weaker 又有 stronger ⟹ `Incomparable`。price_amplitude/tv 是 i64，其余 f64（严格
+    /// `<`/`>`，与 `is_divergence` 同「等值不算衰减」口径）。
+    pub fn force_state(&self) -> ForceStateA5 {
         let (a, c) = (&self.seg_a, &self.seg_c);
-        // 四 proxy 的 (c<a, c>a) 布尔对。amplitude 为 i64，比较前统一到同类型无损。
+        // 五 proxy 的 (c<a, c>a) 布尔对。amplitude/tv 为 i64，比较前统一到同类型无损。
         let cmps = [
             (c.macd_area < a.macd_area, c.macd_area > a.macd_area),
             (c.dif_peak < a.dif_peak, c.dif_peak > a.dif_peak),
             (c.price_amplitude < a.price_amplitude, c.price_amplitude > a.price_amplitude),
             (c.price_speed < a.price_speed, c.price_speed > a.price_speed),
+            (c.tv < a.tv, c.tv > a.tv),
         ];
         let weaker = cmps.iter().any(|&(lt, _)| lt);
         let stronger = cmps.iter().any(|&(_, gt)| gt);
         match (weaker, stronger) {
-            (true, false) => ForceStateA4::Dominated,
-            (false, true) => ForceStateA4::Dominates,
-            (false, false) => ForceStateA4::Tie,
-            (true, true) => ForceStateA4::Incomparable,
+            (true, false) => ForceStateA5::Dominated,
+            (false, true) => ForceStateA5::Dominates,
+            (false, false) => ForceStateA5::Tie,
+            (true, true) => ForceStateA5::Incomparable,
         }
     }
 }
@@ -418,7 +423,18 @@ pub fn segment_price_speed(closes: &[Tick], start: usize, end: usize) -> f64 {
     amp / span
 }
 
-/// 从段区间算全部力度 proxy（`ForceFeatures`）——MACD 面积 + DIF 峰值 + 价格振幅 + 速度。
+/// 段全变差 TV = Σ|closes[t+1]−closes[t]|，t∈[start,end)（原文 §5 p6 `TV=Σ|P_{t+1}−P_t|`）。
+///
+/// 与振幅的差：振幅只看端点差，TV 累积路径长度（TV ≥ |端价差|，段内折返越多 TV 越大）。
+/// 越界/单点段 ⟹ 0。整数 tick 域（无浮点）。
+pub fn segment_total_variation(closes: &[Tick], start: usize, end: usize) -> i64 {
+    if start >= end || end >= closes.len() {
+        return 0;
+    }
+    closes[start..=end].windows(2).map(|w| (w[1] - w[0]).abs()).sum()
+}
+
+/// 从段区间算全部力度 proxy（`ForceFeatures`）——MACD 面积 + DIF 峰值 + 价格振幅 + 速度 + TV。
 ///
 /// `hist`/`dif` 是 `compute_macd` 的 hist/dif 序列；`closes` 是 close(tick) 序列；三者同坐标系
 /// （bar 下标对齐）。`(start,end)` 闭区间，`direction` 段方向（DIF 峰值方向敏感）。
@@ -435,6 +451,7 @@ pub fn force_features(
         dif_peak: segment_dif_peak(dif, start, end, direction),
         price_amplitude: segment_price_amplitude(closes, start, end),
         price_speed: segment_price_speed(closes, start, end),
+        tv: segment_total_variation(closes, start, end),
     }
 }
 
@@ -834,10 +851,21 @@ mod tests {
         // 越界 ⟹ 0。
         assert_eq!(segment_price_amplitude(&closes, 0, 9), 0);
         assert_eq!(segment_price_speed(&closes, 0, 9), 0.0);
+        // TV = 20+30+60 = 110（路径长度 > 端点差 50——折返段被计入）。
+        assert_eq!(segment_total_variation(&closes, 0, 3), 110);
+        assert_eq!(segment_total_variation(&closes, 0, 9), 0);
+        assert_eq!(segment_total_variation(&closes, 2, 2), 0);
     }
 
     fn ff(area: f64, dif: f64, amp: i64, speed: f64) -> ForceFeatures {
-        ForceFeatures { macd_area: area, dif_peak: dif, price_amplitude: amp, price_speed: speed }
+        // tv 默认随振幅（单调一致，不给既有支配序测试引入额外冲突维）。
+        ForceFeatures {
+            macd_area: area,
+            dif_peak: dif,
+            price_amplitude: amp,
+            price_speed: speed,
+            tv: amp,
+        }
     }
 
     #[test]
@@ -854,20 +882,20 @@ mod tests {
     }
 
     #[test]
-    fn force_state_four_dominance_cases() {
+    fn force_state_five_dominance_cases() {
         let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
         let strong = ff(10.0, 8.0, 100, 20.0);
         let weak = ff(5.0, 4.0, 50, 10.0);
         // C 全弱于 A ⟹ Dominated（确定背驰）。
-        assert_eq!(fp(strong, weak).force_state(), ForceStateA4::Dominated);
+        assert_eq!(fp(strong, weak).force_state(), ForceStateA5::Dominated);
         // C 全强于 A ⟹ Dominates。
-        assert_eq!(fp(weak, strong).force_state(), ForceStateA4::Dominates);
+        assert_eq!(fp(weak, strong).force_state(), ForceStateA5::Dominates);
         // 全等 ⟹ Tie。
-        assert_eq!(fp(strong, strong).force_state(), ForceStateA4::Tie);
+        assert_eq!(fp(strong, strong).force_state(), ForceStateA5::Tie);
         // 口径冲突：C.area 弱但 C.dif 强 ⟹ Incomparable。
         let mixed_a = ff(10.0, 4.0, 100, 20.0);
         let mixed_c = ff(5.0, 8.0, 50, 10.0);
-        assert_eq!(fp(mixed_a, mixed_c).force_state(), ForceStateA4::Incomparable);
+        assert_eq!(fp(mixed_a, mixed_c).force_state(), ForceStateA5::Incomparable);
     }
 
     /// ★Lex 词典序核心（第17课「黄白线主 ▷ 面积次」，非 AND/OR）：DIF 可判用 DIF，DIF 相等退面积。
@@ -903,6 +931,7 @@ mod tests {
         assert_eq!(a.macd_area, 6.0);
         assert_eq!(a.dif_peak, 4.0); // up 段 max(dif[0..=1])=max(2,4)=4
         assert_eq!(a.price_amplitude, 10); // |110−100|
+        assert_eq!(a.tv, 10); // Σ|Δ| = |110−100|（单跳段 TV=振幅）
         // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
         let c = force_features(&hist, &dif, &closes, 2, 3, Direction::Up);
         assert!(weak_theta(WeakThetaMode::Lex, &a, &c), "C 段 DIF 峰(1)<A 段 DIF 峰(4) ⟹ Lex Weak");

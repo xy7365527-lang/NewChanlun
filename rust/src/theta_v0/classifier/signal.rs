@@ -342,7 +342,7 @@ fn judge_first_cached(
     // 零 bit（C≥A）候选靠 struct_break_dir 在 candidate_dir 恢复方向进样本（消选择偏差）。
     let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
     // ★力度多 proxy（beta-route #115，force-proxy-survey-20260702.md）：A/C 段 close 下标区间已算出
-    // （a_idx/c_idx），复用 force_features 算 4 proxy（MACD 面积/DIF 峰/振幅/速度）。**不进 buy1 判据**
+    // （a_idx/c_idx），复用 force_features 算 5 proxy（MACD 面积/DIF 峰/振幅/速度/TV）。**不进 buy1 判据**
     // （class_index 冻结，671 力度=feature 非 veto）——纯 feature，收进 BspPoint.force 单一来源，供
     // selector z_of_candidate_with_force 读进 force_state 第 8 维。有 dif/closes_tick 输入时 Some
     // （生产热路径已接线，Batch 2）；空输入（旧测试/合成入口）⟹ None（诚实不造死字段）。A/C 同趋势方向。
@@ -441,7 +441,7 @@ fn make_first_point(
         pivot_high: if bits.sell1 { pivot_price } else { 0 },
         center: None,
         struct_break_dir,
-        // ★β^div 力度（beta-route #115）：一类趋势背驰候选的 A/C 段 4 proxy（有 dif/closes_tick 输入时
+        // ★β^div 力度（beta-route #115）：一类趋势背驰候选的 A/C 段 5 proxy（有 dif/closes_tick 输入时
         // Some，否则 None）——单一来源就在此字段，selector z_of_candidate_with_force 读它进 force_state。
         force,
     }
@@ -705,7 +705,7 @@ pub fn extract_signals(
 }
 
 /// 力度离线入口（force-proxy-survey-20260702.md）：与 [`extract_signals`] 同产 BspPoint，但传真
-/// dif/closes_tick ⟹ 一类趋势背驰候选的 `point.force` 算得 `Some`（A/C 段可配对，4 proxy）；第二/
+/// dif/closes_tick ⟹ 一类趋势背驰候选的 `point.force` 算得 `Some`（A/C 段可配对，5 proxy）；第二/
 /// 三类无 A/C 对 ⟹ `point.force=None`。供 W-VERIFY(#13) 多 proxy 交叉验证读 `p.force`。
 ///
 /// **认识论 L1**（formalization-validity-domain 231号）：段坐标→proxy 是确定性算术（管线正确性）。
@@ -1264,7 +1264,7 @@ mod tests {
     #[test]
     fn force_proxies_juxtaposed_on_first_class_candidate() {
         // ★Step1/2 力度并置（force-proxy-survey-20260702.md）：extract_signals_force 与 extract_signals
-        // 同产 BspPoint，且一类趋势背驰候选并置 A/C 段 4 proxy。复用上测 fixture（C<A 背驰成立）。
+        // 同产 BspPoint，且一类趋势背驰候选并置 A/C 段 5 proxy。复用上测 fixture（C<A 背驰成立）。
         let c0 = dc(300, 400, 290, 410, 2);
         let c1 = dc(100, 200, 90, 210, 8);
         let segs = vec![

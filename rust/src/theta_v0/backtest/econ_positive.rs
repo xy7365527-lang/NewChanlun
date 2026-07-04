@@ -379,7 +379,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     // b2（task #83）：升 Z 分桶——从候选构造完整 z（含 σ_p/role/H/σ_higher），非事后从
                     // (level,δ,bsp_class) 粗投影重推。z_of_candidate 复用 selector 既有 role→z 桥
                     // （codex #81 修正1：信号携带 z:MuClass，不再扩位置易错的裸元组）。
-                    // ★force_state 生产热路由（beta-route #115）：一类候选带 p.force（A/C 段 4 proxy），
+                    // ★force_state 生产热路由（beta-route #115）：一类候选带 p.force（A/C 段 5 proxy），
                     // z_of_candidate_with_force 调 ForceProxies::force_state() 填 force_state 第 8 维（δ-free
                     // A4 支配序，perm_test 已按 c.force_state 分桶；二/三类 p.force=None ⟹ force_state=None）。
                     // ★σ_higher 第 9 维（G2 #132）：塔真值经 z_of_candidate 内 sigma_higher_at 填。
@@ -395,12 +395,14 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                             nest_depth: Some(cert.rungs.len() as u8),
                             origin_level: Some(lvl as u32 + cert.rungs.len() as u32),
                             risk_mode: None,
+                            t_stage: None, // #149：统计层无 TW 账本，同 risk_mode 诚实 None
                         },
                         GateCertificate::Xzd(_) => ZExt {
                             cand_channel: Some(trigger),
                             nest_depth: None,
                             origin_level: None, // ⟹ z 填 Some(c.level)（起始=执行真值）
                             risk_mode: None,
+                            t_stage: None, // #149：统计层无 TW 账本，同 risk_mode 诚实 None
                         },
                     };
                     let z = z_of_candidate_with_force(c, p.force, &tower_i, bars, &ext);
@@ -3859,12 +3861,14 @@ mod tests {
                                 nest_depth: Some(rungs_len as u8),
                                 origin_level: Some(lvl as u32 + rungs_len as u32),
                                 risk_mode: None,
+                                t_stage: None, // #149：与生产同源，统计层诚实 None
                             },
                             GateCertificate::Xzd(_) => ZExt {
                                 cand_channel: Some(trigger_dx),
                                 nest_depth: None,
                                 origin_level: None,
                                 risk_mode: None,
+                                t_stage: None, // #149：与生产同源，统计层诚实 None
                             },
                         };
                         signals_dx.push(RawSignal {

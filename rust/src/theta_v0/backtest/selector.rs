@@ -45,6 +45,7 @@ use crate::theta_v0::classifier::divergence::ForceProxies;
 use crate::theta_v0::classifier::recursive_tower::LeveledMove;
 use crate::theta_v0::strategy::coverage::Vertical;
 use crate::theta_v0::strategy::interp::Candidate;
+use crate::theta_v0::strategy::ledger::TStage;
 use crate::theta_v0::strategy::risk::RiskMode;
 use crate::theta_v0::strategy::voice::VoiceSide;
 use crate::theta_v0::types::Bar;
@@ -73,13 +74,22 @@ pub struct ZExt {
     /// 账户风险模式（§6 RiskMode+MarginState）：runner π fill loop `Some(当 bar mode)`；
     /// 无账本路径（econ 统计层）None。
     pub risk_mode: Option<RiskMode>,
+    /// 取本金三阶段（§6 TStage，#149 zdims 第 14 维）：runner π fill loop `Some(tw.stage)`
+    /// ——当 bar 决策点 TW 账本相位真值（与 `TwStepCtx.state` 同一 `tw` 变量，P2/P3/P4 谓词
+    /// 同口径）；无 TW 账本路径（econ 统计层）None（同 risk_mode 诚实口径）。
+    pub t_stage: Option<TStage>,
 }
 
 impl ZExt {
-    /// 无扩展数据源口径（诚实声明载体）：四维全 None——z 仍填 `origin_level=Some(c.level)`
+    /// 无扩展数据源口径（诚实声明载体）：扩展维全 None——z 仍填 `origin_level=Some(c.level)`
     /// （见字段文档，级别事实非门产物）。
-    pub const NONE: ZExt =
-        ZExt { cand_channel: None, nest_depth: None, origin_level: None, risk_mode: None };
+    pub const NONE: ZExt = ZExt {
+        cand_channel: None,
+        nest_depth: None,
+        origin_level: None,
+        risk_mode: None,
+        t_stage: None,
+    };
 }
 
 /// χ_t(γ) = 1 ⟺ μ(γ) > θ ∧ RiskOK ∧ ConflictOK（§13 line 2239）。
@@ -233,6 +243,7 @@ pub fn z_of_candidate(
     // 到完整 R(g)=(H,V,δ)。from_certificate 只填 V 投影 + horizontal=None，此处 struct-update 覆盖 H。
     // σ_higher 第 9 维（codex-q1 G2）：塔真值 Some(v)——v=0 是计算结果（上级持平/无上级），非未知。
     // G3 第 10-13 维：ext 显式装配；origin_level 无链覆盖 ⟹ Some(c.level)（起始=执行真值）。
+    // #149 第 14 维 t_stage：ext 显式装配（runner π 路径 Some(tw.stage)，统计层 None）。
     MuClass {
         horizontal: Some(c.role.h),
         sigma_higher: Some(sigma_higher_at(tower, bars, c.level as usize)),
@@ -240,6 +251,7 @@ pub fn z_of_candidate(
         nest_depth: ext.nest_depth,
         origin_level: Some(ext.origin_level.unwrap_or(c.level)),
         risk_mode: ext.risk_mode,
+        t_stage: ext.t_stage,
         ..MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
     }
 }
@@ -534,18 +546,25 @@ mod tests {
         assert_eq!(z0.nest_depth, None);
         assert_eq!(z0.origin_level, Some(2), "无链覆盖 ⟹ 起始=执行级（真值）");
         assert_eq!(z0.risk_mode, None);
-        // Nest 门口径：四维真值透传 + ℓ=e+depth 恒等式（debug_assert 同款自洽输入）。
+        assert_eq!(z0.t_stage, None, "#149：无 TW 账本口径 ⟹ t_stage 诚实 None");
+        // Nest 门口径：扩展维真值透传 + ℓ=e+depth 恒等式（debug_assert 同款自洽输入）。
         let ext = ZExt {
             cand_channel: Some(NestTrigger::Type23SublevelType1),
             nest_depth: Some(1),
             origin_level: Some(3), // = level 2 + depth 1
             risk_mode: Some(RiskMode::Normal),
+            t_stage: Some(crate::theta_v0::strategy::ledger::TStage::CapitalRecovered),
         };
         let z1 = z_of_candidate(&c, &[], &[], &ext);
         assert_eq!(z1.cand_channel, Some(NestTrigger::Type23SublevelType1));
         assert_eq!(z1.nest_depth, Some(1));
         assert_eq!(z1.origin_level, Some(3));
         assert_eq!(z1.risk_mode, Some(RiskMode::Normal));
+        assert_eq!(
+            z1.t_stage,
+            Some(crate::theta_v0::strategy::ledger::TStage::CapitalRecovered),
+            "#149：t_stage 经 ZExt 透传进 z"
+        );
         // 形态维（1-9）不受 ext 影响（新维正交于形态维）。
         assert_eq!((z0.level, z0.delta, z0.i_class, z0.horizontal), (z1.level, z1.delta, z1.i_class, z1.horizontal));
     }
@@ -564,9 +583,10 @@ mod tests {
             nest_depth: Some(2),
             origin_level: Some(5),
             risk_mode: Some(RiskMode::Deleverage),
+            t_stage: Some(crate::theta_v0::strategy::ledger::TStage::EarningShares), // #149 同约束②
             ..base
         };
-        assert_eq!(UClass::project_to_u(&base), UClass::project_to_u(&decorated), "ϕ:Z→U 折叠 G3 新维");
+        assert_eq!(UClass::project_to_u(&base), UClass::project_to_u(&decorated), "ϕ:Z→U 折叠 G3/#149 新维");
     }
 
     /// z_alpha=0 退化（向后兼容）：LCB=mean−0=mean ⟹ LCB 门 ≡ 裸 μ 门（filter_gamma/runner
