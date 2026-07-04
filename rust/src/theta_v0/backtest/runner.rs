@@ -667,6 +667,11 @@ where
         LedgerOpen,
     > = std::collections::HashMap::new();
     let mut typed_ledger: Vec<TypedTrade> = Vec::new();
+    // ★A7（Task #165）：出场 z 账本态维（t_stage/eta_bucket/risk_mode）取自出场 bar 决策点的
+    //   `ext_i`。窗口终点 censored Hold 在主循环外结算 ⟹ 需保留**最后一个决策点** ext_i（末可交易
+    //   bar 的账本态真值，与 censored 兑现价同 bar）。主循环内每决策点刷新；无决策点（全窗不可交易）
+    //   ⟹ ZExt::NONE（账本态维诚实 None，无 bar 决策点可取——同 entry_z 裸口径）。
+    let mut last_ext: super::selector::ZExt = super::selector::ZExt::NONE;
     // ★A9（Task #166，级别容器.pdf p14/§13）：campaign generation 高水位表——carrier(ElementId) →
     //   该 carrier 已见最高 generation。同一 carrier close→reopen 时新 campaign 的 generation =
     //   高水位 +1（首次入场 = 0）。`ActiveLeg::id`/`voice_id` 会跨 campaign 复用（close 后同 carrier
@@ -790,6 +795,9 @@ where
                 eta_bucket: Some(tw_policy.eta_bucket(&tw)),
                 ..super::selector::ZExt::NONE
             };
+            // A7（#165）：记录当前决策点账本态——窗口终点 censored Hold（主循环外）取此末值作 exit_z
+            // 账本态维（末可交易 bar 决策点真值，与 censored 兑现价同 bar 口径）。
+            last_ext = ext_i;
             // exec_index：延迟成交 bar（spec:50；尾部无可成交 bar ⟹ 不挂单）。
             let exec_index = fill_bar_index(i, bars, &config.exec);
             // 环5+6+7：pi_theta_step（父容器 σ_p=attach_bsp_to_tree(因果塔) + 风控门）→ (A_{t+1}, p*, O)。
@@ -909,6 +917,7 @@ where
                         exit_px: px,
                         via_structural_prune: false, // 真信号平仓（反向候选触发）
                         position_node_id: open.position_node_id,
+                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
                 // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
@@ -938,6 +947,7 @@ where
                         exit_px: px,
                         via_structural_prune: true, // §13 父驱动连带剪枝，非独立信号（μ 侧可分离）
                         position_node_id: open.position_node_id,
+                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
             }
@@ -960,6 +970,7 @@ where
                         exit_px: px,
                         via_structural_prune: false, // 强平=风险信号平仓，非结构剪枝
                         position_node_id: open.position_node_id,
+                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
             }
@@ -983,6 +994,7 @@ where
                         exit_px: px,
                         via_structural_prune: false, // TW 账本谓词驱动的真实平仓，非结构剪枝
                         position_node_id: open.position_node_id,
+                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
                     });
                 }
             }
@@ -1090,6 +1102,9 @@ where
                 exit_px: last_px,
                 via_structural_prune: false, // censored 窗口边界，非结构剪枝
                 position_node_id: open.position_node_id,
+                // A7 #165：censored 出场账本态取末决策点 last_ext（末可交易 bar 决策点真值，
+                // 与 last_px 兑现价同 bar 口径）；全窗无决策点 ⟹ ZExt::NONE 账本态维诚实 None。
+                exit_z: super::selector::exit_z_of(open.entry_z, &last_ext),
             });
         }
     }
@@ -1261,7 +1276,29 @@ pub struct TypedTrade {
     /// `position_node_id` 不碰撞（generation +1）。供跨笔同 carrier campaign 归因/去重（当前 μ 层
     /// 按 `entry_z` 逐笔独立观测，不消费本字段——它是身份完备性的账本层载体，非 μ 统计输入）。
     pub position_node_id: super::super::strategy::interp::PositionNodeId,
+    /// ★A7（Task #165，《完整的策略.pdf》§6 z「两次快照」+ §9 typed exit）：出场时刻的 z 快照。
+    ///
+    /// 与 `entry_z` 是**同一 [`MuClass`](super::mu_estimator::MuClass) 类型的两次快照**（时刻不同、
+    /// 账本态不同）：结构身份维（level/δ/i_class/parent_dir/horizontal/force_state/σ_higher/门链维）
+    /// 入场冻结不重采样（PDF §6 `σ_higher: 入场时上级方向`——按定义入场值），唯一逐 bar 变化的账本态
+    /// 三元 `{t_stage, eta_bucket, risk_mode}` 刷新到出场 bar 决策点真值。由 [`super::selector::exit_z_of`]
+    /// 单源构造（`entry_z` + 出场 bar `ext_i`），构造被迫唯一（在无触发候选的出场点重分类结构维 =
+    /// 伪造不存在的候选 = 声明膨胀，231号）。
+    ///
+    /// **消费侧未定（A7 裁量分离）**：μ 估计器按 `(entry_z, exit_z, exit_type)` 分桶的语义是设计裁量，
+    /// 待 codex 裁决——当前 μ 层不消费本字段（`build_mu_from_bars` 仍按 `entry_z` 逐笔独立观测），
+    /// 本字段是出场侧完备性的账本层载体（同 `position_node_id` A9 先例）。
+    pub exit_z: super::mu_estimator::MuClass,
 }
+
+/// ★A7 #165：`TypedTrade` 账本行 schema 版本（出场侧 `exit_z` 增列的显式版本标记）。
+///
+/// **B30 prereg 前置清单联动声明（不静默，team-lead 令）**：本 ledger 行 schema 于 v2 增
+/// `exit_z`（出场时刻 z 快照）。μ **样本** schema（[`MuObservation`](super::mu_estimator::MuObservation)
+/// = `{class, x_gamma}`）**未变**——A7 只在账本层增列，μ 消费侧仍按 `entry_z`（见 `exit_z` 字段文档
+/// 消费侧边界）。任何后续把 `exit_z` 接入 μ 分桶键的工位（codex 裁决后）须新开 prereg 冻结口径，
+/// 不得静默改分桶（formalization-validity-domain / B30 前置清单）。
+pub const TYPED_TRADE_SCHEMA_VERSION: u32 = 2;
 
 /// ledger 在飞条目（开腿登记，关腿时结算为 [`TypedTrade`]）。
 struct LedgerOpen {
@@ -2166,6 +2203,79 @@ mod tests {
             Some(crate::theta_v0::strategy::ledger::EtaBucket::PositiveSafe),
             "fill loop entry_z 携 bar 级 γ_t 四桶真值（#175）"
         );
+    }
+
+    /// ★A7（Task #165，《完整的策略.pdf》§6 z「两次快照」+ §9 typed exit）：出场侧 `exit_z` 透传。
+    ///
+    /// 验收两条（生产路径断言 + 结构不变量）：
+    /// 1. **每笔出场携 `exit_z`**（非 None——`MuClass` 非 Option，字段恒在；这里验它是**同一结构实体
+    ///    的第二次快照**）：结构身份维（level/δ/i_class/parent_dir/horizontal/force_state/σ_higher/
+    ///    门链维）与 `entry_z` **逐字段相等**（入场冻结不重采样，PDF §6）；账本态三元
+    ///    `{t_stage, eta_bucket, risk_mode}` 取出场 bar 决策点真值。
+    /// 2. **L0 同价窗**：账本相位恒 CostReduction（无已实现利润 ⟹ stage 不推进）⟹ 出场账本态三元
+    ///    与入场同值（同一 L0 平价窗内 tw 不漂移）。这是 §6 z「两次快照」在 L0 有效域的可观测落点：
+    ///    快照机制正确（entry/exit 各取当 bar 真值），值恒等是 L0 平价的**诚实结论**非机制缺陷。
+    #[test]
+    fn typed_trade_carries_exit_z_snapshot() {
+        use super::super::super::strategy::ledger::{EtaBucket, TStage};
+        use super::super::super::strategy::risk::RiskMode;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1, "恰一条腿级 typed 交易");
+        let t = &fill.typed_ledger[0];
+        // ── 条1：exit_z 是 entry_z 的结构-同构第二次快照（结构维逐字段相等，账本态维刷新）。──
+        assert_eq!(t.exit_z.level, t.entry_z.level, "level 入场冻结");
+        assert_eq!(t.exit_z.delta, t.entry_z.delta, "δ 入场冻结");
+        assert_eq!(t.exit_z.i_class, t.entry_z.i_class, "I_γ 入场冻结");
+        assert_eq!(t.exit_z.parent_dir, t.entry_z.parent_dir, "σ_p 入场冻结");
+        assert_eq!(t.exit_z.short_swing, t.entry_z.short_swing, "短差态入场冻结");
+        assert_eq!(t.exit_z.position, t.entry_z.position, "仓位态入场冻结");
+        assert_eq!(t.exit_z.horizontal, t.entry_z.horizontal, "H 入场冻结");
+        assert_eq!(t.exit_z.force_state, t.entry_z.force_state, "力度态入场冻结");
+        assert_eq!(t.exit_z.sigma_higher, t.entry_z.sigma_higher, "σ_higher 入场冻结（PDF §6 入场值）");
+        assert_eq!(t.exit_z.cand_channel, t.entry_z.cand_channel, "门通道入场冻结");
+        assert_eq!(t.exit_z.nest_depth, t.entry_z.nest_depth, "下沉深度入场冻结");
+        assert_eq!(t.exit_z.origin_level, t.entry_z.origin_level, "起始级入场冻结");
+        // 账本态三元维在出场处取真值（本 L0 同价窗恒 Normal/CostReduction/PositiveSafe，见条2）。
+        assert_eq!(t.exit_z.risk_mode, Some(RiskMode::Normal), "出场 bar 账本态真值 risk_mode");
+        assert_eq!(t.exit_z.t_stage, Some(TStage::CostReduction), "出场 bar TW 相位真值");
+        assert_eq!(t.exit_z.eta_bucket, Some(EtaBucket::PositiveSafe), "出场 bar γ_t 四桶真值");
+        // ── 条2：L0 同价 ⟹ 出场账本态三元 = 入场（tw 不漂移；快照机制正确，值恒等是 L0 诚实结论）。──
+        assert_eq!(t.exit_z.risk_mode, t.entry_z.risk_mode, "L0 同价：账本相位不漂移（risk_mode）");
+        assert_eq!(t.exit_z.t_stage, t.entry_z.t_stage, "L0 同价：账本相位不漂移（t_stage）");
+        assert_eq!(t.exit_z.eta_bucket, t.entry_z.eta_bucket, "L0 同价：账本相位不漂移（eta_bucket）");
+    }
+
+    /// ★A7（Task #165）：censored Hold 出场（窗口终点未离场腿）也携 `exit_z`——末决策点 `last_ext`
+    /// 账本态真值，非静默 None。买点开腿后无反向信号 ⟹ 兑现到末可交易 bar（ExitType::Hold）。
+    #[test]
+    fn typed_trade_censored_hold_carries_exit_z() {
+        use super::super::super::strategy::interp::ExitType;
+        use super::super::super::strategy::ledger::TStage;
+        use super::super::super::strategy::risk::RiskMode;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        // buy_then_sell 的 sell 在 bar14 出——用只出 buy 的闭包 ⟹ 腿无反向信号 ⟹ censored Hold。
+        let cls_buy = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
+        };
+        let fill = pi_theta_fill_loop(
+            move |i| {
+                if i >= 7 { (cls_buy.clone(), Vec::new(), i as u64) }
+                else { (Classification::default(), Vec::new(), i as u64) }
+            },
+            &bars, 1.0e6, &config, None,
+        );
+        assert_eq!(fill.typed_ledger.len(), 1, "恰一条 censored 腿");
+        let t = &fill.typed_ledger[0];
+        assert_eq!(t.exit_type, ExitType::Hold, "无反向信号 ⟹ censored Hold");
+        // censored 出场 z 结构维仍 = 入场（同一实体）。
+        assert_eq!(t.exit_z.level, t.entry_z.level);
+        assert_eq!(t.exit_z.i_class, t.entry_z.i_class);
+        // 账本态三元维取末决策点 last_ext 真值（非 ZExt::NONE 静默 None——末可交易 bar 有决策点）。
+        assert_eq!(t.exit_z.risk_mode, Some(RiskMode::Normal), "censored 出场携末决策点账本态（非静默 None）");
+        assert_eq!(t.exit_z.t_stage, Some(TStage::CostReduction), "censored 出场 TW 相位真值");
     }
 
     /// ★A9（Task #166，级别容器.pdf p14/§13）：typed ledger 的 position_node_id 账本层真填充。

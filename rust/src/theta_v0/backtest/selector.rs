@@ -273,6 +273,36 @@ pub fn z_of_candidate(
     }
 }
 
+/// 出场时刻 z 快照 `exit_z`（A7 #165，《完整的策略.pdf》§6 z「两次快照」+ §9 typed exit）。
+///
+/// **命题（PDF §6/§9，构造被迫非裁量）**：一笔持仓在其生命期内是**同一结构实体**——入场时
+/// 冻结的结构身份维（`level`/`delta`/`i_class`/`parent_dir`/`horizontal`/`force_state`/
+/// `sigma_higher`/`cand_channel`/`nest_depth`/`origin_level`）**不随 bar 演化重采样**（PDF §6
+/// 明文 `σ_higher: 入场时上级方向`——按定义是入场值；力度/H 由开仓 `Candidate` 派生，入场固定）。
+/// [`MuClass`] 中**唯一逐 bar 变化**的维是账本态三元 `{t_stage, eta_bucket, risk_mode}`（[`ZExt`]
+/// 承载的账本相位）。故「同一 z 在出场时刻的快照」= 入场 z 的结构维 **+** 出场 bar 的账本态维。
+///
+/// 在出场处**重新分类结构维**需要一个不存在的出场候选（多数 typed exit——CloseRoot/RiskExit/
+/// censored Hold——无触发候选），伪造它 = 声明膨胀（231号）。故本构造**被迫唯一**（定理，非裁量）：
+/// 精确刷新账本三元维，其余 struct-update 自 `entry_z` 承继。
+///
+/// `exit_ext` = 出场 bar 决策点的 [`ZExt`]（runner π 路径 = 该 bar 的 `ext_i`，与 entry_z 在同 bar
+/// 入场时的账本装配点同口径）。裸/统计层路径传 [`ZExt::NONE`] ⟹ 账本三元维诚实 None（同 entry_z）。
+///
+/// ★消费侧边界（A7 裁量分离，team-lead 令）：本函数只**生产** `exit_z` 入 [`TypedTrade`](
+/// super::runner::TypedTrade) 账本列。μ 估计器**按 `(z_entry, z_exit, exit_type)` 分桶的语义是设计
+/// 裁量**（多合理方案，需价值判断）——**未在此实装**，待 codex 裁决（no-unnecessary-escalation
+/// 选择类）。当前 μ 层仍按 `entry_z` 逐笔独立观测（[`build_mu_from_bars`](super::l3_delta_r_alpha)
+/// 不消费 `exit_z`），本字段是出场侧完备性的账本层载体（同 `position_node_id` A9 先例）。
+pub fn exit_z_of(entry_z: MuClass, exit_ext: &ZExt) -> MuClass {
+    MuClass {
+        risk_mode: exit_ext.risk_mode,
+        t_stage: exit_ext.t_stage,
+        eta_bucket: exit_ext.eta_bucket,
+        ..entry_z
+    }
+}
+
 /// χ_t 候选集过滤（§13 line 2256）：`Γ_t → Γ_t^trade = {γ∈Γ_t : χ_t(γ)=1}`。
 ///
 /// **诚实有效域声明（no-patch / no-claim-inflation）**：本函数只施加 χ_t 的 **μ>θ** 项——
