@@ -9,7 +9,7 @@
 
 `a5-downstream-rerun` CHECK_PASS（events.jsonl:290，2026-07-04T05:12:35Z）：
 - **三同族复测全完成**：type1 全级别 >0（漏斗环6 L0=452/L1=7/L2=13/L3=9/L4=2，"type1=0 前提确认修复"）；区间套有锚 750 max_depth=3；XZD C3 死门维持（lvl>=2 C2-only codex 终裁）。
-- **终局 alpha=INCONCLUSIVE**（无 confirmed 方向 alpha，五路证据一致）：①报告桶唯一 Validated L0/bsp3/σ+1 两 δ 同 +162=beta 漂移签名；②co-primary β boot_p=0.633/0.997/1.000；③full-z 8维 V=0/F=4/I=63；④L3 七品种池化 V=0/F=9/I=34；⑤δ-free 聚合基 22 桶唯一 LCB>0 桶=纯 beta 暴露。
+- **alpha 初检=INCONCLUSIVE**（无 confirmed 方向 alpha，五路证据一致；有效域=Π_signal^partially-full，执行层/资金层/风险层未闭合，见 formal-chain-deepresearch-20260704.md §3 问题10）：①报告桶唯一 Validated L0/bsp3/σ+1 两 δ 同 +162=beta 漂移签名；②co-primary β boot_p=0.633/0.997/1.000；③full-z 8维 V=0/F=4/I=63；④L3 七品种池化 V=0/F=9/I=34；⑤δ-free 聚合基 22 桶唯一 LCB>0 桶=纯 beta 暴露。
 - a1（中枢延伸）/a2（走势分解）/a3（局部趋势门，全历史一类 678，五级 397/217/56/8/0）/a4（A/C 次级别化+PanDiv 路由+Q7 裁C 一类 614 基线）全 CHECK_PASS。
 
 ## 判定分类原则
@@ -26,7 +26,7 @@
 | **677** | bias-correction | codex 终局裁决 C'（编排者授权全权裁定=终局） | 已达成（status 已标"已结算"，settled_date 2026-07-02） | **结算** | 自身已结算，本次仅物理归档 + dag file 字段订正 |
 | **679** | concept-separation | codex 终局裁决 A 逐字实装+护栏测试+350K BTC dx 重测 | 已达成（status 已标"已结算"，settled_date 2026-07-02，settled_by ws-sbimpl） | **结算** | 自身已结算，本次仅物理归档 + dag file 订正 |
 | **683** | bias-correction | #123 hl13-impl 完成 + GOLDEN 诚实重算（retro 无 /ritual） | 已达成 | **结算** | goal a3 gate3-impl CHECK_PASS：level≥1 一类候选生成已工作（五级 397/217/56/8/0=else 分支修复生效）+ 全程诚实重算 |
-| **684** | bias-correction | q4+终局五路证据定判 alpha 伪影 | 已达成 | **结算** | goal a5 五路证据①"报告桶唯一 Validated=beta 漂移"坐实唯一候选 alpha 证伪；下游三项作废=独立文档订正 action（待 Lead 派工位，不阻塞谱系结算） |
+| **684** | bias-correction | q4+alpha 初检五路证据定判 alpha 伪影 | 已达成 | **结算** | goal a5 五路证据①"报告桶唯一 Validated=beta 漂移"坐实唯一候选 alpha 证伪；下游三项作废=独立文档订正 action（待 Lead 派工位，不阻塞谱系结算） |
 | **685** | bias-correction | #146 rerun5 全下游重跑（三同族复测）完成 | 已达成 | **结算** | goal a5 CHECK_PASS：type1 全级别>0（L1=7/L2=13/L3=9/L4=2，"type1=0 前提确认修复"）=一类修复全闭环 |
 | **686** | concept-separation | #146 rerun5 下游重跑完成（retro/status 无 /ritual） | 已达成 | **结算** | goal a5 CHECK_PASS：裁定C 新基线 614（rerun5 实证冻结）；裁定C实装 cdddaa78ac+接生产锚 1464634a2f 已在 |
 | 687 | meta-rule | 编排者 /escalate 辨认 meta-rule 候选是否成立 → /ritual 显式化 | 双实例已修（#136/#147）但 meta-rule 待辨认 | 维持 | 两修复完成=客观事实，但"多写点计数器一致性"上升为规则需编排者价值辨认（选择类，不采纳"双实例已修=定理类"的初步归类） |
@@ -61,4 +61,4 @@
 
 ## 编排者复核提示（684/685 越 /ritual 字样结算的理由）
 
-684 的 retro 与 685 的 status 行含"编排者 /ritual"字样。本次判定：goal `g-...type1-canonical-centers` 的 CLOSED（编排者主导的 acceptance a1-a5 全过 + 终局 alpha 五路证据）**即是**这两条所待技术判定的实质裁定时刻——编排者通过 goal acceptance 已确认技术事实，/ritual 形式确认在 goal CLOSED 后成为定理类（客观事实已发生）。若编排者不认可此归类，可 CHECK_FAIL 式召回 684/685 回 pending。684 的"下游三项作废"（W-VERIFY 旧 PASS / econ-663 μ̂ 表 / 奇偶交替正数字标注）为独立文档订正 action，已标注待 Lead 派工位，不阻塞谱系结算。
+684 的 retro 与 685 的 status 行含"编排者 /ritual"字样。本次判定：goal `g-...type1-canonical-centers` 的 CLOSED（编排者主导的 acceptance a1-a5 全过 + alpha 初检五路证据）**即是**这两条所待技术判定的实质裁定时刻——编排者通过 goal acceptance 已确认技术事实，/ritual 形式确认在 goal CLOSED 后成为定理类（客观事实已发生）。若编排者不认可此归类，可 CHECK_FAIL 式召回 684/685 回 pending。684 的"下游三项作废"（W-VERIFY 旧 PASS / econ-663 μ̂ 表 / 奇偶交替正数字标注）为独立文档订正 action，已标注待 Lead 派工位，不阻塞谱系结算。

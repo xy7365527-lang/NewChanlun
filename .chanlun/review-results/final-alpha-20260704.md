@@ -1,15 +1,17 @@
-# 终局 alpha 全口径重跑结果包（Task #182，a5 验收判定件）
+# 五步结构修复后 alpha 初检结果包（Task #182，a5 验收判定件）
 
 - **工位**：swarm/ws-finalpha | **task #182** | **判据源**：`.chanlun/review-results/final-prereg-20260704.md`（冻结 commit `ebcd8f2a0f`，codex 三 PASS）
 - **跑数 HEAD**：committed 树 `f48d0f3c26`（冻结 `ebcd8f2a0f` 之上叠加两个 **docs-only** perf 复核 commit `2572c1f691`/`f48d0f3c26`；`git diff ebcd8f2a0f f48d0f3c26 -- rust/src/theta_v0/ rust/src/recursive_t/` = **空**，全部 alpha 代码与冻结逐字节相同）。所有跑数在冻结二进制 `newchan_rust-9cb5b83727a3eeb0`（编译于 mod.rs 被 #183 编辑前）上执行——G1/G2/G3 逐字节复现既有基线（residuals 2256/2233/2233）= 二进制口径正确的铁证。
 - **认识论**：本文件 **L2**（BTC 单标的全历史 walk-forward OOS）+ **L3**（7 品种池化）。逐桶三态照实（161），否定性结果是合法诚实产出。
 - **fail 条件核验**：①跑数在冻结 commit 之后 ✓；⑤8 个版本锚 commit（a87540bdb6/c84c39e908/f9b3e41636/16ba38d5d5/fe582c3847/a3fb547375/29cdc2adbb/39e48b3636）全为 HEAD 祖先 ✓。
 
+> **⚠ 有效域声明（formal-chain-deepresearch-20260704.md §3 问题10）**：本报告检验对象 = **Π_signal^partially-full**（五步结构修复后的信号层，TARGET_STRATEGY.md 三分冻结表），非 **Π_max-full**（完整策略对象）。执行层 Π_exec（A11 声部执行/多空对冲 overlay 未接生产开平仓）、资金层 Π_treasury（A10 margin M2/M3 waiver、GAP3 三阶段账本）、风险层（d 结构止损距离未入 estimand，见 a1-zdims）均**未闭合**。下文「无 confirmed 方向 alpha」的有效域限定为：**当前信号层实装 + 当前 OOS 判据口径 + 当前 BTC/7品种数据**——不可外推至完整策略（信号+执行+资金三层闭合后）的表现。
+
 ---
 
-## 0. 终局判定（一行）
+## 0. alpha 初检判定（一行）
 
-**INCONCLUSIVE——无 confirmed 可交易方向 alpha**。与 prereg §7 认识论预承诺一致（全战役无 confirmed 正 alpha 在案，本终局不翻转）。残差口径 `Y_i = δ(H−B̂) − C` 不动摇。唯一反复出现的 Validated 报告桶 `L0 bsp3 σ+1` 经 §3.1 主判据口径分解 = **beta 漂移伪结构**（两 δ 方向同为 +162，657/oddeven 签名），非方向性 alpha；co-primary β 方向不对称路径不显著；full-z Inconclusive；L3 跨标的池化把该桶翻转为 Falsified（BTC 独有 beta，非 alpha）。
+**INCONCLUSIVE——无 confirmed 可交易方向 alpha**。与 prereg §7 认识论预承诺一致（全战役无 confirmed 正 alpha 在案，本次初检不翻转）。残差口径 `Y_i = δ(H−B̂) − C` 不动摇。唯一反复出现的 Validated 报告桶 `L0 bsp3 σ+1` 经 §3.1 主判据口径分解 = **beta 漂移伪结构**（两 δ 方向同为 +162，657/oddeven 签名），非方向性 alpha；co-primary β 方向不对称路径不显著；full-z Inconclusive；L3 跨标的池化把该桶翻转为 Falsified（BTC 独有 beta，非 alpha）。
 
 ---
 
@@ -122,7 +124,7 @@ residuals=2256。
 3. **Arm2 teap=true 全窗巨亏**（BTC ΣΣpnl=−1.28 亿 / CL=−19.5 万）：teap 放开后大量下单（BTC 12.6 万 orders）全线亏损，max_dd 多窗 >0.6——放开交易类不产生 alpha，只放大 beta 亏损。
 4. **Arm0 无χ 基线同样巨亏**：无 χ 约束裸跑 BTC ΣΣpnl=−2.17 亿——确认 χ 约束（空仓）在此数据/口径下**优于**放开交易（Arm0/Arm2 均巨亏），但「优于亏损」不是正 alpha，是「不交易 > 乱交易」。
 
-**R5 结论**：q4 π^full 四臂全口径**无 confirmed 方向 alpha**——Arm1（π^full 生产语义）全窗空仓（Σpnl=0），放开约束的 Arm0/Arm2 全线巨亏。与主判据 §2.1-§2.4 及 §3 五路证据一致收敛 **INCONCLUSIVE**。R5 作为非 co-primary 诊断段，其结果**印证而非改变**终局判定。
+**R5 结论**：q4 π^full 四臂全口径**无 confirmed 方向 alpha**——Arm1（π^full 生产语义）全窗空仓（Σpnl=0），放开约束的 Arm0/Arm2 全线巨亏。与主判据 §2.1-§2.4 及 §3 五路证据一致收敛 **INCONCLUSIVE**。R5 作为非 co-primary 诊断段，其结果**印证而非改变**本次初检判定。
 
 **耗时实测对照（on2 战役 L2 数据点）**：R5 全段（11 窗×4 臂，O(n²) profile）on2 修复后 HEAD 实测 **467.75s（≈7.8 min）**，冻结二进制直跑 **2747.92s（≈45.8 min）**——实测加速 **5.87x**，**低于 on2 预估的 25x**。q4 policy 段的加速比不及第二波两泳道 bit-exact 段（推测：policy 段热点在 est×2 逐窗重估路径，未被 on2 的 A1 Rc化/C3 partition_point 二分覆盖）。
 
@@ -139,7 +141,7 @@ residuals=2256。
 4. L3 跨标的池化把 BTC 独有正桶翻转 Falsified。
 → 四路证据一致指向 **INCONCLUSIVE**（无 confirmed 方向 alpha），与 prereg §7 认识论预承诺一致。
 
-**Lead 裁定（收 3 项裁定）**：报告桶 verdict=Pass **不算** §3.2 path-1（§3.1 明文直接应用，定理类）；四路证据收敛，终局 acceptance=**INCONCLUSIVE 无 confirmed 方向 alpha**，Lead 认定。a5 CHECK 事件由 Lead 写（归属在 Lead），本工位不写。
+**Lead 裁定（收 3 项裁定）**：报告桶 verdict=Pass **不算** §3.2 path-1（§3.1 明文直接应用，定理类）；四路证据收敛，本次初检 acceptance=**INCONCLUSIVE 无 confirmed 方向 alpha**，Lead 认定。a5 CHECK 事件由 Lead 写（归属在 Lead），本工位不写。
 
 ### 3.1 δ-free 聚合基三态离线重算（Lead 裁定点1②，明文主判据执行 gap 补齐）
 冻结 `wverify_full` 只落报告桶（含 δ）不落 δ-free 聚合基三态。从 R2 报告桶行离线池化 δ+1/δ−1 到 δ-free 基 `(level,bsp_class,parent_dir)`（组均值+组方差合并公式，std 由 LCB 反推 `std=(mean−lcb)·√n/1.645`，正态近似 LCB）——**非跑后调口径，是执行 prereg 明文主判据**（§3.2 主判据=δ-free 聚合基 LCB_OOS>0）。22 个 δ-free 桶中：
@@ -177,7 +179,7 @@ level1-4 第二类信号进入 Γ=7241，N^δ 门分解：base_none **6574（90.
 
 ## 5. 结果包六要素
 
-1. **结论**：终局 alpha = **INCONCLUSIVE**（无 confirmed 可交易方向 alpha）。四口径 D 判定唯一 Validated 报告桶 `L0 bsp3 σ+1` 两 δ 同正 = beta 漂移；co-primary β 不显著；full-z 零 Validated（4 powered-Falsified）；L3 跨标的池化正桶翻 Falsified。三同族 type1=0 前提确认已修复（漏斗全级别存活）、区间套 max_depth=3 稀有、XZD C3 死门维持。
+1. **结论**：alpha 初检 = **INCONCLUSIVE**（无 confirmed 可交易方向 alpha；有效域 = Π_signal^partially-full，见文件头声明）。四口径 D 判定唯一 Validated 报告桶 `L0 bsp3 σ+1` 两 δ 同正 = beta 漂移；co-primary β 不显著；full-z 零 Validated（4 powered-Falsified）；L3 跨标的池化正桶翻 Falsified。三同族 type1=0 前提确认已修复（漏斗全级别存活）、区间套 max_depth=3 稀有、XZD C3 死门维持。
 2. **定义依据**：可交易判据=μ(z,a)>0 的 LCB_OOS>0（663/§12）；桶键 δ-free（657 共线免疫+665 方向不对称免疫）；LCB≤0 不外推 μ≤0（667+231）；beta 漂移=两 δ 同号残差（memory oddeven，δ 反事实非几何真结构）。
 3. **边界条件（结论翻转）**：(a) 若 Lead 裁 δ-free 聚合基重算后出现 powered-VALIDATED 桶且 co-primary β 显著 → acceptance PASS，触发 B30②④生产化；(b) 若样本量升数量级（跨标的池化 n≈数万 + 657 归一化新 prereg）→ 提功效链可再检；(c) 默认口径切 ThetaLex/ThetaDom（影响信号集，090 bit-exact）→ 全链重冻结。
 4. **下游推论**：a5 验收的下游重跑件字面（"否定性结果照实"）满足——三同族修复复测 + q4 口径 alpha 重跑全部完成，INCONCLUSIVE/FALSIFIED 照实产出。B30②selector LCB 生产化 + ④shrinkage 维持后置（无 VALIDATED 候选=无消费者/无收缩对象）。M1 里程碑走 §6.2 提功效链（非本轮判据）。
