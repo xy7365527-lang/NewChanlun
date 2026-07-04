@@ -384,6 +384,32 @@ pub struct WindowScanCursor {
     pub last_window_emitted: usize,
 }
 
+/// ★on2w2-cascade 读域侧车（设计 §4.1 解 A）：每个产出 center 一条，记录产出它的**窗口读域**，
+/// 供 cascade 增量失效（按 `read_end_src < e` 取保留前缀 P）。与 `LevelCache.centers`/`upper_moves`
+/// 1:1 对齐（同序同长，同前缀不可变 + 尾部续扫追加）。
+///
+/// **读域上界 `read_end_src`**（设计 §1.2.1，codex 二审终版）：detect 延伸循环停止时读了首个
+/// non-extension 哨兵 `units[win.1+1]`，其源坐标才是 center 的完整读域上界（读域 `[win.0..win.1+1]`
+/// ⊋ 输出区间 `[start,end]`）。`units[win.1+1]` 越界（`win.1+1 == units.len()`，窗口开放无哨兵）⟹
+/// `read_end_src = usize::MAX`（+∞，永不进保留前缀，归 frontier pop 常态处理）。
+///
+/// **升级窗口共享**（设计 §3.5）：#148 升级重切窗口产 k 个子中枢，它们**共享同一父窗口**
+/// `(win.0, win.1+1)` ⟹ `win_start`/`read_end_src` 对该窗口全部 k 个子中枢**逐值相等**。故按
+/// `read_end_src < e` 的 `partition_point` 天然「整窗保留或整窗失效」——子中枢不会被从中部截断
+/// （§3.5 blocker 由此自动解除，无需额外 snap 逻辑）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WinMeta {
+    /// 产出该 center 的窗口起点（`win.0`，unit 下标）。升级子中枢共享父窗口起点。
+    pub win_start: usize,
+    /// 窗口退出点（`win.1+1` = detect 的 `j`，unit 下标）。cascade cursor 重建的 `consumed`
+    /// （had_emitted_window = win_start < win_exit 判据；仅瞬态用，compose 后被 new_cursor 覆盖）。
+    pub win_exit: usize,
+    /// 读域上界源坐标 = `units[win.1+1].start_index`（停止哨兵）；窗口开放（无哨兵）⟹ `usize::MAX`。
+    pub read_end_src: usize,
+    /// 该窗口产出的 center 数（#148 升级 = k，普通 = 1）——cursor 重建时的 `last_window_emitted`。
+    pub emitted: usize,
+}
+
 /// 增量窗口扫描：从 `start_i` 续扫（seed + 延伸吸收），返回新产出的 `(Center, (start,end))` 序列 +
 /// 退出断点。
 ///
@@ -411,8 +437,11 @@ pub fn detect_centers_windowed_resume(
     units: &[UnitRange],
     build: fn(&UnitRange, &UnitRange, &UnitRange) -> Option<Center>,
     start_i: usize,
-) -> (Vec<(Center, (usize, usize))>, WindowScanCursor) {
+) -> (Vec<(Center, (usize, usize))>, Vec<WinMeta>, WindowScanCursor) {
     let mut out = Vec::new();
+    // ★on2w2-cascade：与 `out` 1:1 对齐的读域侧车（每 center 一条 WinMeta）。升级子中枢共享父窗口
+    // `(i, j)` ⟹ 同一 read_end_src/win_start（设计 §3.5 整窗保留/失效性质的来源）。
+    let mut metas: Vec<WinMeta> = Vec::new();
     let mut i = start_i;
     // ★frontier 修复锚：最后一个成立窗口的 (起点, 产出数)。无成立窗口 ⟹ None（下面折叠为
     // (consumed, 0)，续进语义）。不能用 start_i 兜底——None 支 +1 推进后 i > start_i，会让
@@ -434,9 +463,13 @@ pub fn detect_centers_windowed_resume(
                     j += 1;
                 }
                 let n = j - i;
+                // ★on2w2-cascade 读域上界：停止哨兵 units[j]（首个 non-extension）的源坐标 = 完整读域
+                // 上界。j==len ⟹ 窗口开放无哨兵 ⟹ +∞（usize::MAX，永不进保留前缀，设计 §1.2.1）。
+                let read_end_src = units.get(j).map_or(usize::MAX, |u| u.start_index);
                 let emitted = if n < UPGRADE_TOTAL_SEGMENTS {
                     // Q2 有效域（≤8 段）：一个延伸中枢，不拆碎片。
                     out.push((c, (i, j - 1)));
+                    metas.push(WinMeta { win_start: i, win_exit: j, read_end_src, emitted: 1 });
                     1
                 } else {
                     // ★#148 升级重切（第33课 + codex 裁定 A1/B-II/C1，codex-decide-20260704-001933）：
@@ -463,6 +496,9 @@ pub fn detect_centers_windowed_resume(
                             },
                             (s, e),
                         ));
+                        // ★升级子中枢**共享父窗口** (i, j, read_end_src, k)——设计 §3.5：k 个子中枢
+                        // 逐值相同 win_start/win_exit/read_end_src ⟹ partition_point 整窗保留或整窗失效。
+                        metas.push(WinMeta { win_start: i, win_exit: j, read_end_src, emitted: k });
                     }
                     k
                 };
@@ -474,10 +510,11 @@ pub fn detect_centers_windowed_resume(
             }
         }
     }
+    debug_assert_eq!(out.len(), metas.len(), "WinMeta 侧车与 center 输出 1:1 对齐");
     // 无成立窗口 ⟹ resume_from = consumed（续进，不回退）、emitted = 0；有窗口 ⟹ 该窗口起点
     // + 整窗产出数（回退域 = 整窗：升级重切窗口的全部子中枢在窗口 sealed 前均可变）。
     let (resume_from, last_window_emitted) = last_window.unwrap_or((i, 0));
-    (out, WindowScanCursor { consumed: i, resume_from, last_window_emitted })
+    (out, metas, WindowScanCursor { consumed: i, resume_from, last_window_emitted })
 }
 
 /// 增量 compose：从 `start_i` 续扫窗口 + 把新产出的窗口 compose 为上级 `LeveledMove`。
@@ -502,7 +539,7 @@ pub fn compose_level_resume(
     level: u32,
     start_i: usize,
     prefix_count: usize,
-) -> (Vec<Center>, Vec<LeveledMove>, WindowScanCursor) {
+) -> (Vec<Center>, Vec<LeveledMove>, Vec<WinMeta>, WindowScanCursor) {
     let build = if is_l0 {
         super::center::center_from_segments
     } else {
@@ -513,7 +550,7 @@ pub fn compose_level_resume(
     // 续扫跨度 `units.len()-start_i`——若 avg 跨度随 n 线性增长 ⟹ H-detect（O(n²) 续扫，A4 域）；
     // O(1) ⟹ H-detect-bounded / H-clone。bit-exact：`time`/`record_span` 仅计时，不改逻辑。
     super::stage_profile::record_span("05_span", (units.len().saturating_sub(start_i)) as u64);
-    let (windowed, cursor) = super::stage_profile::time("05a_detect_windowed", || {
+    let (windowed, metas, cursor) = super::stage_profile::time("05a_detect_windowed", || {
         detect_centers_windowed_resume(units, build, start_i)
     });
     let tail_centers: Vec<Center> =
@@ -536,7 +573,7 @@ pub fn compose_level_resume(
             })
             .collect()
     });
-    (tail_centers, tail_upper, cursor)
+    (tail_centers, tail_upper, metas, cursor)
 }
 
 /// 把上级 `LeveledMove` 序列投影为 `UnitRange` 序列（供下一级 `detect_centers_windowed` 的
@@ -797,7 +834,7 @@ mod tests {
             })
             .collect();
         let full = detect_centers_windowed(&units, super::super::center::center_from_segments);
-        let (res, cursor) =
+        let (res, _metas, cursor) =
             detect_centers_windowed_resume(&units, super::super::center::center_from_segments, 0);
         assert_eq!(res.len(), full.len(), "start_i=0 续扫产出 == 全量");
         for (r, f) in res.iter().zip(full.iter()) {
@@ -833,13 +870,13 @@ mod tests {
         assert_eq!(full[2].1, (6, 8), "子窗3");
 
         // 增量：前 6 段先扫（n=6 < 9 ⟹ 1 个开放延伸中枢 (0,5)）。
-        let (mut prefix, cursor6) = detect_centers_windowed_resume(&all_units[..6], build, 0);
+        let (mut prefix, _m6, cursor6) = detect_centers_windowed_resume(&all_units[..6], build, 0);
         assert_eq!(cursor6.last_window_emitted, 1, "6 段窗口产出 1 个中枢");
         // frontier 协议：pop 末窗口全部产出 + 从 resume_from（窗口起点）重扫。
         if cursor6.resume_from < cursor6.consumed {
             prefix.truncate(prefix.len() - cursor6.last_window_emitted);
         }
-        let (tail, cursor9) =
+        let (tail, _m9, cursor9) =
             detect_centers_windowed_resume(&all_units, build, cursor6.resume_from);
         assert_eq!(cursor9.last_window_emitted, 3, "重扫后末窗口产出 3 个子中枢");
 
@@ -959,18 +996,18 @@ mod tests {
         let (full_c, full_u) = compose_level(&units, &moves, true, 1);
 
         // resume from 0 == 全量。
-        let (rc, ru, _) = compose_level_resume(&units, &moves, true, 1, 0, 0);
+        let (rc, ru, _, _) = compose_level_resume(&units, &moves, true, 1, 0, 0);
         assert_eq!(rc, full_c, "resume(0) centers == 全量");
         assert_eq!(ru, full_u, "resume(0) upper == 全量");
 
         // 增量：前 6 段 compose（产出 1 个开放中枢 + 其上级走势）。
-        let (mut pc, mut pu, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
+        let (mut pc, mut pu, _m6, cursor6) = compose_level_resume(&units[..6], &moves[..6], true, 1, 0, 0);
         // frontier 协议（task #142 充要条件 #1）：pop 末位开放中枢及其上级走势 + 从 resume_from 重扫。
         if cursor6.resume_from < cursor6.consumed {
             pc.pop();
             pu.pop();
         }
-        let (tc, tu, _) =
+        let (tc, tu, _mt, _) =
             compose_level_resume(&units, &moves, true, 1, cursor6.resume_from, pu.len());
 
         let mut comb_c = pc.clone();
@@ -999,11 +1036,11 @@ mod tests {
         // 前 2 段：不成立支，i: 0→1→2（2+2>=2 退出，consumed=2，但 len=2 时 0+2<2 假 ⟹ 不进循环，
         // consumed=0）。实际 units[..2] 长度 2，while 0+2<2 假 ⟹ consumed=0。
         // 这验证空扫描也正确返回断点。
-        let (prefix, c0) = detect_centers_windowed_resume(&units[..2], build, 0);
+        let (prefix, _mp, c0) = detect_centers_windowed_resume(&units[..2], build, 0);
         assert!(prefix.is_empty(), "2 段凑不齐窗口 ⟹ 空产出");
         assert_eq!(c0.consumed, 0, "len=2 不进 while ⟹ consumed=0");
         // 追加到 5 段从 consumed=0 续扫 == 全量。
-        let (tail, _) = detect_centers_windowed_resume(&units, build, c0.consumed);
+        let (tail, _mt, _) = detect_centers_windowed_resume(&units, build, c0.consumed);
         assert_eq!(tail.len(), full.len(), "从 0 续扫 == 全量");
         for (t, f) in tail.iter().zip(full.iter()) {
             assert_eq!(t.0, f.0);

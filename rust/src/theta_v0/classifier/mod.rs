@@ -48,6 +48,16 @@ use divergence::MacdState;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+/// on2w2-cascade 放行条件3 探针启用开关（env THETA_CASCADE_EPROBE，读一次缓存——热路径零 syscall）。
+/// 仅 test 构建（探针本身 #[cfg(test)]），release 完全不编译。
+#[cfg(test)]
+static CASCADE_EPROBE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// on2w2-cascade 全清对照开关（env THETA_CASCADE_FULLCLEAR）：强制 P=0（退回 #65 整塔前缀清空），
+/// 作 A/B 计时基线 + bit-exact 全量失效对照面（铁律 H1 神谕先例）。仅 test 构建，release 不编译
+/// （默认 off = 增量失效路径）。开启后增量与全清应逐字段相等（bit_exact_per_bar 仍绿即证 P>0 sound）。
+#[cfg(test)]
+static CASCADE_FULLCLEAR: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 pub mod center;
 pub mod ref_v1;
@@ -70,7 +80,7 @@ use center::UnitRange;
 use decompose::{decompose, decompose_resume, MoveBlock};
 use recursive_tower::{
     compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units,
-    ElementId, LeveledMove,
+    ElementId, LeveledMove, WinMeta,
 };
 use super::types::Side;
 
@@ -484,6 +494,12 @@ struct LevelCache {
     cached_second: Vec<BspPoint>,
     /// `cached_second` 已覆盖的 `upper_moves` 前缀数（推进锚，= 上次门控的 prefix_count）。
     cached_second_count: usize,
+    /// ★on2w2-cascade 读域侧车（设计 §4.1 解 A）：与 `centers`/`upper_moves` 1:1 对齐的每 center
+    /// 窗口读域元数据（`WinMeta.read_end_src` 停止哨兵源坐标 + win_start/win_exit/emitted）。cascade
+    /// 增量失效按 `read_end_src < e` 取保留前缀 P，用 `win_meta[P-1]` 重建 cursor（把 P-1 窗口当
+    /// frontier 待 pop，回归常态 pop 语义）。前缀不可变 + 尾部续扫追加（同 centers 纪律）；frontier
+    /// pop 时同步 pop、cascade 增量时同步 truncate(P)、cascade 全清（e=0）时 clear。
+    win_meta: Vec<WinMeta>,
 }
 
 /// B3 #4 area-memo（07b 残余 O(n²) 根治）：`(start,end)→segment_macd_area` 冻结缓存，跨 bar 持久
@@ -963,6 +979,15 @@ pub mod oracle_probe {
         pub fd_cascade: u64,
         pub fd_any: u64,
         pub fd_calls: u64,
+        /// on2w2-cascade 放行条件3 falsification 探针（env-gated，THETA_CASCADE_EPROBE=1）：cascade
+        /// 命中事件计数（frontier_mutated 触发）。
+        pub cascade_events: u64,
+        /// cascade 事件中 `e` 坍缩到 units 起点（保留前缀 P==0，即无可保留前缀）的次数。
+        /// 若 cascade_e0 / cascade_events ≈ 1.0 ⟹ e 常态坍缩 ⟹ 设计前提证伪 ⟹ NO-SHIP。
+        pub cascade_e0: u64,
+        /// cascade 事件的保留前缀比例 P/len 累加（× 1e6 定点）——均值 = sum / cascade_events / 1e6。
+        /// 高比例（接近 1）⟹ e 局部化，增量收益大；接近 0 ⟹ 收益消失。
+        pub cascade_keep_ppm_sum: u64,
     }
 
     thread_local! {
@@ -995,6 +1020,18 @@ pub mod oracle_probe {
             if extend { p.fd_extend += 1; }
             if cascade { p.fd_cascade += 1; }
             if l0 || extend || cascade { p.fd_any += 1; }
+        });
+    }
+    /// on2w2-cascade 放行条件3 探针：一次 cascade 事件的保留前缀比例 P/len（`keep_frac` ∈ [0,1]）。
+    /// P=0（e 坍缩到起点，无可保留）时 `keep_frac==0.0`。仅在 THETA_CASCADE_EPROBE=1 时被调用方触发。
+    pub fn on_cascade_event(keep_frac: f64) {
+        PROBE.with(|p| {
+            let mut p = p.borrow_mut();
+            p.cascade_events += 1;
+            if keep_frac <= 0.0 {
+                p.cascade_e0 += 1;
+            }
+            p.cascade_keep_ppm_sum += (keep_frac.clamp(0.0, 1.0) * 1e6) as u64;
         });
     }
     /// min_parts 早停：`removed` = 本次 truncate 是否实际删掉已建级（depth 下降）。
@@ -1204,6 +1241,13 @@ pub fn classify_with_tower_incremental(
     // 的易错判断（no-patch）：下级变异无条件向上传播，上级不依赖投影完备性。代价：变异 bar（16K 中
     // ~120 次稀疏）该级+所有上级全量重扫，amortized 仍 O(n)。
     let mut cascade_reset = false;
+    // ★on2w2-cascade 失效边界定理（设计 §1）：本 bar 累积脏源下界 `e`（最小改变源坐标，逐级恒定
+    // 传播）。init usize::MAX（=+∞，无改变 ⟹ 无 cascade）。**生产逻辑**：cascade 命中时按
+    // `read_end_src < e` 取保留前缀 P，前缀 bit-identical 保留、后缀失效重扫（撤 #65「整塔前缀清空」）。
+    let mut dirty_e: usize = usize::MAX;
+    // 放行条件3 falsification 探针启用开关（仅 test 构建；测「保留前缀比例 P/len」判设计前提）。
+    #[cfg(test)]
+    let eprobe_on = *CASCADE_EPROBE.get_or_init(|| std::env::var("THETA_CASCADE_EPROBE").is_ok());
     // ★工位 4g：本 bar 是否有任一级 extend 非空 tail（含新级涌现首产 + 最高级 append）——驱动
     // generation +1（与 cascade_reset 一起完整覆盖 extract 可观察树变更，codex Q3）。
     let mut did_extend = false;
@@ -1264,20 +1308,112 @@ pub fn classify_with_tower_incremental(
         if units.len() < lc.last_input_len || frontier_mutated {
             cascade_reset = true;
         }
+        // ★on2w2-cascade 失效边界定理（设计 §1.3）：累积脏源下界 `e`（最小改变源坐标，逐级传播）。
+        // 现为**生产逻辑**（驱动增量失效），非探针。区间 [stable..scanned] 首个改变下标 j_min ⟹
+        // units[j_min].start_index（取 min 保证 units[..j_min] 未变，§3.2）。len-shrink ⟹ e=0 全清
+        // （设计 §5：回缩罕见，不做增量）。跨级 min（与布尔 OR 同位置、同无条件语义，§2.3 逐级恒定）。
+        if units.len() < lc.last_input_len || frontier_mutated {
+            let local_e = if units.len() < lc.last_input_len {
+                0 // (A) len-shrink：退化全清（设计 §5）。
+            } else {
+                // (B) frontier_mutated：区间内首个改变下标 j_min ⟹ units[j_min].start_index。
+                match (stable..scanned).find(|&j| units[j] != lc.cached_units[j]) {
+                    Some(j) => units[j].start_index,
+                    None => usize::MAX, // 理论不达（frontier_mutated 蕴含存在改变），保守不降 e。
+                }
+            };
+            dirty_e = dirty_e.min(local_e);
+        }
         if cascade_reset {
-            // ★on2w2 E3：cascade clear = 本级 upper_moves.clear（tower[level+1] 字节变更）⟹ forest 变。
+            // ★on2w2-cascade E3：本级 upper_moves 尾段失效（tower[level+1] 字节变更）⟹ forest 变。
             forest_dirty = true;
-            lc.scan_cursor = WindowScanCursor::default();
-            // make_mut：若上 bar snapshot 仍持引用则写时复制再 clear（退化 bit-exact）；否则原地清。
-            Rc::make_mut(&mut lc.upper_moves).clear();
-            Rc::make_mut(&mut lc.centers).clear();
-            lc.decompose_state.reset();
-            Rc::make_mut(&mut lc.cached_bsp).clear();
-            Rc::make_mut(&mut lc.cached_pan_div).clear(); // Q4：与 cached_bsp 同批失效（同 key 守卫）。
-            lc.cached_bsp_key = None;
-            lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
-            lc.cached_second_count = 0;
-            Rc::make_mut(&mut lc.projected_units).clear(); // #106：upper_moves 前缀重排 ⟹ 投影缓存失效，重投影。
+            // ★增量失效边界（设计 §1.2/§3.4）：保留 `read_end_src < e` 的前缀 P（读域上界含停止哨兵，
+            // 覆盖 codex §1.2.1 反例）。win_meta 与 centers 1:1 对齐、read_end_src 升序（源单调 S1）⟹
+            // partition_point 定位 P。升级子中枢共享父窗口 read_end_src ⟹ 整窗保留或整窗失效（§3.5）。
+            let mut p = lc.win_meta.partition_point(|w| w.read_end_src < dirty_e);
+            // ★放行条件3 keep_frac 探针（test+eprobe，release 剥离）：真实 P/len（不再用 end_index 代理）。
+            #[cfg(test)]
+            if eprobe_on && !lc.centers.is_empty() {
+                oracle_probe::on_cascade_event(p as f64 / lc.centers.len() as f64);
+            }
+            // ★全清对照（test-only，铁律 H1 神谕先例）：强制 P=0 退回整塔前缀清空，A/B 计时 + bit-exact
+            // 对照。默认 off ⟹ 增量路径。开启后 bit_exact_per_bar 仍须绿（证 P>0 与全清逐字段相等）。
+            #[cfg(test)]
+            if *CASCADE_FULLCLEAR.get_or_init(|| std::env::var("THETA_CASCADE_FULLCLEAR").is_ok()) {
+                p = 0;
+            }
+            if p == 0 {
+                // P=0（无可保留前缀，含 e=0 全清 / e 坍缩到起点）：退化为原全清（bit-exact，与现码同）。
+                lc.scan_cursor = WindowScanCursor::default();
+                // make_mut：若上 bar snapshot 仍持引用则写时复制再 clear（退化 bit-exact）；否则原地清。
+                Rc::make_mut(&mut lc.upper_moves).clear();
+                Rc::make_mut(&mut lc.centers).clear();
+                lc.win_meta.clear();
+                lc.decompose_state.reset();
+                Rc::make_mut(&mut lc.cached_bsp).clear();
+                Rc::make_mut(&mut lc.cached_pan_div).clear(); // Q4：与 cached_bsp 同批失效（同 key 守卫）。
+                lc.cached_bsp_key = None;
+                lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
+                lc.cached_second_count = 0;
+                Rc::make_mut(&mut lc.projected_units).clear(); // #106：投影缓存失效，重投影。
+            } else {
+                // P>0（增量失效，设计 §3）：保留 [..P] 前缀（读域<e，L1 bit-identical），失效 [P..] 后缀。
+                // cursor 重建为「把 P-1 窗口当 frontier 待 pop」——回归常态 frontier pop 语义（§3.4）：
+                // resume_from=win_meta[P-1].win_start，从该起点重扫复现被 pop 窗口（哨兵翻转则重扫吸收，
+                // 自动覆盖 §1.2.1）；从 win_start 重扫至 len 覆盖 None-支失败 seed 尾部（§2.2.1）。
+                // 下方 had_emitted_window 块（现有 bit-exact pop 机制）据此 cursor pop P-1 窗口整窗。
+                let wm = lc.win_meta[p - 1];
+                lc.scan_cursor = WindowScanCursor {
+                    consumed: wm.win_exit,
+                    resume_from: wm.win_start,
+                    last_window_emitted: wm.emitted,
+                };
+                debug_assert!(
+                    wm.read_end_src < dirty_e,
+                    "O2 哨兵读域断言：保留末窗 P-1 读域上界 {} 必 < e={} （否则读了 dirty 单元，须左退）",
+                    wm.read_end_src, dirty_e
+                );
+                // 07b 门控（设计 §3.1 + 放行条件4 契约）：cascade 后 cursor 把 P-1 窗口当 frontier 待
+                // pop（§3.4）⟹ 下方 had_emitted_window 块把 prefix_count pop 到 `p - emitted`。
+                // ★关键（bar-10299 修复）：cached_second **只含由前 old_count 个 parent 产出的 B2**——不能
+                // 声明超过 old_count 的覆盖（否则 extract_second_resume 跳过 [old_count..) 的重算 ⟹ 漏 B2）；
+                // 也不能保留被失效前缀 [p..old_count) 的 B2。故新覆盖锚 = min(old_count, pop_prefix)：
+                // 既 <= pop 后 confirmed 前缀（放行条件4 单调），又 <= 已实际缓存的 parent 数。
+                //
+                // ★分离锚（bar-27947 修复）：cached_second 按 **parent 追加序**（非全局 source 排序——sort
+                // 在 mod.rs 合并端，非缓存内）。B2 source_index = parent 内某 sub_move 的 end_index，落
+                // parent 源区间；parent 源区间不重叠但**共享边界坐标**（unit.end == 下一 unit.start）。故
+                // 分离锚须用「前一保留 parent 的 end_index，含界」：parent[b2_count-1].end_index。parent
+                // [b2_count] 的首个 B2 source_index > 其 start_index >= 该 end_index ⟹ `<=` 精确分离，不误
+                // 丢边界 B2（用 parent[b2_count].start_index 的 `<` 会丢掉恰落共享边界的前 parent B2）。
+                let pop_prefix = p - wm.emitted;
+                let b2_count = lc.cached_second_count.min(pop_prefix);
+                // 含界上锚：前 b2_count 个 parent 中最后一个的 end_index（b2_count==0 ⟹ 无保留 ⟹ cut 前于全部）。
+                let b2_cut_incl = if b2_count == 0 {
+                    None
+                } else {
+                    Some(lc.upper_moves[b2_count - 1].end_index)
+                };
+                Rc::make_mut(&mut lc.centers).truncate(p);
+                Rc::make_mut(&mut lc.upper_moves).truncate(p);
+                lc.win_meta.truncate(p);
+                // decompose：保留 reset()（O(centers)=百级，非 05/09/07b 的 O(n²) 靶，设计 §3.2 scope）。
+                // 输出恒等全折叠（decompose 模块头），reset+重折 bit-exact，仅不省非瓶颈的重折量。
+                lc.decompose_state.reset();
+                // cached_bsp memo：key=(centers.len,..) 变 ⟹ 必 miss ⟹ 部分保留零收益（设计 §3.2），维持全失效。
+                Rc::make_mut(&mut lc.cached_bsp).clear();
+                Rc::make_mut(&mut lc.cached_pan_div).clear();
+                lc.cached_bsp_key = None;
+                let b2_keep = match b2_cut_incl {
+                    None => 0,
+                    Some(cut) => lc.cached_second.partition_point(|b| b.source_index <= cut),
+                };
+                lc.cached_second.truncate(b2_keep);
+                lc.cached_second_count = b2_count;
+                // 投影缓存：截到 P（前缀投影稳定，L2 §2.3）——下方 stage 09 truncate(prefix_count) 会进一步
+                // 截到 pop 后的 prefix_count（pop_prefix），从此续投影（O(tail)）。此处截 p 是保守上界。
+                Rc::make_mut(&mut lc.projected_units).truncate(p);
+            }
         }
         lc.last_input_len = units.len();
         // 快照本级输入（下 bar 比对 frontier 变异）。★A3 §3.2 证书化：cached_units[..dirty_from]
@@ -1329,12 +1465,22 @@ pub fn classify_with_tower_incremental(
             let keep = um.len().saturating_sub(pop_n);
             popped_upper = um[keep..].to_vec(); // on2w2：pop 前捕获（与重扫 tail_upper 逐值比）。
             um.truncate(keep);
+            // ★on2w2-cascade：win_meta 与 centers/upper_moves 1:1 同步 pop（末窗整窗，重扫重产）。
+            lc.win_meta.truncate(lc.win_meta.len().saturating_sub(pop_n));
         }
         // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
         // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。★A3 §2.2：prefix_count 同时是本级
         // projected_units 的不可变前缀（§2.5 truncate 锚）+ 下一级 units 的 dirty_from（§2.4 loop 尾）。
         let prefix_count = lc.upper_moves.len();
-        let (tail_centers, tail_upper, new_cursor) =
+        // ★on2w2-cascade §3.1 契约：cached_second_count（保留 parent 前缀数）须 <= pop 后 prefix_count
+        // （否则缓存越过 confirmed 边界，extract_second_resume 单调守卫会重置）。cascade truncate 设
+        // cached_second_count=P=win_meta 保留数 <= upper_moves 保留数 == prefix_count（同一 truncate(p)）。
+        debug_assert!(
+            lc.cached_second_count <= prefix_count,
+            "§3.1 契约违反：cached_second_count={} > prefix_count={}",
+            lc.cached_second_count, prefix_count
+        );
+        let (tail_centers, tail_upper, tail_metas, new_cursor) =
             stage_profile::time("05_compose_resume", || {
                 compose_level_resume(
                     &units,
@@ -1369,11 +1515,13 @@ pub fn classify_with_tower_incremental(
             // make_mut：strong_count==1 ⟹ 原地 extend O(tail)；>1 ⟹ 写时复制（bit-exact）。
             Rc::make_mut(&mut lc.centers).extend(tail_centers);
             Rc::make_mut(&mut lc.upper_moves).extend(tail_upper);
+            // ★on2w2-cascade：win_meta 与 centers/upper_moves 同步 extend（1:1 对齐不变量维持）。
+            lc.win_meta.extend(tail_metas);
         });
         lc.scan_cursor = new_cursor;
         debug_assert!(
-            lc.centers.len() == lc.upper_moves.len(),
-            "增量塔：centers 与 upper_moves 一一对应（每窗口一中枢）"
+            lc.centers.len() == lc.upper_moves.len() && lc.centers.len() == lc.win_meta.len(),
+            "增量塔：centers/upper_moves/win_meta 一一对应（每窗口一中枢 + 每 center 一读域侧车）"
         );
 
         // 本级输入塔快照（compose 前）。

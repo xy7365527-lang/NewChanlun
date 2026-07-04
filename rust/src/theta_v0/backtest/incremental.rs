@@ -130,8 +130,10 @@ mod tests {
             }
         };
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
-        // 8K 控时（O(n²) 双跑：增量 + legacy 对照，各一倍；8K≈2s/跑，~4s 总）。
-        let n = 8_000.min(oos.bars.len());
+        // 8K 控时（O(n²) 双跑：增量 + legacy 对照，各一倍；8K≈2s/跑，~4s 总）。env BITEXACT_BARS
+        // 可上调窗口做 cascade/升级窗口/哨兵翻转深覆盖（on2w2-cascade 验证：50K 命中更多 P>0 场景）。
+        let cap: usize = std::env::var("BITEXACT_BARS").ok().and_then(|s| s.parse().ok()).unwrap_or(8_000);
+        let n = cap.min(oos.bars.len());
         let bars = &oos.bars[..n];
 
         let mut incr = IncrementalClassifier::new(bars, &config);
@@ -164,6 +166,97 @@ mod tests {
              每 bar 增量输出 == legacy classify_with_tower(parse_layer(..=i))，bit-identical。\n  \
              TowerCache 跨 bar 复用 → LeveledMove 身份连续。"
         );
+    }
+
+    /// ★on2w2-cascade 放行条件3 falsification gate（L1 管线度量）：在真实 CL 上测 cascade 事件的
+    /// 脏源下界 `e` 是否常态坍缩到 units 起点（保留前缀 P==0）。设计前提 = frontier 改写局部化 ⟹
+    /// e 高位 ⟹ 保留前缀比例高。若 e 常态坍缩（e0_frac≈1 / keep_frac≈0）⟹ 前提证伪 ⟹ NO-SHIP，
+    /// 不值得实装 ~500 行 bit-exact 高危改动。**先于实装跑**（ponytail：falsification gate 前置）。
+    ///
+    /// 走 THETA_CASCADE_EPROBE 探针（不改任何失效逻辑，只测 e 分布）。手动运行：
+    /// `THETA_CASCADE_EPROBE=1 cargo test --release --features backtest_bin cascade_e_falsification -- --ignored --nocapture`
+    #[test]
+    #[ignore = "L1 falsification gate：需 CL 数据 + THETA_CASCADE_EPROBE=1；--release"]
+    fn cascade_e_falsification_gate() {
+        assert!(
+            std::env::var("THETA_CASCADE_EPROBE").is_ok(),
+            "须设 THETA_CASCADE_EPROBE=1 启用探针（否则 cascade_events=0，无数据）"
+        );
+        let config = ThetaConfig::default();
+        let ds = match super::super::data::load_by_symbol("CL", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("需真实数据: {e}"),
+        };
+        // 300K 窗（设计 §6.3 计时验收窗；e 分布不需双跑对照 ⟹ 单跑增量即可，快）。
+        let n = 300_000.min(ds.bars.len());
+        let bars = &ds.bars[..n];
+        classifier::oracle_probe::reset();
+        let mut incr = IncrementalClassifier::new(bars, &config);
+        let t0 = std::time::Instant::now();
+        for i in 0..n {
+            let _ = incr.classify_at(i);
+        }
+        let dt = t0.elapsed().as_secs_f64();
+        let p = classifier::oracle_probe::snapshot();
+        let events = p.cascade_events.max(1);
+        let e0_frac = p.cascade_e0 as f64 / events as f64;
+        let keep_frac = p.cascade_keep_ppm_sum as f64 / events as f64 / 1e6;
+        eprintln!(
+            "\n===== on2w2-cascade 放行条件3 falsification gate（CL n={n}, {dt:.1}s）=====\n  \
+             cascade_events   = {}\n  \
+             cascade_e0(P==0) = {} ({:.2}%)\n  \
+             mean keep_frac(P/len, end_index<e 宽松代理) = {:.4}\n  \
+             判据：e0_frac→1 且 keep_frac→0 ⟹ e 常态坍缩 ⟹ 设计前提证伪 ⟹ NO-SHIP\n\
+             ==============================================================",
+            p.cascade_events, p.cascade_e0, e0_frac * 100.0, keep_frac
+        );
+    }
+
+    /// ★on2w2-cascade O1 always-run（无需 CL）：合成流逐 bar 断言 **增量失效路径 == legacy 全量** 逐字段
+    /// bit-exact（含 cascade 分支）。平滑合成流罕触发 P>0 局部失效（frontier 古怪线段重划需非规则数据）
+    /// ——P>0 分支的真实覆盖由 CL falsification gate（`cascade_e_falsification_gate`，实测 3879 事件 96%
+    /// 保留）+ 150K CL `bit_exact_per_bar` 提供；本测试作 always-run 回归网（cascade 全清路径 bit-exact）。
+    /// 探针数（cascade_events/keep）仅在 THETA_CASCADE_EPROBE=1 时打印（信息性，不断言——合成流无 P>0）。
+    #[test]
+    fn cascade_incremental_eq_full_clear_synthetic() {
+        // 合成 3000 bar：趋势 + 多频回撤（产多级塔 + 频繁 frontier 古怪线段重划 ⟹ cascade）。
+        let bars: Vec<Bar> = (0..3000usize)
+            .map(|i| {
+                let base = 1000i64 + (i as i64) * 2;
+                let c = base
+                    + (((i as f64) / 50.0).sin() * 30.0) as i64
+                    + (((i as f64) / 13.0).sin() * 12.0) as i64;
+                Bar {
+                    source_index: i, timestamp: i as i64,
+                    open: c - 1, high: c + 5, low: c - 5, close: c,
+                    volume: 1000, untradable: false,
+                }
+            })
+            .collect();
+        let config = ThetaConfig::default();
+
+        // 探针跑（增量 P>0 路径，THETA_CASCADE_EPROBE 需在进程级设）。此处核心：增量 == legacy 全量逐 bar。
+        classifier::oracle_probe::reset();
+        let mut incr = IncrementalClassifier::new(&bars, &config);
+        for i in 0..bars.len() {
+            let (inc_cls, inc_tower) = incr.classify_at(i);
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            assert_eq!(inc_cls, leg_cls, "cascade-O1 bar {i}: 增量(P>0) != 全量");
+            assert_eq!(inc_tower.len(), leg_tower.len(), "cascade-O1 bar {i}: tower 层数");
+            for (lvl, (il, ll)) in inc_tower.iter().zip(leg_tower.iter()).enumerate() {
+                assert_eq!(il, ll, "cascade-O1 bar {i} lvl {lvl}: LeveledMove 破裂");
+            }
+        }
+        // 探针信息性打印（仅 THETA_CASCADE_EPROBE=1）——合成平滑流通常 events=0（无古怪线段重划）。
+        // P>0 局部失效的真实覆盖在 CL 门（见函数头）；此处不断言探针数，避免对合成数据形态的隐式依赖。
+        if std::env::var("THETA_CASCADE_EPROBE").is_ok() {
+            let p = classifier::oracle_probe::snapshot();
+            eprintln!(
+                "cascade-O1（合成，信息性）：events={} e0={} keep_ppm_sum={}",
+                p.cascade_events, p.cascade_e0, p.cascade_keep_ppm_sum
+            );
+        }
     }
 
     /// **★bit-exact 合成数据验证（无需 CL，always-run）**：合成 bar 序列逐 bar 断言增量 == legacy。
