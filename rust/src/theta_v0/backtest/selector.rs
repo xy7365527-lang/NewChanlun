@@ -41,7 +41,6 @@ use std::rc::Rc;
 
 use super::econ_positive::NestTrigger;
 use super::mu_estimator::{MuClass, MuEstimator, PositionState};
-use crate::theta_v0::classifier::divergence::ForceProxies;
 use crate::theta_v0::classifier::recursive_tower::LeveledMove;
 use crate::theta_v0::strategy::coverage::Vertical;
 use crate::theta_v0::strategy::interp::Candidate;
@@ -56,7 +55,7 @@ use crate::theta_v0::types::Bar;
 /// econ 统计层 collect_signals 的门判定现场，账本态（RiskMode）只在 runner π fill loop 的
 /// 风控门现场——经本结构显式携带进 z 构造。
 ///
-/// **护航点（G2 tower/bars 同款）**：[`z_of_candidate`]/[`z_of_candidate_with_force`]/
+/// **护航点（G2 tower/bars 同款）**：[`z_of_candidate`]/
 /// [`filter_gamma`]* 签名强制携带本参数。无对应数据源的路径显式传 [`ZExt::NONE`]——这是
 /// 可 grep 审计的诚实声明（「本路径未经准入门/无账本」），静默遗漏在类型层不可构造；
 /// 训练表与 χ 查询在同一现场共用同一 `ZExt` 值 ⟹ 同口径（防训练 Some/查询 None 全表 miss）。
@@ -214,6 +213,12 @@ pub(super) fn sigma_higher_at(tower: &[Rc<Vec<LeveledMove>>], bars: &[Bar], leve
 /// 构造（不存在无塔重载）。所有真候选路径（collect_signals/build_mu_from_bars/fill loop χ 门）
 /// 均有 `tower_i`/`bars` 在手。
 ///
+/// `force_state` 第 8 维（A6 #159）：从 `c.force`（[`Candidate`] 透传 `BspPoint.force`，A/C 段
+/// 5-proxy 单一来源）经 divergence.rs 唯一支配序原语 `ForceProxies::force_state()` 填；`c.force=None`
+/// （二/三类等无 A/C 对）⟹ `force_state=None`（诚实，同 horizontal None）。**本函数是 force_state
+/// 的唯一装配点**——旧 `z_of_candidate_with_force` 旁路已删（Candidate 携 force 后，「平装版静默
+/// None」与「旁路传错源」两类退化在类型层同时不可构造）。
+///
 /// `Flat` 方向候选（不可交易，归 𝒦_x 记录）δ 占位 +1——其 z 不被 χ 用于开仓（interpret 已归 record）；
 /// 此桥接只服务**方向候选**的 χ 过滤，Flat 候选由 [`filter_gamma`] 在构 z 前按 `c.dir==Flat` 跳过。
 ///
@@ -241,11 +246,15 @@ pub fn z_of_candidate(
     }
     // H 轴（codex #81 `h_axis_in_canonical_z: accept`）：真候选带 role.h ⟹ 填 Some(h)，升 canonical z
     // 到完整 R(g)=(H,V,δ)。from_certificate 只填 V 投影 + horizontal=None，此处 struct-update 覆盖 H。
+    // force_state 第 8 维（A6 #159）：从 c.force（Candidate 透传 BspPoint.force）经 divergence.rs
+    // 唯一支配序原语 ForceProxies::force_state() 填——旧 z_of_candidate_with_force 分叉已删：
+    // Candidate 携 force 后「平装版静默 None」在类型层不可构造（G2 tower 签名强制同款纪律）。
     // σ_higher 第 9 维（codex-q1 G2）：塔真值 Some(v)——v=0 是计算结果（上级持平/无上级），非未知。
     // G3 第 10-13 维：ext 显式装配；origin_level 无链覆盖 ⟹ Some(c.level)（起始=执行真值）。
     // #149 第 14 维 t_stage：ext 显式装配（runner π 路径 Some(tw.stage)，统计层 None）。
     MuClass {
         horizontal: Some(c.role.h),
+        force_state: c.force.map(|f| f.force_state()),
         sigma_higher: Some(sigma_higher_at(tower, bars, c.level as usize)),
         cand_channel: ext.cand_channel,
         nest_depth: ext.nest_depth,
@@ -254,21 +263,6 @@ pub fn z_of_candidate(
         t_stage: ext.t_stage,
         ..MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
     }
-}
-
-/// 携力度支配态的候选 z 构造（beta-bucket-design v2 第 8 维接入点）。
-///
-/// 在 [`z_of_candidate`] 基础上填 `force_state = fp.map(|f| f.force_state())`——**调
-/// divergence.rs 唯一支配序原语 [`ForceProxies::force_state`]，不在此重算比较**（no-patch，路由 ⑤）。
-/// `fp=None`（该候选无 A/C 段力度对，如二/三类）⟹ `force_state=None`（诚实，同 horizontal None）。
-pub fn z_of_candidate_with_force(
-    c: &Candidate,
-    fp: Option<ForceProxies>,
-    tower: &[Rc<Vec<LeveledMove>>],
-    bars: &[Bar],
-    ext: &ZExt,
-) -> MuClass {
-    MuClass { force_state: fp.map(|f| f.force_state()), ..z_of_candidate(c, tower, bars, ext) }
 }
 
 /// χ_t 候选集过滤（§13 line 2256）：`Γ_t → Γ_t^trade = {γ∈Γ_t : χ_t(γ)=1}`。
@@ -539,6 +533,7 @@ mod tests {
             role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus },
             nest_confirmed: false,
             gamma_index: 0,
+            force: None,
         };
         // 无扩展源口径：门/账本维 None，origin_level=Some(level)（ℓ=e 真值非 None）。
         let z0 = z_of_candidate(&c, &[], &[], &ZExt::NONE);
@@ -567,6 +562,44 @@ mod tests {
         );
         // 形态维（1-9）不受 ext 影响（新维正交于形态维）。
         assert_eq!((z0.level, z0.delta, z0.i_class, z0.horizontal), (z1.level, z1.delta, z1.i_class, z1.horizontal));
+    }
+
+    /// A6（#159）force 透传：z_of_candidate 从 c.force 经唯一支配序原语 ForceProxies::force_state()
+    /// 填第 8 维；c.force=None ⟹ force_state=None（诚实）。「透传断裂 ⟹ 恒 None」在此被单测封死。
+    #[test]
+    fn a6_force_state_assembled_from_candidate_force() {
+        use crate::theta_v0::classifier::divergence::{ForceFeatures, ForceProxies, ForceStateA5};
+        use crate::theta_v0::strategy::coverage::{Dir, Horizontal, OperationRole, Vertical};
+
+        let ff = |s: f64| ForceFeatures {
+            macd_area: 10.0 * s,
+            dif_peak: 2.0 * s,
+            price_amplitude: (100.0 * s) as i64,
+            price_speed: 5.0 * s,
+            tv: (150.0 * s) as i64,
+        };
+        let mut c = Candidate {
+            level: 0,
+            source_index: 3,
+            bits: BspBits { buy1: true, ..Default::default() },
+            dir: VoiceSide::Long,
+            bsp_class: 1,
+            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus },
+            nest_confirmed: false,
+            gamma_index: 0,
+            force: Some(ForceProxies { seg_a: ff(1.0), seg_c: ff(0.5) }), // C 全 5 proxy < A ⟹ Dominated（背驰）
+        };
+        assert_eq!(
+            z_of_candidate(&c, &[], &[], &ZExt::NONE).force_state,
+            Some(ForceStateA5::Dominated),
+            "A6：c.force 经唯一支配序原语装配进 force_state 第 8 维"
+        );
+        c.force = None;
+        assert_eq!(
+            z_of_candidate(&c, &[], &[], &ZExt::NONE).force_state,
+            None,
+            "无 A/C 力度对 ⟹ force_state 诚实 None"
+        );
     }
 
     /// G3（#138）UClass 降维不读新维（约束②：新维只进 canonical 不进 selection 桶键——

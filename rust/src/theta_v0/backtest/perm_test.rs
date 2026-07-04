@@ -209,11 +209,12 @@ pub fn stratified_delta_perm_p(
 /// 分层"；不能经 `..*c` 泄漏 stratum 首条 trade 的代表值——那会让键携带未分层的伪信息）。
 ///
 /// **force_state δ-free**：力度支配态由 A/C 段绝对量算，置换 δ 时恒定（§3.1 mirror-invariant）⟹ 合法进 base。
-/// ponytail: 本置换管线的 records 来自 fill loop `z_of_candidate`（Candidate 边界无 force 源）⟹
-/// force_state 在此恒 `None`（同一 None 常量分量 ⟹ 分桶不变）。force 真值仅流经 econ RawSignal 侧
-/// （#115 (c)）。fill-rate 断言（防路由全 None 静默）已落 force 真实流经处——econ_positive
-/// `l2_btc_capturable_spread_diagnosis` L2 报告（#115 (e) re-scope）；§3.2 δ-共线逐层检查（谱系
-/// iclass-delta-collinearity：δ-纯桶降级仅 μ 分层不置换）随"force 真值进置换管线"的未来 prereg 同批落。
+/// A6（#159）更新：records 经 fill loop `z_of_candidate` 现携 `Candidate.force` 真值 ⟹ force_state
+/// **不再恒 None**——base 键表达式不变（force_state 自 #115 起就在 base 内），变的是值：一类 A/C 对
+/// 候选 Some(态)、其余 None ⟹ 分层随真值变细，这是 A6 的目标行为（非桶键口径变更，#135 裁的
+/// 「置换桶键不动」指键组成）。fill loop 侧 records 探针断言见 wverify_run::wverify_fullz；econ
+/// RawSignal 侧 fill-rate 断言仍在 `l2_btc_capturable_spread_diagnosis`（#115 (e)）。§3.2 δ-共线
+/// 逐层检查（谱系 iclass-delta-collinearity：δ-纯桶降级仅 μ 分层不置换）随未来 prereg 同批落。
 pub fn stratified_delta_perm_p_fullz(
     trades: &[ResidualTrade],
     n_perm: usize,

@@ -47,6 +47,7 @@ use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
 use std::rc::Rc;
 use super::super::classifier::Classification;
 use super::super::classifier::bsp::BspPoint;
+use super::super::classifier::divergence::ForceProxies;
 use super::super::types::{BspBits, Side};
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
 use super::exec::reverse_signal;
@@ -65,6 +66,7 @@ use std::cmp::{Ordering, Reverse};
 /// - `role`：R(g)=(H,V,δ)（环4，18 类完全分类，复用 [`coverage::operation_role`]）。
 /// - `nest_confirmed`：区间套确认 N^δ（环2，证书基例 Conf^δ，[`nest::chi_bool`]）。
 /// - `gamma_index`：Γ 内原始序（≺_Θ **终局 tiebreak** 保证全序；平移不变——S_k 不重排候选）。
+/// - `force`：β^div A/C 段力度 proxy 对（A6 #159 透传，源=[`BspPoint::force`] 单一来源）。
 #[derive(Debug, Clone, Copy)]
 pub struct Candidate {
     /// 级别 ℓ。
@@ -83,6 +85,11 @@ pub struct Candidate {
     pub nest_confirmed: bool,
     /// Γ 原始序（≺_Θ 终局 tiebreak）。
     pub gamma_index: usize,
+    /// ★A6（#159）：β^div A/C 段力度 proxy 对，classifier→strategy 透传（源=[`BspPoint::force`]，
+    /// 一类趋势背驰候选 `Some`，二/三类/无 A/C 对 `None`——组装层纯透传，不改值不兜底）。
+    /// **不进** [`theta_key`]/排序/任何相等比较——唯一消费点是 z 装配
+    /// （`selector::z_of_candidate` 调 [`ForceProxies::force_state`] 填 `MuClass.force_state` 第 8 维）。
+    pub force: Option<ForceProxies>,
 }
 
 /// 活动集 A_t 的元素（活动腿），spec §13 `A^{raw}_{t+1}=(A_t∖𝒟_x)∪ℬ_x` 的 A_t/𝒟_x 元素。
@@ -214,7 +221,7 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
     // 平行 CoverageElement（独立根 parent=None=边界胚元 ∂，去根化 ⟹ V=Ambient），供 operation_role
     // 取 18 类角色（只读复用 coverage）。eps=候选方向（Flat 占位 Long——其角色不被执行，归 𝒦）。
     let mut elements: Vec<CoverageElement> = Vec::new();
-    let mut raw: Vec<(u32, usize, BspBits, VoiceSide, u8, bool)> = Vec::new();
+    let mut raw: Vec<(u32, usize, BspBits, VoiceSide, u8, bool, Option<ForceProxies>)> = Vec::new();
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
         for point in level.bsp.iter() {
@@ -234,12 +241,12 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
                 id: ElementId { level: lvl, ordinal: elements.len() as u64 },
                 parent_id: None,
             });
-            raw.push((lvl, point.source_index, point.bits, dir, cls, nest_ok));
+            raw.push((lvl, point.source_index, point.bits, dir, cls, nest_ok, point.force));
         }
     }
     raw.iter()
         .enumerate()
-        .map(|(i, &(level, source_index, bits, dir, bsp_class, nest_confirmed))| Candidate {
+        .map(|(i, &(level, source_index, bits, dir, bsp_class, nest_confirmed, force))| Candidate {
             level,
             source_index,
             bits,
@@ -248,6 +255,7 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
             role: coverage::operation_role(&elements, i),
             nest_confirmed,
             gamma_index: i,
+            force,
         })
         .collect()
 }
@@ -873,6 +881,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
                 ),
                 nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
                 gamma_index: gamma.len(),
+                force: point.force, // A6 #159：BspPoint.force 纯透传（一类 Some/其余 None）
             });
             ci += 1;
         }
@@ -1164,6 +1173,32 @@ mod tests {
         assert_eq!(pt(buy1_bits, Some(Side::Short)).bits.class_index(), 1);
         assert_eq!(pt(buy1_bits, Some(Side::Long)).bits.class_index(), 1,
             "class_index 恒 =1（buy1），struct_break_dir 三种取值下逐字节不变");
+    }
+
+    /// ★A6（#159）透传护栏：`BspPoint.force` → `Candidate.force` 纯透传（扁平 assemble_gamma 与
+    /// 塔路径两条组装线），组装层不改值不兜底——透传断裂（gamma 侧恒 None）在此 fail。
+    #[test]
+    fn a6_candidate_carries_bsp_point_force() {
+        use super::super::super::classifier::divergence::ForceFeatures;
+        let ff = |s: f64| ForceFeatures {
+            macd_area: 8.0 * s,
+            dif_peak: 1.5 * s,
+            price_amplitude: (60.0 * s) as i64,
+            price_speed: 3.0 * s,
+            tv: (90.0 * s) as i64,
+        };
+        let fp = ForceProxies { seg_a: ff(1.0), seg_c: ff(0.5) };
+        let mut p1 = buy_point(3, 1);
+        p1.force = Some(fp); // 一类 A/C 对候选携力度
+        let p2 = buy_point(7, 2); // 二类无 A/C 对 ⟹ force=None
+        let gamma = assemble_gamma(&classification(vec![vec![p1, p2]]));
+        assert_eq!(gamma.len(), 2);
+        assert_eq!(gamma[0].force, Some(fp), "扁平组装：BspPoint.force 逐字段透传进 Candidate");
+        assert_eq!(gamma[1].force, None, "无力度源候选诚实 None（不兜底）");
+        // 塔路径同款透传（与扁平版同产候选序；缺塔 ⟹ 空 tree 边界，透传不依赖塔）。
+        let gamma_t = assemble_gamma_with_tower(&classification(vec![vec![p1, p2]]), &[]);
+        assert_eq!(gamma_t[0].force, Some(fp), "塔路径组装：同款透传");
+        assert_eq!(gamma_t[1].force, None);
     }
 
     /// ★P2-R2 护栏1（**为什么禁 root_sel==Flat**）：(1,1) 双触发（buy1+sell1 非互斥可重合）经

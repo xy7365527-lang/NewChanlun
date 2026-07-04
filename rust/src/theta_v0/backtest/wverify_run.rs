@@ -380,6 +380,18 @@ fn wverify_fullz() {
     let (records, _tb) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
     assert!(!records.is_empty(), "walk-forward OOS 残差空——窗口/数据不匹配");
 
+    // ★A6（#159）fill loop 侧 force_state 探针：records 经 fill loop z_of_candidate 现携
+    // Candidate.force 真值——一类交易（i_class 含 buy1|sell1，bit0|bit3）必有 A/C 段配对 ⟹
+    // force_state 须 Some。透传断裂（fullz 置换 force_state 恒 None）在此 fire。
+    // 零一类交易的窗不假失败（force 仅一类 A/C 对候选有源，与 econ #115 (e) 同口径）。
+    let n_type1_rec = records.iter().filter(|r| r.class.i_class & 0b001_001 != 0).count();
+    let n_force_some_rec = records.iter().filter(|r| r.class.force_state.is_some()).count();
+    assert!(
+        n_type1_rec == 0 || n_force_some_rec > 0,
+        "A6 透传断裂：fullz 置换 records 有 {n_type1_rec} 条一类交易但 force_state 全 None"
+    );
+    eprintln!("WV_FULLZ force probe: type1={n_type1_rec} force_some={n_force_some_rec}（A6 #159：一类>0 ⟹ force 非全 None）");
+
     // full-z（MuClass 8 维，horizontal=Some 走生产路径；σ_higher 投影 None 与 perm 表键同口径——G2）。
     let pf = perm_test::stratified_delta_perm_p_fullz(&records, perm_test::N_PERM, perm_test::PERM_SEED);
     // G3 第 10-13 维同投影（#138）：records 侧 risk_mode=Some(bar 真值)/origin_level=Some(level)，

@@ -3237,6 +3237,7 @@ mod tests {
             role: role(Horizontal::First, Vertical::Ambient, Dir::Plus),
             nest_confirmed: true,
             gamma_index,
+            force: None,
         }
     }
 

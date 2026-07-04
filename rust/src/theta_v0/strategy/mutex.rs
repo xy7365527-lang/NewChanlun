@@ -472,6 +472,7 @@ mod tests {
             role: role(v),
             nest_confirmed: true,
             gamma_index: gi,
+            force: None,
         }
     }
 

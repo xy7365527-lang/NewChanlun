@@ -102,7 +102,8 @@ pub struct MuClass {
     /// H(g) 水平关系（`Some`=真候选 z_of_candidate 填；`None`=裸证书口径未定 H，见类型文档）。
     pub horizontal: Option<Horizontal>,
     /// β^div 力度支配态（`关于背驰.pdf` §9.1，beta-bucket-design v2 第 8 维）。`Some`=真候选路径
-    /// `z_of_candidate_with_force` 从 A/C 段 `ForceProxies::force_state()` 填；`None`=无力度源口径
+    /// `z_of_candidate` 从 `Candidate.force`（A6 #159 透传 `BspPoint.force`）经 A/C 段
+    /// `ForceProxies::force_state()` 填；`None`=无力度源口径
     /// （`from_certificate`/无 ForceProxies 候选，同 `horizontal` 的诚实 None，231号不伪造）。
     pub force_state: Option<ForceStateA5>,
     /// σ_higher 上级方向态（第 9 维，codex-q1 G2 终裁翻转 #81：《完整的策略》§6 要求 z ⊇

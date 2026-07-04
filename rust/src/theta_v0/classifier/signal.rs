@@ -344,7 +344,7 @@ fn judge_first_cached(
     // ★力度多 proxy（beta-route #115，force-proxy-survey-20260702.md）：A/C 段 close 下标区间已算出
     // （a_idx/c_idx），复用 force_features 算 5 proxy（MACD 面积/DIF 峰/振幅/速度/TV）。**不进 buy1 判据**
     // （class_index 冻结，671 力度=feature 非 veto）——纯 feature，收进 BspPoint.force 单一来源，供
-    // selector z_of_candidate_with_force 读进 force_state 第 8 维。有 dif/closes_tick 输入时 Some
+    // Candidate.force 透传（A6 #159）后由 selector z_of_candidate 读进 force_state 第 8 维。有 dif/closes_tick 输入时 Some
     // （生产热路径已接线，Batch 2）；空输入（旧测试/合成入口）⟹ None（诚实不造死字段）。A/C 同趋势方向。
     let force = if dif.is_empty() || closes_tick.is_empty() {
         None
@@ -442,7 +442,8 @@ fn make_first_point(
         center: None,
         struct_break_dir,
         // ★β^div 力度（beta-route #115）：一类趋势背驰候选的 A/C 段 5 proxy（有 dif/closes_tick 输入时
-        // Some，否则 None）——单一来源就在此字段，selector z_of_candidate_with_force 读它进 force_state。
+        // Some，否则 None）——单一来源就在此字段，经 Candidate.force 透传（A6 #159）由 selector
+        // z_of_candidate 读进 force_state。
         force,
     }
 }

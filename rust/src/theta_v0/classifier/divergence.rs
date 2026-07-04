@@ -286,12 +286,13 @@ pub fn segments_diverge(
 // - **L2/L3**：「哪个 mode 有 alpha / 词典序优于单 MACD」需三套 OOS（MACD/Force/LEX），
 //   **本层不声明**，留 W-VERIFY（#23）。weak_theta 只提供判定纯函数，不声明择时有效性。
 //
-// ★诚实有效域边界（no-workaround，**不造死字段**）：本层原语当前**无生产消费者接通**——
-// selector `filter_gamma` 的 Weak_Θ 力度门要接通需 `Candidate` 携 A/C 段力度 feature，但
-// `assemble_gamma` 的候选构造作用域只有 `BspPoint`（无段 close 序列 ⟹ 算不了振幅/速度）。
-// 按 no-patch 不在 Candidate 造填不满的 force 字段（那是「换个死字段」，护栏7）。本层是**可用
-// 且可测的原语 + Weak_Θ 判定**，接通 selector 力度门留待「段力度透传进 gamma 组装」的独立工位
-// （需大改 Candidate/gamma 管线，超出本 R2 范围）。诚实声明：原语实装 ✓，端到端接通 ✗（标 gap）。
+// ★有效域边界更新（A6 #159 后）：R2 时代「Candidate 无段 close 序列 ⟹ 算不了振幅/速度 ⟹ 不造
+// 死字段」的前提已被两步解除——#115 在 `BspPoint.force` 收进 signal 抽取层算好的 A/C 段 5 proxy
+// （单一来源），A6（#159）令 `Candidate.force` 纯透传该值进 gamma 组装 ⟹ z 装配点
+// （`selector::z_of_candidate`）读 `c.force` 填 `force_state` 第 8 维（统计层与生产 π fill loop
+// 同经此路，无死字段）。**仍未接**：`filter_gamma` 的 Weak_Θ 力度门（`weak_theta` 词典序判定进
+// χ 判据）——那是判据变更非透传，留 A3（#164）独立工位。诚实声明：原语 ✓，透传 ✓（A6），
+// Weak_Θ 门接入 ✗（A3 gap）。
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// 段力度多 proxy（P2 §6 selector 状态 z 的力度分量：MACD 面积 / DIF 峰值 / 价格振幅 / 速度）。

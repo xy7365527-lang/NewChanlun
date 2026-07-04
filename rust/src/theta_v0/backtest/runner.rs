@@ -849,6 +849,9 @@ where
             );
             // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
             // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
+            // A6（#159）：z_of_candidate 内读 c.force（Candidate 透传 BspPoint.force）填 force_state
+            // 第 8 维——entry_z（训练）与上方 filter_gamma（查询）同函数同候选 ⟹ 同口径自动成立，
+            // fullz 置换 records 的 force_state 自此携真值（一类 A/C 对候选 Some）。
             for (c, leg) in &step_trace.opened {
                 open_trades.insert(leg.id, LedgerOpen {
                     entry_bar: i,

@@ -57,7 +57,7 @@ use super::super::classifier::signal::PanDivCert;
 use super::super::classifier::center::{center_from_segments, UnitRange};
 use super::super::classifier::descend::RMove;
 use super::mu_estimator::{MuClass, PositionState};
-use super::selector::{sigma_higher_at, z_of_candidate, z_of_candidate_with_force, ZExt};
+use super::selector::{sigma_higher_at, z_of_candidate, ZExt};
 use super::super::strategy::coverage::Horizontal;
 
 /// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（sell.rs:50 CloseRoot/ReduceCore 对齐）。
@@ -379,9 +379,10 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     // b2（task #83）：升 Z 分桶——从候选构造完整 z（含 σ_p/role/H/σ_higher），非事后从
                     // (level,δ,bsp_class) 粗投影重推。z_of_candidate 复用 selector 既有 role→z 桥
                     // （codex #81 修正1：信号携带 z:MuClass，不再扩位置易错的裸元组）。
-                    // ★force_state 生产热路由（beta-route #115）：一类候选带 p.force（A/C 段 5 proxy），
-                    // z_of_candidate_with_force 调 ForceProxies::force_state() 填 force_state 第 8 维（δ-free
-                    // A4 支配序，perm_test 已按 c.force_state 分桶；二/三类 p.force=None ⟹ force_state=None）。
+                    // ★force_state 生产热路由（beta-route #115 → A6 #159）：一类候选带 p.force（A/C 段
+                    // 5 proxy），经 Candidate.force 透传（assemble_gamma 系纯透传 c.force==p.force），
+                    // z_of_candidate 调 ForceProxies::force_state() 填 force_state 第 8 维（δ-free
+                    // 支配序，perm_test 已按 c.force_state 分桶；二/三类 p.force=None ⟹ force_state=None）。
                     // ★σ_higher 第 9 维（G2 #132）：塔真值经 z_of_candidate 内 sigma_higher_at 填。
                     // ★G3 第 10-12 维（#138）：从已 pass 的 gate_cert 装配——cand_channel=trigger（P0-1
                     // 同源）；Nest 通道 nest_depth=rungs.len()（0=基例真值）、origin_level=lvl+depth
@@ -405,7 +406,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                             t_stage: None, // #149：统计层无 TW 账本，同 risk_mode 诚实 None
                         },
                     };
-                    let z = z_of_candidate_with_force(c, p.force, &tower_i, bars, &ext);
+                    let z = z_of_candidate(c, &tower_i, bars, &ext);
                     // G2 一致性护栏：z 内 σ_higher（按 c.level 取）须与信号分解口径（按 lvl 取）同值
                     // ——同函数同塔，仅 level 来源不同（c.level 由 assemble 自 lvl 单级分类产生）。
                     debug_assert_eq!(z.sigma_higher, Some(sigma_higher), "z.sigma_higher 与 SignalDecomp 口径分叉");
@@ -2576,9 +2577,10 @@ mod tests {
         let _ = writeln!(rpt, "- **截断窗 [{window_start}→{window_end}]，bars={n_bars}**（最后 {max_bars} bar；全量 461万 OOM 不可行 ⟹ 截断窗=显式有效域边界，非全窗结论，l3 同纪律）");
         let _ = writeln!(rpt, "- untradable_ratio={:.4}", untradable);
         let _ = writeln!(rpt, "- 收集信号数 n_signals={}（无配对出场反转信号的入场信号被诚实跳过，不入此集——无 ρ_rev 不兜底）", agg.n_signals);
-        // #115 (e) fill-rate 断言（防 β^div 路由全 None 静默）——re-scope 到 force 真实流经的本报告
-        // （fullz 置换管线的 records 经 fill loop z_of_candidate，Candidate 边界无 force 源，断言加在
-        // 那边必然误报；见 g2-impl-20260703.md）。零一类信号的窗不假失败（force 仅一类 A/C 对候选有源）。
+        // #115 (e) fill-rate 断言（防 β^div 路由全 None 静默）。历史：曾 re-scope 到本报告，因当时
+        // Candidate 边界无 force 源（fill loop 侧断言必误报，见 g2-impl-20260703.md）；A6（#159）后
+        // Candidate 携 force、fill loop z_of_candidate 同样装配真值——fill loop 侧对应断言见
+        // wverify_run::wverify_fullz（records 探针）。零一类信号的窗不假失败（force 仅一类 A/C 对候选有源）。
         let n_type1 = decomps.iter().filter(|d| d.z.i_class & 0b001_001 != 0).count();
         let n_force_some = decomps.iter().filter(|d| d.z.force_state.is_some()).count();
         assert!(n_type1 == 0 || n_force_some > 0, "β^div 路由静默断裂：{n_type1} 条一类信号 force_state 全 None");
@@ -3846,7 +3848,7 @@ mod tests {
                             continue;
                         }
                         if lvl < LMAX { sig_post[lvl] += 1; }
-                        // C1：与生产 collect_signals 同序同字段（含 b2 完整 z——z_of_candidate_with_force
+                        // C1：与生产 collect_signals 同序同字段（含 b2 完整 z——z_of_candidate
                         // 同一桥，保证 dx 手写门与生产收集 bit-exact，尾部 signals_dx vs signals_prod 逐条对拍含 z）。
                         // P0-1：与生产 collect_signals 同源触发分类（pass ⟹ gate_cert Some）。
                         let trigger_dx = nest_trigger(
@@ -3878,7 +3880,7 @@ mod tests {
                             level: lvl as u32,
                             sigma_higher,
                             bsp_class,
-                            z: z_of_candidate_with_force(c, p.force, &tower_i, bars, &ext_dx), // ★force+σ_higher+G3 ext（与生产同源）
+                            z: z_of_candidate(c, &tower_i, bars, &ext_dx), // ★force(c.force 透传 A6)+σ_higher+G3 ext（与生产同源）
                             trigger: trigger_dx,
                         });
                         match nest_depth {

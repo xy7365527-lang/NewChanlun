@@ -102,8 +102,8 @@ pub fn endpoint_to_bsp(e: &EndpointSituation) -> BspBits {
 /// ## `PartialEq`/`Eq` 手写排除 `force`（β^div 力度铁律，beta-route Task #115）
 ///
 /// `force` 含 `f64`（`ForceProxies` 无 `Eq`）⟹ 不能进 `derive(Eq)`。更本质地：`force` **绝不参与
-/// BspPoint 的相等/去重/分桶**——它是旁挂的力度 proxy（供 selector `z_of_candidate_with_force` 读，
-/// A4 支配序进 `MuClass.force_state` 第 8 维），**不进** `class_index`/`BspBits`/结构相等。故手写
+/// BspPoint 的相等/去重/分桶**——它是旁挂的力度 proxy（经 `Candidate.force` 透传由 selector
+/// `z_of_candidate` 读，支配序进 `MuClass.force_state` 第 8 维），**不进** `class_index`/`BspBits`/结构相等。故手写
 /// `PartialEq` 逐字段比较**除 force 外全部**（同 `struct_break_dir` 精神但更强：force 连相等都不参与），
 /// `Eq` 为标记 impl（其余字段 usize/BspBits/Tick/Option<Center>/Option<Side> 均 Eq，比较自反）。
 /// 后果：force 仅 Some↔None 之差的两点相等（去重/bit-exact assert_eq 忽略 force）；但 `Debug` 含 force
@@ -150,8 +150,10 @@ pub struct BspPoint {
     ///
     /// `Some` = 一类趋势背驰候选（A/C 段可配对）的 A/C 段 [`ForceProxies`]（5 proxy：MACD 面积/DIF
     /// 峰/振幅/速度），由 `signal::judge_first_cached` 在有 dif/closes_tick 输入时算得；`None` = 二/
-    /// 三类（无 A/C 对）或未接线路径。selector `z_of_candidate_with_force` 读它，调 `ForceProxies::
-    /// force_state()`（唯一支配序原语）填 `MuClass.force_state` 第 8 维。
+    /// 三类（无 A/C 对）或未接线路径。经 `Candidate.force` 透传（A6 #159，assemble_gamma 系纯透传），
+    /// selector `z_of_candidate` 读它，调 `ForceProxies::force_state()`（唯一支配序原语）填
+    /// `MuClass.force_state` 第 8 维——统计层（collect_signals）与生产 π fill loop（entry_z/χ 查询）
+    /// 自此同经此路（fullz 置换 records 的 force_state 不再恒 None）。
     ///
     /// ★铁律：**不进** `PartialEq`/`Eq`/`class_index`/`BspBits`/分桶 key（见结构头 `PartialEq` 手写
     /// 说明）——纯旁挂力度量，不改任何结构相等/去重/分桶语义。
