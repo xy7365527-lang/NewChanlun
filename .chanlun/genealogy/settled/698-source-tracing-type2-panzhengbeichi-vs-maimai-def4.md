@@ -1,6 +1,8 @@
 ---
+id: '698'
+number: 698
 type: source-tracing
-status: 已结算   # codex #37 终局裁定：需修订后结算
+status: 已结算   # codex #37 终局裁定：需修订后结算；2026-07-04 补编号 698（原文件名 2026-07-02-… 无编号，被 scan 正则抽成伪 id "2026"，TOPO-20260704-015 阶段4 重命名）
 settled_date: "2026-07-02"
 settled_by: "codex终局裁定(task #37, 编排者授权全权裁定)"
 subject: maimai.md「#4 盘整背驰与买卖点」结算结论过度泛化，与一级权威第27课L18冲突
