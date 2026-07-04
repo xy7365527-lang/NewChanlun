@@ -3731,6 +3731,12 @@ mod tests {
         // C3 新判据命中率探针（task #47，codex #44(c) 终局裁定）：level==1 子集「新中枢+突破」命中率。
         let mut xzd_l1_c3_new_center_exists = 0usize;
         let mut xzd_l1_c3_new_center_breakout_ok = 0usize;
+        // XZD C2-only 口径复审探针（task #170，#148 后 C3 脱 0）：lvl>=2 子集同两字段命中数——
+        // 供「level>=2 C2-only 保留 vs C3 硬门全 level 启用」codex 裁定的量化输入（报数不裁断，
+        // 无断言不参门；#41 裁定 level>=2 C2-only 的前提是旧判据结构性死门，#148 升级重切后该
+        // 前提在 level==1 已实证失效，level>=2 是否同失效由本探针测量）。
+        let mut xzd_lge2_c3_new_center_exists = 0usize;
+        let mut xzd_lge2_c3_new_center_breakout_ok = 0usize;
         // C3 L1 零命中根因判别探针（codex #55 终局裁定(5)，task #56）：默认关闭，只读旁路
         // （不写 Classification.levels[*].centers/tower/正常输出）。开关：ECON_C3_OVERLAP_PROBE=1。
         let overlap_probe_enabled = std::env::var("ECON_C3_OVERLAP_PROBE").ok().as_deref() == Some("1");
@@ -3840,6 +3846,10 @@ mod tests {
                                     }
                                 } else if lvl >= 2 {
                                     xzd_lge2_sub_bsp_type3_total += ev.sub_bsp_type3_count; // 死门重封：裁定A+#123 后可非 0，尾部锁基线
+                                    // task #170 复审探针：lvl>=2 的 C3 新判据命中（gate_pass 在 level!=1 不读此二字段——
+                                    // 计数只测「若并入硬门会怎样」的量化空间，零行为影响）。
+                                    if ev.c3_new_center_exists { xzd_lge2_c3_new_center_exists += 1; }
+                                    if ev.c3_new_center_breakout_ok { xzd_lge2_c3_new_center_breakout_ok += 1; }
                                 }
                                 (ev.gate_pass(), None, 0) // 小转大无区间套 depth
                             }
@@ -4104,6 +4114,20 @@ mod tests {
                 )
             };
             let _ = writeln!(rpt, "- {l1_verdict}");
+        }
+        let _ = writeln!(rpt);
+
+        // ── XZD C2-only 口径复审探针（task #170）：lvl>=2 子集 C3 新判据命中数 ──
+        // 分母 = lvl>=2 routed（与下方死门重封同源 xzd_routed_by_level[2..]）。报数不裁断：
+        // 「C2-only 保留 vs C3 硬门全 level 启用」由 codex 裁定，本探针供其量化输入。
+        {
+            let n_lge2_probe: usize = xzd_routed_by_level[2..].iter().sum();
+            let _ = writeln!(rpt, "### XZD C2-only 复审探针（task #170）：lvl>=2 C3 新判据命中");
+            let _ = writeln!(
+                rpt,
+                "- lvl>=2 routed={n_lge2_probe}：c3_new_center_exists={xzd_lge2_c3_new_center_exists} / c3_new_center_breakout_ok={xzd_lge2_c3_new_center_breakout_ok}（不参门，codex 裁定输入）"
+            );
+            eprintln!("[c3-breakout-dx] lge2 routed={n_lge2_probe} new_center_exists={xzd_lge2_c3_new_center_exists} breakout_ok={xzd_lge2_c3_new_center_breakout_ok}");
         }
         let _ = writeln!(rpt);
 
