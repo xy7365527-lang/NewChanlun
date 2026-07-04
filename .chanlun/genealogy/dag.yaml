@@ -3653,8 +3653,7 @@ nodes:
   type: 概念分离
   file: pending/686-q7-fallback-direction-anchor-separation-narrows-121-decision-a.md
 - id: '687'
-  title: 多写点计数器在新增数据通道时口径分叉（meta-rule候选）：dx真封①(sig_post漏计PanDiv)
-    与 Stop-Guard熔断计数器同构；均非675号坐标系分叉
+  title: 多写点计数器在新增数据通道时口径分叉（meta-rule候选）：dx真封①(sig_post漏计PanDiv) 与 Stop-Guard熔断计数器同构；均非675号坐标系分叉
   status: 生成态
   type: meta-rule
   file: pending/687-multi-writepoint-counter-desync-on-channel-extension.md
@@ -3663,6 +3662,11 @@ nodes:
   status: 生成态
   type: bias-correction
   file: pending/688-level0-exempt-gate-breaks-rootfree-shift-equivariance-finite-tower-truncation.md
+- id: '689'
+  title: 9段升级出处订正——出自第33课《走势多义性》非第20课中心定理二（不同机制）；Q2延伸不拆有效域收窄至<9段（231活例）
+  status: 生成态
+  type: source-tracing
+  file: pending/689-upgrade-9seg-provenance-course33-multiplicity-not-course20-central-theorem2-q2-domain-narrowed.md
 edges:
   depends_on:
   - from: '679'
@@ -7046,6 +7050,12 @@ edges:
   - from: '688'
     to: '231'
   - from: '688'
+    to: 090
+  - from: '689'
+    to: '231'
+  - from: '689'
+    to: '002'
+  - from: '689'
     to: 090
   triggered:
   - from: '005'
@@ -10657,6 +10667,12 @@ edges:
   - between:
     - '656'
     - '688'
+  - between:
+    - '688'
+    - '689'
+  - between:
+    - '685'
+    - '689'
   tensions_with:
   - between:
     - '007'
