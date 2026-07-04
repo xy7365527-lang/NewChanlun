@@ -35,6 +35,25 @@
 - **边界语义**：η≥η_* 含等号（PDF 原文 ≥）⟹ η=η_* 归 PositiveSafe；η=0 时即使 η_*=0 使 η≥η_*
   同时成立，按 PDF 原文分支序 Zero 先判 ⟹ 归 Zero（实装用 if-else 链保序，测试钉死）。
 
+### 2.1 PDF 原文 ↔ 代码逐式映射（编排者对照令，直接 Read `完整的策略.pdf` pages 4-9）
+
+核对方式：本工位直接 Read PDF 原文页（非二手裁定链），逐式核对分段定义/等号归属/η_* 表达式。
+
+| PDF 位置 | 原文（逐字） | 代码位置 | 代码 | 一致性 |
+|---|---|---|---|---|
+| §6 z 向量（p4） | 第 16 项 `ηBucket：负成本缓冲状态`（与 `RiskMode` 并列独立维） | `ledger.rs:203-225` `enum EtaBucket` + `mu_estimator.rs` 第 15 维 | 四值枚举 + `RiskMode` 不合并（独立轴） | ✓ |
+| §10 γ_t 分支1（p7） | `Deficit, η_t < 0` | `ledger.rs:315-316` | `if eta < 0 { Deficit }` | ✓ |
+| §10 γ_t 分支2（p7） | `Zero, η_t = 0` | `ledger.rs:317-318` | `else if eta == 0 { Zero }` | ✓ |
+| §10 γ_t 分支3（p7） | `PositiveUnsafe, 0 < η_t < η_*` | `ledger.rs:319-320` | `else if eta < eta_star(s) { PositiveUnsafe }`（前两支已排除 η≤0 ⟹ 此支隐含 η>0） | ✓ |
+| §10 γ_t 分支4（p7） | `PositiveSafe, η_t ≥ η_*`（**含等号 ≥**） | `ledger.rs:321-322` | `else { PositiveSafe }`（兜底 = `eta >= eta_star` ⟹ η=η_* 归此支） | ✓ |
+| §10 η_* 表达式（p7 方框） | `η_*(x_t) = L^wc_{t+1} + κ·Q_t` | `ledger.rs:293-297` `eta_star` | `l_wc() + κ·notional()`（i128 中间域饱和） | ✓ |
+| §10 被分类量 η_t（p7） | `η_t`（`enter_ready` 的 `η_t ≥ η_*` 左操作数，`EnterReady` 合取项） | `ledger.rs:314` `let eta = s.tw()` | `η_t = TwState::tw()`（=free+holding+withdrawn，`enter_ready` 同源） | ✓ |
+
+分支序保序证明：PDF 原文四支从上到下 Deficit→Zero→PositiveUnsafe→PositiveSafe；代码 if-else 链同序。
+关键角点 η=0=η_*（当 η_*=0 时分支2 与分支4 谓词同时为真）——PDF 把 Zero 列在 PositiveSafe 之前，
+代码 `else if eta == 0` 先于兜底 ⟹ 归 Zero，与原文分支序一致（`eta_bucket_four_value_boundaries`
+测试用 `TwState::initial()` 钉死此角点）。
+
 ## 3. GOLDEN/断言处置（逐个说明）
 
 - **GOLDEN digest 变动 = 0**：`eta_bucket` 不进结构六 bit / `class_index` / digest 覆盖域（t_stage
