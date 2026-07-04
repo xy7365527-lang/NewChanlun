@@ -81,10 +81,10 @@ negated:
 # 新产出
 new_output:
   definitions:
-    - "方向 provenance 分离（direction provenance separation）：一个"方向"字段若存在两种不兼容来源
+    - "方向 provenance 分离（direction provenance separation）：一个“方向”字段若存在两种不兼容来源
       （结构性 ownership 方向 vs 边界占位 fallback），消费方必须用独立的资格字段（anchor_direction）
-      区分，不能用同一字段值直接做趋势判定——否则未区分来源的消费=方向泄漏。与683号"过期未复核的
-      文档化简化"同族：概念前提在新参数引入后过期，未随之复核的消费点即为泄漏面。"
+      区分，不能用同一字段值直接做趋势判定——否则未区分来源的消费=方向泄漏。与683号“过期未复核的
+      文档化简化”同族：概念前提在新参数引入后过期，未随之复核的消费点即为泄漏面。"
     - "旧基线有效域收窄：#145(ac4-impl) 产出的 L1 349/L2 102/L3 31 一类信号，有效域=裁定C 前语义
       （direction 不分 provenance）。凡引用该旧基线或其汇总（一类总计1057）的下游结论，须标注
       裁定C 前后语义差异，不得跨裁定外推。"
@@ -98,7 +98,7 @@ impact:
     - "rust/src/theta_v0/classifier/divergence.rs（locate_departure_move_a/departure_move_c_start）"
     - "rust/src/theta_v0/classifier/signal.rs（judge_first_cached 方向匹配条件）"
   affected_definitions:
-    - "683（level≥1 一/三类候选生成，codex-t1 裁A）：核心架构不受否定，消费判据被本号收窄——683 的"过期未复核"模式在此复现（direction 单来源假设过期）。"
+    - "683（level≥1 一/三类候选生成，codex-t1 裁A）：核心架构不受否定，消费判据被本号收窄——683 的“过期未复核”模式在此复现（direction 单来源假设过期）。"
     - "685（一类=0 被推翻为趋势门/中枢延伸实现缺陷）：#142-#145 修复序完成后的中间态基线（一类1057）经本号裁C 过滤后收敛为614——与685反事实预测（L0局部650段同向）量级吻合，是685核心论点的追加实证支持。"
   downstream_implications:
     - "#146(rerun5) 下游重跑清单须以本号新基线（L0 575/L1 18/L2 14/L3 7，总计614）为准，不得沿用裁C前的1057。"

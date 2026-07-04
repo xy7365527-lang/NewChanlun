@@ -19,7 +19,8 @@ depends_on:
   - "606"   # ★上游权威——606 背驰/区间套完全分类明文「本号只覆盖趋势背驰⟹第一类 BSP」，有效域=Type1。本 bug=H1 N^δ 门无视 606 scoping，把 Type1 区间套候选谓词套到 Type2 上=违反 606 有效域标注。
   - "615"   # 同族：μ̂-f Layer1 ⊊ 缠论严格分类 Layer2。本号=该 subset 关系在「区间套候选谓词」层的实例（Cand^δ 力度/极值谓词 ⊊ 完整 Type1+Type2 结构判据）。
   - "671"   # 同族：P2 R2 MACD C≥A preveto 选择偏差。三号共模式=用力度/极值谓词污染结构分类致过度过滤（假阴性/预删）。
-related: "[[2026-07-02-source-tracing-type2-panzhengbeichi-vs-maimai-def4]]（定义层上游root：maimai#4过度泛化为本bug提供定义正当化，genealogist裁定/ritual同批处理）"
+related:
+  - "[[698-source-tracing-type2-panzhengbeichi-vs-maimai-def4]]（定义层上游root：maimai#4过度泛化为本bug提供定义正当化，genealogist裁定/ritual同批处理；原引用 2026-07-02-source-tracing-*，该文件 2026-07-04 补编号重命名为 698）"
   - "670"   # 区间套 location 条件性决定性（已裁并入 606）。Cand^δ_ℓ 是区间套候选谓词的实装形态；670 的「区间套对象=背驰段」在本号被证实装层未按 bsp 类型分叉。
   - "231"   # 形式化有效域：Cand^δ_ℓ 有效域=Type1（背驰段）< 定义域=all bsp（含 Type2）。有效域<定义域的又一实例（231 已 settled 为规则 formalization-validity-domain.md，本号=实例累积非新结晶）。
   - "017"   # 第17课 line 60（一级权威）：Type2 买卖点判据=走势完备性/「不患」，非创新极值。Type1/Type2 判据互斥的原文依据（溯源核实=source-auditor 职责，本号仅引 Lead 转述的 codex 裁决）。
@@ -78,5 +79,6 @@ addendum_h2_mechanism_correction:
     note: "实测 leg_gap 全为 1（257/257，s_prev 是 m2 在父 sub_moves 内紧邻同向前驱），codex 假设的 leg_gap=2（跨反向腿命中 m1）不出现。字面 s_prev==m1 身份未逐信号重建（用 codex 授权的等价物『Extreme 真假』，见 h2 报告 §诚实边界1）——若后续 bit-exact 重建 i1 发现字面≠m1 但 Extreme 仍必假，结论不变（建立在 Extreme 可测判据上，不依赖字面 m1 身份）。"
   # 有效域声明（诚实边界，231/formalization-validity-domain）
   validity_domain: "L1 全窗（1473 信号）实证；gate_pass=0 是全窗性质（h2 报告 §诚实边界3：任意 50-bar 子窗测得 level1 gate_pass=2/50，中间级归零是全窗非任意子窗恒成立）。可交易 alpha=L2 未做。"
+---
 
 > **[/ritual 结算段 · 2026-07-02]** 裁决来源：codex 裁决①-⑤（`.chanlun/review-results/codex-ritual-*.md`）+ 编排者明令「并行全部推进」授权。判决全文见 staging：GRAMMAR §1-A（673-finding 定理）+ CHOICES 673-fix（实装#12 编排者已授权）。判决摘要：Type1/Type2 判据结构互斥机制成立（1473 真实信号分解支撑）+ 接口级三分拆（type1/type2/type3 三独立函数+dispatcher）。
