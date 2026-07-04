@@ -44,7 +44,7 @@ use super::mu_estimator::{MuClass, MuEstimator, PositionState};
 use crate::theta_v0::classifier::recursive_tower::LeveledMove;
 use crate::theta_v0::strategy::coverage::Vertical;
 use crate::theta_v0::strategy::interp::Candidate;
-use crate::theta_v0::strategy::ledger::TStage;
+use crate::theta_v0::strategy::ledger::{EtaBucket, TStage};
 use crate::theta_v0::strategy::risk::RiskMode;
 use crate::theta_v0::strategy::voice::VoiceSide;
 use crate::theta_v0::types::Bar;
@@ -77,6 +77,11 @@ pub struct ZExt {
     /// ——当 bar 决策点 TW 账本相位真值（与 `TwStepCtx.state` 同一 `tw` 变量，P2/P3/P4 谓词
     /// 同口径）；无 TW 账本路径（econ 统计层）None（同 risk_mode 诚实口径）。
     pub t_stage: Option<TStage>,
+    /// γ_t 四桶 ηBucket（§6 ηBucket，#175 zdims 第 15 维）：runner π fill loop
+    /// `Some(tw_policy.eta_bucket(&tw))`——η_t=`TwState::tw()` 与 η_*=`RiskPolicy::eta_star()`
+    /// 的 PDF §10 分段式离散化（终裁 a5-etabucket-stance-ruling-20260704.md，与 `t_stage` 同一
+    /// `tw` 变量同一装配点）；无 TW 账本路径（econ 统计层）None（同 t_stage 诚实口径）。
+    pub eta_bucket: Option<EtaBucket>,
 }
 
 impl ZExt {
@@ -88,6 +93,7 @@ impl ZExt {
         origin_level: None,
         risk_mode: None,
         t_stage: None,
+        eta_bucket: None,
     };
 }
 
@@ -252,6 +258,7 @@ pub fn z_of_candidate(
     // σ_higher 第 9 维（codex-q1 G2）：塔真值 Some(v)——v=0 是计算结果（上级持平/无上级），非未知。
     // G3 第 10-13 维：ext 显式装配；origin_level 无链覆盖 ⟹ Some(c.level)（起始=执行真值）。
     // #149 第 14 维 t_stage：ext 显式装配（runner π 路径 Some(tw.stage)，统计层 None）。
+    // #175 第 15 维 eta_bucket：ext 显式装配（runner π 路径 Some(γ_t 四桶)，统计层 None）。
     MuClass {
         horizontal: Some(c.role.h),
         force_state: c.force.map(|f| f.force_state()),
@@ -261,6 +268,7 @@ pub fn z_of_candidate(
         origin_level: Some(ext.origin_level.unwrap_or(c.level)),
         risk_mode: ext.risk_mode,
         t_stage: ext.t_stage,
+        eta_bucket: ext.eta_bucket,
         ..MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
     }
 }
@@ -542,6 +550,7 @@ mod tests {
         assert_eq!(z0.origin_level, Some(2), "无链覆盖 ⟹ 起始=执行级（真值）");
         assert_eq!(z0.risk_mode, None);
         assert_eq!(z0.t_stage, None, "#149：无 TW 账本口径 ⟹ t_stage 诚实 None");
+        assert_eq!(z0.eta_bucket, None, "#175：无 TW 账本口径 ⟹ eta_bucket 诚实 None");
         // Nest 门口径：扩展维真值透传 + ℓ=e+depth 恒等式（debug_assert 同款自洽输入）。
         let ext = ZExt {
             cand_channel: Some(NestTrigger::Type23SublevelType1),
@@ -549,6 +558,7 @@ mod tests {
             origin_level: Some(3), // = level 2 + depth 1
             risk_mode: Some(RiskMode::Normal),
             t_stage: Some(crate::theta_v0::strategy::ledger::TStage::CapitalRecovered),
+            eta_bucket: Some(EtaBucket::PositiveUnsafe),
         };
         let z1 = z_of_candidate(&c, &[], &[], &ext);
         assert_eq!(z1.cand_channel, Some(NestTrigger::Type23SublevelType1));
@@ -559,6 +569,11 @@ mod tests {
             z1.t_stage,
             Some(crate::theta_v0::strategy::ledger::TStage::CapitalRecovered),
             "#149：t_stage 经 ZExt 透传进 z"
+        );
+        assert_eq!(
+            z1.eta_bucket,
+            Some(EtaBucket::PositiveUnsafe),
+            "#175：eta_bucket 经 ZExt 透传进 z"
         );
         // 形态维（1-9）不受 ext 影响（新维正交于形态维）。
         assert_eq!((z0.level, z0.delta, z0.i_class, z0.horizontal), (z1.level, z1.delta, z1.i_class, z1.horizontal));
@@ -617,9 +632,10 @@ mod tests {
             origin_level: Some(5),
             risk_mode: Some(RiskMode::Deleverage),
             t_stage: Some(crate::theta_v0::strategy::ledger::TStage::EarningShares), // #149 同约束②
+            eta_bucket: Some(EtaBucket::Deficit), // #175 同约束②
             ..base
         };
-        assert_eq!(UClass::project_to_u(&base), UClass::project_to_u(&decorated), "ϕ:Z→U 折叠 G3/#149 新维");
+        assert_eq!(UClass::project_to_u(&base), UClass::project_to_u(&decorated), "ϕ:Z→U 折叠 G3/#149/#175 新维");
     }
 
     /// z_alpha=0 退化（向后兼容）：LCB=mean−0=mean ⟹ LCB 门 ≡ 裸 μ 门（filter_gamma/runner

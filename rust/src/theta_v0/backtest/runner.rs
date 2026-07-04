@@ -772,9 +772,13 @@ where
             // #149 第 14 维 t_stage = tw.stage 当 bar 决策点相位真值：②'/②'' 账本更新之后、
             // 本 bar stage_progression（step_trace.tw_event 写点）之前读取——与 TwStepCtx.state
             // 喂给 P2/P3/P4 谓词的是同一 tw 值，账本相位单一真值源（#124 裁定4）无第二口径。
+            // #175 第 15 维 eta_bucket = γ_t 四桶（PDF §10 分段式；终裁 a5-etabucket-stance-
+            // ruling-20260704.md：η_t=tw.tw() 即 enter_ready 判据左操作数、η_*=tw_policy.eta_star）
+            // ——与 t_stage 读同一 tw 变量同一时点（非另开账本查询，零时序错位）。
             let ext_i = super::selector::ZExt {
                 risk_mode: Some(risk_mode_i),
                 t_stage: Some(tw.stage),
+                eta_bucket: Some(tw_policy.eta_bucket(&tw)),
                 ..super::selector::ZExt::NONE
             };
             // exec_index：延迟成交 bar（spec:50；尾部无可成交 bar ⟹ 不挂单）。
@@ -1972,12 +1976,15 @@ mod tests {
         // risk_mode=Some(Normal)（equity>0 无 margin 注入 ⟹ 每 bar mode 恒 Normal 真值）；
         // cand_channel/nest_depth 两侧 None（π 路径无准入门）。手建 est 的 z 须同口径。
         // #149 第 14 维：平价无已实现利润/未退本金 ⟹ tw.stage 恒 CostReduction（stage 不推进）。
+        // #175 第 15 维：η=tw()=nav0 恒等于 η⋆=L^wc=notional_in（κ=0、零已实现 PnL、未退本金）
+        // ⟹ 恒 PositiveSafe（PDF η≥η⋆ 含等号）。
         let z_buy = MuClass {
             horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
             sigma_higher: Some(0),
             origin_level: Some(0),
             risk_mode: Some(crate::theta_v0::strategy::risk::RiskMode::Normal),
             t_stage: Some(crate::theta_v0::strategy::ledger::TStage::CostReduction),
+            eta_bucket: Some(crate::theta_v0::strategy::ledger::EtaBucket::PositiveSafe),
             ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
         };
         let mut est = MuEstimator::new();
@@ -2020,12 +2027,15 @@ mod tests {
         // risk_mode=Some(Normal)（equity>0 无 margin 注入 ⟹ 每 bar mode 恒 Normal 真值）；
         // cand_channel/nest_depth 两侧 None（π 路径无准入门）。手建 est 的 z 须同口径。
         // #149 第 14 维：平价无已实现利润/未退本金 ⟹ tw.stage 恒 CostReduction（stage 不推进）。
+        // #175 第 15 维：η=tw()=nav0 恒等于 η⋆=L^wc=notional_in（κ=0、零已实现 PnL、未退本金）
+        // ⟹ 恒 PositiveSafe（PDF η≥η⋆ 含等号）。
         let z_buy = MuClass {
             horizontal: Some(crate::theta_v0::strategy::coverage::Horizontal::First),
             sigma_higher: Some(0),
             origin_level: Some(0),
             risk_mode: Some(crate::theta_v0::strategy::risk::RiskMode::Normal),
             t_stage: Some(crate::theta_v0::strategy::ledger::TStage::CostReduction),
+            eta_bucket: Some(crate::theta_v0::strategy::ledger::EtaBucket::PositiveSafe),
             ..MuClass::from_certificate(0, 1, BspBits { buy1: true, ..Default::default() }, 0, PositionState::Root)
         };
         let mut est = MuEstimator::new();
@@ -2106,6 +2116,12 @@ mod tests {
             t.entry_z.t_stage,
             Some(crate::theta_v0::strategy::ledger::TStage::CostReduction),
             "fill loop entry_z 携 bar 级 TW 相位真值（#149）"
+        );
+        // #175 第 15 维：入场 bar 零已实现 PnL/未退本金 ⟹ η=tw()=nav0=η⋆=L^wc ⟹ PositiveSafe。
+        assert_eq!(
+            t.entry_z.eta_bucket,
+            Some(crate::theta_v0::strategy::ledger::EtaBucket::PositiveSafe),
+            "fill loop entry_z 携 bar 级 γ_t 四桶真值（#175）"
         );
     }
 

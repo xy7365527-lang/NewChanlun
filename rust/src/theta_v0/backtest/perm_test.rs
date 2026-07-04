@@ -238,6 +238,7 @@ pub fn stratified_delta_perm_p_fullz(
             origin_level: None,
             risk_mode: None,
             t_stage: None, // #149 第 14 维同口径：base 不分层 ⟹ 键显式 None（t_stage 随 bar 变，防 ..*c 泄漏）
+            eta_bucket: None, // #175 第 15 维同口径：η 随 bar 变（Realize 漂移），键显式 None 防 ..*c 泄漏
             ..*c
         },
     )

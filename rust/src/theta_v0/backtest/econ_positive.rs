@@ -397,6 +397,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                             origin_level: Some(lvl as u32 + cert.rungs.len() as u32),
                             risk_mode: None,
                             t_stage: None, // #149：统计层无 TW 账本，同 risk_mode 诚实 None
+                            eta_bucket: None, // #175：统计层无 TW 账本，同 t_stage 诚实 None
                         },
                         GateCertificate::Xzd(_) => ZExt {
                             cand_channel: Some(trigger),
@@ -404,6 +405,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                             origin_level: None, // ⟹ z 填 Some(c.level)（起始=执行真值）
                             risk_mode: None,
                             t_stage: None, // #149：统计层无 TW 账本，同 risk_mode 诚实 None
+                            eta_bucket: None, // #175：统计层无 TW 账本，同 t_stage 诚实 None
                         },
                     };
                     let z = z_of_candidate(c, &tower_i, bars, &ext);
@@ -3864,6 +3866,7 @@ mod tests {
                                 origin_level: Some(lvl as u32 + rungs_len as u32),
                                 risk_mode: None,
                                 t_stage: None, // #149：与生产同源，统计层诚实 None
+                                eta_bucket: None, // #175：与生产同源，统计层诚实 None
                             },
                             GateCertificate::Xzd(_) => ZExt {
                                 cand_channel: Some(trigger_dx),
@@ -3871,6 +3874,7 @@ mod tests {
                                 origin_level: None,
                                 risk_mode: None,
                                 t_stage: None, // #149：与生产同源，统计层诚实 None
+                                eta_bucket: None, // #175：与生产同源，统计层诚实 None
                             },
                         };
                         signals_dx.push(RawSignal {

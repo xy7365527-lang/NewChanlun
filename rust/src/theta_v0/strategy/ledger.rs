@@ -200,6 +200,30 @@ impl TwState {
     }
 }
 
+/// γ_t 四桶 `ηBucket`（契约锚 PDF §6 z 第16维「ηBucket：负成本缓冲状态」+ §10 γ_t 分段式；
+/// 终裁 `a5-etabucket-stance-ruling-20260704.md`：γ_t = 现有 η_t 与 η_* 比较判据的**离散化**，
+/// η_t 生产者 = [`TwState::tw`]、η_* 生产者 = [`RiskPolicy::eta_star`]——零新增数据源，
+/// 非独立账本实体）。分类入口唯一：[`RiskPolicy::eta_bucket`]。
+///
+/// 与 `RiskMode`（risk.rs M0-M4）是**并列独立维**，不合并（PDF §6 明文两者并列）。
+///
+/// `Hash/Ord`（#175，同 [`TStage`] #149 先例）：作为
+/// [`MuClass`](crate::theta_v0::backtest::mu_estimator::MuClass) 第 15 维 `eta_bucket` 的分量，
+/// 需与 MuClass derive 全家桶同级。derive `Ord` 取声明序 = η 缓冲递增序
+/// （Deficit<Zero<PositiveUnsafe<PositiveSafe），仅供 BTreeMap 有序报告——业务判据单源
+/// PDF §10 分段式（[`RiskPolicy::eta_bucket`]），不从序推导。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum EtaBucket {
+    /// η_t < 0：在险权益为负（累计亏损透支）。
+    Deficit,
+    /// η_t = 0：零缓冲。
+    Zero,
+    /// 0 < η_t < η_*：为正但未过 barrier（覆盖不了最坏损失 + κ 缓冲）。
+    PositiveUnsafe,
+    /// η_t ≥ η_*：过 barrier（负成本缓冲安全态）。
+    PositiveSafe,
+}
+
 /// 风险政策 `RiskPolicy`（契约锚 PDF §10 `Θ_risk` / §11 Lean `structure RiskPolicy`）。
 ///
 /// **不可识别性定理2（k的条件.pdf 编排者裁决）**：`κ` **不是价格可推的值**，是**声明式风险政策
@@ -270,6 +294,33 @@ impl RiskPolicy {
         let kappa_q = (self.kappa as i128) * (s.notional() as i128);
         let eta = (s.l_wc() as i128) + kappa_q;
         eta.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+    }
+
+    /// γ_t 四桶分类（契约锚 PDF §10 分段式，**逐式按原文分支序**，勿改边界）：
+    ///
+    /// ```text
+    /// γ_t = { Deficit,        η_t < 0
+    ///         Zero,           η_t = 0
+    ///         PositiveUnsafe, 0 < η_t < η_*
+    ///         PositiveSafe,   η_t ≥ η_* }
+    /// ```
+    ///
+    /// η_t = [`TwState::tw`]（在险权益，与 [`enter_ready`](Self::enter_ready) 的 `η≥η⋆` 合取项
+    /// 左操作数**同一个量**——终裁 a5-etabucket-stance-ruling-20260704.md 立场B）；
+    /// η_* = [`eta_star`](Self::eta_star)。生产域 η_*≥0（`l_wc` 下界 0 + κ≥0 构造不变量 +
+    /// Q=notional_in 非负）⟹ 四支穷尽互斥；分支序使 η=0 恒归 `Zero`（即使 η_*=0 时
+    /// `η≥η_*` 同时成立——PDF 原文序优先，Zero 在 PositiveSafe 之前）。
+    pub fn eta_bucket(&self, s: &TwState) -> EtaBucket {
+        let eta = s.tw();
+        if eta < 0 {
+            EtaBucket::Deficit
+        } else if eta == 0 {
+            EtaBucket::Zero
+        } else if eta < self.eta_star(s) {
+            EtaBucket::PositiveUnsafe
+        } else {
+            EtaBucket::PositiveSafe
+        }
     }
 
     /// **EnterEarning 合法性谓词 `EnterReady`（严格 EnterReady，契约锚 PDF §10 步骤3 + Lean
@@ -979,6 +1030,34 @@ mod tests {
         assert!(
             !pol.buy_core_legal(i64::MAX, 0, i64::MAX, 0, 0, 0),
             "★i128：巨额建仓 LHS 不 wrap ⟹ 正确判非法（非 wrap 误判合法）"
+        );
+    }
+
+    /// γ_t 四桶分类（#175，PDF §10 分段式逐分支 + 边界）：四值可达 + η=η_* 归 PositiveSafe
+    /// （≥ 边界）+ η=0=η_* 归 Zero（原文分支序优先）+ κ>0 抬 barrier 改判 PositiveUnsafe。
+    #[test]
+    fn eta_bucket_four_value_boundaries() {
+        let pol = RiskPolicy::baseline(); // κ=0 ⟹ η⋆=L^wc
+        // Deficit：η=-1<0（透支态，free 为负是真实现金透支的诚实镜像）。
+        let s_neg = TwState { free: -1, ..TwState::initial() };
+        assert_eq!(pol.eta_bucket(&s_neg), EtaBucket::Deficit, "η<0 ⟹ Deficit");
+        // Zero：η=0，且 η⋆=0（notional_in=0 ⟹ L^wc=0）⟹ η≥η⋆ 同时成立——原文分支序 Zero 先判。
+        let s_zero = TwState::initial();
+        assert_eq!(pol.eta_bucket(&s_zero), EtaBucket::Zero, "η=0 ⟹ Zero（分支序优先于 η≥η⋆）");
+        // PositiveUnsafe：0<η(50)<η⋆(L^wc=100)。
+        let s_unsafe = TwState { free: 50, notional_in: 100, ..TwState::initial() };
+        assert_eq!(pol.eta_bucket(&s_unsafe), EtaBucket::PositiveUnsafe, "0<η<η⋆ ⟹ PositiveUnsafe");
+        // PositiveSafe 边界：η(100)=η⋆(100)——PDF η≥η⋆ 含等号。
+        let s_eq = TwState { free: 100, notional_in: 100, ..TwState::initial() };
+        assert_eq!(pol.eta_bucket(&s_eq), EtaBucket::PositiveSafe, "η=η⋆ ⟹ PositiveSafe（≥ 边界）");
+        // PositiveSafe 严格：η(150)>η⋆(100)。
+        let s_safe = TwState { free: 150, notional_in: 100, ..TwState::initial() };
+        assert_eq!(pol.eta_bucket(&s_safe), EtaBucket::PositiveSafe, "η>η⋆ ⟹ PositiveSafe");
+        // κ>0 抬 barrier：同一 s_eq 在 κ=1 下 η⋆=100+1·100=200 ⟹ 100 改判 PositiveUnsafe。
+        assert_eq!(
+            RiskPolicy { kappa: 1 }.eta_bucket(&s_eq),
+            EtaBucket::PositiveUnsafe,
+            "κ 抬 barrier ⟹ 同一 η 改判 PositiveUnsafe（η⋆ 状态依赖）"
         );
     }
 

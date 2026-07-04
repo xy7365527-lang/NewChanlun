@@ -79,10 +79,10 @@ pub enum PositionState {
 ///   §6 其余条目的承载/缺口声明见 `.chanlun/review-results/g3-impl-20260703.md` 维度对照表
 ///   （Jchain=由 (ℓ,e) 代数派生；ExitType=TypedTrade ledger 层已接（G4）不进 F_t 可测桶键；
 ///   TStage=第 14 维已接（#149，GAP3 桥后 π fill loop `tw.stage` 真值，见 `t_stage` 字段文档）；
-///   ηBucket=缺口维持（#149 核验：ledger η⋆/`TwState::tw` 是 `enter_ready` barrier 谓词分量
-///   ——相变准入判据非账本缓冲态桶实体；#158 专项终裁=确认性缺口：底层连续量 η/L^wc/Q/κ 已
-///   承载、离散四态 γ_t 未承载（a5-gamma4-confirm-20260703.md），实装枚举+路由后接入，处置
-///   详见 zdims-impl-20260704.md）；CostBucket=生产路径无数据源，诚实缺口+证明义务）。
+///   ηBucket=第 15 维已接（#175，终裁 a5-etabucket-stance-ruling-20260704.md 推翻 #149「无生产者」
+///   判定：γ_t = 现有 η_t/η_* 比较判据的离散化，η_t 生产者=`TwState::tw()`、η_* 生产者=
+///   `RiskPolicy::eta_star()` 早已存在，零新数据源——见 `eta_bucket` 字段文档）；
+///   CostBucket=生产路径无数据源，诚实缺口+证明义务）。
 ///
 /// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）；`Ord` ⟹ 可作 BTreeMap key（有序报告）。
 /// **全互斥**：每个 z 是 {0,1}^6 × 级别 × 方向 × 父向 × 短差 × 仓位态 × H 的唯一组合，无重叠
@@ -155,6 +155,15 @@ pub struct MuClass {
     /// ⟹ 与 P2/P3/P4 谓词同口径；训练 entry_z 与 χ 查询共用同一 ext ⟹ 同口径，G2/G3 护航点
     /// 同款）；`None`=无 TW 账本口径（econ 统计层信号收集、裸证书），诚实 None（231号）。
     pub t_stage: Option<crate::theta_v0::strategy::ledger::TStage>,
+    /// γ_t 四桶 ηBucket（第 15 维，§6 ηBucket「负成本缓冲状态」，#175）。
+    /// [`EtaBucket`](crate::theta_v0::strategy::ledger::EtaBucket) = PDF §10 γ_t 分段式四态
+    /// （Deficit/Zero/PositiveUnsafe/PositiveSafe）。终裁 a5-etabucket-stance-ruling-20260704.md
+    /// （立场B）：被分类量 η_t = `TwState::tw()`——与 `enter_ready` 的 `η≥η⋆` 合取项左操作数
+    /// **同一个量**；η_* = `RiskPolicy::eta_star()`。纯派生分类，零新数据源。
+    /// `Some`=runner π fill loop 当 bar 决策点 `tw_policy.eta_bucket(&tw)`（与 `t_stage` 同一
+    /// `tw` 变量同一装配点 ⟹ 同口径无时序错位；训练 entry_z 与 χ 查询共用同一 ext ⟹ 同口径，
+    /// G2/G3 护航点同款）；`None`=无 TW 账本口径（econ 统计层信号收集、裸证书），诚实 None（231号）。
+    pub eta_bucket: Option<crate::theta_v0::strategy::ledger::EtaBucket>,
 }
 
 impl MuClass {
@@ -201,6 +210,7 @@ impl MuClass {
             origin_level: None,
             risk_mode: None,
             t_stage: None, // #149：裸证书口径无 TW 账本，同 risk_mode 诚实 None。
+            eta_bucket: None, // #175：裸证书口径无 TW 账本，同 t_stage 诚实 None。
         }
     }
 }

@@ -1496,15 +1496,15 @@ fn three_way_l2() {
 /// [`enumerate_candidate_z`] 不跑 fill loop ⟹ 其 z 的 `risk_mode=None`；train 表键（fill loop
 /// 生态）`risk_mode=Some(bar 真值)`——键不投影则三路分解/假设4/两源分解**全落「未见」**（G2 修过
 /// 的训练 Some/查询 None 全表 miss 同款，records↔诊断侧变体）。投影 = 逐笔观测把 `risk_mode`/
-/// `t_stage`（#149 第 14 维，fill loop 生态同为 Some(bar 真值)、枚举口径 None——同款投影）
-/// 置 None 后重聚：条件均值塔性质 ⟹ 投影桶 μ = 子桶样本加权平均（数学精确非近似）；其余 G3 维
+/// `t_stage`（#149 第 14 维）/`eta_bucket`（#175 第 15 维）（fill loop 生态同为 Some(bar 真值)、
+/// 枚举口径 None——同款投影）置 None 后重聚：条件均值塔性质 ⟹ 投影桶 μ = 子桶样本加权平均（数学精确非近似）；其余 G3 维
 /// 在 fill loop 生态本就与枚举口径一致（cand_channel/nest_depth 两侧 None，origin_level 两侧
 /// Some(level)），不动。投影后形态维（1-9 维）分桶与 G3 前 bit-一致——诊断语义不变：
 /// 「test 候选**形态**是否见过」（账本态是正交条件维，非形态）。
 fn project_mu_for_enum_diag(est: &MuEstimator) -> MuEstimator {
     let mut p = MuEstimator::new();
     p.observe_all(est.trades().iter().map(|&(c, x)| MuObservation {
-        class: MuClass { risk_mode: None, t_stage: None, ..c }, // #149：t_stage 同 risk_mode（fill loop 生态 Some/枚举 None）投影边缘化
+        class: MuClass { risk_mode: None, t_stage: None, eta_bucket: None, ..c }, // #149/#175：t_stage/eta_bucket 同 risk_mode（fill loop 生态 Some/枚举 None）投影边缘化
         x_gamma: x,
     }));
     p
