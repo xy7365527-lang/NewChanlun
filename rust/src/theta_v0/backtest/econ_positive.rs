@@ -1123,7 +1123,9 @@ pub(super) struct XzdEvidence {
     /// C3 新判据（codex #44 终局裁定(c)）：`source_index`~`confirm_index` 间是否存在新确认次级中枢。
     pub c3_new_center_exists: bool,
     /// C3 新判据（codex #44 终局裁定(c)）：新中枢是否被其后次级走势反向突破（第43课「背驰后新中枢+
-    /// 反向突破」）。**level==1 硬门参门项**；level>=2 维持既定 C2-only（本次翻案不改 lvl>=2）。
+    /// 反向突破」）。**level==1 硬门参门项**；level>=2 维持既定 C2-only——C3 脱 0 后经 codex #179 终裁
+    /// （codex-xzd-grading-20260704，条件翻转/当前维持现状）：level>=2 的 C3 硬门有效域未证
+    /// （breakout_ok=1/217=0.46% 近退化单点），非「判据在全 level 不适用」；翻转条件见终裁报告三条。
     pub c3_new_center_breakout_ok: bool,
 }
 
@@ -4222,8 +4224,10 @@ mod tests {
             // 候选(2) 的前提结构（无升级语义的中枢链）已合法作废——这是语义变更，非逻辑漂移。
             // 重封形式 = 锁默认窗确定性基线（同下 lvl>=2 先例：基线是窗口函数，仅默认窗断言；
             // 窗口/数据/定义变 ⟹ 重测重锁，不放宽为范围断言）。
-            // ★下游口径待裁（上浮 Lead，非本层自决）：Xzd level≥2 C2-only 信号口径因 C3 脱 0 须回
-            // codex 复审（#56 边界条件转候选(1)：C3 并入硬门的可行性）——见 #148 结果包下游推论。
+            // ★下游口径已裁（codex #179 终裁 codex-xzd-grading-20260704）：Xzd level≥2 C2-only 口径
+            // 因 C3 脱 0 曾上浮 codex 复审——终裁「条件翻转，当前维持现状」，level≥2 的 C3 硬门有效域
+            // 未证（breakout_ok=1/217=0.46% 近退化单点，非结构性死门），翻转须满足终裁三条件（脱退化
+            // n>=10+同量级命中率 / C3 对 lvl>=2 判别力 OOS 显著 / 排除观测口径伪影）。见 #148 下游推论。
             let _ = writeln!(rpt, "- **判据健康度（#148 重封）**：延伸+升级实装后 level==1 C3 可命中（默认窗基线 exists=13/breakout_ok=3）；基线漂移 ⟹ 硬失败重推导；Xzd C2-only 口径复审已上浮。");
             if max_bars == MAX_BARS_DEFAULT {
                 assert_eq!(
