@@ -61,6 +61,10 @@ pub mod mu_estimator;
 pub mod perm_test;
 #[cfg(test)]
 mod wverify_run;
+/// a3 acc-highlow-power：μ̂(z_L0 | D_hi) 条件化估计量（区间套统计版，694 号；prereg
+/// highlow-a3-20260704 冻结）。继承 backtest cfg(test) 门控。
+#[cfg(test)]
+mod highlow_mu;
 pub mod pooling_icc;
 pub mod prereg_windows;
 pub mod runner;

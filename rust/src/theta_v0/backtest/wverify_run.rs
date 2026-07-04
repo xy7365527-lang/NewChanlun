@@ -103,18 +103,21 @@ fn walk_forward_oos_residuals(
     (agg, time_blocks)
 }
 
-/// δ-free 聚合基逐笔 dump（Task #186，final-alpha §3.1 下游精确重算的落盘器）。
+/// Z_decision 逐笔序列落盘（问题F 一等输出：`wverify_full` 主路径无条件外化）。
 ///
-/// env `DELTAFREE_DUMP=<path>` 置位时把 `records` 逐笔落盘（TSV：level bsp δ σ^H h_bucket time_block
-/// resid_base_bits cost_bits）；未置位则 no-op ⟹ 常规 `wverify_full` 跑批零 IO 膨胀、零判定路径污染。
-/// resid_base/cost 用 `f64::to_bits` 十六进制（round-trip 精确）——离线重算 `y=δ·resid−cost` 逐字节
-/// 还原 records 内存值，故离线 n_eff（Geyer IPS）/ δ-free perm_p 与在线口径 bit-exact 可比。
-/// 保 records 顺序（walk-forward 时间序）⟹ effective_n 的成交时间序前提成立（decontam 口径）。
+/// 每笔外化 δ-free 主裁决键 Z_decision=(level,bsp_class,parent_dir)=(col0,col1,col3) + 残差成分（TSV：
+/// level bsp δ σ^H h_bucket time_block resid_base_bits cost_bits）。默认落 `/tmp/wv_full_zdecision.tsv`
+/// （与 /tmp/wv_full_rows.md 等主路径产物同级，无 env 门控）；`DELTAFREE_DUMP=<path>` 覆盖路径（离线
+/// 复算/自检指定用）。resid_base/cost 用 `f64::to_bits` 十六进制（round-trip 精确）——离线
+/// [`deltafree_exact_recompute`] 逐字节还原内存值，n_eff（Geyer IPS）/ δ-free perm_p 与在线口径 bit-exact
+/// 可比。**本 dump 是输出产物，不进判定路径**——在线 δ-free 主裁决直接在内存 `records` 上算
+/// （见 [`deltafree_verdict`]），不消费本文件。保 records 顺序（walk-forward 时间序）⟹ effective_n
+/// 的成交时间序前提成立（decontam 口径）。
 fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
-    let path = match std::env::var("DELTAFREE_DUMP") {
-        Ok(p) if !p.is_empty() => p,
-        _ => return, // 门控关：不 dump（bit-exact 保证——本函数不改任何判定量）
-    };
+    let path = std::env::var("DELTAFREE_DUMP")
+        .ok()
+        .filter(|p| !p.is_empty())
+        .unwrap_or_else(|| "/tmp/wv_full_zdecision.tsv".into());
     let mut out = String::from("level\tbsp\tdelta\tsigma_h\th_bucket\ttime_block\tresid_base_bits\tcost_bits\n");
     for r in records {
         out.push_str(&format!(
@@ -123,8 +126,68 @@ fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
             r.h_bucket, r.time_block, r.resid_base.to_bits(), r.cost.to_bits()
         ));
     }
-    std::fs::write(&path, &out).unwrap_or_else(|e| panic!("δ-free dump 落盘失败 {path}：{e}"));
-    eprintln!("[deltafree-dump] {} 笔 → {path}", records.len());
+    std::fs::write(&path, &out).unwrap_or_else(|e| panic!("Z_decision dump 落盘失败 {path}：{e}"));
+    eprintln!("[zdecision-dump] {} 笔 → {path}", records.len());
+}
+
+/// δ-free 聚合基 (level, bsp_class, parent_dir) 精确三态裁决——**主判据**（prereg §3.2；问题F 收口）。
+///
+/// 输入任意残差序列（在线 `wverify_full` 内存 `records`，或离线 dump 还原），按 Z_decision 键池化两 δ
+/// 方向，精确 Welford std（n−1 分母，非由 LCB 反推）+ 精确 n_eff（[`decontam::effective_n`] Geyer IPS）
+/// + δ-free perm_p（[`perm_test::stratified_delta_perm_p_deltafree`]，B22 同批置换只读出侧池化）→
+/// [`decontam::classify_bucket`] 三态。返回 (22 桶 markdown 表, 全局裁决, (V,F,I) 计数, LCB>0 桶摘要)。
+///
+/// **单一口径**：在线主路径与离线 [`deltafree_exact_recompute`] 共用本纯函数（两个 caller 一个逻辑，
+/// 非「在线包一层调离线」垫片）⟹ 同数据同 records 序 ⟹ 逐字节同结果。records 迭代序须为 walk-forward
+/// 时间序（effective_n 成交时间序前提）；BTreeMap 输出确定序。
+fn deltafree_verdict(
+    records: &[ResidualTrade],
+) -> (String, decontam::AcceptanceVerdict, (usize, usize, usize), String) {
+    // δ-free 基 (level,bsp_class,parent_dir)：池化两 δ 方向，保时间序 Y 序列（records 已按 walk-forward 序）。
+    let mut series: BTreeMap<(u32, u8, i8), Vec<f64>> = BTreeMap::new();
+    for r in records {
+        series
+            .entry((r.class.level, r.class.bsp_class(), r.class.parent_dir))
+            .or_default()
+            .push(r.y());
+    }
+    let pp = perm_test::stratified_delta_perm_p_deltafree(records, perm_test::N_PERM, perm_test::PERM_SEED);
+    let (za, pa) = (1.645_f64, 0.05_f64);
+
+    let mut rows = String::from(
+        "| L | bsp | σ^H | N | n_eff | mean(Y) | std | lcb | ucb | cv | perm_p | state |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+    );
+    let mut states = Vec::new();
+    let mut lcb_pos: Vec<String> = Vec::new();
+    for ((lv, bc, pd), ys) in &series {
+        let n = ys.len();
+        let mean = ys.iter().sum::<f64>() / n as f64;
+        // 精确 Welford std（样本 std，n−1 分母）——非由 LCB 反推的正态近似 std。
+        let std = if n < 2 {
+            f64::NAN
+        } else {
+            (ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt()
+        };
+        let se = std / (n as f64).sqrt();
+        let (lcb, ucb) = (mean - za * se, mean + za * se);
+        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
+        let n_eff = decontam::effective_n(ys); // 精确 Geyer IPS
+        let perm_p = *pp.get(&(*lv, *bc, *pd)).unwrap_or(&1.0);
+        let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
+        states.push(st);
+        if lcb > 0.0 {
+            lcb_pos.push(format!("L{lv} bsp{bc} σ{pd:+} (mean{mean:+.2} lcb{lcb:+.2} n_eff{n_eff:.1} perm_p{perm_p:.3} {st:?})"));
+        }
+        rows.push_str(&format!(
+            "| L{lv} | {bc} | σ{pd:+} | {n} | {n_eff:.2} | {mean:+.4} | {std:.2} | {lcb:+.4} | {ucb:+.4} | {cv:.3} | {perm_p:.3} | {st:?} |\n"
+        ));
+    }
+    let v = decontam::global_verdict(&states);
+    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
+    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
+    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
+    let lcb_summary = if lcb_pos.is_empty() { "无".into() } else { lcb_pos.join("; ") };
+    (rows, v, (nv, nf, ni), lcb_summary)
 }
 
 #[test]
@@ -138,11 +201,10 @@ fn wverify_full() {
     let (records, time_blocks) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
     assert!(!records.is_empty(), "walk-forward OOS 聚合未产出残差——窗口/数据不匹配");
 
-    // ── δ-free 聚合基逐笔 dump（final-alpha §3.1 下游精确重算，Task #186）──
-    // 诊断输出，env 门控（DELTAFREE_DUMP=路径）防常规跑批膨胀；**不进判定路径**——纯读 records
-    // 落盘 ⟹ 与不 dump 时 bit-exact（下方三态计算不消费本 dump）。resid_base/cost 落 f64 bit 模式
-    // （to_bits 十六进制）保离线重算逐字节还原（round-trip 精确，非十进制截断）。records 迭代序 =
-    // walk-forward 时间序（逐窗 test 段 bar 序 append），dump 保序 ⟹ 离线 effective_n 时间序正确。
+    // ── Z_decision 逐笔序列（问题F 一等输出，无条件落盘）──
+    // δ-free 主裁决键 Z_decision=(level,bsp_class,parent_dir) 逐笔外化，resid_base/cost 落 f64 bit 模式
+    // （to_bits 十六进制）保离线复算逐字节还原。**输出产物不进判定路径**——下方在线 δ-free 主裁决
+    // 直接消费内存 `records`（deltafree_verdict），不读本 dump。records 迭代序 = walk-forward 时间序。
     dump_deltafree_pertrade(&records);
 
     // ── 残差桶 (ℓ, bsp, δ, σ^H) 的 Welford (n, mean, m2) on Y_i（§1 残差口径）+ 逐桶 Y 序列 ──
@@ -205,12 +267,32 @@ fn wverify_full() {
         ));
     }
 
+    // 含 δ 4 元组桶是**描述性报告桶**（prereg §3.1 地位不变，保留不删）——非主裁决。
     eprintln!(
-        "WV_FULL residuals={} buckets={} verdict={:?} V={} F={} I={} levels={:?} wf_windows={}",
+        "WV_FULL 报告桶(含δ,描述性) residuals={} buckets={} verdict={:?} V={} F={} I={} levels={:?} wf_windows={}",
         records.len(), agg.len(), v, nv, nf, ni, lv_set, time_blocks.len()
     );
     std::fs::write("/tmp/wv_full_rows.md", &rows).ok();
     std::fs::write("/tmp/wv_full_h2_asymmetry.md", &h2_rows).ok();
+
+    // ── δ-free 主裁决（prereg §3.2 主判据，问题F 在线收口）──
+    // 直接在内存 records 上按 Z_decision=(level,bsp_class,parent_dir) 池化两 δ 方向算主裁决——**不读
+    // 任何 dump**（deltafree_verdict 纯函数）。含 δ 4 元组降为上方描述性报告桶；本块是 verdict 主路径。
+    let (df_rows, df_v, (df_nv, df_nf, df_ni), df_lcb) = deltafree_verdict(&records);
+    eprintln!(
+        "WV_FULL δ-free 主裁决 records={} δ-free基桶={} verdict={df_v:?} V={df_nv}/F={df_nf}/I={df_ni} | LCB>0: {df_lcb}",
+        records.len(), df_nv + df_nf + df_ni,
+    );
+    std::fs::write(
+        "/tmp/wv_full_deltafree.md",
+        format!(
+            "# δ-free 主裁决（在线直出，prereg §3.2 Z_decision=(level,bsp_class,parent_dir)，问题F 收口）\n\n\
+             - records={} δ-free基桶={} verdict={df_v:?} V={df_nv}/F={df_nf}/I={df_ni}\n\
+             - LCB>0 桶：{df_lcb}\n\n{df_rows}\n",
+            records.len(), df_nv + df_nf + df_ni,
+        ),
+    )
+    .ok();
 
     // time block 报告（G-A2）：逐窗独立分桶残差均值，σ^H + 窗序号(time block)（h桶已并入 perm 分层）。
     let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC 在 PREREG_WINDOWS");
@@ -769,14 +851,12 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
     out
 }
 
-/// δ-free 聚合基精确三态离线重算（Task #186，final-alpha §3.1 下游待办的精确口径落地）。
+/// δ-free 主裁决的**离线 dump 复现器**（问题F 收口后：主裁决已在线，本测退为快速复现工具）。
 ///
-/// §3.1 的正态近似（std 由 LCB 反推、无 n_eff 事件聚集校正、无 δ-free perm_p）是**更宽松上界**
-/// （承认口径限制，231号）。本重算读 `DELTAFREE_DUMP`（wverify_full 门控落盘的逐笔序列）→ 对 22 个
-/// δ-free 基 (level,bsp_class,parent_dir) 池化 δ+1/δ−1 成员，算**精确** Welford std + **精确 n_eff**
-/// （[`decontam::effective_n`] Geyer IPS，Geyer 先例在 wverify 域）+ **δ-free perm_p**
-/// （[`perm_test::stratified_delta_perm_p_deltafree`]，B22 三处置换同批口径不动、只读出侧池化）→
-/// [`decontam::classify_bucket`] 三态。对照 §3.1 唯一 LCB>0 桶（L0 bsp3 σ+1）是否维持——结果照实（161）。
+/// 问题F 收口前 δ-free 主裁决只在此离线算（含 δ 4 元组做主 verdict 是缺口）；收口后 `wverify_full`
+/// 主路径直接在内存 records 上调 [`deltafree_verdict`] 直出主裁决。本测保留价值=**不跑 461万 bar 全量**
+/// 从冻结 dump 毫秒级复现同一裁决（CI/复算）。读 `DELTAFREE_DUMP`（Z_decision 逐笔序列）→ [`load_deltafree_dump`]
+/// 逐字节还原 records（round-trip 精确）→ 与在线共用 [`deltafree_verdict`] ⟹ 输出 = 在线主裁决表。
 /// 报告落 /tmp/deltafree_exact.md；`DELTAFREE_DUMP=/path cargo test --release --lib
 /// theta_v0::backtest::wverify_run::deltafree_exact_recompute -- --ignored --nocapture`。
 #[test]
@@ -786,61 +866,18 @@ fn deltafree_exact_recompute() {
     let records = load_deltafree_dump(&dump);
     assert!(!records.is_empty(), "δ-free dump 空——先跑 DELTAFREE_DUMP=<path> wverify_full 落盘");
 
-    // δ-free 基 (level,bsp_class,parent_dir)：池化两 δ 方向，时间序 Y 序列（records 已按 walk-forward 序）。
-    let mut series: BTreeMap<(u32, u8, i8), Vec<f64>> = BTreeMap::new();
-    for r in &records {
-        series
-            .entry((r.class.level, r.class.bsp_class(), r.class.parent_dir))
-            .or_default()
-            .push(r.y());
-    }
-    // δ-free perm_p（B22 同批置换，只读出侧池化）。
-    let pp = perm_test::stratified_delta_perm_p_deltafree(&records, perm_test::N_PERM, perm_test::PERM_SEED);
-    let (za, pa) = (1.645_f64, 0.05_f64);
-
-    let mut rows = String::from(
-        "| L | bsp | σ^H | N | n_eff | mean(Y) | std | lcb | ucb | cv | perm_p | state |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n",
-    );
-    let mut states = Vec::new();
-    let mut lcb_pos: Vec<String> = Vec::new();
-    for ((lv, bc, pd), ys) in &series {
-        let n = ys.len();
-        let mean = ys.iter().sum::<f64>() / n as f64;
-        // 精确 Welford std（样本 std，n−1 分母）——非 §3.1 由 LCB 反推的近似 std。
-        let std = if n < 2 {
-            f64::NAN
-        } else {
-            (ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt()
-        };
-        let se = std / (n as f64).sqrt();
-        let (lcb, ucb) = (mean - za * se, mean + za * se);
-        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
-        let n_eff = decontam::effective_n(ys); // 精确 Geyer IPS（§3.1 缺此项）
-        let perm_p = *pp.get(&(*lv, *bc, *pd)).unwrap_or(&1.0);
-        let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
-        states.push(st);
-        if lcb > 0.0 {
-            lcb_pos.push(format!("L{lv} bsp{bc} σ{pd:+} (mean{mean:+.2} lcb{lcb:+.2} n_eff{n_eff:.1} perm_p{perm_p:.3} {st:?})"));
-        }
-        rows.push_str(&format!(
-            "| L{lv} | {bc} | σ{pd:+} | {n} | {n_eff:.2} | {mean:+.4} | {std:.2} | {lcb:+.4} | {ucb:+.4} | {cv:.3} | {perm_p:.3} | {st:?} |\n"
-        ));
-    }
-    let v = decontam::global_verdict(&states);
-    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
-    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
-    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
-
+    // 与在线 wverify_full 主路径共用 deltafree_verdict（单一口径）——dump 还原 records 与在线 records
+    // 逐字节相等（round-trip 精确，见 deltafree_dump_roundtrip_and_pooling），故本复现 = 在线主裁决。
+    let (rows, v, (nv, nf, ni), lcb) = deltafree_verdict(&records);
+    let n_buckets = nv + nf + ni;
     let summary = format!(
-        "# δ-free 聚合基精确三态重算（Task #186，final-alpha §3.1 精确口径）\n\n\
-         - dump={dump} records={} δ-free基桶={} verdict={v:?} V={nv}/F={nf}/I={ni}\n\
-         - LCB>0 桶（精确口径）：{}\n\n{rows}\n",
-        records.len(), series.len(),
-        if lcb_pos.is_empty() { "无".into() } else { lcb_pos.join("; ") },
+        "# δ-free 聚合基精确三态重算（Task #186，final-alpha §3.1 精确口径；离线 dump 复现器）\n\n\
+         - dump={dump} records={} δ-free基桶={n_buckets} verdict={v:?} V={nv}/F={nf}/I={ni}\n\
+         - LCB>0 桶（精确口径）：{lcb}\n\n{rows}\n",
+        records.len(),
     );
     std::fs::write("/tmp/deltafree_exact.md", &summary).ok();
-    eprintln!("DELTAFREE_EXACT records={} buckets={} verdict={v:?} V={nv}/F={nf}/I={ni} | LCB>0: {}",
-        records.len(), series.len(), if lcb_pos.is_empty() { "无".into() } else { lcb_pos.join("; ") });
+    eprintln!("DELTAFREE_EXACT records={} buckets={n_buckets} verdict={v:?} V={nv}/F={nf}/I={ni} | LCB>0: {lcb}", records.len());
 }
 
 #[cfg(test)]

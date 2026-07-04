@@ -2698,6 +2698,63 @@ mod tests {
         eprintln!("on2w3 merge skip 神谕：{n} bar 全 merge 调用逐 bar skip==全量（debug_assert 未 panic）");
     }
 
+    /// ★697 号 ceiling L2 验证（AncOK parent 稳定性收口，a5 工位）——真实 BTC 全引擎跑，
+    /// 统计 Stale 四态分派频次 + restore 祖先链恢复率 + **暴露面**（restore 因 registry 丢失祖先
+    /// 提前中断的次数 = 本应有 parent 但 registry 已失去）。
+    ///
+    /// 判据（`restore_break_registry_lost`）：
+    /// - =0 ⟹ persistent carrier 在真实数据上**总能**恢复祖先链（问题1.pdf 建议6「证明 parent
+    ///   可恢复」经验成立）⟹ ceiling 休眠，声部树严格性在 BTC 上未被触发。
+    /// - >0 ⟹ 暴露面转正 ⟹ 存在被 admit 子声部腿祖先链未完整 ⟹ 须按建议6 三选一实装严格修复。
+    ///
+    /// **须真实 BTC 数据**（329MB，全历史 ~百万级 bar）；`#[ignore]` 默认不跑，L2 收口时
+    /// `cargo test --release --lib -- --ignored --nocapture ancok_l2_ceiling_exposure_real_btc` 手动运行。
+    #[test]
+    #[ignore = "697 ceiling L2 验证；需 BTC 全历史（329MB）；重，手动 --ignored 跑"]
+    fn ancok_l2_ceiling_exposure_real_btc() {
+        use super::super::data;
+        use crate::theta_v0::strategy::coverage::{ancok_probe_reset, ancok_probe_snapshot};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("BTC", &config).expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
+        let n = ds.bars.len();
+        let years = (n as f64) / super::super::data::bars_per_year(ds.bar_seconds);
+
+        ancok_probe_reset();
+        let res = run_theta_v0_pi(&ds, &config, years, 1.0e6);
+        let p = ancok_probe_snapshot();
+
+        // 探针记账封闭性（自检）：每次 restore 调用恰好以三种方式之一终止。
+        assert_eq!(
+            p.restore_complete + p.restore_break_already_in_raw + p.restore_break_registry_lost,
+            p.restore_calls,
+            "restore 终止方式记账不封闭（探针 bug）"
+        );
+        // Stale 四态分派封闭性（自检）：四态之和 == Stale arm 命中总数。
+        assert_eq!(
+            p.state_live_present + p.state_live_detached + p.closed_inval_boundary_kept + p.closed_inval_pruned,
+            p.stale_arm,
+            "Stale 四态分派记账不封闭（探针 bug）"
+        );
+
+        let restore_success_rate = if p.restore_calls == 0 {
+            f64::NAN
+        } else {
+            (p.restore_complete + p.restore_break_already_in_raw) as f64 / p.restore_calls as f64
+        };
+        eprintln!("═══ 697 ceiling L2 验证（BTC {n} bar, is_l2={}） ═══", res.is_l2);
+        eprintln!("Stale arm 命中总数        : {}", p.stale_arm);
+        eprintln!("  ├ LivePresent          : {}", p.state_live_present);
+        eprintln!("  ├ LiveDetached         : {}", p.state_live_detached);
+        eprintln!("  ├ Closed/Inval 作根保留 : {}", p.closed_inval_boundary_kept);
+        eprintln!("  └ Closed/Inval 诚实剪   : {}", p.closed_inval_pruned);
+        eprintln!("restore 调用总数          : {}", p.restore_calls);
+        eprintln!("  ├ 自然收敛（抵达真根）  : {}", p.restore_complete);
+        eprintln!("  ├ 提前收敛（已在 raw）  : {}", p.restore_break_already_in_raw);
+        eprintln!("  └ ★暴露面（registry 丢失）: {}", p.restore_break_registry_lost);
+        eprintln!("restore 恢复成功率        : {restore_success_rate:.6}");
+        eprintln!("═══════════════════════════════════════════════");
+    }
+
     /// ★Q2 close_pred 折 𝒦_Θ（loop 内见证）：风控门把退出折进可行集（非第二出口）——
     /// k_theta_risk_gate 产门 + pi_theta_position 收窄 𝒦_Θ。此处坐实 force_flat（Insolvent equity≤0）门。
     #[test]

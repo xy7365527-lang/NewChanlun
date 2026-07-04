@@ -59,6 +59,74 @@ use super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
 use super::voice::{depth_weight, VoiceSide};
 
 // ════════════════════════════════════════════════════════════════════════════
+//  AncOK L2 探针（697 号 ceiling 暴露面度量）——thread_local 计数器
+// ════════════════════════════════════════════════════════════════════════════
+// ponytail: 常驻探针，非临时诊断。697 ceiling 自陈「L2/L3 待验证」——保留探针 = 让任一真实
+// 数据 run 可复测 Stale 四态分派频次与 restore 祖先链恢复率。增量成本（thread_local Cell +=1）
+// 只在 held-leg Stale/restore 路径命中（cdylib 分类热路径不经此），被环绕的 HashMap 操作淹没。
+// 计数纯旁路，不改任何 work/raw 控制流 ⟹ 生产 bit-exact 不变。
+
+/// AncOK Stale 四态分派 + 祖先链恢复的运行时计数（anc.pdf §10 四态 + restore）。
+///
+/// 承载 697 号 ceiling 的**可观测暴露面**：`restore_break_registry_lost` > 0 ⟺ 存在被 admit 的
+/// 子声部腿其操作祖先链未被 registry 完整恢复（本应有 parent 但 registry 已失去）⟹ 声部树非严格。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct AncokProbe {
+    /// `HeldLegMatch::Stale` 命中总次数（snapshot 找不到持仓腿）。
+    pub stale_arm: u64,
+    /// Stale 内四态：LivePresent（Exact 未命中但 registry present——理论不可达，按持久身份保留）。
+    pub state_live_present: u64,
+    /// Stale 内四态：LiveDetached（持久存活、快照未展示——修复核心，触发 restore）。
+    pub state_live_detached: u64,
+    /// Stale 内四态：Closed/Invalidated 且 `is_boundary_root` ⟹ 作根保留（parent_id=None 合法）。
+    pub closed_inval_boundary_kept: u64,
+    /// Stale 内四态：Closed/Invalidated 且非边界根 ⟹ prune（诚实剪，建议6 选项1）。
+    pub closed_inval_pruned: u64,
+    /// `restore_ancestor_chain_from_registry` 调用总次数（LiveDetached 持仓腿 + open 候选父链）。
+    pub restore_calls: u64,
+    /// restore 自然收敛（cur=None，抵达真根，整条祖先链已恢复/复用完毕）。
+    pub restore_complete: u64,
+    /// restore 因祖先已在 raw 提前收敛（闭包已满足，合法完整）。
+    pub restore_break_already_in_raw: u64,
+    /// ★暴露面：restore 因 registry 丢失/作废祖先提前中断（本应有 parent 但 registry 已失去）。
+    /// >0 ⟹ 被 admit 子声部腿祖先链未完整 ⟹ 声部树非严格（697 ceiling 的可观测触发条件）。
+    pub restore_break_registry_lost: u64,
+}
+
+thread_local! {
+    static ANCOK_PROBE: std::cell::Cell<AncokProbe> = const { std::cell::Cell::new(AncokProbe {
+        stale_arm: 0,
+        state_live_present: 0,
+        state_live_detached: 0,
+        closed_inval_boundary_kept: 0,
+        closed_inval_pruned: 0,
+        restore_calls: 0,
+        restore_complete: 0,
+        restore_break_already_in_raw: 0,
+        restore_break_registry_lost: 0,
+    }) };
+}
+
+#[inline]
+fn ancok_probe_bump(f: impl FnOnce(&mut AncokProbe)) {
+    ANCOK_PROBE.with(|c| {
+        let mut p = c.get();
+        f(&mut p);
+        c.set(p);
+    });
+}
+
+/// 归零 AncOK 探针（L2 run 前调用）。
+pub fn ancok_probe_reset() {
+    ANCOK_PROBE.with(|c| c.set(AncokProbe::default()));
+}
+
+/// 读取 AncOK 探针快照（L2 run 后调用）。
+pub fn ancok_probe_snapshot() -> AncokProbe {
+    ANCOK_PROBE.with(std::cell::Cell::get)
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 //  §1 语法元素 e（M16/M17 `SyntaxElement` 的 rust 镜像，从 classifier 塔提取）
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -1730,11 +1798,15 @@ fn restore_ancestor_chain_from_registry(
     id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
 ) {
+    ancok_probe_bump(|p| p.restore_calls += 1);
+    let mut broke = false;
     let mut cur = Some(start_pid);
     while let Some(pid) = cur {
         // 已在 raw 中？⟹ 闭包满足，停止递归。
         let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
         if already_in_raw {
+            ancok_probe_bump(|p| p.restore_break_already_in_raw += 1);
+            broke = true;
             break;
         }
         // ★(I-1) 祖先若已在 work（树前缀 carrier / restore 已 push 的）但不在 raw，**复用现有 idx**入 raw
@@ -1749,7 +1821,12 @@ fn restore_ancestor_chain_from_registry(
         // 从 registry 取元素（work 中尚无 ⟹ 真 LiveDetached 祖先，须从持久身份恢复）。
         let pe = match registry.get(&pid) {
             Some(e) if !e.invalidated => e,
-            _ => break, // registry 无效或已作废 ⟹ 停止（不再恢复祖先）
+            _ => {
+                // ★暴露面：registry 无效/已作废 ⟹ 停止（祖先未完整恢复，本应有 parent 但已失去）。
+                ancok_probe_bump(|p| p.restore_break_registry_lost += 1);
+                broke = true;
+                break;
+            }
         };
         let parent_pid = pe.structural_parent_id;
         let op_idx = work.len();
@@ -1766,6 +1843,10 @@ fn restore_ancestor_chain_from_registry(
         overlay_seen.entry(pe.pid).or_insert(op_idx); // 记录新 push 的 overlay idx（首次出现序，复用查 O(1)）。
         raw.push(op_idx);
         cur = parent_pid; // 上溯祖先链
+    }
+    if !broke {
+        // 自然收敛（cur=None 抵达真根）：整条操作祖先链已恢复/复用完毕。
+        ancok_probe_bump(|p| p.restore_complete += 1);
     }
 }
 
@@ -1832,9 +1913,11 @@ pub(crate) fn coverage_step_from_buckets(
             // e∉Ej 只是 snapshot_present(e)=0，不是 persistent_alive(e)=0（§8）。
             // 检查 persistent registry：LiveDetached 保留（op_parent 持久，I4+I5），Invalidated 才 prune。
             HeldLegMatch::Stale => {
+                ancok_probe_bump(|p| p.stale_arm += 1);
                 let held_state = registry.held_state(leg);
                 match held_state {
                     super::persistent::HeldLegState::LivePresent => {
+                        ancok_probe_bump(|p| p.state_live_present += 1);
                         // 理论不可达（Exact 未命中但 registry LivePresent = snapshot 不一致）；
                         // 按持久身份保留（I1），op_parent 驱动 AncOK。
                         let idx = work.len();
@@ -1851,6 +1934,7 @@ pub(crate) fn coverage_step_from_buckets(
                         raw.push(idx);
                     }
                     super::persistent::HeldLegState::LiveDetached => {
+                        ancok_probe_bump(|p| p.state_live_detached += 1);
                         // ★anc.pdf §10 核心修复：LiveDetached 不 prune，不伪造 root。
                         // parent 仍是 op_parent(L)（§15），只是当前 snapshot 没展示。
                         // op_parent 在 persistent registry 中 live（I4）→ AncOK 通过（I5）。
@@ -1878,6 +1962,7 @@ pub(crate) fn coverage_step_from_buckets(
                     super::persistent::HeldLegState::Closed | super::persistent::HeldLegState::Invalidated => {
                         // 显式关闭/作废 → prune（§9 rule 5：只有 close/risk close/invalidation 才退出 live）。
                         if leg.is_boundary_root {
+                            ancok_probe_bump(|p| p.closed_inval_boundary_kept += 1);
                             // 真边界根 ∂：作根保留（parent_id=None 合法，AncOK 不剔）。
                             let idx = work.len();
                             work.push(CoverageElement {
@@ -1891,8 +1976,10 @@ pub(crate) fn coverage_step_from_buckets(
                                 parent_id: None,
                             });
                             raw.push(idx);
+                        } else {
+                            ancok_probe_bump(|p| p.closed_inval_pruned += 1);
+                            // 非边界根且 invalidated/closed → prune（不入 raw，§9 rule 5）。
                         }
-                        // 非边界根且 invalidated/closed → prune（不入 raw，§9 rule 5）。
                     }
                 }
             }
