@@ -95,7 +95,36 @@ residuals=2256。
 - 结论：正残差是 **BTC 独有**（BTC secular bull beta），σ̂ 归一化跨标的池化后消失甚至转负——memory `l3_cross_symbol_btc_idiosyncratic` 全历史确认。
 
 ### R5 q4 π^full 四臂 policy 回测（§6.1，`q4_fullpi_policy`）
-> **[待填——R5 在冻结二进制 `newchan_rust-9cb5b83727a3eeb0` 上直跑中，避开 #183 未提交 mod.rs 编辑造成的编译污染]**
+
+**跑批口径**：跑于 on2 三波次修复后 HEAD（本工位 release 二进制），数字与冻结 `ebcd8f2a0f` 口径逐字节等价——`q4_fullpi_policy.md` 报告与冻结二进制 `newchan_rust-9cb5b83727a3eeb0` 直跑产物 **bit-identical**（BTC p3fold/wf7-11 + CL p3fold/wf10-14 全 11 窗×4 臂逐行相同），on2 修复满足 bit-exact 契约。Σpnl=含浮盈（`trade_pnls_with_forced`），nav₀=窗首可交易价×1000。
+
+**BTC walk-forward 聚合（wf 窗 Σ，不含 p3fold）**：
+
+| 臂 | ΣΣpnl | Σorders |
+|---|---|---|
+| Arm0 无χ | −216,530,194 | 151,869 |
+| Arm1 π^full | **+0** | **0** |
+| Arm2 teap=true | −128,214,024 | 126,080 |
+| Arm3 隔离 | +1,220,748 | 10,202 |
+
+**CL walk-forward 聚合（wf 窗 Σ，不含 p3fold）**：
+
+| 臂 | ΣΣpnl | Σorders |
+|---|---|---|
+| Arm0 无χ | −305,360 | 128,167 |
+| Arm1 π^full | **+0** | **0** |
+| Arm2 teap=true | −194,502 | 109,197 |
+| Arm3 隔离 | +0 | 0 |
+
+**四臂增量判读**（对齐 §6.1 四教训）：
+1. **Arm1 π^full 全窗 orders=0（χ 空仓确认）**：BTC/CL 全部 11 窗 Arm1 下单为 0——π^full 语义下 χ（可交易类集）为空，无任何委托。这是 §6.1「χ 空仓」教训的直接复现，与 memory `q4_fullpi_no_alpha`「χ spec 语义 9/12 窗空仓」一致（本轮全窗空仓，更强）。
+2. **Arm1−Arm3（G7+margin 增量）≈ 0**：除 BTC wf10（Arm3 因隔离逻辑触发 10202 orders，ΔΣpnl=−1,220,748）外，全窗 G7/margin 增量为 0——G7/margin 约束在 χ 空仓前提下无 binding 空间（memory「G7/margin 零 binding」复现）。
+3. **Arm2 teap=true 全窗巨亏**（BTC ΣΣpnl=−1.28 亿 / CL=−19.5 万）：teap 放开后大量下单（BTC 12.6 万 orders）全线亏损，max_dd 多窗 >0.6——放开交易类不产生 alpha，只放大 beta 亏损。
+4. **Arm0 无χ 基线同样巨亏**：无 χ 约束裸跑 BTC ΣΣpnl=−2.17 亿——确认 χ 约束（空仓）在此数据/口径下**优于**放开交易（Arm0/Arm2 均巨亏），但「优于亏损」不是正 alpha，是「不交易 > 乱交易」。
+
+**R5 结论**：q4 π^full 四臂全口径**无 confirmed 方向 alpha**——Arm1（π^full 生产语义）全窗空仓（Σpnl=0），放开约束的 Arm0/Arm2 全线巨亏。与主判据 §2.1-§2.4 及 §3 五路证据一致收敛 **INCONCLUSIVE**。R5 作为非 co-primary 诊断段，其结果**印证而非改变**终局判定。
+
+**耗时实测对照（on2 战役 L2 数据点）**：R5 全段（11 窗×4 臂，O(n²) profile）on2 修复后 HEAD 实测 **467.75s（≈7.8 min）**，冻结二进制直跑 **2747.92s（≈45.8 min）**——实测加速 **5.87x**，**低于 on2 预估的 25x**。q4 policy 段的加速比不及第二波两泳道 bit-exact 段（推测：policy 段热点在 est×2 逐窗重估路径，未被 on2 的 A1 Rc化/C3 partition_point 二分覆盖）。
 
 ---
 
