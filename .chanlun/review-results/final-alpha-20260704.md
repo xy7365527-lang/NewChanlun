@@ -57,18 +57,18 @@ BTC walk-forward OOS，5 窗（test_start≥OOS_START），residuals=2256，buck
 
 - **报告桶（4元组 (ℓ,bsp,δ,σ^H)）verdict=Pass**，唯一 Validated=`L0 bsp3 δ+1 σ+1`（n=156 mean+162.25 LCB+81.18 perm_p=0.000）。
 - **关键 beta 漂移诊断**：同桶 δ−1 对照（`L0 bsp3 δ−1 σ+1`）mean=**+162.91**（n=92 LCB+23.01 perm_p=0.000，state=Inconclusive 仅因 n_eff=58<门）——**两个 δ 方向同为正 +162**。δ-free 池化均值=+162.50。这是 657/memory oddeven 的 beta 漂移签名：正残差来自 BTC 长期上行 beta 混入，非买/卖方向性 alpha。
-- **H2 方向不对称 co-primary（β=μ_sell−μ_buy，block bootstrap 50bar）**：
+- **H2 方向不对称 co-primary（β=μ_sell−μ_buy，block bootstrap）**（两块长并列，β 点估计相同）：
 
-| L | n_buy | n_sell | mean_buy(Y) | mean_sell(Y) | β=μ_sell−μ_buy | boot_p(H0:β≤0) |
-|---|---|---|---|---|---|---|
-| L0 | 1026 | 996 | −0.10 | −12.07 | −11.97 | 0.6400 |
-| L1 | 87 | 65 | +113.21 | −402.24 | −515.46 | 0.9900 |
-| L2 | 22 | 28 | −43.70 | −206.00 | −162.30 | 0.6660 |
-| L3 | 19 | 1 | −283.29 | +61.83 | +345.13 | 0.0000（n_sell=1 退化，不可采） |
+| L | n_buy | n_sell | mean_buy(Y) | mean_sell(Y) | β=μ_sell−μ_buy | boot_p(block=20，冻结主二进制) | boot_p(block=50，prereg §7 冻结值) |
+|---|---|---|---|---|---|---|---|
+| L0 | 1026 | 996 | −0.10 | −12.07 | −11.97 | 0.6400 | 0.6330 |
+| L1 | 87 | 65 | +113.21 | −402.24 | −515.46 | 0.9900 | 0.9970 |
+| L2 | 22 | 28 | −43.70 | −206.00 | −162.30 | 0.6660 | 1.0000 |
+| L3 | 19 | 1 | −283.29 | +61.83 | +345.13 | 0.0000 | 0.0000（n_sell=1 退化，不可采） |
 
-→ co-primary β 路径在 L0/L1/L2 **全不显著**（boot_p≥0.64）；L3 唯一 p=0.0000 但 n_sell=1 结构退化。**co-primary acceptance 路径不 PASS**。
+→ co-primary β 路径在 L0/L1/L2 **全不显著**（两块长 boot_p 均≥0.63）；L3 唯一 p=0.0000 但 n_sell=1 结构退化。**co-primary acceptance 路径不 PASS，两块长一致成立**。
 
-> **⚠ 冻结偏离照实（prereg §8 fail 条件2，161）**：冻结代码 `wverify_run.rs:170` 调用 `direction_asymmetry_beta_pvalue(buy, sell, n_resample=1000, block=20, seed)`——**block bootstrap 块长=20**，但 prereg §7 裁定2 冻结为**固定 50 bar**。这是冻结代码 vs 冻结 prereg 在 co-primary 参数上的不一致（prereg 冻结时刻代码块长未同步改到 50）。**不回改冻结文本、不改冻结代码**（no-patch），偏离照实入本包。**对终局判定无影响**：boot_p=0.64/0.99/0.67 的不显著结论，块长 20→50 不会翻转为显著（块长只影响自相关吸收强度，不改一个 p≈0.99 的方向检验为拒绝）。**报 Lead**：是否需以 block=50 重跑 H2 复核（次要复核，不阻塞终局 INCONCLUSIVE）。
+> **⚠ 冻结偏离照实 + block=50 复跑（prereg §8 fail 条件2，161；Lead 裁定2 零简化）**：冻结主二进制 `wverify_run.rs:170` 用 **block=20**，prereg §7 裁定2 冻结为**固定 50 bar**——co-primary 参数不一致。Lead 令在隔离 worktree（冻结 commit ebcd8f2a0f，仅改此一字面 20→50，其余 bit-exact）补跑 block=50。上表两块长并列即结果：**β 点估计完全相同**（块长只影响 bootstrap 重采样非观测统计量），boot_p L0/L1/L2 两块长均≥0.63（block=50 在 L1/L2 甚至更不显著）。**「预期不翻」经实测证实**（090：实测优先于预期）。co-primary β 路径不 PASS 在两块长下一致。隔离树日志 `/tmp/finalpha/h2_block50.log`。
 
 ### R3 wverify_fullz（full-z 报告桶 + UClass 降维，`wverify_fullz`）
 residuals=2256。
