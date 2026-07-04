@@ -8,7 +8,7 @@ type: bias-correction   # 订正 fullhist-multilevel goal 的 acc-highlevel-mu �
 source: "[新缠论] docs/formal-chain/问题1.pdf（16页《推导完全分类》终局裁定，INDEX.md 权威链）+ 编排者令 2026-07-04（『问题1.pdf 作为 goal 严格执行』）+ goal SUPERSEDE 事件 .chanlun/goals/events.jsonl:293（old=g-20260630T2010Z-fullhist-multilevel-3ecaf6 / new=g-20260704T1756Z-strategy-object-freeze-cbc36d，reason 明文『acc-highlevel-mu 被 acc-highlow-power 扬弃承接』）；被扬弃对象出处 = old goal acc-highlevel-mu（events.jsonl:250 acc 定义）+ acc-multilevel-sample 自陈 Le Cam 硬墙分支"
 negation_source: heterogeneous   # 裁定依据=问题1.pdf 外部形式化推导文档（编排者 INDEX.md 权威链）的直接应用；无外部模型 session 裁量。
 negation_model: null   # 同 690 口径：编排者既有权威链裁定（问题1.pdf）的直接应用，非 codex/gemini 模型裁量。
-negation_form: aufhebung   # 否定（稀疏高级别自估 μ̂ = 无功效，acc-highlevel-mu 的直接估计路径）+ 保留（高级别买卖点确是编排者关注的 alpha 方向候选，价值不否）+ 提升（分离为『高级别=方向/容器/过滤』⊥『低级别=执行/样本源』双正交层，区间套统计版）。内含 separation：高级别 alpha 检验空间分裂为方向层/样本源层。
+negation_form: aufhebung   # 否定（稀疏高级别自估 μ̂ = 无功效，acc-highlevel-mu 的直接估计路径）+ 保留（高级别买卖点确是编排者关注的 alpha 方向候选，价值不否）+ 提升（分离为『高级别=方向/容器/过滤』⊥『低级别=执行/样本源』双正交层，区间套统计版）。内含 separation：高级别 alpha 检验节点分裂为方向层/样本源层。
 
 # 拓扑效果标注（147号下游推论3：negates 非空必填）
 # negates：fullhist-multilevel goal 的 acc-highlevel-mu 隐含前提——「高级别（level2+）买卖点可在其自身逐信号样本上直接估 μ̂ 并据此下 alpha 结论」。
@@ -116,3 +116,24 @@ validity-domain；694=estimand/样本源轴的功效墙重构）。SUPERSEDE rea
 
 概念层扬弃已辨认。待编排者 /ritual 追认 + acc-highlow-power 实装落地（低级别执行 μ̂ 的
 n_eff/功效门实测）后回溯结算。若低级别执行 μ̂ 亦无稳健增量 → 回 645 wrong-object 检查。
+
+## settle-sweep 增量扫描交叉引用注记（2026-07-04，问题G）
+
+`formal-chain-deepresearch-20260704.md` §3「问题1.pdf 十核实点判定表」#7（本号对应"问题G"）
+判定为 **GAP_CONFIRMED（三分定性）**："高级别定方向+低级别执行统计"：交易执行层已有等价物
+（`route_bsp` top-down 方向传导）；**alpha 统计层为全新缺口**（三套桶键 level 全是独立分层维，
+无跨级 pooling）；σ^H 半个零件已在（塔真值填第 9 维）但被 codex-q1 G2 裁定不进桶键。落地成本
+低于从零，需新 prereg（i_class×δ 共线教训在案）。
+
+**交叉核对结论**：deep-research 的判定与本条目的核心主张**一致且互补**——本条目断言
+「acc-highlevel-mu 直接估计路径无功效，须重构为高级别定方向+低级别样本源」，deep-research
+独立核实了该重构在**实装层的现状分解**：执行层（route_bsp 方向传导）已具备等价机制，但
+**alpha 统计层本身是全新缺口**（本号 pending_verification 中"acc-highlow-power 实装后...
+n_eff/功效门实测"正是指向这个统计层缺口的闭合）。deep-research 额外补充的细节
+（σ^H 已算但 codex-q1 G2 裁定不进桶键、需新 prereg 避免 i_class×δ 共线教训重演）是本条目
+`pending_verification` 尚未纳入的**实装约束**，应在 acc-highlow-power 实装工位启动时一并
+纳入设计，防止重蹈 657 号（i_class×δ 共线置换自毁）的覆辙。
+
+**本条目状态不变**（仍待编排者 /ritual 追认 + 实装落地回溯结算），本注记补充：
+acc-highlow-power 的实装范围须显式排除"σ^H 直接进桶键"这一路径（已被 codex-q1 G2 裁定
+排除），改走"高级别方向条件"的过滤/分层机制，避免共线退化。

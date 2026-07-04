@@ -5,7 +5,7 @@ status: pending
 type: 概念层裁定（escalate 点）
 source_task: goal g-20260704T1756Z-strategy-object-freeze-cbc36d / acc-target-freeze
 depends_on: [685, 690]
-related: [684, 692]
+related: [684, 692, 696]
 date: 2026-07-04
 ---
 
@@ -67,3 +67,29 @@ docs/formal-chain/有效域定理-20260704.md）。即一切「测过=否证」�
 1. 编排者裁定「多重赋格/短差是策略核心，本轮就必须检验」→ A11 对本轮翻 MUST，
    Π_target 改 Π_exec-full，本轮 alpha 复验作废重跑。
 2. 编排者裁定信号层检验必须带杠杆环境 → A10 翻 MUST，K 层重定义。
+
+## settle-sweep 增量扫描交叉引用注记（2026-07-04，三路线对照）
+
+`formal-chain-deepresearch-20260704.md` §4「三条路线落地对照表」是本条目三分冻结
+（Π_signal-full/Π_exec-full/Π_treasury-full）的**直接下游消费者**——该报告把本条目
+的三对象逐一映射为「路线A/B/C」并给出各自的现状与剩余量级：
+
+- **路线A（Π_signal-full，本条目"本轮 Π_target"）**：P1 区间套/P2 ForceState/P4 六类
+  买卖点/P7 typed exit 已收口；(i) d 入状态/μ_R estimand（见 `696` 号，estimand 选择
+  待独立 /escalate）、(iii) δ-free 在线主裁决、(iv) AncOK/身份彻底修复（见 `697` 号，
+  persistent.rs ceiling 待独立 /escalate）三项为剩余。四项互相独立可并行，"本轮可闭合"。
+- **路线B（Π_exec-full）**：A11 声部执行层接真实开平仓（本条目已裁 OUT_OF_SCOPE→MUST，
+  优先级#1）+ A10 保证金/强平/资金费（本条目已裁 OUT_OF_SCOPE→MUST，优先级#2）——
+  均为"大（架构级新增），未启动"，依赖序在路线A之后。**本条目的 A11/A10 硬裁决表**与
+  路线B剩余项**逐字对应**，未见冲突。
+- **路线C（Π_treasury-full/GAP3）**：Stage II/III 可达性——L1 已可达（`runner.rs:2439`
+  利润桥 assert 通过，**推翻**「架构不可达」旧归因，与 project_gap3_l2_unreachable_architecture
+  memory 记录的旧结论不一致，须按本条目最新核实订正该 memory 归因为过期）；终态判据待
+  κ 外部风险政策裁定（选择类）。
+
+**交叉核对结论**：deep-research §4 对三路线的现状描述与本条目的三分冻结表/A11-A10
+硬裁决表**完全一致**，未发现张力——该报告是本条目冻结表在实装层的**首次系统性落地
+盘点**，可视为本条目"追认前 TARGET_STRATEGY.md 即为工作口径"这一过渡状态的具体
+执行进度快照。**本条目状态不变**（仍为待编排者 /ritual 追认的 escalate 点），本注记
+仅补充：路线A的四项剩余中，两项（d/μ_R estimand、AncOK/身份彻底修复）已各自拆分为
+独立谱系条目（696/697）供编排者分别裁决，避免路线A整体被当作单一不可分割的待裁项。

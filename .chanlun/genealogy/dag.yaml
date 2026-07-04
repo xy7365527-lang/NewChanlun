@@ -3681,9 +3681,54 @@ nodes:
   file: pending/691-codex-f2-single-instance-yagni-overturned-by-temporal-reentry-gen1.md
 - id: '692'
   title: cand_channel 通道轴与 i_class 类别轴正交——bsp_cand_type 坍缩非缺口
-  status: pending
+  status: settled
   type: 语法记录
-  file: pending/692-cand-channel-provenance-axis-orthogonal-to-iclass-category-axis.md
+  file: settled/692-cand-channel-provenance-axis-orthogonal-to-iclass-category-axis.md
+- id: '693'
+  title: 策略对象三分冻结 + A11/A10 硬裁决——待编排者 /ritual 追认
+  status: pending
+  type: 概念层裁定（escalate 点）
+  file: pending/693-strategy-object-triple-freeze-a11-a10-hard-ruling.md
+- id: '694'
+  title: acc-highlevel-mu（稀疏高级别买卖点直接估 μ̂）被 acc-highlow-power（高级别定方向 + 低级别出执行样本，区间套统计版）扬弃承接——高级别
+    alpha 检验节点分裂为『方向/容器角色』⊥『执行/样本源』两正交层
+  status: 生成态
+  type: bias-correction
+  file: pending/694-highlevel-mu-direct-estimation-superseded-by-highlow-power-interval-nesting.md
+- id: '695'
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/2026-07-04-meta-observation-cursor-harness-portability-three-events-623-instance8-672-review-gate.md
+- id: '696'
+  title: μ_R(z)=E[X/d|z] estimand（结果变量按 d 缩放）与 690 号裁定的 d-入-z-桶键 是两条正交轴——690 三条理由未覆盖
+    estimand 分支，须新预注册（问题C，TENSION）
+  status: 生成态
+  type: bias-correction
+  file: pending/696-mu-r-estimand-outcome-scaling-orthogonal-to-690-bucket-key-exclusion.md
+- id: '697'
+  title: persistent.rs 自认『最小修复』的彻底修复 ceiling（增量 extract_elements/confirmed prefix
+    immutable 元素层，L2/L3 待验证）须独立跟踪——codex-gap2rulings 条目6 建议『另开条目』核实未开，本号开条目，不再挂 A4
+    名下
+  status: 生成态
+  type: bias-correction
+  file: pending/697-persistent-rs-ceiling-tracking-split-from-a4-ancok-mechanism-verified.md
+- id: '698'
+  title: ''
+  status: 已结算
+  type: source-tracing
+  file: settled/698-source-tracing-type2-panzhengbeichi-vs-maimai-def4.md
+- id: '699'
+  title: relations.jsonl 125MB LFS 对象本机彻底不存在且仓库无任何 git remote——549 冻结原因从『未 pull』修正为『对象丢失+无远端可拉』，解冻路径
+    A 升级为编排者门控的物质缺口
+  status: 生成态
+  type: 矛盾发现
+  file: pending/699-relations-lfs-object-missing-no-remote-549-freeze-cause-corrected.md
+- id: meta-observation-single-verifier-bias-api-quota-20260704
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md
 edges:
   depends_on:
   - from: '679'
@@ -7090,6 +7135,66 @@ edges:
     to: '138'
   - from: '692'
     to: '159'
+  - from: '693'
+    to: '685'
+  - from: '693'
+    to: '690'
+  - from: '694'
+    to: '660'
+  - from: '694'
+    to: '661'
+  - from: '694'
+    to: '231'
+  - from: '695'
+    to: '623'
+  - from: '695'
+    to: '672'
+  - from: '695'
+    to: '630'
+  - from: '695'
+    to: '624'
+  - from: '696'
+    to: '690'
+  - from: '696'
+    to: '231'
+  - from: '696'
+    to: 018
+  - from: '697'
+    to: '231'
+  - from: '697'
+    to: 090
+  - from: '697'
+    to: '652'
+  - from: '697'
+    to: '275'
+  - from: '698'
+    to: '145'
+  - from: '698'
+    to: '672'
+  - from: '698'
+    to: '402'
+  - from: '698'
+    to: '231'
+  - from: '686'
+    to: '683'
+  - from: '699'
+    to: '549'
+  - from: '699'
+    to: '145'
+  - from: '699'
+    to: '672'
+  - from: '699'
+    to: '402'
+  - from: '699'
+    to: '231'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '145'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '672'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '402'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '231'
   triggered:
   - from: '005'
     to: 005a
@@ -7291,6 +7396,10 @@ edges:
       pre-interrupt 在制品误标为污染）
   - from: '677'
     to: 'gap3-bridge acc-GAP3 『字面 PASS』承重节点（task #10 产出 / gap3-bridge-20260702.md）'
+  - from: '699'
+    to: 549号 §十 结算的隐含前提『A（git lfs pull）的物质载体存在于远端，执行只欠操作者基础设施动作（装 CLI+配远端）』——被证伪一半：git-lfs
+      CLI 现已在（3.7.1，549 §九.2 的 CLI 缺失已消除），但『配置远端』无对象可指——仓库无 remote，兄弟克隆无对象，oid 3b895e98…a006d416（125,404,332
+      B）在本机可达范围内彻底不存在。
   related:
   - between:
     - '001'
@@ -10724,6 +10833,113 @@ edges:
   - between:
     - '657'
     - '692'
+  - between:
+    - '684'
+    - '693'
+  - between:
+    - '692'
+    - '693'
+  - between:
+    - '693'
+    - '694'
+  - between:
+    - '663'
+    - '694'
+  - between:
+    - '665'
+    - '694'
+  - between:
+    - '645'
+    - '694'
+  - between:
+    - '690'
+    - '694'
+  - between:
+    - '647'
+    - '694'
+  - between:
+    - '141'
+    - '695'
+  - between:
+    - '316'
+    - '695'
+  - between:
+    - '062'
+    - '695'
+  - between:
+    - '331'
+    - '695'
+  - between:
+    - '314'
+    - '695'
+  - between:
+    - 090
+    - '695'
+  - between:
+    - 2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift
+    - '695'
+  - between:
+    - 2026-07-02-meta-observation-session-resilience-recurrence-3rd-instance-e880cf50-annotation
+    - '695'
+  - between:
+    - '693'
+    - '696'
+  - between:
+    - '684'
+    - '696'
+  - between:
+    - '691'
+    - '697'
+  - between:
+    - '693'
+    - '697'
+  - between:
+    - '698'
+    - '[[673]]（同族同根：Type1趋势背驰/Extreme vs Type2盘整背驰/完备性判据混用；本条是673代码bug的定义层上游——错误定义为Type1-only谓词滤Type2提供正当化。genealogist
+      2026-07-02 张力发现：建议/ritual与673同批处理）'
+  - between:
+    - '695'
+    - '698'
+  - between:
+    - '683'
+    - '686'
+  - between:
+    - '231'
+    - '686'
+  - between:
+    - 090
+    - '686'
+  - between:
+    - '673'
+    - '[[698-source-tracing-type2-panzhengbeichi-vs-maimai-def4]]（定义层上游root：maimai#4过度泛化为本bug提供定义正当化，genealogist裁定/ritual同批处理；原引用
+      2026-07-02-source-tracing-*，该文件 2026-07-04 补编号重命名为 698）'
+  - between:
+    - '670'
+    - '673'
+  - between:
+    - '231'
+    - '673'
+  - between:
+    - '017'
+    - '673'
+  - between:
+    - '690'
+    - '696'
+  - between:
+    - '626'
+    - '699'
+  - between:
+    - '476'
+    - '699'
+  - between:
+    - '622'
+    - '699'
+  - between:
+    - '695'
+    - '699'
+  - between:
+    - '695'
+    - meta-observation-single-verifier-bias-api-quota-20260704
   tensions_with:
   - between:
     - '007'
