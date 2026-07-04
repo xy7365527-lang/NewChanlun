@@ -110,8 +110,8 @@ impact:
 # 回溯结算（待修复后补记）
 retroactive_settlement:
   settled_by: "#146 rerun5 全下游重跑（三同族复测+新 prereg alpha）完成后，由 genealogist 回填 settled/。"
-  settlement_date: null
-  settlement_description: null
+  settlement_date: "2026-07-04"
+  settlement_description: "goal CLOSED a5-downstream-rerun CHECK_PASS：三同族复测完成，type1 全级别 >0（漏斗环6 L0=452/L1=7/L2=13/L3=9/L4=2，type1=0 前提确认修复）——一类修复全闭环。"
 
 # 谱系关联
 related_records:
@@ -197,3 +197,10 @@ epistemological_levels:
 推翻全 alpha 战役「一类=0=市场事实」前提——旧漏斗下游判据从未执行，其上的 V=0/INCONCLUSIVE 结论须
 修复后重测（#146 rerun5 执行中）。**684号交叉检查**：与684（主桶正 μ̂=出场口径伪影）无逻辑矛盾，
 两者维度正交（信号生成候选 vs 出场口径），已互相补充 related 引用。最终结算待 #146 完成后回溯。
+
+---
+
+## 结算节（ws-settle，2026-07-04）
+
+**结算依据**：goal CLOSED（events.jsonl:291）。`a5-downstream-rerun` CHECK_PASS：#146 rerun5 三同族复测全完成，type1 全级别 >0（漏斗环6 L0=452/L1=7/L2=13/L3=9/L4=2，"type1=0 前提确认修复"）——「一类=0=市场事实」被推翻的修复序（#142-#145 + 686 裁C）全闭环，量级与反事实预测（L0 局部 650 段同向）吻合。关闭条件（#146 rerun5 完成）达成。
+**结算日期**：2026-07-04。

@@ -97,8 +97,8 @@ impact:
 # 回溯结算（如适用）
 retroactive_settlement:
   settled_by: "编排者 /ritual 确认『主桶正 μ̂=出场口径伪影』订正 + 下游三项作废后，由 genealogist 回填 settled/。"
-  settlement_date: null
-  settlement_description: null
+  settlement_date: "2026-07-04"
+  settlement_description: "goal CLOSED a5 五路证据①（报告桶唯一 Validated=beta 漂移签名）坐实唯一候选 alpha 证伪为出场口径伪影。下游三项作废（W-VERIFY 旧 PASS/econ-663 μ̂ 表/奇偶交替正数字标注）为独立文档订正 action，待 Lead 派工位，不阻塞谱系结算。"
 
 # 谱系关联
 related_records:
@@ -163,3 +163,10 @@ codex #122 G4 终裁（typed exit 致命缺口，拒 τ^reverse 中间态）→ 
 正 μ̂ 桶——否定性结果，缩小 alpha 有效域边界（231号）。最终结算待编排者 /ritual。**685号交叉检查**：
 与685（一类买卖点全历史0=趋势门/中枢延伸缺陷）无逻辑矛盾，两者维度正交（出场口径 vs 信号生成候选），
 已互相补充 related 引用，无需生成新谱系记录。
+
+---
+
+## 结算节（ws-settle，2026-07-04）
+
+**结算依据**：goal CLOSED（events.jsonl:291）。`a5-downstream-rerun` CHECK_PASS 五路证据①（报告桶唯一 Validated L0/bsp3/σ+1 两 δ 同 +162=beta 漂移签名）坐实全战役唯一候选 alpha 证伪为 τ^reverse 出场口径伪影。终局 alpha=INCONCLUSIVE。下游三项作废标注（W-VERIFY 旧 PASS / econ-663 μ̂ 表 / 奇偶交替正数字）为独立文档订正 action，已标注待 Lead 派工位，不阻塞本谱系结算。
+**结算日期**：2026-07-04。

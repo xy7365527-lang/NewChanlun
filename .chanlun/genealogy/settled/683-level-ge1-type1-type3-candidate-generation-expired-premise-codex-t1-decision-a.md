@@ -103,8 +103,8 @@ impact:
 # 回溯结算（如果适用，待 #123 完成后补记）
 retroactive_settlement:
   settled_by: "#123 hl13-impl 完成 + GOLDEN 诚实重算通过后，由 genealogist 回填 settled/。"
-  settlement_date: null
-  settlement_description: null
+  settlement_date: "2026-07-04"
+  settlement_description: "goal g-...type1-canonical-centers CLOSED（events.jsonl:291）；a3 gate3-impl CHECK_PASS 确认 level≥1 一类候选生成已工作（全历史一类 678，五级 397/217/56/8/0），else 分支修复生效 + GOLDEN 诚实重算。"
 
 # 谱系关联
 related_records:
@@ -183,3 +183,10 @@ L0 一类恒为 0 ⟹ B 恒空），不选 C（无需新架构）。
 影响模块：`rust/src/theta_v0/classifier/mod.rs`、`signal.rs`；影响下游：GOLDEN/backtest digest
 需在 `#123` 完成后诚实重算。**685号订正**：本记录"level0 市场事实"免责边界条件已作废，683/685 需
 在 #142-#146 修复序（中枢延伸→走势分解→局部趋势门→A/C次级别化→全下游重跑）完成后共同结算。
+
+---
+
+## 结算节（ws-settle，2026-07-04）
+
+**结算依据**：goal `g-20260703T1900Z-type1-canonical-centers` CLOSED（`.chanlun/goals/events.jsonl:291`，2026-07-04T05:13:32Z）。`a3-local-trend-gate` CHECK_PASS（gate3-impl-20260703.md）：#123 hl13-impl 完成，level≥1 一类候选生成已工作（全历史一类 678，五级分布 397/217/56/8/0=else{Vec::new()} 分支修复生效），GOLDEN 诚实重算通过。关闭条件（#123 完成 + GOLDEN 诚实重算，retro 无独立 /ritual 门槛）达成。
+**结算日期**：2026-07-04。

@@ -107,8 +107,8 @@ impact:
 # 回溯结算（待 #146 rerun5 完成后补记）
 retroactive_settlement:
   settled_by: "#146 rerun5 全下游重跑（三同族复测+新 prereg alpha）完成后，由 genealogist 回填 settled/。"
-  settlement_date: null
-  settlement_description: null
+  settlement_date: "2026-07-04"
+  settlement_description: "goal CLOSED a5 CHECK_PASS：裁定C 新基线 614（rerun5 实证冻结）；裁定C 实装 cdddaa78ac + 接生产锚 1464634a2f 已在。"
 
 # 谱系关联
 related_records:
@@ -165,3 +165,10 @@ fallback 方向泄漏伪信号，非真实趋势背驰。**
 影响：683 的过期未复核模式同族复现；685 修复序中间态基线（1057）经本号收窄为614——量级验证685反事实
 （局部650段同向）；675 meta-rule 复发实例（探针parity基准分叉）已并入675号settled文件。最终结算待
 #146 rerun5 全下游重跑完成。
+
+---
+
+## 结算节（ws-settle，2026-07-04）
+
+**结算依据**：goal CLOSED（events.jsonl:291）。`a4`/`a5` CHECK_PASS：Q7 裁定C 实装（commit cdddaa78ac + 接生产锚 1464634a2f）已在，rerun5 实证冻结新基线一类 614（L0 575/L1 18/L2 14/L3 7）。#146 rerun5 下游重跑完成。关闭条件达成。
+**结算日期**：2026-07-04。
