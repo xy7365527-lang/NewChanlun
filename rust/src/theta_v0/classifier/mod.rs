@@ -159,7 +159,7 @@ fn unit_to_segment(u: &UnitRange) -> Segment {
 ///
 /// ★force_state 生产热路由（beta-route #115）：传真 `dif/closes_tick`（与 L0 层同源，L0 唯一可达
 /// close 序列，级别-N A/C 段经 source_index 坐标映射同坐标系）⟹ 级别-N 一类趋势背驰候选的
-/// `point.force` 亦算得 `Some`（4 proxy），进 selector force_state 第 8 维。二/三类 force=None。
+/// `point.force` 亦算得 `Some`（5 proxy），进 selector force_state 第 8 维。二/三类 force=None。
 fn extract_first_third_for_level(
     centers: &[Center],
     units: &[UnitRange],
@@ -267,7 +267,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
     let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
     let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
     // ★force_state 生产热路由（beta-route #115）：dif（黄白线）+ closes_tick（整数 close）供一类候选
-    // A/C 段 4 proxy（DIF 峰/振幅/速度）。hist/dif 同一 compute_macd 单趟产出（无额外 O(n) 扫描）。
+    // A/C 段 5 proxy（DIF 峰/振幅/速度）。hist/dif 同一 compute_macd 单趟产出（无额外 O(n) 扫描）。
     let series = divergence::compute_macd(&closes, &config.macd);
     let hist = series.hist;
     let dif = series.dif;
@@ -305,7 +305,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         //   `divergence_of` 闭包用 `divergence.rs` MACD 真算（次级别走势 close 区间 → 面积比较）。
         let (mut bsp, pan_div): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
             // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选 point.force
-            // = Some（4 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进 class_index/
+            // = Some（5 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进 class_index/
             // 分桶 key，PartialEq 排除），GOLDEN 因 Debug 含 force 诚实翻转（signal.rs digest guard）。
             signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &dif, &closes_tick, &close_src)
         } else {
@@ -1215,13 +1215,18 @@ pub fn classify_with_tower_incremental(
         let resume_start = lc.scan_cursor.resume_from;
         let had_emitted_window = lc.scan_cursor.resume_from < lc.scan_cursor.consumed;
         if had_emitted_window {
-            // pop 最后一个中枢（frontier 中枢，重扫会重新产出）——前缀不变量不破（pop 的是尾部）。
+            // pop 最后成立窗口的**全部**产出（frontier 域 = 整窗，重扫从窗口起点重产）——
+            // ★#148 升级重切后一窗可产 k 个子中枢（`last_window_emitted`），只 pop 1 会残留旧
+            // 子中枢与重扫产出重复。前缀不变量不破（pop 的是尾部整窗）。
+            let pop_n = lc.scan_cursor.last_window_emitted;
             debug_assert!(
-                !lc.centers.is_empty() && !lc.upper_moves.is_empty(),
-                "had_emitted_window ⟹ 至少一个已产出中枢可回退"
+                pop_n >= 1 && lc.centers.len() >= pop_n && lc.upper_moves.len() >= pop_n,
+                "had_emitted_window ⟹ 末窗口产出（pop_n={pop_n}）可回退"
             );
-            Rc::make_mut(&mut lc.centers).pop();
-            Rc::make_mut(&mut lc.upper_moves).pop();
+            let cs = Rc::make_mut(&mut lc.centers);
+            cs.truncate(cs.len().saturating_sub(pop_n));
+            let um = Rc::make_mut(&mut lc.upper_moves);
+            um.truncate(um.len().saturating_sub(pop_n));
         }
         // ★codex Q4：prefix_count = lc.upper_moves.len()（pop 后的已产出前缀数），tail ordinal 接续
         // 前缀 ⟹ 全量/增量产同 ElementId（跨 bar 稳定身份）。★A3 §2.2：prefix_count 同时是本级
@@ -1270,7 +1275,13 @@ pub fn classify_with_tower_incremental(
         tower_snapshots.push(std::mem::take(&mut moves_tower));
 
         // 走势分解（增量续折：resume 单一来源 ⟹ 与全量 decompose 定义性 bit-exact）。
-        let moves = decompose_resume(&lc.centers, &mut lc.decompose_state);
+        // ★#148：链尾可变中枢数 = 本轮末窗口产出数（升级重切窗口的全部子中枢在窗口 sealed 前
+        // 均可变——外缘随延伸改写、数量随段数增长改变），冻结边界随之后移（decompose.rs 文档）。
+        let moves = decompose_resume(
+            &lc.centers,
+            &mut lc.decompose_state,
+            lc.scan_cursor.last_window_emitted.max(1),
+        );
 
         // BSP 提取（同 classify_impl：L0 线段层 + 递归组装层）。
         // ★增量接入：传预计算 hist（从 cache 增量产出），避免 extract_signals 内部全量 compute_macd。

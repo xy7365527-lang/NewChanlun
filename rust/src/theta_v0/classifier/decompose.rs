@@ -94,13 +94,24 @@ impl DecomposeState {
 
 /// 分解（resume 单一来源；全量 = 空 state）。返回 C_ℓ = B₁⊕…⊕B_k，链尾块 Active 其余 Completed。
 ///
-/// 冻结推进 O(新 sealed 关系数)，临时尾重折 O(1)，输出 clone O(k)（k = 块数 ≤ 关系标签
+/// `frontier_centers`：链尾可变中枢数。#142 旧协议恒 1（只有末位中枢开放）；#148 升级重切后
+/// 末窗口可产 k 个子中枢且在窗口 sealed 前**全部**可变（窗口段数增长会改写末子中枢外缘、甚至
+/// 改变子中枢数量），调用方传该窗口产出数（`WindowScanCursor::last_window_emitted`）。冻结边界
+/// 随之后移：R_i 冻结 ⟺ 右端中枢 C_{i+1} 在可变尾之前。保守取大值恒正确（少冻结 = 多重折，
+/// 输出不变——输出恒等于全折叠，fr 只影响缓存量）。
+///
+/// 冻结推进 O(新 sealed 关系数)，临时尾重折 O(frontier)，输出 clone O(k)（k = 块数 ≤ 关系标签
 /// 变化数+1，L0 全历史量级为百级）。
-pub fn decompose_resume(centers: &[Center], state: &mut DecomposeState) -> Vec<MoveBlock> {
+pub fn decompose_resume(
+    centers: &[Center],
+    state: &mut DecomposeState,
+    frontier_centers: usize,
+) -> Vec<MoveBlock> {
     let m = centers.len();
     let n_rels = m.saturating_sub(1);
-    // 关系 R_i 冻结 ⟺ i < m-2：C_{i+1} 有后继 ⟹ 两端中枢均 sealed（#142 resume 只改写末位中枢）。
-    let frozen_target = m.saturating_sub(2);
+    // 关系 R_i 冻结 ⟺ i+1 < m-fr（右端中枢有后继且不在可变尾）。fr=1 时退化为旧 #142 边界 m-2。
+    let fr = frontier_centers.max(1);
+    let frozen_target = m.saturating_sub(1 + fr);
     if state.frozen_rels > frozen_target {
         state.reset(); // 回缩 ⟹ 全量重折（cascade_reset 已显式 reset，此为兜底护栏）。
     }
@@ -130,9 +141,9 @@ pub fn decompose_resume(centers: &[Center], state: &mut DecomposeState) -> Vec<M
     out
 }
 
-/// 全量分解（= 空 state 的 resume，定义性等价）。
+/// 全量分解（= 空 state 的 resume，定义性等价；fr 任意合法值输出相同，取 1）。
 pub fn decompose(centers: &[Center]) -> Vec<MoveBlock> {
-    decompose_resume(centers, &mut DecomposeState::default())
+    decompose_resume(centers, &mut DecomposeState::default(), 1)
 }
 
 /// 当前/链尾趋势块（PDF §9.3 取块口径；「刚完成趋势块」的可用时限窗口归 #144 判据域）。
@@ -330,6 +341,29 @@ mod tests {
         assert_eq!(rels, m - 1, "每关系恰属一块");
     }
 
+    /// #148 升级重切协议：末窗口 pop 1 产 3（8→9 段重切）——链尾可变中枢数从 1 变 3，
+    /// 调用方传 frontier_centers=窗口产出数 ⟹ 冻结前缀不含被改写关系，inc == full。
+    #[test]
+    fn multi_center_frontier_rewrite_parity() {
+        let mut state = DecomposeState::default();
+        // 阶段1：sealed 前缀 [c_up(0), c_up(1)] + 末窗口产 1 个延伸中枢。
+        let mut centers = vec![c_up(0), c_up(1), c_overlap(1)];
+        let inc = decompose_resume(&centers, &mut state, 1);
+        assert_eq!(inc, decompose(&centers), "阶段1 inc == full");
+        // 阶段2：窗口跨越升级阈值——pop 末 1 个，重扫产 3 个子中枢（值与数量均变）。
+        centers.pop();
+        centers.extend([c_overlap(1), c_up(3), c_overlap(3)]);
+        let inc = decompose_resume(&centers, &mut state, 3);
+        assert_eq!(inc, decompose(&centers), "阶段2（一窗多产改写）inc == full");
+        // 阶段3：窗口继续增长——pop 末 3 个重产 4 个（末子中枢外缘改写 + 新子中枢）。
+        for _ in 0..3 {
+            centers.pop();
+        }
+        centers.extend([c_overlap(1), c_up(3), c_up(4), c_overlap(4)]);
+        let inc = decompose_resume(&centers, &mut state, 4);
+        assert_eq!(inc, decompose(&centers), "阶段3（可变尾加深）inc == full");
+    }
+
     #[test]
     fn completeness_and_resume_parity_randomized() {
         // 无 proptest 依赖：LCG 自造随机链 + 增量事件流（追加/frontier 改写/回缩）。
@@ -354,7 +388,7 @@ mod tests {
                     // 回缩（cascade_reset 情形——生产路径会显式 reset，此处走兜底护栏）。
                     centers.pop();
                 }
-                let inc = decompose_resume(&centers, &mut state);
+                let inc = decompose_resume(&centers, &mut state, 1);
                 let full = decompose(&centers);
                 assert_eq!(inc, full, "T^inc == T^full（step {step}）");
                 assert_complete(&centers, &full);

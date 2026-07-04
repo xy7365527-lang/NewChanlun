@@ -50,6 +50,14 @@ use super::center::UnitRange;
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
 
+/// ★#148 升级阈值（第33课，结构常数非参数——codex 裁定 A1，codex-decide-20260704-001933）：
+/// 「中枢的延伸不能超过5段，也就是一旦出现6段的延伸，加上形成中枢本身那三段，就构成更大级别
+/// 的中枢了」——窗口总段数（seed 3 + 延伸）达 9 ⟹ 不再是本级别延伸中枢，按每 3 段重切为本级别
+/// 子中枢（「每3段构成一个中枢」），升级经上一级 detect 自然涌现。第20课「延伸不升级」（涨停例）
+/// 与本约定的调和（裁定 D1）：33课是晚出的操作层多义性消解约定；涨停例=时间延伸而非完成段数
+/// 增长，段数口径下自洽不触发。
+pub const UPGRADE_TOTAL_SEGMENTS: usize = 9;
+
 /// 确定性元素身份（codex Q4：spec §13 `p:C_ℓ→C_{ℓ+1}` 结构映射的 rust 对象身份）。
 ///
 /// 跨 bar 稳定（全量/增量产同 ID），非 per-bar `Vec` 索引——解 codex 发现 A/B：
@@ -226,7 +234,10 @@ impl LeveledMove {
 ///
 /// 与旧「非重叠三段窗口、成立支 +3」的差异：旧版把围绕同一核心的持续震荡拆成多个外缘互相重叠的
 /// 同级别中枢（L0 全历史 94.4% 相邻重叠，#141 问题包 §3-b 坐实）；canonical 版把它们吸收进一个
-/// 延伸中枢。升级语义（延伸后与前中枢重叠 ⟹ 高级别中枢，中心定理二）不在本层——归走势分解（#143+）。
+/// 延伸中枢——但延伸有上限（★#148 升级语义，第33课）：窗口总段数达 [`UPGRADE_TOTAL_SEGMENTS`]
+/// ⟹ 整窗按每 3 段重切为本级别子中枢（核心继承 seed 三段交，外缘由子窗聚合），升级为高一级中枢
+/// 经上一级 detect 自然涌现（子中枢 compose 的上级单元区间围绕同核心 ⟹ 上级 seed 高概率成立）。
+/// Q2 裁决（不拆碎片）的有效域自此收窄为总段数 <9 的窗口。
 ///
 /// `build`：中枢构造函数（L0=完整判据 `center_from_segments`；上级=几何 `center_from_window`）。
 /// 返回 `Vec<(Center, (usize, usize))>`：每个中枢 + 构成它的单元闭区间 `[start, end]`（seed 三段 +
@@ -339,6 +350,10 @@ pub struct WindowScanCursor {
     /// （而非 `consumed`）⟹ 最后一个（frontier）中枢重算。无成立窗口 ⟹ == 本次 `start_i`
     /// （无回退，续进不变）。
     pub resume_from: usize,
+    /// ★#148 升级重切：最后一个成立窗口产出的中枢数（<9 段窗口 =1；≥9 段重切窗口 =⌊n/3⌋）。
+    /// frontier 回退域是**整窗产出**——调用方 pop 该数量（只 pop 1 会残留旧子中枢，与重扫
+    /// 产出重复）。无成立窗口 ⟹ 0（与 `resume_from == consumed` 一致，guard 不触发 pop）。
+    pub last_window_emitted: usize,
 }
 
 /// 增量窗口扫描：从 `start_i` 续扫（seed + 延伸吸收），返回新产出的 `(Center, (start,end))` 序列 +
@@ -371,10 +386,11 @@ pub fn detect_centers_windowed_resume(
 ) -> (Vec<(Center, (usize, usize))>, WindowScanCursor) {
     let mut out = Vec::new();
     let mut i = start_i;
-    // ★frontier 修复锚：最后一个成立窗口的起点。无成立窗口 ⟹ None（下面折叠为 consumed，续进语义）。
-    // 不能用 start_i 兜底——None 支 +1 推进后 i > start_i，会让 `resume_from < consumed` 误判为
-    // "有窗口产出"，导致调用方 pop 空 centers（见 mod.rs had_emitted_window 守卫）。
-    let mut last_window_start: Option<usize> = None;
+    // ★frontier 修复锚：最后一个成立窗口的 (起点, 产出数)。无成立窗口 ⟹ None（下面折叠为
+    // (consumed, 0)，续进语义）。不能用 start_i 兜底——None 支 +1 推进后 i > start_i，会让
+    // `resume_from < consumed` 误判为"有窗口产出"，导致调用方 pop 空 centers（见 mod.rs
+    // had_emitted_window 守卫）。
+    let mut last_window: Option<(usize, usize)> = None;
     while i + 2 < units.len() {
         match build(&units[i], &units[i + 1], &units[i + 2]) {
             Some(seed) => {
@@ -389,8 +405,40 @@ pub fn detect_centers_windowed_resume(
                     c.gg = c.gg.max(units[j].hi);
                     j += 1;
                 }
-                out.push((c, (i, j - 1)));
-                last_window_start = Some(i);
+                let n = j - i;
+                let emitted = if n < UPGRADE_TOTAL_SEGMENTS {
+                    // Q2 有效域（≤8 段）：一个延伸中枢，不拆碎片。
+                    out.push((c, (i, j - 1)));
+                    1
+                } else {
+                    // ★#148 升级重切（第33课 + codex 裁定 A1/B-II/C1，codex-decide-20260704-001933）：
+                    // 总段数 ≥9（本体 3 + 延伸 ≥6）⟹「构成更大级别的中枢」——整窗按每 3 段重切为
+                    // 本级别子中枢（原文「每3段构成一个中枢」），余数 1-2 段并入末子中枢作延伸。
+                    // 子中枢是已成立延伸中枢在第33课约定下的**重新解释**（C1：不复验 seed 判据——
+                    // 延伸段仅保证各自触及核心，任意 3 段的三段交/方向交替均无保证）：核心 [ZD,ZG]
+                    // 继承 seed 三段交（子中枢围绕同一核心），外缘/坐标由子窗段聚合。升级本身经塔
+                    // 现有 compose 路径涌现：≥3 个围绕同核心的子中枢在上一级 detect 中 seed
+                    // （center_from_window 几何判据保留最终裁决权——零跨级注入，B-III 已拒）。
+                    let k = n / 3;
+                    for t in 0..k {
+                        let s = i + t * 3;
+                        let e = if t + 1 == k { j - 1 } else { s + 2 };
+                        let sub_units = &units[s..=e];
+                        out.push((
+                            Center {
+                                zd: c.zd,
+                                zg: c.zg,
+                                dd: sub_units.iter().map(|u| u.lo).min().expect("子窗非空"),
+                                gg: sub_units.iter().map(|u| u.hi).max().expect("子窗非空"),
+                                start_index: units[s].start_index,
+                                end_index: units[e].end_index,
+                            },
+                            (s, e),
+                        ));
+                    }
+                    k
+                };
+                last_window = Some((i, emitted));
                 i = j;
             }
             None => {
@@ -398,8 +446,10 @@ pub fn detect_centers_windowed_resume(
             }
         }
     }
-    // 无成立窗口 ⟹ resume_from = consumed（续进，不回退）；有窗口 ⟹ 该窗口起点（回退重算 frontier 中枢）。
-    (out, WindowScanCursor { consumed: i, resume_from: last_window_start.unwrap_or(i) })
+    // 无成立窗口 ⟹ resume_from = consumed（续进，不回退）、emitted = 0；有窗口 ⟹ 该窗口起点
+    // + 整窗产出数（回退域 = 整窗：升级重切窗口的全部子中枢在窗口 sealed 前均可变）。
+    let (resume_from, last_window_emitted) = last_window.unwrap_or((i, 0));
+    (out, WindowScanCursor { consumed: i, resume_from, last_window_emitted })
 }
 
 /// 增量 compose：从 `start_i` 续扫窗口 + 把新产出的窗口 compose 为上级 `LeveledMove`。
@@ -726,10 +776,10 @@ mod tests {
 
     /// ★增量核心 bit-exact：尾部追加后按 frontier 协议续扫 == 全量重扫。
     ///
-    /// 9 段全重叠（延伸语义下全量 = 1 个延伸中枢），前 6 段先扫 → 追加 3 段。
-    /// 唯一合法 resume 协议（task #142 充要条件 #1）：pop 末位开放中枢 + 从 `resume_from`
-    /// 重扫（末位中枢未被 non-extension 单元终止 ⟹ 开放，新单元可延伸它；从 `consumed`
-    /// 直接续进会对本应延伸的新单元开新中枢，与全量分叉）。
+    /// 9 段全重叠（★#148 升级语义：总段数达 9 ⟹ 整窗重切 3 个子中枢），前 6 段先扫（<9，
+    /// 1 个延伸中枢）→ 追加 3 段跨越升级阈值。唯一合法 resume 协议（task #142 充要条件 #1
+    /// + #148 整窗回退）：pop 末窗口全部产出（`last_window_emitted`）+ 从 `resume_from` 重扫
+    /// （窗口开放期间其产出的值与**数量**均可变——本例 1 个变 3 个）。
     #[test]
     fn resume_after_append_matches_full_rescan() {
         // 9 段交替全重叠，分两批：前 6 段 → 追加 3 段。
@@ -741,21 +791,25 @@ mod tests {
             .collect();
         let build = super::super::center::center_from_segments;
 
-        // 全量基准（延伸语义：seed [0..=2] 吸收 3..=8 ⟹ 1 个延伸中枢）。
+        // 全量基准（升级重切：seed [0..=2] 吸收 3..=8 后 n=9 ⟹ 3 个子中枢，每 3 段一个）。
         let full = detect_centers_windowed(&all_units, build);
-        assert_eq!(full.len(), 1, "9 段全重叠 = 1 个延伸中枢（PDF §5 Q2）");
-        assert_eq!(full[0].1, (0, 8), "延伸窗口吸收全部 9 段");
+        assert_eq!(full.len(), 3, "9 段全重叠 = 升级重切 3 个子中枢（第33课，#148）");
+        assert_eq!(full[0].1, (0, 2), "子窗1 = seed 三段");
+        assert_eq!(full[1].1, (3, 5), "子窗2");
+        assert_eq!(full[2].1, (6, 8), "子窗3");
 
-        // 增量：前 6 段先扫（产出 1 个开放中枢 (0,5)）。
+        // 增量：前 6 段先扫（n=6 < 9 ⟹ 1 个开放延伸中枢 (0,5)）。
         let (mut prefix, cursor6) = detect_centers_windowed_resume(&all_units[..6], build, 0);
-        // frontier 协议：pop 末位开放中枢 + 从 resume_from（seed 起点）重扫。
+        assert_eq!(cursor6.last_window_emitted, 1, "6 段窗口产出 1 个中枢");
+        // frontier 协议：pop 末窗口全部产出 + 从 resume_from（窗口起点）重扫。
         if cursor6.resume_from < cursor6.consumed {
-            prefix.pop();
+            prefix.truncate(prefix.len() - cursor6.last_window_emitted);
         }
-        let (tail, _cursor9) =
+        let (tail, cursor9) =
             detect_centers_windowed_resume(&all_units, build, cursor6.resume_from);
+        assert_eq!(cursor9.last_window_emitted, 3, "重扫后末窗口产出 3 个子中枢");
 
-        // 拼接 == 全量。
+        // 拼接 == 全量（pop 1 产 3：窗口产出数量跨阈值改变）。
         let mut combined = prefix.clone();
         combined.extend(tail);
         assert_eq!(combined.len(), full.len(), "增量拼接长度 == 全量");
@@ -763,6 +817,96 @@ mod tests {
             assert_eq!(c.0, f.0, "中枢相等");
             assert_eq!(c.1, f.1, "窗口索引相等");
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#148 升级重切语义（第33课 + codex 裁定 A1/B-II/C1，codex-decide-20260704-001933）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 触核心但外缘参差的 9+ 段窗口构造器：seed 三段交 = [40,60]（交替 up/down），
+    /// 延伸段全部触及 [40,60] 但外缘逐段变化（验证子窗外缘聚合与核心继承的区分）。
+    fn upgrade_units(n: usize) -> Vec<UnitRange> {
+        (0..n)
+            .map(|i| {
+                let dir = if i % 2 == 0 { up() } else { down() };
+                // seed 三段 [40-i, 60+i] ⟹ 三段交 = [40,60]；延伸段 [30+i, 70+i]（触核心）。
+                if i < 3 {
+                    unit(i * 4, i * 4 + 4, dir, 40 - i as Tick, 60 + i as Tick)
+                } else {
+                    unit(i * 4, i * 4 + 4, dir, 30 + i as Tick, 70 + i as Tick)
+                }
+            })
+            .collect()
+    }
+
+    /// Q2 有效域边界：8 段（seed 3 + 延伸 5）仍是一个延伸中枢——「延伸不能超过5段」的
+    /// 允许上限，不重切。
+    #[test]
+    fn eight_segment_window_stays_single_extension_center() {
+        let units = upgrade_units(8);
+        let windowed = detect_centers_windowed(&units, super::super::center::center_from_segments);
+        assert_eq!(windowed.len(), 1, "8 段 = Q2 域内一个延伸中枢");
+        assert_eq!(windowed[0].1, (0, 7));
+        let c = windowed[0].0;
+        // seed 三段 [40,60],[39,61],[38,62] ⟹ 口径 B 三段交 = [max(lo),min(hi)] = [40,60]。
+        assert_eq!((c.zd, c.zg), (40, 60), "核心 = seed 三段交（口径 B 冻结）");
+    }
+
+    /// 升级阈值：9 段 ⟹ 恰 3 个子中枢。核心继承 seed 三段交（C1：重新解释不复验 seed），
+    /// 外缘由各子窗段聚合，坐标 = 子窗首起点..末终点。
+    #[test]
+    fn nine_segment_window_splits_into_three_subcenters() {
+        let units = upgrade_units(9);
+        let windowed = detect_centers_windowed(&units, super::super::center::center_from_segments);
+        assert_eq!(windowed.len(), 3, "9 段 = 3 个子中枢（每 3 段一个）");
+        let core = (windowed[0].0.zd, windowed[0].0.zg);
+        // seed 三段 [40,60],[39,61],[38,62] ⟹ 口径 B 三段交 = [40,60]。
+        assert_eq!(core, (40, 60), "核心 = seed 三段交");
+        for (t, (c, win)) in windowed.iter().enumerate() {
+            assert_eq!(*win, (t * 3, t * 3 + 2), "子窗 t 覆盖段 [3t, 3t+2]");
+            assert_eq!((c.zd, c.zg), core, "全部子中枢继承同一冻结核心");
+            // 外缘 = 子窗三段 lo/hi 聚合。
+            let dd = units[t * 3..=t * 3 + 2].iter().map(|u| u.lo).min().unwrap();
+            let gg = units[t * 3..=t * 3 + 2].iter().map(|u| u.hi).max().unwrap();
+            assert_eq!((c.dd, c.gg), (dd, gg), "外缘 = 子窗段聚合");
+            assert_eq!(c.start_index, units[t * 3].start_index);
+            assert_eq!(c.end_index, units[t * 3 + 2].end_index);
+        }
+    }
+
+    /// 余数并入末子中枢：10/11 段 ⟹ 仍 3 个子中枢（末子窗 4/5 段）；12 段 ⟹ 4 个。
+    #[test]
+    fn remainder_segments_merge_into_last_subcenter() {
+        let build = super::super::center::center_from_segments;
+        for (n, expect_k, last_win) in [(10, 3, (6, 9)), (11, 3, (6, 10)), (12, 4, (9, 11))] {
+            let units = upgrade_units(n);
+            let windowed = detect_centers_windowed(&units, build);
+            assert_eq!(windowed.len(), expect_k, "{n} 段 ⟹ ⌊n/3⌋={expect_k} 个子中枢");
+            assert_eq!(windowed[expect_k - 1].1, last_win, "{n} 段末子窗吸收余数");
+        }
+    }
+
+    /// ★升级涌现（B-II 全链）：9 段重切的 3 个子中枢 compose 为上级单元后，上一级
+    /// detect（center_from_window 几何判据）seed 成立 ⟹ 高一级中枢诞生——升级经塔现有
+    /// compose 路径自然涌现，零跨级注入。
+    #[test]
+    fn upgraded_subcenters_seed_higher_level_center() {
+        let units = upgrade_units(9);
+        let moves: Vec<LeveledMove> =
+            units.iter().enumerate().map(|(i, u)| from_unit(u, i as u64)).collect();
+        // 本级：9 段 → 3 子中枢 → 3 个上级走势单元。
+        let (centers, upper) = compose_level(&units, &moves, true, 1);
+        assert_eq!(centers.len(), 3);
+        assert_eq!(upper.len(), 3);
+        // descend 取回真 subs（真 Fugue：子窗切片 3 段）。
+        for u in &upper {
+            assert_eq!(descend(&u.rmove).len(), 3, "子中枢 subs = 子窗真三段");
+        }
+        // 上一级：3 个子中枢单元投影后 detect ⟹ 高一级中枢 seed 成立（围绕同核心，区间交非空）。
+        let blocks = super::super::decompose::decompose(&centers);
+        let l1_units = project_to_units(&upper, &blocks);
+        let (l1_centers, _) = compose_level(&l1_units, &upper, false, 2);
+        assert_eq!(l1_centers.len(), 1, "升级涌现：高一级中枢由子中枢重叠自然 seed（第33课）");
     }
 
     /// ★compose_level_resume bit-exact：全量 `compose_level` == `compose_level_resume(.., 0)`，
