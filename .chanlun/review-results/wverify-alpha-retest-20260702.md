@@ -1,5 +1,10 @@
 # W-VERIFY alpha 全量重测（全实装收敛收口，task #13）
 
+> **【作废——684 出场口径伪影，2026-07-04】**：本报告 §1 唯一强桶 **(L0, type3, 买, σ0) μ̂=+178~185/笔 p=0.005 五窗全正** 已被 **684 号谱系（settled）** 证伪为 **τ^reverse 出场口径伪影**，作废。
+> - **依据链**：`.chanlun/genealogy/settled/684-main-bucket-positive-mu-is-tau-reverse-exit-caliber-artifact-falsified-by-q4-g4-typed-exit.md`（结算日 2026-07-04）→ q4 对照 #135 结果包 `056a50be35` §1：G4 typed exit 重装（删 τ^reverse、接生产 π fill loop）后同桶重测 **mean=−0.37/笔、LCB=−42.6**，正点估计完全消失、翻负 → 终局 alpha 五路证据 `.chanlun/review-results/final-alpha-20260704.md`。
+> - **根因**：本报告出场口径为 τ^reverse（"持有至下一个任意反向信号"），出场时点与进场信号方向系统性耦合，制造与市场结构无关的正 μ̂（会计伪影）。canonical 出场口径已固定为 G4 typed exit。
+> - **有效域声明**：本报告的**管线正确性**（walk-forward OOS 框架、置换检验实装、28 桶分解）仍有效；作废的仅是**正 μ̂ 结论**——五窗 PASS 不得作 alpha 证据，任何回测正 μ̂ 须在 typed exit 口径下复现方成立。此前"编排者裁定 (a) L2 条件性正结果"降级（下块）现被 684 进一步收口为**证伪**，非仅条件性。
+>
 > **【效力域降级】编排者裁定 (a)（2026-07-02，task #80）**：本报告 §1 全局裁决 PASS 为 **L2 条件性正结果**，非原文 `alpha检验.pdf`/`alpha分离.pdf` 定义的 confirmed structural alpha（`dlpdf-b-bsp-alpha-20260702.md` §1 对照坐实四条阻塞缺口）：
 > ① **beta 未分离**——估计量 `actual_pnl=δ(P_out−P_in)−C` 是原始 X_i，未做残差减法 `Y_i=δ(H−B̂)−C`（alpha分离.pdf §1/§4.1 强制项）；
 > ② **分层缺 h + time block**——置换分层键仅 `(ℓ,bsp_class,σ^H)`，缺 `(h bucket, time block)`（alpha分离.pdf §4.2），beta 可能从分层漏进 perm_p；

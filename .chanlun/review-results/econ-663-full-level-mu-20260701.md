@@ -1,5 +1,10 @@
 # 663 判据：BTC 全级别×方向逐信号 μ̂>0 + 全历史长窗累积净值
 
+> **【作废——684 出场口径伪影，2026-07-04】**：本报告全部 μ̂ 数字基于 **τ^reverse 出场口径**（出场=下一反向信号，见 `actual_pnl=δ(Pτout−Pτin)−Ce`，Pτout 取下一反向信号价），已被 **684 号谱系（settled）** 判为出场口径伪影，作废。
+> - **依据链**：`.chanlun/genealogy/settled/684-main-bucket-positive-mu-is-tau-reverse-exit-caliber-artifact-falsified-by-q4-g4-typed-exit.md`（结算日 2026-07-04）→ q4 对照 #135 结果包 `056a50be35` §1（G4 typed exit 重装后主桶翻负 mean=−0.37/LCB=−42.6）→ 终局 alpha 五路证据 `.chanlun/review-results/final-alpha-20260704.md`。
+> - **根因**：τ^reverse 出场时点与进场信号方向系统性耦合，制造与市场结构无关的正 μ̂。canonical 出场口径已固定为 G4 typed exit（生产 π fill loop）；本表 μ̂ 未在该口径下复现，不作 alpha 证据。
+> - **有效域声明**：本报告的**恒等式分解方法与滑移口径修正（664-Q3 signed Σx/Σy、真实成交 actual_spread 口径）仍有效**——这些是口径正确性产出，与出场时点选择正交；作废的仅是各级别×方向 **μ̂ 正数字的 alpha 含义**（须以 typed exit 口径重算）。
+>
 **认识论等级**：L2（真实数据单标的逐信号确定性分解，可产否定性结果）。
 **663 判据**：可交易性=μ(z,a)>0（正条件期望，出现就做不统计显著），**非** p<0.05 统计显著/跨品种符号检验。全级别 0..L 照报（级别是缠论全互斥定义构成部分，稀疏高级别不剔不判 Le Cam 硬墙——663 收窄 Le Cam 有效域至短窗单品种区分±Δ）。全历史长窗累积净值（O(n²) 已解锁 exp1.18，461万 bar ~2.6min）。
 **664-Q3 修正**：旧 captured=Ab_rev−max(0,x)−max(0,y)−Ce 用 max(0,·) **丢有利滑移、全计不利滑移** ⟹ 系统性低估真实 PnL（captured−actual_pnl=min(x,0)+min(y,0)≤0）= **adverse-only 保守压力测试，非真实成交**。本报告补 signed Σx/Σy 与真实成交价差 actual_spread=δ(Pτout−Pτin)=Ab_rev−x−y。

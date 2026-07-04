@@ -1,5 +1,9 @@
 # BTC全历史买卖点μ̂符号奇偶交替+买卖反相的成因（L2诊断）
 
+> **【作废——684 出场口径伪影，2026-07-04】**：本报告 §全历史诊断表中的 **μ̂ 正数字**（如 L0δ+1 +68.6、L2δ+1 +54.8、L4δ+1 +90.4 等）基于 **τ^reverse 出场口径**（出场=下一反向信号，econ_positive.rs:219），已被 **684 号谱系（settled）** 判为出场口径伪影，正数字部分作废。
+> - **依据链**：`.chanlun/genealogy/settled/684-main-bucket-positive-mu-is-tau-reverse-exit-caliber-artifact-falsified-by-q4-g4-typed-exit.md`（结算日 2026-07-04）→ q4 对照 #135 结果包 `056a50be35` §1（typed exit 重装后主桶翻负）→ 终局 alpha 五路证据 `.chanlun/review-results/final-alpha-20260704.md`。**双重否证**：本报告正数字此前已被 `[[project_oddeven_mu_identity]]` 反事实 perm_p=0.69 判为 beta 漂移伪结构；684 补第二重——出场口径伪影。
+> - **有效域声明**：本报告的**核心恒等式 `sign(μ̂)=sign(δ×持有窗净涨跌)` 仍成立**（决定性分解，非涌现规律，与出场口径无关）——正是该恒等式暴露了 μ̂ 正号不是独立级别方向 alpha 而是 δ×持有窗方向的表象。作废的仅是把某 (level,δ) 正数字当**可交易 alpha** 的含义。
+>
 **认识论等级**：L2（真实数据单标的BTC全历史461万bar确定性分解，可复算）。
 **commit**：b7cc9e9bdc（663口径）。
 **诊断**：`tests/econ_oddeven_diagnosis.rs::oddeven_holding_window_diagnosis`（纯只读，不改核心，bit-exact不涉及）。
