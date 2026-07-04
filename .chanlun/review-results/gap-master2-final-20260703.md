@@ -25,7 +25,7 @@ A 类非空 ⟹ 不触发「无未知必装缺口」论证义务。
 | A1（收窄修订） | z 缺维**残余**=Jchain + d（结构止损距离，shard4 三无项）。原 v1 所列 σ_higher/Ndepth 经分片核实**已装**（MuClass 第9维 #132 / nest_depth 第11维，mu_estimator.rs:87 十三维）；TStage/ηBucket/CostBucket/CandType 归 B（D-3 登记）。新存疑：MuClass 侧与解释器状态侧（mutex.rs）维度同构性未核对（680 双侧判据） | 中（原高，收窄后降） | Jchain/d 维生产者+入 MuClass；先做双侧同构核对定实装面 | 依赖 A6 透传通路；入置换分层须三处同批改（B22） |
 | A2（收窄修订） | 支配序**原语已装**（divergence.rs:343-352 ForceStateA5 四态，#112/#115 入 z 第8维热路由 bit-exact）；残余=Θ_DOM 作为 D 判定口径接入 judge + Θ_SCORE + 三口径 OOS（divergence.rs:286 自注未跑） | 中 | judge_first 增 Θ 口径开关+三口径 OOS 批 | 依赖 A6；边界：若 codex 认定 ForceStateA5≠Θ_DOM 同构则撤销收窄（shard4 边界③） |
 | A3 | Weak 力度判据仅 MACD 面积（一类买卖点 p6/p10 明文 secondary defect）；含 D-1 子项 TV/SubMovePower proxy | 中 | force_conformance.rs 接入 judge_first；TV/SubMovePower proxy 实装后 ForceStateA5 升名 ForceState | 依赖 A6 |
-| A4 | AncOK 放宽偏差（recursive_tower.rs:56 Stale 分支伪造 parent:None，spec §13）。部分缓解在案：anc persistent overlay 已装（persistent.rs） | 中·交裁 | 交 Lead 裁是否升必修；若修=held_leg_tree_index 走 persistent registry 真 parent | 与 B33（增量 extract 覆盖确认）联动 |
+| A4 | AncOK 放宽偏差（recursive_tower.rs:64 Stale 分支伪造 parent:None，spec §13；s1c 核验订正行号）。部分缓解在案：anc persistent overlay 已装（persistent.rs） | 中·交裁 | 交 Lead 裁是否升必修；若修=held_leg_tree_index 走 persistent registry 真 parent | 与 B33（增量 extract 覆盖确认）联动 |
 | A5 | γ_t 四桶（Deficit/Zero/PositiveUnsafe/PositiveSafe）未见对应物 | 中·存疑 | 专项确认 closed_loop 是否以其他形态承载；无则实装枚举+路由 | 独立 |
 | A6 | Candidate 不携 ForceProxies ⟹ collect_signals z 构造点透传断裂，fullz 置换 force_state 恒 None | **高** | 打通 classifier→strategy 透传（Candidate 结构体加 proxies 字段） | A1/A2/A3 共同上游，最先做 |
 | A7 | 出场侧 μ(z,exit)：ExitType 出场时刻 z 构造点缺 | 中 | 出场事件处快照 z+exit_type 入 μ 样本流 | 依赖 #124 typed exit（已 completed，shard1 证实——通路已备） |
