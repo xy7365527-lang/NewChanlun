@@ -45,7 +45,7 @@
 
 use std::rc::Rc;
 
-use super::super::types::{Center, Direction};
+use super::super::types::{Center, Direction, Tick};
 use super::center::UnitRange;
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
@@ -211,12 +211,40 @@ impl LeveledMove {
             None => Direction::Up,
             // 外缘上移（hi 升）= Up，下移 = Down（与 classify_relation 外缘判据同源）。
             Some(p) => {
-                if self.rmove.hi() >= p.rmove.hi() {
+                if self.envelope().1 >= p.envelope().1 {
                     Direction::Up
                 } else {
                     Direction::Down
                 }
             }
+        }
+    }
+
+    /// 外缘 `(lo, hi)` 的 **O(1)** 取回（stage 09 O(n²) 真修，本域 #H1）。
+    ///
+    /// `rmove.lo()/hi()`（descend.rs）对 `Compose` 变体**递归整棵子树**取 min/max——frontier 走势每 bar
+    /// 重投影且其子树随窗口延伸增长 O(n) ⟹ project_to_units_resume 退化 O(n²)（400K profile 1238ms
+    /// 首热点）。但外缘在 `compose` 时已算入携带的 `Center`（`center.dd/gg`）：投影契约
+    /// （`project_to_units_resume` 头 + compose_level_resume line 463）保证 `units[i] = 投影(subs_moves[i])`
+    /// ⟹ `center.dd = min(窗口 units.lo) = min(subs.rmove.lo()) = rmove.lo()`，`center.gg = rmove.hi()`
+    /// **逐字段相等**（`detect_centers_windowed_resume` 延伸吸收 `c.dd=c.dd.min(u.lo)`/升级重切
+    /// `sub_units.map(|u| u.lo).min()` 两支均聚合同一窗口 units 外缘）。故读携带 center O(1) == 递归
+    /// 深扫 bit-exact。
+    ///
+    /// - `Segment`：外缘 = 线段自身 `[lo,hi]`（O(1) 字段读，`rmove.lo()/hi()` 对 Segment 本已 O(1)）。
+    /// - `Compose`：读 `centers[0].dd/gg`（compose 恒 `vec![center]`，line 189）；缺 center（不该发生）
+    ///   ⟹ 回退 `rmove.lo()/hi()`（值相同，仅慢，护 bit-exact）。
+    ///
+    /// mod.rs:1400 的 `debug_assert!(projected_units == 全量 project_to_units)`（走递归 `rmove.lo()/hi()`）
+    /// 是本优化的**逐 bar bit-exact 神谕**：test 编译逐 bar 比对 center 读值 vs 递归深扫，任何破裂即 panic。
+    #[inline]
+    pub fn envelope(&self) -> (Tick, Tick) {
+        match &self.rmove {
+            RMove::Segment { lo, hi, .. } => (*lo, *hi),
+            RMove::Compose { centers, .. } => match centers.first() {
+                Some(c) => (c.dd, c.gg),
+                None => (self.rmove.lo(), self.rmove.hi()),
+            },
         }
     }
 }
@@ -530,6 +558,8 @@ pub fn project_to_units(moves: &[LeveledMove], blocks: &[MoveBlock]) -> Vec<Unit
         .enumerate()
         .map(|(idx, m)| {
             let prev = if idx == 0 { None } else { Some(&moves[idx - 1]) };
+            // 全量投影是 mod.rs:1400 debug_assert 神谕的一侧——保留递归 `rmove.lo()/hi()`（非热路径，
+            // 每 bar 仅 test 编译调一次），作 envelope() O(1) 增量投影的独立 bit-exact 对照面。
             UnitRange {
                 start_index: m.start_index,
                 end_index: m.end_index,
@@ -562,12 +592,16 @@ pub fn project_to_units_resume(
     for idx in cache.len()..moves.len() {
         let m = &moves[idx];
         let prev = if idx == 0 { None } else { Some(&moves[idx - 1]) };
+        // ★#H1 O(n²)→O(n) 真修：`envelope()` 读携带 center O(1)，替代 `rmove.lo()/hi()` 递归深扫整棵
+        // 子树（frontier 走势子树随窗口延伸 O(n)，每 bar 重投影 ⟹ O(n²)）。bit-exact 由 center.dd/gg
+        // == rmove.lo()/hi() 投影契约保证 + mod.rs:1400 逐 bar debug_assert 神谕守护（见 envelope() 文档）。
+        let (lo, hi) = m.envelope();
         cache.push(UnitRange {
             start_index: m.start_index,
             end_index: m.end_index,
             direction: center_own_dir_at(blocks, idx).unwrap_or_else(|| m.fold_direction(prev)),
-            lo: m.rmove.lo(),
-            hi: m.rmove.hi(),
+            lo,
+            hi,
         });
     }
 }
