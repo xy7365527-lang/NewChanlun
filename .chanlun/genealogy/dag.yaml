@@ -3674,10 +3674,16 @@ nodes:
   type: source-tracing
   file: pending/690-two-pdf-z-shape-authority-ruling-complete-strategy-s16-authoritative-d-belongs-risk-layer.md
 - id: '691'
-  title: codex-f2「单carrier单active instance」YAGNI被端到端实证推翻——同一position生命周期对象分离为瞬时单实例(结构层ActiveLeg,真域)vs时序多campaign(账本层LedgerOpen/TypedTrade);合成fill loop同carrier ElementId(0,0)两次campaign(buy1@3 gen=0/buy1@16 gen=1)voice_id碰撞但posId不碰撞,codex裁定C归属层=账本生命周期层非ActiveLeg(每bar树重建拿不到campaign态);前任generation恒0/entry_certificate恒None死字段塞ActiveLeg=090声明膨胀实例(字段放错层则恒退化)
+  title: codex-f2「单carrier单active instance」YAGNI被端到端实证推翻——同一position生命周期对象分离为瞬时单实例(结构层ActiveLeg,真域)vs时序多campaign(账本层LedgerOpen/TypedTrade);合成fill
+    loop同carrier ElementId(0,0)两次campaign(buy1@3 gen=0/buy1@16 gen=1)voice_id碰撞但posId不碰撞,codex裁定C归属层=账本生命周期层非ActiveLeg(每bar树重建拿不到campaign态);前任generation恒0/entry_certificate恒None死字段塞ActiveLeg=090声明膨胀实例(字段放错层则恒退化)
   status: 生成态
   type: bias-correction
   file: pending/691-codex-f2-single-instance-yagni-overturned-by-temporal-reentry-gen1.md
+- id: '692'
+  title: cand_channel 通道轴与 i_class 类别轴正交——bsp_cand_type 坍缩非缺口
+  status: pending
+  type: 语法记录
+  file: pending/692-cand-channel-provenance-axis-orthogonal-to-iclass-category-axis.md
 edges:
   depends_on:
   - from: '679'
@@ -7078,6 +7084,12 @@ edges:
     to: 090
   - from: '691'
     to: '638'
+  - from: '692'
+    to: '673'
+  - from: '692'
+    to: '138'
+  - from: '692'
+    to: '159'
   triggered:
   - from: '005'
     to: 005a
@@ -10709,6 +10721,9 @@ edges:
   - between:
     - '231'
     - '691'
+  - between:
+    - '657'
+    - '692'
   tensions_with:
   - between:
     - '007'
