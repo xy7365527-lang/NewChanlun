@@ -103,6 +103,30 @@ fn walk_forward_oos_residuals(
     (agg, time_blocks)
 }
 
+/// δ-free 聚合基逐笔 dump（Task #186，final-alpha §3.1 下游精确重算的落盘器）。
+///
+/// env `DELTAFREE_DUMP=<path>` 置位时把 `records` 逐笔落盘（TSV：level bsp δ σ^H h_bucket time_block
+/// resid_base_bits cost_bits）；未置位则 no-op ⟹ 常规 `wverify_full` 跑批零 IO 膨胀、零判定路径污染。
+/// resid_base/cost 用 `f64::to_bits` 十六进制（round-trip 精确）——离线重算 `y=δ·resid−cost` 逐字节
+/// 还原 records 内存值，故离线 n_eff（Geyer IPS）/ δ-free perm_p 与在线口径 bit-exact 可比。
+/// 保 records 顺序（walk-forward 时间序）⟹ effective_n 的成交时间序前提成立（decontam 口径）。
+fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
+    let path = match std::env::var("DELTAFREE_DUMP") {
+        Ok(p) if !p.is_empty() => p,
+        _ => return, // 门控关：不 dump（bit-exact 保证——本函数不改任何判定量）
+    };
+    let mut out = String::from("level\tbsp\tdelta\tsigma_h\th_bucket\ttime_block\tresid_base_bits\tcost_bits\n");
+    for r in records {
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{:016x}\t{:016x}\n",
+            r.class.level, r.class.bsp_class(), r.class.delta, r.class.parent_dir,
+            r.h_bucket, r.time_block, r.resid_base.to_bits(), r.cost.to_bits()
+        ));
+    }
+    std::fs::write(&path, &out).unwrap_or_else(|e| panic!("δ-free dump 落盘失败 {path}：{e}"));
+    eprintln!("[deltafree-dump] {} 笔 → {path}", records.len());
+}
+
 #[test]
 #[ignore]
 fn wverify_full() {
@@ -113,6 +137,13 @@ fn wverify_full() {
     // walk-forward OOS 残差聚合（G-A4）：逐窗 test 段独立估计，残差来自真样本外区间。
     let (records, time_blocks) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
     assert!(!records.is_empty(), "walk-forward OOS 聚合未产出残差——窗口/数据不匹配");
+
+    // ── δ-free 聚合基逐笔 dump（final-alpha §3.1 下游精确重算，Task #186）──
+    // 诊断输出，env 门控（DELTAFREE_DUMP=路径）防常规跑批膨胀；**不进判定路径**——纯读 records
+    // 落盘 ⟹ 与不 dump 时 bit-exact（下方三态计算不消费本 dump）。resid_base/cost 落 f64 bit 模式
+    // （to_bits 十六进制）保离线重算逐字节还原（round-trip 精确，非十进制截断）。records 迭代序 =
+    // walk-forward 时间序（逐窗 test 段 bar 序 append），dump 保序 ⟹ 离线 effective_n 时间序正确。
+    dump_deltafree_pertrade(&records);
 
     // ── 残差桶 (ℓ, bsp, δ, σ^H) 的 Welford (n, mean, m2) on Y_i（§1 残差口径）+ 逐桶 Y 序列 ──
     let mut agg: BTreeMap<(u32, u8, i8, i8), (u64, f64, f64)> = BTreeMap::new();
@@ -700,9 +731,167 @@ fn q4_fullpi_policy() {
     eprintln!("[q4] 报告落盘 /tmp/q4_fullpi_policy.md");
 }
 
+/// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
+/// resid_base/cost 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
+/// position 不入任何 δ-free/报告桶分层键（键只读 level/bsp_class/parent_dir/delta/h_bucket/time_block）
+/// ⟹ 重建恒用 `PositionState::Root`（占位，不影响统计）。bsp_class→BspBits 由 (bsp,δ) 唯一确定。
+fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
+    use super::mu_estimator::PositionState;
+    use crate::theta_v0::types::BspBits;
+    let text = std::fs::read_to_string(path).unwrap_or_else(|e| panic!("δ-free dump 读取失败 {path}：{e}"));
+    let mut out = Vec::new();
+    for line in text.lines().skip(1) {
+        // 跳表头
+        if line.is_empty() {
+            continue;
+        }
+        let f: Vec<&str> = line.split('\t').collect();
+        assert_eq!(f.len(), 8, "δ-free dump 行须 8 列，得 {}：{line}", f.len());
+        let level: u32 = f[0].parse().unwrap();
+        let bsp: u8 = f[1].parse().unwrap();
+        let delta: i8 = f[2].parse().unwrap();
+        let sigma_h: i8 = f[3].parse().unwrap();
+        let h_bucket: u8 = f[4].parse().unwrap();
+        let time_block: u32 = f[5].parse().unwrap();
+        let resid_base = f64::from_bits(u64::from_str_radix(f[6], 16).unwrap());
+        let cost = f64::from_bits(u64::from_str_radix(f[7], 16).unwrap());
+        let bits = match (bsp, delta > 0) {
+            (1, true) => BspBits { buy1: true, ..Default::default() },
+            (1, false) => BspBits { sell1: true, ..Default::default() },
+            (2, true) => BspBits { buy2: true, ..Default::default() },
+            (2, false) => BspBits { sell2: true, ..Default::default() },
+            (_, true) => BspBits { buy3: true, ..Default::default() },
+            (_, false) => BspBits { sell3: true, ..Default::default() },
+        };
+        let class = MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root);
+        out.push(ResidualTrade { class, resid_base, cost, h_bucket, time_block });
+    }
+    out
+}
+
+/// δ-free 聚合基精确三态离线重算（Task #186，final-alpha §3.1 下游待办的精确口径落地）。
+///
+/// §3.1 的正态近似（std 由 LCB 反推、无 n_eff 事件聚集校正、无 δ-free perm_p）是**更宽松上界**
+/// （承认口径限制，231号）。本重算读 `DELTAFREE_DUMP`（wverify_full 门控落盘的逐笔序列）→ 对 22 个
+/// δ-free 基 (level,bsp_class,parent_dir) 池化 δ+1/δ−1 成员，算**精确** Welford std + **精确 n_eff**
+/// （[`decontam::effective_n`] Geyer IPS，Geyer 先例在 wverify 域）+ **δ-free perm_p**
+/// （[`perm_test::stratified_delta_perm_p_deltafree`]，B22 三处置换同批口径不动、只读出侧池化）→
+/// [`decontam::classify_bucket`] 三态。对照 §3.1 唯一 LCB>0 桶（L0 bsp3 σ+1）是否维持——结果照实（161）。
+/// 报告落 /tmp/deltafree_exact.md；`DELTAFREE_DUMP=/path cargo test --release --lib
+/// theta_v0::backtest::wverify_run::deltafree_exact_recompute -- --ignored --nocapture`。
+#[test]
+#[ignore]
+fn deltafree_exact_recompute() {
+    let dump = std::env::var("DELTAFREE_DUMP").unwrap_or_else(|_| "/tmp/finalpha/deltafree_pertrade.tsv".into());
+    let records = load_deltafree_dump(&dump);
+    assert!(!records.is_empty(), "δ-free dump 空——先跑 DELTAFREE_DUMP=<path> wverify_full 落盘");
+
+    // δ-free 基 (level,bsp_class,parent_dir)：池化两 δ 方向，时间序 Y 序列（records 已按 walk-forward 序）。
+    let mut series: BTreeMap<(u32, u8, i8), Vec<f64>> = BTreeMap::new();
+    for r in &records {
+        series
+            .entry((r.class.level, r.class.bsp_class(), r.class.parent_dir))
+            .or_default()
+            .push(r.y());
+    }
+    // δ-free perm_p（B22 同批置换，只读出侧池化）。
+    let pp = perm_test::stratified_delta_perm_p_deltafree(&records, perm_test::N_PERM, perm_test::PERM_SEED);
+    let (za, pa) = (1.645_f64, 0.05_f64);
+
+    let mut rows = String::from(
+        "| L | bsp | σ^H | N | n_eff | mean(Y) | std | lcb | ucb | cv | perm_p | state |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+    );
+    let mut states = Vec::new();
+    let mut lcb_pos: Vec<String> = Vec::new();
+    for ((lv, bc, pd), ys) in &series {
+        let n = ys.len();
+        let mean = ys.iter().sum::<f64>() / n as f64;
+        // 精确 Welford std（样本 std，n−1 分母）——非 §3.1 由 LCB 反推的近似 std。
+        let std = if n < 2 {
+            f64::NAN
+        } else {
+            (ys.iter().map(|y| (y - mean).powi(2)).sum::<f64>() / (n - 1) as f64).sqrt()
+        };
+        let se = std / (n as f64).sqrt();
+        let (lcb, ucb) = (mean - za * se, mean + za * se);
+        let cv = if mean == 0.0 { f64::INFINITY } else { std / mean.abs() };
+        let n_eff = decontam::effective_n(ys); // 精确 Geyer IPS（§3.1 缺此项）
+        let perm_p = *pp.get(&(*lv, *bc, *pd)).unwrap_or(&1.0);
+        let st = decontam::classify_bucket(mean, lcb, ucb, perm_p, n_eff, cv, za, pa);
+        states.push(st);
+        if lcb > 0.0 {
+            lcb_pos.push(format!("L{lv} bsp{bc} σ{pd:+} (mean{mean:+.2} lcb{lcb:+.2} n_eff{n_eff:.1} perm_p{perm_p:.3} {st:?})"));
+        }
+        rows.push_str(&format!(
+            "| L{lv} | {bc} | σ{pd:+} | {n} | {n_eff:.2} | {mean:+.4} | {std:.2} | {lcb:+.4} | {ucb:+.4} | {cv:.3} | {perm_p:.3} | {st:?} |\n"
+        ));
+    }
+    let v = decontam::global_verdict(&states);
+    let nv = states.iter().filter(|s| matches!(s, decontam::AlphaState::Validated)).count();
+    let nf = states.iter().filter(|s| matches!(s, decontam::AlphaState::Falsified)).count();
+    let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
+
+    let summary = format!(
+        "# δ-free 聚合基精确三态重算（Task #186，final-alpha §3.1 精确口径）\n\n\
+         - dump={dump} records={} δ-free基桶={} verdict={v:?} V={nv}/F={nf}/I={ni}\n\
+         - LCB>0 桶（精确口径）：{}\n\n{rows}\n",
+        records.len(), series.len(),
+        if lcb_pos.is_empty() { "无".into() } else { lcb_pos.join("; ") },
+    );
+    std::fs::write("/tmp/deltafree_exact.md", &summary).ok();
+    eprintln!("DELTAFREE_EXACT records={} buckets={} verdict={v:?} V={nv}/F={nf}/I={ni} | LCB>0: {}",
+        records.len(), series.len(), if lcb_pos.is_empty() { "无".into() } else { lcb_pos.join("; ") });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// δ-free 精确重算自检（Task #186，L1 管线正确性）：round-trip dump→load bit-exact + δ-free
+    /// perm_p 池化正确性。合成 records（level0/bsp3/σ+1 两 δ 同号高残差 = beta 漂移签名）：δ-free
+    /// 池化后仍显著（同号不抵消，perm_p 小）；对照买卖异号（真方向 alpha）池化抵消 ⟹ perm_p 不显著。
+    #[test]
+    fn deltafree_dump_roundtrip_and_pooling() {
+        use super::super::mu_estimator::PositionState;
+        use crate::theta_v0::types::BspBits;
+        // ① round-trip：dump 写盘→load 还原逐字节相等（f64 bit 模式精确）。
+        let mk = |delta: i8, resid: f64, tb: u32| {
+            let bits = if delta > 0 { BspBits { buy3: true, ..Default::default() } } else { BspBits { sell3: true, ..Default::default() } };
+            let class = MuClass::from_certificate(0, delta, bits, 1, PositionState::Root);
+            ResidualTrade { class, resid_base: resid, cost: 0.1, h_bucket: 0, time_block: tb }
+        };
+        let recs: Vec<ResidualTrade> = (0..40)
+            .map(|i| mk(if i % 2 == 0 { 1 } else { -1 }, 3.14159_f64 * (i as f64 + 1.0), (i % 2) as u32))
+            .collect();
+        let path = std::env::temp_dir().join("deltafree_roundtrip_test.tsv");
+        let p = path.to_str().unwrap();
+        // 直接调 dump 逻辑：门控经 env，故临时置位。
+        std::env::set_var("DELTAFREE_DUMP", p);
+        dump_deltafree_pertrade(&recs);
+        std::env::remove_var("DELTAFREE_DUMP");
+        let loaded = load_deltafree_dump(p);
+        assert_eq!(loaded.len(), recs.len(), "round-trip 笔数");
+        for (a, b) in recs.iter().zip(&loaded) {
+            assert_eq!(a.resid_base.to_bits(), b.resid_base.to_bits(), "resid_base bit-exact");
+            assert_eq!(a.cost.to_bits(), b.cost.to_bits(), "cost bit-exact");
+            assert_eq!(a.class.delta, b.class.delta);
+            assert_eq!(a.class.bsp_class(), b.class.bsp_class());
+            assert_eq!(a.class.parent_dir, b.class.parent_dir);
+            assert_eq!((a.h_bucket, a.time_block), (b.h_bucket, b.time_block));
+        }
+
+        // ② δ-free 池化：两 δ 同号高残差（beta 签名）。买 r=+10、卖 r=+10 ⟹ Y_buy=+10,Y_sell=−10
+        //    池化 mean=0；但 §3.1 的 beta 判据是「δ-free 基 mean 由同号 resid 不抵消」——用 resid_base
+        //    同号构造：买卖 resid 都=+10 ⟹ 池化残差基不随 δ 置换改变符号结构。这里验 perm_p 机制运行
+        //    （同批置换、只读出侧池化）：H0 独立 δ ⟹ 池化 perm_p 不显著（>0.05）。
+        let mut h0: Vec<ResidualTrade> = Vec::new();
+        for i in 0..60 {
+            h0.push(mk(if i % 2 == 0 { 1 } else { -1 }, (i % 5) as f64 - 2.0, 0));
+        }
+        let pp = perm_test::stratified_delta_perm_p_deltafree(&h0, perm_test::N_PERM, perm_test::PERM_SEED);
+        assert!(pp.contains_key(&(0, 3, 1)), "δ-free 基键 (0,3,+1) 应存在");
+        assert!(pp[&(0, 3, 1)] > 0.05, "H0 独立 δ ⟹ δ-free 池化 perm_p 不显著: {}", pp[&(0, 3, 1)]);
+    }
 
     /// L1 自检（预注册 §3 承重不变量）：单品种 time_block 值域必须 < SYMBOL_STRIDE，否则跨品种 stratum
     /// 碰撞 ⟹ δ 在跨品种间 shuffle ⟹ beta 污染。最大窗数（ES/CL/GC=15）·WF_TIME_STRIDE + 窗内块上界

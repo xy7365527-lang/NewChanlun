@@ -266,6 +266,82 @@ pub fn stratified_delta_perm_p_uclass(
     )
 }
 
+/// δ-free 聚合基 (level, bsp_class, parent_dir) 池化残差 perm_p（final-alpha-20260704 §3.1 下游精确重算）。
+///
+/// **主判据聚合基**（prereg §3.2：δ-free `(ℓ,bsp_class,σ^H)`）——把报告桶的 δ+1/δ−1 两方向池化。
+/// 与 [`stratified_delta_perm_p`] **同分层键 (ℓ,h桶,time block,σ^H) + 同 Fisher-Yates 消耗序**（逐字节
+/// 同一批置换：strata 构造顺序、每置换的层内 shuffle 顺序、种子全同）——**只改读出侧**：不 split δ，
+/// 对每个基按池化统计量 obs = `mean_i(δ_i·r_i − c_i)`（δ-free 基内全成员池化均值）比较置换值。
+/// 单边右尾 `p = #{perm 池化均值 ≥ obs}/n_perm`（H0：δ 标签对池化残差无正向解释力）。
+///
+/// 为何池化 = 主判据（final-alpha §3.1）：方向性 alpha 的买/卖残差异号 ⟹ 池化抵消；同号不抵消 =
+/// 该 (ℓ,bsp,σ^H) 结构格的纯 beta（657/oddeven 签名）。故池化统计量的右尾极端度是 δ-free 主判据的
+/// 置换检验分量，与 [`super::decontam::classify_bucket`] 的 `perm_p<perm_α` 门同口径消费。
+pub fn stratified_delta_perm_p_deltafree(
+    trades: &[ResidualTrade],
+    n_perm: usize,
+    seed: u64,
+) -> HashMap<(u32, u8, i8), f64> {
+    let n = trades.len();
+    let resid: Vec<f64> = trades.iter().map(|t| t.resid_base).collect();
+    let cost: Vec<f64> = trades.iter().map(|t| t.cost).collect();
+    let delta0: Vec<i8> = trades.iter().map(|t| t.class.delta).collect();
+
+    // 分层键恒 = (ℓ, h桶, time block, σ^H)——与 stratified_delta_perm_p_by 逐字节同序（同批置换前提）。
+    let mut strata_map: BTreeMap<(u32, u8, u32, i8), Vec<usize>> = BTreeMap::new();
+    for (i, t) in trades.iter().enumerate() {
+        strata_map
+            .entry((t.class.level, t.h_bucket, t.time_block, t.class.parent_dir))
+            .or_default()
+            .push(i);
+    }
+    let strata: Vec<Vec<usize>> = strata_map.into_values().collect();
+
+    // δ-free 输出基 (level, bsp_class, parent_dir)：池化两 δ 方向成员（BTreeMap 确定序）。
+    let mut base_map: BTreeMap<(u32, u8, i8), Vec<usize>> = BTreeMap::new();
+    for (i, t) in trades.iter().enumerate() {
+        base_map
+            .entry((t.class.level, t.class.bsp_class(), t.class.parent_dir))
+            .or_default()
+            .push(i);
+    }
+    // 池化统计量 = 基内全成员 Y=δ·r−c 均值（δ 由传入向量决定：obs 用 delta0，置换用 perm_delta）。
+    let pooled_mean = |members: &[usize], d: &[i8]| -> f64 {
+        let s: f64 = members.iter().map(|&idx| d[idx] as f64 * resid[idx] - cost[idx]).sum();
+        s / members.len() as f64
+    };
+    let mut bases: Vec<((u32, u8, i8), Vec<usize>, f64, usize)> = base_map
+        .into_iter()
+        .map(|(k, members)| {
+            let obs = pooled_mean(&members, &delta0);
+            (k, members, obs, 0usize)
+        })
+        .collect();
+
+    // 置换：层内打乱 δ（与报告桶 perm 逐字节同批），逐基按 perm δ 重算池化均值比观测（右尾）。
+    let mut rng = SplitMix64::new(seed);
+    let mut perm_delta = vec![0i8; n];
+    let mut buf: Vec<i8> = Vec::new();
+    for _ in 0..n_perm {
+        for members in &strata {
+            buf.clear();
+            for &idx in members {
+                buf.push(delta0[idx]);
+            }
+            fisher_yates(&mut buf, &mut rng);
+            for (k, &idx) in members.iter().enumerate() {
+                perm_delta[idx] = buf[k];
+            }
+        }
+        for (_k, members, obs, ge) in &mut bases {
+            if pooled_mean(members, &perm_delta) >= *obs {
+                *ge += 1;
+            }
+        }
+    }
+    bases.into_iter().map(|(k, _m, _o, ge)| (k, ge as f64 / n_perm as f64)).collect()
+}
+
 /// 删尾稳健：删除前 `k` 个最大值后的均值（alpha检验.pdf §6，p4：尾部依赖诊断）。
 ///
 /// 返回 `(删尾后均值, 是否符号翻转)`——「剔除前 3 个最大赢家后转负」= 收益依赖数尾部事件（§6）。

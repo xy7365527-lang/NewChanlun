@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>0013 — /goal 命令：收敛目标驱动蜂群</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>/goal —— 收敛目标驱动蜂群持续运行</h1>
+
+<p class="lead">用一个<em>可证伪</em>的收敛目标，让蜂群自主跑到达成、遇矛盾、或资源耗尽——不每步等你确认。这是 624 号「AGENT×持续监控象限无承载者」的唯一修：Lead runtime 层的运行时纪律承载（非 hook/teammate）。</p>
+
+<h2>一句话用法</h2>
+<pre><code>/goal &lt;目标描述&gt;     # 设定收敛目标
+/goal                  # 无参：从路线/中断点推导 goal</code></pre>
+
+<p>设定后 Lead 进入 7 步循环，只在<em>三种合法条件</em>停止。</p>
+
+<h2>设定时的契约（强制）</h2>
+<ol>
+<li><b>可收敛</b>：单一可验收交付物，不是宏大愿景。宏大 goal 拆里程碑序列，<code>/goal</code> 一次只锚一个里程碑。</li>
+<li><b>可证伪</b>：每个 acceptance 项必须 <code>falsifiable=true</code>，否则 <code>goal_reducer._validate_acceptance</code> 在 reduce 时 <code>raise ValueError</code> 拒绝（lesson 0011 锋利问题②：验收不可证伪则 goal 永动空转）。</li>
+<li>append <code>GOAL_SET</code> 事件到 <code>.chanlun/goals/events.jsonl</code>（字段：<code>goal_id, description, acceptance[], base_head=当前 git HEAD, ts</code>）。</li>
+<li>调 <code>python scripts/ceremony_scan.py</code> → reducer 纯函数 reduce → <code>current_goal</code> projection + <code>ready_workstations</code>。</li>
+</ol>
+
+<h2>运行协议（7 步原子循环，不等确认）</h2>
+<pre>
+评估 → scan → spawn(无依赖全并行) → 监控 → 真封(lake build+cargo) → commit → 回评估
+</pre>
+<p>每轮是<b>原子链</b>，不被总结段落/确认信号打断（137号/post-commit-flow）。编排者消息在当前原子轮到达边界后统一回应，不中断（224/225号）。编排者可随时 INTERRUPT 改 goal——Lead 立即收敛到新 goal。</p>
+
+<h2>三种合法停止（不存在第四种）</h2>
+<table>
+<thead><tr><th>条件</th><th>动作</th></tr></thead>
+<tbody>
+<tr><td><b>goal 达成</b></td><td>输出交付物（可证伪产出）+ 格式B（状态快照+排除理由）</td></tr>
+<tr><td><b>真实矛盾</b></td><td><code>/escalate</code>（定义冲突/需价值判断/缺外部数据权限）</td></tr>
+<tr><td><b>资源耗尽</b></td><td>报告进度 + 剩余工位 + 精确 blocker</td></tr>
+</tbody>
+</table>
+<p class="warn">「总结后停下来」「等确认」以问号结尾——都是违规（137号）。</p>
+
+<h2>实战：你当前的 goal</h2>
+<pre>
+goal_id: g-strict-mutex-classification-strategy
+acceptance: 0/3 passed
+ready_workstations: lean-nest, lean-roles18, rust-role18, rust-signal
+sub_goals: 12（Lean 链 6 + rust 链 6，依赖 DAG）
+</pre>
+<p>reducer 从 <code>events.jsonl</code> 纯函数重算（同输入同输出，无 IO/时间/随机）。<code>ready</code> = 未 passed ∧ 无 blocker ∧ 所有 blocked_by 已 passed。</p>
+
+<h2>恢复（跨 session）</h2>
+<p>无参 <code>/goal</code> 或 <code>/ceremony</code>：reduce events → 有 active goal 继续；无则从 roadmap/中断点推导。<b>state 降 projection</b>：session/interrupt 文件仅 base_head 匹配时作 hint，不匹配则 reduce 重算（消除状态过时；<code>base_head_stale</code> 标记不匹配）。</p>
+
+<h2>事件类型（events.jsonl append-only）</h2>
+<table>
+<thead><tr><th>event</th><th>语义</th></tr></thead>
+<tbody>
+<tr><td>GOAL_SET</td><td>设定 goal（acceptance 必须 falsifiable）</td></tr>
+<tr><td>DECOMPOSE</td><td>分解 sub_goals 树（containment 树 + blocked_by DAG）</td></tr>
+<tr><td>EVIDENCE</td><td>工位产出证据</td></tr>
+<tr><td>CHECK_PASS</td><td>某验收项通过</td></tr>
+<tr><td>BLOCKED</td><td>阻塞（定义冲突/缺数据/需编排者裁决）</td></tr>
+<tr><td>SUPERSEDE</td><td>goal 被替代</td></tr>
+<tr><td>CLOSED</td><td>goal 闭合（所有 acceptance CHECK_PASS）</td></tr>
+</tbody>
+</table>
+<p><b>分层防污染（575号）</b>：goal events ≠ genealogy。只有 goal 定义/验收/分解原则<em>语义变更</em>才升格 genealogy（用 goal_event_id 反向引用）。</p>
+
+<h2>关键区分</h2>
+<p><b>goal ≠ 基因组</b>：CLAUDE.md 是创世静态根（ceremony 内化）；goal 是运行时动态根（蜂群递归展开 = goal reducer 的确定性运行，非 Lead 认知）。<b>Lead 降 bootstrap/IO actuator</b>（033号：Lead=DAG 解释器，不做实质认知）。</p>
+
+<h2>primary source</h2>
+<ul>
+<li><a href="../../../.claude/commands/goal.md">.claude/commands/goal.md</a> —— 命令完整定义</li>
+<li><a href="../../../.chanlun/goals/SCHEMA.md">.chanlun/goals/SCHEMA.md</a> —— 事件 schema 唯一真相源</li>
+<li><a href="0011-resume-goal-command-toolbox.html">lesson 0011 resume-goal-command-toolbox</a> —— 恢复工具箱</li>
+<li><code>scripts/goal_reducer.py</code> —— 纯函数 reducer（8 测试绿，确定性保证）</li>
+</ul>
+
+<p class="followup">有不清楚的？问我。比如：怎么拆 sub_goals、acceptance 怎么写可证伪、reducer 怎么算 ready、DECOMPOSE 的 blocked_by DAG 怎么定、goal 和 /ritual 谱系结算的关系。</p>
+
+</body>
+</html>

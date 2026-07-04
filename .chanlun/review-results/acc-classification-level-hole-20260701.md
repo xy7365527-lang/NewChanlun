@@ -258,6 +258,9 @@
 - same_side_causal_ok=212 (100.00%)：同向 Type3 候选中存在 source_index<=confirm_index 者（否则=时间确认问题）
 - **level==1 也是死门（本窗实测）**：same_side_same_center=0/lvl==1 routed ⟹ C2-only 全域退化处置在本窗成立，无需分级处置。
 
+### XZD C2-only 复审探针（task #170）：lvl>=2 C3 新判据命中
+- lvl>=2 routed=217：c3_new_center_exists=6 / c3_new_center_breakout_ok=1（不参门，codex 裁定输入）
+
 ### C3 新判据（新中枢+突破）level==1 命中率（task #47，codex #44 终局裁定(c)）
 - c3_new_center_exists=13 (6.13%)：source_index~confirm_index 间存在新确认次级中枢
 - c3_new_center_breakout_ok=3 (1.42%)：新中枢被其后次级走势反向突破（level==1 硬门参门项）
