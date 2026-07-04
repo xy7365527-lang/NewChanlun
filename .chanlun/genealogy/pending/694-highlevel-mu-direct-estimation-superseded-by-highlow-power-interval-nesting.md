@@ -2,7 +2,7 @@
 id: 694
 number: 694   # 候选编号（当前最大占用=693 策略对象三分冻结，同 goal 姊妹轴）。最终编号 /ritual 统一分配。
 title: "acc-highlevel-mu（稀疏高级别买卖点直接估 μ̂）被 acc-highlow-power（高级别定方向 + 低级别出执行样本，区间套统计版）扬弃承接——高级别 alpha 检验节点分裂为『方向/容器角色』⊥『执行/样本源』两正交层"
-status: 生成态   # goal SUPERSEDE（events.jsonl line 293）携带的方法论扬弃落谱系；转 settled 待编排者 /ritual 追认 + acc-highlow-power 实装落地回溯结算。693 覆盖同一 goal 的对象冻结轴，本号覆盖 estimand/样本源轴，二者姊妹非重复。
+status: 生成态   # goal SUPERSEDE（events.jsonl line 293）携带的方法论扬弃落谱系；转 settled 待编排者 /ritual 追认 + acc-highlow-power 实装落地回溯结算。693 覆盖同一 goal 的对象冻结轴，本号覆盖 estimand/样本源轴，二者姊妹非重复。a3（highlow-a3-20260704.md）已闭合 pending_verification 实测半（无稳健增量→回 645 分支），见文末「a3 实测闭合注记」。
 date: 2026-07-04
 type: bias-correction   # 订正 fullhist-multilevel goal 的 acc-highlevel-mu 隐含前提「高级别买卖点可在其自身稀疏样本上直接估 μ̂ 做 alpha 检验」——被证伪为稀疏无功效（Le Cam 硬墙），估计对象须重构。
 source: "[新缠论] docs/formal-chain/问题1.pdf（16页《推导完全分类》终局裁定，INDEX.md 权威链）+ 编排者令 2026-07-04（『问题1.pdf 作为 goal 严格执行』）+ goal SUPERSEDE 事件 .chanlun/goals/events.jsonl:293（old=g-20260630T2010Z-fullhist-multilevel-3ecaf6 / new=g-20260704T1756Z-strategy-object-freeze-cbc36d，reason 明文『acc-highlevel-mu 被 acc-highlow-power 扬弃承接』）；被扬弃对象出处 = old goal acc-highlevel-mu（events.jsonl:250 acc 定义）+ acc-multilevel-sample 自陈 Le Cam 硬墙分支"
@@ -56,7 +56,7 @@ separation:
     - name: "执行/样本源层（低级别）"
       definition: "低级别在高级别方向条件下提供执行触发与统计样本量，μ̂ 在此层估计（n_eff 充足）。区间套统计版：μ̂(高级别方向条件下的低级别执行)。"
       source: "new goal acc-highlow-power（events.jsonl:292）：『高级别桶只作方向/容器/过滤，低级别提供执行与样本量；报各桶 n_eff 与功效门对照』。"
-  pending_verification: "acc-highlow-power 实装后，低级别执行样本在高级别方向条件下的 μ̂ 是否 n_eff 达功效门且 LCB>0——若达标且方向条件真收窄有效，扬弃成立并回溯结算；若低级别执行 μ̂ 亦无稳健增量，则高级别 alpha 假设本身受质疑（回 645 wrong-object 检查）。"
+  pending_verification: "acc-highlow-power 实装后，低级别执行样本在高级别方向条件下的 μ̂ 是否 n_eff 达功效门且 LCB>0——若达标且方向条件真收窄有效，扬弃成立并回溯结算；若低级别执行 μ̂ 亦无稳健增量，则高级别 alpha 假设本身受质疑（回 645 wrong-object 检查）。【a3 已闭合：实测无稳健增量 → 进 645 分支，见文末注记】"
 
 # 涉及的定义
 definitions_involved:
@@ -78,6 +78,10 @@ settlement_status: |
   概念层扬弃已辨认（estimand/样本源轴，693 未覆盖，二者同 goal 姊妹轴）。
   转 settled 待：(1) 编排者 /ritual 追认（同 693/690 口径）；
   (2) new goal acc-highlow-power 实装落地 + 低级别执行 μ̂ 的 n_eff/功效门实测（pending_verification 闭合后回溯结算）。
+  【2026-07-04 更新】条件(2)已由 a3（highlow-a3-20260704.md）闭合——实测无稳健增量，进入 645 wrong-object
+  分支（见文末注记）。条件(1)编排者 /ritual 追认仍待。故本号维持生成态：a3 的实测结果闭合了「验证半」，
+  但扬弃的干净成立被证伪（低级别执行 μ̂ 亦无增量 ⟹ 高级别 alpha 假设本身受质疑），须待编排者对
+  「回 645 wrong-object 检查」这一新开分支的处置 + /ritual 追认后方可结算。
 
 # 与 693 的关系（同 goal 双轴，非重复）
 sibling_note: |
@@ -137,3 +141,45 @@ n_eff/功效门实测"正是指向这个统计层缺口的闭合）。deep-resea
 **本条目状态不变**（仍待编排者 /ritual 追认 + 实装落地回溯结算），本注记补充：
 acc-highlow-power 的实装范围须显式排除"σ^H 直接进桶键"这一路径（已被 codex-q1 G2 裁定
 排除），改走"高级别方向条件"的过滤/分层机制，避免共线退化。
+
+## a3 实测闭合注记（2026-07-04，pending_verification 验证半闭合）
+
+`highlow-a3-20260704.md`（工位 swarm/ws-highlow，L2 BTC 全历史 wf OOS）已按本号 elevated 环节
+（「高级别方向条件下低级别执行的 μ̂」）实装 acc-highlow-power 并跑数，**闭合了本号
+`pending_verification` 的实测半**。结果指向 pending_verification 的**第二分支**（回 645）：
+
+**实测结论**（无稳健增量，非扬弃干净成立）：
+- 估计量 μ̂(z_L0 | D_hi) 已形式化+实装+跑数（区间套统计版字面落地）。L0 执行样本 2022，高级别 234
+  （弃估计只作条件源，694 口径兑现）。
+- **D1 σ^H_tower（相邻上级 L1 方向条件）**：条件化改变 2 格判定，但**未产生任何非 beta-drift 的
+  Validated 格**。基线唯一 Validated 桶（L0 bsp3 δ+1 σ_p+1，已知 beta 漂移伪结构）的正残差**完全
+  集中在 σ^H=+1 条件**（上级方向净涨时），且同条件反 δ 卖格 mean 同正 ⟹ 条件化把 beta 漂移解释
+  **定位到高级别方向载体**，不构成方向 alpha；σ^H=−1 条件下退为 Inconclusive。
+- **D2 nest_anchor（区间套锚）**：维退化坐实——π fill loop 样本链 nest_depth 全 None（anchored=0），
+  D2 在本样本链**无生产者**，不判定（预声明兑现，与「区间套已接入但 95% 退化」memory 同族）。
+- **停机条款**：非 beta-drift-suspect 的 Validated 条件格 = 无 → 不触发终局翻转。
+
+**对本号结算路径的影响**：本号 `pending_verification` 明文分两支——「若达标且方向条件真收窄有效
+⟹ 扬弃成立并回溯结算；**若低级别执行 μ̂ 亦无稳健增量，则高级别 alpha 假设本身受质疑（回 645
+wrong-object 检查）**」。a3 实测坐实**第二分支**：低级别执行在高级别方向条件下**无稳健增量**（唯一
+候选是 beta 漂移伪结构的条件化再定位）。故：
+
+1. **实测半闭合**（条件(2)达成）：acc-highlow-power 已实装落地并产出 n_eff/功效门实测。
+2. **但扬弃未干净成立**：a3 结果是 pending_verification 的「否定分支」——高级别 alpha 假设本身受质疑，
+   进入 **645 wrong-object 检查**分支。这不是本号 elevated 环节（方向层⊥样本源层分离）的失败——分离
+   在方法论上成立且已实装；失败的是「高级别方向条件下低级别执行存在可交易方向 alpha」这一**经验假设**。
+3. **本号维持生成态**：a3 闭合了实测半，但 (a) 编排者 /ritual 追认仍待；(b) 645 wrong-object 新分支
+   已开启（高级别 alpha 假设受质疑）——扬弃从「acc-highlevel-mu 被 acc-highlow-power **成功**承接」
+   收窄为「被承接但承接后**亦无增量**，触发对高级别 alpha 方向假设本身的 wrong-object 复查」。结算须
+   待该 645 分支处置 + /ritual 追认。
+
+**有效域声明（231）**：a3 的有效域 = **相邻上级方向条件（L0 样本的 D1=L1 方向态）**，σ^H 生产者定义域
+是执行级相邻上一级（tower[level+1]）。「更高级别（L2+）方向条件」无逐笔生产者——**不外推**到跨级方向
+条件。本号 elevated 环节所述「高级别定方向」在 a3 实测中被操作化为「相邻上级方向」，跨级方向条件的
+alpha 检验仍是有效域外的未测区（a3 边界条件(b)：若 σ^H 生产者扩展到跨级方向且高阶切片出现非 suspect
+Validated ⟹ 有效域外推成立，届时须重估本号结算方向）。
+
+**下游谱系联动**：本注记开启对 `645`（wrong-object）的实测触发——终局 q4/final-alpha INCONCLUSIVE
+判定在 a3 后**不变**（a3 未产出可翻转终局的非 suspect Validated 格）。acc-highlow-power 轴在现有
+样本链（相邻上级 + π fill loop）上**未翻转无方向 alpha 判定**，其信息增量是把基线唯一 Validated 桶的
+正残差**进一步定位**为「σ^H=+1 条件承载的 beta 漂移」（oddeven 判读的条件化加强版）。

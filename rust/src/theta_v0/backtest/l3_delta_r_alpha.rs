@@ -147,6 +147,96 @@ fn bsp_disc(b: &BspBits) -> u8 {
 ///
 /// 复用点（W-VERIFY 全定义域跑批 wverify_run）：传全 OOS 窗 bars ⟹ censored 兑现截断到 OOS 末，
 /// 不偷看 Holdout（Holdout 在 OOS 末之后，不在 bars 切片内）。
+/// ledger 笔的 records 入选判定（M3 穷尽守恒单一真相源，TARGET_STRATEGY_MAXFULL.md §M3）。
+///
+/// 三态**互斥穷尽**覆盖 ledger 中任一 `TypedTrade`：`Kept`（进 records + δ-free 主裁决桶）、
+/// `SameBarCensored`（末 bar 开腿同 bar censored，无兑现跨度）、`NonPositivePx`（entry/exit 价
+/// ≤0，非法价）。`build_mu_from_bars` 生产路径与守恒断言共用本函数 ⟹ 排除口径不可漂移
+/// （避免「静默丢弃」回归：任一 continue 分支不经此函数 = 穷尽账本漏项）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LedgerDisposition {
+    /// 进 records（有兑现跨度且价合法）。
+    Kept,
+    /// exit_bar ≤ entry_bar：同 bar censored，无持有窗（旧 censored 边界同语义）。
+    SameBarCensored,
+    /// entry_px ≤ 0 或 exit_px ≤ 0：非法价（数据缺口/停牌残留）。
+    NonPositivePx,
+}
+
+/// [`LedgerDisposition`] 判定纯函数。顺序：先判跨度（SameBarCensored 优先），再判价——
+/// 与旧两处 continue 的短路顺序 bit-exact（第一处 exit≤entry，第二处 px≤0），保生产口径不变。
+pub fn ledger_disposition(t: &super::runner::TypedTrade) -> LedgerDisposition {
+    if t.exit_bar <= t.entry_bar {
+        LedgerDisposition::SameBarCensored
+    } else if t.entry_px <= 0.0 || t.exit_px <= 0.0 {
+        LedgerDisposition::NonPositivePx
+    } else {
+        LedgerDisposition::Kept
+    }
+}
+
+/// M3 分区运行时断言（TARGET_STRATEGY_MAXFULL.md §M3 `𝒳=⊔C_z`，运行时 `Σ_z 1_{C_z}=1`）。
+///
+/// 两级守恒，任一违例 panic（no-workaround：违例 = 分类函数缺陷，停下上浮，不放行）：
+///
+/// 1. **ledger→records 穷尽**：`|ledger| == kept + Σ排除类`。经 [`ledger_disposition`] 三态
+///    计数，kept 必等于 `records.len()`——ledger 无笔既不进 records 又不落任一显式排除类
+///    （无静默丢弃）。
+/// 2. **records→buckets 互斥穷尽**：δ-free 主裁决键 κ(r)=(level,bsp_class,parent_dir,force_state)
+///    重算分桶，`Σ_z |C_z| == records.len()`。互斥（单笔单键，构造性）+ 穷尽（无笔落零格）+
+///    值域封闭（bsp_class∈{0,1,2,3}，parent_dir∈{-1,0,1}，delta∈{-1,1}——键分量落声明域，
+///    无逃逸态）。
+///
+/// `ledger`/`records` 须同源（同 `build_mu_from_bars` 调用产出），否则守恒 1 无意义。
+pub fn assert_m3_partition(ledger: &[super::runner::TypedTrade], records: &[ResidualTrade]) {
+    // ── 守恒 2（records→buckets 互斥穷尽 + 值域封闭）先行：只依赖 records，与 ledger 无关。──
+    // 键分量值域封闭是 records 自身有效性，先验证；再做 ledger↔records 跨集守恒 1。
+    let mut buckets: std::collections::BTreeMap<
+        (u32, u8, i8, Option<super::super::classifier::divergence::ForceStateA5>),
+        usize,
+    > = std::collections::BTreeMap::new();
+    for r in records {
+        let bc = r.class.bsp_class();
+        let pd = r.class.parent_dir;
+        let d = r.class.delta;
+        // 值域封闭（M3 声明域）：键分量落声明格，逃逸态 = 分类函数产出未声明分类 = 穷尽性破缺。
+        assert!(bc <= 3, "M3 值域违例：bsp_class={bc} 越界（声明域 {{0,1,2,3}}）");
+        assert!((-1..=1).contains(&pd), "M3 值域违例：parent_dir={pd} 越界（声明域 {{-1,0,1}}）");
+        assert!(d == 1 || d == -1, "M3 值域违例：delta={d} 越界（声明域 {{-1,1}}）");
+        *buckets.entry((r.class.level, bc, pd, r.class.force_state)).or_insert(0) += 1;
+    }
+    let bucket_sum: usize = buckets.values().sum();
+    assert_eq!(
+        bucket_sum,
+        records.len(),
+        "M3 互斥穷尽违例：Σ_z |C_z|={bucket_sum} ≠ |records|={} ⟹ 分桶非分区（丢笔或重复计数）",
+        records.len()
+    );
+
+    // ── 守恒 1：ledger→records 穷尽（|ledger| = kept + Σ排除类）──
+    let (mut kept, mut same_bar, mut nonpos) = (0usize, 0usize, 0usize);
+    for t in ledger {
+        match ledger_disposition(t) {
+            LedgerDisposition::Kept => kept += 1,
+            LedgerDisposition::SameBarCensored => same_bar += 1,
+            LedgerDisposition::NonPositivePx => nonpos += 1,
+        }
+    }
+    assert_eq!(
+        kept + same_bar + nonpos,
+        ledger.len(),
+        "M3 穷尽守恒违例：disposition 三态计数 {kept}+{same_bar}+{nonpos} ≠ |ledger|={} \
+         ⟹ 存在既不进 records 又不落任一显式排除类的静默丢弃笔",
+        ledger.len()
+    );
+    assert_eq!(
+        kept,
+        records.len(),
+        "M3 穷尽守恒违例：Kept 计数 {kept} ≠ |records|={} ⟹ 生产路径与 disposition 判定口径漂移",
+        records.len()
+    );
+}
+
 pub fn build_mu_from_bars(
     bars: &[Bar],
     config: &ThetaConfig,
@@ -166,11 +256,12 @@ pub fn build_mu_from_bars(
     let mut est = MuEstimator::new();
     let mut records: Vec<ResidualTrade> = Vec::new();
     for t in &ledger {
-        if t.exit_bar <= t.entry_bar {
-            continue; // 末 bar 开腿同 bar censored ⟹ 无兑现跨度（与旧 censored 边界同语义）
-        }
-        if t.entry_px <= 0.0 || t.exit_px <= 0.0 {
-            continue;
+        // M3 穷尽守恒（TARGET_STRATEGY_MAXFULL.md §M3 `𝒳=⊔C_z`）：ledger 每笔的入 records
+        // 判定单源经 [`ledger_disposition`]——两处「静默 continue」显式化为记账排除类，使
+        // `|ledger| = kept + Σ排除类`（穷尽账本，assert_ledger_records_conservation 验）。
+        match ledger_disposition(t) {
+            LedgerDisposition::Kept => {}
+            LedgerDisposition::SameBarCensored | LedgerDisposition::NonPositivePx => continue,
         }
         // X_γ = δ(P_exit−P_entry) − C（qty=1 名义单位，μ 是单位边际收益的类条件均值）。
         // δ 从 entry_z 取（开腿候选方向；opened 腿非 Flat，interpret 规则1 保证 δ∈{±1}）。
@@ -2081,5 +2172,58 @@ mod tests {
             "旧百分比口径被 path-dependent E_{{t−1}} 污染 ⟹ 配对差≠0（实得 {pct_pair_diff_mean}）——\
              与绝对增量口径（≡0）显著不同，证明旧实装测的不是 §10 的 ΔR"
         );
+    }
+
+    /// M3 分区快速单测（TARGET_STRATEGY_MAXFULL.md §M3，L1 管线正确性）：合成鞅跑真实生产路径
+    /// （`typed_ledger_from_bars`→`build_mu_from_bars`），断言 disposition 三态穷尽守恒
+    /// （|ledger|=kept+排除类，kept=|records|）+ records→buckets 互斥穷尽（Σ|C_z|=|records|）+
+    /// 键值域封闭。测的是 [`assert_m3_partition`] 在真 ledger/records 上零违例，不手搓 TypedTrade。
+    #[test]
+    fn m3_partition_synthetic_holds() {
+        use super::super::runner::typed_ledger_from_bars;
+        let cfg = ThetaConfig::default();
+        let ds = synthetic_martingale(3000, 20260704, 100);
+        let ledger = typed_ledger_from_bars(&ds.bars, &cfg);
+        let (_est, records) = build_mu_from_bars(&ds.bars, &cfg, 0);
+        assert!(!ledger.is_empty(), "合成鞅 3000 bar 产非空 ledger（否则测试空转）");
+        // 主断言：两级守恒零违例（内部 panic = 分区破缺）。
+        assert_m3_partition(&ledger, &records);
+
+        // disposition 三态穷尽的独立复算（守恒 1 的显式见证，防 assert 内计数漂移）。
+        let (mut kept, mut same_bar, mut nonpos) = (0usize, 0usize, 0usize);
+        for t in &ledger {
+            match ledger_disposition(t) {
+                LedgerDisposition::Kept => kept += 1,
+                LedgerDisposition::SameBarCensored => same_bar += 1,
+                LedgerDisposition::NonPositivePx => nonpos += 1,
+            }
+        }
+        assert_eq!(kept + same_bar + nonpos, ledger.len(), "三态穷尽覆盖 ledger");
+        assert_eq!(kept, records.len(), "Kept ≡ |records|（生产口径一致）");
+        eprintln!(
+            "[m3-partition-synth] |ledger|={} kept={kept} same_bar={same_bar} nonpos={nonpos} |records|={}",
+            ledger.len(), records.len()
+        );
+    }
+
+    /// M3 值域越界必 panic（L1，assert 的否定性见证——防「恒真占位」）：手工造 parent_dir 越界
+    /// （=5，声明域 {-1,0,1} 外）的 ResidualTrade，空 ledger 喂 [`assert_m3_partition`]，
+    /// catch_unwind 断言值域封闭 assert 真实触发。若不 panic ⟹ 值域断言是死代码。
+    #[test]
+    fn m3_out_of_domain_parent_dir_panics() {
+        use super::super::mu_estimator::{MuClass, PositionState, ResidualTrade};
+        use crate::theta_v0::types::BspBits;
+        // from_certificate 的 parent_dir 直接透传进 MuClass.parent_dir ⟹ 传 5 造越界 record。
+        let bits = BspBits { buy3: true, ..Default::default() };
+        let class = MuClass::from_certificate(0, 1, bits, 5, PositionState::Child);
+        let bad = ResidualTrade { class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0 };
+        let caught = std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&bad)));
+        assert!(caught.is_err(), "parent_dir=5 越界必触发 M3 值域封闭 panic（否则断言是死代码）");
+
+        // 正向对照：合法 record 空 ledger ⟹ kept=0≠|records|=1，守恒 1 应 panic（穷尽守恒真实生效）。
+        let good_class = MuClass::from_certificate(0, 1, bits, 1, PositionState::Root);
+        let good = ResidualTrade { class: good_class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0 };
+        let caught2 = std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&good)));
+        assert!(caught2.is_err(), "kept=0≠|records|=1 必触发穷尽守恒 panic（守恒 1 真实生效）");
     }
 }

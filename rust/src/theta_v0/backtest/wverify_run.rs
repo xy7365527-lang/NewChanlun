@@ -1020,6 +1020,55 @@ fn deltafree_exact_recompute() {
     eprintln!("DELTAFREE_EXACT records={} buckets={n_buckets} verdict={v:?} V={nv}/F={nf}/I={ni} | LCB>0: {lcb}", records.len());
 }
 
+/// M3 分区全历史长跑（TARGET_STRATEGY_MAXFULL.md §M3 `𝒳=⊔C_z`，L2 真实数据零违例）：BTC 全
+/// walk-forward OOS 窗逐窗同源取 ledger+records，[`assert_m3_partition`] 零违例——互斥穷尽守恒
+/// （|ledger|=kept+排除类、Σ|C_z|=|records|）+ 键值域封闭在 461 万 bar 定义域上成立。若任一窗
+/// 违例 = 分类函数缺陷（停下上浮，no-workaround 不放行）。
+/// `cargo test --release --lib theta_v0::backtest::wverify_run::m3_partition_btc_fullhistory -- --ignored --nocapture`
+#[test]
+#[ignore]
+fn m3_partition_btc_fullhistory() {
+    use super::l3_delta_r_alpha::assert_m3_partition;
+    use super::runner::typed_ledger_from_bars;
+    let cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+
+    let (mut tot_ledger, mut tot_kept, mut tot_records, mut n_win) = (0usize, 0usize, 0usize, 0usize);
+    for win in sw.wf_anchored {
+        if win.test_start < OOS_START {
+            continue; // IS 期窗不算 OOS 证据（与 walk_forward_oos_residuals 同过滤）
+        }
+        let test_ds = ds.slice_date_window(win.test_start, win.test_end);
+        if test_ds.bars.is_empty() {
+            continue;
+        }
+        // 同源：ledger 与 records 由同一 bars 切片产出（build_mu_from_bars 内部即调 typed_ledger_from_bars）。
+        let ledger = typed_ledger_from_bars(&test_ds.bars, &cfg);
+        let (_est, records) =
+            build_mu_from_bars(&test_ds.bars, &cfg, win.i * WF_TIME_STRIDE);
+        // 逐窗零违例（内部 panic = 该窗分区破缺，停下上浮）。
+        assert_m3_partition(&ledger, &records);
+        let kept = ledger.iter().filter(|t| matches!(
+            super::l3_delta_r_alpha::ledger_disposition(t),
+            super::l3_delta_r_alpha::LedgerDisposition::Kept
+        )).count();
+        eprintln!(
+            "[m3-full] win{} {}→{} |ledger|={} kept={kept} |records|={}",
+            win.i, win.test_start, win.test_end, ledger.len(), records.len()
+        );
+        tot_ledger += ledger.len();
+        tot_kept += kept;
+        tot_records += records.len();
+        n_win += 1;
+    }
+    assert!(n_win > 0, "BTC OOS 窗非空（否则测试空转）");
+    assert_eq!(tot_kept, tot_records, "全窗聚合 kept ≡ |records|（穷尽守恒跨窗一致）");
+    eprintln!(
+        "[m3-full] BTC 全历史 {n_win} 窗 M3 分区零违例：Σ|ledger|={tot_ledger} Σkept={tot_kept} Σ|records|={tot_records}"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

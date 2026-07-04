@@ -3,6 +3,7 @@
 - **工位**：swarm/ws-prereg2 | **Task #7** | goal g-20260704T2030Z-deepresearch-impl
 - **冻结基**：`26ebe90b29`（`prereg-rev2-20260704.md` 独立冻结 commit，#135 跑数先于本 commit ⟹ fail——本跑数在其后 HEAD 上执行 ✓）
 - **认识论**：**L2**（BTC 单标的 461万 bar walk-forward OOS，5 窗 test_start≥OOS_START，residuals=2256）。代码留工作区未 commit（除 prereg 冻结）。
+- **ExitType 增量（路线.pdf p5/p13）未纳入本轮**：ExitType 进主裁决聚合基与 final-prereg §2 exit-μ-BUCKETING-FROZEN 硬矛盾——ForceState 入场时由 A/C 段算=ex-ante（合法进基，本轮 A1）；ExitType 出场后才知=post-treatment，keyed-on-exit_type 桶入场时不可复现（un-actionable）。已 escalate team-lead 转编排者裁决，不静默选边（no-workaround）。本结果包 a1+a6 范围不含 ExitType。
 
 ---
 

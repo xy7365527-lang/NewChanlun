@@ -7,7 +7,7 @@ type: source-tracing   # 出处订正：A1「Jchain+d 缺维残余」（gap-mast
 source: "[新缠论] docs/formal-chain/INDEX.md 编排者裁定 2026-07-02（『本目录=形式化唯一权威』）+ 完整的策略.pdf §3（p2-3 N^δ 逐级相邻）/§6（p4 canonical z 含 Jchain 不含 d）/§16（p10 最完整形态 20 维排除 d）；缠论的全互斥定义策略.pdf §九（p22 示意 Z_t 带「…」）/§十（p22-23 d=非拓扑度量归风险层）；实装 mu_estimator.rs:136-138（Jchain 代数派生论证）/selector.rs:250-251（恒等式护栏机器可检）/risk.rs:74-105+194-198（structural_stop+|entry-stop|）/runner.rs:517-553（gate 消费）。核验=ws-a1dims 逐页 Read 原始 PDF（.chanlun/review-results/a1-zdims-20260704.md，Task #162）"
 negation_source: heterogeneous   # 出处裁定=INDEX.md 编排者裁定（完整的策略.pdf 为唯一权威）；原文核验=ws-a1dims 逐页 Read 两 PDF + 独立读码（homogeneous）。
 negation_model: null   # 无外部模型裁量——本条目的裁定依据是编排者既有 INDEX.md 权威链裁定的直接应用（Lead 裁定(a)：定理类）。
-negation_form: separation   # 两 PDF 的 Z_t 形态是两个不同的能指（权威 §16 20 维含 Jchain 不含 d vs 示意 §九带「…」列 d），被 shard4 当作同一个 z 混淆；分离后：权威 z（μ 分类状态，§16）vs 示意 z（含 d 的非拓扑度量，§十亲口归风险投影层）。非定义冲突——§十自己把 d/β/c/m 归「非拓扑度量」，层归属由原文明定。
+negation_form: separation   # 两 PDF 的 Z_t 形态是两个不同的能指（权威 §16 20 维含 Jchain 不含 d vs 示意 §九带「…」列 d），被 shard4 当作同一个 z 混淆；分离后：权威 z（μ 分类状态，§16）vs 示意 z（含 d 的非拓扑度量，§十亲口归风险层）。非定义冲突——§十自己把 d/β/c/m 归「非拓扑度量」，层归属由原文明定。
 
 # 拓扑效果标注（147号下游推论3：negates 非空必填）
 # negates：(1) gap-master2-final A1 行的「Jchain+d 缺维残余」判定；(2) shard4 把示意性 §九 z（含 d）当作权威 z 的错源。
@@ -233,9 +233,29 @@ Jchain 不含 d）为唯一权威，`缠论的全互斥定义策略.pdf` §九�
 （690）的三条理由（①权威排除②层归属③分桶碎片化）全部针对「d 是否进 z 分类桶键」这一支，对「estimand
 应测原始 μ(z,a)=E[X|z,a] 还是风险调整 μ_R(z,a)=E[X/d|z,a]」（d 缩放结果变量、不进桶键）这一正交支
 **未构成论证**——本条目的裁定范围**不如字面看起来那样完整**。genealogist 已就此开立独立谱系条目
-`696`（`pending/696-mu-r-estimand-outcome-scaling-orthogonal-to-690-bucket-key-exclusion.md`），
-将本条目的桶键裁定（维持有效）与 estimand 选择（690 未裁，696 号新开，待 /escalate）显式分离。
+`696`（`settled/696-mu-r-estimand-outcome-scaling-orthogonal-to-690-bucket-key-exclusion.md`），
+将本条目的桶键裁定（维持有效）与 estimand 选择（690 未裁，696 号新开）显式分离。
 
 **本条目状态不变**——d 不进 z 桶键的裁定继续有效，本注记只是把「本条目的有效范围止于桶键机制」这一
 边界显式化，防止后续报告误把 690 的裁定当作 estimand 问题的答案（该误用已在 formal-chain-deepresearch
 §3 核实点#3 中实际发生过一次）。
+
+## μ_R 归零下游印证注记（2026-07-04，a6 co-primary 实测）
+
+696 号（estimand 分支）已由编排者委托 codex 裁定为选项 B（μ_R=E[X/d|z] 作 co-primary），a6
+（`prereg-rev2-results-20260704.md`）按裁定实装并跑数。**a6 的 μ_R 实测结果是本条目「d 归风险层、
+不进 μ 分类桶键」裁定的下游印证**：
+
+- a6 μ_R δ-free 主裁决 25 桶 = **V=0/F=1/I=24**（无 Validated）。raw μ 的唯一 Validated 桶
+  （L0 bsp3 σ+1 force=None，已知 beta 漂移伪结构）在 μ_R 除 d 后**退为 Inconclusive**
+  （perm_p 0.000→0.085，LCB +89.9→−0.16）——风险归一化后 beta 漂移伪结构的「超额」被止损距离摊平。
+- **对本条目的印证方向**：a6 用 co-primary 方式让 d **只缩放结果变量 X**（μ_R=E[X/d]），桶键**仍是
+  δ-free (level,bsp_class,parent_dir) 三元组、d 不进桶键**——这正是本条目裁定的「d 不入 μ 分类桶键」
+  在 estimand 层的忠实实装。d 以「结果变量缩放因子」进入检验（696 的 estimand 分支），而非以「分类维」
+  进入桶键（本条目已排除的分支）。两条轴各自成立、互不覆盖：本条目管桶键（d 不入），696 管 estimand
+  （d 缩放 X，裁定=B）。a6 实测确认这一分离在代码层可实现且不违反本条目的桶键裁定。
+- **本条目状态不变**：d 层归属裁定（非拓扑度量→风险投影层，不进 μ 分类桶键）继续有效。a6 的 μ_R
+  co-primary 不是「把 d 放进桶键」（那会触发本条目边界条件(a) 的翻转）——它是 696 裁定的独立
+  estimand 轴，桶键始终无 d。故本条目边界条件(a)（编排者启动「d 离散化入 μ 桶键」）**未被触发**——
+  a6 走的是「d 缩放结果变量」路径，桶键无 d，本条目裁定不受影响，反被印证（d 在风险层的度量语义
+  即「除以 d = 单位风险收益」，与 sizing 层 1/d 同源，均在风险投影层而非分类层）。
