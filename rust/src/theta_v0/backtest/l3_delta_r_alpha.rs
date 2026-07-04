@@ -292,6 +292,8 @@ pub fn build_mu_from_bars(
             // A6（prereg-rev2-20260704）：入场止损距离 d（μ_R=E[Y/d] 分母）。None（不可得）⟹ NAN
             // ⟹ wverify μ_R 侧剔除该笔（raw μ 保留）；raw μ 现口径 bit-exact 不受影响（不读 d）。
             d: t.entry_stop_dist.unwrap_or(f64::NAN),
+            // ExitType 诊断切片（裁定甲）：账本字段透传，不进桶键/门控/裁决基。仅供 W-VERIFY 5 变体占比拆解。
+            exit_type: t.exit_type,
         });
     }
 
@@ -2216,13 +2218,13 @@ mod tests {
         // from_certificate 的 parent_dir 直接透传进 MuClass.parent_dir ⟹ 传 5 造越界 record。
         let bits = BspBits { buy3: true, ..Default::default() };
         let class = MuClass::from_certificate(0, 1, bits, 5, PositionState::Child);
-        let bad = ResidualTrade { class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0 };
+        let bad = ResidualTrade { class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0, exit_type: crate::theta_v0::strategy::interp::ExitType::Hold };
         let caught = std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&bad)));
         assert!(caught.is_err(), "parent_dir=5 越界必触发 M3 值域封闭 panic（否则断言是死代码）");
 
         // 正向对照：合法 record 空 ledger ⟹ kept=0≠|records|=1，守恒 1 应 panic（穷尽守恒真实生效）。
         let good_class = MuClass::from_certificate(0, 1, bits, 1, PositionState::Root);
-        let good = ResidualTrade { class: good_class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0 };
+        let good = ResidualTrade { class: good_class, resid_base: 1.0, cost: 0.1, h_bucket: 0, time_block: 0, d: 1.0, exit_type: crate::theta_v0::strategy::interp::ExitType::Hold };
         let caught2 = std::panic::catch_unwind(|| assert_m3_partition(&[], std::slice::from_ref(&good)));
         assert!(caught2.is_err(), "kept=0≠|records|=1 必触发穷尽守恒 panic（守恒 1 真实生效）");
     }

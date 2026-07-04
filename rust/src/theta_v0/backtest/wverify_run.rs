@@ -23,6 +23,7 @@
 
 use super::super::classifier::divergence::ForceStateA5;
 use super::super::config::ThetaConfig;
+use super::super::strategy::interp::ExitType;
 use super::l3_delta_r_alpha::build_mu_from_bars;
 use super::mu_estimator::{MuClass, ResidualTrade, UClass};
 use super::prereg_windows::{OOS_START, PREREG_WINDOWS};
@@ -104,6 +105,40 @@ fn force_state_decode(code: u8) -> Option<ForceStateA5> {
         3 => Some(ForceStateA5::Tie),
         4 => Some(ForceStateA5::Incomparable),
         _ => None,
+    }
+}
+
+/// ExitType 诊断切片的 dump 编码（codex-ruling-exittype-20260704 裁定甲：逐笔存档合法）。
+/// **不进桶键/门控/裁决基**——纯诊断列（[`exit_type_decode`] 逆映射，[`exit_type_label`] 报告标签）。
+fn exit_type_code(et: ExitType) -> u8 {
+    match et {
+        ExitType::CloseRoot => 0,
+        ExitType::ReduceCore => 1,
+        ExitType::CloseShortDiff => 2,
+        ExitType::RiskExit => 3,
+        ExitType::Hold => 4,
+    }
+}
+
+/// ExitType 编码逆映射（[`exit_type_code`]），离线 dump 复现器还原诊断列。
+fn exit_type_decode(code: u8) -> ExitType {
+    match code {
+        0 => ExitType::CloseRoot,
+        1 => ExitType::ReduceCore,
+        2 => ExitType::CloseShortDiff,
+        3 => ExitType::RiskExit,
+        _ => ExitType::Hold,
+    }
+}
+
+/// ExitType 报告标签（W-VERIFY 5 变体占比拆解节可读列）。
+fn exit_type_label(et: ExitType) -> &'static str {
+    match et {
+        ExitType::CloseRoot => "CloseRoot(P5)",
+        ExitType::ReduceCore => "ReduceCore(P6)",
+        ExitType::CloseShortDiff => "CloseShortDiff(P7)",
+        ExitType::RiskExit => "RiskExit(P1)",
+        ExitType::Hold => "Hold(P0)",
     }
 }
 
@@ -200,13 +235,15 @@ fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
         .unwrap_or_else(|| "/tmp/wv_full_zdecision.tsv".into());
     // A1/A6（prereg-rev2-20260704）：dump 增 force_state（δ-free 主裁决基第 8 维）+ d_bits（μ_R 分母）
     // 两列——离线复现器 [`deltafree_exact_recompute`] 逐字节还原 ⟹ 与在线主裁决/μ_R bit-exact。
-    let mut out = String::from("level\tbsp\tdelta\tsigma_h\tforce_state\th_bucket\ttime_block\tresid_base_bits\tcost_bits\td_bits\n");
+    // 路线.pdf p13 逐笔存档：末列 exit_type 诊断切片（裁定甲存档合法，不进裁决桶键）。
+    let mut out = String::from("level\tbsp\tdelta\tsigma_h\tforce_state\th_bucket\ttime_block\tresid_base_bits\tcost_bits\td_bits\texit_type\n");
     for r in records {
         out.push_str(&format!(
-            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:016x}\t{:016x}\t{:016x}\n",
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:016x}\t{:016x}\t{:016x}\t{}\n",
             r.class.level, r.class.bsp_class(), r.class.delta, r.class.parent_dir,
             force_state_code(r.class.force_state),
-            r.h_bucket, r.time_block, r.resid_base.to_bits(), r.cost.to_bits(), r.d.to_bits()
+            r.h_bucket, r.time_block, r.resid_base.to_bits(), r.cost.to_bits(), r.d.to_bits(),
+            exit_type_code(r.exit_type)
         ));
     }
     std::fs::write(&path, &out).unwrap_or_else(|e| panic!("Z_decision dump 落盘失败 {path}：{e}"));
@@ -275,6 +312,41 @@ fn deltafree_verdict(
     let ni = states.iter().filter(|s| matches!(s, decontam::AlphaState::Inconclusive)).count();
     let lcb_summary = if lcb_pos.is_empty() { "无".into() } else { lcb_pos.join("; ") };
     (rows, v, (nv, nf, ni), lcb_summary)
+}
+
+/// ExitType 诊断切片：按 5 变体拆解 n/占比/mean(Y)（codex-ruling-exittype-20260704 裁定甲）。
+///
+/// **纯描述性**——无三态判定、无 LCB 门、不进 accept/reject。防止诊断切片伪装成裁决层：本函数
+/// 只回报每变体的计数/占比/收益均值（异质性阅读），不做 Validated/Falsified 分类。exit_type 在入场
+/// 决策点 t 不可观测（post-treatment），故只作事后诊断，绝不进 μ 桶键/χ_t 门控/δ-free 主裁决基。
+fn exit_type_breakdown(records: &[ResidualTrade]) -> String {
+    let n_total = records.len();
+    // 5 变体固定序（CloseRoot/ReduceCore/CloseShortDiff/RiskExit/Hold）——即使某变体 0 笔也列出（穷尽）。
+    let variants = [
+        ExitType::CloseRoot,
+        ExitType::ReduceCore,
+        ExitType::CloseShortDiff,
+        ExitType::RiskExit,
+        ExitType::Hold,
+    ];
+    let mut rows = String::from(
+        "| exit_type | n | 占比 | mean(Y) |\n|---|---|---|---|\n",
+    );
+    for et in variants {
+        let ys: Vec<f64> = records.iter().filter(|r| r.exit_type == et).map(|r| r.y()).collect();
+        let n = ys.len();
+        let frac = if n_total == 0 { 0.0 } else { n as f64 / n_total as f64 };
+        let mean = if n == 0 { f64::NAN } else { ys.iter().sum::<f64>() / n as f64 };
+        rows.push_str(&format!(
+            "| {} | {} | {:.4} | {:+.6} |\n",
+            exit_type_label(et), n, frac, mean
+        ));
+    }
+    format!(
+        "# ExitType 诊断切片（裁定甲，纯描述性——无三态/无 LCB 门/不进裁决基）\n\n\
+         - 总笔数 n={n_total}（5 变体穷尽拆解，占比和 = 1.0）\n\
+         - **地位**：事后诊断切片。exit_type 不进 μ 桶键/χ_t 门控/δ-free 主裁决基（exit-μ-BUCKETING-FROZEN #180）。\n\n{rows}"
+    )
 }
 
 #[test]
@@ -447,6 +519,11 @@ fn wverify_full() {
         }
     }
     std::fs::write("/tmp/wv_full_timeblocks.md", &wf_rows).ok();
+
+    // ── ExitType 诊断切片（裁定甲：5 变体占比拆解，纯描述性，不进裁决基）──
+    let exit_diag = exit_type_breakdown(&records);
+    eprintln!("WV_FULL ExitType 诊断切片:\n{exit_diag}");
+    std::fs::write("/tmp/wv_full_exittype.md", &exit_diag).ok();
 
     assert!(!records.is_empty(), "residuals 空——管线未产观测");
 }
@@ -963,7 +1040,7 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
             continue;
         }
         let f: Vec<&str> = line.split('\t').collect();
-        assert_eq!(f.len(), 10, "δ-free dump 行须 10 列（A1/A6 增 force_state+d_bits），得 {}：{line}", f.len());
+        assert_eq!(f.len(), 11, "δ-free dump 行须 11 列（A1/A6 增 force_state+d_bits，裁定甲增 exit_type），得 {}：{line}", f.len());
         let level: u32 = f[0].parse().unwrap();
         let bsp: u8 = f[1].parse().unwrap();
         let delta: i8 = f[2].parse().unwrap();
@@ -974,6 +1051,7 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
         let resid_base = f64::from_bits(u64::from_str_radix(f[7], 16).unwrap());
         let cost = f64::from_bits(u64::from_str_radix(f[8], 16).unwrap());
         let d = f64::from_bits(u64::from_str_radix(f[9], 16).unwrap());
+        let exit_type = exit_type_decode(f[10].parse().unwrap()); // 诊断切片还原（不进裁决键）
         let bits = match (bsp, delta > 0) {
             (1, true) => BspBits { buy1: true, ..Default::default() },
             (1, false) => BspBits { sell1: true, ..Default::default() },
@@ -986,7 +1064,7 @@ fn load_deltafree_dump(path: &str) -> Vec<ResidualTrade> {
             force_state, // A1：δ-free 主裁决基第 8 维还原
             ..MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root)
         };
-        out.push(ResidualTrade { class, resid_base, cost, h_bucket, time_block, d });
+        out.push(ResidualTrade { class, resid_base, cost, h_bucket, time_block, d, exit_type });
     }
     out
 }
@@ -1081,13 +1159,15 @@ mod tests {
         use super::super::mu_estimator::PositionState;
         use crate::theta_v0::types::BspBits;
         // ① round-trip：dump 写盘→load 还原逐字节相等（f64 bit 模式精确）。
-        let mk = |delta: i8, resid: f64, tb: u32| {
+        let mk = |delta: i8, resid: f64, tb: u32, et: ExitType| {
             let bits = if delta > 0 { BspBits { buy3: true, ..Default::default() } } else { BspBits { sell3: true, ..Default::default() } };
             let class = MuClass::from_certificate(0, delta, bits, 1, PositionState::Root);
-            ResidualTrade { class, resid_base: resid, cost: 0.1, h_bucket: 0, time_block: tb, d: 1.0 }
+            ResidualTrade { class, resid_base: resid, cost: 0.1, h_bucket: 0, time_block: tb, d: 1.0, exit_type: et }
         };
+        // exit_type 循环覆盖 5 变体 ⟹ round-trip 实际穿过新诊断列（否则该列是死代码）。
+        let ets = [ExitType::CloseRoot, ExitType::ReduceCore, ExitType::CloseShortDiff, ExitType::RiskExit, ExitType::Hold];
         let recs: Vec<ResidualTrade> = (0..40)
-            .map(|i| mk(if i % 2 == 0 { 1 } else { -1 }, 3.14159_f64 * (i as f64 + 1.0), (i % 2) as u32))
+            .map(|i| mk(if i % 2 == 0 { 1 } else { -1 }, 3.14159_f64 * (i as f64 + 1.0), (i % 2) as u32, ets[i % 5]))
             .collect();
         let path = std::env::temp_dir().join("deltafree_roundtrip_test.tsv");
         let p = path.to_str().unwrap();
@@ -1104,6 +1184,7 @@ mod tests {
             assert_eq!(a.class.bsp_class(), b.class.bsp_class());
             assert_eq!(a.class.parent_dir, b.class.parent_dir);
             assert_eq!((a.h_bucket, a.time_block), (b.h_bucket, b.time_block));
+            assert_eq!(a.exit_type, b.exit_type, "exit_type 诊断列 round-trip 无损");
         }
 
         // ② δ-free 池化：两 δ 同号高残差（beta 签名）。买 r=+10、卖 r=+10 ⟹ Y_buy=+10,Y_sell=−10
@@ -1112,7 +1193,7 @@ mod tests {
         //    （同批置换、只读出侧池化）：H0 独立 δ ⟹ 池化 perm_p 不显著（>0.05）。
         let mut h0: Vec<ResidualTrade> = Vec::new();
         for i in 0..60 {
-            h0.push(mk(if i % 2 == 0 { 1 } else { -1 }, (i % 5) as f64 - 2.0, 0));
+            h0.push(mk(if i % 2 == 0 { 1 } else { -1 }, (i % 5) as f64 - 2.0, 0, ExitType::Hold));
         }
         let pp = perm_test::stratified_delta_perm_p_deltafree(&h0, perm_test::N_PERM, perm_test::PERM_SEED);
         // A1：δ-free 基键含 force_state 第 8 维——mk 走 from_certificate ⟹ force_state=None。

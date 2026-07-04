@@ -432,7 +432,7 @@ mod tests {
             (_, false) => BspBits { sell3: true, ..Default::default() },
         };
         let class = MuClass::from_certificate(level, delta, bits, sigma_h, PositionState::Root);
-        ResidualTrade { class, resid_base, cost: 0.0, h_bucket, time_block, d: 1.0 }
+        ResidualTrade { class, resid_base, cost: 0.0, h_bucket, time_block, d: 1.0, exit_type: crate::theta_v0::strategy::interp::ExitType::Hold }
     }
 
     #[test]

@@ -271,6 +271,7 @@ mod self_check {
             h_bucket: 0,
             time_block: tb,
             d: 1.0, // A6：合成自检 d=1（μ_R 分母占位，切片逻辑不依赖 d）
+            exit_type: crate::theta_v0::strategy::interp::ExitType::Hold, // 诊断切片占位（不进桶键）
         }
     }
 

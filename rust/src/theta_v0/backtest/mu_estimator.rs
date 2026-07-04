@@ -39,6 +39,7 @@ use std::collections::HashMap;
 use super::metrics::trade_abs_pnl;
 use crate::theta_v0::classifier::divergence::ForceStateA5;
 use crate::theta_v0::strategy::coverage::Horizontal;
+use crate::theta_v0::strategy::interp::ExitType;
 use crate::theta_v0::types::BspBits;
 
 /// 仓位态（z 的分量，§16 line 3262「仓位态」）。
@@ -322,6 +323,11 @@ pub struct ResidualTrade {
     /// （raw μ 在原始 Y 上，d 只服务 μ_R co-primary 门）。`NAN` = d 不可得（structural_stop 返 None /
     /// BspPoint 缺失）⟹ μ_R 样本剔除（诚实缺口，231号不兜底放大分母）。
     pub d: f64,
+    /// ExitType 诊断切片（codex-ruling-exittype-20260704 裁定甲：账本字段 + 计价来源 +
+    /// **事后诊断切片**）。**铁律**：本字段**不进** MuClass 桶键、不进 χ_t 门控、不进 δ-free
+    /// 主裁决聚合基（exit-μ-BUCKETING-FROZEN，#180；出场信息在入场 t 不可观测 = post-treatment
+    /// 泄漏）。仅供 W-VERIFY 按 5 变体拆解占比的纯描述性诊断（无三态判定、无 LCB 门）。y() 不读本字段。
+    pub exit_type: ExitType,
 }
 
 impl ResidualTrade {
@@ -748,7 +754,7 @@ mod tests {
     fn residual_trade_y_is_signed_debeta_minus_cost() {
         let z = MuClass::from_certificate(0, 1, buy_bits(), 0, PositionState::Root);
         // H=100, B̂=30, C=5, δ=+1 ⟹ Y = 1·(100−30) − 5 = 65。
-        let rt = ResidualTrade { class: z, resid_base: 100.0 - 30.0, cost: 5.0, h_bucket: 0, time_block: 0, d: 1.0 };
+        let rt = ResidualTrade { class: z, resid_base: 100.0 - 30.0, cost: 5.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold };
         assert!((rt.y() - 65.0).abs() < 1e-12);
         // Y = X − δ·B̂：X = δ·H − C = 100 − 5 = 95；δ·B̂ = 30 ⟹ Y = 95 − 30 = 65。
         let (h, b_hat, c) = (100.0, 30.0, 5.0);
@@ -756,7 +762,7 @@ mod tests {
         assert!((rt.y() - (x - 1.0 * b_hat)).abs() < 1e-12, "Y = X − δ·B̂");
         // 卖方向 δ=−1：H=−40（下跌）, B̂=−20（下漂）, C=3 ⟹ Y = −1·(−40−(−20)) − 3 = 20 − 3 = 17。
         let z_sell = MuClass::from_certificate(0, -1, BspBits { sell1: true, ..Default::default() }, 0, PositionState::Root);
-        let rt_s = ResidualTrade { class: z_sell, resid_base: -40.0 - (-20.0), cost: 3.0, h_bucket: 0, time_block: 0, d: 1.0 };
+        let rt_s = ResidualTrade { class: z_sell, resid_base: -40.0 - (-20.0), cost: 3.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold };
         assert!((rt_s.y() - 17.0).abs() < 1e-12);
     }
 
