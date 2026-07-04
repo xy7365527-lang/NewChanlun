@@ -120,6 +120,11 @@ retroactive_settlement:
   settled_by: null
   settlement_date: null
   settlement_description: null
+  # L2 验证降级注记（a5 收口，2026-07-04）——见文末「L2 验证注记」小节。
+  # ceiling 在 BTC/L2 暴露面=0，从「L2/L3 待验证」降级为「已验证休眠缺口（BTC/L2）」，
+  # 但彻底修复仍未实装，不 settled（休眠≠消除）。证据：ancok-a5-20260704.md。
+  l2_verification: "ancok-a5-20260704.md（BTC 4,613,599 bar 全历史 L2，restore_break_registry_lost=0，恢复成功率=1.000000，暴露面=0）"
+  l2_status: "已验证休眠缺口（BTC/L2）"
 
 # 谱系关联
 related_records:
@@ -191,3 +196,64 @@ codex 的建议**尚未被执行**。本号（697）即为该补开的独立跟�
 此前未被执行，本号补开。选择类工作（是否列入本轮彻底修复）标注但不裁定，留给 Lead/编排者按
 依赖序调度。本号不影响 A4 机制销项的有效性判断，也不影响 `persistent.rs`/`coverage.rs` 现有
 代码的正确性判断——纯粹是对象跟踪层面的分离登记。
+
+---
+
+## L2 验证注记（a5 收口，2026-07-04）
+
+**追加人**：genealogist（本工位）。**依据**：`.chanlun/review-results/ancok-a5-20260704.md`
+（工位 swarm/ws-ancok2，L2，路径2=暴露面0）。**本小节不改上文既有内容，仅追加 L2 结果。**
+
+### 降级判定
+
+697 号 ceiling 从「**L2/L3 待验证**」降级为「**已验证休眠缺口（BTC/L2）**」。
+
+上文「边界条件」第二条（"彻底修复被实装且 L2/L3 验证通过 ⟹ 回溯结算 settled"）与本次结果**不冲突**：
+a5 走的是**另一条**降级路径——不是彻底修复被实装，而是 codex 建议6 三选一中的**第三项「证明 parent
+可恢复」在 BTC 上经验成立**（暴露面测量而非严格修复）。故本号**不 settled**（彻底修复仍未实装），
+只从「待验证 ceiling」降级为「休眠缺口」——**休眠 ≠ 消除**，机制在 BTC 上未被触发，但仍在。
+
+### L2 测量证据（BTC 4,613,599 bar 全历史）
+
+| 探针 | 定义 | 实测值 |
+|------|------|--------|
+| `stale_arm` | HeldLegMatch::Stale 命中 | 82,127 |
+| `state_live_present` | Stale∧registry LivePresent（理论不可达） | 15 |
+| `state_live_detached` | Stale∧registry LiveDetached（触发 restore） | 82,112 |
+| `closed_inval_boundary_kept` | Stale∧Closed/Inval∧真边界根（合法 None） | 0 |
+| `restore_calls` | 祖先链恢复调用总数 | 42,823 |
+| **`restore_break_registry_lost`** | **★暴露面：registry 丢失/作废祖先中断** | **0** |
+
+**恢复成功率 = 42,823 / 42,823 = 1.000000**；registry 丢失暴露面 = **0**。记账封闭性两个自检
+assert 通过（15+82112+0+0=82127；2962+39861+0=42823）。运行于生产 π ledger 路径
+（`run_theta_v0_pi`，非 cached 旁路），`is_l2=true`，用时 3120.32s。
+
+### 有效域声明（formalization-validity-domain 规则，231号）
+
+**有效域 = BTC 单标的 / L2**，**不声明 L3**。暴露面=0 是 BTC 全历史结果；其他标的（CL/ES/金油）
+若 LiveDetached 分布或 registry 作废时序不同，`restore_break_registry_lost` 可能转正 ⟹ 结论翻转为
+路径1（实装严格修复）。定义域=全标的，有效域=BTC——**不得膨胀**。
+
+### 对承重结论的收窄
+
+深度研究报告 §3.1 争议二承重结论「A4 未闭合时声部树完备性**非完全证明态**」——在 BTC/L2 有效域内
+从「未证明」**收窄为「BTC 上未证伪」**（声部树严格性经验成立，暴露面=0）。但这是 L2 经验结论，
+**非 L0 完全证明**；完全证明态仍需彻底修复的 L0 论证或 L3 交叉验证。争议二不因此关闭，仅收窄。
+
+### 探针常驻要求
+
+休眠缺口的可观测性依赖 coverage.rs 的 `ancok_probe_*` 探针常驻（a5 报告边界条件4）。若探针被删，
+697 回退为不可验证 ceiling。探针为此常驻（报告称已加 ponytail 注释锚定）。
+
+### 前任状态订正
+
+上文 front matter `negation_source` 曾记 "ceiling缺口幸存=persistent.rs模块自陈+深度研究报告二次
+确认"——该表述仍成立（ceiling 客观存在），本小节仅补充：该 ceiling 在 **BTC/L2 上暴露面=0**，
+故降级为休眠。A4 机制销项判断**不受影响**（a5 报告佐证：`closed_inval_boundary_kept=0` 且
+`restore_break_registry_lost=0` 证明 Stale 分支未伪造 parent=None，697 上文 A4 销项部分保持有效）。
+
+### 新观测（非本号裁定对象，仅记录）
+
+`state_live_present=15`（理论标注「不可达」，实测低频命中 15/82127=0.018%）——「理论不可达分支实际
+低频可达」的观测，按持久身份保留（I1）处理，不触发 restore，不产生暴露面。记录待后续工位处置，
+非本号裁定对象。
