@@ -80,7 +80,10 @@ use super::super::config::MacdConfig;
 use super::super::types::{Center, Direction, MoveKind, Segment, Side, Tick};
 // Side 已在上行 import（judge_first_cached 用它构造 BspPoint.struct_break_dir，P2-R2）。
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
-use super::decompose::{center_block_kind, center_trend_gate, decompose};
+use super::decompose::{
+    center_block_kind, center_block_kind_at, center_own_dir_at, center_trend_gate, decompose,
+    MoveBlock,
+};
 use super::divergence::{
     self, compute_macd, departure_move_c_start, force_features, locate_departure_move_a,
     AbcDivergence, DivergenceGauge, ForceProxies,
@@ -880,68 +883,232 @@ pub fn extract_signals_with_hist_anchored(
         let Some(c_idx) = nearest_confirmed_center_idx(&centers_sorted, seg.start_index) else {
             continue;
         };
-        let c = &centers_sorted[c_idx];
-
-        // 第一类（趋势背驰，A/B/C 框架）：仅段所在趋势块 + 破最后中枢段触发（Q8：「最后一个
-        // 中枢」= 当前走势类型的最后中枢 = c）；prev_center = pos-1（同块前驱，A 段所在）。
-        // center_gate[pos]=Some ⟹ pos > 块首 ≥ 0 ⟹ 前驱存在且同块。
-        if any_trend {
-            // 热点①修复：`pos` 由 `first_match_idx` O(1) 查表给出（首匹配下标，bit-exact 等价旧
-            // `.position()`），替代旧 `centers.iter().position(...)` O(C) 线性反查。`c`（last_center）
-            // 仍取 `centers_sorted[c_idx]`（最近中枢语义正确）。
-            if let Some(&pos) = first_match_idx.get(&(c.end_index, c.zd, c.zg)) {
-                if let Some(dir) = center_gate[pos] {
-                    let prev_center = &centers_sorted[pos - 1];
-                    // 热点②修复：A 区间按 last_center_idx=c_idx 缓存（与 C 段 `seg` 无关，见 a_seg_cache
-                    // 注释）。首次 miss 才调 `locate_departure_move_a` O(S)，后续 hit O(1) 复用——消解
-                    // 每段重算的 O(S²)。
-                    let a_seg_entry = *a_seg_cache
-                        .entry(c_idx)
-                        .or_insert_with(|| locate_departure_move_a(&sorted, anchors, prev_center, c, dir));
-                    // Q5 λ_C（codex ac4 #2）：当前 episode 首同向段起点（共享 helper，逐段计算）。
-                    let c_start_entry =
-                        departure_move_c_start(&sorted, anchors, c, dir, seg.start_index);
-                    // P2-R2：judge_first_cached 回 Option<BspPoint>——破中枢结构候选（背驰=buy1/未背驰
-                    // =零 bit + struct_break_dir）进 points。macd_c_lt_a 不再单产 sidecar（护栏7 删除）。
-                    if let Some(pf) = judge_first_cached(
-                        c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
-                        c_start_entry, gauge,
-                    ) {
-                        points.push(pf);
-                    }
-                }
-            }
-        }
-
-        // ★Q4 盘整背驰（task #145）：段的最近中枢按 ownership 落在 Consolidation 块 ⟹ 走盘整
-        // 背驰证书路径（同一中枢两次同向离开 + C<A）。不产 BspPoint、不置 six-bit——证书由
-        // econ 层经 Nest/XZD 二通道承接（PanDiv^δ_ℓ ⟹ ∃e<ℓ Conf^δ_e ∨ XZD^δ_{ℓ↓e}）。
-        if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
-            if let Some(cert) = judge_pan_div(c, seg, &sorted, &anchors_self, hist, close_src) {
-                pan_divs.push(cert);
-            }
-        }
-
-        // 第三类：当前段作 retest，前一段作 leave。中枢归属 = **leave 段离开的最近中枢**（第18课
-        // 「该中枢」），故用 leave 段 start_index 定位中枢，retest 相对**同一**中枢判一次。
-        if i > 0 {
-            let leave_seg = &sorted[i - 1];
-            if let Some(c_leave_idx) =
-                nearest_confirmed_center_idx(&centers_sorted, leave_seg.start_index)
-            {
-                let c_leave = &centers_sorted[c_leave_idx];
-                // Q7-#1 裁定C：leave 段（三类离开/突破段）须有方向锚资格；retest 段是几何回试角色。
-                if let Some(p) = judge_third(c_leave, leave_seg, anchors[i - 1], seg) {
-                    // 第三类无 A/C 趋势段对 ⟹ p.force=None（make_third_point 已置，诚实不造死字段）。
-                    points.push(p);
-                }
-            }
-        }
+        // 第一类门（趋势方向）：`pos` 由 `first_match_idx` O(1) 查表给出（首匹配下标，bit-exact 等价旧
+        // `.position()`）——重复三元组下返回最小下标，prev_center=pos-1、gate=center_gate[pos]。
+        let gate_dir = if any_trend {
+            first_match_idx
+                .get(&{ let c = &centers_sorted[c_idx]; (c.end_index, c.zd, c.zg) })
+                .and_then(|&pos| center_gate[pos].map(|d| (pos, d)))
+        } else {
+            None
+        };
+        let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
+        // ★on2w3-07a：单段判定核（第一/盘整/三类）——full 路径与 resume 路径共享，逐字段等价
+        // （gate/kind 由 caller 按 O(C) 数组或 pointwise 查询解析后传入，判定逻辑同一份）。
+        judge_segment(
+            i, seg, c_idx, gate_dir, kind_consol, &sorted, anchors, &anchors_self, &centers_sorted,
+            &mut a_seg_cache, hist, dif, closes_tick, close_src, gauge, &mut points, &mut pan_divs,
+        );
     }
     // 按 source_index 升序（reference:16 平局裁决键的时间序分量）。force 已收进各 BspPoint.force。
     points.sort_by_key(|p: &BspPoint| p.source_index);
     pan_divs.sort_by_key(|p: &PanDivCert| p.source_index);
     (points, pan_divs)
+}
+
+/// ★on2w3-07a 一/三类 frontier-resume（消 07a O(n²) 主导项，algo-opt-plan B2 泳道）。
+///
+/// 07a `extract_signals_with_hist{,_anchored}` 每 memo-miss 全量重判全部 S 段（第一/盘整/三类），
+/// 跨 N bar 累积 O(S·N)=O(n²)（on2w3 profile 坐实 BTC-1M 4422ms/94% 在逐段判定循环，exp≈2.20）。
+/// 但**已 confirmed 的段的点跨 bar 不变**：段 i 的第一类依赖其最近中枢 c 的趋势门（`decompose`
+/// 冻结 sealed 关系 R_j, j<m-2）+ A/C 后向窗口 + hist 前缀（append-only）；三类依赖 sorted[i-1..=i]
+/// + 各自最近中枢；盘整依赖同一门 + 后向窗口。故**冻结边界 `e_src` 之前的段的点可缓存**，每 bar
+/// 只重判 tail `[stable_seg..S)`。
+///
+/// **锚口径（sound，doc① Q2 handoff 精化）**：段 i 可封 ⟺ `seg[i].end_index < e_src`，其中
+/// `e_src = min(centers[prefix_count-2].end_index, dirty_e)`（倒数第二个 confirmed 中枢的终点，
+/// 保证 seg[i] 落 confirmed 段前缀 ∧ 其最近中枢 c_idx≤prefix_count-3 门已冻结；cascade `dirty_e`
+/// 兜底 frontier 改写）。`prefix_count<2` ⟹ e_src=0（无可复用前缀，退化全判）。
+///
+/// **bit-exact 铁律**：缓存按 push 序（段 i 序：type1→type3，pan_div 分开）存 confirmed 前缀点，
+/// `cache ++ advance[cached..stable] ++ tail[stable..S]` == full 路径 pre-sort `points` 向量逐元素
+/// 相等 ⟹ 同一 `sort_by_key(source_index)` 稳定排序逐字段 bit-identical（H1 神谕先例，debug_assert
+/// 对拍 full 重算 + `bit_exact_per_bar` always-run 网锁定）。
+///
+/// **setup 线性化**：`blocks` = caller 已增量产出的 `decompose_resume` 输出（不重 decompose）；门/
+/// 类别用 pointwise `center_own_dir_at`/`center_block_kind_at`（O(log C)/段），不 materialize O(C) 数组；
+/// `first_match_idx` 冗余删除（中枢 end_index 严格递增 ⟹ 三元组唯一 ⟹ pos==c_idx，on2w3 实测 0/7.17M）。
+#[allow(clippy::too_many_arguments)]
+pub fn extract_first_third_resume(
+    cached_pts: &mut Vec<BspPoint>,
+    cached_pans: &mut Vec<PanDivCert>,
+    cached_count: &mut usize,
+    centers: &[Center],
+    segments: &[Segment],
+    anchor_dirs: Option<&[Option<Direction>]>,
+    blocks: &[MoveBlock],
+    prefix_count: usize,
+    dirty_e: usize,
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+    gauge: DivergenceGauge,
+) -> (Vec<BspPoint>, Vec<PanDivCert>) {
+    // 生产路径 segments/centers 已 start_index/end_index 升序（parser 账本 + 非重叠中枢扫描）；
+    // anchors 平行。resume 是热路径专用入口，**假设有序**（debug_assert 守护，release 剥离）——
+    // 全量 fallback（乱序入参）走 [`extract_signals_with_hist_anchored`]，本入口不重排。
+    debug_assert!(
+        segments.windows(2).all(|w| w[0].start_index <= w[1].start_index),
+        "resume 入口假设 segments 有序（生产路径恒真）"
+    );
+    debug_assert!(
+        centers.windows(2).all(|w| w[0].end_index < w[1].end_index),
+        "resume 入口假设 centers end_index 严格递增（非重叠扫描恒真 ⟹ 三元组唯一 ⟹ pos==c_idx）"
+    );
+    let anchors_self: Vec<Option<Direction>> = segments.iter().map(|s| Some(s.direction)).collect();
+    let anchors: &[Option<Direction>] = anchor_dirs.unwrap_or(&anchors_self);
+    debug_assert_eq!(anchors.len(), segments.len(), "anchor_dirs 与 segments 必等长");
+
+    let any_trend = blocks.iter().any(|b| b.kind == MoveKind::Trend);
+    let any_consol = blocks.iter().any(|b| b.kind == MoveKind::Consolidation);
+
+    // 冻结边界 e_src → 可封段数 stable_seg（segments 按 start 升序 ∧ 非重叠 ⟹ end 亦升序 ⟹
+    // partition_point 二分）。prefix_count<2 ⟹ 无 2 个 confirmed 中枢作锚 ⟹ e_src=0（全判）。
+    let e_src = if prefix_count >= 2 {
+        centers[prefix_count - 2].end_index.min(dirty_e)
+    } else {
+        0
+    };
+    let stable_seg = segments.partition_point(|s| s.end_index < e_src);
+
+    // 单调守卫（confirmed 前缀单调非降 ⟹ 正常永不触发；cascade 前缀回缩由 caller 别处 clear +
+    // 本守卫兜底）：缓存越过本 bar 冻结边界 ⟹ 保守清空重判。
+    if *cached_count > stable_seg {
+        cached_pts.clear();
+        cached_pans.clear();
+        *cached_count = 0;
+    }
+
+    // 逐段判定核（advance 与 tail 共享）：pointwise 解析门/类别后调 [`judge_segment`]。
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+        std::collections::HashMap::new();
+    let mut judge_range =
+        |from: usize, to: usize, pts: &mut Vec<BspPoint>, pans: &mut Vec<PanDivCert>,
+         a_cache: &mut std::collections::HashMap<usize, Option<(usize, usize)>>| {
+            for i in from..to {
+                let seg = &segments[i];
+                let Some(c_idx) = nearest_confirmed_center_idx(centers, seg.start_index) else {
+                    continue;
+                };
+                // pos==c_idx（end_index 严格递增 ⟹ 三元组唯一）；门 = pointwise ownership 方向。
+                let gate_dir = if any_trend {
+                    center_own_dir_at(blocks, c_idx).map(|d| (c_idx, d))
+                } else {
+                    None
+                };
+                let kind_consol =
+                    any_consol && center_block_kind_at(blocks, c_idx) == Some(MoveKind::Consolidation);
+                judge_segment(
+                    i, seg, c_idx, gate_dir, kind_consol, segments, anchors, &anchors_self, centers,
+                    a_cache, hist, dif, closes_tick, close_src, gauge, pts, pans,
+                );
+            }
+        };
+
+    // 推进：新晋 confirmed 的段 [cached_count..stable_seg) 一次性判入缓存（一生一算，push 序）。
+    if *cached_count < stable_seg {
+        judge_range(*cached_count, stable_seg, cached_pts, cached_pans, &mut a_seg_cache);
+        *cached_count = stable_seg;
+    }
+
+    // 结果 = confirmed 前缀点（缓存 clone）+ frontier tail 点（每 bar 重判，tail 小）。push 序拼接。
+    let mut points = cached_pts.clone();
+    let mut pan_divs = cached_pans.clone();
+    // tail 的 a_seg_cache 独立（advance 已消耗，tail 段最近中枢多在 frontier）——新建，与 full
+    // 路径每调用一份 a_seg_cache 同语义（key=c_idx，命中即复用；跨 advance/tail 不复用不影响 bit）。
+    let mut tail_a_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+        std::collections::HashMap::new();
+    judge_range(stable_seg, segments.len(), &mut points, &mut pan_divs, &mut tail_a_cache);
+
+    points.sort_by_key(|p: &BspPoint| p.source_index);
+    pan_divs.sort_by_key(|p: &PanDivCert| p.source_index);
+
+    debug_assert!(
+        {
+            let (full_pts, full_pans) = extract_signals_with_hist_anchored(
+                centers, segments, anchor_dirs, hist, dif, closes_tick, close_src, gauge,
+            );
+            points == full_pts && pan_divs == full_pans
+        },
+        "07a frontier-resume 破裂：resume 输出 != 全量重判（冻结边界/push 序/pointwise 门不变式被违反）"
+    );
+    (points, pan_divs)
+}
+
+/// ★on2w3-07a 单段判定核（第一/盘整/三类）——[`extract_signals_with_hist_anchored`] full 路径与
+/// [`extract_first_third_resume`] 增量路径**共享同一份判定逻辑**（消 07a O(n²)：resume 只对 frozen
+/// 边界后的 tail 段调本函数，confirmed 前缀点缓存复用）。
+///
+/// 判定所需的 gate/kind 由 caller 解析后传入（full 路径读 O(C) `center_gate`/`center_kind` 数组、
+/// resume 路径读 pointwise `center_own_dir_at`/`center_block_kind_at`——两者逐点等价，测试锁定），
+/// 本函数只做「已知 gate ⟹ 判第一/盘整/三类」的因果判定 ⟹ full/resume 输出逐字段 bit-identical。
+///
+/// - `gate_dir`：`Some((pos, dir))` = 该段最近中枢落趋势块（pos=首匹配中枢下标，prev=pos-1、
+///   dir=趋势方向）；`None` = 非趋势（不产第一类）。
+/// - `kind_consol`：该段最近中枢按 ownership 落 Consolidation 块（走盘整背驰证书路径）。
+/// - `a_seg_cache`：A 段区间按 `last_center_idx=c_idx` 缓存（热点②，趋势 τ 下多段共享 A 段对）。
+#[allow(clippy::too_many_arguments)]
+fn judge_segment(
+    i: usize,
+    seg: &Segment,
+    c_idx: usize,
+    gate_dir: Option<(usize, Direction)>,
+    kind_consol: bool,
+    sorted: &[Segment],
+    anchors: &[Option<Direction>],
+    anchors_self: &[Option<Direction>],
+    centers_sorted: &[Center],
+    a_seg_cache: &mut std::collections::HashMap<usize, Option<(usize, usize)>>,
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+    gauge: DivergenceGauge,
+    points: &mut Vec<BspPoint>,
+    pan_divs: &mut Vec<PanDivCert>,
+) {
+    let c = &centers_sorted[c_idx];
+    // 第一类（趋势背驰，A/B/C 框架）：仅段所在趋势块 + 破最后中枢段触发（Q8：「最后一个中枢」=
+    // 当前走势类型的最后中枢 = c）；prev_center = pos-1（同块前驱，A 段所在）。
+    if let Some((pos, dir)) = gate_dir {
+        let prev_center = &centers_sorted[pos - 1];
+        // 热点②修复：A 区间按 last_center_idx=c_idx 缓存（与 C 段 `seg` 无关）。首次 miss 才调
+        // `locate_departure_move_a` O(窗口)，后续 hit O(1) 复用——消解每段重算的 O(S²)。
+        let a_seg_entry = *a_seg_cache
+            .entry(c_idx)
+            .or_insert_with(|| locate_departure_move_a(sorted, anchors, prev_center, c, dir));
+        // Q5 λ_C（codex ac4 #2）：当前 episode 首同向段起点（共享 helper，逐段计算）。
+        let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
+        if let Some(pf) = judge_first_cached(
+            c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry, c_start_entry,
+            gauge,
+        ) {
+            points.push(pf);
+        }
+    }
+
+    // ★Q4 盘整背驰（task #145）：段的最近中枢按 ownership 落在 Consolidation 块 ⟹ 走盘整背驰证书
+    // 路径（同一中枢两次同向离开 + C<A）。不产 BspPoint、不置 six-bit——证书由 econ 层承接。
+    if kind_consol {
+        if let Some(cert) = judge_pan_div(c, seg, sorted, anchors_self, hist, close_src) {
+            pan_divs.push(cert);
+        }
+    }
+
+    // 第三类：当前段作 retest，前一段作 leave。中枢归属 = **leave 段离开的最近中枢**（第18课
+    // 「该中枢」），故用 leave 段 start_index 定位中枢，retest 相对**同一**中枢判一次。
+    if i > 0 {
+        let leave_seg = &sorted[i - 1];
+        if let Some(c_leave_idx) = nearest_confirmed_center_idx(centers_sorted, leave_seg.start_index)
+        {
+            let c_leave = &centers_sorted[c_leave_idx];
+            // Q7-#1 裁定C：leave 段（三类离开/突破段）须有方向锚资格；retest 段是几何回试角色。
+            if let Some(p) = judge_third(c_leave, leave_seg, anchors[i - 1], seg) {
+                points.push(p);
+            }
+        }
+    }
 }
 
 /// 一类判据链漏斗计数（#141 外审问题包诊断探针，仅 test 构建）。

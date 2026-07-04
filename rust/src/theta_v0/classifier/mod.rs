@@ -494,6 +494,18 @@ struct LevelCache {
     cached_second: Vec<BspPoint>,
     /// `cached_second` 已覆盖的 `upper_moves` 前缀数（推进锚，= 上次门控的 prefix_count）。
     cached_second_count: usize,
+    /// ★on2w3-07a frontier-resume（A 泳道 resume 家族，与 07b/07c 同族）：confirmed 前缀**段**的
+    /// 一/三类 BspPoint 缓存（[`signal::extract_first_third_resume`]）。07a 每 memo-miss 全量重判全部
+    /// S 段（第一/盘整/三类）跨 N bar = O(S·N)=O(n²)（on2w3 profile 坐实 BTC-1M 94%/exp≈2.20）。冻结
+    /// 边界 `e_src` 之前的段的点跨 bar 不变（趋势门 sealed + A/C 后向窗口 + hist 前缀 append-only）⟹
+    /// 缓存前缀点（push 序），每 bar 只重判 frontier tail。cascade（前缀重排）⟹ 同步清空（与
+    /// cached_second/cached_bsp 一致纪律）。
+    cached_first_third: Vec<BspPoint>,
+    /// `cached_first_third` 配套的盘整背驰证书缓存（同一 [`signal::extract_first_third_resume`] 产出、
+    /// 同一 push 序、同一冻结边界锚——与点缓存锁步失效）。
+    cached_first_third_pan: Vec<signal::PanDivCert>,
+    /// `cached_first_third{,_pan}` 已覆盖的 confirmed 段前缀数（推进锚 = 上次冻结边界 stable_seg）。
+    cached_first_third_count: usize,
     /// ★on2w2-cascade 读域侧车（设计 §4.1 解 A）：与 `centers`/`upper_moves` 1:1 对齐的每 center
     /// 窗口读域元数据（`WinMeta.read_end_src` 停止哨兵源坐标 + win_start/win_exit/emitted）。cascade
     /// 增量失效按 `read_end_src < e` 取保留前缀 P，用 `win_meta[P-1]` 重建 cursor（把 P-1 窗口当
@@ -1570,22 +1582,29 @@ pub fn classify_with_tower_incremental(
                 (Rc::clone(&lc.cached_bsp), Rc::clone(&lc.cached_pan_div))
             })
         } else {
+            // ★on2w3-07a frontier-resume：confirmed 前缀段的一/三类点缓存复用，只重判 frontier tail
+            // （消 07a O(n²) 主导项）。冻结边界锚 = min(centers[prefix_count-2].end_index, dirty_e)——
+            // `moves`（= decompose_resume 输出，本级增量续折）作 blocks 单一来源（不重 decompose）。
+            // segments 来源：L0=l0.segments（有序）；L≥1=units→unit_to_segment 投影（几何衰减，
+            // resume 内 debug_assert 守 end_index 严格递增）。cascade 清 cached_first_third 见 §失效块。
             let (mut b, pan): (Vec<BspPoint>, Vec<signal::PanDivCert>) = if is_l0 {
                 stage_profile::time("07a_extract_signals_l0", || {
-                    // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选
-                    // point.force=Some（进 force_state 第 8 维）。结构六 bit 不变（force 不进分桶 key）。
-                    signal::extract_signals_with_hist(
-                        &lc.centers, &l0.segments, hist, dif, &closes_tick, &close_src,
+                    signal::extract_first_third_resume(
+                        &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
+                        &mut lc.cached_first_third_count, &lc.centers, &l0.segments, None, &moves,
+                        prefix_count, dirty_e, hist, dif, &closes_tick, &close_src,
                         config.divergence_gauge,
                     )
                 })
             } else {
                 stage_profile::time("07a_extract_first_third_ln", || {
-                    // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。memo miss 才重算
-                    // （bsp_key 含 units.len，见上）；命中走 07c Rc::clone O(1)。units_L 随级别几何衰减
-                    // ⟹ 每 miss O(units_L) 全扫，struct 变化次数 ≪ bar 数 ⟹ 摊还 O(n)（同 L0 memo 特性）。
-                    extract_first_third_for_level(
-                        &lc.centers, &units, &units_anchors, hist, dif, &closes_tick, &close_src,
+                    // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据。units→Segment 投影
+                    // （几何衰减 O(units_L)/miss）+ anchors 平行传入。resume 冻结边界同 L0 锚口径。
+                    let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+                    signal::extract_first_third_resume(
+                        &mut lc.cached_first_third, &mut lc.cached_first_third_pan,
+                        &mut lc.cached_first_third_count, &lc.centers, &segs, Some(&units_anchors),
+                        &moves, prefix_count, dirty_e, hist, dif, &closes_tick, &close_src,
                         config.divergence_gauge,
                     )
                 })

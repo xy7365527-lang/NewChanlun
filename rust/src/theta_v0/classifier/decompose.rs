@@ -187,6 +187,23 @@ pub fn center_own_dir_at(blocks: &[MoveBlock], i: usize) -> Option<Direction> {
     blocks.get(bi).filter(|b| b.start_center < i).and_then(|b| b.dir)
 }
 
+/// 单中枢 ownership 块类别查询（[`center_block_kind`] 的逐点版，on2w3-07a resume tail 消费——
+/// 增量路径每 bar 只对 tail 段查其归属中枢类别，不 materialize 全 kind 向量 O(C)/bar=O(n²) 回归）。
+///
+/// 语义与 `center_block_kind` 逐点相等（等价性测试 `center_block_kind_at_equals_vector_pointwise`
+/// 锁定）：`Some(k)` ⟺ 关系 R(i-1,i) 属类别 k 的块（ownership：C_i 归其入边关系的块）；C_0 归
+/// B₁（与 [`center_own_dir_at`] 的 i==0→None **有意不同**——kind 版是批式查询无前缀稳定约束，
+/// 单中枢盘整块的 C_0 由此覆盖，PDF §6 情形1）。`blocks` 按 span 升序 ⟹ partition_point 二分。
+pub fn center_block_kind_at(blocks: &[MoveBlock], i: usize) -> Option<MoveKind> {
+    if i == 0 {
+        // C_0 归 B₁（模块头 ownership 分区；单中枢链 blocks=[Consolidation 0..0] 由此覆盖）。
+        return blocks.first().map(|b| b.kind);
+    }
+    // 关系 R(i-1,i) 属块 b ⟺ i ∈ (start_center, end_center] ⟺ start_center < i ≤ end_center。
+    let bi = blocks.partition_point(|b| b.end_center < i);
+    blocks.get(bi).filter(|b| b.start_center < i).map(|b| b.kind)
+}
+
 /// 每中枢 ownership 块类别（Q4 盘整背驰承接路由，task #145——signal.rs 盘整块判定消费）。
 ///
 /// `kind[i] = Some(k)` ⟺ 中枢 i 按 **ownership 分区**（模块头：C_i 归包含关系 R(i-1,i) 的块，
@@ -315,6 +332,28 @@ mod tests {
                 Some(MoveKind::Trend),
             ]
         );
+    }
+
+    #[test]
+    fn center_block_kind_at_equals_vector_pointwise() {
+        // on2w3-07a resume tail 消费 pointwise 版——须与 center_block_kind 全向量逐点等价
+        // （含 C_0 归 B₁、转折中枢归前块、单中枢盘整块）。
+        let chains: Vec<Vec<Center>> = vec![
+            vec![c_up(0)],
+            vec![c_up(0), c_up(1), c_up(2)],
+            vec![c_up(0), c_overlap(0), c_up(2), c_up(3), c_up(4)],
+            vec![c_up(5), c_up(3), c_overlap(3), c_up(6)],
+        ];
+        for cs in &chains {
+            let blocks = decompose(cs);
+            let vec_kind = center_block_kind(cs.len(), &blocks);
+            for i in 0..cs.len() {
+                assert_eq!(
+                    center_block_kind_at(&blocks, i), vec_kind[i],
+                    "逐点 kind 须 == center_block_kind[{i}]（链长 {}）", cs.len()
+                );
+            }
+        }
     }
 
     /// 完备性 property（设计 §6 测试1）：span 连续（分区 ⟺ b[j+1].start==b[j].end）、
