@@ -737,4 +737,82 @@ mod tests {
         assert_eq!(stdev_consecutive_diffs(&[5.0]), 0.0, "单点无差分 ⟹ 0（守卫）");
         assert_eq!(stdev_consecutive_diffs(&[]), 0.0, "空序列 ⟹ 0（守卫）");
     }
+
+    /// on2-est2 profile（Task #187）：拆解 R5 est×2 段的耗时归属。q4_fullpi_policy 每窗对同一
+    /// train.bars 调 `build_mu_from_bars` **两次**（fullpi/plain）——两次 config 仅 risk/margin 不同，
+    /// 而逐 bar 分类（parser+tower）只依赖缠论字段（与 risk/margin 无关）⟹ 两次分类逐 bar 完全相同。
+    /// 本 profile 测三段墙钟：①单次全 bar 分类 pass（IncrementalClassifier）②单次 build_mu 全程
+    /// ③连跑两次 build_mu（est×2 现状）——定位分类占比与「共享分类可省」的上界。
+    /// `cargo test --release --lib theta_v0::backtest::wverify_run::tests::profile_est2_shared_classify -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn profile_est2_shared_classify() {
+        use super::super::incremental::IncrementalClassifier;
+        use std::time::Instant;
+        let cfg = ThetaConfig::default();
+        let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载");
+        let train = ds.slice_date_window("2022-07-01", "2022-12-31"); // p3fold train（最短段）
+        let n = train.bars.len();
+        eprintln!("[est2-profile] BTC p3fold train n={n} bar");
+
+        // ① 单次全 bar 分类 pass（黑洞化 tower_generation 防 DCE）。
+        let t0 = Instant::now();
+        let mut clf = IncrementalClassifier::new(&train.bars, &cfg);
+        let mut sink = 0u64;
+        for i in 0..n {
+            let (_cls, _tower) = clf.classify_at(i);
+            sink = sink.wrapping_add(clf.tower_generation()).wrapping_add(clf.forest_epoch());
+        }
+        let classify_ms = t0.elapsed().as_secs_f64() * 1e3;
+        eprintln!("[est2-profile] ① 单次全 bar 分类 pass = {classify_ms:.1} ms (sink={sink})");
+
+        // ② 单次 build_mu 全程（含分类 pass + fill loop）。
+        let mut chi = ThetaConfig::default();
+        chi.risk.chi_theta = Some(0.0);
+        chi.risk.chi_z_alpha = 1.645;
+        chi.risk.enforce_gross_cap = true;
+        super::super::super::classifier::stage_profile::reset();
+        let t1 = Instant::now();
+        let (est_a, _) = build_mu_from_bars(&train.bars, &chi, 0);
+        let build_one_ms = t1.elapsed().as_secs_f64() * 1e3;
+        eprintln!("[est2-profile] ② 单次 build_mu(fullpi) = {build_one_ms:.1} ms (n_classes={})", est_a.n_classes());
+        super::super::super::classifier::stage_profile::dump();
+
+        // ③ est×2 现状：连跑两次（fullpi + plain）。
+        let t2 = Instant::now();
+        let (_e1, _) = build_mu_from_bars(&train.bars, &chi, 0);
+        let (_e2, _) = build_mu_from_bars(&train.bars, &cfg, 0);
+        let build_two_ms = t2.elapsed().as_secs_f64() * 1e3;
+        eprintln!("[est2-profile] ③ est×2 连跑两次 build_mu = {build_two_ms:.1} ms");
+
+        let fill_ms = (build_one_ms - classify_ms).max(0.0);
+        eprintln!(
+            "[est2-profile] 归属：分类={classify_ms:.1}ms ({:.0}%) fill={fill_ms:.1}ms | est×2 中分类冗余={classify_ms:.1}ms 共享后上界省≈{:.0}%",
+            classify_ms / build_one_ms * 100.0,
+            classify_ms / build_two_ms * 100.0,
+        );
+
+        // ④ 双曲线 scaling exp（n/2 vs n，分别测分类与 fill loop）——定 O(n²) 靶归属。
+        let half = &train.bars[..n / 2];
+        let t3 = Instant::now();
+        let mut clf_h = IncrementalClassifier::new(half, &cfg);
+        let mut sink_h = 0u64;
+        for i in 0..half.len() {
+            let _ = clf_h.classify_at(i);
+            sink_h = sink_h.wrapping_add(clf_h.forest_epoch());
+        }
+        let classify_half_ms = t3.elapsed().as_secs_f64() * 1e3;
+        let t4 = Instant::now();
+        let (_eh, _) = build_mu_from_bars(half, &chi, 0);
+        let build_half_ms = t4.elapsed().as_secs_f64() * 1e3;
+        let ratio = (n as f64 / (n / 2) as f64).log2();
+        let exp_build = (build_one_ms / build_half_ms).log2() / ratio;
+        let exp_classify = (classify_ms / classify_half_ms).log2() / ratio;
+        let fill_full = (build_one_ms - classify_ms).max(1e-9);
+        let fill_half = (build_half_ms - classify_half_ms).max(1e-9);
+        let exp_fill = (fill_full / fill_half).log2() / ratio;
+        eprintln!(
+            "[est2-profile] ④ 双曲线 (sink_h={sink_h}): build_mu exp={exp_build:.3} | 分类 exp={exp_classify:.3}（{classify_half_ms:.0}→{classify_ms:.0}ms）| fill loop exp={exp_fill:.3}（{fill_half:.0}→{fill_full:.0}ms）",
+        );
+    }
 }
