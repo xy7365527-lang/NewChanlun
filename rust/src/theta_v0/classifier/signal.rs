@@ -82,8 +82,8 @@ use super::super::types::{Center, Direction, MoveKind, Segment, Side, Tick};
 use super::bsp::{endpoint_to_bsp, EndpointSituation};
 use super::decompose::{center_block_kind, center_trend_gate, decompose};
 use super::divergence::{
-    compute_macd, departure_move_c_start, force_features, locate_departure_move_a, AbcDivergence,
-    ForceProxies,
+    self, compute_macd, departure_move_c_start, force_features, locate_departure_move_a,
+    AbcDivergence, DivergenceGauge, ForceProxies,
 };
 use super::super::types::BspBits;
 use super::descend::RMove;
@@ -281,6 +281,7 @@ fn judge_first_cached(
     src_to_idx: &[usize],
     a_seg: Option<(usize, usize)>,
     c_move_start: Option<usize>,
+    gauge: DivergenceGauge,
 ) -> Option<BspPoint> {
     let end = seg_end(seg);
     // C 破最后中枢几何（L0）+ 方向必须 = 趋势方向（下跌趋势=向下破=底背驰；上涨=向上破=顶背驰）。
@@ -325,27 +326,12 @@ fn judge_first_cached(
     // （背驰确认）；`struct_break_dir=Some ∧ 六 bit 全零` ⟺ macd_c_lt_a=false（未背驰）。sidecar 从
     // 未接通生产（mod.rs 全走 `.0`），删除比接通更干净且零信息损失。
     let macd_c_lt_a = abc.diverges(hist, a_idx, c_idx);
-    // buy1/sell1 保严格「趋势背驰」语义：仅背驰确认（C<A）才置第一类 bit。未背驰的破中枢候选
-    // 进样本但**零 buy1/sell1**（Flat 候选，assemble_gamma 归 𝒦 不冒充第一类，codex 语义纪律）。
-    let situ = EndpointSituation {
-        after_first_buy: false,
-        is_pullback_end: false,
-        left_center: false,      // 第一类是破中枢趋势背驰，非第三类的离开后回抽
-        retrace_not_reenter: false,
-        below_last_center: macd_c_lt_a, // 仅背驰确认才置第一类端点语义（未背驰=零 bit struct_break）
-        is_sell_side: is_sell,
-    };
-    let bits = endpoint_to_bsp(&situ);
-    // ★P2-R2（p2-plan §2 + codex 护栏1/2）：破中枢方向源——买侧向下破=Long，卖侧向上破=Short。
-    // **无条件置**（只要几何破了最后中枢 ∧ A/C 可配对就到这里，不管 macd_c_lt_a 背驰与否）。
-    // buy1/sell1 仍严格按 macd_c_lt_a（上方 situ.below_last_center）——class_index 语义冻结。
-    // 零 bit（C≥A）候选靠 struct_break_dir 在 candidate_dir 恢复方向进样本（消选择偏差）。
-    let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
     // ★力度多 proxy（beta-route #115，force-proxy-survey-20260702.md）：A/C 段 close 下标区间已算出
-    // （a_idx/c_idx），复用 force_features 算 5 proxy（MACD 面积/DIF 峰/振幅/速度/TV）。**不进 buy1 判据**
-    // （class_index 冻结，671 力度=feature 非 veto）——纯 feature，收进 BspPoint.force 单一来源，供
-    // Candidate.force 透传（A6 #159）后由 selector z_of_candidate 读进 force_state 第 8 维。有 dif/closes_tick 输入时 Some
-    // （生产热路径已接线，Batch 2）；空输入（旧测试/合成入口）⟹ None（诚实不造死字段）。A/C 同趋势方向。
+    // （a_idx/c_idx），复用 force_features 算 5 proxy（MACD 面积/DIF 峰/振幅/速度/TV）。默认口径下
+    // **不进 buy1 判据**（class_index 冻结，671 力度=feature 非 veto）——收进 BspPoint.force 单一来源，
+    // 供 Candidate.force 透传（A6 #159）后由 selector z_of_candidate 读进 force_state 第 8 维。有
+    // dif/closes_tick 输入时 Some（生产热路径已接线，Batch 2）；空输入（旧测试/合成入口）⟹ None
+    // （诚实不造死字段）。A/C 同趋势方向。
     let force = if dif.is_empty() || closes_tick.is_empty() {
         None
     } else {
@@ -354,6 +340,26 @@ fn judge_first_cached(
             seg_c: force_features(hist, dif, closes_tick, c_idx.0, c_idx.1, trend_dir),
         })
     };
+    // ★D 判定口径（A2 #163，prereg-a2-thetadom-oos-20260704）：`confirm_divergence` 单一判定点。
+    // 默认 `MacdArea` ⟹ D ≡ macd_c_lt_a（bit-exact 不变，class_index 语义冻结）；`ThetaDom`/
+    // `Conjunction` 仅经 config 显式激活（判定口径变更改变信号集合，预注册敏感）。
+    let diverged = divergence::confirm_divergence(gauge, macd_c_lt_a, force.as_ref());
+    // buy1/sell1 保严格「趋势背驰」语义：仅背驰确认（D 成立）才置第一类 bit。未背驰的破中枢候选
+    // 进样本但**零 buy1/sell1**（Flat 候选，assemble_gamma 归 𝒦 不冒充第一类，codex 语义纪律）。
+    let situ = EndpointSituation {
+        after_first_buy: false,
+        is_pullback_end: false,
+        left_center: false,      // 第一类是破中枢趋势背驰，非第三类的离开后回抽
+        retrace_not_reenter: false,
+        below_last_center: diverged, // 仅背驰确认才置第一类端点语义（未背驰=零 bit struct_break）
+        is_sell_side: is_sell,
+    };
+    let bits = endpoint_to_bsp(&situ);
+    // ★P2-R2（p2-plan §2 + codex 护栏1/2）：破中枢方向源——买侧向下破=Long，卖侧向上破=Short。
+    // **无条件置**（只要几何破了最后中枢 ∧ A/C 可配对就到这里，不管 D 背驰与否）。
+    // buy1/sell1 仍严格按 D（上方 situ.below_last_center）——默认口径下 D≡macd_c_lt_a 冻结语义。
+    // 零 bit（未背驰）候选靠 struct_break_dir 在 candidate_dir 恢复方向进样本（消选择偏差）。
+    let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
     // 结构候选端点：背驰确认 ⟹ buy1/sell1 止损源 pivot（破中枢段端点极值）；未背驰 ⟹ 零 bit，
     // pivot 仍按 bit 方向填（零 bit ⟹ 两侧 0）。force 旁挂进点（单一来源，不进任何 bit 判据）。
     Some(make_first_point(end.source_index, bits, end.price, struct_break_dir, force))
@@ -702,7 +708,7 @@ pub fn extract_signals(
     // ⟹ 结构 bit-exact，仅 Debug 多 `, force: None` 常量，见 digest guard 诚实重算说明）。
     // BspPoint 投影（.0）：PanDiv 证书唯一真值源在 extract_signals_with_hist（生产 classify 直调它
     // 消费 .1；本简易/测试入口只投影结构 bit 点，非第二套真值）。
-    extract_signals_with_hist(centers, segments, &hist, &[], &[], close_src).0
+    extract_signals_with_hist(centers, segments, &hist, &[], &[], close_src, DivergenceGauge::default()).0
 }
 
 /// 力度离线入口（force-proxy-survey-20260702.md）：与 [`extract_signals`] 同产 BspPoint，但传真
@@ -724,7 +730,8 @@ pub fn extract_signals_force(
     // closes 是 merged_bars.close(Tick) 的 as f64（mod.rs:217），整值往返 as i64 精确（振幅=tick 差）。
     let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
     // BspPoint 投影（.0，同 extract_signals 注）：PanDiv 真值源在 with_hist，生产路径消费 .1。
-    extract_signals_with_hist(centers, segments, &series.hist, &series.dif, &closes_tick, close_src).0
+    extract_signals_with_hist(centers, segments, &series.hist, &series.dif, &closes_tick, close_src, DivergenceGauge::default())
+        .0
 }
 
 /// 增量 MACD 接入点（231号纯性能，bit-exact 铁律）：与 [`extract_signals`] 同逻辑，但接受
@@ -746,10 +753,11 @@ pub fn extract_signals_with_hist(
     dif: &[f64],
     closes_tick: &[Tick],
     close_src: &[usize],
+    gauge: DivergenceGauge,
 ) -> (Vec<BspPoint>, Vec<PanDivCert>) {
     // L0 入口：线段有内在缠论方向 ⟹ 锚方向 ≡ 结构方向（域定理）。Q7-#1 裁定C 的锚门只约束
     // 级别-N fallback 单元（经 [`extract_signals_with_hist_anchored`] 传 provenance 派生锚）。
-    extract_signals_with_hist_anchored(centers, segments, None, hist, dif, closes_tick, close_src)
+    extract_signals_with_hist_anchored(centers, segments, None, hist, dif, closes_tick, close_src, gauge)
 }
 
 /// ★Q7-#1 裁定C（codex-q7-fallback-20260703，收窄 #121 裁定A）：`anchor_dirs[i]` = `segments[i]`
@@ -765,6 +773,7 @@ pub fn extract_signals_with_hist_anchored(
     dif: &[f64],
     closes_tick: &[Tick],
     close_src: &[usize],
+    gauge: DivergenceGauge,
 ) -> (Vec<BspPoint>, Vec<PanDivCert>) {
     // ★线段按 start_index **稳定**升序排一次（生产路径 parser 线段账本本已 start_index 严格单调
     // 递增——流式 push 时 seg_start 单调推进，segment.rs:344-380——故排序对生产路径是恒等）。稳定
@@ -896,7 +905,7 @@ pub fn extract_signals_with_hist_anchored(
                     // =零 bit + struct_break_dir）进 points。macd_c_lt_a 不再单产 sidecar（护栏7 删除）。
                     if let Some(pf) = judge_first_cached(
                         c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
-                        c_start_entry,
+                        c_start_entry, gauge,
                     ) {
                         points.push(pf);
                     }
@@ -1058,9 +1067,12 @@ pub(crate) fn type1_funnel_dx(
             f.s_diverge += 1;
         }
     }
-    // parity 守卫（675号：探针不分叉）——漏斗幸存数须与生产提取逐一相等。
-    let (prod, _pan) =
-        extract_signals_with_hist_anchored(centers, segments, anchor_dirs, hist, dif, closes_tick, close_src);
+    // parity 守卫（675号：探针不分叉）——漏斗幸存数须与生产提取逐一相等。漏斗环7 计数 MACD 面积
+    // 判据（s_diverge）⟹ parity 对拍用默认 MacdArea 口径（探针语义=对照基线口径的生产路径）。
+    let (prod, _pan) = extract_signals_with_hist_anchored(
+        centers, segments, anchor_dirs, hist, dif, closes_tick, close_src,
+        DivergenceGauge::default(),
+    );
     let prod_t1 = prod.iter().filter(|p| p.bits.buy1 || p.bits.sell1).count();
     let prod_sb = prod.iter().filter(|p| p.struct_break_dir.is_some()).count();
     assert_eq!(prod_t1, f.s_diverge, "漏斗环7（背驰）须=生产 buy1/sell1 数");
@@ -1300,6 +1312,46 @@ mod tests {
             if first_class > 0 { 100.0 * filled as f64 / first_class as f64 } else { 0.0 }
         );
         assert_eq!(filled, first_class, "所有一类趋势背驰候选（A/C 可配对）point.force 均 Some");
+    }
+
+    /// 三口径 D 判定接线（A2 #163）：同一 fixture 下 gauge 切换只改 buy1/sell1 置位，不改候选集合
+    /// （struct_break_dir 无条件置——未背驰候选进样本，消选择偏差语义在三口径下保持）。
+    #[test]
+    fn divergence_gauge_switches_first_class_bit_not_candidate_set() {
+        // 复用 force_proxies_juxtaposed fixture（MacdArea 口径 C<A 背驰成立 ⟹ buy1）。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let series = compute_macd(&closes, &MacdConfig::default());
+        let closes_tick: Vec<Tick> = closes.iter().map(|&c| c as Tick).collect();
+        let run = |g: DivergenceGauge| {
+            extract_signals_with_hist(&[c0, c1], &segs, &series.hist, &series.dif, &closes_tick, &src, g).0
+        };
+        let (base, dom, conj) = (
+            run(DivergenceGauge::MacdArea),
+            run(DivergenceGauge::ThetaDom),
+            run(DivergenceGauge::Conjunction),
+        );
+        // 候选集合不变：破中枢结构候选（struct_break_dir=Some）三口径逐点同数同位。
+        let sb = |v: &[BspPoint]| v.iter().filter(|p| p.struct_break_dir.is_some()).map(|p| p.source_index).collect::<Vec<_>>();
+        assert_eq!(sb(&base), sb(&dom), "gauge 只改 D 置位，不改破中枢候选集合");
+        assert_eq!(sb(&base), sb(&conj));
+        // 基线口径产 buy1（fixture 保证 C<A）。
+        let b1 = |v: &[BspPoint]| v.iter().filter(|p| p.bits.buy1).count();
+        assert_eq!(b1(&base), 1, "MacdArea 口径 fixture 产 1 买");
+        // 口径语义一致性：产出 BspPoint 携带的 force 就是判定输入（单一来源）——ThetaDom 口径的
+        // buy1 置位 ⟺ force_state==Dominated；Conjunction ⟺ MACD ∧ Dominated（逐点可验）。
+        let cand = base.iter().find(|p| p.bits.buy1).unwrap();
+        let dominated = cand.force.expect("一类候选 force=Some").force_state()
+            == super::super::divergence::ForceStateA5::Dominated;
+        assert_eq!(b1(&dom) == 1, dominated, "ThetaDom 口径 buy1 ⟺ Dominated");
+        assert_eq!(b1(&conj) == 1, dominated, "Conjunction = MACD(true) ∧ Dominated");
     }
 
     #[test]
@@ -1709,7 +1761,7 @@ mod tests {
         let (a_area, c_area) = (segment_macd_area(&hist, 9, 11), segment_macd_area(&hist, 13, 15));
         assert!(c_area < a_area, "前置：C 面积({c_area:.3}) < A 面积({a_area:.3})");
         let (points, pan) =
-            extract_signals_with_hist(&[c0, c1, c2], &segs, &hist, &[], &[], &src);
+            extract_signals_with_hist(&[c0, c1, c2], &segs, &hist, &[], &[], &src, DivergenceGauge::default());
         // 零一类 bit（盘整块内不产第一类——门关；盘整背驰不冒充 B1/S1）。
         assert!(points.iter().all(|p| !p.bits.buy1 && !p.bits.sell1),
             "盘整块内零 buy1/sell1（盘整背驰不冒充同级第一类）");
@@ -1745,7 +1797,7 @@ mod tests {
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let (a_area, c_area) = (segment_macd_area(&hist, 9, 13), segment_macd_area(&hist, 15, 17));
         assert!(c_area < a_area, "前置：C 面积({c_area:.3}) < A episode 面积({a_area:.3})");
-        let (_points, pan) = extract_signals_with_hist(&[c0, c1, c2], &segs, &hist, &[], &[], &src);
+        let (_points, pan) = extract_signals_with_hist(&[c0, c1, c2], &segs, &hist, &[], &[], &src, DivergenceGauge::default());
         assert_eq!(pan.len(), 1, "多段前次离开 + 回中枢 + 再破 + C<A ⟹ 恰一张证书");
         assert_eq!(pan[0].seg_a, (9, 13), "I(A) = 前次离开整个 episode 区间（λ_A=腿1起点, ρ_A=腿2终点）");
         assert_eq!(pan[0].seg_c, (15, 17), "I(C) = 当前离开区间");
@@ -1769,7 +1821,7 @@ mod tests {
         let (closes, src) = closes_seq(&prices);
         let hist = compute_macd(&closes, &MacdConfig::default()).hist;
         let (_points, pan) =
-            extract_signals_with_hist(&[c0, c1, c2], &segs, &hist, &[], &[], &src);
+            extract_signals_with_hist(&[c0, c1, c2], &segs, &hist, &[], &[], &src, DivergenceGauge::default());
         assert!(pan.is_empty(), "无回中枢段 ⟹ 同一次离开 ⟹ 无盘整背驰证书");
     }
 

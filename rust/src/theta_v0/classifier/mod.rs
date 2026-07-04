@@ -168,12 +168,15 @@ fn extract_first_third_for_level(
     dif: &[f64],
     closes_tick: &[Tick],
     close_src: &[usize],
+    gauge: divergence::DivergenceGauge,
 ) -> (Vec<BspPoint>, Vec<signal::PanDivCert>) {
     let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
     // ★Q7-#1 裁定C（codex-q7-fallback-20260703，收窄 #121 裁定A）：`anchors[i]` = 产生本级 units
     // 的下级 blocks 的 ownership 方向（`center_own_dir_at` 同一来源，与 `project_to_units` 方向
     // 派生锁步）。None = endpoint fallback 单元——保留为序列/区间/面积成员，不作一/三类方向锚。
-    signal::extract_signals_with_hist_anchored(centers, &segs, Some(anchors), hist, dif, closes_tick, close_src)
+    signal::extract_signals_with_hist_anchored(
+        centers, &segs, Some(anchors), hist, dif, closes_tick, close_src, gauge,
+    )
 }
 
 /// 从 L0 线段单元序列识别 canonical 中枢序列（**完整判据** seed + 延伸吸收，契约锚
@@ -307,10 +310,16 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
             // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选 point.force
             // = Some（5 proxy），进 selector force_state 第 8 维。结构六 bit 不变（force 不进 class_index/
             // 分桶 key，PartialEq 排除），GOLDEN 因 Debug 含 force 诚实翻转（signal.rs digest guard）。
-            signal::extract_signals_with_hist(&centers, &l0.segments, &hist, &dif, &closes_tick, &close_src)
+            signal::extract_signals_with_hist(
+                &centers, &l0.segments, &hist, &dif, &closes_tick, &close_src,
+                config.divergence_gauge,
+            )
         } else {
             // 级别-N 一/三类（codex-decide-20260703 裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。
-            extract_first_third_for_level(&centers, &units, &units_anchors, &hist, &dif, &closes_tick, &close_src)
+            extract_first_third_for_level(
+                &centers, &units, &units_anchors, &hist, &dif, &closes_tick, &close_src,
+                config.divergence_gauge,
+            )
         };
         // 递归组装层 B2/S2（#53 接入）：对每个上级走势的次级别走势序列识别第二类结构。
         bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
@@ -1318,14 +1327,20 @@ pub fn classify_with_tower_incremental(
                 stage_profile::time("07a_extract_signals_l0", || {
                     // ★force_state 生产热路由（beta-route #115）：传真 dif/closes_tick ⟹ 一类候选
                     // point.force=Some（进 force_state 第 8 维）。结构六 bit 不变（force 不进分桶 key）。
-                    signal::extract_signals_with_hist(&lc.centers, &l0.segments, hist, dif, &closes_tick, &close_src)
+                    signal::extract_signals_with_hist(
+                        &lc.centers, &l0.segments, hist, dif, &closes_tick, &close_src,
+                        config.divergence_gauge,
+                    )
                 })
             } else {
                 stage_profile::time("07a_extract_first_third_ln", || {
                     // 级别-N 一/三类（裁定 A）：units 承担线段角色，复用 L0 判据（含 force）。memo miss 才重算
                     // （bsp_key 含 units.len，见上）；命中走 07c Rc::clone O(1)。units_L 随级别几何衰减
                     // ⟹ 每 miss O(units_L) 全扫，struct 变化次数 ≪ bar 数 ⟹ 摊还 O(n)（同 L0 memo 特性）。
-                    extract_first_third_for_level(&lc.centers, &units, &units_anchors, hist, dif, &closes_tick, &close_src)
+                    extract_first_third_for_level(
+                        &lc.centers, &units, &units_anchors, hist, dif, &closes_tick, &close_src,
+                        config.divergence_gauge,
+                    )
                 })
             };
             let second = stage_profile::time("07b_extract_second", || {
@@ -1870,7 +1885,7 @@ mod tests {
         // 本测试只验结构六 bit（force 旁挂不改），传空 dif/closes_tick ⟹ force=None（不影响 buy1 判据）。
         // Q7-#1 裁定C：显式全锚（本测试验证的是 Trend ownership 单元的 gap-fill 路径）。
         let anchors = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)];
-        let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &anchors, &hist, &[], &[], &close_src);
+        let (bsp, _pan) = extract_first_third_for_level(&[c0, c1], &units, &anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
         let buy1: Vec<_> = bsp.iter().filter(|p| p.bits.buy1).collect();
         assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
         assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢单元）终止 source_index");
@@ -1895,7 +1910,7 @@ mod tests {
         // 三类无 MACD 依赖（纯整数几何），hist 空亦可——传空 hist/dif/closes_tick（第一类自然不产，force=None）。
         // Q7-#1 裁定C：显式全锚（leave 单元有 Trend ownership 资格的三类路径）。
         let anchors = [Some(Direction::Up), Some(Direction::Down)];
-        let (bsp, _pan) = extract_first_third_for_level(&[c], &units, &anchors, &[], &[], &[], &(0..24).collect::<Vec<_>>());
+        let (bsp, _pan) = extract_first_third_for_level(&[c], &units, &anchors, &[], &[], &[], &(0..24).collect::<Vec<_>>(), divergence::DivergenceGauge::default());
         let buy3: Vec<_> = bsp.iter().filter(|p| p.bits.buy3).collect();
         assert_eq!(buy3.len(), 1, "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）");
         assert_eq!(buy3[0].source_index, 20, "3 买端点 = 回试单元终止 source_index");
@@ -1923,7 +1938,7 @@ mod tests {
         let close_src: Vec<usize> = (0..prices.len()).collect();
         let hist = divergence::compute_macd(&closes, &ThetaConfig::default().macd).hist;
         let n_buy1 = |anchors: &[Option<Direction>]| {
-            let (bsp, _) = extract_first_third_for_level(&[c0, c1], &units, anchors, &hist, &[], &[], &close_src);
+            let (bsp, _) = extract_first_third_for_level(&[c0, c1], &units, anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
             bsp.iter().filter(|p| p.bits.buy1).count()
         };
         // 对照组：全锚 ⟹ 1 买产（gap-fill 路径活）。
@@ -1941,10 +1956,10 @@ mod tests {
             UnitRange { start_index: 16, end_index: 20, direction: Direction::Down, lo: 210, hi: 250 },
         ];
         let src24: Vec<usize> = (0..24).collect();
-        let (bsp, _) = extract_first_third_for_level(&[c], &u3, &[None, Some(Direction::Down)], &[], &[], &[], &src24);
+        let (bsp, _) = extract_first_third_for_level(&[c], &u3, &[None, Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
         assert_eq!(bsp.iter().filter(|p| p.bits.buy3).count(), 0, "fallback 单元不得作三类离开段方向锚");
         // 成员身份不变：同 fixture 全锚下产出恢复（锚门不改变序列成员/中枢几何）。
-        let (bsp2, _) = extract_first_third_for_level(&[c], &u3, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[], &src24);
+        let (bsp2, _) = extract_first_third_for_level(&[c], &u3, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
         assert_eq!(bsp2.iter().filter(|p| p.bits.buy3).count(), 1);
     }
 

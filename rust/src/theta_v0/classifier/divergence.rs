@@ -378,6 +378,88 @@ impl ForceProxies {
             (true, true) => ForceStateA5::Incomparable,
         }
     }
+
+    /// Θ_SCORE 归一化力度标量（prereg-a2-thetadom-oos-20260704 冻结：m=dif_peak，第17课黄白线主）。
+    ///
+    /// `β_norm = (m_A − m_C) / (m_A + m_C) ∈ [−1,1]`——归一化差非比值（有界、对称、避免 m_A→0
+    /// 爆炸，beta-bucket-design v2 §4.2）。`β_norm > 0` = C 弱于 A（背驰域）。dif_peak 恒 ≥0
+    /// （`segment_dif_peak` 取绝对峰）⟹ 分母 ≥0；双零（A/C 均无 DIF 峰）⟹ 无力度可比 ⟹ 0.0
+    /// （非背驰，prereg 冻结口径）。
+    pub fn theta_score(&self) -> f64 {
+        let (m_a, m_c) = (self.seg_a.dif_peak, self.seg_c.dif_peak);
+        let denom = m_a + m_c;
+        if denom == 0.0 {
+            return 0.0;
+        }
+        (m_a - m_c) / denom
+    }
+}
+
+/// Θ_SCORE K=3 分箱（prereg-a2-thetadom-oos-20260704 冻结边界 { ≤0: 非背驰, (0,0.33): 弱, ≥0.33: 强 }，
+/// 边界不得事后调——beta-bucket-design v2 §4.2「每个边界都是一个 Θ 选择」）。
+///
+/// 角色（§4.3 方案 B）：分层键候选，**不是判定口径**（三判定口径见 [`DivergenceGauge`]）——
+/// 分层键接入点在 mu_estimator/ResidualTrade（并发工位域），本层只提供原语；接入前是诚实
+/// 未消费原语（prereg 已登记），非死字段冒充。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ThetaScoreBin {
+    /// `β_norm ≤ 0`：C 力度不弱于 A（非背驰）。
+    NonDivergent,
+    /// `0 < β_norm < 0.33`：弱背驰。
+    Weak,
+    /// `β_norm ≥ 0.33`：强背驰。
+    Strong,
+}
+
+/// `β_norm` → K=3 箱（冻结边界 0 / 0.33，见 [`ThetaScoreBin`]）。
+pub fn theta_score_bin(beta_norm: f64) -> ThetaScoreBin {
+    if beta_norm <= 0.0 {
+        ThetaScoreBin::NonDivergent
+    } else if beta_norm < 0.33 {
+        ThetaScoreBin::Weak
+    } else {
+        ThetaScoreBin::Strong
+    }
+}
+
+/// 趋势背驰 D 的判定口径开关（A2 残余，prereg-a2-thetadom-oos-20260704 三口径）。
+///
+/// D = 一类买卖点 buy1/sell1 的背驰确认谓词（`judge_first_cached` 的 `below_last_center` 源）。
+/// 默认 [`MacdArea`](DivergenceGauge::MacdArea)（现行冻结判据，bit-exact 不变）——判定口径变更
+/// 改变信号集合（⟹ ledger ⟹ 残差样本），属预注册敏感，**显式配置才切换，不默认**。
+///
+/// 有效域（诚实边界）：只作用于趋势背驰 D（一类）。盘整背驰证书（`judge_pan_div`）、二类
+/// `divergence_of`、Weak_Θ 力度门（A3 #164）不在本开关范围。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DivergenceGauge {
+    /// G1 对照基线（默认）：`Area(C) < Area(A)`（`segments_diverge` 现行冻结判据）。
+    #[default]
+    MacdArea,
+    /// G2：`ForceStateA5(C,A) == Dominated`（𝒜₅ 全支配衰减，A5 amended 口径）。
+    ThetaDom,
+    /// G3：G1 ∧ G2（MACD 面积衰减 ∧ 全支配序衰减）。
+    Conjunction,
+}
+
+/// 三口径 D 判定（单一判定点——`judge_first_cached` 唯一消费者，不在别处重算组合逻辑）。
+///
+/// `macd_c_lt_a` = G1 原语结果（`AbcDivergence::diverges`，调用方已算——G1/G3 复用，不重算面积）；
+/// `force` = A/C 段 5 proxy（`BspPoint.force` 同源）。ThetaDom/Conjunction 下 `force=None`
+/// （dif/closes 无源，旧测试/合成入口）⟹ **false**（无 5-proxy 无背驰确认——诚实不判，
+/// 不 fallback 回 MACD 口径；no-workaround：口径混用=两种矛盾理解都能通过）。
+///
+/// 认识论 L1：给定原语结果求 D 是确定性布尔。「哪个口径有 alpha」= L2/L3（三口径 OOS，本函数不声明）。
+pub fn confirm_divergence(
+    gauge: DivergenceGauge,
+    macd_c_lt_a: bool,
+    force: Option<&ForceProxies>,
+) -> bool {
+    let dominated = || force.map(|f| f.force_state() == ForceStateA5::Dominated).unwrap_or(false);
+    match gauge {
+        DivergenceGauge::MacdArea => macd_c_lt_a,
+        DivergenceGauge::ThetaDom => dominated(),
+        DivergenceGauge::Conjunction => macd_c_lt_a && dominated(),
+    }
 }
 
 /// DIF 段峰值绝对值（黄白线主判据原语，第17课；移植旧引擎 `dif_peak_for_range` 到 theta_v0）。
@@ -897,6 +979,50 @@ mod tests {
         let mixed_a = ff(10.0, 4.0, 100, 20.0);
         let mixed_c = ff(5.0, 8.0, 50, 10.0);
         assert_eq!(fp(mixed_a, mixed_c).force_state(), ForceStateA5::Incomparable);
+    }
+
+    /// 三口径 D 判定（A2 #163，prereg-a2-thetadom-oos-20260704 冻结判据的 L1 验证）。
+    #[test]
+    fn confirm_divergence_three_gauges() {
+        let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
+        let strong = ff(10.0, 8.0, 100, 20.0);
+        let weak = ff(5.0, 4.0, 50, 10.0);
+        let dominated = fp(strong, weak); // C 全弱 ⟹ Dominated
+        let mixed = fp(ff(10.0, 4.0, 100, 20.0), ff(5.0, 8.0, 50, 10.0)); // Incomparable
+        // G1 MacdArea：D ≡ macd_c_lt_a（force 不参与，None 也判）。
+        assert!(confirm_divergence(DivergenceGauge::MacdArea, true, None));
+        assert!(!confirm_divergence(DivergenceGauge::MacdArea, false, Some(&dominated)));
+        // G2 ThetaDom：D ≡ Dominated（macd_c_lt_a 不参与）；Incomparable 不作背驰确认。
+        assert!(confirm_divergence(DivergenceGauge::ThetaDom, false, Some(&dominated)));
+        assert!(!confirm_divergence(DivergenceGauge::ThetaDom, true, Some(&mixed)));
+        // G2/G3 force 无源 ⟹ false（诚实不判，不 fallback 回 MACD）。
+        assert!(!confirm_divergence(DivergenceGauge::ThetaDom, true, None));
+        assert!(!confirm_divergence(DivergenceGauge::Conjunction, true, None));
+        // G3 Conjunction：两者同真才确认。
+        assert!(confirm_divergence(DivergenceGauge::Conjunction, true, Some(&dominated)));
+        assert!(!confirm_divergence(DivergenceGauge::Conjunction, false, Some(&dominated)));
+        assert!(!confirm_divergence(DivergenceGauge::Conjunction, true, Some(&mixed)));
+        // 默认口径 = MacdArea（bit-exact 铁律：不显式配置不切换）。
+        assert_eq!(DivergenceGauge::default(), DivergenceGauge::MacdArea);
+    }
+
+    /// Θ_SCORE β_norm + K=3 分箱（prereg 冻结边界 0/0.33 的 L1 验证）。
+    #[test]
+    fn theta_score_and_bin_frozen_boundaries() {
+        let fp = |da: f64, dc: f64| ForceProxies { seg_a: ff(0.0, da, 0, 0.0), seg_c: ff(0.0, dc, 0, 0.0) };
+        // β_norm = (m_A−m_C)/(m_A+m_C)：C 弱 ⟹ 正（背驰域）；C 强 ⟹ 负。
+        assert!((fp(8.0, 4.0).theta_score() - (4.0 / 12.0)).abs() < 1e-12);
+        assert!(fp(4.0, 8.0).theta_score() < 0.0);
+        // 双零 ⟹ 0（无力度可比=非背驰，冻结口径）。
+        assert_eq!(fp(0.0, 0.0).theta_score(), 0.0);
+        // 分箱边界：≤0 非背驰；(0,0.33) 弱；≥0.33 强（边界值 0.33 归 Strong）。
+        assert_eq!(theta_score_bin(0.0), ThetaScoreBin::NonDivergent);
+        assert_eq!(theta_score_bin(-0.5), ThetaScoreBin::NonDivergent);
+        assert_eq!(theta_score_bin(0.1), ThetaScoreBin::Weak);
+        assert_eq!(theta_score_bin(0.33), ThetaScoreBin::Strong);
+        assert_eq!(theta_score_bin(1.0), ThetaScoreBin::Strong);
+        // β_norm=1/3 > 0.33 ⟹ fp(8,4) 落 Strong（冻结边界与归一化差的联动例）。
+        assert_eq!(theta_score_bin(fp(8.0, 4.0).theta_score()), ThetaScoreBin::Strong);
     }
 
     /// ★Lex 词典序核心（第17课「黄白线主 ▷ 面积次」，非 AND/OR）：DIF 可判用 DIF，DIF 相等退面积。

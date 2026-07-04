@@ -422,6 +422,49 @@ fn wverify_fullz() {
     std::fs::write("/tmp/wv_uclass_rows.md", format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}")).ok();
 }
 
+/// 三口径 D 判定 OOS 批（A2 #163，prereg-a2-thetadom-oos-20260704 **冻结先于跑数**）。
+///
+/// G1 MacdArea（对照基线，生产默认）/ G2 ThetaDom（ForceStateA5==Dominated，A5 amended——
+/// codex-a2-thetadom-20260704 裁定）/ G3 Conjunction（G1∧G2）。gauge 经 `ThetaConfig.divergence_gauge`
+/// 切换 ⟹ 一类 buy1/sell1 集合 ⟹ 生产 π ledger ⟹ 残差样本——全链真路径（675号：不另起坐标系）。
+/// 桶键/统计与 wverify_full 同口径（`bucket_verdict`）；三口径独立报告，不事后挑桶；负结论功效
+/// 门槛沿用 prereg（LCB<0 前核 n_eff）。
+/// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::thetadom_three_gauge_oos -- --ignored --nocapture`。
+#[test]
+#[ignore]
+fn thetadom_three_gauge_oos() {
+    use super::super::classifier::divergence::DivergenceGauge;
+    let gauges = [
+        ("G1-MacdArea", DivergenceGauge::MacdArea),
+        ("G2-ThetaDom", DivergenceGauge::ThetaDom),
+        ("G3-Conjunction", DivergenceGauge::Conjunction),
+    ];
+    let base = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &base).expect("BTC 数据加载（btc_1m_full.json）");
+    let mut report = String::from(
+        "# 三口径 D 判定 OOS（prereg-a2-thetadom-oos-20260704，力度族 𝒜₅ A5 amended）\n\n\
+         口径：BTC wf_anchored 12 窗 walk-forward OOS 残差；桶键 (ℓ,bsp,δ,σ^H)；统计与 wverify_full 同。\n\n",
+    );
+    for (name, g) in gauges {
+        let mut cfg = base.clone();
+        cfg.divergence_gauge = g;
+        let (records, _tb) = walk_forward_oos_residuals("BTC", 0, &ds, &cfg);
+        // 一类交易计数（i_class bit0=buy1 / bit3=sell1，与 wverify_fullz 探针同口径）——G2/G3 相对
+        // G1 的信号收缩量是 prereg 预期方向（Dominated ⊆ 宽判）的 L1 观测点。
+        let n_t1 = records.iter().filter(|r| r.class.i_class & 0b001_001 != 0).count();
+        let (_stats, rows, verdict, (v, f, i)) = bucket_verdict(&records);
+        report.push_str(&format!(
+            "## {name}\n- residuals={} type1_trades={} verdict={} V={}/F={}/I={}\n\n{}\n",
+            records.len(), n_t1, verdict, v, f, i, rows
+        ));
+        eprintln!(
+            "THETADOM_OOS {name}: residuals={} type1={} verdict={} V={}/F={}/I={}",
+            records.len(), n_t1, verdict, v, f, i
+        );
+    }
+    std::fs::write("/tmp/thetadom_three_gauge_oos.md", &report).ok();
+}
+
 /// 完整策略级 π 回测（prereg-fullz-policy 阶段2 (B)）：BTC+CL，χ门μ̂注入 vs 无χ基线。
 /// est 由 **train 段** `build_mu_from_bars` 建（无 in-sample 泄漏，L2），test 段跑生产 π；输出 Σpnl(含浮盈)
 /// / max_drawdown / n_orders 的 χ-vs-基线差分（μ̂ 选择器增量价值）。

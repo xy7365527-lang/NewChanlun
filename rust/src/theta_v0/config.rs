@@ -268,6 +268,10 @@ pub struct ThetaConfig {
     /// 真保证金模型（D2 task #113，margin-model-design v2）。`None` ⟹ MM=0 退化口径（bit-exact 现状，
     /// M1/M2/M3 不可达）；`Some` ⟹ 真实分级 MM/liq_flag/M2-M3 接线（改订单流 ⟹ MM=0 口径 alpha 冻结失效）。
     pub margin: Option<super::strategy::risk::MarginModel>,
+    /// 趋势背驰 D 判定口径（A2 task #163，prereg-a2-thetadom-oos-20260704 三口径）。默认
+    /// `MacdArea`（现行冻结判据，bit-exact 不变）——判定口径变更改变一类信号集合（⟹ ledger ⟹
+    /// 残差样本），属预注册敏感，显式配置才切换。
+    pub divergence_gauge: super::classifier::divergence::DivergenceGauge,
 }
 
 #[cfg(test)]
