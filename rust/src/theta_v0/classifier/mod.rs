@@ -1560,12 +1560,18 @@ fn second_for_parent(
 /// 可缓存。故**跳过 confirmed 前缀 parent 的重复背驰扫描**（`sublevel_diverges` 的 O(range) MACD 面积
 /// 累加），只对 frontier tail `[prefix_count..]` 每 bar 重算，前缀 B2 一生一算。
 ///
-/// ★门控消解的是「confirmed 前缀 parent 的重复扫描」这一 O(U²) 源。**残余 O(n²) 仍在**（profile 坐实
-/// 门控后 90ms@300K→1026ms@1M 仍指数≈2.03）——根因是 frontier parent 的 `segments_diverge` MACD 面积
-/// 累加：其对照走势 `prev` 的 close 区间随 n 增长，`|hist|` 逐点求和 O(range) 随窗口线性增长。这是
-/// **B3 #4 area-memo（(start,end)→area 冻结缓存）的领域**，门控消除 confirmed 前缀重扫恰是 B3 判定的
-/// area-memo 翻转条件；两者正交叠加才能把 07b 完全线性化（本工位只做门控，area-memo 未接入）。
-/// 缓存 clone O(|前缀 B2|) 在此非瓶颈（profile 坐实与原地增量版 1022ms 同噪声，area 累加主导）。
+/// ★area-memo 已接入（`d516aa42ea`，[`cached_segment_area`]）：MACD 面积经 `(start,end)→f64` 冻结
+/// 缓存，`sublevel_diverges` 内 `07b_area` 实测 ~46ns/call（10.2M call@BTC-1M）= cache-hit 主导，
+/// 面积累加已非瓶颈。门控（本函数）+ area-memo 两处均已落地。
+///
+/// ★残余 O(n²) 根因订正（on2-sweep 直测坐实，BTC-1M）：**不是** frontier parent 的 area 累加，而是
+/// **cascade 触发的前缀重扫**。07b miss 的 frontier tail 分裂两支——纯 append miss（`07b_miss_append_tail`
+/// sum=28570，avg=2.87，门控生效尾极短）vs cascade miss（`07b_miss_cascade_tail` sum=2015978=98.6%，
+/// avg=97.5，max=2095）。cascade_reset 定义性清空 `cached_second`（前缀 B2 缓存失效，见 line ~1192），
+/// 整个前缀被重扫 ⟹ cascade 频率 × 前缀长度 = O(n²)。cascade 频率由 `recursive_tower` 域的 frontier
+/// 重排决定（H5/H9 已 NO-SHIP：cascade 定义性清前缀，不可在本文件域降阶），非 `second_for_parent`/
+/// `sublevel_diverges` 的可优化项。per-call 常数因子（`position` 递归 eq ~14%、`rmove_direction`
+/// 递归 `.hi()` ~15%）均 subs.len()≤8 有界，改写只削常数不改指数（收益极低，不 ship）。
 ///
 /// ★bit-exact 铁律：返回值逐字段 == [`extract_second_for_level`]（parent 序拼接：前缀 B2 + tail B2
 /// = 全 parent 序，与全量重扫同序同集）。debug/test 护栏逐 bar 对拍全量重算锁定。
