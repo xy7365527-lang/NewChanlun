@@ -305,6 +305,62 @@ pub fn extract_carrier_forest(tower: &[Rc<Vec<LeveledMove>>]) -> Vec<CoverageEle
         .collect()
 }
 
+/// ★A12 双视图双向映射一致性（648 裁决 D / 子声部.pdf §12-13 / gap-master-list P1-3）：
+/// 校验结构视图树 **T_i**（[`extract_elements`]，host^struct 宇宙）与操作 carrier forest **K_i**
+/// （[`extract_carrier_forest`]，host^op 宇宙）的分离不变量。`Ok(())` 或首个违反的描述。
+///
+/// 三组不变量（L0 代数性质，对任意塔成立）：
+/// 1. **T_i ↪ K_i 嵌入**：∀e∈T_i ∃e'∈K_i 同 `ElementId` 且 (λ,ρ,ε,ℓ,parent_id) 全等——
+///    host^op 限制在 Dom(host^struct) 上与 host^struct 逐点一致（「双向映射一致性」：
+///    host^struct 命中 ⟹ host^op 命中同 carrier 同父，两套 host 在共同定义域无分叉）。
+/// 2. **K_i ElementId 唯一**（dedup 后无重复——host^op 命中不二义，codex NO#2）。
+/// 3. **K_i (level,ρ) 端点键唯一**（endpoint-complete 的 ∃! 分量：每个走势端点在 K_i 中
+///    恰一个 carrier；[`build_tree_endpoint_index`] 的 or_insert 假设在 K_i 上成立）。
+///
+/// ★endpoint-complete 的 ∀ 分量（∀g∈B_i: host^op(g)≠⊥）是 **B_i 相对**性质，不在本函数
+/// （无 bsp 输入）——由 K_i=U_i 构造保证（bsp.source_index=产出走势 end_index，signal.rs:101，
+/// 该走势必在塔某级 ⟹ 必在 K_i；638 边界④若 source_index 语义变则须重裁）。实测 host-miss
+/// 率是 L2 问题（下游跑批），本函数只封 L0 代数分量——不声明生产已证 Γ^K≅B_i（090/231）。
+pub fn dual_view_consistency(
+    t_i: &[CoverageElement],
+    k_i: &[CoverageElement],
+) -> Result<(), String> {
+    let mut k_by_id: std::collections::HashMap<ElementId, &CoverageElement> =
+        std::collections::HashMap::with_capacity(k_i.len());
+    for e in k_i {
+        if k_by_id.insert(e.id, e).is_some() {
+            return Err(format!("K_i ElementId 重复：{:?}（dedup 破裂，host^op 二义）", e.id));
+        }
+    }
+    let mut k_endpoints: std::collections::HashSet<(u32, usize)> =
+        std::collections::HashSet::with_capacity(k_i.len());
+    for e in k_i {
+        if !k_endpoints.insert((e.level, e.rho)) {
+            return Err(format!(
+                "K_i (level,ρ) 端点键重复：({},{})（endpoint ∃! 破裂）",
+                e.level, e.rho
+            ));
+        }
+    }
+    for e in t_i {
+        match k_by_id.get(&e.id) {
+            None => return Err(format!("T_i 元素 {:?} 不在 K_i（T_i⊆K_i 破裂）", e.id)),
+            Some(k) => {
+                if (k.lambda, k.rho, k.eps, k.level, k.parent_id)
+                    != (e.lambda, e.rho, e.eps, e.level, e.parent_id)
+                {
+                    return Err(format!(
+                        "T_i/K_i 同 id {:?} 字段分叉：T=({},{},{:?},{},{:?}) K=({},{},{:?},{},{:?})",
+                        e.id, e.lambda, e.rho, e.eps, e.level, e.parent_id,
+                        k.lambda, k.rho, k.eps, k.level, k.parent_id
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 /// 递归把一个 `LeveledMove` 及其真嵌套子走势压入元素集（父在子前，parent 索引真父子）。
 ///
 /// `lm`：当前走势（一个元素 e）。`parent_idx`：父元素在 `elements` 中的索引（根 None）。
@@ -2788,6 +2844,90 @@ mod tests {
                 assert!(p < i && p < k_i.len(), "parent 索引有效");
             }
         }
+    }
+
+    /// ★A12 双视图见证塔：L2 根只收 c2a/c2b，**c1（L1）整棵子树掉出 T_i**（↓r_i 只展开最高级根）
+    /// ——c1 及其 L0 subs 是 orphan frontier（676/648 第四根因的最小合成形态）。K_i 全含。
+    fn orphan_subtree_tower() -> Vec<Rc<Vec<LeveledMove>>> {
+        let s0 = LeveledMove::from_unit(&unit(0, 4, Direction::Up, 0, 10), eid(0, 0));
+        let s1 = LeveledMove::from_unit(&unit(4, 8, Direction::Down, 3, 12), eid(0, 1));
+        let s2 = LeveledMove::from_unit(&unit(8, 12, Direction::Up, 5, 15), eid(0, 2));
+        let c1 = LeveledMove::compose(&[s0, s1, s2], ctr(0, 12), 1, eid(1, 0)); // Up（外缘 15>=10）
+        let t0 = LeveledMove::from_unit(&unit(12, 16, Direction::Down, 8, 20), eid(0, 3));
+        let t1 = LeveledMove::from_unit(&unit(16, 20, Direction::Up, 10, 25), eid(0, 4));
+        let t2 = LeveledMove::from_unit(&unit(20, 24, Direction::Down, 12, 30), eid(0, 5));
+        let c2a = LeveledMove::compose(&[t0, t1, t2], ctr(12, 24), 1, eid(1, 1));
+        let u0 = LeveledMove::from_unit(&unit(24, 28, Direction::Up, 15, 35), eid(0, 6));
+        let u1 = LeveledMove::from_unit(&unit(28, 32, Direction::Down, 18, 40), eid(0, 7));
+        let u2 = LeveledMove::from_unit(&unit(32, 36, Direction::Up, 20, 45), eid(0, 8));
+        let c2b = LeveledMove::compose(&[u0, u1, u2], ctr(24, 36), 1, eid(1, 2));
+        let l2 = LeveledMove::compose(&[c2a.clone(), c2b.clone()], ctr(12, 36), 2, eid(2, 0));
+        rc_tower(vec![Vec::new(), vec![c1, c2a, c2b], vec![l2]])
+    }
+
+    /// ★A12 双向映射一致性（648 裁决 D / P1-3）：T_i↪K_i 嵌入 + K_i id/(level,ρ) 唯一——
+    /// 对链式塔（two_parent_tower，T_i==K_i）与 orphan 塔（K_i⊋T_i）都成立。
+    #[test]
+    fn a12_dual_view_consistency_holds() {
+        for tower in [two_parent_tower(), orphan_subtree_tower()] {
+            let t_i = extract_elements(&tower);
+            let k_i = extract_carrier_forest(&tower);
+            assert_eq!(dual_view_consistency(&t_i, &k_i), Ok(()), "双视图一致性（L0 代数）");
+            assert!(k_i.len() >= t_i.len(), "T_i⊆K_i ⟹ |K_i|>=|T_i|");
+        }
+        // orphan 塔上 K_i 严格更大（c1 子树 4 元素只在 K_i）。
+        let tower = orphan_subtree_tower();
+        assert_eq!(
+            extract_carrier_forest(&tower).len() - extract_elements(&tower).len(),
+            4,
+            "orphan c1 子树（c1+s0/s1/s2）仅在 K_i"
+        );
+    }
+
+    /// ★A12 一致性断言的否定性分支：伪造 K_i（id 重复 / 缺 T_i 元素 / 字段分叉）必 Err。
+    #[test]
+    fn a12_dual_view_consistency_rejects_forgery() {
+        let tower = orphan_subtree_tower();
+        let t_i = extract_elements(&tower);
+        let k_i = extract_carrier_forest(&tower);
+        // id 重复。
+        let mut dup = k_i.clone();
+        dup.push(k_i[0]);
+        assert!(dual_view_consistency(&t_i, &dup).is_err(), "K_i id 重复必拒");
+        // T_i 元素缺失（K_i 少一个 T_i 元素）。
+        let missing: Vec<CoverageElement> =
+            k_i.iter().filter(|e| e.id != t_i[0].id).copied().collect();
+        assert!(dual_view_consistency(&t_i, &missing).is_err(), "T_i⊆K_i 破裂必拒");
+        // 同 id 字段分叉。
+        let mut forked = k_i.clone();
+        let pos = forked.iter().position(|e| e.id == t_i[0].id).unwrap();
+        forked[pos].rho += 1;
+        assert!(dual_view_consistency(&t_i, &forked).is_err(), "同 id 字段分叉必拒");
+    }
+
+    /// ★A12 host^struct（T_i，部分函数）vs host^op（K_i，endpoint-complete）分离见证：
+    /// orphan 子树上的 bsp 在 T_i 宇宙 host-miss（∂ 根退化，676 子声部恒零根因），在 K_i 宇宙
+    /// 严格右端点命中（P2a 保留）真 Compose 父 c1——子声部对冲腿的结构前提就位。
+    #[test]
+    fn a12_host_op_hits_orphan_frontier_host_struct_misses() {
+        let tower = orphan_subtree_tower();
+        let t_i = extract_elements(&tower);
+        let k_i = extract_carrier_forest(&tower);
+        let t_idx = build_tree_endpoint_index(&t_i);
+        let k_idx = build_tree_endpoint_index(&k_i);
+        // bsp g @ (level=0, source_index=8)=s1.ρ（orphan c1 的中间子；s1 方向 Down、父 c1 方向 Up）。
+        // host^struct：T_i 无 s1 ⟹ ⊥（旧生产 = ∂ 根 Ambient，676 子声部结构性不可达）。
+        assert_eq!(
+            attach_bsp_carrier_indexed(&t_idx, &t_i, 0, 8),
+            (None, None, None),
+            "host^struct 部分函数：orphan frontier 上 ⊥"
+        );
+        // host^op：K_i 命中 s1（严格右端点，P2a），真 Compose 父 c1 + carrier id。
+        let (parent, attached_dir, carrier_id) = attach_bsp_carrier_indexed(&k_idx, &k_i, 0, 8);
+        assert_eq!(carrier_id, Some(eid(0, 1)), "host^op 命中 s1（P2b：宇宙 T_i→K_i）");
+        assert_eq!(attached_dir, Some(VoiceSide::Long), "σ_p = c1 外缘 Up = Long");
+        let parent_idx = parent.expect("s1 携真 Compose 父 c1");
+        assert_eq!(k_i[parent_idx].id, eid(1, 0), "父 carrier=c1（真嵌套，非级别差伪造，547）");
     }
 
     /// 638 边界：host 未找到（无 ρ==source_index 的本级元素）⟹ (None,None) 去根化 Ambient。
