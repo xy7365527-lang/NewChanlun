@@ -4183,27 +4183,27 @@ mod tests {
                 );
             }
 
-            // 终局语义（codex #55 `codex-decide-20260702-201450-8032.md` 裁定(5) + #56 探针
-            // `c3-overlap-probe-20260702.md` 候选(2)坐实）：level==1 C3「新中枢+突破」命中恒 0
-            // 是**市场几何事实**（非判据实现问题）——level==1 走势确认背驰反转期间（source_index
-            // 之后）在真实数据下几何上确无可反向突破的次级中枢，小转大 level==1 通道在当前定义下实践
-            // 关闭。故终局不变量 = `breakout_ok == 0`。
-            //
-            // 判据方向的两种误报须分清（原 assert `rate∈(0,1)` 混淆了二者）：
-            //   • `rate==0` panic = 对**预期终局态**误报（原 bug，#56 已坐实 0 为正确态）——须消除。
-            //   • `rate>0` **不** panic = 放过**回归**（固定数据+当前定义下 rate>0 只可能来自 center/tower/
-            //     C3 逻辑漂移或 #56 候选(2) 被推翻，二者都令整个 Xzd 信号口径失效）——须硬失败。
-            // 故用 `assert_eq!(breakout_ok, 0)`：预期态 0 不 panic（消除原 bug），rate>0 硬失败作 #56 终局
-            // 的回归守卫（codex 异质审计 `codex-diagnose-20260702-205437-358f.md` 焦点2 + no-patch-mentality：
-            // 终局不变量在确定性数据上须硬断言，不降级为静默 print）。
-            let _ = writeln!(rpt, "- **判据健康度（终局不变量，codex #55/#56）**：level==1 C3 命中恒 0 为市场几何事实；breakout_ok>0 ⟹ #56 候选(2) 被推翻 / center-tower 漂移 ⟹ Xzd 口径失效，硬失败回 codex 复审。");
-            assert_eq!(
-                xzd_l1_c3_new_center_breakout_ok, 0,
-                "C3 新判据 level==1 命中={xzd_l1_c3_new_center_breakout_ok}/{n_l1}>0——推翻 #56 探针候选(2) 终局（level==1 通道\
-                 恒无可反向突破新中枢）：固定数据下这只能来自 center/tower/C3 逻辑漂移或 #56 被证伪，整个 Xzd level≥2 \
-                 C2-only 信号口径失效，须回 codex 复审（c3-overlap-probe-20260702.md 边界条件：转候选(1)，center/tower \
-                 延伸中枢实装 + golden digest 全路径重验）。"
-            );
+            // ★#148 死门重封（#137 先例：锁默认窗确定性基线）。旧终局不变量 `breakout_ok == 0`
+            // （codex #55 裁定(5) + #56 候选(2)：「恒 0 = 市场几何事实」）的翻转条件由其自身预设：
+            // 「center/tower 延伸中枢实装」⟹ 转候选(1)。#142（§5 延伸吸收）+ #148（第33课升级重切，
+            // codex-decide-20260704-001933 裁定 A1/B-II/C1/D1）正是该条件的合法触发：升级重切改变
+            // canonical 中枢链（≥9 段窗口拆为每 3 段子中枢）⟹ source~confirm 间可存在新确认次级
+            // 中枢（exists 0→13）且可被反向突破（breakout_ok 0→3，2026-07-04 默认窗实测）。#56
+            // 候选(2) 的前提结构（无升级语义的中枢链）已合法作废——这是语义变更，非逻辑漂移。
+            // 重封形式 = 锁默认窗确定性基线（同下 lvl>=2 先例：基线是窗口函数，仅默认窗断言；
+            // 窗口/数据/定义变 ⟹ 重测重锁，不放宽为范围断言）。
+            // ★下游口径待裁（上浮 Lead，非本层自决）：Xzd level≥2 C2-only 信号口径因 C3 脱 0 须回
+            // codex 复审（#56 边界条件转候选(1)：C3 并入硬门的可行性）——见 #148 结果包下游推论。
+            let _ = writeln!(rpt, "- **判据健康度（#148 重封）**：延伸+升级实装后 level==1 C3 可命中（默认窗基线 exists=13/breakout_ok=3）；基线漂移 ⟹ 硬失败重推导；Xzd C2-only 口径复审已上浮。");
+            if max_bars == MAX_BARS_DEFAULT {
+                assert_eq!(
+                    (xzd_l1_c3_new_center_exists, xzd_l1_c3_new_center_breakout_ok),
+                    (13, 3),
+                    "C3 新判据 level==1 计数漂移（exists={xzd_l1_c3_new_center_exists} breakout_ok=\
+                     {xzd_l1_c3_new_center_breakout_ok}，默认窗基线 13/3，#148 升级重切后 2026-07-04 实测）\
+                     ——固定数据+默认窗下漂移只能来自 center/tower/C3 逻辑变更，须重推导重封（推导链见上注）。"
+                );
+            }
         }
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "### lvl>=2 死门重封（裁定A+#123：sub_bsp 可含 Type3，锁基线数值）");
@@ -4218,12 +4218,15 @@ mod tests {
             // Q7-#1 裁定C 重封（codex-q7-fallback-20260703，2026-07-03 实测）：fallback 单元非
             // 方向锚 ⟹ 上级一/三类收缩（一类 1057→614、type3 总数 3150→657），XZD 路由候选构成
             // 随中枢/信号结构变化 routed 75→160（codex 裁决预告「不保证单调」的实证）。
+            // ★#148 重锁（2026-07-04 实测）：升级重切（第33课 ≥9 段拆子中枢，codex-decide-
+            // 20260704-001933）改变 canonical 中枢链 ⟹ 全塔 BSP/路由级联变化，routed 160→217、
+            // sub_bsp_type3_total 657→433——中枢变多（重切）且外缘变窄（子窗聚合）双向作用的净效应。
             assert_eq!(
-                (n_lge2_routed, xzd_lge2_sub_bsp_type3_total), (160, 657),
-                "lvl>=2 死门基线漂移（裁定C 后基线：routed=160/sub_bsp_type3_total=657）——\
+                (n_lge2_routed, xzd_lge2_sub_bsp_type3_total), (217, 433),
+                "lvl>=2 死门基线漂移（#148 升级重切后基线：routed=217/sub_bsp_type3_total=433）——\
                  上游 BSP 生产链（extract/hl13 级别-N 判定/Q7 锚门）或 Xzd 路由变化，需重测重锁并审计来源"
             );
-            let _ = writeln!(rpt, "- **重封通过**：默认 300K 窗基线锁定 routed=160 / sub_bsp_type3_total=657（Q7-#1 裁定C 后新真值，2026-07-03 测定）。");
+            let _ = writeln!(rpt, "- **重封通过**：默认 300K 窗基线锁定 routed=217 / sub_bsp_type3_total=433（#148 升级重切后新真值，2026-07-04 测定）。");
         } else {
             let _ = writeln!(rpt, "- 非默认窗（max_bars={max_bars}），基线断言跳过（基线仅对默认 300K 窗定义）。");
         }
