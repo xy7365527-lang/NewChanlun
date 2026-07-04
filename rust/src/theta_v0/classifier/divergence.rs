@@ -290,9 +290,18 @@ pub fn segments_diverge(
 // 死字段」的前提已被两步解除——#115 在 `BspPoint.force` 收进 signal 抽取层算好的 A/C 段 5 proxy
 // （单一来源），A6（#159）令 `Candidate.force` 纯透传该值进 gamma 组装 ⟹ z 装配点
 // （`selector::z_of_candidate`）读 `c.force` 填 `force_state` 第 8 维（统计层与生产 π fill loop
-// 同经此路，无死字段）。**仍未接**：`filter_gamma` 的 Weak_Θ 力度门（`weak_theta` 词典序判定进
-// χ 判据）——那是判据变更非透传，留 A3（#164）独立工位。诚实声明：原语 ✓，透传 ✓（A6），
-// Weak_Θ 门接入 ✗（A3 gap）。
+// 同经此路，无死字段）。
+//
+// ★A3（#164）接入定位（671号纠正——原注误指 filter_gamma）：Weak 力度判据的 canonical 归属是
+// **judge 的参数化 D 判定**（`DivergenceGauge`，一类买卖点.pdf p10 §9.3 `Type1Cand` 第5条
+// `Weak(s,A)=1` 的实装点），**不是 `filter_gamma` 的力度 veto 门**。671号已结算：力度=**feature**
+// （`force_state` 第 8 维进 χ 的 z），**不作 selector 一票否决**——P2-R2/671 消除了「MACD C≥A 预删」
+// 选择偏差，在 selector 加硬力度门会重引入同一偏差。故 A3 的 Weak 非-MACD 化落点：
+//   · A2（#163）：`ThetaDom`（Θ_DOM 支配序）已接 judge；
+//   · A3（#164）：`ThetaLex`（Θ_LEX 词典序，`weak_theta(Lex)` 唯一生产消费者）接 judge——
+//     `weak_theta`/`WeakThetaMode` 原语自此**非死代码**（confirm_divergence ThetaLex 分支消费）。
+// 诚实声明：原语 ✓，透传 ✓（A6），judge Θ_DOM ✓（A2），judge Θ_LEX ✓（A3）；𝒜_ℓ 第6成员
+// SubMovePower 仍缺（见 `ForceStateA5` 头，数据源未达 signal 抽取层，诚实缺口）。
 // ═══════════════════════════════════════════════════════════════════════════
 
 /// 段力度多 proxy（P2 §6 selector 状态 z 的力度分量：MACD 面积 / DIF 峰值 / 价格振幅 / 速度）。
@@ -422,43 +431,70 @@ pub fn theta_score_bin(beta_norm: f64) -> ThetaScoreBin {
     }
 }
 
-/// 趋势背驰 D 的判定口径开关（A2 残余，prereg-a2-thetadom-oos-20260704 三口径）。
+/// 趋势背驰 D 的判定口径开关（A2 #163 + A3 #164，关于背驰.pdf §9.2 三套 Θ 预注册）。
 ///
-/// D = 一类买卖点 buy1/sell1 的背驰确认谓词（`judge_first_cached` 的 `below_last_center` 源）。
+/// D = 一类买卖点 buy1/sell1 的背驰确认谓词（`judge_first_cached` 的 `below_last_center` 源）——
+/// 即 `一类买卖点.pdf` p10 §9.3 `Type1Cand` 第 5 条 `Weak(s, A) = 1` 的实装点。p6 明文「`Weak`
+/// should be defined by a **force measure**, not only MACD area」——本开关正是把 Weak 从「仅 MACD
+/// 面积」升级为**力度签名合规判定**（关于背驰.pdf §5「支配序，而不是单一指标」）的承载。
 /// 默认 [`MacdArea`](DivergenceGauge::MacdArea)（现行冻结判据，bit-exact 不变）——判定口径变更
 /// 改变信号集合（⟹ ledger ⟹ 残差样本），属预注册敏感，**显式配置才切换，不默认**。
 ///
+/// **Weak 的 canonical 归属在 judge（本开关），非 selector 力度 veto**（671号已结算）：力度作为
+/// **feature**（`force_state` 第 8 维，#159 已透传进 χ 的 z），**不作 `filter_gamma` 一票否决**——
+/// P2-R2/671 消除了「MACD C≥A 预删」选择偏差，再在 selector 加硬力度门会重引入同一偏差。故
+/// Weak 力度判据的接入点是**参数化 D 判定**（本 gauge），与 A2 的 `ThetaDom` 同款模式。
+///
 /// 有效域（诚实边界）：只作用于趋势背驰 D（一类）。盘整背驰证书（`judge_pan_div`）、二类
-/// `divergence_of`、Weak_Θ 力度门（A3 #164）不在本开关范围。
+/// `divergence_of` 不在本开关范围。
+///
+/// 关于背驰.pdf §9.2 三套预注册 Θ ↔ 本枚举：`Θ_DOM`=[`ThetaDom`](DivergenceGauge::ThetaDom)、
+/// `Θ_LEX`=[`ThetaLex`](DivergenceGauge::ThetaLex)、`Θ_SCORE`=分层键候选（[`ForceProxies::theta_score`]，
+/// 非判定口径）。三套「分别 OOS 回测，不能先看结果再选」——见 `wverify_run::thetadom_three_gauge_oos`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum DivergenceGauge {
     /// G1 对照基线（默认）：`Area(C) < Area(A)`（`segments_diverge` 现行冻结判据）。
     #[default]
     MacdArea,
-    /// G2：`ForceStateA5(C,A) == Dominated`（𝒜₅ 全支配衰减，A5 amended 口径）。
+    /// G2 `Θ_DOM`：`ForceStateA5(C,A) == Dominated`（𝒜₅ 全支配衰减，A5 amended 口径）。
     ThetaDom,
-    /// G3：G1 ∧ G2（MACD 面积衰减 ∧ 全支配序衰减）。
+    /// G3 Conjunction：G1 ∧ G2（MACD 面积衰减 ∧ 全支配序衰减）。
     Conjunction,
+    /// G4 `Θ_LEX`（关于背驰.pdf §9.2「结构 > DIF > 面积」词典序）：级别内 `weak_theta(Lex)` —
+    /// DIF 主判据（第17课黄白线最重要），DIF 不可判（相等）退面积次判据。**「结构」层（级别）
+    /// 由 selector 级别分桶承载**（护栏3：`weak_theta` 是同级别内的力度词典序，MuClass.level 承载
+    /// 级别元门），故 gauge 内 lex 退化为「DIF ▷ 面积」两层——与 [`WeakThetaMode::Lex`] 一致。
+    ThetaLex,
 }
 
-/// 三口径 D 判定（单一判定点——`judge_first_cached` 唯一消费者，不在别处重算组合逻辑）。
+/// 四口径 D 判定（单一判定点——`judge_first_cached` 唯一消费者，不在别处重算组合逻辑）。
 ///
 /// `macd_c_lt_a` = G1 原语结果（`AbcDivergence::diverges`，调用方已算——G1/G3 复用，不重算面积）；
-/// `force` = A/C 段 5 proxy（`BspPoint.force` 同源）。ThetaDom/Conjunction 下 `force=None`
+/// `force` = A/C 段 5 proxy（`BspPoint.force` 同源）。ThetaDom/ThetaLex/Conjunction 下 `force=None`
 /// （dif/closes 无源，旧测试/合成入口）⟹ **false**（无 5-proxy 无背驰确认——诚实不判，
 /// 不 fallback 回 MACD 口径；no-workaround：口径混用=两种矛盾理解都能通过）。
 ///
-/// 认识论 L1：给定原语结果求 D 是确定性布尔。「哪个口径有 alpha」= L2/L3（三口径 OOS，本函数不声明）。
+/// ThetaLex 语义：`weak_theta(Lex, seg_a, seg_c)` = C 段（后离开段）力度**词典序严格小于** A 段
+/// （背驰=力度衰减，`ForceProxies.seg_a`=前段A / `seg_c`=后段C，与 `Weak(C,A)=1` 逐字对齐）。
+///
+/// 认识论 L1：给定原语结果求 D 是确定性布尔。「哪个口径有 alpha」= L2/L3（四口径 OOS，本函数不声明）。
 pub fn confirm_divergence(
     gauge: DivergenceGauge,
     macd_c_lt_a: bool,
     force: Option<&ForceProxies>,
 ) -> bool {
     let dominated = || force.map(|f| f.force_state() == ForceStateA5::Dominated).unwrap_or(false);
+    // Θ_LEX：级别内词典序 Weak(C,A)=1（DIF 主 ▷ 面积次，第17课）。force 无源 ⟹ false（诚实不判）。
+    let lex_weak = || {
+        force
+            .map(|f| weak_theta(WeakThetaMode::Lex, &f.seg_a, &f.seg_c))
+            .unwrap_or(false)
+    };
     match gauge {
         DivergenceGauge::MacdArea => macd_c_lt_a,
         DivergenceGauge::ThetaDom => dominated(),
         DivergenceGauge::Conjunction => macd_c_lt_a && dominated(),
+        DivergenceGauge::ThetaLex => lex_weak(),
     }
 }
 
@@ -564,9 +600,11 @@ pub enum WeakThetaMode {
 ///   `C.dif == A.dif`（DIF 不可判）⟹ 退面积 `C.area < A.area`。**非 AND/OR**（027:30「只要其中
 ///   一个符合就可以」否证 AND；第34课「黄白线最重要」否证纯 OR）。
 ///
-/// ★护栏3（codex 语义诚实）：本函数供 **selector 层** Weak_Θ 力度门，**不喂 buy1**（buy1 判据
-/// 冻结为 `segments_diverge`=MACD 面积，class_index 语义不动）。level 元门（级别配套）不在此函数
-/// （selector 已按 level 分桶，元门由 MuClass.level 承载）——本函数是同级别内的力度词典序。
+/// ★接入点（671号纠正）：本函数的生产消费者是 [`confirm_divergence`] 的 `ThetaLex` 分支（judge 层
+/// 参数化 D 判定，A3 #164）——**非 selector 力度 veto**（671：力度=feature 不作 filter_gamma 一票
+/// 否决）。默认口径（`MacdArea`）下 buy1 判据仍 `segments_diverge`=MACD 面积（class_index 语义不动，
+/// bit-exact）；仅 `DivergenceGauge::ThetaLex` 显式激活时本词典序进 D。level 元门（级别配套）不在此
+/// 函数（selector 已按 level 分桶，元门由 MuClass.level 承载）——本函数是同级别内的力度词典序。
 ///
 /// ★认识论 L1（给定 A/C ForceFeatures 求 Weak 是确定性布尔，验证判定逻辑）——「哪个 mode 有
 /// alpha」是 L2/L3（W-VERIFY，本函数不声明）。
@@ -1004,6 +1042,31 @@ mod tests {
         assert!(!confirm_divergence(DivergenceGauge::Conjunction, true, Some(&mixed)));
         // 默认口径 = MacdArea（bit-exact 铁律：不显式配置不切换）。
         assert_eq!(DivergenceGauge::default(), DivergenceGauge::MacdArea);
+    }
+
+    /// G4 ThetaLex（Θ_LEX 词典序 D 判定，A3 #164，关于背驰.pdf §9.2）：judge 层 `weak_theta(Lex)`
+    /// = Weak(C,A) 词典序（DIF 主 ▷ 面积次）。这是 `weak_theta` 原语的生产消费点（671：judge 非
+    /// selector veto）。macd_c_lt_a 不参与（Lex 用 DIF/面积词典序，非纯面积）。
+    #[test]
+    fn confirm_divergence_theta_lex_gauge() {
+        let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
+        // C.dif < A.dif（DIF 主判据衰减）⟹ Weak ⟹ D，**即使 macd_c_lt_a=false**（DIF 压过面积/MACD）。
+        let dif_weak = fp(ff(5.0, 8.0, 0, 0.0), ff(10.0, 4.0, 0, 0.0)); // C.dif(4)<A.dif(8) 但 C.area(10)>A.area(5)
+        assert!(confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_weak)),
+            "ThetaLex：C.dif<A.dif ⟹ Weak ⟹ D（DIF 主，macd_c_lt_a 不参与）");
+        // 对照：MacdArea 口径同输入 D=false（面积延续）——证 ThetaLex ≠ MacdArea。
+        assert!(!confirm_divergence(DivergenceGauge::MacdArea, false, Some(&dif_weak)));
+        // DIF 相等（不可判）⟹ 退面积次判据：C.area<A.area ⟹ Weak ⟹ D。
+        let dif_tie_area_weak = fp(ff(10.0, 5.0, 0, 0.0), ff(4.0, 5.0, 0, 0.0));
+        assert!(confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_tie_area_weak)),
+            "ThetaLex：DIF 相等 ⟹ 退面积，C.area<A.area ⟹ Weak");
+        // C 力度延续（C.dif>A.dif）⟹ 非 Weak ⟹ D=false。
+        let dif_strong = fp(ff(5.0, 4.0, 0, 0.0), ff(10.0, 8.0, 0, 0.0));
+        assert!(!confirm_divergence(DivergenceGauge::ThetaLex, true, Some(&dif_strong)),
+            "ThetaLex：C.dif>A.dif ⟹ 力度延续 ⟹ 非背驰（即使 macd_c_lt_a=true）");
+        // force 无源 ⟹ false（诚实不判，不 fallback 回 MACD，与 ThetaDom 同纪律）。
+        assert!(!confirm_divergence(DivergenceGauge::ThetaLex, true, None),
+            "ThetaLex force 无源 ⟹ D=false（无 5-proxy 不判，no-workaround）");
     }
 
     /// Θ_SCORE β_norm + K=3 分箱（prereg 冻结边界 0/0.33 的 L1 验证）。

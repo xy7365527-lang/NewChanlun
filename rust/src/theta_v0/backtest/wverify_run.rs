@@ -422,13 +422,16 @@ fn wverify_fullz() {
     std::fs::write("/tmp/wv_uclass_rows.md", format!("# UClass 降维并列 verdict={uverdict} V={uv}/F={uf}/I={ui}\n\n{urows}")).ok();
 }
 
-/// 三口径 D 判定 OOS 批（A2 #163，prereg-a2-thetadom-oos-20260704 **冻结先于跑数**）。
+/// 四口径 D 判定 OOS 批（A2 #163 三口径 + A3 #164 ThetaLex，prereg-a2-thetadom-oos-20260704
+/// **冻结先于跑数** + a2 边界(f) Θ_LEX 补齐）。
 ///
-/// G1 MacdArea（对照基线，生产默认）/ G2 ThetaDom（ForceStateA5==Dominated，A5 amended——
-/// codex-a2-thetadom-20260704 裁定）/ G3 Conjunction（G1∧G2）。gauge 经 `ThetaConfig.divergence_gauge`
-/// 切换 ⟹ 一类 buy1/sell1 集合 ⟹ 生产 π ledger ⟹ 残差样本——全链真路径（675号：不另起坐标系）。
-/// 桶键/统计与 wverify_full 同口径（`bucket_verdict`）；三口径独立报告，不事后挑桶；负结论功效
-/// 门槛沿用 prereg（LCB<0 前核 n_eff）。
+/// G1 MacdArea（对照基线，生产默认）/ G2 ThetaDom（Θ_DOM，ForceStateA5==Dominated，A5 amended——
+/// codex-a2-thetadom-20260704 裁定）/ G3 Conjunction（G1∧G2）/ G4 ThetaLex（Θ_LEX，`weak_theta(Lex)`
+/// 词典序 DIF▷面积，关于背驰.pdf §9.2 三套 Θ 的第三套，A3 #164 补齐 a2 边界(f)）。gauge 经
+/// `ThetaConfig.divergence_gauge` 切换 ⟹ 一类 buy1/sell1 集合 ⟹ 生产 π ledger ⟹ 残差样本——全链真
+/// 路径（675号：不另起坐标系）。桶键/统计与 wverify_full 同口径（`bucket_verdict`）；四口径独立报告，
+/// 不事后挑桶；负结论功效门槛沿用 prereg（LCB<0 前核 n_eff）。关于背驰.pdf §9.2「分别 OOS 回测，
+/// 不能先看结果再选」——四口径同批跑、独立列出，不事后选口径。
 /// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::thetadom_three_gauge_oos -- --ignored --nocapture`。
 #[test]
 #[ignore]
@@ -438,11 +441,12 @@ fn thetadom_three_gauge_oos() {
         ("G1-MacdArea", DivergenceGauge::MacdArea),
         ("G2-ThetaDom", DivergenceGauge::ThetaDom),
         ("G3-Conjunction", DivergenceGauge::Conjunction),
+        ("G4-ThetaLex", DivergenceGauge::ThetaLex),
     ];
     let base = ThetaConfig::default();
     let ds = data::load_by_symbol("BTC", &base).expect("BTC 数据加载（btc_1m_full.json）");
     let mut report = String::from(
-        "# 三口径 D 判定 OOS（prereg-a2-thetadom-oos-20260704，力度族 𝒜₅ A5 amended）\n\n\
+        "# 四口径 D 判定 OOS（prereg-a2-thetadom-oos-20260704，力度族 𝒜₅ A5 amended；A3 补 Θ_LEX）\n\n\
          口径：BTC wf_anchored 12 窗 walk-forward OOS 残差；桶键 (ℓ,bsp,δ,σ^H)；统计与 wverify_full 同。\n\n",
     );
     for (name, g) in gauges {
