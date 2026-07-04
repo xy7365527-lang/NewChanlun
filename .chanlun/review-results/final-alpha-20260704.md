@@ -110,11 +110,17 @@ residuals=2256。
 4. L3 跨标的池化把 BTC 独有正桶翻转 Falsified。
 → 四路证据一致指向 **INCONCLUSIVE**（无 confirmed 方向 alpha），与 prereg §7 认识论预承诺一致。
 
-**留给 Lead 的判定归属**（no-patch 禁我改冻结代码/跑后调口径，任务令"拿不准判定归属报 main 由 Lead 判"）：
-- "报告桶 verdict=Pass 是否算 §3.2 path-1 acceptance PASS" —— 我判**否**（§3.1 明文报告桶不触发 acceptance），但这一口径归属的最终裁定权在 Lead。
-- 是否需要在 δ-free 聚合基上重算三态再判 —— 若 Lead 认为需要，是新增跑数（冻结代码未提供 δ-free 聚合基的独立三态入口，perm 是 δ-free 但 state 聚合按报告桶）。
+**Lead 裁定（收 3 项裁定）**：报告桶 verdict=Pass **不算** §3.2 path-1（§3.1 明文直接应用，定理类）；四路证据收敛，终局 acceptance=**INCONCLUSIVE 无 confirmed 方向 alpha**，Lead 认定。a5 CHECK 事件由 Lead 写（归属在 Lead），本工位不写。
 
-**我不单方面写 a5 CHECK_PASS**——判定归属确认后再落事件。
+### 3.1 δ-free 聚合基三态离线重算（Lead 裁定点1②，明文主判据执行 gap 补齐）
+冻结 `wverify_full` 只落报告桶（含 δ）不落 δ-free 聚合基三态。从 R2 报告桶行离线池化 δ+1/δ−1 到 δ-free 基 `(level,bsp_class,parent_dir)`（组均值+组方差合并公式，std 由 LCB 反推 `std=(mean−lcb)·√n/1.645`，正态近似 LCB）——**非跑后调口径，是执行 prereg 明文主判据**（§3.2 主判据=δ-free 聚合基 LCB_OOS>0）。22 个 δ-free 桶中：
+
+- **唯一 LCB>0 桶 = `L0 bsp3 σ+1`**（N=248 池化 mean +162.50 std 695.0 LCB **+89.90**）——与报告桶同一桶。
+- **决定性 beta 判据**：该桶 δ+1（mean+162.25 n156）与 δ−1（mean+162.91 n92）**两方向同号同量级** ⟹ 池化后不抵消，δ-free mean 仍 +162.50。**若是方向性 alpha，买/卖池化必抵消**（异号）；同号不抵消 = 该 (level,bsp,σ^H) 结构格的**纯 beta 暴露**（level×持有窗 beta 相位，与交易方向无关），非可交易买卖边际。
+- 其余 21 桶：1 个 UCB≤0（L0 bsp1 σ+1 纯 beta）、其余 LCB≤0<UCB（欠功效 Inconclusive）。
+- **口径限制照实（231）**：离线池化能算 δ-free mean/std/正态 LCB（主判据 LCB>0 门），但**不能**精确重建池化后的 n_eff（事件聚集校正）与 δ-free perm_p（需逐笔序列，冻结二进制未落盘）。故此 δ-free LCB>0 是**正态近似上界口径**，比生产 decontam 的 n_eff 折减口径**更宽松**（n_eff<n ⟹ 真 LCB 更低）——即真实三态**至多**与此一致，不会更多桶 LCB>0。结论方向稳健：δ-free 主判据下也仅此 beta 桶「LCB>0」，且它是纯 beta（同号不抵消），**acceptance 仍 INCONCLUSIVE**。逐笔留存精确重算（含 n_eff+perm_p）列为下游待办（需冻结代码加 per-trade dump，非本轮域）。
+
+四路证据（报告桶 beta 签名 + co-primary β 不显著 + full-z 零 Validated + L3 池化翻 Falsified）+ 本 δ-free 聚合基重算 = **五路一致 INCONCLUSIVE**。
 
 ---
 
