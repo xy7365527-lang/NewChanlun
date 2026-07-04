@@ -667,6 +667,15 @@ where
         LedgerOpen,
     > = std::collections::HashMap::new();
     let mut typed_ledger: Vec<TypedTrade> = Vec::new();
+    // ★A9（Task #166，级别容器.pdf p14/§13）：campaign generation 高水位表——carrier(ElementId) →
+    //   该 carrier 已见最高 generation。同一 carrier close→reopen 时新 campaign 的 generation =
+    //   高水位 +1（首次入场 = 0）。`ActiveLeg::id`/`voice_id` 会跨 campaign 复用（close 后同 carrier
+    //   可再 open，见 interpret 无历史 tombstone + open_trades.insert 二次覆盖），高水位表使
+    //   position_node_id 四元组严格不碰撞（时序再入场可达，codex a9-posnode 裁定 C）。
+    let mut gen_hiwater: std::collections::HashMap<
+        classifier::recursive_tower::ElementId,
+        u32,
+    > = std::collections::HashMap::new();
     // ── #124 裁定4：TW 账本单一生产真值源（TwState 接入 π 路径；run_closed_loop 降级纯结构
     //    验证工具）。注资口径 = funded_campaign 同款（state.rs:219）：整窗 = 一个 campaign，
     //    投入 = 初始 NAV 取整（free = notional_in = ⌊nav0⌋）。i64 取整粒度诚实声明：TW 账本是
@@ -857,12 +866,29 @@ where
             // 第 8 维——entry_z（训练）与上方 filter_gamma（查询）同函数同候选 ⟹ 同口径自动成立，
             // fullz 置换 records 的 force_state 自此携真值（一类 A/C 对候选 Some）。
             for (c, leg) in &step_trace.opened {
+                use super::super::strategy::interp::{EntryCertificate, PositionNodeId};
+                // ★A9 generation：carrier 首次入场 = 0；close→reopen（表中已有）= 高水位 +1（单调）。
+                let generation = match gen_hiwater.get(&leg.id) {
+                    Some(&hi) => hi + 1,
+                    None => 0,
+                };
+                gen_hiwater.insert(leg.id, generation);
+                let position_node_id = PositionNodeId {
+                    carrier: leg.id,
+                    entry_certificate: Some(EntryCertificate {
+                        level: c.level,
+                        source_index: c.source_index,
+                    }),
+                    side: c.dir,
+                    generation,
+                };
                 open_trades.insert(leg.id, LedgerOpen {
                     entry_bar: i,
                     entry_px: px,
                     // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
                     entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
                     entry_v: c.role.v,
+                    position_node_id,
                 });
             }
             // 反向关闭：typed 判据单源 reverse_exit_type（入场角色 + 触发候选类）。
@@ -882,6 +908,7 @@ where
                         entry_px: open.entry_px,
                         exit_px: px,
                         via_structural_prune: false, // 真信号平仓（反向候选触发）
+                        position_node_id: open.position_node_id,
                     });
                 }
                 // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
@@ -910,6 +937,7 @@ where
                         entry_px: open.entry_px,
                         exit_px: px,
                         via_structural_prune: true, // §13 父驱动连带剪枝，非独立信号（μ 侧可分离）
+                        position_node_id: open.position_node_id,
                     });
                 }
             }
@@ -931,6 +959,7 @@ where
                         entry_px: open.entry_px,
                         exit_px: px,
                         via_structural_prune: false, // 强平=风险信号平仓，非结构剪枝
+                        position_node_id: open.position_node_id,
                     });
                 }
             }
@@ -953,6 +982,7 @@ where
                         entry_px: open.entry_px,
                         exit_px: px,
                         via_structural_prune: false, // TW 账本谓词驱动的真实平仓，非结构剪枝
+                        position_node_id: open.position_node_id,
                     });
                 }
             }
@@ -1059,6 +1089,7 @@ where
                 entry_px: open.entry_px,
                 exit_px: last_px,
                 via_structural_prune: false, // censored 窗口边界，非结构剪枝
+                position_node_id: open.position_node_id,
             });
         }
     }
@@ -1224,6 +1255,12 @@ pub struct TypedTrade {
     /// 使 μ 侧**可分离**；`build_mu_from_bars` 现口径仍全部入 μ（排除/分桶是新统计决策，
     /// 归 #135 prereg，不在此静默改口径）。反向关闭/RiskExit/censored Hold 恒 false。
     pub via_structural_prune: bool,
+    /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 严格身份四元组
+    /// `hash(carrier, entry_certificate, side, generation)`。同一 carrier（`voice_id`）先后多次
+    /// campaign 由 `generation` 单调区分——`voice_id` 会碰撞（close→reopen 复用同 ElementId），
+    /// `position_node_id` 不碰撞（generation +1）。供跨笔同 carrier campaign 归因/去重（当前 μ 层
+    /// 按 `entry_z` 逐笔独立观测，不消费本字段——它是身份完备性的账本层载体，非 μ 统计输入）。
+    pub position_node_id: super::super::strategy::interp::PositionNodeId,
 }
 
 /// ledger 在飞条目（开腿登记，关腿时结算为 [`TypedTrade`]）。
@@ -1233,6 +1270,12 @@ struct LedgerOpen {
     entry_z: super::mu_estimator::MuClass,
     /// 入场角色垂直轴（腿声部身份入场时固定）——`reverse_exit_type`/silent drop 判据输入。
     entry_v: super::super::strategy::coverage::Vertical,
+    /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 严格身份四元组
+    /// `hash(carrier, entry_certificate, side, generation)`。入场时刻冻结（carrier=腿 id、
+    /// 证书=开仓 Candidate 坐标、side=Candidate 方向、generation=同 carrier campaign 高水位）。
+    /// codex a9-posnode 裁定 C：身份归**账本生命周期层**（本结构 + `TypedTrade`），不进 `ActiveLeg`
+    /// 结构层——`ActiveLeg` 每 bar 从树重建拿不到 campaign 状态。
+    position_node_id: super::super::strategy::interp::PositionNodeId,
 }
 
 /// [`plan_and_fill_mtm`] 的完整产出（双口径 trade_pnls + 操作语义随机对照的输入）。
@@ -2122,6 +2165,95 @@ mod tests {
             t.entry_z.eta_bucket,
             Some(crate::theta_v0::strategy::ledger::EtaBucket::PositiveSafe),
             "fill loop entry_z 携 bar 级 γ_t 四桶真值（#175）"
+        );
+    }
+
+    /// ★A9（Task #166，级别容器.pdf p14/§13）：typed ledger 的 position_node_id 账本层真填充。
+    ///
+    /// 验收：TypedTrade 携完整四元组身份——carrier=voice_id（腿 id）、entry_certificate=Some（开仓
+    /// Candidate 坐标，非 None 死值）、side=开仓方向、generation=0（首次入场 carrier）。
+    /// 这证明 A9 身份不是无消费者死机制（前任把恒 0/None 塞进 ActiveLeg 的声明膨胀已修复为账本层真填充）。
+    #[test]
+    fn typed_trade_carries_position_node_id() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1);
+        let t = &fill.typed_ledger[0];
+        let pid = t.position_node_id;
+        // carrier = voice_id（腿 id，§14 carrier-id 层与四元组 carrier 分量一致）。
+        assert_eq!(pid.carrier, t.voice_id, "posId.carrier = voice_id（carrier-id 层一致）");
+        // entry_certificate 真填充（非死 None）——buy1@3 ⟹ 证书 source_index=3、level=0。
+        let cert = pid.entry_certificate.expect("入场证书非 None（真填充，非声明膨胀）");
+        assert_eq!(cert.source_index, 3, "证书坐标 = 开仓 buy1 的 source_index=3");
+        assert_eq!(cert.level, 0, "证书级别 = 开仓候选级别 0");
+        // side = Long（buy 开多）；generation=0（该 carrier 首次入场）。
+        assert_eq!(pid.side, VoiceSide::Long, "开多 ⟹ side=Long");
+        assert_eq!(pid.generation, 0, "首次入场 carrier ⟹ generation=0");
+        // hash64 确定性：同一笔的 posId 两次编码一致。
+        assert_eq!(pid.hash64(), pid.hash64(), "posId hash 确定性");
+    }
+
+    /// ★A9 验收核心（Task #166，级别容器.pdf p14/§13）：**同一 carrier 两次 campaign 不混淆 +
+    /// generation 单调**——时序再入场（codex a9-posnode 裁定 C「可达」）的端到端实证。
+    ///
+    /// `pi_loop_realized_profit_reaches_earning_shares` 同场景：buy1@3（bar7 开、bar14 反向关）与
+    /// buy1@16（bar17 再开）**附着到同一 L0 carrier hostOf=ElementId(0,0)**（同一走势元素上先后两个
+    /// 买卖点触发）。两笔 TypedTrade 的 `voice_id` **碰撞**（都是 (0,0)——carrier-id 层无法区分两次
+    /// campaign，正是前任「单 carrier 单 instance」YAGNI 裁定的反例），但 `position_node_id` 因
+    /// **generation 0→1 单调递增** + entry_certificate（source_index 3→16）双重区分 ⟹ posId 严格不碰撞。
+    /// 这证明 generation 不是死值：时序再入场在生产 fill loop 真实发生并被四元组正确区分。
+    #[test]
+    fn same_carrier_reentry_distinguished_by_generation() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20)
+            .map(|i| mk_bar(i, if i < 10 { 10_000_000_000 } else { 100_000_000_000 }, false))
+            .collect();
+        let cls_buy = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
+        };
+        let cls_sell = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3), sell_at(12, 1)]), ..Default::default() }],
+        };
+        let cls_rebuy = Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![buy1_at(3), sell_at(12, 1), buy1_at(16)]),
+                ..Default::default()
+            }],
+        };
+        let fill = pi_theta_fill_loop(
+            move |i| {
+                if i >= 17 {
+                    (cls_rebuy.clone(), Vec::new(), i as u64)
+                } else if i >= 14 {
+                    (cls_sell.clone(), Vec::new(), i as u64)
+                } else if i >= 7 {
+                    (cls_buy.clone(), Vec::new(), i as u64)
+                } else {
+                    (Classification::default(), Vec::new(), i as u64)
+                }
+            },
+            &bars,
+            1.0e6,
+            &config,
+            None,
+        );
+        assert_eq!(fill.typed_ledger.len(), 2, "buy1@3 关 + buy1@16 再开 ⟹ 恰 2 笔");
+        let (t0, t1) = (&fill.typed_ledger[0], &fill.typed_ledger[1]);
+        // carrier-id 层碰撞：两笔同 carrier（voice_id 无法区分两次 campaign）。
+        assert_eq!(t0.voice_id, t1.voice_id, "两次 campaign 附着同一 carrier ⟹ voice_id 碰撞");
+        assert_eq!(t0.position_node_id.carrier, t1.position_node_id.carrier, "posId.carrier 同");
+        // generation 单调：首 campaign gen=0，再入场 gen=1（高水位 +1）。
+        assert_eq!(t0.position_node_id.generation, 0, "首 campaign generation=0");
+        assert_eq!(t1.position_node_id.generation, 1, "同 carrier 再入场 generation=1（单调）");
+        // entry_certificate 区分入场来源（source_index 3 vs 16）。
+        assert_eq!(t0.position_node_id.entry_certificate.unwrap().source_index, 3);
+        assert_eq!(t1.position_node_id.entry_certificate.unwrap().source_index, 16);
+        // ★不混淆铁律：carrier-id 碰撞（voice_id 相等）但 posId 四元组不碰撞（generation 区分）。
+        assert_ne!(
+            t0.position_node_id.hash64(),
+            t1.position_node_id.hash64(),
+            "同 carrier 两次 campaign posId 不碰撞（generation 区分 ⟹ 不混淆）"
         );
     }
 

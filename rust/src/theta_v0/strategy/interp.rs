@@ -138,6 +138,61 @@ pub struct ActiveLeg {
     pub op_parent: Option<ElementId>,
 }
 
+/// ★A9（Task #166）：开仓证书——入场买卖点信号 g 的坐标身份 `(ℓ_g, source_index_g)`。
+///
+/// 买卖点叶子只能作**开仓证书**，不能作持仓身份（级别容器.pdf p14/§12 核心裁决：「买卖点叶子
+/// 只能作为开仓证书，不能作为父声部持仓节点」）——持仓身份是 carrier（[`ActiveLeg::id`]），
+/// 证书是身份四元组的入场分量（[`PositionNodeId`]）。同一 carrier 两次 campaign 若由不同买卖点
+/// 触发，证书即区分入场来源；同证书重入场由 generation 区分。
+///
+/// ★归属层（codex a9-posnode 裁定 C，2026-07-03）：证书/四元组归**账本生命周期层**
+/// （[`LedgerOpen`](crate::theta_v0::backtest::runner)/`TypedTrade`），**不进** `ActiveLeg`
+/// 结构层——`ActiveLeg` 每 bar 由 `element_as_leg(&CoverageElement)` 从因果树重建（`CoverageElement`
+/// 不携 campaign 身份），拿不到入场候选/代次；真正同时持有 `Candidate`+`ActiveLeg` 的点是
+/// `StepTrace.opened`（runner 据此登记 `LedgerOpen`）。把证书塞进 `ActiveLeg`（前任半成品）会
+/// 使 generation 恒 0/证书恒 None = 声明膨胀（090号）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EntryCertificate {
+    /// 入场信号级别 ℓ_g。
+    pub level: u32,
+    /// 入场信号触发点（bsp `source_index`，入场时刻值，冻结不漂移）。
+    pub source_index: usize,
+}
+
+/// ★A9 多实例身份四元组（级别容器.pdf p14/§13 `posId = hash(carrier_id, entry_signal, side,
+/// generation)`，Task #166 ceiling）：position instance 严格身份。
+///
+/// carrier-id 简化身份（§14，`ActiveLeg::id` 结构对位键）只到 carrier 级——同一 carrier 先后两次
+/// campaign 共享 `ActiveLeg::id`。本四元组细化到 campaign 实例级：carrier 相同而 generation（或
+/// entry_certificate/side）不同 ⟹ 不同 position instance。**不替换** carrier-id 层：`ActiveLeg::id`
+/// 仍是结构对位键（`held_leg_tree_index`/AncOK 按 carrier 匹配），四元组是其上、在账本层的实例细分。
+///
+/// 生产构造点：[`LedgerOpen`](crate::theta_v0::backtest::runner) 入场登记（carrier=腿 id、
+/// entry_certificate=开仓 Candidate 坐标、side=Candidate 方向、generation=同 carrier campaign 高水位），
+/// 关腿时写入 `TypedTrade::position_node_id`（账本层唯一身份，供跨笔同 carrier campaign 归因/去重）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PositionNodeId {
+    /// 持仓容器 carrier（= hostOf(g) 的 ElementId，638 附着）。
+    pub carrier: ElementId,
+    /// 开仓证书（入场信号 g 坐标）；None = 结构激活（restore 祖先，无入场信号）。
+    pub entry_certificate: Option<EntryCertificate>,
+    /// 持仓方向 δ(g)。
+    pub side: VoiceSide,
+    /// campaign 代次（同 carrier 顺序 campaign 单调递增，close→reopen 高水位 +1）。
+    pub generation: u32,
+}
+
+impl PositionNodeId {
+    /// 严格 hash 编码（PDF §13 伪码 `posId = hash(...)`）。`DefaultHasher::new()` 固定初始键 ⟹
+    /// 同一四元组跨运行/跨路径产同一 u64（确定性，非 RandomState）。
+    pub fn hash64(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut h);
+        h.finish()
+    }
+}
+
 /// 解释器输出三桶 (𝒟_x, ℬ_x, 𝒦_x)（spec §11 line 565-571 + §12 line 617）。
 ///
 /// 互斥分流：`𝒟_x`（关闭活动腿）∩`ℬ_x`/`𝒦_x`（候选）为空（不同类型）；`ℬ_x`∩`𝒦_x`=∅
@@ -1559,6 +1614,44 @@ mod tests {
     /// 测试用 ElementId。
     fn eid(level: u32, ordinal: u64) -> ElementId {
         ElementId { level, ordinal }
+    }
+
+    /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 四元组身份区分性 + hash 确定性。
+    ///
+    /// 验收核心：**同一 carrier 两次 campaign 不混淆**——carrier/entry_certificate/side 全同、仅
+    /// generation 异 ⟹ 四元组不等 ⟹ hash64 不等（carrier-id 单值会把两次 campaign 混为一谈，
+    /// 四元组按 generation 区分）。
+    #[test]
+    fn position_node_id_distinguishes_campaigns_by_generation() {
+        let carrier = eid(0, 5);
+        let cert = Some(EntryCertificate { level: 0, source_index: 3 });
+        let gen0 = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Long, generation: 0 };
+        let gen1 = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Long, generation: 1 };
+        // carrier-id 层：两次 campaign 共享同一 carrier（混淆源）。
+        assert_eq!(gen0.carrier, gen1.carrier, "两次 campaign 同 carrier（carrier-id 会混淆）");
+        // 四元组层：generation 区分 ⟹ 不同 position instance ⟹ hash 不碰撞。
+        assert_ne!(gen0, gen1, "generation 异 ⟹ 四元组不等（campaign 不混淆）");
+        assert_ne!(gen0.hash64(), gen1.hash64(), "generation 异 ⟹ posId hash 不碰撞");
+        // side/entry_certificate 也各自区分（四元组完整性）。
+        let short = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Short, generation: 0 };
+        assert_ne!(gen0.hash64(), short.hash64(), "side 异 ⟹ posId 不碰撞");
+        let cert2 = Some(EntryCertificate { level: 0, source_index: 9 });
+        let entry2 = PositionNodeId { carrier, entry_certificate: cert2, side: VoiceSide::Long, generation: 0 };
+        assert_ne!(gen0.hash64(), entry2.hash64(), "entry_certificate 异 ⟹ posId 不碰撞");
+    }
+
+    /// ★A9：hash64 确定性（`DefaultHasher::new()` 固定初始键 ⟹ 同四元组跨调用产同 u64，非 RandomState）。
+    #[test]
+    fn position_node_id_hash_is_deterministic() {
+        let p = PositionNodeId {
+            carrier: eid(1, 2),
+            entry_certificate: Some(EntryCertificate { level: 1, source_index: 7 }),
+            side: VoiceSide::Short,
+            generation: 3,
+        };
+        assert_eq!(p.hash64(), p.hash64(), "同四元组两次 hash64 一致（确定性）");
+        let p_copy = p;
+        assert_eq!(p.hash64(), p_copy.hash64(), "值拷贝 hash 一致");
     }
 
     /// ★O(n) 重构测试适配：字面量塔逐级包 Rc（生产塔 = Vec<Rc<Vec<LeveledMove>>>）。
