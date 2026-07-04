@@ -8,3 +8,11 @@
 4. **蜂群循环入口**：`python scripts/ceremony_state.py write 1 initial` → `python scripts/ceremony_scan.py`。goal 协议见 `.claude/commands/goal.md` 与 `.chanlun/goals/events.jsonl`。
 5. **090 号严格纪律**：禁简化实装、禁补丁方案、禁模糊地带。声明必须与实际能力一致。
 6. **平台差异**：Copilot 下的运行手册与降级说明见 `docs/copilot-runbook.md`。
+
+## 记忆（高信号持久事实，continual-learning 维护）
+
+- **偏好**：编排者粘贴 shell 命令时期望逐字执行；破坏性 git 操作前先备份 + 只读预检，且不打印任何密钥值。
+- **工作线**：真实工作线是长寿分支 `gap3-rework-codex9-fix`（领先 `main` 300+ commit）；compact/重启后 HEAD 可能被错切到 `main`，信任 checkout 前先用 `git reflog` 核对。
+- **Stop-Guard**：其注入内容可能反映过期状态（已结算谱系仍列为 pending）；重复执行前先核实际状态。
+- **goal 事件**：正式 GOAL_SET/SUPERSEDE 由 Lead 直接 append 到 `.chanlun/goals/events.jsonl`（`scripts/goal_events.py` 只出草稿），随后用 reducer/scan 验证。
+- **裁定文档**：编排者钦定的裁定 PDF 先归档到 `docs/formal-chain/` 再登记为 goal 权威。
