@@ -838,6 +838,9 @@ where
         LedgerOpen,
     > = std::collections::HashMap::new();
     let mut typed_ledger: Vec<TypedTrade> = Vec::new();
+    // ★opsem-dump（基因 073a/274号）：env `OPSEM_DUMP_DIR` 启用时开两个 JSONL 写入器。
+    // 未启用 ⟹ None，所有 write_trade/diff_tower 调用 no-op ⟹ 生产路径 bit-exact 不变。
+    let mut opsem = OpsemDump::from_env();
     // ★A7（Task #165）：出场 z 账本态维（t_stage/eta_bucket/risk_mode）取自出场 bar 决策点的
     //   `ext_i`。窗口终点 censored Hold 在主循环外结算 ⟹ 需保留**最后一个决策点** ext_i（末可交易
     //   bar 的账本态真值，与 censored 兑现价同 bar）。主循环内每决策点刷新；无决策点（全窗不可交易）
@@ -993,6 +996,10 @@ where
             // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
             //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
             let (classification_i, tower_i, tower_gen, forest_epoch) = classify_at(i);
+            // ★opsem-dump：diff tower_i vs prev_tower → 写塔事件（仅交易活跃区间，env-gated）。
+            if let Some(dump) = opsem.as_mut() {
+                dump.diff_tower(i, &tower_i);
+            }
             // ★当步候选 = 前缀因果塔里**本 bar 新确认**的买卖点（append-only diff vs seen，确认-bar
             // 部署）——非 source_index==i 切片（买卖点回溯确认，其触发点常在更晚 bar 才入前缀塔 ⟹
             // source_index==i 切恒空 ⟹ 零订单）。买卖点在被确认那根 bar（source_index≤i）部署=因果。
@@ -1149,6 +1156,51 @@ where
                 // structural_stop 返 None（非该方向交易点）/ BspPoint 缺失 ⟹ μ_R 剔除（诚实缺口）。
                 let entry_stop_dist =
                     candidate_stop_dist(c, &classification_i, px, config.tick.tick_size);
+                // ★opsem-dump：入场时刻操作语义快照（env-gated，未启用零字段零开销）。
+                let opsem_snap = if opsem.is_some() {
+                    let (sa_macd, sc_macd, sa_dif, sc_dif, fstate) = match c.force {
+                        Some(fp) => (
+                            Some(fp.seg_a.macd_area),
+                            Some(fp.seg_c.macd_area),
+                            Some(fp.seg_a.dif_peak),
+                            Some(fp.seg_c.dif_peak),
+                            c.force.as_ref().map(|fp| force_state_str(fp.force_state())),
+                        ),
+                        None => (None, None, None, None, None),
+                    };
+                    let pid = leg.parent_id.map(|p| (p.level, p.ordinal));
+                    if let Some(dump) = opsem.as_mut() {
+                        dump.mark_entry(i);
+                    }
+                    OpsemEntrySnapshot {
+                        cand_level: c.level,
+                        cand_source_index: c.source_index,
+                        cand_bits: c.bits.class_index(),
+                        cand_dir: voice_side_str(c.dir),
+                        cand_bsp_class: c.bsp_class,
+                        cand_nest_confirmed: c.nest_confirmed,
+                        // R5-c：区间套深度（纯结构读数，与生产门 rungs.len() 同口径，不依赖 hist）。
+                        nest_depth: super::econ_positive::structural_nest_depth(
+                            &tower_i, c.level as usize, c.source_index,
+                        ),
+                        cand_role: Box::leak(operation_role_str(c.role).into_boxed_str()),
+                        seg_a_macd_area: sa_macd,
+                        seg_c_macd_area: sc_macd,
+                        seg_a_dif_peak: sa_dif,
+                        seg_c_dif_peak: sc_dif,
+                        force_state: fstate,
+                        gamma_count: step_gamma_trade.len(),
+                        prev_active_count: prev_active.len(),
+                        // R5-a：本步 LexArgmin top-3（step 级，opened 内共享；traced 正常路径填充）。
+                        lex_top3: step_trace.lex_top3.clone(),
+                        parent_id: pid,
+                        t_stage: t_stage_str(tw.stage),
+                        eta_bucket: ext_i.eta_bucket.map(eta_bucket_str).unwrap_or("null"),
+                        risk_mode: ext_i.risk_mode.map(risk_mode_str).unwrap_or("null"),
+                    }
+                } else {
+                    OpsemEntrySnapshot::default()
+                };
                 open_trades.insert(leg.id, LedgerOpen {
                     entry_bar: i,
                     entry_px: px,
@@ -1157,6 +1209,7 @@ where
                     entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
                     entry_v: c.role.v,
                     position_node_id,
+                    opsem: opsem_snap,
                 });
             }
             // 反向关闭：typed 判据单源 reverse_exit_type（入场角色 + 触发候选类）。
@@ -1167,7 +1220,7 @@ where
                     {
                         tw = tw_step(&tw, TwEvent::CloseShareLeg(0)); // TW 腿计数（#124）
                     }
-                    typed_ledger.push(TypedTrade {
+                    let pushed = TypedTrade {
                         entry_z: open.entry_z,
                         voice_id: leg.id,
                         entry_bar: open.entry_bar,
@@ -1179,7 +1232,13 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                    });
+                    };
+                    // ★opsem-dump：反向关闭外化（trig.bsp_class = 触发候选类）。
+                    if let Some(dump) = opsem.as_mut() {
+                        dump.mark_exit(i);
+                        let _ = dump.write_trade(&pushed, &open, Some(trig.bsp_class));
+                    }
+                    typed_ledger.push(pushed);
                 }
                 // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
             }
@@ -1198,7 +1257,7 @@ where
                     } else {
                         ExitType::CloseRoot
                     };
-                    typed_ledger.push(TypedTrade {
+                    let pushed = TypedTrade {
                         entry_z: open.entry_z,
                         voice_id: leg.id,
                         entry_bar: open.entry_bar,
@@ -1210,7 +1269,13 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                    });
+                    };
+                    // ★opsem-dump：静默离场外化（无触发候选，trigger_bsp_class=null）。
+                    if let Some(dump) = opsem.as_mut() {
+                        dump.mark_exit(i);
+                        let _ = dump.write_trade(&pushed, &open, None);
+                    }
+                    typed_ledger.push(pushed);
                 }
             }
             // 强平清空（#124 P1，PDF §7 C_1 屏蔽 P2..P10）：force_flat ⟹ prev_active 全部 RiskExit
@@ -1222,7 +1287,7 @@ where
                     {
                         tw = tw_step(&tw, TwEvent::CloseShareLeg(0));
                     }
-                    typed_ledger.push(TypedTrade {
+                    let pushed = TypedTrade {
                         entry_z: open.entry_z,
                         voice_id: leg.id,
                         entry_bar: open.entry_bar,
@@ -1234,7 +1299,13 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                    });
+                    };
+                    // ★opsem-dump：强平外化（无触发候选，trigger_bsp_class=null）。
+                    if let Some(dump) = opsem.as_mut() {
+                        dump.mark_exit(i);
+                        let _ = dump.write_trade(&pushed, &open, None);
+                    }
+                    typed_ledger.push(pushed);
                 }
             }
             // P2 CloseOverlay（#124 裁定4，PDF §7 C_2）：TW StageII 重叠腿关闭——真实订单已经
@@ -1247,7 +1318,7 @@ where
                     {
                         tw = tw_step(&tw, TwEvent::CloseShareLeg(0));
                     }
-                    typed_ledger.push(TypedTrade {
+                    let pushed = TypedTrade {
                         entry_z: open.entry_z,
                         voice_id: leg.id,
                         entry_bar: open.entry_bar,
@@ -1259,7 +1330,13 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                    });
+                    };
+                    // ★opsem-dump：P2 overlay 关闭外化（无触发候选，trigger_bsp_class=null）。
+                    if let Some(dump) = opsem.as_mut() {
+                        dump.mark_exit(i);
+                        let _ = dump.write_trade(&pushed, &open, None);
+                    }
+                    typed_ledger.push(pushed);
                 }
             }
             // TW 腿事件（#124）：legacy ShortDiff 腿开仓驱动 open_legacy_legs 计数（P2 的 H
@@ -1377,7 +1454,7 @@ where
             open_trades.drain().collect();
         censored.sort_by_key(|(id, o)| (o.entry_bar, id.level, id.ordinal));
         for (id, open) in censored {
-            typed_ledger.push(TypedTrade {
+            let pushed = TypedTrade {
                 entry_z: open.entry_z,
                 voice_id: id,
                 entry_bar: open.entry_bar,
@@ -1391,7 +1468,13 @@ where
                 // A7 #165：censored 出场账本态取末决策点 last_ext（末可交易 bar 决策点真值，
                 // 与 last_px 兑现价同 bar 口径）；全窗无决策点 ⟹ ZExt::NONE 账本态维诚实 None。
                 exit_z: super::selector::exit_z_of(open.entry_z, &last_ext),
-            });
+            };
+            // ★opsem-dump：censored Hold 外化（无触发候选，trigger_bsp_class=null）。
+            if let Some(dump) = opsem.as_mut() {
+                dump.mark_exit(last_i);
+                let _ = dump.write_trade(&pushed, &open, None);
+            }
+            typed_ledger.push(pushed);
         }
     }
 
@@ -1664,6 +1747,496 @@ struct LedgerOpen {
     /// codex a9-posnode 裁定 C：身份归**账本生命周期层**（本结构 + `TypedTrade`），不进 `ActiveLeg`
     /// 结构层——`ActiveLeg` 每 bar 从树重建拿不到 campaign 状态。
     position_node_id: super::super::strategy::interp::PositionNodeId,
+    /// ★opsem-dump（基因 073a）：入场时刻操作语义快照——env-gated `OPSEM_DUMP_DIR` 启用时由
+    /// [`OpsemDump::write_trade`] 消费；未启用路径 `Default::default()` 零字段零开销（bit-exact）。
+    /// 不进生产语义/μ 桶键/J_Θ 排序——纯只读外化（同 `dump_deltafree_pertrade` 先例）。
+    opsem: OpsemEntrySnapshot,
+}
+
+/// 入场时刻操作语义快照（仅 env-gated dump 消费，零生产影响）。
+#[derive(Default, Clone)]
+struct OpsemEntrySnapshot {
+    /// 入场候选 level（Candidate.level，ℓ_g）。
+    cand_level: u32,
+    /// 入场候选 source_index（bsp 触发点 L0 K 序）。
+    cand_source_index: usize,
+    /// 入场候选 bsp bits（6 bit 非互斥）。
+    cand_bits: u8,
+    /// 入场候选方向 σ_g（VoiceSide 编码：Long/Short/Flat）。
+    cand_dir: &'static str,
+    /// 入场候选最小成立类号（1/2/3，u8::MAX=无）。
+    cand_bsp_class: u8,
+    /// 入场候选 N^δ 区间套确认（nest_confirmed）。
+    cand_nest_confirmed: bool,
+    /// ★R5-c：入场候选区间套深度 Ndepth（structural_nest_depth 读数，= 从执行级向上连续包含
+    /// source_index 的塔层数，与生产门 build_nest_certificate rungs.len() 同口径）。dump 专用——
+    /// **不进 entry_z/MuClass/μ 桶键**（R5-1 铁律），替代旧 `entry_z.nest_depth`（π 路径恒 None）。
+    nest_depth: u8,
+    /// 入场候选角色 R(g)=(H,V,δ) 的 18 类索引字符串。
+    cand_role: &'static str,
+    /// 入场候选 A 段 MACD 面积（ForceProxies.seg_a.macd_area；None=无力度源，非一类背驰候选）。
+    seg_a_macd_area: Option<f64>,
+    /// 入场候选 C 段 MACD 面积（ForceProxies.seg_c.macd_area；None=同上）。
+    seg_c_macd_area: Option<f64>,
+    /// 入场候选 A 段 DIF 峰绝对值。
+    seg_a_dif_peak: Option<f64>,
+    /// 入场候选 C 段 DIF 峰绝对值。
+    seg_c_dif_peak: Option<f64>,
+    /// 入场候选 β^div 力度支配态（Weak=Dominated=背驰；None=无力度源）。
+    force_state: Option<&'static str>,
+    /// 入场时刻解释器喂入候选集大小（χ 过滤后 step_gamma_trade.len()）。
+    gamma_count: usize,
+    /// 入场时刻活动腿数（prev_active.len()，含即将开仓腿的兄弟）。
+    prev_active_count: usize,
+    /// ★R5-a：入场步 LexArgmin 的 top-3 J_Θ 候选键（字典序升序，`(JThetaKey, control)`）。首名 = p_star
+    /// 选址（被选），余两名 = 被拒的次优。来自 `StepTrace.lex_top3`（pi_theta_step_traced 正常路径
+    /// 填充）。dump 专用——不进 p_star/J_Θ/χ（R5-1 铁律）。空 vec = 该步无开仓（不应进 opsem_snap，
+    /// 因 opsem_snap 仅对 opened 构造）。
+    lex_top3: Vec<(strategy::intent::JThetaKey, f64)>,
+    /// 入场腿父容器 ElementId（σ_p 来源；None=真边界胚元 ∂，σ_p=0=Ambient）。
+    parent_id: Option<(u32, u64)>,
+    /// 入场时刻 TW 阶段（tw.stage，入场决策点相位）。
+    t_stage: &'static str,
+    /// 入场时刻 η_t bucket（tw_policy.eta_bucket(&tw)）。
+    eta_bucket: &'static str,
+    /// 入场时刻 risk_mode（margin 五态）。
+    risk_mode: &'static str,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ★opsem-dump（基因 073a/274号 谱系）：只读语义快照 dump——env-gated，零生产语义改动。
+//
+//  触发：env `OPSEM_DUMP_DIR=<dir>`（如 /tmp/opsem）。**未设 ⟹ 全部方法 no-op**，
+//  生产路径与既有测试逐字节不变（bit-exact，同 `dump_deltafree_pertrade`/`kappa_policy_from_env`
+//  先例）。dump 不进 μ 桶键/J_Θ 排序/χ 门控——纯只读外化（no-patch-mentality：诊断切片
+//  不冒充裁决层，铁律 exit-μ-BUCKETING-FROZEN #180 同款约束）。
+//
+//  产物（落 `<dir>/trades.jsonl` + `<dir>/tower_events.jsonl`）：
+//  - trades.jsonl：每笔 TypedTrade 一行 JSON（entry/exit 字段 + 触发证书 + 解释器状态 +
+//    声部树快照 + 背驰判定输入 + TW 阶段）。缺席字段标 null（不许编造）。
+//  - tower_events.jsonl：bar 级塔事件（中枢新建/延伸/升级/破坏 + 级别 + bar 号），仅交易
+//    活跃区间（首入场 bar .. 末离场 bar）。
+//
+//  认识论等级（formalization-validity-domain 231号）：L1（纯只读外化，零信息增量）。
+//  字段缺口标注原则（no-patch-mentality + result-package 六要素）——R5（2026-07-05）后状态：
+//  - 「LexArgmin 选中的与被拒的前 3 名 J_Θ 排序键」（R5-a 已实装）：`intent::lex_argmin_top_k`
+//    在 `coverage::feasible_lex_candidates`（与 `pi_theta_position` 同源候选集）上稳定排序取前 3，
+//    经 `StepTrace.lex_top3` → `OpsemEntrySnapshot.lex_top3` 透传至 `lex_argmin_top3` 字段
+//    （`[{control,key:{5维}},...]`，首名 = p_star 选址）。不进 p_star/J_Θ/χ（R5-1 铁律）。
+//  - 「区间套深度 nest_depth」（R5-c 已实装）：`econ_positive::structural_nest_depth`（与生产门
+//    `build_nest_certificate` rungs 构造同款 partition_point，不依赖 hist）读 rungs.len()，
+//    写入 `OpsemEntrySnapshot.nest_depth`（**不进 entry_z/MuClass/μ 桶键**——R5-1 铁律，避免
+//    MuClass derive Hash 的 nest_depth 字段破坏 μ 分桶 bit-exact）。
+//  - 「中枢破坏事件」：前缀因果塔单调增长（prefix classification 不删结构），**无破坏概念**
+//    ⟹ tower_events.jsonl 不输出 destroy 事件（诚实缺席，不伪造）。
+// ─────────────────────────────────────────────────────────────────────────────
+struct OpsemDump {
+    trades_path: std::path::PathBuf,
+    tower_path: std::path::PathBuf,
+    trades_buf: std::io::BufWriter<std::fs::File>,
+    tower_buf: std::io::BufWriter<std::fs::File>,
+    trade_id_counter: u64,
+    /// 交易活跃区间（首入场 bar .. 末离场 bar）；None=尚未见入场。
+    active_start: Option<usize>,
+    active_end: Option<usize>,
+    /// 上一 bar 的塔（仅交易活跃区间内 diff，O(n) per bar）。
+    prev_tower: Option<Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>>,
+}
+
+impl OpsemDump {
+    /// 从 env `OPSEM_DUMP_DIR` 构造；未设 ⟹ None（零开销）。
+    fn from_env() -> Option<Self> {
+        let dir = std::env::var("OPSEM_DUMP_DIR").ok().filter(|s| !s.is_empty())?;
+        let dir_path = std::path::PathBuf::from(&dir);
+        std::fs::create_dir_all(&dir_path).ok()?;
+        let trades_path = dir_path.join("trades.jsonl");
+        let tower_path = dir_path.join("tower_events.jsonl");
+        // ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。
+        let trades_file = std::fs::File::create(&trades_path).ok()?;
+        let tower_file = std::fs::File::create(&tower_path).ok()?;
+        Some(Self {
+            trades_path,
+            tower_path,
+            trades_buf: std::io::BufWriter::new(trades_file),
+            tower_buf: std::io::BufWriter::new(tower_file),
+            trade_id_counter: 0,
+            active_start: None,
+            active_end: None,
+            prev_tower: None,
+        })
+    }
+
+    /// 在入场 bar 标记交易活跃区间起点。
+    fn mark_entry(&mut self, bar: usize) {
+        if self.active_start.is_none() {
+            self.active_start = Some(bar);
+        }
+        self.active_end = Some(bar);
+    }
+
+    /// 在离场 bar 更新活跃区间末点。
+    fn mark_exit(&mut self, bar: usize) {
+        self.active_end = Some(bar);
+    }
+
+    /// 写一笔 trade JSONL 行。`t` 是 TypedTrade，`open.opsem` 是入场快照，`pnl` 是费前方向盈亏
+    /// （(exit_px-entry_px)×delta，未扣费——生产 fee 已在 fill loop 扣，TypedTrade 不携 fee）。
+    fn write_trade(
+        &mut self,
+        t: &TypedTrade,
+        open: &LedgerOpen,
+        trigger_bsp_class: Option<u8>,
+    ) -> std::io::Result<()> {
+        use std::io::Write;
+        self.trade_id_counter += 1;
+        // 费前方向盈亏（delta=+1 Long / -1 Short）。
+        let delta_sign: f64 = t.entry_z.delta as f64;
+        let pnl_raw = delta_sign * (t.exit_px - t.entry_px);
+        let o = &open.opsem;
+        // ponytail: 显式 push_str 拼装 JSON——避免 format! 的 `{{`/`}}` 转义混乱（曾出引号 bug）。
+        // 缺席字段写 null（JSON 标准缺席标注，不编造）。
+        let mut s = String::with_capacity(1024);
+        s.push('{');
+        // 基本字段。
+        s.push_str(&format!(
+            "\"trade_id\":{},\"voice_id\":{{\"level\":{},\"ordinal\":{}}},",
+            self.trade_id_counter, t.voice_id.level, t.voice_id.ordinal,
+        ));
+        s.push_str(&format!(
+            "\"position_node_id\":{},\"entry_bar\":{},\"exit_bar\":{},\"entry_px\":{},\"exit_px\":{},\"pnl_raw_unlevered\":{},\"exit_type\":\"{}\",\"via_structural_prune\":{},",
+            t.position_node_id.hash64(), t.entry_bar, t.exit_bar,
+            t.entry_px, t.exit_px, pnl_raw,
+            exit_type_str(t.exit_type), t.via_structural_prune,
+        ));
+        // 触发证书。
+        s.push_str("\"certificate\":{");
+        s.push_str(&format!(
+            "\"bsp_bits_class_index\":{},\"bsp_class_min\":{},\"level\":{},\"source_index\":{},\"dir\":\"{}\",\"delta\":{},\"nest_confirmed\":{},\"nest_depth\":{},\"parent_dir_sigma_p\":{},\"role\":\"{}\"}},",
+            o.cand_bits,
+            if o.cand_bsp_class == u8::MAX { -1 } else { o.cand_bsp_class as i64 },
+            o.cand_level, o.cand_source_index, o.cand_dir, t.entry_z.delta,
+            // R5-c：nest_depth 改读 opsem_snap（structural_nest_depth 纯结构读数），不读 entry_z
+            // （π 路径 entry_z.nest_depth 恒 None——MuClass 进 μ 桶键，填 Some 破坏 bit-exact）。
+            o.cand_nest_confirmed, o.nest_depth,
+            t.entry_z.parent_dir, o.cand_role,
+        ));
+        // 入场时刻解释器状态。
+        s.push_str("\"interpreter_at_entry\":{");
+        s.push_str(&format!(
+            "\"gamma_count_chi_filtered\":{},\"prev_active_count\":{},\"lex_argmin_top3\":{}",
+            o.gamma_count, o.prev_active_count, lex_top3_json(&o.lex_top3),
+        ));
+        s.push_str("},");
+        // 声部树快照。
+        s.push_str("\"voice_tree_at_entry\":{");
+        s.push_str(&format!(
+            "\"parent_id\":{},\"is_boundary_root_absent\":{},\"active_count_inclusive\":{}}},",
+            opt_pair_str(o.parent_id), o.parent_id.is_none(),
+            o.prev_active_count.saturating_add(1),
+        ));
+        // 背驰判定输入。
+        s.push_str("\"divergence_input\":{");
+        s.push_str(&format!(
+            "\"seg_a_macd_area\":{},\"seg_c_macd_area\":{},\"seg_a_dif_peak\":{},\"seg_c_dif_peak\":{},\"force_state_weak_judgment\":{}}},",
+            opt_f64_str(o.seg_a_macd_area), opt_f64_str(o.seg_c_macd_area),
+            opt_f64_str(o.seg_a_dif_peak), opt_f64_str(o.seg_c_dif_peak),
+            opt_str_quoted(o.force_state),
+        ));
+        // 入场时刻 TW 阶段。
+        s.push_str("\"tw_at_entry\":{");
+        s.push_str(&format!(
+            "\"stage\":\"{}\",\"eta_bucket\":\"{}\",\"risk_mode\":\"{}\"}},",
+            o.t_stage, o.eta_bucket, o.risk_mode,
+        ));
+        // 出场侧 + 收尾。
+        s.push_str(&format!(
+            "\"entry_stop_dist\":{},\"trigger_bsp_class_at_exit\":{},\"exit_z_t_stage\":{}}}\n",
+            opt_f64_str(t.entry_stop_dist),
+            opt_u8_str(trigger_bsp_class),
+            opt_str_quoted(t.exit_z.t_stage.map(t_stage_str)),
+        ));
+        self.trades_buf.write_all(s.as_bytes())?;
+        Ok(())
+    }
+
+    /// 写一个塔事件 JSONL 行（仅交易活跃区间）。
+    fn write_tower_event(
+        &mut self,
+        bar: usize,
+        level: u32,
+        kind: &str,
+        detail: &str,
+    ) -> std::io::Result<()> {
+        use std::io::Write;
+        let active = match (self.active_start, self.active_end) {
+            (Some(s), _) if bar < s => false,
+            (_, Some(_e)) => true,
+            _ => false,
+        };
+        if !active {
+            return Ok(());
+        }
+        let json = format!(
+            "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"{kind}\",\"detail\":\"{detail}\"}}\n",
+            bar = bar,
+            lvl = level,
+            kind = kind,
+            detail = detail.replace('\\', "\\\\").replace('"', "\\\""),
+        );
+        self.tower_buf.write_all(json.as_bytes())?;
+        Ok(())
+    }
+
+    /// 在每 bar 调用：diff tower_i vs self.prev_tower，输出新建/延伸/升级事件（仅活跃区间）。
+    /// `destroy` 事件缺席——前缀因果塔单调增长（prefix classification 不删结构）。
+    fn diff_tower(
+        &mut self,
+        bar: usize,
+        tower_i: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
+    ) {
+        use classifier::descend::RMove;
+        use classifier::recursive_tower::LeveledMove;
+        // 仅在交易活跃区间内 diff（避免 O(n) per-bar 全窗扫描）。
+        let in_active = match (self.active_start, self.active_end) {
+            (Some(s), _) if bar >= s => true,
+            _ => false,
+        };
+        if !in_active {
+            self.prev_tower = Some(tower_i.to_vec());
+            return;
+        }
+        let prev = self.prev_tower.take();
+        match prev {
+            None => {
+                // 首个活跃 bar：所有 Compose 都作 "new_center"。
+                for (lvl, moves) in tower_i.iter().enumerate() {
+                    for m in moves.iter() {
+                        if let RMove::Compose { centers, .. } = &m.rmove {
+                            if let Some(c) = centers.first() {
+                                let _ = self.write_tower_event(
+                                    bar,
+                                    lvl as u32,
+                                    "new_center",
+                                    &format!(
+                                        "L{} #{} zd={} zg={} si={} ei={}",
+                                        lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
+                                    ),
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            Some(prev_vec) => {
+                for (lvl, moves) in tower_i.iter().enumerate() {
+                    let prev_moves: &[LeveledMove] = prev_vec
+                        .get(lvl)
+                        .map(|rc| rc.as_slice())
+                        .unwrap_or(&[]);
+                    // 升级：该级别在 prev 不存在（或为空）且现非空 ⟹ 新级别涌现。
+                    if prev_moves.is_empty() && !moves.is_empty() {
+                        let _ = self.write_tower_event(
+                            bar,
+                            lvl as u32,
+                            "level_upgrade",
+                            &format!("L{lvl} first compose count={}", moves.len()),
+                        );
+                    }
+                    // 新建 Compose / 延伸末段 end_index。
+                    let prev_len = prev_moves.len();
+                    for (i, m) in moves.iter().enumerate() {
+                        if let RMove::Compose { centers, .. } = &m.rmove {
+                            if i >= prev_len {
+                                // 新 Compose 涌现。
+                                if let Some(c) = centers.first() {
+                                    let _ = self.write_tower_event(
+                                        bar,
+                                        lvl as u32,
+                                        "new_center",
+                                        &format!(
+                                            "L{} #{} zd={} zg={} si={} ei={}",
+                                            lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
+                                        ),
+                                    );
+                                }
+                            } else if let Some(pm) = prev_moves.get(i) {
+                                // 已存在 Compose，比较 end_index —— 延伸事件。
+                                if m.end_index != pm.end_index {
+                                    if let Some(c) = centers.first() {
+                                        let _ = self.write_tower_event(
+                                            bar,
+                                            lvl as u32,
+                                            "extend",
+                                            &format!(
+                                                "L{} #{} zd={} zg={} ei {}->{}",
+                                                lvl, m.id.ordinal, c.zd, c.zg, pm.end_index, m.end_index
+                                            ),
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.prev_tower = Some(tower_i.to_vec());
+    }
+
+    /// flush 缓冲（drop 前）。
+    fn flush(&mut self) {
+        use std::io::Write;
+        let _ = self.trades_buf.flush();
+        let _ = self.tower_buf.flush();
+    }
+}
+
+impl Drop for OpsemDump {
+    fn drop(&mut self) {
+        self.flush();
+    }
+}
+
+/// 辅助：Optional<u8> → JSON 字符串（number 或 null）。
+fn opt_u8_str(o: Option<u8>) -> String {
+    match o {
+        Some(v) => v.to_string(),
+        None => "null".into(),
+    }
+}
+
+/// ★R5-a 辅助：LexArgmin top-3 候选 → JSON 数组字符串。每项 `{control, key:{5 维}}`，字典序升序
+/// （首名 = p_star 选址/被选，余 = 被拒次优）。空 ⟹ `[]`（无开仓步，不应进 opsem_snap）。
+/// `control` 是净持仓格点（f64），`key` 是 [`JThetaKey`] 5 维 i64 字典序键。
+fn lex_top3_json(items: &[(strategy::intent::JThetaKey, f64)]) -> String {
+    if items.is_empty() {
+        return "[]".into();
+    }
+    let parts: Vec<String> = items
+        .iter()
+        .map(|(key, control)| {
+            format!(
+                "{{\"control\":{},\"key\":{{\"tracking_err\":{},\"trade_cost\":{},\"risk_penalty\":{},\"turnover\":{},\"grid_index\":{}}}}}",
+                control, key.tracking_err, key.trade_cost, key.risk_penalty, key.turnover, key.grid_index,
+            )
+        })
+        .collect();
+    format!("[{}]", parts.join(","))
+}
+
+/// 辅助：Optional<f64> → JSON 字符串（number 或 null）。NaN/Inf 一律 null（JSON 无 NaN）。
+fn opt_f64_str(o: Option<f64>) -> String {
+    match o {
+        Some(v) if v.is_finite() => format!("{v}"),
+        _ => "null".into(),
+    }
+}
+
+/// 辅助：Optional<&str> → JSON 字符串（带引号 或 null）。
+fn opt_str_quoted(o: Option<&str>) -> String {
+    match o {
+        Some(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
+        None => "null".into(),
+    }
+}
+
+/// 辅助：Optional<(u32,u64)> → JSON 对象 或 null（parent_id 序列化）。
+fn opt_pair_str(o: Option<(u32, u64)>) -> String {
+    match o {
+        Some((lvl, ord)) => format!("{{\"level\":{lvl},\"ordinal\":{ord}}}"),
+        None => "null".into(),
+    }
+}
+
+/// 辅助：ExitType → 字符串。
+fn exit_type_str(e: super::super::strategy::interp::ExitType) -> &'static str {
+    use super::super::strategy::interp::ExitType;
+    match e {
+        ExitType::CloseRoot => "CloseRoot",
+        ExitType::ReduceCore => "ReduceCore",
+        ExitType::CloseShortDiff => "CloseShortDiff",
+        ExitType::RiskExit => "RiskExit",
+        ExitType::Hold => "Hold",
+    }
+}
+
+/// 辅助：TStage → 字符串。
+fn t_stage_str(s: super::super::strategy::ledger::TStage) -> &'static str {
+    use super::super::strategy::ledger::TStage;
+    match s {
+        TStage::CostReduction => "CostReduction",
+        TStage::CapitalRecovered => "CapitalRecovered",
+        TStage::EarningShares => "EarningShares",
+    }
+}
+
+/// 辅助：VoiceSide → 字符串。
+fn voice_side_str(v: super::super::strategy::voice::VoiceSide) -> &'static str {
+    use super::super::strategy::voice::VoiceSide;
+    match v {
+        VoiceSide::Long => "Long",
+        VoiceSide::Short => "Short",
+        VoiceSide::Flat => "Flat",
+    }
+}
+
+/// 辅助：Vertical → 字符串（声部角色垂直轴）。
+fn vertical_str(v: super::super::strategy::coverage::Vertical) -> &'static str {
+    use super::super::strategy::coverage::Vertical;
+    match v {
+        Vertical::Ambient => "Ambient",
+        Vertical::FollowParent => "FollowParent",
+        Vertical::ShortDiff => "ShortDiff",
+    }
+}
+
+/// 辅助：OperationRole → 字符串（H,V,δ 三分量）。
+fn operation_role_str(r: super::super::strategy::coverage::OperationRole) -> String {
+    use super::super::strategy::coverage::{Dir, Horizontal};
+    let h = match r.h {
+        Horizontal::First => "First",
+        Horizontal::SameFollow => "SameFollow",
+        Horizontal::SameReverse => "SameReverse",
+    };
+    let d = match r.delta {
+        Dir::Plus => "Plus",
+        Dir::Minus => "Minus",
+    };
+    format!("{h}|{}|{d}", vertical_str(r.v))
+}
+
+/// 辅助：RiskMode → 字符串。
+fn risk_mode_str(m: super::super::strategy::risk::RiskMode) -> &'static str {
+    use super::super::strategy::risk::RiskMode;
+    match m {
+        RiskMode::Normal => "Normal",
+        RiskMode::Deleverage => "Deleverage",
+        RiskMode::CloseOnly => "CloseOnly",
+        RiskMode::Insolvent => "Insolvent",
+        RiskMode::Liquidation => "Liquidation",
+    }
+}
+
+/// 辅助：EtaBucket → 字符串。
+fn eta_bucket_str(e: super::super::strategy::ledger::EtaBucket) -> &'static str {
+    use super::super::strategy::ledger::EtaBucket;
+    match e {
+        EtaBucket::Deficit => "Deficit",
+        EtaBucket::Zero => "Zero",
+        EtaBucket::PositiveUnsafe => "PositiveUnsafe",
+        EtaBucket::PositiveSafe => "PositiveSafe",
+    }
+}
+
+/// 辅助：ForceStateA5 → 字符串。
+fn force_state_str(s: super::super::classifier::divergence::ForceStateA5) -> &'static str {
+    use super::super::classifier::divergence::ForceStateA5;
+    match s {
+        ForceStateA5::Dominated => "Dominated(Weak=背驰)",
+        ForceStateA5::Dominates => "Dominates(力度延续)",
+        ForceStateA5::Tie => "Tie",
+        ForceStateA5::Incomparable => "Incomparable(口径冲突)",
+    }
 }
 
 /// [`plan_and_fill_mtm`] 的完整产出（双口径 trade_pnls + 操作语义随机对照的输入）。
@@ -2469,6 +3042,59 @@ mod tests {
                 (Classification::default(), Vec::new(), i as u64, i as u64)
             }
         }
+    }
+
+    /// ★R5-1 bit-exact 不变量（基因 073a/274号）：OPSEM_DUMP_DIR 未设 ⟹ 生产路径逐字节不变。
+    /// 验证链：(1) [`OpsemDump::from_env`] env-gating（未设/空 ⟹ None）；(2) set vs unset 跑
+    /// [`pi_theta_fill_loop`] ⟹ typed_ledger/n_orders/trade_pnls_with_forced bit-exact（opsem 只活
+    /// [`LedgerOpen`]，[`TypedTrade`] 不含 opsem 字段 ⟹ 结构性免疫）；(3) dump JSON 含 R5-a/b/c 三字段
+    /// （lex_argmin_top3/divergence_input/nest_depth），nest_depth 非 null（R5-c 接入
+    /// [`structural_nest_depth`]，旧 entry_z.nest_depth π 路径恒 None）。env 操作全在单函数内（OPSEM_DUMP_DIR
+    /// 新 env、其他测试不读 ⟹ 并行无副作用），末尾 remove_var + 清目录。
+    #[test]
+    fn opsem_dump_env_gated_bit_exact() {
+        use std::io::Read;
+        std::env::remove_var("OPSEM_DUMP_DIR");
+        assert!(OpsemDump::from_env().is_none(), "未设 ⟹ None");
+        std::env::set_var("OPSEM_DUMP_DIR", "");
+        assert!(OpsemDump::from_env().is_none(), "空串 ⟹ None（filter |s|!s.is_empty()）");
+        std::env::remove_var("OPSEM_DUMP_DIR");
+
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill_unset = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        assert!(!fill_unset.typed_ledger.is_empty(), "前置：买点确认 ⟹ 有 typed 交易");
+
+        let dump_dir = std::env::temp_dir().join("opsem_r5_bitexact_test");
+        std::env::set_var("OPSEM_DUMP_DIR", &dump_dir);
+        let fill_set = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        std::env::remove_var("OPSEM_DUMP_DIR");
+
+        // R5-1 核心：set vs unset ⟹ 输出 bit-exact。
+        assert_eq!(fill_unset.typed_ledger, fill_set.typed_ledger, "typed_ledger bit-exact");
+        assert_eq!(fill_unset.n_orders, fill_set.n_orders, "n_orders bit-exact");
+        assert_eq!(
+            fill_unset.trade_pnls_with_forced, fill_set.trade_pnls_with_forced,
+            "trade_pnls_with_forced bit-exact"
+        );
+
+        // e1/e2/e3：dump JSON 含三字段 + R5-c nest_depth 非 null（旧 entry_z.nest_depth π 路径恒 null）。
+        let mut content = String::new();
+        std::fs::File::open(dump_dir.join("trades.jsonl"))
+            .expect("dump 启用 ⟹ trades.jsonl 生成")
+            .read_to_string(&mut content)
+            .unwrap();
+        let first = content.lines().next().expect("trades.jsonl 非空");
+        assert!(
+            first.contains("\"lex_argmin_top3\":[{\"control\""),
+            "e1: lex_argmin_top3 非空数组（首名=p_star 选址，含 control+J_Θ key）"
+        );
+        assert!(first.contains("\"divergence_input\""), "e2: divergence_input 字段存在");
+        assert!(
+            !first.contains("\"nest_depth\":null"),
+            "e3: nest_depth 非 null（R5-c 接入 structural_nest_depth）"
+        );
+        let _ = std::fs::remove_dir_all(&dump_dir);
     }
 
     /// ★★χ≡1 vs χ=1[μ>θ] 对比（acc-chi-theta-filter 可证伪核心）：买点 z 的 μ≤θ ⟹ χ 滤掉它 ⟹

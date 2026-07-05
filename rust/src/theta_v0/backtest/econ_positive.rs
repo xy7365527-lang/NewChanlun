@@ -974,6 +974,44 @@ pub(super) fn build_nest_certificate(
     })
 }
 
+/// R5-c opsem-dump（基因 073a/274号）：候选的**区间套深度** Ndepth = 从执行级 `lvl` 向上连续
+/// 包含 `source_index` 的塔层数（= [`NestCertificate::rungs`]`.len()` 同口径）。
+///
+/// **与生产门同算法同源**：复用 [`build_nest_certificate`] rungs 构造循环的同款
+/// `partition_point` 含段查找（`start ≤ source_index ≤ end`）+ 无包含段即 `break`——读出的深度
+/// 与生产门实际构造的 rung 链**逐级对应**（生产门额外算 `cand` 填 rung 字段，但 rung 的**存在性**
+/// 由含段查找决定，与本函数完全一致）。
+///
+/// **不依赖 hist/MACD**：生产门的 base gate（Type2/3 经 [`descend_type1_anchor_depth`]）与 per-rung
+/// `cand_delta`（Type1 经 [`div_cand`]）才需 hist；深度本身是纯结构读数（含段层数），不需力度判据。
+/// runner π 路径无 hist（MACD 在 signal 层算），故本函数绕开 hist 依赖——这是它与
+/// [`build_nest_certificate`] 的唯一差异（算法同源，输入约束不同）。
+///
+/// **bit-exact**（R5-1 铁律）：仅供 opsem-dump 消费，写入 `OpsemEntrySnapshot.nest_depth`（dump
+/// 专用），**不进 `entry_z`/MuClass/μ 桶键**——纯只读外化。返回 `u8`（与 `MuClass.nest_depth`
+/// 同类型；深度上限 = 塔层数，远小于 256）。
+pub(super) fn structural_nest_depth(
+    tower: &[std::rc::Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
+    lvl: usize,
+    source_index: usize,
+) -> u8 {
+    let mut depth: usize = 0;
+    for k in (lvl + 1)..tower.len() {
+        let k_moves = tower[k].as_slice();
+        // 与 build_nest_certificate 行 929-940 同款：partition_point 含段查找，无包含段即 break。
+        debug_assert!(
+            k_moves.windows(2).all(|w| w[0].end_index <= w[1].end_index),
+            "tower[k] 须按 end_index 升序（partition_point 前提）"
+        );
+        let ki = k_moves.partition_point(|m| m.end_index < source_index);
+        if !k_moves.get(ki).map_or(false, |m| m.start_index <= source_index) {
+            break;
+        }
+        depth += 1;
+    }
+    depth as u8
+}
+
 /// 阶段0 对拍探针（cfg(test)，NO-SHIP）：PDF §二「最严格实现 = bottom-up」区间套构造。
 ///
 /// 与生产 [`build_nest_certificate`] 的**唯一差异**在 rung 锚定口径：

@@ -53,7 +53,7 @@ use super::super::config::{RiskConfig, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::stage_progression;
-use super::intent::{lex_argmin, JThetaKey, LexCandidate};
+use super::intent::{lex_argmin, lex_argmin_top_k, JThetaKey, LexCandidate};
 use super::interp::{self, ActiveLeg, Buckets, Candidate};
 use super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
 use super::voice::{depth_weight, VoiceSide};
@@ -2421,19 +2421,35 @@ pub fn pi_theta_position(
     weights: PiThetaWeights,
     gate: KThetaRiskGate, // 𝒦_Θ 风控约束门（close_pred 折入，非第二出口；全开=open()）
 ) -> f64 {
+    lex_argmin(&feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate)).unwrap_or(0.0)
+}
+
+/// 𝒦_Θ 可行代表集 → `Vec<LexCandidate<f64>>`（J_Θ 键已挂），供 [`lex_argmin`]（p_star 选址）与
+/// [`lex_argmin_top_k`]（R5-a 诊断 top-k）共用——**单一构造源**保证 argmin 与 top-k 同候选集
+/// （top-k 的第一名 ≡ argmin 选址，bit-exact）。
+///
+/// 抽取自 [`pi_theta_position`]（纯重构，候选构造逻辑逐字不变）。pub(crate) 供
+/// [`pi_theta_step_traced`] 在 dump 启用路径复用算 top-k。
+pub(crate) fn feasible_lex_candidates(
+    p_tilde: f64,
+    p_t: f64,
+    base_units: f64,
+    risk: &RiskConfig,
+    weights: PiThetaWeights,
+    gate: KThetaRiskGate,
+) -> Vec<LexCandidate<f64>> {
     let lot = risk.default_lot.max(1) as f64;
     // 方案A：γ̄ = feasible_net_cap(risk) 无量纲；绝对上限 cap = U_ℓ · γ̄（d_j=1 协变缩放）
     let cap = feasible_net_cap(risk) * base_units.abs();
     // 𝒦_Θ 风控约束门：force_flat→{0}，stop_long→禁净多，stop_short→禁净空（Q2 折入可行集）。
     let (lo_cap, hi_cap) = gate.caps(cap);
-    let candidates: Vec<LexCandidate<f64>> = feasible_candidates(p_tilde, p_t, lo_cap, hi_cap, lot)
+    feasible_candidates(p_tilde, p_t, lo_cap, hi_cap, lot)
         .into_iter()
         .map(|(p, gi)| LexCandidate {
             control: p,
             key: j_theta_key(p, p_tilde, p_t, weights, gi),
         })
-        .collect();
-    lex_argmin(&candidates).unwrap_or(0.0)
+        .collect()
 }
 
 /// **Schedule_Θ(p\* − p_t) → 唯一订单 O_{t+1}**（spec §15 line 752 方框；八约束之 **订单执行约束**）。
@@ -2619,6 +2635,12 @@ pub(crate) struct StepTrace {
     /// 空 = 本 bar 无活动腿（force_flat/无候选/AncOK 全剪）⟹ P^sep_{t+1}=∅，Net=0。只读暴露，
     /// 不进决策路径（`Σσ_v·q_units == p̃` 恒等，见 [`coverage_step_from_buckets_sep`]）。
     pub sep_legs: Vec<SepLeg>,
+    /// ★opsem-dump（R5-a，基因 073a/274号）：本步 LexArgmin 的 top-3 J_Θ 候选键（字典序升序，
+    /// `(JThetaKey, control)`）。经 runner `OpsemEntrySnapshot.lex_top3` 透传至 dump 的
+    /// `lex_argmin_top3` 字段。**不进 p_star/J_Θ/χ 门控**——纯只读诊断切片（R5-1 铁律：dump 数据
+    /// 不进 μ 桶/J_Θ 排序/χ，生产 p_star 仍由 `lex_argmin` 单独决定）。空 vec = 本步无开仓路径
+    /// （P1 强平/P2 关腿/P3-P4 无订单）⟹ opened 为空 ⟹ 不被 opsem_snap 消费。
+    pub lex_top3: Vec<(JThetaKey, f64)>,
 }
 
 /// I_Θ 组合层 TW/风控上下文（#124 裁定4：解释器接口升级 `I_Θ(ctx: RiskState+TwState+LegBook,
@@ -2788,7 +2810,16 @@ pub(crate) fn pi_theta_step_traced(
         .filter_map(|(c, id)| next_active.iter().find(|l| l.id == id).map(|l| (c, *l)))
         .collect();
 
-    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, sep_legs, ..Default::default() })
+    // ★R5-a opsem-dump：LexArgmin top-3 J_Θ 切片。仅本步有开仓时算（无开仓 bar 零开销；6 候选排序
+    // O(1)）。复用 [`feasible_lex_candidates`]（与 pi_theta_position 同源候选集）⟹ top-3 首名 ≡ p_star
+    // 选址。不进 p_star/J_Θ/χ——纯只读诊断（R5-1 铁律），生产决策由上方 pi_theta_position 单独定。
+    let lex_top3 = if opened.is_empty() {
+        Vec::new()
+    } else {
+        lex_argmin_top_k(&feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate), 3)
+    };
+
+    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, sep_legs, lex_top3, ..Default::default() })
 }
 
 #[cfg(test)]
