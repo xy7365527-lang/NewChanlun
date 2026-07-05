@@ -141,6 +141,12 @@ pub struct VoiceConfig {
     /// q_Θ v1 σ_higher 分级符号权重 w_dir 预注册套（prereg-rev4 §4.3）。default `Neutral`
     /// （w_dir≡1.0，frozen Θ v0 bit-exact 不变）。选 Follow/Adversary 启用 σ_higher 分级 sizing。
     pub theta_dir: ThetaDirPreset,
+    /// w_grade：G 轴（grade_rel）sizing 权重（prereg-wg 推荐 (c) 因子化，GPT §九 `w_{ℓ,σ_higher,role,G,...}`）。
+    /// `[SameLevel, SubLevel]`。default `[1.0, 1.0]` identity ⟹ G 轴 sizing 无差异 ⟹ frozen Θ v0 bit-exact 不变。
+    /// 非 identity ⟹ [`super::strategy::coverage::leg_target`] w = depth_weight × dir_weight × w_grade[grade]
+    /// （G 进 sizing 不进 μ 桶键，696 同构：轴进 A 层 ≠ 进 B 层）。与 `theta_dir`（V 轴 σ_higher）正交——
+    /// G 轴独立消费，不绑 Follow/Adversary preset。C4 实质担忧的形式化：同级别反父 vs 次级别反父在 sizing 区分。
+    pub w_grade: [f64; 2],
 }
 
 impl Default for VoiceConfig {
@@ -150,6 +156,7 @@ impl Default for VoiceConfig {
             depth_weights: vec![0.60, 0.30, 0.10],
             disable_shortdiff: false,
             theta_dir: ThetaDirPreset::Neutral,
+            w_grade: [1.0, 1.0],
         }
     }
 }
@@ -168,7 +175,7 @@ pub struct RiskConfig {
     /// sizing 默认 lot（reference-theta-v0.md:47）。default 1。
     pub default_lot: u32,
     /// χ_t 阈值 θ（alpha2 §13 line 2241，成本/风险门槛）。`None`=χ≡1 全覆盖（默认，frozen Θ v0
-    /// bit-exact 不变）；`Some(θ)`=χ=1[μ>θ] 阈值过滤（只交易正边际收益类别）。θ 是 **Θ_risk 参数，
+    /// bit-exact 不变）；`Some(θ)`=χ=1[μ>θ] 阈值过滤（只交易正边际收益类别）。θ 是 **Θ_risk 参数,
     /// 非缠论可导**（selector.rs 诚实标注）——θ 为**常数**（不从样本 μ 分布选，避免 in-sample
     /// 泄漏，codex Q1 审查确认）。default None（不改 frozen 默认）。
     pub chi_theta: Option<f64>,
@@ -289,7 +296,7 @@ pub struct ThetaConfig {
     pub exec: ExecConfig,
     /// ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r}/GapBuffer 状态函数 override（PDF §3）。空 ⟹ 全用 `risk` 标量。
     pub sizing_profile: SizingProfile,
-    /// 真保证金模型（D2 task #113，margin-model-design v2）。`None` ⟹ MM=0 退化口径（bit-exact 现状，
+    /// 真保证金模型（D2 task #113，margin-model-design v2）。`None` ⟹ MM=0 退化口径（bit-exact 现状,
     /// M1/M2/M3 不可达）；`Some` ⟹ 真实分级 MM/liq_flag/M2-M3 接线（改订单流 ⟹ MM=0 口径 alpha 冻结失效）。
     pub margin: Option<super::strategy::risk::MarginModel>,
     /// M6 成本模型（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关剩余三项：Funding/Borrow/
@@ -334,6 +341,8 @@ mod tests {
         assert_eq!(c.exec.tax_bps, 0.0);
         // frozen：sizing_profile 空 ⟹ 所有 sizing 退化为 risk 标量 + gap=0（bit-exact 不变）。
         assert!(c.sizing_profile.entries.is_empty());
+        // frozen：w_grade=[1.0,1.0] identity ⟹ G 轴 sizing 无差异（prereg-wg (c) 因子化，bit-exact）。
+        assert_eq!(c.voice.w_grade, [1.0, 1.0]);
     }
 
     /// SizingProfile.resolve：空表 ⟹ 退化为 risk 标量 + gap=0（bit-exact 默认路径）。

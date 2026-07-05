@@ -1443,7 +1443,8 @@ pub struct LegTarget {
 ///
 /// `sign(δ·σ_higher)`：+1=顺上级（FollowParent 同向子腿），−1=逆上级。CASE 3 仅 `FollowParent` 可达
 /// ⟹ sign 恒 +1。**sign=−1 槽经 V 路径不可达**（GPT 命名冲突裁决 §六：eta_adv 冻结依赖 V::SameReverse
-/// 作 canonical state 的前提失效——V 回三分类后 ShortDiff 整体豁免，η_adv/η_same 经 V 路径不可达；
+/// 作 canonical state 的前提失效——V 回三分类后 ShortDiff 整体豁免，η_adv 经 V 路径不可达（Follow
+/// sign=−1 槽无消费方），但 η_same 经 V 路径**可达**（Adversary FollowParent sign=+1 槽）；
 /// G 轴细化不进 dir_weight，Follow/Adversary 的 alpha 解释须 q_Θ^full 消费 G 后重跑）。
 ///
 /// ★bit-exact：[`ThetaDirPreset::Neutral`] 下所有 CASE 返 1.0 ⟹ w_dir≡1 ⟹ `leg_target` 输出
@@ -1467,6 +1468,24 @@ pub fn dir_weight(role: &OperationRole, depth: u32, config: &VoiceConfig) -> f64
     // CASE 3: 分级符号查表 Θ_dir[ℓ][sign(δ_e · σ_higher)]。
     let sign = dir_sign(role.delta) * sigma_higher; // ∈ {+1,-1}
     theta_dir_slot(&config.theta_dir, depth, sign)
+}
+
+/// w_grade：G 轴（grade_rel）sizing 权重（prereg-wg 推荐 (c) 因子化，GPT §九 `w_{ℓ,σ_higher,role,G,...}`）。
+///
+/// G 轴进 sizing 权重 w 的下标，**不进 μ 桶键**（prereg-wg §1，696 同构：轴进 A 层 ≠ 进 B 层）。
+/// 消费 [`OperationRole::grade`]（[`GradeRel`] {SameLevel, SubLevel}），返回 `config.w_grade[grade_index]`。
+///
+/// ★bit-exact：`w_grade=[1.0,1.0]`（[`VoiceConfig`] default）⟹ 恒 1.0 ⟹ [`leg_target`] 输出 == v0。
+///
+/// C4 实质担忧的形式化：同级别反父（SameLevel AgainstParent）vs 次级别反父（SubLevel ShortDiff）
+/// 在 sizing 区分对待——两者 V 轴同归 ShortDiff（[`dir_weight`] CASE 1 整体豁免），G 轴独立区分。
+/// 与 `theta_dir`（V 轴 σ_higher）正交：G 轴独立消费，不绑 Follow/Adversary preset。
+pub fn w_grade(role: &OperationRole, config: &VoiceConfig) -> f64 {
+    let idx = match role.grade {
+        GradeRel::SameLevel => 0,
+        GradeRel::SubLevel => 1,
+    };
+    config.w_grade[idx]
 }
 
 /// 三套预注册的 (ℓ, sign) 槽读出（prereg §4.3）。
@@ -1495,8 +1514,8 @@ pub fn leg_target(
     // element_depth 现接 ElementView（双段）；非 indexed 简单版包 base-only view（overlay 空，零拷贝）。
     let depth = element_depth(&ElementView::new(elements), e_idx);
     let role = operation_role(elements, e_idx);
-    // v1（prereg-rev4）：s_e = base_units × w_depth(depth) × w_dir(ℓ,δ,σ_higher,role)。
-    let w = depth_weight(depth, config) * dir_weight(&role, depth, config);
+    // v1（prereg-rev4）+ w_grade（prereg-wg (c)）：s_e = base_units × w_depth × w_dir × w_grade[grade]。
+    let w = depth_weight(depth, config) * dir_weight(&role, depth, config) * w_grade(&role, config);
     LegTarget {
         e_idx,
         side: e.eps,
@@ -1519,8 +1538,8 @@ fn leg_target_two_segment(
     let e = &elements[e_idx];
     let depth = element_depth(elements, e_idx);
     let role = operation_role_two_segment(elements, e_idx, base_sibling, overlay_sibling);
-    // v1（prereg-rev4）：与 [`leg_target`] 同步升级——w_depth × w_dir，保 bit-exact == leg_target。
-    let w = depth_weight(depth, config) * dir_weight(&role, depth, config);
+    // v1（prereg-rev4）+ w_grade（prereg-wg (c)）：与 [`leg_target`] 同步——w_depth × w_dir × w_grade，保 bit-exact == leg_target。
+    let w = depth_weight(depth, config) * dir_weight(&role, depth, config) * w_grade(&role, config);
     LegTarget {
         e_idx,
         side: e.eps,
@@ -3107,7 +3126,7 @@ mod tests {
     }
 
     /// ★GPT 命名冲突裁决 §六：V 回三分类后，sign=−1 槽经 V 路径不可达（ShortDiff 整体豁免 CASE 1）。
-    /// η_adv/η_same 经 V 路径不可达——Follow/Adversary preset 的逆上级槽在 dir_weight 中无消费方。
+    /// η_adv 经 V 路径不可达（Follow sign=−1 槽）；η_same 经 V 路径**可达**（Adversary FollowParent sign=+1 槽）。
     #[test]
     fn w_dir_sign_neg_slot_unreachable_via_v_axis() {
         let mut cfg = VoiceConfig::default();
@@ -3119,7 +3138,47 @@ mod tests {
             "ShortDiff Follow 仍豁免——η_adv 经 V 路径不可达（GPT §六）");
         cfg.theta_dir = ThetaDirPreset::Adversary { eta_same: vec![0.6] };
         assert_eq!(dir_weight(&sd, 0, &cfg), 1.0,
-            "ShortDiff Adversary 仍豁免——η_same 经 V 路径不可达（GPT §六）");
+            "ShortDiff Adversary 仍豁免——ShortDiff CASE 1 整体豁免（η_same 对 FollowParent sign=+1 槽可达）");
+    }
+
+    /// w_grade（prereg-wg (c) 因子化）：消费 role.grade，G 轴 sizing 权重。
+    #[test]
+    fn w_grade_consumes_g_axis() {
+        let mut cfg = VoiceConfig::default();
+        let sl_same = OperationRole { h: Horizontal::First, v: Vertical::ShortDiff, delta: Dir::Minus, grade: GradeRel::SameLevel };
+        let sl_sub = OperationRole { h: Horizontal::First, v: Vertical::ShortDiff, delta: Dir::Minus, grade: GradeRel::SubLevel };
+        // default [1.0, 1.0] identity ⟹ SameLevel/SubLevel 都返 1.0（bit-exact）。
+        assert_eq!(w_grade(&sl_same, &cfg), 1.0, "default w_grade[SameLevel]=1.0 identity");
+        assert_eq!(w_grade(&sl_sub, &cfg), 1.0, "default w_grade[SubLevel]=1.0 identity");
+        // 非 identity ⟹ SameLevel/SubLevel 返不同值（G 轴独立区分）。
+        cfg.w_grade = [0.8, 0.4];
+        assert_eq!(w_grade(&sl_same, &cfg), 0.8, "w_grade[SameLevel]=0.8");
+        assert_eq!(w_grade(&sl_sub, &cfg), 0.4, "w_grade[SubLevel]=0.4");
+        // C4 实质担忧：同级别反父 vs 次级别反父在 sizing 区分（两者 V 轴同 ShortDiff）。
+        assert_ne!(w_grade(&sl_same, &cfg), w_grade(&sl_sub, &cfg),
+            "G 轴区分 SameLevel AgainstParent vs SubLevel ShortDiff（V 轴不区分）");
+        // 与 theta_dir preset 正交（G 轴独立消费，不绑 Follow/Adversary）。
+        cfg.theta_dir = ThetaDirPreset::Follow { eta_adv: vec![0.5] };
+        assert_eq!(w_grade(&sl_same, &cfg), 0.8, "w_grade 与 theta_dir preset 正交");
+    }
+
+    /// leg_target sizing 公式含 w_grade 因子（prereg-wg (c)：w = depth × dir × w_grade）。
+    /// default [1.0,1.0] bit-exact；非 identity ⟹ root_leg（grade=SameLevel）units 按倍数缩放。
+    #[test]
+    fn leg_target_sizing_includes_w_grade_factor() {
+        let l1 = nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up]);
+        let tower = rc_tower(vec![Vec::new(), vec![l1]]);
+        let elements = extract_elements(&tower);
+        // default w_grade=[1.0,1.0] ⟹ root_leg units=600（bit-exact == v0）。
+        let c = cfg();
+        let root_leg = leg_target(&elements, 0, 1000.0, &c);
+        assert!((root_leg.units - 600.0).abs() < 1e-9, "default w_grade identity ⟹ units=600（bit-exact）");
+        assert_eq!(root_leg.role.grade, GradeRel::SameLevel, "root leg grade=SameLevel");
+        // w_grade[SameLevel]=2.0 ⟹ root_leg units=600×2.0=1200（leg_target 真的乘了 w_grade）。
+        let mut c2 = cfg();
+        c2.w_grade = [2.0, 1.0];
+        let root_leg2 = leg_target(&elements, 0, 1000.0, &c2);
+        assert!((root_leg2.units - 1200.0).abs() < 1e-9, "w_grade[SameLevel]=2.0 ⟹ units=600×2.0=1200");
     }
 
     /// CASE 3 分级查表行为（Follow/Adversary 两套的非中性槽生效 + 根级豁免）。
