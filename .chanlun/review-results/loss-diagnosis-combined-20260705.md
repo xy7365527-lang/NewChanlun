@@ -1,8 +1,8 @@
 # 亏损诊断：两轮 deep-research 结合报告（为什么亏钱）
 
 - **日期**：2026-07-05
-- **合成**：Lead 手动合成（workflow synthesis 死于 429 限流）
-- **输入**：①博文层 deep-research（wf_182ff790-eef，5 confirmed）②formal-chain 层 deep-research（wf_a0f591ec-34d，16 confirmed）③formal-criteria-20260705.md（15 条硬判据清单）④M8 终报告 maxfull-e2e-round1（四层因果链）
+- **合成**：workflow synthesis 成功版（w1um7h30u，95/109 agent）+ Lead 合成补全
+- **输入**：①博文层 deep-research（wf_182ff790-eef，5 confirmed）②formal-chain 层 deep-research（wf_a0f591ec-34d，synthesis 成功 5 merged findings）③formal-criteria-20260705.md（15 条硬判据清单）④M8 终报告 maxfull-e2e-round1（四层因果链）
 - **认识论**：全部 L0/L1（PDF 亲读 + 代码静态核对）；L2/L3 转引既有跑批
 
 ---
@@ -111,3 +111,27 @@ M8 终报告因果链：signal 无 edge → exec 净 R 全负 → treasury 不�
 4. **下游推论**：①F5/F11/F10/F15/F14 五条 bug 候选可立修复 goal；②逐笔重放（opsem workflow）是验证 bug 命中率的必要基建；③修复后须新预注册重跑（135 冻结纪律）。
 5. **谱系引用**：090（严格性/声明膨胀）、161（否定性照实）、231（有效域<定义域）、135（冻结先于跑数）、679/692/696（结算先例——本诊断属研究产出非谱系结算）。
 6. **影响声明**：新增本文件（纯研究合成，零代码改动）。两轮 deep-research workflow 的原始 claims 数据在各自 task output 文件。本报告不改任何 settled 谱系；F5/F11/F10/F15/F14 若经逐笔验证确认=真 bug，由 genealogist 新立 pending 谱系条目。
+
+---
+
+## §1.1 synthesis 权威结论修正（w1um7h30u 成功版）
+
+workflow synthesis 成功后产出 5 条 merged findings，其核心结论修正了上文 §1/§4 的"bug 候选"标注：
+
+**「亏损来自 layered spec-acknowledged v0 simplifications，不是 implementation bugs」**
+
+修正要点（对照上文 §4「可行动」节）：
+- F11/F10（div_cand 无趋势门/Comparable 无中枢检查）：econ_positive.rs:698-699 明确"含盘整背驰"是**代码有意混入**，Type1 主路径 signal.rs:822-829 有 center_trend_gate 预滤——**spec 承认的有效域边界，非 bug**
+- F15（默认单 MACD 口径）：divergence.rs:252-265 自标「★诚实 gap」，config.rs:278-280 是 bit-exact 预注册边界——**spec 承认风险源，非 bug**
+- F5（RiskClose 退化 equity≤0）：v0 可计算 Insolvent 的诚实占位——**A10 waiver 域内的已知简化**
+- F14（lvl==0 Type2/3 免门）：结构性松弛但 econ_positive 代码注释自述——**有效域边界**
+
+**真正的诊断方向**（synthesis 指出）：
+1. Type2/3 占 97.8% 交易却跳过 per-rung divergence verification——这是**结构性有效域收窄**，不是 bug
+2. 89.6% 交易在 level 0，定律一下沉在最细粒度绕过——同上
+3. K_Θ 静默 clamp（p̃∉K_Θ 时）——对应 GAP3 count=0 上游
+4. G4 typed-exit 层分离：μ pipeline 消费 typed labels 但不驱动订单流——**typed exit 诊断可能不反映实际订单行为**
+
+修正后的可行动项（替换 §4）：
+- **非"修 bug"，而是"L2/L3 经验校准 + 有效域扩展"**：默认背驰口径切 ThetaDom（F15）、lvl==0 免门的有效域显式声明或恢复锚定（F14）、K_Θ 三阶段资本约束实装（F8/F9）
+- **逐笔重放仍是必要的**——但目的是测 bug 命中率（验证 spec 简化是否真的导致了假信号占比高），不是"找 bug 修 bug"
