@@ -1831,8 +1831,6 @@ struct OpsemEntrySnapshot {
 //    ⟹ tower_events.jsonl 不输出 destroy 事件（诚实缺席，不伪造）。
 // ─────────────────────────────────────────────────────────────────────────────
 struct OpsemDump {
-    trades_path: std::path::PathBuf,
-    tower_path: std::path::PathBuf,
     trades_buf: std::io::BufWriter<std::fs::File>,
     tower_buf: std::io::BufWriter<std::fs::File>,
     trade_id_counter: u64,
@@ -1849,14 +1847,11 @@ impl OpsemDump {
         let dir = std::env::var("OPSEM_DUMP_DIR").ok().filter(|s| !s.is_empty())?;
         let dir_path = std::path::PathBuf::from(&dir);
         std::fs::create_dir_all(&dir_path).ok()?;
-        let trades_path = dir_path.join("trades.jsonl");
-        let tower_path = dir_path.join("tower_events.jsonl");
-        // ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。
-        let trades_file = std::fs::File::create(&trades_path).ok()?;
-        let tower_file = std::fs::File::create(&tower_path).ok()?;
+        // ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。path 局部化——
+        // struct 只持 BufWriter（path 仅 create 时用，后续不读，YAGNI 不存字段）。
+        let trades_file = std::fs::File::create(dir_path.join("trades.jsonl")).ok()?;
+        let tower_file = std::fs::File::create(dir_path.join("tower_events.jsonl")).ok()?;
         Some(Self {
-            trades_path,
-            tower_path,
             trades_buf: std::io::BufWriter::new(trades_file),
             tower_buf: std::io::BufWriter::new(tower_file),
             trade_id_counter: 0,

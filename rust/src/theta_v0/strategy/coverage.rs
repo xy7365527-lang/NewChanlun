@@ -49,7 +49,7 @@ use super::super::classifier::descend::RMove;
 use super::super::classifier::recursive_tower::{compose_level, compose_level_resume, ElementId, LeveledMove};
 use std::rc::Rc;
 use super::super::classifier::Classification;
-use super::super::config::{RiskConfig, VoiceConfig};
+use super::super::config::{RiskConfig, ThetaDirPreset, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::stage_progression;
@@ -1293,11 +1293,11 @@ pub struct LegTarget {
     pub e_idx: usize,
     /// ε_e：腿方向（Long=多腿 / Short=空腿）。
     pub side: VoiceSide,
-    /// s_e：目标单位数（role/depth 权重）。
+    /// s_e：目标单位数（role/depth/σ_higher 权重）。
     ///
     /// ★646号 rider（命名区分，不改语义）：`LegTarget.units` 是 **sizing 层资本加权目标敞口**
-    /// （`base_units × w_depth`，f64 连续量），**不是** §9 voice 层的单位计数 `q_v`（手数，整数）——
-    /// 二者是不同投影空间的量（646号裁决 CONFIRM：范畴错误，depth_weight 不等权应保留）。
+    /// （`base_units × w_depth × w_dir`，f64 连续量），**不是** §9 voice 层的单位计数 `q_v`（手数，
+    /// 整数）——二者是不同投影空间的量（646号裁决 CONFIRM：范畴错误，depth_weight 不等权应保留）。
     pub units: f64,
     /// R(g)=(H,V,δ)：元素 18 类角色（`role.v==Vertical::ShortDiff`=反向子声部腿）。
     pub role: OperationRole,
@@ -1305,14 +1305,71 @@ pub struct LegTarget {
 
 /// 生成单元素的目标头寸腿 `LegTarget(e)`（M17/M28，方向 ε_e + role/depth 权重单位数）。
 ///
-/// 单位数 `s_e` = `base_units × w_depth(depth)`（M28 深度资金权重，对齐 `voice::depth_weight`：
-/// w=[0.60,0.30,0.10]）。`depth` = 元素在嵌套树的深度（根=0，沿 parent 链长度）——**真嵌套深度**
-/// （铁律：来自 parent 链，非级别差）。腿方向直接取 `e.eps`（M17 `σ_{ν(e)}=ε_e` 定义性满足）。
+/// 单位数 `s_e` = `base_units × w_depth(depth) × w_dir(ℓ,δ,σ_higher,role)`（v1，prereg-rev4 §1.2）。
+/// `w_depth`（M28 深度资金权重，对齐 `voice::depth_weight`：w=[0.60,0.30,0.10]）消费 SizeΘ 第 4 参数
+/// N^depth；`w_dir`（见 [`dir_weight`]）消费第 5 参数 σ_higher（父级方向，经 role 隐式解码）。`depth` =
+/// 元素在嵌套树的深度（根=0，沿 parent 链长度）——**真嵌套深度**（铁律：来自 parent 链，非级别差）。
+/// 腿方向直接取 `e.eps`（M17 `σ_{ν(e)}=ε_e` 定义性满足）。default config `ThetaDirPreset::Neutral`
+/// 下 `w_dir≡1.0` ⟹ bit-exact == v0（prereg §6.2）。
 ///
 /// ★ShortDiff 反向子声部腿（M11/M28，hedge-subvoice 提案 P1-P4）：短差元素的腿方向 = ε_e = δ_g =
 /// −σ_{p(g)}（父级方向翻转，`operation_role` 已判 `role.v==Vertical::ShortDiff`，spec §9）——父声部
 /// 不动，本腿作独立反向子声部（净额执行 [`net_target_units`] 时部分对冲父仓）。本函数只产腿，对冲
 /// 在净额合并实现。
+/// w_dir：q_Θ v1 σ_higher 分级符号权重（prereg-rev4 §4.1 冻结形式）。
+///
+/// σ_higher = σ_{α(e)}（父级方向）从 [`OperationRole`] 隐式解码（prereg §3.3，不需新数据源）：
+/// - `FollowParent`：δ_e = σ_higher ⟹ σ_higher = `dir_sign(delta)`（+δ_e）
+/// - `ShortDiff`：δ_e = −σ_higher ⟹ σ_higher = −`dir_sign(delta)`（−δ_e；CASE 1 先返回）
+/// - `Ambient`：σ_higher = 0（父容器无方向，去根化）
+///
+/// 三 CASE（优先序，prereg §4.1）：
+/// 1. **ShortDiff 豁免**（§7.5 `s_g=s_α` 同股数要求，定理 1）⟹ `1.0`
+/// 2. **根级/无上级方向**（σ_higher=0，Ambient）⟹ `1.0`（无 σ_higher 可消费）
+/// 3. **分级查表** otherwise ⟹ `Θ_dir[ℓ][sign(δ_e · σ_higher)]`
+///
+/// `sign(δ·σ_higher)`：+1=顺上级（FollowParent 同向子腿），−1=逆上级。本角色分类下 CASE 3 仅
+/// `FollowParent` 可达 ⟹ sign 恒 +1（sign=−1 的腿即 ShortDiff，CASE 1 已截）——sign=−1 槽在
+/// 三套预注册中存在但经 role 路径不可达，是代码角色分类的性质而非 bug。
+///
+/// ★bit-exact：[`ThetaDirPreset::Neutral`] 下所有 CASE 返 1.0 ⟹ w_dir≡1 ⟹ `leg_target` 输出
+/// == v0（prereg §6.2 唯一 bit-exact 保留情形，g2 实装自检基线）。
+pub fn dir_weight(role: &OperationRole, depth: u32, config: &VoiceConfig) -> f64 {
+    // CASE 1: ShortDiff 豁免（买卖点.pdf §7.5 s_g=s_α，prereg §5.1 定理 1）——优先于一切预注册套。
+    if role.v == Vertical::ShortDiff {
+        return 1.0;
+    }
+    // σ_higher 从 role.v + δ_e 解码（prereg §3.3）。ShortDiff 分支虽不可达（CASE 1 已返），为完整性列出。
+    let sigma_higher: i8 = match role.v {
+        Vertical::FollowParent => dir_sign(role.delta),
+        Vertical::Ambient => 0,
+        Vertical::ShortDiff => -dir_sign(role.delta),
+    };
+    // CASE 2: 无上级方向可消费（σ_higher ∈ {None,0}，RootDir/Ambient）。
+    if sigma_higher == 0 {
+        return 1.0;
+    }
+    // CASE 3: 分级符号查表 Θ_dir[ℓ][sign(δ_e · σ_higher)]。
+    let sign = dir_sign(role.delta) * sigma_higher; // ∈ {+1,-1}
+    theta_dir_slot(&config.theta_dir, depth, sign)
+}
+
+/// 三套预注册的 (ℓ, sign) 槽读出（prereg §4.3）。
+///
+/// `same`=sign=+1（顺上级）槽，`opp`=sign=−1（逆上级）槽。越界 level 视 1.0（与 `depth_weight`
+/// 越界返 0 的语义不同：w_dir 越界不应意外零化腿单位，保权更安全）。
+fn theta_dir_slot(preset: &ThetaDirPreset, depth: u32, sign: i8) -> f64 {
+    let eta = |v: &[f64]| v.get(depth as usize).copied().unwrap_or(1.0);
+    let slot = |same: f64, opp: f64| if sign > 0 { same } else { opp };
+    match preset {
+        ThetaDirPreset::Neutral => 1.0,
+        // 顺上级保权 1.0，逆上级降权 η_adv。
+        ThetaDirPreset::Follow { eta_adv } => slot(1.0, eta(eta_adv)),
+        // 逆上级保权 1.0，顺上级降权 η_same。
+        ThetaDirPreset::Adversary { eta_same } => slot(eta(eta_same), 1.0),
+    }
+}
+
 pub fn leg_target(
     elements: &[CoverageElement],
     e_idx: usize,
@@ -1322,8 +1379,9 @@ pub fn leg_target(
     let e = &elements[e_idx];
     // element_depth 现接 ElementView（双段）；非 indexed 简单版包 base-only view（overlay 空，零拷贝）。
     let depth = element_depth(&ElementView::new(elements), e_idx);
-    let w = depth_weight(depth, config);
     let role = operation_role(elements, e_idx);
+    // v1（prereg-rev4）：s_e = base_units × w_depth(depth) × w_dir(ℓ,δ,σ_higher,role)。
+    let w = depth_weight(depth, config) * dir_weight(&role, depth, config);
     LegTarget {
         e_idx,
         side: e.eps,
@@ -1345,8 +1403,9 @@ fn leg_target_two_segment(
 ) -> LegTarget {
     let e = &elements[e_idx];
     let depth = element_depth(elements, e_idx);
-    let w = depth_weight(depth, config);
     let role = operation_role_two_segment(elements, e_idx, base_sibling, overlay_sibling);
+    // v1（prereg-rev4）：与 [`leg_target`] 同步升级——w_depth × w_dir，保 bit-exact == leg_target。
+    let w = depth_weight(depth, config) * dir_weight(&role, depth, config);
     LegTarget {
         e_idx,
         side: e.eps,
@@ -2842,6 +2901,93 @@ mod tests {
     /// 测试用 18 类角色构造器（三轴元组）。
     fn role(h: Horizontal, v: Vertical, d: Dir) -> OperationRole {
         OperationRole { h, v, delta: d }
+    }
+
+    /// q_Θ v1 σ_higher 升级验收测试套（prereg-rev4 §九 g2 验收点 2/3）。
+
+    /// 验收点 2：ShortDiff 合法性断言——`w_dir(role.v==ShortDiff) ≡ 1.0`（§7.5 s_g=s_α 定理 1）。
+    /// 须在**所有三套预注册**下成立（CASE 1 优先于 CASE 3 查表，不被任何套缩放/归零）。
+    #[test]
+    fn w_dir_shortdiff_exempt_across_all_presets() {
+        let presets = vec![
+            ThetaDirPreset::Neutral,
+            ThetaDirPreset::Follow { eta_adv: vec![0.5, 0.5, 0.5] },
+            ThetaDirPreset::Adversary { eta_same: vec![0.5, 0.5, 0.5] },
+        ];
+        let mut cfg = VoiceConfig::default();
+        for depth in 0..3u32 {
+            for delta in [Dir::Plus, Dir::Minus] {
+                // ShortDiff 腿：18 类中所有 h（First/SameFollow/SameReverse）× ShortDiff × ±δ。
+                for h in [Horizontal::First, Horizontal::SameFollow, Horizontal::SameReverse] {
+                    let sd = role(h, Vertical::ShortDiff, delta);
+                    for preset in &presets {
+                        cfg.theta_dir = preset.clone();
+                        let w = dir_weight(&sd, depth, &cfg);
+                        assert_eq!(
+                            w, 1.0,
+                            "ShortDiff w_dir≠1.0 破坏 §7.5 s_g=s_α (h={:?} δ={:?} depth={} preset={:?})",
+                            h, delta, depth, preset
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// 验收点 3：neutral 套 bit-exact 自检——Θ_dir_neutral 下 w_dir≡1.0 对**所有 18 类角色** ×
+    /// 所有 depth 成立 ⟹ `leg_target` 输出 == v0 ⟹ p̃/p\*/订单/ledger 全不变（prereg §6.2）。
+    /// 这是「neutral 套 OOS == v0 基线 af8910d062」的单元级数学根因。
+    #[test]
+    fn w_dir_neutral_is_identity_for_all_18_roles() {
+        let cfg = VoiceConfig::default(); // theta_dir = Neutral
+        assert!(matches!(cfg.theta_dir, ThetaDirPreset::Neutral));
+        for depth in 0..3u32 {
+            for h in [Horizontal::First, Horizontal::SameFollow, Horizontal::SameReverse] {
+                for v in [Vertical::Ambient, Vertical::FollowParent, Vertical::ShortDiff] {
+                    for delta in [Dir::Plus, Dir::Minus] {
+                        let r = role(h, v, delta);
+                        assert_eq!(
+                            dir_weight(&r, depth, &cfg),
+                            1.0,
+                            "neutral 套 w_dir≠1.0 破坏 bit-exact==v0 (h={:?} v={:?} δ={:?} depth={})",
+                            h,
+                            v,
+                            delta,
+                            depth
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// CASE 3 分级查表行为（Follow/Adversary 两套的非中性槽生效 + 根级豁免）。
+    #[test]
+    fn w_dir_case3_lookup_and_root_exemption() {
+        let mut cfg = VoiceConfig::default();
+        // FollowParent（δ=σ_higher，sign=+1，CASE 3 可达）。
+        let fp_plus = role(Horizontal::First, Vertical::FollowParent, Dir::Plus);
+        let fp_minus = role(Horizontal::First, Vertical::FollowParent, Dir::Minus);
+        // Ambient（σ_higher=0，CASE 2 根级豁免，须 1.0 不论套）。
+        let amb = role(Horizontal::First, Vertical::Ambient, Dir::Plus);
+
+        // Follow 套：顺上级(sign=+1)=1.0，逆上级(sign=−1)=η_adv=0.7。
+        cfg.theta_dir = ThetaDirPreset::Follow { eta_adv: vec![0.7, 0.7, 0.7] };
+        assert_eq!(dir_weight(&fp_plus, 0, &cfg), 1.0, "Follow 顺上级保权");
+        assert_eq!(dir_weight(&amb, 0, &cfg), 1.0, "根级 Ambient 豁免（CASE 2）");
+
+        // Adversary 套：顺上级(sign=+1)=η_same=0.6，逆上级(sign=−1)=1.0。
+        cfg.theta_dir = ThetaDirPreset::Adversary { eta_same: vec![0.6, 0.6, 0.6] };
+        assert_eq!(dir_weight(&fp_plus, 0, &cfg), 0.6, "Adversary 顺上级降权 η_same");
+        assert_eq!(dir_weight(&amb, 0, &cfg), 1.0, "根级 Ambient 豁免（CASE 2， adversary）");
+
+        // 本角色分类下 CASE 3 仅 FollowParent 可达 ⟹ sign 恒 +1（δ=Plus 或 Minus 均同向于各自 σ_higher）。
+        cfg.theta_dir = ThetaDirPreset::Adversary { eta_same: vec![0.6, 0.6, 0.6] };
+        assert_eq!(dir_weight(&fp_minus, 0, &cfg), 0.6, "FollowParentδ=Minus 仍 sign=+1（σ_higher=−δ 同号）");
+
+        // 越界 level 视 1.0（保权，不意外零化）。
+        cfg.theta_dir = ThetaDirPreset::Adversary { eta_same: vec![0.6] }; // 只给 depth 0
+        assert_eq!(dir_weight(&fp_plus, 5, &cfg), 1.0, "越界 level 保权 1.0");
     }
 
     fn unit(si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick) -> UnitRange {

@@ -108,6 +108,26 @@ impl Default for MacdConfig {
     }
 }
 
+/// q_Θ v1 σ_higher 分级符号权重 w_dir 预注册套（prereg-rev4 §4.3，三套并行 OOS 不能事后选——
+/// 关于背驰.pdf §9.2「不能先看结果再选」）。w_dir 函数形式见 coverage.rs [`super::strategy::coverage::dir_weight`]。
+///
+/// ★认识论等级（231号）：
+/// - **L0**（结构）：三套结构（follow/neutral/adversary）+ ShortDiff 豁免 + 根级豁免是 formal-chain 推论
+///   （买卖点.pdf §7.5 `s_g=s_α` 定理 1 + 完整的策略.pdf page4 禁一刀切）。
+/// - **L2**（数值）：`η_adv[ℓ]`/`η_same[ℓ]` 具体数值须 g3 跑数前冻结（135号），本枚举只冻结构。
+#[derive(Debug, Clone, PartialEq)]
+pub enum ThetaDirPreset {
+    /// Θ_dir_neutral：所有 (ℓ, sign) 槽 = 1.0 ⟹ `w_dir ≡ 1.0`（退化为 v0，**bit-exact == v0 对照基线**）。
+    /// default（保 frozen Θ v0 bit-exact）。亦作 g2 实装自检基线：若 neutral 套 OOS ≠ v0 = 实装 bug。
+    Neutral,
+    /// Θ_dir_follow（顺势保权假设）：顺上级（sign=+1）保权 = 1.0，逆上级（sign=−1）降权 `η_adv[ℓ] < 1.0`。
+    /// `eta_adv`：per-level 逆上级降权系数（长度 ≥ max_depth，越界层视 1.0）。
+    Follow { eta_adv: Vec<f64> },
+    /// Θ_dir_adversary（逆势保权假设，§6 page4「L1 主要超 beta 来源」）：逆上级（sign=−1）保权 = 1.0，
+    /// 顺上级（sign=+1）降权 `η_same[ℓ] < 1.0`。`eta_same`：per-level 顺上级降权系数（同上越界规则）。
+    Adversary { eta_same: Vec<f64> },
+}
+
 /// Θ_voice 参数（reference-theta-v0.md:39-42）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoiceConfig {
@@ -118,6 +138,9 @@ pub struct VoiceConfig {
     /// f3 反事实开关：剔除 ShortDiff（多空对冲）子声部腿对净头寸的贡献（多重赋格增量价值测量）。
     /// default `false`=全赋格生产口径（bit-exact 不变）。`true` 仅用于 policy_backtest 反事实对照。
     pub disable_shortdiff: bool,
+    /// q_Θ v1 σ_higher 分级符号权重 w_dir 预注册套（prereg-rev4 §4.3）。default `Neutral`
+    /// （w_dir≡1.0，frozen Θ v0 bit-exact 不变）。选 Follow/Adversary 启用 σ_higher 分级 sizing。
+    pub theta_dir: ThetaDirPreset,
 }
 
 impl Default for VoiceConfig {
@@ -126,6 +149,7 @@ impl Default for VoiceConfig {
             max_depth: 3,
             depth_weights: vec![0.60, 0.30, 0.10],
             disable_shortdiff: false,
+            theta_dir: ThetaDirPreset::Neutral,
         }
     }
 }
