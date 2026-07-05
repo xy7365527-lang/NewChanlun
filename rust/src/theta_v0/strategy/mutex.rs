@@ -443,14 +443,14 @@ mod tests {
     //  桶级一致必须过；typed close 场景另断言精确 Cj（P5/P6/P7 与消费端判据同源见证）。
     // ──────────────────────────────────────────────────────────────────────
     use super::super::super::classifier::recursive_tower::ElementId;
-    use super::super::coverage::{Dir, Horizontal, OperationRole};
+    use super::super::coverage::{Dir, GradeRel, Horizontal, OperationRole};
     use super::super::exec::reverse_signal;
     use super::super::interp::{interpret, theta_key};
     use super::super::super::types::BspBits;
     use std::collections::HashSet;
 
     fn role(v: Vertical) -> OperationRole {
-        OperationRole { h: Horizontal::First, v, delta: Dir::Plus }
+        OperationRole { h: Horizontal::First, v, delta: Dir::Plus, grade: GradeRel::SameLevel }
     }
 
     #[allow(clippy::too_many_arguments)]

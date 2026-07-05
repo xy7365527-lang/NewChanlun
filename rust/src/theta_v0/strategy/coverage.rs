@@ -900,61 +900,87 @@ pub enum Horizontal {
     SameReverse,
 }
 
-/// 垂直关系 V(g)（spec §7.2 / P6-P7，相对父容器方向 σ_{p(g)} ∈ {-1,0,+1} + 级别关系 ℓ_g vs ℓ_α）。
+/// 垂直关系 V(g)（spec §7.2 / P6-P7，相对父容器方向 σ_{p(g)} ∈ {-1,0,+1}）。
 ///
-/// 四类互斥穷尽（买卖点.pdf §3 Rel 三分类 + §4 操作角色 + §15 互斥性证明）：
+/// 三类互斥穷尽（阶段4/6/7 **living authority**，R(g)=(H,V,δ) 三轴）：
 /// - `Ambient`：σ_{p(g)}=0（父容器无方向/胚元/空）——spec P7 显式：**Ambient 不是根规则**，
 ///   而是任意父容器处于无方向状态时的普通情形（去根化核心）。
-/// - `FollowParent`：σ_{p(g)}≠0 ∧ δ_g = σ_{p(g)}（次级别顺父方向）。
-/// - `SameReverse`：σ_{p(g)}≠0 ∧ δ_g = −σ_{p(g)} ∧ ℓ_g = ℓ_{α(g)}（**同级别反向**，买卖点.pdf §7.3，
-///   "先关闭原同级别声部，再按规则建立新方向"反手——非短差，因短差要求严格次级别 ℓ_g<ℓ_α）。
-/// - `ShortDiff`：σ_{p(g)}≠0 ∧ δ_g = −σ_{p(g)} ∧ ℓ_g < ℓ_{α(g)}（短差 = **严格次级别**反向子操作，
-///   spec §9 / P8；买卖点.pdf §4 充要条件：ℓ_g<ℓ_α 是定义性条件，非辅助）。
+/// - `FollowParent`：σ_{p(g)}≠0 ∧ δ_g = σ_{p(g)}（顺父方向）。
+/// - `ShortDiff`：σ_{p(g)}≠0 ∧ δ_g = −σ_{p(g)}（反父方向 = GPT `AgainstParent` 商映射）。
 ///
-/// ★spec-execution-gap 修复（073a 工位，基因 073a/274号）：旧代码 `vertical_relation` 仅查
-/// δ_g=−σ_p 即判 `ShortDiff`，吞掉 PDF §7.3 `SameReverse`；本次按 ℓ_g vs ℓ_α 严格分叉
-/// （§3 Rel 定义 + §4 ShortDiff 充要条件 + §15 互斥性证明）。声明-能力一致（no-patch-mentality）。
+/// ★GPT 权威裁决（命名冲突.pdf §二-§四，2026-07-05）：阶段3 SameReverse_3（Rel=Same ∧ δ=−σ_p）
+/// 到阶段4 V 轴投影 π_V(SameReverse_3)=ShortDiff_V。阶段4 把「同级别反父」与「次级别反父」在 V 轴
+/// 合并为 AgainstParent:=δ=−σ_p——**商映射非遗漏**。级别差异作独立特征 G（[`GradeRel`]），不回 V 轴本体。
+/// commit 67d20d292f 把 V 改四分类（加 SameReverse）违反 living authority（重定义 V 而非保守扩展）；
+/// 本实装回滚三分类 + 新增 G 轴细化（定理1：z'=(H,V,δ,G) 投影 π(H,V,δ,G)=(H,V,δ) 保留原像划分）。
+///
+/// ★命名保留（工位判断）：V::ShortDiff 保留原名（不改 AgainstParent）。`ShortDiff` 在代码库三义——
+/// `TwEvent::ShortDiff`（TW 划转）/ `ExitType::CloseShortDiff`（出场）/ 本 V 轴；仅改 V 一处制造新命名
+/// 不对称，语义=AgainstParent 由本注释明确，级别区分独立到 [`GradeRel`]。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Vertical {
     /// σ_{p(g)}=0（父无方向 → 去根化 Ambient）。
     Ambient,
     /// δ_g = σ_{p(g)}（顺父方向）。
     FollowParent,
-    /// δ_g = −σ_{p(g)} ∧ ℓ_g = ℓ_{α(g)}（同级别反向，买卖点.pdf §7.3）。
-    SameReverse,
-    /// δ_g = −σ_{p(g)} ∧ ℓ_g < ℓ_{α(g)}（短差，严格次级别反向子操作）。
+    /// δ_g = −σ_{p(g)}（反父方向，GPT AgainstParent 商映射；同级别/次级别区分在独立 G 轴 [`GradeRel`]）。
     ShortDiff,
 }
 
-/// 完整操作角色 R(g) = (H(g), V(g), δ_g)（spec §8 / P7，3×4×2 = **24 类完全分类**）。
+/// 级别关系 G(g)（GPT 命名冲突裁决 §四新增独立轴，基于 ℓ_g vs ℓ_{p(g)}）。
 ///
-/// 角色空间 ℛ = {First,SameFollow,SameReverse} × {Ambient,FollowParent,SameReverse,ShortDiff} × {+1,-1}，
-/// 基数 24；对任意 g 严格互斥完全分类 `Σ_{r∈ℛ} 1[R(g)=r]=1`（spec P7 方框）。
+/// 两类互斥（GPT §四「最小需要 G ∈ {SameLevel, SubLevel}」）：
+/// - `SameLevel`：ℓ_g = ℓ_{p(g)}（同级别——阶段3 `SameReverse_3` 派生角色原料）。
+/// - `SubLevel`：ℓ_g < ℓ_{p(g)}（次级别——阶段3 `ShortDiff_3` 派生角色原料）。
+///
+/// ★GPT 定理1（命名冲突.pdf §五）：G 是状态细化 z'=(H,V,δ,G)，对阶段4 状态有投影
+/// π(H,V,δ,G)=(H,V,δ)，保留原分类原像划分。`ThetaDirPreset::Neutral` 下 [`dir_weight`] 不消费 G
+/// ⟹ Neutral bit-exact；Follow/Adversary 亦不消费 G ⟹ G 当前是**观察特征**，留待 q_Θ^full
+/// （GPT §九 κ/d·w_{…,G,…}）消费。
+///
+/// 派生角色（非 canonical 谓词，见 [`OperationRole::is_same_level_against_parent`]）：
+/// SameLevelAgainstParent = V=ShortDiff ∧ G=SameLevel；SubLevelShortDiff = V=ShortDiff ∧ G=SubLevel。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum GradeRel {
+    /// ℓ_g = ℓ_{p(g)}（同级别）。
+    SameLevel,
+    /// ℓ_g < ℓ_{p(g)}（次级别）。
+    SubLevel,
+}
+
+/// 完整操作角色 R(g) = (H(g), V(g), δ_g, G(g))（spec §8 / P7 + GPT G 轴，3×3×2 = **18 类 canonical**）。
+///
+/// 角色空间 ℛ = {First,SameFollow,SameReverse} × {Ambient,FollowParent,ShortDiff} × {+1,-1}，
+/// 基数 18（canonical，阶段4 living authority）；G 轴（[`GradeRel`]）作 z'=(H,V,δ,G) 第四维细化，
+/// 不改 canonical 基数（GPT 定理1：投影 π(H,V,δ,G)=(H,V,δ) 保留原像划分）。
 ///
 /// ## 去根化（spec §7 / P7 / 差异表 #2）
 /// 旧 {Root, Same, Sub}（含根特例）→ 水平 H × 垂直 V × 方向 δ 三正交轴。**无 RootRole 枚举值**：
 /// 旧"根元素"now = (First/SameFollow/SameReverse, **Ambient**, ±1)——根被边界胚元 ∂ + Ambient 吸收。
 ///
-/// ## V 轴扩容（073a 工位，spec-execution-gap 修复，基因 073a/274号）
-/// 旧 V={Ambient,FollowParent,ShortDiff}（3 类）仅查 δ_g=−σ_p 即判 ShortDiff，吞掉 PDF §7.3 `SameReverse`；
-/// 现按 ℓ_g vs ℓ_α 分叉为 4 类（买卖点.pdf §3 Rel / §4 充要条件 / §15 互斥性）。命名注意：水平
-/// `Horizontal::SameReverse` 与垂直 `Vertical::SameReverse` 同名不同轴（前者=同级别反向前兄弟，
-/// 后者=同级别反向相对父），均合法。
+/// ## G 轴细化（GPT 命名冲突裁决 §四，2026-07-05）
+/// V 轴保持阶段4 三分类 living authority；新增 G∈{SameLevel,SubLevel} 作独立第四维。
+/// 派生角色（谓词方法）：[`is_same_level_against_parent`]（=阶段3 SameReverse_3）、
+/// [`is_sub_level_short_diff`]（=阶段3 ShortDiff_3）。
 ///
 /// ## 认识论等级（formalization-validity-domain 231号，强制标注）
-/// - **L0**（代数命题，本结构）：24 = 3×4×2 完全分类 `Σ=1` 是同义反复（三轴各自互斥穷尽的笛卡尔
-///   积），信息增量为零。
-/// - **L2 未覆盖**（spec 疑点5 + 073a 工位，no-声明膨胀）：3×4×2=24 全组合是否在真实数据上**均可达**，
-///   还是部分组合经验为空（有效域 < 定义域，尤其 `Vertical::SameReverse` 需 ℓ_g=ℓ_α 的同级别反向结构），
-///   spec **未覆盖**——本实装**不**声称 24 类经验全可达。
+/// - **L0**（代数命题，本结构）：3×3×2=18 完全分类 `Σ=1` 是同义反复（三轴各自互斥穷尽的笛卡尔积），
+///   信息增量为零。G 细化是 z'投影，不增信息。
+/// - **L2 未覆盖**（spec 疑点5，no-声明膨胀）：3×3×2=18 全组合是否在真实数据上**均可达**，
+///   还是部分组合经验为空（有效域 < 定义域），spec **未覆盖**——本实装**不**声称 18 类经验全可达。
+///
+/// [`is_same_level_against_parent`]: OperationRole::is_same_level_against_parent
+/// [`is_sub_level_short_diff`]: OperationRole::is_sub_level_short_diff
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OperationRole {
     /// H(g)：水平关系（同级别兄弟轴）。
     pub h: Horizontal,
-    /// V(g)：垂直关系（父容器轴）。
+    /// V(g)：垂直关系（父容器轴，阶段4 living authority 三分类）。
     pub v: Vertical,
     /// δ_g：方向（±1）。
     pub delta: Dir,
+    /// G(g)：级别关系（GPT 命名冲突裁决新增独立轴，z'=(H,V,δ,G) 第四维）。
+    pub grade: GradeRel,
 }
 
 /// δ_g：元素方向（spec §8，`VoiceSide → {+1,-1}`）。Long=+1=Plus，Short=−1=Minus。
@@ -1060,6 +1086,7 @@ pub(crate) fn operation_role_indexed(
                 h: Horizontal::First,
                 v: Vertical::Ambient,
                 delta: Dir::Plus,
+                grade: GradeRel::SameLevel,
             }
         }
     };
@@ -1083,17 +1110,19 @@ pub(crate) fn operation_role_indexed(
         }
         None => Horizontal::First,
     };
-    // V(g)：不变（O(1)，parent_sign + direction_of）。
-    // V 轴经 classify_vertical 单一真相源（与 vertical_relation 同源，073a spec-execution-gap 修复：
-    // 旧三分类吞 SameReverse ⟹ eta_adv 不可达；现按 ℓ_g vs ℓ_{α(g)} 严格分叉）。
+    // V(g) 三分类（阶段4 living authority）+ G(g) 级别关系（GPT 命名冲突裁决新增独立轴）。
+    // classify_vertical 回三分类（δ=−σ_p ⟹ ShortDiff 不分级别，商映射 AgainstParent）；
+    // G 轴消费 ℓ_g vs ℓ_p 作细化（z'=(H,V,δ,G) 投影保留原像，GPT 定理1）。
+    let sigma_parent = parent_sign(e.attached_dir);
+    let v = classify_vertical(sigma_parent, dir_sign(delta));
     let ell_g = e.level;
-    let ell_alpha = match e.parent {
-        // ponytail: 父越界/None 防御归 ℓ_g（⟹ SameReverse）；None 已被 σ_p=0（∂）截断，理论不到此。
+    let ell_p = match e.parent {
+        // ponytail: 父越界/None 防御归 ℓ_g（⟹ SameLevel）；None 已被 σ_p=0（∂）截断 V=Ambient。
         Some(p) => elements.get(p).map_or(ell_g, |parent| parent.level),
         None => ell_g,
     };
-    let v = classify_vertical(parent_sign(e.attached_dir), dir_sign(delta), ell_g, ell_alpha);
-    OperationRole { h, v, delta }
+    let grade = classify_grade(ell_g, ell_p);
+    OperationRole { h, v, delta, grade }
 }
 
 /// ★工位 4c：双段兄弟索引的 [`operation_role_indexed`]——`tree_sibling`（缓存的 tree-only，命中
@@ -1117,6 +1146,7 @@ pub(crate) fn operation_role_indexed_split(
                 h: Horizontal::First,
                 v: Vertical::Ambient,
                 delta: Dir::Plus,
+                grade: GradeRel::SameLevel,
             }
         }
     };
@@ -1141,16 +1171,19 @@ pub(crate) fn operation_role_indexed_split(
         }
         None => Horizontal::First,
     };
-    // V 轴经 classify_vertical 单一真相源（与 vertical_relation 同源，073a spec-execution-gap 修复：
-    // 旧三分类吞 SameReverse ⟹ eta_adv 不可达；现按 ℓ_g vs ℓ_{α(g)} 严格分叉）。
+    // V(g) 三分类（阶段4 living authority）+ G(g) 级别关系（GPT 命名冲突裁决新增独立轴）。
+    // classify_vertical 回三分类（δ=−σ_p ⟹ ShortDiff 不分级别，商映射 AgainstParent）；
+    // G 轴消费 ℓ_g vs ℓ_p 作细化（z'=(H,V,δ,G) 投影保留原像，GPT 定理1）。
+    let sigma_parent = parent_sign(e.attached_dir);
+    let v = classify_vertical(sigma_parent, dir_sign(delta));
     let ell_g = e.level;
-    let ell_alpha = match e.parent {
-        // ponytail: 父越界/None 防御归 ℓ_g（⟹ SameReverse）；None 已被 σ_p=0（∂）截断，理论不到此。
+    let ell_p = match e.parent {
+        // ponytail: 父越界/None 防御归 ℓ_g（⟹ SameLevel）；None 已被 σ_p=0（∂）截断 V=Ambient。
         Some(p) => elements.get(p).map_or(ell_g, |parent| parent.level),
         None => ell_g,
     };
-    let v = classify_vertical(parent_sign(e.attached_dir), dir_sign(delta), ell_g, ell_alpha);
-    OperationRole { h, v, delta }
+    let grade = classify_grade(ell_g, ell_p);
+    OperationRole { h, v, delta, grade }
 }
 
 /// ★工位 4d：双段兄弟索引的 [`operation_role_indexed`] 通用版——`base_sibling`（缓存的 tree-only，
@@ -1177,6 +1210,7 @@ pub(crate) fn operation_role_two_segment(
                 h: Horizontal::First,
                 v: Vertical::Ambient,
                 delta: Dir::Plus,
+                grade: GradeRel::SameLevel,
             }
         }
     };
@@ -1202,57 +1236,78 @@ pub(crate) fn operation_role_two_segment(
         }
         None => Horizontal::First,
     };
-    // V 轴经 classify_vertical 单一真相源（与 vertical_relation 同源，073a spec-execution-gap 修复：
-    // 旧三分类吞 SameReverse ⟹ eta_adv 不可达；现按 ℓ_g vs ℓ_{α(g)} 严格分叉）。
+    // V(g) 三分类（阶段4 living authority）+ G(g) 级别关系（GPT 命名冲突裁决新增独立轴）。
+    // classify_vertical 回三分类（δ=−σ_p ⟹ ShortDiff 不分级别，商映射 AgainstParent）；
+    // G 轴消费 ℓ_g vs ℓ_p 作细化（z'=(H,V,δ,G) 投影保留原像，GPT 定理1）。
+    let sigma_parent = parent_sign(e.attached_dir);
+    let v = classify_vertical(sigma_parent, dir_sign(delta));
     let ell_g = e.level;
-    let ell_alpha = match e.parent {
-        // ponytail: 父越界/None 防御归 ℓ_g（⟹ SameReverse）；None 已被 σ_p=0（∂）截断，理论不到此。
+    let ell_p = match e.parent {
+        // ponytail: 父越界/None 防御归 ℓ_g（⟹ SameLevel）；None 已被 σ_p=0（∂）截断 V=Ambient。
         Some(p) => elements.get(p).map_or(ell_g, |parent| parent.level),
         None => ell_g,
     };
-    let v = classify_vertical(parent_sign(e.attached_dir), dir_sign(delta), ell_g, ell_alpha);
-    OperationRole { h, v, delta }
+    let grade = classify_grade(ell_g, ell_p);
+    OperationRole { h, v, delta, grade }
 }
 
-/// V(g) 纯分类（单一真相源）：给定 σ_{p(g)}、δ_g 符号、ℓ_g、ℓ_{α(g)} ⟹ Vertical。
+/// V(g) 纯分类（单一真相源）：给定 σ_{p(g)}、δ_g 符号 ⟹ Vertical（阶段4 三分类 living authority）。
 ///
 /// 全部 V 判定路径共享此函数——[`vertical_relation`]（单元素）+ `operation_role` 的三个优化变体
 /// （`operation_role_indexed` / `operation_role_indexed_split` / `operation_role_two_segment`，后者为
 /// 生产热路径 [`strategy_target_legs`] 毛分账本腿 `q̄_Θ` 产腿）。消除多份 V 判定漂移。
-/// ★spec-execution-gap 根因（073a 工位）：旧代码 V 判定散落多处，仅 `vertical_relation` 按买卖点.pdf
-/// §3+§4+§15 分叉；三个生产变体仍三分类 ⟹ SameReverse 在生产侧被吞、`eta_adv` 在真实回测中不可达。
-/// 单一真相源使全部 V 路径不可再漂移。
 ///
-/// 互斥四分类（σ_p∈{0,±1}, δ_g∈{±1}, Rel∈{Same,Sub}，买卖点.pdf §15 互斥性证明）：
-/// σ_p=0→`Ambient`；δ_g=σ_p→`FollowParent`；δ_g=−σ_p∧ℓ_g<ℓ_α→`ShortDiff`；δ_g=−σ_p∧ℓ_g≥ℓ_α→`SameReverse`。
-fn classify_vertical(sigma_parent: i8, delta_sgn: i8, ell_g: u32, ell_alpha: u32) -> Vertical {
+/// 互斥三分类：σ_p=0→`Ambient`；δ_g=σ_p→`FollowParent`；δ_g=−σ_p→`ShortDiff`（GPT AgainstParent
+/// 商映射，不分级别——同级别/次级别反父合并，级别区分在独立 G 轴 [`classify_grade`]）。
+fn classify_vertical(sigma_parent: i8, delta_sgn: i8) -> Vertical {
     if sigma_parent == 0 {
         Vertical::Ambient
     } else if delta_sgn == sigma_parent {
         Vertical::FollowParent
-    } else if ell_g < ell_alpha {
-        Vertical::ShortDiff
     } else {
-        Vertical::SameReverse
+        Vertical::ShortDiff
     }
 }
 
-/// 垂直关系 V(g)（spec §7.2 / P6-P7，全函数唯一判定）。
+/// G(g) 级别关系纯分类（单一真相源，GPT 命名冲突裁决 §四新增轴）：给定 ℓ_g、ℓ_{p(g)} ⟹ GradeRel。
 ///
-/// 从元素读 (σ_{p(g)}, δ_g, ℓ_g, ℓ_{α(g)}) 四元组喂 [`classify_vertical`]（单一真相源）。
-/// ℓ_{α(g)} 经 `parent` 链读取；父越界/None 防御归 ℓ_g（⟹ SameReverse），None 已被 σ_p=0（∂）截断。
+/// 与 [`classify_vertical`] 同源——调用方共享同一 (ℓ_g, ℓ_p) 读取，V 三分类 + G 两分类独立组装
+/// [`OperationRole`]。ℓ_g<ℓ_p→`SubLevel`；ℓ_g≥ℓ_p（含等于/越界防御）→`SameLevel`。
+fn classify_grade(ell_g: u32, ell_p: u32) -> GradeRel {
+    if ell_g < ell_p {
+        GradeRel::SubLevel
+    } else {
+        GradeRel::SameLevel
+    }
+}
+
+/// 垂直关系 V(g)（spec §7.2 / P6-P7，阶段4 三分类 living authority，全函数唯一判定）。
+///
+/// 从元素读 (σ_{p(g)}, δ_g) 喂 [`classify_vertical`]（单一真相源，2 参数三分类）。
+/// G 轴（级别关系）独立，见 [`grade_relation`]；本函数只返 V。
 pub fn vertical_relation(elements: &[CoverageElement], e_idx: usize) -> Vertical {
     let e = match elements.get(e_idx) {
         Some(e) => e,
         None => return Vertical::Ambient, // 越界防御性（不应到达）
     };
+    classify_vertical(parent_sign(e.attached_dir), dir_sign(direction_of(e.eps)))
+}
+
+/// G(g) 级别关系（GPT 命名冲突裁决 §四，全函数唯一判定，独立于 [`vertical_relation`]）。
+///
+/// 从元素读 (ℓ_g, ℓ_{p(g)}) 喂 [`classify_grade`]。ℓ_p 经 `parent` 链读取；
+/// 父越界/None（边界胚元 ∂）防御归 ℓ_g（⟹ SameLevel，σ_p=0 已截断 V=Ambient，G 当前无消费方不影响 bit-exact）。
+pub fn grade_relation(elements: &[CoverageElement], e_idx: usize) -> GradeRel {
+    let e = match elements.get(e_idx) {
+        Some(e) => e,
+        None => return GradeRel::SameLevel, // 越界防御性（不应到达）
+    };
     let ell_g = e.level;
-    let ell_alpha = match e.parent {
-        // ponytail: 父越界/None 防御归 ℓ_g（⟹ SameReverse）；None 已被 σ_p=0（∂）截断，理论不到此。
+    let ell_p = match e.parent {
         Some(p) => elements.get(p).map_or(ell_g, |parent| parent.level),
         None => ell_g,
     };
-    classify_vertical(parent_sign(e.attached_dir), dir_sign(direction_of(e.eps)), ell_g, ell_alpha)
+    classify_grade(ell_g, ell_p)
 }
 
 /// 派生元素 e 的完整操作角色 R(g)=(H(g),V(g),δ_g)（spec §8 / P7，24 类，全函数唯一判定）。
@@ -1287,6 +1342,20 @@ pub fn operation_role(elements: &[CoverageElement], e_idx: usize) -> OperationRo
         h: horizontal_relation(elements, e_idx),
         v: vertical_relation(elements, e_idx),
         delta,
+        grade: grade_relation(elements, e_idx),
+    }
+}
+
+impl OperationRole {
+    /// 派生角色（非 canonical 谓词，GPT 命名冲突裁决 §四）：V=ShortDiff ∧ G=SameLevel。
+    /// = 阶段3 SameReverse_3（Rel=Same ∧ δ=−σ_p，同级别反父方向）。
+    pub fn is_same_level_against_parent(&self) -> bool {
+        self.v == Vertical::ShortDiff && self.grade == GradeRel::SameLevel
+    }
+    /// 派生角色（非 canonical 谓词，GPT 命名冲突裁决 §四）：V=ShortDiff ∧ G=SubLevel。
+    /// = 阶段3 ShortDiff_3（Rel=Sub ∧ δ=−σ_p，次级别短差）。
+    pub fn is_sub_level_short_diff(&self) -> bool {
+        self.v == Vertical::ShortDiff && self.grade == GradeRel::SubLevel
     }
 }
 
@@ -1361,34 +1430,33 @@ pub struct LegTarget {
 ///
 /// σ_higher = σ_{α(e)}（父级方向）从 [`OperationRole`] 隐式解码（prereg §3.3，不需新数据源）：
 /// - `FollowParent`：δ_e = σ_higher ⟹ σ_higher = `dir_sign(delta)`（+δ_e）
-/// - `ShortDiff`：δ_e = −σ_higher ⟹ σ_higher = −`dir_sign(delta)`（−δ_e；CASE 1 先返回）
-/// - `SameReverse`：δ_e = −σ_higher ⟹ σ_higher = −`dir_sign(delta)`（−δ_e；走 CASE 3 sign=−1 槽）
+/// - `ShortDiff`：δ_e = −σ_higher ⟹ σ_higher = −`dir_sign(delta)`（−δ_e；CASE 1 先返回，理论不到 CASE 3）
 /// - `Ambient`：σ_higher = 0（父容器无方向，去根化）
 ///
 /// 三 CASE（优先序，prereg §4.1）：
-/// 1. **ShortDiff 豁免**（§7.5 `s_g=s_α` 同股数要求，定理 1）⟹ `1.0`（仅**严格次级别**短差，不含 SameReverse）
+/// 1. **ShortDiff 豁免**（§7.5 `s_g=s_α` 同股数要求，定理 1）⟹ `1.0`（反父方向 = GPT AgainstParent 商映射，
+///    含同级别+次级别反父整体豁免——G 轴不进 dir_weight）
 /// 2. **根级/无上级方向**（σ_higher=0，Ambient）⟹ `1.0`（无 σ_higher 可消费）
 /// 3. **分级查表** otherwise ⟹ `Θ_dir[ℓ][sign(δ_e · σ_higher)]`
 ///
-/// `sign(δ·σ_higher)`：+1=顺上级（FollowParent 同向子腿），−1=逆上级。CASE 3：`FollowParent` ⟹ sign=+1，
-/// `SameReverse` ⟹ sign=−1（δ_g=−σ_p ⟹ δ_g·σ_p<0）——sign=−1 槽经 SameReverse 路径**可达**
-/// （Follow preset 走 η_adv 降权，073a 工位 spec-execution-gap 修复：旧代码 sign=−1 槽经 role 不可达，
-/// 现修正为 SameReverse 路径消费 η_adv）。
+/// `sign(δ·σ_higher)`：+1=顺上级（FollowParent 同向子腿），−1=逆上级。CASE 3 仅 `FollowParent` 可达
+/// ⟹ sign 恒 +1。**sign=−1 槽经 V 路径不可达**（GPT 命名冲突裁决 §六：eta_adv 冻结依赖 V::SameReverse
+/// 作 canonical state 的前提失效——V 回三分类后 ShortDiff 整体豁免，η_adv/η_same 经 V 路径不可达；
+/// G 轴细化不进 dir_weight，Follow/Adversary 的 alpha 解释须 q_Θ^full 消费 G 后重跑）。
 ///
 /// ★bit-exact：[`ThetaDirPreset::Neutral`] 下所有 CASE 返 1.0 ⟹ w_dir≡1 ⟹ `leg_target` 输出
 /// == v0（prereg §6.2 唯一 bit-exact 保留情形，g2 实装自检基线）。
 pub fn dir_weight(role: &OperationRole, depth: u32, config: &VoiceConfig) -> f64 {
     // CASE 1: ShortDiff 豁免（买卖点.pdf §7.5 s_g=s_α，prereg §5.1 定理 1）——优先于一切预注册套。
+    // ShortDiff = δ_g=−σ_p（商映射 AgainstParent，含同级别+次级别反父），整体豁免——G 轴不进 dir_weight。
     if role.v == Vertical::ShortDiff {
         return 1.0;
     }
-    // σ_higher 从 role.v + δ_e 解码（prereg §3.3）。
-    // SameReverse/ShortDiff 均 δ_e=−σ_higher ⟹ σ_higher=−δ_e；ShortDiff 已被 CASE 1 返回，此处仅 SameReverse 可达。
+    // σ_higher 从 role.v + δ_e 解码（prereg §3.3）。ShortDiff 已被 CASE 1 返回，此处仅 Ambient/FollowParent 可达。
     let sigma_higher: i8 = match role.v {
         Vertical::FollowParent => dir_sign(role.delta),
         Vertical::Ambient => 0,
-        Vertical::SameReverse => -dir_sign(role.delta),
-        Vertical::ShortDiff => -dir_sign(role.delta),
+        Vertical::ShortDiff => -dir_sign(role.delta), // 理论不可达（CASE 1 已返），列全保穷尽
     };
     // CASE 2: 无上级方向可消费（σ_higher ∈ {None,0}，RootDir/Ambient）。
     if sigma_higher == 0 {
@@ -2945,7 +3013,7 @@ mod tests {
 
     /// 测试用 24 类角色构造器（三轴元组）。
     fn role(h: Horizontal, v: Vertical, d: Dir) -> OperationRole {
-        OperationRole { h, v, delta: d }
+        OperationRole { h, v, delta: d, grade: GradeRel::SameLevel }
     }
 
     /// q_Θ v1 σ_higher 升级验收测试套（prereg-rev4 §九 g2 验收点 2/3）。
@@ -2962,7 +3030,7 @@ mod tests {
         let mut cfg = VoiceConfig::default();
         for depth in 0..3u32 {
             for delta in [Dir::Plus, Dir::Minus] {
-                // ShortDiff 腿：24 类中所有 h（First/SameFollow/SameReverse）× ShortDiff × ±δ。
+                // ShortDiff 腿：18 类中所有 h（First/SameFollow/SameReverse）× ShortDiff × ±δ。
                 for h in [Horizontal::First, Horizontal::SameFollow, Horizontal::SameReverse] {
                     let sd = role(h, Vertical::ShortDiff, delta);
                     for preset in &presets {
@@ -2979,16 +3047,16 @@ mod tests {
         }
     }
 
-    /// 验收点 3：neutral 套 bit-exact 自检——Θ_dir_neutral 下 w_dir≡1.0 对**所有 24 类角色** ×
+    /// 验收点 3：neutral 套 bit-exact 自检——Θ_dir_neutral 下 w_dir≡1.0 对**所有 18 类角色** ×
     /// 所有 depth 成立 ⟹ `leg_target` 输出 == v0 ⟹ p̃/p\*/订单/ledger 全不变（prereg §6.2）。
     /// 这是「neutral 套 OOS == v0 基线 af8910d062」的单元级数学根因。
     #[test]
-    fn w_dir_neutral_is_identity_for_all_24_roles() {
+    fn w_dir_neutral_is_identity_for_all_18_roles() {
         let cfg = VoiceConfig::default(); // theta_dir = Neutral
         assert!(matches!(cfg.theta_dir, ThetaDirPreset::Neutral));
         for depth in 0..3u32 {
             for h in [Horizontal::First, Horizontal::SameFollow, Horizontal::SameReverse] {
-                for v in [Vertical::Ambient, Vertical::FollowParent, Vertical::SameReverse, Vertical::ShortDiff] {
+                for v in [Vertical::Ambient, Vertical::FollowParent, Vertical::ShortDiff] {
                     for delta in [Dir::Plus, Dir::Minus] {
                         let r = role(h, v, delta);
                         assert_eq!(
@@ -3006,41 +3074,50 @@ mod tests {
         }
     }
 
-    /// ★073a 工位 spec-execution-gap 修复：`vertical_relation` 按 ℓ_g vs ℓ_α 严格分叉。
-    /// 同级别反向（ℓ_g=ℓ_α, δ_g=−σ_p）⟹ `SameReverse`（买卖点.pdf §7.3，反手——非短差）；
-    /// 严格次级别反向（ℓ_g<ℓ_α, δ_g=−σ_p）⟹ `ShortDiff`（买卖点.pdf §4 充要条件）。二者互斥（§15）。
+    /// ★GPT 命名冲突裁决（2026-07-05）：V 轴三分类 living authority + G 轴独立细化。
+    /// δ_g=−σ_p（反父方向）无论 ℓ_g vs ℓ_p 均归 V::ShortDiff（商映射 AgainstParent）；
+    /// 级别区分在 G 轴：ℓ_g=ℓ_p→SameLevel（阶段3 SameReverse_3），ℓ_g<ℓ_p→SubLevel（阶段3 ShortDiff_3）。
     #[test]
-    fn vertical_samereverse_vs_shortdiff_by_level_relation() {
+    fn vertical_three_class_plus_grade_axis_refinement() {
         // parent（idx0）：level=1, σ_p=+1（Long）。
         let elements = vec![
             CoverageElement { lambda: 0, rho: 12, eps: VoiceSide::Long, level: 1, parent: None, attached_dir: None, id: eid(1, 0), parent_id: None },
-            // idx1 同级别反向：ℓ_g=1=ℓ_α=1, δ_g=−1=−σ_p ⟹ SameReverse（PDF §7.3 反手，非短差）。
+            // idx1 同级别反父：ℓ_g=1=ℓ_p=1, δ_g=−1=−σ_p ⟹ V=ShortDiff ∧ G=SameLevel（阶段3 SameReverse_3）。
             CoverageElement { lambda: 0, rho: 4, eps: VoiceSide::Short, level: 1, parent: Some(0), attached_dir: Some(VoiceSide::Long), id: eid(1, 1), parent_id: Some(eid(1, 0)) },
-            // idx2 严格次级别反向：ℓ_g=0<ℓ_α=1, δ_g=−1=−σ_p ⟹ ShortDiff（PDF §4 充要条件）。
+            // idx2 次级别反父：ℓ_g=0<ℓ_p=1, δ_g=−1=−σ_p ⟹ V=ShortDiff ∧ G=SubLevel（阶段3 ShortDiff_3）。
             CoverageElement { lambda: 4, rho: 8, eps: VoiceSide::Short, level: 0, parent: Some(0), attached_dir: Some(VoiceSide::Long), id: eid(0, 0), parent_id: Some(eid(1, 0)) },
         ];
-        assert_eq!(vertical_relation(&elements, 1), Vertical::SameReverse,
-            "同级别反向（ℓ_g=ℓ_α, δ_g=−σ_p）⟹ SameReverse（PDF §7.3），非短差");
+        // V 三分类：δ=−σ_p 无论级别都归 ShortDiff（GPT AgainstParent 商映射，§二）。
+        assert_eq!(vertical_relation(&elements, 1), Vertical::ShortDiff,
+            "同级别反父 δ=−σ_p ⟹ V=ShortDiff（GPT 商映射，不分级别）");
         assert_eq!(vertical_relation(&elements, 2), Vertical::ShortDiff,
-            "严格次级别反向（ℓ_g<ℓ_α, δ_g=−σ_p）⟹ ShortDiff（PDF §4 充要条件）");
+            "次级别反父 δ=−σ_p ⟹ V=ShortDiff（GPT 商映射，不分级别）");
+        // G 轴细化：同级别 vs 次级别在独立 G 轴区分（GPT §四）。
+        assert_eq!(grade_relation(&elements, 1), GradeRel::SameLevel,
+            "ℓ_g=ℓ_p ⟹ G=SameLevel（阶段3 SameReverse_3 派生）");
+        assert_eq!(grade_relation(&elements, 2), GradeRel::SubLevel,
+            "ℓ_g<ℓ_p ⟹ G=SubLevel（阶段3 ShortDiff_3 派生）");
+        // 派生谓词：阶段3 角色经 (V,G) 恢复（非 canonical，GPT 定理2）。
+        assert!(operation_role(&elements, 1).is_same_level_against_parent(),
+            "V=ShortDiff ∧ G=SameLevel = 阶段3 SameReverse_3 派生角色");
+        assert!(operation_role(&elements, 2).is_sub_level_short_diff(),
+            "V=ShortDiff ∧ G=SubLevel = 阶段3 ShortDiff_3 派生角色");
     }
 
-    /// ★073a：SameReverse 不豁免 CASE 1（非短差），走 CASE 3 sign=−1 槽 ⟹ Follow preset 用 eta_adv。
+    /// ★GPT 命名冲突裁决 §六：V 回三分类后，sign=−1 槽经 V 路径不可达（ShortDiff 整体豁免 CASE 1）。
+    /// η_adv/η_same 经 V 路径不可达——Follow/Adversary preset 的逆上级槽在 dir_weight 中无消费方。
     #[test]
-    fn w_dir_samereverse_hits_sign_neg_slot_under_follow() {
+    fn w_dir_sign_neg_slot_unreachable_via_v_axis() {
         let mut cfg = VoiceConfig::default();
-        // SameReverse：δ_g=−σ_p ⟹ σ_higher=−δ_g ⟹ sign=δ·σ_higher=−1（逆上级槽）。
-        let sr = role(Horizontal::First, Vertical::SameReverse, Dir::Minus);
-        // Neutral：bit-exact 1.0（数学证明 §8，preset 返 1.0 与 sign 无关）。
-        assert_eq!(dir_weight(&sr, 0, &cfg), 1.0);
-        // Follow preset：sign=−1 ⟹ eta_adv 槽（0.5）降权——eta_adv 经 SameReverse 路径可达。
-        cfg.theta_dir = ThetaDirPreset::Follow { eta_adv: vec![0.5] };
-        assert_eq!(dir_weight(&sr, 0, &cfg), 0.5,
-            "SameReverse 走 CASE 3 sign=−1 ⟹ Follow preset 用 eta_adv（073a 修复可达性）");
-        // 对比 ShortDiff：CASE 1 豁免恒 1.0（§7.5 s_g=s_α），不受 preset 影响。
+        // ShortDiff（反父方向，含同级别+次级别）：CASE 1 豁免恒 1.0，不论 preset（§7.5 s_g=s_α）。
         let sd = role(Horizontal::First, Vertical::ShortDiff, Dir::Minus);
+        assert_eq!(dir_weight(&sd, 0, &cfg), 1.0, "ShortDiff Neutral 豁免");
+        cfg.theta_dir = ThetaDirPreset::Follow { eta_adv: vec![0.5] };
         assert_eq!(dir_weight(&sd, 0, &cfg), 1.0,
-            "ShortDiff 豁免 CASE 1，SameReverse 不豁免——二者严格分叉");
+            "ShortDiff Follow 仍豁免——η_adv 经 V 路径不可达（GPT §六）");
+        cfg.theta_dir = ThetaDirPreset::Adversary { eta_same: vec![0.6] };
+        assert_eq!(dir_weight(&sd, 0, &cfg), 1.0,
+            "ShortDiff Adversary 仍豁免——η_same 经 V 路径不可达（GPT §六）");
     }
 
     /// CASE 3 分级查表行为（Follow/Adversary 两套的非中性槽生效 + 根级豁免）。
@@ -3064,7 +3141,7 @@ mod tests {
         assert_eq!(dir_weight(&amb, 0, &cfg), 1.0, "根级 Ambient 豁免（CASE 2， adversary）");
 
         // FollowParent：δ=σ_higher ⟹ sign=+1（δ=Plus/Minus 均同向于各自 σ_higher）。
-        // SameReverse 走 sign=−1 槽 ⟹ 见 w_dir_samereverse_hits_sign_neg_slot_under_follow。
+        // sign=−1 槽经 V 路径不可达 ⟹ 见 w_dir_sign_neg_slot_unreachable_via_v_axis。
         cfg.theta_dir = ThetaDirPreset::Adversary { eta_same: vec![0.6, 0.6, 0.6] };
         assert_eq!(dir_weight(&fp_minus, 0, &cfg), 0.6, "FollowParentδ=Minus 仍 sign=+1（σ_higher=−δ 同号）");
 
@@ -3455,8 +3532,11 @@ mod tests {
         // H 轴：子0 无前同级兄弟 ⟹ First；子1 前兄弟=子0(Long,+1)，δ=−1 ⟹ SameReverse。
         assert_eq!(horizontal_relation(&elements, 1), Horizontal::First);
         assert_eq!(horizontal_relation(&elements, 2), Horizontal::SameReverse);
-        // 完整角色元组（子1）：(SameReverse, ShortDiff, Minus)。
-        assert_eq!(operation_role(&elements, 2), role(Horizontal::SameReverse, Vertical::ShortDiff, Dir::Minus));
+        // 完整角色元组（子1）：(SameReverse, ShortDiff, Minus, SubLevel)——子1 level 0 < 父 level 1 ⟹ G=SubLevel。
+        assert_eq!(
+            operation_role(&elements, 2),
+            OperationRole { h: Horizontal::SameReverse, v: Vertical::ShortDiff, delta: Dir::Minus, grade: GradeRel::SubLevel }
+        );
     }
 
     /// ★水平轴 H（同级别兄弟）：同一父容器下前兄弟 ⟹ SameFollow（同向）/SameReverse（反向）。

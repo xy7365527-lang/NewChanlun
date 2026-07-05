@@ -2181,7 +2181,6 @@ fn vertical_str(v: super::super::strategy::coverage::Vertical) -> &'static str {
     match v {
         Vertical::Ambient => "Ambient",
         Vertical::FollowParent => "FollowParent",
-        Vertical::SameReverse => "SameReverse",
         Vertical::ShortDiff => "ShortDiff",
     }
 }

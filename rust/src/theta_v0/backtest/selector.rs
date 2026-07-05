@@ -244,10 +244,9 @@ pub fn z_of_candidate(
     let (parent_dir, position) = match c.role.v {
         Vertical::Ambient => (0, PositionState::Root),
         Vertical::FollowParent => (delta, PositionState::Child), // σ_p = δ_g
-        // 073a：SameReverse/ShortDiff 均 δ_g=−σ_p ⟹ σ_p=−δ_g（反向腿，MuClass 的
-        // (parent_dir, position) 投影同桶）；二者区分在 level 关系 ℓ_g vs ℓ_α，不在此投影。
-        Vertical::SameReverse => (-delta, PositionState::Child), // σ_p = −δ_g（同级别反向，PDF §7.3）
-        Vertical::ShortDiff => (-delta, PositionState::Child),   // σ_p = −δ_g（次级别短差，PDF §4）
+        // GPT 命名冲突裁决：ShortDiff = δ_g=−σ_p（商映射 AgainstParent，含同级别+次级别反父）。
+        // σ_p=−δ_g（反向腿）；同级别/次级别区分在独立 G 轴 c.role.grade，不进 MuClass 此投影（商映射同桶）。
+        Vertical::ShortDiff => (-delta, PositionState::Child), // σ_p = −δ_g（反父方向，GPT AgainstParent）
     };
     // G3 恒等式护栏（§6 ℓ=e+Ndepth，Nest 通道）：链顶 ℓ 与深度同时给出时必须自洽。
     if let (Some(ol), Some(d)) = (ext.origin_level, ext.nest_depth) {
@@ -562,7 +561,7 @@ mod tests {
     #[test]
     fn g3_ext_dims_assembled_into_z() {
         use crate::theta_v0::backtest::econ_positive::NestTrigger;
-        use crate::theta_v0::strategy::coverage::{Dir, Horizontal, OperationRole, Vertical};
+        use crate::theta_v0::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
         use crate::theta_v0::strategy::risk::RiskMode;
 
         let c = Candidate {
@@ -571,7 +570,7 @@ mod tests {
             bits: BspBits { buy2: true, ..Default::default() },
             dir: VoiceSide::Long,
             bsp_class: 2,
-            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus },
+            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus, grade: GradeRel::SameLevel },
             nest_confirmed: false,
             gamma_index: 0,
             force: None,
@@ -617,7 +616,7 @@ mod tests {
     #[test]
     fn a6_force_state_assembled_from_candidate_force() {
         use crate::theta_v0::classifier::divergence::{ForceFeatures, ForceProxies, ForceStateA5};
-        use crate::theta_v0::strategy::coverage::{Dir, Horizontal, OperationRole, Vertical};
+        use crate::theta_v0::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
 
         let ff = |s: f64| ForceFeatures {
             macd_area: 10.0 * s,
@@ -632,7 +631,7 @@ mod tests {
             bits: BspBits { buy1: true, ..Default::default() },
             dir: VoiceSide::Long,
             bsp_class: 1,
-            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus },
+            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus, grade: GradeRel::SameLevel },
             nest_confirmed: false,
             gamma_index: 0,
             force: Some(ForceProxies { seg_a: ff(1.0), seg_c: ff(0.5) }), // C 全 5 proxy < A ⟹ Dominated（背驰）

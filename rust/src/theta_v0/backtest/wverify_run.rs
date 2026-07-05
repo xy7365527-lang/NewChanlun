@@ -22,7 +22,7 @@
 //! 累积（不拼接 Dataset 防接缝伪相邻）。聚合后每笔残差都来自"该窗训练截止之后"的样本外区间。
 
 use super::super::classifier::divergence::ForceStateA5;
-use super::super::config::ThetaConfig;
+use super::super::config::{ThetaConfig, ThetaDirPreset};
 use super::super::strategy::interp::ExitType;
 use super::l3_delta_r_alpha::build_mu_from_bars;
 use super::mu_estimator::{MuClass, ResidualTrade, UClass};
@@ -179,6 +179,23 @@ fn sigma_pre_oos(ds: &data::Dataset, cfg: &ThetaConfig) -> (f64, usize) {
         .map(|b| b.close as f64 * cfg.tick.tick_size)
         .collect();
     (stdev_consecutive_diffs(&pxs), pxs.len())
+}
+
+/// g3 三套 OOS 入口（prereg-rev5 §5.1）：`THETA_DIR_PRESET` env 切换 Follow/Adversary preset。
+/// 无 env/未知值 = Neutral（bit-exact 自检基线不变）。η 冻结（135号）：
+/// eta_adv=[0.70,0.70,0.70,0.50,0.50,0.50]（prereg-rev5）/ eta_same=[0.70,0.50,0.70,0.70,0.70,0.70]（codex-ruling-eta）。
+fn apply_theta_dir_preset_from_env(cfg: &mut ThetaConfig) {
+    // g3 三套 OOS 入口（prereg-rev5 §5.1）：THETA_DIR_PRESET env 切 Follow/Adversary。无 env=Neutral。
+    // η 冻结（135号）：eta_adv=[0.70,0.70,0.70,0.50,0.50,0.50]/eta_same=[0.70,0.50,0.70,0.70,0.70,0.70]。
+    match std::env::var("THETA_DIR_PRESET").as_deref() {
+        Ok("follow") => cfg.voice.theta_dir = ThetaDirPreset::Follow {
+            eta_adv: vec![0.70, 0.70, 0.70, 0.50, 0.50, 0.50],
+        },
+        Ok("adversary") => cfg.voice.theta_dir = ThetaDirPreset::Adversary {
+            eta_same: vec![0.70, 0.50, 0.70, 0.70, 0.70, 0.70],
+        },
+        _ => {} // Neutral default（w_dir≡1.0，bit-exact == v0）
+    }
 }
 
 /// walk-forward OOS 残差聚合（G-A4）：取 `symbol` 在 `PREREG_WINDOWS` 冻结 anchored 窗口中
@@ -352,7 +369,8 @@ fn exit_type_breakdown(records: &[ResidualTrade]) -> String {
 #[test]
 #[ignore]
 fn wverify_full() {
-    let cfg = ThetaConfig::default();
+    let mut cfg = ThetaConfig::default();
+    apply_theta_dir_preset_from_env(&mut cfg);
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let oos_sanity = ds.slice_date_window("2023-01-01", "2025-06-30"); // 数据漂移哨兵；协议 §2.1 BTC OOS
     assert!(!oos_sanity.bars.is_empty(), "OOS 窗空——数据漂移");
@@ -1207,13 +1225,12 @@ fn m8_e2e_all_systems_oos() {
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
         let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
         let maxdd = r.net_result.metrics.max_drawdown;
-        let (mut n_amb, mut n_short, mut n_follow, mut n_samerev) = (0usize, 0usize, 0usize, 0usize);
+        let (mut n_amb, mut n_short, mut n_follow) = (0usize, 0usize, 0usize);
         for c in r.overlay.closed_voices() {
             match c.role_v {
                 Vertical::Ambient => n_amb += 1,
                 Vertical::ShortDiff => n_short += 1,
                 Vertical::FollowParent => n_follow += 1,
-                Vertical::SameReverse => n_samerev += 1,
             }
         }
 
@@ -1248,9 +1265,9 @@ fn m8_e2e_all_systems_oos() {
         };
 
         report.push_str(&format!(
-            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{}/{} | {} | {} | {} | {}/{} | {:+.0} | {:+.0} | {} |\n",
+            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {:+.0} | {:+.0} | {} |\n",
             r.net_result.n_orders, d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
-            d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow, n_samerev,
+            d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow,
             stage_str, tw.notional_in, tw.withdrawn, eta_t, eta_star, r_total, lcb_r, verdict,
         ));
         eprintln!(
