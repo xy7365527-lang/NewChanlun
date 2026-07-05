@@ -113,6 +113,18 @@ fn advance_to(current: TStage, target: TStage) -> TStage {
     }
 }
 
+/// 非负整数 gcd（欧几里得）——用于 [`RiskPolicy::try_new_ratio`] 约分 κ=num/den 到最简。
+/// 调用方保证 `a≥0 ∧ b>0`，返回 >0。
+fn gcd(a: i64, b: i64) -> i64 {
+    let (mut a, mut b) = (a, b);
+    while b != 0 {
+        let r = a % b;
+        a = b;
+        b = r;
+    }
+    a
+}
+
 /// TW 账本态 `TwState`（契约锚 `Origin.TotalWealth.TWState`，模型B 取本金三阶段）。
 ///
 /// 字段（对齐 `t_engine.rs:208` TPositionEngine 会计分量）：
@@ -236,49 +248,68 @@ pub enum EtaBucket {
 ///
 /// ★与 `RiskConfig.kappa`（config.rs：**成本倍数** κ=2.0，sizing 用）**是不同的 κ**——本 `RiskPolicy.
 /// kappa` 是**barrier 缓冲系数**（风险政策），二者同名不同义（PDF §10 barrier κ vs sizing κ）。
-/// 定点整数承载（bit-exact，barrier 比较在整数域；κ 用 i64 缩放系数，避免浮点非确定性）。
+/// 有理定点承载（bit-exact，barrier 比较在整数域，两边乘分母做零截断整数比较；避免浮点非确定性）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RiskPolicy {
-    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——**唯一构造闸是**
-    /// [`RiskPolicy::baseline`]（恒 κ=0）/ [`RiskPolicy::try_new`]（拒负 κ），二者都保证 κ≥0，使
-    /// κ≥0 成为 **constructor-only 类型不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段）。
+    /// barrier 缓冲系数 κ 的**有理定点表示** κ = `kappa_num / kappa_den`（分子 ≥0，分母 >0，构造强制）。
+    /// 私有字段——**唯一构造闸是** [`RiskPolicy::baseline`]（恒 κ=0）/ [`RiskPolicy::try_new`]（整数 κ≥0）/
+    /// [`RiskPolicy::try_new_ratio`]（有理 κ≥0），三者都保证 `num≥0 ∧ den>0 ⟹ κ≥0`，使 κ≥0 成为
+    /// **constructor-only 类型不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段）。
     ///
-    /// ★codex R3 §9.4（类型边界闭合）：字段**模块私有** + 仅 `baseline`/`try_new` 构造 ⟹ **负 κ 的
-    /// `RiskPolicy` 值在任何路径都不存在**（含本模块非构造路径与全 crate）。**不保留任何反向见证**
-    /// （旧版模块内测试用 struct literal 构造 `RiskPolicy { kappa: -1 }` 已删——那使类型边界在测试
-    /// 可见性下未闭，codex R3 判为漏点）。负 κ 拒绝的证据由**外部 API `try_new(-1)=None`** 承载
-    /// （正向：外部构造闸拒负），非「构造非法值再验谓词」的反向见证。这是 constructor-only pattern
-    /// （PDF §9.4 二选一的可行分支——`is_legal_from` 式关系型非法用 Result，此处 κ≥0 是绝对约束用
-    /// constructor-only 类型不变量）。
-    kappa: i64,
+    /// ★为何有理定点而非 i64/f64（codex `.kappa-ruling-20260704` 裁定 + 账本 bit-exact 域）：M7 L2 敏感性
+    /// 网格 κ∈{0,0.5,1,2} 含非整数 0.5，i64 无法诚实表达（codex 明确「不允许静默改成 {0,1,2}」）；f64 破坏
+    /// 账本整数域 bit-exact 不变量（barrier 比较非确定性）。有理对 num/den 在 i128 中间域做**零截断**整数
+    /// 比较（barrier 判据两边乘 den，den>0 保号），精确表达任意网格值且对齐 Lean 无界 Int 代数语义。
+    ///
+    /// ★codex R3 §9.4（类型边界闭合）：字段**模块私有** + 仅三构造闸 ⟹ **负 κ / 非正分母的 `RiskPolicy`
+    /// 值在任何路径都不存在**（含本模块非构造路径与全 crate）。**不保留任何反向见证**——非法值拒绝的证据
+    /// 由**外部 API `try_new(-1)=None`/`try_new_ratio(_,0)=None`** 承载（正向：外部构造闸拒非法），非
+    /// 「构造非法值再验谓词」的反向见证。这是 constructor-only pattern。
+    kappa_num: i64,
+    /// κ 分母（>0，构造强制）。κ=0 时 den=1（canonical，见 [`RiskPolicy::baseline`]）。
+    kappa_den: i64,
 }
 
 impl RiskPolicy {
     /// 最小基线政策（κ=0，PDF §10 canonical 默认）：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲。
+    /// κ=0/1（num/den）canonical——`κ·Q=0` 恒成立，κ=0 路径与旧 i64 实现 bit-exact。
     pub fn baseline() -> RiskPolicy {
-        RiskPolicy { kappa: 0 }
+        RiskPolicy { kappa_num: 0, kappa_den: 1 }
     }
 
-    /// **构造校验入口 `try_new`（codex #5：κ≥0 Rust 不变量）**：κ<0 ⟹ `None`（负缓冲=不覆盖 L^wc
-    /// =非法，不可构造）。κ≥0 ⟹ `Some(RiskPolicy)`。这把 Lean 侧 `kappa_nonneg` 证明字段的语义
-    /// 在 Rust 侧兑现为**构造时拒绝**——负 κ 的 RiskPolicy 值根本不存在（不是运行时检查后放行）。
+    /// **整数 κ 构造闸 `try_new`（codex #5：κ≥0 Rust 不变量）**：κ<0 ⟹ `None`（负缓冲=不覆盖 L^wc
+    /// =非法，不可构造）。κ≥0 ⟹ `Some(RiskPolicy)`（den=1）。这把 Lean 侧 `kappa_nonneg` 证明字段的
+    /// 语义在 Rust 侧兑现为**构造时拒绝**——负 κ 的 RiskPolicy 值根本不存在（不是运行时检查后放行）。
     pub fn try_new(kappa: i64) -> Option<RiskPolicy> {
-        if kappa >= 0 {
-            Some(RiskPolicy { kappa })
-        } else {
-            None
+        Self::try_new_ratio(kappa, 1)
+    }
+
+    /// **有理 κ 构造闸 `try_new_ratio`**：κ = `num/den`。合法条件 `num≥0 ∧ den>0`（负分子=负缓冲非法；
+    /// 非正分母=有理数病态非法）——违反 ⟹ `None`。约分到最简（gcd）使 `PartialEq` 语义上等（`2/4==1/2`）。
+    /// M7 L2 网格 κ=0.5 由 `try_new_ratio(1, 2)` 承载（codex 裁定：不允许静默丢弃非整数网格点）。
+    pub fn try_new_ratio(num: i64, den: i64) -> Option<RiskPolicy> {
+        if num < 0 || den <= 0 {
+            return None;
         }
+        let g = gcd(num, den);
+        // den>0 ⟹ g>0（gcd(_, den>0)≥1）；num=0 ⟹ g=den ⟹ 归一到 0/1。
+        Some(RiskPolicy { kappa_num: num / g, kappa_den: den / g })
     }
 
-    /// κ 只读访问（字段私有，barrier 缓冲系数 ≥0 由构造保证）。
-    pub fn kappa(&self) -> i64 {
-        self.kappa
+    /// κ 分子只读访问（字段私有，`num≥0 ∧ den>0` 由构造保证）。
+    pub fn kappa_num(&self) -> i64 {
+        self.kappa_num
     }
 
-    /// κ≥0 不变量（契约锚 PDF §11 `kappa_nonneg`）：**构造时已强制**（[`try_new`](Self::try_new)
-    /// 拒绝负 κ，[`baseline`](Self::baseline) 恒 κ=0）——本谓词恒真，是不变量的可观测断言。
+    /// κ 分母只读访问（>0，由构造保证）。
+    pub fn kappa_den(&self) -> i64 {
+        self.kappa_den
+    }
+
+    /// κ≥0 不变量（契约锚 PDF §11 `kappa_nonneg`）：**构造时已强制**（构造闸拒负分子/非正分母，
+    /// [`baseline`](Self::baseline) 恒 κ=0）——`num≥0 ∧ den>0 ⟹ κ=num/den≥0` 恒真，是不变量的可观测断言。
     pub fn kappa_nonneg(&self) -> bool {
-        self.kappa >= 0
+        self.kappa_num >= 0 && self.kappa_den > 0
     }
 
     /// 状态依赖 barrier `η⋆(s) = L^wc(s) + κ·Q(s)`（契约锚 PDF §10 `η⋆(x_t)=L^wc_{t+1}+κ·Q_t`）。
@@ -286,14 +317,19 @@ impl RiskPolicy {
     /// 进入 EarningShares 的**在险权益门槛**：权益 η 须 ≥ η⋆ 才允许相变（barrier 保证覆盖最坏损失 +
     /// κ 倍名义缓冲）。κ=0 ⟹ η⋆=L^wc（最小基线，仅覆盖最坏损失）。
     ///
-    /// ★有界算术（codex #6：Lean 无界 Int vs Rust i64 wrap）：`κ·Q` 在 **i128 中间域**计算再夹回
-    /// i64（`saturating`）——避免 release 下 i64 乘法 wrap（wrap 会让巨额 η⋆ 环绕成小值 ⟹ barrier
-    /// 误过）。i128 对现实量级（κ、Q ≤ 数百万）足够承载精确乘积，饱和只在极端溢出时兜底（失败安全：
-    /// 溢出 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。
+    /// ★有理定点 + 有界算术（codex `.kappa-ruling` + codex #6）：κ=num/den ⟹
+    /// `η⋆ = L^wc + (num·Q)/den`（有理值）。返回其**上取整** `⌈η⋆⌉`——对**整数** η，barrier 判据
+    /// `η ≥ η⋆` 与 `η ≥ ⌈η⋆⌉` 恒等价（η 整数 ⟹ `η ≥ x ⟺ η ≥ ⌈x⌉`），四桶 `η < η⋆` 亦然
+    /// （`η < x ⟺ η < ⌈x⌉`）。故所有既有整数比较点零改动即得精确有理判据，无截断误差。
+    /// 分子 `L^wc·den + num·Q` 在 **i128 中间域**算精确值（现实量级 κ、Q、den ≤ 数百万，i128 足够），
+    /// 上取整后 clamp 回 i64（失败安全：超界 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。
+    /// κ=0（num=0,den=1）⟹ `⌈L^wc⌉=L^wc`，与旧 i64 实现 bit-exact。
     pub fn eta_star(&self, s: &TwState) -> i64 {
-        let kappa_q = (self.kappa as i128) * (s.notional() as i128);
-        let eta = (s.l_wc() as i128) + kappa_q;
-        eta.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+        let den = self.kappa_den as i128; // >0（构造不变量）
+        let numer = (s.l_wc() as i128) * den + (self.kappa_num as i128) * (s.notional() as i128);
+        // ⌈numer/den⌉，den>0；numer≥0（l_wc≥0, num≥0, Q≥0）⟹ (numer+den-1)/den。
+        let eta_ceil = numer.div_euclid(den) + i128::from(numer.rem_euclid(den) != 0);
+        eta_ceil.clamp(i64::MIN as i128, i64::MAX as i128) as i64
     }
 
     /// γ_t 四桶分类（契约锚 PDF §10 分段式，**逐式按原文分支序**，勿改边界）：
@@ -352,9 +388,10 @@ impl RiskPolicy {
     /// 参数（PDF §10 记号）：`a_n`=建仓额、`l_wc_next`=建仓后 L^wc_{n+1}、`delta_q`=ΔQ_n 名义增量、
     /// `eta_n`=当前在险权益、`g_n`=已实现收益、`q_n`=当前名义 Q_n。
     ///
-    /// ★有界算术（codex #6）：LHS/RHS 在 **i128 中间域**求值再比较——避免 i64 加乘 wrap（Lean 侧
-    /// `buyCore_preserves_kappa_floor` 是无界 Int 代数移项，Rust 用 i128 承载现实量级的精确值，与
-    /// Lean 语义对齐；比较本身无溢出风险，i128 加乘对 ≤ 数百万量级的输入恒精确）。
+    /// ★有理定点 + 有界算术（codex `.kappa-ruling` + codex #6）：κ=num/den ⟹ 判据两边乘 den>0
+    /// （保序）得**零截断**整数比较 `(a_n+L^wc)·den + num·ΔQ ≤ (η_n+g_n)·den − num·Q`。LHS/RHS 在
+    /// **i128 中间域**求值——避免 i64 加乘 wrap（Lean 侧 `buyCore_preserves_kappa_floor` 是无界 Int
+    /// 代数移项，Rust 用 i128 承载现实量级精确值，与 Lean 语义对齐）。κ=0/den=1 ⟹ 与旧 i64 判据同值。
     pub fn buy_core_legal(
         &self,
         a_n: i64,
@@ -364,9 +401,10 @@ impl RiskPolicy {
         g_n: i64,
         q_n: i64,
     ) -> bool {
-        let k = self.kappa as i128;
-        let lhs = (a_n as i128) + (l_wc_next as i128) + k * (delta_q as i128);
-        let rhs = (eta_n as i128) + (g_n as i128) - k * (q_n as i128);
+        let num = self.kappa_num as i128;
+        let den = self.kappa_den as i128; // >0（构造不变量），保序
+        let lhs = ((a_n as i128) + (l_wc_next as i128)) * den + num * (delta_q as i128);
+        let rhs = ((eta_n as i128) + (g_n as i128)) * den - num * (q_n as i128);
         lhs <= rhs
     }
 }
@@ -984,15 +1022,26 @@ mod tests {
     #[test]
     fn risk_policy_kappa_nonneg() {
         assert!(RiskPolicy::baseline().kappa_nonneg(), "baseline κ=0 满足 κ≥0");
-        assert_eq!(RiskPolicy::baseline().kappa(), 0, "baseline κ=0（PDF §10 最小规范）");
-        // ★外部构造闸 try_new：κ≥0 ⟹ Some（且 κ() 读回）；κ<0 ⟹ None（外部不可构造负 κ）。
-        assert_eq!(RiskPolicy::try_new(3).map(|p| p.kappa()), Some(3), "try_new(3)=Some(κ=3)");
-        assert_eq!(RiskPolicy::try_new(0).map(|p| p.kappa()), Some(0), "try_new(0)=Some(κ=0)");
+        assert_eq!(RiskPolicy::baseline().kappa_num(), 0, "baseline κ=0/1（PDF §10 最小规范）");
+        assert_eq!(RiskPolicy::baseline().kappa_den(), 1, "baseline den=1（canonical）");
+        // ★外部构造闸 try_new：κ≥0 ⟹ Some（num 读回, den=1）；κ<0 ⟹ None（外部不可构造负 κ）。
+        assert_eq!(RiskPolicy::try_new(3).map(|p| (p.kappa_num(), p.kappa_den())), Some((3, 1)), "try_new(3)=Some(3/1)");
+        assert_eq!(RiskPolicy::try_new(0).map(|p| (p.kappa_num(), p.kappa_den())), Some((0, 1)), "try_new(0)=Some(0/1)");
         assert!(RiskPolicy::try_new(-1).is_none(), "★try_new(-1)=None（外部 API 拒负 κ，codex R3 §9.4）");
+        // ★有理构造闸 try_new_ratio：κ=0.5 由 1/2 承载（M7 L2 网格非整数点，codex `.kappa-ruling`）。
+        let half = RiskPolicy::try_new_ratio(1, 2).expect("κ=1/2≥0 合法");
+        assert_eq!((half.kappa_num(), half.kappa_den()), (1, 2), "try_new_ratio(1,2)=1/2");
+        assert!(half.kappa_nonneg(), "κ=1/2 满足 κ≥0");
+        // 约分到最简：2/4==1/2（PartialEq 语义等）；0/5 归一到 0/1。
+        assert_eq!(RiskPolicy::try_new_ratio(2, 4), Some(half), "2/4 约分 == 1/2");
+        assert_eq!(RiskPolicy::try_new_ratio(0, 5), Some(RiskPolicy::baseline()), "0/5 归一到 baseline 0/1");
+        // 非法：负分子 / 非正分母。
+        assert!(RiskPolicy::try_new_ratio(-1, 2).is_none(), "负分子 ⟹ None");
+        assert!(RiskPolicy::try_new_ratio(1, 0).is_none(), "分母=0 ⟹ None（有理病态）");
+        assert!(RiskPolicy::try_new_ratio(1, -2).is_none(), "分母<0 ⟹ None");
         // ★codex R3 §9.4：不保留反向见证（旧版 `RiskPolicy { kappa: -1 }` struct literal 已删）——
-        // 负 κ 的 RiskPolicy 值在任何路径都不存在（constructor-only 类型不变量），κ≥0 拒绝证据由
-        // 上面 try_new(-1)=None 正向承载，非「构造非法值验谓词」的反向见证（那使类型边界在测试可见性
-        // 下未闭）。kappa_nonneg() 恒真（构造保证），baseline().kappa_nonneg() 正向断言已覆盖谓词。
+        // 负 κ / 非正分母的 RiskPolicy 值在任何路径都不存在（constructor-only 类型不变量），拒绝证据由
+        // 上面 try_new(-1)/try_new_ratio 的 None 正向承载，非「构造非法值验谓词」的反向见证。
     }
 
     /// L^wc = max(0, notional_in − withdrawn)（在险本金，退本金推进 ⟹ L^wc→0）。
@@ -1012,8 +1061,13 @@ mod tests {
     #[test]
     fn eta_star_barrier() {
         let s = TwState { notional_in: 100, withdrawn: 30, ..TwState::initial() }; // L^wc=70, Q=100
-        assert_eq!(RiskPolicy { kappa: 0 }.eta_star(&s), 70, "κ=0 ⟹ η⋆=L^wc=70");
-        assert_eq!(RiskPolicy { kappa: 2 }.eta_star(&s), 70 + 2 * 100, "κ=2 ⟹ η⋆=70+200=270");
+        assert_eq!(RiskPolicy::baseline().eta_star(&s), 70, "κ=0 ⟹ η⋆=L^wc=70");
+        assert_eq!(RiskPolicy::try_new(2).unwrap().eta_star(&s), 70 + 2 * 100, "κ=2 ⟹ η⋆=70+200=270");
+        // ★有理定点 κ=0.5：η⋆=70+0.5·100=120（精确，Q=100 可整除 den=2，无上取整）。
+        assert_eq!(RiskPolicy::try_new_ratio(1, 2).unwrap().eta_star(&s), 120, "κ=1/2 ⟹ η⋆=70+50=120");
+        // ★上取整语义（非整除）：Q=101, κ=1/2 ⟹ η⋆=70+50.5=120.5 ⟹ ⌈⌉=121（对整数 η，η≥120.5 ⟺ η≥121）。
+        let s_odd = TwState { notional_in: 101, withdrawn: 31, ..TwState::initial() }; // L^wc=70, Q=101
+        assert_eq!(RiskPolicy::try_new_ratio(1, 2).unwrap().eta_star(&s_odd), 121, "κ=1/2, Q=101 ⟹ ⌈120.5⌉=121");
     }
 
     /// ★i128 有界域回归（codex 复审#6）：κ·Q 在 i64 域会 wrap 的量级，i128 中间域算精确值再 clamp
@@ -1055,9 +1109,16 @@ mod tests {
         assert_eq!(pol.eta_bucket(&s_safe), EtaBucket::PositiveSafe, "η>η⋆ ⟹ PositiveSafe");
         // κ>0 抬 barrier：同一 s_eq 在 κ=1 下 η⋆=100+1·100=200 ⟹ 100 改判 PositiveUnsafe。
         assert_eq!(
-            RiskPolicy { kappa: 1 }.eta_bucket(&s_eq),
+            RiskPolicy::try_new(1).unwrap().eta_bucket(&s_eq),
             EtaBucket::PositiveUnsafe,
             "κ 抬 barrier ⟹ 同一 η 改判 PositiveUnsafe（η⋆ 状态依赖）"
+        );
+        // ★有理 κ=0.5 抬 barrier：s_eq η=100, L^wc=notional_in−withdrawn=100−0=100, Q=100 ⟹
+        // η⋆=100+0.5·100=150 ⟹ η(100)<150 ⟹ PositiveUnsafe（分数缓冲精确抬过 η——非整数点亦可判定）。
+        assert_eq!(
+            RiskPolicy::try_new_ratio(1, 2).unwrap().eta_bucket(&s_eq),
+            EtaBucket::PositiveUnsafe,
+            "κ=1/2 ⟹ η⋆=150 ⟹ η(100)<150 ⟹ PositiveUnsafe（分数缓冲精确判定）"
         );
     }
 
@@ -1092,7 +1153,7 @@ mod tests {
         assert!(!pol.enter_ready(&ready, 100, false), "非 RiskNormal ⟹ 不 ready");
         // 破坏 η≥η⋆：κ 拉高 barrier 到 η 之上 ⟹ 不 ready（此处 L^wc=0，用 κ·Q 抬门）。
         assert!(
-            !RiskPolicy { kappa: 3 }.enter_ready(&ready, 100, true),
+            !RiskPolicy::try_new(3).unwrap().enter_ready(&ready, 100, true),
             "η(200)<η⋆(0+3·100=300) ⟹ barrier 未过 ⟹ 不 ready"
         );
     }
@@ -1100,11 +1161,17 @@ mod tests {
     /// BuyCore 合法性（PDF §10 步骤4 定理1 充要）：a_n+L^wc+κΔQ ≤ η+g−κQ。
     #[test]
     fn buy_core_legality() {
-        let pol = RiskPolicy { kappa: 1 };
+        let pol = RiskPolicy::try_new(1).unwrap();
         // a_n=10, l_wc_next=5, ΔQ=3, η=100, g=0, Q=20 ⟹ LHS=10+5+3=18, RHS=100+0-20=80 ⟹ 18≤80 ✓。
         assert!(pol.buy_core_legal(10, 5, 3, 100, 0, 20), "建仓额小 ⟹ BuyCore 合法");
         // a_n=90（大建仓）⟹ LHS=90+5+3=98 > RHS=80 ⟹ 非法（超 barrier）。
         assert!(!pol.buy_core_legal(90, 5, 3, 100, 0, 20), "建仓额过大 ⟹ 破 κ-floor ⟹ 非法");
+        // ★有理 κ=1/2：两边乘 den=2 零截断。a_n=10,l_wc=5,ΔQ=3,η=100,g=0,Q=20 ⟹
+        // LHS=(10+5)·2+1·3=33, RHS=(100+0)·2−1·20=180 ⟹ 33≤180 ✓。
+        let half = RiskPolicy::try_new_ratio(1, 2).unwrap();
+        assert!(half.buy_core_legal(10, 5, 3, 100, 0, 20), "κ=1/2 建仓额小 ⟹ 合法（乘分母零截断）");
+        // 边界：a_n=90 ⟹ LHS=(90+5)·2+3=193 > RHS=180 ⟹ 非法。
+        assert!(!half.buy_core_legal(90, 5, 3, 100, 0, 20), "κ=1/2 建仓额过大 ⟹ 非法");
     }
 
     // ──────────────────────────────────────────────────────────────────────

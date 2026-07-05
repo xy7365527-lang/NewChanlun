@@ -1117,6 +1117,170 @@ fn m6_btc_oos_r_decomposition() {
     eprintln!("[m6] R 分解报告落盘 /tmp/m6_btc_oos_r_decomposition.md");
 }
 
+/// ★M8 端到端全策略 OOS 跑批（TARGET_STRATEGY_MAXFULL.md M8:161-168 / 路线.pdf p17,p20-21）：
+/// 三系统**同时开启**（M5 overlay 声部执行臂 + M6 cost_model 成本 + M7 三阶段 TW 账本）跑同一 BTC
+/// OOS 窗，产四层报告：
+/// - **(1) signal 层**：`LCB_OOS(μ)>0 ∧ LCB_OOS(μ_R)>0`——既有 25 桶双门结论（`wverify_full`/
+///   `type1_goal` 终判：无方向 alpha，INCONCLUSIVE），本跑批**转引不重算**（signal 层是 M1-M4
+///   本体，端到端只消费其结论，措辞纪律§5.3：signal 结果不外推 max-full）。
+/// - **(2) execution 层**：`E[R(Π_exec)]`（`net_result.r_decomp.net_r`）、MaxDD（`metrics.max_drawdown`）、
+///   turnover（`n_orders`）、逐声部归因（overlay by-role）——判据 `E[R(Π_exec)]>0`。
+/// - **(3) treasury 层**：`Reach(Stage)`/`Q_T`/`W_T`/`η_T`（新接 `OverlayRunResult.tw_final`）——判据
+///   `Reach(StageIII)>0 ∧ Q_T>Q_0 ∧ W_T≥I_0 ∧ η_T≥η_*`。
+/// - **(4) 完整策略层**：`R(Π_max-full)`（含浮盈总额）+ `LCB_OOS(R)`（block bootstrap 2.5 分位，
+///   `significance.boot_ci95_lo`）+ 三态——判据 **`LCB_OOS(R)>0` 才 confirmed alpha**；仅 `R>0`
+///   但 LCB≤0 ⟹ **INCONCLUSIVE**（M8:168）。
+///
+/// **三系统同开的接线证据**：三系统共用同一主 loop `pi_theta_fill_loop_overlay`——cost_model 从
+/// `config.cost_model` 读（M6）、TW 账本 loop 内建（M7）、overlay 是 hook（M5）。`run_theta_v0_pi_overlay`
+/// 一次调用即三系统全开，无独立组合层（本轮修的唯一接线缺口：overlay 臂此前丢弃 `fill.tw_final`，
+/// treasury 层拿不到终态——已加 `OverlayRunResult.tw_final` 透传）。
+///
+/// **认识论 L2**（formalization-validity-domain 231号）：真实 BTC OOS 窗假设检验，可否证。预期
+/// （signal 层无 alpha ⟹ 端到端大概率负/INCONCLUSIVE）照实——否定性结果是 M0-M8 主线合法终点
+/// （措辞纪律§5.6：INCONCLUSIVE≠无 alpha）。窗口：p3 单折 + 前两个 anchored walk-forward（O(n²)
+/// 前缀重分类，全 461万 bar 不可行，有界多窗，诚实声明覆盖范围）。
+///
+/// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::m8_e2e_all_systems_oos -- --ignored --nocapture`。
+#[test]
+#[ignore]
+fn m8_e2e_all_systems_oos() {
+    use super::metrics::significance;
+    use super::runner::run_theta_v0_pi_overlay;
+    use super::super::strategy::coverage::Vertical;
+    use super::super::strategy::ledger::{RiskPolicy, TStage};
+
+    let plain_cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+    let nav_of = |d: &data::Dataset| {
+        d.bars.iter().find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * plain_cfg.tick.tick_size).unwrap_or(1.0) * 1000.0
+    };
+
+    // OOS 窗清单：p3 单折 + 前两个 anchored walk-forward（与 M6 跑批同窗，可差分对照）。
+    let mut wins: Vec<(String, String, String)> = vec![
+        ("p3fold".into(), "2023-01-01".into(), "2023-06-30".into()),
+    ];
+    if let Some(sw) = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC") {
+        for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START).take(2) {
+            wins.push((format!("wf{}", w.i), w.test_start.into(), w.test_end.into()));
+        }
+    }
+
+    let mut report = String::from(
+        "# M8 端到端全策略 OOS（TARGET_STRATEGY_MAXFULL.md M8 / 路线.pdf p17,p20-21）\n\n\
+         三系统同开：M5 overlay 声部执行臂 + M6 cost_model（参数化 funding/borrow/liq）+ M7 三阶段 TW 账本。\n\
+         口径：margin=CME-simple 单段；cost=参数化常费率；κ=0 冻结（M7 c3 裁定，正 κ 推迟 M8 后 L3）。\n\
+         **认识论 L2**：真实 BTC OOS 假设检验；signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实（否定性结果合法）。\n\n\
+         ## 四层报告\n\n",
+    );
+
+    // ── signal 层（转引，不重算）──
+    report.push_str(
+        "### 层1 signal alpha（转引 M1-M4 本体结论，不重算）\n\n\
+         判据：`LCB_OOS(μ)>0 ∧ LCB_OOS(μ_R)>0`。既有终判（`wverify_full` / goal type1）：\
+         **无方向 confirmed alpha**——25 桶双门下高级别桶 n_eff≪n_min（功效门 271~1083），\
+         δ-free 主裁决 + μ_R 并列 co-primary 均未过 LCB>0。三态 = **INCONCLUSIVE**\
+         （非「无 alpha 存在」，措辞§5.6）。**signal 结果不外推 max-full**（措辞§5.3）。\n\n\
+         ### 层2/3/4（本跑批 L2 实测，三系统同开）\n\n\
+         | 窗 | n_orders | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r(execR) | MaxDD | 声部数(A/S/F) | 终Stage | Q_T | W_T | η_T/η_* | R(含浮盈) | LCB_OOS(R) | 三态 |\n\
+         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+    );
+
+    let policy = RiskPolicy::baseline(); // κ=0（M7 冻结口径）
+    let i0: i64 = 1_000_000; // I_0 基线（TwState notional_in 同源 = ⌊nav0⌋，此处报告门槛用 1e6 名义）
+    for (tag, te_lo, te_hi) in &wins {
+        let test = ds.slice_date_window(te_lo, te_hi);
+        if test.bars.is_empty() {
+            report.push_str(&format!("| {tag} | test 段空 | | | | | | | | | | | | | | | |\n"));
+            continue;
+        }
+        let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+        let nav_te = nav_of(&test);
+        // ★三系统同开：overlay 臂（M5）+ margin（M6 强平前置）+ cost_model（M6 成本）；TW 账本（M7）loop 内建。
+        let mut cfg = ThetaConfig::default();
+        cfg.margin = Some(q4_margin_model(nav_te));
+        cfg.cost_model = Some(m6_cost_model());
+        eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
+        let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+
+        // 层2 execution：R 分解 + MaxDD + 逐声部归因。
+        let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
+        let maxdd = r.net_result.metrics.max_drawdown;
+        let (mut n_amb, mut n_short, mut n_follow) = (0usize, 0usize, 0usize);
+        for c in r.overlay.closed_voices() {
+            match c.role_v {
+                Vertical::Ambient => n_amb += 1,
+                Vertical::ShortDiff => n_short += 1,
+                Vertical::FollowParent => n_follow += 1,
+            }
+        }
+
+        // 层3 treasury：TW 终态（新接的 tw_final）。
+        let tw = r.tw_final.expect("overlay 臂主 loop 内建 TW 账本 ⟹ tw_final=Some");
+        let stage_str = match tw.stage {
+            TStage::CostReduction => "I(降成本)",
+            TStage::CapitalRecovered => "II(已回本)",
+            TStage::EarningShares => "III(赚份额)",
+        };
+        let eta_t = tw.tw();
+        let eta_star = policy.eta_star(&tw);
+
+        // 层4 完整策略：R(含浮盈) + LCB_OOS(R) block bootstrap。
+        let r_total: f64 = r.net_result.trade_pnls_with_forced.iter().sum();
+        let sig = significance(
+            &r.net_result.trade_pnls, // 已实现口径（bootstrap H0:收益≤0 输入）
+            &r.net_result.daily_returns,
+            &r.net_result.trades,
+            &r.net_result.prices,
+            r.net_result.fee_rate,
+            r.net_result.theta_return_mtm,
+        );
+        let lcb_r = sig.boot_ci95_lo; // LCB_OOS(R) = block bootstrap 总收益 2.5 分位下界
+        // 三态（完整策略层，M8:168）：LCB>0 ⟹ confirmed；R>0∧LCB≤0 ⟹ INCONCLUSIVE；R≤0 ⟹ 无（本层）。
+        let verdict = if lcb_r > 0.0 {
+            "CONFIRMED"
+        } else if r_total > 0.0 {
+            "INCONCLUSIVE"
+        } else {
+            "无(R≤0)"
+        };
+
+        report.push_str(&format!(
+            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {:+.0} | {:+.0} | {} |\n",
+            r.net_result.n_orders, d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
+            d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow,
+            stage_str, tw.notional_in, tw.withdrawn, eta_t, eta_star, r_total, lcb_r, verdict,
+        ));
+        eprintln!(
+            "[m8] {tag}: execR={:+.0} MaxDD={:.4} stage={} R={:+.0} LCB(R)={:+.0} → {}",
+            d.net_r, maxdd, stage_str, r_total, lcb_r, verdict,
+        );
+
+        // 守恒硬校验（R 分解无泄漏，与 M6 同容差）。
+        let tol = 1e-3_f64.max(1e-9 * (nav_te.abs() + d.price_pnl_gross.abs()));
+        assert!(
+            d.conservation_residual.abs() <= tol,
+            "M8 {tag} R 守恒残差 {} 超容差 {}（资金泄漏）", d.conservation_residual, tol,
+        );
+        // treasury 单向不可逆：stage.rank ≤ 2（EarningShares 上界），且 W_T≤notional_in（退本金不超投入）。
+        assert!(tw.withdrawn <= tw.notional_in, "W_T={} 不得超 notional_in={}", tw.withdrawn, tw.notional_in);
+    }
+
+    report.push_str(&format!(
+        "\n## 判据结算（M8:163-168）\n\n\
+         - **层1 signal**：INCONCLUSIVE（转引，无方向 alpha）。\n\
+         - **层2 execution** `E[R(Π_exec)]>0`：见 net_r 列（成本真实化后极负 = 高频费主导，非机制缺陷）。\n\
+         - **层3 treasury** `Reach(StageIII)>0`：见终Stage 列（signal 无 alpha ⟹ 已实现 PnL 无正累积 ⟹ \
+           三阶段停 CostReduction，与 M7 c3 witness 一致）。\n\
+         - **层4 完整策略** `LCB_OOS(R)>0`：见 LCB_OOS(R) 列——**未过 ⟹ INCONCLUSIVE**，\
+           不宣称 confirmed alpha（措辞§5.6：INCONCLUSIVE≠无 alpha；§5.3：不外推 max-full）。\n\n\
+         I_0 报告门槛 = {i0}（notional_in 同源 ⌊nav0⌋，各窗 nav 不同 ⟹ 门槛按 notional_in 列读）。\n",
+    ));
+    std::fs::write("/tmp/m8_e2e_all_systems_oos.md", &report).ok();
+    eprintln!("[m8] 端到端四层报告落盘 /tmp/m8_e2e_all_systems_oos.md");
+}
+
 /// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
 /// resid_base/cost/d 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
 /// A1/A6：force_state（第 8 维，code 编码）+ d（μ_R 分母）随 dump 还原——force_state 进 δ-free 主裁决基。

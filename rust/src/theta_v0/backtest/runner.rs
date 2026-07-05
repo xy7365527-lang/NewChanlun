@@ -436,6 +436,12 @@ pub struct OverlayRunResult {
     pub overlay: super::super::strategy::overlay_state::OverlayState,
     /// 净额执行层 RunResult（同 `run_theta_v0_pi`，净额订单/权益——overlay 是其只读旁路，数字不变）。
     pub net_result: RunResult,
+    /// ★M8 treasury 层终态（TARGET_STRATEGY_MAXFULL.md M7:156-159）：三阶段资金账本 `TwState`
+    /// 终态（stage/free/holding/withdrawn/notional_in/open_legacy_legs）。overlay 臂驱动的同一
+    /// 主 loop 内建 TW 账本（`pi_theta_fill_loop_overlay` 的 `fill.tw_final`），此前被
+    /// `net_result: RunResult` 装配丢弃（RunResult 无 tw_final 字段）——M8 端到端四层报告的
+    /// treasury 层（第三层）需读它算 `Reach(Stage)`/`Q_T`/`W_T`/`η_T`。`None` 仅当 bars 为空。
+    pub tw_final: Option<super::super::strategy::ledger::TwState>,
 }
 
 /// ★M5 声部执行层 arm（多空对冲.pdf p16 关卡10）：与 [`run_theta_v0_pi`] **同一信号决策路径**
@@ -513,6 +519,7 @@ pub fn run_theta_v0_pi_overlay(
         r_decomp: fill.r_decomp,
     };
 
+    let tw_final = fill.tw_final;
     let account_price_pnl = overlay.account_price_pnl();
     let total_voice_pnl = overlay.total_voice_pnl();
     let reconcile_residual = (account_price_pnl - total_voice_pnl).abs();
@@ -529,6 +536,7 @@ pub fn run_theta_v0_pi_overlay(
         reconcile_residual,
         overlay,
         net_result,
+        tw_final,
     }
 }
 
@@ -736,6 +744,24 @@ pub struct ChiFilterCtx<'a> {
     pub shrink_tau_sq: Option<f64>,
 }
 
+/// barrier 缓冲系数 κ 政策，从 env 读（L2 敏感性诊断 knob，codex `.kappa-ruling-20260704`）。
+///
+/// `KAPPA_BARRIER_NUM` / `KAPPA_BARRIER_DEN`（默认 den=1）⟹ `RiskPolicy::try_new_ratio(num, den)`。
+/// **两者都未设 ⟹ `baseline()`（κ=0）**——生产/测试逐字节不变（bit-exact）。非法值（负分子/非正
+/// 分母/解析失败）⟹ panic（诊断 knob 快失败，不静默降级掩盖网格错配）。
+fn kappa_policy_from_env() -> RiskPolicy {
+    let num = std::env::var("KAPPA_BARRIER_NUM").ok().and_then(|s| s.parse::<i64>().ok());
+    let Some(num) = num else {
+        return RiskPolicy::baseline();
+    };
+    let den = std::env::var("KAPPA_BARRIER_DEN")
+        .ok()
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(1);
+    RiskPolicy::try_new_ratio(num, den)
+        .unwrap_or_else(|| panic!("非法 κ barrier grid 值 num={num} den={den}（要求 num≥0 ∧ den>0）"))
+}
+
 fn pi_theta_fill_loop<F>(
     classify_at: F,
     bars: &[Bar],
@@ -842,7 +868,13 @@ where
         notional_in: (nav0 as i64).max(1),
         ..TwState::initial()
     };
-    let tw_policy = RiskPolicy::baseline(); // κ=0 最小基线（PDF §10 canonical 默认）
+    // κ=0 最小基线（PDF §10 canonical 默认，runner.rs:702 生产口径）。
+    // ★L2 敏感性诊断 knob（codex `.kappa-ruling-20260704`）：可选 env `KAPPA_BARRIER_NUM`/`_DEN`
+    // 覆写 barrier 缓冲系数 κ=num/den（M7 网格 {0,0.5,1,2}=`0/1,1/2,1/1,2/1`）——**env 未设 ⟹ baseline
+    // κ=0**，所有生产/测试路径逐字节不变（bit-exact）。κ 只在此单点注入，经 stage_progression 门控
+    // 三阶段推进；纯诊断，不改生产冻结值（正 κ 生产选择是 M8 L3 的事，codex 已裁）。与 M7_WITNESS_BARS
+    // 同为 L2 诊断 env 惯例。
+    let tw_policy = kappa_policy_from_env();
     // TW 侧已见的真实成本基（i64 shadow；方向差分派 ShortDiff 划转，入账量 cash-sound 钳制
     // ——真实划转超出 free/holding 时部分承载 ⟹ holding 低估 ⟹ 退本金门更难过 = 安全侧）。
     let mut tw_seen_basis: i64 = 0;
@@ -3290,6 +3322,146 @@ mod tests {
         if reach_iii {
             assert_eq!(tw.open_legacy_legs, 0, "EnterEarning 入口证书 openLegacyLegs=0（OQ-9 gate）");
         }
+    }
+
+    /// ★★M8 treasury 多窗 Reach 分布（d2 增量，编排者问题驱动）——回答「真实 BTC 上是否存在任何
+    /// 窗口进 Stage II/III」。扫 BTC 全部 12 个 anchored walk-forward 窗口（2019-2025，**含 2020-2021
+    /// 牛市段** wf1/wf2/wf3——策略正 PnL 概率最高段），各窗独立跑生产 π 路径读 tw_final。
+    ///
+    /// 复用 [`m7_l2_witness_treasury_reach_real_btc`] 的 tw_final 单读法（stage 单向不可逆 ⟹
+    /// 终态 stage = Reach）。**不装配 RunResult/significance**（treasury 层只需 TW 终态，省掉昂贵
+    /// 的 metrics/bootstrap——ponytail：四层里只有 treasury 层要扫多窗）。nav=窗首价×1000（牛市段
+    /// 价格高，固定 1e6 会 qty=0）。
+    ///
+    /// 认识论 L2：任一窗进 Stage II+ ⟹ 单列（正向发现）；全 CostReduction ⟹ 每窗门距离表照实。
+    ///
+    /// `#[ignore]`: `cargo test --release --lib -- --ignored --nocapture m8_treasury_reach_distribution_real_btc`
+    #[test]
+    #[ignore = "M8 treasury 多窗 Reach；需 BTC 全历史（329MB）；重（12 窗 O(n²)），手动 --ignored 跑"]
+    fn m8_treasury_reach_distribution_real_btc() {
+        use super::super::super::strategy::ledger::TStage;
+        use super::super::data;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("BTC", &config).expect("需 BTC 数据");
+        let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC 在 PREREG_WINDOWS");
+
+        let mut report = String::from(
+            "# M8 treasury 多窗 Reach 分布（BTC anchored walk-forward，含 2020-2021 牛市段）\n\n\
+             口径：κ=0 baseline；nav=窗首价×1000；生产 π 路径 tw_final 单读（stage 单向不可逆 ⟹ 终态=Reach）。\n\n\
+             | 窗 | 期间 | bar | n_orders | 终Stage | Σ已实现PnL | holding | Q(notional_in) | holding−Q(门距离) | free | 退本金target | Reach≥II |\n\
+             |---|---|---|---|---|---|---|---|---|---|---|---|\n",
+        );
+        let mut any_reach_ii = false;
+        for w in sw.wf_anchored.iter() {
+            let test = ds.slice_date_window(w.test_start, w.test_end);
+            if test.bars.is_empty() {
+                report.push_str(&format!("| wf{} | {}..{} | 空 | | | | | | | | | |\n", w.i, w.test_start, w.test_end));
+                continue;
+            }
+            let n = test.bars.len();
+            let first_px = test.bars.iter().find(|b| !b.untradable && b.close > 0)
+                .map(|b| b.close as f64 * config.tick.tick_size).unwrap_or(1.0);
+            let nav = (first_px * 1000.0).max(1.0e6);
+            let mut ci = super::super::incremental::IncrementalClassifier::new(&test.bars, &config);
+            let fill = pi_theta_fill_loop(
+                |i| { let (c, t) = ci.classify_at(i); (c, t, ci.tower_generation(), ci.forest_epoch()) },
+                &test.bars, nav, &config, None,
+            );
+            let tw = fill.tw_final.expect("π 路径 tw_final=Some");
+            let realized: f64 = fill.trade_pnls_realized.iter().sum();
+            let reach_ii = tw.stage.rank() >= TStage::CapitalRecovered.rank();
+            any_reach_ii |= reach_ii;
+            let recover_target = (tw.notional_in - tw.withdrawn).max(0);
+            let stage_s = match tw.stage {
+                TStage::CostReduction => "I", TStage::CapitalRecovered => "II", TStage::EarningShares => "III",
+            };
+            report.push_str(&format!(
+                "| wf{} | {}..{} | {} | {} | {} | {:+.0} | {} | {} | {} | {} | {} | {} |\n",
+                w.i, w.test_start, w.test_end, n, fill.n_orders, stage_s, realized,
+                tw.holding, tw.notional_in, tw.holding - tw.notional_in, tw.free, recover_target, reach_ii,
+            ));
+            eprintln!("[m8-treasury] wf{} {}..{}: stage={} realizedPnL={:+.0} holding={} vs Q={} (门距离={})",
+                w.i, w.test_start, w.test_end, stage_s, realized, tw.holding, tw.notional_in, tw.holding - tw.notional_in);
+        }
+        report.push_str(&format!(
+            "\n**结论**：任一窗 Reach≥Stage II = **{}**。{}\n",
+            any_reach_ii,
+            if any_reach_ii { "★正向发现——见上表 Reach≥II=true 行。" }
+            else { "全窗终 Stage I（CostReduction）——退本金门（holding≥Q ∧ free≥target）无窗满足。门距离列（holding−Q<0）= 持仓市值从未累积过名义基线，与 signal 层无方向 alpha ⟹ 已实现 PnL 无正累积一致。" },
+        ));
+        std::fs::write("/tmp/m8_treasury_reach_distribution.md", &report).ok();
+        eprintln!("[m8-treasury] 多窗 Reach 分布落盘 /tmp/m8_treasury_reach_distribution.md（任一 Reach≥II={any_reach_ii}）");
+    }
+
+    /// ★★M7 κ barrier **L2 敏感性诊断网格**（d1 工位，codex `.kappa-ruling-20260704` 裁定2）——
+    /// κ∈{0, 0.5, 1, 2}（有理定点 `0/1,1/2,1/1,2/1`）在同一 BTC 窗口跑生产 π 路径，报告各 κ 下
+    /// **终 TStage / n_orders / EnterReady 五合取分项 / η_T−η_* barrier 距离**。
+    ///
+    /// ★认识论等级 = **L2 敏感性诊断，非选择**（formalization-validity-domain 231号 + codex 裁定3）：
+    /// 本测试**不裁定生产 κ**（正 κ 生产选择推迟 M8 L3——收益/回撤/跨标的），只暴露 barrier 对
+    /// 三阶段可达性的响应曲线。κ 单调 ⟹ κ 越大 η_* 越高 ⟹ EnterReady 越难过（monotone barrier）。
+    /// κ=0 是最小可达性见证；若 κ=0 都不达 III，正 κ 无必要（codex：κ=0 不达 ⟹ 正 κ 不扫）。
+    ///
+    /// **须真实 BTC 数据**（329MB）；`#[ignore]` 默认不跑：
+    /// `M7_WITNESS_BARS=100000 cargo test --release --lib -- --ignored --nocapture m7_kappa_sensitivity_grid_real_btc`
+    #[test]
+    #[ignore = "M7 κ L2 敏感性网格；需 BTC 全历史（329MB）；重，手动 --ignored 跑"]
+    fn m7_kappa_sensitivity_grid_real_btc() {
+        use super::super::super::strategy::ledger::{RiskPolicy, TStage};
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let mut ds = data::load_by_symbol("BTC", &config)
+            .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
+        if let Some(k) = std::env::var("M7_WITNESS_BARS").ok().and_then(|s| s.parse::<usize>().ok()) {
+            ds.bars.truncate(k);
+        }
+        let n = ds.bars.len();
+        let initial_nav = 1.0e6;
+        let q0 = initial_nav as i64;
+        let i0 = initial_nav as i64;
+
+        // M7 网格（codex 裁定2）：κ=0/0.5/1/2 有理定点。κ=0 首行必与 witness/生产 bit-exact。
+        let grid: [(i64, i64); 4] = [(0, 1), (1, 2), (1, 1), (2, 1)];
+
+        eprintln!("═══ M7 κ barrier L2 敏感性网格（BTC {n} bar，Q_0={q0}） ═══");
+        eprintln!("  κ       终TStage         n_orders  Reach_II  Reach_III  W_T≥I_0  legs=0  η_T-η_*(barrier距离)");
+        for (num, den) in grid {
+            // κ 经生产单点 knob 注入（kappa_policy_from_env）——re-run 整条生产 π 路径（忠实：κ 门控
+            // stage_progression，post-hoc 改 policy 会算错轨迹）。
+            std::env::set_var("KAPPA_BARRIER_NUM", num.to_string());
+            std::env::set_var("KAPPA_BARRIER_DEN", den.to_string());
+            let mut classifier_incr =
+                super::super::incremental::IncrementalClassifier::new(&ds.bars, &config);
+            let fill = pi_theta_fill_loop(
+                |i| {
+                    let (cls, tower) = classifier_incr.classify_at(i);
+                    (cls, tower, classifier_incr.tower_generation(), classifier_incr.forest_epoch())
+                },
+                &ds.bars,
+                initial_nav,
+                &config,
+                None,
+            );
+            let tw = fill.tw_final.expect("π 路径 TW 生产者就位");
+            let policy = RiskPolicy::try_new_ratio(num, den).unwrap();
+            let eta_star = policy.eta_star(&tw);
+            let reach_ii = tw.stage.rank() >= TStage::CapitalRecovered.rank();
+            let reach_iii = tw.stage.rank() >= TStage::EarningShares.rank();
+            let kappa_str = if den == 1 { format!("{num}") } else { format!("{num}/{den}") };
+            eprintln!(
+                "  {:<7} {:<15?} {:<9} {:<9} {:<10} {:<8} {:<7} {}",
+                kappa_str, tw.stage, fill.n_orders, reach_ii, reach_iii,
+                tw.withdrawn >= i0, tw.open_legacy_legs == 0, tw.tw() - eta_star,
+            );
+            // ★账本恒等每 κ 恒成立（坐实走真生产账本，非 fixture）：TW 漂移 = ⌊Σ已实现PnL⌋。
+            let realized_sum: f64 = fill.trade_pnls_realized.iter().sum();
+            assert_eq!(tw.tw(), q0 + realized_sum as i64, "κ={kappa_str}：TW 漂移 = ⌊Σ已实现PnL⌋");
+        }
+        std::env::remove_var("KAPPA_BARRIER_NUM");
+        std::env::remove_var("KAPPA_BARRIER_DEN");
+        eprintln!("═══════════════════════════════════════════════");
+        eprintln!("★纯 L2 敏感性诊断（不裁定生产 κ）——生产冻结 κ=0，正 κ 选择推迟 M8 L3（codex 裁定3）");
     }
 
     /// ★Q2 close_pred 折 𝒦_Θ（loop 内见证）：风控门把退出折进可行集（非第二出口）——

@@ -79,6 +79,14 @@ fn main() -> std::process::ExitCode {
     println!("已离场声部数    : {}", r.overlay.closed_voices().len());
     println!("overlay 订单数  : {}", r.n_overlay_orders);
     println!("终态净敞口 N    : {}", r.overlay.net());
+    println!("--- ★M7 treasury 层（三阶段 TW 账本终态，overlay 臂主 loop 内建）---");
+    match &r.tw_final {
+        Some(tw) => println!(
+            "终Stage={:?} Q_T(notional_in)={} W_T(withdrawn)={} η_T(tw)={} free={} holding={} open_legacy={}",
+            tw.stage, tw.notional_in, tw.withdrawn, tw.tw(), tw.free, tw.holding, tw.open_legacy_legs,
+        ),
+        None => println!("（tw_final=None——窗内无 bar）"),
+    }
     println!("--- ★验收断言2：Σpnl_v 对账（PDF §11 线性恒等 Σσ_v q_v ΔP = N ΔP）---");
     println!("账户净额价格PnL : {:.6}", r.account_price_pnl);
     println!("Σ_v pnl_v       : {:.6}", r.total_voice_pnl);
