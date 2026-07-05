@@ -1253,6 +1253,33 @@ pub fn operation_role(elements: &[CoverageElement], e_idx: usize) -> OperationRo
 //  §5 LegTarget 每活动元素一腿（M17/M28，方向 ε_e + 单位 s_e 按 role/depth 权重）
 // ════════════════════════════════════════════════════════════════════════════
 
+/// ★M5 声部执行层暴露的**逐声部目标头寸**（多空对冲.pdf p16 关卡10 `P^sep_t=Σ_{v∈A_t}q_vσ_v e_v`）。
+///
+/// [`LegTarget`] 用 work-index `e_idx`（本 bar 树内偏移，跨 bar 不稳定）作声部键，无法建**持久**
+/// 逐声部账本（P^sep 需跨 bar 追踪 entry_v/exit_v/pnl_v）。`SepLeg` 把腿的**跨 bar 稳定身份**
+/// [`ElementId`]（carrier v）+ 方向 σ_v + 目标单位 q_v + 角色 role(v) + 父 parent(v) 一并暴露，
+/// 供 runner 的 [`OverlayState`](crate::theta_v0::strategy::overlay_state) hedge-mode 簿消费。
+///
+/// ★646号范畴（命名区分）：`q_units` 是 sizing 层**资本加权连续目标敞口**（`base_units×w_depth`，
+/// f64）——与 §9 voice 层整数手数 `q_v` 是不同投影空间的量。overlay 簿取整为整数 q_v（手数）时
+/// 在 [`OverlayState`] 内做（lot 对齐），本结构如实透传 sizing 连续量，不臆造整数。
+///
+/// ★认识论 L1：本结构是 [`coverage_step_from_buckets`] 已算 `legs`+`next_active` 的**只读暴露**
+/// （同一 `next_idx` 元素，携 ElementId），非新计算——决策路径 bit-exact 不变。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SepLeg {
+    /// carrier v 的跨 bar 稳定身份（= [`ActiveLeg::id`]，持久声部键）。
+    pub id: ElementId,
+    /// σ_v：声部方向（Long/Short；Flat 不入活动集）。
+    pub side: VoiceSide,
+    /// q_v：sizing 层目标单位（`base_units×w_depth`，f64；overlay 簿取整为手数）。
+    pub q_units: f64,
+    /// role(v) 垂直轴（`ShortDiff`=反向子声部对冲腿，PDF §8 overlay 头寸 H_t 载体）。
+    pub role_v: Vertical,
+    /// parent(v)：真 Compose 父容器身份（None=边界胚元∂根声部）。
+    pub parent_id: Option<ElementId>,
+}
+
 /// 单元素的目标头寸腿 `LegTarget(e)`（M17/M28 `TargetLeg` 的 rust 镜像）。
 ///
 /// 每个活动元素一腿（对齐 `SeparateStrategyTarget.legTarget`）：
@@ -1850,8 +1877,11 @@ fn restore_ancestor_chain_from_registry(
     }
 }
 
+/// [`coverage_step_from_buckets`] 的净额兼容出口（22 处旧调用点保持二元返回，bit-exact）。
+/// 委托 [`coverage_step_from_buckets_sep`] 丢弃第三分量 `sep_legs`（M5 声部执行层暴露，纯只读，
+/// 不进决策路径）——单源无平行状态机。
 pub(crate) fn coverage_step_from_buckets(
-    mut work: ElementView,
+    work: ElementView,
     prev_active: &[ActiveLeg],
     buckets: &Buckets,
     base_units: f64,
@@ -1859,6 +1889,28 @@ pub(crate) fn coverage_step_from_buckets(
     risk: Option<&RiskConfig>,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
+    let (next_active, p_tilde, _sep) = coverage_step_from_buckets_sep(
+        work, prev_active, buckets, base_units, config, risk, registry,
+    );
+    (next_active, p_tilde)
+}
+
+/// ★M5 声部执行层 sep 出口（多空对冲.pdf p16 关卡10）：与 [`coverage_step_from_buckets`] **同一
+/// 决策路径**（三桶→对位→AncOK→净额，单源），额外暴露逐声部目标头寸 `sep_legs: Vec<SepLeg>`
+/// （`P^sep_t=Σ_{v∈A_{t+1}}q_vσ_v e_v` 的分量，携 carrier ElementId + role(v) + parent(v)）。
+///
+/// `sep_legs` 是本函数**已算** `legs`（post G7 gross cap）+ `next_idx` 对位元素 ElementId 的只读
+/// 重打包——**不新计算**，决策路径逐字节不变（`net_target_units(&legs)==p_tilde` 恒等）。runner
+/// 的 [`OverlayState`](super::overlay_state) hedge-mode 簿据此建持久逐声部 P^sep 账本 + ΔN 订单。
+pub(crate) fn coverage_step_from_buckets_sep(
+    mut work: ElementView,
+    prev_active: &[ActiveLeg],
+    buckets: &Buckets,
+    base_units: f64,
+    config: &VoiceConfig,
+    risk: Option<&RiskConfig>,
+    registry: &super::persistent::PersistentRegistry,
+) -> (Vec<ActiveLeg>, f64, Vec<SepLeg>) {
     // ★热点② O(n²) 消除：work = ElementView{base=持久树前缀借用零拷贝, overlay=本 bar candidate 段}。
     // 旧 `elements.to_vec()` + 上游 `tree.clone()` 每 bar O(tree)×n=O(n²) 双双消除（base 借 Rc 树，
     // candidate 在 overlay）。restore 路径继续 push overlay 尾（绝大多数 bar 不触发）。
@@ -2084,7 +2136,23 @@ pub(crate) fn coverage_step_from_buckets(
         },
         "next_active 含重复 ElementId ⟹ strategy_target_legs 双计 p̃（restore 未复用现有 idx）"
     );
-    (next_active, p_tilde)
+    // ★M5 sep 暴露（多空对冲.pdf p16）：把已算 `legs`（post G7 cap）按 work-index e_idx 对位到
+    // carrier ElementId + role(v) + parent(v)，打包 SepLeg。**只读重打包，不新计算**——
+    // `net_target_units(&legs)==p_tilde` 恒等 ⟹ `Σ σ_v·q_units == Net(P^sep)` 与净额路径一致。
+    // 幽灵腿（gross_zeroed 开仓腿）units 已被零化 ⟹ 对 P^sep 贡献 0，与 next_active 剔除一致。
+    let sep_legs: Vec<SepLeg> = legs
+        .iter()
+        .filter_map(|leg| {
+            work.get(leg.e_idx).map(|e| SepLeg {
+                id: e.id,
+                side: leg.side,
+                q_units: leg.units,
+                role_v: leg.role.v,
+                parent_id: e.parent_id,
+            })
+        })
+        .collect();
+    (next_active, p_tilde, sep_legs)
 }
 
 /// 环5+环6 端到端（`Classification` + per-bar 因果塔 → Γ → 三桶 → `A_{t+1}=AncOK[...]` → `p̃`），
@@ -2546,6 +2614,11 @@ pub(crate) struct StepTrace {
     /// RecoverCapital / P4 EnterEarning 无订单，成立时**消耗当步裁决**——gamma 全部推迟
     /// record 桶，屏蔽 P5..P10）。账本推进（`tw_step`）由消费端 runner 单点做。
     pub tw_event: Option<TwEvent>,
+    /// ★M5 逐声部目标头寸 `P^sep_{t+1}`（多空对冲.pdf p16 关卡10 `Σ_{v∈A_{t+1}}q_vσ_v e_v` 的分量）
+    /// ——runner [`OverlayState`](super::overlay_state) hedge-mode 簿据此建持久逐声部账本 + ΔN 订单。
+    /// 空 = 本 bar 无活动腿（force_flat/无候选/AncOK 全剪）⟹ P^sep_{t+1}=∅，Net=0。只读暴露，
+    /// 不进决策路径（`Σσ_v·q_units == p̃` 恒等，见 [`coverage_step_from_buckets_sep`]）。
+    pub sep_legs: Vec<SepLeg>,
 }
 
 /// I_Θ 组合层 TW/风控上下文（#124 裁定4：解释器接口升级 `I_Θ(ctx: RiskState+TwState+LegBook,
@@ -2627,7 +2700,7 @@ pub(crate) fn pi_theta_step_traced(
                     open: Vec::new(),
                     record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决）
                 };
-                let (next_active, p_tilde) = coverage_step_from_buckets(
+                let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
                     work, prev_active, &buckets, base_units, config, Some(risk), registry,
                 );
                 let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
@@ -2646,7 +2719,7 @@ pub(crate) fn pi_theta_step_traced(
                     next_active,
                     p_star,
                     order,
-                    StepTrace { overlay_closes: overlay, silent_drops, ..Default::default() },
+                    StepTrace { overlay_closes: overlay, silent_drops, sep_legs, ..Default::default() },
                 );
             }
         }
@@ -2659,7 +2732,7 @@ pub(crate) fn pi_theta_step_traced(
                 open: Vec::new(),
                 record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决，屏蔽 P5..P10）
             };
-            let (next_active, p_tilde) = coverage_step_from_buckets(
+            let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
                 work, prev_active, &buckets, base_units, config, Some(risk), registry,
             );
             let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
@@ -2676,7 +2749,7 @@ pub(crate) fn pi_theta_step_traced(
                 next_active,
                 p_star,
                 order,
-                StepTrace { tw_event: Some(ev), silent_drops, ..Default::default() },
+                StepTrace { tw_event: Some(ev), silent_drops, sep_legs, ..Default::default() },
             );
         }
     }
@@ -2689,9 +2762,9 @@ pub(crate) fn pi_theta_step_traced(
         .iter()
         .filter_map(|c| work.get(candidate_start + c.gamma_index).map(|e| (*c, e.id)))
         .collect();
-    // 环6：活动集递归 + AncOK + G7 毛约束（原样单源）。
-    let (next_active, p_tilde) =
-        coverage_step_from_buckets(work, prev_active, &buckets, base_units, config, Some(risk), registry);
+    // 环6：活动集递归 + AncOK + G7 毛约束（原样单源）。★M5：sep 出口暴露逐声部 P^sep_{t+1}。
+    let (next_active, p_tilde, sep_legs) =
+        coverage_step_from_buckets_sep(work, prev_active, &buckets, base_units, config, Some(risk), registry);
     // 环7：LexArgmin + Schedule（原样单源）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
@@ -2715,7 +2788,7 @@ pub(crate) fn pi_theta_step_traced(
         .filter_map(|(c, id)| next_active.iter().find(|l| l.id == id).map(|l| (c, *l)))
         .collect();
 
-    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, ..Default::default() })
+    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, sep_legs, ..Default::default() })
 }
 
 #[cfg(test)]

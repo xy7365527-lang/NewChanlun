@@ -63,6 +63,12 @@ name = "pi_bsp_timing"
 path = "src/bin/pi_bsp_timing.rs"
 required-features = ["backtest_bin"]
 
+# ★M5 声部执行层跑批（多空对冲.pdf p16 关卡10）：run_theta_v0_pi_overlay ΔN 守恒 + 逐声部 pnl_v 归因。
+[[bin]]
+name = "theta_overlay"
+path = "src/bin/theta_overlay.rs"
+required-features = ["backtest_bin"]
+
 # 仅测试期依赖：T 回测全量 runner 读取 analysis/data_cache/*.json（8 标的 OHLC）。
 # 放 dev-dependencies ⇒ cdylib（Python 扩展）构建不受影响，零运行时依赖膨胀。
 [dev-dependencies]

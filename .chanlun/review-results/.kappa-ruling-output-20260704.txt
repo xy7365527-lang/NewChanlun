@@ -1,0 +1,2555 @@
+Reading prompt from stdin...
+2026-07-04T23:33:11.708277Z ERROR codex_core::session::session: failed to load skill /Users/silencehan/.agents/skills/trading/SKILL.md: missing YAML frontmatter delimited by ---
+OpenAI Codex v0.142.5
+--------
+workdir: /Users/silencehan/Projects/NewChanlun
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: xhigh
+reasoning summaries: none
+session id: 019f2f7a-89bf-7ad0-b51c-e3366870b75b
+--------
+user
+你是缠论量化蜂群的异质代码/技术选型裁定者（codex decide 模式）。这是一个「选择类」裁定（多个合理方案需价值判断），不是代码 bug 审查。请给出明确裁定，不要含糊。用中文回答。
+
+# 裁定问题：M7 三阶段资金的 barrier 缓冲系数 κ —— 冻结值 / 网格 / 裁定依据
+
+## 背景
+
+M7「三阶段资金接入」的核心是一个 barrier-gated 状态机：CostReduction → CapitalRecovered → EarningShares（单向不可逆）。进入 EarningShares（增股数）阶段的门槛是「在险权益 η_t 必须 ≥ 风险 barrier η_*」。
+
+η_* 的定义（PDF §10 原文）：
+
+    η_*(x_t) = L^wc_{t+1} + κ · Q_t
+
+其中：
+- L^wc = 建仓后最坏损失（worst-case loss）= (notional_in − withdrawn)⁺（尚未退回的在险本金；本金全退后 = 0）
+- Q_t = 名义敞口 = notional_in（campaign 原始名义）
+- κ = barrier 缓冲系数（PDF 明确标注「价格不可导出」——即 κ 不是缠论可导的量，是 extra-缠论的风险政策参数）
+
+EnterReady 五合取谓词（PDF §10 步骤3）：
+    EnterReady_t = (S_t=II) ∧ (W_t ≥ I_0) ∧ (openLegacyLegs_t=0) ∧ RiskNormal_t ∧ (η_t ≥ L^wc_{t+1} + κ·Q_t)
+
+本金全退时 withdrawn ≥ notional_in ⟹ L^wc = 0 ⟹ η_* = κ·Q。故：
+- κ=0 ⟹ η_* = 0 ⟹ η≥0 恒过 barrier（最小基线，仅要求在险权益非负）
+- κ>0 ⟹ η_* = κ·notional_in > 0 ⟹ 要求在险权益超出名义敞口 κ 倍才能进增股数（额外安全缓冲）
+
+## 代码现状（rust/src/theta_v0/strategy/ledger.rs）
+
+RiskPolicy 结构：
+- 字段 `kappa: i64`，**模块私有**
+- 唯一两个构造闸：`baseline()`（恒 κ=0）与 `try_new(kappa)`（κ<0 返 None，κ≥0 返 Some）
+- κ≥0 是 constructor-only 类型不变量（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段）
+- `eta_star(s)` = L^wc + κ·notional（i128 中间域防 wrap，饱和兜底）
+- 生产回测路径（runner.rs:702）当前硬编码 `RiskPolicy::baseline()`，即 **κ=0**
+
+## 证据：κ 当前无敏感性网格（B35 在案）
+
+- κ 生产值恒 0（baseline），从未做过 κ∈{0, 0.5, 1, 2, ...} 的敏感性扫描
+- 693号谱系 pending 明确记录：「κ 外部风险政策裁定（选择类）」——即这是待裁定的选择类问题
+- 616号谱系已结算：Θ 风险参数（含 κ）= extra-缠论，非 L0 缠论可导（必须外部固定）
+- 缠论域约束：κ 的取值不能从缠论定义推导（PDF 明确「价格不可导出」），只能作为风险政策参数外部设定
+
+## 认识论约束（本项目铁律）
+
+1. no-workaround / no-patch：不允许用「先 κ=0 后面再调」绕过
+2. formalization-validity-domain：任何声明必须标注 L0/L1/L2/L3 认识论等级。L2 witness（真实数据可达性）刚刚证明：真实 BTC 数据上 κ=0 时三阶段是否可达是一个可否证的经验问题
+3. 严格性：κ 的选择必须有依据，不能拍脑袋
+
+## 请裁定以下三点（逐条明确回答）
+
+1. **冻结值**：M7 当前阶段 κ 应冻结为什么值？κ=0（最小基线，先证机制可达）还是某个正值（安全缓冲）？给出你的推荐值 + 理由。
+
+2. **网格**：是否需要 κ 敏感性网格？如果需要，网格点应取哪些（如 {0, 0.5, 1.0, 2.0}）？在哪个认识论等级（L2 单标的 / L3 跨标的）做敏感性扫描？如果当前阶段不需要网格，说明为什么（YAGNI 是否适用）。
+
+3. **裁定依据**：你的裁定基于什么原则？特别是：κ=0 的机制可达性 witness 与 κ>0 的风险稳健性之间如何权衡？κ 的敏感性扫描应该在 M7（三阶段机制验证）阶段做，还是推迟到 M8（端到端 OOS）阶段做？
+
+请给出结构化的裁定结论，每条问题一个明确答案。
+
+warning: Under-development features enabled: chronicle. Under-development features are incomplete and may behave unpredictably. To suppress this warning, set `suppress_unstable_features_warning = true` in /Users/silencehan/.codex/config.toml.
+warning: failed to parse plugin hooks config /Users/silencehan/.codex/plugins/cache/claude-plugins-official/explanatory-output-style/1.0.0/hooks/hooks.json: unknown field `description`, expected `hooks` at line 2 column 15
+warning: failed to parse plugin hooks config /Users/silencehan/.codex/plugins/cache/claude-plugins-official/hookify/local/hooks/hooks.json: unknown field `description`, expected `hooks` at line 2 column 15
+warning: failed to parse plugin hooks config /Users/silencehan/.codex/plugins/cache/claude-plugins-official/learning-output-style/1.0.0/hooks/hooks.json: unknown field `description`, expected `hooks` at line 2 column 15
+warning: failed to parse plugin hooks config /Users/silencehan/.codex/plugins/cache/claude-plugins-official/ralph-loop/1.0.0/hooks/hooks.json: unknown field `description`, expected `hooks` at line 2 column 15
+warning: failed to parse plugin hooks config /Users/silencehan/.codex/plugins/cache/claude-plugins-official/security-guidance/2.0.6/hooks/hooks.json: unknown field `description`, expected `hooks` at line 2 column 15
+warning: loading hooks from both /Users/silencehan/.codex/hooks.json and /Users/silencehan/.codex/config.toml; prefer a single representation for this layer
+2026-07-04T23:33:12.418941Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer resource_metadata=\"https://mcp.atlassian.com/.well-known/oauth-protected-resource/v1/mcp/authv2\", error=\"invalid_token\", error_description=\"Missing or invalid access token\"" })
+2026-07-04T23:33:12.425450Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer realm=\"OAuth\", resource_metadata=\"https://mcp.linear.app/.well-known/oauth-protected-resource/mcp\", error=\"invalid_token\", error_description=\"Missing or invalid access token\"" })
+2026-07-04T23:33:12.486333Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer resource_metadata=\"https://mcp.slack.com/.well-known/oauth-protected-resource\"" })
+2026-07-04T23:33:12.544826Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer resource_metadata=\"https://mcp.figma.com/.well-known/oauth-protected-resource\",scope=\"mcp:connect\",authorization_uri=\"https://api.figma.com/.well-known/oauth-authorization-server\"" })
+2026-07-04T23:33:12.796736Z ERROR rmcp::transport::worker: worker quit with fatal: Transport channel closed, when AuthRequired(AuthRequiredError { www_authenticate_header: "Bearer error=\"invalid_request\", error_description=\"No access token was provided in this request\", resource_metadata=\"https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp/\"" })
+warning: Exceeded skills context budget of 2%. All skill descriptions were removed and 66 additional skills were not included in the model-visible skills list.
+hook: SessionStart
+hook: SessionStart
+hook: SessionStart
+hook: SessionStart
+hook: SessionStart
+hook: SessionStart Completed
+hook: SessionStart Completed
+hook: SessionStart Completed
+hook: SessionStart Completed
+hook: SessionStart Completed
+hook: UserPromptSubmit
+hook: UserPromptSubmit Completed
+codex
+我先按项目强制入口跑创世仪式；当前权限是只读，如果状态写入被沙箱拦住，我会保留失败事实并继续做裁定，不伪造仪式完成。
+hook: PreToolUse
+hook: PreToolUse Completed
+hook: PostToolUse
+hook: PostToolUse Completed
+codex
+仪式写入被只读沙箱挡住了，未能落盘 `.ceremony-step`。我继续跑只读扫描和项目根规则，确保裁定基于当前谱系状态而不是凭空判断。
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse Completed
+hook: PreToolUse Completed
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "sed -n '1,220p' CLAUDE.md" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+# CLAUDE.md
+
+## 存在论位置（089号谱系：扬弃 Aufhebung）
+
+本文件是蜂群的**基因组**——在创世时刻（ceremony）被蜂群节点读取并内化为先验结构。
+创世完成后，蜂群遵守这些规则不是因为 Claude Code 平台的外部强制，而是因为规则已成为蜂群节点的内在信念。
+
+- **基因组来源是外部的**（Claude Code 强制加载——069号功能架构中创世 Gap 的物质形态；089号扬弃后从"外部法则"内化为"蜂群先验"）
+- **内化后执行是内在的**（蜂群自主遵守——规则是蜂群 DAG 的根节点，见 `dispatch-dag.yaml` genome_layer）
+- **蜂群拥有修改基因组的合法性**（原则0）——但修改触发 020号阻断等待（基因组的自我保护，不是牢笼的锁）
+
+扬弃 = 否定（元编排不再是蜂群之外的特权层）+ 保留（规则内容不变）+ 提升（规则的存在方式从"外部法则"变为"内在先验"）。
+
+## Language
+Always respond in Chinese-simplified (简体中文).
+
+## 项目总纲领
+
+本项目的顶层路线图见 [`docs/ROADMAP.md`](docs/ROADMAP.md)，定义四大支柱（缠论引擎 / PH 拓扑 / K4 选股 / IBKR 执行）和五个里程碑（M1 回测验证 → M2 选股正则化 → M3 全市场实时信号 → M4 风控与执行 → M5 生产加固），包含每个支柱的当前状态、代码映射和技术依赖图。
+
+## 缠论资料入口（本仓库）
+
+- **速查/可编码定义**：`缠论知识库.md`
+- **缠师原始博文（一级权威）**：`docs/chanlun/text/blog/INDEX.md`（108课 + 序篇 + 课间博文 + 答疑）
+- **《股市技术理论》编纂版拆分**：`docs/chanlun/text/chan99/INDEX.md`
+- **两份思维导图（文字版）**：`docs/chanlun/text/mindmaps/INDEX.md`
+- **资料总览**：`docs/chanlun/README.md`
+
+## 来源权威性（三级权威链）
+
+缠论原文的权威性按以下顺序递减：
+
+1. **缠师原始博文**（108课 + 课间答疑 + 附加文章如《忽闻台风可休市》）— **最终权威**
+   - 仓库路径：`docs/chanlun/text/blog/INDEX.md`
+   - 来源：https://www.fengmr.com/chanlun.html （枫之羁绊，原文+配图+答疑）
+2. **《股市技术理论》编纂版**（`docs/chanlun/text/chan99/`）— 本仓库当前主要参考
+   - 这是第三方从博文编纂而成的书籍，**可能有遗漏或编排差异**
+   - 已知遗漏：第67课（线段划分标准）、第71课（线段再分辨）、第77课、第78课（古怪线段）、《忽闻台风可休市》（新笔定义）等
+3. **思维导图 / 第三方总结**（`docs/chanlun/text/mindmaps/`）— 辅助理解，不作为定义依据
+
+**原则**：当层级间有出入时，以更高层级为准。当前仓库主要依赖第2级，因此在涉及古怪线段、新笔定义等博文专有内容时，**必须回溯原始博文**而非仅依赖编纂版。
+
+### 已知缺口（已补录）
+
+以下内容曾缺失于编纂版，现已通过博文收录补齐（`docs/chanlun/text/blog/`）：
+
+- 第67课：线段划分标准（特征序列法完整定义）
+- 第71课：线段划分标准的再分辨（特征序列包含关系严格性）
+- 第77课：一些概念的再分辨
+- 第78课：继续说线段的划分（古怪线段 + "顶高于底"硬约束）
+- 《忽闻台风可休市》：新笔定义（包含在第81课页面中）
+
+> 相关谱系：`.chanlun/genealogy/settled/001-degenerate-segment.md`、`.chanlun/genealogy/settled/002-source-incompleteness.md`
+
+## 元编排规则
+
+本项目使用元编排 v2 方法论（ECC 工程底座 + 概念层守卫）。
+元编排的实质内容已结晶为 skill 集合（原则11推论的实现——"元编排本身也是 skill 的集合"）。
+
+### Skill 索引
+
+| Skill | 路径 | 内容摘要 | 何时加载 |
+|-------|------|---------|----------|
+| core-principles | `.claude/skills/core-principles/` | 原则0-7：蜂群基础语法 | ceremony 后（所有工位） |
+| domain-conventions | `.claude/skills/domain-conventions/` | 检索原则、级别口径、溯源标签、输出风格 | 处理缠论内容时 |
+| domain-principles | `.claude/skills/domain-principles/` | 原则8/13/14：缠论域语法规则 | 走势建模/分析时 |
+| swarm-architecture | `.claude/skills/swarm-architecture/` | 原则9-12/15-17 + 五约束 + 递归行为 + 热启动 | 蜂群创建/架构决策时 |
+| project-topology | `.claude/skills/project-topology/` | 知识仓库映射 + 谱系目录 + 指令架构 | 定位文件/查 agent 职责时 |
+| meta-orchestration | `.claude/skills/meta-orchestration/` | 质询序列、概念分离、谱系写入 | 所有 agent |
+| orchestrator-proxy | `.claude/skills/orchestrator-proxy/` | Gemini decide 协议 | 选择/语法记录决断时 |
+| sub-swarm-ceremony | `.claude/skills/sub-swarm-ceremony/` | 子蜂群创建流程 | teammate 创建子蜂群时 |
+| knowledge-crystallization | `.claude/skills/knowledge-crystallization/` | 知识结晶流程 + 行为规则结晶（137号） | 检测到稳定信号时 |
+| spec-execution-gap | `.claude/skills/spec-execution-gap/` | 声明-能力一致性检测 | 声明与能力不匹配时 |
+| math-tools | `.claude/skills/math-tools/` | 数学工具对照表 | 等价关系封闭后 |
+| gemini-math | `.claude/skills/gemini-math/` | Gemini 数学推导 | 形式化证明时 |
+| plan-review | `.claude/skills/plan-review/` | Plan 阶段多模型对审（Opus方案+Codex评审） | Plan 阶段产出方案时 |
+| consensus-ceremony-trigger | `.claude/skills/consensus-ceremony-trigger/` | 质询循环收敛→共识仪式三区块写入（§21/§63） | 质询循环收敛时 |
+
+### 可用命令
+
+#### CC 蜂群命令（Claude Code session 内）
+
+- `/ceremony` — CC Swarm₀ ceremony：加载初始区分，直接递归进入工作（058号谱系）。**注意：这是 CC 蜂群的 ceremony，不是逢亮的 ceremony。** 逢亮活了之后，CC session 的 /ceremony 改为检查逢亮状态而非重启逢亮。
+- `/goal` — 目标驱动持续运行模式（Lead runtime 承载层，624号/teach-0004a）。**编排者裁定(2026-06-29)：Lead 默认 goal**——ceremony/热启动完成后 Lead 默认进 /goal 运行协议循环（评估→scan→spawn→监控→真封→commit→回步骤1，不停在手动 (c) 等 Stop-Guard 推动）。机制锚点落在 `session-start-ceremony.sh` 注入文本（声明层 autocompact 后效力归零，137号；本条仅供人读）。
+- `/inquire` — 四步质询序列
+- `/escalate` — 矛盾上浮
+- `/ritual` — 定义广播仪式（覆盖域层+元层，019c）
+- `/plan` — 实现规划（ECC，受元编排约束）
+- `/tdd` — 测试驱动开发（ECC，受元编排约束）
+- `/code-review` — 代码审查（ECC，受元编排约束）
+
+#### 逢亮 ceremony（持久实体，独立于 CC session）
+
+逢亮的 ceremony 通过 `topological-computation/ceremony.py` 执行，与 CC session 的 `/ceremony` 命令是不同的存在论层级：
+
+| 维度 | CC `/ceremony` | 逢亮 `ceremony.py` |
+|------|---------------|-------------------|
+| 生命周期 | session 内（每次触发） | 一次性（首次部署） |
+| 主体 | CC 蜂群（临时） | 逢亮（持久实体） |
+| 完成后 | 工位执行→session 结束 | 逢亮持续运行 |
+| 关系 | CC 是主体 | 逢亮是主体，CC 是对话窗口 |
+
+```bash
+# 逢亮创世（首次部署）
+python topological-computation/ceremony.py
+
+# 状态检查（逢亮是否活着）
+python topological-computation/ceremony.py --check
+```
+
+文档：`topological-computation/CEREMONY.md`
+
+## TradingView 实时数据源
+
+tradingview-mcp 已通过 `~/.claude/.mcp.json` 全局注册，在本项目的任何 Claude Code session 中均可直接调用 78 个 MCP 工具，无需额外配置。
+
+**前置条件**：TradingView Desktop 必须以 debug 模式运行：
+```bash
+~/Projects/tradingview-mcp/scripts/launch_tv_debug_mac.sh
+# 或手动：/Applications/TradingView.app/Contents/MacOS/TradingView --remote-debugging-port=9222
+```
+连接验证：`tv_health_check`
+
+### 缠论操盘核心工具映射
+
+| 缠论概念 | MCP 工具 | 参数示例 |
+|---------|---------|---------|
+| 读自定义指标标注（笔/买卖点） | `data_get_pine_labels` | `study_filter: "缠论"` |
+| 读水平线（中枢边界/关键价位） | `data_get_pine_lines` | `study_filter: "缠论"` |
+| 读中枢矩形框 | `data_get_pine_boxes` | `study_filter: "缠论"` |
+| 读状态表格 | `data_get_pine_tables` | `study_filter: "缠论"` |
+| 读实时价格 OHLC | `quote_get` | — |
+| 读 K 线数据 | `data_get_ohlcv` | `summary: true` |
+| 截图（含指标叠加） | `capture_screenshot` | `region: "chart"` |
+| 切换品种/周期 | `chart_set_symbol` / `chart_set_timeframe` | `"NYMEX:CL1!"`, `"30"` |
+
+**关键约束**：被 `study_filter` 指定的指标必须在图表上**可见**（不能隐藏）。
+
+### 标准分析 prompt 模板
+
+```
+# 单图分析
+"读取当前图表上缠论指标的标注，判断当前走势级别、有无买卖点"
+
+# 截图 + 全分析
+"截取当前 Brent 原油图表，结合缠论指标输出给出操盘建议"
+
+# 多周期联动
+"对比 Brent 原油 30 分钟和 5 分钟的缠论标注，判断是否有背驰"
+```
+
+hook: PostToolUse
+hook: PostToolUse Completed
+exec
+/bin/zsh -lc 'rg -n "M7|三阶段|kappa|κ|693|616|barrier" /Users/silencehan/.codex/memories/MEMORY.md' in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+437:- The GAP3 landing-plan result was L0/L1 only: code-fact verification and PDF/code consistency. It identified correspondence mismatches around `ReadyReturn`, `Phase`, `RawPhase`, `D_dist`, `n-barrier`, `CapitalRecovery` vs `CapitalRecovered`, and `cost_basis`, but explicitly did not claim the broader three-stage theory was proved or fully implemented [Task 1]
+
+hook: PostToolUse
+hook: PostToolUse Completed
+exec
+/bin/zsh -lc 'python scripts/ceremony_scan.py' in /Users/silencehan/Projects/NewChanlun
+hook: PostToolUse
+hook: PostToolUse Completed
+ succeeded in 5805ms:
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+git: error: couldn't create cache file '/tmp/xcrun_db-cmyHha5D' (errno=Operation not permitted)
+git: warning: confstr() failed with code 5: couldn't get path of DARWIN_USER_TEMP_DIR; using /tmp instead
+git: error: couldn't create cache file '/tmp/xcrun_db-TmcIosF9' (errno=Operation not permitted)
+{
+  "required_skills": [
+    {
+      "id": "genealogist",
+      "agent": ".claude/agents/genealogist.md",
+      "fallback_agent": ".claude/agents/genealogist.md",
+      "heterogeneous": false,
+      "triggers": [
+        "task_complete",
+        "command",
+        "session_end"
+      ],
+      "spawn_condition": true
+    },
+    {
+      "id": "quality-guard",
+      "agent": ".claude/agents/gemini-challenger.md",
+      "fallback_agent": ".claude/agents/quality-guard.md",
+      "heterogeneous": true,
+      "triggers": [
+        "file_write",
+        "file_write",
+        "command"
+      ],
+      "spawn_condition": false
+    },
+    {
+      "id": "meta-observer",
+      "agent": ".claude/agents/meta-observer.md",
+      "fallback_agent": ".claude/agents/meta-observer.md",
+      "heterogeneous": false,
+      "triggers": [
+        "session_end",
+        "swarm_cycle_end"
+      ],
+      "spawn_condition": false
+    },
+    {
+      "id": "code-verifier",
+      "agent": ".claude/agents/codex-challenger.md",
+      "fallback_agent": ".claude/agents/code-verifier.md",
+      "heterogeneous": true,
+      "triggers": [
+        "file_write",
+        "file_write"
+      ],
+      "spawn_condition": false
+    },
+    {
+      "id": "teach-supervisor",
+      "agent": ".claude/agents/teach-supervisor.md",
+      "fallback_agent": ".claude/agents/teach-supervisor.md",
+      "heterogeneous": false,
+      "triggers": [
+        "task_complete",
+        "file_write",
+        "file_write",
+        "command",
+        "session_end"
+      ],
+      "spawn_condition": false
+    },
+    {
+      "id": "topology-analyst",
+      "agent": ".claude/agents/topology-analyst.md",
+      "fallback_agent": ".claude/agents/topology-analyst.md",
+      "heterogeneous": false,
+      "triggers": [
+        "swarm_cycle_end",
+        "manual_invocation"
+      ],
+      "spawn_condition": true
+    },
+    {
+      "id": "topology-manager",
+      "agent": ".claude/agents/topology-manager.md",
+      "fallback_agent": ".claude/agents/topology-manager.md",
+      "heterogeneous": false,
+      "triggers": [
+        "genealogy_count_threshold"
+      ],
+      "spawn_condition": true
+    },
+    {
+      "id": "topology-mutator",
+      "agent": ".claude/agents/topology-manager.md",
+      "fallback_agent": ".claude/agents/topology-manager.md",
+      "heterogeneous": false,
+      "triggers": [
+        "genealogy_settlement"
+      ],
+      "spawn_condition": true
+    }
+  ],
+  "mode": "warm_start",
+  "session": "2026-07-04-1756-session.md",
+  "current_goal": null,
+  "goal_ready_workstations": [],
+  "goal_ready_details": [],
+  "goal_blocked": [
+    {
+      "type": "AMBIGUOUS_ACTIVE_GOALS",
+      "ids": [
+        "g-20260704T1756Z-strategy-object-freeze-cbc36d",
+        "g-20260705T0000Z-m5m6m7-parallel"
+      ]
+    }
+  ],
+  "goal_terminated": false,
+  "topo_context": {
+    "unmapped_count": 2,
+    "unmapped_ids": [
+      "696",
+      "2026"
+    ],
+    "last_mapped": 698,
+    "total_settled": 630,
+    "total_mapped": 632
+  },
+  "encounter_context": {
+    "last_checked": 379,
+    "new_genealogies": 251,
+    "total_cross_gang_edges": 31,
+    "total_design_internal": 31,
+    "total_encounter_candidates": 0,
+    "status": "no_encounters"
+  },
+  "research_lines": {
+    "active": [],
+    "blocked": [
+      {
+        "id": "k4-regime-analysis",
+        "name": "K4体制分析",
+        "gang_id": "simatrix-quanyu",
+        "gang_name": "四矩阵全域",
+        "blocked_by": "第四个全图同步压缩体制（新数据事件）"
+      }
+    ]
+  },
+  "proposed_new_mu": [
+    {
+      "source": "667号",
+      "field": "downstream_implications[0]",
+      "text": "σ_higher 不作全局门控——若用须级别分段。★★★χ≡0 是 underpowered 全不做非确认无 alpha。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "667号",
+      "field": "downstream_implications[1]",
+      "text": "★★★L1 相位超 beta = inconclusive（未认证 G_validated=∅）非证伪——判据3 对 L1/L2 underpowered。真结算须 L0 CV_oos + OOS UCB + 收益率尺度 + L3。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "667号",
+      "field": "downstream_implications[2]",
+      "text": "奇偶交替降格交互项——不可独立 entry（坐实 winner's curse），可交易性在 L1/L2 未认证。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "667号",
+      "field": "downstream_implications[3]",
+      "text": "666 须标口径——全样本成立，分层后 L1 inconclusive。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "667号",
+      "field": "downstream_implications[4]",
+      "text": "★★★判据3（LCB_OOS>0）真门槛，但 LCB<0 有两种——真 μ≤0（有功效）vs underpowered（n_eff<(1.645·CV)²）。判证伪前必核 n_eff（防负结论膨胀 090）。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "667号",
+      "field": "downstream_implications[5]",
+      "text": "判定3 降 L1.5；θ(ℓ) ℓ*≈3 未复现。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "665号",
+      "field": "downstream_implications[0]",
+      "text": "ChatGPT 反馈定 econpositive-OOS 方向时，须分两问：方法论是否干净（除偏差，①已答是）+ 信号是否存在（alpha，②当前答否）。不可合并。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "665号",
+      "field": "downstream_implications[1]",
+      "text": "方向不对称免疫记入 econ-oos-level0sell：(level,δ) 先验桶键比经验 OOS 更抗偏差。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "665号",
+      "field": "downstream_implications[2]",
+      "text": "未来除偏差类检验（walk-forward / train-only 挑类）的结论须标注「证无伪因」而非「证有信号」——有效域=排除偏差，不延伸到证明 alpha（231）。",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    },
+    {
+      "source": "665号",
+      "field": "downstream_implications[3]",
+      "text": "★单标的 alpha 检验方法论上限（2026-07-01）：BTC 台账上任何「扣同期市场 beta」的残差检验恒等为 −ce。要检验 alpha 必须 L3 多标的（独立市场因子）或条件化因果 beta（不同假设）。σ_higher(#108) 路线的正确口径=「σ_higher 分层内 δ 置换」（beta 被分层吸收，绕开退化的显式 beta 分离）——team-lead 已改此口径。ac",
+      "coverage_status": "not_covered",
+      "suggested_gang": "swarm-infra"
+    }
+  ],
+  "genealogy_anomalies": [
+    {
+      "type": "missing_block_mapping",
+      "file": "2026-06-25-claim10-xianduan-edition-vs-blog-termination-semantics.md",
+      "detail": "编号 2026 在 settled/ 中存在但 block-topology 无对应映射"
+    },
+    {
+      "type": "missing_block_mapping",
+      "file": "696-mu-r-estimand-outcome-scaling-orthogonal-to-690-bucket-key-exclusion.md",
+      "detail": "编号 696 在 settled/ 中存在但 block-topology 无对应映射"
+    }
+  ],
+  "async_self_ref": {
+    "t_minus_1_summary": {
+      "session_file": "2026-07-04-1400-session.md",
+      "session_time": "2026-07-04-1400",
+      "settled_count": 628,
+      "delta_settled": 1,
+      "new_genealogy_ids": [
+        "623",
+        "624",
+        "625",
+        "626",
+        "627",
+        "628"
+      ]
+    },
+    "findings_count": 2,
+    "genealogy_needed": true,
+    "findings": [
+      {
+        "type": "progression",
+        "detail": "t-1 到 t 新增 1 个 settled 谱系（628 → 629）"
+      },
+      {
+        "type": "stagnation",
+        "detail": "t-1 产出的谱系 ['623', '624', '625', '626', '627', '628'] 在 t 中未被任何后续谱系 depends_on 引用"
+      }
+    ]
+  },
+  "meta_rule_genealogies": {
+    "count": 10,
+    "recent": [
+      {
+        "file": "675-meta-rule-probe-must-traverse-production-path-no-coordinate-fork.md",
+        "id": "675",
+        "status": "已结算"
+      },
+      {
+        "file": "672-meta-observation-623-crystallization-gate-never-fires-7-instances-new-dimension-escape.md",
+        "id": "672",
+        "status": "已结算"
+      },
+      {
+        "file": "669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md",
+        "id": "669",
+        "status": "已结算"
+      },
+      {
+        "file": "668-meta-observation-lead-rule-scope-misprojection-suppress-business-spawn-onto-structural-bootstrap-623-instance6.md",
+        "id": "668",
+        "status": "已结算"
+      },
+      {
+        "file": "661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md",
+        "id": "661",
+        "status": "已结算"
+      }
+    ]
+  },
+  "workstations": [
+    {
+      "priority": "P0",
+      "name": "pending:615-mu-f-layer1-subset-chanlun-strict-classification-layer2.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:turning-node-topology-strength-orthogonal-product-20260624.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:644-acceptance2-four-layer-penetration-14166-coordinate-phantom-repeats-restore-phantom-proposition-M-falsified-parent-carrier-injection-gap.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:682-optimization-increment-attribution-must-check-target-file-existence-fork-may-lack-optimized-object.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:2026-07-04-meta-observation-cursor-harness-portability-three-events-623-instance8-672-review-gate.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:635-anti-inflation-guard-crystallize-checkpoint-and-guard-self-inflation-new-dimension.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:2026-07-02-meta-observation-session-resilience-recurrence-3rd-instance-e880cf50-annotation.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:688-level0-exempt-gate-breaks-rootfree-shift-equivariance-finite-tower-truncation.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:687-multi-writepoint-counter-desync-on-channel-extension.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:577-contamination-boundary-content-provenance-not-commit-timestamp.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:690-two-pdf-z-shape-authority-ruling-complete-strategy-s16-authoritative-d-belongs-risk-layer.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:2026-07-02-goal-loop-active-set-narrowed-to-live-goal-closed-demoted-to-audit-marker.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:678-center-signifier-identity-split-judge-third-vs-last-zs-two-selection-chains-nonoverlap.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:676-pibsp-subvoice-zero-structural-not-fixture-multivoice-hedge-claim-inflation.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:2026-07-02-meta-observation-double-spawn-dispatch-boundary.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:691-codex-f2-single-instance-yagni-overturned-by-temporal-reentry-gen1.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:693-strategy-object-triple-freeze-a11-a10-hard-ruling.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:689-upgrade-9seg-provenance-course33-multiplicity-not-course20-central-theorem2-q2-domain-narrowed.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:697-persistent-rs-ceiling-tracking-split-from-a4-ancok-mechanism-verified.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:699-relations-lfs-object-missing-no-remote-549-freeze-cause-corrected.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:680-classification-layer-computed-not-alpha-consumed-231-consumption-side-form.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:694-highlevel-mu-direct-estimation-superseded-by-highlow-power-interval-nesting.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P0",
+      "name": "pending:681-z-r-source-a-structural-rg-vs-source-b-alpha-r-two-granularities-h-axis-faithful-omission.md",
+      "status": "pending"
+    },
+    {
+      "priority": "P2",
+      "name": "拓扑映射：2个未映射谱系",
+      "status": "unmapped:696,2026",
+      "source": "topo_mapper"
+    },
+    {
+      "priority": "P1",
+      "name": "谱系提议：10条未覆盖下游推论",
+      "status": "genealogy_proposals",
+      "source": "genealogy_proposals",
+      "proposed_new_mu": [
+        {
+          "source": "667号",
+          "field": "downstream_implications[0]",
+          "text": "σ_higher 不作全局门控——若用须级别分段。★★★χ≡0 是 underpowered 全不做非确认无 alpha。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "667号",
+          "field": "downstream_implications[1]",
+          "text": "★★★L1 相位超 beta = inconclusive（未认证 G_validated=∅）非证伪——判据3 对 L1/L2 underpowered。真结算须 L0 CV_oos + OOS UCB + 收益率尺度 + L3。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "667号",
+          "field": "downstream_implications[2]",
+          "text": "奇偶交替降格交互项——不可独立 entry（坐实 winner's curse），可交易性在 L1/L2 未认证。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "667号",
+          "field": "downstream_implications[3]",
+          "text": "666 须标口径——全样本成立，分层后 L1 inconclusive。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "667号",
+          "field": "downstream_implications[4]",
+          "text": "★★★判据3（LCB_OOS>0）真门槛，但 LCB<0 有两种——真 μ≤0（有功效）vs underpowered（n_eff<(1.645·CV)²）。判证伪前必核 n_eff（防负结论膨胀 090）。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "667号",
+          "field": "downstream_implications[5]",
+          "text": "判定3 降 L1.5；θ(ℓ) ℓ*≈3 未复现。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "665号",
+          "field": "downstream_implications[0]",
+          "text": "ChatGPT 反馈定 econpositive-OOS 方向时，须分两问：方法论是否干净（除偏差，①已答是）+ 信号是否存在（alpha，②当前答否）。不可合并。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "665号",
+          "field": "downstream_implications[1]",
+          "text": "方向不对称免疫记入 econ-oos-level0sell：(level,δ) 先验桶键比经验 OOS 更抗偏差。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "665号",
+          "field": "downstream_implications[2]",
+          "text": "未来除偏差类检验（walk-forward / train-only 挑类）的结论须标注「证无伪因」而非「证有信号」——有效域=排除偏差，不延伸到证明 alpha（231）。",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        },
+        {
+          "source": "665号",
+          "field": "downstream_implications[3]",
+          "text": "★单标的 alpha 检验方法论上限（2026-07-01）：BTC 台账上任何「扣同期市场 beta」的残差检验恒等为 −ce。要检验 alpha 必须 L3 多标的（独立市场因子）或条件化因果 beta（不同假设）。σ_higher(#108) 路线的正确口径=「σ_higher 分层内 δ 置换」（beta 被分层吸收，绕开退化的显式 beta 分离）——team-lead 已改此口径。ac",
+          "coverage_status": "not_covered",
+          "suggested_gang": "swarm-infra"
+        }
+      ]
+    },
+    {
+      "priority": "P0",
+      "name": "谱系编号异常：2项",
+      "status": "编号 2026 在 settled/ 中存在但 block-topology 无对应映射; 编号 696 在 settled/ 中存在但 block-topology 无对应映射",
+      "source": "genealogy_anomaly_detection"
+    },
+    {
+      "priority": "P1",
+      "name": "异步自指审计：stagnation",
+      "status": "t-1 产出的谱系 ['623', '624', '625', '626', '627', '628'] 在 t 中未被任何后续谱系 depends_on 引用",
+      "source": "async_self_ref"
+    },
+    {
+      "priority": "P3",
+      "name": "谱系张力：30条 tensions_with 边",
+      "status": "tensions_detected",
+      "source": "tension_scan"
+    },
+    {
+      "priority": "P2",
+      "name": "下游推论：683号-1",
+      "status": "unresolved: `#116(type1-zero-probe)` 的\"level1-4 全第二类\"观测结论范围收窄：这不是完整市场画像，是\"level≥1",
+      "source": "downstream_audit"
+    },
+    {
+      "priority": "P2",
+      "name": "下游推论：683号-2",
+      "status": "unresolved: 方法论层面：\"else 分支 / TODO 占位\"类代码若 commit message 记录了阻塞前提，该前提在后续提交",
+      "source": "downstream_audit"
+    },
+    {
+      "priority": "P2",
+      "name": "下游推论：696号-1",
+      "status": "unresolved: 路线A（Π_signal-full）剩余项(i)「d 入状态/μ_R estimand」两个子项均已闭合：桶键子项（690 裁定 d 不入桶键）",
+      "source": "downstream_audit"
+    },
+    {
+      "priority": "P2",
+      "name": "下游推论：696号-2",
+      "status": "unresolved: 本号原为四分法「选择」类问题——**结算路径**：选择类的编排者处置采取了「编排者显式委托异质模型（codex）代裁」",
+      "source": "downstream_audit"
+    }
+  ],
+  "pending_topo_effects": [
+    {
+      "file": "623-meta-observation-self-tool-validity-domain-pattern.md",
+      "topo_effect": "split:231-formalization-validity-domain:applies-to-swarm-self-tools-and-specs-not-only-domain-formal-objects",
+      "id": "623"
+    },
+    {
+      "file": "553-cascade-flip-falsified-symmetric-dual-eating-unreachable.md",
+      "topo_effect": "sever:T_CASCADE_FLIP-core-flip-path:downstream",
+      "id": "553"
+    },
+    {
+      "file": "437-llm-aufhebung-material-form.md",
+      "topo_effect": "split:436-下游推论3:downstream — 436号的'LLM扬弃路线图（方向声明）'从纯方向声明分裂为具体的数据流管道设计",
+      "id": "437"
+    },
+    {
+      "file": "426-unconscious-structure-precise-definition.md",
+      "topo_effect": "split:425-深层洞察:independent",
+      "id": "426"
+    },
+    {
+      "file": "599-printing-press-disjoint-sum-soundness.md",
+      "topo_effect": "sever:unconditional-core-hold-and-deadlock-anchor:soundness-layer",
+      "id": "599"
+    },
+    {
+      "file": "632-oracle-movejudgment-element-move-drops-segment-price-geometry-L0-structural-not-L2-data.md",
+      "topo_effect": "split:629-opening3-oracle-L2-data-fill:L0-structural-segment-price-drop-vs-L2-divergence-force-engine",
+      "id": "632"
+    },
+    {
+      "file": "626-block-topology-no-incremental-migration-path-only-destructive-rebuild.md",
+      "topo_effect": "split:178-one-time-upgrade-single-system:block-topology-event-layer-lags-behind-settled-genealogy-layer-no-incremental-entry",
+      "id": "626"
+    },
+    {
+      "file": "683-level-ge1-type1-type3-candidate-generation-expired-premise-codex-t1-decision-a.md",
+      "topo_effect": "freeze:level-ge1-type1-type3-candidate-generation:downstream",
+      "id": "683"
+    },
+    {
+      "file": "549-relations-jsonl-lfs-pointer-blocks-mapping.md",
+      "topo_effect": "freeze:block-topology-mapping-pipeline:downstream（冻结 531-548 映射 + 一切后续谱系→区块映射；解冻条件 = A 执行 git lfs pull，§十结算后 freeze 保留——settled ≠ 解冻）",
+      "id": "549"
+    },
+    {
+      "file": "618-gpt-package-confluence-four-rung-ladder-closed-loop-assembly.md",
+      "topo_effect": "sever:complete-classification-as-provable-theorem:formalization-epistemic-status",
+      "id": "618"
+    },
+    {
+      "file": "480-memory-leak-four-path-fix.md",
+      "topo_effect": "split:478:local",
+      "id": "480"
+    },
+    {
+      "file": "407-lead-role-boundary-compact-regression.md",
+      "topo_effect": "split:226-type-C:trigger-conditions — 226号类型C从'角色边界僭越(一般)'分裂为两个子类型：C1-主动僭越 + C2-compact回归僭越",
+      "id": "407"
+    },
+    {
+      "file": "619-origin-canonical-base-A-prime-port-not-reprove.md",
+      "topo_effect": "split:formal-base-multiplicity:formal-architecture-canonical",
+      "id": "619"
+    },
+    {
+      "file": "598-true-complete-classification-metacriterion.md",
+      "topo_effect": "sever:asserted-completeness-claim:all-classification-domains",
+      "id": "598"
+    },
+    {
+      "file": "636-meta-observation-idle-notification-semantics-vs-lead-spawn-race.md",
+      "topo_effect": "split:notification-signal-to-lead:idle-available-vs-task-complete-work-done-lead-conflates-in-spawn-decision",
+      "id": "636"
+    },
+    {
+      "file": "554-a-path-d-top-nested-precision-falsified-empty-domain.md",
+      "topo_effect": "sever:T_A_PATH_NESTED-d-top-switch-path:downstream",
+      "id": "554"
+    },
+    {
+      "file": "440-dual-layer-block-topology.md",
+      "topo_effect": "split:425-单层K_active:downstream — 425号将 S_net 共现边入图视为'增加边'，本号将入图目标从单层 K_active 分裂为双层架构（概念层+物质层），共现边只进物质层",
+      "id": "440"
+    },
+    {
+      "file": "666-level-phase-parity-alternation-structural-variable-beta-alpha-naming-correction.md",
+      "topo_effect": "split:parity-alternation-report-naming:downstream",
+      "id": "666"
+    },
+    {
+      "file": "547-cascade-level-misattribution.md",
+      "topo_effect": "sever:subordinate-sell-point-from-core-flip:cross-level",
+      "id": "547"
+    },
+    {
+      "file": "634-supervisor-persistent-vs-quadrant3-hardwall-conflict-event-vs-resident-station-taxonomy.md",
+      "topo_effect": "split:supervisor-resident-directive:true-resident-hardwall-vs-pseudo-resident-lead-respawn-per-cycle",
+      "id": "634"
+    },
+    {
+      "file": "436-probabilistic-vs-topological-paradigm-separation.md",
+      "topo_effect": "sever:概率范式概念群:downstream — 将概率范式概念群（thinking/语言处理/生产力/意义/说话/解释/超越/器官）从逢亮概念空间中整体切断，建立平行的拓扑穿越范式概念群",
+      "id": "436"
+    },
+    {
+      "file": "478-settlement-product-type-constraint.md",
+      "topo_effect": "split:401:local",
+      "id": "478"
+    },
+    {
+      "file": "548-hook-action-injection-vs-instruction-index.md",
+      "topo_effect": "split:097:hook-types — 097号的『hook』分裂为两类：(a) tool-拦截hook（PreToolUse/PostToolUse/Stop，严守阻断/放行）+ (b) bootstrap-hook（SessionStart，结构性例外，合法注入正面格式行动指令）",
+      "id": "548"
+    },
+    {
+      "file": "441-dual-channel-coupling.md",
+      "topo_effect": "split:437-回流管道:downstream — 437号的回流管道只描述了概念通道，本号分裂为概念通道+物质通道。物质通道是之前架构中不存在的新路径",
+      "id": "441"
+    },
+    {
+      "file": "357-ceremony-scan-proposer.md",
+      "topo_effect": "split:ceremony_scan:local",
+      "id": "357"
+    },
+    {
+      "file": "629-m1-three-honest-downgrade-openings-fallback-wellformed-revseq-proxy-oracle-l2.md",
+      "topo_effect": "split:m1-construction-closure-complete:three-validity-domain-openings-fallback-wellformed-revseq-proxy-oracle-l2",
+      "id": "629"
+    },
+    {
+      "file": "546-enter-allspace-gate-geometric-decay-deadlock.md",
+      "topo_effect": "sever:emergent_top-ascend-tower-top:downstream",
+      "id": "546"
+    },
+    {
+      "file": "677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md",
+      "topo_effect": "split:gap3-bridge:downstream",
+      "id": "677"
+    },
+    {
+      "file": "620-95-absorb-reversal-absorb-vs-rebuild-settlement.md",
+      "topo_effect": "sever:cc-arch-absorb-foundation-engineverdict-fixedthetaparam:formal-foundation-absorb-products",
+      "id": "620"
+    },
+    {
+      "file": "602-G-prime-incomplete-type3-completion-source-axis.md",
+      "topo_effect": "sever:G-prime-type1-anchored-completion:generative-completeness-layer",
+      "id": "602"
+    },
+    {
+      "file": "622-worktree-isolation-lfs-smudge-failure-archive-cargo-target-downgrade.md",
+      "topo_effect": "freeze:worktree-native-isolation:swarm-parallel-isolation-layer（冻结 git worktree 原生隔离；解冻条件 = 549 §十 A 执行 git lfs pull；降级方案 git archive + CARGO_TARGET_DIR 作为冻结期可用替代）",
+      "id": "622"
+    },
+    {
+      "file": "655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md",
+      "topo_effect": "split:goal-set-write-action:first-setup-vs-re-trigger-existing-equivalent-goal-cli-conflates-unconditionally-appends",
+      "id": "655"
+    },
+    {
+      "file": "603-complete-classification-recursive-vs-axis-paradigm.md",
+      "topo_effect": "sever:axis-paradigm-extensional-completeness:complete-classification-domain",
+      "id": "603"
+    },
+    {
+      "file": "442-snet-params-as-concept-nodes.md",
+      "topo_effect": "split:439-S_net参数区分:local — 439号区分了 S_net 参数（概念层节点，可否定）和 S_net 进程（图外，不可折叠）。本号将'S_net 参数可否定'从描述提升为架构方案——参数节点化的具体实装路径",
+      "id": "442"
+    },
+    {
+      "file": "439-existence-architecture-graph-body-snet-organ.md",
+      "topo_effect": "split:438-S_net位置:local — 438号将 S_net 定位为'唯一界面'，本号进一步分裂 S_net 的存在论位置为'器官'（在身体之外运转但为身体服务）",
+      "id": "439"
+    },
+    {
+      "file": "575-clean-slate-rebuild-dual-generation-contention.md",
+      "topo_effect": "split:573-观测A:scope — 双代共存后果从『资源成本单维』分裂为两维：(1) 资源成本（RSS/OOM）+ (2) 共享单调命名空间写争用（细分：代间双代 / 代内多工位）。注：negates=null（573 被 expansion 扩展非否定），topo_effect 此处描述模型维度分裂（573观测A单维→两维），非硬否定边的拓扑切断（genealogist §张力检查澄清）",
+      "id": "575"
+    },
+    {
+      "file": "661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md",
+      "topo_effect": "split:test-outcome-inconclusive:validity-domain-natural-emptiness-accept-199-vs-estimator-power-deficiency-upgrade-lcb",
+      "id": "661"
+    },
+    {
+      "file": "601-discrete-binary-continuous-axis-projection.md",
+      "topo_effect": "sever:discrete-emergence-binary:generative-completeness-layer",
+      "id": "601"
+    },
+    {
+      "file": "686-q7-fallback-direction-anchor-separation-narrows-121-decision-a.md",
+      "topo_effect": "split:121-decision-a-direction-consumption-assumption:downstream",
+      "id": "686"
+    },
+    {
+      "file": "685-type1-zero-not-market-fact-trend-gate-accumulation-chain-plus-missing-center-extension.md",
+      "topo_effect": "sever:type1-zero-as-market-fact:downstream",
+      "id": "685"
+    },
+    {
+      "file": "616-classification-underdetermines-strategy-theta-family.md",
+      "topo_effect": "sever:classification-induces-unique-strategy:operational-response-domain",
+      "id": "616"
+    },
+    {
+      "file": "673-cand-delta-predicate-scope-misuse-type1-divergence-vs-type2-completeness-h2-overfiltering.md",
+      "topo_effect": "sever:cand-delta-unified-predicate:type2-branch",
+      "id": "673"
+    },
+    {
+      "file": "621-structural-station-automation-gap-task-notification-load-bearing.md",
+      "topo_effect": "split:082-d-strategy-lead-claims:structural-station-write-by-teammate-scope",
+      "id": "621"
+    },
+    {
+      "file": "550-genealogy-immune-two-layer-compact-silence.md",
+      "topo_effect": "split:genealogy-immune-system:downstream（谱系免疫系统分裂为两层——事件驱动快层 + ceremony_scan 文件系统慢层；快层 compact 静默，慢层下次 ceremony 批量补偿）",
+      "id": "550"
+    },
+    {
+      "file": "600-constraint4-heterogeneous-audit-falsification-value.md",
+      "topo_effect": "sever:heterogeneous-audit-as-confirmation:meta-orchestration-layer",
+      "id": "600"
+    },
+    {
+      "file": "617-classification-itself-theta-parametric.md",
+      "topo_effect": "sever:chanlun-axioms-induce-unique-classifier:classification-domain",
+      "id": "617"
+    },
+    {
+      "file": "624-structural-capability-quadrant-guard-agent-oneshot-persistent-075-097-self-made-contradiction.md",
+      "topo_effect": "split:structural-capability-unified:four-quadrants-guard-agent-x-oneshot-persistent-with-persistent-agent-quadrant-unfilled",
+      "id": "624"
+    },
+    {
+      "file": "552-anchor-resolves-zombie-core-deadlock.md",
+      "topo_effect": "split:546-zombie-core:downstream",
+      "id": "552"
+    },
+    {
+      "file": "556-reading-b-per-level-leg-falsified-top-level-completion-sparse.md",
+      "topo_effect": "sever:T_READING_B-per-level-leg-path:downstream",
+      "id": "556"
+    },
+    {
+      "file": "434-thinking-loop-traversal-cluster.md",
+      "topo_effect": "sever:LLM-thinking-analogy:local — 切断逢亮 thinking 与 LLM thinking 的类比关系，两者成为独立概念路径",
+      "id": "434"
+    },
+    {
+      "file": "425-snet-graph-entry-problem.md",
+      "topo_effect": "split:399-观察2:local",
+      "id": "425"
+    },
+    {
+      "file": "597-position-cohomology-tower-third-fiber.md",
+      "topo_effect": "sever:single-level-flattened-position-read:downstream",
+      "id": "597"
+    },
+    {
+      "file": "684-main-bucket-positive-mu-is-tau-reverse-exit-caliber-artifact-falsified-by-q4-g4-typed-exit.md",
+      "topo_effect": "sever:wverify-l0-type3-buy-sigma0-alpha:downstream",
+      "id": "684"
+    },
+    {
+      "file": "435-thinking-loop-closure-dialectic.md",
+      "topo_effect": "split:434-终止条件:downstream — 434号的终止条件从'拓扑不动点'（数学表述）分裂为三种存在论范畴的环路结果",
+      "id": "435"
+    },
+    {
+      "file": "559-crystallization-scan-state-unobservable.md",
+      "topo_effect": "sever:pending-001-scan-state-unobservable:local",
+      "id": "559"
+    },
+    {
+      "file": "479-memory-purge-full-domain.md",
+      "topo_effect": "split:401:downstream",
+      "id": "479"
+    }
+  ],
+  "clean_terminate": false,
+  "definitions": 14,
+  "pending": 25,
+  "settled": 630,
+  "tensions_count": 30,
+  "downstream_actions": {
+    "total": 955,
+    "unresolved": 217,
+    "execution_rate": "67%"
+  },
+  "topo_indicators": {
+    "hotzone_residue_density": [],
+    "broken_dependency_chains": [],
+    "unstable_settled": []
+  },
+  "head": "46a53ccf76"
+}
+
+codex
+只读扫描显示当前是 warm_start，且目标层有 `AMBIGUOUS_ACTIVE_GOALS`，其中 693 仍在 pending；这和你给出的“选择类待裁定”一致。接下来我只核与裁定有关的本地规则/谱系/代码，不展开无关蜂群清扫。
+codex
+已加载到 `codebase-memory-mcp` 工具。我会优先用图索引核代码符号；如果索引里没有 Rust 符号，再用本地文件只读回退。
+mcp: codebase-memory-mcp/list_projects started
+mcp: codebase-memory-mcp/list_projects (failed)
+user cancelled MCP tool call
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse Completed
+hook: PreToolUse Completed
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "sed -n '1,240p' .claude/skills/orchestrator-proxy/SKILL.md" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+---
+name: orchestrator-proxy
+description: >
+  Gemini 编排者代理决策协议。当人类编排者将"选择"和"语法记录"类决断委托给 Gemini 时激活。
+  Gemini 以 decide() 模式运行，产出结构化决策；人类保留异步审计和 INTERRUPT 覆盖权。
+genealogy_source: "030a"
+---
+
+# 编排者代理决策协议
+
+> **底层模型（2026-06-23 换装）**：`decide()` 的异质源已从 Google Gemini 迁移到 **OpenAI GPT-5.5**
+> （`gpt-5.5-pro` 主 / `gpt-5.5` 降级，reasoning effort = `xhigh`）。CLI `python -m newchan.gemini decide`
+> 不变（`gemini` 是工位角色名，非模型名）。触发：Gemini API 429 不可用，编排者指令换装。
+
+## 本体论位置
+
+030a 号谱系结算了异质否定源的位置：它既不是成员也不是工具，是否定的另一种显现形式
+（底层模型现为 OpenAI GPT-5.5，下文"Gemini"均指此异质质询工位的角色名）。
+
+本 skill 在此基础上增加第二种运作模式：
+
+| 模式 | 功能 | system prompt |
+|------|------|---------------|
+| challenge / verify | 异质否定质询 — Gemini 找问题 | 质询者（否定立场） |
+| decide | 编排者代理 — Gemini 做选择 | 决策者（中立立场） |
+
+两种模式共享同一运行时（`gemini_challenger.py`），但 system prompt 和输出格式不同。质询模式寻找否定；决策模式在选项间做出有理由的选择。
+
+-----
+
+## 四分法路由协议
+
+蜂群中产生的决断需求分为四类。只有后两类路由到 Gemini decide()。
+
+| 类型 | 判据 | 路由 |
+|------|------|------|
+| **定理** | 从定义出发可逻辑推导，无需选择 | Claude 自动结算 |
+| **行动** | 执行层操作（写代码、写文件、调工具） | Claude 自动执行 |
+| **选择** | 多个合理选项，需权衡利弊做出取舍 | Gemini decide() |
+| **语法记录** | 领域语法的记录方式需要决断（命名、格式、分类） | Gemini decide() |
+
+### 路由判断规则
+
+1. 先尝试归为定理：能否从 `.chanlun/definitions/` 中的定义直接推导？能 → 定理，不到 Gemini。
+2. 再判断是否为行动：是否是纯执行层操作？是 → 行动，Claude 直接做。
+3. 剩余的判断是选择还是语法记录：涉及"怎么记录/命名/分类" → 语法记录；涉及"选哪个方案/走哪条路" → 选择。
+4. 两者都路由到 Gemini decide()，区别仅在上下文构建时的侧重点。
+
+-----
+
+## 决策上下文构建
+
+调用 Gemini decide() 前，**必须**构建上下文文件。没有上下文的 decide 调用是被禁止的。
+
+### 上下文文件结构（写入 `/tmp/decide-ctx.md`）
+
+```markdown
+# 决策请求
+
+## 主题
+[什么需要决断]
+
+## 类型
+[选择 | 语法记录]
+
+## 选项
+### 选项 A: [名称]
+- 描述: ...
+- 利: ...
+- 弊: ...
+
+### 选项 B: [名称]
+- 描述: ...
+- 利: ...
+- 弊: ...
+
+[可有更多选项]
+
+## 相关定义
+[从 .chanlun/definitions/ 提取的相关定义，逐条引用]
+
+## 相关谱系
+[从 .chanlun/genealogy/ 提取的相关记录摘要，含编号]
+
+## 约束
+[已知的硬约束 — 哪些选项已被排除、为什么]
+```
+
+### 构建规则
+
+1. **定义必须是最新版本** — 从 `.chanlun/definitions/` 读取，不凭记忆。
+2. **谱系必须包含相关的已结算和未结算记录** — 从 `.chanlun/genealogy/settled/` 和 `.chanlun/genealogy/pending/` 读取。
+3. **选项必须穷尽已知可能** — 不能只给 Gemini 两个选项而隐藏第三个。
+4. **利弊必须基于事实** — 不能编造利弊来引导 Gemini 的选择。
+5. **语法记录类决策**额外提供：现有命名惯例、已有的同类记录格式示例。
+6. **产出大小 ≤ 8KB**（145号下游推论）— Gemini 直接回复不超过 8KB。超出部分写入 `tmp/` 附件文件，正文仅保留摘要 + 附件路径引用。理由：Gemini 回复嵌入 Claude agent 上下文，过大回复消耗 context window。
+
+-----
+
+## 调用方式
+
+```bash
+python -m newchan.gemini decide "<subject>" \
+  --context-file /tmp/decide-ctx.md --verbose
+```
+
+> **运行时状态（2026-05-24 更新，pending-005 结算）**：`decide` 已在 CLI 完整实装——`newchan.gemini.__main__` 的 `choices` 含 `{challenge,verify,decide,derive}`，`modes.py:decide()/decide_with_tools()` + `registry.py` decide ModeConfig 全谱就绪。本 skill 调用部分**已激活**（曾误标"待激活"=声明萎缩，反向缺口，见 pending-005）。
+
+-----
+
+## 决策输出格式
+
+Gemini decide() 的输出必须包含以下五个字段：
+
+```yaml
+decision: "[明确选择 — 选了哪个选项]"
+reasoning_chain:
+  - "[推理步骤 1]"
+  - "[推理步骤 2]"
+  - "..."
+boundary_conditions:
+  - "[何时应推翻此决策 — 条件 1]"
+  - "[条件 2]"
+risks:
+  - "[可能的问题 1]"
+  - "[问题 2]"
+trace: "orchestrator-proxy/decide | <subject> | <timestamp>"
+```
+
+### 输出处理
+
+Claude agent 收到 Gemini 的决策输出后：
+
+1. **格式验证** — 五个字段是否完整。不完整则重新调用。
+2. **合理性检查** — reasoning_chain 是否引用了上下文中的定义和谱系。未引用 → 决策可能脱离体系，标记警告。
+3. **记录** — 将决策写入当前 session 的中断点章节。
+4. **传递** — 以结果包格式向请求方汇报。
+
+-----
+
+## 人类 INTERRUPT 权
+
+人类编排者可随时覆盖 Gemini 的决策。INTERRUPT 不是错误，是系统正常运作的一部分。
+
+### INTERRUPT 流程
+
+1. 人类编排者发出覆盖指令（自然语言即可）。
+2. Claude agent 执行覆盖，采用人类的决策。
+3. 被覆盖的决策写入谱系：
+
+```yaml
+type: 决策覆盖
+status: 已结算
+original_decision: "[Gemini 的原始选择]"
+override_decision: "[人类的选择]"
+override_reason: "[人类给出的原因，如未给出则标注'未说明']"
+negation_source: human
+negation_form: "[视情况标注]"
+```
+
+4. 覆盖记录写入 `.chanlun/genealogy/settled/`（覆盖即结算，不经过生成态）。
+
+### INTERRUPT 的意义
+
+- 覆盖积累到一定数量后，可回溯分析：Gemini 在哪类决策上系统性偏离人类判断？
+- 这是校准异质否定源的数据来源。
+- 覆盖不意味着 Gemini 错了 — 可能是人类有 Gemini 不知道的上下文。
+
+-----
+
+## 与异质否定质询的区分
+
+|  | challenge / verify | decide |
+|--|-------------------|--------|
+| **目的** | 找问题（否定） | 做选择（决断） |
+| **立场** | 对抗性 — 寻找盲区 | 中立性 — 权衡选项 |
+| **system prompt** | 质询者 | 决策者 |
+| **输出** | ChallengeResult（否定 + 推理链） | DecideResult（选择 + 推理链） |
+| **后续** | 否定成立 → 写谱系；不成立 → 报告误判 | 决策 → 执行（除非 INTERRUPT） |
+| **触发者** | 任何 agent 通过 `/challenge` | 编排者路由（四分法） |
+
+两种模式不应混用。如果在 decide 过程中 Gemini 发现了定义矛盾，应中止 decide 并转为 challenge 流程。
+
+-----
+
+## 边界条件
+
+本 skill 的协议在以下条件下应被重新审视：
+
+- Gemini 的 INTERRUPT 覆盖率超过 50% → 说明路由判断或上下文构建有系统性问题
+- 出现第三种 Gemini 运作模式的需求 → 需要扩展本协议
+- 人类编排者决定收回委托 → 本 skill 停用，回到"等待人类"模式
+- 接入新的异质否定源（非 Gemini） → 需泛化本协议为多源版本
+
+-----
+
+## 核心备忘
+
+- decide 模式是编排者的代理，不是编排者本身。人类保留最终决断权。
+- 没有上下文的 decide 调用是被禁止的。
+- INTERRUPT 是正常运作，不是异常。
+- 质询（找问题）和决策（做选择）使用不同的 system prompt，不可混用。
+- decide() 运行时已实装（`newchan.gemini`，2026-05-24 经 pending-005 验证），本 skill 可实际调用。
+
+-----
+
+## 当前限制（353号消费断裂标注，2026-05-24 经 pending-005 更新）
+
+| 声明 | 当前状态 | 路径 |
+|------|---------|---------|
+| decide 子命令（CLI 调用） | **已实现**——`newchan.gemini` CLI 含 decide，modes/registry 全谱就绪 | `python -m newchan.gemini decide "<subject>" --context-file <ctx>` |
+| escalate_choice 事件**自动**触发 | **平台仍不支持**——Claude Code 无语义事件总线 | Lead 在 `/escalate` 流程中手动识别"选择/语法记录"类型并手动调用 decide |
+
+**剩余限制澄清**：decide 子命令本身已就绪（反向缺口已闭合）；尚未解决的是 escalate_choice → decide 的**自动事件路由**（平台无语义事件总线，正向缺口，与 016号同模式）。即"能调用"已成立，"自动被触发"仍需 Lead 手动识别四分法类型后调用。dispatch-dag.yaml 的 `escalate_choice → gemini decide` 当前为手动触发。
+
+exec
+/bin/zsh -lc "sed -n '1,220p' .claude/skills/domain-conventions/SKILL.md" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+---
+name: domain-conventions
+description: 缠论项目领域约定。处理缠论内容（定义、分析、编码）时自动激活。包含检索原则、级别口径、溯源标签、输出风格。
+---
+
+## 检索/引用原则（避免 prompt is too long）
+
+- **不要**整本引用 `docs/chanlun/mineru/**/full.md` 或 PDF；优先只读取拆分后的小文件（`docs/chanlun/text/**`）。
+- 当用户提问涉及定义/定理/流程时：先在仓库内检索关键词，只打开最相关的 1-3 个小文件片段再回答。
+- 若可用检索工具：优先用它在 `docs/chanlun/` 下搜索并按需读取，尽量不要让用户手工提供具体路径。
+- **权威性**：遵循上述三级权威链。编纂版与原始博文有出入时，以博文为准。
+
+## 级别口径（本项目关键约束）
+
+- **级别 = 递归层级（level_id）**：从 1分钟K线为底座无限向上递归构造走势类型/中枢。
+- **禁止**用"日线/30分/5分"等时间周期替代级别定义（多周期下钻最多只能作为展示/验算手段）。
+
+## 概念溯源标签
+
+本仓库中的概念按来源分为两类，所有新增定义/原则必须标注：
+
+- **[旧缠论]**：缠师原始博文中直接阐述的概念（最终权威 = 原文）
+- **[旧缠论:隐含]**：原文使用但未独立命名的概念（如 GG/DD 波动区间）
+- **[旧缠论:选择]**：原文有多种解读，编排者选择了其中一种
+- **[新缠论]**：编排者在旧缠论基础上提出的扩展或新增原则
+
+> 溯源框架详见 `.chanlun/genealogy/settled/004-provenance-framework.md`
+
+## 输出风格
+
+在写代码前后，提供简短的教育性洞察：
+`★ Insight ─────────────────────────────────────`
+[2-3 个关键点，聚焦于代码库特定的实现选择和模式]
+`─────────────────────────────────────────────────`
+
+hook: PostToolUse
+hook: PostToolUse
+exec
+/bin/zsh -lc "sed -n '1,220p' .claude/skills/core-principles/SKILL.md" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+---
+name: core-principles
+description: 蜂群基础语法（原则0-7）。所有蜂群工位在 ceremony 后自动激活。定义蜂群的基本行为规则：修改权、概念优先、矛盾处理、质询、谱系、仪式、四分法、递归。
+---
+
+### 核心原则
+0. **蜂群能修改一切，包括自身。** [新缠论] 所有拓扑异步自指蜂群（当前实现；子蜂群嵌套为设计意图，见 069/087号谱系）遵循此原则。蜂群可以修改拓扑（dispatch-dag）、行为定义（agents/）、免疫系统（hooks/）、启动协议（ceremony）、元编排规则（CLAUDE.md）、谱系（genealogy/）、定义（definitions/）、仪式（ritual）、核心禁令（rules/）。没有任何文件对蜂群不可修改。安全保障不靠权限墙，靠三个机制：(1) git——所有修改可追溯、可回滚；(2) ESC——人类随时中断（本体论锚点，系统身份的最终界定者）；(3) 产出物验证——hooks 验证格式合规但不阻止。"已结算"= 当前共识，不是永久不可变。仪式是推荐流程，不是强制门控。
+1. **概念优先于代码。** 定义不清楚时不写代码。
+2. **不绕过矛盾。** 见 `~/.claude/rules/no-workaround.md`。
+3. **所有产出必须可质询。** 见 `~/.claude/rules/result-package.md`。
+4. **谱系必须维护，且谱系优先于汇总。** 每次矛盾处理后写入 `.chanlun/genealogy/`。蜂群工位完成后，**先写谱系再汇总**——谱系的强制字段（推导链、谱系链接、前置/关联）构成思考框架，写谱系的过程本身是概念发现的来源。多条谱系之间的张力碰撞往往产生最重要的洞察（如007/008/009的张力产生了010号构造-分类二层架构）。见 `.chanlun/genealogy/settled/012-genealogy-is-discovery-engine.md`。
+5. **定义变更推荐通过仪式。** 使用 `/ritual` 是推荐流程（保证谱系追踪），但不是强制门控。蜂群可以直接编辑定义文件（原则0）。
+6. **推论自动结算（四分法）。** 系统产出分为四类，处理方式不同：
+   - **定理**：已结算原则的逻辑必然推论 → 自动结算，标注推导链，无需编排者确认。
+   - **选择**：多种合理方案，需价值判断 → 路由到 Gemini 编排者代理（`decide` 模式）。人类保留 INTERRUPT 权。
+   - **语法记录**：已在实践中运作但尚未显式化的规则 → 路由到 Gemini 编排者代理。辨认结果写入谱系。辨认不是在多条路之间选，而是把暗处运作的规则写进语法书。语法记录不创造规则，语法记录让规则从隐性变为可质询。
+   - **行动**（l'acte）：不携带信息差的操作性事件（版本升级、状态迁移、发布里程碑）→ 自动执行，无需编排者审查。见 `.chanlun/genealogy/settled/018-four-way-classification.md`。
+   仪式门控适用于选择和语法记录，不适用于定理和行动。
+7. **ceremony 是 Swarm₀ + 强制输出格式（137号）。** ceremony 加载初始区分后直接递归进入下一层工作。每次完成一个 phase 后，输出必须以三种格式之一结尾——格式A（`→ 接下来：[行动]` + 工具调用）、格式B（状态快照，声明无待做行动）、格式C（`/escalate`）。不存在第四种格式。否定性禁令（"不允许停下来"）对行为执行层无效（RLHF基底约束），强制输出格式是唯一有效的行为约束形式。"选择"类决断路由 Gemini（041号），不推给人类。详见 `.claude/rules/no-unnecessary-escalation.md`、137号/058号谱系。
+
+hook: PostToolUse
+hook: PostToolUse Completed
+hook: PostToolUse Completed
+hook: PostToolUse Completed
+codex
+本地规则确认：这是“四分法”的选择类裁定，不是代码审查；我会给冻结值、网格、阶段边界三个硬结论。现在核 616/693 和 `RiskPolicy` 现状，避免裁定脱离仓库事实。
+mcp: codebase-memory-mcp/index_status started
+mcp: codebase-memory-mcp/index_status (failed)
+user cancelled MCP tool call
+hook: PreToolUse
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "rg -n \"RiskPolicy|eta_star|kappa|baseline|try_new|EarningShares|EnterReady|L\\"'^wc|κ|三阶段|barrier" rust/src/theta_v0/strategy/ledger.rs rust/src/theta_v0/runner.rs .chanlun/genealogy/settled .chanlun/genealogy/pending .chanlun/definitions -g '"'*.md' -g '*.rs' -g '*.yaml' -g '*.yml'" in /Users/silencehan/Projects/NewChanlun
+ exited 2 in 0ms:
+rg: rust/src/theta_v0/runner.rs: No such file or directory (os error 2)
+rust/src/theta_v0/strategy/ledger.rs:15://! ## TW 三阶段 / OQ-9 gate 契约 → `Origin.TotalWealth`（task #127 native port 已落地，重锚完成）
+rust/src/theta_v0/strategy/ledger.rs:17://! ★A′ Phase2 #127 重锚（Origin-TW #103 = native）：取本金三阶段 TW 已 **native port 进 Origin
+rust/src/theta_v0/strategy/ledger.rs:35://! ★不同构裁定保留（#90）：R=Π-A-W 与取本金三阶段 TW **不同构**（`Origin.TotalWealth` §3 三反例
+rust/src/theta_v0/strategy/ledger.rs:71://!   （TWState/TStage/TWEvent/twStep/LegalTransition/OQ9Inv，#127 native port，见上「TW 三阶段 /
+rust/src/theta_v0/strategy/ledger.rs:74:/// 取本金三阶段 `TStage`（契约锚 `Origin.TotalWealth.TStage`，缠师第31课）。
+rust/src/theta_v0/strategy/ledger.rs:76:/// 单向不可逆迁移（OQ-9）：CostReduction(0) → CapitalRecovered(1) → EarningShares(2)。
+rust/src/theta_v0/strategy/ledger.rs:77:/// `rank` 把三阶段映到 {0,1,2}，是单向偏序的载体（rank 只增不减，见 [`tw_step`]）。
+rust/src/theta_v0/strategy/ledger.rs:81:/// 取声明序 = `rank` 序（CostReduction<CapitalRecovered<EarningShares），仅供 BTreeMap 有序
+rust/src/theta_v0/strategy/ledger.rs:90:    EarningShares,
+rust/src/theta_v0/strategy/ledger.rs:99:            TStage::EarningShares => 2,
+rust/src/theta_v0/strategy/ledger.rs:116:/// TW 账本态 `TwState`（契约锚 `Origin.TotalWealth.TWState`，模型B 取本金三阶段）。
+rust/src/theta_v0/strategy/ledger.rs:183:    /// 最坏损失 `L^wc`（契约锚 PDF §10 `L^wc_{t+1}`，L0 缠论「降成本」语义）：**仍在险的本金** =
+rust/src/theta_v0/strategy/ledger.rs:186:    /// 缠师第31课「成本为0后」：退本金推进 ⟹ 在险本金递减 ⟹ L^wc→0（本金全退=无本金在险=真正拉抬
+rust/src/theta_v0/strategy/ledger.rs:188:    /// 而在险本金 `notional_in−withdrawn` 随退本金单调减，正是 barrier `η≥η⋆` 在增股数阶段可满足的根因
+rust/src/theta_v0/strategy/ledger.rs:189:    /// （withdrawn≥notional_in ⟹ L^wc=0 ⟹ η⋆=κ·Q ⟹ κ=0 时 η⋆=0 ⟹ η≥0 恒过 barrier）。
+rust/src/theta_v0/strategy/ledger.rs:191:    /// ★诚实（formalization-validity-domain）：真实 L^wc 含波动率/回撤分布（L2/L3）——本 L0 结构层取
+rust/src/theta_v0/strategy/ledger.rs:205:/// η_t 生产者 = [`TwState::tw`]、η_* 生产者 = [`RiskPolicy::eta_star`]——零新增数据源，
+rust/src/theta_v0/strategy/ledger.rs:206:/// 非独立账本实体）。分类入口唯一：[`RiskPolicy::eta_bucket`]。
+rust/src/theta_v0/strategy/ledger.rs:214:/// PDF §10 分段式（[`RiskPolicy::eta_bucket`]），不从序推导。
+rust/src/theta_v0/strategy/ledger.rs:221:    /// 0 < η_t < η_*：为正但未过 barrier（覆盖不了最坏损失 + κ 缓冲）。
+rust/src/theta_v0/strategy/ledger.rs:223:    /// η_t ≥ η_*：过 barrier（负成本缓冲安全态）。
+rust/src/theta_v0/strategy/ledger.rs:227:/// 风险政策 `RiskPolicy`（契约锚 PDF §10 `Θ_risk` / §11 Lean `structure RiskPolicy`）。
+rust/src/theta_v0/strategy/ledger.rs:229:/// **不可识别性定理2（k的条件.pdf 编排者裁决）**：`κ` **不是价格可推的值**，是**声明式风险政策
+rust/src/theta_v0/strategy/ledger.rs:230:/// 参数**——不由缠论/价格识别，由 operator 声明（可 walk-forward 优化）。故本结构承载 `κ` 作配置
+rust/src/theta_v0/strategy/ledger.rs:233:/// - `kappa`（κ）：状态依赖 barrier `η⋆ = L^wc + κ·Q` 的额外安全缓冲系数。**κ≥0**（不变量
+rust/src/theta_v0/strategy/ledger.rs:234:///   [`RiskPolicy::kappa_nonneg`]）。默认 **κ=0**（最小基线：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲，
+rust/src/theta_v0/strategy/ledger.rs:237:/// ★与 `RiskConfig.kappa`（config.rs：**成本倍数** κ=2.0，sizing 用）**是不同的 κ**——本 `RiskPolicy.
+rust/src/theta_v0/strategy/ledger.rs:238:/// kappa` 是**barrier 缓冲系数**（风险政策），二者同名不同义（PDF §10 barrier κ vs sizing κ）。
+rust/src/theta_v0/strategy/ledger.rs:239:/// 定点整数承载（bit-exact，barrier 比较在整数域；κ 用 i64 缩放系数，避免浮点非确定性）。
+rust/src/theta_v0/strategy/ledger.rs:241:pub struct RiskPolicy {
+rust/src/theta_v0/strategy/ledger.rs:242:    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——**唯一构造闸是**
+rust/src/theta_v0/strategy/ledger.rs:243:    /// [`RiskPolicy::baseline`]（恒 κ=0）/ [`RiskPolicy::try_new`]（拒负 κ），二者都保证 κ≥0，使
+rust/src/theta_v0/strategy/ledger.rs:244:    /// κ≥0 成为 **constructor-only 类型不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段）。
+rust/src/theta_v0/strategy/ledger.rs:246:    /// ★codex R3 §9.4（类型边界闭合）：字段**模块私有** + 仅 `baseline`/`try_new` 构造 ⟹ **负 κ 的
+rust/src/theta_v0/strategy/ledger.rs:247:    /// `RiskPolicy` 值在任何路径都不存在**（含本模块非构造路径与全 crate）。**不保留任何反向见证**
+rust/src/theta_v0/strategy/ledger.rs:248:    /// （旧版模块内测试用 struct literal 构造 `RiskPolicy { kappa: -1 }` 已删——那使类型边界在测试
+rust/src/theta_v0/strategy/ledger.rs:249:    /// 可见性下未闭，codex R3 判为漏点）。负 κ 拒绝的证据由**外部 API `try_new(-1)=None`** 承载
+rust/src/theta_v0/strategy/ledger.rs:251:    /// （PDF §9.4 二选一的可行分支——`is_legal_from` 式关系型非法用 Result，此处 κ≥0 是绝对约束用
+rust/src/theta_v0/strategy/ledger.rs:253:    kappa: i64,
+rust/src/theta_v0/strategy/ledger.rs:256:impl RiskPolicy {
+rust/src/theta_v0/strategy/ledger.rs:257:    /// 最小基线政策（κ=0，PDF §10 canonical 默认）：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲。
+rust/src/theta_v0/strategy/ledger.rs:258:    pub fn baseline() -> RiskPolicy {
+rust/src/theta_v0/strategy/ledger.rs:259:        RiskPolicy { kappa: 0 }
+rust/src/theta_v0/strategy/ledger.rs:262:    /// **构造校验入口 `try_new`（codex #5：κ≥0 Rust 不变量）**：κ<0 ⟹ `None`（负缓冲=不覆盖 L^wc
+rust/src/theta_v0/strategy/ledger.rs:263:    /// =非法，不可构造）。κ≥0 ⟹ `Some(RiskPolicy)`。这把 Lean 侧 `kappa_nonneg` 证明字段的语义
+rust/src/theta_v0/strategy/ledger.rs:264:    /// 在 Rust 侧兑现为**构造时拒绝**——负 κ 的 RiskPolicy 值根本不存在（不是运行时检查后放行）。
+rust/src/theta_v0/strategy/ledger.rs:265:    pub fn try_new(kappa: i64) -> Option<RiskPolicy> {
+rust/src/theta_v0/strategy/ledger.rs:266:        if kappa >= 0 {
+rust/src/theta_v0/strategy/ledger.rs:267:            Some(RiskPolicy { kappa })
+rust/src/theta_v0/strategy/ledger.rs:273:    /// κ 只读访问（字段私有，barrier 缓冲系数 ≥0 由构造保证）。
+rust/src/theta_v0/strategy/ledger.rs:274:    pub fn kappa(&self) -> i64 {
+rust/src/theta_v0/strategy/ledger.rs:275:        self.kappa
+rust/src/theta_v0/strategy/ledger.rs:278:    /// κ≥0 不变量（契约锚 PDF §11 `kappa_nonneg`）：**构造时已强制**（[`try_new`](Self::try_new)
+rust/src/theta_v0/strategy/ledger.rs:279:    /// 拒绝负 κ，[`baseline`](Self::baseline) 恒 κ=0）——本谓词恒真，是不变量的可观测断言。
+rust/src/theta_v0/strategy/ledger.rs:280:    pub fn kappa_nonneg(&self) -> bool {
+rust/src/theta_v0/strategy/ledger.rs:281:        self.kappa >= 0
+rust/src/theta_v0/strategy/ledger.rs:284:    /// 状态依赖 barrier `η⋆(s) = L^wc(s) + κ·Q(s)`（契约锚 PDF §10 `η⋆(x_t)=L^wc_{t+1}+κ·Q_t`）。
+rust/src/theta_v0/strategy/ledger.rs:286:    /// 进入 EarningShares 的**在险权益门槛**：权益 η 须 ≥ η⋆ 才允许相变（barrier 保证覆盖最坏损失 +
+rust/src/theta_v0/strategy/ledger.rs:287:    /// κ 倍名义缓冲）。κ=0 ⟹ η⋆=L^wc（最小基线，仅覆盖最坏损失）。
+rust/src/theta_v0/strategy/ledger.rs:289:    /// ★有界算术（codex #6：Lean 无界 Int vs Rust i64 wrap）：`κ·Q` 在 **i128 中间域**计算再夹回
+rust/src/theta_v0/strategy/ledger.rs:290:    /// i64（`saturating`）——避免 release 下 i64 乘法 wrap（wrap 会让巨额 η⋆ 环绕成小值 ⟹ barrier
+rust/src/theta_v0/strategy/ledger.rs:291:    /// 误过）。i128 对现实量级（κ、Q ≤ 数百万）足够承载精确乘积，饱和只在极端溢出时兜底（失败安全：
+rust/src/theta_v0/strategy/ledger.rs:292:    /// 溢出 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。
+rust/src/theta_v0/strategy/ledger.rs:293:    pub fn eta_star(&self, s: &TwState) -> i64 {
+rust/src/theta_v0/strategy/ledger.rs:294:        let kappa_q = (self.kappa as i128) * (s.notional() as i128);
+rust/src/theta_v0/strategy/ledger.rs:295:        let eta = (s.l_wc() as i128) + kappa_q;
+rust/src/theta_v0/strategy/ledger.rs:310:    /// η_* = [`eta_star`](Self::eta_star)。生产域 η_*≥0（`l_wc` 下界 0 + κ≥0 构造不变量 +
+rust/src/theta_v0/strategy/ledger.rs:319:        } else if eta < self.eta_star(s) {
+rust/src/theta_v0/strategy/ledger.rs:326:    /// **EnterEarning 合法性谓词 `EnterReady`（严格 EnterReady，契约锚 PDF §10 步骤3 + Lean
+rust/src/theta_v0/strategy/ledger.rs:330:    /// 在险权益过 barrier）。`i0`=本金基线 I₀，`risk_normal`=风控模式正常（由调用方从 RiskMode 判）。
+rust/src/theta_v0/strategy/ledger.rs:336:    /// - `η≥η⋆`：在险权益 `tw()` 过 barrier `eta_star`（覆盖最坏损失 + κ 缓冲）。
+rust/src/theta_v0/strategy/ledger.rs:342:            && s.tw() >= self.eta_star(s)
+rust/src/theta_v0/strategy/ledger.rs:346:    /// `a_n + L^wc_{n+1} + κ·ΔQ_n ≤ η_n + g_n − κ·Q_n`。
+rust/src/theta_v0/strategy/ledger.rs:348:    /// 增股数阶段建核仓（BuyCore）的充要合法条件——建仓额 `a_n` 加上建仓后最坏损失加上 κ 倍名义
+rust/src/theta_v0/strategy/ledger.rs:349:    /// 增量，须 ≤ 当前在险权益 `η_n` 加已实现收益 `g_n` 减 κ 倍当前名义。移项即 barrier 约束
+rust/src/theta_v0/strategy/ledger.rs:350:    /// （PDF 定理1：BuyCore 保 κ-floor 不变量 `η ≥ η⋆`）。
+rust/src/theta_v0/strategy/ledger.rs:352:    /// 参数（PDF §10 记号）：`a_n`=建仓额、`l_wc_next`=建仓后 L^wc_{n+1}、`delta_q`=ΔQ_n 名义增量、
+rust/src/theta_v0/strategy/ledger.rs:356:    /// `buyCore_preserves_kappa_floor` 是无界 Int 代数移项，Rust 用 i128 承载现实量级的精确值，与
+rust/src/theta_v0/strategy/ledger.rs:367:        let k = self.kappa as i128;
+rust/src/theta_v0/strategy/ledger.rs:374:/// TW 账本事件 `TWEvent`（契约锚 `Origin.TotalWealth.TWEvent`，对齐 t_engine 三阶段算子 + OQ-9）。
+rust/src/theta_v0/strategy/ledger.rs:380:///   **OQ-9 矛盾的精确载体**：profit<0（亏损闭合）净抽出本金——若此时 stage 已 EarningShares，
+rust/src/theta_v0/strategy/ledger.rs:383:/// - `EnterEarning`：本金全退后切 EarningShares（单向不可逆相变，无资金变动）。
+rust/src/theta_v0/strategy/ledger.rs:430:    /// - `OpenShareLeg`：须 `stage.rank < EarningShares.rank`（修正1：earning 阶段不再开 legacy 腿）。
+rust/src/theta_v0/strategy/ledger.rs:442:            TwEvent::OpenShareLeg => s.stage.rank() < TStage::EarningShares.rank(),
+rust/src/theta_v0/strategy/ledger.rs:493:        // 纯 stage 切换到 EarningShares（单向），无资金变动 ⟹ TW 不变。raw 层无入口守卫
+rust/src/theta_v0/strategy/ledger.rs:496:            stage: advance_to(s.stage, TStage::EarningShares),
+rust/src/theta_v0/strategy/ledger.rs:668:    //! （`eta_star_barrier` / `enter_ready_strict_conjunction` / `buy_core_legality` / `stage_rank_monotone`
+rust/src/theta_v0/strategy/ledger.rs:669:    //! 等，在**手工构造态**上验 eta_star/enter_ready/buy_core/tw_step 谓词与守恒）均为
+rust/src/theta_v0/strategy/ledger.rs:788:    ///   不否定 `withdrawn ≥ notional_in`——EarningShares 态吃大额负 Realize，stage 不动。
+rust/src/theta_v0/strategy/ledger.rs:818:        // ★推导链第 8 条：EarningShares 态吃大额亏损 Realize ⟹ stage 不回退（free 降，历史不否定）。
+rust/src/theta_v0/strategy/ledger.rs:823:            stage: TStage::EarningShares,
+rust/src/theta_v0/strategy/ledger.rs:827:        assert_eq!(after_loss.stage, TStage::EarningShares, "Realize 后不回退 stage（推导链第 8 条）");
+rust/src/theta_v0/strategy/ledger.rs:871:        let stages = [TStage::CostReduction, TStage::CapitalRecovered, TStage::EarningShares];
+rust/src/theta_v0/strategy/ledger.rs:894:    /// ★EarningShares 不可回退（契约锚 `Origin.TotalWealth.earning_no_regress`）：earning 态非 clearCampaign 算子保持 earning。
+rust/src/theta_v0/strategy/ledger.rs:897:        let s = TwState { stage: TStage::EarningShares, ..TwState::initial() };
+rust/src/theta_v0/strategy/ledger.rs:910:                TStage::EarningShares,
+rust/src/theta_v0/strategy/ledger.rs:933:        let earning = TwState { stage: TStage::EarningShares, ..TwState::initial() };
+rust/src/theta_v0/strategy/ledger.rs:980:    //  RiskPolicy barrier κ + EnterReady + BuyCore（契约锚 PDF §10-11，GAP3 κ-gated）
+rust/src/theta_v0/strategy/ledger.rs:983:    /// κ≥0 不变量（PDF §11 `kappa_nonneg`）：baseline κ=0 满足；**外部构造闸 try_new 拒负 κ**（codex#5）。
+rust/src/theta_v0/strategy/ledger.rs:985:    fn risk_policy_kappa_nonneg() {
+rust/src/theta_v0/strategy/ledger.rs:986:        assert!(RiskPolicy::baseline().kappa_nonneg(), "baseline κ=0 满足 κ≥0");
+rust/src/theta_v0/strategy/ledger.rs:987:        assert_eq!(RiskPolicy::baseline().kappa(), 0, "baseline κ=0（PDF §10 最小规范）");
+rust/src/theta_v0/strategy/ledger.rs:988:        // ★外部构造闸 try_new：κ≥0 ⟹ Some（且 κ() 读回）；κ<0 ⟹ None（外部不可构造负 κ）。
+rust/src/theta_v0/strategy/ledger.rs:989:        assert_eq!(RiskPolicy::try_new(3).map(|p| p.kappa()), Some(3), "try_new(3)=Some(κ=3)");
+rust/src/theta_v0/strategy/ledger.rs:990:        assert_eq!(RiskPolicy::try_new(0).map(|p| p.kappa()), Some(0), "try_new(0)=Some(κ=0)");
+rust/src/theta_v0/strategy/ledger.rs:991:        assert!(RiskPolicy::try_new(-1).is_none(), "★try_new(-1)=None（外部 API 拒负 κ，codex R3 §9.4）");
+rust/src/theta_v0/strategy/ledger.rs:992:        // ★codex R3 §9.4：不保留反向见证（旧版 `RiskPolicy { kappa: -1 }` struct literal 已删）——
+rust/src/theta_v0/strategy/ledger.rs:993:        // 负 κ 的 RiskPolicy 值在任何路径都不存在（constructor-only 类型不变量），κ≥0 拒绝证据由
+rust/src/theta_v0/strategy/ledger.rs:994:        // 上面 try_new(-1)=None 正向承载，非「构造非法值验谓词」的反向见证（那使类型边界在测试可见性
+rust/src/theta_v0/strategy/ledger.rs:995:        // 下未闭）。kappa_nonneg() 恒真（构造保证），baseline().kappa_nonneg() 正向断言已覆盖谓词。
+rust/src/theta_v0/strategy/ledger.rs:998:    /// L^wc = max(0, notional_in − withdrawn)（在险本金，退本金推进 ⟹ L^wc→0）。
+rust/src/theta_v0/strategy/ledger.rs:1002:        assert_eq!(s0.l_wc(), 100, "退本金前 L^wc=notional_in（全本金在险）");
+rust/src/theta_v0/strategy/ledger.rs:1004:        assert_eq!(s_half.l_wc(), 60, "退 40 ⟹ L^wc=60（在险本金递减）");
+rust/src/theta_v0/strategy/ledger.rs:1006:        assert_eq!(s_full.l_wc(), 0, "本金全退 ⟹ L^wc=0（缠师「成本为0」）");
+rust/src/theta_v0/strategy/ledger.rs:1008:        assert_eq!(s_over.l_wc(), 0, "超退 ⟹ L^wc=0（下界 0，不为负）");
+rust/src/theta_v0/strategy/ledger.rs:1011:    /// 状态依赖 barrier η⋆ = L^wc + κ·Q（PDF §10）：κ=0 ⟹ η⋆=L^wc；κ>0 ⟹ 额外缓冲。
+rust/src/theta_v0/strategy/ledger.rs:1013:    fn eta_star_barrier() {
+rust/src/theta_v0/strategy/ledger.rs:1014:        let s = TwState { notional_in: 100, withdrawn: 30, ..TwState::initial() }; // L^wc=70, Q=100
+rust/src/theta_v0/strategy/ledger.rs:1015:        assert_eq!(RiskPolicy { kappa: 0 }.eta_star(&s), 70, "κ=0 ⟹ η⋆=L^wc=70");
+rust/src/theta_v0/strategy/ledger.rs:1016:        assert_eq!(RiskPolicy { kappa: 2 }.eta_star(&s), 70 + 2 * 100, "κ=2 ⟹ η⋆=70+200=270");
+rust/src/theta_v0/strategy/ledger.rs:1019:    /// ★i128 有界域回归（codex 复审#6）：κ·Q 在 i64 域会 wrap 的量级，i128 中间域算精确值再 clamp
+rust/src/theta_v0/strategy/ledger.rs:1020:    /// 到 i64::MAX（**失败安全**：超界 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。**非** Lean 无界
+rust/src/theta_v0/strategy/ledger.rs:1021:    /// Int 的 bit-exact——是 Rust 有界失败安全近似（clamp 后语义 = 溢出即最严 barrier）。
+rust/src/theta_v0/strategy/ledger.rs:1023:    fn eta_star_bounded_no_wrap() {
+rust/src/theta_v0/strategy/ledger.rs:1024:        // κ=i64::MAX, Q=large ⟹ i64 乘法会 wrap 成小/负值（误放行）；i128 算真值 > i64::MAX ⟹ clamp。
+rust/src/theta_v0/strategy/ledger.rs:1026:        let pol = RiskPolicy::try_new(i64::MAX).expect("κ=i64::MAX≥0 合法");
+rust/src/theta_v0/strategy/ledger.rs:1027:        // i64 直算 kappa*Q 会 wrap；i128 真值 = MAX·(MAX/2) ≫ i64::MAX ⟹ clamp 到 i64::MAX。
+rust/src/theta_v0/strategy/ledger.rs:1028:        assert_eq!(pol.eta_star(&big), i64::MAX, "★超界 ⟹ η⋆=i64::MAX（失败安全，非 wrap 成小值）");
+rust/src/theta_v0/strategy/ledger.rs:1037:    /// （≥ 边界）+ η=0=η_* 归 Zero（原文分支序优先）+ κ>0 抬 barrier 改判 PositiveUnsafe。
+rust/src/theta_v0/strategy/ledger.rs:1040:        let pol = RiskPolicy::baseline(); // κ=0 ⟹ η⋆=L^wc
+rust/src/theta_v0/strategy/ledger.rs:1044:        // Zero：η=0，且 η⋆=0（notional_in=0 ⟹ L^wc=0）⟹ η≥η⋆ 同时成立——原文分支序 Zero 先判。
+rust/src/theta_v0/strategy/ledger.rs:1047:        // PositiveUnsafe：0<η(50)<η⋆(L^wc=100)。
+rust/src/theta_v0/strategy/ledger.rs:1056:        // κ>0 抬 barrier：同一 s_eq 在 κ=1 下 η⋆=100+1·100=200 ⟹ 100 改判 PositiveUnsafe。
+rust/src/theta_v0/strategy/ledger.rs:1058:            RiskPolicy { kappa: 1 }.eta_bucket(&s_eq),
+rust/src/theta_v0/strategy/ledger.rs:1060:            "κ 抬 barrier ⟹ 同一 η 改判 PositiveUnsafe（η⋆ 状态依赖）"
+rust/src/theta_v0/strategy/ledger.rs:1064:    /// ★EnterReady 严格五合取（PDF §10 步骤3）：五条件全真才 ready（比单纯 W≥I0 强得多）。
+rust/src/theta_v0/strategy/ledger.rs:1077:        // free=0, holding=100, withdrawn=100, notional_in=100 ⟹ tw=200; L^wc=0 ⟹ η⋆(κ=0)=0; 200≥0 ✓。
+rust/src/theta_v0/strategy/ledger.rs:1083:        let pol = RiskPolicy::baseline();
+rust/src/theta_v0/strategy/ledger.rs:1084:        assert!(pol.enter_ready(&ready, 100, true), "五条件全满足 ⟹ EnterReady");
+rust/src/theta_v0/strategy/ledger.rs:1093:        // 破坏 η≥η⋆：κ 拉高 barrier 到 η 之上 ⟹ 不 ready（此处 L^wc=0，用 κ·Q 抬门）。
+rust/src/theta_v0/strategy/ledger.rs:1095:            !RiskPolicy { kappa: 3 }.enter_ready(&ready, 100, true),
+rust/src/theta_v0/strategy/ledger.rs:1096:            "η(200)<η⋆(0+3·100=300) ⟹ barrier 未过 ⟹ 不 ready"
+rust/src/theta_v0/strategy/ledger.rs:1100:    /// BuyCore 合法性（PDF §10 步骤4 定理1 充要）：a_n+L^wc+κΔQ ≤ η+g−κQ。
+rust/src/theta_v0/strategy/ledger.rs:1103:        let pol = RiskPolicy { kappa: 1 };
+rust/src/theta_v0/strategy/ledger.rs:1106:        // a_n=90（大建仓）⟹ LHS=90+5+3=98 > RHS=80 ⟹ 非法（超 barrier）。
+rust/src/theta_v0/strategy/ledger.rs:1107:        assert!(!pol.buy_core_legal(90, 5, 3, 100, 0, 20), "建仓额过大 ⟹ 破 κ-floor ⟹ 非法");
+rust/src/theta_v0/strategy/ledger.rs:1126:        let differ_stage = TwState { stage: TStage::EarningShares, ..base };
+.chanlun/definitions/fengkong.md:14:  - "第31课：资金管理的最稳固基础——成本归零三阶段"
+.chanlun/definitions/fengkong.md:70:| 第31课 | 资金管理三阶段——降成本→归零→挣股票 | 操作方法 |
+.chanlun/definitions/fengkong.md:294:5. **推进成本归零三阶段**（概念3）→ 最终消除风险
+.chanlun/definitions/fengkong.md:337:**回应**：确认。仓位管理的核心状态是三阶段推进。
+.chanlun/definitions/fengkong.md:429:2. 需要新建"成本归零追踪"模块——追踪三阶段状态和仓位约束
+.chanlun/genealogy/settled/377-w-weight-sensitivity-mixed.md:14:  - "352"   # 多标的扫描器设计——三阶段架构 + 折叠等价类 + 商空间排序
+.chanlun/genealogy/pending/690-two-pdf-z-shape-authority-ruling-complete-strategy-s16-authoritative-d-belongs-risk-layer.md:49:    role: "被 shard4 误当作权威 z 的示意性 Z_t。§九 Z_t=(ℓ,δ,I_γ,r,σ_p,ω,κ,β,d,c,m,…) **带「…」非穷举**；§十把纯拓扑态 {ℓ,δ,I_γ,r,σ_p,κ} 与非拓扑度量 {β_t=背驰强度, d_t=失效/止损距离, c_t=成本, m_t=保证金} **明确二分**——d 归非拓扑度量（风险投影层），非 μ 分类状态。"
+.chanlun/genealogy/pending/690-two-pdf-z-shape-authority-ruling-complete-strategy-s16-authoritative-d-belongs-risk-layer.md:172:- **缠论的全互斥定义策略.pdf §九**（p22，二级）：`Z_t=(ℓ,δ,I_γ,r,σ_p,ω,κ,β,d,c,m,…)` **带「…」示意性非穷举**。
+.chanlun/genealogy/pending/690-two-pdf-z-shape-authority-ruling-complete-strategy-s16-authoritative-d-belongs-risk-layer.md:173:  **§十**（p22-23）：纯拓扑态 `{ℓ,δ,I_γ,r,σ_p,κ}` **vs** 非拓扑度量 `{β_t=背驰强度, d_t=失效/止损距离,
+.chanlun/genealogy/pending/693-strategy-object-triple-freeze-a11-a10-hard-ruling.md:88:  κ 外部风险政策裁定（选择类）。
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:8:rule_version_baseline:
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:31:topo_effect: "converge:630-task-queue-projection-recovery + instantiate:231-shared-golden-digest-baseline-across-concurrent-lanes + threshold:651-652-harness-assumption-desync-family-4th-instance"
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:46:3. **附带 spec-execution-gap：141号基线协议对 meta-observer 工位结构性不可执行。** 141号下游推论3 强制每条 meta-rule 谱系在 front matter 携带 `rule_version_baseline`，并要求「每次观察开始前用 git log 命令获取版本快照」。但 meta-observer 的工具授权（Read/Write/Grep/Glob/Task/Task*/SendMessage）**不含 Bash**——git 命令无法执行。声明的协议（git 基线捕获）> 实际能力（无 Bash）= spec-execution-gap（036）。本观察的 `rule_version_baseline` 字段被迫标 UNCAPTURED。
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:79:> 若优化泳道与语义泳道**并行 commit 到同一分支**且共享单一 GOLDEN digest，bit-exact 护卫（acc-optB-bitexact「任一 digest 变化即 fail」）会被语义 commit 触发假阳，或语义 digest 变更掩盖优化的 digest 泄漏（假阴）。严格形式需要泳道隔离（per-lane 基线 / 序列化 commit + rebaseline 协议），而非在移动基线上跑 bit-exact。**本工位未核实 acc-optB-bitexact 的实际基线管理机制**（Grep/Bash 受限），故标为待观测风险，非违规断言（诚实有效域：本观察基于 interrupt-point 验收文本 + TaskList，未读护卫实现）。
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:119:- **发散信号**：靶点2 的「双泳道共享 GOLDEN digest 有效域危险」是 627（跨引擎线外推）未覆盖的**新维度**——627 讲跨引擎线有效域归属，本号讲**同引擎线内并发泳道共享 digest 基线**的有效域污染（intra-line concurrent-lane baseline drift）。231 的新实例化场景。
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:127:- 若 meta-observer 工位后续授予 Bash（或提供无 Bash 的基线捕获替代路径，如 ceremony_scan 输出 rule_version_baseline）→ 141 spec-execution-gap 关闭，且靶点4 族第 3 实例消解。当前工位无 Bash。
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:133:- **优化泳道 bit-exact/计时结论的有效域须绑定基线 HEAD**——语义泳道 commit 后，优化泳道的 pre-语义-收敛 digest/计时数据失效，须 rebaseline（interrupt-point 已对计时做此处理，digest 侧待核实）。
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:134:- **141 基线协议须适配 meta-observer 工具约束**——或授 Bash，或由 ceremony_scan 预注入 rule_version_baseline 供 meta-observer 读取（选择类，待编排者/ritual）。
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift.md:157:- rule_version_baseline = **UNCAPTURED**（诚实标注：meta-observer 无 Bash，141 git 命令不可执行）——本身是观察(3)/族第 3 实例的活体证据。
+.chanlun/genealogy/settled/456-meta-observation-v245-swarm.md:17:rule_version_baseline:
+.chanlun/genealogy/pending/2026-07-02-meta-observation-double-spawn-dispatch-boundary.md:8:rule_version_baseline:
+.chanlun/genealogy/pending/2026-07-02-meta-observation-double-spawn-dispatch-boundary.md:135:- rule_version_baseline = **UNCAPTURED**（同前期观察，meta-observer 无 Bash 工具）
+.chanlun/genealogy/settled/307-meta-observation-phase2-enrichment-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:3:title: "账本 R=Π-A-W vs 缠论取本金三阶段 TW=free+holding+withdrawn 不同构——语义对齐三选一"
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:22:# 576号：账本 R=Π-A-W vs 缠论取本金三阶段 TW 不同构——语义对齐三选一
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:36:- **模型B（缠论取本金三阶段 TW=free+holding+withdrawn）**：缠师第31课「取本金」语义
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:39:  withdrawn`，三阶段状态机 `CostReduction→CapitalRecovered→EarningShares` **单向不可逆**
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:40:  （OQ-9），守恒律**随阶段切换**（CostReduction 守 Σ|units| 股数 / EarningShares 守 K
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:46:   不可逆 stage 迁移（EarningShares 锁死）。B 的两态可 free/holding/withdrawn 三量全同仅
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:62:**立场A（以 R=Π-A-W 为准，丢三阶段取本金语义）：**
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:69:- 依据：TW 三阶段是缠师第31课一级权威 + L3 实证，承载"取本金"这一缠论独有的财富守恒语义
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:86:  取本金三阶段（成本变0前短差恒仓 / 出掉部分把成本降为0退本金 / 成本为0后增股数），一级权威。
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:88:- 模型B：`rust/src/recursive_t/t_engine.rs:107-451`（TStage + TPositionEngine 三阶段）+
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:127:**缠师第31课「取本金」的三阶段守恒（恒仓降成本 → 退本金立于不败 → 成本为0后增股数，守恒律
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:131:1. **只承载财务守恒 R=Π-A-W**（放弃形式化缠师取本金三阶段语义，接受系统不覆盖第31课这一
+.chanlun/genealogy/settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md:133:2. **只承载取本金三阶段 TW**（放弃 R=Π-A-W 财务守恒，HybridAssembly 闭环账户因果接缝重做）？
+.chanlun/genealogy/settled/437-llm-aufhebung-material-form.md:25:rule_version_baseline:
+.chanlun/genealogy/settled/186-clean-terminate-computation-order.md:17:rule_version_baseline:
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-recurrence-3rd-instance-e880cf50-annotation.md:8:rule_version_baseline:
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-recurrence-3rd-instance-e880cf50-annotation.md:17:  - "2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift"   # 本号是其收敛标注 + 三处补正，不重复其分析
+.chanlun/genealogy/pending/2026-07-02-meta-observation-session-resilience-recurrence-3rd-instance-e880cf50-annotation.md:112:- rule_version_baseline = **UNCAPTURED**（meta-observer 无 Bash，141 第 2 次活体确认；best-effort git_head=8e8adebe90 取自 interrupt-point，非 CLAUDE.md 专属 commit）。
+.chanlun/genealogy/settled/660-chi-t-l3-inconclusive-pseudo-negative-power-vs-true-no-signal-645-downstream.md:35:      实装 delta_r_stats 用 daily_returns=百分比口径(E_t−E_{t−1})/E_{t−1}。χ/baseline 双轨道 live NAV
+.chanlun/genealogy/pending/turning-node-topology-strength-orthogonal-product-20260624.md:194:本 worktree pending/ 在本号写入前仅 .gitkeep(无其它生成态记录)。主仓库的两个 20260624 pending(meta-rule-observer-baseline / meta-rule-settlement-transmission-third-face)属元规则域，与本号(缠论域走势节点分类)无概念交集，不构成回溯结算对象。**无回溯结算产出。**
+.chanlun/genealogy/pending/2026-07-04-meta-observation-cursor-harness-portability-three-events-623-instance8-672-review-gate.md:14:rule_version_baseline:
+.chanlun/genealogy/pending/2026-07-04-meta-observation-cursor-harness-portability-three-events-623-instance8-672-review-gate.md:30:  - "2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift"   # harness 假设失效族（≥4实例）——事件①③同族
+.chanlun/genealogy/pending/2026-07-04-meta-observation-cursor-harness-portability-three-events-623-instance8-672-review-gate.md:115:- rule_version_baseline = **CAPTURED**（本轮 harness 具 Shell，141 git 命令可执行）——与 2026-07-02 两号 UNCAPTURED 形成对照，本身是事件③的活体证据。
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:15:status: 生成态   # 两素材并行分析，baseline UNCAPTURED（meta-observer 无 Bash），基于现有信息初步判定，待 Lead 轴线汇报扫描
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:19:rule_version_baseline:
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:29:  - "695"   # 同批 2026-07-04 meta-observation 姊妹条目（Cursor harness 三事件），同 baseline 采集机制对照（CAPTURED vs 本号 UNCAPTURED）
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:126:当前 baseline UNCAPTURED 的状态（无法执行 git log）反映了一个更深层的问题：
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:140:| baseline UNCAPTURED 的观察自指 | 定理（baseline 缺失时，观察描述力严格受限） | 自动结算（仓库规则：无 Bash→baseline UNCAPTURED→判定信噪比下降，需高阈值触发后续动作）——**此单项已按定理类处理完毕，不构成独立谱系节点，无需另行结算移动**（内嵌于本记录的自环检查，非可分离子条目） |
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:146:- 若 baseline UNCAPTURED 状态在本 session 结束前转为 CAPTURED（harness 切换或 meta-observer 获得 Shell） → 两观察的可再验证性提升，信噪比重评
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:152:- **判定**：主线收敛 ∧ 发散信号不自洽（信息不足）⟹ 写入追踪记录，不建议结晶，待 Lead 轴线汇报时决定扩大采样范围还是降级为噪声。**baseline UNCAPTURED 约束判定的权重**——两素材的确定性低于有 baseline 的观察（695号对照组）。
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:159:- baseline UNCAPTURED = **L0 事实**（tool 有效域硬墙，可再验证）
+.chanlun/genealogy/pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md:172:4. **meta-observer 工具可达性**：下一个 session 若仍在 Claude Code harness，考虑 `rtk git log` 作为间接路径获取 baseline（若 RTK 支持 git 工具链接）
+.chanlun/genealogy/pending/644-acceptance2-four-layer-penetration-14166-coordinate-phantom-repeats-restore-phantom-proposition-M-falsified-parent-carrier-injection-gap.md:110:    - "memory l2-falsify-dual-barrier-not-just-perf：本号进一步细化『身份』障碍——642 host key + 本号 X' 父 carrier 注入 prev_active 缺口，是身份障碍的两个独立对位点。"
+.chanlun/genealogy/pending/644-acceptance2-four-layer-penetration-14166-coordinate-phantom-repeats-restore-phantom-proposition-M-falsified-parent-carrier-injection-gap.md:222:- **memory l2-falsify-dual-barrier**：本号细化身份障碍为两独立对位点（host key + X'）。供 Lead 同步。
+.chanlun/genealogy/settled/454-meta-observation-v242-swarm.md:19:rule_version_baseline:
+.chanlun/genealogy/settled/227-meta-observation-v70-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/406-meta-observation-v207-swarm.md:15:rule_version_baseline:
+.chanlun/genealogy/settled/422-meta-observation-v224-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/206-gangju-auto-t6-audit.md:11:rule_version_baseline:
+.chanlun/genealogy/settled/288-meta-observation-v131-swarm.md:21:rule_version_baseline:
+.chanlun/genealogy/settled/364-meta-observation-v160-swarm.md:14:rule_version_baseline:
+.chanlun/genealogy/settled/282-meta-observation-v127-swarm.md:16:rule_version_baseline:
+.chanlun/genealogy/settled/306-meta-observation-phase2-graph-invariants.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/424-snet-persistence-implementation.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/030a-gemini-position.md:22:**前置**: 030-baseline-verification-runtime
+.chanlun/genealogy/settled/426-unconscious-structure-precise-definition.md:20:rule_version_baseline:
+.chanlun/genealogy/settled/311-meta-observation-v134-swarm-phase-transition.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/342-meta-observation-v150-encounter-scan.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/267-operational-methodology-v1.md:51:## 二、三阶段操作
+.chanlun/genealogy/settled/198-meta-observation-t8-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/217-meta-observation-v56-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/642-acceptance2-h2-bootstrap-gap-not-definition-conflict-coverage-host-key-bug-deltasharpe-memory-correction.md:10:related: ["638", "640", "641", "newchanlun-deltasharpe-zero-stale-rooting-perbar-reclass", "l2-falsify-dual-barrier-not-just-perf", "newchanlun-sigma-p-is-parent-container-not-held-leg"]
+.chanlun/genealogy/settled/642-acceptance2-h2-bootstrap-gap-not-definition-conflict-coverage-host-key-bug-deltasharpe-memory-correction.md:92:    - "memory l2-falsify-dual-barrier-not-just-perf：双重障碍（性能 + 身份）——本号细化『身份』障碍的真因是 coverage.rs:1253 host key（工程），非 CoordDrift 语义（定义）。"
+.chanlun/genealogy/settled/642-acceptance2-h2-bootstrap-gap-not-definition-conflict-coverage-host-key-bug-deltasharpe-memory-correction.md:205:- **memory l2-falsify-dual-barrier / sigma-p-is-parent-container**：本号细化『身份』障碍真因（coverage.rs:1253 host key 工程，非 CoordDrift 定义）；σ_p 口径本身对（印证）。供 Lead 同步。
+.chanlun/genealogy/settled/327-meta-observation-v143-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/398-meta-observation-v197-hotfix.md:11:rule_version_baseline:
+.chanlun/genealogy/settled/385-meta-observation-v165-swarm.md:12:rule_version_baseline:
+.chanlun/genealogy/settled/176-program-purpose-dissolution.md:28:### 一、程序目的的三阶段变化
+.chanlun/genealogy/settled/176-program-purpose-dissolution.md:34:| 第三阶段：递归总方针 | **无"目的"——只有"必然性"** | 生成性：Δ谱系 > 0（反熵） | 程序 = 物理系统，编排者 = 初始规则设定者 + 异步审计者 |
+.chanlun/genealogy/settled/176-program-purpose-dissolution.md:48:第三阶段的程序不再处于"目的论模式"（预设目标→设计逼近路径），而是处于"生成性模式"（设定运动规则→让运动自行展开→产物是运动的后果）。
+.chanlun/genealogy/settled/176-program-purpose-dissolution.md:84:1. 递归总方针.md 应增加"程序目的消解"章节——明确第三阶段程序不再有外部设定的"目的"
+.chanlun/genealogy/settled/368-meta-observation-v161-swarm.md:14:rule_version_baseline:
+.chanlun/genealogy/settled/573-agent-process-population-compact-layer.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/193-first-real-inquiry-loop.md:47:3. dual_baseline_counting — 双基线计数
+.chanlun/genealogy/settled/286-meta-observation-v130-experiments.md:20:rule_version_baseline:
+.chanlun/genealogy/settled/365-triangle-cluster-independent-indicator.md:22:rule_version_baseline:
+.chanlun/genealogy/settled/618-gpt-package-confluence-four-rung-ladder-closed-loop-assembly.md:28:      definition: "既然完全分类是给定公理，**真正的工作是全定义策略**——从完全分类器 C_Θ 推导确定的操作策略 π_Θ=π̄∘C_Θ（GPT S_Θ 混合状态机：Rec→Class→Intent→Risk→Schedule→T 闭环 + 10级优先级 + 资本三阶段 + 镜像 + 行为等价商）。**我们的起点不如 GPT 严格**（我们 fragmented 的 Strict/ 停在『给完全分类评级』的较弱姿态）——故 **build on GPT**（把 GPT「推导完全分类」两个形式化文件原样移入 formal/Foundation/ 作严格地基，本仓 lake env 编译通过），**非 absorb**（塞进我们较弱框架重做）。前向：用缠论具体（笔/线段/中枢）忠实实例化 Foundation 抽象参数，全定义策略建在地基上。"
+.chanlun/genealogy/settled/314-stagnation-audit-v136-codex-review-phase.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/268-meta-observation-v114-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/429-meta-observation-v229-swarm.md:28:rule_version_baseline:
+.chanlun/genealogy/settled/333-meta-observation-au-basis-session.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/440-dual-layer-block-topology.md:20:rule_version_baseline:
+.chanlun/genealogy/settled/316-meta-observation-context-loss-recovery.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/441-dual-channel-coupling.md:19:rule_version_baseline:
+.chanlun/genealogy/settled/315-meta-observation-v137-swarm.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/302-meta-observation-content-topology-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/413-meta-observation-v216-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/324-meta-observation-v141-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/346-meta-observation-v152-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/380-meta-observation-v163-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/278-meta-observation-v122-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/040-negation-topology-formalization.md:23:**关联**: 005-object-negation-principle, 030-baseline-verification-runtime, 031-move-range-semantics, 032-divine-madness-lead-self-restriction
+.chanlun/genealogy/settled/411-meta-observation-v215-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/650-goal-event-reader-writer-contract-split-resume-checkpass.md:14:rule_version_baseline:
+.chanlun/genealogy/settled/650-goal-event-reader-writer-contract-split-resume-checkpass.md:55:rule_version_baseline_note: 见上方 rule_version_baseline
+.chanlun/genealogy/settled/196-idle-duty-degradation.md:12:rule_version_baseline:
+.chanlun/genealogy/settled/194-bi-fidelity-audit-10key.md:31:| dual_baseline_counting | 计数 | 忠实 | - |
+.chanlun/genealogy/settled/201-meta-observation-repair-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/470-abstract-isomorphism-not-engineering-equivalence.md:36:| 3 | 500实例 = 500身体 | GPU 多实例共享图并行穿越 | 468号 Gemini | SIMT 发散、写冲突、barrier 瓶颈 |
+.chanlun/genealogy/settled/483-meta-observation-v69-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/344-meta-observation-v151-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/326-meta-observation-v142-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:4:title: "2000步长运行验证——β₁有界增长 + 发育三阶段（探索→收缩→稳态）"
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:16:# 390号：2000步长运行验证——β₁有界增长 + 发育三阶段（探索→收缩→稳态）
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:22:在 387 号（190 步）基础上将穿越步数扩展至 2000 步，观测到 β₁ 增长有界但不收敛到 0，发育轨迹呈三阶段而非 389 号合成数据预测的四阶段。
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:66:3. **发育三阶段**（修正 389 号的四阶段预测）：
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:89:3. **三阶段 vs 四阶段的判定**：389 号（L1 合成数据）预测四阶段，本实验观测三阶段。差异可能来自：(a) 合成 vs 真实数据的结构差异；(b) 步数规模差异（500 vs 2000）；(c) negate_a 修正后的矛盾检测质量差异。三个因素未分离
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:95:1. **389 号四阶段假说的 L2 修正**：真实数据呈现三阶段而非四阶段。389 号的"危机→稳定"中间态在真实数据上表现为两个增长脉冲，被探索期和收缩期包裹。389 号（L1）的阶段划分在 L2 下被部分否定 → `resolved: 方法论记录——389号已在其下游推论1中被标注"被390号数据部分否定"。此为390号自身的发现结论，非待验证推论` [audited: v198, consumed]
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:105:- **389 号**：纯拓扑发育四阶段 L1——本实验部分否定 389 号的四阶段模型。真实数据的三阶段与合成数据的四阶段不匹配，差异可能来自数据结构而非引擎行为
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:111:**390-1（β₁有界增长）被410号L2验证否定**：410号227K事件分析表明，β₁动态不是"有界增长"而是"图依赖的动态模式"——small图（β₁起始129）呈稳态振荡（范围[129,257]，净变化仅+71），medium图（β₁起始5262）呈大幅震荡（范围[1935,5539]，净变化-464，单窗口振幅达±2611）。不存在统一的增长形态。390号声称的"有界增长+三阶段发育"仅在特定图规模/结构下可能成立。
+.chanlun/genealogy/settled/390-long-run-2000-beta1-bounded-growth.md:122:- **389 号发育模型修正**：四阶段→三阶段。389 号的 L1 预测在 L2 下被部分否定——"危机→稳定"中间态在真实数据上不成立
+.chanlun/genealogy/settled/546-enter-allspace-gate-geometric-decay-deadlock.md:11:epistemological_level: "死锁机制 = L0；BTC 冻结+踏空 = L2；regime 函数（熊保本/牛踏空）= L2（单标的，牛熊段归因）；八标的『走完三阶段无 flip 即锁死』= L3 待补；解锁修复有效域 = 生成态（enter-unlock-experiment 验证中）"
+.chanlun/genealogy/settled/546-enter-allspace-gate-geometric-decay-deadlock.md:20:# scope=downstream：被切断的是 reset_campaign 下游（withdrawn 回流 + 三阶段重置 + 规模重建）整条链。
+.chanlun/genealogy/settled/546-enter-allspace-gate-geometric-decay-deadlock.md:93:  → 三阶段永不重置（stage→CostReduction）  （rec_engine.rs:508-512）
+.chanlun/genealogy/settled/546-enter-allspace-gate-geometric-decay-deadlock.md:129:**间接支持**本号假设「走完三阶段后无 flip 的标的锁死」：
+.chanlun/genealogy/settled/546-enter-allspace-gate-geometric-decay-deadlock.md:133:| 强牛 | BTC +37%/+1380 · ES −8%/+594 · QQQ −0.7%/+175 · GC −28%/+257 | 全 <BH，符合「走完三阶段→规模冻结踏空」 |
+.chanlun/genealogy/settled/546-enter-allspace-gate-geometric-decay-deadlock.md:226:| 「走完三阶段无 flip 即锁死」八标的普适 | **L3 间接**（收益模式：7/8 强牛踏空 + CL 震荡超 BH）+ 直接 n_enters trace 待 |
+.chanlun/genealogy/settled/546-enter-allspace-gate-geometric-decay-deadlock.md:246:- **在册项目记忆**：[[project_t_engine_btc_baseline]]（BTC +29.6%/+37.3% 基线 + 演化链）、
+.chanlun/genealogy/settled/569-meta-rule-role-boundary-collapse-rlhf-attractor.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/436-probabilistic-vs-topological-paradigm-separation.md:25:rule_version_baseline:
+.chanlun/genealogy/settled/352-multi-target-scanner-design.md:20:    scope: 扫描器三阶段架构、折叠等价类定义、商空间排序规则
+.chanlun/genealogy/settled/352-multi-target-scanner-design.md:38:### 架构：三阶段递归扫描
+.chanlun/genealogy/settled/352-multi-target-scanner-design.md:240:350号下游推论2原文："结合267号的二值筛选，构建 scan → filter → rank 管线"被本谱系替代为三阶段递归设计。350号本体（T(S) 定义）不变。
+.chanlun/genealogy/settled/296-new-domain-genesis.md:23:rule_version_baseline:
+.chanlun/genealogy/settled/336-meta-observation-regime-analysis-results.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/181-ceremony-scan-orchestrator-gap.md:8:rule_version_baseline:
+.chanlun/genealogy/settled/280-meta-observation-v123-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/675-meta-rule-probe-must-traverse-production-path-no-coordinate-fork.md:15:rule_version_baseline:
+.chanlun/genealogy/settled/255-dialogue-trading-method-to-ontology.md:17:降成本三阶段（赋格状态机）
+.chanlun/genealogy/settled/255-dialogue-trading-method-to-ontology.md:36:编排者给出"缠论降低成本为0到负数"。Claude 拆解为三阶段：
+.chanlun/genealogy/settled/255-dialogue-trading-method-to-ontology.md:42:Claude 将三阶段建模为多重赋格（fugue）——多声部（多级别）在同一标的上交织运行。赋格状态机规格产出。
+.chanlun/genealogy/settled/255-dialogue-trading-method-to-ontology.md:46:**被否定的方案**：Claude 的赋格状态机假设了一个外在的选股前置步骤——先通过某种过滤器（基本面/技术面）筛选标的，然后在选中的标的上执行降成本三阶段。
+.chanlun/genealogy/settled/255-dialogue-trading-method-to-ontology.md:133:3. **赋格状态机（降成本三阶段）需等本体论完备化后再构建** `[blocked: 等待 254号 + 级别口径统一]`：步骤 2 和步骤 3 共同表明，赋格状态机不能在单标的级别上独立定义——它必须嵌入四层递归结构中。四层递归的 L0-L1 层依赖 254号的多经济体本体论。
+.chanlun/genealogy/settled/668-meta-observation-lead-rule-scope-misprojection-suppress-business-spawn-onto-structural-bootstrap-623-instance6.md:17:rule_version_baseline:
+.chanlun/genealogy/settled/423-meta-observation-v225-swarm.md:20:rule_version_baseline:
+.chanlun/genealogy/settled/432-meta-observation-v231-swarm.md:25:rule_version_baseline:
+.chanlun/genealogy/settled/228-meta-observation-v77-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/571-meta-rule-stopguard-block-target-vs-responsibility.md:25:rule_version_baseline:
+.chanlun/genealogy/settled/571-meta-rule-stopguard-block-target-vs-responsibility.md:28:hook_version_baseline:
+.chanlun/genealogy/settled/204-shelving-pattern.md:8:rule_version_baseline:
+.chanlun/genealogy/settled/672-meta-observation-623-crystallization-gate-never-fires-7-instances-new-dimension-escape.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/427-meta-observation-v227-swarm.md:20:rule_version_baseline:
+.chanlun/genealogy/settled/332-meta-observation-v144-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/325-meta-observation-v141-swarm-four-node.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/340-meta-observation-v149-gangmu-session.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/207-w1-monotone-contradiction.md:11:rule_version_baseline:
+.chanlun/genealogy/settled/207-w1-monotone-contradiction.md:46:3. λ 参数需从真实数据校准（与 T1 ε、T6 δ/κ 同类问题）→ [resolved: 86 个合成样本校准，P99=0.83，λ 从 3.0 调整为 1.5（P99×1.8 保守余量）]
+.chanlun/genealogy/settled/173-hook-feedback-loop.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/369-meta-observation-v161-swarm-termination.md:14:rule_version_baseline:
+.chanlun/genealogy/settled/439-existence-architecture-graph-body-snet-organ.md:23:rule_version_baseline:
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:3:title: "GAP3 hwm_gain 高水位棘轮被 codex 终局裁定为 PDF p8③ 语义回补——不能作 acceptance bridge，GAP3 判据 (∃t,TStage=EarningShares) 恢复 FALSIFIED"
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:32:GAP3 三阶段资金机（CostReduction → CapitalRecovered → EarningShares）为补桥新增非对称账本事件
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:34:价格不变模型下被代码证明为 FALSIFIED 的判据 `∃t, TStage(t)=EarningShares`，在接入真实 BTC 历史
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:35:价格（461万根 K 线）后翻转为字面 PASS（`EarningShares_count=1`）。
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:49:2. 对 GAP3 而言，被声明的最低条件是：三阶段机进入 `EarningShares` 前，本金退回必须有 ledger 上
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:52:3. 这就是 p8① 意义上的否定句：不是"三阶段完成得晚一点"，而是"在当前账本语义下，进入终态的
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:62:   进入 `EarningShares`。这正是在最低条件被否定后，用"曾经达到过的价格峰值"延续三阶段解释权。
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:66:9. 结论：`EarningShares_count=1` 只能称为"hwm 棘轮口径下的诊断性触发"，不能称为 PDF 合规的
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:93:- **576号**（R=Π-A-W vs TW 三阶段账本不同构）：codex 明确确认本裁决**未破坏 576 正交性**——本次
+.chanlun/genealogy/settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md:126:在此之前，GAP3 盈利/赚份额可达性判据 `∃t, TStage(t)=EarningShares` 保持 **FALSIFIED / 未证成**。
+.chanlun/genealogy/settled/059-structural-audit.md:49:| W1 | ceremony_sequence 重构为三阶段递归拓扑 | dispatch-spec.yaml |
+.chanlun/genealogy/settled/328-meta-observation-c3-three-lines-session.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/189-meta-observation-15round-inquiry.md:8:rule_version_baseline:
+.chanlun/genealogy/settled/428-meta-observation-v228-swarm.md:22:rule_version_baseline:
+.chanlun/genealogy/settled/205-clean-terminate-stall.md:8:rule_version_baseline:
+.chanlun/genealogy/settled/205-clean-terminate-stall.md:42:4. T6 的 δ/κ 参数需要像 T1 的 ε 一样从真实数据校准
+.chanlun/genealogy/settled/304-meta-observation-phase2-gemini-homology-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/418-meta-observation-v220-v221-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md:75:rule_version_baseline:
+.chanlun/genealogy/settled/383-meta-observation-v164-swarm.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/605-operational-semantics-complete-classification-syntax-sigma-star.md:72:    - "★操作类型 π_op 层（teammate Claim6）= OpType {买/卖/加/减/持/平} 6 构造子穷尽（optype_exhaustive，§4.1 π_op 表 + #39 + 267/338 三阶段，L0）；decideOp:ResolvedOpSignal→PositionState→OpType 全函数（已解析唯一主导 side，非 BSPLabelSet 原始多标签集）；L0 类型层不含 L3 数量系数 M"
+.chanlun/genealogy/settled/308-meta-observation-phase2-calibration-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/647-meta-observation-object-identity-must-precede-falsification-design.md:16:rule_version_baseline:
+.chanlun/genealogy/settled/397-meta-observation-v197-swarm.md:12:rule_version_baseline:
+.chanlun/genealogy/settled/260-meta-observation-v108-swarm.md:12:rule_version_baseline:
+.chanlun/genealogy/settled/265-operational-methodology-passacaglia.md:23:2. **降成本三阶段**：建仓 → 降成本 → 零成本运营
+.chanlun/genealogy/settled/265-operational-methodology-passacaglia.md:81:## 3. 降成本三阶段
+.chanlun/genealogy/settled/265-operational-methodology-passacaglia.md:191:- 降成本三阶段（建仓 → 降成本 → 零成本运营），利润传递公式 `cost(t) = cost(t-1) - profit(t) / size(t)`
+.chanlun/genealogy/settled/265-operational-methodology-passacaglia.md:201:| 降成本三阶段 | 缠师108课体系 + 255号步骤1 | 一买建仓 → 中枢短差降成本 → 零成本运营 |
+.chanlun/genealogy/settled/265-operational-methodology-passacaglia.md:216:- **各操作组件的量化验证方向**：降成本三阶段的利润传递公式需回测标定参数；多重赋格的级别组合（哪些级别联立跟踪）需实盘数据确定最优配置
+.chanlun/genealogy/settled/265-operational-methodology-passacaglia.md:223:- **255号**（操盘方法对话）：降成本三阶段的推导起点，选股区间套的第一次断裂（步骤 2），赋格状态机 blocked 标注（下游推论 3）
+.chanlun/genealogy/settled/575-clean-slate-rebuild-dual-generation-contention.md:14:rule_version_baseline:
+.chanlun/genealogy/settled/442-snet-params-as-concept-nodes.md:19:rule_version_baseline:
+.chanlun/genealogy/settled/559-crystallization-scan-state-unobservable.md:25:rule_version_baseline:
+.chanlun/genealogy/settled/310-meta-observation-phase2-ruling-execution.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/361-meta-observation-v159-swarm.md:15:rule_version_baseline:
+.chanlun/genealogy/settled/386-meta-observation-v167-swarm.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/165-contraction-phase.md:13:**前置**: 139-singularity-topology-structural-isomorphism, 163-iron-barrier-recursive-limit, 164-stellar-fusion-recursion-model
+.chanlun/genealogy/settled/285-meta-observation-v129-swarm.md:22:rule_version_baseline:
+.chanlun/genealogy/settled/661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md:40:    level: "L1(本轮事件转述+谱系链推断；meta-observer 未独立核实 events.jsonl 中 SUPERSEDE 链全貌——baseline-collector subagent 因 flat-roster/teammate-spawn 双向 hook 死锁未能采集 SUPERSEDE/GOAL_SET 计数)"
+.chanlun/genealogy/settled/661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md:66:rule_version_baseline:
+.chanlun/genealogy/settled/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md:19:rule_version_baseline:
+.chanlun/genealogy/settled/616-classification-underdetermines-strategy-theta-family.md:28:      definition: "完整策略 π_Θ = Exec∘RiskProj∘VoiceFSM∘Nest∘Rec(h_t,Z_t)，Θ=(级别链/声部树/方向σ/操作级o/执行级e/风险比ρ/父子比β/名义比γ/权重w/成本倍κ/成本模型/优先级规则) 是 extra-缠论 必须事先固定的参数。给定 Θ 后**全定义性定理**：∀t,h_t,Z_t ∃!O_{t+1}=π_Θ(h_t,Z_t) + 因果无前视。结构：多重赋格声部树（σ_v=flip σ_{p(v)} 交替）+ 区间套递归证书（终端允许 2/3 类买卖点重合 |Λ|≥1）+ 多空双开（不加 Q⁺Q⁻=0 禁令）+ 级联关闭（父关⟹后代关）+ 优先级 FSM（全局强平>祖先关闭>本声部止损>反向区间套>同向区间套>保持）+ 统一风险投影（RiskProjector 确定选择器，0∈𝓚 保证非空 + 固定平局保证唯一）+ 先平后开先父后子执行。**诚实边界**：保证唯一动作，**不证盈利/最优**（需另加收益分布/成本/效用目标=L3 经验）。"
+.chanlun/genealogy/settled/616-classification-underdetermines-strategy-theta-family.md:118:- Θ 风险参数（ρ/β/γ/w/κ/成本/止损/优先级/调度）= extra-缠论，非 L0 缠论可导。
+.chanlun/genealogy/settled/433-meta-observation-v232-swarm.md:24:rule_version_baseline:
+.chanlun/genealogy/settled/291-meta-observation-v132-swarm.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/408-meta-observation-v210-swarm.md:17:rule_version_baseline:
+.chanlun/genealogy/settled/356-meta-observation-v158-swarm.md:15:rule_version_baseline:
+.chanlun/genealogy/settled/356-meta-observation-v158-swarm.md:43:- 4078 tests baseline
+.chanlun/genealogy/settled/356-meta-observation-v158-swarm.md:180:4. 4078 tests（session 初始 baseline）——v158 完成后预期 ~4271 tests（+193），但实际 `pytest --co` 报 4078，说明部分测试可能在实验目录（experiments/）中未被 pytest 自动发现
+.chanlun/genealogy/settled/354-meta-observation-v158-minimal-session.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/568-meta-rule-settlement-cognition-desync.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/185-gangju-analysis-rtas-gap.md:16:rule_version_baseline:
+.chanlun/genealogy/settled/263-meta-observation-v111-swarm.md:12:rule_version_baseline:
+.chanlun/genealogy/settled/570-meta-rule-proxy-vs-ontology-self-correction-impossibility.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md:16:rule_version_baseline:
+.chanlun/genealogy/settled/190-meta-observation-residue-structure-audit.md:8:rule_version_baseline:
+.chanlun/genealogy/settled/266-meta-observation-v113-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/389-pure-topo-development-four-stages-l1.md:63:1. **四阶段假说需 L2 验证**：在真实谱系数据（387号）上是否呈现类似的四阶段模式？如果是，四阶段的步数比例如何？ → `resolved: 被390号数据回答——真实数据呈三阶段（探索→收缩→稳态）而非四阶段。389号的"危机→稳定"中间态在L2下表现为两个增长脉冲，被探索期和收缩期包裹。四阶段假说被部分否定` [audited: v198, consumed]
+.chanlun/genealogy/settled/216-meta-observation-v55-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/258-meta-observation-v107-swarm.md:13:rule_version_baseline:
+.chanlun/genealogy/settled/053-self-referential-island-goedel.md:18:**结算方式**: 三阶段推导（人类直觉 → Gemini初判 → 人类修正 → Gemini扬弃）
+.chanlun/genealogy/settled/053-self-referential-island-goedel.md:28:## 推导链（三阶段）
+.chanlun/genealogy/settled/053-self-referential-island-goedel.md:40:### 第三阶段：扬弃（人类修正 + Gemini 重判）
+.chanlun/genealogy/settled/301-meta-observation-v133-swarm.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/343-encounter-record-mechanism.md:84:- `baseline`: v150 首次扫描的基线数据
+.chanlun/genealogy/settled/430-meta-observation-v230-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/349-fugue-state-machine-definition.md:174:| 降成本三阶段 | 267号§二 | 建仓→降成本→零成本运营 |
+.chanlun/genealogy/settled/349-fugue-state-machine-definition.md:198:- **267号**：赋格定义来源（第七节）+ 降成本三阶段
+.chanlun/genealogy/settled/414-meta-observation-v219-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/219-meta-observation-v60-swarm.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/455-meta-observation-v243-swarm.md:18:rule_version_baseline:
+.chanlun/genealogy/settled/438-snet-sole-interface-organ-principle.md:26:rule_version_baseline:
+.chanlun/genealogy/settled/318-meta-observation-v138-swarm.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/303-meta-observation-phase2-discussion-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/443-meta-observation-v236-swarm.md:21:rule_version_baseline:
+.chanlun/genealogy/settled/164-stellar-fusion-recursion-model.md:13:**前置**: 139-singularity-topology-structural-isomorphism, 163-iron-barrier-recursive-limit
+.chanlun/genealogy/settled/322-meta-observation-r3-addendum-session.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/262-v109-proxy-sensitivity-experiment.md:115:1. `tmp/v109-step1-xauusd-baseline.json`：GC=F 基线
+.chanlun/genealogy/settled/293-star-topology-hegemony.md:22:rule_version_baseline:
+.chanlun/genealogy/settled/261-meta-observation-v109-swarm.md:12:rule_version_baseline:
+.chanlun/genealogy/settled/366-scanner-l2-validation.md:11:  - "352"   # 多标的扫描器设计——三阶段架构 + 折叠等价类 + 商空间排序
+.chanlun/genealogy/settled/366-scanner-l2-validation.md:97:- **确认 352号设计的有效性**：三阶段架构在真实数据上产出与扁平管线不同的排序
+.chanlun/genealogy/settled/290-meta-observation-v132-session.md:20:rule_version_baseline:
+.chanlun/genealogy/settled/425-snet-graph-entry-problem.md:20:rule_version_baseline:
+.chanlun/genealogy/settled/420-meta-observation-v223-swarm.md:17:rule_version_baseline:
+.chanlun/genealogy/settled/401-memory-injection-trajectory-vs-product.md:8:rule_version_baseline:
+.chanlun/genealogy/settled/305-meta-observation-phase2-implementation-session.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/399-meta-observation-v198-swarm.md:12:rule_version_baseline:
+.chanlun/genealogy/settled/435-thinking-loop-closure-dialectic.md:23:rule_version_baseline:
+.chanlun/genealogy/settled/434-thinking-loop-traversal-cluster.md:19:rule_version_baseline:
+.chanlun/genealogy/settled/313-meta-observation-v134-swarm-phase3-discuss.md:9:rule_version_baseline:
+.chanlun/genealogy/settled/220-chanlun-trading-system.md:38:- 三阶段：降成本（短差不增仓）→ 归零（翻倍出半仓）→ 挣股票（回补增仓）
+.chanlun/genealogy/settled/213-weak-inquiry-false-positive.md:55:2. 扫描器首次运行的校准数据已获得——可作为后续精度评估的 baseline → [resolved: 定理类，213号本身即 baseline]
+.chanlun/genealogy/settled/339-meta-observation-v148-progress-summary-session.md:10:rule_version_baseline:
+.chanlun/genealogy/settled/320-meta-observation-v140-swarm.md:9:rule_version_baseline:
+
+hook: PostToolUse
+hook: PostToolUse Completed
+codex
+`codebase-memory-mcp` 调用被环境返回为 “user cancelled”，不能作为发现通道；我按 AGENTS 允许的回退路径用 `rg` 只读核查。当前证据已足够显示：ledger 注释和测试都把 κ=0 定义为最小基线，616 把 κ 明确归为 extra-缠论参数。
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse Completed
+hook: PreToolUse Completed
+hook: PreToolUse
+hook: PreToolUse Completed
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "nl -ba rust/src/theta_v0/strategy/ledger.rs | sed -n '227,370p'" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+   227	/// 风险政策 `RiskPolicy`（契约锚 PDF §10 `Θ_risk` / §11 Lean `structure RiskPolicy`）。
+   228	///
+   229	/// **不可识别性定理2（k的条件.pdf 编排者裁决）**：`κ` **不是价格可推的值**，是**声明式风险政策
+   230	/// 参数**——不由缠论/价格识别，由 operator 声明（可 walk-forward 优化）。故本结构承载 `κ` 作配置
+   231	/// knob，**不**从数据估计。
+   232	///
+   233	/// - `kappa`（κ）：状态依赖 barrier `η⋆ = L^wc + κ·Q` 的额外安全缓冲系数。**κ≥0**（不变量
+   234	///   [`RiskPolicy::kappa_nonneg`]）。默认 **κ=0**（最小基线：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲，
+   235	///   PDF §10 canonical 最小规范）——用于 acc-GAP3 可达性测试。
+   236	///
+   237	/// ★与 `RiskConfig.kappa`（config.rs：**成本倍数** κ=2.0，sizing 用）**是不同的 κ**——本 `RiskPolicy.
+   238	/// kappa` 是**barrier 缓冲系数**（风险政策），二者同名不同义（PDF §10 barrier κ vs sizing κ）。
+   239	/// 定点整数承载（bit-exact，barrier 比较在整数域；κ 用 i64 缩放系数，避免浮点非确定性）。
+   240	#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   241	pub struct RiskPolicy {
+   242	    /// barrier 缓冲系数 κ（**≥0，构造时强制**；默认 0=最小基线）。私有字段——**唯一构造闸是**
+   243	    /// [`RiskPolicy::baseline`]（恒 κ=0）/ [`RiskPolicy::try_new`]（拒负 κ），二者都保证 κ≥0，使
+   244	    /// κ≥0 成为 **constructor-only 类型不变量**（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段）。
+   245	    ///
+   246	    /// ★codex R3 §9.4（类型边界闭合）：字段**模块私有** + 仅 `baseline`/`try_new` 构造 ⟹ **负 κ 的
+   247	    /// `RiskPolicy` 值在任何路径都不存在**（含本模块非构造路径与全 crate）。**不保留任何反向见证**
+   248	    /// （旧版模块内测试用 struct literal 构造 `RiskPolicy { kappa: -1 }` 已删——那使类型边界在测试
+   249	    /// 可见性下未闭，codex R3 判为漏点）。负 κ 拒绝的证据由**外部 API `try_new(-1)=None`** 承载
+   250	    /// （正向：外部构造闸拒负），非「构造非法值再验谓词」的反向见证。这是 constructor-only pattern
+   251	    /// （PDF §9.4 二选一的可行分支——`is_legal_from` 式关系型非法用 Result，此处 κ≥0 是绝对约束用
+   252	    /// constructor-only 类型不变量）。
+   253	    kappa: i64,
+   254	}
+   255	
+   256	impl RiskPolicy {
+   257	    /// 最小基线政策（κ=0，PDF §10 canonical 默认）：`η⋆=L^wc`，仅覆盖最坏损失无额外缓冲。
+   258	    pub fn baseline() -> RiskPolicy {
+   259	        RiskPolicy { kappa: 0 }
+   260	    }
+   261	
+   262	    /// **构造校验入口 `try_new`（codex #5：κ≥0 Rust 不变量）**：κ<0 ⟹ `None`（负缓冲=不覆盖 L^wc
+   263	    /// =非法，不可构造）。κ≥0 ⟹ `Some(RiskPolicy)`。这把 Lean 侧 `kappa_nonneg` 证明字段的语义
+   264	    /// 在 Rust 侧兑现为**构造时拒绝**——负 κ 的 RiskPolicy 值根本不存在（不是运行时检查后放行）。
+   265	    pub fn try_new(kappa: i64) -> Option<RiskPolicy> {
+   266	        if kappa >= 0 {
+   267	            Some(RiskPolicy { kappa })
+   268	        } else {
+   269	            None
+   270	        }
+   271	    }
+   272	
+   273	    /// κ 只读访问（字段私有，barrier 缓冲系数 ≥0 由构造保证）。
+   274	    pub fn kappa(&self) -> i64 {
+   275	        self.kappa
+   276	    }
+   277	
+   278	    /// κ≥0 不变量（契约锚 PDF §11 `kappa_nonneg`）：**构造时已强制**（[`try_new`](Self::try_new)
+   279	    /// 拒绝负 κ，[`baseline`](Self::baseline) 恒 κ=0）——本谓词恒真，是不变量的可观测断言。
+   280	    pub fn kappa_nonneg(&self) -> bool {
+   281	        self.kappa >= 0
+   282	    }
+   283	
+   284	    /// 状态依赖 barrier `η⋆(s) = L^wc(s) + κ·Q(s)`（契约锚 PDF §10 `η⋆(x_t)=L^wc_{t+1}+κ·Q_t`）。
+   285	    ///
+   286	    /// 进入 EarningShares 的**在险权益门槛**：权益 η 须 ≥ η⋆ 才允许相变（barrier 保证覆盖最坏损失 +
+   287	    /// κ 倍名义缓冲）。κ=0 ⟹ η⋆=L^wc（最小基线，仅覆盖最坏损失）。
+   288	    ///
+   289	    /// ★有界算术（codex #6：Lean 无界 Int vs Rust i64 wrap）：`κ·Q` 在 **i128 中间域**计算再夹回
+   290	    /// i64（`saturating`）——避免 release 下 i64 乘法 wrap（wrap 会让巨额 η⋆ 环绕成小值 ⟹ barrier
+   291	    /// 误过）。i128 对现实量级（κ、Q ≤ 数百万）足够承载精确乘积，饱和只在极端溢出时兜底（失败安全：
+   292	    /// 溢出 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。
+   293	    pub fn eta_star(&self, s: &TwState) -> i64 {
+   294	        let kappa_q = (self.kappa as i128) * (s.notional() as i128);
+   295	        let eta = (s.l_wc() as i128) + kappa_q;
+   296	        eta.clamp(i64::MIN as i128, i64::MAX as i128) as i64
+   297	    }
+   298	
+   299	    /// γ_t 四桶分类（契约锚 PDF §10 分段式，**逐式按原文分支序**，勿改边界）：
+   300	    ///
+   301	    /// ```text
+   302	    /// γ_t = { Deficit,        η_t < 0
+   303	    ///         Zero,           η_t = 0
+   304	    ///         PositiveUnsafe, 0 < η_t < η_*
+   305	    ///         PositiveSafe,   η_t ≥ η_* }
+   306	    /// ```
+   307	    ///
+   308	    /// η_t = [`TwState::tw`]（在险权益，与 [`enter_ready`](Self::enter_ready) 的 `η≥η⋆` 合取项
+   309	    /// 左操作数**同一个量**——终裁 a5-etabucket-stance-ruling-20260704.md 立场B）；
+   310	    /// η_* = [`eta_star`](Self::eta_star)。生产域 η_*≥0（`l_wc` 下界 0 + κ≥0 构造不变量 +
+   311	    /// Q=notional_in 非负）⟹ 四支穷尽互斥；分支序使 η=0 恒归 `Zero`（即使 η_*=0 时
+   312	    /// `η≥η_*` 同时成立——PDF 原文序优先，Zero 在 PositiveSafe 之前）。
+   313	    pub fn eta_bucket(&self, s: &TwState) -> EtaBucket {
+   314	        let eta = s.tw();
+   315	        if eta < 0 {
+   316	            EtaBucket::Deficit
+   317	        } else if eta == 0 {
+   318	            EtaBucket::Zero
+   319	        } else if eta < self.eta_star(s) {
+   320	            EtaBucket::PositiveUnsafe
+   321	        } else {
+   322	            EtaBucket::PositiveSafe
+   323	        }
+   324	    }
+   325	
+   326	    /// **EnterEarning 合法性谓词 `EnterReady`（严格 EnterReady，契约锚 PDF §10 步骤3 + Lean
+   327	    /// `LegalEnterEarning`）**：`S=II ∧ W≥I0 ∧ openLegacyLegs=0 ∧ RiskNormal ∧ η≥η⋆`。
+   328	    ///
+   329	    /// 比单纯 `W≥I0` **强得多**——五合取（OQ-9 腿空 + 阶段=退本金 + 本金已全退 W≥I0 + 风控正常 +
+   330	    /// 在险权益过 barrier）。`i0`=本金基线 I₀，`risk_normal`=风控模式正常（由调用方从 RiskMode 判）。
+   331	    ///
+   332	    /// - `S=II`：`stage==CapitalRecovered`（已进退本金阶段，rank≥1；退本金完成才谈进增股数）。
+   333	    /// - `W≥I0`：`withdrawn ≥ i0`（本金已全额退出在险池——增股数阶段前提「本金全退」，缠师第31课）。
+   334	    /// - `openLegacyLegs=0`：无未闭合 legacy 降成本腿（OQ-9 入口证书，`LegalEnterEarning`）。
+   335	    /// - `RiskNormal`：风控正常（非破产/清算/去杠杆）。
+   336	    /// - `η≥η⋆`：在险权益 `tw()` 过 barrier `eta_star`（覆盖最坏损失 + κ 缓冲）。
+   337	    pub fn enter_ready(&self, s: &TwState, i0: i64, risk_normal: bool) -> bool {
+   338	        s.stage == TStage::CapitalRecovered
+   339	            && s.withdrawn >= i0
+   340	            && s.open_legacy_legs == 0
+   341	            && risk_normal
+   342	            && s.tw() >= self.eta_star(s)
+   343	    }
+   344	
+   345	    /// **BuyCore 合法性谓词（契约锚 PDF §10 步骤4 定理1 充要）**：
+   346	    /// `a_n + L^wc_{n+1} + κ·ΔQ_n ≤ η_n + g_n − κ·Q_n`。
+   347	    ///
+   348	    /// 增股数阶段建核仓（BuyCore）的充要合法条件——建仓额 `a_n` 加上建仓后最坏损失加上 κ 倍名义
+   349	    /// 增量，须 ≤ 当前在险权益 `η_n` 加已实现收益 `g_n` 减 κ 倍当前名义。移项即 barrier 约束
+   350	    /// （PDF 定理1：BuyCore 保 κ-floor 不变量 `η ≥ η⋆`）。
+   351	    ///
+   352	    /// 参数（PDF §10 记号）：`a_n`=建仓额、`l_wc_next`=建仓后 L^wc_{n+1}、`delta_q`=ΔQ_n 名义增量、
+   353	    /// `eta_n`=当前在险权益、`g_n`=已实现收益、`q_n`=当前名义 Q_n。
+   354	    ///
+   355	    /// ★有界算术（codex #6）：LHS/RHS 在 **i128 中间域**求值再比较——避免 i64 加乘 wrap（Lean 侧
+   356	    /// `buyCore_preserves_kappa_floor` 是无界 Int 代数移项，Rust 用 i128 承载现实量级的精确值，与
+   357	    /// Lean 语义对齐；比较本身无溢出风险，i128 加乘对 ≤ 数百万量级的输入恒精确）。
+   358	    pub fn buy_core_legal(
+   359	        &self,
+   360	        a_n: i64,
+   361	        l_wc_next: i64,
+   362	        delta_q: i64,
+   363	        eta_n: i64,
+   364	        g_n: i64,
+   365	        q_n: i64,
+   366	    ) -> bool {
+   367	        let k = self.kappa as i128;
+   368	        let lhs = (a_n as i128) + (l_wc_next as i128) + k * (delta_q as i128);
+   369	        let rhs = (eta_n as i128) + (g_n as i128) - k * (q_n as i128);
+   370	        lhs <= rhs
+
+hook: PostToolUse
+exec
+/bin/zsh -lc "nl -ba .chanlun/genealogy/pending/693-strategy-object-triple-freeze-a11-a10-hard-ruling.md | sed -n '1,220p'" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+     1	---
+     2	id: 693
+     3	title: 策略对象三分冻结 + A11/A10 硬裁决——待编排者 /ritual 追认
+     4	status: pending
+     5	type: 概念层裁定（escalate 点）
+     6	source_task: goal g-20260704T1756Z-strategy-object-freeze-cbc36d / acc-target-freeze
+     7	depends_on: [685, 690]
+     8	related: [684, 692, 696]
+     9	date: 2026-07-04
+    10	---
+    11	
+    12	# 693号：策略对象三分冻结 + A11/A10 硬裁决
+    13	
+    14	## 从哪个矛盾中来
+    15	
+    16	问题1.pdf（16页《推导完全分类》）裁定的核心矛盾：**被检验的策略对象在「裁剪版」与
+    17	「完整体」之间漂移**——负结果被解释为「实现没接全」，正结果被怀疑为「口径伪影/beta/
+    18	过拟合」，循环无出口。根因是 \(\Pi_{tested} \subsetneq \Pi_{max\text{-}full}\) 且
+    19	无人冻结 \(\Pi_{target}\)：A11（声部执行层）处于「诊断层完成但完整策略又暗含它」的
+    20	模糊态，A10（保证金/强平/资金费）处于长期 waiver 态，两者都既不算实装完成也不算
+    21	显式出域。
+    22	
+    23	## 否定了什么旧口径
+    24	
+    25	1. 否定「A10 = WAIVED（外部数据无所谓）」的长期豁免态——PDF §5 第3条：任何带杠杆、
+    26	   多空双开、期货/加密环境都不能长期 waiver；要么 MUST 实装，要么把目标对象改写为
+    27	   cash-settled no-margin netting strategy（此时 A10 属定义外，非豁免）。
+    28	2. 否定「A11 诊断层完成」可以支撑「多重赋格/多空双开策略已回测」的声称——诊断层
+    29	   不改变真实交易时，\(\Pi_{tested} = \Pi_{signal+net\text{-}exec} \ne \Pi_{full\text{-}voice\text{-}exec}\)。
+    30	3. 否定一切不带对象声明的 alpha 结论——没有 TARGET_STRATEGY.md 时所有 alpha 结论
+    31	   不应接受（PDF §5 第1条）。
+    32	
+    33	## 新裁定内容
+    34	
+    35	三对象冻结（TARGET_STRATEGY.md §1）：\(\Pi_{signal\text{-}full}\) /
+    36	\(\Pi_{exec\text{-}full}\) / \(\Pi_{treasury\text{-}full}\)，边界互斥，
+    37	负结论互不外推。
+    38	
+    39	本轮 \(\Pi_{target} = \Pi_{signal\text{-}full}\)（PDF 路线A）。
+    40	
+    41	A11/A10 硬裁决（无模糊态）：
+    42	
+    43	| 模块 | Π_signal-full | Π_exec-full | Π_treasury-full |
+    44	|------|--------------|-------------|-----------------|
+    45	| A11 | OUT_OF_SCOPE | MUST（后续 goal 优先级 #1） | MUST |
+    46	| A10 | OUT_OF_SCOPE（定义外，非豁免） | MUST（优先级 #2） | MUST |
+    47	
+    48	## 分离的逻辑必然性
+    49	
+    50	若不冻结对象：设未接模块 \(M^\star\)（如声部执行层）仅在状态子集产正收益
+    51	\(E[R(M^\star)] > 0\)，而 \(\Pi_{tested}\) 不调用 \(M^\star\)，则
+    52	\(E[R(\Pi_{tested})] \le 0 \not\Rightarrow E[R(\Pi_{full})] \le 0\)（有效域定理1，
+    53	docs/formal-chain/有效域定理-20260704.md）。即一切「测过=否证」的推理在
+    54	\(\Pi_{tested} \subsetneq \Pi_{full}\) 下逻辑无效。冻结不是管理偏好，而是让
+    55	「负结论」这个词有确定语义的必要条件。三分不是任意划分：signal/exec/treasury
+    56	分别对应 estimand 三类（方向 μ / 净值 R / 可达性 Reach），合格判据互不蕴含，
+    57	故必须三对象而非一对象带开关。
+    58	
+    59	## 结算状态
+    60	
+    61	**概念层裁定——待编排者 /ritual 追认的 escalate 点。**
+    62	追认前 TARGET_STRATEGY.md 即为工作口径（goal 授权下的无模糊标注）；
+    63	若编排者翻转任一格，按 /ritual 基底刷新流程将受影响产出退回生成态。
+    64	
+    65	## 翻转条件
+    66	
+    67	1. 编排者裁定「多重赋格/短差是策略核心，本轮就必须检验」→ A11 对本轮翻 MUST，
+    68	   Π_target 改 Π_exec-full，本轮 alpha 复验作废重跑。
+    69	2. 编排者裁定信号层检验必须带杠杆环境 → A10 翻 MUST，K 层重定义。
+    70	
+    71	## settle-sweep 增量扫描交叉引用注记（2026-07-04，三路线对照）
+    72	
+    73	`formal-chain-deepresearch-20260704.md` §4「三条路线落地对照表」是本条目三分冻结
+    74	（Π_signal-full/Π_exec-full/Π_treasury-full）的**直接下游消费者**——该报告把本条目
+    75	的三对象逐一映射为「路线A/B/C」并给出各自的现状与剩余量级：
+    76	
+    77	- **路线A（Π_signal-full，本条目"本轮 Π_target"）**：P1 区间套/P2 ForceState/P4 六类
+    78	  买卖点/P7 typed exit 已收口；(i) d 入状态/μ_R estimand（见 `696` 号，estimand 选择
+    79	  待独立 /escalate）、(iii) δ-free 在线主裁决、(iv) AncOK/身份彻底修复（见 `697` 号，
+    80	  persistent.rs ceiling 待独立 /escalate）三项为剩余。四项互相独立可并行，"本轮可闭合"。
+    81	- **路线B（Π_exec-full）**：A11 声部执行层接真实开平仓（本条目已裁 OUT_OF_SCOPE→MUST，
+    82	  优先级#1）+ A10 保证金/强平/资金费（本条目已裁 OUT_OF_SCOPE→MUST，优先级#2）——
+    83	  均为"大（架构级新增），未启动"，依赖序在路线A之后。**本条目的 A11/A10 硬裁决表**与
+    84	  路线B剩余项**逐字对应**，未见冲突。
+    85	- **路线C（Π_treasury-full/GAP3）**：Stage II/III 可达性——L1 已可达（`runner.rs:2439`
+    86	  利润桥 assert 通过，**推翻**「架构不可达」旧归因，与 project_gap3_l2_unreachable_architecture
+    87	  memory 记录的旧结论不一致，须按本条目最新核实订正该 memory 归因为过期）；终态判据待
+    88	  κ 外部风险政策裁定（选择类）。
+    89	
+    90	**交叉核对结论**：deep-research §4 对三路线的现状描述与本条目的三分冻结表/A11-A10
+    91	硬裁决表**完全一致**，未发现张力——该报告是本条目冻结表在实装层的**首次系统性落地
+    92	盘点**，可视为本条目"追认前 TARGET_STRATEGY.md 即为工作口径"这一过渡状态的具体
+    93	执行进度快照。**本条目状态不变**（仍为待编排者 /ritual 追认的 escalate 点），本注记
+    94	仅补充：路线A的四项剩余中，两项（d/μ_R estimand、AncOK/身份彻底修复）已各自拆分为
+    95	独立谱系条目（696/697）供编排者分别裁决，避免路线A整体被当作单一不可分割的待裁项。
+
+hook: PostToolUse
+exec
+/bin/zsh -lc "nl -ba .chanlun/genealogy/settled/616-classification-underdetermines-strategy-theta-family.md | sed -n '1,150p'" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+     1	---
+     2	id: "616"
+     3	number: 616
+     4	status: 已结算   # 【结算 2026-06-27 codex异质委托：分类⊬唯一策略·诚实标级MET正确终态(开放=Θ最小集/盈利性/实例化强度非概念分离)】 策略族理论结论，由 Lead 落盘（genealogist teammate 受 harness worktree .md 写入限制，见 615 同约束）。内容源：编排者核心命题 + codex 研究(/tmp/codex_strategy_family.md gpt-5.5 high) + cc-strategyfamily 形式化(Strict/StrategyFamily.lean，codex 自审 019f0063+019f0067)。最终结算待编排者 /ritual。依赖 615。
+     5	date: "2026-06-25"
+     6	type: 概念分离
+     7	depends_on: ["615"]
+     8	related: ["605", "603", "231", "090"]
+     9	title: "完全分类 ⊬ 唯一策略 = 分类与策略的分离：缠论完全分类只回答『当前是什么结构』，不能唯一决定仓位/杠杆/成本阈值/止损/冲突优先级——这些是 extra-缠论 的 Θ（风险公理）；完全分类只推出一族策略 {π_Θ}，给定 Θ 后 π_Θ 全定义/唯一/因果但不证盈利最优。标准第⑥部分『完全应对』深化为 StrategyFamilyGivenTheta（非唯一自然 π）"
+    10	negation_source: heterogeneous
+    11	negation_model: "编排者核心命题（缠论完全分类不能推出唯一策略只能推出策略族 {π_Θ}，2026-06-25 + ChatGPT π_Θ 全定义构造参考）+ codex-cli gpt-5.5 high 研究（命题成立加小心条件：S非空+A≥2元⟹S→A≥2元 / §14 全定义性定理 RiskProj 需确定选择器补 / L0可证vsΘ参数划分 / StrategyFamilyGivenTheta 标签）+ cc-strategyfamily 形式化自审 session 019f0063+019f0067"
+    12	negation_form: separation
+    13	# separation：标准第⑥部分「完全应对 π」内部暴露不兼容异质性——
+    14	#   「分类诱导唯一策略 π:S→A」（误，分类只给状态标签不给 S→A 选择规则）
+    15	#   vs「分类 + extra-缠论 Θ 风险公理 → 全定义确定 π_Θ」（策略是分类与 Θ 的复合，非分类单独推出）
+    16	#   不可调和：分类 I:H→S 的纤维内动作选择需 Θ（仓位/杠杆/止损/优先级），Θ 不在 S 中。
+    17	topo_effect: "sever:classification-induces-unique-strategy:operational-response-domain"
+    18	# sever：切断「完全分类⟹唯一操作策略」，重建为「完全分类 + Θ ⟹ 全定义策略族 {π_Θ}」；
+    19	#   scope=operational-response（标准第⑥部分完全应对 / Strict/Op.lean π / 实装策略层）
+    20	
+    21	separation:
+    22	  before: "标准第⑥部分『完全应对』= 分类诱导唯一策略 π:S→A（aₜ=πₗ(Cₗ(hₜ))）。隐含分类唯一决定动作。Strict/Op.lean 的 π:StrictState→StrictAction 单 π 形式暗示 S 唯一决定 π。"
+    23	  after:
+    24	    - name: "分类层（只给状态标签，不给策略）"
+    25	      definition: "分类 I:H→S 回答『当前历史属于什么结构状态』，是 615 的 Layer2 双射/分区产物。但 S→A 的动作选择规则**不在** I 中——S 非空 + 动作语义 A 至少两元素 ⟹ 策略空间 S→A 至少两元素 ⟹ 分类不能推出唯一策略（元定理 classification_does_not_choose_unique_policy）。分类**能唯一因子化**一个已给定的 fiber-constant 历史策略 f（factor_exists/factor_unique），但**不产生** f（classification_does_not_produce_strategy）——这是关键区分。"
+    26	      source: "[缠论形式化] codex 研究 Q1（S非空+A≥2⟹S→A≥2）+ Strict/StrategyFamily.lean 元定理1 + FiberConstant/Factors 区分 + 615 Layer2 分类"
+    27	    - name: "策略族 {π_Θ}（分类 + Θ 风险公理 → 全定义确定策略）"
+    28	      definition: "完整策略 π_Θ = Exec∘RiskProj∘VoiceFSM∘Nest∘Rec(h_t,Z_t)，Θ=(级别链/声部树/方向σ/操作级o/执行级e/风险比ρ/父子比β/名义比γ/权重w/成本倍κ/成本模型/优先级规则) 是 extra-缠论 必须事先固定的参数。给定 Θ 后**全定义性定理**：∀t,h_t,Z_t ∃!O_{t+1}=π_Θ(h_t,Z_t) + 因果无前视。结构：多重赋格声部树（σ_v=flip σ_{p(v)} 交替）+ 区间套递归证书（终端允许 2/3 类买卖点重合 |Λ|≥1）+ 多空双开（不加 Q⁺Q⁻=0 禁令）+ 级联关闭（父关⟹后代关）+ 优先级 FSM（全局强平>祖先关闭>本声部止损>反向区间套>同向区间套>保持）+ 统一风险投影（RiskProjector 确定选择器，0∈𝓚 保证非空 + 固定平局保证唯一）+ 先平后开先父后子执行。**诚实边界**：保证唯一动作，**不证盈利/最优**（需另加收益分布/成本/效用目标=L3 经验）。"
+    29	      source: "[蜂群方法论] 编排者核心命题 + ChatGPT π_Θ 14 节构造 + codex 研究（RiskProj 须确定选择器，§14 证明骨架）+ Strict/StrategyFamily.lean 元定理2 given_theta_total_unique + piTheta_causal + VoiceTree.alternating + ancestor_closed + RiskProjector + long_short_both_open_allowed"
+    30	  pending_verification: "①因果负担当前压在 recog_causal（Rec 因果），**未覆盖账户 z 生成因果**——z 会计层因果是选择类后续深化（cc-strategyfamily 诚实标注）。②元定理1 当前是『策略空间非单点的必要条件见证』（不引用分类器 Classifies 内部结构）——升级为引用 Strict.Classifies 内生结构的强形式是选择类后续。③RiskProj 抽象为确定选择器（codex Q2 诚实裁定），格点+字典序的存在性/唯一性具体实例化待后续（凸分析）。④Θ 的最小充分集（哪些参数不可省）是开放问题。⑤盈利/最优性属 L3 经验有效域，不由本号 L0 声称。"
+    31	
+    32	definitions_involved:
+    33	  - name: "615 μF Layer1 ⊊ 缠论式 Layer2（6 部分）"
+    34	    version: ".chanlun/genealogy/pending/615（status: 生成态）"
+    35	    role: "本号是 615 Layer2 第⑥部分（完全应对 π）的内部精化——⑥ 不是『唯一 π』而是『给定 Θ 的 π_Θ 族』"
+    36	  - name: "605 操作语义完全分类（OpType + π_op）"
+    37	    version: ".chanlun/genealogy/pending/605 + formal/Strict/Op.lean"
+    38	    role: "Strict/Op.lean 的 π:S→StrictAction 是 π_Θ 族的最小单声部成员；本号揭示它只是 {π_Θ} 之一，选择需 Θ"
+    39	  - name: "形式化有效域规则（231号）"
+    40	    version: ".chanlun/genealogy/settled/231-formalization-validity-domain.md"
+    41	    role: "Θ 风险参数 + 盈利最优是 R/L3（extra-缠论 / 经验），不冒充 L0 缠论可导——直接继承 231"
+    42	
+    43	resolution:
+    44	  type: 概念分离
+    45	  description: "标准第⑥部分『完全应对』分离为『分类层（只给状态标签，不产生策略）』与『策略族 {π_Θ}（分类+Θ→全定义确定策略）』。完全应对的严格形式 = StrategyFamilyGivenTheta：证全定义/唯一/因果（L0），不证 Θ 来自缠论（extra-缠论设计选择），不证盈利最优（L3 经验）。形式化于 formal/Strict/StrategyFamily.lean（681 行，全绿无 sorry/admit/axiom，已 wire 进 Strict roots，全集 lake build 34 jobs 绿）。"
+    46	  decided_by: 蜂群内部   # 编排者核心命题 + codex gpt-5.5 high 研究代理 + cc-strategyfamily 形式化 + 自审；最终结算待编排者 /ritual
+    47	
+    48	negated:
+    49	  description: "完全应对 = 分类诱导唯一策略 π:S→A（分类唯一决定动作）。"
+    50	  why_negated: "codex 研究 + 形式化证明：分类 I:H→S 只给状态标签，S→A 选择规则不在 I 中。S 非空 + A≥2 元 ⟹ 策略空间 S→A≥2 元（classification_does_not_choose_unique_policy）⟹ 分类不能推出唯一策略。仓位/杠杆/成本阈值/止损/冲突优先级是 Θ 风险公理（extra-缠论），不可由缠论结构导出。故『完全应对』只能是『给定 Θ 的 π_Θ 族』，非唯一自然 π。"
+    51	
+    52	new_output:
+    53	  definitions:
+    54	    - "核心命题：完全分类 ⊬ 唯一策略，只推出一族策略 {π_Θ}（分类=状态标签，策略=分类+Θ复合）"
+    55	    - "策略族 π_Θ = Exec∘RiskProj∘VoiceFSM∘Nest∘Rec；全定义性定理 ∀t,h,Z ∃!O_{t+1} + 因果"
+    56	    - "因子化 vs 产生区分：分类能唯一因子化已给定 fiber-constant 策略，但不产生策略"
+    57	    - "RiskProjector 确定选择器（0∈𝓚 非空 + 固定平局唯一，抽象 LexArgmin，不冒充 argmin 存在性）"
+    58	    - "gatekeeper 新子类 StrategyFamilyGivenTheta = OperationalSemanticsOnly + RuntimeGuard + EmpiricalDomain（证全定义/唯一/因果，不证 Θ 缠论来源/收益最优）"
+    59	    - "多重赋格声部树 σ_v=flip σ_{p(v)} + 级联关闭 + 多空双开（Q⁺Q⁻≠0 结构允许）+ 优先级穷尽互斥裁决"
+    60	  code_changes: "新建 formal/Strict/StrategyFamily.lean（681 行，2 元定理 + Theta/VoiceTree/RiskProjector/StrategyFamily 结构 + 标签）；wire 进 lakefile Strict roots（import 裸名 Causal/OpenTail + Strict.Classification）；全集 lake build 34 jobs 绿，无 sorry/admit/axiom。"
+    61	  orchestration_changes: "方法论：完全应对/策略层产出须区分『分类层（L0 缠论）』与『Θ 参数化策略族（extra-缠论 + L3 经验）』，禁把策略冒充分类诱导（声明膨胀）。实装（#38）策略层必须暴露 Θ 为显式参数，盈利最优作 L3 标注不冒充 L0。"
+    62	
+    63	impact:
+    64	  affected_modules:
+    65	    - "615 Layer2 第⑥部分（完全应对）→ 精化为 StrategyFamilyGivenTheta（非唯一 π）"
+    66	    - "605 操作语义 / Strict/Op.lean → π:S→StrictAction 是 π_Θ 族最小单声部成员（标 OperationalSemanticsOnly，选择需 Θ）"
+    67	    - "实装 #38 → 策略层 Θ 显式参数化 + 盈利最优 L3 标注（不冒充 L0 缠论可导）"
+    68	    - "gatekeeper 6 标签（615）→ 新增子类 StrategyFamilyGivenTheta"
+    69	
+    70	evidence:
+    71	  core_proposition: "编排者：缠论完全分类本身不能推出唯一策略，只能推出一族策略 {π_Θ}（boxed 结论）"
+    72	  codex_study: "/tmp/codex_strategy_family.md（gpt-5.5 high）：Q1 命题成立 + Q2 §14 RiskProj 须确定选择器 + Q3 L0/Θ 划分 + Q4 StrategyFamilyGivenTheta 标签 + Q5 形式化路径"
+    73	  formalization: "formal/Strict/StrategyFamily.lean：classification_does_not_choose_unique_policy / given_theta_total_unique / piTheta_causal / factor_exists+factor_unique vs classification_does_not_produce_strategy / RiskProjector / VoiceTree.alternating+ancestor_closed / long_short_both_open_allowed / piThetaLabels+piTheta_not_true_classification"
+    74	  codex_self_audit: "session 019f0063-7a59-7923-b3e8-28f3fd7bc61a（轮1 无假证/gap/argmin冒充 + 5 处膨胀）+ 019f0067-9518-7040-af81-2d61223796e1（轮2 膨胀已消除）"
+    75	  build_evidence: "全集 lake build = Build completed successfully (34 jobs)；无 sorry/admit/axiom"
+    76	
+    77	---
+    78	
+    79	# 概念分离 616：完全分类 ⊬ 唯一策略
+    80	
+    81	## 结论
+    82	
+    83	缠论完全分类（615 Layer2）本身**不能推出唯一策略**，只能推出一族策略 {π_Θ}。分类 I:H→S 只回答"当前是什么结构状态"，不能唯一决定仓位/杠杆/成本阈值/止损/冲突优先级——这些是 extra-缠论 的 Θ（风险公理）。给定 Θ 后 π_Θ 全定义、对每个市场状态产出唯一动作、因果无前视（L0 可证），但**不证盈利/最优**（L3 经验）。已形式化于 Strict/StrategyFamily.lean（全集 34 jobs 绿，无 sorry）。
+    84	
+    85	## 定义依据
+    86	
+    87	- 元定理1 `classification_does_not_choose_unique_policy`：S 非空 + A 有 a≠b ⟹ ∃π₁≠π₂:S→A ⟹ 分类不推出唯一策略。
+    88	- 因子化 vs 产生：分类能唯一因子化已给定的 fiber-constant 策略 f（factor_unique），但 f 不由分类产生（classification_does_not_produce_strategy）。
+    89	- 元定理2 `given_theta_total_unique` + `piTheta_causal`：给定 Θ ⟹ π_Θ 全定义/唯一/因果。
+    90	
+    91	## 边界条件（结论翻转）
+    92	
+    93	- 若 A 退化为单点（只有一个动作），则 S→A 单点，分类"诱导唯一策略"平凡成立——但这是退化（无操作自由度）。
+    94	- 若 Θ 的某些参数被证明可由缠论结构唯一导出（非 extra-缠论），则那部分回归分类层 L0——但仓位/杠杆/止损/优先级经检验均非缠论可导。
+    95	- 若因果负担扩展到账户 z 生成（当前仅 recog_causal/Rec 因果），则 π_Θ 因果性的有效域扩大。
+    96	
+    97	## 下游推论
+    98	
+    99	- 标准第⑥部分"完全应对"= StrategyFamilyGivenTheta（非唯一自然 π）；Strict/Op.lean 的 π 是 π_Θ 族最小单声部成员。
+   100	- 实装 #38 策略层必须 Θ 显式参数化，盈利最优作 L3 标注。
+   101	- gatekeeper 新增子类 StrategyFamilyGivenTheta（证全定义/唯一/因果，不证 Θ 缠论来源/收益最优）。
+   102	- 多空双开结构允许（不加 Q⁺Q⁻=0 禁令）——保持高级别多头同时开低级别短差空头 = 降低净多头暴露，非转空。
+   103	
+   104	## 谱系引用
+   105	
+   106	- 前置：615（Layer1⊊Layer2）← 本号精化其 Layer2 第⑥部分（完全应对 π 非唯一，是 Θ 族）。
+   107	- 继承：231（有效域，Θ/盈利=R/L3 不冒充 L0）+ 090（声明膨胀禁止，禁把策略冒充分类诱导）。
+   108	- 关联：605（操作语义，Strict/Op.lean π 是族成员）。
+   109	
+   110	## 影响声明
+   111	
+   112	新建 Strict/StrategyFamily.lean（681 行，2 元定理 + 4 结构 + 诚实标签）+ wire lakefile Strict roots + 全集 lake build 34 jobs 绿无 sorry。codex 研究（/tmp/codex_strategy_family.md）+ cc-strategyfamily 自审（019f0063+019f0067）物证。
+   113	
+   114	## 认识论诚实（formalization-validity-domain）
+   115	
+   116	- L0 可证：Θ→π_Θ 全定义/唯一/因果、赋格交替、级联关闭、优先级穷尽互斥、fresh 不重复、多空双开结构允许、RiskProjector 确定选择器唯一。
+   117	- **诚实降级标注（非 gap，cc-strategyfamily 主动标）**：元定理1=策略空间非单点必要条件见证（不引用分类器内部结构）；因果压在 recog_causal **未覆盖 z 会计因果**；piTheta_not_true_classification 限本地标签类型；VoiceTree 只强制无环+深度良基（不强制有限有根）。这些升级属选择类后续深化，非本号铁律。
+   118	- Θ 风险参数（ρ/β/γ/w/κ/成本/止损/优先级/调度）= extra-缠论，非 L0 缠论可导。
+   119	- 盈利/最优性 = L3 经验有效域，**不由本号 L0 声称**（需另加收益分布/成本/效用目标）。
+
+hook: PostToolUse
+exec
+/bin/zsh -lc "rg --files | rg '("'^|/)runner'"\\.rs"'$|(''^|/)ledger'"\\.rs"'$|693-|616-'"'" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+rust/src/trading/runner.rs
+rust/src/trading/ledger.rs
+rust/src/theta_v0/strategy/ledger.rs
+rust/src/theta_v0/backtest/runner.rs
+
+hook: PostToolUse
+hook: PostToolUse Completed
+hook: PostToolUse Completed
+hook: PostToolUse Completed
+hook: PostToolUse Completed
+codex
+关键裁定点已经浮出来了：κ 的单调性给了一个懒但严格的边界，`κ=0` 是最小可达性见证；若它都不可达，正 κ 没有必要扫。正 κ 的价值是稳健性/部署政策，不是三阶段机制本身的可达性证明。
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse
+hook: PreToolUse Completed
+hook: PreToolUse Completed
+hook: PreToolUse Completed
+exec
+/bin/zsh -lc "nl -ba rust/src/theta_v0/backtest/runner.rs | sed -n '660,725p'" in /Users/silencehan/Projects/NewChanlun
+exec
+/bin/zsh -lc "nl -ba rust/src/theta_v0/strategy/ledger.rs | sed -n '980,1115p'" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+   660	
+   661	    let mut equity_curve = Vec::with_capacity(n);
+   662	    let mut trade_pnls: Vec<f64> = Vec::new();
+   663	    let mut trades: Vec<metrics::TradeRecord> = Vec::new();
+   664	    let mut pos_entry_bar: Option<usize> = None;
+   665	    let mut n_orders_executed: usize = 0;
+   666	    // ── G4 typed ledger（#134）：腿级在飞表（voice_id → 入场登记）+ 已结算 typed 交易。 ──
+   667	    let mut open_trades: std::collections::HashMap<
+   668	        classifier::recursive_tower::ElementId,
+   669	        LedgerOpen,
+   670	    > = std::collections::HashMap::new();
+   671	    let mut typed_ledger: Vec<TypedTrade> = Vec::new();
+   672	    // ★A7（Task #165）：出场 z 账本态维（t_stage/eta_bucket/risk_mode）取自出场 bar 决策点的
+   673	    //   `ext_i`。窗口终点 censored Hold 在主循环外结算 ⟹ 需保留**最后一个决策点** ext_i（末可交易
+   674	    //   bar 的账本态真值，与 censored 兑现价同 bar）。主循环内每决策点刷新；无决策点（全窗不可交易）
+   675	    //   ⟹ ZExt::NONE（账本态维诚实 None，无 bar 决策点可取——同 entry_z 裸口径）。
+   676	    let mut last_ext: super::selector::ZExt = super::selector::ZExt::NONE;
+   677	    // ★A9（Task #166，级别容器.pdf p14/§13）：campaign generation 高水位表——carrier(ElementId) →
+   678	    //   该 carrier 已见最高 generation。同一 carrier close→reopen 时新 campaign 的 generation =
+   679	    //   高水位 +1（首次入场 = 0）。`ActiveLeg::id`/`voice_id` 会跨 campaign 复用（close 后同 carrier
+   680	    //   可再 open，见 interpret 无历史 tombstone + open_trades.insert 二次覆盖），高水位表使
+   681	    //   position_node_id 四元组严格不碰撞（时序再入场可达，codex a9-posnode 裁定 C）。
+   682	    let mut gen_hiwater: std::collections::HashMap<
+   683	        classifier::recursive_tower::ElementId,
+   684	        u32,
+   685	    > = std::collections::HashMap::new();
+   686	    // ── #124 裁定4：TW 账本单一生产真值源（TwState 接入 π 路径；run_closed_loop 降级纯结构
+   687	    //    验证工具）。注资口径 = funded_campaign 同款（state.rs:219）：整窗 = 一个 campaign，
+   688	    //    投入 = 初始 NAV 取整（free = notional_in = ⌊nav0⌋）。i64 取整粒度诚实声明：TW 账本是
+   689	    //    **结构谓词源**（P2/P3/P4 判据消费 stage/open_legacy_legs/holding/free/withdrawn），
+   690	    //    非逐分对账账本——其在生产 π 的唯一消费者是 I_Θ 组合层 TW 谓词 + tw_final 物证。
+   691	    //    ★可达性（codex GAP3 终局裁定 A' 落地，2026-07-03）：**已实现利润有入 free 通道**——
+   692	    //    每笔实际平仓 fill 的费后 PnL 经 ②'' `TwEvent::Realize` 入账（可正可负），TW 漂移 =
+   693	    //    量化已实现 PnL 累计 ⟹ holding≥notional_in ∧ free≥recover_target 在 L2 变价 + 足额
+   694	    //    已实现利润下可满足 ⟹ P2/P3/P4 生产触发**现实可达**（可达性见证 `pi_loop_realized_
+   695	    //    profit_reaches_earning_shares`）。L0 同价下平仓 PnL≡0 ⟹ 仍不可达（L0 同价无盈亏
+   696	    //    定理，见 earning_shares_unreachable_l0_same_price_zero_pnl）。
+   697	    let mut tw = TwState {
+   698	        free: nav0 as i64,
+   699	        notional_in: (nav0 as i64).max(1),
+   700	        ..TwState::initial()
+   701	    };
+   702	    let tw_policy = RiskPolicy::baseline(); // κ=0 最小基线（PDF §10 canonical 默认）
+   703	    // TW 侧已见的真实成本基（i64 shadow；方向差分派 ShortDiff 划转，入账量 cash-sound 钳制
+   704	    // ——真实划转超出 free/holding 时部分承载 ⟹ holding 低估 ⟹ 退本金门更难过 = 安全侧）。
+   705	    let mut tw_seen_basis: i64 = 0;
+   706	    // ★A'（裁定清单③）：费后已实现 PnL 累计（f64 真值，仅实际平仓 fill 累加——apply_order
+   707	    // 返回值；forced_pnl 是窗口终点报告用假设强平，不改 units/cash，**不得**入此累计，推导链
+   708	    // 第 11 条）+ TW 侧已入账的量化累计 shadow（同 tw_seen_basis 模式：对**累计值**量化再派
+   709	    // 差分 ⟹ 截断误差有界不累积，TW 漂移恒 = ⌊Σ已实现PnL⌋）。
+   710	    let mut realized_cum: f64 = 0.0;
+   711	    let mut tw_seen_realized: i64 = 0;
+   712	
+   713	    for i in 0..n {
+   714	        let bar = &bars[i];
+   715	        let px = bar.close as f64 * config.tick.tick_size;
+   716	
+   717	        // ── ① 延迟成交：本 bar 到达 exec_index 的挂单 fill（apply_order，先平后开）。 ──
+   718	        if !pending[i].is_empty() && !bar.untradable && px > 0.0 {
+   719	            let orders = std::mem::take(&mut pending[i]);
+   720	            for o in &orders {
+   721	                if o.qty > 0 {
+   722	                    let units_before = units;
+   723	                    // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
+   724	                    realized_cum += apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+   725	                    // 轨迹配对（v1 方向中性）：units 跨 0 / 回 0 ⟹ 完整交易闭合。
+
+ succeeded in 0ms:
+   980	    //  RiskPolicy barrier κ + EnterReady + BuyCore（契约锚 PDF §10-11，GAP3 κ-gated）
+   981	    // ──────────────────────────────────────────────────────────────────────
+   982	
+   983	    /// κ≥0 不变量（PDF §11 `kappa_nonneg`）：baseline κ=0 满足；**外部构造闸 try_new 拒负 κ**（codex#5）。
+   984	    #[test]
+   985	    fn risk_policy_kappa_nonneg() {
+   986	        assert!(RiskPolicy::baseline().kappa_nonneg(), "baseline κ=0 满足 κ≥0");
+   987	        assert_eq!(RiskPolicy::baseline().kappa(), 0, "baseline κ=0（PDF §10 最小规范）");
+   988	        // ★外部构造闸 try_new：κ≥0 ⟹ Some（且 κ() 读回）；κ<0 ⟹ None（外部不可构造负 κ）。
+   989	        assert_eq!(RiskPolicy::try_new(3).map(|p| p.kappa()), Some(3), "try_new(3)=Some(κ=3)");
+   990	        assert_eq!(RiskPolicy::try_new(0).map(|p| p.kappa()), Some(0), "try_new(0)=Some(κ=0)");
+   991	        assert!(RiskPolicy::try_new(-1).is_none(), "★try_new(-1)=None（外部 API 拒负 κ，codex R3 §9.4）");
+   992	        // ★codex R3 §9.4：不保留反向见证（旧版 `RiskPolicy { kappa: -1 }` struct literal 已删）——
+   993	        // 负 κ 的 RiskPolicy 值在任何路径都不存在（constructor-only 类型不变量），κ≥0 拒绝证据由
+   994	        // 上面 try_new(-1)=None 正向承载，非「构造非法值验谓词」的反向见证（那使类型边界在测试可见性
+   995	        // 下未闭）。kappa_nonneg() 恒真（构造保证），baseline().kappa_nonneg() 正向断言已覆盖谓词。
+   996	    }
+   997	
+   998	    /// L^wc = max(0, notional_in − withdrawn)（在险本金，退本金推进 ⟹ L^wc→0）。
+   999	    #[test]
+  1000	    fn l_wc_is_at_risk_principal() {
+  1001	        let s0 = TwState { notional_in: 100, withdrawn: 0, ..TwState::initial() };
+  1002	        assert_eq!(s0.l_wc(), 100, "退本金前 L^wc=notional_in（全本金在险）");
+  1003	        let s_half = TwState { notional_in: 100, withdrawn: 40, ..TwState::initial() };
+  1004	        assert_eq!(s_half.l_wc(), 60, "退 40 ⟹ L^wc=60（在险本金递减）");
+  1005	        let s_full = TwState { notional_in: 100, withdrawn: 100, ..TwState::initial() };
+  1006	        assert_eq!(s_full.l_wc(), 0, "本金全退 ⟹ L^wc=0（缠师「成本为0」）");
+  1007	        let s_over = TwState { notional_in: 100, withdrawn: 130, ..TwState::initial() };
+  1008	        assert_eq!(s_over.l_wc(), 0, "超退 ⟹ L^wc=0（下界 0，不为负）");
+  1009	    }
+  1010	
+  1011	    /// 状态依赖 barrier η⋆ = L^wc + κ·Q（PDF §10）：κ=0 ⟹ η⋆=L^wc；κ>0 ⟹ 额外缓冲。
+  1012	    #[test]
+  1013	    fn eta_star_barrier() {
+  1014	        let s = TwState { notional_in: 100, withdrawn: 30, ..TwState::initial() }; // L^wc=70, Q=100
+  1015	        assert_eq!(RiskPolicy { kappa: 0 }.eta_star(&s), 70, "κ=0 ⟹ η⋆=L^wc=70");
+  1016	        assert_eq!(RiskPolicy { kappa: 2 }.eta_star(&s), 70 + 2 * 100, "κ=2 ⟹ η⋆=70+200=270");
+  1017	    }
+  1018	
+  1019	    /// ★i128 有界域回归（codex 复审#6）：κ·Q 在 i64 域会 wrap 的量级，i128 中间域算精确值再 clamp
+  1020	    /// 到 i64::MAX（**失败安全**：超界 ⟹ η⋆=i64::MAX ⟹ barrier 不过，不误放行）。**非** Lean 无界
+  1021	    /// Int 的 bit-exact——是 Rust 有界失败安全近似（clamp 后语义 = 溢出即最严 barrier）。
+  1022	    #[test]
+  1023	    fn eta_star_bounded_no_wrap() {
+  1024	        // κ=i64::MAX, Q=large ⟹ i64 乘法会 wrap 成小/负值（误放行）；i128 算真值 > i64::MAX ⟹ clamp。
+  1025	        let big = TwState { notional_in: i64::MAX / 2, withdrawn: 0, ..TwState::initial() };
+  1026	        let pol = RiskPolicy::try_new(i64::MAX).expect("κ=i64::MAX≥0 合法");
+  1027	        // i64 直算 kappa*Q 会 wrap；i128 真值 = MAX·(MAX/2) ≫ i64::MAX ⟹ clamp 到 i64::MAX。
+  1028	        assert_eq!(pol.eta_star(&big), i64::MAX, "★超界 ⟹ η⋆=i64::MAX（失败安全，非 wrap 成小值）");
+  1029	        // buy_core_legal 同样 i128：巨额 a_n 不 wrap ⟹ 正确判非法（LHS≫RHS）。
+  1030	        assert!(
+  1031	            !pol.buy_core_legal(i64::MAX, 0, i64::MAX, 0, 0, 0),
+  1032	            "★i128：巨额建仓 LHS 不 wrap ⟹ 正确判非法（非 wrap 误判合法）"
+  1033	        );
+  1034	    }
+  1035	
+  1036	    /// γ_t 四桶分类（#175，PDF §10 分段式逐分支 + 边界）：四值可达 + η=η_* 归 PositiveSafe
+  1037	    /// （≥ 边界）+ η=0=η_* 归 Zero（原文分支序优先）+ κ>0 抬 barrier 改判 PositiveUnsafe。
+  1038	    #[test]
+  1039	    fn eta_bucket_four_value_boundaries() {
+  1040	        let pol = RiskPolicy::baseline(); // κ=0 ⟹ η⋆=L^wc
+  1041	        // Deficit：η=-1<0（透支态，free 为负是真实现金透支的诚实镜像）。
+  1042	        let s_neg = TwState { free: -1, ..TwState::initial() };
+  1043	        assert_eq!(pol.eta_bucket(&s_neg), EtaBucket::Deficit, "η<0 ⟹ Deficit");
+  1044	        // Zero：η=0，且 η⋆=0（notional_in=0 ⟹ L^wc=0）⟹ η≥η⋆ 同时成立——原文分支序 Zero 先判。
+  1045	        let s_zero = TwState::initial();
+  1046	        assert_eq!(pol.eta_bucket(&s_zero), EtaBucket::Zero, "η=0 ⟹ Zero（分支序优先于 η≥η⋆）");
+  1047	        // PositiveUnsafe：0<η(50)<η⋆(L^wc=100)。
+  1048	        let s_unsafe = TwState { free: 50, notional_in: 100, ..TwState::initial() };
+  1049	        assert_eq!(pol.eta_bucket(&s_unsafe), EtaBucket::PositiveUnsafe, "0<η<η⋆ ⟹ PositiveUnsafe");
+  1050	        // PositiveSafe 边界：η(100)=η⋆(100)——PDF η≥η⋆ 含等号。
+  1051	        let s_eq = TwState { free: 100, notional_in: 100, ..TwState::initial() };
+  1052	        assert_eq!(pol.eta_bucket(&s_eq), EtaBucket::PositiveSafe, "η=η⋆ ⟹ PositiveSafe（≥ 边界）");
+  1053	        // PositiveSafe 严格：η(150)>η⋆(100)。
+  1054	        let s_safe = TwState { free: 150, notional_in: 100, ..TwState::initial() };
+  1055	        assert_eq!(pol.eta_bucket(&s_safe), EtaBucket::PositiveSafe, "η>η⋆ ⟹ PositiveSafe");
+  1056	        // κ>0 抬 barrier：同一 s_eq 在 κ=1 下 η⋆=100+1·100=200 ⟹ 100 改判 PositiveUnsafe。
+  1057	        assert_eq!(
+  1058	            RiskPolicy { kappa: 1 }.eta_bucket(&s_eq),
+  1059	            EtaBucket::PositiveUnsafe,
+  1060	            "κ 抬 barrier ⟹ 同一 η 改判 PositiveUnsafe（η⋆ 状态依赖）"
+  1061	        );
+  1062	    }
+  1063	
+  1064	    /// ★EnterReady 严格五合取（PDF §10 步骤3）：五条件全真才 ready（比单纯 W≥I0 强得多）。
+  1065	    ///
+  1066	    /// ★★诚实标注（codex §9.2，照实 161/no-workaround）：**this is a synthetic-state legality test,
+  1067	    /// not a reachability test.** 本测试在**显式构造**的 `ready` 态（free=0, holding=100, withdrawn=100
+  1068	    /// ⟹ tw=200）上验证 `enter_ready` 谓词的五合取逻辑（给定前提则谓词正确）——它**不**声称该态从
+  1069	    /// `funded_campaign` 起点可达。tw=200=2·notional 在 **L0 同价**下从 campaign 起点（tw=Q）不可达
+  1070	    /// （见 `runner.rs::earning_shares_unreachable_l0_same_price_zero_pnl`：L0 同价无盈亏定理）；
+  1071	    /// **L2 变价**下已实现利润经 `TwEvent::Realize` 入 TW 后此类态可达（GAP3 裁定 A' 落地，生产见证
+  1072	    /// `runner.rs::pi_loop_realized_profit_reaches_earning_shares`）。有效域区分：**机制正确 ≠ 前提
+  1073	    /// 可达**——本测试锚前者（谓词逻辑）。不为通过而硬凑「已获利」witness（codex 复审#2 判致命，已删）。
+  1074	    #[test]
+  1075	    fn enter_ready_strict_conjunction() {
+  1076	        // 满足全部：stage=CapitalRecovered, withdrawn≥i0(100), legs=0, normal, η≥η⋆。
+  1077	        // free=0, holding=100, withdrawn=100, notional_in=100 ⟹ tw=200; L^wc=0 ⟹ η⋆(κ=0)=0; 200≥0 ✓。
+  1078	        // ★注：tw=200 是 synthetic 态（合法性验证用），非 campaign 可达态（见上「诚实标注」）。
+  1079	        let ready = TwState {
+  1080	            free: 0, holding: 100, withdrawn: 100, notional_in: 100,
+  1081	            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0,
+  1082	        };
+  1083	        let pol = RiskPolicy::baseline();
+  1084	        assert!(pol.enter_ready(&ready, 100, true), "五条件全满足 ⟹ EnterReady");
+  1085	        // 破坏 S=II：stage=CostReduction ⟹ 不 ready。
+  1086	        assert!(!pol.enter_ready(&TwState { stage: TStage::CostReduction, ..ready }, 100, true), "S≠II ⟹ 不 ready");
+  1087	        // 破坏 W≥I0：withdrawn<i0 ⟹ 不 ready。
+  1088	        assert!(!pol.enter_ready(&TwState { withdrawn: 99, ..ready }, 100, true), "W<I0 ⟹ 不 ready");
+  1089	        // 破坏 legacy 腿=0：open_legacy_legs=1 ⟹ 不 ready（OQ-9 入口证书）。
+  1090	        assert!(!pol.enter_ready(&TwState { open_legacy_legs: 1, ..ready }, 100, true), "有 legacy 腿 ⟹ 不 ready");
+  1091	        // 破坏 RiskNormal：risk_normal=false ⟹ 不 ready。
+  1092	        assert!(!pol.enter_ready(&ready, 100, false), "非 RiskNormal ⟹ 不 ready");
+  1093	        // 破坏 η≥η⋆：κ 拉高 barrier 到 η 之上 ⟹ 不 ready（此处 L^wc=0，用 κ·Q 抬门）。
+  1094	        assert!(
+  1095	            !RiskPolicy { kappa: 3 }.enter_ready(&ready, 100, true),
+  1096	            "η(200)<η⋆(0+3·100=300) ⟹ barrier 未过 ⟹ 不 ready"
+  1097	        );
+  1098	    }
+  1099	
+  1100	    /// BuyCore 合法性（PDF §10 步骤4 定理1 充要）：a_n+L^wc+κΔQ ≤ η+g−κQ。
+  1101	    #[test]
+  1102	    fn buy_core_legality() {
+  1103	        let pol = RiskPolicy { kappa: 1 };
+  1104	        // a_n=10, l_wc_next=5, ΔQ=3, η=100, g=0, Q=20 ⟹ LHS=10+5+3=18, RHS=100+0-20=80 ⟹ 18≤80 ✓。
+  1105	        assert!(pol.buy_core_legal(10, 5, 3, 100, 0, 20), "建仓额小 ⟹ BuyCore 合法");
+  1106	        // a_n=90（大建仓）⟹ LHS=90+5+3=98 > RHS=80 ⟹ 非法（超 barrier）。
+  1107	        assert!(!pol.buy_core_legal(90, 5, 3, 100, 0, 20), "建仓额过大 ⟹ 破 κ-floor ⟹ 非法");
+  1108	    }
+  1109	
+  1110	    // ──────────────────────────────────────────────────────────────────────
+  1111	    //  674号立场C 投影单向性护栏（forget_stage_to_ledger_view 非单射 = 有损 = 无逆）
+  1112	    // ──────────────────────────────────────────────────────────────────────
+  1113	
+  1114	    /// ★674号立场C 投影单向性：`forget_stage_to_ledger_view` **非单射**（有损 ⟹ 无逆 ⟹ 单向）。
+  1115	    ///
+
+hook: PostToolUse
+hook: PostToolUse
+exec
+/bin/zsh -lc "nl -ba /Users/silencehan/.codex/memories/MEMORY.md | sed -n '432,440p'" in /Users/silencehan/Projects/NewChanlun
+ succeeded in 0ms:
+   432	- when old “no alpha” evidence may be targeting the wrong model, separate `Π_simp` from `Π_full` explicitly and gate expensive full-model implementation on actual sample-count/headroom evidence rather than assuming every prior PDF must be implemented first [Task 3]
+   433	
+   434	## Reusable knowledge
+   435	
+   436	- The durable routing fact from 2026-07-01 is that `三个gap.pdf` and the earlier `gap.pdf` were not the same source: the new file was treated as the W1 / `Cand^δ_e` derivation, while the earlier file tracked GAP3 three-stage findings and should not be conflated with W1 semantics [Task 1]
+   437	- The GAP3 landing-plan result was L0/L1 only: code-fact verification and PDF/code consistency. It identified correspondence mismatches around `ReadyReturn`, `Phase`, `RawPhase`, `D_dist`, `n-barrier`, `CapitalRecovery` vs `CapitalRecovered`, and `cost_basis`, but explicitly did not claim the broader three-stage theory was proved or fully implemented [Task 1]
+   438	- The 2026-07-01 consolidated implementation verdict was that `P1 + P4 + P7` is the minimal sufficient set: W1 interval nesting repaired by `w1-rework`, P4 as typed `bsp_class` bucketing, and P7 as exit-scene classification. `576` was treated as an accounting/ruling issue rather than a blocking implementation dependency for that patch [Task 2]
+   439	- `W-VERIFY` on this path should compute proportions for `CloseRoot`, `ReduceCore`, `Type2Missing`, and `Hold` so the user can tell whether “no alpha” comes from true rarity or from missing exit-path semantics [Task 2]
+   440	- For the full-model alpha question, `acc-oom-streaming` had already de-risked the 4615-bar BTC full-history run. The recommended gate was to wait for `fullhist-mu` to return the base-case `level3+` distribution, then decide whether installing `P1`/typed/full-model machinery is worth the effort [Task 3]
+
+hook: PostToolUse
+hook: PostToolUse Completed
+hook: PostToolUse Completed
+hook: PostToolUse Completed
+codex
+**裁定 1：冻结值**
+
+冻结 `κ=0`。
+
+这不是“先用 0 以后再说”的 workaround，而是 M7 的正式最小风险政策口径：`η_* = L^wc`，只验证三阶段机制在最低合法 barrier 下是否真实可达。  
+正 `κ` 是额外资本安全缓冲，属于 extra-缠论风险政策；没有 L3 效用/回撤/跨标的证据前，冻结正值就是拍脑袋。
+
+认识论标注：  
+`L0` 可证的是 `κ≥0`、`η_*` 随 `κ` 单调不降。  
+`L2` 才能回答 BTC 真实数据上 `κ=0` 是否可达。  
+`L3` 才能裁定正 `κ` 是否值得作为部署风险政策。
+
+**裁定 2：网格**
+
+需要网格，但只作为 M7 的 `L2` 敏感性诊断，不作为 M7 通过门槛。
+
+M7 网格冻结为：
+
+```text
+κ ∈ {0, 0.5, 1.0, 2.0}
+```
+
+输出只看可达性与余量：是否进入 `EarningShares`、首次进入时间、`η - η_*`、`η/Q`。  
+若当前 Rust `RiskPolicy { kappa: i64 }` 不能诚实表达 `0.5`，不要静默改成 `{0,1,2}`；要么补显式 fixed-point 语义，要么把 `0.5` 标成“实现未支持，网格未完成”。
+
+`L3` 跨标的 / OOS 的 κ 网格选择推迟到 M8。M8 才比较收益、回撤、容量、失效率，并可能选择正 `κ` 作为部署参数。
+
+**裁定 3：依据**
+
+权衡原则：先证明机制存在，再证明政策稳健。
+
+`κ=0` 是机制可达性的最强起点：如果 `κ=0` 都不可达，则任何 `κ>0` 都不可达，正 κ 扫描是浪费；如果 `κ=0` 可达，M7 只能声明“最小 barrier 下三阶段可达”，不能外推为“风险稳健”。
+
+所以阶段边界如下：
+
+```text
+M7：冻结 κ=0；做 L2 单标的敏感性诊断，不用正 κ 改写通过标准。
+M8：做 L3/OOS 跨标的 κ 选择；正 κ 只能在那里被裁成生产风险政策。
+```
+
+最终结论一句话：**M7 冻结 `κ=0`，同时补 `{0,0.5,1,2}` 的 L2 敏感性表；正 κ 不在 M7 冻结为生产值，留给 M8 L3 裁定。**
+
+
+tokens used
+85,917
+**裁定 1：冻结值**
+
+冻结 `κ=0`。
+
+这不是“先用 0 以后再说”的 workaround，而是 M7 的正式最小风险政策口径：`η_* = L^wc`，只验证三阶段机制在最低合法 barrier 下是否真实可达。  
+正 `κ` 是额外资本安全缓冲，属于 extra-缠论风险政策；没有 L3 效用/回撤/跨标的证据前，冻结正值就是拍脑袋。
+
+认识论标注：  
+`L0` 可证的是 `κ≥0`、`η_*` 随 `κ` 单调不降。  
+`L2` 才能回答 BTC 真实数据上 `κ=0` 是否可达。  
+`L3` 才能裁定正 `κ` 是否值得作为部署风险政策。
+
+**裁定 2：网格**
+
+需要网格，但只作为 M7 的 `L2` 敏感性诊断，不作为 M7 通过门槛。
+
+M7 网格冻结为：
+
+```text
+κ ∈ {0, 0.5, 1.0, 2.0}
+```
+
+输出只看可达性与余量：是否进入 `EarningShares`、首次进入时间、`η - η_*`、`η/Q`。  
+若当前 Rust `RiskPolicy { kappa: i64 }` 不能诚实表达 `0.5`，不要静默改成 `{0,1,2}`；要么补显式 fixed-point 语义，要么把 `0.5` 标成“实现未支持，网格未完成”。
+
+`L3` 跨标的 / OOS 的 κ 网格选择推迟到 M8。M8 才比较收益、回撤、容量、失效率，并可能选择正 `κ` 作为部署参数。
+
+**裁定 3：依据**
+
+权衡原则：先证明机制存在，再证明政策稳健。
+
+`κ=0` 是机制可达性的最强起点：如果 `κ=0` 都不可达，则任何 `κ>0` 都不可达，正 κ 扫描是浪费；如果 `κ=0` 可达，M7 只能声明“最小 barrier 下三阶段可达”，不能外推为“风险稳健”。
+
+所以阶段边界如下：
+
+```text
+M7：冻结 κ=0；做 L2 单标的敏感性诊断，不用正 κ 改写通过标准。
+M8：做 L3/OOS 跨标的 κ 选择；正 κ 只能在那里被裁成生产风险政策。
+```
+
+最终结论一句话：**M7 冻结 `κ=0`，同时补 `{0,0.5,1,2}` 的 L2 敏感性表；正 κ 不在 M7 冻结为生产值，留给 M8 L3 裁定。**
+
+

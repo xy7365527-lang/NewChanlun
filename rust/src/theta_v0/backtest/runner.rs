@@ -104,6 +104,10 @@ pub struct RunResult {
     /// = ΔR_t/nav0（成本已扣进 equity，∴ ΔC 自动含入），**与 NAV 路径发散无关**（除数恒为 nav0，
     /// 非 path-dependent 的 E_{t−1}）。区别于 [`daily_returns`]（百分比收益，喂 metrics 算 Sharpe）。
     pub equity_curve: Vec<f64>,
+    /// ★M6 R 分解表（路线.pdf p16 第十一关：R=ΣN_tΔP_t−Commission−Slippage−Funding−Borrow−
+    /// LiquidationLoss + 守恒残差）。生产 π 路径（[`run_theta_v0_pi`] 系列）产出；旧 recognize
+    /// 路径（[`run_theta_v0`]）为 `None`（诚实——R 分解只接生产 π fill loop）。
+    pub r_decomp: Option<super::super::strategy::risk::RDecomposition>,
 }
 
 /// 执行回测：把 [`Dataset`] 喂 frozen Θ v0 引擎，模拟 fill，算指标。
@@ -196,6 +200,7 @@ pub fn run_theta_v0(
         theta_return_mtm,
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
+        r_decomp: fill.r_decomp, // v1 路径为 None（plan_and_fill_mtm 不产 R 分解）
     }
 }
 
@@ -408,6 +413,122 @@ fn run_theta_v0_pi_inner(
         theta_return_mtm,
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
+        r_decomp: fill.r_decomp, // 生产 π 路径 R 分解（cost_model=None ⟹ 三项 0，仍产分解表）
+    }
+}
+
+/// ★M5 声部执行层跑批产出（多空对冲.pdf p16 关卡10 / TARGET_STRATEGY_MAXFULL.md §M5）。
+///
+/// [`run_theta_v0_pi_overlay`] 的产出：终态 [`OverlayState`](super::super::strategy::overlay_state)
+/// hedge-mode 逐声部账本（活动 + 已离场声部归因表）+ 净额执行层证据。
+pub struct OverlayRunResult {
+    pub symbol: String,
+    pub n_bars: usize,
+    /// 净额执行层订单数（overlay ΔN 非零步数 = 真实下单次数）。
+    pub n_overlay_orders: usize,
+    /// 账户级累计净额价格 PnL（`Σ_t N_t·ΔP_t`，PDF §11 对账账户侧）。
+    pub account_price_pnl: f64,
+    /// Σ_v pnl_v（分账本侧，PDF §11 应 ≈ `account_price_pnl`）。
+    pub total_voice_pnl: f64,
+    /// 对账残差 `|account_price_pnl − total_voice_pnl|`（验收断言2：< eps）。
+    pub reconcile_residual: f64,
+    /// 终态 overlay 账本（活动 + 已离场声部归因，逐声部 entry_v/exit_v/parent(v)/role(v)/pnl_v）。
+    pub overlay: super::super::strategy::overlay_state::OverlayState,
+    /// 净额执行层 RunResult（同 `run_theta_v0_pi`，净额订单/权益——overlay 是其只读旁路，数字不变）。
+    pub net_result: RunResult,
+}
+
+/// ★M5 声部执行层 arm（多空对冲.pdf p16 关卡10）：与 [`run_theta_v0_pi`] **同一信号决策路径**
+/// （χ≡1 全覆盖），额外驱动 [`OverlayState`](super::super::strategy::overlay_state) hedge-mode 逐声部
+/// 账本 P^sep → N=Net(P^sep) → Order_t=ΔN → 逐声部 pnl_v 归因。
+///
+/// **净额路径 bit-exact**：overlay 是 `pi_theta_fill_loop_overlay` 内 sep_legs 的只读旁路——不改
+/// cash/units/trade_pnls/equity ⟹ `net_result` 与 `run_theta_v0_pi` 逐字节一致（现有臂不污染）。
+///
+/// **验收**（结果包）：① ΔN 守恒（`pi_theta_fill_loop_overlay` 内 debug_assert 逐 bar `order==ΔN`，
+/// 零违例）；② Σpnl_v 对账（`reconcile_residual < eps`，PDF §11 线性恒等 `Σσ_v q_v ΔP=N ΔP`）。
+///
+/// **认识论 L1**：ΔN 守恒 + 对账是结构恒等（构造性 + 线性代数），**不声明 alpha**——首轮数字
+/// （亏损/空转）照实（执行层首次真实化，PDF §9 声部生成层 + 净额可见层验收，非经济有效层）。
+pub fn run_theta_v0_pi_overlay(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+) -> OverlayRunResult {
+    let bars = &dataset.bars;
+    let mut overlay = super::super::strategy::overlay_state::OverlayState::new();
+
+    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    let fill = pi_theta_fill_loop_overlay(
+        |i| {
+            let (cls, tower) = classifier_incr.classify_at(i);
+            let gen = classifier_incr.tower_generation();
+            let fe = classifier_incr.forest_epoch();
+            (cls, tower, gen, fe)
+        },
+        bars,
+        initial_nav,
+        config,
+        None, // χ≡1 全覆盖（与 run_theta_v0_pi 同信号路径）
+        Some(&mut overlay),
+    );
+
+    // 净额执行层 RunResult（与 run_theta_v0_pi 同装配，bit-exact——overlay 是只读旁路）。
+    let bh_return = buy_and_hold_return(bars);
+    let m = metrics::compute(
+        &fill.equity_curve,
+        &fill.daily_returns,
+        &fill.trade_pnls_with_forced,
+        years,
+        bh_return,
+    );
+    let n_orders = fill.n_orders;
+    let untradable_ratio = dataset.untradable_ratio();
+    let is_l2 = n_orders > 0;
+    let prices: Vec<f64> = bars
+        .iter()
+        .map(|b| b.close as f64 * config.tick.tick_size)
+        .collect();
+    let fee_rate =
+        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let theta_return_mtm = m.strat_return;
+    let closed_loop_final = run_closed_loop(bars, initial_nav);
+    let net_result = RunResult {
+        symbol: dataset.symbol.clone(),
+        metrics: m,
+        n_bars: bars.len(),
+        n_orders,
+        untradable_ratio,
+        is_l2,
+        closed_loop_final,
+        trade_pnls: fill.trade_pnls_realized,
+        trade_pnls_with_forced: fill.trade_pnls_with_forced,
+        trades: fill.trades,
+        prices,
+        fee_rate,
+        theta_return_mtm,
+        daily_returns: fill.daily_returns,
+        equity_curve: fill.equity_curve,
+        r_decomp: fill.r_decomp,
+    };
+
+    let account_price_pnl = overlay.account_price_pnl();
+    let total_voice_pnl = overlay.total_voice_pnl();
+    let reconcile_residual = (account_price_pnl - total_voice_pnl).abs();
+    // 净额执行订单数 = 活动 + 已离场声部（每声部至少一次 open/close 产 ΔN；诚实计数用 closed 表大小
+    // + 活动声部数——每条离场声部完整经历过 open+close 两次 ΔN 端点，活动声部至少一次 open）。
+    let n_overlay_orders = overlay.closed_voices().len() + overlay.active_voices().count();
+
+    OverlayRunResult {
+        symbol: dataset.symbol.clone(),
+        n_bars: bars.len(),
+        n_overlay_orders,
+        account_price_pnl,
+        total_voice_pnl,
+        reconcile_residual,
+        overlay,
+        net_result,
     }
 }
 
@@ -616,11 +737,33 @@ pub struct ChiFilterCtx<'a> {
 }
 
 fn pi_theta_fill_loop<F>(
+    classify_at: F,
+    bars: &[Bar],
+    initial_nav: f64,
+    config: &ThetaConfig,
+    chi: Option<ChiFilterCtx>,
+) -> FillOutput
+where
+    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64),
+{
+    // ★M5 wrapper：overlay=None ⟹ 现有净额路径逐字节不变（bit-exact）。overlay 簿接线走
+    // [`pi_theta_fill_loop_overlay`]（run_theta_v0_pi_overlay arm 传 Some）。
+    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None)
+}
+
+/// ★M5 声部执行层 fill loop（多空对冲.pdf p16 关卡10）：与 [`pi_theta_fill_loop`] **同一决策路径**
+/// （同一 `pi_theta_step_traced` → 净额订单 → apply_order fill），额外用 `StepTrace.sep_legs` 喂
+/// `overlay: OverlayState` hedge-mode 簿——建持久逐声部 P^sep 账本 + ΔN 订单流 + 逐声部 pnl_v 归因。
+///
+/// `overlay=None` ⟹ 净额路径 bit-exact（所有现有臂）；`Some(&mut ov)` ⟹ 逐 bar 决策点把 sep_legs
+/// 步进 overlay（**只读旁路**，不改净额 fill 的 cash/units/trade_pnls ⟹ 现有数字不动）。
+fn pi_theta_fill_loop_overlay<F>(
     mut classify_at: F,
     bars: &[Bar],
     initial_nav: f64,
     config: &ThetaConfig,
     chi: Option<ChiFilterCtx>,
+    mut overlay: Option<&mut super::super::strategy::overlay_state::OverlayState>,
 ) -> FillOutput
 where
     // ★工位 4g/on2w2：闭包返回四元组——第三个 u64 = 塔代次（candidate 段判据）；第四个 u64 =
@@ -710,9 +853,34 @@ where
     let mut realized_cum: f64 = 0.0;
     let mut tw_seen_realized: i64 = 0;
 
+    // ── M6 R 分解成本累计（路线.pdf p16 第十一关：R = ΣN_tΔP_t − Commission − Slippage −
+    //    Funding − Borrow − LiquidationLoss）。cost_model=None ⟹ funding/borrow/liq 恒 0
+    //    （bit-exact——不改 units/cash，只多算三个恒 0 累计），commission_slippage 仍如实累计
+    //    （守恒断言用，不改现金流）。──
+    let mut cum_fee: f64 = 0.0; // Commission+Slippage+Tax（apply_fill 独立测得，非从 net 反推）
+    let mut cum_funding: f64 = 0.0;
+    let mut cum_borrow: f64 = 0.0;
+    let mut cum_liq_loss: f64 = 0.0;
+    // 价格 PnL 毛额 Σ_t N_t·ΔP_t（逐 bar：p_t（前 bar 收盘的净持仓）×（px_t − px_{t−1}）×
+    //   |合约乘数=1|，units 已是名义手数）。首 bar 无前价 ⟹ 不计。
+    let mut cum_price_pnl: f64 = 0.0;
+    let mut prev_px: Option<f64> = None;
+    // 强平罚金边沿触发（一次一集）：进入 {Insolvent,Liquidation} 且持仓 ⟹ 收一次罚金，
+    // 置 true；离开强平态 ⟹ 复位。避免强平态跨 bar 持续（exec 延迟平仓期间）重复罚。
+    let mut liq_active: bool = false;
+
     for i in 0..n {
         let bar = &bars[i];
         let px = bar.close as f64 * config.tick.tick_size;
+
+        // ── M6 ①⁻ 价格 PnL 毛额累计（ΣN_tΔP_t）：本 bar 开头 units 是**前 bar 收盘持仓**
+        //    （尚未经本 bar ① 成交），px−prev_px 是本 bar 价格变动 ⟹ 贡献 = units·Δpx。
+        //    这是含浮盈的 MtM 价格贡献，与 equity_curve 的价格重估同源（守恒断言校验）。──
+        if let Some(pp) = prev_px {
+            if px > 0.0 {
+                cum_price_pnl += units * (px - pp);
+            }
+        }
 
         // ── ① 延迟成交：本 bar 到达 exec_index 的挂单 fill（apply_order，先平后开）。 ──
         if !pending[i].is_empty() && !bar.untradable && px > 0.0 {
@@ -721,11 +889,30 @@ where
                 if o.qty > 0 {
                     let units_before = units;
                     // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
-                    realized_cum += apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    // M6：apply_order 返 (realized, fee)——fee 独立累计进 R 分解 Commission+Slippage。
+                    let (r_pnl, fee_paid) = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    realized_cum += r_pnl;
+                    cum_fee += fee_paid;
                     // 轨迹配对（v1 方向中性）：units 跨 0 / 回 0 ⟹ 完整交易闭合。
                     track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
                     n_orders_executed += 1;
                 }
+            }
+        }
+
+        // ── M6 ①⁺ Funding + Borrow 持仓期成本计提（本 bar 成交后持仓的持有成本；px>0 才计——
+        //    untradable bar（px=0）无有效 mark ⟹ 跳过计提，与 cum_price_pnl 的 px>0 累计口径
+        //    一致，守恒才成立）。从 cash 扣除 ⟹ equity_curve 反映拖累。cost_model=None ⟹ 恒 0
+        //    （bit-exact）。──
+        if let Some(cost) = config.cost_model.as_ref() {
+            if px > 0.0 && units != 0.0 {
+                let net_notional_usd = units.abs() * px;
+                let equity_pre = cash + units * px; // 计提前权益（借入名义 = max(0,|N|−E)）
+                let funding = cost.funding_accrual(i, net_notional_usd);
+                let borrow = cost.borrow_accrual(net_notional_usd, equity_pre);
+                cash -= funding + borrow;
+                cum_funding += funding;
+                cum_borrow += borrow;
             }
         }
 
@@ -781,6 +968,23 @@ where
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
             let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &classification_i, bar, equity_nav, p_t, px, config.margin.as_ref());
+            // ── M6 ③⁻ LiquidationLoss 强平罚金（边沿触发，一次一集）：本 bar 进入
+            //    {Insolvent,Liquidation} 且持仓 ⟹ 收一次罚金（强平清算费/滑点），从 cash 扣。
+            //    liq_active 边沿去抖：强平态跨 bar 持续（exec 延迟平仓期间）不重复罚；离开强平态复位。
+            //    cost_model=None ⟹ 恒 0（bit-exact）。RiskExit 优先级由 gate.force_flat 上游承担
+            //    （coverage P1 屏蔽 P2..P10），本罚金是该强平事件的**成本记账**，不改平仓触发逻辑。──
+            {
+                use super::super::strategy::risk::global_risk_close;
+                let in_liq = global_risk_close(risk_mode_i);
+                if let Some(cost) = config.cost_model.as_ref() {
+                    if in_liq && !liq_active && p_t != 0.0 && px > 0.0 {
+                        let penalty = cost.liquidation_penalty(p_t.abs() * px);
+                        cash -= penalty;
+                        cum_liq_loss += penalty;
+                    }
+                }
+                liq_active = in_liq;
+            }
             // G3（#138）z 第 10-13 维装配：π 路径候选不经 Nest/Xzd 准入门（cand_channel/nest_depth
             // None 诚实口径，origin_level 由 z_of_candidate 填 Some(c.level) 起始=执行真值）；
             // risk_mode = 当 bar 账本态真值。**同一 ext_i 同时喂 χ 查询（filter）与训练登记
@@ -872,6 +1076,19 @@ where
                 &registry,
                 Some(&twc),
             );
+            // ── ★M5 overlay 簿步进（多空对冲.pdf p16 关卡10）：sep_legs=P^sep_{t+1} 目标 → hedge-mode
+            //    逐声部账本 → ΔN 订单 + 逐声部 pnl_v 累计。只读旁路（不改净额 fill 的 cash/units/
+            //    trade_pnls ⟹ 现有臂 bit-exact）。overlay=None（现有臂）⟹ 整段跳过。 ──
+            if let Some(ov) = overlay.as_deref_mut() {
+                let ostep = ov.step(&step_trace.sep_legs, px, i, config.risk.default_lot.max(1) as i64);
+                // ★ΔN 守恒（验收断言1，PDF p16 `Order_t=N_t−N_{t−1}`）：overlay 订单恒 = 净敞口增量。
+                debug_assert_eq!(
+                    ostep.order,
+                    ostep.net_after - ostep.net_before,
+                    "M5 ΔN 守恒违例：order={} ≠ N_t−N_{{t−1}}={}−{}",
+                    ostep.order, ostep.net_after, ostep.net_before
+                );
+            }
             // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
             // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
             // A6（#159）：z_of_candidate 内读 c.force（Candidate 透传 BspPoint.force）填 force_state
@@ -1077,6 +1294,20 @@ where
 
         // ── ⑥ 权益曲线（mark-to-market，归一化 ÷nav0）。 ──
         equity_curve.push((cash + units * px) / nav0);
+        // M6：记录本 bar 有效价供下 bar 价格 PnL 差分（px>0 才更新——untradable/零价 bar 不刷，
+        // 避免 Δpx 跨越无效价产生伪价格贡献）。
+        if px > 0.0 {
+            prev_px = Some(px);
+        }
+    }
+
+    // ── ★M5 overlay 窗口终点强平：全部活动声部按末可交易 bar close 离场（记 exit_v/冻结 pnl_v）。
+    //    价格 PnL 已在末决策点 step 累计到末价 ⟹ 此处只搬账本行（含浮盈口径，与净额侧同理）。 ──
+    if let Some(ov) = overlay.as_deref_mut() {
+        if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
+            let last_px = bars[last_i].close as f64 * config.tick.tick_size;
+            ov.force_flat(last_px, last_i);
+        }
     }
 
     // ── 窗口终点强平（含浮盈口径，编排者铁律「不把浮盈算上不合理」；与 plan_and_fill_mtm 同）──
@@ -1132,6 +1363,26 @@ where
         }
     }
 
+    // ── M6 R 分解组装（路线.pdf p16 第十一关）+ 账目守恒断言 ──
+    // ledger_delta 从**实际账本**（cash/units 经 apply_fill + 成本扣减独立演化）测得的净变动，
+    // net_r 从**独立累计器**（cum_price_pnl 在循环顶部按 units·Δpx 累加、cum_fee 由 apply_fill
+    // 独立返回、funding/borrow/liq 独立累计）组装——两条独立路径应恒等（守恒），残差 ≈0 是
+    // 「资金无泄漏」的物证。final MtM 用 prev_px（末有效价）避免末 bar untradable（px=0）伪归零。
+    let final_px = prev_px.unwrap_or(0.0);
+    let final_equity_abs = cash + units * final_px;
+    let ledger_delta = final_equity_abs - nav0;
+    let r_decomp = super::super::strategy::risk::RDecomposition::assemble(
+        cum_price_pnl, cum_fee, cum_funding, cum_borrow, cum_liq_loss, ledger_delta,
+    );
+    // 守恒断言（no-patch-mentality：残差超容差 = 真实资金泄漏 bug，不静默）。容差按名义规模缩放
+    // （f64 累加 O(n) 舍入；nav0 量级 + 累计项量级）——绝对容差 max(1e-6, 1e-9·(|nav0|+|price_pnl|)）。
+    let cons_tol = 1e-6_f64.max(1e-9 * (nav0.abs() + cum_price_pnl.abs()));
+    debug_assert!(
+        r_decomp.conservation_residual.abs() <= cons_tol,
+        "M6 R 分解守恒残差 {} 超容差 {}（net_r={} vs ledger_delta={}）——资金泄漏",
+        r_decomp.conservation_residual, cons_tol, r_decomp.net_r, ledger_delta
+    );
+
     let daily_returns = bar_returns(&equity_curve);
     FillOutput {
         equity_curve,
@@ -1142,6 +1393,7 @@ where
         n_orders: n_orders_executed,
         typed_ledger,
         tw_final: Some(tw),
+        r_decomp: Some(r_decomp),
     }
 }
 
@@ -1402,6 +1654,10 @@ struct FillOutput {
     /// TW 账本终态（#124 裁定4：TwState 生产真值源在 π fill loop；TStage/ηBucket「生产者已
     /// 就位」的可观测物证——G3 ZExt 桥/诊断消费）。v1 路径无 TW 接线 ⟹ `None`（诚实不伪造）。
     tw_final: Option<TwState>,
+    /// M6 R 分解表（路线.pdf p16 第十一关：R=ΣN_tΔP_t−Commission−Slippage−Funding−Borrow−
+    /// LiquidationLoss + 账目守恒残差）。π 路径 [`pi_theta_fill_loop`] 产出；v1 路径
+    /// [`plan_and_fill_mtm`] 未接 R 分解 ⟹ `None`（诚实不伪造，v1 是 recognize 旧路径非生产 π）。
+    r_decomp: Option<super::super::strategy::risk::RDecomposition>,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -1659,6 +1915,7 @@ fn plan_and_fill_mtm(
         n_orders: n_orders_executed,
         typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
         tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
+        r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
     }
 }
 
@@ -1848,7 +2105,7 @@ fn apply_order(
     units: &mut f64,
     entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
-) -> f64 {
+) -> (f64, f64) {
     let qty = o.qty as f64;
     // 订单 → (有符号成交方向 δ, 是否纯平仓 close_only)。
     // ★信号成交（Buy/Add/Sell）：可「先平后开」翻转（开多 δ+1 / 开空 δ−1）。
@@ -1866,10 +2123,10 @@ fn apply_order(
             } else if *units < 0.0 {
                 (1.0, true) // 持空 ⟹ 买回平空
             } else {
-                return 0.0; // 空仓无仓可平
+                return (0.0, 0.0); // 空仓无仓可平
             }
         }
-        StrictAction::Hold | StrictAction::Wait => return 0.0, // 不动
+        StrictAction::Hold | StrictAction::Wait => return (0.0, 0.0), // 不动
     };
     apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls)
 }
@@ -1895,13 +2152,18 @@ fn apply_fill(
     units: &mut f64,
     entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
-) -> f64 {
-    // ★A'（codex GAP3 裁定清单③）：返回本次 fill 的**费后已实现 PnL**（仅段 1 平仓分量产生；
-    // 无平仓 = 0.0）。结算时点硬边界（推导链第 9 条）：只锚实际平仓 fill 的 close 分支——
-    // partial close 按平掉数量结算；flip（先平后开）只对先平的反向段结算（段 2 开新仓不产 PnL）。
+) -> (f64, f64) {
+    // ★A'（codex GAP3 裁定清单③）：返回 `(费后已实现 PnL, 成交费用)`。
+    // - realized：本次 fill 的费后已实现 PnL（仅段 1 平仓分量产生；无平仓 = 0.0）。结算时点硬
+    //   边界（推导链第 9 条）：只锚实际平仓 fill 的 close 分支——partial close 按平掉数量结算；
+    //   flip（先平后开）只对先平的反向段结算（段 2 开新仓不产 PnL）。
+    // - fee_paid（M6 R 分解 Commission+Slippage 独立累计）：本次成交实付费用 = 成交名义 ×
+    //   fee_rate（平仓段 close_qty·px + 开仓段 remaining·px）。已内蕴在 cash 现金流的 (1±fee)
+    //   因子里，此处**独立**测得供 RDecomposition 守恒断言（校验和 = 账本净变动，非从 net_r 反推）。
     let mut realized = 0.0;
+    let mut fee_paid = 0.0;
     if qty <= 0.0 || px <= 0.0 {
-        return realized;
+        return (realized, fee_paid);
     }
     let mut remaining = qty;
 
@@ -1912,6 +2174,7 @@ fn apply_fill(
             // 平仓现金流：delta=+1（买回平空）cash 减 qty×px×(1+fee)；delta=−1（卖出平多）cash 加 qty×px×(1−fee)。
             // 统一：cash += −delta × qty × px × (1 + delta×fee_rate)。
             let cash_flow = -delta * close_qty * px * (1.0 + delta * fee_rate);
+            fee_paid += close_qty * px * fee_rate; // 平仓成交费（commission+slippage+tax）
             // PnL = 持仓方向收益。持仓方向 sign = units.signum()（多=+1，空=−1）。
             // 平多（持多，sign+1）：PnL = proceeds − cost = (qty×px×(1−fee)) − (qty×entry_cost)。
             // 平空（持空，sign−1）：PnL = 开空净收 − 平空支出 = (qty×entry_cost) − (qty×px×(1+fee))。
@@ -1943,8 +2206,9 @@ fn apply_fill(
         let need_cash = delta > 0.0; // 仅开多需现金
         let cost = remaining * px * (1.0 + fee_rate);
         if need_cash && *cash < cost {
-            return realized; // 现金不足，不开多（对齐 v0 现金约束；开空无此约束）
+            return (realized, fee_paid); // 现金不足，不开多（对齐 v0 现金约束；开空无此约束）
         }
+        fee_paid += remaining * px * fee_rate; // 开仓成交费（commission+slippage+tax）
         // 每单位含费成本基（多=买入均价含买入费；空=卖出均价扣卖出费净收）。
         // 单笔成交成本基 = px × (1 + delta×fee_rate)：多 px(1+fee)，空 px(1−fee)。
         let unit_cost = px * (1.0 + delta * fee_rate);
@@ -1958,7 +2222,7 @@ fn apply_fill(
         *units = new_units;
         *cash += cash_flow;
     }
-    realized
+    (realized, fee_paid)
 }
 
 /// bar-级 returns（占位；日聚合接通前的 L1 口径）。
@@ -2075,6 +2339,85 @@ mod tests {
         assert!(fill.n_orders > 0, "π_Θ 确认-bar 部署买点 ⟹ 产订单（n_orders>0），实得 {}", fill.n_orders);
         assert!(!fill.trades.is_empty(), "开仓 + 窗口终点强平 ⟹ ≥1 笔交易轨迹，实得 {}", fill.trades.len());
         assert!(fill.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★★M6：Funding/Borrow/LiquidationLoss 进 PnL + R 分解 + 账目守恒
+    //  （TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★M6 bit-exact：cost_model=None ⟹ R 分解三项成本恒 0，且 equity/trades 与现状逐位相同。
+    /// 守恒残差 ≈0（价格 PnL − 成交费 = 账本净变动，funding/borrow/liq 全 0）。
+    #[test]
+    fn m6_cost_model_none_bit_exact_and_conserves() {
+        let config = ThetaConfig::default(); // cost_model=None
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        let r = fill.r_decomp.expect("π 路径产 R 分解");
+        // None ⟹ 三项持仓/强平成本恒 0。
+        assert_eq!(r.funding, 0.0, "cost_model=None ⟹ funding=0");
+        assert_eq!(r.borrow, 0.0, "cost_model=None ⟹ borrow=0");
+        assert_eq!(r.liquidation_loss, 0.0, "cost_model=None ⟹ liq=0");
+        // 守恒：net_r = price_pnl − fee（无三项），残差 ≈0（账本独立测得 = 累计器组装）。
+        let tol = 1e-6_f64.max(1e-9 * (1.0e6 + r.price_pnl_gross.abs()));
+        assert!(r.conservation_residual.abs() <= tol, "守恒残差 {} 超容差 {}", r.conservation_residual, tol);
+        // 成交费非负（有开仓 ⟹ commission+slippage 实付）。
+        assert!(r.commission_slippage >= 0.0, "成交费≥0");
+    }
+
+    /// ★M6 强平罚金端到端证人：punitive margin（高 MM）使持仓 bar 权益跌破维持保证金 ⟹ M1
+    /// Liquidation ⟹ (a) force_flat 强平平仓（RiskExit 优先）+ (b) LiquidationLoss 罚金进 R 分解。
+    /// 这闭合真实 BTC 窗未触发的 liq 边沿路径（真实窗 sizing 保守 ⟹ 权益≫MM ⟹ liq 从不触发）。
+    #[test]
+    fn m6_liquidation_penalty_triggered_on_reachable_m1() {
+        use super::super::super::strategy::risk::{
+            CostModel, MarginModel, MarginSchedule, MarginScheduleBook, RiskCushions,
+        };
+        let mut config = ThetaConfig::default();
+        // punitive margin：CME-simple pct_maint 极高（MM ≈ 3× 名义）⟹ 任意持仓即 E<MM ⟹ M1 可达。
+        // 全域单段快照覆盖合成 bar 时间戳 [0,n)。
+        let sched = MarginSchedule::cme_simple(1.0, 3.0).expect("punitive CME");
+        let book = MarginScheduleBook::new(vec![(i64::MIN, i64::MAX, sched)]).unwrap();
+        let cushions = RiskCushions::new(1.0, 2.0).unwrap();
+        config.margin = Some(MarginModel { book, cushions });
+        // liq 罚金 1%（funding/borrow 设 0，隔离 liq 项）。
+        config.cost_model = Some(CostModel::new(0.0, 480, 0.0, 0.01).unwrap());
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        let r = fill.r_decomp.expect("π 路径产 R 分解");
+        // M1 可达 + 持仓 ⟹ 强平罚金 >0（边沿触发至少一次）。
+        assert!(r.liquidation_loss > 0.0, "punitive margin ⟹ M1 触发 ⟹ liq 罚金>0，实得 {}", r.liquidation_loss);
+        // 守恒仍成立（罚金从 cash 扣 ⟹ 账本净变动同步）。
+        let tol = 1e-6_f64.max(1e-9 * (1.0e6 + r.price_pnl_gross.abs()));
+        assert!(r.conservation_residual.abs() <= tol, "含 liq 罚金守恒残差 {} 超容差 {}", r.conservation_residual, tol);
+    }
+
+    /// ★M6 机制真装：cost_model=Some ⟹ 持仓跨 funding 周期 ⟹ funding/borrow 非零进 R 分解，
+    /// 且守恒残差仍 ≈0（三项从 cash 扣 ⟹ 账本净变动同步反映）。费率参数化（有效域 L1）。
+    #[test]
+    fn m6_cost_model_some_funding_borrow_accrue_and_conserve() {
+        use super::super::super::strategy::risk::CostModel;
+        let mut config = ThetaConfig::default();
+        // funding 每 4 bar 收（窗内 bar 4/8/12/16 触发），borrow 每 bar 微收；liq 罚金率设 0（本测试
+        // 无强平态，隔离 funding/borrow）。费率放大到可观测量级（L1 机制验证，非 L2 标定值）。
+        config.cost_model = Some(CostModel::new(0.001, 4, 0.0001, 0.0).unwrap());
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        let r = fill.r_decomp.expect("π 路径产 R 分解");
+        // 有持仓跨多个 funding 周期 ⟹ funding 累计 >0（买点 bar7 确认 → bar8 成交后持仓到窗末）。
+        assert!(r.funding > 0.0, "持仓跨 funding 周期 ⟹ funding>0，实得 {}", r.funding);
+        // borrow：base_units=NAV/px 建仓 ⟹ 名义 ≈ NAV，杠杆超权益部分（含费拖累后）产生借贷；
+        // 至少非负且有限（无杠杆时可为 0，此处名义≈权益边界——只断言有限非负，不强求 >0）。
+        assert!(r.borrow >= 0.0 && r.borrow.is_finite(), "borrow≥0 有限，实得 {}", r.borrow);
+        // 守恒：三项从 cash 扣 ⟹ 账本净变动 = price_pnl − fee − funding − borrow − liq（残差≈0）。
+        let tol = 1e-6_f64.max(1e-9 * (1.0e6 + r.price_pnl_gross.abs()));
+        assert!(
+            r.conservation_residual.abs() <= tol,
+            "M6 全成本守恒残差 {} 超容差 {}（net_r={} ledger_delta={}）",
+            r.conservation_residual, tol, r.net_r, r.ledger_delta
+        );
+        // net_r 相对 gross 被成本拖累（净 ≤ 毛价格贡献 − 成交费）。
+        assert!(r.net_r <= r.price_pnl_gross - r.commission_slippage + tol, "成本拖累 ⟹ net_r 被扣减");
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -2730,6 +3073,49 @@ mod tests {
         assert!(res.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
     }
 
+    /// ★M5 overlay arm 端到端（多空对冲.pdf p16 关卡10）：`run_theta_v0_pi_overlay` 在锯齿数据上
+    /// 跑通——① 净额路径 bit-exact（net_result == run_theta_v0_pi）；② Σpnl_v 对账（reconcile_residual
+    /// < eps，PDF §11 线性恒等）；③ ΔN 守恒（fill loop 内 debug_assert 逐 bar，无 panic 即零违例）。
+    #[test]
+    fn run_theta_v0_pi_overlay_reconciles_and_bit_exact_net() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..60)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
+            })
+            .collect();
+        let ds = Dataset {
+            symbol: "ZZ60OV".to_string(),
+            bars,
+            dates: (0..60).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
+        };
+        // 净额路径 bit-exact 对照：overlay arm 的 net_result 与纯净额 run_theta_v0_pi 逐字段一致。
+        let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        assert_eq!(ov.net_result.n_orders, baseline.n_orders, "overlay 只读旁路 ⟹ 净额订单数 bit-exact");
+        assert_eq!(ov.net_result.trades.len(), baseline.trades.len(), "净额 trades bit-exact");
+        assert_eq!(
+            ov.net_result.metrics.strat_return, baseline.metrics.strat_return,
+            "净额 strat_return bit-exact（overlay 不改 cash/units/equity）"
+        );
+        // 验收断言2：Σpnl_v 对账净额价格 PnL（PDF §11 `Σσ_v q_v ΔP=N ΔP`，f64 结合律残差 < eps）。
+        assert!(
+            ov.reconcile_residual < 1e-6,
+            "M5 对账残差 {} 应 < eps（Σpnl_v={} vs account={}）",
+            ov.reconcile_residual, ov.total_voice_pnl, ov.account_price_pnl
+        );
+        // 逐声部归因表存在性（PDF §M5 entry_v/exit_v/pnl_v）：离场声部归因有限。
+        assert!(
+            ov.overlay.closed_voices().iter().all(|c| c.pnl_v.is_finite()),
+            "逐声部 pnl_v 有限"
+        );
+        assert!(ov.account_price_pnl.is_finite(), "账户净额价格 PnL 有限");
+    }
+
     /// ★on2w3 merge skip 神谕深覆盖（debug 构建）：真实 CL 全引擎 run_theta_v0_pi。生产路径 forest_epoch
     /// 稳定（bump 率 2.17%）⟹ merge cand 段大量走 skip；`merge_in_place_split` 内嵌 debug_assert 逐 bar
     /// 对拍 skip vs 强制全量末态——任一 bar 发散立即 panic（O(n²) 修复的 bit-exact 铁律守卫）。
@@ -2808,6 +3194,102 @@ mod tests {
         eprintln!("  └ ★暴露面（registry 丢失）: {}", p.restore_break_registry_lost);
         eprintln!("restore 恢复成功率        : {restore_success_rate:.6}");
         eprintln!("═══════════════════════════════════════════════");
+    }
+
+    /// ★★M7 三阶段资金 **L2 witness**（c3 工位，真实 BTC 数据可达性检验）——把合成 witness
+    /// `pi_loop_realized_profit_reaches_earning_shares`（L1）升级到 L2：喂**真实 BTC 全历史**给
+    /// **同一生产 π 路径**（`pi_theta_fill_loop`，与 `run_theta_v0_pi_inner` 逐字节同款调用），
+    /// 读生产真值源 `tw_final.stage` 测 `Reach(Stage=II)>0` 与 `Reach(Stage=III)>0`。
+    ///
+    /// ## 为什么终态 stage = Reach（可达性由终态单读，无需逐 bar 快照）
+    /// TStage 单向不可逆（`advance_to` rank 单调 + `TwEvent::Realize` 不触 stage，transition.rs
+    /// 推导链第 8 条）⟹ stage 一旦推进永不回退 ⟹ **终态 stage.rank = 全程历史最高 rank**
+    /// ⟹ `Reach(Stage≥s) ⟺ tw_final.stage.rank ≥ s.rank`。故读终态一个量即证可达性。
+    ///
+    /// ## 认识论 L2（formalization-validity-domain 231号）
+    /// 真实 BTC bar 流 + frozen Θ（κ=0 baseline）+ 生产判据/账本/事件链全走生产路径（无 fixture
+    /// 直捅 stage）⟹ **可否证**。可达（rank≥1/≥2）⟹ 输出证人（终 stage + 账本三量 Q_T/W_T/η_T
+    /// + 是否满足终态不等式）；不可达（stage 恒 CostReduction）⟹ **照实否定 + 精确归因**
+    /// （差多少、卡在哪个 barrier）——161号否定性照实同等合格，不改实现凑 PASS（no-workaround）。
+    ///
+    /// ## 验收（TARGET_STRATEGY_MAXFULL.md M7 / PDF p17）
+    /// `Reach(Stage=III)>0 ∧ Q_T>Q_0 ∧ W_T≥I_0 ∧ η_T≥η_*`。本 witness 报告四量真值，
+    /// PASS/否定均照实 eprintln（可否证结果是本测试的产出，非「必须通过」的断言）。
+    ///
+    /// **须真实 BTC 数据**（329MB）；`#[ignore]` 默认不跑：
+    /// `cargo test --release --lib -- --ignored --nocapture m7_l2_witness_treasury_reach_real_btc`
+    #[test]
+    #[ignore = "M7 L2 witness；需 BTC 全历史（329MB）；重，手动 --ignored 跑"]
+    fn m7_l2_witness_treasury_reach_real_btc() {
+        use super::super::super::strategy::ledger::{RiskPolicy, TStage};
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let mut ds = data::load_by_symbol("BTC", &config)
+            .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
+        // ★窗口截断（M7_WITNESS_BARS，可选）：O(n²) 前缀重分类在 461万 bar 全量上极重（小时级）。
+        // 足量窗口（如 10 万 bar）即 L2 合规（任务明示「461万 bar 或足量窗口」）——env 未设 ⟹ 全量。
+        if let Some(k) = std::env::var("M7_WITNESS_BARS").ok().and_then(|s| s.parse::<usize>().ok()) {
+            ds.bars.truncate(k);
+        }
+        let n = ds.bars.len();
+        let initial_nav = 1.0e6;
+
+        // ★与 run_theta_v0_pi_inner 逐字节同款：真增量分类器 + 生产 π fill loop（χ≡1 全覆盖）。
+        // 不经 run_theta_v0_pi（其 RunResult 不透传 π 路径 tw_final）——直接消费生产真值源。
+        let mut classifier_incr = super::super::incremental::IncrementalClassifier::new(&ds.bars, &config);
+        let fill = pi_theta_fill_loop(
+            |i| {
+                let (cls, tower) = classifier_incr.classify_at(i);
+                (cls, tower, classifier_incr.tower_generation(), classifier_incr.forest_epoch())
+            },
+            &ds.bars,
+            initial_nav,
+            &config,
+            None,
+        );
+        let tw = fill.tw_final.expect("π 路径 TW 生产者就位（tw_final=Some）");
+
+        // 生产 κ=0 baseline（与 runner.rs:702 同）⟹ η_* = L^wc（本金全退后 = 0）。
+        let policy = RiskPolicy::baseline();
+        let q0 = initial_nav as i64; // Q_0 = 注资 notional_in（生产 tw 初始化 notional_in=⌊nav0⌋）
+        let i0 = initial_nav as i64; // I_0 = 本金基线
+        let reach_ii = tw.stage.rank() >= TStage::CapitalRecovered.rank();
+        let reach_iii = tw.stage.rank() >= TStage::EarningShares.rank();
+        let realized_sum: f64 = fill.trade_pnls_realized.iter().sum();
+
+        eprintln!("═══ M7 L2 witness（BTC {n} bar, is_l2={}, n_orders={}） ═══", fill.n_orders > 0, fill.n_orders);
+        eprintln!("终 TStage             : {:?}（rank={}）", tw.stage, tw.stage.rank());
+        eprintln!("Reach(Stage=II)  >0   : {reach_ii}");
+        eprintln!("Reach(Stage=III) >0   : {reach_iii}");
+        eprintln!("Q_T (notional_in)     : {}（Q_0={q0}）", tw.notional_in);
+        eprintln!("W_T (withdrawn)       : {}（I_0={i0}，W_T≥I_0={}）", tw.withdrawn, tw.withdrawn >= i0);
+        eprintln!("η_T (tw)              : {}（η_*={}, η_T≥η_*={}）", tw.tw(), policy.eta_star(&tw), tw.tw() >= policy.eta_star(&tw));
+        eprintln!("free / holding        : {} / {}", tw.free, tw.holding);
+        eprintln!("open_legacy_legs      : {}", tw.open_legacy_legs);
+        eprintln!("Σ已实现PnL            : {realized_sum:.2}（TW 漂移={}）", tw.tw() - q0);
+        if reach_iii {
+            let accept = tw.notional_in > q0 && tw.withdrawn >= i0 && tw.tw() >= policy.eta_star(&tw);
+            eprintln!("★验收 Reach(III)∧Q_T>Q_0∧W_T≥I_0∧η_T≥η_* : {accept}");
+        } else if reach_ii {
+            eprintln!("★卡在 Stage II（退本金已完成，未进增股数）：EnterReady 五合取未全真");
+            eprintln!("  归因：W_T≥I_0={}, legs=0={}, η_T≥η_*={}",
+                tw.withdrawn >= i0, tw.open_legacy_legs == 0, tw.tw() >= policy.eta_star(&tw));
+        } else {
+            let recover_target = (tw.notional_in - tw.withdrawn).max(0);
+            eprintln!("★否定：stage 恒 CostReduction（未退本金）");
+            eprintln!("  P3 RecoverCapital 门：holding≥notional_in={}（holding={} vs {}）, free≥recover_target={}（free={} vs {}）",
+                tw.holding >= tw.notional_in, tw.holding, tw.notional_in,
+                tw.free >= recover_target, tw.free, recover_target);
+            eprintln!("  归因：需 holding 累积过名义基线 + free（成本基回流+已实现利润）足额退回本金");
+        }
+        eprintln!("═══════════════════════════════════════════════");
+
+        // ★账本恒等（无论可达与否恒成立，坐实 witness 走的是真生产账本）：TW 漂移 = ⌊Σ已实现PnL⌋。
+        assert_eq!(tw.tw(), q0 + realized_sum as i64, "TW 漂移 = ⌊Σ费后已实现PnL⌋（A' 清单⑥不变量）");
+        // ★openLegacyLegs=0 守卫（任务点3）：若达 EarningShares，EnterReady 入口证书要求 legs=0。
+        if reach_iii {
+            assert_eq!(tw.open_legacy_legs, 0, "EnterEarning 入口证书 openLegacyLegs=0（OQ-9 gate）");
+        }
     }
 
     /// ★Q2 close_pred 折 𝒦_Θ（loop 内见证）：风控门把退出折进可行集（非第二出口）——

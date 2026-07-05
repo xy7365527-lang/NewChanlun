@@ -1024,6 +1024,99 @@ fn q4_fullpi_policy() {
     eprintln!("[q4] 报告落盘 /tmp/q4_fullpi_policy.md");
 }
 
+/// M6 成本模型口径（参数化常费率，有效域 L1）：Binance 永续近似——funding 8h 周期 = 480 根
+/// 1分钟 bar，费率 1bp/周期（业界常见量级）；borrow 每 bar 极低（无杠杆则不 binding）；强平罚金
+/// 0.5%（清算费+滑点近似）。**有效域声明（231号 / A10 waiver）**：真实 funding 历史/借贷曲线是
+/// **外部数据源缺口**（L2），waiver 豁免的是外部数据，机制在此真实装、费率待外部标定。
+fn m6_cost_model() -> super::super::strategy::risk::CostModel {
+    use super::super::strategy::risk::CostModel;
+    // funding 8h=480bar、1bp/周期；borrow 每 bar 0.01bp；liq 罚金 0.5%。
+    CostModel::new(0.0001, 480, 0.000001, 0.005).expect("M6 常费率参数合法（冻结近似值）")
+}
+
+/// ★M6 BTC OOS R 分解跑批（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关）：
+/// 在真实 BTC OOS 窗跑带 margin（CME-simple）+ cost_model（参数化 funding/borrow/liq）的 π^full
+/// 臂，落盘 R 分解表（ΣN_tΔP_t / Commission+Slippage / Funding / Borrow / LiquidationLoss / net_r
+/// / 守恒残差）。
+///
+/// **认识论（照实）**：预期成本拖累（net_r < gross）——这是**成本真实化**（M6 关卡把三项成本纳入
+/// PnL），**不是** alpha 声明。守恒残差 ≈0 是「资金无泄漏」物证。有效域 L1（机制正确性 + 参数化
+/// 常费率），非 L2 盈利判定。
+///
+/// `#[ignore]`: `cargo test --release --lib theta_v0::backtest::wverify_run::m6_btc_oos_r_decomposition -- --ignored --nocapture`。
+#[test]
+#[ignore]
+fn m6_btc_oos_r_decomposition() {
+    use super::runner::run_theta_v0_pi;
+    let plain_cfg = ThetaConfig::default();
+    let ds = data::load_by_symbol("BTC", &plain_cfg).expect("BTC 数据加载（btc_1m_full.json）");
+
+    let nav_of = |d: &data::Dataset| {
+        d.bars.iter().find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * plain_cfg.tick.tick_size).unwrap_or(1.0) * 1000.0
+    };
+
+    let mut report = String::from(
+        "# M6 BTC OOS R 分解（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关）\n\n\
+         R = Σ N_t ΔP_t − Commission − Slippage − Funding − Borrow − LiquidationLoss\n\n\
+         口径：margin=CME-simple 单段近似；cost=参数化常费率（funding 1bp/8h、borrow 0.01bp/bar、\
+         liq 0.5%）。**有效域 L1**：机制真装 + 参数化费率，真实 funding/借贷历史是外部数据缺口（A10 \
+         waiver 豁免外部数据源，不豁免机制）。**照实：预期成本拖累 net_r<gross，成本真实化非 alpha 声明。**\n\n\
+         | 窗 | 臂 | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r | 守恒残差 | n_orders |\n\
+         |---|---|---|---|---|---|---|---|---|---|\n",
+    );
+
+    // OOS 窗清单：p3 可比单折 + 前两个 anchored walk-forward（够 R 分解物证；全窗跑批在 M8）。
+    let mut wins: Vec<(String, String, String)> = vec![
+        ("p3fold".into(), "2023-01-01".into(), "2023-06-30".into()),
+    ];
+    if let Some(sw) = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC") {
+        for w in sw.wf_anchored.iter().filter(|w| w.test_start >= OOS_START).take(2) {
+            wins.push((format!("wf{}", w.i), w.test_start.into(), w.test_end.into()));
+        }
+    }
+
+    for (tag, te_lo, te_hi) in &wins {
+        let test = ds.slice_date_window(te_lo, te_hi);
+        if test.bars.is_empty() {
+            report.push_str(&format!("| {tag} | — | test 段空 | | | | | | | |\n"));
+            continue;
+        }
+        let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
+        let nav_te = nav_of(&test);
+        // M6 臂：margin（CME-simple）+ cost_model（参数化三项）。χ 不启（隔离 M6 成本效应，非信号层）。
+        let mut m6_cfg = ThetaConfig::default();
+        m6_cfg.margin = Some(q4_margin_model(nav_te));
+        m6_cfg.cost_model = Some(m6_cost_model());
+        eprintln!("[m6] BTC {tag} test={te_lo}..{te_hi}({}) run…", test.bars.len());
+        let r = run_theta_v0_pi(&test, &m6_cfg, years, nav_te);
+        match r.r_decomp {
+            Some(d) => {
+                report.push_str(&format!(
+                    "| {tag} | M6 | {:+.2} | {:.2} | {:.2} | {:.2} | {:.2} | {:+.2} | {:.2e} | {} |\n",
+                    d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
+                    d.liquidation_loss, d.net_r, d.conservation_residual, r.n_orders,
+                ));
+                eprintln!(
+                    "M6 BTC {tag}: gross={:+.0} fee={:.0} fund={:.0} borrow={:.0} liq={:.0} net_r={:+.0} resid={:.2e} orders={}",
+                    d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
+                    d.liquidation_loss, d.net_r, d.conservation_residual, r.n_orders,
+                );
+                // 守恒硬校验（照实——真实数据 O(n) 舍入，容差按名义规模）。
+                let tol = 1e-3_f64.max(1e-9 * (nav_te.abs() + d.price_pnl_gross.abs()));
+                assert!(
+                    d.conservation_residual.abs() <= tol,
+                    "M6 {tag} 守恒残差 {} 超容差 {}（资金泄漏）", d.conservation_residual, tol
+                );
+            }
+            None => report.push_str(&format!("| {tag} | M6 | R 分解缺失（非 π 路径？）| | | | | | | |\n")),
+        }
+    }
+    report.push_str("\n**守恒断言**：各窗 |守恒残差| ≤ 容差（价格 PnL − 五项成本 = 账本净变动，无泄漏）。\n");
+    std::fs::write("/tmp/m6_btc_oos_r_decomposition.md", &report).ok();
+    eprintln!("[m6] R 分解报告落盘 /tmp/m6_btc_oos_r_decomposition.md");
+}
+
 /// 从 δ-free dump（[`dump_deltafree_pertrade`] 落盘）逐行重建 `ResidualTrade`（Task #186 离线重算入口）。
 /// resid_base/cost/d 由 `f64::from_bits`（十六进制 round-trip）逐字节还原内存值 ⟹ 与在线 records bit-exact。
 /// A1/A6：force_state（第 8 维，code 编码）+ d（μ_R 分母）随 dump 还原——force_state 进 δ-free 主裁决基。

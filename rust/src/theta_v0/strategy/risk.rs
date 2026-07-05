@@ -744,6 +744,134 @@ pub fn margin_inputs(
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  M6 持仓期/强平成本模型：Funding（资金费）+ Borrow（杠杆借贷）+ LiquidationLoss（强平罚金）
+//  （TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关：
+//   R = Σ N_t ΔP_t − Commission − Slippage − Funding − Borrow − LiquidationLoss）
+//
+//  存在论：Commission/Slippage 已由 ExecConfig fee_rate 进 apply_fill；本模型补上验收公式剩余
+//  三项。**有效域声明（231号 / formalization-validity-domain）**：v0 用**参数化常费率**——真实
+//  永续资金费历史 / 借贷利率曲线是**外部数据源缺口**（L2），A10 waiver 豁免的正是这类外部数据源，
+//  **不豁免机制实装**。机制在此真实装（逐 bar 计提、进 PnL、进 R 分解、守恒断言），费率标定待
+//  外部数据（结果包声明）。认识论 L1（机制正确性，非 L2 盈利）。
+// ──────────────────────────────────────────────────────────────────────────
+
+/// M6 成本模型（`ThetaConfig.cost_model`）。`None` ⟹ 三项成本恒 0（bit-exact 现状，M6 前口径）。
+///
+/// 字段语义：
+/// - `funding_rate_per_period`：每 funding 周期资金费率（作用于 |净名义|，永续 8h 常费率参数化）。
+///   v0 取 |N| 绝对持有成本（**不分多空方向**）——真实 funding long/short 互付有方向性，常费率下
+///   方向由外部数据定，取绝对值 = 保守持有成本近似（诚实缺口，见节头 231号声明）。
+/// - `funding_period_bars`：funding 周期的 bar 数（8h ÷ bar 间隔，调用方按数据周期算；≥1）。
+/// - `borrow_rate_per_bar`：每 bar 借贷成本率（作用于**借入名义** = max(0, |N|−E)——杠杆超出自有
+///   权益的部分是借入的）。
+/// - `liq_penalty_rate`：强平罚金率（作用于强平时刻 |净名义|——交易所强平清算费/滑点罚金）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CostModel {
+    pub funding_rate_per_period: f64,
+    pub funding_period_bars: u32,
+    pub borrow_rate_per_bar: f64,
+    pub liq_penalty_rate: f64,
+}
+
+impl CostModel {
+    /// fail-loud 构造（禁静默退化，对齐 MarginSchedule/RiskCushions 校验风格）：费率有限且 ≥0、
+    /// funding_period_bars ≥1，否则 `Err`。
+    pub fn new(
+        funding_rate_per_period: f64,
+        funding_period_bars: u32,
+        borrow_rate_per_bar: f64,
+        liq_penalty_rate: f64,
+    ) -> Result<Self, String> {
+        if !(funding_rate_per_period.is_finite() && funding_rate_per_period >= 0.0) {
+            return Err("cost: funding_rate_per_period 须有限且≥0".into());
+        }
+        if funding_period_bars == 0 {
+            return Err("cost: funding_period_bars 须≥1".into());
+        }
+        if !(borrow_rate_per_bar.is_finite() && borrow_rate_per_bar >= 0.0) {
+            return Err("cost: borrow_rate_per_bar 须有限且≥0".into());
+        }
+        if !(liq_penalty_rate.is_finite() && liq_penalty_rate >= 0.0) {
+            return Err("cost: liq_penalty_rate 须有限且≥0".into());
+        }
+        Ok(CostModel {
+            funding_rate_per_period,
+            funding_period_bars,
+            borrow_rate_per_bar,
+            liq_penalty_rate,
+        })
+    }
+
+    /// 单 bar 资金费计提（美元，≥0）。仅在 funding 周期边界 bar 收取（`bar_index>0 ∧
+    /// bar_index % funding_period_bars == 0`）——每周期一次，非逐 bar；`|net_notional_usd|` × 费率。
+    /// 空仓（N=0）⟹ 0。
+    pub fn funding_accrual(&self, bar_index: usize, net_notional_usd: f64) -> f64 {
+        let period = self.funding_period_bars as usize;
+        if bar_index == 0 || bar_index % period != 0 {
+            return 0.0;
+        }
+        net_notional_usd.abs() * self.funding_rate_per_period
+    }
+
+    /// 单 bar 借贷成本（美元，≥0）：借入名义 = `max(0, |N|−E)`（杠杆超出权益部分）× 每 bar 率。
+    /// 未用杠杆（|N|≤E）或空仓 ⟹ 0。`equity≤0`（破产态）⟹ 借入 = 全部 |N|（无自有权益覆盖）。
+    pub fn borrow_accrual(&self, net_notional_usd: f64, equity: f64) -> f64 {
+        let borrowed = (net_notional_usd.abs() - equity.max(0.0)).max(0.0);
+        borrowed * self.borrow_rate_per_bar
+    }
+
+    /// 强平罚金（美元，≥0）：强平时刻 `|净名义|` × 罚金率。空仓 ⟹ 0。
+    pub fn liquidation_penalty(&self, net_notional_usd: f64) -> f64 {
+        net_notional_usd.abs() * self.liq_penalty_rate
+    }
+}
+
+/// **R 分解表**（路线.pdf p16 第十一关：`R = Σ N_t ΔP_t − Commission − Slippage − Funding −
+/// Borrow − LiquidationLoss`）。各项**独立累计**（非从 net_r 反推），守恒断言校验和 = 账本净变动。
+///
+/// - `price_pnl_gross` = `Σ_t N_t·ΔP_t`：mark-to-market 逐 bar 价格贡献（含浮盈），**不含**任何费用。
+/// - `commission_slippage`：ExecConfig fee_rate（commission+slippage+tax）扣的成交费（含税项）。
+/// - `funding`/`borrow`/`liquidation_loss`：本模型三项（None ⟹ 全 0）。
+/// - `net_r` = `price_pnl_gross − commission_slippage − funding − borrow − liquidation_loss`。
+/// - `ledger_delta`：账本**独立**测得的净变动 = `final_equity_abs − nav0`（含浮盈强平）。
+/// - `conservation_residual` = `net_r − ledger_delta`：守恒残差，应 ≈0（浮点容差）。非零 = 资金泄漏 bug。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RDecomposition {
+    pub price_pnl_gross: f64,
+    pub commission_slippage: f64,
+    pub funding: f64,
+    pub borrow: f64,
+    pub liquidation_loss: f64,
+    pub net_r: f64,
+    pub ledger_delta: f64,
+    pub conservation_residual: f64,
+}
+
+impl RDecomposition {
+    /// 从各独立累计项 + 账本净变动组装，算 net_r + 守恒残差。
+    pub fn assemble(
+        price_pnl_gross: f64,
+        commission_slippage: f64,
+        funding: f64,
+        borrow: f64,
+        liquidation_loss: f64,
+        ledger_delta: f64,
+    ) -> Self {
+        let net_r = price_pnl_gross - commission_slippage - funding - borrow - liquidation_loss;
+        RDecomposition {
+            price_pnl_gross,
+            commission_slippage,
+            funding,
+            borrow,
+            liquidation_loss,
+            net_r,
+            ledger_delta,
+            conservation_residual: net_r - ledger_delta,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1263,6 +1391,62 @@ mod tests {
         assert_eq!(risk_mode(&margin_inputs(net, 1200.0, &s, &cushions)), RiskMode::CloseOnly);
         // E=1400 ≥ MM+B2 ⟹ Normal。
         assert_eq!(risk_mode(&margin_inputs(net, 1400.0, &s, &cushions)), RiskMode::Normal);
+    }
+
+    // ── M6 成本模型（CostModel + RDecomposition）──
+
+    /// CostModel fail-loud：负费率 / funding_period=0 / NaN reject（禁静默）。
+    #[test]
+    fn cost_model_fail_loud() {
+        assert!(CostModel::new(-0.01, 8, 0.0, 0.0).is_err()); // 负 funding
+        assert!(CostModel::new(0.01, 0, 0.0, 0.0).is_err()); // period=0
+        assert!(CostModel::new(0.01, 8, -0.001, 0.0).is_err()); // 负 borrow
+        assert!(CostModel::new(0.01, 8, 0.0, f64::NAN).is_err()); // NaN penalty
+        assert!(CostModel::new(0.0001, 8, 0.00001, 0.005).is_ok());
+    }
+
+    /// funding：仅周期边界 bar 收取，作用于 |净名义|；bar0/非周期 bar ⟹ 0。
+    #[test]
+    fn cost_funding_periodic() {
+        let c = CostModel::new(0.0001, 8, 0.0, 0.0).unwrap();
+        // net_notional=$10000，费率 1bp ⟹ 每周期收 $1。
+        assert_eq!(c.funding_accrual(0, 10_000.0), 0.0); // bar0 不收
+        assert_eq!(c.funding_accrual(4, 10_000.0), 0.0); // 非周期 bar
+        assert!((c.funding_accrual(8, 10_000.0) - 1.0).abs() < 1e-12); // 周期边界
+        assert!((c.funding_accrual(16, -10_000.0) - 1.0).abs() < 1e-12); // 空头取绝对值
+        assert_eq!(c.funding_accrual(8, 0.0), 0.0); // 空仓无 funding
+    }
+
+    /// borrow：借入名义 = max(0,|N|−E)；无杠杆/空仓 ⟹ 0；破产态 E≤0 ⟹ 借全额。
+    #[test]
+    fn cost_borrow_leverage_only() {
+        let c = CostModel::new(0.0, 8, 0.00001, 0.0).unwrap();
+        // |N|=$15000, E=$10000 ⟹ 借 $5000 × 0.001% = $0.05。
+        assert!((c.borrow_accrual(15_000.0, 10_000.0) - 5_000.0 * 0.00001).abs() < 1e-12);
+        assert_eq!(c.borrow_accrual(8_000.0, 10_000.0), 0.0); // |N|≤E 无借入
+        assert_eq!(c.borrow_accrual(0.0, 10_000.0), 0.0); // 空仓
+        // 破产 E≤0 ⟹ 借全额 |N|。
+        assert!((c.borrow_accrual(10_000.0, -100.0) - 10_000.0 * 0.00001).abs() < 1e-12);
+    }
+
+    /// liquidation penalty：|净名义| × 罚金率；空仓 ⟹ 0。
+    #[test]
+    fn cost_liquidation_penalty() {
+        let c = CostModel::new(0.0, 8, 0.0, 0.005).unwrap();
+        assert!((c.liquidation_penalty(20_000.0) - 100.0).abs() < 1e-12); // $20k × 0.5%
+        assert_eq!(c.liquidation_penalty(0.0), 0.0);
+    }
+
+    /// RDecomposition：net_r = 价格 PnL − 五项成本；守恒残差 = net_r − 账本净变动。
+    #[test]
+    fn r_decomposition_conservation() {
+        // 价格贡献 $1000，费 $30 + funding $5 + borrow $2 + 强平 $10 ⟹ net_r=953。
+        let r = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 953.0);
+        assert!((r.net_r - 953.0).abs() < 1e-9);
+        assert!(r.conservation_residual.abs() < 1e-9, "账本一致 ⟹ 残差≈0");
+        // 账本漂移（泄漏）⟹ 残差非零可观测。
+        let leak = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 900.0);
+        assert!((leak.conservation_residual - 53.0).abs() < 1e-9);
     }
 
     /// buffer 敏感性网格（§3.5）：buffer 扰动改变 M2/M3 触发边界（暴露 Θ 自由度）。

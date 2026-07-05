@@ -352,6 +352,14 @@ pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: Ris
         // notional_in（本金全退 ⟺ withdrawn≥notional_in ⟹ L^wc=0）。
         TStage::CapitalRecovered => {
             if policy.enter_ready(s, s.notional_in, risk_normal) {
+                // ★openLegacyLegs=0 守卫（M7 c3 任务点3，OQ-9 入口证书）：EnterReady 五合取已含
+                // `open_legacy_legs==0`，此 assert 把该合取项显式化为**可观测的进 EarningShares 不变量**
+                // ——派 EnterEarning ⟹ 必无未闭合 legacy 降成本腿（`LegalEnterEarning`，PDF §10）。
+                // 恒真（enter_ready 返 true 已蕴含）；断言坐实生产路径不绕过 OQ-9 gate。
+                debug_assert_eq!(
+                    s.open_legacy_legs, 0,
+                    "EnterEarning 入口证书要求 openLegacyLegs=0（OQ-9 gate；enter_ready 蕴含）"
+                );
                 Some(TwEvent::EnterEarning)
             } else {
                 None
@@ -664,6 +672,41 @@ mod tests {
         };
         let x2 = hybrid_step_baseline(&earning, &bar_event(true)).expect("生产恒 Ok（schedule 只派 ShortDiff + cash 约束）");
         assert_eq!(x2.tw_state.open_legacy_legs, 0, "earning 下 OQ-9 gate 保持");
+    }
+
+    /// ★openLegacyLegs=0 守卫（M7 c3 任务点3）：`stage_progression` 派 EnterEarning **当且仅当**
+    /// EnterReady 五合取全真——含 `openLegacyLegs==0`。此测试坐实守卫语义两侧：
+    /// - legs=0（其余合取全真）⟹ 派 EnterEarning（守卫 debug_assert 不误触发，正向见证）。
+    /// - legs>0（其余合取全真）⟹ enter_ready=false ⟹ 返 None（不进 EarningShares）——OQ-9 gate。
+    ///
+    /// 这把「进 EarningShares ⟹ 无未闭合 legacy 降成本腿」的 OQ-9 入口证书（PDF §10
+    /// `LegalEnterEarning`）做成可观测断言：守卫不可被绕过（唯一进 III 的生产路径经此谓词）。
+    #[test]
+    fn enter_earning_guard_open_legacy_legs_zero() {
+        let policy = RiskPolicy::baseline(); // κ=0 ⟹ η_*=L^wc=(notional_in−withdrawn)⁺=0（本金全退后）
+        // CapitalRecovered + 本金全退（withdrawn≥notional_in=I_0）+ Normal + tw()≥η_*=0。
+        let ready = TwState {
+            free: 100,
+            holding: 0,
+            withdrawn: 100,     // W_T=100 ≥ I_0=notional_in=100（本金全退 ⟹ L^wc=0）
+            notional_in: 100,
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 0,
+            ..TwState::initial()
+        };
+        // legs=0：五合取全真 ⟹ 派 EnterEarning（守卫 assert 不触发）。
+        assert_eq!(
+            stage_progression(&policy, &ready, RiskMode::Normal),
+            Some(TwEvent::EnterEarning),
+            "legs=0 + EnterReady 其余合取全真 ⟹ 派 EnterEarning"
+        );
+        // legs>0：唯一差异是 open_legacy_legs ⟹ enter_ready 假 ⟹ 不进 EarningShares（OQ-9 gate）。
+        let with_leg = TwState { open_legacy_legs: 1, ..ready };
+        assert_eq!(
+            stage_progression(&policy, &with_leg, RiskMode::Normal),
+            None,
+            "legs>0 ⟹ EnterReady 假 ⟹ 不派 EnterEarning（openLegacyLegs=0 守卫）"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────

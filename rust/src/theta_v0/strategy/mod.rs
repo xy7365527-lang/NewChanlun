@@ -57,6 +57,11 @@ pub mod nest;
 /// 跨 bar 持久元素注册表——修复 Q4 "LiveDetached 误处理成 Stale" 导致 depth>0 腿被 AncOK 系统性剪掉。
 /// 不变量 I1-I5（anc.pdf §7）：持久身份 / 方向不变 / parent 是关系非身份 / 操作父持久 / AncOK 作用 persistent set。
 pub mod persistent;
+/// **M5 声部执行层独立账本 OverlayState**（多空对冲.pdf p16 关卡10 / TARGET_STRATEGY_MAXFULL.md §M5）。
+///
+/// hedge-mode 逐声部头寸簿 P^sep → N=Net(P^sep) → Order_t=N_t−N_{t−1}；逐声部保
+/// entry_v/exit_v/parent(v)/role(v)/pnl_v。独立于 R/TW 净额账本（674号第三会计范畴）。
+pub mod overlay_state;
 pub mod risk;
 pub mod voice;
 

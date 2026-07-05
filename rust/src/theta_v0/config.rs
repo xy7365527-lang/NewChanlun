@@ -268,6 +268,12 @@ pub struct ThetaConfig {
     /// 真保证金模型（D2 task #113，margin-model-design v2）。`None` ⟹ MM=0 退化口径（bit-exact 现状，
     /// M1/M2/M3 不可达）；`Some` ⟹ 真实分级 MM/liq_flag/M2-M3 接线（改订单流 ⟹ MM=0 口径 alpha 冻结失效）。
     pub margin: Option<super::strategy::risk::MarginModel>,
+    /// M6 成本模型（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关剩余三项：Funding/Borrow/
+    /// LiquidationLoss）。`None` ⟹ 三项成本恒 0（bit-exact 现状——Commission/Slippage 仍由 `exec`
+    /// fee_rate 承担，不受影响）；`Some` ⟹ 逐 bar 计提资金费/借贷 + 强平罚金进 PnL、进 R 分解、
+    /// 守恒断言。**有效域（231号）**：v0 参数化常费率，真实 funding/借贷历史是外部数据缺口（L2），
+    /// 机制真实装、费率待外部标定（A10 waiver 豁免外部数据源，不豁免机制）。
+    pub cost_model: Option<super::strategy::risk::CostModel>,
     /// 趋势背驰 D 判定口径（A2 #163 三口径 + A3 #164 Θ_LEX，关于背驰.pdf §9.2 三套预注册 Θ）。默认
     /// `MacdArea`（现行冻结判据，bit-exact 不变）——判定口径变更改变一类信号集合（⟹ ledger ⟹
     /// 残差样本），属预注册敏感，显式配置才切换。四口径：MacdArea/ThetaDom(Θ_DOM)/Conjunction/
