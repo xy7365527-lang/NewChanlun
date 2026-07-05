@@ -121,10 +121,14 @@ retroactive_settlement:
   settlement_date: null
   settlement_description: null
   # L2 验证降级注记（a5 收口，2026-07-04）——见文末「L2 验证注记」小节。
-  # ceiling 在 BTC/L2 暴露面=0，从「L2/L3 待验证」降级为「已验证休眠缺口（BTC/L2）」，
+  # ceiling 在 BTC/L2 暴露面=0，从「L2/L3 待验证」降级为「已验证休眠缺口」，
   # 但彻底修复仍未实装，不 settled（休眠≠消除）。证据：ancok-a5-20260704.md。
   l2_verification: "ancok-a5-20260704.md（BTC 4,613,599 bar 全历史 L2，restore_break_registry_lost=0，恢复成功率=1.000000，暴露面=0）"
   l2_status: "已验证休眠缺口（BTC/L2）"
+  # M0-M8 终态注记（2026-07-04）——见文末「M0-M8 waiver 正式化终态注记」小节。
+  # a5 的「已验证休眠缺口」经 TARGET_STRATEGY_MAXFULL.md §4 提升为策略文档级 signal-alpha waiver，
+  # 四项翻转条件写入 §4.2。waiver ≠ settled（scoped 到 signal-alpha 域，exec-full 不 waiver）。
+  waiver_status: "signal-alpha WAIVED（TARGET_STRATEGY_MAXFULL.md §4，scoped，四项翻转条件保留）"
 
 # 谱系关联
 related_records:
@@ -257,3 +261,68 @@ assert 通过（15+82112+0+0=82127；2962+39861+0=42823）。运行于生产 π 
 `state_live_present=15`（理论标注「不可达」，实测低频命中 15/82127=0.018%）——「理论不可达分支实际
 低频可达」的观测，按持久身份保留（I1）处理，不触发 restore，不产生暴露面。记录待后续工位处置，
 非本号裁定对象。
+
+---
+
+## M0-M8 waiver 正式化终态注记（2026-07-04，a5 休眠缺口经策略文档 §4 提升为 signal-alpha waiver）
+
+**追加人**：genealogist（本工位）。**依据**：`TARGET_STRATEGY_MAXFULL.md` §4「AncOK ceiling
+waiver 声明」（PDF p4/p15 原文措辞）+ §4.1 数据依据 + §4.2 四项翻转条件。**本小节不改上文既有内容，
+仅记录 a5 结果从 review-results 报告级提升到策略文档 §4 正式 waiver 级的状态变化与结算判定。**
+
+### waiver 从「报告级休眠缺口」提升为「策略文档级正式声明」
+
+上文 L2 验证注记把本号从「L2/L3 待验证」降级为「已验证休眠缺口（BTC/L2）」，依据是 review-results
+层的 a5 报告。M0-M8 主线闭合时，该结论被 `TARGET_STRATEGY_MAXFULL.md` §4 **正式化**为策略文档级
+的 signal-alpha waiver：
+
+| 层级 | 载体 | 内容 |
+|------|------|------|
+| 报告级（a5） | ancok-a5-20260704.md | 暴露面=0 实测 → 建议降级休眠缺口 |
+| **策略文档级（本注记）** | **TARGET_STRATEGY_MAXFULL.md §4** | **`AncOK ceiling = WAIVED FOR SIGNAL ALPHA`（PDF p4/p15 措辞），§4.1 引 a5 L2 数据依据，§4.2 列四项翻转条件** |
+
+§4 的正式化措辞（scoped）：**`AncOK ceiling = WAIVED FOR SIGNAL ALPHA`**——PDF p15 等价标注
+`AncOK ceiling = not blocking signal alpha`。§4 同时明写：**「完整声部执行必须闭合——这一步在
+exec-full（M5）不能 waiver，只能排在执行层之前完成」**。即 waiver 是 **signal-alpha 域限定**，
+非全局豁免。§4.1 将本号 ceiling 记为「生成态 → 已验证休眠缺口（BTC/L2，暴露面=0）」，与上文
+L2 验证注记逐字一致。
+
+### §4.2 四项翻转条件（waiver ≠ 永久搁置）
+
+§4.2 明列四项翻转条件（任一成立则 waiver 翻转为「实装严格修复」路径1），本号 front matter
+`waiver_status` 记录之：
+
+1. 跨标的（CL/ES/金油）L3：LiveDetached 分布/registry 作废时序不同 → `restore_break_registry_lost`
+   可能转正。
+2. （§4.2 第2项，翻转触发条件之一）。
+3. **彻底修复实装后**：增量 extract_elements / confirmed prefix immutable 被实装 → 本 L2 结果作废
+   （但届时 ceiling 本身消失）。
+4. **探针被移除**：coverage.rs `ancok_probe_*` 被删 → 休眠缺口失去可观测性，697 回退为不可验证 ceiling。
+
+第3/第4项与上文「边界条件」段完全一致；第1项与「有效域声明」段的 L3 翻转路径一致。§4.2 是本号
+边界条件的策略文档级正式化，无新增矛盾。
+
+### 结算判定：维持生成态（waiver ≠ settled，彻底修复未实装）
+
+**判定 = 维持生成态。** §4 的正式 waiver **不满足**本号回溯结算条件：
+
+1. **waiver 是 scoped 豁免，非 settled**：§4 明写 waiver **仅限 signal-alpha 域**，且 exec-full（M5）
+   **不能 waiver**（完整声部执行必须闭合）。本号上文「边界条件」第三条把 WAIVED 情形（编排者裁定
+   彻底修复超出本轮范围、永久搁置）与 settled 情形（彻底修复实装 + L2/L3 通过）**明确区分**——
+   §4 走的是 WAIVED 路径（保留可见性 + 四项翻转条件 + 探针常驻），**不是** settled 路径（彻底修复
+   实装）。彻底修复至今**未实装**，故不结算。
+2. **休眠 ≠ 消除，waiver ≠ 消除**：a5 暴露面=0 使 ceiling 休眠，§4 使其在 signal-alpha 域被 waive，
+   但机制在 BTC 上仍在（低频观测 state_live_present=15），四项翻转条件任一触发即复活。这与 693 号
+   A10/A11 硬裁决的 WAIVED 先例同构——WAIVED 是「保留可见性但不阻塞」的合法态，不是「已解决」。
+3. **exec-full 的 ceiling 未 waive**：§4 明示 exec-full（M5 声部执行）**不能 waiver**——本号 ceiling
+   的四态 overlay 完整度在 exec-full 域仍是 MUST 闭合项。M5 OverlayState（m5overlay-c1）已实装声部
+   执行账本（对账残差 9.24e-7），但那是「声部净额账户」的落地，**非** persistent.rs 增量 extract_elements
+   的彻底修复——两者是不同对象（M5 = 执行账本层；697 = 元素持久化层）。exec-full 域的 ceiling 是否
+   已被 M5 覆盖属选择类核实（待 Lead/编排者判断是否需要独立验证），非本注记自决。
+
+**结论**：本号维持生成态。剩余待裁项 = (a) 彻底修复（增量 extract_elements + confirmed prefix
+immutable）是否列入后续 goal（选择类，Lead 按 275 依赖序调度）；(b) exec-full 域 ceiling 是否已被
+M5 完整覆盖（选择类核实）；(c) 四项翻转条件的监控（探针常驻 + 跨标的 L3 触发）。§4 的 signal-alpha
+waiver 正式化已记录在案——waiver 关闭的是「signal-alpha 是否被 ceiling 阻塞」（答案：否，暴露面=0），
+**不关闭** ceiling 本身的存在与彻底修复的待办性。有效域纪律（231）：waiver 有效域 = BTC/L2/signal-alpha，
+不外推 exec-full、不外推跨标的。
