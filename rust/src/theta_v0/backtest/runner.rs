@@ -599,13 +599,16 @@ fn newly_confirmed_step(
 /// 复用 `exec::close_pred` 契约锚（no-patch-keep-primitive）：
 /// - **risk（GlobalRiskClose）**：`risk_mode(equity)` ∈ {Insolvent,Liquidation} ⟹ `force_flat`
 ///   （v0 可计算 Insolvent `E_t≤0`；账户层 MM/buffer/liq 未建模，诚实有效域 L0）。
-/// - **stop（结构止损触及）**：per 活动腿从**全窗** `classification` 查 `BspPoint` 算
-///   `structural_stop`，`stop_hit(bar,…)` 判触及——多腿止损 ⟹ `stop_long`、空腿止损 ⟹ `stop_short`。
+/// - **stop（结构止损触及）**：per 活动腿从**入场冻结的** `structural_stop`（[`LedgerOpen::entry_stop`]，
+///   开仓 bar 一次性算）判 `stop_hit(bar,…)` 触及——多腿止损 ⟹ `stop_long`、空腿止损 ⟹ `stop_short`。
+///   族A 修复：旧路径逐 bar 用 `leg.source_index`（carrier 走势 ρ，随父延伸漂移）回查 `classification`
+///   ⟹ drifted ρ 不命中 ⟹ 静默跳过 ⟹ 跨趋势持仓 stop 永不触发；改入场冻结对齐 nautilus
+///   `record_held_voice`（exitfix-research §族A）。
 /// - **reverse_signal 不入本门**：反向信号关活动腿走 `interpret` 𝒟_x（腿级单出口）；
 ///   **parent_invalid** v0 root 恒 false（无父）。
 fn k_theta_risk_gate(
     prev_active: &[super::super::strategy::interp::ActiveLeg],
-    classification: &classifier::Classification,
+    open_trades: &std::collections::HashMap<classifier::recursive_tower::ElementId, LedgerOpen>,
     bar: &Bar,
     equity: f64,
     p_t: f64,
@@ -615,11 +618,9 @@ fn k_theta_risk_gate(
     use super::super::strategy::coverage::KThetaRiskGate;
     use super::super::strategy::exec::{close_pred, stop_hit, CloseTriggers, FillSide};
     use super::super::strategy::risk::{
-        global_risk_close, margin_inputs, risk_mode, structural_stop, RiskMode, RiskModeInput,
-        StopInput, StopSide,
+        global_risk_close, margin_inputs, risk_mode, RiskMode, RiskModeInput,
     };
     use super::super::strategy::voice::VoiceSide;
-    use super::super::types::Center;
 
     // risk mode：有 margin 注入且 bar 时间落某快照段 ⟹ 真实 MM/liq/buffer（as_of 零前视，
     // margin-design §2.7）；否则退化 MM=0（bit-exact 现状，M1/M2/M3 不可达）。
@@ -644,40 +645,41 @@ fn k_theta_risk_gate(
         _ => None,
     };
 
-    // stop：per 活动腿结构止损触及（从全窗 classification 查 BspPoint，与 v1 同一 structural_stop）。
-    // ponytail: 循环前预建 HashMap<(level,source_index),&BspPoint>，bsp.iter().find O(n) → map.get O(1)
-    let mut bsp_index: std::collections::HashMap<(usize, usize), &classifier::bsp::BspPoint> =
-        std::collections::HashMap::new();
-    for (lvl_idx, lvl) in classification.levels.iter().enumerate() {
-        for p in lvl.bsp.iter() {
-            bsp_index.insert((lvl_idx, p.source_index), p);
-        }
-    }
+    // ★族A 修复（formal-chain §9 closePred Stop 覆盖度）：stop 从**入场冻结的 structural_stop**
+    // （[`LedgerOpen::entry_stop`]）读出，非逐 bar 用 `leg.source_index` 回查 classification。
+    // 旧路径 `leg.source_index` 是 carrier 走势的 ρ（右端点），随父延伸漂移（coverage.rs 父延伸
+    // 不变量 ρ≥旧 source_index）⟹ 按 drifted ρ 查 bsp_index 不命中 ⟹ `None => continue` 静默
+    // 跳过该腿 stop 判定 ⟹ 持仓跨大级别趋势时 stop 永不触发（族 A 根因，exitfix-research §族A）。
+    // 入场路径（[`candidate_stop_dist`]）用候选 `c.source_index`（bsp 确认点）查得对——两路径同腿
+    // 不同坐标是 bug。本修复对齐两路径 + nautilus `record_held_voice`（入场一次性算 stop 冻结到
+    // HeldVoice.stop，exitfix-research line 49）：stop 值固定在开仓结构 = formal-chain §9 语义
+    // （结构失效价触及，非 trailing）。L0 静态根因；L2 dump（3765 等笔 stop 读出实际值）待 OOS。
     let mut long_stop = false;
     let mut short_stop = false;
     for leg in prev_active {
-        let (stop_side, exit_side) = match leg.dir {
-            VoiceSide::Long => (StopSide::Long, FillSide::Sell),
-            VoiceSide::Short => (StopSide::Short, FillSide::Buy),
+        let exit_side = match leg.dir {
+            VoiceSide::Long => FillSide::Sell,
+            VoiceSide::Short => FillSide::Buy,
             VoiceSide::Flat => continue, // Flat 不入活动集（防御性）
         };
-        let bsp = match bsp_index.get(&(leg.level as usize, leg.source_index)) {
-            Some(b) => *b,
-            None => continue, // 找不到对应买卖点（不应发生）⟹ 无止损读出
+        let stop = match open_trades.get(&leg.id).and_then(|o| o.entry_stop) {
+            Some(s) => s,
+            None => {
+                // 腿不在 open_trades = **结构走势载体**（非 campaign 持仓）。`next_active` 含走势元素
+                // （AncOK 祖先闭包 + [`coverage::restore_ancestor_chain_from_registry`] 注入的父 carrier
+                // —— empirically：活动集里 level-1 走势载体与 open_trades 里 level-0 campaign 持仓并存，
+                // open_trades 仅记 campaign）。这类腿的 `dir`=走势 eps（非持仓方向）、`source_index`=
+                // 走势 ρ（漂移）—— 非开仓结构，无 stop 可读。旧路径用 drifted ρ 查 bsp_index 也返
+                // None ⟹ 同样跳过，但旧路径把载体**误当持仓**算 stop（无意义计算）。本修复按
+                // open_trades 成员区分 campaign 持仓 vs 结构载体，仅前者判 stop（族A 正域）。
+                continue;
+            }
         };
-        let stop_in = StopInput {
-            pivot_low: bsp.pivot_low,
-            pivot_high: bsp.pivot_high,
-            // center=None（1/2 类不用 center）⟹ 零 center 占位（3 类必有 center，不到达）。
-            center: bsp.center.unwrap_or(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 }),
-        };
-        if let Some(stop) = structural_stop(stop_side, &bsp.bits, &stop_in) {
-            if !bar.untradable && stop_hit(bar, stop, exit_side) {
-                match leg.dir {
-                    VoiceSide::Long => long_stop = true,
-                    VoiceSide::Short => short_stop = true,
-                    VoiceSide::Flat => {}
-                }
+        if !bar.untradable && stop_hit(bar, stop, exit_side) {
+            match leg.dir {
+                VoiceSide::Long => long_stop = true,
+                VoiceSide::Short => short_stop = true,
+                VoiceSide::Flat => {}
             }
         }
     }
@@ -1006,7 +1008,7 @@ where
             let classification_step = newly_confirmed_step(&classification_i, &mut seen_bsps);
             let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
             // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
-            let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &classification_i, bar, equity_nav, p_t, px, config.margin.as_ref());
+            let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &open_trades, bar, equity_nav, p_t, px, config.margin.as_ref());
             // ── M6 ③⁻ LiquidationLoss 强平罚金（边沿触发，一次一集）：本 bar 进入
             //    {Insolvent,Liquidation} 且持仓 ⟹ 收一次罚金（强平清算费/滑点），从 cash 扣。
             //    liq_active 边沿去抖：强平态跨 bar 持续（exec 延迟平仓期间）不重复罚；离开强平态复位。
@@ -1154,8 +1156,11 @@ where
                 // 决策 bar 因果分类 classification_i 查开腿候选 BspPoint（(level,source_index) 键，与
                 // k_theta_risk_gate 止损回查同源 structural_stop），stop_side 由候选方向定。None =
                 // structural_stop 返 None（非该方向交易点）/ BspPoint 缺失 ⟹ μ_R 剔除（诚实缺口）。
+                // ★族A：入场一次性冻结 structural_stop（Tick）到 LedgerOpen.entry_stop，逐 bar 风控门
+                // 读此冻结值（消除旧路径 drifted leg.source_index 回查 ⟹ 静默跳过 stop）。dist 同源导出。
+                let entry_stop = entry_structural_stop(c, &classification_i);
                 let entry_stop_dist =
-                    candidate_stop_dist(c, &classification_i, px, config.tick.tick_size);
+                    entry_stop.map(|stop| (px - stop as f64 * config.tick.tick_size).abs());
                 // ★opsem-dump：入场时刻操作语义快照（env-gated，未启用零字段零开销）。
                 let opsem_snap = if opsem.is_some() {
                     let (sa_macd, sc_macd, sa_dif, sc_dif, fstate) = match c.force {
@@ -1201,15 +1206,28 @@ where
                 } else {
                     OpsemEntrySnapshot::default()
                 };
+                // ★B1（步骤4，codex review conditional 修复）：入场 sizing target 快照（开腿当步
+                // SepLeg.q_units，含 dir_weight）。sep_legs 经 coverage.rs:2317 filter_map(work.get) 构造 ⟹
+                // opened 腿 id 通常在其中，但 filter_map 可跳过 work 不含的 e_idx，理论非 100% 保证。
+                // debug_assert 抓测试期不变量违例；release 防御性 0.0（μ 不读 units ⟹ 不破坏 μ；
+                // execution 诊断见 0.0 = sizing 信息缺失信号，**非真实 sizing=0**）。
+                let b1_sep = step_trace.sep_legs.iter().find(|s| s.id == leg.id);
+                debug_assert!(
+                    b1_sep.is_some(),
+                    "B1: opened leg {:?} not in step_trace.sep_legs (coverage work.get 跳过？)",
+                    leg.id
+                );
                 open_trades.insert(leg.id, LedgerOpen {
                     entry_bar: i,
                     entry_px: px,
+                    entry_stop,
                     entry_stop_dist,
                     // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
                     entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
                     entry_v: c.role.v,
                     position_node_id,
                     opsem: opsem_snap,
+                    units: b1_sep.map(|s| s.q_units).unwrap_or(0.0),
                 });
             }
             // 反向关闭：typed 判据单源 reverse_exit_type（入场角色 + 触发候选类）。
@@ -1232,6 +1250,7 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
+                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
                     };
                     // ★opsem-dump：反向关闭外化（trig.bsp_class = 触发候选类）。
                     if let Some(dump) = opsem.as_mut() {
@@ -1269,6 +1288,7 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
+                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
                     };
                     // ★opsem-dump：静默离场外化（无触发候选，trigger_bsp_class=null）。
                     if let Some(dump) = opsem.as_mut() {
@@ -1299,6 +1319,7 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
+                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
                     };
                     // ★opsem-dump：强平外化（无触发候选，trigger_bsp_class=null）。
                     if let Some(dump) = opsem.as_mut() {
@@ -1330,6 +1351,7 @@ where
                         position_node_id: open.position_node_id,
                         entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
                         exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
+                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
                     };
                     // ★opsem-dump：P2 overlay 关闭外化（无触发候选，trigger_bsp_class=null）。
                     if let Some(dump) = opsem.as_mut() {
@@ -1468,6 +1490,7 @@ where
                 // A7 #165：censored 出场账本态取末决策点 last_ext（末可交易 bar 决策点真值，
                 // 与 last_px 兑现价同 bar 口径）；全窗无决策点 ⟹ ZExt::NONE 账本态维诚实 None。
                 exit_z: super::selector::exit_z_of(open.entry_z, &last_ext),
+                units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
             };
             // ★opsem-dump：censored Hold 外化（无触发候选，trigger_bsp_class=null）。
             if let Some(dump) = opsem.as_mut() {
@@ -1512,25 +1535,26 @@ where
     }
 }
 
-/// ★A6（prereg-rev2-20260704）：开腿候选的入场结构止损距离 `d=|entry_px−stop|`（美元，ex-ante）。
+/// ★族A 修复：入场结构止损值（[`super::super::types::Tick`]，开仓 bar 一次性算 + 冻结到
+/// [`LedgerOpen::entry_stop`]）。
 ///
-/// 在决策 bar 因果分类 `classification` 上按候选 `(level, source_index)` 查 [`BspPoint`]
-/// （与 `k_theta_risk_gate` 止损回查同一 `structural_stop` 函数、同一键），方向由候选 `dir` 定
-/// （Long→pivot_low / Short→pivot_high，3 类→center）。返回美元距离；`None` = structural_stop 返 None
-/// （该方向无止损可定 = 非交易点，防御性）或 BspPoint 缺失。μ_R 分母，non-Some ⟹ 下游剔除（231号）。
-fn candidate_stop_dist(
+/// 在决策 bar 因果分类 `classification` 上按候选 `(c.level, c.source_index)` 查 [`BspPoint`]——这是
+/// **bsp 确认点坐标**（稳定，不漂移），方向由候选 `dir` 定（Long→pivot_low / Short→pivot_high，
+/// 3 类→center）。`None` = structural_stop 返 None（非该方向交易点）/ BspPoint 缺失。
+///
+/// 与逐 bar 止损门 [`k_theta_risk_gate`] 共享同一 `structural_stop` 真值——本函数在**入场时**用候选
+/// 坐标查得，冻结后供逐 bar 门读出（消除旧路径用 drifted `leg.source_index` 回查的覆盖度缺陷）。
+fn entry_structural_stop(
     c: &super::super::strategy::interp::Candidate,
     classification: &super::super::classifier::Classification,
-    entry_px: f64,
-    tick_size: f64,
-) -> Option<f64> {
+) -> Option<super::super::types::Tick> {
     use super::super::strategy::risk::{structural_stop, StopInput, StopSide};
     use super::super::strategy::voice::VoiceSide;
     use super::super::types::Center;
     let stop_side = match c.dir {
         VoiceSide::Long => StopSide::Long,
         VoiceSide::Short => StopSide::Short,
-        VoiceSide::Flat => return None, // Flat 候选不开仓，无止损距离可言
+        VoiceSide::Flat => return None, // Flat 候选不开仓，无止损可言
     };
     let lvl = classification.levels.get(c.level as usize)?;
     let bsp = lvl.bsp.iter().find(|p| p.source_index == c.source_index)?;
@@ -1541,9 +1565,20 @@ fn candidate_stop_dist(
             .center
             .unwrap_or(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 }),
     };
-    let stop = structural_stop(stop_side, &bsp.bits, &stop_in)?;
-    let d = (entry_px - stop as f64 * tick_size).abs();
-    Some(d)
+    structural_stop(stop_side, &bsp.bits, &stop_in)
+}
+
+/// ★A6（prereg-rev2-20260704）：开腿候选的入场结构止损距离 `d=|entry_px−stop|`（美元，ex-ante）。
+/// μ_R 分母，non-Some ⟹ 下游剔除（231号）。族A 修复：薄包 [`entry_structural_stop`]（同源
+/// `structural_stop`，单次算），距离从冻结 stop 值导出（与 [`LedgerOpen::entry_stop`] 同源）。
+fn candidate_stop_dist(
+    c: &super::super::strategy::interp::Candidate,
+    classification: &super::super::classifier::Classification,
+    entry_px: f64,
+    tick_size: f64,
+) -> Option<f64> {
+    let stop = entry_structural_stop(c, classification)?;
+    Some((entry_px - stop as f64 * tick_size).abs())
 }
 
 /// G4（#134）：训练管线的 typed ledger 入口——**生产 π fill loop**（χ≡1 全覆盖）在 `bars` 上
@@ -1719,16 +1754,30 @@ pub struct TypedTrade {
     /// 待 codex 裁决——当前 μ 层不消费本字段（`build_mu_from_bars` 仍按 `entry_z` 逐笔独立观测），
     /// 本字段是出场侧完备性的账本层载体（同 `position_node_id` A9 先例）。
     pub exit_z: super::mu_estimator::MuClass,
+    /// ★B1（步骤4，dw-sizing-diag-20260705，codex review conditional 修复）：**入场时刻 sizing
+    /// target 快照**——开腿当步 `SepLeg.q_units`（=`base_units×w_depth×w_dir`，含 dir_weight；post
+    /// gross-cap；coverage.rs:2321 从 `LegTarget.units` 透传）。**非逐 bar fill 后实际腿级持仓**——是
+    /// 入场决策点的目标单位，不是执行期 fill 累计。**不进 μ estimand**（μ 保持单位边际 qty=1.0，696 域，
+    /// `build_mu_from_bars` 不读本字段）。
+    ///
+    /// **诊断边界（codex review）**：本字段供"入场 sizing target 逐笔分布"诊断——对比 μ 单位边际
+    /// qty=1.0，看 dir_weight 改变了哪些腿的入场规模。**账户级 execution R 分解由 `r_decomp` 负责**
+    /// （runner.rs:1489 `RDecomposition::assemble`，`cum_price_pnl=Σ units·Δpx` 真实账户 sizing 加权），
+    /// 本字段**不用于逐笔 execution P&L**——真要逐笔 execution P&L 需 per-bar exposure / fill ledger，
+    /// 非本字段（本字段仅入场 target 快照）。
+    pub units: f64,
 }
 
-/// ★A7 #165：`TypedTrade` 账本行 schema 版本（出场侧 `exit_z` 增列的显式版本标记）。
+/// ★`TypedTrade` 账本行 schema 版本（每次账本层增列 +1；显式版本标记）。
 ///
-/// **B30 prereg 前置清单联动声明（不静默，team-lead 令）**：本 ledger 行 schema 于 v2 增
-/// `exit_z`（出场时刻 z 快照）。μ **样本** schema（[`MuObservation`](super::mu_estimator::MuObservation)
-/// = `{class, x_gamma}`）**未变**——A7 只在账本层增列，μ 消费侧仍按 `entry_z`（见 `exit_z` 字段文档
-/// 消费侧边界）。任何后续把 `exit_z` 接入 μ 分桶键的工位（codex 裁决后）须新开 prereg 冻结口径，
-/// 不得静默改分桶（formalization-validity-domain / B30 前置清单）。
-pub const TYPED_TRADE_SCHEMA_VERSION: u32 = 3;
+/// **版本史**：v3 增 `exit_z`（出场 z 快照，A7 #165）；v4 增 `units`（腿级 sizing 目标，B1 步骤4）。
+///
+/// **B30 prereg 前置清单联动声明（不静默，team-lead 令）**：μ **样本** schema
+/// （[`MuObservation`](super::mu_estimator::MuObservation) = `{class, x_gamma}`）**未变**——
+/// A7（`exit_z`）/B1（`units`）只在账本层增列，μ 消费侧仍按 `entry_z` 单位边际（qty=1.0，696 域）。
+/// 任何后续把 `exit_z`/`units` 接入 μ 分桶键或 sizing 加权的工位（codex 裁决后）须新开 prereg
+/// 冻结口径，不得静默改 estimand（formalization-validity-domain / B30 前置清单 / 696）。
+pub const TYPED_TRADE_SCHEMA_VERSION: u32 = 4;
 
 /// ledger 在飞条目（开腿登记，关腿时结算为 [`TypedTrade`]）。
 struct LedgerOpen {
@@ -1739,6 +1788,12 @@ struct LedgerOpen {
     /// `Some(d)` = 决策 bar 因果 BspPoint + structural_stop 可算；`None` = structural_stop 返 None
     /// （非该方向交易点）/ BspPoint 缺失 ⟹ 下游 μ_R 剔除（诚实缺口，231号）。
     entry_stop_dist: Option<f64>,
+    /// ★族A 修复：入场冻结的结构止损值（[`super::super::types::Tick`]，开仓 bar 由
+    /// [`entry_structural_stop`] 一次性算）。逐 bar 风控门 [`k_theta_risk_gate`] 读此冻结值判
+    /// `stop_hit`——消除旧路径用 drifted `leg.source_index`（carrier 走势 ρ）回查 `classification`
+    /// 的覆盖度缺陷（exitfix-research §族A）。对齐 nautilus `record_held_voice`（入场一次性写
+    /// HeldVoice.stop）。`None` = 该方向无结构止损（非交易点，与 `entry_stop_dist` 同口径）。
+    entry_stop: Option<super::super::types::Tick>,
     /// 入场角色垂直轴（腿声部身份入场时固定）——`reverse_exit_type`/silent drop 判据输入。
     entry_v: super::super::strategy::coverage::Vertical,
     /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 严格身份四元组
@@ -1751,6 +1806,9 @@ struct LedgerOpen {
     /// [`OpsemDump::write_trade`] 消费；未启用路径 `Default::default()` 零字段零开销（bit-exact）。
     /// 不进生产语义/μ 桶键/J_Θ 排序——纯只读外化（同 `dump_deltafree_pertrade` 先例）。
     opsem: OpsemEntrySnapshot,
+    /// ★B1（步骤4）：腿级 sizing 目标（透传 `SepLeg::q_units`，含 dir_weight）。开腿登记时从
+    /// `step_trace.sep_legs` 冻结，关腿结算透传 `TypedTrade::units`。不进 μ estimand（696 域）。
+    units: f64,
 }
 
 /// 入场时刻操作语义快照（仅 env-gated dump 消费，零生产影响）。
@@ -1898,10 +1956,10 @@ impl OpsemDump {
             self.trade_id_counter, t.voice_id.level, t.voice_id.ordinal,
         ));
         s.push_str(&format!(
-            "\"position_node_id\":{},\"entry_bar\":{},\"exit_bar\":{},\"entry_px\":{},\"exit_px\":{},\"pnl_raw_unlevered\":{},\"exit_type\":\"{}\",\"via_structural_prune\":{},",
+            "\"position_node_id\":{},\"entry_bar\":{},\"exit_bar\":{},\"entry_px\":{},\"exit_px\":{},\"pnl_raw_unlevered\":{},\"exit_type\":\"{}\",\"via_structural_prune\":{},\"units\":{},",
             t.position_node_id.hash64(), t.entry_bar, t.exit_bar,
             t.entry_px, t.exit_px, pnl_raw,
-            exit_type_str(t.exit_type), t.via_structural_prune,
+            exit_type_str(t.exit_type), t.via_structural_prune, t.units,
         ));
         // 触发证书。
         s.push_str("\"certificate\":{");
@@ -4089,17 +4147,88 @@ mod tests {
     /// k_theta_risk_gate 产门 + pi_theta_position 收窄 𝒦_Θ。此处坐实 force_flat（Insolvent equity≤0）门。
     #[test]
     fn run_theta_v0_pi_risk_gate_force_flat_on_insolvent() {
-        let classification = Classification { levels: vec![LevelState::default()] };
         let bar = px100_bar(0);
         // equity≤0 ⟹ Insolvent ⟹ GlobalRiskClose ⟹ force_flat（𝒦_Θ={0}）。
-        let (gate_insolvent, mode_insolvent) = k_theta_risk_gate(&[], &classification, &bar, -1.0, 0.0, 100.0, None);
+        let (gate_insolvent, mode_insolvent) = k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, -1.0, 0.0, 100.0, None);
         assert!(gate_insolvent.force_flat, "equity≤0 ⟹ Insolvent ⟹ force_flat（𝒦_Θ={{0}}）");
         // G3：透出的 mode 与门语义一致（z 第 13 维数据源同一真值）。
         assert_eq!(mode_insolvent, super::super::super::strategy::risk::RiskMode::Insolvent);
         // equity>0 + 无活动腿 ⟹ 门全开（无风控触发）。
-        let (gate_open, mode_open) = k_theta_risk_gate(&[], &classification, &bar, 1.0e6, 0.0, 100.0, None);
+        let (gate_open, mode_open) = k_theta_risk_gate(&[], &std::collections::HashMap::new(), &bar, 1.0e6, 0.0, 100.0, None);
         assert!(!gate_open.force_flat && !gate_open.stop_long && !gate_open.stop_short, "正常态 ⟹ 门全开");
         assert_eq!(mode_open, super::super::super::strategy::risk::RiskMode::Normal);
+    }
+
+    /// ★族A 回归守卫：campaign 持仓腿的 source_index 漂移后（carrier 走势 ρ 延伸），逐 bar 风控门
+    /// 仍从入场冻结的 [`LedgerOpen::entry_stop`] 读出 stop 并判触及。旧路径用 drifted source_index
+    /// 查 bsp_index 必返 None（无 bsp 在漂移后的 ρ）⟹ `None => continue` 静默跳过 ⟹ stop 永不触发
+    /// （族A 根因，exitfix-research §族A）。本测试构造 drifted 腿 + 冻结 entry_stop 断言 stop 触发，
+    /// 并对照 entry_stop=None（非交易点）诚实无 stop。
+    #[test]
+    fn k_theta_risk_gate_reads_frozen_entry_stop_for_drifted_leg() {
+        use super::super::super::types::BspBits;
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::mu_estimator::{MuClass, PositionState};
+        use super::super::super::strategy::coverage::Vertical;
+        use super::super::super::strategy::interp::{ActiveLeg, EntryCertificate, PositionNodeId};
+        use super::super::super::strategy::voice::VoiceSide;
+        use std::collections::HashMap;
+
+        // Short campaign 腿：source_index=999（drifted ρ——carrier 延伸后，远超 entry bsp 坐标）。
+        // 旧路径在此坐标查 bsp_index 必 None（无 bsp 在 999）⟹ 静默跳过。
+        let leg = ActiveLeg {
+            level: 0,
+            dir: VoiceSide::Short,
+            source_index: 999,
+            lambda: 999,
+            id: ElementId { level: 0, ordinal: 0 },
+            parent_id: None,
+            is_boundary_root: true,
+            op_parent: None,
+        };
+        // 冻结 entry_stop=200（Tick，空头止损在上方）；entry_certificate 源坐标=5（非 drifted）。
+        let mut open_trades: HashMap<ElementId, LedgerOpen> = HashMap::new();
+        open_trades.insert(
+            ElementId { level: 0, ordinal: 0 },
+            LedgerOpen {
+                entry_bar: 0,
+                entry_px: 100.0,
+                entry_z: MuClass::from_certificate(0, -1, BspBits::default(), 0, PositionState::Root),
+                entry_stop_dist: Some(100.0),
+                entry_stop: Some(200),
+                entry_v: Vertical::ShortDiff,
+                position_node_id: PositionNodeId {
+                    carrier: ElementId { level: 0, ordinal: 0 },
+                    entry_certificate: Some(EntryCertificate { level: 0, source_index: 5 }),
+                    side: VoiceSide::Short,
+                    generation: 0,
+                },
+                opsem: OpsemEntrySnapshot::default(),
+                units: 1.0,
+            },
+        );
+        // bar high=250 ≥ stop=200 ⟹ 空头止损触及（stop_hit 空头镜像：high≥stop）。
+        let bar = Bar {
+            source_index: 999,
+            timestamp: 999,
+            open: 100,
+            high: 250,
+            low: 100,
+            close: 100,
+            volume: 1,
+            untradable: false,
+        };
+        let (gate, _mode) = k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+        assert!(
+            gate.stop_short,
+            "族A：drifted campaign 腿从冻结 entry_stop 读出 stop ⟹ high≥stop 触发 stop_short"
+        );
+        assert!(!gate.stop_long, "仅空腿止损，多腿无触发");
+
+        // 对照：entry_stop=None（非该方向交易点）⟹ 诚实无 stop，不触发。
+        open_trades.get_mut(&ElementId { level: 0, ordinal: 0 }).unwrap().entry_stop = None;
+        let (gate2, _mode2) = k_theta_risk_gate(&[leg], &open_trades, &bar, 1.0e6, -1.0, 100.0, None);
+        assert!(!gate2.stop_short, "entry_stop=None ⟹ 诚实无 stop（非静默吞掉真实 stop）");
     }
 
     // ──────────────────────────────────────────────────────────────────────

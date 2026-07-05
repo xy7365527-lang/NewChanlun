@@ -1217,6 +1217,10 @@ fn m8_e2e_all_systems_oos() {
         let nav_te = nav_of(&test);
         // ★三系统同开：overlay 臂（M5）+ margin（M6 强平前置）+ cost_model（M6 成本）；TW 账本（M7）loop 内建。
         let mut cfg = ThetaConfig::default();
+        // ★B1 步骤4（dw-sizing-diag-20260705）：m8_e2e 接 preset 切换——与 wverify_full 同 env 入口
+        // （THETA_DIR_PRESET=follow/adversary），默认 Neutral bit-exact。此前 m8_e2e 恒 Neutral ⟹
+        // 从未测 dir_weight 执行层效应；现在 Follow/Adversary 可经 env gate 测 execution R 分解。
+        apply_theta_dir_preset_from_env(&mut cfg);
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
         eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());

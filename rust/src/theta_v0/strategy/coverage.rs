@@ -1370,9 +1370,11 @@ impl OperationRole {
 /// [`ElementId`]（carrier v）+ 方向 σ_v + 目标单位 q_v + 角色 role(v) + 父 parent(v) 一并暴露，
 /// 供 runner 的 [`OverlayState`](crate::theta_v0::strategy::overlay_state) hedge-mode 簿消费。
 ///
-/// ★646号范畴（命名区分）：`q_units` 是 sizing 层**资本加权连续目标敞口**（`base_units×w_depth`，
-/// f64）——与 §9 voice 层整数手数 `q_v` 是不同投影空间的量。overlay 簿取整为整数 q_v（手数）时
-/// 在 [`OverlayState`] 内做（lot 对齐），本结构如实透传 sizing 连续量，不臆造整数。
+/// ★646号范畴（命名区分）：`q_units` 是 sizing 层**资本加权连续目标敞口**（`base_units×w_depth×w_dir`，
+/// 含 dir_weight；post gross-cap，f64）——与 §9 voice 层整数手数 `q_v` 是不同投影空间的量。数据源 =
+/// `LegTarget.units`（本文件 :2321 透传，`LegTarget.units=base_units×w_depth×w_dir` 已含 w_dir，见
+/// :1411 注释）。overlay 簿取整为整数 q_v（手数）时在 [`OverlayState`] 内做（lot 对齐），本结构如实
+/// 透传 sizing 连续量，不臆造整数。
 ///
 /// ★认识论 L1：本结构是 [`coverage_step_from_buckets`] 已算 `legs`+`next_active` 的**只读暴露**
 /// （同一 `next_idx` 元素，携 ElementId），非新计算——决策路径 bit-exact 不变。
