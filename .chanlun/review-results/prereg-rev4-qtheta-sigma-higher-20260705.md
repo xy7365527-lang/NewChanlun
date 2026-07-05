@@ -376,4 +376,74 @@ loss-research-final-summary §三 明确：q_Θ σ_higher 升级是**正交的 v
 
 ---
 
-**prereg-rev4 冻结结束**。q_Θ v0→v1 升级 = w_dir 分级符号查表（ShortDiff §7.5 s_g=s_α 豁免 + 根级豁免 + (ℓ,sign(δ·σ_higher)) 分级）× 三套预注册（follow/neutral/adversary）。bit-exact 不保留（除 neutral=v0 对照）。下游 g2 实装 / g3 跑数依赖本文件 commit 冻结哈希。
+**prereg-rev4 冻结结束**（§一至§九）。q_Θ v0→v1 升级 = w_dir 分级符号查表（ShortDiff §7.5 s_g=s_α 豁免 + 根级豁免 + (ℓ,sign(δ·σ_higher)) 分级）× 三套预注册（follow/neutral/adversary）。bit-exact 不保留（除 neutral=v0 对照）。下游 g2 实装 / g3 跑数依赖本文件 commit 冻结哈希。
+
+---
+
+## 十、补遗：ChatGPT 外部确认 + 修订范围显式声明（team-lead g1 验收补充，amend 入冻结）
+
+**触发**：team-lead 转达 ChatGPT 对亏损研究的独立解读 + 三项执行建议（2026-07-05）。本节将 ChatGPT 异质确认纳入并做 formal-chain 裁决（部分采纳 / 部分否决），同时显式声明本预注册与 typed exit 修复的范围隔离。amend 入冻结哈希，保持单一 g1 冻结文档。
+
+### 10.1 ChatGPT 异质同源确认（L0 同构）
+
+ChatGPT 独立解读亏损研究后给出更精确的最小形式：
+```
+q^{v1}_Θ = q^{v0}_Θ · w_{ℓ, q, role}，其中 q = δ · σ_higher（本笔方向 × 父级别方向的符号积）
+```
+- ChatGPT 的 `q = δ·σ_higher` ≡ 本 prereg §四 的 `sign(δ·σ_higher)`——**同构记法**（q 是符号积的单一变量名）。
+- ChatGPT 的 `w_{ℓ,q,role}` ≡ 本 prereg 的 `w_dir(ℓ,δ,σ_higher,role)`——同构分级权重表。
+- **异质同源收敛**：ChatGPT（独立 LLM，未见本 prereg 草稿）与本 prereg（formal-chain 3 PDF 亲读）收敛到同构形式（分级符号权重表）⟹ w_dir 形式选择经交叉验证，稳健性增强。这不是新依据，是对 §四 L0 形式选择的异质确认。
+
+### 10.2 ChatGPT 分级权重表框架（部分采纳 + 部分否决，no-patch-mentality 裁决）
+
+ChatGPT 示例框架三条款：
+- 低级别短差(ℓ∈{0,1}, ShortDiff)：允许/适度放大（w≥1）
+- 高级别逆上级(ℓ≥3, q=-1)：强烈收缩（w≪1）
+- 顺上级(q=+1)：正常（w≈1）
+
+**本 prereg 裁决**（formal-chain 明文优先于异质建议）：
+
+| ChatGPT 条款 | 裁决 | 依据 |
+|---|---|---|
+| 高级别逆上级(ℓ≥3, q=-1)强烈收缩 | ✅ **采纳** | 落入 Θ_dir_follow 套的 Θ[ℓ≥3][-1]=η_adv(ℓ)≪1（§四 三套预注册）。§6 page4「高级别逆上级接飞刀」语义对应 |
+| 顺上级(q=+1)正常 | ✅ **采纳** | 落入 Θ[ℓ][+1]=1.0（follow 套）/ η_same(ℓ)（adversary 套） |
+| 低级别短差(ℓ∈{0,1}, ShortDiff)适度放大(w≥1) | ❌ **否决** | **违反 §7.5 s_g=s_α 同股数要求**（定理 1） |
+
+**否决"短差适度放大"的严格性论证（no-patch-mentality + 090）**：
+- ChatGPT 未亲读 买卖点.pdf page6 §7.5 明文 `s_g = s_α`（同股数短差要求），其"适度放大"建议隐含 w_dir(ShortDiff) > 1.0。
+- 由定理 1（§五）：w_dir(ShortDiff) ≠ 1.0 ⟹ s_g ≠ s_α（叠加 depth_weight 既存张力后进一步偏离）⟹ 破坏 §7.5 同股数 ⟹ 违反 formal-chain 明文。
+- 采纳"适度放大"= 声明 §7.5 未给的能力（短差规模可调）= **声明膨胀（090号）**。
+- formal-chain 明文（§7.5 s_g=s_α）> 异质 LLM 建议 ⟹ 否决"放大"，保持 `w_dir(ShortDiff) ≡ 1.0`（定理 1，不放大、不缩放）。
+- **诚实声明**：team-lead 转达的两条信息内部张力（ChatGPT"短差适度放大" vs team-lead"w=1.0 对 ShortDiff role"）——team-lead 主体确认采纳 formal-chain（w=1.0），本 prereg 照 formal-chain 裁决。ChatGPT 的"放大"建议因未见 §7.5 page6 同股数明文而失效。
+
+**分级权重表结构（按 (ℓ, q, role) 三元组）已纳入 §四 CASE 3**，ChatGPT 框架的三套结构（follow/neutral/adversary）与本 prereg §四 三套预注册同构。
+
+### 10.3 修订范围显式声明（typed exit 另开预注册，归因隔离）
+
+**本预注册（prereg-rev4）只改 q_Θ（p̃ 构造层）**：
+
+| 层 | 是否改 | 依据 |
+|---|---|---|
+| q_Θ / `leg_target`（coverage.rs:1316）+ 双段变体（:1338）units 计算 + w_dir 分级权重 | ✅ **改** | 本 prereg 冻结范围 |
+| J_Θ（§15 三项作用于净持仓 p） | ❌ **不改** | loss §S1 三重违反否决 |
+| K_Θ（§11 九项资本约束） | ❌ **不改** | loss §S2 三重违反否决 |
+| exit 路径（closePred exit.rs:85 四析取） | ❌ **不改** | 非 q_Θ 范畴 |
+| typed exit 五枚举（§9 {CloseRoot,ReduceCore,CloseShortDiff,RiskExit,Hold}） | ❌ **不改** | loss §S3 否决（无时长型，枚举封闭） |
+| interp.rs 候选方向选择层（bsp bits 驱动） | ❌ **不改** | 非 q_Θ 范畴 |
+
+**typed exit 触发质量修复（Stop/ReduceCore/三类点时机）= separate 预注册**（ChatGPT 归因隔离建议，本 prereg 采纳）：
+- opsem-redo 4 族亏损根因在 **typed exit 触发质量**（loss §三 双根因②：execution 层），**不在** q_Θ 范畴。
+- 若与 q_Θ v1 混改 ⟹ signal（q_Θ σ_higher 维）vs execution（typed exit 触发）**归因混淆** ⟹ OOS 结果无法归因到任一根因 ⟹ 违反 loss 双根因的诊断隔离（231号 estimand 域分离）。
+- 故 typed exit 触发质量须 **g3 q_Θ 跑数后另立独立预注册**（prereg-rev5 或更后，由编排者授权），与本 prereg-rev4 **严格隔离**。
+- **本 prereg-rev4 的 OOS（三套 follow/neutral/adversary）只检验 q_Θ σ_higher 维的 signal 层效果**，不混入 exit 改动；exit 路径 bit-exact 保留（v0 不变）。
+
+**归因隔离的操作化**（231号 + 单变量原则）：q_Θ v1 是 signal 层单变量改动，OOS 结果可归因到 σ_higher 分级 sizing；typed exit 触发质量是 execution 层独立变量，须独立预注册 + 独立 OOS。两层 estimand 正交（loss §二 图），不可混改混跑。
+
+### 10.4 补遗对 §九 结果包六要素的增量影响
+
+- **结论增量**：ChatGPT 异质同源确认 w_dir 形式（§10.1）；否决"短差适度放大"保 §7.5（§10.2）；显式声明 typed exit 另开预注册（§10.3）。
+- **定义依据增量**：ChatGPT 独立解读（异质同源，非新 formal-chain 依据，L0 形式交叉验证）。
+- **边界增量**：本 prereg 只改 q_Θ，exit/J_Θ/K_Θ/typed exit 全不改；typed exit 修复是 separate 预注册（prereg-rev5+，编排者授权）。
+- **下游推论增量**：g2 实装严格限定 q_Θ units 层；g3 OOS 归因到 signal 层 σ_higher 维；typed exit 修复待独立预注册后独立 OOS。
+- **影响声明增量**：本 prereg 影响域 = q_Θ units 计算（coverage.rs:1316/1338）+ w_dir 函数 + 三套 Θ_dir 表，**不含** exit/J_Θ/K_Θ/interp。
+- **谱系增量**：无新谱系（异质确认 + 范围声明，非新概念发现）。相关 090（声明膨胀——否决"放大"依据）/ 231（estimand 域分离——typed exit 归因隔离依据）/ 135（typed exit 另开预注册须独立冻结）。
