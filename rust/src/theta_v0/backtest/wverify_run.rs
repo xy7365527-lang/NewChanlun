@@ -198,6 +198,17 @@ fn apply_theta_dir_preset_from_env(cfg: &mut ThetaConfig) {
     }
 }
 
+/// A-4（formal-criteria H3 / #122 终裁）：`ENFORCE_GROSS_CAP=true` 激活毛头寸约束（strict §11
+/// `Σ|s_e| ≤ γ·U_ℓ`，coverage.rs `apply_gross_cap`）。无 env/非 "true" = default false 不变（#122
+/// 「约束未配置=不激活」诚实声明 + frozen Θ v0 bit-exact）。跑批入口同 [`apply_theta_dir_preset_from_env`]
+/// 先例——`build_mu_from_bars` 残差路径经 `typed_ledger_from_bars`→`pi_theta_fill_loop` 触达 `apply_gross_cap`，
+/// 故残差跑批（wverify_full）与 π^full 跑批（m8_e2e）均需本 gate 才能测毛 cap 效应。
+fn apply_enforce_gross_cap_from_env(cfg: &mut ThetaConfig) {
+    if std::env::var("ENFORCE_GROSS_CAP").as_deref() == Ok("true") {
+        cfg.risk.enforce_gross_cap = true;
+    }
+}
+
 /// walk-forward OOS 残差聚合（G-A4）：取 `symbol` 在 `PREREG_WINDOWS` 冻结 anchored 窗口中
 /// `test_start ≥ OOS_START` 的子集，逐窗对 **test 段** 独立 [`build_mu_from_bars`]（time_block_base
 /// = `win.i·WF_TIME_STRIDE`），聚合残差记录。返回 (全聚合残差, 各窗独立残差 for time block 报告)。
@@ -371,6 +382,7 @@ fn exit_type_breakdown(records: &[ResidualTrade]) -> String {
 fn wverify_full() {
     let mut cfg = ThetaConfig::default();
     apply_theta_dir_preset_from_env(&mut cfg);
+    apply_enforce_gross_cap_from_env(&mut cfg);
     let ds = data::load_by_symbol("BTC", &cfg).expect("BTC 数据加载（btc_1m_full.json）");
     let oos_sanity = ds.slice_date_window("2023-01-01", "2025-06-30"); // 数据漂移哨兵；协议 §2.1 BTC OOS
     assert!(!oos_sanity.bars.is_empty(), "OOS 窗空——数据漂移");
@@ -1221,6 +1233,7 @@ fn m8_e2e_all_systems_oos() {
         // （THETA_DIR_PRESET=follow/adversary），默认 Neutral bit-exact。此前 m8_e2e 恒 Neutral ⟹
         // 从未测 dir_weight 执行层效应；现在 Follow/Adversary 可经 env gate 测 execution R 分解。
         apply_theta_dir_preset_from_env(&mut cfg);
+        apply_enforce_gross_cap_from_env(&mut cfg);
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
         eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
