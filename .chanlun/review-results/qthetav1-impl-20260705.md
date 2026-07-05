@@ -1,9 +1,10 @@
 # qthetav1-impl｜q_Θ v0→v1 升级消费 σ_higher 实装验收（g2）
 
 **工位**：swarm/ws-qthetaimpl ｜ topo_address: swarm/ws-qthetaimpl ｜ 基因 073a/274号
-**日期**：2026-07-05 ｜ 分支：gap3-rework-codex9-fix ｜ 基线：54ec3b6384（g1 冻结之后）
-**parent_callback**：main ｜ **依据**：prereg-rev4-qtheta-sigma-higher-20260705.md（g1 冻结）
-**认识论等级约定**（231号）：本报告标注 L0（定义推导）/ L1（代码静态核对）/ L2（经验/OOS，不在 g2 范围）。
+**日期**：2026-07-05 ｜ 分支：gap3-rework-codex9-fix
+**g1 冻结依据**：prereg-rev4-qtheta-sigma-higher-20260705.md，**最终冻结哈希 = 958f722674**
+（§一至§九 @ 54ec3b6384 + §十补遗 @ 958f722674）
+**parent_callback**：main ｜ **认识论等级约定**（231号）：本报告标注 L0（定义推导）/ L1（代码静态核对）/ L2（经验/OOS，不在 g2 范围）。
 
 ---
 
@@ -19,6 +20,28 @@ g2 验收四点**全部满足**：
 | 4. cargo test --release --lib theta_v0 全绿 | ✅ | 全 lib 1511 passed / 0 failed（基线 1508 + 3 新测试），见 §五 |
 
 **未 commit**（任务约束）——代码留工作区，本报告落 `.chanlun/review-results/qthetav1-impl-20260705.md`。
+
+---
+
+## 〇b、§十补遗合规确认（g1 最终冻结 958f722674，无代码改需）
+
+g1 §十补遗（commit 958f722674，在实装 prompt 之后落地）三项裁决，本实装**逐条合规、无需改码**：
+
+| §十裁决 | 本实装对应 | 合规 |
+|---|---|---|
+| **§10.1** ChatGPT 异质同源：`q=δ·σ_higher` ≡ `sign(δ·σ_higher)`，`w_{ℓ,q,role}` ≡ `w_dir` | `dir_weight` 内 `sign = dir_sign(delta) * sigma_higher`；`theta_dir_slot(preset, depth, sign)` | ✅ 同构 |
+| **§10.2** 否决「短差适度放大 w≥1」——ShortDiff `w_dir≡1.0`（§7.5 s_g=s_α 定理1，不放大不缩放） | CASE 1 `if role.v==ShortDiff { return 1.0; }` 硬编码于一切预设查表**之前** | ✅ 已正确（team-lead 确认） |
+| **§10.3** 修订范围只改 q_Θ（p̃ 构造层）；exit/J_Θ/K_Θ/typed exit/interp 全不改 | 本实装仅动 `leg_target` + `leg_target_two_segment` + `dir_weight` + `ThetaDirPreset` | ✅ 范围隔离 |
+
+**§10.2「高级别逆上级(ℓ≥3,q=−1)强烈收缩」与本代码角色分类的关系**（L1 诚实声明）：
+该采纳条款落入 Θ_dir_follow 套的 `Θ[ℓ≥3][−1]=η_adv(ℓ)≪1` 槽——本实装 Follow 预设的 `eta_adv` per-level 向量已支持。
+但本代码 `Vertical` 三分类（Ambient/FollowParent/ShortDiff）下，q=−1（δ=−σ_higher）的腿**按定义即 ShortDiff**
+（§7.5 `δ_g=−σ_p`），CASE 1 先截 ⟹ sign=−1 槽经 role 路径不可达（§一.1 已记为代码性质注）。
+这**不冲突**：sign=−1 槽的存在是表结构完备性（prereg §四 CASE 3 双槽 + 三套预设），不可达性是角色分类性质；
+且 ShortDiff 腿被 §7.5 s_g=s_α 保护（w_dir≡1.0）正是 §10.2 否决「放大」的同一条 formal-chain。槽位保留供未来若引入非 ShortDiff 的逆上级角色路径。
+
+**§10.3 typed exit 归因隔离**：本实装未碰 exit/closePred/typed exit 五枚举/interp/J_Θ/K_Θ——exit 路径 bit-exact 保留（v0 不变），
+g3 OOS 可归因到 signal 层 σ_higher 维（231 estimand 域分离）。typed exit 触发质量修复另开 prereg-rev5+。
 
 ---
 
