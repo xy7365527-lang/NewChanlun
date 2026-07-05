@@ -244,7 +244,10 @@ pub fn z_of_candidate(
     let (parent_dir, position) = match c.role.v {
         Vertical::Ambient => (0, PositionState::Root),
         Vertical::FollowParent => (delta, PositionState::Child), // σ_p = δ_g
-        Vertical::ShortDiff => (-delta, PositionState::Child),   // σ_p = −δ_g
+        // 073a：SameReverse/ShortDiff 均 δ_g=−σ_p ⟹ σ_p=−δ_g（反向腿，MuClass 的
+        // (parent_dir, position) 投影同桶）；二者区分在 level 关系 ℓ_g vs ℓ_α，不在此投影。
+        Vertical::SameReverse => (-delta, PositionState::Child), // σ_p = −δ_g（同级别反向，PDF §7.3）
+        Vertical::ShortDiff => (-delta, PositionState::Child),   // σ_p = −δ_g（次级别短差，PDF §4）
     };
     // G3 恒等式护栏（§6 ℓ=e+Ndepth，Nest 通道）：链顶 ℓ 与深度同时给出时必须自洽。
     if let (Some(ol), Some(d)) = (ext.origin_level, ext.nest_depth) {

@@ -275,6 +275,7 @@ struct DepthDiag {
     open_ambient: u64,
     open_followparent: u64,
     open_shortdiff: u64,
+    open_samereverse: u64,
     open_total: u64,
     close_total: u64,
     record_total: u64,
@@ -498,6 +499,7 @@ fn instrument_bar(
             match role.v {
                 Vertical::Ambient => diag.open_ambient += 1,
                 Vertical::FollowParent => diag.open_followparent += 1,
+                Vertical::SameReverse => diag.open_samereverse += 1,
                 Vertical::ShortDiff => {
                     diag.open_shortdiff += 1;
                     // ★根因区分：ShortDiff 子的真 Compose 父（parent_id）是否已持仓 / registry live。
@@ -815,6 +817,7 @@ fn l3_pi_depth_diag_cl_btc() {
         eprintln!("  open_ambient           : {}", diag.open_ambient);
         eprintln!("  open_followparent      : {}", diag.open_followparent);
         eprintln!("  ★open_shortdiff        : {}  (反向对冲腿源)", diag.open_shortdiff);
+        eprintln!("  open_samereverse       : {}  (同级别反向腿源，073a)", diag.open_samereverse);
         eprintln!("  close_total            : {}", diag.close_total);
         eprintln!("  record_total           : {}", diag.record_total);
         eprintln!();

@@ -1207,12 +1207,13 @@ fn m8_e2e_all_systems_oos() {
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
         let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
         let maxdd = r.net_result.metrics.max_drawdown;
-        let (mut n_amb, mut n_short, mut n_follow) = (0usize, 0usize, 0usize);
+        let (mut n_amb, mut n_short, mut n_follow, mut n_samerev) = (0usize, 0usize, 0usize, 0usize);
         for c in r.overlay.closed_voices() {
             match c.role_v {
                 Vertical::Ambient => n_amb += 1,
                 Vertical::ShortDiff => n_short += 1,
                 Vertical::FollowParent => n_follow += 1,
+                Vertical::SameReverse => n_samerev += 1,
             }
         }
 
@@ -1247,9 +1248,9 @@ fn m8_e2e_all_systems_oos() {
         };
 
         report.push_str(&format!(
-            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {:+.0} | {:+.0} | {} |\n",
+            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{}/{} | {} | {} | {} | {}/{} | {:+.0} | {:+.0} | {} |\n",
             r.net_result.n_orders, d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
-            d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow,
+            d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow, n_samerev,
             stage_str, tw.notional_in, tw.withdrawn, eta_t, eta_star, r_total, lcb_r, verdict,
         ));
         eprintln!(

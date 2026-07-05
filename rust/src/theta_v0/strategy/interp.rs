@@ -1103,7 +1103,8 @@ fn v_code(v: Vertical) -> u8 {
     match v {
         Vertical::Ambient => 0,
         Vertical::FollowParent => 1,
-        Vertical::ShortDiff => 2,
+        Vertical::SameReverse => 2,
+        Vertical::ShortDiff => 3,
     }
 }
 
