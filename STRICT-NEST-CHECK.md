@@ -1,6 +1,6 @@
-# STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算）
+# STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算 + P2 证书装配）
 
-数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，4613599 bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；交易：`/tmp/codex-work-p7/p7_inputs/trades.jsonl`，40001 笔。全量因果重放 1437.9s（P1 确认支逐 bar 因果累积，谓词层终态单次重算定判）。
+数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，4613599 bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；交易：`/tmp/codex-work-p7/p7_inputs/trades.jsonl`，40001 笔。全量因果重放 1420.3s（P1 确认支逐 bar 因果累积，谓词层终态单次重算定判）。
 参数：`ThetaConfig::default()`（l_max=6, min_parts_per_level=3，未调参）。
 
 ## 基线 sanity（每次必带）
@@ -38,4 +38,20 @@
 
 - t1 首见键合计 = 942（期望 942）；主名单 n = 1278（期望 1278）；n_B = 1（期望 1）；n_C = 0（期望 0）→ **逐项一致**
 
-## 总判：**PASS**（sanity ✓ / P1 ✓ / E1 三元组 ✓）
+## P2 硬门：证书生产装配（N^δ_{ℓ↓0}，nest.rs 装配层，终态全局口径）
+
+| 目标级 ℓ | 证书数（ℓ↓0 完整链） |
+|---:|---:|
+| 1 | 0 |
+| 2 | 0 |
+| 3 | 0 |
+| 4 | 0 |
+| 5 | 0 |
+
+- 基例（ℓ0 终态 cand_delta=true）= 452；terminal 查无 = 0（须 0，P1 一致性推论）；证书合计 = **0**。
+- 产量口径比对：名单内 n_C = 0（期望 0）；全局证书产量 0 → 预期 0 或个位数（稀是原文严格性的经验事实，不许放宽凑产量）→ **吻合**。
+- 证书样例：无（产量 0）。
+
+**P2 硬门：PASS（产量与 n_C 口径吻合）**
+
+## 总判：**PASS**（sanity ✓ / P1 ✓ / E1 三元组 ✓ / P2 证书 ✓）

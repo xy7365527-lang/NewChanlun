@@ -25,6 +25,7 @@
 //! canonical 分解 tie-break：最早确认时间 → 最低递归层 → 最早原始 index）。
 
 use super::super::types::{BspBits, Side};
+use super::recursive_tower::CandDeltaEvent;
 
 /// 候选定位区间（契约锚 `Origin.SubLevelDescent` 下钻区间）——携带 `Sel_Θ` 排序三键。
 ///
@@ -216,6 +217,157 @@ impl NestCertificate {
             }
         }
     }
+}
+
+// ═════════ P2 证书生产装配层（strict-nesting-divergence-plan-20260708 §P2）═════════
+
+/// `Cand^δ_ℓ` 定义式（P2 落定，补 spec 疑点2 的缺口；裁决① strict-nesting-rulings-20260708）：
+///
+/// > **`Cand^δ_ℓ(x) ≔ 塔上 per-level 背驰段谓词`** = [`CandDeltaEvent::cand_delta`]
+/// > （`recursive_tower::level_cand_delta`：A/C 段按该级 tower 段结构定位（跨中枢趋势配对，
+/// > 0016:62），gauge 复用 divergence.rs MacdArea 默认路径，严格 `curr < prev`）。
+///
+/// - 裁决②：盘整背驰**不入谓词**（只出 [`CandDeltaEvent::pan_div_diag`] 诊断位，不参与本装配）。
+/// - 裁决③：确认时点 = C 段走势类型完成时（[`CandDeltaEvent::confirm_src`]）；「进入时」
+///   （`enter_src`）仅诊断对照，不作判据。
+/// - P1 已证：ℓ=e=0 时该谓词与 `extract_signals` buy1/sell1 背驰确认支**逐 bit 一致**
+///   （strict_nest_check 硬门 PASS）⟹ 基例 `Cand^δ_e` 与 `Conf^δ_e` 确认支同源无分叉。
+///
+/// `J^δ_ℓ` 定位区间 = 事件 `I(C)`（source_index 坐标，闭区间 `[λ_C, ρ_C]`）；`idx=0` 与校验
+/// bin 锚C 同款口径（不调 `Sel_Θ`——装配以「confirm_src 升序 + 区间字典序」确定性择链）。
+pub fn cand_rung_interval(ev: &CandDeltaEvent) -> NestInterval {
+    NestInterval {
+        end_time: ev.interval.1 as u64,
+        start_time: ev.interval.0 as u64,
+        idx: 0,
+    }
+}
+
+/// 单基例证书装配 `N^δ_{ℓ↓e}`：从执行级 e 事件 `base` 向上装配至目标级 ℓ=`top_level`。
+///
+/// ## 结果包（六要素）
+/// - **结论**：`Some(cert)` ⟺ 存在满足三门合取的完整级链；产出证书**构造即有效**
+///   （`debug_assert!(cert.n_delta())`）。三门（0027 原文）：
+///   1. **递降**（0027:7,11 自高向低）：高级首见不晚于低级首见（`parent.confirm_src ≤
+///      child.confirm_src`，校验 bin 锚C 同款口径）；
+///   2. **相邻级 Sub 包含**：`J^δ_{k-1} ⊆ J^δ_k`（复用契约锚 [`is_sub`]，闭口径）；
+///   3. **每级背驰段必要门**（0027:15）：每级 `cand_delta=true`（[`Cand^δ_ℓ` 定义式]
+///      [cand_rung_interval]），且方向 δ 全链一致。
+/// - **定义依据**：spec P5 §6 递归式 `Cand^δ_ℓ ∧ [J^δ_{ℓ-1}⊆J^δ_ℓ] ∧ N^δ_{ℓ-1↓e}` +
+///   plan §P2（递降/Sub/必要门三分量）；基例 `Conf^δ_e` 由 `terminal`（上游分类 bit-vector）
+///   提供，**不重判**置位。
+/// - **边界条件**：(1) `top_level < base.level`、`base.cand_delta=false`、或
+///   `!terminal.confirm_side(side)` ⟹ `None`（前置即拒）。(2) `top_level == base.level`
+///   ⟹ 纯基例证书（`rungs` 空）。(3) 任一中间级无可行事件 ⟹ `None`（链不完整不出半成品）。
+///   (4) 多候选：每级按 `(confirm_src, interval)` 升序 DFS 回溯，取字典序最早**可行**链
+///   （确定性；贪心最早不可行时回溯到次早，∃ 语义完备）。
+/// - **下游推论**：证书校验本体仍是 [`NestCertificate::n_delta`] 自高向低递归（0027:7,11）；
+///   本装配只做**生产**，搜索序不改判据。产量口径与 E1 锚C 同源（预期极稀）。
+/// - **谱系引用**：P1 谓词层（recursive_tower.rs 铁律：不动 signal.rs/bsp.rs/divergence.rs
+///   判据）；锚C 口径 = e1_tri_anchor.rs 相邻级配对复刻。
+/// - **影响声明**：纯增量生产层；不改 `Chi`/`confirm`/`is_sub`/`NestCertificate` 消费侧。
+///   sidecar 只出证书不改置位（plan 目标）。L0 操作语义（非 L2 alpha）。
+pub fn assemble_certificate(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    base: &CandDeltaEvent,
+    top_level: usize,
+    terminal: BspBits,
+) -> Option<NestCertificate> {
+    let e = base.level as usize;
+    if top_level < e || !base.cand_delta || !terminal.confirm_side(base.side) {
+        return None;
+    }
+    let base_iv = cand_rung_interval(base);
+    let mut acc: Vec<NestRung> = Vec::with_capacity(top_level - e);
+    if !extend_upward(
+        events_by_level,
+        base.side,
+        e + 1,
+        top_level,
+        &base_iv,
+        base.confirm_src,
+        &mut acc,
+    ) {
+        return None;
+    }
+    // 收集序低→高（自基例向上搜索）；证书 rungs 约定从高(ℓ)到低(e+1)。
+    acc.reverse();
+    let cert = NestCertificate {
+        side: base.side,
+        terminal,
+        base_interval: base_iv,
+        rungs: acc,
+    };
+    debug_assert!(cert.n_delta(), "装配即校验：产出证书必过 n_delta（三门合取）");
+    Some(cert)
+}
+
+/// 装配递归核：为级 `level_k` 找满足三门的父事件并继续向上，直至越过 `top_level`。
+///
+/// 每级候选按 `(confirm_src, interval)` 升序 DFS（确定性最早可行链，回溯完备）。
+fn extend_upward(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    side: Side,
+    level_k: usize,
+    top_level: usize,
+    child_iv: &NestInterval,
+    child_src: usize,
+    acc: &mut Vec<NestRung>,
+) -> bool {
+    if level_k > top_level {
+        return true;
+    }
+    let Some(evs) = events_by_level.get(level_k) else {
+        return false;
+    };
+    let mut order: Vec<usize> = (0..evs.len()).collect();
+    order.sort_by_key(|&i| (evs[i].confirm_src, evs[i].interval));
+    for i in order {
+        let ev = &evs[i];
+        // 0027:15 必要门（cand_delta）+ 方向一致 + 递降（高级首见 ≤ 低级首见，锚C 口径）。
+        if !ev.cand_delta || ev.side != side || ev.confirm_src > child_src {
+            continue;
+        }
+        let iv = cand_rung_interval(ev);
+        // 相邻级 Sub 包含：J^δ_{k-1} ⊆ J^δ_k（复用契约锚 is_sub）。
+        if !is_sub(child_iv, &iv) {
+            continue;
+        }
+        acc.push(NestRung { interval: iv, cand: true });
+        if extend_upward(events_by_level, side, level_k + 1, top_level, &iv, ev.confirm_src, acc) {
+            return true;
+        }
+        acc.pop();
+    }
+    false
+}
+
+/// 批量装配驱动：执行级 `exec_level` 全部 `cand_delta=true` 基例逐一尝试装配至 `top_level`。
+///
+/// `terminal_of` 由调用方提供基例终端 bit-vector（上游分类输出查找，**不重判**）；返回
+/// `None` 的基例跳过（P1 逐 bit 一致 ⟹ 生产路径不应发生，调用方可自行计数诊断）。
+pub fn assemble_certificates<F>(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    exec_level: usize,
+    top_level: usize,
+    mut terminal_of: F,
+) -> Vec<NestCertificate>
+where
+    F: FnMut(&CandDeltaEvent) -> Option<BspBits>,
+{
+    let Some(bases) = events_by_level.get(exec_level) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for base in bases.iter().filter(|b| b.cand_delta) {
+        let Some(terminal) = terminal_of(base) else {
+            continue;
+        };
+        if let Some(cert) = assemble_certificate(events_by_level, base, top_level, terminal) {
+            out.push(cert);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -497,5 +649,159 @@ mod tests {
         // 同结构换 Long：卖侧 bit 对 Long 不确认 ⟹ 0。
         let cert_long = NestCertificate { side: Side::Long, ..cert.clone() };
         assert!(!cert_long.n_delta());
+    }
+
+    // ───────── P2 装配层（assemble_certificate / assemble_certificates）─────────
+
+    fn cev(level: u32, side: Side, src: usize, lo: usize, hi: usize, cand: bool) -> CandDeltaEvent {
+        CandDeltaEvent {
+            level,
+            side,
+            confirm_src: src,
+            interval: (lo, hi),
+            a_interval: (0, 0),
+            enter_src: lo,
+            cand_delta: cand,
+            pan_div_diag: false,
+        }
+    }
+
+    #[test]
+    fn assemble_two_level_chain() {
+        // 基例 e=0（[20,60]，src=60）+ 父级 ℓ=1（[10,80]⊇[20,60]，src=50≤60）⟹ 证书成立。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Long, 50, 10, 80, true)],
+        ];
+        let cert = assemble_certificate(&evs, &base, 1, buy1_bits()).expect("完整链应出证书");
+        assert_eq!(cert.rungs.len(), 1);
+        assert_eq!(cert.rungs[0].interval, interval(80, 10, 0));
+        assert_eq!(cert.base_interval, interval(60, 20, 0));
+        assert!(cert.n_delta(), "装配即校验");
+    }
+
+    #[test]
+    fn assemble_pure_base_when_top_eq_exec() {
+        // ℓ=e ⟹ 纯基例（rungs 空），只判 Conf^δ_e 与 Cand^δ_e。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![vec![base.clone()]];
+        let cert = assemble_certificate(&evs, &base, 0, buy1_bits()).expect("纯基例");
+        assert!(cert.rungs.is_empty());
+        assert!(cert.n_delta());
+    }
+
+    #[test]
+    fn assemble_rejects_parent_cand_false() {
+        // 0027:15 必要门：父级 cand_delta=false ⟹ 不出证书。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Long, 50, 10, 80, false)],
+        ];
+        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+    }
+
+    #[test]
+    fn assemble_rejects_sub_violation() {
+        // 父区间 [30,80] 不含子 [20,60]（左端越界）⟹ Sub 门拒。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Long, 50, 30, 80, true)],
+        ];
+        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+    }
+
+    #[test]
+    fn assemble_rejects_first_seen_descent_violation() {
+        // 递降门（0027:7,11 锚C 口径）：父首见 src=70 > 子首见 60 ⟹ 拒。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Long, 70, 10, 80, true)],
+        ];
+        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+    }
+
+    #[test]
+    fn assemble_rejects_side_mismatch() {
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Short, 50, 10, 80, true)],
+        ];
+        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+    }
+
+    #[test]
+    fn assemble_rejects_missing_level() {
+        // ℓ=2 但级 2 无事件 ⟹ 链不完整不出半成品。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Long, 50, 10, 80, true)],
+        ];
+        assert!(assemble_certificate(&evs, &base, 2, buy1_bits()).is_none());
+    }
+
+    #[test]
+    fn assemble_rejects_unconfirmed_terminal() {
+        // 基例 Conf^δ_e=false（全零 bits）⟹ 前置即拒。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![vec![base.clone()]];
+        assert!(assemble_certificate(&evs, &base, 0, BspBits::default()).is_none());
+    }
+
+    #[test]
+    fn assemble_backtracks_to_feasible_parent() {
+        // 最早父（src=40）不含子区间 ⟹ 回溯到次早（src=50）可行父。
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![
+                cev(1, Side::Long, 40, 30, 80, true), // 最早但 Sub 违背
+                cev(1, Side::Long, 50, 10, 80, true), // 次早可行
+            ],
+        ];
+        let cert = assemble_certificate(&evs, &base, 1, buy1_bits()).expect("回溯应找到可行父");
+        assert_eq!(cert.rungs[0].interval, interval(80, 10, 0));
+    }
+
+    #[test]
+    fn assemble_three_level_chain_descent() {
+        // 三级链 ℓ=2：区间逐级放大、首见逐级不增（递降）；rungs 从高到低。
+        let base = cev(0, Side::Short, 60, 20, 60, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Short, 55, 10, 80, true)],
+            vec![cev(2, Side::Short, 50, 0, 100, true)],
+        ];
+        let cert = assemble_certificate(&evs, &base, 2, sell1_bits()).expect("三级链");
+        assert_eq!(cert.rungs.len(), 2);
+        assert_eq!(cert.rungs[0].interval, interval(100, 0, 0)); // 级 2（高）
+        assert_eq!(cert.rungs[1].interval, interval(80, 10, 0)); // 级 1（低）
+        assert!(cert.n_delta());
+    }
+
+    #[test]
+    fn assemble_certificates_driver_filters_bases() {
+        // 驱动：cand_delta=false 基例与 terminal_of=None 基例均跳过。
+        let b1 = cev(0, Side::Long, 60, 20, 60, true);
+        let b2 = cev(0, Side::Long, 61, 21, 61, false); // 非 Cand 基例
+        let b3 = cev(0, Side::Long, 62, 22, 62, true); // terminal 查无
+        let evs = vec![
+            vec![b1.clone(), b2, b3],
+            vec![cev(1, Side::Long, 50, 10, 80, true)],
+        ];
+        let certs = assemble_certificates(&evs, 0, 1, |b| {
+            if b.confirm_src == 60 {
+                Some(buy1_bits())
+            } else {
+                None
+            }
+        });
+        assert_eq!(certs.len(), 1);
+        assert_eq!(certs[0].base_interval, interval(60, 20, 0));
     }
 }

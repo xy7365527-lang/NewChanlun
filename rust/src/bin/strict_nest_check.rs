@@ -31,7 +31,7 @@
 //! 不改任何已有库判据；P1 层为纯增量代码（见 recursive_tower.rs P1 段头铁律）。
 
 use newchan_rust::theta_v0::classifier;
-use newchan_rust::theta_v0::classifier::nest::{is_sub, NestInterval};
+use newchan_rust::theta_v0::classifier::nest::{assemble_certificates, is_sub, NestInterval};
 use newchan_rust::theta_v0::classifier::recursive_tower::{
     find_move_by_end_index, CandDeltaEvent, LeveledMove,
 };
@@ -900,10 +900,65 @@ fn run() -> Result<bool, String> {
         && n_b == N_B_EXPECTED
         && n_c == N_C_EXPECTED;
 
+    // ── P2：证书生产装配（nest.rs 装配层；终态谓词事件 + 终态分类 bits，全局口径）──
+    // terminal 查找：ℓ0 终态 bsp 的 (source_index, side) → BspBits（buy1→Long / sell1→Short，
+    // 不重判置位——P1 逐 bit 一致 ⟹ 每个 cand_delta=true 基例必有对应 bit）。
+    let mut terminal_by_key: HashMap<(usize, i8), newchan_rust::theta_v0::types::BspBits> =
+        HashMap::new();
+    if let Some(l0lv) = cls_f.levels.first() {
+        for p in l0lv.bsp.iter() {
+            if p.bits.buy1 {
+                terminal_by_key.entry((p.source_index, 1)).or_insert(p.bits);
+            }
+            if p.bits.sell1 {
+                terminal_by_key.entry((p.source_index, -1)).or_insert(p.bits);
+            }
+        }
+    }
+    let n_base = cand_f
+        .first()
+        .map(|evs| evs.iter().filter(|e| e.cand_delta).count())
+        .unwrap_or(0);
+    let mut cert_missing_terminal = 0usize;
+    let mut cert_per_top: Vec<(usize, usize)> = Vec::new(); // (目标级 ℓ, 证书数)
+    let mut cert_samples: Vec<String> = Vec::new();
+    let mut cert_total = 0usize;
+    for top in 1..cand_f.len() {
+        let certs = assemble_certificates(&cand_f, 0, top, |b| {
+            let key = (b.confirm_src, side_i8(b.side));
+            let r = terminal_by_key.get(&key).copied();
+            if r.is_none() {
+                cert_missing_terminal += 1;
+            }
+            r
+        });
+        cert_total += certs.len();
+        for c in &certs {
+            if cert_samples.len() < 10 {
+                let rungs: Vec<String> = c
+                    .rungs
+                    .iter()
+                    .map(|r| format!("[{},{}]", r.interval.start_time, r.interval.end_time))
+                    .collect();
+                cert_samples.push(format!(
+                    "ℓ={top} side={:?} base=[{},{}] rungs(高→低)={}",
+                    c.side,
+                    c.base_interval.start_time,
+                    c.base_interval.end_time,
+                    rungs.join("⊇")
+                ));
+            }
+        }
+        cert_per_top.push((top, certs.len()));
+    }
+    // 产量口径吻合门：n_C（1278 笔名单内相邻级配对）= 0 ⟹ 全局证书产量预期 0 或个位数
+    // （稀是原文严格性的经验事实，不许放宽凑产量）；terminal 查无须为 0（P1 一致性推论）。
+    let p2_pass = cert_total <= 9 && cert_missing_terminal == 0;
+
     // ── 报告 ──
     let mut out = String::new();
     let w = &mut out;
-    let _ = writeln!(w, "# STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算）");
+    let _ = writeln!(w, "# STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算 + P2 证书装配）");
     let _ = writeln!(w);
     let _ = writeln!(
         w,
@@ -1003,14 +1058,51 @@ fn run() -> Result<bool, String> {
         if triple_ok { "逐项一致" } else { "**不一致**" }
     );
     let _ = writeln!(w);
-    let overall = hdr_ok && p1_pass && triple_ok;
+    let _ = writeln!(w, "## P2 硬门：证书生产装配（N^δ_{{ℓ↓0}}，nest.rs 装配层，终态全局口径）");
+    let _ = writeln!(w);
+    let _ = writeln!(w, "| 目标级 ℓ | 证书数（ℓ↓0 完整链） |");
+    let _ = writeln!(w, "|---:|---:|");
+    for (top, n) in &cert_per_top {
+        let _ = writeln!(w, "| {top} | {n} |");
+    }
+    let _ = writeln!(w);
     let _ = writeln!(
         w,
-        "## 总判：**{}**（sanity {} / P1 {} / E1 三元组 {}）",
+        "- 基例（ℓ0 终态 cand_delta=true）= {}；terminal 查无 = {}（须 0，P1 一致性推论）；证书合计 = **{}**。",
+        n_base, cert_missing_terminal, cert_total
+    );
+    let _ = writeln!(
+        w,
+        "- 产量口径比对：名单内 n_C = {}（期望 {}）；全局证书产量 {} → 预期 0 或个位数（稀是原文严格性的经验事实，不许放宽凑产量）→ **{}**。",
+        n_c,
+        N_C_EXPECTED,
+        cert_total,
+        if p2_pass { "吻合" } else { "**不吻合**" }
+    );
+    if cert_samples.is_empty() {
+        let _ = writeln!(w, "- 证书样例：无（产量 0）。");
+    } else {
+        let _ = writeln!(w, "- 证书样例（前 {}）：", cert_samples.len());
+        for s in &cert_samples {
+            let _ = writeln!(w, "  - {s}");
+        }
+    }
+    let _ = writeln!(w);
+    let _ = writeln!(
+        w,
+        "**P2 硬门：{}**",
+        if p2_pass { "PASS（产量与 n_C 口径吻合）" } else { "**FAIL（产量口径不吻合或 terminal 查无）**" }
+    );
+    let _ = writeln!(w);
+    let overall = hdr_ok && p1_pass && triple_ok && p2_pass;
+    let _ = writeln!(
+        w,
+        "## 总判：**{}**（sanity {} / P1 {} / E1 三元组 {} / P2 证书 {}）",
         if overall { "PASS" } else { "FAIL" },
         if hdr_ok { "✓" } else { "✗" },
         if p1_pass { "✓" } else { "✗" },
-        if triple_ok { "✓" } else { "✗" }
+        if triple_ok { "✓" } else { "✗" },
+        if p2_pass { "✓" } else { "✗" }
     );
 
     let report_path = out_root.join("STRICT-NEST-CHECK.md");
