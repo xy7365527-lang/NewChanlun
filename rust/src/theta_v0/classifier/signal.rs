@@ -205,7 +205,7 @@ fn nearest_confirmed_center(centers: &[Center], seg_start: usize) -> Option<&Cen
 /// 下标，与 `.position()` 语义逐位一致），主循环用 `first_match_idx.get(&c 三元组)` 取 `pos`（O(1)）。
 /// `c`（last_center）仍取 `centers_sorted[c_idx]`（最近中枢语义正确）。`bit_exact_battery_digest`
 /// 测试 D（重复三元组）锁定此路径。
-fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize) -> Option<usize> {
+pub(crate) fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize) -> Option<usize> {
     let hi = centers.partition_point(|c| c.end_index <= seg_start);
     if hi == 0 {
         None
@@ -273,7 +273,7 @@ fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize) -> Option<
 /// （因果触发）：破中枢判据 min P(C) < ZD（Up 镜像 max P(C) > ZG）与「某同向段端点越界」等价——
 /// 段是单向对象、终点即极值，多段 move 的 min/max 首次越界 ⟺ 某同向段端点越界，触发时刻即该段，
 /// 故 seg 端点判破 = I(C) 极值判破的因果触发点（等价性，裁决注记）。
-fn judge_first_cached(
+pub(crate) fn judge_first_cached(
     last_center: &Center,
     trend_dir: Direction,
     seg: &Segment,
@@ -535,7 +535,7 @@ pub struct PanDivCert {
 ///
 /// 无回中枢段（只有一次离开）/ 无 A / 未背驰 / 区间无法映射 closes ⟹ None（诚实不产证书）。
 /// 复杂度：窗口 = start_index ∈ [c.end_index, seg.start_index] 的段（二分定界 + 窗口内线性扫）。
-fn judge_pan_div(
+pub(crate) fn judge_pan_div(
     c: &Center,
     seg: &Segment,
     segments: &[Segment],

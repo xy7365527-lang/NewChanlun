@@ -697,6 +697,248 @@ pub fn map_src_to_close_idx(close_src: &[usize], start: usize, end: usize) -> Op
     Some((lo, hi))
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════════════
+//  P1 谓词闭包层（strict-nesting-divergence-plan-20260708 §P1 + strict-nesting-rulings-20260708
+//  三裁决：① Cand^δ ≔ 背驰段谓词（per-level A/C 定位配对，gauge 复用 divergence.rs MacdArea
+//  默认路径，严格 curr < prev）；② 盘整背驰不入链（单独诊断标志位）；③ 确认时点=完成时
+//  （破中枢段端点 source_index），「进入时」（λ_C）只作诊断对照）。
+//
+//  ★铁律（判据零分叉）：本层**不含任何判据代码**——判定全部经 signal.rs 同一函数
+//  （`judge_first_cached`/`judge_pan_div`，仅 pub(crate) 可见性加宽，行为零改动）；prelude
+//  （排序守卫/局部趋势门/first_match_idx/A 段缓存/λ_C）与 `extract_signals_with_hist_anchored`
+//  逐行同构（注释见原函数 signal.rs:771-906）。事件字段全部从 judge 的入参/返回值派生 ⟹
+//  ℓ0 谓词输出与 extract_signals 的 buy1/sell1 背驰确认支**构造性 bit-exact**（P1 硬门由
+//  `src/bin/strict_nest_check.rs` 全量重放逐 bit 校验，不一致 ⟹ 停线报 FAIL）。
+// ═══════════════════════════════════════════════════════════════════════════════════════
+
+use super::super::types::{MoveKind, Segment, Side};
+use super::decompose::{center_block_kind, center_trend_gate, decompose};
+use super::divergence::{departure_move_c_start, locate_departure_move_a, DivergenceGauge};
+use super::signal;
+
+/// Cand^δ_ℓ 事件：级别 ℓ 的背驰段谓词判定（一次破中枢结构候选的完整证据包）。
+///
+/// 产生条件 = `judge_first_cached` 返回 `Some`（破最后中枢几何 ∧ A/C 可配对 ∧ closes 可映射，
+/// P2-R2 候选口径）；`cand_delta` = D 背驰确认（默认 gauge 下 ≡ MACD 面积严格 C<A，
+/// = `bits.buy1 ∨ bits.sell1`——从产出派生，无第二套判据）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CandDeltaEvent {
+    /// 级别 ℓ（L0=0）。
+    pub level: u32,
+    /// 破中枢方向侧（买侧向下破=Long，卖侧向上破=Short；= `BspPoint.struct_break_dir`）。
+    pub side: Side,
+    /// 确认时点=完成时（裁决③）：破中枢段端点 source_index（= `BspPoint.source_index`）。
+    pub confirm_src: usize,
+    /// I(C) = [λ_C, seg.end_index]（Q5 走势区间口径，source_index 坐标）。
+    pub interval: (usize, usize),
+    /// I(A) = [λ_A, ρ_A]（跨相邻中枢配对的前一中枢离开 episode 区间，0016:62）。
+    pub a_interval: (usize, usize),
+    /// 「进入时」诊断对照 = λ_C（裁决③：**不作**确认时点，仅诊断）。
+    pub enter_src: usize,
+    /// Cand^δ 真值：趋势背驰确认 D（默认 gauge ≡ 严格 C<A）。
+    pub cand_delta: bool,
+    /// 盘整背驰诊断标志（裁决②：**不入谓词**）——同段最近中枢 ownership 落 Consolidation 块
+    /// 且 `judge_pan_div` 产证书（独立范畴，诊断并列不合取）。
+    pub pan_div_diag: bool,
+}
+
+/// 级别 ℓ 的 Cand^δ 谓词提取（P1 层单一入口；入参口径与
+/// [`signal::extract_signals_with_hist_anchored`] 完全一致）。
+///
+/// prelude 与 signal.rs full 路径逐行同构（见上方段头铁律；行为注释不在此重复）。
+/// 每个破中枢结构候选产一个事件，按 (confirm_src, λ_C, λ_A) 升序。
+#[allow(clippy::too_many_arguments)]
+pub fn level_cand_delta(
+    level: u32,
+    centers: &[Center],
+    segments: &[Segment],
+    anchor_dirs: Option<&[Option<Direction>]>,
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+    gauge: DivergenceGauge,
+) -> Vec<CandDeltaEvent> {
+    // ── 以下 prelude 与 signal::extract_signals_with_hist_anchored 逐行同构 ──
+    let sorted_owned: Vec<Segment>;
+    let anchors_perm: Vec<Option<Direction>>;
+    let (sorted, anchors_in): (&[Segment], Option<&[Option<Direction>]>) =
+        if segments.windows(2).all(|w| w[0].start_index <= w[1].start_index) {
+            (segments, anchor_dirs)
+        } else {
+            let mut idx: Vec<usize> = (0..segments.len()).collect();
+            idx.sort_by_key(|&i| segments[i].start_index);
+            sorted_owned = idx.iter().map(|&i| segments[i].clone()).collect();
+            match anchor_dirs {
+                Some(a) => {
+                    anchors_perm = idx.iter().map(|&i| a[i]).collect();
+                    (&sorted_owned[..], Some(&anchors_perm[..]))
+                }
+                None => (&sorted_owned[..], None),
+            }
+        };
+    let anchors_self: Vec<Option<Direction>> = sorted.iter().map(|s| Some(s.direction)).collect();
+    let anchors: &[Option<Direction>] = anchors_in.unwrap_or(&anchors_self);
+    debug_assert_eq!(anchors.len(), sorted.len(), "anchor_dirs 与 segments 必等长");
+
+    let centers_owned: Vec<Center>;
+    let centers_sorted: &[Center] = if centers.windows(2).all(|w| w[0].end_index <= w[1].end_index)
+    {
+        centers
+    } else {
+        centers_owned = {
+            let mut v = centers.to_vec();
+            v.sort_by_key(|c| c.end_index);
+            v
+        };
+        &centers_owned
+    };
+
+    let blocks = decompose(centers_sorted);
+    let center_gate = center_trend_gate(centers_sorted.len(), &blocks);
+    let any_trend = center_gate.iter().any(|g| g.is_some());
+    let center_kind = center_block_kind(centers_sorted.len(), &blocks);
+    let any_consol = center_kind.iter().any(|k| *k == Some(MoveKind::Consolidation));
+
+    let mut first_match_idx: std::collections::HashMap<(usize, Tick, Tick), usize> =
+        std::collections::HashMap::new();
+    if any_trend {
+        first_match_idx.reserve(centers_sorted.len());
+        for (idx, c) in centers_sorted.iter().enumerate() {
+            first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
+        }
+    }
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+        std::collections::HashMap::new();
+
+    // ── 事件收集（判定全部经 signal::judge_* 同一函数，与 judge_segment 第一类支同构） ──
+    let mut events: Vec<CandDeltaEvent> = Vec::new();
+    for (i, seg) in sorted.iter().enumerate() {
+        let Some(c_idx) = signal::nearest_confirmed_center_idx(centers_sorted, seg.start_index)
+        else {
+            continue;
+        };
+        let gate_dir = if any_trend {
+            first_match_idx
+                .get(&{
+                    let c = &centers_sorted[c_idx];
+                    (c.end_index, c.zd, c.zg)
+                })
+                .and_then(|&pos| center_gate[pos].map(|d| (pos, d)))
+        } else {
+            None
+        };
+        let Some((pos, dir)) = gate_dir else {
+            continue; // 非趋势块 ⟹ 无第一类候选 ⟹ 无 Cand^δ 事件（谓词=第一类背驰段谓词）。
+        };
+        let c = &centers_sorted[c_idx];
+        let prev_center = &centers_sorted[pos - 1];
+        let a_seg_entry = *a_seg_cache
+            .entry(c_idx)
+            .or_insert_with(|| locate_departure_move_a(sorted, anchors, prev_center, c, dir));
+        let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
+        let Some(pf) = signal::judge_first_cached(
+            c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
+            c_start_entry, gauge,
+        ) else {
+            continue; // 未破中枢/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
+        };
+        // 事件字段全部从 judge 的入参/返回值派生（无第二套判据）：
+        // judge Some ⟹ broke ∧ A 配对 ∧ 映射成立 ⟹ λ_C/I(A) 必 Some（judge 内部同断言）。
+        let lambda_c = c_start_entry.expect("judge Some ⟹ λ_C Some");
+        let a_interval = a_seg_entry.expect("judge Some ⟹ I(A) Some");
+        let side = pf.struct_break_dir.expect("第一类结构候选必携 struct_break_dir（P2-R2 无条件置）");
+        let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
+        let pan_div_diag = kind_consol
+            && signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, close_src).is_some();
+        events.push(CandDeltaEvent {
+            level,
+            side,
+            confirm_src: pf.source_index,
+            interval: (lambda_c, seg.end_index),
+            a_interval,
+            enter_src: lambda_c,
+            cand_delta: pf.bits.buy1 || pf.bits.sell1,
+            pan_div_diag,
+        });
+    }
+    events.sort_by_key(|e| (e.confirm_src, e.interval.0, e.a_interval.0));
+    events
+}
+
+#[cfg(test)]
+mod p1_tests {
+    use super::super::super::config::MacdConfig;
+    use super::super::super::types::{Center, Direction, Segment, Side, Tick};
+    use super::super::divergence::{compute_macd, DivergenceGauge};
+    use super::super::signal::extract_signals_with_hist;
+    use super::level_cand_delta;
+
+    fn dc(zd: Tick, zg: Tick, dd: Tick, gg: Tick, ei: usize) -> Center {
+        Center { zd, zg, dd, gg, start_index: 0, end_index: ei }
+    }
+    fn seg(direction: Direction, s: usize, e: usize, sp: Tick, ep: Tick) -> Segment {
+        Segment { direction, start_index: s, end_index: e, start_price: sp, end_price: ep }
+    }
+
+    /// P1 对拍（fixture 移植自 signal.rs::first_buy_extracted_with_trend_divergence，合成数据）：
+    /// ℓ0 谓词输出与 extract_signals 的 buy1/sell1 背驰确认支逐 bit 一致 + 事件字段见证。
+    #[test]
+    fn cand_delta_bit_exact_with_extract_signals_buy1() {
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
+        let src: Vec<usize> = (0..prices.len()).collect();
+        let series = compute_macd(&closes, &MacdConfig::default());
+        let centers = [c0, c1];
+        let (points, _pan) = extract_signals_with_hist(
+            &centers, &segs, &series.hist, &series.dif, &prices, &src, DivergenceGauge::MacdArea,
+        );
+        let events = level_cand_delta(
+            0, &centers, &segs, None, &series.hist, &series.dif, &prices, &src,
+            DivergenceGauge::MacdArea,
+        );
+        // 逐 bit：buy1/sell1 背驰确认支 ⟺ cand_delta=true 事件（(src, side) 多重集相等）。
+        let mut lhs: Vec<(usize, i8)> = points
+            .iter()
+            .flat_map(|p| {
+                let mut v = Vec::new();
+                if p.bits.buy1 {
+                    v.push((p.source_index, 1i8));
+                }
+                if p.bits.sell1 {
+                    v.push((p.source_index, -1i8));
+                }
+                v
+            })
+            .collect();
+        let mut rhs: Vec<(usize, i8)> = events
+            .iter()
+            .filter(|e| e.cand_delta)
+            .map(|e| (e.confirm_src, if e.side == Side::Long { 1i8 } else { -1i8 }))
+            .collect();
+        lhs.sort_unstable();
+        rhs.sort_unstable();
+        assert!(!lhs.is_empty(), "fixture 必产 buy1（非空对拍）");
+        assert_eq!(lhs, rhs, "P1 铁律：谓词 cand_delta 与 buy1/sell1 背驰确认支逐 bit 一致");
+        assert_eq!(events.len(), 1, "唯一破中枢结构候选（C 段）");
+        let e = &events[0];
+        assert!(e.cand_delta, "C<A 背驰确认 ⟹ Cand^δ=true");
+        assert_eq!(e.side, Side::Long);
+        assert_eq!(e.confirm_src, 11, "确认时点=完成时（破中枢段端点，裁决③）");
+        assert_eq!(e.interval, (9, 11), "I(C) = [λ_C, seg.end]（Q5 区间口径）");
+        assert_eq!(e.a_interval, (3, 5), "I(A) = 前中枢离开 episode");
+        assert_eq!(e.enter_src, 9, "「进入时」= λ_C 仅诊断对照（裁决③）");
+        assert!(!e.pan_div_diag, "趋势路径无盘整背驰诊断（裁决②不入链）");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

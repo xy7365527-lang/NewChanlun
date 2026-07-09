@@ -396,6 +396,142 @@ pub fn classify_with_tower(
     classify_impl(l0, config)
 }
 
+/// P1 谓词闭包驱动器（strict-nesting-divergence-plan-20260708 §P1）：对既有分类输出逐级跑
+/// [`recursive_tower::level_cand_delta`]（Cand^δ_ℓ 背驰段谓词，「级别→A/C 定位配对」层）。
+///
+/// 每级输入重建与 [`classify_impl`] 单一来源同构：
+/// - ℓ0：`l0.segments`（L0 线段账本；anchor=None ⟹ 段方向即锚方向，L0 域定理）；
+/// - ℓ≥1：`units = project_to_units(&tower_snapshots[ℓ], &levels[ℓ-1].moves)`
+///   （`tower_snapshots[ℓ]` = 第 ℓ 级输入塔 = 第 ℓ-1 级 upper_moves，classify_impl 同步
+///   index 不变量）+ `anchors[i] = center_own_dir_at(levels[ℓ-1].moves, i)`（Q7-#1 裁定C
+///   同一 provenance）+ `unit_to_segment` 还原（与 `extract_first_third_for_level` 同口径）；
+/// - hist/dif/closes_tick/close_src：与 classify_impl 同一 `compute_macd` 路径重建。
+///
+/// ★纯增量只读层：不改 classify 任何行为；判据零分叉见 recursive_tower.rs P1 段头铁律。
+/// 全量/增量分类输出均适用（增量塔 bit-exact 于全量 ⟹ 重建输入逐值相同）。
+pub fn cand_delta_tower(
+    l0: &ParseLayer,
+    classification: &Classification,
+    tower_snapshots: &[Rc<Vec<LeveledMove>>],
+    config: &ThetaConfig,
+) -> Vec<Vec<recursive_tower::CandDeltaEvent>> {
+    let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
+    let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
+    let series = divergence::compute_macd(&closes, &config.macd);
+    let closes_tick: Vec<Tick> = l0.merged_bars.iter().map(|b| b.close).collect();
+    cand_delta_tower_with_series(
+        l0,
+        classification,
+        tower_snapshots,
+        config,
+        &series.hist,
+        &series.dif,
+        &closes_tick,
+        &close_src,
+    )
+}
+
+/// [`cand_delta_tower`] 的缓存序列变体（校验 bin 每 bar 重放热路径，纯性能——判据零分叉）。
+///
+/// 全量版每 bar 3×O(merged_bars) collect + `compute_macd` 全量重算 ⟹ 因果重放 O(n²)（
+/// strict_nest_check 实测分段耗时线性增长，外推 20h+）。本变体直接只读借用
+/// [`TowerCache`] 的锁步增量序列（`closes_tick`/`close_src`/`macd_hist`/`macd_dif`——
+/// 均 bit-exact 等价全量重算，见各字段文档与 `compute_macd_hist_incremental` 增量证明），
+/// 消掉 per-bar O(n) 项。
+///
+/// ★缓存一致性守卫（over-invalidate 方向）：任一序列长度 ≠ `merged_bars.len()` 或
+/// `macd_state_len` 不齐 ⟹ 退化调全量版（bit-exact，非增量）。`DIAG_CANDCACHE=1` 时
+/// 每 bar 与全量版对拍断言（前缀验证用，同 `DIAG_L0UNITS` 模式）。
+pub fn cand_delta_tower_cached(
+    l0: &ParseLayer,
+    classification: &Classification,
+    tower_snapshots: &[Rc<Vec<LeveledMove>>],
+    config: &ThetaConfig,
+    cache: &TowerCache,
+) -> Vec<Vec<recursive_tower::CandDeltaEvent>> {
+    let n = l0.merged_bars.len();
+    let cache_ok = cache.macd_state_len == n
+        && cache.closes_tick.len() == n
+        && cache.close_src.len() == n
+        && cache.macd_hist.len() == n
+        && cache.macd_dif.len() == n;
+    if !cache_ok {
+        return cand_delta_tower(l0, classification, tower_snapshots, config);
+    }
+    let out = cand_delta_tower_with_series(
+        l0,
+        classification,
+        tower_snapshots,
+        config,
+        &cache.macd_hist,
+        &cache.macd_dif,
+        &cache.closes_tick,
+        &cache.close_src,
+    );
+    if std::env::var("DIAG_CANDCACHE").is_ok() {
+        let full = cand_delta_tower(l0, classification, tower_snapshots, config);
+        assert_eq!(
+            out, full,
+            "DIAG_CANDCACHE：缓存序列版与全量重算版 Cand^δ 事件不一致（缓存序列漂移）"
+        );
+    }
+    out
+}
+
+/// P1 驱动器核心（序列注入版）：`cand_delta_tower`（全量重算）与
+/// `cand_delta_tower_cached`（增量缓存）共用单一事件提取路径（判据零分叉）。
+#[allow(clippy::too_many_arguments)]
+fn cand_delta_tower_with_series(
+    l0: &ParseLayer,
+    classification: &Classification,
+    tower_snapshots: &[Rc<Vec<LeveledMove>>],
+    config: &ThetaConfig,
+    hist: &[f64],
+    dif: &[f64],
+    closes_tick: &[Tick],
+    close_src: &[usize],
+) -> Vec<Vec<recursive_tower::CandDeltaEvent>> {
+    let mut out = Vec::with_capacity(classification.levels.len());
+    for (lvl, ls) in classification.levels.iter().enumerate() {
+        debug_assert!(
+            lvl < tower_snapshots.len(),
+            "tower_snapshots 与 levels 同构（classify_impl 不变量）"
+        );
+        let evs = if lvl == 0 {
+            recursive_tower::level_cand_delta(
+                0,
+                &ls.centers[..],
+                &l0.segments,
+                None,
+                hist,
+                dif,
+                closes_tick,
+                close_src,
+                config.divergence_gauge,
+            )
+        } else {
+            let pb = &classification.levels[lvl - 1].moves;
+            let units = project_to_units(&tower_snapshots[lvl], pb);
+            let anchors: Vec<Option<Direction>> =
+                (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
+            let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+            recursive_tower::level_cand_delta(
+                lvl as u32,
+                &ls.centers[..],
+                &segs,
+                Some(&anchors),
+                hist,
+                dif,
+                closes_tick,
+                close_src,
+                config.divergence_gauge,
+            )
+        };
+        out.push(evs);
+    }
+    out
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 //  增量塔 API（task #93：per-bar substrate 塔构造 O(n²) → O(n)）
 // ════════════════════════════════════════════════════════════════════════════
