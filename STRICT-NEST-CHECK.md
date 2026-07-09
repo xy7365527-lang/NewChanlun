@@ -1,6 +1,6 @@
 # STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算 + P2 证书装配）
 
-数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，4613599 bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；交易：`/tmp/codex-work-p7/p7_inputs/trades.jsonl`，40001 笔。全量因果重放 1455.3s（P1 确认支逐 bar 因果累积，谓词层终态单次重算定判）。
+数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，4613599 bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；交易：`/tmp/codex-work-p7/p7_inputs/trades.jsonl`，40001 笔。全量因果重放 1409.8s（P1 确认支逐 bar 因果累积，谓词层终态单次重算定判）。
 参数：`ThetaConfig::default()`（l_max=6, min_parts_per_level=3，未调参）。
 
 ## 基线 sanity（每次必带）
