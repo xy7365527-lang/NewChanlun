@@ -83,12 +83,23 @@ impl<'a> IncrementalClassifier<'a> {
     /// `tower_cache` 跨 bar 复用 → `LeveledMove` 身份连续 → held_leg 不判 Stale。
     ///
     /// **因果性**：`parse_layer(&bars[..=i])` 只用 ≤i 数据 ⟹ 输出因果（无 look-ahead，639）。
-    pub fn classify_at(&mut self, i: usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>) {
+    pub fn classify_at_with_l0(&mut self, i: usize) -> (parser::ParseLayer, classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>) {
         debug_assert!(i < self.bars.len(), "classify_at({i}) 越界 bars.len={}", self.bars.len());
         // 增量 parse：append bar i（O(1) inclusion + O(merged_i) 下游）。
         let l0_i = self.parser_incr.append(self.bars[i]);
         // 增量塔：cache 跨 bar 复用（身份稳定），bit-exact == 全量 classify_with_tower。
-        classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache)
+        let (classification, tower) = classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache);
+        (l0_i, classification, tower)
+    }
+
+    pub fn classify_at(&mut self, i: usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>) {
+        let (_, classification, tower) = self.classify_at_with_l0(i);
+        (classification, tower)
+    }
+
+    /// strict-nest sidecar 只读复用 tower cache 中的增量 MACD/close 序列，避免开关打开后退回 O(n²)。
+    pub fn tower_cache(&self) -> &classifier::TowerCache {
+        &self.tower_cache
     }
 
     /// ★工位 4g：当前塔变更代次（`classify_at` 后读取）。下游 `TreeCache` 据此 O(1) 判断是否复用

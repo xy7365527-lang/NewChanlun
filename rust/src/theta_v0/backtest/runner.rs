@@ -108,6 +108,117 @@ pub struct RunResult {
     /// LiquidationLoss + 守恒残差）。生产 π 路径（[`run_theta_v0_pi`] 系列）产出；旧 recognize
     /// 路径（[`run_theta_v0`]）为 `None`（诚实——R 分解只接生产 π fill loop）。
     pub r_decomp: Option<super::super::strategy::risk::RDecomposition>,
+    /// 严格区间套证书 sidecar 汇总。默认 `None`；仅 `THETA_STRICT_NEST_SIDECAR=1/true/yes/on`
+    /// 时在生产 π 重放同帧旁路产出，不参与订单、候选、风控、账本。
+    pub strict_nest_sidecar: Option<StrictNestSidecarSummary>,
+}
+
+/// 严格区间套证书记录（P3 sidecar）：目标级 `top_level` 的一条 `N^δ_{ℓ↓0}` 证书。
+#[derive(Debug, Clone, PartialEq)]
+pub struct StrictNestCertificateRecord {
+    pub top_level: usize,
+    pub certificate: classifier::nest::NestCertificate,
+}
+
+/// 严格区间套 sidecar 的末帧汇总；口径复用 P2 `nest.rs::assemble_certificates`。
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct StrictNestSidecarSummary {
+    /// 已观察生产 replay 帧数。
+    pub frames: usize,
+    /// 末帧 ℓ0 `cand_delta=true` 基例数。
+    pub base_count: usize,
+    /// 末帧 terminal 查无次数（P1 一致性推论下应为 0）。
+    pub terminal_missing: usize,
+    /// 末帧每个目标级的证书数。
+    pub cert_per_top: Vec<(usize, usize)>,
+    /// 末帧证书总数。
+    pub cert_total: usize,
+    /// 末帧证书流内容（预期极稀；P2 当前 BTC 全量为 0）。
+    pub certificates: Vec<StrictNestCertificateRecord>,
+}
+
+struct StrictNestSidecarCollector {
+    enabled: bool,
+    summary: StrictNestSidecarSummary,
+}
+
+impl StrictNestSidecarCollector {
+    fn new(enabled: bool) -> Self {
+        Self { enabled, summary: StrictNestSidecarSummary::default() }
+    }
+
+    fn observe_frame(
+        &mut self,
+        l0: &parser::ParseLayer,
+        classification: &classifier::Classification,
+        tower: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
+        config: &ThetaConfig,
+        cache: &classifier::TowerCache,
+    ) {
+        if !self.enabled {
+            return;
+        }
+
+        let cand = classifier::cand_delta_tower_cached(l0, classification, tower, config, cache);
+        let mut terminal_by_key = std::collections::HashMap::new();
+        if let Some(l0_level) = classification.levels.first() {
+            for p in l0_level.bsp.iter() {
+                if p.bits.buy1 {
+                    terminal_by_key.entry((p.source_index, 1i8)).or_insert(p.bits);
+                }
+                if p.bits.sell1 {
+                    terminal_by_key.entry((p.source_index, -1i8)).or_insert(p.bits);
+                }
+            }
+        }
+        let frames = self.summary.frames + 1;
+        self.summary = summarize_strict_nest_certificates(&cand, &terminal_by_key);
+        self.summary.frames = frames;
+    }
+
+    fn finish(self) -> Option<StrictNestSidecarSummary> {
+        self.enabled.then_some(self.summary)
+    }
+}
+
+fn strict_nest_side_i8(side: super::super::types::Side) -> i8 {
+    match side {
+        super::super::types::Side::Long => 1,
+        super::super::types::Side::Short => -1,
+    }
+}
+
+fn summarize_strict_nest_certificates(
+    cand: &[Vec<classifier::recursive_tower::CandDeltaEvent>],
+    terminal_by_key: &std::collections::HashMap<(usize, i8), super::super::types::BspBits>,
+) -> StrictNestSidecarSummary {
+    let mut summary = StrictNestSidecarSummary {
+        base_count: cand.first().map(|evs| evs.iter().filter(|e| e.cand_delta).count()).unwrap_or(0),
+        ..StrictNestSidecarSummary::default()
+    };
+    for top in 1..cand.len() {
+        let certs = classifier::nest::assemble_certificates(&cand, 0, top, |base| {
+            let key = (base.confirm_src, strict_nest_side_i8(base.side));
+            let terminal = terminal_by_key.get(&key).copied();
+            if terminal.is_none() {
+                summary.terminal_missing += 1;
+            }
+            terminal
+        });
+        summary.cert_per_top.push((top, certs.len()));
+        summary.certificates.extend(certs.into_iter().map(|certificate| StrictNestCertificateRecord {
+            top_level: top,
+            certificate,
+        }));
+    }
+    summary.cert_total = summary.certificates.len();
+    summary
+}
+
+fn strict_nest_sidecar_enabled() -> bool {
+    std::env::var("THETA_STRICT_NEST_SIDECAR")
+        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
+        .unwrap_or(false)
 }
 
 /// 执行回测：把 [`Dataset`] 喂 frozen Θ v0 引擎，模拟 fill，算指标。
@@ -201,6 +312,7 @@ pub fn run_theta_v0(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp, // v1 路径为 None（plan_and_fill_mtm 不产 R 分解）
+        strict_nest_sidecar: None,
     }
 }
 
@@ -362,10 +474,17 @@ fn run_theta_v0_pi_inner(
     // classifier 各自 bit-exact 已证，见 incremental.rs 文档）。逐 bar 断言见 `incremental::bit_exact_*`。
     // 注意：bit-exact 仅证明塔构造 O(n) 达成，不证明身份稳定→Stale 降根（后者被 L2 否证）。
     let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    let mut strict_nest_sidecar = StrictNestSidecarCollector::new(strict_nest_sidecar_enabled());
     let fill = pi_theta_fill_loop(
         // ★工位 4g：返回塔代次（TreeCache O(1) 命中判据，跳过 per-bar O(tree) TreeKey::of）。
         |i| {
-            let (cls, tower) = classifier_incr.classify_at(i);
+            let (cls, tower) = if strict_nest_sidecar.enabled {
+                let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
+                strict_nest_sidecar.observe_frame(&l0, &cls, &tower, config, classifier_incr.tower_cache());
+                (cls, tower)
+            } else {
+                classifier_incr.classify_at(i)
+            };
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch(); // ★on2w2：K_i O(1) 命中判据。
             (cls, tower, gen, fe)
@@ -396,6 +515,7 @@ fn run_theta_v0_pi_inner(
     let fee_rate =
         (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
     let theta_return_mtm = m.strat_return;
+    let strict_nest_sidecar = strict_nest_sidecar.finish();
 
     RunResult {
         symbol: dataset.symbol.clone(),
@@ -414,6 +534,7 @@ fn run_theta_v0_pi_inner(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp, // 生产 π 路径 R 分解（cost_model=None ⟹ 三项 0，仍产分解表）
+        strict_nest_sidecar,
     }
 }
 
@@ -517,6 +638,7 @@ pub fn run_theta_v0_pi_overlay(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp,
+        strict_nest_sidecar: None,
     };
 
     let tw_final = fill.tw_final;
@@ -2910,6 +3032,41 @@ mod tests {
             volume: 1,
             untradable,
         }
+    }
+
+    fn strict_nest_test_event(level: u32, side: super::super::super::types::Side, src: usize, lo: usize, hi: usize, cand: bool) -> classifier::recursive_tower::CandDeltaEvent {
+        classifier::recursive_tower::CandDeltaEvent {
+            level,
+            side,
+            confirm_src: src,
+            interval: (lo, hi),
+            a_interval: (0, 0),
+            enter_src: lo,
+            cand_delta: cand,
+            pan_div_diag: false,
+        }
+    }
+
+    #[test]
+    fn strict_nest_sidecar_summary_matches_p2_assembly() {
+        let side = super::super::super::types::Side::Long;
+        let base = strict_nest_test_event(0, side, 60, 20, 60, true);
+        let parent = strict_nest_test_event(1, side, 50, 10, 80, true);
+        let cand = vec![vec![base.clone()], vec![parent]];
+        let terminal = super::super::super::types::BspBits { buy1: true, ..Default::default() };
+        let mut terminal_by_key = std::collections::HashMap::new();
+        terminal_by_key.insert((60usize, 1i8), terminal);
+
+        let summary = summarize_strict_nest_certificates(&cand, &terminal_by_key);
+        let expected = classifier::nest::assemble_certificates(&cand, 0, 1, |_| Some(terminal));
+
+        assert_eq!(summary.base_count, 1);
+        assert_eq!(summary.terminal_missing, 0);
+        assert_eq!(summary.cert_per_top, vec![(1, expected.len())]);
+        assert_eq!(summary.cert_total, expected.len());
+        assert_eq!(summary.certificates.len(), expected.len());
+        assert_eq!(summary.certificates[0].top_level, 1);
+        assert_eq!(summary.certificates[0].certificate, expected[0]);
     }
 
     /// 无结构数据 → 空订单流（**诚实结果，非阻塞态**）。recognize 已接通（2026-06-26）；
