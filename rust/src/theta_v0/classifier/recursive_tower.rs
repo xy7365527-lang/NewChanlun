@@ -727,9 +727,11 @@ pub struct CandDeltaEvent {
     pub level: u32,
     /// 破中枢方向侧（买侧向下破=Long，卖侧向上破=Short；= `BspPoint.struct_break_dir`）。
     pub side: Side,
-    /// 确认时点=完成时（裁决③）：破中枢段端点 source_index（= `BspPoint.source_index`）。
+    /// [新缠论] 算法确认时点（#37 P0 局部改判）：破中枢段端点 source_index。
+    /// 与 `interval.1`（结构定位窗右端）是独立字段；settled 生产者上可数值相等，但不得互相派生。
     pub confirm_src: usize,
-    /// I(C) = [λ_C, seg.end_index]（Q5 走势区间口径，source_index 坐标）。
+    /// [新缠论] 结构定位区间 J（#37 P0 局部改判）= [λ_C, seg.end_index]。
+    /// 右端独立取自结构段，不从 `confirm_src` 回填。
     pub interval: (usize, usize),
     /// I(A) = [λ_A, ρ_A]（跨相邻中枢配对的前一中枢离开 episode 区间，0016:62）。
     pub a_interval: (usize, usize),
@@ -874,11 +876,13 @@ pub fn level_cand_delta(
         let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
         let pan_div_diag = kind_consol
             && signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, close_src).is_some();
+        let confirm_src = pf.source_index;
+        let interval_end = seg.end_index;
         events.push(CandDeltaEvent {
             level,
             side,
-            confirm_src: pf.source_index,
-            interval: (lambda_c, seg.end_index),
+            confirm_src,
+            interval: (lambda_c, interval_end),
             a_interval,
             enter_src: lambda_c,
             cand_delta: pf.bits.buy1 || pf.bits.sell1,

@@ -149,6 +149,9 @@ impl Chi {
 /// 其计算规则属上游（候选判据定义）——`N^δ` 只做合取组装，**不臆造** Cand 的判据。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NestRung {
+    /// [新缠论] 本级事件的算法确认时点（#37 P0 局部改判）。与 `interval.end_time` 独立；
+    /// 二者可以数值相等，但不互相派生。旧证书链没有逐级确认见证时为 `None`，不得伪造。
+    confirm_src: Option<usize>,
     /// 本级 `J^δ_ℓ` 定位区间。
     interval: NestInterval,
     /// `Cand^δ_ℓ(x) ∈ {0,1}` 取值。[需人工确认] 定义式（spec 疑点2）。
@@ -160,7 +163,15 @@ impl NestRung {
     /// `cand` 仍是 0/1 谓词**取值**输入（裁决① `Cand^δ` 定义式在 recursive_tower/cand_predicate
     /// 上游），本构造器不重判、不臆造判据。
     pub(crate) fn new(interval: NestInterval, cand: bool) -> Self {
-        Self { interval, cand }
+        Self { confirm_src: None, interval, cand }
+    }
+    /// 严格装配路径构造：保留独立的算法确认时点，不从区间右端派生。
+    fn with_confirm_src(confirm_src: usize, interval: NestInterval, cand: bool) -> Self {
+        Self { confirm_src: Some(confirm_src), interval, cand }
+    }
+    /// 本级事件的算法确认时点；旧数据载体路径未携带见证时为 `None`。
+    pub fn confirm_src(&self) -> Option<usize> {
+        self.confirm_src
     }
     /// 本级 `J^δ_ℓ` 定位区间。
     pub fn interval(&self) -> NestInterval {
@@ -205,6 +216,9 @@ pub struct NestCertificate {
     side: Side,
     /// 执行级 e 终端 bit-vector（基例 `Conf^δ_e` 的输入）。
     terminal: BspBits,
+    /// [新缠论] 执行级 e 事件的算法确认时点（#37 P0 局部改判）。严格装配时直接取事件字段，
+    /// 不从定位区间右端回填；不承载该见证的旧证书链为 `None`。
+    base_confirm_src: Option<usize>,
     /// 执行级 e 定位区间 `J^δ_e`（最内层；作为最低递归级的子区间参与 ⊆）。
     base_interval: NestInterval,
     /// 递归级 `(e, ℓ]` 梯级，**从高到低**排列：`rungs[0]`=级 ℓ，`rungs[last]`=级 e+1。
@@ -229,7 +243,14 @@ impl NestCertificate {
         base_interval: NestInterval,
         rungs: Vec<NestRung>,
     ) -> Self {
-        NestCertificateBuilder { side, terminal, base_interval, rungs }.finish()
+        NestCertificateBuilder {
+            side,
+            terminal,
+            base_confirm_src: None,
+            base_interval,
+            rungs,
+        }
+        .finish()
     }
 
     /// 方向 δ（固定于整条证书）。
@@ -239,6 +260,10 @@ impl NestCertificate {
     /// 执行级 e 终端 bit-vector。
     pub fn terminal(&self) -> &BspBits {
         &self.terminal
+    }
+    /// 执行级 e 事件的算法确认时点；旧数据载体路径未携带见证时为 `None`。
+    pub fn base_confirm_src(&self) -> Option<usize> {
+        self.base_confirm_src
     }
     /// 执行级 e 定位区间 `J^δ_e`。
     pub fn base_interval(&self) -> NestInterval {
@@ -303,6 +328,7 @@ impl NestCertificate {
 struct NestCertificateBuilder {
     side: Side,
     terminal: BspBits,
+    base_confirm_src: Option<usize>,
     base_interval: NestInterval,
     rungs: Vec<NestRung>,
 }
@@ -324,6 +350,7 @@ impl NestCertificateBuilder {
         NestCertificate {
             side: self.side,
             terminal: self.terminal,
+            base_confirm_src: self.base_confirm_src,
             base_interval: self.base_interval,
             rungs: self.rungs,
         }
@@ -344,8 +371,10 @@ impl NestCertificateBuilder {
 /// - P1 已证：ℓ=e=0 时该谓词与 `extract_signals` buy1/sell1 背驰确认支**逐 bit 一致**
 ///   （strict_nest_check 硬门 PASS）⟹ 基例 `Cand^δ_e` 与 `Conf^δ_e` 确认支同源无分叉。
 ///
-/// `J^δ_ℓ` 定位区间 = 事件 `I(C)`（source_index 坐标，闭区间 `[λ_C, ρ_C]`）；`idx=0` 与校验
-/// bin 锚C 同款口径（不调 `Sel_Θ`——装配以「confirm_src 升序 + 区间字典序」确定性择链）。
+/// `J^δ_ℓ` 定位区间与算法确认时点是两条独立坐标轴：区间从 `event.interval` 读取，确认时点从
+/// `event.confirm_src` 读取；不得以 `J.end` 回填确认时点。当前 settled 生产者上二者可以数值相等，
+/// 但装配接口不把该相等提升为不变量。`idx=0` 与校验 bin 锚C 同款口径（不调 `Sel_Θ`——装配以
+/// 「confirm_src 升序 + 区间字典序」确定性择链）。
 pub fn cand_rung_interval(ev: &CandDeltaEvent) -> NestInterval {
     NestInterval {
         end_time: ev.interval.1 as u64,
@@ -403,8 +432,15 @@ pub fn assemble_certificate(
     }
     // 收集序低→高（自基例向上搜索）；证书 rungs 约定从高(ℓ)到低(e+1)。
     acc.reverse();
-    // cert F-01：经收口构造点（三门已由本装配 DFS 保证，from_parts 再复验 ⊆ 链）。
-    let cert = NestCertificate::from_parts(base.side, terminal, base_iv, acc);
+    // cert F-01：经收口 builder（三门已由本装配 DFS 保证，finish 再复验 ⊆ 链）。
+    let cert = NestCertificateBuilder {
+        side: base.side,
+        terminal,
+        base_confirm_src: Some(base.confirm_src),
+        base_interval: base_iv,
+        rungs: acc,
+    }
+    .finish();
     debug_assert!(cert.n_delta(), "装配即校验：产出证书必过 n_delta（三门合取）");
     Some(cert)
 }
@@ -440,7 +476,7 @@ fn extend_upward(
         if !is_sub(child_iv, &iv) {
             continue;
         }
-        acc.push(NestRung { interval: iv, cand: true });
+        acc.push(NestRung::with_confirm_src(ev.confirm_src, iv, true));
         if extend_upward(events_by_level, side, level_k + 1, top_level, &iv, ev.confirm_src, acc) {
             return true;
         }
@@ -486,7 +522,7 @@ mod tests {
     }
 
     fn rung(et: u64, st: u64, idx: u64, cand: bool) -> NestRung {
-        NestRung { interval: interval(et, st, idx), cand }
+        NestRung { confirm_src: None, interval: interval(et, st, idx), cand }
     }
 
     fn buy1_bits() -> BspBits {
@@ -655,6 +691,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Long,
             terminal: buy1_bits(),
+            base_confirm_src: None,
             base_interval: interval(50, 0, 0),
             rungs: vec![],
         };
@@ -670,6 +707,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Long,
             terminal: BspBits::default(),
+            base_confirm_src: None,
             base_interval: interval(50, 0, 0),
             rungs: vec![],
         };
@@ -682,6 +720,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Long,
             terminal: buy1_bits(),
+            base_confirm_src: None,
             base_interval: interval(60, 20, 0), // J^δ_e 内层
             rungs: vec![rung(100, 0, 0, true)], // J^δ_ℓ 外层，Cand=1
         };
@@ -695,6 +734,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Long,
             terminal: buy1_bits(),
+            base_confirm_src: None,
             base_interval: interval(60, 20, 0),
             rungs: vec![rung(100, 0, 0, false)],
         };
@@ -707,6 +747,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Long,
             terminal: buy1_bits(),
+            base_confirm_src: None,
             base_interval: interval(100, 0, 0), // 子超界
             rungs: vec![rung(60, 20, 0, true)],
         };
@@ -719,6 +760,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Long,
             terminal: buy1_bits(),
+            base_confirm_src: None,
             base_interval: interval(100, 0, 0), // 大区间作子级
             rungs: vec![rung(60, 20, 0, true)], // 小区间作父级
         };
@@ -731,6 +773,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Long,
             terminal: buy1_bits(),
+            base_confirm_src: None,
             base_interval: interval(60, 20, 0),                          // J^δ_e
             rungs: vec![rung(100, 0, 0, true), rung(80, 10, 0, true)],   // ℓ, ℓ-1
         };
@@ -749,6 +792,7 @@ mod tests {
         let cert = NestCertificate {
             side: Side::Short,
             terminal: sell1_bits(),
+            base_confirm_src: None,
             base_interval: interval(60, 20, 0),
             rungs: vec![rung(100, 0, 0, true)],
         };
@@ -786,6 +830,24 @@ mod tests {
         assert_eq!(cert.rungs[0].interval, interval(80, 10, 0));
         assert_eq!(cert.base_interval, interval(60, 20, 0));
         assert!(cert.n_delta(), "装配即校验");
+    }
+
+    #[test]
+    fn assemble_preserves_confirm_src_independent_from_interval_end() {
+        // #38：确认时点与结构定位窗右端是两条独立坐标轴；装配不得用 interval.end 回填确认时点。
+        let base = cev(0, Side::Long, 90, 40, 80, true);
+        let evs = vec![
+            vec![base.clone()],
+            vec![cev(1, Side::Long, 70, 20, 100, true)],
+        ];
+
+        let cert = assemble_certificate(&evs, &base, 1, buy1_bits()).expect("拆绑后完整链应出证书");
+
+        assert_eq!(cert.base_confirm_src, Some(90));
+        assert_ne!(cert.base_confirm_src.unwrap() as u64, cert.base_interval.end_time);
+        assert_eq!(cert.rungs[0].confirm_src, Some(70));
+        assert_ne!(cert.rungs[0].confirm_src.unwrap() as u64, cert.rungs[0].interval.end_time);
+        assert!(cert.n_delta());
     }
 
     #[test]

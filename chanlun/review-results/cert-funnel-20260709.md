@@ -3,7 +3,7 @@
 ## 运行范围与语义护栏
 
 - 数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，**4613599** bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；`ThetaConfig::default()`，`l_max=6`，`min_parts_per_level=3`。
-- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 1492.9s。
+- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 1422.0s。
 - 插桩只读终态 `Classification`、`CandDeltaEvent` 与装配结果；未修改 `divergence.rs`、`bsp.rs`、`signal.rs`、`recursive_tower.rs` 或 `nest.rs` 的任何判据/控制流。
 - 列口径：背驰段谓词命中 = 终态分类 buy1/sell1 bit；`Cand^δ` 候选 = 塔上 `cand_delta=true` 事件（两列应因 P1 bit-exact 相等）；递降链配对成功 = 能把已从 L0 可达的 partial chain 延长到本级的相邻父子边；最终证书 = `assemble_certificates(events, 0, ℓ, terminal)` 产量。
 

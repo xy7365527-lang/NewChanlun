@@ -1185,11 +1185,19 @@ fn run() -> Result<bool, String> {
                 let rungs: Vec<String> = c
                     .rungs()
                     .iter()
-                    .map(|r| format!("[{},{}]", r.interval().start_time, r.interval().end_time))
+                    .map(|r| {
+                        format!(
+                            "confirm={} J=[{},{}]",
+                            r.confirm_src().expect("strict 装配 rung 必携 confirm_src"),
+                            r.interval().start_time,
+                            r.interval().end_time
+                        )
+                    })
                     .collect();
                 cert_samples.push(format!(
-                    "ℓ={top} side={:?} base=[{},{}] rungs(高→低)={}",
+                    "ℓ={top} side={:?} base(confirm={} J=[{},{}]) rungs(高→低)={}",
                     c.side(),
+                    c.base_confirm_src().expect("strict 装配基例必携 confirm_src"),
                     c.base_interval().start_time,
                     c.base_interval().end_time,
                     rungs.join("⊇")
