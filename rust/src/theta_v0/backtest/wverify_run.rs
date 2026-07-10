@@ -278,6 +278,15 @@ fn dump_deltafree_pertrade(records: &[ResidualTrade]) {
     eprintln!("[zdecision-dump] {} 笔 → {path}", records.len());
 }
 
+// ── δ-free 主裁决键形状冻结（编译期守卫，a3）──────────────────────────────────
+// Z_decision 键 = (level, bsp_class, parent_dir, force_state) 四元组，**不含 δ 分量**
+// （prereg-rev2 §1 + ★A1 force_state 第 8 维）。恒等函数指针赋值 ⟹ 若未来有人把 δ 加回
+// [`perm_test::DeltaFreeKey`]（形状/分量类型改变），本行编译失败——比运行期测试更早拦截。
+// 语义级守卫（仅 δ 不同的记录池化同桶）见 `tests::deltafree_verdict_key_is_delta_free_four_tuple`。
+const _DELTAFREE_KEY_SHAPE_FROZEN: fn(
+    perm_test::DeltaFreeKey,
+) -> (u32, u8, i8, Option<ForceStateA5>) = |k| k;
+
 /// δ-free 聚合基 (level, bsp_class, parent_dir) 精确三态裁决——**主判据**（prereg §3.2；问题F 收口）。
 ///
 /// 输入任意残差序列（在线 `wverify_full` 内存 `records`，或离线 dump 还原），按 Z_decision 键池化两 δ
@@ -1602,6 +1611,65 @@ mod tests {
         let exp_fill = (fill_full / fill_half).log2() / ratio;
         eprintln!(
             "[est2-profile] ④ 双曲线 (sink_h={sink_h}): build_mu exp={exp_build:.3} | 分类 exp={exp_classify:.3}（{classify_half_ms:.0}→{classify_ms:.0}ms）| fill loop exp={exp_fill:.3}（{fill_half:.0}→{fill_full:.0}ms）",
+        );
+    }
+
+    /// δ-free 主裁决键守卫（语义级，a3；编译期形状守卫见 `_DELTAFREE_KEY_SHAPE_FROZEN`）：
+    /// 断言 [`deltafree_verdict`] 分桶键为 (level, bsp_class, parent_dir, force_state) 四元组
+    /// 且**不含 δ 分量**，防止未来把 δ 加回主裁决键。
+    /// ① 仅 δ 不同（其余四分量全同）的记录必须池化进同一主裁决桶——若键混入 δ 会裂成 2 桶 ⟹ FAIL；
+    /// ② 四键分量各自变异必须各裂新桶（含 force_state Some(态) 变化与 Some→None 的诚实缺维区分）。
+    /// 注：[`bucket_verdict`] 是含 δ 的描述性报告桶，非主裁决，不在本守卫范围。
+    #[test]
+    fn deltafree_verdict_key_is_delta_free_four_tuple() {
+        use super::super::mu_estimator::PositionState;
+        use crate::theta_v0::types::BspBits;
+
+        // 构造：给定 (level, bsp主类, δ, parent_dir, force_state) 的残差记录。bits 按 δ 选买/卖侧
+        // （同 perm_test::tests::rt 模式）——bsp_class() 对买卖同类归并，键不受 δ 侧影响。
+        let rt = |level: u32, bsp: u8, delta: i8, parent_dir: i8, fs: Option<ForceStateA5>, resid: f64| {
+            let bits = match (bsp, delta > 0) {
+                (1, true) => BspBits { buy1: true, ..Default::default() },
+                (1, false) => BspBits { sell1: true, ..Default::default() },
+                (2, true) => BspBits { buy2: true, ..Default::default() },
+                (2, false) => BspBits { sell2: true, ..Default::default() },
+                (_, true) => BspBits { buy3: true, ..Default::default() },
+                (_, false) => BspBits { sell3: true, ..Default::default() },
+            };
+            let mut class = MuClass::from_certificate(level, delta, bits, parent_dir, PositionState::Root);
+            class.force_state = fs; // from_certificate 诚实 None，测试显式注入第 8 维
+            ResidualTrade { class, resid_base: resid, cost: 0.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold }
+        };
+        // 桶数 = V+F+I 三态计数总和（deltafree_verdict 每桶恰产一个 AlphaState）。
+        let n_buckets = |records: &[ResidualTrade]| {
+            let (_, _, (nv, nf, ni), _) = deltafree_verdict(records);
+            nv + nf + ni
+        };
+
+        // ① δ 池化：仅 δ 不同、(level=1,bsp=1,σ_p=+1,force=Dominated) 全同 → 恰 1 桶。
+        let base_fs = Some(ForceStateA5::Dominated);
+        let pooled: Vec<ResidualTrade> = (0..8)
+            .map(|i| rt(1, 1, if i % 2 == 0 { 1 } else { -1 }, 1, base_fs, i as f64 * 0.7 - 2.0))
+            .collect();
+        assert_eq!(
+            n_buckets(&pooled), 1,
+            "仅 δ 不同的记录必须池化进同一 δ-free 主裁决桶（=1）；>1 ⟹ 主裁决键混入了 δ 分量"
+        );
+
+        // ② 四键分量各自分桶：基桶 + 5 种单分量变异（每变异桶买卖两 δ 侧各 2 笔，保 A1 ⊥δ 交换自由度）。
+        let mut recs = pooled.clone();
+        for i in 0..4 {
+            let d = if i % 2 == 0 { 1 } else { -1 };
+            let r = i as f64 * 0.7 - 2.0;
+            recs.push(rt(2, 1, d, 1, base_fs, r)); // level 变异
+            recs.push(rt(1, 2, d, 1, base_fs, r)); // bsp_class 变异
+            recs.push(rt(1, 1, d, -1, base_fs, r)); // parent_dir 变异
+            recs.push(rt(1, 1, d, 1, Some(ForceStateA5::Dominates), r)); // force_state 态变异
+            recs.push(rt(1, 1, d, 1, None, r)); // force_state Some→None（诚实缺维须独立成桶）
+        }
+        assert_eq!(
+            n_buckets(&recs), 6,
+            "四键分量 level/bsp_class/parent_dir/force_state（含 None）各自变异须各裂新桶：1 基桶 + 5 变异桶"
         );
     }
 }

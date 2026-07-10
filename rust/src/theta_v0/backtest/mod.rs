@@ -65,6 +65,13 @@ mod wverify_run;
 /// highlow-a3-20260704 冻结）。继承 backtest cfg(test) 门控。
 #[cfg(test)]
 mod highlow_mu;
+/// S2 段口径复核 + λ_gap 穿越分布（task #10，R3 §4 遗留）。只产报告不定参，L2 描述性。
+#[cfg(test)]
+mod segment_gn;
+/// S3 捕获率回测（task #11）：walk-forward OOS，训练窗定 λ_gap、测试窗只读，因果重放入场。
+#[cfg(test)]
+mod capture_oos;
+
 pub mod pooling_icc;
 pub mod prereg_windows;
 pub mod runner;
@@ -74,6 +81,11 @@ pub mod selector;
 /// 证明链 L0 见 `.chanlun/proofs/economic-positive-condition-chain.md`；实装设计见
 /// `economic-positive-impl-design.md`。非 cfg(test)——backtest_bin feature 下供真实数据 L2 诊断调用。
 pub mod econ_positive;
+
+/// Treasury 薄适配层（task #9 S1）：μ 摆动 → `TwEvent::Realize` 费后结算。
+/// 账本真值源唯一 = `strategy::ledger::TwState`（#124 裁定4）；本模块零新账本。
+/// 计划见 `chanlun/review-results/treasury-execution-plan-20260707.md`。
+pub mod treasury;
 
 /// 全窗 L3 定论测试模块（task #75，owner=l3-fullwindow 工位，Lead 登记）。
 /// 复现 [`runner`] 的 `l3_falsify_multi_symbol_significance` 但 `cut=全窗`（非 60K 截断），

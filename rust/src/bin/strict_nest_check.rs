@@ -37,7 +37,7 @@ use newchan_rust::theta_v0::classifier::recursive_tower::{
 };
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
-use newchan_rust::theta_v0::types::{quantize, Bar, Side, Timestamp};
+use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, Side, Timestamp};
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -163,7 +163,12 @@ impl EmissionTracker {
     ) {
         self.first_t1.entry((lvl, src, side)).or_insert_with(|| {
             let (iv_start, iv_end, iv_kind) = lookup_interval(tower, lvl, src);
-            T1Rec { bar, iv_start, iv_end, iv_kind }
+            T1Rec {
+                bar,
+                iv_start,
+                iv_end,
+                iv_kind,
+            }
         });
     }
 
@@ -254,7 +259,11 @@ fn build_index(tracker: &EmissionTracker) -> EventIndex {
     let mut conf: [Vec<Emission>; 2] = [Vec::new(), Vec::new()];
     let mut t1: [Vec<T1Emission>; 2] = [Vec::new(), Vec::new()];
     for (&(lvl, src, side), &bar) in &tracker.first_conf {
-        conf[side_idx(side)].push(Emission { src, first_bar: bar, level: lvl as u8 });
+        conf[side_idx(side)].push(Emission {
+            src,
+            first_bar: bar,
+            level: lvl as u8,
+        });
     }
     for (&(lvl, src, side), rec) in &tracker.first_t1 {
         t1[side_idx(side)].push(T1Emission {
@@ -314,12 +323,13 @@ fn json_raw<'a>(line: &'a str, key: &str) -> Option<&'a str> {
 
 fn json_int(line: &str, key: &str) -> Result<i64, String> {
     let tok = json_raw(line, key).ok_or_else(|| format!("缺字段 {key}"))?;
-    tok.parse::<i64>().map_err(|e| format!("{key}=`{tok}` 解析失败: {e}"))
+    tok.parse::<i64>()
+        .map_err(|e| format!("{key}=`{tok}` 解析失败: {e}"))
 }
 
 fn load_trades(path: &Path) -> Result<Vec<Trade>, String> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
+    let text =
+        std::fs::read_to_string(path).map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
     let mut out = Vec::new();
     for (ln, line) in text.lines().enumerate() {
         if line.trim().is_empty() {
@@ -333,7 +343,10 @@ fn load_trades(path: &Path) -> Result<Vec<Trade>, String> {
             seg_start_index: json_int(line, "seg_start_index")? as usize,
         };
         if t.seg_start_index >= t.entry_bar {
-            return Err(format!("行 {}: seg_start_index >= entry_bar（W 空）", ln + 1));
+            return Err(format!(
+                "行 {}: seg_start_index >= entry_bar（W 空）",
+                ln + 1
+            ));
         }
         if t.dir != 1 && t.dir != -1 {
             return Err(format!("行 {}: dir={} 非 ±1", ln + 1, t.dir));
@@ -495,13 +508,17 @@ impl P1Checker {
             let fp = (
                 Rc::as_ptr(&ls.bsp) as usize,
                 ls.bsp.len(),
-                ls.bsp.last().map(|p| (p.source_index, p.bits.buy1, p.bits.sell1)),
+                ls.bsp
+                    .last()
+                    .map(|p| (p.source_index, p.bits.buy1, p.bits.sell1)),
             );
             if self.fps[lvl] == fp {
                 continue;
             }
             self.fps[lvl] = fp;
-            let from = self.scanned_len[lvl].saturating_sub(OVERLAP).min(ls.bsp.len());
+            let from = self.scanned_len[lvl]
+                .saturating_sub(OVERLAP)
+                .min(ls.bsp.len());
             for p in ls.bsp[from..].iter() {
                 if p.bits.buy1 {
                     self.seen[lvl].entry((p.source_index, 1)).or_insert(bar);
@@ -553,10 +570,8 @@ impl P1Checker {
             if lhs != rhs {
                 level_bad = true;
                 if self.samples.len() < 10 {
-                    let only_l: Vec<_> =
-                        lhs.iter().filter(|k| !rhs.contains(k)).take(4).collect();
-                    let only_r: Vec<_> =
-                        rhs.iter().filter(|k| !lhs.contains(k)).take(4).collect();
+                    let only_l: Vec<_> = lhs.iter().filter(|k| !rhs.contains(k)).take(4).collect();
+                    let only_r: Vec<_> = rhs.iter().filter(|k| !lhs.contains(k)).take(4).collect();
                     self.samples.push(format!(
                         "终态 ℓ{lvl}: bsp={} cand={}；仅 bsp 侧 {:?}，仅谓词侧 {:?}",
                         lhs.len(),
@@ -665,10 +680,8 @@ impl P1Checker {
                 bar_bad = true;
                 *self.per_level_mismatch.entry(lvl).or_insert(0) += 1;
                 if self.samples.len() < 10 {
-                    let only_l: Vec<_> =
-                        lhs.iter().filter(|k| !rhs.contains(k)).take(4).collect();
-                    let only_r: Vec<_> =
-                        rhs.iter().filter(|k| !lhs.contains(k)).take(4).collect();
+                    let only_l: Vec<_> = lhs.iter().filter(|k| !rhs.contains(k)).take(4).collect();
+                    let only_r: Vec<_> = rhs.iter().filter(|k| !lhs.contains(k)).take(4).collect();
                     self.samples.push(format!(
                         "bar={bar} ℓ{lvl}: bsp={} cand={}；仅 bsp 侧 {:?}，仅谓词侧 {:?}",
                         lhs.len(),
@@ -700,6 +713,204 @@ const N_C_EXPECTED: usize = 0;
 /// P7-RESULT 头部五元组：raw seen / conf 键 / type3 键 / entry==close / 零长度。
 const P7_HDR_EXPECTED: (usize, usize, usize, usize, usize) = (29088, 27152, 15165, 40001, 2955);
 
+// ═══════════════════════ 证书漏斗只读插桩（不改判据） ═══════════════════════
+
+/// 相邻级父/子 Cand 事件的四个原子门诊断。
+///
+/// 逐字镜像 `nest.rs::extend_upward`：方向一致、父完成时不晚于子完成时、以及闭区间
+/// `J_child ⊆ J_parent` 的左右边界。这里只读终态事件，不参与装配器控制流。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PairGateDiag {
+    same_side: bool,
+    confirm_descends: bool,
+    sub_start: bool,
+    sub_end: bool,
+}
+
+impl PairGateDiag {
+    fn passes(self) -> bool {
+        self.same_side && self.confirm_descends && self.sub_start && self.sub_end
+    }
+
+    fn failed_conditions(self) -> usize {
+        [
+            self.same_side,
+            self.confirm_descends,
+            self.sub_start,
+            self.sub_end,
+        ]
+        .into_iter()
+        .filter(|ok| !ok)
+        .count()
+    }
+}
+
+fn diagnose_pair(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> PairGateDiag {
+    PairGateDiag {
+        same_side: parent.side == child.side,
+        confirm_descends: parent.confirm_src <= child.confirm_src,
+        sub_start: child.interval.0 >= parent.interval.0,
+        sub_end: child.interval.1 <= parent.interval.1,
+    }
+}
+
+/// 数值门离通过还差多少根 bar；通过门贡献 0。方向门单独由 failed_conditions 排序。
+fn pair_gap_bars(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> (usize, usize, usize) {
+    (
+        parent.confirm_src.saturating_sub(child.confirm_src),
+        parent.interval.0.saturating_sub(child.interval.0),
+        child.interval.1.saturating_sub(parent.interval.1),
+    )
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct FunnelLevel {
+    predicate_hits: usize,
+    structural_events: usize,
+    cand_candidates: usize,
+    reachable_pair_successes: usize,
+    reachable_candidates: usize,
+    certificates: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct NearMiss {
+    parent_level: usize,
+    parent_idx: usize,
+    child_idx: usize,
+    diag: PairGateDiag,
+    confirm_gap: usize,
+    start_gap: usize,
+    end_gap: usize,
+}
+
+impl NearMiss {
+    fn rank_key(self) -> (usize, usize, usize, usize, usize, usize) {
+        (
+            self.diag.failed_conditions(),
+            self.confirm_gap + self.start_gap + self.end_gap,
+            self.confirm_gap,
+            self.start_gap,
+            self.end_gap,
+            self.parent_idx,
+        )
+    }
+}
+
+/// 计算从 L0 基例向上的可达漏斗。
+///
+/// `reachable_pair_successes[ℓ]` 只计能把一条已从 L0 到达 ℓ-1 的 partial chain 延长一级的
+/// 相邻父子边；因此第一个 0 正是完整递降链第一次断裂处，而不是与 L0 无关的孤立高层配对。
+fn build_cert_funnel(
+    classification: &classifier::Classification,
+    events_by_level: &[Vec<CandDeltaEvent>],
+    terminal_by_key: &HashMap<(usize, i8), BspBits>,
+) -> (Vec<FunnelLevel>, Vec<Vec<bool>>) {
+    let level_count = events_by_level.len().max(classification.levels.len());
+    let mut levels = vec![FunnelLevel::default(); level_count];
+    for (level, state) in classification.levels.iter().enumerate() {
+        levels[level].predicate_hits = state
+            .bsp
+            .iter()
+            .map(|p| usize::from(p.bits.buy1) + usize::from(p.bits.sell1))
+            .sum();
+    }
+    for (level, events) in events_by_level.iter().enumerate() {
+        levels[level].structural_events = events.len();
+        levels[level].cand_candidates = events.iter().filter(|e| e.cand_delta).count();
+    }
+
+    let mut reachable: Vec<Vec<bool>> = events_by_level
+        .iter()
+        .map(|events| vec![false; events.len()])
+        .collect();
+    if let Some(base_events) = events_by_level.first() {
+        for (idx, base) in base_events.iter().enumerate() {
+            reachable[0][idx] = base.cand_delta
+                && terminal_by_key.contains_key(&(base.confirm_src, side_i8(base.side)));
+        }
+        levels[0].reachable_candidates = reachable[0].iter().filter(|&&r| r).count();
+    }
+
+    for level in 1..events_by_level.len() {
+        let (lower, upper) = events_by_level.split_at(level);
+        let children = &lower[level - 1];
+        let parents = &upper[0];
+        for (parent_idx, parent) in parents.iter().enumerate().filter(|(_, e)| e.cand_delta) {
+            let mut parent_reachable = false;
+            for (child_idx, child) in children.iter().enumerate() {
+                if reachable[level - 1][child_idx]
+                    && child.cand_delta
+                    && diagnose_pair(parent, child).passes()
+                {
+                    levels[level].reachable_pair_successes += 1;
+                    parent_reachable = true;
+                }
+            }
+            reachable[level][parent_idx] = parent_reachable;
+        }
+        levels[level].reachable_candidates = reachable[level].iter().filter(|&&r| r).count();
+    }
+    (levels, reachable)
+}
+
+fn closest_pair_misses(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    reachable: &[Vec<bool>],
+    parent_level: usize,
+    limit: usize,
+) -> Vec<NearMiss> {
+    if parent_level == 0 || parent_level >= events_by_level.len() {
+        return Vec::new();
+    }
+    let mut misses = Vec::new();
+    for (parent_idx, parent) in events_by_level[parent_level]
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| e.cand_delta)
+    {
+        for (child_idx, child) in events_by_level[parent_level - 1].iter().enumerate() {
+            if !reachable[parent_level - 1][child_idx] || !child.cand_delta {
+                continue;
+            }
+            let diag = diagnose_pair(parent, child);
+            if diag.passes() {
+                continue;
+            }
+            let (confirm_gap, start_gap, end_gap) = pair_gap_bars(parent, child);
+            misses.push(NearMiss {
+                parent_level,
+                parent_idx,
+                child_idx,
+                diag,
+                confirm_gap,
+                start_gap,
+                end_gap,
+            });
+        }
+    }
+    misses.sort_by_key(|m| m.rank_key());
+    misses.truncate(limit);
+    misses
+}
+
+fn failed_condition_text(miss: NearMiss) -> String {
+    let mut failed = Vec::new();
+    if !miss.diag.same_side {
+        failed.push("方向 δ 不一致".to_string());
+    }
+    if !miss.diag.confirm_descends {
+        failed.push(format!("完成时不递降（父晚 {} bar）", miss.confirm_gap));
+    }
+    if !miss.diag.sub_start {
+        failed.push(format!("Sub 左界失败（子起点早 {} bar）", miss.start_gap));
+    }
+    if !miss.diag.sub_end {
+        failed.push(format!("Sub 右界失败（子终点晚 {} bar）", miss.end_gap));
+    }
+    failed.join("；")
+}
+
 fn main() -> std::process::ExitCode {
     match run() {
         Ok(pass) => {
@@ -724,8 +935,8 @@ fn run() -> Result<bool, String> {
         .ok_or("无法定位 worktree 根目录")?
         .to_path_buf();
     // 数据只在 /tmp/codex-work-p7（只读引用，worktree 无数据缓存）；env 可覆盖。
-    let data_root = std::env::var("STRICT_NEST_DATA_ROOT")
-        .unwrap_or_else(|_| "/tmp/codex-work-p7".to_string());
+    let data_root =
+        std::env::var("STRICT_NEST_DATA_ROOT").unwrap_or_else(|_| "/tmp/codex-work-p7".to_string());
     let data_path = PathBuf::from(&data_root).join("analysis/data_cache/btc_1m_full.json");
     let trades_path = PathBuf::from(&data_root).join("p7_inputs/trades.jsonl");
 
@@ -785,8 +996,11 @@ fn run() -> Result<bool, String> {
     let mut last_l0 = None;
     // 分项计时（诊断用，STRICT_NEST_PROFILE=1 时随 200k 心跳打印；不改判据路径）。
     let profile = std::env::var("STRICT_NEST_PROFILE").is_ok();
-    let (mut t_cls, mut t_scan, mut t_p1) =
-        (std::time::Duration::ZERO, std::time::Duration::ZERO, std::time::Duration::ZERO);
+    let (mut t_cls, mut t_scan, mut t_p1) = (
+        std::time::Duration::ZERO,
+        std::time::Duration::ZERO,
+        std::time::Duration::ZERO,
+    );
     for i in 0..replay_bars {
         let t0 = std::time::Instant::now();
         let (l0_i, classification, tower) = classifier_incr.classify_at(i);
@@ -865,8 +1079,10 @@ fn run() -> Result<bool, String> {
     eprintln!("重放完成 {replay_sec:.1}s（含终态谓词定判）");
 
     // ── sanity 五元组 ──
-    let entry_eq_close =
-        trades.iter().filter(|t| loaded.bars[t.entry_bar].close == t.entry).count();
+    let entry_eq_close = trades
+        .iter()
+        .filter(|t| loaded.bars[t.entry_bar].close == t.entry)
+        .count();
     let zero_len = trades.iter().filter(|t| t.entry_bar == t.exit_bar).count();
     let hdr_got = (
         tracker.raw_events,
@@ -911,7 +1127,9 @@ fn run() -> Result<bool, String> {
                 terminal_by_key.entry((p.source_index, 1)).or_insert(p.bits);
             }
             if p.bits.sell1 {
-                terminal_by_key.entry((p.source_index, -1)).or_insert(p.bits);
+                terminal_by_key
+                    .entry((p.source_index, -1))
+                    .or_insert(p.bits);
             }
         }
     }
@@ -923,6 +1141,7 @@ fn run() -> Result<bool, String> {
     let mut cert_per_top: Vec<(usize, usize)> = Vec::new(); // (目标级 ℓ, 证书数)
     let mut cert_samples: Vec<String> = Vec::new();
     let mut cert_total = 0usize;
+    let (mut funnel_levels, reachable) = build_cert_funnel(&cls_f, &cand_f, &terminal_by_key);
     for top in 1..cand_f.len() {
         let certs = assemble_certificates(&cand_f, 0, top, |b| {
             let key = (b.confirm_src, side_i8(b.side));
@@ -950,6 +1169,7 @@ fn run() -> Result<bool, String> {
             }
         }
         cert_per_top.push((top, certs.len()));
+        funnel_levels[top].certificates = certs.len();
     }
     // 产量口径吻合门：n_C（1278 笔名单内相邻级配对）= 0 ⟹ 全局证书产量预期 0 或个位数
     // （稀是原文严格性的经验事实，不许放宽凑产量）；terminal 查无须为 0（P1 一致性推论）。
@@ -958,7 +1178,10 @@ fn run() -> Result<bool, String> {
     // ── 报告 ──
     let mut out = String::new();
     let w = &mut out;
-    let _ = writeln!(w, "# STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算 + P2 证书装配）");
+    let _ = writeln!(
+        w,
+        "# STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算 + P2 证书装配）"
+    );
     let _ = writeln!(w);
     let _ = writeln!(
         w,
@@ -1016,7 +1239,10 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(w);
     let _ = writeln!(w, "末 bar 快照（每级：buy1/sell1 bit 数 | 谓词事件数 | cand_delta=true | pan_div_diag=true）：");
     let _ = writeln!(w);
-    let _ = writeln!(w, "| 级别 ℓ | buy1/sell1 bits | Cand 事件 | cand_delta=true | pan_div_diag |");
+    let _ = writeln!(
+        w,
+        "| 级别 ℓ | buy1/sell1 bits | Cand 事件 | cand_delta=true | pan_div_diag |"
+    );
     let _ = writeln!(w, "|---:|---:|---:|---:|---:|");
     for (lvl, (bits, evs, cd, pd)) in p1.final_snapshot.iter().enumerate() {
         let _ = writeln!(w, "| {lvl} | {bits} | {evs} | {cd} | {pd} |");
@@ -1026,7 +1252,11 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(
         w,
         "**P1 硬门：{}**",
-        if p1_pass { "PASS（逐 bit 一致）" } else { "**FAIL（停线：报告差异样例，判据不可调）**" }
+        if p1_pass {
+            "PASS（逐 bit 一致）"
+        } else {
+            "**FAIL（停线：报告差异样例，判据不可调）**"
+        }
     );
     let _ = writeln!(w);
     let _ = writeln!(w, "## E1 三元组复算（P2 验收比对表输入）");
@@ -1058,7 +1288,10 @@ fn run() -> Result<bool, String> {
         if triple_ok { "逐项一致" } else { "**不一致**" }
     );
     let _ = writeln!(w);
-    let _ = writeln!(w, "## P2 硬门：证书生产装配（N^δ_{{ℓ↓0}}，nest.rs 装配层，终态全局口径）");
+    let _ = writeln!(
+        w,
+        "## P2 硬门：证书生产装配（N^δ_{{ℓ↓0}}，nest.rs 装配层，终态全局口径）"
+    );
     let _ = writeln!(w);
     let _ = writeln!(w, "| 目标级 ℓ | 证书数（ℓ↓0 完整链） |");
     let _ = writeln!(w, "|---:|---:|");
@@ -1091,7 +1324,11 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(
         w,
         "**P2 硬门：{}**",
-        if p2_pass { "PASS（产量与 n_C 口径吻合）" } else { "**FAIL（产量口径不吻合或 terminal 查无）**" }
+        if p2_pass {
+            "PASS（产量与 n_C 口径吻合）"
+        } else {
+            "**FAIL（产量口径不吻合或 terminal 查无）**"
+        }
     );
     let _ = writeln!(w);
     let overall = hdr_ok && p1_pass && triple_ok && p2_pass;
@@ -1108,16 +1345,203 @@ fn run() -> Result<bool, String> {
     let report_path = out_root.join("STRICT-NEST-CHECK.md");
     std::fs::write(&report_path, &out)
         .map_err(|e| format!("写入 {} 失败: {e}", report_path.display()))?;
+
+    // ── 证书产量=0 漏斗归因报告（只读终态插桩）──
+    let first_zero_level = (1..funnel_levels.len()).find(|&level| {
+        funnel_levels[level - 1].reachable_candidates > 0
+            && funnel_levels[level].cand_candidates > 0
+            && funnel_levels[level].reachable_pair_successes == 0
+    });
+    let near_misses = first_zero_level
+        .map(|level| closest_pair_misses(&cand_f, &reachable, level, 3))
+        .unwrap_or_default();
+    let mut funnel_out = String::new();
+    let fw = &mut funnel_out;
+    let _ = writeln!(fw, "# 严格区间套证书产量漏斗归因（2026-07-09）");
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "## 运行范围与语义护栏");
+    let _ = writeln!(fw);
+    let _ = writeln!(
+        fw,
+        "- 数据：`{}`，**{}** bar（{} .. {}）；`ThetaConfig::default()`，`l_max={}`，`min_parts_per_level={}`。",
+        data_path.display(), total_bars, loaded.first_date, loaded.last_date,
+        config.level.l_max, config.level.min_parts_per_level
+    );
+    let _ = writeln!(fw, "- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 {:.1}s。", replay_sec);
+    let _ = writeln!(fw, "- 插桩只读终态 `Classification`、`CandDeltaEvent` 与装配结果；未修改 `divergence.rs`、`bsp.rs`、`signal.rs`、`recursive_tower.rs` 或 `nest.rs` 的任何判据/控制流。");
+    let _ = writeln!(fw, "- 列口径：背驰段谓词命中 = 终态分类 buy1/sell1 bit；`Cand^δ` 候选 = 塔上 `cand_delta=true` 事件（两列应因 P1 bit-exact 相等）；递降链配对成功 = 能把已从 L0 可达的 partial chain 延长到本级的相邻父子边；最终证书 = `assemble_certificates(events, 0, ℓ, terminal)` 产量。");
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "## ① 各段 × 各级计数");
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "| 级别 ℓ | 结构事件（辅助） | 背驰段谓词命中 | Cand^δ 候选 | 递降链配对成功 | 可达本级 Cand | 最终证书 N^δ_{{ℓ↓0}} |");
+    let _ = writeln!(fw, "|---:|---:|---:|---:|---:|---:|---:|");
+    for (level, counts) in funnel_levels.iter().enumerate() {
+        let cert = if level == 0 {
+            format!("—（基例 terminal={}）", counts.reachable_candidates)
+        } else {
+            counts.certificates.to_string()
+        };
+        let pair = if level == 0 {
+            "—".to_string()
+        } else {
+            counts.reachable_pair_successes.to_string()
+        };
+        let _ = writeln!(
+            fw,
+            "| {level} | {} | {} | {} | {pair} | {} | {cert} |",
+            counts.structural_events,
+            counts.predicate_hits,
+            counts.cand_candidates,
+            counts.reachable_candidates
+        );
+    }
+    let _ = writeln!(fw);
+    let _ = writeln!(
+        fw,
+        "核对：P1 mismatch bar = **{}**；L0 terminal 查无 = **{}**；跨级证书合计 = **{}**。",
+        p1.mismatch_bars, cert_missing_terminal, cert_total
+    );
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "## ② 首个归零的段");
+    let _ = writeln!(fw);
+    match first_zero_level {
+        Some(level) => {
+            let _ = writeln!(
+                fw,
+                "首个归零发生在 **L{} → L{} 的递降链配对**：L{} 有 {} 个可达 Cand 基例/partial-chain，L{} 有 {} 个 `Cand^δ=true` 候选，但满足 `同方向 ∧ parent.confirm_src ≤ child.confirm_src ∧ J_child ⊆ J_parent` 的可达相邻配对为 **0**。因此从该段开始所有 `N^δ_{{ℓ↓0}}` 完整证书均为 0；损失不发生在 P1 谓词→Cand 映射，也不发生在 terminal 查找。",
+                level - 1,
+                level,
+                level - 1,
+                funnel_levels[level - 1].reachable_candidates,
+                level,
+                funnel_levels[level].cand_candidates
+            );
+        }
+        None => {
+            let _ = writeln!(
+                fw,
+                "未发现“上下两级均有候选但可达配对为 0”的断点；需检查证书终门或更高层候选空集。"
+            );
+        }
+    }
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "## ③ 首个归零段最接近通过的 3 个样本");
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "排序冻结为：失败原子条件数升序 → 三个数值门缺口 bar 总和升序 → `(完成时缺口, Sub 左界缺口, Sub 右界缺口, parent_idx)` 字典序；未调判据、未用价格/收益挑样本。");
+    let _ = writeln!(fw);
+    if near_misses.is_empty() {
+        let _ = writeln!(fw, "无可比较近失样本。");
+    } else {
+        let _ = writeln!(fw, "| 排名 | 父级 Cand（side, confirm, I(C)） | 子级可达 Cand（side, confirm, I(C)） | 通过条件 | 具体缺口 |");
+        let _ = writeln!(fw, "|---:|---|---|---|---|");
+        for (rank, miss) in near_misses.iter().copied().enumerate() {
+            let parent = &cand_f[miss.parent_level][miss.parent_idx];
+            let child = &cand_f[miss.parent_level - 1][miss.child_idx];
+            let passed = [
+                (miss.diag.same_side, "方向"),
+                (miss.diag.confirm_descends, "完成时递降"),
+                (miss.diag.sub_start, "Sub左界"),
+                (miss.diag.sub_end, "Sub右界"),
+            ]
+            .into_iter()
+            .filter_map(|(ok, name)| ok.then_some(name))
+            .collect::<Vec<_>>()
+            .join("、");
+            let _ = writeln!(
+                fw,
+                "| {} | `L{} {:?}, t={}, [{},{}]` | `L{} {:?}, t={}, [{},{}]` | {} | **{}** |",
+                rank + 1,
+                miss.parent_level,
+                parent.side,
+                parent.confirm_src,
+                parent.interval.0,
+                parent.interval.1,
+                miss.parent_level - 1,
+                child.side,
+                child.confirm_src,
+                child.interval.0,
+                child.interval.1,
+                passed,
+                failed_condition_text(miss)
+            );
+        }
+    }
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "## 结论");
+    let _ = writeln!(fw);
+    if let Some(level) = first_zero_level {
+        let _ = writeln!(fw, "当前 BTC 1m / 默认 Θ / 完成时 / 趋势背驰-only adopted-default 有效域内，证书产量 0 的首因是 **L{}→L{} 相邻级递降+Sub 合取无一通过**。上游背驰谓词并非零产量，P1→Cand 也无损；最终证书阶段只是传播该首个零。该结论不外推到其他数据、Θ、盘整背驰入链或进入时口径。", level - 1, level);
+    }
+    let funnel_path = out_root.join("chanlun/review-results/cert-funnel-20260709.md");
+    if let Some(parent) = funnel_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("创建 {} 失败: {e}", parent.display()))?;
+    }
+    std::fs::write(&funnel_path, &funnel_out)
+        .map_err(|e| format!("写入 {} 失败: {e}", funnel_path.display()))?;
     println!("{out}");
     eprintln!("报告：{}", report_path.display());
+    eprintln!("漏斗报告：{}", funnel_path.display());
     Ok(overall)
+}
+
+#[cfg(test)]
+mod funnel_tests {
+    use super::*;
+
+    fn event(
+        level: u32,
+        side: Side,
+        confirm_src: usize,
+        interval: (usize, usize),
+    ) -> CandDeltaEvent {
+        CandDeltaEvent {
+            level,
+            side,
+            confirm_src,
+            interval,
+            a_interval: interval,
+            enter_src: interval.0,
+            cand_delta: true,
+            pan_div_diag: false,
+        }
+    }
+
+    #[test]
+    fn pair_diag_is_exact_four_gate_conjunction() {
+        let child = event(0, Side::Long, 90, (40, 80));
+        let parent = event(1, Side::Long, 70, (20, 100));
+        let diag = diagnose_pair(&parent, &child);
+        assert!(diag.passes());
+        assert_eq!(diag.failed_conditions(), 0);
+        assert_eq!(pair_gap_bars(&parent, &child), (0, 0, 0));
+    }
+
+    #[test]
+    fn pair_diag_reports_each_numeric_gap_without_relaxing_boundary() {
+        let child = event(0, Side::Long, 80, (10, 120));
+        let parent = event(1, Side::Long, 90, (20, 100));
+        let diag = diagnose_pair(&parent, &child);
+        assert!(diag.same_side);
+        assert!(!diag.confirm_descends);
+        assert!(!diag.sub_start);
+        assert!(!diag.sub_end);
+        assert_eq!(pair_gap_bars(&parent, &child), (10, 10, 20));
+    }
+
+    #[test]
+    fn pair_diag_keeps_closed_sub_boundaries_inclusive() {
+        let child = event(0, Side::Short, 100, (20, 100));
+        let parent = event(1, Side::Short, 100, (20, 100));
+        assert!(diagnose_pair(&parent, &child).passes());
+    }
 }
 
 // ═══════════════════════ 数据加载（e1 逐行复制） ═══════════════════════
 
 fn load_btc_bars(path: &Path, tick_size: f64) -> Result<LoadedBars, String> {
-    let text = std::fs::read_to_string(path)
-        .map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
+    let text =
+        std::fs::read_to_string(path).map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
     let opens = parse_number_array(array_body(&text, "opens")?, "opens")?;
     let highs = parse_number_array(array_body(&text, "highs")?, "highs")?;
     let lows = parse_number_array(array_body(&text, "lows")?, "lows")?;
@@ -1159,7 +1583,11 @@ fn load_btc_bars(path: &Path, tick_size: f64) -> Result<LoadedBars, String> {
         });
     }
 
-    Ok(LoadedBars { bars, first_date, last_date })
+    Ok(LoadedBars {
+        bars,
+        first_date,
+        last_date,
+    })
 }
 
 fn array_body<'a>(text: &'a str, key: &str) -> Result<&'a str, String> {
@@ -1191,8 +1619,7 @@ fn parse_number_array(body: &str, name: &str) -> Result<Vec<f64>, String> {
             break;
         }
         let start = i;
-        while i < bytes.len()
-            && matches!(bytes[i], b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E')
+        while i < bytes.len() && matches!(bytes[i], b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E')
         {
             i += 1;
         }
