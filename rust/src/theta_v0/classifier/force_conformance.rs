@@ -50,30 +50,25 @@ pub struct Force {
 /// MACD 段面积力度度量（实例化 `Origin.ForceInterface.ForceMeasure` 接口，rust 半）。
 ///
 /// 把一个**同向段**（bar 区间 `[start,end]`）映射到力度——`measure` 取 MACD 段面积
-/// （`divergence::segment_macd_area`），`strength` 取面积的量化序（按 tick 精度量化为 `u64`，
-/// 满足 `ForceMeasure.strength : α → Nat` 的整数强度序）。
+/// （`divergence::segment_macd_area`），`strength` 取非负有限 `f64` 的 IEEE-754 位序；对该值域，
+/// `to_bits()` 是到 `u64` 的精确序嵌入，满足 `ForceMeasure.strength : α → Nat`。
 ///
-/// ★`mono`/`faithful` 公理（`Origin.ForceMeasure`）：本适配器的 `strength` 是 `area` 的**单调
-/// 量化**（`strength = round(area / quantum)`），故 `strength a ≤ strength b ⟹ area a ⪅ area b`
-/// （mono，量化误差内）+ `area a < area b ⟹ strength a ≤ strength b`（faithful）。详见
+/// ★`mono`/`faithful` 公理（`Origin.ForceMeasure`）：本适配器不再做有碰撞的 round 量化；
+/// `strength = area.to_bits()` 在非负有限域精确保序，故两条公理均按原式成立、没有误差窗。详见
 /// [`ForceMeasureAdapter::mono_holds`] / [`ForceMeasureAdapter::faithful_holds`] 的逐例验证。
 #[derive(Debug, Clone, Copy)]
-pub struct ForceMeasureAdapter {
-    /// 强度量化精度（`strength = round(area / quantum)`）。default 1.0（area 即强度序）。
-    quantum: f64,
-}
+pub struct ForceMeasureAdapter;
 
 impl Default for ForceMeasureAdapter {
     fn default() -> Self {
-        ForceMeasureAdapter { quantum: 1.0 }
+        ForceMeasureAdapter
     }
 }
 
 impl ForceMeasureAdapter {
-    /// 构造力度度量适配器（量化精度 `quantum > 0`）。
-    pub fn new(quantum: f64) -> Self {
-        debug_assert!(quantum > 0.0, "quantum 必须 > 0（强度量化精度）");
-        ForceMeasureAdapter { quantum }
+    /// 构造精确序适配器。
+    pub const fn new() -> Self {
+        ForceMeasureAdapter
     }
 
     /// `measure : α → Force`（契约锚 `Origin.ForceMeasure.measure`）：段 → 力度（MACD 段面积）。
@@ -81,17 +76,20 @@ impl ForceMeasureAdapter {
     /// `hist` 是 MACD hist 序列（`divergence::compute_macd` 输出）；`(start, end)` 是同向段闭区间
     /// bar 索引。返回 `Force { area = segment_macd_area(hist, start, end) }`。
     pub fn measure(&self, hist: &[f64], start: usize, end: usize) -> Force {
-        Force { area: divergence::segment_macd_area(hist, start, end) }
+        let area = divergence::segment_macd_area(hist, start, end);
+        assert!(
+            area.is_finite() && area >= 0.0,
+            "ForceMeasure area 必须是非负有限数，收到 {area}"
+        );
+        Force { area }
     }
 
-    /// `strength : α → Nat`（契约锚 `Origin.ForceMeasure.strength`）：力度强度序（area 的单调量化）。
+    /// `strength : α → Nat`：非负有限 area 的精确序嵌入。
     ///
-    /// `strength = round(area / quantum)`（饱和到 0，area 非负 ⟹ strength ≥ 0）。这是 area 的
-    /// **单调**量化——保证 mono/faithful 公理（量化保序）。
+    /// IEEE-754 对所有非负有限 `f64` 的无符号位序与数值序一致；不同 area 不碰撞。
     pub fn strength(&self, hist: &[f64], start: usize, end: usize) -> u64 {
         let area = self.measure(hist, start, end).area;
-        // area 非负（|hist| 之和，divergence::segment_macd_area 保证）；量化为整数强度序。
-        (area / self.quantum).round().max(0.0) as u64
+        area.to_bits()
     }
 
     /// `IsDivergenceVia fm a c`（契约锚 `Origin.ForceInterface.IsDivergenceVia` +
@@ -111,7 +109,7 @@ impl ForceMeasureAdapter {
     }
 
     /// `mono` 公理逐例验证（契约锚 `Origin.ForceMeasure.mono`）：`strength a ≤ strength b ⟹
-    /// area a ≤ area b`（量化保序 ⟹ mono 在量化粒度内成立；quantum=1 时精确成立）。
+    /// area a ≤ area b`（精确，无量化误差窗）。
     ///
     /// 返回该两段对是否满足 mono（用于测试逐例验证接口公理）。
     pub fn mono_holds(&self, hist: &[f64], a: (usize, usize), b: (usize, usize)) -> bool {
@@ -119,9 +117,9 @@ impl ForceMeasureAdapter {
         let sb = self.strength(hist, b.0, b.1);
         let area_a = self.measure(hist, a.0, a.1).area;
         let area_b = self.measure(hist, b.0, b.1).area;
-        // mono：strength a ≤ strength b ⟹ area a ≤ area b + 一个量化窗口（保序近似）。
+        // mono：strength 是精确序嵌入，前件成立时必须逐字满足 area_a ≤ area_b。
         if sa <= sb {
-            area_a <= area_b + self.quantum
+            area_a <= area_b
         } else {
             true // 前件不成立 ⟹ 蕴含平凡真
         }
@@ -158,14 +156,26 @@ mod tests {
         assert_eq!(fm.measure(&hist, 0, 2).area, 6.0);
     }
 
-    /// strength 是 area 的单调量化（契约锚 `Origin.ForceMeasure.strength`）。
+    /// strength 是 area 的精确序嵌入（契约锚 `Origin.ForceMeasure.strength`）。
     #[test]
-    fn strength_is_monotone_quantization() {
-        let fm = ForceMeasureAdapter::default(); // quantum=1
+    fn strength_is_exact_order_embedding() {
+        let fm = ForceMeasureAdapter::default();
         let hist = vec![1.0, -2.0, 3.0, -4.0];
         // area([0,1])=3 ⟹ strength=3；area([0,3])=10 ⟹ strength=10。
-        assert_eq!(fm.strength(&hist, 0, 1), 3);
-        assert_eq!(fm.strength(&hist, 0, 3), 10);
+        assert_eq!(fm.strength(&hist, 0, 1), 3.0f64.to_bits());
+        assert_eq!(fm.strength(&hist, 0, 3), 10.0f64.to_bits());
+    }
+
+    /// BUG-11：`strength` 必须是 f64 area 的精确序嵌入；相近但不等的面积不得量化碰撞。
+    #[test]
+    fn strength_preserves_strict_order_for_close_areas() {
+        let fm = ForceMeasureAdapter::default();
+        let hist = vec![1.2, 1.1];
+        let stronger = fm.strength(&hist, 0, 0);
+        let weaker = fm.strength(&hist, 1, 1);
+        assert!(stronger > weaker, "1.2 > 1.1 必须映成严格更大的 Nat strength");
+        assert!(fm.mono_holds(&hist, (0, 0), (1, 1)));
+        assert!(fm.faithful_holds(&hist, (1, 1), (0, 0)));
     }
 
     /// ★is_divergence_via 与 segments_diverge 同语义（契约锚 `Origin.IsDivergence`）。
