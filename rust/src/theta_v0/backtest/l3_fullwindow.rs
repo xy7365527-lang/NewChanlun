@@ -35,7 +35,10 @@
 use super::data::{self, Dataset};
 use super::metrics;
 use super::prereg_windows::PREREG_WINDOWS;
-use super::runner::run_theta_v0;
+// F-01 迁移（bughunt 2026-07-10）：旧 `run_theta_v0` 全窗分类含结构确认前视，已
+// deprecated；本文件产出 L3 声明，必须走无前视因果入口 `run_theta_v0_pi`。
+// 既有全窗 L3 结论（基于旧入口）作废，须以本口径重跑后方可引用。
+use super::runner::run_theta_v0_pi;
 use super::super::config::ThetaConfig;
 
 /// OOS 窗年跨（自 l3_falsify 内私有 `oos_years` 等价复现——纯日期算术，零概念，年化基数用）。
@@ -117,7 +120,7 @@ fn l3_fullwindow_multi_symbol_significance() {
             .map(|b| b.close as f64 * config.tick.tick_size)
             .unwrap_or(1.0);
         let nav = (first_px * 1000.0).max(1.0e6);
-        let res = run_theta_v0(&oos, &config, years, nav);
+        let res = run_theta_v0_pi(&oos, &config, years, nav); // F-01：无前视因果入口
 
         let pnls = &res.trade_pnls; // 已实现口径（§3.4 bootstrap）
         let n_trades = pnls.len();

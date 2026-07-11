@@ -237,6 +237,17 @@ fn strict_nest_sidecar_enabled() -> bool {
 /// 算 lot qty——NAV 太小（如 1.0）会令所有品种 qty=0（买不起 1 lot），sizing 不产单。
 /// 调用方应传入与品种价格量级匹配的 NAV（如品种首价 × 容量倍数）。权益曲线归一化输出
 /// （收益率口径，与 NAV 绝对值无关；NAV 只影响 sizing 的 qty 取整）。
+///
+/// # ⚠️ Deprecated：结构确认前视（bughunt F-01，2026-07-10）
+///
+/// 本入口对**全窗** bars 一次性 `parse_layer` + `classify` 后把 BSP 决策放回其历史
+/// `source_index` 执行——买卖点可能在更晚 bar 才获得确认（见 :330-334 说明），
+/// 故该路径会在当时尚不可知的位置交易。**其产出禁止用于 L2/L3 认识论声明**，
+/// 只可用作诊断/管线冒烟。因果口径请用 [`run_theta_v0_pi`]（逐 bar
+/// `IncrementalClassifier`，无前视）。既有基于本入口的 L2/L3 结论一律作废重跑。
+#[deprecated(
+    note = "结构确认前视（bughunt F-01）：全窗分类决策回放历史，产出禁用于 L2/L3 声明；因果口径用 run_theta_v0_pi"
+)]
 pub fn run_theta_v0(
     dataset: &Dataset,
     config: &ThetaConfig,
@@ -3073,6 +3084,7 @@ mod tests {
     /// 单调上涨数据无顶底分型交替 ⟹ 无笔 ⟹ 无中枢 ⟹ 无第三类买卖点 ⟹ 空 decisions ⟹
     /// 空订单。这验证管线 L1 串通 + "无缠论结构 ⇒ 无 Θ 决策"的正确退化（不是引擎缺陷）。
     #[test]
+    #[allow(deprecated)] // F-01：既有管线退化测试，保留旧入口调用（A 列基线面不动）
     fn structureless_data_yields_empty_orders() {
         let config = ThetaConfig::default();
         // 100 根单调上涨 bar（无顶底交替 ⟹ 无缠论结构）。
@@ -4600,6 +4612,7 @@ mod tests {
     /// - violent（涨到 100000）：诊断浮盈峰值 99000 ⟹ hwm_gain=99000。
     /// 两组 hwm_gain 不同（价格幅度驱动诊断），但 stage 均 CostReduction、TW 均 =notional_in（承重移除）。
     #[test]
+    #[allow(deprecated)] // F-01：诊断口径测试，保留旧入口调用
     fn price_magnitude_drives_diagnostic_hwm_not_tw_closed_loop() {
         use super::super::super::strategy::ledger::TStage;
         let n = 64usize;
@@ -5067,6 +5080,7 @@ mod tests {
     /// 跑法：`cargo test --lib theta_v0::backtest::runner::tests::real_data_smoke_oklo -- --ignored --nocapture`
     #[test]
     #[ignore = "真实数据诊断，需 analysis/data_cache/oklo_1m_databento.json；显式 --ignored"]
+    #[allow(deprecated)] // F-01：真实数据冒烟（诊断用途，允许旧入口）
     fn real_data_smoke_oklo() {
         use super::super::super::{classifier, parser, strategy};
         use super::super::data;
@@ -5161,6 +5175,7 @@ mod tests {
     /// 跑法：`cargo test --lib theta_v0::backtest::runner::tests::e5_exit_loop_trades_nonzero_oklo -- --ignored --nocapture`
     #[test]
     #[ignore = "E5 trades>0 真实数据验证，需 oklo cache；截断窗口；显式 --ignored"]
+    #[allow(deprecated)] // F-01：既有测试保留旧入口；其 L2/L3 结论按 F-01 作废待重跑
     fn e5_exit_loop_trades_nonzero_oklo() {
         use super::super::super::{classifier, parser, strategy};
         use super::super::data;
@@ -5271,6 +5286,7 @@ mod tests {
     /// 跑法：`cargo test --lib theta_v0::backtest::runner::tests::l2_oos_eight_symbols -- --ignored --nocapture`
     #[test]
     #[ignore = "L2 真实数据回测，需 analysis/data_cache/*.json 全 8 品种；显式 --ignored"]
+    #[allow(deprecated)] // F-01：既有测试保留旧入口；其 L2 结论按 F-01 作废待重跑
     fn l2_oos_eight_symbols() {
         use super::super::super::{classifier, parser, strategy};
         use super::super::data;
@@ -5581,6 +5597,7 @@ mod tests {
     /// 跑法：`cargo test --release --lib theta_v0::backtest::runner::tests::l2_falsify_oklo_traded_pnl -- --ignored --nocapture`
     #[test]
     #[ignore = "L2 否证验证（成交盈亏+统计检验），需 oklo cache；截断窗；--release --ignored --nocapture"]
+    #[allow(deprecated)] // F-01：既有测试保留旧入口；其 L2 结论按 F-01 作废待重跑
     fn l2_falsify_oklo_traded_pnl() {
         use super::super::data;
         use super::super::metrics;
@@ -5796,6 +5813,7 @@ mod tests {
     /// 跑法：`cargo test --release --lib theta_v0::backtest::runner::tests::l3_falsify_multi_symbol_significance -- --ignored --nocapture`
     #[test]
     #[ignore = "L3 多标的截断窗否证（全 8 品种 + significance），需全 data_cache；慢测；--release --ignored --nocapture"]
+    #[allow(deprecated)] // F-01：既有多品种显著性测试，保留旧入口调用
     fn l3_falsify_multi_symbol_significance() {
         use super::super::data;
         use super::super::metrics;
