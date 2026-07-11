@@ -38,6 +38,7 @@ use newchan_rust::theta_v0::classifier::recursive_tower::{
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
 use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, Side, Timestamp};
+use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -298,33 +299,13 @@ fn range_events_t1<'a>(sorted: &'a [T1Emission], w0: usize, e: usize) -> &'a [T1
 
 // ═══════════════════════ trades.jsonl 解析（e1 逐行复制） ═══════════════════════
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 struct Trade {
     entry_bar: usize,
     entry: i64,
     dir: i8,
     exit_bar: usize,
     seg_start_index: usize,
-}
-
-fn json_raw<'a>(line: &'a str, key: &str) -> Option<&'a str> {
-    let pat = format!("\"{key}\":");
-    let pos = line.find(&pat)? + pat.len();
-    let rest = &line[pos..];
-    let mut end = rest.len();
-    for (i, c) in rest.char_indices() {
-        if c == ',' || c == '}' {
-            end = i;
-            break;
-        }
-    }
-    Some(rest[..end].trim())
-}
-
-fn json_int(line: &str, key: &str) -> Result<i64, String> {
-    let tok = json_raw(line, key).ok_or_else(|| format!("缺字段 {key}"))?;
-    tok.parse::<i64>()
-        .map_err(|e| format!("{key}=`{tok}` 解析失败: {e}"))
 }
 
 fn load_trades(path: &Path) -> Result<Vec<Trade>, String> {
@@ -335,13 +316,8 @@ fn load_trades(path: &Path) -> Result<Vec<Trade>, String> {
         if line.trim().is_empty() {
             continue;
         }
-        let t = Trade {
-            entry_bar: json_int(line, "entry_bar")? as usize,
-            entry: json_int(line, "entry")?,
-            dir: json_int(line, "dir")? as i8,
-            exit_bar: json_int(line, "exit_bar")? as usize,
-            seg_start_index: json_int(line, "seg_start_index")? as usize,
-        };
+        let t: Trade = serde_json::from_str(line)
+            .map_err(|e| format!("行 {}: JSON 解析失败: {e}", ln + 1))?;
         if t.seg_start_index >= t.entry_bar {
             return Err(format!(
                 "行 {}: seg_start_index >= entry_bar（W 空）",
@@ -1657,6 +1633,26 @@ mod funnel_tests {
         assert_eq!(first_zero_cause(&[fl(3, 0, 3, 0), fl(2, 1, 1, 1)]), None);
         assert_eq!(first_zero_cause(&[fl(0, 0, 0, 0), fl(0, 0, 0, 0)]), None);
     }
+
+    /// B/cert F-05：JSON 数组必须遵守逗号语法，空白或双逗号不能被当成合法分隔符吞掉。
+    #[test]
+    fn f05_rejects_missing_and_duplicate_array_commas() {
+        for (name, malformed) in [("missing", "[1 2]"), ("duplicate", "[1,,2]")] {
+            let path = std::env::temp_dir().join(format!(
+                "strict_nest_f05_{name}_{}.json",
+                std::process::id()
+            ));
+            let json = format!(
+                "{{\"opens\":{malformed},\"highs\":[2,2],\"lows\":[1,1],\"closes\":[1,1],\"volumes\":[1,1],\"dates\":[\"2026-01-01\",\"2026-01-02\"]}}"
+            );
+            std::fs::write(&path, json).unwrap();
+            assert!(
+                load_btc_bars(&path, 1.0).is_err(),
+                "非法数组 {malformed} 必须拒绝"
+            );
+            let _ = std::fs::remove_file(path);
+        }
+    }
 }
 
 // ═══════════════════════ 数据加载（e1 逐行复制） ═══════════════════════
@@ -1664,12 +1660,12 @@ mod funnel_tests {
 fn load_btc_bars(path: &Path, tick_size: f64) -> Result<LoadedBars, String> {
     let text =
         std::fs::read_to_string(path).map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
-    let opens = parse_number_array(array_body(&text, "opens")?, "opens")?;
-    let highs = parse_number_array(array_body(&text, "highs")?, "highs")?;
-    let lows = parse_number_array(array_body(&text, "lows")?, "lows")?;
-    let closes = parse_number_array(array_body(&text, "closes")?, "closes")?;
-    let volumes = parse_number_array(array_body(&text, "volumes")?, "volumes")?;
-    let (timestamps, first_date, last_date) = parse_date_array(array_body(&text, "dates")?)?;
+    let raw: BarsJson = serde_json::from_str(&text)
+        .map_err(|e| format!("{}: JSON 解析失败: {e}", path.display()))?;
+    let BarsJson { opens, highs, lows, closes, volumes, dates } = raw;
+    let timestamps: Vec<Timestamp> = dates.iter().map(|date| date_to_timestamp(date)).collect();
+    let first_date = dates.first().cloned().unwrap_or_default();
+    let last_date = dates.last().cloned().unwrap_or_default();
 
     let n = closes.len();
     for (name, len) in [
@@ -1712,87 +1708,14 @@ fn load_btc_bars(path: &Path, tick_size: f64) -> Result<LoadedBars, String> {
     })
 }
 
-fn array_body<'a>(text: &'a str, key: &str) -> Result<&'a str, String> {
-    let needle = format!("\"{key}\"");
-    let key_pos = text
-        .find(&needle)
-        .ok_or_else(|| format!("JSON 缺少 `{key}` 字段"))?;
-    let after_key = &text[key_pos + needle.len()..];
-    let rel_open = after_key
-        .find('[')
-        .ok_or_else(|| format!("`{key}` 字段缺少数组起点"))?;
-    let body_start = key_pos + needle.len() + rel_open + 1;
-    let after_open = &text[body_start..];
-    let rel_close = after_open
-        .find(']')
-        .ok_or_else(|| format!("`{key}` 字段缺少数组终点"))?;
-    Ok(&text[body_start..body_start + rel_close])
-}
-
-fn parse_number_array(body: &str, name: &str) -> Result<Vec<f64>, String> {
-    let bytes = body.as_bytes();
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        while i < bytes.len() && matches!(bytes[i], b' ' | b'\n' | b'\r' | b'\t' | b',') {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            break;
-        }
-        let start = i;
-        while i < bytes.len() && matches!(bytes[i], b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E')
-        {
-            i += 1;
-        }
-        if start == i {
-            return Err(format!("`{name}` 数组遇到非数值 token，byte offset={i}"));
-        }
-        let s = std::str::from_utf8(&bytes[start..i])
-            .map_err(|e| format!("`{name}` 数值 UTF-8 错误: {e}"))?;
-        out.push(
-            s.parse::<f64>()
-                .map_err(|e| format!("`{name}` 数值 `{s}` 解析失败: {e}"))?,
-        );
-    }
-    Ok(out)
-}
-
-fn parse_date_array(body: &str) -> Result<(Vec<Timestamp>, String, String), String> {
-    let bytes = body.as_bytes();
-    let mut out = Vec::new();
-    let mut first = None;
-    let mut last = String::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        while i < bytes.len() && matches!(bytes[i], b' ' | b'\n' | b'\r' | b'\t' | b',') {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            break;
-        }
-        if bytes[i] != b'"' {
-            return Err(format!("`dates` 数组遇到非字符串 token，byte offset={i}"));
-        }
-        i += 1;
-        let start = i;
-        while i < bytes.len() && bytes[i] != b'"' {
-            i += 1;
-        }
-        if i >= bytes.len() {
-            return Err("`dates` 字符串未闭合".to_string());
-        }
-        let date = std::str::from_utf8(&bytes[start..i])
-            .map_err(|e| format!("`dates` UTF-8 错误: {e}"))?;
-        if first.is_none() {
-            first = Some(date.to_string());
-        }
-        last.clear();
-        last.push_str(date);
-        out.push(date_to_timestamp(date));
-        i += 1;
-    }
-    Ok((out, first.unwrap_or_default(), last))
+#[derive(Debug, Deserialize)]
+struct BarsJson {
+    opens: Vec<f64>,
+    highs: Vec<f64>,
+    lows: Vec<f64>,
+    closes: Vec<f64>,
+    volumes: Vec<f64>,
+    dates: Vec<String>,
 }
 
 fn date_to_timestamp(date: &str) -> Timestamp {

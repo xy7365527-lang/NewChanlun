@@ -14,11 +14,9 @@ crate-type = ["cdylib", "rlib"]
 #   - maturin build 时启用（见 pyproject.toml [tool.maturin] features）
 #   - cargo test 时不启用（否则链接 libpython 失败）
 pyo3 = { version = "0.23" }
-# backtest CLI 生产入口（[[bin]] theta_backtest）依赖：optional，仅 backtest_bin feature 启用。
-#   默认 cdylib（Python 扩展）构建零膨胀——serde/serde_json 不进 Python 扩展。
-#   cargo test 仍用 dev-dependencies 的 serde（test 路径不开 feature）。
-serde = { version = "1", features = ["derive"], optional = true }
-serde_json = { version = "1", optional = true }
+# strict_nest_check 与 backtest CLI 共用严格 JSON 解码；生产二进制必须可直接构建。
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # Nautilus Trader Rust-native 引擎（goal acceptance[5] ②③⑥：真实 BacktestEngine 驱动 S_Θ）。
 #   optional + 仅 backtest_bin/nautilus feature 启用 ⟹ cdylib（Python 扩展）构建零膨胀。
@@ -41,7 +39,7 @@ extension-module = ["pyo3/extension-module"]
 nautilus = ["dep:nautilus-model", "dep:nautilus-common", "dep:nautilus-trading", "dep:nautilus-backtest", "dep:nautilus-core", "dep:anyhow", "dep:rust_decimal", "dep:rust_decimal_macros"]
 # CLI 生产入口：解 theta_v0::backtest 的 #[cfg(test)] 门控为公开 API，链接 run_theta_v0_pi/load_by_symbol。
 #   含 nautilus：CLI ⑥ 用真实 BacktestEngine（task#8 acceptance[5]）。
-backtest_bin = ["dep:serde", "dep:serde_json", "nautilus"]
+backtest_bin = ["nautilus"]
 
 # ── CLI 生产入口（goal acceptance[5]：CLI 能驱动 S_Θ 产回测结果）。 ──
 # required-features：默认 cargo build 不编译它（cdylib 构建不受影响）。
