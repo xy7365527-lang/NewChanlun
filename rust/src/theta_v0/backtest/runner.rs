@@ -3150,7 +3150,7 @@ mod tests {
             side,
             confirm_src: src,
             interval: (lo, hi),
-            a_interval: (0, 0),
+            a_interval: (lo, hi),
             enter_src: lo,
             cand_delta: cand,
             pan_div_diag: false,

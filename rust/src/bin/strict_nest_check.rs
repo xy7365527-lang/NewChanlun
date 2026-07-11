@@ -691,27 +691,25 @@ const P7_HDR_EXPECTED: (usize, usize, usize, usize, usize) = (29088, 27152, 1516
 
 // ═══════════════════════ 证书漏斗只读插桩（不改判据） ═══════════════════════
 
-/// 相邻级父/子 Cand 事件的四个原子门诊断。
+/// 相邻级父/子 Cand 事件的三个原子门诊断。
 ///
-/// 逐字镜像 `nest.rs::extend_upward`：方向一致、父完成时不晚于子完成时、以及闭区间
-/// `J_child ⊆ J_parent` 的左右边界。这里只读终态事件，不参与装配器控制流。
+/// 逐字镜像 `nest.rs::extend_upward`：方向一致，以及闭区间
+/// `I(A_child) ⊆ D_parent` 的左右边界。确认时点仅登记延迟，不参与门。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PairGateDiag {
     same_side: bool,
-    confirm_descends: bool,
     sub_start: bool,
     sub_end: bool,
 }
 
 impl PairGateDiag {
     fn passes(self) -> bool {
-        self.same_side && self.confirm_descends && self.sub_start && self.sub_end
+        self.same_side && self.sub_start && self.sub_end
     }
 
     fn failed_conditions(self) -> usize {
         [
             self.same_side,
-            self.confirm_descends,
             self.sub_start,
             self.sub_end,
         ]
@@ -724,22 +722,24 @@ impl PairGateDiag {
 fn diagnose_pair(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> PairGateDiag {
     PairGateDiag {
         same_side: parent.side == child.side,
-        confirm_descends: parent.confirm_src <= child.confirm_src,
-        sub_start: child.interval.0 >= parent.interval.0,
-        sub_end: child.interval.1 <= parent.interval.1,
+        sub_start: child.a_interval.0 >= parent.enter_src,
+        sub_end: child.a_interval.1 <= parent.interval.1,
     }
 }
 
+fn confirmation_lag(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> i128 {
+    child.confirm_src as i128 - parent.interval.1 as i128
+}
+
 /// 数值门离通过还差多少根 bar；通过门贡献 0。方向门单独由 failed_conditions 排序。
-fn pair_gap_bars(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> (usize, usize, usize) {
+fn pair_gap_bars(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> (usize, usize) {
     (
-        parent.confirm_src.saturating_sub(child.confirm_src),
-        parent.interval.0.saturating_sub(child.interval.0),
-        child.interval.1.saturating_sub(parent.interval.1),
+        parent.enter_src.saturating_sub(child.a_interval.0),
+        child.a_interval.1.saturating_sub(parent.interval.1),
     )
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Default)]
 struct FunnelLevel {
     predicate_hits: usize,
     structural_events: usize,
@@ -747,6 +747,8 @@ struct FunnelLevel {
     reachable_pair_successes: usize,
     reachable_candidates: usize,
     certificates: usize,
+    lag_considered: Vec<i128>,
+    lag_accepted: Vec<i128>,
 }
 
 /// F-07：首个归零段的确定原因（漏斗阶段：structural → Cand → terminal/base reachable →
@@ -800,17 +802,16 @@ struct NearMiss {
     parent_idx: usize,
     child_idx: usize,
     diag: PairGateDiag,
-    confirm_gap: usize,
     start_gap: usize,
     end_gap: usize,
+    confirm_lag: i128,
 }
 
 impl NearMiss {
-    fn rank_key(self) -> (usize, usize, usize, usize, usize, usize) {
+    fn rank_key(self) -> (usize, usize, usize, usize, usize) {
         (
             self.diag.failed_conditions(),
-            self.confirm_gap + self.start_gap + self.end_gap,
-            self.confirm_gap,
+            self.start_gap + self.end_gap,
             self.start_gap,
             self.end_gap,
             self.parent_idx,
@@ -860,11 +861,16 @@ fn build_cert_funnel(
         for (parent_idx, parent) in parents.iter().enumerate().filter(|(_, e)| e.cand_delta) {
             let mut parent_reachable = false;
             for (child_idx, child) in children.iter().enumerate() {
-                if reachable[level - 1][child_idx]
-                    && child.cand_delta
-                    && diagnose_pair(parent, child).passes()
-                {
+                if !reachable[level - 1][child_idx] || !child.cand_delta {
+                    continue;
+                }
+                let diag = diagnose_pair(parent, child);
+                if diag.same_side {
+                    levels[level].lag_considered.push(confirmation_lag(parent, child));
+                }
+                if diag.passes() {
                     levels[level].reachable_pair_successes += 1;
+                    levels[level].lag_accepted.push(confirmation_lag(parent, child));
                     parent_reachable = true;
                 }
             }
@@ -898,15 +904,15 @@ fn closest_pair_misses(
             if diag.passes() {
                 continue;
             }
-            let (confirm_gap, start_gap, end_gap) = pair_gap_bars(parent, child);
+            let (start_gap, end_gap) = pair_gap_bars(parent, child);
             misses.push(NearMiss {
                 parent_level,
                 parent_idx,
                 child_idx,
                 diag,
-                confirm_gap,
                 start_gap,
                 end_gap,
+                confirm_lag: confirmation_lag(parent, child),
             });
         }
     }
@@ -920,9 +926,6 @@ fn failed_condition_text(miss: NearMiss) -> String {
     if !miss.diag.same_side {
         failed.push("方向 δ 不一致".to_string());
     }
-    if !miss.diag.confirm_descends {
-        failed.push(format!("完成时不递降（父晚 {} bar）", miss.confirm_gap));
-    }
     if !miss.diag.sub_start {
         failed.push(format!("Sub 左界失败（子起点早 {} bar）", miss.start_gap));
     }
@@ -930,6 +933,27 @@ fn failed_condition_text(miss: NearMiss) -> String {
         failed.push(format!("Sub 右界失败（子终点晚 {} bar）", miss.end_gap));
     }
     failed.join("；")
+}
+
+fn percentile(sorted: &[i128], pct: usize) -> i128 {
+    sorted[(sorted.len() - 1) * pct / 100]
+}
+
+fn lag_distribution(values: &[i128]) -> String {
+    if values.is_empty() {
+        return "n=0".to_string();
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_unstable();
+    let negative = sorted.iter().filter(|&&v| v < 0).count();
+    let zero = sorted.iter().filter(|&&v| v == 0).count();
+    let positive = sorted.len() - negative - zero;
+    format!(
+        "n={}；负/零/正={}/{}/{}；min/p25/p50/p75/p90/p95/max={}/{}/{}/{}/{}/{}/{}",
+        sorted.len(), negative, zero, positive, sorted[0], percentile(&sorted, 25),
+        percentile(&sorted, 50), percentile(&sorted, 75), percentile(&sorted, 90),
+        percentile(&sorted, 95), sorted[sorted.len() - 1]
+    )
 }
 
 fn main() -> std::process::ExitCode {
@@ -1187,15 +1211,17 @@ fn run() -> Result<bool, String> {
                     .iter()
                     .map(|r| {
                         format!(
-                            "confirm={} J=[{},{}]",
+                            "confirm={} I(A_child)=[{},{}]⊆D_parent=[{},{}]",
                             r.confirm_src().expect("strict 装配 rung 必携 confirm_src"),
+                            r.child_interval().expect("strict 装配 rung 必携 I(A_child)").start_time,
+                            r.child_interval().expect("strict 装配 rung 必携 I(A_child)").end_time,
                             r.interval().start_time,
                             r.interval().end_time
                         )
                     })
                     .collect();
                 cert_samples.push(format!(
-                    "ℓ={top} side={:?} base(confirm={} J=[{},{}]) rungs(高→低)={}",
+                    "ℓ={top} side={:?} base(confirm={} I(A)=[{},{}]) rungs(高→低)={}",
                     c.side(),
                     c.base_confirm_src().expect("strict 装配基例必携 confirm_src"),
                     c.base_interval().start_time,
@@ -1207,9 +1233,13 @@ fn run() -> Result<bool, String> {
         cert_per_top.push((top, certs.len()));
         funnel_levels[top].certificates = certs.len();
     }
-    // 产量口径吻合门：n_C（1278 笔名单内相邻级配对）= 0 ⟹ 全局证书产量预期 0 或个位数
-    // （稀是原文严格性的经验事实，不许放宽凑产量）；terminal 查无须为 0（P1 一致性推论）。
-    let p2_pass = cert_total <= 9 && cert_missing_terminal == 0;
+    // 裁决：L0→L1 ≥3 仅作回归预期，不作硬闸门；P2 硬门只保留 terminal 对账。
+    let l01_certificates = cert_per_top
+        .iter()
+        .find(|&&(top, _)| top == 1)
+        .map_or(0, |&(_, n)| n);
+    let l01_regression_expected = l01_certificates >= 3;
+    let p2_pass = cert_missing_terminal == 0;
 
     // ── 报告 ──
     let mut out = String::new();
@@ -1326,7 +1356,7 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(w);
     let _ = writeln!(
         w,
-        "## P2 硬门：证书生产装配（N^δ_{{ℓ↓0}}，nest.rs 装配层，终态全局口径）"
+        "## P2：D_parent 证书生产装配（N^δ_{{ℓ↓0}}，终态 cand_delta=true）"
     );
     let _ = writeln!(w);
     let _ = writeln!(w, "| 目标级 ℓ | 证书数（ℓ↓0 完整链） |");
@@ -1342,11 +1372,9 @@ fn run() -> Result<bool, String> {
     );
     let _ = writeln!(
         w,
-        "- 产量口径比对：名单内 n_C = {}（期望 {}）；全局证书产量 {} → 预期 0 或个位数（稀是原文严格性的经验事实，不许放宽凑产量）→ **{}**。",
-        n_c,
-        N_C_EXPECTED,
-        cert_total,
-        if p2_pass { "吻合" } else { "**不吻合**" }
+        "- 历史 E1 名单 n_C = {}（冻结期望 {}，仅 sanity）；全局 D_parent 证书产量 = {}。L0→L1 证书 = {}，回归预期 ≥3 → **{}（非硬闸门）**。",
+        n_c, N_C_EXPECTED, cert_total, l01_certificates,
+        if l01_regression_expected { "达到" } else { "未达到" }
     );
     if cert_samples.is_empty() {
         let _ = writeln!(w, "- 证书样例：无（产量 0）。");
@@ -1361,9 +1389,9 @@ fn run() -> Result<bool, String> {
         w,
         "**P2 硬门：{}**",
         if p2_pass {
-            "PASS（产量与 n_C 口径吻合）"
+            "PASS（terminal 对账；产量预期不作硬闸门）"
         } else {
-            "**FAIL（产量口径不吻合或 terminal 查无）**"
+            "**FAIL（terminal 查无）**"
         }
     );
     let _ = writeln!(w);
@@ -1378,7 +1406,7 @@ fn run() -> Result<bool, String> {
         if p2_pass { "✓" } else { "✗" }
     );
 
-    let report_path = out_root.join("STRICT-NEST-CHECK.md");
+    let report_path = out_root.join("STRICT-NEST-DPARENT-CHECK.md");
     std::fs::write(&report_path, &out)
         .map_err(|e| format!("写入 {} 失败: {e}", report_path.display()))?;
 
@@ -1393,7 +1421,7 @@ fn run() -> Result<bool, String> {
     };
     let mut funnel_out = String::new();
     let fw = &mut funnel_out;
-    let _ = writeln!(fw, "# 严格区间套证书产量漏斗归因（2026-07-09）");
+    let _ = writeln!(fw, "# D_parent 严格区间套复跑原始漏斗（2026-07-10）");
     let _ = writeln!(fw);
     let _ = writeln!(fw, "## 运行范围与语义护栏");
     let _ = writeln!(fw);
@@ -1404,12 +1432,13 @@ fn run() -> Result<bool, String> {
         config.level.l_max, config.level.min_parts_per_level
     );
     let _ = writeln!(fw, "- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 {:.1}s。", replay_sec);
-    let _ = writeln!(fw, "- 插桩只读终态 `Classification`、`CandDeltaEvent` 与装配结果；未修改 `divergence.rs`、`bsp.rs`、`signal.rs`、`recursive_tower.rs` 或 `nest.rs` 的任何判据/控制流。");
-    let _ = writeln!(fw, "- 列口径：背驰段谓词命中 = 终态分类 buy1/sell1 bit；`Cand^δ` 候选 = 塔上 `cand_delta=true` 事件（两列应因 P1 bit-exact 相等）；递降链配对成功 = 能把已从 L0 可达的 partial chain 延长到本级的相邻父子边；最终证书 = `assemble_certificates(events, 0, ℓ, terminal)` 产量。");
+    let _ = writeln!(fw, "- 语义：`J_parent := D_parent = parent.interval`；闭包含只判 `child.a_interval ⊆ D_parent`；父子均显式过滤 `cand_delta=true` 且方向一致。");
+    let _ = writeln!(fw, "- `child.confirm_src - right(D_parent)` 只登记有符号分布；`ε_conf` 未进入任何控制流、排序或否决门。");
+    let _ = writeln!(fw, "- 列口径：背驰段谓词命中 = 终态分类 buy1/sell1 bit；`Cand^δ` 候选 = 塔上 `cand_delta=true` 事件；相邻边成功 = 能把已从 L0 可达的 partial chain 以 `I(A_child)⊆D_parent` 延长一级；最终证书 = `assemble_certificates(events, 0, ℓ, terminal)` 产量。");
     let _ = writeln!(fw);
     let _ = writeln!(fw, "## ① 各段 × 各级计数");
     let _ = writeln!(fw);
-    let _ = writeln!(fw, "| 级别 ℓ | 结构事件（辅助） | 背驰段谓词命中 | Cand^δ 候选 | 递降链配对成功 | 可达本级 Cand | 最终证书 N^δ_{{ℓ↓0}} |");
+    let _ = writeln!(fw, "| 级别 ℓ | 结构事件（辅助） | 背驰段谓词命中 | Cand^δ 候选 | D_parent 相邻边成功 | 可达本级 Cand | 最终证书 N^δ_{{ℓ↓0}} |");
     let _ = writeln!(fw, "|---:|---:|---:|---:|---:|---:|---:|");
     for (level, counts) in funnel_levels.iter().enumerate() {
         let cert = if level == 0 {
@@ -1432,19 +1461,37 @@ fn run() -> Result<bool, String> {
         );
     }
     let _ = writeln!(fw);
+    let _ = writeln!(fw, "## ② λ_conf(child) − right(D_parent) 延迟分布（纯诊断）");
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "| 相邻级 | 同向可达候选对（结构门前） | 通过 I(A)⊆D_parent 的边 |");
+    let _ = writeln!(fw, "|---|---|---|");
+    for level in 1..funnel_levels.len() {
+        let counts = &funnel_levels[level];
+        let _ = writeln!(
+            fw,
+            "| L{}→L{} | {} | {} |",
+            level - 1,
+            level,
+            lag_distribution(&counts.lag_considered),
+            lag_distribution(&counts.lag_accepted)
+        );
+    }
+    let _ = writeln!(fw);
+    let _ = writeln!(fw, "`ε_conf`：**仅诊断标签，未设置数值，未作闸门**。");
+    let _ = writeln!(fw);
     let _ = writeln!(
         fw,
         "核对：P1 mismatch bar = **{}**；L0 terminal 查无（唯一基例数）= **{}**；跨级证书合计 = **{}**。",
         p1.mismatch_bars, cert_missing_terminal, cert_total
     );
     let _ = writeln!(fw);
-    let _ = writeln!(fw, "## ② 首个归零的段");
+    let _ = writeln!(fw, "## ③ 首个归零的段");
     let _ = writeln!(fw);
     match first_zero {
         Some(FirstZeroCause::PairZero(level)) => {
             let _ = writeln!(
                 fw,
-                "首个归零发生在 **L{} → L{} 的递降链配对**：L{} 有 {} 个可达 Cand 基例/partial-chain，L{} 有 {} 个 `Cand^δ=true` 候选，但满足 `同方向 ∧ parent.confirm_src ≤ child.confirm_src ∧ J_child ⊆ J_parent` 的可达相邻配对为 **0**。因此从该段开始所有 `N^δ_{{ℓ↓0}}` 完整证书均为 0；损失不发生在 P1 谓词→Cand 映射，也不发生在 terminal 查找。",
+                "首个归零发生在 **L{} → L{} 的 D_parent 相邻配对**：L{} 有 {} 个可达 Cand 基例/partial-chain，L{} 有 {} 个 `Cand^δ=true` 候选，但满足 `同方向 ∧ I(A_child) ⊆ D_parent` 的可达相邻边为 **0**。`confirm_src` 延迟不参与该结论。因此从该段开始所有 `N^δ_{{ℓ↓0}}` 完整证书均为 0；损失不发生在 P1 谓词→Cand 映射，也不发生在 terminal 查找。",
                 level - 1,
                 level,
                 level - 1,
@@ -1489,21 +1536,20 @@ fn run() -> Result<bool, String> {
         }
     }
     let _ = writeln!(fw);
-    let _ = writeln!(fw, "## ③ 首个归零段最接近通过的 3 个样本");
+    let _ = writeln!(fw, "## ④ 首个归零段最接近通过的 3 个样本");
     let _ = writeln!(fw);
-    let _ = writeln!(fw, "排序冻结为：失败原子条件数升序 → 三个数值门缺口 bar 总和升序 → `(完成时缺口, Sub 左界缺口, Sub 右界缺口, parent_idx)` 字典序；未调判据、未用价格/收益挑样本。");
+    let _ = writeln!(fw, "排序冻结为：失败原子条件数升序 → 两个 Sub 边界缺口 bar 总和升序 → `(Sub 左界缺口, Sub 右界缺口, parent_idx)` 字典序；确认延迟不参与排序，未用价格/收益挑样本。");
     let _ = writeln!(fw);
     if near_misses.is_empty() {
         let _ = writeln!(fw, "无可比较近失样本。");
     } else {
-        let _ = writeln!(fw, "| 排名 | 父级 Cand（side, confirm, I(C)） | 子级可达 Cand（side, confirm, I(C)） | 通过条件 | 具体缺口 |");
+        let _ = writeln!(fw, "| 排名 | 父级 Cand（side, confirm, D_parent） | 子级可达 Cand（side, confirm, I(A)） | 通过条件 | 具体缺口；确认延迟仅诊断 |");
         let _ = writeln!(fw, "|---:|---|---|---|---|");
         for (rank, miss) in near_misses.iter().copied().enumerate() {
             let parent = &cand_f[miss.parent_level][miss.parent_idx];
             let child = &cand_f[miss.parent_level - 1][miss.child_idx];
             let passed = [
                 (miss.diag.same_side, "方向"),
-                (miss.diag.confirm_descends, "完成时递降"),
                 (miss.diag.sub_start, "Sub左界"),
                 (miss.diag.sub_end, "Sub右界"),
             ]
@@ -1513,7 +1559,7 @@ fn run() -> Result<bool, String> {
             .join("、");
             let _ = writeln!(
                 fw,
-                "| {} | `L{} {:?}, t={}, [{},{}]` | `L{} {:?}, t={}, [{},{}]` | {} | **{}** |",
+                "| {} | `L{} {:?}, t={}, D=[{},{}]` | `L{} {:?}, t={}, I(A)=[{},{}]` | {} | **{}；lag_conf={} bar（仅诊断）** |",
                 rank + 1,
                 miss.parent_level,
                 parent.side,
@@ -1523,10 +1569,11 @@ fn run() -> Result<bool, String> {
                 miss.parent_level - 1,
                 child.side,
                 child.confirm_src,
-                child.interval.0,
-                child.interval.1,
+                child.a_interval.0,
+                child.a_interval.1,
                 passed,
-                failed_condition_text(miss)
+                failed_condition_text(miss),
+                miss.confirm_lag
             );
         }
     }
@@ -1535,14 +1582,14 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(fw);
     match first_zero {
         Some(FirstZeroCause::PairZero(level)) => {
-            let _ = writeln!(fw, "当前 BTC 1m / 默认 Θ / 完成时 / 趋势背驰-only adopted-default 有效域内，证书产量 0 的首因是 **L{}→L{} 相邻级递降+Sub 合取无一通过**。上游背驰谓词并非零产量，P1→Cand 也无损；最终证书阶段只是传播该首个零。该结论不外推到其他数据、Θ、盘整背驰入链或进入时口径。", level - 1, level);
+            let _ = writeln!(fw, "当前 BTC 1m / 默认 Θ / 趋势背驰-only D_parent 有效域内，证书产量 0 的首因是 **L{}→L{} 的 I(A_child)⊆D_parent 相邻边为 0**。上游背驰谓词并非零产量，P1→Cand 也无损；确认延迟与 ε_conf 均未作闸门。该结论不外推到其他数据、Θ 或盘整背驰入链。", level - 1, level);
         }
         Some(cause) => {
-            let _ = writeln!(fw, "证书产量 0 的首因见 ② 段（{cause:?}）；非递降链配对归零，近失样本表不适用。该结论不外推到其他数据、Θ、盘整背驰入链或进入时口径。");
+            let _ = writeln!(fw, "证书产量 0 的首因见 ③ 段（{cause:?}）；非 D_parent 相邻配对归零，近失样本表不适用。该结论不外推到其他数据、Θ 或盘整背驰入链。");
         }
         None => {}
     }
-    let funnel_path = out_root.join("chanlun/review-results/cert-funnel-20260709.md");
+    let funnel_path = out_root.join("chanlun/review-results/dparent-funnel-20260710.md");
     if let Some(parent) = funnel_path.parent() {
         std::fs::create_dir_all(parent)
             .map_err(|e| format!("创建 {} 失败: {e}", parent.display()))?;
@@ -1578,13 +1625,13 @@ mod funnel_tests {
     }
 
     #[test]
-    fn pair_diag_is_exact_four_gate_conjunction() {
+    fn pair_diag_is_exact_three_gate_conjunction() {
         let child = event(0, Side::Long, 90, (40, 80));
         let parent = event(1, Side::Long, 70, (20, 100));
         let diag = diagnose_pair(&parent, &child);
         assert!(diag.passes());
         assert_eq!(diag.failed_conditions(), 0);
-        assert_eq!(pair_gap_bars(&parent, &child), (0, 0, 0));
+        assert_eq!(pair_gap_bars(&parent, &child), (0, 0));
     }
 
     #[test]
@@ -1593,10 +1640,9 @@ mod funnel_tests {
         let parent = event(1, Side::Long, 90, (20, 100));
         let diag = diagnose_pair(&parent, &child);
         assert!(diag.same_side);
-        assert!(!diag.confirm_descends);
         assert!(!diag.sub_start);
         assert!(!diag.sub_end);
-        assert_eq!(pair_gap_bars(&parent, &child), (10, 10, 20));
+        assert_eq!(pair_gap_bars(&parent, &child), (10, 20));
     }
 
     #[test]
@@ -1604,6 +1650,24 @@ mod funnel_tests {
         let child = event(0, Side::Short, 100, (20, 100));
         let parent = event(1, Side::Short, 100, (20, 100));
         assert!(diagnose_pair(&parent, &child).passes());
+    }
+
+    #[test]
+    fn dparent_pair_diag_uses_child_a_and_never_gates_confirm_lag() {
+        let mut child = event(0, Side::Long, 200, (0, 300));
+        child.a_interval = (40, 60);
+        let parent = event(1, Side::Long, 250, (20, 80));
+        let diag = diagnose_pair(&parent, &child);
+        assert!(diag.passes(), "I(A_child)⊆D_parent；完成时顺序不得进入门");
+        assert_eq!(confirmation_lag(&parent, &child), 120);
+    }
+
+    #[test]
+    fn lag_distribution_preserves_signed_values() {
+        assert_eq!(
+            lag_distribution(&[-2, 0, 5, 9]),
+            "n=4；负/零/正=1/1/2；min/p25/p50/p75/p90/p95/max=-2/-2/0/5/5/5/9"
+        );
     }
     /// F-07：归零漏斗须覆盖 L0 terminal 全查无、候选空集、配对归零、终门归零与全通。
     #[test]

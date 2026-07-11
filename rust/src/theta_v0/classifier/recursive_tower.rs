@@ -700,8 +700,8 @@ pub fn map_src_to_close_idx(close_src: &[usize], start: usize, end: usize) -> Op
 // ═══════════════════════════════════════════════════════════════════════════════════════
 //  P1 谓词闭包层（strict-nesting-divergence-plan-20260708 §P1 + strict-nesting-rulings-20260708
 //  三裁决：① Cand^δ ≔ 背驰段谓词（per-level A/C 定位配对，gauge 复用 divergence.rs MacdArea
-//  默认路径，严格 curr < prev）；② 盘整背驰不入链（单独诊断标志位）；③ 确认时点=完成时
-//  （破中枢段端点 source_index），「进入时」（λ_C）只作诊断对照）。
+//  默认路径，严格 curr < prev）；② 盘整背驰不入链（单独诊断标志位）；③ confirm_src 为独立
+//  算法确认时点。P0 D_parent 复议后，enter_src 冻结为父背驰段左端，confirm_src 仅登记延迟。
 //
 //  ★铁律（判据零分叉）：本层**不含任何判据代码**——判定全部经 signal.rs 同一函数
 //  （`judge_first_cached`/`judge_pan_div`，仅 pub(crate) 可见性加宽，行为零改动）；prelude
@@ -730,12 +730,12 @@ pub struct CandDeltaEvent {
     /// [新缠论] 算法确认时点（#37 P0 局部改判）：破中枢段端点 source_index。
     /// 与 `interval.1`（结构定位窗右端）是独立字段；settled 生产者上可数值相等，但不得互相派生。
     pub confirm_src: usize,
-    /// [新缠论] 结构定位区间 J（#37 P0 局部改判）= [λ_C, seg.end_index]。
+    /// [新缠论] 父级背驰段 `D_parent` = [进入 C 离开 episode 起点, seg.end_index]。
     /// 右端独立取自结构段，不从 `confirm_src` 回填。
     pub interval: (usize, usize),
     /// I(A) = [λ_A, ρ_A]（跨相邻中枢配对的前一中枢离开 episode 区间，0016:62）。
     pub a_interval: (usize, usize),
-    /// 「进入时」诊断对照 = λ_C（裁决③：**不作**确认时点，仅诊断）。
+    /// `D_parent` 冻结左端：C 离开 episode 的首个同向段起点；不是确认时点。
     pub enter_src: usize,
     /// Cand^δ 真值：趋势背驰确认 D（默认 gauge ≡ 严格 C<A）。
     pub cand_delta: bool,
@@ -961,7 +961,7 @@ mod p1_tests {
         assert_eq!(e.confirm_src, 11, "确认时点=完成时（破中枢段端点，裁决③）");
         assert_eq!(e.interval, (9, 11), "I(C) = [λ_C, seg.end]（Q5 区间口径）");
         assert_eq!(e.a_interval, (3, 5), "I(A) = 前中枢离开 episode");
-        assert_eq!(e.enter_src, 9, "「进入时」= λ_C 仅诊断对照（裁决③）");
+        assert_eq!(e.enter_src, 9, "D_parent 左端 = C 离开 episode 起点");
         assert!(!e.pan_div_diag, "趋势路径无盘整背驰诊断（裁决②不入链）");
     }
 
