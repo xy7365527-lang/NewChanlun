@@ -2471,8 +2471,10 @@ struct FillOutput {
 /// 强平）与 `trade_pnls_with_forced`（含强平）双口径并列产出。强平笔在 [`metrics::TradeRecord`]
 /// 打 `forced_close=true`（统计功效门槛 n≥30 不计强平笔，避免偷过——见 runner L2/L3 测试）。
 ///
-/// **★交易轨迹**：每笔完整开平记 [`metrics::TradeRecord`]（entry_bar/exit_bar/hold_bars/qty），
-/// 作操作语义随机入场对照（§4 重写）的输入。v0 单声部多头全开全平，开-平配对唯一。
+/// **★交易轨迹**：平仓事件逐 fill 记 [`metrics::TradeRecord`]（entry_bar/exit_bar/hold_bars/qty）：
+/// 符号归零/翻转配对整段，**部分减仓也逐 fill 产记录**（qty=减掉手数，bughunt F-06——与
+/// `trade_pnls` 逐 fill 已实现口径对齐），作操作语义随机入场对照（§4 重写）的输入。
+/// v0 单声部多头全开全平时退化为开-平配对唯一。
 ///
 /// 返回 [`FillOutput`]（L2 等级，真实数据时 n_orders > 0 ⟺ is_l2 = true）。
 fn plan_and_fill_mtm(
@@ -2720,7 +2722,12 @@ fn plan_and_fill_mtm(
 ///   before>0 ⟹ long=true 平多；before<0 ⟹ long=false 平空），清 entry_bar。
 /// - **翻转**（before·after<0，先平后开同一笔）：先配对旧方向 trade（方向 = before.signum()，
 ///   qty = |before|），再记新 entry_bar（新方向持仓从此 bar 入场）。
-/// - **同向加/减仓未到 0**（before·after>0）：entry_bar 不变（延续首次入场，v0 单标量近似）。
+/// - **同向减仓未到 0**（before·after>0 且 |after|<|before|）：**逐 fill 产 TradeRecord**
+///   （qty = 减掉的手数，entry_bar 延续首次入场，v0 单标量近似）——bughunt F-06：否则部分
+///   减仓的已实现 PnL/敞口在 trades 轨迹无对应记录，§4 随机对照 same-caliber 重算与敞口
+///   归一化漏计（反例 100买10→110减5→120平5 漏 49.685）。
+/// - **同向加仓**（before·after>0 且 |after|>|before|）：entry_bar 不变（延续首次入场，
+///   v0 单标量近似），不产记录。
 ///
 /// `forced` 标记窗口终点强平（不计 n_trades≥30 统计功效门槛）。qty = 平掉的绝对手数 = |before|
 /// （翻转/全平时平掉全部旧仓；v0 build_exit_order 全平 ⟹ 配对唯一）。
@@ -2753,6 +2760,23 @@ fn track_position_transition(
                 hold_bars,
                 qty: units_before.abs(), // 平掉的绝对手数 = |平仓前持仓|
                 long: units_before > 0.0, // 方向 = 平仓前持仓方向（多/空）
+                forced_close: forced,
+            });
+        }
+    }
+    // F-06：部分减仓（同向未到 0，|after|<|before|）⟹ 逐 fill 产 TradeRecord（qty=本次减掉
+    // 的手数，entry_bar 延续首次入场）。与 `apply_order` 逐 fill push trade_pnls 口径对齐，
+    // 消除"减仓 PnL 有账无迹"的口径错配（消费方：§4 随机对照 same-caliber/敞口归一化）。
+    let same_side = sign(units_before) != 0 && sign(units_before) == sign(units_after);
+    if same_side && units_after.abs() < units_before.abs() - 1e-12 {
+        if let Some(entry_bar) = *pos_entry_bar {
+            let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
+            trades.push(metrics::TradeRecord {
+                entry_bar,
+                exit_bar,
+                hold_bars,
+                qty: units_before.abs() - units_after.abs(), // 本次减掉的绝对手数
+                long: units_before > 0.0,
                 forced_close: forced,
             });
         }
@@ -3083,6 +3107,25 @@ mod tests {
     /// 无结构数据 → 空订单流（**诚实结果，非阻塞态**）。recognize 已接通（2026-06-26）；
     /// 单调上涨数据无顶底分型交替 ⟹ 无笔 ⟹ 无中枢 ⟹ 无第三类买卖点 ⟹ 空 decisions ⟹
     /// 空订单。这验证管线 L1 串通 + "无缠论结构 ⇒ 无 Θ 决策"的正确退化（不是引擎缺陷）。
+    /// bughunt F-06 回归：部分减仓（同向未到 0）逐 fill 产 TradeRecord（qty=本次减掉手数，
+    /// entry_bar 延续首次入场），终平配对剩余手数——verify 反例 100买10→110减5→120平5
+    /// 应产两条记录（qty=5/5），修复前仅终平一条（漏减仓敞口）。
+    #[test]
+    fn partial_reduce_emits_per_fill_trade_record() {
+        let mut trades: Vec<metrics::TradeRecord> = Vec::new();
+        let mut entry: Option<usize> = None;
+        track_position_transition(&mut trades, &mut entry, 0.0, 10.0, 3, false); // bar3 开 10
+        track_position_transition(&mut trades, &mut entry, 10.0, 5.0, 7, false); // bar7 减 5
+        track_position_transition(&mut trades, &mut entry, 5.0, 0.0, 9, false); // bar9 平 5
+        assert_eq!(trades.len(), 2, "减仓 fill + 终平各产一条 TradeRecord");
+        assert_eq!((trades[0].entry_bar, trades[0].exit_bar), (3, 7));
+        assert!((trades[0].qty - 5.0).abs() < 1e-12, "减仓记录 qty=减掉手数");
+        assert!(trades[0].long && !trades[0].forced_close);
+        assert_eq!((trades[1].entry_bar, trades[1].exit_bar), (3, 9));
+        assert!((trades[1].qty - 5.0).abs() < 1e-12, "终平记录 qty=剩余手数");
+        assert!(entry.is_none(), "归零后 entry_bar 清空");
+    }
+
     #[test]
     #[allow(deprecated)] // F-01：既有管线退化测试，保留旧入口调用（A 列基线面不动）
     fn structureless_data_yields_empty_orders() {
