@@ -393,8 +393,8 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                     let ext = match gate_cert.as_ref().expect("pass ⟹ gate_cert Some") {
                         GateCertificate::Nest(cert) => ZExt {
                             cand_channel: Some(trigger),
-                            nest_depth: Some(cert.rungs.len() as u8),
-                            origin_level: Some(lvl as u32 + cert.rungs.len() as u32),
+                            nest_depth: Some(cert.rungs().len() as u8),
+                            origin_level: Some(lvl as u32 + cert.rungs().len() as u32),
                             risk_mode: None,
                             t_stage: None, // #149：统计层无 TW 账本，同 risk_mode 诚实 None
                             eta_bucket: None, // #175：统计层无 TW 账本，同 t_stage 诚实 None
@@ -949,7 +949,7 @@ pub(super) fn build_nest_certificate(
         //   Type2/3 → 存在性已由 base gate 门控（descend anchor），上级 rung 载上级语境 ⟹ true。
         // knode.sub_moves 是 lvl 到 k-1 级的窗口序列（Type1 在其中找执行级候选段算四条件）。
         let cand_k = cand_delta(cand_type, knode.sub_moves.as_slice(), source_index, delta, hist);
-        rung_buf.push(NestRung { interval: interval_k, cand: cand_k });
+        rung_buf.push(NestRung::new(interval_k, cand_k));
     }
     // n_delta 期望 rungs[0]=最高级，rungs[last]=lvl+1 级——rung_buf 是低到高，需反转。
     rung_buf.reverse();
@@ -959,19 +959,14 @@ pub(super) fn build_nest_certificate(
     debug_assert!(
         rung_buf
             .iter()
-            .map(|r| r.interval)
+            .map(|r| r.interval())
             .chain(std::iter::once(base_interval))
             .collect::<Vec<_>>()
             .windows(2)
             .all(|w| is_sub(&w[1], &w[0])),
         "#100 嵌套链破裂 J_e⊆…⊆J_ℓ（Compose 不变量违反）：base={base_interval:?} rungs={rung_buf:?}"
     );
-    Some(NestCertificate {
-        side: delta,
-        terminal: *bits,
-        base_interval,
-        rungs: rung_buf,
-    })
+    Some(NestCertificate::from_parts(delta, *bits, base_interval, rung_buf))
 }
 
 /// R5-c opsem-dump（基因 073a/274号）：候选的**区间套深度** Ndepth = 从执行级 `lvl` 向上连续
@@ -1079,16 +1074,11 @@ pub(super) fn build_nest_certificate_bottomup(
             idx: knode.id.ordinal,
         };
         let cand_k = cand_delta(cand_type, knode.sub_moves.as_slice(), source_index, delta, hist);
-        rung_buf.push(NestRung { interval: interval_k, cand: cand_k });
+        rung_buf.push(NestRung::new(interval_k, cand_k));
         child = interval_k; // 加宽：下一级用本级 J_k 作 child（真 bottom-up 递归）。
     }
     rung_buf.reverse();
-    Some(NestCertificate {
-        side: delta,
-        terminal: *bits,
-        base_interval,
-        rungs: rung_buf,
-    })
+    Some(NestCertificate::from_parts(delta, *bits, base_interval, rung_buf))
 }
 
 /// 诊断：通过门信号的 N^δ 证书**有效跨级深度** = 从最高级 rung 起连续 `cand==true` 的层数。
@@ -1101,7 +1091,7 @@ pub(super) fn build_nest_certificate_bottomup(
 ///
 /// **认识论 L0**：纯结构读数（不重跑分类）。用于 P1 验收「区间套是否真触达 ≥2 层」的 bit-exact 证据。
 pub(super) fn effective_nest_depth(cert: &NestCertificate) -> usize {
-    cert.rungs.iter().take_while(|r| r.cand).count()
+    cert.rungs().iter().take_while(|r| r.cand()).count()
 }
 
 /// 小转大确认凭据（次级别结构确认通道——独立于区间套；本级无背驰段可套 ⟹ **无 depth**）。
@@ -1642,15 +1632,15 @@ mod tests {
         // 新「区间包含」口径：build_nest_certificate 定位到两级 rung，三层嵌套 J0⊂J1⊂J2 可见。
         let cert = build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist)
             .expect("区间包含口径应定位到执行级段");
-        assert_eq!(cert.rungs.len(), 2, "含 src 的两上级 rung 均被区间包含口径定位（端点相等口径为 0）");
+        assert_eq!(cert.rungs().len(), 2, "含 src 的两上级 rung 均被区间包含口径定位（端点相等口径为 0）");
         // rungs 从高到低：rungs[0]=J2[0,100]、rungs[1]=J1[20,80]，且 end≠src（分歧标记）。
-        assert_eq!((cert.rungs[0].interval.start_time, cert.rungs[0].interval.end_time), (0, 100));
-        assert_eq!((cert.rungs[1].interval.start_time, cert.rungs[1].interval.end_time), (20, 80));
-        assert_ne!(cert.rungs[0].interval.end_time, src as u64);
-        assert_ne!(cert.rungs[1].interval.end_time, src as u64);
+        assert_eq!((cert.rungs()[0].interval().start_time, cert.rungs()[0].interval().end_time), (0, 100));
+        assert_eq!((cert.rungs()[1].interval().start_time, cert.rungs()[1].interval().end_time), (20, 80));
+        assert_ne!(cert.rungs()[0].interval().end_time, src as u64);
+        assert_ne!(cert.rungs()[1].interval().end_time, src as u64);
         // 嵌套链 J0⊆J1⊆J2（区间包含口径下才可见的三层套）——同时验证 build_nest_certificate 内看守放行。
-        assert!(is_sub(&cert.base_interval, &cert.rungs[1].interval), "J0⊆J1");
-        assert!(is_sub(&cert.rungs[1].interval, &cert.rungs[0].interval), "J1⊆J2");
+        assert!(is_sub(&cert.base_interval(), &cert.rungs()[1].interval()), "J0⊆J1");
+        assert!(is_sub(&cert.rungs()[1].interval(), &cert.rungs()[0].interval()), "J1⊆J2");
     }
 
     /// ★#100 问题① 验收（边界等号 source==end(m)）：上级 rung 的 end 恰等于 source_index——
@@ -1670,9 +1660,9 @@ mod tests {
         assert_eq!(find_move_by_end_index(&tower[1], src), Some(0));
         // 新区间包含口径定位到同一段——rung interval == tower[1][0]，且 end_time==src（与旧一致）。
         let cert = build_nest_certificate(&tower, 0, src, Side::Long, &bits, &hist).expect("定位成功");
-        assert_eq!(cert.rungs.len(), 1);
-        assert_eq!((cert.rungs[0].interval.start_time, cert.rungs[0].interval.end_time), (10, 50));
-        assert_eq!(cert.rungs[0].interval.end_time, src as u64, "边界等号：新口径与旧端点相等一致");
+        assert_eq!(cert.rungs().len(), 1);
+        assert_eq!((cert.rungs()[0].interval().start_time, cert.rungs()[0].interval().end_time), (10, 50));
+        assert_eq!(cert.rungs()[0].interval().end_time, src as u64, "边界等号：新口径与旧端点相等一致");
     }
 
     /// C2 跨条目（codex §6-1）：Type3-only 信号自身无 buy2，须在同级列表查共生 B2 条目。
@@ -3849,7 +3839,7 @@ mod tests {
                         let sub_bsp: &[BspPoint] = if lvl > 0 { &cls_i.levels[lvl - 1].bsp } else { &[] };
                         let gate_cert = build_gate_certificate(&tower_i, lvl, p.source_index, delta_side, &p.bits, &macd_hist, i, &ls.bsp, sub_centers, sub_bsp);
                         let (pass, nest_depth, rungs_len) = match &gate_cert {
-                            Some(GateCertificate::Nest(cert)) => (cert.n_delta(), Some(effective_nest_depth(cert)), cert.rungs.len()),
+                            Some(GateCertificate::Nest(cert)) => (cert.n_delta(), Some(effective_nest_depth(cert)), cert.rungs().len()),
                             Some(GateCertificate::Xzd(ev)) => {
                                 n_xzd_routed += 1; // 小转大域触达（消歧死门用）
                                 if ev.type2_confirmed { n_xzd_c2 += 1; }
@@ -4538,10 +4528,10 @@ mod tests {
                         if prod.is_some() && bu.is_some() && prod_depth != bu_depth { n_depth_diff += 1; }
                         // 结构差：rungs.len 或任一 interval（含 base）不同。
                         if let (Some(pc), Some(bc)) = (&prod, &bu) {
-                            if pc.rungs.len() != bc.rungs.len() { n_rungs_len_diff += 1; }
-                            let struct_diff = pc.base_interval != bc.base_interval
-                                || pc.rungs.len() != bc.rungs.len()
-                                || pc.rungs.iter().zip(bc.rungs.iter()).any(|(a, b)| a.interval != b.interval || a.cand != b.cand);
+                            if pc.rungs().len() != bc.rungs().len() { n_rungs_len_diff += 1; }
+                            let struct_diff = pc.base_interval() != bc.base_interval()
+                                || pc.rungs().len() != bc.rungs().len()
+                                || pc.rungs().iter().zip(bc.rungs().iter()).any(|(a, b)| a.interval() != b.interval() || a.cand() != b.cand());
                             if struct_diff { n_interval_diff += 1; }
                         }
                         if prod_nd != bu_nd || (prod.is_some() && bu.is_some() && prod_depth != bu_depth) {
@@ -5331,33 +5321,33 @@ mod tests {
         bits.buy1 = true;
         let iv = |et: u64| NestInterval { end_time: et, start_time: 0, idx: 0 };
         // 全 cand=true 的 3 级证书 ⟹ depth=3（100⊇80⊇60，均 cand=true，且 base⊆最低 rung）。
-        let cert_full = NestCertificate {
-            side: Side::Long, terminal: bits, base_interval: iv(50),
-            rungs: vec![
-                NestRung { interval: iv(100), cand: true },
-                NestRung { interval: iv(80),  cand: true },
-                NestRung { interval: iv(60),  cand: true },
+        let cert_full = NestCertificate::from_parts(
+            Side::Long, bits, iv(50),
+            vec![
+                NestRung::new(iv(100), true),
+                NestRung::new(iv(80), true),
+                NestRung::new(iv(60), true),
             ],
-        };
+        );
         assert_eq!(effective_nest_depth(&cert_full), 3, "全 cand=true ⟹ depth=rungs.len()=3");
         // 空 rungs ⟹ depth=0（纯 base-case，退化）。
-        let cert_base = NestCertificate { rungs: vec![], ..cert_full.clone() };
+        let cert_base = NestCertificate::from_parts(Side::Long, bits, iv(50), vec![]);
         assert_eq!(effective_nest_depth(&cert_base), 0, "空 rungs ⟹ depth=0（base-case 退化）");
         // 中间 cand=false ⟹ 前缀在首个 false 处截断（depth=1，只数 rungs[0]）。
-        let cert_mid = NestCertificate {
-            rungs: vec![
-                NestRung { interval: iv(100), cand: true },
-                NestRung { interval: iv(80),  cand: false }, // 截断处
-                NestRung { interval: iv(60),  cand: true },
+        let cert_mid = NestCertificate::from_parts(
+            Side::Long, bits, iv(50),
+            vec![
+                NestRung::new(iv(100), true),
+                NestRung::new(iv(80), false), // 截断处
+                NestRung::new(iv(60), true),
             ],
-            ..cert_full.clone()
-        };
+        );
         assert_eq!(effective_nest_depth(&cert_mid), 1, "中间 cand=false ⟹ 前缀截断 depth=1");
         // 首级 cand=false ⟹ depth=0（即便有 rungs，n_delta 立即在最高级短路）。
-        let cert_top_false = NestCertificate {
-            rungs: vec![NestRung { interval: iv(100), cand: false }],
-            ..cert_full
-        };
+        let cert_top_false = NestCertificate::from_parts(
+            Side::Long, bits, iv(50),
+            vec![NestRung::new(iv(100), false)],
+        );
         assert_eq!(effective_nest_depth(&cert_top_false), 0, "首级 cand=false ⟹ depth=0");
     }
 }

@@ -150,9 +150,26 @@ impl Chi {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NestRung {
     /// 本级 `J^δ_ℓ` 定位区间。
-    pub interval: NestInterval,
+    interval: NestInterval,
     /// `Cand^δ_ℓ(x) ∈ {0,1}` 取值。[需人工确认] 定义式（spec 疑点2）。
-    pub cand: bool,
+    cand: bool,
+}
+
+impl NestRung {
+    /// 梯级只允许 crate 内受信生产器构造；外部调用方只能读取。
+    /// `cand` 仍是 0/1 谓词**取值**输入（裁决① `Cand^δ` 定义式在 recursive_tower/cand_predicate
+    /// 上游），本构造器不重判、不臆造判据。
+    pub(crate) fn new(interval: NestInterval, cand: bool) -> Self {
+        Self { interval, cand }
+    }
+    /// 本级 `J^δ_ℓ` 定位区间。
+    pub fn interval(&self) -> NestInterval {
+        self.interval
+    }
+    /// `Cand^δ_ℓ(x) ∈ {0,1}` 取值。
+    pub fn cand(&self) -> bool {
+        self.cand
+    }
 }
 
 /// 方向化区间套证书 `N^δ_{ℓ↓e}(x) ∈ {0,1}`（spec P5 §6 line 1168 / 结果包 line 308）。
@@ -160,20 +177,83 @@ pub struct NestRung {
 /// `Chi`（χ）的**方向化 + 候选化精化**：χ 用方向无关 [`confirm`] 且无 `Cand`；本证书 (a) 基例改用
 /// 方向化 [`BspBits::confirm_side`]（按 δ 选 `conf_plus`/`conf_minus`），(b) 每个递归级追加
 /// `Cand^δ_ℓ` 合取。区间套关系仍复用契约锚 [`is_sub`]（不重造区间逻辑）。
+///
+/// 外部调用方不能用字段字面量或旁路构造器伪造证书；唯一公开生产路径是
+/// [`assemble_certificate`] / [`assemble_certificates`]。
+///
+/// ```compile_fail
+/// use newchan_rust::theta_v0::classifier::nest::{NestCertificate, NestInterval, NestRung};
+/// use newchan_rust::theta_v0::types::{BspBits, Side};
+/// let iv = NestInterval { start_time: 0, end_time: 1, idx: 0 };
+/// let _ = NestCertificate {
+///     side: Side::Long,
+///     terminal: BspBits::default(),
+///     base_interval: iv,
+///     rungs: vec![NestRung { interval: iv, cand: true }],
+/// };
+/// ```
+///
+/// ```compile_fail
+/// use newchan_rust::theta_v0::classifier::nest::{NestCertificate, NestInterval};
+/// use newchan_rust::theta_v0::types::{BspBits, Side};
+/// let iv = NestInterval { start_time: 0, end_time: 1, idx: 0 };
+/// let _ = NestCertificate::from_parts(Side::Long, BspBits::default(), iv, vec![]);
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct NestCertificate {
     /// 方向 δ（`Long`=+1 / `Short`=-1），固定于整条证书。
-    pub side: Side,
+    side: Side,
     /// 执行级 e 终端 bit-vector（基例 `Conf^δ_e` 的输入）。
-    pub terminal: BspBits,
+    terminal: BspBits,
     /// 执行级 e 定位区间 `J^δ_e`（最内层；作为最低递归级的子区间参与 ⊆）。
-    pub base_interval: NestInterval,
+    base_interval: NestInterval,
     /// 递归级 `(e, ℓ]` 梯级，**从高到低**排列：`rungs[0]`=级 ℓ，`rungs[last]`=级 e+1。
     /// 空 ⟹ ℓ=e（纯基例）。结构上不可表达 e>ℓ（无负梯级），天然满足前置约束 e≤ℓ。
-    pub rungs: Vec<NestRung>,
+    rungs: Vec<NestRung>,
 }
 
 impl NestCertificate {
+    /// crate 内数据载体入口；外部不可见，最终统一经过私有 builder 收口。
+    ///
+    /// 本构造器是**数据载体**入口（π 结构路径 `econ_positive::build_nest_certificate`、测试用）：
+    /// - **不**宣称装配前置成立（递降 `parent.confirm_src ≤ child.confirm_src`、方向逐级来源、
+    ///   级别连续性、rung 与 `CandDeltaEvent` 身份对应）——那些是 [`assemble_certificate`]
+    ///   三门 DFS 的生产层职责，证书本体无字段可复验（诚实边界，见 [`Self::n_delta`] 文档）。
+    /// - `n_delta()` 仍是 0/1 谓词**取值**：构造成功 ≠ `n_delta=true`（π 路径合法携带
+    ///   `cand=false` 梯级供 `effective_nest_depth` 截断消费）。
+    /// - debug 断言结构上可复验的一门：定位区间链逐级相套 `J_e⊆…⊆J_ℓ`（闭口径 [`is_sub`]，
+    ///   与 econ_positive #100 看守同款；release 编译掉，零行为改动）。
+    pub(crate) fn from_parts(
+        side: Side,
+        terminal: BspBits,
+        base_interval: NestInterval,
+        rungs: Vec<NestRung>,
+    ) -> Self {
+        NestCertificateBuilder { side, terminal, base_interval, rungs }.finish()
+    }
+
+    /// 方向 δ（固定于整条证书）。
+    pub fn side(&self) -> Side {
+        self.side
+    }
+    /// 执行级 e 终端 bit-vector。
+    pub fn terminal(&self) -> &BspBits {
+        &self.terminal
+    }
+    /// 执行级 e 定位区间 `J^δ_e`。
+    pub fn base_interval(&self) -> NestInterval {
+        self.base_interval
+    }
+    /// 递归级梯级（从高到低）。
+    pub fn rungs(&self) -> &[NestRung] {
+        &self.rungs
+    }
+
+    /// ★诚实边界（cert F-01）：`n_delta` 只能复验证书**自身字段**（逐级 `cand` 取值 ∧ 相邻 ⊆ ∧
+    /// 基例 `Conf^δ_e`）——装配层前置（递降 `confirm_src` 序、方向逐级来源、级别连续性、rung 与
+    /// `CandDeltaEvent` 的身份对应）证书无字段可复验，`n_delta=true` **不**蕴含它们成立；它们由
+    /// [`assemble_certificate`] 三门 DFS 在生产时保证（数据载体旁路见 [`Self::from_parts`]）。
+    ///
     /// 区间套证书 `N^δ_{ℓ↓e}(x) ∈ {0,1}`：按 ℓ 从高到低逐级校验。
     ///
     /// ## 结果包（六要素）
@@ -215,6 +295,37 @@ impl NestCertificate {
                     && is_sub(child, &top.interval)
                     && Self::n_delta_rec(side, terminal, base, rest)
             }
+        }
+    }
+}
+
+/// 私有最终 builder：所有 crate 内旁路数据载体构造也只能在此处落成；外部 API 无法命名或调用。
+struct NestCertificateBuilder {
+    side: Side,
+    terminal: BspBits,
+    base_interval: NestInterval,
+    rungs: Vec<NestRung>,
+}
+
+impl NestCertificateBuilder {
+    fn finish(self) -> NestCertificate {
+        debug_assert!(
+            self.rungs
+                .iter()
+                .map(|r| r.interval)
+                .chain(std::iter::once(self.base_interval))
+                .collect::<Vec<_>>()
+                .windows(2)
+                .all(|w| is_sub(&w[1], &w[0])),
+            "cert F-01 builder：嵌套链破裂 J_e⊆…⊆J_ℓ：base={:?} rungs={:?}",
+            self.base_interval,
+            self.rungs
+        );
+        NestCertificate {
+            side: self.side,
+            terminal: self.terminal,
+            base_interval: self.base_interval,
+            rungs: self.rungs,
         }
     }
 }
@@ -292,12 +403,8 @@ pub fn assemble_certificate(
     }
     // 收集序低→高（自基例向上搜索）；证书 rungs 约定从高(ℓ)到低(e+1)。
     acc.reverse();
-    let cert = NestCertificate {
-        side: base.side,
-        terminal,
-        base_interval: base_iv,
-        rungs: acc,
-    };
+    // cert F-01：经收口构造点（三门已由本装配 DFS 保证，from_parts 再复验 ⊆ 链）。
+    let cert = NestCertificate::from_parts(base.side, terminal, base_iv, acc);
     debug_assert!(cert.n_delta(), "装配即校验：产出证书必过 n_delta（三门合取）");
     Some(cert)
 }

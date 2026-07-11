@@ -431,15 +431,15 @@ mod tests {
         // 喂入 NestCertificate：cand=false ⟹ n_delta()=false。
         let mut terminal = BspBits::default();
         terminal.buy1 = true; // 基例 Conf^+ = true
-        let cert = NestCertificate {
-            side: CertSide::Long,
+        let cert = NestCertificate::from_parts(
+            CertSide::Long,
             terminal,
-            base_interval: NestInterval { end_time: 4, start_time: 0, idx: 0 },
-            rungs: vec![NestRung {
-                interval: NestInterval { end_time: 9, start_time: 0, idx: 0 },
+            NestInterval { end_time: 4, start_time: 0, idx: 0 },
+            vec![NestRung::new(
+                NestInterval { end_time: 9, start_time: 0, idx: 0 },
                 cand, // false
-            }],
-        };
+            )],
+        );
         assert!(!cert.n_delta(), "任一级 Cand=false ⟹ n_delta()=false（N^δ 定义）");
     }
 
@@ -466,16 +466,16 @@ mod tests {
         terminal.buy1 = true;
         // 执行级区间 [15,19]，操作级区间 [0,19]（⊇ 执行级）。
         let base = NestInterval { end_time: 19, start_time: 15, idx: 0 };
-        let op_rung = NestRung {
-            interval: NestInterval { end_time: 19, start_time: 0, idx: 0 },
+        let op_rung = NestRung::new(
+            NestInterval { end_time: 19, start_time: 0, idx: 0 },
             cand,
-        };
-        let cert = NestCertificate {
-            side: CertSide::Long,
+        );
+        let cert = NestCertificate::from_parts(
+            CertSide::Long,
             terminal,
-            base_interval: base,
-            rungs: vec![op_rung],
-        };
+            base,
+            vec![op_rung],
+        );
         // is_sub(base, op_rung.interval)：[15,19] ⊆ [0,19] ✓。
         assert!(cert.n_delta(), "Cand=true + 区间套成立 + Conf^+ ⟹ n_delta()=true");
     }

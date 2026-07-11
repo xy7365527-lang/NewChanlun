@@ -1207,15 +1207,15 @@ fn run() -> Result<bool, String> {
         for c in &certs {
             if cert_samples.len() < 10 {
                 let rungs: Vec<String> = c
-                    .rungs
+                    .rungs()
                     .iter()
-                    .map(|r| format!("[{},{}]", r.interval.start_time, r.interval.end_time))
+                    .map(|r| format!("[{},{}]", r.interval().start_time, r.interval().end_time))
                     .collect();
                 cert_samples.push(format!(
                     "ℓ={top} side={:?} base=[{},{}] rungs(高→低)={}",
-                    c.side,
-                    c.base_interval.start_time,
-                    c.base_interval.end_time,
+                    c.side(),
+                    c.base_interval().start_time,
+                    c.base_interval().end_time,
                     rungs.join("⊇")
                 ));
             }
