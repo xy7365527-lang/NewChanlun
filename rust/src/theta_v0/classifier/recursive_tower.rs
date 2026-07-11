@@ -748,7 +748,8 @@ pub struct CandDeltaEvent {
 /// [`signal::extract_signals_with_hist_anchored`] 完全一致）。
 ///
 /// prelude 与 signal.rs full 路径逐行同构（见上方段头铁律；行为注释不在此重复）。
-/// 每个破中枢结构候选产一个事件，按 (confirm_src, λ_C, λ_A) 升序。
+/// 每个破中枢结构候选产一个事件，按 `(D_parent, I(A), enter_src, side, 诊断位)` 结构键稳定排序；
+/// `confirm_src` 不参与排序。
 #[allow(clippy::too_many_arguments)]
 pub fn level_cand_delta(
     level: u32,
@@ -889,7 +890,21 @@ pub fn level_cand_delta(
             pan_div_diag,
         });
     }
-    events.sort_by_key(|e| (e.confirm_src, e.interval.0, e.a_interval.0));
+    // D_parent 裁决：确认时点只作诊断，不能直接或间接参与候选排序。
+    // 完全相同的结构键保留上游 Segment 的稳定结构顺序。
+    events.sort_by_key(|e| {
+        (
+            e.interval,
+            e.a_interval,
+            e.enter_src,
+            match e.side {
+                Side::Long => 0_u8,
+                Side::Short => 1_u8,
+            },
+            e.cand_delta,
+            e.pan_div_diag,
+        )
+    });
     events
 }
 

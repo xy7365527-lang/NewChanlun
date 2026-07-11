@@ -26,6 +26,7 @@
 - 严格链基例改为基级 `I(A)`；每一级都按 `I(A_child) subset D_parent` 延长，而非把相邻事件的 C 区间或确认窗当作子对象。
 - 装配排序仅使用结构字段 `(interval, a_interval, original_index)`；`confirm_src` 不参与排序，也没有确认时序门。
 - 复跑漏斗显式过滤 `cand_delta=true` 与同方向，登记所有被考察候选和已接受边的确认延迟分布；`epsilon_conf` 只输出诊断标签。
+- release 复跑显式统计所有 `cand_delta=true` 事件的 `enter_src != interval.0`，使冻结的 D_parent 左端不变量在非 debug 构建中也具有可见诊断能力。
 - 新增回归覆盖：确认时序逆序仍可装配、C 区间越界但 A 区间在父 D 内可通过、C 区间在内但 A 区间越界必须拒绝、三级链逐边使用各自 `I(A_child)`。
 
 ## 4. 全量复跑结果
@@ -37,7 +38,7 @@ cargo build --manifest-path rust/Cargo.toml --release --bin strict_nest_check
 ./rust/target/release/strict_nest_check
 ```
 
-输入为 BTC 1m `4613599` bar（2017-08-17 04:00:00 至 2026-05-31 23:59:00）、`40001` 笔交易、`ThetaConfig::default()`（`l_max=6`、`min_parts_per_level=3`）；耗时 `1483.8s`。基线 sanity 全部一致，P1 共 `26618` 次逐 bit 比较、`0` 不一致；terminal 查无为 `0`。
+输入为 BTC 1m `4613599` bar（2017-08-17 04:00:00 至 2026-05-31 23:59:00）、`40001` 笔交易、`ThetaConfig::default()`（`l_max=6`、`min_parts_per_level=3`）；最终代码复跑耗时 `1393.3s`。基线 sanity 全部一致，P1 共 `26618` 次逐 bit 比较、`0` 不一致；`cand_delta=true` 事件中 `enter_src != interval.0` 为 `0`；terminal 查无为 `0`。
 
 ### 4.1 cand_delta=true 产出与证书
 
@@ -75,10 +76,10 @@ L0 to L1 共得到 **3** 条证书，达到 `>=3` 的回归预期；该项按裁
 | 测试 | 结果 |
 |---|---|
 | `cargo test --manifest-path rust/Cargo.toml nest` | 37 passed |
-| `cargo test --manifest-path rust/Cargo.toml --bin strict_nest_check` | 7 passed |
+| `cargo test --manifest-path rust/Cargo.toml --bin strict_nest_check` | 8 passed |
 | strict sidecar runner tests | 2 passed |
 | cand predicate tests | 17 passed |
-| `cargo test --manifest-path rust/Cargo.toml --release --bin strict_nest_check` | 7 passed |
+| `cargo test --manifest-path rust/Cargo.toml --release --bin strict_nest_check` | 8 passed |
 | `cargo test --manifest-path rust/Cargo.toml --release -- --test-threads=1` | 全量通过；主库 1545 passed、127 ignored，所有 bin/integration/doc tests 无失败 |
 
 首次默认并行执行 release 全量测试时，唯一失败为既有测试 `opsem_dump_env_gated_bit_exact`；单测立即复跑通过。根因是该测试修改进程全局 `OPSEM_DUMP_DIR`，并行的其他 runner 测试也会读取同一环境变量并创建同一临时输出，从而可能截断 `trades.jsonl`。本次 D_parent 改动未触及该生产路径；为避免把基线测试的进程全局环境竞态误判为功能回归，随后以 `--test-threads=1` 完成 release 全量确定性验证并全部通过。本任务未扩大范围修改该既有测试架构。

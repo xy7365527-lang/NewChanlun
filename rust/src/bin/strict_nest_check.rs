@@ -956,6 +956,14 @@ fn lag_distribution(values: &[i128]) -> String {
     )
 }
 
+fn dparent_enter_mismatches(events_by_level: &[Vec<CandDeltaEvent>]) -> usize {
+    events_by_level
+        .iter()
+        .flatten()
+        .filter(|event| event.cand_delta && event.enter_src != event.interval.0)
+        .count()
+}
+
 fn main() -> std::process::ExitCode {
     match run() {
         Ok(pass) => {
@@ -1119,6 +1127,8 @@ fn run() -> Result<bool, String> {
         &config,
         &classifier_incr.tower_cache,
     );
+    // 冻结诊断不变量：release 复跑也必须实际检查，不能只依赖 debug_assert。
+    let dparent_enter_mismatch = dparent_enter_mismatches(&cand_f);
     p1.finalize(replay_bars - 1, &cls_f, &cand_f);
     let replay_sec = t_replay.elapsed().as_secs_f64();
     eprintln!("重放完成 {replay_sec:.1}s（含终态谓词定判）");
@@ -1267,6 +1277,12 @@ fn run() -> Result<bool, String> {
     );
     let _ = writeln!(w);
     let _ = writeln!(w, "## 基线 sanity（每次必带）");
+    let _ = writeln!(w);
+    let _ = writeln!(
+        w,
+        "- D_parent 左端诊断：cand_delta=true 事件中 `enter_src != interval.0` = **{}**（仅诊断）。",
+        dparent_enter_mismatch
+    );
     let _ = writeln!(w);
     let _ = writeln!(
         w,
@@ -1434,6 +1450,7 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(fw, "- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 {:.1}s。", replay_sec);
     let _ = writeln!(fw, "- 语义：`J_parent := D_parent = parent.interval`；闭包含只判 `child.a_interval ⊆ D_parent`；父子均显式过滤 `cand_delta=true` 且方向一致。");
     let _ = writeln!(fw, "- `child.confirm_src - right(D_parent)` 只登记有符号分布；`ε_conf` 未进入任何控制流、排序或否决门。");
+    let _ = writeln!(fw, "- D_parent 左端诊断：cand_delta=true 事件中 `enter_src != interval.0` = **{}**；该计数不作产量闸门。", dparent_enter_mismatch);
     let _ = writeln!(fw, "- 列口径：背驰段谓词命中 = 终态分类 buy1/sell1 bit；`Cand^δ` 候选 = 塔上 `cand_delta=true` 事件；相邻边成功 = 能把已从 L0 可达的 partial chain 以 `I(A_child)⊆D_parent` 延长一级；最终证书 = `assemble_certificates(events, 0, ℓ, terminal)` 产量。");
     let _ = writeln!(fw);
     let _ = writeln!(fw, "## ① 各段 × 各级计数");
@@ -1668,6 +1685,14 @@ mod funnel_tests {
             lag_distribution(&[-2, 0, 5, 9]),
             "n=4；负/零/正=1/1/2；min/p25/p50/p75/p90/p95/max=-2/-2/0/5/5/5/9"
         );
+    }
+
+    #[test]
+    fn dparent_enter_invariant_is_checked_in_release_code() {
+        let good = event(0, Side::Long, 80, (20, 80));
+        let mut bad = event(1, Side::Long, 100, (30, 100));
+        bad.enter_src = 29;
+        assert_eq!(dparent_enter_mismatches(&[vec![good], vec![bad]]), 1);
     }
     /// F-07：归零漏斗须覆盖 L0 terminal 全查无、候选空集、配对归零、终门归零与全通。
     #[test]

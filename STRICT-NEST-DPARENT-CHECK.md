@@ -1,9 +1,11 @@
 # STRICT-NEST-CHECK（P1 逐 bit 校验 + 基线 sanity + E1 三元组复算 + P2 证书装配）
 
-数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，4613599 bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；交易：`/tmp/codex-work-p7/p7_inputs/trades.jsonl`，40001 笔。全量因果重放 1483.8s（P1 确认支逐 bar 因果累积，谓词层终态单次重算定判）。
+数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，4613599 bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；交易：`/tmp/codex-work-p7/p7_inputs/trades.jsonl`，40001 笔。全量因果重放 1393.3s（P1 确认支逐 bar 因果累积，谓词层终态单次重算定判）。
 参数：`ThetaConfig::default()`（l_max=6, min_parts_per_level=3，未调参）。
 
 ## 基线 sanity（每次必带）
+
+- D_parent 左端诊断：cand_delta=true 事件中 `enter_src != interval.0` = **0**（仅诊断）。
 
 - raw seen = 29088（期望 29088），conf 键 = 27152（期望 27152），type3 键 = 15165（期望 15165），entry==close = 40001/40001（期望 40001/40001），零长度 = 2955（期望 2955）→ **一致**
 

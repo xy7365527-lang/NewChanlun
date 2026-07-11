@@ -247,8 +247,8 @@ impl NestCertificate {
     /// crate 内数据载体入口；外部不可见，最终统一经过私有 builder 收口。
     ///
     /// 本构造器是**数据载体**入口（π 结构路径 `econ_positive::build_nest_certificate`、测试用）：
-    /// - **不**宣称装配前置成立（递降 `parent.confirm_src ≤ child.confirm_src`、方向逐级来源、
-    ///   级别连续性、rung 与 `CandDeltaEvent` 身份对应）——那些是 [`assemble_certificate`]
+    /// - **不**宣称装配前置成立（方向逐级来源、级别连续性、rung 与
+    ///   `CandDeltaEvent` 身份对应）——那些是 [`assemble_certificate`]
     ///   三门 DFS 的生产层职责，证书本体无字段可复验（诚实边界，见 [`Self::n_delta`] 文档）。
     /// - `n_delta()` 仍是 0/1 谓词**取值**：构造成功 ≠ `n_delta=true`（π 路径合法携带
     ///   `cand=false` 梯级供 `effective_nest_depth` 截断消费）。
@@ -286,7 +286,7 @@ impl NestCertificate {
     }
 
     /// ★诚实边界（cert F-01）：`n_delta` 只能复验证书**自身字段**（逐级 `cand` 取值 ∧ 相邻 ⊆ ∧
-    /// 基例 `Conf^δ_e`）——装配层前置（递降 `confirm_src` 序、方向逐级来源、级别连续性、rung 与
+    /// 基例 `Conf^δ_e`）——装配层前置（方向逐级来源、级别连续性、rung 与
     /// `CandDeltaEvent` 的身份对应）证书无字段可复验，`n_delta=true` **不**蕴含它们成立；它们由
     /// [`assemble_certificate`] 三门 DFS 在生产时保证（数据载体旁路见 [`Self::from_parts`]）。
     ///

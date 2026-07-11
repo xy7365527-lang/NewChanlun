@@ -3,9 +3,10 @@
 ## 运行范围与语义护栏
 
 - 数据：`/tmp/codex-work-p7/analysis/data_cache/btc_1m_full.json`，**4613599** bar（2017-08-17 04:00:00 .. 2026-05-31 23:59:00）；`ThetaConfig::default()`，`l_max=6`，`min_parts_per_level=3`。
-- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 1483.8s。
+- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 1393.3s。
 - 语义：`J_parent := D_parent = parent.interval`；闭包含只判 `child.a_interval ⊆ D_parent`；父子均显式过滤 `cand_delta=true` 且方向一致。
 - `child.confirm_src - right(D_parent)` 只登记有符号分布；`ε_conf` 未进入任何控制流、排序或否决门。
+- D_parent 左端诊断：cand_delta=true 事件中 `enter_src != interval.0` = **0**；该计数不作产量闸门。
 - 列口径：背驰段谓词命中 = 终态分类 buy1/sell1 bit；`Cand^δ` 候选 = 塔上 `cand_delta=true` 事件；相邻边成功 = 能把已从 L0 可达的 partial chain 以 `I(A_child)⊆D_parent` 延长一级；最终证书 = `assemble_certificates(events, 0, ℓ, terminal)` 产量。
 
 ## ① 各段 × 各级计数
