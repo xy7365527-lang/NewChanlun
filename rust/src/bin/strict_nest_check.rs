@@ -773,6 +773,51 @@ struct FunnelLevel {
     certificates: usize,
 }
 
+/// F-07：首个归零段的确定原因（漏斗阶段：structural → Cand → terminal/base reachable →
+/// pair edges → reachable candidate → certificate）。此前检测强制要求本级
+/// `cand_candidates > 0`，L0 terminal 全查无、高级别候选空集、终门归零都只能落入
+/// 模糊的“需检查证书终门或更高层候选空集”。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FirstZeroCause {
+    /// L0 有 `Cand^δ` 基例但 terminal 全部查无（base reachable 归零）。
+    L0TerminalAllMissing,
+    /// 该级 `Cand^δ` 候选为空（上一级仍有可达 Cand）。
+    CandEmpty(usize),
+    /// 上下两级均有候选但可达递降链配对为 0（原有情形）。
+    PairZero(usize),
+    /// 配对成功但可达本级 Cand 归零（防御性分支，正常不应出现）。
+    ReachableZero(usize),
+    /// 可达 Cand 存在但证书终门归零。
+    CertificateZero(usize),
+}
+
+/// 查找“上一阶段非零、当前阶段为零”的首个断点；全程非零（或结构层本身为空）返回 None。
+fn first_zero_cause(funnel_levels: &[FunnelLevel]) -> Option<FirstZeroCause> {
+    let l0 = funnel_levels.first()?;
+    if l0.cand_candidates > 0 && l0.reachable_candidates == 0 {
+        return Some(FirstZeroCause::L0TerminalAllMissing);
+    }
+    for level in 1..funnel_levels.len() {
+        if funnel_levels[level - 1].reachable_candidates == 0 {
+            break; // 上游已空（如 L0 即无候选），无“非零→零”断点可归因
+        }
+        let cur = &funnel_levels[level];
+        if cur.cand_candidates == 0 {
+            return Some(FirstZeroCause::CandEmpty(level));
+        }
+        if cur.reachable_pair_successes == 0 {
+            return Some(FirstZeroCause::PairZero(level));
+        }
+        if cur.reachable_candidates == 0 {
+            return Some(FirstZeroCause::ReachableZero(level));
+        }
+        if cur.certificates == 0 {
+            return Some(FirstZeroCause::CertificateZero(level));
+        }
+    }
+    None
+}
+
 #[derive(Debug, Clone, Copy)]
 struct NearMiss {
     parent_level: usize,
@@ -1137,19 +1182,26 @@ fn run() -> Result<bool, String> {
         .first()
         .map(|evs| evs.iter().filter(|e| e.cand_delta).count())
         .unwrap_or(0);
-    let mut cert_missing_terminal = 0usize;
+    // F-06：terminal 查无以“唯一 L0 基例”计数——此前在每个 top 的装配回调里累加，
+    // 同一缺失基例会按可用 top 数重复计入（当前为 0 未显现，首现即膨胀）。
+    let cert_missing_terminal = cand_f
+        .first()
+        .map(|evs| {
+            evs.iter()
+                .filter(|e| e.cand_delta)
+                .filter(|e| !terminal_by_key.contains_key(&(e.confirm_src, side_i8(e.side))))
+                .count()
+        })
+        .unwrap_or(0);
     let mut cert_per_top: Vec<(usize, usize)> = Vec::new(); // (目标级 ℓ, 证书数)
     let mut cert_samples: Vec<String> = Vec::new();
     let mut cert_total = 0usize;
     let (mut funnel_levels, reachable) = build_cert_funnel(&cls_f, &cand_f, &terminal_by_key);
     for top in 1..cand_f.len() {
         let certs = assemble_certificates(&cand_f, 0, top, |b| {
-            let key = (b.confirm_src, side_i8(b.side));
-            let r = terminal_by_key.get(&key).copied();
-            if r.is_none() {
-                cert_missing_terminal += 1;
-            }
-            r
+            terminal_by_key
+                .get(&(b.confirm_src, side_i8(b.side)))
+                .copied()
         });
         cert_total += certs.len();
         for c in &certs {
@@ -1301,7 +1353,7 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(w);
     let _ = writeln!(
         w,
-        "- 基例（ℓ0 终态 cand_delta=true）= {}；terminal 查无 = {}（须 0，P1 一致性推论）；证书合计 = **{}**。",
+        "- 基例（ℓ0 终态 cand_delta=true）= {}；terminal 查无（唯一基例数）= {}（须 0，P1 一致性推论）；证书合计 = **{}**。",
         n_base, cert_missing_terminal, cert_total
     );
     let _ = writeln!(
@@ -1347,14 +1399,14 @@ fn run() -> Result<bool, String> {
         .map_err(|e| format!("写入 {} 失败: {e}", report_path.display()))?;
 
     // ── 证书产量=0 漏斗归因报告（只读终态插桩）──
-    let first_zero_level = (1..funnel_levels.len()).find(|&level| {
-        funnel_levels[level - 1].reachable_candidates > 0
-            && funnel_levels[level].cand_candidates > 0
-            && funnel_levels[level].reachable_pair_successes == 0
-    });
-    let near_misses = first_zero_level
-        .map(|level| closest_pair_misses(&cand_f, &reachable, level, 3))
-        .unwrap_or_default();
+    // F-07：按漏斗阶段顺序归因，输出确定原因枚举；近失样本仅对配对归零情形有意义。
+    let first_zero = first_zero_cause(&funnel_levels);
+    let near_misses = match first_zero {
+        Some(FirstZeroCause::PairZero(level)) => {
+            closest_pair_misses(&cand_f, &reachable, level, 3)
+        }
+        _ => Vec::new(),
+    };
     let mut funnel_out = String::new();
     let fw = &mut funnel_out;
     let _ = writeln!(fw, "# 严格区间套证书产量漏斗归因（2026-07-09）");
@@ -1398,14 +1450,14 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(fw);
     let _ = writeln!(
         fw,
-        "核对：P1 mismatch bar = **{}**；L0 terminal 查无 = **{}**；跨级证书合计 = **{}**。",
+        "核对：P1 mismatch bar = **{}**；L0 terminal 查无（唯一基例数）= **{}**；跨级证书合计 = **{}**。",
         p1.mismatch_bars, cert_missing_terminal, cert_total
     );
     let _ = writeln!(fw);
     let _ = writeln!(fw, "## ② 首个归零的段");
     let _ = writeln!(fw);
-    match first_zero_level {
-        Some(level) => {
+    match first_zero {
+        Some(FirstZeroCause::PairZero(level)) => {
             let _ = writeln!(
                 fw,
                 "首个归零发生在 **L{} → L{} 的递降链配对**：L{} 有 {} 个可达 Cand 基例/partial-chain，L{} 有 {} 个 `Cand^δ=true` 候选，但满足 `同方向 ∧ parent.confirm_src ≤ child.confirm_src ∧ J_child ⊆ J_parent` 的可达相邻配对为 **0**。因此从该段开始所有 `N^δ_{{ℓ↓0}}` 完整证书均为 0；损失不发生在 P1 谓词→Cand 映射，也不发生在 terminal 查找。",
@@ -1417,10 +1469,38 @@ fn run() -> Result<bool, String> {
                 funnel_levels[level].cand_candidates
             );
         }
+        Some(FirstZeroCause::L0TerminalAllMissing) => {
+            let _ = writeln!(
+                fw,
+                "首个归零发生在 **L0 terminal 查找**：L0 有 {} 个 `Cand^δ=true` 基例，但可达（有 terminal）基例为 **0**。损失在谓词→terminal 对账，不在递降链配对。",
+                funnel_levels[0].cand_candidates
+            );
+        }
+        Some(FirstZeroCause::CandEmpty(level)) => {
+            let _ = writeln!(
+                fw,
+                "首个归零发生在 **L{level} 的 `Cand^δ` 候选空集**：L{} 仍有 {} 个可达 Cand，但 L{level} 候选为 **0**。损失在本级候选生成，不在递降链配对。",
+                level - 1,
+                funnel_levels[level - 1].reachable_candidates
+            );
+        }
+        Some(FirstZeroCause::ReachableZero(level)) => {
+            let _ = writeln!(
+                fw,
+                "首个归零发生在 **L{level} 的可达 Cand**：配对成功数非零但可达本级 Cand 为 **0**（防御性分支，正常不应出现，须人工核查插桩）。"
+            );
+        }
+        Some(FirstZeroCause::CertificateZero(level)) => {
+            let _ = writeln!(
+                fw,
+                "首个归零发生在 **L{level} 的证书终门**：本级仍有 {} 个可达 Cand，但 `assemble_certificates` 产量为 **0**。损失在装配终门（terminal 对账/链装配），不在递降链配对。",
+                funnel_levels[level].reachable_candidates
+            );
+        }
         None => {
             let _ = writeln!(
                 fw,
-                "未发现“上下两级均有候选但可达配对为 0”的断点；需检查证书终门或更高层候选空集。"
+                "未发现“上一阶段非零、当前阶段为零”的断点：漏斗各段到证书终门均非零，或结构层本身为空。"
             );
         }
     }
@@ -1469,8 +1549,14 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(fw);
     let _ = writeln!(fw, "## 结论");
     let _ = writeln!(fw);
-    if let Some(level) = first_zero_level {
-        let _ = writeln!(fw, "当前 BTC 1m / 默认 Θ / 完成时 / 趋势背驰-only adopted-default 有效域内，证书产量 0 的首因是 **L{}→L{} 相邻级递降+Sub 合取无一通过**。上游背驰谓词并非零产量，P1→Cand 也无损；最终证书阶段只是传播该首个零。该结论不外推到其他数据、Θ、盘整背驰入链或进入时口径。", level - 1, level);
+    match first_zero {
+        Some(FirstZeroCause::PairZero(level)) => {
+            let _ = writeln!(fw, "当前 BTC 1m / 默认 Θ / 完成时 / 趋势背驰-only adopted-default 有效域内，证书产量 0 的首因是 **L{}→L{} 相邻级递降+Sub 合取无一通过**。上游背驰谓词并非零产量，P1→Cand 也无损；最终证书阶段只是传播该首个零。该结论不外推到其他数据、Θ、盘整背驰入链或进入时口径。", level - 1, level);
+        }
+        Some(cause) => {
+            let _ = writeln!(fw, "证书产量 0 的首因见 ② 段（{cause:?}）；非递降链配对归零，近失样本表不适用。该结论不外推到其他数据、Θ、盘整背驰入链或进入时口径。");
+        }
+        None => {}
     }
     let funnel_path = out_root.join("chanlun/review-results/cert-funnel-20260709.md");
     if let Some(parent) = funnel_path.parent() {
@@ -1534,6 +1620,42 @@ mod funnel_tests {
         let child = event(0, Side::Short, 100, (20, 100));
         let parent = event(1, Side::Short, 100, (20, 100));
         assert!(diagnose_pair(&parent, &child).passes());
+    }
+    /// F-07：归零漏斗须覆盖 L0 terminal 全查无、候选空集、配对归零、终门归零与全通。
+    #[test]
+    fn f07_first_zero_cause_covers_all_funnel_stages() {
+        fn fl(cand: usize, pair: usize, reach: usize, cert: usize) -> FunnelLevel {
+            FunnelLevel {
+                cand_candidates: cand,
+                reachable_pair_successes: pair,
+                reachable_candidates: reach,
+                certificates: cert,
+                ..Default::default()
+            }
+        }
+        // L0 有基例但 terminal 全查无
+        assert_eq!(
+            first_zero_cause(&[fl(3, 0, 0, 0), fl(2, 0, 0, 0)]),
+            Some(FirstZeroCause::L0TerminalAllMissing)
+        );
+        // 高级别候选空集（旧实现返回 None，只给模糊提示）
+        assert_eq!(
+            first_zero_cause(&[fl(3, 0, 3, 0), fl(0, 0, 0, 0)]),
+            Some(FirstZeroCause::CandEmpty(1))
+        );
+        // 原有配对归零情形保持不变
+        assert_eq!(
+            first_zero_cause(&[fl(3, 0, 3, 0), fl(2, 0, 0, 0)]),
+            Some(FirstZeroCause::PairZero(1))
+        );
+        // 配对成功但终门归零（旧实现返回 None）
+        assert_eq!(
+            first_zero_cause(&[fl(3, 0, 3, 0), fl(2, 1, 1, 0)]),
+            Some(FirstZeroCause::CertificateZero(1))
+        );
+        // 全通 / 结构层为空均无断点
+        assert_eq!(first_zero_cause(&[fl(3, 0, 3, 0), fl(2, 1, 1, 1)]), None);
+        assert_eq!(first_zero_cause(&[fl(0, 0, 0, 0), fl(0, 0, 0, 0)]), None);
     }
 }
 

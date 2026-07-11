@@ -196,14 +196,24 @@ fn summarize_strict_nest_certificates(
         base_count: cand.first().map(|evs| evs.iter().filter(|e| e.cand_delta).count()).unwrap_or(0),
         ..StrictNestSidecarSummary::default()
     };
+    // F-06：terminal_missing 以“唯一 L0 基例”计数——此前在每个 top 的装配回调里累加，
+    // 同一缺失基例会按可用 top 数重复计入。
+    summary.terminal_missing = cand
+        .first()
+        .map(|evs| {
+            evs.iter()
+                .filter(|e| e.cand_delta)
+                .filter(|e| {
+                    !terminal_by_key.contains_key(&(e.confirm_src, strict_nest_side_i8(e.side)))
+                })
+                .count()
+        })
+        .unwrap_or(0);
     for top in 1..cand.len() {
         let certs = classifier::nest::assemble_certificates(&cand, 0, top, |base| {
-            let key = (base.confirm_src, strict_nest_side_i8(base.side));
-            let terminal = terminal_by_key.get(&key).copied();
-            if terminal.is_none() {
-                summary.terminal_missing += 1;
-            }
-            terminal
+            terminal_by_key
+                .get(&(base.confirm_src, strict_nest_side_i8(base.side)))
+                .copied()
         });
         summary.cert_per_top.push((top, certs.len()));
         summary.certificates.extend(certs.into_iter().map(|certificate| StrictNestCertificateRecord {
@@ -3102,6 +3112,24 @@ mod tests {
         assert_eq!(summary.certificates.len(), expected.len());
         assert_eq!(summary.certificates[0].top_level, 1);
         assert_eq!(summary.certificates[0].certificate, expected[0]);
+    }
+
+    /// F-06：同一缺失 terminal 的 L0 基例不得按可用 top 数重复计入。
+    #[test]
+    fn strict_nest_sidecar_counts_missing_terminal_once_across_tops() {
+        let side = super::super::super::types::Side::Long;
+        let base = strict_nest_test_event(0, side, 60, 20, 60, true);
+        let mid = strict_nest_test_event(1, side, 50, 10, 80, true);
+        let top = strict_nest_test_event(2, side, 40, 0, 100, true);
+        let cand = vec![vec![base], vec![mid], vec![top]];
+        let terminal_by_key = std::collections::HashMap::new();
+
+        let summary = summarize_strict_nest_certificates(&cand, &terminal_by_key);
+
+        // 旧实现：top=1 与 top=2 各查一次同一基例 ⟹ 膨胀为 2；唯一基例口径应为 1。
+        assert_eq!(summary.terminal_missing, 1);
+        assert_eq!(summary.base_count, 1);
+        assert_eq!(summary.cert_total, 0);
     }
 
     /// 无结构数据 → 空订单流（**诚实结果，非阻塞态**）。recognize 已接通（2026-06-26）；
