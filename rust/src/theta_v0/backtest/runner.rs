@@ -3423,7 +3423,16 @@ mod tests {
         let fill_unset = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
         assert!(!fill_unset.typed_ledger.is_empty(), "前置：买点确认 ⟹ 有 typed 交易");
 
-        let dump_dir = std::env::temp_dir().join("opsem_r5_bitexact_test");
+        // 固定目录会与并行/残留测试进程互相 truncate；每次测试使用唯一目录。
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("系统时间晚于 epoch")
+            .as_nanos();
+        let dump_dir = std::env::temp_dir().join(format!(
+            "opsem_r5_bitexact_test_{}_{}",
+            std::process::id(),
+            nonce
+        ));
         std::env::set_var("OPSEM_DUMP_DIR", &dump_dir);
         let fill_set = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
         std::env::remove_var("OPSEM_DUMP_DIR");
