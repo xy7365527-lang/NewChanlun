@@ -829,6 +829,29 @@ pub fn level_cand_delta(
             None
         };
         let Some((pos, dir)) = gate_dir else {
+            // cert F-02（诊断可达性）：旧实现把 pan_div_diag 挂在趋势门之后，而趋势门与
+            // Consolidation ownership 在同一中枢上互斥 ⟹ 诊断恒 false（死分支）。此处对
+            // 「最近中枢按 ownership 属盘整块」的非趋势门段独立调用 judge_pan_div，产
+            // cand_delta=false 的**纯诊断**事件：装配器基例过滤（`b.cand_delta`）与链攀升
+            // （`!ev.cand_delta ⟹ continue`）双重跳过 ⟹ 结构性不入链，守住裁决②"不入链"
+            // 边界；不产 BspPoint、不置一类 bit。
+            if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
+                let c = &centers_sorted[c_idx];
+                if let Some(cert) =
+                    signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, close_src)
+                {
+                    events.push(CandDeltaEvent {
+                        level,
+                        side: cert.side,
+                        confirm_src: cert.source_index,
+                        interval: cert.seg_c,
+                        a_interval: cert.seg_a,
+                        enter_src: cert.seg_c.0,
+                        cand_delta: false,
+                        pan_div_diag: true,
+                    });
+                }
+            }
             continue; // 非趋势块 ⟹ 无第一类候选 ⟹ 无 Cand^δ 事件（谓词=第一类背驰段谓词）。
         };
         let c = &centers_sorted[c_idx];
@@ -936,6 +959,47 @@ mod p1_tests {
         assert_eq!(e.a_interval, (3, 5), "I(A) = 前中枢离开 episode");
         assert_eq!(e.enter_src, 9, "「进入时」= λ_C 仅诊断对照（裁决③）");
         assert!(!e.pan_div_diag, "趋势路径无盘整背驰诊断（裁决②不入链）");
+    }
+
+    /// cert F-02 回归：非趋势门段（最近中枢按 ownership 落 Consolidation 块）的盘整背驰诊断
+    /// 独立可达——fixture 移植自 signal.rs::pan_div_cert_emitted_in_consolidation_block_zero_
+    /// first_class_bits。修复前 pan_div_diag 挂在趋势门之后，与盘整 ownership 在同一中枢上
+    /// 互斥 ⟹ 恒 false 死分支；修复后产恰一条 cand_delta=false 的**纯诊断**事件（装配器基例
+    /// 过滤与链攀升双重跳过 ⟹ 结构性不入链，守住裁决②边界）。
+    #[test]
+    fn pan_div_diag_reachable_in_consolidation_without_trend_gate() {
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 5); // c0→c1 上涨（趋势块）
+        let c2 = dc(350, 450, 250, 460, 8); // c1→c2 扩张 ⟹ c2 按 ownership 落盘整块
+        let segs = vec![
+            seg(Direction::Down, 9, 11, 460, 330),  // A：第一次离开（330 < zd=350 破核心）
+            seg(Direction::Up, 11, 13, 330, 380),   // 回中枢段（380 ≥ 350 回核心内侧）
+            seg(Direction::Down, 13, 15, 380, 300), // C：第二次离开破核心（C<A 背驰）
+        ];
+        let prices: Vec<Tick> = vec![
+            100, 100, 100, 100, 60, 140, 100, 95, 105, 105, 60, 90, 95, 93, 91, 89,
+        ];
+        let closes: Vec<f64> = prices.iter().map(|&p| p as f64).collect();
+        let src: Vec<usize> = (0..prices.len()).collect();
+        let series = compute_macd(&closes, &MacdConfig::default());
+        let centers = [c0, c1, c2];
+        let events = level_cand_delta(
+            0, &centers, &segs, None, &series.hist, &series.dif, &prices, &src,
+            DivergenceGauge::default(),
+        );
+        // 恰一条纯诊断事件；零 cand_delta=true（诊断不入谓词）。
+        assert_eq!(events.len(), 1, "盘整块内恰一张 PanDivCert ⟹ 恰一条诊断事件");
+        let e = &events[0];
+        assert!(e.pan_div_diag, "cert F-02：盘整背驰诊断可达（修复前死分支恒 false）");
+        assert!(
+            !e.cand_delta,
+            "裁决②：盘整背驰不入谓词 ⟹ cand_delta=false（装配器双重跳过 ⟹ 不入链）"
+        );
+        assert_eq!(e.side, Side::Long, "向下破 ⟹ Long 候选（仅诊断标注）");
+        assert_eq!(e.confirm_src, 15, "因果触发点 = 破中枢段端点");
+        assert_eq!(e.interval, (13, 15), "I(C) = 当前离开走势区间");
+        assert_eq!(e.a_interval, (9, 11), "I(A) = 前一次同向离开末段");
+        assert_eq!(e.enter_src, 13, "enter_src = λ_C = I(C) 起点");
     }
 }
 
