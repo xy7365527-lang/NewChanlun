@@ -22,10 +22,16 @@
 //!
 //! ## 诚实声明（跑前写死）
 //!
-//! 1. 止损按止损价成交（无滑穿/缺口建模）——停出损失是下界口径。
+//! 1. 止损取劣侧成交：fill = 止损价与当根 open 的劣侧（多头 min / 空头 max），
+//!    覆盖跳空穿越——停出损失是下界口径。（bughunt F-10 修复口径，2026-07-10）
 //! 2. confirmed 前缀可回退（#88 复活级联）：已开仓交易照因果保留，回退次数如实报告。
 //! 3. 测试窗外交易（首个 test 窗前/末窗后）只进逐年描述表，无 λ 止损，不入主判据。
-//! 4. 入场/出场 bar 若 untradable，按 close 成交照记——计数如实报告。
+//! 4. untradable bar 上**不成交**（bughunt F-10 修复口径）：入场跳过、段确认出场与
+//!    止损顺延至下一可交易 bar（止损按劣侧），全部计数如实报告。
+//! 5. 窗界平仓（bughunt F-09 修复口径）：持仓所属 test 窗结束后的首根 bar 上按最近
+//!    可交易 close 强制平仓，窗 k 统计不吸收窗 k+1 时段路径；计数如实报告。
+//! 6. 训练窗 λ 标定的段特征路径截断至 train_end 当日末根 bar（bughunt F-08 修复口径），
+//!    杜绝特征读取越界；段身份仍来自终局解析（见上，量级 = 确认滞后，如实声明）。
 
 #[cfg(test)]
 mod tests {
@@ -52,6 +58,14 @@ mod tests {
         }
     }
 
+    /// F-10：untradable bar 上被阻塞的出场，顺延至下一可交易 bar 成交。
+    enum Pending {
+        /// 段确认出场被阻塞——下一可交易 bar 按 close 成交。
+        Seg,
+        /// 止损触发被阻塞——下一可交易 bar 按 (止损价, open) 劣侧成交。
+        Stop(f64),
+    }
+
     struct OpenTrade {
         seg_idx: usize,
         entry_bar: usize,
@@ -59,6 +73,7 @@ mod tests {
         dir: Direction,
         lambda: Option<f64>,
         win: Option<(u32, bool)>, // (窗序号, clipped)
+        pending: Option<Pending>, // F-10：被 untradable bar 阻塞的出场
     }
 
     struct TradeRec {
@@ -156,10 +171,12 @@ mod tests {
         let day = |bar: usize| ds.dates[bar].get(..10).unwrap_or("");
 
         // λ_w = clamp(train 段 gap p95, [LO, HI])；gap 口径与 S2 逐字一致。
-        let seg_gap = |si: usize| -> f64 {
+        // F-08：特征路径截断至 cap（train_end 当日末根 bar，含）——训练段的 end_index
+        // 可越过 train_end，λ 标定不得读取其后的 test 期路径 bar。
+        let seg_gap = |si: usize, cap: usize| -> f64 {
             let s = &fin.segments[si];
             let entry = s.start_price as f64;
-            let path = &ds.bars[s.start_index..=s.end_index];
+            let path = &ds.bars[s.start_index..=s.end_index.min(cap)];
             let g = match s.direction {
                 Direction::Up => (entry - path.iter().map(|b| b.low).min().unwrap() as f64) / entry,
                 Direction::Down => (path.iter().map(|b| b.high).max().unwrap() as f64 - entry) / entry,
@@ -168,12 +185,17 @@ mod tests {
         };
         let mut lambda_of_win: Vec<Option<f64>> = Vec::with_capacity(windows.len());
         for w in windows {
+            // F-08：train_end 当日末根 bar 下标（dates 升序，partition_point = 首个越界位）。
+            let n_train_bars = ds
+                .dates
+                .partition_point(|d| d.get(..10).unwrap_or("") <= w.train_end);
+            let cap = n_train_bars.saturating_sub(1);
             let mut gaps: Vec<f64> = (0..fin.segments.len())
                 .filter(|&si| {
                     let d = day(fin.segments[si].start_index);
                     d >= w.train_start && d <= w.train_end
                 })
-                .map(seg_gap)
+                .map(|si| seg_gap(si, cap))
                 .collect();
             gaps.sort_by(|a, b| a.partial_cmp(b).unwrap());
             lambda_of_win.push(if gaps.is_empty() {
@@ -195,12 +217,69 @@ mod tests {
         let mut retreats = 0usize;
         let mut open: Option<OpenTrade> = None;
         let mut trades: Vec<TradeRec> = Vec::new();
-        let mut untradable_fills = 0usize;
+        let mut last_tradable_close: Option<f64> = None; // F-09/F-10：最近可交易 close
+        let mut boundary_closes = 0usize; // F-09：窗界强平计数
+        let mut deferred_exits = 0usize; // F-10：出场被 untradable bar 顺延计数
+        let mut untradable_entry_skips = 0usize; // F-10：入场被 untradable bar 跳过计数
+        // 劣侧成交价：多头出场取低者，空头出场取高者。
+        let worse = |dir: Direction, a: f64, b: f64| -> f64 {
+            match dir {
+                Direction::Up => a.min(b),
+                Direction::Down => a.max(b),
+            }
+        };
         for (t, bar) in ds.bars.iter().enumerate() {
             let layer = incr.append(*bar);
-            // 止损（intrabar，入场 bar 当根不查——入场在收盘之后）
+            // F-09：窗界平仓——持仓所属 test 窗结束后的首根 bar 上，按最近可交易 close
+            // 强平（挂起止损则按劣侧），窗 k 统计不吸收窗 k+1 时段路径。窗外交易
+            // （win=None）不受窗界约束，仅进逐年描述表。
             if let Some(ot) = &open {
-                if let (Some(lam), true) = (ot.lambda, ot.entry_bar < t) {
+                if let Some((wi, _)) = ot.win {
+                    if day(t) > windows[wi as usize].test_end {
+                        let ot = open.take().unwrap();
+                        let ltc = last_tradable_close
+                            .expect("入场 bar 必可交易（F-10），窗界强平必有可交易 close");
+                        let (exit, stopped) = match ot.pending {
+                            Some(Pending::Stop(px)) => (worse(ot.dir, px, ltc), true),
+                            _ => (ltc, false),
+                        };
+                        boundary_closes += 1;
+                        trades.push(TradeRec {
+                            seg_idx: ot.seg_idx,
+                            entry_bar: ot.entry_bar,
+                            entry: ot.entry,
+                            exit,
+                            dir: ot.dir,
+                            stopped,
+                            win: ot.win,
+                        });
+                    }
+                }
+            }
+            // F-10：挂起出场在下一可交易 bar 成交（段确认出场按 close，止损按劣侧）。
+            if !bar.untradable {
+                if open.as_ref().is_some_and(|ot| ot.pending.is_some()) {
+                    let ot = open.take().unwrap();
+                    let (exit, stopped) = match ot.pending {
+                        Some(Pending::Seg) => (bar.close as f64, false),
+                        Some(Pending::Stop(px)) => (worse(ot.dir, px, bar.open as f64), true),
+                        None => unreachable!(),
+                    };
+                    trades.push(TradeRec {
+                        seg_idx: ot.seg_idx,
+                        entry_bar: ot.entry_bar,
+                        entry: ot.entry,
+                        exit,
+                        dir: ot.dir,
+                        stopped,
+                        win: ot.win,
+                    });
+                }
+            }
+            // 止损（intrabar，入场 bar 当根不查——入场在收盘之后）
+            if let Some(ot) = &mut open {
+                if let (Some(lam), true, true) = (ot.lambda, ot.entry_bar < t, ot.pending.is_none())
+                {
                     let stop_px = match ot.dir {
                         Direction::Up => ot.entry * (1.0 - lam),
                         Direction::Down => ot.entry * (1.0 + lam),
@@ -209,14 +288,19 @@ mod tests {
                         Direction::Up => (bar.low as f64) <= stop_px,
                         Direction::Down => (bar.high as f64) >= stop_px,
                     };
-                    if hit {
+                    if hit && bar.untradable {
+                        // F-10：untradable bar 不成交——止损挂起，顺延劣侧成交。
+                        ot.pending = Some(Pending::Stop(stop_px));
+                        deferred_exits += 1;
+                    } else if hit {
+                        // F-10：劣侧成交——跳空穿越时按当根 open（更劣者）成交。
+                        let fill = worse(ot.dir, stop_px, bar.open as f64);
                         let ot = open.take().unwrap();
-                        untradable_fills += bar.untradable as usize;
                         trades.push(TradeRec {
                             seg_idx: ot.seg_idx,
                             entry_bar: ot.entry_bar,
                             entry: ot.entry,
-                            exit: stop_px,
+                            exit: fill,
                             dir: ot.dir,
                             stopped: true,
                             win: ot.win,
@@ -232,22 +316,33 @@ mod tests {
                 for j in hw..c {
                     // 段 j 确认于 bar t
                     if let Some(ot) = &open {
-                        assert!(ot.seg_idx >= j, "开仓段 {} 早于确认段 {}，生命周期破缺", ot.seg_idx, j);
+                        // F-10：出场被顺延的持仓可落后于确认进度，不算生命周期破缺。
+                        assert!(
+                            ot.seg_idx >= j || ot.pending.is_some(),
+                            "开仓段 {} 早于确认段 {}，生命周期破缺",
+                            ot.seg_idx,
+                            j
+                        );
                     }
-                    if open.as_ref().is_some_and(|ot| ot.seg_idx == j) {
-                        let ot = open.take().unwrap();
-                        untradable_fills += bar.untradable as usize;
-                        trades.push(TradeRec {
-                            seg_idx: ot.seg_idx,
-                            entry_bar: ot.entry_bar,
-                            entry: ot.entry,
-                            exit: bar.close as f64,
-                            dir: ot.dir,
-                            stopped: false,
-                            win: ot.win,
-                        });
+                    if open.as_ref().is_some_and(|ot| ot.seg_idx == j && ot.pending.is_none()) {
+                        if bar.untradable {
+                            // F-10：untradable bar 不成交——段确认出场挂起，顺延 close 成交。
+                            open.as_mut().unwrap().pending = Some(Pending::Seg);
+                            deferred_exits += 1;
+                        } else {
+                            let ot = open.take().unwrap();
+                            trades.push(TradeRec {
+                                seg_idx: ot.seg_idx,
+                                entry_bar: ot.entry_bar,
+                                entry: ot.entry,
+                                exit: bar.close as f64,
+                                dir: ot.dir,
+                                stopped: false,
+                                win: ot.win,
+                            });
+                        }
                     }
-                    if open.is_none() {
+                    if open.is_none() && !bar.untradable {
                         let win = win_of_day(day(t));
                         open = Some(OpenTrade {
                             seg_idx: j + 1,
@@ -256,11 +351,17 @@ mod tests {
                             dir: opposite(layer.segments[j].direction),
                             lambda: win.and_then(|(wi, _)| lambda_of_win[wi as usize]),
                             win,
+                            pending: None,
                         });
-                        untradable_fills += bar.untradable as usize;
+                    } else if open.is_none() {
+                        // F-10：untradable bar 不成交——该入场机会跳过（不顺延，保守口径）。
+                        untradable_entry_skips += 1;
                     }
                 }
                 hw = c;
+            }
+            if !bar.untradable {
+                last_tradable_close = Some(bar.close as f64);
             }
         }
         let dropped_open = open.is_some() as usize;
@@ -303,8 +404,9 @@ mod tests {
 
         println!("== S3 捕获率回测（因果重放，bars={} segments={}）==", ds.bars.len(), fin.segments.len());
         println!(
-            "trades={} 回退={} 方向失配={} 无理论分母={} 尾部未平={} untradable成交={}",
-            trades.len(), retreats, dir_mismatch, no_theory, dropped_open, untradable_fills,
+            "trades={} 回退={} 方向失配={} 无理论分母={} 尾部未平={} 窗界强平={} 出场顺延={} 入场跳过(untradable)={}",
+            trades.len(), retreats, dir_mismatch, no_theory, dropped_open,
+            boundary_closes, deferred_exits, untradable_entry_skips,
         );
         println!("-- 逐窗（λ 由各自 train p95 定，clipped 不入主判据）--");
         for (w, agg) in windows.iter().zip(&per_win) {
