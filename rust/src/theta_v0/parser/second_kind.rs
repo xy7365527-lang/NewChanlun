@@ -41,7 +41,8 @@
 //! （default 0 = 无限全扫，bit-exact 优先于性能），显式标 `[设计选择,默认值]`，不进缠论核心。
 
 use super::super::types::{Direction, Stroke, Tick};
-use super::segment::{process_feature_inclusion, stroke_interval, Interval};
+use super::feature_seq::second_seq_has_fractal;
+use super::segment::{stroke_interval, Interval};
 
 /// 在标准特征序列上检测是否存在**任意**分型（顶或底，第67课"只要有分型就可以"）。
 ///
@@ -51,6 +52,10 @@ use super::segment::{process_feature_inclusion, stroke_interval, Interval};
 /// 顶分型：中元素 hi 严格高于左右 hi；底分型：中元素 lo 严格低于左右 lo（严格不等，第67课）。
 ///
 /// 边界条件：标准特征序列 < 3 元素 ⟹ 无分型（无完整三元组）。
+///
+/// （BUG-08 修复后生产路径经 `feature_seq::second_seq_has_fractal` 的尾三元组提前终止判定，
+/// 本函数仅测试断言保留——语义锚不变。）
+#[cfg(test)]
 fn has_any_feature_fractal(std_feat: &[Interval]) -> bool {
     if std_feat.len() < 3 {
         return false;
@@ -79,8 +84,15 @@ fn has_any_feature_fractal(std_feat: &[Interval]) -> bool {
 /// 算法（第67课博文逐字 + Python `_second_seq_has_fractal` 交叉验证）：
 /// 1. 从 `apex_stroke_offset` 之后的笔中，取 **seg_dir 同向笔**（= 新反向段的特征序列元素，
 ///    第67课"从分型极值点开始的反向一笔开始的序列的特征序列"）。
-/// 2. 对这些笔的区间做包含处理 → 标准第二特征序列（复用 `process_feature_inclusion`）。
-/// 3. 检测任意分型（`has_any_feature_fractal`，第67课"只要有分型就可以"）。
+/// 2. 对这些笔的区间做**方向性**包含处理 → 标准第二特征序列。
+/// 3. 检测任意分型（第67课"只要有分型就可以"）。
+///
+/// ★BUG-08 修复：包含处理复用 `feature_seq::second_seq_has_fractal`（bit-exact 对齐 Python
+/// `_apply_inclusion` 的方向性合并：向上取 max/max、向下取 min/min，初始 dir_state 同
+/// Python `seg_dir==up ⟹ DOWN` 语义）。原实现复用 `segment::process_feature_inclusion`
+/// 的中性外包络 `[min(lo),max(hi)]`——那是 Origin 静态层的配套实现，与本文件宣称的
+/// Python bit-exact 交叉验证不是同一算法（`[10,20]` 含 `[12,18]` 向上应得 `[12,20]`，
+/// 外包络仍得 `[10,20]`，会增删后续分型）。
 ///
 /// 返回：第二特征序列出现分型 ⟹ `true`（确认终结）；否则 `false`（未确认，留 tail）。
 ///
@@ -93,15 +105,10 @@ pub fn second_kind_confirmed(strokes: &[Stroke], apex_stroke_offset: usize) -> b
         return false;
     };
     let seg_dir = first.direction;
-    // 第二特征序列元素 = apex 之后的 seg_dir 同向笔（新反向段的特征序列，第67课博文方向语义）。
-    let second_feat: Vec<Interval> = strokes
-        .iter()
-        .skip(apex_stroke_offset + 1)
-        .filter(|s| s.direction == seg_dir)
-        .map(stroke_interval)
-        .collect();
-    let std_second = process_feature_inclusion(&second_feat);
-    has_any_feature_fractal(&std_second)
+    // 第二特征序列 = apex 之后的 seg_dir 同向笔 + 方向性包含处理 + 任意分型检测——
+    // 与 feature_seq::second_seq_has_fractal 完全同构（scan_window=0 = 无限全扫，
+    // 对齐本模块"默认全扫描，bit-exact 优先"承诺）。
+    second_seq_has_fractal(strokes, seg_dir, apex_stroke_offset, 0)
 }
 
 /// 在线段方向反向笔序列里定位首特征序列分型极值点的笔偏移（SecondKind 确认的起点锚）。

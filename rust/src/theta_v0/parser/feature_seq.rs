@@ -150,7 +150,7 @@ fn apply_inclusion(
 /// = 「存在某三元组成分型」。构建过程中每加入一个元素，只需检查**新尾部三元组**（旧三元组
 /// 未变，前序无分型已隐含）——一旦成分型立即返回 true，避免完整 collect + 二次遍历。包含合并
 /// 修改尾元素后同样只影响尾部三元组，检查时机一致。语义等价于完整 `has_any_fractal`。
-fn second_seq_has_fractal(
+pub(super) fn second_seq_has_fractal(
     strokes: &[Stroke],
     seg_dir: Direction,
     from_stroke_idx: usize,
