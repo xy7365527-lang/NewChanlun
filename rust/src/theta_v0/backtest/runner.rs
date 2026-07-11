@@ -1069,13 +1069,14 @@ where
                 if o.qty > 0 {
                     let units_before = units;
                     // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
-                    // M6：apply_order 返 (realized, fee)——fee 独立累计进 R 分解 Commission+Slippage。
-                    let (r_pnl, fee_paid) = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
-                    realized_cum += r_pnl;
-                    cum_fee += fee_paid;
-                    // 轨迹配对（v1 方向中性）：units 跨 0 / 回 0 ⟹ 完整交易闭合。
-                    track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
-                    n_orders_executed += 1;
+                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    realized_cum += fill.realized;
+                    cum_fee += fill.fee;
+                    if fill.executed_qty > 0.0 {
+                        // 轨迹与执行计数只消费真实成交；全拒单不再伪造 L2 执行事实。
+                        track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
+                        n_orders_executed += 1;
+                    }
                 }
             }
         }
@@ -2559,12 +2560,15 @@ fn plan_and_fill_mtm(
                 if o.qty > 0 && matches!(o.action, StrictAction::Close) {
                     let depth = d.depth as usize;
                     let units_before = units;
-                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    if fill.executed_qty <= 0.0 {
+                        continue;
+                    }
                     // ★轨迹配对（v1 方向中性）：平仓到 units=0 / 翻转 ⟹ 完整交易闭合（非强平，正常退出）。
                     track_position_transition(
                         &mut trades, &mut pos_entry_bar, units_before, units, i, false,
                     );
-                    apply_voice_qty(&mut voice_qty, depth, o);
+                    apply_voice_fill(&mut voice_qty, depth, fill);
                     // 平仓后台账状态机：全平 ⟹ 清台账（held=None）；未全平（退化边界，build_exit_order
                     // 是全平 q，正常不发生）⟹ 保留台账但重置 exit_pending，允许下一 bar 重新评估退出
                     // （避免 exit_pending 永久阻塞该声部退出）。
@@ -2610,7 +2614,10 @@ fn plan_and_fill_mtm(
                     });
                     let depth = matched.map(|d| d.depth as usize).unwrap_or(0);
                     let units_before = units;
-                    apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
+                    if fill.executed_qty <= 0.0 {
+                        continue;
+                    }
                     // ★轨迹追踪（v1 方向中性）：units 有符号（正=多/负=空）。任一订单经
                     // apply_fill「先平后开」可能同时闭合反向旧仓 + 开新仓（翻转）⟹ 用 units 跨 0
                     // 行为统一追踪：(a) |units| 由非零回 0 / 跨 0 翻转 ⟹ 闭合旧方向 trade（配对
@@ -2619,12 +2626,18 @@ fn plan_and_fill_mtm(
                     track_position_transition(
                         &mut trades, &mut pos_entry_bar, units_before, units, i, false,
                     );
-                    apply_voice_qty(&mut voice_qty, depth, o);
+                    apply_voice_fill(&mut voice_qty, depth, fill);
                     // ★开仓订单 ⟹ 记入持仓台账（退出生成器读它）。止损价由入场决策的
                     // stop_in + 方向算出（与 build_open_order 内 structural_stop 同一函数）。
-                    if matches!(o.action, StrictAction::Buy | StrictAction::Sell | StrictAction::Add) {
+                    if fill.opened_qty > 0.0
+                        && matches!(o.action, StrictAction::Buy | StrictAction::Sell | StrictAction::Add)
+                    {
                         if let Some(d) = matched {
                             record_held_voice(&mut held, d);
+                        }
+                    } else if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
+                        if let Some(slot) = held.get_mut(depth) {
+                            *slot = None;
                         }
                     }
                     n_orders_executed += 1;
@@ -2805,19 +2818,15 @@ fn track_position_transition(
 /// 故 **Buy/Add/Sell = 开仓侧（绝对手数增）**，**Close/Reduce = 平仓侧（绝对手数减）**。
 /// 修复前 long-only 把 Sell 当减仓 ⟹ Short 根开空后 voice_qty 恒 0 ⟹ act_state 恒 Open ⟹ 重复
 /// 开空不止（v1 缺陷根因之一）。
-fn apply_voice_qty(voice_qty: &mut [u32], depth: usize, o: &Order) {
+fn apply_voice_fill(voice_qty: &mut [u32], depth: usize, fill: FillOutcome) {
     if let Some(slot) = voice_qty.get_mut(depth) {
-        match o.action {
-            // 开仓侧（开多 Buy / 开空 Sell / 加仓 Add）⟹ 绝对手数增。
-            StrictAction::Buy | StrictAction::Add | StrictAction::Sell => {
-                *slot = slot.saturating_add(o.qty as u32);
-            }
-            // 平仓侧（平多/平空 Close / 减仓 Reduce）⟹ 绝对手数减。
-            StrictAction::Close | StrictAction::Reduce => {
-                *slot = slot.saturating_sub(o.qty as u32);
-            }
-            StrictAction::Hold | StrictAction::Wait => {}
-        }
+        // 订单可“先平后开”，且开仓余量可能因现金不足被拒；声部账必须按两个真实成交段
+        // 分别扣/加，绝不能按原始请求量或 action 推断。
+        let closed = fill.closed_qty.round().clamp(0.0, u32::MAX as f64) as u32;
+        let opened = fill.opened_qty.round().clamp(0.0, u32::MAX as f64) as u32;
+        debug_assert!((fill.closed_qty - closed as f64).abs() < 1e-9);
+        debug_assert!((fill.opened_qty - opened as f64).abs() < 1e-9);
+        *slot = slot.saturating_sub(closed).saturating_add(opened);
     }
 }
 
@@ -2930,7 +2939,7 @@ fn apply_order(
     units: &mut f64,
     entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
-) -> (f64, f64) {
+) -> FillOutcome {
     let qty = o.qty as f64;
     // 订单 → (有符号成交方向 δ, 是否纯平仓 close_only)。
     // ★信号成交（Buy/Add/Sell）：可「先平后开」翻转（开多 δ+1 / 开空 δ−1）。
@@ -2948,10 +2957,10 @@ fn apply_order(
             } else if *units < 0.0 {
                 (1.0, true) // 持空 ⟹ 买回平空
             } else {
-                return (0.0, 0.0); // 空仓无仓可平
+                return FillOutcome::noop(); // 空仓无仓可平
             }
         }
-        StrictAction::Hold | StrictAction::Wait => return (0.0, 0.0), // 不动
+        StrictAction::Hold | StrictAction::Wait => return FillOutcome::noop(), // 不动
     };
     apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls)
 }
@@ -2977,7 +2986,7 @@ fn apply_fill(
     units: &mut f64,
     entry_cost: &mut f64,
     trade_pnls: &mut Vec<f64>,
-) -> (f64, f64) {
+) -> FillOutcome {
     // ★A'（codex GAP3 裁定清单③）：返回 `(费后已实现 PnL, 成交费用)`。
     // - realized：本次 fill 的费后已实现 PnL（仅段 1 平仓分量产生；无平仓 = 0.0）。结算时点硬
     //   边界（推导链第 9 条）：只锚实际平仓 fill 的 close 分支——partial close 按平掉数量结算；
@@ -2987,8 +2996,18 @@ fn apply_fill(
     //   因子里，此处**独立**测得供 RDecomposition 守恒断言（校验和 = 账本净变动，非从 net_r 反推）。
     let mut realized = 0.0;
     let mut fee_paid = 0.0;
+    let mut closed_qty = 0.0;
+    let mut opened_qty = 0.0;
     if qty <= 0.0 || px <= 0.0 {
-        return (realized, fee_paid);
+        return FillOutcome {
+            requested_qty: qty.max(0.0),
+            executed_qty: 0.0,
+            closed_qty,
+            opened_qty,
+            rejected_qty: qty.max(0.0),
+            realized,
+            fee: fee_paid,
+        };
     }
     let mut remaining = qty;
 
@@ -3013,6 +3032,7 @@ fn apply_fill(
             *units += delta * close_qty;
             trade_pnls.push(pnl);
             realized = pnl; // A'：平仓结算事实（与 trade_pnls 同一值，返回给 TW Realize 生产者）
+            closed_qty += close_qty;
             remaining -= close_qty;
             // 全平 ⟹ 成本基归零（无持仓）；未全平 ⟹ 同方向剩余成本基不变（同价同费基）。
             if *units == 0.0 {
@@ -3031,7 +3051,15 @@ fn apply_fill(
         let need_cash = delta > 0.0; // 仅开多需现金
         let cost = remaining * px * (1.0 + fee_rate);
         if need_cash && *cash < cost {
-            return (realized, fee_paid); // 现金不足，不开多（对齐 v0 现金约束；开空无此约束）
+            return FillOutcome {
+                requested_qty: qty,
+                executed_qty: closed_qty,
+                closed_qty,
+                opened_qty,
+                rejected_qty: remaining,
+                realized,
+                fee: fee_paid,
+            };
         }
         fee_paid += remaining * px * fee_rate; // 开仓成交费（commission+slippage+tax）
         // 每单位含费成本基（多=买入均价含买入费；空=卖出均价扣卖出费净收）。
@@ -3046,8 +3074,45 @@ fn apply_fill(
         }
         *units = new_units;
         *cash += cash_flow;
+        opened_qty += remaining;
+        remaining = 0.0;
     }
-    (realized, fee_paid)
+    FillOutcome {
+        requested_qty: qty,
+        executed_qty: closed_qty + opened_qty,
+        closed_qty,
+        opened_qty,
+        rejected_qty: remaining,
+        realized,
+        fee: fee_paid,
+    }
+}
+
+/// 单次订单的真实成交分解。`closed_qty + opened_qty = executed_qty`；未成交余量只进入
+/// `rejected_qty`，不得进入执行计数、交易轨迹或声部持仓账。
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct FillOutcome {
+    requested_qty: f64,
+    executed_qty: f64,
+    closed_qty: f64,
+    opened_qty: f64,
+    rejected_qty: f64,
+    realized: f64,
+    fee: f64,
+}
+
+impl FillOutcome {
+    fn noop() -> Self {
+        Self {
+            requested_qty: 0.0,
+            executed_qty: 0.0,
+            closed_qty: 0.0,
+            opened_qty: 0.0,
+            rejected_qty: 0.0,
+            realized: 0.0,
+            fee: 0.0,
+        }
+    }
 }
 
 /// bar-级 returns（占位；日聚合接通前的 L1 口径）。
@@ -5012,6 +5077,40 @@ mod tests {
         let orders = vec![Order { action: StrictAction::Buy, qty: 1, exec_index: 0 }];
         let (_eq, _r, pnls) = simulate_fills(&bars, &orders, 1000.0, &config);
         assert_eq!(pnls.len(), 0, "不可交易 bar 跳过订单，无交易");
+    }
+
+    /// B/F-05：翻转单先平掉旧声部、再因现金不足拒绝余量时，只有真实平仓段可入账。
+    #[test]
+    fn f05_partial_fill_rejected_remainder_does_not_pollute_voice_ledger() {
+        let (mut cash, mut units, mut ec, mut pnls) = (100.0, -1.0, 90.0, Vec::new());
+        let order = Order { action: StrictAction::Buy, qty: 2, exec_index: 0 };
+
+        let fill = apply_order(
+            &order,
+            100.0,
+            0.0,
+            &mut cash,
+            &mut units,
+            &mut ec,
+            &mut pnls,
+        );
+
+        assert_eq!(fill.requested_qty, 2.0);
+        assert_eq!(fill.executed_qty, 1.0, "只成交平空的 1 手");
+        assert_eq!(fill.closed_qty, 1.0);
+        assert_eq!(fill.opened_qty, 0.0, "开多余量因现金不足全部拒绝");
+        assert_eq!(fill.rejected_qty, 1.0);
+        assert_eq!(units, 0.0);
+
+        let mut voice_qty = vec![1];
+        apply_voice_fill(&mut voice_qty, 0, fill);
+        assert_eq!(voice_qty, vec![0], "声部账只扣真实平仓量，不得把拒绝余量记成新仓");
+
+        let mut n_orders_executed = 0;
+        if fill.executed_qty > 0.0 {
+            n_orders_executed += 1;
+        }
+        assert_eq!(n_orders_executed, 1, "部分成交只计一个真实执行订单");
     }
 
     // ──────────────────────────────────────────────────────────────────────
