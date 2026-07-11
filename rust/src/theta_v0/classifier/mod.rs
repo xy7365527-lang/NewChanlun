@@ -440,7 +440,8 @@ pub fn cand_delta_tower(
 /// 消掉 per-bar O(n) 项。
 ///
 /// ★缓存一致性守卫（over-invalidate 方向）：任一序列长度 ≠ `merged_bars.len()` 或
-/// `macd_state_len` 不齐 ⟹ 退化调全量版（bit-exact，非增量）。`DIAG_CANDCACHE=1` 时
+/// `macd_state_len` 不合覆盖契约（n≤1 ⟹ n；n≥2 ⟹ n-1，见 [`cache_series_ok`]）⟹
+/// 退化调全量版（bit-exact，非增量）。`DIAG_CANDCACHE=1` 时
 /// 每 bar 与全量版对拍断言（前缀验证用，同 `DIAG_L0UNITS` 模式）。
 pub fn cand_delta_tower_cached(
     l0: &ParseLayer,
@@ -450,12 +451,7 @@ pub fn cand_delta_tower_cached(
     cache: &TowerCache,
 ) -> Vec<Vec<recursive_tower::CandDeltaEvent>> {
     let n = l0.merged_bars.len();
-    let cache_ok = cache.macd_state_len == n
-        && cache.closes_tick.len() == n
-        && cache.close_src.len() == n
-        && cache.macd_hist.len() == n
-        && cache.macd_dif.len() == n;
-    if !cache_ok {
+    if !cache_series_ok(cache, n) {
         return cand_delta_tower(l0, classification, tower_snapshots, config);
     }
     let out = cand_delta_tower_with_series(
@@ -476,6 +472,21 @@ pub fn cand_delta_tower_cached(
         );
     }
     out
+}
+
+/// 缓存序列一致性守卫（parser BUG-04 修复：`macd_state_len` 期望值按
+/// [`compute_macd_hist_incremental`] 的**真实覆盖契约**校验——n≤1 时 state 覆盖全部
+/// n 个 close；n≥2 时 state 只覆盖稳定前缀 `n-1`（尾 bar 不稳定，hist/dif 才含尾 bar）。
+/// 旧守卫 `macd_state_len == n` 在 n≥2 恒假 ⟹ 缓存分支死代码，每 bar 退化全量重算
+/// O(n²)，逐 bar 校验热路径失效）。over-invalidate 方向不变：任一不齐 ⟹ 调用方退化
+/// 全量版（bit-exact）。
+fn cache_series_ok(cache: &TowerCache, n: usize) -> bool {
+    let expected_state_len = if n <= 1 { n } else { n - 1 };
+    cache.macd_state_len == expected_state_len
+        && cache.closes_tick.len() == n
+        && cache.close_src.len() == n
+        && cache.macd_hist.len() == n
+        && cache.macd_dif.len() == n
 }
 
 /// P1 驱动器核心（序列注入版）：`cand_delta_tower`（全量重算）与
@@ -2171,6 +2182,31 @@ mod tests {
             let expect: Vec<Tick> = bars[..k].iter().map(|b| b.close).collect();
             assert_eq!(cache2.closes_tick(), expect.as_slice(), "bar {k}: closes_tick ≠ merged_bars.close");
         }
+    }
+
+    /// parser BUG-04 回归：缓存守卫按真实覆盖契约校验——`compute_macd_hist_incremental`
+    /// 在 n≥2 时 `macd_state_len = n-1`（state 只覆盖稳定前缀，hist/dif 才含不稳定尾 bar），
+    /// 旧守卫 `== n` 恒假 ⟹ 增量缓存死代码、每 bar 退化全量 O(n²)。修复后逐 bar 驱动
+    /// 生产同源更新（update_closes_cache + compute_macd_hist_incremental），守卫必须命中；
+    /// over-invalidate 方向保持（空/不齐 cache 必不命中）。
+    #[test]
+    fn cand_cache_guard_accepts_incremental_contract() {
+        let cfg = super::super::config::MacdConfig::default();
+        let vals: Vec<i64> = (0..40).map(|i| 1000 + (i as i64 * 3) % 17).collect();
+        let closes: Vec<f64> = vals.iter().map(|&v| v as f64).collect();
+        let bars = bars_from_closes(&vals);
+        let mut cache = TowerCache::new();
+        for k in 1..=bars.len() {
+            update_closes_cache(&bars[..k], k.saturating_sub(1), &mut cache);
+            compute_macd_hist_incremental(&closes[..k], k.saturating_sub(1), &cfg, &mut cache);
+            assert!(
+                cache_series_ok(&cache, k),
+                "bar {k}: 生产同源增量更新后守卫必须命中（BUG-04：旧 ==n 守卫在 k≥2 恒假）"
+            );
+        }
+        // over-invalidate 方向保持：空 cache 对非空序列必不命中（退化全量，bit-exact）。
+        assert!(!cache_series_ok(&TowerCache::new(), 5), "空 cache 必不命中（守卫仍 over-invalidate）");
+        assert!(cache_series_ok(&TowerCache::new(), 0), "n=0：空 cache 与空序列自洽（与旧守卫同界）");
     }
 
     /// ★端到端 B2 真产出（#53 验证门，L1 管线正确性）：升级后的递归塔（`RMove::Compose` 携 subs）
