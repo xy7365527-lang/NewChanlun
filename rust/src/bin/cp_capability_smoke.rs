@@ -79,6 +79,7 @@ fn run() -> Result<(), String> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(100_000usize);
     let verbose_events = std::env::var("CP_SMOKE_VERBOSE").map_or(true, |value| value != "0");
+    let verbose_p50_certificates = std::env::var("CP_SMOKE_P50_CERTS").is_ok();
     let batch_mode = std::env::var("CP_SMOKE_MODE").is_ok_and(|value| value == "batch");
     let root =
         std::env::var("CP_SMOKE_DATA_ROOT").unwrap_or_else(|_| "/tmp/codex-work-p7".to_string());
@@ -120,10 +121,24 @@ fn run() -> Result<(), String> {
     let mut terminal_keys = HashSet::new();
     let mut p46_snapshot_keys = HashSet::new();
     let mut p46_terminal_keys = HashSet::new();
+    let mut p46_full_keys = HashSet::new();
+    let mut p46_row20_keys = HashSet::new();
+    let mut p46_row22_keys = HashSet::new();
+    let mut p46_decomposition_keys = HashSet::new();
     let mut p46_all_keys = HashSet::new();
     let mut p46_all_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
     let mut p46_snapshot_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
     let mut p46_terminal_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
+    let mut p46_full_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
+    let mut p46_row20_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
+    let mut p46_row22_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
+    let mut p46_decomposition_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
+    let mut all_by_level: Vec<HashSet<_>> =
+        (0..classification.levels.len()).map(|_| HashSet::new()).collect();
+    let mut third_by_level: Vec<HashSet<_>> =
+        (0..classification.levels.len()).map(|_| HashSet::new()).collect();
+    let mut full_by_level: Vec<HashSet<_>> =
+        (0..classification.levels.len()).map(|_| HashSet::new()).collect();
     let (mut eq, mut lt, mut gt) = (0usize, 0usize, 0usize);
     let (mut missing_start, mut missing_end) = (0usize, 0usize);
     for event in events.iter().flatten().filter(|e| e.cand_delta) {
@@ -136,11 +151,19 @@ fn run() -> Result<(), String> {
             .map(|edge| (event.level, edge.b_center_id, edge.cp_departure_move_id));
         if let Some(key) = edge_key {
             stable_edges += 1;
+            all_by_level[event.level as usize].insert(key);
             if snapshot.is_some() {
                 snapshot_keys.insert(key);
             }
             if terminal.is_some() {
                 terminal_keys.insert(key);
+                third_by_level[event.level as usize].insert(key);
+            }
+            if terminal
+                .as_ref()
+                .is_some_and(|certificate| certificate.full_trend_c_qualified.is_some())
+            {
+                full_by_level[event.level as usize].insert(key);
             }
             if (1..=4).contains(&event.level) {
                 p46_all_keys.insert(key);
@@ -152,6 +175,30 @@ fn run() -> Result<(), String> {
                 if terminal.is_some() {
                     p46_terminal_keys.insert(key);
                     p46_terminal_by_level[event.level as usize].insert(key);
+                }
+                if terminal
+                    .as_ref()
+                    .is_some_and(|certificate| certificate.full_trend_c_qualified.is_some())
+                {
+                    p46_full_keys.insert(key);
+                    p46_full_by_level[event.level as usize].insert(key);
+                }
+                if let Some(evidence) = terminal
+                    .as_ref()
+                    .and_then(|certificate| certificate.full_trend_evidence.as_ref())
+                {
+                    if evidence.new_extreme_in_direction.is_some() {
+                        p46_row20_keys.insert(key);
+                        p46_row20_by_level[event.level as usize].insert(key);
+                    }
+                    if evidence.internal_sublevel_centers.is_some() {
+                        p46_row22_keys.insert(key);
+                        p46_row22_by_level[event.level as usize].insert(key);
+                    }
+                    if evidence.completed_trend_decomposition.is_some() {
+                        p46_decomposition_keys.insert(key);
+                        p46_decomposition_by_level[event.level as usize].insert(key);
+                    }
                 }
             }
         }
@@ -188,8 +235,8 @@ fn run() -> Result<(), String> {
                 event.c_episode_start,
                 event.cp_certificate_confirm_src,
                 end,
-                terminal.map(|cert| cert.cp_certificate_confirm_src),
-                terminal.map(|cert| cert.c_interval_full.1),
+                terminal.as_ref().map(|cert| cert.cp_certificate_confirm_src),
+                terminal.as_ref().map(|cert| cert.c_interval_full.1),
                 relation,
                 event.cp_ownership.is_some(),
             );
@@ -204,9 +251,42 @@ fn run() -> Result<(), String> {
                 event.divergence_confirm_src,
                 event.cp_certificate_confirm_src,
                 end,
-                terminal.map(|cert| cert.cp_certificate_confirm_src),
-                terminal.map(|cert| cert.c_interval_full.1),
+                terminal.as_ref().map(|cert| cert.cp_certificate_confirm_src),
+                terminal.as_ref().map(|cert| cert.c_interval_full.1),
                 event.cp_ownership.is_some(),
+            );
+        }
+        if verbose_p50_certificates && (1..=4).contains(&event.level) {
+            let evidence = terminal
+                .as_ref()
+                .and_then(|certificate| certificate.full_trend_evidence.as_ref());
+            let center_ids = evidence
+                .and_then(|parts| parts.internal_sublevel_centers.as_ref())
+                .map(|certificate| {
+                    certificate
+                        .center_ids
+                        .iter()
+                        .map(|id| format!("L{}#{}", id.level, id.ordinal))
+                        .collect::<Vec<_>>()
+                        .join("->")
+                })
+                .unwrap_or_else(|| "None".to_string());
+            println!(
+                "P50_CERT level={} divergence_confirm_src={} third_confirm={:?} row20_confirm={:?} row22_ids={} decomposition_confirm={:?} full_confirm={:?}",
+                event.level,
+                event.divergence_confirm_src,
+                terminal.as_ref().map(|certificate| certificate.cp_certificate_confirm_src),
+                evidence
+                    .and_then(|parts| parts.new_extreme_in_direction.as_ref())
+                    .map(|certificate| certificate.confirm_src),
+                center_ids,
+                evidence
+                    .and_then(|parts| parts.completed_trend_decomposition.as_ref())
+                    .map(|certificate| certificate.confirm_src),
+                terminal
+                    .as_ref()
+                    .and_then(|certificate| certificate.full_trend_c_qualified.as_ref())
+                    .map(|certificate| certificate.confirm_src),
             );
         }
     }
@@ -225,22 +305,46 @@ fn run() -> Result<(), String> {
         missing_end
     );
     println!(
-        "P46_L1_L4 objects={} snapshot_closed={} terminal_closed={} terminal_pending={}",
+        "P50_BUCKETS event_time={} third_closed={} full_qualified={} classification_review={}",
         p46_all_keys.len(),
-        p46_snapshot_keys.len(),
         p46_terminal_keys.len(),
+        p46_full_keys.len(),
         p46_all_keys.len().saturating_sub(p46_terminal_keys.len())
+    );
+    println!(
+        "P50_COMPONENTS third_closed={} row20_new_extreme={} row22_center_id_chain={} completed_trend_decomposition={}",
+        p46_terminal_keys.len(),
+        p46_row20_keys.len(),
+        p46_row22_keys.len(),
+        p46_decomposition_keys.len(),
     );
     for level in 1..=4 {
         println!(
-            "P46_LEVEL level={} objects={} snapshot_closed={} terminal_closed={} terminal_pending={}",
+            "P50_LEVEL level={} event_time={} third_closed={} full_qualified={} classification_review={}",
             level,
             p46_all_by_level[level].len(),
-            p46_snapshot_by_level[level].len(),
             p46_terminal_by_level[level].len(),
+            p46_full_by_level[level].len(),
             p46_all_by_level[level]
                 .len()
                 .saturating_sub(p46_terminal_by_level[level].len())
+        );
+        println!(
+            "P50_LEVEL_COMPONENTS level={} row20_new_extreme={} row22_center_id_chain={} completed_trend_decomposition={}",
+            level,
+            p46_row20_by_level[level].len(),
+            p46_row22_by_level[level].len(),
+            p46_decomposition_by_level[level].len(),
+        );
+    }
+    for level in 0..all_by_level.len() {
+        println!(
+            "P50_ALL_LEVEL level={} event_time={} third_closed={} full_qualified={} classification_review={}",
+            level,
+            all_by_level[level].len(),
+            third_by_level[level].len(),
+            full_by_level[level].len(),
+            all_by_level[level].len().saturating_sub(third_by_level[level].len())
         );
     }
     Ok(())

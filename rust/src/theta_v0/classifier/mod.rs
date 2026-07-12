@@ -521,13 +521,12 @@ fn cand_delta_tower_with_series(
             "tower_snapshots 与 levels 同构（classify_impl 不变量）"
         );
         let evs = if lvl == 0 {
-            let unit_ids: Vec<ElementId> = tower_snapshots[lvl].iter().map(|m| m.id).collect();
             recursive_tower::level_cand_delta(
                 0,
                 &ls.centers[..],
                 Some(&ls.cp_ownership[..]),
                 &l0.segments,
-                Some(&unit_ids),
+                Some(&tower_snapshots[lvl]),
                 None,
                 hist,
                 dif,
@@ -541,13 +540,12 @@ fn cand_delta_tower_with_series(
             let anchors: Vec<Option<Direction>> =
                 (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
             let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
-            let unit_ids: Vec<ElementId> = tower_snapshots[lvl].iter().map(|m| m.id).collect();
             recursive_tower::level_cand_delta(
                 lvl as u32,
                 &ls.centers[..],
                 Some(&ls.cp_ownership[..]),
                 &segs,
-                Some(&unit_ids),
+                Some(&tower_snapshots[lvl]),
                 Some(&anchors),
                 hist,
                 dif,
@@ -1688,7 +1686,11 @@ pub fn classify_with_tower_incremental(
             });
         // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。
         // Closed 证书若落入 dirty 后缀则不可继承，必须从 departure 重判；证书完全位于稳定前缀才保留。
-        let mut lifecycle_scan_from = dirty_from;
+        let mut lifecycle_scan_from =
+            recursive_tower::invalidate_cp_lifecycle_dirty_dependencies(
+                Rc::make_mut(&mut lc.cp_ownership).as_mut_slice(),
+                dirty_from,
+            );
         for object in &mut tail_cp {
             let prior = popped_cp.iter().find(|prior| {
                 prior.b_center_id == object.b_center_id
@@ -1697,11 +1699,7 @@ pub fn classify_with_tower_incremental(
                     && prior.departure_interval == object.departure_interval
             });
             let prior_is_stable = prior.is_some_and(|prior| {
-                prior.lifecycle == recursive_tower::CpLifecycleStatus::Pending
-                    || prior
-                        .c_structure
-                        .and_then(|structure| structure.terminal_move_id)
-                        .is_some_and(|terminal| terminal.ordinal < dirty_from as u64)
+                recursive_tower::cp_lifecycle_dependencies_stable_before(prior, dirty_from)
             });
             if prior_is_stable {
                 let prior = prior.expect("prior_is_stable 蕴含 prior Some");
@@ -1709,6 +1707,8 @@ pub fn classify_with_tower_incremental(
                 object.cp_certificate_confirm_src = prior.cp_certificate_confirm_src;
                 object.c_structure = prior.c_structure;
                 object.third_class_in_c = prior.third_class_in_c;
+                object.full_trend_evidence = prior.full_trend_evidence.clone();
+                object.full_trend_c_qualified = prior.full_trend_c_qualified.clone();
             } else if let Some(departure) = object.departure_move_id {
                 lifecycle_scan_from =
                     lifecycle_scan_from.min(departure.ordinal as usize + 1);

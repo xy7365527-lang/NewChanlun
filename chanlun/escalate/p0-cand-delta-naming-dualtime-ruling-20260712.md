@@ -77,4 +77,4 @@ AND CompletedTrendDecomposition(c_p)
 
 - [x] #47 完成并合入 `p0-replay-dparent`（commit `ba32291eff`，2026-07-12）；
 - [x] 复现 R7-1 数字（P47 §3：31/0/11/20，L1..L4 closed = 1/6/3/1，全量 4,613,599 bar）；
-- [ ] 消费者迁移到显式 snapshot/terminal 选择（POST-#47，待第 20/22 行证书实装一并处理）。
+- [x] 消费者迁移到显式 snapshot/terminal 选择（任务 #50；strict-nest 与 runner sidecar 均显式选 terminal，事件读取显式选 snapshot）。

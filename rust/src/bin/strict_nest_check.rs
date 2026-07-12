@@ -31,9 +31,12 @@
 //! 不改任何已有库判据；P1 层为纯增量代码（见 recursive_tower.rs P1 段头铁律）。
 
 use newchan_rust::theta_v0::classifier;
-use newchan_rust::theta_v0::classifier::nest::{assemble_certificates, is_sub, NestInterval};
+use newchan_rust::theta_v0::classifier::nest::{
+    assemble_certificates_terminal, is_sub, NestInterval,
+};
 use newchan_rust::theta_v0::classifier::recursive_tower::{
-    find_move_by_end_index, CandDeltaEvent, ElementId, LeveledMove,
+    cp_terminal_certificate, find_move_by_end_index, CandDeltaEvent, CpScanOwnership, ElementId,
+    LeveledMove,
 };
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
@@ -1008,6 +1011,56 @@ fn count_certificates_for_mode(
         .count()
 }
 
+/// 终态研究投影：原事件保持不变；每个克隆只沿稳定边装入终态证书，供显式 terminal 诊断。
+/// 没有终态证书的事件清空快照证书字段，绝不回退 episode 或确认点。
+fn terminal_event_projection(
+    classification: &classifier::Classification,
+    event_time: &[Vec<CandDeltaEvent>],
+) -> Vec<Vec<CandDeltaEvent>> {
+    event_time
+        .iter()
+        .enumerate()
+        .map(|(level, events)| {
+            let objects = classification
+                .levels
+                .get(level)
+                .map(|state| state.cp_ownership.as_slice())
+                .unwrap_or(&[]);
+            events
+                .iter()
+                .map(|event| {
+                    let mut terminal = event.clone();
+                    match cp_terminal_certificate(event, objects) {
+                        Some(certificate) => {
+                            terminal.cp_certificate_confirm_src =
+                                Some(certificate.cp_certificate_confirm_src);
+                            terminal.c_structure = Some(certificate.c_structure);
+                            terminal.third_class_in_c = Some(certificate.third_class_in_c);
+                            terminal.c_interval_full = Some(certificate.c_interval_full);
+                            terminal.full_trend_evidence = certificate.full_trend_evidence;
+                            terminal.full_trend_c_qualified =
+                                certificate.full_trend_c_qualified;
+                        }
+                        None => {
+                            terminal.cp_certificate_confirm_src = None;
+                            terminal.c_structure = terminal.c_structure.map(|mut structure| {
+                                structure.terminal_move_id = None;
+                                structure.source_end = None;
+                                structure
+                            });
+                            terminal.third_class_in_c = None;
+                            terminal.c_interval_full = None;
+                            terminal.full_trend_evidence = None;
+                            terminal.full_trend_c_qualified = None;
+                        }
+                    }
+                    terminal
+                })
+                .collect()
+        })
+        .collect()
+}
+
 #[derive(Debug, Clone, Copy)]
 struct RecursiveOwnershipProof {
     parent_first: ElementId,
@@ -1234,10 +1287,13 @@ fn main() -> std::process::ExitCode {
 #[allow(clippy::too_many_lines)]
 fn run() -> Result<bool, String> {
     let config = ThetaConfig::default();
-    let out_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .ok_or("无法定位 worktree 根目录")?
-        .to_path_buf();
+    let out_root = match std::env::var("STRICT_NEST_REPORT_ROOT") {
+        Ok(root) => PathBuf::from(root),
+        Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .ok_or("无法定位 worktree 根目录")?
+            .to_path_buf(),
+    };
     // 数据只在 /tmp/codex-work-p7（只读引用，worktree 无数据缓存）；env 可覆盖。
     let data_root =
         std::env::var("STRICT_NEST_DATA_ROOT").unwrap_or_else(|_| "/tmp/codex-work-p7".to_string());
@@ -1371,16 +1427,23 @@ fn run() -> Result<bool, String> {
     // 终态谓词层单次重算 + P1 定判（默认档主判；perbar 档下为幂等复核）。
     let (cls_f, tower_f) = last_state.ok_or("重放为空")?;
     let l0_f = last_l0.ok_or("重放为空")?;
-    let cand_f = classifier::cand_delta_tower_cached(
+    let event_time_cand_f = classifier::cand_delta_tower_cached(
         &l0_f,
         &cls_f,
         &tower_f,
         &config,
         &classifier_incr.tower_cache,
     );
+    // GATED-3：后续结构/区间套诊断显式选择 terminal；P1 finalize 仍只读 event-time 快照。
+    let cand_f = terminal_event_projection(&cls_f, &event_time_cand_f);
+    let objects_by_level: Vec<&[CpScanOwnership]> = cls_f
+        .levels
+        .iter()
+        .map(|state| state.cp_ownership.as_slice())
+        .collect();
     // 冻结诊断不变量：release 复跑也必须实际检查，不能只依赖 debug_assert。
     let dparent_enter_mismatch = dparent_enter_mismatches(&cand_f);
-    p1.finalize(replay_bars - 1, &cls_f, &cand_f);
+    p1.finalize(replay_bars - 1, &cls_f, &event_time_cand_f);
     let replay_sec = t_replay.elapsed().as_secs_f64();
     eprintln!("重放完成 {replay_sec:.1}s（含终态谓词定判）");
 
@@ -1482,11 +1545,17 @@ fn run() -> Result<bool, String> {
         );
         old_funnel[top].certificates = old_count;
         old_cert_per_top.push((top, old_count));
-        let certs = assemble_certificates(&cand_f, 0, top, |b| {
+        let certs = assemble_certificates_terminal(
+            &event_time_cand_f,
+            &objects_by_level,
+            0,
+            top,
+            |b| {
             terminal_by_key
                 .get(&(b.confirm_src, side_i8(b.side)))
                 .copied()
-        });
+            },
+        );
         let replay_count =
             count_certificates_for_mode(&cand_f, &terminal_by_key, top, ParentWindowMode::FullCp);
         new_assembler_matches &= replay_count == certs.len();
@@ -1884,7 +1953,7 @@ fn run() -> Result<bool, String> {
     let _ = writeln!(rw, "- 最终判定：**{final_verdict}**");
     let _ = writeln!(rw, "- 权威：`dparent-leftend-p0-review-20260711.md` §7；能力基线：`p45-cp-capability-20260712.md`。");
     let _ = writeln!(rw, "- 输入：`{}`，{} bar（{} .. {}），{} trades；`ThetaConfig::default()`（l_max={} / min_parts_per_level={}）；全量因果重放 {:.1}s。", data_path.display(), total_bars, loaded.first_date, loaded.last_date, trades.len(), config.level.l_max, config.level.min_parts_per_level, replay_sec);
-    let _ = writeln!(rw, "- 唯一语义变量：`D_parent: c_episode_interval -> d_parent_interval_full(c_interval_full)`；`D_child := child.a_interval` 保持 **provisional / pending separate ruling**。方向、`cand_delta`、右端证明规则、`confirm_src/lag_conf/epsilon_conf` 均未改，后三者仅诊断。");
+    let _ = writeln!(rw, "- 唯一语义变量：`D_parent` 由消费者显式选择 `d_parent_interval_snapshot` 或 `d_parent_interval_terminal`；本报告正式装配使用 terminal 对象证书。`D_child := child.a_interval` 保持 **provisional / pending separate ruling**。方向、`cand_delta`、右端证明规则、`confirm_src/lag_conf/epsilon_conf` 均未改，后三者仅诊断。");
     let _ = writeln!(rw, "- 写入边界：本次只落盘本报告；未回写 2026-07-10 漏斗、冻结或裁决文档，未修改 `departure_move_c_start`。");
 
     let _ = writeln!(rw, "\n## 1. 重放与旧基线门");
@@ -2169,6 +2238,8 @@ mod funnel_tests {
             c_structure: None,
             third_class_in_c: None,
             cp_certificate_confirm_src: None,
+            full_trend_c_qualified: None,
+            full_trend_evidence: None,
             cp_ownership: None,
             enter_src: interval.0,
             cand_delta: true,

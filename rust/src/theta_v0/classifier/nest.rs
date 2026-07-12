@@ -26,7 +26,7 @@
 //! canonical 分解 tie-break：最早确认时间 → 最低递归层 → 最早原始 index）。
 
 use super::super::types::{BspBits, Side};
-use super::recursive_tower::CandDeltaEvent;
+use super::recursive_tower::{cp_terminal_certificate, CandDeltaEvent, CpScanOwnership};
 
 /// 候选定位区间（契约锚 `Origin.SubLevelDescent` 下钻区间）——携带 `Sel_Θ` 排序三键。
 ///
@@ -384,8 +384,9 @@ impl NestCertificateBuilder {
 /// > 0016:62），gauge 复用 divergence.rs MacdArea 默认路径，严格 `curr < prev`）。
 ///
 /// - 裁决②：盘整背驰**不入谓词**（只出 [`CandDeltaEvent::pan_div_diag`] 诊断位，不参与本装配）。
-/// - `d_parent_interval` 仅保留 2026-07-10 历史基线的 episode 口径；正式装配严格调用
-///   [`d_parent_interval_full`]。`confirm_src` 仍只登记确认延迟，不作闸门或排序键。
+/// - `d_parent_interval` 仅保留 2026-07-10 历史基线的 episode 口径；正式装配由消费者显式
+///   选择 [`d_parent_interval_snapshot`] 或 [`d_parent_interval_terminal`]。`confirm_src` 仍只
+///   登记确认延迟，不作闸门或排序键。
 /// - P1 已证：ℓ=e=0 时该谓词与 `extract_signals` buy1/sell1 背驰确认支**逐 bit 一致**
 ///   （strict_nest_check 硬门 PASS）⟹ 基例 `Cand^δ_e` 与 `Conf^δ_e` 确认支同源无分叉。
 ///
@@ -401,12 +402,30 @@ pub fn d_parent_interval(ev: &CandDeltaEvent) -> NestInterval {
 
 /// #43 复议后的规范父区间：只消费已闭合的完整 `c_p` 证书；能力不足时返回 `None`，
 /// 不回退到 episode、确认点或其它数值锚。
-pub fn d_parent_interval_full(ev: &CandDeltaEvent) -> Option<NestInterval> {
+pub fn d_parent_interval_snapshot(ev: &CandDeltaEvent) -> Option<NestInterval> {
     ev.c_interval_full.map(|(start, end)| NestInterval {
         end_time: end as u64,
         start_time: start as u64,
         idx: 0,
     })
+}
+
+/// 终态父区间：必须由调用方提供对应级别对象集，并沿稳定边显式读取；不改写事件快照。
+pub fn d_parent_interval_terminal(
+    ev: &CandDeltaEvent,
+    objects: &[CpScanOwnership],
+) -> Option<NestInterval> {
+    cp_terminal_certificate(ev, objects).map(|certificate| NestInterval {
+        start_time: certificate.c_interval_full.0 as u64,
+        end_time: certificate.c_interval_full.1 as u64,
+        idx: 0,
+    })
+}
+
+/// #47 前兼容名；语义固定为确认时快照。新消费者必须显式调用 snapshot/terminal 版本。
+#[deprecated(note = "请显式选择 d_parent_interval_snapshot 或 d_parent_interval_terminal")]
+pub fn d_parent_interval_full(ev: &CandDeltaEvent) -> Option<NestInterval> {
+    d_parent_interval_snapshot(ev)
 }
 
 /// 冻结的子包含区间 `D_child := I(A_child)`。
@@ -440,12 +459,63 @@ pub fn d_child_interval(ev: &CandDeltaEvent) -> NestInterval {
 ///   判据）；锚C 口径 = e1_tri_anchor.rs 相邻级配对复刻。
 /// - **影响声明**：纯增量生产层；不改 `Chi`/`confirm`/`is_sub`/`NestCertificate` 消费侧。
 ///   sidecar 只出证书不改置位（plan 目标）。L0 操作语义（非 L2 alpha）。
+#[deprecated(note = "请显式选择 assemble_certificate_snapshot 或 assemble_certificate_terminal")]
 pub fn assemble_certificate(
     events_by_level: &[Vec<CandDeltaEvent>],
     base: &CandDeltaEvent,
     top_level: usize,
     terminal: BspBits,
 ) -> Option<NestCertificate> {
+    assemble_certificate_snapshot(events_by_level, base, top_level, terminal)
+}
+
+/// 只消费事件确认时快照的严格装配。
+pub fn assemble_certificate_snapshot(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    base: &CandDeltaEvent,
+    top_level: usize,
+    terminal: BspBits,
+) -> Option<NestCertificate> {
+    assemble_certificate_with(
+        events_by_level,
+        base,
+        top_level,
+        terminal,
+        &d_parent_interval_snapshot,
+    )
+}
+
+/// 只消费终态对象的严格装配；每级都沿事件稳定边读取该级对象集。
+pub fn assemble_certificate_terminal(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    objects_by_level: &[&[CpScanOwnership]],
+    base: &CandDeltaEvent,
+    top_level: usize,
+    terminal: BspBits,
+) -> Option<NestCertificate> {
+    assemble_certificate_with(
+        events_by_level,
+        base,
+        top_level,
+        terminal,
+        &|event| {
+            objects_by_level
+                .get(event.level as usize)
+                .and_then(|objects| d_parent_interval_terminal(event, objects))
+        },
+    )
+}
+
+fn assemble_certificate_with<F>(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    base: &CandDeltaEvent,
+    top_level: usize,
+    terminal: BspBits,
+    parent_interval_of: &F,
+) -> Option<NestCertificate>
+where
+    F: Fn(&CandDeltaEvent) -> Option<NestInterval>,
+{
     let e = base.level as usize;
     if top_level < e || !base.cand_delta || !terminal.confirm_side(base.side) {
         return None;
@@ -459,6 +529,7 @@ pub fn assemble_certificate(
         top_level,
         &base_iv,
         &mut acc,
+        parent_interval_of,
     ) {
         return None;
     }
@@ -480,14 +551,18 @@ pub fn assemble_certificate(
 /// 装配递归核：为级 `level_k` 找满足三门的父事件并继续向上，直至越过 `top_level`。
 ///
 /// 每级候选按 `(D_parent, I(A), 原索引)` 升序 DFS；确认时点不参与排序或闸门。
-fn extend_upward(
+fn extend_upward<F>(
     events_by_level: &[Vec<CandDeltaEvent>],
     side: Side,
     level_k: usize,
     top_level: usize,
     child_iv: &NestInterval,
     acc: &mut Vec<NestRung>,
-) -> bool {
+    parent_interval_of: &F,
+) -> bool
+where
+    F: Fn(&CandDeltaEvent) -> Option<NestInterval>,
+{
     if level_k > top_level {
         return true;
     }
@@ -497,7 +572,9 @@ fn extend_upward(
     let mut order: Vec<usize> = (0..evs.len()).collect();
     order.sort_by_key(|&i| {
         (
-            evs[i].c_interval_full.unwrap_or((usize::MAX, usize::MAX)),
+            parent_interval_of(&evs[i])
+                .map(|iv| (iv.start_time as usize, iv.end_time as usize))
+                .unwrap_or((usize::MAX, usize::MAX)),
             evs[i].a_interval,
             i,
         )
@@ -509,7 +586,7 @@ fn extend_upward(
             continue;
         }
         // #43：完整父证书未闭合即拒绝；不得回退 episode、确认点或数值锚。
-        let Some(iv) = d_parent_interval_full(ev) else {
+        let Some(iv) = parent_interval_of(ev) else {
             continue;
         };
         // 相邻级 Sub 包含：I(A_child) ⊆ D_parent（复用契约锚 is_sub）。
@@ -518,7 +595,15 @@ fn extend_upward(
         }
         acc.push(NestRung::assembled(ev.confirm_src, *child_iv, iv, true));
         let next_child_iv = d_child_interval(ev);
-        if extend_upward(events_by_level, side, level_k + 1, top_level, &next_child_iv, acc) {
+        if extend_upward(
+            events_by_level,
+            side,
+            level_k + 1,
+            top_level,
+            &next_child_iv,
+            acc,
+            parent_interval_of,
+        ) {
             return true;
         }
         acc.pop();
@@ -530,7 +615,21 @@ fn extend_upward(
 ///
 /// `terminal_of` 由调用方提供基例终端 bit-vector（上游分类输出查找，**不重判**）；返回
 /// `None` 的基例跳过（P1 逐 bit 一致 ⟹ 生产路径不应发生，调用方可自行计数诊断）。
+#[deprecated(note = "请显式选择 assemble_certificates_snapshot 或 assemble_certificates_terminal")]
 pub fn assemble_certificates<F>(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    exec_level: usize,
+    top_level: usize,
+    terminal_of: F,
+) -> Vec<NestCertificate>
+where
+    F: FnMut(&CandDeltaEvent) -> Option<BspBits>,
+{
+    assemble_certificates_snapshot(events_by_level, exec_level, top_level, terminal_of)
+}
+
+/// 批量确认时快照装配。
+pub fn assemble_certificates_snapshot<F>(
     events_by_level: &[Vec<CandDeltaEvent>],
     exec_level: usize,
     top_level: usize,
@@ -547,8 +646,42 @@ where
         let Some(terminal) = terminal_of(base) else {
             continue;
         };
-        if let Some(cert) = assemble_certificate(events_by_level, base, top_level, terminal) {
+        if let Some(cert) =
+            assemble_certificate_snapshot(events_by_level, base, top_level, terminal)
+        {
             out.push(cert);
+        }
+    }
+    out
+}
+
+/// 批量终态对象装配。
+pub fn assemble_certificates_terminal<F>(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    objects_by_level: &[&[CpScanOwnership]],
+    exec_level: usize,
+    top_level: usize,
+    mut terminal_of: F,
+) -> Vec<NestCertificate>
+where
+    F: FnMut(&CandDeltaEvent) -> Option<BspBits>,
+{
+    let Some(bases) = events_by_level.get(exec_level) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    for base in bases.iter().filter(|base| base.cand_delta) {
+        let Some(terminal) = terminal_of(base) else {
+            continue;
+        };
+        if let Some(certificate) = assemble_certificate_terminal(
+            events_by_level,
+            objects_by_level,
+            base,
+            top_level,
+            terminal,
+        ) {
+            out.push(certificate);
         }
     }
     out
@@ -871,6 +1004,8 @@ mod tests {
             c_structure: None,
             third_class_in_c: None,
             cp_certificate_confirm_src: None,
+            full_trend_c_qualified: None,
+            full_trend_evidence: None,
             cp_ownership: None,
             enter_src: d_parent.0,
             cand_delta: cand,
@@ -883,11 +1018,11 @@ mod tests {
         let mut ev = cev(1, Side::Long, 80, 40, 80, true);
         ev.c_interval_full = None;
         assert!(
-            d_parent_interval_full(&ev).is_none(),
+            d_parent_interval_snapshot(&ev).is_none(),
             "无完整证书时不得回退 episode"
         );
         ev.c_interval_full = Some((20, 80));
-        let full = d_parent_interval_full(&ev).expect("完整 c_p 区间可消费");
+        let full = d_parent_interval_snapshot(&ev).expect("完整 c_p 区间可消费");
         assert_eq!((full.start_time, full.end_time), (20, 80));
         assert_eq!(
             d_parent_interval(&ev).start_time,
@@ -903,7 +1038,7 @@ mod tests {
         parent.c_interval_full = None;
         let evs = vec![vec![base.clone()], vec![parent]];
         assert!(
-            assemble_certificate(&evs, &base, 1, buy1_bits()).is_none(),
+            assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).is_none(),
             "c_interval_full=None 必须拒绝，不能以 episode [10,80] 回填"
         );
     }
@@ -916,7 +1051,8 @@ mod tests {
             vec![base.clone()],
             vec![cev(1, Side::Long, 50, 10, 80, true)],
         ];
-        let cert = assemble_certificate(&evs, &base, 1, buy1_bits()).expect("完整链应出证书");
+        let cert =
+            assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).expect("完整链应出证书");
         assert_eq!(cert.rungs.len(), 1);
         assert_eq!(cert.rungs[0].interval, interval(80, 10, 0));
         assert_eq!(cert.base_interval, interval(60, 20, 0));
@@ -932,7 +1068,8 @@ mod tests {
             vec![cev(1, Side::Long, 70, 20, 100, true)],
         ];
 
-        let cert = assemble_certificate(&evs, &base, 1, buy1_bits()).expect("拆绑后完整链应出证书");
+        let cert = assemble_certificate_snapshot(&evs, &base, 1, buy1_bits())
+            .expect("拆绑后完整链应出证书");
 
         assert_eq!(cert.base_confirm_src, Some(90));
         assert_ne!(cert.base_confirm_src.unwrap() as u64, cert.base_interval.end_time);
@@ -946,7 +1083,7 @@ mod tests {
         let base = cev_with_a(0, Side::Long, 120, (5, 100), (30, 50), true);
         let parent = cev_with_a(1, Side::Long, 150, (20, 80), (10, 70), true);
         let evs = vec![vec![base.clone()], vec![parent]];
-        let cert = assemble_certificate(&evs, &base, 1, buy1_bits())
+        let cert = assemble_certificate_snapshot(&evs, &base, 1, buy1_bits())
             .expect("I(A_child)⊆D_parent 时应装配；confirm_src 顺序仅诊断");
         assert!(cert.n_delta());
         assert_eq!(cert.base_interval(), interval(50, 30, 0));
@@ -958,7 +1095,7 @@ mod tests {
         let base = cev_with_a(0, Side::Long, 60, (30, 50), (10, 50), true);
         let parent = cev_with_a(1, Side::Long, 50, (20, 80), (0, 70), true);
         let evs = vec![vec![base.clone()], vec![parent]];
-        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+        assert!(assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).is_none());
     }
 
     #[test]
@@ -967,7 +1104,7 @@ mod tests {
         let l1 = cev_with_a(1, Side::Short, 100, (20, 80), (200, 210), true);
         let l2 = cev_with_a(2, Side::Short, 110, (190, 220), (0, 0), true);
         let evs = vec![vec![base.clone()], vec![l1], vec![l2]];
-        let cert = assemble_certificate(&evs, &base, 2, sell1_bits())
+        let cert = assemble_certificate_snapshot(&evs, &base, 2, sell1_bits())
             .expect("每条边都应使用该子事件自己的 I(A)");
         assert!(cert.n_delta());
         assert_eq!(cert.rungs().len(), 2);
@@ -978,7 +1115,7 @@ mod tests {
         // ℓ=e ⟹ 纯基例（rungs 空），只判 Conf^δ_e 与 Cand^δ_e。
         let base = cev(0, Side::Long, 60, 20, 60, true);
         let evs = vec![vec![base.clone()]];
-        let cert = assemble_certificate(&evs, &base, 0, buy1_bits()).expect("纯基例");
+        let cert = assemble_certificate_snapshot(&evs, &base, 0, buy1_bits()).expect("纯基例");
         assert!(cert.rungs.is_empty());
         assert!(cert.n_delta());
     }
@@ -991,7 +1128,7 @@ mod tests {
             vec![base.clone()],
             vec![cev(1, Side::Long, 50, 10, 80, false)],
         ];
-        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+        assert!(assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).is_none());
     }
 
     #[test]
@@ -1002,7 +1139,7 @@ mod tests {
             vec![base.clone()],
             vec![cev(1, Side::Long, 50, 30, 80, true)],
         ];
-        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+        assert!(assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).is_none());
     }
 
     #[test]
@@ -1013,7 +1150,7 @@ mod tests {
             vec![base.clone()],
             vec![cev(1, Side::Long, 70, 10, 80, true)],
         ];
-        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_some());
+        assert!(assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).is_some());
     }
 
     #[test]
@@ -1023,7 +1160,7 @@ mod tests {
             vec![base.clone()],
             vec![cev(1, Side::Short, 50, 10, 80, true)],
         ];
-        assert!(assemble_certificate(&evs, &base, 1, buy1_bits()).is_none());
+        assert!(assemble_certificate_snapshot(&evs, &base, 1, buy1_bits()).is_none());
     }
 
     #[test]
@@ -1034,7 +1171,7 @@ mod tests {
             vec![base.clone()],
             vec![cev(1, Side::Long, 50, 10, 80, true)],
         ];
-        assert!(assemble_certificate(&evs, &base, 2, buy1_bits()).is_none());
+        assert!(assemble_certificate_snapshot(&evs, &base, 2, buy1_bits()).is_none());
     }
 
     #[test]
@@ -1042,7 +1179,9 @@ mod tests {
         // 基例 Conf^δ_e=false（全零 bits）⟹ 前置即拒。
         let base = cev(0, Side::Long, 60, 20, 60, true);
         let evs = vec![vec![base.clone()]];
-        assert!(assemble_certificate(&evs, &base, 0, BspBits::default()).is_none());
+        assert!(
+            assemble_certificate_snapshot(&evs, &base, 0, BspBits::default()).is_none()
+        );
     }
 
     #[test]
@@ -1056,7 +1195,8 @@ mod tests {
                 cev(1, Side::Long, 50, 10, 80, true), // 次早可行
             ],
         ];
-        let cert = assemble_certificate(&evs, &base, 1, buy1_bits()).expect("回溯应找到可行父");
+        let cert = assemble_certificate_snapshot(&evs, &base, 1, buy1_bits())
+            .expect("回溯应找到可行父");
         assert_eq!(cert.rungs[0].interval, interval(80, 10, 0));
     }
 
@@ -1069,7 +1209,7 @@ mod tests {
             vec![cev(1, Side::Short, 55, 10, 80, true)],
             vec![cev(2, Side::Short, 50, 0, 100, true)],
         ];
-        let cert = assemble_certificate(&evs, &base, 2, sell1_bits()).expect("三级链");
+        let cert = assemble_certificate_snapshot(&evs, &base, 2, sell1_bits()).expect("三级链");
         assert_eq!(cert.rungs.len(), 2);
         assert_eq!(cert.rungs[0].interval, interval(100, 0, 0)); // 级 2（高）
         assert_eq!(cert.rungs[1].interval, interval(80, 10, 0)); // 级 1（低）
@@ -1086,7 +1226,7 @@ mod tests {
             vec![b1.clone(), b2, b3],
             vec![cev(1, Side::Long, 50, 10, 80, true)],
         ];
-        let certs = assemble_certificates(&evs, 0, 1, |b| {
+        let certs = assemble_certificates_snapshot(&evs, 0, 1, |b| {
             if b.confirm_src == 60 {
                 Some(buy1_bits())
             } else {

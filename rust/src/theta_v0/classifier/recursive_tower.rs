@@ -46,7 +46,7 @@
 use std::rc::Rc;
 
 use super::super::types::{Center, Direction, Tick};
-use super::center::UnitRange;
+use super::center::{classify_relation, CenterRelation, UnitRange};
 use super::decompose::{center_own_dir_at, MoveBlock};
 use super::descend::RMove;
 
@@ -430,7 +430,7 @@ pub struct WinMeta {
 /// 离开单元的结构归属，因此事件端不需要、也禁止从最终 [`MoveBlock`] 反猜 `c_start_full`。
 /// 之后每个新同级相邻单元对经 [`advance_cp_lifecycles`] 推进 Pending/Closed 状态；闭合不依赖
 /// 新的 [`CandDeltaEvent`]。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CpScanOwnership {
     /// `B_p` 在本级中枢序列中的确定性下标（全量/增量均等于 compose ordinal）。
     pub b_center_index: usize,
@@ -450,6 +450,10 @@ pub struct CpScanOwnership {
     pub c_structure: Option<CpStructureIdentity>,
     /// 终态第三类证书；Pending 时严格为 `None`。
     pub third_class_in_c: Option<ThirdClassInCp>,
+    /// 第 20/22 行与完成分解的分量证据；Closed 后即使全合取失败也保留，供分类复核。
+    pub full_trend_evidence: Option<FullTrendQualificationEvidence>,
+    /// 终态第 37 课完整趋势 `c_p` 合取证书；第三类闭合但第 20/22 行或完成分解失败时为 `None`。
+    pub full_trend_c_qualified: Option<FullTrendCQualified>,
 }
 
 /// 完整 `c_p` 对象生命周期。闭合只由合法第三类对象生成，不由后续 Cand 事件生成。
@@ -488,6 +492,8 @@ fn cp_scan_ownership(
             }
         }),
         third_class_in_c: None,
+        full_trend_evidence: None,
+        full_trend_c_qualified: None,
     }
 }
 
@@ -852,13 +858,85 @@ pub struct ThirdClassInCp {
     pub side: Side,
 }
 
-/// 一张完整 `c_p` 证书视图。消费者必须显式选择确认时快照或终态对象证书。
+/// `B_p` 所在同级别趋势关系的确定性见证。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TrendContext {
+    pub predecessor_center_id: ElementId,
+    pub b_center_id: ElementId,
+    pub direction: Direction,
+}
+
+/// [旧缠论] 第 37 课第 20 行：`c_p` 在原趋势方向上首次越过 `B_p` 外缘的机器证书。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NewExtremeInDirection {
+    pub b_center_id: ElementId,
+    pub direction: Direction,
+    pub reference_price: Tick,
+    pub extreme_price: Tick,
+    pub extreme_move_id: ElementId,
+    /// 首个完成后足以确认创新高/新低的递归单元右端；不从背驰确认点回填。
+    pub confirm_src: usize,
+}
+
+/// [旧缠论] 第 37 课第 22 行：`c_p` 内部次级别中枢的确定性 ID 链。
+///
+/// `center_ids` 保存实际 ID，不允许以计数替代；生产器同时验证同级、严格连续和 `c_p` 首尾覆盖。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InternalSublevelCenters {
+    pub c_level: u32,
+    pub center_ids: Vec<ElementId>,
+}
+
+impl InternalSublevelCenters {
+    pub fn at_least_two(&self) -> bool {
+        self.center_ids.len() >= 2
+    }
+}
+
+/// [新缠论] R3：`c_p` 内部中枢链已按原趋势方向完成分解的结构证书。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompletedTrendDecomposition {
+    pub direction: Direction,
+    pub center_ids: Vec<ElementId>,
+    /// 首个证明该趋势块已经结束的后继走势 ID；它也是增量 dirty 依赖的一部分。
+    pub closing_successor_move_id: ElementId,
+    pub confirm_src: usize,
+}
+
+/// [新缠论] R3 分量证据包。每个 `Option` 独立保存，避免全合取失败后丢失第 20/22 行证据。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FullTrendQualificationEvidence {
+    pub trend_context: Option<TrendContext>,
+    pub new_extreme_in_direction: Option<NewExtremeInDirection>,
+    pub internal_sublevel_centers: Option<InternalSublevelCenters>,
+    pub completed_trend_decomposition: Option<CompletedTrendDecomposition>,
+    /// 完成性复核实际读取的后继走势 ID；阴性裁定同样依赖它，frontier 变异时必须失效。
+    pub decomposition_review_move_id: Option<ElementId>,
+    /// 后继递归单元首次可见的时点；`None` 表示完成分解尚不可判，不等于已失败。
+    pub decomposition_review_src: Option<usize>,
+}
+
+/// [新缠论] R3 完整趋势资格合取证书。构造成功即表示五个分量全部成立。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FullTrendCQualified {
+    pub trend_context: TrendContext,
+    pub third_class_inside_c: ThirdClassInCp,
+    pub new_extreme_in_direction: NewExtremeInDirection,
+    pub internal_sublevel_centers: InternalSublevelCenters,
+    pub completed_trend_decomposition: CompletedTrendDecomposition,
+    /// 五个分量全部可知的最早时点；终态标签不得回填到 `divergence_confirm_src`。
+    pub confirm_src: usize,
+}
+
+/// 一张完整 `c_p` 证书视图。消费者必须显式选择确认时快照或终态对象证书。
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CpCertificateView {
     pub cp_certificate_confirm_src: usize,
     pub c_structure: CpStructureIdentity,
     pub third_class_in_c: ThirdClassInCp,
     pub c_interval_full: (usize, usize),
+    pub full_trend_evidence: Option<FullTrendQualificationEvidence>,
+    pub full_trend_c_qualified: Option<FullTrendCQualified>,
 }
 
 /// `CandDeltaEvent -> c_p` 的稳定归属边。这里只允许保存对象身份，不保存终态右端。
@@ -904,6 +982,10 @@ pub struct CandDeltaEvent {
     pub third_class_in_c: Option<ThirdClassInCp>,
     /// 确认时快照内，完整 `c_p` 第一次可证的 source-index；当时不可证必须保持 `None`。
     pub cp_certificate_confirm_src: Option<usize>,
+    /// 确认时快照内的 R3 完整趋势合取证书；不得从终态对象回填。
+    pub full_trend_c_qualified: Option<FullTrendCQualified>,
+    /// 确认时快照内的 R3 分量证据；全合取失败也不得丢弃已成立的第 20/22 行证书。
+    pub full_trend_evidence: Option<FullTrendQualificationEvidence>,
     /// 事件到 `c_p` 对象的稳定归属边；不携带终态右端。
     pub cp_ownership: Option<CandDeltaCpEdge>,
     /// C 离开 episode 的首个同向段起点；不是确认时点，也不是完整 `c_p` 左端定义。
@@ -927,6 +1009,8 @@ pub fn cp_certificate_at_divergence(event: &CandDeltaEvent) -> Option<CpCertific
         c_structure: structure,
         third_class_in_c: third,
         c_interval_full: interval,
+        full_trend_evidence: event.full_trend_evidence.clone(),
+        full_trend_c_qualified: event.full_trend_c_qualified.clone(),
     })
 }
 
@@ -953,6 +1037,288 @@ pub fn cp_terminal_certificate(
         c_structure: structure,
         third_class_in_c: third,
         c_interval_full: (structure.source_start, end),
+        full_trend_evidence: object.full_trend_evidence.clone(),
+        full_trend_c_qualified: object.full_trend_c_qualified.clone(),
+    })
+}
+
+/// 显式读取背驰确认时快照中的完整趋势资格；不会访问终态对象。
+pub fn full_trend_c_qualified_at_divergence(
+    event: &CandDeltaEvent,
+) -> Option<&FullTrendCQualified> {
+    event.full_trend_c_qualified.as_ref()
+}
+
+/// 显式沿稳定边读取终态完整趋势资格；不会改写历史事件。
+pub fn full_trend_c_qualified_terminal<'a>(
+    event: &CandDeltaEvent,
+    objects: &'a [CpScanOwnership],
+) -> Option<&'a FullTrendCQualified> {
+    let edge = event.cp_ownership?;
+    objects
+        .iter()
+        .find(|object| {
+            object.b_center_id == edge.b_center_id
+                && object.departure_move_id == Some(edge.cp_departure_move_id)
+                && object.departure_interval.map(|iv| iv.0) == Some(edge.cp_source_start)
+        })?
+        .full_trend_c_qualified
+        .as_ref()
+}
+
+/// frontier pop/recompose 的证书依赖门：Closed 不仅依赖 terminal，还依赖完成性复核读取的后继。
+/// 任一依赖落入 `dirty_from..` 都必须丢弃旧对象态并从 departure 重判。
+pub(crate) fn cp_lifecycle_dependencies_stable_before(
+    object: &CpScanOwnership,
+    dirty_from: usize,
+) -> bool {
+    if object.lifecycle == CpLifecycleStatus::Pending {
+        return true;
+    }
+    let terminal_is_stable = object
+        .c_structure
+        .and_then(|structure| structure.terminal_move_id)
+        .is_some_and(|terminal| terminal.ordinal < dirty_from as u64);
+    let review_is_stable = object
+        .full_trend_evidence
+        .as_ref()
+        .and_then(|evidence| evidence.decomposition_review_move_id)
+        .is_none_or(|successor| successor.ordinal < dirty_from as u64);
+    terminal_is_stable && review_is_stable
+}
+
+/// 使保留在 compose 前缀中的对象服从同一 dirty 依赖门，并返回生命周期重扫起点。
+/// terminal 变异需退回 Pending；只有完成性后继变异时保留第三类 Closed，但清除后继裁定并复核。
+pub(crate) fn invalidate_cp_lifecycle_dirty_dependencies(
+    objects: &mut [CpScanOwnership],
+    dirty_from: usize,
+) -> usize {
+    let mut lifecycle_scan_from = dirty_from;
+    for object in objects {
+        if object.lifecycle != CpLifecycleStatus::Closed
+            || cp_lifecycle_dependencies_stable_before(object, dirty_from)
+        {
+            continue;
+        }
+        let terminal_is_dirty = object
+            .c_structure
+            .and_then(|structure| structure.terminal_move_id)
+            .is_none_or(|terminal| terminal.ordinal >= dirty_from as u64);
+        if terminal_is_dirty {
+            if let Some(departure) = object.departure_move_id {
+                lifecycle_scan_from =
+                    lifecycle_scan_from.min(departure.ordinal as usize + 1);
+            }
+            object.lifecycle = CpLifecycleStatus::Pending;
+            object.cp_certificate_confirm_src = None;
+            object.c_structure = object.departure_move_id.zip(object.departure_interval).map(
+                |(departure_move_id, departure_interval)| CpStructureIdentity {
+                    level: departure_move_id.level,
+                    b_center_id: object.b_center_id,
+                    departure_move_id,
+                    terminal_move_id: None,
+                    source_start: departure_interval.0,
+                    source_end: None,
+                },
+            );
+            object.third_class_in_c = None;
+            object.full_trend_evidence = None;
+            object.full_trend_c_qualified = None;
+            continue;
+        }
+
+        let dirty_review = object
+            .full_trend_evidence
+            .as_ref()
+            .and_then(|evidence| evidence.decomposition_review_move_id)
+            .filter(|successor| successor.ordinal >= dirty_from as u64);
+        if let Some(successor) = dirty_review {
+            lifecycle_scan_from = lifecycle_scan_from.min(successor.ordinal as usize);
+            if let Some(evidence) = object.full_trend_evidence.as_mut() {
+                evidence.completed_trend_decomposition = None;
+                evidence.decomposition_review_move_id = None;
+                evidence.decomposition_review_src = None;
+            }
+            object.full_trend_c_qualified = None;
+        }
+    }
+    lifecycle_scan_from
+}
+
+fn center_of_move(movement: &LeveledMove) -> Option<Center> {
+    match &movement.rmove {
+        RMove::Compose { centers, .. } => centers.first().copied(),
+        RMove::Segment { .. } => None,
+    }
+}
+
+/// 按 R3 五分量构造完整趋势资格。这里只读取已经闭合的 `c_p` 组件，不改变 third 判据。
+fn full_trend_c_qualification(
+    centers: &[Center],
+    b_center_index: usize,
+    b_center_id: ElementId,
+    structure: CpStructureIdentity,
+    third: ThirdClassInCp,
+    unit_moves: &[LeveledMove],
+) -> Option<FullTrendCQualified> {
+    let evidence = full_trend_qualification_evidence(
+        centers,
+        b_center_index,
+        b_center_id,
+        structure,
+        third,
+        unit_moves,
+    )?;
+    let trend_context = evidence.trend_context?;
+    let new_extreme_in_direction = evidence.new_extreme_in_direction?;
+    let internal_sublevel_centers = evidence.internal_sublevel_centers?;
+    let completed_trend_decomposition = evidence.completed_trend_decomposition?;
+    let confirm_src = third
+        .point_source_index
+        .max(new_extreme_in_direction.confirm_src)
+        .max(completed_trend_decomposition.confirm_src);
+    Some(FullTrendCQualified {
+        trend_context,
+        third_class_inside_c: third,
+        new_extreme_in_direction,
+        internal_sublevel_centers,
+        completed_trend_decomposition,
+        confirm_src,
+    })
+}
+
+fn full_trend_qualification_evidence(
+    centers: &[Center],
+    b_center_index: usize,
+    b_center_id: ElementId,
+    structure: CpStructureIdentity,
+    third: ThirdClassInCp,
+    unit_moves: &[LeveledMove],
+) -> Option<FullTrendQualificationEvidence> {
+    let b = *centers.get(b_center_index)?;
+    if structure.b_center_id != b_center_id
+        || third.b_center_id != b_center_id
+        || third.cp_departure_move_id != structure.departure_move_id
+    {
+        return None;
+    }
+    let trend_context = b_center_index.checked_sub(1).and_then(|previous_index| {
+        let predecessor_center_id = ElementId {
+            level: b_center_id.level,
+            ordinal: b_center_id.ordinal.checked_sub(1)?,
+        };
+        let direction = match classify_relation(centers.get(previous_index)?, &b) {
+            CenterRelation::UpContinuation => Direction::Up,
+            CenterRelation::DownContinuation => Direction::Down,
+            CenterRelation::LevelExpansion => return None,
+        };
+        Some(TrendContext { predecessor_center_id, b_center_id, direction })
+    });
+
+    let terminal_move_id = structure.terminal_move_id?;
+    let start = unit_moves
+        .iter()
+        .position(|movement| movement.id == structure.departure_move_id)?;
+    let end = unit_moves
+        .iter()
+        .position(|movement| movement.id == terminal_move_id)?;
+    if start > end {
+        return None;
+    }
+    let components = &unit_moves[start..=end];
+    if components.first()?.start_index != structure.source_start
+        || components.last()?.end_index != structure.source_end?
+        || !components.windows(2).all(|pair| {
+            pair[0].id.level == pair[1].id.level
+                && pair[0].id.ordinal + 1 == pair[1].id.ordinal
+        })
+    {
+        return None;
+    }
+
+    let new_extreme_in_direction = trend_context.and_then(|context| {
+        let extreme_component = components.iter().find(|movement| {
+            let (lo, hi) = movement.envelope();
+            match context.direction {
+                Direction::Up => hi > b.gg,
+                Direction::Down => lo < b.dd,
+            }
+        })?;
+        let (lo, hi) = extreme_component.envelope();
+        Some(NewExtremeInDirection {
+            b_center_id,
+            direction: context.direction,
+            reference_price: match context.direction {
+                Direction::Up => b.gg,
+                Direction::Down => b.dd,
+            },
+            extreme_price: match context.direction {
+                Direction::Up => hi,
+                Direction::Down => lo,
+            },
+            extreme_move_id: extreme_component.id,
+            confirm_src: extreme_component.end_index,
+        })
+    });
+
+    // level-0 Segment 没有内部中枢，不能把段 ID 冒充中枢 ID；只有 Compose 的 1:1 center ID 入链。
+    let internal_centers = components
+        .iter()
+        .map(|movement| Some((movement.id, center_of_move(movement)?)))
+        .collect::<Option<Vec<_>>>();
+    let internal_sublevel_centers = internal_centers.as_ref().and_then(|centers| {
+        let certificate = InternalSublevelCenters {
+            c_level: structure.level,
+            center_ids: centers.iter().map(|(id, _)| *id).collect(),
+        };
+        certificate.at_least_two().then_some(certificate)
+    });
+    let all_internal_centers = unit_moves
+        .iter()
+        .map(|movement| center_of_move(movement))
+        .collect::<Option<Vec<_>>>();
+    let successor = unit_moves.get(end + 1).zip(
+        all_internal_centers
+            .as_ref()
+            .and_then(|centers| centers.get(end + 1)),
+    );
+    let decomposition_review_move_id = successor.map(|(movement, _)| movement.id);
+    let decomposition_review_src = successor.map(|(movement, _)| movement.end_index);
+    let completed_trend_decomposition = trend_context
+        .zip(internal_sublevel_centers.as_ref())
+        .zip(all_internal_centers.as_ref())
+        .and_then(|((context, internal), all_centers)| {
+            let expected_relation = match context.direction {
+                Direction::Up => CenterRelation::UpContinuation,
+                Direction::Down => CenterRelation::DownContinuation,
+            };
+            let chain_is_trend = all_centers[start..=end]
+                .windows(2)
+                .all(|pair| classify_relation(&pair[0], &pair[1]) == expected_relation);
+            let starts_at_block_boundary = start == 0
+                || classify_relation(&all_centers[start - 1], &all_centers[start])
+                    != expected_relation;
+            let (successor_move, successor_center) = successor?;
+            let ends_at_block_boundary =
+                classify_relation(&all_centers[end], successor_center) != expected_relation;
+            if !chain_is_trend || !starts_at_block_boundary || !ends_at_block_boundary {
+                return None;
+            }
+            Some(CompletedTrendDecomposition {
+                direction: context.direction,
+                center_ids: internal.center_ids.clone(),
+                closing_successor_move_id: successor_move.id,
+                // 完成态只能由后继块开启确认；不得把 c_p 终端自身冒充完成确认时点。
+                confirm_src: decomposition_review_src.expect("successor Some 蕴含 review src"),
+            })
+        });
+    Some(FullTrendQualificationEvidence {
+        trend_context,
+        new_extreme_in_direction,
+        internal_sublevel_centers,
+        completed_trend_decomposition,
+        decomposition_review_move_id,
+        decomposition_review_src,
     })
 }
 
@@ -988,6 +1354,47 @@ pub fn advance_cp_lifecycles(
     }
     let start = scan_from_retest_idx.max(1).min(units.len());
     for retest_idx in start..units.len() {
+        // CompletedTrendDecomposition 只能等 c_p terminal 的后继走势出现后裁定。
+        // Closed 仍保持单调；这里只对尚未见过该后继的对象做一次性证书复核。
+        let visible_moves = &unit_moves[..=retest_idx];
+        let arriving_move_id = unit_moves[retest_idx].id;
+        for object in objects.iter_mut().filter(|object| {
+            object.lifecycle == CpLifecycleStatus::Closed
+                && object
+                    .full_trend_evidence
+                    .as_ref()
+                    .is_some_and(|evidence| evidence.decomposition_review_src.is_none())
+        }) {
+            let (Some(structure), Some(third), Some(terminal_move_id)) = (
+                object.c_structure,
+                object.third_class_in_c,
+                object.c_structure.and_then(|structure| structure.terminal_move_id),
+            ) else {
+                continue;
+            };
+            if terminal_move_id.level != arriving_move_id.level
+                || terminal_move_id.ordinal.checked_add(1) != Some(arriving_move_id.ordinal)
+            {
+                continue;
+            }
+            object.full_trend_evidence = full_trend_qualification_evidence(
+                centers,
+                object.b_center_index,
+                object.b_center_id,
+                structure,
+                third,
+                visible_moves,
+            );
+            object.full_trend_c_qualified = full_trend_c_qualification(
+                centers,
+                object.b_center_index,
+                object.b_center_id,
+                structure,
+                third,
+                visible_moves,
+            );
+        }
+
         let leave_idx = retest_idx - 1;
         let leave_unit = &units[leave_idx];
         let Some(center_idx) = signal::nearest_confirmed_center_idx(centers, leave_unit.start_index)
@@ -1051,17 +1458,36 @@ pub fn advance_cp_lifecycles(
                 Side::Short
             },
         };
-        object.lifecycle = CpLifecycleStatus::Closed;
-        object.cp_certificate_confirm_src = Some(cert.point.source_index);
-        object.c_structure = Some(CpStructureIdentity {
+        let structure = CpStructureIdentity {
             level: cp_departure_move_id.level,
             b_center_id: object.b_center_id,
             departure_move_id: cp_departure_move_id,
             terminal_move_id: Some(retest_move.id),
             source_start: cp_start,
             source_end: Some(cert.retest_interval.1),
-        });
+        };
+        let evidence = full_trend_qualification_evidence(
+            centers,
+            center_idx,
+            object.b_center_id,
+            structure,
+            third,
+            unit_moves,
+        );
+        let qualification = full_trend_c_qualification(
+            centers,
+            center_idx,
+            object.b_center_id,
+            structure,
+            third,
+            unit_moves,
+        );
+        object.lifecycle = CpLifecycleStatus::Closed;
+        object.cp_certificate_confirm_src = Some(cert.point.source_index);
+        object.c_structure = Some(structure);
         object.third_class_in_c = Some(third);
+        object.full_trend_evidence = evidence;
+        object.full_trend_c_qualified = qualification;
     }
 }
 
@@ -1072,7 +1498,7 @@ fn cp_event_objects(
     cp_scan: &[CpScanOwnership],
     segments: &[Segment],
     anchors: &[Option<Direction>],
-    unit_ids: &[ElementId],
+    unit_moves: &[LeveledMove],
     c_idx: usize,
     event_seg_idx: usize,
     event_end: usize,
@@ -1083,15 +1509,17 @@ fn cp_event_objects(
     Option<ThirdClassInCp>,
     Option<CandDeltaCpEdge>,
     Option<(usize, usize)>,
+    Option<FullTrendQualificationEvidence>,
+    Option<FullTrendCQualified>,
 ) {
     let Some(c) = centers.get(c_idx) else {
-        return (None, None, None, None, None);
+        return (None, None, None, None, None, None, None);
     };
     let Some(scan) = cp_scan
         .iter()
         .find(|o| o.b_center_index == c_idx && o.b_center == *c)
     else {
-        return (None, None, None, None, None);
+        return (None, None, None, None, None, None, None);
     };
     let b = ParentCenterIdentity {
         center_index: scan.b_center_index,
@@ -1103,7 +1531,7 @@ fn cp_event_objects(
     let (Some(departure_move_id), Some((c_start_full, _))) =
         (scan.departure_move_id, scan.departure_interval)
     else {
-        return (Some(b), None, None, None, None);
+        return (Some(b), None, None, None, None, None, None);
     };
 
     // 第三类判据只调用 signal.rs 的单一真值函数；这里仅增加 B/c 所有权与区间边界。
@@ -1123,8 +1551,8 @@ fn cp_event_objects(
         Some(ThirdClassInCp {
             b_center_id: scan.b_center_id,
             cp_departure_move_id: departure_move_id,
-            departure_move_id: *unit_ids.get(i - 1)?,
-            retest_move_id: *unit_ids.get(i)?,
+            departure_move_id: unit_moves.get(i - 1)?.id,
+            retest_move_id: unit_moves.get(i)?.id,
             departure_interval: cert.departure_interval,
             retest_interval: cert.retest_interval,
             point_source_index: cert.point.source_index,
@@ -1141,9 +1569,9 @@ fn cp_event_objects(
             && third.retest_move_id.level == departure_move_id.level
             && departure_move_id.ordinal <= third.departure_move_id.ordinal
             && third.departure_move_id.ordinal <= third.retest_move_id.ordinal
-            && unit_ids
+            && unit_moves
                 .get(event_seg_idx)
-                .is_some_and(|end_id| third.retest_move_id.ordinal <= end_id.ordinal)
+                .is_some_and(|end_move| third.retest_move_id.ordinal <= end_move.id.ordinal)
     });
     let c_end_full = (is_complete_divergence && third_inside_component_span)
         .then(|| third_obj.expect("third_inside_component_span 蕴含 third_obj Some").retest_interval.1);
@@ -1163,7 +1591,43 @@ fn cp_event_objects(
         cp_departure_move_id: departure_move_id,
         cp_source_start: c_start_full,
     });
-    (Some(b), c_structure, third_obj, edge, c_interval_full)
+    // 事件证书只能消费事件时已经存在的走势；尤其不得提前看见 terminal 的未来后继。
+    let visible_moves = unit_moves.get(..=event_seg_idx);
+    let full_trend_evidence = c_structure
+        .zip(third_obj)
+        .zip(visible_moves)
+        .and_then(|((structure, third), visible_moves)| {
+            full_trend_qualification_evidence(
+                centers,
+                c_idx,
+                scan.b_center_id,
+                structure,
+                third,
+                visible_moves,
+            )
+        });
+    let full_trend_c_qualified = c_structure
+        .zip(third_obj)
+        .zip(visible_moves)
+        .and_then(|((structure, third), visible_moves)| {
+            full_trend_c_qualification(
+                centers,
+                c_idx,
+                scan.b_center_id,
+                structure,
+                third,
+                visible_moves,
+            )
+        });
+    (
+        Some(b),
+        c_structure,
+        third_obj,
+        edge,
+        c_interval_full,
+        full_trend_evidence,
+        full_trend_c_qualified,
+    )
 }
 
 /// 级别 ℓ 的 Cand^δ 谓词提取（P1 层单一入口；入参口径与
@@ -1178,7 +1642,7 @@ pub fn level_cand_delta(
     centers: &[Center],
     cp_scan: Option<&[CpScanOwnership]>,
     segments: &[Segment],
-    unit_ids: Option<&[ElementId]>,
+    unit_moves: Option<&[LeveledMove]>,
     anchor_dirs: Option<&[Option<Direction>]>,
     hist: &[f64],
     dif: &[f64],
@@ -1281,6 +1745,8 @@ pub fn level_cand_delta(
                         c_structure: None,
                         third_class_in_c: None,
                         cp_certificate_confirm_src: None,
+                        full_trend_c_qualified: None,
+                        full_trend_evidence: None,
                         cp_ownership: None,
                         enter_src: cert.seg_c.0,
                         cand_delta: false,
@@ -1313,14 +1779,22 @@ pub fn level_cand_delta(
         let confirm_src = pf.source_index;
         let interval_end = seg.end_index;
         let cand_delta = pf.bits.buy1 || pf.bits.sell1;
-        let (b_parent, c_structure, third_class_in_c, cp_ownership, c_interval_full) =
+        let (
+            b_parent,
+            c_structure,
+            third_class_in_c,
+            cp_ownership,
+            c_interval_full,
+            full_trend_evidence,
+            full_trend_c_qualified,
+        ) =
             cp_event_objects(
                 level,
                 centers_sorted,
                 cp_scan.unwrap_or(&[]),
                 sorted,
                 anchors,
-                unit_ids.unwrap_or(&[]),
+                unit_moves.unwrap_or(&[]),
                 c_idx,
                 i,
                 interval_end,
@@ -1342,6 +1816,8 @@ pub fn level_cand_delta(
             c_structure,
             third_class_in_c,
             cp_certificate_confirm_src,
+            full_trend_c_qualified,
+            full_trend_evidence,
             cp_ownership,
             enter_src: lambda_c,
             cand_delta,
@@ -1508,6 +1984,428 @@ mod tests {
         LeveledMove::compose(subs, center, level, eid(level, ordinal))
     }
 
+    fn composed_center_move(
+        center: Center,
+        level: u32,
+        ordinal: u64,
+        start: usize,
+        end: usize,
+    ) -> LeveledMove {
+        let sub = from_unit(&unit(start, end, down(), center.dd, center.gg), ordinal);
+        compose(&[sub], center, level, ordinal)
+    }
+
+    fn full_trend_fixture(
+        b_dd: Tick,
+        internal_second: Center,
+        use_composed_centers: bool,
+    ) -> (Vec<Center>, CpStructureIdentity, ThirdClassInCp, Vec<LeveledMove>) {
+        let a = Center {
+            zd: 300,
+            zg: 400,
+            dd: 290,
+            gg: 410,
+            start_index: 0,
+            end_index: 5,
+        };
+        let b = Center {
+            zd: 100,
+            zg: 200,
+            dd: b_dd,
+            gg: 210,
+            start_index: 6,
+            end_index: 8,
+        };
+        let first = Center {
+            zd: 100,
+            zg: 120,
+            dd: 80,
+            gg: 150,
+            start_index: 9,
+            end_index: 11,
+        };
+        let successor = Center {
+            zd: 55,
+            zg: 65,
+            dd: 50,
+            gg: 90,
+            start_index: 13,
+            end_index: 15,
+        };
+        let movements = if use_composed_centers {
+            vec![
+                composed_center_move(first, 1, 10, 9, 11),
+                composed_center_move(internal_second, 1, 11, 11, 13),
+                composed_center_move(successor, 1, 12, 13, 15),
+            ]
+        } else {
+            vec![
+                LeveledMove::from_unit(&unit(9, 11, down(), first.dd, first.gg), eid(1, 10)),
+                LeveledMove::from_unit(
+                    &unit(11, 13, up(), internal_second.dd, internal_second.gg),
+                    eid(1, 11),
+                ),
+                LeveledMove::from_unit(
+                    &unit(13, 15, down(), successor.dd, successor.gg),
+                    eid(1, 12),
+                ),
+            ]
+        };
+        let structure = CpStructureIdentity {
+            level: 1,
+            b_center_id: eid(2, 1),
+            departure_move_id: eid(1, 10),
+            terminal_move_id: Some(eid(1, 11)),
+            source_start: 9,
+            source_end: Some(13),
+        };
+        let third = ThirdClassInCp {
+            b_center_id: eid(2, 1),
+            cp_departure_move_id: eid(1, 10),
+            departure_move_id: eid(1, 10),
+            retest_move_id: eid(1, 11),
+            departure_interval: (9, 11),
+            retest_interval: (11, 13),
+            point_source_index: 13,
+            side: Side::Short,
+        };
+        (vec![a, b], structure, third, movements)
+    }
+
+    #[test]
+    fn row20_row22_full_trend_positive_carries_extreme_time_and_center_id_chain() {
+        let second = Center {
+            zd: 50,
+            zg: 60,
+            dd: 40,
+            gg: 70,
+            start_index: 11,
+            end_index: 13,
+        };
+        let (centers, structure, third, movements) =
+            full_trend_fixture(90, second, true);
+        let certificate = full_trend_c_qualification(
+            &centers,
+            1,
+            eid(2, 1),
+            structure,
+            third,
+            &movements,
+        )
+        .expect("第18/20/22行与完成分解全部满足");
+        assert_eq!(certificate.trend_context.direction, Direction::Down);
+        assert_eq!(certificate.new_extreme_in_direction.reference_price, 90);
+        assert_eq!(certificate.new_extreme_in_direction.extreme_price, 80);
+        assert_eq!(certificate.new_extreme_in_direction.extreme_move_id, eid(1, 10));
+        assert_eq!(certificate.new_extreme_in_direction.confirm_src, 11);
+        assert_eq!(
+            certificate.internal_sublevel_centers.center_ids,
+            vec![eid(1, 10), eid(1, 11)]
+        );
+        assert_eq!(certificate.completed_trend_decomposition.confirm_src, 15);
+        assert_eq!(certificate.confirm_src, 15);
+    }
+
+    #[test]
+    fn row20_uptrend_positive_carries_new_high_and_confirmation_time() {
+        let centers = vec![
+            Center {
+                zd: 100,
+                zg: 200,
+                dd: 90,
+                gg: 210,
+                start_index: 0,
+                end_index: 5,
+            },
+            Center {
+                zd: 300,
+                zg: 400,
+                dd: 290,
+                gg: 410,
+                start_index: 6,
+                end_index: 8,
+            },
+        ];
+        let movements = vec![
+            composed_center_move(
+                Center {
+                    zd: 500,
+                    zg: 600,
+                    dd: 490,
+                    gg: 610,
+                    start_index: 9,
+                    end_index: 11,
+                },
+                1,
+                10,
+                9,
+                11,
+            ),
+            composed_center_move(
+                Center {
+                    zd: 700,
+                    zg: 800,
+                    dd: 690,
+                    gg: 810,
+                    start_index: 11,
+                    end_index: 13,
+                },
+                1,
+                11,
+                11,
+                13,
+            ),
+            composed_center_move(
+                Center {
+                    zd: 750,
+                    zg: 780,
+                    dd: 740,
+                    gg: 820,
+                    start_index: 13,
+                    end_index: 15,
+                },
+                1,
+                12,
+                13,
+                15,
+            ),
+        ];
+        let structure = CpStructureIdentity {
+            level: 1,
+            b_center_id: eid(2, 1),
+            departure_move_id: eid(1, 10),
+            terminal_move_id: Some(eid(1, 11)),
+            source_start: 9,
+            source_end: Some(13),
+        };
+        let third = ThirdClassInCp {
+            b_center_id: eid(2, 1),
+            cp_departure_move_id: eid(1, 10),
+            departure_move_id: eid(1, 10),
+            retest_move_id: eid(1, 11),
+            departure_interval: (9, 11),
+            retest_interval: (11, 13),
+            point_source_index: 13,
+            side: Side::Long,
+        };
+        let certificate = full_trend_c_qualification(
+            &centers,
+            1,
+            eid(2, 1),
+            structure,
+            third,
+            &movements,
+        )
+        .expect("上涨趋势中创新高且内部两中枢完成");
+        assert_eq!(certificate.trend_context.direction, Direction::Up);
+        assert_eq!(certificate.new_extreme_in_direction.reference_price, 410);
+        assert_eq!(certificate.new_extreme_in_direction.extreme_price, 610);
+        assert_eq!(certificate.new_extreme_in_direction.extreme_move_id, eid(1, 10));
+        assert_eq!(certificate.new_extreme_in_direction.confirm_src, 11);
+    }
+
+    #[test]
+    fn completed_decomposition_waits_for_successor_then_closed_object_is_reviewed_once() {
+        let second = Center {
+            zd: 50,
+            zg: 60,
+            dd: 40,
+            gg: 70,
+            start_index: 11,
+            end_index: 13,
+        };
+        let (centers, mut structure, mut third, mut movements) =
+            full_trend_fixture(90, second, true);
+        for (ordinal, movement) in movements.iter_mut().enumerate() {
+            movement.id = eid(1, ordinal as u64);
+        }
+        structure.departure_move_id = eid(1, 0);
+        structure.terminal_move_id = Some(eid(1, 1));
+        third.cp_departure_move_id = eid(1, 0);
+        third.departure_move_id = eid(1, 0);
+        third.retest_move_id = eid(1, 1);
+        let initial_evidence = full_trend_qualification_evidence(
+            &centers,
+            1,
+            eid(2, 1),
+            structure,
+            third,
+            &movements[..2],
+        )
+        .expect("terminal 可见时已能保存分量证据");
+        assert!(initial_evidence.decomposition_review_src.is_none());
+        assert!(initial_evidence.completed_trend_decomposition.is_none());
+
+        let b = centers[1];
+        let mut objects = vec![CpScanOwnership {
+            b_center_index: 1,
+            b_center_id: eid(2, 1),
+            b_center: b,
+            departure_move_id: Some(eid(1, 0)),
+            departure_interval: Some((9, 11)),
+            lifecycle: CpLifecycleStatus::Closed,
+            cp_certificate_confirm_src: Some(13),
+            c_structure: Some(structure),
+            third_class_in_c: Some(third),
+            full_trend_evidence: Some(initial_evidence),
+            full_trend_c_qualified: None,
+        }];
+        let units: Vec<UnitRange> = movements
+            .iter()
+            .map(|movement| {
+                let (lo, hi) = movement.envelope();
+                unit(movement.start_index, movement.end_index, Direction::Down, lo, hi)
+            })
+            .collect();
+        advance_cp_lifecycles(&mut objects, &centers, &units, &movements, None, 2);
+        let evidence = objects[0].full_trend_evidence.as_ref().expect("后继到达后证据保留");
+        assert_eq!(evidence.decomposition_review_move_id, Some(eid(1, 2)));
+        assert_eq!(evidence.decomposition_review_src, Some(15));
+        assert!(evidence.completed_trend_decomposition.is_some());
+        assert_eq!(
+            objects[0].full_trend_c_qualified.as_ref().map(|certificate| certificate.confirm_src),
+            Some(15)
+        );
+        assert!(
+            !cp_lifecycle_dependencies_stable_before(&objects[0], 2),
+            "closing successor 落入 dirty 后缀时禁止继承旧 full 证书"
+        );
+        assert!(cp_lifecycle_dependencies_stable_before(&objects[0], 3));
+
+        let mut mutated_movements = movements.clone();
+        mutated_movements[2] = composed_center_move(
+            Center {
+                zd: 15,
+                zg: 20,
+                dd: 10,
+                gg: 30,
+                start_index: 13,
+                end_index: 15,
+            },
+            1,
+            2,
+            13,
+            15,
+        );
+        assert!(
+            full_trend_c_qualification(
+                &centers,
+                1,
+                eid(2, 1),
+                structure,
+                third,
+                &mutated_movements,
+            )
+            .is_none(),
+            "frontier 后继改写为同向延续后，原 CompletedTrendDecomposition 必须失效"
+        );
+
+        let mut retained_prefix = objects.clone();
+        let rescan_from =
+            invalidate_cp_lifecycle_dirty_dependencies(&mut retained_prefix, 2);
+        assert_eq!(rescan_from, 2);
+        assert_eq!(retained_prefix[0].lifecycle, CpLifecycleStatus::Closed);
+        let invalidated = retained_prefix[0]
+            .full_trend_evidence
+            .as_ref()
+            .expect("terminal 稳定时保留第20/22行分量");
+        assert!(invalidated.decomposition_review_move_id.is_none());
+        assert!(invalidated.completed_trend_decomposition.is_none());
+        assert!(retained_prefix[0].full_trend_c_qualified.is_none());
+        let mutated_units: Vec<UnitRange> = mutated_movements
+            .iter()
+            .map(|movement| {
+                let (lo, hi) = movement.envelope();
+                unit(movement.start_index, movement.end_index, Direction::Down, lo, hi)
+            })
+            .collect();
+        advance_cp_lifecycles(
+            &mut retained_prefix,
+            &centers,
+            &mutated_units,
+            &mutated_movements,
+            None,
+            rescan_from,
+        );
+        let recomputed = retained_prefix[0]
+            .full_trend_evidence
+            .as_ref()
+            .expect("变异后继已重新登记阴性裁定依赖");
+        assert_eq!(recomputed.decomposition_review_move_id, Some(eid(1, 2)));
+        assert!(recomputed.completed_trend_decomposition.is_none());
+        assert!(retained_prefix[0].full_trend_c_qualified.is_none());
+    }
+
+    #[test]
+    fn row20_rejects_third_closed_without_new_extreme() {
+        let second = Center {
+            zd: 65,
+            zg: 68,
+            dd: 60,
+            gg: 70,
+            start_index: 11,
+            end_index: 13,
+        };
+        let (centers, structure, third, movements) =
+            full_trend_fixture(50, second, true);
+        assert!(full_trend_c_qualification(
+            &centers,
+            1,
+            eid(2, 1),
+            structure,
+            third,
+            &movements,
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn row22_rejects_count_only_segment_ids_without_sublevel_center_ids() {
+        let second = Center {
+            zd: 50,
+            zg: 60,
+            dd: 40,
+            gg: 70,
+            start_index: 11,
+            end_index: 13,
+        };
+        let (centers, structure, third, movements) =
+            full_trend_fixture(90, second, false);
+        assert!(movements.len() >= 2, "反例刻意有两个以上 ID，但它们不是中枢 ID");
+        assert!(full_trend_c_qualification(
+            &centers,
+            1,
+            eid(2, 1),
+            structure,
+            third,
+            &movements,
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn completed_trend_decomposition_rejects_expanding_internal_center_chain() {
+        let second = Center {
+            zd: 90,
+            zg: 110,
+            dd: 40,
+            gg: 130,
+            start_index: 11,
+            end_index: 13,
+        };
+        let (centers, structure, third, movements) =
+            full_trend_fixture(90, second, true);
+        assert!(full_trend_c_qualification(
+            &centers,
+            1,
+            eid(2, 1),
+            structure,
+            third,
+            &movements,
+        )
+        .is_none());
+    }
+
     fn cp_objects_fixture() -> (
         Vec<Center>,
         Vec<CpScanOwnership>,
@@ -1548,6 +2446,8 @@ mod tests {
                     source_end: None,
                 }),
                 third_class_in_c: None,
+                full_trend_evidence: None,
+                full_trend_c_qualified: None,
             },
             CpScanOwnership {
                 b_center_index: 1,
@@ -1566,6 +2466,8 @@ mod tests {
                     source_end: None,
                 }),
                 third_class_in_c: None,
+                full_trend_evidence: None,
+                full_trend_c_qualified: None,
             },
         ];
         let segments = vec![
@@ -1610,15 +2512,32 @@ mod tests {
         Option<ThirdClassInCp>,
         Option<CandDeltaCpEdge>,
         Option<(usize, usize)>,
+        Option<FullTrendQualificationEvidence>,
+        Option<FullTrendCQualified>,
     ) {
         let (centers, cp, segments, anchors) = cp_objects_fixture();
-        let ids: Vec<ElementId> = (0..segments.len()).map(|i| eid(0, i as u64)).collect();
-        cp_event_objects(0, &centers, &cp, &segments, &anchors, &ids, 1, 3, 15, true)
+        let moves: Vec<LeveledMove> = segments
+            .iter()
+            .enumerate()
+            .map(|(i, segment)| {
+                LeveledMove::from_unit(
+                    &UnitRange {
+                        start_index: segment.start_index,
+                        end_index: segment.end_index,
+                        direction: segment.direction,
+                        lo: segment.start_price.min(segment.end_price),
+                        hi: segment.start_price.max(segment.end_price),
+                    },
+                    eid(0, i as u64),
+                )
+            })
+            .collect();
+        cp_event_objects(0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true)
     }
 
     #[test]
     fn cp_parent_center_identity_locates_last_center_deterministically() {
-        let (b, _, _, _, _) = full_cp_objects();
+        let (b, _, _, _, _, _, _) = full_cp_objects();
         let b = b.expect("B_p 身份应由 center-aligned 扫描侧车定位");
         assert_eq!(b.center_index, 1);
         assert_eq!(b.center_id, eid(1, 1));
@@ -1628,7 +2547,7 @@ mod tests {
 
     #[test]
     fn cp_third_class_structure_references_b_and_lies_inside_c() {
-        let (_, c, third, _, _) = full_cp_objects();
+        let (_, c, third, _, _, _, _) = full_cp_objects();
         let c = c.expect("c_p 结构身份应存在");
         let third = third.expect("离开/回试应产第三类归属证书");
         assert_eq!(third.b_center_id, c.b_center_id);
@@ -1644,7 +2563,7 @@ mod tests {
 
     #[test]
     fn cand_delta_event_edge_uniquely_identifies_full_cp() {
-        let (_, c, third, edge, interval) = full_cp_objects();
+        let (_, c, third, edge, interval, _, _) = full_cp_objects();
         let c = c.expect("完整 c_p 身份");
         let third = third.expect("第三类归属");
         let edge = edge.expect("CandDeltaEvent -> c_p 所有权边");
@@ -1660,9 +2579,24 @@ mod tests {
     fn cp_end_remains_none_without_third_class_proof() {
         let (centers, cp, mut segments, anchors) = cp_objects_fixture();
         segments[2].end_price = 120; // 回抽进入 B_p（>=ZD）⟹ 非第三类。
-        let ids: Vec<ElementId> = (0..segments.len()).map(|i| eid(0, i as u64)).collect();
-        let (_, c, third, edge, interval) =
-            cp_event_objects(0, &centers, &cp, &segments, &anchors, &ids, 1, 3, 15, true);
+        let moves: Vec<LeveledMove> = segments
+            .iter()
+            .enumerate()
+            .map(|(i, segment)| {
+                LeveledMove::from_unit(
+                    &UnitRange {
+                        start_index: segment.start_index,
+                        end_index: segment.end_index,
+                        direction: segment.direction,
+                        lo: segment.start_price.min(segment.end_price),
+                        hi: segment.start_price.max(segment.end_price),
+                    },
+                    eid(0, i as u64),
+                )
+            })
+            .collect();
+        let (_, c, third, edge, interval, _, _) =
+            cp_event_objects(0, &centers, &cp, &segments, &anchors, &moves, 1, 3, 15, true);
         assert!(third.is_none());
         assert_eq!(
             c.and_then(|x| x.source_end),
@@ -1696,6 +2630,8 @@ mod tests {
                 source_end: None,
             }),
             third_class_in_c: None,
+            full_trend_evidence: None,
+            full_trend_c_qualified: None,
         }
     }
 
@@ -1722,7 +2658,7 @@ mod tests {
             .collect();
         let initial = pending_cp_object(center, eid(1, 73), eid(0, 327), (42_503, 42_704));
 
-        let mut without_later_event = vec![initial];
+        let mut without_later_event = vec![initial.clone()];
         advance_cp_lifecycles(
             &mut without_later_event,
             &[center],
@@ -1788,13 +2724,21 @@ mod tests {
             (3_305_536, 3_306_324),
         )];
         let confirm_seg = cp_unit_to_segment(&units[0]);
-        let (b_parent, snapshot_c, snapshot_third, edge, snapshot_interval) = cp_event_objects(
+        let (
+            b_parent,
+            snapshot_c,
+            snapshot_third,
+            edge,
+            snapshot_interval,
+            snapshot_evidence,
+            snapshot_full,
+        ) = cp_event_objects(
             1,
             &[center],
             &objects,
             &[confirm_seg],
             &[Some(Direction::Up)],
-            &[eid(1, 6703)],
+            &moves[..1],
             0,
             0,
             3_306_324,
@@ -1818,6 +2762,8 @@ mod tests {
             c_structure: snapshot_c,
             third_class_in_c: snapshot_third,
             cp_certificate_confirm_src: None,
+            full_trend_c_qualified: snapshot_full,
+            full_trend_evidence: snapshot_evidence,
             cp_ownership: edge,
             enter_src: 3_305_536,
             cand_delta: true,

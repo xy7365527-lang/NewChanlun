@@ -172,7 +172,13 @@ impl StrictNestSidecarCollector {
             }
         }
         let frames = self.summary.frames + 1;
-        self.summary = summarize_strict_nest_certificates(&cand, &terminal_by_key);
+        let objects_by_level: Vec<&[classifier::recursive_tower::CpScanOwnership]> = classification
+            .levels
+            .iter()
+            .map(|state| state.cp_ownership.as_slice())
+            .collect();
+        self.summary =
+            summarize_strict_nest_certificates(&cand, &objects_by_level, &terminal_by_key);
         self.summary.frames = frames;
     }
 
@@ -190,6 +196,7 @@ fn strict_nest_side_i8(side: super::super::types::Side) -> i8 {
 
 fn summarize_strict_nest_certificates(
     cand: &[Vec<classifier::recursive_tower::CandDeltaEvent>],
+    objects_by_level: &[&[classifier::recursive_tower::CpScanOwnership]],
     terminal_by_key: &std::collections::HashMap<(usize, i8), super::super::types::BspBits>,
 ) -> StrictNestSidecarSummary {
     let mut summary = StrictNestSidecarSummary {
@@ -210,11 +217,17 @@ fn summarize_strict_nest_certificates(
         })
         .unwrap_or(0);
     for top in 1..cand.len() {
-        let certs = classifier::nest::assemble_certificates(&cand, 0, top, |base| {
-            terminal_by_key
-                .get(&(base.confirm_src, strict_nest_side_i8(base.side)))
-                .copied()
-        });
+        let certs = classifier::nest::assemble_certificates_terminal(
+            cand,
+            objects_by_level,
+            0,
+            top,
+            |base| {
+                terminal_by_key
+                    .get(&(base.confirm_src, strict_nest_side_i8(base.side)))
+                    .copied()
+            },
+        );
         summary.cert_per_top.push((top, certs.len()));
         summary.certificates.extend(certs.into_iter().map(|certificate| StrictNestCertificateRecord {
             top_level: top,
@@ -3160,6 +3173,8 @@ mod tests {
             c_structure: None,
             third_class_in_c: None,
             cp_certificate_confirm_src: None,
+            full_trend_c_qualified: None,
+            full_trend_evidence: None,
             cp_ownership: None,
             enter_src: lo,
             cand_delta: cand,
@@ -3171,14 +3186,70 @@ mod tests {
     fn strict_nest_sidecar_summary_matches_p2_assembly() {
         let side = super::super::super::types::Side::Long;
         let base = strict_nest_test_event(0, side, 60, 20, 60, true);
-        let parent = strict_nest_test_event(1, side, 50, 10, 80, true);
+        let mut parent = strict_nest_test_event(1, side, 50, 10, 80, true);
+        let b_id = classifier::recursive_tower::ElementId { level: 2, ordinal: 1 };
+        let departure_id = classifier::recursive_tower::ElementId { level: 1, ordinal: 10 };
+        let terminal_id = classifier::recursive_tower::ElementId { level: 1, ordinal: 11 };
+        parent.cp_ownership = Some(classifier::recursive_tower::CandDeltaCpEdge {
+            b_center_id: b_id,
+            cp_departure_move_id: departure_id,
+            cp_source_start: 10,
+        });
         let cand = vec![vec![base.clone()], vec![parent]];
+        let third = classifier::recursive_tower::ThirdClassInCp {
+            b_center_id: b_id,
+            cp_departure_move_id: departure_id,
+            departure_move_id: departure_id,
+            retest_move_id: terminal_id,
+            departure_interval: (10, 40),
+            retest_interval: (40, 80),
+            point_source_index: 80,
+            side,
+        };
+        let object = classifier::recursive_tower::CpScanOwnership {
+            b_center_index: 1,
+            b_center_id: b_id,
+            b_center: super::super::super::types::Center {
+                zd: 0,
+                zg: 1,
+                dd: 0,
+                gg: 1,
+                start_index: 0,
+                end_index: 9,
+            },
+            departure_move_id: Some(departure_id),
+            departure_interval: Some((10, 40)),
+            lifecycle: classifier::recursive_tower::CpLifecycleStatus::Closed,
+            cp_certificate_confirm_src: Some(80),
+            c_structure: Some(classifier::recursive_tower::CpStructureIdentity {
+                level: 1,
+                b_center_id: b_id,
+                departure_move_id: departure_id,
+                terminal_move_id: Some(terminal_id),
+                source_start: 10,
+                source_end: Some(80),
+            }),
+            third_class_in_c: Some(third),
+            full_trend_evidence: None,
+            full_trend_c_qualified: None,
+        };
+        let empty: &[classifier::recursive_tower::CpScanOwnership] = &[];
+        let level1_objects = [object];
+        let objects_by_level: Vec<&[classifier::recursive_tower::CpScanOwnership]> =
+            vec![empty, &level1_objects];
         let terminal = super::super::super::types::BspBits { buy1: true, ..Default::default() };
         let mut terminal_by_key = std::collections::HashMap::new();
         terminal_by_key.insert((60usize, 1i8), terminal);
 
-        let summary = summarize_strict_nest_certificates(&cand, &terminal_by_key);
-        let expected = classifier::nest::assemble_certificates(&cand, 0, 1, |_| Some(terminal));
+        let summary =
+            summarize_strict_nest_certificates(&cand, &objects_by_level, &terminal_by_key);
+        let expected = classifier::nest::assemble_certificates_terminal(
+            &cand,
+            &objects_by_level,
+            0,
+            1,
+            |_| Some(terminal),
+        );
 
         assert_eq!(summary.base_count, 1);
         assert_eq!(summary.terminal_missing, 0);
@@ -3199,7 +3270,10 @@ mod tests {
         let cand = vec![vec![base], vec![mid], vec![top]];
         let terminal_by_key = std::collections::HashMap::new();
 
-        let summary = summarize_strict_nest_certificates(&cand, &terminal_by_key);
+        let empty: &[classifier::recursive_tower::CpScanOwnership] = &[];
+        let objects_by_level = vec![empty, empty, empty];
+        let summary =
+            summarize_strict_nest_certificates(&cand, &objects_by_level, &terminal_by_key);
 
         // 旧实现：top=1 与 top=2 各查一次同一基例 ⟹ 膨胀为 2；唯一基例口径应为 1。
         assert_eq!(summary.terminal_missing, 1);
