@@ -386,12 +386,22 @@ pub(crate) fn judge_first_cached(
 /// （`zg < retracePrice` 严格，BspClassification.lean:113）。codex 裁决 2026-06-27（中枢终结语义）。
 /// ★Q7-#1 裁定C：`leave_anchor` = leave 段的方向锚资格——三类的离开/突破段须有锚（fallback ⟹
 /// None ⟹ 非三类结构）。retest 段是几何回试角色（回试不触中枢的区间判据），不设锚门。
-fn judge_third(
+/// 第三类离开/回试的结构证书。`point` 继续是既有 BSP 单一输出；两个区间为完整 `c_p`
+/// 归属边提供可追溯结构，不另起第二套第三类判据。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ThirdClassCert {
+    pub point: BspPoint,
+    pub center: Center,
+    pub departure_interval: (usize, usize),
+    pub retest_interval: (usize, usize),
+}
+
+pub(crate) fn judge_third_cert(
     c: &Center,
     leave_seg: &Segment,
     leave_anchor: Option<Direction>,
     retest_seg: &Segment,
-) -> Option<BspPoint> {
+) -> Option<ThirdClassCert> {
     let leave = seg_end(leave_seg);
     let retest = seg_end(retest_seg);
     match (leave_anchor, retest.dir) {
@@ -406,7 +416,12 @@ fn judge_third(
                 is_sell_side: false,
             };
             let bits = endpoint_to_bsp(&situ);
-            Some(make_third_point(retest.source_index, bits, retest.price, c))
+            Some(ThirdClassCert {
+                point: make_third_point(retest.source_index, bits, retest.price, c),
+                center: *c,
+                departure_interval: (leave_seg.start_index, leave_seg.end_index),
+                retest_interval: (retest_seg.start_index, retest_seg.end_index),
+            })
         }
         // 3 卖：向下离开（leave 端点 < c.zd）+ 向上回抽（retest 高点 < c.zd，不触及闭区间中枢）。
         (Some(Direction::Down), Direction::Up) if leave.price < c.zd && retest.price < c.zd => {
@@ -419,11 +434,25 @@ fn judge_third(
                 is_sell_side: true,
             };
             let bits = endpoint_to_bsp(&situ);
-            Some(make_third_point(retest.source_index, bits, retest.price, c))
+            Some(ThirdClassCert {
+                point: make_third_point(retest.source_index, bits, retest.price, c),
+                center: *c,
+                departure_interval: (leave_seg.start_index, leave_seg.end_index),
+                retest_interval: (retest_seg.start_index, retest_seg.end_index),
+            })
         }
         // 同向相邻（无回试）/破中枢方向不符/触及中枢：非第三类结构。
         _ => None,
     }
+}
+
+fn judge_third(
+    c: &Center,
+    leave_seg: &Segment,
+    leave_anchor: Option<Direction>,
+    retest_seg: &Segment,
+) -> Option<BspPoint> {
+    judge_third_cert(c, leave_seg, leave_anchor, retest_seg).map(|cert| cert.point)
 }
 
 /// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46；center 留 None——1 类止损用 pivot）。

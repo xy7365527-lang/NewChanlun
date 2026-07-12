@@ -33,7 +33,7 @@
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::nest::{assemble_certificates, is_sub, NestInterval};
 use newchan_rust::theta_v0::classifier::recursive_tower::{
-    find_move_by_end_index, CandDeltaEvent, LeveledMove,
+    find_move_by_end_index, CandDeltaEvent, ElementId, LeveledMove,
 };
 use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
@@ -316,8 +316,8 @@ fn load_trades(path: &Path) -> Result<Vec<Trade>, String> {
         if line.trim().is_empty() {
             continue;
         }
-        let t: Trade = serde_json::from_str(line)
-            .map_err(|e| format!("行 {}: JSON 解析失败: {e}", ln + 1))?;
+        let t: Trade =
+            serde_json::from_str(line).map_err(|e| format!("行 {}: JSON 解析失败: {e}", ln + 1))?;
         if t.seg_start_index >= t.entry_bar {
             return Err(format!(
                 "行 {}: seg_start_index >= entry_bar（W 空）",
@@ -708,35 +708,61 @@ impl PairGateDiag {
     }
 
     fn failed_conditions(self) -> usize {
-        [
-            self.same_side,
-            self.sub_start,
-            self.sub_end,
-        ]
-        .into_iter()
-        .filter(|ok| !ok)
-        .count()
+        [self.same_side, self.sub_start, self.sub_end]
+            .into_iter()
+            .filter(|ok| !ok)
+            .count()
     }
 }
 
-fn diagnose_pair(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> PairGateDiag {
-    PairGateDiag {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ParentWindowMode {
+    /// 2026-07-10 冻结基线，仅用于同输入复核；不得进入正式装配。
+    EpisodeBaseline,
+    /// #43 现行口径：只接受已闭合的完整 c_p 证书。
+    FullCp,
+}
+
+fn parent_interval(parent: &CandDeltaEvent, mode: ParentWindowMode) -> Option<(usize, usize)> {
+    match mode {
+        ParentWindowMode::EpisodeBaseline => Some(parent.c_episode_interval),
+        ParentWindowMode::FullCp => parent.c_interval_full,
+    }
+}
+
+fn diagnose_pair(
+    parent: &CandDeltaEvent,
+    child: &CandDeltaEvent,
+    mode: ParentWindowMode,
+) -> Option<PairGateDiag> {
+    let (parent_start, parent_end) = parent_interval(parent, mode)?;
+    Some(PairGateDiag {
         same_side: parent.side == child.side,
-        sub_start: child.a_interval.0 >= parent.enter_src,
-        sub_end: child.a_interval.1 <= parent.interval.1,
-    }
+        sub_start: child.a_interval.0 >= parent_start,
+        sub_end: child.a_interval.1 <= parent_end,
+    })
 }
 
-fn confirmation_lag(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> i128 {
-    child.confirm_src as i128 - parent.interval.1 as i128
+fn confirmation_lag(
+    parent: &CandDeltaEvent,
+    child: &CandDeltaEvent,
+    mode: ParentWindowMode,
+) -> Option<i128> {
+    let (_, parent_end) = parent_interval(parent, mode)?;
+    Some(child.confirm_src as i128 - parent_end as i128)
 }
 
 /// 数值门离通过还差多少根 bar；通过门贡献 0。方向门单独由 failed_conditions 排序。
-fn pair_gap_bars(parent: &CandDeltaEvent, child: &CandDeltaEvent) -> (usize, usize) {
-    (
-        parent.enter_src.saturating_sub(child.a_interval.0),
-        child.a_interval.1.saturating_sub(parent.interval.1),
-    )
+fn pair_gap_bars(
+    parent: &CandDeltaEvent,
+    child: &CandDeltaEvent,
+    mode: ParentWindowMode,
+) -> Option<(usize, usize)> {
+    let (parent_start, parent_end) = parent_interval(parent, mode)?;
+    Some((
+        parent_start.saturating_sub(child.a_interval.0),
+        child.a_interval.1.saturating_sub(parent_end),
+    ))
 }
 
 #[derive(Debug, Clone, Default)]
@@ -747,6 +773,9 @@ struct FunnelLevel {
     reachable_pair_successes: usize,
     reachable_candidates: usize,
     certificates: usize,
+    full_parent_events: usize,
+    incomplete_parent_events: usize,
+    incomplete_pair_rejections: usize,
     lag_considered: Vec<i128>,
     lag_accepted: Vec<i128>,
 }
@@ -827,6 +856,7 @@ fn build_cert_funnel(
     classification: &classifier::Classification,
     events_by_level: &[Vec<CandDeltaEvent>],
     terminal_by_key: &HashMap<(usize, i8), BspBits>,
+    mode: ParentWindowMode,
 ) -> (Vec<FunnelLevel>, Vec<Vec<bool>>) {
     let level_count = events_by_level.len().max(classification.levels.len());
     let mut levels = vec![FunnelLevel::default(); level_count];
@@ -840,6 +870,16 @@ fn build_cert_funnel(
     for (level, events) in events_by_level.iter().enumerate() {
         levels[level].structural_events = events.len();
         levels[level].cand_candidates = events.iter().filter(|e| e.cand_delta).count();
+        if mode == ParentWindowMode::FullCp && level > 0 {
+            levels[level].full_parent_events = events
+                .iter()
+                .filter(|e| e.cand_delta && e.c_interval_full.is_some())
+                .count();
+            levels[level].incomplete_parent_events = events
+                .iter()
+                .filter(|e| e.cand_delta && e.c_interval_full.is_none())
+                .count();
+        }
     }
 
     let mut reachable: Vec<Vec<bool>> = events_by_level
@@ -860,17 +900,34 @@ fn build_cert_funnel(
         let parents = &upper[0];
         for (parent_idx, parent) in parents.iter().enumerate().filter(|(_, e)| e.cand_delta) {
             let mut parent_reachable = false;
+            if parent_interval(parent, mode).is_none() {
+                levels[level].incomplete_pair_rejections += children
+                    .iter()
+                    .enumerate()
+                    .filter(|(child_idx, child)| {
+                        reachable[level - 1][*child_idx]
+                            && child.cand_delta
+                            && child.side == parent.side
+                    })
+                    .count();
+                continue;
+            }
             for (child_idx, child) in children.iter().enumerate() {
                 if !reachable[level - 1][child_idx] || !child.cand_delta {
                     continue;
                 }
-                let diag = diagnose_pair(parent, child);
+                let diag =
+                    diagnose_pair(parent, child, mode).expect("父完整区间已在循环前验证为 Some");
                 if diag.same_side {
-                    levels[level].lag_considered.push(confirmation_lag(parent, child));
+                    levels[level]
+                        .lag_considered
+                        .push(confirmation_lag(parent, child, mode).expect("父区间已闭合"));
                 }
                 if diag.passes() {
                     levels[level].reachable_pair_successes += 1;
-                    levels[level].lag_accepted.push(confirmation_lag(parent, child));
+                    levels[level]
+                        .lag_accepted
+                        .push(confirmation_lag(parent, child, mode).expect("父区间已闭合"));
                     parent_reachable = true;
                 }
             }
@@ -881,11 +938,193 @@ fn build_cert_funnel(
     (levels, reachable)
 }
 
+/// 重放专用的双口径证书计数。正式生产装配只走 `nest::assemble_certificates` 的 FullCp；
+/// EpisodeBaseline 仅用于 §7.B 在同一终态快照上复核 2026-07-10 基线。
+fn can_extend_for_mode(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    side: Side,
+    level: usize,
+    top_level: usize,
+    child_interval: (usize, usize),
+    mode: ParentWindowMode,
+) -> bool {
+    if level > top_level {
+        return true;
+    }
+    let Some(parents) = events_by_level.get(level) else {
+        return false;
+    };
+    let mut order: Vec<usize> = (0..parents.len()).collect();
+    order.sort_by_key(|&i| {
+        (
+            parent_interval(&parents[i], mode).unwrap_or((usize::MAX, usize::MAX)),
+            parents[i].a_interval,
+            i,
+        )
+    });
+    order.into_iter().any(|i| {
+        let parent = &parents[i];
+        if !parent.cand_delta || parent.side != side {
+            return false;
+        }
+        let Some(parent_iv) = parent_interval(parent, mode) else {
+            return false;
+        };
+        child_interval.0 >= parent_iv.0
+            && child_interval.1 <= parent_iv.1
+            && can_extend_for_mode(
+                events_by_level,
+                side,
+                level + 1,
+                top_level,
+                parent.a_interval,
+                mode,
+            )
+    })
+}
+
+fn count_certificates_for_mode(
+    events_by_level: &[Vec<CandDeltaEvent>],
+    terminal_by_key: &HashMap<(usize, i8), BspBits>,
+    top_level: usize,
+    mode: ParentWindowMode,
+) -> usize {
+    events_by_level
+        .first()
+        .into_iter()
+        .flatten()
+        .filter(|base| base.cand_delta)
+        .filter(|base| {
+            terminal_by_key.contains_key(&(base.confirm_src, side_i8(base.side)))
+                && can_extend_for_mode(
+                    events_by_level,
+                    base.side,
+                    1,
+                    top_level,
+                    base.a_interval,
+                    mode,
+                )
+        })
+        .count()
+}
+
+#[derive(Debug, Clone, Copy)]
+struct RecursiveOwnershipProof {
+    parent_first: ElementId,
+    parent_last: ElementId,
+    child_first: ElementId,
+    child_last: ElementId,
+    child_span: (usize, usize),
+}
+
+/// 为“child.a_interval 属于 parent.c_p 内部”生成独立递归结构证据：先按父 `c_p` 的同级
+/// ElementId 首尾取连续组件，再从这些组件的 `sub_moves` 侧车中定位子级 I(A) 的精确首尾。
+/// 数值闭包含仍由原 Sub 门判断；本函数不参与产量门，只用于逐接受边证据验收。
+fn prove_child_structural_ownership(
+    parent: &CandDeltaEvent,
+    child: &CandDeltaEvent,
+    tower: &[Rc<Vec<LeveledMove>>],
+) -> Option<RecursiveOwnershipProof> {
+    if parent.level != child.level + 1 {
+        return None;
+    }
+    let edge = parent.cp_ownership?;
+    let c = parent.c_structure?;
+    let terminal_move_id = c.terminal_move_id?;
+    let parent_moves = tower.get(parent.level as usize)?;
+    let components: Vec<&LeveledMove> = parent_moves
+        .iter()
+        .filter(|m| {
+            m.id.level == edge.cp_departure_move_id.level
+                && edge.cp_departure_move_id.ordinal <= m.id.ordinal
+                && m.id.ordinal <= terminal_move_id.ordinal
+        })
+        .collect();
+    let (first_parent, last_parent) = (components.first()?, components.last()?);
+    if first_parent.id != edge.cp_departure_move_id
+        || last_parent.id != terminal_move_id
+        || first_parent.start_index != edge.cp_source_start
+        || last_parent.end_index != c.source_end?
+        || !components
+            .windows(2)
+            .all(|w| w[0].id.ordinal + 1 == w[1].id.ordinal)
+    {
+        return None;
+    }
+
+    let descendants: Vec<&LeveledMove> = components
+        .iter()
+        .flat_map(|m| m.sub_moves.iter())
+        .filter(|m| {
+            m.id.level == child.level
+                && m.end_index >= child.a_interval.0
+                && m.start_index <= child.a_interval.1
+        })
+        .collect();
+    let (first_child, last_child) = (descendants.first()?, descendants.last()?);
+    if first_child.start_index != child.a_interval.0
+        || last_child.end_index != child.a_interval.1
+        || !descendants
+            .windows(2)
+            .all(|w| w[0].id.ordinal + 1 == w[1].id.ordinal)
+    {
+        return None;
+    }
+    Some(RecursiveOwnershipProof {
+        parent_first: first_parent.id,
+        parent_last: last_parent.id,
+        child_first: first_child.id,
+        child_last: last_child.id,
+        child_span: (first_child.start_index, last_child.end_index),
+    })
+}
+
+fn full_parent_evidence_ok(event: &CandDeltaEvent) -> bool {
+    let Some((start, end)) = event.c_interval_full else {
+        return true; // 未闭合由消费者显式拒绝，不构成伪证书。
+    };
+    let (Some(b), Some(c), Some(third), Some(edge)) = (
+        event.b_parent,
+        event.c_structure,
+        event.third_class_in_c,
+        event.cp_ownership,
+    ) else {
+        return false;
+    };
+    c.source_start == start
+        && c.source_end == Some(end)
+        && c.b_center_id == b.center_id
+        && edge.b_center_id == b.center_id
+        && edge.cp_departure_move_id == c.departure_move_id
+        && edge.cp_source_start == start
+        && event.cp_certificate_confirm_src == Some(third.point_source_index)
+        && third.b_center_id == b.center_id
+        && third.cp_departure_move_id == c.departure_move_id
+        && start >= b.source_interval.1
+        && start > event.a_interval.0
+        && start <= third.departure_interval.0
+        && third.retest_interval.1 <= end
+}
+
+fn c_start_mapping_ok(event: &CandDeltaEvent) -> bool {
+    match (event.b_parent, event.c_structure) {
+        (Some(b), Some(c)) => {
+            c.b_center_id == b.center_id
+                && c.source_start >= b.source_interval.1
+                && c.source_start > event.a_interval.0
+        }
+        // 逐事件部分函数允许尚无离开单元；此类事件必须保持 None 并由消费端拒绝。
+        (_, None) => event.c_interval_full.is_none() && event.cp_ownership.is_none(),
+        (None, Some(_)) => false,
+    }
+}
+
 fn closest_pair_misses(
     events_by_level: &[Vec<CandDeltaEvent>],
     reachable: &[Vec<bool>],
     parent_level: usize,
     limit: usize,
+    mode: ParentWindowMode,
 ) -> Vec<NearMiss> {
     if parent_level == 0 || parent_level >= events_by_level.len() {
         return Vec::new();
@@ -900,11 +1139,14 @@ fn closest_pair_misses(
             if !reachable[parent_level - 1][child_idx] || !child.cand_delta {
                 continue;
             }
-            let diag = diagnose_pair(parent, child);
+            let Some(diag) = diagnose_pair(parent, child, mode) else {
+                continue;
+            };
             if diag.passes() {
                 continue;
             }
-            let (start_gap, end_gap) = pair_gap_bars(parent, child);
+            let (start_gap, end_gap) =
+                pair_gap_bars(parent, child, mode).expect("diagnose_pair Some 蕴含父区间 Some");
             misses.push(NearMiss {
                 parent_level,
                 parent_idx,
@@ -912,7 +1154,8 @@ fn closest_pair_misses(
                 diag,
                 start_gap,
                 end_gap,
-                confirm_lag: confirmation_lag(parent, child),
+                confirm_lag: confirmation_lag(parent, child, mode)
+                    .expect("diagnose_pair Some 蕴含父区间 Some"),
             });
         }
     }
@@ -950,9 +1193,17 @@ fn lag_distribution(values: &[i128]) -> String {
     let positive = sorted.len() - negative - zero;
     format!(
         "n={}；负/零/正={}/{}/{}；min/p25/p50/p75/p90/p95/max={}/{}/{}/{}/{}/{}/{}",
-        sorted.len(), negative, zero, positive, sorted[0], percentile(&sorted, 25),
-        percentile(&sorted, 50), percentile(&sorted, 75), percentile(&sorted, 90),
-        percentile(&sorted, 95), sorted[sorted.len() - 1]
+        sorted.len(),
+        negative,
+        zero,
+        positive,
+        sorted[0],
+        percentile(&sorted, 25),
+        percentile(&sorted, 50),
+        percentile(&sorted, 75),
+        percentile(&sorted, 90),
+        percentile(&sorted, 95),
+        sorted[sorted.len() - 1]
     )
 }
 
@@ -1203,16 +1454,42 @@ fn run() -> Result<bool, String> {
                 .count()
         })
         .unwrap_or(0);
-    let mut cert_per_top: Vec<(usize, usize)> = Vec::new(); // (目标级 ℓ, 证书数)
+    let (mut old_funnel, old_reachable) = build_cert_funnel(
+        &cls_f,
+        &cand_f,
+        &terminal_by_key,
+        ParentWindowMode::EpisodeBaseline,
+    );
+    let old_baseline_ok = old_funnel
+        .get(1)
+        .is_some_and(|l| l.reachable_candidates == 3)
+        && old_funnel
+            .get(2)
+            .is_some_and(|l| l.cand_candidates == 13 && l.lag_considered.len() == 22);
+    let (mut funnel_levels, reachable) =
+        build_cert_funnel(&cls_f, &cand_f, &terminal_by_key, ParentWindowMode::FullCp);
+    let mut cert_per_top: Vec<(usize, usize)> = Vec::new(); // 现行 FullCp 目标级证书数
+    let mut old_cert_per_top: Vec<(usize, usize)> = Vec::new();
     let mut cert_samples: Vec<String> = Vec::new();
     let mut cert_total = 0usize;
-    let (mut funnel_levels, reachable) = build_cert_funnel(&cls_f, &cand_f, &terminal_by_key);
+    let mut new_assembler_matches = true;
     for top in 1..cand_f.len() {
+        let old_count = count_certificates_for_mode(
+            &cand_f,
+            &terminal_by_key,
+            top,
+            ParentWindowMode::EpisodeBaseline,
+        );
+        old_funnel[top].certificates = old_count;
+        old_cert_per_top.push((top, old_count));
         let certs = assemble_certificates(&cand_f, 0, top, |b| {
             terminal_by_key
                 .get(&(b.confirm_src, side_i8(b.side)))
                 .copied()
         });
+        let replay_count =
+            count_certificates_for_mode(&cand_f, &terminal_by_key, top, ParentWindowMode::FullCp);
+        new_assembler_matches &= replay_count == certs.len();
         cert_total += certs.len();
         for c in &certs {
             if cert_samples.len() < 10 {
@@ -1223,8 +1500,12 @@ fn run() -> Result<bool, String> {
                         format!(
                             "confirm={} I(A_child)=[{},{}]⊆D_parent=[{},{}]",
                             r.confirm_src().expect("strict 装配 rung 必携 confirm_src"),
-                            r.child_interval().expect("strict 装配 rung 必携 I(A_child)").start_time,
-                            r.child_interval().expect("strict 装配 rung 必携 I(A_child)").end_time,
+                            r.child_interval()
+                                .expect("strict 装配 rung 必携 I(A_child)")
+                                .start_time,
+                            r.child_interval()
+                                .expect("strict 装配 rung 必携 I(A_child)")
+                                .end_time,
                             r.interval().start_time,
                             r.interval().end_time
                         )
@@ -1233,7 +1514,8 @@ fn run() -> Result<bool, String> {
                 cert_samples.push(format!(
                     "ℓ={top} side={:?} base(confirm={} I(A)=[{},{}]) rungs(高→低)={}",
                     c.side(),
-                    c.base_confirm_src().expect("strict 装配基例必携 confirm_src"),
+                    c.base_confirm_src()
+                        .expect("strict 装配基例必携 confirm_src"),
                     c.base_interval().start_time,
                     c.base_interval().end_time,
                     rungs.join("⊇")
@@ -1243,13 +1525,13 @@ fn run() -> Result<bool, String> {
         cert_per_top.push((top, certs.len()));
         funnel_levels[top].certificates = certs.len();
     }
-    // 裁决：L0→L1 ≥3 仅作回归预期，不作硬闸门；P2 硬门只保留 terminal 对账。
+    // 裁决：产量不作定义闸门；硬门只检查 terminal 与正式装配/重放镜像一致。
     let l01_certificates = cert_per_top
         .iter()
         .find(|&&(top, _)| top == 1)
         .map_or(0, |&(_, n)| n);
     let l01_regression_expected = l01_certificates >= 3;
-    let p2_pass = cert_missing_terminal == 0;
+    let p2_pass = cert_missing_terminal == 0 && new_assembler_matches;
 
     // ── 报告 ──
     let mut out = String::new();
@@ -1422,201 +1704,445 @@ fn run() -> Result<bool, String> {
         if p2_pass { "✓" } else { "✗" }
     );
 
-    let report_path = out_root.join("STRICT-NEST-DPARENT-CHECK.md");
-    std::fs::write(&report_path, &out)
-        .map_err(|e| format!("写入 {} 失败: {e}", report_path.display()))?;
-
-    // ── 证书产量=0 漏斗归因报告（只读终态插桩）──
-    // F-07：按漏斗阶段顺序归因，输出确定原因枚举；近失样本仅对配对归零情形有意义。
-    let first_zero = first_zero_cause(&funnel_levels);
-    let near_misses = match first_zero {
-        Some(FirstZeroCause::PairZero(level)) => {
-            closest_pair_misses(&cand_f, &reachable, level, 3)
+    // ── #43 v2 正式隔离重放报告：只写新产物，不覆盖 2026-07-10 冻结报告。──
+    let parent_events: Vec<&CandDeltaEvent> = cand_f
+        .iter()
+        .enumerate()
+        .skip(1)
+        .flat_map(|(_, events)| events.iter().filter(|e| e.cand_delta))
+        .collect();
+    let mut rel_eq = 0usize;
+    let mut rel_lt = 0usize;
+    let mut rel_gt = 0usize;
+    let mut rel_missing = 0usize;
+    for event in &parent_events {
+        match event.c_structure.map(|c| c.source_start) {
+            Some(start) if start == event.c_episode_start => rel_eq += 1,
+            Some(start) if start < event.c_episode_start => rel_lt += 1,
+            Some(_) => rel_gt += 1,
+            None => rel_missing += 1,
         }
-        _ => Vec::new(),
+    }
+    let mapping_ok = parent_events.iter().all(|e| c_start_mapping_ok(e))
+        && parent_events.iter().all(|e| full_parent_evidence_ok(e));
+    let complete_parent_events = parent_events
+        .iter()
+        .filter(|e| e.c_interval_full.is_some())
+        .count();
+    let incomplete_parent_events = parent_events.len() - complete_parent_events;
+    let capability_visible = parent_events
+        .iter()
+        .any(|e| e.b_parent.is_some() || e.c_structure.is_some());
+
+    let mut new_l12_edges: Vec<(usize, usize, PairGateDiag)> = Vec::new();
+    if cand_f.len() > 2 && reachable.len() > 1 && old_reachable.len() > 1 {
+        for (parent_idx, parent) in cand_f[2].iter().enumerate().filter(|(_, e)| e.cand_delta) {
+            for (child_idx, child) in cand_f[1].iter().enumerate() {
+                if !reachable[1][child_idx] || !child.cand_delta {
+                    continue;
+                }
+                let Some(new_diag) = diagnose_pair(parent, child, ParentWindowMode::FullCp) else {
+                    continue;
+                };
+                let old_pass = old_reachable[1][child_idx]
+                    && diagnose_pair(parent, child, ParentWindowMode::EpisodeBaseline)
+                        .is_some_and(PairGateDiag::passes);
+                if new_diag.passes() && !old_pass {
+                    new_l12_edges.push((parent_idx, child_idx, new_diag));
+                }
+            }
+        }
+    }
+    let accepted_edges_evidence_ok = new_l12_edges.iter().all(|&(pi, ci, _)| {
+        prove_child_structural_ownership(&cand_f[2][pi], &cand_f[1][ci], &tower_f).is_some()
+    });
+
+    let prereg = [
+        ((352_003, 354_036), 354_036, (340_499, 341_236), 345_518),
+        (
+            (2_180_264, 2_182_560),
+            2_182_560,
+            (2_160_411, 2_161_133),
+            2_168_349,
+        ),
+        (
+            (2_194_856, 2_197_213),
+            2_197_213,
+            (2_160_411, 2_161_133),
+            2_168_349,
+        ),
+    ];
+    let mut prereg_rows = Vec::new();
+    let mut prereg_located = true;
+    let mut prediction_falsified = false;
+    for (rank, (old_parent, parent_confirm, child_a, child_confirm)) in
+        prereg.iter().copied().enumerate()
+    {
+        let parents: Vec<&CandDeltaEvent> = cand_f
+            .get(2)
+            .into_iter()
+            .flatten()
+            .filter(|p| {
+                p.cand_delta
+                    && p.c_episode_interval == old_parent
+                    && p.confirm_src == parent_confirm
+            })
+            .collect();
+        let children: Vec<&CandDeltaEvent> = cand_f
+            .get(1)
+            .into_iter()
+            .flatten()
+            .filter(|c| c.cand_delta && c.a_interval == child_a && c.confirm_src == child_confirm)
+            .collect();
+        if parents.len() != 1 || children.len() != 1 || parents[0].side != children[0].side {
+            prereg_located = false;
+            prereg_rows.push(format!(
+                "| {} | `{:?}` | `{:?}` | **身份重定位失败**（parent={} / child={}） | — | — | — |",
+                rank + 1,
+                old_parent,
+                child_a,
+                parents.len(),
+                children.len()
+            ));
+            continue;
+        }
+        let parent = parents[0];
+        let child = children[0];
+        let start = parent.c_structure.map(|c| c.source_start);
+        let signed = start.map(|s| child.a_interval.0 as i128 - s as i128);
+        let diag = diagnose_pair(parent, child, ParentWindowMode::FullCp);
+        let passed = diag.is_some_and(PairGateDiag::passes);
+        prediction_falsified |= passed;
+        let start_text = match (start, parent.c_interval_full) {
+            (Some(s), Some(_)) => s.to_string(),
+            (Some(s), None) => format!("{s}（右端未闭合，完整父证书拒绝）"),
+            (None, _) => "证书未闭合（c_start_full=None）".to_string(),
+        };
+        let (left, right) = diag
+            .map(|d| (d.sub_start.to_string(), d.sub_end.to_string()))
+            .unwrap_or_else(|| {
+                (
+                    "未进入（完整证书拒绝）".to_string(),
+                    "未进入（完整证书拒绝）".to_string(),
+                )
+            });
+        let cp = parent.c_structure.map_or_else(
+            || "None".to_string(),
+            |c| {
+                format!(
+                    "B={:?}; c=L{}#{}..{}; third={:?}",
+                    parent.b_parent.map(|b| b.center_id),
+                    c.departure_move_id.level,
+                    c.departure_move_id.ordinal,
+                    c.terminal_move_id
+                        .map_or_else(|| "None".to_string(), |id| id.ordinal.to_string()),
+                    parent
+                        .third_class_in_c
+                        .map(|t| (t.departure_move_id, t.retest_move_id))
+                )
+            },
+        );
+        prereg_rows.push(format!(
+            "| {} | `{:?}` | `{:?}` | {} | {} | {} / {} | **{}**；{} |",
+            rank + 1,
+            old_parent,
+            child_a,
+            start_text,
+            signed.map_or_else(|| "—".to_string(), |d| format!("{d:+}")),
+            left,
+            right,
+            if passed { "通过" } else { "不通过" },
+            cp
+        ));
+    }
+    let prediction_status = if prediction_falsified {
+        "FALSIFIED"
+    } else if prereg_located {
+        "SUPPORTED-ON-THIS-REPLAY"
+    } else {
+        "UNRESOLVED-EVIDENCE"
     };
-    let mut funnel_out = String::new();
-    let fw = &mut funnel_out;
-    let _ = writeln!(fw, "# D_parent 严格区间套复跑原始漏斗（2026-07-10）");
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "## 运行范围与语义护栏");
-    let _ = writeln!(fw);
+
+    let core_ok = overall && old_baseline_ok;
+    let final_verdict = if !capability_visible {
+        "BLOCKED-CAPABILITY"
+    } else if !mapping_ok {
+        "FAIL-DEFINITION-MAPPING"
+    } else if !core_ok || !prereg_located || !accepted_edges_evidence_ok {
+        "FAIL-EVIDENCE"
+    } else {
+        "PASS"
+    };
+
+    let mut replay_out = String::new();
+    let rw = &mut replay_out;
     let _ = writeln!(
-        fw,
-        "- 数据：`{}`，**{}** bar（{} .. {}）；`ThetaConfig::default()`，`l_max={}`，`min_parts_per_level={}`。",
-        data_path.display(), total_bars, loaded.first_date, loaded.last_date,
-        config.level.l_max, config.level.min_parts_per_level
+        rw,
+        "# P43 正式隔离重放 v2：D_parent = c_interval_full（2026-07-12）"
     );
-    let _ = writeln!(fw, "- 命令：`cargo build --release --bin strict_nest_check && ./target/release/strict_nest_check`；全量因果重放 {:.1}s。", replay_sec);
-    let _ = writeln!(fw, "- 语义：`J_parent := D_parent = parent.interval`；闭包含只判 `child.a_interval ⊆ D_parent`；父子均显式过滤 `cand_delta=true` 且方向一致。");
-    let _ = writeln!(fw, "- `child.confirm_src - right(D_parent)` 只登记有符号分布；`ε_conf` 未进入任何控制流、排序或否决门。");
-    let _ = writeln!(fw, "- D_parent 左端诊断：cand_delta=true 事件中 `enter_src != interval.0` = **{}**；该计数不作产量闸门。", dparent_enter_mismatch);
-    let _ = writeln!(fw, "- 列口径：背驰段谓词命中 = 终态分类 buy1/sell1 bit；`Cand^δ` 候选 = 塔上 `cand_delta=true` 事件；相邻边成功 = 能把已从 L0 可达的 partial chain 以 `I(A_child)⊆D_parent` 延长一级；最终证书 = `assemble_certificates(events, 0, ℓ, terminal)` 产量。");
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "## ① 各段 × 各级计数");
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "| 级别 ℓ | 结构事件（辅助） | 背驰段谓词命中 | Cand^δ 候选 | D_parent 相邻边成功 | 可达本级 Cand | 最终证书 N^δ_{{ℓ↓0}} |");
-    let _ = writeln!(fw, "|---:|---:|---:|---:|---:|---:|---:|");
-    for (level, counts) in funnel_levels.iter().enumerate() {
-        let cert = if level == 0 {
-            format!("—（基例 terminal={}）", counts.reachable_candidates)
-        } else {
-            counts.certificates.to_string()
-        };
-        let pair = if level == 0 {
-            "—".to_string()
-        } else {
-            counts.reachable_pair_successes.to_string()
-        };
+    let _ = writeln!(rw);
+    let _ = writeln!(rw, "- 最终判定：**{final_verdict}**");
+    let _ = writeln!(rw, "- 权威：`dparent-leftend-p0-review-20260711.md` §7；能力基线：`p45-cp-capability-20260712.md`。");
+    let _ = writeln!(rw, "- 输入：`{}`，{} bar（{} .. {}），{} trades；`ThetaConfig::default()`（l_max={} / min_parts_per_level={}）；全量因果重放 {:.1}s。", data_path.display(), total_bars, loaded.first_date, loaded.last_date, trades.len(), config.level.l_max, config.level.min_parts_per_level, replay_sec);
+    let _ = writeln!(rw, "- 唯一语义变量：`D_parent: c_episode_interval -> d_parent_interval_full(c_interval_full)`；`D_child := child.a_interval` 保持 **provisional / pending separate ruling**。方向、`cand_delta`、右端证明规则、`confirm_src/lag_conf/epsilon_conf` 均未改，后三者仅诊断。");
+    let _ = writeln!(rw, "- 写入边界：本次只落盘本报告；未回写 2026-07-10 漏斗、冻结或裁决文档，未修改 `departure_move_c_start`。");
+
+    let _ = writeln!(rw, "\n## 1. 重放与旧基线门");
+    let _ = writeln!(
+        rw,
+        "- sanity / P1 / E1 / terminal / 装配镜像：{} / {} / {} / {} / {}。",
+        hdr_ok,
+        p1_pass,
+        triple_ok,
+        cert_missing_terminal == 0,
+        new_assembler_matches
+    );
+    let _ = writeln!(rw, "- 旧基线复核：L1 partial chain={}（期望 3），L2 cand_delta=true={}（期望 13），L1→L2 同向可达候选对={}（期望 22）→ **{}**。", old_funnel.get(1).map_or(0, |l| l.reachable_candidates), old_funnel.get(2).map_or(0, |l| l.cand_candidates), old_funnel.get(2).map_or(0, |l| l.lag_considered.len()), if old_baseline_ok { "无漂移，允许横比" } else { "漂移，停止横比" });
+
+    let _ = writeln!(rw, "\n## 2. 每个父事件的完整 c / episode 三元组与结构证据");
+    let _ = writeln!(rw, "`关系` 比较 `c_start_full` 与 `c_episode_start`。`c_end_full=None` 的事件被正式装配拒绝并计数；绝不回填 episode。");
+    let _ = writeln!(rw, "\n| L | side / confirm | B_p（ID / source） | c_start_full | c_episode_start | c_end_full | 关系 | c_p 首尾递归 ID | 第三类（leave / retest / source） | A_left / 未扩张检查 |");
+    let _ = writeln!(rw, "|---:|---|---|---:|---:|---|:---:|---|---|---|");
+    for event in &parent_events {
+        let b = event.b_parent.map_or_else(
+            || "None".to_string(),
+            |b| {
+                format!(
+                    "L{}#{} / {:?}",
+                    b.center_id.level, b.center_id.ordinal, b.source_interval
+                )
+            },
+        );
+        let start = event.c_structure.map(|c| c.source_start);
+        let end = event.c_interval_full.map(|iv| iv.1);
+        let relation = start.map_or("?", |s| {
+            if s == event.c_episode_start {
+                "=="
+            } else if s < event.c_episode_start {
+                "<"
+            } else {
+                ">"
+            }
+        });
+        let cp = event.c_structure.map_or_else(
+            || "None".to_string(),
+            |c| {
+                format!(
+                    "L{}#{} .. {}",
+                    c.departure_move_id.level,
+                    c.departure_move_id.ordinal,
+                    c.terminal_move_id.map_or_else(
+                        || "None".to_string(),
+                        |id| format!("L{}#{}", id.level, id.ordinal)
+                    )
+                )
+            },
+        );
+        let third = event.third_class_in_c.map_or_else(
+            || "None".to_string(),
+            |t| {
+                format!(
+                    "L{}#{} / L{}#{} / {:?}+{:?}",
+                    t.departure_move_id.level,
+                    t.departure_move_id.ordinal,
+                    t.retest_move_id.level,
+                    t.retest_move_id.ordinal,
+                    t.departure_interval,
+                    t.retest_interval
+                )
+            },
+        );
         let _ = writeln!(
-            fw,
-            "| {level} | {} | {} | {} | {pair} | {} | {cert} |",
-            counts.structural_events,
-            counts.predicate_hits,
-            counts.cand_candidates,
-            counts.reachable_candidates
+            rw,
+            "| {} | `{:?} / {}` | `{}` | {} | {} | {} | {} | `{}` | `{}` | {} / {} |",
+            event.level,
+            event.side,
+            event.confirm_src,
+            b,
+            start.map_or_else(|| "None".to_string(), |v| v.to_string()),
+            event.c_episode_start,
+            end.map_or_else(|| "None（拒绝）".to_string(), |v| v.to_string()),
+            relation,
+            cp,
+            third,
+            event.a_interval.0,
+            c_start_mapping_ok(event)
         );
     }
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "## ② λ_conf(child) − right(D_parent) 延迟分布（纯诊断）");
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "| 相邻级 | 同向可达候选对（结构门前） | 通过 I(A)⊆D_parent 的边 |");
-    let _ = writeln!(fw, "|---|---|---|");
-    for level in 1..funnel_levels.len() {
-        let counts = &funnel_levels[level];
+    let _ = writeln!(rw, "\n分布 `== / < / > / c_start 缺失` = **{rel_eq} / {rel_lt} / {rel_gt} / {rel_missing}**。若 `>` 非零，其表中 `B_p -> departure_move_id` 说明被排除前缀归属于 B 而非完整 c；本次不以 episode 值替代。所有可表达左端均来自扫描侧车的 non-extension 离开单元；`mapping_ok={mapping_ok}`，证明未读取父 A 起点或整趋势起点。");
+    let _ = writeln!(rw, "父事件总数 = **{}**；完整 `c_interval_full` = **{}**；未闭合并被拒绝 = **{}**。", parent_events.len(), complete_parent_events, incomplete_parent_events);
+
+    let _ = writeln!(rw, "\n## 3. §7.B 新旧漏斗");
+    if old_baseline_ok {
+        let _ = writeln!(rw, "| L | Cand 候选旧→新 | 相邻边旧→新（差） | 可达 Cand 旧→新（差） | 完整父事件 / 未闭合拒绝 | 完整链证书旧→新（差） |");
+        let _ = writeln!(rw, "|---:|---:|---:|---:|---:|---:|");
+        for level in 0..funnel_levels.len() {
+            let old = &old_funnel[level];
+            let new = &funnel_levels[level];
+            let old_cert = if level == 0 {
+                old.reachable_candidates
+            } else {
+                old.certificates
+            };
+            let new_cert = if level == 0 {
+                new.reachable_candidates
+            } else {
+                new.certificates
+            };
+            let _ = writeln!(rw, "| {level} | {}→{} | {}→{} ({:+}) | {}→{} ({:+}) | {} / {}（pair拒绝={}） | {}→{} ({:+}) |", old.cand_candidates, new.cand_candidates, old.reachable_pair_successes, new.reachable_pair_successes, new.reachable_pair_successes as i128 - old.reachable_pair_successes as i128, old.reachable_candidates, new.reachable_candidates, new.reachable_candidates as i128 - old.reachable_candidates as i128, new.full_parent_events, new.incomplete_parent_events, new.incomplete_pair_rejections, old_cert, new_cert, new_cert as i128 - old_cert as i128);
+        }
+    } else {
         let _ = writeln!(
-            fw,
-            "| L{}→L{} | {} | {} |",
+            rw,
+            "旧基线漂移，按裁决停止新旧横比；仅保留上节事件级原始证据。"
+        );
+    }
+    let _ = writeln!(rw, "\n确认延迟分布仍只诊断：");
+    for level in 1..funnel_levels.len() {
+        let _ = writeln!(
+            rw,
+            "- L{}→L{} considered `{}`；accepted `{}`。",
             level - 1,
             level,
-            lag_distribution(&counts.lag_considered),
-            lag_distribution(&counts.lag_accepted)
+            lag_distribution(&funnel_levels[level].lag_considered),
+            lag_distribution(&funnel_levels[level].lag_accepted)
         );
     }
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "`ε_conf`：**仅诊断标签，未设置数值，未作闸门**。");
-    let _ = writeln!(fw);
-    let _ = writeln!(
-        fw,
-        "核对：P1 mismatch bar = **{}**；L0 terminal 查无（唯一基例数）= **{}**；跨级证书合计 = **{}**。",
-        p1.mismatch_bars, cert_missing_terminal, cert_total
-    );
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "## ③ 首个归零的段");
-    let _ = writeln!(fw);
-    match first_zero {
-        Some(FirstZeroCause::PairZero(level)) => {
-            let _ = writeln!(
-                fw,
-                "首个归零发生在 **L{} → L{} 的 D_parent 相邻配对**：L{} 有 {} 个可达 Cand 基例/partial-chain，L{} 有 {} 个 `Cand^δ=true` 候选，但满足 `同方向 ∧ I(A_child) ⊆ D_parent` 的可达相邻边为 **0**。`confirm_src` 延迟不参与该结论。因此从该段开始所有 `N^δ_{{ℓ↓0}}` 完整证书均为 0；损失不发生在 P1 谓词→Cand 映射，也不发生在 terminal 查找。",
-                level - 1,
-                level,
-                level - 1,
-                funnel_levels[level - 1].reachable_candidates,
-                level,
-                funnel_levels[level].cand_candidates
-            );
-        }
-        Some(FirstZeroCause::L0TerminalAllMissing) => {
-            let _ = writeln!(
-                fw,
-                "首个归零发生在 **L0 terminal 查找**：L0 有 {} 个 `Cand^δ=true` 基例，但可达（有 terminal）基例为 **0**。损失在谓词→terminal 对账，不在递降链配对。",
-                funnel_levels[0].cand_candidates
-            );
-        }
-        Some(FirstZeroCause::CandEmpty(level)) => {
-            let _ = writeln!(
-                fw,
-                "首个归零发生在 **L{level} 的 `Cand^δ` 候选空集**：L{} 仍有 {} 个可达 Cand，但 L{level} 候选为 **0**。损失在本级候选生成，不在递降链配对。",
-                level - 1,
-                funnel_levels[level - 1].reachable_candidates
-            );
-        }
-        Some(FirstZeroCause::ReachableZero(level)) => {
-            let _ = writeln!(
-                fw,
-                "首个归零发生在 **L{level} 的可达 Cand**：配对成功数非零但可达本级 Cand 为 **0**（防御性分支，正常不应出现，须人工核查插桩）。"
-            );
-        }
-        Some(FirstZeroCause::CertificateZero(level)) => {
-            let _ = writeln!(
-                fw,
-                "首个归零发生在 **L{level} 的证书终门**：本级仍有 {} 个可达 Cand，但 `assemble_certificates` 产量为 **0**。损失在装配终门（terminal 对账/链装配），不在递降链配对。",
-                funnel_levels[level].reachable_candidates
-            );
-        }
-        None => {
-            let _ = writeln!(
-                fw,
-                "未发现“上一阶段非零、当前阶段为零”的断点：漏斗各段到证书终门均非零，或结构层本身为空。"
-            );
-        }
-    }
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "## ④ 首个归零段最接近通过的 3 个样本");
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "排序冻结为：失败原子条件数升序 → 两个 Sub 边界缺口 bar 总和升序 → `(Sub 左界缺口, Sub 右界缺口, parent_idx)` 字典序；确认延迟不参与排序，未用价格/收益挑样本。");
-    let _ = writeln!(fw);
-    if near_misses.is_empty() {
-        let _ = writeln!(fw, "无可比较近失样本。");
+
+    let _ = writeln!(rw, "\n### 所有新增 L1→L2 边");
+    if new_l12_edges.is_empty() {
+        let _ = writeln!(rw, "无新增边。");
     } else {
-        let _ = writeln!(fw, "| 排名 | 父级 Cand（side, confirm, D_parent） | 子级可达 Cand（side, confirm, I(A)） | 通过条件 | 具体缺口；确认延迟仅诊断 |");
-        let _ = writeln!(fw, "|---:|---|---|---|---|");
-        for (rank, miss) in near_misses.iter().copied().enumerate() {
-            let parent = &cand_f[miss.parent_level][miss.parent_idx];
-            let child = &cand_f[miss.parent_level - 1][miss.child_idx];
-            let passed = [
-                (miss.diag.same_side, "方向"),
-                (miss.diag.sub_start, "Sub左界"),
-                (miss.diag.sub_end, "Sub右界"),
-            ]
-            .into_iter()
-            .filter_map(|(ok, name)| ok.then_some(name))
-            .collect::<Vec<_>>()
-            .join("、");
+        let _ = writeln!(rw, "| parent B | c_interval_full | c_episode_interval | child.a_interval | 方向 | Sub 左 / 右 | 递归结构归属证明 |");
+        let _ = writeln!(rw, "|---|---|---|---|---|---|---|");
+        for &(pi, ci, diag) in &new_l12_edges {
+            let parent = &cand_f[2][pi];
+            let child = &cand_f[1][ci];
+            let proof = prove_child_structural_ownership(parent, child, &tower_f);
+            let b = parent.b_parent.map_or_else(
+                || "None".to_string(),
+                |b| {
+                    format!(
+                        "L{}#{} {:?}",
+                        b.center_id.level, b.center_id.ordinal, b.source_interval
+                    )
+                },
+            );
+            let proof_text = proof.map_or_else(|| "**MISSING**".to_string(), |p| format!("parent L{}#{}..L{}#{} 的 sub_moves 包含 child L{}#{}..L{}#{}，结构 span={:?}", p.parent_first.level, p.parent_first.ordinal, p.parent_last.level, p.parent_last.ordinal, p.child_first.level, p.child_first.ordinal, p.child_last.level, p.child_last.ordinal, p.child_span));
             let _ = writeln!(
-                fw,
-                "| {} | `L{} {:?}, t={}, D=[{},{}]` | `L{} {:?}, t={}, I(A)=[{},{}]` | {} | **{}；lag_conf={} bar（仅诊断）** |",
-                rank + 1,
-                miss.parent_level,
+                rw,
+                "| `{}` | `{:?}` | `{:?}` | `{:?}` | `{:?} / {:?}` | {} / {} | {} |",
+                b,
+                parent.c_interval_full,
+                parent.c_episode_interval,
+                child.a_interval,
                 parent.side,
-                parent.confirm_src,
-                parent.interval.0,
-                parent.interval.1,
-                miss.parent_level - 1,
                 child.side,
-                child.confirm_src,
-                child.a_interval.0,
-                child.a_interval.1,
-                passed,
-                failed_condition_text(miss),
-                miss.confirm_lag
+                diag.sub_start,
+                diag.sub_end,
+                proof_text
             );
         }
     }
-    let _ = writeln!(fw);
-    let _ = writeln!(fw, "## 结论");
-    let _ = writeln!(fw);
-    match first_zero {
-        Some(FirstZeroCause::PairZero(level)) => {
-            let _ = writeln!(fw, "当前 BTC 1m / 默认 Θ / 趋势背驰-only D_parent 有效域内，证书产量 0 的首因是 **L{}→L{} 的 I(A_child)⊆D_parent 相邻边为 0**。上游背驰谓词并非零产量，P1→Cand 也无损；确认延迟与 ε_conf 均未作闸门。该结论不外推到其他数据、Θ 或盘整背驰入链。", level - 1, level);
-        }
-        Some(cause) => {
-            let _ = writeln!(fw, "证书产量 0 的首因见 ③ 段（{cause:?}）；非 D_parent 相邻配对归零，近失样本表不适用。该结论不外推到其他数据、Θ 或盘整背驰入链。");
-        }
-        None => {}
+
+    let _ = writeln!(rw, "\n## 4. §7.C 三个预注册近失样本（按身份重定位）");
+    let _ = writeln!(rw, "| # | 旧父窗 | child.a_interval（provisional） | 新 c_start_full / 闭合状态 | child.left - c_start_full | Sub 左 / 右 | 最终结果与 c_p 分解 |");
+    let _ = writeln!(rw, "|---:|---|---|---|---:|---|---|");
+    for row in prereg_rows {
+        let _ = writeln!(rw, "{row}");
     }
-    let funnel_path = out_root.join("chanlun/review-results/dparent-funnel-20260710.md");
-    if let Some(parent) = funnel_path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建 {} 失败: {e}", parent.display()))?;
+    let _ = writeln!(
+        rw,
+        "\n`P0-43-L1L2-CFULL`：**{prediction_status}**。{}",
+        if prediction_falsified {
+            "至少一例合法通过；预测被证伪不自动推翻 Q1。"
+        } else if prereg_located {
+            "三例在本次同数据同参数重放均未通过；不外推到其他数据、参数或品种。"
+        } else {
+            "至少一个预注册事件身份未能唯一重定位；预测保持未裁定。"
+        }
+    );
+
+    let _ = writeln!(rw, "\n## 5. 裁决 §7 清单逐项勾选");
+    let mark = |ok: bool| if ok { "x" } else { " " };
+    let _ = writeln!(rw, "\n### A. 定义 / 字段");
+    let _ = writeln!(rw, "- [{}] 唯一变量为 D_parent.left 切到 c_start_full；D_child/方向/cand_delta/确认诊断门不变。", mark(mapping_ok));
+    let _ = writeln!(
+        rw,
+        "- [x] 每个父事件均输出 c_start_full / c_episode_start / c_end_full（None 明示拒绝）。"
+    );
+    let _ = writeln!(
+        rw,
+        "- [{}] 每个完整事件附 B_p、c_p 首尾及第三类；完整证书内部一致。",
+        mark(mapping_ok)
+    );
+    let _ = writeln!(
+        rw,
+        "- [x] 已统计 == / < / > / 缺失；> 由结构归属解释且未静默接受。"
+    );
+    let _ = writeln!(
+        rw,
+        "- [{}] D_parent 未扩到父 A 或整趋势起点。",
+        mark(mapping_ok)
+    );
+    let _ = writeln!(rw, "- [x] confirm_src / lag_conf / epsilon_conf 仅诊断。");
+    let _ = writeln!(rw, "\n### B. 漏斗");
+    let _ = writeln!(
+        rw,
+        "- [{}] 旧基线 3 / 13 / 22 复核；漂移时停止横比。",
+        mark(old_baseline_ok)
+    );
+    let _ = writeln!(
+        rw,
+        "- [{}] 已输出各级新旧候选、边、完整父事件、完整链证书及差分。",
+        mark(old_baseline_ok)
+    );
+    let _ = writeln!(
+        rw,
+        "- [x] 所有新增 L1→L2 边均逐条打印要求字段（空集亦明示）。"
+    );
+    let _ = writeln!(
+        rw,
+        "- [{}] 每条新增边均有独立递归 sub_moves 归属证明。",
+        mark(accepted_edges_evidence_ok)
+    );
+    let _ = writeln!(rw, "\n### C. 预注册样本");
+    let _ = writeln!(
+        rw,
+        "- [{}] 三例按原 parent confirm/episode 与 child confirm/a_interval 身份唯一重定位。",
+        mark(prereg_located)
+    );
+    let _ = writeln!(
+        rw,
+        "- [{}] 已报告新左端或未闭合、有符号差、Sub 左右界。",
+        mark(prereg_located)
+    );
+    let _ = writeln!(
+        rw,
+        "- [{}] 任一通过则标 FALSIFIED 并附 c_p 分解。",
+        mark(!prediction_falsified || prereg_located)
+    );
+    let _ = writeln!(
+        rw,
+        "- [{}] 三例全不通过则仅标 SUPPORTED-ON-THIS-REPLAY。",
+        mark(prediction_falsified || prediction_status == "SUPPORTED-ON-THIS-REPLAY")
+    );
+    let _ = writeln!(rw, "\n### D. 最终判定");
+    for verdict in [
+        "PASS",
+        "FAIL-DEFINITION-MAPPING",
+        "FAIL-EVIDENCE",
+        "BLOCKED-CAPABILITY",
+    ] {
+        let _ = writeln!(rw, "- [{}] `{verdict}`", mark(final_verdict == verdict));
     }
-    std::fs::write(&funnel_path, &funnel_out)
-        .map_err(|e| format!("写入 {} 失败: {e}", funnel_path.display()))?;
+
+    let replay_path = out_root.join("chanlun/review-results/p43-replay-cfull-v2-20260712.md");
+    std::fs::write(&replay_path, &replay_out)
+        .map_err(|e| format!("写入 {} 失败: {e}", replay_path.display()))?;
     println!("{out}");
-    eprintln!("报告：{}", report_path.display());
-    eprintln!("漏斗报告：{}", funnel_path.display());
-    Ok(overall)
+    eprintln!("#43 v2 报告：{}", replay_path.display());
+    Ok(final_verdict == "PASS")
 }
 
 #[cfg(test)]
@@ -1632,9 +2158,18 @@ mod funnel_tests {
         CandDeltaEvent {
             level,
             side,
+            divergence_confirm_src: confirm_src,
             confirm_src,
             interval,
             a_interval: interval,
+            c_episode_start: interval.0,
+            c_episode_interval: interval,
+            c_interval_full: None,
+            b_parent: None,
+            c_structure: None,
+            third_class_in_c: None,
+            cp_certificate_confirm_src: None,
+            cp_ownership: None,
             enter_src: interval.0,
             cand_delta: true,
             pan_div_diag: false,
@@ -1645,28 +2180,38 @@ mod funnel_tests {
     fn pair_diag_is_exact_three_gate_conjunction() {
         let child = event(0, Side::Long, 90, (40, 80));
         let parent = event(1, Side::Long, 70, (20, 100));
-        let diag = diagnose_pair(&parent, &child);
+        let diag = diagnose_pair(&parent, &child, ParentWindowMode::EpisodeBaseline).unwrap();
         assert!(diag.passes());
         assert_eq!(diag.failed_conditions(), 0);
-        assert_eq!(pair_gap_bars(&parent, &child), (0, 0));
+        assert_eq!(
+            pair_gap_bars(&parent, &child, ParentWindowMode::EpisodeBaseline),
+            Some((0, 0))
+        );
     }
 
     #[test]
     fn pair_diag_reports_each_numeric_gap_without_relaxing_boundary() {
         let child = event(0, Side::Long, 80, (10, 120));
         let parent = event(1, Side::Long, 90, (20, 100));
-        let diag = diagnose_pair(&parent, &child);
+        let diag = diagnose_pair(&parent, &child, ParentWindowMode::EpisodeBaseline).unwrap();
         assert!(diag.same_side);
         assert!(!diag.sub_start);
         assert!(!diag.sub_end);
-        assert_eq!(pair_gap_bars(&parent, &child), (10, 20));
+        assert_eq!(
+            pair_gap_bars(&parent, &child, ParentWindowMode::EpisodeBaseline),
+            Some((10, 20))
+        );
     }
 
     #[test]
     fn pair_diag_keeps_closed_sub_boundaries_inclusive() {
         let child = event(0, Side::Short, 100, (20, 100));
         let parent = event(1, Side::Short, 100, (20, 100));
-        assert!(diagnose_pair(&parent, &child).passes());
+        assert!(
+            diagnose_pair(&parent, &child, ParentWindowMode::EpisodeBaseline)
+                .unwrap()
+                .passes()
+        );
     }
 
     #[test]
@@ -1674,9 +2219,19 @@ mod funnel_tests {
         let mut child = event(0, Side::Long, 200, (0, 300));
         child.a_interval = (40, 60);
         let parent = event(1, Side::Long, 250, (20, 80));
-        let diag = diagnose_pair(&parent, &child);
+        let diag = diagnose_pair(&parent, &child, ParentWindowMode::EpisodeBaseline).unwrap();
         assert!(diag.passes(), "I(A_child)⊆D_parent；完成时顺序不得进入门");
-        assert_eq!(confirmation_lag(&parent, &child), 120);
+        assert_eq!(
+            confirmation_lag(&parent, &child, ParentWindowMode::EpisodeBaseline),
+            Some(120)
+        );
+    }
+
+    #[test]
+    fn full_cp_pair_diag_rejects_unclosed_parent_without_episode_fallback() {
+        let child = event(0, Side::Long, 90, (40, 80));
+        let parent = event(1, Side::Long, 70, (20, 100));
+        assert!(diagnose_pair(&parent, &child, ParentWindowMode::FullCp).is_none());
     }
 
     #[test]
@@ -1759,7 +2314,14 @@ fn load_btc_bars(path: &Path, tick_size: f64) -> Result<LoadedBars, String> {
         std::fs::read_to_string(path).map_err(|e| format!("读取 {} 失败: {e}", path.display()))?;
     let raw: BarsJson = serde_json::from_str(&text)
         .map_err(|e| format!("{}: JSON 解析失败: {e}", path.display()))?;
-    let BarsJson { opens, highs, lows, closes, volumes, dates } = raw;
+    let BarsJson {
+        opens,
+        highs,
+        lows,
+        closes,
+        volumes,
+        dates,
+    } = raw;
     let timestamps: Vec<Timestamp> = dates.iter().map(|date| date_to_timestamp(date)).collect();
     let first_date = dates.first().cloned().unwrap_or_default();
     let last_date = dates.last().cloned().unwrap_or_default();

@@ -80,7 +80,7 @@ use center::UnitRange;
 use decompose::{decompose, decompose_resume, MoveBlock};
 use recursive_tower::{
     compose_level, descend_leveled, index_of_in, map_src_to_close_idx, project_to_units,
-    ElementId, LeveledMove, WinMeta,
+    CpScanOwnership, ElementId, LeveledMove, WinMeta,
 };
 use super::types::Side;
 
@@ -96,6 +96,9 @@ pub struct LevelState {
     /// 尾部经 `Rc::make_mut` 追加（caller 逐 bar drop 上轮 Classification ⟹ strong_count==1 ⟹ 原地
     /// O(tail)；对拍 harness 跨 bar 持有 ⟹ 写时复制退化全拷，仍 bit-exact，生产路径不受影响）。
     pub centers: Rc<Vec<Center>>,
+    /// 与 `centers` 1:1 的 `B_p/c_p` 生命周期对象；保存首个 non-extension 离开单元，并随每个
+    /// 新同级递归单元从 Pending 单调推进到 Closed。事件确认快照不在这里回填。
+    pub cp_ownership: Rc<Vec<CpScanOwnership>>,
     /// 各买卖点条目（非互斥 bit-vector + 结构止损价 single source，BSP.lean + reference:46）。
     ///
     /// 路 B（Lead 接口契约裁定）：每个 `BspPoint` 携带 pivot_low/pivot_high/center——
@@ -306,8 +309,16 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         // L(k+1) 走势塔 = 本级窗口化 compose（每中枢的构成三段次级别走势 → 一个上级 `RMove::Compose`，
         // 契约锚 `Origin.RecursiveLevelSystem.composeStep` 窗口封装）。`upper_moves` 是携坐标的上级走势
         // 序列（descend 取回构成它的次级别走势 ⟹ B2/S2 可产），与 `centers` 一一对应。
-        let (centers_w, upper_moves) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+        let (centers_w, upper_moves, mut cp_ownership) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
         debug_assert_eq!(centers, centers_w, "compose_level 与 classify_level 中枢序列一致");
+        recursive_tower::advance_cp_lifecycles(
+            &mut cp_ownership,
+            &centers_w,
+            &units,
+            &moves_tower,
+            (!is_l0).then_some(&units_anchors[..]),
+            1,
+        );
 
         // BSP 信号提取（reference:34-36）。三层覆盖：
         // - **L0 线段层**（`extract_signals`）：第一类（破中枢几何 L0 ∧ MACD 背驰 L1 真算）+ 第三类
@@ -338,6 +349,7 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         levels.push(LevelState {
             moves,
             centers: Rc::new(centers.clone()),
+            cp_ownership: Rc::new(cp_ownership),
             bsp: Rc::new(bsp),
             pan_div: Rc::new(pan_div),
         });
@@ -509,10 +521,13 @@ fn cand_delta_tower_with_series(
             "tower_snapshots 与 levels 同构（classify_impl 不变量）"
         );
         let evs = if lvl == 0 {
+            let unit_ids: Vec<ElementId> = tower_snapshots[lvl].iter().map(|m| m.id).collect();
             recursive_tower::level_cand_delta(
                 0,
                 &ls.centers[..],
+                Some(&ls.cp_ownership[..]),
                 &l0.segments,
+                Some(&unit_ids),
                 None,
                 hist,
                 dif,
@@ -526,10 +541,13 @@ fn cand_delta_tower_with_series(
             let anchors: Vec<Option<Direction>> =
                 (0..units.len()).map(|i| decompose::center_own_dir_at(pb, i)).collect();
             let segs: Vec<Segment> = units.iter().map(unit_to_segment).collect();
+            let unit_ids: Vec<ElementId> = tower_snapshots[lvl].iter().map(|m| m.id).collect();
             recursive_tower::level_cand_delta(
                 lvl as u32,
                 &ls.centers[..],
+                Some(&ls.cp_ownership[..]),
                 &segs,
+                Some(&unit_ids),
                 Some(&anchors),
                 hist,
                 dif,
@@ -605,6 +623,8 @@ struct LevelCache {
     upper_moves: Rc<Vec<LeveledMove>>,
     /// 已识别中枢序列（与 `upper_moves` 一一对应，每窗口一中枢；前缀不可变，尾部续扫追加）。
     centers: Rc<Vec<Center>>,
+    /// 与 `centers`/`upper_moves` 1:1 的完整 `c_p` pending/closed 生命周期对象。
+    cp_ownership: Rc<Vec<CpScanOwnership>>,
     last_input_len: usize,
     /// 上次扫描的本级输入单元快照（前缀变异检测）。`detect_centers_windowed_resume` 充要条件 #2
     /// 要求 `units[..consumed]` 跨 bar 不可变；但 parser frontier 末段会**原地改写**（缠论古怪线段
@@ -1516,6 +1536,7 @@ pub fn classify_with_tower_incremental(
                 // make_mut：若上 bar snapshot 仍持引用则写时复制再 clear（退化 bit-exact）；否则原地清。
                 Rc::make_mut(&mut lc.upper_moves).clear();
                 Rc::make_mut(&mut lc.centers).clear();
+                Rc::make_mut(&mut lc.cp_ownership).clear();
                 lc.win_meta.clear();
                 lc.decompose_state.reset();
                 Rc::make_mut(&mut lc.cached_bsp).clear();
@@ -1564,6 +1585,7 @@ pub fn classify_with_tower_incremental(
                 };
                 Rc::make_mut(&mut lc.centers).truncate(p);
                 Rc::make_mut(&mut lc.upper_moves).truncate(p);
+                Rc::make_mut(&mut lc.cp_ownership).truncate(p);
                 lc.win_meta.truncate(p);
                 // decompose：保留 reset()（O(centers)=百级，非 05/09/07b 的 O(n²) 靶，设计 §3.2 scope）。
                 // 输出恒等全折叠（decompose 模块头），reset+重折 bit-exact，仅不省非瓶颈的重折量。
@@ -1618,6 +1640,7 @@ pub fn classify_with_tower_incremental(
         // 后 extend `tail_upper`（重扫产出）⟹ **变更 ⟺ popped_upper != tail_upper**（逐值）。无 pop
         // 时 popped_upper 空 ⟹ 变更 ⟺ tail_upper 非空（纯追加，=E2）。捕获 pop 掉的 upper 尾段以供比对。
         let mut popped_upper: Vec<LeveledMove> = Vec::new();
+        let mut popped_cp: Vec<CpScanOwnership> = Vec::new();
         if had_emitted_window {
             // pop 最后成立窗口的**全部**产出（frontier 域 = 整窗，重扫从窗口起点重产）——
             // ★#148 升级重切后一窗可产 k 个子中枢（`last_window_emitted`），只 pop 1 会残留旧
@@ -1629,6 +1652,10 @@ pub fn classify_with_tower_incremental(
             );
             let cs = Rc::make_mut(&mut lc.centers);
             cs.truncate(cs.len().saturating_sub(pop_n));
+            let cp = Rc::make_mut(&mut lc.cp_ownership);
+            let cp_keep = cp.len().saturating_sub(pop_n);
+            popped_cp = cp[cp_keep..].to_vec();
+            cp.truncate(cp_keep);
             let um = Rc::make_mut(&mut lc.upper_moves);
             let keep = um.len().saturating_sub(pop_n);
             popped_upper = um[keep..].to_vec(); // on2w2：pop 前捕获（与重扫 tail_upper 逐值比）。
@@ -1648,7 +1675,7 @@ pub fn classify_with_tower_incremental(
             "§3.1 契约违反：cached_second_count={} > prefix_count={}",
             lc.cached_second_count, prefix_count
         );
-        let (tail_centers, tail_upper, tail_metas, new_cursor) =
+        let (tail_centers, tail_upper, mut tail_cp, tail_metas, new_cursor) =
             stage_profile::time("05_compose_resume", || {
                 compose_level_resume(
                     &units,
@@ -1659,6 +1686,34 @@ pub fn classify_with_tower_incremental(
                     prefix_count,
                 )
             });
+        // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。
+        // Closed 证书若落入 dirty 后缀则不可继承，必须从 departure 重判；证书完全位于稳定前缀才保留。
+        let mut lifecycle_scan_from = dirty_from;
+        for object in &mut tail_cp {
+            let prior = popped_cp.iter().find(|prior| {
+                prior.b_center_id == object.b_center_id
+                    && prior.b_center == object.b_center
+                    && prior.departure_move_id == object.departure_move_id
+                    && prior.departure_interval == object.departure_interval
+            });
+            let prior_is_stable = prior.is_some_and(|prior| {
+                prior.lifecycle == recursive_tower::CpLifecycleStatus::Pending
+                    || prior
+                        .c_structure
+                        .and_then(|structure| structure.terminal_move_id)
+                        .is_some_and(|terminal| terminal.ordinal < dirty_from as u64)
+            });
+            if prior_is_stable {
+                let prior = prior.expect("prior_is_stable 蕴含 prior Some");
+                object.lifecycle = prior.lifecycle;
+                object.cp_certificate_confirm_src = prior.cp_certificate_confirm_src;
+                object.c_structure = prior.c_structure;
+                object.third_class_in_c = prior.third_class_in_c;
+            } else if let Some(departure) = object.departure_move_id {
+                lifecycle_scan_from =
+                    lifecycle_scan_from.min(departure.ordinal as usize + 1);
+            }
+        }
 
         // ★A3 oracle 探针：had_emitted_window pop 后 T = tail_upper.len()（本 bar 本级重扫产出窗口数）。
         // T==1 = did_extend 证伪正向锁（重扫仅复现被 pop 窗口，tail_upper 恰 1）；T>1 = frontier 值改写。
@@ -1683,13 +1738,25 @@ pub fn classify_with_tower_incremental(
             // make_mut：strong_count==1 ⟹ 原地 extend O(tail)；>1 ⟹ 写时复制（bit-exact）。
             Rc::make_mut(&mut lc.centers).extend(tail_centers);
             Rc::make_mut(&mut lc.upper_moves).extend(tail_upper);
+            Rc::make_mut(&mut lc.cp_ownership).extend(tail_cp);
             // ★on2w2-cascade：win_meta 与 centers/upper_moves 同步 extend（1:1 对齐不变量维持）。
             lc.win_meta.extend(tail_metas);
         });
+        let cp_objects = Rc::make_mut(&mut lc.cp_ownership);
+        recursive_tower::advance_cp_lifecycles(
+            cp_objects.as_mut_slice(),
+            &lc.centers,
+            &units,
+            &moves_tower,
+            (!is_l0).then_some(&units_anchors[..]),
+            lifecycle_scan_from,
+        );
         lc.scan_cursor = new_cursor;
         debug_assert!(
-            lc.centers.len() == lc.upper_moves.len() && lc.centers.len() == lc.win_meta.len(),
-            "增量塔：centers/upper_moves/win_meta 一一对应（每窗口一中枢 + 每 center 一读域侧车）"
+            lc.centers.len() == lc.upper_moves.len()
+                && lc.centers.len() == lc.cp_ownership.len()
+                && lc.centers.len() == lc.win_meta.len(),
+            "增量塔：centers/upper_moves/cp_ownership/win_meta 一一对应"
         );
 
         // 本级输入塔快照（compose 前）。
@@ -1795,6 +1862,7 @@ pub fn classify_with_tower_incremental(
         levels.push(LevelState {
             moves,
             centers: level_centers,
+            cp_ownership: Rc::clone(&lc.cp_ownership),
             bsp,
             pan_div,
         });
@@ -2658,7 +2726,7 @@ mod tests {
                 );
             }
 
-            let (_cw, upper_moves) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
+            let (_cw, upper_moves, _) = compose_level(&units, &moves_tower[..], is_l0, level_idx as u32 + 1);
             units = project_to_units(&upper_moves, &out.levels[level_idx].moves); // Q7：生产同源块
             moves_tower = Rc::new(upper_moves);
             if units.is_empty() {
@@ -3083,7 +3151,7 @@ mod tests {
             let l0_units: Vec<UnitRange> = segs.iter().map(segment_to_unit).collect();
             let moves_l0: Vec<LeveledMove> = l0_units.iter().enumerate()
                 .map(|(i,u)| LeveledMove::from_unit(u, recursive_tower::ElementId{level:0,ordinal:i as u64})).collect();
-            let (c, upper) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1);
+            let (c, upper, _) = recursive_tower::compose_level(&l0_units, &moves_l0, true, 1);
             recursive_tower::project_to_units(&upper, &decompose::decompose(&c))
         };
         assert_eq!(mk_l1_units(&layer_v1.segments), mk_l1_units(&layer_v2.segments),

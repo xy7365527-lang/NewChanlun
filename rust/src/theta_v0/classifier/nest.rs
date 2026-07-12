@@ -384,20 +384,29 @@ impl NestCertificateBuilder {
 /// > 0016:62），gauge 复用 divergence.rs MacdArea 默认路径，严格 `curr < prev`）。
 ///
 /// - 裁决②：盘整背驰**不入谓词**（只出 [`CandDeltaEvent::pan_div_diag`] 诊断位，不参与本装配）。
-/// - P0 D_parent 裁决：`enter_src` 冻结为父背驰段左端；`confirm_src` 仅登记确认延迟，
-///   不作闸门或排序键。
+/// - `d_parent_interval` 仅保留 2026-07-10 历史基线的 episode 口径；正式装配严格调用
+///   [`d_parent_interval_full`]。`confirm_src` 仍只登记确认延迟，不作闸门或排序键。
 /// - P1 已证：ℓ=e=0 时该谓词与 `extract_signals` buy1/sell1 背驰确认支**逐 bit 一致**
 ///   （strict_nest_check 硬门 PASS）⟹ 基例 `Cand^δ_e` 与 `Conf^δ_e` 确认支同源无分叉。
 ///
-/// `D_parent=[event.enter_src,event.interval.1]` 与算法确认时点是两条独立坐标轴；不得以区间右端
-/// 回填确认时点。装配以 `(D_parent, I(A), 原索引)` 确定性择链，确认时点不参与。
+/// 历史兼容区间 `event.interval == event.c_episode_interval`；不得将本函数输出冒充完整 `c_p`。
 pub fn d_parent_interval(ev: &CandDeltaEvent) -> NestInterval {
-    debug_assert_eq!(ev.enter_src, ev.interval.0, "D_parent 左端必须等于冻结的 enter_src");
+    debug_assert_eq!(ev.c_episode_start, ev.interval.0, "episode 左端别名必须一致");
     NestInterval {
         end_time: ev.interval.1 as u64,
         start_time: ev.enter_src as u64,
         idx: 0,
     }
+}
+
+/// #43 复议后的规范父区间：只消费已闭合的完整 `c_p` 证书；能力不足时返回 `None`，
+/// 不回退到 episode、确认点或其它数值锚。
+pub fn d_parent_interval_full(ev: &CandDeltaEvent) -> Option<NestInterval> {
+    ev.c_interval_full.map(|(start, end)| NestInterval {
+        end_time: end as u64,
+        start_time: start as u64,
+        idx: 0,
+    })
 }
 
 /// 冻结的子包含区间 `D_child := I(A_child)`。
@@ -486,14 +495,23 @@ fn extend_upward(
         return false;
     };
     let mut order: Vec<usize> = (0..evs.len()).collect();
-    order.sort_by_key(|&i| (evs[i].interval, evs[i].a_interval, i));
+    order.sort_by_key(|&i| {
+        (
+            evs[i].c_interval_full.unwrap_or((usize::MAX, usize::MAX)),
+            evs[i].a_interval,
+            i,
+        )
+    });
     for i in order {
         let ev = &evs[i];
         // 必要门（cand_delta）+ 方向一致；confirm_src 仅登记，绝不参与否决。
         if !ev.cand_delta || ev.side != side {
             continue;
         }
-        let iv = d_parent_interval(ev);
+        // #43：完整父证书未闭合即拒绝；不得回退 episode、确认点或数值锚。
+        let Some(iv) = d_parent_interval_full(ev) else {
+            continue;
+        };
         // 相邻级 Sub 包含：I(A_child) ⊆ D_parent（复用契约锚 is_sub）。
         if !is_sub(child_iv, &iv) {
             continue;
@@ -842,13 +860,52 @@ mod tests {
         CandDeltaEvent {
             level,
             side,
+            divergence_confirm_src: src,
             confirm_src: src,
             interval: d_parent,
             a_interval,
+            c_episode_start: d_parent.0,
+            c_episode_interval: d_parent,
+            c_interval_full: Some(d_parent),
+            b_parent: None,
+            c_structure: None,
+            third_class_in_c: None,
+            cp_certificate_confirm_src: None,
+            cp_ownership: None,
             enter_src: d_parent.0,
             cand_delta: cand,
             pan_div_diag: false,
         }
+    }
+
+    #[test]
+    fn full_d_parent_accessor_never_falls_back_to_episode() {
+        let mut ev = cev(1, Side::Long, 80, 40, 80, true);
+        ev.c_interval_full = None;
+        assert!(
+            d_parent_interval_full(&ev).is_none(),
+            "无完整证书时不得回退 episode"
+        );
+        ev.c_interval_full = Some((20, 80));
+        let full = d_parent_interval_full(&ev).expect("完整 c_p 区间可消费");
+        assert_eq!((full.start_time, full.end_time), (20, 80));
+        assert_eq!(
+            d_parent_interval(&ev).start_time,
+            40,
+            "历史 episode 口径保持隔离"
+        );
+    }
+
+    #[test]
+    fn assembly_rejects_unclosed_parent_certificate_without_episode_fallback() {
+        let base = cev(0, Side::Long, 60, 20, 60, true);
+        let mut parent = cev(1, Side::Long, 80, 10, 80, true);
+        parent.c_interval_full = None;
+        let evs = vec![vec![base.clone()], vec![parent]];
+        assert!(
+            assemble_certificate(&evs, &base, 1, buy1_bits()).is_none(),
+            "c_interval_full=None 必须拒绝，不能以 episode [10,80] 回填"
+        );
     }
 
     #[test]

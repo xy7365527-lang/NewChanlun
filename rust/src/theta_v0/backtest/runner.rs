@@ -723,6 +723,7 @@ fn newly_confirmed_step(
             .map(|(lvl, ls)| LevelState {
                 moves: Vec::new(),
                 centers: Rc::new(Vec::new()),
+                cp_ownership: Rc::new(Vec::new()),
                 pan_div: Rc::new(Vec::new()), // Q4：新确认投影只携 bsp（盘整背驰承接在 econ 层，此处无消费者）
                 // append-only：seen.insert 为真=本 bar 首次确认 ⟹ 保留；副作用把所有 bsp 标记 seen。
                 bsp: ls
@@ -3148,9 +3149,18 @@ mod tests {
         classifier::recursive_tower::CandDeltaEvent {
             level,
             side,
+            divergence_confirm_src: src,
             confirm_src: src,
             interval: (lo, hi),
             a_interval: (lo, hi),
+            c_episode_start: lo,
+            c_episode_interval: (lo, hi),
+            c_interval_full: Some((lo, hi)),
+            b_parent: None,
+            c_structure: None,
+            third_class_in_c: None,
+            cp_certificate_confirm_src: None,
+            cp_ownership: None,
             enter_src: lo,
             cand_delta: cand,
             pan_div_diag: false,

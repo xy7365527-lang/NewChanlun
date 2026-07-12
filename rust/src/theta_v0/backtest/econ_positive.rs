@@ -331,6 +331,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                         .map(|(l2, _)| super::super::classifier::LevelState {
                             moves: Vec::new(),
                             centers: Rc::new(Vec::new()),
+                            cp_ownership: Rc::new(Vec::new()),
                             bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                             pan_div: Rc::new(Vec::new()), // Q4：single 屏蔽层无盘整背驰载荷（只供 Γ 组装）
                         })
@@ -3820,6 +3821,7 @@ mod tests {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })
@@ -4496,6 +4498,7 @@ mod tests {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })
@@ -4798,6 +4801,7 @@ mod tests {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })
@@ -5166,6 +5170,7 @@ mod tests {
                         levels: cls_i.levels.iter().enumerate()
                             .map(|(l2, _)| super::super::super::classifier::LevelState {
                                 moves: Vec::new(), centers: Rc::new(Vec::new()),
+                                cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
                             })

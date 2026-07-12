@@ -486,7 +486,7 @@ fn pi_probe_delta_candidates_unlock_orders() {
     fn slice_step(cur: &Classification, i: usize) -> Classification {
         Classification {
             levels: cur.levels.iter().map(|ls| LevelState {
-                moves: Vec::new(), centers: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
+                moves: Vec::new(), centers: Rc::new(Vec::new()), cp_ownership: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
                 bsp: ls.bsp.iter().filter(|b| b.source_index == i).cloned().collect::<Vec<_>>().into(),
             }).collect(),
         }
@@ -497,7 +497,7 @@ fn pi_probe_delta_candidates_unlock_orders() {
             levels: cur.levels.iter().enumerate().map(|(lvl, ls)| {
                 let pb: &[BspPoint] = prev.levels.get(lvl).map(|p| p.bsp.as_slice()).unwrap_or(&[]);
                 LevelState {
-                    moves: Vec::new(), centers: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
+                    moves: Vec::new(), centers: Rc::new(Vec::new()), cp_ownership: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
                     bsp: ls.bsp.iter().filter(|b| !pb.contains(b)).cloned().collect::<Vec<_>>().into(),
                 }
             }).collect(),

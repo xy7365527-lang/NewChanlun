@@ -337,7 +337,7 @@ mod tests {
             .enumerate()
             .map(|(i, u)| LeveledMove::from_unit(u, ElementId { level: 0, ordinal: i as u64 }))
             .collect();
-        let (_c, l1) = compose_level(&units, &l0, true, 1);
+        let (_c, l1, _) = compose_level(&units, &l0, true, 1);
         vec![l0, l1]
     }
 
