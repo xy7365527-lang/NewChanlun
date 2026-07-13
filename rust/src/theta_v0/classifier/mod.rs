@@ -75,6 +75,73 @@ pub mod six_state;
 pub mod voice_eat;
 pub mod cand_predicate;
 
+/// P52 全量增量重放专用的 frontier 只读计数器。
+///
+/// 默认关闭；只有诊断 bin 显式 [`enable`] 后，分类器在既有 pop/recompose 与 dirty 依赖门处
+/// 累加旁路计数。计数不参与任何分类、交易、订单或风控分支。
+pub mod cp_replay_diagnostics {
+    use std::cell::RefCell;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    static ENABLED: AtomicBool = AtomicBool::new(false);
+
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct CpFrontierCounters {
+        pub pending_fallbacks: u64,
+        pub tail_reinherits: u64,
+        pub certificate_clear_recomputes: u64,
+    }
+
+    thread_local! {
+        static COUNTERS: RefCell<Vec<CpFrontierCounters>> = const { RefCell::new(Vec::new()) };
+    }
+
+    pub fn enable() {
+        COUNTERS.with(|counters| counters.borrow_mut().clear());
+        ENABLED.store(true, Ordering::Relaxed);
+    }
+
+    pub fn disable() {
+        ENABLED.store(false, Ordering::Relaxed);
+        COUNTERS.with(|counters| counters.borrow_mut().clear());
+    }
+
+    pub fn snapshot() -> Vec<CpFrontierCounters> {
+        if !ENABLED.load(Ordering::Relaxed) {
+            return Vec::new();
+        }
+        COUNTERS.with(|counters| counters.borrow().clone())
+    }
+
+    fn with_level(level: usize, f: impl FnOnce(&mut CpFrontierCounters)) {
+        if !ENABLED.load(Ordering::Relaxed) {
+            return;
+        }
+        COUNTERS.with(|counters| {
+            let mut counters = counters.borrow_mut();
+            if counters.len() <= level {
+                counters.resize(level + 1, CpFrontierCounters::default());
+            }
+            f(&mut counters[level]);
+        });
+    }
+
+    pub(crate) fn record_dirty_invalidation(
+        level: usize,
+        pending_fallbacks: u64,
+        certificate_clear_recomputes: u64,
+    ) {
+        with_level(level, |counter| {
+            counter.pending_fallbacks += pending_fallbacks;
+            counter.certificate_clear_recomputes += certificate_clear_recomputes;
+        });
+    }
+
+    pub(crate) fn record_tail_reinherit(level: usize) {
+        with_level(level, |counter| counter.tail_reinherits += 1);
+    }
+}
+
 use bsp::BspPoint;
 use center::UnitRange;
 use decompose::{decompose, decompose_resume, MoveBlock};
@@ -486,6 +553,29 @@ pub fn cand_delta_tower_cached(
     out
 }
 
+/// P53 放宽后的 Cand 入口集合。
+///
+/// 旧 [`cand_delta_tower`] 继续输出算法背驰事件并保持 `cand_delta` 的历史真值；本入口把每级
+/// 生产生命周期已经由 `judge_third_cert` 闭合的稳定 `B_p/c_p` 对象全部事件化。两者分开可
+/// 保留 P51 的 20 个事件侧分类复核，也不会为无背驰事件的对象伪造背驰字段。
+pub fn cand_delta_entry_tower(
+    classification: &Classification,
+    legacy_events: &[Vec<recursive_tower::CandDeltaEvent>],
+) -> Vec<Vec<recursive_tower::CandDeltaEntryEvent>> {
+    classification
+        .levels
+        .iter()
+        .enumerate()
+        .map(|(level, state)| {
+            recursive_tower::relaxed_cand_delta_entries(
+                level as u32,
+                &state.cp_ownership,
+                legacy_events.get(level).map(Vec::as_slice).unwrap_or(&[]),
+            )
+        })
+        .collect()
+}
+
 /// 缓存序列一致性守卫（parser BUG-04 修复：`macd_state_len` 期望值按
 /// [`compute_macd_hist_incremental`] 的**真实覆盖契约**校验——n≤1 时 state 覆盖全部
 /// n 个 close；n≥2 时 state 只覆盖稳定前缀 `n-1`（尾 bar 不稳定，hist/dif 才含尾 bar）。
@@ -555,6 +645,47 @@ fn cand_delta_tower_with_series(
             )
         };
         out.push(evs);
+    }
+    out
+}
+
+/// P52 只读召回上界：不经过 `level_cand_delta` / `cand_delta` 事件入口，直接在每级稳定
+/// `B_p/c_p` 对象全集上重判 leave/retest 几何。
+pub fn cp_recall_upper_bound_audit(
+    l0: &ParseLayer,
+    classification: &Classification,
+    tower_snapshots: &[Rc<Vec<LeveledMove>>],
+) -> Vec<recursive_tower::CpRecallAuditCase> {
+    let mut out = Vec::new();
+    for (level, state) in classification.levels.iter().enumerate() {
+        let Some(unit_moves) = tower_snapshots.get(level) else {
+            continue;
+        };
+        if level == 0 {
+            let units: Vec<UnitRange> = l0.segments.iter().map(segment_to_unit).collect();
+            out.extend(recursive_tower::audit_cp_recall_upper_bound(
+                0,
+                &state.centers,
+                &state.cp_ownership,
+                &units,
+                unit_moves,
+                None,
+            ));
+        } else {
+            let parent_blocks = &classification.levels[level - 1].moves;
+            let units = project_to_units(unit_moves, parent_blocks);
+            let anchors: Vec<Option<Direction>> = (0..units.len())
+                .map(|i| decompose::center_own_dir_at(parent_blocks, i))
+                .collect();
+            out.extend(recursive_tower::audit_cp_recall_upper_bound(
+                level as u32,
+                &state.centers,
+                &state.cp_ownership,
+                &units,
+                unit_moves,
+                Some(&anchors),
+            ));
+        }
     }
     out
 }
@@ -1686,11 +1817,17 @@ pub fn classify_with_tower_incremental(
             });
         // frontier pop/recompose 若产出同一个 B_p/c_p 身份，继承已扫描对象态，只从 dirty_from 推进。
         // Closed 证书若落入 dirty 后缀则不可继承，必须从 departure 重判；证书完全位于稳定前缀才保留。
-        let mut lifecycle_scan_from =
+        let dirty_invalidation =
             recursive_tower::invalidate_cp_lifecycle_dirty_dependencies(
                 Rc::make_mut(&mut lc.cp_ownership).as_mut_slice(),
                 dirty_from,
             );
+        cp_replay_diagnostics::record_dirty_invalidation(
+            level_idx,
+            dirty_invalidation.pending_fallbacks,
+            dirty_invalidation.certificate_clear_recomputes,
+        );
+        let mut lifecycle_scan_from = dirty_invalidation.scan_from;
         for object in &mut tail_cp {
             let prior = popped_cp.iter().find(|prior| {
                 prior.b_center_id == object.b_center_id
@@ -1703,6 +1840,7 @@ pub fn classify_with_tower_incremental(
             });
             if prior_is_stable {
                 let prior = prior.expect("prior_is_stable 蕴含 prior Some");
+                cp_replay_diagnostics::record_tail_reinherit(level_idx);
                 object.lifecycle = prior.lifecycle;
                 object.cp_certificate_confirm_src = prior.cp_certificate_confirm_src;
                 object.c_structure = prior.c_structure;
@@ -2189,6 +2327,23 @@ mod tests {
     use super::*;
     use super::super::parser::ParseLayer;
     use super::super::types::Direction;
+
+    #[test]
+    fn p52_frontier_diagnostics_are_level_scoped_and_resettable() {
+        cp_replay_diagnostics::enable();
+        cp_replay_diagnostics::record_dirty_invalidation(2, 3, 5);
+        cp_replay_diagnostics::record_tail_reinherit(2);
+        cp_replay_diagnostics::record_tail_reinherit(1);
+
+        let counters = cp_replay_diagnostics::snapshot();
+        assert_eq!(counters[1].tail_reinherits, 1);
+        assert_eq!(counters[2].pending_fallbacks, 3);
+        assert_eq!(counters[2].tail_reinherits, 1);
+        assert_eq!(counters[2].certificate_clear_recomputes, 5);
+
+        cp_replay_diagnostics::disable();
+        assert!(cp_replay_diagnostics::snapshot().is_empty());
+    }
 
     fn seg(dir: Direction, si: usize, ei: usize, sp: i64, ep: i64) -> Segment {
         Segment { direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep }

@@ -6,7 +6,7 @@ use newchan_rust::theta_v0::config::ThetaConfig;
 use newchan_rust::theta_v0::parser;
 use newchan_rust::theta_v0::types::{quantize, Bar, Timestamp};
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
@@ -80,6 +80,7 @@ fn run() -> Result<(), String> {
         .unwrap_or(100_000usize);
     let verbose_events = std::env::var("CP_SMOKE_VERBOSE").map_or(true, |value| value != "0");
     let verbose_p50_certificates = std::env::var("CP_SMOKE_P50_CERTS").is_ok();
+    let p52_audit = std::env::var("CP_SMOKE_P52_AUDIT").is_ok();
     let batch_mode = std::env::var("CP_SMOKE_MODE").is_ok_and(|value| value == "batch");
     let root =
         std::env::var("CP_SMOKE_DATA_ROOT").unwrap_or_else(|_| "/tmp/codex-work-p7".to_string());
@@ -89,11 +90,14 @@ fn run() -> Result<(), String> {
         return Err("冒烟输入为空".to_string());
     }
 
-    let (classification, events) = if batch_mode {
+    if p52_audit {
+        classifier::cp_replay_diagnostics::enable();
+    }
+    let (l0, classification, tower, events) = if batch_mode {
         let l0 = parser::parse_layer(&bars, &config);
         let (classification, tower) = classifier::classify_with_tower(&l0, &config);
         let events = classifier::cand_delta_tower(&l0, &classification, &tower, &config);
-        (classification, events)
+        (l0, classification, tower, events)
     } else {
         let mut parser_incr = parser::ParseLayerIncr::new(&config);
         let mut tower_cache = classifier::TowerCache::new();
@@ -112,8 +116,9 @@ fn run() -> Result<(), String> {
             &config,
             &tower_cache,
         );
-        (classification, events)
+        (l0, classification, tower, events)
     };
+    let frontier_counters = classifier::cp_replay_diagnostics::snapshot();
 
     let mut total = 0usize;
     let mut stable_edges = 0usize;
@@ -133,12 +138,15 @@ fn run() -> Result<(), String> {
     let mut p46_row20_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
     let mut p46_row22_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
     let mut p46_decomposition_by_level: [HashSet<_>; 5] = std::array::from_fn(|_| HashSet::new());
-    let mut all_by_level: Vec<HashSet<_>> =
-        (0..classification.levels.len()).map(|_| HashSet::new()).collect();
-    let mut third_by_level: Vec<HashSet<_>> =
-        (0..classification.levels.len()).map(|_| HashSet::new()).collect();
-    let mut full_by_level: Vec<HashSet<_>> =
-        (0..classification.levels.len()).map(|_| HashSet::new()).collect();
+    let mut all_by_level: Vec<HashSet<_>> = (0..classification.levels.len())
+        .map(|_| HashSet::new())
+        .collect();
+    let mut third_by_level: Vec<HashSet<_>> = (0..classification.levels.len())
+        .map(|_| HashSet::new())
+        .collect();
+    let mut full_by_level: Vec<HashSet<_>> = (0..classification.levels.len())
+        .map(|_| HashSet::new())
+        .collect();
     let (mut eq, mut lt, mut gt) = (0usize, 0usize, 0usize);
     let (mut missing_start, mut missing_end) = (0usize, 0usize);
     for event in events.iter().flatten().filter(|e| e.cand_delta) {
@@ -346,6 +354,254 @@ fn run() -> Result<(), String> {
             full_by_level[level].len(),
             all_by_level[level].len().saturating_sub(third_by_level[level].len())
         );
+    }
+    if p52_audit {
+        let recall = classifier::cp_recall_upper_bound_audit(&l0, &classification, &tower);
+        let legacy_true_keys: HashSet<_> = events
+            .iter()
+            .flatten()
+            .filter(|event| event.cand_delta && (1..=4).contains(&event.level))
+            .filter_map(|event| {
+                event
+                    .cp_ownership
+                    .map(|edge| (event.level, edge.b_center_id, edge.cp_departure_move_id))
+            })
+            .collect();
+        let legacy_record_keys: HashSet<_> = events
+            .iter()
+            .flatten()
+            .filter(|event| (1..=4).contains(&event.level))
+            .filter_map(|event| {
+                event
+                    .cp_ownership
+                    .map(|edge| (event.level, edge.b_center_id, edge.cp_departure_move_id))
+                    .or_else(|| {
+                        event.c_structure.map(|structure| {
+                            (
+                                event.level,
+                                structure.b_center_id,
+                                structure.departure_move_id,
+                            )
+                        })
+                    })
+            })
+            .collect();
+        let relaxed_entries = classifier::cand_delta_entry_tower(&classification, &events);
+        let event_keys: HashSet<_> = relaxed_entries
+            .iter()
+            .flatten()
+            .filter(|entry| (1..=4).contains(&entry.level))
+            .map(|entry| {
+                (
+                    entry.level,
+                    entry.cp_ownership.b_center_id,
+                    entry.cp_ownership.cp_departure_move_id,
+                )
+            })
+            .collect();
+        let entry_origins: HashMap<_, _> = relaxed_entries
+            .iter()
+            .flatten()
+            .filter(|entry| (1..=4).contains(&entry.level))
+            .map(|entry| {
+                (
+                    (
+                        entry.level,
+                        entry.cp_ownership.b_center_id,
+                        entry.cp_ownership.cp_departure_move_id,
+                    ),
+                    entry.origin,
+                )
+            })
+            .collect();
+        let success_keys: HashSet<_> = recall
+            .iter()
+            .filter(|case| {
+                (1..=4).contains(&case.level)
+                    && case.atom == classifier::recursive_tower::CpRecallAtom::Success
+            })
+            .filter_map(|case| {
+                case.cp_departure_move_id
+                    .map(|departure| (case.level, case.b_center_id, departure))
+            })
+            .collect();
+        let stable_objects = recall
+            .iter()
+            .filter(|case| (1..=4).contains(&case.level) && case.cp_departure_move_id.is_some())
+            .count();
+        let aligned_success = success_keys.intersection(&event_keys).count();
+        let missing_keys: Vec<_> = success_keys.difference(&event_keys).copied().collect();
+        let extra_keys: Vec<_> = event_keys.difference(&success_keys).copied().collect();
+        if !missing_keys.is_empty() || !extra_keys.is_empty() {
+            for (level, b, departure) in &missing_keys {
+                println!(
+                    "P53_EXCEPTION kind=MISSING_RELAXED_ENTRY level={} B=L{}#{} cp_departure=L{}#{}",
+                    level, b.level, b.ordinal, departure.level, departure.ordinal
+                );
+            }
+            for (level, b, departure) in &extra_keys {
+                println!(
+                    "P53_EXCEPTION kind=ENTRY_WITHOUT_GEOMETRY level={} B=L{}#{} cp_departure=L{}#{}",
+                    level, b.level, b.ordinal, departure.level, departure.ordinal
+                );
+            }
+            return Err(format!(
+                "P53 入口集合与 judge_third_cert 上界不一致: missing={} extra={}",
+                missing_keys.len(),
+                extra_keys.len()
+            ));
+        }
+        let existing_true = entry_origins
+            .values()
+            .filter(|origin| {
+                **origin == classifier::recursive_tower::CandDeltaEntryOrigin::ExistingCandDeltaTrue
+            })
+            .count();
+        let existing_false = entry_origins
+            .values()
+            .filter(|origin| {
+                **origin
+                    == classifier::recursive_tower::CandDeltaEntryOrigin::ExistingCandDeltaFalse
+            })
+            .count();
+        let stable_geometry = entry_origins
+            .values()
+            .filter(|origin| {
+                **origin == classifier::recursive_tower::CandDeltaEntryOrigin::StableCpGeometry
+            })
+            .count();
+        let legacy_review_keys: HashSet<_> = legacy_true_keys
+            .difference(&success_keys)
+            .copied()
+            .collect();
+        println!(
+            "P52_RECALL_SUMMARY levels=1-4 stable_objects={} upper_success={} event_objects={} aligned_success={} missed_candidates={} missed_cand_delta_false={} missed_before_event={} event_only_failures={}",
+            stable_objects,
+            success_keys.len(),
+            event_keys.len(),
+            aligned_success,
+            missing_keys.len(),
+            0,
+            0,
+            event_keys.difference(&success_keys).count(),
+        );
+        println!(
+            "P53_ENTRY_SUMMARY old_e={} new_e={} existing_cand_delta_true={} existing_cand_delta_false={} stable_cp_geometry={} legacy_records={} legacy_review={}",
+            legacy_true_keys.len(),
+            event_keys.len(),
+            existing_true,
+            existing_false,
+            stable_geometry,
+            legacy_record_keys.len(),
+            legacy_review_keys.len(),
+        );
+
+        for level in 1..=4_u32 {
+            let level_cases: Vec<_> = recall
+                .iter()
+                .filter(|case| case.level == level && case.cp_departure_move_id.is_some())
+                .collect();
+            let level_events = event_keys.iter().filter(|key| key.0 == level).count();
+            let level_success = success_keys.iter().filter(|key| key.0 == level).count();
+            let level_aligned = success_keys
+                .iter()
+                .filter(|key| key.0 == level && event_keys.contains(key))
+                .count();
+            let mut atoms: BTreeMap<&str, usize> = BTreeMap::new();
+            for case in &level_cases {
+                *atoms.entry(case.atom.as_str()).or_default() += 1;
+            }
+            let atom_text = atoms
+                .iter()
+                .map(|(atom, count)| format!("{atom}:{count}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            println!(
+                "P52_RECALL_LEVEL level={} stable_objects={} upper_success={} event_objects={} aligned_success={} missed={} missed_cand_delta_false={} missed_before_event={} event_failures={} atoms={}",
+                level,
+                level_cases.len(),
+                level_success,
+                level_events,
+                level_aligned,
+                level_success.saturating_sub(level_aligned),
+                0,
+                0,
+                level_events.saturating_sub(level_aligned),
+                atom_text,
+            );
+        }
+
+        for case in recall.iter().filter(|case| (1..=4).contains(&case.level)) {
+            let Some(cp_departure) = case.cp_departure_move_id else {
+                continue;
+            };
+            let key = (case.level, case.b_center_id, cp_departure);
+            let (alignment, entry_cause) = if let Some(origin) = entry_origins.get(&key) {
+                ("EVENT", origin.as_str())
+            } else {
+                continue;
+            };
+            println!(
+                "P52_CASE alignment={} entry_cause={} level={} B=L{}#{} B_source=[{},{}] B_core=[{},{}] cp_departure=L{}#{} cp_start={:?} leave_id={:?} leave_source={:?} retest_id={:?} retest_source={:?} atom={}",
+                alignment,
+                entry_cause,
+                case.level,
+                case.b_center_id.level,
+                case.b_center_id.ordinal,
+                case.b_source_interval.0,
+                case.b_source_interval.1,
+                case.b_core.0,
+                case.b_core.1,
+                cp_departure.level,
+                cp_departure.ordinal,
+                case.cp_source_start,
+                case.departure_move_id.map(|id| (id.level, id.ordinal)),
+                case.departure_interval,
+                case.retest_move_id.map(|id| (id.level, id.ordinal)),
+                case.retest_interval,
+                case.atom.as_str(),
+            );
+        }
+
+        for case in recall.iter().filter(|case| (1..=4).contains(&case.level)) {
+            let Some(cp_departure) = case.cp_departure_move_id else {
+                continue;
+            };
+            let key = (case.level, case.b_center_id, cp_departure);
+            if !legacy_review_keys.contains(&key) {
+                continue;
+            }
+            println!(
+                "P53_LEGACY_REVIEW_CASE level={} B=L{}#{} cp_departure=L{}#{} atom={} status=ConsolidationReviewPending",
+                case.level,
+                case.b_center_id.level,
+                case.b_center_id.ordinal,
+                cp_departure.level,
+                cp_departure.ordinal,
+                case.atom.as_str(),
+            );
+        }
+
+        let mut frontier_total = classifier::cp_replay_diagnostics::CpFrontierCounters::default();
+        for (level, counter) in frontier_counters.iter().enumerate() {
+            println!(
+                "P53_FRONTIER level={} pending_fallbacks={} tail_reinherits={} certificate_clear_recomputes={}",
+                level,
+                counter.pending_fallbacks,
+                counter.tail_reinherits,
+                counter.certificate_clear_recomputes,
+            );
+            frontier_total.pending_fallbacks += counter.pending_fallbacks;
+            frontier_total.tail_reinherits += counter.tail_reinherits;
+            frontier_total.certificate_clear_recomputes += counter.certificate_clear_recomputes;
+        }
+        println!(
+            "P53_FRONTIER_TOTAL pending_fallbacks={} tail_reinherits={} certificate_clear_recomputes={}",
+            frontier_total.pending_fallbacks,
+            frontier_total.tail_reinherits,
+            frontier_total.certificate_clear_recomputes,
+        );
+        classifier::cp_replay_diagnostics::disable();
     }
     Ok(())
 }
