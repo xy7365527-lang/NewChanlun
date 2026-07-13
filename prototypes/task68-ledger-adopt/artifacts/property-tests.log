@@ -1,0 +1,29 @@
+   Compiling task68-ledger-adopt v0.1.0 (/private/tmp/task68-ledger-work/prototypes/task68-ledger-adopt)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.52s
+     Running unittests src/lib.rs (target/debug/deps/task68_ledger_adopt-b1d7af7b842ae326)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running unittests src/main.rs (target/debug/deps/task68_ledger_adopt-559ef4ab1588d71a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/properties.rs (target/debug/deps/properties-c86cb3ccdbe002b9)
+
+running 5 tests
+test prop_tombstone_cannot_be_resurrected ... ok
+test prop_supersede_chain_is_acyclic ... ok
+test prop_full_replay_is_idempotent_and_sha256_bit_exact ... ok
+test prop_adopt_orphan_is_add_only_and_preserves_base_hosts ... ok
+test prop_ledger_entries_are_conserved_and_disjoint ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+   Doc-tests task68_ledger_adopt
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
