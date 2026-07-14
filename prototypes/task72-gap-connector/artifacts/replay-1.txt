@@ -1,0 +1,45 @@
+P72_DATA bars=4613599 as_of=4613598 adoption_policy=adopt_v2 v1_residual_domain=33
+P72_SWITCH r2_prime=disabled gap_adopted=19 monotone_adopted=0 adopted_v2=19 residual_v2=14 conservation=33=19+14 status=PASS
+P72_SWITCH r2_prime=enabled gap_adopted=19 monotone_adopted=11 adopted_v2=30 residual_v2=3 conservation=33=30+3 status=PASS
+P72_BUCKET bucket=GAP_ADJACENT total=19 adopted=19 residual=0 via_r2=19 via_r3=0 via_r4=0
+P72_BUCKET bucket=MONOTONE_STEEP total=11 adopted=11 residual=0 r2_prime=enabled via_r2=11 via_r3=0
+P72_BUCKET bucket=GEOMETRY_OTHER total=3 adopted=0 residual=3 reason=GEOMETRY_OTHER_OUT_OF_SCOPE
+P72_UNIFIED gap_path=R2 monotone_path=R2 allowed_channels=R2/R3 same_evaluator=1 isomorphic=1 interpretation=SMALL_TO_LARGE_LEVEL_JUMP
+P72_SAFETY extension_events=30 adopt_orphan=30 released=0 degraded=0 append_only=PASS judge_at_lte_as_of=PASS tombstoned=0
+P72_CONSERVATION domain=33 adopted_v2=30 residual_v2=3 equation=33=30+3 status=PASS final_ledger_assigned=49 final_ledger_unassigned=3 final_ledger_tombstoned=0
+P72_CASE lower_id=L0#37199 disposition=BASE_ASSIGNED action=NO_EVENT geometry=GAP_ADJACENT legal_basis=R1+R2 base_host=4276595-4280151 base_completion=PENDING_UNDETERMINED inner_chain=4277222-4277751|4277866-4279768 no_release=PASS
+P72_OBJECT lower_id=L0#2498 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=294678-295878 judge_at=295878
+P72_OBJECT lower_id=L0#3705 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=417565-417983 judge_at=417983
+P72_OBJECT lower_id=L0#4869 bucket=GEOMETRY_OTHER outcome=RESIDUAL reason=GEOMETRY_OTHER_OUT_OF_SCOPE disposition=UNASSIGNED
+P72_OBJECT lower_id=L0#10581 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=1169293-1169722 judge_at=1169722
+P72_OBJECT lower_id=L0#11956 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=1319352-1319591 judge_at=1319591
+P72_OBJECT lower_id=L0#12211 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=1349876-1350915 judge_at=1350915
+P72_OBJECT lower_id=L0#13019 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=1437152-1437378 judge_at=1437378
+P72_OBJECT lower_id=L0#14718 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=1622008-1622773 judge_at=1622773
+P72_OBJECT lower_id=L0#20127 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=2264933-2267159 judge_at=2267159
+P72_OBJECT lower_id=L0#20299 bucket=GEOMETRY_OTHER outcome=RESIDUAL reason=GEOMETRY_OTHER_OUT_OF_SCOPE disposition=UNASSIGNED
+P72_OBJECT lower_id=L0#22171 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=2510734-2511409 judge_at=2511409
+P72_OBJECT lower_id=L0#22729 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=2576984-2577194 judge_at=2577194
+P72_OBJECT lower_id=L0#24227 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=2760015-2761052 judge_at=2761052
+P72_OBJECT lower_id=L0#25368 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=2903192-2904217 judge_at=2904217
+P72_OBJECT lower_id=L0#27013 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=3084854-3086106 judge_at=3086106
+P72_OBJECT lower_id=L0#28272 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=3229845-3230660 judge_at=3230660
+P72_OBJECT lower_id=L0#30608 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=3499792-3500137 judge_at=3500137
+P72_OBJECT lower_id=L0#30760 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=3516953-3519514 judge_at=3519514
+P72_OBJECT lower_id=L0#31288 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=3577959-3579175 judge_at=3579175
+P72_OBJECT lower_id=L0#32469 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=3716484-3717787 judge_at=3717787
+P72_OBJECT lower_id=L0#33046 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=3783467-3783612 judge_at=3783612
+P72_OBJECT lower_id=L0#35944 bucket=GEOMETRY_OTHER outcome=RESIDUAL reason=GEOMETRY_OTHER_OUT_OF_SCOPE disposition=UNASSIGNED
+P72_OBJECT lower_id=L0#36442 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=4190318-4191056 judge_at=4191056
+P72_OBJECT lower_id=L1#3278 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=1184381-1188719 judge_at=1188719
+P72_OBJECT lower_id=L1#3700 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=1334083-1339107 judge_at=1339107
+P72_OBJECT lower_id=L1#5304 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=1939671-1940717 judge_at=1940717
+P72_OBJECT lower_id=L1#6576 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=2446609-2453060 judge_at=2453060
+P72_OBJECT lower_id=L1#8479 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=3192734-3194583 judge_at=3194583
+P72_OBJECT lower_id=L1#9472 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=3579315-3580440 judge_at=3580440
+P72_OBJECT lower_id=L1#9573 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=3616977-3618063 judge_at=3618063
+P72_OBJECT lower_id=L1#10947 bucket=GAP_ADJACENT outcome=ADOPTED event=ADOPT_ORPHAN rule=R2 channel=R2 r1_exemption=1 host=4172028-4173029 judge_at=4173029
+P72_OBJECT lower_id=L1#11518 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=4397392-4398924 judge_at=4398924
+P72_OBJECT lower_id=L2#107 bucket=MONOTONE_STEEP outcome=ADOPTED event=ADOPT_ORPHAN rule=R2_PRIME channel=R2 r1_exemption=0 host=147050-150305 judge_at=150305
+P72_REPLAY events=101 terminal_entries=52 canonical_bytes=15798 terminal_sha256=d59fa6c850863a66c49fd1a2fe93da4c4051960bc5640bd08c5ebdeac4aa0ac6 duplicate_replay=PASS
+P72_STATUS PASS

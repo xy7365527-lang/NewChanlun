@@ -1,0 +1,12 @@
+[package]
+name = "task72-gap-connector"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "task72-gap-connector"
+path = "src/main.rs"
