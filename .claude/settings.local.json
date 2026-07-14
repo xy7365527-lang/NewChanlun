@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(*)",
@@ -11,7 +14,15 @@
       "mcp__plugin_greptile_greptile__*",
       "mcp__ide__*",
       "mcp__claude-audit__claude_audit",
-      "mcp__headroom__headroom_stats"
+      "mcp__headroom__headroom_stats",
+      "Bash(mkdir -p .claude/archive/swarm-uninstall-20260710)",
+      "Bash(mv .claude/hooks .claude/agents .claude/team-topology.json .claude/archive/swarm-uninstall-20260710/)",
+      "Read(//Users/silencehan/.claude/plugins/cache/ponytail/**)",
+      "Bash(mv ~/.claude/plugins/cache/ponytail ~/.Trash/ponytail-plugin-cache-20260710)",
+      "Bash(mv ~/.claude/plugins/marketplaces/ponytail ~/.Trash/ponytail-marketplace-20260710)",
+      "Read(//Users/silencehan/.claude/plugins/cache/**)",
+      "Bash(python3 -c \"import json; json.load\\(open\\('.claude/settings.json'\\)\\); json.load\\(open\\('.claude/settings.local.json'\\)\\); print\\('两个 JSON 均合法'\\)\")",
+      "Bash(rm -f .claude/hooks/ceremony-completion-guard.sh)"
     ],
     "deny": []
   },
@@ -19,8 +30,5 @@
   "enabledMcpjsonServers": [
     "claude-audit"
   ],
-  "outputStyle": "default",
-  "env": {
-    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "1"
-  }
+  "outputStyle": "default"
 }
