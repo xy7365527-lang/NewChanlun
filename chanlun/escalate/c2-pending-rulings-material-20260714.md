@@ -45,6 +45,7 @@ D5（并行工程排期）
   - `SequenceEnvelopeV1`（→ `fold_direction`，recursive_tower.rs:208）：相邻同级别单元比较——**结构上唯一接近原文者**，但三处偏差：① 比较对象是窗口外缘 hi（`envelope().1`）而非中枢 GG/DD；② `>=` 平局归 Up（原文：区间重叠 ⟺ 升级别、同级方向不存在）；③ 首单元缺省 Up。
   - **类型层硬缺口**：`Direction`（types.rs:30-33）仅 `{Up, Down}`，无 None 变体——四 provider 在类型层面**无一**能表达原文要求的"盘整/升级别 ⇒ 无方向"。
 - 结裁建议：无现成合规实现。裁决对象应为"新增 `CentralGgDdV1`（相邻同级别中枢 GG/DD 比较，输出域 {上,下,None}）为唯一方向定义"，`SequenceEnvelopeV1` 可作实现起点但需换比较对象并扩输出域；四个现存 provider 均降级为工程回退，不得作语义真值。
+- **已结裁（2026-07-14，选项 A"需要方向"）**：见 `chanlun/escalate/d3-direction-ruling-20260714.md`。要点勘误：上行"无现成合规实现"仅对 seam 四 provider 成立——主线 `center.rs:207 classify_relation`（GG/DD 外包络，Lean 契约锚）+ `decompose.rs MoveBlock.dir: Option<Direction>`（盘整=None）即逐字合规实现；`central-ggdd-v1` 定版绑定既有实现，无新增代码，类型方案（加 None/新类型）均作废。选项 0（方向豁免）已论证并被否。
 
 ## D4 PartitionPolicy 晋级（replay §6.4 + reassessment §12.2）
 
