@@ -2057,14 +2057,34 @@ struct OpsemDump {
     prev_tower: Option<Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>>,
 }
 
+#[cfg(test)]
+thread_local! {
+    /// 测试注入点：Some(dir) ⟹ **本线程**的 fill loop 启用 opsem dump。进程级 env 会被并行
+    /// 测试的 [`OpsemDump::from_env`] 同时读到并 truncate 同一 trades.jsonl（2026-07-13 全量
+    /// 回归竞态实录：0 笔交易的合成测试把 R5 测试的 dump 清空）；线程局部对并行测试不可见。
+    static OPSEM_DUMP_DIR_OVERRIDE: std::cell::RefCell<Option<std::path::PathBuf>> =
+        std::cell::RefCell::new(None);
+}
+
 impl OpsemDump {
-    /// 从 env `OPSEM_DUMP_DIR` 构造；未设 ⟹ None（零开销）。
+    /// 从 env `OPSEM_DUMP_DIR` 构造；未设 ⟹ None（零开销）。测试经线程局部
+    /// [`OPSEM_DUMP_DIR_OVERRIDE`] 注入（优先于 env；生产构建不含该分支）。
     fn from_env() -> Option<Self> {
+        #[cfg(test)]
+        {
+            if let Some(dir) = OPSEM_DUMP_DIR_OVERRIDE.with(|c| c.borrow().clone()) {
+                return Self::at_dir(&dir);
+            }
+        }
         let dir = std::env::var("OPSEM_DUMP_DIR").ok().filter(|s| !s.is_empty())?;
-        let dir_path = std::path::PathBuf::from(&dir);
-        std::fs::create_dir_all(&dir_path).ok()?;
-        // ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。path 局部化——
-        // struct 只持 BufWriter（path 仅 create 时用，后续不读，YAGNI 不存字段）。
+        Self::at_dir(std::path::Path::new(&dir))
+    }
+
+    /// 在指定目录开两个 JSONL 写入器。
+    /// ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。path 局部化——
+    /// struct 只持 BufWriter（path 仅 create 时用，后续不读，YAGNI 不存字段）。
+    fn at_dir(dir_path: &std::path::Path) -> Option<Self> {
+        std::fs::create_dir_all(dir_path).ok()?;
         let trades_file = std::fs::File::create(dir_path.join("trades.jsonl")).ok()?;
         let tower_file = std::fs::File::create(dir_path.join("tower_events.jsonl")).ok()?;
         Some(Self {
@@ -3491,8 +3511,11 @@ mod tests {
     /// [`pi_theta_fill_loop`] ⟹ typed_ledger/n_orders/trade_pnls_with_forced bit-exact（opsem 只活
     /// [`LedgerOpen`]，[`TypedTrade`] 不含 opsem 字段 ⟹ 结构性免疫）；(3) dump JSON 含 R5-a/b/c 三字段
     /// （lex_argmin_top3/divergence_input/nest_depth），nest_depth 非 null（R5-c 接入
-    /// [`structural_nest_depth`]，旧 entry_z.nest_depth π 路径恒 None）。env 操作全在单函数内（OPSEM_DUMP_DIR
-    /// 新 env、其他测试不读 ⟹ 并行无副作用），末尾 remove_var + 清目录。
+    /// [`structural_nest_depth`]，旧 entry_z.nest_depth π 路径恒 None）。
+    ///
+    /// 并行安全：env 只用于 (1)(2) 的 None 断言（unset/"" 对并行读者同样是 None，无副作用）；
+    /// (3) 经线程局部 [`OPSEM_DUMP_DIR_OVERRIDE`] 注入——进程级 env 会被并行测试的 fill loop
+    /// 读到并 truncate 同一 trades.jsonl（2026-07-13 全量回归竞态实录），线程局部不可见。
     #[test]
     fn opsem_dump_env_gated_bit_exact() {
         use std::io::Read;
@@ -3517,9 +3540,9 @@ mod tests {
             std::process::id(),
             nonce
         ));
-        std::env::set_var("OPSEM_DUMP_DIR", &dump_dir);
+        OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = Some(dump_dir.clone()));
         let fill_set = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
-        std::env::remove_var("OPSEM_DUMP_DIR");
+        OPSEM_DUMP_DIR_OVERRIDE.with(|c| *c.borrow_mut() = None);
 
         // R5-1 核心：set vs unset ⟹ 输出 bit-exact。
         assert_eq!(fill_unset.typed_ledger, fill_set.typed_ledger, "typed_ledger bit-exact");
