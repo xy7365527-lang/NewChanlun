@@ -38,7 +38,13 @@ D5（并行工程排期）
   - `chan99/0011:7,23`——盘整只含一个中枢、无法形成两个同向中枢 ⇒ 盘整在趋势意义上**无方向**；合规 provider 输出域必须为 {上, 下, None}。
   - `chan99/0010:17` 走势中枢中心定理二——可操作判据：后 GG<前 DD ⟺ 下跌及延续；后 DD>前 GG ⟺ 上涨及延续；区间重叠情形 ⟺ 形成高级别中枢（同级方向不存在）。
   - 筛选结论：唯一方向定义应实现"相邻同级别中枢 GG/DD 比较"判据；凡由单段斜率/端点几何推方向、或无法输出 None 的 provider，不合原文口径。
-- 剩余待裁：四 provider 与上述判据的映射核对（哪个实现了它）——对照存档 `chanlun/archive/c71-seam-20260714/level_view.rs`。
+- 映射核对（已完成 2026-07-14，对照存档 `chanlun/archive/c71-seam-20260714/level_view.rs:118-151` + 主线 `rust/src/theta_v0/classifier/recursive_tower.rs:208-220`）：
+  - `FirstLeafV1`（level_view.rs:140）：取首叶段方向，Compose 递归取 first，`unwrap_or(Up)`——**单段几何，不合口径**。
+  - `FirstLastEnvelopeV1`（level_view.rs:141-150）：首末单元 hi 比较，fallback first_leaf——**端点几何，不合口径**。
+  - `OwnershipFallbackV1`（level_view.rs:137）：账本 ownership 推方向——**工程代理，非原文定义**。
+  - `SequenceEnvelopeV1`（→ `fold_direction`，recursive_tower.rs:208）：相邻同级别单元比较——**结构上唯一接近原文者**，但三处偏差：① 比较对象是窗口外缘 hi（`envelope().1`）而非中枢 GG/DD；② `>=` 平局归 Up（原文：区间重叠 ⟺ 升级别、同级方向不存在）；③ 首单元缺省 Up。
+  - **类型层硬缺口**：`Direction`（types.rs:30-33）仅 `{Up, Down}`，无 None 变体——四 provider 在类型层面**无一**能表达原文要求的"盘整/升级别 ⇒ 无方向"。
+- 结裁建议：无现成合规实现。裁决对象应为"新增 `CentralGgDdV1`（相邻同级别中枢 GG/DD 比较，输出域 {上,下,None}）为唯一方向定义"，`SequenceEnvelopeV1` 可作实现起点但需换比较对象并扩输出域；四个现存 provider 均降级为工程回退，不得作语义真值。
 
 ## D4 PartitionPolicy 晋级（replay §6.4 + reassessment §12.2）
 
