@@ -83,18 +83,36 @@ impl<'a> IncrementalClassifier<'a> {
     /// `tower_cache` 跨 bar 复用 → `LeveledMove` 身份连续 → held_leg 不判 Stale。
     ///
     /// **因果性**：`parse_layer(&bars[..=i])` 只用 ≤i 数据 ⟹ 输出因果（无 look-ahead，639）。
-    pub fn classify_at(&mut self, i: usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>) {
+    pub fn classify_at_with_l0(&mut self, i: usize) -> (parser::ParseLayer, classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>) {
         debug_assert!(i < self.bars.len(), "classify_at({i}) 越界 bars.len={}", self.bars.len());
         // 增量 parse：append bar i（O(1) inclusion + O(merged_i) 下游）。
         let l0_i = self.parser_incr.append(self.bars[i]);
         // 增量塔：cache 跨 bar 复用（身份稳定），bit-exact == 全量 classify_with_tower。
-        classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache)
+        let (classification, tower) = classifier::classify_with_tower_incremental(&l0_i, self.config, &mut self.tower_cache);
+        (l0_i, classification, tower)
+    }
+
+    pub fn classify_at(&mut self, i: usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>) {
+        let (_, classification, tower) = self.classify_at_with_l0(i);
+        (classification, tower)
+    }
+
+    /// strict-nest sidecar 只读复用 tower cache 中的增量 MACD/close 序列，避免开关打开后退回 O(n²)。
+    pub fn tower_cache(&self) -> &classifier::TowerCache {
+        &self.tower_cache
     }
 
     /// ★工位 4g：当前塔变更代次（`classify_at` 后读取）。下游 `TreeCache` 据此 O(1) 判断是否复用
     /// 缓存树，跳过每 bar O(tree) 的 `TreeKey::of`（exp≈2.0 真因）。同代次 ⟹ extract 输出不变。
     pub fn tower_generation(&self) -> u64 {
         self.tower_cache.generation()
+    }
+
+    /// ★on2w2：当前塔森林代次（`forest_epoch`）——下游 `TreeCache` 据此 O(1) 判断是否复用 K_i 森林
+    /// （`extract_carrier_forest`，读全塔含 L0），跳过每 bar O(全塔) 的 `TreeKey::of_forest`（H6 O(n²)
+    /// 真因）。同代次 ⟹ 森林逐字节不变（soundness 见 `TowerCache::forest_epoch` 字段文档）。
+    pub fn forest_epoch(&self) -> u64 {
+        self.tower_cache.forest_epoch()
     }
 }
 
@@ -123,8 +141,10 @@ mod tests {
             }
         };
         let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
-        // 8K 控时（O(n²) 双跑：增量 + legacy 对照，各一倍；8K≈2s/跑，~4s 总）。
-        let n = 8_000.min(oos.bars.len());
+        // 8K 控时（O(n²) 双跑：增量 + legacy 对照，各一倍；8K≈2s/跑，~4s 总）。env BITEXACT_BARS
+        // 可上调窗口做 cascade/升级窗口/哨兵翻转深覆盖（on2w2-cascade 验证：50K 命中更多 P>0 场景）。
+        let cap: usize = std::env::var("BITEXACT_BARS").ok().and_then(|s| s.parse().ok()).unwrap_or(8_000);
+        let n = cap.min(oos.bars.len());
         let bars = &oos.bars[..n];
 
         let mut incr = IncrementalClassifier::new(bars, &config);
@@ -157,6 +177,97 @@ mod tests {
              每 bar 增量输出 == legacy classify_with_tower(parse_layer(..=i))，bit-identical。\n  \
              TowerCache 跨 bar 复用 → LeveledMove 身份连续。"
         );
+    }
+
+    /// ★on2w2-cascade 放行条件3 falsification gate（L1 管线度量）：在真实 CL 上测 cascade 事件的
+    /// 脏源下界 `e` 是否常态坍缩到 units 起点（保留前缀 P==0）。设计前提 = frontier 改写局部化 ⟹
+    /// e 高位 ⟹ 保留前缀比例高。若 e 常态坍缩（e0_frac≈1 / keep_frac≈0）⟹ 前提证伪 ⟹ NO-SHIP，
+    /// 不值得实装 ~500 行 bit-exact 高危改动。**先于实装跑**（ponytail：falsification gate 前置）。
+    ///
+    /// 走 THETA_CASCADE_EPROBE 探针（不改任何失效逻辑，只测 e 分布）。手动运行：
+    /// `THETA_CASCADE_EPROBE=1 cargo test --release --features backtest_bin cascade_e_falsification -- --ignored --nocapture`
+    #[test]
+    #[ignore = "L1 falsification gate：需 CL 数据 + THETA_CASCADE_EPROBE=1；--release"]
+    fn cascade_e_falsification_gate() {
+        assert!(
+            std::env::var("THETA_CASCADE_EPROBE").is_ok(),
+            "须设 THETA_CASCADE_EPROBE=1 启用探针（否则 cascade_events=0，无数据）"
+        );
+        let config = ThetaConfig::default();
+        let ds = match super::super::data::load_by_symbol("CL", &config) {
+            Ok(d) => d,
+            Err(e) => panic!("需真实数据: {e}"),
+        };
+        // 300K 窗（设计 §6.3 计时验收窗；e 分布不需双跑对照 ⟹ 单跑增量即可，快）。
+        let n = 300_000.min(ds.bars.len());
+        let bars = &ds.bars[..n];
+        classifier::oracle_probe::reset();
+        let mut incr = IncrementalClassifier::new(bars, &config);
+        let t0 = std::time::Instant::now();
+        for i in 0..n {
+            let _ = incr.classify_at(i);
+        }
+        let dt = t0.elapsed().as_secs_f64();
+        let p = classifier::oracle_probe::snapshot();
+        let events = p.cascade_events.max(1);
+        let e0_frac = p.cascade_e0 as f64 / events as f64;
+        let keep_frac = p.cascade_keep_ppm_sum as f64 / events as f64 / 1e6;
+        eprintln!(
+            "\n===== on2w2-cascade 放行条件3 falsification gate（CL n={n}, {dt:.1}s）=====\n  \
+             cascade_events   = {}\n  \
+             cascade_e0(P==0) = {} ({:.2}%)\n  \
+             mean keep_frac(P/len, end_index<e 宽松代理) = {:.4}\n  \
+             判据：e0_frac→1 且 keep_frac→0 ⟹ e 常态坍缩 ⟹ 设计前提证伪 ⟹ NO-SHIP\n\
+             ==============================================================",
+            p.cascade_events, p.cascade_e0, e0_frac * 100.0, keep_frac
+        );
+    }
+
+    /// ★on2w2-cascade O1 always-run（无需 CL）：合成流逐 bar 断言 **增量失效路径 == legacy 全量** 逐字段
+    /// bit-exact（含 cascade 分支）。平滑合成流罕触发 P>0 局部失效（frontier 古怪线段重划需非规则数据）
+    /// ——P>0 分支的真实覆盖由 CL falsification gate（`cascade_e_falsification_gate`，实测 3879 事件 96%
+    /// 保留）+ 150K CL `bit_exact_per_bar` 提供；本测试作 always-run 回归网（cascade 全清路径 bit-exact）。
+    /// 探针数（cascade_events/keep）仅在 THETA_CASCADE_EPROBE=1 时打印（信息性，不断言——合成流无 P>0）。
+    #[test]
+    fn cascade_incremental_eq_full_clear_synthetic() {
+        // 合成 3000 bar：趋势 + 多频回撤（产多级塔 + 频繁 frontier 古怪线段重划 ⟹ cascade）。
+        let bars: Vec<Bar> = (0..3000usize)
+            .map(|i| {
+                let base = 1000i64 + (i as i64) * 2;
+                let c = base
+                    + (((i as f64) / 50.0).sin() * 30.0) as i64
+                    + (((i as f64) / 13.0).sin() * 12.0) as i64;
+                Bar {
+                    source_index: i, timestamp: i as i64,
+                    open: c - 1, high: c + 5, low: c - 5, close: c,
+                    volume: 1000, untradable: false,
+                }
+            })
+            .collect();
+        let config = ThetaConfig::default();
+
+        // 探针跑（增量 P>0 路径，THETA_CASCADE_EPROBE 需在进程级设）。此处核心：增量 == legacy 全量逐 bar。
+        classifier::oracle_probe::reset();
+        let mut incr = IncrementalClassifier::new(&bars, &config);
+        for i in 0..bars.len() {
+            let (inc_cls, inc_tower) = incr.classify_at(i);
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (leg_cls, leg_tower) = classifier::classify_with_tower(&l0, &config);
+            assert_eq!(inc_cls, leg_cls, "cascade-O1 bar {i}: 增量(P>0) != 全量");
+            assert_eq!(inc_tower.len(), leg_tower.len(), "cascade-O1 bar {i}: tower 层数");
+            for (lvl, (il, ll)) in inc_tower.iter().zip(leg_tower.iter()).enumerate() {
+                assert_eq!(il, ll, "cascade-O1 bar {i} lvl {lvl}: LeveledMove 破裂");
+            }
+        }
+        // 探针信息性打印（仅 THETA_CASCADE_EPROBE=1）——合成平滑流通常 events=0（无古怪线段重划）。
+        // P>0 局部失效的真实覆盖在 CL 门（见函数头）；此处不断言探针数，避免对合成数据形态的隐式依赖。
+        if std::env::var("THETA_CASCADE_EPROBE").is_ok() {
+            let p = classifier::oracle_probe::snapshot();
+            eprintln!(
+                "cascade-O1（合成，信息性）：events={} e0={} keep_ppm_sum={}",
+                p.cascade_events, p.cascade_e0, p.cascade_keep_ppm_sum
+            );
+        }
     }
 
     /// **★bit-exact 合成数据验证（无需 CL，always-run）**：合成 bar 序列逐 bar 断言增量 == legacy。
@@ -248,10 +359,169 @@ mod tests {
             }
         }
     }
+
+    // ================= A3 证书半边 always-run 稀疏变异 oracle（codex 审计第6条根修）=================
+    //
+    // 逐 bar 对拍「证书增量路径」（classify_with_tower_incremental，走 03 dirty_from / 04 truncate+
+    // extend / 09 truncate(prefix_count)）vs「强制全量路径」（classify_with_tower(parse_layer(..=i))，
+    // 无证书，每 bar 从头全量重算），断言 (Classification, tower) 逐字段 bit-identical。cached_units==
+    // units 与 projected_units==project_to_units(upper_moves) 两条内不变量由 classify_with_tower_
+    // incremental 内 debug_assert（04 前缀证书 + 09 投影证书）逐 bar 在 test/debug 构建自动护栏。
+    //
+    // 两独立 fixture（re-audit 精修：两处早停边界 level_idx vs level_idx+1 不同，须拆开）：
+    // - fixture1：`units.len() < min_parts` 早停 break（truncate(level_idx) 代码路径，§2.6 路径1）。
+    // - fixture2：`units.is_empty()` 早停 break（truncate(level_idx+1) 代码路径，§2.6 路径2）
+    //   + had_emitted_window pop-and-rescan，覆盖 T==1（重扫仅复现被 pop 窗口，did_extend 证伪
+    //   正向锁）与 T>1（重扫产出多窗口，frontier 值改写，bar-1464 型 cascade）。
+    //
+    // ★实施期发现（覆盖边界修正，非设计缺陷）：§2.6 的 **removal 子例**——早停 truncate 实际删掉
+    // 已建级（塔深下降、级别被移除后重入）——经实测**不可达**：600K 真实 CL bar（塔深至 l_max=6
+    // 上限）+ synthetic 9000 bar，reentry_minparts=reentry_empty=**0**。根因：中枢计数单调非降
+    // （一级越过 min_parts 后 frontier 重划只改末中枢的值不减其计数，cascade 重扫复现同数或更多），
+    // 故任何级越过 min_parts 后不回落，早停 break 恒为「塔生长边界」而非「已建级移除」。truncate
+    // 语句仍每终止 bar 执行（no-op 分支），其 removal 语义正确性由 re-audit LevelCache::default
+    // 重建等价论证（代码不变量）保证，**非**测试覆盖——不可达路径无法 always-run 覆盖，此为诚实
+    // 边界，reentry_* 计数打印留证但不作断言。证据见 `a3_oracle_probe_cl_diag`（#[ignore]，需 CL）。
+    //
+    // 覆盖证明：probe 断言 pop-rescan T==1/T>1（第6条核心）+ 两处早停 break 代码路径确执行
+    // （防「always-run 但覆盖为零」陷阱）。逐 bar cached_units==units / projected_units==
+    // project_to_units(upper_moves) 两内不变量由 classify_with_tower_incremental 内 debug_assert
+    // 自动护栏（04 前缀证书 + 09 投影证书），本 oracle 的每 bar 运行即触发。
+
+    fn run_oracle(bars: &[Bar], label: &str) -> classifier::oracle_probe::Probe {
+        let config = ThetaConfig::default();
+        classifier::oracle_probe::reset();
+        let mut incr = IncrementalClassifier::new(bars, &config);
+        let mut max_depth = 0usize;
+        for i in 0..bars.len() {
+            let (incr_cls, incr_tower) = incr.classify_at(i);
+            max_depth = max_depth.max(incr_tower.len());
+            // 强制全量路径（无证书，每 bar 从头重算）——ground truth。
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (full_cls, full_tower) = classifier::classify_with_tower(&l0, &config);
+            assert_eq!(incr_cls, full_cls, "[{label}] bar {i}: 证书增量 classification != 强制全量（bit-exact 破裂）");
+            assert_eq!(incr_tower.len(), full_tower.len(), "[{label}] bar {i}: 证书增量 tower 层数 != 全量");
+            for (lvl, (il, fl)) in incr_tower.iter().zip(full_tower.iter()).enumerate() {
+                assert_eq!(il, fl, "[{label}] bar {i} lvl {lvl}: 证书增量 tower LeveledMove != 全量（身份/值破裂）");
+            }
+        }
+        let p = classifier::oracle_probe::snapshot();
+        eprintln!(
+            "[oracle:{label}] n={} max_depth={} T==1={} T>1={} minparts_break={} empty_break={} \
+             reentry_minparts={} reentry_empty={}",
+            bars.len(), max_depth, p.t_eq1, p.t_gt1, p.minparts_break, p.empty_break,
+            p.reentry_minparts, p.reentry_empty
+        );
+        p
+    }
+
+    fn synth_bar(i: usize, close: i64) -> Bar {
+        Bar {
+            source_index: i,
+            timestamp: i as i64,
+            open: close - 1,
+            high: close + 7,
+            low: close - 7,
+            close,
+            volume: 1000,
+            untradable: false,
+        }
+    }
+
+    /// 确定性伪随机游走（反射边界保持区间）：制造真实数据式的不规则多尺度结构——高级中枢
+    /// 频繁在 min_parts 边界附近徘徊 + frontier 古怪线段重划频发，是触发早停缓存血缘失效
+    /// （§2.6：某级恰在 min_parts、重划夺走一个中枢 → 跌破 → truncate 已建高级）的现实条件。
+    /// LCG（Numerical Recipes 常数）纯整数，跨平台确定性。
+    fn pseudo_walk(n: usize, seed: u64, step_span: i64, lo: i64, hi: i64) -> Vec<Bar> {
+        let mut s = seed;
+        let mut p: i64 = (lo + hi) / 2;
+        let mut out = Vec::with_capacity(n);
+        for i in 0..n {
+            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let step = ((s >> 33) as i64).rem_euclid(2 * step_span + 1) - step_span;
+            p += step;
+            if p > hi {
+                p = hi - (p - hi);
+            }
+            if p < lo {
+                p = lo + (lo - p);
+            }
+            out.push(synth_bar(i, p));
+        }
+        out
+    }
+
+    /// §2.6 removal 子例不可达性的证据（记录用）：CL 真实数据逐窗口探针——2K~9K 小窗全量对拍
+    /// bit-exact + 50K~600K O(n) 探针。实测所有窗口 reentry_minparts=reentry_empty=0（塔深至
+    /// l_max=6 上限仍无级别移除），坐实「中枢计数单调非降 ⟹ 早停 removal 不可达」。
+    #[test]
+    #[ignore = "诊断：CL 真实数据早停 removal 不可达性证据（需 CL 数据，O(n²) 小窗对拍 + O(n) 大窗探针）"]
+    fn a3_oracle_probe_cl_diag() {
+        let config = ThetaConfig::default();
+        let ds = super::super::data::load_by_symbol("CL", &config).expect("CL 数据");
+        for n in [2000usize, 4000, 6000, 9000] {
+            let bars = &ds.bars[..n.min(ds.bars.len())];
+            let p = run_oracle(bars, &format!("CL_{n}"));
+            let _ = p;
+        }
+        // O(n) 大规模探针（仅增量路径，无全量对拍）——测早停重入是否在深塔规模才触发。
+        for n in [50_000usize, 200_000, 600_000] {
+            let n = n.min(ds.bars.len());
+            classifier::oracle_probe::reset();
+            let mut incr = IncrementalClassifier::new(&ds.bars[..n], &config);
+            let mut max_depth = 0usize;
+            for i in 0..n {
+                let (_, tower) = incr.classify_at(i);
+                max_depth = max_depth.max(tower.len());
+            }
+            let p = classifier::oracle_probe::snapshot();
+            eprintln!(
+                "[probe-only:CL_{n}] max_depth={} T==1={} T>1={} reentry_minparts={} reentry_empty={}",
+                max_depth, p.t_eq1, p.t_gt1, p.reentry_minparts, p.reentry_empty
+            );
+        }
+    }
+
+    /// fixture1：伪随机游走——每 bar 塔在某级经 `units.len() < min_parts` 早停终止，执行
+    /// `cache.levels.truncate(level_idx)`（§2.6 路径1 代码路径）。断言该早停 break 确实触发
+    /// （truncate 语句每终止 bar 执行）。**注**：其 removal 子例（depth 下降、truncate 删掉已建级）
+    /// 经 600K 真实 CL bar（深至 l_max=6）+ synthetic 实测 = 0，因中枢计数单调非降（一级越过
+    /// min_parts 后不回落）——见 `a3_oracle_probe_cl_diag` 证据。故 reentry_minparts 不作断言
+    /// （不可达路径，truncate 为 bit-exact 安全的防御性护栏，正确性由 re-audit LevelCache::default
+    /// 重建等价论证保证，非测试覆盖）。
+    #[test]
+    fn a3_oracle_minparts_reentry() {
+        let bars = pseudo_walk(9000, 0x9E37_79B9_7F4A_7C15, 34, 700, 3300);
+        let p = run_oracle(&bars, "minparts_reentry");
+        assert!(
+            p.minparts_break > 0,
+            "fixture1 未触发 min_parts 早停 break（truncate(level_idx) 代码路径未执行）"
+        );
+    }
+
+    /// fixture2：多尺度锐锯齿——快尺度制造密集中枢 + 频繁 pop-and-rescan，慢尺度偶发簇发段完成
+    /// 产 T>1；同时高级 units 偶尔归零触发 units.is_empty 早停（§2.6 路径2 + 第6条 pop 覆盖）。
+    #[test]
+    fn a3_oracle_pop_rescan_empty() {
+        let bars = pseudo_walk(9000, 0xD1B5_4A32_D192_ED03, 46, 500, 3500);
+        let p = run_oracle(&bars, "pop_rescan_empty");
+        // ★核心覆盖（第6条 refuted 根修）：pop-and-rescan 两分支都命中——T==1（重扫仅复现被 pop
+        // 窗口，did_extend 恒 false 而尾部改写，did_extend 证伪正向锁）+ T>1（frontier 值改写，
+        // bar-1464 型 cascade 路径）。re-audit：T = tail_upper.len() 精确定义，两分支都断言。
+        assert!(p.t_eq1 > 0, "fixture2 未触发 had_emitted_window pop T==1（did_extend 证伪正向锁覆盖为零）");
+        assert!(p.t_gt1 > 0, "fixture2 未触发 had_emitted_window pop T>1（frontier 值改写路径覆盖为零）");
+        // units.is_empty 早停 truncate(level_idx+1) 代码路径（§2.6 路径2）。removal 子例同 fixture1
+        // 不可达（reentry_empty 不作断言，见 a3_oracle_minparts_reentry doc + CL diag 证据）。
+        assert!(
+            p.empty_break > 0,
+            "fixture2 未触发 units.is_empty 早停 break（truncate(level_idx+1) 代码路径未执行）"
+        );
+    }
 }
 
 #[cfg(test)]
 mod profile {
+    use super::IncrementalClassifier;
     use super::super::data;
     use super::super::super::config::ThetaConfig;
     use super::super::super::{classifier, parser};
@@ -403,6 +673,41 @@ mod profile {
         assert!(!rows.is_empty(), "至少 profile 一个窗口（n=2000 应可用）");
     }
 
+    /// **★on2w3 candidate 残余定位：strategy 段 stage 拆解（THETA_PROFILE_STAGES=1）**。
+    ///
+    /// 全引擎 `run_theta_v0_pi` 在 CL 上跑，dump cand_build_step / cand_build_merge /
+    /// cand_merge_consume 三 stage 计时 + cand_count 跨度。定位 strategy exp≈1.9 的 O(n²) 是
+    /// candidate 构建（拼接/attach）还是 merge 消费（HashSet 全量重建）。
+    /// 运行：`THETA_PROFILE_STAGES=1 CAND_PROFILE_BARS=16000 cargo test --release -p newchan_rust \
+    ///   --lib backtest::incremental::profile::profile_cand_stages -- --ignored --nocapture`。
+    #[test]
+    #[ignore = "on2w3 candidate stage 拆解；需 CL；THETA_PROFILE_STAGES=1；--release"]
+    fn profile_cand_stages() {
+        use super::super::runner::run_theta_v0_pi;
+        use super::super::data::Dataset;
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("需 CL 数据");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+            eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空。");
+        }
+        for &n in &[8000usize, 16000] {
+            let n = n.min(oos.bars.len());
+            classifier::stage_profile::reset();
+            let prefix = Dataset {
+                symbol: oos.symbol.clone(),
+                bars: oos.bars[..n].to_vec(),
+                dates: oos.dates[..n].to_vec(),
+                bar_seconds: 60,
+            };
+            let years = (n as f64) / (252.0 * 390.0);
+            let t = std::time::Instant::now();
+            let _ = run_theta_v0_pi(&prefix, &config, years, 1.0);
+            eprintln!("\n===== profile_cand_stages n={n}（墙钟={:.2}s）=====", t.elapsed().as_secs_f64());
+            classifier::stage_profile::dump();
+        }
+    }
+
     /// **★classify_at 内部拆解：parser-append 累计 vs classify_with_tower_incremental 累计（定位 O(n²) 段）**。
     ///
     /// `profile_full_engine_scaling_16k` 测出 classify(整) exp≈2.17 O(n²)，但 parser::profile
@@ -460,6 +765,95 @@ mod profile {
         );
     }
 
+    /// **★A0（YAGNI 重开门）：克隆簇阶段占比 profile（THETA_PROFILE_STAGES 全阶段拆解，BTC ≥1M bar）**。
+    ///
+    /// 泳道 A A0（algo-opt-plan-20260702.md）：`classify_with_tower_incremental` 逐 bar 驱动 BTC
+    /// 前 N bar（默认 1M，env `A0_PROFILE_BARS` 可调），`THETA_PROFILE_STAGES=1` 时 `dump()` 打印
+    /// 15 阶段耗时。克隆簇 = {00b_l0_units_clone, 04_cached_units_copy, 07c_bsp_memo_clone,
+    /// 08_levels_centers_clone, 10_projected_units_clone}（A1 的 Rc/借用 目标段）占分类器总耗时之比
+    /// = A1 是否值得重开的唯一合法证据。占比高 ⟹ A1 全量；占比低 ⟹ 缩水/撤项。
+    ///
+    /// ## 认识论等级：**L1**（CPU 度量，零信息增量，231号）——耗时可复现，不验证 Θ 市场有效。
+    ///
+    /// 运行：`THETA_PROFILE_STAGES=1 A0_PROFILE_BARS=1000000 cargo test --release -p newchan_rust \
+    ///   --lib backtest::incremental::profile::profile_clone_cluster_a0 -- --ignored --nocapture`
+    #[test]
+    #[ignore = "A0 克隆簇占比 profile；需 BTC；THETA_PROFILE_STAGES=1；--release"]
+    fn profile_clone_cluster_a0() {
+        let config = ThetaConfig::default();
+        let ds = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("DATA BLOCKER: {e}");
+                panic!("需 BTC 数据");
+            }
+        };
+        let n_avail = ds.bars.len();
+        let n: usize = std::env::var("A0_PROFILE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1_000_000)
+            .min(n_avail);
+        eprintln!(
+            "\n===== A0 克隆簇占比 profile（BTC 前 {n}/{n_avail} bar，classify_with_tower_incremental）====="
+        );
+        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+            eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空（零开销直通）。设 env 后重跑才有数据。");
+        }
+        let bars = &ds.bars[..n];
+        let mut parser_incr = parser::ParseLayerIncr::new(&config);
+        let mut tower_cache = classifier::TowerCache::default();
+        let t0 = std::time::Instant::now();
+        for i in 0..n {
+            let l0_i = parser_incr.append(bars[i]);
+            let _ = classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+        }
+        let wall = t0.elapsed().as_secs_f64();
+        eprintln!("[A0] {n} bar 逐 bar classify_with_tower_incremental 墙钟={wall:.2}s");
+        classifier::stage_profile::dump();
+        eprintln!(
+            "★A0 克隆簇 = {{00b_l0_units_clone, 04_cached_units_copy, 07c_bsp_memo_clone, \
+             08_levels_centers_clone, 10_projected_units_clone}}；占比 = 克隆簇Σ / 全阶段Σ（见 dump）。L1。"
+        );
+    }
+
+    /// **★A3 验收：证书半边 03/04 阶段计时（CL 1M bar，THETA_PROFILE_STAGES=1）**。
+    ///
+    /// A3 后 03_frontier_compare（L1+ stable 抬到 dirty_from）+ 04_cached_units_copy（truncate+
+    /// extend O(tail)）应从 A0 基线（1M：03=2446ms/4.7%、04=4010ms/7.7%）降至近零占比。
+    /// 运行：`THETA_PROFILE_STAGES=1 A3_PROFILE_BARS=1000000 cargo test --release -p newchan_rust \
+    ///   profile_stage_a3_cl -- --ignored --nocapture`。
+    #[test]
+    #[ignore = "A3 stage 03/04 计时；需 CL；THETA_PROFILE_STAGES=1；--release"]
+    fn profile_stage_a3_cl() {
+        let config = ThetaConfig::default();
+        let ds = match data::load_by_symbol("CL", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("DATA BLOCKER: {e}");
+                panic!("需 CL 数据");
+            }
+        };
+        let n: usize = std::env::var("A3_PROFILE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1_000_000)
+            .min(ds.bars.len());
+        eprintln!("\n===== A3 stage 计时（CL 前 {n} bar，classify_with_tower_incremental）=====");
+        if std::env::var("THETA_PROFILE_STAGES").is_err() {
+            eprintln!("★未设 THETA_PROFILE_STAGES=1 ⟹ dump 为空。");
+        }
+        let mut parser_incr = parser::ParseLayerIncr::new(&config);
+        let mut tower_cache = classifier::TowerCache::default();
+        let t0 = std::time::Instant::now();
+        for i in 0..n {
+            let l0_i = parser_incr.append(ds.bars[i]);
+            let _ = classifier::classify_with_tower_incremental(&l0_i, &config, &mut tower_cache);
+        }
+        eprintln!("[A3] {n} bar 墙钟={:.2}s", t0.elapsed().as_secs_f64());
+        classifier::stage_profile::dump();
+    }
+
     /// **★诊断（工位 E 留档）：classifier 增量 vs 全量 bit-exact 隔离**。
     ///
     /// 同一 legacy `parse_layer(&bars[..=i])` 输入喂 `classify_with_tower_incremental`（持久 cache）
@@ -496,6 +890,284 @@ mod profile {
             }
         }
         eprintln!("no classifier-only divergence in 0..{n}");
+    }
+
+    /// **★诊断（frontier-bit-exact 根因隔离）：增量 parser segments vs 全量 parser segments**。
+    ///
+    /// `decisive_endpoint` 用 `IncrementalClassifier`（增量 parser + 增量塔）对拍 `parse_layer`（全量
+    /// parser + 全量塔），~bar 15650 发散；但 `diag_classifier_resume_frontier_divergence`（**同一** 全量
+    /// `parse_layer` 输入喂增量塔 vs 全量塔）到 20000 **无发散** ⟹ classifier 增量塔在同输入下 bit-exact。
+    /// 两者唯一区别 = parser 路径。本测试逐 bar 对拍 `ParseLayerIncr::append(bars[i]).segments` vs
+    /// `parse_layer(&bars[..=i]).segments`，定位发散是否源于 **parser 增量 bit-exact 破裂**（非 classifier）。
+    /// **L2**（真实 CL）。
+    #[test]
+    #[ignore = "诊断：parser 增量 vs 全量 segments bit-exact（frontier 根因隔离）；需 CL"]
+    fn diag_parser_incr_vs_full_segments() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 50000.min(oos.bars.len());
+        let bars = &oos.bars[..n];
+        let mut incr = parser::ParseLayerIncr::new(&config);
+        let mut div_count = 0usize;
+        let mut first_div: Option<usize> = None;
+        for i in 0..n {
+            let l0_incr = incr.append(bars[i]);
+            let l0_full = parser::parse_layer(&bars[..=i], &config);
+            let segs_i: &[_] = &l0_incr.segments;
+            let segs_f: &[_] = &l0_full.segments;
+            if segs_i != segs_f {
+                div_count += 1;
+                if first_div.is_none() {
+                    first_div = Some(i);
+                    eprintln!("★parser segments divergence at bar {i}: incr.len={} full.len={} confirmed_len={}",
+                        segs_i.len(), segs_f.len(), l0_incr.segments_confirmed_len);
+                    let m = segs_i.len().min(segs_f.len());
+                    for k in 0..m {
+                        if segs_i[k] != segs_f[k] {
+                            eprintln!("  seg[{k}] incr={:?}\n          full={:?}", segs_i[k], segs_f[k]);
+                            eprintln!("  发散段是末段? {} (segs.len-1={})", k == segs_i.len().saturating_sub(1).min(segs_f.len().saturating_sub(1)), segs_i.len().saturating_sub(1));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!("\n★parser 发散统计 in 0..{n}：div_count={div_count} first={first_div:?} \
+                   （持续发散⟹持久 bit-exact 破裂；单点⟹瞬时 frontier 波动）");
+    }
+
+    /// **★#88 性能计数器（codex #87 验收项2）：earliest_unsealed_from 前移轨迹 + frontier rescan
+    /// 长度 + 墙钟标度**——判定修补版 A 是否退化为候选 C 的 O(n²)（边界条件3）。
+    ///
+    /// 逐 bar `ParseLayerIncr::append`（生产 parser 路径），记录：
+    /// - **euf 轨迹**：euf 变化次数（advance=前移/regress=后退）；每 bar euf 单调非增 ⟹ regress=0 期望，
+    ///   advance>0 说明 confirmed_bound 未被永久锚死在早点（否则退化 O(n²)）。
+    /// - **rescan 长度**：`segments.len() - segments_confirmed_len`（重扫段数代理）；max/p95/均值。
+    /// - **墙钟 exp**：相邻 n 的 log-log 斜率 ≈1.0=O(n)、≈2.0=O(n²)。cascade_count=N/A（未启用候选C）。
+    ///
+    /// **L1**（CPU/结构计数，零信息增量，231号）——不验证 Θ 市场有效，仅证性能红线。
+    #[test]
+    #[ignore = "#88 性能计数器：euf 前移轨迹 + rescan 长度 + 墙钟标度；需 CL；--release"]
+    fn perf_frontier_rescan_counters_88() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2015-01-01", "2025-06-30");
+        eprintln!("\n===== #88 frontier rescan 性能计数器（CL，ParseLayerIncr 生产路径）=====");
+        eprintln!("{:>8} | {:>8} | {:>10} {:>8} {:>7} {:>7} | {:>9} {:>9} {:>6}",
+            "n", "wall_s", "exp", "euf_adv", "rs_max", "rs_p95", "euf_fin", "euf_min", "adv_r");
+        let logexp = |n0: usize, t0: f64, n1: usize, t1: f64| (t1 / t0).ln() / (n1 as f64 / n0 as f64).ln();
+        let sizes = [50_000usize, 150_000, 300_000];
+        let mut prev: Option<(usize, f64)> = None;
+        for &n in &sizes {
+            if n > oos.bars.len() { eprintln!("(n={n} > {}，跳过)", oos.bars.len()); continue; }
+            let bars = &oos.bars[..n];
+            let mut incr = parser::ParseLayerIncr::new(&config);
+            let mut rescans: Vec<usize> = Vec::with_capacity(n);
+            let mut euf_prev: Option<usize> = None;
+            let mut euf_adv = 0usize; // 前移（值增大——unsealed 起点右移，重扫区间缩小）
+            let mut euf_reg = 0usize; // 后退（值减小——历史最小值被更早候选拉低）
+            let mut euf_min_ever: Option<usize> = None;
+            let mut euf_final: Option<usize> = None;
+            let t0 = std::time::Instant::now();
+            for i in 0..n {
+                let l0 = incr.append(bars[i]);
+                rescans.push(l0.segments.len().saturating_sub(l0.segments_confirmed_len));
+                let euf = l0.segments_earliest_unsealed;
+                if euf != euf_prev {
+                    match (euf_prev, euf) {
+                        (Some(a), Some(b)) if b > a => euf_adv += 1,
+                        (Some(a), Some(b)) if b < a => euf_reg += 1,
+                        (None, Some(_)) => euf_adv += 1,
+                        _ => {}
+                    }
+                    euf_prev = euf;
+                }
+                if let Some(e) = euf { euf_min_ever = Some(euf_min_ever.map_or(e, |m| m.min(e))); }
+                euf_final = euf;
+            }
+            let wall = t0.elapsed().as_secs_f64();
+            rescans.sort_unstable();
+            let rs_max = *rescans.last().unwrap_or(&0);
+            let rs_p95 = rescans[(rescans.len() as f64 * 0.95) as usize];
+            let exp = prev.map(|(pn, pt)| logexp(pn, pt, n, wall)).unwrap_or(f64::NAN);
+            // adv_r = euf 前移次数 / 总变化次数（接近 1 ⟹ euf 主要在前移，未锚死 ⟹ 非 O(n²)）。
+            let adv_r = if euf_adv + euf_reg > 0 { euf_adv as f64 / (euf_adv + euf_reg) as f64 } else { f64::NAN };
+            eprintln!("{n:>8} | {wall:>8.2} | {exp:>10.2} {euf_adv:>8} {rs_max:>7} {rs_p95:>7} | {euf_final:>9?} {euf_min_ever:>9?} {adv_r:>6.2}",);
+            use std::io::Write; std::io::stderr().flush().ok();
+            prev = Some((n, wall));
+        }
+        eprintln!("\n判读（边界条件3）：wall exp≈1.0 + rs_max/p95 有界 ⟹ 修补版A 非退化 O(n²)（前移有效）；\n  \
+             exp≈2.0 + euf 长期锚定早点（euf_min≈0、rs_max≈segs 全量）⟹ 退化候选C 性能，须上浮重评。");
+    }
+
+    /// **★诊断（frontier-bit-exact 首发散 bar 定位）：IncrementalClassifier 逐 bar vs 全量**。
+    ///
+    /// 精确复现生产路径（增量 parser + 增量塔 + cache 跨 bar 连续复用）的**首个** incr≠full bar，
+    /// dump 该 bar 的 segments/merged 长度 + L0 首个发散 center。区别于 `diag_classifier_resume_frontier_divergence`
+    /// （喂全量 parse_layer，confirmed_len=0）——本测试喂增量 parser（confirmed_len>0，走缓存复用分支）。
+    /// **L2**（真实 CL）。
+    #[test]
+    #[ignore = "诊断：IncrementalClassifier 逐 bar vs 全量首发散定位；需 CL"]
+    fn diag_incremental_classifier_first_divergence() {
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 50000.min(oos.bars.len());
+        let bars = &oos.bars[..n];
+        let mut incr = IncrementalClassifier::new(bars, &config);
+        for i in 0..n {
+            let (inc_cls, _) = incr.classify_at(i);
+            let l0 = parser::parse_layer(&bars[..=i], &config);
+            let (full_cls, _) = classifier::classify_with_tower(&l0, &config);
+            if inc_cls != full_cls {
+                eprintln!("★IncrementalClassifier divergence at bar {i}: segs={} merged={} confirmed_len={}",
+                    l0.segments.len(), l0.merged_bars.len(), l0.segments_confirmed_len);
+                for (lvl, (il, fl)) in inc_cls.levels.iter().zip(full_cls.levels.iter()).enumerate() {
+                    if il.centers != fl.centers {
+                        let m = il.centers.len().min(fl.centers.len());
+                        let k = (0..m).find(|&k| il.centers[k] != fl.centers[k]);
+                        eprintln!("  L{lvl} centers DIFFER (inc={} full={}) first_diff={:?}",
+                            il.centers.len(), fl.centers.len(), k);
+                        if let Some(k) = k {
+                            eprintln!("    inc [{k}]={:?}\n    full[{k}]={:?}", il.centers[k], fl.centers[k]);
+                        }
+                        break;
+                    }
+                }
+                return;
+            }
+        }
+        eprintln!("no IncrementalClassifier divergence in 0..{n}");
+    }
+
+    /// **★决定性对拍（Task #10）：长历史终点 level 分布 增量生产路径 vs 全量 ground truth**。
+    ///
+    /// codex #8 攻击 acc-classification「窗口依赖非 bug」：用 L1 合成 bit-exact 排除 L2 真实 frontier
+    /// 发散（bar 1464，`detect_centers_windowed_resume` resume cursor 把未确认末窗当 immutable）。翻转
+    /// 条件 #2 = 增量 vs 全量对拍验证 frontier bug 在长历史/真实数据已修复。
+    ///
+    /// ## 判别设计（终点对拍，非每 bar——O(n) 可行到 300K）
+    ///
+    /// - **增量生产路径**：`IncrementalClassifier::new(bars[..n])` 逐 bar `classify_at` 到终点 → 最终
+    ///   classification（`run_theta_v0_pi` 实际跑的 substrate 路径）。
+    /// - **全量 ground truth**：`classify_with_tower(parse_layer(bars[..n]))` 单次全量重算（无增量）。
+    /// - **逐 level 对拍**：`centers` / `bsp` bit-exact 比较，报每级数量 + 首个发散字段。
+    ///
+    /// ## 决定性判读
+    ///
+    /// - **终点 level 分布 bit-exact 相等** ⟹ 增量在长历史无 frontier 发散（cascade_reset 修复有效）
+    ///   ⟹ 全历史 level2-4=0 **不是增量 bug 伪影**，窗口依赖判定升回坐实（H2 否证，alpha 不重开）。
+    /// - **高级别（level≥2）centers/bsp 发散** ⟹ frontier bug 使高级别塔退化 ⟹ level2-4=0 是 bug 伪影
+    ///   ⟹ H2 翻案，高级别信号可能复活，acc-alpha 对象重开。
+    ///
+    /// ## 认识论等级：**L2**（真实 CL/BTC 长历史，可否证 frontier bug 存否）
+    ///
+    /// 运行：`cargo test --release -p newchan_rust --lib \
+    ///   backtest::incremental::profile::decisive_endpoint_tower_parity_longhistory -- --ignored --nocapture`
+    #[test]
+    #[ignore = "决定性对拍 Task #10：长历史终点 level 分布增量 vs 全量；需 CL+BTC；--release"]
+    fn decisive_endpoint_tower_parity_longhistory() {
+        let config = ThetaConfig::default();
+        // CL：全历史切片（3.5M+）；BTC：全量（4.6M）。取递增窗口找发散点。
+        let symbols: [(&str, Option<(&str, &str)>); 2] =
+            [("CL", Some(("2015-01-01", "2025-06-30"))), ("BTC", None)];
+        let sizes = [50_000usize, 150_000, 300_000];
+
+        let mut any_divergence = false;
+        for (sym, window) in symbols {
+            let ds = match super::super::data::load_by_symbol(sym, &config) {
+                Ok(d) => d,
+                Err(e) => {
+                    eprintln!("[{sym}] DATA BLOCKER: {e}（跳过）");
+                    continue;
+                }
+            };
+            let bars_all = match window {
+                Some((a, b)) => ds.slice_date_window(a, b).bars,
+                None => ds.bars.clone(),
+            };
+            eprintln!("\n===== [{sym}] 决定性对拍（终点 level 分布，增量生产 vs 全量 GT）total={} =====",
+                bars_all.len());
+
+            for &n in &sizes {
+                if n > bars_all.len() {
+                    eprintln!("[{sym}] n={n} > 可用 {}，跳过", bars_all.len());
+                    continue;
+                }
+                let bars = &bars_all[..n];
+
+                // ① 增量生产路径：逐 bar classify_at 到终点。
+                let mut incr = IncrementalClassifier::new(bars, &config);
+                let mut last = classifier::Classification::default();
+                for i in 0..n {
+                    let (cls, _) = incr.classify_at(i);
+                    last = cls;
+                }
+
+                // ② 全量 ground truth：单次全量重算。
+                let l0 = parser::parse_layer(bars, &config);
+                let (full, _) = classifier::classify_with_tower(&l0, &config);
+
+                // ③ 逐 level 对拍。
+                let n_lvl_i = last.levels.len();
+                let n_lvl_f = full.levels.len();
+                let levels_match = n_lvl_i == n_lvl_f;
+                eprint!("[{sym}] n={n:>7}: 增量 lvls={n_lvl_i} 全量 lvls={n_lvl_f}");
+                if !levels_match {
+                    eprintln!("  ★★层数发散");
+                    any_divergence = true;
+                }
+                let mut level_diverged = false;
+                for lvl in 0..n_lvl_i.min(n_lvl_f) {
+                    let li = &last.levels[lvl];
+                    let lf = &full.levels[lvl];
+                    let centers_eq = li.centers == lf.centers;
+                    let bsp_eq = li.bsp == lf.bsp;
+                    if !centers_eq || !bsp_eq {
+                        if !level_diverged {
+                            eprintln!();
+                        }
+                        level_diverged = true;
+                        any_divergence = true;
+                        eprintln!(
+                            "  ★L{lvl} 发散: centers({}/{}) eq={centers_eq}  bsp({}/{}) eq={bsp_eq}",
+                            li.centers.len(), lf.centers.len(), li.bsp.len(), lf.bsp.len()
+                        );
+                        // 首个 center 发散细节。
+                        if !centers_eq {
+                            for (ci, (a, b)) in li.centers.iter().zip(lf.centers.iter()).enumerate() {
+                                if a != b {
+                                    eprintln!("      center[{ci}] incr={a:?}\n              full={b:?}");
+                                    break;
+                                }
+                            }
+                            if li.centers.len() != lf.centers.len() {
+                                eprintln!("      (center 数不同：incr={} full={})", li.centers.len(), lf.centers.len());
+                            }
+                        }
+                    }
+                }
+                if !level_diverged && levels_match {
+                    // 全等：报每级 bsp 数（level 分布）以佐证「非 bug」。
+                    let dist: Vec<usize> = full.levels.iter().map(|l| l.bsp.len()).collect();
+                    eprintln!("  bit-exact ✓  bsp/lvl={dist:?}");
+                }
+                use std::io::Write;
+                std::io::stderr().flush().ok();
+            }
+        }
+
+        eprintln!(
+            "\n★决定性判读：\n  \
+             全 bit-exact ✓ ⟹ 增量长历史无 frontier 发散 ⟹ level2-4=0 非 bug 伪影（窗口依赖坐实，H2 否证）。\n  \
+             任一 level≥2 发散 ⟹ frontier bug 使高级别退化 ⟹ level2-4=0 是 bug 伪影（H2 翻案，alpha 重开）。"
+        );
+        assert!(
+            !any_divergence,
+            "★frontier bug 确认：增量生产路径与全量 ground truth 在长历史终点 level 分布发散——\
+             高级别塔退化，level2-4=0 是 bug 伪影，H2 翻案。见上方 ★L 发散明细。"
+        );
     }
 
     /// **★Profile：增量链 vs legacy 全量 标度对比**。
@@ -554,12 +1226,12 @@ mod profile {
                 let tree_dirty = prev_merge_tree.as_ref()
                     .map(|p| !std::rc::Rc::ptr_eq(p, &tree_ref)).unwrap_or(true);
                 let t = std::time::Instant::now();
-                registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, &[]);
+                registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, true, &[]);
                 t_merge += t.elapsed().as_secs_f64();
                 prev_merge_tree = Some(std::rc::Rc::clone(&tree_ref));
                 // 隔离测量：tree 段全量（candidate 空，tree_dirty=true）→ 旧 O(n²) 基底对照。
                 let t = std::time::Instant::now();
-                registry.merge_in_place_split(&tree_ref, true, &[], &[]);
+                registry.merge_in_place_split(&tree_ref, true, &[], true, &[]);
                 t_merge_tree += t.elapsed().as_secs_f64();
             }
             let (xe, me) = prev.map(|(pn, px, pm)| (logexp(pn, px, n, t_extract), logexp(pn, pm, n, t_merge)))
@@ -696,12 +1368,13 @@ mod profile {
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 let gen = incr.tower_generation();
-                if prev_gen == Some(gen) { gen_hits += 1; }
-                prev_gen = Some(gen);
+                let fe = incr.forest_epoch();
+                if prev_gen == Some(fe) { gen_hits += 1; }
+                prev_gen = Some(fe);
                 let t = std::time::Instant::now();
                 let (_tree, _cand, _gamma) =
                     interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                        &cls, &tower, &mut Some(&mut tree_cache), Some(gen),
+                        &cls, &tower, &mut Some(&mut tree_cache), Some(gen), Some(fe),
                     );
                 t_extract += t.elapsed().as_secs_f64();
             }
@@ -709,6 +1382,70 @@ mod profile {
             eprintln!("{n:>7} | {t_extract:>10.4} | {xe:>8.2} {:>9.2}%", 100.0 * gen_hits as f64 / n as f64);
             prev = Some((n, t_extract));
         }
+    }
+
+    /// ★on2w2 诊断（临时）：forest_epoch bump 率 vs of_forest 真变率对拍。
+    #[test]
+    #[ignore = "on2w2 诊断：epoch bump 率 vs 真变率；需 CL；--release --ignored"]
+    fn diag_forest_epoch_bump_vs_true_change() {
+        use super::super::super::strategy::{coverage, interp::TreeKey};
+        let config = ThetaConfig::default();
+        let ds = data::load_by_symbol("CL", &config).expect("CL");
+        let oos = ds.slice_date_window("2023-01-01", "2025-06-30");
+        let n = 8000.min(oos.bars.len());
+        let mut incr = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+        let mut prev_fe: Option<u64> = None;
+        let mut prev_fp: Option<TreeKey> = None;
+        let mut epoch_bumps = 0usize;
+        let mut true_changes = 0usize;
+        let mut false_hits = 0usize; // epoch 相等但森林真变（=假命中，soundness 破裂）
+        for i in 0..n {
+            let (_cls, tower) = incr.classify_at(i);
+            let fe = incr.forest_epoch();
+            let fp = TreeKey::of_forest(&tower);
+            let _forest = coverage::extract_carrier_forest(&tower);
+            let epoch_changed = prev_fe.map(|p| p != fe).unwrap_or(true);
+            let fp_changed = prev_fp.as_ref().map(|p| *p != fp).unwrap_or(true);
+            if epoch_changed { epoch_bumps += 1; }
+            if fp_changed { true_changes += 1; }
+            if !epoch_changed && fp_changed { false_hits += 1; }
+            prev_fe = Some(fe);
+            prev_fp = Some(fp);
+        }
+        // ★on2w2 forest 段隔离计时：只量 tree_segment（forest 命中/重建），排除 candidate/gamma 段。
+        // before（of_forest 每 bar O(全塔)）= 传 None；after（epoch O(1) 命中）= 传 Some(fe)。
+        {
+            use super::super::super::strategy::interp::TreeCache;
+            let mut before = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+            let mut tc_b = TreeCache::new();
+            let t = std::time::Instant::now();
+            for i in 0..n {
+                let (cls, tower) = before.classify_at(i);
+                // None ⟹ of_forest 指纹判据（实装前形态）。
+                let _ = coverage::extract_carrier_forest(&tower); // 保底触达（None miss 时同）
+                let _ = super::super::super::strategy::interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut Some(&mut tc_b), None, None);
+            }
+            let t_before = t.elapsed().as_secs_f64();
+            let mut after = super::IncrementalClassifier::new(&oos.bars[..n], &config);
+            let mut tc_a = TreeCache::new();
+            let t = std::time::Instant::now();
+            for i in 0..n {
+                let (cls, tower) = after.classify_at(i);
+                let fe = after.forest_epoch();
+                let _ = super::super::super::strategy::interp::coverage_elements_and_gamma_with_tower_cached_gen(
+                    &cls, &tower, &mut Some(&mut tc_a), None, Some(fe));
+            }
+            let t_after = t.elapsed().as_secs_f64();
+            eprintln!("forest 段计时（含 candidate 段共同基底）：before(None/of_forest)={t_before:.4}s after(Some/epoch)={t_after:.4}s ({:.2}x)",
+                t_before / t_after.max(1e-9));
+        }
+        let pr = super::super::super::classifier::oracle_probe::snapshot();
+        eprintln!("\n===== on2w2 epoch bump vs 真变（CL {n}）=====");
+        eprintln!("epoch_bumps={epoch_bumps} ({:.2}%) | true_changes(of_forest)={true_changes} ({:.2}%) | false_hits={false_hits}",
+            100.0*epoch_bumps as f64/n as f64, 100.0*true_changes as f64/n as f64);
+        eprintln!("E-site 分解：calls={} fd_any={} | E1(l0)={} E2(extend)={} E3(cascade)={}",
+            pr.fd_calls, pr.fd_any, pr.fd_l0, pr.fd_extend, pr.fd_cascade);
     }
 
     /// **★工位 4g 候选段隔离：gen 快路命中后剩余工作（candidate 段）标度**（L2）。
@@ -737,9 +1474,10 @@ mod profile {
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 let gen = incr.tower_generation();
+                let fe = incr.forest_epoch();
                 let t = std::time::Instant::now();
                 let (_t, cand, _g) = interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen));
+                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen), Some(fe));
                 t_cand += t.elapsed().as_secs_f64();
                 last_cand = cand.len();
             }
@@ -751,7 +1489,7 @@ mod profile {
                 let (cls, tower) = incr2.classify_at(i);
                 let t = std::time::Instant::now();
                 let _ = interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut None, None);
+                    &cls, &tower, &mut None, None, None);
                 t_full += t.elapsed().as_secs_f64();
             }
             eprintln!("{n:>7} | {t_cand:>10.4} | {ce:>8.2} {last_cand:>9}  full_nocache={t_full:.4}");
@@ -779,7 +1517,7 @@ mod profile {
             let (cls, _tower) = incr.classify_at(i);
             let mut cur: HashSet<(usize, usize, u8, u8)> = HashSet::new();
             for (lvl, level) in cls.levels.iter().enumerate() {
-                for p in &level.bsp {
+                for p in level.bsp.iter() {
                     let b = &p.bits;
                     let buy = (b.buy1 as u8) | (b.buy2 as u8) << 1 | (b.buy3 as u8) << 2;
                     let sell = (b.sell1 as u8) | (b.sell2 as u8) << 1 | (b.sell3 as u8) << 2;
@@ -817,15 +1555,18 @@ mod profile {
         for i in 0..n {
             let (cls, tower) = incr.classify_at(i);
             let gen = incr.tower_generation();
+            let fe = incr.forest_epoch();
             let prev_gen_snap = prev_gen;
-            if prev_gen == Some(gen) { gen_hits += 1; }
-            prev_gen = Some(gen);
+            if prev_gen == Some(fe) { gen_hits += 1; }
+            prev_gen = Some(fe);
             let _ = prev_gen_snap;
-            // _gen 快路（debug_assert_eq 内部对比代次命中树 == extract_elements）。
-            let expect = coverage::extract_elements(&tower);
+            // ★on2w2：K_i 命中判据 = forest_epoch。debug_assert_eq 内部对比 epoch 命中树 ==
+            // extract_carrier_forest。此处再显式对 extract_elements（T_i）——注意 cached_gen 的 tree
+            // 段现是 K_i（extract_carrier_forest），故显式对拍改用 carrier_forest（与生产判据同源）。
+            let expect = coverage::extract_carrier_forest(&tower);
             let (tree, _cand, _gamma) =
                 interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen));
+                    &cls, &tower, &mut Some(&mut tree_cache), Some(gen), Some(fe));
             // 显式再断一遍（不依赖 debug_assert，release 也保护本测试）。
             if tree.as_ref() != &expect {
                 eprintln!("DIVERGE bar {i}：gen={gen} prev_gen={prev_gen_snap:?} cached_len={} expect_len={} tower_levels={}",
@@ -889,7 +1630,7 @@ mod profile {
                 }
                 let t = std::time::Instant::now();
                 let (next_active, _p) =
-                    coverage::coverage_step_prebuilt(work, &gamma, &prev_active, 1000.0, &voice, &registry);
+                    coverage::coverage_step_prebuilt(work, &gamma, &prev_active, 1000.0, &voice, None, &registry);
                 t_step += t.elapsed().as_secs_f64();
                 // merge 用纯 tree snapshot（与生产 candidate 含量差异不影响①② step 标度测量）。
                 registry.merge_in_place(

@@ -1,0 +1,55 @@
+你是缠论量化蜂群的异质代码/技术选型裁定者（codex decide 模式）。这是一个「选择类」裁定（多个合理方案需价值判断），不是代码 bug 审查。请给出明确裁定，不要含糊。用中文回答。
+
+# 裁定问题：M7 三阶段资金的 barrier 缓冲系数 κ —— 冻结值 / 网格 / 裁定依据
+
+## 背景
+
+M7「三阶段资金接入」的核心是一个 barrier-gated 状态机：CostReduction → CapitalRecovered → EarningShares（单向不可逆）。进入 EarningShares（增股数）阶段的门槛是「在险权益 η_t 必须 ≥ 风险 barrier η_*」。
+
+η_* 的定义（PDF §10 原文）：
+
+    η_*(x_t) = L^wc_{t+1} + κ · Q_t
+
+其中：
+- L^wc = 建仓后最坏损失（worst-case loss）= (notional_in − withdrawn)⁺（尚未退回的在险本金；本金全退后 = 0）
+- Q_t = 名义敞口 = notional_in（campaign 原始名义）
+- κ = barrier 缓冲系数（PDF 明确标注「价格不可导出」——即 κ 不是缠论可导的量，是 extra-缠论的风险政策参数）
+
+EnterReady 五合取谓词（PDF §10 步骤3）：
+    EnterReady_t = (S_t=II) ∧ (W_t ≥ I_0) ∧ (openLegacyLegs_t=0) ∧ RiskNormal_t ∧ (η_t ≥ L^wc_{t+1} + κ·Q_t)
+
+本金全退时 withdrawn ≥ notional_in ⟹ L^wc = 0 ⟹ η_* = κ·Q。故：
+- κ=0 ⟹ η_* = 0 ⟹ η≥0 恒过 barrier（最小基线，仅要求在险权益非负）
+- κ>0 ⟹ η_* = κ·notional_in > 0 ⟹ 要求在险权益超出名义敞口 κ 倍才能进增股数（额外安全缓冲）
+
+## 代码现状（rust/src/theta_v0/strategy/ledger.rs）
+
+RiskPolicy 结构：
+- 字段 `kappa: i64`，**模块私有**
+- 唯一两个构造闸：`baseline()`（恒 κ=0）与 `try_new(kappa)`（κ<0 返 None，κ≥0 返 Some）
+- κ≥0 是 constructor-only 类型不变量（对齐 Lean `RiskPolicy.kappa_nonneg` 证明字段）
+- `eta_star(s)` = L^wc + κ·notional（i128 中间域防 wrap，饱和兜底）
+- 生产回测路径（runner.rs:702）当前硬编码 `RiskPolicy::baseline()`，即 **κ=0**
+
+## 证据：κ 当前无敏感性网格（B35 在案）
+
+- κ 生产值恒 0（baseline），从未做过 κ∈{0, 0.5, 1, 2, ...} 的敏感性扫描
+- 693号谱系 pending 明确记录：「κ 外部风险政策裁定（选择类）」——即这是待裁定的选择类问题
+- 616号谱系已结算：Θ 风险参数（含 κ）= extra-缠论，非 L0 缠论可导（必须外部固定）
+- 缠论域约束：κ 的取值不能从缠论定义推导（PDF 明确「价格不可导出」），只能作为风险政策参数外部设定
+
+## 认识论约束（本项目铁律）
+
+1. no-workaround / no-patch：不允许用「先 κ=0 后面再调」绕过
+2. formalization-validity-domain：任何声明必须标注 L0/L1/L2/L3 认识论等级。L2 witness（真实数据可达性）刚刚证明：真实 BTC 数据上 κ=0 时三阶段是否可达是一个可否证的经验问题
+3. 严格性：κ 的选择必须有依据，不能拍脑袋
+
+## 请裁定以下三点（逐条明确回答）
+
+1. **冻结值**：M7 当前阶段 κ 应冻结为什么值？κ=0（最小基线，先证机制可达）还是某个正值（安全缓冲）？给出你的推荐值 + 理由。
+
+2. **网格**：是否需要 κ 敏感性网格？如果需要，网格点应取哪些（如 {0, 0.5, 1.0, 2.0}）？在哪个认识论等级（L2 单标的 / L3 跨标的）做敏感性扫描？如果当前阶段不需要网格，说明为什么（YAGNI 是否适用）。
+
+3. **裁定依据**：你的裁定基于什么原则？特别是：κ=0 的机制可达性 witness 与 κ>0 的风险稳健性之间如何权衡？κ 的敏感性扫描应该在 M7（三阶段机制验证）阶段做，还是推迟到 M8（端到端 OOS）阶段做？
+
+请给出结构化的裁定结论，每条问题一个明确答案。

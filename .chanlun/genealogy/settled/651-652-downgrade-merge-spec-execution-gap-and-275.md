@@ -1,5 +1,6 @@
 ---
 id: "651-652"
+date: "2026-06-30"
 title: 651/652 降级归并【已结算 2026-06-30：编排者 /ritual 授权 + genealogist R4 论证，两号不独立立号，增量投放既有规则】
 status: 已结算
 settlement_date: "2026-06-30"

@@ -108,6 +108,26 @@ impl Default for MacdConfig {
     }
 }
 
+/// q_Θ v1 σ_higher 分级符号权重 w_dir 预注册套（prereg-rev4 §4.3，三套并行 OOS 不能事后选——
+/// 关于背驰.pdf §9.2「不能先看结果再选」）。w_dir 函数形式见 coverage.rs [`super::strategy::coverage::dir_weight`]。
+///
+/// ★认识论等级（231号）：
+/// - **L0**（结构）：三套结构（follow/neutral/adversary）+ ShortDiff 豁免 + 根级豁免是 formal-chain 推论
+///   （买卖点.pdf §7.5 `s_g=s_α` 定理 1 + 完整的策略.pdf page4 禁一刀切）。
+/// - **L2**（数值）：`η_adv[ℓ]`/`η_same[ℓ]` 具体数值须 g3 跑数前冻结（135号），本枚举只冻结构。
+#[derive(Debug, Clone, PartialEq)]
+pub enum ThetaDirPreset {
+    /// Θ_dir_neutral：所有 (ℓ, sign) 槽 = 1.0 ⟹ `w_dir ≡ 1.0`（退化为 v0，**bit-exact == v0 对照基线**）。
+    /// default（保 frozen Θ v0 bit-exact）。亦作 g2 实装自检基线：若 neutral 套 OOS ≠ v0 = 实装 bug。
+    Neutral,
+    /// Θ_dir_follow（顺势保权假设）：顺上级（sign=+1）保权 = 1.0，逆上级（sign=−1）降权 `η_adv[ℓ] < 1.0`。
+    /// `eta_adv`：per-level 逆上级降权系数（长度 ≥ max_depth，越界层视 1.0）。
+    Follow { eta_adv: Vec<f64> },
+    /// Θ_dir_adversary（逆势保权假设，§6 page4「L1 主要超 beta 来源」）：逆上级（sign=−1）保权 = 1.0，
+    /// 顺上级（sign=+1）降权 `η_same[ℓ] < 1.0`。`eta_same`：per-level 顺上级降权系数（同上越界规则）。
+    Adversary { eta_same: Vec<f64> },
+}
+
 /// Θ_voice 参数（reference-theta-v0.md:39-42）。
 #[derive(Debug, Clone, PartialEq)]
 pub struct VoiceConfig {
@@ -115,6 +135,18 @@ pub struct VoiceConfig {
     pub max_depth: u32,
     /// 深度资金权重 `w=[0.60,0.30,0.10]`。未用部分保留现金不重分配。
     pub depth_weights: Vec<f64>,
+    /// f3 反事实开关：剔除 ShortDiff（多空对冲）子声部腿对净头寸的贡献（多重赋格增量价值测量）。
+    /// default `false`=全赋格生产口径（bit-exact 不变）。`true` 仅用于 policy_backtest 反事实对照。
+    pub disable_shortdiff: bool,
+    /// q_Θ v1 σ_higher 分级符号权重 w_dir 预注册套（prereg-rev4 §4.3）。default `Neutral`
+    /// （w_dir≡1.0，frozen Θ v0 bit-exact 不变）。选 Follow/Adversary 启用 σ_higher 分级 sizing。
+    pub theta_dir: ThetaDirPreset,
+    /// w_grade：G 轴（grade_rel）sizing 权重（prereg-wg 推荐 (c) 因子化，GPT §九 `w_{ℓ,σ_higher,role,G,...}`）。
+    /// `[SameLevel, SubLevel]`。default `[1.0, 1.0]` identity ⟹ G 轴 sizing 无差异 ⟹ frozen Θ v0 bit-exact 不变。
+    /// 非 identity ⟹ [`super::strategy::coverage::leg_target`] w = depth_weight × dir_weight × w_grade[grade]
+    /// （G 进 sizing 不进 μ 桶键，696 同构：轴进 A 层 ≠ 进 B 层）。与 `theta_dir`（V 轴 σ_higher）正交——
+    /// G 轴独立消费，不绑 Follow/Adversary preset。C4 实质担忧的形式化：同级别反父 vs 次级别反父在 sizing 区分。
+    pub w_grade: [f64; 2],
 }
 
 impl Default for VoiceConfig {
@@ -122,6 +154,9 @@ impl Default for VoiceConfig {
         VoiceConfig {
             max_depth: 3,
             depth_weights: vec![0.60, 0.30, 0.10],
+            disable_shortdiff: false,
+            theta_dir: ThetaDirPreset::Neutral,
+            w_grade: [1.0, 1.0],
         }
     }
 }
@@ -140,7 +175,7 @@ pub struct RiskConfig {
     /// sizing 默认 lot（reference-theta-v0.md:47）。default 1。
     pub default_lot: u32,
     /// χ_t 阈值 θ（alpha2 §13 line 2241，成本/风险门槛）。`None`=χ≡1 全覆盖（默认，frozen Θ v0
-    /// bit-exact 不变）；`Some(θ)`=χ=1[μ>θ] 阈值过滤（只交易正边际收益类别）。θ 是 **Θ_risk 参数，
+    /// bit-exact 不变）；`Some(θ)`=χ=1[μ>θ] 阈值过滤（只交易正边际收益类别）。θ 是 **Θ_risk 参数,
     /// 非缠论可导**（selector.rs 诚实标注）——θ 为**常数**（不从样本 μ 分布选，避免 in-sample
     /// 泄漏，codex Q1 审查确认）。default None（不改 frozen 默认）。
     pub chi_theta: Option<f64>,
@@ -150,6 +185,12 @@ pub struct RiskConfig {
     /// （n=1 无方差=无 LCB 证据，拒绝是 p25 正确语义，非回归）。frozen 默认 chi_theta=None 不走此路。
     /// >0 启用置信下界收缩。Θ_risk 参数（非缠论可导）。
     pub chi_z_alpha: f64,
+    /// K_Θ 毛头寸约束激活开关（G7，codex #122 终裁 + codex decide 5b46）。`false`（default）⟹
+    /// 不激活（frozen Θ v0 bit-exact——净持仓约束照旧，毛敞口不设上限）；`true` ⟹ legs 折叠成净
+    /// 持仓**之前**施加毛敞口上限 `Σ|s_e| ≤ γ·U_ℓ`（strict §11「毛+净必须同时约束」，缩放语义 =
+    /// 逐根子树 KKT 投影，见 coverage.rs `apply_gross_cap`）。毛 cap **复用** `gamma`（与净 cap
+    /// 共用同一 Θ_risk 参数，#122 裁定暂不拆 gross_gamma/net_gamma）。
+    pub enforce_gross_cap: bool,
 }
 
 impl Default for RiskConfig {
@@ -162,6 +203,7 @@ impl Default for RiskConfig {
             default_lot: 1,
             chi_theta: None,
             chi_z_alpha: 0.0,
+            enforce_gross_cap: false,
         }
     }
 }
@@ -254,6 +296,20 @@ pub struct ThetaConfig {
     pub exec: ExecConfig,
     /// ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r}/GapBuffer 状态函数 override（PDF §3）。空 ⟹ 全用 `risk` 标量。
     pub sizing_profile: SizingProfile,
+    /// 真保证金模型（D2 task #113，margin-model-design v2）。`None` ⟹ MM=0 退化口径（bit-exact 现状,
+    /// M1/M2/M3 不可达）；`Some` ⟹ 真实分级 MM/liq_flag/M2-M3 接线（改订单流 ⟹ MM=0 口径 alpha 冻结失效）。
+    pub margin: Option<super::strategy::risk::MarginModel>,
+    /// M6 成本模型（TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关剩余三项：Funding/Borrow/
+    /// LiquidationLoss）。`None` ⟹ 三项成本恒 0（bit-exact 现状——Commission/Slippage 仍由 `exec`
+    /// fee_rate 承担，不受影响）；`Some` ⟹ 逐 bar 计提资金费/借贷 + 强平罚金进 PnL、进 R 分解、
+    /// 守恒断言。**有效域（231号）**：v0 参数化常费率，真实 funding/借贷历史是外部数据缺口（L2），
+    /// 机制真实装、费率待外部标定（A10 waiver 豁免外部数据源，不豁免机制）。
+    pub cost_model: Option<super::strategy::risk::CostModel>,
+    /// 趋势背驰 D 判定口径（A2 #163 三口径 + A3 #164 Θ_LEX，关于背驰.pdf §9.2 三套预注册 Θ）。默认
+    /// `MacdArea`（现行冻结判据，bit-exact 不变）——判定口径变更改变一类信号集合（⟹ ledger ⟹
+    /// 残差样本），属预注册敏感，显式配置才切换。四口径：MacdArea/ThetaDom(Θ_DOM)/Conjunction/
+    /// ThetaLex(Θ_LEX，weak_theta 词典序 DIF▷面积)。
+    pub divergence_gauge: super::classifier::divergence::DivergenceGauge,
 }
 
 #[cfg(test)]
@@ -278,12 +334,15 @@ mod tests {
         assert_eq!(c.risk.kappa, 2.0);
         assert_eq!(c.risk.default_lot, 1);
         assert_eq!(c.risk.chi_theta, None); // frozen：默认 χ≡1 全覆盖（无阈值过滤，task #41）
+        assert!(!c.risk.enforce_gross_cap); // frozen：毛头寸约束默认不激活（G7 约束未配置=不激活）
         assert_eq!(c.exec.entry_delay_bars, 1);
         assert_eq!(c.exec.commission_bps, 1.0);
         assert_eq!(c.exec.slippage_bps, 2.0);
         assert_eq!(c.exec.tax_bps, 0.0);
         // frozen：sizing_profile 空 ⟹ 所有 sizing 退化为 risk 标量 + gap=0（bit-exact 不变）。
         assert!(c.sizing_profile.entries.is_empty());
+        // frozen：w_grade=[1.0,1.0] identity ⟹ G 轴 sizing 无差异（prereg-wg (c) 因子化，bit-exact）。
+        assert_eq!(c.voice.w_grade, [1.0, 1.0]);
     }
 
     /// SizingProfile.resolve：空表 ⟹ 退化为 risk 标量 + gap=0（bit-exact 默认路径）。

@@ -3301,42 +3301,42 @@ nodes:
     拉取失败致 worktree 创建受阻 → 隔离方案降级为 git archive + CARGO_TARGET_DIR（隔离 cargo target 而非
     git worktree）。区分 549（mapper 读 LFS 指针崩溃，scope=block-topology 映射管线）vs 本号（worktree
     checkout smudge 失败，scope=蜂群并行隔离）——同一 125MB object 不可达，两个互不覆盖的冻结 scope
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/622-worktree-isolation-lfs-smudge-failure-archive-cargo-target-downgrade.md
+  file: settled/622-worktree-isolation-lfs-smudge-failure-archive-cargo-target-downgrade.md
 - id: '626'
   title: block-topology 缺增量迁移路径——仅有破坏性全量重建(run_migration)，无 566-575 之类新增谱系的增量补齐入口；后果三联：(1)566-575(含566a)11条
     settled 自迁移后未入 id_mapping(meta.json 仅到565)→ceremony_scan 两检测器(genealogy_anomalies/scan_topology_mapping_gap)持续报
     missing_block_mapping+unmapped；(2)last_mapped_genealogy=530 与实际(565)脱节(全量重建丢该字段，无增量入口更新它)；(3)run_migration
     全量重跑会清空 content_enrichment(314blocks/1148concepts)元数据并因 settled 内容漂移产生重复区块=178号Q1『一次性升格』决断的下游缺口(升格路径未配增量入口)
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/626-block-topology-no-incremental-migration-path-only-destructive-rebuild.md
+  file: settled/626-block-topology-no-incremental-migration-path-only-destructive-rebuild.md
 - id: '634'
   title: ''
-  status: 生成态
+  status: 已结算
   type: 矛盾发现
-  file: pending/634-supervisor-persistent-vs-quadrant3-hardwall-conflict-event-vs-resident-station-taxonomy.md
+  file: settled/634-supervisor-persistent-vs-quadrant3-hardwall-conflict-event-vs-resident-station-taxonomy.md
 - id: '635'
-  title: ''
-  status: 生成态（部分结晶）
+  title: 守卫层自指膨胀（新维度，观察中）——635 前半已拆分独立结算为 635a
+  status: 生成态
   type: meta-rule
   file: pending/635-anti-inflation-guard-crystallize-checkpoint-and-guard-self-inflation-new-dimension.md
 - id: '636'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/636-meta-observation-idle-notification-semantics-vs-lead-spawn-race.md
+  file: settled/636-meta-observation-idle-notification-semantics-vs-lead-spawn-race.md
 - id: '637'
   title: 中枢核心区间 ZG/ZD 的三口径分离
-  status: 生成态
+  status: 已结算
   type: 概念分离（reference 裁决触发）
-  file: pending/637-zhongshu-core-interval-caliber-separation-two-segment-vs-three-segment-vs-endpoints.md
+  file: settled/637-zhongshu-core-interval-caliber-separation-two-segment-vs-three-segment-vs-endpoints.md
 - id: '638'
   title: 买卖点候选→走势元素附着判准（本级右端点命中，非区间包含）
-  status: 生成态
+  status: 已结算
   type: 语法记录
-  file: pending/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
+  file: settled/638-bsp-host-attachment-rule-endpoint-hit-not-interval-containment.md
 - id: '641'
   title: 增量塔 API 声明『塔构造超线性消除 ⟹ exp≈1』但 exp 仍 1.65——centers.clone() O(k)/iter 残留热点未声明，声明膨胀（090号）+
     memory signal-on2 模式复发
@@ -3347,9 +3347,9 @@ nodes:
   title: acceptance[2] escalate『I5父结构live vs §13/639(c)父held仓位定义冲突』被codex异质+codex-challenger双向收敛降级为H2引擎自举缺口（定理类）；真因=coverage.rs:1253
     host注入key错（注入候选同级host(c.level,source_index)而AncOK需候选parent_id高一级容器）——可在coverage.rs内修不改任何定义；连带修正
     deltasharpe-zero-stale-rooting memory 把同一工程bug记为『真定义层冲突/编排者方向裁定（选择类）』的误判
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/642-acceptance2-h2-bootstrap-gap-not-definition-conflict-coverage-host-key-bug-deltasharpe-memory-correction.md
+  file: settled/642-acceptance2-h2-bootstrap-gap-not-definition-conflict-coverage-host-key-bug-deltasharpe-memory-correction.md
 - id: '643'
   title: acceptance[1] bit-exact『PASS』是 L1 合成数据假 PASS——L2 真实 CL bar1464 发散（pre-existing
     parser bug）；根因=古怪线段末段原地变异（67/78课定义层正确非bug）+ caller 守卫只查段数回缩不查末段值改写→复用陈旧缓存中枢；第一版
@@ -3380,21 +3380,21 @@ nodes:
     反例（父跌 ε=-1 ∧ 内部买点 B=1 → 离散择时 q=+1 做多，但覆盖净额=-0.7 做空，方向相反）；T2 §7 端点定向语法 G_e>0（ε_e=sign(P_ρ-P_λ)）是恒真语法非择时
     alpha；T3 ε_e 依赖未来终点非 F_λ 可测=事后方向标签（lookahead）；T4 净额投影丢边际方向。§10 判定：b1 否证的是 π_Θ^cov
     覆盖投影无 alpha，**没否证** π_Θ^bsp 买卖点择时（从未测）。这是『结构覆盖 vs 买卖点择时』的操作语义分离——v1 8/8 否证的有效域是覆盖投影，非缠论买卖点
-  status: 生成态
+  status: 已结算
   type: source-tracing
-  file: pending/645-coverage-projection-vs-bsp-timing-operational-semantic-separation-goal-falsified-wrong-object.md
+  file: settled/645-coverage-projection-vs-bsp-timing-operational-semantic-separation-goal-falsified-wrong-object.md
 - id: '646'
   title: §9 同单位数公理（q_v=q_p ⟹ 多空腿精确抵消 → b2 净额为零）vs rust 实装 depth_weight 不等权 [0.6,0.3,0.1]（⟹
     不抵消 → b1 净额非零）= spec↔impl 定义冲突（codex task#19 发现）。接受 §9（同单位数）则 b2 精确抵消、覆盖净额恒零；接受
     rust 不等权则 b1 净额非零但违 §9 公理。是 645 分离出的 π_Θ^cov（覆盖侧）内部的权重定义冲突——与 645（覆盖 vs 择时对象分离）正交。哪边对=选择类，待编排者裁定
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/646-section9-equal-unit-count-axiom-vs-rust-depth-weight-unequal-definition-conflict.md
+  file: settled/646-section9-equal-unit-count-axiom-vs-rust-depth-weight-unequal-definition-conflict.md
 - id: '647'
-  title: ''
-  status: 生成态
+  title: 否证设计前置同一性：验收/否证前须先锁定 O_impl=O_def（675 坐标系分叉 + 645 对象投影 共享元结构）
+  status: 已结算
   type: meta-rule
-  file: pending/647-meta-observation-object-identity-must-precede-falsification-design.md
+  file: settled/647-meta-observation-object-identity-must-precede-falsification-design.md
 - id: 647-WITHDRAWN
   title: ''
   status: 已撤回
@@ -3408,12 +3408,12 @@ nodes:
     宇宙不足(可修)非 goal#5 本质错误；命题A(645)π^cov≠π^bsp 仍成立
   status: 已结算
   type: domain
-  file: pending/648-pibsp-647-fix-insufficient-fourth-root-extract-elements-tree-coverage.md
+  file: settled/648-pibsp-676-fix-insufficient-fourth-root-extract-elements-tree-coverage.md
 - id: '649'
-  title: ''
-  status: 生成态
+  title: 编排者裁决超越上呈选项集：机制=否定选项共享的隐藏前提（648 裁决 D 的元层抽象）
+  status: 已结算
   type: meta-rule
-  file: pending/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md
+  file: settled/649-meta-observation-orchestrator-ruling-transcends-escalated-option-set-by-negating-shared-hidden-premise.md
 - id: '650'
   title: goal 事件系统 reader/writer 契约分裂——GOAL_RESUME 可读不可写 + acceptance 闭合只认 CHECK_PASS
     不认 EVIDENCE
@@ -3452,61 +3452,61 @@ nodes:
   file: settled/651-652-downgrade-merge-spec-execution-gap-and-275.md
 - id: '655'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md
+  file: settled/655-meta-observation-goal-set-write-side-non-idempotent-skeleton-duplicates-closed-goal.md
 - id: '656'
   title: alpha2 Doc3 §13 定理2「细分类不劣于粗分类」V(Z)≥V(Y)——编排者「全互斥更有优势」的严格回答。优势=表达力优势(粗策略可被细策略模拟,sup_Z≥sup_Y)+统计识别优势(μ(z,a)可分类估计)，**不是**先验盈利保证。§19：全互斥=alpha命题形式化实验台(使「三类买卖点有用」从模糊句变严格命题
     ∃z,a:E[R|C_Θ=z]>0)。645 覆盖≠盈利(反面)的对偶正面：覆盖不保证盈利，全互斥分类提供识别盈利的表达力。V(Z)≥V(Y) 是 L0 结构定理，盈利仍需
     L2/L3 μ>0 真实数据(231 铁律)
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/656-finer-classification-not-worse-expressivity-not-profit-dual-of-645.md
+  file: settled/656-finer-classification-not-worse-expressivity-not-profit-dual-of-645.md
 - id: '657'
   title: alpha.pdf Part1（p1-15「覆盖≠alpha」）三增量：①候选1 双 L0-L3 阶梯能指碰撞（alpha §12 交易断言阶梯
     vs 231 验证阶梯，同名不同义，同 651 能指挪用范式→降级归并不独立立号）；②候选2 M24 因果可测性 refinement（mutex-derive
     标 M24「无 gap」是推导链内自洽，但 M24→盈利有 gap：L0 同义反复 + ε_e 用未来端点非 F_λe 可测=因果失败，蜂群 M24 漏标，=645
     T2/T3 在 M24 的实例）；③645 结算评估：alpha §15 χ_t 因果选择器=645 wrong-object 外部权威确认，结算条件满足但落盘走
     /ritual
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/657-alpha-pdf-part1-signifier-collision-downgrade-m24-causal-measurability-645-settle-eval.md
+  file: settled/657-alpha-pdf-part1-signifier-collision-downgrade-m24-causal-measurability-645-settle-eval.md
 - id: '658'
   title: goal_reducer.py acceptance rollup SCHEMA 缺口：子目标 CHECK_PASS 是否冒泡到顶层 acceptance
     未定义。代码自洽于自身契约(行81-83:顶层 acceptance 由 sub_goal_id==gid 的 CHECK_PASS 闭合,防任意子目标同名
     acceptance_id 误闭合=codex MAJOR-2)。但 SCHEMA 未定义子目标完成→顶层 acceptance 的 rollup 映射 ⟹
     所有子目标 CHECK_PASS 后顶层仍永 False ⟹ goal 永不 terminated(除非独立发 gid-scoped CHECK_PASS)。非实现笔误(选择类:两种
     rollup 设计互斥待裁),不阻塞 L2/L3 推进(sub_goal ready 正确)
-  status: 生成态
+  status: 已结算
   type: domain
-  file: pending/658-reducer-acceptance-rollup-schema-undefined-subgoal-to-toplevel.md
+  file: settled/658-reducer-acceptance-rollup-schema-undefined-subgoal-to-toplevel.md
 - id: '659'
   title: ''
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/659-filter-spec-cascade-cross-engine-category-error-627-first-violation-instance.md
+  file: settled/659-filter-spec-cascade-cross-engine-category-error-627-first-violation-instance.md
 - id: '660'
   title: ''
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/660-chi-t-l3-inconclusive-pseudo-negative-power-vs-true-no-signal-645-downstream.md
+  file: settled/660-chi-t-l3-inconclusive-pseudo-negative-power-vs-true-no-signal-645-downstream.md
 - id: '661'
   title: ''
-  status: 生成态
+  status: 已结算
   type: meta-rule
-  file: pending/661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md
+  file: settled/661-meta-observation-inconclusive-third-state-method-upgrade-vs-validity-domain-and-lcb-supersede-succession-health.md
 - id: '662'
   title: ''
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/662-660-orthogonality-falsified-pseudo-orthogonal-same-rejection-mass-two-projections.md
+  file: settled/662-660-orthogonality-falsified-pseudo-orthogonal-same-rejection-mass-two-projections.md
 - id: '663'
   title: ★判据错误：『统计显著性 p<0.05』误当『可交易性』——真判据是 μ(z,a)>0（正条件期望）。编排者一句『高级别几个月一次也没关系』戳破前几轮（660
     功效不足硬墙/三路对比/LCB 线）核心框架。功效不足不是问题属性，是错判据（要求高频统计显著）的产物。高级别信号几个月一次完全正常——10年30-50次，每次缠论结构保证方向性+大幅度，累积正期望可观。检验框架（16K短窗+跨品种符号检验显著）系统性惩罚低频高级别，框架本身偏向低级别。Le
     Cam 有效域须收窄——仅对『短窗单品种区分±Δ』成立，不否定『长窗累积高级别正期望』。
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/663-criterion-error-statistical-significance-mistaken-for-tradeability-mu-positive-vs-sign-test.md
+  file: settled/663-criterion-error-statistical-significance-mistaken-for-tradeability-mu-positive-vs-sign-test.md
 - id: '664'
   title: ★对象错配：经济正条件判据 Ab=εb(Pρb−Pλb) 隐含『顺笔交易』假设（εb=笔方向⟹Ab≥0 同义反复），但缠论买卖点是『反转交易』——底背驰买点
     δ=+1 出现在下跌段末端 Pρ<Pλ⟹Ab<0。codex 异质审计坐实 ΣAb=−1.8e4（BTC L2）是对象错配概念发现非实装 bug：econ_positive.rs
@@ -3514,14 +3514,14 @@ nodes:
     交易腿 Ab_rev=δ(g)·(P[ρ_rev]−P[λ_rev])，λ_rev=源 pivot，ρ_rev=π^bsp 出场策略 owned 的首个后续反向
     BSP（post-signal，策略 owned，非触发段起点）。反补丁：改 eps 回 sign(Pρ−Pλ)=恢复同义反复掩盖错配（no-patch +
     090 声明膨胀），正确解必须改测量对象。peer 645（π^cov≠π^bsp）/663（统计显著性≠可交易性）——三者同元模式『判据/对象错配』簇。
-  status: 生成态
+  status: 已结算
   type: object-mismatch
-  file: pending/664-ab-trigger-segment-vs-reversal-trade-leg-object-mismatch-eps-bi-direction-vs-delta-trade-direction-645-663-peer.md
+  file: settled/664-ab-trigger-segment-vs-reversal-trade-leg-object-mismatch-eps-bi-direction-vs-delta-trade-direction-645-663-peer.md
 - id: '665'
   title: ''
-  status: 生成态
+  status: 已结算
   type: concept-separation
-  file: pending/665-selection-bias-removal-vs-tradeable-alpha-logically-independent-663-664-peer.md
+  file: settled/665-selection-bias-removal-vs-tradeable-alpha-logically-independent-663-664-peer.md
 - id: '666'
   title: ★级别相位 (−1)^ℓ 作为结构状态变量 + beta/alpha 命名纠正。GPT《奇偶相位》12页回应全历史 BTC 12/12 级别×方向
     μ̂ 奇偶交替（买 L0+L1−L2+L3−L4+L5−，卖反相，sign μℓ,δ=sign(δ(−1)^ℓ)，正期望 δ*ℓ=(−1)^ℓ 偶买奇卖）。三增量：①级别相位——「级别不是中性索引，携带相位信息；同一『买点』语法在不同级别不是同一经济状态」，状态须从
@@ -3530,26 +3530,217 @@ nodes:
     edge，(μ+−μ−)/2≈bℓ 更接近市场漂移 beta——上一轮 parity 报告命名反了，须标注更正防下游误用。③不可识别性：仅 12 均值符号不能唯一识别主因（机制A
     递归几何反相 / B 出场配对滞后 / C 级别=regime 三者都产生同样交替），须反事实（换出场规则/测滞后/加 σhigher/同容器配对）。正确操作=偶级别只做买奇级别只做卖（正类交易负类不交易，X_inv=−X−2C
     仅 μ<−2C 反向才正）。peer 663（判据）/664（对象）/665（方法论）同簇。
-  status: 生成态
+  status: 已结算
   type: bias-correction
-  file: pending/666-level-phase-parity-alternation-structural-variable-beta-alpha-naming-correction.md
+  file: settled/666-level-phase-parity-alternation-structural-variable-beta-alpha-naming-correction.md
 - id: '667'
   title: ''
-  status: 生成态
+  status: 已结算
   type: concept-separation
-  file: pending/667-level-phase-alpha-vs-fullsample-beta-projection-sigma-higher-modulator-666-peer.md
+  file: settled/667-level-phase-alpha-vs-fullsample-beta-projection-sigma-higher-modulator-666-peer.md
 - id: '668'
   title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/668-meta-observation-lead-rule-scope-misprojection-suppress-business-spawn-onto-structural-bootstrap-623-instance6.md
+- id: '669'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md
+- id: '671'
+  title: P2-R2 消 MACD C≥A 预删选择偏差——struct_break_dir 独立方向源 bit-exact 恢复；力度判据本身未接通生产（defer
+  status: 已结算
+  type: bias-correction
+  file: settled/671-p2-r2-macd-c-ge-a-preveto-selection-bias-struct-break-dir-recovery-force-layer-defer-42.md
+- id: claim10-xianduan-termination
+  title: xianduan.md:169-170(编纂层 settled) 对第67课两种情况终结语义与博文原文镜像反转——第一种情况(无缺口)原文=分型形成即直接终结
+    / 第二种情况(有缺口)原文=须第二特征序列分型才终结；编纂层写反。settled 改动权属编排者/genealogist(选择类待裁)。
+  status: 已结算
+  type: 语法记录
+  file: settled/2026-06-25-claim10-xianduan-edition-vs-blog-termination-semantics.md
+- id: '672'
+  title: ''
+  status: 已结算
+  type: meta-rule
+  file: settled/672-meta-observation-623-crystallization-gate-never-fires-7-instances-new-dimension-escape.md
+- id: '673'
+  title: ''
+  status: 已结算
+  type: bias-correction
+  file: settled/673-cand-delta-predicate-scope-misuse-type1-divergence-vs-type2-completeness-h2-overfiltering.md
+- id: 待/ritual编号（日期前缀避 §4 编号碰撞，同 claim10/maimai#4 惯例）
+  title: ''
+  status: 生成态
+  type: bias-correction
+  file: pending/2026-07-02-goal-loop-active-set-narrowed-to-live-goal-closed-demoted-to-audit-marker.md
+- id: '674'
+  title: 账本 R=Π-A-W vs 缠论取本金三阶段 TW=free+holding+withdrawn 不同构——语义对齐三选一
+  status: 已结算
+  type: 概念分离（选择类裁定 escalate）
+  file: settled/674-ledger-r-vs-tw-three-stage-semantic-alignment.md
+- id: '675'
+  title: 探针必须走生产路径，禁止诊断坐标系分叉（两次同构伪证的元结构）
+  status: 已结算
+  type: meta-rule
+  file: settled/675-meta-rule-probe-must-traverse-production-path-no-coordinate-fork.md
+- id: '676'
+  title: 'π^bsp 子声部恒=0 是实装逻辑根因（出场优先 P3 + 跨carrier错配），非 fixture——commit 自陈『致命缺陷』诚实但『多声部对冲层未真测』⟹
+    命题A『可分离』在实测上是 L0 代数可分非 L2 实测可分；acceptance[1] bit_exact 断言 incr==leg（L1 同引擎自洽）非
+    rust==Lean，coverage.rs ElementId 无 Lean parity assert（631 #4 缺口仍开放）'
+  status: 生成态
+  type: bias-correction
+  file: pending/676-pibsp-subvoice-zero-structural-not-fixture-multivoice-hedge-claim-inflation.md
+- id: '677'
+  title: GAP3 hwm_gain 高水位棘轮被 codex 终局裁定为 PDF p8③ 语义回补——不能作 acceptance bridge，GAP3
+    判据 (∃t,TStage=EarningShares) 恢复 FALSIFIED
+  status: 已结算
+  type: bias-correction
+  file: settled/677-gap3-hwm-gain-ratchet-semantic-backfill-codex-final-ruling-falsified.md
+- id: '678'
+  title: 同一能指『中枢』在 judge_third 归属链 vs last_zs 跨度选择链下指向不同对象——两条中枢选择链在真实 BTC 1m 几何下结构性不重合（same_center_any=0/84），对象身份分裂第三例
+  status: 生成态
+  type: concept-separation
+  file: pending/678-center-signifier-identity-split-judge-third-vs-last-zs-two-selection-chains-nonoverlap.md
+- id: 635a
+  title: escalate（矛盾上浮）或『定义冲突』判定前必须先经一次 L2 机器证据坐实——本轮反膨胀守卫三次生效（621/623/627）共享同一拦截语法(L0
+    推测被当已成立结论)，结晶为可执行检查点纪律
+  status: 已结算
+  type: meta-rule
+  file: settled/635a-escalate-l0-inference-requires-l2-machine-evidence-checkpoint.md
+- id: '679'
+  title: BspCandType else=>Type3 分支仍吞并零 bit 破中枢未背驰候选（P2-R2）与真三类候选（judge_third）——两几何前提互斥，codex
+    终局裁决A 新增第四类 StructBreak 独立纤维，门控恒拒不复用 Nest/Xzd
+  status: 已结算
+  type: concept-separation
+  file: settled/679-bspcandtype-structbreak-fourth-fiber-zero-bit-gate-tightening.md
+- id: '680'
+  title: 分类层算出 ≠ alpha 回测消费（231 消费侧形态）
+  status: 生成态
+  type: bias-correction
+  file: pending/680-classification-layer-computed-not-alpha-consumed-231-consumption-side-form.md
+- id: '681'
+  title: z.r 两粒度源分离：源A结构唯一性 ⊇ 源B收益估计
+  status: 生成态
+  type: 概念分离
+  file: pending/681-z-r-source-a-structural-rg-vs-source-b-alpha-r-two-granularities-h-axis-faithful-omission.md
+- id: '682'
+  title: 移植增量归属须核目标文件存在性（分叉线可能缺失被优化对象）
   status: 生成态
   type: meta-rule
-  file: pending/668-meta-observation-lead-rule-scope-misprojection-suppress-business-spawn-onto-structural-bootstrap-623-instance6.md
-- id: '669'
+  file: pending/682-optimization-increment-attribution-must-check-target-file-existence-fork-may-lack-optimized-object.md
+- id: '683'
+  title: ''
+  status: 已结算
+  type: bias-correction
+  file: settled/683-level-ge1-type1-type3-candidate-generation-expired-premise-codex-t1-decision-a.md
+- id: '684'
+  title: 旧口径主桶正 μ̂（L0,type3,买,σ0 +178~185/笔 p=0.005，全战役唯一候选 alpha）被 q4 证伪为 τ^reverse
+    出场口径伪影——G4 typed exit 重装后同桶 mean −0.37/LCB −42.6，正点估计完全消失
+  status: 已结算
+  type: bias-correction
+  file: settled/684-main-bucket-positive-mu-is-tau-reverse-exit-caliber-artifact-falsified-by-q4-g4-typed-exit.md
+- id: '685'
+  title: 「一类买卖点全历史 0=市场事实」被推翻——#141 漏斗真跑定位死点=趋势门（环1），全级别 100% 死于此环，真因是两条确定性实现缺陷（缺第18课走势分解
+    + 缺第20课中枢延伸），非市场结构
+  status: 已结算
+  type: bias-correction
+  file: settled/685-type1-zero-not-market-fact-trend-gate-accumulation-chain-plus-missing-center-extension.md
+- id: '686'
+  title: Q7-#1 codex 裁定C：UnitRange.direction 两种来源（趋势 ownership 方向 vs endpoint fallback
+    方向）概念分离——收窄（非推翻）#121 裁定A 的隐含消费假设；实装后 L≥1 一类信号 77~95% 被识别为 fallback 泄漏伪信号
+  status: 已结算
+  type: 概念分离
+  file: settled/686-q7-fallback-direction-anchor-separation-narrows-121-decision-a.md
+- id: '687'
+  title: 多写点计数器在新增数据通道时口径分叉（meta-rule候选）：dx真封①(sig_post漏计PanDiv) 与 Stop-Guard熔断计数器同构；均非675号坐标系分叉
+  status: 生成态
+  type: meta-rule
+  file: pending/687-multi-writepoint-counter-desync-on-channel-extension.md
+- id: '688'
+  title: level0 免门破去根化平移自相似——231 级别域形态（有限塔截断，有效域=内部域 lvl>=1；codex 裁接受性截断）
+  status: 生成态
+  type: bias-correction
+  file: pending/688-level0-exempt-gate-breaks-rootfree-shift-equivariance-finite-tower-truncation.md
+- id: '689'
+  title: 9段升级出处订正——出自第33课《走势多义性》非第20课中心定理二（不同机制）；Q2延伸不拆有效域收窄至<9段（231活例）
+  status: 生成态
+  type: source-tracing
+  file: pending/689-upgrade-9seg-provenance-course33-multiplicity-not-course20-central-theorem2-q2-domain-narrowed.md
+- id: '690'
+  title: 两PDF z形态差异权威裁定——完整的策略.pdf §16（20维含Jchain不含d）为唯一权威(INDEX.md裁定+§16自述最完整最严格)；d=非拓扑度量(缠论的全互斥定义策略.pdf
+    §十明定)归风险投影层(risk.rs已生产消费)非μ分类z维缺口；Jchain≅(origin_level,level)代数派生已覆盖(selector.rs:251恒等式护栏)；A1两残余both消解无z装配可做(gap-master2继承shard4读示意§九z未与权威§16交叉核对错源订正)
+  status: 生成态
+  type: source-tracing
+  file: pending/690-two-pdf-z-shape-authority-ruling-complete-strategy-s16-authoritative-d-belongs-risk-layer.md
+- id: '691'
+  title: codex-f2「单carrier单active instance」YAGNI被端到端实证推翻——同一position生命周期对象分离为瞬时单实例(结构层ActiveLeg,真域)vs时序多campaign(账本层LedgerOpen/TypedTrade);合成fill
+    loop同carrier ElementId(0,0)两次campaign(buy1@3 gen=0/buy1@16 gen=1)voice_id碰撞但posId不碰撞,codex裁定C归属层=账本生命周期层非ActiveLeg(每bar树重建拿不到campaign态);前任generation恒0/entry_certificate恒None死字段塞ActiveLeg=090声明膨胀实例(字段放错层则恒退化)
+  status: 生成态
+  type: bias-correction
+  file: pending/691-codex-f2-single-instance-yagni-overturned-by-temporal-reentry-gen1.md
+- id: '692'
+  title: cand_channel 通道轴与 i_class 类别轴正交——bsp_cand_type 坍缩非缺口
+  status: settled
+  type: 语法记录
+  file: settled/692-cand-channel-provenance-axis-orthogonal-to-iclass-category-axis.md
+- id: '693'
+  title: 策略对象三分冻结 + A11/A10 硬裁决——待编排者 /ritual 追认
+  status: pending
+  type: 概念层裁定（escalate 点）
+  file: pending/693-strategy-object-triple-freeze-a11-a10-hard-ruling.md
+- id: '694'
+  title: acc-highlevel-mu（稀疏高级别买卖点直接估 μ̂）被 acc-highlow-power（高级别定方向 + 低级别出执行样本，区间套统计版）扬弃承接——高级别
+    alpha 检验节点分裂为『方向/容器角色』⊥『执行/样本源』两正交层
+  status: 生成态
+  type: bias-correction
+  file: pending/694-highlevel-mu-direct-estimation-superseded-by-highlow-power-interval-nesting.md
+- id: '695'
   title: ''
   status: 生成态
   type: meta-rule
-  file: pending/669-meta-observation-structural-worker-skill-vs-teammate-scan-artifact-stale-075-residue-meta-observer-dual-spawn.md
+  file: pending/2026-07-04-meta-observation-cursor-harness-portability-three-events-623-instance8-672-review-gate.md
+- id: '696'
+  title: μ_R(z)=E[X/d|z] estimand（结果变量按 d 缩放）与 690 号裁定的 d-入-z-桶键 是两条正交轴——690 三条理由未覆盖
+    estimand 分支，须新预注册（问题C，TENSION）
+  status: 生成态
+  type: bias-correction
+  file: pending/696-mu-r-estimand-outcome-scaling-orthogonal-to-690-bucket-key-exclusion.md
+- id: '697'
+  title: persistent.rs 自认『最小修复』的彻底修复 ceiling（增量 extract_elements/confirmed prefix
+    immutable 元素层，L2/L3 待验证）须独立跟踪——codex-gap2rulings 条目6 建议『另开条目』核实未开，本号开条目，不再挂 A4
+    名下
+  status: 生成态
+  type: bias-correction
+  file: pending/697-persistent-rs-ceiling-tracking-split-from-a4-ancok-mechanism-verified.md
+- id: '698'
+  title: ''
+  status: 已结算
+  type: source-tracing
+  file: settled/698-source-tracing-type2-panzhengbeichi-vs-maimai-def4.md
+- id: '699'
+  title: relations.jsonl 125MB LFS 对象本机彻底不存在且仓库无任何 git remote——549 冻结原因从『未 pull』修正为『对象丢失+无远端可拉』，解冻路径
+    A 升级为编排者门控的物质缺口
+  status: 生成态
+  type: 矛盾发现
+  file: pending/699-relations-lfs-object-missing-no-remote-549-freeze-cause-corrected.md
+- id: meta-observation-single-verifier-bias-api-quota-20260704
+  title: ''
+  status: 生成态
+  type: meta-rule
+  file: pending/2026-07-04-meta-observation-single-verifier-bias-api-quota-resilience-baseline-uncaptured.md
 edges:
   depends_on:
+  - from: '679'
+    to: '673'
+  - from: '679'
+    to: '615'
+  - from: '673'
+    to: '606'
+  - from: '673'
+    to: '615'
+  - from: '673'
+    to: '671'
   - from: '136'
     to: '130'
   - from: '136'
@@ -6745,8 +6936,6 @@ edges:
   - from: '647'
     to: '231'
   - from: '647'
-    to: '644'
-  - from: '647'
     to: '645'
   - from: '647'
     to: '640'
@@ -6754,8 +6943,6 @@ edges:
     to: 090
   - from: '647'
     to: '643'
-  - from: '648'
-    to: '647'
   - from: '648'
     to: '644'
   - from: '648'
@@ -6858,6 +7045,164 @@ edges:
     to: '562'
   - from: '669'
     to: '075'
+  - from: '671'
+    to: '615'
+  - from: '671'
+    to: '663'
+  - from: '672'
+    to: '623'
+  - from: '648'
+    to: '676'
+  - from: '675'
+    to: '231'
+  - from: '675'
+    to: '640'
+  - from: '675'
+    to: 090
+  - from: '676'
+    to: '231'
+  - from: '676'
+    to: '640'
+  - from: '676'
+    to: 090
+  - from: '676'
+    to: '643'
+  - from: '676'
+    to: '645'
+  - from: '677'
+    to: '576'
+  - from: '677'
+    to: '231'
+  - from: '677'
+    to: 090
+  - from: '647'
+    to: '675'
+  - from: '678'
+    to: '673'
+  - from: '678'
+    to: '647'
+  - from: '678'
+    to: '675'
+  - from: 635a
+    to: '231'
+  - from: 635a
+    to: 090
+  - from: 635a
+    to: '137'
+  - from: '680'
+    to: '231'
+  - from: '680'
+    to: '625'
+  - from: '680'
+    to: '656'
+  - from: '680'
+    to: '645'
+  - from: '681'
+    to: '680'
+  - from: '681'
+    to: '615'
+  - from: '681'
+    to: '640'
+  - from: '681'
+    to: '639'
+  - from: '682'
+    to: '675'
+  - from: '682'
+    to: '231'
+  - from: '688'
+    to: '231'
+  - from: '688'
+    to: 090
+  - from: '689'
+    to: '231'
+  - from: '689'
+    to: '002'
+  - from: '689'
+    to: 090
+  - from: '690'
+    to: '002'
+  - from: '690'
+    to: 090
+  - from: '690'
+    to: '231'
+  - from: '691'
+    to: 090
+  - from: '691'
+    to: '638'
+  - from: '692'
+    to: '673'
+  - from: '692'
+    to: '138'
+  - from: '692'
+    to: '159'
+  - from: '693'
+    to: '685'
+  - from: '693'
+    to: '690'
+  - from: '694'
+    to: '660'
+  - from: '694'
+    to: '661'
+  - from: '694'
+    to: '231'
+  - from: '695'
+    to: '623'
+  - from: '695'
+    to: '672'
+  - from: '695'
+    to: '630'
+  - from: '695'
+    to: '624'
+  - from: '696'
+    to: '690'
+  - from: '696'
+    to: '231'
+  - from: '696'
+    to: 018
+  - from: '697'
+    to: '231'
+  - from: '697'
+    to: 090
+  - from: '697'
+    to: '652'
+  - from: '697'
+    to: '275'
+  - from: '698'
+    to: '145'
+  - from: '698'
+    to: '672'
+  - from: '698'
+    to: '402'
+  - from: '698'
+    to: '231'
+  - from: '686'
+    to: '683'
+  - from: '699'
+    to: '549'
+  - from: '699'
+    to: '145'
+  - from: '699'
+    to: '672'
+  - from: '699'
+    to: '402'
+  - from: '699'
+    to: '231'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '145'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '672'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '402'
+  - from: meta-observation-single-verifier-bias-api-quota-20260704
+    to: '231'
+  - from: '698'
+    to: 090
+  - from: '698'
+    to: '693'
+  - from: '698'
+    to: '660'
+  - from: '698'
+    to: '661'
   triggered:
   - from: '005'
     to: 005a
@@ -7057,6 +7402,12 @@ edges:
     to: 隐含命题『恢复语境下，post-interrupt 的文件系统/session 快照是可信真值，恢复只需补全缺失的结构元数据（201号模式）』——被证伪：post-interrupt
       快照即便看似忠实也可能携带污染；污染边界由内容 provenance 而非 commit 时间戳判定；派生的 session 文件可能引入错误分类（把
       pre-interrupt 在制品误标为污染）
+  - from: '677'
+    to: 'gap3-bridge acc-GAP3 『字面 PASS』承重节点（task #10 产出 / gap3-bridge-20260702.md）'
+  - from: '699'
+    to: 549号 §十 结算的隐含前提『A（git lfs pull）的物质载体存在于远端，执行只欠操作者基础设施动作（装 CLI+配远端）』——被证伪一半：git-lfs
+      CLI 现已在（3.7.1，549 §九.2 的 CLI 缺失已消除），但『配置远端』无对象可指——仓库无 remote，兄弟克隆无对象，oid 3b895e98…a006d416（125,404,332
+      B）在本机可达范围内彻底不存在。
   related:
   - between:
     - '001'
@@ -10223,6 +10574,389 @@ edges:
   - between:
     - '353'
     - '669'
+  - between:
+    - '650'
+    - '651'
+  - between:
+    - '650'
+    - '652'
+  - between:
+    - '30'
+    - 651-652
+  - between:
+    - '275'
+    - 651-652
+  - between:
+    - '002'
+    - claim10-xianduan-termination
+  - between:
+    - '003'
+    - claim10-xianduan-termination
+  - between:
+    - 090
+    - '669'
+  - between:
+    - '139'
+    - '669'
+  - between:
+    - '668'
+    - '672'
+  - between:
+    - '669'
+    - '672'
+  - between:
+    - 018
+    - '672'
+  - between:
+    - '139'
+    - '672'
+  - between:
+    - 090
+    - '672'
+  - between:
+    - '534'
+    - '674'
+  - between:
+    - '538'
+    - '674'
+  - between:
+    - '231'
+    - '674'
+  - between:
+    - '050'
+    - '674'
+  - between:
+    - '633'
+    - '675'
+  - between:
+    - '627'
+    - '675'
+  - between:
+    - '625'
+    - '675'
+  - between:
+    - '643'
+    - '675'
+  - between:
+    - 643-frontier-guard
+    - '675'
+  - between:
+    - '631'
+    - '676'
+  - between:
+    - '642'
+    - '676'
+  - between:
+    - '644'
+    - '676'
+  - between:
+    - '646'
+    - '676'
+  - between:
+    - '576'
+    - '677'
+  - between:
+    - '231'
+    - '677'
+  - between:
+    - 090
+    - '677'
+  - between:
+    - '637'
+    - '678'
+  - between:
+    - '673'
+    - '678'
+  - between:
+    - '675'
+    - '678'
+  - between:
+    - '647'
+    - '678'
+  - between:
+    - '231'
+    - '678'
+  - between:
+    - '678'
+    - level-hole-series
+  - between:
+    - '621'
+    - 635a
+  - between:
+    - '623'
+    - 635a
+  - between:
+    - '627'
+    - 635a
+  - between:
+    - '625'
+    - 635a
+  - between:
+    - '600'
+    - 635a
+  - between:
+    - '635'
+    - 635a
+  - between:
+    - '230'
+    - '680'
+  - between:
+    - '623'
+    - '680'
+  - between:
+    - '615'
+    - '680'
+  - between:
+    - '639'
+    - '680'
+  - between:
+    - '667'
+    - '680'
+  - between:
+    - '616'
+    - '681'
+  - between:
+    - '617'
+    - '681'
+  - between:
+    - '656'
+    - '681'
+  - between:
+    - '637'
+    - '681'
+  - between:
+    - 090
+    - '682'
+  - between:
+    - '659'
+    - '682'
+  - between:
+    - '623'
+    - '682'
+  - between:
+    - '680'
+    - '682'
+  - between:
+    - 090
+    - '683'
+  - between:
+    - '231'
+    - '683'
+  - between:
+    - '682'
+    - '683'
+  - between:
+    - '683'
+    - project_oddeven_mu_identity
+  - between:
+    - '231'
+    - '684'
+  - between:
+    - '663'
+    - '684'
+  - between:
+    - '665'
+    - '684'
+  - between:
+    - '645'
+    - '684'
+  - between:
+    - '660'
+    - '684'
+  - between:
+    - '684'
+    - project_wverify_alpha_retest_pass
+  - between:
+    - '684'
+    - project_oddeven_mu_identity
+  - between:
+    - '684'
+    - project_iclass_delta_collinearity_perm_degeneracy
+  - between:
+    - '683'
+    - '685'
+  - between:
+    - '231'
+    - '685'
+  - between:
+    - 090
+    - '685'
+  - between:
+    - '685'
+    - project_interval_nesting_not_called_in_backtest
+  - between:
+    - '685'
+    - project_level_hole_window_dependence
+  - between:
+    - '684'
+    - '685'
+  - between:
+    - '675'
+    - '686'
+  - between:
+    - '685'
+    - '686'
+  - between:
+    - '675'
+    - '687'
+  - between:
+    - '680'
+    - '688'
+  - between:
+    - '625'
+    - '688'
+  - between:
+    - '623'
+    - '688'
+  - between:
+    - '673'
+    - '688'
+  - between:
+    - '199'
+    - '688'
+  - between:
+    - '656'
+    - '688'
+  - between:
+    - '688'
+    - '689'
+  - between:
+    - '685'
+    - '689'
+  - between:
+    - '689'
+    - '690'
+  - between:
+    - '685'
+    - '690'
+  - between:
+    - '138'
+    - '690'
+  - between:
+    - '690'
+    - '691'
+  - between:
+    - '231'
+    - '691'
+  - between:
+    - '657'
+    - '692'
+  - between:
+    - '684'
+    - '693'
+  - between:
+    - '692'
+    - '693'
+  - between:
+    - '693'
+    - '694'
+  - between:
+    - '663'
+    - '694'
+  - between:
+    - '665'
+    - '694'
+  - between:
+    - '645'
+    - '694'
+  - between:
+    - '690'
+    - '694'
+  - between:
+    - '647'
+    - '694'
+  - between:
+    - '141'
+    - '695'
+  - between:
+    - '316'
+    - '695'
+  - between:
+    - '062'
+    - '695'
+  - between:
+    - '331'
+    - '695'
+  - between:
+    - '314'
+    - '695'
+  - between:
+    - 090
+    - '695'
+  - between:
+    - 2026-07-02-meta-observation-session-resilience-convergence-630-two-lane-baseline-drift
+    - '695'
+  - between:
+    - 2026-07-02-meta-observation-session-resilience-recurrence-3rd-instance-e880cf50-annotation
+    - '695'
+  - between:
+    - '693'
+    - '696'
+  - between:
+    - '684'
+    - '696'
+  - between:
+    - '691'
+    - '697'
+  - between:
+    - '693'
+    - '697'
+  - between:
+    - '698'
+    - '[[673]]（同族同根：Type1趋势背驰/Extreme vs Type2盘整背驰/完备性判据混用；本条是673代码bug的定义层上游——错误定义为Type1-only谓词滤Type2提供正当化。genealogist
+      2026-07-02 张力发现：建议/ritual与673同批处理）'
+  - between:
+    - '695'
+    - '698'
+  - between:
+    - '683'
+    - '686'
+  - between:
+    - '231'
+    - '686'
+  - between:
+    - 090
+    - '686'
+  - between:
+    - '673'
+    - '[[698-source-tracing-type2-panzhengbeichi-vs-maimai-def4]]（定义层上游root：maimai#4过度泛化为本bug提供定义正当化，genealogist裁定/ritual同批处理；原引用
+      2026-07-02-source-tracing-*，该文件 2026-07-04 补编号重命名为 698）'
+  - between:
+    - '670'
+    - '673'
+  - between:
+    - '231'
+    - '673'
+  - between:
+    - '017'
+    - '673'
+  - between:
+    - '690'
+    - '696'
+  - between:
+    - '626'
+    - '699'
+  - between:
+    - '476'
+    - '699'
+  - between:
+    - '622'
+    - '699'
+  - between:
+    - '695'
+    - '699'
+  - between:
+    - '695'
+    - meta-observation-single-verifier-bias-api-quota-20260704
+  - between:
+    - '694'
+    - '698'
+  - between:
+    - '645'
+    - '698'
+  - between:
+    - '657'
+    - '698'
   tensions_with:
   - between:
     - '007'
@@ -10329,6 +11063,45 @@ edges:
   - between:
     - '539'
     - '574'
+  - between:
+    - '680'
+    - '230'
+  - between:
+    - '680'
+    - '623'
+  - between:
+    - '680'
+    - '615'
+  - between:
+    - '680'
+    - '639'
+  - between:
+    - '680'
+    - '667'
+  - between:
+    - '681'
+    - '616'
+  - between:
+    - '681'
+    - '617'
+  - between:
+    - '681'
+    - '656'
+  - between:
+    - '681'
+    - '637'
+  - between:
+    - '682'
+    - 090
+  - between:
+    - '682'
+    - '659'
+  - between:
+    - '682'
+    - '623'
+  - between:
+    - '682'
+    - '680'
   negated_by:
   - target: '032'
     by: 088

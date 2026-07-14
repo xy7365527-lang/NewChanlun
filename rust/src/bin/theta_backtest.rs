@@ -107,6 +107,14 @@ fn main() -> std::process::ExitCode {
     println!("--- 订单/交易 ---");
     println!("订单数          : {}", r.n_orders);
     println!("成交交易笔数    : {}", r.metrics.n_trades);
+    if let Some(s) = &r.strict_nest_sidecar {
+        println!("--- 严格区间套 sidecar（THETA_STRICT_NEST_SIDECAR）---");
+        println!("sidecar 帧数     : {}", s.frames);
+        println!("base cand_delta  : {}", s.base_count);
+        println!("terminal 查无    : {}", s.terminal_missing);
+        println!("证书总数         : {}", s.cert_total);
+        println!("每级证书数       : {:?}", s.cert_per_top);
+    }
     println!("--- 指标（含浮盈口径，runner §3）---");
     println!("strat_return    : {:.4}", r.metrics.strat_return);
     println!("buy&hold_return : {:.4}", r.metrics.bh_return);

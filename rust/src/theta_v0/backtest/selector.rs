@@ -37,10 +37,65 @@
 //! χ=1[μ>θ] 的 ΔN 序列非全等，**L1**），**不**证明 alpha 提升（**那需要 walk-forward μ，是后续
 //! 工位**）。本模块只提供选择器纯函数；μ 表的因果获取由调用方负责并诚实标注其泄漏状态。
 
+use std::rc::Rc;
+
+use super::econ_positive::NestTrigger;
 use super::mu_estimator::{MuClass, MuEstimator, PositionState};
+use crate::theta_v0::classifier::recursive_tower::LeveledMove;
 use crate::theta_v0::strategy::coverage::Vertical;
 use crate::theta_v0::strategy::interp::Candidate;
+use crate::theta_v0::strategy::ledger::{EtaBucket, TStage};
+use crate::theta_v0::strategy::risk::RiskMode;
 use crate::theta_v0::strategy::voice::VoiceSide;
+use crate::theta_v0::types::Bar;
+
+/// G3（#138）z 第 10-13 维装配参数（§6 CandType/Ndepth/ℓ/RiskMode）。
+///
+/// 新维数据源在**调用方语境**而非 `Candidate` 上：准入门证书（NestTrigger/深度/链顶）只在
+/// econ 统计层 collect_signals 的门判定现场，账本态（RiskMode）只在 runner π fill loop 的
+/// 风控门现场——经本结构显式携带进 z 构造。
+///
+/// **护航点（G2 tower/bars 同款）**：[`z_of_candidate`]/
+/// [`filter_gamma`]* 签名强制携带本参数。无对应数据源的路径显式传 [`ZExt::NONE`]——这是
+/// 可 grep 审计的诚实声明（「本路径未经准入门/无账本」），静默遗漏在类型层不可构造；
+/// 训练表与 χ 查询在同一现场共用同一 `ZExt` 值 ⟹ 同口径（防训练 Some/查询 None 全表 miss）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ZExt {
+    /// Cand 门通道（§6 CandType）：econ 门路径 `Some(nest_trigger(..))`；无门路径 None。
+    pub cand_channel: Option<NestTrigger>,
+    /// 区间套下沉深度（§6 Ndepth）：Nest 通道 `Some(rungs.len())`（0=基例真值）；
+    /// Xzd/无门路径 None（下沉概念未定义，非 0）。
+    pub nest_depth: Option<u8>,
+    /// 起始级 ℓ 覆盖（§6 ℓ）：`Some(ℓ)`=区间套链顶（Nest 通道 `lvl + rungs.len()`）；
+    /// `None` ⟹ z 填 `Some(c.level)`（起始=执行的无下沉**真值**——级别事实对任何真候选
+    /// 有定义，Xzd/runner 路径皆此口径；裸 `from_certificate` 才是 None）。
+    pub origin_level: Option<u32>,
+    /// 账户风险模式（§6 RiskMode+MarginState）：runner π fill loop `Some(当 bar mode)`；
+    /// 无账本路径（econ 统计层）None。
+    pub risk_mode: Option<RiskMode>,
+    /// 取本金三阶段（§6 TStage，#149 zdims 第 14 维）：runner π fill loop `Some(tw.stage)`
+    /// ——当 bar 决策点 TW 账本相位真值（与 `TwStepCtx.state` 同一 `tw` 变量，P2/P3/P4 谓词
+    /// 同口径）；无 TW 账本路径（econ 统计层）None（同 risk_mode 诚实口径）。
+    pub t_stage: Option<TStage>,
+    /// γ_t 四桶 ηBucket（§6 ηBucket，#175 zdims 第 15 维）：runner π fill loop
+    /// `Some(tw_policy.eta_bucket(&tw))`——η_t=`TwState::tw()` 与 η_*=`RiskPolicy::eta_star()`
+    /// 的 PDF §10 分段式离散化（终裁 a5-etabucket-stance-ruling-20260704.md，与 `t_stage` 同一
+    /// `tw` 变量同一装配点）；无 TW 账本路径（econ 统计层）None（同 t_stage 诚实口径）。
+    pub eta_bucket: Option<EtaBucket>,
+}
+
+impl ZExt {
+    /// 无扩展数据源口径（诚实声明载体）：扩展维全 None——z 仍填 `origin_level=Some(c.level)`
+    /// （见字段文档，级别事实非门产物）。
+    pub const NONE: ZExt = ZExt {
+        cand_channel: None,
+        nest_depth: None,
+        origin_level: None,
+        risk_mode: None,
+        t_stage: None,
+        eta_bucket: None,
+    };
+}
 
 /// χ_t(γ) = 1 ⟺ μ(γ) > θ ∧ RiskOK ∧ ConflictOK（§13 line 2239）。
 ///
@@ -130,7 +185,27 @@ pub fn chi_open_gate_lcb(
     chi_t(est.mu_lcb(z, z_alpha), theta, risk_ok, conflict_ok, treat_empty_as_pass)
 }
 
-/// 候选 γ ([`Candidate`]) → 全互斥分类 z ([`MuClass`])（§16 z 六维）的桥接。
+/// σ_higher：信号所在 level 的上级层（tower[level+1]）末走势端点价净差符号（666 号，见
+/// SignalDecomp.sigma_higher；667 号实证级别依赖调制器）。+1 净涨 / −1 净跌 / 0 持平；
+/// level+1 越界或上级层空 → 0。端点越界/非正 close → 0（诚实，不兜底）。
+///
+/// **单一来源**（codex-q1 G2）：z 构造（[`z_of_candidate`]）与 econ_positive 信号分解
+/// （SignalDecomp.sigma_higher）共用本函数——训练表与生产 χ 查询同口径，防"训练填真值/
+/// 查询填 None"的静默桶不命中（H 轴接入时修过的同类陷阱，z-bucket-impl 边界条件(a)）。
+pub(super) fn sigma_higher_at(tower: &[Rc<Vec<LeveledMove>>], bars: &[Bar], level: usize) -> i8 {
+    let Some(upper) = tower.get(level + 1) else { return 0 };
+    let Some(m) = upper.last() else { return 0 };
+    let (s, e) = (bars.get(m.start_index), bars.get(m.end_index));
+    match (s, e) {
+        (Some(sb), Some(eb)) if sb.close > 0 && eb.close > 0 => {
+            (eb.close - sb.close).signum() as i8
+        }
+        _ => 0,
+    }
+}
+
+/// 候选 γ ([`Candidate`]) → 全互斥分类 z ([`MuClass`])（§16 z 基六维 + H/force/σ_higher +
+/// G3 门/账本四维 cand_channel/nest_depth/origin_level/risk_mode）的桥接。
 ///
 /// `Candidate` 已带 `level`/`dir`(δ_g)/`bits`(I_γ)/`role`(R(g)=(H,V,δ))。z 的 `parent_dir` σ_p 与
 /// `position` 仓位态从 `role.v`（[`Vertical`]）推（与 [`MuClass::from_certificate`] 的 `short_swing`
@@ -139,9 +214,28 @@ pub fn chi_open_gate_lcb(
 /// - `FollowParent`（δ_g=σ_p，顺父）⟹ `position=Child`，`parent_dir=δ_g`（同向）。
 /// - `ShortDiff`（δ_g=−σ_p，短差）⟹ `position=Child`，`parent_dir=−δ_g`（反向）。
 ///
+/// `tower`/`bars`（codex-q1 G2 护航点）：σ_higher 第 9 维从塔真值取（[`sigma_higher_at`]，按
+/// `c.level`）——**签名强制**携塔，使"训练表填真值/生产查询无塔填 None"的静默退化在类型层不可
+/// 构造（不存在无塔重载）。所有真候选路径（collect_signals/build_mu_from_bars/fill loop χ 门）
+/// 均有 `tower_i`/`bars` 在手。
+///
+/// `force_state` 第 8 维（A6 #159）：从 `c.force`（[`Candidate`] 透传 `BspPoint.force`，A/C 段
+/// 5-proxy 单一来源）经 divergence.rs 唯一支配序原语 `ForceProxies::force_state()` 填；`c.force=None`
+/// （二/三类等无 A/C 对）⟹ `force_state=None`（诚实，同 horizontal None）。**本函数是 force_state
+/// 的唯一装配点**——旧 `z_of_candidate_with_force` 旁路已删（Candidate 携 force 后，「平装版静默
+/// None」与「旁路传错源」两类退化在类型层同时不可构造）。
+///
 /// `Flat` 方向候选（不可交易，归 𝒦_x 记录）δ 占位 +1——其 z 不被 χ 用于开仓（interpret 已归 record）；
 /// 此桥接只服务**方向候选**的 χ 过滤，Flat 候选由 [`filter_gamma`] 在构 z 前按 `c.dir==Flat` 跳过。
-pub fn z_of_candidate(c: &Candidate) -> MuClass {
+///
+/// `ext`（G3 #138 护航点）：第 10-13 维数据源显式携带（见 [`ZExt`]）——训练表与 χ 查询共用
+/// 同一 `ZExt` 现场值 ⟹ 同口径在类型层保证。
+pub fn z_of_candidate(
+    c: &Candidate,
+    tower: &[Rc<Vec<LeveledMove>>],
+    bars: &[Bar],
+    ext: &ZExt,
+) -> MuClass {
     let delta: i8 = match c.dir {
         VoiceSide::Long => 1,
         VoiceSide::Short => -1,
@@ -150,9 +244,65 @@ pub fn z_of_candidate(c: &Candidate) -> MuClass {
     let (parent_dir, position) = match c.role.v {
         Vertical::Ambient => (0, PositionState::Root),
         Vertical::FollowParent => (delta, PositionState::Child), // σ_p = δ_g
-        Vertical::ShortDiff => (-delta, PositionState::Child),   // σ_p = −δ_g
+        // GPT 命名冲突裁决：ShortDiff = δ_g=−σ_p（商映射 AgainstParent，含同级别+次级别反父）。
+        // σ_p=−δ_g（反向腿）；同级别/次级别区分在独立 G 轴 c.role.grade，不进 MuClass 此投影（商映射同桶）。
+        Vertical::ShortDiff => (-delta, PositionState::Child), // σ_p = −δ_g（反父方向，GPT AgainstParent）
     };
-    MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
+    // G3 恒等式护栏（§6 ℓ=e+Ndepth，Nest 通道）：链顶 ℓ 与深度同时给出时必须自洽。
+    if let (Some(ol), Some(d)) = (ext.origin_level, ext.nest_depth) {
+        debug_assert_eq!(ol, c.level + d as u32, "origin_level ≠ level + nest_depth（区间套链恒等式破）");
+    }
+    // H 轴（codex #81 `h_axis_in_canonical_z: accept`）：真候选带 role.h ⟹ 填 Some(h)，升 canonical z
+    // 到完整 R(g)=(H,V,δ)。from_certificate 只填 V 投影 + horizontal=None，此处 struct-update 覆盖 H。
+    // force_state 第 8 维（A6 #159）：从 c.force（Candidate 透传 BspPoint.force）经 divergence.rs
+    // 唯一支配序原语 ForceProxies::force_state() 填——旧 z_of_candidate_with_force 分叉已删：
+    // Candidate 携 force 后「平装版静默 None」在类型层不可构造（G2 tower 签名强制同款纪律）。
+    // σ_higher 第 9 维（codex-q1 G2）：塔真值 Some(v)——v=0 是计算结果（上级持平/无上级），非未知。
+    // G3 第 10-13 维：ext 显式装配；origin_level 无链覆盖 ⟹ Some(c.level)（起始=执行真值）。
+    // #149 第 14 维 t_stage：ext 显式装配（runner π 路径 Some(tw.stage)，统计层 None）。
+    // #175 第 15 维 eta_bucket：ext 显式装配（runner π 路径 Some(γ_t 四桶)，统计层 None）。
+    MuClass {
+        horizontal: Some(c.role.h),
+        force_state: c.force.map(|f| f.force_state()),
+        sigma_higher: Some(sigma_higher_at(tower, bars, c.level as usize)),
+        cand_channel: ext.cand_channel,
+        nest_depth: ext.nest_depth,
+        origin_level: Some(ext.origin_level.unwrap_or(c.level)),
+        risk_mode: ext.risk_mode,
+        t_stage: ext.t_stage,
+        eta_bucket: ext.eta_bucket,
+        ..MuClass::from_certificate(c.level, delta, c.bits, parent_dir, position)
+    }
+}
+
+/// 出场时刻 z 快照 `exit_z`（A7 #165，《完整的策略.pdf》§6 z「两次快照」+ §9 typed exit）。
+///
+/// **命题（PDF §6/§9，构造被迫非裁量）**：一笔持仓在其生命期内是**同一结构实体**——入场时
+/// 冻结的结构身份维（`level`/`delta`/`i_class`/`parent_dir`/`horizontal`/`force_state`/
+/// `sigma_higher`/`cand_channel`/`nest_depth`/`origin_level`）**不随 bar 演化重采样**（PDF §6
+/// 明文 `σ_higher: 入场时上级方向`——按定义是入场值；力度/H 由开仓 `Candidate` 派生，入场固定）。
+/// [`MuClass`] 中**唯一逐 bar 变化**的维是账本态三元 `{t_stage, eta_bucket, risk_mode}`（[`ZExt`]
+/// 承载的账本相位）。故「同一 z 在出场时刻的快照」= 入场 z 的结构维 **+** 出场 bar 的账本态维。
+///
+/// 在出场处**重新分类结构维**需要一个不存在的出场候选（多数 typed exit——CloseRoot/RiskExit/
+/// censored Hold——无触发候选），伪造它 = 声明膨胀（231号）。故本构造**被迫唯一**（定理，非裁量）：
+/// 精确刷新账本三元维，其余 struct-update 自 `entry_z` 承继。
+///
+/// `exit_ext` = 出场 bar 决策点的 [`ZExt`]（runner π 路径 = 该 bar 的 `ext_i`，与 entry_z 在同 bar
+/// 入场时的账本装配点同口径）。裸/统计层路径传 [`ZExt::NONE`] ⟹ 账本三元维诚实 None（同 entry_z）。
+///
+/// ★消费侧边界（A7 裁量分离，team-lead 令）：本函数只**生产** `exit_z` 入 [`TypedTrade`](
+/// super::runner::TypedTrade) 账本列。μ 估计器**按 `(z_entry, z_exit, exit_type)` 分桶的语义是设计
+/// 裁量**（多合理方案，需价值判断）——**未在此实装**，待 codex 裁决（no-unnecessary-escalation
+/// 选择类）。当前 μ 层仍按 `entry_z` 逐笔独立观测（[`build_mu_from_bars`](super::l3_delta_r_alpha)
+/// 不消费 `exit_z`），本字段是出场侧完备性的账本层载体（同 `position_node_id` A9 先例）。
+pub fn exit_z_of(entry_z: MuClass, exit_ext: &ZExt) -> MuClass {
+    MuClass {
+        risk_mode: exit_ext.risk_mode,
+        t_stage: exit_ext.t_stage,
+        eta_bucket: exit_ext.eta_bucket,
+        ..entry_z
+    }
 }
 
 /// χ_t 候选集过滤（§13 line 2256）：`Γ_t → Γ_t^trade = {γ∈Γ_t : χ_t(γ)=1}`。
@@ -187,8 +337,13 @@ pub fn filter_gamma(
     theta: f64,
     z_alpha: f64,
     treat_empty_as_pass: bool,
+    tower: &[Rc<Vec<LeveledMove>>],
+    bars: &[Bar],
+    ext: &ZExt,
 ) -> Vec<Candidate> {
-    filter_gamma_with_admission(gamma, est, theta, z_alpha, None, treat_empty_as_pass)
+    filter_gamma_with_admission(
+        gamma, est, theta, z_alpha, None, treat_empty_as_pass, tower, bars, ext,
+    )
 }
 
 /// 准入量泛化版（acc-three-way-l2 #83）：`shrink_tau_sq=None` ⟹ 准入量 = LCB(μ)（与 [`filter_gamma`]
@@ -206,6 +361,9 @@ pub fn filter_gamma_with_admission(
     z_alpha: f64,
     shrink_tau_sq: Option<f64>,
     treat_empty_as_pass: bool,
+    tower: &[Rc<Vec<LeveledMove>>],
+    bars: &[Bar],
+    ext: &ZExt,
 ) -> Vec<Candidate> {
     gamma
         .iter()
@@ -215,7 +373,10 @@ pub fn filter_gamma_with_admission(
                 return true;
             }
             // 方向候选：准入量>θ 门（RiskOK/ConflictOK 下游已施，此处仅 μ 项 risk_ok=conflict_ok=true）。
-            let z = z_of_candidate(c);
+            // σ_higher 真值查询（codex-q1 G2 护航点）：与训练表同经 z_of_candidate 取塔真值——
+            // 训练 Some(v)/查询 Some(v) 同口径，无静默"未见类别"退化。
+            // G3 ext（#138）：调用方传入与训练侧同现场的 ZExt（runner fill loop bar 级账本态）。
+            let z = z_of_candidate(c, tower, bars, ext);
             let admission = match shrink_tau_sq {
                 Some(tau_sq) => est.mu_shrink(&z, tau_sq),
                 None => est.mu_lcb(&z, z_alpha),
@@ -393,6 +554,120 @@ mod tests {
         // 无 LCB 证据：false ⟹ 不交易（诚实），true ⟹ 全覆盖放行——与空类同。
         assert!(!chi_open_gate_lcb(&est, &z, 0.0, z_alpha, true, true, false));
         assert!(chi_open_gate_lcb(&est, &z, 0.0, z_alpha, true, true, true));
+    }
+
+    /// G3（#138）ext 装配：四维经 ZExt 透传进 z；origin_level 无链覆盖 ⟹ Some(c.level)
+    /// （起始=执行真值）；ZExt::NONE ⟹ 门/账本维 None（诚实口径）。
+    #[test]
+    fn g3_ext_dims_assembled_into_z() {
+        use crate::theta_v0::backtest::econ_positive::NestTrigger;
+        use crate::theta_v0::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+        use crate::theta_v0::strategy::risk::RiskMode;
+
+        let c = Candidate {
+            level: 2,
+            source_index: 5,
+            bits: BspBits { buy2: true, ..Default::default() },
+            dir: VoiceSide::Long,
+            bsp_class: 2,
+            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus, grade: GradeRel::SameLevel },
+            nest_confirmed: false,
+            gamma_index: 0,
+            force: None,
+        };
+        // 无扩展源口径：门/账本维 None，origin_level=Some(level)（ℓ=e 真值非 None）。
+        let z0 = z_of_candidate(&c, &[], &[], &ZExt::NONE);
+        assert_eq!(z0.cand_channel, None);
+        assert_eq!(z0.nest_depth, None);
+        assert_eq!(z0.origin_level, Some(2), "无链覆盖 ⟹ 起始=执行级（真值）");
+        assert_eq!(z0.risk_mode, None);
+        assert_eq!(z0.t_stage, None, "#149：无 TW 账本口径 ⟹ t_stage 诚实 None");
+        assert_eq!(z0.eta_bucket, None, "#175：无 TW 账本口径 ⟹ eta_bucket 诚实 None");
+        // Nest 门口径：扩展维真值透传 + ℓ=e+depth 恒等式（debug_assert 同款自洽输入）。
+        let ext = ZExt {
+            cand_channel: Some(NestTrigger::Type23SublevelType1),
+            nest_depth: Some(1),
+            origin_level: Some(3), // = level 2 + depth 1
+            risk_mode: Some(RiskMode::Normal),
+            t_stage: Some(crate::theta_v0::strategy::ledger::TStage::CapitalRecovered),
+            eta_bucket: Some(EtaBucket::PositiveUnsafe),
+        };
+        let z1 = z_of_candidate(&c, &[], &[], &ext);
+        assert_eq!(z1.cand_channel, Some(NestTrigger::Type23SublevelType1));
+        assert_eq!(z1.nest_depth, Some(1));
+        assert_eq!(z1.origin_level, Some(3));
+        assert_eq!(z1.risk_mode, Some(RiskMode::Normal));
+        assert_eq!(
+            z1.t_stage,
+            Some(crate::theta_v0::strategy::ledger::TStage::CapitalRecovered),
+            "#149：t_stage 经 ZExt 透传进 z"
+        );
+        assert_eq!(
+            z1.eta_bucket,
+            Some(EtaBucket::PositiveUnsafe),
+            "#175：eta_bucket 经 ZExt 透传进 z"
+        );
+        // 形态维（1-9）不受 ext 影响（新维正交于形态维）。
+        assert_eq!((z0.level, z0.delta, z0.i_class, z0.horizontal), (z1.level, z1.delta, z1.i_class, z1.horizontal));
+    }
+
+    /// A6（#159）force 透传：z_of_candidate 从 c.force 经唯一支配序原语 ForceProxies::force_state()
+    /// 填第 8 维；c.force=None ⟹ force_state=None（诚实）。「透传断裂 ⟹ 恒 None」在此被单测封死。
+    #[test]
+    fn a6_force_state_assembled_from_candidate_force() {
+        use crate::theta_v0::classifier::divergence::{ForceFeatures, ForceProxies, ForceStateA5};
+        use crate::theta_v0::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+
+        let ff = |s: f64| ForceFeatures {
+            macd_area: 10.0 * s,
+            dif_peak: 2.0 * s,
+            price_amplitude: (100.0 * s) as i64,
+            price_speed: 5.0 * s,
+            tv: (150.0 * s) as i64,
+        };
+        let mut c = Candidate {
+            level: 0,
+            source_index: 3,
+            bits: BspBits { buy1: true, ..Default::default() },
+            dir: VoiceSide::Long,
+            bsp_class: 1,
+            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus, grade: GradeRel::SameLevel },
+            nest_confirmed: false,
+            gamma_index: 0,
+            force: Some(ForceProxies { seg_a: ff(1.0), seg_c: ff(0.5) }), // C 全 5 proxy < A ⟹ Dominated（背驰）
+        };
+        assert_eq!(
+            z_of_candidate(&c, &[], &[], &ZExt::NONE).force_state,
+            Some(ForceStateA5::Dominated),
+            "A6：c.force 经唯一支配序原语装配进 force_state 第 8 维"
+        );
+        c.force = None;
+        assert_eq!(
+            z_of_candidate(&c, &[], &[], &ZExt::NONE).force_state,
+            None,
+            "无 A/C 力度对 ⟹ force_state 诚实 None"
+        );
+    }
+
+    /// G3（#138）UClass 降维不读新维（约束②：新维只进 canonical 不进 selection 桶键——
+    /// 抗碎裂 + i_class×δ 共线教训）：仅新维不同的两个 z 映同一 u。
+    #[test]
+    fn g3_project_to_u_ignores_new_dims() {
+        use crate::theta_v0::backtest::econ_positive::NestTrigger;
+        use crate::theta_v0::backtest::mu_estimator::UClass;
+        use crate::theta_v0::strategy::risk::RiskMode;
+
+        let base = buy_z();
+        let decorated = MuClass {
+            cand_channel: Some(NestTrigger::XiaoZhuanDa),
+            nest_depth: Some(2),
+            origin_level: Some(5),
+            risk_mode: Some(RiskMode::Deleverage),
+            t_stage: Some(crate::theta_v0::strategy::ledger::TStage::EarningShares), // #149 同约束②
+            eta_bucket: Some(EtaBucket::Deficit), // #175 同约束②
+            ..base
+        };
+        assert_eq!(UClass::project_to_u(&base), UClass::project_to_u(&decorated), "ϕ:Z→U 折叠 G3/#149/#175 新维");
     }
 
     /// z_alpha=0 退化（向后兼容）：LCB=mean−0=mean ⟹ LCB 门 ≡ 裸 μ 门（filter_gamma/runner

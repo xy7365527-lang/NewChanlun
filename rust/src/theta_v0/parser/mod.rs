@@ -96,6 +96,9 @@ pub struct ParseLayer {
     /// classifier l0_tower 复用证书。全量 `parse_layer` = 0（无血缘，退化全量重建）。PartialEq 排除
     /// （性能证书非结构语义）。**不可用 segments.len()-1**（codex：末段可古怪线段重划改写）。
     pub segments_confirmed_len: usize,
+    /// #88：增量 segment 的 unsealed 起点（性能诊断——frontier 回退深度/前移轨迹实测）。
+    /// 全量 `parse_layer` = None。PartialEq 排除（诊断字段，非结构语义）。
+    pub segments_earliest_unsealed: Option<usize>,
     /// Rc 共享——`ParseLayerIncr::append` 从 `IncrFractals::to_result_rc()` O(1) clone。
     pub fractals: Rc<Vec<Fractal>>,
     /// Rc 共享——`ParseLayerIncr::append` 从 `IncrStrokes::to_result_rc()` O(1) clone。
@@ -239,6 +242,7 @@ impl<'c> ParseLayerIncr<'c> {
         let pending_start = pending_start;
         // #106 segments 证书（O(1)）：l0_tower 复用边界。
         let segments_confirmed_len = self.incr_segments.confirmed_len();
+        let segments_earliest_unsealed = self.incr_segments.earliest_unsealed_from();
 
         // tail 全量重算（O(tail) 非 O(merged_i)——二分查找定位锚点 + 尾部延伸段扫描）。
         let tail = tail::build_tail(&merged, &fractals, &strokes, &segments, pending_start);
@@ -247,6 +251,7 @@ impl<'c> ParseLayerIncr<'c> {
             merged_bars: merged,
             merged_confirmed_len,
             segments_confirmed_len,
+            segments_earliest_unsealed,
             fractals,
             strokes,
             segments,
@@ -276,6 +281,7 @@ fn parse_layer_from_merged(merged: &[Bar], config: &ThetaConfig) -> ParseLayer {
         merged_bars: Rc::new(merged.to_vec()),
         merged_confirmed_len: 0, // 全量构造无增量血缘 ⟹ 0 = classifier 退化全量重建（bit-exact）。
         segments_confirmed_len: 0,
+        segments_earliest_unsealed: None,
         fractals: Rc::new(fractals),
         strokes: Rc::new(strokes),
         segments: Rc::new(segments),

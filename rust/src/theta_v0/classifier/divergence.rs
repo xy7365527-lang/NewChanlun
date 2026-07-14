@@ -22,7 +22,7 @@
 //!     一中枢**的离开段，C=相邻**后一中枢**的离开段（破中枢段）。C段面积 < A段面积 ⟹ 趋势背驰。
 //!   · **盘整背驰**（[`consolidation_divergence`]）：τ=Consolidation（恰 1 中枢，zoushi.md:107）。
 //!     A、C 是**同一中枢**的两次同向离开段（第24课:34-36 + beichi.md:113）。C < A ⟹ 盘整背驰。
-//!   · **τ 门控**（[`trend_class`]）：复用 `center::classify_relation` 派生走势类型——
+//!   · **τ 门控**：已迁 decompose.rs（task #143 局部趋势门，复用 `center::classify_relation`）——
 //!     ≥2 全链同向 → Trend；1 中枢 → Consolidation；mixed/扩张 → 非趋势非盘整（不产第一类）。
 //!     第一类买卖点**只由趋势背驰产生**（盘整背驰不产第一类，beichi.md #4 + maimai.md:56 已结算）。
 //!
@@ -31,7 +31,7 @@
 //! MACD 是 v0 的**辅助**度量（结构前提优先）。MACD 浮点运算**隔离在本文件**，按固定
 //! 约简顺序计算，**不漏入整数 tick 域**（types.rs 的结构判定全在 i64）。背驰输出是
 //! bool（严格变小），bool 无浮点歧义——浮点只在内部面积比较时出现，且用严格 `<`。
-//! A/B/C 框架层的中枢关系判定（趋势门控）在**整数 tick 域**（`center::classify_relation`），
+//! A/B/C 框架层的中枢关系判定（趋势门控，decompose.rs）在**整数 tick 域**（`center::classify_relation`），
 //! 浮点只在力度原语层（面积比较）出现——两域不混。
 //!
 //! ## MACD(12,26,9) 算法（reference-theta-v0.md:37，固定约简顺序）
@@ -58,8 +58,7 @@
 //! 趋势/盘整门控判据（中枢同向关系）是 **L0**（纯整数几何，不依赖经验数据）。
 
 use super::super::config::MacdConfig;
-use super::super::types::{Center, Direction, Segment};
-use super::center::{classify_relation, CenterRelation};
+use super::super::types::{Center, Direction, Segment, Tick};
 
 /// MACD 逐 bar 输出（DIF/DEA/hist，浮点域，隔离在本结构）。
 #[derive(Debug, Clone, PartialEq)]
@@ -249,6 +248,21 @@ pub fn is_divergence(prev_area: f64, curr_area: f64) -> bool {
 ///
 /// `prev_seg`/`curr_seg` 是 `(start,end)` 闭区间 bar 索引对。后段面积严格小于前段 ⟹ 力度衰减
 /// （力度原语，A/B/C 框架层 §B 用它比较已定位的 A/C 段）。
+///
+/// ## ★诚实 gap（缠师第17课，编排者 2026-07-01 坐实——识别非实装）
+///
+/// 缠师第17课原文（017-第17课.md:248/250）：「用均线或 MACD 看背驰都是**辅助性**的，都不是最
+/// 重要的」「没有 MACD 就判断不了背驰？显然不是。**那只是辅助**」。背驰的**定义**是「两相邻同向
+/// 趋势间后者比前者的**走势力度**减弱」——**走势力度**才是判据，MACD 面积只是一个 proxy。
+///
+/// 本实装的背驰**仅由 MACD 段面积**判定（`segment_macd_area` = Σ|hist|），**无独立的走势力度
+/// 判据**（价格振幅/速度/成交量力度等）。`force_conformance.rs` 的 `ForceMeasure.strength` 亦只
+/// 包 MACD area（见其模块头 L2 未验证声明）。这是比 P2 veto **更根本的简化**：辅助指标（MACD）
+/// 被当成了背驰的**唯一判据**，与缠师原文相悖（同构：区间套同一性证书零调用、简化被当完整）。
+///
+/// ponytail: MACD-area-only 力度判据，真走势力度（振幅/速度/量能，第17课定义）留待后续大工程；
+/// 本 gap 已诚实标注（编排者裁定：识别并标注，不顺手实装）。升级路径 = ForceMeasure 增非-MACD
+/// strength 实例（价格振幅/速度），MACD area 降为多 proxy 之一，与 P2「MACD 降 feature」同精神。
 pub fn segments_diverge(
     hist: &[f64],
     prev_seg: (usize, usize),
@@ -260,59 +274,359 @@ pub fn segments_diverge(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// § B. A/B/C 趋势/盘整背驰框架层（第24课:22-24 + beichi.md v1.1 已结算）
+// § A2. 多力度原语 + Weak_Θ 词典序（P2 方案A §4/§7 改点5；第17课「黄白线主，面积次」+ 第34课）
+//
+// ★存在论位置（p2-plan §4 + codex-review-20260701-2251 护栏3/6）：这些是**力度原语层**——
+// 供 **selector 层** Weak_Θ 力度门消费的多 proxy（DIF/价格振幅/速度），**不下沉 buy1 定义层**
+// （buy1 判据仍 `segments_diverge`=MACD 面积，class_index 语义冻结，护栏3）。DIF 逻辑移植 rust
+// 顶层旧引擎 `src/divergence.rs`（dif_peak/T6），坐标系改为 theta_v0 的 `dif` 序列 + 段闭区间。
+//
+// ★认识论（formalization-validity-domain 231号，强制）：
+// - **L1**：原语接口正确性（给定 dif/closes 求峰值/振幅/速度是确定性算术，逐例可验）。
+// - **L2/L3**：「哪个 mode 有 alpha / 词典序优于单 MACD」需三套 OOS（MACD/Force/LEX），
+//   **本层不声明**，留 W-VERIFY（#23）。weak_theta 只提供判定纯函数，不声明择时有效性。
+//
+// ★有效域边界更新（A6 #159 后）：R2 时代「Candidate 无段 close 序列 ⟹ 算不了振幅/速度 ⟹ 不造
+// 死字段」的前提已被两步解除——#115 在 `BspPoint.force` 收进 signal 抽取层算好的 A/C 段 5 proxy
+// （单一来源），A6（#159）令 `Candidate.force` 纯透传该值进 gamma 组装 ⟹ z 装配点
+// （`selector::z_of_candidate`）读 `c.force` 填 `force_state` 第 8 维（统计层与生产 π fill loop
+// 同经此路，无死字段）。
+//
+// ★A3（#164）接入定位（671号纠正——原注误指 filter_gamma）：Weak 力度判据的 canonical 归属是
+// **judge 的参数化 D 判定**（`DivergenceGauge`，一类买卖点.pdf p10 §9.3 `Type1Cand` 第5条
+// `Weak(s,A)=1` 的实装点），**不是 `filter_gamma` 的力度 veto 门**。671号已结算：力度=**feature**
+// （`force_state` 第 8 维进 χ 的 z），**不作 selector 一票否决**——P2-R2/671 消除了「MACD C≥A 预删」
+// 选择偏差，在 selector 加硬力度门会重引入同一偏差。故 A3 的 Weak 非-MACD 化落点：
+//   · A2（#163）：`ThetaDom`（Θ_DOM 支配序）已接 judge；
+//   · A3（#164）：`ThetaLex`（Θ_LEX 词典序，`weak_theta(Lex)` 唯一生产消费者）接 judge——
+//     `weak_theta`/`WeakThetaMode` 原语自此**非死代码**（confirm_divergence ThetaLex 分支消费）。
+// 诚实声明：原语 ✓，透传 ✓（A6），judge Θ_DOM ✓（A2），judge Θ_LEX ✓（A3）；𝒜_ℓ 第6成员
+// SubMovePower 仍缺（见 `ForceStateA5` 头，数据源未达 signal 抽取层，诚实缺口）。
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// 走势类型 τ（背驰门控，契约锚 `Origin.TrendCompleteClassification.TrendClass`）。
+/// 段力度多 proxy（P2 §6 selector 状态 z 的力度分量：MACD 面积 / DIF 峰值 / 价格振幅 / 速度）。
 ///
-/// 比 `level::MoveOutcome` 轻量——本层只需区分背驰相关的三态：趋势（携方向，产趋势背驰=第一类）、
-/// 盘整（产盘整背驰，不产第一类）、退化（mixed/扩张/0中枢，不产任何背驰型买卖点）。逐分支对齐
-/// `classify_move`（level.rs），但本层独立计算（signal.rs 内从 `centers` 自派生，不改 mod.rs 签名）。
+/// 三 proxy 对应第17课「黄白线（DIF）最重要，面积次之」+ 价格振幅/速度（走势力度的直接度量，
+/// 非 MACD proxy）。由 [`force_features`] 从段区间算出，供 [`weak_theta`] 词典序比较。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForceFeatures {
+    /// MACD 段面积 = Σ|hist|（力度原语，`segment_macd_area`）。
+    pub macd_area: f64,
+    /// DIF 段峰值绝对值（黄白线主判据，第17课「黄白线最重要」；移植旧引擎 dif_peak）。
+    pub dif_peak: f64,
+    /// 价格振幅 |端价差|（L0 整数 tick，走势力度直接度量，非 MACD proxy）。
+    pub price_amplitude: i64,
+    /// 价格速度 |端价差|/Δbar（f64，单位时间价格变动）。
+    pub price_speed: f64,
+    /// 段全变差 TV = Σ|P_{t+1}−P_t|（原文 §5 p6 𝒜_ℓ 成员；整数 tick 域，路径长度 ≥ |端价差|）。
+    pub tv: i64,
+}
+
+/// A/C 段力度 proxy 对（趋势背驰的两段并置——`Weak_Θ(seg_a, seg_c)` 用它比较）。
+///
+/// 一类候选（趋势背驰）由 A 段（倒数第二中枢离开）+ C 段（破最后中枢）配对，每段一个
+/// [`ForceFeatures`]。这是 selector Weak_Θ 力度门 / 离线多 proxy 交叉验证（W-VERIFY #13）的输入。
+/// **认识论 L1**：段坐标→proxy 是确定性算术；「哪个 proxy 有 alpha」是 L2/L3（本层不声明）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ForceProxies {
+    /// A 段（前趋势离开段）力度。
+    pub seg_a: ForceFeatures,
+    /// C 段（破最后中枢段）力度。
+    pub seg_c: ForceFeatures,
+}
+
+/// 力度支配态（`关于背驰.pdf` §9.1 `ForceState`，5-proxy 近似 = `ForceStateA5`）。
+///
+/// 支配序四态（§5-6 p6 `s ≺_𝒜 s'`）：C 段（后离开段）相对 A 段（前离开段）在允许力度族
+/// 𝒜₅={macd_area, dif_peak, price_amplitude, price_speed, tv} 上的支配关系。**背驰 = C 力度衰减 =
+/// `Dominated`**（C 在全部 5 proxy 上 ≤ A 且至少一个 <）。
+///
+/// **命名（beta-bucket-design v2 §2.3 / codex-beta ② / q3 D-1 残余）**：`A5` 后缀诚实标注现有
+/// 5 proxy——TV（全变差）已并入本口径族；原文完整 𝒜_ℓ 仍缺递归次级别力度 SubMovePower
+/// （Σ_{次级别同向段} m_{ℓ-1}(u)），其数据源未达 signal 抽取层（signal.rs 只有 hist/dif/closes，
+/// 无塔次级别段），登记诚实缺口——裁定见 codex-a4-force-20260704.md。补齐后可升名 `ForceState`。
+/// 单调性：补维只会把 `Dominated`/`Dominates`/`Tie` 变 `Incomparable`（新增口径可能冲突），反向
+/// 不会 ⟹ `ForceStateA5` 的 `Dominated` 是完整支配序 `Dominated` 的**超集（宽判背驰）**。
+///
+/// **认识论 L1**：给定 A/C ForceFeatures 求支配态是确定性算术（管线正确性）。「哪个态有 alpha」=L2/L3。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ForceStateA5 {
+    /// C 在全部 5 proxy 上 ≤ A 且至少一个 <——**确定背驰**（C 力度衰减）。
+    Dominated,
+    /// C 在全部 5 proxy 上 ≥ A 且至少一个 >——确定力度延续（非背驰）。
+    Dominates,
+    /// C 与 A 全部 5 proxy 相等。
+    Tie,
+    /// 口径冲突（部分 proxy C<A、部分 C>A）——**不作背驰确认**（codex-beta ②）。
+    Incomparable,
+}
+
+impl ForceProxies {
+    /// 𝒜₅ 支配序比较（唯一支配序原语，beta-bucket-design v2 §6 路由 ⑤——不在别处重算）。
+    ///
+    /// 逐 proxy 比较 C(`seg_c`) vs A(`seg_a`)：任一 proxy `c<a` 记 weaker，`c>a` 记 stronger。
+    /// 全 ≤ 且有 weaker ⟹ `Dominated`；全 ≥ 且有 stronger ⟹ `Dominates`；全等 ⟹ `Tie`；
+    /// 既有 weaker 又有 stronger ⟹ `Incomparable`。price_amplitude/tv 是 i64，其余 f64（严格
+    /// `<`/`>`，与 `is_divergence` 同「等值不算衰减」口径）。
+    pub fn force_state(&self) -> ForceStateA5 {
+        let (a, c) = (&self.seg_a, &self.seg_c);
+        // 五 proxy 的 (c<a, c>a) 布尔对。amplitude/tv 为 i64，比较前统一到同类型无损。
+        let cmps = [
+            (c.macd_area < a.macd_area, c.macd_area > a.macd_area),
+            (c.dif_peak < a.dif_peak, c.dif_peak > a.dif_peak),
+            (c.price_amplitude < a.price_amplitude, c.price_amplitude > a.price_amplitude),
+            (c.price_speed < a.price_speed, c.price_speed > a.price_speed),
+            (c.tv < a.tv, c.tv > a.tv),
+        ];
+        let weaker = cmps.iter().any(|&(lt, _)| lt);
+        let stronger = cmps.iter().any(|&(_, gt)| gt);
+        match (weaker, stronger) {
+            (true, false) => ForceStateA5::Dominated,
+            (false, true) => ForceStateA5::Dominates,
+            (false, false) => ForceStateA5::Tie,
+            (true, true) => ForceStateA5::Incomparable,
+        }
+    }
+
+    /// Θ_SCORE 归一化力度标量（prereg-a2-thetadom-oos-20260704 冻结：m=dif_peak，第17课黄白线主）。
+    ///
+    /// `β_norm = (m_A − m_C) / (m_A + m_C) ∈ [−1,1]`——归一化差非比值（有界、对称、避免 m_A→0
+    /// 爆炸，beta-bucket-design v2 §4.2）。`β_norm > 0` = C 弱于 A（背驰域）。dif_peak 恒 ≥0
+    /// （`segment_dif_peak` 取绝对峰）⟹ 分母 ≥0；双零（A/C 均无 DIF 峰）⟹ 无力度可比 ⟹ 0.0
+    /// （非背驰，prereg 冻结口径）。
+    pub fn theta_score(&self) -> f64 {
+        let (m_a, m_c) = (self.seg_a.dif_peak, self.seg_c.dif_peak);
+        let denom = m_a + m_c;
+        if denom == 0.0 {
+            return 0.0;
+        }
+        (m_a - m_c) / denom
+    }
+}
+
+/// Θ_SCORE K=3 分箱（prereg-a2-thetadom-oos-20260704 冻结边界 { ≤0: 非背驰, (0,0.33): 弱, ≥0.33: 强 }，
+/// 边界不得事后调——beta-bucket-design v2 §4.2「每个边界都是一个 Θ 选择」）。
+///
+/// 角色（§4.3 方案 B）：分层键候选，**不是判定口径**（三判定口径见 [`DivergenceGauge`]）——
+/// 分层键接入点在 mu_estimator/ResidualTrade（并发工位域），本层只提供原语；接入前是诚实
+/// 未消费原语（prereg 已登记），非死字段冒充。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ThetaScoreBin {
+    /// `β_norm ≤ 0`：C 力度不弱于 A（非背驰）。
+    NonDivergent,
+    /// `0 < β_norm < 0.33`：弱背驰。
+    Weak,
+    /// `β_norm ≥ 0.33`：强背驰。
+    Strong,
+}
+
+/// `β_norm` → K=3 箱（冻结边界 0 / 0.33，见 [`ThetaScoreBin`]）。
+pub fn theta_score_bin(beta_norm: f64) -> ThetaScoreBin {
+    if beta_norm <= 0.0 {
+        ThetaScoreBin::NonDivergent
+    } else if beta_norm < 0.33 {
+        ThetaScoreBin::Weak
+    } else {
+        ThetaScoreBin::Strong
+    }
+}
+
+/// 趋势背驰 D 的判定口径开关（A2 #163 + A3 #164，关于背驰.pdf §9.2 三套 Θ 预注册）。
+///
+/// D = 一类买卖点 buy1/sell1 的背驰确认谓词（`judge_first_cached` 的 `below_last_center` 源）——
+/// 即 `一类买卖点.pdf` p10 §9.3 `Type1Cand` 第 5 条 `Weak(s, A) = 1` 的实装点。p6 明文「`Weak`
+/// should be defined by a **force measure**, not only MACD area」——本开关正是把 Weak 从「仅 MACD
+/// 面积」升级为**力度签名合规判定**（关于背驰.pdf §5「支配序，而不是单一指标」）的承载。
+/// 默认 [`MacdArea`](DivergenceGauge::MacdArea)（现行冻结判据，bit-exact 不变）——判定口径变更
+/// 改变信号集合（⟹ ledger ⟹ 残差样本），属预注册敏感，**显式配置才切换，不默认**。
+///
+/// **Weak 的 canonical 归属在 judge（本开关），非 selector 力度 veto**（671号已结算）：力度作为
+/// **feature**（`force_state` 第 8 维，#159 已透传进 χ 的 z），**不作 `filter_gamma` 一票否决**——
+/// P2-R2/671 消除了「MACD C≥A 预删」选择偏差，再在 selector 加硬力度门会重引入同一偏差。故
+/// Weak 力度判据的接入点是**参数化 D 判定**（本 gauge），与 A2 的 `ThetaDom` 同款模式。
+///
+/// 有效域（诚实边界）：只作用于趋势背驰 D（一类）。盘整背驰证书（`judge_pan_div`）、二类
+/// `divergence_of` 不在本开关范围。
+///
+/// 关于背驰.pdf §9.2 三套预注册 Θ ↔ 本枚举：`Θ_DOM`=[`ThetaDom`](DivergenceGauge::ThetaDom)、
+/// `Θ_LEX`=[`ThetaLex`](DivergenceGauge::ThetaLex)、`Θ_SCORE`=分层键候选（[`ForceProxies::theta_score`]，
+/// 非判定口径）。三套「分别 OOS 回测，不能先看结果再选」——见 `wverify_run::thetadom_three_gauge_oos`。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum DivergenceGauge {
+    /// G1 对照基线（默认）：`Area(C) < Area(A)`（`segments_diverge` 现行冻结判据）。
+    #[default]
+    MacdArea,
+    /// G2 `Θ_DOM`：`ForceStateA5(C,A) == Dominated`（𝒜₅ 全支配衰减，A5 amended 口径）。
+    ThetaDom,
+    /// G3 Conjunction：G1 ∧ G2（MACD 面积衰减 ∧ 全支配序衰减）。
+    Conjunction,
+    /// G4 `Θ_LEX`（关于背驰.pdf §9.2「结构 > DIF > 面积」词典序）：级别内 `weak_theta(Lex)` —
+    /// DIF 主判据（第17课黄白线最重要），DIF 不可判（相等）退面积次判据。**「结构」层（级别）
+    /// 由 selector 级别分桶承载**（护栏3：`weak_theta` 是同级别内的力度词典序，MuClass.level 承载
+    /// 级别元门），故 gauge 内 lex 退化为「DIF ▷ 面积」两层——与 [`WeakThetaMode::Lex`] 一致。
+    ThetaLex,
+}
+
+/// 四口径 D 判定（单一判定点——`judge_first_cached` 唯一消费者，不在别处重算组合逻辑）。
+///
+/// `macd_c_lt_a` = G1 原语结果（`AbcDivergence::diverges`，调用方已算——G1/G3 复用，不重算面积）；
+/// `force` = A/C 段 5 proxy（`BspPoint.force` 同源）。ThetaDom/ThetaLex/Conjunction 下 `force=None`
+/// （dif/closes 无源，旧测试/合成入口）⟹ **false**（无 5-proxy 无背驰确认——诚实不判，
+/// 不 fallback 回 MACD 口径；no-workaround：口径混用=两种矛盾理解都能通过）。
+///
+/// ThetaLex 语义：`weak_theta(Lex, seg_a, seg_c)` = C 段（后离开段）力度**词典序严格小于** A 段
+/// （背驰=力度衰减，`ForceProxies.seg_a`=前段A / `seg_c`=后段C，与 `Weak(C,A)=1` 逐字对齐）。
+///
+/// 认识论 L1：给定原语结果求 D 是确定性布尔。「哪个口径有 alpha」= L2/L3（四口径 OOS，本函数不声明）。
+pub fn confirm_divergence(
+    gauge: DivergenceGauge,
+    macd_c_lt_a: bool,
+    force: Option<&ForceProxies>,
+) -> bool {
+    let dominated = || force.map(|f| f.force_state() == ForceStateA5::Dominated).unwrap_or(false);
+    // Θ_LEX：级别内词典序 Weak(C,A)=1（DIF 主 ▷ 面积次，第17课）。force 无源 ⟹ false（诚实不判）。
+    let lex_weak = || {
+        force
+            .map(|f| weak_theta(WeakThetaMode::Lex, &f.seg_a, &f.seg_c))
+            .unwrap_or(false)
+    };
+    match gauge {
+        DivergenceGauge::MacdArea => macd_c_lt_a,
+        DivergenceGauge::ThetaDom => dominated(),
+        DivergenceGauge::Conjunction => macd_c_lt_a && dominated(),
+        DivergenceGauge::ThetaLex => lex_weak(),
+    }
+}
+
+/// DIF 段峰值绝对值（黄白线主判据原语，第17课；移植旧引擎 `dif_peak_for_range` 到 theta_v0）。
+///
+/// `dif` 是 `compute_macd(...).dif` 序列（黄白线，与 hist 同坐标系）。`[start,end]` 闭区间 bar
+/// 下标。向上段取区间内 `max(dif)`（正峰），向下段取 `min(dif)` 的绝对值（负峰）——与旧引擎
+/// `dif_peak_for_range(up)` 语义一致（up→max 正值 / down→|min 负值|）。越界/空 ⟹ 0.0。
+///
+/// bit-exact：按 bar 升序扫描取极值（固定顺序），`f64` 比较用 `max`/`min`（无 NaN 前提，dif 由
+/// EMA 差得，有限）。
+pub fn segment_dif_peak(dif: &[f64], start: usize, end: usize, direction: Direction) -> f64 {
+    if start > end || end >= dif.len() {
+        return 0.0;
+    }
+    let slice = &dif[start..=end];
+    match direction {
+        // 向上段：黄白线正峰（max）。缠师顶背驰看黄白线新高与否。
+        Direction::Up => slice.iter().copied().fold(f64::NEG_INFINITY, f64::max).max(0.0),
+        // 向下段：黄白线负峰（|min|）。底背驰看黄白线新低。
+        Direction::Down => slice.iter().copied().fold(f64::INFINITY, f64::min).min(0.0).abs(),
+    }
+}
+
+/// 段价格振幅 |端价差|（L0 整数 tick，走势力度的直接度量，第17课「走势力度」非 MACD proxy）。
+///
+/// `closes` 段端点（下标 `start`/`end`）close 的有向差绝对值。越界 ⟹ 0（空段无振幅）。
+/// **整数域**（无浮点）——close 已量化为 tick（types.rs），振幅是 tick 差。
+pub fn segment_price_amplitude(closes: &[Tick], start: usize, end: usize) -> i64 {
+    if start > end || end >= closes.len() {
+        return 0;
+    }
+    (closes[end] - closes[start]).abs()
+}
+
+/// 段价格速度 |端价差|/Δbar（单位时间价格变动，f64）。
+///
+/// 振幅 / 段跨度（`end-start`，至少 1 避免除零）。越界 ⟹ 0.0。
+pub fn segment_price_speed(closes: &[Tick], start: usize, end: usize) -> f64 {
+    if start > end || end >= closes.len() {
+        return 0.0;
+    }
+    let amp = (closes[end] - closes[start]).abs() as f64;
+    let span = (end - start).max(1) as f64;
+    amp / span
+}
+
+/// 段全变差 TV = Σ|closes[t+1]−closes[t]|，t∈[start,end)（原文 §5 p6 `TV=Σ|P_{t+1}−P_t|`）。
+///
+/// 与振幅的差：振幅只看端点差，TV 累积路径长度（TV ≥ |端价差|，段内折返越多 TV 越大）。
+/// 越界/单点段 ⟹ 0。整数 tick 域（无浮点）。
+pub fn segment_total_variation(closes: &[Tick], start: usize, end: usize) -> i64 {
+    if start >= end || end >= closes.len() {
+        return 0;
+    }
+    closes[start..=end].windows(2).map(|w| (w[1] - w[0]).abs()).sum()
+}
+
+/// 从段区间算全部力度 proxy（`ForceFeatures`）——MACD 面积 + DIF 峰值 + 价格振幅 + 速度 + TV。
+///
+/// `hist`/`dif` 是 `compute_macd` 的 hist/dif 序列；`closes` 是 close(tick) 序列；三者同坐标系
+/// （bar 下标对齐）。`(start,end)` 闭区间，`direction` 段方向（DIF 峰值方向敏感）。
+pub fn force_features(
+    hist: &[f64],
+    dif: &[f64],
+    closes: &[Tick],
+    start: usize,
+    end: usize,
+    direction: Direction,
+) -> ForceFeatures {
+    ForceFeatures {
+        macd_area: segment_macd_area(hist, start, end),
+        dif_peak: segment_dif_peak(dif, start, end, direction),
+        price_amplitude: segment_price_amplitude(closes, start, end),
+        price_speed: segment_price_speed(closes, start, end),
+        tv: segment_total_variation(closes, start, end),
+    }
+}
+
+/// Weak_Θ 力度比较模式（第34课 Θ=(level,DIF,area,amplitude,speed,…) 参数化；「三套 OOS」+ 默认 Lex）。
+///
+/// 每个 mode 定义「后段力度 `<` 前段力度」（背驰=力度衰减）的判据用哪个 proxy。`Lex` 是缠师第17课
+/// 「黄白线主 ▷ 面积次」的词典序（DIF 可判用 DIF，否则退面积）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TrendClass {
-    /// 趋势（≥2 全链同向中枢，携方向）——产**趋势背驰**（第一类买卖点，reference:34）。
-    Trend(Direction),
-    /// 盘整（恰 1 中枢，zoushi.md:107）——产**盘整背驰**（不产第一类，beichi #4 已结算）。
-    Consolidation,
-    /// 退化（0 中枢 / 中枢非全链同向 = 扩张/方向混合）——不产趋势背驰也不产盘整背驰。
-    Degenerate,
+pub enum WeakThetaMode {
+    /// 纯 MACD 面积（`segments_diverge` 同判据，与 buy1 冻结判据一致——作对照基线）。
+    MacdArea,
+    /// 纯 DIF 峰值（黄白线主判据，第17课「黄白线最重要」）。
+    Dif,
+    /// 纯价格振幅（走势力度直接度量，非 MACD proxy）。
+    PriceAmplitude,
+    /// 词典序（第17课/第34课默认）：DIF 主 ▷ 面积次——DIF 严格可判则用 DIF，DIF 相等则退面积。
+    Lex,
 }
 
-/// 全链同向判定（契约锚 `Origin.CenterStates` 外缘趋势判据全链推广，对齐 level.rs `all_adjacent`）。
+/// Weak_Θ 力度衰减判定（第34课参数化弱化关系，`Weak_Θ(A段,C段)` = C 段力度**严格小于** A 段）。
 ///
-/// 中枢序列每对相邻中枢的 `classify_relation` 都等于 `rel`。趋势要求**全链**同向（非仅首两个）：
-/// `[up,up,扩张]` 或 `[up,down]` 不是趋势（第24课:22「否则就连成一个大趋势或大中枢」的反面=混合）。
-fn all_same_relation(rel: CenterRelation, centers: &[Center]) -> bool {
-    centers
-        .windows(2)
-        .all(|w| classify_relation(&w[0], &w[1]) == rel)
-}
-
-/// 从中枢序列派生走势类型 τ（背驰门控，第24课 + reference:34 + zoushi.md:107-109）。
+/// **词典序语义**（p2-plan §4 + 第17课「黄白线最重要，面积次之」+ swarm 待判点 B「非 AND/OR」）：
+/// - `MacdArea`：`C.macd_area < A.macd_area`（与 buy1 冻结判据一致，对照基线）。
+/// - `Dif`：`C.dif_peak < A.dif_peak`（黄白线主）。
+/// - `PriceAmplitude`：`C.price_amplitude < A.price_amplitude`。
+/// - `Lex`：DIF 主 ▷ 面积次——`C.dif < A.dif` ⟹ true（背驰）；`C.dif > A.dif` ⟹ false（力度延续）；
+///   `C.dif == A.dif`（DIF 不可判）⟹ 退面积 `C.area < A.area`。**非 AND/OR**（027:30「只要其中
+///   一个符合就可以」否证 AND；第34课「黄白线最重要」否证纯 OR）。
 ///
-/// - **0 中枢** → `Degenerate`（无中枢=未完成走势，无背驰对象）。
-/// - **1 中枢** → `Consolidation`（盘整定义，zoushi.md:107）。
-/// - **≥2 中枢全链上涨延续** → `Trend(Up)`；全链下跌延续 → `Trend(Down)`（reference:34
-///   「趋势≥两同向中枢」+ maimai.md:105-112「≥2个依次同向的同级别中枢」）。
-/// - **≥2 中枢非全链一致**（扩张/方向混合）→ `Degenerate`（第24课:22「连成大中枢」=级别扩张，
-///   本级非趋势非盘整，交父级；本层不产背驰）。
+/// ★接入点（671号纠正）：本函数的生产消费者是 [`confirm_divergence`] 的 `ThetaLex` 分支（judge 层
+/// 参数化 D 判定，A3 #164）——**非 selector 力度 veto**（671：力度=feature 不作 filter_gamma 一票
+/// 否决）。默认口径（`MacdArea`）下 buy1 判据仍 `segments_diverge`=MACD 面积（class_index 语义不动，
+/// bit-exact）；仅 `DivergenceGauge::ThetaLex` 显式激活时本词典序进 D。level 元门（级别配套）不在此
+/// 函数（selector 已按 level 分桶，元门由 MuClass.level 承载）——本函数是同级别内的力度词典序。
 ///
-/// L0 纯整数几何（中枢外缘 dd/gg 比较），不依赖经验数据。
-pub fn trend_class(centers: &[Center]) -> TrendClass {
-    match centers.len() {
-        0 => TrendClass::Degenerate,
-        1 => TrendClass::Consolidation,
-        _ => {
-            if all_same_relation(CenterRelation::UpContinuation, centers) {
-                TrendClass::Trend(Direction::Up)
-            } else if all_same_relation(CenterRelation::DownContinuation, centers) {
-                TrendClass::Trend(Direction::Down)
+/// ★认识论 L1（给定 A/C ForceFeatures 求 Weak 是确定性布尔，验证判定逻辑）——「哪个 mode 有
+/// alpha」是 L2/L3（W-VERIFY，本函数不声明）。
+pub fn weak_theta(mode: WeakThetaMode, seg_a: &ForceFeatures, seg_c: &ForceFeatures) -> bool {
+    match mode {
+        WeakThetaMode::MacdArea => seg_c.macd_area < seg_a.macd_area,
+        WeakThetaMode::Dif => seg_c.dif_peak < seg_a.dif_peak,
+        WeakThetaMode::PriceAmplitude => seg_c.price_amplitude < seg_a.price_amplitude,
+        WeakThetaMode::Lex => {
+            // 词典序：DIF 主判据。DIF 严格可判（≠）时用 DIF；DIF 相等则退面积（次判据）。
+            if seg_c.dif_peak != seg_a.dif_peak {
+                seg_c.dif_peak < seg_a.dif_peak
             } else {
-                TrendClass::Degenerate
+                seg_c.macd_area < seg_a.macd_area
             }
         }
     }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// § B. A/B/C 趋势/盘整背驰框架层（第24课:22-24 + beichi.md v1.1 已结算）
+// ═══════════════════════════════════════════════════════════════════════════
 
 /// A/B/C 背驰段对（第24课:22-24 走势级别三段；契约锚 `Origin.Divergence.DivergencePair`）。
 ///
@@ -337,34 +651,107 @@ impl AbcDivergence {
     }
 }
 
-/// 趋势背驰的 A/C 段定位（第24课:22-24，趋势 τ=Trend）。
+/// 趋势背驰的 A **离开走势区间**定位（第24课:22-24 + Q5 裁决 task #145，趋势 τ=Trend）。
 ///
-/// 在 ≥2 同向中枢的趋势中，C 段 = **最后一个中枢**之后破中枢的离开段（`c_seg`，已由 judge_first
-/// 定位为破中枢段）；A 段 = **倒数第二个中枢**之后、同向的离开段（相邻前一中枢的离开段）。
+/// ★Q5 谱系（一类买卖点.pdf 裁决，2026-07 #145）：「A/C 应为次级别走势类型，不应默认是单一线段。
+/// If a lower-level departure move consists of multiple segments, the MACD/force comparison should
+/// cover the whole lower-level move type interval：I(A)=[λ_A,ρ_A]，Area(A)=Σ_{t∈I(A)}|hist_t|。」
+/// A = 离开 C_prev 的次级别走势类型（同向 d）——**不是**其中最后一个同向段。
+///
+/// 在 ≥2 同向中枢的趋势中，C = **最后一个中枢**之后破中枢的离开走势（由 judge_first 定位）；
+/// A = **倒数第二个中枢**之后的同向离开走势区间。窗口过滤与旧单段实现相同
+/// （direction==trend_dir ∧ start_index ≥ prev_center.end_index ∧ start_index < last_center.end_index），
+/// 区间 = **当前离开 episode**（首匹配段起点..末匹配段终点，含中间反向段 bar，Q5 面积口径）。
+///
+/// ★episode 定界（codex ac4 审查 #1 修复）：「失败离开→回中枢→重新离开」是两个独立 episode，
+/// 不桥接。边界 = 窗口内**最后一个回中枢段**（[`departure_episode_start`]，与 judge_pan_div
+/// `reenters` 同一判据——反向段端点回到 prev_center 核心 [zd,zg] 内侧）。无回中枢段 ⟹ 整窗口
+/// 一个 episode（与修复前行为相同）；恰一个匹配段 ⟹ 与旧单段返回值 bit 相同（兼容）。
 ///
 /// ★A/C 跨相邻中枢配对（消解退化的「任意前同向段」）：A 不是序列序任意前同向段，而是趋势中**相邻
-/// 前一中枢**的离开段——第24课:24「A 之前已有一个中枢，B 是这个大趋势的另一个中枢」。`segments`
+/// 前一中枢**的离开走势——第24课:24「A 之前已有一个中枢，B 是这个大趋势的另一个中枢」。`segments`
 /// 按 start_index 升序；`last_center`/`prev_center` 是趋势的最后两个相邻中枢。
 ///
-/// 返回 A 段（前一中枢离开段）的 `(start_index, end_index)`；找不到（无符合的前中枢离开段）⟹ None。
-/// 离开段方向 = 趋势方向（向下趋势=向下离开段=底背驰候选；向上趋势=向上离开段=顶背驰候选）。
-pub fn locate_trend_seg_a(
+/// 返回 A 区间 `(λ_A, ρ_A)`（source_index 闭区间）；无匹配段/最后回中枢段之后无同向段 ⟹ None。
+/// 离开走势方向 = 趋势方向（向下趋势=向下离开=底背驰候选；向上趋势=顶背驰候选）。
+pub fn locate_departure_move_a(
     segments: &[Segment],
+    anchors: &[Option<Direction>],
     prev_center: &Center,
     last_center: &Center,
     trend_dir: Direction,
 ) -> Option<(usize, usize)> {
-    // A 段 = prev_center 之后、last_center 之前、方向 = trend_dir 的离开段（相邻前中枢的离开段）。
-    // 取该区间内**最后一个**同向段（最接近后一中枢=离开 prev_center 进入 last_center 的趋势腿）。
-    segments
+    let lo = segments.partition_point(|s| s.start_index < prev_center.end_index);
+    let hi = segments.partition_point(|s| s.start_index < last_center.end_index);
+    let win = &segments[lo..hi];
+    let awin = &anchors[lo..hi];
+    let lambda_a = episode_start_in(win, awin, prev_center, trend_dir)?;
+    // ★Q7-#1 裁定C：A 段候选筛选用 anchor 方向——fallback 单元不作 A 段方向锚（仍是区间成员）。
+    let mut it = win
         .iter()
-        .filter(|s| {
-            s.direction == trend_dir
-                && s.start_index >= prev_center.end_index
-                && s.start_index < last_center.end_index
-        })
-        .next_back()
-        .map(|s| (s.start_index, s.end_index))
+        .zip(awin)
+        .filter(|(s, a)| **a == Some(trend_dir) && s.start_index >= lambda_a)
+        .map(|(s, _)| s);
+    let first = it.next()?;
+    let last = it.last().unwrap_or(first);
+    // I(A) = [episode 首段起点, episode 末同向段终点]（Q5：多段时含中间反向段 bar）。
+    Some((first.start_index, last.end_index))
+}
+
+/// 当前离开 episode 的起点 λ（Q5 + codex ac4 审查 #1/#2 修复的共享定界原语）。
+///
+/// `win` = 离开中枢 `c` 的候选段窗口（start_index 升序切片）；episode 边界 = 窗口内**最后一个
+/// 回中枢段**（反向段端点回到 c 核心 [zd,zg] 内侧——Down 离开侧 end ≥ zd / Up 离开侧 end ≤ zg，
+/// 与 judge_pan_div `reenters` 同一判据）。λ = 边界之后首个同向段的 start_index；无回中枢段 ⟹
+/// 窗口首个同向段（整窗口一个 episode）；边界后无同向段 ⟹ None（episode 无同向体，诚实无定位）。
+///
+/// 生产（signal.rs extract 循环 λ_C）/漏斗探针/oracle/judge_pan_div 全部经本函数取 episode 起点
+/// ——单一来源，无坐标 fork（675号）。
+/// L0/测试便捷（Q7-#1 裁定C）：段方向即锚方向——L0 线段有内在缠论方向，锚资格 ≡ 结构方向。
+pub fn self_anchors(segs: &[Segment]) -> Vec<Option<Direction>> {
+    segs.iter().map(|s| Some(s.direction)).collect()
+}
+
+/// ★Q7-#1 裁定C（codex-q7-fallback-20260703）：`anchors` 与 `win` 平行——离开段（首同向段）
+/// 选取用 anchor 方向（`anchors[j] == Some(dir)`），fallback 单元（None）不得作离开段方向锚。
+/// 回中枢段边界（reenters）用结构方向（`s.direction`）——回中枢是几何角色，非裁决三锚之一。
+pub fn episode_start_in(
+    win: &[Segment],
+    anchors: &[Option<Direction>],
+    c: &Center,
+    dir: Direction,
+) -> Option<usize> {
+    let reenters = |s: &Segment| {
+        s.direction != dir
+            && match dir {
+                Direction::Down => s.end_price >= c.zd,
+                Direction::Up => s.end_price <= c.zg,
+            }
+    };
+    let boundary = win.iter().rev().find(|s| reenters(s)).map_or(0, |r| r.end_index);
+    win.iter()
+        .zip(anchors)
+        .find(|(s, a)| **a == Some(dir) && s.start_index >= boundary)
+        .map(|(s, _)| s.start_index)
+}
+
+/// λ_C（Q5 + codex ac4 审查 #2 修复）：离开中枢 `c` 的**当前** episode 首同向段起点，窗口截至
+/// `until_start`（含——判破段 seg 自身在窗口内）。窗口 = start_index ∈ [c.end_index, until_start]
+/// 的段；episode 定界经 [`episode_start_in`]（回中枢段边界，单一来源）。
+///
+/// 旧实现（c_start_cache 按 c_idx 缓存「中枢后第一个同向段起点」）无 reentry 检测——「失败离开→
+/// 回中枢→重新离开触发 broke」场景下 λ_C 过早，污染 I(C) 面积（codex #2 致命）。本函数按
+/// (c, dir, until_start) 逐段计算（λ_C 依赖 seg 前的回中枢段集合，不再可按 c_idx 缓存）。
+pub fn departure_move_c_start(
+    segments: &[Segment],
+    anchors: &[Option<Direction>],
+    c: &Center,
+    dir: Direction,
+    until_start: usize,
+) -> Option<usize> {
+    let lo = segments.partition_point(|s| s.start_index < c.end_index);
+    let hi = segments.partition_point(|s| s.start_index <= until_start);
+    episode_start_in(&segments[lo..hi], &anchors[lo..hi], c, dir)
 }
 
 #[cfg(test)]
@@ -461,87 +848,91 @@ mod tests {
         }
     }
 
-    // ── § B. A/B/C 框架层：走势类型 τ 门控（trend_class）────────────────────────
-
-    #[test]
-    fn trend_class_zero_center_degenerate() {
-        // 0 中枢 → 退化（无走势对象，无背驰）。
-        assert_eq!(trend_class(&[]), TrendClass::Degenerate);
-    }
-
-    #[test]
-    fn trend_class_one_center_consolidation() {
-        // 1 中枢 → 盘整（zoushi.md:107）。盘整背驰可产，第一类不产。
-        let c = ctr(100, 200, 90, 210, 5);
-        assert_eq!(trend_class(&[c]), TrendClass::Consolidation);
-    }
-
-    #[test]
-    fn trend_class_two_up_centers_trend_up() {
-        // ≥2 全链上涨延续（后 dd > 前 gg）→ Trend(Up)（reference:34，maimai.md:112）。
-        let c0 = ctr(100, 200, 90, 210, 5);
-        let c1 = ctr(300, 400, 290, 410, 12); // c1.dd=290 > c0.gg=210 ⟹ 上涨延续
-        assert_eq!(trend_class(&[c0, c1]), TrendClass::Trend(Direction::Up));
-    }
-
-    #[test]
-    fn trend_class_two_down_centers_trend_down() {
-        // ≥2 全链下跌延续（后 gg < 前 dd）→ Trend(Down)（底背驰候选，1买）。
-        let c0 = ctr(300, 400, 290, 410, 5);
-        let c1 = ctr(100, 200, 90, 210, 12); // c1.gg=210 < c0.dd=290 ⟹ 下跌延续
-        assert_eq!(trend_class(&[c0, c1]), TrendClass::Trend(Direction::Down));
-    }
-
-    #[test]
-    fn trend_class_mixed_centers_degenerate() {
-        // ≥2 中枢非全链同向（c0→c1 上涨，c1→c2 扩张）→ 退化（第24课:22「连成大中枢」=级别扩张）。
-        // 第一类**不产**：mixed/扩张本级非趋势非盘整，交父级。这是 τ 门控的核心否决路径。
-        let c0 = ctr(100, 200, 90, 210, 5);
-        let c1 = ctr(300, 400, 290, 410, 12); // c0→c1 上涨延续
-        let c2 = ctr(350, 450, 250, 460, 20); // c1→c2：c2.dd=250 ≤ c1.gg=410 且 c2.gg=460 ≥ c1.dd=290 ⟹ 扩张
-        assert_eq!(classify_relation(&c1, &c2), CenterRelation::LevelExpansion);
-        assert_eq!(trend_class(&[c0, c1, c2]), TrendClass::Degenerate);
-    }
-
-    #[test]
-    fn trend_class_three_up_centers_trend_up() {
-        // ≥3 全链同向仍是趋势（趋势延伸，第24课:22「连成大趋势」=多中枢同向趋势）。
-        let c0 = ctr(100, 200, 90, 210, 5);
-        let c1 = ctr(300, 400, 290, 410, 12);
-        let c2 = ctr(500, 600, 490, 610, 20); // c2.dd=490 > c1.gg=410 ⟹ 续涨
-        assert_eq!(trend_class(&[c0, c1, c2]), TrendClass::Trend(Direction::Up));
-    }
-
     // ── § B. A/B/C 框架层：趋势背驰 A 段定位（locate_trend_seg_a）─────────────────
 
     #[test]
-    fn locate_seg_a_picks_prev_center_leave_segment() {
-        // 趋势 τ=Trend(Down)：prev_center end=5，last_center end=12。A 段 = prev_center 之后、
-        // last_center 之前、向下方向的离开段（相邻前中枢的离开段，非任意前同向段）。
+    fn locate_departure_move_a_covers_whole_interval() {
+        // Q5：趋势 τ=Trend(Down)，prev_center end=5，last_center end=12。多段离开走势——
+        // I(A) = (首个匹配段起点, 末个匹配段终点) = (6, 11)，覆盖中间反向段 [8,10] 的 bar。
         let prev_c = ctr(300, 400, 290, 410, 5);
         let last_c = ctr(100, 200, 90, 210, 12);
         let segments = vec![
-            // start_index 升序。向下段在 [5,12) 区间内（A 段候选）。
+            // start_index 升序。向下段在 [5,12) 区间内（离开走势的组成段）。中间反向段端点 295
+            // < prev_c.zd=300——趋势内部正常回撤，未回中枢核心 ⟹ 同一 episode（codex ac4 #1）。
             Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
-            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 350 },
-            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 350, end_price: 250 }, // 最接近 last_center 的向下段
-            Segment { direction: Direction::Down, start_index: 13, end_index: 15, start_price: 200, end_price: 80 }, // 在 last_center 之后（C 段区，非 A）
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 },
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
+            Segment { direction: Direction::Down, start_index: 13, end_index: 15, start_price: 200, end_price: 80 }, // 在 last_center 之后（C 区，非 A）
         ];
-        let seg_a = locate_trend_seg_a(&segments, &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a, Some((10, 11)), "A 段 = prev_center 离开段中最接近 last_center 的向下段");
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, Some((6, 11)), "Q5：A = 整个离开走势区间（首匹配段起点..末匹配段终点，含中间反向段）");
     }
 
     #[test]
-    fn locate_seg_a_none_when_no_prev_leave() {
-        // prev_center 与 last_center 之间无同向离开段 ⟹ A 段无法定位 ⟹ None（无背驰对照）。
+    fn locate_departure_move_a_reentry_splits_episodes() {
+        // codex ac4 #1 修复见证：失败离开（[6,8]）→ 回中枢段（[8,10] 端点 395 回到 prev core
+        // [300,400] 内侧 ≥ zd=300）→ 重新离开（[10,11]）。两个独立 episode 不桥接——
+        // A = 最后 episode [10,11]，非旧桥接区间 [6,11]。
         let prev_c = ctr(300, 400, 290, 410, 5);
         let last_c = ctr(100, 200, 90, 210, 12);
         let segments = vec![
-            // [5,12) 内只有向上段，无向下离开段 ⟹ A 段（向下）无候选。
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 }, // 回中枢：end 395 ≥ zd=300
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
+        ];
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, Some((10, 11)), "回中枢段切开两个 episode ⟹ A = 当前（最后）episode，不桥接");
+        // 对照：中间反向段未回核心（end 280 < zd=300）⟹ 同一 episode ⟹ 全区间（covers_whole_interval 语义）。
+        let no_reentry = vec![
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 },
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 295, end_price: 250 },
+        ];
+        let seg_a2 = locate_departure_move_a(&no_reentry, &self_anchors(&no_reentry), &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a2, Some((6, 11)), "反向段未回核心 ⟹ 同一 episode ⟹ 整区间");
+    }
+
+    #[test]
+    fn departure_move_c_start_reentry_bounds_episode() {
+        // codex ac4 #2 修复见证：中枢后失败离开 [6,8] → 回中枢段 [8,10]（end 395 ≥ zd=300）→
+        // 重新离开 [10,11]（判破段）。λ_C = 10（当前 episode 起点），非旧口径 6（首个同向段）。
+        let c = ctr(300, 400, 290, 410, 5);
+        let segments = vec![
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 395 },
+            Segment { direction: Direction::Down, start_index: 10, end_index: 11, start_price: 395, end_price: 250 },
+        ];
+        assert_eq!(departure_move_c_start(&segments, &self_anchors(&segments), &c, Direction::Down, 10), Some(10),
+            "回中枢段之后重新离开 ⟹ λ_C = 当前 episode 首同向段起点");
+        // 无回中枢段 ⟹ 整窗口一个 episode ⟹ λ_C = 首个同向段起点（单段兼容口径）。
+        assert_eq!(departure_move_c_start(&segments[..1], &self_anchors(&segments[..1]), &c, Direction::Down, 6), Some(6),
+            "无回中枢段 ⟹ λ_C = 中枢后首个同向段起点");
+    }
+
+    #[test]
+    fn locate_departure_move_a_single_segment_bit_compatible() {
+        // Q5 兼容性：恰一个匹配段 ⟹ 返回值与旧单段实现 bit 相同。
+        let prev_c = ctr(300, 400, 290, 410, 5);
+        let last_c = ctr(100, 200, 90, 210, 12);
+        let segments = vec![
+            Segment { direction: Direction::Down, start_index: 6, end_index: 8, start_price: 380, end_price: 280 },
+            Segment { direction: Direction::Up, start_index: 8, end_index: 10, start_price: 280, end_price: 295 }, // 未回核心（<zd=300）
+        ];
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, Some((6, 8)), "单匹配段 ⟹ 与旧单段返回值 bit 相同（兼容）");
+    }
+
+    #[test]
+    fn locate_departure_move_a_none_when_no_prev_leave() {
+        // prev_center 与 last_center 之间无同向离开段 ⟹ A 区间无法定位 ⟹ None（无背驰对照）。
+        let prev_c = ctr(300, 400, 290, 410, 5);
+        let last_c = ctr(100, 200, 90, 210, 12);
+        let segments = vec![
+            // [5,12) 内只有向上段，无向下离开段 ⟹ A（向下）无候选。
             Segment { direction: Direction::Up, start_index: 6, end_index: 8, start_price: 280, end_price: 380 },
         ];
-        let seg_a = locate_trend_seg_a(&segments, &prev_c, &last_c, Direction::Down);
-        assert_eq!(seg_a, None, "无 prev_center 同向离开段 ⟹ A 段无法定位");
+        let seg_a = locate_departure_move_a(&segments, &self_anchors(&segments), &prev_c, &last_c, Direction::Down);
+        assert_eq!(seg_a, None, "无 prev_center 同向离开段 ⟹ A 无法定位");
     }
 
     #[test]
@@ -553,6 +944,187 @@ mod tests {
         // 反向：C 段面积大 ⟹ 力度延续 ⟹ 非背驰。
         let abc_cont = AbcDivergence { seg_a: (2, 3), seg_c: (0, 1), is_trend: true };
         assert!(!abc_cont.diverges(&hist, (2, 3), (0, 1)), "C段面积10 ≥ A段面积2 ⟹ 力度延续=非背驰");
+    }
+
+    // ===== § A2. 多力度原语 + Weak_Θ 词典序（P2 §4/§7 改点5，L1 接口正确性）=====
+
+    #[test]
+    fn dif_peak_up_takes_positive_max_down_takes_abs_min() {
+        // 向上段：黄白线正峰（max）。dif=[1,3,2] ⟹ 峰=3。
+        let dif = vec![1.0, 3.0, 2.0, -1.0];
+        assert_eq!(segment_dif_peak(&dif, 0, 2, Direction::Up), 3.0);
+        // 向下段：黄白线负峰（|min|）。dif=[−1,−4,−2] ⟹ 峰=|−4|=4。
+        let dif2 = vec![-1.0, -4.0, -2.0];
+        assert_eq!(segment_dif_peak(&dif2, 0, 2, Direction::Down), 4.0);
+        // 越界 ⟹ 0。
+        assert_eq!(segment_dif_peak(&dif, 0, 10, Direction::Up), 0.0);
+        // 向上段但区间全负 ⟹ 正峰 = 0（max(neg,0)=0，无正黄白线）。
+        assert_eq!(segment_dif_peak(&dif2, 0, 2, Direction::Up), 0.0);
+    }
+
+    #[test]
+    fn price_amplitude_and_speed_from_close_endpoints() {
+        // 振幅 = |端价差|（整数 tick）。closes[0..=3]=[100,?,?,150] ⟹ |150−100|=50。
+        let closes: Vec<Tick> = vec![100, 120, 90, 150];
+        assert_eq!(segment_price_amplitude(&closes, 0, 3), 50);
+        // 速度 = 振幅 / 跨度 = 50 / 3。
+        assert!((segment_price_speed(&closes, 0, 3) - (50.0 / 3.0)).abs() < 1e-12);
+        // 越界 ⟹ 0。
+        assert_eq!(segment_price_amplitude(&closes, 0, 9), 0);
+        assert_eq!(segment_price_speed(&closes, 0, 9), 0.0);
+        // TV = 20+30+60 = 110（路径长度 > 端点差 50——折返段被计入）。
+        assert_eq!(segment_total_variation(&closes, 0, 3), 110);
+        assert_eq!(segment_total_variation(&closes, 0, 9), 0);
+        assert_eq!(segment_total_variation(&closes, 2, 2), 0);
+    }
+
+    fn ff(area: f64, dif: f64, amp: i64, speed: f64) -> ForceFeatures {
+        // tv 默认随振幅（单调一致，不给既有支配序测试引入额外冲突维）。
+        ForceFeatures {
+            macd_area: area,
+            dif_peak: dif,
+            price_amplitude: amp,
+            price_speed: speed,
+            tv: amp,
+        }
+    }
+
+    #[test]
+    fn weak_theta_each_mode_compares_correct_proxy() {
+        // A 段力度大，C 段力度小 ⟹ 各 mode 都判 Weak（背驰=力度衰减）。
+        let a = ff(10.0, 8.0, 100, 20.0);
+        let c = ff(5.0, 4.0, 50, 10.0);
+        assert!(weak_theta(WeakThetaMode::MacdArea, &a, &c), "C.area<A.area ⟹ Weak");
+        assert!(weak_theta(WeakThetaMode::Dif, &a, &c), "C.dif<A.dif ⟹ Weak");
+        assert!(weak_theta(WeakThetaMode::PriceAmplitude, &a, &c), "C.amp<A.amp ⟹ Weak");
+        // C 力度 ≥ A ⟹ 各 mode 非 Weak（力度延续）。
+        assert!(!weak_theta(WeakThetaMode::MacdArea, &c, &a));
+        assert!(!weak_theta(WeakThetaMode::Dif, &c, &a));
+    }
+
+    #[test]
+    fn force_state_five_dominance_cases() {
+        let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
+        let strong = ff(10.0, 8.0, 100, 20.0);
+        let weak = ff(5.0, 4.0, 50, 10.0);
+        // C 全弱于 A ⟹ Dominated（确定背驰）。
+        assert_eq!(fp(strong, weak).force_state(), ForceStateA5::Dominated);
+        // C 全强于 A ⟹ Dominates。
+        assert_eq!(fp(weak, strong).force_state(), ForceStateA5::Dominates);
+        // 全等 ⟹ Tie。
+        assert_eq!(fp(strong, strong).force_state(), ForceStateA5::Tie);
+        // 口径冲突：C.area 弱但 C.dif 强 ⟹ Incomparable。
+        let mixed_a = ff(10.0, 4.0, 100, 20.0);
+        let mixed_c = ff(5.0, 8.0, 50, 10.0);
+        assert_eq!(fp(mixed_a, mixed_c).force_state(), ForceStateA5::Incomparable);
+    }
+
+    /// 三口径 D 判定（A2 #163，prereg-a2-thetadom-oos-20260704 冻结判据的 L1 验证）。
+    #[test]
+    fn confirm_divergence_three_gauges() {
+        let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
+        let strong = ff(10.0, 8.0, 100, 20.0);
+        let weak = ff(5.0, 4.0, 50, 10.0);
+        let dominated = fp(strong, weak); // C 全弱 ⟹ Dominated
+        let mixed = fp(ff(10.0, 4.0, 100, 20.0), ff(5.0, 8.0, 50, 10.0)); // Incomparable
+        // G1 MacdArea：D ≡ macd_c_lt_a（force 不参与，None 也判）。
+        assert!(confirm_divergence(DivergenceGauge::MacdArea, true, None));
+        assert!(!confirm_divergence(DivergenceGauge::MacdArea, false, Some(&dominated)));
+        // G2 ThetaDom：D ≡ Dominated（macd_c_lt_a 不参与）；Incomparable 不作背驰确认。
+        assert!(confirm_divergence(DivergenceGauge::ThetaDom, false, Some(&dominated)));
+        assert!(!confirm_divergence(DivergenceGauge::ThetaDom, true, Some(&mixed)));
+        // G2/G3 force 无源 ⟹ false（诚实不判，不 fallback 回 MACD）。
+        assert!(!confirm_divergence(DivergenceGauge::ThetaDom, true, None));
+        assert!(!confirm_divergence(DivergenceGauge::Conjunction, true, None));
+        // G3 Conjunction：两者同真才确认。
+        assert!(confirm_divergence(DivergenceGauge::Conjunction, true, Some(&dominated)));
+        assert!(!confirm_divergence(DivergenceGauge::Conjunction, false, Some(&dominated)));
+        assert!(!confirm_divergence(DivergenceGauge::Conjunction, true, Some(&mixed)));
+        // 默认口径 = MacdArea（bit-exact 铁律：不显式配置不切换）。
+        assert_eq!(DivergenceGauge::default(), DivergenceGauge::MacdArea);
+    }
+
+    /// G4 ThetaLex（Θ_LEX 词典序 D 判定，A3 #164，关于背驰.pdf §9.2）：judge 层 `weak_theta(Lex)`
+    /// = Weak(C,A) 词典序（DIF 主 ▷ 面积次）。这是 `weak_theta` 原语的生产消费点（671：judge 非
+    /// selector veto）。macd_c_lt_a 不参与（Lex 用 DIF/面积词典序，非纯面积）。
+    #[test]
+    fn confirm_divergence_theta_lex_gauge() {
+        let fp = |a, c| ForceProxies { seg_a: a, seg_c: c };
+        // C.dif < A.dif（DIF 主判据衰减）⟹ Weak ⟹ D，**即使 macd_c_lt_a=false**（DIF 压过面积/MACD）。
+        let dif_weak = fp(ff(5.0, 8.0, 0, 0.0), ff(10.0, 4.0, 0, 0.0)); // C.dif(4)<A.dif(8) 但 C.area(10)>A.area(5)
+        assert!(confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_weak)),
+            "ThetaLex：C.dif<A.dif ⟹ Weak ⟹ D（DIF 主，macd_c_lt_a 不参与）");
+        // 对照：MacdArea 口径同输入 D=false（面积延续）——证 ThetaLex ≠ MacdArea。
+        assert!(!confirm_divergence(DivergenceGauge::MacdArea, false, Some(&dif_weak)));
+        // DIF 相等（不可判）⟹ 退面积次判据：C.area<A.area ⟹ Weak ⟹ D。
+        let dif_tie_area_weak = fp(ff(10.0, 5.0, 0, 0.0), ff(4.0, 5.0, 0, 0.0));
+        assert!(confirm_divergence(DivergenceGauge::ThetaLex, false, Some(&dif_tie_area_weak)),
+            "ThetaLex：DIF 相等 ⟹ 退面积，C.area<A.area ⟹ Weak");
+        // C 力度延续（C.dif>A.dif）⟹ 非 Weak ⟹ D=false。
+        let dif_strong = fp(ff(5.0, 4.0, 0, 0.0), ff(10.0, 8.0, 0, 0.0));
+        assert!(!confirm_divergence(DivergenceGauge::ThetaLex, true, Some(&dif_strong)),
+            "ThetaLex：C.dif>A.dif ⟹ 力度延续 ⟹ 非背驰（即使 macd_c_lt_a=true）");
+        // force 无源 ⟹ false（诚实不判，不 fallback 回 MACD，与 ThetaDom 同纪律）。
+        assert!(!confirm_divergence(DivergenceGauge::ThetaLex, true, None),
+            "ThetaLex force 无源 ⟹ D=false（无 5-proxy 不判，no-workaround）");
+    }
+
+    /// Θ_SCORE β_norm + K=3 分箱（prereg 冻结边界 0/0.33 的 L1 验证）。
+    #[test]
+    fn theta_score_and_bin_frozen_boundaries() {
+        let fp = |da: f64, dc: f64| ForceProxies { seg_a: ff(0.0, da, 0, 0.0), seg_c: ff(0.0, dc, 0, 0.0) };
+        // β_norm = (m_A−m_C)/(m_A+m_C)：C 弱 ⟹ 正（背驰域）；C 强 ⟹ 负。
+        assert!((fp(8.0, 4.0).theta_score() - (4.0 / 12.0)).abs() < 1e-12);
+        assert!(fp(4.0, 8.0).theta_score() < 0.0);
+        // 双零 ⟹ 0（无力度可比=非背驰，冻结口径）。
+        assert_eq!(fp(0.0, 0.0).theta_score(), 0.0);
+        // 分箱边界：≤0 非背驰；(0,0.33) 弱；≥0.33 强（边界值 0.33 归 Strong）。
+        assert_eq!(theta_score_bin(0.0), ThetaScoreBin::NonDivergent);
+        assert_eq!(theta_score_bin(-0.5), ThetaScoreBin::NonDivergent);
+        assert_eq!(theta_score_bin(0.1), ThetaScoreBin::Weak);
+        assert_eq!(theta_score_bin(0.33), ThetaScoreBin::Strong);
+        assert_eq!(theta_score_bin(1.0), ThetaScoreBin::Strong);
+        // β_norm=1/3 > 0.33 ⟹ fp(8,4) 落 Strong（冻结边界与归一化差的联动例）。
+        assert_eq!(theta_score_bin(fp(8.0, 4.0).theta_score()), ThetaScoreBin::Strong);
+    }
+
+    /// ★Lex 词典序核心（第17课「黄白线主 ▷ 面积次」，非 AND/OR）：DIF 可判用 DIF，DIF 相等退面积。
+    #[test]
+    fn weak_theta_lex_dif_dominates_area_secondary() {
+        // (1) DIF 严格可判：C.dif<A.dif ⟹ Weak，**即使面积相反**（DIF 主判据压过面积）。
+        let a1 = ff(5.0, 8.0, 0, 0.0);  // A: 面积小、DIF 大
+        let c1 = ff(10.0, 4.0, 0, 0.0); // C: 面积大、DIF 小
+        assert!(weak_theta(WeakThetaMode::Lex, &a1, &c1),
+            "DIF 主：C.dif(4)<A.dif(8) ⟹ Weak，即使 C.area(10)>A.area(5)（黄白线压过面积）");
+        // 对照：纯面积 mode 会判非 Weak（面积延续）——证明 Lex ≠ 纯面积。
+        assert!(!weak_theta(WeakThetaMode::MacdArea, &a1, &c1),
+            "纯面积：C.area(10)≥A.area(5) ⟹ 非 Weak（与 Lex 分歧，证 DIF 主判据生效）");
+
+        // (2) DIF 相等（不可判）⟹ 退面积次判据：C.area<A.area ⟹ Weak。
+        let a2 = ff(10.0, 5.0, 0, 0.0);
+        let c2 = ff(4.0, 5.0, 0, 0.0); // DIF 相等（5==5）⟹ 退面积
+        assert!(weak_theta(WeakThetaMode::Lex, &a2, &c2),
+            "DIF 相等 ⟹ 退面积次判据：C.area(4)<A.area(10) ⟹ Weak");
+        // DIF 相等 + 面积也延续 ⟹ 非 Weak。
+        let c3 = ff(20.0, 5.0, 0, 0.0);
+        assert!(!weak_theta(WeakThetaMode::Lex, &a2, &c3),
+            "DIF 相等 + C.area(20)≥A.area(10) ⟹ 非 Weak");
+    }
+
+    #[test]
+    fn force_features_assembles_all_proxies() {
+        // hist=[3,-3,1,-1]（A[0,1] 面积6，C[2,3] 面积2），dif=[2,4,1,0.5]，closes=[100,110,105,102]。
+        let hist = vec![3.0, -3.0, 1.0, -1.0];
+        let dif = vec![2.0, 4.0, 1.0, 0.5];
+        let closes: Vec<Tick> = vec![100, 110, 105, 102];
+        let a = force_features(&hist, &dif, &closes, 0, 1, Direction::Up);
+        assert_eq!(a.macd_area, 6.0);
+        assert_eq!(a.dif_peak, 4.0); // up 段 max(dif[0..=1])=max(2,4)=4
+        assert_eq!(a.price_amplitude, 10); // |110−100|
+        assert_eq!(a.tv, 10); // Σ|Δ| = |110−100|（单跳段 TV=振幅）
+        // Weak_Θ Lex：A=[0,1] vs C=[2,3]（C.dif_peak=max(1,0.5)=1<A.dif=4 ⟹ Weak）。
+        let c = force_features(&hist, &dif, &closes, 2, 3, Direction::Up);
+        assert!(weak_theta(WeakThetaMode::Lex, &a, &c), "C 段 DIF 峰(1)<A 段 DIF 峰(4) ⟹ Lex Weak");
     }
 
     // ===== 增量 MACD API（231号纯性能，bit-exact 对照全量版）=====

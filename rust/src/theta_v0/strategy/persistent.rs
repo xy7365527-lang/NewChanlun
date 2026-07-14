@@ -208,7 +208,7 @@ impl PersistentRegistry {
     /// 任何 present=true 的元素必在上 bar snapshot ⟹ 必在 `present_last` ⟹ 全量扫与增量扫产同状态。
     pub fn merge_in_place(&mut self, snapshot: &[CoverageElement], held_legs: &[ActiveLeg]) {
         // 单段口径（tree 段恒 dirty=true，全量 upsert）= 旧行为；split 见 [`merge_in_place_split`]。
-        self.merge_in_place_split(snapshot, true, &[], held_legs);
+        self.merge_in_place_split(snapshot, true, &[], true, held_legs);
     }
 
     /// **§9 merge 双段增量版（工位 4f：confirmed prefix 增量维护——消 step 1'/2' 的 O(tree)/bar）**。
@@ -227,6 +227,49 @@ impl PersistentRegistry {
         tree: &[CoverageElement],
         tree_dirty: bool,
         candidates: &[CoverageElement],
+        cand_dirty: bool,
+        held_legs: &[ActiveLeg],
+    ) {
+        // ★on2w3 神谕（debug）：跳过路径（tree_dirty=false ∨ cand_dirty=false）与「强制全量」逐字段等价。
+        // 全量 = 恒 tree_dirty=true ∧ cand_dirty=true。skip 后与全量末态（elements + present_last）比对。
+        #[cfg(debug_assertions)]
+        let oracle_full = if !tree_dirty || !cand_dirty {
+            let mut shadow = self.clone();
+            shadow.merge_full_oracle(tree, candidates, held_legs);
+            Some(shadow)
+        } else {
+            None
+        };
+        self.merge_in_place_split_core(tree, tree_dirty, candidates, cand_dirty, held_legs);
+        #[cfg(debug_assertions)]
+        if let Some(full) = oracle_full {
+            debug_assert!(
+                self.elements == full.elements
+                    && self.present_last_tree == full.present_last_tree
+                    && self.present_last_cand == full.present_last_cand,
+                "on2w3 merge 跳过路径 != 全量（tree_dirty={tree_dirty} cand_dirty={cand_dirty}）——\
+                 candidates 逐字节稳定/id集恒等前提被违反"
+            );
+        }
+    }
+
+    /// 强制全量 merge（神谕基准，debug 构建）：tree_dirty=true ∧ cand_dirty=true。
+    #[cfg(debug_assertions)]
+    fn merge_full_oracle(
+        &mut self,
+        tree: &[CoverageElement],
+        candidates: &[CoverageElement],
+        held_legs: &[ActiveLeg],
+    ) {
+        self.merge_in_place_split_core(tree, true, candidates, true, held_legs);
+    }
+
+    fn merge_in_place_split_core(
+        &mut self,
+        tree: &[CoverageElement],
+        tree_dirty: bool,
+        candidates: &[CoverageElement],
+        cand_dirty: bool,
         held_legs: &[ActiveLeg],
     ) {
         let tree_ids: std::collections::HashSet<ElementId> = if tree_dirty {
@@ -235,8 +278,16 @@ impl PersistentRegistry {
             // tree_dirty=false ⟹ tree ids 同上 bar present_last_tree（不重建，消 O(tree)）。
             self.present_last_tree.clone()
         };
-        let cand_ids: std::collections::HashSet<ElementId> =
-            candidates.iter().map(|e| e.id).collect();
+        // ★on2w3：cand_dirty=false ⟹ candidates 逐字节同上 bar（CandidateCache whole-cache 命中 + 零新尾）
+        // ⟹ cand_ids == present_last_cand（集合不变）。此时整段 candidate 工作（cand_ids 建 + reset + upsert
+        // + present_last_cand 重建，全 O(cand)/bar，cand∝n ⟹ O(n²)）是 no-op：同 id 全 present、同值上 bar 已
+        // upsert（invalidate 不被 upsert 重置 ⟹ skip 与全量末态一致）、present_last_cand 不变。跳过 ⟹ O(1)。
+        let cand_ids: std::collections::HashSet<ElementId> = if cand_dirty {
+            candidates.iter().map(|e| e.id).collect()
+        } else {
+            // 不重建（消 O(cand)）；下方 present_last_cand 也不重写（集合恒等）。
+            std::collections::HashSet::new()
+        };
 
         // 1'. 增量重置：上 bar present 但本 bar snapshot 找不到 → snapshot_present=false（LiveDetached）。
         //     tree 段：tree_dirty=true 时按新 tree 重置上 bar present_last_tree 里不在新 tree 的；
@@ -251,10 +302,13 @@ impl PersistentRegistry {
             }
         }
         // candidate 段：本 bar 在 cand ∪ tree 都找不到的才置 false（carrier id 退回 tree 仍 present）。
-        for pid in &self.present_last_cand {
-            if !cand_ids.contains(pid) && !tree_ids.contains(pid) {
-                if let Some(e) = self.elements.get_mut(pid) {
-                    e.snapshot_present = false;
+        //   ★on2w3：cand_dirty=false ⟹ present_last_cand 全在 cand_ids（集合恒等）⟹ 循环恒 no-op ⟹ 跳过。
+        if cand_dirty {
+            for pid in &self.present_last_cand {
+                if !cand_ids.contains(pid) && !tree_ids.contains(pid) {
+                    if let Some(e) = self.elements.get_mut(pid) {
+                        e.snapshot_present = false;
+                    }
                 }
             }
         }
@@ -286,9 +340,14 @@ impl PersistentRegistry {
                 upsert(&mut self.elements, e);
             }
         }
-        // candidate 段恒 upsert（断言2：碰撞 carrier id 覆盖全字段，须在 tree 之后保覆盖序与全量一致）。
-        for e in candidates {
-            upsert(&mut self.elements, e);
+        // candidate 段 upsert（断言2：碰撞 carrier id 覆盖全字段，须在 tree 之后保覆盖序与全量一致）。
+        //   ★on2w3：跳过仅当 **tree 与 cand 都不脏**——tree_dirty=true 时 tree 段可能 upsert 了与 candidate
+        //   碰撞的 carrier id（tree 值），须重跑 candidate upsert 恢复「candidate 胜」覆盖序（断言2）。
+        //   cand_dirty=false 且 tree_dirty=false ⟹ 无碰撞覆盖 + 同值上 bar 已 upsert ⟹ 跳过。
+        if cand_dirty || tree_dirty {
+            for e in candidates {
+                upsert(&mut self.elements, e);
+            }
         }
 
         // 3'. held 引用但 snapshot 找不到的元素：**不删除**（§9 rule 2，I1 持久身份）。
@@ -319,11 +378,14 @@ impl PersistentRegistry {
         }
 
         // present_last 更新为本 bar snapshot ids（下 bar 增量重置基准）。tree 段：tree_dirty=true 用新
-        // tree_ids，false 复用旧（同上 bar，不变）。cand 段每 bar 重建（O(candidate) 有界）。
+        // tree_ids，false 复用旧（同上 bar，不变）。cand 段：cand_dirty=true 用新 cand_ids；false 复用旧
+        // （集合恒等，cand_ids 为空占位不可写入——on2w3）。
         if tree_dirty {
             self.present_last_tree = tree_ids;
         }
-        self.present_last_cand = cand_ids;
+        if cand_dirty {
+            self.present_last_cand = cand_ids;
+        }
     }
 
     /// held 腿四态分类（§10）。

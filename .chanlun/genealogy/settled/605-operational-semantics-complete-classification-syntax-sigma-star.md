@@ -1,6 +1,8 @@
 ---
 id: "605"
 number: 605
+date: "2026-06-25"
+type: domain
 status: 已结算   # 【结算 2026-06-27 codex异质委托：604-612·claim6操作语义】 Phase 2 claim6 形式化结晶。依赖 603（范式根，生成态）+ 598（有限商要素，生成态）+ #39（操作完全分类）+ Phase1 BSPLabels（OperationTrigger 引用）。最终编号 + 结算待 /ritual 在统一编号空间裁定（同 597-603 族）。
 # ★Option A 交叉验证完成标注（genealogist 2026-06-25 结晶节点）：claim6 已有两套独立形式化统一进 build——
 #   (a) solo Formal/OperationalSemantics.lean（lib Formal，ns Formal.*，几何原子动作 Σ={e,h⁺,h⁻,τ} 第0层句法 path + 净效果商，codex 019eff21 多轮 PASS）
@@ -9,8 +11,6 @@ status: 已结算   # 【结算 2026-06-27 codex异质委托：604-612·claim6�
 #   ★命名空间：teammate Claim6 用 Formal.Phase2.Claim6（Formal.* 系，真 import Formal.BSPLabels），无命名空间张力（命名空间张力仅限 Claim5/Claim10 的 Chanlun.Phase2.*）。
 #   ★teammate Claim6 codex 二次审计塑造：第一版 decideOp:BSPLabelSet×PositionState→OpType 判 FAIL（BSPLabelSet 定义域太宽允许多级别/双侧共振标签，"买侧优先"硬压成单一操作类型=补丁思维）→ 重写收窄定义域到 ResolvedOpSignal（已解析唯一主导 side），decideOp:ResolvedOpSignal→PositionState→OpType 全函数 PASS（no-workaround 重写非打补丁）。双侧共振裁决/级别主导/区间套定级别显式脱钩到 claim7（606）/Phase2+ 引擎层（与 605 §张力检查脱钩点一致）。L0/L3 分层 PASS（OpType 只给加/减类型不给数量系数 M）。
 #   ★脱钩点确认 vs claim9（608）：claim6 操作触发 ResolvedOpSignal 解析 ↔ claim9 中枢位置三态（below/within/above）的类型桥接（位置→第三类买卖点判据→操作触发）是 Phase2+ 引擎层职责，claim6 不 import claim9，诚实分层非矛盾。
-date: "2026-06-25"
-type: domain
 # ★provenance（genealogist 2026-06-25）：Phase 2 claim6（操作语义）真完全分类形式化结晶。严格产生自：
 #   - Formal/OperationalSemantics.lean（machine-checked，lake build green，无 sorry/admit/axiom，L0；import Formal.BSPLabels）
 #   - tmp/formalization-result.md §二#6 + §Phase2 范式状态表 claim6 行

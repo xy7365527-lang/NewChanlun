@@ -10,7 +10,8 @@
       "mcp__plugin_figma_figma__*",
       "mcp__plugin_greptile_greptile__*",
       "mcp__ide__*",
-      "mcp__claude-audit__claude_audit"
+      "mcp__claude-audit__claude_audit",
+      "mcp__headroom__headroom_stats"
     ],
     "deny": []
   },
@@ -18,5 +19,8 @@
   "enabledMcpjsonServers": [
     "claude-audit"
   ],
-  "outputStyle": "default"
+  "outputStyle": "default",
+  "env": {
+    "CLAUDE_CODE_STOP_HOOK_BLOCK_CAP": "1"
+  }
 }

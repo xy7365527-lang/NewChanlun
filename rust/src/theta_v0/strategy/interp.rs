@@ -47,7 +47,8 @@ use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
 use std::rc::Rc;
 use super::super::classifier::Classification;
 use super::super::classifier::bsp::BspPoint;
-use super::super::types::BspBits;
+use super::super::classifier::divergence::ForceProxies;
+use super::super::types::{BspBits, Side};
 use super::coverage::{self, CoverageElement, Dir, Horizontal, OperationRole, Vertical};
 use super::exec::reverse_signal;
 use super::nest::{self, Interval, NestLevel};
@@ -65,6 +66,7 @@ use std::cmp::{Ordering, Reverse};
 /// - `role`：R(g)=(H,V,δ)（环4，18 类完全分类，复用 [`coverage::operation_role`]）。
 /// - `nest_confirmed`：区间套确认 N^δ（环2，证书基例 Conf^δ，[`nest::chi_bool`]）。
 /// - `gamma_index`：Γ 内原始序（≺_Θ **终局 tiebreak** 保证全序；平移不变——S_k 不重排候选）。
+/// - `force`：β^div A/C 段力度 proxy 对（A6 #159 透传，源=[`BspPoint::force`] 单一来源）。
 #[derive(Debug, Clone, Copy)]
 pub struct Candidate {
     /// 级别 ℓ。
@@ -83,6 +85,11 @@ pub struct Candidate {
     pub nest_confirmed: bool,
     /// Γ 原始序（≺_Θ 终局 tiebreak）。
     pub gamma_index: usize,
+    /// ★A6（#159）：β^div A/C 段力度 proxy 对，classifier→strategy 透传（源=[`BspPoint::force`]，
+    /// 一类趋势背驰候选 `Some`，二/三类/无 A/C 对 `None`——组装层纯透传，不改值不兜底）。
+    /// **不进** [`theta_key`]/排序/任何相等比较——唯一消费点是 z 装配
+    /// （`selector::z_of_candidate` 调 [`ForceProxies::force_state`] 填 `MuClass.force_state` 第 8 维）。
+    pub force: Option<ForceProxies>,
 }
 
 /// 活动集 A_t 的元素（活动腿），spec §13 `A^{raw}_{t+1}=(A_t∖𝒟_x)∪ℬ_x` 的 A_t/𝒟_x 元素。
@@ -131,6 +138,61 @@ pub struct ActiveLeg {
     pub op_parent: Option<ElementId>,
 }
 
+/// ★A9（Task #166）：开仓证书——入场买卖点信号 g 的坐标身份 `(ℓ_g, source_index_g)`。
+///
+/// 买卖点叶子只能作**开仓证书**，不能作持仓身份（级别容器.pdf p14/§12 核心裁决：「买卖点叶子
+/// 只能作为开仓证书，不能作为父声部持仓节点」）——持仓身份是 carrier（[`ActiveLeg::id`]），
+/// 证书是身份四元组的入场分量（[`PositionNodeId`]）。同一 carrier 两次 campaign 若由不同买卖点
+/// 触发，证书即区分入场来源；同证书重入场由 generation 区分。
+///
+/// ★归属层（codex a9-posnode 裁定 C，2026-07-03）：证书/四元组归**账本生命周期层**
+/// （[`LedgerOpen`](crate::theta_v0::backtest::runner)/`TypedTrade`），**不进** `ActiveLeg`
+/// 结构层——`ActiveLeg` 每 bar 由 `element_as_leg(&CoverageElement)` 从因果树重建（`CoverageElement`
+/// 不携 campaign 身份），拿不到入场候选/代次；真正同时持有 `Candidate`+`ActiveLeg` 的点是
+/// `StepTrace.opened`（runner 据此登记 `LedgerOpen`）。把证书塞进 `ActiveLeg`（前任半成品）会
+/// 使 generation 恒 0/证书恒 None = 声明膨胀（090号）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EntryCertificate {
+    /// 入场信号级别 ℓ_g。
+    pub level: u32,
+    /// 入场信号触发点（bsp `source_index`，入场时刻值，冻结不漂移）。
+    pub source_index: usize,
+}
+
+/// ★A9 多实例身份四元组（级别容器.pdf p14/§13 `posId = hash(carrier_id, entry_signal, side,
+/// generation)`，Task #166 ceiling）：position instance 严格身份。
+///
+/// carrier-id 简化身份（§14，`ActiveLeg::id` 结构对位键）只到 carrier 级——同一 carrier 先后两次
+/// campaign 共享 `ActiveLeg::id`。本四元组细化到 campaign 实例级：carrier 相同而 generation（或
+/// entry_certificate/side）不同 ⟹ 不同 position instance。**不替换** carrier-id 层：`ActiveLeg::id`
+/// 仍是结构对位键（`held_leg_tree_index`/AncOK 按 carrier 匹配），四元组是其上、在账本层的实例细分。
+///
+/// 生产构造点：[`LedgerOpen`](crate::theta_v0::backtest::runner) 入场登记（carrier=腿 id、
+/// entry_certificate=开仓 Candidate 坐标、side=Candidate 方向、generation=同 carrier campaign 高水位），
+/// 关腿时写入 `TypedTrade::position_node_id`（账本层唯一身份，供跨笔同 carrier campaign 归因/去重）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PositionNodeId {
+    /// 持仓容器 carrier（= hostOf(g) 的 ElementId，638 附着）。
+    pub carrier: ElementId,
+    /// 开仓证书（入场信号 g 坐标）；None = 结构激活（restore 祖先，无入场信号）。
+    pub entry_certificate: Option<EntryCertificate>,
+    /// 持仓方向 δ(g)。
+    pub side: VoiceSide,
+    /// campaign 代次（同 carrier 顺序 campaign 单调递增，close→reopen 高水位 +1）。
+    pub generation: u32,
+}
+
+impl PositionNodeId {
+    /// 严格 hash 编码（PDF §13 伪码 `posId = hash(...)`）。`DefaultHasher::new()` 固定初始键 ⟹
+    /// 同一四元组跨运行/跨路径产同一 u64（确定性，非 RandomState）。
+    pub fn hash64(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.hash(&mut h);
+        h.finish()
+    }
+}
+
 /// 解释器输出三桶 (𝒟_x, ℬ_x, 𝒦_x)（spec §11 line 565-571 + §12 line 617）。
 ///
 /// 互斥分流：`𝒟_x`（关闭活动腿）∩`ℬ_x`/`𝒦_x`（候选）为空（不同类型）；`ℬ_x`∩`𝒦_x`=∅
@@ -143,6 +205,56 @@ pub struct Buckets {
     pub open: Vec<Candidate>,
     /// 𝒦_x：**记录但不执行**的候选（冲突/重复/非方向）。
     pub record: Vec<Candidate>,
+}
+
+/// 正规出场类型 `Exit_Θ`（《完整的策略.pdf》§9 typed exit）——close 桶的类型化出场理由。
+///
+/// `Exit_Θ(v,x_t) ∈ {CloseRoot, ReduceCore, CloseShortDiff, RiskExit, Hold}`。这是 G4（统计层
+/// typed exit：生产 π loop 输出 `TypedTradeLedger.exit_type`）与 G5（解释器 P5/P6/P7/P1 typed
+/// close 拆分）的**单一来源**枚举（team-lead 2026-07-03 裁定：由 interp.rs 定义，G4 工位复用），
+/// 避免两权威镜像（codex-q2-d1 删 `closed_loop/mutex_interp.rs` 同款矛盾）。P1..P10↔ExitType
+/// 映射见 `.chanlun/review-results/g5-interpreter-mapping-20260703.md` §6.1。
+///
+/// **接线状态**：G4（#134）已在统计层接线——[`reverse_exit_type`] 单源判据 + 生产 π fill loop
+/// 的 `TypedTradeLedger`（runner.rs）消费本枚举；interp close 桶本体仍单一未 typed（生产订单流
+/// bit-exact 不变），P5/P6/P7 生产拆分在 G5 实装阶段（#124，须复用 [`reverse_exit_type`]）。
+/// `closed_loop/sell.rs::SellDecision` 已有 CloseRoot/ReduceCore 重叠（disjoint 路径，G4 把 μ 管线
+/// 重接生产 π 后该路径废）——统一收敛到本枚举，届时删 SellDecision 侧（升级路径，非现在做）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExitType {
+    /// P5 CloseRoot：关 depth-0 根腿（一类反向点=根清仓）。
+    CloseRoot,
+    /// P6 ReduceCore：减核心仓（三类反向点=核心仓减仓）。
+    ReduceCore,
+    /// P7 CloseShortDiff：关 ShortDiff carrier 子声部（短差反向确认）。
+    CloseShortDiff,
+    /// P1 RiskExit：保证金/强平（`KThetaRiskGate.force_flat`/stop）。
+    RiskExit,
+    /// P0 Hold：无出场。
+    Hold,
+}
+
+/// 反向关闭的 typed exit 判据（PDF §9 / G5 映射 §6.1，**G4/G5 单源**——统计层 ledger 与
+/// 生产 P5/P6/P7 拆分必须共用本函数，不得镜像）。
+///
+/// 输入 = 被关腿的**入场角色垂直轴** `entry_v`（腿声部身份在入场时固定，不随塔演化漂移）+
+/// 触发关闭的反向候选的 `bsp_class`（[`interpret`] 规则2 的触发者，最小成立类 1<2<3）：
+/// - `entry_v == ShortDiff` ⟹ [`ExitType::CloseShortDiff`]（P7：短差子声部反向确认关闭，
+///   优先于触发类判定——子声部关闭语义压过触发信号语义）。
+/// - 否则 `trigger_class == 3` ⟹ [`ExitType::ReduceCore`]（P6：三类反向点=核心仓减仓）。
+/// - 否则 ⟹ [`ExitType::CloseRoot`]（P5：一类反向点=根清仓；**二类反向归 CloseRoot**——
+///   PDF §9 五枚举无二类单列，二类是一类的次级确认，同属根反转语义；三类才是中枢离开
+///   确认=减仓语义。此读法已向 ws-g5interp 征求意见，翻转条件见 g4-impl 结果包边界条件）。
+///
+/// `FollowParent` 子腿被反向关闭按触发类走 P5/P6（跟随父方向的级联核心仓，非短差对冲腿）。
+pub fn reverse_exit_type(entry_v: Vertical, trigger_class: u8) -> ExitType {
+    if entry_v == Vertical::ShortDiff {
+        ExitType::CloseShortDiff
+    } else if trigger_class == 3 {
+        ExitType::ReduceCore
+    } else {
+        ExitType::CloseRoot
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -164,11 +276,11 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
     // 平行 CoverageElement（独立根 parent=None=边界胚元 ∂，去根化 ⟹ V=Ambient），供 operation_role
     // 取 18 类角色（只读复用 coverage）。eps=候选方向（Flat 占位 Long——其角色不被执行，归 𝒦）。
     let mut elements: Vec<CoverageElement> = Vec::new();
-    let mut raw: Vec<(u32, usize, BspBits, VoiceSide, u8, bool)> = Vec::new();
+    let mut raw: Vec<(u32, usize, BspBits, VoiceSide, u8, bool, Option<ForceProxies>)> = Vec::new();
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
-        for point in &level.bsp {
-            let dir = candidate_dir(&point.bits);
+        for point in level.bsp.iter() {
+            let dir = candidate_dir(point);
             let cls = min_class(&point.bits, dir);
             let nest_ok = nest_confirm(lvl, point.source_index, &point.bits, dir);
             elements.push(CoverageElement {
@@ -184,12 +296,12 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
                 id: ElementId { level: lvl, ordinal: elements.len() as u64 },
                 parent_id: None,
             });
-            raw.push((lvl, point.source_index, point.bits, dir, cls, nest_ok));
+            raw.push((lvl, point.source_index, point.bits, dir, cls, nest_ok, point.force));
         }
     }
     raw.iter()
         .enumerate()
-        .map(|(i, &(level, source_index, bits, dir, bsp_class, nest_confirmed))| Candidate {
+        .map(|(i, &(level, source_index, bits, dir, bsp_class, nest_confirmed, force))| Candidate {
             level,
             source_index,
             bits,
@@ -198,16 +310,42 @@ pub fn assemble_gamma(classification: &Classification) -> Vec<Candidate> {
             role: coverage::operation_role(&elements, i),
             nest_confirmed,
             gamma_index: i,
+            force,
         })
         .collect()
 }
 
 /// 候选方向 σ_g（root_sel 镜像反对称消歧）：买侧→Long、卖侧→Short、双侧/空→Flat（不可交易）。
-fn candidate_dir(bits: &BspBits) -> VoiceSide {
-    root_sel(RootCandidates {
+///
+/// ★P2-R2 回退（p2-plan §2 + codex-review-20260701-2251 **护栏1 [致命]**）：当**且仅当**六 bit
+/// 完全无方向（`!conf_plus() && !conf_minus()`——严格零 bit，**不是** `root_sel(...)==Flat`）且
+/// `struct_break_dir=Some(s)` 时，用破中枢结构方向 s 恢复方向。这让零 bit 破中枢候选（MACD C≥A
+/// 未背驰但几何破了最后中枢）进 μ 样本（消选择偏差），不再被 `dir==Flat` 预删。
+///
+/// ★护栏1 严格性（**为什么禁用 `root_sel(...)==Flat`**）：`root_sel` 对 `(1,1)` 双触发（buy 位
+/// 与 sell 位同时置，非互斥可重合）也返回 `Flat`（镜像不动点反对称消歧，voice.rs:270）。若用
+/// `root_sel(...)==Flat` 作回退条件，则**双触发冲突候选**（有六 bit 方向但被消歧为 Flat）会被
+/// struct_break_dir 误改向——那是错的（冲突候选应保持 Flat 归 𝒦 记录，不该被结构方向覆盖）。
+/// 严格零 bit `!conf_plus() && !conf_minus()` 只匹配 `(0,0)` 真无方向，排除 `(1,1)` 冲突。
+///
+/// bit-exact：`struct_break_dir` 不进 `class_index()`/`MuClass`/桶 key（只在本消歧层读）——
+/// 有六 bit 方向的候选（`conf_plus() || conf_minus()`）走原 `root_sel` 路径，dir 逐字段不变。
+fn candidate_dir(point: &BspPoint) -> VoiceSide {
+    let bits = &point.bits;
+    let base = root_sel(RootCandidates {
         long_trigger: bits.conf_plus(),
         short_trigger: bits.conf_minus(),
-    })
+    });
+    // 严格零 bit（(0,0)，排除 (1,1) 双触发冲突）+ 破中枢结构方向 ⟹ 恢复方向（护栏1）。
+    if !bits.conf_plus() && !bits.conf_minus() {
+        if let Some(side) = point.struct_break_dir {
+            return match side {
+                Side::Long => VoiceSide::Long,
+                Side::Short => VoiceSide::Short,
+            };
+        }
+    }
+    base
 }
 
 /// 最小成立类号（spec:54 同 level 1<2<3）。方向感知：Long 看买点位、Short 看卖点位；无类→u8::MAX。
@@ -257,14 +395,19 @@ fn nest_confirm(level: u32, source_index: usize, bits: &BspBits, dir: VoiceSide)
 //  谱系：638 + 547 + coverage-engine-needs-tower-export-bridge + b2s2-still-missing-tower
 // ════════════════════════════════════════════════════════════════════════════
 
-/// 从真嵌套塔 + 638 附着规则构造**组合元素数组**（真元素树 ++ 附着的买卖点候选元素）。
+/// 从真嵌套塔 + 638 附着规则构造**组合元素数组**（操作 carrier forest ++ 附着的买卖点候选元素）。
 ///
 /// 这是塔导出桥 (ii) **喂入段**的核心：替换 [`assemble_gamma`] 的扁平全根（独立根 ∂、V 恒 Ambient）。
 /// 两段：
-/// 1. `tree = extract_elements(tower)`：真嵌套元素树（`RMove::Compose` 真父子，547 铁律守护——
-///    父只来自 `sub_moves` 真包含，非级别差伪造）。
-/// 2. 每个 bsp 候选 → 一个 [`CoverageElement`]（[`coverage::attach_bsp_to_tree`] hostOf 附着），
-///    按 638 hostOf 附着到 `tree`（继承 hostOf 的真父 + 父方向 σ_{p(g)}）。候选元素追加在 `tree` 之后。
+/// 1. ★A12（648 裁决 D）：`tree = extract_carrier_forest(tower)`：**K_i 操作 carrier forest**
+///    （endpoint-complete，host^op 定义域）——所有级别全部走势真嵌套展开+dedup（`RMove::Compose`
+///    真父子，547 铁律守护——父只来自 `sub_moves` 真包含，非级别差伪造）。旧宇宙 T_i
+///    （`extract_elements`，只最高级根，覆盖 ~36-42% L0）是 host^op=host^struct 混用（676/648
+///    第四根因：orphan frontier bsp 92-98% host-miss ⟹ 子声部结构性恒零）。T_i 仍由
+///    `extract_elements` 承载（结构可视化/bit-exact extract 侧，648 保留项，本路径不再消费）。
+/// 2. 每个 bsp 候选 → 一个 [`CoverageElement`]（host^op：[`coverage::attach_bsp_carrier_indexed`]
+///    严格右端点命中 **K_i**，P2a 保留/P2b 宇宙切换），继承 hostOf 的真父 + 父方向 σ_{p(g)}。
+///    候选元素追加在 `tree` 之后。
 ///
 /// 返回 `(elements, candidate_start)`：`elements[..candidate_start]` 是真元素树，
 /// `elements[candidate_start..]` 是附着候选（**按 `classification.levels` 层序 × 每层 `bsp` 序追加**
@@ -379,6 +522,25 @@ impl TreeKey {
         TreeKey(Vec::new())
     }
 
+    /// ★A12 双视图（648 裁决 D）：**全级别**森林指纹——[`coverage::extract_carrier_forest`]
+    /// （K_i 操作 carrier forest）的缓存键。
+    ///
+    /// 与 [`TreeKey::of`]（只指纹**最高非空级**，T_i=↓r_i 只依赖最高级根 ⟹ 够）的区别：K_i 遍历
+    /// tower **所有级别**（K_i=U_i 全量 tower 元素），低级 `level_moves` 的变化（尤其 **L0 段尾部
+    /// 古怪线段重划**——`TowerCache::generation` 维护点不覆盖，CandidateCache bar 3020 坐实
+    /// 「gen 不变但 L0 内容变」）不改最高级指纹 ⟹ `of` 对 K_i 会**假命中返陈旧森林**。本函数
+    /// 逐级发射所有 moves（级间以 level_moves 边界顺序天然分隔——emit 首字段 rmove.level() 已
+    /// 区分级别，同级内前序遍历），覆盖 K_i 输出的全部决定字段 ⟹ 指纹相等 ⟹ K_i 输出逐字节相等。
+    pub(crate) fn of_forest(tower: &[Rc<Vec<LeveledMove>>]) -> TreeKey {
+        let mut fp = Vec::new();
+        for lvl in tower.iter().rev() {
+            for m in lvl.iter() {
+                TreeKey::emit(m, &mut fp);
+            }
+        }
+        TreeKey(fp)
+    }
+
     /// 递归发射一个 move 及其全部 sub_moves 的深层指纹（前序遍历，父在子前——与
     /// [`coverage::push_element_tree`] 同序，确保结构同构的两树发射序一致）。
     fn emit(m: &LeveledMove, fp: &mut Vec<(u32, u32, u64, usize, usize, u8, i64, i64, usize)>) {
@@ -441,10 +603,13 @@ pub struct TreeCache {
     /// 每 bar `build_tree_id_index(tree_prefix)` O(tree)/bar=O(n²)。只读（held leg 对位查表，缓存不被 mutate）。
     id_idx: Rc<std::collections::HashMap<ElementId, usize>>,
     valid: bool,
-    /// ★工位 4g：缓存树对应的塔变更代次（`TowerCache::generation()`）。`Some(g)` ⟹ 缓存树由代次 g 的
-    /// 塔建得。下游传入同代次 ⟹ **跳过 O(tree) 的 `TreeKey::of` 全量重算**直接复用（exp≈2.0 真因消除）。
-    /// `None` ⟹ 未用 generation 路径建过（fallback TreeKey 比较，向后兼容合成闭包/全量路径）。
-    gen: Option<u64>,
+    // ★A12：旧 4g `gen: Option<u64>` 代次快路字段已删——K_i（全塔含 L0）下 gen 命中 ≠ 森林不变
+    // （L0 尾段古怪线段重划不 bump gen，bar 3020 坐实）。
+    // ★on2w2：K_i 命中判据 = classifier 域独立 `forest_epoch`（在塔实际字节变更站点直接 ++，覆盖 L0）——
+    // 取代每 bar O(全塔) 的 `TreeKey::of_forest` 指纹（H6 O(n²) 真因）。`key`（of_forest 指纹）保留作
+    // `None`（合成/全量非增量）路径的 fallback 判据 + 双 key 失效不变量（§5.4）。
+    // `key_epoch`：`Some(e)` 生产增量路径命中判据；`None` 路径此字段不参与（用 `key` 比对）。
+    key_epoch: Option<u64>,
 }
 
 impl TreeCache {
@@ -469,52 +634,74 @@ impl TreeCache {
     }
 }
 
-/// ★tree 段缓存（[`coverage_elements_and_gamma_with_tower_cached_gen`] 与 PART1 gamma-free 路径
-/// [`coverage_elements_with_tower_cached_gen`] **单一来源**，no-patch 不复制 tree 缓存逻辑）。
+/// ★操作宇宙段缓存（[`coverage_elements_and_gamma_with_tower_cached_gen`] 与 PART1 gamma-free 路径
+/// [`coverage_elements_with_tower_cached_gen`] **单一来源**，no-patch 不复制缓存逻辑）。
 ///
-/// 返回 `(tree, endpoint_idx, sibling_idx)` 三 Rc（命中 O(1)）。gen 快路（代次未变跳 `TreeKey::of`）
-/// + TreeKey fallback + 无缓存全建——逐字节 == 抽出前的 inline 逻辑（工位 4g）。
+/// ★A12 双视图切换（648 裁决 D，settled）：生产操作路径的元素宇宙从 T_i（[`coverage::extract_elements`]
+/// 结构视图树）切到 **K_i（[`coverage::extract_carrier_forest`] 操作 carrier forest，endpoint-complete）**
+/// ——host^op 的定义域（PDF「子声部.pdf」§16 完整状态 x_i=(T_i,K_i,…)，解释器消费 Γ^K 与 K_i）。
+/// host^op 仍严格右端点命中（P2a 保留，不违 638），只改 host 宇宙（P2b：T_i→K_i）。T_i/
+/// `extract_elements` 本身**不动**（结构可视化/bit-exact extract/compose chain 侧，648 保留项）。
+///
+/// ★on2w2（H6 O(n²) sound 修复）：K_i 命中判据从每 bar O(全塔) 的 [`TreeKey::of_forest`] 指纹降为
+/// classifier 域独立 `forest_epoch`（O(1) u64 比较）。`forest_epoch` 在塔实际字节变更站点（E1-E4，
+/// mod.rs）直接 ++，**直接覆盖 L0**（无需 gen 的 cascade 间接传播 + l0_is_root blunt 兜底）——既修
+/// A12 所指的 L0-root/L0-尾段-重划 soundness 漏洞，又把 bump 率从 gen 的 98.5% 压回 forest 真变率
+/// ≈0.8%（gen 复用无收益的根因，见 on2w2-epoch-design §2）。
+///
+/// 双路命中判据（§5.4，no-patch 保 fallback 非补丁）：
+/// - `forest_epoch=Some(e)`（生产增量路径，runner）：命中 = `c.valid && c.key_epoch == Some(e)`，O(1)。
+/// - `forest_epoch=None`（合成闭包 / 全量非增量路径，无 epoch 语义——不跨 bar 复用 TowerCache）：
+///   fallback 到 `TreeKey::of_forest` 指纹比对（O(tree)，但这些路径不在 per-bar 热循环，无 O(n²) 暴露）。
+///
+/// 双 key 失效不变量（§5.4）：miss 重建时**同时刷新** `c.key`（of_forest）与 `c.key_epoch`——两 key
+/// 恒指向同一份已缓存 tree ⟹ 同一 TreeCache 被 Some/None 交替调用也无陈旧命中（生产恒 Some，交替只
+/// 在混用测试出现，但不变量无条件成立）。
 fn tree_segment_cached_gen(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
-    tower_gen: Option<u64>,
+    forest_epoch: Option<u64>,
 ) -> (
     Rc<Vec<CoverageElement>>,
     Rc<std::collections::HashMap<(u32, usize), usize>>,
     Rc<std::collections::HashMap<(Option<usize>, u32), Vec<usize>>>,
 ) {
-    let _ = classification; // tree 段不消费 classification（candidate 段才用），保签名一致。
+    let _ = classification; // 操作宇宙段不消费 classification（candidate 段才用），保签名一致。
     match cache {
         Some(c) => {
-            // ★工位 4g 代次快路：塔代次未变 ⟹ 跳过 O(tree) 的 TreeKey::of（exp≈2.0 真因消除）。
-            let gen_hit = matches!((tower_gen, c.gen), (Some(g), Some(cg)) if g == cg) && c.valid;
-            if gen_hit {
-                debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
-                    "TreeCache 代次假命中——TowerCache::generation 维护遗漏变异点（codex Q3）");
+            // 命中判据：Some(e) 走 O(1) epoch 比较；None 走 of_forest 指纹（fallback，§5.4）。
+            let hit = match forest_epoch {
+                Some(e) => c.valid && c.key_epoch == Some(e),
+                None => c.valid && c.key == TreeKey::of_forest(tower),
+            };
+            if hit {
+                debug_assert_eq!(c.tree.as_ref(), &coverage::extract_carrier_forest(tower),
+                    "TreeCache 假命中——§16 不变量破裂或 forest_epoch 漏 bump（枚举不完备，on2w2 §3.1）");
                 (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
             } else {
-                let key = TreeKey::of(tower);
-                if c.valid && c.key == key {
-                    debug_assert_eq!(c.tree.as_ref(), &coverage::extract_elements(tower),
-                        "TreeCache 假命中——§16 不变量破裂或 TreeKey 不 sound");
-                    c.gen = tower_gen;
-                    (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
-                } else {
-                    let t = Rc::new(coverage::extract_elements(tower));
-                    c.endpoint_idx = Rc::new(coverage::build_tree_endpoint_index(&t));
-                    c.sibling_idx = Rc::new(coverage::build_prev_sibling_index(&t));
-                    c.id_idx = Rc::new(coverage::build_tree_id_index(&t));
-                    c.tree = t;
-                    c.key = key;
-                    c.gen = tower_gen;
-                    c.valid = true;
-                    (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
-                }
+                let t = Rc::new(coverage::extract_carrier_forest(tower));
+                // A12 双向映射一致性（debug 构建，仅重建分支——miss 稀少不进热路径）：
+                // T_i↪K_i 嵌入保 (id,λ,ρ,ε,ℓ,parent_id) + K_i id/(level,ρ) 唯一。
+                debug_assert!(
+                    coverage::dual_view_consistency(&coverage::extract_elements(tower), &t).is_ok(),
+                    "A12 双视图一致性破裂：{:?}",
+                    coverage::dual_view_consistency(&coverage::extract_elements(tower), &t)
+                );
+                c.endpoint_idx = Rc::new(coverage::build_tree_endpoint_index(&t));
+                c.sibling_idx = Rc::new(coverage::build_prev_sibling_index(&t));
+                c.id_idx = Rc::new(coverage::build_tree_id_index(&t));
+                c.tree = t;
+                // ★双 key 失效不变量（§5.4）：miss 重建时同刷两 key（of_forest 只在 miss 算一次，
+                // 非每 bar，不回归 O(n²)）——两 key 恒指同一 tree，Some/None 交替无陈旧命中。
+                c.key = TreeKey::of_forest(tower);
+                c.key_epoch = forest_epoch;
+                c.valid = true;
+                (Rc::clone(&c.tree), Rc::clone(&c.endpoint_idx), Rc::clone(&c.sibling_idx))
             }
         }
         None => {
-            let t = Rc::new(coverage::extract_elements(tower));
+            let t = Rc::new(coverage::extract_carrier_forest(tower));
             let ep = Rc::new(coverage::build_tree_endpoint_index(&t));
             let sb = Rc::new(coverage::build_prev_sibling_index(&t));
             (t, ep, sb)
@@ -533,7 +720,7 @@ fn build_candidate_element(
     point: &BspPoint,
     ci: usize,
 ) -> CoverageElement {
-    let dir = candidate_dir(&point.bits);
+    let dir = candidate_dir(point);
     let (parent, attached_dir, carrier_id) =
         coverage::attach_bsp_carrier_indexed(tree_endpoint_idx, tree, lvl, point.source_index);
     CoverageElement {
@@ -582,7 +769,16 @@ fn build_candidate_element(
 #[derive(Default)]
 pub struct CandidateCache {
     /// 缓存对应的塔代次（`TowerCache::generation()`）。`Some(g)` ⟹ candidates 由代次 g 的 tree 建得。
+    /// ★on2w3：仅 `forest_epoch=None`（合成/全量非增量）路径的 fallback 判据——生产路径用 `epoch`。
     gen: Option<u64>,
+    /// ★on2w3 candidate 残余修复：森林 epoch（on2w2 `TowerCache::forest_epoch()`）——**生产路径的
+    /// whole-cache 树稳定判据**。`gen`（blunt `l0_is_root` 每-bar bump，98.5%）令 CandidateCache 前缀
+    /// 复用在生产**从不命中**（实测 cand_tail_built sum == cand_count sum，每 bar 全量重建）。forest_epoch
+    /// 是 on2w2 已证 sound 的紧信号（bump 率 2.17%，false_hits=0）：epoch 稳定 ⟺ tower 全级字节不变 ⟺
+    /// `extract_carrier_forest(tower)`（tree）字节不变 ⟹ 同 bsp.source_index 的 `attach_bsp_carrier_indexed`
+    /// 结果（parent/id/attached_dir）不变。与 per-level `prefix_fp`（bsp 内容，centers 驱动的变化）+
+    /// `base_ci`（ordinal）组合 ⟹ 缓存前缀逐字节稳定（`candidate_incremental_bit_exact_vs_full` 神谕守卫）。
+    epoch: Option<u64>,
     /// ★per-level 分段存储（修正扁平 Vec 顺序 bug）：candidates 按 level 顺序拼接成扁平 Vec
     /// `[L0..., L1..., ...]`。命中时 L0 新增 bsp 必须插在 L0 段末尾（L1 之前），不是整个 Vec 末尾。
     /// 故按级分段存 `per_level[lvl]`，返回时按级拼接 ⟹ level 顺序 bit-exact。
@@ -599,6 +795,13 @@ pub struct CandidateCache {
     /// 命中时逐级比对 base_ci，变化则重建该级（保 fallback ordinal bit-exact）。
     base_ci: Vec<usize>,
     valid: bool,
+    /// ★on2w3 merge 增量信号：本次 build 产出的 `candidates` 是否**逐字节不同于上 bar 输出**。
+    /// `false` ⟺ 全 whole-cache 命中（forest_epoch 稳）+ 每级全命中（base/fp 稳）+ 零新尾 ⟹ candidates
+    /// 与上 bar 逐字节相同。runner 读此值传 [`PersistentRegistry::merge_in_place_split`]：`!cand_dirty`
+    /// 且 `!tree_dirty` ⟹ merge 整段 candidate 工作是 no-op（同 id 集全 present、同值上 bar 已 upsert、
+    /// present_last_cand 不变）⟹ 跳过（O(1)）。否则全量（bit-exact 退化）。
+    /// merge 消费顺序无关（按 id upsert 进 HashMap + 建 id 集），故用「整体是否变」而非 flat 前缀长度。
+    pub dirty: bool,
 }
 
 /// bsp 内容指纹（codex Q3 前缀校验）：(source_index, bits 判别码)。candidate 的 lambda/rho/eps/level
@@ -622,9 +825,17 @@ impl CandidateCache {
 
 /// ★工位 4h：caller B（merge）的 **gamma-free + candidate 前缀缓存** 路径（源(b) O(n²) 真修）。
 ///
-/// 返回 `(tree_rc, candidates)`——**不产 gamma**（codex Q1：caller B 丢弃 gamma）。tree 段复用
-/// [`coverage_elements_and_gamma_with_tower_cached_gen`] 的同一 [`TreeCache`]（gen 快路）；candidate 段
-/// 用 [`CandidateCache`] 前缀缓存（gen + per-level bsp len 校验 ⟹ 只 build 尾部）。
+/// 返回 `(tree_rc, candidates)`——**不产 gamma**（codex Q1：caller B 丢弃 gamma）。操作宇宙段（K_i，
+/// A12）复用 [`coverage_elements_and_gamma_with_tower_cached_gen`] 的同一 [`TreeCache`]（of_forest
+/// 指纹判据）；candidate 段用 [`CandidateCache`] 前缀缓存（gen + per-level bsp 指纹校验 ⟹ 只 build
+/// 尾部）。
+///
+/// ★A12 CandidateCache 在 K_i 下的 soundness 补记：gen 命中 ⟹ upper 级不变；K_i 可因 L0 尾段
+/// 重划重建（of_forest miss），但 (a) bsp 附着只命中 **confirmed 域**元素（bsp.source_index=确认段
+/// 端点，同级坐标严格递增 ⟹ 与未确认尾段 (level,ρ) 键不重合），confirmed 域附着结果不变；
+/// (b) K_i 遍历序=最高级→L0 + dedup 按原始 idx 升序重映射，upper 段与 L0 confirmed 前缀的去重后
+/// 索引稳定（L0 内部前缀由 `segments_confirmed_len` 证书保证稳定），尾段变化只动数组尾部 ⟹
+/// cached candidate 的 parent 索引/字段不漂移。bsp 内容变化已由 prefix_fp 逐元素校验兜底。
 ///
 /// bit-exact == [`coverage_elements_and_gamma_with_tower_cached_gen`] 的 `(tree, candidates)`（丢 gamma）：
 /// - 命中：cached candidates 前缀 == 全量遍历1 前缀（codex Q2 身份稳定）+ 尾部 `build_candidate_element`
@@ -639,11 +850,12 @@ pub fn coverage_elements_with_tower_cached_gen(
     tree_cache: &mut TreeCache,
     cand_cache: &mut CandidateCache,
     tower_gen: Option<u64>,
+    forest_epoch: Option<u64>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>) {
-    // ── tree 段（复用全路径的 gen 快路，O(1) 命中）。 ──
+    // ── 操作宇宙段（K_i，on2w2：forest_epoch O(1) 命中——取代 of_forest O(全塔) 指纹）。 ──
     let (tree, tree_endpoint_idx) = {
         let mut opt = Some(tree_cache);
-        let (t, ep, _sb) = tree_segment_cached_gen(classification, tower, &mut opt, tower_gen);
+        let (t, ep, _sb) = tree_segment_cached_gen(classification, tower, &mut opt, forest_epoch);
         (t, ep)
     };
     let candidate_start = tree.len();
@@ -653,9 +865,16 @@ pub fn coverage_elements_with_tower_cached_gen(
     // ci = candidate_start + 已拼接元素数。命中路径 L_k 的尾部 ci 必须接 **L_k 段** 末尾（不是整个
     // Vec 末尾，否则 L0 新增插到 L1 之后乱序——bar 3020 bit-exact 失败坐实）。故按级分段存 per_level，
     // ci 由"前 k 级 bsp 总数 + 本级偏移"算（保 fallback id ordinal 全量 bit-exact）。
-    let gen_match = matches!((tower_gen, cand_cache.gen), (Some(g), Some(cg)) if g == cg);
+    // ★on2w3 whole-cache 树稳定判据：生产走 forest_epoch（紧、sound——on2w2 §4 假命中不可能性），
+    // 合成/全量（forest_epoch=None）fallback gen。gen 每-bar blunt bump（l0_is_root，98.5%）令前缀
+    // 复用在生产从不命中；epoch 只在 tower 真变时 bump（2.17%）⟹ 树前缀稳定 ⟹ cached candidate 的
+    // attach 结果（parent/id）稳定，per-level prefix_fp/base_ci 独立守 bsp/ordinal 变化。
+    let tree_stable = match forest_epoch {
+        Some(e) => cand_cache.epoch == Some(e),
+        None => matches!((tower_gen, cand_cache.gen), (Some(g), Some(cg)) if g == cg),
+    };
     let level_match = cand_cache.per_level.len() == classification.levels.len();
-    let cache_usable = gen_match && cand_cache.valid && level_match;
+    let cache_usable = tree_stable && cand_cache.valid && level_match;
 
     if !cache_usable {
         // miss：全量重建（bit-exact 退化）。per_level/fp/base_ci 清空重建。
@@ -668,6 +887,7 @@ pub fn coverage_elements_with_tower_cached_gen(
             cand_cache.base_ci.push(0);
         }
         cand_cache.gen = tower_gen;
+        cand_cache.epoch = forest_epoch;
         cand_cache.valid = true;
     }
 
@@ -676,6 +896,8 @@ pub fn coverage_elements_with_tower_cached_gen(
     //   (1) base_ci 不变（codex A/C：前置级未增长 ⟹ fallback ordinal 不偏移）；
     //   (2) bsp 单调追加（len >= cached）；
     //   (3) 前缀指纹 bit-exact（codex Q3：gen 不变但 L0 bsp 内容变——古怪线段重划——须逐元素验身份）。
+    // ★on2w3 cand_dirty：whole-cache miss（整段重建）或任一级重建/长新尾 ⟹ candidates 逐字节变 ⟹ dirty。
+    let mut cand_dirty = !cache_usable;
     let mut level_offset = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
@@ -694,10 +916,14 @@ pub fn coverage_elements_with_tower_cached_gen(
             // 重建该级（base_ci 偏移 / 前缀指纹不符）⟹ 清空该级，全量 build（fallback ordinal 用新 base）。
             cand_cache.per_level[level_idx].clear();
             cand_cache.prefix_fp[level_idx].clear();
+            cand_dirty = true; // 该级重建 ⟹ 输出变。
         }
         let seg = &mut cand_cache.per_level[level_idx];
         let fp = &mut cand_cache.prefix_fp[level_idx];
         let cached = seg.len(); // level_hit ⟹ 前缀保留续 build 尾部；否则 0 ⟹ 全量 build。
+        if cached < level.bsp.len() {
+            cand_dirty = true; // 有新尾 build ⟹ 输出变。
+        }
         for (off, point) in level.bsp[cached..].iter().enumerate() {
             let ci = level_offset + cached + off;
             seg.push(build_candidate_element(&tree, &tree_endpoint_idx, lvl, point, ci));
@@ -706,6 +932,7 @@ pub fn coverage_elements_with_tower_cached_gen(
         cand_cache.base_ci[level_idx] = level_offset;
         level_offset += level.bsp.len();
     }
+    cand_cache.dirty = cand_dirty;
 
     // 按级顺序拼接成扁平 candidates（[L0..., L1...]）供 merge 消费。
     // ponytail: 拼接 = O(总 bsp) memcpy（CoverageElement: Copy）。这是 merge 接口所需全量 Vec 的下界
@@ -719,42 +946,46 @@ pub fn coverage_elements_with_tower_cached_gen(
     (tree, candidates)
 }
 
-/// [`coverage_elements_and_gamma_with_tower`] 带可选 tree-prefix 缓存（工位 K 性能）。
+/// [`coverage_elements_and_gamma_with_tower`] 带可选 forest-prefix 缓存（工位 K 性能）。
 ///
-/// bit-exact == 无缓存版：命中复用的 `tree` 与 `extract_elements(tower)` 逐字节相等（§16 + 实测 0 假命中）。
-/// 候选段每次按当前 `classification` 重建 append（候选随 bar 变；§16 只保证 tree-prefix 不变）。
+/// bit-exact == 无缓存版：命中复用的森林与 `extract_carrier_forest(tower)` 逐字节相等（§16 +
+/// of_forest 全字段指纹）。候选段每次按当前 `classification` 重建 append（候选随 bar 变）。
 pub fn coverage_elements_and_gamma_with_tower_cached(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
-    // 向后兼容入口（无 generation——合成闭包/全量路径走 TreeKey 比较，O(tree)/bar）。
-    coverage_elements_and_gamma_with_tower_cached_gen(classification, tower, cache, None)
+    // 向后兼容入口（无 generation / 无 forest_epoch——合成闭包/全量路径走 of_forest 指纹比较，
+    // O(tree)/bar；这些路径不在 per-bar 热循环，无 O(n²) 暴露，§5.4 fallback）。
+    coverage_elements_and_gamma_with_tower_cached_gen(classification, tower, cache, None, None)
 }
 
-/// [`coverage_elements_and_gamma_with_tower_cached`] **带塔代次** `tower_gen`（★工位 4g：消 exp≈2.0
-/// 真因——每 bar 无条件 `TreeKey::of` 全量重算）。
+/// [`coverage_elements_and_gamma_with_tower_cached`] 带塔代次 `tower_gen`（签名保留，A12 后本路径
+/// 不再消费——见下）。
 ///
-/// **命中判据两级**（soundness 见 [`super::super::classifier::TowerCache::generation`]）：
-/// 1. **代次快路**（`tower_gen=Some(g)` 且 `c.valid && c.gen==Some(g)`）：塔代次未变 ⟹ `extract_elements`
-///    输出逐字节不变（generation 绑定可观察树变更）⟹ **跳过 `TreeKey::of`** 直接 `Rc::clone` 复用（O(1)）。
-///    这是 ~99.8% bar 的路径（CL 16K 仅 26 次塔变）。
-/// 2. **TreeKey fallback**（代次不匹配 / `tower_gen=None`）：算 `TreeKey::of` 比较（旧路径，bit-exact）。
+/// ★A12（648 裁决 D）：操作宇宙段命中判据 = **[`TreeKey::of_forest`] 全级别指纹**（单级判据）。
+/// 旧 4g gen 代次快路已删：`TowerCache::generation` 维护点不覆盖 L0 段尾部古怪线段重划
+/// （CandidateCache bar 3020 坐实「gen 不变但 L0 内容变」），对 K_i（读全塔含 L0）会假命中返
+/// 陈旧森林。`tower_gen` 参数保留避免调用方（runner/incremental）签名波纹；CandidateCache 路径
+/// （[`coverage_elements_with_tower_cached_gen`]）仍消费 gen 作 candidate 段判据（soundness 见该函数）。
 ///
-/// bit-exact == 无缓存版：代次快路复用的 `tree` 与 `extract_elements(tower)` 逐字节相等（debug_assert 守卫）。
+/// bit-exact == 无缓存版：命中复用的森林与 `extract_carrier_forest(tower)` 逐字节相等（debug_assert 守卫）。
 pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     classification: &Classification,
     tower: &[Rc<Vec<LeveledMove>>],
     cache: &mut Option<&mut TreeCache>,
     tower_gen: Option<u64>,
+    forest_epoch: Option<u64>,
 ) -> (Rc<Vec<CoverageElement>>, Vec<CoverageElement>, Vec<Candidate>) {
+    let _ = tower_gen; // A12：gen 快路对 K_i 不 sound 已删（见函数文档）；参数保留签名兼容。
     // ★热点②③ O(n²) 消除：树前缀 + 两个派生索引 `Rc` 共享（命中返 `Rc::clone` O(1)，旧每 bar
     // `extract_elements` + `build_*_index` 全是 O(tree)/bar=O(n²)）。candidate 段不进树/索引 clone，
     // 单独 `candidates` Vec + candidate-only 兄弟 overlay 承载（消费者 ElementView + split 查询双段组装）。
-    // ★热点②③ O(n²) 消除：树前缀 + 派生索引 Rc 共享。抽出 tree_segment_cached_gen 单一来源
-    // （PART1 gamma-free 路径共享同逻辑，no-patch 不复制 tree 缓存）。
+    // ★热点②③ O(n²) 消除：森林前缀 + 派生索引 Rc 共享。抽出 tree_segment_cached_gen 单一来源
+    // （PART1 gamma-free 路径共享同逻辑，no-patch 不复制缓存）。A12：宇宙=K_i（tower_gen 只供
+    // candidate 段 CandidateCache 消费，K_i 段判据=of_forest）。
     let (tree, tree_endpoint_idx, tree_sibling_idx) =
-        tree_segment_cached_gen(classification, tower, cache, tower_gen);
+        tree_segment_cached_gen(classification, tower, cache, forest_epoch);
     let candidate_start = tree.len();
 
     // ── 遍历1：构建 candidate 段（parent/id/parent_id 只读 tree 前缀，无需 candidate 段连续）。 ──
@@ -767,7 +998,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
-        for point in &level.bsp {
+        for point in level.bsp.iter() {
             // ★工位 4h：单一来源 build_candidate_element（与 PART1 gamma-free 路径共享，no-patch）。
             let e = build_candidate_element(&tree, &tree_endpoint_idx, lvl, point, ci);
             let parent = e.parent;
@@ -785,8 +1016,8 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
     let mut ci = candidate_start;
     for (level_idx, level) in classification.levels.iter().enumerate() {
         let lvl = level_idx as u32;
-        for point in &level.bsp {
-            let dir = candidate_dir(&point.bits);
+        for point in level.bsp.iter() {
+            let dir = candidate_dir(point);
             gamma.push(Candidate {
                 level: lvl,
                 source_index: point.source_index,
@@ -798,6 +1029,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
                 ),
                 nest_confirmed: nest_confirm(lvl, point.source_index, &point.bits, dir),
                 gamma_index: gamma.len(),
+                force: point.force, // A6 #159：BspPoint.force 纯透传（一类 Some/其余 None）
             });
             ci += 1;
         }
@@ -838,7 +1070,7 @@ pub fn coverage_elements_and_gamma_with_tower_cached_gen(
 /// 4. 方向码 / 角色码（H,V,δ）：固定枚举序（确定性，S_k 无关）。
 /// 5. `gamma_index`：**终局 tiebreak**——保证任意两候选可比 ⟹ ≺_Θ 是**全序**（非偏序，∃! 前提2）。
 ///    S_k 不重排 Γ ⟹ gamma_index 平移不变。
-fn theta_key(c: &Candidate) -> (Reverse<u32>, u8, usize, u8, u8, u8, u8, usize) {
+pub(crate) fn theta_key(c: &Candidate) -> (Reverse<u32>, u8, usize, u8, u8, u8, u8, usize) {
     (
         Reverse(c.level),
         c.bsp_class,
@@ -913,6 +1145,23 @@ pub fn theta_lt(a: &Candidate, b: &Candidate) -> bool {
 /// **边界条件**：`active` 空 ⟹ `close` 必空（无腿可关，规则2 不触发）；此时全部可交易候选按 slot
 /// 唯一化分流 open/record。`gamma` 空 ⟹ 三桶皆空。
 pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
+    interpret_with_close_triggers(gamma, active).0
+}
+
+/// [`interpret`] 的**单源 fold 本体** + close 触发归因（G4 typed exit 组合层原料，#134）。
+///
+/// 返回 `(Buckets, Vec<Candidate>)`：第二分量与 `buckets.close` **一一对应**（第 k 条被关腿的
+/// 关闭触发候选 = 第 k 个归因，规则2 的消费配对）——组合层（coverage `pi_theta_step_traced` /
+/// runner ledger builder）据此经 [`reverse_exit_type`] 产 typed exit，**不在外部重放 fold 配对**
+/// （fold 顺序敏感，外部重放 = 平行实现漂移）。
+///
+/// **∃! 证明锚不动**：[`interpret`] 签名/行为不变（委托本函数丢弃归因），归因是 fold 的确定性
+/// 副产品——同一 fold 单实现，非第二权威（分歧A 裁决：typed 语义在 interpret 与
+/// coverage_step_from_buckets 之间的组合层产生，interpret 本体不扩定义域）。
+pub fn interpret_with_close_triggers(
+    gamma: &[Candidate],
+    active: &[ActiveLeg],
+) -> (Buckets, Vec<Candidate>) {
     // ① ≺_Θ 排序（拷贝引用，不 mutate 输入）。
     let mut ordered: Vec<&Candidate> = gamma.iter().collect();
     ordered.sort_by(|a, b| theta_key(a).cmp(&theta_key(b)));
@@ -921,6 +1170,8 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
     let mut working: Vec<(ActiveLeg, bool)> = active.iter().map(|&l| (l, false)).collect();
     let mut opened: Vec<(u32, VoiceSide)> = Vec::new();
     let mut buckets = Buckets::default();
+    // close 触发归因（与 buckets.close 同步 push，一一对应）。
+    let mut close_triggers: Vec<Candidate> = Vec::new();
 
     // ponytail: H8 预索引——level → legs idx 列表（reverse_signal 需逐腿判 bits，无法纯 key 查表；
     // 但 level 索引把 O(|working|) 全扫缩为只遍历同 level 的腿，通常 1-2 条）。
@@ -953,6 +1204,7 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
             // 标记关闭（不从索引移除——bit-exact：旧 working.iter().position 也跳过已关闭腿）。
             working[pos].1 = true;
             buckets.close.push(working[pos].0);
+            close_triggers.push(*c); // 归因：本腿由候选 c 反向关闭（typed exit 原料）
             continue;
         }
         // 规则3/4：开启 vs 记录（slot = (level, σ_g)）。
@@ -971,7 +1223,12 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
             buckets.record.push(*c); // 规则4：冲突/重复 ⟹ 记录不执行
         }
     }
-    buckets
+    debug_assert_eq!(
+        buckets.close.len(),
+        close_triggers.len(),
+        "close 桶与触发归因一一对应（同步 push 不变量）"
+    );
+    (buckets, close_triggers)
 }
 
 #[cfg(test)]
@@ -993,6 +1250,8 @@ mod tests {
             pivot_low: 90,
             pivot_high: 0,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
         }
     }
 
@@ -1008,6 +1267,8 @@ mod tests {
             pivot_low: 0,
             pivot_high: 210,
             center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
         }
     }
 
@@ -1015,9 +1276,177 @@ mod tests {
         Classification {
             levels: levels
                 .into_iter()
-                .map(|bsp| LevelState { bsp, ..Default::default() })
+                .map(|bsp| LevelState { bsp: Rc::new(bsp), ..Default::default() })
                 .collect(),
         }
+    }
+
+    /// BspPoint 构造：给定 bits + struct_break_dir（P2-R2 守卫测试用）。
+    fn pt(bits: BspBits, sbd: Option<Side>) -> BspPoint {
+        BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: None, struct_break_dir: sbd, force: None }
+    }
+
+    /// ★P2-R2 护栏2（codex-review-20260701-2251 [guard]）：struct_break_dir 恢复方向**只改
+    /// candidate_dir，绝不改 class_index**。同一 bits 下六 bit + class_index() 完全不变——
+    /// struct_break_dir 不进 BspBits/MuClass/class_index/桶 key。
+    #[test]
+    fn struct_break_dir_recovers_direction_without_touching_class_index() {
+        // 零 bit + struct_break_dir=Some(Long) ⟹ candidate_dir 恢复 Long，class_index 仍 0（六 bit 全零）。
+        let zero_long = pt(BspBits::default(), Some(Side::Long));
+        assert_eq!(candidate_dir(&zero_long), VoiceSide::Long, "零 bit 破中枢候选恢复 Long 方向");
+        assert_eq!(zero_long.bits.class_index(), 0, "六 bit 全零 ⟹ class_index=0（struct_break_dir 不进桶键）");
+
+        // 零 bit + Some(Short) ⟹ Short，class_index 仍 0。
+        let zero_short = pt(BspBits::default(), Some(Side::Short));
+        assert_eq!(candidate_dir(&zero_short), VoiceSide::Short);
+        assert_eq!(zero_short.bits.class_index(), 0);
+
+        // 零 bit + None（非破中枢候选）⟹ Flat（无恢复源），class_index 0。
+        let zero_none = pt(BspBits::default(), None);
+        assert_eq!(candidate_dir(&zero_none), VoiceSide::Flat, "无 struct_break_dir ⟹ 保持 Flat");
+        assert_eq!(zero_none.bits.class_index(), 0);
+    }
+
+    /// ★P2-R2 护栏1（codex [致命]）：**有六 bit 方向**的候选走原 root_sel 路径，struct_break_dir
+    /// **不覆盖**其方向。且 class_index 由六 bit 唯一决定，与 struct_break_dir 无关（同 bits 下不变）。
+    #[test]
+    fn six_bit_direction_not_overridden_by_struct_break_dir() {
+        let buy1_bits = BspBits { buy1: true, ..Default::default() };
+        // buy1 候选（Long）+ 矛盾的 struct_break_dir=Some(Short)：candidate_dir 仍 Long（六 bit 优先）。
+        let buy1_conflict_sbd = pt(buy1_bits, Some(Side::Short));
+        assert_eq!(candidate_dir(&buy1_conflict_sbd), VoiceSide::Long,
+            "有 buy1 六 bit ⟹ 走 root_sel=Long，struct_break_dir=Short 不覆盖（护栏1 严格零 bit 前提不满足）");
+        // class_index 只由六 bit：buy1=true ⟹ 1，与 struct_break_dir 取值无关（None/Some 同值）。
+        assert_eq!(pt(buy1_bits, None).bits.class_index(), 1);
+        assert_eq!(pt(buy1_bits, Some(Side::Short)).bits.class_index(), 1);
+        assert_eq!(pt(buy1_bits, Some(Side::Long)).bits.class_index(), 1,
+            "class_index 恒 =1（buy1），struct_break_dir 三种取值下逐字节不变");
+    }
+
+    /// ★A6（#159）透传护栏：`BspPoint.force` → `Candidate.force` 纯透传（扁平 assemble_gamma 与
+    /// 塔路径两条组装线），组装层不改值不兜底——透传断裂（gamma 侧恒 None）在此 fail。
+    #[test]
+    fn a6_candidate_carries_bsp_point_force() {
+        use super::super::super::classifier::divergence::ForceFeatures;
+        let ff = |s: f64| ForceFeatures {
+            macd_area: 8.0 * s,
+            dif_peak: 1.5 * s,
+            price_amplitude: (60.0 * s) as i64,
+            price_speed: 3.0 * s,
+            tv: (90.0 * s) as i64,
+        };
+        let fp = ForceProxies { seg_a: ff(1.0), seg_c: ff(0.5) };
+        let mut p1 = buy_point(3, 1);
+        p1.force = Some(fp); // 一类 A/C 对候选携力度
+        let p2 = buy_point(7, 2); // 二类无 A/C 对 ⟹ force=None
+        let gamma = assemble_gamma(&classification(vec![vec![p1, p2]]));
+        assert_eq!(gamma.len(), 2);
+        assert_eq!(gamma[0].force, Some(fp), "扁平组装：BspPoint.force 逐字段透传进 Candidate");
+        assert_eq!(gamma[1].force, None, "无力度源候选诚实 None（不兜底）");
+        // 塔路径同款透传（与扁平版同产候选序；缺塔 ⟹ 空 tree 边界，透传不依赖塔）。
+        let gamma_t = assemble_gamma_with_tower(&classification(vec![vec![p1, p2]]), &[]);
+        assert_eq!(gamma_t[0].force, Some(fp), "塔路径组装：同款透传");
+        assert_eq!(gamma_t[1].force, None);
+    }
+
+    /// ★A12 orphan 见证塔（648 裁决 D）：L2 根只收 c2a/c2b，c1（L1）整棵子树掉出 T_i=↓r_i
+    /// ——c1 及其 L0 subs 是 orphan frontier。K_i（extract_carrier_forest）全含。
+    fn a12_orphan_tower() -> Vec<Rc<Vec<LeveledMove>>> {
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::super::classifier::center::UnitRange;
+        use super::super::super::types::Direction;
+        let u = |si: usize, ei: usize, dir: Direction| UnitRange {
+            start_index: si, end_index: ei, direction: dir, lo: 0, hi: 10,
+        };
+        let e = |level: u32, ordinal: u64| ElementId { level, ordinal };
+        let c = |s: usize, x: usize| Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: s, end_index: x };
+        let s0 = LeveledMove::from_unit(&u(0, 4, Direction::Up), e(0, 0));
+        let s1 = LeveledMove::from_unit(&u(4, 8, Direction::Down), e(0, 1));
+        let s2 = LeveledMove::from_unit(&u(8, 12, Direction::Up), e(0, 2));
+        let c1 = LeveledMove::compose(&[s0, s1, s2], c(0, 12), 1, e(1, 0)); // 外缘 Up=Long
+        let t0 = LeveledMove::from_unit(&u(12, 16, Direction::Down), e(0, 3));
+        let t1 = LeveledMove::from_unit(&u(16, 20, Direction::Up), e(0, 4));
+        let t2 = LeveledMove::from_unit(&u(20, 24, Direction::Down), e(0, 5));
+        let c2a = LeveledMove::compose(&[t0, t1, t2], c(12, 24), 1, e(1, 1));
+        let v0 = LeveledMove::from_unit(&u(24, 28, Direction::Up), e(0, 6));
+        let v1 = LeveledMove::from_unit(&u(28, 32, Direction::Down), e(0, 7));
+        let v2 = LeveledMove::from_unit(&u(32, 36, Direction::Up), e(0, 8));
+        let c2b = LeveledMove::compose(&[v0, v1, v2], c(24, 36), 1, e(1, 2));
+        let l2 = LeveledMove::compose(&[c2a.clone(), c2b.clone()], c(12, 36), 2, e(2, 0));
+        vec![Rc::new(Vec::new()), Rc::new(vec![c1, c2a, c2b]), Rc::new(vec![l2])]
+    }
+
+    /// ★A12（648 裁决 D / P1-3 / 676）生产组装线子声部激活见证：orphan frontier 上的反向 bsp
+    /// 经 host^op（K_i 宇宙）在 **生产候选组装线**（assemble_gamma_with_tower）判 V=ShortDiff
+    /// ——「子声部结构性恒零」在生产路径解除。旧 T_i 宇宙此 bsp host-miss ⟹ ∂ 根 Ambient
+    /// （676 根因），本测试在切换前红、切换后绿（可证伪断言）。
+    #[test]
+    fn a12_orphan_frontier_bsp_enters_production_line_as_shortdiff() {
+        use super::super::coverage::Vertical;
+        let tower = a12_orphan_tower();
+        // L0 卖点 @ s1.ρ=8（orphan c1 的中间子；δ_g=Short = −σ_{p(g)}，父 c1=Long）。
+        let gamma = assemble_gamma_with_tower(&classification(vec![vec![sell_point(8, 3)]]), &tower);
+        assert_eq!(gamma.len(), 1);
+        assert_eq!(
+            gamma[0].role.v,
+            Vertical::ShortDiff,
+            "host^op(K_i) 命中 s1 真父 c1(Long)，Short=−σ_p ⟹ ShortDiff（子声部对冲腿）"
+        );
+        // 同向（Long）bsp ⟹ FollowParent（顺父）——V 轴两个非 Ambient 值都可达。
+        let gamma_b = assemble_gamma_with_tower(&classification(vec![vec![buy_point(8, 3)]]), &tower);
+        assert_eq!(gamma_b[0].role.v, Vertical::FollowParent, "同向 ⟹ FollowParent");
+    }
+
+    /// ★A12 缓存键 soundness：旧 [`TreeKey::of`] 只指纹最高非空级——对「最高级不变、低级变」
+    /// 的塔变异**盲**（K_i 读全塔 ⟹ 会假命中返陈旧森林；L0 段尾部古怪线段重划正是此形态，
+    /// gen 也不 bump——bar 3020）。[`TreeKey::of_forest`] 全级别指纹看见该变异。
+    #[test]
+    fn a12_of_forest_sees_low_level_change_of_is_blind() {
+        use super::super::super::classifier::recursive_tower::ElementId;
+        use super::super::super::classifier::center::UnitRange;
+        use super::super::super::types::Direction;
+        let mk = |x_end: usize| {
+            let x = LeveledMove::from_unit(
+                &UnitRange { start_index: 0, end_index: x_end, direction: Direction::Up, lo: 0, hi: 10 },
+                ElementId { level: 0, ordinal: 9 },
+            );
+            let s0 = LeveledMove::from_unit(
+                &UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 0, hi: 10 },
+                ElementId { level: 0, ordinal: 10 },
+            );
+            let l1 = LeveledMove::compose(
+                &[s0],
+                Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 12, end_index: 16 },
+                1,
+                ElementId { level: 1, ordinal: 0 },
+            );
+            // x 是 orphan L0（不被 l1 收录）：改 x 只动 L0 级，最高级 L1 逐字节不变。
+            vec![Rc::new(vec![x]), Rc::new(vec![l1])]
+        };
+        let a = mk(4);
+        let b = mk(8);
+        assert_eq!(TreeKey::of(&a), TreeKey::of(&b), "旧 of 只看最高级 ⟹ 对 L0 变异盲");
+        assert_ne!(TreeKey::of_forest(&a), TreeKey::of_forest(&b), "of_forest 全级别 ⟹ 看见");
+        // K_i 输出确实不同——of 若作 K_i 缓存键即假命中返陈旧森林（本测试钉死切换必要性）。
+        assert_ne!(
+            coverage::extract_carrier_forest(&a),
+            coverage::extract_carrier_forest(&b),
+            "K_i 依赖 L0 级 ⟹ 输出不同"
+        );
+    }
+
+    /// ★P2-R2 护栏1（**为什么禁 root_sel==Flat**）：(1,1) 双触发（buy1+sell1 非互斥可重合）经
+    /// root_sel 消歧为 Flat（镜像不动点），但**不是**严格零 bit ⟹ struct_break_dir **不**恢复方向
+    /// （冲突候选保持 Flat 归 𝒦 记录，不被结构方向误改向）。若用 `root_sel==Flat` 作回退条件则此处
+    /// 会误改向——本测试锁定严格零 bit `!conf_plus && !conf_minus` 排除 (1,1)。
+    #[test]
+    fn double_trigger_conflict_stays_flat_not_recovered() {
+        let conflict_bits = BspBits { buy1: true, sell1: true, ..Default::default() };
+        // root_sel(1,1)=Flat（voice.rs:270），但 conf_plus()=true ⟹ 严格零 bit 前提不满足 ⟹ 不恢复。
+        assert!(conflict_bits.conf_plus() && conflict_bits.conf_minus(), "前提：(1,1) 双触发");
+        let conflict = pt(conflict_bits, Some(Side::Long));
+        assert_eq!(candidate_dir(&conflict), VoiceSide::Flat,
+            "(1,1) 冲突候选保持 Flat——struct_break_dir=Some(Long) 不误改向（护栏1 严格零 bit 排除 (1,1)）");
     }
 
     /// 环3 Γ 组装：每个 BspPoint → 一个候选（方向/类号/角色/区间套确认/gamma_index 1:1）。
@@ -1046,6 +1475,8 @@ mod tests {
             pivot_low: 90,
             pivot_high: 210,
             center: None,
+            struct_break_dir: None,
+            force: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
         assert_eq!(gamma.len(), 1);
@@ -1063,6 +1494,53 @@ mod tests {
         assert_eq!(b.close[0].dir, VoiceSide::Long);
         assert!(b.open.is_empty(), "关闭触发候选被消费，不再开启");
         assert!(b.record.is_empty());
+    }
+
+    /// ★G4 close 触发归因：`interpret_with_close_triggers` 的归因与 close 桶一一对应，
+    /// 且 `.0` 与 [`interpret`] 逐字段相等（委托单源，bit-exact）。
+    #[test]
+    fn close_triggers_pair_with_close_bucket() {
+        // 两条不同 level 的持仓 Long 腿 + 各自 level 的反向卖候选（sell1 @L0，sell3 @L1）。
+        let gamma = assemble_gamma(&classification(vec![
+            vec![sell_point(10, 1)], // L0 一类卖 → 关 L0 Long 腿
+            vec![sell_point(12, 3)], // L1 三类卖 → 关 L1 Long 腿
+        ]));
+        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(1, VoiceSide::Long, 2, 2)];
+        let (b, triggers) = interpret_with_close_triggers(&gamma, &active);
+        assert_eq!(b.close.len(), 2, "两腿各被反向候选关闭");
+        assert_eq!(triggers.len(), b.close.len(), "归因与 close 桶一一对应");
+        // 第 k 条被关腿的触发候选同 level（规则2 只关同级腿）。
+        for (leg, trig) in b.close.iter().zip(&triggers) {
+            assert_eq!(leg.level, trig.level, "触发候选与被关腿同级");
+        }
+        // 委托单源 bit-exact：interpret == interpret_with_close_triggers.0。
+        let b2 = interpret(&gamma, &active);
+        assert_eq!(b.close, b2.close);
+        assert_eq!(
+            b.open.iter().map(|c| c.gamma_index).collect::<Vec<_>>(),
+            b2.open.iter().map(|c| c.gamma_index).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            b.record.iter().map(|c| c.gamma_index).collect::<Vec<_>>(),
+            b2.record.iter().map(|c| c.gamma_index).collect::<Vec<_>>()
+        );
+    }
+
+    /// ★G4/G5 单源判据 [`reverse_exit_type`]（PDF §9 / G5 映射 §6.1）：
+    /// ShortDiff 腿→P7；三类反向→P6；一/二类反向→P5（二类归 CloseRoot 读法）。
+    #[test]
+    fn reverse_exit_type_criteria_table() {
+        use ExitType::*;
+        // ShortDiff 腿：任何触发类都是 CloseShortDiff（子声部关闭语义压过触发类）。
+        assert_eq!(reverse_exit_type(Vertical::ShortDiff, 1), CloseShortDiff);
+        assert_eq!(reverse_exit_type(Vertical::ShortDiff, 3), CloseShortDiff);
+        // 根腿（Ambient）：三类反向 → ReduceCore；一/二类 → CloseRoot。
+        assert_eq!(reverse_exit_type(Vertical::Ambient, 3), ReduceCore);
+        assert_eq!(reverse_exit_type(Vertical::Ambient, 1), CloseRoot);
+        assert_eq!(reverse_exit_type(Vertical::Ambient, 2), CloseRoot);
+        // FollowParent 子腿：按触发类走 P5/P6（非短差对冲腿）。
+        assert_eq!(reverse_exit_type(Vertical::FollowParent, 3), ReduceCore);
+        assert_eq!(reverse_exit_type(Vertical::FollowParent, 1), CloseRoot);
     }
 
     /// 环5 ℬ_x：空活动集 ⟹ 可交易候选开启（𝒟_x 必空）。
@@ -1106,6 +1584,8 @@ mod tests {
             pivot_low: 90,
             pivot_high: 210,
             center: None,
+            struct_break_dir: None,
+            force: None,
         };
         let gamma = assemble_gamma(&classification(vec![vec![both]]));
         let b = interpret(&gamma, &[]);
@@ -1189,6 +1669,44 @@ mod tests {
     /// 测试用 ElementId。
     fn eid(level: u32, ordinal: u64) -> ElementId {
         ElementId { level, ordinal }
+    }
+
+    /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 四元组身份区分性 + hash 确定性。
+    ///
+    /// 验收核心：**同一 carrier 两次 campaign 不混淆**——carrier/entry_certificate/side 全同、仅
+    /// generation 异 ⟹ 四元组不等 ⟹ hash64 不等（carrier-id 单值会把两次 campaign 混为一谈，
+    /// 四元组按 generation 区分）。
+    #[test]
+    fn position_node_id_distinguishes_campaigns_by_generation() {
+        let carrier = eid(0, 5);
+        let cert = Some(EntryCertificate { level: 0, source_index: 3 });
+        let gen0 = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Long, generation: 0 };
+        let gen1 = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Long, generation: 1 };
+        // carrier-id 层：两次 campaign 共享同一 carrier（混淆源）。
+        assert_eq!(gen0.carrier, gen1.carrier, "两次 campaign 同 carrier（carrier-id 会混淆）");
+        // 四元组层：generation 区分 ⟹ 不同 position instance ⟹ hash 不碰撞。
+        assert_ne!(gen0, gen1, "generation 异 ⟹ 四元组不等（campaign 不混淆）");
+        assert_ne!(gen0.hash64(), gen1.hash64(), "generation 异 ⟹ posId hash 不碰撞");
+        // side/entry_certificate 也各自区分（四元组完整性）。
+        let short = PositionNodeId { carrier, entry_certificate: cert, side: VoiceSide::Short, generation: 0 };
+        assert_ne!(gen0.hash64(), short.hash64(), "side 异 ⟹ posId 不碰撞");
+        let cert2 = Some(EntryCertificate { level: 0, source_index: 9 });
+        let entry2 = PositionNodeId { carrier, entry_certificate: cert2, side: VoiceSide::Long, generation: 0 };
+        assert_ne!(gen0.hash64(), entry2.hash64(), "entry_certificate 异 ⟹ posId 不碰撞");
+    }
+
+    /// ★A9：hash64 确定性（`DefaultHasher::new()` 固定初始键 ⟹ 同四元组跨调用产同 u64，非 RandomState）。
+    #[test]
+    fn position_node_id_hash_is_deterministic() {
+        let p = PositionNodeId {
+            carrier: eid(1, 2),
+            entry_certificate: Some(EntryCertificate { level: 1, source_index: 7 }),
+            side: VoiceSide::Short,
+            generation: 3,
+        };
+        assert_eq!(p.hash64(), p.hash64(), "同四元组两次 hash64 一致（确定性）");
+        let p_copy = p;
+        assert_eq!(p.hash64(), p_copy.hash64(), "值拷贝 hash 一致");
     }
 
     /// ★O(n) 重构测试适配：字面量塔逐级包 Rc（生产塔 = Vec<Rc<Vec<LeveledMove>>>）。
@@ -1476,13 +1994,57 @@ mod tests {
             // cached 路径（带 TreeCache，跨 bar 复用 Rc 树前缀）。
             let (cached_tree, _candidates, _) =
                 coverage_elements_and_gamma_with_tower_cached(&cls, &tower, &mut Some(&mut cache));
-            // nocache 路径（每 bar 全量 extract_elements）。
-            let nocache_elems = coverage::extract_elements(&tower);
+            // nocache 路径（每 bar 全量重建）。★A12（#160）后 cached 段宇宙 = K_i
+            // （extract_carrier_forest），非 T_i（extract_elements）——oracle 须同源（旧比 extract_elements
+            // 是 A12 前遗留的陈旧断言，K_i≠T_i 必然发散）。on2w2 订正为 carrier_forest（生产判据同源）。
+            let nocache_elems = coverage::extract_carrier_forest(&tower);
             assert_eq!(cached_tree[..], nocache_elems[..],
-                "bar {i}：cached Rc 树 ≠ nocache（TreeCache 假命中——陈旧树）");
+                "bar {i}：cached Rc 树 ≠ nocache（TreeCache 假命中——陈旧树 / epoch 漏 bump）");
             if cache.valid { hits += 1; }
         }
         eprintln!("bit_exact_per_bar：{n} bars 全部 cached==nocache，{hits} bars 缓存有效");
+    }
+
+    /// ★on2w2 G7（§5.4 双 key 失效不变量）：同一 TreeCache 被 Some(epoch)/None 两模式**交替**调用，
+    /// 不产生陈旧命中。构造两个不同 tower（森林不同），交替喂：
+    ///   1. Some(e0) 建 towerA 缓存
+    ///   2. None 喂 towerB（of_forest 判据 miss ⟹ 重建 towerB，同刷 key_epoch=None）
+    ///   3. Some(e0) 再喂 towerA —— 若只比 key_epoch 会假命中 towerB 的陈旧森林；双 key 失效不变量
+    ///      要求 miss 重建时同刷两 key ⟹ 此步 key_epoch 已被步2 刷成 None ≠ Some(e0) ⟹ 正确 miss 重建。
+    /// 断言：步3 返回的森林 == towerA 现算 extract_carrier_forest（非 towerB 陈旧）。
+    #[test]
+    fn tree_cache_dual_key_some_none_alternation_no_stale() {
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::center::UnitRange;
+        use super::super::super::types::Direction;
+        // 两个不同的单级 tower（森林不同：坐标不同）。from_unit 从 UnitRange 建（同生产构造路径）。
+        let mv = |lo: i64, hi: i64, dir: Direction, ord: u64| {
+            let u = UnitRange { start_index: ord as usize, end_index: ord as usize + 1,
+                direction: dir, lo, hi };
+            LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: ord })
+        };
+        let tower_a: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![
+            mv(100, 150, Direction::Up, 0), mv(120, 150, Direction::Down, 1), mv(120, 160, Direction::Up, 2),
+        ])];
+        let tower_b: Vec<Rc<Vec<LeveledMove>>> = vec![Rc::new(vec![
+            mv(200, 250, Direction::Up, 0), mv(210, 250, Direction::Down, 1), mv(210, 280, Direction::Up, 2),
+        ])];
+        let cls = Classification::default();
+        let mut cache = TreeCache::new();
+
+        // 步1：Some(e0) 建 towerA。
+        let (_a1, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
+            &cls, &tower_a, &mut Some(&mut cache), None, Some(42));
+        // 步2：None 喂 towerB（of_forest 判据 ⟹ miss 重建 towerB，双 key 同刷 key_epoch=None）。
+        let (_b, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
+            &cls, &tower_b, &mut Some(&mut cache), None, None);
+        // 步3：Some(e0=42) 再喂 towerA —— 双 key 失效不变量下 key_epoch 已被步2 刷成 None ⟹ miss 重建。
+        let (a3, _, _) = coverage_elements_and_gamma_with_tower_cached_gen(
+            &cls, &tower_a, &mut Some(&mut cache), None, Some(42));
+
+        let expect_a = coverage::extract_carrier_forest(&tower_a);
+        assert_eq!(a3[..], expect_a[..],
+            "双 key 失效不变量破裂：Some/None 交替后 Some(42) 假命中返 towerB 陈旧森林");
     }
 }
 
@@ -1514,12 +2076,12 @@ mod candidate_profile {
     fn candidate_cache_fallback_ordinal_prefix_shift() {
         fn buy3(si: usize) -> BspPoint {
             BspPoint { source_index: si, bits: BspBits { buy3: true, ..Default::default() },
-                pivot_low: 1, pivot_high: 0, center: None }
+                pivot_low: 1, pivot_high: 0, center: None, struct_break_dir: None, force: None }
         }
         let cls = |l0: Vec<usize>, l1: Vec<usize>| Classification {
             levels: vec![
-                LevelState { bsp: l0.into_iter().map(buy3).collect(), ..Default::default() },
-                LevelState { bsp: l1.into_iter().map(buy3).collect(), ..Default::default() },
+                LevelState { bsp: l0.into_iter().map(buy3).collect::<Vec<_>>().into(), ..Default::default() },
+                LevelState { bsp: l1.into_iter().map(buy3).collect::<Vec<_>>().into(), ..Default::default() },
             ],
         };
         // 空 tower ⟹ extract_elements 空 ⟹ tree 空 ⟹ 全 candidate carrier-miss（fallback ordinal）。
@@ -1531,16 +2093,16 @@ mod candidate_profile {
 
         // bar t：L0=[10,20], L1=[30]。
         let cls_t = cls(vec![10, 20], vec![30]);
-        let (_t0, _c0) = coverage_elements_with_tower_cached_gen(&cls_t, &tower, &mut tree_cache, &mut cand_cache, gen);
+        let (_t0, _c0) = coverage_elements_with_tower_cached_gen(&cls_t, &tower, &mut tree_cache, &mut cand_cache, gen, None);
 
         // bar t+1：L0 增长到 3（[10,20,25]），L1 前缀不变（[30]）。
         let cls_t1 = cls(vec![10, 20, 25], vec![30]);
-        let (_t1, inc) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut tree_cache, &mut cand_cache, gen);
+        let (_t1, inc) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut tree_cache, &mut cand_cache, gen, None);
 
         // 全量基准（fresh cache，从零全量 build）。
         let mut fresh_tree = TreeCache::new();
         let mut fresh_cand = CandidateCache::new();
-        let (_tf, full) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut fresh_tree, &mut fresh_cand, gen);
+        let (_tf, full) = coverage_elements_with_tower_cached_gen(&cls_t1, &tower, &mut fresh_tree, &mut fresh_cand, gen, None);
 
         assert_eq!(inc, full, "base_ci 偏移修复：L0 增长后 L1 fallback ordinal 须重建（codex A/C 反例）");
         // 显式验证 L1 fallback ordinal = 全局 flat idx 3（candidate_start=0 + L0 3 个 + L1 第 0 个）。
@@ -1572,13 +2134,14 @@ mod candidate_profile {
         for i in 0..n {
             let (cls, tower) = incr.classify_at(i);
             let gen = incr.tower_generation();
+            let fe = incr.forest_epoch();
             // 全路径（含遍历2，丢 gamma 取 candidates）。
             let (_t_full, cand_full, _g) = coverage_elements_and_gamma_with_tower_cached_gen(
-                &cls, &tower, &mut Some(&mut tree_cache_full), Some(gen),
+                &cls, &tower, &mut Some(&mut tree_cache_full), Some(gen), Some(fe),
             );
             // gamma-free + 前缀缓存路径。
             let (_t_gf, cand_gf) = coverage_elements_with_tower_cached_gen(
-                &cls, &tower, &mut tree_cache_gf, &mut cand_cache, Some(gen),
+                &cls, &tower, &mut tree_cache_gf, &mut cand_cache, Some(gen), Some(fe),
             );
             assert_eq!(cand_gf, cand_full,
                 "bar {i}: gamma-free 增量 candidates != 全路径（前缀复用陈旧/gen 假命中/ci 错位）");
@@ -1619,8 +2182,9 @@ mod candidate_profile {
             for i in 0..n {
                 let (cls, tower) = incr.classify_at(i);
                 let gen = incr.tower_generation();
+                let fe = incr.forest_epoch();
                 let _ = coverage_elements_and_gamma_with_tower_cached_gen(
-                    &cls, &tower, &mut Some(&mut tc), Some(gen));
+                    &cls, &tower, &mut Some(&mut tc), Some(gen), Some(fe));
             }
             old_t.push(t0.elapsed().as_secs_f64());
 
@@ -1632,8 +2196,9 @@ mod candidate_profile {
             for i in 0..n {
                 let (cls, tower) = incr2.classify_at(i);
                 let gen = incr2.tower_generation();
+                let fe = incr2.forest_epoch();
                 let _ = coverage_elements_with_tower_cached_gen(
-                    &cls, &tower, &mut tc2, &mut cc, Some(gen));
+                    &cls, &tower, &mut tc2, &mut cc, Some(gen), Some(fe));
             }
             new_t.push(t1.elapsed().as_secs_f64());
             used.push(n);

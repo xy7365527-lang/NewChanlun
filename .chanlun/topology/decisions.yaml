@@ -330,3 +330,57 @@ decisions:
           当前实测三者读 full.csv 无 sigma 依赖。
       (F) [边界声明] 基于 TaskList + 任务描述 + 内存主线，无各成员实时心跳；roster 活性以 Lead 实时心跳为准。
           topology-manager 无写工具，本记录 Lead 代落(行动类)。
+
+  - id: TOPO-20260704-015
+    timestamp: "2026-07-04T18:02:00+00:00"
+    type: 谱系DAG注册核对 + pending_topo_effects分类 + 蜂群拓扑体检（ceremony_scan 委派）
+    trigger_signal: ceremony_scan 报 topo_context={unmapped:0,last_mapped:654,total_settled:628(新计),total_mapped:591} + 20条 pending_topo_effects
+    workstations: [3业务工位(未直接可观测), 6结构工位(meta-lead/genealogist/quality-guard/code-verifier/meta-observer/topology-manager)]
+    reasoning: >
+      ①[注册核对] 628-591=37 的差值 ≠ "37个真实未注册节点"，是两套计数口径混合的假象：
+        628 = result["settled"] 原始文件数(ceremony_scan.py L1747)；591 = topo_context.total_mapped
+        = meta.json id_mapping 键数(get_topo_context L833)。二者口径不同：id_mapping 含 4 个非文件子块键
+        (226-c1/226-c2/399-obs2/425-insight)+566a，且 id 区间 486-515/576-596 完全无 settled 文件
+        (Glob 实测空)，故计数差不等于集合差。
+        真实未映射(settled 文件存在但编号不在 id_mapping)节点 ≈39 个(实测 Glob 6xx/486-596 区间)：
+        622,626,634,635a,636,637,638,642,645,646,647,648,649,655,656,657,658,659,660,661,662,663,664,
+        665,666,667,668,669,671,672,673,674,675,677,679,683,684,685,686 + 1 个无编号误名文件
+        (2026-07-02-source-tracing-type2-panzhengbeichi-vs-maimai-def4.md，正则 ^(\d+[a-z]?)- 抽出"2026"=伪id)。
+        ⟹ scan 报 unmapped:0 与 total_settled(628)>total_mapped(591) 集合论矛盾(unmapped=0 要求 settled⊆mapped
+        即 628≤591，假)——unmapped:0 是陈旧/缓存失真(last 全量重建在 max≈654 时，之后新增文件未重算 topo_context)。
+        这本身是可观测性缺口(同 550号 compact 静默模式)，呈 genealogist/meta-observer(非拓扑裁定)。
+      ②[pending_topo_effects 分类] 三重硬闸 ⟹ 当前**零条**可机械落账执行：
+        (闸1=549号) freeze:block-topology-mapping-pipeline:downstream 仍生效——relations.jsonl 实测
+          是未 git lfs pull 的 125MB LFS 指针(仅3行 version/oid/size)，topology_operator.py 经
+          block_topology.read_all_relations/write_block_with_relations 读写它 → 物理不可执行。解冻条件=git lfs pull。
+        (闸2=626号) block-topology 无增量迁移入口(仅破坏性 run_migration)——post-565/654 新节点不在
+          id_mapping，其 topo_effect 的 target 块不存在 → 无法 attach 关系。
+        (闸3=scope 校验) topology_operator VALID_SCOPES={local,downstream}——但多条 pending 的 scope 是
+          域名(structbreak-fiber/type2-branch/classification-domain/meta-orchestration-layer/soundness-layer
+          /generative-completeness-layer/formal-architecture-canonical 等)→ 即便管线解冻也被拒。
+        (工位闸) 全库仅 177号带 topo_executed_at；detect_pending_topo_effects 用 f.read(2000) 截断，
+          长 frontmatter 文件(如 626)被 2000 字截断跳过，故 scan 的"20条"是 frontmatter 短且 topo_effect
+          为严格3段(len(parts)==3)且 type∈{freeze,split,sever} 的子集(复合"|"多段的 659/660/662/663/664/665/667/675
+          被3段过滤器排除，不在20内)。
+      ③[蜂群拓扑体检] 映射积压(39未映射+20 pending)是**单一根因**(549冻结 ∧ 626无入口)的下游，非概念分离/领域正交/
+        并行瓶颈 → 无扩张信号。修复=串行基础设施行动(git lfs pull → 626 五步增量脚本)，复杂度不靠并行工位数扩展。
+    verdict: >
+      (A) [注册核对结论/定理] 37 差值非真实未注册数；真实未映射 ≈39 编号(见 reasoning①清单)+1 误名文件。
+          这些 NOT 机械可注册——626号已结算"无增量迁移入口"，机械补齐会触发破坏性全量重建(丢 content_enrichment
+          314blocks/1148concepts)=161否务实。属"预期且被闸"，非 fix-it-now bug。
+      (B) [可观测性缺口/上报] scan 报 unmapped:0 失真(真实≈39)——呈 genealogist/meta-observer 评估是否升
+          语法记录(get_topo_context 缓存/新增文件未重算)，非拓扑裁定。误名文件 2026-07-02-...md 缺编号，呈 genealogist 补号。
+      (C) [pending_topo_effects/可机械落账=0] 当前无一条可直接落账执行(三重硬闸)。分类：
+          - [需 Lead 行动类前置] 全部 20 条：解冻=git lfs pull(549) + 编写/执行 626 增量迁移脚本。执行载体需 Write/Bash 工位。
+          - [解冻后仍需 genealogist 规整] scope∉{local,downstream} 的域名 scope 条目须先规范化 scope 才能过 topology_operator 校验。
+          - [需编排者/gemini 裁决] 复合"|"分支语义({保留|违反记录}/多 target)条目(659/660/662-665/667/675 等，
+            虽不在20内但同批)——哪条分支存活是概念判断，非行动类。只列不动。
+      (D) [拓扑建议 扩张否] 不为映射积压 spawn 并行工位——单一根因(549∧626)非概念分离；建议 Lead 仅派
+          1 个 Write/Bash 工位串行执行 [git lfs pull → 626 增量脚本(创建缺失 event 块+追加 id_mapping+迁移 dag edges
+          +更新 last_mapped+保留 content_enrichment)]，之后 topo_effect 批量落账才有物质前提。
+      (E) [拓扑建议 收缩否] 6 结构工位常设(check1.5 强制)不撤；异构 Cursor harness 上结构工位可能为伪常驻
+          (634号 CeremonyScheduled，每 ceremony 周期重 spawn，非 TrueResident)——非缺陷，是 624号硬墙的实现层。
+          3 业务工位无收缩信号(未观测到职责空置/收敛)。
+      (F) [边界声明] 基于文件系统实测(Glob settled/*.md 628文件 + meta.json id_mapping + relations.jsonl LFS指针
+          + topology_operator/ceremony_scan 源码 + 626/549 settled)，无各成员实时心跳；roster 活性以 Lead 实时心跳为准。
+          topology-manager 不执行拓扑变更(Lead 执行)；本决策记录由本工位直接落账(本 harness 有 Write 工具)。

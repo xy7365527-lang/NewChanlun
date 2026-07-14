@@ -458,7 +458,8 @@ class TestCLISavesResult:
         with patch("newchan.codex.__main__._RESULTS_DIR", tmp_path):
             saved = _save_result(result, ts)
 
-        assert saved.name == "codex-review-20260223-1405.md"
+        assert saved.name.startswith("codex-review-20260223-140500-")
+        assert saved.name.endswith(".md")
         assert saved.exists()
 
         content = saved.read_text(encoding="utf-8")
@@ -480,9 +481,29 @@ class TestCLISavesResult:
         with patch("newchan.codex.__main__._RESULTS_DIR", tmp_path):
             saved = _save_result(result, ts)
 
-        assert saved.name == "codex-diagnose-20260115-0930.md"
+        assert saved.name.startswith("codex-diagnose-20260115-093000-")
         content = saved.read_text(encoding="utf-8")
         assert "- **context-file**: /tmp/ctx.md" in content
+
+    def test_same_second_calls_no_collision(self, tmp_path: Path) -> None:
+        """同一 timestamp 的两次调用产生两个不同文件（并行不覆盖）。"""
+        from newchan.codex.__main__ import _save_result
+
+        result = ReviewResult(
+            mode="decide",
+            subject="s",
+            response="r",
+            model="codex-cli",
+        )
+        ts = datetime(2026, 7, 2, 15, 44, 0, tzinfo=timezone.utc)
+
+        with patch("newchan.codex.__main__._RESULTS_DIR", tmp_path):
+            first = _save_result(result, ts)
+            second = _save_result(result, ts)
+
+        assert first != second
+        assert first.exists() and second.exists()
+        assert len(list(tmp_path.glob("codex-decide-*.md"))) == 2
 
     def test_main_persists_result(self, tmp_path: Path) -> None:
         """main() 完整调用链验证——结果文件被写入。"""

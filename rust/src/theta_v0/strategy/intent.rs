@@ -280,6 +280,29 @@ pub fn lex_argmin<U: Copy>(candidates: &[LexCandidate<U>]) -> Option<U> {
     best.map(|b| b.control)
 }
 
+/// **LexArgmin top-k 诊断切片**（R5-a opsem-dump，基因 073a/274号）：对 candidates 按 J_Θ 字典序
+/// 稳定排序取前 k 个 `(key, control)`。与 [`lex_argmin`] 同源（同 [`JThetaKey::lex_le`] 比较），
+/// 仅多保留 top-k 而非只 argmin——grid_index 单射 ⟹ 键全序 ⟹ 排序确定唯一。
+///
+/// **bit-exact**（R5-1 铁律）：仅供 opsem-dump 消费，不进 p_star/J_Θ/χ 门控——排序结果经
+/// `StepTrace.lex_top3` 透传至 dump 写入；生产 p_star 仍由 [`lex_argmin`] 单独决定（两函数各算各的，
+/// top-k 切片不影响 argmin 选址）。
+///
+/// `k` 截断；候选少于 k ⟹ 返回全部（升序）。空表 ⟹ 空 vec。稳定排序（`slice::sort_by`）+ 平局
+/// 保留先出现（对齐 [`lex_argmin`] 的 Lean pick「平局保留第一个」语义；grid_index 单射 ⟹ 实际无平局）。
+pub fn lex_argmin_top_k<U: Copy>(candidates: &[LexCandidate<U>], k: usize) -> Vec<(JThetaKey, U)> {
+    let mut indexed: Vec<&LexCandidate<U>> = candidates.iter().collect();
+    indexed.sort_by(|a, b| {
+        // lex_le 是 ≤（非严格），转 Ordering 需双向探测（a≤b 且 b≤a ⟹ Equal）。
+        match (a.key.lex_le(&b.key), b.key.lex_le(&a.key)) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => std::cmp::Ordering::Equal,
+        }
+    });
+    indexed.into_iter().take(k).map(|c| (c.key, c.control)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

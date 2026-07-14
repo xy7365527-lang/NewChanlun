@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>0014 — 怎么写 goal：锋利可证伪 acceptance</title>
+<link rel="stylesheet" href="../assets/lesson.css">
+</head>
+<body>
+
+<h1>怎么写 goal —— 锋利可证伪 acceptance</h1>
+
+<p class="lead">goal 写法三要素：<b>可收敛</b>（单一交付物）+ <b>可证伪</b>（acceptance 机器判定）+ <b>DECOMPOSE</b>（sub_goals DAG）。这一课聚焦中间那个——你当前 goal 的 acceptance <em>复合</em>了，不够锋利。</p>
+
+<h2>锋利 acceptance 三原则</h2>
+<ol>
+<li><b>单一条件</b>：一个 acceptance 项 = 一个可判定 pass/fail 的断言。不把「A 且 B 且 C」塞一条。</li>
+<li><b>机器可判定</b>：reduce 时能跑一个命令/检查得出 bool。如 <code>lake build Origin 零 sorry</code>（grep 退出码）<code>cargo test --lib 通过</code>（退出码）。</li>
+<li><b>falsifiable=true</b>：存在明确的反例能让它 fail。如「lake build 零 sorry」——有 sorry 就 fail，无 sorry 就 pass。</li>
+</ol>
+
+<h2>反例：复合 acceptance（你当前 goal）</h2>
+<p>你的 <code>g-strict-mutex</code> acceptance[1]：</p>
+<pre>
+"18类角色完全互斥Σ=1 + 区间套N^δ∃! + R_Θ总序唯一化 +
+ AncOK闭合 + §16中心定理12假设→∀x∃!O + §18自相似等变
+ lake build Origin 零sorry/admit/axiom"
+</pre>
+<p><b>问题</b>：6 个定理 + 1 个 build 检查塞一条。如果 18 类证了但 §18 没证，这条整体 <code>passed=false</code>——你不知道进度（5/7 还是 1/7）。这就是 lesson 0011 锋利问题②的变体：复合验收 = 部分通过但整体黑箱。</p>
+
+<h2>怎么改：拆成单一条件</h2>
+<p>把复合 acceptance 拆成<em>每条机器可独立判定</em>的项。例：</p>
+<pre>
+[1] lake build Origin 零 sorry/admit/axiom（grep 退出码）
+[2] 18类角色 Σ=1 Lean 定理存在（grep role18_count_one）
+[3] 区间套 N^δ ∃! Lean 定理存在（grep N_exists_unique）
+[4] R_Θ 总序唯一化 Lean 定理存在（grep rTheta_exists_unique）
+[5] AncOK 闭合 Lean 定理存在（grep activeNext_anc_closed）
+[6] §16 中心定理 Lean 定理存在（grep main_theorem）
+[7] §18 自相似等变 Lean 定理存在（grep classify_equivariant）
+</pre>
+<p>每条独立 pass/fail → reduce 时 <code>acceptance[i].passed</code> 精确反映进度 → 0/7 → 3/7 → 7/7 closed。不再黑箱。</p>
+
+<h2>sub_goals 与 acceptance 的映射</h2>
+<p>你 12 个 sub_goals（lean-roles18/lean-nest/.../rust-strategy）每个完成 → 写 <code>EVIDENCE</code> + <code>CHECK_PASS</code> 事件。<b>sub_goal 的 CHECK_PASS 应映射到 acceptance 项</b>：</p>
+<pre>
+lean-roles18 CHECK_PASS  → acceptance[2]（18类Σ=1）
+lean-nest CHECK_PASS    → acceptance[3]（区间套∃!）
+lean-selfsim CHECK_PASS → acceptance[7]（§18等变）
+...
+</pre>
+<p>reducer 算 <code>passed_checks</code> → acceptance 项 <code>passed=true</code> 当其映射的 sub_goal CHECK_PASS。<b>goal closed = 所有 acceptance passed</b>。</p>
+
+<h2>你当前 goal 的具体改进</h2>
+<table>
+<thead><tr><th>当前 acceptance</th><th>问题</th><th>建议拆成</th></tr></thead>
+<tbody>
+<tr><td>[1] Lean 6定理+build 复合</td><td>黑箱进度</td><td>拆 7 条（build + 6 定理各一）</td></tr>
+<tr><td>[2] rust 七链实装复合</td><td>黑箱</td><td>按 sub_goal（rust-signal/role18/nest/interp/active/strategy）各一 CHECK_PASS</td></tr>
+<tr><td>[3] 结果包+疑点6+疑点5+reconcile</td><td>4 件塞一条</td><td>拆 4 条（结果包六要素 / 疑点6标注 / 疑点5 L2标注 / reconcile无矛盾）</td></tr>
+</tbody>
+</table>
+
+<h2>写法模板</h2>
+<pre>
+GOAL_SET:
+  acceptance:
+    - check: "lake build Origin 退出码0 且 grep -c 'sorry\\|admit\\|axiom' Origin=0"
+      falsifiable: true
+    - check: "cargo test --lib 退出码0"
+      falsifiable: true
+    - check: "grep 'role18_count_one' SelfSimilarity.lean 命中"
+      falsifiable: true
+</pre>
+<p>每条 <code>check</code> 是一个<em>可执行的判定</em>（命令 + 期望），reduce 时跑得出来 bool。</p>
+
+<h2>关键区分</h2>
+<p><b>acceptance</b> = goal 级验收（机器判定 pass/fail，falsifiable）。<b>sub_goals</b> = 执行 DAG（desc 描述任务，blocked_by 依赖，不需 falsifiable）。<b>EVIDENCE/CHECK_PASS</b> = 事件（工位产出→记→acceptance passed）。</p>
+
+<h2>primary source</h2>
+<ul>
+<li><a href="../../../.claude/commands/goal.md">.claude/commands/goal.md</a> —— 契约写入（acceptance falsifiable 强制）</li>
+<li><a href="0011-resume-goal-command-toolbox.html">lesson 0011 锋利问题②</a> —— 验收不可证伪则 goal 永动空转</li>
+<li><a href="0013-goal-command-usage.html">lesson 0013 /goal 用法</a></li>
+<li><code>scripts/goal_reducer.py::_validate_acceptance</code> —— falsifiable 校验实装</li>
+</ul>
+
+<p class="followup">有不清楚的？问我。比如：acceptance 拆几条合适、sub_goal CHECK_PASS 怎么映射 acceptance、复合 acceptance 要不要 SUPERSEDE 旧 goal 重写、疑点5/6 的 L2 标注怎么写可证伪。</p>
+
+</body>
+</html>

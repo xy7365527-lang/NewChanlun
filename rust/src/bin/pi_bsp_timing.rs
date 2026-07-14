@@ -318,7 +318,7 @@ fn run_state_machine(
             BspBits,
         )> = Vec::new();
         for (lvl, ls) in classification.levels.iter().enumerate() {
-            for p in &ls.bsp {
+            for p in ls.bsp.iter() {
                 if seen.insert((lvl, p.source_index, p.bits.class_index())) {
                     let c = cert_of(&p.bits);
                     if c.buy || c.sell {

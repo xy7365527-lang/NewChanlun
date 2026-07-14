@@ -22,6 +22,7 @@
 //!
 //! 跑法：`cargo test --release --lib theta_v0::backtest::l3_pi_probe -- --ignored --nocapture`
 
+use std::rc::Rc;
 use super::data::{self, Dataset};
 use super::runner::run_theta_v0_pi;
 use super::super::config::ThetaConfig;
@@ -211,7 +212,7 @@ fn pi_probe_phase1_gate_structure() {
             if b.bits.sell3 { cls[5] += 1; }
         };
         for lv in &classification.levels {
-            for b in &lv.bsp { count(b, &mut cls); }
+            for b in lv.bsp.iter() { count(b, &mut cls); }
         }
         (tower.len(), per, cls)
     }
@@ -297,7 +298,7 @@ fn pi_probe_phase2_stable_prefix() {
         let (cls, _) = classifier::classify_with_tower(&l0, config);
         let mut v: Vec<(u32, usize, BspBits)> = Vec::new();
         for (lvl, ls) in cls.levels.iter().enumerate() {
-            for b in &ls.bsp {
+            for b in ls.bsp.iter() {
                 v.push((lvl as u32, b.source_index, b.bits));
             }
         }
@@ -390,7 +391,7 @@ fn pi_probe_phase2_candidate_starvation() {
         let (cls, _) = classifier::classify_with_tower(&l0, config);
         let mut v = Vec::new();
         for (lvl, ls) in cls.levels.iter().enumerate() {
-            for b in &ls.bsp {
+            for b in ls.bsp.iter() {
                 v.push((lvl as u32, b.source_index, b.bits));
             }
         }
@@ -485,8 +486,8 @@ fn pi_probe_delta_candidates_unlock_orders() {
     fn slice_step(cur: &Classification, i: usize) -> Classification {
         Classification {
             levels: cur.levels.iter().map(|ls| LevelState {
-                moves: Vec::new(), centers: Vec::new(),
-                bsp: ls.bsp.iter().filter(|b| b.source_index == i).cloned().collect(),
+                moves: Vec::new(), centers: Rc::new(Vec::new()), cp_ownership: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
+                bsp: ls.bsp.iter().filter(|b| b.source_index == i).cloned().collect::<Vec<_>>().into(),
             }).collect(),
         }
     }
@@ -496,8 +497,8 @@ fn pi_probe_delta_candidates_unlock_orders() {
             levels: cur.levels.iter().enumerate().map(|(lvl, ls)| {
                 let pb: &[BspPoint] = prev.levels.get(lvl).map(|p| p.bsp.as_slice()).unwrap_or(&[]);
                 LevelState {
-                    moves: Vec::new(), centers: Vec::new(),
-                    bsp: ls.bsp.iter().filter(|b| !pb.contains(b)).cloned().collect(),
+                    moves: Vec::new(), centers: Rc::new(Vec::new()), cp_ownership: Rc::new(Vec::new()), pan_div: Rc::new(Vec::new()),
+                    bsp: ls.bsp.iter().filter(|b| !pb.contains(b)).cloned().collect::<Vec<_>>().into(),
                 }
             }).collect(),
         }

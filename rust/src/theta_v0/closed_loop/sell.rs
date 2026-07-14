@@ -106,11 +106,25 @@ pub fn is_type3_sell(e: &SellEndpoint) -> bool {
 /// 是「向下离开中枢后回升」，与第一类「突破中枢背驰」互斥分支（Lean `recogSell_type3_reduceCore`
 /// 前提 `¬brokeCenter`）。
 pub fn recog_chanlun_sell(e: &SellEndpoint) -> SellDecision {
-    if e.side == Side::Short && e.broke_center && e.is_divergence {
-        // §10.1 第一类卖点：突破中枢 + 顶背驰 ⟹ 清根仓。
+    sell_decision_of(is_type1_sell(e), is_type3_sell(e))
+}
+
+/// 卖点分类判据 → 平仓决策的**优先级映射**（closed_loop 权威，type1>type3 单一来源）。
+///
+/// 从「是否第一类 / 是否第三类」两 bool 判据映为 [`SellDecision`]，编码 §10.1/§11 缠论分支优先级：
+/// 第一类（顶背驰清仓）优先于第三类（回抽减核），二者皆否 ⟹ Hold（力度延续/非卖点）。
+///
+/// **单一来源（no-patch）**：type1>type3 优先级只在此处定义。[`recog_chanlun_sell`]（几何端点入口）
+/// 与 `backtest::econ_positive::exit_decision_from_bits`（bsp bits 入口）**共用本函数** ⟹ 不同入口
+/// 表征（SellEndpoint vs 已分类 bits）不各自重编码优先级。出场决策恒为平仓语义（CloseRoot/ReduceCore），
+/// 空头出场由买点信号触发（买点镜像卖点，Lean `type1_buy_sell_share_divergence`）但决策仍是平仓 ⟹
+/// 买/卖两方向出场同走本映射。
+pub fn sell_decision_of(is_type1: bool, is_type3: bool) -> SellDecision {
+    if is_type1 {
+        // §10.1 第一类：突破中枢 + 背驰 ⟹ 清根仓。
         SellDecision::CloseRoot
-    } else if e.side == Side::Short && e.left_center && e.first_retrace && e.retrace_price < e.center_zd {
-        // §10.1 第三类卖点：向下离开中枢 + 第一次回抽 + 不破 ZD ⟹ 减核。
+    } else if is_type3 {
+        // §10.1 第三类：离开中枢 + 第一次回抽 + 不破 ZD ⟹ 减核。
         SellDecision::ReduceCore
     } else {
         // §11：力度延续 / 非卖点 ⟹ 保持。
@@ -402,10 +416,14 @@ mod tests {
     fn buy_sell_closed_loop_A_mirror() {
         use super::super::transition::{hybrid_step_baseline, AssemblyEvent};
         use super::super::state::MicroEvent;
-        // 买侧：初始 Normal/PhaseI ⟹ Buy ⟹ Allocate(1) ⟹ A+1。
-        let x0 = AssemblyState::initial(1_000_000);
-        let buy_e = AssemblyEvent { parse_event: MicroEvent::NewBar(true) };
-        let buy_a = hybrid_step_baseline(&x0, &buy_e).ledger_state.a; // base + 1
+        // 买侧：**现金充足** campaign（free>0）Normal/PhaseI ⟹ Buy ⟹ Allocate(1) ⟹ A+1。
+        // codex 复审#1 后买入受 free 约束，故用 funded_campaign 使买入真成交（initial free=0 会被约束到 0）。
+        let x0 = AssemblyState::funded_campaign(1_000_000, 8);
+        let buy_e = AssemblyEvent { parse_event: MicroEvent::NewBar(true), price: 1 };
+        // codex R3 §9.3：hybrid_step_baseline 返 Result；funded free>0 建仓生产路径恒 Ok。
+        let buy_a = hybrid_step_baseline(&x0, &buy_e)
+            .expect("生产恒 Ok（funded free>0 建仓，schedule 只派 ShortDiff）")
+            .ledger_state.a; // base + 1
         // 卖侧：第一类清仓 ⟹ A-1。
         let sell_a = sell_transition(&x0, &sample_type1_sell()).ledger_state.a; // base - 1
         assert_eq!(buy_a - x0.ledger_state.a, -(sell_a - x0.ledger_state.a),

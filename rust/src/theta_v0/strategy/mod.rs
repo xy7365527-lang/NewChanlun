@@ -57,6 +57,11 @@ pub mod nest;
 /// 跨 bar 持久元素注册表——修复 Q4 "LiveDetached 误处理成 Stale" 导致 depth>0 腿被 AncOK 系统性剪掉。
 /// 不变量 I1-I5（anc.pdf §7）：持久身份 / 方向不变 / parent 是关系非身份 / 操作父持久 / AncOK 作用 persistent set。
 pub mod persistent;
+/// **M5 声部执行层独立账本 OverlayState**（多空对冲.pdf p16 关卡10 / TARGET_STRATEGY_MAXFULL.md §M5）。
+///
+/// hedge-mode 逐声部头寸簿 P^sep → N=Net(P^sep) → Order_t=N_t−N_{t−1}；逐声部保
+/// entry_v/exit_v/parent(v)/role(v)/pnl_v。独立于 R/TW 净额账本（674号第三会计范畴）。
+pub mod overlay_state;
 pub mod risk;
 pub mod voice;
 
@@ -909,9 +914,11 @@ mod tests {
             pivot_low: 210,
             pivot_high: 0,
             center: Some(mk_center(100, 200, 3)),
+            struct_break_dir: None,
+            force: None,
         }];
         Classification {
-            levels: vec![LevelState { bsp, ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
         }
     }
 
@@ -972,9 +979,11 @@ mod tests {
             pivot_low: 0,
             pivot_high: 90,
             center: Some(mk_center(100, 200, 3)),
+            struct_break_dir: None,
+            force: None,
         }];
         let classification = Classification {
-            levels: vec![LevelState { bsp, ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
         };
         let bars = vec![
             tradable_bar(0, 0, 100, 110, 90, 105),
@@ -1019,10 +1028,12 @@ mod tests {
             pivot_low: 210,
             pivot_high: 0,
             center: Some(mk_center(100, 200, 3)),
+            struct_break_dir: None,
+            force: None,
         }];
         let classification = Classification {
             levels: vec![
-                LevelState { bsp: l0_bsp, ..Default::default() }, // L0：非空 bsp（l_star=0）
+                LevelState { bsp: Rc::new(l0_bsp), ..Default::default() }, // L0：非空 bsp（l_star=0）
                 LevelState::default(),                            // L1：空 bsp（level_idx 1 > l_star 0）
                 LevelState::default(),                            // L2：空 bsp（level_idx 2 > l_star 0）
             ],
@@ -1061,9 +1072,11 @@ mod tests {
             pivot_low: 210,
             pivot_high: 0,
             center: None, // 不变量违反
+            struct_break_dir: None,
+            force: None,
         }];
         let classification = Classification {
-            levels: vec![LevelState { bsp, ..Default::default() }],
+            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
         };
         let bars = vec![
             tradable_bar(0, 0, 100, 110, 90, 105),
@@ -1092,14 +1105,15 @@ mod tests {
             start_price: sp,
             end_price: ep,
         };
-        // cc-classifier 端到端 fixture：三段在 [100,200] 重叠 ⟹ 中枢 zd=100,zg=200,end=12；
-        // 段3 向上离开（端点 250>200）；段4 向下回试低点 210>=200 ⟹ 3 买 @ source_index=20。
+        // cc-classifier 端到端 fixture：三段在 [100,200] 重叠 ⟹ seed 中枢 zd=100,zg=200,end=12
+        // （核心冻结，PDF §5 task #142）；段3 向上离开（lo=205 > ZG=200 ⟹ non-extension——延伸语义
+        // 下离开段必须与冻结核心不相交，旧 lo=150 会被吸收）；段4 向下回试低点 210>200 ⟹ 3 买 @ 20。
         let l0 = ParseLayer {
             segments: Rc::new(vec![
                 seg(Direction::Up, 0, 4, 100, 200),
                 seg(Direction::Down, 4, 8, 200, 100),
                 seg(Direction::Up, 8, 12, 100, 200),
-                seg(Direction::Up, 12, 16, 150, 250),
+                seg(Direction::Up, 12, 16, 205, 250),
                 seg(Direction::Down, 16, 20, 250, 210),
             ]),
             ..Default::default()

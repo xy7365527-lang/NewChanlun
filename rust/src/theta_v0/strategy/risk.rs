@@ -24,7 +24,7 @@
 //! 缠论结构不能推出仓位大小）。本模块证「给定这些 Θ_risk 参数后 qty 唯一确定」，不证盈利。
 
 use super::super::config::RiskConfig;
-use super::super::types::{BspBits, Center, Tick};
+use super::super::types::{BspBits, Center, Tick, Timestamp};
 use super::voice::{root_sel, RootCandidates, VoiceSide};
 
 /// 结构止损价的方向（多头止损在下方，空头止损在上方）。
@@ -280,7 +280,11 @@ pub fn root_parent_cap() -> i64 {
 ///
 /// 按优先级穷尽互斥（strict §11 line 369-374 / FULL 十三 line 1026-1046）：
 /// M0 > M1 > M2 > M3 > M4，每个 M_i 含 `¬M0 ∧ … ∧ ¬M_{i-1}` 前缀，故恰一态成立。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Hash/Ord`（G3 #138）：本枚举作为 [`MuClass`](crate::theta_v0::backtest::mu_estimator::MuClass)
+/// 第 13 维 `risk_mode` 的分量（§6 RiskMode+MarginState），需与 MuClass 的 derive 全家桶同级。
+/// derive `Ord` 取声明序 Insolvent<…<Normal（= 严重度降序），仅供 BTreeMap 有序报告，无业务比较语义。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum RiskMode {
     /// M0：`E_t ≤ 0`——权益耗尽（破产）。
     Insolvent,
@@ -540,6 +544,332 @@ pub struct LeverageCaps {
 /// 破产态拒绝任何杠杆，让位 §11 M0 Insolvent 全局平仓）。
 pub fn leverage_ok(metrics: LeverageMetrics, caps: LeverageCaps) -> bool {
     metrics.gross_lev <= caps.gross_cap && metrics.net_lev <= caps.net_cap
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+//  §13' 毛头寸约束的 units 空间形式（G7：codex #122 终裁 + codex decide 5b46）
+//
+//  strict §11 的毛杠杆约束 `L^G = G_t/E_t ≤ L̄^G` 在单标的 units 空间的精确等价形式：
+//  `G_t = gross_units·px`、`E_t = base_units·px`（runner `base_units = NAV/px`）⟹
+//  `L^G ≤ γ̄ ⟺ gross_units ≤ γ̄·base_units`（px>0 两侧对消，f64 精确，无 i64 量化）。
+//  生产 K_Θ 的毛约束判定走本节（coverage.rs `apply_gross_cap` 调用，不私写同义比较）；
+//  [`gross_notional`]/[`leverage_metrics`]/[`leverage_ok`] 保留为美元空间 Lean 镜像
+//  （`Origin.LeverageCapital`），两空间等价由测试 `gross_units_ok_iff_leverage_ok` 锁死。
+// ──────────────────────────────────────────────────────────────────────────
+
+/// 毛敞口 units 上限 `Ḡ = γ̄·U_ℓ`（无量纲毛杠杆上限 × 协变资本单位，d_j=1 名义协变，
+/// 与 coverage.rs `feasible_net_cap` 净 cap 同构——毛/净共用同一 `γ` 参数，#122 裁定
+/// 暂不拆 gross_gamma/net_gamma）。
+pub fn gross_units_cap(base_units: f64, gamma: f64) -> f64 {
+    gamma.abs() * base_units.abs()
+}
+
+/// 毛头寸约束判定（units 空间，= strict §11 `L^G ≤ L̄^G` 单标的精确等价形式，见 §13' 节头）。
+///
+/// 返回 `true` ⟺ `gross_units ≤ γ̄·base_units`。与 [`leverage_ok`] 的毛分量在
+/// `E = base_units·px` 下逐点等价（等价性测试锁死）；净分量由 coverage.rs
+/// `pi_theta_position` 的净 cap（同一 `γ`）承担——毛+净同时约束（strict §11 line 359）。
+pub fn gross_units_ok(gross_units: f64, base_units: f64, gamma: f64) -> bool {
+    gross_units <= gross_units_cap(base_units, gamma)
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+//  真保证金模型（D2，task #113；设计锚 `.chanlun/review-results/margin-model-design-20260703.md` v2）
+//
+//  存在论：MM/liq_flag 来自交易所公开规则表的**版本化 datum**（非 Θ 参数，避免 codex-p2 §D2 否定的
+//  「虚构 config 保证金率」）；buffer1/2 是 Θ_risk 协变缓冲（§2.3，交易所不公布策略减仓垫）。
+//  认识论 L1（规则转录一致性，golden 对照交易所公布公式），不声称 L2 盈利。
+// ──────────────────────────────────────────────────────────────────────────
+
+/// Binance 分级维保档（交易所公布规则的一档，datum）。§2.2。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MarginTier {
+    /// 该档名义下界（美元，含）。
+    pub notional_floor: f64,
+    /// 维持保证金率 MMR ∈ (0,1]。
+    pub mmr: f64,
+    /// 维持速算额（美元，≥0；分档计算的固定扣减项）。
+    pub maint_amount: f64,
+}
+
+/// 交易所保证金规则表（版本化 datum）。§2.2/§1.2。
+#[derive(Debug, Clone, PartialEq)]
+pub enum MarginSchedule {
+    /// Binance 分级：`MM = N·mmr(tier) − maint_amount(tier)`，tier = 最高 floor ≤ N 的档。
+    BinanceTiered { tiers: Vec<MarginTier> },
+    /// CME 简化口径（**CME-simple，非 SPAN 全场景**，§1.2）：`MM = pct_maint·N·retail_mult`。
+    CmeSimple { pct_maint: f64, retail_mult: f64 },
+}
+
+impl MarginSchedule {
+    /// fail-loud 构造 Binance 分级（§2.9）：非空、floor 严格升序且首档覆盖 0、mmr∈(0,1]、maint≥0、
+    /// 全有限，否则 `Err`（禁静默）。
+    pub fn binance_tiered(tiers: Vec<MarginTier>) -> Result<Self, String> {
+        if tiers.is_empty() {
+            return Err("margin: empty tiers".into());
+        }
+        if tiers[0].notional_floor > 0.0 {
+            return Err("margin: first tier floor must cover 0 (≤0)".into());
+        }
+        let mut prev_floor = f64::NEG_INFINITY;
+        for (i, t) in tiers.iter().enumerate() {
+            if !(t.notional_floor.is_finite() && t.mmr.is_finite() && t.maint_amount.is_finite()) {
+                return Err(format!("margin: non-finite in tier {i}"));
+            }
+            if t.notional_floor <= prev_floor {
+                return Err(format!("margin: tiers not strictly ascending at {i}"));
+            }
+            if !(t.mmr > 0.0 && t.mmr <= 1.0) {
+                return Err(format!("margin: mmr∉(0,1] at {i}"));
+            }
+            if t.maint_amount < 0.0 {
+                return Err(format!("margin: maint_amount<0 at {i}"));
+            }
+            prev_floor = t.notional_floor;
+        }
+        Ok(MarginSchedule::BinanceTiered { tiers })
+    }
+
+    /// fail-loud 构造 CME-simple（§2.9）：pct∈(0,1]、retail≥1、有限，否则 `Err`。
+    pub fn cme_simple(pct_maint: f64, retail_mult: f64) -> Result<Self, String> {
+        if !(pct_maint.is_finite() && pct_maint > 0.0 && pct_maint <= 1.0) {
+            return Err("margin: cme pct_maint∉(0,1]".into());
+        }
+        if !(retail_mult.is_finite() && retail_mult >= 1.0) {
+            return Err("margin: cme retail_mult<1".into());
+        }
+        Ok(MarginSchedule::CmeSimple { pct_maint, retail_mult })
+    }
+
+    /// 维持保证金 `MM(net_notional_usd)`。net_notional **已是美元**（§2.2 单位修正：勿再乘价）。
+    /// `MM≥0`（速算额不使 MM 转负）。
+    pub fn maint_margin(&self, net_notional_usd: f64) -> f64 {
+        let n = net_notional_usd.abs();
+        match self {
+            MarginSchedule::BinanceTiered { tiers } => {
+                // tier = 最高 floor ≤ n（tiers 升序 ⟹ partition_point 二分；首档 floor≤0 保非空）。
+                let idx = tiers.partition_point(|t| t.notional_floor <= n).saturating_sub(1);
+                let t = &tiers[idx];
+                (n * t.mmr - t.maint_amount).max(0.0)
+            }
+            MarginSchedule::CmeSimple { pct_maint, retail_mult } => n * pct_maint * retail_mult,
+        }
+    }
+}
+
+/// 分段快照簿（§2.7）：回测 bar 时间 → 生效快照，**禁未来快照泄漏**（零前视）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MarginScheduleBook {
+    /// 各段 `(effective_from 含, effective_to 不含, schedule)`，按 from 升序不重叠。
+    snapshots: Vec<(Timestamp, Timestamp, MarginSchedule)>,
+}
+
+impl MarginScheduleBook {
+    /// fail-loud 构造：非空、各段 `from<to`、按 from 升序不重叠，否则 `Err`。
+    pub fn new(snapshots: Vec<(Timestamp, Timestamp, MarginSchedule)>) -> Result<Self, String> {
+        if snapshots.is_empty() {
+            return Err("margin book: empty".into());
+        }
+        let mut prev_to: Option<Timestamp> = None;
+        for (from, to, _) in &snapshots {
+            if from >= to {
+                return Err("margin book: from>=to".into());
+            }
+            if let Some(pt) = prev_to {
+                if *from < pt {
+                    return Err("margin book: overlapping or unsorted".into());
+                }
+            }
+            prev_to = Some(*to);
+        }
+        Ok(MarginScheduleBook { snapshots })
+    }
+
+    /// as_of：`bar_ts` 落在哪段 `[from,to)`。无覆盖段 ⟹ `None`（有效域外，不借用未来快照）。
+    pub fn as_of(&self, bar_ts: Timestamp) -> Option<&MarginSchedule> {
+        self.snapshots
+            .iter()
+            .find(|(f, t, _)| bar_ts >= *f && bar_ts < *t)
+            .map(|(_, _, s)| s)
+    }
+}
+
+/// 去杠杆/只平仓缓冲 B1/B2（Θ_risk 协变参数，§2.3；**非**交易所数据）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RiskCushions {
+    pub buffer1: f64,
+    pub buffer2: f64,
+}
+
+impl RiskCushions {
+    /// fail-loud（§2.9 + strict §11 前提 `0<B1<B2`），否则 `Err`。
+    pub fn new(buffer1: f64, buffer2: f64) -> Result<Self, String> {
+        if !(buffer1.is_finite() && buffer2.is_finite()) {
+            return Err("cushions: non-finite".into());
+        }
+        if !(0.0 < buffer1 && buffer1 < buffer2) {
+            return Err("cushions: require 0<B1<B2".into());
+        }
+        Ok(RiskCushions { buffer1, buffer2 })
+    }
+}
+
+/// 完整保证金模型注入（`ThetaConfig.margin`）。`None` ⟹ 保持 MM=0 退化口径（bit-exact 现状）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct MarginModel {
+    pub book: MarginScheduleBook,
+    pub cushions: RiskCushions,
+}
+
+/// 从持仓净名义 + 权益 + 规则表派生 [`RiskModeInput`]（§2.1/§2.4：统一算 MM+liq_flag，单一数据源，
+/// 避免 v1 `liquidation_flag` 签名缺 equity 的不自洽）。
+///
+/// - `net_notional_usd`：当前净名义敞口（**美元，已折算**，勿再乘价，§2.2）。
+/// - `equity`：盯市账户权益 E_t（§2.5）。
+/// - `schedule`：`as_of` 取到的当段规则表；`cushions`：Θ_risk 缓冲。
+/// - `liq_flag = equity ≤ MM`（§2.4，v0 逐仓价格触发；ADL/funding 为缺口，诚实标注）。
+pub fn margin_inputs(
+    net_notional_usd: f64,
+    equity: f64,
+    schedule: &MarginSchedule,
+    cushions: &RiskCushions,
+) -> RiskModeInput {
+    let mm = schedule.maint_margin(net_notional_usd);
+    RiskModeInput {
+        equity,
+        maint_margin: mm,
+        buffer1: cushions.buffer1,
+        buffer2: cushions.buffer2,
+        liq_flag: equity <= mm,
+    }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+//  M6 持仓期/强平成本模型：Funding（资金费）+ Borrow（杠杆借贷）+ LiquidationLoss（强平罚金）
+//  （TARGET_STRATEGY_MAXFULL.md M6 / 路线.pdf p16 第十一关：
+//   R = Σ N_t ΔP_t − Commission − Slippage − Funding − Borrow − LiquidationLoss）
+//
+//  存在论：Commission/Slippage 已由 ExecConfig fee_rate 进 apply_fill；本模型补上验收公式剩余
+//  三项。**有效域声明（231号 / formalization-validity-domain）**：v0 用**参数化常费率**——真实
+//  永续资金费历史 / 借贷利率曲线是**外部数据源缺口**（L2），A10 waiver 豁免的正是这类外部数据源，
+//  **不豁免机制实装**。机制在此真实装（逐 bar 计提、进 PnL、进 R 分解、守恒断言），费率标定待
+//  外部数据（结果包声明）。认识论 L1（机制正确性，非 L2 盈利）。
+// ──────────────────────────────────────────────────────────────────────────
+
+/// M6 成本模型（`ThetaConfig.cost_model`）。`None` ⟹ 三项成本恒 0（bit-exact 现状，M6 前口径）。
+///
+/// 字段语义：
+/// - `funding_rate_per_period`：每 funding 周期资金费率（作用于 |净名义|，永续 8h 常费率参数化）。
+///   v0 取 |N| 绝对持有成本（**不分多空方向**）——真实 funding long/short 互付有方向性，常费率下
+///   方向由外部数据定，取绝对值 = 保守持有成本近似（诚实缺口，见节头 231号声明）。
+/// - `funding_period_bars`：funding 周期的 bar 数（8h ÷ bar 间隔，调用方按数据周期算；≥1）。
+/// - `borrow_rate_per_bar`：每 bar 借贷成本率（作用于**借入名义** = max(0, |N|−E)——杠杆超出自有
+///   权益的部分是借入的）。
+/// - `liq_penalty_rate`：强平罚金率（作用于强平时刻 |净名义|——交易所强平清算费/滑点罚金）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CostModel {
+    pub funding_rate_per_period: f64,
+    pub funding_period_bars: u32,
+    pub borrow_rate_per_bar: f64,
+    pub liq_penalty_rate: f64,
+}
+
+impl CostModel {
+    /// fail-loud 构造（禁静默退化，对齐 MarginSchedule/RiskCushions 校验风格）：费率有限且 ≥0、
+    /// funding_period_bars ≥1，否则 `Err`。
+    pub fn new(
+        funding_rate_per_period: f64,
+        funding_period_bars: u32,
+        borrow_rate_per_bar: f64,
+        liq_penalty_rate: f64,
+    ) -> Result<Self, String> {
+        if !(funding_rate_per_period.is_finite() && funding_rate_per_period >= 0.0) {
+            return Err("cost: funding_rate_per_period 须有限且≥0".into());
+        }
+        if funding_period_bars == 0 {
+            return Err("cost: funding_period_bars 须≥1".into());
+        }
+        if !(borrow_rate_per_bar.is_finite() && borrow_rate_per_bar >= 0.0) {
+            return Err("cost: borrow_rate_per_bar 须有限且≥0".into());
+        }
+        if !(liq_penalty_rate.is_finite() && liq_penalty_rate >= 0.0) {
+            return Err("cost: liq_penalty_rate 须有限且≥0".into());
+        }
+        Ok(CostModel {
+            funding_rate_per_period,
+            funding_period_bars,
+            borrow_rate_per_bar,
+            liq_penalty_rate,
+        })
+    }
+
+    /// 单 bar 资金费计提（美元，≥0）。仅在 funding 周期边界 bar 收取（`bar_index>0 ∧
+    /// bar_index % funding_period_bars == 0`）——每周期一次，非逐 bar；`|net_notional_usd|` × 费率。
+    /// 空仓（N=0）⟹ 0。
+    pub fn funding_accrual(&self, bar_index: usize, net_notional_usd: f64) -> f64 {
+        let period = self.funding_period_bars as usize;
+        if bar_index == 0 || bar_index % period != 0 {
+            return 0.0;
+        }
+        net_notional_usd.abs() * self.funding_rate_per_period
+    }
+
+    /// 单 bar 借贷成本（美元，≥0）：借入名义 = `max(0, |N|−E)`（杠杆超出权益部分）× 每 bar 率。
+    /// 未用杠杆（|N|≤E）或空仓 ⟹ 0。`equity≤0`（破产态）⟹ 借入 = 全部 |N|（无自有权益覆盖）。
+    pub fn borrow_accrual(&self, net_notional_usd: f64, equity: f64) -> f64 {
+        let borrowed = (net_notional_usd.abs() - equity.max(0.0)).max(0.0);
+        borrowed * self.borrow_rate_per_bar
+    }
+
+    /// 强平罚金（美元，≥0）：强平时刻 `|净名义|` × 罚金率。空仓 ⟹ 0。
+    pub fn liquidation_penalty(&self, net_notional_usd: f64) -> f64 {
+        net_notional_usd.abs() * self.liq_penalty_rate
+    }
+}
+
+/// **R 分解表**（路线.pdf p16 第十一关：`R = Σ N_t ΔP_t − Commission − Slippage − Funding −
+/// Borrow − LiquidationLoss`）。各项**独立累计**（非从 net_r 反推），守恒断言校验和 = 账本净变动。
+///
+/// - `price_pnl_gross` = `Σ_t N_t·ΔP_t`：mark-to-market 逐 bar 价格贡献（含浮盈），**不含**任何费用。
+/// - `commission_slippage`：ExecConfig fee_rate（commission+slippage+tax）扣的成交费（含税项）。
+/// - `funding`/`borrow`/`liquidation_loss`：本模型三项（None ⟹ 全 0）。
+/// - `net_r` = `price_pnl_gross − commission_slippage − funding − borrow − liquidation_loss`。
+/// - `ledger_delta`：账本**独立**测得的净变动 = `final_equity_abs − nav0`（含浮盈强平）。
+/// - `conservation_residual` = `net_r − ledger_delta`：守恒残差，应 ≈0（浮点容差）。非零 = 资金泄漏 bug。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RDecomposition {
+    pub price_pnl_gross: f64,
+    pub commission_slippage: f64,
+    pub funding: f64,
+    pub borrow: f64,
+    pub liquidation_loss: f64,
+    pub net_r: f64,
+    pub ledger_delta: f64,
+    pub conservation_residual: f64,
+}
+
+impl RDecomposition {
+    /// 从各独立累计项 + 账本净变动组装，算 net_r + 守恒残差。
+    pub fn assemble(
+        price_pnl_gross: f64,
+        commission_slippage: f64,
+        funding: f64,
+        borrow: f64,
+        liquidation_loss: f64,
+        ledger_delta: f64,
+    ) -> Self {
+        let net_r = price_pnl_gross - commission_slippage - funding - borrow - liquidation_loss;
+        RDecomposition {
+            price_pnl_gross,
+            commission_slippage,
+            funding,
+            borrow,
+            liquidation_loss,
+            net_r,
+            ledger_delta,
+            conservation_residual: net_r - ledger_delta,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -930,5 +1260,210 @@ mod tests {
         let m = leverage_metrics(&voices, 0.0);
         let caps = LeverageCaps { gross_cap: 100.0, net_cap: 100.0 };
         assert!(!leverage_ok(m, caps)); // ∞ > 任何有限上限
+    }
+
+    /// ★G7 等价性锁（codex decide 5b46）：units 空间毛判定 [`gross_units_ok`] ⟺ 美元空间
+    /// [`leverage_ok`] 毛分量（`G=gross_units·px`、`E=base_units·px`，px 两侧对消）。
+    /// 整数精确取值（无浮点近似），跨激活/违反两侧验证 iff。
+    #[test]
+    fn gross_units_ok_iff_leverage_ok() {
+        let px = 50.0; // 美元/unit（整数精确乘法）
+        let gamma = 1.0;
+        let base_units = 20.0; // E = 20×50 = $1000
+        let equity = base_units * px;
+        // 情形1：双开 12+12 units ⟹ gross_units=24 > γ̄·base=20（违反）。
+        // 美元侧：G=24×50=1200，L^G=1.2 > 1.0（同判违反）。
+        let voices_bad = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: (12.0 * px) as i64 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: (12.0 * px) as i64 },
+        ];
+        let m_bad = leverage_metrics(&voices_bad, equity);
+        let caps = LeverageCaps { gross_cap: gamma, net_cap: f64::INFINITY }; // 只比毛分量
+        assert!(!gross_units_ok(24.0, base_units, gamma));
+        assert!(!leverage_ok(m_bad, caps));
+        // 情形2：双开 8+8 units ⟹ gross_units=16 ≤ 20（满足）。美元侧 L^G=0.8 ≤ 1.0（同判满足）。
+        let voices_ok = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: (8.0 * px) as i64 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: (8.0 * px) as i64 },
+        ];
+        let m_ok = leverage_metrics(&voices_ok, equity);
+        assert!(gross_units_ok(16.0, base_units, gamma));
+        assert!(leverage_ok(m_ok, caps));
+        // 边界：gross_units 恰 = cap（20）⟹ 两侧同判满足（≤ 含界）。
+        let voices_eq = [
+            VoiceNotional { side: VoiceSide::Long, notional_mag: (10.0 * px) as i64 },
+            VoiceNotional { side: VoiceSide::Short, notional_mag: (10.0 * px) as i64 },
+        ];
+        assert!(gross_units_ok(20.0, base_units, gamma));
+        assert!(leverage_ok(leverage_metrics(&voices_eq, equity), caps));
+    }
+
+    /// G7 毛 cap：`Ḡ = γ̄·U_ℓ`（绝对值，与净 cap `feasible_net_cap·base_units` 同构）。
+    #[test]
+    fn gross_units_cap_covariant() {
+        assert!((gross_units_cap(1000.0, 1.0) - 1000.0).abs() < 1e-12);
+        assert!((gross_units_cap(1000.0, 0.5) - 500.0).abs() < 1e-12);
+        // 协变：base_units 缩放 a 倍 ⟹ cap 缩放 a 倍（d_j=1）。
+        assert!((gross_units_cap(2000.0, 0.5) - 2.0 * gross_units_cap(1000.0, 0.5)).abs() < 1e-12);
+        // 符号鲁棒（abs）：负 gamma/base 不产生负 cap。
+        assert!((gross_units_cap(-1000.0, -1.0) - 1000.0).abs() < 1e-12);
+    }
+
+    // ── 真保证金模型（#113，margin-model-design v2）──
+
+    /// L1 golden-vector：Binance 分级 MM = N·mmr − maint_amount（对照公布公式，§3.1）。
+    #[test]
+    fn margin_binance_tier_golden() {
+        // 三档（floor 升序，首档覆盖0）：[0,50k) 0.4%/0；[50k,250k) 0.5%/50；[250k,∞) 1%/1300。
+        let s = MarginSchedule::binance_tiered(vec![
+            MarginTier { notional_floor: 0.0, mmr: 0.004, maint_amount: 0.0 },
+            MarginTier { notional_floor: 50_000.0, mmr: 0.005, maint_amount: 50.0 },
+            MarginTier { notional_floor: 250_000.0, mmr: 0.01, maint_amount: 1300.0 },
+        ])
+        .unwrap();
+        assert!((s.maint_margin(10_000.0) - (10_000.0 * 0.004)).abs() < 1e-9); // 档0
+        assert!((s.maint_margin(100_000.0) - (100_000.0 * 0.005 - 50.0)).abs() < 1e-9); // 档1
+        assert!((s.maint_margin(300_000.0) - (300_000.0 * 0.01 - 1300.0)).abs() < 1e-9); // 档2
+        // 边界 N=50k 精确落档1（floor 含）。
+        assert!((s.maint_margin(50_000.0) - (50_000.0 * 0.005 - 50.0)).abs() < 1e-9);
+    }
+
+    /// L1 golden：CME-simple = pct·N·retail（§3.1）。
+    #[test]
+    fn margin_cme_simple_golden() {
+        let s = MarginSchedule::cme_simple(0.37, 1.10).unwrap();
+        let notional = 5.0 * 60_000.0; // 5 BTC × $60k
+        assert!((s.maint_margin(notional) - notional * 0.37 * 1.10).abs() < 1e-6);
+    }
+
+    /// as_of 分段 + 零前视：未来快照不泄漏（§2.7/§3）。
+    #[test]
+    fn margin_book_as_of_no_lookahead() {
+        let s1 = MarginSchedule::cme_simple(0.30, 1.0).unwrap();
+        let s2 = MarginSchedule::cme_simple(0.40, 1.0).unwrap();
+        let book = MarginScheduleBook::new(vec![(100, 200, s1), (200, 300, s2)]).unwrap();
+        assert!(matches!(book.as_of(150), Some(MarginSchedule::CmeSimple { pct_maint, .. }) if (*pct_maint - 0.30).abs() < 1e-12));
+        assert!(matches!(book.as_of(250), Some(MarginSchedule::CmeSimple { pct_maint, .. }) if (*pct_maint - 0.40).abs() < 1e-12));
+        assert!(book.as_of(50).is_none()); // 段前：无覆盖（不借未来快照）
+        assert!(book.as_of(300).is_none()); // 段后（to 不含）
+        assert!(book.as_of(200).is_some()); // from 含 → 落段2
+    }
+
+    /// fail-loud：非法输入构造期 reject（§2.9）——禁静默退化。
+    #[test]
+    fn margin_fail_loud_rejects() {
+        // 未排序 tiers
+        assert!(MarginSchedule::binance_tiered(vec![
+            MarginTier { notional_floor: 0.0, mmr: 0.01, maint_amount: 0.0 },
+            MarginTier { notional_floor: 0.0, mmr: 0.01, maint_amount: 0.0 },
+        ])
+        .is_err());
+        // mmr 越界
+        assert!(MarginSchedule::binance_tiered(vec![MarginTier { notional_floor: 0.0, mmr: 1.5, maint_amount: 0.0 }]).is_err());
+        // NaN
+        assert!(MarginSchedule::binance_tiered(vec![MarginTier { notional_floor: 0.0, mmr: f64::NAN, maint_amount: 0.0 }]).is_err());
+        // 首档不覆盖 0
+        assert!(MarginSchedule::binance_tiered(vec![MarginTier { notional_floor: 10.0, mmr: 0.01, maint_amount: 0.0 }]).is_err());
+        // cushions 违反 0<B1<B2
+        assert!(RiskCushions::new(0.0, 100.0).is_err());
+        assert!(RiskCushions::new(200.0, 100.0).is_err());
+        assert!(RiskCushions::new(f64::NAN, 100.0).is_err());
+        assert!(RiskCushions::new(50.0, 100.0).is_ok());
+        // book 段重叠
+        let s = MarginSchedule::cme_simple(0.3, 1.0).unwrap();
+        assert!(MarginScheduleBook::new(vec![(100, 250, s.clone()), (200, 300, s)]).is_err());
+    }
+
+    /// margin_inputs：liq_flag=E≤MM，且填 RiskModeInput 后五态在真实 MM 下可达（§2.4/§3.4）。
+    #[test]
+    fn margin_inputs_liq_and_reachability() {
+        let s = MarginSchedule::cme_simple(0.1, 1.0).unwrap(); // MM=0.1·N
+        let cushions = RiskCushions::new(100.0, 300.0).unwrap();
+        let net = 10_000.0; // MM=1000
+        // E=900<MM=1000 ⟹ liq_flag + Liquidation。
+        let ri = margin_inputs(net, 900.0, &s, &cushions);
+        assert!((ri.maint_margin - 1000.0).abs() < 1e-9);
+        assert!(ri.liq_flag);
+        assert_eq!(risk_mode(&ri), RiskMode::Liquidation);
+        // E=1050 ∈ [MM,MM+B1)=[1000,1100) ⟹ Deleverage（M2 首次可达）。
+        assert_eq!(risk_mode(&margin_inputs(net, 1050.0, &s, &cushions)), RiskMode::Deleverage);
+        // E=1200 ∈ [MM+B1,MM+B2)=[1100,1300) ⟹ CloseOnly（M3）。
+        assert_eq!(risk_mode(&margin_inputs(net, 1200.0, &s, &cushions)), RiskMode::CloseOnly);
+        // E=1400 ≥ MM+B2 ⟹ Normal。
+        assert_eq!(risk_mode(&margin_inputs(net, 1400.0, &s, &cushions)), RiskMode::Normal);
+    }
+
+    // ── M6 成本模型（CostModel + RDecomposition）──
+
+    /// CostModel fail-loud：负费率 / funding_period=0 / NaN reject（禁静默）。
+    #[test]
+    fn cost_model_fail_loud() {
+        assert!(CostModel::new(-0.01, 8, 0.0, 0.0).is_err()); // 负 funding
+        assert!(CostModel::new(0.01, 0, 0.0, 0.0).is_err()); // period=0
+        assert!(CostModel::new(0.01, 8, -0.001, 0.0).is_err()); // 负 borrow
+        assert!(CostModel::new(0.01, 8, 0.0, f64::NAN).is_err()); // NaN penalty
+        assert!(CostModel::new(0.0001, 8, 0.00001, 0.005).is_ok());
+    }
+
+    /// funding：仅周期边界 bar 收取，作用于 |净名义|；bar0/非周期 bar ⟹ 0。
+    #[test]
+    fn cost_funding_periodic() {
+        let c = CostModel::new(0.0001, 8, 0.0, 0.0).unwrap();
+        // net_notional=$10000，费率 1bp ⟹ 每周期收 $1。
+        assert_eq!(c.funding_accrual(0, 10_000.0), 0.0); // bar0 不收
+        assert_eq!(c.funding_accrual(4, 10_000.0), 0.0); // 非周期 bar
+        assert!((c.funding_accrual(8, 10_000.0) - 1.0).abs() < 1e-12); // 周期边界
+        assert!((c.funding_accrual(16, -10_000.0) - 1.0).abs() < 1e-12); // 空头取绝对值
+        assert_eq!(c.funding_accrual(8, 0.0), 0.0); // 空仓无 funding
+    }
+
+    /// borrow：借入名义 = max(0,|N|−E)；无杠杆/空仓 ⟹ 0；破产态 E≤0 ⟹ 借全额。
+    #[test]
+    fn cost_borrow_leverage_only() {
+        let c = CostModel::new(0.0, 8, 0.00001, 0.0).unwrap();
+        // |N|=$15000, E=$10000 ⟹ 借 $5000 × 0.001% = $0.05。
+        assert!((c.borrow_accrual(15_000.0, 10_000.0) - 5_000.0 * 0.00001).abs() < 1e-12);
+        assert_eq!(c.borrow_accrual(8_000.0, 10_000.0), 0.0); // |N|≤E 无借入
+        assert_eq!(c.borrow_accrual(0.0, 10_000.0), 0.0); // 空仓
+        // 破产 E≤0 ⟹ 借全额 |N|。
+        assert!((c.borrow_accrual(10_000.0, -100.0) - 10_000.0 * 0.00001).abs() < 1e-12);
+    }
+
+    /// liquidation penalty：|净名义| × 罚金率；空仓 ⟹ 0。
+    #[test]
+    fn cost_liquidation_penalty() {
+        let c = CostModel::new(0.0, 8, 0.0, 0.005).unwrap();
+        assert!((c.liquidation_penalty(20_000.0) - 100.0).abs() < 1e-12); // $20k × 0.5%
+        assert_eq!(c.liquidation_penalty(0.0), 0.0);
+    }
+
+    /// RDecomposition：net_r = 价格 PnL − 五项成本；守恒残差 = net_r − 账本净变动。
+    #[test]
+    fn r_decomposition_conservation() {
+        // 价格贡献 $1000，费 $30 + funding $5 + borrow $2 + 强平 $10 ⟹ net_r=953。
+        let r = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 953.0);
+        assert!((r.net_r - 953.0).abs() < 1e-9);
+        assert!(r.conservation_residual.abs() < 1e-9, "账本一致 ⟹ 残差≈0");
+        // 账本漂移（泄漏）⟹ 残差非零可观测。
+        let leak = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 900.0);
+        assert!((leak.conservation_residual - 53.0).abs() < 1e-9);
+    }
+
+    /// buffer 敏感性网格（§3.5）：buffer 扰动改变 M2/M3 触发边界（暴露 Θ 自由度）。
+    #[test]
+    fn margin_buffer_sensitivity_grid() {
+        let s = MarginSchedule::cme_simple(0.1, 1.0).unwrap();
+        let net = 10_000.0; // MM=1000
+        let equity = 1150.0; // 固定权益，看 buffer 网格如何改变态
+        let modes: Vec<RiskMode> = [(50.0, 100.0), (100.0, 300.0), (200.0, 400.0)]
+            .iter()
+            .map(|&(b1, b2)| {
+                let c = RiskCushions::new(b1, b2).unwrap();
+                risk_mode(&margin_inputs(net, equity, &s, &c))
+            })
+            .collect();
+        // E=1150 固定：(50,100)→>MM+100=Normal;(100,300)→∈[1100,1300)=CloseOnly;(200,400)→∈[1000,1200)=Deleverage。
+        // buffer 扰动使同一权益落不同态 ⟹ 自由度可观测（存在两格触发态不同）。
+        assert!(modes.iter().any(|m| *m != modes[0]), "buffer 网格应暴露不同触发态，实得 {modes:?}");
     }
 }

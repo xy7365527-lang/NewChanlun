@@ -37,13 +37,16 @@
 use std::collections::HashMap;
 
 use super::metrics::trade_abs_pnl;
+use crate::theta_v0::classifier::divergence::ForceStateA5;
+use crate::theta_v0::strategy::coverage::Horizontal;
+use crate::theta_v0::strategy::interp::ExitType;
 use crate::theta_v0::types::BspBits;
 
 /// 仓位态（z 的分量，§16 line 3262「仓位态」）。
 ///
 /// 区分声部在持仓树中的角色：根声部（无父，主趋势腿）vs 子声部（有父，对冲/短差腿）。
 /// 这是 z 全互斥分类的一维——不同仓位态不混（alpha2 §18「多空双开状态不会混在一起」）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PositionState {
     /// 根声部（§3 ⊥，host 父容器=边界胚元 ∂，无父声部）。主趋势持仓腿。
     Root,
@@ -62,25 +65,126 @@ pub enum PositionState {
 /// - `short_swing` 短差/顺势：子声部 σ_u=−σ_p ⟹ 短差（true）；同向 ⟹ 顺势（false）。
 ///   `Voice::child_dir(parent_dir) = −parent_dir`（pi_bsp_timing.rs:122 §6/§16）。
 /// - `position` 仓位态：[`PositionState`]。
+/// - `horizontal` H(g) 水平关系（同父前兄弟顺/反/无，[`Horizontal`]）：R(g)=(H,V,δ) 的 H 轴
+///   （codex #81 裁定 `h_axis_in_canonical_z: accept`——补入 canonical Z 保 R(g)18 类忠实）。
+///   `Some(h)` 由 [`super::selector::z_of_candidate`] 从 `Candidate.role.h` 填（真候选路径）；
+///   `None` = 本构造口径未定 H（[`MuClass::from_certificate`] 的裸证书分量不含前兄弟关系，
+///   pi_bsp_timing 从 Voice 构 z 无 H 源——**诚实标 None 不伪造 First**，231号/no-claim-inflation）。
+///   `None` 在同一消费路径内恒定 ⟹ 不改分桶（如 perm_test/wverify 按 (ℓ,bsp,δ,σ_p) 4 维分桶不读 H）。
+///   winner selection 不用 H（codex `h_axis_in_default_selection: conditional`）：H 只进 z 报告，
+///   降维 [`UClass::project_to_u`] 默认丢 H（§30 抗 winner's curse）。
+/// - `sigma_higher` σ^higher 上级方向态（第 9 维，codex-q1 G2）：canonical z 含之（oracle 上界/
+///   完整性声明用），[`UClass::project_to_u`] 同 H 丢弃（selection 抗碎片化）——复用 H 轴分层先例。
+/// - `cand_channel`/`nest_depth`/`origin_level`/`risk_mode` 第 10-13 维（G3 #138，《完整的策略》§6
+///   z 完整形态的 CandType/Ndepth/ℓ 起始级/RiskMode+MarginState 四条目）：见各字段文档。
+///   §6 其余条目的承载/缺口声明见 `.chanlun/review-results/g3-impl-20260703.md` 维度对照表
+///   （Jchain=由 (ℓ,e) 代数派生；ExitType=TypedTrade ledger 层已接（G4）不进 F_t 可测桶键；
+///   TStage=第 14 维已接（#149，GAP3 桥后 π fill loop `tw.stage` 真值，见 `t_stage` 字段文档）；
+///   ηBucket=第 15 维已接（#175，终裁 a5-etabucket-stance-ruling-20260704.md 推翻 #149「无生产者」
+///   判定：γ_t = 现有 η_t/η_* 比较判据的离散化，η_t 生产者=`TwState::tw()`、η_* 生产者=
+///   `RiskPolicy::eta_star()` 早已存在，零新数据源——见 `eta_bucket` 字段文档）；
+///   CostBucket=生产路径无数据源，诚实缺口+证明义务）。
 ///
-/// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）。**全互斥**：每个 z 是 {0,1}^6 × 级别 ×
-/// 方向 × 父向 × 短差 × 仓位态 的唯一组合，无重叠（§13 精细分类优势定理的可计算落点）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// 派生 `Eq + Hash` ⟹ 可作 HashMap key（分桶载体）；`Ord` ⟹ 可作 BTreeMap key（有序报告）。
+/// **全互斥**：每个 z 是 {0,1}^6 × 级别 × 方向 × 父向 × 短差 × 仓位态 × H 的唯一组合，无重叠
+/// （§13 精细分类优势定理的可计算落点；补 H 后升 R(g)18 类完整表达）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MuClass {
+    /// 执行级别 e（§6 的 e，**G3 语义澄清**：本字段自始装的是候选/买卖点所在级别 = 信号执行级
+    /// ——econ 门路径「执行级 e=lvl，rungs 从 tower[lvl+1..] 收集上级语境」（econ_positive
+    /// collect_signals 有效域注释）。§6 的起始级 ℓ 是独立维，见 `origin_level`。旧文档把本字段
+    /// 标注为 ℓ 系口径漂移，G3 更正（诚实：字段值语义从未变，变的是标注）。
     pub level: u32,
     pub delta: i8,
     pub i_class: u8,
     pub parent_dir: i8,
     pub short_swing: bool,
     pub position: PositionState,
+    /// H(g) 水平关系（`Some`=真候选 z_of_candidate 填；`None`=裸证书口径未定 H，见类型文档）。
+    pub horizontal: Option<Horizontal>,
+    /// β^div 力度支配态（`关于背驰.pdf` §9.1，beta-bucket-design v2 第 8 维）。`Some`=真候选路径
+    /// `z_of_candidate` 从 `Candidate.force`（A6 #159 透传 `BspPoint.force`）经 A/C 段
+    /// `ForceProxies::force_state()` 填；`None`=无力度源口径
+    /// （`from_certificate`/无 ForceProxies 候选，同 `horizontal` 的诚实 None，231号不伪造）。
+    pub force_state: Option<ForceStateA5>,
+    /// σ_higher 上级方向态（第 9 维，codex-q1 G2 终裁翻转 #81：《完整的策略》§6 要求 z ⊇
+    /// (ℓ,δ,σ_higher)；667号实证——级别依赖调制器，效应符号随 level 翻转，不进 z 会把符号相反
+    /// 子群体平均掉）。`Some(v)`=生产路径由 [`super::selector::sigma_higher_at`] 从塔真值填
+    /// （+1 上级净涨 / −1 净跌 / 0 持平或无上级——**0 是计算结果非未知**）；`None`=裸证书口径
+    /// 无 tower/bars 源（[`MuClass::from_certificate`]），诚实 None 不伪造（231号，同 `horizontal`）。
+    /// 与 σ_p（`parent_dir`，持仓树父声部方向）**并列独立**，不合并（#81 反对合并的原理由仍成立）。
+    pub sigma_higher: Option<i8>,
+    /// Cand 门通道类型（第 10 维，§6 CandType，G3 #138）。`Some`=经 econ 统计层二通道准入门
+    /// （[`super::econ_positive::NestTrigger`]：Type1 趋势背驰段 / Type2/3 次级 Type1 下沉锚 /
+    /// 小转大 Xzd），collect_signals 从已 pass 的 GateCertificate 派生（P0-1 同源，非重算）；
+    /// `None`=本构造口径未经准入门（runner π 路径候选不过 Nest/Xzd 门、from_certificate 裸口径），
+    /// 诚实 None 不伪造（231号，同 horizontal 先例）。
+    ///
+    /// **§6 域声明**：PDF 域 {LiveCand, SettledCand, Force}——当前管线确认-bar 部署下候选恒为
+    /// Settled 口径（Live 未确认候选无生产者，架构口径缺口见 g3 结果包），Force 口径已由
+    /// `force_state` 第 8 维独立承载；本维承载的是「门通道」轴（任务 #138 对 CandType 的裁定读法）。
+    pub cand_channel: Option<super::econ_positive::NestTrigger>,
+    /// 区间套下沉深度 Ndepth（第 11 维，§6，G3 #138）= `NestCertificate.rungs.len()`。
+    /// `Some(0)`=经 Nest 门且基例（ℓ=e，纯 Conf^δ_e——0 是计算结果非未知，G2 口径）；
+    /// `Some(d>0)`=真跨级 J 嵌套 d 级；`None`=未经区间套门（Xzd 通道无下沉概念 / runner π 路径 /
+    /// 裸口径）——**不是 0**，深度概念在该口径未定义。BTC 实测 95.36% 基例、4.64% d=1
+    /// （econ_positive 有效域注释），本维使该退化在 μ̂ 分桶层可观测。
+    pub nest_depth: Option<u8>,
+    /// 起始级别 ℓ（第 12 维，§6 的 ℓ，G3 #138）：区间套链顶级别。Nest 通道 = `level + rungs.len()`
+    /// （从高级 ℓ 背驰段逐级下沉定位到执行级 e=level）；Xzd/无门候选 = `level`（起始=执行，
+    /// 无下沉——真值非占位：级别事实对任何候选有定义）；`None`=from_certificate 裸口径
+    /// （无链语境，不伪造 ℓ=e）。恒等式 `origin_level = level + nest_depth`（Nest 通道，
+    /// debug_assert 见 z 装配点）——Jchain（§6 区间套包含链）由 N^δ 定义强制逐级相邻
+    /// （nest.rs `rungs[0]`=级ℓ..`rungs[last]`=级e+1 连续、无跳级），链签名 ≅ (ℓ,e)，
+    /// 故 Jchain 无独立自由度，由本维 + `level` 完整携带（对照表论证，非缺口）。
+    pub origin_level: Option<u32>,
+    /// 账户风险模式（第 13 维，§6 RiskMode+MarginState 双覆盖，G3 #138）。
+    /// [`RiskMode`](crate::theta_v0::strategy::risk::RiskMode) M0-M4 是 margin-design §2.4-§2.7
+    /// 从保证金输入 (equity, MM, B1, B2, liq_flag) 派生的完整保证金状态机——同时是 §6「RiskMode:
+    /// 正常/去杠杆/强平」的细化（M4 / M2∪M3 / M0∪M1）与「MarginState: 保证金状态」的离散化
+    /// （equity 对 {0, MM, MM+B1, MM+B2} 阈值划分），单字段双覆盖，粒度 ⊇ 二者。
+    /// `Some`=runner π fill loop 账本态真值（k_theta_risk_gate 每 bar 已算，bar 级同值 ⟹
+    /// 训练 entry_z 与 χ 查询同口径，G2 护航点同款保证）；`None`=无账本口径（econ 统计层信号
+    /// 收集无 equity/持仓、裸口径），诚实 None。
+    pub risk_mode: Option<crate::theta_v0::strategy::risk::RiskMode>,
+    /// 取本金三阶段 TStage（第 14 维，§6 TStage，#149 zdims）。
+    /// [`TStage`](crate::theta_v0::strategy::ledger::TStage) = 缠师第31课降成本/退本金/增股数
+    /// 三阶段（`Origin.TotalWealth.TStage`，OQ-9 单向不可逆）。生产者 = π fill loop 的 TW 账本
+    /// `tw.stage`（#124 裁定4 单一真值源，#140 A' 后 P3/P4 现实可达）——G3 时该缺口的关闭条件
+    /// 「GAP3 桥落地」已成立（g3 结果包 #15 行证明义务履行）。
+    /// `Some`=runner π fill loop 当 bar 决策点账本相位真值（与 `TwStepCtx.state` 同一 `tw` 变量
+    /// ⟹ 与 P2/P3/P4 谓词同口径；训练 entry_z 与 χ 查询共用同一 ext ⟹ 同口径，G2/G3 护航点
+    /// 同款）；`None`=无 TW 账本口径（econ 统计层信号收集、裸证书），诚实 None（231号）。
+    pub t_stage: Option<crate::theta_v0::strategy::ledger::TStage>,
+    /// γ_t 四桶 ηBucket（第 15 维，§6 ηBucket「负成本缓冲状态」，#175）。
+    /// [`EtaBucket`](crate::theta_v0::strategy::ledger::EtaBucket) = PDF §10 γ_t 分段式四态
+    /// （Deficit/Zero/PositiveUnsafe/PositiveSafe）。终裁 a5-etabucket-stance-ruling-20260704.md
+    /// （立场B）：被分类量 η_t = `TwState::tw()`——与 `enter_ready` 的 `η≥η⋆` 合取项左操作数
+    /// **同一个量**；η_* = `RiskPolicy::eta_star()`。纯派生分类，零新数据源。
+    /// `Some`=runner π fill loop 当 bar 决策点 `tw_policy.eta_bucket(&tw)`（与 `t_stage` 同一
+    /// `tw` 变量同一装配点 ⟹ 同口径无时序错位；训练 entry_z 与 χ 查询共用同一 ext ⟹ 同口径，
+    /// G2/G3 护航点同款）；`None`=无 TW 账本口径（econ 统计层信号收集、裸证书），诚实 None（231号）。
+    pub eta_bucket: Option<crate::theta_v0::strategy::ledger::EtaBucket>,
 }
 
 impl MuClass {
+    /// prereg §1.1 bsp_class 主类号（1/2/3 取最低；买卖由 delta 编码，1 类=buy1|sell1）。
+    /// 从 i_class 6-bit 掩码恢复（bit0=buy1..bit5=sell3；class_index 可逆）。
+    pub fn bsp_class(&self) -> u8 {
+        let b = self.i_class;
+        if b & 0b001_001 != 0 { 1 } else if b & 0b010_010 != 0 { 2 }
+        else if b & 0b100_100 != 0 { 3 } else { 0 }
+    }
+
     /// 从证书原始分量构造 z（§12 `γ=(c,ℓ,δ,I_γ,t)` + §16 扩展态）。
     ///
     /// `i_class` 取 [`BspBits::class_index`]——**不压扁** I_γ（2B/3B 重合保留为不同 z）。
     /// `short_swing` 由 `delta` 与 `parent_dir` 关系判定：子声部且 δ=−σ_p ⟹ 短差（§6/§16）；
     /// 根声部（`parent_dir=0`）恒顺势（无父可对冲，short_swing=false）。
+    ///
+    /// `horizontal=None`：裸证书分量（ℓ,δ,I_γ,σ_p,仓位态）不含前兄弟关系 H——H 需 `Candidate.role.h`
+    /// （见 [`super::selector::z_of_candidate`]，真候选路径填 `Some(h)`）。此构造口径（pi_bsp_timing
+    /// 从 Voice 构 z、合成测试）无 H 源，诚实标 `None` 不伪造 `First`（231号/no-claim-inflation）。
     pub fn from_certificate(
         level: u32,
         delta: i8,
@@ -98,6 +202,16 @@ impl MuClass {
             parent_dir,
             short_swing,
             position,
+            horizontal: None,
+            force_state: None,
+            sigma_higher: None,
+            // G3 四维（#138）：裸证书口径无准入门/链语境/账本态——诚实 None 同 horizontal 先例。
+            cand_channel: None,
+            nest_depth: None,
+            origin_level: None,
+            risk_mode: None,
+            t_stage: None, // #149：裸证书口径无 TW 账本，同 risk_mode 诚实 None。
+            eta_bucket: None, // #175：裸证书口径无 TW 账本，同 t_stage 诚实 None。
         }
     }
 }
@@ -121,7 +235,7 @@ impl MuClass {
 ///
 /// **降维真实性**（测试断言）：|U| < |Z|——ϕ 是非单射满射（多个 z 映到同一 u），
 /// `n_classes(U) < n_classes(Z)`。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct UClass {
     pub level_bucket: u32,
     pub delta: i8,
@@ -130,7 +244,7 @@ pub struct UClass {
 }
 
 /// 仓位角色（u 的分量）——`(parent_dir, short_swing, position)` 的语义折叠（§16）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum VoiceRole {
     /// 根声部（主趋势腿，无父）。
     Root,
@@ -150,6 +264,12 @@ impl UClass {
     }
 
     /// 压缩映射 ϕ:Z→U（§30）——把高维 z 折叠到低维 u（确定性，同 z 恒映同 u）。
+    ///
+    /// **H 轴丢弃**（codex #81 `h_axis_in_default_selection: conditional`）：`z.horizontal` 不进 u——
+    /// H(g) 是结构关系非操作极性，selection/降维层折叠掉以抗 winner's curse（§29-30）；H 只在 z
+    /// 层报告保 R(g) 忠实。故本函数不读 `z.horizontal`（多个 H 的 z 映同一 u）。
+    /// **σ_higher 同 H 丢弃**（codex-q1 G2 碎片化防护）：canonical z 完备 vs UClass 降维 selection
+    /// 的既有分层直接复用——本函数不读 `z.sigma_higher`。
     pub fn project_to_u(z: &MuClass) -> UClass {
         let role = match (z.position, z.short_swing) {
             (PositionState::Root, _) => VoiceRole::Root,
@@ -175,6 +295,60 @@ impl UClass {
 pub struct MuObservation {
     pub class: MuClass,
     pub x_gamma: f64,
+}
+
+/// 单信号残差记录（alpha分离.pdf §1/§4.2 去污管线的逐笔载体，task #82）。
+///
+/// 残差减法 `Y_i = δ_i(H_i − B̂_i) − C_i`（alpha分离.pdf §1，p1-2）与分层置换（§4.2，p5-6：
+/// 分层键 `s(i)=(ℓ, h bucket, time block, σ_higher)`）都在**残差**上做——[`MuObservation`] /
+/// [`MuEstimator::trades`] 只携带 δ-baked 的 X_γ，无法支持残差置换（层内重新赋 δ 需 **δ-free**
+/// 基 `H−B̂`，X_γ 已把原始 δ 烘进值里）。本记录补全该管线：
+/// - `resid_base` r_i = H_i − B̂_i（**δ-free**；H_i=P_out−P_in 原始持有窗涨跌，B̂_i=持有窗市场漂移积分）。
+/// - `cost` C_i（成本，与 δ 无关 ⟹ 置换 δ 时恒定）。
+/// - `h_bucket` 持有期桶（§4.2 分层维；h_i=exit_bar−entry_bar 分桶，[`h_bucket`]）。
+/// - `time_block` 时间块（§4.2 分层维；控制市场 regime 漂移，entry 位置分块）。
+///
+/// `class` 提供 (ℓ,δ,bsp_class,σ^H) 供分层/分桶。残差方向签名 PnL 见 [`ResidualTrade::y`]。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ResidualTrade {
+    pub class: MuClass,
+    pub resid_base: f64,
+    pub cost: f64,
+    pub h_bucket: u8,
+    pub time_block: u32,
+    /// ★A6（prereg-rev2-20260704，codex-ruling-696 co-primary μ_R）：入场结构止损距离
+    /// `d = |entry_px − structural_stop|`（美元，ex-ante 可得——risk.rs:74-105 决策 bar 因果 BspPoint
+    /// 定 stop）。μ_R = E[Y/d] 的分母：归一化 `resid_base/=d; cost/=d` 后 y()=δ·resid_base−cost 自动
+    /// 除以 d（与 σ̂ 跨品种归一化 bit-exact 同模式，wverify_cross_symbol）。**raw μ 不消费本字段**
+    /// （raw μ 在原始 Y 上，d 只服务 μ_R co-primary 门）。`NAN` = d 不可得（structural_stop 返 None /
+    /// BspPoint 缺失）⟹ μ_R 样本剔除（诚实缺口，231号不兜底放大分母）。
+    pub d: f64,
+    /// ExitType 诊断切片（codex-ruling-exittype-20260704 裁定甲：账本字段 + 计价来源 +
+    /// **事后诊断切片**）。**铁律**：本字段**不进** MuClass 桶键、不进 χ_t 门控、不进 δ-free
+    /// 主裁决聚合基（exit-μ-BUCKETING-FROZEN，#180；出场信息在入场 t 不可观测 = post-treatment
+    /// 泄漏）。仅供 W-VERIFY 按 5 变体拆解占比的纯描述性诊断（无三态判定、无 LCB 门）。y() 不读本字段。
+    pub exit_type: ExitType,
+}
+
+impl ResidualTrade {
+    /// 残差方向签名 PnL `Y_i = δ_i·(H_i−B̂_i) − C_i`（alpha分离.pdf §1，去 beta 后的可交易结构 alpha 基）。
+    /// 与 X_i=δ_i·H_i−C_i 的关系：`Y_i = X_i − δ_i·B̂_i`（残差 = 原始 PnL 减去方向签名的持有窗 beta）。
+    pub fn y(&self) -> f64 {
+        self.class.delta as f64 * self.resid_base - self.cost
+    }
+}
+
+/// 持有期桶（alpha分离.pdf §4.2 分层维 `h bucket`，p5）。`h`=exit_bar−entry_bar（bar 计）。
+///
+/// ponytail: 1-min bar 固定边界 <1h / 1-4h / 4h-1d / >1d（4 桶）。分层目的是把同持有量级的信号
+/// 归组以控 B̂_i 同质性——若某标的 bar 频率不同或分位边界更贴合，改按标的分位切边即可（当前固定边界够用）。
+pub fn h_bucket(h: usize) -> u8 {
+    match h {
+        0..=59 => 0,
+        60..=239 => 1,
+        240..=1439 => 2,
+        _ => 3,
+    }
 }
 
 /// 交易收益 X_γ = δ(P_τγ−P_t) − C_{t:τγ}（§12 line 2147）。
@@ -237,6 +411,8 @@ impl Welford {
 /// 防高维 z 过拟合估计噪声）。**不做** χ_θ 过滤 / argmax 选择（下游工位）。
 #[derive(Debug, Clone, Default)]
 pub struct MuEstimator {
+    // ponytail: 全量逐笔留存供 perm_test 置换（Welford 聚合量算不出置换）；OOS BTC 数万笔可接受。
+    trades: Vec<(MuClass, f64)>,
     /// z → Welford(n, mean, m2)。样本均值 = mean（[`MuEstimator::mu`]）。
     buckets: HashMap<MuClass, Welford>,
 }
@@ -249,6 +425,19 @@ impl MuEstimator {
     /// 累加一笔观测到对应 z 桶（Welford 在线递推，O(1) 摊销）。
     pub fn observe(&mut self, obs: MuObservation) {
         self.buckets.entry(obs.class).or_default().push(obs.x_gamma);
+        self.trades.push((obs.class, obs.x_gamma));
+    }
+
+    /// 逐笔明细（perm_test 输入，投影为 (ℓ,bsp_class,δ,X_γ)）。
+    pub fn trades(&self) -> &[(MuClass, f64)] {
+        &self.trades
+    }
+
+    /// 变异系数 CV = σ̂/|μ̂|（§3.1 功效门输入）。None ⟹ n<2 或 μ̂=0（判 ¬powered）。
+    pub fn cv(&self, class: &MuClass) -> Option<f64> {
+        let w = self.buckets.get(class)?;
+        let std = w.std_sample()?;
+        if w.mean == 0.0 { None } else { Some(std / w.mean.abs()) }
     }
 
     /// 批量累加（迭代器 fold，等价逐笔 [`MuEstimator::observe`]）。
@@ -280,6 +469,24 @@ impl MuEstimator {
         let w = self.buckets.get(class)?;
         let std = w.std_sample()?; // n<2 ⟹ None
         Some(w.mean - z_alpha * std / (w.n as f64).sqrt())
+    }
+
+    /// UCB(μ(z)) = mean + z_α·(std/√n) 单边置信上界（三态判据 FALSIFIED 的准入量）。
+    ///
+    /// 与 [`MuEstimator::mu_lcb`] 严格对称——同 `z_alpha`、同标准误 std/√n，符号相反。
+    /// 用途（acc-alpha 预注册 §3.1 三态判定）：`powered ∧ LCB≤0 ∧ UCB≤0` ⟹ FALSIFIED
+    /// （有功效地判定 μ≤0，真纯 beta）；`LCB≤0<UCB` ⟹ INCONCLUSIVE（判据无检出力，
+    /// `LCB≤0 ⊬ μ≤0`，667/231）。缺 UCB 则无法区分「有功效地否证」与「underpowered」——
+    /// 这是 §6 上报矛盾的形式化落点。语义（诚实标注，镜像 mu_lcb）：
+    /// - `n≥2`：`Some(mean + z_alpha·std/√n)`，标准误随 √n 收敛 ⟹ UCB→mean。
+    /// - `n=1`：标准差未定义 ⟹ `None`（不冒充 UCB=mean——单样本无方差信息）。
+    /// - 无样本：`None`（空类无估计）。
+    ///
+    /// UCB≥mean 恒成立（`z_alpha≥0` 且 std/√n≥0）⟹ 置信上界不低于点估计（不悲观）。
+    pub fn mu_ucb(&self, class: &MuClass, z_alpha: f64) -> Option<f64> {
+        let w = self.buckets.get(class)?;
+        let std = w.std_sample()?; // n<2 ⟹ None
+        Some(w.mean + z_alpha * std / (w.n as f64).sqrt())
     }
 
     /// 该 z 类的样本量 |S_z|（统计功效判定用——小样本 μ 估计不可靠）。
@@ -359,7 +566,9 @@ impl MuEstimator {
             let shrunk_mean = self.mu_shrink(z, tau_sq).unwrap_or(w.mean);
             buckets.insert(*z, Welford { n: w.n, mean: shrunk_mean, m2: w.m2 });
         }
-        MuEstimator { buckets }
+        // 收缩仅改 bucket 的 mean，不改原始逐笔——perm_test 置换基于 trades，故视图须保留 trades。
+        // （预存编译缺口修复：commit 8ccbe58137 加 `trades` 字段时漏改本构造子；见 ws-gap3-bridge 汇报。）
+        MuEstimator { buckets, trades: self.trades.clone() }
     }
 
     /// 合并另一估计器的全部桶（Chan/Welford 并行合并，bit-exact 等价逐笔顺序累加同一桶）。
@@ -517,6 +726,18 @@ mod tests {
         BspBits { buy1: true, ..Default::default() }
     }
 
+    #[test]
+    fn cv_is_std_over_abs_mean() {
+        let z = MuClass::from_certificate(1,1,buy_bits(),0,PositionState::Root);
+        let mut e = MuEstimator::new();
+        e.observe(MuObservation{class:z,x_gamma:8.0});
+        e.observe(MuObservation{class:z,x_gamma:12.0});
+        assert!((e.cv(&z).unwrap()-8.0_f64.sqrt()/10.0).abs()<1e-9);
+        let z2=MuClass::from_certificate(2,1,buy_bits(),0,PositionState::Root);
+        let mut e2=MuEstimator::new(); e2.observe(MuObservation{class:z2,x_gamma:5.0});
+        assert_eq!(e2.cv(&z2),None);
+    }
+
     /// X_γ = δ(P_τ−P_t)−C 与 metrics 方向感知 PnL bit-exact 一致（复用单一来源，无公式漂移）。
     #[test]
     fn marginal_return_matches_directional_pnl() {
@@ -526,6 +747,36 @@ mod tests {
         assert_eq!(marginal_return(120.0, 100.0, 1.0, 0.0, -1), 20.0);
         // 空头在上涨(100→110)亏损 ⟹ −10。
         assert_eq!(marginal_return(100.0, 110.0, 1.0, 0.0, -1), -10.0);
+    }
+
+    /// 残差 Y_i = δ(H−B̂)−C，且 Y_i = X_i − δ·B̂（alpha分离.pdf §1）。
+    #[test]
+    fn residual_trade_y_is_signed_debeta_minus_cost() {
+        let z = MuClass::from_certificate(0, 1, buy_bits(), 0, PositionState::Root);
+        // H=100, B̂=30, C=5, δ=+1 ⟹ Y = 1·(100−30) − 5 = 65。
+        let rt = ResidualTrade { class: z, resid_base: 100.0 - 30.0, cost: 5.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold };
+        assert!((rt.y() - 65.0).abs() < 1e-12);
+        // Y = X − δ·B̂：X = δ·H − C = 100 − 5 = 95；δ·B̂ = 30 ⟹ Y = 95 − 30 = 65。
+        let (h, b_hat, c) = (100.0, 30.0, 5.0);
+        let x = 1.0 * h - c;
+        assert!((rt.y() - (x - 1.0 * b_hat)).abs() < 1e-12, "Y = X − δ·B̂");
+        // 卖方向 δ=−1：H=−40（下跌）, B̂=−20（下漂）, C=3 ⟹ Y = −1·(−40−(−20)) − 3 = 20 − 3 = 17。
+        let z_sell = MuClass::from_certificate(0, -1, BspBits { sell1: true, ..Default::default() }, 0, PositionState::Root);
+        let rt_s = ResidualTrade { class: z_sell, resid_base: -40.0 - (-20.0), cost: 3.0, h_bucket: 0, time_block: 0, d: 1.0, exit_type: ExitType::Hold };
+        assert!((rt_s.y() - 17.0).abs() < 1e-12);
+    }
+
+    /// 持有期桶单调边界（§4.2 h bucket，1-min bar：<1h/1-4h/4h-1d/>1d）。
+    #[test]
+    fn h_bucket_monotone_edges() {
+        assert_eq!(h_bucket(0), 0);
+        assert_eq!(h_bucket(59), 0);
+        assert_eq!(h_bucket(60), 1);
+        assert_eq!(h_bucket(239), 1);
+        assert_eq!(h_bucket(240), 2);
+        assert_eq!(h_bucket(1439), 2);
+        assert_eq!(h_bucket(1440), 3);
+        assert_eq!(h_bucket(100_000), 3);
     }
 
     /// 成本 C_{t:τ} 双边扣（建+平仓各 ·(1±fee)）⟹ X_γ 比零成本低。
@@ -648,6 +899,33 @@ mod tests {
         assert!(lcb_large > lcb_small, "n↑ ⟹ LCB 上移逼近 mean：{lcb_large} > {lcb_small}");
         assert!(lcb_large < m, "LCB 仍 < mean（n 有限，标准误 > 0）");
         assert!((m - lcb_large) < (m - lcb_small) * 0.3, "√n 收敛：大样本 gap 显著缩小");
+    }
+
+    /// UCB 与 LCB 对称：同 z_α 下 LCB≤mean≤UCB，且 UCB−mean = mean−LCB（同标准误，符号相反）。
+    /// FALSIFIED 判据（powered ∧ LCB≤0 ∧ UCB≤0）依赖 UCB 与 LCB 的这层对称——mean<0 时二者才可能同 ≤0。
+    #[test]
+    fn ucb_symmetric_to_lcb_straddles_mean() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe_all([
+            MuObservation { class: z, x_gamma: 5.0 },
+            MuObservation { class: z, x_gamma: 15.0 },
+            MuObservation { class: z, x_gamma: 10.0 },
+        ]);
+        let mean = est.mu(&z).unwrap();
+        let lcb = est.mu_lcb(&z, 1.645).unwrap();
+        let ucb = est.mu_ucb(&z, 1.645).unwrap();
+        assert!(lcb <= mean && mean <= ucb, "LCB({lcb}) ≤ mean({mean}) ≤ UCB({ucb})");
+        assert!((ucb - mean) - (mean - lcb) < 1e-9, "对称：UCB−mean = mean−LCB");
+    }
+
+    /// n=1 边界：UCB 与 LCB 同诚实语义——单样本方差未定义 ⟹ 均返回 None。
+    #[test]
+    fn ucb_undefined_for_single_sample() {
+        let z = MuClass::from_certificate(3, 1, buy_bits(), 0, PositionState::Root);
+        let mut est = MuEstimator::new();
+        est.observe(MuObservation { class: z, x_gamma: 42.0 });
+        assert_eq!(est.mu_ucb(&z, 1.645), None, "单样本方差未定义 ⟹ UCB None");
     }
 
     /// n=1 边界：单样本方差未定义 ⟹ mu_lcb 返回 None（不冒充 LCB=mean，诚实语义）。

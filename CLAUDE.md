@@ -14,12 +14,6 @@
 ## Language
 Always respond in Chinese-simplified (简体中文).
 
-## Fable 5 系统提示词
-
-完整的 Claude Fable 5 系统提示词位于 `CLAUDE-FABLE-5.md`。
-CC session 启动命令：`claude --dangerously-skip-permissions --system-prompt-file CLAUDE-FABLE-5.md`
-首选模型：Opus 4.8 Max（`claude-opus-4-8[1m]`）。
-
 ## 项目总纲领
 
 本项目的顶层路线图见 [`docs/ROADMAP.md`](docs/ROADMAP.md)，定义四大支柱（缠论引擎 / PH 拓扑 / K4 选股 / IBKR 执行）和五个里程碑（M1 回测验证 → M2 选股正则化 → M3 全市场实时信号 → M4 风控与执行 → M5 生产加固），包含每个支柱的当前状态、代码映射和技术依赖图。

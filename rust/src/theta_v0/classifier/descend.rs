@@ -40,6 +40,8 @@
 //! - ✗ 中枢分配 `center_of`：次级别每走势配「最后一个中枢」的自动提取未实装——`center_of` 设为
 //!   闭包参数（次级别中枢由上游 detect_centers 提供）。
 
+use std::rc::Rc;
+
 use super::super::types::{Center, Direction, Side, Tick};
 
 /// 递归走势 `RMove`（port `Origin.SubLevelDescent.RMove` = `Formal.RecursiveConstruction.Move` μF 别名，携带 level/interval/subs）。
@@ -49,6 +51,16 @@ use super::super::types::{Center, Direction, Side, Tick};
 /// - `Compose`：上级走势（由次级别走势序列 `subs` compose 而成，携 level/centers，
 ///   Lean `Move.compose subs centers level`）。`subs` 是 RecursiveLevelSystem `lift`（composeStep）
 ///   把次级别窗口封装为上级走势的载荷——[`descend`] 逆向取回它。
+///
+/// ★`subs` 用 `Rc<Vec<RMove>>`（task #40，A1 Rc 化家族延伸 #104 之后的第二处）：`Compose.subs`
+/// 递归嵌套（Compose 内的 RMove 若自身也是 Compose，其 subs 又是一整棵子树）——若按值持有，
+/// `.clone()` 深拷贝整棵递归子树（05c2a 实测 1M CL 占 05c 23%，`recursive_tower.rs::LeveledMove::
+/// compose` 每次组装上级走势都要 `subs.iter().map(|m| m.rmove.clone())`）。`Rc` 化后该 clone 退化为
+/// O(1) 引用计数——`Compose` 变体的派生 `Clone` 对 `subs` 字段用 `Rc::clone`，不再递归拷贝子树。
+/// 不变量与 Lean 对齐不受影响：`Rc<Vec<T>>` 的 `PartialEq`/`Eq`/`Debug` 均按内容（deref 后逐元素）
+/// 比较/打印，`descend()` 的 `subs.as_slice()`/`.iter()`/`.first()`/`.last()` 读取方式经自动解引用
+/// 透明工作，无调用点需改写。这不是给 Lean μF 镜像加字段（结构层保持纯净），只是同一逻辑字段的
+/// Rust 侧共享表示优化。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RMove {
     /// 线段（递归底，level 0）。
@@ -59,7 +71,7 @@ pub enum RMove {
     },
     /// 上级走势（compose 次级别走势序列）。
     Compose {
-        subs: Vec<RMove>,
+        subs: Rc<Vec<RMove>>,
         centers: Vec<Center>,
         level: u32,
     },
@@ -201,7 +213,7 @@ mod tests {
     /// 本级别走势（compose 三个次级别走势，其一向下破中枢；port Lean `parentWit`）。
     fn parent_wit() -> RMove {
         RMove::Compose {
-            subs: vec![sub_move_broke(), sub_move_inside(), sub_move_inside()],
+            subs: Rc::new(vec![sub_move_broke(), sub_move_inside(), sub_move_inside()]),
             centers: vec![sub_center()],
             level: 1,
         }
@@ -241,7 +253,7 @@ mod tests {
     #[test]
     fn descend_nested_level_decreases() {
         let l2 = RMove::Compose {
-            subs: vec![parent_wit(), parent_wit()], // each level 1
+            subs: Rc::new(vec![parent_wit(), parent_wit()]), // each level 1
             centers: vec![sub_center()],
             level: 2,
         };
@@ -288,7 +300,7 @@ mod tests {
     #[test]
     fn sub_level_no_broken_center() {
         let all_inside = RMove::Compose {
-            subs: vec![sub_move_inside(), sub_move_inside()],
+            subs: Rc::new(vec![sub_move_inside(), sub_move_inside()]),
             centers: vec![sub_center()],
             level: 1,
         };

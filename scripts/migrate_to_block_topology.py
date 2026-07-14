@@ -87,6 +87,17 @@ def parse_frontmatter(text: str) -> dict:
     if match:
         return yaml.safe_load(match.group(1)) or {}
 
+    # Fallback: `---` 开头但无闭合标记的纯 YAML 文件（如 679号——全文即
+    # frontmatter）。整体按 YAML 解析；失败则交给下方 Markdown bold 解析。
+    if text.startswith("---\n"):
+        try:
+            fm = yaml.safe_load(text[4:])
+            if isinstance(fm, dict):
+                return fm
+        except yaml.YAMLError:
+            raise
+
+
     # Fallback: parse Markdown bold metadata (**key**: value)
     # Key field name mapping (Chinese → English)
     KEY_MAP = {"前置": "depends_on"}
@@ -184,6 +195,12 @@ def migrate_settled_files(
             fname_m = re.match(r"^(\d+[a-z]?)-", md_file.name)
             map_key = fname_m.group(1) if fname_m else old_id
             if map_key not in only_ids:
+                continue
+            # 文件名 id 与 frontmatter id 必须同源（前缀一致）。防止日期开头的
+            # slug-id 文件（如 2026-06-25-claim10-*.md，id: "claim10-…"，数字
+            # 编号待 /ritual 分配）被误注册为伪编号 "2026"。合并节点（文件名
+            # 651、id "651-652"）满足前缀条件，不受影响。
+            if not old_id.startswith(map_key):
                 continue
         else:
             map_key = old_id
@@ -396,6 +413,7 @@ def run_incremental_migration(
     project_root: Path | None = None,
     base: Path | None = None,
     ids: list[str] | None = None,
+    dry_run: bool = False,
 ) -> dict:
     """Incrementally migrate newly-settled genealogy into block-topology.
 
@@ -436,10 +454,21 @@ def run_incremental_migration(
 
     targets = ids if ids is not None else _compute_unmapped_ids(
         settled_dir, id_mapping)
+    # 幂等：显式 --ids 重跑时过滤掉已映射的 id，避免 block_count 重复累加。
+    targets = [t for t in targets if t not in id_mapping]
     if not targets:
         return {"migrated": [], "blocks_created": 0, "relations_written": 0,
                 "last_mapped_genealogy": meta.get("last_mapped_genealogy"),
                 "note": "nothing to migrate (id_mapping already current)"}
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "targets": targets,
+            "edges_would_be_skipped_549": _relations_is_lfs_pointer(base),
+            "current_last_mapped": meta.get("last_mapped_genealogy"),
+            "current_mapped_count": len(id_mapping),
+        }
 
     # Step 1: create event blocks for the target ids, append to id_mapping.
     new_mapping, blocks = migrate_settled_files(
@@ -604,10 +633,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ids", nargs="*", default=None,
         help="Explicit genealogy ids for --incremental (default: auto-detect)")
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="With --incremental: print the migration plan (target ids, "
+             "549 edge-skip status) without writing anything")
     args = parser.parse_args()
 
     if args.incremental:
-        summary = run_incremental_migration(ids=args.ids)
+        summary = run_incremental_migration(ids=args.ids, dry_run=args.dry_run)
         print("Incremental migration complete.")
         for k, v in summary.items():
             if k == "migrated":

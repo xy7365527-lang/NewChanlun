@@ -366,3 +366,88 @@ fn diag_incr_strokes_scaling() {
         prev = Some((n, t));
     }
 }
+
+/// E1 计时对照：相同输入早退 vs 走重算（隔离 IncrSegments/IncrStrokes append 早退效果）。
+/// A = 同输入连续 append（早退命中，O(1)）；B = 末笔/末分型微扰（never 早退，走 tail 重算）。
+/// B 即 E1 之前每个「输入未变」bar 付的成本，A 即 E1 之后的成本 → 比值 = 单 bar 加速。L2（真实 ES）。
+#[test]
+#[ignore = "E1 早退计时对照：需 ES 数据；--release"]
+fn profile_incr_same_input_early_return() {
+    let cfg = ThetaConfig::default();
+    let path = data_dir().join("es_1m_databento_10y.json");
+    let ds = match load_symbol(&path, "ES", &cfg, 60) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("跳过（无 ES 数据）: {e}");
+            return;
+        }
+    };
+    let n = ds.bars.len().min(200_000);
+    let bars = &ds.bars[..n];
+    let incl = inclusion::process_inclusion(bars);
+    let fractals = fractal::detect_fractals(&incl.merged);
+    let strokes = stroke::build_strokes(&fractals, &cfg.parse);
+    eprintln!(
+        "ES prefix bars={n} merged={} fractals={} strokes={}",
+        incl.merged.len(),
+        fractals.len(),
+        strokes.len()
+    );
+
+    let reps = 2000u32;
+    let iters = 5;
+
+    // ---- IncrSegments：末笔 end_price 微扰 → last_stroke 逐字段不等 → never 早退。
+    let mut seg_alt = strokes.clone();
+    if let Some(last) = seg_alt.last_mut() {
+        last.end_price += 1;
+    }
+    let t_seg_early = bench(iters, || {
+        let mut s = segment::IncrSegments::empty().append(&strokes, &cfg.parse);
+        for _ in 0..reps {
+            s = s.append(&strokes, &cfg.parse);
+        }
+        std::hint::black_box(&s);
+    });
+    let t_seg_recompute = bench(iters, || {
+        let mut s = segment::IncrSegments::empty().append(&strokes, &cfg.parse);
+        for k in 0..reps {
+            let inp = if k % 2 == 0 { &seg_alt } else { &strokes };
+            s = s.append(inp, &cfg.parse);
+        }
+        std::hint::black_box(&s);
+    });
+    eprintln!(
+        "IncrSegments: 早退 {:.5} μs/call | 重算 {:.5} μs/call | 加速 {:.1}x",
+        t_seg_early / reps as f64,
+        t_seg_recompute / reps as f64,
+        t_seg_recompute / t_seg_early
+    );
+
+    // ---- IncrStrokes：末分型 price 微扰 → last_fractal 逐字段不等 → never 早退。
+    let mut frac_alt = fractals.clone();
+    if let Some(last) = frac_alt.last_mut() {
+        last.price += 1;
+    }
+    let t_str_early = bench(iters, || {
+        let mut s = stroke::IncrStrokes::empty().append(&fractals, &cfg.parse);
+        for _ in 0..reps {
+            s = s.append(&fractals, &cfg.parse);
+        }
+        std::hint::black_box(&s);
+    });
+    let t_str_recompute = bench(iters, || {
+        let mut s = stroke::IncrStrokes::empty().append(&fractals, &cfg.parse);
+        for k in 0..reps {
+            let inp = if k % 2 == 0 { &frac_alt } else { &fractals };
+            s = s.append(inp, &cfg.parse);
+        }
+        std::hint::black_box(&s);
+    });
+    eprintln!(
+        "IncrStrokes: 早退 {:.5} μs/call | 重算 {:.5} μs/call | 加速 {:.1}x",
+        t_str_early / reps as f64,
+        t_str_recompute / reps as f64,
+        t_str_recompute / t_str_early
+    );
+}

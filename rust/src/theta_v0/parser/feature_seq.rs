@@ -150,7 +150,7 @@ fn apply_inclusion(
 /// = 「存在某三元组成分型」。构建过程中每加入一个元素，只需检查**新尾部三元组**（旧三元组
 /// 未变，前序无分型已隐含）——一旦成分型立即返回 true，避免完整 collect + 二次遍历。包含合并
 /// 修改尾元素后同样只影响尾部三元组，检查时机一致。语义等价于完整 `has_any_fractal`。
-fn second_seq_has_fractal(
+pub(super) fn second_seq_has_fractal(
     strokes: &[Stroke],
     seg_dir: Direction,
     from_stroke_idx: usize,
@@ -232,6 +232,11 @@ pub struct FeatureSeqState {
     tail_window: u32,
     /// 第二特征序列扫描窗口（config second_seq_scan_window，0=无限）。
     second_seq_window: u32,
+    /// #88 frontier 修复：本段扫描期间是否跳过过 SecondKind 候选（`has_gap &&
+    /// !second_seq_has_fractal`）。跳过的候选未来 bar 可能让第二序列出现分形而复活，改写本段
+    /// ⟹ 本段 seg_start 是 unsealed 起点。`reset` 清零（每段独立），跳过时置真（段内累积）。
+    /// 增量层 `IncrSegments::append` 读此标志把 seg_start 记入 `earliest_unsealed_from`。
+    skipped_secondkind: bool,
 }
 
 impl FeatureSeqState {
@@ -254,10 +259,11 @@ impl FeatureSeqState {
             extend_mode,
             tail_window,
             second_seq_window,
+            skipped_secondkind: false,
         }
     }
 
-    /// 重置为新段（Python `reset`，:289-293）。
+    /// 重置为新段（Python `reset`，:289-293）。#88：清 skipped_secondkind（每段独立）。
     pub fn reset(&mut self, seg_dir: Direction) {
         self.std.clear();
         self.dir_state = match seg_dir {
@@ -267,6 +273,12 @@ impl FeatureSeqState {
         self.last_checked = 0;
         self.skip_until_stroke = -1;
         self.seg_dir = seg_dir;
+        self.skipped_secondkind = false;
+    }
+
+    /// #88：本段扫描期间是否跳过过 SecondKind 候选（unsealed 起点信号，增量层读取）。
+    pub fn skipped_secondkind(&self) -> bool {
+        self.skipped_secondkind
     }
 
     /// 标记跳过 stroke_idx <= 此值的分型（Python `skip_trigger`，:295-301）。
@@ -363,6 +375,9 @@ impl FeatureSeqState {
             if has_gap
                 && !second_seq_has_fractal(strokes, self.seg_dir, b_stroke, self.second_seq_window)
             {
+                // #88 frontier：跳过的 SecondKind 候选未来可复活 ⟹ 本段 seg_start unsealed，
+                // 增量层必须回退到其前重扫（第二序列 scan_window=0 无限 ⟹ 任意早的候选都可复活）。
+                self.skipped_secondkind = true;
                 continue;
             }
             self.last_checked = i.saturating_sub(1);
