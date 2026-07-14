@@ -1,0 +1,12 @@
+[package]
+name = "task68-ledger-adopt"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "task68-ledger-adopt"
+path = "src/main.rs"
