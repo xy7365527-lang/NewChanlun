@@ -30,7 +30,13 @@ pub struct ProviderVersion(pub &'static str);
 
 impl ProviderVersion {
     pub const CENTRAL_GGDD_V1: Self = Self("central-ggdd-v1");
+    /// 已废止（#90 结裁 `chanlun/escalate/silent-dual-core-c1-seam-ruling-20260715.md`）：
+    /// V1 对 #148 重切子窗跑 offset-0 自核并静默采用（3,169 窗静默双核）。仅留作历史基准锚，
+    /// `validate()` 不再接受。
     pub const EXTENDED_TO_EXACT_THREE_V1: Self = Self("extended-to-exact-three-v1");
+    /// #90 结裁：seed [ZD,ZG] 改读塔 compose 携带核（准绳=继承核，定理一核心冻结在父窗），
+    /// dd/gg/身份不动；两核不等显式打标 `SeedCoreProvenance::InheritedRecut`（codex :143 边界条件）。
+    pub const EXTENDED_TO_EXACT_THREE_V2: Self = Self("extended-to-exact-three-v2-inherited-core");
     pub const MOVE_BLOCK_AC_V1: Self = Self("move-block-ac-v1");
     /// 显式关闭也是一个完整版本值；它不是缺字段，且保持旧 Pending 行为。
     pub const DISABLED_V1: Self = Self("disabled-v1");
@@ -49,7 +55,7 @@ impl C2VersionTuple {
         Self {
             direction_provider_version: Some(ProviderVersion::CENTRAL_GGDD_V1),
             divergence_pair_provider_version: Some(ProviderVersion::MOVE_BLOCK_AC_V1),
-            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V1),
+            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V2),
         }
     }
 
@@ -57,7 +63,7 @@ impl C2VersionTuple {
         Self {
             direction_provider_version: Some(ProviderVersion::CENTRAL_GGDD_V1),
             divergence_pair_provider_version: Some(ProviderVersion::DISABLED_V1),
-            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V1),
+            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V2),
         }
     }
 
@@ -90,10 +96,10 @@ impl C2VersionTuple {
         let projection = self
             .projection_provider_version
             .ok_or(VersionTupleError::Missing("projection_provider_version"))?;
-        if projection != ProviderVersion::EXTENDED_TO_EXACT_THREE_V1 {
+        if projection != ProviderVersion::EXTENDED_TO_EXACT_THREE_V2 {
             return Err(VersionTupleError::Mismatch {
                 field: "projection_provider_version",
-                expected: ProviderVersion::EXTENDED_TO_EXACT_THREE_V1,
+                expected: ProviderVersion::EXTENDED_TO_EXACT_THREE_V2,
                 actual: projection,
             });
         }
@@ -198,7 +204,20 @@ impl C2PersistenceKey {
     }
 }
 
+/// seed 核来源显式打标（#90 结裁 `chanlun/escalate/silent-dual-core-c1-seam-ruling-20260715.md`，
+/// 执行 codex-decide-20260704 :143 边界条件"不能伪装成普通 seed 中枢"）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeedCoreProvenance {
+    /// offset-0 自核 ≡ compose 携带核（普通窗 + 重切首子窗；#89 审计零反例域）。
+    SelfConsistent,
+    /// #148 升级重切子窗：seed [ZD,ZG] = 父窗继承核（塔携带，准绳）；`self_core` 保留
+    /// offset-0 自核值仅供审计，生产消费一律走 `ExactThreeSeed::center`。
+    InheritedRecut { self_core: Center },
+}
+
 /// 扩展窗口投影后的不可变 seed；只复制前三个次级别走势的确定值，不保留可变尾引用。
+/// #90 结裁：`center` 的 [ZD,ZG] 为塔 compose 携带核（继承核准绳）；dd/gg 与坐标仍取
+/// 首三段窗（#142 设计内外缘语义不动）；来源见 `core_provenance`。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ExactThreeSeed {
     pub source_id: ElementId,
@@ -206,6 +225,7 @@ pub struct ExactThreeSeed {
     pub start_index: usize,
     pub end_index: usize,
     pub center: Center,
+    pub core_provenance: SeedCoreProvenance,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -226,6 +246,8 @@ pub enum ProjectionError {
     TooShort { index: usize, sub_count: usize },
     InvalidSeed { index: usize },
     InvalidLowerLeg { index: usize },
+    /// #90 结裁 fail-closed：窗口非 Compose 或 compose 未携带核——不得回退 offset-0 自核。
+    MissingCarriedCenter { index: usize },
 }
 
 fn first_leaf_direction(value: &LeveledMove) -> Option<Direction> {
@@ -272,22 +294,47 @@ pub fn project_extended_windows(
         let [Some(a), Some(b), Some(c)] = units else {
             return Err(ProjectionError::InvalidSeed { index });
         };
-        let center = if window.id.level == 1 {
+        // 条款 3（#90 结裁）：offset-0 自核不成立 ⟹ InvalidSeed 维持 D1 选项 0 fail-closed，
+        // 不以携带核收复（收复须独立立项走版本化迁移）。
+        let own_center = if window.id.level == 1 {
             center_from_segments(&a, &b, &c)
         } else {
             center_from_window(&a, &b, &c)
         }
         .ok_or(ProjectionError::InvalidSeed { index })?;
+        // 条款 1（#90 结裁）：准绳 = 塔 compose 携带核（#89 已证与重算 detect 逐窗 bit-equal）。
+        let carried = match &window.rmove {
+            super::descend::RMove::Compose { centers, .. } => centers.first().copied(),
+            super::descend::RMove::Segment { .. } => None,
+        }
+        .ok_or(ProjectionError::MissingCarriedCenter { index })?;
+        // 条款 2（#90 结裁）：两核不等禁静默——seed [ZD,ZG] 取继承核，自核值显式留档。
+        let (center, core_provenance) = if own_center.zd == carried.zd && own_center.zg == carried.zg
+        {
+            (own_center, SeedCoreProvenance::SelfConsistent)
+        } else {
+            (
+                Center {
+                    zd: carried.zd,
+                    zg: carried.zg,
+                    ..own_center
+                },
+                SeedCoreProvenance::InheritedRecut {
+                    self_core: own_center,
+                },
+            )
+        };
         seeds.push(ExactThreeSeed {
             source_id: window.id,
             source_sub_count: count,
             start_index: a.start_index,
             end_index: c.end_index,
             center,
+            core_provenance,
         });
     }
     Ok(ExactThreeProjection {
-        version: ProviderVersion::EXTENDED_TO_EXACT_THREE_V1,
+        version: ProviderVersion::EXTENDED_TO_EXACT_THREE_V2,
         seeds,
     })
 }
@@ -489,7 +536,7 @@ pub fn assemble_level_view(
         }
         ProjectionMaterial::ExactThree(value) => value,
     };
-    if projection.version != ProviderVersion::EXTENDED_TO_EXACT_THREE_V1 {
+    if projection.version != ProviderVersion::EXTENDED_TO_EXACT_THREE_V2 {
         return Err(LevelViewError::ProjectionVersionMismatch(
             projection.version,
         ));
@@ -887,7 +934,9 @@ mod tests {
         assert_eq!(a, b);
         assert!(a.as_str().contains("dir=central-ggdd-v1"));
         assert!(a.as_str().contains("pair=move-block-ac-v1"));
-        assert!(a.as_str().contains("projection=extended-to-exact-three-v1"));
+        assert!(a
+            .as_str()
+            .contains("projection=extended-to-exact-three-v2-inherited-core"));
         let stream_a = C2PersistenceKey::from_query(&q).unwrap();
         let mut later = q;
         later.as_of += 1;

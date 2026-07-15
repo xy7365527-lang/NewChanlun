@@ -189,7 +189,7 @@ mod tests {
     use super::super::decompose::{MoveBlock, MoveStatus};
     use super::super::level_view::{
         project_extended_windows, AssembledMove, C2CacheKey, C2VersionTuple, CompletionEvidence,
-        DivergencePairId, ExactThreeSeed, LevelViewQuery, ProviderVersion,
+        DivergencePairId, ExactThreeSeed, LevelViewQuery, ProviderVersion, SeedCoreProvenance,
     };
     use super::super::recursive_tower::LeveledMove;
     use super::*;
@@ -216,6 +216,7 @@ mod tests {
             start_index: start,
             end_index: end,
             center: center(start, end),
+            core_provenance: SeedCoreProvenance::SelfConsistent,
         }
     }
 
@@ -303,7 +304,7 @@ mod tests {
         );
         assert_eq!(
             version.projection_provider_version,
-            Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V1)
+            Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V2)
         );
         assert!(version.validate().is_ok());
     }

@@ -73,6 +73,12 @@ impl ProjectionFailures {
             ProjectionError::InvalidLowerLeg { .. } => {
                 return Err("单窗口 D1 投影意外返回 InvalidLowerLeg".to_string())
             }
+            ProjectionError::MissingCarriedCenter { .. } => {
+                return Err(
+                    "单窗口 D1 投影意外返回 MissingCarriedCenter（#90：塔应逐窗携带核）"
+                        .to_string(),
+                )
+            }
         }
         Ok(())
     }

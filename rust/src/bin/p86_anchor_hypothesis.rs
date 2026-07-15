@@ -17,7 +17,7 @@ use newchan_rust::theta_v0::classifier::level_view::{
     assemble_level_view, lower_legs_from, project_extended_windows, C2LevelViewConfig,
     C2VersionTuple, CompletionStatus, CoordinateWindow, ExactThreeProjection, ExactThreeSeed,
     LevelViewMaterial, LevelViewQuery, LowerLeg, PendingReason, ProjectionError,
-    ProjectionMaterial, ProviderVersion,
+    ProjectionMaterial, ProviderVersion, SeedCoreProvenance,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::{
     compose_level, map_src_to_close_idx, project_to_units, ElementId, LeveledMove,
@@ -605,6 +605,9 @@ fn project(
             start_index: a.start_index,
             end_index: c.end_index,
             center,
+            // 审计工具按 offset 自核构造；start==0 时与生产 seed 比对——若生产侧因
+            // 继承核改写（InheritedRecut）而不等，按原逻辑记 InvalidSeed 显式暴露。
+            core_provenance: SeedCoreProvenance::SelfConsistent,
         };
         if start == 0 {
             let production = project_extended_windows(std::slice::from_ref(window))?;
