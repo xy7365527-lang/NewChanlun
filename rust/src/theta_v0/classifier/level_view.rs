@@ -4,13 +4,14 @@
 //! exact-three seed；D2 只消费 D3 已结裁的 `MoveBlock.dir: Option<Direction>`。四个旧 seam
 //! provider 不在本模块出现，方向版本唯一绑定 `central-ggdd-v1`。
 
-use super::super::types::{Center, Direction, MoveKind, Segment, Tick};
+use super::super::types::{Center, Direction, MoveKind, Segment, Side, Tick};
 use super::center::{center_from_segments, center_from_window, UnitRange};
-use super::decompose::{MoveBlock, MoveStatus};
+use super::decompose::{center_block_kind, MoveBlock, MoveStatus};
 use super::divergence::{
     departure_move_c_start, locate_departure_move_a, segments_diverge, self_anchors,
 };
 use super::recursive_tower::{map_src_to_close_idx, ElementId, LeveledMove};
+use super::signal::{locate_pan_div_structure, nearest_confirmed_center_idx, pan_div_structure_extreme};
 use std::collections::BTreeSet;
 
 /// #73-#75 独立激活门。默认关闭，现有分类/交易路径不调用本 seam。
@@ -395,6 +396,196 @@ pub struct DivergencePair {
     pub move_start: usize,
     pub seg_a: (usize, usize),
     pub seg_c: (usize, usize),
+}
+
+/// #92 新路径的背驰段类型。盘整背驰保留独立类型，不冒充同级 B1/S1。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NestDivergenceKind {
+    Trend,
+    Consolidation,
+}
+
+/// #92 `NestCertificate` 的 typed provider 事件。
+///
+/// `Cand` 已由 provider 固定为 `dir ∧ Comparable ∧ Extreme`；`divergence_confirmed`
+/// 是独立的②力度层真值，不进入 Cand。`interval_b` 是生产判据使用的完整背驰段 C；
+/// `interval_a` 仅供 leave→retest 旧口径并行诊断。`judge_at` 由 prefix 首次观察写入，
+/// 不读取 `CompletedFreezeEvent.created_at` 或挂钟。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestCandidateEvent {
+    pub level: u32,
+    pub side: Side,
+    pub kind: NestDivergenceKind,
+    pub seg_a: (usize, usize),
+    pub interval_b: (usize, usize),
+    pub interval_a: (usize, usize),
+    pub divergence_confirmed: bool,
+    pub turn_source: usize,
+    pub judge_at: usize,
+    /// provider 合法 run 的源坐标窗；只用于 prefix replay 精确路由，不进入 N 真值。
+    pub provider_window: (usize, usize),
+}
+
+fn range_envelope(segments: &[Segment], span: (usize, usize)) -> Option<(Tick, Tick)> {
+    segments
+        .iter()
+        .filter(|segment| segment.start_index >= span.0 && segment.end_index <= span.1)
+        .fold(None, |acc, segment| {
+            let lo = segment.start_price.min(segment.end_price);
+            let hi = segment.start_price.max(segment.end_price);
+            Some(match acc {
+                None => (lo, hi),
+                Some((old_lo, old_hi)) => (old_lo.min(lo), old_hi.max(hi)),
+            })
+        })
+}
+
+fn structural_block_span(projection: &ExactThreeProjection, block: &MoveBlock) -> Option<(usize, usize)> {
+    Some((
+        projection.seeds.get(block.start_center)?.start_index,
+        projection.seeds.get(block.end_center)?.end_index,
+    ))
+}
+
+fn structural_pair_span(
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    leave_index: usize,
+) -> Option<(usize, usize)> {
+    let leave = blocks.get(leave_index)?;
+    let retest = blocks.get(leave_index + 1)?;
+    if leave.status != MoveStatus::Completed || retest.status != MoveStatus::Completed {
+        return None;
+    }
+    let leave = structural_block_span(projection, leave)?;
+    let retest = structural_block_span(projection, retest)?;
+    Some((leave.0, retest.1))
+}
+
+/// #92 typed provider：把 strict C2 pair 映射为宽结构 Cand，并把力度确认留在独立字段。
+///
+/// Trend 与 Consolidation 共用同一输出类型但保留 `kind`；后者来自纯结构
+/// [`super::signal::PanDivStructure`]，不会经 `PanDivCert` 的 Weak 门提前征税。
+pub fn provide_nest_candidate_events(
+    level: u32,
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    legs: &[LowerLeg],
+    view: &LevelAsOfView,
+    hist: &[f64],
+    close_src: &[usize],
+) -> Vec<NestCandidateEvent> {
+    let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
+    let anchors_self: Vec<_> = segments.iter().map(|segment| Some(segment.direction)).collect();
+    let mut out = Vec::new();
+
+    for pair in &view.pairs {
+        let Some(leave_index) = blocks.iter().position(|block| {
+            block.start_center == pair.id.block_start_center
+                && block.end_center == pair.id.block_end_center
+                && block.kind == MoveKind::Trend
+                && block.dir == Some(pair.id.direction)
+        }) else {
+            continue;
+        };
+        let Some(interval_a) = structural_pair_span(projection, blocks, leave_index) else {
+            continue;
+        };
+        let side = match pair.id.direction {
+            Direction::Down => Side::Long,
+            Direction::Up => Side::Short,
+        };
+        let (Some(a), Some(c)) = (
+            range_envelope(&segments, pair.seg_a),
+            range_envelope(&segments, pair.seg_c),
+        ) else {
+            continue;
+        };
+        let extreme = match side {
+            Side::Long => c.0 < a.0,
+            Side::Short => c.1 > a.1,
+        };
+        if !extreme {
+            continue;
+        }
+        let divergence_confirmed = match (
+            map_src_to_close_idx(close_src, pair.seg_a.0, pair.seg_a.1),
+            map_src_to_close_idx(close_src, pair.seg_c.0, pair.seg_c.1),
+        ) {
+            (Some(a), Some(c)) => segments_diverge(hist, a, c),
+            _ => false,
+        };
+        out.push(NestCandidateEvent {
+            level,
+            side,
+            kind: NestDivergenceKind::Trend,
+            seg_a: pair.seg_a,
+            interval_b: pair.seg_c,
+            interval_a,
+            divergence_confirmed,
+            turn_source: pair.seg_c.1,
+            judge_at: view.query.as_of,
+            provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+        });
+    }
+
+    let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
+    let kinds = center_block_kind(centers.len(), blocks);
+    for segment in segments.iter().filter(|segment| segment.end_index <= view.query.as_of) {
+        let Some(center_index) = nearest_confirmed_center_idx(&centers, segment.start_index) else {
+            continue;
+        };
+        if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
+            continue;
+        }
+        let Some(structure) = locate_pan_div_structure(
+            &centers[center_index], segment, &segments, &anchors_self,
+        ) else {
+            continue;
+        };
+        if !pan_div_structure_extreme(&structure, &segments) {
+            continue;
+        }
+        let Some(leave_index) = blocks.iter().position(|block| {
+            block.kind == MoveKind::Consolidation
+                && block.start_center <= center_index
+                && block.end_center >= center_index
+        }) else {
+            continue;
+        };
+        let Some(interval_a) = structural_pair_span(projection, blocks, leave_index) else {
+            continue;
+        };
+        let divergence_confirmed = match (
+            map_src_to_close_idx(close_src, structure.seg_a.0, structure.seg_a.1),
+            map_src_to_close_idx(close_src, structure.seg_c.0, structure.seg_c.1),
+        ) {
+            (Some(a), Some(c)) => segments_diverge(hist, a, c),
+            _ => false,
+        };
+        let event = NestCandidateEvent {
+            level,
+            side: structure.side,
+            kind: NestDivergenceKind::Consolidation,
+            seg_a: structure.seg_a,
+            interval_b: structure.seg_c,
+            interval_a,
+            divergence_confirmed,
+            turn_source: structure.source_index,
+            judge_at: view.query.as_of,
+            provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+        };
+        if !out.contains(&event) {
+            out.push(event);
+        }
+    }
+    out.sort_by_key(|event| (
+        event.turn_source,
+        event.interval_b,
+        event.kind,
+        matches!(event.side, Side::Short),
+    ));
+    out
 }
 
 /// D2 provider：只读 `MoveBlock.dir`。盘整 `None` 严格产零 pair；A/C 是同趋势方向、

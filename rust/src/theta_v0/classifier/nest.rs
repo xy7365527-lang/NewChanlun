@@ -26,6 +26,7 @@
 //! canonical 分解 tie-break：最早确认时间 → 最低递归层 → 最早原始 index）。
 
 use super::super::types::{BspBits, Side};
+use super::level_view::{NestCandidateEvent, NestDivergenceKind};
 use super::recursive_tower::{cp_terminal_certificate, CandDeltaEvent, CpScanOwnership};
 
 /// 候选定位区间（契约锚 `Origin.SubLevelDescent` 下钻区间）——携带 `Sel_Θ` 排序三键。
@@ -373,6 +374,196 @@ impl NestCertificateBuilder {
             rungs: self.rungs,
         }
     }
+}
+
+/// #92 A/B 区间口径。生产路径固定用 B；A 只允许并行诊断与迁移前基线对账。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NestIntervalCaliber {
+    /// leave→retest 全跨度（诊断口径）。
+    A,
+    /// 完整背驰段 C 的结构区间（裁定生产口径）。
+    B,
+}
+
+/// #92 typed 证书：证书真值仍由 [`NestCertificate`] 单一来源复验，类型与首次可证钟
+/// 作为不可改判的 sidecar 随链保存。`kinds`/`judge_at` 均按高→低排列并包含基例。
+#[derive(Debug, Clone, PartialEq)]
+pub struct TypedNestCertificate {
+    certificate: NestCertificate,
+    kinds: Vec<NestDivergenceKind>,
+    judge_at: Vec<usize>,
+    caliber: NestIntervalCaliber,
+}
+
+impl TypedNestCertificate {
+    pub fn certificate(&self) -> &NestCertificate {
+        &self.certificate
+    }
+
+    pub fn kinds(&self) -> &[NestDivergenceKind] {
+        &self.kinds
+    }
+
+    pub fn judge_at(&self) -> &[usize] {
+        &self.judge_at
+    }
+
+    pub fn caliber(&self) -> NestIntervalCaliber {
+        self.caliber
+    }
+
+    /// D3 sidecar：父级首次可证钟应不晚于子级。这里只计数，不参与证书真值。
+    pub fn d3_descent_stats(&self) -> (usize, usize) {
+        let edges = self.judge_at.len().saturating_sub(1);
+        let violations = self.judge_at.windows(2).filter(|pair| pair[0] > pair[1]).count();
+        (edges, violations)
+    }
+}
+
+fn typed_interval(event: &NestCandidateEvent, caliber: NestIntervalCaliber) -> NestInterval {
+    let (start, end) = match caliber {
+        NestIntervalCaliber::A => event.interval_a,
+        NestIntervalCaliber::B => event.interval_b,
+    };
+    NestInterval {
+        start_time: start as u64,
+        end_time: end as u64,
+        idx: event.turn_source as u64,
+    }
+}
+
+/// #92 单基例 typed 装配。
+///
+/// Cand 由 [`NestCandidateEvent`] 的 provider 构造即真；力度在
+/// `divergence_confirmed` 独立合取。Trend/Pan 共用几何递归但保留 typed sidecar。
+/// `judge_at` 只登记 D3 违反率，绝不作硬门。
+pub fn assemble_typed_certificate<F>(
+    events_by_level: &[Vec<NestCandidateEvent>],
+    base: &NestCandidateEvent,
+    top_level: usize,
+    caliber: NestIntervalCaliber,
+    terminal_of: &F,
+) -> Option<TypedNestCertificate>
+where
+    F: Fn(&NestCandidateEvent) -> Option<BspBits>,
+{
+    let exec_level = base.level as usize;
+    if top_level < exec_level || !base.divergence_confirmed {
+        return None;
+    }
+    let terminal = terminal_of(base)?;
+    if !terminal.confirm_side(base.side) {
+        return None;
+    }
+    let base_interval = typed_interval(base, caliber);
+    let mut rungs_low_to_high = Vec::with_capacity(top_level - exec_level);
+    let mut kinds_low_to_high = vec![base.kind];
+    let mut clocks_low_to_high = vec![base.judge_at];
+    if !extend_typed_upward(
+        events_by_level,
+        base.side,
+        exec_level + 1,
+        top_level,
+        caliber,
+        &base_interval,
+        &mut rungs_low_to_high,
+        &mut kinds_low_to_high,
+        &mut clocks_low_to_high,
+    ) {
+        return None;
+    }
+    rungs_low_to_high.reverse();
+    kinds_low_to_high.reverse();
+    clocks_low_to_high.reverse();
+    let certificate = NestCertificateBuilder {
+        side: base.side,
+        terminal,
+        base_confirm_src: Some(base.judge_at),
+        base_interval,
+        rungs: rungs_low_to_high,
+    }
+    .finish();
+    debug_assert!(certificate.n_delta());
+    Some(TypedNestCertificate {
+        certificate,
+        kinds: kinds_low_to_high,
+        judge_at: clocks_low_to_high,
+        caliber,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn extend_typed_upward(
+    events_by_level: &[Vec<NestCandidateEvent>],
+    side: Side,
+    level: usize,
+    top_level: usize,
+    caliber: NestIntervalCaliber,
+    child: &NestInterval,
+    rungs: &mut Vec<NestRung>,
+    kinds: &mut Vec<NestDivergenceKind>,
+    clocks: &mut Vec<usize>,
+) -> bool {
+    if level > top_level {
+        return true;
+    }
+    let Some(events) = events_by_level.get(level) else {
+        return false;
+    };
+    let mut order: Vec<_> = (0..events.len()).collect();
+    order.sort_by_key(|&index| {
+        let event = &events[index];
+        (typed_interval(event, caliber).sel_key(), event.turn_source, index)
+    });
+    for index in order {
+        let event = &events[index];
+        if event.side != side || !event.divergence_confirmed {
+            continue;
+        }
+        let parent = typed_interval(event, caliber);
+        if !is_sub(child, &parent) {
+            continue;
+        }
+        rungs.push(NestRung::assembled(event.judge_at, *child, parent, true));
+        kinds.push(event.kind);
+        clocks.push(event.judge_at);
+        if extend_typed_upward(
+            events_by_level,
+            side,
+            level + 1,
+            top_level,
+            caliber,
+            &parent,
+            rungs,
+            kinds,
+            clocks,
+        ) {
+            return true;
+        }
+        rungs.pop();
+        kinds.pop();
+        clocks.pop();
+    }
+    false
+}
+
+/// #92 批量 typed 装配。候选与终端确认的计数由调用方独立统计；本函数只返回完整证书。
+pub fn assemble_typed_certificates<F>(
+    events_by_level: &[Vec<NestCandidateEvent>],
+    exec_level: usize,
+    top_level: usize,
+    caliber: NestIntervalCaliber,
+    terminal_of: F,
+) -> Vec<TypedNestCertificate>
+where
+    F: Fn(&NestCandidateEvent) -> Option<BspBits>,
+{
+    let Some(bases) = events_by_level.get(exec_level) else {
+        return Vec::new();
+    };
+    bases.iter().filter_map(|base| {
+        assemble_typed_certificate(events_by_level, base, top_level, caliber, &terminal_of)
+    }).collect()
 }
 
 // ═════════ P2 证书生产装配层（strict-nesting-divergence-plan-20260708 §P2）═════════
@@ -1235,5 +1426,87 @@ mod tests {
         });
         assert_eq!(certs.len(), 1);
         assert_eq!(certs[0].base_interval, interval(60, 20, 0));
+    }
+
+    fn typed_event(
+        level: u32,
+        side: Side,
+        kind: NestDivergenceKind,
+        interval_b: (usize, usize),
+        interval_a: (usize, usize),
+        turn_source: usize,
+        judge_at: usize,
+        divergence_confirmed: bool,
+    ) -> NestCandidateEvent {
+        NestCandidateEvent {
+            level,
+            side,
+            kind,
+            seg_a: interval_b,
+            interval_b,
+            interval_a,
+            divergence_confirmed,
+            turn_source,
+            judge_at,
+            provider_window: interval_a,
+        }
+    }
+
+    #[test]
+    fn p92_typed_b_uses_c_interval_and_d3_is_sidecar_only() {
+        let base = typed_event(
+            1, Side::Long, NestDivergenceKind::Trend,
+            (30, 50), (10, 70), 50, 100, true,
+        );
+        let parent = typed_event(
+            2, Side::Long, NestDivergenceKind::Consolidation,
+            (20, 80), (0, 100), 80, 200, true,
+        );
+        let events = vec![Vec::new(), vec![base.clone()], vec![parent]];
+        let certificate = assemble_typed_certificate(
+            &events, &base, 2, NestIntervalCaliber::B, &|_| Some(buy1_bits()),
+        ).expect("B: child C [30,50] ⊆ parent C [20,80]");
+        assert_eq!(certificate.certificate().base_interval(), interval(50, 30, 50));
+        assert_eq!(
+            certificate.kinds(),
+            &[NestDivergenceKind::Consolidation, NestDivergenceKind::Trend]
+        );
+        assert_eq!(
+            certificate.d3_descent_stats(), (1, 1),
+            "逆序只计 sidecar，不否决证书"
+        );
+        assert!(certificate.certificate().n_delta());
+    }
+
+    #[test]
+    fn p92_typed_weak_stage_and_terminal_bits_remain_independent() {
+        let pan = typed_event(
+            1, Side::Long, NestDivergenceKind::Consolidation,
+            (30, 50), (10, 70), 50, 100, false,
+        );
+        let events = vec![Vec::new(), vec![pan.clone()]];
+        assert!(
+            assemble_typed_certificate(
+                &events, &pan, 1, NestIntervalCaliber::B, &|_| Some(buy1_bits()),
+            ).is_none(),
+            "力度未确认不产背驰段证书，但不改变上游 Cand 身份"
+        );
+
+        let confirmed = NestCandidateEvent { divergence_confirmed: true, ..pan };
+        let events = vec![Vec::new(), vec![confirmed.clone()]];
+        assert!(
+            assemble_typed_certificate(
+                &events, &confirmed, 1, NestIntervalCaliber::B, &|_| Some(BspBits::default()),
+            ).is_none(),
+            "盘背不得强置同级 B1；终端仍须真实 Λ 非空"
+        );
+        let mut buy2 = BspBits::default();
+        buy2.buy2 = true;
+        assert!(
+            assemble_typed_certificate(
+                &events, &confirmed, 1, NestIntervalCaliber::B, &|_| Some(buy2),
+            ).is_some(),
+            "真实 B2 可满足既有 confirm_side 析取"
+        );
     }
 }

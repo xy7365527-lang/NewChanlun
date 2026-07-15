@@ -550,6 +550,108 @@ pub struct PanDivCert {
     pub seg_c: (usize, usize),
 }
 
+/// 盘整背驰的纯结构 A/C 载体。
+///
+/// 与 [`PanDivCert`] 的边界刻意分开：本载体只证明同一盘整中枢内存在两次同向离开，
+/// 并给出方向与 A/C 区间；它不消费 MACD 力度，也不置任何买卖点 bit。#92 的
+/// `Cand = dir ∧ Comparable ∧ Extreme` provider 在此载体上另判 Extreme，力度判据仍留在
+/// 背驰段确认层。旧 [`judge_pan_div`] 继续用同一结构定位后再判 Weak，行为不变。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PanDivStructure {
+    pub source_index: usize,
+    pub side: Side,
+    pub center: Center,
+    pub seg_a: (usize, usize),
+    pub seg_c: (usize, usize),
+}
+
+/// 只定位盘整 A/C 结构，不消费力度。
+///
+/// 调用前提与 [`judge_pan_div`] 相同。返回 Some 只表示方向与 Comparable 成立；#92 provider
+/// 还必须调用 [`pan_div_structure_extreme`]，不得把本函数的 Some 直接命名为 Cand。
+pub(crate) fn locate_pan_div_structure(
+    c: &Center,
+    seg: &Segment,
+    segments: &[Segment],
+    anchors_self: &[Option<Direction>],
+) -> Option<PanDivStructure> {
+    let end = seg_end(seg);
+    let side = match end.dir {
+        Direction::Down if end.price < c.zd => Side::Long,
+        Direction::Up if end.price > c.zg => Side::Short,
+        _ => return None,
+    };
+    let dir = end.dir;
+    let lo = segments.partition_point(|s| s.start_index < c.end_index);
+    let hi = segments.partition_point(|s| s.start_index <= seg.start_index);
+    let win = &segments[lo..hi];
+    let reenters = |s: &Segment| {
+        s.direction != dir
+            && match dir {
+                Direction::Down => s.end_price >= c.zd,
+                Direction::Up => s.end_price <= c.zg,
+            }
+    };
+    win.iter().rev().filter(|s| s.end_index <= seg.start_index).find(|s| reenters(s))?;
+    let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
+    let a_anchor = win
+        .iter()
+        .rev()
+        .filter(|s| s.direction == dir && s.end_index <= lambda_c)
+        .find(|s| match dir {
+            Direction::Down => s.end_price < c.zd,
+            Direction::Up => s.end_price > c.zg,
+        })?;
+    if !win
+        .iter()
+        .any(|s| reenters(s) && s.start_index >= a_anchor.end_index && s.end_index <= lambda_c)
+    {
+        return None;
+    }
+    let lambda_a = departure_move_c_start(segments, anchors_self, c, dir, a_anchor.start_index)?;
+    let episode_end = win
+        .iter()
+        .find(|s| reenters(s) && s.start_index >= a_anchor.end_index)
+        .map_or(lambda_c, |r| r.start_index);
+    let rho_a = win
+        .iter()
+        .rev()
+        .filter(|s| s.direction == dir && s.start_index >= lambda_a && s.end_index <= episode_end)
+        .map(|s| s.end_index)
+        .next()?;
+    Some(PanDivStructure {
+        source_index: end.source_index,
+        side,
+        center: *c,
+        seg_a: (lambda_a, rho_a),
+        seg_c: (lambda_c, seg.end_index),
+    })
+}
+
+/// #92 Cand 的 Extreme 分量；不消费 MACD 力度。
+pub(crate) fn pan_div_structure_extreme(structure: &PanDivStructure, segments: &[Segment]) -> bool {
+    let envelope = |span: (usize, usize)| {
+        segments
+            .iter()
+            .filter(|segment| segment.start_index >= span.0 && segment.end_index <= span.1)
+            .fold(None, |acc: Option<(Tick, Tick)>, segment| {
+                let lo = segment.start_price.min(segment.end_price);
+                let hi = segment.start_price.max(segment.end_price);
+                Some(match acc {
+                    None => (lo, hi),
+                    Some((old_lo, old_hi)) => (old_lo.min(lo), old_hi.max(hi)),
+                })
+            })
+    };
+    let (Some(a), Some(c)) = (envelope(structure.seg_a), envelope(structure.seg_c)) else {
+        return false;
+    };
+    match structure.side {
+        Side::Long => c.0 < a.0,
+        Side::Short => c.1 > a.1,
+    }
+}
+
 /// 盘整背驰判定（Q4，[`PanDivCert`] 的唯一构造点）。
 ///
 /// 前提（调用方保证）：`c` 是 `seg` 的最近已确认中枢，且 c 按 ownership 落在 **Consolidation 块**
@@ -572,67 +674,9 @@ pub(crate) fn judge_pan_div(
     hist: &[f64],
     src_to_idx: &[usize],
 ) -> Option<PanDivCert> {
-    let end = seg_end(seg);
-    // 1. 破中枢核心（因果触发点 = 破段端点）。
-    let side = match end.dir {
-        Direction::Down if end.price < c.zd => Side::Long,
-        Direction::Up if end.price > c.zg => Side::Short,
-        _ => return None, // 未破核心 ⟹ 非离开确认 ⟹ 无盘整背驰候选。
-    };
-    let dir = end.dir;
-    // 窗口：与 seg 同归属本中枢的段（start_index ∈ [c.end_index, seg.start_index]，升序切片）。
-    let lo = segments.partition_point(|s| s.start_index < c.end_index);
-    let hi = segments.partition_point(|s| s.start_index <= seg.start_index);
-    let win = &segments[lo..hi];
-    // 回中枢段判据：反向段端点回到核心内侧（Down 破侧 ≥ zd / Up 破侧 ≤ zg——两次离开之间价格
-    // 须回到中枢，否则是同一次离开的内部反弹）。
-    let reenters = |s: &Segment| {
-        s.direction != dir
-            && match dir {
-                Direction::Down => s.end_price >= c.zd,
-                Direction::Up => s.end_price <= c.zg,
-            }
-    };
-    // 2. 存在回中枢段（当前离开 episode 与前次离开的分界）。无 ⟹ 仅一次离开 ⟹ None。episode
-    //    边界本身由共享 helper（departure_move_c_start → episode_start_in）内部定位同一段。
-    win.iter().rev().filter(|s| s.end_index <= seg.start_index).find(|s| reenters(s))?;
-    // λ_C = r 之后首个同向段起点（[`departure_move_c_start`] 单一来源；r = 窗口内最后回中枢段 ⟹
-    // helper 的 episode 边界与 r 相同；seg 自身满足过滤 ⟹ 必 Some）。
-    let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
-    // 3. A = 同一中枢的**前一次同向离开 episode 区间**（Q5 区间口径，codex ac4 复审：A 侧与 C 侧
-    //    对称 episode 化，不再只取末段）。锚 = λ_C 之前端点破核心的末个同向段（存在性 = 前次离开
-    //    确认）；I(A) = [λ_A, ρ_A]——λ_A 经共享 helper（锚所在 episode 起点），ρ_A = episode 内
-    //    （首个后续回中枢段之前）末个同向段终点。
-    let a_anchor = win
-        .iter()
-        .rev()
-        .filter(|s| s.direction == dir && s.end_index <= lambda_c)
-        .find(|s| match dir {
-            Direction::Down => s.end_price < c.zd,
-            Direction::Up => s.end_price > c.zg,
-        })?;
-    // A 与 C 之间存在回中枢段（显式区间检查：锚后 ≤ 回段 ≤ λ_C——否则 A 与 C 是同一次离开）。
-    if !win
-        .iter()
-        .any(|s| reenters(s) && s.start_index >= a_anchor.end_index && s.end_index <= lambda_c)
-    {
-        return None;
-    }
-    let lambda_a = departure_move_c_start(segments, anchors_self, c, dir, a_anchor.start_index)?;
-    // episode 终界 = 锚后首个回中枢段起点（分隔段，上一检查保证存在；fallback λ_C 防御性等价）。
-    let episode_end = win
-        .iter()
-        .find(|s| reenters(s) && s.start_index >= a_anchor.end_index)
-        .map_or(lambda_c, |r| r.start_index);
-    // ρ_A = episode 内末个同向段终点（多段前次离开含中间未回核心的反向段 bar，与趋势侧 A 同口径）。
-    let rho_a = win
-        .iter()
-        .rev()
-        .filter(|s| s.direction == dir && s.start_index >= lambda_a && s.end_index <= episode_end)
-        .map(|s| s.end_index)
-        .next()?;
+    let structure = locate_pan_div_structure(c, seg, segments, anchors_self)?;
     // 4. Weak：MACD 面积 C < A（同 buy1 冻结原语；is_trend=false = 盘整背驰语义）。
-    let (c_span, a_span) = ((lambda_c, seg.end_index), (lambda_a, rho_a));
+    let (c_span, a_span) = (structure.seg_c, structure.seg_a);
     let (Some(c_idx), Some(a_idx)) = (
         map_src_range_to_close_idx(src_to_idx, c_span.0, c_span.1),
         map_src_range_to_close_idx(src_to_idx, a_span.0, a_span.1),
@@ -643,7 +687,13 @@ pub(crate) fn judge_pan_div(
     if !abc.diverges(hist, a_idx, c_idx) {
         return None; // C ≥ A ⟹ 力度未衰减 ⟹ 非盘整背驰。
     }
-    Some(PanDivCert { source_index: end.source_index, side, center: *c, seg_a: a_span, seg_c: c_span })
+    Some(PanDivCert {
+        source_index: structure.source_index,
+        side: structure.side,
+        center: structure.center,
+        seg_a: a_span,
+        seg_c: c_span,
+    })
 }
 
 /// 第二类买卖点提取（递归组装层入口，契约锚 `Origin.RMoveCompose.SecondTypeStructure` +

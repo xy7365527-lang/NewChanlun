@@ -932,6 +932,14 @@ impl TowerCache {
         self.forest_epoch
     }
 
+    /// #92 因果 prefix provider 的只读 MACD/坐标快照。
+    ///
+    /// 两个切片与当前 [`classify_with_tower_incremental`] 返回值同源、同 prefix；调用方只读，
+    /// 不得跨下一次增量调用持有。该入口避免 replay 从终态序列回填或另跑第二套 MACD。
+    pub fn causal_series(&self) -> (&[f64], &[usize]) {
+        (&self.macd_hist, &self.close_src)
+    }
+
     /// 当前增量产出的 MACD dif 前缀（黄白线，force_state 生产热路由输入；bit-exact 等价全量
     /// `compute_macd(closes).dif`）。与 [`Self::macd_hist_for_test`] 逐 bar 锁步、等长。
     pub fn macd_dif(&self) -> &[f64] {
