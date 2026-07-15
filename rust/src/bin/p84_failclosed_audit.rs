@@ -339,6 +339,11 @@ fn audit_level(
                 Err(ProjectionError::InvalidLowerLeg { .. }) => {
                     return Err(format!("L{level} 单窗口意外返回 InvalidLowerLeg"));
                 }
+                Err(ProjectionError::MissingCarriedCenter { .. }) => {
+                    return Err(format!(
+                        "L{level} 单窗口意外返回 MissingCarriedCenter（#90：塔应逐窗携带核）"
+                    ));
+                }
             }
         } else {
             false
