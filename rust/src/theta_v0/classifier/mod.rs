@@ -76,6 +76,9 @@ pub mod voice_eat;
 pub mod cand_predicate;
 /// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
 pub mod level_view;
+/// D7 firstRetrace 只读复核：严格 CompletedMove pair 映射与对象重启事件语义。
+/// 不接生产订单路径；只消费 C2 view，默认关闭的 seam 不受影响。
+pub mod first_retrace_replay;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;
 
