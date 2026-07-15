@@ -1261,7 +1261,10 @@ where
                 risk_mode: tw_risk_mode,
                 shortdiff_leg_ids: &shortdiff_ids,
             };
-            let (next_active, _p_star, order, step_trace) = coverage::pi_theta_step_traced(
+            // #80 DA-Q2：runner 当前没有独立协议 provider 时也必须显式给出 Hold，禁止 Option/缺省。
+            // 后继 Completed 中枢/Type3/走势完成 provider 可在同一集合上按成熟度并入，不触碰订单轨。
+            let protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
+            let (next_active, _p_star, (order, _protocol_event), step_trace) = coverage::pi_theta_step_traced(
                 step_work,
                 &step_gamma_trade,
                 &prev_active,
@@ -1274,6 +1277,7 @@ where
                 &config.voice,
                 &registry,
                 Some(&twc),
+                &protocol_events,
             );
             // ── ★M5 overlay 簿步进（多空对冲.pdf p16 关卡10）：sep_legs=P^sep_{t+1} 目标 → hedge-mode
             //    逐声部账本 → ΔN 订单 + 逐声部 pnl_v 累计。只读旁路（不改净额 fill 的 cash/units/

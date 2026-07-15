@@ -56,7 +56,13 @@ use super::super::closed_loop::transition::stage_progression;
 use super::intent::{lex_argmin, lex_argmin_top_k, JThetaKey, LexCandidate};
 use super::interp::{self, ActiveLeg, Buckets, Candidate};
 use super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
+use super::protocol::{ProtocolEvent, ProtocolEventSet};
 use super::voice::{depth_weight, VoiceSide};
+
+/// DA-Q2 订单轨决策类型（保持既有 `Order` 逐字段语义）。
+pub type OrderDecision = Order;
+/// π_Θ 双轨积类型：订单 P1..P10 × 独立协议事件。
+pub type PiThetaDecision = (OrderDecision, ProtocolEvent);
 
 // ════════════════════════════════════════════════════════════════════════════
 //  AncOK L2 探针（697 号 ceiling 暴露面度量）——thread_local 计数器
@@ -2755,8 +2761,9 @@ pub fn pi_theta_step(
     risk: &RiskConfig,
     weights: PiThetaWeights,
     gate: KThetaRiskGate, // 𝒦_Θ 风控约束门（close_pred 折入；全开=open()）
+    protocol: &ProtocolEventSet,
     registry: &super::persistent::PersistentRegistry,
-) -> (Vec<ActiveLeg>, f64, Order) {
+) -> (Vec<ActiveLeg>, f64, PiThetaDecision) {
     // 环5+6：买卖点 Γ 入场 → A_{t+1} + p̃（GAP-5：入场源 = BspPoint.source_index 买卖点）。
     // 执行层 σ_p=父容器方向（639；coverage_step_classification 内 assemble_gamma_with_tower 喂因果塔）。
     let (next_active, p_tilde) =
@@ -2764,7 +2771,7 @@ pub fn pi_theta_step(
     // 环7：p* = LexArgmin J_x（𝒦_Θ，风控门收窄）→ O = Schedule_Θ(p*−p_t)（单一决策出口 §16）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
     let order = schedule_order(p_star, p_t, exec_index);
-    (next_active, p_star, order)
+    (next_active, p_star, (order, protocol.selected()))
 }
 
 /// **工位 K 性能：`pi_theta_step` 用预建 `(elements, candidate_start, gamma)`**（bit-exact ==
@@ -2785,13 +2792,15 @@ pub(crate) fn pi_theta_step_prebuilt(
     weights: PiThetaWeights,
     gate: KThetaRiskGate,
     config: &VoiceConfig,
+    protocol: &ProtocolEventSet,
     registry: &super::persistent::PersistentRegistry,
-) -> (Vec<ActiveLeg>, f64, Order) {
-    let (next_active, p_star, order, _trace) = pi_theta_step_traced(
+) -> (Vec<ActiveLeg>, f64, PiThetaDecision) {
+    let (next_active, p_star, decision, _trace) = pi_theta_step_traced(
         work, gamma, prev_active, p_t, exec_index, base_units, risk, weights, gate, config, registry,
         None, // 旧调用方无 TW 源：P2/P3/P4 不评估（bit-exact 原路径）
+        protocol,
     );
-    (next_active, p_star, order)
+    (next_active, p_star, decision)
 }
 
 /// G4 typed exit 组合层 trace（#134，裁定4 I_Θ 组合层雏形——G5 #124 升级 I_Θ 时在此层加
@@ -2876,7 +2885,10 @@ pub(crate) fn pi_theta_step_traced(
     config: &VoiceConfig,
     registry: &super::persistent::PersistentRegistry,
     tw: Option<&TwStepCtx>,
-) -> (Vec<ActiveLeg>, f64, Order, StepTrace) {
+    protocol: &ProtocolEventSet,
+) -> (Vec<ActiveLeg>, f64, PiThetaDecision, StepTrace) {
+    // 协议轨只读折叠，与下方 P1..P10 订单轨正交；所有 return 分支携同一显式事件。
+    let protocol_event = protocol.selected();
     // P1 强平（PDF §7 全互斥 C_1=P_1 屏蔽 P2..P10）：force_flat ⟹ 活动腿全部 RiskExit 清空、无开仓、
     // 目标 flat。**在 interpret/coverage_step 上游短路**——open 桶不进 next_active（幽灵腿堵口 §6.7）、
     // held 逐条 RiskExit 经 StepTrace 外化（G4 预留通道兑现）。触发不依赖候选集非空（gamma 空也清仓，
@@ -2889,7 +2901,7 @@ pub(crate) fn pi_theta_step_traced(
         return (
             Vec::new(),
             p_star,
-            order,
+            (order, protocol_event),
             StepTrace { risk_exits: prev_active.to_vec(), ..Default::default() },
         );
     }
@@ -2933,7 +2945,7 @@ pub(crate) fn pi_theta_step_traced(
                 return (
                     next_active,
                     p_star,
-                    order,
+                    (order, protocol_event),
                     StepTrace { overlay_closes: overlay, silent_drops, sep_legs, ..Default::default() },
                 );
             }
@@ -2963,7 +2975,7 @@ pub(crate) fn pi_theta_step_traced(
             return (
                 next_active,
                 p_star,
-                order,
+                (order, protocol_event),
                 StepTrace { tw_event: Some(ev), silent_drops, sep_legs, ..Default::default() },
             );
         }
@@ -3012,7 +3024,12 @@ pub(crate) fn pi_theta_step_traced(
         lex_argmin_top_k(&feasible_lex_candidates(p_tilde, p_t, base_units, risk, weights, gate), 3)
     };
 
-    (next_active, p_star, order, StepTrace { closed, silent_drops, opened, sep_legs, lex_top3, ..Default::default() })
+    (
+        next_active,
+        p_star,
+        (order, protocol_event),
+        StepTrace { closed, silent_drops, opened, sep_legs, lex_top3, ..Default::default() },
+    )
 }
 
 #[cfg(test)]
@@ -3024,6 +3041,10 @@ mod tests {
 
     fn cfg() -> VoiceConfig {
         VoiceConfig::default() // max_depth=3, depth_weights=[0.60,0.30,0.10]
+    }
+
+    fn protocol_hold() -> ProtocolEventSet {
+        ProtocolEventSet::hold(0)
     }
 
     /// ★O(n) 重构测试适配：把 `Vec<Vec<LeveledMove>>` 字面量塔逐级包 `Rc`（生产塔现为
@@ -4849,9 +4870,9 @@ mod tests {
             levels: vec![LevelState { bsp: Rc::new(vec![bsp]), ..Default::default() }],
         };
         let r = rcfg();
-        let (active, p_star, order) = pi_theta_step(
+        let (active, p_star, (order, protocol_event)) = pi_theta_step(
             &classification, &[], &[], 0.0, 5, 1000.0, &cfg(), &r, PiThetaWeights::from_risk(&r),
-            KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new(),
+            KThetaRiskGate::open(), &protocol_hold(), &super::super::persistent::PersistentRegistry::new(),
         );
         // GAP-5：活动腿 source_index = BspPoint.source_index = 4（买卖点，非 LeveledMove.start_index）。
         assert_eq!(active.len(), 1);
@@ -4859,6 +4880,7 @@ mod tests {
         assert_eq!(active[0].dir, VoiceSide::Long);
         assert!((p_star - 600.0).abs() < 1e-9, "p̃=600 cap 内 ⟹ p*=600");
         assert_eq!((order.action, order.qty, order.exec_index), (StrictAction::Buy, 600, 5));
+        assert_eq!(protocol_event, ProtocolEvent::hold(0), "无协议证据也显式输出 Hold");
     }
 
     /// ★G4 组合层 [`StepTrace`]：opened=准入信号腿；traced 决策三分量 == prebuilt（委托 bit-exact 见证）。
@@ -4885,6 +4907,7 @@ mod tests {
         let work_t = ElementView::from_parts(&tree, candidates.clone());
         let (na_t, ps_t, o_t, trace) = pi_theta_step_traced(
             work_t, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg, None,
+            &protocol_hold(),
         );
         // opened：唯一买点候选准入为信号腿（空 A_t ⟹ closed/silent 必空）。
         assert_eq!(trace.opened.len(), 1, "买点候选准入 ⟹ opened 恰一条");
@@ -4894,7 +4917,8 @@ mod tests {
         // 委托 bit-exact：prebuilt 决策三分量 == traced。
         let work_p = ElementView::from_parts(&tree, candidates);
         let (na_p, ps_p, o_p) = pi_theta_step_prebuilt(
-            work_p, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
+            work_p, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(),
+            &protocol_hold(), &reg,
         );
         assert_eq!(na_t, na_p);
         assert_eq!(ps_t, ps_p);
@@ -4927,6 +4951,7 @@ mod tests {
         let held = aleg(0, VoiceSide::Long, 0, 0);
         let (next_active, _ps, _o, trace) = pi_theta_step_traced(
             work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg, None,
+            &protocol_hold(),
         );
         assert_eq!(trace.closed.len(), 1, "反向卖候选关闭持仓 Long 腿");
         let (leg, trig) = &trace.closed[0];
@@ -4962,8 +4987,9 @@ mod tests {
         let work = ElementView::from_parts(&tree, candidates);
         let held = aleg(0, VoiceSide::Long, 0, 0);
         let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
-        let (next_active, p_star, _order, trace) = pi_theta_step_traced(
+        let (next_active, p_star, _decision, trace) = pi_theta_step_traced(
             work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, flat, &cfg(), &reg, None,
+            &protocol_hold(),
         );
         assert!(next_active.is_empty(), "P1 强平 ⟹ next_active=∅（open 不入账 = 幽灵腿堵口）");
         assert_eq!(trace.risk_exits.len(), 1, "prev_active 全部 RiskExit（无触发候选）");
@@ -5027,9 +5053,10 @@ mod tests {
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &sd_ids,
         };
-        let (next_active, _ps, order_p2, trace) = pi_theta_step_traced(
+        let (next_active, _ps, (order_p2, _), trace) = pi_theta_step_traced(
             work, &gamma, &[sd_leg, root_leg], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+            &protocol_hold(),
         );
         assert_eq!(trace.overlay_closes.len(), 1, "P2 关重叠腿恰一条");
         assert_eq!(trace.overlay_closes[0].id, sd_leg.id);
@@ -5040,9 +5067,10 @@ mod tests {
         // ★A' 清单⑤（masking 真改订单流）：同输入 tw=None 走普通路径（买候选开仓 + 无 overlay
         // 关腿）⟹ Order 与 P2 路径**不同**——P2 直接产订单是 #135 重跑清单的第一类 bit-exact 风险。
         let work_none = ElementView::from_parts(&tree, candidates);
-        let (_na, _ps2, order_none, _tr) = pi_theta_step_traced(
+        let (_na, _ps2, (order_none, _), _tr) = pi_theta_step_traced(
             work_none, &gamma, &[sd_leg, root_leg], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, None,
+            &protocol_hold(),
         );
         assert_ne!(order_p2, order_none, "P2 CloseOverlay 真改同 bar 订单（非仅 trace 差异）");
     }
@@ -5073,9 +5101,10 @@ mod tests {
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &empty_ids,
         };
-        let (next_active, _ps, order_p3, trace) = pi_theta_step_traced(
+        let (next_active, _ps, (order_p3, _), trace) = pi_theta_step_traced(
             work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+            &protocol_hold(),
         );
         assert_eq!(
             trace.tw_event,
@@ -5089,9 +5118,10 @@ mod tests {
         // 间接改订单流」正是 codex §4 修正认定的第二类 bit-exact 风险（#135 重跑清单）。
         assert_eq!(order_p3.qty, 0, "P3 屏蔽开仓 ⟹ 本 bar 无订单量");
         let work_none = ElementView::from_parts(&tree, candidates);
-        let (_na, _ps2, order_none, _tr) = pi_theta_step_traced(
+        let (_na, _ps2, (order_none, _), _tr) = pi_theta_step_traced(
             work_none, &gamma, &[], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, None,
+            &protocol_hold(),
         );
         assert!(order_none.qty > 0, "tw=None 对照：买候选正常开仓（qty>0）");
         assert_ne!(order_p3, order_none, "P3 masking 真改同 bar 订单流");
@@ -5125,18 +5155,20 @@ mod tests {
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &empty_ids,
         };
-        let (_na, _ps, order_p4, trace) = pi_theta_step_traced(
+        let (_na, _ps, (order_p4, _), trace) = pi_theta_step_traced(
             work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+            &protocol_hold(),
         );
         assert_eq!(trace.tw_event, Some(TwEvent::EnterEarning), "P4 ⟹ EnterEarning 相变事件");
         assert!(trace.opened.is_empty(), "P4 消耗当步裁决 ⟹ 不开仓");
         // ★A' 清单⑤（P4 masking 真改订单流）：同 P3——相变事件无订单，但同 bar 普通开仓被推迟。
         assert_eq!(order_p4.qty, 0, "P4 屏蔽开仓 ⟹ 本 bar 无订单量");
         let work_none = ElementView::from_parts(&tree, candidates);
-        let (_na2, _ps2, order_none, _tr) = pi_theta_step_traced(
+        let (_na2, _ps2, (order_none, _), _tr) = pi_theta_step_traced(
             work_none, &gamma, &[], 0.0, 11, 1000.0, &r, w,
             KThetaRiskGate::open(), &cfg(), &reg, None,
+            &protocol_hold(),
         );
         assert!(order_none.qty > 0, "tw=None 对照：买候选正常开仓（qty>0）");
         assert_ne!(order_p4, order_none, "P4 masking 真改同 bar 订单流");
@@ -5171,6 +5203,7 @@ mod tests {
         let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
         let (next_active, _ps, _o, trace) = pi_theta_step_traced(
             work, &gamma, &[sd_leg], 0.0, 11, 1000.0, &r, w, flat, &cfg(), &reg, Some(&twc),
+            &protocol_hold(),
         );
         assert!(next_active.is_empty());
         assert_eq!(trace.risk_exits.len(), 1, "P1 赢：RiskExit 通道");
@@ -5200,10 +5233,12 @@ mod tests {
         let (na_a, ps_a, o_a, tr_a) = pi_theta_step_traced(
             work_a, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg,
             Some(&twc),
+            &protocol_hold(),
         );
         let work_b = ElementView::from_parts(&tree, candidates);
         let (na_b, ps_b, o_b, tr_b) = pi_theta_step_traced(
             work_b, &gamma, &[], 0.0, 5, 1000.0, &r, w, KThetaRiskGate::open(), &cfg(), &reg, None,
+            &protocol_hold(),
         );
         assert_eq!(na_a, na_b);
         assert_eq!(ps_a, ps_b);
@@ -5229,10 +5264,182 @@ mod tests {
         };
         let r = rcfg();
         let w = PiThetaWeights::from_risk(&r);
-        let a = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new());
-        let b = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new());
-        assert_eq!(a.2, b.2, "∀x ∃! O_{{t+1}}：确定唯一订单");
+        let a = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open(), &protocol_hold(), &super::super::persistent::PersistentRegistry::new());
+        let b = pi_theta_step(&classification, &[], &[], 0.0, 1, 1000.0, &cfg(), &r, w, KThetaRiskGate::open(), &protocol_hold(), &super::super::persistent::PersistentRegistry::new());
+        assert_eq!(a.2.0, b.2.0, "∀x ∃! O_{{t+1}}：确定唯一订单");
+        assert_eq!(a.2.1, b.2.1, "协议轨同样确定且显式");
         assert_eq!(a.1, b.1);
+    }
+
+    /// ★#80 DA-Q2/O-8：五个协议成熟度桶都与订单轨作积；切换协议证据不得改变同输入订单。
+    #[test]
+    fn protocol_event_does_not_reorder_p1_p10_order_track_bitexact() {
+        use super::super::protocol::{
+            CompletedCenterRef, EvidenceRef, PostTrendKey, PreTrendKey, ProtocolMaturity,
+        };
+
+        let (classification, tower) = buy_gamma();
+        let previous = Center {
+            zd: 100,
+            zg: 110,
+            dd: 90,
+            gg: 120,
+            start_index: 0,
+            end_index: 10,
+        };
+        let successor = Center {
+            zd: 130,
+            zg: 140,
+            dd: 125,
+            gg: 145,
+            start_index: 20,
+            end_index: 30,
+        };
+        let pre = PreTrendKey::new(
+            0,
+            CompletedCenterRef::from_center(&previous),
+            EvidenceRef::new(11, 0),
+            EvidenceRef::new(12, 0),
+        );
+        let post = PostTrendKey::new(
+            0,
+            CompletedCenterRef::from_center(&previous),
+            EvidenceRef::new(20, 0),
+            EvidenceRef::new(21, 0),
+        );
+        let events = [
+            ProtocolEvent::hold(0),
+            ProtocolEvent::type3_candidate(pre),
+            ProtocolEvent::completed_reentry(post),
+            ProtocolEvent::completed_move_evidence(post),
+            ProtocolEvent::settled_center_relation(0, &previous, &successor),
+        ];
+        let expected_maturity = [
+            ProtocolMaturity::Hold,
+            ProtocolMaturity::Type3Candidate,
+            ProtocolMaturity::CompletedRetraceReentry,
+            ProtocolMaturity::CompletedMoveEvidence,
+            ProtocolMaturity::SettledCenterRelation,
+        ];
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let mut baseline_order = None;
+        let mut baseline_p1_order = None;
+        for (event, maturity) in events.into_iter().zip(expected_maturity) {
+            let protocol = ProtocolEventSet::hold(0).with(event);
+            let registry = super::super::persistent::PersistentRegistry::new();
+            let (_, _, (order, emitted)) = pi_theta_step(
+                &classification,
+                &tower,
+                &[],
+                0.0,
+                5,
+                1000.0,
+                &cfg(),
+                &r,
+                w,
+                KThetaRiskGate::open(),
+                &protocol,
+                &registry,
+            );
+            assert_eq!(emitted.maturity(), maturity, "每个协议桶均有显式事件像");
+            assert_eq!(*baseline_order.get_or_insert(order), order, "协议轨不得改 P8 订单");
+
+            let force_flat = KThetaRiskGate {
+                force_flat: true,
+                stop_long: false,
+                stop_short: false,
+                no_increase_cap: None,
+            };
+            let (_, _, (p1_order, p1_emitted)) = pi_theta_step(
+                &classification,
+                &tower,
+                &[],
+                600.0,
+                5,
+                1000.0,
+                &cfg(),
+                &r,
+                w,
+                force_flat,
+                &protocol,
+                &registry,
+            );
+            assert_eq!(p1_emitted.maturity(), maturity);
+            assert_eq!(
+                *baseline_p1_order.get_or_insert(p1_order),
+                p1_order,
+                "协议轨不得改 P1 强平订单",
+            );
+        }
+        let order = baseline_order.expect("P8 基线订单");
+        assert_eq!((order.action, order.qty, order.exec_index), (StrictAction::Buy, 600, 5));
+        let p1_order = baseline_p1_order.expect("P1 基线订单");
+        assert_eq!((p1_order.action, p1_order.qty, p1_order.exec_index), (StrictAction::Close, 600, 5));
+    }
+
+    /// ★#80 L0/O-8：无方向、无候选、无订单也仍返回 `(OrderDecision, ProtocolEvent)` 的两个显式值。
+    #[test]
+    fn order_and_protocol_product_total() {
+        let classification = Classification::default();
+        let risk = rcfg();
+        let (_, p_star, (order, event)) = pi_theta_step(
+            &classification,
+            &[],
+            &[],
+            0.0,
+            17,
+            1000.0,
+            &cfg(),
+            &risk,
+            PiThetaWeights::from_risk(&risk),
+            KThetaRiskGate::open(),
+            &ProtocolEventSet::hold(0),
+            &super::super::persistent::PersistentRegistry::new(),
+        );
+        assert_eq!(p_star, 0.0, "dir=None/无候选必须有确定目标仓位");
+        assert_eq!((order.action, order.qty, order.exec_index), (StrictAction::Wait, 0, 17));
+        assert_eq!(event, ProtocolEvent::hold(0), "Hold 是显式协议像，不以 Option/缺省表达");
+    }
+
+    /// ★#80 L0/O-8：PendingRetrace 可在订单 qty=0 时独立可见，不能被订单 Hold 吞掉。
+    #[test]
+    fn zero_qty_protocol_event_remains_observable() {
+        use super::super::protocol::{CompletedCenterRef, EvidenceRef, PostTrendKey, ProtocolMaturity};
+
+        let previous = Center {
+            zd: 100,
+            zg: 110,
+            dd: 90,
+            gg: 120,
+            start_index: 0,
+            end_index: 10,
+        };
+        let post = PostTrendKey::new(
+            0,
+            CompletedCenterRef::from_center(&previous),
+            EvidenceRef::new(20, 0),
+            EvidenceRef::new(21, 0),
+        );
+        let protocol = ProtocolEventSet::hold(0).with(ProtocolEvent::completed_retrace(post));
+        let risk = rcfg();
+        let (_, _, (order, event)) = pi_theta_step(
+            &Classification::default(),
+            &[],
+            &[],
+            0.0,
+            23,
+            1000.0,
+            &cfg(),
+            &risk,
+            PiThetaWeights::from_risk(&risk),
+            KThetaRiskGate::open(),
+            &protocol,
+            &super::super::persistent::PersistentRegistry::new(),
+        );
+        assert_eq!((order.action, order.qty), (StrictAction::Wait, 0));
+        assert_eq!(event.maturity(), ProtocolMaturity::CompletedRetraceReentry);
+        assert!(event.reasons().contains(super::super::protocol::ReasonSet::COMPLETED_RETRACE));
     }
 
     /// ★Q2 close_pred 折 𝒦_Θ：force_flat ⟹ 𝒦_Θ={0} ⟹ p*=0（强平，单一决策出口产平仓 O）。
@@ -5315,9 +5522,10 @@ mod tests {
         // 端到端 pi_theta_step（GAP-5 入场 + 父容器 σ_p + §13 AncOK 持仓准入 + 风控门全开）。
         // 空 prev_active（未持父）⟹ ShortDiff 子腿被 AncOK 剪枝 ⟹ Wait/qty=0（639(c)：不开 naked 逆势仓）。
         let r = rcfg();
-        let (a, p_star, order) = pi_theta_step(
+        let (a, p_star, (order, _protocol_event)) = pi_theta_step(
             &classification, &tower, &[], 0.0, 9, 1000.0, &cfg(), &r,
-            PiThetaWeights::from_risk(&r), KThetaRiskGate::open(), &super::super::persistent::PersistentRegistry::new(),
+            PiThetaWeights::from_risk(&r), KThetaRiskGate::open(), &protocol_hold(),
+            &super::super::persistent::PersistentRegistry::new(),
         );
         assert!(a.is_empty(), "未持父 ⟹ ShortDiff 子腿 AncOK 剪枝 ⟹ A_{{t+1}} 空");
         assert_eq!(p_star, 0.0, "无活动腿 ⟹ p*=0（不开仓）");

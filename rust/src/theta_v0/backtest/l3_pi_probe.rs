@@ -478,6 +478,7 @@ fn pi_probe_delta_candidates_unlock_orders() {
     use super::super::parser;
     use super::super::strategy::coverage::{pi_theta_step, KThetaRiskGate, PiThetaWeights};
     use super::super::strategy::interp::ActiveLeg;
+    use super::super::strategy::protocol::ProtocolEventSet;
 
     let config = ThetaConfig::default();
     eprintln!("\n========== Phase-2/3 解锁证明：delta vs slice 候选 → pi_theta_step n_orders ==========");
@@ -533,9 +534,10 @@ fn pi_probe_delta_candidates_unlock_orders() {
         // 线程 A：slice 候选。
         let s_step = slice_step(&cur_full, i);
         let s_reg = super::super::strategy::persistent::PersistentRegistry::new();
-        let (s_next, _s_star_, s_order) = pi_theta_step(
+        let (s_next, _s_star_, (s_order, _)) = pi_theta_step(
             &s_step, &tower_i, &slice_active, slice_pt, i, base_units,
-            &config.voice, &config.risk, weights, KThetaRiskGate::open(), &s_reg,
+            &config.voice, &config.risk, weights, KThetaRiskGate::open(),
+            &ProtocolEventSet::hold(0), &s_reg,
         );
         if s_order.qty > 0 { slice_orders += 1; slice_pt = _s_star_; }
         slice_active = s_next;
@@ -543,9 +545,10 @@ fn pi_probe_delta_candidates_unlock_orders() {
         // 线程 B：delta 候选（本步新确认）。
         let d_step = delta_step(&cur_full, &prev_full);
         let d_reg = super::super::strategy::persistent::PersistentRegistry::new();
-        let (d_next, d_star, d_order) = pi_theta_step(
+        let (d_next, d_star, (d_order, _)) = pi_theta_step(
             &d_step, &tower_i, &delta_active, delta_pt, i, base_units,
-            &config.voice, &config.risk, weights, KThetaRiskGate::open(), &d_reg,
+            &config.voice, &config.risk, weights, KThetaRiskGate::open(),
+            &ProtocolEventSet::hold(0), &d_reg,
         );
         if d_order.qty > 0 { delta_orders += 1; delta_pt = d_star; }
         delta_active = d_next;

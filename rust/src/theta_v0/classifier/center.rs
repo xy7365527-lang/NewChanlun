@@ -59,7 +59,7 @@ pub struct UnitRange {
 /// 中枢关系三态（契约锚 `Origin.CenterStates.CenterDevelopment` 外缘趋势判据）。
 ///
 /// 两个**核心已分离的同级别新生中枢**的关系（外缘 dd/gg 判据，第18/20课中心定理二）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CenterRelation {
     /// 上涨延续：`next.dd > prev.gg`（外缘完全分离向上）。
     UpContinuation,
