@@ -312,6 +312,8 @@ pub struct ThetaConfig {
     /// 残差样本），属预注册敏感，显式配置才切换。四口径：MacdArea/ThetaDom(Θ_DOM)/Conjunction/
     /// ThetaLex(Θ_LEX，weak_theta 词典序 DIF▷面积)。
     pub divergence_gauge: super::classifier::divergence::DivergenceGauge,
+    /// C2 D1/D2/D5 消费 seam。默认关闭，故现有分类、信号、订单与缓存路径逐位不变。
+    pub c2_level_view: super::classifier::level_view::C2LevelViewConfig,
 }
 
 #[cfg(test)]
@@ -341,6 +343,7 @@ mod tests {
         assert_eq!(c.exec.commission_bps, 1.0);
         assert_eq!(c.exec.slippage_bps, 2.0);
         assert!(!c.center_oscillation.enabled);
+        assert!(!c.c2_level_view.enabled, "#73-#75 新 seam 默认必须关闭");
         assert_eq!(c.exec.tax_bps, 0.0);
         // frozen：sizing_profile 空 ⟹ 所有 sizing 退化为 risk 标量 + gap=0（bit-exact 不变）。
         assert!(c.sizing_profile.entries.is_empty());

@@ -74,6 +74,10 @@ pub mod signal;
 pub mod six_state;
 pub mod voice_eat;
 pub mod cand_predicate;
+/// C2 走势消费 seam：显式 exact-three 投影、D3 方向绑定与 D2 A/C provider。
+pub mod level_view;
+/// C2 CompletedFreeze 的正式 append-only event-store adapter。
+pub mod level_view_store;
 
 /// P52 全量增量重放专用的 frontier 只读计数器。
 ///
