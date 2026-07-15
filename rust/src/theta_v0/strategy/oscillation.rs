@@ -309,9 +309,6 @@ impl CenterOscillationCandidate {
         if lot.parent_leg_id != parent.id() || lot.level != parent.level() {
             return Err(OscillationContractError::IdentityMismatch);
         }
-        if lot.open_residual_units() != 0 {
-            return Err(OscillationContractError::OpenResidualPending);
-        }
         if lot.remaining_units() == 0 {
             return Err(OscillationContractError::LotAlreadyClosed);
         }
@@ -540,6 +537,11 @@ impl OscillationBook {
         }
     }
 
+    /// 用当前生产活动父腿刷新只读父表；ShortDiff 子腿账本原位保留，不另建平行账本。
+    pub fn sync_live_parents(&mut self, parents: Vec<OscillationParentLeg>) {
+        self.parents = parents;
+    }
+
     pub fn parent(&self, id: ElementId) -> Option<OscillationParentLeg> {
         self.parents.iter().copied().find(|p| p.id() == id)
     }
@@ -553,6 +555,95 @@ impl OscillationBook {
 
     pub fn lots(&self) -> &[OscillationLot] {
         &self.lots
+    }
+
+    /// 当前 ShortDiff 子腿对净持仓的有符号投影。
+    pub fn signed_live_child_units(&self) -> i64 {
+        self.lots
+            .iter()
+            .map(|lot| match lot.side {
+                VoiceSide::Long => lot.remaining_units() as i64,
+                VoiceSide::Short => -(lot.remaining_units() as i64),
+                VoiceSide::Flat => 0,
+            })
+            .sum()
+    }
+
+    /// 门后盘整背驰的角色感知候选：恢复父方向优先平匹配腿（P7），反父方向且无匹配腿才开
+    /// 新 ShortDiff（P9）。父腿缺失/不唯一或身份不明均显式 P10 Record。
+    pub fn route_gated_pan_div(
+        &self,
+        level: u32,
+        signal_side: VoiceSide,
+        center: OscillationCenterRef,
+        evidence: ConsolidationDivergenceEvidence,
+    ) -> Result<CenterOscillationCandidate, OscillationRouteRecordReason> {
+        if signal_side == VoiceSide::Flat {
+            return Err(OscillationRouteRecordReason::UnknownDirection);
+        }
+        let evidence = OscillationEvidence::ConsolidationDivergence(evidence);
+        let boundary = match signal_side {
+            VoiceSide::Long => BoundarySide::Below,
+            VoiceSide::Short => BoundarySide::Above,
+            VoiceSide::Flat => unreachable!(),
+        };
+
+        // P7 在 P9 前：信号恢复父方向且存在同 parent+center 的实际 live 单位，只能关该腿；
+        // 即使 P9 原目标尚有未成交残量，也不阻塞已成交部分的回补。
+        let mut closes = self.lots.iter().copied().filter_map(|lot| {
+            if lot.oscillation_id.center() != center
+                || lot.level != level
+                || lot.remaining_units() == 0
+            {
+                return None;
+            }
+            let parent = self.parent(lot.parent_leg_id)?;
+            (parent.side() == signal_side).then_some((parent, lot))
+        });
+        if let Some((parent, lot)) = closes.next() {
+            if closes.next().is_some() {
+                return Err(OscillationRouteRecordReason::AmbiguousMatchedLot);
+            }
+            return CenterOscillationCandidate::close(parent, lot, boundary, evidence)
+                .map_err(|_| OscillationRouteRecordReason::CandidateContractRejected);
+        }
+
+        let mut parents = self
+            .parents
+            .iter()
+            .copied()
+            .filter(|parent| parent.level() == level && parent.side().flip() == signal_side);
+        let Some(parent) = parents.next() else {
+            return Err(OscillationRouteRecordReason::MissingLiveParent);
+        };
+        if parents.next().is_some() {
+            return Err(OscillationRouteRecordReason::AmbiguousLiveParent);
+        }
+        if self.lots.iter().any(|lot| {
+            lot.parent_leg_id == parent.id()
+                && lot.oscillation_id.center() == center
+                && lot.remaining_units() > 0
+        }) {
+            return Err(OscillationRouteRecordReason::MatchingLotAlreadyLive);
+        }
+        let sequence = self
+            .lots
+            .iter()
+            .filter(|lot| {
+                lot.parent_leg_id == parent.id() && lot.oscillation_id.center() == center
+            })
+            .map(|lot| lot.oscillation_id.sequence())
+            .max()
+            .map_or(0, |s| s.saturating_add(1));
+        CenterOscillationCandidate::open(
+            center,
+            level,
+            parent,
+            OscillationId::new(parent.id(), center, sequence),
+            boundary,
+            evidence,
+        )
+        .map_err(|_| OscillationRouteRecordReason::CandidateContractRejected)
     }
 
     pub fn live_child_units(&self) -> u64 {
@@ -640,8 +731,7 @@ impl OscillationBook {
                 let lot = &mut self.lots[index];
                 if lot.parent_leg_id != parent.id()
                     || lot.side != parent.side().flip()
-                    || lot.open_residual_units() != 0
-                    || candidate.target_units() != lot.remaining_units()
+                    || candidate.target_units() < lot.remaining_units()
                 {
                     return Self::record(id, OscillationRecordReason::CandidateStateMismatch);
                 }
@@ -666,6 +756,16 @@ impl OscillationBook {
             reason,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OscillationRouteRecordReason {
+    MissingLiveParent,
+    AmbiguousLiveParent,
+    AmbiguousMatchedLot,
+    MatchingLotAlreadyLive,
+    UnknownDirection,
+    CandidateContractRejected,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

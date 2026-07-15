@@ -75,6 +75,7 @@ mod capture_oos;
 pub mod pooling_icc;
 pub mod prereg_windows;
 pub mod runner;
+mod pan_div;
 pub mod selector;
 
 /// 经济正条件逐信号分解（《经济正条件.pdf》§5 可捕获价差判据 L2 诊断）。

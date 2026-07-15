@@ -985,6 +985,21 @@ where
     // ★工位 4f：上一 bar merge 用的 tree Rc——`Rc::ptr_eq` 命中（同一 Rc::clone）⟹ tree 逐字节不变
     // ⟹ merge tree 段跳过 step 1'/2'（confirmed prefix 增量维护，消 O(tree)/bar）。
     let mut prev_merge_tree: Option<std::rc::Rc<Vec<coverage::CoverageElement>>> = None;
+    // #82 DC-E：默认关闭时整段惰性（不算 MACD、不评生产门、不写子腿簿），订单轨 frozen。
+    // 开启时首见证书只经 econ_positive 的 Nest/XZD 单一门，再写 #81 OscillationBook。
+    let mut pan_div_state = super::pan_div::PanDivProductionState::default();
+    let pan_div_hist = if config.center_oscillation.enabled && !bars.is_empty() {
+        let closes: Vec<f64> = bars
+            .iter()
+            .map(|bar| bar.close as f64 / config.tick.tick_size)
+            .collect();
+        Some(super::super::classifier::divergence::compute_macd(
+            &closes,
+            &config.macd,
+        ).hist)
+    } else {
+        None
+    };
 
     let mut equity_curve = Vec::with_capacity(n);
     let mut trade_pnls: Vec<f64> = Vec::new();
@@ -1261,10 +1276,67 @@ where
                 risk_mode: tw_risk_mode,
                 shortdiff_leg_ids: &shortdiff_ids,
             };
-            // #80 DA-Q2：runner 当前没有独立协议 provider 时也必须显式给出 Hold，禁止 Option/缺省。
-            // 后继 Completed 中枢/Type3/走势完成 provider 可在同一集合上按成熟度并入，不触碰订单轨。
-            let protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
-            let (next_active, _p_star, (order, _protocol_event), step_trace) = coverage::pi_theta_step_traced(
+            // #82 DC-E：只从真实在飞 campaign 建父腿快照；结构 carrier、身份不明或零单位不冒充父腿。
+            // sync 只替换 OscillationBook 的只读 parents 表，lots 原位保留（无平行账本）。
+            let mut pan_candidates = Vec::new();
+            let mut protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
+            if let Some(hist) = pan_div_hist.as_deref() {
+                use super::super::strategy::oscillation::OscillationParentLeg;
+                let parents = prev_active
+                    .iter()
+                    .filter_map(|leg| {
+                        let open = open_trades.get(&leg.id)?;
+                        if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
+                            return None;
+                        }
+                        let units = open.units.round().max(0.0) as u64;
+                        OscillationParentLeg::new(leg.id, leg.level, leg.dir, units).ok()
+                    })
+                    .collect();
+                pan_div_state.sync_live_parents(parents);
+                for (lvl, ls) in classification_i.levels.iter().enumerate() {
+                    for cert in ls.pan_div.iter() {
+                        // 首见先落 seen；门闭也终局，后续 bar 不重试（与统计通道 τin 同时序）。
+                        if !pan_div_state.observe_raw(lvl as u32, cert) {
+                            continue;
+                        }
+                        let sub_centers: &[super::super::types::Center] = if lvl > 0 {
+                            &classification_i.levels[lvl - 1].centers
+                        } else {
+                            &[]
+                        };
+                        let sub_bsp: &[super::super::classifier::bsp::BspPoint] = if lvl > 0 {
+                            &classification_i.levels[lvl - 1].bsp
+                        } else {
+                            &[]
+                        };
+                        let Some(gated) = super::econ_positive::gate_pan_div_for_production(
+                            &tower_i,
+                            lvl,
+                            cert,
+                            hist,
+                            i,
+                            &ls.bsp,
+                            sub_centers,
+                            sub_bsp,
+                        ) else {
+                            pan_div_state.note_gate_rejected();
+                            continue;
+                        };
+                        match pan_div_state.prepare(gated) {
+                            super::pan_div::PreparedPanDiv::Candidate(candidate) => {
+                                // DA-Q2：即使订单槽稍后被 BSP/P1-P4 占用，PanDiv 证据仍留在协议轨。
+                                protocol_events = protocol_events.with_center_oscillation(candidate);
+                                pan_candidates.push(candidate);
+                            }
+                            super::pan_div::PreparedPanDiv::Record(_reason) => {
+                                // P10 已在生产状态统计；无合法 parent/lot identity 时不伪造候选。
+                            }
+                        }
+                    }
+                }
+            }
+            let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) = coverage::pi_theta_step_traced(
                 step_work,
                 &step_gamma_trade,
                 &prev_active,
@@ -1279,6 +1351,84 @@ where
                 Some(&twc),
                 &protocol_events,
             );
+            if pan_div_hist.is_some() {
+                use super::super::strategy::oscillation::{
+                    OscillationAction, OscillationApplyResult, OscillationIntent,
+                    SizeKThetaProjection,
+                };
+                use super::super::strategy::voice::VoiceSide;
+
+                // 真 BSP（非 struct_break 零 bits）与 P1-P4/标准腿生命周期优先；PanDiv 仅留上方
+                // protocol confirmation，不重复占订单槽。
+                let standard_bsp = classification_step.levels.iter().any(|level| {
+                    level.bsp.iter().any(|point| point.bits.class_index() != 0)
+                });
+                let standard_lifecycle = !step_trace.opened.is_empty()
+                    || !step_trace.closed.is_empty()
+                    || !step_trace.silent_drops.is_empty()
+                    || !step_trace.risk_exits.is_empty()
+                    || !step_trace.overlay_closes.is_empty()
+                    || step_trace.tw_event.is_some();
+                let higher_priority = standard_bsp || standard_lifecycle;
+                let mut actionable_pan = pan_div_state.pending_candidates().to_vec();
+                actionable_pan.extend_from_slice(&pan_candidates);
+                let selected = pan_div_state.select_for_bar(&actionable_pan, higher_priority);
+                let cap = base_units.abs() * config.risk.gamma.abs();
+                if let Some(candidate) = selected {
+                    // KΘ 从“标准父腿目标 + 当前 live 子腿”这一实际组合目标算剩余空间；若从
+                    // standard_p_star 单独算，父腿已在上限时会错误阻塞 P7 回补。
+                    let pan_anchor = standard_p_star
+                        + pan_div_state.signed_live_child_units() as f64;
+                    let mut k_theta_units = gate.delta_capacity_units(
+                        cap,
+                        pan_anchor,
+                        candidate.action_side(),
+                    );
+                    if candidate.intent() == OscillationIntent::Open {
+                        // P9 必须是经济减仓：只允许把标准目标向 0 移动，不穿零反向净加仓。
+                        let reduces = matches!(
+                            (pan_anchor.is_sign_positive(), candidate.action_side()),
+                            (true, VoiceSide::Short) | (false, VoiceSide::Long)
+                        ) && pan_anchor != 0.0;
+                        k_theta_units = if reduces {
+                            k_theta_units.min(pan_anchor.abs().floor() as u64)
+                        } else {
+                            0
+                        };
+                    }
+                    let applied = pan_div_state.apply(
+                        candidate,
+                        super::super::strategy::oscillation::CenterOscillationConfig {
+                            enabled: true,
+                        },
+                        SizeKThetaProjection {
+                            size_theta_units: candidate.target_units(),
+                            k_theta_units,
+                        },
+                    );
+                    if matches!(
+                        applied,
+                        OscillationApplyResult::Applied {
+                            action: OscillationAction::OpenShortDiff | OscillationAction::CloseShortDiff,
+                            ..
+                        }
+                    ) {
+                        let target = gate.clamp_position(
+                            cap,
+                            standard_p_star + pan_div_state.signed_live_child_units() as f64,
+                        );
+                        order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
+                    }
+                } else if !higher_priority && pan_div_state.signed_live_child_units() != 0 {
+                    // 无新 cert 的持有 bar：把 live ShortDiff 投影叠回标准目标，避免下一 bar 被基础 π
+                    // 当作偏差自动回补；仍经同一 KΘ 区间 clamp 和 ScheduleΘ 单一订单出口。
+                    let target = gate.clamp_position(
+                        cap,
+                        standard_p_star + pan_div_state.signed_live_child_units() as f64,
+                    );
+                    order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
+                }
+            }
             // ── ★M5 overlay 簿步进（多空对冲.pdf p16 关卡10）：sep_legs=P^sep_{t+1} 目标 → hedge-mode
             //    逐声部账本 → ΔN 订单 + 逐声部 pnl_v 累计。只读旁路（不改净额 fill 的 cash/units/
             //    trade_pnls ⟹ 现有臂 bit-exact）。overlay=None（现有臂）⟹ 整段跳过。 ──
@@ -3410,6 +3560,66 @@ mod tests {
         assert!(fill.n_orders > 0, "π_Θ 确认-bar 部署买点 ⟹ 产订单（n_orders>0），实得 {}", fill.n_orders);
         assert!(!fill.trades.is_empty(), "开仓 + 窗口终点强平 ⟹ ≥1 笔交易轨迹，实得 {}", fill.trades.len());
         assert!(fill.trade_pnls_with_forced.iter().all(|p| p.is_finite()), "PnL 有限");
+    }
+
+    /// ★#82 DC-E：默认关闭时，即使分类轨携原始 PanDivCert，生产订单轨逐字段冻结。
+    #[test]
+    fn pan_div_dc_e_default_inactive_order_track_bitexact() {
+        use super::super::super::classifier::signal::PanDivCert;
+        use super::super::super::types::Side;
+
+        let config = ThetaConfig::default();
+        assert!(!config.center_oscillation.enabled);
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let baseline = pi_theta_fill_loop(
+            |i| (Classification::default(), Vec::new(), i as u64, i as u64),
+            &bars,
+            1.0e6,
+            &config,
+            None,
+        );
+        let classification = Classification {
+            levels: vec![LevelState {
+                pan_div: Rc::new(vec![PanDivCert {
+                    source_index: 6,
+                    side: Side::Short,
+                    center: Center {
+                        zd: 9_500_000_000,
+                        zg: 10_500_000_000,
+                        dd: 9_000_000_000,
+                        gg: 11_000_000_000,
+                        start_index: 1,
+                        end_index: 5,
+                    },
+                    seg_a: (1, 2),
+                    seg_c: (5, 6),
+                }]),
+                ..Default::default()
+            }],
+        };
+        let observed = pi_theta_fill_loop(
+            |i| {
+                if i >= 7 {
+                    (classification.clone(), Vec::new(), i as u64, i as u64)
+                } else {
+                    (Classification::default(), Vec::new(), i as u64, i as u64)
+                }
+            },
+            &bars,
+            1.0e6,
+            &config,
+            None,
+        );
+
+        assert_eq!(observed.n_orders, baseline.n_orders);
+        assert_eq!(observed.equity_curve, baseline.equity_curve);
+        assert_eq!(observed.daily_returns, baseline.daily_returns);
+        assert_eq!(observed.trade_pnls_realized, baseline.trade_pnls_realized);
+        assert_eq!(observed.trade_pnls_with_forced, baseline.trade_pnls_with_forced);
+        assert_eq!(observed.trades, baseline.trades);
+        assert_eq!(observed.typed_ledger, baseline.typed_ledger);
+        assert_eq!(observed.tw_final, baseline.tw_final);
+        assert_eq!(observed.r_decomp, baseline.r_decomp);
     }
 
     // ──────────────────────────────────────────────────────────────────────

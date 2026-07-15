@@ -2544,6 +2544,33 @@ impl KThetaRiskGate {
         let lo = if self.stop_short { 0.0 } else { cap }; // 禁净空 ⟹ 下限 0
         (lo, hi)
     }
+
+    /// 供 DC-E 与标准 π 共用同一 𝒦_Θ 边界；返回有符号净持仓区间 `[lo, hi]`。
+    pub(crate) fn position_bounds(&self, cap: f64) -> (f64, f64) {
+        let (lo_mag, hi) = self.caps(cap);
+        (-lo_mag, hi)
+    }
+
+    /// 从 `anchor` 沿给定方向最多还能移动的整数单位；DC-E 以此作为 KΘ 上界。
+    pub(crate) fn delta_capacity_units(
+        &self,
+        cap: f64,
+        anchor: f64,
+        side: VoiceSide,
+    ) -> u64 {
+        let (lo, hi) = self.position_bounds(cap);
+        let room = match side {
+            VoiceSide::Long => hi - anchor,
+            VoiceSide::Short => anchor - lo,
+            VoiceSide::Flat => 0.0,
+        };
+        room.max(0.0).floor() as u64
+    }
+
+    pub(crate) fn clamp_position(&self, cap: f64, position: f64) -> f64 {
+        let (lo, hi) = self.position_bounds(cap);
+        position.max(lo).min(hi)
+    }
 }
 
 /// 构造有限可行集 𝒦_Θ(x) 的 **LexArgmin 代表点**（spec §15 line 721-736 八约束 + line 725 `𝒦_Θ≠∅`）。

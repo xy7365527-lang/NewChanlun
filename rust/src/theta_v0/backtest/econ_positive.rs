@@ -1271,6 +1271,52 @@ pub(super) fn pan_div_gate_pass(
     .gate_pass()
 }
 
+/// DC-E 生产门后的强类型确认引用。构造器不公开；生产消费者只能经
+/// [`gate_pan_div_for_production`] 得到它，裸 [`PanDivCert`] 无法直接进入订单候选。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct GatedPanDivCert {
+    level: u32,
+    cert: PanDivCert,
+}
+
+impl GatedPanDivCert {
+    pub(super) const fn level(self) -> u32 {
+        self.level
+    }
+
+    pub(super) const fn cert(self) -> PanDivCert {
+        self.cert
+    }
+}
+
+/// DC-E 唯一生产门：严格复用统计路径的 Nest/XZD 首见时点判据；任一通过才产一个候选引用。
+#[allow(clippy::too_many_arguments)]
+pub(super) fn gate_pan_div_for_production(
+    tower: &[Rc<Vec<LeveledMove>>],
+    lvl: usize,
+    cert: &PanDivCert,
+    hist: &[f64],
+    confirm_index: usize,
+    bsp_of_level: &[BspPoint],
+    sub_centers: &[Center],
+    sub_bsp: &[BspPoint],
+) -> Option<GatedPanDivCert> {
+    pan_div_gate_pass(
+        tower,
+        lvl,
+        cert,
+        hist,
+        confirm_index,
+        bsp_of_level,
+        sub_centers,
+        sub_bsp,
+    )
+    .then_some(GatedPanDivCert {
+        level: lvl as u32,
+        cert: *cert,
+    })
+}
+
 /// C2 跨条目查找（codex §6-1）：同级 bsp 列表按 source_index 找共生二类买卖点。
 ///
 /// B1/B3（`extract_signals_with_hist`）与 B2（`extract_second_for_level`）在 mod.rs 是独立提取 +
@@ -2396,6 +2442,30 @@ mod tests {
         );
     }
 
+    /// #82 DC-E：XZD 任一门通过后，强类型生产门恰产一个引用，身份字段逐值保留。
+    #[test]
+    fn pan_div_gate_pass_emits_one_production_candidate() {
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![xzd_seg(10, 19)])];
+        let hist = vec![0.0f64; 20];
+        let mut buy2 = BspBits::default();
+        buy2.buy2 = true;
+        let bsp_of_level = vec![xzd_bsp(19, buy2, None)];
+        let raw = pan_cert(19, Side::Long);
+        let gated = super::gate_pan_div_for_production(
+            &tower,
+            0,
+            &raw,
+            &hist,
+            19,
+            &bsp_of_level,
+            &[],
+            &[],
+        )
+        .expect("XZD 门通过必须恰产一个 GatedPanDivCert");
+        assert_eq!(gated.level(), 0);
+        assert_eq!(gated.cert(), raw);
+    }
+
     /// 两门皆闭：递归底无次级别锚（Nest 闭）∧ 无共生 buy2（XZD C2 假）⟹ 承接失败 ⟹
     /// collect_signals 诚实丢弃该 PanDiv（不入信号流，不兜底）。
     #[test]
@@ -2410,6 +2480,26 @@ mod tests {
         assert!(
             !super::pan_div_gate_pass(&tower, 0, &pan_cert(7, Side::Long), &hist, 7, &[], &[], &[]),
             "无执行段定位 ⟹ 承接失败"
+        );
+    }
+
+    /// #82 DC-E：裸证在两门皆闭时只能得到 None，不能绕过门直接进入生产候选。
+    #[test]
+    fn pan_div_raw_cert_never_directly_orders_when_gate_closed() {
+        let tower: Vec<Rc2<Vec<LM2>>> = vec![Rc2::new(vec![xzd_seg(10, 19)])];
+        let hist = vec![0.0f64; 20];
+        assert_eq!(
+            super::gate_pan_div_for_production(
+                &tower,
+                0,
+                &pan_cert(19, Side::Long),
+                &hist,
+                19,
+                &[],
+                &[],
+                &[],
+            ),
+            None
         );
     }
 
