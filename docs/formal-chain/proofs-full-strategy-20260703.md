@@ -11,6 +11,8 @@
 > **阶段二（2026-07-03，Task #131）已执行**：q2 六工位（#115/#132/#138/#134/#124/#133）全部落地后，§D 六项 OPEN 义务已逐项闭合（实装锚点+机器证明锚点+认识论等级，见 §D 闭合明细），§A/§B/§C 受 q2 改动影响的锚点行号已全部重新 Read 验证并修正漂移（interp.rs / coverage.rs / mutex.rs / econ_positive.rs / transition.rs 五文件）。残余诚实缺口（D-1 A4 缺 TV/SubMovePower、D-3 TStage/ηBucket/CostBucket 装配与 Live 轴、D-5 P2/P3/P4 生产可达性依赖 #139 账本重裁）照实标注为 OPEN 子项，不并入 CLOSED 声明（090号）。阶段二结果包见 §F。
 >
 > **增量（2026-07-03，#140 gap3-realize 落地后，Task #131 送审前置）**：#139 已裁——codex 终局裁定 A'「已实现利润入 TW 账本」（`.chanlun/review-results/codex-gap3-ledger-20260703.md`），#140 三实装 commit + 结果包（`f3e3709252`→`49f0821584`→`3987926ba5`→`334487e309`，`gap3-realize-impl-20260703.md`）落地 `TwEvent::Realize` ⟹ D-5 可达性子项闭合：GAP3「∃t TStage=III」从结构不可达 FALSIFIED 翻转为 **L1 生产可达**（不可达定理限定为 L0 同价无盈亏版本）。§C 新增 C.5（TW 账本不变量新形式）；§D 新增 D-8（Lean 侧独立证明义务）。测试基线 1447→1452 全绿。本文档受影响的可达性陈述（假设 8 / §B / §D-5 / §F 交叉引用）已同步更新，锚点写前 Read 重验。
+>
+> **修订（2026-07-14，R1+R2）**：假设 5 转录错误修复 + E-2 措辞拆分；裁决依据 `chanlun/escalate/mutex-proof-a5-blocker-20260714.md`。
 
 ---
 
@@ -30,7 +32,7 @@
 
 ### 定理陈述
 
-给定 11 条假设，则
+给定 PDF §13 的 11 条主假设，并将 $J_x$ 引用的成本函数独立列为假设 5a，则
 
 $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
@@ -38,11 +40,11 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 ### 证明结构（PDF §13 逐链）
 
-由假设 1–4 ⟹ 证书集合 Γ_t 唯一；由 5 ⟹ 状态 z_t 唯一；由 6 ⟹ 全互斥类别唯一；由 7 ⟹ 活动声部集合 A_{t+1} 唯一；由 8 ⟹ 三阶段事件唯一；由仓位函数 ⟹ p̃ 唯一；由 9–10 ⟹ 风险投影最优点 p\* 唯一；由 11 ⟹ 订单 O 唯一。链上每一步都是全函数且输出唯一 ⟹ 复合全函数 ⟹ ∃! O_{t+1}。
+由假设 1–4 ⟹ 证书集合 Γ_t 唯一；由 5 ⟹ 状态 z_t 唯一；由 6 ⟹ 全互斥类别唯一；由 7 ⟹ 活动声部集合 A_{t+1} 唯一；由 8 ⟹ 三阶段事件唯一；由仓位函数 ⟹ p̃ 唯一；由 5a 及 9–10 ⟹ $J_x$ 各键确定且风险投影最优点 p\* 唯一；由 11 ⟹ 订单 O 唯一。链上每一步都是全函数且输出唯一 ⟹ 复合全函数 ⟹ ∃! O_{t+1}。
 
-**机器证明看守（∃! 结论）**：`rust/src/theta_v0/strategy/coverage.rs:4491` `pi_theta_step_deterministic_unique_order`——同状态两次调用 `pi_theta_step` 产逐字段相等订单（决定性＝全函数的可观测面）。**看守≠证明本体**（阶段三双审补）：∃! 的论证主体是上述 11 假设复合链（L0 演绎），determinism 测试是回归哨兵——只看守实装不漂移出该性质，不替代数学证明（231号分级中的机器证明层语义）。生产入口 `coverage.rs:2327` `pi_theta_step` / `coverage.rs:2205` `pi_theta_position` / `coverage.rs:2239` `schedule_order`。
+**机器证明看守（∃! 结论）**：`rust/src/theta_v0/strategy/coverage.rs:4491` `pi_theta_step_deterministic_unique_order`——同状态两次调用 `pi_theta_step` 产逐字段相等订单（决定性＝全函数的可观测面）。**看守≠证明本体**（阶段三双审补）：∃! 的论证主体是上述 11 条主假设及假设 5a 的复合链（L0 演绎），determinism 测试是回归哨兵——只看守实装不漂移出该性质，不替代数学证明（231号分级中的机器证明层语义）。生产入口 `coverage.rs:2327` `pi_theta_step` / `coverage.rs:2205` `pi_theta_position` / `coverage.rs:2239` `schedule_order`。
 
-### 11 条假设逐条：数学陈述 + 实装锚点 + 证明状态
+### 11 条主假设及假设 5a 逐条：数学陈述 + 实装锚点 + 证明状态
 
 所有锚点写前经 Read 验证行号真实存在。
 
@@ -91,7 +93,13 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 ---
 
-**假设 5：𝔠_Θ 是函数**（成本函数）
+**假设 5：C_Θ 是状态分类全函数**（PDF §13 第 5 条；值域由 PDF §6 定义）
+
+- **(a) 数学陈述**：$C_\Theta:X_\Theta\to Z_\Theta$，$z_t=C_\Theta(x_t)$。定义域 $X_\Theta$ 是 PDF §1 的完整策略状态空间，$x_t=(h_{\le t},T_t,K_t,E_t,\Gamma_t,A_t,P_t,N_t,R_t,TW_t,M_t,\Omega_t)$；值域 $Z_\Theta$ 是 PDF §6 的完整互斥分类状态积空间，其 20 个轴为 `(ℓ,e,δ,I_γ,Ndepth,CandType,ForceState,Jchain,σ_higher,σ_p,role,posState,shortDiff,H,TStage,ηBucket,RiskMode,CostBucket,MarginState,ExitType)`。全函数性即 $\forall x\in X_\Theta,\ \exists!z\in Z_\Theta:\ z=C_\Theta(x)$。
+- **(b) 实装锚点**：现行可执行投影的 13 维 `MuClass` 装配、唯一构造路径与机器看守见 §D D-2/D-3；这些锚点证明已装配投影的决定性，不等同于 §6 全部语义轴均已装配。
+- **(c) 证明状态**：**L0（条件前提）**——全函数 $C_\Theta$ 对每个 $x_t$ 给出唯一 $z_t$，故 §A 复合链「由 5 ⟹ 状态 $z_t$ 唯一」成立。现行已装配域的决定性已闭合；完整 §6 schema 的残余缺口见 §A 结论与 §D D-3。
+
+**假设 5a：𝔠_Θ 是成本函数**（供 $J_x$ 的 `trade_cost` 键引用；不替代状态分类函数）
 
 - **(a) 数学陈述**：交易成本 `C_i` 是状态/成交的确定函数（单边费率 commission+slippage+tax）。
 - **(b) 实装锚点**：`rust/src/theta_v0/strategy/exec.rs:73` `apply_fees(base, side, config) -> Tick`（买加卖减，确定）；消费侧 `backtest/metrics.rs` 方向感知 `trade_abs_pnl`（多头 `qty·(exit·(1−fee)−entry·(1+fee))`，成本解耦）。机器证明 `exec.rs:336` `fees_buy_adds_sell_subtracts`。
@@ -143,7 +151,7 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 **假设 10：LexArgmin 有固定平局规则**
 
-- **(a) 数学陈述**：`p\* = LexArgmin_{p∈K_Θ} J_x(p)`，J_x 是字典序键（主键 tracking_err ≻ 次键 trade_cost ≻ 三键 risk_penalty ≻ turnover ≻ tie-break grid_index）；固定平局规则 ⟹ 键单射 ⟹ p\* 唯一。
+- **(a) 数学陈述**：`p\* = LexArgmin_{p∈K_Θ} J_x(p)`，J_x 是字典序键（主键 tracking_err ≻ 次键 trade_cost ≻ 三键 risk_penalty ≻ turnover ≻ tie-break grid_index），其中 `trade_cost` 由假设 5a 唯一确定；固定平局规则 ⟹ 键单射 ⟹ p\* 唯一。
 - **(b) 实装锚点**：
   - `rust/src/theta_v0/strategy/intent.rs:197` `JThetaKey`（五分量键，`grid_index` 末键 tie-break）；`intent.rs:214` `lex_le`（真字典序逐分量，非加权和标量 min）；`intent.rs:270` `lex_argmin`（foldl pick，平局保留先出现者）。
   - J_x 键构造 `coverage.rs:2181` `j_theta_key`；代表点 `coverage.rs:2205` `pi_theta_position`。
@@ -162,9 +170,10 @@ $$\forall x_t,\quad \exists! \, O_{t+1} = \pi_\Theta(x_t).$$
 
 ### §A 结论
 
-11 条假设中：假设 1（bit-exact）、假设 4（六态 partition）、假设 6（互斥）、假设 10（LexArgmin）有**机器证明**看守；假设 1/3/8 附 **L2** 真实数据有效域声明；其余为 **L0** 全函数性质。链复合 ⟹ ∃! O_{t+1}=π_Θ(x)，机器证明看守 `coverage.rs:4491`。
+11 条主假设及假设 5a 中：假设 1（bit-exact）、假设 4（六态 partition）、假设 6（互斥）、假设 10（LexArgmin）有**机器证明**看守；假设 1/3/8 附 **L2** 真实数据有效域声明；其余为 **L0** 全函数性质。链复合 ⟹ ∃! O_{t+1}=π_Θ(x)，机器证明看守 `coverage.rs:4491`。
 
-**阶段二闭合（2026-07-03）**：阶段一登记的三处「部分 OPEN」——假设 4 高级别候选生成（#123，`0a35f0167c`）、假设 6 P1..P10 统一（#124，§D-5）、假设 9 毛头寸约束（#133 G7，§D-7）——均已落地并补锚点，∃! 唯一性的有效域从已稳定层扩展至 q2 新增层（完整 §6 z 13 维 + 统一 P1..P10 + gross cap）。残余诚实缺口不影响 ∃! 结论（均为分桶维装配/生产可达性问题，非全函数性破裂），逐项见 §D。
+- **决定性闭合（已证）**：阶段一登记的三处「部分 OPEN」——假设 4 高级别候选生成（#123，`0a35f0167c`）、假设 6 P1..P10 统一（#124，§D-5）、假设 9 毛头寸约束（#133 G7，§D-7）——均已落地并补锚点；∃! 唯一性的有效域从已稳定层扩展至 q2 **已装配的 13 维 z**、统一 P1..P10 与 gross cap。残余轴缺口不破坏该已装配投影的决定性。
+- **语义 schema 完备（仍有缺口）**：不得把“已装配的 13 维 z 决定性闭合”写成“完整 §6 z 已覆盖”。TStage/ηBucket 尚未装配进 z，CostBucket 无 bar 级时变生产者，CandType 的 Live 轴无生产者；缺口锚点见 §D 表 D-3 及 §D「D-3 闭合明细」的“残余诚实缺口”。
 
 ---
 
@@ -263,8 +272,8 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 |------|---------|---------|---------------------|---------|
 | **D-1 (G1/P2)** | Cand^δ 力度门＝可替换力度签名（支配序，非 MACD 面积一票否决）+ 生产热路由激活 | **CLOSED**（残余 OPEN 子项：A4 缺 TV/SubMovePower） | **#115**：`ec16810bac`→`f575b8fe60`→`c3ed1ccb81`→`ca6f0cd794`→`594d2ea738` | 假设 4（Cand 生成）、假设 6（Weak_Θ 门） |
 | **D-2 (G2)** | 完整互斥状态 z 必含 (ℓ,δ,σ_higher) | **CLOSED**（codex-q1 G2 终裁翻转 #81 误读，PDF 权威） | **#132**：`c3ed1ccb81` | 假设 5（状态 z 唯一）有效域 |
-| **D-3 (G3)** | z 扩维至 §6 完整形态（13 维 + 全 20 条目逐条裁定）；UClass 并列防碎裂 | **CLOSED**（残余 OPEN 子项：TStage/ηBucket 装配、CostBucket、CandType Live 轴——共 3.5 项） | **#138**：`1eac54ca08`；高级别候选生成 **#123**：`0a35f0167c` | 假设 4（I_γ 高级别生成）、假设 5 |
-| **D-4 (G4)** | 统计层出场用 τ^typed 非 τ^reverse | **CLOSED**（τ^reverse 状态机整体删除，不留 fallback） | **#134**：`8150acb97f`→`cd2f326a52`→`3bd26ac3ee`→`99bab5ad68`（+`1a4d931b3e` 剪枝标记） | 假设 5（成本/出场）有效域 |
+| **D-3 (G3)** | z 对照 §6 扩维（已装配 13 维 + 全 20 条目逐条裁定）；UClass 并列防碎裂 | **CLOSED**（残余 OPEN 子项：TStage/ηBucket 装配、CostBucket、CandType Live 轴——共 3.5 项） | **#138**：`1eac54ca08`；高级别候选生成 **#123**：`0a35f0167c` | 假设 4（I_γ 高级别生成）、假设 5 |
+| **D-4 (G4)** | 统计层出场用 τ^typed 非 τ^reverse | **CLOSED**（τ^reverse 状态机整体删除，不留 fallback） | **#134**：`8150acb97f`→`cd2f326a52`→`3bd26ac3ee`→`99bab5ad68`（+`1a4d931b3e` 剪枝标记） | 假设 5（ExitType/状态分类）有效域 |
 | **D-5 (G5)** | 解释器统一 P1..P10 固定优先级（强平 + TW/GAP3 纳入单一序） | **CLOSED**（可达性子项亦闭合：#139 裁 A' + #140 落地，P2/P3/P4 生产可达 L1） | **#124**：`c4c2a027ad`→`f9333e21b2`→`972d5cfefa`；**#140**：`f3e3709252`→`49f0821584`→`3987926ba5` | 假设 6（解释器固定优先级）完整域 |
 | **D-6 (G6)** | 全定义证明整合文档 | **已交付**（阶段一 #125 + 阶段二 #131 本次更新） | `1ce80641ce` + 本 commit | — |
 | **D-7 (G7)** | K_Θ 含最大毛头寸约束（gross exposure cap） | **CLOSED**（default 不激活=frozen bit-exact；#135 须显式激活） | **#133**：`f1c9700332`→`6a282f5f46` | 假设 9（K_Θ 有限）完整域 |
@@ -369,7 +378,7 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
 
 ## §E. 结果包（result-package 六要素）
 
-1. **结论**：本文档整合了全定义互斥策略已稳定层的严格数学证明——§A 全定义唯一性定理（11 假设逐条锚点 + ∃! 机器证明看守）、§B 策略互斥定理（Σ_j 1[C_j]=1 完整证明 + 2^10 穷举 + 12 场景桶级等价机器证明）、§C 四层不变量（bit-exact/AncOK/区间套/守恒断言）。所有 37+ 处代码锚点写前经 Read 验证行号真实存在。
+1. **结论**：本文档整合了全定义互斥策略已稳定层的严格数学证明——§A 全定义唯一性定理（PDF §13 的 11 条主假设 + 假设 5a 逐条锚点 + ∃! 机器证明看守）、§B 策略互斥定理（Σ_j 1[C_j]=1 完整证明 + 2^10 穷举 + 12 场景桶级等价机器证明）、§C 四层不变量（bit-exact/AncOK/区间套/守恒断言）。所有 37+ 处代码锚点写前经 Read 验证行号真实存在。
 
 2. **定义依据**：PDF `完整的策略.pdf` §13（11 假设）、§14（互斥）、§2.1（bit-exact）、§2.2/§8（AncOK）、§3（区间套 J_child⊆J_parent）；互斥化数学出处 `买卖点alpha2.pdf` Doc2§5/Doc3§6 定理1。每条假设的输入数据特征（有限结构塔 ⟹ 有限 Γ；lot 网格离散 ⟹ K_Θ 有限；字典序键单射 ⟹ argmin 唯一）满足定义条件已逐条说明。
 
@@ -378,7 +387,7 @@ $$\sum_{j=0}^m \mathbf{1}[C_j(x)] = 1.$$
    - §B Σ=1 翻转：若存在谓词组合 Σ≠1 ⟹ `mutex_total_exhaustive_2pow10` 红；若 interp ≺_Θ 与 P1..P10 分叉 ⟹ `shadow_fold_bucket_equivalence` 红。
    - §C.3 区间套翻转：若生产 descend 与 bottom-up 定位不一致 ⟹ `acc_bottomup_nest_parity_probe` 断言红（现差异 0）。
 
-4. **下游推论**：本文档证明的是**策略 L0 结构性质**（全函数 + 互斥 + 唯一订单），**不蕴含 L2 alpha**——μ(z,a)>0 属 §12 选择器层，实证四口径全 INCONCLUSIVE。系统的经验价值定位＝风险控制（μ̂ 门减损减回撤），非产生正 alpha（`strategy-spec-for-external-review-20260703.md` 六/七节）。阶段二 6 项 OPEN 义务闭合后，∃! 唯一性的有效域从已稳定层扩展至完整 §6 z + 统一 P1..P10。
+4. **下游推论**：本文档证明的是**策略 L0 结构性质**（全函数 + 互斥 + 唯一订单），**不蕴含 L2 alpha**——μ(z,a)>0 属 §12 选择器层，实证四口径全 INCONCLUSIVE。系统的经验价值定位＝风险控制（μ̂ 门减损减回撤），非产生正 alpha（`strategy-spec-for-external-review-20260703.md` 六/七节）。阶段二 6 项 OPEN 义务闭合后，∃! 唯一性的有效域从已稳定层扩展至 q2 已装配的 13 维 z + 统一 P1..P10；此决定性闭合不等于完整 §6 语义 schema 完备，残余轴缺口见 §D D-3。
 
 5. **谱系引用**：formalization-validity-domain 231号（L0/机器证明/L2 分级 + 有效域≠定义域）；no-patch-mentality 090号（声明膨胀禁止——OPEN 项不写「已证」）；memory `project_bottomup_nest_equals_pointcontain`（区间套 bit-exact 差异 0）、`project_gap3_l2_unreachable_architecture`（EarningShares 需 L2 价格升值，假设 8 有效域）、`project_iclass_delta_collinearity_perm_degeneracy`（i_class×δ 共线 ⟹ D-3 UClass 并列必要性）。
 
