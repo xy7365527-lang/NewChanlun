@@ -5378,6 +5378,74 @@ mod tests {
         assert_eq!((p1_order.action, p1_order.qty, p1_order.exec_index), (StrictAction::Close, 600, 5));
     }
 
+    /// ★#81 DB-B/D-7：默认不激活时，即使事件轨携 CenterOscillation，订单轨仍逐字段 bit-exact。
+    #[test]
+    fn center_oscillation_default_inactive_order_track_bitexact() {
+        use super::super::oscillation::{
+            BoundarySide, CenterOscillationCandidate, ConsolidationDivergenceEvidence,
+            OscillationCenterRef, OscillationEvidence, OscillationEvidenceRef, OscillationId,
+            OscillationParentLeg,
+        };
+
+        let (classification, tower) = buy_gamma();
+        let risk = rcfg();
+        let weights = PiThetaWeights::from_risk(&risk);
+        let config = super::super::super::config::ThetaConfig::default();
+        assert!(!config.center_oscillation.enabled);
+        let registry = super::super::persistent::PersistentRegistry::new();
+        let baseline = pi_theta_step(
+            &classification,
+            &tower,
+            &[],
+            0.0,
+            5,
+            1000.0,
+            &cfg(),
+            &risk,
+            weights,
+            KThetaRiskGate::open(),
+            &ProtocolEventSet::hold(0),
+            &registry,
+        );
+
+        let parent_id = ElementId {
+            level: 0,
+            ordinal: 7,
+        };
+        let parent = OscillationParentLeg::new(parent_id, 0, VoiceSide::Long, 600).unwrap();
+        let center = OscillationCenterRef::new(0, 10);
+        let candidate = CenterOscillationCandidate::open(
+            center,
+            0,
+            parent,
+            OscillationId::new(parent_id, center, 1),
+            BoundarySide::Above,
+            OscillationEvidence::ConsolidationDivergence(
+                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(11, 0)),
+            ),
+        )
+        .unwrap();
+        let protocol = ProtocolEventSet::hold(0).with_center_oscillation(candidate);
+        let observed = pi_theta_step(
+            &classification,
+            &tower,
+            &[],
+            0.0,
+            5,
+            1000.0,
+            &cfg(),
+            &risk,
+            weights,
+            KThetaRiskGate::open(),
+            &protocol,
+            &registry,
+        );
+        assert_eq!(observed.0, baseline.0);
+        assert_eq!(observed.1, baseline.1);
+        assert_eq!(observed.2.0, baseline.2.0);
+        assert_eq!(protocol.center_oscillation_candidate(), Some(candidate));
+    }
+
     /// ★#80 L0/O-8：无方向、无候选、无订单也仍返回 `(OrderDecision, ProtocolEvent)` 的两个显式值。
     #[test]
     fn order_and_protocol_product_total() {

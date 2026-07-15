@@ -7,6 +7,10 @@
 
 use super::super::classifier::center::{classify_relation, CenterRelation};
 use super::super::types::{Center, Direction};
+use super::oscillation::{
+    CenterOscillationCandidate, CenterOscillationConfig, OscillationApplyResult, OscillationBook,
+    OscillationEvidence, OscillationIntent, SizeKThetaProjection,
+};
 
 /// 稳定证据引用。`source_index` 是因果确认坐标，`generation` 区分同坐标重启/重放实例。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -149,6 +153,7 @@ impl ReasonSet {
     pub const COMPLETED_RETRACE: Self = Self(1 << 3);
     pub const COMPLETED_REENTRY: Self = Self(1 << 4);
     pub const SETTLED_RELATION: Self = Self(1 << 5);
+    pub const CENTER_OSCILLATION: Self = Self(1 << 6);
 
     pub const fn union(self, other: Self) -> Self {
         Self(self.0 | other.0)
@@ -222,6 +227,36 @@ struct SettledRelationEvidence {
     relation: CenterRelation,
 }
 
+/// DB-B 事件轨投影：只保留稳定、可排序的候选证据，不把 B1/B2/B3 bits 混入协议。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct CenterOscillationEventEvidence {
+    level: u32,
+    center_start: usize,
+    center_end: usize,
+    parent_level: u32,
+    parent_ordinal: u64,
+    sequence: u32,
+    evidence: OscillationEvidence,
+    close: bool,
+}
+
+impl CenterOscillationEventEvidence {
+    const fn from_candidate(candidate: CenterOscillationCandidate) -> Self {
+        let center = candidate.center();
+        let parent = candidate.parent_leg_id();
+        Self {
+            level: candidate.level(),
+            center_start: center.start_index(),
+            center_end: center.end_index(),
+            parent_level: parent.level,
+            parent_ordinal: parent.ordinal,
+            sequence: candidate.oscillation_id().sequence(),
+            evidence: candidate.evidence(),
+            close: matches!(candidate.intent(), OscillationIntent::Close),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum EventPayload {
     Hold { level: usize },
@@ -229,6 +264,7 @@ enum EventPayload {
     CompletedRetraceReentry(PostTrendKey),
     CompletedMoveEvidence(PostTrendKey),
     SettledCenterRelation(SettledRelationEvidence),
+    CenterOscillation(CenterOscillationEventEvidence),
 }
 
 /// 协议轨的显式全域输出。`Hold` 是一等构造子，不使用 `Option`/缺省表达。
@@ -289,6 +325,15 @@ impl ProtocolEvent {
         }
     }
 
+    const fn center_oscillation(candidate: CenterOscillationCandidate) -> Self {
+        Self {
+            payload: EventPayload::CenterOscillation(
+                CenterOscillationEventEvidence::from_candidate(candidate),
+            ),
+            reasons: ReasonSet::CENTER_OSCILLATION,
+        }
+    }
+
     pub const fn maturity(self) -> ProtocolMaturity {
         match self.payload {
             EventPayload::Hold { .. } => ProtocolMaturity::Hold,
@@ -296,6 +341,14 @@ impl ProtocolEvent {
             EventPayload::CompletedRetraceReentry(_) => ProtocolMaturity::CompletedRetraceReentry,
             EventPayload::CompletedMoveEvidence(_) => ProtocolMaturity::CompletedMoveEvidence,
             EventPayload::SettledCenterRelation(_) => ProtocolMaturity::SettledCenterRelation,
+            EventPayload::CenterOscillation(evidence) => match evidence.evidence {
+                OscillationEvidence::ConsolidationDivergence(_) => {
+                    ProtocolMaturity::CompletedMoveEvidence
+                }
+                OscillationEvidence::LowerLevelBsp(_) => {
+                    ProtocolMaturity::CompletedRetraceReentry
+                }
+            },
         }
     }
 
@@ -310,6 +363,7 @@ impl ProtocolEvent {
             EventPayload::CompletedRetraceReentry(key)
             | EventPayload::CompletedMoveEvidence(key) => key.level(),
             EventPayload::SettledCenterRelation(evidence) => evidence.level,
+            EventPayload::CenterOscillation(evidence) => evidence.level as usize,
         }
     }
 
@@ -334,23 +388,55 @@ impl ProtocolEvent {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProtocolEventSet {
     selected: ProtocolEvent,
+    center_oscillation: Option<CenterOscillationCandidate>,
 }
 
 impl ProtocolEventSet {
     pub const fn hold(level: usize) -> Self {
         Self {
             selected: ProtocolEvent::hold(level),
+            center_oscillation: None,
         }
     }
 
     pub fn with(self, event: ProtocolEvent) -> Self {
         Self {
             selected: self.selected.merge(event),
+            center_oscillation: self.center_oscillation,
+        }
+    }
+
+    /// 将独立震荡 reason 接入协议轨；同一折叠集内按稳定键确定唯一候选。
+    pub fn with_center_oscillation(self, candidate: CenterOscillationCandidate) -> Self {
+        let retained = match self.center_oscillation {
+            Some(current) if current.stable_key() >= candidate.stable_key() => current,
+            _ => candidate,
+        };
+        Self {
+            selected: self
+                .selected
+                .merge(ProtocolEvent::center_oscillation(retained)),
+            center_oscillation: Some(retained),
         }
     }
 
     pub const fn selected(self) -> ProtocolEvent {
         self.selected
+    }
+
+    pub const fn center_oscillation_candidate(self) -> Option<CenterOscillationCandidate> {
+        self.center_oscillation
+    }
+
+    /// 协议事件轨到既有 P7/P9/P10 动作通道的唯一桥；默认开关关闭时账本不变。
+    pub fn apply_center_oscillation(
+        self,
+        book: &mut OscillationBook,
+        config: CenterOscillationConfig,
+        projection: SizeKThetaProjection,
+    ) -> Option<OscillationApplyResult> {
+        self.center_oscillation
+            .map(|candidate| book.apply(candidate, config, projection))
     }
 }
 
@@ -425,6 +511,7 @@ impl ProtocolState {
                     }
                 }
             }
+            EventPayload::CenterOscillation(_) => self.mode,
         };
         Self {
             level: self.level,
@@ -436,6 +523,12 @@ impl ProtocolState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::super::classifier::recursive_tower::ElementId;
+    use super::super::oscillation::{
+        BoundarySide, ConsolidationDivergenceEvidence, LowerLevelBspEvidence,
+        OscillationCenterRef, OscillationEvidenceRef, OscillationId, OscillationParentLeg,
+    };
+    use super::super::voice::VoiceSide;
 
     fn center(start: usize, end: usize, dd: i64, gg: i64) -> Center {
         Center {
@@ -475,6 +568,27 @@ mod tests {
         ProtocolState::initial(level).transition(ProtocolEvent::settled_center_relation(
             level, &previous, &successor,
         ))
+    }
+
+    fn oscillation_candidate(
+        evidence: OscillationEvidence,
+        sequence: u32,
+    ) -> CenterOscillationCandidate {
+        let parent_id = ElementId {
+            level: 2,
+            ordinal: 7,
+        };
+        let parent = OscillationParentLeg::new(parent_id, 2, VoiceSide::Long, 40).unwrap();
+        let center = OscillationCenterRef::new(100, 130);
+        CenterOscillationCandidate::open(
+            center,
+            2,
+            parent,
+            OscillationId::new(parent_id, center, sequence),
+            BoundarySide::Above,
+            evidence,
+        )
+        .unwrap()
     }
 
     fn event_suite() -> Vec<ProtocolEvent> {
@@ -696,5 +810,96 @@ mod tests {
         let hold = ProtocolEventSet::hold(3).selected();
         assert_eq!(hold.maturity(), ProtocolMaturity::Hold);
         assert_eq!(state.transition(hold), state);
+    }
+
+    #[test]
+    fn center_oscillation_uses_existing_maturity_buckets_without_mode_transition() {
+        let pan = oscillation_candidate(
+            OscillationEvidence::ConsolidationDivergence(
+                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(200, 0)),
+            ),
+            1,
+        );
+        let pan_event = ProtocolEventSet::hold(2)
+            .with_center_oscillation(pan)
+            .selected();
+        assert_eq!(pan_event.maturity(), ProtocolMaturity::CompletedMoveEvidence);
+        assert!(pan_event.reasons().contains(ReasonSet::CENTER_OSCILLATION));
+        assert_eq!(
+            ProtocolState::initial(2).transition(pan_event).mode(),
+            ProtocolMode::Consolidation,
+            "震荡动作证据不得伪造协议趋势转移",
+        );
+
+        let lower = oscillation_candidate(
+            OscillationEvidence::LowerLevelBsp(
+                LowerLevelBspEvidence::new(2, 1, OscillationEvidenceRef::new(201, 0)).unwrap(),
+            ),
+            2,
+        );
+        let lower_event = ProtocolEventSet::hold(2)
+            .with_center_oscillation(lower)
+            .selected();
+        assert_eq!(
+            lower_event.maturity(),
+            ProtocolMaturity::CompletedRetraceReentry
+        );
+        assert_eq!(
+            ProtocolState::initial(2).transition(lower_event).mode(),
+            ProtocolMode::Consolidation,
+        );
+    }
+
+    #[test]
+    fn settled_protocol_event_does_not_drop_center_oscillation_action_reason() {
+        let previous = center(0, 10, 90, 120);
+        let successor = center(20, 30, 125, 145);
+        let candidate = oscillation_candidate(
+            OscillationEvidence::ConsolidationDivergence(
+                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(202, 0)),
+            ),
+            3,
+        );
+        let selected = ProtocolEventSet::hold(2)
+            .with_center_oscillation(candidate)
+            .with(ProtocolEvent::settled_center_relation(
+                2,
+                &previous,
+                &successor,
+            ))
+            .selected();
+        assert_eq!(selected.maturity(), ProtocolMaturity::SettledCenterRelation);
+        assert!(selected.reasons().contains(ReasonSet::CENTER_OSCILLATION));
+        assert!(selected.reasons().contains(ReasonSet::SETTLED_RELATION));
+    }
+
+    #[test]
+    fn center_oscillation_protocol_bridge_emits_existing_p9_channel_when_enabled() {
+        let parent_id = ElementId {
+            level: 2,
+            ordinal: 7,
+        };
+        let parent = OscillationParentLeg::new(parent_id, 2, VoiceSide::Long, 40).unwrap();
+        let candidate = oscillation_candidate(
+            OscillationEvidence::ConsolidationDivergence(
+                ConsolidationDivergenceEvidence::new(OscillationEvidenceRef::new(203, 0)),
+            ),
+            4,
+        );
+        let mut book = OscillationBook::with_parents(vec![parent]);
+        let result = ProtocolEventSet::hold(2)
+            .with_center_oscillation(candidate)
+            .apply_center_oscillation(
+                &mut book,
+                CenterOscillationConfig { enabled: true },
+                SizeKThetaProjection {
+                    size_theta_units: 40,
+                    k_theta_units: 40,
+                },
+            )
+            .unwrap();
+        assert_eq!(result.mutex_class(), Some(super::super::mutex::MutexClass::Cj(9)));
+        assert_eq!(book.parent(parent_id), Some(parent));
+        assert_eq!(book.live_child_units(), 40);
     }
 }

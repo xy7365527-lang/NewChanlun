@@ -294,6 +294,8 @@ pub struct ThetaConfig {
     pub voice: VoiceConfig,
     pub risk: RiskConfig,
     pub exec: ExecConfig,
+    /// 中枢震荡配对子腿执行开关。默认关闭：协议证据仍可见，订单/子腿轨 frozen bit-exact。
+    pub center_oscillation: super::strategy::oscillation::CenterOscillationConfig,
     /// ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r}/GapBuffer 状态函数 override（PDF §3）。空 ⟹ 全用 `risk` 标量。
     pub sizing_profile: SizingProfile,
     /// 真保证金模型（D2 task #113，margin-model-design v2）。`None` ⟹ MM=0 退化口径（bit-exact 现状,
@@ -338,6 +340,7 @@ mod tests {
         assert_eq!(c.exec.entry_delay_bars, 1);
         assert_eq!(c.exec.commission_bps, 1.0);
         assert_eq!(c.exec.slippage_bps, 2.0);
+        assert!(!c.center_oscillation.enabled);
         assert_eq!(c.exec.tax_bps, 0.0);
         // frozen：sizing_profile 空 ⟹ 所有 sizing 退化为 risk 标量 + gap=0（bit-exact 不变）。
         assert!(c.sizing_profile.entries.is_empty());

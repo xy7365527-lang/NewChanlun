@@ -62,6 +62,8 @@ pub mod persistent;
 /// hedge-mode 逐声部头寸簿 P^sep → N=Net(P^sep) → Order_t=N_t−N_{t−1}；逐声部保
 /// entry_v/exit_v/parent(v)/role(v)/pnl_v。独立于 R/TW 净额账本（674号第三会计范畴）。
 pub mod overlay_state;
+/// 中枢震荡独立候选与有身份 ShortDiff 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
+pub mod oscillation;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。
 pub mod protocol;
 pub mod risk;
