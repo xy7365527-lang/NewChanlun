@@ -42,8 +42,8 @@ impl ProviderVersion {
     /// 选项 1，#90 条款 3 独立立项）：own offset-0 自核不存在（V2 InvalidSeed 域，#84 审计
     /// 215 窗全部 A3 定格分型核空）且塔 compose 携带核存在时，seed [ZD,ZG] = 携带核，
     /// 显式打标 `SeedCoreProvenance::CarriedOnly`；其余窗与 V2 逐位一致（p95 A/B 探针核验）。
-    /// 生产 tuple（`auto_pairing`/`pairing_disabled`）仍钉 V2；V3 仅经
-    /// `C2VersionTuple::carried_only()` 显式 opt-in。
+    /// #96 结裁（2026-07-16 用户"按原文裁决"，原文回查记录见同名裁决文件）：Q1=选项 1 定稿，
+    /// 生产 tuple（`auto_pairing`/`pairing_disabled`）钉 V3；V2 保留为历史基准锚与 A/B 参照。
     pub const EXTENDED_TO_EXACT_THREE_V3: Self = Self("extended-to-exact-three-v3-carried-only");
     pub const MOVE_BLOCK_AC_V1: Self = Self("move-block-ac-v1");
     /// 显式关闭也是一个完整版本值；它不是缺字段，且保持旧 Pending 行为。
@@ -59,11 +59,12 @@ pub struct C2VersionTuple {
 }
 
 impl C2VersionTuple {
+    /// #96 结裁后生产钉版 = V3（CarriedOnly 收复域生效；其余窗与 V2 逐位一致，p95 已证）。
     pub const fn auto_pairing() -> Self {
         Self {
             direction_provider_version: Some(ProviderVersion::CENTRAL_GGDD_V1),
             divergence_pair_provider_version: Some(ProviderVersion::MOVE_BLOCK_AC_V1),
-            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V2),
+            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V3),
         }
     }
 
@@ -71,12 +72,12 @@ impl C2VersionTuple {
         Self {
             direction_provider_version: Some(ProviderVersion::CENTRAL_GGDD_V1),
             divergence_pair_provider_version: Some(ProviderVersion::DISABLED_V1),
-            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V2),
+            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V3),
         }
     }
 
     /// #95 CarriedOnly 迁移 tuple：仅 projection 升版 V3，方向/背驰 provider 不动。
-    /// 显式 opt-in 入口——生产两个 tuple 常量不改，缓存键含版本串故 V2/V3 视图不可能串键。
+    /// #96 结裁后与 `auto_pairing()` 等值，保留作显式命名入口（历史探针与文档引用它）。
     pub const fn carried_only() -> Self {
         Self {
             direction_provider_version: Some(ProviderVersion::CENTRAL_GGDD_V1),
@@ -299,7 +300,10 @@ fn as_unit(value: &LeveledMove) -> Option<UnitRange> {
     })
 }
 
-/// D1 选项 A：显式把扩展窗口投影到 immutable exact-three seed（生产版本，钉 V2）。
+/// D1 选项 A：显式把扩展窗口投影到 immutable exact-three seed（钉 V2）。
+/// #96 迁移后：生产 tuple 已切 V3（`auto_pairing()`/`carried_only()`/`pairing_disabled()`），
+/// 本入口按裁决保留为**历史基准锚与 A/B 参照**（InvalidSeed fail-closed 语义不变）；
+/// 与 V3 tuple 混用会在 query 侧被 `ProjectionVersionMismatch` 显式拒绝。
 pub fn project_extended_windows(
     windows: &[LeveledMove],
 ) -> Result<ExactThreeProjection, ProjectionError> {
@@ -1097,7 +1101,7 @@ mod tests {
     #[test]
     fn opposite_legs_pair_stably_and_disabled_provider_keeps_pending() {
         let (windows, lower) = extended_windows();
-        let projection = project_extended_windows(&windows).unwrap();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
         let legs = lower_legs_from(&lower).unwrap();
         let block = trend_block(Some(Direction::Up));
         let one = provide_divergence_pairs(1, &projection, &[block], &legs, 129);
@@ -1132,7 +1136,7 @@ mod tests {
     #[test]
     fn auto_pairing_completes_only_after_real_macd_divergence() {
         let (windows, lower) = extended_windows();
-        let projection = project_extended_windows(&windows).unwrap();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
         let legs = lower_legs_from(&lower).unwrap();
         let block = trend_block(Some(Direction::Up));
         let mut hist = vec![0.0; 130];
@@ -1186,7 +1190,7 @@ mod tests {
         assert!(a.as_str().contains("pair=move-block-ac-v1"));
         assert!(a
             .as_str()
-            .contains("projection=extended-to-exact-three-v2-inherited-core"));
+            .contains("projection=extended-to-exact-three-v3-carried-only"));
         let stream_a = C2PersistenceKey::from_query(&q).unwrap();
         let mut later = q;
         later.as_of += 1;

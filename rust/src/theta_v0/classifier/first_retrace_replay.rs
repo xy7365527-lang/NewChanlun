@@ -304,7 +304,7 @@ mod tests {
         );
         assert_eq!(
             version.projection_provider_version,
-            Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V2)
+            Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V3)
         );
         assert!(version.validate().is_ok());
     }
