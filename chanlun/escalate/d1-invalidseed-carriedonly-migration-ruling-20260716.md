@@ -53,3 +53,22 @@
 
 推荐倾向不在本文给出。选项 0 与选项 1 均满足既有裁定链的一致性约束，取舍属教义裁决
 （携带核的存在性定义地位）+ 工程代价权衡（194 窗 run 隔断 vs 全量迁移验证成本），裁决人：用户。
+
+---
+
+## 执行记录（#95，2026-07-16，Claude）
+
+Q2 建议条款 1–4 的验收测量已完成（独立任务 #95；探针 `rust/src/bin/p95_carriedonly_ab.rs`，
+报告 `chanlun/review-results/p95-carriedonly-ab-20260716.md`，事件差异全量 815 行
+`chanlun/review-results/p95-carriedonly-ab-eventdiff-20260716.md`）：
+
+| 条款 | 结果 |
+|---|---|
+| 1 独立立项 | 任务 #95，未并入现有任务 |
+| 2 全量 A/B | 11,682/11,682 未涉窗 bit-exact，`seed_diff=0`；215/215 收复，`provenance=CarriedOnly` 逐窗打印 |
+| 3 run 合并差异 | L1 160→1、L2 40→1、L3 7→1；completed +185/−123、events +580/−232，逐条归档交裁决 |
+| 4 prefix 逐时点对账 | 3,137 采样点：`pre_violation=0`、`offdomain_diffs=0`、`bonly_flips=0`（邻域采样口径，演进见报告） |
+| 5 原文回查 | p93 补测 0010:29 延伸判据 215/215 触核；0010:5 存在性定义地位待定稿 |
+
+探针终态 `P95_STATUS status=PASS`。本记录不改变本文"待裁"状态：Q1（选项 0/1 取舍）
+与条款 3 差异清单的接受与否，仍属裁决人。

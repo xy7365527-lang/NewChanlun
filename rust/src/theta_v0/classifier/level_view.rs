@@ -5,7 +5,7 @@
 //! provider 不在本模块出现，方向版本唯一绑定 `central-ggdd-v1`。
 
 use super::super::types::{Center, Direction, MoveKind, Segment, Side, Tick};
-use super::center::{center_from_segments, center_from_window, UnitRange};
+use super::center::{center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange};
 use super::decompose::{center_block_kind, MoveBlock, MoveStatus};
 use super::divergence::{
     departure_move_c_start, locate_departure_move_a, segments_diverge, self_anchors,
@@ -38,6 +38,13 @@ impl ProviderVersion {
     /// #90 结裁：seed [ZD,ZG] 改读塔 compose 携带核（准绳=继承核，定理一核心冻结在父窗），
     /// dd/gg/身份不动；两核不等显式打标 `SeedCoreProvenance::InheritedRecut`（codex :143 边界条件）。
     pub const EXTENDED_TO_EXACT_THREE_V2: Self = Self("extended-to-exact-three-v2-inherited-core");
+    /// #95 版本化迁移（裁定 `chanlun/escalate/d1-invalidseed-carriedonly-migration-ruling-20260716.md`
+    /// 选项 1，#90 条款 3 独立立项）：own offset-0 自核不存在（V2 InvalidSeed 域，#84 审计
+    /// 215 窗全部 A3 定格分型核空）且塔 compose 携带核存在时，seed [ZD,ZG] = 携带核，
+    /// 显式打标 `SeedCoreProvenance::CarriedOnly`；其余窗与 V2 逐位一致（p95 A/B 探针核验）。
+    /// 生产 tuple（`auto_pairing`/`pairing_disabled`）仍钉 V2；V3 仅经
+    /// `C2VersionTuple::carried_only()` 显式 opt-in。
+    pub const EXTENDED_TO_EXACT_THREE_V3: Self = Self("extended-to-exact-three-v3-carried-only");
     pub const MOVE_BLOCK_AC_V1: Self = Self("move-block-ac-v1");
     /// 显式关闭也是一个完整版本值；它不是缺字段，且保持旧 Pending 行为。
     pub const DISABLED_V1: Self = Self("disabled-v1");
@@ -65,6 +72,16 @@ impl C2VersionTuple {
             direction_provider_version: Some(ProviderVersion::CENTRAL_GGDD_V1),
             divergence_pair_provider_version: Some(ProviderVersion::DISABLED_V1),
             projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V2),
+        }
+    }
+
+    /// #95 CarriedOnly 迁移 tuple：仅 projection 升版 V3，方向/背驰 provider 不动。
+    /// 显式 opt-in 入口——生产两个 tuple 常量不改，缓存键含版本串故 V2/V3 视图不可能串键。
+    pub const fn carried_only() -> Self {
+        Self {
+            direction_provider_version: Some(ProviderVersion::CENTRAL_GGDD_V1),
+            divergence_pair_provider_version: Some(ProviderVersion::MOVE_BLOCK_AC_V1),
+            projection_provider_version: Some(ProviderVersion::EXTENDED_TO_EXACT_THREE_V3),
         }
     }
 
@@ -97,7 +114,11 @@ impl C2VersionTuple {
         let projection = self
             .projection_provider_version
             .ok_or(VersionTupleError::Missing("projection_provider_version"))?;
-        if projection != ProviderVersion::EXTENDED_TO_EXACT_THREE_V2 {
+        if !matches!(
+            projection,
+            ProviderVersion::EXTENDED_TO_EXACT_THREE_V2
+                | ProviderVersion::EXTENDED_TO_EXACT_THREE_V3
+        ) {
             return Err(VersionTupleError::Mismatch {
                 field: "projection_provider_version",
                 expected: ProviderVersion::EXTENDED_TO_EXACT_THREE_V2,
@@ -214,6 +235,10 @@ pub enum SeedCoreProvenance {
     /// #148 升级重切子窗：seed [ZD,ZG] = 父窗继承核（塔携带，准绳）；`self_core` 保留
     /// offset-0 自核值仅供审计，生产消费一律走 `ExactThreeSeed::center`。
     InheritedRecut { self_core: Center },
+    /// #95（仅 `EXTENDED_TO_EXACT_THREE_V3` 产出）：offset-0 自核不存在（V2 InvalidSeed 域，
+    /// A3 定格分型 `ZD>ZG` 核空或 L1 方向不交替），seed [ZD,ZG] = 塔 compose 携带核；
+    /// 无自核值可留档，故无 `self_core` 字段——不伪装成普通 seed（codex :143 边界条件同源）。
+    CarriedOnly,
 }
 
 /// 扩展窗口投影后的不可变 seed；只复制前三个次级别走势的确定值，不保留可变尾引用。
@@ -274,9 +299,26 @@ fn as_unit(value: &LeveledMove) -> Option<UnitRange> {
     })
 }
 
-/// D1 选项 A：显式把扩展窗口投影到 immutable exact-three seed。
+/// D1 选项 A：显式把扩展窗口投影到 immutable exact-three seed（生产版本，钉 V2）。
 pub fn project_extended_windows(
     windows: &[LeveledMove],
+) -> Result<ExactThreeProjection, ProjectionError> {
+    project_extended_windows_impl(windows, ProviderVersion::EXTENDED_TO_EXACT_THREE_V2)
+}
+
+/// #95 D1 CarriedOnly 版本化迁移（V3）：与 V2 的**唯一**分歧点是 own offset-0 自核不存在时
+/// 不再 InvalidSeed fail-closed，而是取塔 compose 携带核为 seed [ZD,ZG]（外缘 dd/gg 与坐标
+/// 仍按 V2 同一公式取首三段窗），显式打标 `SeedCoreProvenance::CarriedOnly`。
+/// own 自核存在的窗与 V2 逐位一致（p95 A/B 探针全量核验）。
+pub fn project_extended_windows_carried_only(
+    windows: &[LeveledMove],
+) -> Result<ExactThreeProjection, ProjectionError> {
+    project_extended_windows_impl(windows, ProviderVersion::EXTENDED_TO_EXACT_THREE_V3)
+}
+
+fn project_extended_windows_impl(
+    windows: &[LeveledMove],
+    version: ProviderVersion,
 ) -> Result<ExactThreeProjection, ProjectionError> {
     let mut seeds = Vec::with_capacity(windows.len());
     for (index, window) in windows.iter().enumerate() {
@@ -295,35 +337,52 @@ pub fn project_extended_windows(
         let [Some(a), Some(b), Some(c)] = units else {
             return Err(ProjectionError::InvalidSeed { index });
         };
-        // 条款 3（#90 结裁）：offset-0 自核不成立 ⟹ InvalidSeed 维持 D1 选项 0 fail-closed，
-        // 不以携带核收复（收复须独立立项走版本化迁移）。
         let own_center = if window.id.level == 1 {
             center_from_segments(&a, &b, &c)
         } else {
             center_from_window(&a, &b, &c)
+        };
+        // 条款 3（#90 结裁）：V2 下 offset-0 自核不成立 ⟹ InvalidSeed 维持 D1 选项 0
+        // fail-closed。#95 迁移裁定（选项 1）：V3 下该域改走携带核收复，见下方 CarriedOnly 分支。
+        if own_center.is_none() && version != ProviderVersion::EXTENDED_TO_EXACT_THREE_V3 {
+            return Err(ProjectionError::InvalidSeed { index });
         }
-        .ok_or(ProjectionError::InvalidSeed { index })?;
         // 条款 1（#90 结裁）：准绳 = 塔 compose 携带核（#89 已证与重算 detect 逐窗 bit-equal）。
         let carried = match &window.rmove {
             super::descend::RMove::Compose { centers, .. } => centers.first().copied(),
             super::descend::RMove::Segment { .. } => None,
         }
         .ok_or(ProjectionError::MissingCarriedCenter { index })?;
-        // 条款 2（#90 结裁）：两核不等禁静默——seed [ZD,ZG] 取继承核，自核值显式留档。
-        let (center, core_provenance) = if own_center.zd == carried.zd && own_center.zg == carried.zg
-        {
-            (own_center, SeedCoreProvenance::SelfConsistent)
-        } else {
-            (
+        let (center, core_provenance) = match own_center {
+            // 条款 2（#90 结裁）：两核不等禁静默——seed [ZD,ZG] 取继承核，自核值显式留档。
+            Some(own_center) => {
+                if own_center.zd == carried.zd && own_center.zg == carried.zg {
+                    (own_center, SeedCoreProvenance::SelfConsistent)
+                } else {
+                    (
+                        Center {
+                            zd: carried.zd,
+                            zg: carried.zg,
+                            ..own_center
+                        },
+                        SeedCoreProvenance::InheritedRecut {
+                            self_core: own_center,
+                        },
+                    )
+                }
+            }
+            // #95（V3 独占分支）：自核不存在，seed 核 = 携带核；外缘/坐标与 V2 同公式。
+            None => (
                 Center {
                     zd: carried.zd,
                     zg: carried.zg,
-                    ..own_center
+                    dd: compute_dd(&a, &b, &c),
+                    gg: compute_gg(&a, &b, &c),
+                    start_index: a.start_index,
+                    end_index: c.end_index,
                 },
-                SeedCoreProvenance::InheritedRecut {
-                    self_core: own_center,
-                },
-            )
+                SeedCoreProvenance::CarriedOnly,
+            ),
         };
         seeds.push(ExactThreeSeed {
             source_id: window.id,
@@ -334,10 +393,7 @@ pub fn project_extended_windows(
             core_provenance,
         });
     }
-    Ok(ExactThreeProjection {
-        version: ProviderVersion::EXTENDED_TO_EXACT_THREE_V2,
-        seeds,
-    })
+    Ok(ExactThreeProjection { version, seeds })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -727,7 +783,10 @@ pub fn assemble_level_view(
         }
         ProjectionMaterial::ExactThree(value) => value,
     };
-    if projection.version != ProviderVersion::EXTENDED_TO_EXACT_THREE_V2 {
+    // #95：projection 版本须与 query tuple 声明的 projection provider 逐字一致
+    // （validate() 已把合法域钉在 V2/V3）。V2 查询行为与迁移前逐位不变；V3 仅显式 opt-in，
+    // 且 V2 查询 + V3 投影（或反之）在此被拒绝——不存在静默混版。
+    if Some(projection.version) != query.version.projection_provider_version {
         return Err(LevelViewError::ProjectionVersionMismatch(
             projection.version,
         ));

@@ -101,12 +101,14 @@ fn compute_zd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
 }
 
 /// 外缘上沿 `computeGG s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeGG`）：三段 hi 取 max。
-fn compute_gg(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
+/// `pub(super)`：#95 CarriedOnly 投影（level_view V3）需按同一公式算外缘，禁止公式重抄漂移。
+pub(super) fn compute_gg(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
     a.hi.max(b.hi.max(c.hi))
 }
 
 /// 外缘下沿 `computeDD s1 s2 s3`（契约锚 `Origin.CenterConstruction.computeDD`）：三段 lo 取 min。
-fn compute_dd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
+/// `pub(super)`：同 `compute_gg`（#95）。
+pub(super) fn compute_dd(a: &UnitRange, b: &UnitRange, c: &UnitRange) -> Tick {
     a.lo.min(b.lo.min(c.lo))
 }
 
