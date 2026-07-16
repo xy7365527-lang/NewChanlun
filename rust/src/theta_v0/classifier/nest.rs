@@ -385,13 +385,33 @@ pub enum NestIntervalCaliber {
     B,
 }
 
+/// #97 身份标签：链上每级实际选用的 provider 事件身份，按高→低排列并包含基例，
+/// 与 [`TypedNestCertificate::kinds`] 一一对齐。只作归因/对账 sidecar，不参与证书真值。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestEventIdentity {
+    pub level: u32,
+    pub turn_source: usize,
+    pub interval_b: (usize, usize),
+}
+
+impl NestEventIdentity {
+    fn of(event: &NestCandidateEvent) -> Self {
+        Self {
+            level: event.level,
+            turn_source: event.turn_source,
+            interval_b: event.interval_b,
+        }
+    }
+}
+
 /// #92 typed 证书：证书真值仍由 [`NestCertificate`] 单一来源复验，类型与首次可证钟
-/// 作为不可改判的 sidecar 随链保存。`kinds`/`judge_at` 均按高→低排列并包含基例。
+/// 作为不可改判的 sidecar 随链保存。`kinds`/`judge_at`/`identities` 均按高→低排列并包含基例。
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedNestCertificate {
     certificate: NestCertificate,
     kinds: Vec<NestDivergenceKind>,
     judge_at: Vec<usize>,
+    identities: Vec<NestEventIdentity>,
     caliber: NestIntervalCaliber,
 }
 
@@ -406,6 +426,11 @@ impl TypedNestCertificate {
 
     pub fn judge_at(&self) -> &[usize] {
         &self.judge_at
+    }
+
+    /// #97 身份标签（高→低，含基例），与 [`Self::kinds`] 对齐。
+    pub fn identities(&self) -> &[NestEventIdentity] {
+        &self.identities
     }
 
     pub fn caliber(&self) -> NestIntervalCaliber {
@@ -459,6 +484,7 @@ where
     let mut rungs_low_to_high = Vec::with_capacity(top_level - exec_level);
     let mut kinds_low_to_high = vec![base.kind];
     let mut clocks_low_to_high = vec![base.judge_at];
+    let mut ids_low_to_high = vec![NestEventIdentity::of(base)];
     if !extend_typed_upward(
         events_by_level,
         base.side,
@@ -469,12 +495,14 @@ where
         &mut rungs_low_to_high,
         &mut kinds_low_to_high,
         &mut clocks_low_to_high,
+        &mut ids_low_to_high,
     ) {
         return None;
     }
     rungs_low_to_high.reverse();
     kinds_low_to_high.reverse();
     clocks_low_to_high.reverse();
+    ids_low_to_high.reverse();
     let certificate = NestCertificateBuilder {
         side: base.side,
         terminal,
@@ -488,6 +516,7 @@ where
         certificate,
         kinds: kinds_low_to_high,
         judge_at: clocks_low_to_high,
+        identities: ids_low_to_high,
         caliber,
     })
 }
@@ -503,6 +532,7 @@ fn extend_typed_upward(
     rungs: &mut Vec<NestRung>,
     kinds: &mut Vec<NestDivergenceKind>,
     clocks: &mut Vec<usize>,
+    ids: &mut Vec<NestEventIdentity>,
 ) -> bool {
     if level > top_level {
         return true;
@@ -517,7 +547,9 @@ fn extend_typed_upward(
     });
     for index in order {
         let event = &events[index];
-        if event.side != side || !event.divergence_confirmed {
+        // #97 初筛只看结构（D1 裁定：Cand=纯结构宽候选，力度留在②基例生产门）：
+        // rung 级不再要求 divergence_confirmed；力度真值仍在事件字段上独立可查。
+        if event.side != side {
             continue;
         }
         let parent = typed_interval(event, caliber);
@@ -527,6 +559,7 @@ fn extend_typed_upward(
         rungs.push(NestRung::assembled(event.judge_at, *child, parent, true));
         kinds.push(event.kind);
         clocks.push(event.judge_at);
+        ids.push(NestEventIdentity::of(event));
         if extend_typed_upward(
             events_by_level,
             side,
@@ -537,12 +570,14 @@ fn extend_typed_upward(
             rungs,
             kinds,
             clocks,
+            ids,
         ) {
             return true;
         }
         rungs.pop();
         kinds.pop();
         clocks.pop();
+        ids.pop();
     }
     false
 }
@@ -1449,6 +1484,7 @@ mod tests {
             turn_source,
             judge_at,
             provider_window: interval_a,
+            intake_fallback: false,
         }
     }
 
@@ -1475,6 +1511,31 @@ mod tests {
             certificate.d3_descent_stats(), (1, 1),
             "逆序只计 sidecar，不否决证书"
         );
+        assert!(certificate.certificate().n_delta());
+    }
+
+    #[test]
+    fn p97_rung_screening_is_structural_and_identities_align() {
+        let base = typed_event(
+            1, Side::Long, NestDivergenceKind::Consolidation,
+            (30, 50), (10, 70), 50, 100, true,
+        );
+        // 父级 rung 力度未确认（divergence_confirmed=false）：D1 裁定下只看结构，不得否决链。
+        let parent = typed_event(
+            2, Side::Long, NestDivergenceKind::Consolidation,
+            (20, 80), (0, 100), 80, 200, false,
+        );
+        let events = vec![Vec::new(), vec![base.clone()], vec![parent.clone()]];
+        let certificate = assemble_typed_certificate(
+            &events, &base, 2, NestIntervalCaliber::B, &|_| Some(buy1_bits()),
+        ).expect("#97: rung 初筛只看结构，父级力度未确认不否决链");
+        assert_eq!(
+            certificate.identities(),
+            &[NestEventIdentity::of(&parent), NestEventIdentity::of(&base)],
+            "#97: 身份标签按高→低对齐，含基例"
+        );
+        assert_eq!(certificate.kinds().len(), certificate.identities().len());
+        assert_eq!(certificate.judge_at().len(), certificate.identities().len());
         assert!(certificate.certificate().n_delta());
     }
 

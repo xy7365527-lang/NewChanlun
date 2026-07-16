@@ -484,6 +484,9 @@ pub struct NestCandidateEvent {
     pub judge_at: usize,
     /// provider 合法 run 的源坐标窗；只用于 prefix replay 精确路由，不进入 N 真值。
     pub provider_window: (usize, usize),
+    /// #97 进料口审计标记：盘背候选的 `interval_a`（诊断口径）在 leave→retest 对不可用时
+    /// 由结构兜底跨度回填。`true` 仅表示旧进料口会丢弃该候选；不进入 N 真值与 B 生产口径。
+    pub intake_fallback: bool,
 }
 
 fn range_envelope(segments: &[Segment], span: (usize, usize)) -> Option<(Tick, Tick)> {
@@ -586,6 +589,7 @@ pub fn provide_nest_candidate_events(
             turn_source: pair.seg_c.1,
             judge_at: view.query.as_of,
             provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+            intake_fallback: false,
         });
     }
 
@@ -613,8 +617,18 @@ pub fn provide_nest_candidate_events(
         }) else {
             continue;
         };
-        let Some(interval_a) = structural_pair_span(projection, blocks, leave_index) else {
-            continue;
+        // #97 进料口（⑤「盘背入链」落地缺口补齐）：leave→retest 对不可用（如盘整块为末块、
+        // 离开块未 Completed）时不再丢弃候选；interval_a 仅供 A 口径诊断，回填为盘整块自身
+        // 结构跨度（再兜底 seg_a.0..seg_c.1），B 生产口径（interval_b）不受影响。
+        let (interval_a, intake_fallback) = match structural_pair_span(projection, blocks, leave_index) {
+            Some(span) => (span, false),
+            None => (
+                blocks
+                    .get(leave_index)
+                    .and_then(|block| structural_block_span(projection, block))
+                    .unwrap_or((structure.seg_a.0, structure.seg_c.1)),
+                true,
+            ),
         };
         let divergence_confirmed = match (
             map_src_to_close_idx(close_src, structure.seg_a.0, structure.seg_a.1),
@@ -634,6 +648,7 @@ pub fn provide_nest_candidate_events(
             turn_source: structure.source_index,
             judge_at: view.query.as_of,
             provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+            intake_fallback,
         };
         if !out.contains(&event) {
             out.push(event);

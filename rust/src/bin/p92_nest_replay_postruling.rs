@@ -6,7 +6,8 @@
 use newchan_rust::theta_v0::classifier;
 use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::level_view::{
-    assemble_level_view, lower_legs_from, project_extended_windows, provide_nest_candidate_events,
+    assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
+    provide_nest_candidate_events,
     C2LevelViewConfig, C2VersionTuple, CoordinateWindow, LevelViewMaterial, LevelViewQuery,
     NestCandidateEvent, NestDivergenceKind, ProjectionError, ProjectionMaterial,
 };
@@ -80,6 +81,9 @@ impl ProviderAudit {
     }
 }
 
+/// #97 身份键：与 [`NestEventIdentity`] 字段一一对应，用于对账链覆盖。
+type IdentityKey = (u32, usize, (usize, usize));
+
 #[derive(Debug, Default)]
 struct YieldBook {
     candidates: BTreeMap<EventKey, usize>,
@@ -91,6 +95,10 @@ struct YieldBook {
     cert_b_kind: BTreeMap<&'static str, usize>,
     d3_edges: usize,
     d3_violations: usize,
+    /// #97: B 口径链实际吸收过的事件身份（任意 rung 位置）。
+    covered_b: BTreeSet<IdentityKey>,
+    /// #97: 走盘整块回退进料口的候选。
+    intake_fallbacks: BTreeSet<EventKey>,
 }
 
 struct TerminalState {
@@ -325,6 +333,32 @@ fn main() -> Result<(), String> {
         audit.snapshot_future_violations == 0,
         book.cert_b.is_empty()
     );
+    // #97: 遗漏对账 —— 钟位可证的候选却从未被任何 B 链吸收，逐条枚举。
+    let missed: Vec<&EventKey> = book
+        .terminal_confirmed
+        .iter()
+        .filter(|key| !book.covered_b.contains(&(key.level, key.turn_source, key.interval_b)))
+        .collect();
+    println!(
+        "P92_MISSED terminal_confirmed={} covered_b={} intake_fallback_events={} missed={}",
+        book.terminal_confirmed.len(),
+        book.covered_b.len(),
+        book.intake_fallbacks.len(),
+        missed.len()
+    );
+    for key in &missed {
+        println!(
+            "P92_MISSED_EVENT level={} kind={:?} short={} seg_a={:?} interval_b={:?} interval_a={:?} turn_source={} intake_fallback={}",
+            key.level,
+            key.kind,
+            key.short,
+            key.seg_a,
+            key.interval_b,
+            key.interval_a,
+            key.turn_source,
+            book.intake_fallbacks.contains(*key)
+        );
+    }
     Ok(())
 }
 
@@ -466,7 +500,7 @@ fn collect_target_candidates(
         let mut run_source = None;
         for index in 0..=windows.len() {
             let seed_start = (index < windows.len())
-                .then(|| project_extended_windows(std::slice::from_ref(&windows[index])).ok())
+                .then(|| project_extended_windows_carried_only(std::slice::from_ref(&windows[index])).ok())
                 .flatten()
                 .and_then(|projection| projection.seeds.first().map(|seed| seed.start_index));
             match (run_start, seed_start) {
@@ -484,7 +518,7 @@ fn collect_target_candidates(
         }
         for run_source_start in run_sources {
             let Some(&(start, end)) = run_ranges.get(&run_source_start) else { continue };
-            let projection = project_extended_windows(&windows[start..end])
+            let projection = project_extended_windows_carried_only(&windows[start..end])
                 .map_err(|error| format!("L{level} targeted projection 失败: {error:?}"))?;
             let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
             let blocks = decompose::decompose(&centers);
@@ -544,7 +578,7 @@ fn collect_snapshot_candidates(
         let mut run_start = None;
         for index in 0..=windows.len() {
             let valid = if index < windows.len() {
-                match project_extended_windows(std::slice::from_ref(&windows[index])) {
+                match project_extended_windows_carried_only(std::slice::from_ref(&windows[index])) {
                     Ok(_) => true,
                     Err(error) => {
                         audit.observe_projection(error);
@@ -557,7 +591,7 @@ fn collect_snapshot_candidates(
             match (run_start, valid) {
                 (None, true) => run_start = Some(index),
                 (Some(start), false) => {
-                    let projection = project_extended_windows(&windows[start..index])
+                    let projection = project_extended_windows_carried_only(&windows[start..index])
                         .map_err(|error| format!("L{level} run projection 失败: {error:?}"))?;
                     let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
                     let blocks = decompose::decompose(&centers);
@@ -621,6 +655,9 @@ fn observe_snapshot(
                 audit.snapshot_future_violations += 1;
             }
             let key = EventKey::from(&*event);
+            if event.intake_fallback {
+                book.intake_fallbacks.insert(key.clone());
+            }
             let candidate_at = *book.candidates.entry(key.clone()).or_insert(as_of);
             if event.interval_a.1 > candidate_at
                 || event.interval_b.1 > candidate_at
@@ -652,6 +689,7 @@ fn observe_snapshot(
                 &mut book.d3_edges,
                 &mut book.d3_violations,
                 false,
+                None,
             );
             observe_certificates(
                 &current,
@@ -664,6 +702,7 @@ fn observe_snapshot(
                 &mut book.d3_edges,
                 &mut book.d3_violations,
                 true,
+                Some(&mut book.covered_b),
             );
         }
     }
@@ -681,11 +720,17 @@ fn observe_certificates(
     d3_edges: &mut usize,
     d3_violations: &mut usize,
     count_d3: bool,
+    mut covered: Option<&mut BTreeSet<IdentityKey>>,
 ) {
     let certificates = assemble_typed_certificates(events, exec, top, caliber, |event| {
         terminal_bits_new(classification, event)
     });
     for certificate in certificates {
+        if let Some(covered) = covered.as_deref_mut() {
+            for identity in certificate.identities() {
+                covered.insert((identity.level, identity.turn_source, identity.interval_b));
+            }
+        }
         let key = certificate_key(exec, top, &certificate);
         if seen.insert(key) {
             let bucket = certificate_kind(&certificate);
@@ -722,8 +767,14 @@ fn certificate_key(exec: usize, top: usize, certificate: &TypedNestCertificate) 
         .iter()
         .map(|rung| (rung.interval(), rung.child_interval()))
         .collect::<Vec<_>>();
+    // #97: 身份标签参与去重键，同结构不同 provider 身份的链不互相吞并。
+    let ids = certificate
+        .identities()
+        .iter()
+        .map(|id| (id.level, id.turn_source, id.interval_b))
+        .collect::<Vec<_>>();
     format!(
-        "{exec}:{top}:{:?}:{:?}:{:?}:{:?}:{:?}",
+        "{exec}:{top}:{:?}:{:?}:{:?}:{:?}:{:?}:{ids:?}",
         certificate.caliber(),
         cert.side(),
         cert.base_interval(),
