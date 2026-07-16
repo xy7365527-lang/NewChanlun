@@ -48,6 +48,8 @@ struct ProbeRow {
     right_invalid: bool,
     overlap_same_level: usize,
     overlap_cross_level: usize,
+    /// #94（0010:29 延伸判据）：子段 envelope 与携带核 [zd,zg] 有重叠的计数。
+    subs_touch: usize,
 }
 
 #[derive(Debug)]
@@ -118,6 +120,20 @@ fn main() -> Result<(), String> {
                         ),
                         RMove::Segment { .. } => (None, 0),
                     };
+                    // #94（0010:29）：走势中枢的延伸等价于任意区间 [dn,gn] 与 [ZD,ZG] 有重叠。
+                    // 逐子段 envelope 触核计数（闭区间相交：lo<=zg && hi>=zd）。
+                    let subs_touch = carried
+                        .map(|(zd, zg)| {
+                            window
+                                .sub_moves
+                                .iter()
+                                .filter(|sub| {
+                                    let (lo, hi) = sub.envelope();
+                                    lo <= zg && hi >= zd
+                                })
+                                .count()
+                        })
+                        .unwrap_or(0);
                     rows.push(ProbeRow {
                         level,
                         id: window.id,
@@ -132,6 +148,7 @@ fn main() -> Result<(), String> {
                         right_invalid: false,
                         overlap_same_level: 0,
                         overlap_cross_level: 0,
+                        subs_touch,
                     });
                 }
                 Err(ProjectionError::InvalidLowerLeg { .. }) => {
@@ -245,7 +262,7 @@ fn main() -> Result<(), String> {
             None => ("-".to_string(), false),
         };
         println!(
-            "P93_D1 level=L{} id={}:{} window_index={} sub_moves={} span={}:{} carried={} carried_exists={} carried_valid={} centers_len={} left_run={} right_run={} left_invalid={} right_invalid={} overlap_same_level={} overlap_cross_level={}",
+            "P93_D1 level=L{} id={}:{} window_index={} sub_moves={} span={}:{} carried={} carried_exists={} carried_valid={} centers_len={} left_run={} right_run={} left_invalid={} right_invalid={} overlap_same_level={} overlap_cross_level={} subs_touch={}",
             row.level,
             row.id.level,
             row.id.ordinal,
@@ -263,6 +280,7 @@ fn main() -> Result<(), String> {
             row.right_invalid,
             row.overlap_same_level,
             row.overlap_cross_level,
+            row.subs_touch,
         );
     }
 
