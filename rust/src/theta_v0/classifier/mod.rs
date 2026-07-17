@@ -81,6 +81,8 @@ pub mod level_view;
 pub mod first_retrace_replay;
 /// C2 CompletedFreeze 的正式 append-only event-store adapter。
 pub mod level_view_store;
+/// 区间套必要条件——递归塔原生检查器（条款 9，任务 #106；只读，不回写判据 bit）。
+pub mod interval_necessity;
 
 /// P52 全量增量重放专用的 frontier 只读计数器。
 ///
