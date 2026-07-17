@@ -688,7 +688,10 @@ pub fn provide_divergence_pairs(
         else {
             continue;
         };
-        let Some(c_terminal) = segments.iter().rev().find(|segment| {
+        // #104/#105 裁定修复（di-trend-c-terminal-forward-find-ruling-20260716）：
+        // C 终段 = 离开最后中枢后的**第一个**同向段（正向 find）。此前 rev().find 取
+        // 全域最后一个同向段，最终快照下 C 段被锚到数据末端，Trend 背驰恒 false。
+        let Some(c_terminal) = segments.iter().find(|segment| {
             segment.direction == direction
                 && segment.start_index >= last.end_index
                 && segment.end_index <= as_of
