@@ -73,6 +73,18 @@ name = "p101_cert_bsp_tag"
 path = "src/bin/p101_cert_bsp_tag.rs"
 required-features = ["backtest_bin"]
 
+# 任务 #107：nest exec/top ↔ classifier lvl 级别标定探针（只读，不进判据层）。
+[[bin]]
+name = "p107_level_calib"
+path = "src/bin/p107_level_calib.rs"
+required-features = ["backtest_bin"]
+
+# 任务 #108：区间套收敛探针——嵌套收缩/lvl0 极值 bar 收敛/破例归类（只读，不进判据层）。
+[[bin]]
+name = "p108_interval_probe"
+path = "src/bin/p108_interval_probe.rs"
+required-features = ["backtest_bin"]
+
 # ★M5 声部执行层跑批（多空对冲.pdf p16 关卡10）：run_theta_v0_pi_overlay ΔN 守恒 + 逐声部 pnl_v 归因。
 [[bin]]
 name = "theta_overlay"
