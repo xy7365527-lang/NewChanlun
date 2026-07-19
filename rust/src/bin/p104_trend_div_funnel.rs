@@ -69,6 +69,7 @@ fn main() -> Result<(), String> {
         .map(|bar| bar.source_index)
         .collect();
     let hist = compute_macd(&closes, &config.macd).hist;
+    let dif = compute_macd(&closes, &config.macd).dif;
 
     let mut events: Vec<NestCandidateEvent> = Vec::new();
     let mut lower_by_level: std::collections::BTreeMap<u32, Vec<LowerLeg>> = Default::default();
@@ -121,6 +122,7 @@ fn main() -> Result<(), String> {
                     move_blocks: &blocks,
                     lower_legs: &lower,
                     hist: &hist,
+                    dif: &dif,
                     close_src: &close_src,
                 },
             )
@@ -132,6 +134,7 @@ fn main() -> Result<(), String> {
                 &lower,
                 &view,
                 &hist,
+                &dif,
                 &close_src,
             ));
         }

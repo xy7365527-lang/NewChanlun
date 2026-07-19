@@ -61,6 +61,25 @@ name = "pi_bsp_timing"
 path = "src/bin/pi_bsp_timing.rs"
 required-features = ["backtest_bin"]
 
+# 任务 #100：nest 证书 × 现有买卖点全量对账（只读探针，CERT 读 P92_DUMP，BSP 走生产因果塔）。
+[[bin]]
+name = "p100_cert_bsp_recon"
+path = "src/bin/p100_cert_bsp_recon.rs"
+required-features = ["backtest_bin"]
+
+# 任务 #101：证书 → 就近 BSP 打标物化（只读探针，cert-bsp-binding-ruling DRAFT 的可执行镜像）。
+[[bin]]
+name = "p101_cert_bsp_tag"
+path = "src/bin/p101_cert_bsp_tag.rs"
+required-features = ["backtest_bin"]
+
+# 任务 #105：nest 证书级别谱统计（只读探针；CERT 读 P92_DUMP，BSP 走生产因果塔，
+# 身份连接用 terminal_bits_new 同构查法，nest 级 k == classifier lvl k）。
+[[bin]]
+name = "p105_cert_level_spectrum"
+path = "src/bin/p105_cert_level_spectrum.rs"
+required-features = ["backtest_bin"]
+
 # ★M5 声部执行层跑批（多空对冲.pdf p16 关卡10）：run_theta_v0_pi_overlay ΔN 守恒 + 逐声部 pnl_v 归因。
 [[bin]]
 name = "theta_overlay"

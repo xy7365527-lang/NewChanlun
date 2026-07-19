@@ -694,6 +694,65 @@ impl MarginScheduleBook {
     }
 }
 
+/// **分段 funding 费率快照簿**（A10 C2 裁定 additive 接口预冻结，与 [`MarginScheduleBook`]
+/// 同构模式）：各段 `(effective_from 含, effective_to 不含, signed_rate)`——**signed_rate 带符号
+/// datum**（venue+symbol 维度、结算周期对齐、版本化快照；费率标定是 L2 缺口，datum 到位即插，
+/// 签名不变）。
+///
+/// - `as_of` 零前视：`bar_ts` 落在哪段 `[from,to)`（from 含/to 不含）；无覆盖段 ⟹ `None`
+///   （有效域外，不借用未来快照，不外推跨段）。
+/// - fail-loud 构造：空 / `from>=to` / 重叠或乱序 / 非有限费率 ⟹ `Err`（禁静默退化）。
+/// - 消费配对：[`CostModel::funding_accrual_signed`]——`as_of(bar_ts)` 取 signed_rate 后
+///   按持仓符号定成本方向（long×rate>0 付费、short×rate>0 收费；符号表锚 venue 文档 golden）。
+///
+/// ★口径标签（A10 附则B 裁决2）：datum 未注入期间，一切带 funding 成本的 R 数值报告强制
+/// 标注 [`RATE_UNCALIBRATED_LABEL`]；datum 注入后升 `[L2费率标定: datum 版本哈希]`，不得跳级。
+#[derive(Debug, Clone, PartialEq)]
+pub struct FundingScheduleBook {
+    /// 各段 `(effective_from 含, effective_to 不含, signed_rate)`，按 from 升序不重叠。
+    snapshots: Vec<(Timestamp, Timestamp, f64)>,
+}
+
+impl FundingScheduleBook {
+    /// fail-loud 构造：非空、各段 `from<to`、按 from 升序不重叠、费率有限，否则 `Err`。
+    pub fn new(snapshots: Vec<(Timestamp, Timestamp, f64)>) -> Result<Self, String> {
+        if snapshots.is_empty() {
+            return Err("funding book: empty".into());
+        }
+        let mut prev_to: Option<Timestamp> = None;
+        for (from, to, rate) in &snapshots {
+            if from >= to {
+                return Err("funding book: from>=to".into());
+            }
+            if let Some(pt) = prev_to {
+                if *from < pt {
+                    return Err("funding book: overlapping or unsorted".into());
+                }
+            }
+            if !rate.is_finite() {
+                return Err("funding book: non-finite signed_rate".into());
+            }
+            prev_to = Some(*to);
+        }
+        Ok(FundingScheduleBook { snapshots })
+    }
+
+    /// as_of：`bar_ts` 落在哪段 `[from,to)` 的 signed_rate。无覆盖段 ⟹ `None`
+    /// （有效域外，零前视——未来快照不可见）。
+    pub fn as_of(&self, bar_ts: Timestamp) -> Option<f64> {
+        self.snapshots
+            .iter()
+            .find(|(f, t, _)| bar_ts >= *f && bar_ts < *t)
+            .map(|(_, _, r)| *r)
+    }
+}
+
+/// **费率未标定口径标签**（A10 C2/附则B 裁定强制）：v0 三常费率（`funding_rate_per_period`/
+/// `borrow_rate_per_bar`/`liq_penalty_rate`）是机制闭合用保底参数，非 venue datum 标定——
+/// **一切带成本 R 数值报告强制带本标签**；常费率数值**禁作 alpha 论据、禁作策略择优输入**
+/// （v3：历史数据只验证代码正确性）。datum 注入后升 `[L2费率标定: datum 版本哈希]`（不得跳级）。
+pub const RATE_UNCALIBRATED_LABEL: &str = "[L1机制/费率未标定]";
+
 /// 去杠杆/只平仓缓冲 B1/B2（Θ_risk 协变参数，§2.3；**非**交易所数据）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RiskCushions {
@@ -814,6 +873,28 @@ impl CostModel {
         net_notional_usd.abs() * self.funding_rate_per_period
     }
 
+    /// **有向 funding 计提**（A10 C2 裁定 additive 接口预冻结；美元，**带符号**：正=付费成本，
+    /// 负=收费收入）。周期边界口径与 [`funding_accrual`](Self::funding_accrual) 逐字一致
+    /// （`bar_index>0 ∧ bar_index % funding_period_bars == 0`），只换费率来源与方向语义：
+    ///
+    /// - `signed_rate`：带符号费率 datum（由 [`FundingScheduleBook::as_of`] 零前视取得——
+    ///   费率标定 L2 缺口，datum 到位即插；**禁**徒手喂未标定常数进生产报告）。
+    /// - `net_notional_usd`：**带符号**净名义（正=净多，负=净空——与无向保底的 `.abs()` 口径
+    ///   不同，调用方传符号值）。
+    /// - 符号表（锚 venue 文档 golden，T-N2 钉死）：long（N>0）×rate>0 ⟹ **正**（付费=成本）；
+    ///   short（N<0）×rate>0 ⟹ **负**（收费=负成本=收入）；rate<0 镜像翻转；空仓（N=0）恒 0。
+    ///
+    /// ★F2 锁死：本方法是 additive 新增——[`funding_accrual`](Self::funding_accrual) 无向保底
+    /// 路径签名/字段/语义逐字不动（既有 5+3 测试锁死）；datum 未注入期间一切带 funding 成本的
+    /// R 数值报告强制标注 [`RATE_UNCALIBRATED_LABEL`]（附则B）。
+    pub fn funding_accrual_signed(&self, bar_index: usize, net_notional_usd: f64, signed_rate: f64) -> f64 {
+        let period = self.funding_period_bars as usize;
+        if bar_index == 0 || bar_index % period != 0 {
+            return 0.0;
+        }
+        net_notional_usd * signed_rate
+    }
+
     /// 单 bar 借贷成本（美元，≥0）：借入名义 = `max(0, |N|−E)`（杠杆超出权益部分）× 每 bar 率。
     /// 未用杠杆（|N|≤E）或空仓 ⟹ 0。`equity≤0`（破产态）⟹ 借入 = 全部 |N|（无自有权益覆盖）。
     pub fn borrow_accrual(&self, net_notional_usd: f64, equity: f64) -> f64 {
@@ -836,6 +917,13 @@ impl CostModel {
 /// - `net_r` = `price_pnl_gross − commission_slippage − funding − borrow − liquidation_loss`。
 /// - `ledger_delta`：账本**独立**测得的净变动 = `final_equity_abs − nav0`（含浮盈强平）。
 /// - `conservation_residual` = `net_r − ledger_delta`：守恒残差，应 ≈0（浮点容差）。非零 = 资金泄漏 bug。
+/// - `tw_holding_cost_bridge`：**TW 桥对账行**（A10 C5 裁定 (b)，G1）——TW 账本（i64，#124 裁定4
+///   单一生产真值源）不经任何构造子见到持盾成本（GAP3 A' 冻结，零账本侵入），故 η=tw() **高估**
+///   真实在险权益恰 = 本字段（= ⌊funding+borrow+liquidation_loss⌋ 累计量化，f64→定点口径与
+///   treasury `Realize(⌊realized_cum⌋)` 一致）。消费侧 η_corrected = tw() − tw_holding_cost_bridge
+///   （enter_ready 判据与 η_bucket 同源修正，F4）。cost_model=None ⟹ 恒 0（bit-exact）。
+///   ★守恒范围声明：R 守恒覆盖 f64 cash 域、TW 守恒覆盖 i64 TW 域，两账本不同构（#90/674）——
+///   本行是两域间**对账不变量**，不声称跨账本单一 Realize/统一账本（ledger.rs 裁定清单⑨）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct RDecomposition {
     pub price_pnl_gross: f64,
@@ -846,10 +934,11 @@ pub struct RDecomposition {
     pub net_r: f64,
     pub ledger_delta: f64,
     pub conservation_residual: f64,
+    pub tw_holding_cost_bridge: i64,
 }
 
 impl RDecomposition {
-    /// 从各独立累计项 + 账本净变动组装，算 net_r + 守恒残差。
+    /// 从各独立累计项 + 账本净变动 + TW 桥对账行组装，算 net_r + 守恒残差。
     pub fn assemble(
         price_pnl_gross: f64,
         commission_slippage: f64,
@@ -857,6 +946,7 @@ impl RDecomposition {
         borrow: f64,
         liquidation_loss: f64,
         ledger_delta: f64,
+        tw_holding_cost_bridge: i64,
     ) -> Self {
         let net_r = price_pnl_gross - commission_slippage - funding - borrow - liquidation_loss;
         RDecomposition {
@@ -868,6 +958,7 @@ impl RDecomposition {
             net_r,
             ledger_delta,
             conservation_residual: net_r - ledger_delta,
+            tw_holding_cost_bridge,
         }
     }
 }
@@ -1440,13 +1531,162 @@ mod tests {
     /// RDecomposition：net_r = 价格 PnL − 五项成本；守恒残差 = net_r − 账本净变动。
     #[test]
     fn r_decomposition_conservation() {
-        // 价格贡献 $1000，费 $30 + funding $5 + borrow $2 + 强平 $10 ⟹ net_r=953。
-        let r = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 953.0);
+        // 价格贡献 $1000，费 $30 + funding $5 + borrow $2 + 强平 $10 ⟹ net_r=953；
+        // TW 桥对账行 = ⌊5+2+10⌋=17（A10 C5：tw() 高估在险权益的量）。
+        let r = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 953.0, 17);
         assert!((r.net_r - 953.0).abs() < 1e-9);
         assert!(r.conservation_residual.abs() < 1e-9, "账本一致 ⟹ 残差≈0");
+        assert_eq!(r.tw_holding_cost_bridge, 17, "TW 桥对账行 = ⌊funding+borrow+liq⌋ 累计量化");
         // 账本漂移（泄漏）⟹ 残差非零可观测。
-        let leak = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 900.0);
+        let leak = RDecomposition::assemble(1000.0, 30.0, 5.0, 2.0, 10.0, 900.0, 17);
         assert!((leak.conservation_residual - 53.0).abs() < 1e-9);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  A10 C2：FundingScheduleBook（additive 接口预冻结）+ funding_accrual_signed 有向口径
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★T-N1（裁定 C2 验收线）：`FundingScheduleBook` 复刻 margin book 测试族——`as_of` 边界
+    /// （from 含/to 不含）、未来快照不可见（零前视）、无覆盖段 None、fail-loud 构造拒错族。
+    #[test]
+    fn a10_funding_book_as_of_zero_lookahead() {
+        let book = FundingScheduleBook::new(vec![
+            (0, 100, 0.0001),   // 段1：[0,100) rate=+1bp
+            (100, 250, -0.0002), // 段2：[100,250) rate=−2bp（带符号 datum）
+        ])
+        .unwrap();
+        // from 含：ts=0 落段1；to 不含：ts=100 不落段1 落段2。
+        assert_eq!(book.as_of(0), Some(0.0001), "from 含 ⟹ ts=0 落段1");
+        assert_eq!(book.as_of(99), Some(0.0001));
+        assert_eq!(book.as_of(100), Some(-0.0002), "to 不含 ⟹ ts=100 落段2（非段1）");
+        assert_eq!(book.as_of(249), Some(-0.0002));
+        // 未来快照不可见 / 有效域外 None：ts≥250 无覆盖段（不外推未来）；ts<0 无覆盖。
+        assert_eq!(book.as_of(250), None, "无覆盖段 ⟹ None（零前视，不借用未来快照）");
+        assert_eq!(book.as_of(10_000), None, "远未来 ⟹ None（不外推）");
+        assert_eq!(book.as_of(-1), None, "簿起点前 ⟹ None");
+        // 带符号费率如实返回（负费率段可读回负值）。
+        assert_eq!(book.as_of(150), Some(-0.0002), "signed datum：负费率段读回负值");
+    }
+
+    /// ★T-N1 fail-loud 构造拒错族（裁定 C2：空/重叠/乱序/非有限 ⟹ Err，与 margin book 同构）。
+    #[test]
+    fn a10_funding_book_fail_loud_rejects() {
+        // 空簿。
+        assert!(FundingScheduleBook::new(vec![]).is_err(), "空簿 ⟹ Err");
+        // from>=to。
+        assert!(FundingScheduleBook::new(vec![(100, 100, 0.0001)]).is_err(), "from==to ⟹ Err");
+        assert!(FundingScheduleBook::new(vec![(200, 100, 0.0001)]).is_err(), "from>to ⟹ Err");
+        // 重叠（段2 from < 段1 to）。
+        assert!(
+            FundingScheduleBook::new(vec![(0, 200, 0.0001), (150, 300, 0.0002)]).is_err(),
+            "段重叠 ⟹ Err"
+        );
+        // 乱序（段2 from < 段1 from——首段违规即被重叠检查捕获的同一机制：from < prev_to）。
+        assert!(
+            FundingScheduleBook::new(vec![(100, 200, 0.0001), (50, 80, 0.0002)]).is_err(),
+            "乱序 ⟹ Err"
+        );
+        // 非有限费率（NaN / ±∞）。
+        assert!(FundingScheduleBook::new(vec![(0, 100, f64::NAN)]).is_err(), "NaN 费率 ⟹ Err");
+        assert!(FundingScheduleBook::new(vec![(0, 100, f64::INFINITY)]).is_err(), "∞ 费率 ⟹ Err");
+        // 相邻不重叠（from==prev_to）合法 + 带符号费率合法。
+        assert!(
+            FundingScheduleBook::new(vec![(0, 100, 0.0001), (100, 200, -0.0001)]).is_ok(),
+            "相邻不重叠 + 带符号费率 ⟹ Ok"
+        );
+    }
+
+    /// ★T-N2（裁定 C2 验收线，符号表锚 venue 文档 golden 钉死）：有向 funding——
+    /// long×rate>0 **付费**（正成本）、short×rate>0 **收费**（负成本=收入）、空仓恒 0；
+    /// 周期边界口径与无向保底一致；无向保底 `funding_accrual` 旧签名/语义回归不变（F2）。
+    #[test]
+    fn a10_funding_accrual_signed_direction() {
+        let c = CostModel::new(0.0001, 8, 0.0, 0.0).unwrap();
+        let rate = 0.0001; // venue golden：rate>0 时 long 付 short 收
+        // 周期边界 bar8：long（N=+10000）×rate>0 ⟹ +1.0（付费=正成本）。
+        assert!((c.funding_accrual_signed(8, 10_000.0, rate) - 1.0).abs() < 1e-12, "long×rate>0 ⟹ 付费（正成本）");
+        // short（N=−10000）×rate>0 ⟹ −1.0（收费=负成本=收入）。
+        assert!((c.funding_accrual_signed(8, -10_000.0, rate) + 1.0).abs() < 1e-12, "short×rate>0 ⟹ 收费（负成本）");
+        // rate<0 镜像翻转：long 收、short 付。
+        assert!((c.funding_accrual_signed(8, 10_000.0, -rate) + 1.0).abs() < 1e-12, "long×rate<0 ⟹ 收费");
+        assert!((c.funding_accrual_signed(8, -10_000.0, -rate) - 1.0).abs() < 1e-12, "short×rate<0 ⟹ 付费");
+        // 空仓恒 0（任意费率/边界）。
+        assert_eq!(c.funding_accrual_signed(8, 0.0, rate), 0.0, "空仓恒 0");
+        // 周期边界口径：bar0 不收、非周期 bar 不收（与无向保底一致）。
+        assert_eq!(c.funding_accrual_signed(0, 10_000.0, rate), 0.0, "bar0 不收");
+        assert_eq!(c.funding_accrual_signed(4, 10_000.0, rate), 0.0, "非周期 bar 不收");
+        // F2 回归：无向保底旧语义逐字不变——|N|×rate 恒≥0，与有向版在 long+正 rate 下同值。
+        assert_eq!(c.funding_accrual(8, -10_000.0), 1.0, "无向保底：空头仍取 |N| 恒正（保守口径不动）");
+        assert_eq!(c.funding_accrual(8, 10_000.0), c.funding_accrual_signed(8, 10_000.0, rate),
+            "long+正 rate 下有向==无向（保底是有向口径的保守超集）");
+        // FundingScheduleBook 配对：as_of 取 rate 喂计提（datum 到位即插的接缝演示）。
+        let book = FundingScheduleBook::new(vec![(0, 100, rate), (100, 200, -rate)]).unwrap();
+        let r1 = book.as_of(8).unwrap();
+        let r2 = book.as_of(120).unwrap();
+        assert!((c.funding_accrual_signed(8, 10_000.0, r1) - 1.0).abs() < 1e-12, "book 段1 rate 喂入");
+        assert!((c.funding_accrual_signed(8, 10_000.0, r2) + 1.0).abs() < 1e-12, "book 段2 负 rate 喂入");
+    }
+
+    /// ★附则B 标签（裁定验收线 T-N9 口径）：费率未标定标签常量钉死逐字值——
+    /// datum 注入前一切带成本 R 数值报告强制带它；禁弱化/移除（不回滚条款）。
+    #[test]
+    fn a10_rate_uncalibrated_label_frozen() {
+        assert_eq!(RATE_UNCALIBRATED_LABEL, "[L1机制/费率未标定]", "标签逐字值冻结（090 措辞纪律）");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  A10 C4：T-N5 守卫（OQ-5(d) 定理代码锁）——cost_basis<0 禁进强平判据
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★T-N5（裁定 C4 升强制，OQ-5(d) 已结算定理的代码锁）：**禁把 `cost_basis<0` 编码进
+    /// 强平判据/豁免**——强平判据永远读 basis/权益域（>0）；负成本「无风险」是现货命题，
+    /// 期货越界（three_stages §4.4:319-331；教义域外 [L0域外]）。
+    ///
+    /// 构造 stage=EarningShares + 负成本域账本态（cum_net_cash 强负 = 成本基<0 的「成本为0后」
+    /// 延伸态），断言 `margin_inputs`/`risk_mode` 判据输出只由 (net_notional, equity, schedule,
+    /// cushions) 决定——负成本域账本态在场与否**逐位相同**；且权益跌破 MM 照常触发
+    /// Liquidation（**负成本不免强平**）。任何未来把 cost_basis 喂进强平链的改动（margin_inputs
+    /// 签名加参 / risk_mode 读账本态）被本测试的期望值击杀。
+    #[test]
+    fn a10_tn5_negative_cost_basis_never_enters_liquidation_criteria() {
+        use crate::theta_v0::strategy::ledger::{TStage, TwState};
+        // 负成本域账本态证人：EarningShares + cum_net_cash=−1e6（净现金口径成本基<0，
+        // 「现货无风险」命题域）——它**不在** margin_inputs/risk_mode 的输入里（本测试锁死这一点）。
+        let neg_cost_witness = TwState {
+            stage: TStage::EarningShares,
+            cum_net_cash: -1_000_000,
+            ..TwState::initial()
+        };
+        assert!(neg_cost_witness.cum_net_cash < 0, "证人态确在负成本域（构造前置）");
+        assert_eq!(neg_cost_witness.stage, TStage::EarningShares, "证人态在 EarningShares（裁定构造要求）");
+
+        let s = MarginSchedule::cme_simple(0.1, 1.0).unwrap(); // MM=0.1·N
+        let cushions = RiskCushions::new(100.0, 300.0).unwrap();
+        let net = 10_000.0; // MM=1000
+        // 同一 (N,E) 网格扫五态全相：判据输出与负成本域无关（margin_inputs 不读任何账本态——
+        // 期望值手工推导自 equity/MM/B1/B2，若强平链接入 cost_basis 这些期望值必变 = 击杀）。
+        let cases: [(f64, RiskMode); 5] = [
+            (1400.0, RiskMode::Normal),       // E ≥ MM+B2
+            (1200.0, RiskMode::CloseOnly),    // E ∈ [MM+B1, MM+B2)
+            (1050.0, RiskMode::Deleverage),   // E ∈ [MM, MM+B1)
+            (900.0, RiskMode::Liquidation),   // E < MM（负成本不免强平的核心域）
+            (0.0, RiskMode::Insolvent),       // E ≤ 0
+        ];
+        for (equity, expected) in cases {
+            let ri = margin_inputs(net, equity, &s, &cushions);
+            assert_eq!(ri.liq_flag, equity <= ri.maint_margin, "liq_flag 只读 equity≤MM（E={equity}）");
+            assert_eq!(
+                risk_mode(&ri),
+                expected,
+                "E={equity}：risk_mode 只读 equity/MM/B1/B2——负成本域账本态在场判据不变（OQ-5(d)）"
+            );
+        }
+        // 显式锚（裁定裁决3）：负成本域 + equity<MM ⟹ 照常 Liquidation——**负成本不免强平**。
+        let ri = margin_inputs(net, 900.0, &s, &cushions);
+        assert!(ri.liq_flag, "负成本域下 equity≤MM ⟹ liq_flag 照常触发");
+        assert_eq!(risk_mode(&ri), RiskMode::Liquidation, "负成本不免强平（OQ-5(d) 贯穿）");
+        // 对称锚：负成本域 + equity≤0 ⟹ 照常 Insolvent（破产也不豁免）。
+        assert_eq!(risk_mode(&margin_inputs(net, 0.0, &s, &cushions)), RiskMode::Insolvent);
     }
 
     /// buffer 敏感性网格（§3.5）：buffer 扰动改变 M2/M3 触发边界（暴露 Θ 自由度）。

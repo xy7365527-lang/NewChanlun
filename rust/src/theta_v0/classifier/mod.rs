@@ -22,6 +22,9 @@
 //!   `Origin.Divergence.{Force,IsDivergence}` + `Origin.ForceInterface.ForceMeasure`（reference:37）。
 //! - [`nest`]：区间套有限递归证书 χ（`Sel_Θ` 选择器 + 终端确认）。对齐
 //!   `Origin.SubLevelDescent.{descend,subLevelHasBrokenCenter}`。
+//! - [`turn_class`]：小转大显式分类分支（旁挂联合分类 `NestTurnClass` 四类 partition，
+//!   纯只读派生）。p118 施工图形态 D；Lean 侧 `Origin.NestTurnClass` 列 formal-chain 遗留
+//!   （rust 领先 Origin，T3 L1 先例登记漂移）。
 //!
 //! ## 递归级别（reference-theta-v0.md:29-30；契约锚 `Origin.RecursiveLevelSystem`）
 //!
@@ -70,6 +73,12 @@ pub mod descend;
 pub mod rmove_compose;
 pub mod recursive_tower;
 pub mod nest;
+/// p118 关④ 小转大显式分类分支：旁挂联合分类 `NestTurnClass`（四类 partition，纯只读派生）。
+pub mod turn_class;
+pub use turn_class::{
+    classify_certificate_turn, classify_nest_turns, is_defer_orphan_event, CertKey, NestTurnClass,
+    XzdEvidence,
+};
 pub mod signal;
 pub mod six_state;
 pub mod voice_eat;
@@ -261,6 +270,9 @@ fn extract_first_third_for_level(
     // ★Q7-#1 裁定C（codex-q7-fallback-20260703，收窄 #121 裁定A）：`anchors[i]` = 产生本级 units
     // 的下级 blocks 的 ownership 方向（`center_own_dir_at` 同一来源，与 `project_to_units` 方向
     // 派生锁步）。None = endpoint fallback 单元——保留为序列/区间/面积成员，不作一/三类方向锚。
+    // ★p117（686 窄域授权，终端背书裁定 T2）：第一类方向锚经 p117 降级为单元结构方向
+    // （`judge_segment` 内消费 `anchors_self`）；`anchors` 实参仍须传——三类 leave 锚与
+    // CandDelta 诊断 provider 仍在消费 provenance 锚。
     signal::extract_signals_with_hist_anchored(
         centers, &segs, Some(anchors), hist, dif, closes_tick, close_src, gauge,
     )
@@ -2508,9 +2520,13 @@ mod tests {
         let b2 = second_buys[0];
         // B2 端点坐标由 source_index 侧车真映射（回拉走势 L1[2] 的 end_index=36）。
         assert_eq!(b2.source_index, 36, "B2 source_index = 回拉走势 L1[2] 的原始 K 序（坐标侧车真映射）");
-        // 第二类止损 = 回拉低点（second_point = 回拉走势 m2.lo）；center=None（1/2 类用 pivot 非 center）。
+        // 第二类止损 = 回拉低点（second_point = 回拉走势 m2.lo）——止损仍 pivot 非 center.zg/zd。
         assert!(b2.pivot_low != 0, "B2 携结构止损价 pivot_low（回拉低点 single source）");
-        assert!(b2.center.is_none(), "1/2 类止损用 pivot 非 center ⟹ center=None");
+        // ★owner 载体补齐（关③ 补记 2026-07-18 ② 路径 (a)）：二类点构造时填入判定中枢——生产
+        // `extract_second_for_level` 传 Compose 首中枢（本测试即 l1.centers[0]，L2 中枢）为 c1。
+        // 名实一致根据：B2 由「次级别第一类离开 ∧ 回拉不创新低」相对该中枢判定产出；center 是
+        // owner 载体与回溯锚，不进止损判据（止损仍 pivot，上条已锁）。
+        assert_eq!(b2.center, Some(l1.centers[0]), "二类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
         // 互斥语义：B2 端点不置 1/3 类 bit。
         assert!(!b2.bits.buy1 && !b2.bits.buy3, "第二类端点不置 1/3 类 bit");
     }
@@ -2598,7 +2614,11 @@ mod tests {
         assert_eq!(buy1.len(), 1, "级别-N 下跌趋势 C 段破最后中枢 ∧ C<A 背驰 ⟹ 一个 1 买（缺口已填，非 no-op）");
         assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢单元）终止 source_index");
         assert_eq!(buy1[0].pivot_low, 80, "1 买止损源 = pivot_low（C 段破中枢端点极值）");
-        assert!(buy1[0].center.is_none(), "1 类止损用 pivot 非 center ⟹ center=None");
+        // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
+        //（被破的最后中枢）——名实一致根据同 signal.rs `first_buy_extracted_with_trend_divergence`
+        //（本测试复用其 A/B/C 几何的 UnitRange 表达）；center 是 owner 载体，止损仍 pivot
+        //（pivot_low=80 上条已锁，center 不进 1/2 类止损判据）。
+        assert_eq!(buy1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
     }
 
     /// ★裁定 A 三类（高级别「中枢外缘区间」边界语义，codex 风险点单独 snapshot）：级别-N 离开中枢
@@ -2626,12 +2646,16 @@ mod tests {
         assert_eq!(buy3[0].center.map(|c| c.zg), Some(200), "3 买 center=Some（止损=zg）");
     }
 
-    /// ★Q7-#1 裁定C（codex-q7-fallback-20260703）：Consolidation ownership 的 endpoint fallback
-    /// 单元（anchor=None）不得作一/三类方向锚，但保留为序列成员。三向验证（同 fixture 对照）：
-    /// 全锚 ⟹ 1 买产（对照组）；A 段 fallback ⟹ 无 A 候选 ⟹ 不产；C 段 fallback ⟹ broke 不触发
-    /// ⟹ 不产。三类：leave 段 fallback ⟹ 不产 3 买。成员身份不变（centers/分解不受锚门影响）。
+    /// ★Q7-#1 裁定C + p117 窄域授权（686 翻转条款第一支，终端背书裁定 T2 核准）：Consolidation
+    /// ownership 的 endpoint fallback 单元（anchor=None）在**第一类路径**经窄域授权降级——方向锚
+    /// 取单元结构方向（`anchors_self`，行程方向=τ 等式 veto，「趋势中」定义域由 τ 门承担），
+    /// fallback 不再是第一类击杀理由；**三类路径**裁定C 整体保留（leave 段 fallback 仍不得作
+    /// 三类方向锚）。三向验证（同 fixture 对照）：全锚 ⟹ 1 买产（对照组，保留）；A 段 fallback
+    /// ⟹ 结构同向筛选可配 ⟹ 产 1 买（0→1 授权翻转）；C 段 fallback ⟹ 结构方向 Down=τ ⟹ broke
+    /// 触发 ⟹ 产 1 买（0→1 授权翻转）。三类：leave 段 fallback ⟹ 不产 3 买（保留）。成员身份
+    /// 不变（centers/分解不受锚门影响）。
     #[test]
-    fn q7_ruling_c_fallback_unit_not_direction_anchor_but_stays_member() {
+    fn q7_ruling_c_first_class_structural_direction_third_class_provenance_kept() {
         use super::center::UnitRange;
         // fixture 同 level_ge1_extract_first_third_fills_type1_gap（两下行中枢 + A/B/C 三单元）。
         let c0 = Center { zd: 300, zg: 400, dd: 290, gg: 410, start_index: 0, end_index: 2 };
@@ -2649,15 +2673,17 @@ mod tests {
             let (bsp, _) = extract_first_third_for_level(&[c0, c1], &units, anchors, &hist, &[], &[], &close_src, divergence::DivergenceGauge::default());
             bsp.iter().filter(|p| p.bits.buy1).count()
         };
-        // 对照组：全锚 ⟹ 1 买产（gap-fill 路径活）。
+        // 对照组：全锚 ⟹ 1 买产（gap-fill 路径活；保留断言）。
         assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)]), 1);
-        // A 段单元 fallback ⟹ A 候选无法定位 ⟹ 不产（成员仍在：episode/区间扫描含该单元）。
-        assert_eq!(n_buy1(&[None, Some(Direction::Up), Some(Direction::Down)]), 0,
-            "fallback 单元不得作 A 段方向锚");
-        // C 段（破中枢段）单元 fallback ⟹ broke 不触发 ⟹ 不产。
-        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), None]), 0,
-            "fallback 单元不得作破中枢段方向锚");
-        // 三类：leave 段 fallback ⟹ 不产 3 买（retest 是几何角色不设锚门）。
+        // A 段单元 fallback：p117 后第一类 A 窗筛选用单元结构方向（行程方向 Down=τ）⟹ A 候选
+        // 可配 ⟹ 产 1 买（S4 救回型；授权翻转 0→1。provenance 锚消费方仅余三类/诊断仪器）。
+        assert_eq!(n_buy1(&[None, Some(Direction::Up), Some(Direction::Down)]), 1,
+            "p117 窄域授权：第一类 A 段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时可配）");
+        // C 段（破中枢段）单元 fallback：p117 后 broke 锚门用单元结构方向（Down=τ）⟹ 触发 ⟹
+        // 产 1 买（S2 救回型；授权翻转 0→1。行程方向 ≠τ 的单元仍拒——signal.rs 反向 veto 锁）。
+        assert_eq!(n_buy1(&[Some(Direction::Down), Some(Direction::Up), None]), 1,
+            "p117 窄域授权：第一类破中枢段方向锚 = 单元结构方向（fallback 单元行程方向=τ 时触发）");
+        // 三类：leave 段 fallback ⟹ 不产 3 买（686 对三类的保护整体保留；retest 是几何角色不设锚门）。
         let c = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 };
         let u3 = vec![
             UnitRange { start_index: 12, end_index: 16, direction: Direction::Up, lo: 150, hi: 250 },
@@ -2665,7 +2691,7 @@ mod tests {
         ];
         let src24: Vec<usize> = (0..24).collect();
         let (bsp, _) = extract_first_third_for_level(&[c], &u3, &[None, Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
-        assert_eq!(bsp.iter().filter(|p| p.bits.buy3).count(), 0, "fallback 单元不得作三类离开段方向锚");
+        assert_eq!(bsp.iter().filter(|p| p.bits.buy3).count(), 0, "fallback 单元不得作三类离开段方向锚（686 裁定C 三类保留）");
         // 成员身份不变：同 fixture 全锚下产出恢复（锚门不改变序列成员/中枢几何）。
         let (bsp2, _) = extract_first_third_for_level(&[c], &u3, &[Some(Direction::Up), Some(Direction::Down)], &[], &[], &[], &src24, divergence::DivergenceGauge::default());
         assert_eq!(bsp2.iter().filter(|p| p.bits.buy3).count(), 1);
@@ -2874,8 +2900,8 @@ mod tests {
                 f.longest_trend_run, lock_desc, runs_ge1, longest_run, longest_run + 1
             );
             eprintln!(
-                "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1有前驱中枢={} → 环2过局部趋势门={} → 环3破最后中枢={} → 环4 A/C配对={} → 环5坐标映射={} → 环6背驰C<A={}",
-                f.s_with_center, f.s_pos_ge1, f.s_gate_open, f.s_broke, f.s_a_paired, f.s_mapped, f.s_diverge
+                "[funnel] L{level_idx}: 环0候选(有最近中枢)={} → 环1有前驱中枢={} → 环2过局部趋势门={} → 环3破最后中枢={} → 环4 A/C配对={} → 环4b 037:20破b极值={} → 环5坐标映射={} → 环6背驰C<A={}",
+                f.s_with_center, f.s_pos_ge1, f.s_gate_open, f.s_broke, f.s_a_paired, f.s_extreme, f.s_mapped, f.s_diverge
             );
             // ★task #144 验收证据：2021 顶区 sell1 在全历史因果重放中出现（先例窗反差闭合的正验证，
             // 生产 classify 输出直读——非探针另算）。窗口 = #141 外审切窗 2020-10-01..2021-04-15。

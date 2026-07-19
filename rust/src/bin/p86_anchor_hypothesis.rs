@@ -166,6 +166,7 @@ fn main() -> Result<(), String> {
     let closes: Vec<f64> = layer.merged_bars.iter().map(|b| b.close as f64).collect();
     let close_src: Vec<usize> = layer.merged_bars.iter().map(|b| b.source_index).collect();
     let hist = compute_macd(&closes, &config.macd).hist;
+    let dif = compute_macd(&closes, &config.macd).dif;
 
     let mut baseline = BTreeMap::new();
     let mut missing = Vec::new();
@@ -179,6 +180,7 @@ fn main() -> Result<(), String> {
             ProjectMode::Production,
             as_of,
             &hist,
+            &dif,
             &close_src,
             Some(&mut missing),
         )?;
@@ -195,6 +197,7 @@ fn main() -> Result<(), String> {
         tower.len() - 1,
         as_of,
         &hist,
+        &dif,
         &close_src,
     )?;
 
@@ -208,6 +211,7 @@ fn main() -> Result<(), String> {
             tower.len() - 1,
             as_of,
             &hist,
+            &dif,
             &close_src,
         )?;
         let slide = recursive_replay(
@@ -218,6 +222,7 @@ fn main() -> Result<(), String> {
             tower.len() - 1,
             as_of,
             &hist,
+            &dif,
             &close_src,
         )?;
         local_replays.insert(start_level, (prod, slide));
@@ -374,6 +379,7 @@ fn recursive_replay(
     max_level: usize,
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
 ) -> Result<Replay, String> {
     let mut replay = Replay::default();
@@ -385,7 +391,7 @@ fn recursive_replay(
         }
         let raw_flat = flatten_runs(&raw_runs);
         let (stats, valid_runs) =
-            measure_level(level, &raw_runs, &lower, mode, as_of, hist, close_src, None)?;
+            measure_level(level, &raw_runs, &lower, mode, as_of, hist, dif, close_src, None)?;
         replay.raw.insert(level, raw_flat.clone());
         replay.stats.insert(level, stats);
         let next = compose_next(level + 1, &valid_runs, mode)?;
@@ -435,6 +441,7 @@ fn measure_level(
     mode: ProjectMode,
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     mut missing_out: Option<&mut Vec<MissingDetail>>,
 ) -> Result<(LevelStats, Vec<Vec<LeveledMove>>), String> {
@@ -478,6 +485,7 @@ fn measure_level(
                         mode,
                         as_of,
                         hist,
+                        dif,
                         close_src,
                         &mut stats,
                         missing_out.as_deref_mut(),
@@ -505,6 +513,7 @@ fn measure_run(
     mode: ProjectMode,
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     stats: &mut LevelStats,
     mut missing_out: Option<&mut Vec<MissingDetail>>,
@@ -530,6 +539,7 @@ fn measure_run(
             move_blocks: &blocks,
             lower_legs,
             hist,
+            dif,
             close_src,
         },
     )

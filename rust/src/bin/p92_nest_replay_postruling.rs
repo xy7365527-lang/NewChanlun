@@ -1,5 +1,11 @@
 //! task #92：裁定后 NestCertificate 因果 prefix 重放与 A/B 口径对账。
 //!
+//! ★口径版本：p117 T1 终端背书裁定（bsp-terminal-endorsement-ruling-20260718，2026-07-18
+//! 生效）——终端查法自 `levels[ℓ]` 位格等式移位到 `levels[ℓ-1].bsp` + C-b 窗口
+//!（`[interval_b.0, turn_source]` 最早 confirm_side 点；lib 单一来源
+//! `nest::terminal_bits_at_event`/`terminal_bits_in_book`，含旧事件路径）。本文件此前的
+//! 落盘读数引用时须注记「级别移位前口径」（T4 裁决5）。
+//!
 //! 用法：
 //! `cargo run --release --bin p92_nest_replay_postruling -- <btc_1m_full.json>`
 
@@ -12,8 +18,12 @@ use newchan_rust::theta_v0::classifier::level_view::{
     NestCandidateEvent, NestDivergenceKind, ProjectionError, ProjectionMaterial,
 };
 use newchan_rust::theta_v0::classifier::nest::{
-    assemble_certificates_snapshot, assemble_typed_certificates, NestIntervalCaliber,
+    assemble_certificates_snapshot, assemble_typed_certificates, event_bsp_book_level,
+    terminal_bits_at_event, terminal_bits_in_book, NestIntervalCaliber, TerminalMatch,
     TypedNestCertificate,
+};
+use newchan_rust::theta_v0::classifier::turn_class::{
+    classify_certificate_turn, is_defer_orphan_event, NestTurnClass,
 };
 use newchan_rust::theta_v0::classifier::recursive_tower::LeveledMove;
 use newchan_rust::theta_v0::config::ThetaConfig;
@@ -21,9 +31,38 @@ use newchan_rust::theta_v0::parser::{ParseLayer, ParseLayerIncr};
 use newchan_rust::theta_v0::types::{quantize, Bar, BspBits, Side, Timestamp};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs::File;
+use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::rc::Rc;
+use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
+
+/// #98/#99 调研侧信道：`P92_DUMP=<path>` 时逐条落盘明细行。
+/// 只写不判——不参与任何账本、真值或裁定；未设 env 时零行为差异。
+static DUMP: OnceLock<Option<Mutex<BufWriter<File>>>> = OnceLock::new();
+
+fn dump_line(args: std::fmt::Arguments<'_>) {
+    let sink = DUMP.get_or_init(|| {
+        std::env::var("P92_DUMP")
+            .ok()
+            .and_then(|path| File::create(path).ok())
+            .map(|file| Mutex::new(BufWriter::new(file)))
+    });
+    if let Some(sink) = sink {
+        if let Ok(mut writer) = sink.lock() {
+            let _ = writer.write_fmt(args).and_then(|()| writer.write_all(b"\n"));
+        }
+    }
+}
+
+fn dump_flush() {
+    if let Some(Some(sink)) = DUMP.get() {
+        if let Ok(mut writer) = sink.lock() {
+            let _ = writer.flush();
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct EventKey {
@@ -140,8 +179,9 @@ fn main() -> Result<(), String> {
     let mut audit = ProviderAudit::default();
     let terminal = run_terminal_pass(&loaded.bars[..max_bars], &config)?;
     let (hist, close_src) = terminal.cache.causal_series();
+    let dif = terminal.cache.macd_dif();
     let terminal_events =
-        collect_snapshot_candidates(&terminal.tower, max_bars - 1, hist, close_src, &mut audit)?;
+        collect_snapshot_candidates(&terminal.tower, max_bars - 1, hist, dif, close_src, &mut audit)?;
     let mut targets = BTreeMap::new();
     for event in terminal_events.iter().flatten() {
         targets.insert(EventKey::from(event), *event);
@@ -235,8 +275,15 @@ fn main() -> Result<(), String> {
                 .iter()
                 .filter(|event| {
                     event.cand_delta
-                        && terminal_bits_old(&classification, level, event.confirm_src, event.side)
-                            .is_some()
+                        && terminal_bits_old(
+                            &classification,
+                            level,
+                            event.c_episode_start,
+                            event.confirm_src,
+                            event.side,
+                            event.b_parent.map(|p| p.source_interval.0),
+                        )
+                        .is_some()
                 })
                 .count()
         })
@@ -245,7 +292,14 @@ fn main() -> Result<(), String> {
     for exec in 0..old_events.len() {
         for top in exec..old_events.len() {
             old_certificates += assemble_certificates_snapshot(&old_events, exec, top, |event| {
-                terminal_bits_old(&classification, exec, event.confirm_src, event.side)
+                terminal_bits_old(
+                    &classification,
+                    exec,
+                    event.c_episode_start,
+                    event.confirm_src,
+                    event.side,
+                    event.b_parent.map(|p| p.source_interval.0),
+                )
             })
             .len();
         }
@@ -359,6 +413,7 @@ fn main() -> Result<(), String> {
             book.intake_fallbacks.contains(*key)
         );
     }
+    dump_flush();
     Ok(())
 }
 
@@ -426,6 +481,11 @@ fn run_targeted_prefix_pass(
     let mut views = 0usize;
     let mut last_trigger = None;
     let started = Instant::now();
+    // #103 侧信道：P92_CKPT=<K> 时每 K bars 做一次全量快照装配并 dump（只写不判）。
+    let ckpt_every: usize = std::env::var("P92_CKPT")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(0);
     for (index, bar) in bars.iter().copied().enumerate() {
         let l0 = parser.append(bar);
         let (classification, tower) =
@@ -433,8 +493,9 @@ fn run_targeted_prefix_pass(
         let trigger = (cache.forest_epoch(), signal_signature(&classification));
         if last_trigger.as_ref() != Some(&trigger) && !pending.is_empty() {
             let (hist, close_src) = cache.causal_series();
+            let dif = cache.macd_dif();
             let (events, used_views) =
-                collect_target_candidates(&tower, index, hist, close_src, targets, &pending)?;
+                collect_target_candidates(&tower, index, hist, dif, close_src, targets, &pending)?;
             views += used_views;
             for event in events {
                 let key = EventKey::from(&event);
@@ -451,6 +512,17 @@ fn run_targeted_prefix_pass(
                 }
             }
             last_trigger = Some(trigger);
+        }
+        if ckpt_every > 0 && index > 0 && index % ckpt_every == 0 {
+            let (hist, close_src) = cache.causal_series();
+            let dif = cache.macd_dif();
+            let mut ckpt_audit = ProviderAudit::default();
+            match collect_snapshot_candidates(&tower, index, hist, dif, close_src, &mut ckpt_audit) {
+                Ok(by_level) => checkpoint_certificates(&by_level, &classification, index),
+                Err(error) => {
+                    dump_line(format_args!("CKPT_ERR as_of={index} err={error}"));
+                }
+            }
         }
         if index > 0 && index % 500_000 == 0 {
             eprintln!(
@@ -469,6 +541,7 @@ fn collect_target_candidates(
     tower: &[Rc<Vec<LeveledMove>>],
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     targets: &BTreeMap<EventKey, NestCandidateEvent>,
     pending: &BTreeSet<EventKey>,
@@ -539,6 +612,7 @@ fn collect_target_candidates(
                     move_blocks: &blocks,
                     lower_legs: &lower,
                     hist,
+                    dif,
                     close_src,
                 },
             )
@@ -552,6 +626,7 @@ fn collect_target_candidates(
                     &lower,
                     &view,
                     hist,
+                    dif,
                     close_src,
                 )
                 .into_iter()
@@ -566,6 +641,7 @@ fn collect_snapshot_candidates(
     tower: &[Rc<Vec<LeveledMove>>],
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     audit: &mut ProviderAudit,
 ) -> Result<Vec<Vec<NestCandidateEvent>>, String> {
@@ -614,6 +690,7 @@ fn collect_snapshot_candidates(
                             move_blocks: &blocks,
                             lower_legs: &lower,
                             hist,
+                            dif,
                             close_src,
                         },
                     )
@@ -626,6 +703,7 @@ fn collect_snapshot_candidates(
                         &lower,
                         &view,
                         hist,
+                        dif,
                         close_src,
                     ));
                     run_start = None;
@@ -655,8 +733,20 @@ fn observe_snapshot(
                 audit.snapshot_future_violations += 1;
             }
             let key = EventKey::from(&*event);
-            if event.intake_fallback {
-                book.intake_fallbacks.insert(key.clone());
+            if event.intake_fallback && book.intake_fallbacks.insert(key.clone()) {
+                dump_line(format_args!(
+                    "FALLBACK as_of={} level={} kind={:?} side={:?} turn_source={} seg_a={:?} interval_a={:?} interval_b={:?} divergence_confirmed={} judge_at={}",
+                    as_of,
+                    event.level,
+                    event.kind,
+                    event.side,
+                    event.turn_source,
+                    event.seg_a,
+                    event.interval_a,
+                    event.interval_b,
+                    event.divergence_confirmed,
+                    event.judge_at,
+                ));
             }
             let candidate_at = *book.candidates.entry(key.clone()).or_insert(as_of);
             if event.interval_a.1 > candidate_at
@@ -683,6 +773,7 @@ fn observe_snapshot(
                 classification,
                 exec,
                 top,
+                as_of,
                 NestIntervalCaliber::A,
                 &mut book.cert_a,
                 &mut book.cert_a_kind,
@@ -696,6 +787,7 @@ fn observe_snapshot(
                 classification,
                 exec,
                 top,
+                as_of,
                 NestIntervalCaliber::B,
                 &mut book.cert_b,
                 &mut book.cert_b_kind,
@@ -706,6 +798,26 @@ fn observe_snapshot(
             );
         }
     }
+    // p118 关④ TURN_CLASS 侧信道：039:34 defer 孤儿发射（只写不判）——c 破极值未确认
+    // Trend 事件未被本快照任何 B 链消费（covered_b 在上方装配环后对本快照完备）。
+    // 事件层在册的未确认 Trend 事件即「c 破极值」：extreme 预滤击杀的未破极值形态属
+    // 037:20 否则条款域（盘整/二类点通道），明示排除在本分支之外（施工图 §1.4/§2.5）。
+    for events in &current {
+        for event in events {
+            let covered = book
+                .covered_b
+                .contains(&(event.level, event.turn_source, event.interval_b));
+            if is_defer_orphan_event(event, covered) {
+                dump_line(format_args!(
+                    "TURN_CLASS ids={}:{}:{}-{} class=DeferOrphan confirmed_vec=0",
+                    event.level,
+                    event.turn_source,
+                    event.interval_b.0,
+                    event.interval_b.1,
+                ));
+            }
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -714,6 +826,7 @@ fn observe_certificates(
     classification: &classifier::Classification,
     exec: usize,
     top: usize,
+    as_of: usize,
     caliber: NestIntervalCaliber,
     seen: &mut BTreeSet<String>,
     kinds: &mut BTreeMap<&'static str, usize>,
@@ -740,7 +853,138 @@ fn observe_certificates(
                 *d3_edges += edges;
                 *d3_violations += violations;
             }
+            // #98/#99 侧信道：身份向量（高→低，含基例）为 A/B 跨口径对账主键；
+            // judge_at 向量供 D3 逐边离线复算。只写不判。
+            let ids = certificate
+                .identities()
+                .iter()
+                .map(|id| format!("{}:{}:{}-{}", id.level, id.turn_source, id.interval_b.0, id.interval_b.1))
+                .collect::<Vec<_>>()
+                .join("|");
+            let kinds_str = certificate
+                .kinds()
+                .iter()
+                .map(|kind| format!("{kind:?}"))
+                .collect::<Vec<_>>()
+                .join(",");
+            let clocks = certificate
+                .judge_at()
+                .iter()
+                .map(|clock| clock.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            dump_line(format_args!(
+                "CERT caliber={:?} exec={} top={} as_of={} side={:?} bucket={} kinds={} judge_at={} ids={}",
+                certificate.caliber(),
+                exec,
+                top,
+                as_of,
+                certificate.certificate().side(),
+                bucket,
+                kinds_str,
+                clocks,
+                ids,
+            ));
+            // p118 关④ TURN_CLASS 侧信道（只写不判；行契约见 turn_class.rs 模块头）：
+            // 与 CERT 行同主键（ids）配对——CERT 行格式零改，本行为独立新增行。
+            // class = NestTurnClass 四类之一（DeferOrphan 不走此处，见 observe_snapshot 尾部）。
+            let turn_class = classify_certificate_turn(&certificate, classification);
+            let confirmed_vec = certificate
+                .confirmed()
+                .iter()
+                .map(|flag| if *flag { '1' } else { '0' })
+                .collect::<String>();
+            let (class_name, evidence_str) = turn_class_dump(&turn_class);
+            dump_line(format_args!(
+                "TURN_CLASS caliber={:?} exec={} top={} as_of={} ids={} class={} confirmed_vec={}{}",
+                certificate.caliber(),
+                exec,
+                top,
+                as_of,
+                ids,
+                class_name,
+                confirmed_vec,
+                evidence_str,
+            ));
         }
+    }
+}
+
+/// #103 侧信道：检查点全量证书导出（只写不判，不触碰 book/seen 等主路径状态）。
+/// 与 observe_certificates 的差异：seen 为检查点局部——每个检查点导出该时刻完整在场集合，
+/// 供离线做存在性 diff（主键 ids 身份向量）；judge_at 取快照原值，不参与对账。
+fn checkpoint_certificates(
+    events: &[Vec<NestCandidateEvent>],
+    classification: &classifier::Classification,
+    as_of: usize,
+) {
+    for caliber in [NestIntervalCaliber::A, NestIntervalCaliber::B] {
+        let mut seen = BTreeSet::new();
+        let mut total = 0usize;
+        for exec in 1..events.len() {
+            for top in exec..events.len() {
+                let certificates =
+                    assemble_typed_certificates(events, exec, top, caliber, |event| {
+                        terminal_bits_new(classification, event)
+                    });
+                for certificate in certificates {
+                    let key = certificate_key(exec, top, &certificate);
+                    if !seen.insert(key) {
+                        continue;
+                    }
+                    total += 1;
+                    let ids = certificate
+                        .identities()
+                        .iter()
+                        .map(|id| {
+                            format!(
+                                "{}:{}:{}-{}",
+                                id.level, id.turn_source, id.interval_b.0, id.interval_b.1
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("|");
+                    dump_line(format_args!(
+                        "CKPT caliber={:?} as_of={} exec={} top={} side={:?} bucket={} ids={}",
+                        certificate.caliber(),
+                        as_of,
+                        exec,
+                        top,
+                        certificate.certificate().side(),
+                        certificate_kind(&certificate),
+                        ids,
+                    ));
+                }
+            }
+        }
+        dump_line(format_args!(
+            "CKPT_STATS caliber={caliber:?} as_of={as_of} certs={total}"
+        ));
+    }
+}
+
+/// p118 关④：`NestTurnClass` → TURN_CLASS 行的 (class 名, evidence 片段) 投影。
+/// 行契约见 `turn_class.rs` 模块头；Candidate 的 evidence 只含结构坐标（044:30 无确认语义）。
+fn turn_class_dump(class: &NestTurnClass) -> (&'static str, String) {
+    match class {
+        NestTurnClass::NestedConfirmed => ("NestedConfirmed", String::new()),
+        NestTurnClass::ExecEvidenceOnly => ("ExecEvidenceOnly", String::new()),
+        NestTurnClass::XiaozhuandaCandidate { evidence } => (
+            "XiaozhuandaCandidate",
+            format!(
+                " evidence=c_prime=({},{},{},{});third={};second={}",
+                evidence.c_prime.zg,
+                evidence.c_prime.zd,
+                evidence.c_prime.start_index,
+                evidence.c_prime.end_index,
+                evidence.third_src,
+                evidence
+                    .second_class
+                    .map_or_else(|| "-".to_string(), |src| src.to_string()),
+            ),
+        ),
+        // DeferOrphan 由 observe_snapshot 尾部单独发射（事件层条目，非证书行）。
+        NestTurnClass::DeferOrphan { .. } => ("DeferOrphan", String::new()),
     }
 }
 
@@ -783,34 +1027,44 @@ fn certificate_key(exec: usize, top: usize, certificate: &TypedNestCertificate) 
     )
 }
 
+/// ★p117 T1 终端背书生产口径常数（bsp-terminal-endorsement-ruling-20260718 裁决2）：
+/// C-b = `[c_start, t*]` 窗口最早 confirm_side 点。C-a（`TerminalMatch::Exact`）保留为
+/// 敏感性对照口径——验收报告落 C-a/C-b 对照读数时切换本常数一处（预测差 = 5 延迟案）。
+const TERMINAL_MATCH: TerminalMatch = TerminalMatch::CWindow;
+
+/// 终端背书查法（生产）：委托 lib 单一来源 `nest::terminal_bits_at_event`——账本级别移位
+/// `levels[ℓ-1].bsp` + 口径常数 [`TERMINAL_MATCH`]。旧 `levels[ℓ]` 位格等式查法已删除
+///（单一来源纪律，不得保留为 fallback；裁定不回滚条款）。
 fn terminal_bits_new(
     classification: &classifier::Classification,
     event: &NestCandidateEvent,
 ) -> Option<BspBits> {
-    classification
-        .levels
-        .get(event.level as usize)?
-        .bsp
-        .iter()
-        .find(|point| {
-            point.source_index == event.turn_source && point.bits.confirm_side(event.side)
-        })
-        .map(|point| point.bits)
+    // 关③ P3：lib 返回形状扩为 `TerminalEndorsement`（bits + owner start_index）——
+    // 生产装配消费 bits 层；owner 两维构成归收紧后重放审计读数，非本 bin 职责。
+    terminal_bits_at_event(classification, event, TERMINAL_MATCH).map(|t| t.bits)
 }
 
+/// 旧事件路径（`CandDeltaEvent`，P1 基线对账/P92_BASELINE 类审计）的终端查法：同一级别
+/// 移位 + C-b 口径平移——账本 = `levels[ℓ-1].bsp`；窗口 = `[c_episode_start, confirm_src]`
+///（`c_episode_start` 即 `departure_move_c_start` 当前 episode 首腿，与新事件路径
+/// `interval_b.0` 同义）。委托 lib 单一来源 `nest::terminal_bits_in_book`，同口径平移并
+/// 标注（S1a 图 H2）；位格等式不得恢复。
 fn terminal_bits_old(
     classification: &classifier::Classification,
     level: usize,
+    c_start: usize,
     source: usize,
     side: Side,
+    b_center_start: Option<usize>,
 ) -> Option<BspBits> {
-    classification
-        .levels
-        .get(level)?
-        .bsp
-        .iter()
-        .find(|point| point.source_index == source && point.bits.confirm_side(side))
-        .map(|point| point.bits)
+    let book = &classification.levels.get(event_bsp_book_level(level as u32)?)?.bsp;
+    // 关③ P3 平移：旧事件 = Cand^δ 趋势族线（pan_div_diag 为 cand_delta=false 纯诊断，
+    // 结构性不入终端查询）⟹ kind=Trend；B 身份 = 事件自带 `b_parent.source_interval.0`
+    //（ParentCenterIdentity 已携 B start_index 快照，单一来源，无第二查法）。
+    terminal_bits_in_book(
+        book, c_start, source, side, NestDivergenceKind::Trend, b_center_start, TERMINAL_MATCH,
+    )
+    .map(|t| t.bits)
 }
 
 #[derive(Debug)]

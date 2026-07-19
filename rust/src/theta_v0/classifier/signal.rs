@@ -25,7 +25,10 @@
 //!     假买卖点」头号缺口的修复——退化实现跳过 τ 门控，单中枢/任意段都产第一类=噪声。
 //!   · **破中枢几何分量**（`brokeCenter`）：C 段端点破**最后一个中枢**核心 `[zd,zg]` 之外（买侧
 //!     向下破 `< zd`，卖侧向上破 `> zg`）——纯整数比较，**L0**（608号位置三态，对齐 descend.rs
-//!     `sub_broke_below`/`sub_broke_above`）。
+//!     `sub_broke_below`/`sub_broke_above`）。∧ **037:20 破 b 包络极值分量**（p117，裁定 T3）：
+//!     c 端点必破 b（=I(A)）包络极值（下跌 `< b_lo` / 上涨 `> b_hi`，严格超越、等号排除，
+//!     `move_range_envelope` 单一来源）——未破者不产第一类候选（061:28 候选资格层，含零 bit
+//!     struct_break 候选也不产；rust 领先 Origin `IsType1`，Lean 侧吸收列遗留项 L1）。
 //!   · **趋势背驰力度分量**（`IsDivergence`，A/B/C）：C 段（破最后中枢段）相对 **A 段（倒数第二
 //!     中枢的离开段，跨相邻中枢配对）** MACD 面积**严格变小**（第24课:24「C 段面积 < A 段面积」）。
 //!     ★A/C 跨相邻中枢配对（`locate_trend_seg_a`）替换退化的「任意前同向段」——A 不是序列序任意前
@@ -86,7 +89,7 @@ use super::decompose::{
 };
 use super::divergence::{
     self, compute_macd, departure_move_c_start, force_features, locate_departure_move_a,
-    AbcDivergence, DivergenceGauge, ForceProxies,
+    move_range_envelope, segments_diverge_or, AbcDivergence, DivergenceGauge, ForceProxies,
 };
 use super::super::types::BspBits;
 use super::descend::RMove;
@@ -240,9 +243,13 @@ pub(crate) fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize)
 /// **相邻前一中枢**（`prev_center`）的离开段。退化实现把任意相邻同向段面积变小都判背驰=产假买卖点；
 /// 本实装要求 A/C 分属相邻两中枢（第24课:22「同向趋势之间一定有一个…中枢连接」）。
 ///
-/// ★分量 L 级（formalization-validity-domain）：破中枢 `< zd`/`> zg` + 趋势门控（中枢同向关系）
-/// 整数几何 **L0**；C<A 面积比较 MACD **L1**。三者合取 = 趋势背驰 = `IsType1`。`prev_center` 无
+/// ★分量 L 级（formalization-validity-domain）：破中枢 `< zd`/`> zg` ∧ **037:20 破 b 包络极值**
+///（`< b_lo`/`> b_hi`，b=I(A) 包络，`move_range_envelope` 单一来源）+ 趋势门控（中枢同向关系）
+/// 整数几何 **L0**；C<A 面积比较 MACD **L1**。诸分量合取 = 趋势背驰 = `IsType1`。`prev_center` 无
 /// 同向离开段（A 段无法定位）⟹ None（无 A/C 配对 ⟹ 无趋势背驰）。
+/// ★rust 领先 Origin（裁定 T3 裁决 7，遗留项 L1）：Lean `IsType1 = brokeCenter ∧ IsDivergence`
+/// 的 `brokeCenter` 只含破核心；本函数判据 = brokeCenter ∧ 037:20 ∧ IsDivergence——037:20 是否
+/// 吸进 Lean `IsType1` 结构合取列 formal-chain 后续事项（本函数既有 A/B/C 真算领先的先例）。
 ///
 /// ★#93 性能工位（热点②修复）：A 段 `(a_start, a_end)` 不再在本函数内调 `locate_trend_seg_a`——改由
 /// 调用方（[`extract_signals`]）按 `last_center_idx` 缓存预算后传入（`a_seg` 入参）。
@@ -262,7 +269,9 @@ pub(crate) fn nearest_confirmed_center_idx(centers: &[Center], seg_start: usize)
 /// `hist` 是 MACD hist 序列；`src_to_idx` 是 closes 下标→source_index 映射。段无法映射到 closes
 /// 区间（越界）⟹ None（无面积 ⟹ 非背驰）。
 ///
-/// `a_seg`：`None` = `locate_departure_move_a` 返回 None（无 A 候选）；`Some((λ_A,ρ_A))` = A 区间。
+/// `a_seg`：`None` = `locate_departure_move_a` 返回 None（无 A 候选）；`Some(((λ_A,ρ_A),(b_lo,b_hi)))`
+/// = A 区间 I(A) 及其包络（b = I(A)，037:20 破极值判据的参照极值；包络随 I(A) 同槽缓存，
+/// 由调用方经 `move_range_envelope` 预算——单一来源，与 D2 侧 R1 T2 同原语同区间语义）。
 /// `c_move_start`：I(C) 起点 λ_C（Q5 + codex ac4 #2）= 离开 `last_center` 的**当前 episode** 首同向
 /// 段起点（[`departure_move_c_start`] 单一来源——episode 边界 = seg 之前最后一个回中枢段，「失败
 /// 离开→回中枢→重新离开」不桥接）。`None` = 无同向离开段——broke 成立时 seg 自身在窗口且在最后
@@ -282,7 +291,7 @@ pub(crate) fn judge_first_cached(
     dif: &[f64],
     closes_tick: &[Tick],
     src_to_idx: &[usize],
-    a_seg: Option<(usize, usize)>,
+    a_seg: Option<((usize, usize), (Tick, Tick))>,
     c_move_start: Option<usize>,
     gauge: DivergenceGauge,
 ) -> Option<BspPoint> {
@@ -291,6 +300,10 @@ pub(crate) fn judge_first_cached(
     // 因果触发点 = 破中枢段端点（Q5 等价性注记见函数头）。
     // Q7-#1 裁定C：破中枢段方向锚用 anchor_dir（provenance 资格）——fallback 单元（None）不触发。
     // L0 恒 anchor_dir==Some(end.dir)（线段内在方向）⟹ 与旧 (end.dir, trend_dir) 匹配逐位一致。
+    // ★p117（686 翻转条款第一支窄域授权，终端背书裁定 T2）：生产第一类调用点（judge_segment）
+    // 经窄域授权改传结构方向锚（anchors_self，行程方向=τ 等式 veto）；直接调用方传 provenance
+    // 锚时裁定C 行为保留（判据函数语义未动，降级在调用点——测试
+    // `judge_first_cached_provenance_gate_preserved_for_direct_callers` 锁此契约）。
     let (broke, is_sell) = match (anchor_dir, trend_dir) {
         // 1 买：下跌趋势中向下破最后中枢下沿（底背驰候选）。
         (Some(Direction::Down), Direction::Down) if end.price < last_center.zd => (true, false),
@@ -302,9 +315,26 @@ pub(crate) fn judge_first_cached(
         return None; // 未破最后中枢 ⟹ 非第一类结构候选（几何分量不足）。
     }
     // A 区间由调用方预算传入（缓存复用，消解热点②）。无 A 候选 ⟹ A/C 无法配对 ⟹ 无趋势背驰对照。
-    let Some((a_start, a_end)) = a_seg else {
+    let Some(((a_start, a_end), (b_lo, b_hi))) = a_seg else {
         return None; // 无 prev_center 同向离开走势 ⟹ A/C 无法配对 ⟹ 无 struct_break 候选。
     };
+    // ★037:20 破极值合取（教义必要项，p112 §6-3 裁定项，终端背书裁定 T3 核准）：c 端点必破
+    // b 包络极值——下跌趋势 end.price < b_lo（c 创出新低）；上涨趋势 end.price > b_hi（c 创出
+    // 新高）。b = I(A)（prev_center 的离开 episode，`locate_departure_move_a` 区间）；包络 =
+    // `move_range_envelope`（与 D2 侧 R1 T2 同一原语同区间语义，单一来源）。「创出」= 严格超越
+    // （等号排除，与 zd/zg 严格口径一致）。未破 b 极值的破核心段 = 037:20 否则条款域（可按盘整
+    // 背驰处理），不进第一类候选域（061:28：未创新极值不构成背驰——含零 bit struct_break 候选
+    // 也不产，D1 候选门收缩语义）。
+    // 因果触发等价性（同函数头 Q5 注记论证）：段是单向对象、终点即极值，I(C) 包络首次破 b 包络
+    // ⟺ 某同向段端点首次越 b_lo/b_hi ⟹ 在该段端点判 `end.price` 破极值 = I(C) 包络判破的因果
+    // 触发点。本合取不改变点的因果语义，只在同一触发点加严（纯收缩：保留点逐字段不变）。
+    let extreme_037_20 = match trend_dir {
+        Direction::Down => end.price < b_lo,
+        Direction::Up => end.price > b_hi,
+    };
+    if !extreme_037_20 {
+        return None; // 未破 b 包络极值 ⟹ 非趋势背驰 c（061:28：未创新极值不构成背驰）。
+    }
     // λ_C（Q5）：broke 成立 ⟹ seg 自身满足「同向 ∧ start ≥ c.end_index」过滤 ⟹ 首匹配必存在。
     let Some(lambda_c) = c_move_start else {
         debug_assert!(false, "broke 成立时 λ_C 必 Some（seg 自身在过滤集内）");
@@ -365,7 +395,8 @@ pub(crate) fn judge_first_cached(
     let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
     // 结构候选端点：背驰确认 ⟹ buy1/sell1 止损源 pivot（破中枢段端点极值）；未背驰 ⟹ 零 bit，
     // pivot 仍按 bit 方向填（零 bit ⟹ 两侧 0）。force 旁挂进点（单一来源，不进任何 bit 判据）。
-    Some(make_first_point(end.source_index, bits, end.price, struct_break_dir, force))
+    // ★owner 载体补齐（关③ 补记② 路径 (a)）：判定中枢 last_center 构造时填载（center=Some）。
+    Some(make_first_point(end.source_index, bits, end.price, last_center, struct_break_dir, force))
 }
 
 /// 第三类买卖点判定（契约锚 `Origin.BspClassification.IsType3Buy/IsType3Sell` 点位判据）。
@@ -455,10 +486,51 @@ fn judge_third(
     judge_third_cert(c, leave_seg, leave_anchor, retest_seg).map(|cert| cert.point)
 }
 
-/// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46；center 留 None——1 类止损用 pivot）。
+/// ★R1（2026-07-17 代理裁定，p112 实证 + doc-trend §2）：趋势背驰 c 内含对最后中枢 B 的
+/// 第三类买卖点（037:18 必要合取项）。判据 = [`judge_third_cert`] 几何**去 anchor 门**
+/// （anchor 门是 Q7-#1 工程资格，非教义；p112 §2-T3 同口径）：从 `max(c_start, last.end_index)`
+/// 起向未来扫紧邻段对，找首个「leave 同趋势方向且端点破核心（Up: >zg / Down: <zd）∧ retest
+/// 反向且端点不重回核心」对，回试段允许落在旧 turn（#105 单腿 seg_c.1）之后——**全离开段口径**
+/// （037:22，p112 T3_ext 机械化 `third_class_extended` 同构），两端点以 `as_of` 界（禁前视）。
+///
+/// 返回首个命中 `(leave.end_index, retest.end_index)`；无命中 ⟹ None（c 未确立，037:18 否则
+/// 条款「按盘整背驰处理」的适用域）。
+pub(crate) fn trend_third_class_in_c(
+    segments: &[Segment],
+    last: &Center,
+    direction: Direction,
+    c_start: usize,
+    as_of: usize,
+) -> Option<(usize, usize)> {
+    let lo = segments.partition_point(|s| s.start_index < c_start.max(last.end_index));
+    let hi = segments.partition_point(|s| s.end_index <= as_of);
+    let win = &segments[lo..hi];
+    for pair in win.windows(2) {
+        let (leave, retest) = (&pair[0], &pair[1]);
+        if leave.direction != direction || retest.direction == direction {
+            continue;
+        }
+        let hit = match direction {
+            Direction::Up => leave.end_price > last.zg && retest.end_price > last.zg,
+            Direction::Down => leave.end_price < last.zd && retest.end_price < last.zd,
+        };
+        if hit {
+            return Some((leave.end_index, retest.end_index));
+        }
+    }
+    None
+}
+
+/// 构造第一类 BspPoint（结构止损价 = pivot 极值，reference:46——1 类止损用 pivot 非 center.zg/zd）。
 ///
 /// 1/2 类止损取 `pivot_low`(买)/`pivot_high`(卖)（破中枢段端点极值），非 center.zg/zd（那是 3 类）。
-/// 故第一类 center=None（1 类不用 center 止损，与 3 类区分）。pivot 按 bit 方向填，另一侧 0。
+/// pivot 按 bit 方向填，另一侧 0。
+///
+/// ★owner 载体补齐（关③ 补记 2026-07-18 ②，编排者选定路径 (a)：一/二类点构造时填入判定中枢）：
+/// `center = Some(*c)`，`c` = 判定中枢（`judge_first_cached` 的 `last_center`——被破的最后中枢，
+/// 即本趋势 a+A+b+B+c 的 B 同型对象）。一/二类点本就由中枢判定产出，构造时填载 = 名实一致（090）。
+/// center 是 owner=B 判定式（`point.center.start_index == b_center_start`，nest.rs
+/// `terminal_bits_in_book` Trend 域）的载体与回溯锚，**不进止损判据**（止损仍 pivot，语义不变）。
 ///
 /// ★P2-R2（p2-plan §2）：`struct_break_dir=Some(破中枢方向)`——由 [`judge_first_cached`] 传入
 /// （买侧向下破=Long，卖侧向上破=Short），**与 bits 是否置 buy1/sell1 无关**。零 bit 破中枢候选
@@ -468,6 +540,7 @@ fn make_first_point(
     source_index: usize,
     bits: BspBits,
     pivot_price: Tick,
+    c: &Center,
     struct_break_dir: Option<Side>,
     force: Option<ForceProxies>,
 ) -> BspPoint {
@@ -477,7 +550,7 @@ fn make_first_point(
         // 1 买止损源 pivot_low（破中枢低点）；1 卖止损源 pivot_high（破中枢高点）。
         pivot_low: if bits.buy1 { pivot_price } else { 0 },
         pivot_high: if bits.sell1 { pivot_price } else { 0 },
-        center: None,
+        center: Some(*c), // owner 载体补齐（路径 (a)）：判定中枢 last_center 构造时填载
         struct_break_dir,
         // ★β^div 力度（beta-route #115）：一类趋势背驰候选的 A/C 段 5 proxy（有 dif/closes_tick 输入时
         // Some，否则 None）——单一来源就在此字段，经 Candidate.force 透传（A6 #159）由 selector
@@ -506,17 +579,22 @@ fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &
 /// 构造第二类 BspPoint（结构止损价 = 回拉走势结束点，reference:46 1/2 类止损 = pivot）。
 ///
 /// 第二类止损（reference:46，与第一类同列）：1/2 买止损 = `pivot_low`，1/2 卖止损 = `pivot_high`
-/// ——非 `center.zg/zd`（那是第三类）。故第二类 center=None（与第三类区分，对齐 `make_first_point`
-/// 1/2 类止损不用 center 的不变量）。`second_point` = `SecondTypeStructure.second_point`（回拉走势
+/// ——非 `center.zg/zd`（那是第三类）。`second_point` = `SecondTypeStructure.second_point`（回拉走势
 /// 结束点：买侧 = 回拉低点 m2.lo / 卖侧 = 回拉高点 m2.hi，§10.1），按 bit 方向填 pivot，另一侧 0。
-fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick) -> BspPoint {
+///
+/// ★owner 载体补齐（关③ 补记 2026-07-18 ②，路径 (a)：一/二类点构造时填入判定中枢）：
+/// `center = Some(*c)`，`c` = 判定中枢（`extract_second_signals` 的 `c1`——次级别第一类离开走势
+/// 所破的中枢，B 口径核心区间）。名实一致（090）：第二类由「第一类离开 ∧ 回拉不创新低/新高」
+/// 相对 `c1` 判定产出；center 是 owner=B 判定式的载体与回溯锚，**不进止损判据**（止损仍 pivot，
+/// 语义不变）。
+fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick, c: &Center) -> BspPoint {
     BspPoint {
         source_index,
         bits,
         // 2 买止损源 pivot_low（回拉低点）；2 卖止损源 pivot_high（回拉高点）。
         pivot_low: if bits.buy2 { second_point } else { 0 },
         pivot_high: if bits.sell2 { second_point } else { 0 },
-        center: None,
+        center: Some(*c), // owner 载体补齐（路径 (a)）：判定中枢 c1 构造时填载
         struct_break_dir: None, // 第二类=中枢内部回拉，非破中枢结构候选（P2-R2 语义：None）
         force: None,            // 第二类无 A/C 趋势段对 ⟹ 无力度 proxy（诚实 None，231号）
     }
@@ -628,6 +706,45 @@ pub(crate) fn locate_pan_div_structure(
     })
 }
 
+/// ★R3（2026-07-17 代理裁定，p113 Part B 实证 + doc-pan §6.2-1）：A 锚扩展——当中枢后找不到
+/// 「前次同向破核心段」作 A（窄锚）时，候选 A′ = **中枢前最近同向段**（`end_index ≤ c.start_index`
+/// 的最近同向段，061:28 中枢两头比较形态 A′→中枢→C；080:168「99开始的向上就要和93-96的形成
+/// 盘整背驰」；049:36-38「最标准」≠唯一；080:364「不是光比较最近这一段的」）。
+///
+/// 与窄锚的结构差异：回中枢要件由中枢本身满足（A′ 与 C 之间隔着整个中枢），不再要求
+/// 中枢后存在回中枢段；C 仍取当前离开 episode（λ_C 与窄锚同一 helper）。p113 实测：1,238 条
+/// Cons-leave 中 99.6% 块（228/229）经本扩展可重新定位——A 锚窄化是第一击杀机制。
+/// 调用顺序约定：先窄锚 [`locate_pan_div_structure`]，失败再回退本函数（窄锚是标准锚，
+/// 049:36-38「最标准的情况当然是前面最近向下的」优先）。
+pub(crate) fn locate_pan_div_structure_front_anchor(
+    c: &Center,
+    seg: &Segment,
+    segments: &[Segment],
+    anchors_self: &[Option<Direction>],
+) -> Option<PanDivStructure> {
+    let end = seg_end(seg);
+    let side = match end.dir {
+        Direction::Down if end.price < c.zd => Side::Long,
+        Direction::Up if end.price > c.zg => Side::Short,
+        _ => return None,
+    };
+    let dir = end.dir;
+    let lambda_c = departure_move_c_start(segments, anchors_self, c, dir, seg.start_index)?;
+    // A′ = 中枢前最近同向段（061:28 中枢两头比较；p113 Part B `prev_same.find(dir, c.start_index)`
+    // 同口径：`end_index ≤ c.start_index` 的最近同向段）。
+    let a_prime = segments
+        .iter()
+        .rev()
+        .find(|s| s.direction == dir && s.end_index <= c.start_index)?;
+    Some(PanDivStructure {
+        source_index: end.source_index,
+        side,
+        center: *c,
+        seg_a: (a_prime.start_index, a_prime.end_index),
+        seg_c: (lambda_c, seg.end_index),
+    })
+}
+
 /// #92 Cand 的 Extreme 分量；不消费 MACD 力度。
 pub(crate) fn pan_div_structure_extreme(structure: &PanDivStructure, segments: &[Segment]) -> bool {
     let envelope = |span: (usize, usize)| {
@@ -660,11 +777,14 @@ pub(crate) fn pan_div_structure_extreme(structure: &PanDivStructure, segments: &
 ///    （Long 候选）/ Up ⟹ 端点 > c.zg（Short）。
 /// 2. **当前离开区间 I(C)**（Q5 区间语义）：λ_C = 最后一个回中枢段 r（反向段、端点回到核心内侧：
 ///    Down 破侧 end ≥ zd / Up 破侧 end ≤ zg，r 在 seg 之前）之后的首个同向段起点；I(C)=[λ_C, seg.end]。
-/// 3. **A = 同一中枢的前一次同向离开末段**：direction==dir ∧ end_index ≤ λ_C ∧ 端点破核心的末段；
-///    且 A 与 C 之间存在回中枢段（r 的存在性 + 显式区间检查——否则是同一次离开）。
-/// 4. **Weak**：MACD 面积 C < A（`AbcDivergence::diverges`，同 buy1 冻结原语）。
+/// 3. **A 锚**（★R3 2026-07-17 裁定）：先窄锚——同一中枢的前一次同向离开末段（端点破核心 ∧ A、C
+///    间存在回中枢段）；窄锚不可得回退 **A′ = 中枢前最近同向段**（061:28 中枢两头比较，回中枢
+///    要件由中枢本身满足）。窄锚定位成功即不再回退（最标准锚优先，049:36-38）。
+/// 4. **Weak**（★R2 2026-07-17 裁定）：力度或关系——同色柱面积 C<A（060:44）∨ 黄白线峰 C<A
+///    （026:521）∨ 同向柱峰 C<A（025:38），任一成立即背驰信号（027:32「只要其中一个符合就
+///    可以」）。替代旧面积单通道必要门（混合柱 Σ|hist| 严格 curr<prev，p113 实测 30.4% 聋度）。
 ///
-/// 无回中枢段（只有一次离开）/ 无 A / 未背驰 / 区间无法映射 closes ⟹ None（诚实不产证书）。
+/// 无 A/A′ / 区间无法映射 closes / 或关系全无衰减 ⟹ None（033:26 无衰减即无盘背，诚实不产证书）。
 /// 复杂度：窗口 = start_index ∈ [c.end_index, seg.start_index] 的段（二分定界 + 窗口内线性扫）。
 pub(crate) fn judge_pan_div(
     c: &Center,
@@ -672,20 +792,21 @@ pub(crate) fn judge_pan_div(
     segments: &[Segment],
     anchors_self: &[Option<Direction>],
     hist: &[f64],
+    dif: &[f64],
     src_to_idx: &[usize],
 ) -> Option<PanDivCert> {
-    let structure = locate_pan_div_structure(c, seg, segments, anchors_self)?;
-    // 4. Weak：MACD 面积 C < A（同 buy1 冻结原语；is_trend=false = 盘整背驰语义）。
+    let structure = locate_pan_div_structure(c, seg, segments, anchors_self)
+        .or_else(|| locate_pan_div_structure_front_anchor(c, seg, segments, anchors_self))?;
+    // 4. Weak：力度或关系（027:32/026:521/025:38；is_trend=false = 盘整背驰语义）。
     let (c_span, a_span) = (structure.seg_c, structure.seg_a);
     let (Some(c_idx), Some(a_idx)) = (
         map_src_range_to_close_idx(src_to_idx, c_span.0, c_span.1),
         map_src_range_to_close_idx(src_to_idx, a_span.0, a_span.1),
     ) else {
-        return None; // 区间无法映射 closes ⟹ 无面积 ⟹ 不冒充背驰。
+        return None; // 区间无法映射 closes ⟹ 无力度可读 ⟹ 不冒充背驰。
     };
-    let abc = AbcDivergence { seg_a: a_span, seg_c: c_span, is_trend: false };
-    if !abc.diverges(hist, a_idx, c_idx) {
-        return None; // C ≥ A ⟹ 力度未衰减 ⟹ 非盘整背驰。
+    if !segments_diverge_or(hist, dif, structure.side, a_idx, c_idx) {
+        return None; // 各 proxy 全无衰减 ⟹ 市场事实（033:26）⟹ 非盘整背驰。
     }
     Some(PanDivCert {
         source_index: structure.source_index,
@@ -751,7 +872,8 @@ pub fn extract_second_signals(
     };
     let bits = endpoint_to_bsp(&situ);
     // source_index 由 index_of 取回拉走势 m2 的原始 K 序（坐标 still-MISSING，上游塔提供）。
-    vec![make_second_point(index_of(m2), bits, structure.second_point)]
+    // ★owner 载体补齐（关③ 补记② 路径 (a)）：判定中枢 c1 构造时填载（center=Some）。
+    vec![make_second_point(index_of(m2), bits, structure.second_point, c1)]
 }
 
 /// 从 confirmed 中枢序列 + 线段序列 + close 序列提取该级别全部买卖点（reference:34-36）。
@@ -839,6 +961,7 @@ pub fn extract_signals_with_hist(
 ) -> (Vec<BspPoint>, Vec<PanDivCert>) {
     // L0 入口：线段有内在缠论方向 ⟹ 锚方向 ≡ 结构方向（域定理）。Q7-#1 裁定C 的锚门只约束
     // 级别-N fallback 单元（经 [`extract_signals_with_hist_anchored`] 传 provenance 派生锚）。
+    // p117 后级别-N 第一类路径亦消费结构方向锚（见下函数头注），L0 两口径恒等不受影响。
     extract_signals_with_hist_anchored(centers, segments, None, hist, dif, closes_tick, close_src, gauge)
 }
 
@@ -847,6 +970,11 @@ pub fn extract_signals_with_hist(
 /// = endpoint fallback 单元，保留为序列/区间/面积成员，但不得作 A 段候选、C 段/破中枢段、离开段
 /// 方向锚。整参 `None` = L0（段方向即锚方向）。盘整背驰路径（[`judge_pan_div`]）不受锚门约束
 /// （盘整是独立范畴，腿方向即结构方向——恒用 `anchors_self`）。
+///
+/// ★p117（686 翻转条款第一支窄域授权，终端背书裁定 T2，p112 §6-4 裁定项）：本函数第一类路径
+/// 经 [`judge_segment`] 消费 `anchors_self`（单元结构方向，行程方向=τ 等式 veto；τ 门已承担
+/// 「趋势中」定义域），`anchors`（provenance 锚）**仅余三类 leave 锚用途**（`judge_segment`
+/// 三类分支 `anchors[i-1]`）——686 对三类的保护整体保留，第一类/三类方向来源自此分层。
 pub fn extract_signals_with_hist_anchored(
     centers: &[Center],
     segments: &[Segment],
@@ -944,11 +1072,13 @@ pub fn extract_signals_with_hist_anchored(
 
     // ★A 段缓存（热点②修复，#93）：key = last_center_idx（趋势 τ 下 prev_center = centers_sorted[pos-1]
     // 由 c 三元组经 first_match_idx 唯一决定 ⟹ 同 c_idx 下 (pos-1, c_idx) 配对唯一），val =
-    // `locate_trend_seg_a` 结果（与 C 段无关，仅依赖 `(segments, prev_center, last_center, trend_dir)`）。
+    // `locate_trend_seg_a` 结果 + 其包络（p117 037:20：b 包络随 I(A) 同槽缓存，每 c_idx 至多算
+    // 一次，`move_range_envelope` 单一来源；与 C 段无关，仅依赖 `(segments, prev_center,
+    // last_center, trend_dir)`）。
     // 趋势 τ 必 ≥2 同向中枢 ⟹ 所有触发第一类的段的 last_center_idx ∈ [1, C-1]，缓存规模至多 C 条。
     // 每段查缓存 O(1)（HashMap），首次 miss 才调 O(S) 的 `locate_trend_seg_a`——总成本从 O(S²)（每段
     // 重算）降为 O(C·S + S)（每中枢对一次 + 每段查缓存），C ≪ S 时近线性。
-    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
     // ★Q5 λ_C（codex ac4 #2 修复）：episode 语义下 λ_C 依赖 seg 前的回中枢段集合 ⟹ 不再可按
     // c_idx 缓存（旧 c_start_cache 无 reentry 检测，「失败离开→回中枢→重新离开」时 λ_C 过早污染
@@ -1060,11 +1190,11 @@ pub fn extract_first_third_resume(
     }
 
     // 逐段判定核（advance 与 tail 共享）：pointwise 解析门/类别后调 [`judge_segment`]。
-    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
     let mut judge_range =
         |from: usize, to: usize, pts: &mut Vec<BspPoint>, pans: &mut Vec<PanDivCert>,
-         a_cache: &mut std::collections::HashMap<usize, Option<(usize, usize)>>| {
+         a_cache: &mut std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>>| {
             for i in from..to {
                 let seg = &segments[i];
                 let Some(c_idx) = nearest_confirmed_center_idx(centers, seg.start_index) else {
@@ -1096,7 +1226,7 @@ pub fn extract_first_third_resume(
     let mut pan_divs = cached_pans.clone();
     // tail 的 a_seg_cache 独立（advance 已消耗，tail 段最近中枢多在 frontier）——新建，与 full
     // 路径每调用一份 a_seg_cache 同语义（key=c_idx，命中即复用；跨 advance/tail 不复用不影响 bit）。
-    let mut tail_a_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+    let mut tail_a_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
     judge_range(stable_seg, segments.len(), &mut points, &mut pan_divs, &mut tail_a_cache);
 
@@ -1126,7 +1256,8 @@ pub fn extract_first_third_resume(
 /// - `gate_dir`：`Some((pos, dir))` = 该段最近中枢落趋势块（pos=首匹配中枢下标，prev=pos-1、
 ///   dir=趋势方向）；`None` = 非趋势（不产第一类）。
 /// - `kind_consol`：该段最近中枢按 ownership 落 Consolidation 块（走盘整背驰证书路径）。
-/// - `a_seg_cache`：A 段区间按 `last_center_idx=c_idx` 缓存（热点②，趋势 τ 下多段共享 A 段对）。
+/// - `a_seg_cache`：A 段区间 + 其 b 包络（p117 037:20）按 `last_center_idx=c_idx` 缓存（热点②，
+///   趋势 τ 下多段共享 A 段对；包络随 I(A) 同槽，`move_range_envelope` 单一来源）。
 #[allow(clippy::too_many_arguments)]
 fn judge_segment(
     i: usize,
@@ -1138,7 +1269,7 @@ fn judge_segment(
     anchors: &[Option<Direction>],
     anchors_self: &[Option<Direction>],
     centers_sorted: &[Center],
-    a_seg_cache: &mut std::collections::HashMap<usize, Option<(usize, usize)>>,
+    a_seg_cache: &mut std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>>,
     hist: &[f64],
     dif: &[f64],
     closes_tick: &[Tick],
@@ -1152,25 +1283,42 @@ fn judge_segment(
     // 当前走势类型的最后中枢 = c）；prev_center = pos-1（同块前驱，A 段所在）。
     if let Some((pos, dir)) = gate_dir {
         let prev_center = &centers_sorted[pos - 1];
+        // ★p117（686 翻转条款第一支窄域授权，p112 §6-4 裁定项，终端背书裁定 T2 核准）：
+        // 第一类路径方向锚降级——provenance 锚（`anchors`，次级别块 ownership 资格）→
+        // 单元结构方向（`anchors_self`）。定义域「趋势中」（037:16/027:14）由本分支 τ 门
+        // （gate_dir，级别-N decompose Trend 块）已承担；行程方向=τ（037:20 单元级对应）
+        // 与破核心几何在判据函数内保留——降级非去除（方向匹配检查整体保留，仅换方向来源：
+        // 单元方向只做 =τ 的等式 veto，不传递方向内容，无方向信息自 fallback 单元外流）。
+        // 三消费点同源切换（禁部分修：broke 门/λ_C/A 段是同一「第一类方向锚」语义，部分切换
+        // 会使 judge_first_cached「broke ⟹ λ_C 必 Some」契约出现模糊地带）。三类分支（下方
+        // `anchors[i-1]`）不动——本案集三类零证据，686 对三类的保护整体保留；pan 域本已
+        // `anchors_self`（本切换后第一类与 pan 方向来源对齐，语义统一）。
         // 热点②修复：A 区间按 last_center_idx=c_idx 缓存（与 C 段 `seg` 无关）。首次 miss 才调
         // `locate_departure_move_a` O(窗口)，后续 hit O(1) 复用——消解每段重算的 O(S²)。
+        // ★p117 037:20（裁定 T3）：b 包络（`move_range_envelope`，单一来源）随 I(A) 同槽缓存——
+        // 每 c_idx 至多算一次；包络 None 构造性不可能（I(A) 首/末段恒整支落入 span），
+        // `and_then` 塌陷为「无 A」处理 = 无参照极值诚实判负（与 None 语义一致）。
         let a_seg_entry = *a_seg_cache
             .entry(c_idx)
-            .or_insert_with(|| locate_departure_move_a(sorted, anchors, prev_center, c, dir));
+            .or_insert_with(|| {
+                locate_departure_move_a(sorted, anchors_self, prev_center, c, dir).and_then(|span| {
+                    move_range_envelope(sorted, span).map(|env| (span, env))
+                })
+            });
         // Q5 λ_C（codex ac4 #2）：当前 episode 首同向段起点（共享 helper，逐段计算）。
-        let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
+        let c_start_entry = departure_move_c_start(sorted, anchors_self, c, dir, seg.start_index);
         if let Some(pf) = judge_first_cached(
-            c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry, c_start_entry,
-            gauge,
+            c, dir, seg, anchors_self[i], hist, dif, closes_tick, close_src, a_seg_entry,
+            c_start_entry, gauge,
         ) {
             points.push(pf);
         }
     }
 
     // ★Q4 盘整背驰（task #145）：段的最近中枢按 ownership 落在 Consolidation 块 ⟹ 走盘整背驰证书
-    // 路径（同一中枢两次同向离开 + C<A）。不产 BspPoint、不置 six-bit——证书由 econ 层承接。
+    // 路径（同一中枢两次同向离开 + 力度或关系 R2）。不产 BspPoint、不置 six-bit——证书由 econ 层承接。
     if kind_consol {
-        if let Some(cert) = judge_pan_div(c, seg, sorted, anchors_self, hist, close_src) {
+        if let Some(cert) = judge_pan_div(c, seg, sorted, anchors_self, hist, dif, close_src) {
             pan_divs.push(cert);
         }
     }
@@ -1214,6 +1362,9 @@ pub(crate) struct Type1Funnel {
     pub s_broke: usize,
     /// 环5：A 段可配对（locate_trend_seg_a=Some）。
     pub s_a_paired: usize,
+    /// 环5b：037:20 破 b 包络极值（c 端点 `< b_lo` / `> b_hi`，b=I(A) 包络；计数于 A 配对后、
+    /// λ_C/映射前——与生产 `judge_first_cached` 同判据同顺序，p117 裁定 T3）。
+    pub s_extreme: usize,
     /// 环6：A/C 段均可映射到 closes 坐标（=生产 struct_break 候选数）。
     pub s_mapped: usize,
     /// 环7：MACD 背驰 C<A 成立（=生产 buy1/sell1 数）。
@@ -1248,6 +1399,7 @@ pub(crate) fn type1_funnel_dx(
         s_pos_ge1: 0,
         s_broke: 0,
         s_a_paired: 0,
+        s_extreme: 0,
         s_mapped: 0,
         s_diverge: 0,
     };
@@ -1256,12 +1408,14 @@ pub(crate) fn type1_funnel_dx(
     for (idx, c) in centers.iter().enumerate() {
         first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
     }
-    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
     // Q7-#1 裁定C + 675号（探针走生产路径）：锚与生产同源——L0 传 None（自锚），级别-N 由
-    // census 传 `center_own_dir_at` 派生锚。漏斗环判据与生产 extract 逐锚一致，parity 断言收口。
+    // census 传 `center_own_dir_at` 派生锚（仅用于尾部 parity 对拍调用；生产三类仍消费之）。
+    // ★p117 窄域授权镜像：第一类判据环（broke/A 段/λ_C）与生产 `judge_segment` 同步降级为
+    // 结构方向锚（`anchors_owned` ≡ 生产 `anchors_self`）—— parity 断言（尾部）对拍的正是
+    // 降级后的生产路径，探针不分叉。
     let anchors_owned = super::divergence::self_anchors(segments);
-    let anchors: &[Option<Direction>] = anchor_dirs.unwrap_or(&anchors_owned);
     for (si, seg) in segments.iter().enumerate() {
         let Some(c_idx) = nearest_confirmed_center_idx(centers, seg.start_index) else {
             continue;
@@ -1277,8 +1431,9 @@ pub(crate) fn type1_funnel_dx(
         f.s_gate_open += 1;
         // broke 几何（judge_first_cached 同判据同顺序）。
         let end = seg_end(seg);
-        // Q7-#1 裁定C：broke 锚门与 judge_first_cached 同判据（fallback ⟹ 不触发）。
-        let broke = match (anchors[si], dir) {
+        // ★p117（686 窄域授权）：broke 锚门与生产第一类路径同源——结构方向锚（行程方向=τ
+        // 等式 veto）；provenance 锚（fallback=None ⟹ 不触发）仅余三类/直调判据契约。
+        let broke = match (anchors_owned[si], dir) {
             (Some(Direction::Down), Direction::Down) => end.price < c.zd,
             (Some(Direction::Up), Direction::Up) => c.zg < end.price,
             _ => false,
@@ -1290,11 +1445,25 @@ pub(crate) fn type1_funnel_dx(
         let prev_center = &centers[pos - 1];
         let a = *a_seg_cache
             .entry(c_idx)
-            .or_insert_with(|| locate_departure_move_a(segments, anchors, prev_center, c, dir));
-        let Some((a_start, a_end)) = a else { continue };
+            .or_insert_with(|| {
+                locate_departure_move_a(segments, &anchors_owned, prev_center, c, dir).and_then(
+                    |span| move_range_envelope(segments, span).map(|env| (span, env)),
+                )
+            });
+        let Some(((a_start, a_end), (b_lo, b_hi))) = a else { continue };
         f.s_a_paired += 1;
+        // ★p117 037:20（裁定 T3，与生产 judge_first_cached 同判据同顺序）：c 端点破 b 包络极值
+        // （严格超越，等号排除）——未破者不进第一类候选域（061:28），连 struct_break 候选也不计。
+        let extreme_037_20 = match dir {
+            Direction::Down => end.price < b_lo,
+            Direction::Up => end.price > b_hi,
+        };
+        if !extreme_037_20 {
+            continue;
+        }
+        f.s_extreme += 1;
         // Q5 λ_C（生产同款共享 helper，codex ac4 #2）：I(C)=[λ_C, seg.end]（broke ⟹ 必 Some）。
-        let Some(lambda_c) = departure_move_c_start(segments, anchors, c, dir, seg.start_index) else {
+        let Some(lambda_c) = departure_move_c_start(segments, &anchors_owned, c, dir, seg.start_index) else {
             continue;
         };
         let (Some(c_i), Some(a_i)) = (
@@ -1517,7 +1686,297 @@ mod tests {
         assert_eq!(buy1.len(), 1, "下跌趋势 C 段破最后中枢 ∧ C<A 趋势背驰 ⟹ 一个 1 买");
         assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段（破最后中枢段）终止 source_index");
         assert_eq!(buy1[0].pivot_low, 80, "1 买止损源 = pivot_low（C 段破中枢端点）");
-        assert!(buy1[0].center.is_none(), "1 类止损用 pivot 非 center ⟹ center=None");
+        // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
+        //（被破的最后中枢 = a+A+b+B+c 的 B 同型对象）——名实一致根据：一类点本就由「C 段破
+        // last_center ∧ C<A 趋势背驰」相对 c1 判定产出；center 是 owner 载体，止损仍 pivot
+        //（pivot_low=80 上条已锁，center 不进 1/2 类止损判据）。
+        assert_eq!(buy1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+    }
+
+    // ── p117（686 翻转条款第一支窄域授权，终端背书裁定 T2）：第一类路径方向锚降级 ──────
+    //
+    // 降级 = provenance 锚（anchors，次级别块 ownership 资格）→ 单元结构方向（anchors_self），
+    // 限第一类路径、限 τ 门开、限单元行程方向=τ（等式 veto 保留，非去除）。下列测试复用
+    // `first_buy_extracted_with_trend_divergence` 的 A/B/C 夹具（C0[300,400]→C1[100,200] 下跌
+    // 趋势；A=[3,5] Down 急跌；B=[5,7] Up；C=[9,11] Down 缓动破 zd=100，A 面积 23.26 > C 9.09），
+    // 级别-N 输入经 `extract_signals_with_hist_anchored(..., Some(anchor_dirs), ...)` 显式锚数组模拟。
+
+    #[test]
+    fn first_buy_fallback_c_unit_rescued_via_structural_direction() {
+        // ★S2 救回型：C 单元（破中枢段）fallback（anchor=None）但结构方向 Down=τ——p117 后
+        // broke 锚门用单元结构方向 ⟹ 触发（旧口径：provenance None 在几何评估前击杀）。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let anchors = [Some(Direction::Down), Some(Direction::Up), None]; // C 单元 fallback
+        let (points, _pan) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, Some(&anchors), &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+        let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
+        assert_eq!(buy1.len(), 1, "C 单元 fallback 且结构方向=τ ⟹ p117 后破中枢触发 ∧ C<A 背驰 ⟹ 1 买");
+        assert_eq!(buy1[0].source_index, 11, "1 买端点 = C 段终止 source_index");
+        assert_eq!(buy1[0].pivot_low, 80, "1 买止损源 = pivot_low（C 段破中枢端点极值）");
+        // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1——
+        // 名实一致根据同 `first_buy_extracted_with_trend_divergence`（本测试复用其 A/B/C 夹具）；
+        // center 是 owner 载体，止损仍 pivot（上条已锁，center 不进 1/2 类止损判据）。
+        assert_eq!(buy1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+    }
+
+    #[test]
+    fn first_buy_fallback_c_unit_opposite_travel_still_rejected() {
+        // ★行程方向 veto 保留（降级非去除，037:20 单元级对应）：C 单元结构方向 Up ≠ τ=Down，
+        // 端点 80 < zd=100 虽越界，仍拒——锁死「τ 继承纯几何」（方案 (ii)，永久拒绝）的误放形态。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Up, 9, 11, 60, 80), // C 单元：结构方向 Up ≠ τ=Down，端点 80 < zd=100 越界
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let anchors = [Some(Direction::Down), Some(Direction::Up), None];
+        let (points, _pan) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, Some(&anchors), &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+        assert!(points.iter().all(|p| !p.bits.buy1), "行程方向 ≠τ ⟹ 无 1 买（方向等式 veto 保留）");
+        assert!(
+            points.iter().all(|p| p.source_index != 11 || p.struct_break_dir.is_none()),
+            "@11 无 struct_break 候选（含零 bit 候选也不产——τ 继承式误放的负例锁）"
+        );
+    }
+
+    #[test]
+    fn first_buy_fallback_a_window_pairable_via_structural_direction() {
+        // ★S4 救回型：A 单元 fallback（anchor=None）但结构方向 Down=τ——p117 后 A 窗筛选用
+        // 结构方向 ⟹ A 候选可配（旧口径：`**a == Some(dir)` 过滤全空 ⟹ locate 返回 None）。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let anchors = [None, Some(Direction::Up), Some(Direction::Down)]; // A 单元 fallback
+        let (points, _pan) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, Some(&anchors), &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+        let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
+        assert_eq!(buy1.len(), 1, "A 单元 fallback 且结构方向=τ ⟹ p117 后 A/C 可配对 ⟹ 1 买");
+        assert_eq!(buy1[0].source_index, 11);
+        assert_eq!(buy1[0].pivot_low, 80);
+    }
+
+    #[test]
+    fn first_buy_anchored_set_bit_identical_after_downgrade() {
+        // ★单调加宽、零误杀的单元级锁（裁定 T2 裁决 3：构造性结论的回归锁）：anchor=Some(d) 与
+        // 单元结构方向同源（project_to_units 同一 unwrap 源）⟹ 全 Some 锚（=结构方向）的输入在
+        // 降级前后逐字段恒等——无任何现产第一类点因本修消失。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),
+            seg(Direction::Up, 5, 7, 250, 280),
+            seg(Direction::Down, 9, 11, 150, 80),
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let full = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Down)];
+        let (pts_anchor, _) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, Some(&full), &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+        let (pts_self, _) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, None, &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+        assert_eq!(
+            pts_anchor, pts_self,
+            "全 Some 锚（=结构方向）与自锚两跑 Vec<BspPoint> 逐字段相等（降级不改变已合格点）"
+        );
+    }
+
+    #[test]
+    fn judge_first_cached_provenance_gate_preserved_for_direct_callers() {
+        // ★判据函数 provenance 门契约锁：降级发生在**调用点**（judge_segment 传 anchors_self），
+        // `judge_first_cached` 语义未动——直接调用方传 provenance None（fallback）时 686 裁定C
+        // 行为保留（broke 锚门在几何评估前拒）。
+        let c1 = dc(100, 200, 90, 210, 8);
+        let c_seg = seg(Direction::Down, 9, 11, 150, 80);
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let out = judge_first_cached(
+            &c1, Direction::Down, &c_seg, None, &hist, &[], &[], &src,
+            Some(((3, 5), (250, 350))), Some(9), DivergenceGauge::default(),
+        );
+        assert!(out.is_none(), "直调判据传 provenance None ⟹ None（判据函数语义未动，降级在调用点）");
+    }
+
+    #[test]
+    fn first_buy_fallback_episode_lambda_c_consistent() {
+        // ★λ_C 三消费点同源一致性锁（禁部分修：broke 门/λ_C/A 段同一方向语义）：C 单元前插入
+        // 回中枢段（端点重回 c1 核心 [100,200] 内侧 ⟹ episode 边界），fallback C 单元经结构方向
+        // 救回时 λ_C 取「结构同向 episode 起点」——与 broke 门/A 段筛选同一 anchors_self 来源。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 250),   // A 段
+            seg(Direction::Up, 5, 7, 250, 280),     // B 段连接
+            seg(Direction::Up, 9, 10, 140, 150),    // 回中枢段：端点 150 ∈ [100,200] ⟹ episode 边界
+            seg(Direction::Down, 10, 12, 150, 80),  // C 段（fallback，结构方向 Down=τ）：破 zd=100
+        ];
+        let anchors = [Some(Direction::Down), Some(Direction::Up), Some(Direction::Up), None];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let hist = compute_macd(&closes, &MacdConfig::default()).hist;
+        let (points, _pan) = extract_signals_with_hist_anchored(
+            &[c0, c1], &segs, Some(&anchors), &hist, &[], &[], &src, DivergenceGauge::default(),
+        );
+        let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
+        assert_eq!(buy1.len(), 1, "fallback C 单元经结构方向救回：episode 重离开后破中枢 ∧ C<A ⟹ 1 买");
+        assert_eq!(buy1[0].source_index, 12, "1 买端点 = 当前 episode 破中枢段终点（λ_C=10 ⟹ I(C)=[10,12]）");
+        // 同一共享 helper 的对照锁定：provenance 锚下 λ_C 不可定位（fallback C 单元不作方向锚
+        // ⟹ None，旧口径击杀链）；结构方向锚下 = 回中枢段（终点 10）之后首同向段起点 10
+        // （「失败离开→回中枢→重新离开」不桥接）。
+        assert_eq!(
+            departure_move_c_start(&segs, &anchors, &c1, Direction::Down, 10), None,
+            "provenance 锚：fallback C 单元不作方向锚 ⟹ λ_C None（p117 前击杀链）"
+        );
+        let self_a = super::divergence::self_anchors(&segs);
+        assert_eq!(
+            departure_move_c_start(&segs, &self_a, &c1, Direction::Down, 10), Some(10),
+            "结构方向锚：λ_C = episode 首同向段起点 10（生产第一类路径 p117 后消费此源）"
+        );
+    }
+
+    // ── p117（037:20 破极值补项，终端背书裁定 T3）：c 端点必破 b（=I(A)）包络极值 ──────
+    //
+    // 插入层面 = 结构候选门（与 broke 同层，061:28 候选资格定性）：未破 b 极值的破核心段不进
+    // 第一类候选域——含零 bit struct_break 候选也不产（D1 收缩语义）。「创出」= 严格超越（等号
+    // 排除，与 zd/zg 严格口径一致）。夹具关键几何：A 腿终点压到 zd 之下（b_lo=90 < zd=100）使
+    // 新门**可绑定**（区别于 canonical 夹具 b_lo=250 > zd=100 的不绑定几何，§5.4 回归面）。
+
+    #[test]
+    fn first_class_requires_b_envelope_break_03720() {
+        // ★T1 杀伪（负例）：C 端点 95 破核心（< zd=100）但未破 b 包络极值（b_lo=90）⟹ 连零 bit
+        // struct_break 候选也不产。反事实（旧口径）：95<100 ⟹ 该坐标曾是 struct_break 候选。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 90),  // A 腿：b_lo=90 < zd=100（门可绑定几何）
+            seg(Direction::Up, 5, 7, 90, 95),     // B 连接
+            seg(Direction::Down, 9, 11, 150, 95), // C：95 < zd=100 破核心 ✓，95 ≥ b_lo=90 破极值 ✗
+        ];
+        // closes 取 canonical 急跌-缓动型——若放行则 C<A 成立，把变量隔离到 037:20 一项。
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+        assert!(points.iter().all(|p| !p.bits.buy1), "未破 b 极值 ⟹ 无 1 买（037:20 必要合取）");
+        assert!(
+            points.iter().all(|p| p.struct_break_dir.is_none()),
+            "破核心但未破 b 极值 ⟹ 连零 bit struct_break 候选也不产（D1 候选门收缩；旧口径下 @11 = 候选 95<100）"
+        );
+    }
+
+    #[test]
+    fn first_class_point_deferred_to_envelope_breaking_leg_03720() {
+        // ★T2 同 episode 递延（正例核心）：C 腿1 破核心未破极值（被杀）；C 内反向段未回核心
+        // ⟹ 同一 episode（λ_C=9）；C 腿2 端点 85 < b_lo=90 破极值 = 因果触发段——点在腿2 端点
+        // （@15），非破核心腿（@11）。坐实「不改变点的因果语义，只在同一触发点加严」。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 90),   // A：b_lo=90
+            seg(Direction::Up, 5, 7, 90, 95),      // B
+            seg(Direction::Down, 9, 11, 150, 95),  // C 腿1：破核心 ✓ 未破极值 ✗（旧口径候选坐标）
+            seg(Direction::Up, 11, 13, 95, 98),    // C 内反向段：98 < zd=100 未回核心 ⟹ 同一 episode
+            seg(Direction::Down, 13, 15, 98, 85),  // C 腿2：85 < b_lo=90 破极值 ✓ = 因果触发段
+        ];
+        // closes：I(A)=[3,5] 急跌（面积大）、I(C)=[9,15] 缓动（面积小 ⟹ C<A 成立）。
+        let prices: Vec<Tick> = vec![
+            300, 300, 300, 300, 100, 250, 250, 250, 250, 249, 248, 247, 246, 245, 244, 243,
+        ];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+        let buy1: Vec<_> = points.iter().filter(|p| p.bits.buy1).collect();
+        assert_eq!(buy1.len(), 1, "破极值腿端点破核心 ∧ C<A ⟹ 一个 1 买（递延到因果触发段）");
+        assert_eq!(buy1[0].source_index, 15, "点在破极值腿端点 @15，非破核心腿 @11");
+        assert_eq!(buy1[0].pivot_low, 85, "pivot_low = 破极值腿端点极值 85");
+        assert!(
+            points.iter().all(|p| p.source_index != 11),
+            "@11（破核心未破极值腿）零产出——旧口径下该坐标有 struct_break 候选"
+        );
+    }
+
+    #[test]
+    fn first_class_envelope_equality_is_not_a_break_03720() {
+        // ★T3 等号非创出：C 端点 == b_lo（90 == 90）——「创出」= 严格超越，等号排除（与中枢
+        // zd/zg 严格不等式口径一致）⟹ 无候选。
+        let c0 = dc(300, 400, 290, 410, 2);
+        let c1 = dc(100, 200, 90, 210, 8);
+        let segs = vec![
+            seg(Direction::Down, 3, 5, 350, 90),  // A：b_lo=90
+            seg(Direction::Up, 5, 7, 90, 95),     // B
+            seg(Direction::Down, 9, 11, 150, 90), // C：90 < zd=100 破核心 ✓，90 == b_lo 等号 ✗
+        ];
+        let prices: Vec<Tick> = vec![300, 300, 300, 300, 100, 250, 250, 250, 250, 248, 246, 244];
+        let (closes, src) = closes_seq(&prices);
+        let points = extract_signals(&[c0, c1], &segs, &closes, &src, &MacdConfig::default());
+        assert!(points.iter().all(|p| !p.bits.buy1), "等号非创出 ⟹ 无 1 买");
+        assert!(
+            points.iter().all(|p| p.struct_break_dir.is_none()),
+            "等号 ⟹ 连零 bit struct_break 候选也不产（严格超越口径）"
+        );
+    }
+
+    #[test]
+    fn first_sell_requires_b_envelope_break_03720() {
+        // ★T4 上涨镜像：c1.dd=290 > c0.gg=210 ⟹ Trend(Up)；b_hi=410 > zg=400（门可绑定几何）。
+        // 单腿变体：C 端点 405 破核心（> zg=400）未破极值（≤ b_hi=410）⟹ 杀；
+        // 双腿变体：第二腿 415 > b_hi=410 ⟹ sell1 于破极值腿端点 @15。
+        let c0 = dc(100, 200, 90, 210, 2);
+        let c1 = dc(300, 400, 290, 410, 8);
+        let leg_a = seg(Direction::Up, 3, 5, 150, 410); // A：b_hi=410 > zg=400
+        let leg_b = seg(Direction::Down, 5, 7, 410, 405); // B
+        let leg_c1 = seg(Direction::Up, 9, 11, 390, 405); // C 腿1：405 > zg=400 ✓，405 ≤ 410 ✗
+        // 单腿变体（杀伪镜像）：无 1 卖且无 struct_break 候选。
+        let prices1: Vec<Tick> = vec![200, 200, 200, 200, 400, 300, 300, 300, 300, 301, 302, 303];
+        let (closes1, src1) = closes_seq(&prices1);
+        let segs1 = vec![leg_a, leg_b, leg_c1];
+        let points1 = extract_signals(&[c0, c1], &segs1, &closes1, &src1, &MacdConfig::default());
+        assert!(points1.iter().all(|p| !p.bits.sell1), "未破 b 极值 ⟹ 无 1 卖（037:20 镜像）");
+        assert!(
+            points1.iter().all(|p| p.struct_break_dir.is_none()),
+            "破核心未破 b 极值 ⟹ 连零 bit struct_break 候选也不产（镜像 D1 收缩）"
+        );
+        // 双腿变体（递延镜像）：C 内反向段未回核心 ⟹ 同一 episode；腿2 破极值触发。
+        let leg_rev = seg(Direction::Down, 11, 13, 405, 402); // 402 > zg=400 未回核心 ⟹ 同 episode
+        let leg_c2 = seg(Direction::Up, 13, 15, 402, 415);    // C 腿2：415 > b_hi=410 ✓ 触发
+        // closes：I(A)=[3,5] 急涨（面积大）、I(C)=[9,15] 缓动平底（面积小 ⟹ C<A 成立）——
+        // 与买侧 T2「I(A) 急跌 / I(C) 缓动」镜像；初版 C 段 301→305 缓升使 dif 持续走高、
+        // C 面积反超 A（macd_c_lt_a=false ⟹ @15 仅 struct_break_dir=Some(Short) 无 bit），
+        // 属夹具几何错误，非门实装错误（结构链已实证全通）。
+        let prices2: Vec<Tick> = vec![
+            200, 200, 200, 200, 500, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250, 250,
+        ];
+        let (closes2, src2) = closes_seq(&prices2);
+        let segs2 = vec![leg_a, leg_b, leg_c1, leg_rev, leg_c2];
+        let points2 = extract_signals(&[c0, c1], &segs2, &closes2, &src2, &MacdConfig::default());
+        let sell1: Vec<_> = points2.iter().filter(|p| p.bits.sell1).collect();
+        assert_eq!(sell1.len(), 1, "破极值腿端点破核心 ∧ C<A ⟹ 一个 1 卖（递延到因果触发段）");
+        assert_eq!(sell1[0].source_index, 15, "点在破极值腿端点 @15");
+        assert_eq!(sell1[0].pivot_high, 415, "pivot_high = 破极值腿端点极值 415");
     }
 
     #[test]
@@ -1838,7 +2297,10 @@ mod tests {
         let sell1: Vec<_> = points.iter().filter(|p| p.bits.sell1).collect();
         assert_eq!(sell1.len(), 1, "上涨趋势 C 段破最后中枢上沿 ∧ 顶背驰 ⟹ 一个 1 卖");
         assert_eq!(sell1[0].pivot_high, 420, "1 卖止损源 = pivot_high（C 段破中枢端点）");
-        assert!(sell1[0].center.is_none(), "1 类止损用 pivot 非 center");
+        // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
+        //（上涨趋势镜像，被破的最后中枢）——名实一致根据同一类买侧；center 是 owner 载体，
+        // 止损仍 pivot（pivot_high=420 上条已锁，center 不进 1/2 类止损判据）。
+        assert_eq!(sell1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
     }
 
     // ── Q5（task #145）：A/C 从单段升级为次级别走势区间——多段 departure 语义真变 ────
@@ -2021,6 +2483,111 @@ mod tests {
         assert_eq!(cert.seg_c, (13, 15), "I(C) = 当前离开走势区间（Q5 同款区间语义）");
     }
 
+    // ── R1/R2/R3（2026-07-17 代理裁定）：三买几何 / 力度或关系 / A′ 锚扩展 ─────────
+
+    /// R1 三买几何（037:18，judge_third 去 anchor 门同构）：离开破核心 + 回试不重回 ⟹ 命中；
+    /// 回试重回核心 ⟹ 首个离开不算，后续延迟三买仍可命中；as_of 截断 ⟹ None（禁前视）。
+    #[test]
+    fn trend_third_class_in_c_geometry() {
+        let last = Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 5 };
+        // Up：leave 端点 260 > zg=200 破核心，retest 端点 220 > 200 不重回 ⟹ 三买 @10。
+        let segs = vec![
+            seg(Direction::Up, 6, 8, 210, 260),
+            seg(Direction::Down, 8, 10, 260, 220),
+        ];
+        assert_eq!(
+            trend_third_class_in_c(&segs, &last, Direction::Up, 6, 10),
+            Some((8, 10)),
+            "离开破核心 + 回试不重回 ⟹ 立即三买"
+        );
+        // 回试重回（190 ≤ 200）⟹ 首次离开不算；延迟三买（二次离开 + 回试 205 > 200）@14。
+        let delayed = vec![
+            seg(Direction::Up, 6, 8, 210, 260),
+            seg(Direction::Down, 8, 10, 260, 190),
+            seg(Direction::Up, 10, 12, 190, 270),
+            seg(Direction::Down, 12, 14, 270, 205),
+        ];
+        assert_eq!(
+            trend_third_class_in_c(&delayed, &last, Direction::Up, 6, 14),
+            Some((12, 14)),
+            "延迟三买（p112 70 案型）在全离开段口径下存在"
+        );
+        // 禁前视：as_of=12 截断延迟回试 ⟹ None。
+        assert_eq!(trend_third_class_in_c(&delayed, &last, Direction::Up, 6, 12), None);
+        // Down 对称：leave 端点 90 < zd=100 破核心，retest 端点 95 < 100 不重回。
+        let down = vec![
+            seg(Direction::Down, 6, 8, 190, 90),
+            seg(Direction::Up, 8, 10, 90, 95),
+        ];
+        assert_eq!(
+            trend_third_class_in_c(&down, &last, Direction::Down, 6, 10),
+            Some((8, 10))
+        );
+        // 无回试（单腿窗口）⟹ None——p112 构造性恒假的机械显形（#105 单腿口径）。
+        let single = vec![seg(Direction::Up, 6, 8, 210, 260)];
+        assert_eq!(trend_third_class_in_c(&single, &last, Direction::Up, 6, 10), None);
+    }
+
+    /// R3 A′ 锚扩展（061:28 中枢两头比较）：中枢后无前次同向破核心段（窄锚不可得）时，
+    /// A′ = 中枢前最近同向段救回定位；R2 力度或关系：混合面积 C≥A 但同色面积 C<A ⟹ 仍产证。
+    #[test]
+    fn pan_div_front_anchor_rescue_and_or_relation_weak() {
+        use super::super::divergence::{self_anchors, segments_diverge};
+        let c2 = Center { zd: 350, zg: 450, dd: 250, gg: 460, start_index: 4, end_index: 8 };
+        let segs = vec![
+            seg(Direction::Down, 1, 3, 460, 360), // A′：中枢前同向段（end=3 ≤ c2.start=4）
+            seg(Direction::Down, 9, 11, 380, 300), // C：破核心（300 < zd=350）；中枢后无回中枢段
+        ];
+        let anchors = self_anchors(&segs);
+        let src: Vec<usize> = (0..12).collect();
+        // hist：A′ 绿柱 −5×3=15；C 绿柱 −1−1=2 但夹红柱 +20 ⟹ 混合面积 C=22 > A=15（旧口径判负），
+        // 同色面积 2<15 且绿柱峰 1<5 ⟹ 或关系两通道成立（027:32）。
+        let mut hist = vec![0.0; 12];
+        hist[1] = -5.0;
+        hist[2] = -5.0;
+        hist[3] = -5.0;
+        hist[9] = -1.0;
+        hist[10] = 20.0;
+        hist[11] = -1.0;
+        let dif = vec![0.0; 12];
+        assert!(
+            !segments_diverge(&hist, (1, 3), (9, 11)),
+            "前置自证：混合柱面积单通道（旧口径）判负——22 > 15"
+        );
+        let cert = judge_pan_div(&c2, &segs[1], &segs, &anchors, &hist, &dif, &src)
+            .expect("窄锚失败 ⟹ A′ 救回定位 + 力度或关系成立 ⟹ 产证");
+        assert_eq!(cert.side, Side::Long);
+        assert_eq!(cert.seg_a, (1, 3), "A′ = 中枢前最近同向段（061:28）");
+        assert_eq!(cert.seg_c, (9, 11), "I(C) = 当前离开 episode");
+        assert_eq!(cert.source_index, 11);
+    }
+
+    /// R2 边界（033:26）：各 proxy 全无衰减 ⟹ 市场事实，不产证（不放宽）。
+    #[test]
+    fn pan_div_or_relation_all_channels_fail_rejects() {
+        use super::super::divergence::self_anchors;
+        let c2 = Center { zd: 350, zg: 450, dd: 250, gg: 460, start_index: 4, end_index: 8 };
+        let segs = vec![
+            seg(Direction::Down, 1, 3, 460, 360),
+            seg(Direction::Down, 9, 11, 380, 300),
+        ];
+        let anchors = self_anchors(&segs);
+        let src: Vec<usize> = (0..12).collect();
+        // C 绿柱面积/柱峰/dif 峰全面放大 ⟹ 或关系全假。
+        let mut hist = vec![0.0; 12];
+        hist[1] = -2.0;
+        hist[2] = -2.0;
+        hist[3] = -2.0;
+        hist[9] = -9.0;
+        hist[10] = -9.0;
+        hist[11] = -9.0;
+        let dif = vec![0.0; 12];
+        assert!(
+            judge_pan_div(&c2, &segs[1], &segs, &anchors, &hist, &dif, &src).is_none(),
+            "各 proxy 全无衰减 ⟹ 市场事实（033:26）⟹ 不产证"
+        );
+    }
+
     /// Q4×Q5 对称（codex ac4-r2）：前一次离开为**多段 episode**（破核心腿 + 未回核心的中间反向
     /// 段 + 再破更深腿）⟹ I(A) = 整个 episode 区间 [λ_A, ρ_A]，非仅末段锚。
     #[test]
@@ -2147,7 +2714,10 @@ mod tests {
         assert!(!points[0].bits.buy1 && !points[0].bits.buy3, "第二类端点不置 1/3 类（互斥语义）");
         assert_eq!(points[0].source_index, 42, "B2 source_index = 回拉走势 m2 的原始 K 序（index_of）");
         assert_eq!(points[0].pivot_low, -8, "B2 止损源 = 回拉低点（second_point = m2.lo）");
-        assert!(points[0].center.is_none(), "1/2 类止损用 pivot 非 center ⟹ center=None");
+        // ★owner 载体补齐（关③ 补记② 路径 (a)）：二类点构造时填入判定中枢 c1=second_center()
+        //（次级别第一类离开走势所破的中枢）——名实一致根据：B2 由「第一类离开（破 c1）∧ 回拉
+        // 不创新低」相对该中枢判定产出；center 是 owner 载体，止损仍 pivot（上条已锁）。
+        assert_eq!(points[0].center, Some(second_center()), "二类点 center = 判定中枢 c1（owner 载体）；止损仍 pivot 非 center");
     }
 
     #[test]
@@ -2199,7 +2769,10 @@ mod tests {
         assert!(!points[0].bits.buy2, "卖侧 ⟹ buy2 不置位");
         assert_eq!(points[0].source_index, 17, "S2 source_index = 回抽走势的原始 K 序");
         assert_eq!(points[0].pivot_high, 8, "S2 止损源 = 回抽高点（second_point = m2.hi）");
-        assert!(points[0].center.is_none(), "1/2 类止损用 pivot 非 center");
+        // ★owner 载体补齐（关③ 补记② 路径 (a)）：二类点构造时填入判定中枢 c1=second_center()
+        //（卖侧镜像，第一类离开所破的中枢）——名实一致根据同 B2 买侧；center 是 owner 载体，
+        // 止损仍 pivot（pivot_high=8 上条已锁）。
+        assert_eq!(points[0].center, Some(second_center()), "二类点 center = 判定中枢 c1（owner 载体）；止损仍 pivot 非 center");
     }
 
     #[test]
@@ -2530,6 +3103,20 @@ fn diag_first_buy() {
         else {
             return None;
         };
+        // ★p117 037:20 同步（oracle 与生产同一判据，非语义快照——#143 换门同步先例）：c 端点破
+        // b 包络极值（包络 = `move_range_envelope` 同一原语同区间语义；oracle 无缓存逐段重算，
+        // 与其朴素风格一致）。同步后 `extract_signals_bit_exact_vs_orig_per_case` 逐 case 对拍
+        // 保持（两侧同失被 037:20 杀掉的点）。
+        let Some((b_lo, b_hi)) = move_range_envelope(segments, (a_start, a_end)) else {
+            return None;
+        };
+        let extreme_037_20 = match trend_dir {
+            Direction::Down => end.price < b_lo,
+            Direction::Up => end.price > b_hi,
+        };
+        if !extreme_037_20 {
+            return None;
+        }
         // Q5 λ_C（oracle 与生产同一共享 helper——codex ac4 #4：无平行实现 ⟹ 无坐标 fork）。
         let Some(lambda_c) =
             departure_move_c_start(segments, &super::super::divergence::self_anchors(segments), last_center, trend_dir, seg.start_index)
@@ -2558,7 +3145,10 @@ fn diag_first_buy() {
         // oracle 是 veto 语义（只产背驰确认第一类）——这些点必破中枢，struct_break_dir 同新版逻辑。
         let struct_break_dir = Some(if is_sell { Side::Short } else { Side::Long });
         // oracle 不算力度（前 force 时代实现）⟹ force=None，与优化版空-dif 电池路径逐字段相等。
-        Some(make_first_point(end.source_index, bits, end.price, struct_break_dir, None))
+        // ★owner 载体补齐（关③ 补记② 路径 (a)）：oracle 同步填载判定中枢 last_center——沿用
+        // 本头注「oracle 与生产同步，非语义快照」先例（同 Q5/p117 037:20 两次同步），per-case
+        // 逐字段对拍继续锁定（center 在 PartialEq 内，bsp.rs:170）。
+        Some(make_first_point(end.source_index, bits, end.price, last_center, struct_break_dir, None))
     }
 
     /// ★仅测试用：优化前 `extract_signals`（oracle，逐字从 git HEAD 复制）。
@@ -2676,6 +3266,14 @@ fn diag_first_buy() {
         // struct_break_dir 先例：**诚实、可证、均匀**（全 None 常量），**不**自定义 Debug 隐藏 force。六 bit
         // + pivot + center + struct_break_dir 逐字段不变仍由 per-case（PartialEq 排除 force，本电池 force
         // 恒 None 无差可漏）锁定——翻转**仅**因新增 `, force: None` 常量串。
+        // ★owner 载体补齐（关③ 补记 2026-07-18 ②，编排者路径 (a)）：`make_first_point`/
+        // `make_second_point` 构造时 `center: None→Some(判定中枢)`（一/二类点 owner 载体），center 在
+        // `#[derive(Debug)]` 内——本 GOLDEN **实测未翻转**（仍 0x90c7_9ee6_17e1_1392），根因经探针逐
+        // case 落账：电池 14 case 共产 247 点**全为三类**（buy3+sell3，center 本已 Some），一/二类
+        // 路径点零产出（A 组 broke=false 早退；B/C/D 组 τ 门未开 ⟹ `judge_first_cached` 零产出；
+        // 二类由 `extract_second_signals` 产，不在本电池输入域）⟹ **点集合与摘要双零变化**。
+        // per-case 对拍（oracle 同步填载，「同步非快照」先例）继续逐字段锁定（center 在 PartialEq 内，
+        // bsp.rs:170）。若未来电池纳入一/二类路径点致摘要翻转，按上方先例诚实重算并更新本段。
         // 历史值：`0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
         //         `0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
         //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。

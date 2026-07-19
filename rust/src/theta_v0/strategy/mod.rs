@@ -70,8 +70,10 @@ pub mod risk;
 pub mod voice;
 
 use super::classifier::{self, Classification};
+use super::classifier::recursive_tower::{ElementId, LeveledMove};
 use super::config::ThetaConfig;
 use super::types::{Bar, BspBits, Order, Pos, Sig, StrictAction, Tick};
+use coverage::{CoverageElement, Vertical};
 use exec::FillSide;
 use risk::{SizingInput, StopInput, StopSide};
 use std::rc::Rc;
@@ -569,6 +571,399 @@ fn build_decision(
         cost_per_unit: 0.0,
         level: cand.level,
     })
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+//  关⑤方案 A：recognize 嵌套子声部产出（depth>0、σ_child=−σ_parent、单脊柱赋格树）
+//  施工图：chanlun/review-results/p120-nested-voice-dual-ledger-design-20260718.md §3
+// ──────────────────────────────────────────────────────────────────────────
+
+/// ★关⑤：`recognize_nested` 的活动声部投影项（held 台账 → 解释器活动腿 + 入场快照）。
+///
+/// 三件套（施工图 §3.4 适配层，**D1 零字段案**，编排者 2026-07-18 裁定：carrier 不加身份字段）：
+/// - `depth`：声部深度槽（子深度 = 父 depth+1 的簿记源；[`interp::ActiveLeg`] 不携 depth，
+///   故由投影层承载——这是施工图 `active: &[ActiveLeg]` 签名落地为深度索引适配的关键）。
+/// - `leg`：[`interp::ActiveLeg`]（interpret 的活动集元素；`id` 为合成占位 (level, depth)——
+///   interpret fold 只读 level/dir/bits 判据，不消费 id/parent_id/lambda，如实标注非 carrier 身份）。
+/// - `snapshot`：入场 [`VoiceDecision`] 快照（𝒟_x 关闭决策复用，exit.rs:132-137 同形态）。
+#[derive(Debug, Clone, Copy)]
+pub struct ActiveVoiceLeg {
+    pub depth: u32,
+    pub leg: interp::ActiveLeg,
+    pub snapshot: VoiceDecision,
+}
+
+/// held 台账 → `recognize_nested` 活动投影（D1 零字段案：[`exit::HeldVoice`] 不加 carrier 字段）。
+///
+/// 逐 depth 槽活声部 → [`ActiveVoiceLeg`]：`leg.level=快照.level`、
+/// `leg.dir=voice::voice_side(root_side, depth)`（绝对方向）、
+/// `leg.source_index=快照.signal_index`（入场 ρ；候选腿 λ==ρ，interp.rs:112）、
+/// `is_boundary_root=(depth==0)`。输出按 depth 升序（单脊柱赋格树，depth 索引单槽）。
+pub fn held_voice_projection(held: &[Option<exit::HeldVoice>]) -> Vec<ActiveVoiceLeg> {
+    held.iter()
+        .enumerate()
+        .filter_map(|(depth, slot)| {
+            slot.map(|hv| {
+                let d = hv.decision;
+                ActiveVoiceLeg {
+                    depth: depth as u32,
+                    leg: interp::ActiveLeg {
+                        level: d.level,
+                        dir: voice::voice_side(d.root_side, d.depth),
+                        source_index: d.signal_index,
+                        lambda: d.signal_index, // 候选腿 λ==ρ（interp.rs:112）
+                        id: ElementId { level: d.level, ordinal: depth as u64 }, // 合成占位（interpret 不消费）
+                        parent_id: None,
+                        is_boundary_root: depth == 0,
+                        op_parent: None,
+                    },
+                    snapshot: d,
+                }
+            })
+        })
+        .collect()
+}
+
+/// recog 嵌套版（关⑤方案 A）：候选源换**真嵌套塔**（真 ShortDiff 角色）+ 真活动集喂
+/// [`interp::interpret`]，角色门四合取产 depth>0 子声部。**与 [`recognize`] 并列（本体零改）**；
+/// 形态 = **单脊柱赋格树**（depth 索引账户零改动；多孩子分叉树列 v1 边界外，施工图 §7 L3）。
+///
+/// ## 数据流（与 [`recognize`] 同 moments 骨架，两处差异）
+///
+/// 1. **环3 组装**：[`interp::coverage_elements_and_gamma_with_tower`] 单建（H2 合并版——
+///    与 [`interp::assemble_gamma_with_tower`] 候选序 **bit-exact 相同**（该函数契约注释），
+///    唯一差异 = `role` 从真父子塔派生，V 真出 FollowParent/ShortDiff）。取单建变体是为
+///    附着一致判据同时取回候选元素的真父容器（**角色单源** = `coverage::operation_role`，
+///    recognize 侧不另写角色判据，090/单一来源纪律）。
+/// 2. **环5 ℛ_Θ**：`interpret_with_close_triggers(&gamma_x, active)` 传真活动集
+///    （[`recognize`] 恒传 `&[]`，mod.rs:493）——𝒟_x 反向关闭桶自此非空（级联之外的
+///    **常规反向关闭**由 interpret 规则2 产，exit=true 决策，复用入场快照）。
+/// 3. **桶 → 决策**（ℬ_x 每候选，`cand.dir != Flat` 已由规则1 保证）：
+///    - **子声部门（四合取，施工图 §3.2）**：`role.v == ShortDiff`（δ_g=−σ_{p(g)}）∧
+///      **活父存在**（depth_p 槽有腿，side 非 Flat）∧ **方向对偶**（`cand.dir == flip(side_p)`，
+///      M27 `Side(e)=−σ_{α_e}` 的运行时校验）∧ **深度余量**（`depth_p+1 < max_depth`）∧
+///      **附着一致**（见 [`live_parent_for`]，D1 零字段案）
+///      ⟹ 产**子决策** `build_child_decision(cand, point, depth_p+1, root_side=树根)`——
+///      `root_side` **继承树根**（非 `cand.dir`，§3.3 代数），`exit=false`。
+///    - 否则 ⟹ 走现行 [`build_decision`]（depth=0 独立根，**零改**）。
+///
+/// ## σ_child=−σ_parent 的代数兑现（施工图 §3.3，root_side 继承是关键设计点）
+///
+/// `voice_side(R, d_p+1) = R·(−1)^{d_p+1} = −side(parent) = flip(side_p) = cand.dir`——
+/// 不变量一致性：门的方向对偶判据 ⟹ 子决策绝对方向恰落候选方向（一致是门的**判据**，非假设）。
+/// 若 `root_side` 取 `cand.dir`，则 `voice_side(cand.dir, d_p+1)` 多翻一次 ⟹ 绝对方向错。
+///
+/// ## 诚实有效域（formalization-validity-domain，L0）
+///
+/// - 父腿身份是**深度槽 + 入场坐标**（D1 零字段案），非 carrier ElementId 持久身份——
+///   ρ 漂移由 [`carrier_of_entry`] 的 span 包含重建吸收；多重包含 = 身份模糊 ⟹ 不开子
+///   （fail-closed，落 depth=0 根域）。
+/// - 激活 regime 门**不预装**（RF-NR2，026:80：单边上扬 H¹→0）——引擎结构产出（信号决定），
+///   嵌套产量有效性是关①②后 L2 量测，不预承诺（施工图 §7-1）。
+pub fn recognize_nested(
+    classification: &Classification,
+    tower: &[Rc<Vec<LeveledMove>>],
+    active: &[ActiveVoiceLeg],
+    bars: &[Bar],
+    config: &ThetaConfig,
+) -> Vec<VoiceDecision> {
+    // ── 环3：真嵌套塔单建（候选序与 assemble_gamma_with_tower bit-exact；候选段按
+    //    levels 层序 × bsp 序追加，与 gamma_index 1:1 对齐——该函数不变量契约）。 ──
+    let (tree, cand_elems, gamma) =
+        interp::coverage_elements_and_gamma_with_tower(classification, tower);
+    let points: Vec<&classifier::bsp::BspPoint> = classification
+        .levels
+        .iter()
+        .flat_map(|level| level.bsp.iter())
+        .collect();
+    let legs: Vec<interp::ActiveLeg> = active.iter().map(|a| a.leg).collect();
+
+    // ── 环5：按时刻 x 分组 → 每时刻 ℛ_Θ(Γ(x), active) 三桶唯一化（spec §12，同 recognize 骨架）。 ──
+    let mut moments: Vec<usize> = gamma.iter().map(|c| c.source_index).collect();
+    moments.sort_unstable();
+    moments.dedup();
+
+    let mut decisions = Vec::new();
+    for x in moments {
+        let gamma_x: Vec<interp::Candidate> =
+            gamma.iter().filter(|c| c.source_index == x).copied().collect();
+        let (buckets, close_triggers) = interp::interpret_with_close_triggers(&gamma_x, &legs);
+
+        // 𝒟_x(close)：活动腿遇同级别反向候选 ⟹ exit=true 决策（复用入场快照；
+        // signal_index = 触发候选时刻——exit.rs:132-137 同形态：触发时刻经 fill_bar_index 延迟成交）。
+        debug_assert_eq!(
+            buckets.close.len(),
+            close_triggers.len(),
+            "close 桶与触发归因一一对应（interpret 同步 push 不变量）"
+        );
+        for (closed_leg, trigger) in buckets.close.iter().zip(close_triggers.iter()) {
+            if let Some(av) = active.iter().find(|a| &a.leg == closed_leg) {
+                let mut exit_d = av.snapshot;
+                exit_d.exit = true;
+                exit_d.enter_ok = false;
+                exit_d.signal_index = trigger.source_index;
+                exit_d.depth = av.depth;
+                decisions.push(exit_d);
+            }
+        }
+
+        // ℬ_x(open)：角色门四合取 → depth>0 子声部；否则 depth=0 独立根（build_decision 零改）。
+        for cand in &buckets.open {
+            let child = if cand.role.v == Vertical::ShortDiff {
+                live_parent_for(cand, &cand_elems, &tree, active, config).and_then(|av| {
+                    build_child_decision(
+                        cand,
+                        points[cand.gamma_index],
+                        av.depth + 1,
+                        // 继承树根 R：side_p = voice_side(R, d_p) ⟹ R = voice_side(side_p, d_p)
+                        // （voice_side 对合：σ·(−1)^{2d}=σ）。
+                        voice::voice_side(av.leg.dir, av.depth),
+                        bars,
+                        config,
+                    )
+                })
+            } else {
+                None
+            };
+            match child {
+                Some(d) => decisions.push(d),
+                None => {
+                    if let Some(d) =
+                        build_decision(cand, points[cand.gamma_index], false, bars, config)
+                    {
+                        decisions.push(d);
+                    }
+                }
+            }
+        }
+    }
+    decisions
+}
+
+/// 角色门第 2/3/4/5 合取项的活父查找（施工图 §3.2 四合取 + §3.4 D1 零字段案附着一致）。
+///
+/// 候选的真父容器 `pc`（638 附着链：候选元素 `parent` 索引 → 塔内真 Compose 父）；活父 =
+/// `active` 中首个满足四合取余三项的声部（单脊柱 depth 唯一 ⟹ 至多一匹配，`find` 确定）。
+fn live_parent_for<'a>(
+    cand: &interp::Candidate,
+    cand_elems: &[CoverageElement],
+    tree: &[CoverageElement],
+    active: &'a [ActiveVoiceLeg],
+    config: &ThetaConfig,
+) -> Option<&'a ActiveVoiceLeg> {
+    let ce = cand_elems.get(cand.gamma_index)?;
+    let pc = ce.parent.and_then(|pidx| tree.get(pidx))?;
+    active.iter().find(|av| {
+        // 活父存在：方向非 Flat。
+        if av.leg.dir == VoiceSide::Flat {
+            return false;
+        }
+        // 方向对偶：候选绝对方向 = 父侧翻转（ShortDiff δ_g=−σ_{p(g)} 的运行时校验）。
+        if cand.dir != av.leg.dir.flip() {
+            return false;
+        }
+        // 深度余量：depth_p+1 < max_depth（spec:40 最多 max_depth 层）。
+        if !voice::within_max_depth(av.depth + 1, &config.voice) {
+            return false;
+        }
+        // 附着一致（D1 零字段案）：父腿入场坐标的 carrier（跨 ρ 漂移重建）==
+        // 候选真父容器（ElementId 判等——ρ 漂移不改 ID，coverage.rs:4303 同判据）。
+        carrier_of_entry(tree, av.leg.level, av.leg.source_index)
+            .map(|carrier| carrier.id == pc.id)
+            .unwrap_or(false)
+    })
+}
+
+/// 父腿入场坐标 `(level, signal_index)` → 当前塔内 carrier 元素（D1 零字段案的身份重建）。
+///
+/// 两判据按序：
+/// 1. **严格右端点命中** `(level, rho == signal_index)`（无漂移快路径，638 hostOf 同判准）；
+/// 2. **ρ 漂移重建**（父容器入场后延伸吸收更多次级别子走势——同 ElementId 同 λ，ρ 增大，
+///    coverage.rs:4323-4325 发现 B）：唯一 span 包含 `lambda < signal_index <= rho`
+///    （左开区间排除兄弟右端点共享：s==lambda 属右侧元素）。
+///
+/// 多重包含 = 身份模糊 ⟹ `None`（fail-closed 不猜——该候选落 depth=0 根域，不伪造父身份）。
+fn carrier_of_entry(
+    tree: &[CoverageElement],
+    level: u32,
+    signal_index: usize,
+) -> Option<&CoverageElement> {
+    if let Some(e) = tree
+        .iter()
+        .find(|e| e.level == level && e.rho == signal_index)
+    {
+        return Some(e);
+    }
+    let mut hits = tree
+        .iter()
+        .filter(|e| e.level == level && e.lambda < signal_index && signal_index <= e.rho);
+    match (hits.next(), hits.next()) {
+        (Some(e), None) => Some(e),
+        _ => None,
+    }
+}
+
+/// 子声部候选 → [`VoiceDecision`]（关⑤方案 A：depth>0 赋格子决策）。
+///
+/// 与 [`build_decision`] 的唯一字段差异 = `root_side`（**继承树根 R**，非 `cand.dir`）与
+/// `depth`（>0）——§3.3 代数：`voice_side(R, d_p+1) = R·(−1)^{d_p+1} = −side(parent)
+/// = flip(side_p) = cand.dir`（门的方向对偶判据 ⟹ 赋格交替与候选信号方向代数一致，
+/// M11「父级多头的短差=次级别做空」逐例成立）。若 `root_side` 取 `cand.dir` 则
+/// `voice_side(cand.dir, d_p+1)` 多翻一次 ⟹ 绝对方向错（§3.3 反例）。
+///
+/// `stop_in`/`entry`/`signal_index`/`bsp`/`level` 同法从 `BspPoint` 零重算读出（同骨架）；
+/// 返回 `None` 的两道判据（无成交 bar / 含 3 类 bit 但 center=None）逐字保留。
+fn build_child_decision(
+    cand: &interp::Candidate,
+    point: &classifier::bsp::BspPoint,
+    depth: u32,
+    root_side: VoiceSide,
+    bars: &[Bar],
+    config: &ThetaConfig,
+) -> Option<VoiceDecision> {
+    // entry = 信号确认后下一可交易 bar 的 open（spec:50，同 build_decision）。
+    let fill_index = exec::fill_bar_index(point.source_index, bars, &config.exec)?;
+    let entry = bars[fill_index].open;
+
+    // stop_in：从 BspPoint 直接构造（single source，零重算）；3 类 bit 不变量校验同 build_decision。
+    let has_third = point.bits.buy3 || point.bits.sell3;
+    let center = match point.center {
+        Some(c) => c,
+        None if has_third => return None, // 不变量违反：含 3 类 bit 但无 center（显式拒绝）
+        None => super::types::Center {
+            zd: 0,
+            zg: 0,
+            dd: 0,
+            gg: 0,
+            start_index: 0,
+            end_index: 0,
+        },
+    };
+    let stop_in = StopInput {
+        pivot_low: point.pivot_low,
+        pivot_high: point.pivot_high,
+        center,
+    };
+
+    Some(VoiceDecision {
+        depth, // 父 depth+1（单脊柱赋格树）
+        root_side, // ★继承树根（非 cand.dir，§3.3）
+        exit: false, // 子决策恒开仓侧（ℬ_x 门内产出；关闭侧由 𝒟_x/级联承载）
+        enter_ok: true,
+        bsp: point.bits,
+        signal_index: point.source_index,
+        stop_in,
+        entry,
+        cost_per_unit: 0.0,
+        level: cand.level,
+    })
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+//  关⑤方案 B 接线：腿标记订单 LegOrder + plan_orders_dual（types.rs Order 零改）
+// ──────────────────────────────────────────────────────────────────────────
+
+/// 腿标记订单（关⑤ §4.2，strategy 层包装——**types.rs `Order` 不加字段**，冲突面零改）：
+/// `leg` = 作用腿（Long=多腿 / Short=空腿，由 `voice::voice_side(d.root_side, d.depth)` 单源
+/// 决定）；`close` = true 平仓腿 / false 开仓腿。
+///
+/// **歧义消解**：现行 `StrictAction::Close` 不带方向（apply_order 按持仓符号推导，
+/// runner.rs:3134-3136）——LegOrder 显式携腿，消除该推导。双账本 [`apply_fill_dual`]
+/// （`backtest::dual_ledger`）按 (leg, close) 分腿成交，不先净额。
+///
+/// [`apply_fill_dual`]: super::super::backtest::dual_ledger::apply_fill_dual
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LegOrder {
+    pub order: Order,
+    pub leg: VoiceSide,
+    pub close: bool,
+}
+
+/// [`plan_orders`] 的腿标记包装版（关⑤ §4.2，**plan_orders 本体零改**，并列新函数）。
+///
+/// 对每个 decision 先算 `side = voice::voice_side(d.root_side, d.depth)`（mod.rs:268 同式），
+/// 开仓决策 ⟹ `LegOrder{leg: side, close: false}`（Buy=开多腿 / Sell=开空腿）；
+/// 退出决策 ⟹ `LegOrder{leg: side, close: true}`。冲突排序沿用 [`exec::ConflictKey`]
+/// （退出先/高 level 先/类序/(ts,src)/depth 终局键），订单流唯一确定与 plan_orders 同保证。
+pub fn plan_orders_dual(
+    decisions: &[VoiceDecision],
+    bars: &[Bar],
+    account: &AccountState,
+    config: &ThetaConfig,
+) -> Vec<LegOrder> {
+    plan_orders_dual_traced(decisions, bars, account, config)
+        .into_iter()
+        .map(|(_, lo)| lo)
+        .collect()
+}
+
+/// [`plan_orders_dual`] 的**配对保留**版（订单↔decision 精确一一对应，单源委托）。
+///
+/// runner 双账路径消费：depth（声部账索引）/ 入场快照（`record_held_voice`）精确配对——
+/// 不用 runner.rs:2791-2803 的方向匹配近似（多声部 depth 推断是近似，嵌套路径不允许模糊归属）。
+/// 排序与 [`plan_orders`] 同一 [`exec::ConflictKey`] 全序（bit-exact 同键）。
+pub fn plan_orders_dual_traced(
+    decisions: &[VoiceDecision],
+    bars: &[Bar],
+    account: &AccountState,
+    config: &ThetaConfig,
+) -> Vec<(VoiceDecision, LegOrder)> {
+    let mut planned: Vec<(exec::ConflictKey, VoiceDecision, LegOrder)> = Vec::new();
+
+    for d in decisions {
+        // 声部深度超出 max_depth ⟹ 不开声部（同 plan_orders）。
+        if !voice::within_max_depth(d.depth, &config.voice) {
+            continue;
+        }
+        let side = voice::voice_side(d.root_side, d.depth);
+        let q = account.qty_at(d.depth);
+        let vstate = VoiceState {
+            depth: d.depth,
+            b: 0,
+            q,
+            exit: d.exit,
+            enter_ok: d.enter_ok,
+        };
+        match voice::act_state(&vstate) {
+            ActState::Close => {
+                if q == 0 {
+                    continue; // 无仓可平
+                }
+                if let Some(order) = build_exit_order(d, side, q as i64, bars, config) {
+                    let (ts, src) = signal_tie_keys(d, bars);
+                    let key = exec::ConflictKey::new(
+                        true,
+                        d.level,
+                        min_bsp_class(&d.bsp, side),
+                        ts,
+                        src,
+                        d.depth,
+                    );
+                    planned.push((key, *d, LegOrder { order, leg: side, close: true }));
+                }
+            }
+            ActState::Open => {
+                // 开仓订单：sizing 唯一 qty（riskProj；depth>0 时 parent_cap(qty_at(depth−1))
+                // 自然激活——父子 β 约束首次生产可达，施工图 §3.6）。
+                if let Some(order) = build_open_order(d, side, account, bars, config) {
+                    let (ts, src) = signal_tie_keys(d, bars);
+                    let key = exec::ConflictKey::new(
+                        false,
+                        d.level,
+                        min_bsp_class(&d.bsp, side),
+                        ts,
+                        src,
+                        d.depth,
+                    );
+                    planned.push((key, *d, LegOrder { order, leg: side, close: false }));
+                }
+            }
+            ActState::Hold | ActState::Wait => {}
+        }
+    }
+
+    planned.sort_by_key(|(key, _, _)| *key);
+    planned.into_iter().map(|(_, d, lo)| (d, lo)).collect()
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1218,5 +1613,313 @@ mod tests {
             orders_a[0].qty, orders_b[0].qty,
             "不同 Θ 参数（ρ）⟹ 不同 π_Θ 族成员（订单 qty 不同）——分类不推出唯一策略"
         );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  关⑤ A 组：recognize_nested 嵌套产出（6 个）+ B 组：plan_orders 嵌套（4 个）
+    //  施工图：chanlun/review-results/p120-nested-voice-dual-ledger-design-20260718.md §6
+    // ──────────────────────────────────────────────────────────────────────
+
+    use super::super::classifier::center::UnitRange;
+    use super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+    use super::super::types::Direction;
+
+    /// 两个 VoiceDecision 逐字段相等断言（VoiceDecision 未 derive PartialEq——
+    /// StopInput 在不碰清单 risk.rs 内不加 derive，故测试侧逐字段比对）。
+    fn assert_decisions_equal(a: &[VoiceDecision], b: &[VoiceDecision]) {
+        assert_eq!(a.len(), b.len(), "决策数相等");
+        for (x, y) in a.iter().zip(b.iter()) {
+            assert_eq!(x.depth, y.depth, "depth");
+            assert_eq!(x.root_side, y.root_side, "root_side");
+            assert_eq!(x.exit, y.exit, "exit");
+            assert_eq!(x.enter_ok, y.enter_ok, "enter_ok");
+            assert_eq!(x.bsp, y.bsp, "bsp");
+            assert_eq!(x.signal_index, y.signal_index, "signal_index");
+            assert_eq!(x.stop_in.pivot_low, y.stop_in.pivot_low, "stop_in.pivot_low");
+            assert_eq!(x.stop_in.pivot_high, y.stop_in.pivot_high, "stop_in.pivot_high");
+            assert_eq!(x.stop_in.center, y.stop_in.center, "stop_in.center");
+            assert_eq!(x.entry, y.entry, "entry");
+            assert_eq!(x.cost_per_unit.to_bits(), y.cost_per_unit.to_bits(), "cost_per_unit");
+            assert_eq!(x.level, y.level, "level");
+        }
+    }
+
+    /// 塔夹具（同 interp.rs:1732 `long_parent_tower` / coverage.rs:3272 `nested_l1`）：
+    /// L1 走势（Compose 三段 L0 子，外缘 Long，id=(1,0)，λ=0，ρ=12）+ 3 L0 子（ρ=4/8/12，真父=L1）。
+    fn long_parent_tower_nested() -> Vec<Rc<Vec<LeveledMove>>> {
+        let unit = |si: usize, ei: usize, dir: Direction, lo: Tick, hi: Tick, ord: u64| {
+            LeveledMove::from_unit(
+                &UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi },
+                ElementId { level: 0, ordinal: ord },
+            )
+        };
+        let s0 = unit(0, 4, Direction::Up, 0, 10, 0);
+        let s1 = unit(4, 8, Direction::Down, 3, 12, 1);
+        let s2 = unit(8, 12, Direction::Up, 5, 15, 2);
+        let c = Center { zd: 5, zg: 10, dd: 0, gg: 15, start_index: 0, end_index: 12 };
+        let l1 = LeveledMove::compose(&[s0, s1, s2], c, 1, ElementId { level: 1, ordinal: 0 });
+        vec![Rc::new(Vec::new()), Rc::new(vec![l1])]
+    }
+
+    /// L0 sell1 候选（src=si；host=sub(4,8) 当 si=8 ⟹ 真父 L1 Long ⟹ role ShortDiff）。
+    fn classification_with_sell1(source_index: usize) -> Classification {
+        let bsp = vec![BspPoint {
+            source_index,
+            bits: BspBits { sell1: true, ..Default::default() },
+            pivot_low: 0,
+            pivot_high: 210,
+            center: Some(mk_center(100, 200, 0)),
+            struct_break_dir: None,
+            force: None,
+        }];
+        Classification {
+            levels: vec![LevelState { bsp: Rc::new(bsp), ..Default::default() }],
+        }
+    }
+
+    /// 活父投影（depth 0，Long 根，carrier=L1 容器 (level=1, ρ=12)，快照同坐标）。
+    fn long_parent_active_leg() -> ActiveVoiceLeg {
+        ActiveVoiceLeg {
+            depth: 0,
+            leg: interp::ActiveLeg {
+                level: 1,
+                dir: VoiceSide::Long,
+                source_index: 12,
+                lambda: 12, // 候选腿 λ==ρ（投影约定）
+                id: ElementId { level: 1, ordinal: 0 },
+                parent_id: None,
+                is_boundary_root: true,
+                op_parent: None,
+            },
+            snapshot: VoiceDecision {
+                depth: 0,
+                root_side: VoiceSide::Long,
+                exit: false,
+                enter_ok: true,
+                bsp: BspBits { buy1: true, ..Default::default() },
+                signal_index: 12,
+                stop_in: StopInput {
+                    pivot_low: 90,
+                    pivot_high: 210,
+                    center: mk_center(100, 200, 3),
+                },
+                entry: 100,
+                cost_per_unit: 0.0,
+                level: 1,
+            },
+        }
+    }
+
+    /// 14 根可交易 bar（fill_bar_index(8)=9 须存在）。
+    fn fourteen_tradable_bars() -> Vec<Bar> {
+        (0..14)
+            .map(|i| tradable_bar(i, i as i64, 100, 110, 90, 105))
+            .collect()
+    }
+
+    /// A1（σ 交替代数锁）：Long 根活父（depth 0）+ 其真子容器上的 sell1 候选
+    /// （role.v=ShortDiff）⟹ 产 1 决策：depth==1、root_side==Long（继承）、
+    /// voice_side(root,1)==Short==cand.dir（σ_child=−σ_parent）。
+    #[test]
+    fn nested_shortdiff_child_depth1_side_flipped() {
+        let cfg = ThetaConfig::default();
+        let tower = long_parent_tower_nested();
+        let classification = classification_with_sell1(8);
+        let bars = fourteen_tradable_bars();
+        let active = vec![long_parent_active_leg()];
+        let decisions = recognize_nested(&classification, &tower, &active, &bars, &cfg);
+        assert_eq!(decisions.len(), 1, "唯一候选经角色门产唯一子决策");
+        let d = decisions[0];
+        assert_eq!(d.depth, 1, "子声部 depth=父 0+1");
+        assert_eq!(d.root_side, VoiceSide::Long, "root_side 继承树根（非 cand.dir=Short）");
+        // σ_child=−σ_parent 代数锁：voice_side(Long,1)=Short==cand.dir（门判据 ⟹ 代数一致）。
+        assert_eq!(voice::voice_side(d.root_side, d.depth), VoiceSide::Short);
+        assert!(!d.exit && d.enter_ok, "子决策恒开仓侧");
+        assert!(d.bsp.sell1);
+        assert_eq!(d.signal_index, 8);
+        assert_eq!(d.level, 0, "候选级别 L0");
+    }
+
+    /// A2（回归锁）：Ambient 候选（缺塔 ⟹ 父=∂）⟹ depth=0 根决策，与现行 `recognize`
+    /// 输出逐字段相等。
+    #[test]
+    fn nested_ambient_candidate_stays_root() {
+        let cfg = ThetaConfig::default();
+        let classification = classification_with_buy3(0);
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 205, 215, 200, 210),
+        ];
+        let via_nested = recognize_nested(&classification, &[], &[], &bars, &cfg);
+        let via_flat = recognize(&classification, &bars, &cfg);
+        assert_decisions_equal(&via_nested, &via_flat);
+        assert_eq!(via_nested.len(), 1);
+        assert_eq!(via_nested[0].depth, 0, "Ambient ⟹ depth=0 独立根");
+    }
+
+    /// A3（方向对偶门）：ShortDiff 角色但 cand.dir≠flip(父侧)（父 Short、候选 sell）⟹
+    /// 不产子（落 depth=0 根域）。
+    #[test]
+    fn nested_direction_mismatch_no_child() {
+        let cfg = ThetaConfig::default();
+        let tower = long_parent_tower_nested();
+        let classification = classification_with_sell1(8);
+        let bars = fourteen_tradable_bars();
+        let mut parent = long_parent_active_leg();
+        parent.leg.dir = VoiceSide::Short; // 活父持空
+        parent.snapshot.root_side = VoiceSide::Short;
+        let active = vec![parent];
+        let decisions = recognize_nested(&classification, &tower, &active, &bars, &cfg);
+        assert_eq!(decisions.len(), 1);
+        assert_eq!(decisions[0].depth, 0, "方向不对偶 ⟹ 不产子（落根域）");
+        assert_eq!(
+            decisions[0].root_side,
+            VoiceSide::Short,
+            "根域决策 root_side=cand.dir（非继承）"
+        );
+    }
+
+    /// A4（深度余量门）：父在 depth=max_depth−1 ⟹ 不产孙（within_max_depth 门）。
+    #[test]
+    fn nested_max_depth_boundary() {
+        let cfg = ThetaConfig::default(); // max_depth=3
+        let tower = long_parent_tower_nested();
+        let classification = classification_with_sell1(8);
+        let bars = fourteen_tradable_bars();
+        let mut parent = long_parent_active_leg();
+        parent.depth = 2; // depth_p+1=3 ≥ max_depth=3 ⟹ 深度余量门拒
+        parent.snapshot.depth = 2; // voice_side(Long,2)=Long（偶深），leg.dir 不变
+        let active = vec![parent];
+        let decisions = recognize_nested(&classification, &tower, &active, &bars, &cfg);
+        assert_eq!(decisions.len(), 1);
+        assert_eq!(decisions[0].depth, 0, "深度余量不足 ⟹ 不产孙（落根域）");
+    }
+
+    /// A5（active=∅ 坍缩锁）：无活动集 ⟹ 输出 == `recognize`（单帧等价）——
+    /// 含 ShortDiff 塔候选也落根域（活父门第 2 合取项拒）。
+    #[test]
+    fn nested_no_live_parent_no_child() {
+        let cfg = ThetaConfig::default();
+        let tower = long_parent_tower_nested();
+        let classification = classification_with_sell1(8);
+        let bars = fourteen_tradable_bars();
+        let via_nested = recognize_nested(&classification, &tower, &[], &bars, &cfg);
+        let via_flat = recognize(&classification, &bars, &cfg);
+        assert_decisions_equal(&via_nested, &via_flat);
+        assert_eq!(via_nested.len(), 1);
+        assert_eq!(via_nested[0].depth, 0, "无活父 ⟹ 落 depth=0 根域");
+        assert_eq!(via_nested[0].root_side, VoiceSide::Short);
+    }
+
+    /// A6（≺_Θ 全序确定性）：同输入两跑 ⟹ 决策 Vec 逐字段同。
+    #[test]
+    fn nested_deterministic_replay() {
+        let cfg = ThetaConfig::default();
+        let tower = long_parent_tower_nested();
+        let classification = classification_with_sell1(8);
+        let bars = fourteen_tradable_bars();
+        let active = vec![long_parent_active_leg()];
+        let a = recognize_nested(&classification, &tower, &active, &bars, &cfg);
+        let b = recognize_nested(&classification, &tower, &active, &bars, &cfg);
+        assert_decisions_equal(&a, &b);
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].depth, 1, "重放仍产子（确定性非偶然）");
+    }
+
+    /// B1（parent_cap 首次生产可达，risk.rs:971 链路版）：父持仓 100（voice_qty[0]=100），
+    /// 子决策 depth=1 ⟹ sizing 项3=floor(100·0.5)=50 生效（项1=1000、项2=3000 不绑定）。
+    #[test]
+    fn plan_child_parent_cap_binds() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0; // 测试中 entry/stop 是美元值
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 101, 111, 99, 108),
+        ];
+        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![100, 0] };
+        let mut d = buy1_root_decision(0);
+        d.depth = 1; // 子（Short 腿）
+        d.bsp = BspBits { sell1: true, ..Default::default() };
+        d.stop_in.pivot_high = 105; // |entry 100 − stop 105|=5 ⟹ 项1=floor(5000/5)=1000
+        let orders = plan_orders_dual(&[d], &bars, &account, &cfg);
+        assert_eq!(orders.len(), 1);
+        assert_eq!(orders[0].order.action, StrictAction::Sell);
+        assert_eq!(orders[0].leg, VoiceSide::Short);
+        assert!(!orders[0].close);
+        // 项2=floor(0.30×1.0×1e6/100)=3000；项3=floor(100×0.5)=50 ⟹ qty=50（cap 绑定）。
+        assert_eq!(orders[0].order.qty, 50, "parent_cap(100)=50 绑定子开仓");
+    }
+
+    /// B2（父空仓双保险，risk.rs:981 链路版）：voice_qty[0]=0 + 子决策 ⟹ parent_cap=0
+    /// ⟹ qty=0 ⟹ 无订单（与 A5 活父门双保险）。
+    #[test]
+    fn plan_child_blocked_when_parent_flat() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 101, 111, 99, 108),
+        ];
+        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![0, 0] };
+        let mut d = buy1_root_decision(0);
+        d.depth = 1;
+        d.bsp = BspBits { sell1: true, ..Default::default() };
+        assert!(
+            plan_orders_dual(&[d], &bars, &account, &cfg).is_empty(),
+            "父空仓 ⟹ parent_cap=0 ⟹ 子不开仓"
+        );
+    }
+
+    /// B3（depth 权重进项2）：子订单 action=Sell（Short 腿），w_depth=0.30 进项2
+    /// （项1=5000、项3=5000 不绑定 ⟹ qty=项2=floor(0.30×1.0×1e6/100)=3000；若 w=0.60 则 6000）。
+    #[test]
+    fn plan_child_weight_and_direction() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 101, 111, 99, 108),
+        ];
+        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![10_000, 0] };
+        let mut d = buy1_root_decision(0);
+        d.depth = 1;
+        d.bsp = BspBits { sell1: true, ..Default::default() };
+        d.stop_in.pivot_high = 101; // |100−101|=1 ⟹ 项1=floor(5000/1)=5000
+        let orders = plan_orders_dual(&[d], &bars, &account, &cfg);
+        assert_eq!(orders.len(), 1);
+        assert_eq!(orders[0].order.action, StrictAction::Sell, "子（Short 腿）开空");
+        assert_eq!(orders[0].leg, VoiceSide::Short);
+        // 项3=floor(10000×0.5)=5000 不绑定 ⟹ qty=项2=3000（w_depth[1]=0.30 锁）。
+        assert_eq!(orders[0].order.qty, 3000, "depth 权重 0.30 进项2");
+    }
+
+    /// B4（冲突序稳定）：父退出+子开仓同 bar ⟹ 退出先（ConflictKey.exit_first）且全序
+    /// 确定（两输入序对拍同输出，mod.rs:848-849 既有对拍模式延伸）。
+    #[test]
+    fn plan_mixed_conflict_order_stable() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let bars = vec![
+            tradable_bar(0, 0, 100, 110, 90, 105),
+            tradable_bar(1, 1, 101, 111, 99, 108),
+        ];
+        let account = AccountState { nav: 1_000_000.0, voice_qty: vec![100, 0] };
+        let mut exit_d = buy1_root_decision(0);
+        exit_d.exit = true; // 父（depth0 Long）退出
+        let mut open_d = buy1_root_decision(0);
+        open_d.depth = 1; // 子（Short）开仓
+        open_d.bsp = BspBits { sell1: true, ..Default::default() };
+        open_d.stop_in.pivot_high = 105;
+        let a = plan_orders_dual(&[open_d, exit_d], &bars, &account, &cfg);
+        let b = plan_orders_dual(&[exit_d, open_d], &bars, &account, &cfg);
+        assert_eq!(a, b, "输入顺序无关 ⟹ 订单流唯一（ConflictKey 全序）");
+        assert_eq!(a.len(), 2);
+        assert!(a[0].close, "退出先于开仓（exit_first）");
+        assert_eq!(a[0].order.action, StrictAction::Close);
+        assert_eq!(a[0].leg, VoiceSide::Long, "父（depth0 Long）平多腿");
+        assert_eq!(a[0].order.qty, 100, "全平父仓");
+        assert!(!a[1].close);
+        assert_eq!(a[1].order.action, StrictAction::Sell);
+        assert_eq!(a[1].leg, VoiceSide::Short, "子（depth1 Short）开空腿");
     }
 }

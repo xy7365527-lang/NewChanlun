@@ -1,0 +1,15 @@
+artifact=p124-s8-final-recon-c3-mechanical-evidence-20260719
+inputs=/tmp/p124_r2_s{0..7}.out,/tmp/p124_r2_m.out,/tmp/p124_r2_m_dump.txt,/tmp/p92_replay_v3.log,/tmp/p92_ckpt_dump_v3.txt,/tmp/c_m.txt,/tmp/c_v3.txt,/tmp/p125_audit.out,/tmp/p125_877_cases.tsv
+shard_sum trend_candidates=1831 pan_candidates=16466 divergence_confirmed=8606 terminal_confirmed=855
+merged_equal_to_shards=true partition_missing=0 partition_extra=0 dup_owner=0 dup_cand=0 dup_div=0 dup_term=0 dup_pending=0 hash_drift=0 ledger_orphan=0 meta_drift=0 ckpt_xdiff=0 turn_xdiff=0 bad_rows=0 own_terminal_drift=0
+cert_set v3=7593 s8=5285 common=5285 v3_only=2308 s8_only=0
+terminal_key_set v3=1213 s8=855 common=855 v3_only=358 s8_only=0
+pan_terminal_key_set v3=748 s8=748 common=748 v3_only=0 s8_only=0
+trend_terminal_old_class baseline=465:type1=95,type2=239,type3=131 s8_keep=107:type1=87,type2=19,type3=1 s8_drop=358:type1=8,type2=220,type3=130 non_type1_survivors=20 survivor_cert_rows=121
+terminal_to_cert_cascade unique_dropped_terminal=358 deleted_cert=2308 multiplicity=2:1,3:21,4:33,5:59,6:80,7:61,8:19,9:83,10:1
+pool_877_join chains=877 with_endorsement=110 base_events=1166 endorsed_base_events=122 distinct_bases=272 endorsed_distinct_bases=31
+turn_class baseline=8579:DeferOrphan=986,ExecEvidenceOnly=3520,NestedConfirmed=3888,XiaozhuandaCandidate=185 s8=6271:DeferOrphan=986,ExecEvidenceOnly=2413,NestedConfirmed=2722,XiaozhuandaCandidate=150 delta=-2308:DeferOrphan=0,ExecEvidenceOnly=-1107,NestedConfirmed=-1166,XiaozhuandaCandidate=-35
+requested_authority main_repo_bsp_terminal_ruling=missing main_repo_u1_u3_ruling=missing main_repo_rust_src_bin_p124=missing
+corroboration_only /tmp/p126_level_view_backup.rs:495-500 says Trend owner=B and Pan has no owner gate; this is a tmp backup, not requested canonical source
+owner_observability /tmp/p125_audit.out:2 explicitly says owner readback was not done
+mechanical_verdict terminal_cert_bridge=PASS turn_class_bridge=PASS pan_877_identity=PASS semantic_verdict=FAIL
