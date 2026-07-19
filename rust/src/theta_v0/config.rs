@@ -171,6 +171,11 @@ pub struct RiskConfig {
     /// 总名义上限 `γ=1.0 NAV`。L3。
     pub gamma: f64,
     /// 成本倍数 `κ=2.0`。L3。
+    ///
+    /// ★同名 κ 物理隔离（A10 附则A，镜像注释，另一侧见 `ThetaConfig.risk_policy` 文档）：
+    /// 本字段是 **sizing 成本倍数** κ（sizing 分母的成本项）；`risk_policy` 承载的
+    /// `RiskPolicy` barrier κ 是 **barrier 缓冲系数**（η⋆=L^wc+κQ 风险政策门）——同名不同义，
+    /// 互不读写（ledger.rs:249-250 注释在案）。
     pub kappa: f64,
     /// sizing 默认 lot（reference-theta-v0.md:47）。default 1。
     pub default_lot: u32,
@@ -307,6 +312,20 @@ pub struct ThetaConfig {
     /// 守恒断言。**有效域（231号）**：v0 参数化常费率，真实 funding/借贷历史是外部数据缺口（L2），
     /// 机制真实装、费率待外部标定（A10 waiver 豁免外部数据源，不豁免机制）。
     pub cost_model: Option<super::strategy::risk::CostModel>,
+    /// κ 风险政策（A10 附则A 裁定接口冻结）：`None` ⟹ `RiskPolicy::baseline()` κ=0，与现路径
+    /// **逐字节相同（bit-exact）**；`Some` ⟹ π loop `tw_policy` 取之（`stage_progression` 的
+    /// η⋆=L^wc+κQ barrier 门）。**优先序写死**：env `KAPPA_BARRIER_*`（L2 敏感性诊断覆写）>
+    /// 本字段 > baseline——单源纪律防双源静默漂移；env 非法值 panic 语义不变。
+    ///
+    /// 取值**永走** `RiskPolicy` 三构造闸（`baseline`/`try_new`/`try_new_ratio`，κ≥0 类型不变量
+    /// 对齐 Lean `kappa_nonneg`）——**禁裸 i64/f64 κ 字段出现在任何 config**（类型边界闭合）。
+    /// κ=0 基线冻结；正 κ 生产取值是编排者选择类（本裁定不裁；任何 κ>0 报告强制标注
+    /// 「κ＝operator 声明式风险政策（不可识别性定理2），非价格导出、非回测择优」）。
+    ///
+    /// ★同名 κ 物理隔离（镜像注释，另一侧见 ledger.rs RiskPolicy 文档）：本字段承载 **barrier
+    /// 缓冲系数** κ（风险政策，η⋆ 门）；`RiskConfig.kappa`（本文件 `:174`，默认 2.0）是 **sizing
+    /// 成本倍数** κ——同名不同义。字段命名 `risk_policy` 不带 kappa 字样即防混淆防线。
+    pub risk_policy: Option<super::strategy::ledger::RiskPolicy>,
     /// 趋势背驰 D 判定口径（A2 #163 三口径 + A3 #164 Θ_LEX，关于背驰.pdf §9.2 三套预注册 Θ）。默认
     /// `MacdArea`（现行冻结判据，bit-exact 不变）——判定口径变更改变一类信号集合（⟹ ledger ⟹
     /// 残差样本），属预注册敏感，显式配置才切换。四口径：MacdArea/ThetaDom(Θ_DOM)/Conjunction/
@@ -349,6 +368,9 @@ mod tests {
         assert!(c.sizing_profile.entries.is_empty());
         // frozen：w_grade=[1.0,1.0] identity ⟹ G 轴 sizing 无差异（prereg-wg (c) 因子化，bit-exact）。
         assert_eq!(c.voice.w_grade, [1.0, 1.0]);
+        // frozen（A10 附则A）：risk_policy=None ⟹ κ=0 baseline，π loop 逐字节不变（bit-exact）。
+        // 同名 κ 隔离：risk.kappa=2.0（sizing 成本倍数）与 risk_policy（barrier κ）同名不同义。
+        assert_eq!(c.risk_policy, None, "risk_policy 默认 None ⟹ baseline κ=0（bit-exact 锁）");
     }
 
     /// SizingProfile.resolve：空表 ⟹ 退化为 risk 标量 + gap=0（bit-exact 默认路径）。

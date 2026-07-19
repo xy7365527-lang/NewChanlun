@@ -1470,6 +1470,45 @@ fn run() -> Result<bool, String> {
     let n_b = main_list.iter().filter(|c| c.b.is_some()).count();
     let n_c = main_list.iter().filter(|c| c.c.is_some()).count();
 
+    // ── #100 侧信道：BSP 发射时间线导出（BSP_DUMP=<path>，只写不改任何判定） ──
+    if let Ok(dump_path) = std::env::var("BSP_DUMP") {
+        use std::io::Write as _;
+        match std::fs::File::create(&dump_path) {
+            Ok(file) => {
+                let mut w = std::io::BufWriter::new(file);
+                for (&(lvl, src, side), &bar) in &tracker.first_conf {
+                    let _ = writeln!(
+                        w,
+                        "BSP_CONF lvl={lvl} src={src} side={side} first_bar={bar}"
+                    );
+                }
+                for (&(lvl, src, side), rec) in &tracker.first_t1 {
+                    let _ = writeln!(
+                        w,
+                        "BSP_T1 lvl={lvl} src={src} side={side} first_bar={} iv={}-{} iv_kind={}",
+                        rec.bar, rec.iv_start, rec.iv_end, rec.iv_kind
+                    );
+                }
+                for (&(lvl, src, side), &bar) in &tracker.first_t3 {
+                    let _ = writeln!(
+                        w,
+                        "BSP_T3 lvl={lvl} src={src} side={side} first_bar={bar}"
+                    );
+                }
+                for (t, c) in trades.iter().zip(&calcs) {
+                    let _ = writeln!(
+                        w,
+                        "BSP_TRADE entry_bar={} dir={} w0={} exit_bar={} a2={:?} b={:?} c={:?}",
+                        t.entry_bar, t.dir, t.seg_start_index, t.exit_bar, c.a2, c.b, c.c
+                    );
+                }
+                let _ = w.flush();
+                eprintln!("BSP_DUMP 已写出: {dump_path}");
+            }
+            Err(error) => eprintln!("BSP_DUMP 创建 {dump_path} 失败（跳过导出）: {error}"),
+        }
+    }
+
     let mut per_level_t1: HashMap<usize, usize> = HashMap::new();
     for &(lvl, _src, _side) in tracker.first_t1.keys() {
         *per_level_t1.entry(lvl).or_insert(0) += 1;

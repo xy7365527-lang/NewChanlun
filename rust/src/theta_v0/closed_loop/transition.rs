@@ -316,7 +316,27 @@ fn oq9_legal(tw_state: &TwState, tw_event: TwEvent) -> bool {
 ///   若未来修改让黑名单字段进入判据，即触发 A' 边界条件 (b)，须重新提交裁决。
 /// - **Realize 后不回退 stage**（推导链第 8 条）：本金已退（withdrawn≥notional_in）是历史事实，
 ///   后续亏损只降 free/权益，不否定已发生的相变（`advance_to` rank 单向 + Realize 不触 stage）。
+///
+/// 委托 [`stage_progression_eta_corrected`]（修正量 0）——单一实现源，零修正路径（closed_loop
+/// 结构验证工具 + 全部既有调用方）与历史行为逐字节相同（bit-exact）。
 pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode) -> Option<TwEvent> {
+    stage_progression_eta_corrected(policy, s, risk_mode, 0)
+}
+
+/// **η 修正版三阶段推进算子（A10 C5 裁定 (b)，TW 桥 G1）**：与 [`stage_progression`] 同一
+/// 实现，仅 CapitalRecovered 分支的 EnterReady 判据左操作数换为 **η_corrected =
+/// `tw() − eta_correction`**（经 [`RiskPolicy::enter_ready_eta_corrected`]）。
+///
+/// `eta_correction` = 生产 π loop 的 `cum_holding_cost` i64 shadow（funding+borrow+liq 累计量化）。
+/// G1：持盾成本只扣 f64 cash、TW 不经构造子见到 ⟹ 未修正 η 高估在险权益 ⟹ EnterReady 易过
+/// =激进侧（不安全）；修正后判据变严（保守/安全侧）。**零账本侵入**：本算子派生的事件代数不变
+/// （TwEvent 八构造子 + Realize 资金源硬边界不动，GAP3 A' 冻结），修正只在判据消费侧。
+/// `eta_correction=0` ⟹ 与 [`stage_progression`] 同值 bit-exact（回归锁）。
+///
+/// ★白/黑名单边界（A' 推导链第 6 条，清单⑧）与 [`stage_progression`] 文档逐字一致——
+/// `eta_correction` 是调用方（π loop）从 f64 cash 域独立累计的持盾成本量化值，非 TW 黑名单
+/// 字段（不读 hwm_gain/MTM/forced_pnl）；它**降低** η 左操作数 ⟹ 判据只严不松 = 安全侧。
+pub(crate) fn stage_progression_eta_corrected(policy: &RiskPolicy, s: &TwState, risk_mode: RiskMode, eta_correction: i64) -> Option<TwEvent> {
     let risk_normal = matches!(risk_mode, RiskMode::Normal);
     match s.stage {
         // 降成本：持仓累积过名义基线 ⟹ 退本金（free→withdrawn），推进 CapitalRecovered。
@@ -350,8 +370,10 @@ pub(crate) fn stage_progression(policy: &RiskPolicy, s: &TwState, risk_mode: Ris
         }
         // 退本金：EnterReady 严格谓词成立 ⟹ 进增股数（barrier-gated 单向相变）。I₀=campaign 本金
         // notional_in（本金全退 ⟺ withdrawn≥notional_in ⟹ L^wc=0）。
+        // ★A10 C5：η 左操作数经 eta_correction 修正（生产 π loop 传 cum_holding_cost shadow；
+        // 0 ⟹ 与历史判据同值 bit-exact）。
         TStage::CapitalRecovered => {
-            if policy.enter_ready(s, s.notional_in, risk_normal) {
+            if policy.enter_ready_eta_corrected(s, s.notional_in, risk_normal, eta_correction) {
                 // ★openLegacyLegs=0 守卫（M7 c3 任务点3，OQ-9 入口证书）：EnterReady 五合取已含
                 // `open_legacy_legs==0`，此 assert 把该合取项显式化为**可观测的进 EarningShares 不变量**
                 // ——派 EnterEarning ⟹ 必无未闭合 legacy 降成本腿（`LegalEnterEarning`，PDF §10）。

@@ -930,7 +930,9 @@ fn q4_prev_day(d: &str) -> String {
 /// q4 margin 口径（prereg-q4-fullpi-20260703 §④，冻结）：CME-simple 单段近似全历史——
 /// `cme_simple(0.37, 1.10)`（risk.rs L1 golden 同值）+ cushions `B1=0.02·nav₀, B2=0.05·nav₀`。
 /// **有效域声明（231）**：非 SPAN、非交易所逐段历史快照、非实盘保证金——报告一律带「CME-simple」标签。
-fn q4_margin_model(nav0: f64) -> super::super::strategy::risk::MarginModel {
+/// ★pub(crate)：阶段 3a 前置实装（M7_WITNESS_A10 env gate，p126 runbook §2.1）——runner.rs 三个
+/// #[ignore] witness/网格/多窗测试与 m8_e2e 同函数同源注入（禁第二查法），可见性由模块私有提 crate。
+pub(crate) fn q4_margin_model(nav0: f64) -> super::super::strategy::risk::MarginModel {
     use super::super::strategy::risk::{MarginModel, MarginSchedule, MarginScheduleBook, RiskCushions};
     let sched = MarginSchedule::cme_simple(0.37, 1.10).expect("CME-simple 参数合法（冻结值）");
     let book = MarginScheduleBook::new(vec![(i64::MIN, i64::MAX, sched)]).expect("单段全域快照簿");
@@ -1067,7 +1069,8 @@ fn q4_fullpi_policy() {
 /// 1分钟 bar，费率 1bp/周期（业界常见量级）；borrow 每 bar 极低（无杠杆则不 binding）；强平罚金
 /// 0.5%（清算费+滑点近似）。**有效域声明（231号 / A10 waiver）**：真实 funding 历史/借贷曲线是
 /// **外部数据源缺口**（L2），waiver 豁免的是外部数据，机制在此真实装、费率待外部标定。
-fn m6_cost_model() -> super::super::strategy::risk::CostModel {
+/// ★pub(crate)：阶段 3a 前置实装（M7_WITNESS_A10 env gate，p126 runbook §2.1）同 q4_margin_model。
+pub(crate) fn m6_cost_model() -> super::super::strategy::risk::CostModel {
     use super::super::strategy::risk::CostModel;
     // funding 8h=480bar、1bp/周期；borrow 每 bar 0.01bp；liq 罚金 0.5%。
     CostModel::new(0.0001, 480, 0.000001, 0.005).expect("M6 常费率参数合法（冻结近似值）")
@@ -1100,10 +1103,16 @@ fn m6_btc_oos_r_decomposition() {
          R = Σ N_t ΔP_t − Commission − Slippage − Funding − Borrow − LiquidationLoss\n\n\
          口径：margin=CME-simple 单段近似；cost=参数化常费率（funding 1bp/8h、borrow 0.01bp/bar、\
          liq 0.5%）。**有效域 L1**：机制真装 + 参数化费率，真实 funding/借贷历史是外部数据缺口（A10 \
-         waiver 豁免外部数据源，不豁免机制）。**照实：预期成本拖累 net_r<gross，成本真实化非 alpha 声明。**\n\n\
-         | 窗 | 臂 | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r | 守恒残差 | n_orders |\n\
-         |---|---|---|---|---|---|---|---|---|---|\n",
+         waiver 豁免外部数据源，不豁免机制）。**照实：预期成本拖累 net_r<gross，成本真实化非 alpha 声明。**\n\n",
     );
+    // A10 附则B 裁决2（090 措辞纪律）：一切带成本 R 数值报告强制口径标签——费率未标定，
+    // 常费率数值禁作 alpha 论据/策略择优输入；datum 注入后升 [L2费率标定: datum 版本哈希]。
+    report.push_str(&format!(
+        "**口径标签：{}**（A10 附则B 强制；TW桥列＝A10 C5 对账行 ⌊funding+borrow+liq⌋——TW 账本不经构造子见持盾成本，η=tw() 高估在险权益恰此量）\n\n\
+         | 窗 | 臂 | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r | 守恒残差 | TW桥 | n_orders |\n\
+         |---|---|---|---|---|---|---|---|---|---|---|\n",
+        super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
+    ));
 
     // OOS 窗清单：p3 可比单折 + 前两个 anchored walk-forward（够 R 分解物证；全窗跑批在 M8）。
     let mut wins: Vec<(String, String, String)> = vec![
@@ -1118,7 +1127,7 @@ fn m6_btc_oos_r_decomposition() {
     for (tag, te_lo, te_hi) in &wins {
         let test = ds.slice_date_window(te_lo, te_hi);
         if test.bars.is_empty() {
-            report.push_str(&format!("| {tag} | — | test 段空 | | | | | | | |\n"));
+            report.push_str(&format!("| {tag} | — | test 段空 | | | | | | | | |\n"));
             continue;
         }
         let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
@@ -1132,14 +1141,16 @@ fn m6_btc_oos_r_decomposition() {
         match r.r_decomp {
             Some(d) => {
                 report.push_str(&format!(
-                    "| {tag} | M6 | {:+.2} | {:.2} | {:.2} | {:.2} | {:.2} | {:+.2} | {:.2e} | {} |\n",
+                    "| {tag} | M6 | {:+.2} | {:.2} | {:.2} | {:.2} | {:.2} | {:+.2} | {:.2e} | {} | {} |\n",
                     d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
-                    d.liquidation_loss, d.net_r, d.conservation_residual, r.n_orders,
+                    d.liquidation_loss, d.net_r, d.conservation_residual,
+                    d.tw_holding_cost_bridge, r.n_orders,
                 ));
                 eprintln!(
-                    "M6 BTC {tag}: gross={:+.0} fee={:.0} fund={:.0} borrow={:.0} liq={:.0} net_r={:+.0} resid={:.2e} orders={}",
+                    "M6 BTC {tag}: gross={:+.0} fee={:.0} fund={:.0} borrow={:.0} liq={:.0} net_r={:+.0} resid={:.2e} tw_bridge={} orders={}",
                     d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
-                    d.liquidation_loss, d.net_r, d.conservation_residual, r.n_orders,
+                    d.liquidation_loss, d.net_r, d.conservation_residual,
+                    d.tw_holding_cost_bridge, r.n_orders,
                 );
                 // 守恒硬校验（照实——真实数据 O(n) 舍入，容差按名义规模）。
                 let tol = 1e-3_f64.max(1e-9 * (nav_te.abs() + d.price_pnl_gross.abs()));
@@ -1148,7 +1159,7 @@ fn m6_btc_oos_r_decomposition() {
                     "M6 {tag} 守恒残差 {} 超容差 {}（资金泄漏）", d.conservation_residual, tol
                 );
             }
-            None => report.push_str(&format!("| {tag} | M6 | R 分解缺失（非 π 路径？）| | | | | | | |\n")),
+            None => report.push_str(&format!("| {tag} | M6 | R 分解缺失（非 π 路径？）| | | | | | | | |\n")),
         }
     }
     report.push_str("\n**守恒断言**：各窗 |守恒残差| ≤ 容差（价格 PnL − 五项成本 = 账本净变动，无泄漏）。\n");
@@ -1210,9 +1221,14 @@ fn m8_e2e_all_systems_oos() {
         "# M8 端到端全策略 OOS（TARGET_STRATEGY_MAXFULL.md M8 / 路线.pdf p17,p20-21）\n\n\
          三系统同开：M5 overlay 声部执行臂 + M6 cost_model（参数化 funding/borrow/liq）+ M7 三阶段 TW 账本。\n\
          口径：margin=CME-simple 单段；cost=参数化常费率；κ=0 冻结（M7 c3 裁定，正 κ 推迟 M8 后 L3）。\n\
-         **认识论 L2**：真实 BTC OOS 假设检验；signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实（否定性结果合法）。\n\n\
-         ## 四层报告\n\n",
+         **认识论 L2**：真实 BTC OOS 假设检验；signal 层无 alpha ⟹ 端到端负/INCONCLUSIVE 照实（否定性结果合法）。\n\n",
     );
+    // A10 附则B 裁决2（090 措辞纪律）：带成本 R 数值报告强制口径标签（费率未标定，禁作 alpha 论据）。
+    report.push_str(&format!(
+        "**口径标签：{}**（A10 附则B 强制，cost 三常费率保底未标定；数值禁作 alpha 论据/策略择优输入）\n\n\
+         ## 四层报告\n\n",
+        super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
+    ));
 
     // ── signal 层（转引，不重算）──
     report.push_str(
@@ -1222,8 +1238,11 @@ fn m8_e2e_all_systems_oos() {
          δ-free 主裁决 + μ_R 并列 co-primary 均未过 LCB>0。三态 = **INCONCLUSIVE**\
          （非「无 alpha 存在」，措辞§5.6）。**signal 结果不外推 max-full**（措辞§5.3）。\n\n\
          ### 层2/3/4（本跑批 L2 实测，三系统同开）\n\n\
-         | 窗 | n_orders | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r(execR) | MaxDD | 声部数(A/S/F) | 终Stage | Q_T | W_T | η_T/η_* | R(含浮盈) | LCB_OOS(R) | 三态 |\n\
-         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
+         η 列口径注记（p128 裁定 (i)，A10 C5）：**η_corrected = tw() − cum_holding_cost 为唯一合法判读口径**\
+         （cum_holding_cost = r_decomp.tw_holding_cost_bridge，与 M7 witness 增打两行同源；修正只降不升）；\
+         η_T/η_* 原列保留对照。\n\n\
+         | 窗 | n_orders | ΣN_tΔP_t | Comm+Slip | Funding | Borrow | LiqLoss | net_r(execR) | MaxDD | 声部数(A/S/F) | 终Stage | Q_T | W_T | η_T/η_* | cum_holding_cost | η_corrected(判读) | R(含浮盈) | LCB_OOS(R) | 三态 |\n\
+         |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n",
     );
 
     let policy = RiskPolicy::baseline(); // κ=0（M7 冻结口径）
@@ -1231,7 +1250,7 @@ fn m8_e2e_all_systems_oos() {
     for (tag, te_lo, te_hi) in &wins {
         let test = ds.slice_date_window(te_lo, te_hi);
         if test.bars.is_empty() {
-            report.push_str(&format!("| {tag} | test 段空 | | | | | | | | | | | | | | | |\n"));
+            report.push_str(&format!("| {tag} | test 段空 | | | | | | | | | | | | | | | | | |\n"));
             continue;
         }
         let years = test.bars.len() as f64 / (365.25 * 24.0 * 60.0);
@@ -1269,6 +1288,11 @@ fn m8_e2e_all_systems_oos() {
         };
         let eta_t = tw.tw();
         let eta_star = policy.eta_star(&tw);
+        // ★p128 裁定 (i)（A10 C5 口径，additive）：η_corrected = tw() − cum_holding_cost，
+        // cum_holding_cost = r_decomp.tw_holding_cost_bridge（与 M7 witness 增打两行同源，禁第二查法）。
+        // η_corrected 为唯一合法判读口径（修正只降不升，T-N4 语义）；η_T 原列保留对照。
+        let cum_holding_cost = d.tw_holding_cost_bridge;
+        let eta_corrected = eta_t - cum_holding_cost;
 
         // 层4 完整策略：R(含浮盈) + LCB_OOS(R) block bootstrap。
         let r_total: f64 = r.net_result.trade_pnls_with_forced.iter().sum();
@@ -1291,10 +1315,11 @@ fn m8_e2e_all_systems_oos() {
         };
 
         report.push_str(&format!(
-            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {:+.0} | {:+.0} | {} |\n",
+            "| {tag} | {} | {:+.0} | {:.0} | {:.0} | {:.0} | {:.0} | {:+.0} | {:.4} | {}/{}/{} | {} | {} | {} | {}/{} | {} | {} | {:+.0} | {:+.0} | {} |\n",
             r.net_result.n_orders, d.price_pnl_gross, d.commission_slippage, d.funding, d.borrow,
             d.liquidation_loss, d.net_r, maxdd, n_amb, n_short, n_follow,
-            stage_str, tw.notional_in, tw.withdrawn, eta_t, eta_star, r_total, lcb_r, verdict,
+            stage_str, tw.notional_in, tw.withdrawn, eta_t, eta_star,
+            cum_holding_cost, eta_corrected, r_total, lcb_r, verdict,
         ));
         eprintln!(
             "[m8] {tag}: execR={:+.0} MaxDD={:.4} stage={} R={:+.0} LCB(R)={:+.0} → {}",

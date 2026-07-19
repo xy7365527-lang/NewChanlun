@@ -52,7 +52,7 @@ use super::super::classifier::Classification;
 use super::super::config::{RiskConfig, ThetaDirPreset, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
 use super::super::closed_loop::state::RiskMode;
-use super::super::closed_loop::transition::stage_progression;
+use super::super::closed_loop::transition::stage_progression_eta_corrected;
 use super::intent::{lex_argmin, lex_argmin_top_k, JThetaKey, LexCandidate};
 use super::interp::{self, ActiveLeg, Buckets, Candidate};
 use super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
@@ -2890,6 +2890,11 @@ pub(crate) struct TwStepCtx<'a> {
     /// 在飞表 `entry_v == ShortDiff` 取——腿声部身份入场固定，与 TW `open_legacy_legs`
     /// 计数同源同步）。
     pub shortdiff_leg_ids: &'a std::collections::HashSet<ElementId>,
+    /// η 修正量（A10 C5 裁定 (b)，TW 桥 G1）：生产 π loop 的 `cum_holding_cost` i64 shadow
+    /// （funding+borrow+liq 累计量化），经 [`stage_progression_eta_corrected`] 进 P4 EnterReady
+    /// 的 η 左操作数（η_corrected = tw() − eta_correction）。**0 ⟹ 与历史判据同值 bit-exact**
+    /// （回归锁）。★F4 同源约束：与 ZExt 第 15 维 η_bucket 的修正量同一变量（runner 单点喂两处）。
+    pub eta_correction: i64,
 }
 
 /// [`pi_theta_step_prebuilt`] 的 trace 版（G4 #134 组合层）：同一决策路径（interpret →
@@ -2980,7 +2985,9 @@ pub(crate) fn pi_theta_step_traced(
         // P3 RecoverCapital / P4 EnterEarning：无订单账本事件（stage_progression 单源判据，
         // 与 closed_loop 结构验证共用同一函数——不镜像）。输出 TWEvent_t 分量；账本推进
         // （tw_step）由消费端 runner 单点做（组合层只读 ctx，不 mutate 账本）。
-        if let Some(ev) = stage_progression(twc.policy, twc.state, twc.risk_mode) {
+        // ★A10 C5：η 修正经 stage_progression_eta_corrected（twc.eta_correction =
+        // cum_holding_cost shadow；0 ⟹ bit-exact）。
+        if let Some(ev) = stage_progression_eta_corrected(twc.policy, twc.state, twc.risk_mode, twc.eta_correction) {
             let buckets = Buckets {
                 close: Vec::new(),
                 open: Vec::new(),
@@ -5079,6 +5086,7 @@ mod tests {
             policy: &policy,
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &sd_ids,
+            eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let (next_active, _ps, (order_p2, _), trace) = pi_theta_step_traced(
             work, &gamma, &[sd_leg, root_leg], 0.0, 11, 1000.0, &r, w,
@@ -5127,6 +5135,7 @@ mod tests {
             policy: &policy,
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &empty_ids,
+            eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let (next_active, _ps, (order_p3, _), trace) = pi_theta_step_traced(
             work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
@@ -5181,6 +5190,7 @@ mod tests {
             policy: &policy,
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &empty_ids,
+            eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let (_na, _ps, (order_p4, _), trace) = pi_theta_step_traced(
             work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
@@ -5199,6 +5209,55 @@ mod tests {
         );
         assert!(order_none.qty > 0, "tw=None 对照：买候选正常开仓（qty>0）");
         assert_ne!(order_p4, order_none, "P4 masking 真改同 bar 订单流");
+    }
+
+    /// ★A10 C5（裁定 (b) TW 桥 G1 闭合见证，T-N4 接线层）：同一 EnterReady 态，
+    /// `eta_correction`（= π loop `cum_holding_cost` shadow，funding+borrow+liq 累计量化）使
+    /// η_corrected = tw() − correction 跌破 η⋆ ⟹ P4 **不派** EnterEarning——修正判据变严
+    /// （η 高估消除 ⟹ 激进侧封死 = 安全侧）；correction=0 ⟹ 派（回归锁：与历史判据同值
+    /// bit-exact）；边界 correction = tw()（η_corrected=0=η⋆）仍派（≥ 含等号）。
+    #[test]
+    fn a10_c5_eta_correction_gates_p4_enter_earning() {
+        use super::super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        // EnterReady 态：tw()=100（withdrawn=100），η⋆=0（κ=0 ∧ L^wc=0）⟹ 未修正五合取全过。
+        let tw_state = TwState {
+            withdrawn: 100,
+            notional_in: 100,
+            stage: TStage::CapitalRecovered,
+            ..TwState::initial()
+        };
+        let policy = RiskPolicy::baseline();
+        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let run = |eta_correction: i64| {
+            let work = ElementView::from_parts(&tree, candidates.clone());
+            let twc = TwStepCtx {
+                state: &tw_state,
+                policy: &policy,
+                risk_mode: RiskMode::Normal,
+                shortdiff_leg_ids: &empty_ids,
+                eta_correction,
+            };
+            pi_theta_step_traced(
+                work, &gamma, &[], 0.0, 11, 1000.0, &r, w,
+                KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+                &protocol_hold(),
+            )
+            .3 // StepTrace
+            .tw_event
+        };
+        // 回归锁：correction=0 ⟹ 与历史判据同值（派 EnterEarning）。
+        assert_eq!(run(0), Some(TwEvent::EnterEarning), "correction=0 ⟹ 派（bit-exact 回归锁）");
+        // 边界：correction=tw()=100 ⟹ η_corrected=0=η⋆ ⟹ 仍派（≥ 含等号）。
+        assert_eq!(run(100), Some(TwEvent::EnterEarning), "η_corrected=0=η⋆ ⟹ 边界仍派");
+        // G1 闭合见证：correction=101 ⟹ η_corrected=−1<η⋆=0 ⟹ 不派（η 高估被持盾成本修正
+        // 消除 ⟹ EnterReady 不再易过——修正前 (correction=0) 同一态必派，对照在上方两条）。
+        assert_eq!(run(101), None, "η_corrected=−1<η⋆ ⟹ 不派（G1：修正判据变严=安全侧）");
     }
 
     /// ★优先级 C_1≻C_2（PDF §7）：P1 force_flat 与 P2 条件同时成立 ⟹ P1 赢（risk_exits，
@@ -5226,6 +5285,7 @@ mod tests {
             policy: &policy,
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &sd_ids,
+            eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
         let (next_active, _ps, _o, trace) = pi_theta_step_traced(
@@ -5255,6 +5315,7 @@ mod tests {
             policy: &policy,
             risk_mode: RiskMode::Normal,
             shortdiff_leg_ids: &empty_ids,
+            eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let work_a = ElementView::from_parts(&tree, candidates.clone());
         let (na_a, ps_a, o_a, tr_a) = pi_theta_step_traced(

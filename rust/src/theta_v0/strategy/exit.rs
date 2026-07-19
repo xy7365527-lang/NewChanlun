@@ -90,6 +90,26 @@ pub fn exit_decision_for(
     groups: &[Vec<&VoiceDecision>],
     equity_now: f64,
 ) -> Option<VoiceDecision> {
+    // root 声部无父 ⟹ parent_invalid=false（恒假占位的委托形态，现行语义逐字保留）。
+    exit_decision_for_nested(hv, depth, bar, i, groups, equity_now, false)
+}
+
+/// **级联关闭版退出决策生成器**（关⑤方案 A §3.5：`parent_invalid` 恒假占位**实义化**）。
+///
+/// 与 [`exit_decision_for`] 的唯一差异：`CloseTriggers.parent_invalid`（exit.rs:121）从恒
+/// `false` 改为**实参**——对 depth>0 声部，调用方按 [`parent_invalid_at`]
+/// （`held[depth-1].is_none() ∨ held[depth-1].exit_pending`）计算；depth=0 根无父 ⟹
+/// 调用方恒传 `false`（现行语义保留）。§9 closePred 四析取（X = ¬ParentValid ∨ χ^{σ_p} ∨
+/// Stop ∨ RiskClose，`Origin.SubVoiceOpenClose.closePred` line 552-562）自此四项皆实。
+pub fn exit_decision_for_nested(
+    hv: &HeldVoice,
+    depth: usize,
+    bar: &Bar,
+    i: usize,
+    groups: &[Vec<&VoiceDecision>],
+    equity_now: f64,
+    parent_invalid: bool,
+) -> Option<VoiceDecision> {
     // Stop（line 559）：当前 bar 触及止损价 hv.stop。平仓方向 = 持仓反向（平多=Sell，平空=Buy）。
     let exit_side = match hv.side {
         VoiceSide::Long => FillSide::Sell,
@@ -118,7 +138,7 @@ pub fn exit_decision_for(
     let risk_close = global_risk_close(mode);
 
     let triggers = CloseTriggers {
-        parent_invalid: false, // root 声部无父（恒 false，诚实有效域）
+        parent_invalid, // ★关⑤实义化：depth>0 由调用方实算；depth=0 恒 false（根无父）
         reverse_signal: reverse,
         stop,
         risk_close,
@@ -135,4 +155,190 @@ pub fn exit_decision_for(
     exit_d.signal_index = i;
     exit_d.depth = depth as u32;
     Some(exit_d)
+}
+
+/// 父失效判据（关⑤ §3.5，`¬ParentValid_{v,t}` 的单脊柱实例）：
+/// depth>0 声部的**父槽空仓 ∨ 父 exit_pending**；depth=0 根无父 ⟹ 恒 `false`。
+///
+/// `exit_pending` 视同失效：父退出已触发、Close 尚在延迟队列——子声部的父背景已否决
+/// （不等 fill 到位再判，否则 fill 前窗口期子腿裸存）。越界防御：父槽不存在 ⟹ true
+/// （fail-closed，不假设父有效）。
+pub fn parent_invalid_at(held: &[Option<HeldVoice>], depth: usize) -> bool {
+    if depth == 0 {
+        return false; // 根无父（现行语义保留）
+    }
+    match held.get(depth - 1) {
+        Some(Some(h)) => h.exit_pending,
+        _ => true, // 父槽空仓/越界 ⟹ 父失效（fail-closed）
+    }
+}
+
+/// **cascade 发射**（关⑤ §3.5，M16 AncOK「父关则子关」+ §20 先平后开执行序）：
+/// depth `trigger_depth` 的退出触发后，对所有 `j > trigger_depth` 且 `held[j].is_some()`
+/// 的更深声部**强制**产退出决策（`exit=true`，复用入场快照），**最深优先**（j 降序），
+/// 触发决策自身收尾。
+///
+/// - `exit_pending` 槽跳过（fill 前抑制重复触发，exit.rs:33-35 机制沿用）。
+/// - 空槽/零手数由下游 `plan_orders`（q=0 不产 Close）自然过滤，此处不重复判（单一来源）。
+/// - 最深优先使子腿现金先到位、父腿后平（双账本下子腿平仓收/付现金独立成腿，§4.3）。
+pub fn cascade_exit_decisions(
+    held: &[Option<HeldVoice>],
+    trigger_depth: usize,
+    trigger_exit: VoiceDecision,
+    i: usize,
+) -> Vec<VoiceDecision> {
+    let mut out = Vec::new();
+    for j in (trigger_depth + 1..held.len()).rev() {
+        if let Some(hv) = &held[j] {
+            if hv.exit_pending {
+                continue; // fill 前抑制（一次触发一次平仓）
+            }
+            let mut d = hv.decision;
+            d.exit = true;
+            d.enter_ok = false;
+            d.signal_index = i;
+            d.depth = j as u32;
+            out.push(d);
+        }
+    }
+    out.push(trigger_exit);
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::risk::StopInput;
+    use super::super::super::types::{BspBits, Center};
+
+    fn bar_at(idx: usize, o: Tick, h: Tick, l: Tick, c: Tick) -> Bar {
+        Bar {
+            source_index: idx,
+            timestamp: idx as i64,
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: 100,
+            untradable: false,
+        }
+    }
+
+    /// depth 槽持仓声部（root_side=Long 根；side=voice_side(Long,depth) 偶 Long 奇 Short）。
+    fn held_at(depth: u32, exit_pending: bool) -> HeldVoice {
+        let side = voice_side(VoiceSide::Long, depth);
+        HeldVoice {
+            side,
+            // 止损：Long=pivot_low 950 / Short=pivot_high 1100（测试 bar 默认不触及）。
+            stop: if side == VoiceSide::Long { 950 } else { 1100 },
+            decision: VoiceDecision {
+                depth,
+                root_side: VoiceSide::Long,
+                exit: false,
+                enter_ok: true,
+                bsp: BspBits { buy1: true, ..Default::default() },
+                signal_index: depth as usize, // 区分各槽快照
+                stop_in: StopInput {
+                    pivot_low: 950,
+                    pivot_high: 1100,
+                    center: Center { zd: 1000, zg: 1080, dd: 940, gg: 1090, start_index: 0, end_index: 5 },
+                },
+                entry: 1000,
+                cost_per_unit: 0.0,
+                level: 1,
+            },
+            exit_pending,
+        }
+    }
+
+    fn trigger_of(hv: &HeldVoice, i: usize) -> VoiceDecision {
+        let mut d = hv.decision;
+        d.exit = true;
+        d.enter_ok = false;
+        d.signal_index = i;
+        d
+    }
+
+    /// C1（最深优先 cascade）：held[0..3] 全活，depth 0 触发退出 ⟹ 产 3 决策，
+    /// 序 [depth2, depth1, depth0]。
+    #[test]
+    fn cascade_parent_exit_closes_descendants_deepest_first() {
+        let held = vec![Some(held_at(0, false)), Some(held_at(1, false)), Some(held_at(2, false))];
+        let trigger = trigger_of(&held[0].unwrap(), 7);
+        let out = cascade_exit_decisions(&held, 0, trigger, 7);
+        assert_eq!(out.len(), 3, "两个更深声部强制退出 + 触发决策收尾");
+        assert_eq!(out[0].depth, 2, "最深优先（j 降序）");
+        assert_eq!(out[1].depth, 1);
+        assert_eq!(out[2].depth, 0, "触发决策（父）收尾");
+        assert!(out.iter().all(|d| d.exit && !d.enter_ok), "全部 exit=true 退出态");
+        assert!(out.iter().all(|d| d.signal_index == 7), "同一触发 bar");
+    }
+
+    /// C2（parent_invalid 单项触发）：held[1] 活、held[0] 空 ⟹ depth1 的 X=true
+    /// （stop/reverse/risk 全假对照；四析取自此皆实）。
+    #[test]
+    fn parent_invalid_fires_when_parent_slot_empty() {
+        let h = held_at(1, false); // Short 腿（voice_side(Long,1)），stop=1100
+        let bar = bar_at(3, 1000, 1010, 990, 1005); // high 1010 < 1100 不触止损
+        let groups: Vec<Vec<&VoiceDecision>> = vec![]; // 无反向信号
+        let equity = 1_000_000.0; // >0 ⟹ RiskClose 假
+        // 父槽空 ⟹ parent_invalid_at=true（fail-closed）。
+        let held = vec![None, Some(h)];
+        assert!(parent_invalid_at(&held, 1), "父槽空仓 ⟹ 父失效");
+        let out = exit_decision_for_nested(&h, 1, &bar, 3, &groups, equity, true);
+        let d = out.expect("parent_invalid=true 单项 ⟹ X=true 产退出决策");
+        assert!(d.exit && !d.enter_ok);
+        assert_eq!(d.depth, 1);
+        assert_eq!(d.signal_index, 3);
+        // 对照：parent_invalid=false ⟹ 四项全假 ⟹ None（不误触）。
+        assert!(
+            exit_decision_for_nested(&h, 1, &bar, 3, &groups, equity, false).is_none(),
+            "stop/reverse/risk 全假 + parent_invalid=false ⟹ X=false"
+        );
+    }
+
+    /// C3（fill 前抑制）：父 exit_pending=true ⟹ 子经 parent_invalid 判失效；
+    /// cascade 跳过已 pending 的更深槽（不重复产退出）。
+    #[test]
+    fn cascade_exit_pending_suppressed() {
+        let held = vec![
+            Some(held_at(0, true)),  // 父已 pending（退出在延迟队列）
+            Some(held_at(1, true)),  // 子已被上轮 cascade 标 pending
+            Some(held_at(2, false)), // 孙未触发
+        ];
+        // 父 pending ⟹ 子的 parent_invalid 判据为真（父背景已否决）。
+        assert!(parent_invalid_at(&held, 1), "父 exit_pending ⟹ 子父失效");
+        // 再从 depth 0 发射：已 pending 的 depth1 跳过（不重复产退出），depth2 强制，父收尾。
+        let trigger = trigger_of(&held[0].unwrap(), 5);
+        let out = cascade_exit_decisions(&held, 0, trigger, 5);
+        assert_eq!(out.len(), 2, "pending 槽跳过：只孙 + 父");
+        assert_eq!(out[0].depth, 2);
+        assert_eq!(out[1].depth, 0);
+    }
+
+    /// C4（根回归锁）：仅 depth0 活 ⟹ 行为与现行逐字节同（parent_invalid=false 路径回归）。
+    #[test]
+    fn cascade_root_only_regression() {
+        let h = held_at(0, false); // Long 根，stop=950
+        let bar = bar_at(3, 960, 965, 900, 920); // low 900 ≤ 950 ⟹ 多头止损触及
+        let groups: Vec<Vec<&VoiceDecision>> = vec![];
+        let equity = 1_000_000.0;
+        let held = vec![Some(h), None, None];
+        assert!(!parent_invalid_at(&held, 0), "根无父 ⟹ 恒 false");
+        let via_old = exit_decision_for(&h, 0, &bar, 3, &groups, equity);
+        let via_new = exit_decision_for_nested(&h, 0, &bar, 3, &groups, equity, false);
+        let (a, b) = (via_old.expect("止损触发"), via_new.expect("止损触发"));
+        assert_eq!(a.depth, b.depth);
+        assert_eq!(a.root_side, b.root_side);
+        assert_eq!(a.exit, b.exit);
+        assert_eq!(a.enter_ok, b.enter_ok);
+        assert_eq!(a.bsp, b.bsp);
+        assert_eq!(a.signal_index, b.signal_index);
+        assert_eq!(a.entry, b.entry);
+        assert_eq!(a.level, b.level);
+        // 根触发 ⟹ cascade 无更深声部 ⟹ 仅触发决策自身。
+        let out = cascade_exit_decisions(&held, 0, trigger_of(&h, 3), 3);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].depth, 0);
+    }
 }

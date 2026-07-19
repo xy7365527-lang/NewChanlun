@@ -157,6 +157,7 @@ fn main() -> Result<(), String> {
         .map(|bar| bar.source_index)
         .collect();
     let hist = compute_macd(&closes, &config.macd).hist;
+    let dif = compute_macd(&closes, &config.macd).dif;
     let version = C2VersionTuple::auto_pairing();
     version
         .validate()
@@ -190,6 +191,7 @@ fn main() -> Result<(), String> {
             &tower[level - 1],
             as_of,
             &hist,
+            &dif,
             &close_src,
         )?;
         println!(
@@ -285,6 +287,7 @@ fn measure_level(
     lower: &[LeveledMove],
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
 ) -> Result<LevelStats, String> {
     let lower_legs =
@@ -319,6 +322,7 @@ fn measure_level(
                     &lower_legs,
                     as_of,
                     hist,
+                    dif,
                     close_src,
                     &mut stats,
                 )?;
@@ -339,6 +343,7 @@ fn measure_run(
     lower_legs: &[newchan_rust::theta_v0::classifier::level_view::LowerLeg],
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     stats: &mut LevelStats,
 ) -> Result<(), String> {
@@ -366,6 +371,7 @@ fn measure_run(
             move_blocks: &blocks,
             lower_legs,
             hist,
+            dif,
             close_src,
         },
     )

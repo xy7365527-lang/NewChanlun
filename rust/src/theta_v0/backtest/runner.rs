@@ -56,6 +56,7 @@ use super::super::strategy::{AccountState, VoiceDecision};
 use super::super::types::{Bar, Order, StrictAction};
 use super::super::{classifier, parser, strategy};
 use super::data::Dataset;
+use super::dual_ledger;
 use super::metrics::{self, Metrics};
 
 /// 单次回测的完整输出（指标 + 诊断量 + 闭环证据）。
@@ -346,6 +347,78 @@ pub fn run_theta_v0(
         daily_returns: fill.daily_returns,
         equity_curve: fill.equity_curve,
         r_decomp: fill.r_decomp, // v1 路径为 None（plan_and_fill_mtm 不产 R 分解）
+        strict_nest_sidecar: None,
+    }
+}
+
+/// ★关⑤：[`run_theta_v0`] 的**双账本嵌套并列入口**（纯新增；`run_theta_v0` 签名/行为零改
+/// ⟹ 全部现有 bin/测试 bit-exact）。
+///
+/// 管线与 [`run_theta_v0`] 同骨架，两处替换：
+/// 1. `classify` → [`classifier::classify_with_tower`]（Classification **bit-identical**，
+///    classifier/mod.rs:482 契约；第二返回值 = 逐级塔快照，供真 ShortDiff 角色）。
+/// 2. `recognize + plan_and_fill_mtm` → [`plan_and_fill_mtm_dual`]（per-bar
+///    [`strategy::recognize_nested`] + DualLedger 分腿成交 + cascade 退出 + 毛闸门）。
+///
+/// # ⚠️ Deprecated：与 [`run_theta_v0`] 同一前视有效域（bughunt F-01 口径）
+///
+/// 本入口同样对**全窗** bars 一次性 `parse_layer` + `classify_with_tower` 后把 BSP 决策放回
+/// 其历史 `source_index` 执行（结构确认前视）——**产出禁止用于 L2/L3 认识论声明**，只可用作
+/// 诊断/管线冒烟与合成夹具对拍。嵌套产量的因果口径验收由后续重放承担（施工图 §2 依赖层）；
+/// 生产因果接线在 `nautilus::strategy::ThetaCore::recognize_current`（per-bar 窗口）。
+#[deprecated(
+    note = "结构确认前视（同 run_theta_v0 F-01 口径）：全窗分类决策回放历史，产出禁用于 L2/L3 声明；因果验收由后续重放承担"
+)]
+pub fn run_theta_v0_dual(
+    dataset: &Dataset,
+    config: &ThetaConfig,
+    years: f64,
+    initial_nav: f64,
+) -> RunResult {
+    let bars = &dataset.bars;
+    let l0 = parser::parse_layer(bars, config);
+    let (classification, tower) = classifier::classify_with_tower(&l0, config);
+    let closed_loop_final = run_closed_loop(bars, initial_nav);
+    let dual = plan_and_fill_mtm_dual(&classification, &tower, bars, initial_nav, config);
+    let fill = dual.fill;
+
+    let bh_return = buy_and_hold_return(bars);
+    let m = metrics::compute(
+        &fill.equity_curve,
+        &fill.daily_returns,
+        &fill.trade_pnls_with_forced,
+        years,
+        bh_return,
+    );
+
+    let n_orders = fill.n_orders;
+    let untradable_ratio = dataset.untradable_ratio();
+    let is_l2 = n_orders > 0;
+    let prices: Vec<f64> = bars
+        .iter()
+        .map(|b| b.close as f64 * config.tick.tick_size)
+        .collect();
+    let fee_rate =
+        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+    let theta_return_mtm = m.strat_return;
+
+    RunResult {
+        symbol: dataset.symbol.clone(),
+        metrics: m,
+        n_bars: bars.len(),
+        n_orders,
+        untradable_ratio,
+        is_l2,
+        closed_loop_final,
+        trade_pnls: fill.trade_pnls_realized,
+        trade_pnls_with_forced: fill.trade_pnls_with_forced,
+        trades: fill.trades,
+        prices,
+        fee_rate,
+        theta_return_mtm,
+        daily_returns: fill.daily_returns,
+        equity_curve: fill.equity_curve,
+        r_decomp: fill.r_decomp,
         strict_nest_sidecar: None,
     }
 }
@@ -903,22 +976,35 @@ pub struct ChiFilterCtx<'a> {
     pub shrink_tau_sq: Option<f64>,
 }
 
-/// barrier 缓冲系数 κ 政策，从 env 读（L2 敏感性诊断 knob，codex `.kappa-ruling-20260704`）。
+/// barrier 缓冲系数 κ 政策注入（A10 附则A 裁定——**优先序写死**：env `KAPPA_BARRIER_*`
+/// （L2 敏感性诊断覆写，codex `.kappa-ruling-20260704`）> `config.risk_policy` > `baseline()` κ=0）。
 ///
-/// `KAPPA_BARRIER_NUM` / `KAPPA_BARRIER_DEN`（默认 den=1）⟹ `RiskPolicy::try_new_ratio(num, den)`。
-/// **两者都未设 ⟹ `baseline()`（κ=0）**——生产/测试逐字节不变（bit-exact）。非法值（负分子/非正
-/// 分母/解析失败）⟹ panic（诊断 knob 快失败，不静默降级掩盖网格错配）。
-fn kappa_policy_from_env() -> RiskPolicy {
-    let num = std::env::var("KAPPA_BARRIER_NUM").ok().and_then(|s| s.parse::<i64>().ok());
-    let Some(num) = num else {
-        return RiskPolicy::baseline();
-    };
-    let den = std::env::var("KAPPA_BARRIER_DEN")
+/// env `KAPPA_BARRIER_NUM` / `KAPPA_BARRIER_DEN`（默认 den=1）⟹ `RiskPolicy::try_new_ratio(num, den)`；
+/// **两者都未设（或 num 不可解析，现状语义）⟹ 落 `config.risk_policy`；config=None ⟹ `baseline()`
+/// κ=0**——生产/测试逐字节不变（bit-exact）。非法 env 值（负分子/非正分母）⟹ panic（诊断 knob
+/// 快失败，不静默降级掩盖网格错配——语义不变）。单源纪律防双源静默漂移（χ G2 先例）。
+fn kappa_policy_resolved(config_policy: Option<RiskPolicy>) -> RiskPolicy {
+    let env = std::env::var("KAPPA_BARRIER_NUM")
         .ok()
         .and_then(|s| s.parse::<i64>().ok())
-        .unwrap_or(1);
-    RiskPolicy::try_new_ratio(num, den)
-        .unwrap_or_else(|| panic!("非法 κ barrier grid 值 num={num} den={den}（要求 num≥0 ∧ den>0）"))
+        .map(|num| {
+            let den = std::env::var("KAPPA_BARRIER_DEN")
+                .ok()
+                .and_then(|s| s.parse::<i64>().ok())
+                .unwrap_or(1);
+            (num, den)
+        });
+    kappa_priority_resolve(env, config_policy)
+}
+
+/// κ 优先序纯函数（A10 附则A 写死：env>config>baseline；可测——不碰进程 env）。
+/// env 非法值 panic（与 env knob 语义一致）；env=None ⟹ config 或 baseline。
+fn kappa_priority_resolve(env: Option<(i64, i64)>, config_policy: Option<RiskPolicy>) -> RiskPolicy {
+    match env {
+        Some((num, den)) => RiskPolicy::try_new_ratio(num, den)
+            .unwrap_or_else(|| panic!("非法 κ barrier grid 值 num={num} den={den}（要求 num≥0 ∧ den>0）")),
+        None => config_policy.unwrap_or_else(RiskPolicy::baseline),
+    }
 }
 
 fn pi_theta_fill_loop<F>(
@@ -1046,12 +1132,13 @@ where
         ..TwState::initial()
     };
     // κ=0 最小基线（PDF §10 canonical 默认，runner.rs:702 生产口径）。
-    // ★L2 敏感性诊断 knob（codex `.kappa-ruling-20260704`）：可选 env `KAPPA_BARRIER_NUM`/`_DEN`
-    // 覆写 barrier 缓冲系数 κ=num/den（M7 网格 {0,0.5,1,2}=`0/1,1/2,1/1,2/1`）——**env 未设 ⟹ baseline
-    // κ=0**，所有生产/测试路径逐字节不变（bit-exact）。κ 只在此单点注入，经 stage_progression 门控
-    // 三阶段推进；纯诊断，不改生产冻结值（正 κ 生产选择是 M8 L3 的事，codex 已裁）。与 M7_WITNESS_BARS
-    // 同为 L2 诊断 env 惯例。
-    let tw_policy = kappa_policy_from_env();
+    // ★A10 附则A（裁定接口冻结）：优先序写死 env `KAPPA_BARRIER_*`（L2 敏感性诊断覆写，codex
+    // `.kappa-ruling-20260704`，M7 网格 {0,0.5,1,2}=`0/1,1/2,1/1,2/1`）> `config.risk_policy` >
+    // baseline κ=0——**env 未设 ∧ config=None ⟹ baseline κ=0**，所有生产/测试路径逐字节不变
+    // （bit-exact）。κ 只在此单点注入，经 stage_progression 门控三阶段推进；env 纯诊断，不改生产
+    // 冻结值（正 κ 生产选择是 M8 L3 的事，codex 已裁，A10 附则A 留编排者选择类）。与
+    // M7_WITNESS_BARS 同为 L2 诊断 env 惯例。
+    let tw_policy = kappa_policy_resolved(config.risk_policy);
     // TW 侧已见的真实成本基（i64 shadow；方向差分派 ShortDiff 划转，入账量 cash-sound 钳制
     // ——真实划转超出 free/holding 时部分承载 ⟹ holding 低估 ⟹ 退本金门更难过 = 安全侧）。
     let mut tw_seen_basis: i64 = 0;
@@ -1199,6 +1286,26 @@ where
                 }
                 liq_active = in_liq;
             }
+            // ── A10 C5（裁定 (b) TW 桥 G1，零账本侵入）：`cum_holding_cost` i64 shadow =
+            //    funding+borrow+liq **累计量化**（`tw_seen_basis`/`tw_seen_realized` 同款「对累计值
+            //    量化」模式；f64→定点口径与 treasury `Realize(⌊realized_cum⌋)` 一致——向零截断，
+            //    三项恒 ≥0 ⟹ 截断=⌊⌋）。G1 缺口：持盾成本只扣 f64 `cash`（①⁺/③⁻），TW 账本不经
+            //    任何构造子见到它（GAP3 A' 构造子冻结不动）⟹ 未修正 η=tw() **高估**真实在险权益
+            //    ⟹ enter_ready 易过=激进侧（不安全）。修正全部在**策略层消费侧**：η_bucket
+            //    （ZExt 第 15 维）与 TwStepCtx.eta_correction 读**同一本变量**（F4 同源强制——
+            //    裁定 C5 第 4 条：两处不同步则 z 维与判据裂口）。cost_model=None ⟹ 三项恒 0
+            //    ⟹ shadow=0 ⟹ 与历史判据同值 bit-exact（回归锁）。──
+            let cum_holding_cost: i64 = (cum_funding + cum_borrow + cum_liq_loss) as i64;
+            // 桥接对账断言（裁定 C5 裁决1，取整界内）：η_corrected := tw() − cum_holding_cost
+            // ⟹ tw() − η_corrected == ⌊cum_holding_cost⌋——此处断言 shadow 与 f64 真值的量化
+            // 界 <1 个量化单位（三项恒 ≥0 保号；断言即断言，不降格为告警）。
+            debug_assert!(
+                cum_funding + cum_borrow + cum_liq_loss >= 0.0
+                    && ((cum_funding + cum_borrow + cum_liq_loss) - cum_holding_cost as f64).abs() < 1.0,
+                "A10 C5 桥接对账：tw()−η_corrected == ⌊cum_holding_cost⌋ 取整界破——shadow={} f64真值={}",
+                cum_holding_cost,
+                cum_funding + cum_borrow + cum_liq_loss
+            );
             // G3（#138）z 第 10-13 维装配：π 路径候选不经 Nest/Xzd 准入门（cand_channel/nest_depth
             // None 诚实口径，origin_level 由 z_of_candidate 填 Some(c.level) 起始=执行真值）；
             // risk_mode = 当 bar 账本态真值。**同一 ext_i 同时喂 χ 查询（filter）与训练登记
@@ -1209,10 +1316,13 @@ where
             // #175 第 15 维 eta_bucket = γ_t 四桶（PDF §10 分段式；终裁 a5-etabucket-stance-
             // ruling-20260704.md：η_t=tw.tw() 即 enter_ready 判据左操作数、η_*=tw_policy.eta_star）
             // ——与 t_stage 读同一 tw 变量同一时点（非另开账本查询，零时序错位）。
+            // ★A10 C5（F4 同源修正）：η 左操作数经 cum_holding_cost 修正（η_corrected =
+            // tw() − cum_holding_cost）——与下方 TwStepCtx.eta_correction **同一变量同一时点**，
+            // 裁定 C5 第 4 条「η_bucket 与 enter_ready 左操作数同源修正为一笔改动」的落点。
             let ext_i = super::selector::ZExt {
                 risk_mode: Some(risk_mode_i),
                 t_stage: Some(tw.stage),
-                eta_bucket: Some(tw_policy.eta_bucket(&tw)),
+                eta_bucket: Some(tw_policy.eta_bucket_eta_corrected(&tw, cum_holding_cost)),
                 ..super::selector::ZExt::NONE
             };
             // A7（#165）：记录当前决策点账本态——窗口终点 censored Hold（主循环外）取此末值作 exit_z
@@ -1275,6 +1385,9 @@ where
                 policy: &tw_policy,
                 risk_mode: tw_risk_mode,
                 shortdiff_leg_ids: &shortdiff_ids,
+                // A10 C5（裁定 (b)）：enter_ready 的 η 左操作数同源修正（与上方 η_bucket 同一
+                // cum_holding_cost 变量，F4）；0 ⟹ 历史判据 bit-exact（cost_model=None 回归锁）。
+                eta_correction: cum_holding_cost,
             };
             // #82 DC-E：只从真实在飞 campaign 建父腿快照；结构 carrier、身份不明或零单位不冒充父腿。
             // sync 只替换 OscillationBook 的只读 parents 表，lots 原位保留（无平行账本）。
@@ -1821,8 +1934,12 @@ where
     let final_px = prev_px.unwrap_or(0.0);
     let final_equity_abs = cash + units * final_px;
     let ledger_delta = final_equity_abs - nav0;
+    // A10 C5 TW 桥对账行：= ⌊cum_funding+cum_borrow+cum_liq_loss⌋（与循环内 shadow 同一量化
+    // 口径——对累计值截断，三项恒 ≥0 ⟹ 截断=⌊⌋）；cost_model=None ⟹ 0（bit-exact）。
+    let tw_holding_cost_bridge: i64 = (cum_funding + cum_borrow + cum_liq_loss) as i64;
     let r_decomp = super::super::strategy::risk::RDecomposition::assemble(
         cum_price_pnl, cum_fee, cum_funding, cum_borrow, cum_liq_loss, ledger_delta,
+        tw_holding_cost_bridge,
     );
     // 守恒断言（no-patch-mentality：残差超容差 = 真实资金泄漏 bug，不静默）。容差按名义规模缩放
     // （f64 累加 O(n) 舍入；nav0 量级 + 累计项量级）——绝对容差 max(1e-6, 1e-9·(|nav0|+|price_pnl|)）。
@@ -2177,7 +2294,7 @@ struct OpsemEntrySnapshot {
 //  ★opsem-dump（基因 073a/274号 谱系）：只读语义快照 dump——env-gated，零生产语义改动。
 //
 //  触发：env `OPSEM_DUMP_DIR=<dir>`（如 /tmp/opsem）。**未设 ⟹ 全部方法 no-op**，
-//  生产路径与既有测试逐字节不变（bit-exact，同 `dump_deltafree_pertrade`/`kappa_policy_from_env`
+//  生产路径与既有测试逐字节不变（bit-exact，同 `dump_deltafree_pertrade`/`kappa_policy_resolved`
 //  先例）。dump 不进 μ 桶键/J_Θ 排序/χ 门控——纯只读外化（no-patch-mentality：诊断切片
 //  不冒充裁决层，铁律 exit-μ-BUCKETING-FROZEN #180 同款约束）。
 //
@@ -2923,6 +3040,387 @@ fn plan_and_fill_mtm(
     }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+//  关⑤：双账本嵌套并列路径（纯新增，旧路径零改）
+//  施工图：chanlun/review-results/p120-nested-voice-dual-ledger-design-20260718.md §4.6
+// ──────────────────────────────────────────────────────────────────────────
+
+/// [`plan_and_fill_mtm_dual`] 的完整产出（[`FillOutput`] + 双账本终态 + 逐腿成交日志）。
+///
+/// `leg_log` 是嵌套/双账语义的**可观测物证**（090 纸面定义=运行时产出）：E 组测试据此断言
+/// 「开空父腿不动（M13）」「最深优先 cascade」「终点零残留」——不进 `FillOutput`（其字段
+/// 口径与净额路径逐字节对拍用，E4）。
+struct FillOutputDual {
+    /// 与 [`plan_and_fill_mtm`] 同构的产出（equity/pnls/trades/n_orders——E4 对拍对象）。
+    fill: FillOutput,
+    /// 双账本终态（窗口终点双腿强平**已应用**于账本 ⟹ 终态零持仓；强平 PnL 只入
+    /// `trade_pnls_with_forced`，与净额路径 :2883-2894 同口径）。
+    ledger: dual_ledger::DualLedger,
+    /// 逐腿成交日志（含强平笔）：bar/depth/leg/close/成交手数/realized/双腿后态。
+    leg_log: Vec<LegFillRec>,
+}
+
+/// 逐腿成交记录（[`plan_and_fill_mtm_dual`] 的可观测轨迹）。
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct LegFillRec {
+    bar: usize,
+    depth: u32,
+    leg: super::super::strategy::voice::VoiceSide,
+    close: bool,
+    qty: f64,
+    realized: f64,
+    q_long_after: f64,
+    q_short_after: f64,
+}
+
+/// voice_qty 同步（双账版，[`apply_voice_fill`] 同语义：两段真实成交分别扣/加，
+/// 绝不按原始请求量或 action 推断）。`FillOutcomeDual` 单腿单向 ⟹ closed/opened 至多一侧非零。
+fn apply_voice_fill_dual(
+    voice_qty: &mut [u32],
+    depth: usize,
+    fill: &dual_ledger::FillOutcomeDual,
+) {
+    if let Some(slot) = voice_qty.get_mut(depth) {
+        let closed = fill.closed_qty().round().clamp(0.0, u32::MAX as f64) as u32;
+        let opened = fill.opened_qty().round().clamp(0.0, u32::MAX as f64) as u32;
+        debug_assert!((fill.closed_qty() - closed as f64).abs() < 1e-9);
+        debug_assert!((fill.opened_qty() - opened as f64).abs() < 1e-9);
+        *slot = slot.saturating_sub(closed).saturating_add(opened);
+    }
+}
+
+/// ★关⑤：[`plan_and_fill_mtm`] 的**双账本嵌套并列版**（纯新增，旧路径零改）。
+///
+/// 与净额路径的差异（施工图 §4.6）：
+/// - **账本态**：`DualLedger{cash,q⁺,q⁻,cost⁺,cost⁻}`（M14 `P^sep` 账户层兑现）——分腿
+///   不先净额（M13 父仓保持：持多腿时开空腿，多腿不动）；realized 只出平仓腿（A' 保留）。
+/// - **识别**：开仓循环 per-bar 喂 [`strategy::recognize_nested`]（§3.2）——held 台账投影
+///   活动集 + 真 ShortDiff 角色门 ⟹ depth>0 子声部**运行时产出**（非纸面声部）。
+///   每 bar 以**当 bar 活动集**重识别全窗候选、只执行 `exec_index==i` 的决策（候选的
+///   根/子归属由其 exec bar 的活动集定——与净额路径的静态预分组语义差异如实声明；
+///   v1 全窗口径的前视有效域与 `run_theta_v0` 同源标注）。
+/// - **成交**：`apply_order` 调用点换 [`dual_ledger::apply_fill_dual`]（订单经
+///   [`strategy::plan_orders_dual_traced`] 携腿标记 + decision 精确配对，不用方向近似匹配）。
+/// - **退出循环**：`exit_decision_for_nested`（parent_invalid 实义化）+ cascade 发射
+///   （父退出 ⟹ 全部更深 held 强制退出）；批内执行**最深优先**（§3.5/§20：子腿现金先到位）。
+/// - **毛闸门**（§3.6，[设计选择,Θ_risk]）：depth>0 边际子开仓校验 `Σq_v ≤ γ̄·base_units`
+///   （`risk::gross_units_ok` 单源，coverage.rs:1687 同一 predicate）；超限 ⟹ 拒当步边际
+///   子开仓（fail-closed；不缩放既有腿——缩放规则属另一裁定）。
+/// - **§9 反向项信号池**：`groups[i]` 只收**根域开仓决策**（exit=false ∧ depth==0）——
+///   ShortDiff 子决策的反父 bits 不喂反向项（M13：父仓穿越次级反向信号持有，短差由子腿
+///   承担，非父平仓触发）；同级别反向平仓由 interpret 规则2 承载（close 决策携入场快照
+///   bsp，非当 bar 信号，不入池）。exit_decision_for_nested 的 stop/risk/parent_invalid
+///   与级联覆盖其余关闭通道。
+/// - **交易轨迹**：per-leg `track_position_transition`（多腿 +q_long / 空腿 −q_short 有符号
+///   喂入）——兼容腿标记（无真双开）下与净额 `units` 轨迹**同一交易列表**（E4 对拍锁）。
+///
+/// `apply_voice_fill` 语义不变（voice_qty[depth]=手数——单脊柱下 depth↔腿 1:1，
+/// side 由 held 台账定）。TW/R 分解/typed_ledger 无接线（诚实 None/空，同 v1 净额路径）。
+fn plan_and_fill_mtm_dual(
+    classification: &super::super::classifier::Classification,
+    tower: &[Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
+    bars: &[Bar],
+    initial_nav: f64,
+    config: &ThetaConfig,
+) -> FillOutputDual {
+    use super::super::strategy::exec::fill_bar_index;
+    use super::super::strategy::exit::{
+        cascade_exit_decisions, exit_decision_for_nested, parent_invalid_at,
+    };
+    use super::super::strategy::risk;
+    use super::super::strategy::voice::VoiceSide;
+    use super::super::strategy::LegOrder;
+
+    let n = bars.len();
+    let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
+    let fee_rate =
+        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
+
+    // 账本态（M14 P^sep）：DualLedger 分腿；voice_qty/held 与净额路径同构（depth 索引单槽）。
+    let mut ledger = dual_ledger::DualLedger::new(nav0);
+    let mut voice_qty: Vec<u32> = vec![0u32; config.voice.max_depth as usize];
+    let mut held: Vec<Option<HeldVoice>> = vec![None; config.voice.max_depth as usize];
+    let mut exit_orders_at: Vec<Vec<VoiceDecision>> = vec![Vec::new(); n];
+    // groups[i] = 根域开仓决策（§9 反向项信号池，见函数头注释）。
+    let mut groups: Vec<Vec<VoiceDecision>> = vec![Vec::new(); n];
+
+    let mut equity_curve = Vec::with_capacity(n);
+    let mut trade_pnls: Vec<f64> = Vec::new();
+    let mut n_orders_executed: usize = 0;
+    let mut trades: Vec<metrics::TradeRecord> = Vec::new();
+    // per-leg 入场 bar（交易轨迹配对；多腿 +q / 空腿 −q 有符号喂 track_position_transition）。
+    let mut entry_bar_long: Option<usize> = None;
+    let mut entry_bar_short: Option<usize> = None;
+    let mut leg_log: Vec<LegFillRec> = Vec::new();
+
+    for i in 0..n {
+        let bar = &bars[i];
+        let px = bar.close as f64 * config.tick.tick_size;
+
+        // ── 1. 退出 Close 延迟队列成交（spec:54 退出先于开仓；cascade 批内最深优先执行）。 ──
+        if !exit_orders_at[i].is_empty() && !bar.untradable && px > 0.0 {
+            let exit_decisions = std::mem::take(&mut exit_orders_at[i]);
+            let current_nav = ledger.equity(px);
+            let account = AccountState {
+                nav: if current_nav > 0.0 { current_nav } else { nav0 },
+                voice_qty: voice_qty.clone(),
+            };
+            let mut traced =
+                strategy::plan_orders_dual_traced(&exit_decisions, bars, &account, config);
+            // cascade 执行序：最深优先（§3.5；单脊柱 depth 唯一 ⟹ depth 降序即全序，
+            // stable sort 保持同 depth 内 ConflictKey 序——单脊柱下无同 depth 两决策）。
+            traced.sort_by(|a, b| b.0.depth.cmp(&a.0.depth));
+            for (d, lo) in traced.iter() {
+                if lo.order.qty > 0 && matches!(lo.order.action, StrictAction::Close) {
+                    let depth = d.depth as usize;
+                    let (ql_b, qs_b) = (ledger.q_long, ledger.q_short);
+                    let fill =
+                        dual_ledger::apply_fill_dual(lo, px, fee_rate, &mut ledger, &mut trade_pnls);
+                    if fill.executed_qty <= 0.0 {
+                        continue;
+                    }
+                    track_position_transition(
+                        &mut trades, &mut entry_bar_long, ql_b, ledger.q_long, i, false,
+                    );
+                    track_position_transition(
+                        &mut trades, &mut entry_bar_short, -qs_b, -ledger.q_short, i, false,
+                    );
+                    apply_voice_fill_dual(&mut voice_qty, depth, &fill);
+                    leg_log.push(LegFillRec {
+                        bar: i,
+                        depth: d.depth,
+                        leg: lo.leg,
+                        close: true,
+                        qty: fill.executed_qty,
+                        realized: fill.realized,
+                        q_long_after: ledger.q_long,
+                        q_short_after: ledger.q_short,
+                    });
+                    // 平仓后台账状态机：全平 ⟹ 清台账；未全平 ⟹ 重置 exit_pending（同净额路径）。
+                    if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
+                        if let Some(slot) = held.get_mut(depth) {
+                            *slot = None;
+                        }
+                    } else if let Some(Some(h)) = held.get_mut(depth) {
+                        h.exit_pending = false;
+                    }
+                    n_orders_executed += 1;
+                }
+            }
+        }
+
+        // ── 2. 开仓循环：per-bar recognize_nested（held 活动投影 + 真 ShortDiff 角色门）。 ──
+        if !bar.untradable && px > 0.0 {
+            let active = strategy::held_voice_projection(&held);
+            let recog = strategy::recognize_nested(classification, tower, &active, bars, config);
+            let bar_decisions: Vec<VoiceDecision> = recog
+                .into_iter()
+                .filter(|d| fill_bar_index(d.signal_index, bars, &config.exec) == Some(i))
+                .collect();
+            // §9 反向项信号池：只收根域开仓决策（M13：子决策的反父 bits 不触发父平仓）。
+            groups[i] = bar_decisions
+                .iter()
+                .filter(|d| !d.exit && d.depth == 0)
+                .copied()
+                .collect();
+
+            if !bar_decisions.is_empty() {
+                let current_nav = ledger.equity(px);
+                let account = AccountState {
+                    nav: if current_nav > 0.0 { current_nav } else { nav0 },
+                    voice_qty: voice_qty.clone(),
+                };
+                let traced =
+                    strategy::plan_orders_dual_traced(&bar_decisions, bars, &account, config);
+                // base_units（U_ℓ = NAV/px，runner [B] 同口径）——毛闸门分母。
+                let base_units = account.nav / px;
+                for (d, lo) in traced.iter() {
+                    if lo.order.qty <= 0 {
+                        continue;
+                    }
+                    // ★毛闸门（§3.6）：depth>0 边际子开仓 Σq_v ≤ γ̄·base_units（risk::gross_units_ok
+                    // 单源判定）；超限 ⟹ 拒当步边际子开仓（fail-closed，不缩放既有腿）。
+                    if d.depth > 0 && !lo.close {
+                        let tentative = ledger.gross_units() + lo.order.qty as f64;
+                        if !risk::gross_units_ok(tentative, base_units, config.risk.gamma) {
+                            continue;
+                        }
+                    }
+                    let depth = d.depth as usize;
+                    let (ql_b, qs_b) = (ledger.q_long, ledger.q_short);
+                    let fill =
+                        dual_ledger::apply_fill_dual(lo, px, fee_rate, &mut ledger, &mut trade_pnls);
+                    if fill.executed_qty <= 0.0 {
+                        continue;
+                    }
+                    track_position_transition(
+                        &mut trades, &mut entry_bar_long, ql_b, ledger.q_long, i, false,
+                    );
+                    track_position_transition(
+                        &mut trades, &mut entry_bar_short, -qs_b, -ledger.q_short, i, false,
+                    );
+                    apply_voice_fill_dual(&mut voice_qty, depth, &fill);
+                    leg_log.push(LegFillRec {
+                        bar: i,
+                        depth: d.depth,
+                        leg: lo.leg,
+                        close: lo.close,
+                        qty: fill.executed_qty,
+                        realized: fill.realized,
+                        q_long_after: ledger.q_long,
+                        q_short_after: ledger.q_short,
+                    });
+                    // 开仓成交 ⟹ 记入持仓台账（decision 精确配对，traced 单源）；
+                    // 平仓成交到手数 0 ⟹ 清台账（recognize 产 close 决策的成交后处理）。
+                    if fill.opened_qty() > 0.0 && !lo.close {
+                        record_held_voice(&mut held, d);
+                    } else if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
+                        if let Some(slot) = held.get_mut(depth) {
+                            *slot = None;
+                        }
+                    }
+                    n_orders_executed += 1;
+                }
+            }
+        }
+
+        // ── 3. 退出决策生成器（§9 closePred 四析取皆实：parent_invalid 实义化 + cascade）。 ──
+        if !bar.untradable && px > 0.0 {
+            let equity_now = ledger.equity(px);
+            let groups_view: Vec<Vec<&VoiceDecision>> =
+                groups.iter().map(|g| g.iter().collect()).collect();
+            for depth in 0..held.len() {
+                let hv = match held[depth] {
+                    Some(hv) => hv,
+                    None => continue,
+                };
+                if hv.exit_pending {
+                    continue; // Close 在延迟队列待成交——不重复入队
+                }
+                if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
+                    continue;
+                }
+                let parent_invalid = parent_invalid_at(&held, depth);
+                if let Some(exit_d) =
+                    exit_decision_for_nested(&hv, depth, bar, i, &groups_view, equity_now, parent_invalid)
+                {
+                    if let Some(fi) = fill_bar_index(i, bars, &config.exec) {
+                        if fi < n {
+                            // cascade 发射（M16 AncOK 父关则子关，最深优先）+ pending 标记。
+                            for d in cascade_exit_decisions(&held, depth, exit_d, i) {
+                                if let Some(Some(h)) = held.get_mut(d.depth as usize) {
+                                    h.exit_pending = true;
+                                }
+                                exit_orders_at[fi].push(d);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 权益曲线（净投影估值，M30；归一化 ÷nav0）。
+        let equity = ledger.equity(px) / nav0;
+        equity_curve.push(equity);
+    }
+
+    // ── 窗口终点强制平仓（双账本：双腿各自强平，分腿口径与净额 :2884-2894 同形；
+    //    强平**应用于账本** ⟹ 终态零持仓（E1 现金守恒/E3 零残留的断言对象）；
+    //    PnL 只入 trade_pnls_with_forced（realized 口径不含强平，与净额路径一致））。 ──
+    let mut trade_pnls_with_forced = trade_pnls.clone();
+    if let Some(last_bar) = bars.last() {
+        let last_px = last_bar.close as f64 * config.tick.tick_size;
+        if last_px > 0.0 {
+            let exit_bar = n.saturating_sub(1);
+            if ledger.q_long > 0.0 {
+                let lo = LegOrder {
+                    order: Order {
+                        action: StrictAction::Close,
+                        qty: ledger.q_long as i64,
+                        exec_index: exit_bar,
+                    },
+                    leg: VoiceSide::Long,
+                    close: true,
+                };
+                let fill = dual_ledger::apply_fill_dual(
+                    &lo, last_px, fee_rate, &mut ledger, &mut trade_pnls_with_forced,
+                );
+                if let Some(entry_bar) = entry_bar_long.take() {
+                    trades.push(metrics::TradeRecord {
+                        entry_bar,
+                        exit_bar,
+                        hold_bars: exit_bar.saturating_sub(entry_bar).max(1),
+                        qty: fill.closed_long,
+                        long: true,
+                        forced_close: true,
+                    });
+                }
+                leg_log.push(LegFillRec {
+                    bar: exit_bar,
+                    depth: 0, // 强平是账户层双腿清空，depth 栏无单槽语义（记 0 占位）
+                    leg: VoiceSide::Long,
+                    close: true,
+                    qty: fill.closed_long,
+                    realized: fill.realized,
+                    q_long_after: ledger.q_long,
+                    q_short_after: ledger.q_short,
+                });
+            }
+            if ledger.q_short > 0.0 {
+                let lo = LegOrder {
+                    order: Order {
+                        action: StrictAction::Close,
+                        qty: ledger.q_short as i64,
+                        exec_index: exit_bar,
+                    },
+                    leg: VoiceSide::Short,
+                    close: true,
+                };
+                let fill = dual_ledger::apply_fill_dual(
+                    &lo, last_px, fee_rate, &mut ledger, &mut trade_pnls_with_forced,
+                );
+                if let Some(entry_bar) = entry_bar_short.take() {
+                    trades.push(metrics::TradeRecord {
+                        entry_bar,
+                        exit_bar,
+                        hold_bars: exit_bar.saturating_sub(entry_bar).max(1),
+                        qty: fill.closed_short,
+                        long: false,
+                        forced_close: true,
+                    });
+                }
+                leg_log.push(LegFillRec {
+                    bar: exit_bar,
+                    depth: 0,
+                    leg: VoiceSide::Short,
+                    close: true,
+                    qty: fill.closed_short,
+                    realized: fill.realized,
+                    q_long_after: ledger.q_long,
+                    q_short_after: ledger.q_short,
+                });
+            }
+        }
+    }
+
+    let daily_returns = bar_returns(&equity_curve);
+    FillOutputDual {
+        fill: FillOutput {
+            equity_curve,
+            daily_returns,
+            trade_pnls_realized: trade_pnls,
+            trade_pnls_with_forced,
+            trades,
+            n_orders: n_orders_executed,
+            typed_ledger: Vec::new(), // 无腿级台账（诚实空，同 v1 净额路径）
+            tw_final: None,           // 无 TW 接线（E2 G5 同数锁待接线后启用，诚实 None）
+            r_decomp: None,
+        },
+        ledger,
+        leg_log,
+    }
+}
+
 /// ★交易轨迹配对（平仓事件 → [`metrics::TradeRecord`]）。
 ///
 /// ★持仓状态转移轨迹追踪（v1 方向中性，替代 long-only `track_close_to_trade`）。
@@ -3119,7 +3617,7 @@ fn simulate_fills(
 /// ★现金约束（多空对称）：开多需 `cash ≥ 含费 cost`（现金买入）；开空收到卖出 proceeds（cash+），
 /// 无需预付现金（保证金约束属 canonical §11/§14 K_Θ 风险可行集，v0 未建模——诚实有效域 L0：
 /// 做空保证金/借券成本未建模，标注非全 canonical §11，是 σ 双向 + TW 账本的最小兑现）。
-fn apply_order(
+pub(crate) fn apply_order(
     o: &Order,
     px: f64,
     fee_rate: f64,
@@ -3164,7 +3662,7 @@ fn apply_order(
 /// - 平多（delta=−1，units>0）：proceeds=平仓 qty×px×(1−fee)，cost_basis=qty×entry_cost（开仓含买入费）⟹ PnL=proceeds−cost_basis。
 /// - 平空（delta=+1，units<0）：开空成本基=qty×entry_cost（开空扣卖出费净收），平空支出=qty×px×(1+fee)（买回含买入费）⟹ PnL=成本基−支出。
 ///   两式统一为 `PnL = sign·(entry_cost − px·(1+sign·fee_factor))`，由下方有符号代数自动覆盖。
-fn apply_fill(
+pub(crate) fn apply_fill(
     delta: f64,
     qty: f64,
     close_only: bool,
@@ -3278,19 +3776,20 @@ fn apply_fill(
 
 /// 单次订单的真实成交分解。`closed_qty + opened_qty = executed_qty`；未成交余量只进入
 /// `rejected_qty`，不得进入执行计数、交易轨迹或声部持仓账。
+/// （pub(crate)：关⑤ D8 嵌入恒等对拍（dual_ledger.rs）只读复用，行为零改。）
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct FillOutcome {
-    requested_qty: f64,
-    executed_qty: f64,
-    closed_qty: f64,
-    opened_qty: f64,
-    rejected_qty: f64,
-    realized: f64,
-    fee: f64,
+pub(crate) struct FillOutcome {
+    pub(crate) requested_qty: f64,
+    pub(crate) executed_qty: f64,
+    pub(crate) closed_qty: f64,
+    pub(crate) opened_qty: f64,
+    pub(crate) rejected_qty: f64,
+    pub(crate) realized: f64,
+    pub(crate) fee: f64,
 }
 
 impl FillOutcome {
-    fn noop() -> Self {
+    pub(crate) fn noop() -> Self {
         Self {
             requested_qty: 0.0,
             executed_qty: 0.0,
@@ -3699,6 +4198,84 @@ mod tests {
         );
         // net_r 相对 gross 被成本拖累（净 ≤ 毛价格贡献 − 成交费）。
         assert!(r.net_r <= r.price_pnl_gross - r.commission_slippage + tol, "成本拖累 ⟹ net_r 被扣减");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★★A10 C5（裁定 (b) TW 桥 G1）+ 附则A（κ 注入优先序）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★T-N4（裁定 C5 验收线）端到端对账行：cost_model=Some ⟹ R 分解携带 **TW 桥对账行**
+    /// （= ⌊funding+borrow+liq⌋ 累计量化，与循环内 cum_holding_cost shadow 同一口径）且 >0；
+    /// 桥是对账行不改现金流 ⟹ 守恒残差仍 ≈0；TW 账本代数不动（零账本侵入，GAP3 A' 冻结）。
+    #[test]
+    fn a10_c5_tw_bridge_recon_line_with_costs() {
+        use super::super::super::strategy::risk::CostModel;
+        let mut config = ThetaConfig::default();
+        config.cost_model = Some(CostModel::new(0.001, 4, 0.0001, 0.0).unwrap());
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        let r = fill.r_decomp.expect("π 路径产 R 分解");
+        // 对账行 == ⌊funding+borrow+liq⌋（取整界内；三项恒≥0 ⟹ 截断=⌊⌋）。
+        let cost_sum = r.funding + r.borrow + r.liquidation_loss;
+        assert_eq!(r.tw_holding_cost_bridge, cost_sum as i64, "TW 桥对账行 == ⌊funding+borrow+liq⌋");
+        assert!(cost_sum > 0.0, "前置：持盾成本实计（funding={} borrow={}）", r.funding, r.borrow);
+        assert!(r.tw_holding_cost_bridge > 0, "桥>0 ⟹ 未修正 η=tw() 高估量 >0（G1 见证）");
+        // 量化界：|f64 真值 − shadow| < 1（桥接对账断言同一界）。
+        assert!((cost_sum - r.tw_holding_cost_bridge as f64).abs() < 1.0, "取整界内");
+        // 守恒：桥是对账行（不进现金流）⟹ R 域守恒不破。
+        let tol = 1e-6_f64.max(1e-9 * (1.0e6 + r.price_pnl_gross.abs()));
+        assert!(r.conservation_residual.abs() <= tol, "含桥守恒残差 {} 超容差 {}", r.conservation_residual, tol);
+    }
+
+    /// ★T-N4 回归锁（裁定 C5：κ=0 ∧ cost=None ⟹ 与现 enter_ready 判据同值 bit-exact）：
+    /// cost_model=None ⟹ 桥恒 0（修正量 0 ⟹ η_bucket/enter_ready 左操作数与历史同值）。
+    #[test]
+    fn a10_c5_bridge_zero_when_cost_none() {
+        let config = ThetaConfig::default(); // cost_model=None
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        let r = fill.r_decomp.expect("π 路径产 R 分解");
+        assert_eq!(r.tw_holding_cost_bridge, 0, "cost=None ⟹ 桥=0（修正量 0，bit-exact 回归锁）");
+    }
+
+    /// ★T-N6（附则A 验收线）：κ 优先序 **env>config>baseline** 写死（纯函数层锁定，不碰进程
+    /// env——env 臂由 `m7_kappa_sensitivity_grid_real_btc`（#[ignore]）经 set_var 端到端覆盖）；
+    /// `risk_policy=Some(try_new_ratio(1,2))` ⟹ `eta_star` 用 ⌈L^wc+Q/2⌉；None ⟹ baseline 逐字节一致。
+    #[test]
+    fn a10_kappa_priority_env_over_config_over_baseline() {
+        use super::super::super::strategy::ledger::{RiskPolicy, TwState};
+        let half = RiskPolicy::try_new_ratio(1, 2).unwrap();
+        // baseline 臂：env=None ∧ config=None ⟹ κ=0。
+        assert_eq!(kappa_priority_resolve(None, None), RiskPolicy::baseline(), "双臂空 ⟹ baseline κ=0");
+        // config 臂：env=None ⟹ 取 config.risk_policy（构造闸值原样穿透）。
+        assert_eq!(kappa_priority_resolve(None, Some(half)), half, "config.risk_policy 注入生效");
+        // env 臂：env>config（诊断覆写优先，单源纪律防双源静默漂移）。
+        assert_eq!(
+            kappa_priority_resolve(Some((2, 1)), Some(half)),
+            RiskPolicy::try_new_ratio(2, 1).unwrap(),
+            "env>config（优先序写死）"
+        );
+        assert_eq!(kappa_priority_resolve(Some((1, 2)), None), half, "env 独立臂（config=None）");
+        // T-N6 语义锚：κ=1/2 ⟹ η⋆=⌈L^wc+Q/2⌉——L^wc=70, Q=100 ⟹ ⌈70+50⌉=120。
+        let s = TwState { notional_in: 100, withdrawn: 30, ..TwState::initial() };
+        assert_eq!(kappa_priority_resolve(None, Some(half)).eta_star(&s), 120, "κ=1/2 ⟹ η⋆=⌈L^wc+Q/2⌉=120");
+        // None ⟹ 与现路径逐字节一致：baseline η⋆=L^wc=70。
+        assert_eq!(kappa_priority_resolve(None, None).eta_star(&s), 70, "None ⟹ baseline κ=0（bit-exact）");
+    }
+
+    /// ★T-N6（附则A）：非法 env 值 **panic 语义不变**（诊断 knob 快失败，不静默降级掩盖网格错配）。
+    #[test]
+    #[should_panic(expected = "非法 κ barrier grid 值")]
+    fn a10_kappa_priority_invalid_env_panics() {
+        // 负分子（κ<0 非法，构造闸拒 ⟹ panic）；config 在场也不兜底（env 臂优先且快失败）。
+        let _ = kappa_priority_resolve(Some((-1, 1)), RiskPolicy::try_new_ratio(1, 2));
+    }
+
+    /// ★T-N6（附则A）：非正分母 panic（有理病态非法）。
+    #[test]
+    #[should_panic(expected = "非法 κ barrier grid 值")]
+    fn a10_kappa_priority_zero_den_panics() {
+        let _ = kappa_priority_resolve(Some((1, 0)), None);
     }
 
     // ──────────────────────────────────────────────────────────────────────
@@ -4569,7 +5146,7 @@ mod tests {
     fn m7_l2_witness_treasury_reach_real_btc() {
         use super::super::super::strategy::ledger::{RiskPolicy, TStage};
         use super::super::data;
-        let config = ThetaConfig::default();
+        let mut config = ThetaConfig::default();
         let mut ds = data::load_by_symbol("BTC", &config)
             .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
         // ★窗口截断（M7_WITNESS_BARS，可选）：O(n²) 前缀重分类在 461万 bar 全量上极重（小时级）。
@@ -4579,6 +5156,14 @@ mod tests {
         }
         let n = ds.bars.len();
         let initial_nav = 1.0e6;
+        // ★A10 成本注入（M7_WITNESS_A10=1，p126 runbook §2.1 阶段 3a 新口径）：margin=CME-simple +
+        // cost=三常费率，与 m8_e2e 同函数同源（wverify_run::q4_margin_model/m6_cost_model，禁第二查法）；
+        // env 未设 ⟹ 零成本旧路径 bit-exact 不动（A10 附则A 优先序 env>config>baseline；C5 不回滚条款：
+        // cost_model=None ⟹ funding/borrow/liq 三项恒 0 ⟹ cum_holding_cost=0，与历史判据同值）。
+        if std::env::var("M7_WITNESS_A10").ok().as_deref() == Some("1") {
+            config.margin = Some(super::super::wverify_run::q4_margin_model(initial_nav));
+            config.cost_model = Some(super::super::wverify_run::m6_cost_model());
+        }
 
         // ★与 run_theta_v0_pi_inner 逐字节同款：真增量分类器 + 生产 π fill loop（χ≡1 全覆盖）。
         // 不经 run_theta_v0_pi（其 RunResult 不透传 π 路径 tw_final）——直接消费生产真值源。
@@ -4610,6 +5195,25 @@ mod tests {
         eprintln!("Q_T (notional_in)     : {}（Q_0={q0}）", tw.notional_in);
         eprintln!("W_T (withdrawn)       : {}（I_0={i0}，W_T≥I_0={}）", tw.withdrawn, tw.withdrawn >= i0);
         eprintln!("η_T (tw)              : {}（η_*={}, η_T≥η_*={}）", tw.tw(), policy.eta_star(&tw), tw.tw() >= policy.eta_star(&tw));
+        // ★A10 C5 增打两行（p126 runbook §2.1，additive 不动既有行）：cum_holding_cost = r_decomp
+        // .tw_holding_cost_bridge（⌊funding+borrow+liq⌋ 累计量化 shadow，与 loop 内 eta_correction 同源）；
+        // η_corrected = tw() − cum_holding_cost（C5 后唯一合法判读口径，修正只降不升）。
+        let cum_holding_cost = fill.r_decomp.as_ref().map(|d| d.tw_holding_cost_bridge).unwrap_or(0);
+        let eta_corrected = tw.tw() - cum_holding_cost;
+        let holding_cost_truth = fill
+            .r_decomp
+            .as_ref()
+            .map(|d| d.funding + d.borrow + d.liquidation_loss)
+            .expect("π 路径 R 分解生产者就位（r_decomp=Some）");
+        assert!(
+            holding_cost_truth >= 0.0
+                && (holding_cost_truth - cum_holding_cost as f64).abs() < 1.0,
+            "A10 C5 witness 桥接对账取整界破：f64真值={} shadow={}",
+            holding_cost_truth,
+            cum_holding_cost,
+        );
+        eprintln!("cum_holding_cost      : {cum_holding_cost}（A10 C5 shadow；cost_model=None ⟹ 0 回归锁）");
+        eprintln!("η_corrected           : {eta_corrected}（=tw()−cum_holding_cost，判读改用值；η_corrected≥η_*={}）", eta_corrected >= policy.eta_star(&tw));
         eprintln!("free / holding        : {} / {}", tw.free, tw.holding);
         eprintln!("open_legacy_legs      : {}", tw.open_legacy_legs);
         eprintln!("Σ已实现PnL            : {realized_sum:.2}（TW 漂移={}）", tw.tw() - q0);
@@ -4656,14 +5260,29 @@ mod tests {
         use super::super::super::strategy::ledger::TStage;
         use super::super::data;
         use super::super::prereg_windows::PREREG_WINDOWS;
-        let config = ThetaConfig::default();
+        let mut config = ThetaConfig::default();
+        // ★A10 成本注入（M7_WITNESS_A10=1，p126 runbook §2.1）：cost_model 循环前注入（与 nav 无关）；
+        // margin 循环内按各窗 nav 注入（q4_margin_model cushions 依赖 nav0）——与 m8_e2e 同函数同源
+        // （禁第二查法）；env 未设 ⟹ 零成本旧路径 bit-exact 不动（C5 回归锁：三项恒 0）。
+        let a10 = std::env::var("M7_WITNESS_A10").ok().as_deref() == Some("1");
+        if a10 {
+            config.cost_model = Some(super::super::wverify_run::m6_cost_model());
+        }
         let ds = data::load_by_symbol("BTC", &config).expect("需 BTC 数据");
         let sw = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC 在 PREREG_WINDOWS");
 
         let mut report = String::from(
             "# M8 treasury 多窗 Reach 分布（BTC anchored walk-forward，含 2020-2021 牛市段）\n\n\
-             口径：κ=0 baseline；nav=窗首价×1000；生产 π 路径 tw_final 单读（stage 单向不可逆 ⟹ 终态=Reach）。\n\n\
-             | 窗 | 期间 | bar | n_orders | 终Stage | Σ已实现PnL | holding | Q(notional_in) | holding−Q(门距离) | free | 退本金target | Reach≥II |\n\
+             口径：κ=0 baseline；nav=窗首价×1000；生产 π 路径 tw_final 单读（stage 单向不可逆 ⟹ 终态=Reach）。\n\n",
+        );
+        if a10 {
+            report.push_str(&format!(
+                "**成本口径：A10 注入（M7_WITNESS_A10=1）——margin=CME-simple + cost=三常费率（{}）；TW桥列=r_decomp.tw_holding_cost_bridge（⌊funding+borrow+liq⌋）。**\n\n",
+                super::super::super::strategy::risk::RATE_UNCALIBRATED_LABEL,
+            ));
+        }
+        report.push_str(
+            "| 窗 | 期间 | bar | n_orders | 终Stage | Σ已实现PnL | holding | Q(notional_in) | holding−Q(门距离) | free | 退本金target | Reach≥II |\n\
              |---|---|---|---|---|---|---|---|---|---|---|---|\n",
         );
         let mut any_reach_ii = false;
@@ -4677,6 +5296,10 @@ mod tests {
             let first_px = test.bars.iter().find(|b| !b.untradable && b.close > 0)
                 .map(|b| b.close as f64 * config.tick.tick_size).unwrap_or(1.0);
             let nav = (first_px * 1000.0).max(1.0e6);
+            // ★A10 margin 按各窗 nav 注入（q4_margin_model cushions = 0.02/0.05·nav0；M7_WITNESS_A10=1 时）。
+            if a10 {
+                config.margin = Some(super::super::wverify_run::q4_margin_model(nav));
+            }
             let mut ci = super::super::incremental::IncrementalClassifier::new(&test.bars, &config);
             let fill = pi_theta_fill_loop(
                 |i| { let (c, t) = ci.classify_at(i); (c, t, ci.tower_generation(), ci.forest_epoch()) },
@@ -4724,7 +5347,7 @@ mod tests {
     fn m7_kappa_sensitivity_grid_real_btc() {
         use super::super::super::strategy::ledger::{RiskPolicy, TStage};
         use super::super::data;
-        let config = ThetaConfig::default();
+        let mut config = ThetaConfig::default();
         let mut ds = data::load_by_symbol("BTC", &config)
             .expect("需 BTC 数据（analysis/data_cache/btc_1m_full.json）");
         if let Some(k) = std::env::var("M7_WITNESS_BARS").ok().and_then(|s| s.parse::<usize>().ok()) {
@@ -4732,6 +5355,12 @@ mod tests {
         }
         let n = ds.bars.len();
         let initial_nav = 1.0e6;
+        // ★A10 成本注入（M7_WITNESS_A10=1，p126 runbook §2.1）：margin=CME-simple + cost=三常费率，
+        // 与 m8_e2e 同函数同源（禁第二查法）；env 未设 ⟹ 零成本旧路径 bit-exact 不动（C5 回归锁）。
+        if std::env::var("M7_WITNESS_A10").ok().as_deref() == Some("1") {
+            config.margin = Some(super::super::wverify_run::q4_margin_model(initial_nav));
+            config.cost_model = Some(super::super::wverify_run::m6_cost_model());
+        }
         let q0 = initial_nav as i64;
         let i0 = initial_nav as i64;
 
@@ -4741,7 +5370,8 @@ mod tests {
         eprintln!("═══ M7 κ barrier L2 敏感性网格（BTC {n} bar，Q_0={q0}） ═══");
         eprintln!("  κ       终TStage         n_orders  Reach_II  Reach_III  W_T≥I_0  legs=0  η_T-η_*(barrier距离)");
         for (num, den) in grid {
-            // κ 经生产单点 knob 注入（kappa_policy_from_env）——re-run 整条生产 π 路径（忠实：κ 门控
+            // κ 经生产单点 knob 注入（kappa_policy_resolved 的 env 优先臂，A10 附则A 优先序
+            // env>config>baseline）——re-run 整条生产 π 路径（忠实：κ 门控
             // stage_progression，post-hoc 改 policy 会算错轨迹）。
             std::env::set_var("KAPPA_BARRIER_NUM", num.to_string());
             std::env::set_var("KAPPA_BARRIER_DEN", den.to_string());
@@ -6511,5 +7141,277 @@ mod tests {
             n_falsify + n_confirm + n_inconclusive >= 1,
             "≥1 品种产订单流（多标的真实数据 L2 检验可执行），实测全部工程断流 ⟹ 接线回退",
         );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  关⑤ E 组：双账本嵌套集成（plan_and_fill_mtm_dual，4 个）
+    //  施工图：chanlun/review-results/p120-nested-voice-dual-ledger-design-20260718.md §6
+    // ──────────────────────────────────────────────────────────────────────
+
+    use super::super::super::classifier::center::UnitRange;
+    use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+    use super::super::super::types::Direction;
+
+    fn obar(idx: usize, o: i64, h: i64, l: i64, c: i64) -> Bar {
+        Bar {
+            source_index: idx,
+            timestamp: idx as i64,
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: 100,
+            untradable: false,
+        }
+    }
+
+    /// E 组塔夹具：L1 走势 A（Compose 五段 L0 子，外缘 Long，id=(1,0)，λ=0，ρ=20——
+    /// 相对 A1 夹具的 ρ 已**延伸**（12→20，同 ElementId 同 λ，coverage.rs:4323 漂移形态），
+    /// D1 零字段案的 span 包含身份重建据此验收）。
+    fn e_tower() -> Vec<Rc<Vec<LeveledMove>>> {
+        let unit = |si: usize, ei: usize, dir: Direction, lo: i64, hi: i64, ord: u64| {
+            LeveledMove::from_unit(
+                &UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi },
+                ElementId { level: 0, ordinal: ord },
+            )
+        };
+        let s0 = unit(0, 4, Direction::Up, 0, 10, 0);
+        let s1 = unit(4, 8, Direction::Down, 3, 12, 1);
+        let s2 = unit(8, 12, Direction::Up, 5, 15, 2);
+        let s3 = unit(12, 16, Direction::Down, 8, 18, 3);
+        let s4 = unit(16, 20, Direction::Up, 10, 25, 4);
+        let c = Center { zd: 5, zg: 15, dd: 0, gg: 25, start_index: 0, end_index: 20 };
+        let a = LeveledMove::compose(&[s0, s1, s2, s3, s4], c, 1, ElementId { level: 1, ordinal: 0 });
+        vec![Rc::new(Vec::new()), Rc::new(vec![a])]
+    }
+
+    /// E 组分类夹具：L1 buy1@12（父根开仓：host 查 (1,12) 落空——A 已延伸 ρ=20 ⟹ Ambient 根）；
+    /// L0 sell1@16（子 ShortDiff：host=sub(12,16) ⟹ 真父 A (level=1, ρ=20)；附着一致经
+    /// span 包含重建 ⟺ A.id）；可选 L0 buy1@18（子腿反向关闭触发，interpret 规则2 同级）。
+    fn e_classification(with_child_close_trigger: bool) -> Classification {
+        let buy_parent = BspPoint {
+            source_index: 12,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 90,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let sell_child = BspPoint {
+            source_index: 16,
+            bits: BspBits { sell1: true, ..Default::default() },
+            pivot_low: 0,
+            pivot_high: 210,
+            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let mut l0 = vec![sell_child];
+        if with_child_close_trigger {
+            l0.push(BspPoint {
+                source_index: 18,
+                bits: BspBits { buy1: true, ..Default::default() },
+                pivot_low: 120,
+                pivot_high: 0,
+                center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 }),
+                struct_break_dir: None,
+                force: None,
+            });
+        }
+        Classification {
+            levels: vec![
+                LevelState { bsp: Rc::new(l0), ..Default::default() },
+                LevelState { bsp: Rc::new(vec![buy_parent]), ..Default::default() },
+            ],
+        }
+    }
+
+    /// E1 价格路径（22 根）：上行 → 顶（bar 16-17）→ 回调（18-19）→ 续（20-21）。
+    /// 止损不触及（父 stop=90 / 子 stop=210 全程安全）；tick_size=1.0（tick=美元）。
+    fn e1_bars() -> Vec<Bar> {
+        let closes = [
+            100, 105, 110, 115, 120, 125, 130, 135, 140, 145, 150, 155, 160, // 0..12 上行
+            165, 168, 170, 172, 171, // 13..17 见顶（17=子空成交）
+            150, 140, // 18..19 回调（19=子平成交）
+            145, 150, // 20..21 续（21=末根强平）
+        ];
+        closes
+            .iter()
+            .enumerate()
+            .map(|(i, &c)| obar(i, c - 1, c + 3, c - 3, c))
+            .collect()
+    }
+
+    /// E3 价格路径：上行见顶后**崩落**（bar 18 low=85 < 父 stop=90 ⟹ 父止损触发）。
+    fn e3_bars() -> Vec<Bar> {
+        let mut bars = e1_bars();
+        bars[18] = obar(18, 168, 169, 85, 130); // low 85 ≤ 90 ⟹ 父多头止损触及
+        bars[19] = obar(19, 128, 129, 122, 125); // cascade 成交 bar
+        bars[20] = obar(20, 126, 129, 124, 128);
+        bars[21] = obar(21, 129, 132, 127, 130);
+        bars
+    }
+
+    /// E1（四步 1-cycle 双账本形态，M13 父仓保持）：根 Long 开 → 子 Short 开（父腿不动）
+    /// → 子买侧信号平（realized>0）→ 父腿仍在 → 终点全平 ⟹ 现金守恒。
+    #[test]
+    fn e2e_four_step_cycle_dual_ledger() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let classification = e_classification(true);
+        let tower = e_tower();
+        let bars = e1_bars();
+        let dual = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+
+        // 逐腿轨迹：①根 Long 开@13；②子 Short 开@17（父腿不动）；③子平@19（realized>0，
+        // 父腿仍在）；④父终点强平@21。
+        assert_eq!(dual.leg_log.len(), 4, "四笔成交（2 开 + 1 子平 + 1 强平）");
+        let l0 = &dual.leg_log[0];
+        assert!(l0.leg == VoiceSide::Long && !l0.close && l0.depth == 0 && l0.bar == 13);
+        assert!(l0.q_long_after > 0.0 && l0.q_short_after == 0.0);
+        let l1 = &dual.leg_log[1];
+        assert!(l1.leg == VoiceSide::Short && !l1.close && l1.depth == 1 && l1.bar == 17);
+        assert_eq!(
+            l1.q_long_after, l0.q_long_after,
+            "开空不触多腿（M13 父仓保持，不先净额）"
+        );
+        assert!(l1.q_short_after > 0.0);
+        let l2 = &dual.leg_log[2];
+        assert!(l2.leg == VoiceSide::Short && l2.close && l2.depth == 1 && l2.bar == 19);
+        assert!(l2.realized > 0.0, "子空腿 realized>0（价格下跌，G^sep>0 腿级语义）");
+        assert_eq!(l2.q_long_after, l0.q_long_after, "子平仓后父腿仍在");
+        assert_eq!(l2.q_short_after, 0.0);
+        let l3 = &dual.leg_log[3];
+        assert!(l3.leg == VoiceSide::Long && l3.close && l3.bar == 21);
+        assert_eq!(l3.q_long_after, 0.0, "终点全平");
+        assert_eq!(dual.ledger.q_long, 0.0);
+        assert_eq!(dual.ledger.q_short, 0.0);
+
+        // 交易轨迹：子平先（@19 非强平），父强平后（@21）。
+        assert_eq!(dual.fill.trades.len(), 2);
+        assert!(!dual.fill.trades[0].long);
+        assert_eq!(dual.fill.trades[0].exit_bar, 19);
+        assert!(!dual.fill.trades[0].forced_close);
+        assert!(dual.fill.trades[1].long);
+        assert!(dual.fill.trades[1].forced_close);
+
+        // realized 口径不含强平：只有子平仓一笔（>0）。
+        assert_eq!(dual.fill.trade_pnls_realized.len(), 1);
+        assert!(dual.fill.trade_pnls_realized[0] > 0.0);
+
+        // 现金守恒：cash_final == nav0 + Σ(trade_pnls_with_forced)（费用已内含 realized）。
+        let sum: f64 = dual.fill.trade_pnls_with_forced.iter().sum();
+        assert!(
+            (dual.ledger.cash - (1_000_000.0 + sum)).abs() < 1e-6,
+            "现金守恒：cash={} nav+Σpnl={}",
+            dual.ledger.cash,
+            1_000_000.0 + sum
+        );
+    }
+
+    /// E2（G5 双层记账同数锁）：E1 中子空腿 realized == TW ShortDiff 事件的父降成本金额。
+    /// TW 接线到位后启用（施工图 §6 E2 原文）；当前 v1 dual 路径 tw_final=None（诚实空）。
+    #[test]
+    #[ignore = "TW ShortDiff 通道未接线 v1 dual 路径（tw_final=None 诚实空）；G5 同数锁待 TW 接线后启用（施工图 §6 E2）"]
+    fn e2e_g5_double_entry_same_number() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let classification = e_classification(true);
+        let tower = e_tower();
+        let bars = e1_bars();
+        let dual = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+        // 子空腿 realized（G^sep 腿级收益，一个会计身份）。
+        let child_short_realized: f64 = dual
+            .leg_log
+            .iter()
+            .filter(|r| r.close && r.leg == VoiceSide::Short && r.depth == 1)
+            .map(|r| r.realized)
+            .sum();
+        assert!(child_short_realized > 0.0);
+        // G5 同数（T37 child.P&L≡parent.cost_reduction）：TW ShortDiff(d_cash) 事件的
+        // 父降成本金额 == child_short_realized——另一个会计身份。接线后启用断言。
+        let tw = dual
+            .fill
+            .tw_final
+            .expect("TW ShortDiff 通道接线后启用：TwState 产 ShortDiff 划转事件");
+        let _ = (tw, child_short_realized);
+    }
+
+    /// E3（级联关闭 e2e）：父止损触发时子活 ⟹ 交易列表子平先于父平（最深优先）、零残留持仓。
+    #[test]
+    fn e2e_cascade_parent_stop_closes_child_first() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let classification = e_classification(false); // 无买侧触发——父止损驱动级联
+        let tower = e_tower();
+        let bars = e3_bars();
+        let dual = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+
+        // 逐腿轨迹：根开@13 → 子开@17 → bar18 父止损（low=85≤90）⟹ cascade @19 子先平、父后平。
+        assert_eq!(dual.leg_log.len(), 4, "2 开 + cascade 2 平（无强平笔）");
+        let c0 = &dual.leg_log[2];
+        let c1 = &dual.leg_log[3];
+        assert!(c0.close && c0.depth == 1 && c0.leg == VoiceSide::Short && c0.bar == 19,
+            "子平先（最深优先 cascade）");
+        assert!(c1.close && c1.depth == 0 && c1.leg == VoiceSide::Long && c1.bar == 19,
+            "父平后");
+        // 交易列表同序：子平先于父平。
+        assert_eq!(dual.fill.trades.len(), 2);
+        assert!(!dual.fill.trades[0].long, "首笔=子空腿平");
+        assert!(dual.fill.trades[1].long, "次笔=父多腿平");
+        assert_eq!(dual.fill.trades[0].exit_bar, 19);
+        assert_eq!(dual.fill.trades[1].exit_bar, 19);
+        // 零残留持仓（cascade 全清；无强平 ⟹ realized 口径含两笔平仓）。
+        assert_eq!(dual.ledger.q_long, 0.0);
+        assert_eq!(dual.ledger.q_short, 0.0);
+        assert_eq!(dual.fill.trade_pnls_realized.len(), 2);
+        assert!(dual.fill.trade_pnls_realized[0] > 0.0, "子空腿崩落平仓 realized>0");
+        // 现金守恒（终态零持仓：cash == nav0 + Σrealized（无强平））。
+        let sum: f64 = dual.fill.trade_pnls_realized.iter().sum();
+        assert!((dual.ledger.cash - (1_000_000.0 + sum)).abs() < 1e-6, "现金守恒");
+    }
+
+    /// E4（嵌套关闭 bit-exact 锁）：无 ShortDiff 触发数据（缺塔 ⟹ 全 Ambient）⟹
+    /// `plan_and_fill_mtm_dual` 输出 == `plan_and_fill_mtm`（§4.4 兼容嵌入的链路级对拍）。
+    #[test]
+    fn e2e_nested_disabled_bitexact() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        // 单级 L0 buy1@0（pivot_low=90；无 3 类 bit ⟹ center 占位即可）；全程无卖侧 ⟹ 无反向。
+        let classification = Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![BspPoint {
+                    source_index: 0,
+                    bits: BspBits { buy1: true, ..Default::default() },
+                    pivot_low: 90,
+                    pivot_high: 0,
+                    center: None,
+                    struct_break_dir: None,
+                    force: None,
+                }]),
+                ..Default::default()
+            }],
+        };
+        let bars = vec![obar(0, 100, 103, 97, 100), obar(1, 104, 107, 101, 105), obar(2, 109, 112, 106, 110)];
+        let nav = 1_000_000.0;
+
+        let decisions_old = strategy::recognize(&classification, &bars, &cfg);
+        let old = plan_and_fill_mtm(&decisions_old, &bars, nav, &cfg);
+        let dual = plan_and_fill_mtm_dual(&classification, &[], &bars, nav, &cfg).fill;
+
+        assert_eq!(dual.equity_curve, old.equity_curve, "equity 逐字节");
+        assert_eq!(dual.daily_returns, old.daily_returns, "returns 逐字节");
+        assert_eq!(dual.trade_pnls_realized, old.trade_pnls_realized, "realized 逐字节");
+        assert_eq!(
+            dual.trade_pnls_with_forced, old.trade_pnls_with_forced,
+            "含强平口径逐字节"
+        );
+        assert_eq!(dual.trades, old.trades, "交易轨迹逐字节（per-leg 轨迹=净额轨迹）");
+        assert_eq!(dual.n_orders, old.n_orders, "订单数一致");
+        assert!(old.n_orders > 0, "夹具有效（确有交易，非空对拍）");
+        assert_eq!(dual.typed_ledger.len(), old.typed_ledger.len());
+        assert!(dual.tw_final.is_none() && old.tw_final.is_none());
+        assert!(dual.r_decomp.is_none() && old.r_decomp.is_none());
     }
 }

@@ -346,8 +346,28 @@ impl RiskPolicy {
     /// η_* = [`eta_star`](Self::eta_star)。生产域 η_*≥0（`l_wc` 下界 0 + κ≥0 构造不变量 +
     /// Q=notional_in 非负）⟹ 四支穷尽互斥；分支序使 η=0 恒归 `Zero`（即使 η_*=0 时
     /// `η≥η_*` 同时成立——PDF 原文序优先，Zero 在 PositiveSafe 之前）。
+    ///
+    /// 委托 [`eta_bucket_eta_corrected`](Self::eta_bucket_eta_corrected)（修正量 0）——
+    /// 单一实现源，零修正路径与历史行为逐字节相同（bit-exact）。
     pub fn eta_bucket(&self, s: &TwState) -> EtaBucket {
-        let eta = s.tw();
+        self.eta_bucket_eta_corrected(s, 0)
+    }
+
+    /// **η 修正版 γ_t 四桶（A10 C5 裁定 (b)，TW 桥 G1）**：η_corrected = `tw() − eta_correction`
+    /// 后与 [`eta_star`](Self::eta_star) 比较，分段式分支序与 [`eta_bucket`](Self::eta_bucket)
+    /// 逐字一致（只换左操作数）。
+    ///
+    /// `eta_correction` = 生产 π loop 的 `cum_holding_cost` i64 shadow（funding+borrow+liq 累计
+    /// 量化，f64→定点口径与 treasury `Realize(⌊realized_cum⌋)` 一致）——TW 账本不经任何构造子
+    /// 见到持盾成本（GAP3 A' 构造子冻结不动，零账本侵入），`tw()` 因此**高估**真实在险权益；
+    /// 修正在策略层消费侧做（TwEvent 代数不动）。`eta_correction=0` ⟹ 与
+    /// [`eta_bucket`](Self::eta_bucket) 同值 bit-exact（回归锁）。
+    ///
+    /// ★F4 同源约束（裁定 C5 第 4 条，a5-etabucket 终裁）：本方法与
+    /// [`enter_ready_eta_corrected`](Self::enter_ready_eta_corrected) 的 `η≥η⋆` 左操作数是
+    /// **同一个修正量**——两处必须同源修正为一笔改动，否则 z 第 15 维与判据裂口。
+    pub fn eta_bucket_eta_corrected(&self, s: &TwState, eta_correction: i64) -> EtaBucket {
+        let eta = s.tw() - eta_correction;
         if eta < 0 {
             EtaBucket::Deficit
         } else if eta == 0 {
@@ -370,12 +390,35 @@ impl RiskPolicy {
     /// - `openLegacyLegs=0`：无未闭合 legacy 降成本腿（OQ-9 入口证书，`LegalEnterEarning`）。
     /// - `RiskNormal`：风控正常（非破产/清算/去杠杆）。
     /// - `η≥η⋆`：在险权益 `tw()` 过 barrier `eta_star`（覆盖最坏损失 + κ 缓冲）。
+    ///
+    /// 委托 [`enter_ready_eta_corrected`](Self::enter_ready_eta_corrected)（修正量 0）——
+    /// 单一实现源，零修正路径与历史行为逐字节相同（bit-exact）。
     pub fn enter_ready(&self, s: &TwState, i0: i64, risk_normal: bool) -> bool {
+        self.enter_ready_eta_corrected(s, i0, risk_normal, 0)
+    }
+
+    /// **η 修正版 EnterReady（A10 C5 裁定 (b)，TW 桥 G1）**：五合取逐字同
+    /// [`enter_ready`](Self::enter_ready)，仅 `η≥η⋆` 合取项的左操作数换为
+    /// **η_corrected = `tw() − eta_correction`**。
+    ///
+    /// `eta_correction` = 生产 π loop 的 `cum_holding_cost` i64 shadow（funding+borrow+liq 累计
+    /// 量化，`tw_seen_basis`/`tw_seen_realized` 同款「对累计值量化」模式；f64→定点口径与
+    /// treasury `Realize(⌊realized_cum⌋)` 一致）。G1 缺口：cost_model=Some 时持盾成本只扣 f64
+    /// `cash`，TW 账本不经任何构造子见到它 ⟹ 未修正 η=`tw()` **高估**真实在险权益 ⟹
+    /// EnterReady **易过=激进侧（不安全）**——修正后 η 保守侧（不易过 = 安全侧）。
+    /// 零账本侵入：TwEvent 代数/构造子冻结不动（GAP3 A'），修正是策略层消费侧口径。
+    /// `eta_correction=0` ⟹ 与 [`enter_ready`](Self::enter_ready) 同值 bit-exact（回归锁，
+    /// κ=0 ∧ cost_model=None 路径逐字节不变）。
+    ///
+    /// ★F4 同源约束（裁定 C5 第 4 条）：η_bucket（ZExt 第 15 维）与本判据左操作数必须同源
+    /// 修正——生产侧同一 `cum_holding_cost` 变量同时喂
+    /// [`eta_bucket_eta_corrected`](Self::eta_bucket_eta_corrected) 与本方法（runner π loop 单点）。
+    pub fn enter_ready_eta_corrected(&self, s: &TwState, i0: i64, risk_normal: bool, eta_correction: i64) -> bool {
         s.stage == TStage::CapitalRecovered
             && s.withdrawn >= i0
             && s.open_legacy_legs == 0
             && risk_normal
-            && s.tw() >= self.eta_star(s)
+            && s.tw() - eta_correction >= self.eta_star(s)
     }
 
     /// **BuyCore 合法性谓词（契约锚 PDF §10 步骤4 定理1 充要）**：
@@ -1156,6 +1199,100 @@ mod tests {
             !RiskPolicy::try_new(3).unwrap().enter_ready(&ready, 100, true),
             "η(200)<η⋆(0+3·100=300) ⟹ barrier 未过 ⟹ 不 ready"
         );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  A10 C5（裁定 (b) TW 桥 G1）：η 修正族——enter_ready_eta_corrected /
+    //  eta_bucket_eta_corrected（零账本侵入，策略层消费侧修正）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★T-N4 回归锁（裁定 C5 验收线）：修正量=0 ⟹ 修正版与旧方法**同值 bit-exact**
+    /// （κ=0 ∧ cost_model=None 路径逐字节不变）。网格扫 stage/withdrawn/legs/risk_normal/η 五轴。
+    #[test]
+    fn a10_c5_zero_correction_bit_exact() {
+        let states = [
+            TwState { free: 0, holding: 100, withdrawn: 100, notional_in: 100,
+                stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0 },
+            TwState { free: -1, ..TwState::initial() },                       // η<0 Deficit
+            TwState::initial(),                                               // η=0 Zero
+            TwState { free: 50, notional_in: 100, ..TwState::initial() },     // PositiveUnsafe
+            TwState { free: 100, notional_in: 100, ..TwState::initial() },    // PositiveSafe 边界
+            TwState { free: 150, notional_in: 100, withdrawn: 100,
+                stage: TStage::EarningShares, ..TwState::initial() },         // 顶阶段
+        ];
+        for pol in [RiskPolicy::baseline(), RiskPolicy::try_new_ratio(1, 2).unwrap(), RiskPolicy::try_new(2).unwrap()] {
+            for s in &states {
+                for rn in [true, false] {
+                    assert_eq!(
+                        pol.enter_ready_eta_corrected(s, s.notional_in, rn, 0),
+                        pol.enter_ready(s, s.notional_in, rn),
+                        "修正量=0 ⟹ enter_ready 同值（{pol:?} {s:?} rn={rn}）"
+                    );
+                }
+                assert_eq!(
+                    pol.eta_bucket_eta_corrected(s, 0),
+                    pol.eta_bucket(s),
+                    "修正量=0 ⟹ eta_bucket 同值（{pol:?} {s:?}）"
+                );
+            }
+        }
+    }
+
+    /// ★T-N4 η 修正语义（裁定 C5 裁决1）：η_corrected = tw() − cum_holding_cost——修正只降不升
+    /// （η 高估消除 ⟹ 判据变严 = 安全侧）；修正量恰使 η_corrected 越过 η⋆ 时判据翻转；
+    /// 边界 η_corrected == η⋆ 仍过（≥ 含等号）。
+    #[test]
+    fn a10_c5_eta_correction_tightens_enter_ready() {
+        // ready 态：tw=200, L^wc=0（withdrawn=100=notional_in），κ=0 ⟹ η⋆=0 ⟹ 未修正恒 ready。
+        let ready = TwState {
+            free: 0, holding: 100, withdrawn: 100, notional_in: 100,
+            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0,
+        };
+        let pol = RiskPolicy::baseline();
+        assert!(pol.enter_ready(&ready, 100, true), "前提：未修正 ready（η=200≥η⋆=0）");
+        // 修正量 200 ⟹ η_corrected=0 ≥ η⋆=0 仍过（边界 ≥ 含等号）。
+        assert!(pol.enter_ready_eta_corrected(&ready, 100, true, 200), "η_corrected=0=η⋆ ⟹ 边界仍 ready");
+        // 修正量 201 ⟹ η_corrected=−1 < η⋆=0 ⟹ 不 ready（η 高估被消除后判据变严）。
+        assert!(
+            !pol.enter_ready_eta_corrected(&ready, 100, true, 201),
+            "η_corrected=−1<η⋆=0 ⟹ 修正后不 ready（G1：高估消除 ⟹ 激进侧封死）"
+        );
+        // 修正只影响 η≥η⋆ 合取，其余四合取不受影响：负修正（假设值）不抬其他门槛。
+        assert!(
+            !pol.enter_ready_eta_corrected(&ready, 100, false, 0),
+            "RiskNormal=false 不受修正影响（修正只触 η 左操作数）"
+        );
+        // κ>0 下修正与 barrier 独立：κ=1/2 ⟹ η⋆=⌈0+50⌉=50；η_corrected=200−150=50=η⋆ 边界过，
+        // 151 ⟹ 49<50 不过。
+        let half = RiskPolicy::try_new_ratio(1, 2).unwrap();
+        assert!(half.enter_ready_eta_corrected(&ready, 100, true, 150), "κ=1/2：η_corrected=50=η⋆ 边界过");
+        assert!(!half.enter_ready_eta_corrected(&ready, 100, true, 151), "κ=1/2：η_corrected=49<η⋆=50 不过");
+    }
+
+    /// ★T-N4/F4 同源约束（裁定 C5 第 4 条）：同一修正量下 η_bucket 与 enter_ready 的 η≥η⋆
+    /// 判据**同源一致**——η_corrected≥η⋆ ⟺ bucket=PositiveSafe（η_corrected>0 时），
+    /// 两处读同一左操作数，无裂口。
+    #[test]
+    fn a10_c5_eta_bucket_enter_ready_same_source() {
+        // 构造 η_corrected 扫过四桶边界的态（κ=0，L^wc=0 ⟹ η⋆=0；notional_in=withdrawn=100）。
+        let base = TwState {
+            free: 0, holding: 100, withdrawn: 100, notional_in: 100,
+            stage: TStage::CapitalRecovered, open_legacy_legs: 0, cum_net_cash: 0, hwm_gain: 0,
+        };
+        let pol = RiskPolicy::baseline(); // η⋆=0
+        // tw=200；修正量扫 {198, 199, 200, 201} ⟹ η_corrected ∈ {2, 1, 0, −1}。
+        assert_eq!(pol.eta_bucket_eta_corrected(&base, 198), EtaBucket::PositiveSafe, "η_corrected=2>0=η⋆ ⟹ Safe");
+        assert!(pol.enter_ready_eta_corrected(&base, 100, true, 198), "同源：η_corrected=2≥η⋆ ⟹ ready");
+        assert_eq!(pol.eta_bucket_eta_corrected(&base, 200), EtaBucket::Zero, "η_corrected=0 ⟹ Zero（分支序优先）");
+        assert!(pol.enter_ready_eta_corrected(&base, 100, true, 200), "同源：0≥0=η⋆ ⟹ ready（≥含等号，与 bucket=Zero 不冲突——bucket 是离散化）");
+        assert_eq!(pol.eta_bucket_eta_corrected(&base, 201), EtaBucket::Deficit, "η_corrected=−1 ⟹ Deficit");
+        assert!(!pol.enter_ready_eta_corrected(&base, 100, true, 201), "同源：−1<η⋆ ⟹ 不 ready");
+        // κ>0 抬 barrier 的同源一致：η⋆=50（κ=1/2）；修正 160 ⟹ η_corrected=40<50 ⟹ Unsafe ∧ 不 ready。
+        let half = RiskPolicy::try_new_ratio(1, 2).unwrap();
+        assert_eq!(half.eta_bucket_eta_corrected(&base, 160), EtaBucket::PositiveUnsafe, "κ=1/2：0<40<50 ⟹ Unsafe");
+        assert!(!half.enter_ready_eta_corrected(&base, 100, true, 160), "κ=1/2 同源：40<η⋆=50 ⟹ 不 ready");
+        assert_eq!(half.eta_bucket_eta_corrected(&base, 150), EtaBucket::PositiveSafe, "κ=1/2：50=η⋆ ⟹ Safe（≥边界）");
+        assert!(half.enter_ready_eta_corrected(&base, 100, true, 150), "κ=1/2 同源：50≥η⋆ ⟹ ready");
     }
 
     /// BuyCore 合法性（PDF §10 步骤4 定理1 充要）：a_n+L^wc+κΔQ ≤ η+g−κQ。

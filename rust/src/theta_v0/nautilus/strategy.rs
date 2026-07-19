@@ -36,7 +36,10 @@
 use crate::theta_v0::classifier;
 use crate::theta_v0::config::ThetaConfig;
 use crate::theta_v0::parser;
-use crate::theta_v0::strategy::exit::{exit_decision_for, record_held_voice, HeldVoice};
+use crate::theta_v0::strategy::exit::{
+    cascade_exit_decisions, exit_decision_for_nested, parent_invalid_at, record_held_voice,
+    HeldVoice,
+};
 use crate::theta_v0::strategy::voice::{self, VoiceSide};
 use crate::theta_v0::strategy::{self, AccountState, VoiceDecision};
 use crate::theta_v0::types::{Bar, Order, StrictAction};
@@ -130,7 +133,12 @@ impl ThetaCore {
 
         // recog 段（当前窗口 → 开仓侧声部决策）。与 `groups` 追加同源（退出生成器读 groups[i]）。
         let decisions = self.recognize_current();
-        self.groups.push(decisions.clone());
+        // ★关⑤：groups 只收**根域开仓决策**（exit=false ∧ depth==0）——§9 反向项信号池：
+        // interpret 规则2 已消费的反向触发（close 决策携入场快照 bsp，非当 bar 信号）与
+        // ShortDiff 子决策的反父 bits 均不入池（M13：父仓穿越次级反向信号持有，短差由子腿
+        // 承担，非父平仓触发）——与 runner 双账路径（plan_and_fill_mtm_dual）同口径。
+        self.groups
+            .push(decisions.iter().filter(|d| !d.exit && d.depth == 0).copied().collect());
 
         let mut intents: Vec<OrderIntent> = Vec::new();
 
@@ -152,13 +160,19 @@ impl ThetaCore {
             if account.qty_at(depth as u32) == 0 {
                 continue; // portfolio 已无此声部持仓（venue 已平）
             }
+            // ★关⑤：parent_invalid 实义化（父槽空仓 ∨ 父 exit_pending，exit.rs:121 恒假占位消除）。
+            let parent_invalid = parent_invalid_at(&self.held, depth);
             if let Some(exit_d) =
-                exit_decision_for(&hv, depth, &self.bars[i], i, &groups_view, equity_now)
+                exit_decision_for_nested(&hv, depth, &self.bars[i], i, &groups_view, equity_now, parent_invalid)
             {
-                exit_decisions.push(exit_d);
-                if let Some(slot) = self.held.get_mut(depth) {
-                    if let Some(ref mut h) = slot {
-                        h.exit_pending = true; // 标记 pending（避免 fill 前重复触发同一退出）
+                // ★关⑤ cascade 发射（M16 AncOK 父关则子关，最深优先）：父退出 ⟹ 全部更深
+                // held 强制退出（cascade_exit_decisions 跳过已 pending 槽，fill 前抑制）。
+                for d in cascade_exit_decisions(&self.held, depth, exit_d, i) {
+                    exit_decisions.push(d);
+                    if let Some(slot) = self.held.get_mut(d.depth as usize) {
+                        if let Some(ref mut h) = slot {
+                            h.exit_pending = true; // 标记 pending（避免 fill 前重复触发同一退出）
+                        }
                     }
                 }
             }
@@ -212,15 +226,24 @@ impl ThetaCore {
         }
     }
 
-    /// recog 段（`parse_layer → classify → recognize`）：当前 bar 窗口 → 开仓侧声部决策。
+    /// recog 段（`parse_layer → classify_with_tower → recognize_nested`）：当前 bar 窗口 →
+    /// 开仓侧声部决策。
+    ///
+    /// ★关⑤接线（施工图 §4.6）：`classify` 切 [`classifier::classify_with_tower`]
+    /// （Classification **bit-identical**，classifier/mod.rs:482 契约——分类层零漂移）+
+    /// [`strategy::recognize_nested`]（候选源换真嵌套塔取真 ShortDiff 角色 + held 活动投影
+    /// 喂 interpret ⟹ 角色门四合取产 **depth>0 子声部**，root_side 继承树根）。
+    /// venue 侧 hedge-mode 账户前提（q⁺/q⁻ 双腿共存）列部署裁定（施工图 §7 L7）——
+    /// 本适配层只产决策/意图，venue 撮合语义不变。
     ///
     /// ★诚实：等价 `StrategyFamily::pi` 的 recog 段（不含 target→exec 的 plan_orders）——拆出
     /// 单独 recog 是因退出生成器需要 `decisions`（喂 `groups[i]` 的 reverse_signal 项）+ 开仓侧
     /// 分别走 plan_orders（退出决策与开仓决策不可混批，否则冲突排序语义错）。
     fn recognize_current(&self) -> Vec<VoiceDecision> {
         let l0 = parser::parse_layer(&self.bars, &self.config);
-        let classification = classifier::classify(&l0, &self.config);
-        strategy::recognize(&classification, &self.bars, &self.config)
+        let (classification, tower) = classifier::classify_with_tower(&l0, &self.config);
+        let active = strategy::held_voice_projection(&self.held);
+        strategy::recognize_nested(&classification, &tower, &active, &self.bars, &self.config)
     }
 
     /// 取订单对应的限价 tick（开仓限价腿）。

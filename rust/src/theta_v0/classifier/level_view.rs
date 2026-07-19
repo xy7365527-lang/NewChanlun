@@ -8,10 +8,15 @@ use super::super::types::{Center, Direction, MoveKind, Segment, Side, Tick};
 use super::center::{center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange};
 use super::decompose::{center_block_kind, MoveBlock, MoveStatus};
 use super::divergence::{
-    departure_move_c_start, locate_departure_move_a, segments_diverge, self_anchors,
+    departure_move_c_start, dif_crosses_zero, locate_departure_move_a,
+    move_range_envelope as range_envelope, same_color_area, same_dir_hist_peak, segment_dif_peak,
+    segments_diverge_or, self_anchors,
 };
 use super::recursive_tower::{map_src_to_close_idx, ElementId, LeveledMove};
-use super::signal::{locate_pan_div_structure, nearest_confirmed_center_idx, pan_div_structure_extreme};
+use super::signal::{
+    locate_pan_div_structure, locate_pan_div_structure_front_anchor,
+    nearest_confirmed_center_idx, pan_div_structure_extreme, trend_third_class_in_c,
+};
 use std::collections::BTreeSet;
 
 /// #73-#75 独立激活门。默认关闭，现有分类/交易路径不调用本 seam。
@@ -487,20 +492,13 @@ pub struct NestCandidateEvent {
     /// #97 进料口审计标记：盘背候选的 `interval_a`（诊断口径）在 leave→retest 对不可用时
     /// 由结构兜底跨度回填。`true` 仅表示旧进料口会丢弃该候选；不进入 N 真值与 B 生产口径。
     pub intake_fallback: bool,
-}
-
-fn range_envelope(segments: &[Segment], span: (usize, usize)) -> Option<(Tick, Tick)> {
-    segments
-        .iter()
-        .filter(|segment| segment.start_index >= span.0 && segment.end_index <= span.1)
-        .fold(None, |acc, segment| {
-            let lo = segment.start_price.min(segment.end_price);
-            let hi = segment.start_price.max(segment.end_price);
-            Some(match acc {
-                None => (lo, hi),
-                Some((old_lo, old_hi)) => (old_lo.min(lo), old_hi.max(hi)),
-            })
-        })
+    /// 关③ P3（pan-terminal-endorsement-ruling-20260718）：B 中枢身份快照 = B 的
+    /// `start_index`，provider 构造时按 `judge_at` 同款 prefix 首次观察快照纪律写入
+    ///（禁终态回填、禁 created_at，#91 裁定④）——延伸只改写 end/dd/gg，`start_index`
+    /// 与 zd/zg 稳定（p117 §7 实测 37/37 同 start 同核）。Trend 域 = 终端背书 owner=B
+    /// 判同基准（判定式 `point.center.start_index == b_center_start`，消费唯一落点 =
+    /// `nest::terminal_bits_at_event`）；Pan 域同写（归因用途），不作门（P2 无需 owner 合取）。
+    pub b_center_start: usize,
 }
 
 fn structural_block_span(projection: &ExactThreeProjection, block: &MoveBlock) -> Option<(usize, usize)> {
@@ -525,10 +523,126 @@ fn structural_pair_span(
     Some((leave.0, retest.1))
 }
 
+/// ★R1（2026-07-17 代理裁定，p112 实证 + doc-trend 总判定）：趋势背驰**全合取**确认的首个
+/// 全成立时点 t*（确认时点语义；禁前视——一切结构/力度窗口以 `as_of` 为界）。
+///
+/// 合取项（doc-trend §1-§4 唯一谓词形式；p112 §2 机械化口径）：
+/// - **T4 回拉 0 轴**（025:761/024:24）：B 中枢 span（close 下标）内 DIF 变号或触 0——静态项先判；
+/// - **T3 三买**（037:18/051:314）：c 全离开段内含对 B 的第三类买卖点（`trend_third_class_in_c`，
+///   去 anchor 门；无命中 ⟹ c 未确立，037:18 否则条款域）；
+/// - **T2 破极值**（037:20/061:28）：c 包络破 b 包络（Long: c_lo<b_lo / Short: c_hi>b_hi），
+///   窗口 [c_start, t] 随 t 渐进扩展（包络只扩 ⟹ 假→真单调）；
+/// - **T5 力度或关系**（027:32/026:521/025:38）：同色柱面积 ∨ 黄白线峰 ∨ 同向柱峰，
+///   C 窗口 [c_start, t] vs b 段（各 proxy 只增 ⟹ 真→假单调）。
+///
+/// 扫描语义：从 t3（三买确立时点）起逐段端点推进，**首个 T2∧T5-OR 同真**的段端点即 t*；
+/// T5-OR 转假即终假（扫描终止，返回 None）。b 段/c_start 的 close 映射失败、或 t3 时点力度
+/// 窗口仍无 bar ⟹ None（力度不可验，诚实判负——与旧 `_ => false` 口径一致）。
+#[allow(clippy::too_many_arguments)]
+fn trend_confirm_time(
+    segments: &[Segment],
+    last: &Center,
+    direction: Direction,
+    side: Side,
+    seg_a: (usize, usize),
+    c_start: usize,
+    as_of: usize,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+) -> Option<usize> {
+    // T4（025:761）：B 中枢 span 内 DIF 变号或触 0（p112 主口径 cross_dif）。
+    let (b_lo, b_hi) = map_src_to_close_idx(close_src, last.start_index, last.end_index)?;
+    if !dif_crosses_zero(dif, b_lo, b_hi) {
+        return None;
+    }
+    // b 段力度基准（031:883 趋势背驰 = c vs b 比较）。
+    let a_idx = map_src_to_close_idx(close_src, seg_a.0, seg_a.1)?;
+    let a_env = range_envelope(segments, seg_a)?;
+    let area_a = same_color_area(hist, a_idx.0, a_idx.1, side);
+    let dif_peak_a = segment_dif_peak(dif, a_idx.0, a_idx.1, direction);
+    let hist_peak_a = same_dir_hist_peak(hist, a_idx.0, a_idx.1, side);
+    // T3（037:18）：c 全离开段内含对 B 的三买；t3 = 首个命中回试段终点（c 确立时点）。
+    let (_leave_end, t3) = trend_third_class_in_c(segments, last, direction, c_start, as_of)?;
+    // 渐进扫描 t ≥ t3：T2/T5 窗口 [c_start, t] 随段端点增量扩展。
+    let lo = segments.partition_point(|s| s.start_index < c_start.max(last.end_index));
+    let hi = segments.partition_point(|s| s.end_index <= as_of);
+    let mut env: Option<(Tick, Tick)> = None;
+    let mut acc_hi: Option<usize> = None; // 已累入力度窗口的末个 close 下标
+    let mut area_c = 0.0f64;
+    let (mut dif_max, mut dif_min) = (f64::NEG_INFINITY, f64::INFINITY);
+    let mut hist_max = f64::NEG_INFINITY;
+    let mut hist_min = f64::INFINITY;
+    for leg in &segments[lo..hi] {
+        // 包络增量扩展（T2）。
+        let leg_lo = leg.start_price.min(leg.end_price);
+        let leg_hi = leg.start_price.max(leg.end_price);
+        env = Some(match env {
+            None => (leg_lo, leg_hi),
+            Some((old_lo, old_hi)) => (old_lo.min(leg_lo), old_hi.max(leg_hi)),
+        });
+        // 力度窗口增量扩展（T5）：新 bar 区间 (acc_hi, cur_hi] 累入。
+        if let Some((c_lo, cur_hi)) = map_src_to_close_idx(close_src, c_start, leg.end_index) {
+            let from = acc_hi.map_or(c_lo, |prev| prev + 1);
+            if from <= cur_hi {
+                for t in from..=cur_hi {
+                    match side {
+                        Side::Long if hist[t] < 0.0 => area_c += hist[t].abs(),
+                        Side::Short if hist[t] > 0.0 => area_c += hist[t],
+                        _ => {}
+                    }
+                    hist_max = hist_max.max(hist[t]);
+                    hist_min = hist_min.min(hist[t]);
+                    dif_max = dif_max.max(dif[t]);
+                    dif_min = dif_min.min(dif[t]);
+                }
+                acc_hi = Some(cur_hi);
+            }
+        }
+        if leg.end_index < t3 {
+            continue; // 三买未确立前不判（037:18 必要合取）。
+        }
+        // t3 时点力度窗口无 bar ⟹ 力度不可验 ⟹ 诚实判负（同旧 map None ⟹ false）。
+        acc_hi?;
+        // T5 力度或关系（027:32）：同色面积 ∨ 黄白线峰 ∨ 同向柱峰（增量量与
+        // same_color_area / segment_dif_peak / same_dir_hist_peak 同口径）。
+        let dif_peak_c = match direction {
+            Direction::Up => dif_max.max(0.0),
+            Direction::Down => dif_min.min(0.0).abs(),
+        };
+        let hist_peak_c = match side {
+            Side::Long => hist_min.min(0.0).abs(),
+            Side::Short => hist_max.max(0.0),
+        };
+        let force_ok =
+            area_c < area_a || dif_peak_c < dif_peak_a || hist_peak_c < hist_peak_a;
+        if !force_ok {
+            return None; // 各 proxy 只增 ⟹ 真→假单调，转假即终假（033:26 无衰减即无背驰）。
+        }
+        // T2 破极值（037:20）：c 包络破 b 包络。
+        let (env_lo, env_hi) = env.expect("扫描窗口非空（t3 已命中）");
+        let extreme = match side {
+            Side::Long => env_lo < a_env.0,
+            Side::Short => env_hi > a_env.1,
+        };
+        if extreme {
+            return Some(leg.end_index); // t* = 首个 T2∧T5-OR 同真时点。
+        }
+    }
+    None
+}
+
 /// #92 typed provider：把 strict C2 pair 映射为宽结构 Cand，并把力度确认留在独立字段。
 ///
 /// Trend 与 Consolidation 共用同一输出类型但保留 `kind`；后者来自纯结构
 /// [`super::signal::PanDivStructure`]，不会经 `PanDivCert` 的 Weak 门提前征税。
+///
+/// ★R1/R2/R3（2026-07-17 代理裁定）：Trend 分支 `divergence_confirmed` 改全合取扫描
+/// （[`trend_confirm_time`]：T4 回拉0轴 ∧ T3 三买 ∧ T2 破极值 ∧ T5 力度或关系，确认时点 =
+/// 首个全成立时点 t*，confirmed 事件的 `interval_b`/`turn_source` 收束到 t*）；Consolidation
+/// 分支 A 锚加 R3 front-anchor 回退（061:28 中枢前最近同向段）、Weak 改 R2 力度或关系
+/// （027:32：同色面积 ∨ 黄白线 ∨ 柱高）。
+#[allow(clippy::too_many_arguments)]
 pub fn provide_nest_candidate_events(
     level: u32,
     projection: &ExactThreeProjection,
@@ -536,6 +650,7 @@ pub fn provide_nest_candidate_events(
     legs: &[LowerLeg],
     view: &LevelAsOfView,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
 ) -> Vec<NestCandidateEvent> {
     let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
@@ -558,6 +673,8 @@ pub fn provide_nest_candidate_events(
             Direction::Down => Side::Long,
             Direction::Up => Side::Short,
         };
+        // Cand 的 Extreme 预滤（037:20）：seg_c = 全离开段（R1）的包络破 b 包络——宽窗口预滤，
+        // 精确 T2（[c_start, t*] 窗口）在 trend_confirm_time 内随扫描判定。
         let (Some(a), Some(c)) = (
             range_envelope(&segments, pair.seg_a),
             range_envelope(&segments, pair.seg_c),
@@ -571,25 +688,42 @@ pub fn provide_nest_candidate_events(
         if !extreme {
             continue;
         }
-        let divergence_confirmed = match (
-            map_src_to_close_idx(close_src, pair.seg_a.0, pair.seg_a.1),
-            map_src_to_close_idx(close_src, pair.seg_c.0, pair.seg_c.1),
-        ) {
-            (Some(a), Some(c)) => segments_diverge(hist, a, c),
-            _ => false,
+        // ★R1：全合取确认（T4 回拉0轴 ∧ T3 三买 ∧ T2 破极值 ∧ T5 力度或关系）。
+        // confirmed ⟹ 确认时点 t* = 首个全成立时点，interval_b/turn_source 收束到 [c_start, t*]
+        // （禁前视：在 t* 之前全合取不成立，坐标不得早于确认时点）；
+        // 未确认 ⟹ 保持全离开段结构坐标（诚实结构，力度/三买未成立）。
+        let last_center = &projection.seeds[pair.id.block_end_center].center;
+        let confirm_t = trend_confirm_time(
+            &segments,
+            last_center,
+            pair.id.direction,
+            side,
+            pair.seg_a,
+            pair.seg_c.0,
+            view.query.as_of,
+            hist,
+            dif,
+            close_src,
+        );
+        let (interval_b, turn_source, divergence_confirmed) = match confirm_t {
+            Some(t) => ((pair.seg_c.0, t), t, true),
+            None => (pair.seg_c, pair.seg_c.1, false),
         };
         out.push(NestCandidateEvent {
             level,
             side,
             kind: NestDivergenceKind::Trend,
             seg_a: pair.seg_a,
-            interval_b: pair.seg_c,
+            interval_b,
             interval_a,
             divergence_confirmed,
-            turn_source: pair.seg_c.1,
+            turn_source,
             judge_at: view.query.as_of,
             provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
             intake_fallback: false,
+            // 关③ P3：B = 被离开的最后中枢（`block_end_center` seed，trend_confirm_time 同一
+            // 中枢入参）——prefix 首次观察快照写入，延伸不改写 start_index。
+            b_center_start: last_center.start_index,
         });
     }
 
@@ -602,14 +736,20 @@ pub fn provide_nest_candidate_events(
         if kinds.get(center_index) != Some(&Some(MoveKind::Consolidation)) {
             continue;
         }
+        // ★R3：窄锚（中枢后前次同向破核心段）locate∧Extreme 优先；任一失败回退 A′（中枢前
+        // 最近同向段，061:28 中枢两头比较，回中枢要件由中枢本身满足）重判 Extreme（044:234 维持）。
         let Some(structure) = locate_pan_div_structure(
             &centers[center_index], segment, &segments, &anchors_self,
-        ) else {
+        )
+        .filter(|structure| pan_div_structure_extreme(structure, &segments))
+        .or_else(|| {
+            locate_pan_div_structure_front_anchor(
+                &centers[center_index], segment, &segments, &anchors_self,
+            )
+            .filter(|structure| pan_div_structure_extreme(structure, &segments))
+        }) else {
             continue;
         };
-        if !pan_div_structure_extreme(&structure, &segments) {
-            continue;
-        }
         let Some(leave_index) = blocks.iter().position(|block| {
             block.kind == MoveKind::Consolidation
                 && block.start_center <= center_index
@@ -630,11 +770,13 @@ pub fn provide_nest_candidate_events(
                 true,
             ),
         };
+        // ★R2：力度或关系（027:32「只要其中一个符合就可以」）——同色柱面积 ∨ 黄白线峰 ∨
+        // 同向柱峰，替代旧混合柱面积单通道必要门（p113 实测 30.4% 聋度）。
         let divergence_confirmed = match (
             map_src_to_close_idx(close_src, structure.seg_a.0, structure.seg_a.1),
             map_src_to_close_idx(close_src, structure.seg_c.0, structure.seg_c.1),
         ) {
-            (Some(a), Some(c)) => segments_diverge(hist, a, c),
+            (Some(a), Some(c)) => segments_diverge_or(hist, dif, structure.side, a, c),
             _ => false,
         };
         let event = NestCandidateEvent {
@@ -649,6 +791,9 @@ pub fn provide_nest_candidate_events(
             judge_at: view.query.as_of,
             provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
             intake_fallback,
+            // 关③ P3：B = 盘背结构所对的最近确认中枢（locate_pan_div_structure 同一中枢
+            // 入参）——同写归因用途，不作门（P2 盘背域无需 owner 合取）。
+            b_center_start: centers[center_index].start_index,
         };
         if !out.contains(&event) {
             out.push(event);
@@ -707,6 +852,23 @@ pub fn provide_divergence_pairs(
         ) else {
             continue;
         };
+        // ★R1（2026-07-17 代理裁定，p112 实证）：seg_c 取段 = **全离开段**——c_end 从首个
+        // 同向段终点扩展为 c_start 起、end ≤ as_of 的**末个同向段**终点（037:22 全离开走势
+        // 口径，p112 T3_ext 窗口）。#105 的单腿窗口（win_legs==1 @154/154）使 037:18 三买
+        // 构造性无处容身；全离开段下 c 内含回拉段，三买可判。单段离开的退化名与新名逐位一致
+        // （c_end == c_terminal.end）。确认时点（t*）收束在 trend_confirm_time 消费侧完成。
+        let Some(c_end) = segments
+            .iter()
+            .rev()
+            .find(|segment| {
+                segment.direction == direction
+                    && segment.start_index >= c_start
+                    && segment.end_index <= as_of
+            })
+            .map(|segment| segment.end_index)
+        else {
+            continue;
+        };
         pairs.push(DivergencePair {
             id: DivergencePairId {
                 level,
@@ -716,7 +878,7 @@ pub fn provide_divergence_pairs(
             },
             move_start: projection.seeds[block.start_center].start_index,
             seg_a,
-            seg_c: (c_start, c_terminal.end_index),
+            seg_c: (c_start, c_end),
         });
     }
     pairs
@@ -728,6 +890,9 @@ pub struct LevelViewMaterial<'a> {
     pub move_blocks: &'a [MoveBlock],
     pub lower_legs: &'a [LowerLeg],
     pub hist: &'a [f64],
+    /// ★R1（2026-07-17 裁定）：全合取确认需黄白线——T4 回拉 0 轴（025:761）与力度或关系的
+    /// 黄白线分量（026:521）都读 dif。与 `hist` 同源同坐标系（`compute_macd` 的 dif 序列）。
+    pub dif: &'a [f64],
     pub close_src: &'a [usize],
 }
 
@@ -834,6 +999,9 @@ pub fn assemble_level_view(
         Vec::new()
     };
 
+    // Trend 完成判定（R1 全合取扫描）消费的段序列——与 provide_nest_candidate_events 同一投影。
+    let segments: Vec<_> = material.lower_legs.iter().map(leg_as_segment).collect();
+
     let mut moves = Vec::with_capacity(material.move_blocks.len());
     for block in material.move_blocks {
         let seed_slice = &projection.seeds[block.start_center..=block.end_center];
@@ -861,27 +1029,59 @@ pub fn assemble_level_view(
                         reason: PendingReason::MissingDivergencePair,
                     },
                     Some(pair) => {
-                        let a =
-                            map_src_to_close_idx(material.close_src, pair.seg_a.0, pair.seg_a.1);
-                        let c =
-                            map_src_to_close_idx(material.close_src, pair.seg_c.0, pair.seg_c.1);
-                        match (a, c) {
-                            (Some(a), Some(c)) if segments_diverge(material.hist, a, c) => {
-                                CompletionStatus::Completed {
+                        // ★R1（2026-07-17 裁定）：TerminalDivergence 与 nest 趋势事件确认共用
+                        // 同一全合取谓词（trend_confirm_time，单一来源——T4 回拉0轴 ∧ T3 三买
+                        // ∧ T2 破极值 ∧ T5 力度或关系，确认时点 = 首个全成立时点，禁前视）。
+                        // 旧面积单通道（segments_diverge on seg_c）随 seg_c 全离开段化废止。
+                        let mappable = map_src_to_close_idx(
+                            material.close_src,
+                            pair.seg_a.0,
+                            pair.seg_a.1,
+                        )
+                        .is_some()
+                            && map_src_to_close_idx(
+                                material.close_src,
+                                pair.seg_c.0,
+                                pair.seg_c.1,
+                            )
+                            .is_some();
+                        if !mappable {
+                            CompletionStatus::Pending {
+                                as_of: query.as_of,
+                                reason: PendingReason::MissingMacdCoordinates,
+                            }
+                        } else {
+                            let direction = block
+                                .dir
+                                .expect("Trend 块必有 dir（decompose 不变量，pair 存在性已证）");
+                            let side = match direction {
+                                Direction::Down => Side::Long,
+                                Direction::Up => Side::Short,
+                            };
+                            let last = &projection.seeds[block.end_center].center;
+                            match trend_confirm_time(
+                                &segments,
+                                last,
+                                direction,
+                                side,
+                                pair.seg_a,
+                                pair.seg_c.0,
+                                query.as_of,
+                                material.hist,
+                                material.dif,
+                                material.close_src,
+                            ) {
+                                Some(_) => CompletionStatus::Completed {
                                     as_of: query.as_of,
                                     evidence: CompletionEvidence::TerminalDivergence {
                                         pair_id: pair.id,
                                     },
-                                }
+                                },
+                                None => CompletionStatus::Pending {
+                                    as_of: query.as_of,
+                                    reason: PendingReason::TerminalLegNotDivergent,
+                                },
                             }
-                            (Some(_), Some(_)) => CompletionStatus::Pending {
-                                as_of: query.as_of,
-                                reason: PendingReason::TerminalLegNotDivergent,
-                            },
-                            _ => CompletionStatus::Pending {
-                                as_of: query.as_of,
-                                reason: PendingReason::MissingMacdCoordinates,
-                            },
                         }
                     }
                 }
@@ -947,6 +1147,10 @@ mod tests {
             unit(100, Up, 160, 175, 10),
             unit(110, Down, 140, 155, 11),
             unit(120, Up, 180, 190, 12),
+            // ★R1 夹具补腿：回试段（Down，低点 170 > w2.zg=165 不重回核心）——与腿12（Up，
+            // 端点 190 > 165 破核心）构成对 w2 的第三类买点（037:18），供全合取确认测试；
+            // 旧 as_of=129 的既有测试按 end ≤ as_of 过滤本腿，行为不变。
+            unit(130, Down, 170, 195, 13),
         ];
         let w0 = LeveledMove::compose(
             &lower[0..4],
@@ -1034,6 +1238,7 @@ mod tests {
                 move_blocks: &[trend_block(Some(Direction::Up))],
                 lower_legs: &legs,
                 hist: &[],
+                dif: &[],
                 close_src: &[],
             },
         );
@@ -1097,6 +1302,7 @@ mod tests {
                     move_blocks: &[trend_block(Some(Direction::Up))],
                     lower_legs: &legs,
                     hist: &[],
+                    dif: &[],
                     close_src: &[],
                 },
             );
@@ -1114,6 +1320,30 @@ mod tests {
         let legs = lower_legs_from(&lower).unwrap();
         let pairs = provide_divergence_pairs(1, &projection, &[trend_block(None)], &legs, 129);
         assert!(pairs.is_empty());
+    }
+
+    /// ★R1（2026-07-17 裁定）：seg_c 取段 = 全离开段——c_end 收 c_start 起、end ≤ as_of 的
+    /// 末个同向段终点（037:22 口径）。单段离开时与 #105 单腿口径逐位一致（退化兼容）。
+    #[test]
+    fn provide_divergence_pairs_seg_c_spans_full_departure() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let block = trend_block(Some(Direction::Up));
+        // 夹具：离开腿12（Up，120-129）+ 回试腿13（Down，130-139）+ 延续腿14（Up，140-149）。
+        let mut extended = lower.clone();
+        extended.push(unit(140, Direction::Up, 168, 200, 14));
+        let legs = lower_legs_from(&extended).unwrap();
+        let pairs = provide_divergence_pairs(1, &projection, &[block], &legs, 149);
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].seg_a, (80, 109), "seg_a 不动（b = 进入最后中枢的段）");
+        assert_eq!(
+            pairs[0].seg_c,
+            (120, 149),
+            "R1：c_end = 末个同向段（腿14）终点——全离开段，不再是首腿终点 129"
+        );
+        // as_of 截断到 129 ⟹ 只看得到首腿：c_end 退化回首腿终点（禁前视，与 #105 逐位一致）。
+        let truncated = provide_divergence_pairs(1, &projection, &[block], &legs, 129);
+        assert_eq!(truncated[0].seg_c, (120, 129), "as_of 截断 ⟹ 单腿窗口（禁前视）");
     }
 
     #[test]
@@ -1137,6 +1367,7 @@ mod tests {
                 move_blocks: &[block],
                 lower_legs: &legs,
                 hist: &vec![0.0; 130],
+                dif: &vec![0.0; 130],
                 close_src: &(0..130).collect::<Vec<_>>(),
             },
         )
@@ -1151,24 +1382,37 @@ mod tests {
         ));
     }
 
+    /// ★R1 语义更新（2026-07-17 裁定）：TerminalDivergence = 全合取（T4 回拉0轴 ∧ T3 三买 ∧
+    /// T2 破极值 ∧ T5 力度或关系）首个全成立时点——夹具腿13（回试不重回 w2 核心）与腿12
+    /// （破核心离开）构成对 w2 的三买；dif 在 w2 span 内变号（T4）；同色面积/柱峰 C≪A（T5-OR）。
     #[test]
     fn auto_pairing_completes_only_after_real_macd_divergence() {
         let (windows, lower) = extended_windows();
         let projection = project_extended_windows_carried_only(&windows).unwrap();
         let legs = lower_legs_from(&lower).unwrap();
         let block = trend_block(Some(Direction::Up));
-        let mut hist = vec![0.0; 130];
-        hist[80..110].fill(2.0);
-        hist[120..130].fill(0.1);
-        let close_src: Vec<_> = (0..130).collect();
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0); // b 段（seg_a=[80,109]）红柱面积 60、柱峰 2.0
+        hist[120..140].fill(0.1); // c_est=[120,139] 红柱面积 2.0、柱峰 0.1（T5-OR 成立）
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0); // w2 span（[80,119]）内 DIF 负区
+        dif[101..140].fill(1.0); // 100→101 变号 ⟹ T4 回拉 0 轴成立
+        let close_src: Vec<_> = (0..140).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139, // 覆盖回试腿终点（t3=139；旧 129 口径下回试腿被 as_of 截断）
+            version: C2VersionTuple::auto_pairing(),
+        };
         let view = assemble_level_view(
             C2LevelViewConfig { enabled: true },
-            query(C2VersionTuple::auto_pairing()),
+            query,
             LevelViewMaterial {
                 projection: ProjectionMaterial::ExactThree(&projection),
                 move_blocks: &[block],
                 lower_legs: &legs,
                 hist: &hist,
+                dif: &dif,
                 close_src: &close_src,
             },
         )
@@ -1181,6 +1425,47 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    /// ★R1 负例（037:18 必要合取）：同一夹具但 as_of=129 截断回试腿 ⟹ c 内无三买（T3 构造性
+    /// 不成立），即便面积/T2 俱备也不得 Completed——锁定「全合取缺三买即未确认」边界。
+    #[test]
+    fn auto_pairing_pending_when_third_buy_not_established() {
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        let block = trend_block(Some(Direction::Up));
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let view = assemble_level_view(
+            C2LevelViewConfig { enabled: true },
+            query(C2VersionTuple::auto_pairing()), // as_of=129：回试腿（end=139）被截断
+            LevelViewMaterial {
+                projection: ProjectionMaterial::ExactThree(&projection),
+                move_blocks: &[block],
+                lower_legs: &legs,
+                hist: &hist,
+                dif: &dif,
+                close_src: &close_src,
+            },
+        )
+        .unwrap();
+        assert_eq!(view.pairs.len(), 1);
+        assert!(
+            matches!(
+                view.moves[0].completion,
+                CompletionStatus::Pending {
+                    reason: PendingReason::TerminalLegNotDivergent,
+                    ..
+                }
+            ),
+            "c 内无三买（037:18）⟹ 全合取不成立 ⟹ 不得 TerminalDivergence"
+        );
     }
 
     #[test]
@@ -1196,6 +1481,7 @@ mod tests {
                 move_blocks: &[],
                 lower_legs: &[],
                 hist: &[],
+                dif: &[],
                 close_src: &[],
             },
         );
