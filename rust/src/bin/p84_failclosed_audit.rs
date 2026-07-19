@@ -171,6 +171,7 @@ fn main() -> Result<(), String> {
         .map(|bar| bar.source_index)
         .collect();
     let hist = compute_macd(&closes, &config.macd).hist;
+    let dif = compute_macd(&closes, &config.macd).dif;
 
     if tower.len() != EXPECTED_D1.len() + 1 {
         return Err(format!(
@@ -190,6 +191,7 @@ fn main() -> Result<(), String> {
             &tower[level - 1],
             as_of,
             &hist,
+            &dif,
             &close_src,
             &mut d1_details,
             &mut b_details,
@@ -306,6 +308,7 @@ fn audit_level(
     lower: &[LeveledMove],
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     d1_details: &mut Vec<D1Detail>,
     b_details: &mut Vec<BDetail>,
@@ -358,6 +361,7 @@ fn audit_level(
                     &lower_legs,
                     as_of,
                     hist,
+                    dif,
                     close_src,
                     &mut stats,
                     b_details,
@@ -496,6 +500,7 @@ fn audit_run(
     lower_legs: &[LowerLeg],
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     stats: &mut LevelAudit,
     b_details: &mut Vec<BDetail>,
@@ -524,6 +529,7 @@ fn audit_run(
             move_blocks: &blocks,
             lower_legs,
             hist,
+            dif,
             close_src,
         },
     )

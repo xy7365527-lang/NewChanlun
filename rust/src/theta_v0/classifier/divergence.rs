@@ -58,7 +58,7 @@
 //! 趋势/盘整门控判据（中枢同向关系）是 **L0**（纯整数几何，不依赖经验数据）。
 
 use super::super::config::MacdConfig;
-use super::super::types::{Center, Direction, Segment, Tick};
+use super::super::types::{Center, Direction, Segment, Side, Tick};
 
 /// MACD 逐 bar 输出（DIF/DEA/hist，浮点域，隔离在本结构）。
 #[derive(Debug, Clone, PartialEq)]
@@ -271,6 +271,96 @@ pub fn segments_diverge(
     let prev_area = segment_macd_area(hist, prev_seg.0, prev_seg.1);
     let curr_area = segment_macd_area(hist, curr_seg.0, curr_seg.1);
     is_divergence(prev_area, curr_area)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// § A3. 力度或关系原语（2026-07-17 代理裁定 R1/R2，p112/p113 实证 + doc-pan §2/doc-trend §3）
+//
+// 教义锚：027:32「只要其中一个符合就可以是一个背弛的信号」、026:521「两个只要出现一个就要
+// 注意」、025:38「黄白线不能创新高，**或者**柱子的面积**或者**伸长的高度」——面积/黄白线/柱高
+// 三信号以『或者』并联，面积单通道必要门窄于原文（doc-pan §2.2 推理 4）。面积口径本身取
+// **同色柱**（060:44「力度比较的是下面所有红柱子的面积之和」、057:40、024:40），混合柱 Σ|hist|
+// 把反向柱计入是 060:44 之外的人为加严（p113 §2.3 turn=739707 标本）。
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 同色柱面积（060:44/057:40/024:40『全部同色柱子面积之和』）。
+///
+/// `side` = 离开方向候选：Long=向下离开 ⟹ 绿柱（hist<0）绝对值和；Short=向上离开 ⟹ 红柱
+/// （hist>0）和。`[lo,hi]` 闭区间 close 下标；越界/空 ⟹ 0.0。
+/// bit-exact：按 bar 升序累加（固定顺序），与 p113 探针 `same_color_area` 逐行同构。
+pub fn same_color_area(hist: &[f64], lo: usize, hi: usize, side: Side) -> f64 {
+    if lo > hi || hi >= hist.len() {
+        return 0.0;
+    }
+    let mut area = 0.0;
+    for &h in &hist[lo..=hi] {
+        match side {
+            Side::Long if h < 0.0 => area += h.abs(),
+            Side::Short if h > 0.0 => area += h,
+            _ => {}
+        }
+    }
+    area
+}
+
+/// 同向柱峰（025:16/025:38『柱子伸长的高度』）。
+///
+/// Long（向下离开）⟹ 段内最深绿柱 |min|（无绿柱 ⟹ 0.0）；Short（向上离开）⟹ 最高红柱 max
+/// （无红柱 ⟹ 0.0）。与 p113 探针 `same_dir_hist_peak` 逐行同构。
+pub fn same_dir_hist_peak(hist: &[f64], lo: usize, hi: usize, side: Side) -> f64 {
+    if lo > hi || hi >= hist.len() {
+        return 0.0;
+    }
+    match side {
+        Side::Long => hist[lo..=hi]
+            .iter()
+            .copied()
+            .fold(f64::INFINITY, f64::min)
+            .min(0.0)
+            .abs(),
+        Side::Short => hist[lo..=hi]
+            .iter()
+            .copied()
+            .fold(f64::NEG_INFINITY, f64::max)
+            .max(0.0),
+    }
+}
+
+/// 力度或关系（027:32/026:521/025:38）：同色面积 C<A ∨ 黄白线峰 C<A ∨ 同向柱峰 C<A。
+///
+/// 三信号任一成立即『背弛的信号』（027:32「两个都满足就更标准了」——单信号即充分）。严格 `<`，
+/// 等值不算衰减（与 `is_divergence` 同口径）。`a_idx`/`c_idx` 是 A/C 段的 close 下标闭区间
+/// （`map_src_to_close_idx` 同源映射）。side ⟷ direction 对应：Long=向下离开（DIF 取负峰）。
+pub fn segments_diverge_or(
+    hist: &[f64],
+    dif: &[f64],
+    side: Side,
+    a_idx: (usize, usize),
+    c_idx: (usize, usize),
+) -> bool {
+    let dir = match side {
+        Side::Long => Direction::Down,
+        Side::Short => Direction::Up,
+    };
+    same_color_area(hist, c_idx.0, c_idx.1, side) < same_color_area(hist, a_idx.0, a_idx.1, side)
+        || segment_dif_peak(dif, c_idx.0, c_idx.1, dir) < segment_dif_peak(dif, a_idx.0, a_idx.1, dir)
+        || same_dir_hist_peak(hist, c_idx.0, c_idx.1, side)
+            < same_dir_hist_peak(hist, a_idx.0, a_idx.1, side)
+}
+
+/// 黄白线回拉 0 轴（025:761/024:24，p112 主口径 cross_dif）：`[lo,hi]` 闭区间 close 下标内
+/// 存在 DIF 触 0（`dif[t] == 0.0`）或相邻 bar 变号（`dif[t]*dif[t-1] < 0`）。越界 ⟹ false
+/// （025:761：回拉不可验 ⟹ 「在该级别就不存在什么背驰」，诚实判负）。
+pub fn dif_crosses_zero(dif: &[f64], lo: usize, hi: usize) -> bool {
+    if lo > hi || hi >= dif.len() {
+        return false;
+    }
+    for t in lo..=hi {
+        if dif[t] == 0.0 || (t > lo && dif[t] * dif[t - 1] < 0.0) {
+            return true;
+        }
+    }
+    false
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -687,6 +777,9 @@ pub fn locate_departure_move_a(
     let awin = &anchors[lo..hi];
     let lambda_a = episode_start_in(win, awin, prev_center, trend_dir)?;
     // ★Q7-#1 裁定C：A 段候选筛选用 anchor 方向——fallback 单元不作 A 段方向锚（仍是区间成员）。
+    // ★p117（686 窄域授权，终端背书裁定 T2）：生产第一类调用方（judge_segment）改传结构方向锚
+    // （self），本过滤在该路径退化为结构同向筛选（行程方向=τ）；provenance 锚实参仅余
+    // CandDelta 诊断 provider（recursive_tower）与探针仪器消费——判据函数体未动。
     let mut it = win
         .iter()
         .zip(awin)
@@ -715,6 +808,9 @@ pub fn self_anchors(segs: &[Segment]) -> Vec<Option<Direction>> {
 /// ★Q7-#1 裁定C（codex-q7-fallback-20260703）：`anchors` 与 `win` 平行——离开段（首同向段）
 /// 选取用 anchor 方向（`anchors[j] == Some(dir)`），fallback 单元（None）不得作离开段方向锚。
 /// 回中枢段边界（reenters）用结构方向（`s.direction`）——回中枢是几何角色，非裁决三锚之一。
+/// ★p117（686 窄域授权，终端背书裁定 T2）：生产第一类调用方（judge_segment）改传结构方向锚
+/// （self），首同向段选取在该路径 = 结构同向筛选（行程方向=τ）；provenance 锚实参仅余
+/// CandDelta 诊断 provider 与探针仪器——判据函数体未动。
 pub fn episode_start_in(
     win: &[Segment],
     anchors: &[Option<Direction>],
@@ -754,6 +850,31 @@ pub fn departure_move_c_start(
     episode_start_in(&segments[lo..hi], &anchors[lo..hi], c, dir)
 }
 
+/// 走势区间包络（037:20/061:28 破极值判据的参照极值；b 包络/c 包络共用原语，单一来源）。
+/// 段须**整支**落入 span（start_index ≥ span.0 ∧ end_index ≤ span.1）；包络 = 各段
+/// [min(start,end), max(start,end)] 的 (min,max) 折叠——含区间内部反向段（Q5 全区间口径，
+/// 与 level_view T2/trend_confirm_time 同一原语）。纯 Tick 整数域，无浮点（bit-exact 安全）。
+/// 无段整支落入 ⟹ None（无参照极值 ⟹ 037:20 不可验 ⟹ 诚实判负）。
+///
+/// ★p117（037:20 破极值补项，终端背书裁定 T3，D2 单一来源核准）：自 `level_view.rs` 私有
+/// `range_envelope` 迁移（函数体逐字相同，fold 语义不变）；level_view 删私有副本、别名导入
+/// （`move_range_envelope as range_envelope`，三调用点零改动）——BSP 侧（signal.rs
+/// `judge_first_cached` 037:20 合取）与 D2 侧（R1 T2）共用同一原语同区间语义，禁口径 fork
+/// （675 号单一来源纪律、`departure_move_c_start`「无坐标 fork」先例）。
+pub(crate) fn move_range_envelope(segments: &[Segment], span: (usize, usize)) -> Option<(Tick, Tick)> {
+    segments
+        .iter()
+        .filter(|segment| segment.start_index >= span.0 && segment.end_index <= span.1)
+        .fold(None, |acc, segment| {
+            let lo = segment.start_price.min(segment.end_price);
+            let hi = segment.start_price.max(segment.end_price);
+            Some(match acc {
+                None => (lo, hi),
+                Some((old_lo, old_hi)) => (old_lo.min(lo), old_hi.max(hi)),
+            })
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -762,6 +883,31 @@ mod tests {
         Center { zd, zg, dd, gg, start_index: 0, end_index: ei }
     }
     use super::super::super::types::Tick;
+
+    /// ★p117（037:20 补项，终端背书裁定 T3）：`move_range_envelope` 迁移等价锁——span 过滤
+    /// （段须整支落入）、含反向段的全区间 fold、空窗 None。函数体逐字迁移自 level_view 旧私有
+    /// `range_envelope`（fold 语义不变）；level_view 三调用点经别名导入同一原语，行为由既有
+    /// R1 测试网覆盖（单一来源，无第二实现可对拍 ⟹ 逐值手算断言锁定）。
+    #[test]
+    fn move_range_envelope_span_filter_and_fold() {
+        let seg = |dir: Direction, si: usize, ei: usize, sp: Tick, ep: Tick| Segment {
+            direction: dir, start_index: si, end_index: ei, start_price: sp, end_price: ep,
+        };
+        let segs = vec![
+            seg(Direction::Down, 8, 12, 500, 300),  // 左跨界（start<10）⟹ 排除
+            seg(Direction::Down, 10, 14, 400, 250), // 整支落入：lo=250, hi=400
+            seg(Direction::Up, 14, 18, 250, 450),   // 整支落入（反向段同样折叠）：lo=250, hi=450
+            seg(Direction::Up, 18, 22, 450, 460),   // 右跨界（end>20）⟹ 排除
+        ];
+        // span 过滤 + 全区间 fold（含反向段；跨界段不贡献极值——500/460 被吸收即错）。
+        assert_eq!(move_range_envelope(&segs, (10, 20)), Some((250, 450)));
+        // 空窗（无段整支落入）⟹ None（无参照极值 ⟹ 037:20 不可验 ⟹ 诚实判负）。
+        assert_eq!(move_range_envelope(&segs, (13, 14)), None);
+        // 单段整支落入 ⟹ 该段 [min(start,end), max(start,end)]（Down 段 start>end 仍取 lo/hi）。
+        assert_eq!(move_range_envelope(&segs, (10, 14)), Some((250, 400)));
+        // 整窗全含 ⟹ 全段折叠（含两跨界段极值 300..500 与 450..460）。
+        assert_eq!(move_range_envelope(&segs, (8, 22)), Some((250, 500)));
+    }
 
     #[test]
     fn ema_first_value_is_first_close() {
@@ -846,6 +992,74 @@ mod tests {
                 assert!(segment_macd_area(&m.hist, start, end) >= 0.0);
             }
         }
+    }
+
+    // ── § A3. 力度或关系原语（R1/R2 裁定：027:32/026:521/025:38/060:44）────────────
+
+    #[test]
+    fn same_color_area_counts_only_move_color_bars() {
+        // 060:44 同色口径：Long=向下离开 ⟹ 只计绿柱（hist<0）；Short 只计红柱（hist>0）。
+        let hist = vec![3.0, -1.0, -2.0, 5.0, -4.0];
+        assert_eq!(same_color_area(&hist, 0, 4, Side::Long), 7.0, "绿柱 |−1|+|−2|+|−4|");
+        assert_eq!(same_color_area(&hist, 0, 4, Side::Short), 8.0, "红柱 3+5");
+        // 子区间与越界。
+        assert_eq!(same_color_area(&hist, 1, 2, Side::Long), 3.0);
+        assert_eq!(same_color_area(&hist, 0, 99, Side::Long), 0.0);
+        // 全反向柱 ⟹ 同色面积 0（060:44 下无力度可读，区别于混合柱 Σ|hist|>0）。
+        let opp = vec![2.0, 4.0];
+        assert_eq!(same_color_area(&opp, 0, 1, Side::Long), 0.0);
+        assert_eq!(segment_macd_area(&opp, 0, 1), 6.0, "对照：混合柱把反向柱计入");
+    }
+
+    #[test]
+    fn same_dir_hist_peak_takes_deepest_move_color_bar() {
+        // 025:38 柱高：Long 取最深绿柱 |min|，Short 取最高红柱 max；无同色柱 ⟹ 0。
+        let hist = vec![3.0, -1.0, -2.0, 5.0, -4.0];
+        assert_eq!(same_dir_hist_peak(&hist, 0, 4, Side::Long), 4.0);
+        assert_eq!(same_dir_hist_peak(&hist, 0, 4, Side::Short), 5.0);
+        assert_eq!(same_dir_hist_peak(&hist, 0, 0, Side::Long), 0.0, "该 bar 无绿柱");
+        assert_eq!(same_dir_hist_peak(&hist, 0, 99, Side::Short), 0.0);
+    }
+
+    #[test]
+    fn segments_diverge_or_any_single_channel_suffices() {
+        // 027:32「只要其中一个符合就可以」：逐通道单测——任一通道衰减即 true，全无衰减 false。
+        let hist = vec![4.0, -4.0, 1.0, -1.0]; // A=[0,1] 红柱4/绿柱4；C=[2,3] 红柱1/绿柱1
+        let dif = vec![10.0, 12.0, 9.0, 8.0];
+        // 三通道全衰减（面积 1<4、柱峰 1<4、dif 峰 9<12）⟹ true。
+        assert!(segments_diverge_or(&hist, &dif, Side::Short, (0, 1), (2, 3)));
+        // 混合柱口径对照：混合面积 C=2 < A=8 也 true——但下例展示分离情形。
+        assert!(segments_diverge(&hist, (0, 1), (2, 3)));
+
+        // 分离情形①：混合面积 C≥A（反向柱喂大 C），同色面积 C<A ⟹ 或关系救回（p113 turn=739707 标本型）。
+        let hist2 = vec![-6.0, 1.0, -2.0, 5.0]; // A=[0,1] 绿柱6；C=[2,3] 绿柱2+红柱5
+        assert!(!segments_diverge(&hist2, (0, 1), (2, 3)), "混合面积 7>6 判负");
+        let dif2 = vec![-9.0, -9.0, -9.0, -9.0]; // dif 峰持平（等值不算衰减）
+        assert!(
+            segments_diverge_or(&hist2, &dif2, Side::Long, (0, 1), (2, 3)),
+            "同色面积 2<6 单通道成立"
+        );
+
+        // 分离情形②：面积两口径都不衰减，黄白线峰 C<A ⟹ 单通道成立（026:521）。
+        let hist3 = vec![-2.0, -2.0, -3.0, -3.0];
+        let dif3 = vec![-8.0, -10.0, -5.0, -6.0]; // A 负峰 10 > C 负峰 6
+        assert!(segments_diverge_or(&hist3, &dif3, Side::Long, (0, 1), (2, 3)));
+
+        // 全无衰减 ⟹ false（033:26 无衰减即无盘背，市场事实边界）。
+        let hist4 = vec![-2.0, -2.0, -9.0, -9.0];
+        let dif4 = vec![-5.0, -6.0, -8.0, -10.0];
+        assert!(!segments_diverge_or(&hist4, &dif4, Side::Long, (0, 1), (2, 3)));
+    }
+
+    #[test]
+    fn dif_crosses_zero_touch_or_sign_flip() {
+        // 025:761 回拉 0 轴：触 0 或相邻变号；同号区间 false；越界 false。
+        assert!(dif_crosses_zero(&[1.0, -0.5, 2.0], 0, 2), "变号");
+        assert!(dif_crosses_zero(&[1.0, 0.0, 2.0], 0, 2), "触 0");
+        assert!(!dif_crosses_zero(&[1.0, 0.5, 2.0], 0, 2), "同号无回拉");
+        assert!(!dif_crosses_zero(&[1.0, 2.0], 0, 99), "越界不可验 ⟹ false");
+        // 首 bar 不与区间外 bar 配对（t > lo 才比 t-1）。
+        assert!(!dif_crosses_zero(&[-1.0, 2.0, 3.0], 1, 2), "区间起点不与左邻配对");
     }
 
     // ── § B. A/B/C 框架层：趋势背驰 A 段定位（locate_trend_seg_a）─────────────────

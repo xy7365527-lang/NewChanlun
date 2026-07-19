@@ -76,6 +76,7 @@ fn main() -> Result<(), String> {
         .map(|bar| bar.source_index)
         .collect();
     let hist = compute_macd(&closes, &config.macd).hist;
+    let dif = compute_macd(&closes, &config.macd).dif;
 
     println!(
         "P95_INPUT bars={} merged={} as_of={} first_date={} last_date={} tower_levels={}",
@@ -215,10 +216,10 @@ fn main() -> Result<(), String> {
                 unchanged += 1;
                 // 条款 2 下游覆盖：未涉 run 的 A/B 组装结果必须逐位一致。
                 let (va, ea) = assemble_run(
-                    level, windows, rb, &lower_legs, as_of, &hist, &close_src, false,
+                    level, windows, rb, &lower_legs, as_of, &hist, &dif, &close_src, false,
                 )?;
                 let (vb, eb) = assemble_run(
-                    level, windows, rb, &lower_legs, as_of, &hist, &close_src, true,
+                    level, windows, rb, &lower_legs, as_of, &hist, &dif, &close_src, true,
                 )?;
                 if completed_move_starts(&va) != completed_move_starts(&vb)
                     || va.moves != vb.moves
@@ -238,13 +239,13 @@ fn main() -> Result<(), String> {
             }
             // ---- 条款 3：下游差异清单 ----
             let (vb, eb) = assemble_run(
-                level, windows, rb, &lower_legs, as_of, &hist, &close_src, true,
+                level, windows, rb, &lower_legs, as_of, &hist, &dif, &close_src, true,
             )?;
             let mut starts_a_union: BTreeSet<usize> = BTreeSet::new();
             let mut events_a_union: BTreeSet<String> = BTreeSet::new();
             for ra in &contained {
                 let (va, ea) = assemble_run(
-                    level, windows, ra, &lower_legs, as_of, &hist, &close_src, false,
+                    level, windows, ra, &lower_legs, as_of, &hist, &dif, &close_src, false,
                 )?;
                 starts_a_union.extend(completed_move_starts(&va));
                 events_a_union.extend(event_keys(&ea));
@@ -322,6 +323,7 @@ fn main() -> Result<(), String> {
                     &lower_legs,
                     prefix_as_of,
                     &hist,
+                    &dif,
                     &close_src,
                     true,
                 )?;
@@ -348,6 +350,7 @@ fn main() -> Result<(), String> {
                         &lower_legs,
                         prefix_as_of,
                         &hist,
+                        &dif,
                         &close_src,
                         false,
                     )?;
@@ -508,6 +511,7 @@ fn assemble_run(
     lower_legs: &[LowerLeg],
     as_of: usize,
     hist: &[f64],
+    dif: &[f64],
     close_src: &[usize],
     carried_only: bool,
 ) -> Result<(LevelAsOfView, Vec<NestCandidateEvent>), String> {
@@ -546,6 +550,7 @@ fn assemble_run(
             move_blocks: &blocks,
             lower_legs,
             hist,
+            dif,
             close_src,
         },
     )
@@ -562,6 +567,7 @@ fn assemble_run(
         lower_legs,
         &view,
         hist,
+        dif,
         close_src,
     );
     Ok((view, events))

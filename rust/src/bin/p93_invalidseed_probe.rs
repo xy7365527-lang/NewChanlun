@@ -15,7 +15,8 @@ use newchan_rust::theta_v0::classifier::decompose;
 use newchan_rust::theta_v0::classifier::descend::RMove;
 use newchan_rust::theta_v0::classifier::divergence::compute_macd;
 use newchan_rust::theta_v0::classifier::level_view::{
-    assemble_level_view, lower_legs_from, project_extended_windows, provide_nest_candidate_events,
+    assemble_level_view, lower_legs_from, project_extended_windows,
+    project_extended_windows_carried_only, provide_nest_candidate_events,
     C2LevelViewConfig, C2VersionTuple, CoordinateWindow, LevelViewMaterial, LevelViewQuery,
     NestCandidateEvent, ProjectionError, ProjectionMaterial,
 };
@@ -87,6 +88,7 @@ fn main() -> Result<(), String> {
         .map(|bar| bar.source_index)
         .collect();
     let hist = compute_macd(&closes, &config.macd).hist;
+    let dif = compute_macd(&closes, &config.macd).dif;
 
     if tower.len() != EXPECTED_D1.len() + 1 {
         return Err(format!(
@@ -189,7 +191,7 @@ fn main() -> Result<(), String> {
 
         // 最终 as_of 快照事件收集（p92 provider 路径）。
         for &(start, end) in &runs {
-            let projection = project_extended_windows(&windows[start..end])
+            let projection = project_extended_windows_carried_only(&windows[start..end])
                 .map_err(|error| format!("L{level} run projection 失败: {error:?}"))?;
             let centers: Vec<_> = projection.seeds.iter().map(|seed| seed.center).collect();
             let blocks = decompose::decompose(&centers);
@@ -210,6 +212,7 @@ fn main() -> Result<(), String> {
                     move_blocks: &blocks,
                     lower_legs: &lower,
                     hist: &hist,
+                    dif: &dif,
                     close_src: &close_src,
                 },
             )
@@ -221,6 +224,7 @@ fn main() -> Result<(), String> {
                 &lower,
                 &view,
                 &hist,
+                &dif,
                 &close_src,
             ));
         }

@@ -1012,7 +1012,9 @@ pub fn map_src_to_close_idx(close_src: &[usize], start: usize, end: usize) -> Op
 
 use super::super::types::{MoveKind, Segment, Side};
 use super::decompose::{center_block_kind, center_trend_gate, decompose};
-use super::divergence::{departure_move_c_start, locate_departure_move_a, DivergenceGauge};
+use super::divergence::{
+    departure_move_c_start, locate_departure_move_a, move_range_envelope, DivergenceGauge,
+};
 use super::signal;
 
 /// 父事件所归属的最后同级别中枢 `B_p` 的确定性身份。
@@ -1142,9 +1144,9 @@ pub struct CandDeltaCpEdge {
 
 /// Cand^δ_ℓ 事件：级别 ℓ 的背驰段谓词判定（一次破中枢结构候选的完整证据包）。
 ///
-/// 产生条件 = `judge_first_cached` 返回 `Some`（破最后中枢几何 ∧ A/C 可配对 ∧ closes 可映射，
-/// P2-R2 候选口径）；`cand_delta` = D 背驰确认（默认 gauge 下 ≡ MACD 面积严格 C<A，
-/// = `bits.buy1 ∨ bits.sell1`——从产出派生，无第二套判据）。
+/// 产生条件 = `judge_first_cached` 返回 `Some`（破最后中枢几何 ∧ 037:20 破 b 包络极值 ∧ A/C 可
+/// 配对 ∧ closes 可映射，P2-R2 候选口径 + p117 037:20 收缩）；`cand_delta` = D 背驰确认（默认
+/// gauge 下 ≡ MACD 面积严格 C<A，= `bits.buy1 ∨ bits.sell1`——从产出派生，无第二套判据）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CandDeltaEvent {
     /// 级别 ℓ（L0=0）。
@@ -2051,7 +2053,7 @@ pub fn level_cand_delta(
             first_match_idx.entry((c.end_index, c.zd, c.zg)).or_insert(idx);
         }
     }
-    let mut a_seg_cache: std::collections::HashMap<usize, Option<(usize, usize)>> =
+    let mut a_seg_cache: std::collections::HashMap<usize, Option<((usize, usize), (Tick, Tick))>> =
         std::collections::HashMap::new();
 
     // ── 事件收集（判定全部经 signal::judge_* 同一函数，与 judge_segment 第一类支同构） ──
@@ -2081,7 +2083,7 @@ pub fn level_cand_delta(
             if any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation) {
                 let c = &centers_sorted[c_idx];
                 if let Some(cert) =
-                    signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, close_src)
+                    signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, dif, close_src)
                 {
                     events.push(CandDeltaEvent {
                         level,
@@ -2110,24 +2112,31 @@ pub fn level_cand_delta(
         };
         let c = &centers_sorted[c_idx];
         let prev_center = &centers_sorted[pos - 1];
+        // ★p117 037:20（裁定 T3）：b 包络随 I(A) 同槽缓存（`move_range_envelope` 单一来源）。
+        // 本 provider 是诊断消费点——provenance 锚保留（T2 窄域授权仅限生产第一类路径
+        // `judge_segment`，不及此）；判据函数 037:20 合取随签名类型同步收缩。
         let a_seg_entry = *a_seg_cache
             .entry(c_idx)
-            .or_insert_with(|| locate_departure_move_a(sorted, anchors, prev_center, c, dir));
+            .or_insert_with(|| {
+                locate_departure_move_a(sorted, anchors, prev_center, c, dir).and_then(|span| {
+                    move_range_envelope(sorted, span).map(|env| (span, env))
+                })
+            });
         let c_start_entry = departure_move_c_start(sorted, anchors, c, dir, seg.start_index);
         let Some(pf) = signal::judge_first_cached(
             c, dir, seg, anchors[i], hist, dif, closes_tick, close_src, a_seg_entry,
             c_start_entry, gauge,
         ) else {
-            continue; // 未破中枢/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
+            continue; // 未破中枢/未破 b 极值（037:20）/A 不可配对/不可映射 ⟹ 非结构候选（与生产路径同一 gate）。
         };
         // 事件字段全部从 judge 的入参/返回值派生（无第二套判据）：
         // judge Some ⟹ broke ∧ A 配对 ∧ 映射成立 ⟹ λ_C/I(A) 必 Some（judge 内部同断言）。
         let lambda_c = c_start_entry.expect("judge Some ⟹ λ_C Some");
-        let a_interval = a_seg_entry.expect("judge Some ⟹ I(A) Some");
+        let a_interval = a_seg_entry.map(|(span, _env)| span).expect("judge Some ⟹ I(A) Some");
         let side = pf.struct_break_dir.expect("第一类结构候选必携 struct_break_dir（P2-R2 无条件置）");
         let kind_consol = any_consol && center_kind[c_idx] == Some(MoveKind::Consolidation);
         let pan_div_diag = kind_consol
-            && signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, close_src).is_some();
+            && signal::judge_pan_div(c, seg, sorted, &anchors_self, hist, dif, close_src).is_some();
         let confirm_src = pf.source_index;
         let interval_end = seg.end_index;
         let cand_delta = pf.bits.buy1 || pf.bits.sell1;

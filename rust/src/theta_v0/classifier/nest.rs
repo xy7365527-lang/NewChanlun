@@ -26,8 +26,10 @@
 //! canonical 分解 tie-break：最早确认时间 → 最低递归层 → 最早原始 index）。
 
 use super::super::types::{BspBits, Side};
+use super::bsp::BspPoint;
 use super::level_view::{NestCandidateEvent, NestDivergenceKind};
 use super::recursive_tower::{cp_terminal_certificate, CandDeltaEvent, CpScanOwnership};
+use super::Classification;
 
 /// 候选定位区间（契约锚 `Origin.SubLevelDescent` 下钻区间）——携带 `Sel_Θ` 排序三键。
 ///
@@ -395,7 +397,8 @@ pub struct NestEventIdentity {
 }
 
 impl NestEventIdentity {
-    fn of(event: &NestCandidateEvent) -> Self {
+    /// p118 关④：`turn_class` 派生层需由事件构造身份（DeferOrphan 主键），提升可见性。
+    pub fn of(event: &NestCandidateEvent) -> Self {
         Self {
             level: event.level,
             turn_source: event.turn_source,
@@ -405,13 +408,19 @@ impl NestEventIdentity {
 }
 
 /// #92 typed 证书：证书真值仍由 [`NestCertificate`] 单一来源复验，类型与首次可证钟
-/// 作为不可改判的 sidecar 随链保存。`kinds`/`judge_at`/`identities` 均按高→低排列并包含基例。
+/// 作为不可改判的 sidecar 随链保存。`kinds`/`judge_at`/`identities`/`confirmed` 均按
+/// 高→低排列并包含基例。
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypedNestCertificate {
     certificate: NestCertificate,
     kinds: Vec<NestDivergenceKind>,
     judge_at: Vec<usize>,
     identities: Vec<NestEventIdentity>,
+    /// p118 关④ sidecar：链上每级 `divergence_confirmed` 真值（高→低，含基例），与
+    /// [`Self::identities`] 一一对齐。装配环在断链点（`extend_typed_upward` rung push 同位）
+    /// 恢复的 rung 级力度真值——只供 `turn_class` 纯读派生小转大分类，不进证书真值
+    ///（`NestCertificate`/`n_delta` 不动），不进 p92 去重键（`certificate_key` 不读本字段）。
+    confirmed: Vec<bool>,
     caliber: NestIntervalCaliber,
 }
 
@@ -431,6 +440,13 @@ impl TypedNestCertificate {
     /// #97 身份标签（高→低，含基例），与 [`Self::kinds`] 对齐。
     pub fn identities(&self) -> &[NestEventIdentity] {
         &self.identities
+    }
+
+    /// p118 关④ sidecar：链上每级 `divergence_confirmed`（高→低，含基例），与
+    /// [`Self::identities`] 对齐。`confirmed()[0]` = 链顶 rung 力度真值（小转大判定的
+    /// 断链恢复点，施工图 D-1）；`confirmed().last()` = 基例真值（基例门恒 true）。
+    pub fn confirmed(&self) -> &[bool] {
+        &self.confirmed
     }
 
     pub fn caliber(&self) -> NestIntervalCaliber {
@@ -457,11 +473,157 @@ fn typed_interval(event: &NestCandidateEvent, caliber: NestIntervalCaliber) -> N
     }
 }
 
+// ═════════ p117 T1 终端背书级别对齐（bsp-terminal-endorsement-ruling-20260718）═════════
+
+/// nest level-ℓ 事件 → 终端背书 BSP 账本级别（p117 T1 裁定1：级别移位 ℓ→ℓ-1）。
+///
+/// 事件原子 = tower[ℓ] 窗携带核 = `levels[ℓ-1]` 中枢（S1a 图 §1.4 事实链），其趋势背驰
+/// 级别 = `levels[ℓ-1]` 中枢链级别（037:16 趋势级别=中枢级别）⟹ 合法背书账本 =
+/// `levels[ℓ-1].bsp`（024:18 背驰必制造其所在级别的买卖点；043:26 查找只能向下）。
+/// nest 桶号 ℓ 与 BSP 级别 ℓ 的恒等贴标判定为级别混配装配工件，不是谓词语义
+/// （fiat 反读已驳回，裁定 T1.3）。
+///
+/// ℓ≥1 ⟹ Some(ℓ-1)；ℓ=0 ⟹ None（nest 不听 L0，p105 §3）。exec≥2 同构适用（裁定 T1.5）。
+pub fn event_bsp_book_level(event_level: u32) -> Option<usize> {
+    match event_level {
+        0 => None,
+        level => Some(level as usize - 1),
+    }
+}
+
+/// 终端背书坐标口径（p117 T1 裁定2：生产 = C-b；C-a 保留为敏感性对照，不实装为默认）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalMatch {
+    /// C-a 精确坐标：`source_index == turn_source`（旧位格等式平移一级）。敏感性对照专用，
+    /// 不作生产默认（预测差 = 5 延迟案，验收报告须落 C-a/C-b 对照读数）。关③ P3.1：本臂
+    /// 维持诊断常数，不收紧、不入生产默认（原裁定 T1.2 口径不变）。
+    Exact,
+    /// C-b 窗口最早**合法**点：`[c_start, t*]`（= `interval_b.0..=turn_source`）内、满足
+    /// 事件族点类限定的最早 confirm_side 点。点类分域（关③ P1/P2，
+    /// pan-terminal-endorsement-ruling-20260718）：`Trend` = 破 B 一类点（buy1|sell1 ∧
+    /// owner=B——判定式 `point.center.start_index == b_center_start`，start_index 判同，
+    /// 禁全字段等式，p117 §7）；`Consolidation` = 同向一/二/三类全合法（`confirm_side`
+    /// 即精确语义，零改动）。本注释取代旧的「窗口内首个破核点的判决中枢必 = B」结构身份
+    /// 保证——该保证已被 T1 复议证伪作废（bsp-terminal-endorsement-t1-review-20260718:92，
+    /// frontier 吸收 37/37），不得复引。方向由 `confirm_side` 锁死。
+    CWindow,
+}
+
+/// 终端背书判定结构（关③ P3.2：`terminal_bits_at_event` 返回形状由 `Option<BspBits>`
+/// 扩为携带点身份——bits + 命中点 owner 中枢 start_index；属同函数语义内扩展，
+/// 消费方同步，不构成第二查法）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalEndorsement {
+    /// 命中点的买卖点 bit 向量（方向已由 `confirm_side` 按事件 side 锁死）。
+    pub bits: BspBits,
+    /// 命中点 owner 中枢的 `start_index`（`BspPoint.center.start_index`；`None` = 点无
+    /// center——★owner 载体补齐（关③ 补记 2026-07-18 ②，路径 (a)）后，生产一/二/三类点
+    /// center 均恒 `Some`（构造时填入判定中枢，signal.rs `make_first_point`/
+    /// `make_second_point`/`make_third_point` 不变量）；`None` 仅剩非生产合成形状）。
+    /// Trend 域合法命中按构造恒 `Some(b_center_start)`（owner=B 是合法合取，判定只比 start_index）。
+    pub owner_center_start: Option<usize>,
+}
+
+/// 单本账上的终端背书查法核（单一来源；账本只读，不改 `BspPoint` 任何字段/排序/去重）。
+///
+/// 窗口为 `c_start..=turn_source` 闭区间。`CWindow` 取窗口内**合法**点中 `source_index`
+/// 最小者（`min_by_key` 平局取迭代序首个，确定性）——**合法性过滤先于最早性取点**
+///（关③ P3.1：最早性只是确定性规则，二/三类点的在场不影响其后一类点的合法性，
+/// 044:30 延迟常态；「最早合法」≠「最早」）。合法谓词按事件族 `kind` 分域（关③
+/// P1/P2/P3，收紧唯一落点，调用点零限定、禁 fork）：
+/// - `Trend`：`confirm_side(side) ∧ (buy1|sell1) ∧ owner=B`，owner 判定式 =
+///   `point.center.start_index == b_center_start`（start_index 判同——延伸只改写
+///   end/dd/gg，start_index 与 zd/zg 稳定，p117 §7 实测 37/37；**禁全字段 `Center`
+///   等式**，已证结构性必败）。`b_center_start = None`（旧事件路径 B 身份缺失）⟹
+///   无合法点（身份合取不可证，诚实判负）。
+/// - `Consolidation`：`confirm_side(side)` 即精确语义（同向一/二/三类全合法，一类非
+///   必需，P2 裁决 5 零改动）；`b_center_start` 不入判（pan 同写仅归因用途，不作门）。
+///
+/// `Exact` 为位格等式 + confirm_side 的首个迭代序命中（旧查法语义平移；诊断常数不收紧）。
+/// 窗口内无合法点 ⟹ None——037:18 否则条款域的诚实判负，非放宽、非误杀。
+#[allow(clippy::too_many_arguments)]
+pub fn terminal_bits_in_book(
+    bsp: &[BspPoint],
+    c_start: usize,
+    turn_source: usize,
+    side: Side,
+    kind: NestDivergenceKind,
+    b_center_start: Option<usize>,
+    m: TerminalMatch,
+) -> Option<TerminalEndorsement> {
+    let endorsement = |point: &BspPoint| TerminalEndorsement {
+        bits: point.bits,
+        owner_center_start: point.center.map(|c| c.start_index),
+    };
+    match m {
+        TerminalMatch::Exact => bsp
+            .iter()
+            .find(|point| point.source_index == turn_source && point.bits.confirm_side(side))
+            .map(endorsement),
+        TerminalMatch::CWindow => bsp
+            .iter()
+            .filter(|point| {
+                c_start <= point.source_index
+                    && point.source_index <= turn_source
+                    && point.bits.confirm_side(side)
+                    && match kind {
+                        NestDivergenceKind::Consolidation => true,
+                        NestDivergenceKind::Trend => {
+                            (point.bits.buy1 || point.bits.sell1)
+                                && b_center_start.is_some_and(|b| {
+                                    point.center.is_some_and(|c| c.start_index == b)
+                                })
+                        }
+                    }
+            })
+            .min_by_key(|point| point.source_index)
+            .map(endorsement),
+    }
+}
+
+/// nest 事件的终端背书（级别对齐查法，p117 T1 = S0+S1a 合并项的生产单一来源；关③ P3 =
+/// confirm_side 收紧唯一落点——kind 分域点类限定在本函数语义层，调用点零限定，禁 fork）。
+///
+/// 账本 = `levels[event_bsp_book_level(e.level)?].bsp`；窗口左端 = `e.interval_b.0`
+///（c_start = `departure_move_c_start` 当前 episode 首腿，失败离开→回中枢→重新离开不
+/// 桥接）；右端 = `e.turn_source`（R1 后 = 确认点 t*，因果序正，无前视入证）。
+/// 点类限定按 `e.kind` 分派（Trend = 破 B 一类点 ∧ owner=B——B 身份由事件自带
+/// `e.b_center_start` 快照供给，判定式 = `point.center.start_index == e.b_center_start`；
+/// Consolidation = 同向一/二/三类全合法）。账本级别缺失/越界 ⟹ None。
+///
+/// S0 的 A1 桥键（c 责任单元 `terminal_bits_bridged`）被级别移位 + C-b 同构吸收，
+/// 不并列实装（裁定 T1.4，单一来源纪律：旧查法删除，不得保留为 fallback）。
+pub fn terminal_bits_at_event(
+    c: &Classification,
+    e: &NestCandidateEvent,
+    m: TerminalMatch,
+) -> Option<TerminalEndorsement> {
+    let book = &c.levels.get(event_bsp_book_level(e.level)?)?.bsp;
+    terminal_bits_in_book(
+        book,
+        e.interval_b.0,
+        e.turn_source,
+        e.side,
+        e.kind,
+        Some(e.b_center_start),
+        m,
+    )
+}
+
 /// #92 单基例 typed 装配。
 ///
 /// Cand 由 [`NestCandidateEvent`] 的 provider 构造即真；力度在
 /// `divergence_confirmed` 独立合取。Trend/Pan 共用几何递归但保留 typed sidecar。
 /// `judge_at` 只登记 D3 违反率，绝不作硬门。
+///
+/// ## 终端契约（p117 T1，bsp-terminal-endorsement-ruling-20260718；关③ P3 收紧）
+///
+/// `terminal_of` 必须返回**事件结构级别**账本（`levels[exec-1].bsp`，见
+/// [`event_bsp_book_level`]）的合法终端背书 bits——点类分域 = 事件 kind（Trend = 破 B
+/// 一类 ∧ owner=B；Consolidation = 同向一/二/三类，pan-terminal-endorsement-ruling-
+/// 20260718 P1/P2）；调用方须用 [`terminal_bits_at_event`]（收紧唯一落点，禁调用点
+/// 自行加限定 fork）。`levels[exec]` 位格等式查法是级别混配装配工件，已裁定退役，
+/// 不得作为生产查法恢复（裁定不回滚条款）。
 pub fn assemble_typed_certificate<F>(
     events_by_level: &[Vec<NestCandidateEvent>],
     base: &NestCandidateEvent,
@@ -485,6 +647,8 @@ where
     let mut kinds_low_to_high = vec![base.kind];
     let mut clocks_low_to_high = vec![base.judge_at];
     let mut ids_low_to_high = vec![NestEventIdentity::of(base)];
+    // p118 关④：confirmed sidecar 以基例力度真值播种（基例门 :564 已断言 true）。
+    let mut confirmed_low_to_high = vec![base.divergence_confirmed];
     if !extend_typed_upward(
         events_by_level,
         base.side,
@@ -496,6 +660,7 @@ where
         &mut kinds_low_to_high,
         &mut clocks_low_to_high,
         &mut ids_low_to_high,
+        &mut confirmed_low_to_high,
     ) {
         return None;
     }
@@ -503,6 +668,7 @@ where
     kinds_low_to_high.reverse();
     clocks_low_to_high.reverse();
     ids_low_to_high.reverse();
+    confirmed_low_to_high.reverse();
     let certificate = NestCertificateBuilder {
         side: base.side,
         terminal,
@@ -517,6 +683,7 @@ where
         kinds: kinds_low_to_high,
         judge_at: clocks_low_to_high,
         identities: ids_low_to_high,
+        confirmed: confirmed_low_to_high,
         caliber,
     })
 }
@@ -533,6 +700,7 @@ fn extend_typed_upward(
     kinds: &mut Vec<NestDivergenceKind>,
     clocks: &mut Vec<usize>,
     ids: &mut Vec<NestEventIdentity>,
+    confirmed: &mut Vec<bool>,
 ) -> bool {
     if level > top_level {
         return true;
@@ -560,6 +728,9 @@ fn extend_typed_upward(
         kinds.push(event.kind);
         clocks.push(event.judge_at);
         ids.push(NestEventIdentity::of(event));
+        // p118 关④断链点修复：rung 级 `divergence_confirmed` 真值不再丢弃——恢复进
+        // sidecar 向量（施工图 §1.2：信息在装配时存在、输出时消失）；回溯时同步 pop。
+        confirmed.push(event.divergence_confirmed);
         if extend_typed_upward(
             events_by_level,
             side,
@@ -571,6 +742,7 @@ fn extend_typed_upward(
             kinds,
             clocks,
             ids,
+            confirmed,
         ) {
             return true;
         }
@@ -578,6 +750,7 @@ fn extend_typed_upward(
         kinds.pop();
         clocks.pop();
         ids.pop();
+        confirmed.pop();
     }
     false
 }
@@ -915,6 +1088,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use super::super::LevelState;
+    use super::super::super::types::Center;
     use super::*;
 
     fn interval(et: u64, st: u64, idx: u64) -> NestInterval {
@@ -1485,6 +1660,8 @@ mod tests {
             judge_at,
             provider_window: interval_a,
             intake_fallback: false,
+            // 关③ P3 新字段：非终端查询的测试不读本值；终端测试用 `..ev` 结构更新显式覆写。
+            b_center_start: 0,
         }
     }
 
@@ -1569,5 +1746,442 @@ mod tests {
             ).is_some(),
             "真实 B2 可满足既有 confirm_side 析取"
         );
+    }
+
+    // ───────── p117 T1 终端背书级别对齐（S1a 图 §5 四新增 + S0 八夹具 C-b 改写吸收）─────────
+
+    fn buy2_bits() -> BspBits {
+        let mut t = BspBits::default();
+        t.buy2 = true;
+        t
+    }
+
+    fn pt(source_index: usize, bits: BspBits) -> BspPoint {
+        BspPoint {
+            source_index,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        }
+    }
+
+    /// 关③ P3：B 中枢身份快照基准（测试夹具共用 start_index；zd/zg/dd/gg/end 任意——
+    /// 判定只比 start_index，延伸判同由 `c_window_trend_owner_extension_start_index_judges` 专测）。
+    const B_START: usize = 20;
+
+    /// 携 owner 中枢的账本点夹具（owner 判定式 = `center.start_index == b_center_start`，
+    /// start_index 判同，禁全字段等式——zd/zg/dd/gg/end_index 由参数另给或置 0，均不入判）。
+    fn ptc(source_index: usize, bits: BspBits, center_start: usize) -> BspPoint {
+        BspPoint {
+            center: Some(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: center_start, end_index: 0 }),
+            ..pt(source_index, bits)
+        }
+    }
+
+    /// 判定结构 → bits 投影（多数断言只关心 bit 向量；owner 维度由关③新增测试专断）。
+    fn bits_of(e: Option<TerminalEndorsement>) -> Option<BspBits> {
+        e.map(|t| t.bits)
+    }
+
+    /// 关③ Trend 域事件夹具：kind=Trend 且自带 B 身份快照 `B_START`。
+    fn trend_ev(interval_b: (usize, usize), turn_source: usize) -> NestCandidateEvent {
+        NestCandidateEvent {
+            b_center_start: B_START,
+            ..typed_event(
+                1, Side::Long, NestDivergenceKind::Trend,
+                interval_b, (interval_b.0.saturating_sub(10), turn_source + 10),
+                turn_source, turn_source, true,
+            )
+        }
+    }
+
+    /// 关③ Pan 域事件夹具：kind=Consolidation（owner 快照不入判，置 0）。
+    fn pan_ev(interval_b: (usize, usize), turn_source: usize) -> NestCandidateEvent {
+        typed_event(
+            1, Side::Long, NestDivergenceKind::Consolidation,
+            interval_b, (interval_b.0.saturating_sub(10), turn_source + 10),
+            turn_source, turn_source, true,
+        )
+    }
+
+    /// 两级分类夹具：levels[0]/levels[1] 各持一本 BSP 账，其余字段默认（全 pub，无 parser 依赖）。
+    fn book2(l0: Vec<BspPoint>, l1: Vec<BspPoint>) -> Classification {
+        Classification {
+            levels: vec![
+                LevelState { bsp: std::rc::Rc::new(l0), ..Default::default() },
+                LevelState { bsp: std::rc::Rc::new(l1), ..Default::default() },
+            ],
+        }
+    }
+
+    #[test]
+    fn event_bsp_book_level_shifts_exactly_one_down() {
+        assert_eq!(event_bsp_book_level(1), Some(0));
+        assert_eq!(event_bsp_book_level(2), Some(1));
+        assert_eq!(event_bsp_book_level(0), None);
+        assert_eq!(event_bsp_book_level(6), Some(5));
+    }
+
+    #[test]
+    fn terminal_bits_at_event_exact_reads_child_book() {
+        // levels[0] 有 confirm 点@100 ⟹ 命中（C-a 平移语义；Exact = 诊断常数，关③ 不收紧）。
+        let c = book2(vec![pt(100, buy1_bits())], vec![]);
+        let ev = typed_event(
+            1, Side::Long, NestDivergenceKind::Trend,
+            (90, 100), (80, 110), 100, 100, true,
+        );
+        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::Exact)), Some(buy1_bits()));
+        // 仅 levels[1] 有 ⟹ None（新语义防回归：移位后不再读 levels[ℓ]）。
+        let c_l1_only = book2(vec![], vec![pt(100, buy1_bits())]);
+        assert_eq!(terminal_bits_at_event(&c_l1_only, &ev, TerminalMatch::Exact), None);
+        // side 反 ⟹ None。
+        let ev_short = NestCandidateEvent { side: Side::Short, ..ev };
+        assert_eq!(terminal_bits_at_event(&c, &ev_short, TerminalMatch::Exact), None);
+        // event.level=0 ⟹ None（nest 不听 L0）。
+        let ev_l0 = NestCandidateEvent { level: 0, ..ev };
+        assert_eq!(terminal_bits_at_event(&c, &ev_l0, TerminalMatch::Exact), None);
+        // level 越界 ⟹ None。
+        let ev_oob = NestCandidateEvent { level: 5, ..ev };
+        assert_eq!(terminal_bits_at_event(&c, &ev_oob, TerminalMatch::Exact), None);
+    }
+
+    #[test]
+    fn terminal_bits_at_event_c_window_picks_earliest_confirm() {
+        let c = book2(
+            vec![
+                pt(99, buy1_bits()),            // 窗口左端外 ⟹ 排除
+                ptc(120, buy1_bits(), B_START), // 窗口内最早合法点（一类 ∧ owner=B）⟹ 命中
+                pt(130, sell1_bits()),          // 反向 ⟹ 忽略（confirm_side 方向隔离）
+                ptc(150, buy2_bits(), B_START), // 同向二类 ⟹ Trend 域非法（关③ P1 点类限定）
+                pt(201, buy1_bits()),           // 窗口右端外 ⟹ 排除
+            ],
+            vec![],
+        );
+        let ev = trend_ev((100, 200), 200);
+        assert_eq!(
+            bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)),
+            Some(buy1_bits()),
+            "窗口 [100,200] 内最早合法点 @120（一类 ∧ owner=B）"
+        );
+        // 空窗（窗口内无任何点）⟹ None。
+        let c_empty = book2(vec![pt(99, buy1_bits()), pt(201, buy1_bits())], vec![]);
+        assert_eq!(terminal_bits_at_event(&c_empty, &ev, TerminalMatch::CWindow), None);
+    }
+
+    #[test]
+    fn assemble_typed_certificate_terminal_uses_shifted_book() {
+        let base = NestCandidateEvent {
+            b_center_start: B_START,
+            ..typed_event(
+                1, Side::Long, NestDivergenceKind::Trend,
+                (30, 50), (10, 70), 50, 100, true,
+            )
+        };
+        let events = vec![Vec::new(), vec![base]];
+        // 基例 level=1 confirmed + levels[0] 窗内合法背书点（一类 ∧ owner=B）@40 ⟹ Some(cert)。
+        let c = book2(vec![ptc(40, buy1_bits(), B_START)], vec![]);
+        let cert = assemble_typed_certificate(
+            &events, &base, 1, NestIntervalCaliber::B,
+            &|e| bits_of(terminal_bits_at_event(&c, e, TerminalMatch::CWindow)),
+        )
+        .expect("levels[0] 窗内背书点 ⟹ 证书成立");
+        assert_eq!(cert.certificate().terminal(), &buy1_bits());
+        // 删该点 ⟹ None。
+        let c_none = book2(vec![], vec![]);
+        assert!(assemble_typed_certificate(
+            &events, &base, 1, NestIntervalCaliber::B,
+            &|e| bits_of(terminal_bits_at_event(&c_none, e, TerminalMatch::CWindow)),
+        )
+        .is_none());
+        // 点只在 levels[1]（levels[0] 空）⟹ None——移位后不再读 levels[1]，防旧语义回潮。
+        let c_l1_only = book2(vec![], vec![ptc(40, buy1_bits(), B_START)]);
+        assert!(assemble_typed_certificate(
+            &events, &base, 1, NestIntervalCaliber::B,
+            &|e| bits_of(terminal_bits_at_event(&c_l1_only, e, TerminalMatch::CWindow)),
+        )
+        .is_none());
+    }
+
+    // ───── S0 图 §5.1 八夹具按 C-b 口径改写吸收 ─────
+    // 几何关系镜像 113 案代表样本 turn=726571：c_start=726527；B 延伸窗终点域 726540；
+    // c 内次级别中枢终点域 726600/726680。级别移位后「级别-k 单元窗」不存在——同一几何
+    // 关系落在 levels[ℓ-1] 账本的 source_index 点上，窗口 = [interval_b.0, turn_source]。
+
+    fn s0_event(t_star: usize) -> NestCandidateEvent {
+        // 关③ P3：Trend 域事件自带 B 身份快照 B_START；合法背书点须 owner=B（ptc 夹具）。
+        NestCandidateEvent {
+            b_center_start: B_START,
+            ..typed_event(
+                1, Side::Long, NestDivergenceKind::Trend,
+                (726527, t_star), (726400, t_star), t_star, t_star, true,
+            )
+        }
+    }
+
+    /// 原 `terminal_bridge_exact_hit_degenerates`：t*=726600 恰有合法背书点（一类 ∧
+    /// owner=B）时，C-b 与 C-a 逐位一致（向后兼容锁定；Exact = 诊断常数不收紧）。
+    #[test]
+    fn c_window_hit_at_tstar_degenerates_to_exact() {
+        let c = book2(vec![ptc(726600, buy1_bits(), B_START)], vec![]);
+        let ev = s0_event(726600);
+        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)), Some(buy1_bits()));
+        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::Exact)), Some(buy1_bits()));
+    }
+
+    /// 原 `terminal_bridge_skips_center_being_left_unit`：B 自身结构代表点 @726520
+    ///（< c_start=726527，其一类点见证进入 B 的 b-vs-a 前序背驰）被窗口左端结构性排除
+    ///（F1 跨结构误记防护在 C-b 下由 c_start 左端承担）⟹ None。
+    #[test]
+    fn c_window_left_edge_excludes_prior_structure_point() {
+        let c = book2(vec![pt(726520, buy1_bits())], vec![]);
+        let ev = s0_event(726560);
+        assert_eq!(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow), None);
+    }
+
+    /// 原 `terminal_bridge_selects_first_c_unit_covering_tstar`：t*=726650 深在 c 内，
+    /// @726600 buy1（owner=B）命中、@726680 buy2 越 t* 排除（且二类在 Trend 域非法）——
+    /// 窗口右端 = t*；多中枢 c（037:22）内的合法确认被覆盖。
+    #[test]
+    fn c_window_tstar_deep_in_c_picks_earliest_within_window() {
+        let c = book2(vec![ptc(726600, buy1_bits(), B_START), pt(726680, buy2_bits())], vec![]);
+        let ev = s0_event(726650);
+        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)), Some(buy1_bits()));
+    }
+
+    /// 原 `terminal_bridge_witness_not_formed_returns_none`：窗口 [726527,726560] 内
+    /// 无任何点（@726520/@726600 皆窗外）⟹ None——037:18 否则条款域的诚实判负。
+    #[test]
+    fn c_window_witness_absent_returns_none() {
+        let c = book2(vec![pt(726520, buy1_bits()), pt(726600, buy1_bits())], vec![]);
+        let ev = s0_event(726560);
+        assert_eq!(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow), None);
+    }
+
+    /// 原 `terminal_bridge_wrong_side_rejected`：窗口内仅 sell1@726600 ⟹ Long 事件
+    /// None——confirm_side 方向过滤保持。
+    #[test]
+    fn c_window_wrong_side_rejected() {
+        let c = book2(vec![pt(726600, sell1_bits())], vec![]);
+        let ev = s0_event(726600);
+        assert_eq!(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow), None);
+    }
+
+    /// 原 `terminal_bridge_first_confirm_at_shared_endpoint`：同坐标三点（零 bit + buy1
+    /// + buy2）⟹ Some(buy1)——关③ Trend 域下零 bit 拒、buy2 二类点类拒，buy1（owner=B）
+    /// 为唯一合法点（合法性过滤先于最早性/迭代序）。
+    #[test]
+    fn c_window_first_confirm_at_shared_coordinate() {
+        let c = book2(
+            vec![
+                pt(726600, BspBits::default()),
+                ptc(726600, buy1_bits(), B_START),
+                ptc(726600, buy2_bits(), B_START),
+            ],
+            vec![],
+        );
+        let ev = s0_event(726600);
+        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)), Some(buy1_bits()));
+    }
+
+    /// 原 `terminal_bridge_pan_event_same_contract`：kind=Consolidation 事件共用同一
+    /// 查法（其 interval_b.0 = pan C 起点）⟹ Some——关③ P2：Pan 域谓词 = confirm_side
+    /// 精确语义（同向一/二/三类全合法），owner 不入判（center=None 亦合法）。
+    #[test]
+    fn c_window_pan_event_same_contract() {
+        let c = book2(vec![pt(726600, buy1_bits())], vec![]);
+        let ev = typed_event(
+            1, Side::Long, NestDivergenceKind::Consolidation,
+            (726541, 726600), (726400, 726600), 726600, 726600, true,
+        );
+        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)), Some(buy1_bits()));
+    }
+
+    /// 原 `terminal_bridge_past_last_unit_returns_none` 的 C-b 消解：t*=726999 越过
+    /// 账本全部点，窗口内最早合法点 @726540 仍背书 ⟹ Some——A1「越末单元 ⟹ None」边界与
+    /// F2「背书晚于确认」语义差在 C-b 下结构性消解（最早点 ≤ t*，因果序正；裁定 T1.4）。
+    /// 关③ Trend 域：@726600 二类非法，@726540 一类 owner=B 合法。
+    #[test]
+    fn c_window_tstar_past_all_points_still_endorses_earliest() {
+        let c = book2(
+            vec![ptc(726540, buy1_bits(), B_START), pt(726600, buy2_bits())],
+            vec![],
+        );
+        let ev = s0_event(726999);
+        assert_eq!(bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)), Some(buy1_bits()));
+    }
+
+    // ───────── 关③ P3 confirm_side 收紧：点类分域 + owner=B start_index 判同 ─────────
+
+    /// 关③ P1/验收线：Trend 域 一类 ∧ owner=B 命中；判定结构携带 owner start_index。
+    #[test]
+    fn c_window_trend_type1_owner_b_hits() {
+        let c = book2(vec![ptc(150, buy1_bits(), B_START)], vec![]);
+        let ev = trend_ev((100, 200), 200);
+        let endo = terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)
+            .expect("一类 ∧ owner=B ⟹ 合法背书");
+        assert_eq!(endo.bits, buy1_bits());
+        assert_eq!(endo.owner_center_start, Some(B_START), "owner 判定式 = start_index 判同");
+    }
+
+    /// 关③ P1.3：Trend 域 一类 owner≠B 拒（窗内他中枢一类点——prev/OTHER/新生中枢——
+    /// 不作本事件背书）；owner 载体缺失（center=None——★owner 载体补齐（补记② 路径 (a)）
+    /// 后已非生产形状，此处合成构造锁「载体缺失 ⟹ 拒」的防御语义）同样拒——
+    /// 身份合取不可证，诚实判负（非放宽）。
+    #[test]
+    fn c_window_trend_type1_owner_not_b_rejected() {
+        let ev = trend_ev((100, 200), 200);
+        let c_other = book2(vec![ptc(150, buy1_bits(), B_START + 9)], vec![]);
+        assert_eq!(
+            terminal_bits_at_event(&c_other, &ev, TerminalMatch::CWindow),
+            None,
+            "一类但 owner≠B ⟹ 非法背书"
+        );
+        let c_none = book2(vec![pt(150, buy1_bits())], vec![]);
+        assert_eq!(
+            terminal_bits_at_event(&c_none, &ev, TerminalMatch::CWindow),
+            None,
+            "center=None ⟹ owner 不可证 ⟹ 拒"
+        );
+    }
+
+    /// 关③ P1：Trend 域 同向二/三类点拒（即使 owner=B）——二/三类不视为充分背书
+    ///（037:20 必要合取、061:28 候选域、027:66 构成性定义、024:18 背驰-买卖点定理）。
+    #[test]
+    fn c_window_trend_type2_type3_rejected() {
+        let mut buy3 = BspBits::default();
+        buy3.buy3 = true;
+        let c = book2(
+            vec![ptc(120, buy2_bits(), B_START), ptc(130, buy3, B_START)],
+            vec![],
+        );
+        let ev = trend_ev((100, 200), 200);
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow),
+            None,
+            "同向二/三类 ⟹ Trend 域非法；窗内无一类 ⟹ 诚实判负"
+        );
+    }
+
+    /// 关③ P3.1/P4 上行通道翻回：最早点为二类、窗内更晚处有一类 owner=B ⟹ 翻回合法——
+    /// 合法性过滤先于最早性取点（「最早合法」≠「最早」；二类在场不否决其后一类，
+    /// 044:30 延迟常态）。
+    #[test]
+    fn c_window_trend_later_type1_rescues_earlier_illegal() {
+        let c = book2(
+            vec![ptc(120, buy2_bits(), B_START), ptc(150, buy1_bits(), B_START)],
+            vec![],
+        );
+        let ev = trend_ev((100, 200), 200);
+        let endo = terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)
+            .expect("后至一类 owner=B 救回");
+        assert_eq!(endo.bits, buy1_bits(), "取 @150 一类而非 @120 二类（旧语义会取 buy2）");
+        assert_eq!(endo.owner_center_start, Some(B_START));
+    }
+
+    /// 关③ P3.2（p117 §7/§9-② 升格生产语义）：owner 延伸后 start_index 判同——延伸
+    /// 只改写 end/dd/gg，start_index 与 zd/zg 稳定（37/37）；同一 start_index、其余
+    /// 字段全异仍判同（禁全字段 `Center` 等式——已证结构性必败）。
+    #[test]
+    fn c_window_trend_owner_extension_start_index_judges() {
+        let mut extended = ptc(150, buy1_bits(), B_START);
+        extended.center = Some(Center {
+            zd: 100, zg: 200, dd: 90, gg: 210, start_index: B_START, end_index: 999,
+        });
+        let c = book2(vec![extended], vec![]);
+        let ev = trend_ev((100, 200), 200);
+        assert_eq!(
+            bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)),
+            Some(buy1_bits()),
+            "end/dd/gg/zd/zg 全异但 start_index 同 ⟹ owner=B"
+        );
+    }
+
+    /// 关③ P2.5：Pan 域 同向一/二/三类全合法逐型（一类合法但非必需）；各型取最早
+    /// 同向点；owner 不入判（center=None 合法，pan 同写 b_center_start 仅归因不作门）。
+    #[test]
+    fn c_window_pan_all_classes_legal() {
+        let mut buy3 = BspBits::default();
+        buy3.buy3 = true;
+        let ev = pan_ev((100, 200), 200);
+        for (bits, tag) in [
+            (buy1_bits(), "一类合法（非必需）"),
+            (buy2_bits(), "二类合法（盘背内生点类，027:18/057:40）"),
+            (buy3, "三类合法（024:44 标准成因）"),
+        ] {
+            let c = book2(vec![pt(150, bits)], vec![]); // center=None 不拒
+            assert_eq!(
+                bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)),
+                Some(bits),
+                "Pan 域 {tag}"
+            );
+        }
+        // 最早性不论点类：三类早于一类 ⟹ 取三类。
+        let c = book2(vec![pt(120, buy3), pt(150, buy1_bits())], vec![]);
+        assert_eq!(
+            bits_of(terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow)),
+            Some(buy3),
+            "Pan 域取最早同向点（点类不参与最早性）"
+        );
+    }
+
+    /// 关③ P2.1/不回滚条款：Pan 域 反向点方向隔离——027:92/027:740 证伪域（盘背
+    /// 转化为反向三类点）由 `confirm_side` 方向谓词构造性排除，不得放宽。
+    #[test]
+    fn c_window_pan_reverse_side_isolated() {
+        let mut sell2 = BspBits::default();
+        sell2.sell2 = true;
+        let mut sell3 = BspBits::default();
+        sell3.sell3 = true;
+        let c = book2(vec![pt(120, sell2), pt(130, sell3)], vec![]);
+        let ev = pan_ev((100, 200), 200); // Long 盘背事件
+        assert_eq!(
+            terminal_bits_at_event(&c, &ev, TerminalMatch::CWindow),
+            None,
+            "Long 事件窗内仅反向（sell）点 ⟹ None（证伪域与背书域结构性无交）"
+        );
+        // 镜像：Short 盘背事件 + 同向 sell3 ⟹ 合法。
+        let ev_short = NestCandidateEvent { side: Side::Short, ..pan_ev((100, 200), 200) };
+        let c_short = book2(vec![pt(130, sell3)], vec![]);
+        assert_eq!(
+            bits_of(terminal_bits_at_event(&c_short, &ev_short, TerminalMatch::CWindow)),
+            Some(sell3),
+            "Short 事件同向三类合法"
+        );
+    }
+
+    /// 关③ 点类分域 partition：同窗同账同 side，kind 分派决定合法域——Trend 域 ⊆
+    /// Pan 域（Trend 合法 ⟹ Pan 合法，反向不成立）：Trend 跳过二类取后至一类，
+    /// Pan 取最早同向点。
+    #[test]
+    fn c_window_kind_partition_trend_subset_of_pan() {
+        let c = book2(
+            vec![ptc(120, buy2_bits(), B_START), ptc(150, buy1_bits(), B_START)],
+            vec![],
+        );
+        let trend = trend_ev((100, 200), 200);
+        let pan = pan_ev((100, 200), 200);
+        assert_eq!(
+            bits_of(terminal_bits_at_event(&c, &trend, TerminalMatch::CWindow)),
+            Some(buy1_bits()),
+            "Trend 域：二类非法，后至一类 owner=B 合法"
+        );
+        assert_eq!(
+            bits_of(terminal_bits_at_event(&c, &pan, TerminalMatch::CWindow)),
+            Some(buy2_bits()),
+            "Pan 域：最早同向点（二类）合法"
+        );
+        // Trend 合法点集 ⊆ Pan 合法点集：同一类 owner=B 点两域同命中。
+        let c1 = book2(vec![ptc(150, buy1_bits(), B_START)], vec![]);
+        assert_eq!(
+            bits_of(terminal_bits_at_event(&c1, &trend, TerminalMatch::CWindow)),
+            bits_of(terminal_bits_at_event(&c1, &pan, TerminalMatch::CWindow)),
+        );
+        // 反向不含：纯二类案 Trend None ∧ Pan Some。
+        let c2 = book2(vec![ptc(120, buy2_bits(), B_START)], vec![]);
+        assert_eq!(terminal_bits_at_event(&c2, &trend, TerminalMatch::CWindow), None);
+        assert!(terminal_bits_at_event(&c2, &pan, TerminalMatch::CWindow).is_some());
     }
 }

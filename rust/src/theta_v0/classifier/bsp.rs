@@ -122,14 +122,18 @@ pub struct BspPoint {
     /// 该买卖点所在级别的最后中枢（3 类止损取 `zg`(买)/`zd`(卖)）。
     ///
     /// `None` = 无中枢（不可能出现 3 类 bit——3 类判据要求离开中枢，`is_third` 蕴含 left_center；
-    /// 故含 3 类 bit 时本字段必 `Some`）。1/2 类只用 pivot，center 可为 `None`。
+    /// 故含 3 类 bit 时本字段必 `Some`）。★owner 载体补齐（关③ 补记 2026-07-18 ②，路径 (a)）：
+    /// 生产一/二类点构造时同样填入判定中枢（`make_first_point` 填被破的最后中枢 `last_center`、
+    /// `make_second_point` 填 `c1`）——名实一致（090）；center 是 Trend 域 owner=B 判定式
+    ///（`point.center.start_index == b_center_start`）的载体与回溯锚，1/2 类止损仍只用 pivot
+    ///（center 不进 1/2 类止损判据，止损语义不变）。
     pub center: Option<Center>,
     /// ★P2-R2（p2-plan-20260701.md 分叉1 + codex-review-20260701-2251 护栏1/2）：破中枢结构方向源。
     ///
     /// `None` = 非破中枢结构候选（第二/三类端点，或未破最后中枢的段）；
     /// `Some(Long/Short)` = 破最后中枢的趋势方向（买侧向下破=Long，卖侧向上破=Short），
-    /// 由 `signal::judge_first_cached` 在 `broke ∧ trend ∧ A/C可配对` 时置——**与 macd_c_lt_a
-    /// （背驰）无关**，只要几何上破了最后中枢就置。
+    /// 由 `signal::judge_first_cached` 在 `broke ∧ 037:20破极值 ∧ trend ∧ A/C可配对` 时置——**与 macd_c_lt_a
+    /// （背驰）无关**，只要几何上破了最后中枢且破 b 包络极值（p117 037:20，语义精确化：破中枢∧破 b 极值方向）就置。
     ///
     /// ## 为什么需要（选择偏差消除的实质，p2-plan §1-§2）
     ///

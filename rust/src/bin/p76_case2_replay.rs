@@ -96,6 +96,7 @@ fn main() -> Result<(), String> {
         .map(|bar| bar.source_index)
         .collect();
     let hist = compute_macd(&closes, &config.macd).hist;
+    let dif = compute_macd(&closes, &config.macd).dif;
     let query = LevelViewQuery {
         level: TARGET_LEVEL as u32,
         coordinate_window: CoordinateWindow {
@@ -113,6 +114,7 @@ fn main() -> Result<(), String> {
             move_blocks: &blocks,
             lower_legs: &legs,
             hist: &hist,
+            dif: &dif,
             close_src: &close_src,
         },
     )

@@ -1,0 +1,13 @@
+原因：p124 S=8 重放收口在途（关②③终验临界路径），cargo 重建会替换 target/release 二进制，
+污染在跑/待派发的重放与归并。
+所有者：CC 主控（goal 关②③）。
+退休条件：C-3 对账 RECON_PASS 后由主控删除本文件（rm .chanlun/locks/CARGO_BAN），
+rust/.cargo/config.toml 的 wrapper 自动变为透传，无需二次改动。
+依据：chanlun/review-results/harness-improve-cargo-gate-20260719.md
+
+--- 退休登记（2026-07-19，主控=claude-fable-5 session 438f5dc7）---
+原退休条件（C-3 RECON_PASS 后删除）之修订依据：门的保护对象（在途重放/归并对 target/release 的消费）已消失——
+归并 PID 72171 已于 03:48:52 落线（#109 收口，机械对账 RECON_PASS：主仓 chanlun/review-results/p124-s8-merge-recon-20260719.md）；
+C-3（#110）为主仓只读对账，边界禁入本 worktree、零 cargo；pgrep 无 target 消费者。
+按门之本意（防污染在途消费）提前退休；留痕本文件（mv 非 rm）；台账环 1 状态已同步。
+后续 C-4（#111）改动均须回归锁（env 未设 bit-exact），故未来若需重归并，重建二进制仍语义等价。

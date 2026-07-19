@@ -572,4 +572,121 @@ mod tests {
         // face_a_emerge 唯一增量。
         assert!(EngineConfig::face_a_emerge().enable_pair_emergence, "face_a_emerge 开 emergence（唯一增量）");
     }
+
+    // ════════════ 关⑥ E1：recover 触发区间套语义裁定（5 负测试，只加测试不改行为）════════════
+    // 裁定：`chanlun/escalate/recover-trigger-nesting-ruling-20260718.md`（R1 触发=子级别 BSP /
+    // R2 有效域双面界 / R3 093:22 不回补 / R4 §9.4 旧句作废；执行项 E1=单测计划 1–5）。
+    // 共用骨架：核心 Long@k + 子 Short@(k−1)（sink 短差对在场），随后给不同级别/方向 BSP。
+
+    /// **①R1 负测试：父级别 BSP 触发 recover 判非法**（裁定 R1 裁决 1 + 单测计划 1）。
+    /// 核心 Long@3 + 子 Short@2 在场，`lv_buy(3)`（父级别买点 p=3>j=2）⇒ 子腿不平、核心不 recover——
+    /// 父级别 BSP 只走核心级 enter/ascend/no-op 语义域（route_bsp None 分支，rec_engine.rs:1856-1870），
+    /// recover 唯一合法触发源 = 子级别（骑乘级别）同父向 BSP；父级别触发 = 平空级别错配（§9.10 −238% 已证伪）。
+    #[test]
+    fn e1_父级别买点不触发recover_负r1() {
+        let mut r = TRoot::new(100_000.0);
+        r.on_bar(&lv_buy(3, Direction::Up), 10, 100.0); // 核心 Long @3
+        let u0 = r.instance(3).units;
+        r.on_bar(&lv_sell(2, Direction::Down), 12, 110.0); // sink：子 Short @2，核心减 1/3
+        assert_eq!(r.instance(2).direction, Polarity::Short, "前置：子级短差空腿在场");
+        let u_core = r.instance(3).units;
+        assert!(u_core < u0, "前置：sink 已减核心（机动仓下放）");
+        let (n_rec0, n_sink0) = (r.n_recovers, r.n_sinks);
+        // 父级别买点（p=3 > 骑乘级别 j=2）= R1 判非法触发源。
+        r.on_bar(&lv_buy(3, Direction::Up), 15, 95.0);
+        assert_eq!(r.n_recovers, n_rec0, "★R1负：父级别 BSP ⇒ n_recovers 不变（recover 触发=子级别 BSP）");
+        assert_eq!(r.n_sinks, n_sink0, "父级别买点不被消费为 sink");
+        assert!(r.instance(2).is_active(), "子腿不平：父级别买点对子级短差无平仓语义");
+        assert_eq!(r.instance(2).direction, Polarity::Short, "子腿方向不变（不翻转）");
+        assert!((r.instance(3).units - u_core).abs() < 1e-9, "核心股数不归还（无 recover 发生）");
+        assert_eq!(r.buy_core, 2, "两次核心级买点都路由到核心语义域（enter/ascend/no-op），非 recover 域");
+        assert_eq!(r.buy_noop, 0, "父级别买点不落入子级 recover/no-op 分类");
+    }
+
+    /// **②R1 正对照：子级别 BSP 触发 recover 合法**（裁定 R1 裁决 1/3 正面锁，与①同骨架对照）。
+    /// 同一在场形态，唯一差别 = 买点落在骑乘级别 j=2 ⇒ recover(3,2) 恰好一次：子平空、核心归还原股数。
+    /// （与既有 `子级同父向买点_recover` :181 同语义，本测试加锁路由分类与 per-level 落账，作①的正对照。）
+    #[test]
+    fn e1_子级别买点触发recover_正对照r1() {
+        let mut r = TRoot::new(100_000.0);
+        r.on_bar(&lv_buy(3, Direction::Up), 10, 100.0);
+        let u0 = r.instance(3).units;
+        r.on_bar(&lv_sell(2, Direction::Down), 12, 110.0); // sink@110（高开空）
+        let n_rec0 = r.n_recovers;
+        // 子级别（骑乘级别 j=2）同父向买点 = R1 唯一合法触发源。
+        r.on_bar(&lv_buy(2, Direction::Up), 15, 95.0); // 低平空
+        assert_eq!(r.n_recovers, n_rec0 + 1, "★R1正：子级别同父向买点 ⇒ recover(p=3,j=2) 恰好一次");
+        assert!(!r.instance(2).is_active(), "子平空（短差对回补闭合）");
+        assert!((r.instance(3).units - u0).abs() < 1e-6, "核心恢复原股数（同股数归还，能量守恒）");
+        assert_eq!(r.buy_recover, 1, "买点路由分类=buy_recover（父多+买点+j 持短差）");
+        assert_eq!(r.recover_by_level[2], 1, "recover 按骑乘级别 j=2 分层落账");
+        assert!(r.short_leg_pnl > 0.0, "高开低平短差盈利");
+    }
+
+    /// **③R2 有效域边界：失效域不挂 recover 期待 + 配对分层落账**（裁定 R2 + 单测计划 5，诊断断言非硬门）。
+    /// 塔顶域（核心 @7=MAX_LEVEL−1，rL2+ 结构位置）：父/祖级别买点仍无 buy[p>j]→recover 触发链。
+    /// R2 不回滚 3：边界不落硬编码级别常数（失效域由可观测配对率涌现）——故本测试只锁
+    /// 「无父级触发链 + per-level 分层落账」，**不**断言「高级别禁开空腿」（那不是代码门）。
+    #[test]
+    fn e1_失效域不挂recover期待_r2() {
+        let mut r = TRoot::new(100_000.0);
+        r.on_bar(&lv_buy(7, Direction::Up), 10, 100.0); // 核心 Long @7（塔顶，无更高级别）
+        r.on_bar(&lv_sell(6, Direction::Down), 12, 110.0); // 子 Short @6（sink 短差对在场）
+        assert_eq!(r.instance(6).direction, Polarity::Short, "前置：高级别短差空腿在场");
+        let (n_rec0, n_sink0) = (r.n_recovers, r.n_sinks);
+        // 失效域合成视图：父/祖级别买点（p=7 > j=6）⇒ 不得建立 buy[p>j]→recover 依赖。
+        r.on_bar(&lv_buy(7, Direction::Up), 15, 95.0);
+        assert_eq!(r.n_recovers, n_rec0, "★R2：塔顶父级别买点 ⇒ 不挂 recover 期待（无 buy[p>j] 触发链）");
+        assert_eq!(r.n_sinks, n_sink0, "父级别买点不引发新 sink");
+        assert!(r.instance(6).is_active(), "高级别子腿不被父级别买点平掉");
+        assert_eq!(r.buy_noop, 0, "父级别买点不进入子级 recover/no-op 分类域");
+        // 配对统计按级别分层落账（R2 验收线 1）：sink 记骑乘级别 6，recover 全级别 0（本序列无配对闭合）。
+        assert_eq!(r.sink_by_level[6], 1, "sink 按骑乘级别 j=6 落账");
+        assert_eq!(r.sink_by_level.iter().sum::<u64>(), 1, "无其他级别被该序列消费");
+        assert!(r.recover_by_level.iter().all(|&n| n == 0), "recover_by_level 全 0（本序列无 recover 配对）");
+    }
+
+    /// **④R3 093:22 最后卖点不回补**（裁定 R3 + 单测计划 4 + R3 验收线 1）。
+    /// 核心 Long@3 + 子 Short@2（最后一次 sink，未回补）⇒ 核心级反向 BSP（「市场选择 (−1,1)」的结构
+    /// 事件，零价格阈值）触发 flip=clear_all+反向 enter：塔清点 n_recovers 不增（退出≠recover，不挂
+    /// 通道 0），旧塔子腿随塔清而非 recover 回补闭合；塔清后旧级别买点不出现 recover（无回补期待残留，
+    /// 退出后的反向重建是新韵律的开始，与旧塔无归还关系）。
+    #[test]
+    fn e1_093最后卖点不回补_塔清无recover期待_r3() {
+        let mut r = TRoot::new(100_000.0);
+        r.on_bar(&lv_buy(3, Direction::Up), 10, 100.0); // 核心 Long @3
+        r.on_bar(&lv_sell(2, Direction::Down), 12, 110.0); // 子 Short @2（最后一次卖点，未回补）
+        assert_eq!(r.instance(2).direction, Polarity::Short, "前置：旧塔短差空腿在场");
+        let n_rec0 = r.n_recovers;
+        // 093:22「市场选择 (−1,1)」= 核心级反向 BSP（结构事件）⇒ flip 塔清。
+        r.on_bar(&lv_sell(3, Direction::Down), 20, 105.0);
+        assert_eq!(r.n_flips, 1, "核心级反向 BSP ⇒ flip（clear_all + 反向 enter）");
+        assert_eq!(r.n_recovers, n_rec0, "★R3：最后一次卖点不回补——塔清点 n_recovers 不增（退出不称 recover）");
+        assert!(!r.instance(2).is_active(), "旧塔子腿随塔清（clear_all 平清，非 recover 回补闭合）");
+        assert_eq!(r.recover_by_level[2], 0, "旧塔子腿不按 recover 记账（会计分流：塔清≠通道 0）");
+        assert_eq!(r.instance(3).direction, Polarity::Short, "按新方向重建（新韵律开始，与旧塔无归还关系）");
+        // 塔清后旧级别位置的买点不复活 recover（无回补期待残留；新塔反向韵律另起）。
+        r.on_bar(&lv_buy(2, Direction::Up), 22, 100.0);
+        assert_eq!(r.n_recovers, n_rec0, "★R3：塔清后无 recover 发生（退出是终态，非延迟回补）");
+    }
+
+    /// **⑤R1 单次路由：同一 BSP 不被两级重复消费**（裁定 R1 裁决 2 + 单测计划 2）。
+    /// `lv_buy(2)` 触发 recover(3,2) 后，同一 BSP 不再驱动任何 sink/开孙腿：BSP@k 只在级别 k 路由一次，
+    /// 消费者 = 级别 k 仓位与其最近活跃祖先（nearest_active_parent）；孙腿齿轮由 BSP@(j−1) 驱动，
+    /// 不由 BSP@j 再消费一次；纯 BSP 类型耦合（§9.11 修复 2）⇒ type1_buy 无「又是 sink」的类型通道。
+    #[test]
+    fn e1_单bsp单次路由_不两级重复消费_r1() {
+        let mut r = TRoot::new(100_000.0);
+        r.on_bar(&lv_buy(3, Direction::Up), 10, 100.0);
+        r.on_bar(&lv_sell(2, Direction::Down), 12, 110.0); // sink：子 Short @2
+        let (n_sink0, n_rec0) = (r.n_sinks, r.n_recovers);
+        // 同一 BSP（buy@2）⇒ 只在级别 2 路由一次：消费为 recover(3,2)，不再二次消费。
+        r.on_bar(&lv_buy(2, Direction::Up), 15, 95.0);
+        assert_eq!(r.n_recovers, n_rec0 + 1, "BSP@2 ⇒ recover 恰好一次（消费者=级别 2 仓位+最近活跃祖先 p=3）");
+        assert_eq!(r.n_sinks, n_sink0, "★单次路由：同一 BSP 不再被消费为 sink（is_reduce 分支互斥）");
+        assert!(!r.instance(1).is_active(), "★BSP@2 不开 level 1 孙腿（孙腿齿轮由 BSP@(j−1) 驱动）");
+        assert!(!r.instance(2).is_active(), "级别 2 仓位已被该 BSP 平清（无残留供二次消费）");
+        assert_eq!(r.buy_sink, 0, "type1_buy 不进 sink 类型通道（纯 BSP 类型耦合）");
+        assert_eq!(r.buy_recover, 1, "该 BSP 唯一消费形态 = buy_recover");
+    }
 }
