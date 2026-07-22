@@ -24,8 +24,8 @@
 //! | P4 | 短差平仓 | `Exit(CloseShortDiff)` | **占位恒 false**（#149） |
 //! | P5 | 短差开启 | `OpenShortDiff` | **占位恒 false**（#149） |
 //! | P6 | 开仓 | `Open` | 真实装 |
-//! | P7 | 记录 | `Record` | **占位恒 false**（#150） |
-//! | P8 | 加仓 | `AddPosition` | **占位恒 false**（#150） |
+//! | P7 | 记录 | `Record` | 真实装（#150 T7：次级别完整走势检测器 + P7 记录桶，只写账本不动仓位） |
+//! | P8 | 加仓 | `AddPosition` | **占位恒 false**（后续加仓票） |
 //! | C0 | Hold 兜底 | `Exit(Hold)` | 真实装（显式裁决） |
 //!
 //! ## 单源复用（禁止镜像）
@@ -80,9 +80,10 @@ pub struct ChannelPredicates {
     pub short_diff_open: bool,
     /// P6：开仓（本声部 slot 空 ∧ 存在本级可交易候选）。
     pub open_entry: bool,
-    /// P7：记录（**占位恒 false**，#150 记录桶）。
+    /// P7：记录（#150 T7 真实装：本级持仓期间次级别走势类型完整走完 ∧ 全程无证书投影
+    /// ⟹ 记录桶命中——只写账本记录，不动任何仓位）。
     pub record: bool,
-    /// P8：加仓（**占位恒 false**，#150）。
+    /// P8：加仓（**占位恒 false**，#150 后续加仓票）。
     pub add_position: bool,
 }
 
@@ -119,13 +120,13 @@ pub enum ChannelDecision {
     /// 出场/持有裁决（C1→RiskExit、C2→CloseRoot、C3→ReduceCore、C4→CloseShortDiff、
     /// C0→Hold；单源 [`ExitType`]）。
     Exit(ExitType),
-    /// C5：短差开启（本票占位通道，不可达）。
+    /// C5：短差开启（#149 占位通道，不可达）。
     OpenShortDiff,
     /// C6：开仓。
     Open,
-    /// C7：记录（本票占位通道，不可达）。
+    /// C7：记录（#150 T7 实装：P7 记录桶命中——只写账本 [`P7Record`]，仓位零变动）。
     Record,
-    /// C8：加仓（本票占位通道，不可达）。
+    /// C8：加仓（占位通道，不可达）。
     AddPosition,
 }
 
@@ -167,6 +168,10 @@ pub struct VoiceState {
     pub leg: Option<ActiveLeg>,
     /// 持仓腿入场角色垂直轴（入场固定，[`reverse_exit_type`] 第一参；空仓时无效值 Ambient）。
     pub entry_v: Vertical,
+    /// 当前步序号（0-based；[`advance`] 每步 +1——P7 记录端点的可重放见证坐标，#150）。
+    pub step: usize,
+    /// #150 T7：次级别完整走势检测器状态（仅本级持仓期间武装，持仓边界重置）。
+    pub sub_cycle: SubCycleTracker,
 }
 
 /// 单时刻声部输入（事件）。
@@ -174,8 +179,171 @@ pub struct VoiceState {
 pub struct VoiceStepInput {
     /// P1 判据：风险强平（`KThetaRiskGate.force_flat` 同源）。
     pub force_flat: bool,
-    /// 当步候选集（本函数内按 ≺_Θ 排序后 first-match 消费；跨级候选被本级过滤）。
+    /// 当步候选集（本函数内按 ≺_Θ 排序后 first-match 消费；跨级候选被本级过滤——
+    /// **次级别 ℓ−1 证书候选由 P7 检测器消费**，#150）。
     pub candidates: Vec<Candidate>,
+    /// #150：当步父级中枢语境 κ（lean #144 文档「中枢内/中枢上/三买后/三卖后等结构位置」）。
+    /// 与 `force_flat` 同为外源注入——本模块不重推中枢几何，语境由上游中枢检测口径单源提供。
+    pub parent_kappa: ParentKappa,
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  #150 T7：P7 记录桶 + 次级别完整走势检测器（#144 数据面）
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 父级中枢语境 κ（#144 lean 文档 §2.1：κ 含中枢内/中枢上/三买后/三卖后等结构位置；
+/// `cycle_endpoints_project_iff_context_visible` 按买/卖端点分别应用 ContextProjectionLaw，
+/// 故 P7 记录对**每个端点各自**入账 κ）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ParentKappa {
+    /// 上游未注入语境（缺省显式 Unknown——不伪造结构位置）。
+    #[default]
+    Unknown,
+    /// 中枢内。
+    InsideCenter,
+    /// 中枢上。
+    AboveCenter,
+    /// 中枢下。
+    BelowCenter,
+    /// 三买后。
+    AfterThirdBuy,
+    /// 三卖后。
+    AfterThirdSell,
+}
+
+/// 子周期开端点挂起状态（tracker 内部：开端点证书 + 落账坐标 + 投影见证累积）。
+#[derive(Debug, Clone, Copy)]
+struct SubOpen {
+    /// 开端点证书候选（次级别，已确认）。
+    cand: Candidate,
+    /// 开端点步序号。
+    step: usize,
+    /// 开端点当步父级中枢语境 κ。
+    kappa: ParentKappa,
+    /// 子周期存续期间（含开端点当步）是否已出现本级证书投影。
+    projected: bool,
+}
+
+/// 次级别完整走势检测器状态（#150：`Default` = 未武装/无挂起开端点）。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SubCycleTracker {
+    /// 挂起的子周期开端点（None = 等待开端点）。
+    open: Option<SubOpen>,
+}
+
+/// P7 记录端点：次级别证书候选**整体单源入账**（非摘要镜像）+ 可重放坐标 + 端点 κ。
+#[derive(Debug, Clone, Copy)]
+pub struct SubEndpoint {
+    /// 端点证书候选（含 source_index/bits/bsp_class/dir/nest_confirmed/role——
+    /// #144 §5 步骤 4 可重放见证数据）。
+    pub cand: Candidate,
+    /// 端点步序号（回放坐标）。
+    pub step: usize,
+    /// 端点当步父级中枢语境 κ（#144 §5 步骤 2 ContextProjectionLaw 数据）。
+    pub kappa: ParentKappa,
+}
+
+/// 子周期完成观测（检测器单步输出；`projected` 判 P7/短差域二分）。
+#[derive(Debug, Clone, Copy)]
+struct CompletedSubCycle {
+    open: SubEndpoint,
+    close: SubEndpoint,
+    /// 子周期全程（开端点步..=收端点步）是否出现过本级证书投影。
+    projected: bool,
+}
+
+/// 检测器单步观测：下一 tracker 状态 + 本步完成的子周期（若有）。
+struct SubCycleObs {
+    next: SubCycleTracker,
+    completed: Option<CompletedSubCycle>,
+}
+
+/// P7 记录（#150 记录桶 schema——#144 形式化 §5 步骤 1–4 生产级验证数据面，
+/// 使条件链验证无需二次改账本）：
+/// 1. 跨级投影关系：`no_projection` + 两端点证书（步骤 1）；
+/// 2. 父级语境规律：端点各自 κ（步骤 2）；
+/// 3. 短差触发对接：投影子周期被排除出 P7（步骤 3，与 #149 短差域互斥）；
+/// 4. 可重放见证：端点 `step` + `cand.source_index` + bits + Conf^δ（步骤 4）。
+#[derive(Debug, Clone, Copy)]
+pub struct P7Record {
+    /// 本级声部级别 ℓ。
+    pub voice_level: u32,
+    /// 次级别（递归意义 ℓ−1）。
+    pub sub_level: u32,
+    /// 记录落账步（= 收端点步）。
+    pub step: usize,
+    /// 子周期开端点证书。
+    pub open: SubEndpoint,
+    /// 子周期收端点证书（反向确认）。
+    pub close: SubEndpoint,
+    /// 无投影标记（P7 命中前提，恒 true——显式入账使 #144 验证不需反推）。
+    pub no_projection: bool,
+}
+
+/// 声部账本（#150：P7 记录桶。只写记录，不动仓位）。
+#[derive(Debug, Default)]
+pub struct VoiceLedger {
+    /// P7 记录桶（落账序 = 命中序）。
+    pub p7: Vec<P7Record>,
+}
+
+/// 已确认可交易证书候选（端点/投影共用判据：方向非 Flat ∧ 有类 ∧ 区间套证书 Conf^δ）。
+fn cert_confirmed(c: &Candidate) -> bool {
+    c.dir != VoiceSide::Flat && c.bsp_class != u8::MAX && c.nest_confirmed
+}
+
+/// 次级别完整走势检测器单步观测（纯函数，#150）。
+///
+/// 域护栏：仅本级持仓 ∧ ℓ≥1（递归底 ℓ=0 无次级别）时武装；空仓/关腿由 [`advance`] 重置。
+///
+/// 判据：
+/// - **端点** = 次级别（ℓ−1）已确认证书候选（[`cert_confirmed`]），≺_Θ 序消费；
+/// - **完整走完** = 挂起开端点后出现反向端点（[`reverse_signal`] 单源反向判据）；
+///   同向次级别证书 = 走势延伸，不重置不改开端点；
+/// - **证书投影** = 子周期存续任一步（含两端点当步）出现本级（ℓ）已确认证书候选——
+///   #144 §5 步骤 1「真实跨级投影关系」的 L1 数据面判据（本级反向证书亦属投影，
+///   且经 first-match 先落 P2/P3）。
+fn observe_sub_cycle(state: &VoiceState, input: &VoiceStepInput) -> SubCycleObs {
+    if state.leg.is_none() || state.level == 0 {
+        return SubCycleObs { next: SubCycleTracker::default(), completed: None };
+    }
+    let sub_level = state.level - 1;
+    // 本级证书投影见证（当步）。
+    let projection_now =
+        input.candidates.iter().any(|c| c.level == state.level && cert_confirmed(c));
+    let mut open = state.sub_cycle.open;
+    if let Some(o) = &mut open {
+        o.projected |= projection_now;
+    }
+    let mut completed = None;
+    for c in theta_ordered(&input.candidates) {
+        if c.level != sub_level || !cert_confirmed(c) {
+            continue;
+        }
+        match open {
+            // 开端点：首个次级别确认证书。
+            None => {
+                open = Some(SubOpen {
+                    cand: *c,
+                    step: state.step,
+                    kappa: input.parent_kappa,
+                    projected: projection_now,
+                });
+            }
+            // 收端点：反向确认 ⟹ 子周期完整走完（单步至多一枚完成观测）。
+            Some(o) if completed.is_none() && reverse_signal(o.cand.dir, &c.bits) => {
+                completed = Some(CompletedSubCycle {
+                    open: SubEndpoint { cand: o.cand, step: o.step, kappa: o.kappa },
+                    close: SubEndpoint { cand: *c, step: state.step, kappa: input.parent_kappa },
+                    projected: o.projected,
+                });
+                open = None;
+            }
+            // 同向端点：走势延伸，开端点不变。
+            Some(_) => {}
+        }
+    }
+    SubCycleObs { next: SubCycleTracker { open }, completed }
 }
 
 /// 从声部状态 + 当步输入推导通道谓词向量（生产推导路径，占位槽 P4/P5/P7/P8 恒 false）。
@@ -205,7 +373,13 @@ pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPr
         // P6：开仓——空仓 slot ∧ 存在本级可交易非 ShortDiff 角色候选（ShortDiff 角色=P5 占位域）。
         p.open_entry = true;
     }
-    // P4/P5/P7/P8：占位槽（#149/#150），本票恒 false——不存在置位路径。
+    // P7（#150 T7）：本级持仓期间次级别走势类型完整走完 ∧ 全程无证书投影 ⟹ 记录桶。
+    // 有投影的子周期属 #149 短差域（P4/P5 占位），不置位 P7——互斥由谓词自身语义保证，
+    // first-match 排序不动（P7 谓词允许与 P1 重叠，互斥化在 first_match 层）。
+    if let Some(cc) = observe_sub_cycle(state, input).completed {
+        p.record = !cc.projected;
+    }
+    // P4/P5/P8：占位槽（#149/加仓票），恒 false——不存在置位路径。
     p
 }
 
@@ -252,34 +426,81 @@ pub fn run_voice(
     initial: VoiceState,
     steps: &[VoiceStepInput],
 ) -> Vec<(ChannelId, ChannelDecision)> {
+    run_voice_ledgered(initial, steps).0
+}
+
+/// 端到端驱动 + 账本（#150）：裁决序列与 [`run_voice`] 逐时刻相同（账本层不改变通道
+/// 语义），另返回 [`VoiceLedger`]——C7 命中步落一条 [`P7Record`]（只写记录，仓位零变动，
+/// 转移见 [`advance`] 的 Record 分支）。
+pub fn run_voice_ledgered(
+    initial: VoiceState,
+    steps: &[VoiceStepInput],
+) -> (Vec<(ChannelId, ChannelDecision)>, VoiceLedger) {
     let mut state = initial;
     let mut out = Vec::with_capacity(steps.len());
+    let mut ledger = VoiceLedger::default();
     for input in steps {
         let (cid, dec) = step_voice(&state, input);
+        if dec == ChannelDecision::Record {
+            let cc = observe_sub_cycle(&state, input)
+                .completed
+                .expect("C7 命中 ⟹ P7 真 ⟹ 子周期完成观测存在（voice_predicates 同判据）");
+            debug_assert!(!cc.projected, "C7 命中 ⟹ 无投影（P7 谓词语义）");
+            ledger.p7.push(P7Record {
+                voice_level: state.level,
+                sub_level: state.level - 1,
+                step: state.step,
+                open: cc.open,
+                close: cc.close,
+                no_projection: !cc.projected,
+            });
+        }
         state = advance(state, input, dec);
         out.push((cid, dec));
     }
-    out
+    (out, ledger)
 }
 
 /// 状态转移（不可变：产新 state，不 mutate 旧值）。全定义 match（占位通道也有确定转移）。
+///
+/// #150 检测器转移：`step` 每步 +1；持仓边界（关腿/开腿）重置 tracker（「本级声部持仓
+/// 期间」字面边界——半周期不跨持仓期拼接）；Hold/Record 沿 [`observe_sub_cycle`] 推进
+/// （Record 后 tracker 已消费完成观测 ⟹ 自然重置，可连续记录）。
 fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> VoiceState {
+    let sub_cycle = observe_sub_cycle(&state, input).next;
+    let step = state.step + 1;
     match dec {
         // 出场：腿关闭（interp 规则2 语义——被命中腿入 𝒟_x；ReduceCore 在腿粒度同为关闭）。
+        // 持仓期结束 ⟹ tracker 重置。
         ChannelDecision::Exit(
             ExitType::RiskExit | ExitType::CloseRoot | ExitType::ReduceCore | ExitType::CloseShortDiff,
-        ) => VoiceState { leg: None, entry_v: Vertical::Ambient, ..state },
-        // 显式 Hold：状态不变。
-        ChannelDecision::Exit(ExitType::Hold) => state,
+        ) => VoiceState {
+            leg: None,
+            entry_v: Vertical::Ambient,
+            step,
+            sub_cycle: SubCycleTracker::default(),
+            ..state
+        },
+        // 显式 Hold / P7 记录（仓位零变动，只推进检测器）。
+        ChannelDecision::Exit(ExitType::Hold) | ChannelDecision::Record => {
+            VoiceState { step, sub_cycle, ..state }
+        }
         // 开仓：以 ≺_Θ 首个开仓候选建腿（entry_v = 候选角色垂直轴，入场固定）。
+        // 新持仓期起点 ⟹ tracker 重置（空仓期观测不武装，observe 已返回 default）。
         ChannelDecision::Open => {
             let c = find_open(state.level, &input.candidates)
                 .expect("C6 命中 ⟹ P6 真 ⟹ 开仓候选存在（voice_predicates 同判据）");
-            VoiceState { leg: Some(leg_from_candidate(c)), entry_v: c.role.v, ..state }
+            VoiceState {
+                leg: Some(leg_from_candidate(c)),
+                entry_v: c.role.v,
+                step,
+                sub_cycle: SubCycleTracker::default(),
+                ..state
+            }
         }
-        // 占位通道（本票不可达；#149/#150 实装真转移）：状态不变。
-        ChannelDecision::OpenShortDiff | ChannelDecision::Record | ChannelDecision::AddPosition => {
-            state
+        // 占位通道（#149/加仓票实装真转移）：仓位不变。
+        ChannelDecision::OpenShortDiff | ChannelDecision::AddPosition => {
+            VoiceState { step, sub_cycle, ..state }
         }
     }
 }
@@ -353,14 +574,31 @@ mod tests {
     }
 
     fn holding(level: u32, dir: VoiceSide, entry_v: Vertical) -> VoiceState {
-        VoiceState { level, leg: Some(leg(level, dir)), entry_v }
+        VoiceState {
+            level,
+            leg: Some(leg(level, dir)),
+            entry_v,
+            step: 0,
+            sub_cycle: SubCycleTracker::default(),
+        }
     }
     fn empty_voice(level: u32) -> VoiceState {
-        VoiceState { level, leg: None, entry_v: Vertical::Ambient }
+        VoiceState {
+            level,
+            leg: None,
+            entry_v: Vertical::Ambient,
+            step: 0,
+            sub_cycle: SubCycleTracker::default(),
+        }
     }
 
     fn step(force_flat: bool, candidates: Vec<Candidate>) -> VoiceStepInput {
-        VoiceStepInput { force_flat, candidates }
+        VoiceStepInput { force_flat, candidates, parent_kappa: ParentKappa::Unknown }
+    }
+
+    /// 带父级中枢语境 κ 的步输入（#150 P7 记录面）。
+    fn step_k(candidates: Vec<Candidate>, kappa: ParentKappa) -> VoiceStepInput {
+        VoiceStepInput { force_flat: false, candidates, parent_kappa: kappa }
     }
 
     /// bits → 谓词向量解码（bit j-1 ↔ P_j）。
@@ -488,8 +726,9 @@ mod tests {
         assert_eq!(step_voice(&empty_voice(0), &flat), hold);
     }
 
-    /// 占位槽护栏：本票任何生产推导路径恒不置位 P4/P5/P7/P8（场景电池覆盖持仓/空仓/
-    /// 风险/反向/同向/ShortDiff 角色候选）。
+    /// 占位槽护栏：任何生产推导路径恒不置位 P4/P5/P8（#149 短差、加仓仍占位）；P7 已由
+    /// #150 实装为真谓词，但在无子周期完成的场景电池中同样恒 false（持仓/空仓/风险/反向/
+    /// 同向/ShortDiff 角色候选均不构成「次级别走势类型完整走完」）。
     #[test]
     fn placeholder_predicates_never_fire_this_ticket() {
         let scenarios: Vec<(VoiceState, VoiceStepInput)> = vec![
@@ -504,10 +743,292 @@ mod tests {
         for (st, input) in &scenarios {
             let p = voice_predicates(st, input);
             assert!(
-                !p.short_diff_close && !p.short_diff_open && !p.record && !p.add_position,
-                "占位槽 P4/P5/P7/P8 本票恒 false：state={st:?} input={input:?} ⟹ {p:?}"
+                !p.short_diff_close && !p.short_diff_open && !p.add_position,
+                "占位槽 P4/P5/P8 恒 false：state={st:?} input={input:?} ⟹ {p:?}"
+            );
+            assert!(
+                !p.record,
+                "无子周期完成 ⟹ P7 false：state={st:?} input={input:?} ⟹ {p:?}"
             );
         }
+    }
+
+    // ── #150 T7：P7 记录桶 + 次级别完整走势检测器 ─────────────────────────
+
+    /// 次级别（递归意义 ℓ−1）证书候选构造器。
+    fn sub_cand(gi: usize, sub_level: u32, dir: VoiceSide, cls: u8, bits: BspBits) -> Candidate {
+        cand(gi, sub_level, dir, cls, bits, Vertical::Ambient)
+    }
+
+    /// 验收1 端到端：父级中枢内完整子周期回放 ⟹ 账本出现 P7 记录（端点+κ+无投影标记）、
+    /// 仓位零变动、无短差声部被开启。
+    #[test]
+    fn p7_end_to_end_sub_cycle_records_without_position_change() {
+        let steps = vec![
+            // step0：本级（ℓ=1）开仓 ⟹ C6。
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            // step1：次级别（ℓ=0）买端点证书（父级中枢内）⟹ 子周期开端点，C0 Hold。
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            // step2：空事件 ⟹ Hold。
+            step(false, vec![]),
+            // step3：次级别卖端点证书（反向确认，父级中枢内）⟹ 子周期完整走完，全程无投影 ⟹ C7。
+            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            // step4：空事件 ⟹ Hold（记录不改变仓位，声部继续持仓）。
+            step(false, vec![]),
+        ];
+        let (out, ledger) = run_voice_ledgered(empty_voice(1), &steps);
+        assert_eq!(
+            out,
+            vec![
+                (ChannelId::Cj(6), ChannelDecision::Open),
+                (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
+                (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
+                (ChannelId::Cj(7), ChannelDecision::Record),
+                (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
+            ],
+            "端到端裁决序列：开仓 → 子周期开端点 Hold → Hold → P7 记录 → Hold"
+        );
+        // 无短差声部被开启（验收1 + 验收2 互斥断言的通道面）。
+        assert!(
+            out.iter().all(|(_, d)| *d != ChannelDecision::OpenShortDiff),
+            "P7 记录桶不开启任何短差声部"
+        );
+        // 账本恰一条 P7 记录，schema 三要素齐备。
+        assert_eq!(ledger.p7.len(), 1, "恰一条 P7 记录");
+        let r = &ledger.p7[0];
+        assert_eq!(r.voice_level, 1);
+        assert_eq!(r.sub_level, 0, "次级别 = 递归意义 ℓ−1");
+        assert_eq!(r.open.step, 1, "开端点落账步（可重放见证）");
+        assert_eq!(r.close.step, 3, "收端点落账步（可重放见证）");
+        assert_eq!(r.step, 3, "记录落账步 = 收端点步");
+        assert_eq!(r.open.kappa, ParentKappa::InsideCenter, "开端点父级中枢语境 κ");
+        assert_eq!(r.close.kappa, ParentKappa::InsideCenter, "收端点父级中枢语境 κ");
+        assert!(r.no_projection, "无投影标记恒 true（P7 命中前提）");
+    }
+
+    /// 验收1 仓位零变动（严格断言）：P7 命中步的状态转移除 tracker/step 外与原状态逐字段相等
+    /// ——腿身份、entry_v、level 全不变；记录不产生任何开/平仓副作用。
+    #[test]
+    fn p7_record_step_position_strictly_unchanged() {
+        // 构造「持仓 + tracker 已挂开端点」状态：经 run 前两步到达。
+        let pre_steps = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+        ];
+        let mut st = empty_voice(1);
+        for input in &pre_steps {
+            let (_, dec) = step_voice(&st, input);
+            st = advance(st, input, dec);
+        }
+        let close_input = step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter);
+        let (cid, dec) = step_voice(&st, &close_input);
+        assert_eq!((cid, dec), (ChannelId::Cj(7), ChannelDecision::Record), "前提：本步 C7 命中");
+        let nxt = advance(st, &close_input, dec);
+        // 仓位零变动：腿（按 ElementId 身份 + 全字段）、entry_v、level 逐一相等。
+        assert_eq!(nxt.leg.map(|l| l.id), st.leg.map(|l| l.id), "腿身份不变");
+        assert_eq!(nxt.leg.map(|l| l.dir), st.leg.map(|l| l.dir), "腿方向不变");
+        assert_eq!(nxt.entry_v, st.entry_v, "entry_v 不变");
+        assert_eq!(nxt.level, st.level, "level 不变");
+        assert!(nxt.leg.is_some(), "记录后声部仍持仓（只写账本不动仓位）");
+    }
+
+    /// 验收2：有投影的子周期不落 P7 记录桶（与 T5 短差通道互斥可断言——投影子周期属
+    /// #149 短差域，本票 P4/P5 占位恒 false ⟹ 既不落 P7 也不产任何短差裁决）。
+    #[test]
+    fn p7_projected_sub_cycle_not_recorded() {
+        // 投影时机三变体：子周期中段 / 开端点当步 / 收端点当步。
+        let mid = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            // 本级（ℓ=1）同向确认证书候选 = 证书投影（同向 ⟹ 不触发 P2/P3/P6，纯投影见证）。
+            step(false, vec![cand(2, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+        ];
+        let at_open = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(
+                vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1)), cand(2, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+                ParentKappa::InsideCenter,
+            ),
+            step_k(vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+        ];
+        let at_close = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step_k(
+                vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1)), cand(3, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)],
+                ParentKappa::InsideCenter,
+            ),
+        ];
+        for (name, steps) in [("中段投影", mid), ("开端点投影", at_open), ("收端点投影", at_close)] {
+            let (out, ledger) = run_voice_ledgered(empty_voice(1), &steps);
+            assert!(ledger.p7.is_empty(), "{name}：有投影子周期不落 P7 记录桶");
+            assert!(
+                out.iter().all(|(cid, _)| !matches!(cid, ChannelId::Cj(4 | 5 | 7))),
+                "{name}：互斥断言——投影子周期不命中 P7，也不产短差通道裁决（P4/P5 #149 占位）"
+            );
+        }
+    }
+
+    /// 验收3：记录字段覆盖 #144 形式化第五节 1–4 步所需数据——
+    /// 1) 跨级投影关系数据面 = `no_projection` 标记 + 两端点证书；
+    /// 2) 父级语境规律（ContextProjectionLaw）= 端点各自的 κ；
+    /// 3) 与短差触发对接 = 投影子周期被排除（见互斥测试）；
+    /// 4) 可重放见证 = 端点 step + source_index + bits + nest_confirmed。
+    #[test]
+    fn p7_record_schema_covers_144_section5_fields() {
+        let steps = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 2, buy(2))], ParentKappa::AfterThirdBuy),
+            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 3, sell(3))], ParentKappa::AboveCenter),
+        ];
+        let (_, ledger) = run_voice_ledgered(empty_voice(1), &steps);
+        assert_eq!(ledger.p7.len(), 1);
+        let r = &ledger.p7[0];
+        // 端点证书完整性（Candidate 单源整体入账，非摘要镜像）。
+        assert_eq!(r.open.cand.source_index, 11, "开端点 source_index（可重放见证）");
+        assert_eq!(r.close.cand.source_index, 12, "收端点 source_index（可重放见证）");
+        assert_eq!(r.open.cand.bsp_class, 2, "开端点证书类号");
+        assert_eq!(r.close.cand.bsp_class, 3, "收端点证书类号");
+        assert!(r.open.cand.bits.buy2 && r.close.cand.bits.sell3, "端点买卖点向量入账");
+        assert!(r.open.cand.nest_confirmed && r.close.cand.nest_confirmed, "端点区间套证书 Conf^δ");
+        assert_eq!(r.open.cand.dir, VoiceSide::Long);
+        assert_eq!(r.close.cand.dir, VoiceSide::Short);
+        // 端点各自 κ（ContextProjectionLaw 按买/卖端点分别应用）。
+        assert_eq!(r.open.kappa, ParentKappa::AfterThirdBuy);
+        assert_eq!(r.close.kappa, ParentKappa::AboveCenter);
+        assert!(r.no_projection, "无投影标记");
+        assert_eq!((r.voice_level, r.sub_level), (1, 0));
+    }
+
+    /// first-match 排序不被打乱：子周期完成步与更高优先级谓词同刻重叠 ⟹ 高优先级通道胜出，
+    /// 记录不落账（P7 谓词可为真——谓词允许重叠，互斥化由 first-match 层完成）。
+    #[test]
+    fn p7_yields_to_earlier_channels_first_match() {
+        // 变体 A：完成步 force_flat ⟹ C1 RiskExit，P7 谓词真但记录不写。
+        let pre = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+        ];
+        let mut st = empty_voice(1);
+        for input in &pre {
+            let (_, dec) = step_voice(&st, input);
+            st = advance(st, input, dec);
+        }
+        let flat_close = VoiceStepInput {
+            force_flat: true,
+            candidates: vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
+            parent_kappa: ParentKappa::InsideCenter,
+        };
+        let p = voice_predicates(&st, &flat_close);
+        assert!(p.risk_exit && p.record, "前提：P1 与 P7 同刻重叠（谓词允许重叠）");
+        assert_eq!(
+            step_voice(&st, &flat_close),
+            (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)),
+            "first-match：P1 ≻ P7"
+        );
+        // 变体 B：完成步本级反向证书 ⟹ C2 CloseRoot 胜出（且该证书构成投影 ⟹ P7 谓词自身为假）。
+        let mut st2 = empty_voice(1);
+        for input in &pre {
+            let (_, dec) = step_voice(&st2, input);
+            st2 = advance(st2, input, dec);
+        }
+        let rev_close = step_k(
+            vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1)), cand(3, 1, VoiceSide::Short, 1, sell(1), Vertical::Ambient)],
+            ParentKappa::InsideCenter,
+        );
+        let p2 = voice_predicates(&st2, &rev_close);
+        assert!(p2.cert_close_root && !p2.record, "本级反向证书 = 投影 ⟹ P7 谓词假 + P2 真");
+        assert_eq!(
+            step_voice(&st2, &rev_close),
+            (ChannelId::Cj(2), ChannelDecision::Exit(ExitType::CloseRoot))
+        );
+    }
+
+    /// 检测器域护栏电池：腿关闭重置 tracker / 未确认子证书不计 / 0 级声部无次级别 /
+    /// 同向子证书延伸不重置 / 空仓期间子周期不武装。
+    #[test]
+    fn p7_detector_domain_guards() {
+        // (a) 腿关闭重置：开仓 → 子买端点 → 本级反向平仓（C2，tracker 重置）→ 再开仓 →
+        //     子卖端点 ⟹ 无记录（前半周期已随腿关闭作废）。
+        let a = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step(false, vec![cand(2, 1, VoiceSide::Short, 1, sell(1), Vertical::Ambient)]), // C2
+            step(false, vec![cand(3, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),   // C6 再开仓
+            step_k(vec![sub_cand(4, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+        ];
+        let (_, la) = run_voice_ledgered(empty_voice(1), &a);
+        assert!(la.p7.is_empty(), "腿关闭 ⟹ tracker 重置，半周期不跨持仓期拼接");
+        // (b) 未确认/无类/Flat 子候选不构成端点。
+        let unconfirmed = Candidate { nest_confirmed: false, ..sub_cand(1, 0, VoiceSide::Long, 1, buy(1)) };
+        let b = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![unconfirmed], ParentKappa::InsideCenter),
+            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+        ];
+        let (_, lb) = run_voice_ledgered(empty_voice(1), &b);
+        assert!(lb.p7.is_empty(), "未确认子证书不构成子周期端点");
+        // (c) 0 级声部无次级别（递归底），P7 恒不武装。
+        let c = vec![
+            step(false, vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step(false, vec![]),
+        ];
+        let (_, lc) = run_voice_ledgered(empty_voice(0), &c);
+        assert!(lc.p7.is_empty(), "ℓ=0 声部无次级别 ⟹ 无 P7");
+        // (d) 同向子证书延伸不重置：买、买、卖 ⟹ 恰一条记录，开端点 = 首个买端点。
+        let d = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step_k(vec![sub_cand(2, 0, VoiceSide::Long, 2, buy(2))], ParentKappa::InsideCenter),
+            step_k(vec![sub_cand(3, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+        ];
+        let (_, ld) = run_voice_ledgered(empty_voice(1), &d);
+        assert_eq!(ld.p7.len(), 1);
+        assert_eq!(ld.p7[0].open.cand.source_index, 11, "开端点 = 首个子买端点（延伸不重置）");
+        // (e) 空仓期间子证书不武装 tracker：先子买端点后本级开仓再子卖端点 ⟹ 无记录
+        //     （「本级声部持仓期间」字面边界）。
+        let e = vec![
+            step_k(vec![sub_cand(0, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step(false, vec![cand(1, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+        ];
+        let (_, le) = run_voice_ledgered(empty_voice(1), &e);
+        assert!(le.p7.is_empty(), "空仓期间子端点不武装（持仓期间字面边界）");
+    }
+
+    /// 记录后 tracker 重置：同一持仓期第二个完整无投影子周期产第二条记录（连续记录能力）。
+    #[test]
+    fn p7_consecutive_sub_cycles_each_recorded() {
+        let steps = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step_k(vec![sub_cand(3, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step_k(vec![sub_cand(4, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+        ];
+        let (out, ledger) = run_voice_ledgered(empty_voice(1), &steps);
+        assert_eq!(ledger.p7.len(), 2, "两个完整无投影子周期 ⟹ 两条 P7 记录");
+        assert_eq!(
+            out.iter().filter(|(cid, _)| *cid == ChannelId::Cj(7)).count(),
+            2,
+            "C7 命中两次"
+        );
+        assert_eq!(ledger.p7[0].close.step, 2);
+        assert_eq!(ledger.p7[1].open.step, 3, "记录后 tracker 重置，第二周期从新开端点起算");
+    }
+
+    /// run_voice 与 run_voice_ledgered 裁决序列一致（账本层不改变通道语义）。
+    #[test]
+    fn p7_run_voice_decision_sequence_unchanged_by_ledger() {
+        let steps = vec![
+            step(false, vec![cand(0, 1, VoiceSide::Long, 1, buy(1), Vertical::Ambient)]),
+            step_k(vec![sub_cand(1, 0, VoiceSide::Long, 1, buy(1))], ParentKappa::InsideCenter),
+            step_k(vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))], ParentKappa::InsideCenter),
+            step(true, vec![]),
+        ];
+        let (out_l, _) = run_voice_ledgered(empty_voice(1), &steps);
+        assert_eq!(run_voice(empty_voice(1), &steps), out_l, "run_voice ≡ run_voice_ledgered 裁决面");
     }
 
     /// ShortDiff 角色候选不落 P6（短差开启=P5 占位域）⟹ 显式 Hold，非误开仓。
