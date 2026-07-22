@@ -32,7 +32,8 @@
 //!   rust-role18 完成）——本模块为每个候选建独立根 [`CoverageElement`]（`parent=None`=边界胚元 ∂，
 //!   去根化）取 R(g)=(H,Ambient,δ)。
 //! - **关闭谓词反向信号 [`reverse_signal`]**（§9 closePred 反向项，contract-anchored
-//!   `Origin.SubVoiceOpenClose`）：[`interpret`] 的 𝒟_x 反向关闭复用之（持仓腿遇反向候选 ⟹ 关闭）。
+//!   `Origin.SubVoiceOpenClose`）：[`interpret`] 的 𝒟_x 只消费 `nest_confirmed=true` 的同级别反向
+//!   证书；确认由上游 N^δ/背驰证书成立层给出，本层只读字段、不重复确认。
 //! - **区间套证书 [`nest::chi_bool`]**（环2，spec §6 N^δ）：[`assemble_gamma`] 的 `nest_confirmed`
 //!   取证书基例 Conf^δ。
 //! - **根方向消歧 [`root_sel`]**（strict §9 RootSel_Θ 镜像反对称）：候选方向 σ_g 由之定。
@@ -199,7 +200,7 @@ impl PositionNodeId {
 /// （每个候选恰落一桶，[`interpret`] fold 保证）。
 #[derive(Debug, Clone, Default)]
 pub struct Buckets {
-    /// 𝒟_x：应**关闭**的活动腿（⊆ A_t；反向信号触发，§9 closePred 反向项）。
+    /// 𝒟_x：应**关闭**的活动腿（⊆ A_t；同级别已确认反向证书触发，§9 closePred 反向项）。
     pub close: Vec<ActiveLeg>,
     /// ℬ_x：应**开启**的候选（新建腿）。
     pub open: Vec<Candidate>,
@@ -1133,8 +1134,11 @@ pub fn theta_lt(a: &Candidate, b: &Candidate) -> bool {
 /// ## 确定性 fold 规则（每候选 g 按 ≺_Θ 序，spec §11 「接收/拒绝/关闭/开启规则确定」）
 ///
 /// 1. **非方向候选**（σ_g=Flat / 无类）⟹ `𝒦_x`（记录不执行，spec「记录但暂不执行的候选」）。
-/// 2. **反向关闭**：A_t 中存在同级别、未关闭、方向被 g 反向（[`reverse_signal`]，§9 closePred 反向项
-///    χ^{σ_p}）的活动腿 ⟹ 该腿入 `𝒟_x`，标记关闭，g 作为关闭触发被消费（spec §13 `A_t∖𝒟_x`）。
+/// 2. **反向关闭（证书门）**：仅当 `g.nest_confirmed=true`，A_t 中存在同级别、未关闭、方向被 g
+///    反向（[`reverse_signal`]，§9 closePred 反向项 χ^{σ_p}）的活动腿，才把该腿送入 `𝒟_x` 并消费
+///    g（spec §13 `A_t∖𝒟_x`）。`nest_confirmed=false` 只是证书成立层尚未确认的方向信号，直接进入
+///    `𝒦_x`：§9 出场层不得重算 N^δ/背驰，也不得消费未成立证书；且 §13 的 `ℬ_x` 会真实激活持仓腿，
+///    故不能让被证书门拒绝的反向信号继续落规则3、反向开同一 carrier。
 /// 3. **开启**：A_t 无同级别同向活动腿 **且** 本 fold 未在同 (level,σ) slot 开过 ⟹ g 入 `ℬ_x`，
 ///    登记 slot（spec §13 `∪ℬ_x`）。
 /// 4. **冲突/重复**（slot 已被同向腿占据，或本 fold 已开同 slot）⟹ `𝒦_x`（记录不执行——
@@ -1154,7 +1158,8 @@ pub fn interpret(gamma: &[Candidate], active: &[ActiveLeg]) -> Buckets {
 /// [`interpret`] 的**单源 fold 本体** + close 触发归因（G4 typed exit 组合层原料，#134）。
 ///
 /// 返回 `(Buckets, Vec<Candidate>)`：第二分量与 `buckets.close` **一一对应**（第 k 条被关腿的
-/// 关闭触发候选 = 第 k 个归因，规则2 的消费配对）——组合层（coverage `pi_theta_step_traced` /
+/// 关闭触发候选 = 第 k 个同级别已确认证书归因，规则2 的消费配对）——组合层
+/// （coverage `pi_theta_step_traced` /
 /// runner ledger builder）据此经 [`reverse_exit_type`] 产 typed exit，**不在外部重放 fold 配对**
 /// （fold 顺序敏感，外部重放 = 平行实现漂移）。
 ///
@@ -1191,6 +1196,12 @@ pub fn interpret_with_close_triggers(
     for &c in &ordered {
         // 规则1：非方向候选 ⟹ 𝒦_x。
         if c.dir == VoiceSide::Flat || c.bsp_class == u8::MAX {
+            buckets.record.push(*c);
+            continue;
+        }
+        // 规则2 证书门：§9 closePred 的 χ 只消费证书成立层已确认的 N^δ；本层只读字段，
+        // 不重复计算区间套/背驰。未确认者不能落规则3（§13 ℬ_x 会真实开腿），故归 𝒦_x record。
+        if !c.nest_confirmed {
             buckets.record.push(*c);
             continue;
         }

@@ -2836,7 +2836,8 @@ pub(crate) fn pi_theta_step_prebuilt(
 /// 记录本步腿级生命周期事件（#145 T1：反向关闭的 ExitType 判定**前移到本组合层决策点**——
 /// 入场角色 `entry_v` 经 [`TwStepCtx::entry_v`] 在飞映射取得，喂 [`interp::reverse_exit_type`]
 /// 单源判据；消费端 runner 直接携带 trace 的裁决入 typed ledger，不再结算补算）：
-/// - `closed`：被 interpret 规则2 反向关闭的腿 + 触发候选（一一对应归因）+ typed 裁决。
+/// - `closed`：被 interpret 规则2 的同级别已确认证书反向关闭的腿 + 触发证书（一一对应归因）+
+///   typed 裁决；`nest_confirmed=false` 的信号由解释器归 record，不进入本通道。
 /// - `silent_drops`：不在 close 桶但从 active 消失的腿（§13 AncOK 连带剪 / Stale prune）。
 /// - `opened`：open 桶候选中**真正准入** `next_active` 的（AncOK 后），携对应新腿。
 ///   restore 恢复的祖先 carrier 腿不在此列（非信号入场，无 z，不入 ledger）。
@@ -2847,7 +2848,8 @@ pub(crate) fn pi_theta_step_prebuilt(
 /// 信号），故独立于 `closed`（后者携触发候选喂 [`interp::reverse_exit_type`]）。
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StepTrace {
-    /// 反向关闭三元组 `(被关腿, 触发候选, typed 裁决)`（#145 T1）。裁决 = [`interp::reverse_exit_type`]
+    /// 反向关闭三元组 `(被关腿, 同级别已确认触发证书, typed 裁决)`（#145 T1 / #146 T2）。裁决 =
+    /// [`interp::reverse_exit_type`]
     /// (entry_v, trigger_class)，entry_v 从 [`TwStepCtx::entry_v`] 在飞映射取；`tw=None` 或腿不在
     /// 映射（非本窗信号入场/restore 祖先腿）⟹ **诚实回退** `Vertical::Ambient`（=非 ShortDiff ⟹
     /// 按触发类派 P5/P6）——消费端 runner 只对在飞表登记腿入 ledger，登记腿必在映射 ⟹ 回退值
@@ -5018,14 +5020,14 @@ mod tests {
         assert!(trace.silent_drops.is_empty(), "close 认领互斥于静默离场");
     }
 
-    /// 卖候选分类夹具（class=1 一类 / 3 三类）——#145 T1 typed 裁决测试用。
-    fn sell_classification(class: u8) -> Classification {
+    /// 指定递归结构级别的卖候选分类夹具（class=1 一类 / 3 三类）。
+    fn sell_classification_at(level: u32, source_index: usize, class: u8) -> Classification {
         let bits = match class {
             1 => BspBits { sell1: true, ..Default::default() },
             _ => BspBits { sell3: true, ..Default::default() },
         };
         let sell = BspPoint {
-            source_index: 10,
+            source_index,
             bits,
             pivot_low: 0,
             pivot_high: 210,
@@ -5033,8 +5035,28 @@ mod tests {
             struct_break_dir: None,
             force: None,
         };
-        Classification {
-            levels: vec![LevelState { bsp: Rc::new(vec![sell]), ..Default::default() }],
+        let mut levels: Vec<LevelState> =
+            (0..=level).map(|_| LevelState::default()).collect();
+        levels[level as usize].bsp = Rc::new(vec![sell]);
+        Classification { levels }
+    }
+
+    /// 卖候选分类夹具（class=1 一类 / 3 三类）——#145 T1 typed 裁决测试用。
+    fn sell_classification(class: u8) -> Classification {
+        sell_classification_at(0, 10, class)
+    }
+
+    /// 两父塔中 compose_a 的 L1 Long 持仓腿（结构身份/坐标与 [`two_parent_tower`] 精确一致）。
+    fn held_l1_compose_a() -> ActiveLeg {
+        ActiveLeg {
+            level: 1,
+            dir: VoiceSide::Long,
+            source_index: 12,
+            lambda: 0,
+            id: eid(1, 0),
+            parent_id: None,
+            is_boundary_root: true,
+            op_parent: None,
         }
     }
 
@@ -5086,6 +5108,122 @@ mod tests {
                 "三类反向 ⟹ P6 ReduceCore（mapped={mapped}）"
             );
         }
+    }
+
+    /// ★#146 T2 验收1（原始烤料，端到端）：L1 声部 A 持仓 + L0 反向已确认证书属于另一未持有
+    /// L1 声部 B。解释器只按递归结构 `level` 匹配关闭，故 L0 不得关闭 L1；B 的父 carrier 未持有，
+    /// §13 AncOK 又会拒绝其开腿，最终显式 Hold、目标仓位与订单均零变动。
+    #[test]
+    fn t2_cross_level_confirmed_certificate_holds_l1_position_end_to_end() {
+        use super::super::channel::{self, ChannelDecision, VoiceState, VoiceStepInput};
+
+        let tower = two_parent_tower();
+        // source=20 命中 compose_b 的 L0 子 b1；卖向与 L1 Long 持仓 A 反向，但 level=0≠1。
+        let classification = sell_classification_at(0, 20, 1);
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        assert_eq!(gamma.len(), 1);
+        assert_eq!(gamma[0].level, 0);
+        assert!(gamma[0].nest_confirmed, "L0 卖点携 Conf^-，是已确认证书");
+
+        let held = held_l1_compose_a();
+        let held_idx = tree.iter().position(|e| e.id == held.id).expect("L1 compose_a 在塔中");
+        let held_target = leg_target(&tree, held_idx, 1000.0, &cfg());
+        assert_eq!(held_target.side, VoiceSide::Long);
+        let p_t = held_target.units;
+
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let work = ElementView::from_parts(&tree, candidates);
+        let (next_active, p_star, (order, _protocol), trace) = pi_theta_step_traced(
+            work, &gamma, &[held], p_t, 21, 1000.0, &r, w, KThetaRiskGate::open(),
+            &cfg(), &reg, None, &protocol_hold(),
+        );
+
+        assert!(trace.closed.is_empty(), "L0 证书不得进入 L1 的 close/typed-exit 通道");
+        assert!(trace.opened.is_empty(), "未持有 compose_b 父声部，L0 子候选被 §13 AncOK 拒绝");
+        assert_eq!(next_active, vec![held], "L1 持仓腿原样延续");
+        assert_eq!(p_star, p_t, "目标净仓不变");
+        assert_eq!((order.action, order.qty), (StrictAction::Hold, 0), "显式 Hold 且仓位零变动");
+
+        // #147 T3 只读交叉：同一声部输入仍落 C0/Hold，不改变 P1-P8 语义。
+        let voice = VoiceState { level: held.level, leg: Some(held), entry_v: Vertical::Ambient };
+        let input = VoiceStepInput { force_flat: false, candidates: gamma };
+        assert_eq!(
+            channel::step_voice(&voice, &input).1,
+            ChannelDecision::Exit(interp::ExitType::Hold),
+            "跨级证书不进入 L1 声部出场谓词"
+        );
+    }
+
+    /// ★#146 T2 验收2：同级别已确认反向证书正常进入 `StepTrace.closed`，typed 裁决严格复用
+    /// [`interp::reverse_exit_type`]：一类→CloseRoot、三类→ReduceCore。
+    #[test]
+    fn t2_same_level_confirmed_certificate_matches_t1_exit_split() {
+        let held = held_l1_compose_a();
+        for class in [1u8, 3u8] {
+            let tower = two_parent_tower();
+            // L1 source=12 命中 compose_a；与 held 同一递归结构级别。
+            let classification = sell_classification_at(1, 12, class);
+            let (tree, candidates, gamma) =
+                interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+            assert!(gamma[0].nest_confirmed, "同级别触发者必须是已确认证书");
+            let held_idx = tree.iter().position(|e| e.id == held.id).expect("L1 compose_a 在塔中");
+            let p_t = leg_target(&tree, held_idx, 1000.0, &cfg()).units;
+            let r = rcfg();
+            let w = PiThetaWeights::from_risk(&r);
+            let reg = super::super::persistent::PersistentRegistry::new();
+            let work = ElementView::from_parts(&tree, candidates);
+            let (_next, _p_star, (_order, _protocol), trace) = pi_theta_step_traced(
+                work, &gamma, &[held], p_t, 13, 1000.0, &r, w, KThetaRiskGate::open(),
+                &cfg(), &reg, None, &protocol_hold(),
+            );
+
+            assert_eq!(trace.closed.len(), 1, "同级别已确认反向证书必须关闭持仓腿（class={class}）");
+            let (leg, trigger, decision) = trace.closed[0];
+            assert_eq!(leg.id, held.id);
+            assert_eq!(trigger.level, held.level, "被关腿与证书必须同级别");
+            assert_eq!(
+                decision,
+                interp::reverse_exit_type(Vertical::Ambient, class),
+                "#146 T2 不改 #145 T1 的 typed 二分（class={class}）"
+            );
+        }
+    }
+
+    /// ★#146 T2 验收3：方向信号若 `nest_confirmed=false`，不是 §9 closePred 可消费的证书；必须
+    /// 留在 𝒦_x record，不进 close 桶，也不得在组合层产生任何 typed 出场裁决或仓位变化。
+    #[test]
+    fn t2_unconfirmed_same_level_signal_records_without_exit_decision() {
+        let tower = two_parent_tower();
+        let classification = sell_classification_at(1, 12, 1);
+        let (tree, candidates, mut gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        gamma[0].nest_confirmed = false; // 仅方向信号：证书成立层明确否定 N^δ。
+        let held = held_l1_compose_a();
+
+        let (buckets, close_triggers) = interp::interpret_with_close_triggers(&gamma, &[held]);
+        assert!(buckets.close.is_empty(), "未确认信号不得进入 close 桶");
+        assert!(close_triggers.is_empty(), "未确认信号不得成为 typed exit 原料");
+        assert!(buckets.open.is_empty(), "未成立证书不得借规则3反向开同 carrier");
+        assert_eq!(buckets.record.len(), 1, "未确认信号保留在 𝒦_x，记录但不执行");
+
+        let held_idx = tree.iter().position(|e| e.id == held.id).expect("L1 compose_a 在塔中");
+        let p_t = leg_target(&tree, held_idx, 1000.0, &cfg()).units;
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let work = ElementView::from_parts(&tree, candidates);
+        let (next_active, p_star, (order, _protocol), trace) = pi_theta_step_traced(
+            work, &gamma, &[held], p_t, 13, 1000.0, &r, w, KThetaRiskGate::open(),
+            &cfg(), &reg, None, &protocol_hold(),
+        );
+        assert!(trace.closed.is_empty(), "StepTrace 不得生成 CloseRoot/ReduceCore/CloseShortDiff");
+        assert!(trace.opened.is_empty(), "未确认信号只记录，不开腿");
+        assert_eq!(next_active, vec![held]);
+        assert_eq!(p_star, p_t);
+        assert_eq!((order.action, order.qty), (StrictAction::Hold, 0));
     }
 
     /// ★#145 T1：entry_v=ShortDiff 压过触发类——TwStepCtx 在飞 entry_v 映射携 ShortDiff ⟹
