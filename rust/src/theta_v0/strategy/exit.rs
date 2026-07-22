@@ -205,11 +205,330 @@ pub fn cascade_exit_decisions(
     out
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  #148 T4：祖先耦合收口——AncOK 子树清仓（活动集层）
+//
+//  ★票面边界：祖先耦合实现在**活动集层结构不变量**，不进通道谓词序列（#148 票面）——
+//  本节不引入显式通道，channel.rs 的 P1–P8 谓词语义与槽位排序原样冻结（#147 T3）。
+//  父声部终结（如 CloseRoot 命中）时，其全部后代声部经 [`subtree_close`] 剪除（子树清仓），
+//  一步后活动集恒满足 `Anc(v) ⊆ A_{t+1}`（[`anc_subset_of_active`]，M16 AncOK 声部层实例）。
+//
+//  复用而非重复实现级联逻辑：
+//  - deepest-first + 触发者收尾的发射序沿用 [`cascade_exit_decisions`]（M16 AncOK 父关则子关、
+//    §20 先平后开）——depth 槽线性链是 parent_id 树的线性特例（一致性见证
+//    `t4_linear_chain_subtree_close_matches_cascade_deepest_first`）。
+//  - 祖先闭合语义沿用 coverage `ancestor_close_by_id`（spec §13 `AncOK(A)={a∈A:Anc(a)⊆A}`），
+//    此处作用域是声部活动腿（[`ActiveLeg`]，`parent_id` 结构链 + `is_boundary_root` 根锚），
+//    非 CoverageElement 全元素集——两域元素类型不同，不构成镜像实现。
+// ════════════════════════════════════════════════════════════════════════════
+
+use super::interp::ActiveLeg;
+use super::super::classifier::recursive_tower::ElementId;
+use std::collections::{HashMap, HashSet};
+
+/// 声部层活动集不变量 `∀v∈A, Anc(v)⊆A`（#148 验收2；M16 AncOK 的声部层实例）。
+///
+/// **祖先耦合实现在活动集层结构不变量，不进通道谓词序列（#148 票面）。**
+///
+/// 祖先链按 `parent_id` 结构映射上溯（spec §13 `p:C_ℓ→C_{ℓ+1}`）：`is_boundary_root=true`
+/// 的腿是根锚（链终止，`parent_id` 不再要求在 A 内——interp.rs ActiveLeg 契约：边界根
+/// `parent_id=None` 合法/Stale 根保留）；非根腿的 `parent_id` 必须解析到 A 内某腿并递归成立。
+///
+/// 防御性上界：链步数 > |A| ⟹ 判 false（fail-closed——parent_id 级别严格递增保证无环，
+/// 环只能来自数据损坏，不假设不变量成立）。
+pub fn anc_subset_of_active(active: &[ActiveLeg]) -> bool {
+    let by_id: HashMap<ElementId, &ActiveLeg> =
+        active.iter().map(|l| (l.id, l)).collect();
+    active.iter().all(|leg| {
+        let mut cur = leg;
+        let mut steps = 0usize;
+        loop {
+            if cur.is_boundary_root {
+                return true; // 根锚：链在 A 内完整终止
+            }
+            steps += 1;
+            if steps > active.len() {
+                return false; // 环/损坏 ⟹ fail-closed
+            }
+            match cur.parent_id.and_then(|p| by_id.get(&p)) {
+                Some(parent) => cur = parent,
+                None => return false, // 父不在 A ⟹ Anc(v)⊄A（孤儿）
+            }
+        }
+    })
+}
+
+/// 声部层代际深度：v 沿 `parent_id` 在 `by_id`（A 的 id 索引）内可上溯的步数
+/// （根锚/父缺失处终止；防御性上界 |A| 截断）。deepest-first 排序键。
+fn generation_depth(leg: &ActiveLeg, by_id: &HashMap<ElementId, &ActiveLeg>, bound: usize) -> usize {
+    let mut depth = 0usize;
+    let mut cur = leg;
+    while !cur.is_boundary_root && depth <= bound {
+        match cur.parent_id.and_then(|p| by_id.get(&p)) {
+            Some(parent) => {
+                depth += 1;
+                cur = parent;
+            }
+            None => break,
+        }
+    }
+    depth
+}
+
+/// **子树清仓 `𝒟_x^† = {v∈A_t : ({v}∪Anc(v)) ∩ 𝒟_x ≠ ∅}`**（#148 验收1 核心）：
+/// 父声部终结 ⟹ 其全部后代声部同刻纳入关闭集（M16 AncOK「父关则子关」在 parent_id 树上的
+/// 传递闭包）。返回序 **deepest-first**（代际深者先平、种子父收尾——沿用
+/// [`cascade_exit_decisions`] 的发射序，§20 先平后开：子腿现金先到位）。
+///
+/// - `seeds` = 直接被裁决终结的声部（interp 规则2 的 𝒟_x，契约 `𝒟_x⊆A_t`）。
+/// - 后代判据：v 自身或沿 `parent_id` 链（A 内解析）任一祖先的 id ∈ seeds。
+/// - 不可变：不 mutate 输入，产新 Vec。
+pub fn subtree_close(active: &[ActiveLeg], seeds: &[ActiveLeg]) -> Vec<ActiveLeg> {
+    let by_id: HashMap<ElementId, &ActiveLeg> =
+        active.iter().map(|l| (l.id, l)).collect();
+    let seed_ids: HashSet<ElementId> = seeds.iter().map(|l| l.id).collect();
+    let bound = active.len();
+    let mut closed: Vec<(usize, ActiveLeg)> = active
+        .iter()
+        .filter(|leg| {
+            // 自身或任一 A 内祖先命中种子 ⟹ 属被清子树。
+            let mut cur = *leg;
+            let mut steps = 0usize;
+            loop {
+                if seed_ids.contains(&cur.id) {
+                    return true;
+                }
+                if cur.is_boundary_root || steps >= bound {
+                    return false;
+                }
+                steps += 1;
+                match cur.parent_id.and_then(|p| by_id.get(&p)) {
+                    Some(parent) => cur = *parent,
+                    None => return false,
+                }
+            }
+        })
+        .map(|l| (generation_depth(l, &by_id, bound), *l))
+        .collect();
+    // deepest-first（代际深度降序）；同深保持 A 内原序（stable sort）。
+    closed.sort_by(|a, b| b.0.cmp(&a.0));
+    closed.into_iter().map(|(_, l)| l).collect()
+}
+
+/// **活动集一步更新（子树清仓版）`A_{t+1} = AncOK[(A_t ∖ 𝒟_x^†) ∪ ℬ_x]`**（#148 收口）：
+/// 先按 [`subtree_close`] 把关闭种子扩为全子树剪除，再并入新开腿 `opened`（ℬ_x，id 去重、
+/// 已在存量者不重复入），最后施声部层 AncOK（祖先链在结果集内不可解析的开腿=孤儿，剪除
+/// 不入 A——spec §13「子级腿存在 ⟹ 父容器存在」的 fail-closed 面）。
+///
+/// **L0 定理（构造内蕴）**：返回集恒满足 [`anc_subset_of_active`]——存量腿的祖先只可能因
+/// 子树清仓整链移除（祖先被清 ⟹ 后代同在 𝒟_x^† 内），新开孤儿被终检剪除；单遍全链检查
+/// 充分（若 v 的链断裂则其全部后代的链同样断裂，剪除单调，无需迭代到不动点）。
+pub fn step_active_set_with_subtree_close(
+    active: &[ActiveLeg],
+    seeds: &[ActiveLeg],
+    opened: &[ActiveLeg],
+) -> Vec<ActiveLeg> {
+    let closed_ids: HashSet<ElementId> =
+        subtree_close(active, seeds).iter().map(|l| l.id).collect();
+    // (A_t ∖ 𝒟_x^†) ∪ ℬ_x（id 去重，保序：存量在前、新开在后）。
+    let mut raw: Vec<ActiveLeg> =
+        active.iter().filter(|l| !closed_ids.contains(&l.id)).copied().collect();
+    let mut raw_ids: HashSet<ElementId> = raw.iter().map(|l| l.id).collect();
+    for &b in opened {
+        if raw_ids.insert(b.id) {
+            raw.push(b);
+        }
+    }
+    // 声部层 AncOK：全链检查（单遍充分，剪除单调——见函数级 L0 注记）。
+    let by_id: HashMap<ElementId, ActiveLeg> = raw.iter().map(|l| (l.id, *l)).collect();
+    let bound = raw.len();
+    raw.into_iter()
+        .filter(|leg| {
+            let mut cur = *leg;
+            let mut steps = 0usize;
+            loop {
+                if cur.is_boundary_root {
+                    return true;
+                }
+                steps += 1;
+                if steps > bound {
+                    return false;
+                }
+                match cur.parent_id.and_then(|p| by_id.get(&p)) {
+                    Some(parent) => cur = *parent,
+                    None => return false,
+                }
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::channel::{decision_of, ChannelDecision, ChannelId, CHANNEL_M};
+    use super::super::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+    use super::super::interp::{interpret_with_close_triggers, ActiveLeg, Candidate, ExitType};
     use super::super::risk::StopInput;
+    use super::super::super::classifier::recursive_tower::ElementId;
     use super::super::super::types::{BspBits, Center};
+
+    // ── #148 T4 构造器：活动集层 ActiveLeg 树 ────────────────────────────
+
+    /// 树腿构造：parent=None ⟹ 边界根（is_boundary_root=true）；否则子腿。
+    fn tleg(level: u32, ordinal: u64, dir: VoiceSide, parent: Option<ElementId>) -> ActiveLeg {
+        ActiveLeg {
+            level,
+            dir,
+            source_index: ordinal as usize,
+            lambda: ordinal as usize,
+            id: ElementId { level, ordinal },
+            parent_id: parent,
+            is_boundary_root: parent.is_none(),
+            op_parent: None,
+        }
+    }
+
+    fn sell1_cand(level: u32) -> Candidate {
+        Candidate {
+            level,
+            source_index: 99,
+            bits: BspBits { sell1: true, ..Default::default() },
+            dir: VoiceSide::Short,
+            bsp_class: 1,
+            role: OperationRole {
+                h: Horizontal::First,
+                v: Vertical::Ambient,
+                delta: Dir::Minus,
+                grade: GradeRel::SameLevel,
+            },
+            nest_confirmed: true,
+            gamma_index: 0,
+            force: None,
+        }
+    }
+
+    /// 三层链树：root(L2,Long) ← child(L1,Short) ← grand(L0,Long)。
+    fn chain3() -> (ActiveLeg, ActiveLeg, ActiveLeg) {
+        let root = tleg(2, 1, VoiceSide::Long, None);
+        let child = tleg(1, 10, VoiceSide::Short, Some(root.id));
+        let grand = tleg(0, 100, VoiceSide::Long, Some(child.id));
+        (root, child, grand)
+    }
+
+    // ── #148 T4 验收1：父声部命中 CloseRoot ⟹ 子树同刻清仓，无孤儿 ──────
+
+    /// 验收1（端到端）：反向候选命中父声部（root）经 interpret 产 𝒟_x={root}，
+    /// 子树清仓把全部后代（child/grand）同刻纳入关闭集，A_{t+1} 无孤儿声部存活。
+    #[test]
+    fn t4_parent_close_root_liquidates_full_subtree_no_orphans() {
+        let (root, child, grand) = chain3();
+        let active = vec![root, child, grand];
+        // 反向候选只命中同级别（L2）的 root——interpret 规则2 的 𝒟_x 不含后代。
+        let (buckets, _) = interpret_with_close_triggers(&[sell1_cand(2)], &active);
+        assert_eq!(buckets.close.len(), 1, "前提：interpret 只关父声部");
+        assert_eq!(buckets.close[0].id, root.id);
+        // T4 收口：子树清仓扩到全部后代。
+        let closed = subtree_close(&active, &buckets.close);
+        let closed_ids: Vec<ElementId> = closed.iter().map(|l| l.id).collect();
+        assert_eq!(closed.len(), 3, "父 + 全部后代同刻终结");
+        assert!(closed_ids.contains(&child.id) && closed_ids.contains(&grand.id));
+        // 最深优先（复用 cascade deepest-first 语义），父收尾。
+        assert_eq!(closed_ids, vec![grand.id, child.id, root.id]);
+        // A_{t+1} 无孤儿：全清空且不变量成立。
+        let next = step_active_set_with_subtree_close(&active, &buckets.close, &[]);
+        assert!(next.is_empty(), "无孤儿声部存活");
+        assert!(anc_subset_of_active(&next));
+    }
+
+    /// 验收1 补充：中位父（child）终结 ⟹ 只清其子树 {grand, child}，root 存活且不变量成立。
+    #[test]
+    fn t4_mid_parent_close_liquidates_only_its_subtree() {
+        let (root, child, grand) = chain3();
+        let active = vec![root, child, grand];
+        let closed = subtree_close(&active, &[child]);
+        assert_eq!(closed.iter().map(|l| l.id).collect::<Vec<_>>(), vec![grand.id, child.id]);
+        let next = step_active_set_with_subtree_close(&active, &[child], &[]);
+        assert_eq!(next.len(), 1, "root 不在子树内 ⟹ 存活");
+        assert_eq!(next[0].id, root.id);
+        assert!(anc_subset_of_active(&next));
+    }
+
+    // ── #148 T4 验收2：任意裁决序列回放后 ∀v∈A, Anc(v)⊆A ────────────────
+
+    /// 验收2（不变量）：任意裁决序列（开/关种子交错，含孤儿开仓输入）回放，
+    /// 每步后 ∀v∈A, Anc(v)⊆A 恒成立（孤儿开仓被声部层 AncOK 剪除，不入 A）。
+    #[test]
+    fn t4_active_set_invariant_holds_under_arbitrary_verdict_replay() {
+        let (root, child, grand) = chain3();
+        let root2 = tleg(3, 2, VoiceSide::Short, None);
+        let child2 = tleg(2, 20, VoiceSide::Long, Some(root2.id));
+        // 孤儿腿：父 id 不存在于任何活动集（须被剪除，不得入 A）。
+        let orphan = tleg(0, 999, VoiceSide::Long, Some(ElementId { level: 5, ordinal: 777 }));
+        // 裁决序列：(关闭种子, 开启集) 逐步回放。
+        let steps: Vec<(Vec<ActiveLeg>, Vec<ActiveLeg>)> = vec![
+            (vec![], vec![root]),                 // 开根
+            (vec![], vec![child, grand]),         // 开子/孙
+            (vec![], vec![root2, orphan]),        // 开第二根 + 孤儿（孤儿须剪）
+            (vec![child], vec![child2]),          // 关 child 子树 + 开 child2
+            (vec![root], vec![]),                 // 关 root 子树
+            (vec![root2], vec![orphan]),          // 关 root2 子树（child2 级联）+ 再喂孤儿
+        ];
+        let mut active: Vec<ActiveLeg> = vec![];
+        for (i, (seeds, opened)) in steps.iter().enumerate() {
+            active = step_active_set_with_subtree_close(&active, seeds, opened);
+            assert!(
+                anc_subset_of_active(&active),
+                "step {i}: 不变量 ∀v∈A, Anc(v)⊆A 破裂：{active:?}"
+            );
+            assert!(
+                active.iter().all(|l| l.id != orphan.id),
+                "step {i}: 孤儿声部不得入活动集"
+            );
+        }
+        assert!(active.is_empty(), "全部子树清仓后 A=∅（root2 关 ⟹ child2 级联）");
+    }
+
+    // ── #148 T4 验收3：子树清仓不占通道谓词槽位（P1–P8 冻结） ────────────
+
+    /// 验收3：T4 不进通道谓词序列——CHANNEL_M 仍为 8，9 通道裁决映射与 #147 T3
+    /// 冻结版逐条相同（不存在「子树清仓」通道/裁决变体）。
+    #[test]
+    fn t4_subtree_close_takes_no_channel_predicate_slot() {
+        assert_eq!(CHANNEL_M, 8, "#148 不增通道谓词槽位");
+        let frozen: [(ChannelId, ChannelDecision); 9] = [
+            (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
+            (ChannelId::Cj(1), ChannelDecision::Exit(ExitType::RiskExit)),
+            (ChannelId::Cj(2), ChannelDecision::Exit(ExitType::CloseRoot)),
+            (ChannelId::Cj(3), ChannelDecision::Exit(ExitType::ReduceCore)),
+            (ChannelId::Cj(4), ChannelDecision::Exit(ExitType::CloseShortDiff)),
+            (ChannelId::Cj(5), ChannelDecision::OpenShortDiff),
+            (ChannelId::Cj(6), ChannelDecision::Open),
+            (ChannelId::Cj(7), ChannelDecision::Record),
+            (ChannelId::Cj(8), ChannelDecision::AddPosition),
+        ];
+        for (cid, want) in frozen {
+            assert_eq!(decision_of(cid), want, "#147 T3 通道裁决映射被 #148 私改");
+        }
+    }
+
+    // ── #148 T4：与既有 cascade（depth 槽线性链）的语义一致性见证 ─────────
+
+    /// 线性链上子树清仓与 cascade_exit_decisions 同序（deepest-first、触发者收尾）——
+    /// 复用而非重复实现级联逻辑的一致性见证（depth 槽链是 parent_id 树的线性特例）。
+    #[test]
+    fn t4_linear_chain_subtree_close_matches_cascade_deepest_first() {
+        let (root, child, grand) = chain3();
+        let active = vec![root, child, grand];
+        let closed = subtree_close(&active, &[root]);
+        // 树侧序：孙、子、根（代际降序）。
+        let tree_generations: Vec<u32> = closed.iter().map(|l| 2 - l.level).collect();
+        // cascade 侧（depth 槽线性链，depth0 触发）：[2, 1, 0]。
+        let held = vec![Some(held_at(0, false)), Some(held_at(1, false)), Some(held_at(2, false))];
+        let out = cascade_exit_decisions(&held, 0, trigger_of(&held[0].unwrap(), 3), 3);
+        let cascade_depths: Vec<u32> = out.iter().map(|d| d.depth).collect();
+        assert_eq!(tree_generations, cascade_depths, "同一 deepest-first 序（线性特例一致）");
+    }
 
     fn bar_at(idx: usize, o: Tick, h: Tick, l: Tick, c: Tick) -> Bar {
         Bar {
