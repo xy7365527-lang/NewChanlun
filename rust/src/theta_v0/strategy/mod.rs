@@ -40,6 +40,8 @@
 
 /// 互斥全定义策略 element-coverage 执行引擎（M29 三结论合一的 rust 兑现，与买卖点 v1 正交的
 /// 新路径——在每个语法元素 λ_e 入场、ρ_e 平腿，覆盖每个笔/线段/走势，非离散择时）。
+/// #147 T3 出场通道 P1–P8 全互斥通道解释器（first-match + C0 兜底；#149/#150 占位槽定型）。
+pub mod channel;
 pub mod coverage;
 pub mod exec;
 /// 退出决策生成器（§9 closePred）+ 持仓声部台账 `HeldVoice`——回测 runner 与生产 ThetaCore 共享单源。
