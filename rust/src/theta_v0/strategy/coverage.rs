@@ -2833,9 +2833,10 @@ pub(crate) fn pi_theta_step_prebuilt(
 /// G4 typed exit 组合层 trace（#134，裁定4 I_Θ 组合层雏形——G5 #124 升级 I_Θ 时在此层加
 /// RiskState/TwState 输入与 tw_event/exit_kind 输出）。
 ///
-/// 记录本步腿级生命周期事件的**原料**（ExitType 判定在消费端 runner ledger builder 做——
-/// 需要腿的入场角色，经 [`interp::reverse_exit_type`] 单源判据）：
-/// - `closed`：被 interpret 规则2 反向关闭的腿 + 触发候选（一一对应归因）。
+/// 记录本步腿级生命周期事件（#145 T1：反向关闭的 ExitType 判定**前移到本组合层决策点**——
+/// 入场角色 `entry_v` 经 [`TwStepCtx::entry_v`] 在飞映射取得，喂 [`interp::reverse_exit_type`]
+/// 单源判据；消费端 runner 直接携带 trace 的裁决入 typed ledger，不再结算补算）：
+/// - `closed`：被 interpret 规则2 反向关闭的腿 + 触发候选（一一对应归因）+ typed 裁决。
 /// - `silent_drops`：不在 close 桶但从 active 消失的腿（§13 AncOK 连带剪 / Stale prune）。
 /// - `opened`：open 桶候选中**真正准入** `next_active` 的（AncOK 后），携对应新腿。
 ///   restore 恢复的祖先 carrier 腿不在此列（非信号入场，无 z，不入 ledger）。
@@ -2846,7 +2847,14 @@ pub(crate) fn pi_theta_step_prebuilt(
 /// 信号），故独立于 `closed`（后者携触发候选喂 [`interp::reverse_exit_type`]）。
 #[derive(Debug, Clone, Default)]
 pub(crate) struct StepTrace {
-    pub closed: Vec<(ActiveLeg, Candidate)>,
+    /// 反向关闭三元组 `(被关腿, 触发候选, typed 裁决)`（#145 T1）。裁决 = [`interp::reverse_exit_type`]
+    /// (entry_v, trigger_class)，entry_v 从 [`TwStepCtx::entry_v`] 在飞映射取；`tw=None` 或腿不在
+    /// 映射（非本窗信号入场/restore 祖先腿）⟹ **诚实回退** `Vertical::Ambient`（=非 ShortDiff ⟹
+    /// 按触发类派 P5/P6）——消费端 runner 只对在飞表登记腿入 ledger，登记腿必在映射 ⟹ 回退值
+    /// 不进 typed ledger。逐笔一致性链（与原 runner 结算补算 bit-exact）：closed ⊆ prev_active ⊆
+    /// 本 bar 快照 open_trades（同 bar 新开腿不可能当 bar 被规则2关闭）∧ entry_v 入场固定 ⟹
+    /// 前移取值 = 旧补算值；runner 消费端有 debug_assert 守此不变量。
+    pub closed: Vec<(ActiveLeg, Candidate, interp::ExitType)>,
     pub silent_drops: Vec<ActiveLeg>,
     pub opened: Vec<(Candidate, ActiveLeg)>,
     /// P1 强平清空的活动腿（force_flat ⟹ RiskExit）——无触发候选，独立通道。
@@ -2886,10 +2894,12 @@ pub(crate) struct TwStepCtx<'a> {
     pub policy: &'a RiskPolicy,
     /// 当前风控模式（EnterReady 的 RiskNormal 门）。
     pub risk_mode: RiskMode,
-    /// 生产 legacy ShortDiff 活动腿 id（P2 的 H>0 判据 + 关腿对象；runner 从 typed ledger
-    /// 在飞表 `entry_v == ShortDiff` 取——腿声部身份入场固定，与 TW `open_legacy_legs`
-    /// 计数同源同步）。
-    pub shortdiff_leg_ids: &'a std::collections::HashSet<ElementId>,
+    /// 在飞腿入场角色映射 `voice_id → entry_v`（runner 从 typed ledger 在飞表取——腿声部身份
+    /// 入场固定，与 TW `open_legacy_legs` 计数同源同步）。双消费（#145 T1 升级原 shortdiff_leg_ids
+    /// 半镜像）：① P2 CloseOverlay 过滤 `entry_v == ShortDiff` 的重叠腿（语义 bit-exact——原
+    /// HashSet 即按同判据在 runner 预滤）；② 反向关闭 typed 裁决的 entry_v 原料
+    /// （[`interp::reverse_exit_type`] 单源，`StepTrace::closed` 第三分量）。
+    pub entry_v: &'a std::collections::HashMap<ElementId, Vertical>,
     /// η 修正量（A10 C5 裁定 (b)，TW 桥 G1）：生产 π loop 的 `cum_holding_cost` i64 shadow
     /// （funding+borrow+liq 累计量化），经 [`stage_progression_eta_corrected`] 进 P4 EnterReady
     /// 的 η 左操作数（η_corrected = tw() − eta_correction）。**0 ⟹ 与历史判据同值 bit-exact**
@@ -2950,7 +2960,7 @@ pub(crate) fn pi_theta_step_traced(
         if twc.state.stage == TStage::CapitalRecovered {
             let overlay: Vec<ActiveLeg> = prev_active
                 .iter()
-                .filter(|l| twc.shortdiff_leg_ids.contains(&l.id))
+                .filter(|l| twc.entry_v.get(&l.id) == Some(&Vertical::ShortDiff))
                 .copied()
                 .collect();
             if !overlay.is_empty() {
@@ -3033,10 +3043,23 @@ pub(crate) fn pi_theta_step_traced(
     // ── trace 差分（决策已定，纯只读观测）──
     let next_ids: std::collections::HashSet<ElementId> =
         next_active.iter().map(|l| l.id).collect();
-    let closed: Vec<(ActiveLeg, Candidate)> =
-        buckets.close.iter().copied().zip(close_triggers).collect();
+    // #145 T1 typed 裁决（组合层单点）：entry_v 从在飞映射取；tw=None/腿不在映射 ⟹ 回退
+    // Ambient（诚实语义见 `StepTrace::closed` doc——回退值不被 ledger 消费）。
+    let closed: Vec<(ActiveLeg, Candidate, interp::ExitType)> = buckets
+        .close
+        .iter()
+        .copied()
+        .zip(close_triggers)
+        .map(|(l, c)| {
+            let entry_v = tw
+                .and_then(|t| t.entry_v.get(&l.id).copied())
+                .unwrap_or(Vertical::Ambient);
+            let exit_type = interp::reverse_exit_type(entry_v, c.bsp_class);
+            (l, c, exit_type)
+        })
+        .collect();
     let closed_ids: std::collections::HashSet<ElementId> =
-        closed.iter().map(|(l, _)| l.id).collect();
+        closed.iter().map(|(l, _, _)| l.id).collect();
     // 静默离场：prev_active 中既未被 close 桶认领、也不在 next_active（AncOK 剪/Stale prune）。
     let silent_drops: Vec<ActiveLeg> = prev_active
         .iter()
@@ -4988,11 +5011,121 @@ mod tests {
             &protocol_hold(),
         );
         assert_eq!(trace.closed.len(), 1, "反向卖候选关闭持仓 Long 腿");
-        let (leg, trig) = &trace.closed[0];
+        let (leg, trig, _exit) = &trace.closed[0];
         assert_eq!(leg.id, held.id, "被关腿 = 持仓腿");
         assert_eq!(trig.bsp_class, 1, "触发归因 = 一类卖候选（reverse_exit_type ⟹ CloseRoot）");
         assert!(!next_active.iter().any(|l| l.id == held.id), "被关腿不入 next_active");
         assert!(trace.silent_drops.is_empty(), "close 认领互斥于静默离场");
+    }
+
+    /// 卖候选分类夹具（class=1 一类 / 3 三类）——#145 T1 typed 裁决测试用。
+    fn sell_classification(class: u8) -> Classification {
+        let bits = match class {
+            1 => BspBits { sell1: true, ..Default::default() },
+            _ => BspBits { sell3: true, ..Default::default() },
+        };
+        let sell = BspPoint {
+            source_index: 10,
+            bits,
+            pivot_low: 0,
+            pivot_high: 210,
+            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![sell]), ..Default::default() }],
+        }
+    }
+
+    /// ★#145 T1：typed 裁决前移到组合层——`StepTrace.closed` 第三分量携 [`interp::ExitType`]，
+    /// 由 [`interp::reverse_exit_type`] 单源产出（一类反向 ⟹ CloseRoot；三类反向 ⟹ ReduceCore）。
+    /// 双分支各验一遍：主路径（在飞 entry_v 映射携 Ambient）与回退分支（tw=None ⟹ 回退
+    /// Ambient=非 ShortDiff，诚实回退语义）裁决必须一致。
+    #[test]
+    fn pi_theta_step_traced_typed_close_root_and_reduce_core() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let held = aleg(0, VoiceSide::Long, 0, 0);
+        let run = |class: u8, mapped: bool| {
+            let classification = sell_classification(class);
+            let (tree, candidates, gamma) =
+                interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+            let work = ElementView::from_parts(&tree, candidates);
+            let tw_state = TwState::initial(); // inert：P2/P3/P4 不成立，落普通 fold 路径
+            let policy = RiskPolicy::baseline();
+            let entry_v: std::collections::HashMap<ElementId, Vertical> =
+                [(held.id, Vertical::Ambient)].into_iter().collect();
+            let twc = TwStepCtx {
+                state: &tw_state,
+                policy: &policy,
+                risk_mode: RiskMode::Normal,
+                entry_v: &entry_v,
+                eta_correction: 0,
+            };
+            let tw = if mapped { Some(&twc) } else { None };
+            let (_na, _ps, _o, trace) = pi_theta_step_traced(
+                work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, KThetaRiskGate::open(),
+                &cfg(), &reg, tw, &protocol_hold(),
+            );
+            assert_eq!(trace.closed.len(), 1, "反向卖候选关闭持仓 Long 腿");
+            trace.closed[0].2
+        };
+        for mapped in [true, false] {
+            assert_eq!(
+                run(1, mapped),
+                interp::ExitType::CloseRoot,
+                "一类反向 ⟹ P5 CloseRoot（mapped={mapped}）"
+            );
+            assert_eq!(
+                run(3, mapped),
+                interp::ExitType::ReduceCore,
+                "三类反向 ⟹ P6 ReduceCore（mapped={mapped}）"
+            );
+        }
+    }
+
+    /// ★#145 T1：entry_v=ShortDiff 压过触发类——TwStepCtx 在飞 entry_v 映射携 ShortDiff ⟹
+    /// 一类触发仍派 CloseShortDiff（P7 子声部关闭语义压过触发信号语义，reverse_exit_type 单源）。
+    #[test]
+    fn pi_theta_step_traced_typed_close_shortdiff_overrides_trigger() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        let classification = sell_classification(1);
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let held = aleg(0, VoiceSide::Long, 0, 0);
+        let tw_state = TwState::initial(); // inert：P2/P3/P4 不成立，落普通 fold 路径
+        let policy = RiskPolicy::baseline();
+        let entry_v: std::collections::HashMap<ElementId, Vertical> =
+            [(held.id, Vertical::ShortDiff)].into_iter().collect();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &entry_v,
+            eta_correction: 0,
+        };
+        let (_na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, KThetaRiskGate::open(),
+            &cfg(), &reg, Some(&twc), &protocol_hold(),
+        );
+        assert_eq!(trace.closed.len(), 1, "一类卖候选关闭持仓 Long 腿");
+        let (leg, trig, exit_type) = &trace.closed[0];
+        assert_eq!(leg.id, held.id);
+        assert_eq!(trig.bsp_class, 1, "触发类=1（若非 ShortDiff 会派 CloseRoot）");
+        assert_eq!(
+            *exit_type,
+            interp::ExitType::CloseShortDiff,
+            "entry_v=ShortDiff ⟹ P7 CloseShortDiff（压过触发类）"
+        );
     }
 
     /// ★#124 P1 强平（PDF §7 全互斥 C_1 屏蔽 P2..P10）：force_flat ⟹ 活动腿全部 RiskExit 清空、
@@ -5074,7 +5207,8 @@ mod tests {
         // Short 腿 −600 恰好抵消」的巧合点上（P2 关腿 vs 对照保腿的订单差异可观测）。
         let sd_leg = aleg(0, VoiceSide::Long, 7, 7);
         let root_leg = aleg(1, VoiceSide::Long, 3, 3); // 非重叠根腿（保留）
-        let sd_ids: std::collections::HashSet<ElementId> = [sd_leg.id].into_iter().collect();
+        let sd_ids: std::collections::HashMap<ElementId, Vertical> =
+            [(sd_leg.id, Vertical::ShortDiff)].into_iter().collect();
         let tw_state = TwState {
             stage: TStage::CapitalRecovered,
             open_legacy_legs: 1,
@@ -5085,7 +5219,7 @@ mod tests {
             state: &tw_state,
             policy: &policy,
             risk_mode: RiskMode::Normal,
-            shortdiff_leg_ids: &sd_ids,
+            entry_v: &sd_ids,
             eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let (next_active, _ps, (order_p2, _), trace) = pi_theta_step_traced(
@@ -5129,12 +5263,12 @@ mod tests {
             ..TwState::initial()
         }; // CostReduction + holding≥notional_in + free≥recover_target=100 ⟹ P3 成立
         let policy = RiskPolicy::baseline();
-        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let empty_ids: std::collections::HashMap<ElementId, Vertical> = Default::default();
         let twc = TwStepCtx {
             state: &tw_state,
             policy: &policy,
             risk_mode: RiskMode::Normal,
-            shortdiff_leg_ids: &empty_ids,
+            entry_v: &empty_ids,
             eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let (next_active, _ps, (order_p3, _), trace) = pi_theta_step_traced(
@@ -5184,12 +5318,12 @@ mod tests {
             ..TwState::initial()
         };
         let policy = RiskPolicy::baseline();
-        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let empty_ids: std::collections::HashMap<ElementId, Vertical> = Default::default();
         let twc = TwStepCtx {
             state: &tw_state,
             policy: &policy,
             risk_mode: RiskMode::Normal,
-            shortdiff_leg_ids: &empty_ids,
+            entry_v: &empty_ids,
             eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let (_na, _ps, (order_p4, _), trace) = pi_theta_step_traced(
@@ -5233,14 +5367,14 @@ mod tests {
             ..TwState::initial()
         };
         let policy = RiskPolicy::baseline();
-        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let empty_ids: std::collections::HashMap<ElementId, Vertical> = Default::default();
         let run = |eta_correction: i64| {
             let work = ElementView::from_parts(&tree, candidates.clone());
             let twc = TwStepCtx {
                 state: &tw_state,
                 policy: &policy,
                 risk_mode: RiskMode::Normal,
-                shortdiff_leg_ids: &empty_ids,
+                entry_v: &empty_ids,
                 eta_correction,
             };
             pi_theta_step_traced(
@@ -5273,7 +5407,8 @@ mod tests {
             interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
         let work = ElementView::from_parts(&tree, candidates);
         let sd_leg = aleg(0, VoiceSide::Short, 7, 7);
-        let sd_ids: std::collections::HashSet<ElementId> = [sd_leg.id].into_iter().collect();
+        let sd_ids: std::collections::HashMap<ElementId, Vertical> =
+            [(sd_leg.id, Vertical::ShortDiff)].into_iter().collect();
         let tw_state = TwState {
             stage: TStage::CapitalRecovered,
             open_legacy_legs: 1,
@@ -5284,7 +5419,7 @@ mod tests {
             state: &tw_state,
             policy: &policy,
             risk_mode: RiskMode::Normal,
-            shortdiff_leg_ids: &sd_ids,
+            entry_v: &sd_ids,
             eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
@@ -5309,12 +5444,12 @@ mod tests {
             interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
         let tw_state = TwState::initial(); // notional_in=0 ⟹ stage_progression inert；StageI ⟹ P2 不评估
         let policy = RiskPolicy::baseline();
-        let empty_ids: std::collections::HashSet<ElementId> = Default::default();
+        let empty_ids: std::collections::HashMap<ElementId, Vertical> = Default::default();
         let twc = TwStepCtx {
             state: &tw_state,
             policy: &policy,
             risk_mode: RiskMode::Normal,
-            shortdiff_leg_ids: &empty_ids,
+            entry_v: &empty_ids,
             eta_correction: 0, // A10 C5：零修正 = 历史判据 bit-exact（测试基准口径）
         };
         let work_a = ElementView::from_parts(&tree, candidates.clone());

@@ -216,8 +216,11 @@ pub struct Buckets {
 /// 映射见 `.chanlun/review-results/g5-interpreter-mapping-20260703.md` §6.1。
 ///
 /// **接线状态**：G4（#134）已在统计层接线——[`reverse_exit_type`] 单源判据 + 生产 π fill loop
-/// 的 `TypedTradeLedger`（runner.rs）消费本枚举；interp close 桶本体仍单一未 typed（生产订单流
-/// bit-exact 不变），P5/P6/P7 生产拆分在 G5 实装阶段（#124，须复用 [`reverse_exit_type`]）。
+/// 的 `TypedTradeLedger`（runner.rs）消费本枚举；#145 T1 已把反向关闭的 typed 裁决**前移到
+/// 组合层决策点**（coverage.rs `StepTrace::closed` 第三分量，entry_v 经 `TwStepCtx::entry_v`
+/// 在飞映射喂 [`reverse_exit_type`]，runner 直接消费不再结算补算）。interp close 桶公开签名
+/// 与 ∃! 证明锚不动，生产订单流 bit-exact 不变（typed 化只是裁决标注）；P5/P6/P7 生产拆分
+/// 在 G5 实装阶段（#124，须复用 [`reverse_exit_type`]）。
 /// `closed_loop/sell.rs::SellDecision` 已有 CloseRoot/ReduceCore 重叠（disjoint 路径，G4 把 μ 管线
 /// 重接生产 π 后该路径废）——统一收敛到本枚举，届时删 SellDecision 侧（升级路径，非现在做）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

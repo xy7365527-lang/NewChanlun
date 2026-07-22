@@ -1359,16 +1359,17 @@ where
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
-            // ── #124 裁定4 TW 谓词 ctx（P2/P3/P4 进 fold）：ShortDiff 腿 id 从 typed ledger
-            //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）；risk_mode 从
+            // ── #124 裁定4 TW 谓词 ctx（P2/P3/P4 进 fold）：在飞腿 entry_v 映射从 typed ledger
+            //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）。#145 T1：由原
+            //    ShortDiff id 半镜像升级为全量 entry_v 映射——P2 过滤在组合层按
+            //    `== ShortDiff` 判（语义 bit-exact），且兼作反向关闭 typed 裁决的
+            //    reverse_exit_type 原料（组合层单点，本处不再结算补算）；risk_mode 从
             //    strategy::risk 五态投影到 closed_loop::state 五态（两枚举同锚 Origin 五构造子，
             //    此处只读逐变体映射，非第二权威源——判定仍单源 k_theta_risk_gate）。 ──
-            let shortdiff_ids: std::collections::HashSet<classifier::recursive_tower::ElementId> =
-                open_trades
-                    .iter()
-                    .filter(|(_, o)| o.entry_v == super::super::strategy::coverage::Vertical::ShortDiff)
-                    .map(|(id, _)| *id)
-                    .collect();
+            let entry_v_map: std::collections::HashMap<
+                classifier::recursive_tower::ElementId,
+                super::super::strategy::coverage::Vertical,
+            > = open_trades.iter().map(|(id, o)| (*id, o.entry_v)).collect();
             let tw_risk_mode = {
                 use super::super::closed_loop::state::RiskMode as ClRiskMode;
                 use super::super::strategy::risk::RiskMode as StRiskMode;
@@ -1384,7 +1385,7 @@ where
                 state: &tw,
                 policy: &tw_policy,
                 risk_mode: tw_risk_mode,
-                shortdiff_leg_ids: &shortdiff_ids,
+                entry_v: &entry_v_map,
                 // A10 C5（裁定 (b)）：enter_ready 的 η 左操作数同源修正（与上方 η_bucket 同一
                 // cum_holding_cost 变量，F4）；0 ⟹ 历史判据 bit-exact（cost_model=None 回归锁）。
                 eta_correction: cum_holding_cost,
@@ -1655,9 +1656,18 @@ where
                     units: b1_sep.map(|s| s.q_units).unwrap_or(0.0),
                 });
             }
-            // 反向关闭：typed 判据单源 reverse_exit_type（入场角色 + 触发候选类）。
-            for (leg, trig) in &step_trace.closed {
+            // 反向关闭：typed 裁决消费 trace 第三分量（#145 T1——组合层决策点已经
+            // reverse_exit_type 单源判定，本处不补算；登记腿必在 entry_v 映射 ⟹ 裁决非回退值）。
+            for (leg, trig, exit_type) in &step_trace.closed {
                 if let Some(open) = open_trades.remove(&leg.id) {
+                    // #145 T1 不变量：登记腿必在本步 entry_v 映射（closed ⊆ prev_active ⊆ 本 bar
+                    // 快照 open_trades），组合层裁决非 Ambient 回退值。映射构建与消费之间若未来
+                    // 插入 open_trades 突变，此断言先炸而非静默错型。
+                    debug_assert!(
+                        entry_v_map.contains_key(&leg.id),
+                        "#145 T1：trace.closed 腿 {:?} 不在本步 entry_v 映射（裁决为回退值）",
+                        leg.id
+                    );
                     if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff
                         && tw.open_legacy_legs >= 1
                     {
@@ -1668,7 +1678,7 @@ where
                         voice_id: leg.id,
                         entry_bar: open.entry_bar,
                         exit_bar: i,
-                        exit_type: interp::reverse_exit_type(open.entry_v, trig.bsp_class),
+                        exit_type: *exit_type,
                         entry_px: open.entry_px,
                         exit_px: px,
                         via_structural_prune: false, // 真信号平仓（反向候选触发）
@@ -4827,6 +4837,51 @@ mod tests {
         let fill = pi_theta_fill_loop(buy_then_sell(3), &bars, 1.0e6, &config, None);
         assert_eq!(fill.typed_ledger.len(), 1);
         assert_eq!(fill.typed_ledger[0].exit_type, ExitType::ReduceCore, "根腿 + 三类反向 ⟹ P6 ReduceCore");
+    }
+
+    /// ★#145 T1：entry_v=ShortDiff 腿被**一类**反向候选关闭 ⟹ CloseShortDiff（P7 子声部
+    /// 关闭语义**压过触发类**——同触发类下根腿会派 CloseRoot）。端到端：父根 L1 Long 持仓 →
+    /// 子 L0 Short（真父容器 Long ⟹ ShortDiff，AncOK 持父准入）→ L0 buy1@18（class=1）平子腿。
+    /// typed 裁决由组合层 `StepTrace.closed` 携带（#145 前移），runner 只消费不补算。
+    #[test]
+    fn typed_ledger_shortdiff_close_overrides_trigger_class() {
+        use super::super::super::strategy::interp::ExitType;
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        let cls_parent = {
+            let mut c = e_classification(false);
+            c.levels[0] = LevelState::default(); // 仅父 L1 buy@12（子卖点未现）
+            c
+        };
+        let cls_open = e_classification(false); // + 子 L0 sell@16
+        let cls_all = e_classification(true); // + 子平触发 L0 buy1@18（class=1）
+        let tower = e_tower();
+        let classify = move |i: usize| {
+            let cls = if i >= 19 {
+                cls_all.clone()
+            } else if i >= 17 {
+                cls_open.clone()
+            } else if i >= 13 {
+                cls_parent.clone()
+            } else {
+                Classification::default()
+            };
+            (cls, tower.clone(), i as u64, i as u64)
+        };
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        let child: Vec<_> = fill
+            .typed_ledger
+            .iter()
+            .filter(|t| t.entry_z.delta == -1)
+            .collect();
+        assert_eq!(child.len(), 1, "恰一条子 Short 腿 typed 交易，ledger={:?}", fill.typed_ledger);
+        assert_eq!(
+            child[0].exit_type,
+            ExitType::CloseShortDiff,
+            "entry_v=ShortDiff + 一类反向触发 ⟹ P7 CloseShortDiff（压过触发类）"
+        );
+        assert!(!child[0].via_structural_prune, "真信号平仓（反向候选触发），非结构剪枝");
     }
 
     /// ★G4：无反向信号 ⟹ 窗口终点 censored（P0 Hold，兑现到末可交易 bar——旧 censored 语义保留）。
