@@ -138,6 +138,97 @@ pub struct ActiveLeg {
     pub op_parent: Option<ElementId>,
 }
 
+/// #149 `TriggerProjectionSound` 的不可伪造投影载体。
+///
+/// token 只能由 [`parent_certificate_projection`] 从真塔导出的 `CoverageElement` 父子边构造；
+/// 字段保持私有，通道层只能携带并交给 [`trigger_projection_sound`] 核验，不能用一个裸 bool
+/// 把 child signal 冒充成 parent-level certificate projection。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParentCertificateProjection {
+    parent_id: ElementId,
+    parent_level: u32,
+    parent_dir: VoiceSide,
+    child_level: u32,
+    child_source_index: usize,
+    child_dir: VoiceSide,
+}
+
+/// 从真嵌套塔的候选附着边生成父级证书投影。
+///
+/// `cand_elems[cand.gamma_index].parent -> tree[parent_idx]` 必须是一条完整、方向一致的真父子边：
+/// candidate 坐标与元素逐字段一致、`parent_id`/`attached_dir` 与父元素一致、child level 严格低于
+/// parent level、角色 G=SubLevel 且 V 与父子方向关系一致。候选还必须是已确认可交易证书。
+/// 任一条件缺失返回 `None`，因此缺塔/孤儿/伪角色/未确认 child 都不能得到 trigger token。
+pub fn parent_certificate_projection(
+    cand: &Candidate,
+    cand_elems: &[CoverageElement],
+    tree: &[CoverageElement],
+) -> Option<ParentCertificateProjection> {
+    if !cand.nest_confirmed || cand.dir == VoiceSide::Flat || cand.bsp_class == u8::MAX {
+        return None;
+    }
+    let child = cand_elems.get(cand.gamma_index)?;
+    let parent = child.parent.and_then(|idx| tree.get(idx))?;
+    if child.level != cand.level
+        || child.rho != cand.source_index
+        || child.eps != cand.dir
+        || child.parent_id != Some(parent.id)
+        || child.attached_dir != Some(parent.eps)
+        || cand.level >= parent.level
+        || cand.role.grade != coverage::GradeRel::SubLevel
+    {
+        return None;
+    }
+    let expected_delta = match cand.dir {
+        VoiceSide::Long => Dir::Plus,
+        VoiceSide::Short => Dir::Minus,
+        VoiceSide::Flat => return None,
+    };
+    if cand.role.delta != expected_delta {
+        return None;
+    }
+    let expected_v = if cand.dir == parent.eps {
+        Vertical::FollowParent
+    } else if super::voice::short_diff_side(parent.eps) == Some(cand.dir) {
+        Vertical::ShortDiff
+    } else {
+        return None;
+    };
+    if cand.role.v != expected_v {
+        return None;
+    }
+    Some(ParentCertificateProjection {
+        parent_id: parent.id,
+        parent_level: parent.level,
+        parent_dir: parent.eps,
+        child_level: cand.level,
+        child_source_index: cand.source_index,
+        child_dir: cand.dir,
+    })
+}
+
+/// #149 `TriggerProjectionSound`：ShortDiffEntry/Exit 的 child trigger 必须有当前父腿的真实投影。
+///
+/// 除 token 身份逐字段匹配外，再次核验候选仍为 confirmed、可交易、严格次级别证书；这样 token
+/// 与候选被错配、父腿 campaign 已切换、或 child signal 没有 parent projection 时都返回 false。
+pub fn trigger_projection_sound(
+    parent: &ActiveLeg,
+    child: &Candidate,
+    projection: &ParentCertificateProjection,
+) -> bool {
+    child.nest_confirmed
+        && child.dir != VoiceSide::Flat
+        && child.bsp_class != u8::MAX
+        && child.level < parent.level
+        && child.role.grade == coverage::GradeRel::SubLevel
+        && projection.parent_id == parent.id
+        && projection.parent_level == parent.level
+        && projection.parent_dir == parent.dir
+        && projection.child_level == child.level
+        && projection.child_source_index == child.source_index
+        && projection.child_dir == child.dir
+}
+
 /// ★A9（Task #166）：开仓证书——入场买卖点信号 g 的坐标身份 `(ℓ_g, source_index_g)`。
 ///
 /// 买卖点叶子只能作**开仓证书**，不能作持仓身份（级别容器.pdf p14/§12 核心裁决：「买卖点叶子

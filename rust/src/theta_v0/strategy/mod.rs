@@ -40,7 +40,8 @@
 
 /// 互斥全定义策略 element-coverage 执行引擎（M29 三结论合一的 rust 兑现，与买卖点 v1 正交的
 /// 新路径——在每个语法元素 λ_e 入场、ρ_e 平腿，覆盖每个笔/线段/走势，非离散择时）。
-/// #147 T3 出场通道 P1–P8 全互斥通道解释器（first-match + C0 兜底；#149/#150 占位槽定型）。
+/// #147 T3 出场通道 P1–P8 全互斥通道解释器（first-match + C0 兜底；#149 已填 P4/P5
+/// ShortDiff 显式机制，#150 的 P7/P8 仍为占位槽）。
 pub mod channel;
 pub mod coverage;
 pub mod exec;
