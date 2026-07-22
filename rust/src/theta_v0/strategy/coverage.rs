@@ -5148,8 +5148,20 @@ mod tests {
         assert_eq!((order.action, order.qty), (StrictAction::Hold, 0), "显式 Hold 且仓位零变动");
 
         // #147 T3 只读交叉：同一声部输入仍落 C0/Hold，不改变 P1-P8 语义。
-        let voice = VoiceState { level: held.level, leg: Some(held), entry_v: Vertical::Ambient };
-        let input = VoiceStepInput { force_flat: false, candidates: gamma };
+        let voice = VoiceState {
+            level: held.level,
+            leg: Some(held),
+            entry_v: Vertical::Ambient,
+            step: 0,
+            sub_cycle: channel::SubCycleTracker::default(),
+            short_diff: None,
+        };
+        let input = VoiceStepInput {
+            force_flat: false,
+            candidates: gamma,
+            parent_kappa: channel::ParentKappa::Unknown,
+            parent_projections: Vec::new(),
+        };
         assert_eq!(
             channel::step_voice(&voice, &input).1,
             ChannelDecision::Exit(interp::ExitType::Hold),
