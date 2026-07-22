@@ -71,6 +71,8 @@
 //!   （TWState/TStage/TWEvent/twStep/LegalTransition/OQ9Inv，#127 native port，见上「TW 三阶段 /
 //!   OQ-9 gate 契约 → Origin.TotalWealth」重锚声明）。
 
+use super::voice::{short_diff_side, VoiceSide};
+
 /// 取本金三阶段 `TStage`（契约锚 `Origin.TotalWealth.TStage`，缠师第31课）。
 ///
 /// 单向不可逆迁移（OQ-9）：CostReduction(0) → CapitalRecovered(1) → EarningShares(2)。
@@ -743,6 +745,165 @@ pub fn forget_stage_to_ledger_view(s: &TwState) -> StageFreeTwLedgerView {
     }
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+//  #149 ShortDiff split-leg 数量账本（执行持仓视图；与 Origin R/TW 两账本正交）
+// ════════════════════════════════════════════════════════════════════════════
+
+/// 一条有向持仓腿的非负数量坐标。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitLegPosition {
+    pub side: VoiceSide,
+    pub qty: u64,
+}
+
+/// #149 split-leg 可见视图：父腿与 ShortDiff 腿保持两个独立坐标，不先做净额相减。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitLegView {
+    pub parent: SplitLegPosition,
+    pub short_diff: Option<SplitLegPosition>,
+}
+
+impl SplitLegView {
+    fn qty_on(&self, side: VoiceSide) -> u128 {
+        let parent_qty = (self.parent.side == side) as u128 * self.parent.qty as u128;
+        let short_diff_qty = self
+            .short_diff
+            .filter(|leg| leg.side == side)
+            .map(|leg| leg.qty as u128)
+            .unwrap_or(0);
+        parent_qty + short_diff_qty
+    }
+
+    /// canonical 分腿中的多头数量；不会先与空头数量净额相减。
+    pub fn long_qty(&self) -> u128 {
+        self.qty_on(VoiceSide::Long)
+    }
+
+    /// canonical 分腿中的空头数量；不会先与多头数量净额相减。
+    pub fn short_qty(&self) -> u128 {
+        self.qty_on(VoiceSide::Short)
+    }
+}
+
+/// 带净额读出的 split-leg 视图。
+///
+/// 字段私有且无公开构造器；唯一来源 [`SplitLegLedger::net_view`] 总会同时携带
+/// [`SplitLegView`]。账本 API 不提供 net-only 记录类型：净额只是有损派生读出，split legs 才是
+/// canonical 数量状态。毛敞口用无符号宽整数保存 long/short 两腿数量和。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitLegNetView {
+    net_qty: i128,
+    gross_qty: u128,
+    split_legs: SplitLegView,
+}
+
+impl SplitLegNetView {
+    pub fn net_qty(&self) -> i128 {
+        self.net_qty
+    }
+
+    pub fn gross_qty(&self) -> u128 {
+        self.gross_qty
+    }
+
+    pub fn split_legs(&self) -> SplitLegView {
+        self.split_legs
+    }
+}
+
+/// #149 父腿 + 单条 ShortDiff 子腿的数量账本。
+///
+/// 这是**新增、正交的执行持仓 schema**，不修改 [`TwState`]/[`TwEvent`]/[`tw_step`]，也不改变
+/// `R=Pi-A-W` 的 [`LedgerComp`] 或 674 号 [`forget_stage_to_ledger_view`]：Origin TotalWealth
+/// 合同继续逐字段 bit-exact。该账本只承载 P4/P5 所需的逐腿数量事实；现金、利润和 TW 转移仍由
+/// 原有账本负责，禁止把本类型反向解释成 Origin TW 的同构扩展。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SplitLegLedger {
+    parent: SplitLegPosition,
+    short_diff: Option<SplitLegPosition>,
+}
+
+/// split-leg 账本唯一允许的 #149 子腿事件；没有修改父腿的事件，故 P4/P5 对父数量的隔离由类型面保证。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitLegEvent {
+    OpenShortDiff { side: VoiceSide, qty: u64 },
+    CloseShortDiff,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SplitLegError {
+    FlatParent,
+    ZeroParentQty,
+    ZeroShortDiffQty,
+    DirectionMismatch,
+    ShortDiffAlreadyOpen,
+    ShortDiffNotOpen,
+}
+
+impl SplitLegLedger {
+    /// 建立只有父腿的 canonical 起点。父腿必须有方向且数量为正。
+    pub fn parent_only(side: VoiceSide, qty: u64) -> Result<Self, SplitLegError> {
+        if side == VoiceSide::Flat {
+            return Err(SplitLegError::FlatParent);
+        }
+        if qty == 0 {
+            return Err(SplitLegError::ZeroParentQty);
+        }
+        Ok(SplitLegLedger {
+            parent: SplitLegPosition { side, qty },
+            short_diff: None,
+        })
+    }
+
+    /// 不可变单步：Open 只写 ShortDiff 坐标；Close 只清 ShortDiff 坐标；父腿逐字段复制不动。
+    pub fn apply(&self, event: SplitLegEvent) -> Result<Self, SplitLegError> {
+        match event {
+            SplitLegEvent::OpenShortDiff { side, qty } => {
+                if self.short_diff.is_some() {
+                    return Err(SplitLegError::ShortDiffAlreadyOpen);
+                }
+                if qty == 0 {
+                    return Err(SplitLegError::ZeroShortDiffQty);
+                }
+                if short_diff_side(self.parent.side) != Some(side) {
+                    return Err(SplitLegError::DirectionMismatch);
+                }
+                Ok(SplitLegLedger {
+                    parent: self.parent,
+                    short_diff: Some(SplitLegPosition { side, qty }),
+                })
+            }
+            SplitLegEvent::CloseShortDiff => {
+                if self.short_diff.is_none() {
+                    return Err(SplitLegError::ShortDiffNotOpen);
+                }
+                Ok(SplitLegLedger { parent: self.parent, short_diff: None })
+            }
+        }
+    }
+
+    /// canonical 分腿视图（父腿与短差腿原样可见）。
+    pub fn split_legs(&self) -> SplitLegView {
+        SplitLegView { parent: self.parent, short_diff: self.short_diff }
+    }
+
+    /// 净额是 split legs 的派生读出；返回类型强制内嵌原始分腿与 gross，不产 net-only 账本记录。
+    pub fn net_view(&self) -> SplitLegNetView {
+        let split_legs = self.split_legs();
+        let signed = |leg: SplitLegPosition| match leg.side {
+            VoiceSide::Long => leg.qty as i128,
+            VoiceSide::Short => -(leg.qty as i128),
+            VoiceSide::Flat => 0, // 构造闸下不可达，穷尽防御。
+        };
+        let short_signed = split_legs.short_diff.map(signed).unwrap_or(0);
+        SplitLegNetView {
+            net_qty: signed(split_legs.parent) + short_signed,
+            gross_qty: split_legs.long_qty() + split_legs.short_qty(),
+            split_legs,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! ★★模块级诚实标注（codex §9.2，照实 161/no-workaround）：本模块的机制单元测试
@@ -755,6 +916,59 @@ mod tests {
     //! 利润入账 Realize）见证可达。**机制正确 ≠ 前提可达**（有效域区分，
     //! formalization-validity-domain）。不为过审硬凑「已获利」witness（codex 复审#2 判致命，已删）。
     use super::*;
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  #149 ShortDiff split-leg 账本（与 Origin R/TW 双账本正交）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// #149 验收 2：父腿与短差腿独立坐标；开/关短差都不改父腿，毛敞口恒等于两腿数量和。
+    /// 净额视图必须内嵌 split-leg view，不能只留下相减后的单一数字。
+    #[test]
+    fn split_leg_accounting_preserves_parent_and_gross_sum() {
+        let l0 = SplitLegLedger::parent_only(super::super::voice::VoiceSide::Long, 100).unwrap();
+        let l1 = l0
+            .apply(SplitLegEvent::OpenShortDiff {
+                side: super::super::voice::VoiceSide::Short,
+                qty: 40,
+            })
+            .unwrap();
+
+        let v1 = l1.net_view();
+        assert_eq!(v1.split_legs().parent.qty, 100);
+        assert_eq!(v1.split_legs().short_diff.unwrap().qty, 40);
+        assert_eq!(v1.split_legs().long_qty(), 100);
+        assert_eq!(v1.split_legs().short_qty(), 40);
+        assert_eq!(v1.gross_qty(), 100 + 40);
+        assert_eq!(v1.net_qty(), 100 - 40);
+
+        let l2 = l1.apply(SplitLegEvent::CloseShortDiff).unwrap();
+        let v2 = l2.net_view();
+        assert_eq!(v2.split_legs().parent.qty, 100, "关闭短差不得触碰父腿");
+        assert!(v2.split_legs().short_diff.is_none());
+        assert_eq!(v2.gross_qty(), 100);
+        assert_eq!(v2.net_qty(), 100);
+    }
+
+    /// #149 验收 4 的账本闸：短差腿方向必须严格等于父腿翻转，禁止同向腿冒充 hedge。
+    #[test]
+    fn split_leg_rejects_non_opposite_short_diff_direction() {
+        let book = SplitLegLedger::parent_only(super::super::voice::VoiceSide::Short, 75).unwrap();
+        assert_eq!(
+            book.apply(SplitLegEvent::OpenShortDiff {
+                side: super::super::voice::VoiceSide::Short,
+                qty: 20,
+            }),
+            Err(SplitLegError::DirectionMismatch)
+        );
+        let hedged = book
+            .apply(SplitLegEvent::OpenShortDiff {
+                side: super::super::voice::VoiceSide::Long,
+                qty: 20,
+            })
+            .unwrap();
+        assert_eq!(hedged.split_legs().parent.qty, 75);
+        assert_eq!(hedged.split_legs().short_diff.unwrap().side, super::super::voice::VoiceSide::Long);
+    }
 
     // ──────────────────────────────────────────────────────────────────────
     //  LedgerComp R=Π-A-W 不变量（契约锚 Origin.FullDefinitionStrategy.ledger_invariant_preservation）

@@ -11,7 +11,7 @@
 //! **每声部每时刻恰命中一条通道、恰产出一枚显式裁决**——Hold 也是显式裁决
 //! （[`ChannelDecision::Exit`]([`ExitType::Hold`])），不存在无裁决时刻。
 //!
-//! ## 槽位定型（本票冻结排序，#149/#150 只填谓词不动槽位）
+//! ## 槽位定型（排序冻结；#149 只填 P4/P5，不动字段顺序/优先级）
 //!
 //! 票面优先级链「风险强平 ≻ 本级证书平仓（S2 二分 CloseRoot/ReduceCore）≻ 短差开启 ≻ 开仓
 //! ≻ 记录/加仓 ≻ Hold」展开为 8 槽：
@@ -21,8 +21,8 @@
 //! | P1 | 风险强平 | `Exit(RiskExit)` | 真实装（`force_flat` 注入，与 `KThetaRiskGate.force_flat` 同源） |
 //! | P2 | 本级证书平仓·S2→根清仓 | `Exit(CloseRoot)` | 真实装（[`reverse_exit_type`] 单源） |
 //! | P3 | 本级证书平仓·S2→减核心 | `Exit(ReduceCore)` | 真实装（同上） |
-//! | P4 | 短差平仓 | `Exit(CloseShortDiff)` | **占位恒 false**（#149） |
-//! | P5 | 短差开启 | `OpenShortDiff` | **占位恒 false**（#149） |
+//! | P4 | 短差平仓 | `Exit(CloseShortDiff)` | #149 真实装（顺父 child cert + parent projection） |
+//! | P5 | 短差开启 | `OpenShortDiff` | #149 真实装（反父 child cert + parent projection） |
 //! | P6 | 开仓 | `Open` | 真实装 |
 //! | P7 | 记录 | `Record` | 真实装（#150 T7：次级别完整走势检测器 + P7 记录桶，只写账本不动仓位） |
 //! | P8 | 加仓 | `AddPosition` | **占位恒 false**（后续加仓票） |
@@ -39,7 +39,7 @@
 //! ## 非本票（字面边界外，不实现）
 //!
 //! - 祖先耦合（父声部终结级联清仓后代）= #148 活动集层，**不进** P1–P8。
-//! - 短差谓词真值（#149）、记录/加仓谓词真值（#150）：槽位已定型，谓词恒 false。
+//! - 记录/加仓谓词真值（#150）：P7/P8 槽位已定型，谓词仍恒 false。
 //!
 //! ## 认识论等级（formalization-validity-domain 231号）
 //!
@@ -50,22 +50,27 @@
 //! ## 与 mutex.rs 的关系（非重复）
 //!
 //! [`super::mutex`] 是 PDF §7 P1..P10 链（含 TW 谓词 P2–P4）的 **D1 测试 oracle**（零生产
-//! 消费者）；本模块是 #147 出场通道链（P1–P8，含 #149/#150 占位槽）的**声部级解释器**，
+//! 消费者）；本模块是 #147 出场通道链（P1–P8；#149 已填 P4/P5，#150 仍占 P7/P8）的
+//! **声部级解释器**，
 //! 两链谓词编号语义不同，各锚各的契约，不互为镜像。
 
 use super::super::classifier::recursive_tower::ElementId;
 use super::coverage::Vertical;
 use super::exec::reverse_signal;
-use super::interp::{reverse_exit_type, theta_key, ActiveLeg, Candidate, ExitType};
-use super::voice::VoiceSide;
+use super::interp::{
+    reverse_exit_type, theta_key, trigger_projection_sound, ActiveLeg, Candidate, ExitType,
+    ParentCertificateProjection,
+};
+use super::ledger::{SplitLegError, SplitLegEvent, SplitLegLedger};
+use super::voice::{short_diff_side, VoiceSide};
 
 /// 通道谓词数 m=8（P_1..P_8，issue #147 槽位定型）。
 pub const CHANNEL_M: usize = 8;
 
 /// 通道谓词向量 `P ∈ {0,1}^8`（可重叠——多分量可同时为 true）。
 ///
-/// 字段序 = 优先级序（P1 最先）。P4/P5/P7/P8 为占位槽：本票任何生产推导路径
-/// （[`voice_predicates`]）恒不置位，仅互斥化层（[`first_match`]）全域定义。
+/// 字段序 = 优先级序（P1 最先），#149 **不得重排**。P4/P5 已填真实谓词；P7/P8 仍为 #150
+/// 占位槽，仅互斥化层（[`first_match`]）全域定义。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ChannelPredicates {
     /// P1：风险强平 RiskExit（`KThetaRiskGate.force_flat` 同源注入）。
@@ -74,9 +79,9 @@ pub struct ChannelPredicates {
     pub cert_close_root: bool,
     /// P3：本级证书平仓·S2 二分→ReduceCore（三类反向 = 核心仓减仓）。
     pub cert_reduce_core: bool,
-    /// P4：短差平仓（**占位恒 false**，#149 实装谓词）。
+    /// P4：短差平仓（在册短差腿 + 顺父 confirmed child cert + sound parent projection）。
     pub short_diff_close: bool,
-    /// P5：短差开启（**占位恒 false**，#149 实装谓词）。
+    /// P5：短差开启（父持仓 + 无短差腿 + 反父 confirmed child cert + sound parent projection）。
     pub short_diff_open: bool,
     /// P6：开仓（本声部 slot 空 ∧ 存在本级可交易候选）。
     pub open_entry: bool,
@@ -120,7 +125,7 @@ pub enum ChannelDecision {
     /// 出场/持有裁决（C1→RiskExit、C2→CloseRoot、C3→ReduceCore、C4→CloseShortDiff、
     /// C0→Hold；单源 [`ExitType`]）。
     Exit(ExitType),
-    /// C5：短差开启（#149 占位通道，不可达）。
+    /// C5：短差开启（#149 实装）。
     OpenShortDiff,
     /// C6：开仓。
     Open,
@@ -159,8 +164,24 @@ pub fn decision_of(c: ChannelId) -> ChannelDecision {
     }
 }
 
-/// 声部状态（一个声部 = 一个 (level, 持仓腿) slot）。
-#[derive(Debug, Clone, Copy)]
+/// #149 在册 ShortDiff 子声部。字段私有，只有 P5 的 sound projection 路径能构造。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShortDiffVoice {
+    leg: ActiveLeg,
+}
+
+impl ShortDiffVoice {
+    pub fn leg(&self) -> ActiveLeg {
+        self.leg
+    }
+
+    pub fn side(&self) -> VoiceSide {
+        self.leg.dir
+    }
+}
+
+/// 父声部状态（parent slot + 至多一个 ShortDiff child slot）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VoiceState {
     /// 本声部级别 ℓ（谓词只消费本级候选——「本级证书平仓」）。
     pub level: u32,
@@ -172,6 +193,8 @@ pub struct VoiceState {
     pub step: usize,
     /// #150 T7：次级别完整走势检测器状态（仅本级持仓期间武装，持仓边界重置）。
     pub sub_cycle: SubCycleTracker,
+    /// #149 独立短差子声部；P4 只清此槽，P5 只写此槽，父 `leg` 保持不动。
+    pub short_diff: Option<ShortDiffVoice>,
 }
 
 /// 单时刻声部输入（事件）。
@@ -185,6 +208,9 @@ pub struct VoiceStepInput {
     /// #150：当步父级中枢语境 κ（lean #144 文档「中枢内/中枢上/三买后/三卖后等结构位置」）。
     /// 与 `force_flat` 同为外源注入——本模块不重推中枢几何，语境由上游中枢检测口径单源提供。
     pub parent_kappa: ParentKappa,
+    /// #149：从真塔父子边构造的 parent-level certificate projections。P4/P5 必须逐候选通过
+    /// [`trigger_projection_sound`]；空表即 child signal 无父投影，严格不得触发短差动作。
+    pub parent_projections: Vec<ParentCertificateProjection>,
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -212,7 +238,7 @@ pub enum ParentKappa {
 }
 
 /// 子周期开端点挂起状态（tracker 内部：开端点证书 + 落账坐标 + 投影见证累积）。
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SubOpen {
     /// 开端点证书候选（次级别，已确认）。
     cand: Candidate,
@@ -225,7 +251,7 @@ struct SubOpen {
 }
 
 /// 次级别完整走势检测器状态（#150：`Default` = 未武装/无挂起开端点）。
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct SubCycleTracker {
     /// 挂起的子周期开端点（None = 等待开端点）。
     open: Option<SubOpen>,
@@ -308,9 +334,11 @@ fn observe_sub_cycle(state: &VoiceState, input: &VoiceStepInput) -> SubCycleObs 
         return SubCycleObs { next: SubCycleTracker::default(), completed: None };
     }
     let sub_level = state.level - 1;
-    // 本级证书投影见证（当步）。
-    let projection_now =
-        input.candidates.iter().any(|c| c.level == state.level && cert_confirmed(c));
+    // 本级证书投影见证（当步）：本级确认证书候选，或 #149 父证书投影见证
+    // （`parent_projections` 即 TriggerProjectionSound 数据面——投影子周期属短差域，
+    // 必须排除出 P7，互斥约定见 [`P7Record`] doc 第 3 条）。
+    let projection_now = !input.parent_projections.is_empty()
+        || input.candidates.iter().any(|c| c.level == state.level && cert_confirmed(c));
     let mut open = state.sub_cycle.open;
     if let Some(o) = &mut open {
         o.projected |= projection_now;
@@ -346,13 +374,16 @@ fn observe_sub_cycle(state: &VoiceState, input: &VoiceStepInput) -> SubCycleObs 
     SubCycleObs { next: SubCycleTracker { open }, completed }
 }
 
-/// 从声部状态 + 当步输入推导通道谓词向量（生产推导路径，占位槽 P4/P5/P7/P8 恒 false）。
+/// 从父声部状态 + 当步输入推导通道谓词向量（P1..P8 字段序/优先级保持 #147 原样）。
 ///
 /// 判据（全部单源复用）：
 /// - P1 = `force_flat`。
 /// - P2/P3 = 持仓 ∧ 存在本级反向证书候选（[`reverse_signal`]，≺_Θ 序首个命中），
 ///   经 [`reverse_exit_type`]`(entry_v, trigger_class)` S2 二分：CloseRoot→P2、ReduceCore→P3。
-///   （返回 CloseShortDiff 属 P4 域 = #149 有效域，本票占位不置位。）
+/// - P4 = 短差在册 ∧ 存在同 child level 的顺父 confirmed certificate，其真父投影匹配当前父腿；
+///   该证书相对短差腿为反向，故只关闭短差子声部。
+/// - P5 = 父腿在册 ∧ 短差槽空 ∧ 存在反父 SubLevel ShortDiff confirmed certificate，其真父
+///   投影匹配当前父腿；子方向由 [`short_diff_side`] 强制 `sigma_u=-sigma_parent`。
 /// - P6 = 空仓 ∧ 存在本级可交易候选（dir≠Flat ∧ 有类）。
 pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPredicates {
     let mut p = ChannelPredicates { risk_exit: input.force_flat, ..ChannelPredicates::default() };
@@ -362,25 +393,80 @@ pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPr
             match reverse_exit_type(state.entry_v, c.bsp_class) {
                 ExitType::CloseRoot => p.cert_close_root = true, // P2
                 ExitType::ReduceCore => p.cert_reduce_core = true, // P3
-                // CloseShortDiff 属 P4 域（#149 有效域）——本票占位槽恒 false，不置位。
+                // 父腿本级反向不可能按入场角色归 ShortDiff；防御性不把它误写 P4，P4 单独按
+                // 在册 child + sound parent projection 推导。
                 ExitType::CloseShortDiff => {}
                 ExitType::RiskExit | ExitType::Hold => {
                     unreachable!("reverse_exit_type 只产三 close 枚举")
                 }
             }
         }
-    } else if find_open(state.level, &input.candidates).is_some() {
-        // P6：开仓——空仓 slot ∧ 存在本级可交易非 ShortDiff 角色候选（ShortDiff 角色=P5 占位域）。
+    }
+    if find_short_diff_close(state, input).is_some() {
+        p.short_diff_close = true; // P4（字段位置/优先级不动）
+    }
+    if find_short_diff_open(state, input).is_some() {
+        p.short_diff_open = true; // P5（字段位置/优先级不动）
+    }
+    if state.leg.is_none() && find_open(state.level, &input.candidates).is_some() {
+        // P6：开仓——空仓 slot ∧ 存在本级可交易非 ShortDiff 角色候选（ShortDiff 角色只走 P5）。
         p.open_entry = true;
     }
     // P7（#150 T7）：本级持仓期间次级别走势类型完整走完 ∧ 全程无证书投影 ⟹ 记录桶。
-    // 有投影的子周期属 #149 短差域（P4/P5 占位），不置位 P7——互斥由谓词自身语义保证，
+    // 有投影的子周期属 #149 短差域，不置位 P7——互斥由谓词自身语义保证，
     // first-match 排序不动（P7 谓词允许与 P1 重叠，互斥化在 first_match 层）。
     if let Some(cc) = observe_sub_cycle(state, input).completed {
         p.record = !cc.projected;
     }
-    // P4/P5/P8：占位槽（#149/加仓票），恒 false——不存在置位路径。
+    // P8：占位槽（加仓票），恒 false——不存在置位路径。
     p
+}
+
+/// 候选是否携带匹配当前父腿的 TriggerProjectionSound 见证。
+fn has_sound_parent_projection(
+    parent: &ActiveLeg,
+    child: &Candidate,
+    input: &VoiceStepInput,
+) -> bool {
+    input
+        .parent_projections
+        .iter()
+        .any(|projection| trigger_projection_sound(parent, child, projection))
+}
+
+/// P5：首个可开启短差的真实 child certificate。
+fn find_short_diff_open<'a>(
+    state: &VoiceState,
+    input: &'a VoiceStepInput,
+) -> Option<&'a Candidate> {
+    if state.short_diff.is_some() {
+        return None;
+    }
+    let parent = state.leg.as_ref()?;
+    let child_side = short_diff_side(parent.dir)?;
+    theta_ordered(&input.candidates).into_iter().find(|c| {
+        c.role.is_sub_level_short_diff()
+            && c.dir == child_side
+            && reverse_signal(parent.dir, &c.bits)
+            && has_sound_parent_projection(parent, c, input)
+    })
+}
+
+/// P4：首个可关闭当前短差腿的顺父 child certificate。
+fn find_short_diff_close<'a>(
+    state: &VoiceState,
+    input: &'a VoiceStepInput,
+) -> Option<&'a Candidate> {
+    let parent = state.leg.as_ref()?;
+    let short_diff = state.short_diff.as_ref()?;
+    theta_ordered(&input.candidates).into_iter().find(|c| {
+        c.level == short_diff.leg.level
+            && c.dir == parent.dir
+            && c.role.v == Vertical::FollowParent
+            && c.role.grade == super::coverage::GradeRel::SubLevel
+            && reverse_signal(short_diff.leg.dir, &c.bits)
+            && has_sound_parent_projection(parent, c, input)
+    })
 }
 
 /// ≺_Θ 序首个本级反向证书候选（[`reverse_signal`] §9 closePred 反向项；可交易候选域）。
@@ -393,7 +479,7 @@ fn find_reverse(level: u32, leg_dir: VoiceSide, cands: &[Candidate]) -> Option<&
     })
 }
 
-/// ≺_Θ 序首个本级可开仓候选（可交易 ∧ 非 ShortDiff 角色——短差开启属 P5 占位域，#149）。
+/// ≺_Θ 序首个本级普通开仓候选（可交易 ∧ 非 ShortDiff 角色；短差开启只属 P5）。
 fn find_open(level: u32, cands: &[Candidate]) -> Option<&Candidate> {
     theta_ordered(cands).into_iter().find(|c| {
         c.level == level
@@ -418,10 +504,12 @@ pub fn step_voice(state: &VoiceState, input: &VoiceStepInput) -> (ChannelId, Cha
 
 /// 端到端驱动：事件序列 → 完整裁决序列（`out.len() == steps.len()`，每时刻恰一枚，
 /// 含显式 Hold）。状态转移（不可变，逐步产新 state）：
-/// - `Exit(RiskExit|CloseRoot|ReduceCore)` ⟹ 腿关闭（对齐 interp 规则2：被反向命中的腿
+/// - `Exit(RiskExit|CloseRoot|ReduceCore)` ⟹ 父腿关闭（对齐 interp 规则2：被反向命中的腿
 ///   入 𝒟_x；ReduceCore 减核心在腿粒度同为关闭——本票腿即最小持仓单元）。
+/// - `Exit(CloseShortDiff)` ⟹ **只清短差子槽，父腿不动**。
+/// - `OpenShortDiff` ⟹ 写入独立 child slot，方向由 `short_diff_side(parent)` 构造。
 /// - `Open` ⟹ 以触发候选建腿（entry_v = 候选角色垂直轴，入场固定）。
-/// - `Exit(Hold)` ⟹ 状态不变。其余通道本票不可达。
+/// - `Exit(Hold)` ⟹ 状态不变。P7/P8 仍不可达。
 pub fn run_voice(
     initial: VoiceState,
     steps: &[VoiceStepInput],
@@ -471,16 +559,21 @@ fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> V
     let step = state.step + 1;
     match dec {
         // 出场：腿关闭（interp 规则2 语义——被命中腿入 𝒟_x；ReduceCore 在腿粒度同为关闭）。
-        // 持仓期结束 ⟹ tracker 重置。
-        ChannelDecision::Exit(
-            ExitType::RiskExit | ExitType::CloseRoot | ExitType::ReduceCore | ExitType::CloseShortDiff,
-        ) => VoiceState {
-            leg: None,
-            entry_v: Vertical::Ambient,
-            step,
-            sub_cycle: SubCycleTracker::default(),
-            ..state
-        },
+        // 父持仓期结束 ⟹ tracker 重置。
+        ChannelDecision::Exit(ExitType::RiskExit | ExitType::CloseRoot | ExitType::ReduceCore) => {
+            VoiceState {
+                leg: None,
+                entry_v: Vertical::Ambient,
+                step,
+                sub_cycle: SubCycleTracker::default(),
+                ..state
+            }
+        }
+        // #149 P4：只关闭 hedge voice；parent leg/entry_v 逐字段保持
+        // （父持仓期未结束 ⟹ #150 检测器续武装）。
+        ChannelDecision::Exit(ExitType::CloseShortDiff) => {
+            VoiceState { short_diff: None, step, sub_cycle, ..state }
+        }
         // 显式 Hold / P7 记录（仓位零变动，只推进检测器）。
         ChannelDecision::Exit(ExitType::Hold) | ChannelDecision::Record => {
             VoiceState { step, sub_cycle, ..state }
@@ -498,11 +591,92 @@ fn advance(state: VoiceState, input: &VoiceStepInput, dec: ChannelDecision) -> V
                 ..state
             }
         }
-        // 占位通道（#149/加仓票实装真转移）：仓位不变。
-        ChannelDecision::OpenShortDiff | ChannelDecision::AddPosition => {
+        // #149 P5：只开启 child hedge；parent leg/entry_v 逐字段保持。
+        ChannelDecision::OpenShortDiff => {
+            let parent = state
+                .leg
+                .expect("C5 命中 ⟹ P5 真 ⟹ parent voice 在册");
+            let c = find_short_diff_open(&state, input)
+                .expect("C5 命中 ⟹ P5 真 ⟹ sound ShortDiff child certificate 存在");
+            let short_diff = short_diff_voice_from_candidate(&parent, c)
+                .expect("P5 判据已保证 child direction = -parent direction");
+            VoiceState { short_diff: Some(short_diff), step, sub_cycle, ..state }
+        }
+        // 占位通道（加仓票实装真转移）：仓位不变。
+        ChannelDecision::AddPosition => {
             VoiceState { step, sub_cycle, ..state }
         }
     }
+}
+
+/// P5 child candidate → 独立 ShortDiff voice；构造时钉死 `sigma_u=-sigma_parent` 与父身份。
+fn short_diff_voice_from_candidate(
+    parent: &ActiveLeg,
+    c: &Candidate,
+) -> Option<ShortDiffVoice> {
+    if short_diff_side(parent.dir) != Some(c.dir) {
+        return None;
+    }
+    Some(ShortDiffVoice {
+        leg: ActiveLeg {
+            level: c.level,
+            dir: c.dir,
+            source_index: c.source_index,
+            lambda: c.source_index,
+            id: ElementId { level: c.level, ordinal: c.source_index as u64 },
+            parent_id: Some(parent.id),
+            is_boundary_root: false,
+            op_parent: Some(parent.id),
+        },
+    })
+}
+
+/// #149 P4/P5 端到端回放状态：结构声部树 + 独立数量账本同步推进。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShortDiffReplayState {
+    pub voice: VoiceState,
+    pub ledger: SplitLegLedger,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShortDiffReplayFrame {
+    pub channel: ChannelId,
+    pub decision: ChannelDecision,
+    pub state: ShortDiffReplayState,
+}
+
+/// 回放 #149 短差子链：P5 同步开启结构 child 与 split leg；P4 同步只关闭这两处的 hedge 槽。
+/// 其他通道沿用 [`advance`]，本函数不为其制造新的账本事件，因此现有 TwEvent/父腿会计语义不变。
+pub fn run_short_diff_replay(
+    initial: ShortDiffReplayState,
+    steps: &[VoiceStepInput],
+    short_diff_qty: u64,
+) -> Result<Vec<ShortDiffReplayFrame>, SplitLegError> {
+    let mut state = initial;
+    let mut out = Vec::with_capacity(steps.len());
+    for input in steps {
+        let (channel, decision) = step_voice(&state.voice, input);
+        let voice = advance(state.voice, input, decision);
+        let ledger = match decision {
+            ChannelDecision::OpenShortDiff => {
+                let side = voice
+                    .short_diff
+                    .expect("OpenShortDiff 转移后 child voice 必在册")
+                    .side();
+                state.ledger.apply(SplitLegEvent::OpenShortDiff {
+                    side,
+                    qty: short_diff_qty,
+                })?
+            }
+            ChannelDecision::Exit(ExitType::CloseShortDiff) => {
+                state.ledger.apply(SplitLegEvent::CloseShortDiff)?
+            }
+            _ => state.ledger,
+        };
+        state = ShortDiffReplayState { voice, ledger };
+        out.push(ShortDiffReplayFrame { channel, decision, state });
+    }
+    Ok(out)
 }
 
 /// 开仓候选 → 活动腿（候选腿 λ==ρ==source_index，坐 hostOf 右端点；本票独立根边界胚元 ∂）。
@@ -522,13 +696,28 @@ fn leg_from_candidate(c: &Candidate) -> ActiveLeg {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::coverage::{Dir, GradeRel, Horizontal, OperationRole};
+    use super::super::coverage::{CoverageElement, Dir, GradeRel, Horizontal, OperationRole};
+    use super::super::interp::{parent_certificate_projection, ParentCertificateProjection};
+    use super::super::ledger::SplitLegLedger;
     use super::super::super::types::BspBits;
 
     // ── 构造器 ────────────────────────────────────────────────────────────
 
     fn role(v: Vertical) -> OperationRole {
         OperationRole { h: Horizontal::First, v, delta: Dir::Plus, grade: GradeRel::SameLevel }
+    }
+
+    fn child_role(v: Vertical, dir: VoiceSide) -> OperationRole {
+        OperationRole {
+            h: Horizontal::First,
+            v,
+            delta: match dir {
+                VoiceSide::Long => Dir::Plus,
+                VoiceSide::Short => Dir::Minus,
+                VoiceSide::Flat => Dir::Plus,
+            },
+            grade: GradeRel::SubLevel,
+        }
     }
 
     fn buy(k: u8) -> BspBits {
@@ -580,6 +769,7 @@ mod tests {
             entry_v,
             step: 0,
             sub_cycle: SubCycleTracker::default(),
+            short_diff: None,
         }
     }
     fn empty_voice(level: u32) -> VoiceState {
@@ -589,16 +779,74 @@ mod tests {
             entry_v: Vertical::Ambient,
             step: 0,
             sub_cycle: SubCycleTracker::default(),
+            short_diff: None,
         }
     }
 
     fn step(force_flat: bool, candidates: Vec<Candidate>) -> VoiceStepInput {
-        VoiceStepInput { force_flat, candidates, parent_kappa: ParentKappa::Unknown }
+        VoiceStepInput {
+            force_flat,
+            candidates,
+            parent_kappa: ParentKappa::Unknown,
+            parent_projections: Vec::new(),
+        }
     }
 
     /// 带父级中枢语境 κ 的步输入（#150 P7 记录面）。
     fn step_k(candidates: Vec<Candidate>, kappa: ParentKappa) -> VoiceStepInput {
-        VoiceStepInput { force_flat: false, candidates, parent_kappa: kappa }
+        VoiceStepInput {
+            force_flat: false,
+            candidates,
+            parent_kappa: kappa,
+            parent_projections: Vec::new(),
+        }
+    }
+
+    fn child_cand(
+        gi: usize,
+        level: u32,
+        dir: VoiceSide,
+        cls: u8,
+        bits: BspBits,
+        v: Vertical,
+    ) -> Candidate {
+        Candidate { role: child_role(v, dir), ..cand(gi, level, dir, cls, bits, v) }
+    }
+
+    /// 用真父子 `CoverageElement` 关系构造投影，测试不直接伪造 sound token。
+    fn projection_for(parent: ActiveLeg, child: &Candidate) -> ParentCertificateProjection {
+        let parent_element = CoverageElement {
+            lambda: parent.lambda,
+            rho: parent.source_index,
+            eps: parent.dir,
+            level: parent.level,
+            parent: None,
+            attached_dir: None,
+            id: parent.id,
+            parent_id: parent.parent_id,
+        };
+        let child_element = CoverageElement {
+            lambda: child.source_index,
+            rho: child.source_index,
+            eps: child.dir,
+            level: child.level,
+            parent: Some(0),
+            attached_dir: Some(parent.dir),
+            id: ElementId { level: child.level, ordinal: child.source_index as u64 },
+            parent_id: Some(parent.id),
+        };
+        parent_certificate_projection(child, &[child_element], &[parent_element])
+            .expect("真父子元素 + confirmed child certificate 应产 parent projection")
+    }
+
+    fn projected_step(parent: ActiveLeg, child: Candidate) -> VoiceStepInput {
+        let projection = projection_for(parent, &child);
+        VoiceStepInput {
+            force_flat: false,
+            candidates: vec![child],
+            parent_kappa: ParentKappa::Unknown,
+            parent_projections: vec![projection],
+        }
     }
 
     /// bits → 谓词向量解码（bit j-1 ↔ P_j）。
@@ -666,7 +914,7 @@ mod tests {
         assert_eq!(decision_of(ChannelId::Cj(8)), ChannelDecision::AddPosition);
     }
 
-    // ── 声部级谓词推导（S2 二分 + 占位槽 + C0 兜底）──────────────────────
+    // ── 声部级谓词推导（S2 二分 + P4/P5 短差 + C0 兜底）──────────────────
 
     /// S2 二分与消费端单源同判据：一/二类反向 ⟹ C2 CloseRoot；三类反向 ⟹ C3 ReduceCore。
     /// 交叉断言 == reverse_exit_type（同源见证，非镜像）。
@@ -726,31 +974,39 @@ mod tests {
         assert_eq!(step_voice(&empty_voice(0), &flat), hold);
     }
 
-    /// 占位槽护栏：任何生产推导路径恒不置位 P4/P5/P8（#149 短差、加仓仍占位）；P7 已由
-    /// #150 实装为真谓词，但在无子周期完成的场景电池中同样恒 false（持仓/空仓/风险/反向/
-    /// 同向/ShortDiff 角色候选均不构成「次级别走势类型完整走完」）。
+    /// #149 改写说明：原护栏锁死 P4/P5 恒 false；本票填入真实短差谓词后，改锁「P5 真开、
+    /// P4 真关，且 #150 的 P8 仍恒 false」。保留原测试位置与护栏职责，不删除历史覆盖面。
     #[test]
-    fn placeholder_predicates_never_fire_this_ticket() {
-        let scenarios: Vec<(VoiceState, VoiceStepInput)> = vec![
-            (empty_voice(0), step(false, vec![])),
-            (empty_voice(0), step(true, vec![cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient)])),
-            // ShortDiff 角色开仓候选：短差开启属 #149，P5 不置位（本票走 P6 开仓通道也不允许——
-            // 字面边界：短差开启谓词恒 false；ShortDiff 角色候选不属 P6 开仓域 ⟹ C0）。
-            (empty_voice(0), step(false, vec![cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::ShortDiff)])),
-            (holding(0, VoiceSide::Long, Vertical::Ambient), step(false, vec![cand(0, 0, VoiceSide::Short, 3, sell(3), Vertical::Ambient)])),
-            (holding(0, VoiceSide::Long, Vertical::Ambient), step(true, vec![])),
-        ];
-        for (st, input) in &scenarios {
-            let p = voice_predicates(st, input);
-            assert!(
-                !p.short_diff_close && !p.short_diff_open && !p.add_position,
-                "占位槽 P4/P5/P8 恒 false：state={st:?} input={input:?} ⟹ {p:?}"
-            );
-            assert!(
-                !p.record,
-                "无子周期完成 ⟹ P7 false：state={st:?} input={input:?} ⟹ {p:?}"
-            );
-        }
+    fn p4_p5_real_predicates_while_p8_remains_placeholder() {
+        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
+        let parent_leg = parent.leg.expect("parent held");
+        let open_child = child_cand(
+            0,
+            0,
+            VoiceSide::Short,
+            1,
+            sell(1),
+            Vertical::ShortDiff,
+        );
+        let open_input = projected_step(parent_leg, open_child);
+        let p5 = voice_predicates(&parent, &open_input);
+        assert!(p5.short_diff_open, "真实父投影 + 反父 confirmed child cert ⟹ P5");
+        assert!(!p5.open_entry, "ShortDiffEntry 只能走 P5，不能漏入 P6");
+        assert!(!p5.add_position, "P8 仍是占位槽");
+
+        let hedged = advance(parent, &open_input, ChannelDecision::OpenShortDiff);
+        let close_child = child_cand(
+            0,
+            0,
+            VoiceSide::Long,
+            1,
+            buy(1),
+            Vertical::FollowParent,
+        );
+        let close_input = projected_step(parent_leg, close_child);
+        let p4 = voice_predicates(&hedged, &close_input);
+        assert!(p4.short_diff_close, "真实父投影 + 顺父 confirmed child cert ⟹ P4");
+        assert!(!p4.add_position, "P8 仍是占位槽");
     }
 
     // ── #150 T7：P7 记录桶 + 次级别完整走势检测器 ─────────────────────────
@@ -919,6 +1175,7 @@ mod tests {
             force_flat: true,
             candidates: vec![sub_cand(2, 0, VoiceSide::Short, 1, sell(1))],
             parent_kappa: ParentKappa::InsideCenter,
+            parent_projections: Vec::new(),
         };
         let p = voice_predicates(&st, &flat_close);
         assert!(p.risk_exit && p.record, "前提：P1 与 P7 同刻重叠（谓词允许重叠）");
@@ -1031,14 +1288,137 @@ mod tests {
         assert_eq!(run_voice(empty_voice(1), &steps), out_l, "run_voice ≡ run_voice_ledgered 裁决面");
     }
 
-    /// ShortDiff 角色候选不落 P6（短差开启=P5 占位域）⟹ 显式 Hold，非误开仓。
+    /// #149 改写说明：原测试只断言 ShortDiff 候选不落 P6 并 Hold；现在补上真实 P5 正路，
+    /// 同时继续锁死「绝不经 P6 开普通根仓」。
     #[test]
-    fn short_diff_role_candidate_not_opened_via_p6() {
-        let input = step(false, vec![cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::ShortDiff)]);
+    fn short_diff_role_candidate_routes_via_p5_never_p6() {
+        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
+        let child = child_cand(
+            0,
+            0,
+            VoiceSide::Short,
+            1,
+            sell(1),
+            Vertical::ShortDiff,
+        );
+        let input = projected_step(parent.leg.unwrap(), child);
+        let p = voice_predicates(&parent, &input);
+        assert!(p.short_diff_open && !p.open_entry, "P5=true 且 P6=false");
         assert_eq!(
-            step_voice(&empty_voice(0), &input),
+            step_voice(&parent, &input),
+            (ChannelId::Cj(5), ChannelDecision::OpenShortDiff)
+        );
+    }
+
+    /// TriggerProjectionSound 反例：即使 child 自称已确认且角色/方向正确，没有父级投影 token
+    /// 也不得触发 ShortDiffEntry 或 ShortDiffExit。
+    #[test]
+    fn trigger_projection_sound_rejects_child_without_parent_projection() {
+        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
+        let child = child_cand(
+            0,
+            0,
+            VoiceSide::Short,
+            1,
+            sell(1),
+            Vertical::ShortDiff,
+        );
+        let input = step(false, vec![child]); // 故意没有 parent_projections
+        let p = voice_predicates(&parent, &input);
+        assert!(!p.short_diff_open, "无父投影不得触发 P5");
+        assert!(!p.open_entry, "无父投影的 ShortDiff 候选也不得降级走 P6");
+        assert_eq!(
+            step_voice(&parent, &input),
             (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold))
         );
+
+        // 先用 sound projection 建立 hedge，再拿掉顺父 close child 的 projection：P4 也必须拒绝。
+        let valid_open = child_cand(
+            0,
+            0,
+            VoiceSide::Short,
+            1,
+            sell(1),
+            Vertical::ShortDiff,
+        );
+        let open_input = projected_step(parent.leg.unwrap(), valid_open);
+        let hedged = advance(parent, &open_input, ChannelDecision::OpenShortDiff);
+        let close_without_projection = step(
+            false,
+            vec![child_cand(
+                0,
+                0,
+                VoiceSide::Long,
+                1,
+                buy(1),
+                Vertical::FollowParent,
+            )],
+        );
+        let close_p = voice_predicates(&hedged, &close_without_projection);
+        assert!(!close_p.short_diff_close, "无父投影不得触发 P4");
+        assert_eq!(
+            step_voice(&hedged, &close_without_projection),
+            (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold))
+        );
+    }
+
+    /// #149 验收 1/2/4 端到端：父多腿 100 保持 → 次级反父证书开空短差 40 → 次级顺父证书
+    /// CloseShortDiff；全程父腿结构与数量不动，短差腿独立记账，毛敞口=两腿和，σ_u=-σ_parent。
+    #[test]
+    fn end_to_end_short_diff_open_close_preserves_parent_split_leg() {
+        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
+        let parent_leg = parent.leg.unwrap();
+        let open_child = child_cand(
+            0,
+            0,
+            VoiceSide::Short,
+            1,
+            sell(1),
+            Vertical::ShortDiff,
+        );
+        let close_child = child_cand(
+            0,
+            0,
+            VoiceSide::Long,
+            1,
+            buy(1),
+            Vertical::FollowParent,
+        );
+        let steps = vec![
+            projected_step(parent_leg, open_child),
+            projected_step(parent_leg, close_child),
+        ];
+        let initial = ShortDiffReplayState {
+            voice: parent,
+            ledger: SplitLegLedger::parent_only(VoiceSide::Long, 100).unwrap(),
+        };
+        let frames = run_short_diff_replay(initial, &steps, 40).unwrap();
+
+        assert_eq!(frames.len(), 2);
+        assert_eq!(frames[0].channel, ChannelId::Cj(5));
+        assert_eq!(frames[0].decision, ChannelDecision::OpenShortDiff);
+        assert_eq!(frames[1].channel, ChannelId::Cj(4));
+        assert_eq!(frames[1].decision, ChannelDecision::Exit(ExitType::CloseShortDiff));
+
+        for frame in &frames {
+            assert_eq!(frame.state.voice.leg, Some(parent_leg), "P4/P5 不得触父腿结构");
+            assert_eq!(frame.state.ledger.split_legs().parent.qty, 100, "父腿数量全程恒定");
+        }
+        let during = frames[0].state.ledger.net_view();
+        let hedge = during.split_legs().short_diff.expect("P5 后短差腿在册");
+        assert_eq!(hedge.side, VoiceSide::Short);
+        assert_eq!(hedge.side, VoiceSide::Long.flip(), "σ_u = -σ_parent");
+        assert_eq!(hedge.qty, 40);
+        assert_eq!(during.split_legs().long_qty(), 100);
+        assert_eq!(during.split_legs().short_qty(), 40);
+        assert_eq!(during.gross_qty(), 140, "gross = parent + short-diff");
+        assert_eq!(during.net_qty(), 60);
+
+        let after = frames[1].state.ledger.net_view();
+        assert!(after.split_legs().short_diff.is_none(), "P4 只关闭短差腿");
+        assert_eq!(after.split_legs().parent.qty, 100, "CloseShortDiff 不触父腿");
+        assert_eq!(after.gross_qty(), 100);
+        assert_eq!(after.net_qty(), 100);
     }
 
     // ── 端到端：事件序列 → 完整裁决序列（含显式 Hold）────────────────────
