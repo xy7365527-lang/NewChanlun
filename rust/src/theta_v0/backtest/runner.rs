@@ -1007,6 +1007,103 @@ fn kappa_priority_resolve(env: Option<(i64, i64)>, config_policy: Option<RiskPol
     }
 }
 
+/// ★#197 并行记账视图镜像辅助（expand 只读旁路）：共享过账形状——身份解析 + 建单 + 提交成交。
+///
+/// 账户身份由入场冻结的 `entry_v` × 声部方向映射（[`strategy::account::identity_of`]，与
+/// `reverse_exit_type` 同取入场冻结值）；数量 = 腿级 sizing 目标（与 `TypedTrade::units`
+/// 同源 `SepLeg.q_units`），符号由调用侧（开/关）给出。腿级账本以决策 bar 为成交时点（与
+/// `TypedTrade` 价格口径一致）；执行延迟净额队列的逐账户投影属 #198–#200。
+///
+/// `identity_of` 返回 `None`（Ambient×Flat）不写账：Flat 方向候选归 𝒦 记录不开腿
+/// （interp.rs `assemble_gamma` 文档），不伪造归属。开/关两侧同判据 ⟹ 不会悬挂实例。
+#[allow(clippy::too_many_arguments)]
+fn account_mirror_post(
+    view: &mut strategy::account::ParallelAccountLedger,
+    entry_v: strategy::coverage::Vertical,
+    side: strategy::voice::VoiceSide,
+    level: u32,
+    position_node_id: strategy::interp::PositionNodeId,
+    signed_delta: f64,
+    reason: strategy::account::ActionReason,
+    px: f64,
+    bar: usize,
+) {
+    use strategy::account::{AccountKey, AccountOrder};
+    let Some(account_id) = strategy::account::identity_of(entry_v, side, level) else {
+        return;
+    };
+    view.post(
+        AccountOrder {
+            key: AccountKey::new(account_id, level, position_node_id),
+            reason,
+            qty_delta: signed_delta,
+            decision_bar: bar,
+        },
+        px,
+        bar,
+    );
+}
+
+/// ★#197：开腿镜像（reason=Open，符号 = 多正空负）。开腿方向恒非 Flat（见 `account_mirror_post`）。
+fn account_mirror_open(
+    view: &mut strategy::account::ParallelAccountLedger,
+    c: &strategy::interp::Candidate,
+    level: u32,
+    position_node_id: strategy::interp::PositionNodeId,
+    units: f64,
+    px: f64,
+    bar: usize,
+) {
+    use strategy::voice::VoiceSide;
+    let signed = match c.dir {
+        VoiceSide::Long => units,
+        VoiceSide::Short => -units,
+        // 结构不可达（opened 腿恒有方向，𝒦 记录不进 opened）；即便到达，
+        // identity_of(*, Flat)=None ⟹ post 跳过，0.0 永不写账。
+        VoiceSide::Flat => 0.0,
+    };
+    account_mirror_post(
+        view,
+        c.role.v,
+        c.dir,
+        level,
+        position_node_id,
+        signed,
+        strategy::account::ActionReason::Open,
+        px,
+        bar,
+    );
+}
+
+/// ★#197：关腿镜像（账户身份与退出理由正交——理由由调用通道给出，符号 = 开侧反向）。
+fn account_mirror_close(
+    view: &mut strategy::account::ParallelAccountLedger,
+    open: &LedgerOpen,
+    level: u32,
+    reason: strategy::account::ActionReason,
+    px: f64,
+    bar: usize,
+) {
+    use strategy::voice::VoiceSide;
+    let signed = match open.position_node_id.side {
+        VoiceSide::Long => -open.units,
+        VoiceSide::Short => open.units,
+        // 结构不可达（同开侧）；identity_of(*, Flat)=None ⟹ 0.0 永不写账。
+        VoiceSide::Flat => 0.0,
+    };
+    account_mirror_post(
+        view,
+        open.entry_v,
+        open.position_node_id.side,
+        level,
+        open.position_node_id,
+        signed,
+        reason,
+        px,
+        bar,
+    );
+}
+
 fn pi_theta_fill_loop<F>(
     classify_at: F,
     bars: &[Bar],
@@ -1101,6 +1198,10 @@ where
         LedgerOpen,
     > = std::collections::HashMap::new();
     let mut typed_ledger: Vec<TypedTrade> = Vec::new();
+    // #197 并行记账视图（expand 只读旁路）：(account, level) 键全链携带的分实例账本。
+    // 镜像开/关腿生命周期事件过账，不改净额路径任何语义（三把 bit-exact 锁为界）；
+    // 消费这些类型修复归属现病属修复票 #198/#199/#200。
+    let mut account_view = strategy::account::ParallelAccountLedger::new();
     // ★opsem-dump（基因 073a/274号）：env `OPSEM_DUMP_DIR` 启用时开两个 JSONL 写入器。
     // 未启用 ⟹ None，所有 write_trade/diff_tower 调用 no-op ⟹ 生产路径 bit-exact 不变。
     let mut opsem = OpsemDump::from_env();
@@ -1670,6 +1771,7 @@ where
                     "B1: opened leg {:?} not in step_trace.sep_legs (coverage work.get 跳过？)",
                     leg.id
                 );
+                let leg_units = b1_sep.map(|s| s.q_units).unwrap_or(0.0);
                 open_trades.insert(leg.id, LedgerOpen {
                     entry_bar: i,
                     entry_px: px,
@@ -1680,8 +1782,10 @@ where
                     entry_v: c.role.v,
                     position_node_id,
                     opsem: opsem_snap,
-                    units: b1_sep.map(|s| s.q_units).unwrap_or(0.0),
+                    units: leg_units,
                 });
+                // #197 并行记账视图：开腿镜像（只读旁路，不改净额路径；账户身份 = entry_v × 方向）。
+                account_mirror_open(&mut account_view, c, leg.id.level, position_node_id, leg_units, px, i);
             }
             // 反向关闭：typed 裁决消费 trace 第三分量（#145 T1——组合层决策点已经
             // reverse_exit_type 单源判定，本处不补算；登记腿必在 entry_v 映射 ⟹ 裁决非回退值）。
@@ -1720,6 +1824,11 @@ where
                         let _ = dump.write_trade(&pushed, &open, Some(trig.bsp_class));
                     }
                     typed_ledger.push(pushed);
+                    // #197：关闭镜像——理由取触发类（账户=entry_v×方向，正交于账户身份；
+                    // 触发类 1/2/3 外不镜像，与 open 侧 None 口径对称，不伪造理由）。
+                    if let Some(reason) = strategy::account::reason_of_reverse(trig.bsp_class) {
+                        account_mirror_close(&mut account_view, &open, leg.id.level, reason, px, i);
+                    }
                 }
                 // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
             }
@@ -1758,6 +1867,16 @@ where
                         let _ = dump.write_trade(&pushed, &open, None);
                     }
                     typed_ledger.push(pushed);
+                    // #197：关闭镜像——§13 结构剪枝（account=entry_v×方向，reason=StructuralPrune，
+                    // 正交拆分即 #185 修复 a 的视图层前身：FollowParent 归 Core 账 + 剪枝理由）。
+                    account_mirror_close(
+                        &mut account_view,
+                        &open,
+                        leg.id.level,
+                        strategy::account::ActionReason::StructuralPrune,
+                        px,
+                        i,
+                    );
                 }
             }
             // 强平清空（#124 P1，PDF §7 C_1 屏蔽 P2..P10）：force_flat ⟹ prev_active 全部 RiskExit
@@ -1789,6 +1908,16 @@ where
                         let _ = dump.write_trade(&pushed, &open, None);
                     }
                     typed_ledger.push(pushed);
+                    // #197：关闭镜像——P1 风险强平逐腿展开为单账户 AccountOrder
+                    // （#185 断言5「风险全平展开为多条单账户」的视图层天然形态）。
+                    account_mirror_close(
+                        &mut account_view,
+                        &open,
+                        leg.id.level,
+                        strategy::account::ActionReason::RiskExit,
+                        px,
+                        i,
+                    );
                 }
             }
             // P2 CloseOverlay（#124 裁定4，PDF §7 C_2）：TW StageII 重叠腿关闭——真实订单已经
@@ -1821,6 +1950,15 @@ where
                         let _ = dump.write_trade(&pushed, &open, None);
                     }
                     typed_ledger.push(pushed);
+                    // #197：关闭镜像——TW StageII 重叠腿关闭（reason=OverlayClose）。
+                    account_mirror_close(
+                        &mut account_view,
+                        &open,
+                        leg.id.level,
+                        strategy::account::ActionReason::OverlayClose,
+                        px,
+                        i,
+                    );
                 }
             }
             // TW 腿事件（#124）：legacy ShortDiff 腿开仓驱动 open_legacy_legs 计数（P2 的 H
@@ -1970,6 +2108,17 @@ where
                 let _ = dump.write_trade(&pushed, &open, None);
             }
             typed_ledger.push(pushed);
+            // #197：关闭镜像——窗口终点 censored（reason=WindowEnd；末可交易 bar 兑现价）。
+            // 口径声明：视图按腿级账本兑现归零；净额路径窗口终点仅追加 PnL、未真实成交归零
+            // （#185 存疑区 5）——两口径分叉为 expand 阶段已知差异，修复票消费时须正视。
+            account_mirror_close(
+                &mut account_view,
+                &open,
+                id.level,
+                strategy::account::ActionReason::WindowEnd,
+                last_px,
+                last_i,
+            );
         }
     }
 
@@ -2008,6 +2157,7 @@ where
         typed_ledger,
         tw_final: Some(tw),
         r_decomp: Some(r_decomp),
+        account_view,
     }
 }
 
@@ -2835,6 +2985,10 @@ struct FillOutput {
     /// LiquidationLoss + 账目守恒残差）。π 路径 [`pi_theta_fill_loop`] 产出；v1 路径
     /// [`plan_and_fill_mtm`] 未接 R 分解 ⟹ `None`（诚实不伪造，v1 是 recognize 旧路径非生产 π）。
     r_decomp: Option<super::super::strategy::risk::RDecomposition>,
+    /// #197 并行记账视图（expand 只读旁路）：π 路径逐腿镜像开/关生命周期事件过账的
+    /// （账户, 级别, 仓位节点）分实例账本；v1/dual 路径无腿级生命周期事件 ⟹ 恒空
+    /// （诚实不伪造，同 `typed_ledger` 先例）。不改净额路径任何语义。
+    account_view: strategy::account::ParallelAccountLedger,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -3107,6 +3261,7 @@ fn plan_and_fill_mtm(
         typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
         tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
         r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
+        account_view: strategy::account::ParallelAccountLedger::new(), // v1 无腿级生命周期（诚实空，#197）
     }
 }
 
@@ -3485,6 +3640,7 @@ fn plan_and_fill_mtm_dual(
             typed_ledger: Vec::new(), // 无腿级台账（诚实空，同 v1 净额路径）
             tw_final: None,           // 无 TW 接线（E2 G5 同数锁待接线后启用，诚实 None）
             r_decomp: None,
+            account_view: strategy::account::ParallelAccountLedger::new(), // 无腿级生命周期（诚实空，#197）
         },
         ledger,
         leg_log,
@@ -4391,6 +4547,211 @@ mod tests {
         assert!(
             enabled.trade_pnls_with_forced.iter().all(|p| p.is_finite()),
             "开启臂 PnL 有限（窗口终点强平正常收尾）"
+        );
+    }
+
+    /// ★#197 生产路径见证：并行记账视图（AccountIdentity 三身份 + AccountOrder）在 π fill
+    /// loop 真实过账——余额按（账户, 级别, 仓位节点）分实例可读，并与既有账（G4 typed
+    /// ledger）逐笔对账。expand 模式：视图只读旁路，不改净额路径（三把 bit-exact 锁为界）。
+    ///
+    /// 场景一（E 组夹具）：父 L1 Long 根（Core{1}）→ 子 L0 Short 短差（ShortDiff）→
+    /// 子腿一类反向平（reason=ReverseType1，账户=ShortDiff——正交见证）→ 父仓窗口终点
+    /// censored（reason=WindowEnd）。场景二（sell-first）：ambient 空根（Short=无父反向
+    /// 声部）→ 一类反向平。
+    #[test]
+    fn account_view_witness_three_identities_in_pi_loop() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+
+        // ── 场景一：Core{1} + ShortDiff 两身份（E 组夹具，同
+        //    typed_ledger_shortdiff_close_overrides_trigger_class 的腿生命周期）。 ──
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        let cls_parent = {
+            let mut c = e_classification(false);
+            c.levels[0] = LevelState::default(); // 仅父 L1 buy@12（子卖点未现）
+            c
+        };
+        let cls_open = e_classification(false); // + 子 L0 sell@16
+        let cls_all = e_classification(true); // + 子平触发 L0 buy1@18
+        let tower = e_tower();
+        let classify = move |i: usize| {
+            let cls = if i >= 19 {
+                cls_all.clone()
+            } else if i >= 17 {
+                cls_open.clone()
+            } else if i >= 13 {
+                cls_parent.clone()
+            } else {
+                Classification::default()
+            };
+            (cls, tower.clone(), i as u64, i as u64)
+        };
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        let view = &fill.account_view;
+
+        // 既有账锚点：父（δ=+1）/子（δ=−1）各一条 typed 交易（G4 账，独立路径产出）。
+        let parent_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.entry_z.delta == 1)
+            .expect("父 L1 Long typed 交易存在");
+        let child_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.entry_z.delta == -1)
+            .expect("子 L0 ShortDiff typed 交易存在");
+        assert_eq!(fill.typed_ledger.len(), 2, "父 + 子恰两条 typed 交易");
+
+        // 对账 1（逐笔）：每条 typed 交易 ↔ 视图恰一分实例（position_node_id 严格身份），
+        // 且实例已全平（qty=0）——「一类点/窗口终点后该实例=0」成为可强断言的账本事实。
+        for row in &fill.typed_ledger {
+            let matches: Vec<_> = view
+                .instances()
+                .values()
+                .filter(|i| i.key.position == row.position_node_id)
+                .collect();
+            assert_eq!(
+                matches.len(),
+                1,
+                "typed 交易 {:?} 在视图恰有一分实例（严格身份对账）",
+                row.position_node_id
+            );
+            assert_eq!(matches[0].qty, 0.0, "实例已全平");
+            assert!(!matches[0].open);
+        }
+
+        // 对账 2（身份归属跨账一致）：typed exit_type 分桶 ↔ 视图账户分桶。
+        let close_fills: Vec<_> = view.fills().iter().filter(|f| f.order.reason != ActionReason::Open).collect();
+        assert_eq!(
+            close_fills.len(),
+            fill.typed_ledger.len(),
+            "每开一腿恰平一次 ⟹ 平仓成交数 = typed 交易数"
+        );
+        assert_eq!(
+            close_fills.iter().filter(|f| f.order.account() == AccountIdentity::ShortDiff).count(),
+            1,
+            "子腿平仓归 ShortDiff 账（exit_type=CloseShortDiff 的账户侧）"
+        );
+        assert_eq!(
+            close_fills.iter().filter(|f| f.order.account() == AccountIdentity::Core { level: 1 }).count(),
+            1,
+            "父腿平仓归 Core{{1}} 账（censored Hold 的账户侧）"
+        );
+        assert_eq!(
+            close_fills.iter().filter(|f| f.order.account() == AccountIdentity::Short).count(),
+            0,
+            "本场景无 ambient 空根 ⟹ Short 账零平仓（与 typed 账无 ambient 空腿一致）"
+        );
+
+        // 正交见证：子腿平仓 账户=ShortDiff、理由=ReverseType1（一类触发）——
+        // ExitType::CloseShortDiff 同时表达两者，AccountOrder 拆开。
+        let child_close = close_fills
+            .iter()
+            .find(|f| f.order.account() == AccountIdentity::ShortDiff)
+            .expect("短差平仓成交存在");
+        assert_eq!(child_close.order.reason, ActionReason::ReverseType1, "一类反向触发（正交理由轴）");
+        // 父仓窗口终点 censored：理由=WindowEnd（账户=Core{1}）。
+        let parent_close = close_fills
+            .iter()
+            .find(|f| f.order.account() == AccountIdentity::Core { level: 1 })
+            .expect("父仓平仓成交存在");
+        assert_eq!(parent_close.order.reason, ActionReason::WindowEnd);
+
+        // 三身份余额读出（派生视图）+ 分实例时点对账：
+        // 子腿在飞期间（开后、平前），Core{1} 余额 = 父仓手数、ShortDiff 余额 = −子仓手数。
+        let mid_bar = child_row.exit_bar - 1;
+        assert!(child_row.exit_bar > child_row.entry_bar, "子腿开早于平");
+        assert_eq!(
+            view.balance_as_of(AccountIdentity::Core { level: 1 }, mid_bar),
+            parent_row.units,
+            "子在飞时父仓全额在册（G4 账 units 对账）"
+        );
+        assert_eq!(
+            view.balance_as_of(AccountIdentity::ShortDiff, mid_bar),
+            -child_row.units,
+            "短差空向在册（父仓不动，毛暴露 ≠ 净额——分腿可见）"
+        );
+        assert_eq!(
+            view.balance_as_of(AccountIdentity::ShortDiff, bars.len() - 1),
+            0.0,
+            "子腿一类点后 ShortDiff 余额归零"
+        );
+        // 窗口终点后：全部实例全平 ⟹ 三身份余额皆 0（聚合仅派生，实例仍留档）。
+        assert_eq!(view.balance(AccountIdentity::Core { level: 1 }), 0.0);
+        assert_eq!(view.balance(AccountIdentity::ShortDiff), 0.0);
+        assert_eq!(view.balance(AccountIdentity::Short), 0.0);
+        // 聚合=派生：balance 现算 = 分实例 qty 手工求和（非 canonical 存储）。
+        let manual_core: f64 = view
+            .instances()
+            .values()
+            .filter(|i| i.key.account == AccountIdentity::Core { level: 1 })
+            .map(|i| i.qty)
+            .sum();
+        assert_eq!(view.balance(AccountIdentity::Core { level: 1 }), manual_core);
+        // 链纪律：窗口终点后 pending 全出队；每提交恰一成交。
+        assert!(view.pending().is_empty(), "窗口终点后无悬挂 pending fill");
+        assert_eq!(view.orders().len(), view.fills().len(), "每订单恰一成交（链闭合）");
+        // 短差盈亏方向性见证（价格独立证据，非 sizing 同源）：子空 172→140 区间 ⟹ 已实现 > 0。
+        assert!(child_close.realized_pnl > 0.0, "子空高卖低买 ⟹ 已实现为正");
+
+        // ── 场景二：Short 身份（sell-first：ambient 空根 → 一类反向平）。 ──
+        let cls_sell = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_at(3, 1)]), ..Default::default() }],
+        };
+        let cls_both = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_at(3, 1), buy1_at(12)]), ..Default::default() }],
+        };
+        let classify2 = move |i: usize| {
+            if i >= 14 {
+                (cls_both.clone(), Vec::new(), i as u64, i as u64)
+            } else if i >= 7 {
+                (cls_sell.clone(), Vec::new(), i as u64, i as u64)
+            } else {
+                (Classification::default(), Vec::new(), i as u64, i as u64)
+            }
+        };
+        let config2 = ThetaConfig::default();
+        let bars2: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill2 = pi_theta_fill_loop(classify2, &bars2, 1.0e6, &config2, None);
+        let view2 = &fill2.account_view;
+        // 既有账：恰一条空根 typed 交易（CloseRoot）。
+        assert_eq!(fill2.typed_ledger.len(), 1, "恰一条 ambient 空根 typed 交易");
+        let short_row = &fill2.typed_ledger[0];
+        assert_eq!(short_row.entry_z.delta, -1, "空根 δ=−1");
+        // Short 身份读出：在飞期间余额 = −手数；一类点后归零。
+        let mid2 = short_row.exit_bar - 1;
+        assert_eq!(
+            view2.balance_as_of(AccountIdentity::Short, mid2),
+            -short_row.units,
+            "ambient 空根在飞 ⟹ Short 账空向在册（无父反向声部，CONTEXT.md 反向根）"
+        );
+        assert_eq!(
+            view2.balance_as_of(AccountIdentity::Short, short_row.exit_bar),
+            0.0,
+            "一类点后 Short 余额归零"
+        );
+        assert_eq!(view2.balance(AccountIdentity::Short), 0.0);
+        assert_eq!(view2.balance(AccountIdentity::ShortDiff), 0.0, "无父场景不得记短差（互斥完备：无父即反向根）");
+        // 平仓理由 = ReverseType1（正交：账户=Short、理由=一类反向）。
+        let short_close = view2
+            .fills()
+            .iter()
+            .find(|f| f.order.account() == AccountIdentity::Short && f.order.reason != ActionReason::Open)
+            .expect("Short 平仓成交存在");
+        assert_eq!(short_close.order.reason, ActionReason::ReverseType1);
+        // 对账：Short 实例与 typed 交易同一 position_node_id。
+        let short_inst = view2
+            .instances()
+            .values()
+            .find(|i| i.key.account == AccountIdentity::Short)
+            .expect("Short 分实例存在");
+        assert_eq!(short_inst.key.position, short_row.position_node_id, "跨账严格身份一致");
+        // 级别键诚实：本场景空根在 L0 ⟹ Short 实例键 level=0；Core 账零实例。
+        assert_eq!(short_inst.key.level, 0);
+        assert!(
+            view2.instances().values().all(|i| !matches!(i.key.account, AccountIdentity::Core { .. })),
+            "sell-first 场景无本仓腿 ⟹ Core 账零实例"
         );
     }
 
