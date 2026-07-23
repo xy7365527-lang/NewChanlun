@@ -1421,6 +1421,43 @@ mod tests {
         assert_eq!(after.net_qty(), 100);
     }
 
+    /// #135 T6 验收 1 端到端：父多腿 100（短差额度默认 = 100）→ 次级反父证书请求开空
+    /// 短差 150 超出父级短差额度 ⟹ 开启被拒绝：裁决面命中 C5（OpenShortDiff），账本面
+    /// 走 typed 拒绝（GrossExposureExceeded），原账本不变——拒绝路径显式可断言，非静默跳过。
+    #[test]
+    fn end_to_end_short_diff_open_rejected_when_exceeding_parent_quota() {
+        let parent = holding(1, VoiceSide::Long, Vertical::Ambient);
+        let parent_leg = parent.leg.unwrap();
+        let open_child = child_cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::ShortDiff);
+        let open_input = projected_step(parent_leg, open_child);
+
+        // 裁决面：该时刻命中 C5 OpenShortDiff（拒绝发生在资金约束层，不篡改通道语义）。
+        assert_eq!(
+            step_voice(&parent, &open_input),
+            (ChannelId::Cj(5), ChannelDecision::OpenShortDiff)
+        );
+
+        let ledger = SplitLegLedger::parent_only(VoiceSide::Long, 100).unwrap();
+        let initial = ShortDiffReplayState { voice: parent, ledger };
+        // 请求 150 > 父级短差额度 100 ⟹ 端到端回放以 typed 拒绝终止。
+        assert_eq!(
+            run_short_diff_replay(initial, std::slice::from_ref(&open_input), 150),
+            Err(SplitLegError::GrossExposureExceeded { requested: 150, available: 100 }),
+            "超额子对冲请求走显式 typed 拒绝路径"
+        );
+        // 账本可断言拒绝不落账：原账本仍是纯父腿（不可变单步，拒绝无副作用）。
+        assert_eq!(ledger.split_legs().parent.qty, 100);
+        assert!(ledger.split_legs().short_diff.is_none(), "拒绝后无短差腿落账");
+        // 同一请求在额度内（100）则照常放行——约束只裁超额，不改既有开启语义。
+        let ok = run_short_diff_replay(
+            ShortDiffReplayState { voice: parent, ledger },
+            std::slice::from_ref(&open_input),
+            100,
+        )
+        .unwrap();
+        assert_eq!(ok[0].state.ledger.net_view().gross_qty(), 200);
+    }
+
     // ── 端到端：事件序列 → 完整裁决序列（含显式 Hold）────────────────────
 
     /// 喂事件序列，断言完整裁决序列：开仓 → Hold → 一类反向根清仓 → Hold → 再开仓 →

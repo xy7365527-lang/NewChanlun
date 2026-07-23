@@ -821,6 +821,8 @@ impl SplitLegNetView {
 pub struct SplitLegLedger {
     parent: SplitLegPosition,
     short_diff: Option<SplitLegPosition>,
+    /// #135 T6：本级短差额度（毛暴露口径）。构造不变量：`short_diff_quota ≤ parent.qty`。
+    short_diff_quota: u64,
 }
 
 /// split-leg 账本唯一允许的 #149 子腿事件；没有修改父腿的事件，故 P4/P5 对父数量的隔离由类型面保证。
@@ -838,24 +840,50 @@ pub enum SplitLegError {
     DirectionMismatch,
     ShortDiffAlreadyOpen,
     ShortDiffNotOpen,
+    /// #135 T6：子对冲开启请求超出本级短差额度（毛暴露口径）的 typed 拒绝。
+    /// 携带请求量与可用额度，拒绝路径显式可断言（非静默跳过）。
+    GrossExposureExceeded { requested: u64, available: u64 },
+    /// #135 T6：显式短差额度不得超过父腿数量（额度基数上界——锁仓套娃放大的构造闸）。
+    QuotaExceedsParentQty,
 }
 
 impl SplitLegLedger {
     /// 建立只有父腿的 canonical 起点。父腿必须有方向且数量为正。
+    ///
+    /// #135 T6：短差额度默认 = 父腿数量（由现有仓位字段推导，无独立校准逻辑）。
     pub fn parent_only(side: VoiceSide, qty: u64) -> Result<Self, SplitLegError> {
+        Self::parent_only_with_quota(side, qty, qty)
+    }
+
+    /// #135 T6 显式额度构造（config 面；[`Self::parent_only`] 即默认值 quota = qty）。
+    /// 额度是**毛暴露口径**的短差开启预算：`quota ≤ 父腿数量`，超界构造被拒绝。
+    pub fn parent_only_with_quota(
+        side: VoiceSide,
+        qty: u64,
+        quota: u64,
+    ) -> Result<Self, SplitLegError> {
         if side == VoiceSide::Flat {
             return Err(SplitLegError::FlatParent);
         }
         if qty == 0 {
             return Err(SplitLegError::ZeroParentQty);
         }
+        if quota > qty {
+            return Err(SplitLegError::QuotaExceedsParentQty);
+        }
         Ok(SplitLegLedger {
             parent: SplitLegPosition { side, qty },
             short_diff: None,
+            short_diff_quota: quota,
         })
     }
 
     /// 不可变单步：Open 只写 ShortDiff 坐标；Close 只清 ShortDiff 坐标；父腿逐字段复制不动。
+    ///
+    /// #135 T6 毛暴露约束插在 Open 决策点：短差腿使毛暴露新增 `qty`，该增量必须落在本级
+    /// 短差额度内（`qty ≤ short_diff_quota`）。校验按**毛暴露**（两腿绝对值之和的增量）计，
+    /// 与净暴露严格区分——对冲期间净暴露归零不豁免本约束。超额 ⟹ typed 拒绝
+    /// [`SplitLegError::GrossExposureExceeded`]，账本不变。
     pub fn apply(&self, event: SplitLegEvent) -> Result<Self, SplitLegError> {
         match event {
             SplitLegEvent::OpenShortDiff { side, qty } => {
@@ -868,18 +896,47 @@ impl SplitLegLedger {
                 if short_diff_side(self.parent.side) != Some(side) {
                     return Err(SplitLegError::DirectionMismatch);
                 }
+                if qty > self.short_diff_quota {
+                    return Err(SplitLegError::GrossExposureExceeded {
+                        requested: qty,
+                        available: self.short_diff_quota,
+                    });
+                }
                 Ok(SplitLegLedger {
                     parent: self.parent,
                     short_diff: Some(SplitLegPosition { side, qty }),
+                    short_diff_quota: self.short_diff_quota,
                 })
             }
             SplitLegEvent::CloseShortDiff => {
                 if self.short_diff.is_none() {
                     return Err(SplitLegError::ShortDiffNotOpen);
                 }
-                Ok(SplitLegLedger { parent: self.parent, short_diff: None })
+                Ok(SplitLegLedger {
+                    parent: self.parent,
+                    short_diff: None,
+                    short_diff_quota: self.short_diff_quota,
+                })
             }
         }
+    }
+
+    /// #135 T6：本级短差额度（毛暴露口径，构造时钉死；见 [`Self::parent_only_with_quota`]）。
+    pub fn short_diff_quota(&self) -> u64 {
+        self.short_diff_quota
+    }
+
+    /// #135 T6 递归下降：以在册短差腿为父腿派生下一级账本，其额度 = 本级剩余短差额度
+    /// （`short_diff_quota − 短差腿数量`）。逐层收缩 ⟹ 孙级额度 ⊆ 子级剩余额度 ⊆ 父级额度，
+    /// 全链新增毛暴露以父级额度为上界，锁仓不可套娃放大。无在册短差腿 ⟹ typed 拒绝。
+    pub fn nest(&self) -> Result<SplitLegLedger, SplitLegError> {
+        let hedge = self.short_diff.ok_or(SplitLegError::ShortDiffNotOpen)?;
+        Ok(SplitLegLedger {
+            parent: hedge,
+            short_diff: None,
+            // 构造不变量 quota ≤ parent.qty ∧ 开启闸 hedge.qty ≤ quota ⟹ 减法不下溢。
+            short_diff_quota: self.short_diff_quota - hedge.qty,
+        })
     }
 
     /// canonical 分腿视图（父腿与短差腿原样可见）。
@@ -968,6 +1025,88 @@ mod tests {
             .unwrap();
         assert_eq!(hedged.split_legs().parent.qty, 75);
         assert_eq!(hedged.split_legs().short_diff.unwrap().side, super::super::voice::VoiceSide::Long);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  #135 T6 毛暴露递归资金约束（子对冲额度 ⊆ 父级短差额度，逐层收缩）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// #135 T6 验收 2：三层嵌套额度逐层收缩可断言——父 100（额度 100）→ 子对冲 60
+    /// ⟹ 子级剩余短差额度 40 → 孙对冲 30 ⟹ 孙级剩余额度 10 → 曾孙请求 11 被拒绝、
+    /// 请求 10 通过。额度链 100 > 40 > 10 严格收缩，锁仓不可套娃放大。
+    #[test]
+    fn nested_short_diff_quota_shrinks_per_level_no_pyramiding() {
+        use super::super::voice::VoiceSide;
+        // 父级：额度默认 = 父仓数量（现有仓位字段推导，无新校准逻辑）。
+        let root = SplitLegLedger::parent_only(VoiceSide::Long, 100).unwrap();
+        assert_eq!(root.short_diff_quota(), 100, "父级短差额度默认 = 父仓数量");
+        let root = root
+            .apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Short, qty: 60 })
+            .unwrap();
+
+        // 子级账本：以子对冲腿为父腿，额度 = 父级剩余短差额度（100 − 60 = 40）。
+        let child = root.nest().unwrap();
+        assert_eq!(child.split_legs().parent.qty, 60, "子级父腿 = 上层对冲腿");
+        assert_eq!(child.split_legs().parent.side, VoiceSide::Short);
+        assert_eq!(child.short_diff_quota(), 40, "子级额度 ⊆ 父级短差额度（逐层收缩）");
+        // 子级对冲请求超剩余额度 ⟹ typed 拒绝。
+        assert_eq!(
+            child.apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Long, qty: 41 }),
+            Err(SplitLegError::GrossExposureExceeded { requested: 41, available: 40 })
+        );
+        let child = child
+            .apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Long, qty: 30 })
+            .unwrap();
+
+        // 孙级账本：额度 = 40 − 30 = 10。
+        let grandchild = child.nest().unwrap();
+        assert_eq!(grandchild.short_diff_quota(), 10, "孙级额度 ⊆ 子级剩余短差额度");
+        assert_eq!(
+            grandchild.apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Short, qty: 11 }),
+            Err(SplitLegError::GrossExposureExceeded { requested: 11, available: 10 }),
+            "孙级超额请求走显式 typed 拒绝，不静默跳过"
+        );
+        let grandchild = grandchild
+            .apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Short, qty: 10 })
+            .unwrap();
+        // 曾孙级额度收缩到 0：任何请求都被拒绝（套娃到此必然终止）。
+        let great = grandchild.nest().unwrap();
+        assert_eq!(great.short_diff_quota(), 0, "额度链 100 → 40 → 10 → 0 严格收缩");
+        assert_eq!(
+            great.apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Long, qty: 1 }),
+            Err(SplitLegError::GrossExposureExceeded { requested: 1, available: 0 })
+        );
+        // 全链毛暴露有界：100 + 60 + 30 + 10 = 200 ≤ 2 × 父仓（无放大）。
+        assert!(100u128 + 60 + 30 + 10 <= 2 * 100);
+    }
+
+    /// #135 T6 验收 3：额度校验按毛暴露计算——构造净暴露为零但毛暴露超额的场景：
+    /// 父多 100、显式额度 50，子对冲请求 100（若放行则净暴露 = 0，但毛暴露新增 100 > 50）
+    /// ⟹ 仍被拒绝。净暴露为零不豁免毛暴露约束。
+    #[test]
+    fn gross_exposure_quota_rejects_net_zero_but_gross_over() {
+        use super::super::voice::VoiceSide;
+        let book = SplitLegLedger::parent_only_with_quota(VoiceSide::Long, 100, 50).unwrap();
+        assert_eq!(book.short_diff_quota(), 50);
+        // 请求 qty=100 与父腿等量反向：放行后 net = 0——但校验口径是毛暴露，仍拒绝。
+        assert_eq!(
+            book.apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Short, qty: 100 }),
+            Err(SplitLegError::GrossExposureExceeded { requested: 100, available: 50 }),
+            "净暴露为零不豁免毛暴露约束"
+        );
+        // 拒绝不改账本：原账本仍可按额度内数量开启。
+        let ok = book
+            .apply(SplitLegEvent::OpenShortDiff { side: VoiceSide::Short, qty: 50 })
+            .unwrap();
+        assert_eq!(ok.net_view().gross_qty(), 150, "额度内开启：毛暴露 = 100 + 50");
+        assert_eq!(ok.net_view().net_qty(), 50);
+        // 显式额度不得超过父仓数量（额度基数上界，套娃放大的构造闸）。
+        assert_eq!(
+            SplitLegLedger::parent_only_with_quota(VoiceSide::Long, 100, 101),
+            Err(SplitLegError::QuotaExceedsParentQty)
+        );
+        // 无对冲腿时 nest 无意义 ⟹ typed 拒绝。
+        assert_eq!(book.nest(), Err(SplitLegError::ShortDiffNotOpen));
     }
 
     // ──────────────────────────────────────────────────────────────────────
