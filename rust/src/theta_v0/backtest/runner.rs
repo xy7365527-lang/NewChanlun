@@ -1007,6 +1007,75 @@ fn kappa_priority_resolve(env: Option<(i64, i64)>, config_policy: Option<RiskPol
     }
 }
 
+// ── ★#198 断言4「短差隔离」探针（coverage.rs ancok_probe 同款 thread_local 模式）──
+thread_local! {
+    static SHORTDIFF_ISOLATION_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+fn shortdiff_isolation_probe_bump() {
+    SHORTDIFF_ISOLATION_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 归零短差隔离探针（见证测试 run 前调用；仅本模块测试消费，比照 coverage.rs
+/// ancok_probe 三件套但无跨模块消费者 ⟹ 不 pub）。
+fn shortdiff_isolation_probe_reset() {
+    SHORTDIFF_ISOLATION_PROBE.with(|c| c.set(0));
+}
+
+/// 读取短差隔离探针快照（ShortDiff fill 隔离断言在生产路径的触发笔数）。
+fn shortdiff_isolation_probe_count() -> u64 {
+    SHORTDIFF_ISOLATION_PROBE.with(std::cell::Cell::get)
+}
+
+/// ★#198 断言4 前置快照：全部非 ShortDiff（Core{*}/Short{*}）分实例的 (key, qty)。
+#[cfg(debug_assertions)]
+fn non_shortdiff_qty_snapshot(
+    view: &strategy::account::ParallelAccountLedger,
+) -> std::collections::HashMap<strategy::account::AccountKey, f64> {
+    view.instances()
+        .iter()
+        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
+        .map(|(k, i)| (*k, i.qty))
+        .collect()
+}
+
+/// ★#198 断言4（#185「建议断言」4 的生产执行层同款）：`fill.account == ShortDiff ⟹
+/// Δqty(Core{*})==0 且 Δqty(Short{*})==0`——短差过账不得碰本仓/空仓任何分实例
+/// （模型层 SplitLegLedger「父仓不动」已有等价保证，本断言补生产执行层同款）。
+///
+/// 度量方式 = 账本状态**差分**（post 前快照 vs post 后逐实例比对，独立度量，非重算
+/// `post` 的过账逻辑）；定位 = **回归锁**（与 #145 T1 同款纪律）：`post` 当前按单 key
+/// 过账本满足隔离，本断言看守的是未来改动（执行延迟净额队列的逐账户投影属
+/// #199/#200 接线面）把跨账户写引入过账路径时先炸而非静默漂移。挂载点说明：实仓
+/// 净额 `units` 无账户键，并行记账视图（#197 expand）是当前唯一账户投影层——断言
+/// 只能落此；净额出口行为不受本断言影响（debug 构建逐笔核对，release 编译消除）。
+#[cfg(debug_assertions)]
+fn debug_assert_shortdiff_isolation(
+    view: &strategy::account::ParallelAccountLedger,
+    pre: &std::collections::HashMap<strategy::account::AccountKey, f64>,
+) {
+    for (k, inst) in view
+        .instances()
+        .iter()
+        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
+    {
+        let before = pre.get(k).copied().unwrap_or(0.0);
+        debug_assert_eq!(
+            inst.qty, before,
+            "#198 断言4 短差隔离违例：ShortDiff fill 改动 {:?} 分实例 qty（{} → {}）",
+            k.account, before, inst.qty
+        );
+    }
+    debug_assert_eq!(
+        view.instances()
+            .keys()
+            .filter(|k| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
+            .count(),
+        pre.len(),
+        "#198 断言4 短差隔离违例：ShortDiff fill 新增 Core/Short 分实例"
+    );
+}
+
 /// ★#197 并行记账视图镜像辅助（expand 只读旁路）：共享过账形状——身份解析 + 建单 + 提交成交。
 ///
 /// 账户身份由入场冻结的 `entry_v` × 声部方向映射（[`strategy::account::identity_of`]，与
@@ -1032,6 +1101,15 @@ fn account_mirror_post(
     let Some(account_id) = strategy::account::identity_of(entry_v, side, level) else {
         return;
     };
+    // ★#198 断言4 探针（恒在计数）：ShortDiff fill 笔数（生产路径见证——
+    // 「短差隔离断言真实触发」以探针 >0 为凭，断言本体见下方 debug 构建逐笔核对）。
+    if account_id == strategy::account::AccountIdentity::ShortDiff {
+        shortdiff_isolation_probe_bump();
+    }
+    // 断言4 前置快照（仅 ShortDiff 过账时；debug 构建，release 编译消除）。
+    #[cfg(debug_assertions)]
+    let pre_non_shortdiff = (account_id == strategy::account::AccountIdentity::ShortDiff)
+        .then(|| non_shortdiff_qty_snapshot(view));
     view.post(
         AccountOrder {
             key: AccountKey::new(account_id, level, position_node_id),
@@ -1042,6 +1120,11 @@ fn account_mirror_post(
         px,
         bar,
     );
+    // ★#198 断言4 逐笔核对：ShortDiff fill 后 Core{*}/Short{*} 分实例数量零变动。
+    #[cfg(debug_assertions)]
+    if let Some(pre) = pre_non_shortdiff {
+        debug_assert_shortdiff_isolation(view, &pre);
+    }
 }
 
 /// ★#197：开腿镜像（reason=Open，符号 = 多正空负）。开腿方向恒非 Flat（见 `account_mirror_post`）。
@@ -1102,6 +1185,33 @@ fn account_mirror_close(
         px,
         bar,
     );
+}
+
+/// ★#198：silent drop（§13 AncOK 连带剪/Stale prune，无触发信号）的 typed 归属判据。
+///
+/// 账户身份与退出理由正交（#185 修复 a）：账户由 #197 [`strategy::account::identity_of`]
+/// （entry_v × 方向）映射（FollowParent 级联核心仓 ⟹ `Core{level}`），剪枝理由由
+/// `TypedTrade::via_structural_prune` / `ActionReason::StructuralPrune` 表达——不再用
+/// `ExitType` 同时表达两者（同类错桶的根源）。
+///
+/// 判据：仅 `entry_v == ShortDiff` 的短差腿记 `CloseShortDiff`；其余（Ambient 根 /
+/// FollowParent 级联核心仓）归 `CloseRoot`（core structural exit，account=`Core{level}`、
+/// reason=`StructuralPrune`，经 #197 account 层映射）。
+///
+/// μ 分桶统计口径（随本判据更新，2026-07-23）：`ExitType` 诊断切片维持 #180 冻结铁律
+/// （不进 `MuClass` 桶键、不进 χ_t 门控、不进 δ-free 主裁决聚合基），代码零改动；变化的是
+/// 桶的**生产语义**——`CloseShortDiff` 桶自此只含真短差腿（FollowParent 级联核心仓的
+/// 结构剪枝归 `CloseRoot`），W-VERIFY 5 变体拆解与 `typed_ledger_btc_smoke` 分桶计数按
+/// 新口径阅读（BTC train 窗实证翻动：CloseRoot 6→8、CloseShortDiff 10→8，五枚举总数
+/// 25 不变，见 `btc_prune_leg_exit_type_matches_account_identity` 见证注释）。
+fn silent_drop_exit_type(entry_v: strategy::coverage::Vertical) -> strategy::interp::ExitType {
+    // ★#198 新口径（#185 修复 a）：仅短差腿记 CloseShortDiff；Ambient/FollowParent 归
+    // CloseRoot（core structural exit——账户侧 Core{level}+StructuralPrune，经 #197 映射）。
+    if entry_v == strategy::coverage::Vertical::ShortDiff {
+        strategy::interp::ExitType::CloseShortDiff
+    } else {
+        strategy::interp::ExitType::CloseRoot
+    }
 }
 
 fn pi_theta_fill_loop<F>(
@@ -1832,21 +1942,16 @@ where
                 }
                 // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
             }
-            // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：子声部随父失效 ⟹
-            // CloseShortDiff；根腿结构失效 ⟹ CloseRoot（PDF §9 五枚举全集下的最近语义归置，
-            // 判据声明见 g4-impl 结果包边界条件）。
+            // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：归属判据抽为
+            // [`silent_drop_exit_type`]（#198：仅短差腿记 CloseShortDiff，其余归 core structural
+            // exit；账户=entry_v×方向经 #197 account 层映射，剪枝理由=via_structural_prune 轴）。
             for leg in &step_trace.silent_drops {
                 if let Some(open) = open_trades.remove(&leg.id) {
                     use super::super::strategy::coverage::Vertical;
-                    use super::super::strategy::interp::ExitType;
                     if open.entry_v == Vertical::ShortDiff && tw.open_legacy_legs >= 1 {
                         tw = tw_step(&tw, TwEvent::CloseShareLeg(0)); // TW 腿计数（#124）
                     }
-                    let exit_type = if open.entry_v != Vertical::Ambient {
-                        ExitType::CloseShortDiff
-                    } else {
-                        ExitType::CloseRoot
-                    };
+                    let exit_type = silent_drop_exit_type(open.entry_v);
                     let pushed = TypedTrade {
                         entry_z: open.entry_z,
                         voice_id: leg.id,
@@ -4752,6 +4857,282 @@ mod tests {
         assert!(
             view2.instances().values().all(|i| !matches!(i.key.account, AccountIdentity::Core { .. })),
             "sell-first 场景无本仓腿 ⟹ Core 账零实例"
+        );
+    }
+
+    /// ★#198 跨账一致性见证（BTC 真实数据，生产路径）：§13 结构剪枝腿的 typed 归属
+    /// 必须与 #197 账户身份一致——`exit_type == CloseShortDiff` ⟺ `account == ShortDiff`。
+    ///
+    /// 见证记录（修复前红，2026-07-23 本测试实跑）：train 16000 bars 共 25 笔 typed、6 笔
+    /// 结构剪枝腿，其中 2 笔 `account=Core{0}`（FollowParent 级联核心仓）被旧判据
+    /// （`!= Ambient`）错标 `CloseShortDiff`——(0,61) entry=7010 exit=8366 与
+    /// (0,114) entry=13549 exit=14692；修复后归 `CloseRoot`（core structural exit），
+    /// 全 6 笔跨账一致（CloseRoot 6→8、CloseShortDiff 10→8，五枚举总数 25 不变）。
+    ///
+    /// 相关断言按新口径逐条核对记录（#198 验收③；结论 = 零翻动、全部与新口径一致）：
+    /// 1. `interp.rs` `reverse_exit_type` 冻结测试（1662-1666）：closed 桶判据
+    ///    （ShortDiff 腿任何触发类 ⟹ CloseShortDiff），不涉 silent_drops 判据 ⟹ 不动。
+    /// 2. `coverage.rs:5248-5283` ShortDiff 一类派 P7（双链同构见证）：同 1，closed 桶。
+    /// 3. `runner.rs` `typed_ledger_shortdiff_close_overrides_trigger_class`（5506+）：
+    ///    ShortDiff 腿一类反向 ⟹ CloseShortDiff（closed 桶）⟹ 不动。
+    /// 4. `runner.rs` `typed_ledger_reverse_close_root`：根腿一类 ⟹ CloseRoot（closed 桶）⟹ 不动。
+    /// 5. `l3_delta_r_alpha.rs:2016-2021` 五枚举全分类守恒：总数守恒（修复后 8+7+8+0+2=25），
+    ///    无硬编码分桶计数 ⟹ 不翻（本测试同窗实跑复核通过）。
+    /// 6. `shadow.rs:358/370/522/537` 双链比对映射：消费 ExitType 枚举本身（未变）⟹ 不动。
+    /// 7. `wverify_run.rs` exit_type_code/decode/label：枚举编码与标签不变；W-VERIFY 5 变体
+    ///    拆解为纯描述性诊断（裁定甲：不进桶键/门控/裁决基），桶语义按新口径阅读。
+    /// 8. `mu_estimator.rs:326-330` ExitType 诊断切片：#180 冻结（不进 MuClass 桶键）⟹
+    ///    代码零改动；μ 分桶统计口径更新 = 桶的生产语义收紧（CloseShortDiff 只含真短差腿），
+    ///    已记录于 `silent_drop_exit_type` 文档。
+    #[test]
+    #[ignore = "G4 typed ledger BTC 见证；需 BTC 数据（DATA BLOCKER 不伪造）"]
+    fn btc_prune_leg_exit_type_matches_account_identity() {
+        use super::super::data;
+        use super::super::incremental::IncrementalClassifier;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+        use crate::theta_v0::strategy::account::AccountIdentity;
+        use crate::theta_v0::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let w = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+        let ds = data::load_by_symbol(w.symbol, &config).expect("BTC 数据");
+        let oos = ds.slice_date_window(w.oos.0, w.oos.1);
+        let cut = 32_000_usize.min(oos.bars.len());
+        let train_bars = &oos.bars[0..cut / 2];
+        let first_px = train_bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * config.tick.tick_size)
+            .unwrap_or(1.0);
+        let nav = (first_px * 1000.0).max(1.0e6);
+        let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
+        let fill = pi_theta_fill_loop(
+            |i| {
+                let (cls, tower) = classifier_incr.classify_at(i);
+                let gen = classifier_incr.tower_generation();
+                let fe = classifier_incr.forest_epoch();
+                (cls, tower, gen, fe)
+            },
+            train_bars,
+            nav,
+            &config,
+            None,
+        );
+        eprintln!("=== BTC prune 腿跨账对照（{} 笔 typed）===", fill.typed_ledger.len());
+        let mut n_prune = 0usize;
+        for t in &fill.typed_ledger {
+            if !t.via_structural_prune {
+                continue;
+            }
+            n_prune += 1;
+            let inst = fill
+                .account_view
+                .instances()
+                .values()
+                .find(|i| i.key.position == t.position_node_id);
+            let account = inst.map(|i| i.key.account);
+            eprintln!(
+                "  id={:?} entry={} exit={} exit_type={:?} account={:?}",
+                t.voice_id, t.entry_bar, t.exit_bar, t.exit_type, account
+            );
+            // ★跨账一致性（#198 新口径）：剪枝腿标 CloseShortDiff ⟺ 账户身份为 ShortDiff。
+            // FollowParent 级联核心仓（account=Core{level}）归 CloseRoot（core structural exit）。
+            assert_eq!(
+                t.exit_type == ExitType::CloseShortDiff,
+                account == Some(AccountIdentity::ShortDiff),
+                "§13 剪枝腿 {:?} 跨账不一致：exit_type={:?} vs account={:?}（#185 修复 a）",
+                t.voice_id, t.exit_type, account
+            );
+        }
+        assert!(n_prune > 0, "BTC train 窗必产结构剪枝腿（见证非空转，基线 6 笔）");
+    }
+
+    /// ★#198 断言4 生产路径见证（#185「短差隔离」落生产执行层）：ShortDiff fill 逐笔
+    /// 触发隔离断言（`fill.account == ShortDiff ⟹ Δqty(Core{*})==0 且 Δqty(Short{*})==0`），
+    /// 探针计数为凭。
+    ///
+    /// 场景 = `account_view_witness_three_identities_in_pi_loop` 场景一（E 组：父
+    /// Core{1} + 子 ShortDiff 一类平）——子腿开/平各一笔 ShortDiff fill ⟹ 探针 = 2；
+    /// 本测试跑通无 `#198 断言4` panic ⟹ 两笔均满足隔离（debug 构建逐笔核对，
+    /// 断言非空转——若 ShortDiff 过账碰了父 Core{1} 分实例，断言以 #198 panic 炸掉）。
+    #[test]
+    fn shortdiff_isolation_assertion_fires_in_pi_loop() {
+        shortdiff_isolation_probe_reset();
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        let cls_parent = {
+            let mut c = e_classification(false);
+            c.levels[0] = LevelState::default(); // 仅父 L1 buy@12（子卖点未现）
+            c
+        };
+        let cls_open = e_classification(false); // + 子 L0 sell@16
+        let cls_all = e_classification(true); // + 子平触发 L0 buy1@18
+        let tower = e_tower();
+        let classify = move |i: usize| {
+            let cls = if i >= 19 {
+                cls_all.clone()
+            } else if i >= 17 {
+                cls_open.clone()
+            } else if i >= 13 {
+                cls_parent.clone()
+            } else {
+                Classification::default()
+            };
+            (cls, tower.clone(), i as u64, i as u64)
+        };
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        // 既有账锚点：父 + 子各一条 typed（子 = ShortDiff 一类平），场景真实含短差生命周期。
+        assert_eq!(fill.typed_ledger.len(), 2, "父 + 子恰两条 typed 交易");
+        // ★生产路径真实触发：子 ShortDiff 开（Open）+ 平（ReverseType1）各一笔 fill ⟹ 探针 = 2。
+        assert_eq!(
+            shortdiff_isolation_probe_count(),
+            2,
+            "子 ShortDiff 开/平各一笔 fill ⟹ 断言4 在生产路径真实触发 2 笔（探针为凭）"
+        );
+        // 跑通无 `#198 断言4` panic ⟹ 两笔 fill 均未改 Core{*}/Short{*} 分实例（隔离成立）。
+    }
+
+    /// ★#198 判据回归（红→绿）：silent drop 的 typed 归属判据——**仅** `entry_v == ShortDiff`
+    /// 的短差腿记 `CloseShortDiff`；FollowParent 级联核心仓与 Ambient 根归 `CloseRoot`
+    /// （core structural exit）。
+    ///
+    /// 修复前红：旧判据 `!= Ambient` 把 FollowParent 错标 `CloseShortDiff`（#185 发现 a：
+    /// 核心腿退出污染短差桶与 μ 分桶）。账户身份与退出理由正交：账户由 #197
+    /// `identity_of(entry_v × 方向)` 映射（FollowParent ⟹ `Core{level}`），剪枝理由由
+    /// `via_structural_prune` / `ActionReason::StructuralPrune` 轴表达。
+    #[test]
+    fn silent_drop_exit_type_attributes_non_shortdiff_to_core_structural_exit() {
+        use super::super::super::strategy::coverage::Vertical;
+        use super::super::super::strategy::interp::ExitType;
+        assert_eq!(
+            silent_drop_exit_type(Vertical::ShortDiff),
+            ExitType::CloseShortDiff,
+            "短差腿结构剪枝 ⟹ CloseShortDiff（唯一合法 CloseShortDiff 身份）"
+        );
+        assert_eq!(
+            silent_drop_exit_type(Vertical::FollowParent),
+            ExitType::CloseRoot,
+            "FollowParent 级联核心仓剪枝 ⟹ CloseRoot（core structural exit，非短差桶）"
+        );
+        assert_eq!(
+            silent_drop_exit_type(Vertical::Ambient),
+            ExitType::CloseRoot,
+            "Ambient 根结构失效 ⟹ CloseRoot（旧判据本臂即对，防回归）"
+        );
+    }
+
+    /// ★#198 身份见证（生产 π loop）：FollowParent 核心级联子腿开仓 ⟹ `account ==
+    /// Core{level}`（**非** ShortDiff）——#198 验收①「错标不再发生」的账户侧防回归锁
+    /// （场景口径：FollowParent 核心级联场景，断言 account==Core{level} 而非 ShortDiff）。
+    ///
+    /// 场景（E 组夹具变体）：父 L1 buy1@12（host 查 (1,12) 落空 ⟹ Ambient 根）→ 子 L0
+    /// buy1@16（638 附着 s3(0,3)，顺父方向 Long ⟹ **FollowParent** 级联核心仓）→ 候选
+    /// 消失后两腿在飞至窗口终点（censored）。
+    ///
+    /// 诚实声明（090）：合成 pi loop 下 silent drop 不可达——persistent overlay §10
+    /// `LiveDetached` 不 prune 且 registry 无生产 invalidated 写点，腿仅经 close/risk/
+    /// censored 三通道离场（探索记录：候选消失/塔切空/父被 close 三变体均不产 silent
+    /// drop；塔切空另触发既有 next_active 唯一性 debug_assert，非合法输入）。剪枝归属
+    /// 的红→绿回归由判据单测（上）+ BTC 真实数据跨账见证（`btc_prune_leg_exit_type_
+    /// matches_account_identity`：6 笔剪枝腿 2 笔 FollowParent 错标）承担，本测试锁
+    /// 「FollowParent 腿 ⟹ Core 账户」的身份映射防回归。
+    #[test]
+    fn followparent_child_in_pi_loop_belongs_to_core_account_not_shortdiff() {
+        use super::super::super::strategy::account::AccountIdentity;
+        // 父 L1 buy1@12（Ambient）；子 L0 buy1@16（顺父 Long ⟹ FollowParent）。
+        let fp_buy_child = BspPoint {
+            source_index: 16,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 120,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let fp_buy_parent = BspPoint {
+            source_index: 12,
+            bits: BspBits { buy1: true, ..Default::default() },
+            pivot_low: 90,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let cls_parent_only = Classification {
+            levels: vec![
+                LevelState::default(),
+                LevelState { bsp: Rc::new(vec![fp_buy_parent.clone()]), ..Default::default() },
+            ],
+        };
+        let cls_both = Classification {
+            levels: vec![
+                LevelState { bsp: Rc::new(vec![fp_buy_child.clone()]), ..Default::default() },
+                LevelState { bsp: Rc::new(vec![fp_buy_parent.clone()]), ..Default::default() },
+            ],
+        };
+        let tower = e_tower();
+        let classify = move |i: usize| {
+            if i >= 19 {
+                (Classification::default(), tower.clone(), i as u64, i as u64)
+            } else if i >= 17 {
+                (cls_both.clone(), tower.clone(), i as u64, i as u64)
+            } else if i >= 13 {
+                (cls_parent_only.clone(), tower.clone(), i as u64, i as u64)
+            } else {
+                (Classification::default(), tower.clone(), i as u64, i as u64)
+            }
+        };
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+
+        // 父子各一条 typed 交易（窗口终点 censored）。
+        assert_eq!(fill.typed_ledger.len(), 2, "父 + 子恰两条 typed 交易");
+        let child_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.voice_id == ElementId { level: 0, ordinal: 3 })
+            .expect("子腿（carrier=s3(0,3)）typed 交易存在");
+        // 子腿顺父方向（Long，δ=+1）：638 附着 s3（真父 A(1,0) 外缘 Long）⟹ FollowParent。
+        assert_eq!(child_row.entry_z.delta, 1, "子腿顺父方向（级联核心仓）");
+        // ★票面断言：account == Core{level}（子腿级别 0），**非** ShortDiff。
+        let child_inst = fill
+            .account_view
+            .instances()
+            .values()
+            .find(|i| i.key.position == child_row.position_node_id)
+            .expect("子腿分实例存在");
+        assert_eq!(
+            child_inst.key.account,
+            AccountIdentity::Core { level: 0 },
+            "FollowParent 级联核心仓 ⟹ Core{{0}} 账（#197 identity_of 映射）"
+        );
+        assert_ne!(
+            child_inst.key.account,
+            AccountIdentity::ShortDiff,
+            "FollowParent 不得落短差账（#185 修复 a 的账户侧）"
+        );
+        // 父腿对照：Ambient 多根 ⟹ Core{1}。
+        let parent_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.voice_id.level == 1)
+            .expect("父腿 typed 交易存在");
+        let parent_inst = fill
+            .account_view
+            .instances()
+            .values()
+            .find(|i| i.key.position == parent_row.position_node_id)
+            .expect("父腿分实例存在");
+        assert_eq!(parent_inst.key.account, AccountIdentity::Core { level: 1 }, "Ambient 多根 ⟹ Core{{1}} 账");
+        // 本场景无短差腿 ⟹ ShortDiff 账零实例（隔离性反面印证）。
+        assert!(
+            fill.account_view
+                .instances()
+                .values()
+                .all(|i| i.key.account != AccountIdentity::ShortDiff),
+            "无短差腿场景 ⟹ ShortDiff 账零实例"
         );
     }
 
