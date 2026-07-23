@@ -228,6 +228,12 @@ impl<'a> ElementView<'a> {
         self.base.len()
     }
 
+    /// candidate 段只读切片（#196 shadow：`interp::parent_certificate_projection` 的
+    /// `cand_elems` 原料——gamma_index 索引本段；只读借用，与 [`Self::into_overlay`] 互补）。
+    pub(crate) fn overlay(&self) -> &[CoverageElement] {
+        &self.overlay
+    }
+
     /// 取回 overlay（`_cached` 遍历2 算完 role 后取回 candidates Vec；view drop）。
     pub(crate) fn into_overlay(self) -> Vec<CoverageElement> {
         self.overlay

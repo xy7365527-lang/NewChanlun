@@ -171,6 +171,14 @@ pub struct ParentCertificateProjection {
     child_dir: VoiceSide,
 }
 
+impl ParentCertificateProjection {
+    /// 父腿身份（#196 shadow 适配层逐声部分发投影的过滤键——只读访问，字段保持私有，
+    /// token 仍只能由 [`parent_certificate_projection`] 构造、由 [`trigger_projection_sound`] 核验）。
+    pub fn parent_id(&self) -> ElementId {
+        self.parent_id
+    }
+}
+
 /// 从真嵌套塔的候选附着边生成父级证书投影。
 ///
 /// `cand_elems[cand.gamma_index].parent -> tree[parent_idx]` 必须是一条完整、方向一致的真父子边：

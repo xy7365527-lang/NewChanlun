@@ -1056,6 +1056,9 @@ where
     let mut entry_cost: f64 = 0.0;
     // [C] 活动集台账（thread 跨 bar；interp::interpret 闭环递归）。
     let mut prev_active: Vec<ActiveLeg> = Vec::new();
+    // #196 阶段 A：shadow 双链比对簿（零行为变更——只读生产状态，channel 适配层在组合层
+    // 裁决点之后并行跑，分歧仅入本簿内存 + env 门控落盘；不改裁决与订单流）。
+    let mut shadow_book = super::super::strategy::shadow::ShadowVoiceBook::default();
     // ★persistent overlay（anc.pdf §4-§9）：跨 bar 持久元素注册表 Pi。
     // 修复 Q4 "LiveDetached 误处理成 Stale" → depth>0 腿被 AncOK 系统性剪掉 → #5α=0。
     // Pi+1 = merge(Pi, Ei+1, held legs)（§9）：snapshot 匹配刷新 + held 找不到标记 LiveDetached。
@@ -1359,6 +1362,17 @@ where
                 ),
                 None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
             };
+            // ── #196 shadow 输入适配：parent_projections 生产构造（现成单源
+            //    `interp::parent_certificate_projection` 逐候选构造；cand_elems = step_work
+            //    candidate 段只读切片、tree = step_tree，与生产同一份数据；χ 后口径——
+            //    step_gamma_trade 之外的候选不产投影）。──
+            let step_parent_projections: Vec<super::super::strategy::interp::ParentCertificateProjection> =
+                step_gamma_trade
+                    .iter()
+                    .filter_map(|c| {
+                        interp::parent_certificate_projection(c, step_work.overlay(), &step_tree)
+                    })
+                    .collect();
             // ── #124 裁定4 TW 谓词 ctx（P2/P3/P4 进 fold）：在飞腿 entry_v 映射从 typed ledger
             //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）。#145 T1：由原
             //    ShortDiff id 半镜像升级为全量 entry_v 映射——P2 过滤在组合层按
@@ -1465,6 +1479,18 @@ where
                 &registry,
                 Some(&twc),
                 &protocol_events,
+            );
+            // ── #196 阶段 A shadow：组合层裁决点之后并行跑 channel 适配层——只记录分歧，
+            //    不改裁决与订单流（零行为变更；分歧报告 env 门控落盘，见主循环后）。──
+            shadow_book.observe_and_compare(
+                i,
+                &prev_active,
+                &step_gamma_trade,
+                &entry_v_map,
+                gate.force_flat,
+                &step_parent_projections,
+                &step_trace,
+                &next_active,
             );
             if pan_div_hist.is_some() {
                 use super::super::strategy::oscillation::{
@@ -1865,6 +1891,16 @@ where
         // 避免 Δpx 跨越无效价产生伪价格贡献）。
         if px > 0.0 {
             prev_px = Some(px);
+        }
+    }
+
+    // ── #196 shadow 分歧报告：门控落盘（默认 None 零 IO，bit-exact 原路径；sidecar 文本，
+    //    不进 opsem dump、不进订单轨——run 结束一次性写出）。失败显式 eprintln 而非静默
+    //    `.ok()?`（OpsemDump 先例）：分歧报告是本票交付物，落盘失败必须可见——但不中断
+    //    回测（shadow 是观测旁路，报告可重跑再生）。──
+    if let Some(path) = shadow_divergence_path() {
+        if let Err(e) = std::fs::write(&path, shadow_book.render_report()) {
+            eprintln!("#196 shadow 分歧报告落盘失败（{path:?}）：{e}");
         }
     }
 
@@ -2337,6 +2373,29 @@ struct OpsemDump {
     active_end: Option<usize>,
     /// 上一 bar 的塔（仅交易活跃区间内 diff，O(n) per bar）。
     prev_tower: Option<Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>>,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// 测试注入点：Some(path) ⟹ **本线程**的 fill loop 在 run 结束落 shadow 分歧报告。
+    /// 进程级 env 会被并行测试同时读到并覆写同一路径（opsem 2026-07-13 竞态同款教训）；
+    /// 线程局部对并行测试不可见。
+    static SHADOW_DIVERGENCE_PATH_OVERRIDE: std::cell::RefCell<Option<std::path::PathBuf>> =
+        std::cell::RefCell::new(None);
+}
+
+/// #196 shadow 分歧报告落盘路径：线程局部 override（测试）优先于进程 env
+/// `THETA_V0_SHADOW_DIVERGENCE_PATH`；未设/空串 ⟹ None（零 IO，bit-exact 原路径）。
+fn shadow_divergence_path() -> Option<std::path::PathBuf> {
+    #[cfg(test)]
+    {
+        if let Some(p) = SHADOW_DIVERGENCE_PATH_OVERRIDE.with(|c| c.borrow().clone()) {
+            return Some(p);
+        }
+    }
+    std::env::var_os("THETA_V0_SHADOW_DIVERGENCE_PATH")
+        .filter(|s| !s.is_empty())
+        .map(std::path::PathBuf::from)
 }
 
 #[cfg(test)]
@@ -4574,6 +4633,46 @@ mod tests {
             "e3: nest_depth 非 null（R5-c 接入 structural_nest_depth）"
         );
         let _ = std::fs::remove_dir_all(&dump_dir);
+    }
+
+    /// ★#196 阶段 A 生产路径见证：shadow 双链比对在 `run_theta_v0_pi` 生产路径**真实执行**——
+    /// 同一 fill loop（buy1@3 确认 ⟹ 开 Long 持仓多 bar）内 channel 适配层每 bar 并行裁决，
+    /// 分歧报告经线程局部 override 落盘（进程 env 会被并行测试覆写，opsem 竞态同款规避）。
+    ///
+    /// 见证链：
+    /// 1. 落盘报告含汇总头且 voice_steps>0 ⟹ shadow 非空转（每 bar 真实跑 channel 裁决）；
+    /// 2. 开仓 bar 空仓 slot 裁 Open ⟷ 生产 Opened、持仓 bar 裁 Hold ⟷ Held——单腿单候选
+    ///    场景两链同构全 Match（coverage tests T2 跨级同构断言思路的全量化兑现）；
+    /// 3. 订单轨冻结不由本测试断言——三把既有 bit-exact 锁 + pan_div DC-E 锁在 shadow
+    ///    接线后全绿背书（本测试只证 shadow 真实执行并产出分歧记录）。
+    #[test]
+    fn shadow_dual_chain_witness_in_pi_loop() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("系统时间晚于 epoch")
+            .as_nanos();
+        let report_path = std::env::temp_dir().join(format!(
+            "shadow_divergence_test_{}_{}.txt",
+            std::process::id(),
+            nonce
+        ));
+        SHADOW_DIVERGENCE_PATH_OVERRIDE.with(|c| *c.borrow_mut() = Some(report_path.clone()));
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        SHADOW_DIVERGENCE_PATH_OVERRIDE.with(|c| *c.borrow_mut() = None);
+
+        assert!(!fill.typed_ledger.is_empty(), "前置：买点确认 ⟹ 有 typed 交易");
+        let report = std::fs::read_to_string(&report_path).expect("shadow 分歧报告落盘");
+        let _ = std::fs::remove_file(&report_path);
+        assert!(report.contains("# shadow 双链比对分歧报告"), "报告含汇总头：\n{report}");
+        let steps_line =
+            report.lines().find(|l| l.starts_with("voice_steps=")).expect("汇总行存在");
+        assert!(!steps_line.starts_with("voice_steps=0 "), "shadow 非空转：{steps_line}");
+        assert!(
+            report.contains("divergences=0"),
+            "单腿单候选无反向场景两链同构（全 Match）：\n{report}"
+        );
     }
 
     /// ★★χ≡1 vs χ=1[μ>θ] 对比（acc-chi-theta-filter 可证伪核心）：买点 z 的 μ≤θ ⟹ χ 滤掉它 ⟹

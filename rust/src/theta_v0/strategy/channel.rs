@@ -374,6 +374,13 @@ fn observe_sub_cycle(state: &VoiceState, input: &VoiceStepInput) -> SubCycleObs 
     SubCycleObs { next: SubCycleTracker { open }, completed }
 }
 
+/// #196 shadow（阶段 A 零行为变更）：只推进 P7 检测器/步计数（Hold 转移语义），
+/// **不执行仓位转移**——shadow 声部腿槽由生产活动集镜像覆写（channel 只出裁决不建腿，
+/// [`advance`] 的仓位分支不进生产路径；复用 Hold 分支单源，不新建转移逻辑）。
+pub fn shadow_observe(state: &VoiceState, input: &VoiceStepInput) -> VoiceState {
+    advance(*state, input, ChannelDecision::Exit(ExitType::Hold))
+}
+
 /// 从父声部状态 + 当步输入推导通道谓词向量（P1..P8 字段序/优先级保持 #147 原样）。
 ///
 /// 判据（全部单源复用）：

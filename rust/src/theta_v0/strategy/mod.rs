@@ -44,6 +44,10 @@
 /// ShortDiff 显式机制，#150 的 P7/P8 仍为占位槽）。
 pub mod channel;
 pub mod coverage;
+/// #196 阶段 A：shadow 双链比对（零行为变更）——组合层裁决点之后并行跑 channel 适配层，
+/// 仅记录分歧，不改裁决与订单流（coverage tests `t2_cross_level_confirmed_certificate_holds_l1_position_end_to_end`
+/// 同构断言思路的全量化）。
+pub(crate) mod shadow;
 pub mod exec;
 /// 退出决策生成器（§9 closePred）+ 持仓声部台账 `HeldVoice`——回测 runner 与生产 ThetaCore 共享单源。
 pub mod exit;
