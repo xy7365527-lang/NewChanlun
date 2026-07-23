@@ -2880,11 +2880,13 @@ mod tests {
         );
         for (i, d) in decomps.iter().enumerate() {
             let side = if d.delta > 0 { "buy" } else { "sell" };
+            // #182：加 `Econ` 前缀与 interp::ExitType 序列化标签（runner.rs exit_type_str
+            // "CloseRoot"/"ReduceCore"/"Hold"）区分，消除下游按字符串聚合的混桶风险。
             let exit_dec = match d.exit_decision {
-                ExitDecision::CloseRoot => "CloseRoot",
-                ExitDecision::ReduceCore => "ReduceCore",
-                ExitDecision::Type2Missing => "Type2Missing",
-                ExitDecision::Hold => "Hold",
+                ExitDecision::CloseRoot => "EconCloseRoot",
+                ExitDecision::ReduceCore => "EconReduceCore",
+                ExitDecision::Type2Missing => "EconType2Missing",
+                ExitDecision::Hold => "EconHold",
             };
             let _ = writeln!(csv, "{},{},{},{},{},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{:.10e},{},{},{},{}",
                 i, d.entry_bar, d.exit_bar, d.level, d.delta,
