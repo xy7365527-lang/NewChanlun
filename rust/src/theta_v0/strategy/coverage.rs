@@ -799,8 +799,9 @@ pub fn ancestors(elements: &[CoverageElement], e_idx: usize) -> Vec<usize> {
 /// ★codex Q4 祖先链（按 `parent_id` 结构映射，spec §13 `p:C_ℓ→C_{ℓ+1}`）。
 ///
 /// 从 e 的父 `parent_id` 出发，沿 parent_id 链上溯收集祖先的 `ElementId`。跨 bar 稳定（ID 确定性），
-/// 非每 bar Vec 索引。用于 §13 生产 AncOK（[`ancestor_close_by_id`]）——spec §13 line 671 硬约束
-/// "子级短差腿存在 ⟹ 父容器存在"按结构映射判据，非 per-bar 索引。
+/// 非每 bar Vec 索引。现服务于根子树分组（`parent_id` 结构映射判据，spec §13 line 671 硬约束
+/// "子级短差腿存在 ⟹ 父容器存在"）；§13 生产 AncOK 闭合已由
+/// [`super::exit::step_active_set_with_subtree_close`] 接管（#183 归一）。
 ///
 /// 树深有限 ⟹ 链有限，无 fuel 需要。环不可能——parent_id 严格指向更高级别（`push_element_tree`
 /// 父 level > 子 level，descend 级别严格递减保证）。
@@ -846,8 +847,9 @@ fn raw_active_set(active: &[usize], ending: &[usize], starting: &[usize]) -> Vec
 /// 保留「全部祖先也在 raw 集中」的元素——子激活 ⟹ 全祖先在场（覆盖不漂浮，对齐
 /// `AncestorClosure.ancOK`）。祖先不齐（父不在 raw）的元素被裁掉（子声部不漂浮在不存在的父上）。
 ///
-/// ★此为**索引链**版本（§3 Lean M16 区间递归原语对齐，非生产入场）。§13 生产 AncOK 用
-/// [`ancestor_close_by_id`]（parent_id 结构映射，spec §13）。
+/// ★此为**索引链**版本（§3 Lean M16 区间递归原语对齐，非生产入场）。§13 生产 AncOK 由
+/// [`super::exit::step_active_set_with_subtree_close`] 接管（#183 归一：parent_id 结构映射判据
+/// 的散装等价物 `ancestor_close_by_id` 已下线，归一即删除）。
 fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
     // ponytail: HashSet O(1) 替 raw.contains O(n)——祖先查询从线性降常数
     let raw_set: std::collections::HashSet<usize> = raw.iter().copied().collect();
@@ -857,53 +859,6 @@ fn ancestor_close(elements: &[CoverageElement], raw: &[usize]) -> Vec<usize> {
             ancestors(elements, e_idx)
                 .iter()
                 .all(|a| raw_set.contains(a))
-        })
-        .collect()
-}
-
-/// ★codex Q4 祖先闭合（按 `parent_id` 结构映射，spec §13 line 661/665/671）。
-///
-/// `AncOK(A)={a∈A:Anc(a)⊆A}`——保留「全部祖先（沿 parent_id 链）也在 raw 中」的元素。
-/// 祖先判据用 `parent_id`（跨 bar 稳定的 ElementId，spec §13 `p:C_ℓ→C_{ℓ+1}` 结构映射），
-/// 非 per-bar Vec 索引。祖先不齐（父不在 raw_ids）的元素被裁掉——spec §13 line 671 硬约束
-/// "任何子级短差腿存在时，它的父容器也存在"。
-///
-/// ★与 [`ancestor_close`] 的区别：[`ancestor_close`] 按 `parent: Option<usize>` 索引链（§3 Lean
-/// M16 原语），本函数按 `parent_id: Option<ElementId>` 结构映射链（§13 生产）。两者在单 bar 内
-/// 元素集上等价（parent 索引与 parent_id 一一对应），但本函数的判据跨 bar 稳定（ID 确定性）。
-fn ancestor_close_by_id(elements: &ElementView, raw: &[usize]) -> Vec<usize> {
-    // raw_ids：raw 中元素的 id 集合（结构映射判据）。
-    let raw_ids: std::collections::HashSet<ElementId> =
-        raw.iter().filter_map(|&i| elements.get(i).map(|e| e.id)).collect();
-    // ★工位 4f：id→idx 索引——base 段复用缓存 `base_id_idx`（§16 tree 前缀不变，O(1) 命中），仅 overlay
-    // 段（candidate++restore，绝大多数 bar 空）现建小 map（全局 idx = base_len + i）。旧版每 bar
-    // `elements.iter()` 全量 rebuild O(work)=O(tree)/bar=O(n²)。bit-exact：双段查 == 全量 map（base
-    // id 与 overlay id 不交叠——overlay 是候选叶子/restore 追加，与 tree id 碰撞时 base 优先，与旧
-    // `or_insert` 首次出现序一致：旧 collect 按 iter 序 base 在前 ⟹ base 先插，等价 base 优先）。
-    let base_id_idx_owned;
-    let base_id_idx: &std::collections::HashMap<ElementId, usize> = match &elements.base_id_idx {
-        Some(rc) => rc.as_ref(),
-        None => {
-            base_id_idx_owned = build_tree_id_index(elements.base);
-            &base_id_idx_owned
-        }
-    };
-    let base_len = elements.base.len();
-    let mut overlay_id_idx: std::collections::HashMap<ElementId, usize> =
-        std::collections::HashMap::new();
-    for (i, e) in elements.overlay.iter().enumerate() {
-        overlay_id_idx.entry(e.id).or_insert(base_len + i);
-    }
-    // 查找闭包：base 优先（与旧全量 map iter 序 base 在前一致），overlay fallback。
-    let lookup = |pid: &ElementId| -> Option<usize> {
-        base_id_idx.get(pid).copied().or_else(|| overlay_id_idx.get(pid).copied())
-    };
-    raw.iter()
-        .copied()
-        .filter(|&e_idx| {
-            ancestors_by_id_lookup(elements, e_idx, &lookup)
-                .iter()
-                .all(|a| raw_ids.contains(a))
         })
         .collect()
 }
@@ -1718,10 +1673,10 @@ pub fn gross_target_units(legs: &[LegTarget]) -> f64 {
 /// >   [`super::risk::gross_units_ok`]（units 空间 = strict §11 `L^G≤L̄^G` 单标的精确等价形式，
 /// >   coverage 不私写同义比较——risk.rs 死代码毛/净杠杆数学的生产接入点）。
 ///
-/// 根子树分组按 `parent_id` 结构映射（spec §13 `p:C_ℓ→C_{ℓ+1}`，与 [`ancestor_close_by_id`]
-/// 同一判据——非 per-bar 索引链；restore 段腿 `parent: None` 但 `parent_id` 携真父，索引链会
-/// 误判其为独立根）。确定性：分组按腿序首次出现，排序按 `(t_r, root_id)`（平局按根 id 定序），
-/// 求和顺序固定 ⟹ bit-exact 可重放。
+/// 根子树分组按 `parent_id` 结构映射（spec §13 `p:C_ℓ→C_{ℓ+1}`，与生产 AncOK（#183 归一后
+/// = [`super::exit::step_active_set_with_subtree_close`]）同一判据——非 per-bar 索引链；
+/// restore 段腿 `parent: None` 但 `parent_id` 携真父，索引链会误判其为独立根）。确定性：
+/// 分组按腿序首次出现，排序按 `(t_r, root_id)`（平局按根 id 定序），求和顺序固定 ⟹ bit-exact 可重放。
 pub(crate) fn apply_gross_cap(
     elements: &ElementView,
     legs: &mut [LegTarget],
@@ -1742,7 +1697,8 @@ pub(crate) fn apply_gross_cap(
         return legs.iter().map(|l| l.e_idx).collect();
     }
 
-    // ── 根子树分组（parent_id 结构映射；lookup 双段模式同 ancestor_close_by_id）──
+    // ── 根子树分组（parent_id 结构映射；lookup 双段模式同旧生产 AncOK 判据，#183 归一后判据
+    //   本体在 exit::step_active_set_with_subtree_close）──
     let base_id_idx_owned;
     let base_id_idx: &std::collections::HashMap<ElementId, usize> = match &elements.base_id_idx {
         Some(rc) => rc.as_ref(),
@@ -2054,8 +2010,8 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 /// ★persistent overlay（anc.pdf §11 归纳）：从 registry 递归恢复操作祖先链。
 ///
 /// LiveDetached 腿的 op_parent 及其祖先（沿 structural_parent_id 链）若不在 raw 中，
-/// 从 persistent registry 恢复加入 work/raw。这使 ancestor_close_by_id 通过（I5：
-/// AncOK 作用 persistent active set）。
+/// 从 persistent registry 恢复加入 work/raw。这使生产 AncOK（#183 归一后 =
+/// [`super::exit::step_active_set_with_subtree_close`]）通过（I5：AncOK 作用 persistent active set）。
 ///
 /// §11 归纳证明：每条未关闭腿的操作父 live ⟹ 所有 depth<d 腿通过 persistent AncOK。
 /// 递归上溯 structural_parent_id 链，遇到已在 raw 中的祖先停止（闭包满足）。
@@ -2276,8 +2232,8 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         // parent 仍是 op_parent(L)（§15），只是当前 snapshot 没展示。
                         // op_parent 在 persistent registry 中 live（I4）→ AncOK 通过（I5）。
                         // ★I5 + §11 归纳：从 registry 递归恢复整条操作祖先链（op_parent 及其祖先），
-                        // 全部加入 work/raw，使 ancestor_close_by_id 通过（§11：每条未关闭腿的操作父
-                        // live ⟹ 所有 depth<d 腿通过 persistent AncOK）。
+                        // 全部加入 work/raw，使生产 AncOK（#183 归一后 = exit::step_active_set_with_subtree_close）
+                        // 通过（§11：每条未关闭腿的操作父 live ⟹ 所有 depth<d 腿通过 persistent AncOK）。
                         if let Some(op_pid) = leg.op_parent {
                             restore_ancestor_chain_from_registry(
                                 &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
@@ -2317,12 +2273,20 @@ pub(crate) fn coverage_step_from_buckets_sep(
         }
     }
 
+    // ★#183 T4 归一分段点：raw[0..a_t_end] = **A_t 段**（held 循环产出：持仓腿对位/Stale 重注册/
+    // LiveDetached restore/边界根保留），raw[a_t_end..] = **ℬ_x 段**（open 循环产出：开启候选 +
+    // open 父注入 restore）。spec §13 `A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x]`——子树清仓 𝒟_x^† 的定义域
+    // 是 A_t（持仓腿），ℬ_x 新开腿不经 𝒟_x^†（同 bar 同 carrier 先平后开的反手候选与种子同 id，
+    // 误清会禁绝一类/二类反手——#200 基线 typed=2 实证，ID-3「允许当场反手」行为口径）。
+    let a_t_end = raw.len();
+
     // ∪ ℬ_x：开启候选 → 其 638 附着因果树元素索引（candidate_start + gamma_index）。
     //
     // ★工位 H 修复（级别容器.pdf §13）：开仓激活的位置节点身份 = carrier 容器 hostOf(g)（其 ElementId
     // 在候选元素 id 上携带，见 interp.rs `coverage_elements_and_gamma_with_tower`），**不是**买卖点叶子。
     // 故候选自身入 raw 即等价于「激活 carrier 上的位置节点」（PDF §14 简化 position instance）。子声部
-    // 的 parent_id（= par_C(carrier)）由 ancestor_close_by_id 检查是否在 raw（= 持仓父位置节点在 A_t）。
+    // 的 parent_id（= par_C(carrier)）由生产 AncOK（#183 归一后 = exit::step_active_set_with_subtree_close）
+    // 检查是否在 raw（= 持仓父位置节点在 A_t）。
     //
     // ★删除旧 G host 注入（级别容器.pdf §6/§7 + §13 否定）：旧 G 把 `(c.level, c.source_index)` 命中的
     // **同级 host 叶子**注入 raw（叶子作持仓 = a_carrier 仍 0），是 PDF §6/§7 反证的"开叶子"错形式，
@@ -2375,14 +2339,15 @@ pub(crate) fn coverage_step_from_buckets_sep(
         // （L2 诊断：sd_parent_held=0），但**在 persistent registry 中 LiveDetached 存活**
         // （sd_parent_registry_alive≈sd_total）。Stale 持仓腿路径（上方 LiveDetached 分支）已用
         // [`restore_ancestor_chain_from_registry`] 把 op_parent 祖先链注入 raw，但 open 候选路径
-        // **从不触发**该恢复 ⟹ 父 carrier 不在 raw ⟹ ancestor_close_by_id 判子声部祖先不齐 ⟹ AncOK
+        // **从不触发**该恢复 ⟹ 父 carrier 不在 raw ⟹ 生产 AncOK（#183 归一后 =
+        // exit::step_active_set_with_subtree_close）判子声部祖先不齐 ⟹ AncOK
         // 全剪 depth>0 子腿（accepted_cert_carrier=0）。
         //
         // 修复：把 Stale 路径的祖先链恢复机制**扩展到 open 路径**——对每个 open 候选的父 carrier
         // （work[idx].parent_id），若 registry live 且不在 raw，从 registry 递归恢复整条结构祖先链
         // （§11 归纳：每条子声部腿的操作父 live ⟹ depth<d 祖先全在 raw ⟹ AncOK 通过）。这让持仓父
         // carrier 的位置节点进入 A_t（§8 父声部 carrier 跨 bar 持有，§9 祖先闭合兑现），depth>0 子腿
-        // 准入。**非** AncOK 加特例放行——父链真实注入后由原 ancestor_close_by_id 正常判定（no-patch）。
+        // 准入。**非** AncOK 加特例放行——父链真实注入后由统一 AncOK 判据正常判定（no-patch）。
         if idx < work.len() {
             if let Some(parent_pid) = work[idx].parent_id {
                 let parent_in_raw =
@@ -2395,8 +2360,73 @@ pub(crate) fn coverage_step_from_buckets_sep(
     }
 
     // 步2：A_{t+1}=AncOK(A^raw)——剔除真 Compose 父容器不在 raw 的孤儿子腿（§13 持仓准入：未持父则剔除）。
-    // ★codex Q4：按 parent_id 结构映射闭包（spec §13 `p:C_ℓ→C_{ℓ+1}`），非 per-bar 索引链。
-    let next_idx = ancestor_close_by_id(&work, &raw);
+    // ★#183 T4 归一（#179 裁决：结构对应是硬要求，子树清仓接线进生产 π loop）：
+    // 活动集一步更新 A_{t+1}=AncOK[(A^raw ∖ 𝒟_x^†)] 归一到镜像函数
+    // [`super::exit::step_active_set_with_subtree_close`]——
+    //   ① subtree_close 把关闭种子 𝒟_x 扩为子树闭包 𝒟_x^†（父终结 ⟹ 全部后代同刻清除，
+    //      短差腿无豁免；restore 复活的被关父腿同样命中种子——归一前 restore 可复活被关父、
+    //      子借父链 AncOK 准入，「父关则子关」被 restore 扩集击穿，见证测试
+    //      `t4_subtree_close_unifies_production_active_set_step`）；
+    //   ② 声部层 AncOK 闭合（判据与旧 `ancestor_close_by_id` 逐点等价：raw 内 ElementId 唯一
+    //      （#216 三处注册路径闭合）+ `is_boundary_root ⟺ parent_id.is_none()`（element_as_leg
+    //      同源构造）+ 链断裂（父 id 不在集）即剪，两实现同判）。
+    // restore 注入的扩集语义**保留**（#179 裁决）：held/open 路径的 restore 注入照常（raw 构造
+    // 零改动），仅最终成员资格由镜像函数统一裁决——存活腿的祖先链恢复行为不变（守护测试
+    // `t4_unify_preserves_restore_expansion_for_surviving_legs`）。
+    // 分段（spec §13 公式形态）：A_t 段（held 循环产出）经 𝒟_x^† 子树清仓；ℬ_x 段（open 循环
+    // 产出：候选 + open 父注入）作 opened 并入、不经 𝒟_x^†——反手候选与种子同 id 时按 id 误清
+    // 会禁绝先平后开（#200 基线 typed=2 实证）。
+    // ★不对称记录（code-review Spec 轴 (c)1 在案）：ℬ_x 段的 open 父注入 restore 不经 𝒟_x^†——
+    // 父本 bar 被裁决终结且同 bar 候选以其为 carrier 时，父可经 open 注入复活、候选 AncOK
+    // 准入；这与 A_t 段「restore 不得复活被关父」（`t4_subtree_close_unifies_production_active_set_step`
+    // 锁定）不对称，但与归一前旧路径行为**逐点一致**（旧 ancestor_close_by_id 同样放行）——
+    // 属 #179 裁决保留的 restore 扩集面（spec §13 公式字面：(A_t∖𝒟_x^†)∪ℬ_x 中 ℬ_x 不经 𝒟_x^†），
+    // 非回归；是否收口的终局裁决不在本票范围（留 fog 记录）。
+    let a_t_legs: Vec<ActiveLeg> = raw[..a_t_end]
+        .iter()
+        .map(|&i| element_as_leg(&work[i]))
+        .collect();
+    let b_x_legs: Vec<ActiveLeg> = raw[a_t_end..]
+        .iter()
+        .map(|&i| element_as_leg(&work[i]))
+        .collect();
+    let next_legs =
+        super::exit::step_active_set_with_subtree_close(&a_t_legs, &buckets.close, &b_x_legs);
+    // ★#183 生产路径不变量见证（#148 验收2「镜像层测试升级为生产路径测试」）：每步活动集
+    // 推进后 ∀v∈A, Anc(v)⊆A 恒成立（step L0 构造内蕴）。debug 构建逐 bar 核验——**debug
+    // profile 下**全测试库的每一次生产推进都是本不变量的见证实例（release 构建编译消除，
+    // 不作 release 见证声称）。
+    debug_assert!(
+        super::exit::anc_subset_of_active(&next_legs),
+        "AncOK 活动集不变量破裂：∀v∈A, Anc(v)⊆A（#148 验收2，#183 生产路径逐 bar 见证）"
+    );
+    // ★#183 映射前提的 fail-closed 见证（code-review Standards 轴 judgement call 2 采纳）：
+    // raw_id_idx 由 raw 直建，重复 id 会静默取后者（存量腿属性错配 opened 段索引）——
+    // 「raw 内 ElementId 唯一」（#216 三处注册路径闭合）自此逐 bar 硬门核验，不依赖隐性前提。
+    debug_assert!(
+        {
+            let mut ids: Vec<_> = raw.iter().map(|&i| work[i].id).collect();
+            ids.sort_by_key(|id| (id.level, id.ordinal));
+            ids.windows(2).all(|w| w[0] != w[1])
+        },
+        "raw 内 ElementId 唯一性破裂（#216 注册路径闭合失效）⟹ raw_id_idx 静默错配（#183）"
+    );
+    // 映射回 work 索引供 strategy_target_legs 消费。**id→idx 从 raw 直建**（raw 内 ElementId
+    // 唯一，#216 三处注册路径闭合的不变量）：不走 id_idx/overlay_seen——那是「全 work 首个同 id
+    // 元素」的首现序查找语义（restore 复用判定用），held 重注册在候选段后 push 自身元素时首现
+    // 槽位是候选拷贝，按它映射会把持仓身份错指成候选属性（`held_leg_id_hits_candidate_copy_
+    // keeps_held_identity` 实证）。next_legs ⊆ (A_t∖𝒟_x^†)∪ℬ_x 保 raw 序 ⟹ next_idx 序与旧
+    // ancestor_close_by_id 输出一致。
+    let raw_id_idx: std::collections::HashMap<ElementId, usize> =
+        raw.iter().map(|&i| (work[i].id, i)).collect();
+    let next_idx: Vec<usize> = next_legs
+        .iter()
+        .map(|l| {
+            *raw_id_idx
+                .get(&l.id)
+                .expect("step_active_set_with_subtree_close 产出 ⊆ raw（raw 内 id 唯一，#216）")
+        })
+        .collect();
 
     // p̃=Σ Leg(g)（depth 权重沿真父链 + 方向净额聚合，ShortDiff 空腿部分对冲父多腿）。
     let mut legs = strategy_target_legs(&work, &next_idx, base_units, config);
@@ -4857,7 +4887,8 @@ mod tests {
     /// 才能让子腿 AncOK 准入。
     ///
     /// **RED（修复前）**：open 候选路径从不调 `restore_ancestor_chain_from_registry` ⟹ 父 carrier 不在
-    /// raw（既非 held 又非 open 候选自身）⟹ ancestor_close_by_id 判子声部祖先不齐 ⟹ AncOK 全剪 ⟹
+    /// raw（既非 held 又非 open 候选自身）⟹ 生产 AncOK（#183 归一后 =
+    /// `exit::step_active_set_with_subtree_close`）判子声部祖先不齐 ⟹ AncOK 全剪 ⟹
     /// active 不含 L0 ShortDiff 子腿。**GREEN（修复后）**：open 候选父 parent_id registry-live ⟹ 恢复父
     /// carrier 祖先链入 raw ⟹ 子腿准入。
     ///
@@ -5113,6 +5144,81 @@ mod tests {
         assert_eq!(carrier_legs[0].dir, VoiceSide::Long, "持仓身份优先：方向不得被候选信号翻转");
         assert_eq!(carrier_legs[0].source_index, 40, "持仓身份优先：坐标取腿自身（非候选点元素）");
         assert_eq!(carrier_legs[0].op_parent, Some(parent), "op_parent 持久（I4），非候选 parent_id 改写");
+    }
+
+    /// ★#183 T4 归一**生产路径见证**（#179 裁决：结构对应是硬要求，子树清仓接线进生产 π loop）：
+    /// 父腿被裁决终结（∈𝒟_x）⟹ **子树全清**——后代腿（含短差腿，无豁免）同刻清除，
+    /// restore 不得复活被关父腿。
+    ///
+    /// **RED（归一前）**：环6 按字面 𝒟_x skip；LiveDetached 子腿的 restore 把被关父腿从 registry
+    /// 复活注入 raw ⟹ 父复活、子借 restore 父链 AncOK 准入存活（「父关则子关」靠 AncOK 被动
+    /// 兑现，被 restore 扩集击穿）。**GREEN（归一后）**：活动集一步更新归一
+    /// [`super::exit::step_active_set_with_subtree_close`]——subtree_close 把种子扩为子树闭包
+    /// （restore 复活的被关父命中种子 ⟹ 父子同清），短差腿无豁免（ADR 0001 条目4）。
+    ///
+    /// 定义依据：#148 T4（AncOK 子树清仓）+ #179 裁决（接线进生产、restore 扩集保留）+
+    /// spec §13 line 671（子级短差腿存在 ⟹ 父容器存在）。
+    #[test]
+    fn t4_subtree_close_unifies_production_active_set_step() {
+        let child = eid(0, 900);
+        let parent = eid(1, 901);
+        // 短差子腿（Short，反父 Long 方向 ⟹ ShortDiff 角色）+ 父腿（Long，边界根）。
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 30, lambda: 20,
+            id: child, parent_id: Some(parent), is_boundary_root: false, op_parent: Some(parent),
+        };
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let prev = [leg_child, leg_parent];
+        // 父腿被裁决终结（interpret 规则2 的 𝒟_x）；空树 ⟹ 两腿皆 Stale（LiveDetached 场景：
+        // restore 复活面暴露——归一前父腿经子腿 restore 复活注入 raw）。
+        let buckets = Buckets { close: vec![leg_parent], open: vec![], record: vec![] };
+        let tree: Vec<CoverageElement> = vec![];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&tree, &prev);
+        let (active, _p) =
+            coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
+        assert!(
+            !active.iter().any(|l| l.id == parent),
+            "父腿被裁决终结 ⟹ 不得入 A_{{t+1}}（restore 不得复活被关父腿）；实得 {active:?}"
+        );
+        assert!(
+            !active.iter().any(|l| l.id == child),
+            "短差子腿无豁免：父终结 ⟹ 子树全清（#148 T4 生产兑现）；实得 {active:?}"
+        );
+    }
+
+    /// ★#183 restore 扩集语义**保留守护**（#179 裁决：restore 注入的扩集语义保留并在新路径
+    /// 显式兑现）：同构场景但父腿**未被**裁决终结——LiveDetached 子腿的 restore 照常复活父链
+    /// 入 raw，父（registry-live 祖先）入 A_{t+1}、子借父链 AncOK 准入。归一前后行为不变。
+    #[test]
+    fn t4_unify_preserves_restore_expansion_for_surviving_legs() {
+        let child = eid(0, 900);
+        let parent = eid(1, 901);
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 30, lambda: 20,
+            id: child, parent_id: Some(parent), is_boundary_root: false, op_parent: Some(parent),
+        };
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let prev = [leg_child, leg_parent];
+        // 父腿**不关**（close 空）⟹ restore 扩集语义面（对照组）。
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        let tree: Vec<CoverageElement> = vec![];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&tree, &prev);
+        let (active, _p) =
+            coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
+        assert!(
+            active.iter().any(|l| l.id == parent),
+            "restore 扩集保留：父链经子腿 restore 复活入 A_{{t+1}}；实得 {active:?}"
+        );
+        assert!(
+            active.iter().any(|l| l.id == child),
+            "子腿借 restore 恢复的父链 AncOK 准入（restore 语义不变）；实得 {active:?}"
+        );
     }
 
     /// ★(I-1) open 父注入非膨胀守卫：父 carrier **不在 registry**（既非持仓又非 registry-live）⟹ 子腿

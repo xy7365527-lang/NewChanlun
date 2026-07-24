@@ -173,38 +173,6 @@ pub fn parent_invalid_at(held: &[Option<HeldVoice>], depth: usize) -> bool {
     }
 }
 
-/// **cascade 发射**（关⑤ §3.5，M16 AncOK「父关则子关」+ §20 先平后开执行序）：
-/// depth `trigger_depth` 的退出触发后，对所有 `j > trigger_depth` 且 `held[j].is_some()`
-/// 的更深声部**强制**产退出决策（`exit=true`，复用入场快照），**最深优先**（j 降序），
-/// 触发决策自身收尾。
-///
-/// - `exit_pending` 槽跳过（fill 前抑制重复触发，exit.rs:33-35 机制沿用）。
-/// - 空槽/零手数由下游 `plan_orders`（q=0 不产 Close）自然过滤，此处不重复判（单一来源）。
-/// - 最深优先使子腿现金先到位、父腿后平（双账本下子腿平仓收/付现金独立成腿，§4.3）。
-pub fn cascade_exit_decisions(
-    held: &[Option<HeldVoice>],
-    trigger_depth: usize,
-    trigger_exit: VoiceDecision,
-    i: usize,
-) -> Vec<VoiceDecision> {
-    let mut out = Vec::new();
-    for j in (trigger_depth + 1..held.len()).rev() {
-        if let Some(hv) = &held[j] {
-            if hv.exit_pending {
-                continue; // fill 前抑制（一次触发一次平仓）
-            }
-            let mut d = hv.decision;
-            d.exit = true;
-            d.enter_ok = false;
-            d.signal_index = i;
-            d.depth = j as u32;
-            out.push(d);
-        }
-    }
-    out.push(trigger_exit);
-    out
-}
-
 // ════════════════════════════════════════════════════════════════════════════
 //  #148 T4：祖先耦合收口——AncOK 子树清仓（活动集层）
 //
@@ -213,13 +181,15 @@ pub fn cascade_exit_decisions(
 //  父声部终结（如 CloseRoot 命中）时，其全部后代声部经 [`subtree_close`] 剪除（子树清仓），
 //  一步后活动集恒满足 `Anc(v) ⊆ A_{t+1}`（[`anc_subset_of_active`]，M16 AncOK 声部层实例）。
 //
-//  复用而非重复实现级联逻辑：
-//  - deepest-first + 触发者收尾的发射序沿用 [`cascade_exit_decisions`]（M16 AncOK 父关则子关、
-//    §20 先平后开）——depth 槽线性链是 parent_id 树的线性特例（一致性见证
-//    `t4_linear_chain_subtree_close_matches_cascade_deepest_first`）。
-//  - 祖先闭合语义沿用 coverage `ancestor_close_by_id`（spec §13 `AncOK(A)={a∈A:Anc(a)⊆A}`），
-//    此处作用域是声部活动腿（[`ActiveLeg`]，`parent_id` 结构链 + `is_boundary_root` 根锚），
-//    非 CoverageElement 全元素集——两域元素类型不同，不构成镜像实现。
+//  ★#183 归一（#179 裁决：结构对应是硬要求，子树清仓接线进生产 π loop）：
+//  本节函数即生产「父关则子关」的**唯一实装**——
+//  - coverage.rs 环6 活动集一步更新 A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x] 归一到
+//    [`step_active_set_with_subtree_close`]（散装 `ancestor_close_by_id` 已下线）；
+//  - runner（`plan_and_fill_mtm_dual`）与 nautilus（`ThetaCore::plan_for_bar`）的级联发射
+//    归一到 [`subtree_close_exit_decisions`]（held 槽压缩链投影 → [`subtree_close`]；
+//    散装 `cascade_exit_decisions` 已下线——deepest-first + 触发者收尾的发射序由
+//    [`subtree_close`] 的代际降序同一兑现，depth 槽线性链是 parent_id 树的线性特例）。
+//  归一即删除散装等价物（#183 no-patch 硬约束：不允许旧路径保留为 fallback）。
 // ════════════════════════════════════════════════════════════════════════════
 
 use super::interp::ActiveLeg;
@@ -277,8 +247,8 @@ fn generation_depth(leg: &ActiveLeg, by_id: &HashMap<ElementId, &ActiveLeg>, bou
 
 /// **子树清仓 `𝒟_x^† = {v∈A_t : ({v}∪Anc(v)) ∩ 𝒟_x ≠ ∅}`**（#148 验收1 核心）：
 /// 父声部终结 ⟹ 其全部后代声部同刻纳入关闭集（M16 AncOK「父关则子关」在 parent_id 树上的
-/// 传递闭包）。返回序 **deepest-first**（代际深者先平、种子父收尾——沿用
-/// [`cascade_exit_decisions`] 的发射序，§20 先平后开：子腿现金先到位）。
+/// 传递闭包）。返回序 **deepest-first**（代际深者先平、种子父收尾——生产级联发射序，
+/// §20 先平后开：子腿现金先到位；#183 归一后本序即生产唯一发射序）。
 ///
 /// - `seeds` = 直接被裁决终结的声部（interp 规则2 的 𝒟_x，契约 `𝒟_x⊆A_t`）。
 /// - 后代判据：v 自身或沿 `parent_id` 链（A 内解析）任一祖先的 id ∈ seeds。
@@ -363,6 +333,80 @@ pub fn step_active_set_with_subtree_close(
         .collect()
 }
 
+/// **生产级联发射（#183 T4 归一，#179 裁决：结构对应是硬要求）**：depth 槽 `held` 台账
+/// 投影压缩链 → [`subtree_close`] → 最深优先退出决策序列（触发者收尾）。
+///
+/// 生产「父关则子关」级联自此归一到 T4 镜像函数；散装 `cascade_exit_decisions`（depth 槽
+/// 线性递推）已随归一下线（归一即删除散装等价物，#183 no-patch 硬约束）。
+///
+/// depth 槽线性链是 parent_id 树的线性特例：`held[j]` 的父 = 链中前一活槽。投影把非
+/// `None` 且非 `exit_pending` 槽按 depth 升序成链（各槽 parent 指向前一槽、链首根锚），
+/// [`subtree_close`] 在该投影上的子树闭包 ⟺ 旧 cascade 的「更深活槽全集」；deepest-first
+/// 按代际深度降序 ⟺ depth 降序（单脊柱 depth 索引单槽、链内无平局）；触发者（链中种子，
+/// 代际最浅）收尾——与旧 cascade 逐点等价（一致性见证
+/// `t4_linear_chain_production_cascade_matches_subtree_close_deepest_first`）。
+///
+/// - `exit_pending` 槽不入链（fill 前抑制重复触发，等价旧 cascade 的 skip；exit.rs:33-35 机制）。
+/// - 触发决策 `trigger_exit` 收尾（调用方经 [`exit_decision_for_nested`] 产出，与其余腿的
+///   快照重构同构：exit=true ∧ enter_ok=false ∧ signal_index=i ∧ depth=槽位）。
+/// - 调用契约：触发槽非 `None` 且非 pending（两处生产调用点——runner `plan_and_fill_mtm_dual`
+///   与 nautilus `ThetaCore::plan_for_bar`——的外层循环已过滤，否则 expect fail-closed）。
+pub fn subtree_close_exit_decisions(
+    held: &[Option<HeldVoice>],
+    trigger_depth: usize,
+    trigger_exit: VoiceDecision,
+    i: usize,
+) -> Vec<VoiceDecision> {
+    // 压缩链投影：非 None && !exit_pending 槽按 depth 升序成链；parent = 链中前一槽，链首根锚。
+    // 投影字段仅 `id/parent_id/is_boundary_root` 参与子树判据；`level/dir/source_index/lambda/
+    // op_parent` 同为占位（快照值填充，不读出、id 不流出本函数——占位声明补全，code-review 采纳）。
+    let mut legs: Vec<ActiveLeg> = Vec::new();
+    let mut prev_id: Option<ElementId> = None;
+    for (depth, slot) in held.iter().enumerate() {
+        let hv = match slot {
+            Some(h) if !h.exit_pending => h,
+            _ => continue, // 空槽/pending 槽不入链（fill 前抑制，等价旧 cascade skip）
+        };
+        let id = ElementId { level: hv.decision.level, ordinal: depth as u64 };
+        legs.push(ActiveLeg {
+            level: hv.decision.level,
+            dir: hv.side,
+            source_index: hv.decision.signal_index,
+            lambda: hv.decision.signal_index,
+            id,
+            parent_id: prev_id,
+            is_boundary_root: prev_id.is_none(),
+            op_parent: prev_id,
+        });
+        prev_id = Some(id);
+    }
+    // 种子 = 触发腿（调用契约：触发槽非 None 非 pending ⟹ 必在链中）。
+    let seed = legs
+        .iter()
+        .find(|l| l.id.ordinal == trigger_depth as u64)
+        .copied()
+        .expect("调用契约：触发槽非 None 非 pending（外层循环已过滤）⟹ 触发腿在投影链中");
+    // 子树清仓（T4 镜像函数）：触发者的全部后代（= 链上更深活槽）同刻纳入关闭集，deepest-first。
+    let closed = subtree_close(&legs, &[seed]);
+    // 映射回退出决策：触发者用传入决策收尾，其余按持仓快照重构（与旧 cascade 逐字段同构）。
+    closed
+        .iter()
+        .map(|l| {
+            let depth = l.id.ordinal as usize;
+            if depth == trigger_depth {
+                return trigger_exit;
+            }
+            let hv = held[depth].expect("投影链腿来自非 None 槽");
+            let mut d = hv.decision;
+            d.exit = true;
+            d.enter_ok = false;
+            d.signal_index = i;
+            d.depth = depth as u32;
+            d
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -433,7 +477,7 @@ mod tests {
         let closed_ids: Vec<ElementId> = closed.iter().map(|l| l.id).collect();
         assert_eq!(closed.len(), 3, "父 + 全部后代同刻终结");
         assert!(closed_ids.contains(&child.id) && closed_ids.contains(&grand.id));
-        // 最深优先（复用 cascade deepest-first 语义），父收尾。
+        // 最深优先（生产级联 deepest-first 语义），父收尾。
         assert_eq!(closed_ids, vec![grand.id, child.id, root.id]);
         // A_{t+1} 无孤儿：全清空且不变量成立。
         let next = step_active_set_with_subtree_close(&active, &buckets.close, &[]);
@@ -512,20 +556,21 @@ mod tests {
         }
     }
 
-    // ── #148 T4：与既有 cascade（depth 槽线性链）的语义一致性见证 ─────────
+    // ── #148 T4：生产级联（#183 归一）与 subtree_close 的一致性见证 ─────────
 
-    /// 线性链上子树清仓与 cascade_exit_decisions 同序（deepest-first、触发者收尾）——
-    /// 复用而非重复实现级联逻辑的一致性见证（depth 槽链是 parent_id 树的线性特例）。
+    /// 生产级联 [`subtree_close_exit_decisions`]（held 槽压缩链投影 → subtree_close）与
+    /// subtree_close 在树侧同一 deepest-first 序（触发者收尾）——#183 归一后生产「父关则子关」
+    /// 直接经镜像函数发射的一致性见证（depth 槽线性链是 parent_id 树的线性特例）。
     #[test]
-    fn t4_linear_chain_subtree_close_matches_cascade_deepest_first() {
+    fn t4_linear_chain_production_cascade_matches_subtree_close_deepest_first() {
         let (root, child, grand) = chain3();
         let active = vec![root, child, grand];
         let closed = subtree_close(&active, &[root]);
         // 树侧序：孙、子、根（代际降序）。
         let tree_generations: Vec<u32> = closed.iter().map(|l| 2 - l.level).collect();
-        // cascade 侧（depth 槽线性链，depth0 触发）：[2, 1, 0]。
+        // 生产级联侧（held 槽压缩链，depth0 触发）：[2, 1, 0]。
         let held = vec![Some(held_at(0, false)), Some(held_at(1, false)), Some(held_at(2, false))];
-        let out = cascade_exit_decisions(&held, 0, trigger_of(&held[0].unwrap(), 3), 3);
+        let out = subtree_close_exit_decisions(&held, 0, trigger_of(&held[0].unwrap(), 3), 3);
         let cascade_depths: Vec<u32> = out.iter().map(|d| d.depth).collect();
         assert_eq!(tree_generations, cascade_depths, "同一 deepest-first 序（线性特例一致）");
     }
@@ -578,15 +623,15 @@ mod tests {
         d
     }
 
-    /// C1（最深优先 cascade）：held[0..3] 全活，depth 0 触发退出 ⟹ 产 3 决策，
-    /// 序 [depth2, depth1, depth0]。
+    /// C1（最深优先级联，#183 归一到 subtree_close_exit_decisions）：held[0..3] 全活，
+    /// depth 0 触发退出 ⟹ 产 3 决策，序 [depth2, depth1, depth0]。
     #[test]
-    fn cascade_parent_exit_closes_descendants_deepest_first() {
+    fn subtree_close_parent_exit_closes_descendants_deepest_first() {
         let held = vec![Some(held_at(0, false)), Some(held_at(1, false)), Some(held_at(2, false))];
         let trigger = trigger_of(&held[0].unwrap(), 7);
-        let out = cascade_exit_decisions(&held, 0, trigger, 7);
+        let out = subtree_close_exit_decisions(&held, 0, trigger, 7);
         assert_eq!(out.len(), 3, "两个更深声部强制退出 + 触发决策收尾");
-        assert_eq!(out[0].depth, 2, "最深优先（j 降序）");
+        assert_eq!(out[0].depth, 2, "最深优先（代际降序 ⟺ j 降序）");
         assert_eq!(out[1].depth, 1);
         assert_eq!(out[2].depth, 0, "触发决策（父）收尾");
         assert!(out.iter().all(|d| d.exit && !d.enter_ok), "全部 exit=true 退出态");
@@ -617,19 +662,25 @@ mod tests {
     }
 
     /// C3（fill 前抑制）：父 exit_pending=true ⟹ 子经 parent_invalid 判失效；
-    /// cascade 跳过已 pending 的更深槽（不重复产退出）。
+    /// 级联发射（#183 归一）跳过已 pending 的更深槽（不重复产退出）。
     #[test]
-    fn cascade_exit_pending_suppressed() {
-        let held = vec![
+    fn subtree_close_exit_pending_suppressed() {
+        // 判据面：父 pending ⟹ 子的 parent_invalid 判据为真（父背景已否决）。
+        let held_pending_parent = vec![
             Some(held_at(0, true)),  // 父已 pending（退出在延迟队列）
-            Some(held_at(1, true)),  // 子已被上轮 cascade 标 pending
+            Some(held_at(1, true)),  // 子已被上轮级联标 pending
             Some(held_at(2, false)), // 孙未触发
         ];
-        // 父 pending ⟹ 子的 parent_invalid 判据为真（父背景已否决）。
-        assert!(parent_invalid_at(&held, 1), "父 exit_pending ⟹ 子父失效");
-        // 再从 depth 0 发射：已 pending 的 depth1 跳过（不重复产退出），depth2 强制，父收尾。
+        assert!(parent_invalid_at(&held_pending_parent, 1), "父 exit_pending ⟹ 子父失效");
+        // 发射面（生产调用契约：触发槽经外层循环过滤必非 pending）：已 pending 的 depth1
+        // 不入投影链（跳过，不重复产退出），depth2 强制，触发者 depth0 收尾。
+        let held = vec![
+            Some(held_at(0, false)), // 触发者（生产循环已过滤 pending）
+            Some(held_at(1, true)),  // 子已 pending ⟹ 跳过
+            Some(held_at(2, false)), // 孙未触发
+        ];
         let trigger = trigger_of(&held[0].unwrap(), 5);
-        let out = cascade_exit_decisions(&held, 0, trigger, 5);
+        let out = subtree_close_exit_decisions(&held, 0, trigger, 5);
         assert_eq!(out.len(), 2, "pending 槽跳过：只孙 + 父");
         assert_eq!(out[0].depth, 2);
         assert_eq!(out[1].depth, 0);
@@ -637,7 +688,7 @@ mod tests {
 
     /// C4（根回归锁）：仅 depth0 活 ⟹ 行为与现行逐字节同（parent_invalid=false 路径回归）。
     #[test]
-    fn cascade_root_only_regression() {
+    fn subtree_close_root_only_regression() {
         let h = held_at(0, false); // Long 根，stop=950
         let bar = bar_at(3, 960, 965, 900, 920); // low 900 ≤ 950 ⟹ 多头止损触及
         let groups: Vec<Vec<&VoiceDecision>> = vec![];
@@ -655,8 +706,8 @@ mod tests {
         assert_eq!(a.signal_index, b.signal_index);
         assert_eq!(a.entry, b.entry);
         assert_eq!(a.level, b.level);
-        // 根触发 ⟹ cascade 无更深声部 ⟹ 仅触发决策自身。
-        let out = cascade_exit_decisions(&held, 0, trigger_of(&h, 3), 3);
+        // 根触发 ⟹ 级联无更深声部 ⟹ 仅触发决策自身。
+        let out = subtree_close_exit_decisions(&held, 0, trigger_of(&h, 3), 3);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].depth, 0);
     }

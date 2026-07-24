@@ -1589,7 +1589,8 @@ mod profile {
     /// 测 step 总时间标度 `step_exp`，验收①② 缓存命中后 base 段 O(1)（不再每 bar `build_*_index` O(tree)）。
     ///
     /// 诚实诊断（formalization-validity-domain 231号 L2）：step 路径仍含 **candidate 段重建**（每 bar
-    /// candidate ∝ confirmed，§16 不可缓存——candidate 随 bar 变）+ `ancestor_close_by_id`（raw 闭包 O(raw)）
+    /// candidate ∝ confirmed，§16 不可缓存——candidate 随 bar 变）+ 生产 AncOK 闭包（#183 归一后 =
+    /// `exit::step_active_set_with_subtree_close`，raw 闭包 O(raw)）
     /// + `strategy_target_legs` 遍历 active（O(active)）。①②缓存只消除 base 段索引重建，candidate/active
     /// 遍历是 step 的内禀工作量（非重复重建）。step_exp 反映这些残留的真实标度——若仍 >1.5 诚实报告，
     /// 不强声明①② 已让 step≈1.0（candidate 重建是独立残留，非①②）。

@@ -3683,7 +3683,7 @@ fn plan_and_fill_mtm_dual(
 ) -> FillOutputDual {
     use super::super::strategy::exec::fill_bar_index;
     use super::super::strategy::exit::{
-        cascade_exit_decisions, exit_decision_for_nested, parent_invalid_at,
+        exit_decision_for_nested, parent_invalid_at, subtree_close_exit_decisions,
     };
     use super::super::strategy::risk;
     use super::super::strategy::voice::VoiceSide;
@@ -3864,8 +3864,10 @@ fn plan_and_fill_mtm_dual(
                 {
                     if let Some(fi) = fill_bar_index(i, bars, &config.exec) {
                         if fi < n {
-                            // cascade 发射（M16 AncOK 父关则子关，最深优先）+ pending 标记。
-                            for d in cascade_exit_decisions(&held, depth, exit_d, i) {
+                            // 级联发射（M16 AncOK 父关则子关，最深优先）+ pending 标记。
+                            // ★#183 T4 归一：生产级联归一到镜像函数（held 槽压缩链投影 →
+                            // subtree_close；散装 cascade_exit_decisions 已下线）。
+                            for d in subtree_close_exit_decisions(&held, depth, exit_d, i) {
                                 if let Some(Some(h)) = held.get_mut(d.depth as usize) {
                                     h.exit_pending = true;
                                 }
@@ -5357,6 +5359,100 @@ mod tests {
             })
             .expect("父仓平仓成交存在");
         assert_eq!(parent_close.order.reason, ActionReason::WindowEnd);
+    }
+
+    /// ★#183 runner 级端到端复验（#148 验收1 在新路径上复验，code-review Spec 轴 (a)3 采纳）：
+    /// **父声部一类卖（CloseRoot 命中）⟹ 同刻全部后代声部终结，无孤儿声部存活**——
+    /// 生产 π loop（`pi_theta_fill_loop` → `coverage_step_from_buckets` 归一路径）端到端。
+    ///
+    /// 场景 = E 组塔夹具：父 L1 Long 根（buy1@12 开 @13）+ 子 L0 Short 短差（sell1@16 开 @17）
+    /// 持仓中，L1 sell1@18（父级别一类卖，bar≥20 确认）⟹ interpret 规则2 关父（𝒟_x={父}）⟹
+    /// **子树清仓**：短差子腿同刻（exit=20）清除（短差腿无豁免，ADR 0001 条目4）。
+    ///
+    /// 见证（2026-07-24 本票实跑）：typed 恰 2 条——父 CloseRoot（interpret close 桶，
+    /// prune=false）+ 子 CloseShortDiff（via_structural_prune=true，子树清仓经结构剪枝外化
+    /// 路径落 typed，与旧 AncOK 被动剪同一路径 ⟹ typed 层新旧同构）；账户流 父 Core{1}×
+    /// ReverseType1（一类口径）、子 ShortDiff×StructuralPrune（exit_type==CloseShortDiff ⟺
+    /// account==ShortDiff，#198 跨账一致）；终态 Core{1}=ShortDiff=0（无孤儿）。
+    #[test]
+    fn t4_pi_loop_parent_type1_close_liquidates_shortdiff_child_subtree() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+        use super::super::super::strategy::interp::ExitType;
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        // 时序：i≥13 仅父 L1 buy1@12；i≥17 + 子 L0 sell1@16；i≥20 + 父 L1 sell1@18（一类卖）。
+        let cls_parent = {
+            let mut c = e_classification(false);
+            c.levels[0] = LevelState::default();
+            c
+        };
+        let cls_open = e_classification(false);
+        let cls_t1 = {
+            let mut c = e_classification(false);
+            let mut l1 = c.levels[1].bsp.as_ref().clone();
+            l1.push(BspPoint {
+                source_index: 18,
+                bits: BspBits { sell1: true, ..Default::default() },
+                pivot_low: 0,
+                pivot_high: 210,
+                center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 18 }),
+                struct_break_dir: None,
+                force: None,
+            });
+            c.levels[1] = LevelState { bsp: Rc::new(l1), ..Default::default() };
+            c
+        };
+        let tower = e_tower();
+        let classify = move |i: usize| {
+            let cls = if i >= 20 {
+                cls_t1.clone()
+            } else if i >= 17 {
+                cls_open.clone()
+            } else if i >= 13 {
+                cls_parent.clone()
+            } else {
+                Classification::default()
+            };
+            (cls, tower.clone(), i as u64, i as u64)
+        };
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        // 父终结 ⟹ 子树全清：typed 恰 2 条，同一 exit bar（同刻清仓）。
+        assert_eq!(fill.typed_ledger.len(), 2, "父 CloseRoot + 子树清仓短差腿恰两条 typed");
+        let parent_row = &fill.typed_ledger[0];
+        assert_eq!(parent_row.entry_z.level, 1, "首条 = 父 L1 腿");
+        assert_eq!(parent_row.exit_type, ExitType::CloseRoot, "父一类卖 ⟹ P5 CloseRoot");
+        assert!(!parent_row.via_structural_prune, "父 = interpret close 桶（非剪枝外化）");
+        let child_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.entry_z.delta == -1)
+            .expect("子 L0 ShortDiff typed 交易存在");
+        assert_eq!(child_row.exit_type, ExitType::CloseShortDiff, "短差子腿关闭归 CloseShortDiff");
+        assert!(child_row.via_structural_prune, "子 = 子树清仓（结构剪枝外化路径落 typed）");
+        assert_eq!(
+            child_row.exit_bar, parent_row.exit_bar,
+            "父终结⟹子树全清同一 bar（同刻清仓，无次刻孤儿窗口）"
+        );
+        // 账户流：父 Core{1}×ReverseType1（一类口径）；子 ShortDiff×StructuralPrune（跨账一致 #198）。
+        let view = &fill.account_view;
+        assert!(
+            view.fills().iter().any(|f| {
+                f.order.account() == AccountIdentity::Core { level: 1 }
+                    && f.order.reason == ActionReason::ReverseType1
+            }),
+            "父仓一类平 ⟹ Core{{1}}×ReverseType1"
+        );
+        assert!(
+            view.fills().iter().any(|f| {
+                f.order.account() == AccountIdentity::ShortDiff
+                    && f.order.reason == ActionReason::StructuralPrune
+            }),
+            "子树清仓短差腿 ⟹ ShortDiff×StructuralPrune（exit_type==CloseShortDiff ⟺ account==ShortDiff）"
+        );
+        // 无孤儿声部存活：终态父子余额皆零。
+        assert_eq!(view.balance(AccountIdentity::Core { level: 1 }), 0.0, "父 Core{{1}} 余额归零");
+        assert_eq!(view.balance(AccountIdentity::ShortDiff), 0.0, "子 ShortDiff 余额归零（无孤儿）");
     }
 
     /// ★#200 生产路径见证（红→绿，spec WP-2 修复 c / issue #200 验收一）：二类开空通道——

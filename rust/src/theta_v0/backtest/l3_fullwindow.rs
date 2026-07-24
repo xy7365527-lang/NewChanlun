@@ -387,7 +387,8 @@ fn elem_depth(elements: &[CoverageElement], idx: usize) -> u32 {
 ///
 /// 旧 bug：depth 走另一棵当前 bar 重建的 `elements` 树的 `parent`（索引）链——restore overlay 腿
 /// 的 id 若在新树命中深元素，被误算 depth≥3 落 active_depth_ge3 桶（伪证）。生产 AncOK
-/// （`ancestor_close_by_id`）的祖先闭包用 `parent_id`（ElementId 结构映射）在 work/next_active
+/// （#183 归一后 = `exit::step_active_set_with_subtree_close`）的祖先闭包用 `parent_id`
+/// （ElementId 结构映射）在 work/next_active
 /// **同一集合**上闭合——故 depth 必须用同坐标系：沿 `leg.parent_id` 链，按 id 在 next_active 内反查。
 ///
 /// AncOK 不变量 ⟹ next_active 中存活的 depth-d 腿，其 d 条 parent_id 祖先**也在 next_active**
@@ -576,7 +577,8 @@ fn instrument_bar(
             None => {
                 // Stale：★发现 A 修复——不伪造 parent:None。真边界根 ∂ 作根保留，非边界根 prune。
                 if leg.is_boundary_root {
-                    // 真边界根 ∂：保留（prune 逻辑在 ancestor_close_by_id 按 parent_id 闭包）。
+                    // 真边界根 ∂：保留（prune 逻辑在生产 AncOK 按 parent_id 闭包——#183 归一后 =
+                    // exit::step_active_set_with_subtree_close）。
                     // 此处 L3 探针只统计，不重建 work，故不计入 raw（与 coverage_step_from_buckets
                     // 的 prune 一致——非边界根 prune，边界根作根但 L3 探针无 work 追加路径）。
                 }
@@ -630,7 +632,8 @@ fn instrument_bar(
     //   深元素，被误算 depth≥3 → active_depth_ge3=14166 伪证（与 active_depth1=active_depth2=0 数学矛盾）。
     //
     // 修复：
-    //   ① depth 沿 `leg.parent_id` 链（生产 AncOK ancestor_close_by_id 闭合用的同一字段、同一集合），
+    //   ① depth 沿 `leg.parent_id` 链（生产 AncOK 闭合用的同一字段、同一集合——#183 归一后判据
+    //      本体 = exit::step_active_set_with_subtree_close），
     //      用 next_active 内的 id→parent_id 反查（leg_depth_by_parent_id）。
     //   ② 来源标注：open（本 bar open 候选）/ carry（id 在当前因果树 elements[..tree_end]）/ restored
     //      （二者皆非 = restore overlay）。restore 腿**单独计数**（active_restored + restored_depth*），

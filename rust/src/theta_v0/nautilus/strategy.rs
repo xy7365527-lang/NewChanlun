@@ -37,7 +37,7 @@ use crate::theta_v0::classifier;
 use crate::theta_v0::config::ThetaConfig;
 use crate::theta_v0::parser;
 use crate::theta_v0::strategy::exit::{
-    cascade_exit_decisions, exit_decision_for_nested, parent_invalid_at, record_held_voice,
+    exit_decision_for_nested, parent_invalid_at, record_held_voice, subtree_close_exit_decisions,
     HeldVoice,
 };
 use crate::theta_v0::strategy::voice::{self, VoiceSide};
@@ -165,9 +165,11 @@ impl ThetaCore {
             if let Some(exit_d) =
                 exit_decision_for_nested(&hv, depth, &self.bars[i], i, &groups_view, equity_now, parent_invalid)
             {
-                // ★关⑤ cascade 发射（M16 AncOK 父关则子关，最深优先）：父退出 ⟹ 全部更深
-                // held 强制退出（cascade_exit_decisions 跳过已 pending 槽，fill 前抑制）。
-                for d in cascade_exit_decisions(&self.held, depth, exit_d, i) {
+                // ★关⑤级联发射（M16 AncOK 父关则子关，最深优先）：父退出 ⟹ 全部更深
+                // held 强制退出（pending 槽跳过，fill 前抑制）。
+                // ★#183 T4 归一：生产级联归一到镜像函数（held 槽压缩链投影 → subtree_close；
+                // 散装 cascade_exit_decisions 已下线）。
+                for d in subtree_close_exit_decisions(&self.held, depth, exit_d, i) {
                     exit_decisions.push(d);
                     if let Some(slot) = self.held.get_mut(d.depth as usize) {
                         if let Some(ref mut h) = slot {
