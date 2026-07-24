@@ -25,6 +25,27 @@
 use super::super::types::{BspBits, Center, Side, Tick};
 use super::divergence::ForceProxies;
 
+/// ★#218 面 A：owner 归属载体（spec owner-attribution-fix-20260724 ID-1；#211 路线 B +
+/// v2 教义修订——归属/确认分层：确认 = 次级别区间套背驰证点成立，归属 = 同级别点属于谁，
+/// 两层各用各的结构对象，不可混载）。
+///
+/// owner 判同按载体形态分两族（判同机制在 nest.rs 核，spec ID-2，全部精确等值无容差）：
+/// - [`OwnerRef::Center`]：中枢参照（一/三类）——核心区间 `(zd, zg)` 带判同（中枢身份 =
+///   其定义内容价格带；事件侧 B 由 `b_center_start` 当查找键在账本 centers 查出，序号
+///   只当键不当身份）。
+/// - [`OwnerRef::Type1Anchor`]：点参照（二类）——该走势一类点身份锚的**坐标**
+///   （source_index = `find_second_type_structure` 识别的 i1 第一类离开走势终点 =
+///   该走势终点极值点，区间套恰好存在）；锚 =（极值价, 合并组锚）由 nest 核内经 T1
+///   供给线 oracle 判定时解析（提取层无分型/包含供给，只载坐标，零新增解析）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OwnerRef {
+    /// 中枢参照：一类 = 被破的最后中枢；三类 = 所离开回抽的中枢（归属走势的最新中枢）。
+    Center(Center),
+    /// 点参照：该走势一类点锚坐标（source_index；二类点归属参照——回拉不破一类极值，
+    /// 与本级别中枢无关，v2 教义修订）。
+    Type1Anchor(usize),
+}
+
 /// 端点语义状态（契约锚 `Origin.BspClassification.BspEndpoint`）。
 ///
 /// 端点相对中枢的拓扑/历史语义——区分三类买卖点的真实判据被编码为字段（对齐 `BspEndpoint` 的
@@ -113,21 +134,29 @@ pub fn endpoint_to_bsp(e: &EndpointSituation) -> BspBits {
 pub struct BspPoint {
     /// 候选点在 L0 原始 K 序的位置（平局裁决 + 回溯定位，reference:16）。
     pub source_index: usize,
+    /// #110 级别身份标签（SPEC #109 expand 第一票）：该点被提取时所在的塔级别下标
+    /// （0 = L0 线段层，ℓ = 级别-ℓ 账本）。classify stamping 路径写入（classify_impl /
+    /// classify_with_tower_incremental memo-miss 终装点，构造器默认 0）；参与 `PartialEq`
+    /// （结构身份的一部分——同坐标不同级别的点不等）。不进 `BspBits`/`class_index`/分桶 key。
+    pub level_origin: u32,
     /// 买卖点 bit-vector（非互斥 subset，2/3 类可共存）。
     pub bits: BspBits,
     /// 该买卖点 pivot low（1/2 类买点结构止损源；底分型/线段端点的极值 tick）。
     pub pivot_low: Tick,
     /// 该买卖点 pivot high（1/2 类卖点结构止损源；顶分型/线段端点的极值 tick）。
     pub pivot_high: Tick,
-    /// 该买卖点所在级别的最后中枢（3 类止损取 `zg`(买)/`zd`(卖)）。
+    /// 该买卖点的 owner 归属载体（[`OwnerRef`]；3 类止损取中枢 `zg`(买)/`zd`(卖) 经
+    /// [`OwnerRef::Center`] 读出）。
     ///
-    /// `None` = 无中枢（不可能出现 3 类 bit——3 类判据要求离开中枢，`is_third` 蕴含 left_center；
-    /// 故含 3 类 bit 时本字段必 `Some`）。★owner 载体补齐（关③ 补记 2026-07-18 ②，路径 (a)）：
-    /// 生产一/二类点构造时同样填入判定中枢（`make_first_point` 填被破的最后中枢 `last_center`、
-    /// `make_second_point` 填 `c1`）——名实一致（090）；center 是 Trend 域 owner=B 判定式
-    ///（`point.center.start_index == b_center_start`）的载体与回溯锚，1/2 类止损仍只用 pivot
-    ///（center 不进 1/2 类止损判据，止损语义不变）。
-    pub center: Option<Center>,
+    /// `None` = 无载体（不可能出现 3 类 bit——3 类判据要求离开中枢，`is_third` 蕴含 left_center；
+    /// 故含 3 类 bit 时本字段必 `Some(OwnerRef::Center(_))`）。载体按点类分（#218 面 A，
+    /// 归属/确认分层）：一类 = 被破的最后中枢（`make_first_point`）、三类 = 所离开回抽的
+    /// 中枢（`make_third_point`）均载 `OwnerRef::Center`；二类 = 该走势一类点身份锚坐标
+    /// （`make_second_point` 载 `OwnerRef::Type1Anchor`——v2 教义修订：二类归属参照是该走势
+    /// 一类点，回拉不破一类极值，与本级别中枢无关；旧载次级别中枢 c1 = 归属层混载确认层
+    /// 对象，级别错配根因，已裁定修填）。1/2 类止损仍只用 pivot（载体不进 1/2 类止损判据，
+    /// 止损语义不变）。
+    pub center: Option<OwnerRef>,
     /// ★P2-R2（p2-plan-20260701.md 分叉1 + codex-review-20260701-2251 护栏1/2）：破中枢结构方向源。
     ///
     /// `None` = 非破中枢结构候选（第二/三类端点，或未破最后中枢的段）；
@@ -168,6 +197,7 @@ pub struct BspPoint {
 impl PartialEq for BspPoint {
     fn eq(&self, other: &Self) -> bool {
         self.source_index == other.source_index
+            && self.level_origin == other.level_origin
             && self.bits == other.bits
             && self.pivot_low == other.pivot_low
             && self.pivot_high == other.pivot_high
@@ -317,7 +347,7 @@ mod tests {
     fn bsp_point_carries_pivot_low_for_first_buy() {
         // 路 B single source：1 买条目携带 pivot_low（strategy 1/2 买止损源，零重算）。
         let bits = BspBits { buy1: true, ..Default::default() };
-        let p = BspPoint {
+        let p = BspPoint { level_origin: 0,
             source_index: 42,
             bits,
             pivot_low: 1000,
@@ -336,17 +366,18 @@ mod tests {
         // 路 B single source：3 买条目携带 center（strategy 3 买止损=center.zg，无歧义定位）。
         let bits = BspBits { buy3: true, ..Default::default() };
         let c = center(800, 1200);
-        let p = BspPoint {
+        let p = BspPoint { level_origin: 0,
             source_index: 50,
             bits,
             pivot_low: 0,
             pivot_high: 0,
-            center: Some(c),
+            center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
         };
         // strategy 3 买止损 = center.zg（ZG，reference:46）——条目直接关联中枢，无需 strategy 猜。
-        assert_eq!(p.center.map(|c| c.zg), Some(1200));
+        // （#218 面 A 载体形态：Center 变体读出，机械适配。）
+        assert_eq!(p.center.and_then(|o| match o { OwnerRef::Center(c) => Some(c.zg), _ => None }), Some(1200));
         assert!(p.bits.buy3);
     }
 
@@ -360,7 +391,7 @@ mod tests {
         // classifier 顶层为含 3 类 bit 的端点填 center=Some（离开的那个中枢）——契约见 mod.rs。
         // 本测试锁定语义：strategy 读 3 类止损时 center 必可用。
         let c = center(800, 1200);
-        let p = BspPoint { source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(c), struct_break_dir: None, force: None };
+        let p = BspPoint { level_origin: 0, source_index: 0, bits, pivot_low: 0, pivot_high: 0, center: Some(OwnerRef::Center(c)), struct_break_dir: None, force: None };
         assert!(p.bits.buy3 && p.center.is_some());
     }
 
@@ -369,16 +400,17 @@ mod tests {
         // 卖镜像：1/2 卖止损=pivot_high；3 卖止损=center.zd。
         let bits = BspBits { sell1: true, ..Default::default() };
         let c = center(800, 1200);
-        let p = BspPoint {
+        let p = BspPoint { level_origin: 0,
             source_index: 7,
             bits,
             pivot_low: 0,
             pivot_high: 1500,
-            center: Some(c),
+            center: Some(OwnerRef::Center(c)),
             struct_break_dir: None,
             force: None,
         };
         assert_eq!(p.pivot_high, 1500); // 1/2 卖止损源
-        assert_eq!(p.center.map(|c| c.zd), Some(800)); // 3 卖止损源
+        // 3 卖止损源 center.zd（Center 变体读出，#218 面 A 载体形态机械适配）。
+        assert_eq!(p.center.and_then(|o| match o { OwnerRef::Center(c) => Some(c.zd), _ => None }), Some(800));
     }
 }
