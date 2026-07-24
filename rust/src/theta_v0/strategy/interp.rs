@@ -341,8 +341,11 @@ pub struct Buckets {
 /// 在飞映射喂 [`reverse_exit_type`]，runner 直接消费不再结算补算）。interp close 桶公开签名
 /// 与 ∃! 证明锚不动，生产订单流 bit-exact 不变（typed 化只是裁决标注）；P5/P6/P7 生产拆分
 /// 在 G5 实装阶段（#124，须复用 [`reverse_exit_type`]）。
-/// `closed_loop/sell.rs::SellDecision` 已有 CloseRoot/ReduceCore 重叠（disjoint 路径，G4 把 μ 管线
-/// 重接生产 π 后该路径废）——统一收敛到本枚举，届时删 SellDecision 侧（升级路径，非现在做）。
+/// `closed_loop/sell.rs::SellDecision` 曾有 CloseRoot/ReduceCore 重叠（G4 把 μ 管线重接生产 π 后，
+/// runner typed 主链不再消费该路径；但 econ 诊断链 `exit_decision_from_bits` 仍以其 type1>type3
+/// 平仓优先级为单一权威——#181 AFK 审计据此证伪「纯死路径」前提）——**#181 已收敛完成**：
+/// econ 消费方迁移后 SellDecision 侧删除，其优先级语义迁入 [`exit_type_of_classes`]（econ 诊断链
+/// bits 入口消费），统一收敛到本枚举单源。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitType {
     /// P5 CloseRoot：关 depth-0 根腿（一类反向点=根清仓）。
@@ -381,6 +384,39 @@ pub fn reverse_exit_type(entry_v: Vertical, trigger_class: u8) -> ExitType {
         ExitType::ReduceCore
     } else {
         ExitType::CloseRoot
+    }
+}
+
+/// 买卖点分类判据 → 平仓出场类型的**优先级映射**（type1>type3 单一来源）。
+///
+/// **#181 迁移**：本函数自 `closed_loop/sell.rs::sell_decision_of` 迁入——SellDecision 死路径
+/// 按改造裁定下线，type1>type3 优先级语义统一收敛到 [`ExitType`] 单源（[`ExitType`] docstring
+/// 的收敛预告由本迁移兑现）。返回类型由旧 `SellDecision` 三态换成 [`ExitType`]（CloseRoot/
+/// ReduceCore/Hold 一一对应，分支语义逐条不变）。
+///
+/// 从「是否第一类 / 是否第三类」两 bool 判据映为 [`ExitType`]，编码 §10.1/§11 缠论分支优先级：
+/// 第一类（顶背驰清仓）优先于第三类（回抽减核），二者皆否 ⟹ Hold（力度延续/非卖点）。
+///
+/// **单一来源（no-patch）**：type1>type3 优先级只在此处定义。`backtest::econ_positive::
+/// exit_decision_from_bits`（bsp bits 入口）消费本函数，不重编码优先级。出场决策恒为平仓语义
+/// （CloseRoot/ReduceCore）；空头出场由买点信号触发（买点镜像卖点，Lean
+/// `type1_buy_sell_share_divergence`）但决策仍是平仓 ⟹ 买/卖两方向出场同走本映射。
+///
+/// 与 [`reverse_exit_type`] 的分工：两入口输入形状不同（本函数接一/三类判据 bool；
+/// [`reverse_exit_type`] 接被关腿 `entry_v` + 反向触发类），优先级结论一致（一类触发归
+/// CloseRoot 压过三类归 ReduceCore——[`reverse_exit_type`] 侧由调用方喂最小成立类实现）。
+/// [`reverse_exit_type`] 的「二类反向归 CloseRoot」是 #199 裁定的生产 typed 链读法，与本函数
+/// 服务的 econ 诊断链「二类 ⟹ Type2Missing 诚实标注」口径正交（本函数不消费二类判据）。
+pub fn exit_type_of_classes(is_type1: bool, is_type3: bool) -> ExitType {
+    if is_type1 {
+        // §10.1 第一类：突破中枢 + 背驰 ⟹ 清根仓。
+        ExitType::CloseRoot
+    } else if is_type3 {
+        // §10.1 第三类：离开中枢 + 第一次回抽 + 不破 ZD ⟹ 减核。
+        ExitType::ReduceCore
+    } else {
+        // §11：力度延续 / 非卖点 ⟹ 保持。
+        ExitType::Hold
     }
 }
 
@@ -1980,6 +2016,30 @@ mod tests {
         // FollowParent 子腿：按触发类走 P5/P6（非短差对冲腿）。
         assert_eq!(reverse_exit_type(Vertical::FollowParent, 3), ReduceCore);
         assert_eq!(reverse_exit_type(Vertical::FollowParent, 1), CloseRoot);
+    }
+
+    /// ★#181 迁入的 type1>type3 优先级单源 [`exit_type_of_classes`]（自 closed_loop/sell.rs
+    /// `sell_decision_of` 迁移，分支语义逐条不变）：一类 → CloseRoot（优先）；三类（无一类）
+    /// → ReduceCore；皆否 → Hold；一类+三类共存 → CloseRoot（镜像 Lean 分支顺序）。
+    #[test]
+    fn exit_type_of_classes_priority_table() {
+        use ExitType::*;
+        assert_eq!(
+            exit_type_of_classes(true, false),
+            CloseRoot,
+            "一类 → CloseRoot"
+        );
+        assert_eq!(
+            exit_type_of_classes(false, true),
+            ReduceCore,
+            "三类（无一类）→ ReduceCore"
+        );
+        assert_eq!(exit_type_of_classes(false, false), Hold, "皆否 → Hold");
+        assert_eq!(
+            exit_type_of_classes(true, true),
+            CloseRoot,
+            "一类+三类共存 → CloseRoot（一类优先）"
+        );
     }
 
     /// 环5 ℬ_x：空活动集 ⟹ 可交易候选开启（𝒟_x 必空）。

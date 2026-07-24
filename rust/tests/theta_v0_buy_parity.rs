@@ -2,10 +2,11 @@
 //!
 //! ## 工位定位（SG-1 买侧 vacuous gap，消 090 声明膨胀活跃点）
 //!
-//! `tests/theta_v0_lean_parity.rs` 模块头（:39-50）已诚实标注：买侧 `Origin.ThetaInstantiation` 链
-//! 在 rust 此前**无独立实装**，买侧「bit-exact」全部经卖侧对偶 `buy_sell_A_delta_mirror` 间接验证
-//! ——即「rust 卖侧 = Lean 卖侧见证」+「卖侧 = -买侧 Lean 见证」⟹ 买侧 Lean 见证经对偶被覆盖。
-//! 这是**逻辑 vacuous**：买侧 rust 函数从未被独立断言，`lean_buy_side_delta_via_dual_mirror`（:184）
+//! `tests/theta_v0_lean_parity.rs`（SG-1，#181 已随卖侧 SellDecision 死路径下线删除）模块头
+//! 曾诚实标注：买侧 `Origin.ThetaInstantiation` 链在 rust 此前**无独立实装**，买侧「bit-exact」
+//! 全部经卖侧对偶 `buy_sell_A_delta_mirror` 间接验证——即「rust 卖侧 = Lean 卖侧见证」+
+//! 「卖侧 = -买侧 Lean 见证」⟹ 买侧 Lean 见证经对偶被覆盖。
+//! 这是**逻辑 vacuous**：买侧 rust 函数从未被独立断言，其 `lean_buy_side_delta_via_dual_mirror`
 //! 的 `lean_buy_open_root_a: i64 = 1` 是**手填常量**，不是调买侧 rust 函数。
 //!
 //! 本文件把 `src/theta_v0/closed_loop/buy.rs`（独立买侧实装，port ThetaInstantiation.lean）的真函数
@@ -132,7 +133,8 @@ fn buy_decision_from_lean(s: &str) -> BuyDecision {
 // ════════════════════════════════════════════════════════════════════════════
 //  §1 Lean 买侧见证字段 → 逐字段直接编码为 rust BuyEndpoint（非对偶反推）
 //
-//  与 theta_v0_lean_parity.rs 的关键区别：那里把买侧 Lean 见证经买↔卖对偶编码为 SellEndpoint
+//  与 SG-1 theta_v0_lean_parity.rs（#181 已随卖侧 SellDecision 死路径下线删除）的历史区别：
+//  那里把买侧 Lean 见证经买↔卖对偶编码为 SellEndpoint
 //  （间接）；本文件直接编码为 BuyEndpoint，调买侧 rust 函数直接比 Lean 买侧见证（直接）。
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -252,12 +254,12 @@ fn lean_type3_recog_bit_exact() {
 //  §4 买侧 ledger delta bit-exact 直接对齐 Lean decisionLedgerDelta（:256-259）
 //
 //  Lean 买侧 decisionLedgerDelta（:256-259）：openRoot=(0,1,0)，accreteCore=(0,2,0)，hold=(0,0,0)。
-//  ★直接调 rust buy_decision_ledger_delta，非 theta_v0_lean_parity.rs:184 的硬编码 `i64 = 1`。
+//  ★直接调 rust buy_decision_ledger_delta，非 SG-1 旧文件（theta_v0_lean_parity.rs，#181 已删）的硬编码 `i64 = 1`。
 // ════════════════════════════════════════════════════════════════════════════
 
 /// 买侧 delta bit-exact 直接对齐 Lean `decisionLedgerDelta`（:256-259，逐字段从 Lean 源提取）。
 ///
-/// ★消 vacuous：此前 `theta_v0_lean_parity.rs::lean_buy_side_delta_via_dual_mirror`（:184）用
+/// ★消 vacuous：此前 SG-1 `theta_v0_lean_parity.rs::lean_buy_side_delta_via_dual_mirror`（#181 已删）用
 /// 硬编码 `lean_buy_open_root_a: i64 = 1`（买侧无 rust 实装，只能手填）。本测试**调真 rust 买侧函数**
 /// 直接断言三态 delta 等于 Lean machine-checked 常量——买侧 bit-exact 从手填升级为真函数交叉验证。
 #[test]

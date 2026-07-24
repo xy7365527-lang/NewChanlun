@@ -255,7 +255,8 @@ impl BspBits {
 /// 买卖向 `Side`（port `Origin.BspClassification.Side`：long/short）。
 ///
 /// 缠论买卖点的方向语境（§10.1 买卖对偶）：`Long` = 买点侧（底背驰/向上离开中枢之上）；
-/// `Short` = 卖点侧（顶背驰/向下离开中枢之下）。卖点判据要求 `Side::Short`（见 closed_loop/sell.rs）。
+/// `Short` = 卖点侧（顶背驰/向下离开中枢之下）。卖点判据要求 `Side::Short`（Lean
+/// `Origin/SellPointRecog.IsType1Sell`；rust 卖侧 port closed_loop/sell.rs 已于 #181 下线）。
 /// ★这是判据**方向特化参数**，非持仓方向（`Pos`）——背驰力度判据本身方向无关（顶/底背驰同构），
 /// `Side` 只在 side/trend 语境区分买卖（Lean `type1_buy_sell_share_divergence`）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

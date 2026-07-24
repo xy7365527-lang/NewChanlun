@@ -1,10 +1,11 @@
 //! Classifier bit-exact parity（acceptance #4，SG-2）——rust theta_v0 分类器 ↔ Lean Origin
 //! 分类语义的**逐字段一致性证据**。
 //!
-//! ## 工位定位（SG-2，与 SG-1 `theta_v0_lean_parity.rs` 互斥不重叠）
+//! ## 工位定位（SG-2，与 SG-1 `theta_v0_lean_parity.rs` 互斥不重叠——SG-1 已于 #181 随卖侧
+//! SellDecision 死路径下线删除）
 //!
-//! SG-1 核对的是 closed_loop 卖侧/transition 的 ledger delta 闭环（ThetaInstantiation/SellClosedLoop
-//! 见证）。本文件核对的是 canonical §5 每级走势分类 `S^Chan=(τ,r,b,u)` 中**两个可严格判定的分量**
+//! SG-1 曾核对 closed_loop 卖侧/transition 的 ledger delta 闭环（ThetaInstantiation/SellClosedLoop
+//! 见证；rust 卖侧 port 删除后，Lean `Origin/SellClosedLoop.lean` 形式化留存于 formal/）。本文件核对的是 canonical §5 每级走势分类 `S^Chan=(τ,r,b,u)` 中**两个可严格判定的分量**
 //! 相对 Lean Origin 分类语义的 bit-exact 一致：
 //!
 //! - **位置分量 r**（相对最后确认中枢）：rust `classifier::center::classify_position`

@@ -46,9 +46,8 @@ use super::incremental::IncrementalClassifier;
 use super::super::classifier::divergence::compute_macd;
 use super::super::classifier::recursive_tower::find_move_by_end_index;
 use super::super::classifier::nest::{is_sub, NestCertificate, NestInterval, NestRung};
-use super::super::closed_loop::sell::{sell_decision_of, SellDecision};
 use super::super::config::ThetaConfig;
-use super::super::strategy::interp::assemble_gamma_with_tower;
+use super::super::strategy::interp::{assemble_gamma_with_tower, exit_type_of_classes, ExitType};
 use super::super::strategy::voice::VoiceSide;
 use super::super::types::{Bar, BspBits, Center, Side};
 use super::super::classifier::bsp::BspPoint;
@@ -60,27 +59,29 @@ use super::mu_estimator::{MuClass, PositionState};
 use super::selector::{sigma_higher_at, z_of_candidate, ZExt};
 use super::super::strategy::coverage::Horizontal;
 
-/// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（sell.rs:50 CloseRoot/ReduceCore 对齐）。
+/// P7 正规出场口径：配对出场信号的缠论卖点（买点）类别（对齐 interp `ExitType` 的
+/// CloseRoot/ReduceCore——#181 自 closed_loop/sell.rs SellDecision 收敛到 interp 单源）。
 ///
 /// **定义依据**：出场信号 bsp_class bits 已编码卖点判据（EndpointSituation → endpoint_to_bsp）。
-/// - `CloseRoot`：exit bits.sell1=true（第一类顶背驰，对应 sell.rs SellDecision::CloseRoot）。
-/// - `ReduceCore`：exit bits.sell3=true ∧ sell1=false（第三类，sell.rs SellDecision::ReduceCore）。
-/// - `Type2Missing`：exit bits.sell2=true（第二类卖点闭环 sell.rs:35 still-MISSING，诚实标注）。
+/// - `CloseRoot`：exit bits.sell1=true（第一类顶背驰，对应 interp `ExitType::CloseRoot`）。
+/// - `ReduceCore`：exit bits.sell3=true ∧ sell1=false（第三类，interp `ExitType::ReduceCore`）。
+/// - `Type2Missing`：exit bits.sell2=true（第二类卖点闭环 still-MISSING，诚实标注）。
 /// - `Hold`：exit 是反向方向信号但无正规卖点 bits（bits 全0 或仅 buy/sell 位未命中正规类）。
 ///
 /// 对空头入场（δ=−1），exit 是多头信号，用 buy1/buy3/buy2 镜像判据（买点类型对应买侧正规出场）。
 ///
-/// **第二类闭环 still-MISSING**：sell.rs:35 的诚实边界已声明"第二类卖点闭环需次级别递归，见 descend.rs"。
-/// 本枚举不臆造 Type2 实装（no-patch）——遇 sell2/buy2 入 `Type2Missing`，记入统计但不改账本口径。
+/// **第二类闭环 still-MISSING**：第二类卖点闭环需次级别递归（见 descend.rs；原 closed_loop/sell.rs
+/// §诚实边界同口径声明，#181 随 SellDecision 下线，本标注保留）。本枚举不臆造 Type2 实装
+/// （no-patch）——遇 sell2/buy2 入 `Type2Missing`，记入统计但不改账本口径。
 ///
 /// **账本边界**：本枚举只影响 econ 的 exit_decision 字段（分析统计口径），不触碰 TW 三阶段（GAP3/576）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExitDecision {
-    /// 第一类正规出场（顶背驰清仓）→ sell.rs CloseRoot。
+    /// 第一类正规出场（顶背驰清仓）→ interp `ExitType::CloseRoot`。
     CloseRoot,
-    /// 第三类正规出场（减核）→ sell.rs ReduceCore。
+    /// 第三类正规出场（减核）→ interp `ExitType::ReduceCore`。
     ReduceCore,
-    /// 第二类卖点闭环 still-MISSING（sell.rs:35 诚实边界）。
+    /// 第二类卖点闭环 still-MISSING（诚实边界，见枚举 docstring）。
     #[default]
     Type2Missing,
     /// 非正规卖点出场（exit bits 无明确正规类别，或 Hold 信号）。
@@ -132,9 +133,9 @@ pub struct SignalDecomp {
     /// 完整保留一/二/三类+买卖侧信息，供类型分层 alpha 检验（避免混合池稀释掩盖单类型 alpha）。
     /// 买卖侧另见 `delta`（+1 买 / −1 空，交易方向）——本字段是 bit 级类型，delta 是聚合方向。
     pub bsp_class: u8,
-    /// P7 正规出场口径：配对出场信号的缠论卖（买）点类别（接 sell.rs CloseRoot/ReduceCore）。
+    /// P7 正规出场口径：配对出场信号的缠论卖（买）点类别（接 interp `ExitType` CloseRoot/ReduceCore）。
     /// 从配对出场信号的 bsp_class 派生（bsp_class bits 已编码卖点判据结果）。
-    /// `Type2Missing` = 第二类闭环 sell.rs:35 still-MISSING，诚实标注，不改账本口径。
+    /// `Type2Missing` = 第二类闭环 still-MISSING（见 [`ExitDecision`] docstring），诚实标注，不改账本口径。
     pub exit_decision: ExitDecision,
     /// z：完整 [`MuClass`] 全互斥分类键（b2 升 Z 分桶；含 level/δ/i_class/parent_dir/short_swing/position）。
     /// 分桶/dx 投影**一律用 `z.i_class`**（未压缩 6-bit），**禁止 `z.bsp_class()`**（会丢 2B/3B 重合，
@@ -178,7 +179,7 @@ pub struct SpreadAttribution {
     pub n_exit_close_root: usize,
     /// P7 正规出场统计：ReduceCore（第三类）配对出场信号数。
     pub n_exit_reduce_core: usize,
-    /// P7 正规出场统计：Type2Missing（第二类 sell.rs:35 still-MISSING）配对出场信号数（诚实标注）。
+    /// P7 正规出场统计：Type2Missing（第二类闭环 still-MISSING，见 [`ExitDecision`] docstring）配对出场信号数（诚实标注）。
     pub n_exit_type2_missing: usize,
     /// P7 正规出场统计：Hold（无正规卖点 bit 的反向信号出场）配对出场信号数。
     pub n_exit_hold: usize,
@@ -572,7 +573,7 @@ fn pair_signals(
         let ce_unit = (p_tau_in + p_tau_out) * fee_rate;
         let captured = a_b - eta_in - eta_out - ce_unit; // adverse-only 保守压力测试
         let actual_pnl = actual_spread - ce_unit; // 真实成交 PnL 代理（664-Q3）
-        // P7 正规出场口径：从配对出场信号 bsp_class 派生（接 sell.rs CloseRoot/ReduceCore）。
+        // P7 正规出场口径：从配对出场信号 bsp_class 派生（接 interp ExitType CloseRoot/ReduceCore）。
         let exit_decision = exit_decision_from_bits(exit_bsp_class, delta);
 
         decomps.push(SignalDecomp {
@@ -600,7 +601,7 @@ fn pair_signals(
         if rho_rev_bar > lambda_rev_bar {
             agg.n_rho_after_lambda += 1; // 三审计统计①（codex Q1 不变量）
         }
-        // P7 出场决策统计（接 sell.rs CloseRoot/ReduceCore，Type2Missing=still-MISSING 诚实标注）。
+        // P7 出场决策统计（接 interp ExitType CloseRoot/ReduceCore，Type2Missing=still-MISSING 诚实标注）。
         match exit_decision {
             ExitDecision::CloseRoot => agg.n_exit_close_root += 1,
             ExitDecision::ReduceCore => agg.n_exit_reduce_core += 1,
@@ -612,23 +613,24 @@ fn pair_signals(
     (decomps, agg)
 }
 
-/// P7 正规出场口径：配对出场信号 bsp_class bits → ExitDecision，**委托 closed_loop 平仓决策权威**。
+/// P7 正规出场口径：配对出场信号 bsp_class bits → ExitDecision，**委托 interp 平仓出场权威**。
 ///
 /// **接线（非新逻辑）**：type1>type3 优先级 + CloseRoot/ReduceCore 语义由
-/// [`closed_loop::sell::sell_decision_of`](super::super::closed_loop::sell::sell_decision_of) 单一决定，
-/// 本函数只做「bsp bits → (is_type1, is_type3, is_type2) 判据」的解包与方向选择，再把 [`SellDecision`]
-/// 提升为 [`ExitDecision`]（加诊断态 Type2Missing）。优先级不在此重编码 ⟹ 与 `recog_chanlun_sell`
-/// 共用同一来源（no-patch）。
+/// [`interp::exit_type_of_classes`](super::super::strategy::interp::exit_type_of_classes) 单一决定
+/// （#181 自 `closed_loop/sell.rs::sell_decision_of` 迁入——SellDecision 死路径下线，语义统一
+/// 收敛到 interp `ExitType` 单源），本函数只做「bsp bits → (is_type1, is_type3, is_type2) 判据」
+/// 的解包与方向选择，再把 [`ExitType`] 提升为 [`ExitDecision`]（加诊断态 Type2Missing）。
+/// 优先级不在此重编码（no-patch）。
 ///
 /// **定义依据**：
 /// - 多头入场（δ=+1），exit 是 Short 信号：看卖侧 bits（bit3=sell1, bit4=sell2, bit5=sell3）。
 /// - 空头入场（δ=−1），exit 是 Long 信号：看买侧 bits（bit0=buy1, bit1=buy2, bit2=buy3，买点镜像卖点）。
-/// - `sell_decision_of` 返回 `CloseRoot`（type1 命中，优先）/ `ReduceCore`（type3 命中）/ `Hold`。
-/// - `Hold` 且命中 type2 → `Type2Missing`（sell.rs:35 第二类闭环 still-MISSING 诚实标注）；否则 `Hold`。
+/// - `exit_type_of_classes` 返回 `CloseRoot`（type1 命中，优先）/ `ReduceCore`（type3 命中）/ `Hold`。
+/// - `Hold` 且命中 type2 → `Type2Missing`（第二类闭环 still-MISSING 诚实标注，见 [`ExitDecision`]）；否则 `Hold`。
 ///
 /// **边界条件**：若出场方向无 type1/type2/type3 bit（含 bsp_class=0）→ Hold（无正规出场依据）。
 /// **账本边界**：不触碰 TW 三阶段（GAP3/576 still-MISSING，econ 只用 R 账本 closed_loop 对齐）。
-/// **认识论 L0**：纯 bit 解包 + closed_loop 权威映射，不声明 alpha（alpha 待 W-VERIFY L2/L3）。
+/// **认识论 L0**：纯 bit 解包 + interp 权威映射，不声明 alpha（alpha 待 W-VERIFY L2/L3）。
 pub(super) fn exit_decision_from_bits(exit_bsp_class: u8, delta: i8) -> ExitDecision {
     // bsp_class 位掩码：bit0=buy1, bit1=buy2, bit2=buy3, bit3=sell1, bit4=sell2, bit5=sell3
     const SELL1: u8 = 1 << 3;
@@ -646,13 +648,18 @@ pub(super) fn exit_decision_from_bits(exit_bsp_class: u8, delta: i8) -> ExitDeci
     let is_type1 = exit_bsp_class & t1 != 0;
     let is_type2 = exit_bsp_class & t2 != 0;
     let is_type3 = exit_bsp_class & t3 != 0;
-    // closed_loop 权威：type1>type3 优先级 + 平仓语义单一来源。
-    match sell_decision_of(is_type1, is_type3) {
-        SellDecision::CloseRoot => ExitDecision::CloseRoot,
-        SellDecision::ReduceCore => ExitDecision::ReduceCore,
+    // interp 权威：type1>type3 优先级 + 平仓语义单一来源（#181 自 closed_loop::sell 迁入）。
+    match exit_type_of_classes(is_type1, is_type3) {
+        ExitType::CloseRoot => ExitDecision::CloseRoot,
+        ExitType::ReduceCore => ExitDecision::ReduceCore,
         // Hold（无 type1/type3）：命中 type2 则诚实标注闭环缺口，否则真 Hold。
-        SellDecision::Hold if is_type2 => ExitDecision::Type2Missing,
-        SellDecision::Hold => ExitDecision::Hold,
+        ExitType::Hold if is_type2 => ExitDecision::Type2Missing,
+        ExitType::Hold => ExitDecision::Hold,
+        // exit_type_of_classes 只产 CloseRoot/ReduceCore/Hold——CloseShortDiff/RiskExit 由
+        // entry_v/risk 通道产出（reverse_exit_type / 风控门），bits 入口不可达。
+        ExitType::CloseShortDiff | ExitType::RiskExit => {
+            unreachable!("exit_type_of_classes 只产 CloseRoot/ReduceCore/Hold")
+        }
     }
 }
 
@@ -1799,11 +1806,11 @@ mod tests {
         assert!(!mk(2, false, true).gate_pass(), "level2 C2 假 ⟹ 拒");
     }
 
-    // ── P7 正规出场口径测试（RED→GREEN：exit_decision_from_bits 派生，接 sell.rs CloseRoot/ReduceCore）────
+    // ── P7 正规出场口径测试（RED→GREEN：exit_decision_from_bits 派生，接 interp ExitType CloseRoot/ReduceCore）────
 
     /// **P7 多头入场 exit_decision_from_bits：sell1 → CloseRoot（优先级最高）**。
     ///
-    /// 定义依据：recog_chanlun_sell 第一分支「sell1=顶背驰 → CloseRoot」。
+    /// 定义依据：interp `exit_type_of_classes` 第一分支「type1=顶背驰 → CloseRoot」。
     /// 边界条件：sell1=1 即触发，不看 sell3/sell2（第一类优先）。
     #[test]
     fn p7_exit_decision_long_sell1_close_root() {
@@ -1815,7 +1822,7 @@ mod tests {
 
     /// **P7 多头入场 exit_decision_from_bits：sell3（无 sell1）→ ReduceCore**。
     ///
-    /// 定义依据：recog_chanlun_sell 第二分支「sell3=第三类 → ReduceCore」（sell1=false 前提）。
+    /// 定义依据：interp `exit_type_of_classes` 第二分支「type3=第三类 → ReduceCore」（type1=false 前提）。
     #[test]
     fn p7_exit_decision_long_sell3_reduce_core() {
         // bit5=sell3，bit3=sell1=0
@@ -1826,7 +1833,7 @@ mod tests {
 
     /// **P7 多头入场 exit_decision_from_bits：sell1+sell3 同时 → CloseRoot（第一类优先）**。
     ///
-    /// 边界条件：sell1 与 sell3 共存时，第一类优先（镜像 recog_chanlun_sell 分支顺序）。
+    /// 边界条件：sell1 与 sell3 共存时，第一类优先（镜像 interp `exit_type_of_classes` 分支顺序）。
     #[test]
     fn p7_exit_decision_long_sell1_sell3_priority() {
         let exit_class: u8 = (1 << 3) | (1 << 5); // sell1+sell3
@@ -1836,13 +1843,13 @@ mod tests {
 
     /// **P7 多头入场 exit_decision_from_bits：sell2（无 sell1/3）→ Type2Missing（still-MISSING 诚实标注）**。
     ///
-    /// 定义依据：sell.rs:35 诚实边界「第二类卖点闭环 still-MISSING」。
+    /// 定义依据：第二类卖点闭环 still-MISSING 诚实边界（见 [`ExitDecision`] docstring，需次级别递归）。
     /// 边界条件：Type2Missing 不改账本，只记入统计（no-patch）。
     #[test]
     fn p7_exit_decision_long_sell2_type2_missing() {
         let exit_class: u8 = 1 << 4; // sell2
         assert_eq!(exit_decision_from_bits(exit_class, 1), ExitDecision::Type2Missing,
-            "多头入场 sell2 → Type2Missing（sell.rs:35 still-MISSING）");
+            "多头入场 sell2 → Type2Missing（第二类闭环 still-MISSING）");
     }
 
     /// **P7 多头入场 exit_decision_from_bits：bsp_class=0（无任何 bit）→ Hold**。
@@ -2716,15 +2723,15 @@ mod tests {
         let _ = writeln!(rpt, "| n_same_bar_opposite | {} | 同 bar 出现反向信号（被 eb>entry_bar 排除的边界，codex Q2） |", agg.n_same_bar_opposite);
         let _ = writeln!(rpt, "| n_unpaired | {} | 无配对出场反转信号（右删失诚实跳过，codex Q4） |", agg.n_unpaired);
         let _ = writeln!(rpt);
-        let _ = writeln!(rpt, "## P7 正规出场口径统计（接 sell.rs CloseRoot/ReduceCore，n={}）", agg.n_signals);
+        let _ = writeln!(rpt, "## P7 正规出场口径统计（接 interp ExitType CloseRoot/ReduceCore，n={}）", agg.n_signals);
         let _ = writeln!(rpt, "| 出场决策 | 信号数 | 占比 | 说明 |");
         let _ = writeln!(rpt, "|---|---|---|---|");
         let pct_sig = |x: usize| if agg.n_signals > 0 { 100.0 * x as f64 / agg.n_signals as f64 } else { 0.0 };
-        let _ = writeln!(rpt, "| CloseRoot（第一类顶背驰） | {} | {:.1}% | sell.rs SellDecision::CloseRoot |", agg.n_exit_close_root, pct_sig(agg.n_exit_close_root));
-        let _ = writeln!(rpt, "| ReduceCore（第三类减核） | {} | {:.1}% | sell.rs SellDecision::ReduceCore |", agg.n_exit_reduce_core, pct_sig(agg.n_exit_reduce_core));
-        let _ = writeln!(rpt, "| Type2Missing（第二类 still-MISSING） | {} | {:.1}% | sell.rs:35 诚实边界，不改账本口径 |", agg.n_exit_type2_missing, pct_sig(agg.n_exit_type2_missing));
+        let _ = writeln!(rpt, "| CloseRoot（第一类顶背驰） | {} | {:.1}% | interp ExitType::CloseRoot |", agg.n_exit_close_root, pct_sig(agg.n_exit_close_root));
+        let _ = writeln!(rpt, "| ReduceCore（第三类减核） | {} | {:.1}% | interp ExitType::ReduceCore |", agg.n_exit_reduce_core, pct_sig(agg.n_exit_reduce_core));
+        let _ = writeln!(rpt, "| Type2Missing（第二类 still-MISSING） | {} | {:.1}% | 第二类闭环诚实边界（见 ExitDecision docstring），不改账本口径 |", agg.n_exit_type2_missing, pct_sig(agg.n_exit_type2_missing));
         let _ = writeln!(rpt, "| Hold（无正规卖点 bit） | {} | {:.1}% | exit 信号无正规卖侧/买侧 bit |", agg.n_exit_hold, pct_sig(agg.n_exit_hold));
-        let _ = writeln!(rpt, "（认识论 L0：口径结构变，不声明 alpha；alpha 待 W-VERIFY L2/L3。第二类闭环 still-MISSING 见 sell.rs:35 诚实边界，不碰 TW 三阶段/576。）");
+        let _ = writeln!(rpt, "（认识论 L0：口径结构变，不声明 alpha；alpha 待 W-VERIFY L2/L3。第二类闭环 still-MISSING（需次级别递归，见 descend.rs），不碰 TW 三阶段/576。）");
         let _ = writeln!(rpt);
         let _ = writeln!(rpt, "## 全局归因（双口径）");
         let _ = writeln!(rpt, "| 量 | 值 |");

@@ -2,11 +2,13 @@
 //!
 //! ## 工位定位（SG-1 买侧 vacuous gap，按需工位）
 //!
-//! 卖侧已 port `Origin/SellPointRecog.lean`（#120）+ `SellClosedLoop.lean`（#121）于 [`super::sell`]。
+//! 卖侧曾 port `Origin/SellPointRecog.lean`（#120）+ `SellClosedLoop.lean`（#121）于 super::sell
+//! （#181 随 SellDecision 死路径下线删除；其 type1>type3 平仓优先级语义收敛到 strategy/interp.rs
+//! `ExitType` 单源）。
 //! 但**买侧 `Origin.ThetaInstantiation` 链在 rust 此前无独立实装**——`tests/theta_v0_lean_parity.rs`
-//! 模块头（:39-50）已诚实标注：grep `recogChanlun`/`decisionLedgerDelta`/`chanlunTransition` 于
-//! `rust/src` 仅命中卖侧对偶 + 注释，无买侧函数；买侧 delta 在 sell.rs:406-407 是**硬编码常量**
-//! `open_root_da: i64 = 1`（不是调 rust 函数）。故 `tests/theta_v0_lean_parity.rs` 对买侧的「bit-exact」
+//! （#181 已随卖侧下线删除）模块头（:39-50）已诚实标注：grep `recogChanlun`/`decisionLedgerDelta`/
+//! `chanlunTransition` 于 `rust/src` 仅命中卖侧对偶 + 注释，无买侧函数；买侧 delta 当时在 sell.rs
+//! 是**硬编码常量** `open_root_da: i64 = 1`（不是调 rust 函数）。故该文件对买侧的「bit-exact」
 //! 是**经卖侧对偶间接**（`buy_sell_A_delta_mirror`）——逻辑 vacuous（买侧 Lean 见证经卖侧覆盖，
 //! 买侧 rust 链从未被独立断言）。
 //!
@@ -29,11 +31,12 @@
 //!
 //! ## ★分支判据忠实 port（与卖侧的差异，不是简单对偶）
 //!
-//! Lean 买侧 `recogChanlun`（:151-161）的判据**不是**卖侧 `recogChanlunSell`（sell.rs:108-119）的
+//! Lean 买侧 `recogChanlun`（:151-161）的判据**不是**卖侧 `recogChanlunSell`
+//! （`Origin/SellPointRecog.lean`；rust 卖侧 port sell.rs 已于 #181 下线）的
 //! 机械镜像，二者在 side 检查上不同——必须忠实 port 买侧 Lean 的真实形式，**不可**靠对偶反推：
 //! - **第一类**（:152）：`brokeCenter = true ∧ IsDivergence divPair`。★买侧 Lean **不检查 side**
-//!   （第一类底背驰判据只要破中枢 + 背驰；卖侧 sell.rs:109 检查 `side==Short`——这是卖侧 port
-//!   的形式，买侧 Lean :152 无 side 检查，本文件忠实保留无 side 检查）。
+//!   （第一类底背驰判据只要破中枢 + 背驰；卖侧 `IsType1Sell` 检查 `side==Short`——这是卖侧
+//!   Lean/port 的形式，买侧 Lean :152 无 side 检查，本文件忠实保留无 side 检查）。
 //! - **第三类**（:155-156）：`side = long ∧ leftCenter ∧ firstRetrace ∧ zg < retracePrice`。买侧
 //!   检查 `side==Long`，且位置判据是「不破 ZG = retracePrice 高于 zg」（`zg < retracePrice`），
 //!   与卖侧「不破 ZD = retrace 低于 zd」（`retrace < zd`）位置镜像。
@@ -104,7 +107,8 @@ pub struct BuyEndpoint {
 ///
 /// 底背驰 = 下跌趋势向下**跌破**中枢后的背驰点：破中枢 ∧ 背驰。★忠实 Lean :152——**不检查 side**
 /// （Lean 第一类分支判据 `brokeCenter = true ∧ IsDivergence divPair` 无 side 检查，与卖侧
-/// sell.rs:86「side==Short ∧ ...」不同；买侧底背驰共用力度序判据，Lean `type1_buy_sell_share_divergence`）。
+/// `Origin/SellPointRecog.IsType1Sell`「side==Short ∧ ...」不同（rust 卖侧 port sell.rs 已于 #181
+/// 下线）；买侧底背驰共用力度序判据，Lean `type1_buy_sell_share_divergence`）。
 pub fn is_type1_buy(e: &BuyEndpoint) -> bool {
     e.broke_center && e.is_divergence
 }
@@ -180,7 +184,8 @@ fn apply_ledger_delta(
 
 /// ★★买侧真缠论闭环转移 `buy_transition`（port `ThetaInstantiation.chanlunTransition`，:297，本文件核心）。
 ///
-/// 闭环数据流（真缠论买点，对偶卖侧 [`super::sell::sell_transition`]）：
+/// 闭环数据流（真缠论买点，对偶卖侧 `sellTransition`——对偶契约见 Lean `Origin/SellClosedLoop.lean`
+/// sellTransition（#121）；rust 卖侧 port sell.rs 已于 #181 随 SellDecision 死路径下线删除）：
 /// 1. [`recog_chanlun_buy`] 用买点判据识别真缠论买点决策 d（第一类建根仓/第三类增核/延续保持）。
 /// 2. [`buy_decision_ledger_delta`] 把买点决策映为账本 delta。
 /// 3. [`ledger_step`]（保 R=Π-A-W）用该 delta 更新账本，写回完整 [`AssemblyState`]。
@@ -418,24 +423,9 @@ mod tests {
         assert_eq!(x1.positions, x0.positions, "hold 不改 positions");
     }
 
-    // ── 买卖闭环对偶对称（对照卖侧 sell.rs buy_sell_A_delta_mirror）─────────────────
-
-    /// ★★买卖账本 delta·A 分量镜像（Lean `buy_sell_A_delta_mirror`，本文件买侧 vs sell.rs 卖侧）：
-    /// 买 openRoot dA=+1 ↔ 卖 closeRoot dA=-1；买 accreteCore dA=+2 ↔ 卖 reduceCore dA=-2。
-    ///
-    /// ★此前 sell.rs:401-410 的同名测试用**硬编码** `open_root_da: i64 = 1`（买侧无 rust 实装）。
-    /// 本测试用**真买侧 rust 函数** [`buy_decision_ledger_delta`] 取 A 分量，与卖侧 rust 函数比——
-    /// 消除硬编码常量的 vacuous（买卖两侧均为真 rust 实装的镜像，非 1 vs -(-1) 自指）。
-    #[test]
-    fn buy_sell_A_delta_mirror_real_impl() {
-        use super::super::sell::{sell_decision_ledger_delta, SellDecision};
-        // 买侧 A 分量（本文件真 rust 实装）。
-        let open_root_da = buy_decision_ledger_delta(BuyDecision::OpenRoot).1; // +1
-        let accrete_core_da = buy_decision_ledger_delta(BuyDecision::AccreteCore).1; // +2
-        // 卖侧 A 分量（sell.rs 真 rust 实装）。
-        let close_root_da = sell_decision_ledger_delta(SellDecision::CloseRoot).1; // -1
-        let reduce_core_da = sell_decision_ledger_delta(SellDecision::ReduceCore).1; // -2
-        assert_eq!(open_root_da, -close_root_da, "建根仓 A+1 ↔ 清根仓 A-1（真 rust 双侧实装）");
-        assert_eq!(accrete_core_da, -reduce_core_da, "增核 A+2 ↔ 减核 A-2（真 rust 双侧实装）");
-    }
+    // ── 买卖闭环对偶对称 ─────────────────────────────────────────────────────
+    // #181：卖侧 sell.rs（`sell_decision_ledger_delta`/`SellDecision` 等）随 SellDecision 死路径
+    // 下线删除，原 `buy_sell_A_delta_mirror_real_impl` 镜像测试的卖侧验证对象随之退役移除。
+    // 买侧 delta 仍由 `tests/theta_v0_buy_parity.rs` 对 Lean #eval 导出 fixture 直接 bit-exact 验证
+    // （Lean `buy_sell_A_delta_mirror` 定理留在 formal/ 侧，不随 rust 卖侧 port 删除）。
 }
