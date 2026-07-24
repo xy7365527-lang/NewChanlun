@@ -1259,7 +1259,11 @@ pub fn theta_lt(a: &Candidate, b: &Candidate) -> bool {
 /// 1. **非方向候选**（σ_g=Flat / 无类）⟹ `𝒦_x`（记录不执行，spec「记录但暂不执行的候选」）。
 /// 2. **反向关闭（证书门）**：仅当 `g.nest_confirmed=true`，A_t 中存在同级别、未关闭、方向被 g
 ///    反向（[`reverse_signal`]，§9 closePred 反向项 χ^{σ_p}）的活动腿，才把该腿送入 `𝒟_x` 并消费
-///    g（spec §13 `A_t∖𝒟_x`）。`nest_confirmed=false` 只是证书成立层尚未确认的方向信号，直接进入
+///    g（spec §13 `A_t∖𝒟_x`）。**#209 一类全平**（S7：级别内全平是必须非应当，用户裁 A
+///    2026-07-23；spec ID-3「一类卖点：当场全平（该级该方向全部清仓）」）：一类候选关闭该级别
+///    **全部**未关闭反向命中腿（Ambient 根 / FollowParent 级联 / §13 restore 祖先一视同仁），
+///    每腿恰一触发归因；二/三类维持关闭首个命中腿。`nest_confirmed=false` 只是证书成立层
+///    尚未确认的方向信号，直接进入
 ///    `𝒦_x`：§9 出场层不得重算 N^δ/背驰，也不得消费未成立证书；且 §13 的 `ℬ_x` 会真实激活持仓腿，
 ///    故不能让被证书门拒绝的反向信号继续落规则3、反向开同一 carrier。**#200 例外（先平后开）**：
 ///    二类反向触发候选被消费后**不停止**，继续落规则3/4 同款 slot 判据补开反向腿（OpenShort
@@ -1332,18 +1336,38 @@ pub fn interpret_with_close_triggers(
         }
         // 规则2：反向关闭 A_t 中同级别活动腿（reverse_signal 复用 §9 closePred 反向项）。
         // ponytail: H8 查 level→idx 列表，逐腿判 reverse_signal（bits 不可 key 化，须逐腿）。
-        // bit-exact：取首个未关闭且 reverse_signal 命中者 == 旧 working.iter().position(...)。
-        let closed_pos = level_idx.get(&c.level).and_then(|idxs| {
+        // ★#209（S7：级别内全平是必须非应当，用户裁 A 2026-07-23；spec ID-3「一类卖点：
+        // 当场全平（该级该方向全部清仓）」）：**一类**候选关闭该级别**全部**未关闭反向
+        // 命中腿（Ambient 根 / FollowParent 级联 / §13 restore 祖先一视同仁——fold 层不
+        // 区分账户，账户归属由 `identity_of` × reason 单源承担）；二/三类维持 find 首个
+        // （bit-exact：取首个未关闭且 reverse_signal 命中者 == 旧 working.iter().position）。
+        let mut closed_any = false;
+        if c.bsp_class == 1 {
+            if let Some(idxs) = level_idx.get(&c.level) {
+                for &i in idxs {
+                    let (leg, was_closed) = (working[i].0, working[i].1);
+                    if !was_closed && reverse_signal(leg.dir, &c.bits) {
+                        // 标记关闭（不从索引移除——bit-exact：旧 position 也跳过已关闭腿）。
+                        working[i].1 = true;
+                        buckets.close.push(leg);
+                        close_triggers.push(*c); // 归因：每腿恰一（一一对应不变量保持）
+                        closed_any = true;
+                    }
+                }
+            }
+        } else if let Some(pos) = level_idx.get(&c.level).and_then(|idxs| {
             idxs.iter().copied().find(|&i| {
                 let (leg, closed) = &working[i];
                 !*closed && reverse_signal(leg.dir, &c.bits)
             })
-        });
-        if let Some(pos) = closed_pos {
+        }) {
             // 标记关闭（不从索引移除——bit-exact：旧 working.iter().position 也跳过已关闭腿）。
             working[pos].1 = true;
             buckets.close.push(working[pos].0);
             close_triggers.push(*c); // 归因：本腿由候选 c 反向关闭（typed exit 原料）
+            closed_any = true;
+        }
+        if closed_any {
             // ★#200 OpenShort 通道（spec WP-2 修复 c / #185 审计发现 2「最早单源接入点」）：
             // **二类**反向候选「先平后开」——被 close 分支消费后不 `continue`，落入下方
             // 规则3/4 同款 slot 判据补开反向腿（ID-3：二类点 = 第二入场/加仓（加空）位；
@@ -1672,6 +1696,48 @@ mod tests {
             b.record.iter().map(|c| c.gamma_index).collect::<Vec<_>>(),
             b2.record.iter().map(|c| c.gamma_index).collect::<Vec<_>>()
         );
+    }
+
+    /// ★#209（S7：级别内全平是必须非应当，用户裁 A 2026-07-23）：**一类**反向候选
+    /// 关闭该级别**全部**反向本仓腿（Ambient 根 / FollowParent 级联 / §13 restore 祖先
+    /// 一视同仁——fold 层不区分账户，账户归属由 `identity_of` × reason 单源承担）。
+    /// 每腿恰一触发归因（close 桶与 close_triggers 一一对应不变量保持）。
+    #[test]
+    fn type1_candidate_closes_all_same_level_reverse_legs() {
+        // 同级别两条核心腿（Ambient 根 + 级联形态，fold 层只见级别/方向）+ 一类卖候选。
+        let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, 1)]]));
+        let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(0, VoiceSide::Long, 2, 2)];
+        let (b, triggers) = interpret_with_close_triggers(&gamma, &active);
+        assert_eq!(b.close.len(), 2, "一类候选 ⟹ 该级别全部反向腿全关（S7 全平）");
+        assert_eq!(triggers.len(), 2, "每腿恰一触发归因（一一对应不变量）");
+        assert!(
+            triggers.iter().all(|t| t.bsp_class == 1 && t.level == 0),
+            "两腿归因同一一类候选"
+        );
+        assert!(b.open.is_empty(), "一类消费即止（允许反手非要求，v1 不反手）");
+        // 委托单源 bit-exact：interpret == interpret_with_close_triggers.0。
+        let b2 = interpret(&gamma, &active);
+        assert_eq!(b.close, b2.close);
+    }
+
+    /// ★#209 对照锁（行为面严格限定「多腿场景一类全平」）：二/三类维持 find 首个——
+    /// 二类先平后开（#200 OpenShort 通道不动）、三类消费即止，单腿外的行为面零扩张。
+    #[test]
+    fn type2_type3_still_close_first_leg_only() {
+        for class in [2u8, 3] {
+            let gamma = assemble_gamma(&classification(vec![vec![sell_point(10, class)]]));
+            let active = [aleg(0, VoiceSide::Long, 0, 0), aleg(0, VoiceSide::Long, 2, 2)];
+            let (b, triggers) = interpret_with_close_triggers(&gamma, &active);
+            assert_eq!(b.close.len(), 1, "{class} 类仍只关首条同级反向腿（find 首个）");
+            assert_eq!(b.close[0].source_index, 0, "{class} 类关的是首条命中腿");
+            assert_eq!(triggers.len(), 1);
+            if class == 2 {
+                assert_eq!(b.open.len(), 1, "二类先平后开（#200 OpenShort 通道不受影响）");
+                assert_eq!(b.open[0].dir, VoiceSide::Short, "补开反向腿");
+            } else {
+                assert!(b.open.is_empty(), "三类消费即止（不补开）");
+            }
+        }
     }
 
     /// ★G4/G5 单源判据 [`reverse_exit_type`]（PDF §9 / G5 映射 §6.1）：

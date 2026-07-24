@@ -1103,13 +1103,14 @@ fn t1_core_zero_probe_count() -> u64 {
     T1_CORE_ZERO_PROBE.with(std::cell::Cell::get)
 }
 
-/// ★#199 待裁决上报项：一类 Core 平仓后**级余额非零**笔数（BTC 实证存在，
-/// 见 `account_mirror_post` 断言②挂载点注释）。
+/// ★#209 终态违例探针：一类全平批末**级余额非零**笔数（release 构建可观测面；debug
+/// 构建由批次边界 debug_assert 先行拦截）。历史对照：#199 测量态 BTC 实测违例=1。
 fn t1_core_residual_probe_bump() {
     T1_CORE_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
 }
 
-/// 读取级余额违例探针快照（待裁决上报材料：一类 Core 平仓后 balance(Core{L})≠0 笔数）。
+/// 读取级余额违例探针快照（#209 终态见证材料：一类批末 balance(Core{L})≠0 笔数，
+/// 验收口径 = 全窗 0）。
 fn t1_core_residual_probe_count() -> u64 {
     T1_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
 }
@@ -1236,23 +1237,18 @@ fn account_mirror_post(
     if let Some(pre) = pre_non_shortdiff {
         debug_assert_shortdiff_isolation(view, &pre);
     }
-    // ★#199 断言②探针（恒在计数）：一类 Core 平仓评估笔数（#185 断言2：
+    // ★#199 断言②评估探针（恒在计数）：一类 Core 平仓评估笔数（#185 断言2：
     // filled(T1CoreClose{L}) ⟹ execution_ledger.qty(Core{L})==0）。
     //
-    // ★★#199 待裁决（2026-07-23 实跑上报，勿删；同 coverage.rs 断言①挂载点注释）：
-    // BTC train 窗实证——一类候选经 fold 规则2 单候选只关一条同级反向腿，同级别可有
-    // 多条核心腿并存（Ambient 根 + FollowParent 级联/§13 restore），致一类 Core 平仓后
-    // 级余额非零（L=1 实测残留 277.9 单位）。票面断言②与验收「一类点全平后本仓=0」的
-    // 一类=原子全平前提与生产 fold 现实分叉（教义级矛盾，须裁决）。裁决前本断言处
-    // **测量态**：级余额非零笔数经探针如实计数（不 panic——避免既有 BTC 见证被待裁
-    // 缺口炸毁，090：测量先行，不以降级断言蒙混）；裁决后此处置终态断言。
+    // ★#209 终态硬门**挂在批次边界**（π fill loop 反向关闭循环结束点，见该处注释）：
+    // 多核心腿场景一类全平产生多条 AccountOrder（每腿恰一），逐笔 post 后账户余额
+    // 仍含未平同级腿——单笔粒度误报，教义口径是「一类批末该级清仓」。本点只保留
+    // 评估探针（按腿计数，与 fills 分类笔数对账口径不变）。历史对照（勿删）：#199
+    // 测量态 BTC train 窗实测违例=1（一类只关首条，L=1 残留 277.9 单位）。
     if reason == strategy::account::ActionReason::ReverseType1
         && matches!(account_id, strategy::account::AccountIdentity::Core { .. })
     {
         t1_core_zero_probe_bump();
-        if view.balance(account_id) != 0.0 {
-            t1_core_residual_probe_bump();
-        }
     }
 }
 
@@ -1943,6 +1939,9 @@ where
             // 「开腿：准入信号腿登记」段）。
             // 反向关闭：typed 裁决消费 trace 第三分量（#145 T1——组合层决策点已经
             // reverse_exit_type 单源判定，本处不补算；登记腿必在 entry_v 映射 ⟹ 裁决非回退值）。
+            // ★#209 断言②批次收集：本步一类 × Core 镜像过的 level（批末硬门检查集，
+            // 见本循环结束点「断言②终态硬门」段）。
+            let mut t1_core_levels: Vec<u32> = Vec::new();
             for (leg, trig, exit_type) in &step_trace.closed {
                 if let Some(open) = open_trades.remove(&leg.id) {
                     // #145 T1 不变量：登记腿必在本步 entry_v 映射（closed ⊆ prev_active ⊆ 本 bar
@@ -1994,10 +1993,40 @@ where
                     if let Some(reason) = account_id.and_then(|a| {
                         strategy::account::reason_of_reverse_close(a, trig.bsp_class, core_residual)
                     }) {
+                        // ★#209：一类 × Core 镜像 ⟹ 记录 level（批末断言②硬门检查集）。
+                        if reason == strategy::account::ActionReason::ReverseType1
+                            && matches!(
+                                account_id,
+                                Some(strategy::account::AccountIdentity::Core { .. })
+                            )
+                        {
+                            t1_core_levels.push(leg.id.level);
+                        }
                         account_mirror_close(&mut account_view, &open, leg.id.level, reason, px, i);
                     }
                 }
                 // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
+            }
+            // ★#209 断言②终态硬门（批次边界，用户裁 A 2026-07-23：S7 级别内全平是必须
+            // 非应当）：一类批末（该级全部核心腿平仓完）balance(Core{level})==0。检查点 =
+            // 反向关闭循环结束、其余关闭/开腿循环之前——一类全平批的多条 AccountOrder
+            // 已逐腿 post（每腿恰一，reason=ReverseType1 经 reason_of_reverse_close 单源），
+            // 同 bar 开腿镜像尚未发生（#200 次序），此时该级本仓必清零。多腿场景逐笔
+            // post 后余额仍含未平同级腿，故硬门不挂单笔粒度（见 account_mirror_post 断言②
+            // 注释）。形态 = debug 构建 panic + 违例探针恒在计数（release 可观测），与
+            // 断言③同款。历史对照（勿删）：#199 测量态 BTC train 窗实测违例=1。
+            t1_core_levels.sort_unstable();
+            t1_core_levels.dedup();
+            for lv in t1_core_levels {
+                let bal =
+                    account_view.balance(strategy::account::AccountIdentity::Core { level: lv });
+                if bal != 0.0 {
+                    t1_core_residual_probe_bump();
+                }
+                debug_assert!(
+                    bal == 0.0,
+                    "#209 断言②终态违例：一类全平批末 balance(Core{{{lv}}}) = {bal} ≠ 0——S7 级别内全平是必须"
+                );
             }
             // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：归属判据抽为
             // [`silent_drop_exit_type`]（#198：仅短差腿记 CloseShortDiff，其余归 core structural
@@ -5155,8 +5184,9 @@ mod tests {
 
     /// ★#199 断言②（T1 实际成交）生产路径触发见证（合成单腿场景）：一类 Core 平仓
     /// 评估探针真实触发，且单腿场景级余额归零（违例探针=0——单腿即「一类=全平」成立的
-    /// 平凡域）。**多核心腿场景的级残余非零实测为待裁决教义缺口**（见
-    /// `account_mirror_post` 断言②挂载点注释 + BTC 见证 `btc_type2_residual_correction_witness`）。
+    /// 平凡域）。**多核心腿场景经 #209 终态化**：fold 一类全平 + 断言②批次硬门（见
+    /// `account_mirror_post` 断言②注释与 π loop 反向关闭循环结束点硬门段）+ BTC 见证
+    /// `btc_type2_residual_correction_witness` 全窗违例=0。
     #[test]
     fn t1_core_close_zero_assertion_fires_in_pi_loop() {
         t1_core_zero_probe_reset();
@@ -5846,16 +5876,23 @@ mod tests {
         assert!(n_prune > 0, "BTC train 窗必产结构剪枝腿（见证非空转，基线 6 笔）");
     }
 
-    /// ★#199 BTC 真实数据见证（生产路径，16000 bars）：二类反向「仅残余才纠错」
+    /// ★#199/#209 BTC 真实数据见证（生产路径，16000 bars）：二类反向「仅残余才纠错」
     /// 全窗实测 + 断言①②③评估/违例笔数（探针为凭）。
     ///
     /// 见证口径：
     /// - 一类关核心腿笔数 = fills 中 `ReverseType1 × Core{*}`；断言②评估探针对账；
-    /// - **待裁决实测**：一类平仓后级余额非零笔数（断言②违例探针）——BTC 实证一类
-    ///   候选 fold 逐腿关闭可留同级 FollowParent 级联核心腿残余（教义级矛盾，已上报）；
+    /// - **#209 终态（2026-07-24 本票实跑）**：断言①级残余违例=**0**、断言②级余额
+    ///   违例=**0**（#199 测量态实测违例=1 作对照——fold 一类全平修复后全窗归零，
+    ///   S7 级别内全平在真实数据坐实）；
     /// - 二类关核心腿笔数 = fills 中 `CoreResidualCorrection`（残余硬门逐笔构造恒真）；
     /// - 二类卖身份合法集：`ReverseType2` 仅落 ShortDiff/Short（断言③前半逐笔构造恒真）；
     /// - 全窗扫描：无 `{Core, ReverseType2}` 单（断言③账户约束）。
+    ///
+    /// ★#209 翻动核对（#179 程序，2026-07-24 实跑）：typed 订单轨 **26 笔零翻动**
+    /// （五枚举 9+8+7+0+2 与 #200 新基线逐桶一致——一类全平多关的腿全为未登记
+    /// restore 祖先腿，不入 typed ledger）；理由轴分桶随轨迹演化：断言①评估 2→3
+    /// （一类关 Core 腿总数，全平多关 1 条级联/祖先腿）、CoreResidualCorrection 4→6、
+    /// ReverseType2=2 不变、断言③前半=2（同级 Core 残余=0）——逐条对账断言锁死。
     ///
     /// 诚实声明：`n_residual`（二类残余纠错笔数）是数据事实——若为零是样本缺席而非
     /// 机制缺席（合成场景 A 已见证触发）；不伪造（DATA BLOCKER 纪律）。
@@ -5935,6 +5972,20 @@ mod tests {
         assert_eq!(t1_core_zero_probe_count() as usize, n_t1_core, "断言②评估笔数对账");
         assert_eq!(residual_correction_probe_count() as usize, n_residual, "残余硬门笔数对账");
         assert_eq!(type2_sell_guard_probe_count() as usize, n_t2_legal, "断言③前半笔数对账");
+        // ★#209 终态硬断言（票面验收①，2026-07-24 实跑）：断言①② 全窗违例=0——
+        // 一类卖后级残余=0（#199 测量态实测违例=1 作对照：fold 只关首条致 L=1 残留
+        // FollowParent 延续腿 277.9 单位；一类全平修复后归零）。debug 构建下硬门先行
+        // （违例即 panic），本断言为探针口径的显式验收锁。
+        assert_eq!(
+            crate::theta_v0::strategy::coverage::t1_target_residual_probe_count(),
+            0,
+            "#209 断言①终态：一类卖后级残余全窗违例=0（#199 实测违例=1 对照）"
+        );
+        assert_eq!(
+            t1_core_residual_probe_count(),
+            0,
+            "#209 断言②终态：一类批末级余额全窗违例=0"
+        );
         // 断言③全窗扫描：无 {Core, ReverseType2} 单（二类卖永不落本仓账）；
         // CoreResidualCorrection 全落 Core 账（残余纠错语义恰一账户）。
         assert!(
@@ -5952,9 +6003,10 @@ mod tests {
                 .all(|f| matches!(f.order.account(), AccountIdentity::Core { .. })),
             "CoreResidualCorrection 全落 Core 账（恰一账户）"
         );
-        // 非空转：断言① coverage 评估探针 >0（train 窗一类卖 Core 真实发生 2 笔）。
-        // 诚实记录（2026-07-23 实测）：本窗 `n_t1_core`（镜像 ReverseType1×Core）= 0——
-        // 一类关的 2 条 Core 腿全部来自**未登记 restore 祖先腿**（非本窗信号入场，
+        // 非空转：断言① coverage 评估探针 >0（#209 实跑评估=3——一类关 Core 腿总数，
+        // 含全平多关的级联/restore 祖先腿；#199 测量态时为 2）。
+        // 诚实记录（2026-07-24 #209 实跑复核）：本窗 `n_t1_core`（镜像 ReverseType1×Core）= 0——
+        // 一类关的 Core 腿全部来自**未登记 restore 祖先腿**（非本窗信号入场，
         // runner.rs「表中无登记 ⟹ 不入 ledger」），断言②评估探针=0 是数据事实而非机制
         // 缺席（断言②非空转由合成见证 `t1_core_close_zero_assertion_fires_in_pi_loop` 承担）。
         assert!(

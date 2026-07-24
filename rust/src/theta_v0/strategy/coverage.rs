@@ -159,13 +159,15 @@ pub fn t1_target_zero_probe_count() -> u64 {
     T1_TARGET_ZERO_PROBE.with(std::cell::Cell::get)
 }
 
-/// ★#199 待裁决上报项：一类卖后**级残余非零**笔数（BTC 实证存在，见断言①挂载点注释）。
+/// ★#209 终态违例探针：一类卖后**级残余非零**笔数（release 构建可观测面；debug 构建
+/// 由断言①挂载点 debug_assert 先行拦截）。历史对照：#199 测量态 BTC 实测违例=1。
 /// pub 理由同上（lib-target dead_code lint 规避；跨模块消费只经 reset/count）。
 pub fn t1_target_residual_probe_bump() {
     T1_TARGET_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
 }
 
-/// 读取级残余违例探针快照（待裁决上报材料：一类卖后 target_qty(Core{L})≠0 笔数）。
+/// 读取级残余违例探针快照（#209 终态见证材料：一类卖后 target_qty(Core{L})≠0 笔数，
+/// 验收口径 = 全窗 0）。
 pub fn t1_target_residual_probe_count() -> u64 {
     T1_TARGET_RESIDUAL_PROBE.with(std::cell::Cell::get)
 }
@@ -3109,14 +3111,11 @@ pub(crate) fn pi_theta_step_traced(
     // 单源判定（Ambient×Long/FollowParent ⟹ Core{level}；反手开空=Ambient×Short ⟹ Short
     // 账不触发本断言，ID-3「允许当场反手」相容）。探针恒在计数（一类核心关闭评估笔数）。
     //
-    // ★★#199 待裁决（2026-07-23 实跑上报，勿删）：BTC train 窗实证——一类候选经 fold
-    // 规则2 **单候选只关一条**同级反向腿（interp.rs `find` 首个命中），而同级别可有多条
-    // 核心腿并存（Ambient 根 + FollowParent 级联/§13 restore），致一类卖后级残余非零
-    // （实测 L=1 残留 FollowParent 延续腿 277.9 单位）。票面「一类卖(L)⟹target_qty
-    // (Core{L})==0」与验收「一类点全平后本仓=0」的**一类=原子全平**前提，与生产 fold
-    // 现实分叉——此为教义级矛盾（修 fold=订单流大变更 / 改票面口径=改验收，均须裁决）。
-    // 裁决前本断言处**测量态**：级残余非零笔数经探针如实计数（不 panic——避免既有
-    // BTC 见证被待裁缺口炸毁，090：测量先行，不以降级断言蒙混）；裁决后此处置终态断言。
+    // ★#209 终态硬门（用户裁 A 2026-07-23：S7 级别内全平是必须非应当）：#199 测量态
+    // 期满转正——fold 规则2 已修为一类候选关闭该级别**全部**反向命中腿（interp.rs
+    // #209 段），级残余结构性归零。硬门形态 = debug 构建逐笔 panic + 违例探针恒在
+    // 计数（release 下仍可观测），与断言③同款。历史对照（勿删）：#199 测量态 BTC
+    // train 窗实测违例=1（L=1 残留 FollowParent 延续腿 277.9 单位，一类只关首条所致）。
     for (l, c, _) in &closed {
         if c.bsp_class != 1 {
             continue;
@@ -3142,6 +3141,11 @@ pub(crate) fn pi_theta_step_traced(
         if residual != 0.0 {
             t1_target_residual_probe_bump();
         }
+        debug_assert!(
+            residual == 0.0,
+            "#209 断言①终态违例：一类卖后 target_qty(Core{{{}}}) 残余 {residual} ≠ 0——S7 级别内全平是必须",
+            l.level
+        );
     }
     let closed_ids: std::collections::HashSet<ElementId> =
         closed.iter().map(|(l, _, _)| l.id).collect();
@@ -5195,8 +5199,10 @@ mod tests {
 
     /// ★#199 断言①（#185「建议断言」1，T1 目标态）生产路径触发见证（合成单腿场景）：
     /// 一类卖 Core 评估探针真实触发，且单腿场景 `target_qty(Core{L})==0`（违例探针=0——
-    /// 单腿即「一类=全平」成立的平凡域）。**多核心腿场景的级残余非零实测为待裁决教义
-    /// 缺口**（见断言①挂载点注释 + runner 侧 BTC 见证 `btc_type2_residual_correction_witness`）。
+    /// 单腿即「一类=全平」成立的平凡域）。**多核心腿场景经 #209 终态化**：fold 一类全平
+    /// + 断言①硬门（见断言①挂载点注释）+ 多腿合成见证
+    /// `t1_target_zero_assertion_holds_with_multiple_core_legs` + runner 侧 BTC 见证
+    /// `btc_type2_residual_correction_witness` 全窗违例=0。
     #[test]
     fn t1_target_zero_assertion_fires_in_step() {
         use super::super::ledger::{RiskPolicy, TwState};
@@ -5235,6 +5241,64 @@ mod tests {
             t1_target_residual_probe_count(),
             0,
             "单腿场景：一类卖后 target_qty(Core{{0}})==0（级残余为零的平凡域）"
+        );
+    }
+
+    /// ★#209 断言①终态（多核心腿场景，S7 级别内全平）：一类卖候选 ⟹ 同级**全部**
+    /// Core 腿全关、级目标残余=0。prev_active 直喂「Ambient 根 + FollowParent 级联」
+    /// 两条同级核心腿（账户同归 Core{0}，经 `identity_of` 单源）——#199 BTC 实测
+    /// 缺口（一类只关首条、级联腿残余 277.9）的修复见证。
+    #[test]
+    fn t1_target_zero_assertion_holds_with_multiple_core_legs() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        t1_target_zero_probe_reset();
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let held_root = aleg(0, VoiceSide::Long, 0, 0); // Ambient 根
+        let held_cascade = aleg(0, VoiceSide::Long, 2, 2); // FollowParent 级联（同级同向）
+        let classification = sell_classification(1);
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let tw_state = TwState::initial();
+        let policy = RiskPolicy::baseline();
+        let entry_v: std::collections::HashMap<ElementId, Vertical> = [
+            (held_root.id, Vertical::Ambient),
+            (held_cascade.id, Vertical::FollowParent),
+        ]
+        .into_iter()
+        .collect();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &entry_v,
+            eta_correction: 0,
+        };
+        let (na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held_root, held_cascade], 600.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc), &protocol_hold(),
+        );
+        assert_eq!(trace.closed.len(), 2, "一类卖关闭同级全部核心腿（S7 全平）");
+        assert!(
+            trace.closed.iter().all(|(_, trig, _)| trig.bsp_class == 1),
+            "两腿触发归因同一一类候选"
+        );
+        assert!(
+            !na.iter().any(|l| l.id == held_root.id || l.id == held_cascade.id),
+            "被关两腿均不入 next_active"
+        );
+        assert_eq!(
+            t1_target_zero_probe_count(),
+            2,
+            "一类核心关闭两笔 ⟹ 断言①评估逐腿触发（探针为凭）"
+        );
+        assert_eq!(
+            t1_target_residual_probe_count(),
+            0,
+            "多腿场景：一类卖后 target_qty(Core{{0}})==0（S7 级别内全平）"
         );
     }
 
