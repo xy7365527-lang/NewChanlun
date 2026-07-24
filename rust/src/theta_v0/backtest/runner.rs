@@ -7559,9 +7559,12 @@ mod tests {
         let res = run_theta_v0_pi(&ds, &config, years, 1.0e6);
         let p = ancok_probe_snapshot();
 
-        // 探针记账封闭性（自检）：每次 restore 调用恰好以三种方式之一终止。
+        // 探针记账封闭性（自检）：每次 restore 调用恰好以四种方式之一终止（#226 增种子中断项）。
         assert_eq!(
-            p.restore_complete + p.restore_break_already_in_raw + p.restore_break_registry_lost,
+            p.restore_complete
+                + p.restore_break_already_in_raw
+                + p.restore_break_registry_lost
+                + p.restore_break_closed_seed,
             p.restore_calls,
             "restore 终止方式记账不封闭（探针 bug）"
         );
@@ -7586,7 +7589,8 @@ mod tests {
         eprintln!("restore 调用总数          : {}", p.restore_calls);
         eprintln!("  ├ 自然收敛（抵达真根）  : {}", p.restore_complete);
         eprintln!("  ├ 提前收敛（已在 raw）  : {}", p.restore_break_already_in_raw);
-        eprintln!("  └ ★暴露面（registry 丢失）: {}", p.restore_break_registry_lost);
+        eprintln!("  ├ ★暴露面（registry 丢失）: {}", p.restore_break_registry_lost);
+        eprintln!("  └ #226 种子中断（当 bar 被关父）: {}", p.restore_break_closed_seed);
         eprintln!("restore 恢复成功率        : {restore_success_rate:.6}");
         eprintln!("═══════════════════════════════════════════════");
     }

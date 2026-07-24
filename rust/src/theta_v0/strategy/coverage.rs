@@ -98,6 +98,9 @@ pub struct AncokProbe {
     /// ★暴露面：restore 因 registry 丢失/作废祖先提前中断（本应有 parent 但 registry 已失去）。
     /// >0 ⟹ 被 admit 子声部腿祖先链未完整 ⟹ 声部树非严格（697 ceiling 的可观测触发条件）。
     pub restore_break_registry_lost: u64,
+    /// ★#226：restore 遇**当 bar 已被裁决终结**的祖先（∈ 𝒟_x 关闭种子）提前中断——open 父注入
+    /// 路径（ℬ_x 段无 𝒟_x^† 种子兜底）不得复活被关父（S3 子树清仓；m3 win9 断言①炸点根因）。
+    pub restore_break_closed_seed: u64,
 }
 
 thread_local! {
@@ -111,6 +114,7 @@ thread_local! {
         restore_complete: 0,
         restore_break_already_in_raw: 0,
         restore_break_registry_lost: 0,
+        restore_break_closed_seed: 0,
     }) };
 }
 
@@ -2016,6 +2020,16 @@ fn close_indices(prev_active: &[ActiveLeg], close: &[ActiveLeg]) -> Vec<usize> {
 /// §11 归纳证明：每条未关闭腿的操作父 live ⟹ 所有 depth<d 腿通过 persistent AncOK。
 /// 递归上溯 structural_parent_id 链，遇到已在 raw 中的祖先停止（闭包满足）。
 /// ponytail: ceiling=增量 extract_elements 时 confirmed prefix 已含全部祖先，无需恢复。
+///
+/// ★#226 `closed_seeds`（S3：父终结 ⟹ 子树清仓——与 A_t 段「restore 不得复活被关父」同一
+/// 教义）：walk 中遇 **当 bar 已被裁决终结**（∈ 𝒟_x = `buckets.close`）的祖先即中断——不复活、
+/// 不上溯（计数 `restore_break_closed_seed`）。**open 父注入路径必传**（ℬ_x 段不经 𝒟_x^†，
+/// 无种子兜底：复活被关父 = 一类批末该级 Core 物理残余，m3 win9 bar=17032 断言①炸点
+/// 根因——残余 = 触发腿自身自复活，勘察报告
+/// `.chanlun/review-results/assertion1-win9-open-restore-resurrect-20260724.md`）；
+/// **held 路传空切片**（A_t 段由 𝒟_x^† 种子命中兜底，语义/轨迹 bit-exact 不变）。
+/// `already_in_raw` 检查先行：种子经反手候选同 id 重开已在 raw 时闭包合法收敛
+/// （ID-3「允许当场反手」不误伤——过滤只作用 restore 祖先注入，候选推送零改）。
 fn restore_ancestor_chain_from_registry(
     work: &mut ElementView,
     raw: &mut Vec<usize>,
@@ -2025,6 +2039,8 @@ fn restore_ancestor_chain_from_registry(
     // O(work)/层=O(n²)。raw.any 不动（raw 有界，prev_active~O(log n) 实测 9@16K）。
     id_idx: &std::collections::HashMap<ElementId, usize>,
     overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
+    // ★#226：当 bar 关闭种子（见函数 doc）。
+    closed_seeds: &[ActiveLeg],
 ) {
     ancok_probe_bump(|p| p.restore_calls += 1);
     let mut broke = false;
@@ -2034,6 +2050,13 @@ fn restore_ancestor_chain_from_registry(
         let already_in_raw = raw.iter().any(|&r| work.get(r).map(|e| e.id == pid).unwrap_or(false));
         if already_in_raw {
             ancok_probe_bump(|p| p.restore_break_already_in_raw += 1);
+            broke = true;
+            break;
+        }
+        // ★#226：当 bar 已被裁决终结的祖先不经 restore 复活（open 父注入路径的种子兜底；
+        // 中断后调用侧候选父链断裂，由统一 AncOK 正常剪除——非加特例）。
+        if closed_seeds.iter().any(|l| l.id == pid) {
+            ancok_probe_bump(|p| p.restore_break_closed_seed += 1);
             broke = true;
             break;
         }
@@ -2242,8 +2265,11 @@ pub(crate) fn coverage_step_from_buckets_sep(
                         // 全部加入 work/raw，使生产 AncOK（#183 归一后 = exit::step_active_set_with_subtree_close）
                         // 通过（§11：每条未关闭腿的操作父 live ⟹ 所有 depth<d 腿通过 persistent AncOK）。
                         if let Some(op_pid) = leg.op_parent {
+                            // ★#226：held 路传空种子表——A_t 段由 𝒟_x^† 种子命中兜底（restore
+                            // 复活的被关父同清，`t4_subtree_close_unifies_production_active_set_step`
+                            // 锁定），语义/轨迹 bit-exact 不变。
                             restore_ancestor_chain_from_registry(
-                                &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
+                                &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen, &[],
                             );
                         }
                         // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
@@ -2355,12 +2381,16 @@ pub(crate) fn coverage_step_from_buckets_sep(
         // （§11 归纳：每条子声部腿的操作父 live ⟹ depth<d 祖先全在 raw ⟹ AncOK 通过）。这让持仓父
         // carrier 的位置节点进入 A_t（§8 父声部 carrier 跨 bar 持有，§9 祖先闭合兑现），depth>0 子腿
         // 准入。**非** AncOK 加特例放行——父链真实注入后由统一 AncOK 判据正常判定（no-patch）。
+        // ★#226：open 父注入传 `buckets.close` 种子表——ℬ_x 段不经 𝒟_x^†（下方「不对称记录」），
+        // 当 bar 已被裁决终结的祖先不得经本路径复活（S3 子树清仓；m3 win9 断言①炸点根因：
+        // 一类终结父 (1,35) 同 bar 经本路径复活成 Core{1} 残余 518.09）。种子不复活 ⟹ 候选父链
+        // 断裂 ⟹ 统一 AncOK 正常剪除；反手候选自身元素不经 restore，ID-3 反手不受影响。
         if idx < work.len() {
             if let Some(parent_pid) = work[idx].parent_id {
                 let parent_in_raw =
                     raw.iter().any(|&r| work.get(r).map(|e| e.id == parent_pid).unwrap_or(false));
                 if !parent_in_raw && registry.registry_live(&parent_pid) {
-                    restore_ancestor_chain_from_registry(&mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen);
+                    restore_ancestor_chain_from_registry(&mut work, &mut raw, registry, parent_pid, &id_idx, &mut overlay_seen, &buckets.close);
                 }
             }
         }
@@ -2377,18 +2407,22 @@ pub(crate) fn coverage_step_from_buckets_sep(
     //   ② 声部层 AncOK 闭合（判据与旧 `ancestor_close_by_id` 逐点等价：raw 内 ElementId 唯一
     //      （#216 三处注册路径闭合）+ `is_boundary_root ⟺ parent_id.is_none()`（element_as_leg
     //      同源构造）+ 链断裂（父 id 不在集）即剪，两实现同判）。
-    // restore 注入的扩集语义**保留**（#179 裁决）：held/open 路径的 restore 注入照常（raw 构造
-    // 零改动），仅最终成员资格由镜像函数统一裁决——存活腿的祖先链恢复行为不变（守护测试
+    // restore 注入的扩集语义**保留**（#179 裁决）：held/open 路径的 restore 注入照常（open 路
+    // 遇当 bar 种子中断除外——下方「不对称记录」#226 收口），仅最终成员资格由镜像函数统一
+    // 裁决——存活腿的祖先链恢复行为不变（守护测试
     // `t4_unify_preserves_restore_expansion_for_surviving_legs`）。
     // 分段（spec §13 公式形态）：A_t 段（held 循环产出）经 𝒟_x^† 子树清仓；ℬ_x 段（open 循环
     // 产出：候选 + open 父注入）作 opened 并入、不经 𝒟_x^†——反手候选与种子同 id 时按 id 误清
     // 会禁绝先平后开（#200 基线 typed=2 实证）。
-    // ★不对称记录（code-review Spec 轴 (c)1 在案）：ℬ_x 段的 open 父注入 restore 不经 𝒟_x^†——
-    // 父本 bar 被裁决终结且同 bar 候选以其为 carrier 时，父可经 open 注入复活、候选 AncOK
-    // 准入；这与 A_t 段「restore 不得复活被关父」（`t4_subtree_close_unifies_production_active_set_step`
-    // 锁定）不对称，但与归一前旧路径行为**逐点一致**（旧 ancestor_close_by_id 同样放行）——
-    // 属 #179 裁决保留的 restore 扩集面（spec §13 公式字面：(A_t∖𝒟_x^†)∪ℬ_x 中 ℬ_x 不经 𝒟_x^†），
-    // 非回归；是否收口的终局裁决不在本票范围（留 fog 记录）。
+    // ★不对称记录（code-review Spec 轴 (c)1 在案）**#226 收口更新**：ℬ_x 段的 open 父注入 restore
+    // 原不经 𝒟_x^†——父本 bar 被裁决终结且同 bar 候选以其为 carrier 时，父可经 open 注入复活、
+    // 候选 AncOK 准入；该面与 A_t 段「restore 不得复活被关父」不对称，曾作 #179 裁决保留面留
+    // fog。**#226 实证其教义代价**（m3 win9 bar=17032：一类终结父 (1,35) 同 bar 经 open 父注入
+    // 复活成 Core{1} 物理残余 518.0948228547287，断言①炸点）后**收口**：open 父注入 restore 遇
+    // 当 bar 关闭种子即中断（`restore_break_closed_seed`），复活泄漏封死。保留面收窄为「反手
+    // 候选**自身元素**与种子同 id 重开不经 𝒟_x^†」（ID-3「允许当场反手」，#200 基线）——过滤
+    // 只作用 restore 祖先注入，候选推送零改（守护测试
+    // `open_reverse_candidate_on_closed_carrier_unaffected`）。
     let a_t_legs: Vec<ActiveLeg> = raw[..a_t_end]
         .iter()
         .map(|&i| element_as_leg(&work[i]))
@@ -5002,7 +5036,7 @@ mod tests {
 
         let id_idx = build_tree_id_index(&base);
         let mut overlay_seen = std::collections::HashMap::new();
-        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen);
+        restore_ancestor_chain_from_registry(&mut work, &mut raw, &reg, carrier, &id_idx, &mut overlay_seen, &[]);
 
         assert_eq!(work.len(), 1, "restore 不得 push 重复 id 元素（应复用 work[0]，overlay 空）");
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
@@ -5323,6 +5357,150 @@ mod tests {
         assert!(
             active.iter().any(|l| l.id == child),
             "子腿借 restore 恢复的父链 AncOK 准入（restore 语义不变）；实得 {active:?}"
+        );
+    }
+
+    /// ★#226 断言①违例**根因直测**（m3 win9 bar=17032 炸点最小复现，勘察报告
+    /// `.chanlun/review-results/assertion1-win9-open-restore-resurrect-20260724.md`）：同 bar
+    /// 一类卖终结父 carrier（close 种子）× 次级顺父 open 候选挂该父——(I-1) open 父注入 restore
+    /// **不得复活当 bar 已被裁决终结的祖先**（S3：父终结 ⟹ 子树清仓；与 A_t 段「restore 不得复活
+    /// 被关父」同一教义，ℬ_x 段此前无种子兜底 = #179 保留面的复活泄漏）。种子不复活 ⟹ 候选父链
+    /// 断裂 ⟹ 统一 AncOK 正常剪除（非 AncOK 加特例）。
+    ///
+    /// **RED（修复前）**：restore id_idx 命中树前缀复用 ⟹ 种子父复活入 ℬ_x、候选借尸准入——炸点
+    /// 实证残余 = 触发腿自身 q=518.0948228547287（Core{1}）。**GREEN（修复后）**：restore 遇种子
+    /// 中断，父子均不入 A_{t+1}，一类批末 Core{1} sep 物理残余=0（断言①口径）。
+    #[test]
+    fn open_parent_restore_skips_closed_seed_no_resurrect() {
+        let child = eid(0, 900);
+        let parent = eid(1, 901);
+        // 树前缀含父元素（炸点 origin=tree-prefix：restore id_idx 复用路径）。
+        let tree_elem = CoverageElement {
+            lambda: 20, rho: 30, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        };
+        // 候选段：lvl 0 顺父开多候选（炸点 OPEN-CAND：class=3 buy3 FollowParent Long），parent_id=父。
+        let cand_elem = CoverageElement {
+            lambda: 42, rho: 42, eps: VoiceSide::Long, level: 0,
+            parent: None, attached_dir: None, id: child, parent_id: Some(parent),
+        };
+        // 父持仓腿（炸点 PREV：Long/Ambient/边界根）——一类卖本 bar 终结（close 种子）。
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let buckets = Buckets {
+            close: vec![leg_parent],
+            open: vec![cand(0, 42, VoiceSide::Long, 0)],
+            record: vec![],
+        };
+        let snapshot = vec![tree_elem, cand_elem];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&snapshot, &[leg_parent]);
+        ancok_probe_reset();
+        let (active, _p, sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&[tree_elem, cand_elem], 1), &[leg_parent], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        assert_eq!(
+            ancok_probe_snapshot().restore_break_closed_seed,
+            1,
+            "restore 遇当 bar 关闭种子中断一次（探针为凭）"
+        );
+        assert!(
+            !active.iter().any(|l| l.id == parent),
+            "当 bar 已被裁决终结的父不得经 open 父注入 restore 复活（S3/#226）；实得 {active:?}"
+        );
+        assert!(
+            !active.iter().any(|l| l.id == child),
+            "父终结 ⟹ 挂尸候选父链断裂，统一 AncOK 剪除（S3 子树清仓）；实得 {active:?}"
+        );
+        let core1: f64 = sep
+            .iter()
+            .filter(|s| s.id.level == 1)
+            .filter(|s| {
+                super::super::account::identity_of(s.role_v, s.side, s.id.level)
+                    == Some(super::super::account::AccountIdentity::Core { level: s.id.level })
+            })
+            .map(|s| s.q_units)
+            .sum();
+        assert_eq!(core1, 0.0, "一类批末 Core{{1}} sep 物理残余=0（断言①口径）；实得 {core1}");
+    }
+
+    /// ★#226 **反手保留守护**（ID-3「允许当场反手」+ #179 保留面收窄声明）：同 bar 一类终结父
+    /// carrier × **反向候选同 id 重开**（反手开空——候选**自身元素**入 ℬ_x，非 restore 注入）。
+    /// 种子过滤只作用 restore 祖先注入，候选推送零改 ⟹ 反手照常准入（方向/坐标取候选）。
+    #[test]
+    fn open_reverse_candidate_on_closed_carrier_unaffected() {
+        let parent = eid(1, 901);
+        let tree_elem = CoverageElement {
+            lambda: 20, rho: 30, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        };
+        // 反手候选元素：同 carrier id、eps=Short、点元素（lambda==rho）、无父（反向根）。
+        let rev_elem = CoverageElement {
+            lambda: 55, rho: 55, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        };
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let buckets = Buckets {
+            close: vec![leg_parent],
+            open: vec![cand(1, 55, VoiceSide::Short, 0)],
+            record: vec![],
+        };
+        let snapshot = vec![tree_elem, rev_elem];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&snapshot, &[leg_parent]);
+        let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&[tree_elem, rev_elem], 1), &[leg_parent], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        let rev: Vec<_> = active.iter().filter(|l| l.id == parent).collect();
+        assert_eq!(
+            rev.len(),
+            1,
+            "反手候选同 id 重开不经 restore ⟹ 种子过滤不误伤（ID-3 反手保留）；实得 {active:?}"
+        );
+        assert_eq!(rev[0].dir, VoiceSide::Short, "反手腿方向取候选（反向），非被关父的 Long");
+        assert_eq!(rev[0].source_index, 55, "反手腿坐标取候选点元素，非被关父的 30");
+    }
+
+    /// ★#226 种子在祖先链**中段**：restore 逐级走查遇种子即中断——已恢复的下级祖先链断于种子
+    /// （其 parent_id 解析不到），与候选一并未通过统一 AncOK（链断则后代链同断，剪除单调）。
+    #[test]
+    fn open_parent_restore_mid_chain_seed_aborts() {
+        let child = eid(0, 900);
+        let p1 = eid(1, 901);
+        let p2 = eid(2, 902);
+        // P1/P2 仅 registry LiveDetached（空树）；P1.structural_parent=P2，P2=根。
+        let p1_elem = CoverageElement {
+            lambda: 10, rho: 20, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: p1, parent_id: Some(p2),
+        };
+        let p2_elem = CoverageElement {
+            lambda: 10, rho: 30, eps: VoiceSide::Long, level: 2,
+            parent: None, attached_dir: None, id: p2, parent_id: None,
+        };
+        let cand_elem = CoverageElement {
+            lambda: 42, rho: 42, eps: VoiceSide::Long, level: 0,
+            parent: None, attached_dir: None, id: child, parent_id: Some(p1),
+        };
+        let leg_p2 = ActiveLeg {
+            level: 2, dir: VoiceSide::Long, source_index: 30, lambda: 10,
+            id: p2, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let buckets = Buckets {
+            close: vec![leg_p2],
+            open: vec![cand(0, 42, VoiceSide::Long, 0)],
+            record: vec![],
+        };
+        let reg = super::super::persistent::PersistentRegistry::new()
+            .merge(&[p1_elem, p2_elem, cand_elem], &[leg_p2]);
+        let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&[cand_elem], 0), &[leg_p2], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        assert!(
+            !active.iter().any(|l| l.id == p2 || l.id == p1 || l.id == child),
+            "种子在链中段 ⟹ 中断后下级祖先随候选一并 AncOK 剪除；实得 {active:?}"
         );
     }
 
