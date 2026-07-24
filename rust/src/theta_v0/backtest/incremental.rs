@@ -102,6 +102,16 @@ impl<'a> IncrementalClassifier<'a> {
         &self.tower_cache
     }
 
+    /// ★#93 水线证书批量读法（`classify_at(i)` 后同 bar 调用，单一来源禁第二查法）：
+    /// `out[ℓ]` = `tower[ℓ][..out[ℓ]]` 跨 bar bit-stable 下界 =
+    /// [`TowerCache::tower_confirmed_len(ℓ)`](classifier::TowerCache::tower_confirmed_len)。
+    /// `n_levels` 取本 bar `tower.len()`；over-shrink 恒 sound（消费方多重比尾段）。
+    pub fn tower_confirmed_lens(&self, n_levels: usize) -> Vec<usize> {
+        (0..n_levels)
+            .map(|l| self.tower_cache.tower_confirmed_len(l))
+            .collect()
+    }
+
     /// ★工位 4g：当前塔变更代次（`classify_at` 后读取）。下游 `TreeCache` 据此 O(1) 判断是否复用
     /// 缓存树，跳过每 bar O(tree) 的 `TreeKey::of`（exp≈2.0 真因）。同代次 ⟹ extract 输出不变。
     pub fn tower_generation(&self) -> u64 {

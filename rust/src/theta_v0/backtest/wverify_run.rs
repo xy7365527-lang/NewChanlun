@@ -1216,6 +1216,11 @@ fn m8_e2e_all_systems_oos() {
             wins.push((format!("wf{}", w.i), w.test_start.into(), w.test_end.into()));
         }
     }
+    // ★T3 (#172)/#164 复现副本同款先例：`M8_WIN_FILTER=<tag>` ⟹ 只跑指定窗（逐窗重放/shadow
+    // dump 分窗落盘需要；未设 = 全窗清单不变，bit-exact 中性——只跳过其他窗，窗内行为逐字节同）。
+    if let Ok(filter) = std::env::var("M8_WIN_FILTER") {
+        wins.retain(|(tag, _, _)| tag == &filter);
+    }
 
     let mut report = String::from(
         "# M8 端到端全策略 OOS（TARGET_STRATEGY_MAXFULL.md M8 / 路线.pdf p17,p20-21）\n\n\
@@ -1265,7 +1270,11 @@ fn m8_e2e_all_systems_oos() {
         cfg.margin = Some(q4_margin_model(nav_te));
         cfg.cost_model = Some(m6_cost_model());
         eprintln!("[m8] BTC {tag} test={te_lo}..{te_hi}({}) 三系统同开 run…", test.bars.len());
+        // ★T5a (#207) shadow dump 分窗接线（T3_SHADOW_DUMP 同型）：env T5A_CHAIN_DUMP_DIR
+        // 设置时逐窗开 `<dir>/t5a_chain_dump_<tag>.jsonl`；未设 = no-op（bit-exact 中性）。
+        super::admission::t5a_chain_dump::open_for_window(&tag);
         let r = run_theta_v0_pi_overlay(&test, &cfg, years, nav_te);
+        super::admission::t5a_chain_dump::close();
 
         // 层2 execution：R 分解 + MaxDD + 逐声部归因。
         let d = r.net_result.r_decomp.expect("overlay 臂经生产 π loop ⟹ 产 R 分解");
