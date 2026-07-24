@@ -539,7 +539,18 @@ fn build_decision(
     // （classifier 不变量）；违反则显式返回 None（不用零 Center 静默产 zg=0 错误止损价）。
     let has_third = point.bits.buy3 || point.bits.sell3;
     let center = match point.center {
-        Some(c) => c,
+        Some(super::classifier::bsp::OwnerRef::Center(c)) => c,
+        // #218 面 A：二类点载体 = 一类点锚（Type1Anchor）——1/2 类止损只读 pivot，center
+        // 不入判；含 3 类 bit 恒 Center 载体（生产构造不变量），Type1Anchor+3 类 = 不变量违反。
+        Some(super::classifier::bsp::OwnerRef::Type1Anchor(_)) if has_third => return None,
+        Some(super::classifier::bsp::OwnerRef::Type1Anchor(_)) => super::types::Center {
+            zd: 0,
+            zg: 0,
+            dd: 0,
+            gg: 0,
+            start_index: 0,
+            end_index: 0,
+        },
         None if has_third => return None, // 不变量违反：含 3 类 bit 但无 center（显式拒绝）
         None => super::types::Center {
             zd: 0,
@@ -828,7 +839,18 @@ fn build_child_decision(
     // stop_in：从 BspPoint 直接构造（single source，零重算）；3 类 bit 不变量校验同 build_decision。
     let has_third = point.bits.buy3 || point.bits.sell3;
     let center = match point.center {
-        Some(c) => c,
+        Some(super::classifier::bsp::OwnerRef::Center(c)) => c,
+        // #218 面 A：二类点载体 = 一类点锚（Type1Anchor）——1/2 类止损只读 pivot，center
+        // 不入判；含 3 类 bit 恒 Center 载体（生产构造不变量），Type1Anchor+3 类 = 不变量违反。
+        Some(super::classifier::bsp::OwnerRef::Type1Anchor(_)) if has_third => return None,
+        Some(super::classifier::bsp::OwnerRef::Type1Anchor(_)) => super::types::Center {
+            zd: 0,
+            zg: 0,
+            dd: 0,
+            gg: 0,
+            start_index: 0,
+            end_index: 0,
+        },
         None if has_third => return None, // 不变量违反：含 3 类 bit 但无 center（显式拒绝）
         None => super::types::Center {
             zd: 0,
@@ -1307,12 +1329,12 @@ mod tests {
 
     /// 构造含一个第三类买点的单级 Classification（L0 = L*，single source BspPoint）。
     fn classification_with_buy3(source_index: usize) -> Classification {
-        let bsp = vec![BspPoint {
+        let bsp = vec![BspPoint { level_origin: 0,
             source_index,
             bits: BspBits { buy3: true, ..Default::default() },
             pivot_low: 210,
             pivot_high: 0,
-            center: Some(mk_center(100, 200, 3)),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 3))),
             struct_break_dir: None,
             force: None,
         }];
@@ -1372,12 +1394,12 @@ mod tests {
     #[test]
     fn recognize_sell3_yields_short_sell_order() {
         let cfg = ThetaConfig::default();
-        let bsp = vec![BspPoint {
+        let bsp = vec![BspPoint { level_origin: 0,
             source_index: 0,
             bits: BspBits { sell3: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 90,
-            center: Some(mk_center(100, 200, 3)),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 3))),
             struct_break_dir: None,
             force: None,
         }];
@@ -1421,12 +1443,12 @@ mod tests {
     fn recognize_higher_empty_levels_no_underflow() {
         let cfg = ThetaConfig::default();
         // L0 有第三类买点，L1/L2 bsp 空（多级别真实常态：高级别无信号）⟹ l_star=0。
-        let l0_bsp = vec![BspPoint {
+        let l0_bsp = vec![BspPoint { level_origin: 0,
             source_index: 0,
             bits: BspBits { buy3: true, ..Default::default() },
             pivot_low: 210,
             pivot_high: 0,
-            center: Some(mk_center(100, 200, 3)),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 3))),
             struct_break_dir: None,
             force: None,
         }];
@@ -1465,7 +1487,7 @@ mod tests {
     fn recognize_third_bit_without_center_rejected() {
         let cfg = ThetaConfig::default();
         // 违反不变量构造：buy3=true 但 center=None（cc-classifier 保证不会发生，此处守卫）。
-        let bsp = vec![BspPoint {
+        let bsp = vec![BspPoint { level_origin: 0,
             source_index: 0,
             bits: BspBits { buy3: true, ..Default::default() },
             pivot_low: 210,
@@ -1663,12 +1685,12 @@ mod tests {
 
     /// L0 sell1 候选（src=si；host=sub(4,8) 当 si=8 ⟹ 真父 L1 Long ⟹ role ShortDiff）。
     fn classification_with_sell1(source_index: usize) -> Classification {
-        let bsp = vec![BspPoint {
+        let bsp = vec![BspPoint { level_origin: 0,
             source_index,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(mk_center(100, 200, 0)),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(mk_center(100, 200, 0))),
             struct_break_dir: None,
             force: None,
         }];
