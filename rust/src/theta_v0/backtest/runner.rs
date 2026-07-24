@@ -1444,6 +1444,9 @@ where
         LedgerOpen,
     > = std::collections::HashMap::new();
     let mut typed_ledger: Vec<TypedTrade> = Vec::new();
+    // #201 阶段 B 裁决账本轨（加轨不减轨）：逐 bar 消费 StepTrace.verdicts 的显式
+    // per-voice 裁决序列（含显式 Hold）；与 typed_ledger/账户镜像/opsem/TW 全正交。
+    let mut verdict_ledger: Vec<VoiceVerdictRec> = Vec::new();
     // #197 并行记账视图（expand 只读旁路）：(account, level) 键全链携带的分实例账本。
     // 镜像开/关腿生命周期事件过账，不改净额路径任何语义（三把 bit-exact 锁为界）；
     // 消费这些类型修复归属现病属修复票 #198/#199/#200。
@@ -1828,7 +1831,8 @@ where
                 &protocol_events,
             );
             // ── #196 阶段 A shadow：组合层裁决点之后并行跑 channel 适配层——只记录分歧，
-            //    不改裁决与订单流（零行为变更；分歧报告 env 门控落盘，见主循环后）。──
+            //    不改裁决与订单流（零行为变更；分歧报告 env 门控落盘，见主循环后）。
+            //    #201：生产事实由 step_trace.verdicts 显式裁决序列单源推导（trace/裁决层统一）。──
             shadow_book.observe_and_compare(
                 i,
                 &prev_active,
@@ -1837,7 +1841,6 @@ where
                 gate.force_flat,
                 &step_parent_projections,
                 &step_trace,
-                &next_active,
             );
             if pan_div_hist.is_some() {
                 use super::super::strategy::oscillation::{
@@ -2152,6 +2155,13 @@ where
                     );
                 }
             }
+            // ── #201 阶段 B 裁决账本轨（加轨不减轨）：消费 StepTrace.verdicts 显式 per-voice
+            //    裁决序列（含显式 Hold）——每 bar 每解释器裁决域持仓声部恰一枚，schema 冻结
+            //    （阶段 C 换内核在本契约上对齐）。只入本轨；不改 typed_ledger/account_view/
+            //    opsem/TW 任何既有轨（Hold 无成交，不入 TypedTrade）。──
+            for v in &step_trace.verdicts {
+                verdict_ledger.push(VoiceVerdictRec { bar: i, leg: v.leg, exit_type: v.exit });
+            }
             // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
             // A6（#159）：z_of_candidate 内读 c.force（Candidate 透传 BspPoint.force）填 force_state
             // 第 8 维——entry_z（训练）与上方 filter_gamma（查询）同函数同候选 ⟹ 同口径自动成立，
@@ -2449,6 +2459,7 @@ where
         trades,
         n_orders: n_orders_executed,
         typed_ledger,
+        voice_verdicts: verdict_ledger,
         tw_final: Some(tw),
         r_decomp: Some(r_decomp),
         account_view,
@@ -2611,6 +2622,29 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
         (Some(f), Some(l)) if f.close > 0 => l.close as f64 / f.close as f64 - 1.0,
         _ => 0.0,
     }
+}
+
+/// 声部裁决账本记录（#201 阶段 B：per-voice 裁决序列的 runner 落账单元，**schema 冻结**——
+/// 冻结口径见 [`super::super::strategy::coverage::VoiceVerdict`] doc，本结构只加 `bar` 轴）。
+///
+/// 由**生产 π fill loop**（[`pi_theta_fill_loop`]，唯一状态机）逐 bar 输出：消费组合层
+/// `StepTrace.verdicts`，每 bar 每**解释器裁决域**持仓声部恰一枚（`prev_active =
+/// verdicts ⊎ silent_drops` 划分；§13 结构剪除腿不进本轨——其生命周期事件在 typed
+/// ledger 轨 `via_structural_prune=true` 显式）。**显式 Hold 是本轨核心**：延续持有的声部
+/// 此前无任何 typed 记录（Hold 隐式），本票起逐 bar 落 `ExitType::Hold` 显式裁决。
+///
+/// **加轨不减轨**：本轨与 typed ledger（成交/生命周期记录）、账户镜像、opsem dump、TW
+/// 账本全部正交——Hold 无成交，故不入 `TypedTrade`（其是平仓记录）；窗口终点 censored
+/// 强平仍是 typed ledger 轨语义（`ExitType::Hold` 关条目），不在本轨（本轨只载 bar 内
+/// 解释器裁决）。阶段 C 换内核在本契约上对齐。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VoiceVerdictRec {
+    /// 裁决 bar（fill loop 主循环 `i`，决策 bar）。
+    pub bar: usize,
+    /// 裁决对象腿（声部身份 level/dir/ElementId 全在）。
+    pub leg: super::super::strategy::interp::ActiveLeg,
+    /// typed 裁决（单源五枚举；Hold = 显式持有）。
+    pub exit_type: super::super::strategy::interp::ExitType,
 }
 
 /// 腿级 typed 交易记录（G4 #134：《完整的策略.pdf》§9 typed exit 的统计层载体）。
@@ -3272,6 +3306,10 @@ struct FillOutput {
     /// 腿级 typed 交易 ledger（G4；π 路径 [`pi_theta_fill_loop`] 产出，v1 路径
     /// [`plan_and_fill_mtm`] 无腿级台账 ⟹ 恒空，诚实不伪造）。
     typed_ledger: Vec<TypedTrade>,
+    /// #201 阶段 B 裁决账本轨：π 路径逐 bar 消费的显式 per-voice 裁决序列（含显式 Hold，
+    /// schema 冻结见 [`VoiceVerdictRec`]）；v1/dual 路径无腿级裁决 ⟹ 恒空（诚实不伪造，
+    /// 同 `typed_ledger` 先例）。加轨不减轨——不进 μ estimand、不改任何既有轨。
+    voice_verdicts: Vec<VoiceVerdictRec>,
     /// TW 账本终态（#124 裁定4：TwState 生产真值源在 π fill loop；TStage/ηBucket「生产者已
     /// 就位」的可观测物证——G3 ZExt 桥/诊断消费）。v1 路径无 TW 接线 ⟹ `None`（诚实不伪造）。
     tw_final: Option<TwState>,
@@ -3553,6 +3591,7 @@ fn plan_and_fill_mtm(
         trades,
         n_orders: n_orders_executed,
         typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
+        voice_verdicts: Vec::new(), // v1 无腿级裁决（诚实空，同 typed_ledger 先例）
         tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
         r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
         account_view: strategy::account::ParallelAccountLedger::new(), // v1 无腿级生命周期（诚实空，#197）
@@ -3932,6 +3971,7 @@ fn plan_and_fill_mtm_dual(
             trades,
             n_orders: n_orders_executed,
             typed_ledger: Vec::new(), // 无腿级台账（诚实空，同 v1 净额路径）
+            voice_verdicts: Vec::new(), // 无腿级裁决（诚实空，同 typed_ledger 先例）
             tw_final: None,           // 无 TW 接线（E2 G5 同数锁待接线后启用，诚实 None）
             r_decomp: None,
             account_view: strategy::account::ParallelAccountLedger::new(), // 无腿级生命周期（诚实空，#197）
@@ -6483,6 +6523,61 @@ mod tests {
         assert!(
             report.contains("divergences=0"),
             "单腿单候选无反向场景两链同构（全 Match）：\n{report}"
+        );
+    }
+
+    /// ★#201 阶段 B 生产路径见证：显式 Hold 落 typed 裁决记录——驱动 [`pi_theta_fill_loop`]
+    /// （buy1@3 确认@7 ⟹ 开 Long 持仓多 bar），裁决账本轨每 bar 每持仓声部恰一枚显式裁决
+    /// （spec 两道防线①：接进 run_theta_v0_pi + 生产路径测试见证）。
+    ///
+    /// 见证链：
+    /// 1. 本场景无反向/强平信号 ⟹ 开仓后逐 bar 全为 `ExitType::Hold`（Hold 由隐式转显式，
+    ///    本票核心）——注意即便 TW P3/P4 账本事件分支成立，持仓声部裁决仍是 Hold（该分支
+    ///    每声部逐枚裁 Hold，见 coverage verdicts_p3 测试），故本断言对 TW 状态不敏感；
+    /// 2. 裁决序列逐 bar 连续、（bar, 声部）不重复 ⟹ 「每 bar 每声部恰一枚」；
+    /// 3. 裁决声部 = typed ledger 窗口终点 censored 的声部（同一腿）——censored 强平属
+    ///    typed ledger 轨既有语义，不在裁决轨（裁决轨只载 bar 内解释器裁决域的声部裁决）。
+    #[test]
+    fn voice_verdict_ledger_witness_explicit_hold_in_pi_loop() {
+        use super::super::super::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        assert!(!fill.typed_ledger.is_empty(), "前置：买点确认 ⟹ 有 typed 交易");
+        assert!(!fill.voice_verdicts.is_empty(), "裁决账本轨非空（每 bar 每声部一枚）");
+        let voice = fill.voice_verdicts[0].leg.id;
+        assert!(
+            fill.voice_verdicts.iter().all(|v| v.leg.id == voice),
+            "单腿场景：全部裁决同一声部"
+        );
+        assert!(
+            fill.voice_verdicts.iter().all(|v| v.exit_type == ExitType::Hold),
+            "无反向/强平信号 ⟹ 逐 bar 显式 Hold（Hold 由隐式转显式）：{:?}",
+            fill.voice_verdicts
+        );
+        // 每 bar 每声部恰一枚：(bar, 声部) 不重复且逐 bar 连续覆盖持仓期至窗口末 bar。
+        let mut prev_bar = None;
+        for v in &fill.voice_verdicts {
+            if let Some(p) = prev_bar {
+                assert_eq!(v.bar, p + 1, "裁决序列逐 bar 连续（每 bar 恰一枚）：{v:?}");
+            }
+            prev_bar = Some(v.bar);
+        }
+        assert_eq!(
+            fill.voice_verdicts.last().map(|v| v.bar),
+            Some(bars.len() - 1),
+            "持仓声部裁决覆盖至窗口末 bar"
+        );
+        let censored = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.exit_type == ExitType::Hold)
+            .expect("窗口终点 censored Hold 在 typed ledger");
+        assert_eq!(censored.voice_id, voice, "裁决声部 = censored 声部（同一腿）");
+        assert!(
+            fill.voice_verdicts.len() >= 2,
+            "持仓多 bar ⟹ 显式 Hold 裁决记录逐 bar 复现：{} 枚",
+            fill.voice_verdicts.len()
         );
     }
 

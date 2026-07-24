@@ -2876,6 +2876,29 @@ pub(crate) fn pi_theta_step_prebuilt(
     (next_active, p_star, decision)
 }
 
+/// 声部裁决记录（#201 阶段 B：per-voice 裁决序列的记录单元，**schema 冻结**）。
+///
+/// **冻结字段清单**（本票之后不得增删改；阶段 C 换内核在本契约上对齐，spec WP-3）：
+/// - `leg`：裁决对象腿（声部身份 level/dir/ElementId 全在）。
+/// - `exit`：typed 裁决（[`interp::ExitType`] 单源五枚举，**枚举零改**）——
+///   反向关闭 = CloseRoot/ReduceCore/CloseShortDiff（interpret 规则2 触发，
+///   [`interp::reverse_exit_type`] 判定）；P1 强平 = RiskExit；TW P2 overlay 关闭 =
+///   CloseShortDiff（与规则2 短差关闭同 typed——源头区分在保留桶 `closed`/`overlay_closes`，
+///   与 typed ledger 粒度一致）；**无出场 = Hold（显式持有——本票核心：Hold 由隐式转显式）**。
+///
+/// 覆盖域不变量：`prev_active = verdicts ⊎ silent_drops`（划分）——每 bar 每**解释器裁决域**
+/// 持仓声部恰一枚；§13 结构剪除（AncOK 连带剪/Stale prune）是活动集与树的状态同步、**非
+/// 解释器裁决**（组合层既有口径），其生命周期事件仍在 `silent_drops` → typed ledger 轨显式
+/// （`via_structural_prune=true`），不进裁决序列。序列按 `prev_active` 次序确定序输出
+/// （bit-exact 可复现）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct VoiceVerdict {
+    /// 裁决对象腿（声部身份全在：level/dir/ElementId）。
+    pub leg: ActiveLeg,
+    /// typed 裁决（单源五枚举；Hold = 显式持有）。
+    pub exit: interp::ExitType,
+}
+
 /// G4 typed exit 组合层 trace（#134，裁定4 I_Θ 组合层雏形——G5 #124 升级 I_Θ 时在此层加
 /// RiskState/TwState 输入与 tw_event/exit_kind 输出）。
 ///
@@ -2920,6 +2943,12 @@ pub(crate) struct StepTrace {
     /// 空 = 本 bar 无活动腿（force_flat/无候选/AncOK 全剪）⟹ P^sep_{t+1}=∅，Net=0。只读暴露，
     /// 不进决策路径（`Σσ_v·q_units == p̃` 恒等，见 [`coverage_step_from_buckets_sep`]）。
     pub sep_legs: Vec<SepLeg>,
+    /// ★#201 阶段 B：显式 per-voice 裁决序列（含显式 Hold；**schema 冻结**，记录单元
+    /// [`VoiceVerdict`]）。每 bar 每解释器裁决域持仓声部恰一枚（`prev_active = verdicts ⊎
+    /// silent_drops` 划分：closed/risk/overlay 各携其 typed，延续持有 = Hold）。空 = 本 bar
+    /// 无持仓声部。runner 消费段据此加裁决账本轨（加轨不减轨）；shadow 生产事实由本序列
+    /// 单源推导（trace/裁决层统一）。
+    pub verdicts: Vec<VoiceVerdict>,
     /// ★opsem-dump（R5-a，基因 073a/274号）：本步 LexArgmin 的 top-3 J_Θ 候选键（字典序升序，
     /// `(JThetaKey, control)`）。经 runner `OpsemEntrySnapshot.lex_top3` 透传至 dump 的
     /// `lex_argmin_top3` 字段。**不进 p_star/J_Θ/χ 门控**——纯只读诊断切片（R5-1 铁律：dump 数据
@@ -2992,7 +3021,15 @@ pub(crate) fn pi_theta_step_traced(
             Vec::new(),
             p_star,
             (order, protocol_event),
-            StepTrace { risk_exits: prev_active.to_vec(), ..Default::default() },
+            StepTrace {
+                risk_exits: prev_active.to_vec(),
+                // #201：P1 分支每持仓声部恰一枚 RiskExit 裁决（prev_active 次序）。
+                verdicts: prev_active
+                    .iter()
+                    .map(|&leg| VoiceVerdict { leg, exit: interp::ExitType::RiskExit })
+                    .collect(),
+                ..Default::default()
+            },
         );
     }
     // ── TW 谓词 P2/P3/P4（#124 裁定4「真统一」：TW 三阶段进 fold，PDF §7 C_2/C_3/C_4）──
@@ -3032,11 +3069,26 @@ pub(crate) fn pi_theta_step_traced(
                     .filter(|l| !overlay_ids.contains(&l.id) && !next_ids.contains(&l.id))
                     .copied()
                     .collect();
+                // #201：P2 分支每持仓声部恰一枚裁决——overlay 腿 = CloseShortDiff（与规则2
+                // 短差关闭同 typed，源头区分在 overlay_closes 桶）、保留腿 = Hold；
+                // prev_active 次序；§13 剪除腿非裁决（silent_drops 轨）。
+                let verdicts = prev_active
+                    .iter()
+                    .filter_map(|l| {
+                        if overlay_ids.contains(&l.id) {
+                            Some(VoiceVerdict { leg: *l, exit: interp::ExitType::CloseShortDiff })
+                        } else if next_ids.contains(&l.id) {
+                            Some(VoiceVerdict { leg: *l, exit: interp::ExitType::Hold })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
                 return (
                     next_active,
                     p_star,
                     (order, protocol_event),
-                    StepTrace { overlay_closes: overlay, silent_drops, sep_legs, ..Default::default() },
+                    StepTrace { overlay_closes: overlay, silent_drops, sep_legs, verdicts, ..Default::default() },
                 );
             }
         }
@@ -3064,11 +3116,18 @@ pub(crate) fn pi_theta_step_traced(
                 .filter(|l| !next_ids.contains(&l.id))
                 .copied()
                 .collect();
+            // #201：P3/P4 分支消耗当步裁决（屏蔽 P5..P10）——持仓声部仍逐枚裁 Hold
+            // （活动腿保持）；§13 剪除腿非裁决（silent_drops 轨）。
+            let verdicts = prev_active
+                .iter()
+                .filter(|l| next_ids.contains(&l.id))
+                .map(|&leg| VoiceVerdict { leg, exit: interp::ExitType::Hold })
+                .collect();
             return (
                 next_active,
                 p_star,
                 (order, protocol_event),
-                StepTrace { tw_event: Some(ev), silent_drops, sep_legs, ..Default::default() },
+                StepTrace { tw_event: Some(ev), silent_drops, sep_legs, verdicts, ..Default::default() },
             );
         }
     }
@@ -3149,6 +3208,23 @@ pub(crate) fn pi_theta_step_traced(
     }
     let closed_ids: std::collections::HashSet<ElementId> =
         closed.iter().map(|(l, _, _)| l.id).collect();
+    // #201：正常路径每持仓声部恰一枚显式裁决——close 桶腿携组合层单源 typed（与 closed
+    // 第三分量一致），延续腿 = Hold（由隐式转显式）；prev_active 次序确定序；§13 剪除腿
+    // 非裁决（silent_drops 轨，见下）。
+    let closed_typed: std::collections::HashMap<ElementId, interp::ExitType> =
+        closed.iter().map(|(l, _, e)| (l.id, *e)).collect();
+    let verdicts: Vec<VoiceVerdict> = prev_active
+        .iter()
+        .filter_map(|l| {
+            if let Some(&exit) = closed_typed.get(&l.id) {
+                Some(VoiceVerdict { leg: *l, exit })
+            } else if next_ids.contains(&l.id) {
+                Some(VoiceVerdict { leg: *l, exit: interp::ExitType::Hold })
+            } else {
+                None
+            }
+        })
+        .collect();
     // 静默离场：prev_active 中既未被 close 桶认领、也不在 next_active（AncOK 剪/Stale prune）。
     let silent_drops: Vec<ActiveLeg> = prev_active
         .iter()
@@ -3174,7 +3250,7 @@ pub(crate) fn pi_theta_step_traced(
         next_active,
         p_star,
         (order, protocol_event),
-        StepTrace { closed, silent_drops, opened, sep_legs, lex_top3, ..Default::default() },
+        StepTrace { closed, silent_drops, opened, sep_legs, verdicts, lex_top3, ..Default::default() },
     )
 }
 
@@ -5734,6 +5810,183 @@ mod tests {
         // G1 闭合见证：correction=101 ⟹ η_corrected=−1<η⋆=0 ⟹ 不派（η 高估被持盾成本修正
         // 消除 ⟹ EnterReady 不再易过——修正前 (correction=0) 同一态必派，对照在上方两条）。
         assert_eq!(run(101), None, "η_corrected=−1<η⋆ ⟹ 不派（G1：修正判据变严=安全侧）");
+    }
+
+    // ── #201 阶段 B：StepTrace.verdicts 显式 per-voice 裁决序列（schema 冻结，见 VoiceVerdict
+    //    doc）——四个 return 分支逐一枚举：正常路径（Hold/typed）、P1（RiskExit）、
+    //    P2（CloseShortDiff+Hold）、P3/P4（Hold）。──
+
+    /// 正常路径：跨级反向证书不触 L1 出场（t2 跨级同构场景）⟹ 持仓声部裁 **Hold**
+    /// （由隐式转显式），每声部恰一枚、prev_active 次序。
+    #[test]
+    fn pi_theta_step_traced_verdicts_normal_path_explicit_hold() {
+        let tower = two_parent_tower();
+        let classification = sell_classification_at(0, 20, 1); // L0 卖证书（与 L1 持仓跨级）
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let held = held_l1_compose_a();
+        let held_idx = tree.iter().position(|e| e.id == held.id).expect("L1 compose_a 在塔中");
+        let p_t = leg_target(&tree, held_idx, 1000.0, &cfg()).units;
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let work = ElementView::from_parts(&tree, candidates);
+        let (next_active, _p_star, _d, trace) = pi_theta_step_traced(
+            work, &gamma, &[held], p_t, 21, 1000.0, &r, w, KThetaRiskGate::open(),
+            &cfg(), &reg, None, &protocol_hold(),
+        );
+        assert_eq!(next_active, vec![held], "前置：跨级证书不触 L1 出场（腿延续）");
+        assert_eq!(
+            trace.verdicts,
+            vec![VoiceVerdict { leg: held, exit: interp::ExitType::Hold }],
+            "每持仓声部恰一枚显式裁决：延续 = Hold（由隐式转显式）"
+        );
+    }
+
+    /// 正常路径：同级别已确认反向证书 ⟹ 该声部裁决 = [`interp::reverse_exit_type`] 单源
+    /// typed（一类 CloseRoot / 三类 ReduceCore），与 `closed` 第三分量一致，无 Hold 记录。
+    #[test]
+    fn pi_theta_step_traced_verdicts_normal_path_typed_close() {
+        let held = held_l1_compose_a();
+        for class in [1u8, 3u8] {
+            let tower = two_parent_tower();
+            let classification = sell_classification_at(1, 12, class);
+            let (tree, candidates, gamma) =
+                interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+            let held_idx = tree.iter().position(|e| e.id == held.id).expect("L1 compose_a 在塔中");
+            let p_t = leg_target(&tree, held_idx, 1000.0, &cfg()).units;
+            let r = rcfg();
+            let w = PiThetaWeights::from_risk(&r);
+            let reg = super::super::persistent::PersistentRegistry::new();
+            let work = ElementView::from_parts(&tree, candidates);
+            let (_na, _p, _d, trace) = pi_theta_step_traced(
+                work, &gamma, &[held], p_t, 13, 1000.0, &r, w, KThetaRiskGate::open(),
+                &cfg(), &reg, None, &protocol_hold(),
+            );
+            assert_eq!(trace.closed.len(), 1, "前置：同级别已确认证书关闭持仓腿");
+            assert_eq!(
+                trace.verdicts,
+                vec![VoiceVerdict {
+                    leg: held,
+                    exit: interp::reverse_exit_type(Vertical::Ambient, class),
+                }],
+                "关闭声部裁决 = 单源 typed（class={class}，与 closed 第三分量一致）"
+            );
+        }
+    }
+
+    /// P1 force_flat 分支：prev_active 全部裁 RiskExit（每声部恰一枚，无 Hold/typed 混合）。
+    #[test]
+    fn pi_theta_step_traced_verdicts_p1_force_flat_all_risk_exit() {
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let held = aleg(0, VoiceSide::Long, 0, 0);
+        let flat = KThetaRiskGate { force_flat: true, stop_long: false, stop_short: false, no_increase_cap: None };
+        let (_na, _p, _d, trace) = pi_theta_step_traced(
+            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, flat, &cfg(), &reg, None,
+            &protocol_hold(),
+        );
+        assert_eq!(trace.risk_exits.len(), 1, "前置：prev_active 全部 RiskExit");
+        assert_eq!(
+            trace.verdicts,
+            vec![VoiceVerdict { leg: held, exit: interp::ExitType::RiskExit }],
+            "P1 强平声部裁决 = RiskExit（每声部恰一枚）"
+        );
+    }
+
+    /// P2 CloseOverlay 分支：重叠腿裁 CloseShortDiff、保留腿裁 Hold，按 prev_active 次序
+    /// 确定序输出（sd_leg 先、root_leg 后）。
+    #[test]
+    fn pi_theta_step_traced_verdicts_p2_overlay_typed_and_hold() {
+        use super::super::ledger::{RiskPolicy, TStage, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let sd_leg = aleg(0, VoiceSide::Long, 7, 7);
+        let root_leg = aleg(1, VoiceSide::Long, 3, 3);
+        let sd_ids: std::collections::HashMap<ElementId, Vertical> =
+            [(sd_leg.id, Vertical::ShortDiff)].into_iter().collect();
+        let tw_state = TwState {
+            stage: TStage::CapitalRecovered,
+            open_legacy_legs: 1,
+            ..TwState::initial()
+        };
+        let policy = RiskPolicy::baseline();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &sd_ids,
+            eta_correction: 0,
+        };
+        let (_na, _p, _d, trace) = pi_theta_step_traced(
+            work, &gamma, &[sd_leg, root_leg], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+            &protocol_hold(),
+        );
+        assert_eq!(trace.overlay_closes.len(), 1, "前置：P2 关重叠腿恰一条");
+        assert_eq!(
+            trace.verdicts,
+            vec![
+                VoiceVerdict { leg: sd_leg, exit: interp::ExitType::CloseShortDiff },
+                VoiceVerdict { leg: root_leg, exit: interp::ExitType::Hold },
+            ],
+            "P2：overlay 腿 = CloseShortDiff，保留腿 = Hold（prev_active 次序确定序）"
+        );
+    }
+
+    /// P3/P4 TW 事件分支：消耗当步裁决（屏蔽 P5..P10）时持仓声部仍逐枚裁 Hold
+    /// （活动腿保持，无开/平）。
+    #[test]
+    fn pi_theta_step_traced_verdicts_p3_consumes_step_holds() {
+        use super::super::ledger::{RiskPolicy, TwEvent, TwState};
+        let (classification, tower) = buy_gamma();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let held = aleg(1, VoiceSide::Long, 3, 3); // buy_gamma 场景下可存活（P2 测试实证）
+        let tw_state = TwState {
+            free: 100,
+            holding: 100,
+            notional_in: 100,
+            ..TwState::initial()
+        }; // CostReduction + holding≥notional_in + free 足额 ⟹ P3 成立
+        let policy = RiskPolicy::baseline();
+        let empty_ids: std::collections::HashMap<ElementId, Vertical> = Default::default();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &empty_ids,
+            eta_correction: 0,
+        };
+        let (next_active, _p, _d, trace) = pi_theta_step_traced(
+            work, &gamma, &[held], 0.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc),
+            &protocol_hold(),
+        );
+        assert!(
+            matches!(trace.tw_event, Some(TwEvent::RecoverCapital(_))),
+            "前置：P3 成立（消耗当步裁决）"
+        );
+        assert_eq!(next_active, vec![held], "前置：活动腿保持");
+        assert_eq!(
+            trace.verdicts,
+            vec![VoiceVerdict { leg: held, exit: interp::ExitType::Hold }],
+            "P3 消耗当步裁决：持仓声部仍逐枚裁 Hold"
+        );
     }
 
     /// ★优先级 C_1≻C_2（PDF §7）：P1 force_flat 与 P2 条件同时成立 ⟹ P1 赢（risk_exits，

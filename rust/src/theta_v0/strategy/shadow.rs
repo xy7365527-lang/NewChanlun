@@ -40,7 +40,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::super::classifier::recursive_tower::ElementId;
 use super::channel::{self, ChannelDecision, ChannelId, ParentKappa, VoiceState, VoiceStepInput};
-use super::coverage::{StepTrace, Vertical};
+use super::coverage::{StepTrace, Vertical, VoiceVerdict};
 use super::interp::{ActiveLeg, Candidate, ExitType, ParentCertificateProjection};
 use super::voice::VoiceSide;
 
@@ -51,7 +51,8 @@ struct VoiceKey {
     dir: VoiceSide,
 }
 
-/// 生产事实（从 [`StepTrace`] + `next_active` 推导，每声部每 bar 恰一枚）。
+/// 生产事实（#201 阶段 B：持仓声部由 [`StepTrace.verdicts`] 显式裁决序列**单源**推导，
+/// 空仓声部按 slot 查 `opened` 保留桶；每声部每 bar 恰一枚）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProductionFact {
     /// 持仓声部：腿在 `next_active` 延续。
@@ -160,8 +161,8 @@ pub(crate) struct ShadowVoiceBook {
 }
 
 impl ShadowVoiceBook {
-    /// 每 bar 一次：生产裁决已定（`trace`/`next_active`），shadow 并行跑 channel 并逐声部
-    /// 比对。**只读**全部生产输入；产出仅入本簿（内存）——不改任何生产状态。
+    /// 每 bar 一次：生产裁决已定（`trace` 携 #201 显式 per-voice 裁决序列），shadow 并行跑
+    /// channel 并逐声部比对。**只读**全部生产输入；产出仅入本簿（内存）——不改任何生产状态。
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn observe_and_compare(
         &mut self,
@@ -172,7 +173,6 @@ impl ShadowVoiceBook {
         force_flat: bool,
         parent_projections: &[ParentCertificateProjection],
         trace: &StepTrace,
-        next_active: &[ActiveLeg],
     ) {
         // ① 本 bar slot 集：持仓 slot（活动集 (level,σ)，interp 规则3/4 slot 唯一性）∪
         //    候选 slot（gamma 可交易方向——空仓侧 P6 裁决对象，与生产喂 interpret 同一 χ 后集）。
@@ -192,13 +192,12 @@ impl ShadowVoiceBook {
             live_keys.insert(VoiceKey { level: c.level, dir: c.dir });
         }
 
-        // 生产事实索引（StepTrace 各桶按腿 id / slot 查）。
-        let closed: HashMap<ElementId, ExitType> =
-            trace.closed.iter().map(|(l, _c, e)| (l.id, *e)).collect();
-        let risk: HashSet<ElementId> = trace.risk_exits.iter().map(|l| l.id).collect();
+        // 生产事实索引（#201 阶段 B：持仓声部由 `StepTrace.verdicts` 显式裁决序列单源推导——
+        // trace/裁决层统一；CloseShortDiff 源头区分查 `overlay_closes` 保留桶、空仓声部查
+        // `opened` 保留桶——加轨不减轨，五桶全部保留）。
+        let verdicts: HashMap<ElementId, ExitType> =
+            trace.verdicts.iter().map(|v| (v.leg.id, v.exit)).collect();
         let overlay: HashSet<ElementId> = trace.overlay_closes.iter().map(|l| l.id).collect();
-        let dropped: HashSet<ElementId> = trace.silent_drops.iter().map(|l| l.id).collect();
-        let next: HashSet<ElementId> = next_active.iter().map(|l| l.id).collect();
         let opened: HashSet<VoiceKey> =
             trace.opened.iter().map(|(c, _l)| VoiceKey { level: c.level, dir: c.dir }).collect();
 
@@ -240,7 +239,7 @@ impl ShadowVoiceBook {
                 },
             };
             let (cid, dec) = channel::step_voice(&state, &input);
-            let fact = production_fact(leg, key, &closed, &risk, &overlay, &dropped, &next, &opened);
+            let fact = production_fact(leg, key, &verdicts, &overlay, &opened);
             let kind = classify(dec, fact);
             self.stats.bump(kind);
             if kind != DivergenceKind::Match {
@@ -307,35 +306,29 @@ impl ShadowVoiceBook {
     }
 }
 
-/// 生产事实推导：持仓声部按腿 id 查 StepTrace 各桶（close/risk/overlay/silent/next 五域
-/// 穷尽活动腿安置——组合层差分不变量），空仓声部按 slot 查 opened。
-#[allow(clippy::too_many_arguments)]
+/// 生产事实推导（#201 阶段 B：持仓声部由 `StepTrace.verdicts` 显式裁决序列**单源**推导——
+/// trace/裁决层统一，与旧五桶推导恒等：closed→其 typed、risk_exits→RiskExit、延续→Hold）。
+/// `CloseShortDiff` 的源头区分（TW P2 overlay vs 规则2 短差关闭）仍查 `overlay_closes` 保留桶
+/// （与 typed ledger 粒度一致）；空仓声部按 slot 查 `opened` 保留桶。裁决序列无记录 = §13
+/// 结构剪除（silent_drops 轨，非裁决——组合层不变量 `prev_active = verdicts ⊎ silent_drops`）
+/// 或序列缺口（防御：不吞异常，如实归 SilentDropped 落分歧）。
 fn production_fact(
     leg: Option<ActiveLeg>,
     key: VoiceKey,
-    closed: &HashMap<ElementId, ExitType>,
-    risk: &HashSet<ElementId>,
+    verdicts: &HashMap<ElementId, ExitType>,
     overlay: &HashSet<ElementId>,
-    dropped: &HashSet<ElementId>,
-    next: &HashSet<ElementId>,
     opened: &HashSet<VoiceKey>,
 ) -> ProductionFact {
     match leg {
-        Some(l) => {
-            if let Some(e) = closed.get(&l.id) {
-                ProductionFact::Closed(*e)
-            } else if risk.contains(&l.id) {
-                ProductionFact::RiskExited
-            } else if overlay.contains(&l.id) {
+        Some(l) => match verdicts.get(&l.id) {
+            Some(ExitType::Hold) => ProductionFact::Held,
+            Some(ExitType::RiskExit) => ProductionFact::RiskExited,
+            Some(ExitType::CloseShortDiff) if overlay.contains(&l.id) => {
                 ProductionFact::OverlayClosed
-            } else if dropped.contains(&l.id) || !next.contains(&l.id) {
-                // 五域之外无第六安置：不在前四桶也不在 next_active ⟹ 归 SilentDropped
-                // （分歧记录如实显示，不吞异常；dropped 命中是常态路径）。
-                ProductionFact::SilentDropped
-            } else {
-                ProductionFact::Held
             }
-        }
+            Some(e) => ProductionFact::Closed(*e),
+            None => ProductionFact::SilentDropped,
+        },
         None => {
             if opened.contains(&key) {
                 ProductionFact::Opened
@@ -445,8 +438,16 @@ mod tests {
         }
     }
 
-    fn hold_trace() -> StepTrace {
-        StepTrace::default()
+    /// 全 Hold 夹具：#201 起持仓声部事实由 `trace.verdicts` 单源推导——延续腿须显式携
+    /// Hold 裁决（与生产四 return 点同口径：延续 = Hold，prev_active 次序）。
+    fn hold_trace(legs: &[ActiveLeg]) -> StepTrace {
+        StepTrace {
+            verdicts: legs
+                .iter()
+                .map(|&leg| VoiceVerdict { leg, exit: ExitType::Hold })
+                .collect(),
+            ..Default::default()
+        }
     }
 
     // ── slice 1：活动集 → 声部构造/持久化 ─────────────────────────────────
@@ -463,7 +464,7 @@ mod tests {
 
         for bar in 0..3 {
             book.observe_and_compare(
-                bar, &active, &[], &entry_v, false, &[], &hold_trace(), &active,
+                bar, &active, &[], &entry_v, false, &[], &hold_trace(&active),
             );
         }
         // 两 slot 各自持久；step 跨 bar 连续推进（bar0 裁于 step0 → 推进；bar2 后 step=3）。
@@ -490,19 +491,19 @@ mod tests {
         let mut book = ShadowVoiceBook::default();
         let entry_v = HashMap::new();
         let leg_a = leg(1, VoiceSide::Long, 5);
-        book.observe_and_compare(0, &[leg_a], &[], &entry_v, false, &[], &hold_trace(), &[leg_a]);
-        book.observe_and_compare(1, &[leg_a], &[], &entry_v, false, &[], &hold_trace(), &[leg_a]);
+        book.observe_and_compare(0, &[leg_a], &[], &entry_v, false, &[], &hold_trace(&[leg_a]));
+        book.observe_and_compare(1, &[leg_a], &[], &entry_v, false, &[], &hold_trace(&[leg_a]));
         let key = VoiceKey { level: 1, dir: VoiceSide::Long };
         assert_eq!(book.voices[&key].step, 2);
 
         // bar2：同 slot 换腿（id ordinal 5→7）⟹ 新持仓期，step 重置为 0 后推进到 1。
         let leg_b = leg(1, VoiceSide::Long, 7);
-        book.observe_and_compare(2, &[leg_b], &[], &entry_v, false, &[], &hold_trace(), &[leg_b]);
+        book.observe_and_compare(2, &[leg_b], &[], &entry_v, false, &[], &hold_trace(&[leg_b]));
         assert_eq!(book.voices[&key].step, 1, "腿 id 切换 = 新持仓期 ⟹ 步计数重置");
         assert_eq!(book.voices[&key].leg.map(|l| l.id), Some(leg_b.id));
 
         // bar3：腿消失且无候选 ⟹ slot 从簿清除（下 bar 无持久状态残留）。
-        book.observe_and_compare(3, &[], &[], &entry_v, false, &[], &hold_trace(), &[]);
+        book.observe_and_compare(3, &[], &[], &entry_v, false, &[], &hold_trace(&[]));
         assert!(book.voices.is_empty(), "无腿无候选的 slot 不残留在簿");
     }
 
@@ -563,12 +564,14 @@ mod tests {
         let entry_v = HashMap::new();
 
         // ① 生产同关同 typed ⟹ 持仓 slot Match；空仓 slot Open-vs-Idle 结构差落分歧。
+        //    #201：closed 桶与 verdicts 同填（生产四 return 点同口径——closed 腿携其 typed）。
         let mut book = ShadowVoiceBook::default();
         let trace = StepTrace {
             closed: vec![(held, trigger, ExitType::CloseRoot)],
+            verdicts: vec![VoiceVerdict { leg: held, exit: ExitType::CloseRoot }],
             ..Default::default()
         };
-        book.observe_and_compare(7, &[held], &gamma, &entry_v, false, &[], &trace, &[]);
+        book.observe_and_compare(7, &[held], &gamma, &entry_v, false, &[], &trace);
         assert_eq!(book.stats().voice_steps, 2, "持仓 slot + 反向候选的空仓 slot");
         assert_eq!(book.stats().matches, 1, "同构关闭 slot Match（T2 同构思路全量化）");
         assert_eq!(
@@ -579,7 +582,7 @@ mod tests {
 
         // ② 生产未关 ⟹ 两 slot 各落一条分歧（HashSet 序不定，按 kind 检索）。
         let mut book = ShadowVoiceBook::default();
-        book.observe_and_compare(7, &[held], &gamma, &entry_v, false, &[], &hold_trace(), &[held]);
+        book.observe_and_compare(7, &[held], &gamma, &entry_v, false, &[], &hold_trace(&[held]));
         assert_eq!(book.stats().divergences(), 2);
         assert_eq!(book.stats().channel_exit_production_hold, 1);
         assert_eq!(book.stats().channel_open_production_idle, 1);
@@ -609,11 +612,11 @@ mod tests {
 
         let mut book = ShadowVoiceBook::default();
         let trace = StepTrace { opened: vec![(trigger, new_leg)], ..Default::default() };
-        book.observe_and_compare(0, &[], &gamma, &entry_v, false, &[], &trace, &[new_leg]);
+        book.observe_and_compare(0, &[], &gamma, &entry_v, false, &[], &trace);
         assert_eq!(book.stats().matches, 1, "channel Open ⟷ 生产 Opened 同 slot");
 
         let mut book = ShadowVoiceBook::default();
-        book.observe_and_compare(0, &[], &gamma, &entry_v, false, &[], &hold_trace(), &[]);
+        book.observe_and_compare(0, &[], &gamma, &entry_v, false, &[], &hold_trace(&[]));
         assert_eq!(book.stats().channel_open_production_idle, 1, "AncOK 剪除类缺口");
         assert_eq!(book.records()[0].kind, DivergenceKind::ChannelOpenProductionIdle);
     }
@@ -626,9 +629,14 @@ mod tests {
         let trigger = cand(0, 0, VoiceSide::Long, 1, buy(1));
         let gamma = vec![trigger];
         let entry_v = HashMap::new();
-        let trace = StepTrace { risk_exits: vec![held], ..Default::default() };
+        // #201：risk_exits 桶与 verdicts 同填（生产 P1 分支同口径——每声部恰一枚 RiskExit）。
+        let trace = StepTrace {
+            risk_exits: vec![held],
+            verdicts: vec![VoiceVerdict { leg: held, exit: ExitType::RiskExit }],
+            ..Default::default()
+        };
         let mut book = ShadowVoiceBook::default();
-        book.observe_and_compare(0, &[held], &gamma, &entry_v, true, &[], &trace, &[]);
+        book.observe_and_compare(0, &[held], &gamma, &entry_v, true, &[], &trace);
         assert_eq!(book.stats().voice_steps, 2, "持仓 slot + 空仓候选 slot 各一枚裁决");
         assert_eq!(book.stats().matches, 2, "P1 双链同裁（全互斥 C1 屏蔽）");
         assert!(book.records().is_empty());
