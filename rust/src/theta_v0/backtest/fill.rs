@@ -808,19 +808,25 @@ where
                         .as_mut()
                         .expect("THETA_NEST_CERT_GATE=1 ⟹ 真链门状态已构建");
                     gate.sync_events(&tower_i, &confirmed_lens, i);
-                    // 索引惰性重建（精确，决策逐字节不变）：本 bar 候选无一命中 multi 身份桥键
-                    // （by_end_multi 与 by_end 同点增量维护，O(1) 前置）⟹ typed_lookup_multi
-                    // 对全候选必 None ⟹
-                    // 无需重建索引；事件账本仍逐 bar 维护首次观察纪律。
+                    // 索引惰性重建（精确，决策逐字节不变）：T4 (#173) 起唯一前置 =
+                    // `chain_key_hint`（链键域 `by_triple_anchor` 保守超集——脚可解析 ∧
+                    // 任一链事件级键有身份集）。T5a (#207) 去方向位后 hint 不再携方向
+                    //（Flat 候选不进链求值 ⟹ 恒 false，前置精确性逐字保留；等价性论证
+                    // 见 `chain_key_hint` 注释：旧 hint=true 候选逐点保持 true，多出的
+                    // 触发 = 方向退役解放人口，`index_builds` 差异按足迹列账）。索引唯一
+                    // 读者 = `chain_lookup`（仅经 `by_triple_anchor` 键取身份后 `index.get`）：
+                    // hint=false ⟹ 链读出必不触索引（脚不可解 ⟹ NoChain；键全空 ⟹ 逐级
+                    // 键域查无）⟹ 无需重建；hint=true ⟹ 本前置触发重建 ⟹ 查询点索引内容
+                    // = 当前（重建是 (classification, events_by_level) 的确定函数 ⟹ 与基线
+                    // 逐字节一致；诊断计数 index_builds 与末次重建时点变化属预期足迹，
+                    // 不进任何判定）。事件账本仍逐 bar 维护首次观察纪律。
                     let needs_index = step_gamma_trade.iter().any(|c| {
                         use super::super::strategy::voice::VoiceSide;
-                        let delta = match c.dir {
-                            VoiceSide::Long => super::super::types::Side::Long,
-                            VoiceSide::Short => super::super::types::Side::Short,
-                            VoiceSide::Flat => return false,
-                        };
+                        if matches!(c.dir, VoiceSide::Flat) {
+                            return false; // Flat：不进链求值（admit_inner 早退）⟹ 前置恒 false
+                        }
                         classification_i.levels.get(c.level as usize).is_some()
-                            && gate.has_bridge_key_multi(c.source_index, delta)
+                            && gate.chain_key_hint(c, &classification_i)
                     });
                     if needs_index {
                         gate.sync_index(&classification_i);
@@ -830,6 +836,10 @@ where
                         .filter(|c| {
                             let (admit, channel, obs) =
                                 gate.admit(&tower_i, c, hist, i, &classification_i);
+                            // T5a (#207) shadow dump（#[cfg(test)]，env 未设 = no-op）：
+                            // 逐候选落新链结果（三态+谱系+缺断）+ admit/channel。
+                            #[cfg(test)]
+                            super::admission::t5a_chain_dump::record(i, c, &obs, admit, channel);
                             nest_gate_stats.observe(admit, channel, obs);
                             admit
                         })
@@ -1560,9 +1570,10 @@ where
     // ★#75：增打真链命中/链深构成（准拒分账）+ L2 旧臂对照差 + Xzd 回退；NEST_GATE_INDEX 行
     // 落索引侧链深构成（对照 72.7% 单级基线）与增量喂法成本计数（派生次数/索引重建次数）。
     // ★#94 两行分工（Spec A1 字面错位消除）：NEST_GATE_STATS = 准入判定分账（total/admitted/
-    // 分通道准拒——「门放不放行」的账面）；NEST_GATE_CHAIN = 真链命中/链深构成/对照差
-    // （typed_found/typed_none/rungs 准拒分账/cross——「真链 vs 旧臂」的读数）。链深构成
-    // 归属 CHAIN 行，不在 STATS 行。
+    // 分通道准拒——「门放不放行」的账面）；NEST_GATE_CHAIN = 对照读数行。T4 (#173)：CHAIN
+    // 行的并集/single comparison shadow 列（typed_found/typed_none/rungs 准拒分账/
+    // level_hits/single_multi_divergence）随旧桥退役删除，仅剩 Xzd 回退计数与 L2 旧臂
+    // cross 对照（链深构成读数由 NEST_GATE_INDEX 行承担）。
     // ★#94 cross 口径：复用通道（typed 无证 ∧ 旧臂 Xzd 复用，admit≡old_admit by construction）
     // **不计入对照差**（agree/old_pass_new_rej/old_rej_new_pass 仅含两路独立判定），
     // 单独计 reuse 列——剔除自证成分，对照差只反映真链/回退与旧臂的真实分歧。
@@ -1582,22 +1593,25 @@ where
             s.rej_xzd_gate,
         );
         eprintln!(
-            "NEST_GATE_CHAIN typed_found={} typed_none={} xzd_fallback={} | admit_rungs r0={} r1={} r2+={} | rej_rungs r0={} r1={} r2+={} | level_hits={:?} | single_multi_divergence={} | cross agree={} old_pass_new_rej={} old_rej_new_pass={} reuse={}",
-            s.typed_found,
-            s.typed_none,
+            "NEST_GATE_CHAIN xzd_fallback={} | cross agree={} old_pass_new_rej={} old_rej_new_pass={} reuse={}",
             s.xzd_fallback,
-            s.admit_rungs[0],
-            s.admit_rungs[1],
-            s.admit_rungs[2],
-            s.rej_rungs[0],
-            s.rej_rungs[1],
-            s.rej_rungs[2],
-            s.typed_hits_by_level,
-            s.single_multi_divergence,
             s.cross_agree,
             s.cross_old_pass_new_rej,
             s.cross_old_rej_new_pass,
             s.cross_reuse,
+        );
+        // ★T3 (#172) → T5a (#207)：链判定读数行（纯增量新行——NEST_GATE_STATS/CHAIN 行
+        // schema 逐字节不动，红线对照直接可比；chain_pass = 链确认读数，wf7 结算面对
+        // T3 时代 39 / 并集 17 基线）。T5a：dir_witness_divergence 列随方向见证退役删除
+        // （「方向分歧」是非概念，ADR 20260723 裁定 1）。
+        eprintln!(
+            "NEST_GATE_T3 chain_pass={} chain_reject={}(missing={} broken={}) chain_none={} | top_dist={:?}",
+            s.chain_pass,
+            s.chain_reject,
+            s.chain_reject_missing,
+            s.chain_reject_broken,
+            s.chain_none,
+            s.chain_top_dist,
         );
         if let Some(gate) = &nest_chain_gate {
             let st = gate.index.stats();
@@ -1620,6 +1634,50 @@ where
                 gate.n_derivations,
                 gate.n_index_builds,
                 gate.n_provider_errors,
+            );
+            // ★#214（spec endorsement-failure-instrument-20260724 ID-5）：背书失败原因
+            // 测量——纯增量新行，NEST_GATE_STATS/CHAIN/T3/INDEX 行 schema 逐字节冻结
+            // （T3 先例）；读数 = 全量计数（v3：无抽样、无概率推断）。两行分工：
+            // NEST_GATE_FAIL = Trend 四桶 + owner 子计数 + 点级（类 × owner 判同）二维 +
+            // 遍历计数 + Pan 成功/失败总数；NEST_GATE_LEVEL = base/assembled/indexed
+            // 按级 × kind 两维分解（行 = 级别槽，列 [Trend, Consolidation]，{:?} 沿用
+            // T3 top_dist 先例）。
+            // ★#218 面 B（spec owner-attribution-fix-20260724 ID-4，行族 schema 演进随票
+            // 登记——#214 新增行族、非冻结红线面）：桶名 owner_start_neq → owner_anchor_neq
+            // （判同机制换两族锚）；owner_pts_id_missing → owner_pts_anchor_missing（语义
+            // 重定 = 锚不可解）；新增 band_eq_start_neq（带碰撞观察，US-08）与
+            // scan_pts 三计数（遍历计数，ID-5 不变量断言集读数）。
+            let inst = gate.index.instrument();
+            let tp = inst.trend_pts;
+            eprintln!(
+                "NEST_GATE_FAIL trend={} success={} owner_anchor_neq={} out_of_window={} opposite_side={} no_valid_point={}(book_missing={} book_empty={}) owner_pts_anchor_missing={} owner_pts_real_neq={} band_eq_start_neq={} | pts_eq/total c1={}/{} c2={}/{} c3={}/{} | scan_pts book_total={} in_window={} same_side={} | pan_success={} pan_fail={}",
+                inst.trend_total(),
+                inst.trend_success,
+                inst.trend_owner_anchor_neq,
+                inst.trend_out_of_window,
+                inst.trend_opposite_side,
+                inst.trend_no_valid_point,
+                inst.nvp_book_missing,
+                inst.nvp_book_empty,
+                inst.owner_anchor_missing_pts,
+                inst.owner_real_neq_pts,
+                inst.band_eq_start_neq_pts,
+                tp[0][0], tp[0][0] + tp[0][1],
+                tp[1][0], tp[1][0] + tp[1][1],
+                tp[2][0], tp[2][0] + tp[2][1],
+                inst.scan_book_total,
+                inst.scan_in_window,
+                inst.scan_in_window_same_side,
+                inst.pan_success,
+                inst.pan_fail,
+            );
+            eprintln!(
+                "NEST_GATE_LEVEL base_lk={:?} assembled_lk={:?} indexed_lk={:?} | base_trend={} base_pan={}",
+                inst.base_by_level_kind,
+                inst.assembled_by_level_kind,
+                inst.indexed_by_level_kind,
+                inst.base_trend(),
+                inst.base_consolidation(),
             );
         }
     }
@@ -1739,9 +1797,13 @@ pub(super) fn plan_and_fill_mtm(
     let mut trades: Vec<metrics::TradeRecord> = Vec::new();
     let mut pos_entry_bar: Option<usize> = None;
     // ★#76 出场侧真链门（门开才构建，门关 ⟹ None 零开销、全路径逐字节不变）：
-    // 逐 bar 前缀因果喂法 + #75 同一身份桥反查（ExitNestGateCtx 文档，方案 (b) 预注入）；
-    // 判定唯一源 = typed 真链 n_delta，反查 miss ⟹ 诚实不准出；v0 基例双读对照落账。
+    // 逐 bar 前缀因果喂法 + T5b (#208) 迁链终态 = 与进场门同一套同点递归链反查
+    //（ExitNestGateCtx 文档，方案 (b) 预注入）；判定唯一源 = 链三态（Pass 准出 /
+    // Reject·NoChain 诚实不准出）；v0 基例双读对照落账。
     let mut exit_gate: Option<ExitNestGateCtx> = if nest_cert_gate_enabled() && n > 0 {
+        // T5b (#208) 出场 dump 路径标注（#[cfg(test)]，装置 env 未设 = no-op）。
+        #[cfg(test)]
+        super::admission::t5b_exit_dump::set_path("v1");
         Some(ExitNestGateCtx::new(bars, config))
     } else {
         None
@@ -1860,9 +1922,9 @@ pub(super) fn plan_and_fill_mtm(
         // 延迟队列（spec:50：Close 订单延迟到 fill_bar_index(i) 成交）。对齐
         // Origin.SubVoiceOpenClose.closePred（X = ¬ParentValid ∨ χ^{σ_p} ∨ Stop ∨ RiskClose）。
         // ★nest-gate（实装卡 §2.4，#76 真链升格）：THETA_NEST_CERT_GATE=1 ⟹ 反向项 χ^{σ_p}
-        // 消费对象从裸 BspBits 升格为 **typed 真链反查**（ExitNestGateCtx 逐 bar 前缀喂法 +
-        // #75 同一身份桥，exit_decision_for_nested_cert 注入查询闭包，四析取结构不动）；
-        // 未设 ⟹ 裸 bits 路径逐字节不变（bit-exact 回归锁）。
+        // 消费对象从裸 BspBits 升格为**同点递归链确认**（ExitNestGateCtx 逐 bar 前缀喂法 +
+        // T5b (#208) 迁链终态 = 与进场门同一 chain_lookup，exit_decision_for_nested_cert
+        // 注入查询闭包，四析取结构不动）；未设 ⟹ 裸 bits 路径逐字节不变（bit-exact 回归锁）。
         if !bar.untradable && px > 0.0 {
             // 当前账本权益（RiskClose 的 GlobalRiskClose 判据需要，Origin.RiskProj）。
             let equity_now = cash + units * px;
@@ -2102,10 +2164,14 @@ pub(super) fn plan_and_fill_mtm_dual(
     // ★B-M3b-expand（#90）：TW 账本线程收敛为 TwLedgerThread。──
     let mut tw_thread = TwLedgerThread::new(nav0, RiskPolicy::baseline());
     // ★#76 出场侧真链门（门开才构建，门关 ⟹ None 零开销、全路径逐字节不变）：
-    // 逐 bar 前缀因果喂法 + #75 同一身份桥反查（ExitNestGateCtx 文档，方案 (b) 预注入）。
+    // 逐 bar 前缀因果喂法 + T5b (#208) 迁链终态 = 与进场门同一套链反查
+    //（ExitNestGateCtx 文档，方案 (b) 预注入）。
     // dual 的 decisions 仍由全窗 classification/tower 经 recognize_nested 产出（deprecated
     // F-01 口径不动），门喂法走 IncrementalClassifier 逐 bar 因果前缀——判定不新增前视分量。
     let mut exit_gate: Option<ExitNestGateCtx> = if nest_cert_gate_enabled() && n > 0 {
+        // T5b (#208) 出场 dump 路径标注（#[cfg(test)]，装置 env 未设 = no-op）。
+        #[cfg(test)]
+        super::admission::t5b_exit_dump::set_path("dual");
         Some(ExitNestGateCtx::new(bars, config))
     } else {
         None
@@ -2261,8 +2327,9 @@ pub(super) fn plan_and_fill_mtm_dual(
 
         // ── 3. 退出决策生成器（§9 closePred 四析取皆实：parent_invalid 实义化 + cascade）。 ──
         // ★nest-gate（实装卡 §2.4，#76 真链升格）：THETA_NEST_CERT_GATE=1 ⟹ depth=0 反向项
-        // 升格为 **typed 真链反查**（ExitNestGateCtx 逐 bar 前缀喂法 + #75 同一身份桥，
-        // exit_decision_for_nested_cert 注入查询闭包）；未设 ⟹ 逐字节不变（bit-exact 回归锁）。
+        // 升格为**同点递归链确认**（ExitNestGateCtx 逐 bar 前缀喂法 + T5b (#208) 迁链
+        // 终态 = 与进场门同一 chain_lookup，exit_decision_for_nested_cert 注入查询闭包）；
+        // 未设 ⟹ 逐字节不变（bit-exact 回归锁）。
         if !bar.untradable && px > 0.0 {
             let equity_now = ledger.equity(px);
             let groups_view: Vec<Vec<&VoiceDecision>> =

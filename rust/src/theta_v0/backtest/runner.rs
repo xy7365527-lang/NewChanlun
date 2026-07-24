@@ -86,6 +86,8 @@ use super::admission::{
     ExitNestGateStats, ExitNestGateCtx,
     k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve,
 };
+// T3 (#172) 链类型（测试与并门派生消费）。
+use super::admission::{ChainGapKind, ChainLevelStatus, ChainVerdict};
 pub use super::admission::ChiFilterCtx;
 // 测试经原路径访问 thread_local override（admission 内 pub(super) 可见）。
 #[cfg(test)]
@@ -485,14 +487,18 @@ fn run_theta_v0_pi_inner(
     // **bit-exact 不变**：增量链 == 全量 classify_with_tower(parse_layer(..=i))（parser +
     // classifier 各自 bit-exact 已证，见 incremental.rs 文档）。逐 bar 断言见 `incremental::bit_exact_*`。
     // 注意：bit-exact 仅证明塔构造 O(n) 达成，不证明身份稳定→Stale 降根（后者被 L2 否证）。
-    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    // ★T3 (#172 并门，#168 裁定 3)：层载由链路径单一驱动——链活（nest 证书门开）⟹ 投影层
+    // 必载（含三元锚索引，恰好存在物化基座）；链死不载（零开销红线不死）。生产唯一派生点
+    // （层门配置面退役；派生借/克隆零拷贝于门关路径）。
+    let config = super::admission::chain_driven_level_projection(config);
+    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, &config);
     let mut strict_nest_sidecar = StrictNestSidecarCollector::new(strict_nest_sidecar_enabled());
     let fill = pi_theta_fill_loop(
         // ★工位 4g：返回塔代次（TreeCache O(1) 命中判据，跳过 per-bar O(tree) TreeKey::of）。
         |i| {
             let (cls, tower) = if strict_nest_sidecar.enabled {
                 let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
-                strict_nest_sidecar.observe_frame(&l0, &cls, &tower, config, classifier_incr.tower_cache());
+                strict_nest_sidecar.observe_frame(&l0, &cls, &tower, &config, classifier_incr.tower_cache());
                 (cls, tower)
             } else {
                 classifier_incr.classify_at(i)
@@ -504,7 +510,7 @@ fn run_theta_v0_pi_inner(
         },
         bars,
         initial_nav,
-        config,
+        &config,
         // χ 过滤上下文（None ⟹ χ≡1 全覆盖；Some ⟹ Γ_t^trade={γ:μ>θ}，来自 run_theta_v0_pi_chi）。
         chi,
     );
@@ -653,7 +659,11 @@ pub fn run_theta_v0_pi_overlay(
         None
     };
 
-    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    // ★T3 (#172 并门，#168 裁定 3)：层载由链路径单一驱动——链活（nest 证书门开）⟹ 投影层
+    // 必载（含三元锚索引，恰好存在物化基座）；链死不载（零开销红线不死）。生产唯一派生点
+    // （层门配置面退役；派生必须先于分类器构建——层 stamping 读派生后机制位）。
+    let config = super::admission::chain_driven_level_projection(config);
+    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, &config);
     let fill = pi_theta_fill_loop_overlay(
         |i| {
             let (cls, tower) = classifier_incr.classify_at(i);
@@ -664,7 +674,7 @@ pub fn run_theta_v0_pi_overlay(
         },
         bars,
         initial_nav,
-        config,
+        &config,
         None, // χ≡1 全覆盖（与 run_theta_v0_pi 同信号路径）
         Some(&mut overlay),
         voice_book.as_mut(),
@@ -897,7 +907,6 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::admission::MultiLevelTypedHit;
     use super::super::super::types::Bar;
 
     fn mk_bar(idx: usize, close_tick: i64, untradable: bool) -> Bar {
@@ -1103,7 +1112,7 @@ mod tests {
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 9_000_000_000, // px 90 < 入场 100 ⟹ 止损在下方不触及
             pivot_high: 0,
-            center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si })),
             struct_break_dir: None,
             force: None,
         }
@@ -1562,7 +1571,7 @@ mod tests {
             bits,
             pivot_low: 0,
             pivot_high: 20_000_000_000, // px 200 ≫ 100 ⟹ 不触及
-            center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si })),
             struct_break_dir: None,
             force: None,
         }
@@ -2301,7 +2310,11 @@ mod tests {
         classifier::Classification {
             levels: vec![LevelState {
                 moves: Vec::new(),
-                centers: std::rc::Rc::new(Vec::new()),
+                // #218 面 B（机械改写归因）：账本层补 B 中枢（带 (0,0)，start=20 查找键）——
+                // 各 nest-gate 测试的 owner 夹具点带判等（Center 载体带 (0,0) == B 带）。
+                centers: std::rc::Rc::new(vec![
+                    super::super::super::types::Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 },
+                ]),
                 cp_ownership: std::rc::Rc::new(Vec::new()),
                 bsp: std::rc::Rc::new(vec![BspPoint {
                     source_index: 19,
@@ -2525,216 +2538,134 @@ mod tests {
 
     fn nc_ext(
         event: classifier::level_view::NestCandidateEvent,
-        seg_c_full: (usize, usize),
     ) -> classifier::level_view::NestCandidateEventExt {
-        classifier::level_view::NestCandidateEventExt { event, seg_c_full }
-    }
-
-    /// #75 夹具：levels[0].bsp 置 source_index=40 一类点（owner 中枢 start=20）的终端背书账本。
-    fn nc_endorsement_classification(
-        bits: super::super::super::types::BspBits,
-    ) -> classifier::Classification {
-        use super::super::super::classifier::bsp::BspPoint;
-        use super::super::super::classifier::LevelState;
-        use super::super::super::types::Center;
-        classifier::Classification {
-            levels: vec![LevelState {
-                bsp: std::rc::Rc::new(vec![BspPoint {
-                    source_index: 40,
-                    level_origin: 0,
-                    bits,
-                    pivot_low: 0,
-                    pivot_high: 0,
-                    center: Some(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }),
-                    struct_break_dir: None,
-                    force: None,
-                }]),
-                ..Default::default()
-            }],
-            ..Default::default()
+        // T1 (#170)：无锚夹具（None = 缺锚路径）——旧用例语义不变；需锚用 `nc_ext_anchored`。
+        // T5b (#208)：`seg_c_full` 值桥载体已删（出场旧桥四件删除账）。
+        classifier::level_view::NestCandidateEventExt {
+            event,
+            extreme_price: None,
+            group_anchor: None,
         }
     }
 
+    /// T1 (#170) 夹具：携两元锚 sidecar 的 ext（方向留 event.side 交易层，T5a 不进身份键）。
+    fn nc_ext_anchored(
+        event: classifier::level_view::NestCandidateEvent,
+        price: super::super::super::types::Tick,
+        anchor: usize,
+    ) -> classifier::level_view::NestCandidateEventExt {
+        classifier::level_view::NestCandidateEventExt {
+            event,
+            extreme_price: Some(price),
+            group_anchor: Some(anchor),
+        }
+    }
+
+    /// T1 (#170) 键域重锚登记 → T5a (#207 去方向位)：新单键域 (ℓ, 极值价, 组锚@ℓ) →
+    /// 身份集——无门纯增写；极值价精确等值无容差（1 tick 差即分键，v3 硬禁令）；同价
+    /// 碰撞（W 底双脚）由合并组区分；缺锚事件跳过新键域并照实计数（诚实缺锚）；**方向位
+    /// 自身份键退役**（ADR 20260723 裁定 1——跨向事件同键合流）。T4 (#173)：`by_end_multi`
+    /// 登记已删；T5b (#208)：旧出场侧 `by_end` 登记已删（#206 Q3 判删）。
+    #[test]
+    fn absorb_registers_triple_anchor_domain_additively() {
+        use super::super::super::types::Side;
+        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let e1 = nc_event(1, Side::Long, (30, 50), 50, 100, true);
+        let e2 = nc_event(1, Side::Long, (60, 90), 90, 110, true);
+        gate.absorb_exts(vec![
+            nc_ext_anchored(e1, 1000, 55),
+            nc_ext_anchored(e2, 1001, 95), // 极值价仅差 1 tick
+        ]);
+        let id1 = classifier::nest::NestEventIdentity::of(&e1);
+        let id2 = classifier::nest::NestEventIdentity::of(&e2);
+        // 新键域：(ℓ, 极值价, 组锚) → 身份集；1 tick 价差分键（精确等值、无容差）。
+        assert_eq!(
+            gate.by_triple_anchor.get(&(1, 1000, 55)).map(Vec::as_slice),
+            Some(&[id1][..])
+        );
+        assert_eq!(
+            gate.by_triple_anchor.get(&(1, 1001, 95)).map(Vec::as_slice),
+            Some(&[id2][..]),
+            "极值价 1 tick 差即分键（无容差，v3 硬禁令）"
+        );
+        assert_eq!(gate.by_triple_anchor.len(), 2);
+        assert_eq!(gate.n_anchor_misses, 0);
+        // 缺锚事件：新键域跳过 + 计数（诚实缺锚，不冒充不降级）；事件账本照登。
+        let e3 = nc_event(2, Side::Short, (10, 20), 20, 120, true);
+        gate.absorb_exts(vec![nc_ext(e3)]);
+        assert_eq!(gate.events_by_level[2].len(), 1, "缺锚不影响事件账本登记");
+        assert_eq!(gate.by_triple_anchor.len(), 2, "缺锚事件不入新键域");
+        assert_eq!(gate.n_anchor_misses, 1, "缺锚计数照实落账");
+        // W 底双脚：同价不同组锚 ⟹ 两个键（教义裁定 4：碰撞由合并组区分，方向退役后同）。
+        let f1 = nc_event(3, Side::Long, (100, 110), 110, 130, true);
+        let f2 = nc_event(3, Side::Long, (200, 210), 210, 140, true);
+        gate.absorb_exts(vec![
+            nc_ext_anchored(f1, 888, 10),
+            nc_ext_anchored(f2, 888, 20),
+        ]);
+        assert!(gate.by_triple_anchor.contains_key(&(3, 888, 10)));
+        assert!(gate.by_triple_anchor.contains_key(&(3, 888, 20)), "同价碰撞由合并组区分");
+    }
+
     /// #75-T1（增量喂法账本纪律）：只收确认事件（未确认过不了基例门/N2 门，对索引零贡献）；
-    /// 同身份 first-wins（judge_at 保首次观察，不后移）；值桥反查表与 seg_c_full 载体同步登记。
+    /// 同身份 first-wins（judge_at 保首次观察，不后移）。T5b (#208)：旧 `by_end` 值桥键
+    /// 登记断言随出场桥删除（#206 Q3 判删）。
     #[test]
     fn nest_chain_absorb_confirmed_only_first_wins() {
         use super::super::super::types::Side;
         let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
         let confirmed = nc_event(1, Side::Long, (30, 50), 50, 100, true);
         let unconfirmed = nc_event(1, Side::Long, (60, 90), 90, 110, false);
-        gate.absorb_exts(vec![nc_ext(confirmed, (30, 55)), nc_ext(unconfirmed, (60, 95))]);
+        gate.absorb_exts(vec![nc_ext(confirmed), nc_ext(unconfirmed)]);
         assert_eq!(gate.events_by_level.len(), 2, "事件账本按级落槽");
         assert_eq!(gate.events_by_level[1].len(), 1, "未确认事件不入账本");
         assert_eq!(gate.events_by_level[1][0].judge_at, 100);
         // 同身份再观察（judge_at=200 更晚）⟹ first-wins，不后移。
         let later = nc_event(1, Side::Long, (30, 50), 50, 200, true);
-        gate.absorb_exts(vec![nc_ext(later, (30, 55))]);
+        gate.absorb_exts(vec![nc_ext(later)]);
         assert_eq!(gate.events_by_level[1].len(), 1, "同身份去重");
         assert_eq!(gate.events_by_level[1][0].judge_at, 100, "首次观察钟不后移");
-        // 值桥反查表：(level=1, seg_c_full.1=55, Long) → 该身份。
-        let id = classifier::nest::NestEventIdentity::of(&confirmed);
-        assert_eq!(
-            gate.by_end.get(&(1, 55, true)).map(Vec::as_slice),
-            Some(&[id][..]),
-            "值桥键 = (级别, 离开段终点, 方向)"
-        );
-        assert_eq!(gate.seg_c_full.get(&id), Some(&(30, 55)), "收束前全段坐标登记");
     }
 
-    /// #75-T2（身份桥单测）：级别桥 ℓ=lvl+1（T1 移位，V1 裁定唯一合法桥）；值桥
-    /// source_index == seg_c_full.1（离开段终点）；side 同向。**turn_source 等值桥证否**：
-    /// trend 域 turn_source=t* ≤ seg_c_full.1（R1 收束），按 turn_source 查必漏——桥必须用
-    /// 收束前全段坐标（裁定 #64 §2(d) additive 载体的本票消费语义）。
-    #[test]
-    fn nest_chain_bridge_level_shift_and_value() {
-        use super::super::super::types::{BspBits, Side};
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-        // turn_source=50（t*），seg_c_full.1=55（离开段终点 = 背驰制造的买卖点位置）。
-        let event = nc_event(1, Side::Long, (30, 50), 50, 100, true);
-        gate.absorb_exts(vec![nc_ext(event, (30, 55))]);
-        let buy1 = BspBits { buy1: true, ..Default::default() };
-        gate.sync_index(&nc_endorsement_classification(buy1));
-        // 桥命中：候选 (lvl=0, src=55, Long) ↔ 事件 (ℓ=1, seg_c_full.1=55, Long)。
-        assert_eq!(gate.typed_lookup(0, 55, Side::Long), Some((true, 0)), "身份桥命中");
-        // turn_source 等值桥证否：src=50（=turn_source）查不到——t* ≠ 买卖点位置。
-        assert_eq!(gate.typed_lookup(0, 50, Side::Long), None, "turn_source 等值桥必漏（证否）");
-        // 级别不错位：lvl=1（会查 ℓ=2）miss。
-        assert_eq!(gate.typed_lookup(1, 55, Side::Long), None, "级别桥 ℓ=lvl+1（不错位）");
-        // side 不同向 miss。
-        assert_eq!(gate.typed_lookup(0, 55, Side::Short), None, "side 同向要求");
-        // src 非离开段终点 miss。
-        assert_eq!(gate.typed_lookup(0, 56, Side::Long), None, "值桥 src==seg_c_full.1");
-    }
-
-    /// #111 夹具：多级终端背书账本——`levels[book_level].bsp` 各置一枚指定 `source_index`
-    /// 的背书点（owner 中枢 start=20，配合 `nc_event` 的 `b_center_start`=20）。
-    /// 级别-ℓ 事件的背书账本 = `levels[ℓ-1]`（`event_bsp_book_level` T1 移位）。
-    fn nc_endorsement_classification_multi(
-        books: &[(usize, usize, super::super::super::types::BspBits)], // (book_level, src, bits)
-    ) -> classifier::Classification {
-        use super::super::super::classifier::bsp::BspPoint;
-        use super::super::super::classifier::LevelState;
-        use super::super::super::types::Center;
-        let n_levels = books.iter().map(|&(l, _, _)| l + 1).max().unwrap_or(1);
-        let mut levels: Vec<LevelState> = (0..n_levels).map(|_| LevelState::default()).collect();
-        for &(book_level, src, bits) in books {
-            levels[book_level].bsp = std::rc::Rc::new(vec![BspPoint {
-                source_index: src,
-                level_origin: book_level as u32,
-                bits,
-                pivot_low: 0,
-                pivot_high: 0,
-                center: Some(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }),
-                struct_break_dir: None,
-                force: None,
-            }]);
-        }
-        classifier::Classification { levels, ..Default::default() }
-    }
-
-    /// #111-T1（多级递归查询路径 expand）：固定 ℓ=lvl+1 桥够不到的更深级别证书，
-    /// 多级路径可查到；级别下限（只向更深级别扫描）、side 同向、值桥语义与旧路径逐字一致；
-    /// 旧固定路径保留并存（对同一账本结果不变）。
-    #[test]
-    fn nest_chain_multi_level_lookup_reaches_deeper_levels() {
-        use super::super::super::types::{BspBits, Side};
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-        // 事件在 ℓ=2（背书账本 = levels[1]），seg_c_full.1=55。
-        let event = nc_event(2, Side::Long, (30, 50), 50, 100, true);
-        gate.absorb_exts(vec![nc_ext(event, (30, 55))]);
-        let buy1 = BspBits { buy1: true, ..Default::default() };
-        gate.sync_index(&nc_endorsement_classification_multi(&[(1, 40, buy1)]));
-        // 旧固定桥（lvl=0 只查 ℓ=1）必漏——#107 断裂点复现。
-        assert_eq!(gate.typed_lookup(0, 55, Side::Long), None, "固定 ℓ=lvl+1 够不到 ℓ=2");
-        // 多级路径：从 level_origin=0 向更深级别扫描 ⟹ ℓ=2 命中，谱系记录级别。
-        let multi = gate.typed_lookup_multi(0, 55, Side::Long, usize::MAX)
-            .expect("多级路径应命中 ℓ=2 证书");
-        assert_eq!(multi.merged, (true, 0), "跨级 T7 合并：布尔 + 最深链深");
-        assert_eq!(
-            multi.hits,
-            vec![MultiLevelTypedHit { level: 2, pass: true, rungs: 0 }],
-            "谱系：命中在 ℓ=2"
-        );
-        // 级别下限：level_origin=2 只查 ℓ≥3 ⟹ miss（不含本级）。
-        assert_eq!(gate.typed_lookup_multi(2, 55, Side::Long, usize::MAX), None, "只向更深级别扫描");
-        // side 同向、值桥语义与旧路径一致。
-        assert_eq!(gate.typed_lookup_multi(0, 55, Side::Short, usize::MAX), None, "side 同向要求");
-        assert_eq!(gate.typed_lookup_multi(0, 56, Side::Long, usize::MAX), None, "值桥 src==seg_c_full.1");
-    }
-
-    /// #111-T2（因果守卫）：证书链上任一首次可证钟 `judge_at` 越过锚定 bar ⟹ 整证剔除
-    ///（只用锚定 bar 因果前缀内的确认事件，不引入未来函数）；锚定 bar ≥ 确认钟 ⟹ 可用。
-    #[test]
-    fn nest_chain_multi_level_lookup_causal_guard() {
-        use super::super::super::types::{BspBits, Side};
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-        // judge_at=100：确认钟。
-        let event = nc_event(2, Side::Long, (30, 50), 50, 100, true);
-        gate.absorb_exts(vec![nc_ext(event, (30, 55))]);
-        let buy1 = BspBits { buy1: true, ..Default::default() };
-        gate.sync_index(&nc_endorsement_classification_multi(&[(1, 40, buy1)]));
-        // 锚定 bar=99 < judge_at=100 ⟹ 因果前缀外，整证剔除。
-        assert_eq!(gate.typed_lookup_multi(0, 55, Side::Long, 99), None, "未来确认事件不可用");
-        // 锚定 bar=100 ⟹ 前缀内，命中。
-        assert!(gate.typed_lookup_multi(0, 55, Side::Long, 100).is_some(), "前缀内确认事件可用");
-    }
-
-    /// #111-T3（并存零行为变化）：ℓ=1 与 ℓ=2 各有独立证书时，旧固定路径结果与单级账本
-    /// 完全一致（不受多级键域扩展影响）；多级路径按级别升序返回两级谱系并合并。
-    #[test]
-    fn nest_chain_multi_level_lookup_coexists_with_fixed_path() {
-        use super::super::super::types::{BspBits, Side};
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-        // ℓ=1：seg_c_full.1=55（背书账本 levels[0]，点 src=40）；
-        // ℓ=2：不相交跨度，seg_c_full.1=155（背书账本 levels[1]，点 src=140）。
-        let e1 = nc_event(1, Side::Long, (30, 50), 50, 100, true);
-        let e2 = nc_event(2, Side::Long, (130, 150), 150, 110, true);
-        gate.absorb_exts(vec![nc_ext(e1, (30, 55)), nc_ext(e2, (130, 155))]);
-        let buy1 = BspBits { buy1: true, ..Default::default() };
-        gate.sync_index(&nc_endorsement_classification_multi(&[(0, 40, buy1), (1, 140, buy1)]));
-        // 旧固定路径保留并存：与 #75-T2 单级行为逐字一致。
-        assert_eq!(gate.typed_lookup(0, 55, Side::Long), Some((true, 0)), "旧路径 ℓ=1 命中不变");
-        assert_eq!(gate.typed_lookup(1, 155, Side::Long), Some((true, 0)), "旧路径 ℓ=2 命中不变");
-        assert_eq!(gate.typed_lookup(0, 155, Side::Long), None, "旧路径级别键域不串级");
-        // 多级路径：同一 source_index 在各自级别可查（多级键域）。
-        let m1 = gate.typed_lookup_multi(0, 55, Side::Long, usize::MAX).expect("ℓ=1 命中");
-        assert_eq!(m1.hits, vec![MultiLevelTypedHit { level: 1, pass: true, rungs: 0 }]);
-        let m2 = gate.typed_lookup_multi(0, 155, Side::Long, usize::MAX).expect("ℓ=2 命中");
-        assert_eq!(m2.hits, vec![MultiLevelTypedHit { level: 2, pass: true, rungs: 0 }]);
-        assert_eq!(m2.merged, (true, 0));
-    }
-
-    /// #112-T1（进场消费切换）：候选 origin=0、证书仅在 ℓ=2（origin+2）时，旧固定
-    /// ℓ=1 读出 miss，但进场门消费 multi 合并结果并准入；obs 如实保留命中级别谱系。
+    /// #112-T1 → T3 (#172) 改写（判定源迁移）：候选 origin=0、证书仅在 ℓ=2（origin+2）时，
+    /// 严格链要求 [L0, 链顶] 逐级闭合——L0/L1 缺证 ⟹ 断/缺拒（nest_n_delta_false），
+    /// **不再**放行。（T3 前本测试断言「multi ℓ=2 命中成为进场唯一判定源 nest_pass」——
+    /// 该形态即 #163 裁定 1 判退役的并集跳查：高级有证而中间断不算。T4 (#173)：并集
+    /// shadow 列已随旧桥退役删除，本测试只锁链判定与谱系。）
     #[test]
     fn nest_chain_gate_admit_consumes_deeper_multi_level_hit() {
         use super::super::super::strategy::voice::VoiceSide;
-        use super::super::super::types::{BspBits, Side};
+        use super::super::super::types::BspBits;
         let tower = ng_tower();
         let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-        let event = nc_event(2, Side::Long, (30, 50), 50, 100, true);
-        gate.absorb_exts(vec![nc_ext(event, (30, 55))]);
+        // T3 链夹具：存在性 L0/L1/L2 全置，证书仅 ℓ=3（账本级 L2）——L0/L1 缺环。
+        let classification = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[3], 100, &classification);
         let buy1 = BspBits { buy1: true, ..Default::default() };
-        let classification = nc_endorsement_classification_multi(&[(1, 40, buy1)]);
-        gate.sync_index(&classification);
-        assert_eq!(gate.typed_lookup(0, 55, Side::Long), None, "夹具前提：旧固定路径 miss");
-
         let candidate = ng_candidate(VoiceSide::Long, buy1, 55);
         let (admit, channel, obs) =
             gate.admit(&tower, &candidate, &hist, 100, &classification);
-        assert_eq!((admit, channel), (true, "nest_pass"), "multi ℓ=2 命中成为进场唯一判定源");
-        assert_eq!(obs.typed_rungs, Some(0), "multi 合并链深落账");
-        assert_eq!(obs.typed_hit_levels, vec![2], "谱系如实记录命中 ℓ=2");
-
+        assert_eq!(
+            (admit, channel),
+            (false, "nest_n_delta_false"),
+            "T3 链判定：L2 独证而 L0/L1 缺 ⟹ 缺/断拒"
+        );
+        assert_eq!(obs.chain_top, Some(2), "链顶 = L2（层间联动给出）");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Reject);
+        assert_eq!(
+            obs.chain_first_gap,
+            Some((1, ChainGapKind::Broken)),
+            "L1 上方有 L2 闭合 ⟹ 断（高级有证而中间断）"
+        );
         let mut stats = NestGateStats::default();
         stats.observe(admit, channel, obs);
-        assert_eq!(stats.typed_hits_by_level.get(&2), Some(&1), "NEST_GATE 按级命中计数");
+        assert_eq!(stats.chain_reject_broken, 1, "链断环拒计数");
     }
 
-    /// #112-T2（进场因果守卫）：唯一证书 judge_at=100 越过 anchor=19；旧 fixed 读出虽命中，
-    /// multi 必剔除并进入既有 Xzd fallback 三分支，而不是消费未来证书。
+    /// #112-T2 → T3 (#172)（进场因果守卫）：唯一证书 judge_at=100 越过 anchor=19；旧 fixed
+    /// 桥读出虽命中（fixed 桥无因果守卫——该桥四件已随 T5b (#208) 删除），严格链整证剔除
+    /// （MissingCausal）⟹ NoChain，进入既有 Xzd fallback 三分支，而不是消费未来证书。
+    /// T4 (#173)：multi 路径与对照列已删，本测试锁链守卫 + 回退。
     #[test]
     fn nest_chain_gate_multi_causal_guard_falls_back_to_xzd() {
         use super::super::super::strategy::voice::VoiceSide;
@@ -2743,25 +2674,32 @@ mod tests {
         let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
         let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
         let event = nc_event(1, Side::Long, (30, 50), 50, 100, true);
-        gate.absorb_exts(vec![nc_ext(event, (30, 19))]);
+        gate.absorb_exts(vec![nc_ext(event)]);
 
         // 同一 levels[0] 同时承载：旧臂 Type3 候选点（src=19）与 typed 证书终端背书点。
         let buy3 = BspBits { buy3: true, ..Default::default() };
         let buy1 = BspBits { buy1: true, ..Default::default() };
-        let endorsement = nc_endorsement_classification(buy1);
+        let endorsement_pt = {
+            use super::super::super::classifier::bsp::BspPoint;
+            use super::super::super::types::Center;
+            BspPoint {
+                source_index: 40, // owner 中枢 start=20（nc_event b_center_start=20 配套）
+                level_origin: 0,
+                bits: buy1,
+                pivot_low: 0,
+                pivot_high: 0,
+                center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+                struct_break_dir: None,
+                force: None,
+            }
+        };
         let mut classification = ng_classification(buy3);
-        std::rc::Rc::make_mut(&mut classification.levels[0].bsp)
-            .push(endorsement.levels[0].bsp[0].clone());
+        std::rc::Rc::make_mut(&mut classification.levels[0].bsp).push(endorsement_pt);
         gate.sync_index(&classification);
-        assert_eq!(
-            gate.typed_lookup(0, 19, Side::Long),
-            Some((true, 0)),
-            "夹具前提：旧 fixed 不带因果守卫，会读到未来证书"
-        );
-        assert_eq!(
-            gate.typed_lookup_multi(0, 19, Side::Long, 19),
-            None,
-            "夹具前提：唯一证书越过 anchor，multi 因果守卫剔除"
+        let id = classifier::nest::NestEventIdentity::of(&event);
+        assert!(
+            gate.index.get(&id).is_some_and(|cert| cert.certificate().n_delta()),
+            "夹具前提：证书已装配且 n_delta 过（无守卫读法（旧 fixed 桥）会读到这张未来证书——链守卫整证剔除的对象）"
         );
 
         let candidate = ng_candidate(VoiceSide::Long, buy3, 19);
@@ -2769,55 +2707,13 @@ mod tests {
             gate.admit(&tower, &candidate, &hist, 19, &classification);
         assert!(matches!(channel, "xzd_pass" | "xzd_gate_fail"), "越界证书剔除后走 Xzd，实际={channel}");
         assert!(obs.xzd_fallback, "old-arm 为 Nest 时重走 build_xzd_fallback 既有分支");
-        assert_eq!(obs.multi_admit, None, "multi 无因果可用证书");
         assert_eq!(admit, channel == "xzd_pass", "判定来自既有 Xzd gate_pass 读出");
     }
 
-    /// #112-T3（single/multi 对照）：single miss、multi 命中时，obs 两列及汇总 divergence
-    /// 必如实记录；single 只作对照，不得反向影响准入。
-    #[test]
-    fn nest_chain_gate_obs_records_single_multi_divergence() {
-        use super::super::super::strategy::voice::VoiceSide;
-        use super::super::super::types::{BspBits, Side};
-        let tower = ng_tower();
-        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-        let event = nc_event(2, Side::Long, (30, 50), 50, 100, true);
-        gate.absorb_exts(vec![nc_ext(event, (30, 55))]);
-        let buy1 = BspBits { buy1: true, ..Default::default() };
-        let classification = nc_endorsement_classification_multi(&[(1, 40, buy1)]);
-        gate.sync_index(&classification);
-
-        let candidate = ng_candidate(VoiceSide::Long, buy1, 55);
-        let (admit, channel, obs) =
-            gate.admit(&tower, &candidate, &hist, 100, &classification);
-        assert_eq!(obs.single_admit, None, "旧 fixed ℓ=1 miss 如实落对照列");
-        assert_eq!(obs.multi_admit, Some(true), "multi ℓ=2 命中如实落判定列");
-        let mut stats = NestGateStats::default();
-        stats.observe(admit, channel, obs);
-        assert_eq!(stats.single_multi_divergence, 1, "single/multi Option<bool> 分歧计数 +1");
-    }
-
-    /// #112-T4（惰性重建前置一致性）：multi 键谓词为 false 时，使用相同 source/side 的
-    /// multi 查询必为 None；账本内另有键用于排除“空 gate”伪覆盖。
-    #[test]
-    fn nest_chain_has_bridge_key_multi_false_implies_lookup_none() {
-        use super::super::super::types::Side;
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
-        let event = nc_event(2, Side::Long, (30, 50), 50, 100, true);
-        gate.absorb_exts(vec![nc_ext(event, (30, 55))]);
-        assert!(gate.has_bridge_key_multi(55, Side::Long), "夹具前提：另一 multi 键已维护");
-        assert!(!gate.has_bridge_key_multi(56, Side::Long), "目标 source 无 multi 键");
-        assert_eq!(
-            gate.typed_lookup_multi(0, 56, Side::Long, usize::MAX),
-            None,
-            "has_bridge_key_multi=false ⟹ typed_lookup_multi=None"
-        );
-    }
-
-    /// #75-T3（门开真链判定 + 对照读出）：typed 命中 ⟹ 唯一判定源（nest_pass）；
-    /// typed 无证 ⟹ Type1 拒（cert_none）；typed 无证 ∧ L2 有证 ⟹ Xzd 回退（判定不消费
-    /// L2 nest 读出）；L2 旧臂对照差落账（cross_old_rej_new_pass / cross_old_pass_new_rej）。
+    /// #75-T3 → T3 (#172) 改写（判定源迁移）：(a) 链全闭合（L0 单级链）⟹ nest_pass；
+    /// (b) 链 NoChain + Type1 ⟹ cert_none；(c) 链 NoChain ∧ L2 有证 ⟹ Xzd 回退（判定不消费
+    /// L2 nest 读出）；L2 旧臂对照差落账（cross_old_rej_new_pass 等）。T4 (#173)：并集
+    /// shadow 列已删，真链命中/链深读数不再入账。
     #[test]
     fn nest_chain_gate_typed_decides_l2_only_cross() {
         use super::super::super::strategy::voice::VoiceSide;
@@ -2825,24 +2721,23 @@ mod tests {
         let tower = ng_tower();
         let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
         let mut stats = NestGateStats::default();
-        // (a) 真链准入：typed 命中（0-rung 证书 n_delta=true）⟹ nest_pass；
+        // (a) 链全闭合准入：L0 存在 + 证书 ℓ=1（账本级 L0）⟹ 链 Pass ⟹ nest_pass；
         //     旧臂在 src=55 无执行段 ⟹ None ⟹ old_admit=false ⟹ cross 旧拒新准。
-        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let cls_chain = t3_chain_classification(&[(0, true)]);
+        let gate = t3_gate_with_certs(&[1], 100, &cls_chain);
         let buy1 = BspBits { buy1: true, ..Default::default() };
-        gate.absorb_exts(vec![nc_ext(nc_event(1, Side::Long, (30, 50), 50, 100, true), (30, 55))]);
-        let cls_endorse = nc_endorsement_classification(buy1);
-        gate.sync_index(&cls_endorse);
         let c_hit = ng_candidate(VoiceSide::Long, buy1, 55);
-        let (admit, channel, obs) = gate.admit(&tower, &c_hit, &hist, 100, &cls_endorse);
-        assert_eq!((admit, channel), (true, "nest_pass"), "真链证书命中 ⟹ 唯一判定源准入");
-        assert_eq!(obs.typed_rungs, Some(0), "0-rung 链深落账");
+        let (admit, channel, obs) = gate.admit(&tower, &c_hit, &hist, 100, &cls_chain);
+        assert_eq!((admit, channel), (true, "nest_pass"), "链全闭合 ⟹ 唯一判定源准入");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Pass);
+        assert_eq!(obs.chain_closed_down_to, Some(0), "单级链闭合到 L0");
         assert!(!obs.old_admit && !obs.xzd_fallback, "旧臂对照：无执行段 ⟹ None");
         stats.observe(admit, channel, obs);
-        // (b) 真链拒绝案例：typed 无证 + Type1 + 旧臂亦无执行段 ⟹ cert_none。
+        // (b) 链 NoChain 案例：x=56 无分型（price 不可解）+ Type1 + 旧臂亦无执行段 ⟹ cert_none。
         let c_miss = ng_candidate(VoiceSide::Long, buy1, 56);
-        let (admit, channel, obs) = gate.admit(&tower, &c_miss, &hist, 100, &cls_endorse);
-        assert_eq!((admit, channel), (false, "cert_none"), "真链无证 + Type1 ⟹ 拒");
-        assert_eq!(obs.typed_rungs, None);
+        let (admit, channel, obs) = gate.admit(&tower, &c_miss, &hist, 100, &cls_chain);
+        assert_eq!((admit, channel), (false, "cert_none"), "链 NoChain + Type1 ⟹ 拒");
+        assert_eq!(obs.chain_verdict, ChainVerdict::NoChain);
         stats.observe(admit, channel, obs);
         // (c) typed 无证 ∧ L2 有证（ng E①：lvl0 Type3 旧臂 nest_pass）⟹ 判定走 Xzd 回退，
         //     **不**消费 L2 nest 读出；回退判定与 build_xzd_fallback 独立调用逐值一致。
@@ -2863,10 +2758,7 @@ mod tests {
         stats.observe(admit, channel, obs);
         // (d) 对照读出一致性落账：(a) 旧拒新准 ×1、(c) 旧准（新走 Xzd 回退，结果由 gate_pass 定）。
         assert_eq!(stats.cross_old_rej_new_pass, 1, "(a) cross：旧拒新准");
-        assert_eq!(stats.typed_found, 1, "(a) 真链命中计数");
-        assert_eq!(stats.typed_none, 2, "(b)(c) 真链无证计数");
         assert_eq!(stats.xzd_fallback, 1, "(c) Xzd 回退计数");
-        assert_eq!(stats.admit_rungs[0], 1, "(a) 准入侧 0-rung 链深构成");
         let expected_cross_old_pass_new_rej = usize::from(!expected);
         assert_eq!(
             stats.cross_old_pass_new_rej, expected_cross_old_pass_new_rej,
@@ -2876,6 +2768,8 @@ mod tests {
 
     /// #75-T4（Xzd 复用路径）：typed 无证 ∧ 旧臂已落 Xzd ⟹ 直接复用旧臂 Xzd 判定
     ///（不重复算 xiaozhuanda_confirm，不打 xzd_fallback 标记）。
+    /// T4 (#173) 改写注：「typed 无证」的现机制 = 链 NoChain（脚不可解）；
+    /// 本测试只锁复用语义（旧臂 Xzd 读出 = `build_xzd_fallback` 单一来源 ⟹ 直接复用）。
     #[test]
     fn nest_chain_gate_typed_none_reuses_old_xzd() {
         use super::super::super::strategy::voice::VoiceSide;
@@ -2924,7 +2818,6 @@ mod tests {
         let (admit, channel, obs) = gate.admit(&tower2, &c, &hist, 19, &cls2);
         assert_eq!((admit, channel), (old_admit, old_channel), "旧臂 Xzd 判定直接复用");
         assert!(!obs.xzd_fallback, "复用路径不打回退标记");
-        assert_eq!(obs.typed_rungs, None);
     }
 
     /// #94（评审修复2）：cross 对照差剔除自证成分——typed 无证 ∧ 旧臂 Xzd 复用案例
@@ -2969,7 +2862,7 @@ mod tests {
             ..Default::default()
         };
         let c = super::super::super::strategy::interp::Candidate { level: 1, ..ng_candidate(VoiceSide::Long, buy3, 30) };
-        // 夹具前提：typed 无证 ∧ 旧臂落 Xzd 通道（同 T4）。
+        // 夹具前提：typed 无证（现机制 = 链 NoChain，同 T4）∧ 旧臂落 Xzd 通道。
         let (_old_admit, old_channel) = nest_gate_admit(&tower2, &c, &hist, 19, &cls2);
         assert!(
             matches!(old_channel, "xzd_pass" | "xzd_gate_fail"),
@@ -2987,6 +2880,467 @@ mod tests {
             stats.cross_old_pass_new_rej + stats.cross_old_rej_new_pass,
             0,
             "复用不入对照差两列"
+        );
+    }
+
+    // ───────────── T3（#172 严格链判定：链谱系；T4 (#173)：typed_lookup_multi/并集 shadow 已删；
+    // ───────────── T5a (#207)：方向退役——链查询/键域/层索引不再携带方向，方向见证已删）─────────────
+    //
+    // 语义 pin（#163 裁定 1 字面 + ADR 六术语 + ADR 20260723 裁定 1，实装理由见本测试块各断言注释）：
+    // - **身份判据 = 同点递归，方向退役**（T5a）：同一 x 可在不同级别分别为顶/底（各级自为真）；
+    //   脚身份 = (极值价, 组锚 a*) 两元；买卖标签留交易层（event.side/admit 裁决/Xzd 回退不动）。
+    // - **级别范围**：链级 = BSP 账本级（book level）；链区间 = [L0, 链顶] 对全候选一致
+    //   （「闭合到 L0」字面，候选本级是普通链级——链即身份，不靠候选自报 lvl 猜方向）；
+    //   证书查询键级 = 账本级 + 1（`event_bsp_book_level` T1 移位，与旧固定桥 ℓ=lvl+1 同移）。
+    // - **链顶** = x 为拐点的最高账本级（**不问分型类型**），由恰好存在经 T2 层索引层间联动
+    //   给出（非塔顶移动窗口、非固定 ℓ+1）；a* 自本级层 `source_index == c.source_index`
+    //   条目解析（禁第二查法：gate 不自行调 merged_group_anchor）。
+    // - **缺/断极性**（词汇表：缺环即拒=lvl+1 单级过证不算；断环即拒=高级有证而中间断不算）：
+    //   非闭合级 g 上方区间 (g, 链顶] 内有闭合级 ⟹ 断，否则缺；候选首位归因 = 最高非闭合级。
+    //   T5a 复核：判据不涉及方向分量，逐字保留。
+    // - **三态**：全链闭合 = Pass（nest_pass）；≥1 闭合级但有缺/断 = Reject（nest_n_delta_false，
+    //   对标旧 Some(pass=false) 语义位）；零闭合级 / 存在性全无 / 锚不可解 = NoChain（Xzd 回退
+    //   逐字不动，含因果守卫全剔 ⟹ NoChain——#112-T2 现语义保留）。
+
+    /// T3 夹具供给：x=55 底分型 @100（极值价）；合并组 [50,60) ⟹ x 的组锚 a*=50。
+    fn t3_supplies() -> (
+        Vec<super::super::super::types::Fractal>,
+        Vec<super::super::super::types::Bar>,
+    ) {
+        use super::super::super::types::{Bar, Fractal, FractalKind};
+        let fractals = vec![Fractal { kind: FractalKind::Bottom, source_index: 55, timestamp: 55, price: 100 }];
+        let merged = [50usize, 60]
+            .into_iter()
+            .map(|i| Bar { source_index: i, timestamp: i as i64, open: 0, high: 0, low: 0, close: 0, volume: 1, untradable: false })
+            .collect();
+        (fractals, merged)
+    }
+
+    /// T3 夹具：携两元锚供给的 gate（`for_test` 的供给版——链查询的极值价/组锚单一来源）。
+    fn t3_gate_with_certs(
+        cert_event_levels: &[u32],
+        judge_at: usize,
+        cls: &classifier::Classification,
+    ) -> NestChainGate {
+        use super::super::super::types::Side;
+        let (fractals, merged) = t3_supplies();
+        let mut gate = NestChainGate::for_test_with_supplies(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            std::rc::Rc::new(fractals),
+            std::rc::Rc::new(merged),
+        );
+        for &el in cert_event_levels {
+            let ev = nc_event(el, Side::Long, (30, 50), 50, judge_at, true);
+            gate.absorb_exts(vec![nc_ext_anchored(ev, 100, 50)]);
+        }
+        gate.sync_index(cls);
+        gate
+    }
+
+    /// T3 夹具：带投影层的多级分类。`specs` = (book_level, 是否置 x=55 存在点)。每级 book
+    /// 恒置 src=40 buy1 背书点（owner 中枢 start=20，供证书装配 CWindow 窗口 [30,50] 内）；
+    /// 存在位另置 src=55 buy1 点（供层登记锚 (@100) → (55, 组锚 50)，T5a 方向不进键）；投影层经
+    /// `LevelProjectionLayer::from_level` 以 T3 供给 stamping（与生产 stamping 同函数）。
+    fn t3_chain_classification(specs: &[(usize, bool)]) -> classifier::Classification {
+        use super::super::super::classifier::bsp::BspPoint;
+        use super::super::super::classifier::LevelState;
+        use super::super::super::types::{BspBits, Center};
+        let (fractals, merged) = t3_supplies();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let mk_pt = |src: usize| BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits: buy1,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+            struct_break_dir: None,
+            force: None,
+        };
+        let n_levels = specs.iter().map(|&(l, _)| l + 1).max().unwrap_or(1);
+        let levels: Vec<LevelState> = (0..n_levels)
+            .map(|book| {
+                let existence = specs.iter().any(|&(l, e)| l == book && e);
+                let mut pts = vec![mk_pt(40)];
+                if existence {
+                    pts.push(mk_pt(55));
+                }
+                let bsp = std::rc::Rc::new(pts);
+                let layer = classifier::projection::LevelProjectionLayer::from_level(
+                    book as u32, &bsp, &fractals, &merged,
+                );
+                // #218 面 B（机械改写归因：判同机制换带判同）：账本层补 B 中枢（带 (0,0)，
+                // start=20 = 事件 b_center_start 查找键）——点 center 带 == B 带 ⟹ 判等。
+                LevelState {
+                    bsp,
+                    centers: std::rc::Rc::new(vec![Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }]),
+                    level_projection: Some(layer),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        classifier::Classification { levels, ..Default::default() }
+    }
+
+    /// T3-1（链顶经层间联动给出，非固定 ℓ+1）：x 存在于 L0/L2（L1 层无该脚）⟹ 链顶 = L2
+    /// （固定 ℓ+1 只会给 L1）；L1 = MissingExistence（恰好存在断裂，缺环底质）；L2 闭合
+    /// ⟹ L1 之 gap 位置极性 = 断（高级有证而中间断）。
+    #[test]
+    fn t3_chain_top_from_layer_linkage_not_fixed_plus_one() {
+        let cls = t3_chain_classification(&[(0, true), (1, false), (2, true)]);
+        let gate = t3_gate_with_certs(&[1, 3], 100, &cls);
+        let c = ng_candidate(super::super::super::strategy::voice::VoiceSide::Long, Default::default(), 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.chain_top, Some(2), "链顶 = 层间联动给出的最高存在级 L2（非固定 lvl+1=1）");
+        assert_eq!(probe.levels.len(), 3, "链区间 = [L0, 链顶]（闭合到 L0 字面）");
+        assert_eq!(probe.levels[0].event_level, 1, "证书键级 = 账本级 + 1（T1 移位）");
+        assert_eq!(probe.levels[2].status, ChainLevelStatus::Closed, "L2 闭合（证书键 ℓ=3 命中）");
+        assert_eq!(
+            probe.levels[1].status,
+            ChainLevelStatus::MissingExistence,
+            "L1 无该脚存在 ⟹ 缺环底质 MissingExistence"
+        );
+        assert_eq!(probe.levels[1].gap, Some(ChainGapKind::Broken), "上方 L2 有证 ⟹ 断（高级有证而中间断）");
+        assert_eq!(probe.verdict, ChainVerdict::Reject, "缺/断即拒");
+        assert_eq!(probe.first_gap, Some((1, ChainGapKind::Broken)), "首位归因 = 最高非闭合级 L1 断");
+        assert_eq!(probe.closed_down_to, Some(2), "自链顶向下连续闭合到 L2");
+    }
+
+    /// T3-2（缺环拒精确区分）：存在性全级但仅 L0 有证 ⟹ 链顶 L2 自身查无证书（缺）——
+    /// 「lvl+1 单级过证不算」：L0 独过而上方缺环 ⟹ Reject，首位归因 = 链顶缺。
+    #[test]
+    fn t3_chain_missing_link_reject_is_missing() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[1], 100, &cls); // 仅事件级 ℓ=1（账本级 L0）有证
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::Closed);
+        assert_eq!(probe.levels[2].status, ChainLevelStatus::MissingCert, "链顶键域查无证书 ⟹ 缺");
+        assert_eq!(probe.levels[2].gap, Some(ChainGapKind::Missing), "上方无闭合级 ⟹ 缺（非断）");
+        assert_eq!(probe.verdict, ChainVerdict::Reject);
+        assert_eq!(probe.first_gap, Some((2, ChainGapKind::Missing)), "缺环拒：首位 = 链顶 L2 缺");
+        assert_eq!(probe.closed_down_to, None, "链顶未闭合 ⟹ 无连续闭合前缀");
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (false, "nest_n_delta_false"), "缺环即拒 = nest 拒（语义位不变）");
+        assert_eq!(obs.chain_top, Some(2));
+        assert_eq!(obs.chain_verdict, ChainVerdict::Reject);
+        assert_eq!(obs.chain_first_gap, Some((2, ChainGapKind::Missing)));
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_reject_missing, 1, "缺环拒计数");
+        assert_eq!(stats.chain_reject_broken, 0);
+    }
+
+    /// T3-3（断环拒精确区分）：L0/L2 闭合、L1 键域查无 ⟹ L1 上方有闭合级 ⟹ 断——
+    /// 「高级有证而中间断不算」：Reject，首位归因 = L1 断。
+    #[test]
+    fn t3_chain_broken_link_reject_is_broken() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[1, 3], 100, &cls); // ℓ=2（账本级 L1）无证
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[1].status, ChainLevelStatus::MissingCert);
+        assert_eq!(probe.levels[1].gap, Some(ChainGapKind::Broken), "上方 L2 闭合 ⟹ 断");
+        assert_eq!(probe.first_gap, Some((1, ChainGapKind::Broken)), "断环拒：首位 = L1 断");
+        assert_eq!(probe.closed_down_to, Some(2), "链顶向下连续闭合前缀 = [L2]");
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (false, "nest_n_delta_false"), "断环即拒");
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_reject_broken, 1, "断环拒计数");
+        assert_eq!(stats.chain_reject_missing, 0);
+    }
+
+    /// T3-4（全链闭合通过 + 闭合到 L0）：L0/L1/L2 逐级有证且过 ⟹ Pass，closed_down_to=L0，
+    /// admit 消费链结果 = nest_pass；谱系逐级别落账（链即身份）。
+    #[test]
+    fn t3_chain_full_closure_pass_consumed_by_admit() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[1, 2, 3], 100, &cls);
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (true, "nest_pass"), "全链闭合 ⟹ nest_pass");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Pass);
+        assert_eq!(obs.chain_top, Some(2));
+        assert_eq!(obs.chain_closed_down_to, Some(0), "连续闭合到 L0（链区间下限）");
+        assert_eq!(obs.chain_first_gap, None, "全闭合无缺断");
+        assert_eq!(obs.chain_genealogy.len(), 3, "完整谱系（逐级落账）");
+        for (i, g) in obs.chain_genealogy.iter().enumerate() {
+            assert_eq!(g.level, i as u32);
+            assert_eq!(g.event_level, i as u32 + 1);
+            assert_eq!(g.status, ChainLevelStatus::Closed);
+            assert_eq!(g.n_certs, 1);
+            assert_eq!(g.n_causal_clean, 1);
+        }
+        assert_eq!(obs.chain_price, Some(100), "极值价落账（T1 供给线）");
+        assert_eq!(obs.chain_anchor, Some(50), "组锚 a* 落账（T2 本级层解析）");
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_pass, 1, "链确认计数（方向守卫读数）");
+        assert_eq!(stats.chain_top_dist.get(&2), Some(&1), "链顶级别分布落账");
+    }
+
+    /// T3-5（闭合到 L0 字面）：L0 缺证而 L1/L2 全闭 ⟹ 仍拒（上方闭合不补 L0 之缺）；
+    /// L0 上方有闭合 ⟹ 其 gap 极性 = 断。
+    #[test]
+    fn t3_chain_l0_gap_rejects_despite_upper_closure() {
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[2, 3], 100, &cls); // ℓ=1（账本级 L0）无证
+        let c = ng_candidate(super::super::super::strategy::voice::VoiceSide::Long, Default::default(), 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::MissingCert, "L0 查无证书");
+        assert_eq!(probe.verdict, ChainVerdict::Reject, "L0 未闭合 ⟹ 拒（闭合到 L0 字面）");
+        assert_eq!(probe.first_gap, Some((0, ChainGapKind::Broken)), "L0 上方有闭合 ⟹ 断");
+    }
+
+    /// T3-6（NoChain → Xzd 回退逐字不动）：(a) x 处无分型（price 不可解）⟹ NoChain；
+    /// (b) 存在性全级但全区间零证书 ⟹ NoChain；两路均走既有 Xzd 分支（旧臂 None ⟹
+    /// cert_none；旧臂 nest_pass ⟹ 重走 build_xzd_fallback，xzd_fallback 标记）。
+    #[test]
+    fn t3_chain_no_chain_falls_back_to_xzd_verbatim() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Side};
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        // (a) 存在性全级但零证书 ⟹ NoChain；旧臂在 src=55 无执行段 ⟹ cert_none（回退逐字）。
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[], 100, &cls);
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.verdict, ChainVerdict::NoChain, "零闭合级 ⟹ NoChain");
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (false, "cert_none"), "NoChain → 既有回退（旧臂 None ⟹ cert_none）");
+        assert!(!obs.xzd_fallback && !obs.reused_old_xzd);
+        // (b) x=19 无分型（price 不可解）⟹ NoChain；旧臂 lvl0 Type3 免门 = nest_pass ⟹
+        // 重走 build_xzd_fallback 三分支（#94 择 (b) 逐字保留）。
+        let buy3 = BspBits { buy3: true, ..Default::default() };
+        let cls_b3 = ng_classification(buy3);
+        let c_b3 = ng_candidate(VoiceSide::Long, buy3, 19);
+        let (admit, channel, obs) = gate.admit(&tower, &c_b3, &hist, 19, &cls_b3);
+        assert!(matches!(channel, "xzd_pass" | "xzd_gate_fail"), "NoChain → Xzd 回退通道，实际={channel}");
+        assert!(obs.xzd_fallback, "旧臂 nest 通道 ⟹ 重走单一来源补评");
+        let expected = super::super::econ_positive::build_xzd_fallback(
+            &tower, 0, 19, Side::Long, &buy3, 19, &cls_b3.levels[0].bsp, &[], &[],
+        )
+        .map(|ev| ev.gate_pass())
+        .unwrap_or(false);
+        assert_eq!(admit, expected, "回退判定 = build_xzd_fallback 单一来源（现语义逐字）");
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_none, 1, "NoChain 计数");
+    }
+
+    /// T3-7（因果守卫语义沿用）：唯一证书 judge_at=100 越过 anchor=19 ⟹ 整证剔除
+    /// （MissingCausal，缺环底质）；全区间零因果干净证书 ⟹ NoChain → Xzd（#112-T2 现语义保留）。
+    #[test]
+    fn t3_chain_causal_guard_missing_causal_then_no_chain() {
+        let cls = t3_chain_classification(&[(0, true)]);
+        let gate = t3_gate_with_certs(&[1], 100, &cls); // judge_at=100
+        let c = ng_candidate(super::super::super::strategy::voice::VoiceSide::Long, Default::default(), 55);
+        let probe = gate.chain_lookup(&c, 19, &cls);
+        assert_eq!(
+            probe.levels[0].status,
+            ChainLevelStatus::MissingCausal,
+            "唯一证书越界 ⟹ 整证剔除（缺环底质 MissingCausal）"
+        );
+        assert_eq!(probe.levels[0].n_certs, 1, "键域有证（剔除前）");
+        assert_eq!(probe.levels[0].n_causal_clean, 0, "因果守卫全剔");
+        assert_eq!(probe.verdict, ChainVerdict::NoChain, "零闭合级 ⟹ NoChain → Xzd（现语义不动）");
+        // anchor=100 ⟹ 前缀内，正常闭合。
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::Closed);
+        assert_eq!(probe.verdict, ChainVerdict::Pass);
+    }
+
+    /// T3-8（方向一致性见证）已随 T5a (#207) 退役删除——「方向分歧」在 ADR 20260723
+    /// 裁定 1 下是非概念：同脚同价的层异型登记 = 同点跨型（各级自为真，A 类 235 例
+    /// 语义真相回归，见 `t5a_same_point_cross_type_chain_pass`）；异侧键域有证 = 同键
+    /// 合流（见 `t5a_key_domain_merges_directions`）。DirWitness 装置已死透（类型/
+    /// 统计字段/dump 列/NEST_GATE_T3 列全删，编译期保证 + grep 无残留）。
+
+    // ───────────── T5a（#207 方向退役，ADR 20260723 裁定 1：身份判据 = 同点递归）─────────────
+
+    /// T5a 夹具：同点跨型多级分类——`specs` = (book_level, x=55 以何种 bits 登记；None = 该级无此脚)。
+    /// 各级分型类型是各级自己的结构事实（ADR：同一 x 可在 L0 为底、L1 为顶，各级自为真）。
+    fn t5a_cross_type_classification(
+        specs: &[Option<super::super::super::types::BspBits>],
+    ) -> classifier::Classification {
+        use super::super::super::classifier::bsp::BspPoint;
+        use super::super::super::classifier::LevelState;
+        use super::super::super::types::{BspBits, Center};
+        let (fractals, merged) = t3_supplies();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let mk_pt = |src: usize, bits: BspBits| BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+            struct_break_dir: None,
+            force: None,
+        };
+        let levels: Vec<LevelState> = specs
+            .iter()
+            .enumerate()
+            .map(|(book, foot)| {
+                let mut pts = vec![mk_pt(40, buy1)];
+                if let Some(bits) = foot {
+                    pts.push(mk_pt(55, *bits));
+                }
+                let bsp = std::rc::Rc::new(pts);
+                let layer = classifier::projection::LevelProjectionLayer::from_level(
+                    book as u32, &bsp, &fractals, &merged,
+                );
+                // #218 面 B（机械改写归因：判同机制换带判同）：账本层补 B 中枢（带 (0,0)，
+                // start=20 = 事件 b_center_start 查找键）——点 center 带 == B 带 ⟹ 判等。
+                LevelState {
+                    bsp,
+                    centers: std::rc::Rc::new(vec![Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }]),
+                    level_projection: Some(layer),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        classifier::Classification { levels, ..Default::default() }
+    }
+
+    /// T5a-1（同点跨型链确认成立，#206 A 类 235 例语义真相回归）：同一 x=55 在 L0 层以
+    /// buy1（底）登记、L1 层以 sell1（顶）登记——方向退役后身份只剩同点递归：两级
+    /// 恰好存在均成立（不问分型类型），证书逐级闭合 ⟹ **Pass**（旧同向过滤下 L1
+    /// missing_existence ⟹ Reject，本测试在旧语义下为红）。
+    #[test]
+    fn t5a_same_point_cross_type_chain_pass() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let sell1 = BspBits { sell1: true, ..Default::default() };
+        // L0：x=55 底（buy1）；L1：x=55 顶（sell1）——同点跨型，各级自为真。
+        let cls = t5a_cross_type_classification(&[Some(buy1), Some(sell1)]);
+        // 证书：事件级 ℓ=1（账本级 L0）与 ℓ=2（账本级 L1），同锚 (极值价 100, 组锚 50)。
+        let gate = t3_gate_with_certs(&[1, 2], 100, &cls);
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.chain_top, Some(1), "链顶 = 以 x 为拐点的最高账本级（不问分型类型）");
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::Closed, "L0 闭合");
+        assert_eq!(
+            probe.levels[1].status,
+            ChainLevelStatus::Closed,
+            "L1 跨型存在 + 证书闭合——同向过滤退役后不再 missing_existence"
+        );
+        assert_eq!(probe.verdict, ChainVerdict::Pass, "同点跨型全链闭合 ⟹ Pass（A 类语义真相）");
+        assert_eq!(probe.closed_down_to, Some(0), "闭合到 L0");
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (true, "nest_pass"), "同点跨型链确认被 admit 消费");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Pass);
+    }
+
+    /// T5a-2（键域去方向位：登记合流 + 查询不携带方向）：同价同组锚的 Long/Short 事件
+    /// 登记进**同一键** (ℓ, 极值价, 组锚)；异侧登记的证书对本向候选的链闭合同样有效
+    /// （方向不参与身份）；`chain_key_hint` 对层异型登记的脚可解析（旧语义 false ⟹ 红）。
+    #[test]
+    fn t5a_key_domain_merges_directions() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Side};
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let sell1 = BspBits { sell1: true, ..Default::default() };
+        let cls = t5a_cross_type_classification(&[Some(buy1)]);
+        let (fractals, merged) = t3_supplies();
+        let mut gate = NestChainGate::for_test_with_supplies(
+            Vec::new(), Vec::new(), Vec::new(),
+            std::rc::Rc::new(fractals), std::rc::Rc::new(merged),
+        );
+        // 同价同锚的 Long/Short 两事件（不同 interval_b ⟹ 不同身份）。
+        let ev_long = nc_event(1, Side::Long, (30, 50), 50, 100, true);
+        let ev_short = nc_event(1, Side::Short, (32, 50), 50, 100, true);
+        gate.absorb_exts(vec![
+            nc_ext_anchored(ev_long, 100, 50),
+            nc_ext_anchored(ev_short, 100, 50),
+        ]);
+        assert_eq!(
+            gate.by_triple_anchor.keys().count(),
+            1,
+            "方向退役：同价同组锚跨向事件登记进同一键 (ℓ, 极值价, 组锚)"
+        );
+        assert_eq!(
+            gate.by_triple_anchor.values().next().map(Vec::len),
+            Some(2),
+            "同键身份集 = 两方向事件合流"
+        );
+        gate.sync_index(&cls);
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        // 查询不携带方向：Long 候选读到 Short 侧登记的证书同样闭合（身份层无方向）。
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].n_certs, 2, "键域身份集 = 双向合流（不滤方向）");
+        assert_eq!(probe.verdict, ChainVerdict::Pass);
+        // 异型脚可解析：候选 Long 而层仅 sell1 登记 x=55 —— 锚解析/hint 不再被方向阻断。
+        let cls_opp = t5a_cross_type_classification(&[Some(sell1)]);
+        assert!(
+            gate.chain_key_hint(&c, &cls_opp),
+            "层异型登记下脚仍可解析 + 键域有证 ⟹ hint=true（旧同向口径 false ⟹ 红）"
+        );
+    }
+
+    /// T3-9（并门，#168 裁定 3）：层载由链路径单一驱动——链活 ⟹ 层必载（含索引），
+    /// 链死不载（零开销红线不死）；stamping 跟随派生位（机制位仍 config，生产只经派生写入）。
+    #[test]
+    fn t3_chain_gate_merged_drives_layer_load() {
+        let config = ThetaConfig::default();
+        // 链死 ⟹ 派生位 = 原配置（层不载）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
+        let derived = super::super::admission::chain_driven_level_projection(&config);
+        assert!(!derived.level_projection.enabled, "链死 ⟹ 层不载（零开销红线不死）");
+        assert!(matches!(derived, std::borrow::Cow::Borrowed(_)), "链死 ⟹ 零拷贝借用");
+        // 链活 ⟹ 层必载。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let derived = super::super::admission::chain_driven_level_projection(&config);
+        assert!(derived.level_projection.enabled, "链活 ⟹ 层必载（索引成本即链判成本）");
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        // stamping 跟随机制位：开 ⟹ 每级 Some(layer)；关（默认）⟹ None（八处 None 构造点不动）。
+        let bars: Vec<super::super::super::types::Bar> = (0..40)
+            .map(|i| super::super::super::types::Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: 100,
+                high: if i % 2 == 0 { 112 } else { 100 },
+                low: if i % 2 == 0 { 100 } else { 88 },
+                close: if i % 2 == 0 { 110 } else { 90 },
+                volume: 1,
+                untradable: false,
+            })
+            .collect();
+        let l0 = parser::parse_layer(&bars, &config);
+        let cls_off = classifier::classify_with_tower(&l0, &config).0;
+        assert!(
+            cls_off.levels.iter().all(|ls| ls.level_projection.is_none()),
+            "机制位关（默认）⟹ stamping 不构造层（零开销 bit-exact 锁）"
+        );
+        let mut config_on = config.clone();
+        config_on.level_projection = classifier::projection::LevelProjectionConfig::for_chain(true);
+        let cls_on = classifier::classify_with_tower(&l0, &config_on).0;
+        assert!(
+            cls_on.levels.iter().all(|ls| ls.level_projection.is_some()),
+            "机制位开 ⟹ 每级 stamping 必载层（链活 ⟹ 层必载形态）"
         );
     }
 
@@ -3164,79 +3518,216 @@ mod tests {
         }
     }
 
-    /// #76-T1（出场侧反查三分支 + 对照读出落账）：真链证书命中 ∧ n_delta 通过 ⟹ 准出；
-    /// 身份桥 miss ⟹ 诚实不准出（**禁 v0 fallback**——v0 只进对照读出：miss 案例 v0 基例
-    /// 放行 ⟹ cross_v0_pass_typed_rej 落账，即「v0 会放行而真链拒绝」的关键对照案例）；
-    /// Flat 候选 ⟹ 无证书拒；depth>0 查询不进统计（F1 锚替代域，读出弃用）。
+    /// T5b (#208) 出场夹具：sell1 终端背书版链分类（`t3_chain_classification` 的 Short
+    /// 对偶——sell1 点既作 src=40 终端背书（owner 中枢 start=20）又作 src=55 存在位；
+    /// 旧桥同向键（ℓ=1, 离开段终点=55, is_long=false）可命中 ⟹ 新旧语义同夹具对照）。
+    fn xd_chain_classification(specs: &[(usize, bool)]) -> classifier::Classification {
+        use super::super::super::classifier::bsp::BspPoint;
+        use super::super::super::classifier::LevelState;
+        use super::super::super::types::{BspBits, Center};
+        let (fractals, merged) = t3_supplies();
+        let sell1 = BspBits { sell1: true, ..Default::default() };
+        let mk_pt = |src: usize| BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits: sell1,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+            struct_break_dir: None,
+            force: None,
+        };
+        let n_levels = specs.iter().map(|&(l, _)| l + 1).max().unwrap_or(1);
+        let levels: Vec<LevelState> = (0..n_levels)
+            .map(|book| {
+                let existence = specs.iter().any(|&(l, e)| l == book && e);
+                let mut pts = vec![mk_pt(40)];
+                if existence {
+                    pts.push(mk_pt(55));
+                }
+                let bsp = std::rc::Rc::new(pts);
+                let layer = classifier::projection::LevelProjectionLayer::from_level(
+                    book as u32, &bsp, &fractals, &merged,
+                );
+                // #218 面 B（机械改写归因：判同机制换带判同）：账本层补 B 中枢（带 (0,0)，
+                // start=20 = 事件 b_center_start 查找键）——点 center 带 == B 带 ⟹ 判等。
+                LevelState {
+                    bsp,
+                    centers: std::rc::Rc::new(vec![Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }]),
+                    level_projection: Some(layer),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        classifier::Classification { levels, ..Default::default() }
+    }
+
+    /// T5b (#208) 出场夹具：Short 证书 gate（`t3_gate_with_certs` 的 Short 对偶——
+    /// 锚 sidecar 同为 (100, 50)，事件方向 = Short；sell1 背书 ⟹ 基例门产证）。
+    fn xd_gate_with_short_certs(
+        cert_event_levels: &[u32],
+        judge_at: usize,
+        cls: &classifier::Classification,
+    ) -> NestChainGate {
+        use super::super::super::types::Side;
+        let (fractals, merged) = t3_supplies();
+        let mut gate = NestChainGate::for_test_with_supplies(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            std::rc::Rc::new(fractals),
+            std::rc::Rc::new(merged),
+        );
+        for &el in cert_event_levels {
+            let ev = nc_event(el, Side::Short, (30, 50), 50, judge_at, true);
+            gate.absorb_exts(vec![nc_ext_anchored(ev, 100, 50)]);
+        }
+        gate.sync_index(cls);
+        gate
+    }
+
+    /// #76-T1 → **T5b (#208) 出场迁链改写**（ADR 20260723 裁定 3：买点买卖点卖同一套链，
+    /// 出场不独立设计）：反向点 x′（`d.signal_index`）的同点递归链确认 ⟹ 准出；无链
+    /// （NoChain）/ 断链（Reject）⟹ 不准出（诚实口径，**禁 v0 fallback**）；Flat 拒；
+    /// depth>0 不入统；链断以 miss（NoChain）呈现。**因果守卫（链上 judge_at ≤ 决策
+    /// bar）是迁链新增严格项**（旧固定 ℓ+1 桥无守卫）；链不问方向（T5a）——同一套链
+    /// 回答「x′ 是不是确认的拐点」，出场方向由交易层映射。
     ///
-    /// 夹具复用 #75 的 nc_event/nc_ext/nc_endorsement_classification（同一身份桥：
-    /// 候选 (lvl=0, src=55, Short) ↔ 事件 (ℓ=1, seg_c_full.1=55, Short)）。
+    /// 夹具复用 T3 供给线（`t3_supplies`/`t3_chain_classification`/`t3_gate_with_certs`）：
+    /// x′=55 处 L0 分型 price=100、组锚 50；事件 ℓ=1 ↔ 账本级 L0。`xd_*` 变体 =
+    /// sell1 终端背书 + Short 事件（旧桥同向键可命中 ⟹ 新旧语义差异可在同一夹具对照）。
+    ///
+    /// 红绿史（TDD）：(a2) 方向解放 / (c) 断链拒 / (g) 因果守卫在旧 `typed_lookup`
+    /// 实装下为红（旧：同向固定 ℓ+1 hit 且 n_delta 即准、无守卫）；迁链后全绿。
     #[test]
-    fn exit_gate_reverse_admit_typed_hit_miss_flat() {
+    fn exit_gate_reverse_admit_chain_pass_reject_flat() {
         use super::super::super::strategy::exit::reverse_nest_cert_base;
         use super::super::super::types::{BspBits, Side};
         let config = ThetaConfig::default();
         let bars: Vec<Bar> = (0..10).map(|i| mk_bar(i, 1000 + i as i64, false)).collect();
-        let mut ctx = ExitNestGateCtx::new(&bars, &config);
-        // (a) 真链准入：ℓ=1 Short 事件，seg_c_full.1=55，终端账本 sell1 ⟹ 0-rung n_delta=true。
         let sell1 = BspBits { sell1: true, ..Default::default() };
-        ctx.gate.absorb_exts(vec![nc_ext(nc_event(1, Side::Short, (30, 50), 50, 100, true), (30, 55))]);
-        ctx.gate.sync_index(&nc_endorsement_classification(sell1));
         let d_hit = xd_reverse_decision(VoiceSide::Short, sell1, 0, 55);
-        assert!(ctx.reverse_admit(&d_hit, 0), "身份桥命中 + n_delta 通过 ⟹ 准出");
-        // (b) 身份桥 miss（src=56 非离开段终点）⟹ 诚实不准出；v0 基例放行 ⟹ 对照差落账。
+        let mut ctx = ExitNestGateCtx::new(&bars, &config);
+
+        // (a) 同侧全链闭合 ⟹ 准出（新旧连续性锚：旧桥同向 hit+n_delta 亦准）。
+        let cls_a = xd_chain_classification(&[(0, true)]);
+        ctx.gate = xd_gate_with_short_certs(&[1], 100, &cls_a);
+        ctx.classification = Some(cls_a);
+        ctx.cur_bar = 100;
+        assert!(ctx.reverse_admit(&d_hit, 0), "(a) 全链闭合（链顶=L0 单级链）⟹ 准出");
+
+        // (a2) 方向退役解放（T5a 同点递归不问方向）：Long 证书同键闭合 Short 反向候选
+        // 的链 ⟹ 准出；旧桥同向键（is_long=false）必 miss——迁移预期差之一（红→绿）。
+        let cls_a2 = t3_chain_classification(&[(0, true)]);
+        ctx.gate = t3_gate_with_certs(&[1], 100, &cls_a2); // Long 事件 + buy1 背书
+        ctx.classification = Some(cls_a2);
+        assert!(
+            ctx.reverse_admit(&d_hit, 0),
+            "(a2) 异侧证书同点闭合 ⟹ 准出（方向退役：链问「是不是拐点」，不问买卖）"
+        );
+
+        // (b) 锚不可解（src=56 无分型）⟹ NoChain ⟹ 不准出；v0 基例放行 ⟹ 对照差落账。
         let d_miss = xd_reverse_decision(VoiceSide::Short, sell1, 0, 56);
         assert!(reverse_nest_cert_base(&d_miss), "夹具前提：v0 基例对该候选放行");
-        assert!(!ctx.reverse_admit(&d_miss, 0), "typed miss ⟹ 不准出（禁 v0 fallback）");
-        // (c) Flat 候选 ⟹ 拒（无方向 ⟹ 无证书，与 v0 基例同语义）。
+        assert!(!ctx.reverse_admit(&d_miss, 0), "(b) NoChain ⟹ 不准出（禁 v0 fallback）");
+
+        // (c) 断链拒：存在性 L0/L1 俱在而证书仅 L0 闭合（ℓ=1），链顶 L1 缺证 ⟹ Reject
+        // ⟹ 不准出——「lvl+1 单级过证不算」同型；旧桥固定 ℓ+1 单级 hit 即准（红→绿）。
+        let cls_c = xd_chain_classification(&[(0, true), (1, true)]);
+        ctx.gate = xd_gate_with_short_certs(&[1], 100, &cls_c); // 仅 ℓ=1（账本级 L0）有证
+        ctx.classification = Some(cls_c);
+        assert!(!ctx.reverse_admit(&d_hit, 0), "(c) 链顶缺环 ⟹ 断链拒（链闭合 vs 单级 hit）");
+
+        // (d) Flat 候选 ⟹ 拒（无方向 ⟹ 无证书，与 v0 基例同语义）。
         let d_flat = xd_reverse_decision(
             VoiceSide::Flat,
             BspBits { sell1: true, buy1: true, ..Default::default() },
             0,
             55,
         );
-        assert!(!ctx.reverse_admit(&d_flat, 0), "Flat ⟹ 无证书拒");
-        // (d) depth>0：查询读出弃用，不进统计（F1 锚替代域）。
+        assert!(!ctx.reverse_admit(&d_flat, 0), "(d) Flat ⟹ 无证书拒");
+
+        // (e) depth>0：查询读出弃用，不进统计（F1 锚替代域）。
         let before = ctx.stats.total;
         let _ = ctx.reverse_admit(&d_hit, 1);
-        assert_eq!(ctx.stats.total, before, "depth>0 查询不进统计");
-        // 统计核验：total=3（a/b/c）；准入 1、typed 命中 1、miss 1、flat 1；
-        // cross：a/c 两路一致，b = v0 准真链拒（关键对照案例）。
+        assert_eq!(ctx.stats.total, before, "(e) depth>0 查询不进统计");
+
+        // (g) 因果守卫（迁链新增严格项，旧桥无守卫）：唯一证书 judge_at=200 越过决策
+        // bar=100 ⟹ 整证剔除 ⟹ 零闭合 ⟹ NoChain ⟹ 不准出（红→绿）；同夹具决策
+        // bar=200 守卫内 ⟹ Pass 准出。
+        let cls_g = xd_chain_classification(&[(0, true)]);
+        ctx.gate = xd_gate_with_short_certs(&[1], 200, &cls_g);
+        ctx.classification = Some(cls_g);
+        ctx.cur_bar = 100;
+        assert!(
+            !ctx.reverse_admit(&d_hit, 0),
+            "(g) judge_at 越决策 bar ⟹ 守卫剔除 ⟹ NoChain（新增严格项）"
+        );
+        ctx.cur_bar = 200;
+        assert!(ctx.reverse_admit(&d_hit, 0), "(g′) judge_at ≤ 决策 bar ⟹ Pass 准出");
+
+        // 统计核验：depth-0 查询 = a/a2/b/c/d/g/g′ 共 7；准入 a/a2/g′=3；链在
+        // a/a2/c/g′=4；NoChain b/g=2；flat=1。cross：v0(hit)=true、v0(flat)=false——
+        // agree=a/a2/d/g′=4…（见下逐项）；v0_pass_gate_rej=b/c/g=3。
         let s = &ctx.stats;
         assert_eq!(
-            (s.total, s.admitted, s.typed_found, s.typed_none, s.flat_dir),
-            (3, 1, 1, 1, 1),
-            "出场门统计分账"
+            (s.total, s.admitted, s.chain_found, s.chain_none, s.flat_dir),
+            (7, 3, 4, 2, 1),
+            "出场门统计分账（迁链语义）"
         );
-        assert_eq!(s.cross_agree, 2, "(a)(c) 两路一致");
-        assert_eq!(s.cross_v0_pass_typed_rej, 1, "(b) v0 放行而真链 miss 拒——关键对照案例");
-        assert_eq!(s.cross_v0_rej_typed_pass, 0);
-        assert_eq!(s.admit_rungs[0], 1, "(a) 准入侧 0-rung 链深");
-        // (e) 无终端背书/链断形态：Short 事件但终端账本 buy1 ⟹ 基例门（nest.rs:693
-        // confirm_side）不产出证书 ⟹ typed miss ⟹ 不准出（「链断 → 不准出」的构造形态——
-        // 装配层基例门使 n_delta=false 的 0-rung 证书不存在，链断只能以 miss 呈现）。
+        assert_eq!(s.admit_rungs[0], 3, "准入侧链深全 0-rung");
+        assert_eq!(s.rej_rungs[0], 1, "(c) 拒绝侧 0-rung");
+        assert_eq!(s.cross_agree, 4, "a/a2/d/g′ 两路一致");
+        assert_eq!(s.cross_v0_pass_gate_rej, 3, "b/c/g = v0 准链拒");
+        assert_eq!(s.cross_v0_rej_gate_pass, 0);
+
+        // (f) 链断以 miss（NoChain）呈现：Short 事件锚齐但终端背书 buy1 ⟹ 装配层基例门
+        // （nest.rs:693 confirm_side）不产证 ⟹ 键域有身份而索引无证 ⟹ 零闭合 ⟹ NoChain
+        // ⟹ 不准出（装配层基例门使 n_delta=false 的 0-rung 证书不存在，链断只能以
+        // miss 呈现——旧测试同构形态迁移）。
         let mut ctx2 = ExitNestGateCtx::new(&bars, &config);
-        let buy1 = BspBits { buy1: true, ..Default::default() };
-        ctx2.gate.absorb_exts(vec![nc_ext(nc_event(1, Side::Short, (30, 50), 50, 100, true), (30, 55))]);
-        ctx2.gate.sync_index(&nc_endorsement_classification(buy1));
-        assert!(!ctx2.reverse_admit(&d_hit, 0), "无同向终端背书 ⟹ 链断 miss ⟹ 不准出");
-        assert_eq!(ctx2.stats.typed_none, 1, "链断以 miss 落账");
+        let (fractals, merged) = t3_supplies();
+        let mut g2 = NestChainGate::for_test_with_supplies(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            std::rc::Rc::new(fractals),
+            std::rc::Rc::new(merged),
+        );
+        g2.absorb_exts(vec![nc_ext_anchored(
+            nc_event(1, Side::Short, (30, 50), 50, 100, true),
+            100,
+            50,
+        )]);
+        // buy1 背书（t3 夹具）⟹ Short 事件过不了基例门 ⟹ 索引无证；src=55 存在位仍在。
+        let cls_f = t3_chain_classification(&[(0, true)]);
+        g2.sync_index(&cls_f);
+        ctx2.gate = g2;
+        ctx2.classification = Some(cls_f);
+        ctx2.cur_bar = 100;
+        assert!(!ctx2.reverse_admit(&d_hit, 0), "(f) 基例门不产证 ⟹ NoChain ⟹ 不准出");
+        assert_eq!(ctx2.stats.chain_none, 1, "链断以 miss（NoChain）落账");
         assert_eq!(ctx2.stats.admitted, 0);
-        assert_eq!(ctx2.stats.cross_v0_pass_typed_rej, 1, "v0 放行而真链（链断）拒");
+        assert_eq!(ctx2.stats.cross_v0_pass_gate_rej, 1, "v0 放行而链（断）拒");
     }
 
     /// #76-T2（v1 退出循环集成：门开真链压掉反向退出 / 门关逐字节回归锁）。
     ///
     /// 夹具：持多根（depth 0，60% 权重）+ depth-1 卖侧决策（30% 权重 ⟹ 部分减仓不覆盖
     /// held[0] 多声部快照）⟹ 门关时退出生成器反向项触发（v1 groups 不过滤根域，既有
-    /// 语义）；门开时单调 bars 无任何 nest 结构 ⟹ 身份桥反查恒 miss ⟹ **诚实不准出**，
-    /// 多仓延至窗口终点强平。
+    /// 语义）；门开时单调 bars 无分型 ⟹ 链锚不可解（NoChain）⟹ **诚实不准出**（T5b
+    /// (#208) 迁链终态口径），多仓延至窗口终点强平。
     #[test]
     fn exit_gate_v1_reverse_exit_suppressed_without_cert() {
         use super::super::super::strategy::risk::StopInput;
         use super::super::super::types::{BspBits, Center};
         let mut config = ThetaConfig::default();
         config.tick.tick_size = 1.0; // 价格=美元
+        // T5b (#208)：层载派生（门开 ⟹ 投影层必载——生产 π 路径 runner.rs:493 同款；
+        // 层仅链查询读取，门关臂不建 ctx、fill/recognize 零消费 ⟹ 逐字节不变）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let config = super::super::admission::chain_driven_level_projection(&config);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
         // 单调上行（无分型 ⟹ 无中枢 ⟹ 无 nest 事件）：全程 low>90 不触多止损。
         let bars = vec![
             ohlc_bar(0, 100, 110, 95, 105),
@@ -3276,7 +3767,7 @@ mod tests {
         assert!(!baseline.trades[1].forced_close, "门关：反向退出非强平");
         assert_eq!(baseline.trades[1].exit_bar, 4, "门关：反向退出 Close 于 bar4 成交");
 
-        // (2) 门开：真链恒 miss（单调 bars 无 nest 结构）⟹ 反向退出被压掉——
+        // (2) 门开：链恒 NoChain（单调 bars 无分型 ⟹ 锚不可解）⟹ 反向退出被压掉——
         // 少一笔退出 Close 单；多仓延至窗口终点强平（forced_close=true，exit_bar=5）。
         NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
         let on = plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
@@ -3335,6 +3826,12 @@ mod tests {
     /// #76 门开冒烟（截断窗，真实 BTC）：v1/dual 两退出循环在门开/门下各跑一遍，
     /// 出场侧读数（NEST_GATE_EXIT：反向准出率 + 链深构成 + v0 对照差）如实输出。
     /// 截断窗 = 前 30_000 bar（E5 同款截断先例）；门开臂跑逐 bar 因果前缀喂法。
+    ///
+    /// T5b (#208)：本 smoke 兼作**出场迁链行为对照面**（出场侧不经 m8，NEST_GATE_EXIT
+    /// 三窗零行）——env `T5B_EXIT_DUMP_PATH` 设置时门开臂逐查询落 dump（装置
+    /// `t5b_exit_dump`，迁移前旧桥读出 / 迁移后链读出同键对齐）。config 经
+    /// `chain_driven_level_projection` 派生（门开 ⟹ 投影层载——生产 π 路径 runner.rs:493
+    /// 同款；层仅链查询读取，fill/recognize 零消费，门关臂行为逐字节不变）。
     #[test]
     #[ignore = "真实数据冒烟，需 analysis/data_cache/btc_1m_full.json；显式 --ignored --nocapture"]
     fn nest_exit_gate_smoke_real_btc() {
@@ -3347,6 +3844,10 @@ mod tests {
                 return;
             }
         };
+        // T5b (#208)：层载派生（门开 ⟹ 层必载，生产同款；门关臂借原 config 零开销）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let config = super::super::admission::chain_driven_level_projection(&config);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
         let n = 30_000.min(ds.bars.len());
         let bars = &ds.bars[..n];
         let l0 = parser::parse_layer(bars, &config);
@@ -3587,6 +4088,9 @@ mod tests {
                                     &series.hist,
                                     &series.dif,
                                     &close_src,
+                                    // T1 (#170)：三元锚供给（诊断臂同用真实包含层/分型管）。
+                                    &l0.fractals,
+                                    &l0.merged_bars,
                                 );
                                 n_events += exts.len();
                                 n_confirmed +=
@@ -3623,6 +4127,63 @@ mod tests {
             );
             eprintln!("[diag] L{level} ts_deciles={hist10:?}");
         }
+    }
+
+    /// T1 (#170) 锚供给真实数据探针（手工触发，需数据；不进 CI、不进任何生产输出）：
+    /// 终端塔单发逐级 `derive_level_events`（生产 provider 路径 + 真实包含层/分型管供给），
+    /// 统计 confirmed 事件的锚缺失率（`n_anchor_misses` 真实语料实测）与新键域装填规模。
+    /// `T1_PROBE_BARS` 截尾窗（默认 50_000），`T1_PROBE_START` 窗起点（缺省 = 尾部）。
+    #[test]
+    #[ignore = "T1 锚供给真实数据探针（手工触发，需数据）"]
+    fn t1_anchor_supply_real_data_probe() {
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("BTC 加载失败：{e}（DATA BLOCKER）");
+                return;
+            }
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars: usize = std::env::var("T1_PROBE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(50_000);
+        let start: usize = std::env::var("T1_PROBE_START")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| n_full.saturating_sub(max_bars));
+        let end = (start + max_bars).min(n_full);
+        let ds_win = ds_full.slice_bar_range(start, end);
+        let bars = &ds_win.bars;
+        let as_of = bars.len() - 1;
+        let l0 = parser::parse_layer(bars, &config);
+        let (_cls, tower) = classifier::classify_with_tower(&l0, &config);
+        let mut gate = NestChainGate::new(bars, &config);
+        eprintln!("[t1probe] window=[{start}..{end}) tower_levels={}", tower.len());
+        for level in 1..tower.len() {
+            let exts = gate.derive_level_events(&tower, level, as_of);
+            let n = exts.len();
+            let n_conf = exts.iter().filter(|e| e.event.divergence_confirmed).count();
+            let n_conf_miss = exts
+                .iter()
+                .filter(|e| {
+                    e.event.divergence_confirmed
+                        && (e.extreme_price.is_none() || e.group_anchor.is_none())
+                })
+                .count();
+            gate.absorb_exts(exts);
+            eprintln!(
+                "[t1probe] L{level} exts={n} confirmed={n_conf} confirmed_anchor_miss={n_conf_miss}"
+            );
+        }
+        eprintln!(
+            "[t1probe] TOTAL absorbed={} by_triple_anchor_keys={} n_anchor_misses={}（0 = 真实语料锚供给全命中）",
+            gate.events_by_level.iter().map(Vec::len).sum::<usize>(),
+            gate.by_triple_anchor.len(),
+            gate.n_anchor_misses,
+        );
     }
 
     /// #75 门开冒烟（小截断实测，不进 CI）：NEST_GATE_STATS/CHAIN/INDEX 三行真链读数
@@ -5827,7 +6388,7 @@ mod tests {
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 })),
             struct_break_dir: None,
             force: None,
         };
@@ -5837,7 +6398,7 @@ mod tests {
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 })),
             struct_break_dir: None,
             force: None,
         };
@@ -5849,7 +6410,7 @@ mod tests {
                 bits: BspBits { buy1: true, ..Default::default() },
                 pivot_low: 120,
                 pivot_high: 0,
-                center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 }),
+                center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 })),
                 struct_break_dir: None,
                 force: None,
             });
