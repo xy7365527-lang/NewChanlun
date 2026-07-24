@@ -2118,7 +2118,8 @@ fn held_stale_reregister_idx(
 
 /// [`coverage_step_from_buckets`] 的净额兼容出口（22 处旧调用点保持二元返回，bit-exact）。
 /// 委托 [`coverage_step_from_buckets_sep`] 丢弃第三分量 `sep_legs`（M5 声部执行层暴露，纯只读，
-/// 不进决策路径）——单源无平行状态机。
+/// 不进决策路径）与第四分量 `next_active_idx`（#220 opened 配对键透出，仅 `pi_theta_step_traced`
+/// 主路径消费）——单源无平行状态机。
 pub(crate) fn coverage_step_from_buckets(
     work: ElementView,
     prev_active: &[ActiveLeg],
@@ -2128,7 +2129,7 @@ pub(crate) fn coverage_step_from_buckets(
     risk: Option<&RiskConfig>,
     registry: &super::persistent::PersistentRegistry,
 ) -> (Vec<ActiveLeg>, f64) {
-    let (next_active, p_tilde, _sep) = coverage_step_from_buckets_sep(
+    let (next_active, p_tilde, _sep, _idx) = coverage_step_from_buckets_sep(
         work, prev_active, buckets, base_units, config, risk, registry,
     );
     (next_active, p_tilde)
@@ -2141,6 +2142,12 @@ pub(crate) fn coverage_step_from_buckets(
 /// `sep_legs` 是本函数**已算** `legs`（post G7 gross cap）+ `next_idx` 对位元素 ElementId 的只读
 /// 重打包——**不新计算**，决策路径逐字节不变（`net_target_units(&legs)==p_tilde` 恒等）。runner
 /// 的 [`OverlayState`](super::overlay_state) hedge-mode 簿据此建持久逐声部 P^sep 账本 + ΔN 订单。
+///
+/// 第 4 返回分量 `next_active_idx`（★#220 路④）：与 `next_active` 逐位对位的 work idx——
+/// opened 外化的配对键（候选自身元素 idx ∈ next_active_idx ⟺ 信号真实准入；按 id 配对会把
+/// 同 id 的 restore 在场腿误配给被 #216 规则①/③ 让位/湮灭的候选，一腿双登记 ⟹ 账面孤儿，
+/// 勘察报告 assertion2-restore-balance-scope-20260724「炸点实证」）。gross 零化剔除在 idx 层
+/// 完成（与 next_active 同一 filter），纯透出、决策路径不变。
 pub(crate) fn coverage_step_from_buckets_sep(
     mut work: ElementView,
     prev_active: &[ActiveLeg],
@@ -2149,7 +2156,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
     config: &VoiceConfig,
     risk: Option<&RiskConfig>,
     registry: &super::persistent::PersistentRegistry,
-) -> (Vec<ActiveLeg>, f64, Vec<SepLeg>) {
+) -> (Vec<ActiveLeg>, f64, Vec<SepLeg>, Vec<usize>) {
     // ★热点② O(n²) 消除：work = ElementView{base=持久树前缀借用零拷贝, overlay=本 bar candidate 段}。
     // 旧 `elements.to_vec()` + 上游 `tree.clone()` 每 bar O(tree)×n=O(n²) 双双消除（base 借 Rc 树，
     // candidate 在 overlay）。restore 路径继续 push overlay 尾（绝大多数 bar 不触发）。
@@ -2452,17 +2459,22 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // 账本只携身份不携 units ⟹ 一致，保留。held 腿零化时保留身份：其减仓/平仓经净订单真实兑现，
     // 账本身份的关闭归 typed close/𝒟_x 路径（#124 范围，本路径不越界删 held）。
     // gross_zeroed 恒空（default 不激活/未触发/仅部分缩放）⟹ 走原路径，逐位不变。
-    let next_active: Vec<ActiveLeg> = if gross_zeroed.is_empty() {
-        next_idx.iter().map(|&i| element_as_leg(&work[i])).collect()
+    // ★#220 路④：先定 `next_active_idx`（gross 零化剔除在 idx 层做，与旧 filter 同判据）再 map
+    // 成腿——idx 对位透出为第 4 返回分量，供 opened 外化按「候选自身元素真实准入」配对（id 配对
+    // 会把同 id restore 在场腿误配给让位候选，一腿双登记）。重构本身 bit-exact。
+    let next_active_idx: Vec<usize> = if gross_zeroed.is_empty() {
+        next_idx.clone()
     } else {
         let open_idx: std::collections::HashSet<usize> =
             buckets.open.iter().map(|c| candidate_start + c.gamma_index).collect();
         next_idx
             .iter()
-            .filter(|&&i| !(open_idx.contains(&i) && gross_zeroed.contains(&i)))
-            .map(|&i| element_as_leg(&work[i]))
+            .copied()
+            .filter(|&i| !(open_idx.contains(&i) && gross_zeroed.contains(&i)))
             .collect()
     };
+    let next_active: Vec<ActiveLeg> =
+        next_active_idx.iter().map(|&i| element_as_leg(&work[i])).collect();
     // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
     // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。
     // 唯一性由三处注册路径闭合保证：restore_ancestor_chain_from_registry 复用现有 idx、held Stale
@@ -2491,7 +2503,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
             })
         })
         .collect();
-    (next_active, p_tilde, sep_legs)
+    (next_active, p_tilde, sep_legs, next_active_idx)
 }
 
 /// 环5+环6 端到端（`Classification` + per-bar 因果塔 → Γ → 三桶 → `A_{t+1}=AncOK[...]` → `p̃`），
@@ -3004,6 +3016,9 @@ pub(crate) struct VoiceVerdict {
 /// - `silent_drops`：不在 close 桶但从 active 消失的腿（§13 AncOK 连带剪 / Stale prune）。
 /// - `opened`：open 桶候选中**真正准入** `next_active` 的（AncOK 后），携对应新腿。
 ///   restore 恢复的祖先 carrier 腿不在此列（非信号入场，无 z，不入 ledger）。
+///   ★#220 路④：准入判据 = 候选**自身元素 idx** ∈ next_active_idx（非 id 命中）——被 #216
+///   规则①/③ 让位/湮灭的候选不外化；同 id restore 在场腿不得借候选配对入列（旧 id 配对
+///   在同 bar 同 carrier 候选对 × restore 在场形态下一腿双登记，断言②门孤儿根因）。
 ///
 /// **RiskExit 通道**（#124 P1 落地）：`force_flat`（PDF §7 全互斥 C_1 强平，屏蔽 P2..P10）⟹
 /// [`pi_theta_step_traced`] 在解释器上游短路，prev_active 全部经 `risk_exits` 外化为
@@ -3148,7 +3163,7 @@ pub(crate) fn pi_theta_step_traced(
                     open: Vec::new(),
                     record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决）
                 };
-                let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+                let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
                     work, prev_active, &buckets, base_units, config, Some(risk), registry,
                 );
                 let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
@@ -3197,7 +3212,7 @@ pub(crate) fn pi_theta_step_traced(
                 open: Vec::new(),
                 record: gamma.to_vec(), // 当步普通候选推迟记录（消耗当步裁决，屏蔽 P5..P10）
             };
-            let (next_active, p_tilde, sep_legs) = coverage_step_from_buckets_sep(
+            let (next_active, p_tilde, sep_legs, _idx) = coverage_step_from_buckets_sep(
                 work, prev_active, &buckets, base_units, config, Some(risk), registry,
             );
             let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
@@ -3252,15 +3267,12 @@ pub(crate) fn pi_theta_step_traced(
         .collect();
     let (buckets, close_triggers) =
         interp::interpret_with_external_closes(gamma, prev_active, &external_closes);
-    // open 候选 → 其 638 附着元素 id（work 即将 move 进 coverage_step_from_buckets，先抓）。
+    // candidate_start（候选段基址）先抓——work 即将 move 进 coverage_step_from_buckets_sep；
+    // opened 外化的配对键（候选自身元素 idx，#220 路④）以它为基准。
     let candidate_start = work.base_len();
-    let open_cand_ids: Vec<(Candidate, ElementId)> = buckets
-        .open
-        .iter()
-        .filter_map(|c| work.get(candidate_start + c.gamma_index).map(|e| (*c, e.id)))
-        .collect();
     // 环6：活动集递归 + AncOK + G7 毛约束（原样单源）。★M5：sep 出口暴露逐声部 P^sep_{t+1}。
-    let (next_active, p_tilde, sep_legs) =
+    // ★#220 路④：第 4 分量 next_active_idx（与 next_active 逐位对位的 work idx）= opened 配对键。
+    let (next_active, p_tilde, sep_legs, next_active_idx) =
         coverage_step_from_buckets_sep(work, prev_active, &buckets, base_units, config, Some(risk), registry);
     // 环7：LexArgmin + Schedule（原样单源）。
     let p_star = pi_theta_position(p_tilde, p_t, base_units, risk, weights, gate);
@@ -3346,11 +3358,34 @@ pub(crate) fn pi_theta_step_traced(
         .filter(|l| !closed_ids.contains(&l.id) && !next_ids.contains(&l.id))
         .copied()
         .collect();
-    // 真正准入的 open 候选：其附着元素 id 出现在 next_active（AncOK 未剪）。
-    let opened: Vec<(Candidate, ActiveLeg)> = open_cand_ids
-        .into_iter()
-        .filter_map(|(c, id)| next_active.iter().find(|l| l.id == id).map(|l| (c, *l)))
+    // ★#220 路④：真正准入的 open 候选 = 其**自身元素 idx**（candidate_start+gamma_index）出现在
+    // next_active_idx（AncOK 未剪且未被 gross 零化）。旧「id ∈ next_active 即配对」在同 bar 同
+    // carrier 候选对 × restore 在场形态下，把同一条 restore 腿配给两个被 #216 规则①让位的候选
+    // ⟹ opened ×2 ⟹ runner 双重登记（open_trades.insert 覆盖 + 双份镜像开仓）⟹ 物理平仓只消费
+    // 最新条目，先注册实例成永不消账孤儿（m3/m6 炸断言②门 Core{1}=1296.87 根因，勘察「炸点
+    // 实证」定案）。idx 配对下被 #216 ①/③ 跳过/湮灭的候选自身元素从未入 raw，自然不外化——
+    // 恢复「opened ⟺ 信号真实准入」与「restore 腿不入账」的设计意图自洽（runner 零改）。
+    let opened: Vec<(Candidate, ActiveLeg)> = buckets
+        .open
+        .iter()
+        .filter_map(|c| {
+            let idx = candidate_start + c.gamma_index;
+            next_active_idx
+                .iter()
+                .position(|&i| i == idx)
+                .map(|j| (*c, next_active[j]))
+        })
         .collect();
+    // ★#220 机器锁定（A9 不变量断言化）：同 bar opened 不得含重复 ElementId——一条物理腿恰一条
+    // 账面实例；重复 = 双重外化回归（runner open_trades.insert 覆盖 + 镜像孤儿之源）。
+    debug_assert!(
+        {
+            let mut ids: Vec<_> = opened.iter().map(|(_, l)| l.id).collect();
+            ids.sort_by_key(|id| (id.level, id.ordinal));
+            ids.windows(2).all(|w| w[0] != w[1])
+        },
+        "#220：同 bar opened 含重复 ElementId ⟹ 一条物理腿被双重登记（opened 配对键须为候选自身元素 idx）"
+    );
 
     // ★R5-a opsem-dump：LexArgmin top-3 J_Θ 切片。仅本步有开仓时算（无开仓 bar 零开销；6 候选排序
     // O(1)）。复用 [`feasible_lex_candidates`]（与 pi_theta_position 同源候选集）⟹ top-3 首名 ≡ p_star
@@ -5100,6 +5135,76 @@ mod tests {
             "同 carrier 同向 open 候选首现序判重（next_active 每 ElementId 唯一，#216）；实得 {active:?}"
         );
         assert_eq!(carrier_legs[0].dir, VoiceSide::Long, "同向候选首现方向保留");
+    }
+
+    /// ★#220 炸点根因直测（勘察报告 assertion2-restore-balance-scope-20260724「炸点实证」定案）：
+    /// 同 bar 同 carrier 二类 Long+Short 候选对（nest✓）× **restore 在场腿**（held 路 LiveDetached
+    /// 祖先链恢复注入 raw）——两候选经 #216 规则①「id 已在 raw ⟹ 持仓身份优先」让位（活动集侧
+    /// 已正确去重），但 opened 外化若按「候选 id ∈ next_active 即配对」会把**同一条 restore 腿**
+    /// 配对给两个候选 ⟹ opened ×2 ⟹ runner 双重登记（open_trades.insert 覆盖 + 双份镜像开仓），
+    /// 物理平仓只消费最新登记条目 ⟹ 先注册实例成永不消账的孤儿（m3/m6 炸断言②门 Core{{1}}=
+    /// 1296.87 之源，wf8 窗 bar=160606，炸点实证 §2 逐笔生命周期对照）。
+    ///
+    /// **RED（id 配对）**：两候选 id 均命中 restore 腿 ⟹ opened=2、两条配对腿同 id（一腿双登记）。
+    /// **GREEN（路④ idx 配对）**：配对键 = 候选自身元素 idx（candidate_start+gamma_index）∈
+    /// next_active_idx——被规则①让位的候选自身元素从未入 raw ⟹ opened 空；restore 腿按设计意图
+    /// 留在活动集（物理在场、账面无外化——「非信号入场，无 z，不入 ledger」，StepTrace.opened doc）。
+    ///
+    /// 定义依据：#220 勘察「炸点实证」§3（真根因）+ §6 路④（修复交接口径）；#216 规则①复合
+    /// （活动集去重语义不回退——restore 腿恰一条在场、方向取 registry）。
+    #[test]
+    fn opened_restore_leg_not_externalized_for_same_carrier_candidate_pair() {
+        let carrier = eid(1, 3);
+        let child = eid(0, 900);
+        // held 路 restore 源：lvl0 子腿 Stale LiveDetached（不在树 ⟹ Stale；registry 有条目 ⟹
+        // LiveDetached），op_parent=carrier ⟹ restore 把 carrier 注入 raw（炸点 bar 2978 形态）。
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: child, parent_id: Some(carrier), is_boundary_root: false, op_parent: Some(carrier),
+        };
+        // carrier 在 base 树前缀（生产形态：carrier 为历史走势元素在因果树内）——restore 经 id_idx
+        // **复用树 idx**（id_idx 优先于 overlay_seen 候选段拷贝），腿属性取树/registry 坐标
+        // （炸点实证 leg_dir=registry dir，非候选拷贝方向）；registry 条目由 snapshot upsert 建立。
+        let tree = vec![CoverageElement {
+            lambda: 15, rho: 28, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: carrier, parent_id: None,
+        }];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&tree, &[leg_child]);
+        // 候选段：同 carrier id 的二类 Long+Short 候选对（nest✓，炸点实证形态）。parent_id=None
+        // （边界根，隔离 open 父注入路径——restore 仅经 held 路注入，形态最小）。
+        let mk = |eps: VoiceSide| CoverageElement {
+            lambda: 42, rho: 42, eps, level: 1,
+            parent: None, attached_dir: None, id: carrier, parent_id: None,
+        };
+        let candidates = vec![mk(VoiceSide::Long), mk(VoiceSide::Short)];
+        let c2 = |dir: VoiceSide, gamma_index: usize| Candidate {
+            level: 1,
+            source_index: 42,
+            bits: BspBits::default(),
+            dir,
+            bsp_class: 2,
+            role: role(Horizontal::First, Vertical::Ambient, Dir::Plus),
+            nest_confirmed: true,
+            gamma_index,
+            force: None,
+        };
+        let gamma = vec![c2(VoiceSide::Long, 0), c2(VoiceSide::Short, 1)];
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let (na, _ps, _o, trace) = pi_theta_step_traced(
+            ElementView::from_parts(&tree, candidates), &gamma, &[leg_child], 0.0, 5, 1000.0,
+            &r, w, KThetaRiskGate::open(), &cfg(), &reg, None, &protocol_hold(),
+        );
+        // restore 腿物理在场：活动集正确去重后恰一条，dir 取树/registry=Long（#216 持仓身份优先不回退）。
+        let carrier_legs: Vec<_> = na.iter().filter(|l| l.id == carrier).collect();
+        assert_eq!(carrier_legs.len(), 1, "restore 复用树 idx 注入 carrier 恰一条在场；实得 {na:?}");
+        assert_eq!(carrier_legs[0].dir, VoiceSide::Long, "restore 腿方向取树/registry，非候选方向");
+        // 路④：让位候选不外化——opened 空（一条物理腿不得被登记两次，断言②门孤儿之源消除）。
+        assert!(
+            trace.opened.is_empty(),
+            "#220：restore 在场腿不得被同 carrier 候选对借 id 配对双重外化（配对键 = 候选自身元素 idx）；实得 {:?}",
+            trace.opened.iter().map(|(c, l)| (c.dir, l.id)).collect::<Vec<_>>()
+        );
     }
 
     /// ★#216 评审锁定（code-review Spec 轴严重项）：held Stale 腿 id 命中**候选段拷贝**时，重注册
