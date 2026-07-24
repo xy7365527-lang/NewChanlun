@@ -2122,6 +2122,44 @@ fn restore_ancestor_chain_from_registry(
     }
 }
 
+/// ★#216 held Stale 腿重注册（LivePresent/LiveDetached 共用）：同 bar 前序 restore 可能已把本腿
+/// 同 id 持久元素恢复入 work（子腿先处理、其 op_parent 祖先链含本腿 ⟹ restore 先 push）——重注册
+/// **复用该 restore push 的现有 idx** 入 raw（I1 同一持久身份唯一表示，spec §13 元素集语义；其
+/// 坐标取自同一 registry 条目，与腿同值 ⟹ 复用零失真），无则新增并登记 overlay_seen 供后续
+/// restore/held 复用查 O(1)。id_idx 必 miss（Stale ⟹ base 无此 id）故只查 overlay 段；不查则
+/// 重复 push ⟹ next_active 同 id 两槽 ⟹ strategy_target_legs 双计 p̃。
+///
+/// ★code-review Spec 轴 (c)1（2026-07-24）：复用**仅限 restore push**（`idx >= overlay_cand_end`）。
+/// overlay 命中落在候选段（`< overlay_cand_end`）时是**候选拷贝**——其 eps 是信号方向（可与持仓
+/// 反向）、lambda==rho 点元素、parent_id 非本腿 op_parent；复用会让 element_as_leg 采纳候选属性
+/// （持仓方向静默翻转、I4 op_parent 失真）。候选碰撞由 open 循环 ① 规则让位（id 已在 raw ⟹
+/// 跳过候选拷贝）——持仓身份优先：本腿 push 自身元素（坐标/op_parent 保真）。
+fn held_stale_reregister_idx(
+    work: &mut ElementView,
+    overlay_seen: &mut std::collections::HashMap<ElementId, usize>,
+    overlay_cand_end: usize,
+    leg: &ActiveLeg,
+) -> usize {
+    match overlay_seen.get(&leg.id) {
+        Some(&existing) if existing >= overlay_cand_end => existing,
+        _ => {
+            let idx = work.len();
+            work.push(CoverageElement {
+                lambda: leg.lambda,
+                rho: leg.source_index,
+                eps: leg.dir,
+                level: leg.level,
+                parent: None,
+                attached_dir: None,
+                id: leg.id,
+                parent_id: leg.op_parent,
+            });
+            overlay_seen.entry(leg.id).or_insert(idx);
+            idx
+        }
+    }
+}
+
 /// [`coverage_step_from_buckets`] 的净额兼容出口（22 处旧调用点保持二元返回，bit-exact）。
 /// 委托 [`coverage_step_from_buckets_sep`] 丢弃第三分量 `sep_legs`（M5 声部执行层暴露，纯只读，
 /// 不进决策路径）——单源无平行状态机。
@@ -2187,6 +2225,11 @@ pub(crate) fn coverage_step_from_buckets_sep(
             overlay_seen.entry(e.id).or_insert(i);
         }
     }
+    // ★#216：候选段终点（= 进入 held 循环前的 work.len()）。此后 work 只被 restore/held push 增长，
+    // 故 overlay_seen 命中 idx ≥ overlay_cand_end ⟺ 本 bar restore push（可复用）；< 之 ⟺ 候选段
+    // 拷贝（held 重注册**不得**复用——候选 eps 是信号方向、lambda==rho 点元素、parent_id 非本腿
+    // op_parent，复用 = 持仓身份被候选属性覆盖，code-review Spec 轴 (c)1）。
+    let overlay_cand_end = work.len();
 
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
@@ -2215,20 +2258,17 @@ pub(crate) fn coverage_step_from_buckets_sep(
                 match held_state {
                     super::persistent::HeldLegState::LivePresent => {
                         ancok_probe_bump(|p| p.state_live_present += 1);
-                        // 理论不可达（Exact 未命中但 registry LivePresent = snapshot 不一致）；
+                        // 原注「理论不可达（Exact 未命中但 registry LivePresent = snapshot 不一致）」
+                        // 在 overlay 候选段场景**可达**：id 仅现于候选段（snapshot_present=true 经候选
+                        // upsert）而 base 树前缀无（id_idx 只覆盖 base ⟹ Exact miss）——#216 评审锁定
+                        // 测试 held_leg_id_hits_candidate_copy_keeps_held_identity 实证。
                         // 按持久身份保留（I1），op_parent 驱动 AncOK。
-                        let idx = work.len();
-                        work.push(CoverageElement {
-                            lambda: leg.lambda,
-                            rho: leg.source_index,
-                            eps: leg.dir,
-                            level: leg.level,
-                            parent: None,
-                            attached_dir: None,
-                            id: leg.id,
-                            parent_id: leg.op_parent,
-                        });
-                        raw.push(idx);
+                        // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
+                        let idx =
+                            held_stale_reregister_idx(&mut work, &mut overlay_seen, overlay_cand_end, leg);
+                        if !raw.contains(&idx) {
+                            raw.push(idx);
+                        }
                     }
                     super::persistent::HeldLegState::LiveDetached => {
                         ancok_probe_bump(|p| p.state_live_detached += 1);
@@ -2243,18 +2283,12 @@ pub(crate) fn coverage_step_from_buckets_sep(
                                 &mut work, &mut raw, registry, op_pid, &id_idx, &mut overlay_seen,
                             );
                         }
-                        let idx = work.len();
-                        work.push(CoverageElement {
-                            lambda: leg.lambda,
-                            rho: leg.source_index,
-                            eps: leg.dir,
-                            level: leg.level,
-                            parent: None,
-                            attached_dir: None,
-                            id: leg.id,
-                            parent_id: leg.op_parent,
-                        });
-                        raw.push(idx);
+                        // ★#216：重注册复用 restore push 现有 idx（见 [`held_stale_reregister_idx`]）。
+                        let idx =
+                            held_stale_reregister_idx(&mut work, &mut overlay_seen, overlay_cand_end, leg);
+                        if !raw.contains(&idx) {
+                            raw.push(idx);
+                        }
                     }
                     super::persistent::HeldLegState::Closed | super::persistent::HeldLegState::Invalidated => {
                         // 显式关闭/作废 → prune（§9 rule 5：只有 close/risk close/invalidation 才退出 live）。
@@ -2300,10 +2334,39 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // 在不存在的父上）。父 carrier 几乎从不与子同 bar 共现/持仓（sd_parent_held=0），仅 registry
     // LiveDetached 存活——故 open 候选自身入 raw **不足以**让父在场。下方补 open 候选父链注入（no-patch：
     // 缺失逻辑补全，非 AncOK 加特例）。
+    // ★#216：本循环 push 的候选 id→(idx,eps)（同 bar 多候选同 carrier 判重/湮灭用，见下）。
+    let mut open_pushed: std::collections::HashMap<ElementId, (usize, VoiceSide)> =
+        std::collections::HashMap::new();
     for c in &buckets.open {
         let idx = candidate_start + c.gamma_index;
-        if idx < work.len() && !raw.contains(&idx) {
-            raw.push(idx);
+        // ★#216 restore 缺口根因修复（m6 p3fold 诊断 dump 实证，2026-07-24）：同 carrier ElementId
+        // 可被多个 open 候选（同 bar 双信号 attach 同 carrier，候选段各携一份点元素拷贝）重复
+        // 激活——由按 idx 判重改为按 **id** 判重，分三种碰撞形态（spec §13 元素集语义：同一
+        // ElementId 在 A_t 唯一；否则 next_active 同 id 两槽 ⟹ strategy_target_legs 双计 p̃）：
+        //   ① id 已在 raw（held/restore 任一前序路径）⟹ 持仓身份优先，跳过候选拷贝（持仓腿生命
+        //      周期归 close/risk 路径，不由 open 净额静默对冲）；
+        //   ② id 为本循环先序**同向**候选 ⟹ 首现序优先（与 build_tree_id_index/overlay_seen 的
+        //      or_insert 首现序约定一致），跳过重复拷贝（同向双计 = 本守卫防的 p̃ 伪证）；
+        //   ③ id 为本循环先序**反向**候选 ⟹ 成对湮灭：剔除先序拷贝且本候选不入（同 bar 反向双
+        //      信号净敞口 0 = 幽灵腿防护裁定4 同款——净零目标从未建仓，不开仓、不占活动集槽位；
+        //      与修复前净额路径 p̃ 贡献 ±q−q=0 一致，轨迹不翻）。
+        //   多重集（同 id 候选 >2）：按 open 桶序**逐对**处理（同向判重留首、反向湮灭成对）——
+        //      序敏感但确定性；生产轨迹实证仅两候选形态（m6 p3fold dump），更多重集未见（诚实声明）。
+        if idx < work.len() {
+            let (cid, cdir) = (work[idx].id, work[idx].eps);
+            if let Some(&(pidx, pdir)) = open_pushed.get(&cid) {
+                if pdir != cdir {
+                    raw.retain(|&r| r != pidx);
+                    open_pushed.remove(&cid);
+                }
+            } else {
+                let id_in_raw =
+                    raw.iter().any(|&r| work.get(r).map(|e| e.id == cid).unwrap_or(false));
+                if !id_in_raw {
+                    raw.push(idx);
+                    open_pushed.insert(cid, (idx, cdir));
+                }
+            }
         }
         // ★(I-1) open 候选父注入（codex 异质审查行级坐实，642/644）：
         //
@@ -2372,14 +2435,15 @@ pub(crate) fn coverage_step_from_buckets_sep(
     };
     // ★(I-1) 双计守卫（codex 异质审查）：next_active 每 ElementId 必唯一——同 carrier 不得在 raw 中以
     // 两个 idx（树前缀 + registry 追加）出现，否则 strategy_target_legs 双计 ⟹ p̃ 伪证。
-    // restore_ancestor_chain_from_registry 已复用现有 idx 保证唯一；此 assert 锁不变量防回归。
+    // 唯一性由三处注册路径闭合保证：restore_ancestor_chain_from_registry 复用现有 idx、held Stale
+    // 重注册复用 overlay 现有 idx、open 候选按 id 判重（同向首现）/反向成对湮灭（#216）；此 assert 锁不变量防回归。
     debug_assert!(
         {
             let mut ids: Vec<_> = next_active.iter().map(|l| l.id).collect();
             ids.sort_by_key(|id| (id.level, id.ordinal));
             ids.windows(2).all(|w| w[0] != w[1])
         },
-        "next_active 含重复 ElementId ⟹ strategy_target_legs 双计 p̃（restore 未复用现有 idx）"
+        "next_active 含重复 ElementId ⟹ strategy_target_legs 双计 p̃（活动集注册路径未按 id 判重，#216）"
     );
     // ★M5 sep 暴露（多空对冲.pdf p16）：把已算 `legs`（post G7 cap）按 work-index e_idx 对位到
     // carrier ElementId + role(v) + parent(v)，打包 SepLeg。**只读重打包，不新计算**——
@@ -4878,6 +4942,177 @@ mod tests {
         assert_eq!(raw, vec![0], "raw 须复用现有 idx 0，非追加新 idx");
         let dup = raw.iter().filter(|&&r| work[r].id == carrier).count();
         assert_eq!(dup, 1, "carrier 在 raw 中须唯一表示（双计根因守卫）");
+    }
+
+    /// ★#216 restore 缺口**根因直测**（m3_partition_btc_fullhistory/m6_btc_oos_r_decomposition 炸
+    /// coverage.rs:2376 的最小复现）：prev_active 中 **restore 祖先腿排在其子腿之后**（生产序——子腿
+    /// 先开仓、父 carrier 经 open 父注入 restore 恢复入 next_active ⟹ A_t 序 = [子, 父]），下一 bar
+    /// 两腿同 Stale LiveDetached：子腿先处理，其 op_parent 链 restore 把父从 registry 恢复 push 入
+    /// work/raw；轮到父腿自身 Stale 重注册时若**不复用** restore 已 push 的现有 idx 而再 push 新元素
+    /// ⟹ raw/next_active 同 ElementId 占两槽 ⟹ strategy_target_legs 双计 p̃ 伪证。
+    ///
+    /// **RED（修复前）**：父腿 Stale 重注册不查 id_idx/overlay_seen ⟹ 重复 push ⟹ next_active 含两个
+    /// 父 id（炸 I-1 双计守卫 debug_assert）。**GREEN（修复后）**：重注册查得 restore 已 push 的 idx
+    /// ⟹ 复用其槽位，每 ElementId 在 next_active 唯一。
+    ///
+    /// 定义依据：#216 票面 + spec §13 元素集语义（同一 ElementId 在 A_t 唯一）+ anc.pdf §9 rule 2
+    /// （I1 持久身份——重注册恢复的是同一持久元素，非新建）。
+    #[test]
+    fn held_leg_reregister_reuses_restore_pushed_idx_no_duplicate_id() {
+        let child = eid(0, 900);
+        let parent = eid(1, 901);
+        // prev_active = [子, 父]（生产序）。两腿 id 不在当前树（空树 ⟹ 皆 Stale）；registry 由空
+        // snapshot + held 引用 merge 建 LiveDetached 条目（snapshot_present=false；§I4 op_parent 持久）。
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: child, parent_id: Some(parent), is_boundary_root: false, op_parent: Some(parent),
+        };
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let prev = [leg_child, leg_parent];
+        // 空三桶（无 open/close）——隔离 held Stale 重注册路径（restore 缺口唯一作用点）。
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        let tree: Vec<CoverageElement> = vec![];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&tree, &prev);
+        let (active, _p) =
+            coverage_step_from_buckets(view_split(&tree, 0), &prev, &buckets, 1000.0, &cfg(), None, &reg);
+        // 子腿借 restore 父链通过 AncOK（§13 持仓准入）；父（边界根）保留。两者皆须在 A_{t+1}。
+        assert!(active.iter().any(|l| l.id == child), "子腿借 restore 恢复的父链 AncOK 准入；实得 {active:?}");
+        let n_parent = active.iter().filter(|l| l.id == parent).count();
+        assert_eq!(
+            n_parent, 1,
+            "restore 祖先腿 Stale 重注册须复用现有 idx（next_active 每 ElementId 唯一，#216）；实得 {active:?}"
+        );
+    }
+
+    /// ★#216 restore 缺口**真实根因直测**（m6 p3fold 诊断 dump 实证，2026-07-24）：同 bar 两个 open
+    /// 候选（**反向**双信号，Long+Short）attach **同一 carrier ElementId**，候选元素数组各携一份拷贝
+    /// （相邻 gamma_index、lambda==rho==source_index 点元素）。open 注册循环只按 idx 判重
+    /// （`!raw.contains(&idx)`）⟹ 两份拷贝各占一槽入 raw ⟹ next_active 同 id 双腿 ⟹ 炸 (I-1) 双计
+    /// 守卫（coverage.rs:2376 debug_assert，m3/m6 实证）。
+    ///
+    /// **RED（修复前）**：两候选 idx 不同 ⟹ 双双入 raw ⟹ next_active 含同 carrier id 两腿（炸断言）。
+    /// **GREEN（修复后）**：反向同 id 候选**成对湮灭**——剔除先序拷贝、本候选亦不入（净敞口 0 =
+    /// 幽灵腿防护裁定4 同款：净零目标从未建仓；与修复前净额路径 p̃ 贡献 ±q−q=0 一致，轨迹不翻）。
+    ///
+    /// 定义依据：#216 票面 + spec §13 元素集语义（同一 ElementId 在 A_t 唯一）+ 裁定4 幽灵腿防护。
+    /// 父 carrier 经 registry LiveDetached 恢复（open 父注入），保证候选 AncOK 准入以暴露双写入。
+    #[test]
+    fn open_candidates_same_carrier_id_reverse_pair_annihilates() {
+        let carrier = eid(0, 162);
+        let parent = eid(1, 33);
+        // 候选段两元素：同 carrier id、反向 eps（生产 dump：lambda==rho==source_index 点元素）。
+        let mk = |eps: VoiceSide| CoverageElement {
+            lambda: 42, rho: 42, eps, level: 0,
+            parent: None, attached_dir: None, id: carrier, parent_id: Some(parent),
+        };
+        let elements = vec![mk(VoiceSide::Long), mk(VoiceSide::Short)];
+        let buckets = Buckets {
+            close: vec![],
+            open: vec![cand(0, 42, VoiceSide::Long, 0), cand(0, 42, VoiceSide::Short, 1)],
+            record: vec![],
+        };
+        // 父 carrier 仅 registry LiveDetached（非持仓腿、不在候选段）⟹ open 父注入 restore 恢复入 raw
+        // ⟹ 候选 AncOK 准入条件齐备（§13），双写入暴露于 next_active。
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 40, lambda: 30,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&[], &[leg_parent]);
+        let (active, p) =
+            coverage_step_from_buckets(view_split(&elements, 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
+        // 反向对湮灭：carrier 不占活动集槽位（净零从未建仓，裁定4 同款）；p̃ 无该 carrier 贡献。
+        let carrier_legs: Vec<_> = active.iter().filter(|l| l.id == carrier).collect();
+        assert_eq!(
+            carrier_legs.len(), 0,
+            "同 carrier 反向 open 对成对湮灭（净零不开仓，#216）；实得 {active:?}"
+        );
+        // 父 carrier restore 恢复在场（AncOK/父注入行为不因子候选湮灭而回退）。
+        assert!(active.iter().any(|l| l.id == parent), "父 carrier 经 open 父注入 restore 恢复；实得 {active:?}");
+        let _ = p; // p̃ 数值由父腿权重决定，不在本测试锁定范围（唯一性/湮灭为锁）。
+    }
+
+    /// ★#216 同向对照组：同 bar 两个**同向** open 候选 attach 同一 carrier（双买点同 carrier）——
+    /// 首现序优先恰留一腿（同向双计 = (I-1) 守卫防的 p̃ +2q 伪证；or_insert 首现序约定一致）。
+    ///
+    /// **RED（修复前）**：两拷贝双入 raw ⟹ 同 id 双腿炸断言。**GREEN（修复后）**：首现候选准入，
+    /// 重复拷贝跳过（next_active 每 ElementId 唯一）。
+    ///
+    /// 定义依据：#216 票面 + spec §13 元素集语义（同一 ElementId 在 A_t 唯一）+ 首现序约定
+    /// （build_tree_id_index/overlay_seen 的 or_insert 首现序）。
+    #[test]
+    fn open_candidates_same_carrier_id_same_dir_dedup_first_wins() {
+        let carrier = eid(0, 162);
+        let parent = eid(1, 33);
+        let mk = |lambda: usize| CoverageElement {
+            lambda, rho: 42, eps: VoiceSide::Long, level: 0,
+            parent: None, attached_dir: None, id: carrier, parent_id: Some(parent),
+        };
+        let elements = vec![mk(40), mk(42)];
+        let buckets = Buckets {
+            close: vec![],
+            open: vec![cand(0, 40, VoiceSide::Long, 0), cand(0, 42, VoiceSide::Long, 1)],
+            record: vec![],
+        };
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 40, lambda: 30,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&[], &[leg_parent]);
+        let (active, _p) =
+            coverage_step_from_buckets(view_split(&elements, 0), &[], &buckets, 1000.0, &cfg(), None, &reg);
+        let carrier_legs: Vec<_> = active.iter().filter(|l| l.id == carrier).collect();
+        assert_eq!(
+            carrier_legs.len(), 1,
+            "同 carrier 同向 open 候选首现序判重（next_active 每 ElementId 唯一，#216）；实得 {active:?}"
+        );
+        assert_eq!(carrier_legs[0].dir, VoiceSide::Long, "同向候选首现方向保留");
+    }
+
+    /// ★#216 评审锁定（code-review Spec 轴严重项）：held Stale 腿 id 命中**候选段拷贝**时，重注册
+    /// 不得复用该拷贝——候选元素 eps 是信号方向（可与持仓反向）、lambda==rho 点元素（λ 失真）、
+    /// parent_id 非本腿 op_parent（I4 失真）。复用 ⟹ element_as_leg 采纳候选属性 = 持仓方向静默
+    /// 翻转（未经 close/risk 路径，伪证）。
+    ///
+    /// **RED（区分前）**：helper 复用候选 idx ⟹ 活动腿 dir 被翻成候选 Short、source_index 被候选
+    /// 点元素覆盖。**GREEN（区分后）**：候选段拷贝（idx < 候选段终点）不复用——held 腿 push 自身
+    /// 元素（持仓身份优先），候选随后被 open 循环 ① 规则（id 已在 raw ⟹ 跳过）让位。
+    ///
+    /// 定义依据：anc.pdf I1（持久身份=腿自身身份）+ I4（op_parent 持久，非候选 parent_id）+
+    /// open 循环 ①「持仓身份优先」（名实相符）；code-review Spec 轴 (c)1（2026-07-24）。
+    #[test]
+    fn held_leg_id_hits_candidate_copy_keeps_held_identity() {
+        let carrier = eid(0, 162);
+        let parent = eid(1, 33);
+        // 候选段：同 id 的 **Short** 信号拷贝（lambda==rho 点元素）；持仓腿是同 id **Long**。
+        let cand_elem = CoverageElement {
+            lambda: 42, rho: 42, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: carrier, parent_id: Some(parent),
+        };
+        let elements = vec![cand_elem];
+        let leg_held = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 40, lambda: 30,
+            id: carrier, parent_id: Some(parent), is_boundary_root: false, op_parent: Some(parent),
+        };
+        let buckets = Buckets {
+            close: vec![],
+            open: vec![cand(0, 42, VoiceSide::Short, 0)],
+            record: vec![],
+        };
+        // snapshot 含候选拷贝 ⟹ held 腿 held_state=LivePresent（候选段命中场景）；op_parent 经 §I4
+        // 注册（snapshot_present=false，供 open 父注入 restore）。
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&elements, &[leg_held]);
+        let (active, _p) =
+            coverage_step_from_buckets(view_split(&elements, 0), &[leg_held], &buckets, 1000.0, &cfg(), None, &reg);
+        // carrier 恰一腿，且为**持仓身份**：dir=Long（未被候选 Short 翻转）、source_index=40（未被
+        // 候选点元素覆盖）、op_parent 保持（I4）。
+        let carrier_legs: Vec<_> = active.iter().filter(|l| l.id == carrier).collect();
+        assert_eq!(carrier_legs.len(), 1, "held 腿与候选拷贝同 id ⟹ 恰一腿（#216 唯一性）；实得 {active:?}");
+        assert_eq!(carrier_legs[0].dir, VoiceSide::Long, "持仓身份优先：方向不得被候选信号翻转");
+        assert_eq!(carrier_legs[0].source_index, 40, "持仓身份优先：坐标取腿自身（非候选点元素）");
+        assert_eq!(carrier_legs[0].op_parent, Some(parent), "op_parent 持久（I4），非候选 parent_id 改写");
     }
 
     /// ★(I-1) open 父注入非膨胀守卫：父 carrier **不在 registry**（既非持仓又非 registry-live）⟹ 子腿
