@@ -365,6 +365,10 @@ pub enum ExitType {
 /// - 否则 ⟹ [`ExitType::CloseRoot`]（P5：一类反向点=根清仓；**二类反向归 CloseRoot**——
 ///   PDF §9 五枚举无二类单列，二类是一类的次级确认，同属根反转语义；三类才是中枢离开
 ///   确认=减仓语义。此读法已向 ws-g5interp 征求意见，翻转条件见 g4-impl 结果包边界条件）。
+///   #199 裁定（2026-07-23）：typed 五枚举**不动**——二类 typed 归因保留 CloseRoot；
+///   「仅残余才纠错」（CoreResidualCorrection）在账户/理由轴实装（account.rs
+///   [`reason_of_reverse_close`](crate::theta_v0::strategy::account::reason_of_reverse_close)），
+///   账户身份与退出理由正交。
 ///
 /// `FollowParent` 子腿被反向关闭按触发类走 P5/P6（跟随父方向的级联核心仓，非短差对冲腿）。
 pub fn reverse_exit_type(entry_v: Vertical, trigger_class: u8) -> ExitType {

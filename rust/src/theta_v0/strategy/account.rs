@@ -52,7 +52,10 @@ pub enum ActionReason {
     Open,
     /// 一类反向证书（本级确认反转；`ExitType::CloseRoot` 在账户轴上的理由侧）。
     ReverseType1,
-    /// 二类反向证书（`ExitType` 现坍缩进 CloseRoot，本字段保留一类/二类之分——正交信息）。
+    /// 二类反向证书的**合法**卖出（#199 分流后仅 ShortDiff 短差平 / Short 平空两身份；
+    /// 核心腿二类已分流 [`ActionReason::CoreResidualCorrection`]——本仓对二类封闭，
+    /// ID-3「二类点合法卖出仅短差、开空」）。`ExitType` 侧一/二类仍坍缩 CloseRoot
+    /// （五枚举不动），本字段保留一类/二类之分的正交信息。
     ReverseType2,
     /// 三类反向证书（减仓语义；`ExitType::ReduceCore` 的理由侧）。
     ReverseType3,
@@ -64,6 +67,12 @@ pub enum ActionReason {
     OverlayClose,
     /// 窗口终点 censored（未离场腿兑现到末可交易 bar）。
     WindowEnd,
+    /// 二类核心残余纠错（#199「仅残余才纠错」）：二类反向清理一类点应平未平的
+    /// `Core{level}` 残余——仅在核心残余实测非零时触发，否则二类不得生成本仓卖单
+    /// （spec ID-3：二类清本仓只能是残余纠错；level 由 [`AccountKey`] 携带）。
+    /// 账户/理由正交：typed 层五枚举不动（二类 typed 归因仍归 `ExitType::CloseRoot`，
+    /// 编排者裁定 2026-07-23——本变体只长在理由轴，不进 `ExitType`）。
+    CoreResidualCorrection,
 }
 
 /// 声部身份 → 账户身份（入场时固定，与 `reverse_exit_type` 同取 `entry_v` 入场冻结值）。
@@ -93,6 +102,33 @@ pub fn reason_of_reverse(trigger_class: u8) -> Option<ActionReason> {
         3 => Some(ActionReason::ReverseType3),
         _ => None,
     }
+}
+
+/// #199 反向关闭理由的**账户分流**（「仅残余才纠错」单源判据，spec WP-2 修复 b）。
+///
+/// - `Core{level}` × 二类 ⟹ `core_residual=true` 时 [`ActionReason::CoreResidualCorrection`]
+///   （残余纠错）；`false` 时 `None`——二类不得生成本仓卖单（ID-3：二类清本仓只能是
+///   残余纠错，实测残余非零才触发）。
+/// - `ShortDiff`/`Short` × 二类 ⟹ [`ActionReason::ReverseType2`]（合法二类卖：
+///   短差平/平空，ID-3「二类点合法卖出仅两身份」）。
+/// - 其余（账户, 触发类）⟹ 委托 [`reason_of_reverse`]（一/三类账户中立，不镜像判据）。
+///
+/// `core_residual` 由调用侧实测喂入（生产 = 并行记账视图 `balance(Core{level}) != 0`，
+/// runner π fill loop 反向关闭镜像点）；本函数不持账本，保持纯判据。
+pub fn reason_of_reverse_close(
+    account: AccountIdentity,
+    trigger_class: u8,
+    core_residual: bool,
+) -> Option<ActionReason> {
+    if trigger_class == 2 {
+        return match account {
+            AccountIdentity::Core { .. } => {
+                core_residual.then_some(ActionReason::CoreResidualCorrection)
+            }
+            AccountIdentity::ShortDiff | AccountIdentity::Short => reason_of_reverse(2),
+        };
+    }
+    reason_of_reverse(trigger_class)
 }
 
 /// 分实例记账键 =（账户, 级别, 仓位节点）（归属键粒度裁定 2026-07-23）。
@@ -496,6 +532,80 @@ mod tests {
         assert!(!inst.open, "全平后实例关闭");
         assert_eq!(inst.realized_pnl, 100.0, "已实现 = 10 × (110 − 100)");
         assert_eq!(inst.cost_basis, 0.0, "全平后成本基释放");
+    }
+
+    /// ★#199 分流单源（红→绿）：二类反向理由按账户分流——核心腿「仅残余才纠错」
+    /// （CoreResidualCorrection 仅在核心残余实测非零时触发，否则二类不得生成本仓卖单）；
+    /// 短差/空根腿保留 ReverseType2（ID-3：二类合法卖出仅短差、开空两身份）。
+    #[test]
+    fn reason_of_reverse_close_splits_type2_by_account() {
+        // Core{level} × 二类：残余实测非零 ⟹ CoreResidualCorrection；残余零 ⟹ None（不生本仓卖单）。
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::Core { level: 1 }, 2, true),
+            Some(ActionReason::CoreResidualCorrection)
+        );
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::Core { level: 1 }, 2, false),
+            None,
+            "二类 + 核心残余为零 ⟹ 不得生成本仓卖单（ID-3 行为口径）"
+        );
+        // ShortDiff/Short × 二类 ⟹ ReverseType2（合法二类卖：短差平/平空）。
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::ShortDiff, 2, true),
+            Some(ActionReason::ReverseType2)
+        );
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::Short, 2, false),
+            Some(ActionReason::ReverseType2),
+            "Short 账户二类卖与核心残余读数无关（平空恒合法）"
+        );
+        // 一/三类账户中立（委托 reason_of_reverse 单源，不镜像判据）。
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::Core { level: 0 }, 1, false),
+            Some(ActionReason::ReverseType1)
+        );
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::ShortDiff, 3, true),
+            Some(ActionReason::ReverseType3)
+        );
+        assert_eq!(
+            reason_of_reverse_close(AccountIdentity::Short, 1, true),
+            Some(ActionReason::ReverseType1)
+        );
+        // 非法触发类 ⟹ None（不伪造理由，与 reason_of_reverse 同口径）。
+        assert_eq!(reason_of_reverse_close(AccountIdentity::Core { level: 0 }, 0, true), None);
+        assert_eq!(reason_of_reverse_close(AccountIdentity::Short, 4, true), None);
+    }
+
+    /// ★#199 断言③的分流层形态：二类产物账户约束——`ReverseType2` 永不落 Core 账
+    /// （二类卖仅 ShortDiff/Short 两身份）；Core 账的二类产物仅 CoreResidualCorrection。
+    #[test]
+    fn type2_reason_never_lands_on_core_as_reverse_type2() {
+        for account in [
+            AccountIdentity::Core { level: 0 },
+            AccountIdentity::Core { level: 2 },
+            AccountIdentity::ShortDiff,
+            AccountIdentity::Short,
+        ] {
+            for residual in [true, false] {
+                let Some(r) = reason_of_reverse_close(account, 2, residual) else {
+                    continue;
+                };
+                if r == ActionReason::ReverseType2 {
+                    assert!(
+                        !matches!(account, AccountIdentity::Core { .. }),
+                        "断言③：二类卖（ReverseType2）不得落 Core 账（{account:?}）"
+                    );
+                }
+                if matches!(account, AccountIdentity::Core { .. }) {
+                    assert_eq!(
+                        r,
+                        ActionReason::CoreResidualCorrection,
+                        "Core 账二类产物仅 CoreResidualCorrection（残余纠错）"
+                    );
+                }
+            }
+        }
     }
 
     /// ★减仓口径：部分平仓按比例释放成本基（均价法）。

@@ -53,6 +53,7 @@ use super::super::config::{RiskConfig, ThetaDirPreset, VoiceConfig};
 use super::super::types::{Direction, Order, StrictAction};
 use super::super::closed_loop::state::RiskMode;
 use super::super::closed_loop::transition::stage_progression_eta_corrected;
+use super::account;
 use super::intent::{lex_argmin, lex_argmin_top_k, JThetaKey, LexCandidate};
 use super::interp::{self, ActiveLeg, Buckets, Candidate};
 use super::ledger::{RiskPolicy, TStage, TwEvent, TwState};
@@ -130,6 +131,43 @@ pub fn ancok_probe_reset() {
 /// 读取 AncOK 探针快照（L2 run 后调用）。
 pub fn ancok_probe_snapshot() -> AncokProbe {
     ANCOK_PROBE.with(std::cell::Cell::get)
+}
+
+// ── ★#199 断言①「T1 目标态」探针（thread_local，runner.rs #198/#199 同款模式；
+//    恒在计数——「断言在生产路径真实触发」以探针 >0 为凭）──
+thread_local! {
+    static T1_TARGET_ZERO_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static T1_TARGET_RESIDUAL_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// 断言①评估探针计数。pub 的真实理由：lib-target dead_code lint 规避——唯一调用点在
+/// `pub(crate)` 的 `pi_theta_step_traced` 体内（lib lint 视角该函数不可达，private
+/// 探针函数会被连锁误报 never used）；跨模块消费者（runner BTC 见证）只经 reset/count
+/// 读取，bump 本身仅本模块断言块调用。
+pub fn t1_target_zero_probe_bump() {
+    T1_TARGET_ZERO_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 归零断言①两枚探针（评估 zero + 违例 residual；见证测试 run 前调用）。
+pub fn t1_target_zero_probe_reset() {
+    T1_TARGET_ZERO_PROBE.with(|c| c.set(0));
+    T1_TARGET_RESIDUAL_PROBE.with(|c| c.set(0));
+}
+
+/// 读取断言①探针快照（一类卖 Core 目标评估笔数）。
+pub fn t1_target_zero_probe_count() -> u64 {
+    T1_TARGET_ZERO_PROBE.with(std::cell::Cell::get)
+}
+
+/// ★#199 待裁决上报项：一类卖后**级残余非零**笔数（BTC 实证存在，见断言①挂载点注释）。
+/// pub 理由同上（lib-target dead_code lint 规避；跨模块消费只经 reset/count）。
+pub fn t1_target_residual_probe_bump() {
+    T1_TARGET_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 读取级残余违例探针快照（待裁决上报材料：一类卖后 target_qty(Core{L})≠0 笔数）。
+pub fn t1_target_residual_probe_count() -> u64 {
+    T1_TARGET_RESIDUAL_PROBE.with(std::cell::Cell::get)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -3066,6 +3104,45 @@ pub(crate) fn pi_theta_step_traced(
             (l, c, exit_type)
         })
         .collect();
+    // ★#199 断言①（#185「建议断言」1，T1 目标态）：一类卖(L) ⟹ target_qty(Core{L})==0——
+    // 一类核心关闭后 sep_legs 无该级核心目标。账户身份经 #197 `account::identity_of`
+    // 单源判定（Ambient×Long/FollowParent ⟹ Core{level}；反手开空=Ambient×Short ⟹ Short
+    // 账不触发本断言，ID-3「允许当场反手」相容）。探针恒在计数（一类核心关闭评估笔数）。
+    //
+    // ★★#199 待裁决（2026-07-23 实跑上报，勿删）：BTC train 窗实证——一类候选经 fold
+    // 规则2 **单候选只关一条**同级反向腿（interp.rs `find` 首个命中），而同级别可有多条
+    // 核心腿并存（Ambient 根 + FollowParent 级联/§13 restore），致一类卖后级残余非零
+    // （实测 L=1 残留 FollowParent 延续腿 277.9 单位）。票面「一类卖(L)⟹target_qty
+    // (Core{L})==0」与验收「一类点全平后本仓=0」的**一类=原子全平**前提，与生产 fold
+    // 现实分叉——此为教义级矛盾（修 fold=订单流大变更 / 改票面口径=改验收，均须裁决）。
+    // 裁决前本断言处**测量态**：级残余非零笔数经探针如实计数（不 panic——避免既有
+    // BTC 见证被待裁缺口炸毁，090：测量先行，不以降级断言蒙混）；裁决后此处置终态断言。
+    for (l, c, _) in &closed {
+        if c.bsp_class != 1 {
+            continue;
+        }
+        let entry_v = tw
+            .and_then(|t| t.entry_v.get(&l.id).copied())
+            .unwrap_or(Vertical::Ambient);
+        if account::identity_of(entry_v, l.dir, l.level)
+            != Some(account::AccountIdentity::Core { level: l.level })
+        {
+            continue;
+        }
+        t1_target_zero_probe_bump();
+        let residual: f64 = sep_legs
+            .iter()
+            .filter(|s| s.id.level == l.level)
+            .filter(|s| {
+                account::identity_of(s.role_v, s.side, s.id.level)
+                    == Some(account::AccountIdentity::Core { level: s.id.level })
+            })
+            .map(|s| s.q_units)
+            .sum();
+        if residual != 0.0 {
+            t1_target_residual_probe_bump();
+        }
+    }
     let closed_ids: std::collections::HashSet<ElementId> =
         closed.iter().map(|(l, _, _)| l.id).collect();
     // 静默离场：prev_active 中既未被 close 桶认领、也不在 next_active（AncOK 剪/Stale prune）。
@@ -5114,6 +5191,51 @@ mod tests {
                 "三类反向 ⟹ P6 ReduceCore（mapped={mapped}）"
             );
         }
+    }
+
+    /// ★#199 断言①（#185「建议断言」1，T1 目标态）生产路径触发见证（合成单腿场景）：
+    /// 一类卖 Core 评估探针真实触发，且单腿场景 `target_qty(Core{L})==0`（违例探针=0——
+    /// 单腿即「一类=全平」成立的平凡域）。**多核心腿场景的级残余非零实测为待裁决教义
+    /// 缺口**（见断言①挂载点注释 + runner 侧 BTC 见证 `btc_type2_residual_correction_witness`）。
+    #[test]
+    fn t1_target_zero_assertion_fires_in_step() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        t1_target_zero_probe_reset();
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let held = aleg(0, VoiceSide::Long, 0, 0);
+        let classification = sell_classification(1);
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let tw_state = TwState::initial();
+        let policy = RiskPolicy::baseline();
+        let entry_v: std::collections::HashMap<ElementId, Vertical> =
+            [(held.id, Vertical::Ambient)].into_iter().collect();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &entry_v,
+            eta_correction: 0,
+        };
+        let (_na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held], 600.0, 11, 1000.0, &r, w, KThetaRiskGate::open(),
+            &cfg(), &reg, Some(&twc), &protocol_hold(),
+        );
+        assert_eq!(trace.closed.len(), 1, "一类卖关闭 Long 根腿（断言①评估对象）");
+        assert_eq!(
+            t1_target_zero_probe_count(),
+            1,
+            "一类核心关闭一笔 ⟹ 断言①评估在生产路径真实触发（探针为凭）"
+        );
+        assert_eq!(
+            t1_target_residual_probe_count(),
+            0,
+            "单腿场景：一类卖后 target_qty(Core{{0}})==0（级残余为零的平凡域）"
+        );
     }
 
     /// ★#146 T2 验收1（原始烤料，端到端）：L1 声部 A 持仓 + L0 反向已确认证书属于另一未持有

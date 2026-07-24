@@ -1076,6 +1076,91 @@ fn debug_assert_shortdiff_isolation(
     );
 }
 
+// ── ★#199 断言②③探针（#198 断言4 同款 thread_local 模式；恒在计数，
+//    「断言在生产路径真实触发」以探针 >0 为凭；断言本体 = debug 构建逐笔核对）──
+thread_local! {
+    static T1_CORE_ZERO_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static T1_CORE_RESIDUAL_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static TYPE2_SELL_GUARD_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static TYPE2_WITH_CORE_RESIDUAL_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static RESIDUAL_CORRECTION_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// 断言②评估探针计数（一类 Core 平仓笔数）。
+fn t1_core_zero_probe_bump() {
+    T1_CORE_ZERO_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 归零断言②两枚探针（评估 zero + 违例 residual；见证测试 run 前调用；
+/// 仅本模块测试消费 ⟹ 不 pub）。
+fn t1_core_zero_probe_reset() {
+    T1_CORE_ZERO_PROBE.with(|c| c.set(0));
+    T1_CORE_RESIDUAL_PROBE.with(|c| c.set(0));
+}
+
+/// 读取断言②探针快照（一类 Core 平仓评估笔数）。
+fn t1_core_zero_probe_count() -> u64 {
+    T1_CORE_ZERO_PROBE.with(std::cell::Cell::get)
+}
+
+/// ★#199 待裁决上报项：一类 Core 平仓后**级余额非零**笔数（BTC 实证存在，
+/// 见 `account_mirror_post` 断言②挂载点注释）。
+fn t1_core_residual_probe_bump() {
+    T1_CORE_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 读取级余额违例探针快照（待裁决上报材料：一类 Core 平仓后 balance(Core{L})≠0 笔数）。
+fn t1_core_residual_probe_count() -> u64 {
+    T1_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
+}
+
+/// 断言③前半探针计数（ReverseType2 过账笔数——每笔经「不落 Core 账」约束核对）。
+fn type2_sell_guard_probe_bump() {
+    TYPE2_SELL_GUARD_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 归零断言③前半两枚探针（身份 guard + 歧义测量 with_core_residual；
+/// 见证测试 run 前调用；仅本模块测试消费 ⟹ 不 pub）。
+fn type2_sell_guard_probe_reset() {
+    TYPE2_SELL_GUARD_PROBE.with(|c| c.set(0));
+    TYPE2_WITH_CORE_RESIDUAL_PROBE.with(|c| c.set(0));
+}
+
+/// 读取断言③前半探针快照（ReverseType2 账户约束断言在生产路径的触发笔数）。
+fn type2_sell_guard_probe_count() -> u64 {
+    TYPE2_SELL_GUARD_PROBE.with(std::cell::Cell::get)
+}
+
+/// ★#199 断言③后半宽读法歧义测量（Spec 轴评审发现，待裁决）：二类卖
+/// （ReverseType2，ShortDiff/Short 身份）过账时**同级 Core{level} 残余非零**笔数。
+/// 票面「qty(Core{L})>0 时必须另发 CoreResidualCorrection{L}」若按宽读法（二类卖
+/// 发生时 Core 有残余即须另发纠错单），本探针即该场景的实测发生率：0 笔 = 该场景
+/// 生产不存在（歧义消解）；>0 笔 = 待裁决是否另发（#185 存疑区 1：B/C 撞车裁决
+/// 规则蓝图有「父仓 active」读法但 #184 未给优先级/双动作规则）。
+fn type2_with_core_residual_probe_bump() {
+    TYPE2_WITH_CORE_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 读取歧义测量探针快照（二类卖时同级 Core 残余非零笔数）。
+fn type2_with_core_residual_probe_count() -> u64 {
+    TYPE2_WITH_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
+}
+
+/// 残余纠错硬门探针计数（CoreResidualCorrection 过账笔数——每笔经残余实测非零核对）。
+fn residual_correction_probe_bump() {
+    RESIDUAL_CORRECTION_PROBE.with(|c| c.set(c.get() + 1));
+}
+
+/// 归零残余纠错硬门探针（见证测试 run 前调用；仅本模块测试消费 ⟹ 不 pub）。
+fn residual_correction_probe_reset() {
+    RESIDUAL_CORRECTION_PROBE.with(|c| c.set(0));
+}
+
+/// 读取残余纠错硬门探针快照（CoreResidualCorrection 残余实测断言在生产路径的触发笔数）。
+fn residual_correction_probe_count() -> u64 {
+    RESIDUAL_CORRECTION_PROBE.with(std::cell::Cell::get)
+}
+
 /// ★#197 并行记账视图镜像辅助（expand 只读旁路）：共享过账形状——身份解析 + 建单 + 提交成交。
 ///
 /// 账户身份由入场冻结的 `entry_v` × 声部方向映射（[`strategy::account::identity_of`]，与
@@ -1110,6 +1195,32 @@ fn account_mirror_post(
     #[cfg(debug_assertions)]
     let pre_non_shortdiff = (account_id == strategy::account::AccountIdentity::ShortDiff)
         .then(|| non_shortdiff_qty_snapshot(view));
+    // ★#199 断言③探针（恒在计数）+ 硬门（debug 逐笔核对，release 编译消除）：
+    // - 前半「二类卖身份」：ReverseType2 仅落 ShortDiff/Short 两身份，永不落 Core 账；
+    // - 后半「仅残余才纠错」：CoreResidualCorrection 仅在核心残余实测非零时触发
+    //   （post 前余额含被关腿在册量；与 runner 分流点 `balance != 0.0` 同口径）。
+    if reason == strategy::account::ActionReason::ReverseType2 {
+        type2_sell_guard_probe_bump();
+        debug_assert!(
+            !matches!(account_id, strategy::account::AccountIdentity::Core { .. }),
+            "#199 断言③违例：二类卖（ReverseType2）落 {:?}——合法二类卖出仅 ShortDiff/Short 两身份",
+            account_id
+        );
+        // ★#199 断言③后半宽读法歧义测量（不置断言，待裁决）：二类卖过账时同级
+        // Core{level} 残余非零则计数（post 前余额含在飞腿；宽读法场景实测发生率）。
+        if view.balance(strategy::account::AccountIdentity::Core { level }) != 0.0 {
+            type2_with_core_residual_probe_bump();
+        }
+    }
+    if reason == strategy::account::ActionReason::CoreResidualCorrection {
+        residual_correction_probe_bump();
+        debug_assert_ne!(
+            view.balance(account_id),
+            0.0,
+            "#199 断言③违例：CoreResidualCorrection 在核心残余为零时触发（{:?}）——仅残余才纠错",
+            account_id
+        );
+    }
     view.post(
         AccountOrder {
             key: AccountKey::new(account_id, level, position_node_id),
@@ -1124,6 +1235,24 @@ fn account_mirror_post(
     #[cfg(debug_assertions)]
     if let Some(pre) = pre_non_shortdiff {
         debug_assert_shortdiff_isolation(view, &pre);
+    }
+    // ★#199 断言②探针（恒在计数）：一类 Core 平仓评估笔数（#185 断言2：
+    // filled(T1CoreClose{L}) ⟹ execution_ledger.qty(Core{L})==0）。
+    //
+    // ★★#199 待裁决（2026-07-23 实跑上报，勿删；同 coverage.rs 断言①挂载点注释）：
+    // BTC train 窗实证——一类候选经 fold 规则2 单候选只关一条同级反向腿，同级别可有
+    // 多条核心腿并存（Ambient 根 + FollowParent 级联/§13 restore），致一类 Core 平仓后
+    // 级余额非零（L=1 实测残留 277.9 单位）。票面断言②与验收「一类点全平后本仓=0」的
+    // 一类=原子全平前提与生产 fold 现实分叉（教义级矛盾，须裁决）。裁决前本断言处
+    // **测量态**：级余额非零笔数经探针如实计数（不 panic——避免既有 BTC 见证被待裁
+    // 缺口炸毁，090：测量先行，不以降级断言蒙混）；裁决后此处置终态断言。
+    if reason == strategy::account::ActionReason::ReverseType1
+        && matches!(account_id, strategy::account::AccountIdentity::Core { .. })
+    {
+        t1_core_zero_probe_bump();
+        if view.balance(account_id) != 0.0 {
+            t1_core_residual_probe_bump();
+        }
     }
 }
 
@@ -1934,9 +2063,22 @@ where
                         let _ = dump.write_trade(&pushed, &open, Some(trig.bsp_class));
                     }
                     typed_ledger.push(pushed);
-                    // #197：关闭镜像——理由取触发类（账户=entry_v×方向，正交于账户身份；
-                    // 触发类 1/2/3 外不镜像，与 open 侧 None 口径对称，不伪造理由）。
-                    if let Some(reason) = strategy::account::reason_of_reverse(trig.bsp_class) {
+                    // #197/#199：关闭镜像——账户=entry_v×方向（与理由正交）；理由按账户分流
+                    // （#199「仅残余才纠错」：核心腿二类 ⟹ 核心残余实测非零（并行视图
+                    // balance(Core{level})≠0）才发 CoreResidualCorrection，否则二类不生
+                    // 本仓卖单（None 不镜像）；ShortDiff/Short 腿二类 ⟹ ReverseType2
+                    // 合法二类卖；一/三类委托 reason_of_reverse 单源）。
+                    // 触发类 1/2/3 外不镜像，与 open 侧 None 口径对称，不伪造理由。
+                    let account_id = strategy::account::identity_of(
+                        open.entry_v,
+                        open.position_node_id.side,
+                        leg.id.level,
+                    );
+                    let core_residual =
+                        account_id.is_some_and(|a| account_view.balance(a) != 0.0);
+                    if let Some(reason) = account_id.and_then(|a| {
+                        strategy::account::reason_of_reverse_close(a, trig.bsp_class, core_residual)
+                    }) {
                         account_mirror_close(&mut account_view, &open, leg.id.level, reason, px, i);
                     }
                 }
@@ -4860,6 +5002,250 @@ mod tests {
         );
     }
 
+    /// ★#199 生产路径见证（红→绿，spec WP-2 修复 b）：二类反向关核心腿 =
+    /// 「仅残余才纠错」——镜像理由 `CoreResidualCorrection`（非 `ReverseType2`）；
+    /// typed 层五枚举不动（二类仍归 `ExitType::CloseRoot`，账户/理由正交）。
+    ///
+    /// 场景 = `buy_then_sell(2)`：buy1@3 开 L0 Long 根（bar 7）→ sell2@12 二类关（bar 14）。
+    /// 红（修复前）：理由轴把二类核心关闭记 `ReverseType2`——「无条件 CloseRoot」
+    /// 在账户侧的 expression（缺「仅残余才纠错」谓词，#185 审计发现 b）。
+    #[test]
+    fn type2_core_close_mirrors_as_core_residual_correction() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+        use super::super::super::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(2), &bars, 1.0e6, &config, None);
+        // typed 层不动（编排者裁定 2026-07-23）：根腿二类反向仍归 CloseRoot——五枚举
+        // 单源，「仅残余才纠错」只长在理由轴（ActionReason），不进 ExitType。
+        assert_eq!(fill.typed_ledger.len(), 1, "恰一条腿级 typed 交易");
+        assert_eq!(
+            fill.typed_ledger[0].exit_type,
+            ExitType::CloseRoot,
+            "typed 五枚举不动：二类 typed 归因仍归 CloseRoot"
+        );
+        let view = &fill.account_view;
+        // 理由轴新口径：二类关核心腿 = CoreResidualCorrection（残余实测非零——腿在飞即残余）。
+        let core_close = view
+            .fills()
+            .iter()
+            .find(|f| {
+                f.order.account() == AccountIdentity::Core { level: 0 }
+                    && f.order.reason != ActionReason::Open
+            })
+            .expect("Core{0} 平仓成交存在");
+        assert_eq!(
+            core_close.order.reason,
+            ActionReason::CoreResidualCorrection,
+            "二类反向关核心腿 ⟹ 残余纠错理由（仅残余才纠错，非 ReverseType2）"
+        );
+        // 断言③：ReverseType2 永不落 Core 账（二类合法卖出仅 ShortDiff/Short 两身份）。
+        assert!(
+            view.fills().iter().all(|f| {
+                !(matches!(f.order.account(), AccountIdentity::Core { .. })
+                    && f.order.reason == ActionReason::ReverseType2)
+            }),
+            "断言③：无二类 Core 卖单（ReverseType2 不得落 Core 账）"
+        );
+        // 纠错后 Core{0} 余额归零（残余清净）。
+        assert_eq!(view.balance(AccountIdentity::Core { level: 0 }), 0.0);
+    }
+
+    /// ★#199 场景 B（回归锁，spec WP-2 修复 b 后半句）：一类点全平后二类点到来——
+    /// **二类不得生成本仓卖单**（无 `ReverseType2`/`CoreResidualCorrection` 落 Core 账）；
+    /// 二类 = 第二入场/加空位（ID-3）：候选走规则3 开 ambient 空根（Short 账，理由 Open）。
+    ///
+    /// 诚实声明：本场景修复前后均绿——规则2 要求同级别在飞反向腿，一类已平 ⟹ 二类
+    /// 候选无核心腿可关，本就不生 Core 卖单；本锁看守的是未来改动（如 #200 OpenShort
+    /// 通道接线）不在此路径引入 Core 卖单。「残余为零 ⟹ CoreResidualCorrection 不触发」
+    /// 的红→绿证据在分流单测（`reason_of_reverse_close(Core,2,false)==None`）——生产
+    /// 路径该分支结构不可达（规则2 命中=腿在飞=残余非零），为防御性硬门。
+    #[test]
+    fn type2_after_type1_full_close_emits_no_core_sell() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+        use super::super::super::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let cls_buy = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
+        };
+        let cls_sell1 = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3), sell_at(10, 1)]), ..Default::default() }],
+        };
+        let cls_sell2 = Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![buy1_at(3), sell_at(10, 1), sell_at(16, 2)]),
+                ..Default::default()
+            }],
+        };
+        let classify = move |i: usize| {
+            if i >= 18 {
+                (cls_sell2.clone(), Vec::new(), i as u64, i as u64)
+            } else if i >= 12 {
+                (cls_sell1.clone(), Vec::new(), i as u64, i as u64)
+            } else if i >= 7 {
+                (cls_buy.clone(), Vec::new(), i as u64, i as u64)
+            } else {
+                (Classification::default(), Vec::new(), i as u64, i as u64)
+            }
+        };
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        // typed 锚点：Long 一类平（CloseRoot @12）+ 空根窗口终点（Hold @19）。
+        assert_eq!(fill.typed_ledger.len(), 2, "Long 一平 + 空根 censored 恰两条 typed");
+        assert_eq!(fill.typed_ledger[0].exit_type, ExitType::CloseRoot);
+        assert_eq!(fill.typed_ledger[1].exit_type, ExitType::Hold);
+        let view = &fill.account_view;
+        // ★核心断言：一类全平后，二类（bar≥18）不生任何 Core 账卖单
+        // （ReverseType2/CoreResidualCorrection 均不落 Core——本仓对二类封闭）。
+        assert!(
+            view.fills().iter().all(|f| {
+                !(matches!(f.order.account(), AccountIdentity::Core { .. })
+                    && matches!(
+                        f.order.reason,
+                        ActionReason::ReverseType2 | ActionReason::CoreResidualCorrection
+                    ))
+            }),
+            "一类全平后二类不得生本仓卖单（无 Core 二类单）"
+        );
+        // 一类平后 Core{0} 余额归零且不再变动（含二类部署之后）。
+        assert_eq!(view.balance(AccountIdentity::Core { level: 0 }), 0.0);
+        // 二类 = 第二入场/加空位（ID-3）：Short 账出现 Open 单（ambient 空根开仓，合法）。
+        assert!(
+            view.fills().iter().any(|f| {
+                f.order.account() == AccountIdentity::Short && f.order.reason == ActionReason::Open
+            }),
+            "二类候选规则3 开空根（Short 账 Open，第二入场位）"
+        );
+        // 一类 Core 平仓理由保持 ReverseType1（一类口径不受 #199 影响）。
+        let t1_close = view
+            .fills()
+            .iter()
+            .find(|f| {
+                f.order.account() == AccountIdentity::Core { level: 0 }
+                    && f.order.reason != ActionReason::Open
+            })
+            .expect("Core{0} 一类平仓成交存在");
+        assert_eq!(t1_close.order.reason, ActionReason::ReverseType1);
+    }
+
+    /// ★#199 断言②（T1 实际成交）生产路径触发见证（合成单腿场景）：一类 Core 平仓
+    /// 评估探针真实触发，且单腿场景级余额归零（违例探针=0——单腿即「一类=全平」成立的
+    /// 平凡域）。**多核心腿场景的级残余非零实测为待裁决教义缺口**（见
+    /// `account_mirror_post` 断言②挂载点注释 + BTC 见证 `btc_type2_residual_correction_witness`）。
+    #[test]
+    fn t1_core_close_zero_assertion_fires_in_pi_loop() {
+        t1_core_zero_probe_reset();
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1, "场景锚点：一类平一腿");
+        assert_eq!(
+            t1_core_zero_probe_count(),
+            1,
+            "一类 Core 平仓一笔 ⟹ 断言②评估在生产路径真实触发（探针为凭）"
+        );
+        assert_eq!(
+            t1_core_residual_probe_count(),
+            0,
+            "单腿场景：一类平仓后 balance(Core{{0}})==0（级残余为零的平凡域）"
+        );
+    }
+
+    /// ★#199 断言③后半（CoreResidualCorrection 残余硬门）生产路径触发见证：
+    /// 每笔 CoreResidualCorrection 过账前核心残余实测非零（`balance(Core{level})≠0`）——
+    /// 「仅残余才纠错」的执行层硬门。debug 构建逐笔核对；探针恒在计数。
+    #[test]
+    fn residual_correction_assertion_fires_in_pi_loop() {
+        residual_correction_probe_reset();
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(buy_then_sell(2), &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1, "场景锚点：二类关核心腿一笔");
+        assert_eq!(
+            residual_correction_probe_count(),
+            1,
+            "CoreResidualCorrection 一笔 ⟹ 残余硬门在生产路径真实触发（探针为凭）"
+        );
+        // 跑通无 `#199 断言③` panic ⟹ 该笔过账前 balance(Core{0})≠0（残余实测非零）。
+    }
+
+    /// ★#199 断言③前半（二类卖身份）生产路径见证 + 回归锁：短差腿**二类**平 ⟹
+    /// 账户=ShortDiff、理由保留 `ReverseType2`（合法二类卖——分流不伤合法身份）；
+    /// typed 归 `CloseShortDiff`（五枚举不动）。探针=1：每笔 ReverseType2 过账均经
+    /// 「不落 Core 账」约束核对（断言③前半真实触发为凭）。
+    ///
+    /// 场景 = E 组夹具（父 L1 Long 根 + 子 L0 Short 短差），子平触发换 buy2@18。
+    #[test]
+    fn type2_shortdiff_close_keeps_reverse_type2_and_fires_guard() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+        use super::super::super::strategy::interp::ExitType;
+        type2_sell_guard_probe_reset();
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0;
+        let bars = e1_bars();
+        let cls_parent = {
+            let mut c = e_classification(false);
+            c.levels[0] = LevelState::default(); // 仅父 L1 buy@12（子卖点未现）
+            c
+        };
+        let cls_open = e_classification(false); // + 子 L0 sell@16
+        let cls_all = e_classification_type2_child_close(); // + 子平触发 L0 buy2@18
+        let tower = e_tower();
+        let classify = move |i: usize| {
+            let cls = if i >= 19 {
+                cls_all.clone()
+            } else if i >= 17 {
+                cls_open.clone()
+            } else if i >= 13 {
+                cls_parent.clone()
+            } else {
+                Classification::default()
+            };
+            (cls, tower.clone(), i as u64, i as u64)
+        };
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        // 锚点：父+子恰两条 typed；子归 CloseShortDiff（五枚举不动，不受 #199 影响）。
+        assert_eq!(fill.typed_ledger.len(), 2, "父 + 子恰两条 typed 交易");
+        let child_row = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.entry_z.delta == -1)
+            .expect("子 L0 ShortDiff typed 交易存在");
+        assert_eq!(child_row.exit_type, ExitType::CloseShortDiff);
+        // 子腿平仓：账户=ShortDiff、理由=ReverseType2（二类触发的合法二类卖）。
+        let child_close = fill
+            .account_view
+            .fills()
+            .iter()
+            .find(|f| {
+                f.order.account() == AccountIdentity::ShortDiff
+                    && f.order.reason != ActionReason::Open
+            })
+            .expect("短差平仓成交存在");
+        assert_eq!(
+            child_close.order.reason,
+            ActionReason::ReverseType2,
+            "短差腿二类平 ⟹ 合法二类卖身份保留（断言③前半：ShortDiff ∈ 合法集）"
+        );
+        // 探针 = 1：该笔 ReverseType2 过账经「不落 Core 账」约束核对（生产路径真实触发）。
+        assert_eq!(
+            type2_sell_guard_probe_count(),
+            1,
+            "断言③前半在生产路径真实触发 1 笔（探针为凭）"
+        );
+        // 父仓不受子腿二类平影响（断言4 隔离：父 Core{1} 实例仅窗口终点动）。
+        let parent_close = fill
+            .account_view
+            .fills()
+            .iter()
+            .find(|f| {
+                f.order.account() == AccountIdentity::Core { level: 1 }
+                    && f.order.reason != ActionReason::Open
+            })
+            .expect("父仓平仓成交存在");
+        assert_eq!(parent_close.order.reason, ActionReason::WindowEnd);
+    }
+
     /// ★#198 跨账一致性见证（BTC 真实数据，生产路径）：§13 结构剪枝腿的 typed 归属
     /// 必须与 #197 账户身份一致——`exit_type == CloseShortDiff` ⟺ `account == ShortDiff`。
     ///
@@ -4944,6 +5330,123 @@ mod tests {
             );
         }
         assert!(n_prune > 0, "BTC train 窗必产结构剪枝腿（见证非空转，基线 6 笔）");
+    }
+
+    /// ★#199 BTC 真实数据见证（生产路径，16000 bars）：二类反向「仅残余才纠错」
+    /// 全窗实测 + 断言①②③评估/违例笔数（探针为凭）。
+    ///
+    /// 见证口径：
+    /// - 一类关核心腿笔数 = fills 中 `ReverseType1 × Core{*}`；断言②评估探针对账；
+    /// - **待裁决实测**：一类平仓后级余额非零笔数（断言②违例探针）——BTC 实证一类
+    ///   候选 fold 逐腿关闭可留同级 FollowParent 级联核心腿残余（教义级矛盾，已上报）；
+    /// - 二类关核心腿笔数 = fills 中 `CoreResidualCorrection`（残余硬门逐笔构造恒真）；
+    /// - 二类卖身份合法集：`ReverseType2` 仅落 ShortDiff/Short（断言③前半逐笔构造恒真）；
+    /// - 全窗扫描：无 `{Core, ReverseType2}` 单（断言③账户约束）。
+    ///
+    /// 诚实声明：`n_residual`（二类残余纠错笔数）是数据事实——若为零是样本缺席而非
+    /// 机制缺席（合成场景 A 已见证触发）；不伪造（DATA BLOCKER 纪律）。
+    #[test]
+    #[ignore = "#199 BTC 见证；需 BTC 数据（DATA BLOCKER 不伪造）"]
+    fn btc_type2_residual_correction_witness() {
+        use super::super::data;
+        use super::super::incremental::IncrementalClassifier;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+        use crate::theta_v0::strategy::account::{AccountIdentity, ActionReason};
+        t1_core_zero_probe_reset();
+        type2_sell_guard_probe_reset();
+        residual_correction_probe_reset();
+        crate::theta_v0::strategy::coverage::t1_target_zero_probe_reset();
+        let config = ThetaConfig::default();
+        let w = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+        let ds = data::load_by_symbol(w.symbol, &config).expect("BTC 数据");
+        let oos = ds.slice_date_window(w.oos.0, w.oos.1);
+        let cut = 32_000_usize.min(oos.bars.len());
+        let train_bars = &oos.bars[0..cut / 2];
+        let first_px = train_bars
+            .iter()
+            .find(|b| !b.untradable && b.close > 0)
+            .map(|b| b.close as f64 * config.tick.tick_size)
+            .unwrap_or(1.0);
+        let nav = (first_px * 1000.0).max(1.0e6);
+        let mut classifier_incr = IncrementalClassifier::new(train_bars, &config);
+        let fill = pi_theta_fill_loop(
+            |i| {
+                let (cls, tower) = classifier_incr.classify_at(i);
+                let gen = classifier_incr.tower_generation();
+                let fe = classifier_incr.forest_epoch();
+                (cls, tower, gen, fe)
+            },
+            train_bars,
+            nav,
+            &config,
+            None,
+        );
+        let view = &fill.account_view;
+        let n_t1_core = view
+            .fills()
+            .iter()
+            .filter(|f| {
+                matches!(f.order.account(), AccountIdentity::Core { .. })
+                    && f.order.reason == ActionReason::ReverseType1
+            })
+            .count();
+        let n_residual = view
+            .fills()
+            .iter()
+            .filter(|f| f.order.reason == ActionReason::CoreResidualCorrection)
+            .count();
+        let n_t2_legal = view
+            .fills()
+            .iter()
+            .filter(|f| f.order.reason == ActionReason::ReverseType2)
+            .count();
+        eprintln!("=== BTC #199 二类残余纠错见证（{} 笔 typed）===", fill.typed_ledger.len());
+        eprintln!(
+            "  一类关核心腿(ReverseType1×Core)={n_t1_core}；二类残余纠错(CoreResidualCorrection)={n_residual}；二类卖(ReverseType2→ShortDiff/Short)={n_t2_legal}"
+        );
+        eprintln!(
+            "  探针：断言②评估={} 级余额违例={}；断言③前半={}（其中同级Core残余={}）；残余硬门={}",
+            t1_core_zero_probe_count(),
+            t1_core_residual_probe_count(),
+            type2_sell_guard_probe_count(),
+            type2_with_core_residual_probe_count(),
+            residual_correction_probe_count()
+        );
+        eprintln!(
+            "  断言①（coverage 目标态）：评估={} 级残余违例={}",
+            crate::theta_v0::strategy::coverage::t1_target_zero_probe_count(),
+            crate::theta_v0::strategy::coverage::t1_target_residual_probe_count()
+        );
+        // 探针计数 = fills 分类计数（生产路径真实触发笔数，逐笔对账）。
+        assert_eq!(t1_core_zero_probe_count() as usize, n_t1_core, "断言②评估笔数对账");
+        assert_eq!(residual_correction_probe_count() as usize, n_residual, "残余硬门笔数对账");
+        assert_eq!(type2_sell_guard_probe_count() as usize, n_t2_legal, "断言③前半笔数对账");
+        // 断言③全窗扫描：无 {Core, ReverseType2} 单（二类卖永不落本仓账）；
+        // CoreResidualCorrection 全落 Core 账（残余纠错语义恰一账户）。
+        assert!(
+            view.fills().iter().all(|f| {
+                !(matches!(f.order.account(), AccountIdentity::Core { .. })
+                    && f.order.reason == ActionReason::ReverseType2)
+            }),
+            "断言③：BTC 全窗无二类 Core 卖单"
+        );
+        assert!(
+            view
+                .fills()
+                .iter()
+                .filter(|f| f.order.reason == ActionReason::CoreResidualCorrection)
+                .all(|f| matches!(f.order.account(), AccountIdentity::Core { .. })),
+            "CoreResidualCorrection 全落 Core 账（恰一账户）"
+        );
+        // 非空转：断言① coverage 评估探针 >0（train 窗一类卖 Core 真实发生 2 笔）。
+        // 诚实记录（2026-07-23 实测）：本窗 `n_t1_core`（镜像 ReverseType1×Core）= 0——
+        // 一类关的 2 条 Core 腿全部来自**未登记 restore 祖先腿**（非本窗信号入场，
+        // runner.rs「表中无登记 ⟹ 不入 ledger」），断言②评估探针=0 是数据事实而非机制
+        // 缺席（断言②非空转由合成见证 `t1_core_close_zero_assertion_fires_in_pi_loop` 承担）。
+        assert!(
+            crate::theta_v0::strategy::coverage::t1_target_zero_probe_count() > 0,
+            "BTC train 窗必产一类卖 Core（断言①评估非空转）"
+        );
     }
 
     /// ★#198 断言4 生产路径见证（#185「短差隔离」落生产执行层）：ShortDiff fill 逐笔
@@ -5526,6 +6029,7 @@ mod tests {
     fn sell_at(si: usize, class: u8) -> BspPoint {
         let bits = match class {
             1 => BspBits { sell1: true, ..Default::default() },
+            2 => BspBits { sell2: true, ..Default::default() },
             _ => BspBits { sell3: true, ..Default::default() },
         };
         BspPoint {
@@ -8325,6 +8829,25 @@ mod tests {
                 LevelState { bsp: Rc::new(vec![buy_parent]), ..Default::default() },
             ],
         }
+    }
+
+    /// E 组分类夹具变体（#199 切片5）：子腿关闭触发改为**二类买**（buy2@18）——
+    /// 短差腿二类平保留 ReverseType2（合法二类卖，断言③前半生产形态的载体）。
+    fn e_classification_type2_child_close() -> Classification {
+        let mut c = e_classification(false);
+        let buy2_child_close = BspPoint {
+            source_index: 18,
+            bits: BspBits { buy2: true, ..Default::default() },
+            pivot_low: 120,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let mut l0 = c.levels[0].bsp.as_ref().clone();
+        l0.push(buy2_child_close);
+        c.levels[0] = LevelState { bsp: Rc::new(l0), ..Default::default() };
+        c
     }
 
     /// E1 价格路径（22 根）：上行 → 顶（bar 16-17）→ 回调（18-19）→ 续（20-21）。
