@@ -110,6 +110,53 @@ pub fn exit_decision_for_nested(
     equity_now: f64,
     parent_invalid: bool,
 ) -> Option<VoiceDecision> {
+    // 门关委托（reverse_cert=None ⟹ 不求值任何证书谓词，短路语义逐 bit 保留——bit-exact 回归锁）。
+    exit_decision_impl(hv, depth, bar, i, groups, equity_now, parent_invalid, None)
+}
+
+/// **★#76 证书门版退出决策生成器**（出场门真链切换，SPEC #73 A 线第三票）。
+///
+/// 与 [`exit_decision_for_nested`] 的唯一差异：第 8 参 `reverse_cert`——注入的**反向证书准入
+/// 查询**闭包（生产侧 = #75 同一 `NestChainGate`/身份桥/`n_delta` 判定；miss ⟹ false，
+/// 诚实不准出，禁 fallback v0——Xzd 回退只服务进场，出场反向项无 Xzd 对应物）。
+/// 反向项 χ^{σ_p} 的消费对象自此从裸 BspBits 升格为 typed 真链反查；四析取结构不动
+/// （`Origin.SubVoiceOpenClose.closePred` line 552-562，零新析取项）。
+pub fn exit_decision_for_nested_cert(
+    hv: &HeldVoice,
+    depth: usize,
+    bar: &Bar,
+    i: usize,
+    groups: &[Vec<&VoiceDecision>],
+    equity_now: f64,
+    parent_invalid: bool,
+    reverse_cert: &mut dyn FnMut(&VoiceDecision) -> bool,
+) -> Option<VoiceDecision> {
+    exit_decision_impl(hv, depth, bar, i, groups, equity_now, parent_invalid, Some(reverse_cert))
+}
+
+/// v0 反向证书基例（对照读出角色，#76 起判定不消费）：对反向开仓决策自身方向
+/// δ′ = `voice_side(root_side, depth)` 读证书基例 Conf^{δ′}_e（复用
+/// [`super::interp::nest_confirm`]，不 fork 第二套证书判据；单级末端 Conf，
+/// Flat ⟹ false）。#76 后 runner 侧仅双读落账 NEST_GATE_EXIT cross 对照差，
+/// 不进判定、禁作 fallback。
+pub fn reverse_nest_cert_base(d: &VoiceDecision) -> bool {
+    let dir = voice_side(d.root_side, d.depth);
+    super::interp::nest_confirm(d.level, d.signal_index, &d.bsp, dir)
+}
+
+/// 退出判定共享实现（§9 closePred 四析取；`reverse_cert`：`None` ⟹ 裸 bits 现行语义
+/// （不求值证书谓词），`Some(q)` ⟹ 反向项升格 `reverse_signal && q(d)`）。
+#[allow(clippy::too_many_arguments)]
+fn exit_decision_impl(
+    hv: &HeldVoice,
+    depth: usize,
+    bar: &Bar,
+    i: usize,
+    groups: &[Vec<&VoiceDecision>],
+    equity_now: f64,
+    parent_invalid: bool,
+    mut reverse_cert: Option<&mut dyn FnMut(&VoiceDecision) -> bool>,
+) -> Option<VoiceDecision> {
     // Stop（line 559）：当前 bar 触及止损价 hv.stop。平仓方向 = 持仓反向（平多=Sell，平空=Buy）。
     let exit_side = match hv.side {
         VoiceSide::Long => FillSide::Sell,
@@ -120,9 +167,19 @@ pub fn exit_decision_for_nested(
 
     // 反向信号 χ^{σ_p}（line 596-601）：当前 bar 的开仓 decisions 含反向方向根决策 ⟹ 触发。
     // 用 reverse_signal 判每个当前 bar 决策的 bsp 是否与持仓反向（持多遇卖 / 持空遇买）。
+    // ★#76：reverse_cert=Some(q) ⟹ 反向项升格为 typed 真链反查（reverse_signal && q(d)，
+    // 短路纪律：同向候选零查询调用）；None ⟹ 裸 bits 现行语义，不求值任何证书谓词。
     let reverse = groups
         .get(i)
-        .map(|ds| ds.iter().any(|d| reverse_signal(hv.side, &d.bsp)))
+        .map(|ds| {
+            ds.iter().any(|d| {
+                reverse_signal(hv.side, &d.bsp)
+                    && match reverse_cert.as_mut() {
+                        None => true,
+                        Some(q) => q(d),
+                    }
+            })
+        })
         .unwrap_or(false);
 
     // RiskClose（line 561）：GlobalRiskClose（μ_t ∈ {Insolvent, Liquidation}）。
