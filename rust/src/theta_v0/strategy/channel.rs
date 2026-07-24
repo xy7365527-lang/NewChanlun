@@ -34,7 +34,11 @@
 //!   [`ChannelDecision`] 经 `Exit(ExitType)` 内嵌复用，仅补三个非出场动作变体。
 //! - S2 二分判据 = [`reverse_exit_type`]（G4/G5 单源函数，**不镜像判据**）：P2/P3 谓词由其
 //!   返回值二分，测试交叉断言同源。
-//! - 反向命中 = [`reverse_signal`]（§9 closePred 反向项）；候选序 = [`theta_key`]（≺_Θ 全序）。
+//! - 反向命中 = [`reverse_signal`]（§9 closePred 反向项）∧ `nest_confirmed` 证书门
+//!   （#202 阶段 C：对齐 interp 规则2 证书门——「find_reverse 与 interp 规则2 同单源
+//!   判据」的接线前提）；候选序 = [`theta_key`]（≺_Θ 全序）。
+//! - P2/P3 判据 + 触发归因 = [`cert_close_trigger`]（#202 新增单源点：通道谓词与生产
+//!   组合层的本级证书平仓域共用，不镜像）。
 //!
 //! ## 非本票（字面边界外，不实现）
 //!
@@ -385,8 +389,10 @@ pub fn shadow_observe(state: &VoiceState, input: &VoiceStepInput) -> VoiceState 
 ///
 /// 判据（全部单源复用）：
 /// - P1 = `force_flat`。
-/// - P2/P3 = 持仓 ∧ 存在本级反向证书候选（[`reverse_signal`]，≺_Θ 序首个命中），
-///   经 [`reverse_exit_type`]`(entry_v, trigger_class)` S2 二分：CloseRoot→P2、ReduceCore→P3。
+/// - P2/P3 = 持仓 ∧ 存在本级反向**已确认**证书候选（[`cert_close_trigger`] 判据+触发归因
+///   单源，#202：[`find_reverse`] ≺_Θ 序首个命中，含 `nest_confirmed` 证书门——对齐
+///   interp 规则2），经 [`reverse_exit_type`]`(entry_v, trigger_class)` S2 二分：
+///   CloseRoot→P2、ReduceCore→P3。
 /// - P4 = 短差在册 ∧ 存在同 child level 的顺父 confirmed certificate，其真父投影匹配当前父腿；
 ///   该证书相对短差腿为反向，故只关闭短差子声部。
 /// - P5 = 父腿在册 ∧ 短差槽空 ∧ 存在反父 SubLevel ShortDiff confirmed certificate，其真父
@@ -394,10 +400,13 @@ pub fn shadow_observe(state: &VoiceState, input: &VoiceStepInput) -> VoiceState 
 /// - P6 = 空仓 ∧ 存在本级可交易候选（dir≠Flat ∧ 有类）。
 pub fn voice_predicates(state: &VoiceState, input: &VoiceStepInput) -> ChannelPredicates {
     let mut p = ChannelPredicates { risk_exit: input.force_flat, ..ChannelPredicates::default() };
-    // P2/P3：本级证书平仓——持仓 ∧ ≺_Θ 序首个本级反向证书候选，S2 二分经单源 reverse_exit_type。
+    // P2/P3：本级证书平仓——持仓 ∧ ≺_Θ 序首个本级反向已确认证书候选（[`cert_close_trigger`]
+    // 判据+触发归因单源，#202），S2 二分经单源 reverse_exit_type。
     if let Some(leg) = &state.leg {
-        if let Some(c) = find_reverse(state.level, leg.dir, &input.candidates) {
-            match reverse_exit_type(state.entry_v, c.bsp_class) {
+        if let Some((_c, exit)) =
+            cert_close_trigger(state.level, leg.dir, state.entry_v, &input.candidates)
+        {
+            match exit {
                 ExitType::CloseRoot => p.cert_close_root = true, // P2
                 ExitType::ReduceCore => p.cert_reduce_core = true, // P3
                 // 父腿本级反向不可能按入场角色归 ShortDiff；防御性不把它误写 P4，P4 单独按
@@ -476,14 +485,38 @@ fn find_short_diff_close<'a>(
     })
 }
 
-/// ≺_Θ 序首个本级反向证书候选（[`reverse_signal`] §9 closePred 反向项；可交易候选域）。
+/// ≺_Θ 序首个本级反向**已确认**证书候选（[`reverse_signal`] §9 closePred 反向项；可交易候选域）。
+///
+/// ★#202 阶段 C：`nest_confirmed` 证书门——未确认者只是证书成立层尚未确认的方向信号，
+/// 对齐 [`super::interp::interpret`] 规则2 证书门（归 𝒦_x 记录不执行）：接线前提
+/// 「find_reverse 与 interp 规则2 同单源判据」（spec WP-3 阶段 C；channel 自测烤料全
+/// confirmed，本门在测试域恒真、不翻既有见证）。
 fn find_reverse(level: u32, leg_dir: VoiceSide, cands: &[Candidate]) -> Option<&Candidate> {
     theta_ordered(cands).into_iter().find(|c| {
         c.level == level
             && c.dir != VoiceSide::Flat
             && c.bsp_class != u8::MAX
+            && c.nest_confirmed
             && reverse_signal(leg_dir, &c.bits)
     })
+}
+
+/// ★#202 阶段 C：P2/P3 域判据 + 触发归因**单源**——≺_Θ 序首个本级反向已确认证书候选 +
+/// S2 二分 typed（[`reverse_exit_type`] 单源）。通道谓词（[`voice_predicates`] 的 P2/P3
+/// 段）与组合层生产裁决（coverage `pi_theta_step_traced` 正常路径的本级证书平仓域）共用
+/// 本判据点——不镜像（interp fold 文档「不在外部重放配对」同款纪律）。
+///
+/// 返回 `None` = P2/P3 域不成立（无持仓反向命中/无已确认证书）；`Some((trigger, exit))`
+/// 中 `exit` 可为 [`ExitType::CloseShortDiff`]（entry_v==ShortDiff 的父腿本级反向——P4 域
+/// 原料，谓词层不置位 P2/P3，由调用方按账户域分流）。
+pub(crate) fn cert_close_trigger(
+    level: u32,
+    leg_dir: VoiceSide,
+    entry_v: Vertical,
+    cands: &[Candidate],
+) -> Option<(&Candidate, ExitType)> {
+    let c = find_reverse(level, leg_dir, cands)?;
+    Some((c, reverse_exit_type(entry_v, c.bsp_class)))
 }
 
 /// ≺_Θ 序首个本级普通开仓候选（可交易 ∧ 非 ShortDiff 角色；短差开启只属 P5）。
@@ -943,6 +976,61 @@ mod tests {
                 "单源交叉：通道裁决 == reverse_exit_type（class={cls}）"
             );
         }
+    }
+
+    /// ★#202 阶段 C：P2/P3 判据的证书门——`nest_confirmed=false` 的本级反向信号只是
+    /// 证书成立层尚未确认的方向信号（对齐 interp 规则2 证书门：归 𝒦_x 记录，不消费），
+    /// 不得触发本级证书平仓。接线前提「find_reverse 与 interp 规则2 同单源判据」。
+    #[test]
+    fn cert_close_requires_confirmed_certificate() {
+        let st = holding(0, VoiceSide::Long, Vertical::Ambient);
+        let mut unconfirmed = cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient);
+        unconfirmed.nest_confirmed = false;
+        let input = step(false, vec![unconfirmed]);
+        let (cid, dec) = step_voice(&st, &input);
+        assert_eq!(
+            (cid, dec),
+            (ChannelId::C0, ChannelDecision::Exit(ExitType::Hold)),
+            "未确认证书不触发 P2/P3（规则2 证书门同单源判据）"
+        );
+        let p = voice_predicates(&st, &input);
+        assert!(!p.cert_close_root && !p.cert_reduce_core);
+    }
+
+    /// ★#202 阶段 C：P2/P3 域判据 + 触发归因单源 [`cert_close_trigger`]——组合层生产裁决
+    /// 与通道谓词共用一个判据点（不镜像）：`Some((c, CloseRoot))` ⟺ C2、`Some((c, ReduceCore))`
+    /// ⟺ C3；`None` ⟹ P2/P3 均不成立。
+    #[test]
+    fn cert_close_trigger_is_single_source_for_p23() {
+        let st = holding(0, VoiceSide::Long, Vertical::Ambient);
+        for (cls, want_et) in [
+            (1u8, ExitType::CloseRoot),
+            (2u8, ExitType::CloseRoot),
+            (3u8, ExitType::ReduceCore),
+        ] {
+            let c = cand(0, 0, VoiceSide::Short, cls, sell(cls), Vertical::Ambient);
+            let input = step(false, vec![c]);
+            let (trigger, exit) = cert_close_trigger(st.level, VoiceSide::Long, st.entry_v, &input.candidates)
+                .expect("已确认反向证书命中 P2/P3 判据");
+            assert_eq!(*trigger, c, "触发归因 = ≺_Θ 序首个本级反向已确认证书（class={cls}）");
+            assert_eq!(exit, want_et, "S2 二分 == reverse_exit_type 单源（class={cls}）");
+            // 交叉：与 step_voice 的 P2/P3 裁决逐点一致（同判据，不镜像）。
+            let (_cid, dec) = step_voice(&st, &input);
+            assert_eq!(dec, ChannelDecision::Exit(want_et), "通道裁决 == cert_close_trigger（class={cls}）");
+        }
+        // 无命中域：同向/跨级/未确认候选 ⟹ None（P2/P3 不成立）。
+        let same_dir = cand(0, 0, VoiceSide::Long, 1, buy(1), Vertical::Ambient);
+        assert!(cert_close_trigger(0, VoiceSide::Long, Vertical::Ambient, &[same_dir]).is_none());
+        let cross = cand(0, 1, VoiceSide::Short, 1, sell(1), Vertical::Ambient);
+        assert!(cert_close_trigger(0, VoiceSide::Long, Vertical::Ambient, &[cross]).is_none());
+        let mut unconfirmed = cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient);
+        unconfirmed.nest_confirmed = false;
+        assert!(cert_close_trigger(0, VoiceSide::Long, Vertical::Ambient, &[unconfirmed]).is_none());
+        // ShortDiff 入场角色的本级反向：reverse_exit_type 产 CloseShortDiff（P4 域原料，
+        // 谓词层不置位 P2/P3）——单源如实产出，由调用方按账户域分流。
+        let sd_cands = [cand(0, 0, VoiceSide::Short, 1, sell(1), Vertical::Ambient)];
+        let got_sd = cert_close_trigger(0, VoiceSide::Long, Vertical::ShortDiff, &sd_cands);
+        assert_eq!(got_sd.map(|(_, e)| e), Some(ExitType::CloseShortDiff));
     }
 
     /// RiskExit 与结构性谓词同刻同时为真 ⟹ RiskExit 恒最先命中（声部级）。

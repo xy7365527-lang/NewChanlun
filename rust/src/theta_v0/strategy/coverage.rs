@@ -3132,7 +3132,32 @@ pub(crate) fn pi_theta_step_traced(
         }
     }
     // 环5：解释器三桶 + close 触发归因（fold 单源，interp.rs）。
-    let (buckets, close_triggers) = interp::interpret_with_close_triggers(gamma, prev_active);
+    // ★#202 阶段 C（spec WP-3「仅替换 P2/P3」）：本级证书平仓域（channel 口径 P2/P3 =
+    // entry_v≠ShortDiff 腿的 CloseRoot/ReduceCore）改经 channel 判据
+    // [`super::channel::cert_close_trigger`] **逐腿**裁决——「每声部每步一枚」替代散装
+    // fold 规则2 的候选消费粒度（find_reverse+reverse_exit_type 与规则2 同单源判据；
+    // 多腿/多候选场景两链裁决结构不同，票面明知非 bit-exact）。channel 只出裁决不建腿：
+    // 开仓/记录/其余通道维持散装——规则2 外部化 fold 变体
+    // [`interp::interpret_with_external_closes`] 承接（S 组 ShortDiff 腿 = P4 域候选驱动
+    // 原样、规则3/4 开仓原样、#200 二类 dual-effect 原样）。生产侧建腿（环6/7）零改。
+    let entry_v_of = |l: &ActiveLeg| {
+        tw.and_then(|t| t.entry_v.get(&l.id).copied())
+            .unwrap_or(Vertical::Ambient)
+    };
+    let external_closes: Vec<(usize, Candidate)> = prev_active
+        .iter()
+        .enumerate()
+        .filter_map(|(i, l)| {
+            let entry_v = entry_v_of(l);
+            if entry_v == Vertical::ShortDiff {
+                return None; // S 组（P4 域）：维持散装 fold 规则2 候选消费现状。
+            }
+            super::channel::cert_close_trigger(l.level, l.dir, entry_v, gamma)
+                .map(|(trigger, _exit)| (i, *trigger))
+        })
+        .collect();
+    let (buckets, close_triggers) =
+        interp::interpret_with_external_closes(gamma, prev_active, &external_closes);
     // open 候选 → 其 638 附着元素 id（work 即将 move 进 coverage_step_from_buckets，先抓）。
     let candidate_start = work.base_len();
     let open_cand_ids: Vec<(Candidate, ElementId)> = buckets
@@ -3151,17 +3176,15 @@ pub(crate) fn pi_theta_step_traced(
     let next_ids: std::collections::HashSet<ElementId> =
         next_active.iter().map(|l| l.id).collect();
     // #145 T1 typed 裁决（组合层单点）：entry_v 从在飞映射取；tw=None/腿不在映射 ⟹ 回退
-    // Ambient（诚实语义见 `StepTrace::closed` doc——回退值不被 ledger 消费）。
+    // Ambient（诚实语义见 `StepTrace::closed` doc——回退值不被 ledger 消费）。#202：C 组腿
+    // 的 typed 与 channel 裁决同单源（reverse_exit_type(entry_v, trigger.class) 逐字同判据）。
     let closed: Vec<(ActiveLeg, Candidate, interp::ExitType)> = buckets
         .close
         .iter()
         .copied()
         .zip(close_triggers)
         .map(|(l, c)| {
-            let entry_v = tw
-                .and_then(|t| t.entry_v.get(&l.id).copied())
-                .unwrap_or(Vertical::Ambient);
-            let exit_type = interp::reverse_exit_type(entry_v, c.bsp_class);
+            let exit_type = interp::reverse_exit_type(entry_v_of(&l), c.bsp_class);
             (l, c, exit_type)
         })
         .collect();
@@ -3179,9 +3202,7 @@ pub(crate) fn pi_theta_step_traced(
         if c.bsp_class != 1 {
             continue;
         }
-        let entry_v = tw
-            .and_then(|t| t.entry_v.get(&l.id).copied())
-            .unwrap_or(Vertical::Ambient);
+        let entry_v = entry_v_of(l);
         if account::identity_of(entry_v, l.dir, l.level)
             != Some(account::AccountIdentity::Core { level: l.level })
         {
@@ -5376,6 +5397,140 @@ mod tests {
             0,
             "多腿场景：一类卖后 target_qty(Core{{0}})==0（S7 级别内全平）"
         );
+    }
+
+    /// ★#202 阶段 C（spec WP-3：仅替换 P2/P3——本级证书平仓由 channel 解释器承担）：
+    /// 多腿场景「每声部每步一枚」的 channel 裁决替代散装 fold 规则2 的候选消费粒度。
+    /// 两条同级 C 组核心腿（entry_v≠ShortDiff）+ 单个**三类**反向候选：channel 判据下
+    /// **每条**命中腿独立裁 `Exit(ReduceCore)`（散装 fold 二/三类只关首个——票面明知
+    /// 非 bit-exact 域，本测试 = 该结构差的标志性行为见证）。
+    /// 交叉断言 `channel::step_voice` 同输入逐腿同裁（「走 channel 解释器裁决」之凭）。
+    #[test]
+    fn p23_channel_closes_every_reverse_hit_leg_multi_leg() {
+        use super::super::channel::{self, ChannelDecision, VoiceState, VoiceStepInput};
+        use super::super::ledger::{RiskPolicy, TwState};
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let held_root = aleg(0, VoiceSide::Long, 0, 0); // Ambient 根
+        let held_cascade = aleg(0, VoiceSide::Long, 2, 2); // FollowParent 级联（同级同向）
+        let classification = sell_classification(3); // 三类反向：散装 fold 只关首个
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let tw_state = TwState::initial();
+        let policy = RiskPolicy::baseline();
+        let entry_v: std::collections::HashMap<ElementId, Vertical> = [
+            (held_root.id, Vertical::Ambient),
+            (held_cascade.id, Vertical::FollowParent),
+        ]
+        .into_iter()
+        .collect();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &entry_v,
+            eta_correction: 0,
+        };
+        let (na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held_root, held_cascade], 600.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc), &protocol_hold(),
+        );
+        assert_eq!(
+            trace.closed.len(),
+            2,
+            "channel 判据：每条命中腿独立裁 Exit（散装 fold 三类只关首个）"
+        );
+        assert!(
+            trace.closed.iter().all(|(_, trig, exit)| {
+                trig.bsp_class == 3 && *exit == interp::ExitType::ReduceCore
+            }),
+            "两腿触发归因同一三类候选、typed 均 ReduceCore（reverse_exit_type 单源）"
+        );
+        assert!(
+            !na.iter().any(|l| l.id == held_root.id || l.id == held_cascade.id),
+            "被关两腿均不入 next_active"
+        );
+        // verdicts 落在 #201 冻结 schema：两腿各携 ReduceCore 裁决（无 Hold 残留）。
+        assert_eq!(trace.verdicts.len(), 2);
+        assert!(
+            trace.verdicts.iter().all(|v| v.exit == interp::ExitType::ReduceCore),
+            "verdicts：每持仓声部恰一枚 typed 裁决（P3 域）"
+        );
+        // 交叉断言：channel::step_voice 同输入逐腿同裁 Exit(ReduceCore)——生产裁决
+        // 与 channel 解释器同单源（阶段 C「走 channel 解释器裁决」之凭）。
+        for (held, ev) in [(held_root, Vertical::Ambient), (held_cascade, Vertical::FollowParent)] {
+            let voice = VoiceState {
+                level: held.level,
+                leg: Some(held),
+                entry_v: ev,
+                step: 0,
+                sub_cycle: channel::SubCycleTracker::default(),
+                short_diff: None,
+            };
+            let input = VoiceStepInput {
+                force_flat: false,
+                candidates: gamma.clone(),
+                parent_kappa: channel::ParentKappa::Unknown,
+                parent_projections: Vec::new(),
+            };
+            assert_eq!(
+                channel::step_voice(&voice, &input).1,
+                ChannelDecision::Exit(interp::ExitType::ReduceCore),
+                "channel 逐腿裁决 == 生产 P3 域裁决（entry_v={ev:?}）"
+            );
+        }
+    }
+
+    /// ★#202 对照锁（散装域维持现状）：S 组腿（entry_v==ShortDiff）的关闭**不**经
+    /// channel 判据——P4 域维持散装 fold 规则2（typed=CloseShortDiff 由 #145 T1 既有
+    /// 测试锁）；本锁钉死「仅替换 P2/P3」边界：一类候选场景 channel 判据与 #209 fold
+    /// 全平同效（每腿独立裁 CloseRoot ⟺ fold 一类关全部），该域 bit-exact 不翻。
+    #[test]
+    fn p23_channel_type1_multi_leg_bit_exact_with_fold() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        let tower = rc_tower(vec![]);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        let held_root = aleg(0, VoiceSide::Long, 0, 0);
+        let held_cascade = aleg(0, VoiceSide::Long, 2, 2);
+        let classification = sell_classification(1); // 一类：两链全平同效域
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let tw_state = TwState::initial();
+        let policy = RiskPolicy::baseline();
+        let entry_v: std::collections::HashMap<ElementId, Vertical> = [
+            (held_root.id, Vertical::Ambient),
+            (held_cascade.id, Vertical::FollowParent),
+        ]
+        .into_iter()
+        .collect();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &entry_v,
+            eta_correction: 0,
+        };
+        let (na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held_root, held_cascade], 600.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc), &protocol_hold(),
+        );
+        assert_eq!(trace.closed.len(), 2, "一类多腿：channel 判据与 #209 全平同效（bit-exact 域）");
+        assert!(
+            trace.closed.iter().all(|(_, trig, exit)| {
+                trig.bsp_class == 1 && *exit == interp::ExitType::CloseRoot
+            }),
+            "两腿归因同一一类候选、typed 均 CloseRoot（P2 域）"
+        );
+        assert!(!na.iter().any(|l| l.id == held_root.id || l.id == held_cascade.id));
+        // 归因序保持 active 次序（同候选内 #209 push 序同构）。
+        assert_eq!(trace.closed[0].0.id, held_root.id);
+        assert_eq!(trace.closed[1].0.id, held_cascade.id);
     }
 
     /// ★#146 T2 验收1（原始烤料，端到端）：L1 声部 A 持仓 + L0 反向已确认证书属于另一未持有

@@ -6581,6 +6581,117 @@ mod tests {
         );
     }
 
+    /// ★#202 阶段 C 验收①见证（生产 π loop，spec 两道防线①）：P2/P3 域（本级证书平仓，
+    /// channel 解释器承担）的 typed 裁决与 AccountIdentity 身份键兼容——反向关闭的 typed
+    /// （组合层 channel 判据 [`strategy::channel::cert_close_trigger`] 单源）与账户平仓成交
+    /// （#197 `identity_of` / #199 `reason_of_reverse_close` 单源）逐笔对账：
+    /// - P2 域：ambient 空根一类反向 ⟹ `CloseRoot` × `Short` × `ReverseType1`；
+    /// - P3 域：Core 根腿三类反向 ⟹ `ReduceCore` × `Core{{0}}` × `ReverseType3`。
+    /// 且 P2/P3 域平仓笔落裁决账本轨（#201 冻结 verdicts schema：每声部一枚 typed）。
+    #[test]
+    fn p23_channel_close_typed_matches_account_order_witness() {
+        use super::super::super::strategy::account::{AccountIdentity, ActionReason};
+        use super::super::super::strategy::interp::ExitType;
+
+        // ── P2 域：sell-first（ambient 空根 → 一类反向平）。 ──
+        let cls_sell = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![sell_at(3, 1)]), ..Default::default() }],
+        };
+        let cls_both = Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![sell_at(3, 1), buy1_at(12)]),
+                ..Default::default()
+            }],
+        };
+        let classify = move |i: usize| {
+            if i >= 14 {
+                (cls_both.clone(), Vec::new(), i as u64, i as u64)
+            } else if i >= 7 {
+                (cls_sell.clone(), Vec::new(), i as u64, i as u64)
+            } else {
+                (Classification::default(), Vec::new(), i as u64, i as u64)
+            }
+        };
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        assert_eq!(fill.typed_ledger.len(), 1, "恰一条 ambient 空根 typed 交易（P2 域）");
+        let row = &fill.typed_ledger[0];
+        assert_eq!(row.exit_type, ExitType::CloseRoot, "P2 域 typed = CloseRoot（channel 判据单源）");
+        // typed × AccountOrder 逐笔对账（账户身份/理由/数量/严格身份四轴）。
+        let close_fill = fill
+            .account_view
+            .fills()
+            .iter()
+            .find(|f| !matches!(f.order.reason, ActionReason::Open | ActionReason::OpenShort))
+            .expect("P2 域平仓成交存在");
+        assert_eq!(
+            close_fill.order.account(),
+            AccountIdentity::Short,
+            "ambient 空根 ⟹ 空仓账（identity_of 单源，CONTEXT.md 反向根）"
+        );
+        assert_eq!(
+            close_fill.order.reason,
+            ActionReason::ReverseType1,
+            "一类反向（reason_of_reverse_close 单源）"
+        );
+        assert_eq!(close_fill.order.key.position, row.position_node_id, "严格身份对账");
+        assert_eq!(close_fill.order.qty_delta, row.units, "平空数量 = +typed units（符号开侧反向）");
+        // 裁决账本轨：P2 域平仓笔落 #201 冻结 schema（每声部一枚 typed，bar 对齐）。
+        let close_verdict = fill
+            .voice_verdicts
+            .iter()
+            .find(|v| v.leg.id == row.voice_id && v.exit_type == ExitType::CloseRoot)
+            .expect("P2 域平仓裁决落 verdicts 轨（schema 冻结）");
+        assert_eq!(close_verdict.bar, row.exit_bar, "裁决 bar = 平仓 bar");
+
+        // ── P3 域：buy-first（Core 根腿 → 三类反向平）。 ──
+        let cls_buy = Classification {
+            levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
+        };
+        let cls_rev = Classification {
+            levels: vec![LevelState {
+                bsp: Rc::new(vec![buy1_at(3), sell_at(12, 3)]),
+                ..Default::default()
+            }],
+        };
+        let classify3 = move |i: usize| {
+            if i >= 14 {
+                (cls_rev.clone(), Vec::new(), i as u64, i as u64)
+            } else if i >= 7 {
+                (cls_buy.clone(), Vec::new(), i as u64, i as u64)
+            } else {
+                (Classification::default(), Vec::new(), i as u64, i as u64)
+            }
+        };
+        let bars3: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let fill3 = pi_theta_fill_loop(classify3, &bars3, 1.0e6, &ThetaConfig::default(), None);
+        assert_eq!(fill3.typed_ledger.len(), 1, "恰一条 Core 根腿 typed 交易（P3 域）");
+        let row3 = &fill3.typed_ledger[0];
+        assert_eq!(row3.exit_type, ExitType::ReduceCore, "P3 域 typed = ReduceCore（S2 二分单源）");
+        let close3 = fill3
+            .account_view
+            .fills()
+            .iter()
+            .find(|f| !matches!(f.order.reason, ActionReason::Open | ActionReason::OpenShort))
+            .expect("P3 域平仓成交存在");
+        assert_eq!(
+            close3.order.account(),
+            AccountIdentity::Core { level: 0 },
+            "ambient 多根 ⟹ 本仓账（identity_of 单源）"
+        );
+        assert_eq!(close3.order.reason, ActionReason::ReverseType3, "三类反向 = 减仓语义");
+        assert_eq!(close3.order.key.position, row3.position_node_id, "严格身份对账");
+        assert_eq!(close3.order.qty_delta, -row3.units, "平多数量 = −typed units");
+        assert!(
+            fill3
+                .voice_verdicts
+                .iter()
+                .any(|v| v.leg.id == row3.voice_id && v.exit_type == ExitType::ReduceCore),
+            "P3 域平仓裁决落 verdicts 轨（schema 冻结）"
+        );
+    }
+
     /// ★★χ≡1 vs χ=1[μ>θ] 对比（acc-chi-theta-filter 可证伪核心）：买点 z 的 μ≤θ ⟹ χ 滤掉它 ⟹
     /// 交易集**收缩**（χ≡1 有交易，χ=1[μ>θ] 无）。这证明 χ 过滤**确实改变交易集**（非 no-op）。
     ///
