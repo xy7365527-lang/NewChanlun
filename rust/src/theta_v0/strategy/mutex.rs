@@ -529,7 +529,18 @@ mod tests {
             let cls = mutex_class(&predicates_of(&ctx, c, &working, &opened, entry_v_of));
             let mbucket = bridge_bucket(cls)
                 .expect("ctx 全 false ⟹ 候选级裁决 C5..C10/C0，恒有桶归属");
-            let ibucket = if open_idx.contains(&c.gamma_index) {
+            // ★#200 先平后开（spec WP-2 修复 c）：二类反向候选命中同级反向在飞腿时，interp
+            // 先 𝒟_x 关闭、再按规则3/4 同款 slot 判据落 ℬ_x/𝒦_x（dual-effect）；mutex C_j
+            // 单候选单桶只裁**关闭侧**（P5/P6/P7），桶级对拍以关闭侧为准，开仓侧按 slot
+            // 状态另行核对（下方推进段）。一/三类无 dual-effect（维持消费即止）。
+            let dual_close = c.bsp_class == 2
+                && c.nest_confirmed
+                && working.iter().any(|(l, cl)| {
+                    !cl && l.level == c.level && reverse_signal(l.dir, &c.bits)
+                });
+            let ibucket = if dual_close {
+                ActionBucket::Close // 先平：𝒟_x 认领（dual-effect 的关闭侧）
+            } else if open_idx.contains(&c.gamma_index) {
                 ActionBucket::Open
             } else if rec_idx.contains(&c.gamma_index) {
                 ActionBucket::Record
@@ -557,6 +568,28 @@ mod tests {
                         .position(|(l, cl)| !cl && l.level == c.level && reverse_signal(l.dir, &c.bits))
                     {
                         working[i].1 = true;
+                    }
+                    // #200 dual-effect 开仓侧：关闭后按同款 slot 判据——slot 空闲 ⟹ 候选
+                    // 须在 open 桶（OpenShort 通道，先平后开）；占用 ⟹ 须在 record 桶。
+                    if dual_close {
+                        let slot_taken = working
+                            .iter()
+                            .any(|(l, cl)| !cl && l.level == c.level && l.dir == c.dir)
+                            || opened.contains(&(c.level, c.dir));
+                        if slot_taken {
+                            assert!(
+                                rec_idx.contains(&c.gamma_index),
+                                "候选 gamma_index={} dual 开仓侧：slot 占用 ⟹ 须在 record 桶",
+                                c.gamma_index
+                            );
+                        } else {
+                            assert!(
+                                open_idx.contains(&c.gamma_index),
+                                "候选 gamma_index={} dual 开仓侧：slot 空闲 ⟹ 须在 open 桶（OpenShort 通道）",
+                                c.gamma_index
+                            );
+                            opened.push((c.level, c.dir));
+                        }
                     }
                 }
                 ActionBucket::Open => opened.push((c.level, c.dir)),
@@ -661,6 +694,8 @@ mod tests {
             &[(0, 7)],
         );
         // S12 二类反向 ⟹ P5 CloseRoot（二类是一类的次级确认，同属根反转——G4 判据表）。
+        // ★#200：关闭侧 P5 之外，候选「先平后开」开仓侧须落 open 桶（OpenShort 通道，
+        // shadow 推进段逐 slot 核对）——本场景即 dual-effect 的锚点切片。
         assert_bucket_equiv_typed(
             &[cand(0, 0, 20, s, 2, sell(2), Ambient)],
             &[leg(0, l, 5)],

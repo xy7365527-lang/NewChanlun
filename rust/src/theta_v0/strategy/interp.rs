@@ -313,7 +313,10 @@ impl PositionNodeId {
 /// 解释器输出三桶 (𝒟_x, ℬ_x, 𝒦_x)（spec §11 line 565-571 + §12 line 617）。
 ///
 /// 互斥分流：`𝒟_x`（关闭活动腿）∩`ℬ_x`/`𝒦_x`（候选）为空（不同类型）；`ℬ_x`∩`𝒦_x`=∅
-/// （每个候选恰落一桶，[`interpret`] fold 保证）。
+/// （每个候选恰落一桶，[`interpret`] fold 保证）。**#200 例外**：二类反向触发候选可
+/// 同时是关闭触发（close_triggers 归因）**与** `ℬ_x`/`𝒦_x` 成员（「先平后开」，
+/// spec WP-2 修复 c）——`ℬ_x`∩`𝒦_x`=∅ 不受影响，但「关闭触发候选不入 ℬ_x/𝒦_x」
+/// 仅对一/三类成立。
 #[derive(Debug, Clone, Default)]
 pub struct Buckets {
     /// 𝒟_x：应**关闭**的活动腿（⊆ A_t；同级别已确认反向证书触发，§9 closePred 反向项）。
@@ -1258,7 +1261,9 @@ pub fn theta_lt(a: &Candidate, b: &Candidate) -> bool {
 ///    反向（[`reverse_signal`]，§9 closePred 反向项 χ^{σ_p}）的活动腿，才把该腿送入 `𝒟_x` 并消费
 ///    g（spec §13 `A_t∖𝒟_x`）。`nest_confirmed=false` 只是证书成立层尚未确认的方向信号，直接进入
 ///    `𝒦_x`：§9 出场层不得重算 N^δ/背驰，也不得消费未成立证书；且 §13 的 `ℬ_x` 会真实激活持仓腿，
-///    故不能让被证书门拒绝的反向信号继续落规则3、反向开同一 carrier。
+///    故不能让被证书门拒绝的反向信号继续落规则3、反向开同一 carrier。**#200 例外（先平后开）**：
+///    二类反向触发候选被消费后**不停止**，继续落规则3/4 同款 slot 判据补开反向腿（OpenShort
+///    通道，spec WP-2 修复 c）；一/三类维持消费即止。
 /// 3. **开启**：A_t 无同级别同向活动腿 **且** 本 fold 未在同 (level,σ) slot 开过 ⟹ g 入 `ℬ_x`，
 ///    登记 slot（spec §13 `∪ℬ_x`）。
 /// 4. **冲突/重复**（slot 已被同向腿占据，或本 fold 已开同 slot）⟹ `𝒦_x`（记录不执行——
@@ -1339,7 +1344,16 @@ pub fn interpret_with_close_triggers(
             working[pos].1 = true;
             buckets.close.push(working[pos].0);
             close_triggers.push(*c); // 归因：本腿由候选 c 反向关闭（typed exit 原料）
-            continue;
+            // ★#200 OpenShort 通道（spec WP-2 修复 c / #185 审计发现 2「最早单源接入点」）：
+            // **二类**反向候选「先平后开」——被 close 分支消费后不 `continue`，落入下方
+            // 规则3/4 同款 slot 判据补开反向腿（ID-3：二类点 = 第二入场/加仓（加空）位；
+            // 反手机制 = 先平后开 `A_raw=(A_t∖D_t)∪O_t`，买卖点2 p.6/14 §9）。一/三类维持
+            // 消费即止（bit-exact 不动：一类「允许当场反手」是允许非要求，v1 不反手）。
+            // 账户归属（父 active⇒短差账 / 无父⇒空仓账的 ambient 守卫）由账户轴
+            // `identity_of` × `reason_of_open` 单源承担，本 fold 只放行候选、不另立判据。
+            if c.bsp_class != 2 {
+                continue;
+            }
         }
         // 规则3/4：开启 vs 记录（slot = (level, σ_g)）。
         // ponytail: H8 slot_in_at 用 level 索引查同 level 腿里是否有未关闭且 dir==c.dir 者

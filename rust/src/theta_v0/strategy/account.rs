@@ -73,6 +73,14 @@ pub enum ActionReason {
     /// 账户/理由正交：typed 层五枚举不动（二类 typed 归因仍归 `ExitType::CloseRoot`，
     /// 编排者裁定 2026-07-23——本变体只长在理由轴，不进 `ExitType`）。
     CoreResidualCorrection,
+    /// 二类开空通道（#200，spec WP-2 修复 c / #185 审计发现 2）：二类反向候选开
+    /// **空仓账**（[`AccountIdentity::Short`] = CONTEXT.md 反向根——无 active 父的反向
+    /// 声部，ambient 守卫读法：父 active⇒短差账、无父⇒空仓账）。票面形状
+    /// `OpenShort{level, certificate}`：level 与入场证书由 [`AccountKey`] 携带
+    /// （`key.level` + `key.position.entry_certificate`），理由轴只标通道名。
+    /// 与 [`ActionReason::Open`] 的区别：OpenShort 专指二类候选触发的 C 账户开仓
+    /// （一类首开/加仓开、短差开均保留 Open——通道归属经 [`reason_of_open`] 单源）。
+    OpenShort,
 }
 
 /// 声部身份 → 账户身份（入场时固定，与 `reverse_exit_type` 同取 `entry_v` 入场冻结值）。
@@ -129,6 +137,22 @@ pub fn reason_of_reverse_close(
         };
     }
     reason_of_reverse(trigger_class)
+}
+
+/// #200 开仓理由的**账户归属**（OpenShort 通道单源判据，spec WP-2 修复 c）。
+///
+/// - `Short` × 二类触发 ⟹ [`ActionReason::OpenShort`]（二类开空：无父反向声部经
+///   [`identity_of`] 归空仓账——ambient 守卫读法在此落成理由标注，不另立归属判据）。
+/// - 其余（账户, 触发类）⟹ [`ActionReason::Open`]（一类首开/加仓、短差开、
+///   FollowParent 级联开均保留既有口径——OpenShort 只标二类 × 空仓账这一通道）。
+///
+/// 账户身份由调用侧经 [`identity_of`] 单源解析喂入（与关闭侧
+/// [`reason_of_reverse_close`] 同判据，不镜像）；本函数不持候选/账本，保持纯判据。
+pub fn reason_of_open(account: AccountIdentity, trigger_class: u8) -> ActionReason {
+    match (account, trigger_class) {
+        (AccountIdentity::Short, 2) => ActionReason::OpenShort,
+        _ => ActionReason::Open,
+    }
 }
 
 /// 分实例记账键 =（账户, 级别, 仓位节点）（归属键粒度裁定 2026-07-23）。
@@ -606,6 +630,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// ★#200 OpenShort 通道理由归属（spec WP-2 修复 c）：二类 × Short 账户 ⟹ OpenShort；
+    /// 其余（账户 × 触发类）全保留 Open——OpenShort 只标二类开空这一通道（单源判据）。
+    #[test]
+    fn reason_of_open_marks_only_type2_short_account_as_open_short() {
+        // 二类 × Short（无父空根）⟹ OpenShort（二类开空通道）。
+        assert_eq!(reason_of_open(AccountIdentity::Short, 2), ActionReason::OpenShort);
+        // 一/三类 × Short ⟹ Open（一类首开反向仓标准位、三类不构成开空通道）。
+        assert_eq!(reason_of_open(AccountIdentity::Short, 1), ActionReason::Open);
+        assert_eq!(reason_of_open(AccountIdentity::Short, 3), ActionReason::Open);
+        // 二类 × ShortDiff ⟹ Open（短差开是 B 账户既有通道，非 OpenShort）。
+        assert_eq!(reason_of_open(AccountIdentity::ShortDiff, 2), ActionReason::Open);
+        // 二类 × Core ⟹ Open（FollowParent 级联加仓 / Ambient 多根第二入场，非 C 账户）。
+        assert_eq!(reason_of_open(AccountIdentity::Core { level: 0 }, 2), ActionReason::Open);
+        assert_eq!(reason_of_open(AccountIdentity::Core { level: 1 }, 2), ActionReason::Open);
+        // 非法触发类不享受通道标注（与 reason_of_reverse 同口径的防御域）。
+        assert_eq!(reason_of_open(AccountIdentity::Short, 0), ActionReason::Open);
     }
 
     /// ★减仓口径：部分平仓按比例释放成本基（均价法）。
