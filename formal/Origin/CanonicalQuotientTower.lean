@@ -45,6 +45,12 @@
   即两条路径在「Can 是恒等选择子（字面唯一）」特例下重合（`literal_unique_is_canonical`）。
   这正是 codex 裁 (b)：FULL ∃! 是 Can 商化在「∼_n 退化为相等」时的推论。
 
+  ── ★契约锚（#239 实写，#236 裁定）：rust 对应物 `rust/src/theta_v0/classifier/
+  recursive_tower.rs`——基础层 vs 实例层。本文件是**基础层**（Can 商化基础，∃! 是推论）；
+  rust 递归塔是**生产实例层**（窗口化 compose + 坐标传递），其实例层契约锚已由
+  `Origin.RecursiveLevelSystem`（①留件）承载。另：RLS 已降级语义近邻（#240 终裁）——
+  本文件固定三格 `lift` ≠ 生产动态窗 `compose` lift，勿逐字段对拍。
+
   ── 认识论等级（formalization-validity-domain 强制标注）─────────────────────
   全部 **L0**（结构 / 定义内蕴，信息增量为零——商集单点 ⟹ ∃! 是纯逻辑推导，
   不依赖任何市场数据）。本文件**不**声称任何 L1+ 经验有效性：Φ_n 规则族是抽象

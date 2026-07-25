@@ -32,6 +32,13 @@
 //! 旧塔把中枢折叠成无 subs 的 `UnitRange`（丢弃构成它的三段次级别走势）；新塔保留三段次级别走势
 //! 作 subs，故 descend 能取回它们 ⟹ B2/S2 可产。
 //!
+//! ## ★契约锚（#239 实写，#236 裁定）：`Origin/CanonicalQuotientTower.lean`——基础层 vs 实例层
+//!
+//! 本塔是**生产实例层**（窗口化 compose + 坐标传递）；`CanonicalQuotientTower.lean` 是**基础层**
+//! （Can 商化基础：DecompSetoid/QuotientSingleton ⟹ ∃! 为推论）。实例层契约锚已由
+//! `Origin.RecursiveLevelSystem`（①留件）承载，本锚是基础层对位。另：RLS 已降级**语义近邻**
+//! （#240 终裁）——Lean 固定三格 `lift` ≠ 生产动态窗 `compose` lift，勿逐字段对拍。
+//!
 //! ## 认识论等级（formalization-validity-domain 231号，强制标注）
 //!
 //! - **L0**（结构）：递归塔对象 [`LeveledMove`]（RMove::Compose + 坐标）的构造是纯结构操作

@@ -4,6 +4,12 @@ Origin/LedgerBridge.lean
 ★A′ Phase2 双账本桥 / **兼容层**（task #101 桥 + task #127 TW native 重锚后定位）：把 #93 双账本
 扩维 + OQ-9 gate（取本金三阶段 TW + stage 单向 + OQ-9 入口证书）挂到 Origin canonical 接口。
 
+★契约锚（#239 实写，#236 裁定）：rust 对应物 `rust/src/theta_v0/backtest/dual_ledger.rs`
+`DualLedger`。**同名不同义（勿误对拍）**——本文件「双账本」= R=Π-A-W（Origin 单账本
+`LedgerState`）⊕ 取本金三阶段 TW（#90 不同构两端并置）；rust `DualLedger` = M14 多空分腿
+头寸簿（多腿 q_long/空腿 q_short 两独立坐标）。二者语义域不交，无可对拍对象。本文件 TW
+保持定理已收窄至零实现盈亏子域（#242）。
+
 ════════════════════════════════════════════════════════════════════════
 ## ★定位（task #127 TW native 重锚后）：本文件 = compatibility/bridge theorem 层
 

@@ -2,6 +2,13 @@
 Origin/Pipeline.lean — S_Θ 端到端单管线（proven chain）：raw → segmentsOf → centersOf → bspOf
   → recog(买卖) → ledger 闭环（函数复合）+ 整链 well-defined/total/确定性 + 闭环不变量贯穿（task #125）
 
+★契约锚（#239 实写，#236 裁定）：rust 对应物 `rust/src/theta_v0/parser/mod.rs`
+  `parse_layer`/`parse_layer_from_merged`（七段复合）。⚠段结构差（勿误对拍）：本文件
+  `originPipeline` 是 3+2 段**吃 strokes/candidates**（`OriginInput` 已携笔流与候选端点流；
+  构造链 3 段 segmentsOf→centersOf→bspOf + 闭环链 2 段 recog→ledger）；rust 七段复合
+  **吃 raw bars**（从原始 K 线包含合并起）——非同一函数、输入域不同，禁直接对拍。
+  重叠区 = strokes/segments（交接对账项在案，#240 终裁）。
+
 ★工位定位（审计 B「端到端单 wiring 未做」缺口）：构造层 segmentsOf/centersOf/bspOf（#116
   SegmentConstruction/CenterConstruction/BspConstruction，committed）+ 买卖 recog→ledger 闭环
   （#117 ThetaInstantiation chanlunTransition，committed）各组件已 committed，但**没组成一条端到端

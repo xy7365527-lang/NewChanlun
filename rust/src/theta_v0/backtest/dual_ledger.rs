@@ -25,6 +25,12 @@
 //!   收益 G^sep>0（M24）≠ 净额账户收益命题）。
 //!
 //! 认识论 L0（账本结构恒等）/L1（管线串通）——不声称 L2 alpha。
+//!
+//! ★契约锚（#239 实写，#236 裁定）：`Origin/LedgerBridge.lean`。**同名不同义（勿误对拍）**——
+//! Lean 侧「双账本」= R=Π-A-W（Origin 单账本 `LedgerState`）⊕ 取本金三阶段 TW（#90 不同构
+//! 的两端并置）；本文件 `DualLedger` = M14 多空分腿头寸簿（`P^sep=∏(R≥0 e⁺⊕R≥0 e⁻)`，
+//! 多腿/空腿两独立坐标）。二者语义域不交，**无可对拍对象**。Lean 侧 TW 保持定理已收窄至
+//! 零实现盈亏子域（#242）。
 
 use super::super::strategy::voice::VoiceSide;
 use super::super::strategy::LegOrder;
