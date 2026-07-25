@@ -217,7 +217,15 @@ theorem ancOK_subset
 §八 boxed：`A_{t+1} = AncOK[ (A_t \ D_t) ∪ B_t ]`——先关后开（W9 `targetActiveSet`）后施祖先闭合。
 
 ★`ancestorClose` = 对 W9 的「先关后开」激活集 `targetActiveSet active ending starting`
-（= `(A_t\D_t)∪B_t`）施加 `ancOK`。两步活动集递归（W9 先关后开 → 本文件祖先闭合裁剪）的合成。-/
+（= `(A_t\D_t)∪B_t`）施加 `ancOK`。两步活动集递归（W9 先关后开 → 本文件祖先闭合裁剪）的合成。
+
+★票#247（rust 对应实装的声明一致，纯注释不改任何语句）：rust 生产路径
+（`rust/src/theta_v0/strategy/coverage.rs` 环6 `coverage_step_from_buckets`）的活动集转移含
+**显式第三来源** `∪RegistryRestore`——persistent registry 中本已在场的持久祖先（LiveDetached）
+经 `restore_ancestor_chain_from_registry` 在 per-bar 因果树上**物化**入 raw（anc.pdf §11 归纳：
+每条未关闭腿的操作父 live ⟹ depth<d 祖先全在 raw ⟹ AncOK 通过）。物化机制**非新数学来源**——
+Lean 理想式 `AncOK[(A_t\D_t)∪B_t]` 不变（物化不改递归的数学内容，只把 persistent 在场的祖先
+展示进 raw 使 `AncestorsIn` 可判）。-/
 
 /--
 祖先闭合活动集 `A_{t+1} = AncOK[(A_t\D_t)∪B_t]`（§八 boxed 总式，M16 顶点定义）。

@@ -300,7 +300,13 @@ theorem mem_rawUpdate (At : List Cand) (t : Triple) (a : Cand) :
     ═══════════════════════════════════════════════════════════════════════ -/
 
 /-- **★A_{t+1} = AncOK[(A_t∖𝒟_x)∪ℬ_x]（§13 顶点定义，★实例化于 Cand）** ——
-    `par`（候选祖先 p:C_ℓ→C_{ℓ+1}，元素级父函数，可分离参数）/ `fuel`（树深上界，§十九）。 -/
+    `par`（候选祖先 p:C_ℓ→C_{ℓ+1}，元素级父函数，可分离参数）/ `fuel`（树深上界，§十九）。
+
+    ★票#247（rust 对应实装的声明一致，纯注释不改任何语句）：rust 生产路径
+    （`rust/src/theta_v0/strategy/coverage.rs` 环6 `coverage_step_from_buckets`）的转移含
+    **显式第三来源** `∪RegistryRestore`——persistent registry 持久祖先（LiveDetached）经
+    `restore_ancestor_chain_from_registry` 在 per-bar 因果树上物化入 raw（anc.pdf §11），
+    **非新数学来源**；本定义的理想式 `AncOK[(A_t∖𝒟_x)∪ℬ_x]` 不变。 -/
 def activeNext (par : Cand → Option Cand) (fuel : Nat) (At : List Cand) (t : Triple) : List Cand :=
   ancOKG par fuel (rawUpdate At t)
 
