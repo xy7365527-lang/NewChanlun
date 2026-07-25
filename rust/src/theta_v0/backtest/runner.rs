@@ -5895,13 +5895,33 @@ mod tests {
             }),
             "断言③：BTC 全窗无二类 Core 卖单"
         );
-        // 订单轨新基线锁（#179 程序核对，2026-07-24 本票实跑）：#198 基线 25 笔 → #200 新
-        // 基线 **26 笔**（五枚举分布 9+8+7+0+2；翻动 = 先平后开新订单，非回归——同窗
+        // 订单轨基线锁（#179 程序核对）：#198 基线 25 笔 → #200 新基线 26 笔 → ★#233 新基线
+        // **50 笔**（五枚举实名分布 CloseRoot=32 / CloseShortDiff=17 / ReduceCore=1 / Hold=0 /
+        // RiskExit=0；2026-07-25 本票实跑，debug-assertions on/off 双口径逐位一致，同窗
         // `btc_type2_residual_correction_witness`/`typed_ledger_btc_smoke` 复核一致）。
-        assert_eq!(fill.typed_ledger.len(), 26, "#200 订单轨新基线（25→26，先平后开新订单）");
-        // 二类触发开仓的通道标注约束（真实数据逐笔，i_class=2 实测 11 笔）：`reason_of_open`
-        // 映射在真实数据上逐笔成立——OpenShort ⟺ Short 账户（本窗二类开仓全部落非 Short
-        // 账 ⟹ 全标 Open，零误标）。
+        // ★#233 翻动逐条对账（方向翻转显式化为声部终结事件，#227 裁决蓝图两步形）：
+        // - typed 26→50（+24）：翻向终结的旧世代腿经 silent_drops 入轨（via_structural_prune）
+        //   ——非 ShortDiff 归 CloseRoot（8→32，+24 含连清）、ShortDiff 归 CloseShortDiff
+        //   （9→17，+8）。train 窗内「开仓后被树静默翻向续命」的持仓腿（大量 1-bar 持有，
+        //   与 (2,98) gen 0..9 同形态）自此在翻向 bar 终结入轨，不再方向突变续命至后续信号。
+        // - prune 腿 6→47（+41）：基线 6 笔 prune 腿全部同 entry/同 exit_type/同 account、
+        //   exit 一致提前（(0,52) 6306→6175、(0,61) 8366→7011、(0,86) 10365→9941、
+        //   (0,92) 10422→10368、(0,114) 14653→14286、(0,128) 15625→15356）——旧轨里方向
+        //   被树翻转后续命至 AncOK/Stale 剪，新轨在翻向 bar 即终结；新增 41 笔 = 翻向父
+        //   终结 + 子树连清（𝒟_x^† 现成机制，exit.rs subtree_close 数济判据）。
+        // - ReduceCore 7→1（−6）：二类减仓对象核心腿在二类信号出现前已翻向终结，减仓触发面
+        //   消失；Hold 2→0（−2）：窗尾 censored 持仓在窗尾前已翻向终结。
+        // - 开空单 Short×OpenShort 0→2 + 开仓分布 Core{0}×Open 10→22 / ShortDiff×Open 10→17 /
+        //   Short×Open 3→6：翻向终结释放 carrier 后**新世代重登记**（蓝图两步形②）——旧轨
+        //   候选被旧世代腿「持仓身份优先」（#216 规则①）让位，新轨旧世代已终结 ⟹ 候选
+        //   准入开仓（A9 generation+1 新 posId/generation）。
+        // - 断言①②③ 全程违例=0（同窗 `btc_type2_residual_correction_witness`：断言①评估=1
+        //   级残余违例=0、断言②评估=0 级余额违例=0、断言③前半=1（同级 Core 残余=0））；
+        //   prune 腿跨账一致性（exit_type⟺account）47 笔逐笔成立
+        //   （`btc_prune_leg_exit_type_matches_account_identity`）。
+        assert_eq!(fill.typed_ledger.len(), 50, "#233 订单轨新基线（26→50，翻向终结入轨+新世代重登记）");
+        // 二类触发开仓的通道标注约束（真实数据逐笔）：`reason_of_open`
+        // 映射在真实数据上逐笔成立——OpenShort ⟺ Short 账户（零误标）。
         let mut n_t2_entry = 0usize;
         for t in fill.typed_ledger.iter().filter(|t| t.entry_z.i_class == 2) {
             n_t2_entry += 1;
@@ -5919,11 +5939,11 @@ mod tests {
             );
         }
         assert!(n_t2_entry > 0, "BTC 窗二类触发开仓实测非空（通道判据真实经受真实数据）");
-        eprintln!("  二类触发开仓(i_class=2)={n_t2_entry}（全落非 Short 账 ⟹ OpenShort=0 样本缺席）");
-        // ★诚实记录（2026-07-24 实跑）：本窗 `n_open_short`（Short×OpenShort）= **0**——
-        // 二类 × 无父空根形态在本窗样本缺席（11 笔二类开仓全落 Core/ShortDiff/Ambient-Long），
-        // 非机制缺席（合成场景 `type2_open_short_channel_no_parent_lands_short_account`
-        // 红→绿见证机制真实产生开空单）；不伪造（DATA BLOCKER 纪律）。
+        eprintln!("  二类触发开仓(i_class=2)={n_t2_entry}");
+        // ★诚实记录（2026-07-25 #233 实跑）：本窗 `n_open_short`（Short×OpenShort）= **2**——
+        // #200 基线记录为 0（二类 × 无父空根形态样本缺席，非机制缺席）；#233 翻向终结
+        // 释放 carrier + 新世代重登记（蓝图两步形②）后该形态在真实数据显现 2 笔，
+        // 上方逐笔标注断言（OpenShort ⟹ Short 账）对这两笔真实成立。
     }
 
     /// ★#198 跨账一致性见证（BTC 真实数据，生产路径）：§13 结构剪枝腿的 typed 归属
@@ -6009,7 +6029,9 @@ mod tests {
                 t.voice_id, t.exit_type, account
             );
         }
-        assert!(n_prune > 0, "BTC train 窗必产结构剪枝腿（见证非空转，基线 6 笔）");
+        // ★#233：prune 腿基线 6 笔 → 47 笔（翻向终结 + 子树连清入轨，逐条对账见
+        // `btc_type2_open_short_channel_witness` 基线锁注释）；47 笔逐笔跨账一致（上方断言）。
+        assert!(n_prune > 0, "BTC train 窗必产结构剪枝腿（见证非空转，#233 基线 47 笔）");
     }
 
     /// ★#199/#209 BTC 真实数据见证（生产路径，16000 bars）：二类反向「仅残余才纠错」

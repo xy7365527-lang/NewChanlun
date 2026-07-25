@@ -15,7 +15,9 @@
 //!
 //! ## 不变量 I1-I5（anc.pdf §7）
 //! - I1 持久身份：腿未关闭 ⟹ pid(e)∈Pi 所有后续 bar
-//! - I2 元素方向不变：δi(e)=δj(e)
+//! - I2 元素方向不变：δi(e)=δj(e)——**#233 机器锁落地**：upsert 方向守卫拒绝同 id 静默
+//!   覆写 dir（[`FlipGuardProbe`] 计数为凭；此前生产每 bar 无条件覆写 dir 实证违例，
+//!   见 leg-2-98-lifecycle-20260724 §5）。翻向的终结事件化在 coverage 对位层兑现。
 //! - I3 parent 是关系非身份：pid(e) 不依赖 parent(e)
 //! - I4 操作父持久：op_parent(L)=c ⟹ c∈Pi 或 c⇝c'（确定性 successor）
 //! - I5 AncOK 作用 persistent set
@@ -218,7 +220,8 @@ impl PersistentRegistry {
     ///
     /// bit-exact == 全量（`tree_dirty=true` 恒走全量）：
     /// - step 2' 跳过：tree_dirty=false ⟹ tree 同上 bar ⟹ 上 bar upsert 值 == 本 bar 会写值（断言1）。candidate
-    ///   段恒 upsert，且 carrier id 碰撞时 upsert 覆盖**全部** tree-derived 字段 ⟹ 末态 = candidate 值（断言2）。
+    ///   段恒 upsert，且 carrier id 碰撞时 upsert 覆盖**除 dir 外**全部 tree-derived 字段（断言2；
+    ///   dir 入 #233 I2 守卫不参与覆盖）⟹ 末态 = candidate 值（dir 永固首见方向）。
     /// - step 1' 跳过 tree：tree_dirty=false ⟹ present_last_tree 中每 id 仍在本 bar tree ⟹ 全 present ⟹ 不该置
     ///   false（断言3）。candidate 段恒查：present_last_cand 中本 bar 在 `cand_ids ∪ tree_ids` 找不到的才置 false
     ///   （carrier id 上 bar 在 cand 本 bar 退回 tree 仍 present，不误置）。
@@ -315,7 +318,13 @@ impl PersistentRegistry {
 
         // 2'. upsert：snapshot 中所有元素刷新 snapshot_present=true + structural_parent_id/rho（§9 rule 1）。
         //     ★工位 4f：tree_dirty=false ⟹ 跳过 tree 段（上 bar 已写同值，断言1）；candidate 段恒 upsert。
-        let upsert = |elements: &mut std::collections::HashMap<ElementId, PersistentElement>, e: &CoverageElement| {
+        //     ★#233 I2 机器锁（票面要求 1，anc.pdf §7 I2「同一持久元素方向不变」）：已存在条目
+        //     方向冲突 ⟹ **拒绝静默覆写 dir**（dir 永固首见方向），其余 snapshot 字段照刷
+        //     （§9 rule 1 坐标/关系可变、I3）；冲突显式计数（[`FlipGuardProbe`]，机器锁审查证据）。
+        //     tree/candidate 段同一闭包 ⟹ χ 域外候选 flip-flop 同路径守卫（票面第 4 条）。
+        //     翻向的**终结事件化**（父关闭 + 子树连清 + 新世代登记，#227 裁决蓝图两步形）在
+        //     coverage 对位层（`held_leg_tree_index_indexed` 方向守卫）兑现——本层是持久防线。
+        let upsert = |elements: &mut std::collections::HashMap<ElementId, PersistentElement>, e: &CoverageElement, cand_segment: bool| {
             let pid = e.id;
             let entry = elements.entry(pid).or_insert(PersistentElement {
                 pid,
@@ -327,7 +336,19 @@ impl PersistentRegistry {
                 snapshot_present: true,
                 invalidated: false,
             });
-            entry.dir = e.eps;
+            // ★#233 I2 守卫：同 id 方向不一致 ⟹ 不覆写 dir（禁止静默覆写；拒绝形态，非异常——
+            // 翻向是合法事件，事件化在 coverage 层），冲突显式计数（分 tree/cand 段）。
+            if entry.dir != e.eps {
+                flip_guard_probe_bump(|p| {
+                    if cand_segment {
+                        p.cand_blocked += 1;
+                    } else {
+                        p.tree_blocked += 1;
+                    }
+                });
+            } else {
+                entry.dir = e.eps;
+            }
             entry.level = e.level;
             entry.lambda = e.lambda;
             entry.rho = e.rho;
@@ -337,16 +358,17 @@ impl PersistentRegistry {
         };
         if tree_dirty {
             for e in tree {
-                upsert(&mut self.elements, e);
+                upsert(&mut self.elements, e, false);
             }
         }
-        // candidate 段 upsert（断言2：碰撞 carrier id 覆盖全字段，须在 tree 之后保覆盖序与全量一致）。
+        // candidate 段 upsert（断言2 收窄：碰撞 carrier id 覆盖**除 dir 外**全部 tree-derived
+        // 字段——dir 入 I2 守卫（#233），仍须在 tree 之后保覆盖序与全量一致）。
         //   ★on2w3：跳过仅当 **tree 与 cand 都不脏**——tree_dirty=true 时 tree 段可能 upsert 了与 candidate
         //   碰撞的 carrier id（tree 值），须重跑 candidate upsert 恢复「candidate 胜」覆盖序（断言2）。
         //   cand_dirty=false 且 tree_dirty=false ⟹ 无碰撞覆盖 + 同值上 bar 已 upsert ⟹ 跳过。
         if cand_dirty || tree_dirty {
             for e in candidates {
-                upsert(&mut self.elements, e);
+                upsert(&mut self.elements, e, true);
             }
         }
 
@@ -397,6 +419,47 @@ impl PersistentRegistry {
             Some(_) => HeldLegState::LiveDetached,
         }
     }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ★#233 I2 方向守卫探针（机器锁可观测面，断言①②③同款 thread_local 恒在计数模式）
+// ════════════════════════════════════════════════════════════════════════════
+
+/// I2 方向守卫运行时计数：同 id 方向冲突被守卫**拒绝静默覆写**的笔数（分 tree/candidate 段）。
+/// 计数 >0 ⟺ 翻向事件发生——翻向的事件化（父声部关闭 + 子树连带清仓 + 新世代重登记，#227 裁决
+/// 蓝图两步形）在 coverage 对位层（`held_leg_tree_index_indexed` 方向守卫/Flipped 分派）兑现；
+/// 本计数是持久层「方向不可变机器锁」的审查证据（release 下可观测，与断言①②③探针同款）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FlipGuardProbe {
+    /// tree 段 upsert 方向冲突守卫笔数（树元素/frontier 重组翻向）。
+    pub tree_blocked: u64,
+    /// candidate 段 upsert 方向冲突守卫笔数（χ 域外候选 flip-flop——与树元素 dir 覆写
+    /// 同一路径（同一 upsert 闭包），票面第 4 条：一并按守卫处理）。
+    pub cand_blocked: u64,
+}
+
+thread_local! {
+    static FLIP_GUARD_PROBE: std::cell::Cell<FlipGuardProbe> =
+        const { std::cell::Cell::new(FlipGuardProbe { tree_blocked: 0, cand_blocked: 0 }) };
+}
+
+#[inline]
+fn flip_guard_probe_bump(f: impl FnOnce(&mut FlipGuardProbe)) {
+    FLIP_GUARD_PROBE.with(|c| {
+        let mut p = c.get();
+        f(&mut p);
+        c.set(p);
+    });
+}
+
+/// 归零 I2 方向守卫探针（L2 run/见证测试前调用）。
+pub fn flip_guard_probe_reset() {
+    FLIP_GUARD_PROBE.with(|c| c.set(FlipGuardProbe::default()));
+}
+
+/// 读取 I2 方向守卫探针快照（L2 run/见证测试后调用）。
+pub fn flip_guard_probe_snapshot() -> FlipGuardProbe {
+    FLIP_GUARD_PROBE.with(std::cell::Cell::get)
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -609,5 +672,82 @@ mod tests {
         // 显式关闭后退出
         reg.close(&leg_id);
         assert!(!reg.registry_live(&leg_id));
+    }
+
+    /// ★#233 **I2 机器锁**（票面要求 1，#227 裁决 anc.pdf §7 I2「同一持久元素方向不变」）：
+    /// 同 id 方向覆写输入 ⟹ upsert 守卫**拒绝静默覆写**——dir 保持首见方向，其余 snapshot
+    /// 字段（rho/level/lambda/structural_parent_id）照刷（§9 rule 1：坐标/关系可变、I3），
+    /// tree 段方向冲突显式计数（事件化原料；翻向的终结事件化在 coverage 对位层兑现）。
+    ///
+    /// **RED（守卫前）**：upsert 每 bar 无条件 `entry.dir = e.eps`（旧 :330）⟹ dir 被静默
+    /// 翻成 Short（leg-2-98 勘察 §5 实证 I2 违例：(3,22) 两次翻转、(2,98) 每代翻转）。
+    /// **GREEN（守卫后）**：dir=Long 永固，rho 照刷 15，tree 段 flip 探针=1。
+    #[test]
+    fn i2_direction_guard_blocks_silent_dir_overwrite() {
+        flip_guard_probe_reset();
+        let mut reg = PersistentRegistry::new();
+        let pid = ElementId { level: 0, ordinal: 0 };
+        let e0 = cov_elem(0, 0, 0, 10, VoiceSide::Long, None);
+        reg = reg.merge(&[e0], &[]);
+        assert_eq!(reg.get(&pid).unwrap().dir, VoiceSide::Long);
+
+        // bar 1：同 id 方向覆写输入（frontier 重组翻向）——守卫：dir 不变，坐标照刷。
+        let e1 = cov_elem(0, 0, 0, 15, VoiceSide::Short, None);
+        reg = reg.merge(&[e1], &[]);
+        let pe = reg.get(&pid).unwrap();
+        assert_eq!(
+            pe.dir,
+            VoiceSide::Long,
+            "I2：同一持久元素方向不变——守卫拒绝静默覆写（#233 机器锁）"
+        );
+        assert_eq!(pe.rho, 15, "rho 照刷（§9 rule 1 snapshot 坐标刷新不收守卫影响）");
+        assert!(pe.snapshot_present, "snapshot_present 照刷（§9 rule 1）");
+        assert_eq!(
+            flip_guard_probe_snapshot().tree_blocked,
+            1,
+            "tree 段方向冲突显式计数（I2 机器锁审查证据）"
+        );
+        assert_eq!(flip_guard_probe_snapshot().cand_blocked, 0);
+    }
+
+    /// ★#233 **I2 机器锁（candidate 段同路径，票面第 4 条）**：χ 域外候选对 registry dir 的
+    /// 覆盖与树元素 dir 覆写**同一路径**（同一 upsert 闭包，candidate 胜序）⟹ 一并按守卫
+    /// 处理：候选方向与持久条目冲突 ⟹ 拒绝覆写 dir（其余字段照刷，candidate 胜序收窄为
+    /// 「除 dir 外全字段」），cand 段探针计数。
+    ///
+    /// 现场（leg-2-98 勘察 §2.3）：χ 未过候选元素（dir=Long）每 bar 把 registry[(2,98)].dir
+    /// 覆盖成 Long（物理 Short）——registry dir 与物理长期背离（I2 生产实证违例，flip-flop
+    /// 无关闭效力副产）。
+    ///
+    /// **RED（守卫前）**：candidate 胜序覆盖全字段 ⟹ dir=Long（背离物理）。**GREEN（守卫
+    /// 后）**：dir=Short 永固，rho=30 照刷（胜序收窄：仅 dir 入守卫），cand 探针=1。
+    #[test]
+    fn i2_direction_guard_candidate_segment_same_guard() {
+        flip_guard_probe_reset();
+        let mut reg = PersistentRegistry::new();
+        let pid = ElementId { level: 2, ordinal: 98 };
+        let tree_elem = cov_elem(2, 98, 10, 20, VoiceSide::Short, None);
+        // 双段 merge：tree 段首见 Short 登记；candidate 段同 id 同向 upsert（无冲突基线）。
+        reg.merge_in_place_split(&[tree_elem], true, &[tree_elem], true, &[]);
+        assert_eq!(reg.get(&pid).unwrap().dir, VoiceSide::Short);
+        // 下一 bar：candidate 段同 id **Long** 冲突（χ 域外 flip-flop 形态）⟹ 守卫。
+        let cand_long = cov_elem(2, 98, 30, 30, VoiceSide::Long, None);
+        reg.merge_in_place_split(&[tree_elem], true, &[cand_long], true, &[]);
+        let pe = reg.get(&pid).unwrap();
+        assert_eq!(
+            pe.dir,
+            VoiceSide::Short,
+            "I2：candidate 段方向冲突同守卫——registry dir 不被 χ 域外候选覆盖（票面第 4 条）"
+        );
+        assert_eq!(
+            pe.rho, 30,
+            "candidate 胜序的坐标刷新保留（断言2 收窄：仅 dir 字段入守卫，其余字段仍 candidate 胜）"
+        );
+        assert_eq!(
+            flip_guard_probe_snapshot().cand_blocked,
+            1,
+            "cand 段方向冲突显式计数（I2 机器锁审查证据）"
+        );
+        assert_eq!(flip_guard_probe_snapshot().tree_blocked, 0);
     }
 }

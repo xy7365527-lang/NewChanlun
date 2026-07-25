@@ -250,8 +250,14 @@ fn generation_depth(leg: &ActiveLeg, by_id: &HashMap<ElementId, &ActiveLeg>, bou
 /// 传递闭包）。返回序 **deepest-first**（代际深者先平、种子父收尾——生产级联发射序，
 /// §20 先平后开：子腿现金先到位；#183 归一后本序即生产唯一发射序）。
 ///
-/// - `seeds` = 直接被裁决终结的声部（interp 规则2 的 𝒟_x，契约 `𝒟_x⊆A_t`）。
+/// - `seeds` = 直接被裁决终结的声部（interp 规则2 的 𝒟_x，契约 `𝒟_x⊆A_t`；★#233 起含
+///   coverage 翻向种子——翻向父腿旧世代终结**不保留于 A**，见下条数济判据）。
 /// - 后代判据：v 自身或沿 `parent_id` 链（A 内解析）任一祖先的 id ∈ seeds。
+/// - ★#233 **父不在 A 的数济判据**：链上溯断裂（`parent_id` 不在 by_id——翻向父旧世代
+///   终结后未保留，coverage.rs `held_flip_terminated` 分派）时，断裂点 `parent_id ∈ seeds`
+///   ⟹ **连坐**（父已被裁决终结，后代不得因父缺席而漏清）；`parent_id ∉ seeds` ⟹ 现状
+///   不变（孤儿归声部层 AncOK 判，#148 验收2 路径不回退）。仅扩「父是种子但不在 A」一面；
+///   父在 A 的既有路径（restore 复活被关父命中种子同清，#183 归一机制）零改。
 /// - 不可变：不 mutate 输入，产新 Vec。
 pub fn subtree_close(active: &[ActiveLeg], seeds: &[ActiveLeg]) -> Vec<ActiveLeg> {
     let by_id: HashMap<ElementId, &ActiveLeg> =
@@ -274,7 +280,11 @@ pub fn subtree_close(active: &[ActiveLeg], seeds: &[ActiveLeg]) -> Vec<ActiveLeg
                 steps += 1;
                 match cur.parent_id.and_then(|p| by_id.get(&p)) {
                     Some(parent) => cur = *parent,
-                    None => return false,
+                    // ★#233 数济：断裂点 parent_id ∈ seeds ⟹ 连坐（父已终结但未保留于 A）；
+                    // ∉ seeds ⟹ false（现状：孤儿归声部层 AncOK，不回退 #148 验收2 路径）。
+                    None => {
+                        return cur.parent_id.is_some_and(|p| seed_ids.contains(&p));
+                    }
                 }
             }
         })
@@ -496,6 +506,35 @@ mod tests {
         assert_eq!(next.len(), 1, "root 不在子树内 ⟹ 存活");
         assert_eq!(next[0].id, root.id);
         assert!(anc_subset_of_active(&next));
+    }
+
+    /// ★#233 翻向父**不在 A** 的后代数济（#227 裁决「父翻向 = 父终结」的清仓数济）：
+    /// 翻向父腿旧世代终结后**不保留于活动集**（方向盲对位废除，coverage.rs `held_flip_
+    /// terminated` 分派）——其后代沿 parent_id 链上溯时链断裂（父 ∉ by_id）。断裂点
+    /// parent_id ∈ seeds ⟹ **连坐**（父已被裁决终结，其后代不得因父缺席而漏清）；
+    /// parent_id ∉ seeds ⟹ 现状不变（孤儿留给声部层 AncOK 剪，#148 验收2 路径不回退）。
+    ///
+    /// **RED（判据前）**：断裂即返回 false ⟹ 翻向父的子树漏清（父不死、子树存活，
+    /// leg-2-98 勘察 §5「死法②被系统性摘除」的活动集层形态）。**GREEN（判据后）**：
+    /// 种子缺席 A 仍连清全子树（deepest-first 序保留）。
+    #[test]
+    fn subtree_close_liquidates_descendants_of_seed_absent_from_active() {
+        let (root, child, grand) = chain3();
+        // 翻向父（root）旧世代终结 ⟹ 不在 active（不保留形态）；但其 id 在 seeds（翻向种子）。
+        let active = vec![child, grand];
+        let closed = subtree_close(&active, &[root]);
+        let ids: Vec<ElementId> = closed.iter().map(|l| l.id).collect();
+        assert_eq!(
+            ids,
+            vec![grand.id, child.id],
+            "父不在 A 但 ∈ seeds ⟹ 子树连坐清仓（deepest-first）；实得 {ids:?}"
+        );
+        let next = step_active_set_with_subtree_close(&active, &[root], &[]);
+        assert!(next.is_empty(), "子树全清 ⟹ A_{{t+1}} 空");
+        assert!(anc_subset_of_active(&next));
+        // 对照（现状语义不回退）：parent_id ∉ seeds ⟹ 断裂不清（孤儿归声部层 AncOK 判）。
+        let closed_no_seed = subtree_close(&active, &[]);
+        assert!(closed_no_seed.is_empty(), "无种子 ⟹ 不清（现状语义不变）");
     }
 
     // ── #148 T4 验收2：任意裁决序列回放后 ∀v∈A, Anc(v)⊆A ────────────────

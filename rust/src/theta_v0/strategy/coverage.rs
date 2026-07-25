@@ -101,6 +101,10 @@ pub struct AncokProbe {
     /// ★#226：restore 遇**当 bar 已被裁决终结**的祖先（∈ 𝒟_x 关闭种子）提前中断——open 父注入
     /// 路径（ℬ_x 段无 𝒟_x^† 种子兜底）不得复活被关父（S3 子树清仓；m3 win9 断言①炸点根因）。
     pub restore_break_closed_seed: u64,
+    /// ★#233：held 对位方向守卫命中——树元素方向 ≠ 持仓腿方向 ⟹ 翻向 = 声部终结（#227 裁决
+    /// 蓝图两步形①；方向盲 ID 对位复活废除）。翻向腿进当 bar 翻向种子，经现成 𝒟_x^†
+    /// 子树清仓连清其后代（父不在 A 的后代数济判据，exit.rs subtree_close）。
+    pub held_flip_terminated: u64,
 }
 
 thread_local! {
@@ -115,6 +119,7 @@ thread_local! {
         restore_break_already_in_raw: 0,
         restore_break_registry_lost: 0,
         restore_break_closed_seed: 0,
+        held_flip_terminated: 0,
     }) };
 }
 
@@ -1882,6 +1887,15 @@ fn held_leg_tree_index_indexed(
 ) -> HeldLegMatch {
     // 按 ElementId 结构映射匹配（spec §13 p:C_ℓ→C_{ℓ+1}）。
     if let Some(&idx) = id_idx.get(&leg.id) {
+        // ★#233 I2 方向守卫（#227 裁决「父翻向 = 父终结」，anc.pdf §7 I2 同一持久元素方向
+        // 不变）：树元素方向 ≠ 持仓腿方向 ⟹ **翻向**——同一持久元素不存在改向后的延续形态
+        // （声部方向 σ 出生焊死进 posId，蓝图操作词典无「改向」动词：反手/翻转一律关旧开新）。
+        // 旧世代按终结分派（Flipped：进翻向种子，子树经现成 𝒟_x^† 连清；方向盲 ID 对位复活
+        // 废除），新世代经正常候选准入重登记（新 posId/generation）。**frontier 翻向同按终结**
+        // （#227 焊缝规则：守卫不区分 frontier/confirmed——凡方向不一致即终结）。
+        if tree[idx].eps != leg.dir {
+            return HeldLegMatch::Flipped;
+        }
         // ID 命中 ⟹ 同一走势（父延伸也同 ID）。更新 rho/source_index 从当前元素由调用方处理
         //（element_as_leg 重读当前元素坐标）。守卫：当前 rho >= 旧 source_index（父延伸不变量）。
         if tree[idx].rho >= leg.source_index {
@@ -1903,8 +1917,14 @@ fn held_leg_tree_index_indexed(
 /// 无需 λ 稳定性 hack（值比较 `(level,λ,eps)` 已弃用，spec §13 结构映射对齐）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HeldLegMatch {
-    /// ID 命中（跨 bar 同走势，父延伸也同 ID）：当前树元素 idx。
+    /// ID 命中（跨 bar 同走势，父延伸也同 ID）且**方向一致**（#233 I2 守卫后 Exact 的前提）：
+    /// 当前树元素 idx。
     Exact(usize),
+    /// ★#233：ID 命中但**树元素方向 ≠ 持仓腿方向** ⟹ 翻向 = 声部终结（#227 裁决蓝图两步形①，
+    /// anc.pdf §7 I2「同一持久元素方向不变」；**frontier/confirmed 同判**——#227 焊缝规则）。
+    /// 旧世代不得当 Exact 对位（方向盲 ID 对位复活废除——`element_as_leg` 静默改向路径自此
+    /// 不可达），进当 bar 翻向种子，其后代经现成 𝒟_x^† 子树清仓连清。
+    Flipped,
     /// ID 未匹配（父真失效）：调用方按 is_boundary_root 决定 root/prune。
     Stale,
 }
@@ -2220,6 +2240,13 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
     let closed = close_indices(prev_active, &buckets.close);
+    // ★#233 翻向种子（当 bar 方向翻转的持仓腿 = 旧世代终结，#227 裁决蓝图两步形①）：
+    // 下方 step 调用并入关闭种子，经现成 𝒟_x^† 子树清仓连清其后代（**只作用 A_t 段**——
+    // ℬ_x 段反手/新世代候选不连坐，#183 分段/ID-3 反手保护同构）。翻向腿自身与其连清
+    // 后代不在 close 桶、不在 next_active ⟹ 自动落 StepTrace.silent_drops 入轨（runner
+    // 既有消费链：typed ledger via_structural_prune + 账户镜像 StructuralPrune——close
+    // 事件入轨不新造外化轨）。
+    let mut flipped_seeds: Vec<ActiveLeg> = Vec::new();
     for (i, leg) in prev_active.iter().enumerate() {
         if closed.contains(&i) {
             continue; // 𝒟_x：本腿关闭，不入 A^raw
@@ -2233,6 +2260,15 @@ pub(crate) fn coverage_step_from_buckets_sep(
                 if !raw.contains(&idx) {
                     raw.push(idx);
                 }
+            }
+            // ★#233 Flipped（树元素方向 ≠ 持仓腿方向 ⟹ 翻向 = 声部终结）：旧世代腿**不保留**
+            // ——不当 Exact 对位、不重注册、不 restore（方向盲 ID 对位复活路径废除；I2：同一
+            // 持久元素方向不变，「父翻向」只能解析为「父反手 = 父关闭 + 新父开」）。进翻向
+            // 种子（子树连清）；新世代元素（树里的新方向同 id）若被 ℬ_x 候选挂为父，经 open
+            // 父注入 restore 的 id_idx 树复用在场（新世代声部重登记路径，蓝图两步形②）。
+            HeldLegMatch::Flipped => {
+                ancok_probe_bump(|p| p.held_flip_terminated += 1);
+                flipped_seeds.push(*leg);
             }
             // Stale（snapshot 找不到）：★persistent overlay 修复（anc.pdf §8/§10）。
             // Stale(L) ⟺ pid(e)∉Pj or explicit invalidation（非 pid(e)∉Ej）。
@@ -2311,6 +2347,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // open 父注入 restore）。spec §13 `A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x]`——子树清仓 𝒟_x^† 的定义域
     // 是 A_t（持仓腿），ℬ_x 新开腿不经 𝒟_x^†（同 bar 同 carrier 先平后开的反手候选与种子同 id，
     // 误清会禁绝一类/二类反手——#200 基线 typed=2 实证，ID-3「允许当场反手」行为口径）。
+    // ★#233：翻向种子（held 循环 Flipped 分派产出）同只作用 A_t 段——ℬ_x 段的新世代候选
+    // （父翻向同 bar 挂该父的开仓）不连坐，新世代父元素经 open 父注入 restore id_idx 树复用
+    // 在场（蓝图两步形②新世代重登记）。
     let a_t_end = raw.len();
 
     // ∪ ℬ_x：开启候选 → 其 638 附着因果树元素索引（candidate_start + gamma_index）。
@@ -2431,8 +2470,17 @@ pub(crate) fn coverage_step_from_buckets_sep(
         .iter()
         .map(|&i| element_as_leg(&work[i]))
         .collect();
+    // ★#233：翻向种子并入关闭种子（只作用 A_t 段——ℬ_x 段反手/新世代候选不连坐，见上方
+    // flipped_seeds 注释）。翻向父不在 a_t_legs（旧世代不保留）时，其后代经 exit.rs
+    // `subtree_close` 的「父不在 A 数济判据」连坐连清。
+    let close_and_flip_seeds: Vec<ActiveLeg> = buckets
+        .close
+        .iter()
+        .chain(flipped_seeds.iter())
+        .copied()
+        .collect();
     let next_legs =
-        super::exit::step_active_set_with_subtree_close(&a_t_legs, &buckets.close, &b_x_legs);
+        super::exit::step_active_set_with_subtree_close(&a_t_legs, &close_and_flip_seeds, &b_x_legs);
     // ★#183 生产路径不变量见证（#148 验收2「镜像层测试升级为生产路径测试」）：每步活动集
     // 推进后 ∀v∈A, Anc(v)⊆A 恒成立（step L0 构造内蕴）。debug 构建逐 bar 核验——**debug
     // profile 下**全测试库的每一次生产推进都是本不变量的见证实例（release 构建编译消除，
@@ -5502,6 +5550,251 @@ mod tests {
             !active.iter().any(|l| l.id == p2 || l.id == p1 || l.id == child),
             "种子在链中段 ⟹ 中断后下级祖先随候选一并 AncOK 剪除；实得 {active:?}"
         );
+    }
+
+    /// ★#233 **父翻向 = 父终结**（#227 裁决，蓝图两步形①）：registry/树元素方向翻转 ⟹
+    /// ① 父声部关闭（旧世代退出活动集，close 事件经 silent_drops 入轨）+ 子树连带清仓
+    /// （𝒟_x^† 现成机制——父不在 A 的后代数济判据，exit.rs `subtree_close`）+ **frontier
+    /// 翻向同按终结**（焊缝规则：方向守卫不区分 frontier/confirmed，凡树元素方向 ≠ 持仓腿
+    /// 方向即终结）；**方向盲 ID 对位复活路径废除**——翻向后旧世代不得复活。
+    ///
+    /// **RED（方向盲对位）**：父持仓腿 Long × 树元素同 id Short ⟹ `held_leg_tree_index_indexed`
+    /// 按 id 命中即 Exact（不比方向）+ `element_as_leg` 静默采用树新方向——父不死、方向突变，
+    /// 子树照常存活（leg-2-98 勘察 §3.2 实证形态：父 (3,22) 两次翻向零关闭事件，子腿 (2,98)
+    /// 存活 10,944 bar）。**GREEN（翻向终结）**：父腿旧世代终结（不当 Exact 对位、不得复活），
+    /// Exact 存活子腿沿 parent_id 链命中翻向种子连清——next_active 无父无子，探针为凭。
+    ///
+    /// 定义依据：anc.pdf §7 I2（同一持久元素方向不变）；ADR 0001 S1（σ 是身份成分）/S3
+    /// （父终结连清子树）；voice-direction-flip-doctrine-20260724 §Q6（机制链同构裁定）。
+    #[test]
+    fn parent_direction_flip_terminates_voice_and_liquidates_subtree() {
+        let parent = eid(1, 901);
+        let child = eid(0, 900);
+        // 树（翻向后）：父元素同 id eps=Short（frontier 重组翻向）；子元素 eps=Short（未翻，
+        // 与持仓子腿方向一致 ⟹ 子腿 Exact 存活面——专验「父翻向连清」而非「子自身翻向」）。
+        let tree_parent = CoverageElement {
+            lambda: 20, rho: 30, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        };
+        let tree_child = CoverageElement {
+            lambda: 25, rho: 28, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: child, parent_id: Some(parent),
+        };
+        // 持仓：父腿 Long（旧世代方向）+ 子腿 Short（自身方向未翻 ⟹ Exact 对位存活，
+        // 其死法只能是父翻向连清——隔离出本票机制）。
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 28, lambda: 25,
+            id: child, parent_id: Some(parent), is_boundary_root: false, op_parent: Some(parent),
+        };
+        let prev = [leg_child, leg_parent];
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        // registry = 翻向前状态（父 Long 首见方向，I2 守卫下永固）。
+        let pre_flip = [CoverageElement {
+            lambda: 20, rho: 29, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        }];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&pre_flip, &prev);
+        ancok_probe_reset();
+        let (active, _p) = coverage_step_from_buckets(
+            view_split(&[tree_parent, tree_child], 2), &prev, &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        assert_eq!(
+            ancok_probe_snapshot().held_flip_terminated,
+            1,
+            "父翻向检测命中一次（方向守卫探针为凭）"
+        );
+        assert!(
+            !active.iter().any(|l| l.id == parent),
+            "父翻向 = 父终结：旧世代父腿不得存活/复活（方向盲对位废除）；实得 {active:?}"
+        );
+        assert!(
+            !active.iter().any(|l| l.id == child),
+            "父翻向 ⟹ 子树连带清仓（𝒟_x^† 数济判据：父不在 A 的后代连坐）；实得 {active:?}"
+        );
+    }
+
+    /// ★#233 翻向终结的 **close 事件入轨**（蓝图两步形①「父声部关闭（close 事件入轨）」）：
+    /// 翻向父腿与连清子腿经 `StepTrace.silent_drops` 外化——runner 既有消费链（typed ledger
+    /// `via_structural_prune` + 账户镜像 `StructuralPrune` + TW 腿计数）自动兑现入轨，
+    /// **不新造外化轨**；closed/opened 桶不染（翻向是结构事件，非信号裁决，无触发候选）。
+    ///
+    /// **RED**：方向盲对位下父子全存活 ⟹ silent_drops 空。**GREEN**：父子双双入轨。
+    #[test]
+    fn flip_termination_externalizes_close_track_via_silent_drops() {
+        let parent = eid(1, 901);
+        let child = eid(0, 900);
+        let tree = vec![
+            CoverageElement {
+                lambda: 20, rho: 30, eps: VoiceSide::Short, level: 1,
+                parent: None, attached_dir: None, id: parent, parent_id: None,
+            },
+            CoverageElement {
+                lambda: 25, rho: 28, eps: VoiceSide::Short, level: 0,
+                parent: None, attached_dir: None, id: child, parent_id: Some(parent),
+            },
+        ];
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let leg_child = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 28, lambda: 25,
+            id: child, parent_id: Some(parent), is_boundary_root: false, op_parent: Some(parent),
+        };
+        let prev = [leg_child, leg_parent];
+        let pre_flip = [CoverageElement {
+            lambda: 20, rho: 29, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        }];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&pre_flip, &prev);
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        ancok_probe_reset();
+        let (na, _ps, _o, trace) = pi_theta_step_traced(
+            ElementView::from_parts(&tree, vec![]), &[], &prev, 0.0, 5, 1000.0,
+            &r, w, KThetaRiskGate::open(), &cfg(), &reg, None, &protocol_hold(),
+        );
+        assert_eq!(ancok_probe_snapshot().held_flip_terminated, 1, "翻向检测命中");
+        assert!(na.is_empty(), "父终结 + 子树连清 ⟹ A_{{t+1}} 空；实得 {na:?}");
+        let drops: Vec<ElementId> = trace.silent_drops.iter().map(|l| l.id).collect();
+        assert!(
+            drops.contains(&parent) && drops.contains(&child),
+            "翻向父 + 连清子经 silent_drops 入轨（runner 既有消费链兑现 close 事件）；实得 {drops:?}"
+        );
+        assert!(
+            trace.closed.is_empty(),
+            "翻向非信号裁决（无触发候选）——closed 桶不染；实得 {:?}",
+            trace.closed.iter().map(|(l, _, _)| l.id).collect::<Vec<_>>()
+        );
+        assert!(trace.opened.is_empty(), "无开仓——opened 桶不染");
+    }
+
+    /// ★#233 蓝图两步形②：**新世代声部重登记**（新 posId/generation）——父翻向同 bar 的
+    /// ℬ_x 开仓候选（挂该父）**不被翻向种子连坐**（ℬ_x 段不经 𝒟_x^†，#183 分段/ID-3 反手
+    /// 保护同构）；父的**新世代元素**（树元素新方向）经 open 父注入 restore 的 id_idx 复用
+    /// 在场 ⟹ 候选 AncOK 准入，后续经 #220 idx 配对 opened 外化 ⟹ runner A9 generation+1
+    /// 登记（零改动路径见证）。
+    ///
+    /// 形态 = leg-2-98 勘察 gen-10 出生 bar（父 (3,22) 翻 Short 同 bar buy2 开 Long）最小
+    /// 复现。**复合检查**：翻向终结不回退反手/新世代准入（#216/#220/#226 语义兼容）。
+    /// 回归锁：除翻向探针（旧版=0）外，准入/在场/方向断言在方向盲旧版同样成立——本测试
+    /// 锁的是「终结化修复不误伤新世代登记路径」。
+    #[test]
+    fn flip_same_bar_new_generation_reregisters_via_open_candidate() {
+        let parent = eid(1, 22);
+        let child = eid(0, 98);
+        // 树（翻向后）：父元素同 id eps=Short。
+        let tree_parent = CoverageElement {
+            lambda: 20, rho: 30, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        };
+        // 候选段：lvl0 开多候选（反父 Short ⟹ ShortDiff 形态，gen-10 同构），parent_id=翻向父。
+        let cand_elem = CoverageElement {
+            lambda: 42, rho: 42, eps: VoiceSide::Long, level: 0,
+            parent: None, attached_dir: None, id: child, parent_id: Some(parent),
+        };
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let buckets = Buckets {
+            close: vec![],
+            open: vec![cand(0, 42, VoiceSide::Long, 0)],
+            record: vec![],
+        };
+        // registry = 翻向前状态（父 Long，I2 守卫下永固）——open 父注入的 registry_live 检查
+        // 与 restore id_idx 树复用（新世代元素）均依赖此形态。
+        let pre_flip = [CoverageElement {
+            lambda: 20, rho: 29, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        }];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&pre_flip, &[leg_parent]);
+        ancok_probe_reset();
+        let (active, _p) = coverage_step_from_buckets(
+            view_split(&[tree_parent, cand_elem], 1), &[leg_parent], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        assert_eq!(
+            ancok_probe_snapshot().held_flip_terminated,
+            1,
+            "父翻向检测命中一次（终结化生效）——旧版方向盲对位下探针=0（RED 锚点）"
+        );
+        let child_legs: Vec<_> = active.iter().filter(|l| l.id == child).collect();
+        assert_eq!(
+            child_legs.len(),
+            1,
+            "ℬ_x 新世代候选不被翻向种子连坐（ℬ_x 段不经 𝒟_x^†）⟹ 准入；实得 {active:?}"
+        );
+        assert_eq!(child_legs[0].dir, VoiceSide::Long, "新世代候选方向取候选自身（Long）");
+        let parent_legs: Vec<_> = active.iter().filter(|l| l.id == parent).collect();
+        assert_eq!(
+            parent_legs.len(),
+            1,
+            "父的新世代元素（树复用，dir=Short）在场 ⟹ 候选父链 AncOK 通过；实得 {active:?}"
+        );
+        assert_eq!(
+            parent_legs[0].dir,
+            VoiceSide::Short,
+            "在场父元素 = 新世代（树元素新方向），非旧世代尸体复活"
+        );
+    }
+
+    /// ★#233 蓝图两步形②补：**同 carrier 翻向 + 同 bar 反手候选 = 新世代立即重登记**
+    /// （新 posId/generation 的最直接形态）——父持仓腿翻向（Long→Short）同 bar，同 id 反手
+    /// 候选（Short）开仓：旧世代腿终结（翻向种子，经 silent_drops 入轨），反手候选**不被
+    /// 翻向种子连坐**（ℬ_x 段不经 𝒟_x^†，与 #226 `open_reverse_candidate_on_closed_carrier_
+    /// unaffected` 的 ID-3 反手保护同构——种子只作用 restore/持仓域，候选推送零改），
+    /// 经 #220 idx 配对 opened 外化 ⟹ runner A9 generation+1 新世代登记。
+    ///
+    /// 与 `flip_same_bar_new_generation_reregisters_via_open_candidate` 的分工：彼验「新世代
+    /// 父元素在场供养子候选」，本验「同 id 反手候选自身即新世代声部」。
+    #[test]
+    fn flip_same_bar_reverse_candidate_reregisters_new_generation_same_carrier() {
+        let parent = eid(1, 22);
+        // 树（翻向后）：父元素同 id eps=Short。
+        let tree_parent = CoverageElement {
+            lambda: 20, rho: 30, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        };
+        // 反手候选元素：同 carrier id、eps=Short、点元素（lambda==rho）、无父（反向根）。
+        let rev_elem = CoverageElement {
+            lambda: 55, rho: 55, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        };
+        let leg_parent = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 30, lambda: 20,
+            id: parent, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let buckets = Buckets {
+            close: vec![],
+            open: vec![cand(1, 55, VoiceSide::Short, 0)],
+            record: vec![],
+        };
+        let pre_flip = [CoverageElement {
+            lambda: 20, rho: 29, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: parent, parent_id: None,
+        }];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&pre_flip, &[leg_parent]);
+        ancok_probe_reset();
+        let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&[tree_parent, rev_elem], 1), &[leg_parent], &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        assert_eq!(
+            ancok_probe_snapshot().held_flip_terminated,
+            1,
+            "翻向检测命中一次（旧世代终结）"
+        );
+        let rev: Vec<_> = active.iter().filter(|l| l.id == parent).collect();
+        assert_eq!(
+            rev.len(),
+            1,
+            "同 id 反手候选不被翻向种子连坐（ℬ_x 段不经 𝒟_x^†）⟹ 恰一条新世代腿；实得 {active:?}"
+        );
+        assert_eq!(rev[0].dir, VoiceSide::Short, "新世代腿方向取反手候选（Short），非旧世代 Long");
+        assert_eq!(rev[0].source_index, 55, "新世代腿坐标取候选点元素（55），非旧世代 30");
     }
 
     /// ★(I-1) open 父注入非膨胀守卫：父 carrier **不在 registry**（既非持仓又非 registry-live）⟹ 子腿
