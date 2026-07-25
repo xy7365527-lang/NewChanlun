@@ -1,3 +1,0 @@
-# 授权门：见 .chanlun/locks/CARGO_BAN（哨兵在则一切 rustc 调用被拒，哨兵删除后本 wrapper 逐字透传）
-[build]
-rustc-wrapper = "/tmp/kimi-nest-mainline/.chanlun/locks/cargo_gate.sh"

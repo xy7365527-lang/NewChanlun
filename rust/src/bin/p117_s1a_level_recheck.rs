@@ -581,6 +581,18 @@ fn eval_l0_gate_chain(
     }
 }
 
+
+/// #218 面 B 研究 bin 锚供给说明（诚实，090）：owner 判同已换两族锚（一/三类核心区间
+/// 带判同经账本 `centers` 全功能；二类一类点身份锚判同需 T1 oracle + 事件锚账本）。
+/// 本 bin 是归档研究/审计工具，未接事件锚账本——二类判同锚不可解 = 诚实判负（与
+/// 生产 gate 全接线读数有别，面 B 注册项；一/三类判同不受影响）。
+fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<'static> {
+    fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
+        None
+    }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+}
+
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let path = args
@@ -742,9 +754,9 @@ fn main() -> Result<(), String> {
         let (level, book_level, window, hit, hit_idx, hit_ca) = match event {
             Some(e) => {
                 let book_level = event_bsp_book_level(e.level);
-                let hit = terminal_bits_at_event(classification, e, TerminalMatch::CWindow).is_some();
+                let hit = terminal_bits_at_event(classification, e, TerminalMatch::CWindow, &bin_anchor_ctx()).is_some();
                 let hit_ca =
-                    terminal_bits_at_event(classification, e, TerminalMatch::Exact).is_some();
+                    terminal_bits_at_event(classification, e, TerminalMatch::Exact, &bin_anchor_ctx()).is_some();
                 let hit_idx = book_level.and_then(|bl| {
                     classification.levels.get(bl).map(|state| {
                         state

@@ -155,7 +155,8 @@ fn xzd_evidence(
         .bsp
         .iter()
         .filter(|point| {
-            point.center == Some(c_prime)
+            // #218 面 A 载体形态机械适配：三类点恒 Center 载体（语义不变，全字段等式照旧）。
+            point.center == Some(super::bsp::OwnerRef::Center(c_prime))
                 && point.source_index > base_turn
                 && match side {
                     Side::Short => point.bits.sell3,
@@ -306,14 +307,15 @@ mod tests {
         Center { zd, zg, dd, gg, start_index, end_index }
     }
 
-    /// `BspPoint` 夹具：`center` 按 `make_third_point` 契约填（3 类点必 `Some`，bsp.rs 不变量）。
+    /// `BspPoint` 夹具：`center` 按 `make_third_point` 契约填（3 类点必 `Some`，bsp.rs 不变量；
+    /// #218 面 A 载体形态：Center 变体包装）。
     fn pt(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
-        BspPoint {
+        BspPoint { level_origin: 0,
             source_index,
             bits,
             pivot_low: 0,
             pivot_high: 0,
-            center,
+            center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center),
             struct_break_dir: None,
             force: None,
         }

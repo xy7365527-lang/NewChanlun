@@ -4,6 +4,12 @@ Origin/LedgerBridge.lean
 ★A′ Phase2 双账本桥 / **兼容层**（task #101 桥 + task #127 TW native 重锚后定位）：把 #93 双账本
 扩维 + OQ-9 gate（取本金三阶段 TW + stage 单向 + OQ-9 入口证书）挂到 Origin canonical 接口。
 
+★契约锚（#239 实写，#236 裁定）：rust 对应物 `rust/src/theta_v0/backtest/dual_ledger.rs`
+`DualLedger`。**同名不同义（勿误对拍）**——本文件「双账本」= R=Π-A-W（Origin 单账本
+`LedgerState`）⊕ 取本金三阶段 TW（#90 不同构两端并置）；rust `DualLedger` = M14 多空分腿
+头寸簿（多腿 q_long/空腿 q_short 两独立坐标）。二者语义域不交，无可对拍对象。本文件 TW
+保持定理已收窄至零实现盈亏子域（#242）。
+
 ════════════════════════════════════════════════════════════════════════
 ## ★定位（task #127 TW native 重锚后）：本文件 = compatibility/bridge theorem 层
 
@@ -25,8 +31,8 @@ A′ 把 `formal/Origin/` 定为唯一 canonical base（#97）。`Strict/HybridA
 - **R=Π-A-W 端**（Origin 单账本 `LedgerState`）：Origin 接口见证 `originFullDef` 的 T 复用 Origin
   `ledgerStep`，闭环保恒等（`HybridAssembly.originFullDef_transition_preserves_ledger_inv`）。
 - **TW 端**（取本金三阶段 `TWState`，#90 与 R=Π-A-W 不同构）：HybridAssembly 自有闭环 `assemblyStep`
-  的 twState 真被线程化，闭环保 TW 守恒 + stage 单向 + OQ-9 gate。本文件把这些桥到 Origin 命名空间
-  的引擎契约层，坐实「双账本两端都在 Origin 接口下成立」。
+  的 twState 真被线程化；TW 保持仅在零实现盈亏子域成立，stage 单向 + OQ-9 gate 仍按各自前提成立。
+  本文件把这些桥到 Origin 命名空间的引擎契约层。
 
 ════════════════════════════════════════════════════════════════════════
 ## ★#90 不同构在 Origin 上的语义形式（no-workaround，关键）
@@ -38,16 +44,17 @@ twState）。这**不是缺陷**——#90 已证 R=Π-A-W 与取本金三阶段 
 - 取本金三阶段 TW 由 HybridAssembly `AssemblyState.twState` 闭环承载（#90 第二端）。
 
 本文件**不**把 TW 塞进 Origin `LedgerState`（#90 否证之），而是证：在 Origin canonical base 之下，
-**两个账本的不变量都成立且并置**——R=Π-A-W 端（Origin 接口）+ TW/stage/OQ-9 端（HybridAssembly
-闭环）。这尊重 #90 不同构（两端不糊成一个），同时让两端都锚到 Origin。
+**两个账本的不变量按各自有效域成立且并置**——R=Π-A-W 端（Origin 接口）+ TW/stage/OQ-9 端
+（HybridAssembly 闭环；TW 保持限零实现盈亏）。这尊重 #90 不同构（两端不糊成一个），同时让两端
+都锚到 Origin。
 
 ════════════════════════════════════════════════════════════════════════
 ## 认识论等级（formalization-validity-domain，强制标注）
 
-全文件 **L0**（结构/定义层，零数据依赖）。`lake env lean` 通过 = 双账本两端的结构不变量
-（R=Π-A-W 恒等 / TW 守恒 / stage 单向 / OQ-9 入口证书保持）在 Origin canonical base 下都成立，
-且与 Origin 元定理逐项对齐。**不**是缠论盈利 / 实盘有效声明（那是 L3；twState 的 TW 守恒仅同价 c
-固定，跨 bar 价格 L2/L3，Rust prove_tw_neutral 守卫）。禁 sorry/admit/axiom，不依赖 Mathlib。
+证明体是 **L0**（结构/定义层）；`tw_preserved_in_loop` 另消费外部提供的零实现盈亏前提，其生产对应
+属 L2，当前 Lean 状态/事件无法内生判定。`lake env lean` 通过 = R=Π-A-W 恒等、零实现盈亏子域的
+TW 保持、stage 单向与 OQ-9 入口证书保持在各自有效域成立；**不**是缠论盈利 / 实盘有效声明（L3）。
+禁 sorry/admit/axiom，不依赖 Mathlib。
 
 谱系：#42（账本 watch-item）→ #86（HybridAssembly LedgerComp R=Π-A-W 新建）→ #90（R=Π-A-W vs
       取本金三阶段 TW 不同构裁定，machine-checked）→ #93（双账本扩维 + OQ-9 gate 接入 HybridAssembly
@@ -95,10 +102,11 @@ theorem origin_ledgerStep_preserves_inv (L : LedgerState) (dPi dA dW : Int) :
   ledger_invariant_preservation L dPi dA dW
 
 /-! ════════════════════════════════════════════════════════════════════════
-  ## §2 TW 端在 HybridAssembly 闭环下成立（#90 第二账本，并置 Origin 接口）
+  ## §2 TW 端在 HybridAssembly 闭环下成立（TW 保持限零实现盈亏子域）
 
   取本金三阶段 TW（#90 与 R=Π-A-W 不同构）由 HybridAssembly `AssemblyState.twState` 闭环承载。
-  本节把 #93 的 twState 线程化 / TW 守恒 / stage 单向 / OQ-9 gate 桥到 Origin.LedgerBridge 命名空间。
+  本节把 #93 的 twState 线程化 / 零实现盈亏时 TW 保持 / stage 单向 / OQ-9 gate 桥到
+  Origin.LedgerBridge 命名空间。
   ════════════════════════════════════════════════════════════════════════ -/
 
 /--
@@ -117,13 +125,23 @@ theorem tw_threaded_in_loop (x : AssemblyState) (e : AssemblyEvent) :
   Strict.HybridAssembly.assemblyStep_threads_twState x e
 
 /--
-  ★★TW 端 · 闭环保 TW=free+holding+withdrawn 守恒（L0，桥②，缠师第31课守恒律）：
-  HybridAssembly 闭环每步保持 TW 守恒。与 R=Π-A-W（§1）**双层并置**——两守恒律都在 Origin canonical
-  base 之下成立（R=Π-A-W 端在 Origin 接口 / TW 端在 HybridAssembly 闭环，#90 两端各在其层）。
+  ★★TW 端 · 零实现盈亏子域保持 TW=free+holding+withdrawn（L0 证明 + L2 外部前提，桥②）：
+
+  无条件版已被生产反例否定（rust Realize 写回两账本、TW 变化 +10/−6 测试在案，2026-07-24 #240
+  漂移账）；本定理自 2026-07-25 起为零实现盈亏子域形式。
+
+  在当前 Rust transition 中，`productionRealizedPnl = 0` 意味着不触发 `TwEvent::Realize`；此时只剩
+  成本基 TW 事件，复用 Lean 原子域的 `assemblyStep_preserves_tw`。
+
+  ★090 诚实边界：当前 Lean `AssemblyEvent` / `OrderOut` / `TWEvent` 没有 `realized_pnl` /
+  `TwEvent::Realize` 对应概念，故不能从 `x`、`e` 内生计算或校验此前提。`productionRealizedPnl`
+  及其零证书须由生产桥外部提供；本定理不声明 Lean 已建立 Rust realized-PnL 的端到端对应。
 -/
-theorem tw_preserved_in_loop (x : AssemblyState) (e : AssemblyEvent) :
-    (assemblyStep x e).twState.tw = x.twState.tw :=
-  Strict.HybridAssembly.assemblyStep_preserves_tw x e
+theorem tw_preserved_in_loop (x : AssemblyState) (e : AssemblyEvent)
+    (productionRealizedPnl : Int) (hzero : productionRealizedPnl = 0) :
+    (assemblyStep x e).twState.tw = x.twState.tw := by
+  cases hzero
+  exact Strict.HybridAssembly.assemblyStep_preserves_tw x e
 
 /--
   ★★TW 端 · 闭环 stage 单向不可逆（L0，桥②，OQ-9 端B 闭环形式）：
@@ -198,7 +216,7 @@ inductive DualLedgerVerdict where
 deriving DecidableEq, Repr
 
 /-- ★双账本桥裁定（L0，gatekeeper）：桥裁定必是「两端都锚 Origin 且非同构」。三组桥定理
-    （§1 R=Π-A-W 端 / §2 TW 端 / §3 不同构尊重）共同支撑。 -/
+    （§1 R=Π-A-W 端 / §2 TW 端〔TW 保持限零实现盈亏〕/ §3 不同构尊重）共同支撑。 -/
 theorem dual_ledger_verdict_is_both_ends (v : DualLedgerVerdict) :
     v = DualLedgerVerdict.bothEndsAnchoredNonIsomorphic := by
   cases v; rfl
@@ -231,10 +249,11 @@ theorem origin_interface_policy_factors (x : StrictState) (e : originFullDef.Eve
   本文件**证**（L0，machine-checked，无 sorry/admit/axiom）：
   1. R=Π-A-W 端在 Origin 接口下成立（§1）：`origin_ledger_inv_preserved`（Origin 接口闭环保恒等）+
      `origin_ledgerStep_preserves_inv`（Origin ledgerStep 原子保持律 = Origin canonical 自身）。
-  2. TW 端在 HybridAssembly 闭环下成立（§2，#90 第二账本，并置 Origin 接口）：`tw_threaded_in_loop`
-     （twState 真线程化）+ `tw_preserved_in_loop`（TW 守恒）+ `tw_stage_monotone_in_loop`（stage 单向）+
-     `tw_oq9_gate_preserved_in_loop`（OQ-9 gate 保持）+ `tw_oq9_closure_illegal_in_loop`（端B 闭环定理，
-     消费 LegalTransition）+ `tw_oq9_legacy_unreachable_in_earning`（trace 级端B）。
+  2. TW 端在 HybridAssembly 闭环下按有效域成立（§2，#90 第二账本，并置 Origin 接口）：
+     `tw_threaded_in_loop`（twState 真线程化）+ `tw_preserved_in_loop`（零实现盈亏子域保持）+
+     `tw_stage_monotone_in_loop`（stage 单向）+ `tw_oq9_gate_preserved_in_loop`（OQ-9 gate 保持）+
+     `tw_oq9_closure_illegal_in_loop`（端B 闭环定理，消费 LegalTransition）+
+     `tw_oq9_legacy_unreachable_in_earning`（trace 级端B）。
   3. 双账本并置 + #90 不同构被尊重（§3）：`two_ledger_non_isomorphic_stage_collapses`（TW 三量相同但
      stage 不同 ⟹ 投影非单射）+ `dual_ledger_verdict_is_both_ends`（gatekeeper：两端都锚 Origin 且非
      同构，无 Merged 构造子）。
@@ -243,7 +262,8 @@ theorem origin_interface_policy_factors (x : StrictState) (e : originFullDef.Eve
 
   本文件**不证**（formalization-validity-domain 诚实边界）：
   - ✗ TW 与 R=Π-A-W 可折成单账本（#90 否证之；本文件证两端各在其层，非二合一）。
-  - ✗ TW/twState 数值反映实盘真实盈亏（L0 结构守恒；跨 bar 价格变动 L2/L3，Rust 守卫）。
+  - ✗ 非零 realized PnL 下 TW 保持；生产 `TwEvent::Realize` 会使 TW 按已实现盈亏漂移。
+  - ✗ Lean 当前能从 `AssemblyState` / `AssemblyEvent` 判定生产 `realized_pnl`（须外部桥提供）。
   - ✗ 盈利/最优/实盘有效（L3）。
 
   ★双账本桥裁定（重要）：#93 双账本（R=Π-A-W ⊕ 取本金三阶段 TW）+ OQ-9 gate 全部锚到 Origin

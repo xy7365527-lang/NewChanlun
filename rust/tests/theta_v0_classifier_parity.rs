@@ -280,7 +280,12 @@ fn type3_buy_lean_witness_scale_matches_fixture() {
     let points = extract_third_only(&[c], &segs);
     assert_eq!(points.len(), 1, "Lean 见证尺度 retrace>zg ⟹ 一个第三类买点（rust 与 Lean IsType3Buy 一致）");
     assert!(points[0].bits.buy3, "Lean eventType3 见证：rust 与 Lean IsType3Buy 同为真");
-    assert_eq!(points[0].center.map(|c| c.zg), Some(zg), "3 买止损=ZG（= Lean center.zg）");
+    // （#218 面 A 载体形态机械适配：Center 变体读出。）
+    assert_eq!(
+        points[0].center.and_then(|o| match o { newchan_rust::theta_v0::classifier::bsp::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+        Some(zg),
+        "3 买止损=ZG（= Lean center.zg）"
+    );
 }
 
 /// 内部安全点（scaled 路径覆盖，非 Lean 见证值）：回试低点严格大于 ZG。此处 zg=200/retrace=210 是
@@ -298,7 +303,12 @@ fn type3_buy_interior_point_matches_lean() {
     let points = extract_third_only(&[c], &segs);
     assert_eq!(points.len(), 1, "离开+回试不破 ⟹ 一个第三类买点（rust 与 Lean 一致）");
     assert!(points[0].bits.buy3, "内部安全点 retest>zg：rust 与 Lean IsType3Buy 同为真");
-    assert_eq!(points[0].center.map(|c| c.zg), Some(200), "3 买止损=ZG（BspClassification 止损语义）");
+    // （#218 面 A 载体形态机械适配：Center 变体读出。）
+    assert_eq!(
+        points[0].center.and_then(|o| match o { newchan_rust::theta_v0::classifier::bsp::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+        Some(200),
+        "3 买止损=ZG（BspClassification 止损语义）"
+    );
 }
 
 /// 内部安全点：回试明确破 ZG（210→190，190 < zg=200）。Lean ¬IsType3Buy，rust 也 ¬buy3 ⟹ 一致。

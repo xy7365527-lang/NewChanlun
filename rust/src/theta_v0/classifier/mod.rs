@@ -73,6 +73,10 @@ pub mod descend;
 pub mod rmove_compose;
 pub mod recursive_tower;
 pub mod nest;
+/// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
+pub mod nest_lifecycle;
+/// #92/#93 证书索引：确认事件 → typed 证书（身份主键；构建口径 B + CWindow）。
+pub mod nest_index;
 /// p118 关④ 小转大显式分类分支：旁挂联合分类 `NestTurnClass`（四类 partition，纯只读派生）。
 pub mod turn_class;
 pub use turn_class::{
@@ -80,6 +84,8 @@ pub use turn_class::{
     XzdEvidence,
 };
 pub mod signal;
+/// #110 投影层骨架 + 级别身份标签（SPEC #109 expand 第一票）。默认门关零开销。
+pub mod projection;
 pub mod six_state;
 pub mod voice_eat;
 pub mod cand_predicate;
@@ -196,6 +202,11 @@ pub struct LevelState {
     /// 同 memo 键缓存）。**不是买卖点**（零 six-bit，不冒充 B1/S1）——承接路由在 econ 统计层
     /// （collect_signals 走 Nest/XZD 二通道，两门皆闭诚实丢弃）。
     pub pan_div: Rc<Vec<signal::PanDivCert>>,
+    /// #110 投影层（SPEC #109 expand 第一票）。门关（默认）= `None`（零开销，bit-exact 不变）；
+    /// 门开 = stamping 路径构造 [`projection::LevelProjectionLayer`]（`bsp` 同 `Rc` O(1) 共享 +
+    /// 单趟跨度扫描 + T2 (#171) 单趟三元锚索引构建，T1 供给线同源）。只描述不判定
+    /// （禁第二查法）——零判定消费。
+    pub level_projection: Option<projection::LevelProjectionLayer>,
 }
 
 /// 多级别递归分类输出（L0..Lmax；某层自然终止则该层及以上为空）。
@@ -434,12 +445,29 @@ fn classify_impl(l0: &ParseLayer, config: &ThetaConfig) -> (Classification, Vec<
         bsp.extend(extract_second_for_level(&upper_moves, &hist, &close_src));
         bsp.sort_by_key(|p| p.source_index);
 
+        let bsp = Rc::new(bsp);
+        // #110 投影层 stamping（机制位关 = None 零开销）。T3 (#172) 并门：本机制位转派生——
+        // 层载由链路径是否启用单一驱动（π 入口 `admission::chain_driven_level_projection`
+        // 唯一生产写入点，#168 裁定 3）；链活 ⟹ 层必载（含三元锚索引），链死不载。
+        // T2 (#171)：三元锚供给（`l0.fractals`/`l0.merged_bars`，ParseLayer `Rc` 共享只读
+        // 借用，零拷贝）随门开分支引入——门关分支零新增读。
+        let level_projection = if config.level_projection.enabled {
+            Some(projection::LevelProjectionLayer::from_level(
+                levels.len() as u32,
+                &bsp,
+                &l0.fractals,
+                &l0.merged_bars,
+            ))
+        } else {
+            None
+        };
         levels.push(LevelState {
             moves,
             centers: Rc::new(centers.clone()),
             cp_ownership: Rc::new(cp_ownership),
-            bsp: Rc::new(bsp),
+            bsp,
             pan_div: Rc::new(pan_div),
+            level_projection,
         });
 
         // L(k+1) 输入单元 = 上级走势塔的 `UnitRange` 投影（外缘区间 + 坐标 + 外缘趋势方向）。
@@ -829,6 +857,15 @@ struct LevelCache {
     /// frontier 待 pop，回归常态 pop 语义）。前缀不可变 + 尾部续扫追加（同 centers 纪律）；frontier
     /// pop 时同步 pop、cascade 增量时同步 truncate(P)、cascade 全清（e=0）时 clear。
     win_meta: Vec<WinMeta>,
+    /// ★#93 水线证书（tower_confirmed_len 单一来源）：`upper_moves[..w]` **跨 bar bit-stable
+    /// 下界**（保守）。维护站点（与塔写入站点一一对应，over-shrink 安全 / over-grow 禁止）：
+    /// - 非 cascade bar 末：`w = upper_moves.len() - scan_cursor.last_window_emitted`
+    ///   （frontier 整窗下 bar 会被 pop 重产，排除在水线外；其余已产出窗口只增不改）；
+    /// - cascade bar：先 `min(P)`（保留前缀 partition_point——[P..] 本 bar 重扫可能改写），
+    ///   末尾再 `min(w_nat)`（不越过本 bar frontier）；P=0 全清 ⟹ 0；
+    /// - `LevelCache::default()`（血缘断裂/minparts truncate 重建）⟹ 0（消费方视为水线
+    ///   回退，保守全量重比——恒正确退化，admission.rs LevelFingerprint 契约）。
+    confirmed_watermark: usize,
 }
 
 /// B3 #4 area-memo（07b 残余 O(n²) 根治）：`(start,end)→segment_macd_area` 冻结缓存，跨 bar 持久
@@ -858,6 +895,9 @@ pub struct TowerCache {
     levels: Vec<LevelCache>,
     /// 上次处理的 L0 段数（前缀不变量校验用）。
     last_l0_segments_len: usize,
+    /// ★#93：本 bar L0 塔（tower[0]）确认前缀 = `l0.segments_confirmed_len`（parser 证书，
+    /// tower[0][i] 是 segments[i] 的纯函数 ⟹ 前缀 bit-stable 同传）。每 bar 覆写。
+    l0_confirmed_len: usize,
     /// MACD 增量递推状态（None=未初始化；Some=已处理至 `macd_state_len` 末）。
     macd_state: Option<MacdState>,
     /// 已增量产出的 hist 前缀（不可变；尾部 append 续产）。bit-exact 等价于
@@ -946,6 +986,26 @@ impl TowerCache {
         self.forest_epoch
     }
 
+    /// ★#93 水线证书（单一来源，禁第二查法）：`tower[level][..w]` **跨 bar bit-stable 下界**。
+    ///
+    /// 语义（与 `classify_with_tower_incremental` 返回的 `tower_snapshots` 同下标）：
+    /// - `level == 0`：= `l0.segments_confirmed_len`（parser 证书，tower[0][i] 为 segments[i]
+    ///   纯函数 ⟹ 前缀稳定同传）；
+    /// - `level >= 1`：`tower[level]` 与 `levels[level-1].upper_moves` 共享 Rc ⟹
+    ///   = `levels[level-1].confirmed_watermark`（维护站点见该字段文档）；
+    /// - 越界级（本 bar 未产出缓存）⟹ 0（保守：视为无稳定前缀）。
+    ///
+    /// over-shrink 恒 sound（消费方多重比）；over-grow 禁止（w 内元素跨 bar 必须逐字节不变）。
+    pub fn tower_confirmed_len(&self, level: usize) -> usize {
+        if level == 0 {
+            self.l0_confirmed_len
+        } else {
+            self.levels
+                .get(level - 1)
+                .map_or(0, |lc| lc.confirmed_watermark)
+        }
+    }
+
     /// #92 因果 prefix provider 的只读 MACD/坐标快照。
     ///
     /// 两个切片与当前 [`classify_with_tower_incremental`] 返回值同源、同 prefix；调用方只读，
@@ -977,6 +1037,7 @@ impl TowerCache {
     pub fn clear(&mut self) {
         self.levels.clear();
         self.last_l0_segments_len = 0;
+        self.l0_confirmed_len = 0; // ★#93：水线随 clear 归零（消费方保守全量重比）。
         self.macd_state = None;
         self.macd_hist.clear();
         self.macd_dif.clear(); // 与 macd_hist 锁步（同 truncate/rebuild 边界，见 compute_macd_hist_incremental）。
@@ -1487,6 +1548,8 @@ pub fn classify_with_tower_incremental(
         cache.clear();
     }
     cache.last_l0_segments_len = l0.segments.len();
+    // ★#93：落账本 bar L0 确认前缀（tower[0] 水线，见字段文档）。min 防御 parser 古怪末段计数。
+    cache.l0_confirmed_len = l0.segments_confirmed_len.min(l0.segments.len());
 
     // L0 走势塔 = 携坐标的 RMove::Segment（递归底）。
     // ★#106 证书增量（替代每 bar 全量 from_unit 重建 = O(segs)×n，profile 坐实 400K=5.8s）：
@@ -1702,6 +1765,7 @@ pub fn classify_with_tower_incremental(
                 lc.cached_bsp_key = None;
                 lc.cached_second.clear(); // 07b 门控：前缀重排 ⟹ 前缀 B2 缓存失效，重扫。
                 lc.cached_second_count = 0;
+                lc.confirmed_watermark = 0; // ★#93 全清 ⟹ 水线归零（消费方全量重比）。
                 Rc::make_mut(&mut lc.projected_units).clear(); // #106：投影缓存失效，重投影。
             } else {
                 // P>0（增量失效，设计 §3）：保留 [..P] 前缀（读域<e，L1 bit-identical），失效 [P..] 后缀。
@@ -1745,6 +1809,8 @@ pub fn classify_with_tower_incremental(
                 Rc::make_mut(&mut lc.upper_moves).truncate(p);
                 Rc::make_mut(&mut lc.cp_ownership).truncate(p);
                 lc.win_meta.truncate(p);
+                // ★#93 水线收缩到保留前缀 P（[P..] 本 bar 重扫可能改写）；bar 末再 min(w_nat)。
+                lc.confirmed_watermark = lc.confirmed_watermark.min(p);
                 // decompose：保留 reset()（O(centers)=百级，非 05/09/07b 的 O(n²) 靶，设计 §3.2 scope）。
                 // 输出恒等全折叠（decompose 模块头），reset+重折 bit-exact，仅不省非瓶颈的重折量。
                 lc.decompose_state.reset();
@@ -1919,6 +1985,20 @@ pub fn classify_with_tower_incremental(
             lifecycle_scan_from,
         );
         lc.scan_cursor = new_cursor;
+        // ★#93 水线推进（字段文档见 LevelCache::confirmed_watermark）：
+        // w_nat = len - last_window_emitted——本 bar frontier 末窗口（下 bar pop 重产）排除。
+        // cascade bar 只允许收缩（前缀 min(P) 已在 cascade 分支落账），非 cascade bar 可增长。
+        {
+            let w_nat = lc
+                .upper_moves
+                .len()
+                .saturating_sub(lc.scan_cursor.last_window_emitted);
+            lc.confirmed_watermark = if cascade_reset {
+                lc.confirmed_watermark.min(w_nat)
+            } else {
+                w_nat
+            };
+        }
         debug_assert!(
             lc.centers.len() == lc.upper_moves.len()
                 && lc.centers.len() == lc.cp_ownership.len()
@@ -2026,12 +2106,28 @@ pub fn classify_with_tower_incremental(
 
         // 08：`Rc::clone`（O(1)）投影增量塔 centers 到 LevelState，替代全量 `centers.clone()`。
         let level_centers = stage_profile::time("08_levels_centers_clone", || Rc::clone(&lc.centers));
+        // #110 投影层 stamping（增量塔 memo-miss/命中终装点同口径；机制位关 = None 零开销）。
+        // T3 (#172) 并门：机制位转派生（π 入口 `admission::chain_driven_level_projection`
+        // 唯一生产写入点，#168 裁定 3）——链活 ⟹ 层必载，链死不载。
+        // T2 (#171)：三元锚供给（`l0.fractals`/`l0.merged_bars`，ParseLayer `Rc` 共享只读
+        // 借用，零拷贝）随门开分支引入——门关分支零新增读。
+        let level_projection = if config.level_projection.enabled {
+            Some(projection::LevelProjectionLayer::from_level(
+                levels.len() as u32,
+                &bsp,
+                &l0.fractals,
+                &l0.merged_bars,
+            ))
+        } else {
+            None
+        };
         levels.push(LevelState {
             moves,
             centers: level_centers,
             cp_ownership: Rc::clone(&lc.cp_ownership),
             bsp,
             pan_div,
+            level_projection,
         });
 
         // 下一级输入 = 上级走势塔投影（前缀来自缓存 upper_moves 前缀，尾部来自续扫）。
@@ -2524,11 +2620,11 @@ mod tests {
         assert_eq!(b2.source_index, 36, "B2 source_index = 回拉走势 L1[2] 的原始 K 序（坐标侧车真映射）");
         // 第二类止损 = 回拉低点（second_point = 回拉走势 m2.lo）——止损仍 pivot 非 center.zg/zd。
         assert!(b2.pivot_low != 0, "B2 携结构止损价 pivot_low（回拉低点 single source）");
-        // ★owner 载体补齐（关③ 补记 2026-07-18 ② 路径 (a)）：二类点构造时填入判定中枢——生产
-        // `extract_second_for_level` 传 Compose 首中枢（本测试即 l1.centers[0]，L2 中枢）为 c1。
-        // 名实一致根据：B2 由「次级别第一类离开 ∧ 回拉不创新低」相对该中枢判定产出；center 是
-        // owner 载体与回溯锚，不进止损判据（止损仍 pivot，上条已锁）。
-        assert_eq!(b2.center, Some(l1.centers[0]), "二类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+        // ★#218 面 A（spec owner-attribution-fix-20260724 ID-1，机械改写归因：载体形态变化）：
+        // 二类点归属载体从判定中枢 c1（次级别中枢，确认层对象）改载该走势一类点身份锚——
+        // 第一类离开走势 m1（L1[1]，背驰次级别走势）的终点坐标（区间套：该走势终点极值点 =
+        // 一类点）；止损仍 pivot（上条已锁，止损语义不变）。
+        assert_eq!(b2.center, Some(signal::OwnerRef::Type1Anchor(24)), "二类点归属载体 = 该走势一类点锚（m1=L1[1] 终点坐标 24）");
         // 互斥语义：B2 端点不置 1/3 类 bit。
         assert!(!b2.bits.buy1 && !b2.bits.buy3, "第二类端点不置 1/3 类 bit");
     }
@@ -2620,7 +2716,8 @@ mod tests {
         //（被破的最后中枢）——名实一致根据同 signal.rs `first_buy_extracted_with_trend_divergence`
         //（本测试复用其 A/B/C 几何的 UnitRange 表达）；center 是 owner 载体，止损仍 pivot
         //（pivot_low=80 上条已锁，center 不进 1/2 类止损判据）。
-        assert_eq!(buy1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+        // （#218 面 A 载体形态机械适配：一/三类载 OwnerRef::Center，语义不动。）
+        assert_eq!(buy1[0].center, Some(signal::OwnerRef::Center(c1)), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
     }
 
     /// ★裁定 A 三类（高级别「中枢外缘区间」边界语义，codex 风险点单独 snapshot）：级别-N 离开中枢
@@ -2645,7 +2742,11 @@ mod tests {
         assert_eq!(buy3.len(), 1, "级别-N 离开中枢 + 回试不重入 ⟹ 一个 3 买（外缘区间端点判据）");
         assert_eq!(buy3[0].source_index, 20, "3 买端点 = 回试单元终止 source_index");
         assert_eq!(buy3[0].pivot_low, 210, "3 买止损源 = pivot_low（回试低点）");
-        assert_eq!(buy3[0].center.map(|c| c.zg), Some(200), "3 买 center=Some（止损=zg）");
+        assert_eq!(
+            buy3[0].center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+            Some(200),
+            "3 买 center=Some（止损=zg；#218 面 A 载体形态：Center 变体读出）"
+        );
     }
 
     /// ★Q7-#1 裁定C + p117 窄域授权（686 翻转条款第一支，终端背书裁定 T2 核准）：Consolidation
@@ -2752,7 +2853,9 @@ mod tests {
                     eprintln!(
                         "[census]   L{li} type3#{k}: src_idx={} buy3={} sell3={} center_zd={:?} center_zg={:?} pivot_low={} pivot_high={}",
                         p.source_index, p.bits.buy3, p.bits.sell3,
-                        p.center.map(|c| c.zd), p.center.map(|c| c.zg), p.pivot_low, p.pivot_high
+                        p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zd), _ => None }),
+                        p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+                        p.pivot_low, p.pivot_high
                     );
                 }
             }
@@ -3066,7 +3169,11 @@ mod tests {
         let p = third_buys[0];
         assert_eq!(p.source_index, 20, "买卖点定位回试端点");
         assert_eq!(p.pivot_low, 210, "结构止损价 pivot_low single source");
-        assert_eq!(p.center.map(|c| c.zg), Some(200), "3 买止损 = ZG single source");
+        assert_eq!(
+            p.center.and_then(|o| match o { signal::OwnerRef::Center(c) => Some(c.zg), _ => None }),
+            Some(200),
+            "3 买止损 = ZG single source（#218 面 A 载体形态：Center 变体读出）"
+        );
     }
 
     /// 端到端边界：有中枢但无离开/回试 ⟹ 中枢非空、bsp 空（无买卖点是诚实产出，非错误）。

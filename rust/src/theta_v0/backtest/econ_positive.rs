@@ -335,6 +335,7 @@ fn collect_signals(data: &Dataset, config: &ThetaConfig) -> Vec<RawSignal> {
                             cp_ownership: Rc::new(Vec::new()),
                             bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                             pan_div: Rc::new(Vec::new()), // Q4：single 屏蔽层无盘整背驰载荷（只供 Γ 组装）
+                            level_projection: None, // #110 门关口径（与生产 stamping 关闭分支同形）
                         })
                         .collect(),
                 };
@@ -1360,7 +1361,8 @@ fn xzd_sub_last_zs_type3(s: &LeveledMove, sub_centers: &[Center], sub_bsp: &[Bsp
             Side::Short => q.bits.sell3,
         }) && q
             .center
-            .map_or(false, |c| c.start_index == last_zs.start_index && c.end_index == last_zs.end_index)
+            // #218 面 A 载体形态机械适配：三类点恒 Center 载体（退役判据语义不动）。
+            .map_or(false, |o| matches!(o, super::super::classifier::bsp::OwnerRef::Center(c) if c.start_index == last_zs.start_index && c.end_index == last_zs.end_index))
     })
 }
 
@@ -1397,7 +1399,7 @@ fn xzd_c3_diag(
         same_center_any: match last_zs {
             Some(z) => sub_bsp.iter().any(|q| {
                 is_type3(q)
-                    && q.center.map_or(false, |c| c.start_index == z.start_index && c.end_index == z.end_index)
+                    && q.center.map_or(false, |o| matches!(o, super::super::classifier::bsp::OwnerRef::Center(c) if c.start_index == z.start_index && c.end_index == z.end_index))
             }),
             None => false,
         },
@@ -1591,6 +1593,40 @@ pub(super) fn build_gate_certificate(
     if let Some(cert) = build_nest_certificate(tower, lvl, source_index, delta, bits, hist) {
         return Some(GateCertificate::Nest(cert));
     }
+    // Nest None 回退分支 = `build_xzd_fallback` 单一来源（#75 提取；hist 仅 nest 证构建用，
+    // Xzd 分支不消费）——既有调用点改经该函数，行为逐字不变。
+    build_xzd_fallback(
+        tower,
+        lvl,
+        source_index,
+        delta,
+        bits,
+        confirm_index,
+        bsp_of_level,
+        sub_centers,
+        sub_bsp,
+    )
+    .map(GateCertificate::Xzd)
+}
+
+/// Nest-None 域的小转大回退判定（`build_gate_certificate` 回退分支逐字提取为独立函数，
+/// #75 单一来源纪律：admission `admit()` 重走（#94 择 (b)）与门凭据构造共用本函数，
+/// 禁第二查法）。
+///
+/// - 无执行段（case-1 无定位候选）/ Type1 背驰失败 / StructBreak ⟹ `None`（门拒，旧语义保留）。
+/// - Type2/3 ⟹ `Some(XzdEvidence)`（小转大证据，门读 [`XzdEvidence::gate_pass`]）。
+#[allow(clippy::too_many_arguments)]
+pub(super) fn build_xzd_fallback(
+    tower: &[Rc<Vec<LeveledMove>>],
+    lvl: usize,
+    source_index: usize,
+    delta: Side,
+    bits: &BspBits,
+    confirm_index: usize,
+    bsp_of_level: &[BspPoint],
+    sub_centers: &[Center],
+    sub_bsp: &[BspPoint],
+) -> Option<XzdEvidence> {
     // Nest None：区分小转大（Type2/3 base gate false）与 case-1（无执行段）/Type1 背驰失败。
     let exec_moves = tower.get(lvl)?.as_slice();
     let s = &exec_moves[find_move_by_end_index(exec_moves, source_index)?]; // None=无定位候选 ⟹ 门拒
@@ -1605,7 +1641,7 @@ pub(super) fn build_gate_certificate(
                 .and_then(|l| tower.get(l))
                 .map(|m| m.as_slice())
                 .unwrap_or(&[]);
-            Some(GateCertificate::Xzd(xiaozhuanda_confirm(
+            Some(xiaozhuanda_confirm(
                 s,
                 source_index,
                 confirm_index,
@@ -1615,7 +1651,7 @@ pub(super) fn build_gate_certificate(
                 sub_centers,
                 sub_bsp,
                 sub_moves,
-            )))
+            ))
         }
     }
 }
@@ -1630,7 +1666,8 @@ mod tests {
     // ── 小转大通道阶段2（xiaozhuanda）：C2 跨条目 / C3 as-of 最后次级中枢 / gate_pass 二通道 ──
 
     fn xzd_bsp(source_index: usize, bits: BspBits, center: Option<Center>) -> BspPoint {
-        BspPoint { source_index, bits, pivot_low: 0, pivot_high: 0, center, struct_break_dir: None, force: None }
+        // #218 面 A 载体形态机械适配：Center 变体包装。
+        BspPoint { level_origin: 0, source_index, bits, pivot_low: 0, pivot_high: 0, center: center.map(crate::theta_v0::classifier::bsp::OwnerRef::Center), struct_break_dir: None, force: None }
     }
 
     fn xzd_center(zd: i64, zg: i64, s: usize, e: usize) -> Center {
@@ -3923,6 +3960,7 @@ mod tests {
                                 cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                level_projection: None, // #110 门关口径
                             })
                             .collect(),
                     };
@@ -4600,6 +4638,7 @@ mod tests {
                                 cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                level_projection: None, // #110 门关口径
                             })
                             .collect(),
                     };
@@ -4903,6 +4942,7 @@ mod tests {
                                 cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                level_projection: None, // #110 门关口径
                             })
                             .collect(),
                     };
@@ -5272,6 +5312,7 @@ mod tests {
                                 cp_ownership: Rc::new(Vec::new()),
                                 bsp: Rc::new(if l2 == lvl { vec![p.clone()] } else { Vec::new() }),
                                 pan_div: Rc::new(Vec::new()), // Q4：dx 与生产 single 同形（无盘整背驰载荷）
+                                level_projection: None, // #110 门关口径
                             })
                             .collect(),
                     };

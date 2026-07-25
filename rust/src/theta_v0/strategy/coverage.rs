@@ -4514,12 +4514,12 @@ mod tests {
 
     /// L0 卖买卖点（src=si；host 右端点 ρ=si；pivot 远离 ⟹ 止损不触及）。
     fn sell_bsp(si: usize) -> BspPoint {
-        BspPoint {
+        BspPoint { level_origin: 0,
             source_index: si,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(ctr(0, si)),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(ctr(0, si))),
             struct_break_dir: None,
             force: None,
         }
@@ -4527,12 +4527,12 @@ mod tests {
 
     /// L0 买买卖点（src=si）。
     fn buy_bsp(si: usize) -> BspPoint {
-        BspPoint {
+        BspPoint { level_origin: 0,
             source_index: si,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(ctr(0, si)),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(ctr(0, si))),
             struct_break_dir: None,
             force: None,
         }
@@ -4668,12 +4668,12 @@ mod tests {
     fn classification_end_to_end_ring5_ring6() {
         let reg = super::super::persistent::PersistentRegistry::new();
         // L0 一个一类买点（source_index=4）。
-        let bsp = BspPoint {
+        let bsp = BspPoint { level_origin: 0,
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -4694,11 +4694,11 @@ mod tests {
     fn ring6_active_set_feeds_back_into_interpret() {
         let reg = super::super::persistent::PersistentRegistry::new();
         // bar t：买点开 Long。
-        let buy = BspPoint {
+        let buy = BspPoint { level_origin: 0,
             source_index: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90, pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -4706,11 +4706,11 @@ mod tests {
         let (active_t1, _) = coverage_step_classification(&c_buy, &[], &[], 1000.0, &cfg(), None, &reg);
         assert_eq!(active_t1.len(), 1, "买点开 Long 腿");
         // bar t+1：卖点（反向）→ A_{t+1} 回喂 interpret ⟹ 关闭 Long 腿 ⟹ A_{t+2}=∅。
-        let sell = BspPoint {
+        let sell = BspPoint { level_origin: 0,
             source_index: 10,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0, pivot_high: 210,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6030,12 +6030,12 @@ mod tests {
     /// ★全链 π_Θ（GAP-5）：买点 Γ 入场 → π_Θ → Buy；入场源=买卖点 source_index（非走势边界）。
     #[test]
     fn pi_theta_step_buy_point_entry_gap5() {
-        let bsp = BspPoint {
+        let bsp = BspPoint { level_origin: 0,
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6059,12 +6059,12 @@ mod tests {
     /// ★G4 组合层 [`StepTrace`]：opened=准入信号腿；traced 决策三分量 == prebuilt（委托 bit-exact 见证）。
     #[test]
     fn pi_theta_step_traced_opened_and_bitexact() {
-        let bsp = BspPoint {
+        let bsp = BspPoint { level_origin: 0,
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6102,12 +6102,12 @@ mod tests {
     /// 被关腿不入 next_active、不入 silent_drops（close 认领互斥于静默离场）。
     #[test]
     fn pi_theta_step_traced_reverse_close_attribution() {
-        let sell = BspPoint {
+        let sell = BspPoint { level_origin: 0,
             source_index: 10,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6142,10 +6142,11 @@ mod tests {
         };
         let sell = BspPoint {
             source_index,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits,
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6169,10 +6170,11 @@ mod tests {
         };
         let buy = BspPoint {
             source_index,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits,
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6867,12 +6869,12 @@ mod tests {
     /// ⟹ 均被 P1 屏蔽，open 不入 next_active（否则跨 bar 幽灵腿）。
     #[test]
     fn pi_theta_step_traced_p1_force_flat_risk_exits_all() {
-        let buy = BspPoint {
+        let buy = BspPoint { level_origin: 0,
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6910,12 +6912,12 @@ mod tests {
     //    #135 重跑清单第二类风险：P3/P4 无订单事件但间接改普通开平仓订单）。──
 
     fn buy_gamma() -> (Classification, Vec<Rc<Vec<LeveledMove>>>) {
-        let buy = BspPoint {
+        let buy = BspPoint { level_origin: 0,
             source_index: 4,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -7384,12 +7386,12 @@ mod tests {
     /// ★∀x ∃! O_{t+1}（spec §16）：同输入 ⟹ 同订单 + 同 p*（确定唯一）。
     #[test]
     fn pi_theta_step_deterministic_unique_order() {
-        let bsp = BspPoint {
+        let bsp = BspPoint { level_origin: 0,
             source_index: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 })),
             struct_break_dir: None,
             force: None,
         };
@@ -7702,11 +7704,11 @@ mod tests {
             vec![nested_l1(0, 12, [Direction::Up, Direction::Down, Direction::Up])],
         ]);
         // L0 卖候选 source_index=12 ⟹ host=sub(8,12)（ρ=12）⟹ 真父 L1 Long ⟹ σ_p=Long。
-        let sell = BspPoint {
+        let sell = BspPoint { level_origin: 0,
             source_index: 12,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0, pivot_high: 210,
-            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 12 })),
             struct_break_dir: None,
             force: None,
         };

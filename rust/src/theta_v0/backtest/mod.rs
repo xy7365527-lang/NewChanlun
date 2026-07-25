@@ -77,6 +77,11 @@ pub mod prereg_windows;
 /// 双账本（hedge-mode 分腿头寸簿，关⑤方案 B）：M14 `P^sep` 账户层兑现——q⁺/q⁻ 分腿
 /// 不先净额（M13 父仓保持）+ 嵌入恒等（现行净语义为其子集，D8 逐字节对拍锁）。
 pub mod dual_ledger;
+mod signal;
+mod fill;
+mod ledger;
+mod admission;
+mod opsem_dump;
 pub mod runner;
 mod pan_div;
 pub mod selector;

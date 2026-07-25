@@ -1,0 +1,61 @@
+# #218 三窗重放校验（baseline=/tmp/nest214/after vs after=/tmp/nest218/after）
+
+## 窗 wf7
+
+### A. 新行存在与解析（#218 schema）
+  ✓ after NEST_GATE_FAIL 恰好一行
+  ✓ after NEST_GATE_LEVEL 恰好一行
+### B. 四桶平账（ID-2 完备性）
+  ✓ trend(38) == success(14) + 四桶(10+1+13+0)
+  ✓ no_valid_point(0) == book_missing(0) + book_empty(0)
+  ✓ FAIL.trend(38) == LEVEL.base_trend(38)
+  ✓ pan_success+pan_fail(72+768) == LEVEL.base_pan(840)
+### C. 按级 × kind 合计对账 INDEX 行
+  ✓ Σbase_lk(878) == INDEX.base_events(878)
+  ✓ Σassembled_lk(86) == INDEX.assembled(86)
+  ✓ Σindexed_lk(86) == INDEX.indexed(86)
+  ✓ base_lk 列合计 == base_trend/base_pan 列
+### D. 点级计数自洽（ID-3/ID-4）
+  ✓ c1: total(8) >= eq(4)
+  ✓ c2: total(40) >= eq(0)
+  ✓ c3: total(124) >= eq(23)
+  ✓ (Σeq>0)=True ⟺ (success>0)=True（Σeq=27, success=14）
+  ✓ (Σne>0)=True ⟺ (owner_anchor_neq>0)=True
+  ✓ Σne(145) >= anchor_missing(0) + real_neq(145)（逐类次 ≥ 逐点）
+### E. 上游红线（vs #214 基线，逐字节/逐值一致，ID-5）
+  ✓ INDEX.base_events 逐值一致（878 == 878）
+  ✓ tower_events MD5 一致（70073e449f10…）
+  ✓ chain_dump 行键集一致（1665 == 1665 键；候选流供给面）
+### F. 不变量断言集（vs #214 基线读数，变即红旗，ID-5）
+  ✓ 异向桶不变（13 == 13）
+  ✓ 窗口外桶不变（1 == 1）
+  ✓ Pan 域计数不变（72/768 == 72/768）
+  ✓ c1_total 不变（8 == 8，窗口/方向谓词产物）
+  ✓ c2_total 不变（40 == 40，窗口/方向谓词产物）
+  ✓ c3_total 不变（124 == 124，窗口/方向谓词产物）
+### G. delta 对账落账（读数印出，非硬断言）
+  success: 16 → 14（Δ-2）
+  owner 桶: 8 → 10（Δ+2）
+  assembled: 88 → 86（Δ-2）
+  indexed: 88 → 86（Δ-2）
+  chain_dump verdict/admit 差异行: 1（逐行归因翻转证书，见读数报告）
+    (34998, 0, 34934, 'Long'): verdict pass->no_chain admit True->False channel nest_pass->xzd_gate_fail
+  点级相等率: c1 4/8 → 4/8；c2 9/40 → 0/40；c3 14/124 → 23/124
+  锚不可解子计数: 0；带碰撞观察: 9
+  遍历计数（新行族新字段，#214 基线无对照面）: book_total=26899 in_window=377 same_side=172
+  trades MD5: 一致
+  NEST_GATE_STATS 整行: 有变化（允许变面，须归因）
+    baseline: ['NEST_GATE_STATS total=1724 admitted=609 rejected=1115 | nest_pass=33 xzd_pass=576 | rej: flat_dir=0 no_level=0 cert_none=56 nest_n_delta_false=100 xzd_gate_fail=959']
+    after   : ['NEST_GATE_STATS total=1724 admitted=608 rejected=1116 | nest_pass=32 xzd_pass=576 | rej: flat_dir=0 no_level=0 cert_none=56 nest_n_delta_false=100 xzd_gate_fail=960']
+  NEST_GATE_CHAIN 整行: 有变化（允许变面，须归因）
+    baseline: ['NEST_GATE_CHAIN xzd_fallback=1093 | cross agree=423 old_pass_new_rej=825 old_rej_new_pass=1 reuse=475']
+    after   : ['NEST_GATE_CHAIN xzd_fallback=1094 | cross agree=422 old_pass_new_rej=826 old_rej_new_pass=1 reuse=475']
+  NEST_GATE_T3 整行: 有变化（允许变面，须归因）
+    baseline: ['NEST_GATE_T3 chain_pass=33 chain_reject=100(missing=75 broken=25) chain_none=1591 | top_dist={0: 914, 1: 306, 2: 231, 3: 90, 4: 166}']
+    after   : ['NEST_GATE_T3 chain_pass=32 chain_reject=100(missing=75 broken=25) chain_none=1592 | top_dist={0: 914, 1: 306, 2: 231, 3: 90, 4: 166}']
+
+## 读数汇总（resolution 备料）
+
+- wf7: 相等率 c1=4/8 c2=0/40 c3=23/124（基线 4/8 9/40 14/124）；四桶 success=14(基线16) owner=10(基线8) window=1 opposite=13 nvp=0；assembled=86(基线88) indexed=86
+
+## 总结：25 项断言，全过 ✓

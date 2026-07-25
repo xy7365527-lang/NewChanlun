@@ -333,6 +333,11 @@ pub struct ThetaConfig {
     pub divergence_gauge: super::classifier::divergence::DivergenceGauge,
     /// C2 D1/D2/D5 消费 seam。默认关闭，故现有分类、信号、订单与缓存路径逐位不变。
     pub c2_level_view: super::classifier::level_view::C2LevelViewConfig,
+    /// #110 投影层机制位（T3 (#172) 并门后 = **派生位**：独立配置面退役——层载由链路径
+    /// 是否启用单一驱动，生产唯一写入点 = π 入口 `admission::chain_driven_level_projection`；
+    /// #168 裁定 3）。默认关闭（= 链死）⟹ stamping 不构造 `LevelProjectionLayer`
+    /// （`LevelState.level_projection = None`，零开销，bit-exact 不变，#110 纪律不死）。
+    pub level_projection: super::classifier::projection::LevelProjectionConfig,
 }
 
 #[cfg(test)]
@@ -363,6 +368,18 @@ mod tests {
         assert_eq!(c.exec.slippage_bps, 2.0);
         assert!(!c.center_oscillation.enabled);
         assert!(!c.c2_level_view.enabled, "#73-#75 新 seam 默认必须关闭");
+        // T3 (#172 并门，#168 裁定 3）：默认 = 链死 ⟹ 层不载（零开销 bit-exact 锁，#110 纪律）；
+        // 「链启用 ⟹ 层必载」形态 = 派生构造子断言（生产唯一写入点 = π 入口派生，
+        // admission::chain_driven_level_projection；classifier stamping 仍读本机制位）。
+        assert!(!c.level_projection.enabled, "#172 并门：链死（默认）⟹ 投影层不载（零开销 bit-exact 锁）");
+        assert!(
+            super::super::classifier::projection::LevelProjectionConfig::for_chain(true).enabled,
+            "#172 并门：链启用 ⟹ 投影层必载（派生构造子形态锁）"
+        );
+        assert!(
+            !super::super::classifier::projection::LevelProjectionConfig::for_chain(false).enabled,
+            "#172 并门：链死 ⟹ 投影层不载"
+        );
         assert_eq!(c.exec.tax_bps, 0.0);
         // frozen：sizing_profile 空 ⟹ 所有 sizing 退化为 risk 标量 + gap=0（bit-exact 不变）。
         assert!(c.sizing_profile.entries.is_empty());

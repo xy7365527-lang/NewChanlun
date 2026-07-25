@@ -97,6 +97,8 @@ use super::rmove_compose::find_second_type_structure;
 
 /// 买卖点条目（带结构止损价，single source，见 `bsp::BspPoint`）。
 pub use super::bsp::BspPoint;
+/// owner 归属载体（#218 面 A，见 `bsp::OwnerRef`）。
+pub use super::bsp::OwnerRef;
 
 // ★P2-R2（codex-review-20260701-2251 护栏7）：`StructBreakFeature` sidecar 已删除。
 // 它从未接通生产（mod.rs 全走 `extract_signals(...).0` / `extract_signals_with_hist(...).0` 丢弃
@@ -526,11 +528,12 @@ pub(crate) fn trend_third_class_in_c(
 /// 1/2 类止损取 `pivot_low`(买)/`pivot_high`(卖)（破中枢段端点极值），非 center.zg/zd（那是 3 类）。
 /// pivot 按 bit 方向填，另一侧 0。
 ///
-/// ★owner 载体补齐（关③ 补记 2026-07-18 ②，编排者选定路径 (a)：一/二类点构造时填入判定中枢）：
-/// `center = Some(*c)`，`c` = 判定中枢（`judge_first_cached` 的 `last_center`——被破的最后中枢，
-/// 即本趋势 a+A+b+B+c 的 B 同型对象）。一/二类点本就由中枢判定产出，构造时填载 = 名实一致（090）。
-/// center 是 owner=B 判定式（`point.center.start_index == b_center_start`，nest.rs
-/// `terminal_bits_in_book` Trend 域）的载体与回溯锚，**不进止损判据**（止损仍 pivot，语义不变）。
+/// ★owner 载体（关③ 补记 2026-07-18 ② 路径 (a) 起构造时填载；#218 面 A 载体形态 =
+/// [`OwnerRef::Center`]）：`center = Some(OwnerRef::Center(*c))`，`c` = 判定中枢
+///（`judge_first_cached` 的 `last_center`——被破的最后中枢，即本趋势 a+A+b+B+c 的 B
+/// 同型对象）。一类归属参照 = 中枢（同级别，与事件 B 同型），教义已对齐（#211 在案）。
+/// center 是 Trend 域 owner 判同（核心区间 `(zd,zg)` 带判同，nest.rs `terminal_bits_in_book`
+/// Trend 域）的载体与回溯锚，**不进止损判据**（止损仍 pivot，语义不变）。
 ///
 /// ★P2-R2（p2-plan §2）：`struct_break_dir=Some(破中枢方向)`——由 [`judge_first_cached`] 传入
 /// （买侧向下破=Long，卖侧向上破=Short），**与 bits 是否置 buy1/sell1 无关**。零 bit 破中枢候选
@@ -544,13 +547,13 @@ fn make_first_point(
     struct_break_dir: Option<Side>,
     force: Option<ForceProxies>,
 ) -> BspPoint {
-    BspPoint {
+    BspPoint { level_origin: 0,
         source_index,
         bits,
         // 1 买止损源 pivot_low（破中枢低点）；1 卖止损源 pivot_high（破中枢高点）。
         pivot_low: if bits.buy1 { pivot_price } else { 0 },
         pivot_high: if bits.sell1 { pivot_price } else { 0 },
-        center: Some(*c), // owner 载体补齐（路径 (a)）：判定中枢 last_center 构造时填载
+        center: Some(OwnerRef::Center(*c)), // owner 载体（#218 面 A 形态）：被破的最后中枢构造时填载
         struct_break_dir,
         // ★β^div 力度（beta-route #115）：一类趋势背驰候选的 A/C 段 5 proxy（有 dif/closes_tick 输入时
         // Some，否则 None）——单一来源就在此字段，经 Candidate.force 透传（A6 #159）由 selector
@@ -564,13 +567,13 @@ fn make_first_point(
 /// 3 类止损取 `center.zg`(买)/`zd`(卖)，故 center 必 `Some`（不变量：含 3 类 bit ⟹ center
 /// 有值）。pivot_low/pivot_high 取回试端点价（买点回试低点 = pivot_low，卖点 = pivot_high）。
 fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &Center) -> BspPoint {
-    BspPoint {
+    BspPoint { level_origin: 0,
         source_index,
         bits,
         // 买点回试低点 → pivot_low；卖点回抽高点 → pivot_high。按 bit 方向填，另一侧 0。
         pivot_low: if bits.buy3 { retest_price } else { 0 },
         pivot_high: if bits.sell3 { retest_price } else { 0 },
-        center: Some(*c),
+        center: Some(OwnerRef::Center(*c)), // owner 载体（#218 面 A 形态）：所离开回抽的中枢构造时填载
         struct_break_dir: None, // 第三类=离开后回抽，非破中枢结构候选（P2-R2 语义：None）
         force: None,            // 第三类无 A/C 趋势段对 ⟹ 无力度 proxy（诚实 None，231号）
     }
@@ -582,19 +585,21 @@ fn make_third_point(source_index: usize, bits: BspBits, retest_price: Tick, c: &
 /// ——非 `center.zg/zd`（那是第三类）。`second_point` = `SecondTypeStructure.second_point`（回拉走势
 /// 结束点：买侧 = 回拉低点 m2.lo / 卖侧 = 回拉高点 m2.hi，§10.1），按 bit 方向填 pivot，另一侧 0。
 ///
-/// ★owner 载体补齐（关③ 补记 2026-07-18 ②，路径 (a)：一/二类点构造时填入判定中枢）：
-/// `center = Some(*c)`，`c` = 判定中枢（`extract_second_signals` 的 `c1`——次级别第一类离开走势
-/// 所破的中枢，B 口径核心区间）。名实一致（090）：第二类由「第一类离开 ∧ 回拉不创新低/新高」
-/// 相对 `c1` 判定产出；center 是 owner=B 判定式的载体与回溯锚，**不进止损判据**（止损仍 pivot，
-/// 语义不变）。
-fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick, c: &Center) -> BspPoint {
-    BspPoint {
+/// ★#218 面 A（spec owner-attribution-fix-20260724 ID-1；#211 路线 B + v2 教义修订）：
+/// 归属载体从「次级别中枢 c1」（确认层对象，归属/确认混载 = 级别错配根因）改载
+/// **该走势的一类点身份锚**（[`OwnerRef::Type1Anchor`]，`type1_src` = 第一类离开走势 m1 的
+/// 终点坐标 = 该走势终点极值点 = 一类点，区间套恰好存在）。二类归属参照只挂该走势一类点
+///（回拉不破一类极值），与本级别中枢无关；确认层识别（c1/i1/i2/背驰）一个 bit 不动。
+/// 锚 =（极值价, 合并组锚）由 nest 核内经 T1 oracle 判定时解析（本层只载坐标），
+/// **不进止损判据**（止损仍 pivot，语义不变）。
+fn make_second_point(source_index: usize, bits: BspBits, second_point: Tick, type1_src: usize) -> BspPoint {
+    BspPoint { level_origin: 0,
         source_index,
         bits,
         // 2 买止损源 pivot_low（回拉低点）；2 卖止损源 pivot_high（回拉高点）。
         pivot_low: if bits.buy2 { second_point } else { 0 },
         pivot_high: if bits.sell2 { second_point } else { 0 },
-        center: Some(*c), // owner 载体补齐（路径 (a)）：判定中枢 c1 构造时填载
+        center: Some(OwnerRef::Type1Anchor(type1_src)), // #218 面 A：归属载体 = 该走势一类点锚坐标
         struct_break_dir: None, // 第二类=中枢内部回拉，非破中枢结构候选（P2-R2 语义：None）
         force: None,            // 第二类无 A/C 趋势段对 ⟹ 无力度 proxy（诚实 None，231号）
     }
@@ -841,6 +846,9 @@ pub(crate) fn judge_pan_div(
 ///
 /// `c1`：第二类的次级别第一类离开走势所破的中枢（B 口径核心区间 [zd,zg]，迁主塔 637 定稿；
 /// `center_of` 给次级别每走势配中枢，本入口对识别出的第一类离开走势用 `c1` 统一，同 descend.rs 边界）。
+/// **c1 只是确认层判定中枢（识别用）**——#218 面 A 后不再充归属载体：二类点的归属载体 =
+/// 该走势一类点身份锚（识别出的 `i1` 第一类离开走势终点坐标，经 `index_of` 供给，零新入参；
+/// v2 教义修订：二类归属参照 = 该走势一类点，回拉不破一类极值，与本级别中枢无关）。
 /// `divergence_of`：每个次级别走势的 MACD 背驰判定（rust 真算，divergence.rs；力度领先 Origin）。
 /// `index_of`：每个次级别走势 → 原始 K 序号（坐标 still-MISSING，上游塔提供）。
 pub fn extract_second_signals(
@@ -857,6 +865,9 @@ pub fn extract_second_signals(
         return Vec::new();
     };
     let subs = super::descend::descend(parent);
+    // 第一类离开走势 m1（结构识别出的 i1 位置）——该走势的一类点 = m1 终点极值点（区间套
+    // 恰好存在：该走势终点 = 一类点）；坐标经既有 index_of 供给（#218 面 A 归属载体，零新入参）。
+    let m1 = &subs[structure.i1];
     // 回拉走势 m2（结构识别出的 i2 位置）——第二类买卖点 = 其结束点 = structure.second_point。
     let m2 = &subs[structure.i2];
     let is_sell = matches!(side, Side::Short);
@@ -872,8 +883,9 @@ pub fn extract_second_signals(
     };
     let bits = endpoint_to_bsp(&situ);
     // source_index 由 index_of 取回拉走势 m2 的原始 K 序（坐标 still-MISSING，上游塔提供）。
-    // ★owner 载体补齐（关③ 补记② 路径 (a)）：判定中枢 c1 构造时填载（center=Some）。
-    vec![make_second_point(index_of(m2), bits, structure.second_point, c1)]
+    // ★#218 面 A：归属载体改载该走势一类点身份锚（m1 终点坐标 = index_of(m1)）——归属/确认
+    // 分层：识别层（c1/i1/i2/背驰）一个 bit 不动，仅归属载体的填载内容换（spec ID-1）。
+    vec![make_second_point(index_of(m2), bits, structure.second_point, index_of(m1))]
 }
 
 /// 从 confirmed 中枢序列 + 线段序列 + close 序列提取该级别全部买卖点（reference:34-36）。
@@ -1535,7 +1547,10 @@ mod tests {
         assert!(points[0].bits.buy3);
         assert_eq!(points[0].source_index, 20); // 回试端点
         assert_eq!(points[0].pivot_low, 210);   // 回试低点 = pivot_low
-        assert_eq!(points[0].center.map(|c| c.zg), Some(200)); // 3 买止损 = zg
+        assert_eq!(
+            points[0].center.and_then(|o| match o { OwnerRef::Center(c) => Some(c.zg), _ => None }),
+            Some(200),
+        ); // 3 买止损 = zg（#218 面 A 载体形态：Center 变体读出）
     }
 
     #[test]
@@ -1576,7 +1591,10 @@ mod tests {
         assert_eq!(points.len(), 1);
         assert!(points[0].bits.sell3);
         assert_eq!(points[0].pivot_high, 90);   // 回抽高点 = pivot_high
-        assert_eq!(points[0].center.map(|c| c.zd), Some(100)); // 3 卖止损 = zd
+        assert_eq!(
+            points[0].center.and_then(|o| match o { OwnerRef::Center(c) => Some(c.zd), _ => None }),
+            Some(100),
+        ); // 3 卖止损 = zd（#218 面 A 载体形态：Center 变体读出）
     }
 
     #[test]
@@ -1638,7 +1656,7 @@ mod tests {
         );
         assert_eq!(buy3[0].source_index, 34, "唯一 bsp 在回试端点");
         assert_eq!(
-            buy3[0].center.map(|c| (c.zd, c.zg)),
+            buy3[0].center.and_then(|o| match o { OwnerRef::Center(c) => Some((c.zd, c.zg)), _ => None }),
             Some((50, 60)),
             "归属中枢 = 刚离开的最近中枢 C2[50,60]（第49课「当下之前最后一个中枢」）"
         );
@@ -1690,7 +1708,8 @@ mod tests {
         //（被破的最后中枢 = a+A+b+B+c 的 B 同型对象）——名实一致根据：一类点本就由「C 段破
         // last_center ∧ C<A 趋势背驰」相对 c1 判定产出；center 是 owner 载体，止损仍 pivot
         //（pivot_low=80 上条已锁，center 不进 1/2 类止损判据）。
-        assert_eq!(buy1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+        // （#218 面 A 载体形态机械适配：一/三类载 OwnerRef::Center，语义不动。）
+        assert_eq!(buy1[0].center, Some(OwnerRef::Center(c1)), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
     }
 
     // ── p117（686 翻转条款第一支窄域授权，终端背书裁定 T2）：第一类路径方向锚降级 ──────
@@ -1726,7 +1745,8 @@ mod tests {
         // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1——
         // 名实一致根据同 `first_buy_extracted_with_trend_divergence`（本测试复用其 A/B/C 夹具）；
         // center 是 owner 载体，止损仍 pivot（上条已锁，center 不进 1/2 类止损判据）。
-        assert_eq!(buy1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+        // （#218 面 A 载体形态机械适配：一/三类载 OwnerRef::Center，语义不动。）
+        assert_eq!(buy1[0].center, Some(OwnerRef::Center(c1)), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
     }
 
     #[test]
@@ -2300,7 +2320,8 @@ mod tests {
         // ★owner 载体补齐（关③ 补记② 路径 (a)）：一类点构造时填入判定中枢 last_center=c1
         //（上涨趋势镜像，被破的最后中枢）——名实一致根据同一类买侧；center 是 owner 载体，
         // 止损仍 pivot（pivot_high=420 上条已锁，center 不进 1/2 类止损判据）。
-        assert_eq!(sell1[0].center, Some(c1), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
+        // （#218 面 A 载体形态机械适配：一/三类载 OwnerRef::Center，语义不动。）
+        assert_eq!(sell1[0].center, Some(OwnerRef::Center(c1)), "一类点 center = 判定中枢（owner 载体）；止损仍 pivot 非 center");
     }
 
     // ── Q5（task #145）：A/C 从单段升级为次级别走势区间——多段 departure 语义真变 ────
@@ -2707,17 +2728,17 @@ mod tests {
             Side::Long,
             &second_center(),
             |m| m.lo() == -10,        // 仅第一类离开背驰
-            |m| if m.lo() == -8 { 42 } else { 0 }, // 回拉走势 m2 的原始 K 序
+            |m| if m.lo() == -8 { 42 } else if m.lo() == -10 { 30 } else { 0 }, // m2 → 42；m1 → 30
         );
         assert_eq!(points.len(), 1, "RMove 塔（第一类离开 ∧ 回拉不创新低）⟹ 一个 B2");
         assert!(points[0].bits.buy2, "递归组装层产第二类买点（buy2 置位）");
         assert!(!points[0].bits.buy1 && !points[0].bits.buy3, "第二类端点不置 1/3 类（互斥语义）");
         assert_eq!(points[0].source_index, 42, "B2 source_index = 回拉走势 m2 的原始 K 序（index_of）");
         assert_eq!(points[0].pivot_low, -8, "B2 止损源 = 回拉低点（second_point = m2.lo）");
-        // ★owner 载体补齐（关③ 补记② 路径 (a)）：二类点构造时填入判定中枢 c1=second_center()
-        //（次级别第一类离开走势所破的中枢）——名实一致根据：B2 由「第一类离开（破 c1）∧ 回拉
-        // 不创新低」相对该中枢判定产出；center 是 owner 载体，止损仍 pivot（上条已锁）。
-        assert_eq!(points[0].center, Some(second_center()), "二类点 center = 判定中枢 c1（owner 载体）；止损仍 pivot 非 center");
+        // ★#218 面 A（spec owner-attribution-fix-20260724 ID-1，机械改写归因：载体形态变化）：
+        // 二类点归属载体从 c1（次级别中枢，确认层对象）改载该走势一类点身份锚（m1 终点坐标 30）；
+        // 止损仍 pivot（上条已锁，语义不变）。
+        assert_eq!(points[0].center, Some(OwnerRef::Type1Anchor(30)), "二类点归属载体 = 该走势一类点锚（m1 终点坐标）；止损仍 pivot 非 center");
     }
 
     #[test]
@@ -2762,17 +2783,92 @@ mod tests {
             Side::Short,
             &second_center(),
             |m| m.hi() == 10,         // 仅第一类离开背驰
-            |m| if m.hi() == 8 { 17 } else { 0 }, // 回抽走势的原始 K 序
+            |m| if m.hi() == 8 { 17 } else if m.hi() == 10 { 11 } else { 0 }, // m2 → 17；m1 → 11
         );
         assert_eq!(points.len(), 1, "S2：第一类离开 ∧ 回抽不创新高 ⟹ 一个 S2");
         assert!(points[0].bits.sell2, "递归组装层产第二类卖点（sell2 置位）");
         assert!(!points[0].bits.buy2, "卖侧 ⟹ buy2 不置位");
         assert_eq!(points[0].source_index, 17, "S2 source_index = 回抽走势的原始 K 序");
         assert_eq!(points[0].pivot_high, 8, "S2 止损源 = 回抽高点（second_point = m2.hi）");
-        // ★owner 载体补齐（关③ 补记② 路径 (a)）：二类点构造时填入判定中枢 c1=second_center()
-        //（卖侧镜像，第一类离开所破的中枢）——名实一致根据同 B2 买侧；center 是 owner 载体，
-        // 止损仍 pivot（pivot_high=8 上条已锁）。
-        assert_eq!(points[0].center, Some(second_center()), "二类点 center = 判定中枢 c1（owner 载体）；止损仍 pivot 非 center");
+        // ★#218 面 A（机械改写归因：载体形态变化，同买侧）：S2 归属载体改载该走势一类点
+        // 身份锚（m1 终点坐标 11）；止损仍 pivot（pivot_high=8 上条已锁）。
+        assert_eq!(points[0].center, Some(OwnerRef::Type1Anchor(11)), "S2 归属载体 = 该走势一类点锚（m1 终点坐标）；止损仍 pivot 非 center");
+    }
+
+    // ── #218 面 A：二类归属载体修填（spec owner-attribution-fix-20260724 ID-1，#211 路线 B
+    //    + v2 教义修订：二类归属参照 = 该走势一类点，非中枢）──────────────────────────
+
+    /// 面 A 验收（#218 票体）：二类点归属载体 = 该走势一类点身份锚——`find_second_type_structure`
+    /// 识别出的 i1（第一类离开走势）的**终点**坐标（该走势终点极值点 = 一类点，区间套恰好存在；
+    /// 坐标经既有 `index_of` 供给，零新入参）。识别层零改动：c1 判定中枢、i1/i2 时间序、
+    /// second_point 取法、bits、背驰判定逐字一致。
+    #[test]
+    fn second_buy_owner_carrier_is_type1_anchor() {
+        let parent = parent_tower();
+        let points = extract_second_signals(
+            &parent,
+            Side::Long,
+            &second_center(),
+            |m| m.lo() == -10, // 仅第一类离开背驰（识别层口径一个 bit 不动）
+            // 坐标：回拉 m2 → 42；第一类离开 m1 → 30（一类点 = m1 终点 = 该走势终点极值点）。
+            |m| if m.lo() == -8 { 42 } else if m.lo() == -10 { 30 } else { 0 },
+        );
+        assert_eq!(points.len(), 1);
+        assert!(points[0].bits.buy2 && !points[0].bits.buy1 && !points[0].bits.buy3);
+        assert_eq!(points[0].source_index, 42, "识别不变：B2 坐标 = 回拉走势 m2 终点（index_of）");
+        assert_eq!(points[0].pivot_low, -8, "识别不变：止损源 = 回拉低点（second_point = m2.lo）");
+        assert_eq!(
+            points[0].center,
+            Some(OwnerRef::Type1Anchor(30)),
+            "#218 面 A：归属载体 = 该走势一类点锚（m1 终点坐标 30）；不再载 c1（次级别中枢，级别错配根因）"
+        );
+    }
+
+    /// 面 A 卖侧镜像：S2 归属载体同为该走势一类点锚（第一类离开走势 m1 终点坐标）。
+    #[test]
+    fn second_sell_owner_carrier_is_type1_anchor() {
+        let m1_sell = RMove::Segment { direction: Direction::Up, lo: 2, hi: 10 };
+        let m2_sell = RMove::Segment { direction: Direction::Down, lo: 1, hi: 8 };
+        let m3_sell = RMove::Segment { direction: Direction::Down, lo: 0, hi: 6 };
+        let parent = compose_move(vec![m1_sell, m2_sell, m3_sell], vec![second_center()], 1);
+        let points = extract_second_signals(
+            &parent,
+            Side::Short,
+            &second_center(),
+            |m| m.hi() == 10, // 仅第一类离开背驰
+            |m| if m.hi() == 8 { 17 } else if m.hi() == 10 { 11 } else { 0 },
+        );
+        assert_eq!(points.len(), 1);
+        assert!(points[0].bits.sell2 && !points[0].bits.buy2);
+        assert_eq!(points[0].source_index, 17, "识别不变：S2 坐标 = 回抽走势 m2 终点");
+        assert_eq!(points[0].pivot_high, 8, "识别不变：止损源 = 回抽高点（second_point = m2.hi）");
+        assert_eq!(
+            points[0].center,
+            Some(OwnerRef::Type1Anchor(11)),
+            "#218 面 A：S2 归属载体 = 该走势一类点锚（m1 终点坐标 11）"
+        );
+    }
+
+    /// 面 A 归属/确认分层证据（US-04）：c1 只是确认层判定中枢（识别用），不进归属载体——
+    /// 换一个 m1 同样下破的判定中枢 c1′（zd=-5：m1.lo=-10 < -5 下破成立），识别结果与
+    /// 归属载体逐值不变（锚坐标只由 m1 终点给出，与 c1 无关）。
+    #[test]
+    fn second_owner_carrier_independent_of_judge_center_c1() {
+        let c1_alt = Center { zd: -5, zg: -3, dd: -6, gg: -2, start_index: 0, end_index: 0 };
+        let parent = parent_tower();
+        let points = extract_second_signals(
+            &parent,
+            Side::Long,
+            &c1_alt,
+            |m| m.lo() == -10,
+            |m| if m.lo() == -8 { 42 } else if m.lo() == -10 { 30 } else { 0 },
+        );
+        assert_eq!(points.len(), 1, "c1′ 仍被 m1 下破 ⟹ 识别结果不变（确认层同一判定）");
+        assert_eq!(
+            points[0].center,
+            Some(OwnerRef::Type1Anchor(30)),
+            "归属载体与 c1 无关：换判定中枢锚坐标不变（归属层只挂该走势一类点）"
+        );
     }
 
     #[test]
@@ -2875,7 +2971,11 @@ mod tests {
             // 含 3 类 bit 的 bsp 的 center 必 Some 且 = 某真实输入中枢（归属正确，非零占位）。
             for p in &points {
                 if p.bits.buy3 || p.bits.sell3 {
-                    let c = p.center.expect("含 3 类 bit ⟹ center 必 Some");
+                    // （#218 面 A 载体形态机械适配：三类点恒 Center 载体。）
+                    let c = match p.center.expect("含 3 类 bit ⟹ center 必 Some") {
+                        OwnerRef::Center(c) => c,
+                        other => panic!("三类点载体恒 Center，实际={other:?}"),
+                    };
                     assert!(
                         centers.iter().any(|ic| ic.zd == c.zd && ic.zg == c.zg && ic.end_index == c.end_index),
                         "归属中枢必是真实输入中枢之一（最近中枢，非臆造）"
@@ -3274,10 +3374,19 @@ fn diag_first_buy() {
         // 二类由 `extract_second_signals` 产，不在本电池输入域）⟹ **点集合与摘要双零变化**。
         // per-case 对拍（oracle 同步填载，「同步非快照」先例）继续逐字段锁定（center 在 PartialEq 内，
         // bsp.rs:170）。若未来电池纳入一/二类路径点致摘要翻转，按上方先例诚实重算并更新本段。
-        // 历史值：`0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
+        // ★#110/#218 诚实更新（kimi-nest-mainline-20260717 三方合并浮出，同 struct_break_dir/force
+        // 先例）：`BspPoint` 新增 `level_origin: u32` 字段（#110 级别身份标签）且 `center` 载体
+        // `Option<Center>` 升为 `Option<OwnerRef>`（#218 OwnerRef 包装）——二者均在
+        // `#[derive(Debug)]` 内 ⟹ 每点 Debug 串多 `level_origin: 0, ` 且 Some(Center{..}) 变
+        // Some(Center(Center{..})) ⟹ FNV 摘要翻转。**不**自定义 Debug 隐藏新字段（护栏4 禁止）。
+        // 六 bit + pivot + center + struct_break_dir 逐字段语义不变由
+        // `extract_signals_bit_exact_vs_orig_per_case`（oracle 同步填载，PartialEq 含 level_origin/
+        // OwnerRef 新口径）继续锁定——翻转**仅**因 Debug 形态变化，非语义变化。
+        // 历史值：`0x90c7_9ee6_17e1_1392`（level_origin/OwnerRef 引入前）；
+        //         `0x56ed_dd65_1c59_5733`（force 引入前，struct_break_dir 后）；
         //         `0x37d2_45a7_cdc5_505a`（P2-R2 前，struct_break_dir 引入前）；
         //         `0x06b3_7c2f_3a5e_9d41`（更早，与 git HEAD oracle 不一致的历史电池状态）。
-        const GOLDEN: u64 = 0x90c7_9ee6_17e1_1392;
+        const GOLDEN: u64 = 0xe6a2_63e3_43e4_3845;
         let digest = bit_exact_battery_digest();
         assert_eq!(
             digest, GOLDEN,

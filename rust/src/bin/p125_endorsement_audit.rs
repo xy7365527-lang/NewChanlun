@@ -362,6 +362,18 @@ fn parse_pan_cases(path: &str) -> Result<Vec<PanCase>, String> {
     Ok(out)
 }
 
+
+/// #218 面 B 研究 bin 锚供给说明（诚实，090）：owner 判同已换两族锚（一/三类核心区间
+/// 带判同经账本 `centers` 全功能；二类一类点身份锚判同需 T1 oracle + 事件锚账本）。
+/// 本 bin 是归档研究/审计工具，未接事件锚账本——二类判同锚不可解 = 诚实判负（与
+/// 生产 gate 全接线读数有别，面 B 注册项；一/三类判同不受影响）。
+fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<'static> {
+    fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
+        None
+    }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+}
+
 fn main() -> Result<(), String> {
     let mut args = std::env::args().skip(1);
     let path = args
@@ -436,7 +448,7 @@ fn main() -> Result<(), String> {
                 _ => pan_confirmed += 1,
             }
             // 生产单一来源 hit + 完整 bit 向量回读（关③ P3：返回形状扩为判定结构，取 bits 层）。
-            if let Some(bits) = terminal_bits_at_event(classification, event, TerminalMatch::CWindow)
+            if let Some(bits) = terminal_bits_at_event(classification, event, TerminalMatch::CWindow, &bin_anchor_ctx())
                 .map(|t| t.bits)
             {
                 per_level_types[level].observe(&bits);
@@ -459,7 +471,7 @@ fn main() -> Result<(), String> {
                 ));
             }
             // C-a 敏感性对照（裁定 T1.2 保留常数，不作生产默认）。
-            if terminal_bits_at_event(classification, event, TerminalMatch::Exact).is_some() {
+            if terminal_bits_at_event(classification, event, TerminalMatch::Exact, &bin_anchor_ctx()).is_some() {
                 ca_hits += 1;
             }
         }
@@ -598,14 +610,19 @@ fn main() -> Result<(), String> {
         // 关③ P2/P3：877 池 = 全 pan 基例 ⟹ kind=Consolidation（同向一/二/三类全合法，
         // owner 不入判 ⟹ b_center_start=None）；收紧后复测预期不变（谓词零改动域）。
         let bits = book0.and_then(|book| {
+            // #218 面 B：Pan 域 owner 不入判（锚参照包不消费）；centers 传同级账本层
+            // （一/三类判同查找键域，Pan 用不到但签名需要——与生产同一核，禁 fork）。
+            let centers0 = classification.levels.first().map(|state| state.centers.as_slice());
             terminal_bits_in_book(
                 book,
+                centers0.unwrap_or(&[]),
                 case.ib0,
                 case.turn,
                 case.side,
                 NestDivergenceKind::Consolidation,
                 None,
                 TerminalMatch::CWindow,
+                &bin_anchor_ctx(),
             )
             .map(|t| t.bits)
         });

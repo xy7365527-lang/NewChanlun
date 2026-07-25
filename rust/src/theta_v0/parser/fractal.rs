@@ -70,6 +70,16 @@ pub fn detect_fractals(merged: &[Bar]) -> Vec<Fractal> {
     out
 }
 
+/// 分型供给口（T1 键域重锚 #170）：源序号 → 该处 confirmed 分型（分型管单一来源）。
+///
+/// `fractals` 按 `source_index` 升序（合并序列顺序三联扫描产出）⟹ partition_point 二分
+/// O(log n)。返回分型本体（`Fractal` 为 Copy）——未命中 = 该源序号无 confirmed 分型
+/// （诚实 None，消费侧禁降级第二查法）。
+pub fn fractal_at_source(fractals: &[Fractal], source_index: usize) -> Option<Fractal> {
+    let i = fractals.partition_point(|f| f.source_index < source_index);
+    fractals.get(i).filter(|f| f.source_index == source_index).copied()
+}
+
 // ============================================================================
 // 增量 fractal（#93 H1 主根因：parse_layer 下游 per-bar O(n²) → 增量化）。
 //
@@ -257,6 +267,25 @@ mod tests {
             volume: 1,
             untradable: false,
         }
+    }
+
+    // -------- T1 (#170) 分型供给口测试（先红后绿） --------
+
+    #[test]
+    fn fractal_at_source_hit_miss_and_order() {
+        let fs = vec![
+            Fractal { kind: FractalKind::Top, source_index: 3, timestamp: 3, price: 150 },
+            Fractal { kind: FractalKind::Bottom, source_index: 8, timestamp: 8, price: 90 },
+            Fractal { kind: FractalKind::Top, source_index: 21, timestamp: 21, price: 170 },
+        ];
+        assert_eq!(
+            fractal_at_source(&fs, 8).map(|f| (f.kind, f.price)),
+            Some((FractalKind::Bottom, 90)),
+            "命中返回分型本体（方向 + 极值价）"
+        );
+        assert!(fractal_at_source(&fs, 9).is_none(), "非分型中K位置不得命中");
+        assert!(fractal_at_source(&fs, 0).is_none(), "首元素之前不得命中");
+        assert!(fractal_at_source(&[], 0).is_none(), "空供给不得命中");
     }
 
     #[test]

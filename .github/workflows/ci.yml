@@ -13,6 +13,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Grep gate — window-binding artifacts banned (G1)
+        run: '! grep -rn "P101_TAG\|P101_MULTI\|cert_bsp_tag" rust/src/theta_v0/'
+
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:

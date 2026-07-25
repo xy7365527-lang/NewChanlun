@@ -1491,6 +1491,18 @@ fn certificate_key(exec: usize, top: usize, certificate: &TypedNestCertificate) 
 /// ★p117 T1 终端背书生产口径常数（bsp-terminal-endorsement-ruling-20260718 裁决2）：
 /// C-b = `[c_start, t*]` 窗口最早 confirm_side 点。C-a（`TerminalMatch::Exact`）保留为
 /// 敏感性对照口径——与 p92/p116 同一常数同一切换点，各 bin 查法保持一致。
+
+/// #218 面 B 研究 bin 锚供给说明（诚实，090）：owner 判同已换两族锚（一/三类核心区间
+/// 带判同经账本 `centers` 全功能；二类一类点身份锚判同需 T1 oracle + 事件锚账本）。
+/// 本 bin 是归档研究/审计工具，未接事件锚账本——二类判同锚不可解 = 诚实判负（与
+/// 生产 gate 全接线读数有别，面 B 注册项；一/三类判同不受影响）。
+fn bin_anchor_ctx() -> newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx<'static> {
+    fn never(_: usize) -> Option<(newchan_rust::theta_v0::types::Tick, usize)> {
+        None
+    }
+    newchan_rust::theta_v0::classifier::nest::OwnerAnchorCtx { anchor_at: &never, event_anchor: (None, None) }
+}
+
 const TERMINAL_MATCH: TerminalMatch = TerminalMatch::CWindow;
 
 /// 终端背书查法（生产）：委托 lib 单一来源 `nest::terminal_bits_at_event`——账本级别移位
@@ -1501,7 +1513,7 @@ fn terminal_bits_new(
 ) -> Option<BspBits> {
     // 关③ P3：lib 返回形状扩为 `TerminalEndorsement`（bits + owner start_index）——
     // 生产装配消费 bits 层；owner 两维构成归收紧后重放审计读数，非本 bin 职责。
-    terminal_bits_at_event(classification, event, TERMINAL_MATCH).map(|t| t.bits)
+    terminal_bits_at_event(classification, event, TERMINAL_MATCH, &bin_anchor_ctx()).map(|t| t.bits)
 }
 
 /// 旧事件路径（`CandDeltaEvent`，P1 基线对账/P123_BASELINE 类审计）的终端查法：同一级别
@@ -1515,12 +1527,15 @@ fn terminal_bits_old(
     side: Side,
     b_center_start: Option<usize>,
 ) -> Option<BspBits> {
-    let book = &classification.levels.get(event_bsp_book_level(level as u32)?)?.bsp;
+    let book_level = classification.levels.get(event_bsp_book_level(level as u32)?)?;
+    let book = &book_level.bsp;
     // 关③ P3 平移：旧事件 = Cand^δ 趋势族线（pan_div_diag 为 cand_delta=false 纯诊断，
     // 结构性不入终端查询）⟹ kind=Trend；B 身份 = 事件自带 `b_parent.source_interval.0`
     //（ParentCenterIdentity 已携 B start_index 快照，单一来源，无第二查法）。
+    // #218 面 B：一/三类判同的 B 带由同层 `centers` 查出（b_center_start 只当查找键）。
     terminal_bits_in_book(
-        book, c_start, source, side, NestDivergenceKind::Trend, b_center_start, TERMINAL_MATCH,
+        book, &book_level.centers, c_start, source, side, NestDivergenceKind::Trend,
+        b_center_start, TERMINAL_MATCH, &bin_anchor_ctx(),
     )
     .map(|t| t.bits)
 }

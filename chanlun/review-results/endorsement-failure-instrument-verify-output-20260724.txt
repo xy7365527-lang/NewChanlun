@@ -1,0 +1,105 @@
+# #214 三窗重放校验（baseline=/tmp/nest214/baseline vs after=/tmp/nest214/after）
+
+## 窗 p3fold
+
+### A. 新行存在与解析
+  ✓ after NEST_GATE_FAIL 恰好一行
+  ✓ after NEST_GATE_LEVEL 恰好一行
+  ✓ baseline 无新行（纯增量，ID-5）
+### B. 四桶平账（ID-2 完备性）
+  ✓ trend(41) == success(19) + 四桶(7+2+13+0)
+  ✓ no_valid_point(0) == book_missing(0) + book_empty(0)
+  ✓ FAIL.trend(41) == LEVEL.base_trend(41)
+  ✓ pan_success+pan_fail(90+642) == LEVEL.base_pan(732)
+### C. 按级 × kind 合计对账 INDEX 行
+  ✓ Σbase_lk(773) == INDEX.base_events(773)
+  ✓ Σassembled_lk(109) == INDEX.assembled(109)
+  ✓ Σindexed_lk(109) == INDEX.indexed(109)
+  ✓ base_lk 列合计 == base_trend/base_pan 列
+### D. 点级计数自洽（ID-3）
+  ✓ c1: total(7) >= eq(5)
+  ✓ c2: total(33) >= eq(12)
+  ✓ c3: total(58) >= eq(14)
+  ✓ (Σeq>0)=True ⟺ (success>0)=True（Σeq=31, success=19）
+  ✓ (Σne>0)=True ⟺ (owner_start_neq>0)=True
+  ✓ Σne(67) >= id_missing(0) + real_neq(67)（逐类次 ≥ 逐点）
+### E. 红线对照（baseline vs after 逐字节一致，ID-6.3）
+  ✓ NEST_GATE_STATS 整行逐字节一致
+  ✓ NEST_GATE_CHAIN 整行逐字节一致
+  ✓ NEST_GATE_T3 整行逐字节一致
+  ✓ NEST_GATE_INDEX 整行逐字节一致
+  ✓ tower_events MD5 一致（cfa80deebf44…）
+  ✓ trades MD5 一致（6fa7157f5e3a…）
+  ✓ chain_dump(候选流) MD5 一致（2fbde434cd65…）
+
+## 窗 wf7
+
+### A. 新行存在与解析
+  ✓ after NEST_GATE_FAIL 恰好一行
+  ✓ after NEST_GATE_LEVEL 恰好一行
+  ✓ baseline 无新行（纯增量，ID-5）
+### B. 四桶平账（ID-2 完备性）
+  ✓ trend(38) == success(16) + 四桶(8+1+13+0)
+  ✓ no_valid_point(0) == book_missing(0) + book_empty(0)
+  ✓ FAIL.trend(38) == LEVEL.base_trend(38)
+  ✓ pan_success+pan_fail(72+768) == LEVEL.base_pan(840)
+### C. 按级 × kind 合计对账 INDEX 行
+  ✓ Σbase_lk(878) == INDEX.base_events(878)
+  ✓ Σassembled_lk(88) == INDEX.assembled(88)
+  ✓ Σindexed_lk(88) == INDEX.indexed(88)
+  ✓ base_lk 列合计 == base_trend/base_pan 列
+### D. 点级计数自洽（ID-3）
+  ✓ c1: total(8) >= eq(4)
+  ✓ c2: total(40) >= eq(9)
+  ✓ c3: total(124) >= eq(14)
+  ✓ (Σeq>0)=True ⟺ (success>0)=True（Σeq=27, success=16）
+  ✓ (Σne>0)=True ⟺ (owner_start_neq>0)=True
+  ✓ Σne(145) >= id_missing(0) + real_neq(145)（逐类次 ≥ 逐点）
+### E. 红线对照（baseline vs after 逐字节一致，ID-6.3）
+  ✓ NEST_GATE_STATS 整行逐字节一致
+  ✓ NEST_GATE_CHAIN 整行逐字节一致
+  ✓ NEST_GATE_T3 整行逐字节一致
+  ✓ NEST_GATE_INDEX 整行逐字节一致
+  ✓ tower_events MD5 一致（70073e449f10…）
+  ✓ trades MD5 一致（7735013bf326…）
+  ✓ chain_dump(候选流) MD5 一致（8d6ffda9afea…）
+
+## 窗 wf8
+
+### A. 新行存在与解析
+  ✓ after NEST_GATE_FAIL 恰好一行
+  ✓ after NEST_GATE_LEVEL 恰好一行
+  ✓ baseline 无新行（纯增量，ID-5）
+### B. 四桶平账（ID-2 完备性）
+  ✓ trend(42) == success(14) + 四桶(4+3+21+0)
+  ✓ no_valid_point(0) == book_missing(0) + book_empty(0)
+  ✓ FAIL.trend(42) == LEVEL.base_trend(42)
+  ✓ pan_success+pan_fail(49+633) == LEVEL.base_pan(682)
+### C. 按级 × kind 合计对账 INDEX 行
+  ✓ Σbase_lk(724) == INDEX.base_events(724)
+  ✓ Σassembled_lk(63) == INDEX.assembled(63)
+  ✓ Σindexed_lk(63) == INDEX.indexed(63)
+  ✓ base_lk 列合计 == base_trend/base_pan 列
+### D. 点级计数自洽（ID-3）
+  ✓ c1: total(6) >= eq(6)
+  ✓ c2: total(27) >= eq(6)
+  ✓ c3: total(82) >= eq(10)
+  ✓ (Σeq>0)=True ⟺ (success>0)=True（Σeq=22, success=14）
+  ✓ (Σne>0)=True ⟺ (owner_start_neq>0)=True
+  ✓ Σne(93) >= id_missing(0) + real_neq(93)（逐类次 ≥ 逐点）
+### E. 红线对照（baseline vs after 逐字节一致，ID-6.3）
+  ✓ NEST_GATE_STATS 整行逐字节一致
+  ✓ NEST_GATE_CHAIN 整行逐字节一致
+  ✓ NEST_GATE_T3 整行逐字节一致
+  ✓ NEST_GATE_INDEX 整行逐字节一致
+  ✓ tower_events MD5 一致（7119ffdb1778…）
+  ✓ trades MD5 一致（d395426fc60f…）
+  ✓ chain_dump(候选流) MD5 一致（acb856eeabb1…）
+
+## 读数汇总（resolution 备料）
+
+- p3fold: 二/三类点相等率 = 26/91 (0.2857)；四桶 owner_start_neq=7 out_of_window=2 opposite_side=13 no_valid_point=0(missing=0,empty=0) success=19；kind trend=41 pan=732
+- wf7: 二/三类点相等率 = 23/164 (0.1402)；四桶 owner_start_neq=8 out_of_window=1 opposite_side=13 no_valid_point=0(missing=0,empty=0) success=16；kind trend=38 pan=840
+- wf8: 二/三类点相等率 = 16/109 (0.1468)；四桶 owner_start_neq=4 out_of_window=3 opposite_side=21 no_valid_point=0(missing=0,empty=0) success=14；kind trend=42 pan=682
+
+## 总结：72 项断言，全过 ✓

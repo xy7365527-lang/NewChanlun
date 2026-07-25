@@ -272,6 +272,12 @@ impl<'c> ParseLayerIncr<'c> {
 ///   `(segments, pending_start)` 同时喂给步骤 7 tail——避免重跑段划分（性能 #93）。
 /// - 步骤 6 canonical 分解：L0 段层与段端点序列恒等（见 mod 头注释），不额外存。
 /// - 步骤 7 未完成尾部（tail::build_tail，reference:25，对齐 Parse.lean §6 + OpenTail）。
+///
+/// ★契约锚（#239 实写，#236 裁定）：`Origin/Pipeline.lean` `originPipeline`。
+/// ⚠段结构差（勿误对拍）：本七段复合**吃 raw bars**（步骤1包含合并起，全链从原始 K 线
+/// 构造）；Lean `originPipeline` 是 3+2 段**吃 strokes/candidates**（构造链 segmentsOf→
+/// centersOf→bspOf + 闭环链 chanlunTransitionFold，`OriginInput` 已携笔流与候选端点流）——
+/// 非同一函数、输入域不同，禁直接对拍。重叠区 = strokes/segments（交接对账项在案，#240 终裁）。
 fn parse_layer_from_merged(merged: &[Bar], config: &ThetaConfig) -> ParseLayer {
     let fractals = fractal::detect_fractals(merged);
     let strokes = stroke::build_strokes(&fractals, &config.parse);

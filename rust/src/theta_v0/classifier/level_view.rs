@@ -4,7 +4,7 @@
 //! exact-three seed；D2 只消费 D3 已结裁的 `MoveBlock.dir: Option<Direction>`。四个旧 seam
 //! provider 不在本模块出现，方向版本唯一绑定 `central-ggdd-v1`。
 
-use super::super::types::{Center, Direction, MoveKind, Segment, Side, Tick};
+use super::super::types::{Bar, Center, Direction, Fractal, MoveKind, Segment, Side, Tick};
 use super::center::{center_from_segments, center_from_window, compute_dd, compute_gg, UnitRange};
 use super::decompose::{center_block_kind, MoveBlock, MoveStatus};
 use super::divergence::{
@@ -495,9 +495,11 @@ pub struct NestCandidateEvent {
     /// 关③ P3（pan-terminal-endorsement-ruling-20260718）：B 中枢身份快照 = B 的
     /// `start_index`，provider 构造时按 `judge_at` 同款 prefix 首次观察快照纪律写入
     ///（禁终态回填、禁 created_at，#91 裁定④）——延伸只改写 end/dd/gg，`start_index`
-    /// 与 zd/zg 稳定（p117 §7 实测 37/37 同 start 同核）。Trend 域 = 终端背书 owner=B
-    /// 判同基准（判定式 `point.center.start_index == b_center_start`，消费唯一落点 =
-    /// `nest::terminal_bits_at_event`）；Pan 域同写（归因用途），不作门（P2 无需 owner 合取）。
+    /// 与 zd/zg 稳定（p117 §7 实测 37/37 同 start 同核）。#218 面 B 起：Trend 域终端
+    /// 背书 owner=B 判同用它**只当查找键**（不当身份依据——在账本 centers 查出 B 的
+    /// 核心区间 (zd,zg) 后按带判同，消费唯一落点 = `nest::terminal_bits_at_event`；
+    /// 旧 `point.center.start_index == b_center_start` 序号判同已随 #218 退役）；
+    /// Pan 域同写（归因用途），不作门（P2 无需 owner 合取）。
     pub b_center_start: usize,
 }
 
@@ -642,6 +644,10 @@ fn trend_confirm_time(
 /// 首个全成立时点 t*，confirmed 事件的 `interval_b`/`turn_source` 收束到 t*）；Consolidation
 /// 分支 A 锚加 R3 front-anchor 回退（061:28 中枢前最近同向段）、Weak 改 R2 力度或关系
 /// （027:32：同色面积 ∨ 黄白线 ∨ 柱高）。
+///
+/// 事件视图（返回类型不含锚 sidecar）：T1 (#170) 锚供给传空集——锚载体解析为
+/// `None`，不进事件本体/等值键/排序（事件集与 ext 形态逐字节同）。需锚的登记管道走
+/// [`provide_nest_candidate_events_ext`] 并传真实包含层/分型供给。
 #[allow(clippy::too_many_arguments)]
 pub fn provide_nest_candidate_events(
     level: u32,
@@ -653,6 +659,78 @@ pub fn provide_nest_candidate_events(
     dif: &[f64],
     close_src: &[usize],
 ) -> Vec<NestCandidateEvent> {
+    provide_nest_candidate_events_ext(level, projection, blocks, legs, view, hist, dif, close_src, &[], &[])
+        .into_iter()
+        .map(|ext| ext.event)
+        .collect()
+}
+
+/// 事件 + T1 (#170) 锚 sidecar：事件本体不变（[`NestCandidateEvent`] 口径不动）。
+///
+/// T1（#170 键域重锚）锚 sidecar（`extreme_price` + `group_anchor`）：由 provider 在
+/// 事件构造点经 [`resolve_triple_anchor`] 单一查法解析（gate 不二次推导，禁第二查法）。
+/// `None` = 分型/包含层供给未命中（诚实缺锚——登记侧跳过新键域并入 `n_anchor_misses`
+/// 计数，事件本体登记不受影响）。
+/// T5a（#207 方向退役，ADR 20260723 裁定 1）：身份锚自三元组（方向, 极值价, 组锚）
+/// 简化为**两元（极值价, 组锚）**——方向不参与身份；`event.side` 仍存事件本体供交易层
+/// （入场裁决/Xzd 回退），不经本 sidecar 进身份键。
+/// T5b（#208）：旧 `seg_c_full` 值桥载体（收束前全离开段坐标，供出场侧 `by_end`
+/// 固定桥键）已删——#206 Q3 判删（出场迁链后生产侧写孤无读者；事件集/等值/排序
+/// 历来不消费该载体）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NestCandidateEventExt {
+    pub event: NestCandidateEvent,
+    /// T1 (#170) 锚之**极值价**：拐点 x（= 离开段终点）处分型的 `Fractal.price`
+    /// （整数 tick，精确等值无容差——v3 硬禁令）。跨级不变量：x 的源序号与级别无关
+    /// （compose 端点 = 末子端点 = … = L0 线段端 = 笔尾分型中K），同一 x 在任意级别
+    /// 查到同一分型 ⟹ 极值价逐值相同（跨型共点不产生价格二义，T5a 方向退役的依据）。
+    pub extreme_price: Option<Tick>,
+    /// T1 (#170) 锚之**组锚@ℓ**：x 所在合并组的锚（= 组内首根序号），该级包含层
+    /// 单一来源（[`super::super::parser::inclusion::merged_group_anchor`]）。
+    pub group_anchor: Option<usize>,
+}
+
+/// T1 (#170) 锚解析（事件构造点单一查法）：拐点 x（离开段终点源序号）→
+/// （极值价, 组锚）。T5a (#207)：锚为两元——方向不参与身份（ADR 20260723 裁定 1）。
+///
+/// - **极值价** = x 处 L0 分型的 `Fractal.price`（分型管单一来源
+///   [`super::super::parser::fractal::fractal_at_source`]）。**不设分型 kind 对偶守卫**：
+///   高级别走势可以次级别反向段收束（compose 窗口延伸吸收的末单元方向可与本级行程相反），
+///   此时 x 在 L0 是反向分型——但 x 处实际打印价（= 末次级别段端价 = 该分型价）仍是跨级
+///   不变量（同一 x 在任意级别查到同一分型同一价；同点跨型各级自为真，T5a 方向退役
+///   正是建立在这一价格上不变之上）。
+/// - **组锚** = x 所在合并组首根序号（该级包含层单一来源
+///   [`super::super::parser::inclusion::merged_group_anchor`]）。
+/// 分型供给未命中（x 处无 confirmed 分型）⟹ 极值价 `None`（诚实缺锚，禁降级第二查法）。
+fn resolve_triple_anchor(
+    x: usize,
+    fractals: &[Fractal],
+    merged_bars: &[Bar],
+) -> (Option<Tick>, Option<usize>) {
+    let price = super::super::parser::fractal::fractal_at_source(fractals, x).map(|f| f.price);
+    let anchor = super::super::parser::inclusion::merged_group_anchor(merged_bars, x);
+    (price, anchor)
+}
+
+/// [`provide_nest_candidate_events`] 的 ext 形态（同一扫描核，事件集/排序逐字节同；
+/// 仅额外携带 T1 (#170) 锚 sidecar（T5a 起两元：极值价, 组锚））。消费方：gate 派生
+/// （`derive_level_events`）。
+///
+/// `fractals`/`merged_bars`：两元锚供给（分型管 + 该级包含层，均为单一来源——
+/// [`resolve_triple_anchor`]，事件构造点唯一查法，gate 不二次推导）。
+#[allow(clippy::too_many_arguments)]
+pub fn provide_nest_candidate_events_ext(
+    level: u32,
+    projection: &ExactThreeProjection,
+    blocks: &[MoveBlock],
+    legs: &[LowerLeg],
+    view: &LevelAsOfView,
+    hist: &[f64],
+    dif: &[f64],
+    close_src: &[usize],
+    fractals: &[Fractal],
+    merged_bars: &[Bar],
+) -> Vec<NestCandidateEventExt> {
     let segments: Vec<_> = legs.iter().map(leg_as_segment).collect();
     let anchors_self: Vec<_> = segments.iter().map(|segment| Some(segment.direction)).collect();
     let mut out = Vec::new();
@@ -709,21 +787,30 @@ pub fn provide_nest_candidate_events(
             Some(t) => ((pair.seg_c.0, t), t, true),
             None => (pair.seg_c, pair.seg_c.1, false),
         };
-        out.push(NestCandidateEvent {
-            level,
-            side,
-            kind: NestDivergenceKind::Trend,
-            seg_a: pair.seg_a,
-            interval_b,
-            interval_a,
-            divergence_confirmed,
-            turn_source,
-            judge_at: view.query.as_of,
-            provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
-            intake_fallback: false,
-            // 关③ P3：B = 被离开的最后中枢（`block_end_center` seed，trend_confirm_time 同一
-            // 中枢入参）——prefix 首次观察快照写入，延伸不改写 start_index。
-            b_center_start: last_center.start_index,
+        // T1 (#170)：两元锚（极值价, 组锚）在事件构造点解析（单一查法；方向分量
+        // 已随 T5a (#207) 退役，#206 Q1 裁定）。
+        let (extreme_price, group_anchor) =
+            resolve_triple_anchor(pair.seg_c.1, fractals, merged_bars);
+        out.push(NestCandidateEventExt {
+            event: NestCandidateEvent {
+                level,
+                side,
+                kind: NestDivergenceKind::Trend,
+                seg_a: pair.seg_a,
+                interval_b,
+                interval_a,
+                divergence_confirmed,
+                turn_source,
+                judge_at: view.query.as_of,
+                provider_window: (view.query.coordinate_window.start, view.query.coordinate_window.end),
+                intake_fallback: false,
+                // 关③ P3：B = 被离开的最后中枢（`block_end_center` seed，trend_confirm_time 同一
+                // 中枢入参）——prefix 首次观察快照写入，延伸不改写 start_index。
+                b_center_start: last_center.start_index,
+            },
+            // 值桥载体 seg_c_full 已随 T5b (#208) 删除（#206 Q3 判删）。
+            extreme_price,
+            group_anchor,
         });
     }
 
@@ -795,15 +882,20 @@ pub fn provide_nest_candidate_events(
             // 入参）——同写归因用途，不作门（P2 盘背域无需 owner 合取）。
             b_center_start: centers[center_index].start_index,
         };
-        if !out.contains(&event) {
-            out.push(event);
+        // 去重键 = 事件本体（与旧 `out.contains(&event)` 逐字同语义；锚 sidecar 不进键）。
+        if !out.iter().any(|ext| ext.event == event) {
+            // T1 (#170)：两元锚（极值价, 组锚）在事件构造点解析（单一查法；方向分量
+            // 已随 T5a (#207) 退役，#206 Q1 裁定）。
+            let (extreme_price, group_anchor) =
+                resolve_triple_anchor(structure.seg_c.1, fractals, merged_bars);
+            out.push(NestCandidateEventExt { event, extreme_price, group_anchor });
         }
     }
-    out.sort_by_key(|event| (
-        event.turn_source,
-        event.interval_b,
-        event.kind,
-        matches!(event.side, Side::Short),
+    out.sort_by_key(|ext| (
+        ext.event.turn_source,
+        ext.event.interval_b,
+        ext.event.kind,
+        matches!(ext.event.side, Side::Short),
     ));
     out
 }
@@ -1114,7 +1206,7 @@ pub fn completed_move_starts(view: &LevelAsOfView) -> BTreeSet<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::super::types::MoveKind;
+    use super::super::super::types::{FractalKind, MoveKind};
     use super::super::recursive_tower::LeveledMove;
     use super::*;
 
@@ -1201,6 +1293,127 @@ mod tests {
             },
         );
         (vec![w0, w1, w2], lower)
+    }
+
+    // ───────────── T1 (#170) 三元锚供给/携带测试（先红后绿） ─────────────
+
+    fn mbar(source_index: usize) -> Bar {
+        Bar {
+            source_index,
+            timestamp: source_index as i64,
+            open: 0,
+            high: 0,
+            low: 0,
+            close: 0,
+            volume: 0,
+            untradable: false,
+        }
+    }
+
+    /// 锚解析口径锁：极值价 = 拐点处 L0 分型极值（`Fractal.price`，整数 tick 精确等值，
+    /// 不设 kind 守卫——高级别走势可以次级别反向段收束，x 在 L0 的分型方向可与事件 side
+    /// 不同，但 x 处实际打印价跨级不变）；组锚 = 该级包含层组内首根序号。
+    #[test]
+    fn triple_anchor_resolution_caliber() {
+        let fractals = vec![
+            Fractal { kind: FractalKind::Bottom, source_index: 10, timestamp: 10, price: 100 },
+            // W 底第二脚：同向同价（底, 100），与第一脚分属不同合并组。
+            Fractal { kind: FractalKind::Bottom, source_index: 30, timestamp: 30, price: 100 },
+            Fractal { kind: FractalKind::Top, source_index: 50, timestamp: 50, price: 190 },
+        ];
+        // 合并组：g0 = raw [0,20)（锚 0）；g1 = raw [20,50)（锚 20）；g2 = raw [50,∞)（锚 50）。
+        let merged = vec![mbar(0), mbar(20), mbar(50)];
+        // W 底双脚：同向同价由合并组区分——锚不同 ⟹ 键不同（教义裁定 4）。
+        let (p1, a1) = resolve_triple_anchor(10, &fractals, &merged);
+        let (p2, a2) = resolve_triple_anchor(30, &fractals, &merged);
+        assert_eq!((p1, a1), (Some(100), Some(0)));
+        assert_eq!((p2, a2), (Some(100), Some(20)));
+        assert_ne!(a1, a2, "同向同价碰撞由合并组区分（教义裁定 4）");
+        // 跨级不变量构造锁：解析只读（x, 供给），不读级别几何——同一 x 在任意级别查到
+        // 同一分型 ⟹ 极值价逐值相同（教义裁定 3）。
+        let again = resolve_triple_anchor(10, &fractals, &merged);
+        assert_eq!(again, (p1, a1), "同一 x 重复解析逐值相同（与级别无关 ⟹ 跨级不变）");
+        assert_eq!(p1, Some(100), "极值价口径 = 分型极值价（整数 tick，非腿包络/非原始 K 极值）");
+        // x 在 L0 是反向分型（高级别走势以次级别反向段收束的情形）：极值价照取 x 处实际
+        // 打印价（190 = 顶分型 high）——键内方向由 event.side 携带，不经本供给。
+        let (pt, at) = resolve_triple_anchor(50, &fractals, &merged);
+        assert_eq!((pt, at), (Some(190), Some(50)), "极值价 = x 处实际分型价（不设 kind 守卫）");
+        // 分型供给未命中 ⟹ 极值价 None；组锚仍可解（x=51 ∈ g2）。
+        let (pm, am) = resolve_triple_anchor(51, &fractals, &merged);
+        assert_eq!(pm, None);
+        assert_eq!(am, Some(50), "组内后续根映射回组锚");
+        // 空供给 ⟹ 双 None（事件视图包装路径——锚载体不进事件本体）。
+        assert_eq!(resolve_triple_anchor(10, &[], &[]), (None, None));
+    }
+
+    /// provider ext 携带两元锚（T1 #170；T5a #207 方向退役后锚 = 极值价 + 组锚）：confirmed 事件的极值价/组锚来自分型管与包含层
+    /// 单一来源；锚是 sidecar——事件集/排序与无锚供给路径逐字节同。
+    #[test]
+    fn provider_ext_carries_triple_anchor_sidecar() {
+        // 夹具同 auto_pairing_completes_only_after_real_macd_divergence：confirmed 事件
+        // 离开段 (120,129)，x=129，side=Short（Direction::Up 对）。
+        let (windows, lower) = extended_windows();
+        let projection = project_extended_windows_carried_only(&windows).unwrap();
+        let legs = lower_legs_from(&lower).unwrap();
+        // provider 的 interval_a 需要 leave→retest 块对（structural_pair_span：两块均
+        // Completed）；retest 块取 Consolidation（dir None ⟹ 不再产第二个 pair，夹具保单 pair）。
+        let blocks = [
+            trend_block(Some(Direction::Up)),
+            MoveBlock {
+                start_center: 1,
+                end_center: 2,
+                kind: MoveKind::Consolidation,
+                dir: None,
+                status: MoveStatus::Completed,
+            },
+        ];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<_> = (0..140).collect();
+        let query = LevelViewQuery {
+            level: 1,
+            coordinate_window: CoordinateWindow { start: 0, end: 139 },
+            as_of: 139,
+            version: C2VersionTuple::auto_pairing(),
+        };
+        let view = assemble_level_view(
+            C2LevelViewConfig { enabled: true },
+            query,
+            LevelViewMaterial {
+                projection: ProjectionMaterial::ExactThree(&projection),
+                move_blocks: &blocks,
+                lower_legs: &legs,
+                hist: &hist,
+                dif: &dif,
+                close_src: &close_src,
+            },
+        )
+        .unwrap();
+        // 供给：x=129 处顶分型（极值 190 = 腿12 hi）；包含层逐根成组（锚 = 序号自身）。
+        let fractals =
+            vec![Fractal { kind: FractalKind::Top, source_index: 129, timestamp: 129, price: 190 }];
+        let merged: Vec<Bar> = (0..140).map(mbar).collect();
+        let exts = provide_nest_candidate_events_ext(
+            1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src, &fractals, &merged,
+        );
+        let ext = exts
+            .iter()
+            .find(|e| e.event.divergence_confirmed && e.event.kind == NestDivergenceKind::Trend)
+            .expect("夹具应产 1 个 confirmed Trend 事件");
+        assert_eq!(ext.extreme_price, Some(190), "极值价 = x=129 处分型极值（跨级不变量口径）");
+        assert_eq!(ext.group_anchor, Some(129), "组锚 = x 所在合并组首根序号");
+        // 锚 sidecar 不进事件本体：事件集/排序与事件视图（无锚供给）逐字节同。
+        let events_only =
+            provide_nest_candidate_events(1, &projection, &blocks, &legs, &view, &hist, &dif, &close_src);
+        assert_eq!(
+            exts.iter().map(|e| e.event).collect::<Vec<_>>(),
+            events_only,
+            "锚 sidecar 不改变事件集/排序（逐字节同）"
+        );
     }
 
     fn trend_block(dir: Option<Direction>) -> MoveBlock {

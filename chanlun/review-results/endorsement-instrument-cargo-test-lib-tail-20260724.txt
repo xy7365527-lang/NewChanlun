@@ -1,0 +1,31 @@
+test zhongshu::incremental_tests::matches_full_on_simple_overlap_then_break ... ok
+test zhongshu::incremental_tests::matches_full_deterministic_lcg_stress ... ok
+test bi_zhongshu_bsp::differential_tests::diff_lcg_seeds ... ok
+test theta_v0::backtest::incremental::tests::bit_exact_confirmed_len_open_tail ... ok
+test theta_v0::parser::profile::bit_exact_parse_layer_incr_per_bar_synthetic ... ok
+test theta_v0::backtest::incremental::tests::bit_exact_synthetic ... ok
+test theta_v0::parser::segment::tests::cascade_revival_bit_exact_incr_vs_full ... ok
+test theta_v0::parser::segment::tests::advancing_euf_resolves_and_reflags ... ok
+test theta_v0::backtest::incremental::tests::cascade_incremental_eq_full_clear_synthetic ... ok
+test theta_v0::classifier::tests::incremental_tower_scaling_dominates_full_synthetic ... ok
+test theta_v0::backtest::l3_delta_r_alpha::tests::m3_partition_synthetic_holds ... ok
+test theta_v0::backtest::incremental::tests::a3_oracle_minparts_reentry ... ok
+test theta_v0::backtest::incremental::tests::a3_oracle_pop_rescan_empty ... ok
+
+failures:
+
+---- theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard stdout ----
+
+thread 'theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard' (91718073) panicked at src/theta_v0/classifier/signal.rs:3282:9:
+assertion `left == right` failed: bit-exact 摘要=0x39a2444344d2ed27（优化版须 = git HEAD oracle 摘要；`diag_compare_vs_orig` 锁定逐字段相等）
+  left: 4152956862097190183
+ right: 10432481772907336594
+
+
+failures:
+    theta_v0::classifier::signal::tests::extract_signals_bit_exact_digest_guard
+
+test result: FAILED. 1789 passed; 1 failed; 132 ignored; 0 measured; 0 filtered out; finished in 6.37s
+
+error: test failed, to rerun pass `--lib`
+exit=0

@@ -155,6 +155,24 @@ pub fn process_inclusion(bars: &[Bar]) -> InclusionResult {
     }
 }
 
+/// 组锚供给线（T1 键域重锚 #170）：该级包含层 → 源序号 `source_index` 所在合并组的锚。
+///
+/// 合并组锚 = **组内首根序号**（merged bar 保留组内首根 `source_index`，本文件 :23/:57；
+/// 教义 ADR `adr-chain-confirmation-and-invariant-identity-20260722` 裁定 3：「合并组锚 =
+/// 组内首根序号，非极值发生根」）。`merged` 按 `source_index` 严格升序（左折叠追加）⟹
+/// 组 i 覆盖原始序号 `[src_i, src_{i+1})`（末组覆盖 `[src_last, ∞)`，尾部仍可生长），
+/// 故锚 = 最后一个 ≤ `source_index` 的 `merged[i].source_index`（partition_point 二分
+/// O(log n)）。
+///
+/// 幂等：`source_index` 本身是组锚（分型/线段端点坐标已是合并锚——`Fractal.source_index`
+/// = 中K merged bar 的首根序号）时返回其自身；是组内后续根（如极值发生根）时映射回组锚。
+/// 本口是组锚的**单一来源**——消费侧（gate `absorb_exts` 登记、T2 投影层索引）禁二次
+/// 推导（禁第二查法）。
+pub fn merged_group_anchor(merged: &[Bar], source_index: usize) -> Option<usize> {
+    let i = merged.partition_point(|b| b.source_index <= source_index);
+    (i > 0).then(|| merged[i - 1].source_index)
+}
+
 // ============================================================================
 // 增量包含合并 API（#93 per-bar substrate O(n²) 根因解，aed4d5f5 缺口）。
 //
@@ -483,6 +501,33 @@ mod tests {
             volume: 1,
             untradable: false,
         }
+    }
+
+    // -------- T1 (#170) 组锚供给线测试（先红后绿） --------
+    //
+    // 组锚 = 组内首根序号（merged bar 保留组内首根 `source_index`，本文件 :23/:57；
+    // 教义 ADR adr-chain-confirmation-and-invariant-identity-20260722 裁定 3）。
+
+    #[test]
+    fn group_anchor_is_first_bar_of_merged_group() {
+        // 分组：g0={0}；g1={1,2}（C 含于 B 并入）；g2={3}；g3={4}。
+        let bars = vec![bar(0, 10, 5), bar(1, 12, 7), bar(2, 11, 8), bar(3, 15, 13), bar(4, 14, 9)];
+        let r = process_inclusion(&bars);
+        assert_eq!(
+            r.merged.iter().map(|b| b.source_index).collect::<Vec<_>>(),
+            vec![0, 1, 3, 4],
+            "夹具分组前提（锚 = 各组首根序号）"
+        );
+        // 组内任一根 → 组锚；组锚自身幂等。
+        assert_eq!(merged_group_anchor(&r.merged, 0), Some(0));
+        assert_eq!(merged_group_anchor(&r.merged, 1), Some(1));
+        assert_eq!(merged_group_anchor(&r.merged, 2), Some(1), "组内后续根映射回组内首根");
+        assert_eq!(merged_group_anchor(&r.merged, 3), Some(3));
+        assert_eq!(merged_group_anchor(&r.merged, 4), Some(4));
+        // 末组之后（尾部仍可生长）→ 末组锚。
+        assert_eq!(merged_group_anchor(&r.merged, 5), Some(4), "末组覆盖 [src_last, ∞)");
+        // 空包含层 ⟹ None（诚实无锚）。
+        assert_eq!(merged_group_anchor(&[], 0), None);
     }
 
     #[test]

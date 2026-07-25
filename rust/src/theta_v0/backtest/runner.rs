@@ -49,7 +49,7 @@
 use std::rc::Rc;
 use super::super::closed_loop::state::{AssemblyState, MicroEvent};
 use super::super::closed_loop::transition::{hybrid_step, AssemblyEvent};
-use super::super::strategy::ledger::{tw_step, RiskPolicy, TwEvent, TwState};
+use super::super::strategy::ledger::{RiskPolicy, TwState};
 use super::super::config::ThetaConfig;
 use super::super::strategy::exit::{exit_decision_for, record_held_voice, HeldVoice};
 use super::super::strategy::{AccountState, VoiceDecision};
@@ -57,7 +57,51 @@ use super::super::types::{Bar, Order, StrictAction};
 use super::super::{classifier, parser, strategy};
 use super::data::Dataset;
 use super::dual_ledger;
+use super::signal::{entry_structural_stop, newly_confirmed_step};
 use super::metrics::{self, Metrics};
+pub use super::opsem_dump::{StrictNestCertificateRecord, StrictNestSidecarSummary};
+pub use super::ledger::{TypedTrade, TYPED_TRADE_SCHEMA_VERSION, VoiceVerdictRec};
+pub(super) use super::ledger::{track_position_transition, LedgerOpen, OpsemEntrySnapshot};
+pub(super) use super::ledger::TwLedgerThread;
+pub(crate) use super::fill::{apply_order, FillOutcome};
+use super::fill::{bar_returns, simulate_fills};
+// ★B-M3b-contract（#91）fill loop seam：fill loop 本体 + plan_and_fill_mtm + FillOutput(Family)
+// 自 runner.rs 纯移动；对外经 `pub use` 门面保持原路径。
+pub(super) use super::fill::{
+    FillOutput, FillOutputDual, LegFillRec,
+    pi_theta_fill_loop, pi_theta_fill_loop_voice, pi_theta_fill_loop_overlay,
+    plan_and_fill_mtm, plan_and_fill_mtm_dual,
+    apply_voice_fill, apply_voice_fill_dual,
+};
+use super::opsem_dump::{
+    eta_bucket_str, force_state_str, operation_role_str, risk_mode_str,
+    strict_nest_sidecar_enabled, summarize_strict_nest_certificates, t_stage_str, voice_side_str,
+    OpsemDump, StrictNestSidecarCollector, OPSEM_DUMP_DIR_OVERRIDE,
+};
+// ★B-M2（#89）准入门 seam：χ/nest/k_Θ 三门 + κ 解析自 runner.rs 纯移动。
+use super::admission::{
+    voice_exec_gate, nest_cert_gate_enabled,
+    NestGateStats, nest_gate_admit,
+    NestGateObs, NestChainGate, LevelFingerprint,
+    ExitNestGateStats, ExitNestGateCtx,
+    k_theta_risk_gate, kappa_policy_resolved, kappa_priority_resolve,
+};
+// T3 (#172) 链类型（测试与并门派生消费）。
+use super::admission::{ChainGapKind, ChainLevelStatus, ChainVerdict};
+pub use super::admission::ChiFilterCtx;
+// 测试经原路径访问 thread_local override（admission 内 pub(super) 可见）。
+#[cfg(test)]
+use super::admission::{VOICE_EXEC_OVERRIDE, NEST_CERT_GATE_OVERRIDE};
+// ★三方合并 ours 独有面（#196-#200/#209/#237 探针/判据/override，随 fill loop 同迁
+// fill.rs；pub(super) 升格后本行恢复 runner 原路径，既有测试零改动消费）。
+#[cfg(test)]
+use super::fill::{
+    residual_correction_probe_count, residual_correction_probe_reset,
+    shortdiff_isolation_probe_count, shortdiff_isolation_probe_reset,
+    silent_drop_exit_type, t1_core_residual_probe_count, t1_core_zero_probe_count,
+    t1_core_zero_probe_reset, type2_sell_guard_probe_count, type2_sell_guard_probe_reset,
+    type2_with_core_residual_probe_count, SHADOW_DIVERGENCE_PATH_OVERRIDE,
+};
 
 /// 单次回测的完整输出（指标 + 诊断量 + 闭环证据）。
 #[derive(Debug, Clone)]
@@ -112,137 +156,6 @@ pub struct RunResult {
     /// 严格区间套证书 sidecar 汇总。默认 `None`；仅 `THETA_STRICT_NEST_SIDECAR=1/true/yes/on`
     /// 时在生产 π 重放同帧旁路产出，不参与订单、候选、风控、账本。
     pub strict_nest_sidecar: Option<StrictNestSidecarSummary>,
-}
-
-/// 严格区间套证书记录（P3 sidecar）：目标级 `top_level` 的一条 `N^δ_{ℓ↓0}` 证书。
-#[derive(Debug, Clone, PartialEq)]
-pub struct StrictNestCertificateRecord {
-    pub top_level: usize,
-    pub certificate: classifier::nest::NestCertificate,
-}
-
-/// 严格区间套 sidecar 的末帧汇总；口径复用 P2 `nest.rs::assemble_certificates`。
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct StrictNestSidecarSummary {
-    /// 已观察生产 replay 帧数。
-    pub frames: usize,
-    /// 末帧 ℓ0 `cand_delta=true` 基例数。
-    pub base_count: usize,
-    /// 末帧 terminal 查无次数（P1 一致性推论下应为 0）。
-    pub terminal_missing: usize,
-    /// 末帧每个目标级的证书数。
-    pub cert_per_top: Vec<(usize, usize)>,
-    /// 末帧证书总数。
-    pub cert_total: usize,
-    /// 末帧证书流内容（预期极稀；P2 当前 BTC 全量为 0）。
-    pub certificates: Vec<StrictNestCertificateRecord>,
-}
-
-struct StrictNestSidecarCollector {
-    enabled: bool,
-    summary: StrictNestSidecarSummary,
-}
-
-impl StrictNestSidecarCollector {
-    fn new(enabled: bool) -> Self {
-        Self { enabled, summary: StrictNestSidecarSummary::default() }
-    }
-
-    fn observe_frame(
-        &mut self,
-        l0: &parser::ParseLayer,
-        classification: &classifier::Classification,
-        tower: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
-        config: &ThetaConfig,
-        cache: &classifier::TowerCache,
-    ) {
-        if !self.enabled {
-            return;
-        }
-
-        let cand = classifier::cand_delta_tower_cached(l0, classification, tower, config, cache);
-        let mut terminal_by_key = std::collections::HashMap::new();
-        if let Some(l0_level) = classification.levels.first() {
-            for p in l0_level.bsp.iter() {
-                if p.bits.buy1 {
-                    terminal_by_key.entry((p.source_index, 1i8)).or_insert(p.bits);
-                }
-                if p.bits.sell1 {
-                    terminal_by_key.entry((p.source_index, -1i8)).or_insert(p.bits);
-                }
-            }
-        }
-        let frames = self.summary.frames + 1;
-        let objects_by_level: Vec<&[classifier::recursive_tower::CpScanOwnership]> = classification
-            .levels
-            .iter()
-            .map(|state| state.cp_ownership.as_slice())
-            .collect();
-        self.summary =
-            summarize_strict_nest_certificates(&cand, &objects_by_level, &terminal_by_key);
-        self.summary.frames = frames;
-    }
-
-    fn finish(self) -> Option<StrictNestSidecarSummary> {
-        self.enabled.then_some(self.summary)
-    }
-}
-
-fn strict_nest_side_i8(side: super::super::types::Side) -> i8 {
-    match side {
-        super::super::types::Side::Long => 1,
-        super::super::types::Side::Short => -1,
-    }
-}
-
-fn summarize_strict_nest_certificates(
-    cand: &[Vec<classifier::recursive_tower::CandDeltaEvent>],
-    objects_by_level: &[&[classifier::recursive_tower::CpScanOwnership]],
-    terminal_by_key: &std::collections::HashMap<(usize, i8), super::super::types::BspBits>,
-) -> StrictNestSidecarSummary {
-    let mut summary = StrictNestSidecarSummary {
-        base_count: cand.first().map(|evs| evs.iter().filter(|e| e.cand_delta).count()).unwrap_or(0),
-        ..StrictNestSidecarSummary::default()
-    };
-    // F-06：terminal_missing 以“唯一 L0 基例”计数——此前在每个 top 的装配回调里累加，
-    // 同一缺失基例会按可用 top 数重复计入。
-    summary.terminal_missing = cand
-        .first()
-        .map(|evs| {
-            evs.iter()
-                .filter(|e| e.cand_delta)
-                .filter(|e| {
-                    !terminal_by_key.contains_key(&(e.confirm_src, strict_nest_side_i8(e.side)))
-                })
-                .count()
-        })
-        .unwrap_or(0);
-    for top in 1..cand.len() {
-        let certs = classifier::nest::assemble_certificates_terminal(
-            cand,
-            objects_by_level,
-            0,
-            top,
-            |base| {
-                terminal_by_key
-                    .get(&(base.confirm_src, strict_nest_side_i8(base.side)))
-                    .copied()
-            },
-        );
-        summary.cert_per_top.push((top, certs.len()));
-        summary.certificates.extend(certs.into_iter().map(|certificate| StrictNestCertificateRecord {
-            top_level: top,
-            certificate,
-        }));
-    }
-    summary.cert_total = summary.certificates.len();
-    summary
-}
-
-fn strict_nest_sidecar_enabled() -> bool {
-    std::env::var("THETA_STRICT_NEST_SIDECAR")
-        .map(|v| matches!(v.as_str(), "1" | "true" | "TRUE" | "yes" | "YES" | "on" | "ON"))
-        .unwrap_or(false)
 }
 
 /// 执行回测：把 [`Dataset`] 喂 frozen Θ v0 引擎，模拟 fill，算指标。
@@ -366,6 +279,10 @@ pub fn run_theta_v0(
 /// 其历史 `source_index` 执行（结构确认前视）——**产出禁止用于 L2/L3 认识论声明**，只可用作
 /// 诊断/管线冒烟与合成夹具对拍。嵌套产量的因果口径验收由后续重放承担（施工图 §2 依赖层）；
 /// 生产因果接线在 `nautilus::strategy::ThetaCore::recognize_current`（per-bar 窗口）。
+///
+/// ★#68③ 处置登记：本节经 C1 票审认为**正式边界声明终态**——deprecated 保留（不解除、不扩大
+/// 语义、不在本入口接线因果验收）；前视有效域即上述三行，因果路径归 `recognize_current` /
+/// LEE 合并波次的 per-bar 因果重放。
 #[deprecated(
     note = "结构确认前视（同 run_theta_v0 F-01 口径）：全窗分类决策回放历史，产出禁用于 L2/L3 声明；因果验收由后续重放承担"
 )]
@@ -580,25 +497,30 @@ fn run_theta_v0_pi_inner(
     // **bit-exact 不变**：增量链 == 全量 classify_with_tower(parse_layer(..=i))（parser +
     // classifier 各自 bit-exact 已证，见 incremental.rs 文档）。逐 bar 断言见 `incremental::bit_exact_*`。
     // 注意：bit-exact 仅证明塔构造 O(n) 达成，不证明身份稳定→Stale 降根（后者被 L2 否证）。
-    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    // ★T3 (#172 并门，#168 裁定 3)：层载由链路径单一驱动——链活（nest 证书门开）⟹ 投影层
+    // 必载（含三元锚索引，恰好存在物化基座）；链死不载（零开销红线不死）。生产唯一派生点
+    // （层门配置面退役；派生借/克隆零拷贝于门关路径）。
+    let config = super::admission::chain_driven_level_projection(config);
+    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, &config);
     let mut strict_nest_sidecar = StrictNestSidecarCollector::new(strict_nest_sidecar_enabled());
     let fill = pi_theta_fill_loop(
         // ★工位 4g：返回塔代次（TreeCache O(1) 命中判据，跳过 per-bar O(tree) TreeKey::of）。
         |i| {
             let (cls, tower) = if strict_nest_sidecar.enabled {
                 let (l0, cls, tower) = classifier_incr.classify_at_with_l0(i);
-                strict_nest_sidecar.observe_frame(&l0, &cls, &tower, config, classifier_incr.tower_cache());
+                strict_nest_sidecar.observe_frame(&l0, &cls, &tower, &config, classifier_incr.tower_cache());
                 (cls, tower)
             } else {
                 classifier_incr.classify_at(i)
             };
+            let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch(); // ★on2w2：K_i O(1) 命中判据。
-            (cls, tower, gen, fe)
+            (cls, tower, cl, gen, fe)
         },
         bars,
         initial_nav,
-        config,
+        &config,
         // χ 过滤上下文（None ⟹ χ≡1 全覆盖；Some ⟹ Γ_t^trade={γ:μ>θ}，来自 run_theta_v0_pi_chi）。
         chi,
     );
@@ -652,8 +574,17 @@ fn run_theta_v0_pi_inner(
 pub struct OverlayRunResult {
     pub symbol: String,
     pub n_bars: usize,
-    /// 净额执行层订单数（overlay ΔN 非零步数 = 真实下单次数）。
-    pub n_overlay_orders: usize,
+    /// 净额执行层 fill 事件数（overlay ΔN 非零步数 = 真实下单次数）。
+    /// ★090 三态一致（L1-P3，D-Ovr-1）：同源 `net_result.n_orders`（= `fill.n_orders`，
+    /// 每 fill 事件 `executed_qty>0` 才计数，runner.rs:1191-1195），与 ΔN 守恒断言
+    /// （`pi_theta_fill_loop_overlay` 内逐 bar `order==ΔN` debug_assert）口径一致。
+    /// ★W1 例外：env `VOICE_EXEC=1` 时 = **声部 fill 事件数**（执行投影口径，见 `voice_exec`
+    /// 字段——两读数分列，禁冒充净额口径）。
+    pub n_overlay_fill_events: usize,
+    /// overlay 层声部总数（已离场 + 活动声部），诊断读数——**声部 ≠ 订单**
+    /// （一声部生命周期内可产多次 ΔN fill 事件：开仓/减仓/平仓/再开）。
+    /// 本字段承载原 `n_overlay_orders` 的赋值语义（该旧字段名声部数冒充订单数，090 违规已修）。
+    pub n_overlay_voices: usize,
     /// 账户级累计净额价格 PnL（`Σ_t N_t·ΔP_t`，PDF §11 对账账户侧）。
     pub account_price_pnl: f64,
     /// Σ_v pnl_v（分账本侧，PDF §11 应 ≈ `account_price_pnl`）。
@@ -663,13 +594,45 @@ pub struct OverlayRunResult {
     /// 终态 overlay 账本（活动 + 已离场声部归因，逐声部 entry_v/exit_v/parent(v)/role(v)/pnl_v）。
     pub overlay: super::super::strategy::overlay_state::OverlayState,
     /// 净额执行层 RunResult（同 `run_theta_v0_pi`，净额订单/权益——overlay 是其只读旁路，数字不变）。
+    /// ★W1 例外：env `VOICE_EXEC=1` 时本字段承载**声部执行投影**口径（见 `voice_exec` 字段
+    /// 注释——fill.n_orders=声部 fill 事件数、equity/trade_pnls/r_decomp=声部账户），
+    /// 决策层（typed_ledger/TW/sep_legs）仍与净额臂逐字节一致。
     pub net_result: RunResult,
     /// ★M8 treasury 层终态（TARGET_STRATEGY_MAXFULL.md M7:156-159）：三阶段资金账本 `TwState`
     /// 终态（stage/free/holding/withdrawn/notional_in/open_legacy_legs）。overlay 臂驱动的同一
     /// 主 loop 内建 TW 账本（`pi_theta_fill_loop_overlay` 的 `fill.tw_final`），此前被
     /// `net_result: RunResult` 装配丢弃（RunResult 无 tw_final 字段）——M8 端到端四层报告的
     /// treasury 层（第三层）需读它算 `Reach(Stage)`/`Q_T`/`W_T`/`η_T`。`None` 仅当 bars 为空。
+    /// ★W1：TW 账本由净额影子账本驱动 ⟹ VOICE_EXEC=1 时本字段仍与净额臂逐字节一致。
     pub tw_final: Option<super::super::strategy::ledger::TwState>,
+    /// ★W1 声部独立执行读数（churn 修复臂，netting-vs-voice-execution-audit-20260719 §7）。
+    /// env `VOICE_EXEC=1` 时 `Some`：此时 `net_result`/`n_overlay_fill_events` 承载**声部执行投影**
+    /// 口径（fill.n_orders = 声部 fill 事件数，equity/trade_pnls/r_decomp = 声部账户）——与净额臂
+    /// 语义不同，两读数经本字段分列，禁互相冒充（090）。未设 env ⟹ `None`，全部净额读数逐字节不变。
+    pub voice_exec: Option<VoiceExecRunSummary>,
+}
+
+/// ★W1 声部独立执行跑批读数（VOICE_EXEC=1 时装配；验收量见审计 §7.4）。
+pub struct VoiceExecRunSummary {
+    /// 声部 fill 事件数（executed>0 才计；== 本臂 `net_result.n_orders`）。
+    pub n_voice_fills: usize,
+    /// 开过的声部 campaign 总数（含在飞）。
+    pub n_voices_total: usize,
+    /// 窗口终点仍在飞的声部数（censored，经虚拟兑现入归因表）。
+    pub n_voices_open_end: usize,
+    /// 声部毛周转（手数）G = Σ(q开+q平)——事件驱动下 == 实际成交周转 T（审计 §7.4 验收量）。
+    pub gross_turnover_lots: i64,
+    /// 声部账户累计成交费（Commission+Slippage+Tax）。
+    pub fee_paid: f64,
+    /// 声部账户 R 分解守恒残差（应 ≈0；loop 内 debug_assert 同锚）。
+    pub conservation_residual: f64,
+    /// 事件驱动上界不变量见证：`n_voice_fills ≤ 2×n_voices_total`（resize 事件默认空集，
+    /// 构造性可断——审计 §7.4 断言）。
+    pub event_bound_holds: bool,
+    /// 声部账户价格 PnL 对账残差 |account_price_pnl − Σ_v pnl_price|（PDF §11，< eps）。
+    pub price_pnl_reconcile_residual: f64,
+    /// 终态声部执行簿（逐声部归因表；含 forced 强平行）。
+    pub book: super::super::strategy::overlay_state::VoiceExecBook,
 }
 
 /// ★M5 声部执行层 arm（多空对冲.pdf p16 关卡10）：与 [`run_theta_v0_pi`] **同一信号决策路径**
@@ -684,6 +647,12 @@ pub struct OverlayRunResult {
 ///
 /// **认识论 L1**：ΔN 守恒 + 对账是结构恒等（构造性 + 线性代数），**不声明 alpha**——首轮数字
 /// （亏损/空转）照实（执行层首次真实化，PDF §9 声部生成层 + 净额可见层验收，非经济有效层）。
+///
+/// ★W1（churn 修复臂，netting-vs-voice-execution-audit-20260719 §7）：env `VOICE_EXEC=1` ⟹
+/// 接入声部独立执行（`VoiceExecBook` 驱动真实 fill：声部独立持仓 + 事件驱动开合 + 开仓冻结
+/// sizing），决策层（typed_ledger/TW/sep_legs）由净额影子账本驱动 ⟹ 与净额臂逐字节一致；
+/// **env 未设 ⟹ 净额执行 + overlay 只读旁路，生产路径逐字节不变**（bit-exact 回归锁，
+/// `voice_exec_env_unset_bit_exact` 测试锚）。
 pub fn run_theta_v0_pi_overlay(
     dataset: &Dataset,
     config: &ThetaConfig,
@@ -692,20 +661,33 @@ pub fn run_theta_v0_pi_overlay(
 ) -> OverlayRunResult {
     let bars = &dataset.bars;
     let mut overlay = super::super::strategy::overlay_state::OverlayState::new();
+    // ★W1 env gate：VOICE_EXEC=1 ⟹ 声部独立执行臂；未设/非"1" ⟹ 净额臂（bit-exact）。
+    let voice_exec_on = voice_exec_gate();
+    let mut voice_book = if voice_exec_on {
+        Some(super::super::strategy::overlay_state::VoiceExecBook::new(initial_nav))
+    } else {
+        None
+    };
 
-    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, config);
+    // ★T3 (#172 并门，#168 裁定 3)：层载由链路径单一驱动——链活（nest 证书门开）⟹ 投影层
+    // 必载（含三元锚索引，恰好存在物化基座）；链死不载（零开销红线不死）。生产唯一派生点
+    // （层门配置面退役；派生必须先于分类器构建——层 stamping 读派生后机制位）。
+    let config = super::admission::chain_driven_level_projection(config);
+    let mut classifier_incr = super::incremental::IncrementalClassifier::new(bars, &config);
     let fill = pi_theta_fill_loop_overlay(
         |i| {
             let (cls, tower) = classifier_incr.classify_at(i);
+            let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch();
-            (cls, tower, gen, fe)
+            (cls, tower, cl, gen, fe)
         },
         bars,
         initial_nav,
-        config,
+        &config,
         None, // χ≡1 全覆盖（与 run_theta_v0_pi 同信号路径）
         Some(&mut overlay),
+        voice_book.as_mut(),
     );
 
     // 净额执行层 RunResult（与 run_theta_v0_pi 同装配，bit-exact——overlay 是只读旁路）。
@@ -752,189 +734,47 @@ pub fn run_theta_v0_pi_overlay(
     let account_price_pnl = overlay.account_price_pnl();
     let total_voice_pnl = overlay.total_voice_pnl();
     let reconcile_residual = (account_price_pnl - total_voice_pnl).abs();
-    // 净额执行订单数 = 活动 + 已离场声部（每声部至少一次 open/close 产 ΔN；诚实计数用 closed 表大小
-    // + 活动声部数——每条离场声部完整经历过 open+close 两次 ΔN 端点，活动声部至少一次 open）。
-    let n_overlay_orders = overlay.closed_voices().len() + overlay.active_voices().count();
+    // ★090 三态一致修正（L1-P3，D-Ovr-1）：fill 事件数同源 fill.n_orders（真 ΔN 非零步数，
+    // 与 ΔN 守恒断言对齐）；原赋值（closed+active 声部数）保留为 n_overlay_voices 诊断读数——
+    // 声部 ≠ 订单（一声部至少 open+close 两次 ΔN 端点，还可减仓/再开）。
+    let n_overlay_fill_events = fill.n_orders;
+    let n_overlay_voices = overlay.closed_voices().len() + overlay.active_voices().count();
+
+    // ★W1：VOICE_EXEC=1 时装配声部执行读数（验收量 §7.4：fill 上界/毛周转/守恒残差/价格 PnL
+    //    对账）；未设 ⟹ None（净额读数逐字节不变）。
+    let voice_exec = voice_book.map(|book| {
+        let conservation_residual = net_result
+            .r_decomp
+            .map(|r| r.conservation_residual)
+            .unwrap_or(0.0);
+        let price_pnl_reconcile_residual =
+            (book.account_price_pnl() - book.total_voice_price_pnl()).abs();
+        VoiceExecRunSummary {
+            n_voice_fills: book.n_fills(),
+            n_voices_total: book.total_voices(),
+            n_voices_open_end: book.n_open_end(),
+            gross_turnover_lots: book.gross_turnover_lots(),
+            fee_paid: book.cum_fee(),
+            conservation_residual,
+            event_bound_holds: book.n_fills() <= 2 * book.total_voices(),
+            price_pnl_reconcile_residual,
+            book,
+        }
+    });
 
     OverlayRunResult {
         symbol: dataset.symbol.clone(),
         n_bars: bars.len(),
-        n_overlay_orders,
+        n_overlay_fill_events,
+        n_overlay_voices,
         account_price_pnl,
         total_voice_pnl,
         reconcile_residual,
         overlay,
         net_result,
         tw_final,
+        voice_exec,
     }
-}
-
-/// 买卖点身份判别 u8（seen-set append-only diff 键；6 类 bit 打包）。
-///
-/// 同一 `(level, source_index)` 上不同类买卖点（如 2买/3买 V 型可共存）是不同身份 ⟹ 入 bits 判别。
-fn bsp_bits_disc(b: &super::super::types::BspBits) -> u8 {
-    (b.buy1 as u8)
-        | (b.buy2 as u8) << 1
-        | (b.buy3 as u8) << 2
-        | (b.sell1 as u8) << 3
-        | (b.sell2 as u8) << 4
-        | (b.sell3 as u8) << 5
-}
-
-/// ★[A] per-bar **确认-bar 部署**（修 bsp→订单转化；`recursive_t/stream.rs:273` 同构）。
-///
-/// 输入是**前缀因果分类** `classify_with_tower(l0[0..=i])`（639；非全窗）。返回本 bar **新确认**的
-/// 买卖点（append-only diff vs `seen`，stream.rs 的 `seen_bsps`/"只增不改"语义）：`seen.insert(key)`
-/// 为真（首次出现于前缀塔）⟹ 本 bar i 确认 ⟹ 保留 + 部署；已 seen ⟹ 跳过。
-///
-/// ## 为什么不是 `source_index==i`（旧错口径，零订单根因）
-/// 买卖点**回溯确认**——其 `source_index`（触发 K 序）的端点常在**比 source_index 晚的 bar** 才被
-/// 结构（中枢突破/线段确认/背驰）确认入前缀塔。按 `source_index==i` 切，当前 bar i 的前缀塔里
-/// `source_index==i` 位置的买卖点**往往尚未确认**（host 仅 L0 / 候选父=∂ ⟹ Ambient 空切）⟹ 候选恒空
-/// ⟹ **零订单**。改为"本 bar 新确认买卖点 diff"：买卖点在其被确认的那根 bar（其 source_index≤i）部署
-/// （确认时点 = 因果，无 look-ahead；与 stream.rs「本 bar 新增 BSP 在当前 bar 投放」同构）。
-///
-/// 保留 `levels` 级别结构（与因果塔 `tower_i` 级别对齐）；`moves`/`centers` 空（σ_p 父容器方向由
-/// `tower_i` 经 `assemble_gamma_with_tower` 的 `attach_bsp_to_tree` 查得，不读 classification moves/centers）。
-fn newly_confirmed_step(
-    classification: &classifier::Classification,
-    seen: &mut std::collections::HashSet<(usize, usize, u8)>,
-) -> classifier::Classification {
-    use super::super::classifier::LevelState;
-    classifier::Classification {
-        levels: classification
-            .levels
-            .iter()
-            .enumerate()
-            .map(|(lvl, ls)| LevelState {
-                moves: Vec::new(),
-                centers: Rc::new(Vec::new()),
-                cp_ownership: Rc::new(Vec::new()),
-                pan_div: Rc::new(Vec::new()), // Q4：新确认投影只携 bsp（盘整背驰承接在 econ 层，此处无消费者）
-                // append-only：seen.insert 为真=本 bar 首次确认 ⟹ 保留；副作用把所有 bsp 标记 seen。
-                bsp: ls
-                    .bsp
-                    .iter()
-                    .filter(|p| seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits))))
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .into(),
-            })
-            .collect(),
-    }
-}
-
-/// [close_pred 折 𝒦_Θ] 计算 [`KThetaRiskGate`]（Q2：风控 stop/risk 作可行集约束门，非第二出口）。
-///
-/// 复用 `exec::close_pred` 契约锚（no-patch-keep-primitive）：
-/// - **risk（GlobalRiskClose）**：`risk_mode(equity)` ∈ {Insolvent,Liquidation} ⟹ `force_flat`
-///   （v0 可计算 Insolvent `E_t≤0`；账户层 MM/buffer/liq 未建模，诚实有效域 L0）。
-/// - **stop（结构止损触及）**：per 活动腿从**入场冻结的** `structural_stop`（[`LedgerOpen::entry_stop`]，
-///   开仓 bar 一次性算）判 `stop_hit(bar,…)` 触及——多腿止损 ⟹ `stop_long`、空腿止损 ⟹ `stop_short`。
-///   族A 修复：旧路径逐 bar 用 `leg.source_index`（carrier 走势 ρ，随父延伸漂移）回查 `classification`
-///   ⟹ drifted ρ 不命中 ⟹ 静默跳过 ⟹ 跨趋势持仓 stop 永不触发；改入场冻结对齐 nautilus
-///   `record_held_voice`（exitfix-research §族A）。
-/// - **reverse_signal 不入本门**：反向信号关活动腿走 `interpret` 𝒟_x（腿级单出口）；
-///   **parent_invalid** v0 root 恒 false（无父）。
-fn k_theta_risk_gate(
-    prev_active: &[super::super::strategy::interp::ActiveLeg],
-    open_trades: &std::collections::HashMap<classifier::recursive_tower::ElementId, LedgerOpen>,
-    bar: &Bar,
-    equity: f64,
-    p_t: f64,
-    px: f64,
-    margin: Option<&super::super::strategy::risk::MarginModel>,
-) -> (super::super::strategy::coverage::KThetaRiskGate, super::super::strategy::risk::RiskMode) {
-    use super::super::strategy::coverage::KThetaRiskGate;
-    use super::super::strategy::exec::{close_pred, stop_hit, CloseTriggers, FillSide};
-    use super::super::strategy::risk::{
-        global_risk_close, margin_inputs, risk_mode, RiskMode, RiskModeInput,
-    };
-    use super::super::strategy::voice::VoiceSide;
-
-    // risk mode：有 margin 注入且 bar 时间落某快照段 ⟹ 真实 MM/liq/buffer（as_of 零前视，
-    // margin-design §2.7）；否则退化 MM=0（bit-exact 现状，M1/M2/M3 不可达）。
-    let mode = match margin.and_then(|m| m.book.as_of(bar.timestamp).map(|s| (m, s))) {
-        Some((m, sched)) => {
-            // p_t 净 lot × mark = 净名义（美元，margin-design §2.2：net_notional 已折算勿再乘价）。
-            let net_notional_usd = p_t.abs() * px;
-            risk_mode(&margin_inputs(net_notional_usd, equity, sched, &m.cushions))
-        }
-        None => risk_mode(&RiskModeInput {
-            equity,
-            maint_margin: 0.0,
-            buffer1: 0.0,
-            buffer2: 0.0,
-            liq_flag: false,
-        }),
-    };
-    let risk_close = global_risk_close(mode);
-    // M2/M3（Deleverage/CloseOnly）：净幅上限=当前 |p_t|（margin-design §2.8，禁增仓 → 真改订单流）。
-    let no_increase_cap = match mode {
-        RiskMode::Deleverage | RiskMode::CloseOnly => Some(p_t.abs()),
-        _ => None,
-    };
-
-    // ★族A 修复（formal-chain §9 closePred Stop 覆盖度）：stop 从**入场冻结的 structural_stop**
-    // （[`LedgerOpen::entry_stop`]）读出，非逐 bar 用 `leg.source_index` 回查 classification。
-    // 旧路径 `leg.source_index` 是 carrier 走势的 ρ（右端点），随父延伸漂移（coverage.rs 父延伸
-    // 不变量 ρ≥旧 source_index）⟹ 按 drifted ρ 查 bsp_index 不命中 ⟹ `None => continue` 静默
-    // 跳过该腿 stop 判定 ⟹ 持仓跨大级别趋势时 stop 永不触发（族 A 根因，exitfix-research §族A）。
-    // 入场路径（[`candidate_stop_dist`]）用候选 `c.source_index`（bsp 确认点）查得对——两路径同腿
-    // 不同坐标是 bug。本修复对齐两路径 + nautilus `record_held_voice`（入场一次性算 stop 冻结到
-    // HeldVoice.stop，exitfix-research line 49）：stop 值固定在开仓结构 = formal-chain §9 语义
-    // （结构失效价触及，非 trailing）。L0 静态根因；L2 dump（3765 等笔 stop 读出实际值）待 OOS。
-    let mut long_stop = false;
-    let mut short_stop = false;
-    for leg in prev_active {
-        let exit_side = match leg.dir {
-            VoiceSide::Long => FillSide::Sell,
-            VoiceSide::Short => FillSide::Buy,
-            VoiceSide::Flat => continue, // Flat 不入活动集（防御性）
-        };
-        let stop = match open_trades.get(&leg.id).and_then(|o| o.entry_stop) {
-            Some(s) => s,
-            None => {
-                // 腿不在 open_trades = **结构走势载体**（非 campaign 持仓）。`next_active` 含走势元素
-                // （AncOK 祖先闭包 + [`coverage::restore_ancestor_chain_from_registry`] 注入的父 carrier
-                // —— empirically：活动集里 level-1 走势载体与 open_trades 里 level-0 campaign 持仓并存，
-                // open_trades 仅记 campaign）。这类腿的 `dir`=走势 eps（非持仓方向）、`source_index`=
-                // 走势 ρ（漂移）—— 非开仓结构，无 stop 可读。旧路径用 drifted ρ 查 bsp_index 也返
-                // None ⟹ 同样跳过，但旧路径把载体**误当持仓**算 stop（无意义计算）。本修复按
-                // open_trades 成员区分 campaign 持仓 vs 结构载体，仅前者判 stop（族A 正域）。
-                continue;
-            }
-        };
-        if !bar.untradable && stop_hit(bar, stop, exit_side) {
-            match leg.dir {
-                VoiceSide::Long => long_stop = true,
-                VoiceSide::Short => short_stop = true,
-                VoiceSide::Flat => {}
-            }
-        }
-    }
-
-    // close_pred 折 𝒦_Θ（契约锚保留）：风控项（stop ∨ risk）→ 方向约束门。
-    // G3（#138）：mode 一并透出——z 第 13 维 risk_mode 的账本态真值源（每 bar 已算，零重算）。
-    (
-        KThetaRiskGate {
-            force_flat: risk_close, // GlobalRiskClose ⟹ 𝒦_Θ={0}
-            stop_long: close_pred(&CloseTriggers {
-                parent_invalid: false,
-                reverse_signal: false,
-                stop: long_stop,
-                risk_close,
-            }),
-            stop_short: close_pred(&CloseTriggers {
-                parent_invalid: false,
-                reverse_signal: false,
-                stop: short_stop,
-                risk_close,
-            }),
-            no_increase_cap, // M2/M3 净幅上限（margin-design §2.8）
-        },
-        mode,
-    )
 }
 
 /// ★七链 π_Θ per-bar fill 循环（三适配器 [A][B][C] + 执行层父容器 σ_p + close_pred 折 𝒦_Θ）。
@@ -960,1568 +800,6 @@ fn k_theta_risk_gate(
 /// **μ 表因果性由调用方负责**（selector.rs 模块头诚实声明）：`est` 若来自全窗 in-sample 交易 = 泄漏
 /// （L1 选择器逻辑生效证明，非 L2 alpha）；walk-forward 增量 μ 是下游 delta-r-alpha 工位（L2/L3）。
 /// θ 为**常数**（不从样本 μ 分布选，codex Q1 审查确认无前视）。
-pub struct ChiFilterCtx<'a> {
-    /// μ(z) 表（z 六维全互斥分类的样本边际收益）。
-    pub est: &'a super::mu_estimator::MuEstimator,
-    /// θ 阈值（成本/风险门槛，Θ_risk 参数，常数）。
-    pub theta: f64,
-    /// z_alpha 单边置信分位（如 1.645=95%）：准入用 LCB(μ)=mean−z_alpha·std/√n（严格alpha.pdf p25
-    /// §12 防高维 z 过拟合）。z_alpha=0 ⟹ LCB=mean ⟹ 退化回裸 μ 门（向后兼容）。
-    pub z_alpha: f64,
-    /// 无 LCB 证据（空类 μ=None 或 n<2 单样本）χ 取值：false=不交易（最诚实，codex Q3）；
-    /// true=全覆盖默认交易。
-    pub treat_empty_as_pass: bool,
-    /// 准入量切换（acc-three-way-l2 #83）：`None` ⟹ 准入量 = LCB(μ)（默认，z_alpha 驱动，frozen
-    /// bit-exact）；`Some(τ²)` ⟹ 准入量 = mu_shrink(z,τ²) 层级收缩（z_alpha 忽略）。
-    pub shrink_tau_sq: Option<f64>,
-}
-
-/// barrier 缓冲系数 κ 政策注入（A10 附则A 裁定——**优先序写死**：env `KAPPA_BARRIER_*`
-/// （L2 敏感性诊断覆写，codex `.kappa-ruling-20260704`）> `config.risk_policy` > `baseline()` κ=0）。
-///
-/// env `KAPPA_BARRIER_NUM` / `KAPPA_BARRIER_DEN`（默认 den=1）⟹ `RiskPolicy::try_new_ratio(num, den)`；
-/// **两者都未设（或 num 不可解析，现状语义）⟹ 落 `config.risk_policy`；config=None ⟹ `baseline()`
-/// κ=0**——生产/测试逐字节不变（bit-exact）。非法 env 值（负分子/非正分母）⟹ panic（诊断 knob
-/// 快失败，不静默降级掩盖网格错配——语义不变）。单源纪律防双源静默漂移（χ G2 先例）。
-fn kappa_policy_resolved(config_policy: Option<RiskPolicy>) -> RiskPolicy {
-    let env = std::env::var("KAPPA_BARRIER_NUM")
-        .ok()
-        .and_then(|s| s.parse::<i64>().ok())
-        .map(|num| {
-            let den = std::env::var("KAPPA_BARRIER_DEN")
-                .ok()
-                .and_then(|s| s.parse::<i64>().ok())
-                .unwrap_or(1);
-            (num, den)
-        });
-    kappa_priority_resolve(env, config_policy)
-}
-
-/// κ 优先序纯函数（A10 附则A 写死：env>config>baseline；可测——不碰进程 env）。
-/// env 非法值 panic（与 env knob 语义一致）；env=None ⟹ config 或 baseline。
-fn kappa_priority_resolve(env: Option<(i64, i64)>, config_policy: Option<RiskPolicy>) -> RiskPolicy {
-    match env {
-        Some((num, den)) => RiskPolicy::try_new_ratio(num, den)
-            .unwrap_or_else(|| panic!("非法 κ barrier grid 值 num={num} den={den}（要求 num≥0 ∧ den>0）")),
-        None => config_policy.unwrap_or_else(RiskPolicy::baseline),
-    }
-}
-
-// ── ★#198 断言4「短差隔离」探针（coverage.rs ancok_probe 同款 thread_local 模式）──
-thread_local! {
-    static SHORTDIFF_ISOLATION_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-}
-
-fn shortdiff_isolation_probe_bump() {
-    SHORTDIFF_ISOLATION_PROBE.with(|c| c.set(c.get() + 1));
-}
-
-/// 归零短差隔离探针（见证测试 run 前调用；仅本模块测试消费，比照 coverage.rs
-/// ancok_probe 三件套但无跨模块消费者 ⟹ 不 pub）。
-fn shortdiff_isolation_probe_reset() {
-    SHORTDIFF_ISOLATION_PROBE.with(|c| c.set(0));
-}
-
-/// 读取短差隔离探针快照（ShortDiff fill 隔离断言在生产路径的触发笔数）。
-fn shortdiff_isolation_probe_count() -> u64 {
-    SHORTDIFF_ISOLATION_PROBE.with(std::cell::Cell::get)
-}
-
-/// ★#198 断言4 前置快照：全部非 ShortDiff（Core{*}/Short{*}）分实例的 (key, qty)。
-#[cfg(debug_assertions)]
-fn non_shortdiff_qty_snapshot(
-    view: &strategy::account::ParallelAccountLedger,
-) -> std::collections::HashMap<strategy::account::AccountKey, f64> {
-    view.instances()
-        .iter()
-        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
-        .map(|(k, i)| (*k, i.qty))
-        .collect()
-}
-
-/// ★#198 断言4（#185「建议断言」4 的生产执行层同款）：`fill.account == ShortDiff ⟹
-/// Δqty(Core{*})==0 且 Δqty(Short{*})==0`——短差过账不得碰本仓/空仓任何分实例
-/// （模型层 SplitLegLedger「父仓不动」已有等价保证，本断言补生产执行层同款）。
-///
-/// 度量方式 = 账本状态**差分**（post 前快照 vs post 后逐实例比对，独立度量，非重算
-/// `post` 的过账逻辑）；定位 = **回归锁**（与 #145 T1 同款纪律）：`post` 当前按单 key
-/// 过账本满足隔离，本断言看守的是未来改动（执行延迟净额队列的逐账户投影属
-/// #199/#200 接线面）把跨账户写引入过账路径时先炸而非静默漂移。挂载点说明：实仓
-/// 净额 `units` 无账户键，并行记账视图（#197 expand）是当前唯一账户投影层——断言
-/// 只能落此；净额出口行为不受本断言影响（debug 构建逐笔核对，release 编译消除）。
-#[cfg(debug_assertions)]
-fn debug_assert_shortdiff_isolation(
-    view: &strategy::account::ParallelAccountLedger,
-    pre: &std::collections::HashMap<strategy::account::AccountKey, f64>,
-) {
-    for (k, inst) in view
-        .instances()
-        .iter()
-        .filter(|(k, _)| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
-    {
-        let before = pre.get(k).copied().unwrap_or(0.0);
-        debug_assert_eq!(
-            inst.qty, before,
-            "#198 断言4 短差隔离违例：ShortDiff fill 改动 {:?} 分实例 qty（{} → {}）",
-            k.account, before, inst.qty
-        );
-    }
-    debug_assert_eq!(
-        view.instances()
-            .keys()
-            .filter(|k| !matches!(k.account, strategy::account::AccountIdentity::ShortDiff))
-            .count(),
-        pre.len(),
-        "#198 断言4 短差隔离违例：ShortDiff fill 新增 Core/Short 分实例"
-    );
-}
-
-// ── ★#199 断言②③探针（#198 断言4 同款 thread_local 模式；恒在计数，
-//    「断言在生产路径真实触发」以探针 >0 为凭；断言本体 = debug 构建逐笔核对）──
-thread_local! {
-    static T1_CORE_ZERO_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static T1_CORE_RESIDUAL_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static TYPE2_SELL_GUARD_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static TYPE2_WITH_CORE_RESIDUAL_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-    static RESIDUAL_CORRECTION_PROBE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
-}
-
-/// 断言②评估探针计数（一类 Core 平仓笔数）。
-fn t1_core_zero_probe_bump() {
-    T1_CORE_ZERO_PROBE.with(|c| c.set(c.get() + 1));
-}
-
-/// 归零断言②两枚探针（评估 zero + 违例 residual；见证测试 run 前调用；
-/// 仅本模块测试消费 ⟹ 不 pub）。
-fn t1_core_zero_probe_reset() {
-    T1_CORE_ZERO_PROBE.with(|c| c.set(0));
-    T1_CORE_RESIDUAL_PROBE.with(|c| c.set(0));
-}
-
-/// 读取断言②探针快照（一类 Core 平仓评估笔数）。
-fn t1_core_zero_probe_count() -> u64 {
-    T1_CORE_ZERO_PROBE.with(std::cell::Cell::get)
-}
-
-/// ★#209 终态违例探针：一类全平批末**级余额非零**笔数（release 构建可观测面；debug
-/// 构建由批次边界 debug_assert 先行拦截）。★#237 起口径 = **批次方向侧**分量余额
-/// （一类卖批查多侧/一类买批查空侧，`balance_side` 按方向拆查）。历史对照：#199 测量态
-/// BTC 实测违例=1。
-fn t1_core_residual_probe_bump() {
-    T1_CORE_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
-}
-
-/// 读取级余额违例探针快照（#209 终态见证材料：一类批末批次方向侧 balance(Core{L})≠0
-/// 笔数——#237 拆查口径，验收口径 = 全窗 0）。
-fn t1_core_residual_probe_count() -> u64 {
-    T1_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
-}
-
-/// 断言③前半探针计数（ReverseType2 过账笔数——每笔经「不落 Core 账」约束核对）。
-fn type2_sell_guard_probe_bump() {
-    TYPE2_SELL_GUARD_PROBE.with(|c| c.set(c.get() + 1));
-}
-
-/// 归零断言③前半两枚探针（身份 guard + 歧义测量 with_core_residual；
-/// 见证测试 run 前调用；仅本模块测试消费 ⟹ 不 pub）。
-fn type2_sell_guard_probe_reset() {
-    TYPE2_SELL_GUARD_PROBE.with(|c| c.set(0));
-    TYPE2_WITH_CORE_RESIDUAL_PROBE.with(|c| c.set(0));
-}
-
-/// 读取断言③前半探针快照（ReverseType2 账户约束断言在生产路径的触发笔数）。
-fn type2_sell_guard_probe_count() -> u64 {
-    TYPE2_SELL_GUARD_PROBE.with(std::cell::Cell::get)
-}
-
-/// ★#199 断言③后半宽读法歧义测量（Spec 轴评审发现，待裁决）：二类卖
-/// （ReverseType2，ShortDiff/Short 身份）过账时**同级 Core{level} 残余非零**笔数。
-/// 票面「qty(Core{L})>0 时必须另发 CoreResidualCorrection{L}」若按宽读法（二类卖
-/// 发生时 Core 有残余即须另发纠错单），本探针即该场景的实测发生率：0 笔 = 该场景
-/// 生产不存在（歧义消解）；>0 笔 = 待裁决是否另发（#185 存疑区 1：B/C 撞车裁决
-/// 规则蓝图有「父仓 active」读法但 #184 未给优先级/双动作规则）。
-fn type2_with_core_residual_probe_bump() {
-    TYPE2_WITH_CORE_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
-}
-
-/// 读取歧义测量探针快照（二类卖时同级 Core 残余非零笔数）。
-fn type2_with_core_residual_probe_count() -> u64 {
-    TYPE2_WITH_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
-}
-
-/// 残余纠错硬门探针计数（CoreResidualCorrection 过账笔数——每笔经残余实测非零核对）。
-fn residual_correction_probe_bump() {
-    RESIDUAL_CORRECTION_PROBE.with(|c| c.set(c.get() + 1));
-}
-
-/// 归零残余纠错硬门探针（见证测试 run 前调用；仅本模块测试消费 ⟹ 不 pub）。
-fn residual_correction_probe_reset() {
-    RESIDUAL_CORRECTION_PROBE.with(|c| c.set(0));
-}
-
-/// 读取残余纠错硬门探针快照（CoreResidualCorrection 残余实测断言在生产路径的触发笔数）。
-fn residual_correction_probe_count() -> u64 {
-    RESIDUAL_CORRECTION_PROBE.with(std::cell::Cell::get)
-}
-
-/// ★#197 并行记账视图镜像辅助（expand 只读旁路）：共享过账形状——身份解析 + 建单 + 提交成交。
-///
-/// 账户身份由入场冻结的 `entry_v` × 声部方向映射（[`strategy::account::identity_of`]，与
-/// `reverse_exit_type` 同取入场冻结值）；数量 = 腿级 sizing 目标（与 `TypedTrade::units`
-/// 同源 `SepLeg.q_units`），符号由调用侧（开/关）给出。腿级账本以决策 bar 为成交时点（与
-/// `TypedTrade` 价格口径一致）；执行延迟净额队列的逐账户投影属 #198–#200。
-///
-/// `identity_of` 返回 `None`（Ambient×Flat）不写账：Flat 方向候选归 𝒦 记录不开腿
-/// （interp.rs `assemble_gamma` 文档），不伪造归属。开/关两侧同判据 ⟹ 不会悬挂实例。
-#[allow(clippy::too_many_arguments)]
-fn account_mirror_post(
-    view: &mut strategy::account::ParallelAccountLedger,
-    entry_v: strategy::coverage::Vertical,
-    side: strategy::voice::VoiceSide,
-    level: u32,
-    position_node_id: strategy::interp::PositionNodeId,
-    signed_delta: f64,
-    reason: strategy::account::ActionReason,
-    px: f64,
-    bar: usize,
-) {
-    use strategy::account::{AccountKey, AccountOrder};
-    let Some(account_id) = strategy::account::identity_of(entry_v, side, level) else {
-        return;
-    };
-    // ★#198 断言4 探针（恒在计数）：ShortDiff fill 笔数（生产路径见证——
-    // 「短差隔离断言真实触发」以探针 >0 为凭，断言本体见下方 debug 构建逐笔核对）。
-    if account_id == strategy::account::AccountIdentity::ShortDiff {
-        shortdiff_isolation_probe_bump();
-    }
-    // 断言4 前置快照（仅 ShortDiff 过账时；debug 构建，release 编译消除）。
-    #[cfg(debug_assertions)]
-    let pre_non_shortdiff = (account_id == strategy::account::AccountIdentity::ShortDiff)
-        .then(|| non_shortdiff_qty_snapshot(view));
-    // ★#199 断言③探针（恒在计数）+ 硬门（debug 逐笔核对，release 编译消除）：
-    // - 前半「二类卖身份」：ReverseType2 仅落 ShortDiff/Short 两身份，永不落 Core 账；
-    // - 后半「仅残余才纠错」：CoreResidualCorrection 仅在核心残余实测非零时触发
-    //   （post 前余额含被关腿在册量；与 runner 分流点 `balance != 0.0` 同口径）。
-    if reason == strategy::account::ActionReason::ReverseType2 {
-        type2_sell_guard_probe_bump();
-        debug_assert!(
-            !matches!(account_id, strategy::account::AccountIdentity::Core { .. }),
-            "#199 断言③违例：二类卖（ReverseType2）落 {:?}——合法二类卖出仅 ShortDiff/Short 两身份",
-            account_id
-        );
-        // ★#199 断言③后半宽读法歧义测量（不置断言，待裁决）：二类卖过账时同级
-        // Core{level} 残余非零则计数（post 前余额含在飞腿；宽读法场景实测发生率）。
-        if view.balance(strategy::account::AccountIdentity::Core { level }) != 0.0 {
-            type2_with_core_residual_probe_bump();
-        }
-    }
-    if reason == strategy::account::ActionReason::CoreResidualCorrection {
-        residual_correction_probe_bump();
-        debug_assert_ne!(
-            view.balance(account_id),
-            0.0,
-            "#199 断言③违例：CoreResidualCorrection 在核心残余为零时触发（{:?}）——仅残余才纠错",
-            account_id
-        );
-    }
-    view.post(
-        AccountOrder {
-            key: AccountKey::new(account_id, level, position_node_id),
-            reason,
-            qty_delta: signed_delta,
-            decision_bar: bar,
-        },
-        px,
-        bar,
-    );
-    // ★#198 断言4 逐笔核对：ShortDiff fill 后 Core{*}/Short{*} 分实例数量零变动。
-    #[cfg(debug_assertions)]
-    if let Some(pre) = pre_non_shortdiff {
-        debug_assert_shortdiff_isolation(view, &pre);
-    }
-    // ★#199 断言②评估探针（恒在计数）：一类 Core 平仓评估笔数（#185 断言2：
-    // filled(T1CoreClose{L}) ⟹ execution_ledger.qty(Core{L})==0）。
-    //
-    // ★#209 终态硬门**挂在批次边界**（π fill loop 反向关闭循环结束点，见该处注释）：
-    // 多核心腿场景一类全平产生多条 AccountOrder（每腿恰一），逐笔 post 后账户余额
-    // 仍含未平同级腿——单笔粒度误报，教义口径是「一类批末该级清仓」。本点只保留
-    // 评估探针（按腿计数，与 fills 分类笔数对账口径不变）。历史对照（勿删）：#199
-    // 测量态 BTC train 窗实测违例=1（一类只关首条，L=1 残留 277.9 单位）。
-    if reason == strategy::account::ActionReason::ReverseType1
-        && matches!(account_id, strategy::account::AccountIdentity::Core { .. })
-    {
-        t1_core_zero_probe_bump();
-    }
-}
-
-/// ★#197：开腿镜像（reason=Open，符号 = 多正空负）。开腿方向恒非 Flat（见 `account_mirror_post`）。
-///
-/// ★#200 理由轴（账户正交，OpenShort 通道）：二类反向候选开**空仓账**（`identity_of` 解析
-/// = `Short`）⟹ 理由 `OpenShort`（spec WP-2 修复 c）；其余开仓保留 `Open`（一类首开/加仓、
-/// 短差开、级联开）。判据单源 = [`strategy::account::reason_of_open`]，账户身份经
-/// [`strategy::account::identity_of`]（与关闭侧 `reason_of_reverse_close` 同判据，不镜像）。
-fn account_mirror_open(
-    view: &mut strategy::account::ParallelAccountLedger,
-    c: &strategy::interp::Candidate,
-    level: u32,
-    position_node_id: strategy::interp::PositionNodeId,
-    units: f64,
-    px: f64,
-    bar: usize,
-) {
-    use strategy::voice::VoiceSide;
-    let signed = match c.dir {
-        VoiceSide::Long => units,
-        VoiceSide::Short => -units,
-        // 结构不可达（opened 腿恒有方向，𝒦 记录不进 opened）；即便到达，
-        // identity_of(*, Flat)=None ⟹ post 跳过，0.0 永不写账。
-        VoiceSide::Flat => 0.0,
-    };
-    // #200：开仓理由 = 通道归属（二类 × Short 账户 ⟹ OpenShort）；identity None（Flat）时
-    // 理由不被消费（post 跳过），给 Open 与全域口径一致（不伪造通道标注）。
-    let reason = strategy::account::identity_of(c.role.v, c.dir, level).map_or(
-        strategy::account::ActionReason::Open,
-        |a| strategy::account::reason_of_open(a, c.bsp_class),
-    );
-    account_mirror_post(
-        view,
-        c.role.v,
-        c.dir,
-        level,
-        position_node_id,
-        signed,
-        reason,
-        px,
-        bar,
-    );
-}
-
-/// ★#197：关腿镜像（账户身份与退出理由正交——理由由调用通道给出，符号 = 开侧反向）。
-fn account_mirror_close(
-    view: &mut strategy::account::ParallelAccountLedger,
-    open: &LedgerOpen,
-    level: u32,
-    reason: strategy::account::ActionReason,
-    px: f64,
-    bar: usize,
-) {
-    use strategy::voice::VoiceSide;
-    let signed = match open.position_node_id.side {
-        VoiceSide::Long => -open.units,
-        VoiceSide::Short => open.units,
-        // 结构不可达（同开侧）；identity_of(*, Flat)=None ⟹ 0.0 永不写账。
-        VoiceSide::Flat => 0.0,
-    };
-    account_mirror_post(
-        view,
-        open.entry_v,
-        open.position_node_id.side,
-        level,
-        open.position_node_id,
-        signed,
-        reason,
-        px,
-        bar,
-    );
-}
-
-/// ★#198：silent drop（§13 AncOK 连带剪/Stale prune，无触发信号）的 typed 归属判据。
-///
-/// 账户身份与退出理由正交（#185 修复 a）：账户由 #197 [`strategy::account::identity_of`]
-/// （entry_v × 方向）映射（FollowParent 级联核心仓 ⟹ `Core{level}`），剪枝理由由
-/// `TypedTrade::via_structural_prune` / `ActionReason::StructuralPrune` 表达——不再用
-/// `ExitType` 同时表达两者（同类错桶的根源）。
-///
-/// 判据：仅 `entry_v == ShortDiff` 的短差腿记 `CloseShortDiff`；其余（Ambient 根 /
-/// FollowParent 级联核心仓）归 `CloseRoot`（core structural exit，account=`Core{level}`、
-/// reason=`StructuralPrune`，经 #197 account 层映射）。
-///
-/// μ 分桶统计口径（随本判据更新，2026-07-23）：`ExitType` 诊断切片维持 #180 冻结铁律
-/// （不进 `MuClass` 桶键、不进 χ_t 门控、不进 δ-free 主裁决聚合基），代码零改动；变化的是
-/// 桶的**生产语义**——`CloseShortDiff` 桶自此只含真短差腿（FollowParent 级联核心仓的
-/// 结构剪枝归 `CloseRoot`），W-VERIFY 5 变体拆解与 `typed_ledger_btc_smoke` 分桶计数按
-/// 新口径阅读（BTC train 窗实证翻动：CloseRoot 6→8、CloseShortDiff 10→8，五枚举总数
-/// 25 不变，见 `btc_prune_leg_exit_type_matches_account_identity` 见证注释）。
-fn silent_drop_exit_type(entry_v: strategy::coverage::Vertical) -> strategy::interp::ExitType {
-    // ★#198 新口径（#185 修复 a）：仅短差腿记 CloseShortDiff；Ambient/FollowParent 归
-    // CloseRoot（core structural exit——账户侧 Core{level}+StructuralPrune，经 #197 映射）。
-    if entry_v == strategy::coverage::Vertical::ShortDiff {
-        strategy::interp::ExitType::CloseShortDiff
-    } else {
-        strategy::interp::ExitType::CloseRoot
-    }
-}
-
-fn pi_theta_fill_loop<F>(
-    classify_at: F,
-    bars: &[Bar],
-    initial_nav: f64,
-    config: &ThetaConfig,
-    chi: Option<ChiFilterCtx>,
-) -> FillOutput
-where
-    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64),
-{
-    // ★M5 wrapper：overlay=None ⟹ 现有净额路径逐字节不变（bit-exact）。overlay 簿接线走
-    // [`pi_theta_fill_loop_overlay`]（run_theta_v0_pi_overlay arm 传 Some）。
-    pi_theta_fill_loop_overlay(classify_at, bars, initial_nav, config, chi, None)
-}
-
-/// ★M5 声部执行层 fill loop（多空对冲.pdf p16 关卡10）：与 [`pi_theta_fill_loop`] **同一决策路径**
-/// （同一 `pi_theta_step_traced` → 净额订单 → apply_order fill），额外用 `StepTrace.sep_legs` 喂
-/// `overlay: OverlayState` hedge-mode 簿——建持久逐声部 P^sep 账本 + ΔN 订单流 + 逐声部 pnl_v 归因。
-///
-/// `overlay=None` ⟹ 净额路径 bit-exact（所有现有臂）；`Some(&mut ov)` ⟹ 逐 bar 决策点把 sep_legs
-/// 步进 overlay（**只读旁路**，不改净额 fill 的 cash/units/trade_pnls ⟹ 现有数字不动）。
-fn pi_theta_fill_loop_overlay<F>(
-    mut classify_at: F,
-    bars: &[Bar],
-    initial_nav: f64,
-    config: &ThetaConfig,
-    chi: Option<ChiFilterCtx>,
-    mut overlay: Option<&mut super::super::strategy::overlay_state::OverlayState>,
-) -> FillOutput
-where
-    // ★工位 4g/on2w2：闭包返回四元组——第三个 u64 = 塔代次（candidate 段判据）；第四个 u64 =
-    // forest_epoch（K_i 森林段 O(1) 命中判据，on2w2 O(n²) 修复）。
-    F: FnMut(usize) -> (classifier::Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64),
-{
-    use super::super::strategy::coverage::{self, PiThetaWeights};
-    use super::super::strategy::exec::fill_bar_index;
-    use super::super::strategy::interp::{self, ActiveLeg};
-
-    let n = bars.len();
-    let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
-    let weights = PiThetaWeights::from_risk(&config.risk);
-
-    let mut cash: f64 = nav0;
-    let mut units: f64 = 0.0; // p_t = 净 lot（apply_order 维护，有符号：正多/负空/0空仓）
-    let mut entry_cost: f64 = 0.0;
-    // [C] 活动集台账（thread 跨 bar；interp::interpret 闭环递归）。
-    let mut prev_active: Vec<ActiveLeg> = Vec::new();
-    // #196 阶段 A：shadow 双链比对簿（零行为变更——只读生产状态，channel 适配层在组合层
-    // 裁决点之后并行跑，分歧仅入本簿内存 + env 门控落盘；不改裁决与订单流）。
-    let mut shadow_book = super::super::strategy::shadow::ShadowVoiceBook::default();
-    // ★persistent overlay（anc.pdf §4-§9）：跨 bar 持久元素注册表 Pi。
-    // 修复 Q4 "LiveDetached 误处理成 Stale" → depth>0 腿被 AncOK 系统性剪掉 → #5α=0。
-    // Pi+1 = merge(Pi, Ei+1, held legs)（§9）：snapshot 匹配刷新 + held 找不到标记 LiveDetached。
-    let mut registry = super::super::strategy::persistent::PersistentRegistry::new();
-    // ★确认-bar 部署 seen-set（append-only "只增不改"；已部署买卖点身份键，stream.rs:162 同构）。
-    let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
-    // 延迟成交队列（spec:50：订单在 exec_index bar 成交，与 plan_and_fill_mtm 同语义）。
-    let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];
-    // 工位 K 性能：tree-prefix 缓存（§16 confirmed prefix immutable；跨 bar 复用 extract_elements）。
-    let mut tree_cache = interp::TreeCache::new();
-    // ★工位 4h：candidate 段前缀缓存（源(b) O(n²) 真修；caller B merge 路径 gamma-free + 前缀复用）。
-    let mut cand_cache = interp::CandidateCache::new();
-    // ★工位 4f：上一 bar merge 用的 tree Rc——`Rc::ptr_eq` 命中（同一 Rc::clone）⟹ tree 逐字节不变
-    // ⟹ merge tree 段跳过 step 1'/2'（confirmed prefix 增量维护，消 O(tree)/bar）。
-    let mut prev_merge_tree: Option<std::rc::Rc<Vec<coverage::CoverageElement>>> = None;
-    // #82 DC-E：默认关闭时整段惰性（不算 MACD、不评生产门、不写子腿簿），订单轨 frozen。
-    // 开启时首见证书只经 econ_positive 的 Nest/XZD 单一门，再写 #81 OscillationBook。
-    let mut pan_div_state = super::pan_div::PanDivProductionState::default();
-    let pan_div_hist = if config.center_oscillation.enabled && !bars.is_empty() {
-        let closes: Vec<f64> = bars
-            .iter()
-            .map(|bar| bar.close as f64 / config.tick.tick_size)
-            .collect();
-        Some(super::super::classifier::divergence::compute_macd(
-            &closes,
-            &config.macd,
-        ).hist)
-    } else {
-        None
-    };
-
-    let mut equity_curve = Vec::with_capacity(n);
-    let mut trade_pnls: Vec<f64> = Vec::new();
-    let mut trades: Vec<metrics::TradeRecord> = Vec::new();
-    let mut pos_entry_bar: Option<usize> = None;
-    let mut n_orders_executed: usize = 0;
-    // ── G4 typed ledger（#134）：腿级在飞表（voice_id → 入场登记）+ 已结算 typed 交易。 ──
-    let mut open_trades: std::collections::HashMap<
-        classifier::recursive_tower::ElementId,
-        LedgerOpen,
-    > = std::collections::HashMap::new();
-    let mut typed_ledger: Vec<TypedTrade> = Vec::new();
-    // #201 阶段 B 裁决账本轨（加轨不减轨）：逐 bar 消费 StepTrace.verdicts 的显式
-    // per-voice 裁决序列（含显式 Hold）；与 typed_ledger/账户镜像/opsem/TW 全正交。
-    let mut verdict_ledger: Vec<VoiceVerdictRec> = Vec::new();
-    // #197 并行记账视图（expand 只读旁路）：(account, level) 键全链携带的分实例账本。
-    // 镜像开/关腿生命周期事件过账，不改净额路径任何语义（三把 bit-exact 锁为界）；
-    // 消费这些类型修复归属现病属修复票 #198/#199/#200。
-    let mut account_view = strategy::account::ParallelAccountLedger::new();
-    // ★opsem-dump（基因 073a/274号）：env `OPSEM_DUMP_DIR` 启用时开两个 JSONL 写入器。
-    // 未启用 ⟹ None，所有 write_trade/diff_tower 调用 no-op ⟹ 生产路径 bit-exact 不变。
-    let mut opsem = OpsemDump::from_env();
-    // ★A7（Task #165）：出场 z 账本态维（t_stage/eta_bucket/risk_mode）取自出场 bar 决策点的
-    //   `ext_i`。窗口终点 censored Hold 在主循环外结算 ⟹ 需保留**最后一个决策点** ext_i（末可交易
-    //   bar 的账本态真值，与 censored 兑现价同 bar）。主循环内每决策点刷新；无决策点（全窗不可交易）
-    //   ⟹ ZExt::NONE（账本态维诚实 None，无 bar 决策点可取——同 entry_z 裸口径）。
-    let mut last_ext: super::selector::ZExt = super::selector::ZExt::NONE;
-    // ★A9（Task #166，级别容器.pdf p14/§13）：campaign generation 高水位表——carrier(ElementId) →
-    //   该 carrier 已见最高 generation。同一 carrier close→reopen 时新 campaign 的 generation =
-    //   高水位 +1（首次入场 = 0）。`ActiveLeg::id`/`voice_id` 会跨 campaign 复用（close 后同 carrier
-    //   可再 open，见 interpret 无历史 tombstone + open_trades.insert 二次覆盖），高水位表使
-    //   position_node_id 四元组严格不碰撞（时序再入场可达，codex a9-posnode 裁定 C）。
-    let mut gen_hiwater: std::collections::HashMap<
-        classifier::recursive_tower::ElementId,
-        u32,
-    > = std::collections::HashMap::new();
-    // ── #124 裁定4：TW 账本单一生产真值源（TwState 接入 π 路径；run_closed_loop 降级纯结构
-    //    验证工具）。注资口径 = funded_campaign 同款（state.rs:219）：整窗 = 一个 campaign，
-    //    投入 = 初始 NAV 取整（free = notional_in = ⌊nav0⌋）。i64 取整粒度诚实声明：TW 账本是
-    //    **结构谓词源**（P2/P3/P4 判据消费 stage/open_legacy_legs/holding/free/withdrawn），
-    //    非逐分对账账本——其在生产 π 的唯一消费者是 I_Θ 组合层 TW 谓词 + tw_final 物证。
-    //    ★可达性（codex GAP3 终局裁定 A' 落地，2026-07-03）：**已实现利润有入 free 通道**——
-    //    每笔实际平仓 fill 的费后 PnL 经 ②'' `TwEvent::Realize` 入账（可正可负），TW 漂移 =
-    //    量化已实现 PnL 累计 ⟹ holding≥notional_in ∧ free≥recover_target 在 L2 变价 + 足额
-    //    已实现利润下可满足 ⟹ P2/P3/P4 生产触发**现实可达**（可达性见证 `pi_loop_realized_
-    //    profit_reaches_earning_shares`）。L0 同价下平仓 PnL≡0 ⟹ 仍不可达（L0 同价无盈亏
-    //    定理，见 earning_shares_unreachable_l0_same_price_zero_pnl）。
-    let mut tw = TwState {
-        free: nav0 as i64,
-        notional_in: (nav0 as i64).max(1),
-        ..TwState::initial()
-    };
-    // κ=0 最小基线（PDF §10 canonical 默认，runner.rs:702 生产口径）。
-    // ★A10 附则A（裁定接口冻结）：优先序写死 env `KAPPA_BARRIER_*`（L2 敏感性诊断覆写，codex
-    // `.kappa-ruling-20260704`，M7 网格 {0,0.5,1,2}=`0/1,1/2,1/1,2/1`）> `config.risk_policy` >
-    // baseline κ=0——**env 未设 ∧ config=None ⟹ baseline κ=0**，所有生产/测试路径逐字节不变
-    // （bit-exact）。κ 只在此单点注入，经 stage_progression 门控三阶段推进；env 纯诊断，不改生产
-    // 冻结值（正 κ 生产选择是 M8 L3 的事，codex 已裁，A10 附则A 留编排者选择类）。与
-    // M7_WITNESS_BARS 同为 L2 诊断 env 惯例。
-    let tw_policy = kappa_policy_resolved(config.risk_policy);
-    // TW 侧已见的真实成本基（i64 shadow；方向差分派 ShortDiff 划转，入账量 cash-sound 钳制
-    // ——真实划转超出 free/holding 时部分承载 ⟹ holding 低估 ⟹ 退本金门更难过 = 安全侧）。
-    let mut tw_seen_basis: i64 = 0;
-    // ★A'（裁定清单③）：费后已实现 PnL 累计（f64 真值，仅实际平仓 fill 累加——apply_order
-    // 返回值；forced_pnl 是窗口终点报告用假设强平，不改 units/cash，**不得**入此累计，推导链
-    // 第 11 条）+ TW 侧已入账的量化累计 shadow（同 tw_seen_basis 模式：对**累计值**量化再派
-    // 差分 ⟹ 截断误差有界不累积，TW 漂移恒 = ⌊Σ已实现PnL⌋）。
-    let mut realized_cum: f64 = 0.0;
-    let mut tw_seen_realized: i64 = 0;
-
-    // ── M6 R 分解成本累计（路线.pdf p16 第十一关：R = ΣN_tΔP_t − Commission − Slippage −
-    //    Funding − Borrow − LiquidationLoss）。cost_model=None ⟹ funding/borrow/liq 恒 0
-    //    （bit-exact——不改 units/cash，只多算三个恒 0 累计），commission_slippage 仍如实累计
-    //    （守恒断言用，不改现金流）。──
-    let mut cum_fee: f64 = 0.0; // Commission+Slippage+Tax（apply_fill 独立测得，非从 net 反推）
-    let mut cum_funding: f64 = 0.0;
-    let mut cum_borrow: f64 = 0.0;
-    let mut cum_liq_loss: f64 = 0.0;
-    // 价格 PnL 毛额 Σ_t N_t·ΔP_t（逐 bar：p_t（前 bar 收盘的净持仓）×（px_t − px_{t−1}）×
-    //   |合约乘数=1|，units 已是名义手数）。首 bar 无前价 ⟹ 不计。
-    let mut cum_price_pnl: f64 = 0.0;
-    let mut prev_px: Option<f64> = None;
-    // 强平罚金边沿触发（一次一集）：进入 {Insolvent,Liquidation} 且持仓 ⟹ 收一次罚金，
-    // 置 true；离开强平态 ⟹ 复位。避免强平态跨 bar 持续（exec 延迟平仓期间）重复罚。
-    let mut liq_active: bool = false;
-
-    for i in 0..n {
-        let bar = &bars[i];
-        let px = bar.close as f64 * config.tick.tick_size;
-
-        // ── M6 ①⁻ 价格 PnL 毛额累计（ΣN_tΔP_t）：本 bar 开头 units 是**前 bar 收盘持仓**
-        //    （尚未经本 bar ① 成交），px−prev_px 是本 bar 价格变动 ⟹ 贡献 = units·Δpx。
-        //    这是含浮盈的 MtM 价格贡献，与 equity_curve 的价格重估同源（守恒断言校验）。──
-        if let Some(pp) = prev_px {
-            if px > 0.0 {
-                cum_price_pnl += units * (px - pp);
-            }
-        }
-
-        // ── ① 延迟成交：本 bar 到达 exec_index 的挂单 fill（apply_order，先平后开）。 ──
-        if !pending[i].is_empty() && !bar.untradable && px > 0.0 {
-            let orders = std::mem::take(&mut pending[i]);
-            for o in &orders {
-                if o.qty > 0 {
-                    let units_before = units;
-                    // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
-                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
-                    realized_cum += fill.realized;
-                    cum_fee += fill.fee;
-                    if fill.executed_qty > 0.0 {
-                        // 轨迹与执行计数只消费真实成交；全拒单不再伪造 L2 执行事实。
-                        track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
-                        n_orders_executed += 1;
-                    }
-                }
-            }
-        }
-
-        // ── M6 ①⁺ Funding + Borrow 持仓期成本计提（本 bar 成交后持仓的持有成本；px>0 才计——
-        //    untradable bar（px=0）无有效 mark ⟹ 跳过计提，与 cum_price_pnl 的 px>0 累计口径
-        //    一致，守恒才成立）。从 cash 扣除 ⟹ equity_curve 反映拖累。cost_model=None ⟹ 恒 0
-        //    （bit-exact）。──
-        if let Some(cost) = config.cost_model.as_ref() {
-            if px > 0.0 && units != 0.0 {
-                let net_notional_usd = units.abs() * px;
-                let equity_pre = cash + units * px; // 计提前权益（借入名义 = max(0,|N|−E)）
-                let funding = cost.funding_accrual(i, net_notional_usd);
-                let borrow = cost.borrow_accrual(net_notional_usd, equity_pre);
-                cash -= funding + borrow;
-                cum_funding += funding;
-                cum_borrow += borrow;
-            }
-        }
-
-        // ── ② p_t = 净 lot（成交后真实持仓）。 ──
-        let p_t = units;
-        let current_nav = cash + units * px;
-        let equity_nav = if current_nav > 0.0 { current_nav } else { nav0 };
-
-        // ── ②' TW 成本划转（#124）：真实成本基（|units|·均价，空头取绝对额=在险市值）方向差分
-        //    ⟹ ShortDiff 划转（free⇄holding，TW 守恒构造子）。shadow 追真实、入账钳制（cash-sound）。──
-        {
-            let basis_now = (units.abs() * entry_cost.abs()) as i64;
-            let d = basis_now - tw_seen_basis;
-            tw_seen_basis = basis_now;
-            if d > 0 {
-                let inflow = d.min(tw.free); // 买入 free→holding，不透支 free
-                if inflow > 0 {
-                    tw = tw_step(&tw, TwEvent::ShortDiff(-inflow));
-                }
-            } else if d < 0 {
-                let outflow = (-d).min(tw.holding); // 卖出 holding→free，成本基回流
-                if outflow > 0 {
-                    tw = tw_step(&tw, TwEvent::ShortDiff(outflow));
-                }
-            }
-        }
-
-        // ── ②'' TW 已实现利润入账（codex GAP3 裁定 A' 清单③）：本 bar 平仓 fill 的费后 PnL
-        //    聚合（推导链第 9 条：同 bar 多 fill 聚合）经 `TwEvent::Realize(d_pi)` 入 free。
-        //    ★硬边界2：置于 ②' 成本基 ShortDiff **之后**、③ TwStepCtx（stage 判据）之前——
-        //    同一成交先成本基后利润。★量化口径：对累计值取整再派差分（tw_seen_basis 同款
-        //    shadow 模式）⟹ 截断误差有界不累积，TW 漂移恒 = ⌊realized_cum⌋（清单⑥不变量）。
-        //    ★可正可负（推导链第 5 条）：亏损如实入账——负 d_pi 使 free 下降；若累计亏损超
-        //    free（做空爆亏），free 为负是真实现金透支的诚实镜像（f64 账本 cash 同步为负），
-        //    非静默账目错误——stage 门（free≥recover_target>0）在负 free 下恒不过 = 安全侧。
-        {
-            let realized_now = realized_cum as i64;
-            let d_pi = realized_now - tw_seen_realized;
-            if d_pi != 0 {
-                tw_seen_realized = realized_now;
-                tw = tw_step(&tw, TwEvent::Realize(d_pi));
-            }
-        }
-
-        if !bar.untradable && px > 0.0 {
-            // ── ③ [A] 前缀因果重分类（classify_at(i)=classify_with_tower(l0[0..=i]) → 因果塔 + 因果
-            //      分类，只用 ≤i 数据 → 因果）+ 切当步候选 + [B] base_units U_ℓ + [C] thread + 风控门。 ──
-            let (classification_i, tower_i, tower_gen, forest_epoch) = classify_at(i);
-            // ★opsem-dump：diff tower_i vs prev_tower → 写塔事件（仅交易活跃区间，env-gated）。
-            if let Some(dump) = opsem.as_mut() {
-                dump.diff_tower(i, &tower_i);
-            }
-            // ★当步候选 = 前缀因果塔里**本 bar 新确认**的买卖点（append-only diff vs seen，确认-bar
-            // 部署）——非 source_index==i 切片（买卖点回溯确认，其触发点常在更晚 bar 才入前缀塔 ⟹
-            // source_index==i 切恒空 ⟹ 零订单）。买卖点在被确认那根 bar（source_index≤i）部署=因果。
-            let classification_step = newly_confirmed_step(&classification_i, &mut seen_bsps);
-            let base_units = equity_nav / px; // U_ℓ：NAV/价 = 可建名义手数（方案A协变）
-            // 风控门也用**前缀因果分类**（leg 止损 bsp 因果查得，非全窗非因果——与 σ_p 同因果口径）。
-            let (gate, risk_mode_i) = k_theta_risk_gate(&prev_active, &open_trades, bar, equity_nav, p_t, px, config.margin.as_ref());
-            // ── M6 ③⁻ LiquidationLoss 强平罚金（边沿触发，一次一集）：本 bar 进入
-            //    {Insolvent,Liquidation} 且持仓 ⟹ 收一次罚金（强平清算费/滑点），从 cash 扣。
-            //    liq_active 边沿去抖：强平态跨 bar 持续（exec 延迟平仓期间）不重复罚；离开强平态复位。
-            //    cost_model=None ⟹ 恒 0（bit-exact）。RiskExit 优先级由 gate.force_flat 上游承担
-            //    （coverage P1 屏蔽 P2..P10），本罚金是该强平事件的**成本记账**，不改平仓触发逻辑。──
-            {
-                use super::super::strategy::risk::global_risk_close;
-                let in_liq = global_risk_close(risk_mode_i);
-                if let Some(cost) = config.cost_model.as_ref() {
-                    if in_liq && !liq_active && p_t != 0.0 && px > 0.0 {
-                        let penalty = cost.liquidation_penalty(p_t.abs() * px);
-                        cash -= penalty;
-                        cum_liq_loss += penalty;
-                    }
-                }
-                liq_active = in_liq;
-            }
-            // ── A10 C5（裁定 (b) TW 桥 G1，零账本侵入）：`cum_holding_cost` i64 shadow =
-            //    funding+borrow+liq **累计量化**（`tw_seen_basis`/`tw_seen_realized` 同款「对累计值
-            //    量化」模式；f64→定点口径与 treasury `Realize(⌊realized_cum⌋)` 一致——向零截断，
-            //    三项恒 ≥0 ⟹ 截断=⌊⌋）。G1 缺口：持盾成本只扣 f64 `cash`（①⁺/③⁻），TW 账本不经
-            //    任何构造子见到它（GAP3 A' 构造子冻结不动）⟹ 未修正 η=tw() **高估**真实在险权益
-            //    ⟹ enter_ready 易过=激进侧（不安全）。修正全部在**策略层消费侧**：η_bucket
-            //    （ZExt 第 15 维）与 TwStepCtx.eta_correction 读**同一本变量**（F4 同源强制——
-            //    裁定 C5 第 4 条：两处不同步则 z 维与判据裂口）。cost_model=None ⟹ 三项恒 0
-            //    ⟹ shadow=0 ⟹ 与历史判据同值 bit-exact（回归锁）。──
-            let cum_holding_cost: i64 = (cum_funding + cum_borrow + cum_liq_loss) as i64;
-            // 桥接对账断言（裁定 C5 裁决1，取整界内）：η_corrected := tw() − cum_holding_cost
-            // ⟹ tw() − η_corrected == ⌊cum_holding_cost⌋——此处断言 shadow 与 f64 真值的量化
-            // 界 <1 个量化单位（三项恒 ≥0 保号；断言即断言，不降格为告警）。
-            debug_assert!(
-                cum_funding + cum_borrow + cum_liq_loss >= 0.0
-                    && ((cum_funding + cum_borrow + cum_liq_loss) - cum_holding_cost as f64).abs() < 1.0,
-                "A10 C5 桥接对账：tw()−η_corrected == ⌊cum_holding_cost⌋ 取整界破——shadow={} f64真值={}",
-                cum_holding_cost,
-                cum_funding + cum_borrow + cum_liq_loss
-            );
-            // G3（#138）z 第 10-13 维装配：π 路径候选不经 Nest/Xzd 准入门（cand_channel/nest_depth
-            // None 诚实口径，origin_level 由 z_of_candidate 填 Some(c.level) 起始=执行真值）；
-            // risk_mode = 当 bar 账本态真值。**同一 ext_i 同时喂 χ 查询（filter）与训练登记
-            // （entry_z）** ⟹ 训练/查询同口径在共享变量层保证（G2 护航点同款）。
-            // #149 第 14 维 t_stage = tw.stage 当 bar 决策点相位真值：②'/②'' 账本更新之后、
-            // 本 bar stage_progression（step_trace.tw_event 写点）之前读取——与 TwStepCtx.state
-            // 喂给 P2/P3/P4 谓词的是同一 tw 值，账本相位单一真值源（#124 裁定4）无第二口径。
-            // #175 第 15 维 eta_bucket = γ_t 四桶（PDF §10 分段式；终裁 a5-etabucket-stance-
-            // ruling-20260704.md：η_t=tw.tw() 即 enter_ready 判据左操作数、η_*=tw_policy.eta_star）
-            // ——与 t_stage 读同一 tw 变量同一时点（非另开账本查询，零时序错位）。
-            // ★A10 C5（F4 同源修正）：η 左操作数经 cum_holding_cost 修正（η_corrected =
-            // tw() − cum_holding_cost）——与下方 TwStepCtx.eta_correction **同一变量同一时点**，
-            // 裁定 C5 第 4 条「η_bucket 与 enter_ready 左操作数同源修正为一笔改动」的落点。
-            let ext_i = super::selector::ZExt {
-                risk_mode: Some(risk_mode_i),
-                t_stage: Some(tw.stage),
-                eta_bucket: Some(tw_policy.eta_bucket_eta_corrected(&tw, cum_holding_cost)),
-                ..super::selector::ZExt::NONE
-            };
-            // A7（#165）：记录当前决策点账本态——窗口终点 censored Hold（主循环外）取此末值作 exit_z
-            // 账本态维（末可交易 bar 决策点真值，与 censored 兑现价同 bar 口径）。
-            last_ext = ext_i;
-            // exec_index：延迟成交 bar（spec:50；尾部无可成交 bar ⟹ 不挂单）。
-            let exec_index = fill_bar_index(i, bars, &config.exec);
-            // 环5+6+7：pi_theta_step（父容器 σ_p=attach_bsp_to_tree(因果塔) + 风控门）→ (A_{t+1}, p*, O)。
-            // 工位 K 性能：tree-prefix 缓存（§16，命中省 extract_elements 重建）。pi_theta_step 用
-            // newly-confirmed step 候选；merge 用全 classification 候选——两者共享同一 tower tree-prefix 缓存。
-            // ★热点② O(n²) 消除：tree=Rc::clone O(1)，candidate 段单独 Vec，ElementView 双段零拷贝。
-            let (step_tree, step_candidates, step_gamma) = {
-                let _g = classifier::stage_profile::stage("cand_build_step");
-                interp::coverage_elements_and_gamma_with_tower_cached_gen(
-                    &classification_step, &tower_i, &mut Some(&mut tree_cache), Some(tower_gen), Some(forest_epoch),
-                )
-            };
-            // ★工位 4d 热点①②：注入缓存的 base（tree 前缀）兄弟/ID 索引（命中 Rc::clone O(1)），消除
-            // coverage_step_from_buckets 内每 bar build_prev_sibling_index/build_tree_id_index O(tree)/bar。
-            let mut step_work = coverage::ElementView::from_parts(&step_tree, step_candidates);
-            if let Some((sib, id)) = tree_cache.tree_sibling_and_id() {
-                step_work = step_work.with_base_indices(sib, id);
-            }
-            // ── ③' χ_t 阈值过滤（task #41）：Γ_t → Γ_t^trade={γ:μ(z_γ)>θ}（§13）。 ──
-            // χ 仅滤候选集（喂 interpret 的 gamma）；step_work(tree/candidates) 不受影响——
-            // coverage_step_prebuilt 内 gamma→interpret 三桶 与 work→AncOK 准入解耦（gamma 滤掉
-            // μ≤θ 候选 ⟹ interpret 不归 open ⟹ 不开仓 = χ_t 语义）。None ⟹ χ≡1 全覆盖（不滤）。
-            let step_gamma_trade = match &chi {
-                // σ_higher 真值穿透（codex-q1 G2 护航点）：生产 χ 查询与训练表同经塔真值构 z——
-                // 训练 Some/查询 None 的静默"未见类别"退化在此被接口封死。
-                Some(ctx) => super::selector::filter_gamma_with_admission(
-                    &step_gamma, ctx.est, ctx.theta, ctx.z_alpha, ctx.shrink_tau_sq,
-                    ctx.treat_empty_as_pass, &tower_i, bars, &ext_i,
-                ),
-                None => step_gamma.clone(), // χ≡1：原候选集（bit-exact 不变）
-            };
-            // ── #196 shadow 输入适配：parent_projections 生产构造（现成单源
-            //    `interp::parent_certificate_projection` 逐候选构造；cand_elems = step_work
-            //    candidate 段只读切片、tree = step_tree，与生产同一份数据；χ 后口径——
-            //    step_gamma_trade 之外的候选不产投影）。──
-            let step_parent_projections: Vec<super::super::strategy::interp::ParentCertificateProjection> =
-                step_gamma_trade
-                    .iter()
-                    .filter_map(|c| {
-                        interp::parent_certificate_projection(c, step_work.overlay(), &step_tree)
-                    })
-                    .collect();
-            // ── #124 裁定4 TW 谓词 ctx（P2/P3/P4 进 fold）：在飞腿 entry_v 映射从 typed ledger
-            //    在飞表取（entry_v 入场固定，与 TW open_legacy_legs 计数同源）。#145 T1：由原
-            //    ShortDiff id 半镜像升级为全量 entry_v 映射——P2 过滤在组合层按
-            //    `== ShortDiff` 判（语义 bit-exact），且兼作反向关闭 typed 裁决的
-            //    reverse_exit_type 原料（组合层单点，本处不再结算补算）；risk_mode 从
-            //    strategy::risk 五态投影到 closed_loop::state 五态（两枚举同锚 Origin 五构造子，
-            //    此处只读逐变体映射，非第二权威源——判定仍单源 k_theta_risk_gate）。 ──
-            let entry_v_map: std::collections::HashMap<
-                classifier::recursive_tower::ElementId,
-                super::super::strategy::coverage::Vertical,
-            > = open_trades.iter().map(|(id, o)| (*id, o.entry_v)).collect();
-            let tw_risk_mode = {
-                use super::super::closed_loop::state::RiskMode as ClRiskMode;
-                use super::super::strategy::risk::RiskMode as StRiskMode;
-                match risk_mode_i {
-                    StRiskMode::Insolvent => ClRiskMode::Insolvent,
-                    StRiskMode::Liquidation => ClRiskMode::Liquidation,
-                    StRiskMode::Deleverage => ClRiskMode::Deleverage,
-                    StRiskMode::CloseOnly => ClRiskMode::CloseOnly,
-                    StRiskMode::Normal => ClRiskMode::Normal,
-                }
-            };
-            let twc = coverage::TwStepCtx {
-                state: &tw,
-                policy: &tw_policy,
-                risk_mode: tw_risk_mode,
-                entry_v: &entry_v_map,
-                // A10 C5（裁定 (b)）：enter_ready 的 η 左操作数同源修正（与上方 η_bucket 同一
-                // cum_holding_cost 变量，F4）；0 ⟹ 历史判据 bit-exact（cost_model=None 回归锁）。
-                eta_correction: cum_holding_cost,
-            };
-            // #82 DC-E：只从真实在飞 campaign 建父腿快照；结构 carrier、身份不明或零单位不冒充父腿。
-            // sync 只替换 OscillationBook 的只读 parents 表，lots 原位保留（路由/生命周期无平行账本；
-            // #195 档A split_ledgers 数量镜像层随本 sync 全量对账，见 pan_div.rs）。
-            let mut pan_candidates = Vec::new();
-            let mut protocol_events = super::super::strategy::protocol::ProtocolEventSet::hold(0);
-            if let Some(hist) = pan_div_hist.as_deref() {
-                use super::super::strategy::oscillation::OscillationParentLeg;
-                let parents = prev_active
-                    .iter()
-                    .filter_map(|leg| {
-                        let open = open_trades.get(&leg.id)?;
-                        if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff {
-                            return None;
-                        }
-                        let units = open.units.round().max(0.0) as u64;
-                        OscillationParentLeg::new(leg.id, leg.level, leg.dir, units).ok()
-                    })
-                    .collect();
-                pan_div_state.sync_live_parents(parents);
-                for (lvl, ls) in classification_i.levels.iter().enumerate() {
-                    for cert in ls.pan_div.iter() {
-                        // 首见先落 seen；门闭也终局，后续 bar 不重试（与统计通道 τin 同时序）。
-                        if !pan_div_state.observe_raw(lvl as u32, cert) {
-                            continue;
-                        }
-                        let sub_centers: &[super::super::types::Center] = if lvl > 0 {
-                            &classification_i.levels[lvl - 1].centers
-                        } else {
-                            &[]
-                        };
-                        let sub_bsp: &[super::super::classifier::bsp::BspPoint] = if lvl > 0 {
-                            &classification_i.levels[lvl - 1].bsp
-                        } else {
-                            &[]
-                        };
-                        let Some(gated) = super::econ_positive::gate_pan_div_for_production(
-                            &tower_i,
-                            lvl,
-                            cert,
-                            hist,
-                            i,
-                            &ls.bsp,
-                            sub_centers,
-                            sub_bsp,
-                        ) else {
-                            pan_div_state.note_gate_rejected();
-                            continue;
-                        };
-                        match pan_div_state.prepare(gated) {
-                            super::pan_div::PreparedPanDiv::Candidate(candidate) => {
-                                // DA-Q2：即使订单槽稍后被 BSP/P1-P4 占用，PanDiv 证据仍留在协议轨。
-                                protocol_events = protocol_events.with_center_oscillation(candidate);
-                                pan_candidates.push(candidate);
-                            }
-                            super::pan_div::PreparedPanDiv::Record(_reason) => {
-                                // P10 已在生产状态统计；无合法 parent/lot identity 时不伪造候选。
-                            }
-                        }
-                    }
-                }
-            }
-            let (next_active, standard_p_star, (mut order, _protocol_event), step_trace) = coverage::pi_theta_step_traced(
-                step_work,
-                &step_gamma_trade,
-                &prev_active,
-                p_t,
-                exec_index.unwrap_or(i),
-                base_units,
-                &config.risk,
-                weights,
-                gate,
-                &config.voice,
-                &registry,
-                Some(&twc),
-                &protocol_events,
-            );
-            // ── #196 阶段 A shadow：组合层裁决点之后并行跑 channel 适配层——只记录分歧，
-            //    不改裁决与订单流（零行为变更；分歧报告 env 门控落盘，见主循环后）。
-            //    #201：生产事实由 step_trace.verdicts 显式裁决序列单源推导（trace/裁决层统一）。──
-            shadow_book.observe_and_compare(
-                i,
-                &prev_active,
-                &step_gamma_trade,
-                &entry_v_map,
-                gate.force_flat,
-                &step_parent_projections,
-                &step_trace,
-            );
-            if pan_div_hist.is_some() {
-                use super::super::strategy::oscillation::{
-                    OscillationAction, OscillationApplyResult, OscillationIntent,
-                    SizeKThetaProjection,
-                };
-                use super::super::strategy::voice::VoiceSide;
-
-                // 真 BSP（非 struct_break 零 bits）与 P1-P4/标准腿生命周期优先；PanDiv 仅留上方
-                // protocol confirmation，不重复占订单槽。
-                let standard_bsp = classification_step.levels.iter().any(|level| {
-                    level.bsp.iter().any(|point| point.bits.class_index() != 0)
-                });
-                let standard_lifecycle = !step_trace.opened.is_empty()
-                    || !step_trace.closed.is_empty()
-                    || !step_trace.silent_drops.is_empty()
-                    || !step_trace.risk_exits.is_empty()
-                    || !step_trace.overlay_closes.is_empty()
-                    || step_trace.tw_event.is_some();
-                let higher_priority = standard_bsp || standard_lifecycle;
-                let mut actionable_pan = pan_div_state.pending_candidates().to_vec();
-                actionable_pan.extend_from_slice(&pan_candidates);
-                let selected = pan_div_state.select_for_bar(&actionable_pan, higher_priority);
-                let cap = base_units.abs() * config.risk.gamma.abs();
-                if let Some(candidate) = selected {
-                    // KΘ 从“标准父腿目标 + 当前 live 子腿”这一实际组合目标算剩余空间；若从
-                    // standard_p_star 单独算，父腿已在上限时会错误阻塞 P7 回补。
-                    let pan_anchor = standard_p_star
-                        + pan_div_state.signed_live_child_units() as f64;
-                    let mut k_theta_units = gate.delta_capacity_units(
-                        cap,
-                        pan_anchor,
-                        candidate.action_side(),
-                    );
-                    if candidate.intent() == OscillationIntent::Open {
-                        // P9 必须是经济减仓：只允许把标准目标向 0 移动，不穿零反向净加仓。
-                        let reduces = matches!(
-                            (pan_anchor.is_sign_positive(), candidate.action_side()),
-                            (true, VoiceSide::Short) | (false, VoiceSide::Long)
-                        ) && pan_anchor != 0.0;
-                        k_theta_units = if reduces {
-                            k_theta_units.min(pan_anchor.abs().floor() as u64)
-                        } else {
-                            0
-                        };
-                    }
-                    let applied = pan_div_state.apply(
-                        candidate,
-                        super::super::strategy::oscillation::CenterOscillationConfig {
-                            enabled: true,
-                        },
-                        SizeKThetaProjection {
-                            size_theta_units: candidate.target_units(),
-                            k_theta_units,
-                        },
-                    );
-                    if matches!(
-                        applied,
-                        OscillationApplyResult::Applied {
-                            action: OscillationAction::OpenShortDiff | OscillationAction::CloseShortDiff,
-                            ..
-                        }
-                    ) {
-                        let target = gate.clamp_position(
-                            cap,
-                            standard_p_star + pan_div_state.signed_live_child_units() as f64,
-                        );
-                        order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
-                    }
-                } else if !higher_priority && pan_div_state.signed_live_child_units() != 0 {
-                    // 无新 cert 的持有 bar：把 live ShortDiff 投影叠回标准目标，避免下一 bar 被基础 π
-                    // 当作偏差自动回补；仍经同一 KΘ 区间 clamp 和 ScheduleΘ 单一订单出口。
-                    let target = gate.clamp_position(
-                        cap,
-                        standard_p_star + pan_div_state.signed_live_child_units() as f64,
-                    );
-                    order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
-                }
-            }
-            // ── ★M5 overlay 簿步进（多空对冲.pdf p16 关卡10）：sep_legs=P^sep_{t+1} 目标 → hedge-mode
-            //    逐声部账本 → ΔN 订单 + 逐声部 pnl_v 累计。只读旁路（不改净额 fill 的 cash/units/
-            //    trade_pnls ⟹ 现有臂 bit-exact）。overlay=None（现有臂）⟹ 整段跳过。 ──
-            if let Some(ov) = overlay.as_deref_mut() {
-                let ostep = ov.step(&step_trace.sep_legs, px, i, config.risk.default_lot.max(1) as i64);
-                // ★ΔN 守恒（验收断言1，PDF p16 `Order_t=N_t−N_{t−1}`）：overlay 订单恒 = 净敞口增量。
-                debug_assert_eq!(
-                    ostep.order,
-                    ostep.net_after - ostep.net_before,
-                    "M5 ΔN 守恒违例：order={} ≠ N_t−N_{{t−1}}={}−{}",
-                    ostep.order, ostep.net_after, ostep.net_before
-                );
-            }
-            // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
-            // ★#200 次序（先平后开，`A_raw=(A_t∖D_t)∪O_t` 买卖点2 p.6/14 §9）：**关闭消费
-            // 循环先于开腿登记循环**——OpenShort 通道的二类「先平后开」在同 bar 同 carrier
-            // 上平旧 campaign + 开新 campaign（位置节点身份 = carrier id，A9 generation
-            // 单调 +1）；若先 insert 后 remove，新 entry 覆盖旧 entry、关闭循环误删新
-            // campaign（typed/账户双轨同错）。故开腿登记移至四个关闭循环之后（下方
-            // 「开腿：准入信号腿登记」段）。
-            // 反向关闭：typed 裁决消费 trace 第三分量（#145 T1——组合层决策点已经
-            // reverse_exit_type 单源判定，本处不补算；登记腿必在 entry_v 映射 ⟹ 裁决非回退值）。
-            // ★#209 断言②批次收集：本步一类 × Core 镜像过的 level（批末硬门检查集，
-            // 见本循环结束点「断言②终态硬门」段）。★#237：检查集扩为 (level, 批次方向)
-            // ——批次方向由被关腿方向单源表达（Exit_v δ(γ)=−σ_v：卖批关 Long、买批关
-            // Short），与断言① l.dir 同源同口径。
-            let mut t1_core_levels: Vec<(u32, strategy::voice::VoiceSide)> = Vec::new();
-            for (leg, trig, exit_type) in &step_trace.closed {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    // #145 T1 不变量：登记腿必在本步 entry_v 映射（closed ⊆ prev_active ⊆ 本 bar
-                    // 快照 open_trades），组合层裁决非 Ambient 回退值。映射构建与消费之间若未来
-                    // 插入 open_trades 突变，此断言先炸而非静默错型。
-                    debug_assert!(
-                        entry_v_map.contains_key(&leg.id),
-                        "#145 T1：trace.closed 腿 {:?} 不在本步 entry_v 映射（裁决为回退值）",
-                        leg.id
-                    );
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff
-                        && tw.open_legacy_legs >= 1
-                    {
-                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0)); // TW 腿计数（#124）
-                    }
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type: *exit_type,
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: false, // 真信号平仓（反向候选触发）
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：反向关闭外化（trig.bsp_class = 触发候选类）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, Some(trig.bsp_class));
-                    }
-                    typed_ledger.push(pushed);
-                    // #197/#199：关闭镜像——账户=entry_v×方向（与理由正交）；理由按账户分流
-                    // （#199「仅残余才纠错」：核心腿二类 ⟹ 核心残余实测非零（并行视图
-                    // balance(Core{level})≠0）才发 CoreResidualCorrection，否则二类不生
-                    // 本仓卖单（None 不镜像）；ShortDiff/Short 腿二类 ⟹ ReverseType2
-                    // 合法二类卖；一/三类委托 reason_of_reverse 单源）。
-                    // 触发类 1/2/3 外不镜像，与 open 侧 None 口径对称，不伪造理由。
-                    let account_id = strategy::account::identity_of(
-                        open.entry_v,
-                        open.position_node_id.side,
-                        leg.id.level,
-                    );
-                    let core_residual =
-                        account_id.is_some_and(|a| account_view.balance(a) != 0.0);
-                    if let Some(reason) = account_id.and_then(|a| {
-                        strategy::account::reason_of_reverse_close(a, trig.bsp_class, core_residual)
-                    }) {
-                        // ★#209：一类 × Core 镜像 ⟹ 记录 level（批末断言②硬门检查集）。
-                        // ★#237：连方向一并记录——批次方向=被关腿方向（与断言① l.dir 同源，
-                        // 卖批关 Long 查多侧、买批关 Short 查空侧）。
-                        if reason == strategy::account::ActionReason::ReverseType1
-                            && matches!(
-                                account_id,
-                                Some(strategy::account::AccountIdentity::Core { .. })
-                            )
-                        {
-                            t1_core_levels.push((leg.id.level, leg.dir));
-                        }
-                        account_mirror_close(&mut account_view, &open, leg.id.level, reason, px, i);
-                    }
-                }
-                // 表中无登记（本窗开跑前已持/restore 祖先腿）⟹ 非本窗信号入场，不入 ledger。
-            }
-            // ★#209 断言②终态硬门（批次边界，用户裁 A 2026-07-23：S7 级别内全平是必须
-            // 非应当）：一类批末（该级全部核心腿平仓完）balance(Core{level})==0。检查点 =
-            // 反向关闭循环结束、其余关闭/开腿循环之前——一类全平批的多条 AccountOrder
-            // 已逐腿 post（每腿恰一，reason=ReverseType1 经 reason_of_reverse_close 单源），
-            // 同 bar 开腿镜像尚未发生（#200 次序），此时该级本仓必清零。多腿场景逐笔
-            // post 后余额仍含未平同级腿，故硬门不挂单笔粒度（见 account_mirror_post 断言②
-            // 注释）。形态 = debug 构建 panic + 违例探针恒在计数（release 可观测），与
-            // 断言③同款。历史对照（勿删）：#199 测量态 BTC train 窗实测违例=1。
-            // ★#237 按方向拆查（与断言①同源同口径，用户裁 2026-07-24）：一类卖批 ⇒ 查
-            // 该级**多侧**分量=0（`balance_side(Core{lv}, Long)`）；一类买批 ⇒ 查**空侧**
-            // 分量=0——分侧账禁净额（P_sep：净额 balance 同时掩盖双侧残余，ker N 不可
-            // 识别）。顺父级联 Short 腿归空侧（实例键 position.side，#185 映射不动），
-            // 卖批下合法存活不计入（#234 Q4.3；m3 (1,470) 误报面的账侧同口径收口）。
-            t1_core_levels.sort_unstable_by(|a, b| (a.0, a.1 as u8).cmp(&(b.0, b.1 as u8)));
-            t1_core_levels.dedup();
-            for (lv, side) in t1_core_levels {
-                let bal = account_view
-                    .balance_side(strategy::account::AccountIdentity::Core { level: lv }, side);
-                if bal != 0.0 {
-                    t1_core_residual_probe_bump();
-                }
-                debug_assert!(
-                    bal == 0.0,
-                    "#237 断言②终态违例：一类全平批末 balance(Core{{{lv}}} {side:?}侧) = {bal} ≠ 0——S7 级别内全平是必须（按方向拆查）"
-                );
-            }
-            // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：归属判据抽为
-            // [`silent_drop_exit_type`]（#198：仅短差腿记 CloseShortDiff，其余归 core structural
-            // exit；账户=entry_v×方向经 #197 account 层映射，剪枝理由=via_structural_prune 轴）。
-            for leg in &step_trace.silent_drops {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    use super::super::strategy::coverage::Vertical;
-                    if open.entry_v == Vertical::ShortDiff && tw.open_legacy_legs >= 1 {
-                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0)); // TW 腿计数（#124）
-                    }
-                    let exit_type = silent_drop_exit_type(open.entry_v);
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type,
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: true, // §13 父驱动连带剪枝，非独立信号（μ 侧可分离）
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：静默离场外化（无触发候选，trigger_bsp_class=null）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, None);
-                    }
-                    typed_ledger.push(pushed);
-                    // #197：关闭镜像——§13 结构剪枝（account=entry_v×方向，reason=StructuralPrune，
-                    // 正交拆分即 #185 修复 a 的视图层前身：FollowParent 归 Core 账 + 剪枝理由）。
-                    account_mirror_close(
-                        &mut account_view,
-                        &open,
-                        leg.id.level,
-                        strategy::account::ActionReason::StructuralPrune,
-                        px,
-                        i,
-                    );
-                }
-            }
-            // 强平清空（#124 P1，PDF §7 C_1 屏蔽 P2..P10）：force_flat ⟹ prev_active 全部 RiskExit
-            // （无触发候选；pi_theta_step_traced 上游短路清空 next_active，见 StepTrace.risk_exits）。
-            for leg in &step_trace.risk_exits {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff
-                        && tw.open_legacy_legs >= 1
-                    {
-                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0));
-                    }
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type: super::super::strategy::interp::ExitType::RiskExit,
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: false, // 强平=风险信号平仓，非结构剪枝
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：强平外化（无触发候选，trigger_bsp_class=null）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, None);
-                    }
-                    typed_ledger.push(pushed);
-                    // #197：关闭镜像——P1 风险强平逐腿展开为单账户 AccountOrder
-                    // （#185 断言5「风险全平展开为多条单账户」的视图层天然形态）。
-                    account_mirror_close(
-                        &mut account_view,
-                        &open,
-                        leg.id.level,
-                        strategy::account::ActionReason::RiskExit,
-                        px,
-                        i,
-                    );
-                }
-            }
-            // P2 CloseOverlay（#124 裁定4，PDF §7 C_2）：TW StageII 重叠腿关闭——真实订单已经
-            // 同一 schedule/fill（组合层合成 close 桶复用 𝒟_x 通道）；typed 归 CloseShortDiff
-            // （关的正是 legacy ShortDiff 重叠腿，PDF §9 五枚举内最近语义）。
-            for leg in &step_trace.overlay_closes {
-                if let Some(open) = open_trades.remove(&leg.id) {
-                    if open.entry_v == super::super::strategy::coverage::Vertical::ShortDiff
-                        && tw.open_legacy_legs >= 1
-                    {
-                        tw = tw_step(&tw, TwEvent::CloseShareLeg(0));
-                    }
-                    let pushed = TypedTrade {
-                        entry_z: open.entry_z,
-                        voice_id: leg.id,
-                        entry_bar: open.entry_bar,
-                        exit_bar: i,
-                        exit_type: super::super::strategy::interp::ExitType::CloseShortDiff,
-                        entry_px: open.entry_px,
-                        exit_px: px,
-                        via_structural_prune: false, // TW 账本谓词驱动的真实平仓，非结构剪枝
-                        position_node_id: open.position_node_id,
-                        entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                        exit_z: super::selector::exit_z_of(open.entry_z, &ext_i), // A7 #165：出场时刻 z 快照
-                        units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-                    };
-                    // ★opsem-dump：P2 overlay 关闭外化（无触发候选，trigger_bsp_class=null）。
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_exit(i);
-                        let _ = dump.write_trade(&pushed, &open, None);
-                    }
-                    typed_ledger.push(pushed);
-                    // #197：关闭镜像——TW StageII 重叠腿关闭（reason=OverlayClose）。
-                    account_mirror_close(
-                        &mut account_view,
-                        &open,
-                        leg.id.level,
-                        strategy::account::ActionReason::OverlayClose,
-                        px,
-                        i,
-                    );
-                }
-            }
-            // ── #201 阶段 B 裁决账本轨（加轨不减轨）：消费 StepTrace.verdicts 显式 per-voice
-            //    裁决序列（含显式 Hold）——每 bar 每解释器裁决域持仓声部恰一枚，schema 冻结
-            //    （阶段 C 换内核在本契约上对齐）。只入本轨；不改 typed_ledger/account_view/
-            //    opsem/TW 任何既有轨（Hold 无成交，不入 TypedTrade）。──
-            for v in &step_trace.verdicts {
-                verdict_ledger.push(VoiceVerdictRec { bar: i, leg: v.leg, exit_type: v.exit });
-            }
-            // 开腿：准入信号腿登记（z 塔真值，与生产 χ 查询同经 z_of_candidate——训练/查询同口径）。
-            // A6（#159）：z_of_candidate 内读 c.force（Candidate 透传 BspPoint.force）填 force_state
-            // 第 8 维——entry_z（训练）与上方 filter_gamma（查询）同函数同候选 ⟹ 同口径自动成立，
-            // fullz 置换 records 的 force_state 自此携真值（一类 A/C 对候选 Some）。
-            // ★#200：本循环位于四个关闭消费循环**之后**（先平后开，次序依据见 ③'' 段首注释）。
-            for (c, leg) in &step_trace.opened {
-                use super::super::strategy::interp::{EntryCertificate, PositionNodeId};
-                // ★A9 generation：carrier 首次入场 = 0；close→reopen（表中已有）= 高水位 +1（单调）。
-                let generation = match gen_hiwater.get(&leg.id) {
-                    Some(&hi) => hi + 1,
-                    None => 0,
-                };
-                gen_hiwater.insert(leg.id, generation);
-                let position_node_id = PositionNodeId {
-                    carrier: leg.id,
-                    entry_certificate: Some(EntryCertificate {
-                        level: c.level,
-                        source_index: c.source_index,
-                    }),
-                    side: c.dir,
-                    generation,
-                };
-                // ★A6（prereg-rev2-20260704）：入场结构止损距离 d=|entry_px−stop|（美元，ex-ante）。
-                // 决策 bar 因果分类 classification_i 查开腿候选 BspPoint（(level,source_index) 键，与
-                // k_theta_risk_gate 止损回查同源 structural_stop），stop_side 由候选方向定。None =
-                // structural_stop 返 None（非该方向交易点）/ BspPoint 缺失 ⟹ μ_R 剔除（诚实缺口）。
-                // ★族A：入场一次性冻结 structural_stop（Tick）到 LedgerOpen.entry_stop，逐 bar 风控门
-                // 读此冻结值（消除旧路径 drifted leg.source_index 回查 ⟹ 静默跳过 stop）。dist 同源导出。
-                let entry_stop = entry_structural_stop(c, &classification_i);
-                let entry_stop_dist =
-                    entry_stop.map(|stop| (px - stop as f64 * config.tick.tick_size).abs());
-                // ★opsem-dump：入场时刻操作语义快照（env-gated，未启用零字段零开销）。
-                let opsem_snap = if opsem.is_some() {
-                    let (sa_macd, sc_macd, sa_dif, sc_dif, fstate) = match c.force {
-                        Some(fp) => (
-                            Some(fp.seg_a.macd_area),
-                            Some(fp.seg_c.macd_area),
-                            Some(fp.seg_a.dif_peak),
-                            Some(fp.seg_c.dif_peak),
-                            c.force.as_ref().map(|fp| force_state_str(fp.force_state())),
-                        ),
-                        None => (None, None, None, None, None),
-                    };
-                    let pid = leg.parent_id.map(|p| (p.level, p.ordinal));
-                    if let Some(dump) = opsem.as_mut() {
-                        dump.mark_entry(i);
-                    }
-                    OpsemEntrySnapshot {
-                        cand_level: c.level,
-                        cand_source_index: c.source_index,
-                        cand_bits: c.bits.class_index(),
-                        cand_dir: voice_side_str(c.dir),
-                        cand_bsp_class: c.bsp_class,
-                        cand_nest_confirmed: c.nest_confirmed,
-                        // R5-c：区间套深度（纯结构读数，与生产门 rungs.len() 同口径，不依赖 hist）。
-                        nest_depth: super::econ_positive::structural_nest_depth(
-                            &tower_i, c.level as usize, c.source_index,
-                        ),
-                        cand_role: Box::leak(operation_role_str(c.role).into_boxed_str()),
-                        seg_a_macd_area: sa_macd,
-                        seg_c_macd_area: sc_macd,
-                        seg_a_dif_peak: sa_dif,
-                        seg_c_dif_peak: sc_dif,
-                        force_state: fstate,
-                        gamma_count: step_gamma_trade.len(),
-                        prev_active_count: prev_active.len(),
-                        // R5-a：本步 LexArgmin top-3（step 级，opened 内共享；traced 正常路径填充）。
-                        lex_top3: step_trace.lex_top3.clone(),
-                        parent_id: pid,
-                        t_stage: t_stage_str(tw.stage),
-                        eta_bucket: ext_i.eta_bucket.map(eta_bucket_str).unwrap_or("null"),
-                        risk_mode: ext_i.risk_mode.map(risk_mode_str).unwrap_or("null"),
-                    }
-                } else {
-                    OpsemEntrySnapshot::default()
-                };
-                // ★B1（步骤4，codex review conditional 修复）：入场 sizing target 快照（开腿当步
-                // SepLeg.q_units，含 dir_weight）。sep_legs 经 coverage.rs:2317 filter_map(work.get) 构造 ⟹
-                // opened 腿 id 通常在其中，但 filter_map 可跳过 work 不含的 e_idx，理论非 100% 保证。
-                // debug_assert 抓测试期不变量违例；release 防御性 0.0（μ 不读 units ⟹ 不破坏 μ；
-                // execution 诊断见 0.0 = sizing 信息缺失信号，**非真实 sizing=0**）。
-                let b1_sep = step_trace.sep_legs.iter().find(|s| s.id == leg.id);
-                debug_assert!(
-                    b1_sep.is_some(),
-                    "B1: opened leg {:?} not in step_trace.sep_legs (coverage work.get 跳过？)",
-                    leg.id
-                );
-                let leg_units = b1_sep.map(|s| s.q_units).unwrap_or(0.0);
-                open_trades.insert(leg.id, LedgerOpen {
-                    entry_bar: i,
-                    entry_px: px,
-                    entry_stop,
-                    entry_stop_dist,
-                    // G3：与本 bar χ 查询共用同一 ext_i（训练/查询同口径，共享变量层保证）。
-                    entry_z: super::selector::z_of_candidate(c, &tower_i, bars, &ext_i),
-                    entry_v: c.role.v,
-                    position_node_id,
-                    opsem: opsem_snap,
-                    units: leg_units,
-                });
-                // #197 并行记账视图：开腿镜像（只读旁路，不改净额路径；账户身份 = entry_v × 方向）。
-                account_mirror_open(&mut account_view, c, leg.id.level, position_node_id, leg_units, px, i);
-            }
-            // TW 腿事件（#124）：legacy ShortDiff 腿开仓驱动 open_legacy_legs 计数（P2 的 H
-            // 判据与生产腿同源同步；关侧在上方四个消费循环内经 open.entry_v 判定派
-            // CloseShareLeg）。CloseShareLeg(0) 口径声明：净额架构无腿级损益分账 ⟹ profit
-            // 口径量 0 承载（cum_net_cash 非承重分量——P2/P3/P4 谓词不消费它；唯一承重 =
-            // open_legacy_legs 计数），非簿记伪造。
-            // OQ-9 守卫：EarningShares 阶段开 legacy 腿 PDF 定义为非法（is_legal_from）——
-            // A' 后该 stage 生产可达（已实现利润入账，见 TW 初始化注释）；达 earning 后此腿
-            // 不计 legacy 计数，关侧 legs>=1 守卫对称跳过（合法性语义，非掩盖）。
-            for (c, _leg) in &step_trace.opened {
-                if c.role.v == super::super::strategy::coverage::Vertical::ShortDiff
-                    && TwEvent::OpenShareLeg.is_legal_from(&tw)
-                {
-                    tw = tw_step(&tw, TwEvent::OpenShareLeg);
-                }
-            }
-            // P3/P4 TWEvent_t（#124 裁定4）：账本推进单点（组合层只读产出事件分量，此处是
-            // 生产 π 内唯一的 stage 推进写点——stage_progression 派生事件生产恒合法）。
-            if let Some(ev) = step_trace.tw_event {
-                debug_assert!(
-                    ev.is_legal_from(&tw),
-                    "stage_progression 派生事件恒合法（OQ-9 生产不变量）"
-                );
-                tw = tw_step(&tw, ev);
-            }
-            // ── ④ 挂单到 exec_index（延迟成交；qty>0 才挂）。 ──
-            if order.qty > 0 {
-                if let Some(ei) = exec_index {
-                    if ei < n {
-                        pending[ei].push(order);
-                    }
-                }
-            }
-            // ── ⑤ thread 活动集台账（喂下一 bar interpret 闭环）+ persistent registry 合并。 ──
-            // ★persistent overlay（anc.pdf §9）：Pi+1 = merge(Pi, Ei+1, held legs)。
-            // 用本 bar snapshot（elements）+ held legs（next_active）刷新 registry。
-            // 关闭的腿（buckets.close）在 registry 中标记 invalidated（§9 rule 5）。
-            {
-                // ★工位 4h：caller B gamma-free + candidate 前缀缓存路径（源(b) O(n²) 真修）。merge 只
-                // 消费 candidates（不读 gamma/role，codex Q1）⟹ 跳遍历2 + candidate 前缀复用（codex Q2/Q3）。
-                let (tree_ref, candidates_ref) = {
-                    let _g = classifier::stage_profile::stage("cand_build_merge");
-                    interp::coverage_elements_with_tower_cached_gen(
-                        &classification_i, &tower_i, &mut tree_cache, &mut cand_cache, Some(tower_gen), Some(forest_epoch),
-                    )
-                };
-                classifier::stage_profile::record_span("cand_count", candidates_ref.len() as u64);
-                let cand_dirty = cand_cache.dirty; // ★on2w3：candidates 逐字节变？否 ⟹ merge cand 段跳过。
-                // ★工位 4f：双段 merge（消 as_contiguous materialize O(tree) + step 1'/2' tree 全量 O(tree)）。
-                // tree_dirty=false（Rc::ptr_eq 命中，tree 同上 bar）⟹ 跳过 tree 段（断言1-3 bit-exact）。
-                let tree_dirty = prev_merge_tree
-                    .as_ref()
-                    .map(|p| !std::rc::Rc::ptr_eq(p, &tree_ref))
-                    .unwrap_or(true);
-                {
-                    let _g = classifier::stage_profile::stage("cand_merge_consume");
-                    registry.merge_in_place_split(&tree_ref, tree_dirty, &candidates_ref, cand_dirty, &next_active);
-                }
-                prev_merge_tree = Some(tree_ref);
-            }
-            prev_active = next_active;
-        }
-
-        // ── ⑥ 权益曲线（mark-to-market，归一化 ÷nav0）。 ──
-        equity_curve.push((cash + units * px) / nav0);
-        // M6：记录本 bar 有效价供下 bar 价格 PnL 差分（px>0 才更新——untradable/零价 bar 不刷，
-        // 避免 Δpx 跨越无效价产生伪价格贡献）。
-        if px > 0.0 {
-            prev_px = Some(px);
-        }
-    }
-
-    // ── #196 shadow 分歧报告：门控落盘（默认 None 零 IO，bit-exact 原路径；sidecar 文本，
-    //    不进 opsem dump、不进订单轨——run 结束一次性写出）。失败显式 eprintln 而非静默
-    //    `.ok()?`（OpsemDump 先例）：分歧报告是本票交付物，落盘失败必须可见——但不中断
-    //    回测（shadow 是观测旁路，报告可重跑再生）。──
-    if let Some(path) = shadow_divergence_path() {
-        if let Err(e) = std::fs::write(&path, shadow_book.render_report()) {
-            eprintln!("#196 shadow 分歧报告落盘失败（{path:?}）：{e}");
-        }
-    }
-
-    // ── ★M5 overlay 窗口终点强平：全部活动声部按末可交易 bar close 离场（记 exit_v/冻结 pnl_v）。
-    //    价格 PnL 已在末决策点 step 累计到末价 ⟹ 此处只搬账本行（含浮盈口径，与净额侧同理）。 ──
-    if let Some(ov) = overlay.as_deref_mut() {
-        if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
-            let last_px = bars[last_i].close as f64 * config.tick.tick_size;
-            ov.force_flat(last_px, last_i);
-        }
-    }
-
-    // ── 窗口终点强平（含浮盈口径，编排者铁律「不把浮盈算上不合理」；与 plan_and_fill_mtm 同）──
-    let mut trade_pnls_with_forced = trade_pnls.clone();
-    if units != 0.0 {
-        if let Some(last_bar) = bars.last() {
-            let last_px = last_bar.close as f64 * config.tick.tick_size;
-            if last_px > 0.0 {
-                let pos_sign = units.signum();
-                let px_exit_net = last_px * (1.0 - pos_sign * fee_rate);
-                let forced_pnl = pos_sign * (px_exit_net - entry_cost) * units.abs();
-                trade_pnls_with_forced.push(forced_pnl);
-                if let Some(entry_bar) = pos_entry_bar.take() {
-                    let exit_bar = n.saturating_sub(1);
-                    let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
-                    trades.push(metrics::TradeRecord {
-                        entry_bar,
-                        exit_bar,
-                        hold_bars,
-                        qty: units.abs(),
-                        long: units > 0.0,
-                        forced_close: true,
-                    });
-                }
-            }
-        }
-    }
-
-    // ── G4 typed ledger 窗口终点 censored（PDF §9 P0 Hold）：未离场腿兑现到末可交易 bar
-    //    close（与旧 build_mu_from_bars censored 语义/窗口终点强平含浮盈同理，不偷看窗外）。──
-    if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
-        let last_px = bars[last_i].close as f64 * config.tick.tick_size;
-        // 确定序输出（HashMap 迭代序不定 ⟹ 按 (entry_bar, voice_id) 排序，bit-exact 可复现）。
-        let mut censored: Vec<(classifier::recursive_tower::ElementId, LedgerOpen)> =
-            open_trades.drain().collect();
-        censored.sort_by_key(|(id, o)| (o.entry_bar, id.level, id.ordinal));
-        for (id, open) in censored {
-            let pushed = TypedTrade {
-                entry_z: open.entry_z,
-                voice_id: id,
-                entry_bar: open.entry_bar,
-                exit_bar: last_i,
-                exit_type: super::super::strategy::interp::ExitType::Hold,
-                entry_px: open.entry_px,
-                exit_px: last_px,
-                via_structural_prune: false, // censored 窗口边界，非结构剪枝
-                position_node_id: open.position_node_id,
-                entry_stop_dist: open.entry_stop_dist, // A6：入场止损距离 d（μ_R 分母）
-                // A7 #165：censored 出场账本态取末决策点 last_ext（末可交易 bar 决策点真值，
-                // 与 last_px 兑现价同 bar 口径）；全窗无决策点 ⟹ ZExt::NONE 账本态维诚实 None。
-                exit_z: super::selector::exit_z_of(open.entry_z, &last_ext),
-                units: open.units, // B1 步骤4：腿级 sizing 透传（不进 μ estimand）
-            };
-            // ★opsem-dump：censored Hold 外化（无触发候选，trigger_bsp_class=null）。
-            if let Some(dump) = opsem.as_mut() {
-                dump.mark_exit(last_i);
-                let _ = dump.write_trade(&pushed, &open, None);
-            }
-            typed_ledger.push(pushed);
-            // #197：关闭镜像——窗口终点 censored（reason=WindowEnd；末可交易 bar 兑现价）。
-            // 口径声明：视图按腿级账本兑现归零；净额路径窗口终点仅追加 PnL、未真实成交归零
-            // （#185 存疑区 5）——两口径分叉为 expand 阶段已知差异，修复票消费时须正视。
-            account_mirror_close(
-                &mut account_view,
-                &open,
-                id.level,
-                strategy::account::ActionReason::WindowEnd,
-                last_px,
-                last_i,
-            );
-        }
-    }
-
-    // ── M6 R 分解组装（路线.pdf p16 第十一关）+ 账目守恒断言 ──
-    // ledger_delta 从**实际账本**（cash/units 经 apply_fill + 成本扣减独立演化）测得的净变动，
-    // net_r 从**独立累计器**（cum_price_pnl 在循环顶部按 units·Δpx 累加、cum_fee 由 apply_fill
-    // 独立返回、funding/borrow/liq 独立累计）组装——两条独立路径应恒等（守恒），残差 ≈0 是
-    // 「资金无泄漏」的物证。final MtM 用 prev_px（末有效价）避免末 bar untradable（px=0）伪归零。
-    let final_px = prev_px.unwrap_or(0.0);
-    let final_equity_abs = cash + units * final_px;
-    let ledger_delta = final_equity_abs - nav0;
-    // A10 C5 TW 桥对账行：= ⌊cum_funding+cum_borrow+cum_liq_loss⌋（与循环内 shadow 同一量化
-    // 口径——对累计值截断，三项恒 ≥0 ⟹ 截断=⌊⌋）；cost_model=None ⟹ 0（bit-exact）。
-    let tw_holding_cost_bridge: i64 = (cum_funding + cum_borrow + cum_liq_loss) as i64;
-    let r_decomp = super::super::strategy::risk::RDecomposition::assemble(
-        cum_price_pnl, cum_fee, cum_funding, cum_borrow, cum_liq_loss, ledger_delta,
-        tw_holding_cost_bridge,
-    );
-    // 守恒断言（no-patch-mentality：残差超容差 = 真实资金泄漏 bug，不静默）。容差按名义规模缩放
-    // （f64 累加 O(n) 舍入；nav0 量级 + 累计项量级）——绝对容差 max(1e-6, 1e-9·(|nav0|+|price_pnl|)）。
-    let cons_tol = 1e-6_f64.max(1e-9 * (nav0.abs() + cum_price_pnl.abs()));
-    debug_assert!(
-        r_decomp.conservation_residual.abs() <= cons_tol,
-        "M6 R 分解守恒残差 {} 超容差 {}（net_r={} vs ledger_delta={}）——资金泄漏",
-        r_decomp.conservation_residual, cons_tol, r_decomp.net_r, ledger_delta
-    );
-
-    let daily_returns = bar_returns(&equity_curve);
-    FillOutput {
-        equity_curve,
-        daily_returns,
-        trade_pnls_realized: trade_pnls,
-        trade_pnls_with_forced,
-        trades,
-        n_orders: n_orders_executed,
-        typed_ledger,
-        voice_verdicts: verdict_ledger,
-        tw_final: Some(tw),
-        r_decomp: Some(r_decomp),
-        account_view,
-    }
-}
-
-/// ★族A 修复：入场结构止损值（[`super::super::types::Tick`]，开仓 bar 一次性算 + 冻结到
-/// [`LedgerOpen::entry_stop`]）。
-///
-/// 在决策 bar 因果分类 `classification` 上按候选 `(c.level, c.source_index)` 查 [`BspPoint`]——这是
-/// **bsp 确认点坐标**（稳定，不漂移），方向由候选 `dir` 定（Long→pivot_low / Short→pivot_high，
-/// 3 类→center）。`None` = structural_stop 返 None（非该方向交易点）/ BspPoint 缺失。
-///
-/// 与逐 bar 止损门 [`k_theta_risk_gate`] 共享同一 `structural_stop` 真值——本函数在**入场时**用候选
-/// 坐标查得，冻结后供逐 bar 门读出（消除旧路径用 drifted `leg.source_index` 回查的覆盖度缺陷）。
-fn entry_structural_stop(
-    c: &super::super::strategy::interp::Candidate,
-    classification: &super::super::classifier::Classification,
-) -> Option<super::super::types::Tick> {
-    use super::super::strategy::risk::{structural_stop, StopInput, StopSide};
-    use super::super::strategy::voice::VoiceSide;
-    use super::super::types::Center;
-    let stop_side = match c.dir {
-        VoiceSide::Long => StopSide::Long,
-        VoiceSide::Short => StopSide::Short,
-        VoiceSide::Flat => return None, // Flat 候选不开仓，无止损可言
-    };
-    let lvl = classification.levels.get(c.level as usize)?;
-    let bsp = lvl.bsp.iter().find(|p| p.source_index == c.source_index)?;
-    let stop_in = StopInput {
-        pivot_low: bsp.pivot_low,
-        pivot_high: bsp.pivot_high,
-        center: bsp
-            .center
-            .unwrap_or(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 }),
-    };
-    structural_stop(stop_side, &bsp.bits, &stop_in)
-}
-
-/// ★A6（prereg-rev2-20260704）：开腿候选的入场结构止损距离 `d=|entry_px−stop|`（美元，ex-ante）。
-/// μ_R 分母，non-Some ⟹ 下游剔除（231号）。族A 修复：薄包 [`entry_structural_stop`]（同源
-/// `structural_stop`，单次算），距离从冻结 stop 值导出（与 [`LedgerOpen::entry_stop`] 同源）。
-fn candidate_stop_dist(
-    c: &super::super::strategy::interp::Candidate,
-    classification: &super::super::classifier::Classification,
-    entry_px: f64,
-    tick_size: f64,
-) -> Option<f64> {
-    let stop = entry_structural_stop(c, classification)?;
-    Some((entry_px - stop as f64 * tick_size).abs())
-}
 
 /// G4（#134）：训练管线的 typed ledger 入口——**生产 π fill loop**（χ≡1 全覆盖）在 `bars` 上
 /// 跑一遍，返回不可变 [`TypedTrade`] ledger（`build_mu_from_bars` 消费，替换 τ^reverse）。
@@ -2539,9 +817,10 @@ pub(super) fn typed_ledger_from_bars(bars: &[Bar], config: &ThetaConfig) -> Vec<
     let fill = pi_theta_fill_loop(
         |i| {
             let (cls, tower) = classifier_incr.classify_at(i);
+            let cl = classifier_incr.tower_confirmed_lens(tower.len());
             let gen = classifier_incr.tower_generation();
             let fe = classifier_incr.forest_epoch(); // ★on2w2：K_i O(1) 命中判据。
-            (cls, tower, gen, fe)
+            (cls, tower, cl, gen, fe)
         },
         bars,
         nav,
@@ -2633,1757 +912,6 @@ fn buy_and_hold_return(bars: &[Bar]) -> f64 {
         (Some(f), Some(l)) if f.close > 0 => l.close as f64 / f.close as f64 - 1.0,
         _ => 0.0,
     }
-}
-
-/// 声部裁决账本记录（#201 阶段 B：per-voice 裁决序列的 runner 落账单元，**schema 冻结**——
-/// 冻结口径见 [`super::super::strategy::coverage::VoiceVerdict`] doc，本结构只加 `bar` 轴）。
-///
-/// 由**生产 π fill loop**（[`pi_theta_fill_loop`]，唯一状态机）逐 bar 输出：消费组合层
-/// `StepTrace.verdicts`，每 bar 每**解释器裁决域**持仓声部恰一枚（`prev_active =
-/// verdicts ⊎ silent_drops` 划分；§13 结构剪除腿不进本轨——其生命周期事件在 typed
-/// ledger 轨 `via_structural_prune=true` 显式）。**显式 Hold 是本轨核心**：延续持有的声部
-/// 此前无任何 typed 记录（Hold 隐式），本票起逐 bar 落 `ExitType::Hold` 显式裁决。
-///
-/// **加轨不减轨**：本轨与 typed ledger（成交/生命周期记录）、账户镜像、opsem dump、TW
-/// 账本全部正交——Hold 无成交，故不入 `TypedTrade`（其是平仓记录）；窗口终点 censored
-/// 强平仍是 typed ledger 轨语义（`ExitType::Hold` 关条目），不在本轨（本轨只载 bar 内
-/// 解释器裁决）。阶段 C 换内核在本契约上对齐。
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct VoiceVerdictRec {
-    /// 裁决 bar（fill loop 主循环 `i`，决策 bar）。
-    pub bar: usize,
-    /// 裁决对象腿（声部身份 level/dir/ElementId 全在）。
-    pub leg: super::super::strategy::interp::ActiveLeg,
-    /// typed 裁决（单源五枚举；Hold = 显式持有）。
-    pub exit_type: super::super::strategy::interp::ExitType,
-}
-
-/// 腿级 typed 交易记录（G4 #134：《完整的策略.pdf》§9 typed exit 的统计层载体）。
-///
-/// 由**生产 π fill loop**（[`pi_theta_fill_loop`]，唯一状态机）逐腿输出——腿进 `next_active`
-/// 开条目、腿离场（interpret 规则2 反向关闭 / §13 AncOK 剪 / 窗口终点 censored）关条目，
-/// `exit_type` 经 [`super::super::strategy::interp::reverse_exit_type`] 单源判据产出。
-/// 下游 `build_mu_from_bars` 从本记录构造 `MuObservation`/`ResidualTrade`（替换 PDF §9
-/// 点名废弃的 τ^reverse 平行简化状态机，codex-q1-spec G4 终裁）。
-///
-/// **价格口径**：`entry_px`/`exit_px` = 腿进/出 active 的**决策 bar close**（F_t 可测，名义
-/// 单位口径，与旧训练路径同价格语义——G4 只改出场时点规则，不改价格口径）；非账户 fill 价
-/// （腿级无独立成交，净持仓聚合后账户级 P&L 归 equity_curve 路径）。
-///
-/// **RiskExit 通道**（#124 P1 已落地）：`force_flat` ⟹ 组合层上游短路清活动腿，经
-/// `StepTrace.risk_exits` 产 `RiskExit`（幽灵腿堵口）。**CloseOverlay 通道**（#124 裁定4）：
-/// TW StageII 重叠腿经 `StepTrace.overlay_closes` 产 `CloseShortDiff`（生产触发可达性受
-/// 账本语义约束，见 fill loop TW 初始化注释）。
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TypedTrade {
-    /// 开腿候选的全互斥分类 z（`z_of_candidate` 塔真值，与生产 χ 查询同口径）。
-    pub entry_z: super::mu_estimator::MuClass,
-    /// 腿声部身份（`ActiveLeg.id`，跨 bar 稳定 ElementId）。
-    pub voice_id: classifier::recursive_tower::ElementId,
-    /// 腿进 active 的决策 bar。
-    pub entry_bar: usize,
-    /// 腿离场决策 bar（`Hold` censored = 窗口末可交易 bar）。
-    pub exit_bar: usize,
-    /// PDF §9 typed exit（interp.rs 单源五枚举）。
-    pub exit_type: super::super::strategy::interp::ExitType,
-    /// 入场决策 bar close（×tick，名义单位口径）。
-    pub entry_px: f64,
-    /// 离场决策 bar close（×tick）。
-    pub exit_px: f64,
-    /// 离场是否来自 §13 结构剪枝（AncOK 连带剪/Stale prune，父驱动同 bar 连带、非独立反向
-    /// 信号触发）——ws-g5interp flag：结构剪枝的 P&L 分布与真信号平仓不同，混桶偏 μ。本标记
-    /// 使 μ 侧**可分离**；`build_mu_from_bars` 现口径仍全部入 μ（排除/分桶是新统计决策，
-    /// 归 #135 prereg，不在此静默改口径）。反向关闭/RiskExit/censored Hold 恒 false。
-    pub via_structural_prune: bool,
-    /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 严格身份四元组
-    /// `hash(carrier, entry_certificate, side, generation)`。同一 carrier（`voice_id`）先后多次
-    /// campaign 由 `generation` 单调区分——`voice_id` 会碰撞（close→reopen 复用同 ElementId），
-    /// `position_node_id` 不碰撞（generation +1）。供跨笔同 carrier campaign 归因/去重（当前 μ 层
-    /// 按 `entry_z` 逐笔独立观测，不消费本字段——它是身份完备性的账本层载体，非 μ 统计输入）。
-    pub position_node_id: super::super::strategy::interp::PositionNodeId,
-    /// ★A6（prereg-rev2-20260704，codex-ruling-696）：入场结构止损距离 d=|entry_px−stop|（美元）。
-    /// μ_R=E[Y/d] co-primary 门的分母，ex-ante 可得（risk.rs structural_stop 在决策 bar 因果算）。
-    /// `None` = 不可得（μ_R 剔除，raw μ 保留）。透传自 `LedgerOpen::entry_stop_dist`，
-    /// `build_mu_from_bars` 塞进 [`ResidualTrade::d`](super::mu_estimator::ResidualTrade)。
-    pub entry_stop_dist: Option<f64>,
-    /// ★A7（Task #165，《完整的策略.pdf》§6 z「两次快照」+ §9 typed exit）：出场时刻的 z 快照。
-    ///
-    /// 与 `entry_z` 是**同一 [`MuClass`](super::mu_estimator::MuClass) 类型的两次快照**（时刻不同、
-    /// 账本态不同）：结构身份维（level/δ/i_class/parent_dir/horizontal/force_state/σ_higher/门链维）
-    /// 入场冻结不重采样（PDF §6 `σ_higher: 入场时上级方向`——按定义入场值），唯一逐 bar 变化的账本态
-    /// 三元 `{t_stage, eta_bucket, risk_mode}` 刷新到出场 bar 决策点真值。由 [`super::selector::exit_z_of`]
-    /// 单源构造（`entry_z` + 出场 bar `ext_i`），构造被迫唯一（在无触发候选的出场点重分类结构维 =
-    /// 伪造不存在的候选 = 声明膨胀，231号）。
-    ///
-    /// **消费侧未定（A7 裁量分离）**：μ 估计器按 `(entry_z, exit_z, exit_type)` 分桶的语义是设计裁量，
-    /// 待 codex 裁决——当前 μ 层不消费本字段（`build_mu_from_bars` 仍按 `entry_z` 逐笔独立观测），
-    /// 本字段是出场侧完备性的账本层载体（同 `position_node_id` A9 先例）。
-    pub exit_z: super::mu_estimator::MuClass,
-    /// ★B1（步骤4，dw-sizing-diag-20260705，codex review conditional 修复）：**入场时刻 sizing
-    /// target 快照**——开腿当步 `SepLeg.q_units`（=`base_units×w_depth×w_dir`，含 dir_weight；post
-    /// gross-cap；coverage.rs:2321 从 `LegTarget.units` 透传）。**非逐 bar fill 后实际腿级持仓**——是
-    /// 入场决策点的目标单位，不是执行期 fill 累计。**不进 μ estimand**（μ 保持单位边际 qty=1.0，696 域，
-    /// `build_mu_from_bars` 不读本字段）。
-    ///
-    /// **诊断边界（codex review）**：本字段供"入场 sizing target 逐笔分布"诊断——对比 μ 单位边际
-    /// qty=1.0，看 dir_weight 改变了哪些腿的入场规模。**账户级 execution R 分解由 `r_decomp` 负责**
-    /// （runner.rs:1489 `RDecomposition::assemble`，`cum_price_pnl=Σ units·Δpx` 真实账户 sizing 加权），
-    /// 本字段**不用于逐笔 execution P&L**——真要逐笔 execution P&L 需 per-bar exposure / fill ledger，
-    /// 非本字段（本字段仅入场 target 快照）。
-    pub units: f64,
-}
-
-/// ★`TypedTrade` 账本行 schema 版本（每次账本层增列 +1；显式版本标记）。
-///
-/// **版本史**：v3 增 `exit_z`（出场 z 快照，A7 #165）；v4 增 `units`（腿级 sizing 目标，B1 步骤4）。
-///
-/// **B30 prereg 前置清单联动声明（不静默，team-lead 令）**：μ **样本** schema
-/// （[`MuObservation`](super::mu_estimator::MuObservation) = `{class, x_gamma}`）**未变**——
-/// A7（`exit_z`）/B1（`units`）只在账本层增列，μ 消费侧仍按 `entry_z` 单位边际（qty=1.0，696 域）。
-/// 任何后续把 `exit_z`/`units` 接入 μ 分桶键或 sizing 加权的工位（codex 裁决后）须新开 prereg
-/// 冻结口径，不得静默改 estimand（formalization-validity-domain / B30 前置清单 / 696）。
-pub const TYPED_TRADE_SCHEMA_VERSION: u32 = 4;
-
-/// ledger 在飞条目（开腿登记，关腿时结算为 [`TypedTrade`]）。
-struct LedgerOpen {
-    entry_bar: usize,
-    entry_px: f64,
-    entry_z: super::mu_estimator::MuClass,
-    /// ★A6（prereg-rev2-20260704）：入场结构止损距离 d=|entry_px−stop|（美元，ex-ante）。
-    /// `Some(d)` = 决策 bar 因果 BspPoint + structural_stop 可算；`None` = structural_stop 返 None
-    /// （非该方向交易点）/ BspPoint 缺失 ⟹ 下游 μ_R 剔除（诚实缺口，231号）。
-    entry_stop_dist: Option<f64>,
-    /// ★族A 修复：入场冻结的结构止损值（[`super::super::types::Tick`]，开仓 bar 由
-    /// [`entry_structural_stop`] 一次性算）。逐 bar 风控门 [`k_theta_risk_gate`] 读此冻结值判
-    /// `stop_hit`——消除旧路径用 drifted `leg.source_index`（carrier 走势 ρ）回查 `classification`
-    /// 的覆盖度缺陷（exitfix-research §族A）。对齐 nautilus `record_held_voice`（入场一次性写
-    /// HeldVoice.stop）。`None` = 该方向无结构止损（非交易点，与 `entry_stop_dist` 同口径）。
-    entry_stop: Option<super::super::types::Tick>,
-    /// 入场角色垂直轴（腿声部身份入场时固定）——`reverse_exit_type`/silent drop 判据输入。
-    entry_v: super::super::strategy::coverage::Vertical,
-    /// ★A9（Task #166，级别容器.pdf p14/§13）：position instance 严格身份四元组
-    /// `hash(carrier, entry_certificate, side, generation)`。入场时刻冻结（carrier=腿 id、
-    /// 证书=开仓 Candidate 坐标、side=Candidate 方向、generation=同 carrier campaign 高水位）。
-    /// codex a9-posnode 裁定 C：身份归**账本生命周期层**（本结构 + `TypedTrade`），不进 `ActiveLeg`
-    /// 结构层——`ActiveLeg` 每 bar 从树重建拿不到 campaign 状态。
-    position_node_id: super::super::strategy::interp::PositionNodeId,
-    /// ★opsem-dump（基因 073a）：入场时刻操作语义快照——env-gated `OPSEM_DUMP_DIR` 启用时由
-    /// [`OpsemDump::write_trade`] 消费；未启用路径 `Default::default()` 零字段零开销（bit-exact）。
-    /// 不进生产语义/μ 桶键/J_Θ 排序——纯只读外化（同 `dump_deltafree_pertrade` 先例）。
-    opsem: OpsemEntrySnapshot,
-    /// ★B1（步骤4）：腿级 sizing 目标（透传 `SepLeg::q_units`，含 dir_weight）。开腿登记时从
-    /// `step_trace.sep_legs` 冻结，关腿结算透传 `TypedTrade::units`。不进 μ estimand（696 域）。
-    units: f64,
-}
-
-/// 入场时刻操作语义快照（仅 env-gated dump 消费，零生产影响）。
-#[derive(Default, Clone)]
-struct OpsemEntrySnapshot {
-    /// 入场候选 level（Candidate.level，ℓ_g）。
-    cand_level: u32,
-    /// 入场候选 source_index（bsp 触发点 L0 K 序）。
-    cand_source_index: usize,
-    /// 入场候选 bsp bits（6 bit 非互斥）。
-    cand_bits: u8,
-    /// 入场候选方向 σ_g（VoiceSide 编码：Long/Short/Flat）。
-    cand_dir: &'static str,
-    /// 入场候选最小成立类号（1/2/3，u8::MAX=无）。
-    cand_bsp_class: u8,
-    /// 入场候选 N^δ 区间套确认（nest_confirmed）。
-    cand_nest_confirmed: bool,
-    /// ★R5-c：入场候选区间套深度 Ndepth（structural_nest_depth 读数，= 从执行级向上连续包含
-    /// source_index 的塔层数，与生产门 build_nest_certificate rungs.len() 同口径）。dump 专用——
-    /// **不进 entry_z/MuClass/μ 桶键**（R5-1 铁律），替代旧 `entry_z.nest_depth`（π 路径恒 None）。
-    nest_depth: u8,
-    /// 入场候选角色 R(g)=(H,V,δ) 的 18 类索引字符串。
-    cand_role: &'static str,
-    /// 入场候选 A 段 MACD 面积（ForceProxies.seg_a.macd_area；None=无力度源，非一类背驰候选）。
-    seg_a_macd_area: Option<f64>,
-    /// 入场候选 C 段 MACD 面积（ForceProxies.seg_c.macd_area；None=同上）。
-    seg_c_macd_area: Option<f64>,
-    /// 入场候选 A 段 DIF 峰绝对值。
-    seg_a_dif_peak: Option<f64>,
-    /// 入场候选 C 段 DIF 峰绝对值。
-    seg_c_dif_peak: Option<f64>,
-    /// 入场候选 β^div 力度支配态（Weak=Dominated=背驰；None=无力度源）。
-    force_state: Option<&'static str>,
-    /// 入场时刻解释器喂入候选集大小（χ 过滤后 step_gamma_trade.len()）。
-    gamma_count: usize,
-    /// 入场时刻活动腿数（prev_active.len()，含即将开仓腿的兄弟）。
-    prev_active_count: usize,
-    /// ★R5-a：入场步 LexArgmin 的 top-3 J_Θ 候选键（字典序升序，`(JThetaKey, control)`）。首名 = p_star
-    /// 选址（被选），余两名 = 被拒的次优。来自 `StepTrace.lex_top3`（pi_theta_step_traced 正常路径
-    /// 填充）。dump 专用——不进 p_star/J_Θ/χ（R5-1 铁律）。空 vec = 该步无开仓（不应进 opsem_snap，
-    /// 因 opsem_snap 仅对 opened 构造）。
-    lex_top3: Vec<(strategy::intent::JThetaKey, f64)>,
-    /// 入场腿父容器 ElementId（σ_p 来源；None=真边界胚元 ∂，σ_p=0=Ambient）。
-    parent_id: Option<(u32, u64)>,
-    /// 入场时刻 TW 阶段（tw.stage，入场决策点相位）。
-    t_stage: &'static str,
-    /// 入场时刻 η_t bucket（tw_policy.eta_bucket(&tw)）。
-    eta_bucket: &'static str,
-    /// 入场时刻 risk_mode（margin 五态）。
-    risk_mode: &'static str,
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  ★opsem-dump（基因 073a/274号 谱系）：只读语义快照 dump——env-gated，零生产语义改动。
-//
-//  触发：env `OPSEM_DUMP_DIR=<dir>`（如 /tmp/opsem）。**未设 ⟹ 全部方法 no-op**，
-//  生产路径与既有测试逐字节不变（bit-exact，同 `dump_deltafree_pertrade`/`kappa_policy_resolved`
-//  先例）。dump 不进 μ 桶键/J_Θ 排序/χ 门控——纯只读外化（no-patch-mentality：诊断切片
-//  不冒充裁决层，铁律 exit-μ-BUCKETING-FROZEN #180 同款约束）。
-//
-//  产物（落 `<dir>/trades.jsonl` + `<dir>/tower_events.jsonl`）：
-//  - trades.jsonl：每笔 TypedTrade 一行 JSON（entry/exit 字段 + 触发证书 + 解释器状态 +
-//    声部树快照 + 背驰判定输入 + TW 阶段）。缺席字段标 null（不许编造）。
-//  - tower_events.jsonl：bar 级塔事件（中枢新建/延伸/升级/破坏 + 级别 + bar 号），仅交易
-//    活跃区间（首入场 bar .. 末离场 bar）。
-//
-//  认识论等级（formalization-validity-domain 231号）：L1（纯只读外化，零信息增量）。
-//  字段缺口标注原则（no-patch-mentality + result-package 六要素）——R5（2026-07-05）后状态：
-//  - 「LexArgmin 选中的与被拒的前 3 名 J_Θ 排序键」（R5-a 已实装）：`intent::lex_argmin_top_k`
-//    在 `coverage::feasible_lex_candidates`（与 `pi_theta_position` 同源候选集）上稳定排序取前 3，
-//    经 `StepTrace.lex_top3` → `OpsemEntrySnapshot.lex_top3` 透传至 `lex_argmin_top3` 字段
-//    （`[{control,key:{5维}},...]`，首名 = p_star 选址）。不进 p_star/J_Θ/χ（R5-1 铁律）。
-//  - 「区间套深度 nest_depth」（R5-c 已实装）：`econ_positive::structural_nest_depth`（与生产门
-//    `build_nest_certificate` rungs 构造同款 partition_point，不依赖 hist）读 rungs.len()，
-//    写入 `OpsemEntrySnapshot.nest_depth`（**不进 entry_z/MuClass/μ 桶键**——R5-1 铁律，避免
-//    MuClass derive Hash 的 nest_depth 字段破坏 μ 分桶 bit-exact）。
-//  - 「中枢破坏事件」：前缀因果塔单调增长（prefix classification 不删结构），**无破坏概念**
-//    ⟹ tower_events.jsonl 不输出 destroy 事件（诚实缺席，不伪造）。
-// ─────────────────────────────────────────────────────────────────────────────
-struct OpsemDump {
-    trades_buf: std::io::BufWriter<std::fs::File>,
-    tower_buf: std::io::BufWriter<std::fs::File>,
-    trade_id_counter: u64,
-    /// 交易活跃区间（首入场 bar .. 末离场 bar）；None=尚未见入场。
-    active_start: Option<usize>,
-    active_end: Option<usize>,
-    /// 上一 bar 的塔（仅交易活跃区间内 diff，O(n) per bar）。
-    prev_tower: Option<Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>>,
-}
-
-#[cfg(test)]
-thread_local! {
-    /// 测试注入点：Some(path) ⟹ **本线程**的 fill loop 在 run 结束落 shadow 分歧报告。
-    /// 进程级 env 会被并行测试同时读到并覆写同一路径（opsem 2026-07-13 竞态同款教训）；
-    /// 线程局部对并行测试不可见。
-    static SHADOW_DIVERGENCE_PATH_OVERRIDE: std::cell::RefCell<Option<std::path::PathBuf>> =
-        std::cell::RefCell::new(None);
-}
-
-/// #196 shadow 分歧报告落盘路径：线程局部 override（测试）优先于进程 env
-/// `THETA_V0_SHADOW_DIVERGENCE_PATH`；未设/空串 ⟹ None（零 IO，bit-exact 原路径）。
-fn shadow_divergence_path() -> Option<std::path::PathBuf> {
-    #[cfg(test)]
-    {
-        if let Some(p) = SHADOW_DIVERGENCE_PATH_OVERRIDE.with(|c| c.borrow().clone()) {
-            return Some(p);
-        }
-    }
-    std::env::var_os("THETA_V0_SHADOW_DIVERGENCE_PATH")
-        .filter(|s| !s.is_empty())
-        .map(std::path::PathBuf::from)
-}
-
-#[cfg(test)]
-thread_local! {
-    /// 测试注入点：Some(dir) ⟹ **本线程**的 fill loop 启用 opsem dump。进程级 env 会被并行
-    /// 测试的 [`OpsemDump::from_env`] 同时读到并 truncate 同一 trades.jsonl（2026-07-13 全量
-    /// 回归竞态实录：0 笔交易的合成测试把 R5 测试的 dump 清空）；线程局部对并行测试不可见。
-    static OPSEM_DUMP_DIR_OVERRIDE: std::cell::RefCell<Option<std::path::PathBuf>> =
-        std::cell::RefCell::new(None);
-}
-
-impl OpsemDump {
-    /// 从 env `OPSEM_DUMP_DIR` 构造；未设 ⟹ None（零开销）。测试经线程局部
-    /// [`OPSEM_DUMP_DIR_OVERRIDE`] 注入（优先于 env；生产构建不含该分支）。
-    fn from_env() -> Option<Self> {
-        #[cfg(test)]
-        {
-            if let Some(dir) = OPSEM_DUMP_DIR_OVERRIDE.with(|c| c.borrow().clone()) {
-                return Self::at_dir(&dir);
-            }
-        }
-        let dir = std::env::var("OPSEM_DUMP_DIR").ok().filter(|s| !s.is_empty())?;
-        Self::at_dir(std::path::Path::new(&dir))
-    }
-
-    /// 在指定目录开两个 JSONL 写入器。
-    /// ponytail: 截断打开（每次回测重写；同 dump_deltafree_pertrade 落盘语义）。path 局部化——
-    /// struct 只持 BufWriter（path 仅 create 时用，后续不读，YAGNI 不存字段）。
-    fn at_dir(dir_path: &std::path::Path) -> Option<Self> {
-        std::fs::create_dir_all(dir_path).ok()?;
-        let trades_file = std::fs::File::create(dir_path.join("trades.jsonl")).ok()?;
-        let tower_file = std::fs::File::create(dir_path.join("tower_events.jsonl")).ok()?;
-        Some(Self {
-            trades_buf: std::io::BufWriter::new(trades_file),
-            tower_buf: std::io::BufWriter::new(tower_file),
-            trade_id_counter: 0,
-            active_start: None,
-            active_end: None,
-            prev_tower: None,
-        })
-    }
-
-    /// 在入场 bar 标记交易活跃区间起点。
-    fn mark_entry(&mut self, bar: usize) {
-        if self.active_start.is_none() {
-            self.active_start = Some(bar);
-        }
-        self.active_end = Some(bar);
-    }
-
-    /// 在离场 bar 更新活跃区间末点。
-    fn mark_exit(&mut self, bar: usize) {
-        self.active_end = Some(bar);
-    }
-
-    /// 写一笔 trade JSONL 行。`t` 是 TypedTrade，`open.opsem` 是入场快照，`pnl` 是费前方向盈亏
-    /// （(exit_px-entry_px)×delta，未扣费——生产 fee 已在 fill loop 扣，TypedTrade 不携 fee）。
-    fn write_trade(
-        &mut self,
-        t: &TypedTrade,
-        open: &LedgerOpen,
-        trigger_bsp_class: Option<u8>,
-    ) -> std::io::Result<()> {
-        use std::io::Write;
-        self.trade_id_counter += 1;
-        // 费前方向盈亏（delta=+1 Long / -1 Short）。
-        let delta_sign: f64 = t.entry_z.delta as f64;
-        let pnl_raw = delta_sign * (t.exit_px - t.entry_px);
-        let o = &open.opsem;
-        // ponytail: 显式 push_str 拼装 JSON——避免 format! 的 `{{`/`}}` 转义混乱（曾出引号 bug）。
-        // 缺席字段写 null（JSON 标准缺席标注，不编造）。
-        let mut s = String::with_capacity(1024);
-        s.push('{');
-        // 基本字段。
-        s.push_str(&format!(
-            "\"trade_id\":{},\"voice_id\":{{\"level\":{},\"ordinal\":{}}},",
-            self.trade_id_counter, t.voice_id.level, t.voice_id.ordinal,
-        ));
-        s.push_str(&format!(
-            "\"position_node_id\":{},\"entry_bar\":{},\"exit_bar\":{},\"entry_px\":{},\"exit_px\":{},\"pnl_raw_unlevered\":{},\"exit_type\":\"{}\",\"via_structural_prune\":{},\"units\":{},",
-            t.position_node_id.hash64(), t.entry_bar, t.exit_bar,
-            t.entry_px, t.exit_px, pnl_raw,
-            exit_type_str(t.exit_type), t.via_structural_prune, t.units,
-        ));
-        // 触发证书。
-        s.push_str("\"certificate\":{");
-        s.push_str(&format!(
-            "\"bsp_bits_class_index\":{},\"bsp_class_min\":{},\"level\":{},\"source_index\":{},\"dir\":\"{}\",\"delta\":{},\"nest_confirmed\":{},\"nest_depth\":{},\"parent_dir_sigma_p\":{},\"role\":\"{}\"}},",
-            o.cand_bits,
-            if o.cand_bsp_class == u8::MAX { -1 } else { o.cand_bsp_class as i64 },
-            o.cand_level, o.cand_source_index, o.cand_dir, t.entry_z.delta,
-            // R5-c：nest_depth 改读 opsem_snap（structural_nest_depth 纯结构读数），不读 entry_z
-            // （π 路径 entry_z.nest_depth 恒 None——MuClass 进 μ 桶键，填 Some 破坏 bit-exact）。
-            o.cand_nest_confirmed, o.nest_depth,
-            t.entry_z.parent_dir, o.cand_role,
-        ));
-        // 入场时刻解释器状态。
-        s.push_str("\"interpreter_at_entry\":{");
-        s.push_str(&format!(
-            "\"gamma_count_chi_filtered\":{},\"prev_active_count\":{},\"lex_argmin_top3\":{}",
-            o.gamma_count, o.prev_active_count, lex_top3_json(&o.lex_top3),
-        ));
-        s.push_str("},");
-        // 声部树快照。
-        s.push_str("\"voice_tree_at_entry\":{");
-        s.push_str(&format!(
-            "\"parent_id\":{},\"is_boundary_root_absent\":{},\"active_count_inclusive\":{}}},",
-            opt_pair_str(o.parent_id), o.parent_id.is_none(),
-            o.prev_active_count.saturating_add(1),
-        ));
-        // 背驰判定输入。
-        s.push_str("\"divergence_input\":{");
-        s.push_str(&format!(
-            "\"seg_a_macd_area\":{},\"seg_c_macd_area\":{},\"seg_a_dif_peak\":{},\"seg_c_dif_peak\":{},\"force_state_weak_judgment\":{}}},",
-            opt_f64_str(o.seg_a_macd_area), opt_f64_str(o.seg_c_macd_area),
-            opt_f64_str(o.seg_a_dif_peak), opt_f64_str(o.seg_c_dif_peak),
-            opt_str_quoted(o.force_state),
-        ));
-        // 入场时刻 TW 阶段。
-        s.push_str("\"tw_at_entry\":{");
-        s.push_str(&format!(
-            "\"stage\":\"{}\",\"eta_bucket\":\"{}\",\"risk_mode\":\"{}\"}},",
-            o.t_stage, o.eta_bucket, o.risk_mode,
-        ));
-        // 出场侧 + 收尾。
-        s.push_str(&format!(
-            "\"entry_stop_dist\":{},\"trigger_bsp_class_at_exit\":{},\"exit_z_t_stage\":{}}}\n",
-            opt_f64_str(t.entry_stop_dist),
-            opt_u8_str(trigger_bsp_class),
-            opt_str_quoted(t.exit_z.t_stage.map(t_stage_str)),
-        ));
-        self.trades_buf.write_all(s.as_bytes())?;
-        Ok(())
-    }
-
-    /// 写一个塔事件 JSONL 行（仅交易活跃区间）。
-    fn write_tower_event(
-        &mut self,
-        bar: usize,
-        level: u32,
-        kind: &str,
-        detail: &str,
-    ) -> std::io::Result<()> {
-        use std::io::Write;
-        let active = match (self.active_start, self.active_end) {
-            (Some(s), _) if bar < s => false,
-            (_, Some(_e)) => true,
-            _ => false,
-        };
-        if !active {
-            return Ok(());
-        }
-        let json = format!(
-            "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"{kind}\",\"detail\":\"{detail}\"}}\n",
-            bar = bar,
-            lvl = level,
-            kind = kind,
-            detail = detail.replace('\\', "\\\\").replace('"', "\\\""),
-        );
-        self.tower_buf.write_all(json.as_bytes())?;
-        Ok(())
-    }
-
-    /// 在每 bar 调用：diff tower_i vs self.prev_tower，输出新建/延伸/升级事件（仅活跃区间）。
-    /// `destroy` 事件缺席——前缀因果塔单调增长（prefix classification 不删结构）。
-    fn diff_tower(
-        &mut self,
-        bar: usize,
-        tower_i: &[std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>],
-    ) {
-        use classifier::descend::RMove;
-        use classifier::recursive_tower::LeveledMove;
-        // 仅在交易活跃区间内 diff（避免 O(n) per-bar 全窗扫描）。
-        let in_active = match (self.active_start, self.active_end) {
-            (Some(s), _) if bar >= s => true,
-            _ => false,
-        };
-        if !in_active {
-            self.prev_tower = Some(tower_i.to_vec());
-            return;
-        }
-        let prev = self.prev_tower.take();
-        match prev {
-            None => {
-                // 首个活跃 bar：所有 Compose 都作 "new_center"。
-                for (lvl, moves) in tower_i.iter().enumerate() {
-                    for m in moves.iter() {
-                        if let RMove::Compose { centers, .. } = &m.rmove {
-                            if let Some(c) = centers.first() {
-                                let _ = self.write_tower_event(
-                                    bar,
-                                    lvl as u32,
-                                    "new_center",
-                                    &format!(
-                                        "L{} #{} zd={} zg={} si={} ei={}",
-                                        lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
-                                    ),
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-            Some(prev_vec) => {
-                for (lvl, moves) in tower_i.iter().enumerate() {
-                    let prev_moves: &[LeveledMove] = prev_vec
-                        .get(lvl)
-                        .map(|rc| rc.as_slice())
-                        .unwrap_or(&[]);
-                    // 升级：该级别在 prev 不存在（或为空）且现非空 ⟹ 新级别涌现。
-                    if prev_moves.is_empty() && !moves.is_empty() {
-                        let _ = self.write_tower_event(
-                            bar,
-                            lvl as u32,
-                            "level_upgrade",
-                            &format!("L{lvl} first compose count={}", moves.len()),
-                        );
-                    }
-                    // 新建 Compose / 延伸末段 end_index。
-                    let prev_len = prev_moves.len();
-                    for (i, m) in moves.iter().enumerate() {
-                        if let RMove::Compose { centers, .. } = &m.rmove {
-                            if i >= prev_len {
-                                // 新 Compose 涌现。
-                                if let Some(c) = centers.first() {
-                                    let _ = self.write_tower_event(
-                                        bar,
-                                        lvl as u32,
-                                        "new_center",
-                                        &format!(
-                                            "L{} #{} zd={} zg={} si={} ei={}",
-                                            lvl, m.id.ordinal, c.zd, c.zg, m.start_index, m.end_index
-                                        ),
-                                    );
-                                }
-                            } else if let Some(pm) = prev_moves.get(i) {
-                                // 已存在 Compose，比较 end_index —— 延伸事件。
-                                if m.end_index != pm.end_index {
-                                    if let Some(c) = centers.first() {
-                                        let _ = self.write_tower_event(
-                                            bar,
-                                            lvl as u32,
-                                            "extend",
-                                            &format!(
-                                                "L{} #{} zd={} zg={} ei {}->{}",
-                                                lvl, m.id.ordinal, c.zd, c.zg, pm.end_index, m.end_index
-                                            ),
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        self.prev_tower = Some(tower_i.to_vec());
-    }
-
-    /// flush 缓冲（drop 前）。
-    fn flush(&mut self) {
-        use std::io::Write;
-        let _ = self.trades_buf.flush();
-        let _ = self.tower_buf.flush();
-    }
-}
-
-impl Drop for OpsemDump {
-    fn drop(&mut self) {
-        self.flush();
-    }
-}
-
-/// 辅助：Optional<u8> → JSON 字符串（number 或 null）。
-fn opt_u8_str(o: Option<u8>) -> String {
-    match o {
-        Some(v) => v.to_string(),
-        None => "null".into(),
-    }
-}
-
-/// ★R5-a 辅助：LexArgmin top-3 候选 → JSON 数组字符串。每项 `{control, key:{5 维}}`，字典序升序
-/// （首名 = p_star 选址/被选，余 = 被拒次优）。空 ⟹ `[]`（无开仓步，不应进 opsem_snap）。
-/// `control` 是净持仓格点（f64），`key` 是 [`JThetaKey`] 5 维 i64 字典序键。
-fn lex_top3_json(items: &[(strategy::intent::JThetaKey, f64)]) -> String {
-    if items.is_empty() {
-        return "[]".into();
-    }
-    let parts: Vec<String> = items
-        .iter()
-        .map(|(key, control)| {
-            format!(
-                "{{\"control\":{},\"key\":{{\"tracking_err\":{},\"trade_cost\":{},\"risk_penalty\":{},\"turnover\":{},\"grid_index\":{}}}}}",
-                control, key.tracking_err, key.trade_cost, key.risk_penalty, key.turnover, key.grid_index,
-            )
-        })
-        .collect();
-    format!("[{}]", parts.join(","))
-}
-
-/// 辅助：Optional<f64> → JSON 字符串（number 或 null）。NaN/Inf 一律 null（JSON 无 NaN）。
-fn opt_f64_str(o: Option<f64>) -> String {
-    match o {
-        Some(v) if v.is_finite() => format!("{v}"),
-        _ => "null".into(),
-    }
-}
-
-/// 辅助：Optional<&str> → JSON 字符串（带引号 或 null）。
-fn opt_str_quoted(o: Option<&str>) -> String {
-    match o {
-        Some(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
-        None => "null".into(),
-    }
-}
-
-/// 辅助：Optional<(u32,u64)> → JSON 对象 或 null（parent_id 序列化）。
-fn opt_pair_str(o: Option<(u32, u64)>) -> String {
-    match o {
-        Some((lvl, ord)) => format!("{{\"level\":{lvl},\"ordinal\":{ord}}}"),
-        None => "null".into(),
-    }
-}
-
-/// 辅助：ExitType → 字符串。
-fn exit_type_str(e: super::super::strategy::interp::ExitType) -> &'static str {
-    use super::super::strategy::interp::ExitType;
-    match e {
-        ExitType::CloseRoot => "CloseRoot",
-        ExitType::ReduceCore => "ReduceCore",
-        ExitType::CloseShortDiff => "CloseShortDiff",
-        ExitType::RiskExit => "RiskExit",
-        ExitType::Hold => "Hold",
-    }
-}
-
-/// 辅助：TStage → 字符串。
-fn t_stage_str(s: super::super::strategy::ledger::TStage) -> &'static str {
-    use super::super::strategy::ledger::TStage;
-    match s {
-        TStage::CostReduction => "CostReduction",
-        TStage::CapitalRecovered => "CapitalRecovered",
-        TStage::EarningShares => "EarningShares",
-    }
-}
-
-/// 辅助：VoiceSide → 字符串。
-fn voice_side_str(v: super::super::strategy::voice::VoiceSide) -> &'static str {
-    use super::super::strategy::voice::VoiceSide;
-    match v {
-        VoiceSide::Long => "Long",
-        VoiceSide::Short => "Short",
-        VoiceSide::Flat => "Flat",
-    }
-}
-
-/// 辅助：Vertical → 字符串（声部角色垂直轴）。
-fn vertical_str(v: super::super::strategy::coverage::Vertical) -> &'static str {
-    use super::super::strategy::coverage::Vertical;
-    match v {
-        Vertical::Ambient => "Ambient",
-        Vertical::FollowParent => "FollowParent",
-        Vertical::ShortDiff => "ShortDiff",
-    }
-}
-
-/// 辅助：OperationRole → 字符串（H,V,δ 三分量）。
-fn operation_role_str(r: super::super::strategy::coverage::OperationRole) -> String {
-    use super::super::strategy::coverage::{Dir, Horizontal};
-    let h = match r.h {
-        Horizontal::First => "First",
-        Horizontal::SameFollow => "SameFollow",
-        Horizontal::SameReverse => "SameReverse",
-    };
-    let d = match r.delta {
-        Dir::Plus => "Plus",
-        Dir::Minus => "Minus",
-    };
-    format!("{h}|{}|{d}", vertical_str(r.v))
-}
-
-/// 辅助：RiskMode → 字符串。
-fn risk_mode_str(m: super::super::strategy::risk::RiskMode) -> &'static str {
-    use super::super::strategy::risk::RiskMode;
-    match m {
-        RiskMode::Normal => "Normal",
-        RiskMode::Deleverage => "Deleverage",
-        RiskMode::CloseOnly => "CloseOnly",
-        RiskMode::Insolvent => "Insolvent",
-        RiskMode::Liquidation => "Liquidation",
-    }
-}
-
-/// 辅助：EtaBucket → 字符串。
-fn eta_bucket_str(e: super::super::strategy::ledger::EtaBucket) -> &'static str {
-    use super::super::strategy::ledger::EtaBucket;
-    match e {
-        EtaBucket::Deficit => "Deficit",
-        EtaBucket::Zero => "Zero",
-        EtaBucket::PositiveUnsafe => "PositiveUnsafe",
-        EtaBucket::PositiveSafe => "PositiveSafe",
-    }
-}
-
-/// 辅助：ForceStateA5 → 字符串。
-fn force_state_str(s: super::super::classifier::divergence::ForceStateA5) -> &'static str {
-    use super::super::classifier::divergence::ForceStateA5;
-    match s {
-        ForceStateA5::Dominated => "Dominated(Weak=背驰)",
-        ForceStateA5::Dominates => "Dominates(力度延续)",
-        ForceStateA5::Tie => "Tie",
-        ForceStateA5::Incomparable => "Incomparable(口径冲突)",
-    }
-}
-
-/// [`plan_and_fill_mtm`] 的完整产出（双口径 trade_pnls + 操作语义随机对照的输入）。
-struct FillOutput {
-    /// 逐 bar 归一化权益曲线（MtM 含浮盈）。
-    equity_curve: Vec<f64>,
-    /// 逐 bar returns（Sharpe/显著性输入）。
-    daily_returns: Vec<f64>,
-    /// 已实现成交盈亏（**不含**窗口终点强平浮盈，§3.4 bootstrap 输入）。
-    trade_pnls_realized: Vec<f64>,
-    /// 含浮盈成交盈亏（窗口终点强平未平仓持仓，编排者铁律「浮盈算上」）。
-    trade_pnls_with_forced: Vec<f64>,
-    /// 交易执行轨迹（[`metrics::TradeRecord`]，含强平笔；随机对照输入）。
-    trades: Vec<metrics::TradeRecord>,
-    /// 执行订单数（n_orders_executed > 0 ⟺ is_l2）。
-    n_orders: usize,
-    /// 腿级 typed 交易 ledger（G4；π 路径 [`pi_theta_fill_loop`] 产出，v1 路径
-    /// [`plan_and_fill_mtm`] 无腿级台账 ⟹ 恒空，诚实不伪造）。
-    typed_ledger: Vec<TypedTrade>,
-    /// #201 阶段 B 裁决账本轨：π 路径逐 bar 消费的显式 per-voice 裁决序列（含显式 Hold，
-    /// schema 冻结见 [`VoiceVerdictRec`]）；v1/dual 路径无腿级裁决 ⟹ 恒空（诚实不伪造，
-    /// 同 `typed_ledger` 先例）。加轨不减轨——不进 μ estimand、不改任何既有轨。
-    voice_verdicts: Vec<VoiceVerdictRec>,
-    /// TW 账本终态（#124 裁定4：TwState 生产真值源在 π fill loop；TStage/ηBucket「生产者已
-    /// 就位」的可观测物证——G3 ZExt 桥/诊断消费）。v1 路径无 TW 接线 ⟹ `None`（诚实不伪造）。
-    tw_final: Option<TwState>,
-    /// M6 R 分解表（路线.pdf p16 第十一关：R=ΣN_tΔP_t−Commission−Slippage−Funding−Borrow−
-    /// LiquidationLoss + 账目守恒残差）。π 路径 [`pi_theta_fill_loop`] 产出；v1 路径
-    /// [`plan_and_fill_mtm`] 未接 R 分解 ⟹ `None`（诚实不伪造，v1 是 recognize 旧路径非生产 π）。
-    r_decomp: Option<super::super::strategy::risk::RDecomposition>,
-    /// #197 并行记账视图（expand 只读旁路）：π 路径逐腿镜像开/关生命周期事件过账的
-    /// （账户, 级别, 仓位节点）分实例账本；v1/dual 路径无腿级生命周期事件 ⟹ 恒空
-    /// （诚实不伪造，同 `typed_ledger` 先例）。不改净额路径任何语义。
-    account_view: strategy::account::ParallelAccountLedger,
-}
-
-/// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
-///
-/// 接收 `recognize` 批产的 `Vec<VoiceDecision>`，按 `exec_index` 分组，逐 bar 推进：
-/// - 每到 `exec_index == i` 时，用当前账本 TW（`cash + units × px`）构造 `AccountState`，
-///   以当前账本 NAV 重新 `plan_orders`（sizing 用真实账本，非固定初始 NAV）。
-/// - `apply_order` 执行 fill（cash/units/entry_cost/voice_qty 四态同步更新，成本对称）。
-/// - 推进权益曲线（bar 级，归一化为 ÷initial_nav）。
-///
-/// **对齐 Origin.TotalWealth**：`TW = free（cash）+ holding（units × current_price）`。
-/// 同价操作（buy@px → holding=qty×px）NAV 中性（L0 结构恒等）；账本 NAV 随价格走势真变化。
-///
-/// **voice_qty 同步**：`plan_orders` 的 `act_state` 依赖 `voice_qty[depth]` 判开/平仓。
-/// fill 后按 action 更新：Buy/Add → `voice_qty[depth] += qty`；Close/Reduce → 减。
-/// 当前 recognize 产单声部 depth=0，voice_qty 维护精确（多声部时仍正确按 depth 分组）。
-///
-/// **★含浮盈口径（2026-06-28，编排者铁律「不把浮盈算上不合理」）**：窗口终点（末 bar）对所有
-/// 未平仓持仓**强制平仓**（close 成交 + 卖出费），实现持仓期浮盈。`trade_pnls_realized`（不含
-/// 强平）与 `trade_pnls_with_forced`（含强平）双口径并列产出。强平笔在 [`metrics::TradeRecord`]
-/// 打 `forced_close=true`（统计功效门槛 n≥30 不计强平笔，避免偷过——见 runner L2/L3 测试）。
-///
-/// **★交易轨迹**：平仓事件逐 fill 记 [`metrics::TradeRecord`]（entry_bar/exit_bar/hold_bars/qty）：
-/// 符号归零/翻转配对整段，**部分减仓也逐 fill 产记录**（qty=减掉手数，bughunt F-06——与
-/// `trade_pnls` 逐 fill 已实现口径对齐），作操作语义随机入场对照（§4 重写）的输入。
-/// v0 单声部多头全开全平时退化为开-平配对唯一。
-///
-/// 返回 [`FillOutput`]（L2 等级，真实数据时 n_orders > 0 ⟺ is_l2 = true）。
-fn plan_and_fill_mtm(
-    decisions: &[VoiceDecision],
-    bars: &[Bar],
-    initial_nav: f64,
-    config: &ThetaConfig,
-) -> FillOutput {
-    use super::super::strategy::exec::fill_bar_index;
-    use super::super::strategy::voice;
-    use super::super::strategy::voice::VoiceSide;
-
-    let n = bars.len();
-    let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
-
-    // decisions 按 exec_index 分组（开仓侧延迟成交，spec:50）。
-    // exec_index = fill_bar_index(signal_index, bars, config)，
-    // 与 build_open/exit_order 内计算方式完全对齐（同一函数，零重算偏差）。
-    // VoiceDecision 只有 signal_index，exec_index 需要预计算。
-    let mut groups: Vec<Vec<&VoiceDecision>> = vec![Vec::new(); n];
-    for d in decisions {
-        if let Some(ei) = fill_bar_index(d.signal_index, bars, &config.exec) {
-            if ei < n {
-                groups[ei].push(d);
-            }
-        }
-    }
-
-    let mut cash: f64 = nav0;
-    let mut units: f64 = 0.0;
-    // entry_cost：含买入费的每单位加权平均成本基（成本对称，见 apply_order）。
-    let mut entry_cost: f64 = 0.0;
-    // voice_qty：各深度声部持仓手数，对齐 AccountState.voice_qty 语义。
-    let mut voice_qty: Vec<u32> = vec![0u32; config.voice.max_depth as usize];
-    // ★持仓声部台账（退出决策生成器的状态）：按 depth 记录入场快照（方向 + 止损价 + 决策快照），
-    // 退出判定（§9 closePred）逐 bar 读它。None = 该 depth 空仓。
-    let mut held: Vec<Option<HeldVoice>> = vec![None; config.voice.max_depth as usize];
-    // ★退出 Close 订单的延迟成交队列（spec:50：退出触发在 bar i 检测，Close 订单延迟到
-    // fill_bar_index(i) 成交——与开仓延迟语义一致，不在触发 bar 即时成交）。
-    let mut exit_orders_at: Vec<Vec<VoiceDecision>> = vec![Vec::new(); n];
-
-    let mut equity_curve = Vec::with_capacity(n);
-    let mut trade_pnls: Vec<f64> = Vec::new();
-    let mut n_orders_executed: usize = 0;
-    // ★交易轨迹追踪（操作语义随机对照输入）：当前持仓的开仓 bar（None=空仓）+ 已完成轨迹。
-    // v0 单声部多头全开全平 ⟹ 开仓记 entry_bar，平仓到 units=0 时配对产 TradeRecord。
-    let mut trades: Vec<metrics::TradeRecord> = Vec::new();
-    let mut pos_entry_bar: Option<usize> = None;
-
-    for i in 0..n {
-        let bar = &bars[i];
-        let px = bar.close as f64 * config.tick.tick_size;
-
-        // ── 退出 Close 订单成交（延迟队列，spec:50）：bar i 是某退出触发的 fill bar。 ──
-        // 先于开仓处理（spec:54：退出/止损先于开仓）。
-        if !exit_orders_at[i].is_empty() && !bar.untradable && px > 0.0 {
-            let mut exit_decisions = std::mem::take(&mut exit_orders_at[i]);
-            let current_nav = cash + units * px;
-            let account = AccountState {
-                nav: if current_nav > 0.0 { current_nav } else { nav0 },
-                voice_qty: voice_qty.clone(),
-            };
-            let orders = strategy::plan_orders(&exit_decisions, bars, &account, config);
-            // 退出决策全是 Close（exit=true）⟹ plan_orders 按 ConflictKey 终局键 depth 升序排
-            // （exec::ConflictKey 第六键 depth；退出决策同信号 bar/level/class，仅 depth 区分）。
-            // 故 Close 订单按 depth 升序与按 depth 升序的退出决策一一对应（depth 配对零歧义，
-            // 不再用「恒取首决策」的近似——多声部退出也精确归 depth）。
-            exit_decisions.sort_by_key(|d| d.depth);
-            for (o, d) in orders.iter().zip(exit_decisions.iter()) {
-                if o.qty > 0 && matches!(o.action, StrictAction::Close) {
-                    let depth = d.depth as usize;
-                    let units_before = units;
-                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
-                    if fill.executed_qty <= 0.0 {
-                        continue;
-                    }
-                    // ★轨迹配对（v1 方向中性）：平仓到 units=0 / 翻转 ⟹ 完整交易闭合（非强平，正常退出）。
-                    track_position_transition(
-                        &mut trades, &mut pos_entry_bar, units_before, units, i, false,
-                    );
-                    apply_voice_fill(&mut voice_qty, depth, fill);
-                    // 平仓后台账状态机：全平 ⟹ 清台账（held=None）；未全平（退化边界，build_exit_order
-                    // 是全平 q，正常不发生）⟹ 保留台账但重置 exit_pending，允许下一 bar 重新评估退出
-                    // （避免 exit_pending 永久阻塞该声部退出）。
-                    if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
-                        if let Some(slot) = held.get_mut(depth) {
-                            *slot = None;
-                        }
-                    } else if let Some(Some(h)) = held.get_mut(depth) {
-                        h.exit_pending = false; // 未全平：解除 pending，下一 bar 可再触发
-                    }
-                    n_orders_executed += 1;
-                }
-            }
-        }
-
-        // 该 bar 到达 exec_index 的开仓 decisions：用当前账本 NAV（MtM）重新 plan_orders。
-        let bar_decisions = &groups[i];
-        if !bar_decisions.is_empty() && !bar.untradable && px > 0.0 {
-            // 当前账本 NAV（mark-to-market）= free（cash）+ holding（units×px）。
-            // 对齐 Origin.TotalWealth：TW = free + holding。
-            let current_nav = cash + units * px;
-            let account = AccountState {
-                nav: if current_nav > 0.0 { current_nav } else { nav0 },
-                voice_qty: voice_qty.clone(),
-            };
-            // 对该 exec_index 的全部 decisions 批量 plan（保持冲突排序语义）。
-            let bar_decision_slice: Vec<VoiceDecision> =
-                bar_decisions.iter().copied().cloned().collect();
-            let orders = strategy::plan_orders(&bar_decision_slice, bars, &account, config);
-            for o in &orders {
-                if o.qty > 0 {
-                    // voice_qty 同步：找首个方向匹配的 decision，取其 depth。
-                    // decisions 与 orders 不一一对应（冲突排序可合并/删订单），
-                    // 但同一 exec_index 内 depth=0 单声部时精确；多声部 depth 推断是近似。
-                    let matched = bar_decisions.iter().find(|d| {
-                        let side = voice::voice_side(d.root_side, d.depth);
-                        matches!(
-                            (o.action, side),
-                            (StrictAction::Buy | StrictAction::Add, VoiceSide::Long)
-                                | (StrictAction::Sell, VoiceSide::Short)
-                                | (StrictAction::Close | StrictAction::Reduce, _)
-                        )
-                    });
-                    let depth = matched.map(|d| d.depth as usize).unwrap_or(0);
-                    let units_before = units;
-                    let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
-                    if fill.executed_qty <= 0.0 {
-                        continue;
-                    }
-                    // ★轨迹追踪（v1 方向中性）：units 有符号（正=多/负=空）。任一订单经
-                    // apply_fill「先平后开」可能同时闭合反向旧仓 + 开新仓（翻转）⟹ 用 units 跨 0
-                    // 行为统一追踪：(a) |units| 由非零回 0 / 跨 0 翻转 ⟹ 闭合旧方向 trade（配对
-                    // pos_entry_bar，方向 = units_before.signum()）；(b) units 由 0 进入非零 /
-                    // 翻转后新方向 ⟹ 记新 entry_bar。
-                    track_position_transition(
-                        &mut trades, &mut pos_entry_bar, units_before, units, i, false,
-                    );
-                    apply_voice_fill(&mut voice_qty, depth, fill);
-                    // ★开仓订单 ⟹ 记入持仓台账（退出生成器读它）。止损价由入场决策的
-                    // stop_in + 方向算出（与 build_open_order 内 structural_stop 同一函数）。
-                    if fill.opened_qty > 0.0
-                        && matches!(o.action, StrictAction::Buy | StrictAction::Sell | StrictAction::Add)
-                    {
-                        if let Some(d) = matched {
-                            record_held_voice(&mut held, d);
-                        }
-                    } else if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
-                        if let Some(slot) = held.get_mut(depth) {
-                            *slot = None;
-                        }
-                    }
-                    n_orders_executed += 1;
-                }
-            }
-        }
-
-        // ── ★退出决策生成器（§9 closePred，本轮真根因修复核心）：逐持仓声部检查关闭谓词。 ──
-        // 持仓后逐 bar 检查 [止损触及 / 反向 BSP / RiskClose]，触发则构造 exit=true 决策入
-        // 延迟队列（spec:50：Close 订单延迟到 fill_bar_index(i) 成交）。对齐
-        // Origin.SubVoiceOpenClose.closePred（X = ¬ParentValid ∨ χ^{σ_p} ∨ Stop ∨ RiskClose）。
-        if !bar.untradable && px > 0.0 {
-            // 当前账本权益（RiskClose 的 GlobalRiskClose 判据需要，Origin.RiskProj）。
-            let equity_now = cash + units * px;
-            for depth in 0..held.len() {
-                let hv = match held[depth] {
-                    Some(hv) => hv,
-                    None => continue, // 空仓声部，无退出可言
-                };
-                if hv.exit_pending {
-                    continue; // 退出已触发，Close 在延迟队列待成交——不重复入队（关闭一次触发一次平仓）
-                }
-                if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
-                    continue; // 台账方向有但手数 0（已平），跳过
-                }
-                if let Some(exit_d) =
-                    exit_decision_for(&hv, depth, bar, i, &groups, equity_now)
-                {
-                    // Close 订单延迟成交（spec:50）：触发 bar i → fill bar = fill_bar_index(i)。
-                    if let Some(fi) = fill_bar_index(i, bars, &config.exec) {
-                        if fi < n {
-                            exit_orders_at[fi].push(exit_d);
-                            // 标记退出 pending（避免 fill 前重复触发同一止损/反向）。
-                            if let Some(slot) = held.get_mut(depth) {
-                                if let Some(ref mut h) = slot {
-                                    h.exit_pending = true;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 权益曲线（mark-to-market，归一化 ÷nav0）。
-        let equity = (cash + units * px) / nav0;
-        equity_curve.push(equity);
-    }
-
-    // ── ★窗口终点强制平仓（含浮盈口径，编排者铁律「不把浮盈算上不合理」；v1 方向中性）──
-    // 已实现口径 trade_pnls（循环内 apply_fill push）**不含**最后一段未平仓持仓的浮盈；
-    // 含浮盈口径在此对剩余 units 按末 bar close 强平（含费），实现持仓期浮盈。剩余持仓可多可空
-    // （units≠0），强平 PnL 方向中性：多头 = proceeds(扣卖出费)−成本基；空头 = 成本基(开空净收)−支出(含买入费)。
-    // 双口径并列：trade_pnls_realized（不含强平）+ trade_pnls_with_forced（含强平）。
-    let mut trade_pnls_with_forced = trade_pnls.clone();
-    if units != 0.0 {
-        // 末 bar 的 close 作强平价（含浮盈口径——窗口边界 mark-to-market 实现）。
-        if let Some(last_bar) = bars.last() {
-            let last_px = last_bar.close as f64 * config.tick.tick_size;
-            if last_px > 0.0 {
-                // 强平 PnL（成本对称，多空统一）：pos_sign=units.signum()。
-                // 平仓净价 px_exit_net：多 px(1−fee)，空 px(1+fee)。PnL = sign×(px_exit_net−entry_cost)×|units|。
-                let pos_sign = units.signum();
-                let px_exit_net = last_px * (1.0 - pos_sign * fee_rate);
-                let forced_pnl = pos_sign * (px_exit_net - entry_cost) * units.abs();
-                trade_pnls_with_forced.push(forced_pnl);
-                // 强平笔轨迹（forced_close=true，统计功效门槛不计——见 L2/L3 测试）。方向 = units 符号。
-                if let Some(entry_bar) = pos_entry_bar.take() {
-                    let exit_bar = n.saturating_sub(1);
-                    let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
-                    trades.push(metrics::TradeRecord {
-                        entry_bar,
-                        exit_bar,
-                        hold_bars,
-                        qty: units.abs(),
-                        long: units > 0.0,
-                        forced_close: true,
-                    });
-                }
-            }
-        }
-    }
-
-    let daily_returns = bar_returns(&equity_curve);
-    FillOutput {
-        equity_curve,
-        daily_returns,
-        trade_pnls_realized: trade_pnls,
-        trade_pnls_with_forced,
-        trades,
-        n_orders: n_orders_executed,
-        typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
-        voice_verdicts: Vec::new(), // v1 无腿级裁决（诚实空，同 typed_ledger 先例）
-        tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
-        r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
-        account_view: strategy::account::ParallelAccountLedger::new(), // v1 无腿级生命周期（诚实空，#197）
-    }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-//  关⑤：双账本嵌套并列路径（纯新增，旧路径零改）
-//  施工图：chanlun/review-results/p120-nested-voice-dual-ledger-design-20260718.md §4.6
-// ──────────────────────────────────────────────────────────────────────────
-
-/// [`plan_and_fill_mtm_dual`] 的完整产出（[`FillOutput`] + 双账本终态 + 逐腿成交日志）。
-///
-/// `leg_log` 是嵌套/双账语义的**可观测物证**（090 纸面定义=运行时产出）：E 组测试据此断言
-/// 「开空父腿不动（M13）」「最深优先 cascade」「终点零残留」——不进 `FillOutput`（其字段
-/// 口径与净额路径逐字节对拍用，E4）。
-struct FillOutputDual {
-    /// 与 [`plan_and_fill_mtm`] 同构的产出（equity/pnls/trades/n_orders——E4 对拍对象）。
-    fill: FillOutput,
-    /// 双账本终态（窗口终点双腿强平**已应用**于账本 ⟹ 终态零持仓；强平 PnL 只入
-    /// `trade_pnls_with_forced`，与净额路径 :2883-2894 同口径）。
-    ledger: dual_ledger::DualLedger,
-    /// 逐腿成交日志（含强平笔）：bar/depth/leg/close/成交手数/realized/双腿后态。
-    leg_log: Vec<LegFillRec>,
-}
-
-/// 逐腿成交记录（[`plan_and_fill_mtm_dual`] 的可观测轨迹）。
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct LegFillRec {
-    bar: usize,
-    depth: u32,
-    leg: super::super::strategy::voice::VoiceSide,
-    close: bool,
-    qty: f64,
-    realized: f64,
-    q_long_after: f64,
-    q_short_after: f64,
-}
-
-/// voice_qty 同步（双账版，[`apply_voice_fill`] 同语义：两段真实成交分别扣/加，
-/// 绝不按原始请求量或 action 推断）。`FillOutcomeDual` 单腿单向 ⟹ closed/opened 至多一侧非零。
-fn apply_voice_fill_dual(
-    voice_qty: &mut [u32],
-    depth: usize,
-    fill: &dual_ledger::FillOutcomeDual,
-) {
-    if let Some(slot) = voice_qty.get_mut(depth) {
-        let closed = fill.closed_qty().round().clamp(0.0, u32::MAX as f64) as u32;
-        let opened = fill.opened_qty().round().clamp(0.0, u32::MAX as f64) as u32;
-        debug_assert!((fill.closed_qty() - closed as f64).abs() < 1e-9);
-        debug_assert!((fill.opened_qty() - opened as f64).abs() < 1e-9);
-        *slot = slot.saturating_sub(closed).saturating_add(opened);
-    }
-}
-
-/// ★关⑤：[`plan_and_fill_mtm`] 的**双账本嵌套并列版**（纯新增，旧路径零改）。
-///
-/// 与净额路径的差异（施工图 §4.6）：
-/// - **账本态**：`DualLedger{cash,q⁺,q⁻,cost⁺,cost⁻}`（M14 `P^sep` 账户层兑现）——分腿
-///   不先净额（M13 父仓保持：持多腿时开空腿，多腿不动）；realized 只出平仓腿（A' 保留）。
-/// - **识别**：开仓循环 per-bar 喂 [`strategy::recognize_nested`]（§3.2）——held 台账投影
-///   活动集 + 真 ShortDiff 角色门 ⟹ depth>0 子声部**运行时产出**（非纸面声部）。
-///   每 bar 以**当 bar 活动集**重识别全窗候选、只执行 `exec_index==i` 的决策（候选的
-///   根/子归属由其 exec bar 的活动集定——与净额路径的静态预分组语义差异如实声明；
-///   v1 全窗口径的前视有效域与 `run_theta_v0` 同源标注）。
-/// - **成交**：`apply_order` 调用点换 [`dual_ledger::apply_fill_dual`]（订单经
-///   [`strategy::plan_orders_dual_traced`] 携腿标记 + decision 精确配对，不用方向近似匹配）。
-/// - **退出循环**：`exit_decision_for_nested`（parent_invalid 实义化）+ cascade 发射
-///   （父退出 ⟹ 全部更深 held 强制退出）；批内执行**最深优先**（§3.5/§20：子腿现金先到位）。
-/// - **毛闸门**（§3.6，[设计选择,Θ_risk]）：depth>0 边际子开仓校验 `Σq_v ≤ γ̄·base_units`
-///   （`risk::gross_units_ok` 单源，coverage.rs:1687 同一 predicate）；超限 ⟹ 拒当步边际
-///   子开仓（fail-closed；不缩放既有腿——缩放规则属另一裁定）。
-/// - **§9 反向项信号池**：`groups[i]` 只收**根域开仓决策**（exit=false ∧ depth==0）——
-///   ShortDiff 子决策的反父 bits 不喂反向项（M13：父仓穿越次级反向信号持有，短差由子腿
-///   承担，非父平仓触发）；同级别反向平仓由 interpret 规则2 承载（close 决策携入场快照
-///   bsp，非当 bar 信号，不入池）。exit_decision_for_nested 的 stop/risk/parent_invalid
-///   与级联覆盖其余关闭通道。
-/// - **交易轨迹**：per-leg `track_position_transition`（多腿 +q_long / 空腿 −q_short 有符号
-///   喂入）——兼容腿标记（无真双开）下与净额 `units` 轨迹**同一交易列表**（E4 对拍锁）。
-///
-/// `apply_voice_fill` 语义不变（voice_qty[depth]=手数——单脊柱下 depth↔腿 1:1，
-/// side 由 held 台账定）。TW/R 分解/typed_ledger 无接线（诚实 None/空，同 v1 净额路径）。
-fn plan_and_fill_mtm_dual(
-    classification: &super::super::classifier::Classification,
-    tower: &[Rc<Vec<super::super::classifier::recursive_tower::LeveledMove>>],
-    bars: &[Bar],
-    initial_nav: f64,
-    config: &ThetaConfig,
-) -> FillOutputDual {
-    use super::super::strategy::exec::fill_bar_index;
-    use super::super::strategy::exit::{
-        exit_decision_for_nested, parent_invalid_at, subtree_close_exit_decisions,
-    };
-    use super::super::strategy::risk;
-    use super::super::strategy::voice::VoiceSide;
-    use super::super::strategy::LegOrder;
-
-    let n = bars.len();
-    let nav0 = if initial_nav > 0.0 { initial_nav } else { 1.0 };
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
-
-    // 账本态（M14 P^sep）：DualLedger 分腿；voice_qty/held 与净额路径同构（depth 索引单槽）。
-    let mut ledger = dual_ledger::DualLedger::new(nav0);
-    let mut voice_qty: Vec<u32> = vec![0u32; config.voice.max_depth as usize];
-    let mut held: Vec<Option<HeldVoice>> = vec![None; config.voice.max_depth as usize];
-    let mut exit_orders_at: Vec<Vec<VoiceDecision>> = vec![Vec::new(); n];
-    // groups[i] = 根域开仓决策（§9 反向项信号池，见函数头注释）。
-    let mut groups: Vec<Vec<VoiceDecision>> = vec![Vec::new(); n];
-
-    let mut equity_curve = Vec::with_capacity(n);
-    let mut trade_pnls: Vec<f64> = Vec::new();
-    let mut n_orders_executed: usize = 0;
-    let mut trades: Vec<metrics::TradeRecord> = Vec::new();
-    // per-leg 入场 bar（交易轨迹配对；多腿 +q / 空腿 −q 有符号喂 track_position_transition）。
-    let mut entry_bar_long: Option<usize> = None;
-    let mut entry_bar_short: Option<usize> = None;
-    let mut leg_log: Vec<LegFillRec> = Vec::new();
-
-    for i in 0..n {
-        let bar = &bars[i];
-        let px = bar.close as f64 * config.tick.tick_size;
-
-        // ── 1. 退出 Close 延迟队列成交（spec:54 退出先于开仓；cascade 批内最深优先执行）。 ──
-        if !exit_orders_at[i].is_empty() && !bar.untradable && px > 0.0 {
-            let exit_decisions = std::mem::take(&mut exit_orders_at[i]);
-            let current_nav = ledger.equity(px);
-            let account = AccountState {
-                nav: if current_nav > 0.0 { current_nav } else { nav0 },
-                voice_qty: voice_qty.clone(),
-            };
-            let mut traced =
-                strategy::plan_orders_dual_traced(&exit_decisions, bars, &account, config);
-            // cascade 执行序：最深优先（§3.5；单脊柱 depth 唯一 ⟹ depth 降序即全序，
-            // stable sort 保持同 depth 内 ConflictKey 序——单脊柱下无同 depth 两决策）。
-            traced.sort_by(|a, b| b.0.depth.cmp(&a.0.depth));
-            for (d, lo) in traced.iter() {
-                if lo.order.qty > 0 && matches!(lo.order.action, StrictAction::Close) {
-                    let depth = d.depth as usize;
-                    let (ql_b, qs_b) = (ledger.q_long, ledger.q_short);
-                    let fill =
-                        dual_ledger::apply_fill_dual(lo, px, fee_rate, &mut ledger, &mut trade_pnls);
-                    if fill.executed_qty <= 0.0 {
-                        continue;
-                    }
-                    track_position_transition(
-                        &mut trades, &mut entry_bar_long, ql_b, ledger.q_long, i, false,
-                    );
-                    track_position_transition(
-                        &mut trades, &mut entry_bar_short, -qs_b, -ledger.q_short, i, false,
-                    );
-                    apply_voice_fill_dual(&mut voice_qty, depth, &fill);
-                    leg_log.push(LegFillRec {
-                        bar: i,
-                        depth: d.depth,
-                        leg: lo.leg,
-                        close: true,
-                        qty: fill.executed_qty,
-                        realized: fill.realized,
-                        q_long_after: ledger.q_long,
-                        q_short_after: ledger.q_short,
-                    });
-                    // 平仓后台账状态机：全平 ⟹ 清台账；未全平 ⟹ 重置 exit_pending（同净额路径）。
-                    if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
-                        if let Some(slot) = held.get_mut(depth) {
-                            *slot = None;
-                        }
-                    } else if let Some(Some(h)) = held.get_mut(depth) {
-                        h.exit_pending = false;
-                    }
-                    n_orders_executed += 1;
-                }
-            }
-        }
-
-        // ── 2. 开仓循环：per-bar recognize_nested（held 活动投影 + 真 ShortDiff 角色门）。 ──
-        if !bar.untradable && px > 0.0 {
-            let active = strategy::held_voice_projection(&held);
-            let recog = strategy::recognize_nested(classification, tower, &active, bars, config);
-            let bar_decisions: Vec<VoiceDecision> = recog
-                .into_iter()
-                .filter(|d| fill_bar_index(d.signal_index, bars, &config.exec) == Some(i))
-                .collect();
-            // §9 反向项信号池：只收根域开仓决策（M13：子决策的反父 bits 不触发父平仓）。
-            groups[i] = bar_decisions
-                .iter()
-                .filter(|d| !d.exit && d.depth == 0)
-                .copied()
-                .collect();
-
-            if !bar_decisions.is_empty() {
-                let current_nav = ledger.equity(px);
-                let account = AccountState {
-                    nav: if current_nav > 0.0 { current_nav } else { nav0 },
-                    voice_qty: voice_qty.clone(),
-                };
-                let traced =
-                    strategy::plan_orders_dual_traced(&bar_decisions, bars, &account, config);
-                // base_units（U_ℓ = NAV/px，runner [B] 同口径）——毛闸门分母。
-                let base_units = account.nav / px;
-                for (d, lo) in traced.iter() {
-                    if lo.order.qty <= 0 {
-                        continue;
-                    }
-                    // ★毛闸门（§3.6）：depth>0 边际子开仓 Σq_v ≤ γ̄·base_units（risk::gross_units_ok
-                    // 单源判定）；超限 ⟹ 拒当步边际子开仓（fail-closed，不缩放既有腿）。
-                    if d.depth > 0 && !lo.close {
-                        let tentative = ledger.gross_units() + lo.order.qty as f64;
-                        if !risk::gross_units_ok(tentative, base_units, config.risk.gamma) {
-                            continue;
-                        }
-                    }
-                    let depth = d.depth as usize;
-                    let (ql_b, qs_b) = (ledger.q_long, ledger.q_short);
-                    let fill =
-                        dual_ledger::apply_fill_dual(lo, px, fee_rate, &mut ledger, &mut trade_pnls);
-                    if fill.executed_qty <= 0.0 {
-                        continue;
-                    }
-                    track_position_transition(
-                        &mut trades, &mut entry_bar_long, ql_b, ledger.q_long, i, false,
-                    );
-                    track_position_transition(
-                        &mut trades, &mut entry_bar_short, -qs_b, -ledger.q_short, i, false,
-                    );
-                    apply_voice_fill_dual(&mut voice_qty, depth, &fill);
-                    leg_log.push(LegFillRec {
-                        bar: i,
-                        depth: d.depth,
-                        leg: lo.leg,
-                        close: lo.close,
-                        qty: fill.executed_qty,
-                        realized: fill.realized,
-                        q_long_after: ledger.q_long,
-                        q_short_after: ledger.q_short,
-                    });
-                    // 开仓成交 ⟹ 记入持仓台账（decision 精确配对，traced 单源）；
-                    // 平仓成交到手数 0 ⟹ 清台账（recognize 产 close 决策的成交后处理）。
-                    if fill.opened_qty() > 0.0 && !lo.close {
-                        record_held_voice(&mut held, d);
-                    } else if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
-                        if let Some(slot) = held.get_mut(depth) {
-                            *slot = None;
-                        }
-                    }
-                    n_orders_executed += 1;
-                }
-            }
-        }
-
-        // ── 3. 退出决策生成器（§9 closePred 四析取皆实：parent_invalid 实义化 + cascade）。 ──
-        if !bar.untradable && px > 0.0 {
-            let equity_now = ledger.equity(px);
-            let groups_view: Vec<Vec<&VoiceDecision>> =
-                groups.iter().map(|g| g.iter().collect()).collect();
-            for depth in 0..held.len() {
-                let hv = match held[depth] {
-                    Some(hv) => hv,
-                    None => continue,
-                };
-                if hv.exit_pending {
-                    continue; // Close 在延迟队列待成交——不重复入队
-                }
-                if voice_qty.get(depth).copied().unwrap_or(0) == 0 {
-                    continue;
-                }
-                let parent_invalid = parent_invalid_at(&held, depth);
-                if let Some(exit_d) =
-                    exit_decision_for_nested(&hv, depth, bar, i, &groups_view, equity_now, parent_invalid)
-                {
-                    if let Some(fi) = fill_bar_index(i, bars, &config.exec) {
-                        if fi < n {
-                            // 级联发射（M16 AncOK 父关则子关，最深优先）+ pending 标记。
-                            // ★#183 T4 归一：生产级联归一到镜像函数（held 槽压缩链投影 →
-                            // subtree_close；散装 cascade_exit_decisions 已下线）。
-                            for d in subtree_close_exit_decisions(&held, depth, exit_d, i) {
-                                if let Some(Some(h)) = held.get_mut(d.depth as usize) {
-                                    h.exit_pending = true;
-                                }
-                                exit_orders_at[fi].push(d);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 权益曲线（净投影估值，M30；归一化 ÷nav0）。
-        let equity = ledger.equity(px) / nav0;
-        equity_curve.push(equity);
-    }
-
-    // ── 窗口终点强制平仓（双账本：双腿各自强平，分腿口径与净额 :2884-2894 同形；
-    //    强平**应用于账本** ⟹ 终态零持仓（E1 现金守恒/E3 零残留的断言对象）；
-    //    PnL 只入 trade_pnls_with_forced（realized 口径不含强平，与净额路径一致））。 ──
-    let mut trade_pnls_with_forced = trade_pnls.clone();
-    if let Some(last_bar) = bars.last() {
-        let last_px = last_bar.close as f64 * config.tick.tick_size;
-        if last_px > 0.0 {
-            let exit_bar = n.saturating_sub(1);
-            if ledger.q_long > 0.0 {
-                let lo = LegOrder {
-                    order: Order {
-                        action: StrictAction::Close,
-                        qty: ledger.q_long as i64,
-                        exec_index: exit_bar,
-                    },
-                    leg: VoiceSide::Long,
-                    close: true,
-                };
-                let fill = dual_ledger::apply_fill_dual(
-                    &lo, last_px, fee_rate, &mut ledger, &mut trade_pnls_with_forced,
-                );
-                if let Some(entry_bar) = entry_bar_long.take() {
-                    trades.push(metrics::TradeRecord {
-                        entry_bar,
-                        exit_bar,
-                        hold_bars: exit_bar.saturating_sub(entry_bar).max(1),
-                        qty: fill.closed_long,
-                        long: true,
-                        forced_close: true,
-                    });
-                }
-                leg_log.push(LegFillRec {
-                    bar: exit_bar,
-                    depth: 0, // 强平是账户层双腿清空，depth 栏无单槽语义（记 0 占位）
-                    leg: VoiceSide::Long,
-                    close: true,
-                    qty: fill.closed_long,
-                    realized: fill.realized,
-                    q_long_after: ledger.q_long,
-                    q_short_after: ledger.q_short,
-                });
-            }
-            if ledger.q_short > 0.0 {
-                let lo = LegOrder {
-                    order: Order {
-                        action: StrictAction::Close,
-                        qty: ledger.q_short as i64,
-                        exec_index: exit_bar,
-                    },
-                    leg: VoiceSide::Short,
-                    close: true,
-                };
-                let fill = dual_ledger::apply_fill_dual(
-                    &lo, last_px, fee_rate, &mut ledger, &mut trade_pnls_with_forced,
-                );
-                if let Some(entry_bar) = entry_bar_short.take() {
-                    trades.push(metrics::TradeRecord {
-                        entry_bar,
-                        exit_bar,
-                        hold_bars: exit_bar.saturating_sub(entry_bar).max(1),
-                        qty: fill.closed_short,
-                        long: false,
-                        forced_close: true,
-                    });
-                }
-                leg_log.push(LegFillRec {
-                    bar: exit_bar,
-                    depth: 0,
-                    leg: VoiceSide::Short,
-                    close: true,
-                    qty: fill.closed_short,
-                    realized: fill.realized,
-                    q_long_after: ledger.q_long,
-                    q_short_after: ledger.q_short,
-                });
-            }
-        }
-    }
-
-    let daily_returns = bar_returns(&equity_curve);
-    FillOutputDual {
-        fill: FillOutput {
-            equity_curve,
-            daily_returns,
-            trade_pnls_realized: trade_pnls,
-            trade_pnls_with_forced,
-            trades,
-            n_orders: n_orders_executed,
-            typed_ledger: Vec::new(), // 无腿级台账（诚实空，同 v1 净额路径）
-            voice_verdicts: Vec::new(), // 无腿级裁决（诚实空，同 typed_ledger 先例）
-            tw_final: None,           // 无 TW 接线（E2 G5 同数锁待接线后启用，诚实 None）
-            r_decomp: None,
-            account_view: strategy::account::ParallelAccountLedger::new(), // 无腿级生命周期（诚实空，#197）
-        },
-        ledger,
-        leg_log,
-    }
-}
-
-/// ★交易轨迹配对（平仓事件 → [`metrics::TradeRecord`]）。
-///
-/// ★持仓状态转移轨迹追踪（v1 方向中性，替代 long-only `track_close_to_trade`）。
-///
-/// `units` 有符号（正=多/负=空/0=空仓）。一次成交（`units_before → units_after`）可能：
-/// - **纯开仓**（before=0, after≠0）：记新 `pos_entry_bar = Some(exit_bar)`（此 bar 为入场 bar）。
-/// - **纯平仓**（before≠0, after=0）：配对 `pos_entry_bar` 产 TradeRecord（方向 = before.signum()：
-///   before>0 ⟹ long=true 平多；before<0 ⟹ long=false 平空），清 entry_bar。
-/// - **翻转**（before·after<0，先平后开同一笔）：先配对旧方向 trade（方向 = before.signum()，
-///   qty = |before|），再记新 entry_bar（新方向持仓从此 bar 入场）。
-/// - **同向减仓未到 0**（before·after>0 且 |after|<|before|）：**逐 fill 产 TradeRecord**
-///   （qty = 减掉的手数，entry_bar 延续首次入场，v0 单标量近似）——bughunt F-06：否则部分
-///   减仓的已实现 PnL/敞口在 trades 轨迹无对应记录，§4 随机对照 same-caliber 重算与敞口
-///   归一化漏计（反例 100买10→110减5→120平5 漏 49.685）。
-/// - **同向加仓**（before·after>0 且 |after|>|before|）：entry_bar 不变（延续首次入场，
-///   v0 单标量近似），不产记录。
-///
-/// `forced` 标记窗口终点强平（不计 n_trades≥30 统计功效门槛）。qty = 平掉的绝对手数 = |before|
-/// （翻转/全平时平掉全部旧仓；v0 build_exit_order 全平 ⟹ 配对唯一）。
-fn track_position_transition(
-    trades: &mut Vec<metrics::TradeRecord>,
-    pos_entry_bar: &mut Option<usize>,
-    units_before: f64,
-    units_after: f64,
-    exit_bar: usize,
-    forced: bool,
-) {
-    // ★显式三态符号（−1/0/+1）：f64::signum 对 0.0 返回 +1.0（不返回 0），不能用于判持仓有无。
-    let sign = |x: f64| -> i8 {
-        if x > 0.0 {
-            1
-        } else if x < 0.0 {
-            -1
-        } else {
-            0
-        }
-    };
-    // 闭合旧仓：before≠0 且符号改变（到 0 / 翻转）⟹ 配对产 trade。
-    let closed = sign(units_before) != 0 && sign(units_before) != sign(units_after);
-    if closed {
-        if let Some(entry_bar) = pos_entry_bar.take() {
-            let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
-            trades.push(metrics::TradeRecord {
-                entry_bar,
-                exit_bar,
-                hold_bars,
-                qty: units_before.abs(), // 平掉的绝对手数 = |平仓前持仓|
-                long: units_before > 0.0, // 方向 = 平仓前持仓方向（多/空）
-                forced_close: forced,
-            });
-        }
-    }
-    // F-06：部分减仓（同向未到 0，|after|<|before|）⟹ 逐 fill 产 TradeRecord（qty=本次减掉
-    // 的手数，entry_bar 延续首次入场）。与 `apply_order` 逐 fill push trade_pnls 口径对齐，
-    // 消除"减仓 PnL 有账无迹"的口径错配（消费方：§4 随机对照 same-caliber/敞口归一化）。
-    let same_side = sign(units_before) != 0 && sign(units_before) == sign(units_after);
-    if same_side && units_after.abs() < units_before.abs() - 1e-12 {
-        if let Some(entry_bar) = *pos_entry_bar {
-            let hold_bars = exit_bar.saturating_sub(entry_bar).max(1);
-            trades.push(metrics::TradeRecord {
-                entry_bar,
-                exit_bar,
-                hold_bars,
-                qty: units_before.abs() - units_after.abs(), // 本次减掉的绝对手数
-                long: units_before > 0.0,
-                forced_close: forced,
-            });
-        }
-    }
-    // 记新入场：after≠0 且 (纯开仓 before=0 / 翻转后新方向) ⟹ 此 bar 为新仓入场 bar。
-    if units_after != 0.0 && (units_before == 0.0 || closed) {
-        *pos_entry_bar = Some(exit_bar);
-    }
-}
-
-/// voice_qty 同步（fill 后更新；depth 超界跳过，诚实边界不应发生）。
-///
-/// ★v1 方向中性：`voice_qty` 是该 depth 声部的**绝对持仓手数**（`act_state` 判 open/hold/close
-/// 用，与持仓方向解耦——方向由 `HeldVoice.side` 记）。在 `plan_and_fill_mtm` 数据流中 plan_orders
-/// 的 build_open_order 产 **Buy（开多）/ Sell（开空）**、build_exit_order 产 **Close（平仓）**——
-/// 故 **Buy/Add/Sell = 开仓侧（绝对手数增）**，**Close/Reduce = 平仓侧（绝对手数减）**。
-/// 修复前 long-only 把 Sell 当减仓 ⟹ Short 根开空后 voice_qty 恒 0 ⟹ act_state 恒 Open ⟹ 重复
-/// 开空不止（v1 缺陷根因之一）。
-fn apply_voice_fill(voice_qty: &mut [u32], depth: usize, fill: FillOutcome) {
-    if let Some(slot) = voice_qty.get_mut(depth) {
-        // 订单可“先平后开”，且开仓余量可能因现金不足被拒；声部账必须按两个真实成交段
-        // 分别扣/加，绝不能按原始请求量或 action 推断。
-        let closed = fill.closed_qty.round().clamp(0.0, u32::MAX as f64) as u32;
-        let opened = fill.opened_qty.round().clamp(0.0, u32::MAX as f64) as u32;
-        debug_assert!((fill.closed_qty - closed as f64).abs() < 1e-9);
-        debug_assert!((fill.opened_qty - opened as f64).abs() < 1e-9);
-        *slot = slot.saturating_sub(closed).saturating_add(opened);
-    }
-}
-
-/// fill 模拟（Θ_exec 基础形态，reference-theta-v0.md:49-54）。
-///
-/// **可独立于 classify/plan_orders 内部逻辑实装**——只消费 `Vec<Order>`（携带 `exec_index`/
-/// `action`/`qty`）。返回 `(权益曲线, 日 returns, 每笔平仓盈亏)`。
-///
-/// ## 当前实装范围（诚实声明）
-///
-/// - 开仓（Buy/Sell）/ 平仓（Close）/ 加减仓（Add/Reduce）按 `exec_index` bar 的 close
-///   成交，扣 commission+slippage 费用（`ExecConfig`，bp/side）。
-/// - **待补全**（与 strategy 订单语义对齐后，标注非 workaround 而是增量）：
-///   - 止损成交（reference:52，long open<止损按 open 出否则 low 触及按 stop）——需 Order
-///     携带止损价，当前 [`Order`] 无该字段（待 strategy 定订单是否含止损腿）。
-///   - 冲突顺序（reference:54，止损先于开仓 / 高 level 先 / 1/2/3 类序）——需多 level
-///     订单流，当前 classify 返回空无 level 信息。
-///   - 延迟语义：`Order.exec_index` 已是"执行延迟后的成交 bar"（types.rs:218），fill 直接
-///     用之，延迟在 strategy 层计算（此处不重复延迟）。
-///
-/// ## 资金口径（绝对 NAV，对齐 strategy `AccountState.nav`）
-///
-/// `Order.qty` 是 strategy sizing 算出的**整数 lot**（绝对手数，reference:47），lot×price =
-/// 绝对名义额。fill 用**绝对 NAV**（`initial_nav`）记账——现金/市值都是绝对额，权益曲线
-/// 归一化（÷initial_nav）后返回（收益率口径，metrics 用率不用绝对额）。这保留 lot sizing
-/// 的绝对名义语义（区别于"归一化 cash=1 + units=qty"的错误口径——后者在 price≫NAV 时永远
-/// 买不起 1 lot）。
-///
-/// **边界条件**：`orders` 为空（当前阻塞态）⇒ 现金不动，权益曲线 = 持平（全 1.0），
-/// trade_pnls 为空。这正确反映"无 Θ 决策"，**不是** bug。
-fn simulate_fills(
-    bars: &[Bar],
-    orders: &[Order],
-    initial_nav: f64,
-    config: &ThetaConfig,
-) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
-    let n = bars.len();
-    let mut equity_curve = Vec::with_capacity(n);
-    let mut trade_pnls = Vec::new();
-
-    // 费用率（bp/side → 比率）。commission + slippage（tax=0 默认）。
-    let fee_rate =
-        (config.exec.commission_bps + config.exec.slippage_bps + config.exec.tax_bps) / 10_000.0;
-
-    // 按 exec_index 建索引（同 bar 多订单按出现顺序）。
-    // 简单线性扫描：订单按 exec_index 排序后与 bar 主循环对齐。
-    let mut sorted_orders: Vec<&Order> = orders.iter().collect();
-    sorted_orders.sort_by_key(|o| o.exec_index);
-
-    let nav = if initial_nav > 0.0 { initial_nav } else { 1.0 };
-    let mut cash: f64 = nav; // 绝对现金（初始 = NAV）
-    let mut units: f64 = 0.0; // 持仓 lot 数（正=多；做空腿待 strategy 订单语义定）
-    let mut entry_cost: f64 = 0.0; // 含买入费的每单位成本基（成本对称）
-    let mut ord_idx = 0usize;
-
-    for i in 0..n {
-        let bar = &bars[i];
-        // 成交价 = 该 bar 的 close（f64 域；tick→f64 用 tick_size 还原，比率口径无关）。
-        let px = bar.close as f64 * config.tick.tick_size;
-
-        // 处理 exec_index == i 的订单（不可交易 bar 上不成交，reference:53）。
-        while ord_idx < sorted_orders.len() && sorted_orders[ord_idx].exec_index == i {
-            let o = sorted_orders[ord_idx];
-            ord_idx += 1;
-            if bar.untradable || px <= 0.0 || o.qty <= 0 {
-                continue; // 不可交易 / 非法 qty ⇒ 跳过（reference:47 qty<=0 不交易）。
-            }
-            apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
-        }
-
-        // MtM 权益 = 现金 + 持仓市值，归一化（÷NAV → 收益率口径，初始=1.0）。
-        let equity = (cash + units * px) / nav;
-        equity_curve.push(equity);
-    }
-
-    // 日 returns：1min bar 权益曲线聚合到日。当前骨架用 bar-级 returns 作占位
-    // （runner 调用方按 dates 聚合到日时替换为日聚合——见 §3.1"按 1min→日聚合"）。
-    // 诚实标注：bar-级 returns 的年化基数 ≠ 日 returns，Sharpe 数值在日聚合接通前不是
-    // 协议口径。日聚合需要 dates（Dataset.dates），属指标精确化（非阻塞引擎，待接）。
-    let daily_returns = bar_returns(&equity_curve);
-
-    (equity_curve, daily_returns, trade_pnls)
-}
-
-/// 应用单个订单到仓位（**方向中性账本**，开/平/加/减仓 + 费用，多空对称）。
-///
-/// ★v1 做空腿（操作语义补全，对齐 canonical FULL §10「根声部双向全定义状态机」+ §13「有符号
-/// 名义头寸 n_v=σ_v·M·P·q」+ Origin.TotalWealth `TW=cash+units×price`）：`units` **有符号**
-/// （正=多头，负=空头，0=空仓，对齐 canonical σ_r∈{-1,0,+1}×绝对手数）。订单方向（Buy/Add 增
-/// units，Sell/Reduce/Close 减 units）统一映射到有符号 units 增减，**多空完全对称**（删 v0 退化
-/// 的 long-only `close_long`，no-patch 重写）。
-///
-/// ★先平后开（canonical FULL §20「撤单→先平后开」执行序的 fill 层兑现）：任一订单先**平掉反向
-/// 持仓部分**（实现 PnL 入 trade_pnls），再用剩余 qty **开新方向仓**（更新成本基）。这使翻转
-/// （平多→开空 / 平空→开多）成本基语义无歧义——不存在"多空混合成本基"。
-///
-/// ★成本对称（缺陷③修复保留，多空两侧统一）：`entry_cost` 是当前持仓**每单位含费成本基**——
-/// 多头 = 买入均价含买入费（开仓 cash−含费 cost）；空头 = 卖出均价**扣卖出费后**净收（开空
-/// cash+净 proceeds）。平仓 PnL 两侧对称：平多 PnL=平仓proceeds(扣卖出费)−成本基(含买入费)；
-/// 平空 PnL=开空成本基(扣卖出费净收)−平空支出(含买入费)。
-///
-/// ★现金约束（多空对称）：开多需 `cash ≥ 含费 cost`（现金买入）；开空收到卖出 proceeds（cash+），
-/// 无需预付现金（保证金约束属 canonical §11/§14 K_Θ 风险可行集，v0 未建模——诚实有效域 L0：
-/// 做空保证金/借券成本未建模，标注非全 canonical §11，是 σ 双向 + TW 账本的最小兑现）。
-pub(crate) fn apply_order(
-    o: &Order,
-    px: f64,
-    fee_rate: f64,
-    cash: &mut f64,
-    units: &mut f64,
-    entry_cost: &mut f64,
-    trade_pnls: &mut Vec<f64>,
-) -> FillOutcome {
-    let qty = o.qty as f64;
-    // 订单 → (有符号成交方向 δ, 是否纯平仓 close_only)。
-    // ★信号成交（Buy/Add/Sell）：可「先平后开」翻转（开多 δ+1 / 开空 δ−1）。
-    // ★纯平仓（Close/Reduce，v1 做空腿方向感知）：平掉当前持仓——平多=卖（δ−1），平空=买（δ+1），
-    //   **只平不反向开**（close_only=true，剩余 qty 超持仓时不借机开反向仓）。build_exit_order 对
-    //   多空两腿都产 `StrictAction::Close`（不带方向），故成交方向由**当前持仓符号**决定；空仓 ⟹ 无操作。
-    // ★A'（codex GAP3 裁定清单③）：返回本次 fill 的费后已实现 PnL（透传 [`apply_fill`]，
-    //   无平仓分量 = 0.0）——TW 账本 Realize 的唯一合法资金源。
-    let (delta, close_only): (f64, bool) = match o.action {
-        StrictAction::Buy | StrictAction::Add => (1.0, false),
-        StrictAction::Sell => (-1.0, false),
-        StrictAction::Reduce | StrictAction::Close => {
-            if *units > 0.0 {
-                (-1.0, true) // 持多 ⟹ 卖出平多
-            } else if *units < 0.0 {
-                (1.0, true) // 持空 ⟹ 买回平空
-            } else {
-                return FillOutcome::noop(); // 空仓无仓可平
-            }
-        }
-        StrictAction::Hold | StrictAction::Wait => return FillOutcome::noop(), // 不动
-    };
-    apply_fill(delta, qty, close_only, px, fee_rate, cash, units, entry_cost, trade_pnls)
-}
-
-/// **方向中性成交**（v1 做空腿核心，先平后开）：有符号方向 `delta`（+1 买/−1 卖）× 绝对手数 `qty`。
-///
-/// 分两段（canonical §20 先平后开）：
-/// 1. **平反向**：若新成交方向与当前持仓反向（`units·delta < 0`），先平掉 `min(qty, |units|)` 手，
-///    实现 PnL 入 trade_pnls（多空 PnL 公式对称，见下），cash 反向于 units 变化。
-/// 2. **开新仓**：剩余 `qty − 已平` 手按 `delta` 方向开仓，加权平均更新含费成本基。
-///
-/// PnL 口径（成本对称，多空统一）：
-/// - 平多（delta=−1，units>0）：proceeds=平仓 qty×px×(1−fee)，cost_basis=qty×entry_cost（开仓含买入费）⟹ PnL=proceeds−cost_basis。
-/// - 平空（delta=+1，units<0）：开空成本基=qty×entry_cost（开空扣卖出费净收），平空支出=qty×px×(1+fee)（买回含买入费）⟹ PnL=成本基−支出。
-///   两式统一为 `PnL = sign·(entry_cost − px·(1+sign·fee_factor))`，由下方有符号代数自动覆盖。
-pub(crate) fn apply_fill(
-    delta: f64,
-    qty: f64,
-    close_only: bool,
-    px: f64,
-    fee_rate: f64,
-    cash: &mut f64,
-    units: &mut f64,
-    entry_cost: &mut f64,
-    trade_pnls: &mut Vec<f64>,
-) -> FillOutcome {
-    // ★A'（codex GAP3 裁定清单③）：返回 `(费后已实现 PnL, 成交费用)`。
-    // - realized：本次 fill 的费后已实现 PnL（仅段 1 平仓分量产生；无平仓 = 0.0）。结算时点硬
-    //   边界（推导链第 9 条）：只锚实际平仓 fill 的 close 分支——partial close 按平掉数量结算；
-    //   flip（先平后开）只对先平的反向段结算（段 2 开新仓不产 PnL）。
-    // - fee_paid（M6 R 分解 Commission+Slippage 独立累计）：本次成交实付费用 = 成交名义 ×
-    //   fee_rate（平仓段 close_qty·px + 开仓段 remaining·px）。已内蕴在 cash 现金流的 (1±fee)
-    //   因子里，此处**独立**测得供 RDecomposition 守恒断言（校验和 = 账本净变动，非从 net_r 反推）。
-    let mut realized = 0.0;
-    let mut fee_paid = 0.0;
-    let mut closed_qty = 0.0;
-    let mut opened_qty = 0.0;
-    if qty <= 0.0 || px <= 0.0 {
-        return FillOutcome {
-            requested_qty: qty.max(0.0),
-            executed_qty: 0.0,
-            closed_qty,
-            opened_qty,
-            rejected_qty: qty.max(0.0),
-            realized,
-            fee: fee_paid,
-        };
-    }
-    let mut remaining = qty;
-
-    // ── 段 1：平反向持仓（units 与 delta 反向 ⟹ 本次成交先减仓）。 ──
-    if *units * delta < 0.0 {
-        let close_qty = remaining.min(units.abs());
-        if close_qty > 0.0 {
-            // 平仓现金流：delta=+1（买回平空）cash 减 qty×px×(1+fee)；delta=−1（卖出平多）cash 加 qty×px×(1−fee)。
-            // 统一：cash += −delta × qty × px × (1 + delta×fee_rate)。
-            let cash_flow = -delta * close_qty * px * (1.0 + delta * fee_rate);
-            fee_paid += close_qty * px * fee_rate; // 平仓成交费（commission+slippage+tax）
-            // PnL = 持仓方向收益。持仓方向 sign = units.signum()（多=+1，空=−1）。
-            // 平多（持多，sign+1）：PnL = proceeds − cost = (qty×px×(1−fee)) − (qty×entry_cost)。
-            // 平空（持空，sign−1）：PnL = 开空净收 − 平空支出 = (qty×entry_cost) − (qty×px×(1+fee))。
-            // 统一：PnL = sign × (px_exit_net − entry_cost) × qty，其中 px_exit_net 对多=px(1−fee)，对空=px(1+fee)。
-            let pos_sign = units.signum();
-            let px_exit_net = px * (1.0 - pos_sign * fee_rate);
-            let pnl = pos_sign * (px_exit_net - *entry_cost) * close_qty;
-            *cash += cash_flow;
-            // 平反向：delta 与持仓异号，units += delta×close_qty 使 |units| 减小（向 0 收敛）。
-            // 平多（units=+N, delta=−1）⟹ N+(−1)·N=0；平空（units=−N, delta=+1）⟹ −N+1·N=0。
-            *units += delta * close_qty;
-            trade_pnls.push(pnl);
-            realized = pnl; // A'：平仓结算事实（与 trade_pnls 同一值，返回给 TW Realize 生产者）
-            closed_qty += close_qty;
-            remaining -= close_qty;
-            // 全平 ⟹ 成本基归零（无持仓）；未全平 ⟹ 同方向剩余成本基不变（同价同费基）。
-            if *units == 0.0 {
-                *entry_cost = 0.0;
-            }
-        }
-    }
-
-    // ── 段 2：开新方向仓 / 同向加仓（剩余 qty 按 delta 开仓）。纯平仓 ⟹ 不开新仓。 ──
-    if remaining > 0.0 && !close_only {
-        // 开仓现金流：开多（delta+1）cash 减 qty×px×(1+fee)（含买入费）；
-        // 开空（delta−1）cash 加 qty×px×(1−fee)（卖出净收，扣卖出费）。
-        // 统一：cash += −delta × qty × px × (1 + delta×fee_rate)。
-        let cash_flow = -delta * remaining * px * (1.0 + delta * fee_rate);
-        // 现金约束：开多需现金充足（cash ≥ 买入含费成本）；开空收现金（无预付，保证金 v0 未建模）。
-        let need_cash = delta > 0.0; // 仅开多需现金
-        let cost = remaining * px * (1.0 + fee_rate);
-        if need_cash && *cash < cost {
-            return FillOutcome {
-                requested_qty: qty,
-                executed_qty: closed_qty,
-                closed_qty,
-                opened_qty,
-                rejected_qty: remaining,
-                realized,
-                fee: fee_paid,
-            };
-        }
-        fee_paid += remaining * px * fee_rate; // 开仓成交费（commission+slippage+tax）
-        // 每单位含费成本基（多=买入均价含买入费；空=卖出均价扣卖出费净收）。
-        // 单笔成交成本基 = px × (1 + delta×fee_rate)：多 px(1+fee)，空 px(1−fee)。
-        let unit_cost = px * (1.0 + delta * fee_rate);
-        let old_units_abs = units.abs();
-        let new_units = *units + delta * remaining;
-        let new_units_abs = new_units.abs();
-        if new_units_abs > 0.0 {
-            // 加权平均含费成本基（同方向加仓：旧成本基×旧手数 + 本次成本基×本次手数 ÷ 新手数）。
-            *entry_cost = (*entry_cost * old_units_abs + unit_cost * remaining) / new_units_abs;
-        }
-        *units = new_units;
-        *cash += cash_flow;
-        opened_qty += remaining;
-        remaining = 0.0;
-    }
-    FillOutcome {
-        requested_qty: qty,
-        executed_qty: closed_qty + opened_qty,
-        closed_qty,
-        opened_qty,
-        rejected_qty: remaining,
-        realized,
-        fee: fee_paid,
-    }
-}
-
-/// 单次订单的真实成交分解。`closed_qty + opened_qty = executed_qty`；未成交余量只进入
-/// `rejected_qty`，不得进入执行计数、交易轨迹或声部持仓账。
-/// （pub(crate)：关⑤ D8 嵌入恒等对拍（dual_ledger.rs）只读复用，行为零改。）
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct FillOutcome {
-    pub(crate) requested_qty: f64,
-    pub(crate) executed_qty: f64,
-    pub(crate) closed_qty: f64,
-    pub(crate) opened_qty: f64,
-    pub(crate) rejected_qty: f64,
-    pub(crate) realized: f64,
-    pub(crate) fee: f64,
-}
-
-impl FillOutcome {
-    pub(crate) fn noop() -> Self {
-        Self {
-            requested_qty: 0.0,
-            executed_qty: 0.0,
-            closed_qty: 0.0,
-            opened_qty: 0.0,
-            rejected_qty: 0.0,
-            realized: 0.0,
-            fee: 0.0,
-        }
-    }
-}
-
-/// bar-级 returns（占位；日聚合接通前的 L1 口径）。
-fn bar_returns(equity: &[f64]) -> Vec<f64> {
-    if equity.len() < 2 {
-        return Vec::new();
-    }
-    equity
-        .windows(2)
-        .map(|w| if w[0] > 0.0 { w[1] / w[0] - 1.0 } else { 0.0 })
-        .collect()
 }
 
 #[cfg(test)]
@@ -4590,10 +1118,11 @@ mod tests {
     fn buy1_at(si: usize) -> BspPoint {
         BspPoint {
             source_index: si,
+            level_origin: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 9_000_000_000, // px 90 < 入场 100 ⟹ 止损在下方不触及
             pivot_high: 0,
-            center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si })),
             struct_break_dir: None,
             force: None,
         }
@@ -4618,9 +1147,9 @@ mod tests {
             // 走 TreeKey fallback，bit-exact；空塔下 TreeKey 亦平凡）。
             |i| {
                 if i >= 7 {
-                    (classification.clone(), Vec::new(), i as u64, i as u64)
+                    (classification.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else {
-                    (Classification::default(), Vec::new(), i as u64, i as u64)
+                    (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
                 }
             },
             &bars,
@@ -4644,7 +1173,7 @@ mod tests {
         assert!(!config.center_oscillation.enabled);
         let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
         let baseline = pi_theta_fill_loop(
-            |i| (Classification::default(), Vec::new(), i as u64, i as u64),
+            |i| (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64),
             &bars,
             1.0e6,
             &config,
@@ -4672,9 +1201,9 @@ mod tests {
         let observed = pi_theta_fill_loop(
             |i| {
                 if i >= 7 {
-                    (classification.clone(), Vec::new(), i as u64, i as u64)
+                    (classification.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else {
-                    (Classification::default(), Vec::new(), i as u64, i as u64)
+                    (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
                 }
             },
             &bars,
@@ -4858,7 +1387,7 @@ mod tests {
                 } else {
                     cert_close_cls.clone()
                 };
-                (cls, tower.clone(), i as u64, i as u64)
+                (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
             }
         };
 
@@ -4932,7 +1461,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (cls, tower.clone(), i as u64, i as u64)
+            (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         let view = &fill.account_view;
@@ -5051,11 +1580,11 @@ mod tests {
         };
         let classify2 = move |i: usize| {
             if i >= 14 {
-                (cls_both.clone(), Vec::new(), i as u64, i as u64)
+                (cls_both.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else if i >= 7 {
-                (cls_sell.clone(), Vec::new(), i as u64, i as u64)
+                (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64, i as u64)
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
             }
         };
         let config2 = ThetaConfig::default();
@@ -5184,13 +1713,13 @@ mod tests {
         };
         let classify = move |i: usize| {
             if i >= 18 {
-                (cls_sell2.clone(), Vec::new(), i as u64, i as u64)
+                (cls_sell2.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else if i >= 12 {
-                (cls_sell1.clone(), Vec::new(), i as u64, i as u64)
+                (cls_sell1.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else if i >= 7 {
-                (cls_buy.clone(), Vec::new(), i as u64, i as u64)
+                (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64, i as u64)
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
             }
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
@@ -5336,7 +1865,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (c, tower.clone(), i as u64, i as u64)
+            (c, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         // 订单轨锚点：L2 根 Short（censored）+ 级联 Short（一类买批平）。一类候选
@@ -5425,7 +1954,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (cls, tower.clone(), i as u64, i as u64)
+            (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         // ★#200 翻动核对（OpenShort 通道新订单，#179 程序）：typed 2→3——buy2@18 先平
@@ -5518,10 +2047,11 @@ mod tests {
             let mut l1 = c.levels[1].bsp.as_ref().clone();
             l1.push(BspPoint {
                 source_index: 18,
+                level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
                 bits: BspBits { sell1: true, ..Default::default() },
                 pivot_low: 0,
                 pivot_high: 210,
-                center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 18 }),
+                center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 18 })),
                 struct_break_dir: None,
                 force: None,
             });
@@ -5539,7 +2069,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (cls, tower.clone(), i as u64, i as u64)
+            (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         // 父终结 ⟹ 子树全清：typed 恰 2 条，同一 exit bar（同刻清仓）。
@@ -5697,30 +2227,33 @@ mod tests {
         // L1 父根买点（同 e_classification buy_parent@12）。
         let buy_parent = BspPoint {
             source_index: 12,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 })),
             struct_break_dir: None,
             force: None,
         };
         // L0 顺父级联买点（FollowParent Long 级联核心仓，Core{0}）。
         let buy_cascade = BspPoint {
             source_index: 13,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 120,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 13 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 13 })),
             struct_break_dir: None,
             force: None,
         };
         // L0 二类卖点（ShortDiff 角色——同 e_classification sell_child@16 的附着坐标，class 换 2）。
         let sell2_child = BspPoint {
             source_index: 16,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { sell2: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 })),
             struct_break_dir: None,
             force: None,
         };
@@ -5744,7 +2277,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (c, tower.clone(), i as u64, i as u64)
+            (c, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         // 订单轨新基线锚点：父根 + 级联（二类关）+ 新开短差空腿（censored）恰三条 typed
@@ -5864,7 +2397,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (cls, tower.clone(), i as u64, i as u64)
+            (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         // 锚点：父 + 子恰两条 typed，双双 RiskExit @18（punitive 段起点强平，无窗口终点 censored）。
@@ -5973,7 +2506,8 @@ mod tests {
                 let (cls, tower) = classifier_incr.classify_at(i);
                 let gen = classifier_incr.tower_generation();
                 let fe = classifier_incr.forest_epoch();
-                (cls, tower, gen, fe)
+                let cl = classifier_incr.tower_confirmed_lens(tower.len());
+                (cls, tower, cl, gen, fe)
             },
             train_bars,
             nav,
@@ -6111,7 +2645,8 @@ mod tests {
                         let (cls, tower) = classifier_incr.classify_at(i);
                         let gen = classifier_incr.tower_generation();
                         let fe = classifier_incr.forest_epoch();
-                        (cls, tower, gen, fe)
+                        let cl = classifier_incr.tower_confirmed_lens(tower.len());
+                        (cls, tower, cl, gen, fe)
                     },
                     bars,
                     nav,
@@ -6220,7 +2755,8 @@ mod tests {
                 let (cls, tower) = classifier_incr.classify_at(i);
                 let gen = classifier_incr.tower_generation();
                 let fe = classifier_incr.forest_epoch();
-                (cls, tower, gen, fe)
+                let cl = classifier_incr.tower_confirmed_lens(tower.len());
+                (cls, tower, cl, gen, fe)
             },
             train_bars,
             nav,
@@ -6307,7 +2843,8 @@ mod tests {
                 let (cls, tower) = classifier_incr.classify_at(i);
                 let gen = classifier_incr.tower_generation();
                 let fe = classifier_incr.forest_epoch();
-                (cls, tower, gen, fe)
+                let cl = classifier_incr.tower_confirmed_lens(tower.len());
+                (cls, tower, cl, gen, fe)
             },
             train_bars,
             nav,
@@ -6429,7 +2966,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (cls, tower.clone(), i as u64, i as u64)
+            (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         // 既有账锚点：父 + 子各一条 typed（子 = ShortDiff 一类平），场景真实含短差生命周期。
@@ -6493,19 +3030,21 @@ mod tests {
         // 父 L1 buy1@12（Ambient）；子 L0 buy1@16（顺父 Long ⟹ FollowParent）。
         let fp_buy_child = BspPoint {
             source_index: 16,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 120,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 })),
             struct_break_dir: None,
             force: None,
         };
         let fp_buy_parent = BspPoint {
             source_index: 12,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 })),
             struct_break_dir: None,
             force: None,
         };
@@ -6524,13 +3063,13 @@ mod tests {
         let tower = e_tower();
         let classify = move |i: usize| {
             if i >= 19 {
-                (Classification::default(), tower.clone(), i as u64, i as u64)
+                (Classification::default(), tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
             } else if i >= 17 {
-                (cls_both.clone(), tower.clone(), i as u64, i as u64)
+                (cls_both.clone(), tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
             } else if i >= 13 {
-                (cls_parent_only.clone(), tower.clone(), i as u64, i as u64)
+                (cls_parent_only.clone(), tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
             } else {
-                (Classification::default(), tower.clone(), i as u64, i as u64)
+                (Classification::default(), tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
             }
         };
         let mut config = ThetaConfig::default();
@@ -6750,15 +3289,15 @@ mod tests {
     // ──────────────────────────────────────────────────────────────────────
 
     /// 合成 classify 闭包工厂：买点 buy1@3 在 bar≥7 确认（同 `..produces_trades_nonempty`），空塔。
-    fn buy1_at3_confirmed_at7() -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64) {
+    fn buy1_at3_confirmed_at7() -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64) {
         let classification = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
         };
         move |i| {
             if i >= 7 {
-                (classification.clone(), Vec::new(), i as u64, i as u64)
+                (classification.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64, i as u64)
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
             }
         }
     }
@@ -6947,11 +3486,11 @@ mod tests {
         };
         let classify = move |i: usize| {
             if i >= 14 {
-                (cls_both.clone(), Vec::new(), i as u64, i as u64)
+                (cls_both.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else if i >= 7 {
-                (cls_sell.clone(), Vec::new(), i as u64, i as u64)
+                (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64, i as u64)
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
             }
         };
         let config = ThetaConfig::default();
@@ -6999,11 +3538,11 @@ mod tests {
         };
         let classify3 = move |i: usize| {
             if i >= 14 {
-                (cls_rev.clone(), Vec::new(), i as u64, i as u64)
+                (cls_rev.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else if i >= 7 {
-                (cls_buy.clone(), Vec::new(), i as u64, i as u64)
+                (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64, i as u64)
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
             }
         };
         let bars3: Vec<Bar> = (0..20).map(px100_bar).collect();
@@ -7148,17 +3687,18 @@ mod tests {
         };
         BspPoint {
             source_index: si,
+            level_origin: 0,
             bits,
             pivot_low: 0,
             pivot_high: 20_000_000_000, // px 200 ≫ 100 ⟹ 不触及
-            center: Some(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 9_500_000_000, zg: 10_500_000_000, dd: 9_000_000_000, gg: 11_000_000_000, start_index: 0, end_index: si })),
             struct_break_dir: None,
             force: None,
         }
     }
 
     /// 两阶段合成闭包：bar≥7 出 buy1@3；bar≥14 追加 sell@12（class 可选）。
-    fn buy_then_sell(sell_class: u8) -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, u64, u64) {
+    fn buy_then_sell(sell_class: u8) -> impl Fn(usize) -> (Classification, Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>>, Vec<usize>, u64, u64) {
         let cls_buy = Classification {
             levels: vec![LevelState { bsp: Rc::new(vec![buy1_at(3)]), ..Default::default() }],
         };
@@ -7167,11 +3707,11 @@ mod tests {
         };
         move |i| {
             if i >= 14 {
-                (cls_both.clone(), Vec::new(), i as u64, i as u64)
+                (cls_both.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else if i >= 7 {
-                (cls_buy.clone(), Vec::new(), i as u64, i as u64)
+                (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
             } else {
-                (Classification::default(), Vec::new(), i as u64, i as u64)
+                (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
             }
         }
     }
@@ -7268,8 +3808,8 @@ mod tests {
         };
         let fill = pi_theta_fill_loop(
             move |i| {
-                if i >= 7 { (cls_buy.clone(), Vec::new(), i as u64, i as u64) }
-                else { (Classification::default(), Vec::new(), i as u64, i as u64) }
+                if i >= 7 { (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64) }
+                else { (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64) }
             },
             &bars, 1.0e6, &config, None,
         );
@@ -7340,13 +3880,13 @@ mod tests {
         let fill = pi_theta_fill_loop(
             move |i| {
                 if i >= 17 {
-                    (cls_rebuy.clone(), Vec::new(), i as u64, i as u64)
+                    (cls_rebuy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else if i >= 14 {
-                    (cls_sell.clone(), Vec::new(), i as u64, i as u64)
+                    (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else if i >= 7 {
-                    (cls_buy.clone(), Vec::new(), i as u64, i as u64)
+                    (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else {
-                    (Classification::default(), Vec::new(), i as u64, i as u64)
+                    (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
                 }
             },
             &bars,
@@ -7453,13 +3993,13 @@ mod tests {
         let fill = pi_theta_fill_loop(
             move |i| {
                 if i >= 17 {
-                    (cls_rebuy.clone(), Vec::new(), i as u64, i as u64)
+                    (cls_rebuy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else if i >= 14 {
-                    (cls_sell.clone(), Vec::new(), i as u64, i as u64)
+                    (cls_sell.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else if i >= 7 {
-                    (cls_buy.clone(), Vec::new(), i as u64, i as u64)
+                    (cls_buy.clone(), Vec::new(), Vec::new(), i as u64, i as u64)
                 } else {
-                    (Classification::default(), Vec::new(), i as u64, i as u64)
+                    (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64)
                 }
             },
             &bars,
@@ -7530,7 +4070,7 @@ mod tests {
             } else {
                 Classification::default()
             };
-            (cls, tower.clone(), i as u64, i as u64)
+            (cls, tower.clone(), tower.iter().map(|lv| lv.len()).collect::<Vec<usize>>(), i as u64, i as u64) // 合成静态塔：全塔跨 bar 位稳定 ⟹ confirmed_lens=全长（三方合并 schema 适配）
         };
         let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
         let child: Vec<_> = fill
@@ -7757,6 +4297,2104 @@ mod tests {
         assert!(ov.account_price_pnl.is_finite(), "账户净额价格 PnL 有限");
     }
 
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★★W1：声部独立执行臂（churn 修复，netting-vs-voice-execution-audit-20260719 §7）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// ★W1 决策层 bit-exact + 事件驱动 fill（审计 §7.4 验收）：同一合成信号（buy@3 确认7 →
+    /// sell@12 确认14）下，声部臂 typed_ledger/tw_final 与净额臂逐字段一致（决策单源 = 净额
+    /// 影子账本，禁第二裁决源）；fill 只在声部开/合产生——20 bar 窗恰 2 个 fill 事件（开+平），
+    /// 事件驱动上界 n_fills ≤ 2×n_voices；平仓按声部一次性结算（1 行），非逐 fill 切碎。
+    #[test]
+    fn voice_exec_event_driven_fills_decision_bitexact() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let baseline = pi_theta_fill_loop(buy_then_sell(1), &bars, 1.0e6, &config, None);
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+        let fill = pi_theta_fill_loop_voice(buy_then_sell(1), &bars, 1.0e6, &config, None, &mut book);
+        // ③ 决策层 bit-exact：typed ledger / TW 终态逐字段一致。
+        assert_eq!(fill.typed_ledger, baseline.typed_ledger, "决策单源 ⟹ typed_ledger bit-exact");
+        assert_eq!(fill.tw_final, baseline.tw_final, "TW 由净额影子驱动 ⟹ tw_final bit-exact");
+        // ② 事件驱动 fill：开+平 = 恰 2 个 fill 事件（声部事件率 ≪ bar 率；无事件 bar 零订单）。
+        assert_eq!(fill.n_orders, 2, "恰 开+平 2 fill，实得 {}", fill.n_orders);
+        assert_eq!(book.n_fills(), 2);
+        assert_eq!(book.total_voices(), 1, "恰 1 个声部 campaign");
+        assert!(book.n_fills() <= 2 * book.total_voices(), "事件驱动上界（§7.4 断言）");
+        // ②' sizing 冻结：毛周转 = q开+q平（存续期零重定——churn 修复直接见证；净额臂同信号
+        //    下 trade_pnls 可有多段减仓，声部臂恒 = 1 round-trip 1 结算）。
+        let closed = &book.closed_voices()[0];
+        assert_eq!(book.gross_turnover_lots() % 2, 0, "G = q开+q平 = 2q（开平对称）");
+        assert!(!closed.forced);
+        assert!(closed.fee_paid > 0.0, "开+平费实付");
+        // 按声部结算：平仓费后已实现恰 1 行 + 1 条 TradeRecord（非逐 fill 切碎）。
+        assert_eq!(fill.trade_pnls_realized.len(), 1);
+        assert_eq!(fill.trades.len(), 1);
+        assert!(!fill.trades[0].forced_close);
+        assert_eq!(fill.trade_pnls_realized[0], closed.pnl_net, "输出 PnL = 簿内声部结算行（同源）");
+        // 声部账户守恒（R 分解，loop 内 debug_assert 同锚；release 复核）。
+        let r = fill.r_decomp.expect("声部臂产 R 分解");
+        let tol = 1e-6_f64.max(1e-9 * (1.0e6 + r.price_pnl_gross.abs()));
+        assert!(r.conservation_residual.abs() <= tol, "声部账户守恒残差 {} 超容差", r.conservation_residual);
+        // 价格 PnL 对账（PDF §11）：Σpnl_price == account_price_pnl。
+        assert!((book.total_voice_price_pnl() - book.account_price_pnl()).abs() < 1e-6);
+    }
+
+    /// ★W1 sizing 冻结（churn 机制修复直接见证）：锯齿价格（NAV/px 每 bar 剧烈漂移 ⟹ 净额臂
+    /// base_units=equity_nav/px 每 bar 重算）下，声部臂仍只有 1 个 fill 事件（开仓）——q_v 开仓
+    /// 时刻冻结，存续期零重定（无事件 bar 零订单）；窗口终点虚拟强平产 1 行 forced PnL。
+    #[test]
+    fn voice_exec_frozen_sizing_under_nav_drift() {
+        let config = ThetaConfig::default();
+        // 锯齿价（与 run_theta_v0_pi_overlay_reconciles_and_bit_exact_net 同款）：px 大幅摆动
+        // ⟹ base_units 每 bar 漂移（churn 机制根源，审计 §5.1），净额臂 target 随之漂移。
+        let bars: Vec<Bar> = (0..60)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
+            })
+            .collect();
+        let baseline = pi_theta_fill_loop(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None);
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+        let fill = pi_theta_fill_loop_voice(buy1_at3_confirmed_at7(), &bars, 1.0e6, &config, None, &mut book);
+        // 决策层 bit-exact（锯齿 + 漂移下仍成立——影子账本承载全部决策真值）。
+        assert_eq!(fill.typed_ledger, baseline.typed_ledger, "typed_ledger bit-exact");
+        assert_eq!(fill.tw_final, baseline.tw_final, "tw_final bit-exact");
+        // sizing 冻结核心断言：价格/ NAV 全程漂移，fill 仍只有开仓 1 次（无 churn fill）。
+        assert_eq!(fill.n_orders, 1, "冻结 sizing ⟹ 仅开仓 1 fill（存续期零重定），实得 {}", fill.n_orders);
+        assert_eq!(book.total_voices(), 1);
+        // 窗口终点在飞 1 声部 ⟹ censored 强平（虚拟兑现）：1 行 forced PnL + 1 条 forced TradeRecord。
+        assert_eq!(fill.trade_pnls_realized.len(), 0, "无平仓 fill ⟹ 无已实现行");
+        assert_eq!(fill.trade_pnls_with_forced.len(), 1, "强平含浮盈 1 行");
+        assert_eq!(fill.trades.len(), 1);
+        assert!(fill.trades[0].forced_close);
+        assert!(book.closed_voices()[0].forced);
+        // 守恒（含强平在飞持仓 MtM 的 ledger_delta 口径）。
+        let r = fill.r_decomp.expect("R 分解");
+        let tol = 1e-6_f64.max(1e-9 * (1.0e6 + r.price_pnl_gross.abs()));
+        assert!(r.conservation_residual.abs() <= tol, "守恒残差 {} 超容差", r.conservation_residual);
+        assert!((book.total_voice_price_pnl() - book.account_price_pnl()).abs() < 1e-6, "Σpnl_price 对账");
+    }
+
+    /// ★W1 无信号零订单（事件驱动的空集情形）：全程无分类事件 ⟹ opened/closed 全空 ⟹
+    /// 声部簿零 fill、零持仓、零费用（不伪造执行事实）。
+    #[test]
+    fn voice_exec_no_signal_zero_fills() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let mut book =
+            super::super::super::strategy::overlay_state::VoiceExecBook::new(1.0e6);
+        let fill = pi_theta_fill_loop_voice(
+            |i| (Classification::default(), Vec::new(), Vec::new(), i as u64, i as u64),
+            &bars,
+            1.0e6,
+            &config,
+            None,
+            &mut book,
+        );
+        assert_eq!(fill.n_orders, 0);
+        assert_eq!(book.n_fills(), 0);
+        assert_eq!(book.gross_turnover_lots(), 0);
+        assert!(fill.trade_pnls_with_forced.is_empty());
+        assert!(fill.equity_curve.iter().all(|&e| e == 1.0), "无持仓零费用 ⟹ 权益恒 1");
+    }
+
+    /// ★W1 env gate（④⑤）：VOICE_EXEC 关闭 ⟹ 生产路径逐字节不变（bit-exact 回归锁）；
+    /// 开启 ⟹ 声部执行读数装配 + 决策层 TW 与净额 bit-exact + 验收量（上界/守恒/对账）成立。
+    /// 线程局部注入（并行安全；进程级 env 不动——OPSEM_DUMP_DIR_OVERRIDE 同惯例）。
+    #[test]
+    fn voice_exec_env_gate_off_bitexact_on_voice_readings() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..60)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
+            })
+            .collect();
+        let ds = Dataset {
+            symbol: "ZZ60W1".to_string(),
+            bars,
+            dates: (0..60).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
+        };
+        let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        // (1) gate 关 ⟹ 逐字节不变（env 未设语义，线程局部注入 false 显式锚定）。
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(false)));
+        let off = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        assert!(off.voice_exec.is_none(), "gate 关 ⟹ 无声部读数（None，不伪造）");
+        assert_eq!(off.net_result.n_orders, baseline.n_orders, "gate 关 ⟹ n_orders bit-exact");
+        assert_eq!(off.net_result.trades, baseline.trades, "trades bit-exact");
+        assert_eq!(
+            off.net_result.metrics.strat_return, baseline.metrics.strat_return,
+            "strat_return bit-exact"
+        );
+        assert_eq!(off.net_result.equity_curve, baseline.equity_curve, "equity bit-exact");
+        // (2) gate 开 ⟹ 声部执行读数；决策层 TW 与净额 bit-exact。
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(Some(true)));
+        let on = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        VOICE_EXEC_OVERRIDE.with(|c| c.set(None));
+        let vs = on.voice_exec.expect("VOICE_EXEC=1 ⟹ 声部执行读数 Some");
+        assert_eq!(on.tw_final, off.tw_final, "TW 由净额影子驱动 ⟹ gate 开/关 bit-exact");
+        assert_eq!(vs.n_voice_fills, on.net_result.n_orders, "n_orders = 声部 fill 事件数（同源）");
+        assert!(vs.event_bound_holds, "n_voice_fills({}) ≤ 2×n_voices({})", vs.n_voice_fills, vs.n_voices_total);
+        assert_eq!(vs.n_voice_fills, vs.book.n_fills(), "读数与簿同源");
+        let tol = 1e-6_f64.max(1e-9 * 1.0e6);
+        assert!(vs.conservation_residual.abs() <= tol, "声部账户守恒残差 {} 超容差", vs.conservation_residual);
+        assert!(vs.price_pnl_reconcile_residual < 1e-6, "价格 PnL 对账残差 {}", vs.price_pnl_reconcile_residual);
+        // 事件驱动上界（构造性）：fill 数 ≤ 2×声部数（resize 事件默认空集）。
+        assert!(vs.n_voice_fills <= 2 * vs.n_voices_total, "事件驱动上界");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★nest-gate（进出场区间套证书门，实装报告 nest-exit-gate-impl-20260719）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// nest-gate 夹具：lvl0 单段塔 [15,19]（执行段 end_index=19）。
+    fn ng_tower() -> Vec<std::rc::Rc<Vec<classifier::recursive_tower::LeveledMove>>> {
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::types::Direction;
+        vec![std::rc::Rc::new(vec![LeveledMove {
+            rmove: RMove::Segment { direction: Direction::Down, lo: 30, hi: 85 },
+            start_index: 15,
+            end_index: 19,
+            sub_moves: std::rc::Rc::new(vec![]),
+            id: ElementId { level: 0, ordinal: 0 },
+        }])]
+    }
+
+    /// nest-gate 夹具：levels[0].bsp 携单个 source_index=19 候选点的前缀分类。
+    fn ng_classification(bits: super::super::super::types::BspBits) -> classifier::Classification {
+        use super::super::super::classifier::bsp::BspPoint;
+        use super::super::super::classifier::LevelState;
+        classifier::Classification {
+            levels: vec![LevelState {
+                moves: Vec::new(),
+                // #218 面 B（机械改写归因）：账本层补 B 中枢（带 (0,0)，start=20 查找键）——
+                // 各 nest-gate 测试的 owner 夹具点带判等（Center 载体带 (0,0) == B 带）。
+                centers: std::rc::Rc::new(vec![
+                    super::super::super::types::Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 },
+                ]),
+                cp_ownership: std::rc::Rc::new(Vec::new()),
+                bsp: std::rc::Rc::new(vec![BspPoint {
+                    source_index: 19,
+                    level_origin: 0,
+                    bits,
+                    pivot_low: 0,
+                    pivot_high: 0,
+                    center: None,
+                    struct_break_dir: None,
+                    force: None,
+                }]),
+                pan_div: std::rc::Rc::new(Vec::new()),
+                level_projection: None,
+            }],
+            ..Default::default()
+        }
+    }
+
+    /// nest-gate 夹具：候选（level=0，显式 dir/bits/source_index；role/nest_confirmed 不参门）。
+    fn ng_candidate(
+        dir: super::super::super::strategy::voice::VoiceSide,
+        bits: super::super::super::types::BspBits,
+        source_index: usize,
+    ) -> super::super::super::strategy::interp::Candidate {
+        use super::super::super::strategy::coverage::{Dir, GradeRel, Horizontal, OperationRole, Vertical};
+        super::super::super::strategy::interp::Candidate {
+            level: 0,
+            source_index,
+            bits,
+            dir,
+            bsp_class: 3,
+            role: OperationRole { h: Horizontal::First, v: Vertical::Ambient, delta: Dir::Plus, grade: GradeRel::SameLevel },
+            nest_confirmed: false, // 贴标字段不参门（门消费 build_gate_certificate，单一裁决源）
+            gamma_index: 0,
+            force: None,
+        }
+    }
+
+    /// NG-E①（合法证书放行）：lvl==0 真三类 buy3 候选——Type3 base gate lvl0 存在性免门
+    /// （econ_positive.rs:2081-2086 同夹具先例）⟹ Nest 通道证书 Some，rungs 空基例
+    /// n_delta = Conf⁺_e = buy3 置位 ⟹ 放行（通道 nest_pass）。
+    /// NG-E②（非法拒绝）：(a) 无执行段（source_index=25 不在塔中）⟹ 证书 None ⟹ 拒；
+    /// (b) 零 bit StructBreak 候选 ⟹ 恒 None 门拒（codex 终局裁决A，econ_positive.rs:2050
+    /// 同夹具先例）；(c) Flat 方向 ⟹ 拒（与 nest_confirm interp.rs:382 同语义）；
+    /// (d) 两级塔上级 rung cand=false（空 sub_moves，Type1 div_cand 假）⟹ n_delta=false
+    /// ⟹ 跨级递归真拒绝（可修复分量）。
+    /// NG-E③（内禀分量照实）：单级塔 rungs 空 ⟹ 基例退化放行（见断言处注释）。
+    #[test]
+    fn nest_gate_admit_semantics() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::BspBits;
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        // E① 放行：真三类 buy3，lvl==0。
+        let buy3 = BspBits { buy3: true, ..Default::default() };
+        let cls = ng_classification(buy3);
+        let c = ng_candidate(VoiceSide::Long, buy3, 19);
+        assert_eq!(
+            nest_gate_admit(&tower, &c, &hist, 19, &cls),
+            (true, "nest_pass"),
+            "合法 typed N^δ 证书（lvl0 Type3 基例）⟹ 放行"
+        );
+        // E②a 拒：无执行段定位（塔中无 end_index==25 的段）。
+        let c_no_seg = ng_candidate(VoiceSide::Long, buy3, 25);
+        assert_eq!(
+            nest_gate_admit(&tower, &c_no_seg, &hist, 19, &cls),
+            (false, "cert_none"),
+            "无执行段 ⟹ 证书 None ⟹ 拒"
+        );
+        // E②b 拒：零 bit StructBreak（不复用 Type3 免门通道）。
+        let zero = BspBits::default();
+        let cls_zero = ng_classification(zero);
+        let c_zero = ng_candidate(VoiceSide::Long, zero, 19);
+        assert_eq!(
+            nest_gate_admit(&tower, &c_zero, &hist, 19, &cls_zero),
+            (false, "cert_none"),
+            "零 bit StructBreak ⟹ 恒门拒"
+        );
+        // E②c 拒：Flat 方向（无方向无确认）。
+        let c_flat = ng_candidate(VoiceSide::Flat, buy3, 19);
+        assert_eq!(
+            nest_gate_admit(&tower, &c_flat, &hist, 19, &cls),
+            (false, "flat_dir"),
+            "Flat 方向候选 ⟹ 拒"
+        );
+        // E③（内禀分量照实登记）：Type1 buy1 单级塔（rungs 空）⟹ n_delta 退化为基例
+        // Conf⁺_e=buy1 ⟹ **放行**——单级读不出的伪候选只能由跨级 rungs/base gate 构造性
+        // 拒绝（econ 实测 95.36% 基例退化同型，econ_positive.rs:349-352），鉴别力稀薄
+        // 内禀于塔现状，不是门实装缺陷。
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let cls_t1 = ng_classification(buy1);
+        let c_t1 = ng_candidate(VoiceSide::Long, buy1, 19);
+        assert_eq!(
+            nest_gate_admit(&tower, &c_t1, &hist, 19, &cls_t1),
+            (true, "nest_pass"),
+            "单级塔 rungs 空 ⟹ 基例退化放行（内禀分量，照实登记）"
+        );
+        // E②d 拒（可修复分量，跨级递归真拒绝）：两级塔——上级 rung 存在但
+        // cand=false（Type1 div_cand 对空 sub_moves 假）⟹ n_delta=false ⟹ 拒。
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::types::Direction;
+        let upper = LeveledMove {
+            rmove: RMove::Segment { direction: Direction::Up, lo: 20, hi: 90 },
+            start_index: 10,
+            end_index: 30,
+            sub_moves: std::rc::Rc::new(vec![]), // 空 ⟹ rung cand=false
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+        let mut tower2 = ng_tower();
+        tower2.push(std::rc::Rc::new(vec![upper]));
+        assert_eq!(
+            nest_gate_admit(&tower2, &c_t1, &hist, 19, &cls_t1),
+            (false, "nest_n_delta_false"),
+            "跨级 rung cand=false ⟹ N^δ=0 ⟹ 真拒绝（区间套递归分量）"
+        );
+    }
+
+    /// NG-E③（同源对拍，实装卡 §3.4-2）：π 新门的通过读出（Nest→n_delta / Xzd→gate_pass /
+    /// None→拒）与 econ 门读出（econ_positive.rs:367-371）逐候选一致——对同一批夹具候选
+    /// 独立构造两条读出路径比对，不一致 = 第二裁决源实锤。
+    #[test]
+    fn nest_gate_readout_matches_econ_gate() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Side};
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        for bits in [
+            BspBits { buy3: true, ..Default::default() },
+            BspBits { buy1: true, ..Default::default() },
+            BspBits::default(),
+        ] {
+            let cls = ng_classification(bits);
+            let c = ng_candidate(VoiceSide::Long, bits, 19);
+            // π 门读出（生产消费点）。
+            let (pi_pass, _) = nest_gate_admit(&tower, &c, &hist, 19, &cls);
+            // econ 门读出（econ_positive.rs:364-371 同判据路径，独立构造）。
+            let econ_pass = match super::super::econ_positive::build_gate_certificate(
+                &tower, 0, 19, Side::Long, &bits, &hist, 19, &cls.levels[0].bsp, &[], &[],
+            ) {
+                Some(super::super::econ_positive::GateCertificate::Nest(cert)) => cert.n_delta(),
+                Some(super::super::econ_positive::GateCertificate::Xzd(ev)) => ev.gate_pass(),
+                None => false,
+            };
+            assert_eq!(pi_pass, econ_pass, "bits={bits:?}：π/econ 门读出发散 = 第二裁决源");
+        }
+    }
+
+    /// NG-E④（默认路径回归锁）：门关闭（env 未设语义，线程局部注入 false 显式锚定）⟹
+    /// π 路径逐字节不变；门开启 ⟹ 候选集只缩不增（订单数 ≤ 基线，门的设计语义，非回归）。
+    #[test]
+    fn nest_gate_env_gate_off_bitexact_on_shrinks_only() {
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..60)
+            .map(|i| {
+                let up = ((i / 4) % 2) == 0;
+                let base = 10_000_000_000i64;
+                let step = 250_000_000i64 * ((i % 4) as i64);
+                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
+            })
+            .collect();
+        let ds = Dataset {
+            symbol: "ZZ60NG".to_string(),
+            bars,
+            dates: (0..60).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
+        };
+        let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        // (1) 门关 ⟹ 逐字节不变（bit-exact 回归锁，VOICE_EXEC 同惯例）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
+        let off = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        assert_eq!(off.n_orders, baseline.n_orders, "门关 ⟹ n_orders bit-exact");
+        assert_eq!(off.trades, baseline.trades, "门关 ⟹ trades bit-exact");
+        assert_eq!(
+            off.metrics.strat_return, baseline.metrics.strat_return,
+            "门关 ⟹ strat_return bit-exact"
+        );
+        assert_eq!(off.equity_curve, baseline.equity_curve, "门关 ⟹ equity bit-exact");
+        // (2) 门开 ⟹ 准入只缩不增（剔除 ⟹ 不开仓；μ 桶键/R5-1 不触碰）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let on = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        assert!(
+            on.n_orders <= baseline.n_orders,
+            "门开 ⟹ 订单只缩不增（on={} baseline={}）",
+            on.n_orders, baseline.n_orders
+        );
+        assert!(
+            on.trades.len() <= baseline.trades.len(),
+            "门开 ⟹ trades 只缩不增"
+        );
+    }
+
+    // ───────────── #75（N3-T2 进场门真链切换）─────────────
+
+    /// #75 夹具：合成 typed nest 事件（nest_index.rs 测试同型；`b_center_start`=20 配合
+    /// 终端背书点 owner 中枢 start_index=20）。
+    fn nc_event(
+        level: u32,
+        side: super::super::super::types::Side,
+        interval_b: (usize, usize),
+        turn_source: usize,
+        judge_at: usize,
+        confirmed: bool,
+    ) -> classifier::level_view::NestCandidateEvent {
+        classifier::level_view::NestCandidateEvent {
+            level,
+            side,
+            kind: classifier::level_view::NestDivergenceKind::Trend,
+            seg_a: (interval_b.0.saturating_sub(5), interval_b.0),
+            interval_b,
+            interval_a: (interval_b.0.saturating_sub(10), interval_b.1 + 10),
+            divergence_confirmed: confirmed,
+            turn_source,
+            judge_at,
+            provider_window: (0, usize::MAX),
+            intake_fallback: false,
+            b_center_start: 20,
+        }
+    }
+
+    fn nc_ext(
+        event: classifier::level_view::NestCandidateEvent,
+    ) -> classifier::level_view::NestCandidateEventExt {
+        // T1 (#170)：无锚夹具（None = 缺锚路径）——旧用例语义不变；需锚用 `nc_ext_anchored`。
+        // T5b (#208)：`seg_c_full` 值桥载体已删（出场旧桥四件删除账）。
+        classifier::level_view::NestCandidateEventExt {
+            event,
+            extreme_price: None,
+            group_anchor: None,
+        }
+    }
+
+    /// T1 (#170) 夹具：携两元锚 sidecar 的 ext（方向留 event.side 交易层，T5a 不进身份键）。
+    fn nc_ext_anchored(
+        event: classifier::level_view::NestCandidateEvent,
+        price: super::super::super::types::Tick,
+        anchor: usize,
+    ) -> classifier::level_view::NestCandidateEventExt {
+        classifier::level_view::NestCandidateEventExt {
+            event,
+            extreme_price: Some(price),
+            group_anchor: Some(anchor),
+        }
+    }
+
+    /// T1 (#170) 键域重锚登记 → T5a (#207 去方向位)：新单键域 (ℓ, 极值价, 组锚@ℓ) →
+    /// 身份集——无门纯增写；极值价精确等值无容差（1 tick 差即分键，v3 硬禁令）；同价
+    /// 碰撞（W 底双脚）由合并组区分；缺锚事件跳过新键域并照实计数（诚实缺锚）；**方向位
+    /// 自身份键退役**（ADR 20260723 裁定 1——跨向事件同键合流）。T4 (#173)：`by_end_multi`
+    /// 登记已删；T5b (#208)：旧出场侧 `by_end` 登记已删（#206 Q3 判删）。
+    #[test]
+    fn absorb_registers_triple_anchor_domain_additively() {
+        use super::super::super::types::Side;
+        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let e1 = nc_event(1, Side::Long, (30, 50), 50, 100, true);
+        let e2 = nc_event(1, Side::Long, (60, 90), 90, 110, true);
+        gate.absorb_exts(vec![
+            nc_ext_anchored(e1, 1000, 55),
+            nc_ext_anchored(e2, 1001, 95), // 极值价仅差 1 tick
+        ]);
+        let id1 = classifier::nest::NestEventIdentity::of(&e1);
+        let id2 = classifier::nest::NestEventIdentity::of(&e2);
+        // 新键域：(ℓ, 极值价, 组锚) → 身份集；1 tick 价差分键（精确等值、无容差）。
+        assert_eq!(
+            gate.by_triple_anchor.get(&(1, 1000, 55)).map(Vec::as_slice),
+            Some(&[id1][..])
+        );
+        assert_eq!(
+            gate.by_triple_anchor.get(&(1, 1001, 95)).map(Vec::as_slice),
+            Some(&[id2][..]),
+            "极值价 1 tick 差即分键（无容差，v3 硬禁令）"
+        );
+        assert_eq!(gate.by_triple_anchor.len(), 2);
+        assert_eq!(gate.n_anchor_misses, 0);
+        // 缺锚事件：新键域跳过 + 计数（诚实缺锚，不冒充不降级）；事件账本照登。
+        let e3 = nc_event(2, Side::Short, (10, 20), 20, 120, true);
+        gate.absorb_exts(vec![nc_ext(e3)]);
+        assert_eq!(gate.events_by_level[2].len(), 1, "缺锚不影响事件账本登记");
+        assert_eq!(gate.by_triple_anchor.len(), 2, "缺锚事件不入新键域");
+        assert_eq!(gate.n_anchor_misses, 1, "缺锚计数照实落账");
+        // W 底双脚：同价不同组锚 ⟹ 两个键（教义裁定 4：碰撞由合并组区分，方向退役后同）。
+        let f1 = nc_event(3, Side::Long, (100, 110), 110, 130, true);
+        let f2 = nc_event(3, Side::Long, (200, 210), 210, 140, true);
+        gate.absorb_exts(vec![
+            nc_ext_anchored(f1, 888, 10),
+            nc_ext_anchored(f2, 888, 20),
+        ]);
+        assert!(gate.by_triple_anchor.contains_key(&(3, 888, 10)));
+        assert!(gate.by_triple_anchor.contains_key(&(3, 888, 20)), "同价碰撞由合并组区分");
+    }
+
+    /// #75-T1（增量喂法账本纪律）：只收确认事件（未确认过不了基例门/N2 门，对索引零贡献）；
+    /// 同身份 first-wins（judge_at 保首次观察，不后移）。T5b (#208)：旧 `by_end` 值桥键
+    /// 登记断言随出场桥删除（#206 Q3 判删）。
+    #[test]
+    fn nest_chain_absorb_confirmed_only_first_wins() {
+        use super::super::super::types::Side;
+        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let confirmed = nc_event(1, Side::Long, (30, 50), 50, 100, true);
+        let unconfirmed = nc_event(1, Side::Long, (60, 90), 90, 110, false);
+        gate.absorb_exts(vec![nc_ext(confirmed), nc_ext(unconfirmed)]);
+        assert_eq!(gate.events_by_level.len(), 2, "事件账本按级落槽");
+        assert_eq!(gate.events_by_level[1].len(), 1, "未确认事件不入账本");
+        assert_eq!(gate.events_by_level[1][0].judge_at, 100);
+        // 同身份再观察（judge_at=200 更晚）⟹ first-wins，不后移。
+        let later = nc_event(1, Side::Long, (30, 50), 50, 200, true);
+        gate.absorb_exts(vec![nc_ext(later)]);
+        assert_eq!(gate.events_by_level[1].len(), 1, "同身份去重");
+        assert_eq!(gate.events_by_level[1][0].judge_at, 100, "首次观察钟不后移");
+    }
+
+    /// #112-T1 → T3 (#172) 改写（判定源迁移）：候选 origin=0、证书仅在 ℓ=2（origin+2）时，
+    /// 严格链要求 [L0, 链顶] 逐级闭合——L0/L1 缺证 ⟹ 断/缺拒（nest_n_delta_false），
+    /// **不再**放行。（T3 前本测试断言「multi ℓ=2 命中成为进场唯一判定源 nest_pass」——
+    /// 该形态即 #163 裁定 1 判退役的并集跳查：高级有证而中间断不算。T4 (#173)：并集
+    /// shadow 列已随旧桥退役删除，本测试只锁链判定与谱系。）
+    #[test]
+    fn nest_chain_gate_admit_consumes_deeper_multi_level_hit() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::BspBits;
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        // T3 链夹具：存在性 L0/L1/L2 全置，证书仅 ℓ=3（账本级 L2）——L0/L1 缺环。
+        let classification = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[3], 100, &classification);
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let candidate = ng_candidate(VoiceSide::Long, buy1, 55);
+        let (admit, channel, obs) =
+            gate.admit(&tower, &candidate, &hist, 100, &classification);
+        assert_eq!(
+            (admit, channel),
+            (false, "nest_n_delta_false"),
+            "T3 链判定：L2 独证而 L0/L1 缺 ⟹ 缺/断拒"
+        );
+        assert_eq!(obs.chain_top, Some(2), "链顶 = L2（层间联动给出）");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Reject);
+        assert_eq!(
+            obs.chain_first_gap,
+            Some((1, ChainGapKind::Broken)),
+            "L1 上方有 L2 闭合 ⟹ 断（高级有证而中间断）"
+        );
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_reject_broken, 1, "链断环拒计数");
+    }
+
+    /// #112-T2 → T3 (#172)（进场因果守卫）：唯一证书 judge_at=100 越过 anchor=19；旧 fixed
+    /// 桥读出虽命中（fixed 桥无因果守卫——该桥四件已随 T5b (#208) 删除），严格链整证剔除
+    /// （MissingCausal）⟹ NoChain，进入既有 Xzd fallback 三分支，而不是消费未来证书。
+    /// T4 (#173)：multi 路径与对照列已删，本测试锁链守卫 + 回退。
+    #[test]
+    fn nest_chain_gate_multi_causal_guard_falls_back_to_xzd() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Side};
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let mut gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let event = nc_event(1, Side::Long, (30, 50), 50, 100, true);
+        gate.absorb_exts(vec![nc_ext(event)]);
+
+        // 同一 levels[0] 同时承载：旧臂 Type3 候选点（src=19）与 typed 证书终端背书点。
+        let buy3 = BspBits { buy3: true, ..Default::default() };
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let endorsement_pt = {
+            use super::super::super::classifier::bsp::BspPoint;
+            use super::super::super::types::Center;
+            BspPoint {
+                source_index: 40, // owner 中枢 start=20（nc_event b_center_start=20 配套）
+                level_origin: 0,
+                bits: buy1,
+                pivot_low: 0,
+                pivot_high: 0,
+                center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+                struct_break_dir: None,
+                force: None,
+            }
+        };
+        let mut classification = ng_classification(buy3);
+        std::rc::Rc::make_mut(&mut classification.levels[0].bsp).push(endorsement_pt);
+        gate.sync_index(&classification);
+        let id = classifier::nest::NestEventIdentity::of(&event);
+        assert!(
+            gate.index.get(&id).is_some_and(|cert| cert.certificate().n_delta()),
+            "夹具前提：证书已装配且 n_delta 过（无守卫读法（旧 fixed 桥）会读到这张未来证书——链守卫整证剔除的对象）"
+        );
+
+        let candidate = ng_candidate(VoiceSide::Long, buy3, 19);
+        let (admit, channel, obs) =
+            gate.admit(&tower, &candidate, &hist, 19, &classification);
+        assert!(matches!(channel, "xzd_pass" | "xzd_gate_fail"), "越界证书剔除后走 Xzd，实际={channel}");
+        assert!(obs.xzd_fallback, "old-arm 为 Nest 时重走 build_xzd_fallback 既有分支");
+        assert_eq!(admit, channel == "xzd_pass", "判定来自既有 Xzd gate_pass 读出");
+    }
+
+    /// #75-T3 → T3 (#172) 改写（判定源迁移）：(a) 链全闭合（L0 单级链）⟹ nest_pass；
+    /// (b) 链 NoChain + Type1 ⟹ cert_none；(c) 链 NoChain ∧ L2 有证 ⟹ Xzd 回退（判定不消费
+    /// L2 nest 读出）；L2 旧臂对照差落账（cross_old_rej_new_pass 等）。T4 (#173)：并集
+    /// shadow 列已删，真链命中/链深读数不再入账。
+    #[test]
+    fn nest_chain_gate_typed_decides_l2_only_cross() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Side};
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let mut stats = NestGateStats::default();
+        // (a) 链全闭合准入：L0 存在 + 证书 ℓ=1（账本级 L0）⟹ 链 Pass ⟹ nest_pass；
+        //     旧臂在 src=55 无执行段 ⟹ None ⟹ old_admit=false ⟹ cross 旧拒新准。
+        let cls_chain = t3_chain_classification(&[(0, true)]);
+        let gate = t3_gate_with_certs(&[1], 100, &cls_chain);
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c_hit = ng_candidate(VoiceSide::Long, buy1, 55);
+        let (admit, channel, obs) = gate.admit(&tower, &c_hit, &hist, 100, &cls_chain);
+        assert_eq!((admit, channel), (true, "nest_pass"), "链全闭合 ⟹ 唯一判定源准入");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Pass);
+        assert_eq!(obs.chain_closed_down_to, Some(0), "单级链闭合到 L0");
+        assert!(!obs.old_admit && !obs.xzd_fallback, "旧臂对照：无执行段 ⟹ None");
+        stats.observe(admit, channel, obs);
+        // (b) 链 NoChain 案例：x=56 无分型（price 不可解）+ Type1 + 旧臂亦无执行段 ⟹ cert_none。
+        let c_miss = ng_candidate(VoiceSide::Long, buy1, 56);
+        let (admit, channel, obs) = gate.admit(&tower, &c_miss, &hist, 100, &cls_chain);
+        assert_eq!((admit, channel), (false, "cert_none"), "链 NoChain + Type1 ⟹ 拒");
+        assert_eq!(obs.chain_verdict, ChainVerdict::NoChain);
+        stats.observe(admit, channel, obs);
+        // (c) typed 无证 ∧ L2 有证（ng E①：lvl0 Type3 旧臂 nest_pass）⟹ 判定走 Xzd 回退，
+        //     **不**消费 L2 nest 读出；回退判定与 build_xzd_fallback 独立调用逐值一致。
+        let gate_empty = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let buy3 = BspBits { buy3: true, ..Default::default() };
+        let cls_b3 = ng_classification(buy3);
+        let c_b3 = ng_candidate(VoiceSide::Long, buy3, 19);
+        let (admit, channel, obs) = gate_empty.admit(&tower, &c_b3, &hist, 19, &cls_b3);
+        assert!(matches!(channel, "xzd_pass" | "xzd_gate_fail"), "Xzd 回退通道，实际={channel}");
+        assert!(obs.xzd_fallback, "Xzd 回退计数标记");
+        assert!(obs.old_admit, "旧臂对照：lvl0 Type3 免门 ⟹ nest_pass");
+        let expected = super::super::econ_positive::build_xzd_fallback(
+            &tower, 0, 19, Side::Long, &buy3, 19, &cls_b3.levels[0].bsp, &[], &[],
+        )
+        .map(|ev| ev.gate_pass())
+        .unwrap_or(false);
+        assert_eq!(admit, expected, "回退判定 = build_xzd_fallback 单一来源");
+        stats.observe(admit, channel, obs);
+        // (d) 对照读出一致性落账：(a) 旧拒新准 ×1、(c) 旧准（新走 Xzd 回退，结果由 gate_pass 定）。
+        assert_eq!(stats.cross_old_rej_new_pass, 1, "(a) cross：旧拒新准");
+        assert_eq!(stats.xzd_fallback, 1, "(c) Xzd 回退计数");
+        let expected_cross_old_pass_new_rej = usize::from(!expected);
+        assert_eq!(
+            stats.cross_old_pass_new_rej, expected_cross_old_pass_new_rej,
+            "(c) cross：旧准新拒 ⟺ Xzd 回退未通过"
+        );
+    }
+
+    /// #75-T4（Xzd 复用路径）：typed 无证 ∧ 旧臂已落 Xzd ⟹ 直接复用旧臂 Xzd 判定
+    ///（不重复算 xiaozhuanda_confirm，不打 xzd_fallback 标记）。
+    /// T4 (#173) 改写注：「typed 无证」的现机制 = 链 NoChain（脚不可解）；
+    /// 本测试只锁复用语义（旧臂 Xzd 读出 = `build_xzd_fallback` 单一来源 ⟹ 直接复用）。
+    #[test]
+    fn nest_chain_gate_typed_none_reuses_old_xzd() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::BspBits;
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        // lvl=1 Type3 候选：旧臂 nest base gate（定律一下沉锚）在空次级账本下失败 ⟹ Xzd 通道。
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::LevelState;
+        use super::super::super::types::Direction;
+        let upper = LeveledMove {
+            rmove: RMove::Segment { direction: Direction::Up, lo: 20, hi: 90 },
+            start_index: 10,
+            end_index: 30,
+            sub_moves: std::rc::Rc::new(vec![]),
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+        let mut tower2 = tower.clone();
+        tower2.push(std::rc::Rc::new(vec![upper]));
+        let buy3 = BspBits { buy3: true, ..Default::default() };
+        let mk_pt = |src: usize| super::super::super::classifier::bsp::BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits: buy3,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        };
+        let cls2 = classifier::Classification {
+            levels: vec![
+                LevelState { bsp: std::rc::Rc::new(vec![]), ..Default::default() },
+                LevelState { bsp: std::rc::Rc::new(vec![mk_pt(30)]), ..Default::default() },
+            ],
+            ..Default::default()
+        };
+        let c = super::super::super::strategy::interp::Candidate { level: 1, ..ng_candidate(VoiceSide::Long, buy3, 30) };
+        let (old_admit, old_channel) = nest_gate_admit(&tower2, &c, &hist, 19, &cls2);
+        assert!(
+            matches!(old_channel, "xzd_pass" | "xzd_gate_fail"),
+            "夹具前提：旧臂落 Xzd 通道，实际={old_channel}"
+        );
+        let gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let (admit, channel, obs) = gate.admit(&tower2, &c, &hist, 19, &cls2);
+        assert_eq!((admit, channel), (old_admit, old_channel), "旧臂 Xzd 判定直接复用");
+        assert!(!obs.xzd_fallback, "复用路径不打回退标记");
+    }
+
+    /// #94（评审修复2）：cross 对照差剔除自证成分——typed 无证 ∧ 旧臂 Xzd 复用案例
+    /// admit≡old_admit by construction（判定复用旧臂读出），计入 cross_reuse 单列，
+    /// **不计入** cross_agree/old_pass_new_rej/old_rej_new_pass（复用通道非两路独立判定，
+    /// 其「一致」是自证，掺入 agree 会灌水对照差）。夹具同 T4。
+    #[test]
+    fn nest_chain_gate_cross_reuse_excluded_from_agree() {
+        use super::super::super::classifier::descend::RMove;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::classifier::LevelState;
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Direction};
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        // lvl=1 Type3 候选：旧臂 nest base gate（定律一下沉锚）在空次级账本下失败 ⟹ Xzd 通道。
+        let upper = LeveledMove {
+            rmove: RMove::Segment { direction: Direction::Up, lo: 20, hi: 90 },
+            start_index: 10,
+            end_index: 30,
+            sub_moves: std::rc::Rc::new(vec![]),
+            id: ElementId { level: 1, ordinal: 0 },
+        };
+        let mut tower2 = tower.clone();
+        tower2.push(std::rc::Rc::new(vec![upper]));
+        let buy3 = BspBits { buy3: true, ..Default::default() };
+        let mk_pt = |src: usize| super::super::super::classifier::bsp::BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits: buy3,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: None,
+            struct_break_dir: None,
+            force: None,
+        };
+        let cls2 = classifier::Classification {
+            levels: vec![
+                LevelState { bsp: std::rc::Rc::new(vec![]), ..Default::default() },
+                LevelState { bsp: std::rc::Rc::new(vec![mk_pt(30)]), ..Default::default() },
+            ],
+            ..Default::default()
+        };
+        let c = super::super::super::strategy::interp::Candidate { level: 1, ..ng_candidate(VoiceSide::Long, buy3, 30) };
+        // 夹具前提：typed 无证（现机制 = 链 NoChain，同 T4）∧ 旧臂落 Xzd 通道。
+        let (_old_admit, old_channel) = nest_gate_admit(&tower2, &c, &hist, 19, &cls2);
+        assert!(
+            matches!(old_channel, "xzd_pass" | "xzd_gate_fail"),
+            "夹具前提：旧臂落 Xzd 通道，实际={old_channel}"
+        );
+        let gate = NestChainGate::for_test(Vec::new(), Vec::new(), Vec::new());
+        let (admit, channel, obs) = gate.admit(&tower2, &c, &hist, 19, &cls2);
+        assert!(obs.reused_old_xzd, "复用通道打 reused_old_xzd 标记");
+        assert_eq!(admit, obs.old_admit, "复用通道 admit≡old_admit by construction");
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.cross_reuse, 1, "复用计入 cross_reuse 单列");
+        assert_eq!(stats.cross_agree, 0, "复用不计入 agree（剔除自证成分）");
+        assert_eq!(
+            stats.cross_old_pass_new_rej + stats.cross_old_rej_new_pass,
+            0,
+            "复用不入对照差两列"
+        );
+    }
+
+    // ───────────── T3（#172 严格链判定：链谱系；T4 (#173)：typed_lookup_multi/并集 shadow 已删；
+    // ───────────── T5a (#207)：方向退役——链查询/键域/层索引不再携带方向，方向见证已删）─────────────
+    //
+    // 语义 pin（#163 裁定 1 字面 + ADR 六术语 + ADR 20260723 裁定 1，实装理由见本测试块各断言注释）：
+    // - **身份判据 = 同点递归，方向退役**（T5a）：同一 x 可在不同级别分别为顶/底（各级自为真）；
+    //   脚身份 = (极值价, 组锚 a*) 两元；买卖标签留交易层（event.side/admit 裁决/Xzd 回退不动）。
+    // - **级别范围**：链级 = BSP 账本级（book level）；链区间 = [L0, 链顶] 对全候选一致
+    //   （「闭合到 L0」字面，候选本级是普通链级——链即身份，不靠候选自报 lvl 猜方向）；
+    //   证书查询键级 = 账本级 + 1（`event_bsp_book_level` T1 移位，与旧固定桥 ℓ=lvl+1 同移）。
+    // - **链顶** = x 为拐点的最高账本级（**不问分型类型**），由恰好存在经 T2 层索引层间联动
+    //   给出（非塔顶移动窗口、非固定 ℓ+1）；a* 自本级层 `source_index == c.source_index`
+    //   条目解析（禁第二查法：gate 不自行调 merged_group_anchor）。
+    // - **缺/断极性**（词汇表：缺环即拒=lvl+1 单级过证不算；断环即拒=高级有证而中间断不算）：
+    //   非闭合级 g 上方区间 (g, 链顶] 内有闭合级 ⟹ 断，否则缺；候选首位归因 = 最高非闭合级。
+    //   T5a 复核：判据不涉及方向分量，逐字保留。
+    // - **三态**：全链闭合 = Pass（nest_pass）；≥1 闭合级但有缺/断 = Reject（nest_n_delta_false，
+    //   对标旧 Some(pass=false) 语义位）；零闭合级 / 存在性全无 / 锚不可解 = NoChain（Xzd 回退
+    //   逐字不动，含因果守卫全剔 ⟹ NoChain——#112-T2 现语义保留）。
+
+    /// T3 夹具供给：x=55 底分型 @100（极值价）；合并组 [50,60) ⟹ x 的组锚 a*=50。
+    fn t3_supplies() -> (
+        Vec<super::super::super::types::Fractal>,
+        Vec<super::super::super::types::Bar>,
+    ) {
+        use super::super::super::types::{Bar, Fractal, FractalKind};
+        let fractals = vec![Fractal { kind: FractalKind::Bottom, source_index: 55, timestamp: 55, price: 100 }];
+        let merged = [50usize, 60]
+            .into_iter()
+            .map(|i| Bar { source_index: i, timestamp: i as i64, open: 0, high: 0, low: 0, close: 0, volume: 1, untradable: false })
+            .collect();
+        (fractals, merged)
+    }
+
+    /// T3 夹具：携两元锚供给的 gate（`for_test` 的供给版——链查询的极值价/组锚单一来源）。
+    fn t3_gate_with_certs(
+        cert_event_levels: &[u32],
+        judge_at: usize,
+        cls: &classifier::Classification,
+    ) -> NestChainGate {
+        use super::super::super::types::Side;
+        let (fractals, merged) = t3_supplies();
+        let mut gate = NestChainGate::for_test_with_supplies(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            std::rc::Rc::new(fractals),
+            std::rc::Rc::new(merged),
+        );
+        for &el in cert_event_levels {
+            let ev = nc_event(el, Side::Long, (30, 50), 50, judge_at, true);
+            gate.absorb_exts(vec![nc_ext_anchored(ev, 100, 50)]);
+        }
+        gate.sync_index(cls);
+        gate
+    }
+
+    /// T3 夹具：带投影层的多级分类。`specs` = (book_level, 是否置 x=55 存在点)。每级 book
+    /// 恒置 src=40 buy1 背书点（owner 中枢 start=20，供证书装配 CWindow 窗口 [30,50] 内）；
+    /// 存在位另置 src=55 buy1 点（供层登记锚 (@100) → (55, 组锚 50)，T5a 方向不进键）；投影层经
+    /// `LevelProjectionLayer::from_level` 以 T3 供给 stamping（与生产 stamping 同函数）。
+    fn t3_chain_classification(specs: &[(usize, bool)]) -> classifier::Classification {
+        use super::super::super::classifier::bsp::BspPoint;
+        use super::super::super::classifier::LevelState;
+        use super::super::super::types::{BspBits, Center};
+        let (fractals, merged) = t3_supplies();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let mk_pt = |src: usize| BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits: buy1,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+            struct_break_dir: None,
+            force: None,
+        };
+        let n_levels = specs.iter().map(|&(l, _)| l + 1).max().unwrap_or(1);
+        let levels: Vec<LevelState> = (0..n_levels)
+            .map(|book| {
+                let existence = specs.iter().any(|&(l, e)| l == book && e);
+                let mut pts = vec![mk_pt(40)];
+                if existence {
+                    pts.push(mk_pt(55));
+                }
+                let bsp = std::rc::Rc::new(pts);
+                let layer = classifier::projection::LevelProjectionLayer::from_level(
+                    book as u32, &bsp, &fractals, &merged,
+                );
+                // #218 面 B（机械改写归因：判同机制换带判同）：账本层补 B 中枢（带 (0,0)，
+                // start=20 = 事件 b_center_start 查找键）——点 center 带 == B 带 ⟹ 判等。
+                LevelState {
+                    bsp,
+                    centers: std::rc::Rc::new(vec![Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }]),
+                    level_projection: Some(layer),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        classifier::Classification { levels, ..Default::default() }
+    }
+
+    /// T3-1（链顶经层间联动给出，非固定 ℓ+1）：x 存在于 L0/L2（L1 层无该脚）⟹ 链顶 = L2
+    /// （固定 ℓ+1 只会给 L1）；L1 = MissingExistence（恰好存在断裂，缺环底质）；L2 闭合
+    /// ⟹ L1 之 gap 位置极性 = 断（高级有证而中间断）。
+    #[test]
+    fn t3_chain_top_from_layer_linkage_not_fixed_plus_one() {
+        let cls = t3_chain_classification(&[(0, true), (1, false), (2, true)]);
+        let gate = t3_gate_with_certs(&[1, 3], 100, &cls);
+        let c = ng_candidate(super::super::super::strategy::voice::VoiceSide::Long, Default::default(), 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.chain_top, Some(2), "链顶 = 层间联动给出的最高存在级 L2（非固定 lvl+1=1）");
+        assert_eq!(probe.levels.len(), 3, "链区间 = [L0, 链顶]（闭合到 L0 字面）");
+        assert_eq!(probe.levels[0].event_level, 1, "证书键级 = 账本级 + 1（T1 移位）");
+        assert_eq!(probe.levels[2].status, ChainLevelStatus::Closed, "L2 闭合（证书键 ℓ=3 命中）");
+        assert_eq!(
+            probe.levels[1].status,
+            ChainLevelStatus::MissingExistence,
+            "L1 无该脚存在 ⟹ 缺环底质 MissingExistence"
+        );
+        assert_eq!(probe.levels[1].gap, Some(ChainGapKind::Broken), "上方 L2 有证 ⟹ 断（高级有证而中间断）");
+        assert_eq!(probe.verdict, ChainVerdict::Reject, "缺/断即拒");
+        assert_eq!(probe.first_gap, Some((1, ChainGapKind::Broken)), "首位归因 = 最高非闭合级 L1 断");
+        assert_eq!(probe.closed_down_to, Some(2), "自链顶向下连续闭合到 L2");
+    }
+
+    /// T3-2（缺环拒精确区分）：存在性全级但仅 L0 有证 ⟹ 链顶 L2 自身查无证书（缺）——
+    /// 「lvl+1 单级过证不算」：L0 独过而上方缺环 ⟹ Reject，首位归因 = 链顶缺。
+    #[test]
+    fn t3_chain_missing_link_reject_is_missing() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[1], 100, &cls); // 仅事件级 ℓ=1（账本级 L0）有证
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::Closed);
+        assert_eq!(probe.levels[2].status, ChainLevelStatus::MissingCert, "链顶键域查无证书 ⟹ 缺");
+        assert_eq!(probe.levels[2].gap, Some(ChainGapKind::Missing), "上方无闭合级 ⟹ 缺（非断）");
+        assert_eq!(probe.verdict, ChainVerdict::Reject);
+        assert_eq!(probe.first_gap, Some((2, ChainGapKind::Missing)), "缺环拒：首位 = 链顶 L2 缺");
+        assert_eq!(probe.closed_down_to, None, "链顶未闭合 ⟹ 无连续闭合前缀");
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (false, "nest_n_delta_false"), "缺环即拒 = nest 拒（语义位不变）");
+        assert_eq!(obs.chain_top, Some(2));
+        assert_eq!(obs.chain_verdict, ChainVerdict::Reject);
+        assert_eq!(obs.chain_first_gap, Some((2, ChainGapKind::Missing)));
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_reject_missing, 1, "缺环拒计数");
+        assert_eq!(stats.chain_reject_broken, 0);
+    }
+
+    /// T3-3（断环拒精确区分）：L0/L2 闭合、L1 键域查无 ⟹ L1 上方有闭合级 ⟹ 断——
+    /// 「高级有证而中间断不算」：Reject，首位归因 = L1 断。
+    #[test]
+    fn t3_chain_broken_link_reject_is_broken() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[1, 3], 100, &cls); // ℓ=2（账本级 L1）无证
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[1].status, ChainLevelStatus::MissingCert);
+        assert_eq!(probe.levels[1].gap, Some(ChainGapKind::Broken), "上方 L2 闭合 ⟹ 断");
+        assert_eq!(probe.first_gap, Some((1, ChainGapKind::Broken)), "断环拒：首位 = L1 断");
+        assert_eq!(probe.closed_down_to, Some(2), "链顶向下连续闭合前缀 = [L2]");
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (false, "nest_n_delta_false"), "断环即拒");
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_reject_broken, 1, "断环拒计数");
+        assert_eq!(stats.chain_reject_missing, 0);
+    }
+
+    /// T3-4（全链闭合通过 + 闭合到 L0）：L0/L1/L2 逐级有证且过 ⟹ Pass，closed_down_to=L0，
+    /// admit 消费链结果 = nest_pass；谱系逐级别落账（链即身份）。
+    #[test]
+    fn t3_chain_full_closure_pass_consumed_by_admit() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[1, 2, 3], 100, &cls);
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (true, "nest_pass"), "全链闭合 ⟹ nest_pass");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Pass);
+        assert_eq!(obs.chain_top, Some(2));
+        assert_eq!(obs.chain_closed_down_to, Some(0), "连续闭合到 L0（链区间下限）");
+        assert_eq!(obs.chain_first_gap, None, "全闭合无缺断");
+        assert_eq!(obs.chain_genealogy.len(), 3, "完整谱系（逐级落账）");
+        for (i, g) in obs.chain_genealogy.iter().enumerate() {
+            assert_eq!(g.level, i as u32);
+            assert_eq!(g.event_level, i as u32 + 1);
+            assert_eq!(g.status, ChainLevelStatus::Closed);
+            assert_eq!(g.n_certs, 1);
+            assert_eq!(g.n_causal_clean, 1);
+        }
+        assert_eq!(obs.chain_price, Some(100), "极值价落账（T1 供给线）");
+        assert_eq!(obs.chain_anchor, Some(50), "组锚 a* 落账（T2 本级层解析）");
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_pass, 1, "链确认计数（方向守卫读数）");
+        assert_eq!(stats.chain_top_dist.get(&2), Some(&1), "链顶级别分布落账");
+    }
+
+    /// T3-5（闭合到 L0 字面）：L0 缺证而 L1/L2 全闭 ⟹ 仍拒（上方闭合不补 L0 之缺）；
+    /// L0 上方有闭合 ⟹ 其 gap 极性 = 断。
+    #[test]
+    fn t3_chain_l0_gap_rejects_despite_upper_closure() {
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[2, 3], 100, &cls); // ℓ=1（账本级 L0）无证
+        let c = ng_candidate(super::super::super::strategy::voice::VoiceSide::Long, Default::default(), 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::MissingCert, "L0 查无证书");
+        assert_eq!(probe.verdict, ChainVerdict::Reject, "L0 未闭合 ⟹ 拒（闭合到 L0 字面）");
+        assert_eq!(probe.first_gap, Some((0, ChainGapKind::Broken)), "L0 上方有闭合 ⟹ 断");
+    }
+
+    /// T3-6（NoChain → Xzd 回退逐字不动）：(a) x 处无分型（price 不可解）⟹ NoChain；
+    /// (b) 存在性全级但全区间零证书 ⟹ NoChain；两路均走既有 Xzd 分支（旧臂 None ⟹
+    /// cert_none；旧臂 nest_pass ⟹ 重走 build_xzd_fallback，xzd_fallback 标记）。
+    #[test]
+    fn t3_chain_no_chain_falls_back_to_xzd_verbatim() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Side};
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        // (a) 存在性全级但零证书 ⟹ NoChain；旧臂在 src=55 无执行段 ⟹ cert_none（回退逐字）。
+        let cls = t3_chain_classification(&[(0, true), (1, true), (2, true)]);
+        let gate = t3_gate_with_certs(&[], 100, &cls);
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.verdict, ChainVerdict::NoChain, "零闭合级 ⟹ NoChain");
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (false, "cert_none"), "NoChain → 既有回退（旧臂 None ⟹ cert_none）");
+        assert!(!obs.xzd_fallback && !obs.reused_old_xzd);
+        // (b) x=19 无分型（price 不可解）⟹ NoChain；旧臂 lvl0 Type3 免门 = nest_pass ⟹
+        // 重走 build_xzd_fallback 三分支（#94 择 (b) 逐字保留）。
+        let buy3 = BspBits { buy3: true, ..Default::default() };
+        let cls_b3 = ng_classification(buy3);
+        let c_b3 = ng_candidate(VoiceSide::Long, buy3, 19);
+        let (admit, channel, obs) = gate.admit(&tower, &c_b3, &hist, 19, &cls_b3);
+        assert!(matches!(channel, "xzd_pass" | "xzd_gate_fail"), "NoChain → Xzd 回退通道，实际={channel}");
+        assert!(obs.xzd_fallback, "旧臂 nest 通道 ⟹ 重走单一来源补评");
+        let expected = super::super::econ_positive::build_xzd_fallback(
+            &tower, 0, 19, Side::Long, &buy3, 19, &cls_b3.levels[0].bsp, &[], &[],
+        )
+        .map(|ev| ev.gate_pass())
+        .unwrap_or(false);
+        assert_eq!(admit, expected, "回退判定 = build_xzd_fallback 单一来源（现语义逐字）");
+        let mut stats = NestGateStats::default();
+        stats.observe(admit, channel, obs);
+        assert_eq!(stats.chain_none, 1, "NoChain 计数");
+    }
+
+    /// T3-7（因果守卫语义沿用）：唯一证书 judge_at=100 越过 anchor=19 ⟹ 整证剔除
+    /// （MissingCausal，缺环底质）；全区间零因果干净证书 ⟹ NoChain → Xzd（#112-T2 现语义保留）。
+    #[test]
+    fn t3_chain_causal_guard_missing_causal_then_no_chain() {
+        let cls = t3_chain_classification(&[(0, true)]);
+        let gate = t3_gate_with_certs(&[1], 100, &cls); // judge_at=100
+        let c = ng_candidate(super::super::super::strategy::voice::VoiceSide::Long, Default::default(), 55);
+        let probe = gate.chain_lookup(&c, 19, &cls);
+        assert_eq!(
+            probe.levels[0].status,
+            ChainLevelStatus::MissingCausal,
+            "唯一证书越界 ⟹ 整证剔除（缺环底质 MissingCausal）"
+        );
+        assert_eq!(probe.levels[0].n_certs, 1, "键域有证（剔除前）");
+        assert_eq!(probe.levels[0].n_causal_clean, 0, "因果守卫全剔");
+        assert_eq!(probe.verdict, ChainVerdict::NoChain, "零闭合级 ⟹ NoChain → Xzd（现语义不动）");
+        // anchor=100 ⟹ 前缀内，正常闭合。
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::Closed);
+        assert_eq!(probe.verdict, ChainVerdict::Pass);
+    }
+
+    /// T3-8（方向一致性见证）已随 T5a (#207) 退役删除——「方向分歧」在 ADR 20260723
+    /// 裁定 1 下是非概念：同脚同价的层异型登记 = 同点跨型（各级自为真，A 类 235 例
+    /// 语义真相回归，见 `t5a_same_point_cross_type_chain_pass`）；异侧键域有证 = 同键
+    /// 合流（见 `t5a_key_domain_merges_directions`）。DirWitness 装置已死透（类型/
+    /// 统计字段/dump 列/NEST_GATE_T3 列全删，编译期保证 + grep 无残留）。
+
+    // ───────────── T5a（#207 方向退役，ADR 20260723 裁定 1：身份判据 = 同点递归）─────────────
+
+    /// T5a 夹具：同点跨型多级分类——`specs` = (book_level, x=55 以何种 bits 登记；None = 该级无此脚)。
+    /// 各级分型类型是各级自己的结构事实（ADR：同一 x 可在 L0 为底、L1 为顶，各级自为真）。
+    fn t5a_cross_type_classification(
+        specs: &[Option<super::super::super::types::BspBits>],
+    ) -> classifier::Classification {
+        use super::super::super::classifier::bsp::BspPoint;
+        use super::super::super::classifier::LevelState;
+        use super::super::super::types::{BspBits, Center};
+        let (fractals, merged) = t3_supplies();
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let mk_pt = |src: usize, bits: BspBits| BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+            struct_break_dir: None,
+            force: None,
+        };
+        let levels: Vec<LevelState> = specs
+            .iter()
+            .enumerate()
+            .map(|(book, foot)| {
+                let mut pts = vec![mk_pt(40, buy1)];
+                if let Some(bits) = foot {
+                    pts.push(mk_pt(55, *bits));
+                }
+                let bsp = std::rc::Rc::new(pts);
+                let layer = classifier::projection::LevelProjectionLayer::from_level(
+                    book as u32, &bsp, &fractals, &merged,
+                );
+                // #218 面 B（机械改写归因：判同机制换带判同）：账本层补 B 中枢（带 (0,0)，
+                // start=20 = 事件 b_center_start 查找键）——点 center 带 == B 带 ⟹ 判等。
+                LevelState {
+                    bsp,
+                    centers: std::rc::Rc::new(vec![Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }]),
+                    level_projection: Some(layer),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        classifier::Classification { levels, ..Default::default() }
+    }
+
+    /// T5a-1（同点跨型链确认成立，#206 A 类 235 例语义真相回归）：同一 x=55 在 L0 层以
+    /// buy1（底）登记、L1 层以 sell1（顶）登记——方向退役后身份只剩同点递归：两级
+    /// 恰好存在均成立（不问分型类型），证书逐级闭合 ⟹ **Pass**（旧同向过滤下 L1
+    /// missing_existence ⟹ Reject，本测试在旧语义下为红）。
+    #[test]
+    fn t5a_same_point_cross_type_chain_pass() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits};
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let sell1 = BspBits { sell1: true, ..Default::default() };
+        // L0：x=55 底（buy1）；L1：x=55 顶（sell1）——同点跨型，各级自为真。
+        let cls = t5a_cross_type_classification(&[Some(buy1), Some(sell1)]);
+        // 证书：事件级 ℓ=1（账本级 L0）与 ℓ=2（账本级 L1），同锚 (极值价 100, 组锚 50)。
+        let gate = t3_gate_with_certs(&[1, 2], 100, &cls);
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.chain_top, Some(1), "链顶 = 以 x 为拐点的最高账本级（不问分型类型）");
+        assert_eq!(probe.levels[0].status, ChainLevelStatus::Closed, "L0 闭合");
+        assert_eq!(
+            probe.levels[1].status,
+            ChainLevelStatus::Closed,
+            "L1 跨型存在 + 证书闭合——同向过滤退役后不再 missing_existence"
+        );
+        assert_eq!(probe.verdict, ChainVerdict::Pass, "同点跨型全链闭合 ⟹ Pass（A 类语义真相）");
+        assert_eq!(probe.closed_down_to, Some(0), "闭合到 L0");
+        let tower = ng_tower();
+        let hist: Vec<f64> = (0..20).map(|_| 1.0).collect();
+        let (admit, channel, obs) = gate.admit(&tower, &c, &hist, 100, &cls);
+        assert_eq!((admit, channel), (true, "nest_pass"), "同点跨型链确认被 admit 消费");
+        assert_eq!(obs.chain_verdict, ChainVerdict::Pass);
+    }
+
+    /// T5a-2（键域去方向位：登记合流 + 查询不携带方向）：同价同组锚的 Long/Short 事件
+    /// 登记进**同一键** (ℓ, 极值价, 组锚)；异侧登记的证书对本向候选的链闭合同样有效
+    /// （方向不参与身份）；`chain_key_hint` 对层异型登记的脚可解析（旧语义 false ⟹ 红）。
+    #[test]
+    fn t5a_key_domain_merges_directions() {
+        use super::super::super::strategy::voice::VoiceSide;
+        use super::super::super::types::{BspBits, Side};
+        let buy1 = BspBits { buy1: true, ..Default::default() };
+        let sell1 = BspBits { sell1: true, ..Default::default() };
+        let cls = t5a_cross_type_classification(&[Some(buy1)]);
+        let (fractals, merged) = t3_supplies();
+        let mut gate = NestChainGate::for_test_with_supplies(
+            Vec::new(), Vec::new(), Vec::new(),
+            std::rc::Rc::new(fractals), std::rc::Rc::new(merged),
+        );
+        // 同价同锚的 Long/Short 两事件（不同 interval_b ⟹ 不同身份）。
+        let ev_long = nc_event(1, Side::Long, (30, 50), 50, 100, true);
+        let ev_short = nc_event(1, Side::Short, (32, 50), 50, 100, true);
+        gate.absorb_exts(vec![
+            nc_ext_anchored(ev_long, 100, 50),
+            nc_ext_anchored(ev_short, 100, 50),
+        ]);
+        assert_eq!(
+            gate.by_triple_anchor.keys().count(),
+            1,
+            "方向退役：同价同组锚跨向事件登记进同一键 (ℓ, 极值价, 组锚)"
+        );
+        assert_eq!(
+            gate.by_triple_anchor.values().next().map(Vec::len),
+            Some(2),
+            "同键身份集 = 两方向事件合流"
+        );
+        gate.sync_index(&cls);
+        let c = ng_candidate(VoiceSide::Long, buy1, 55);
+        // 查询不携带方向：Long 候选读到 Short 侧登记的证书同样闭合（身份层无方向）。
+        let probe = gate.chain_lookup(&c, 100, &cls);
+        assert_eq!(probe.levels[0].n_certs, 2, "键域身份集 = 双向合流（不滤方向）");
+        assert_eq!(probe.verdict, ChainVerdict::Pass);
+        // 异型脚可解析：候选 Long 而层仅 sell1 登记 x=55 —— 锚解析/hint 不再被方向阻断。
+        let cls_opp = t5a_cross_type_classification(&[Some(sell1)]);
+        assert!(
+            gate.chain_key_hint(&c, &cls_opp),
+            "层异型登记下脚仍可解析 + 键域有证 ⟹ hint=true（旧同向口径 false ⟹ 红）"
+        );
+    }
+
+    /// T3-9（并门，#168 裁定 3）：层载由链路径单一驱动——链活 ⟹ 层必载（含索引），
+    /// 链死不载（零开销红线不死）；stamping 跟随派生位（机制位仍 config，生产只经派生写入）。
+    #[test]
+    fn t3_chain_gate_merged_drives_layer_load() {
+        let config = ThetaConfig::default();
+        // 链死 ⟹ 派生位 = 原配置（层不载）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
+        let derived = super::super::admission::chain_driven_level_projection(&config);
+        assert!(!derived.level_projection.enabled, "链死 ⟹ 层不载（零开销红线不死）");
+        assert!(matches!(derived, std::borrow::Cow::Borrowed(_)), "链死 ⟹ 零拷贝借用");
+        // 链活 ⟹ 层必载。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let derived = super::super::admission::chain_driven_level_projection(&config);
+        assert!(derived.level_projection.enabled, "链活 ⟹ 层必载（索引成本即链判成本）");
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        // stamping 跟随机制位：开 ⟹ 每级 Some(layer)；关（默认）⟹ None（八处 None 构造点不动）。
+        let bars: Vec<super::super::super::types::Bar> = (0..40)
+            .map(|i| super::super::super::types::Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: 100,
+                high: if i % 2 == 0 { 112 } else { 100 },
+                low: if i % 2 == 0 { 100 } else { 88 },
+                close: if i % 2 == 0 { 110 } else { 90 },
+                volume: 1,
+                untradable: false,
+            })
+            .collect();
+        let l0 = parser::parse_layer(&bars, &config);
+        let cls_off = classifier::classify_with_tower(&l0, &config).0;
+        assert!(
+            cls_off.levels.iter().all(|ls| ls.level_projection.is_none()),
+            "机制位关（默认）⟹ stamping 不构造层（零开销 bit-exact 锁）"
+        );
+        let mut config_on = config.clone();
+        config_on.level_projection = classifier::projection::LevelProjectionConfig::for_chain(true);
+        let cls_on = classifier::classify_with_tower(&l0, &config_on).0;
+        assert!(
+            cls_on.levels.iter().all(|ls| ls.level_projection.is_some()),
+            "机制位开 ⟹ 每级 stamping 必载层（链活 ⟹ 层必载形态）"
+        );
+    }
+
+    /// #75-T5（增量喂法跳过）：tower Rc 未变 ⟹ 不重派生（derivations 不增）；下级 Rc 变化
+    /// ⟹ 该级重派生。真实 provider 夹具（nest_index.rs real_provider 同型）。
+    #[test]
+    fn nest_chain_sync_events_incremental_skip() {
+        use super::super::super::classifier::center::UnitRange;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::types::{Center, Direction};
+        use Direction::{Down, Up};
+        fn unit(start: usize, dir: Direction, lo: i64, hi: i64, ordinal: u64) -> LeveledMove {
+            LeveledMove::from_unit(
+                &UnitRange { start_index: start, end_index: start + 9, direction: dir, lo, hi },
+                ElementId { level: 0, ordinal },
+            )
+        }
+        let lower = vec![
+            unit(0, Up, 90, 110, 0),
+            unit(10, Down, 95, 115, 1),
+            unit(20, Up, 98, 112, 2),
+            unit(30, Down, 96, 116, 3),
+            unit(40, Up, 130, 145, 4),
+            unit(50, Down, 132, 148, 5),
+            unit(60, Up, 135, 150, 6),
+            unit(70, Down, 125, 140, 7),
+            unit(80, Up, 155, 170, 8),
+            unit(90, Down, 150, 165, 9),
+            unit(100, Up, 160, 175, 10),
+            unit(110, Down, 140, 155, 11),
+            unit(120, Up, 180, 190, 12),
+            unit(130, Down, 170, 195, 13),
+        ];
+        let windows = vec![
+            LeveledMove::compose(
+                &lower[0..4],
+                Center { zd: 98, zg: 110, dd: 90, gg: 116, start_index: 0, end_index: 39 },
+                1,
+                ElementId { level: 1, ordinal: 0 },
+            ),
+            LeveledMove::compose(
+                &lower[4..8],
+                Center { zd: 135, zg: 140, dd: 125, gg: 150, start_index: 40, end_index: 79 },
+                1,
+                ElementId { level: 1, ordinal: 1 },
+            ),
+            LeveledMove::compose(
+                &lower[8..12],
+                Center { zd: 160, zg: 165, dd: 140, gg: 175, start_index: 80, end_index: 119 },
+                1,
+                ElementId { level: 1, ordinal: 2 },
+            ),
+        ];
+        let mut hist = vec![0.0; 140];
+        hist[80..110].fill(2.0);
+        hist[120..140].fill(0.1);
+        let mut dif = vec![0.0; 140];
+        dif[80..=100].fill(-5.0);
+        dif[101..140].fill(1.0);
+        let close_src: Vec<usize> = (0..140).collect();
+        let mut gate = NestChainGate::for_test(hist, dif, close_src);
+        let tower = vec![std::rc::Rc::new(lower.clone()), std::rc::Rc::new(windows)];
+        // #93 步骤 0：confirmed_lens = [len0, len1]（合成塔全确认 = 模拟无 frontier 重写的稳定塔）。
+        let cl = vec![tower[0].len(), tower[1].len()];
+        gate.sync_events(&tower, &cl, 139);
+        assert_eq!(gate.n_derivations, 1, "首见塔 ⟹ 派生一次");
+        assert_eq!(gate.n_provider_errors, 0, "夹具应零 provider 错误（管道端到端跑通）");
+        // 注：本合成 3 中枢夹具不经 decompose 保证产出确认事件（nest_index 同型夹具的确认
+        // 事件依赖手工 MoveBlock 序列；本路径块序列由 decompose 自治）——事件产出的端到端
+        // 实证由门开冒烟（真实 BTC 截断）承担；本测试锁定增量跳过与幂等纪律。
+        let absorbed: usize = gate.events_by_level.iter().map(Vec::len).sum();
+        assert!(
+            gate.events_by_level.iter().flatten().all(|e| e.divergence_confirmed),
+            "账本只收确认事件"
+        );
+        // #93：值指纹不变 ⟹ 跳过（增量喂法核心——禁每 bar 从零重建；旧 Rc ptr_eq 自溃已消除）。
+        gate.sync_events(&tower, &cl, 139);
+        assert_eq!(gate.n_derivations, 1, "tower 值不变 ⟹ 不重派生");
+        assert_eq!(
+            gate.events_by_level.iter().map(Vec::len).sum::<usize>(),
+            absorbed,
+            "重派生跳过 ⟹ 账本零追加"
+        );
+        // #93 步骤 0 核心验证：新 Rc 但同内容（旧 ptr_eq 必报变；值指纹正确判不变 ⟹ 跳过）。
+        let tower2 = vec![std::rc::Rc::new(lower), std::rc::Rc::clone(&tower[1])];
+        gate.sync_events(&tower2, &cl, 139);
+        assert_eq!(gate.n_derivations, 1, "tower[0] 新 Rc 同内容 ⟹ 值指纹跳过（自溃消除）");
+        assert_eq!(
+            gate.events_by_level.iter().map(Vec::len).sum::<usize>(),
+            absorbed,
+            "跳过 ⟹ 账本零追加"
+        );
+    }
+
+    /// #93-T4：值指纹单测——内容不变跳过；tail 单元素变 ⟹ 重派生；水线回退 ⟹ 保守全量。
+    #[test]
+    fn nest_chain_fingerprint_value_based() {
+        use super::super::super::classifier::center::UnitRange;
+        use super::super::super::classifier::recursive_tower::{ElementId, LeveledMove};
+        use super::super::super::types::{Center, Direction};
+        use Direction::{Down, Up};
+        fn unit(start: usize, dir: Direction, lo: i64, hi: i64, ordinal: u64) -> LeveledMove {
+            LeveledMove::from_unit(
+                &UnitRange { start_index: start, end_index: start + 9, direction: dir, lo, hi },
+                ElementId { level: 0, ordinal },
+            )
+        }
+        let lower = vec![
+            unit(0, Up, 90, 110, 0),
+            unit(10, Down, 95, 115, 1),
+            unit(20, Up, 98, 112, 2),
+            unit(30, Down, 96, 116, 3),
+        ];
+        let windows = vec![LeveledMove::compose(
+            &lower[0..4],
+            Center { zd: 98, zg: 110, dd: 90, gg: 116, start_index: 0, end_index: 39 },
+            1,
+            ElementId { level: 1, ordinal: 0 },
+        )];
+        let hist = vec![0.0; 50];
+        let dif = vec![0.0; 50];
+        let close_src: Vec<usize> = (0..50).collect();
+        let mut gate = NestChainGate::for_test(hist, dif, close_src);
+        let tower = vec![std::rc::Rc::new(lower.clone()), std::rc::Rc::new(windows.clone())];
+        // 首次：w_lower=3（前3段证书保稳定，index=3 是未确认尾段），w_self=1。
+        let cl = vec![3, 1];
+        gate.sync_events(&tower, &cl, 49);
+        assert_eq!(gate.n_derivations, 1, "首见塔 ⟹ 派生一次");
+        // 同塔同水线再喂 ⟹ 跳过。
+        gate.sync_events(&tower, &cl, 49);
+        assert_eq!(gate.n_derivations, 1, "值指纹不变 ⟹ 跳过");
+        // 尾段单元素变（lower 尾段 lo 改）⟹ 重派生。
+        let lower2 = {
+            let mut l = lower.clone();
+            let mut u = UnitRange { start_index: 30, end_index: 39, direction: Down, lo: 96, hi: 116 };
+            u.lo = 95; // 改尾段值（index=3 在 [w=3..] 尾段内）
+            l[3] = LeveledMove::from_unit(&u, ElementId { level: 0, ordinal: 3 });
+            l
+        };
+        let tower2 = vec![std::rc::Rc::new(lower2), std::rc::Rc::new(windows.clone())];
+        gate.sync_events(&tower2, &cl, 49);
+        assert_eq!(gate.n_derivations, 2, "tail 单元素变 ⟹ 重派生");
+        // 水线回退 ⟹ 保守全量重派生（恒正确退化）。
+        let cl_regress = vec![2, 1]; // w_lower 从 3 退到 2
+        gate.sync_events(&tower2, &cl_regress, 49);
+        assert_eq!(gate.n_derivations, 3, "水线回退 ⟹ 保守全量重派生");
+    }
+
+    // ───────────── #76（SPEC #73 A 线第三票：出场门真链切换）─────────────
+
+    /// #76 夹具：反向开仓决策（出场门消费对象），显式 root_side/bits/level/signal_index。
+    fn xd_reverse_decision(
+        root_side: VoiceSide,
+        bits: super::super::super::types::BspBits,
+        level: u32,
+        signal_index: usize,
+    ) -> VoiceDecision {
+        use super::super::super::strategy::risk::StopInput;
+        use super::super::super::types::Center;
+        VoiceDecision {
+            depth: 0,
+            root_side,
+            exit: false,
+            enter_ok: true,
+            bsp: bits,
+            signal_index,
+            stop_in: StopInput {
+                pivot_low: 900,
+                pivot_high: 1100,
+                center: Center { zd: 950, zg: 1050, dd: 940, gg: 1090, start_index: 0, end_index: 5 },
+            },
+            entry: 1000,
+            cost_per_unit: 0.0,
+            level,
+        }
+    }
+
+    /// T5b (#208) 出场夹具：sell1 终端背书版链分类（`t3_chain_classification` 的 Short
+    /// 对偶——sell1 点既作 src=40 终端背书（owner 中枢 start=20）又作 src=55 存在位；
+    /// 旧桥同向键（ℓ=1, 离开段终点=55, is_long=false）可命中 ⟹ 新旧语义同夹具对照）。
+    fn xd_chain_classification(specs: &[(usize, bool)]) -> classifier::Classification {
+        use super::super::super::classifier::bsp::BspPoint;
+        use super::super::super::classifier::LevelState;
+        use super::super::super::types::{BspBits, Center};
+        let (fractals, merged) = t3_supplies();
+        let sell1 = BspBits { sell1: true, ..Default::default() };
+        let mk_pt = |src: usize| BspPoint {
+            source_index: src,
+            level_origin: 0,
+            bits: sell1,
+            pivot_low: 0,
+            pivot_high: 0,
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 })),
+            struct_break_dir: None,
+            force: None,
+        };
+        let n_levels = specs.iter().map(|&(l, _)| l + 1).max().unwrap_or(1);
+        let levels: Vec<LevelState> = (0..n_levels)
+            .map(|book| {
+                let existence = specs.iter().any(|&(l, e)| l == book && e);
+                let mut pts = vec![mk_pt(40)];
+                if existence {
+                    pts.push(mk_pt(55));
+                }
+                let bsp = std::rc::Rc::new(pts);
+                let layer = classifier::projection::LevelProjectionLayer::from_level(
+                    book as u32, &bsp, &fractals, &merged,
+                );
+                // #218 面 B（机械改写归因：判同机制换带判同）：账本层补 B 中枢（带 (0,0)，
+                // start=20 = 事件 b_center_start 查找键）——点 center 带 == B 带 ⟹ 判等。
+                LevelState {
+                    bsp,
+                    centers: std::rc::Rc::new(vec![Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 20, end_index: 0 }]),
+                    level_projection: Some(layer),
+                    ..Default::default()
+                }
+            })
+            .collect();
+        classifier::Classification { levels, ..Default::default() }
+    }
+
+    /// T5b (#208) 出场夹具：Short 证书 gate（`t3_gate_with_certs` 的 Short 对偶——
+    /// 锚 sidecar 同为 (100, 50)，事件方向 = Short；sell1 背书 ⟹ 基例门产证）。
+    fn xd_gate_with_short_certs(
+        cert_event_levels: &[u32],
+        judge_at: usize,
+        cls: &classifier::Classification,
+    ) -> NestChainGate {
+        use super::super::super::types::Side;
+        let (fractals, merged) = t3_supplies();
+        let mut gate = NestChainGate::for_test_with_supplies(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            std::rc::Rc::new(fractals),
+            std::rc::Rc::new(merged),
+        );
+        for &el in cert_event_levels {
+            let ev = nc_event(el, Side::Short, (30, 50), 50, judge_at, true);
+            gate.absorb_exts(vec![nc_ext_anchored(ev, 100, 50)]);
+        }
+        gate.sync_index(cls);
+        gate
+    }
+
+    /// #76-T1 → **T5b (#208) 出场迁链改写**（ADR 20260723 裁定 3：买点买卖点卖同一套链，
+    /// 出场不独立设计）：反向点 x′（`d.signal_index`）的同点递归链确认 ⟹ 准出；无链
+    /// （NoChain）/ 断链（Reject）⟹ 不准出（诚实口径，**禁 v0 fallback**）；Flat 拒；
+    /// depth>0 不入统；链断以 miss（NoChain）呈现。**因果守卫（链上 judge_at ≤ 决策
+    /// bar）是迁链新增严格项**（旧固定 ℓ+1 桥无守卫）；链不问方向（T5a）——同一套链
+    /// 回答「x′ 是不是确认的拐点」，出场方向由交易层映射。
+    ///
+    /// 夹具复用 T3 供给线（`t3_supplies`/`t3_chain_classification`/`t3_gate_with_certs`）：
+    /// x′=55 处 L0 分型 price=100、组锚 50；事件 ℓ=1 ↔ 账本级 L0。`xd_*` 变体 =
+    /// sell1 终端背书 + Short 事件（旧桥同向键可命中 ⟹ 新旧语义差异可在同一夹具对照）。
+    ///
+    /// 红绿史（TDD）：(a2) 方向解放 / (c) 断链拒 / (g) 因果守卫在旧 `typed_lookup`
+    /// 实装下为红（旧：同向固定 ℓ+1 hit 且 n_delta 即准、无守卫）；迁链后全绿。
+    #[test]
+    fn exit_gate_reverse_admit_chain_pass_reject_flat() {
+        use super::super::super::strategy::exit::reverse_nest_cert_base;
+        use super::super::super::types::{BspBits, Side};
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..10).map(|i| mk_bar(i, 1000 + i as i64, false)).collect();
+        let sell1 = BspBits { sell1: true, ..Default::default() };
+        let d_hit = xd_reverse_decision(VoiceSide::Short, sell1, 0, 55);
+        let mut ctx = ExitNestGateCtx::new(&bars, &config);
+
+        // (a) 同侧全链闭合 ⟹ 准出（新旧连续性锚：旧桥同向 hit+n_delta 亦准）。
+        let cls_a = xd_chain_classification(&[(0, true)]);
+        ctx.gate = xd_gate_with_short_certs(&[1], 100, &cls_a);
+        ctx.classification = Some(cls_a);
+        ctx.cur_bar = 100;
+        assert!(ctx.reverse_admit(&d_hit, 0), "(a) 全链闭合（链顶=L0 单级链）⟹ 准出");
+
+        // (a2) 方向退役解放（T5a 同点递归不问方向）：Long 证书同键闭合 Short 反向候选
+        // 的链 ⟹ 准出；旧桥同向键（is_long=false）必 miss——迁移预期差之一（红→绿）。
+        let cls_a2 = t3_chain_classification(&[(0, true)]);
+        ctx.gate = t3_gate_with_certs(&[1], 100, &cls_a2); // Long 事件 + buy1 背书
+        ctx.classification = Some(cls_a2);
+        assert!(
+            ctx.reverse_admit(&d_hit, 0),
+            "(a2) 异侧证书同点闭合 ⟹ 准出（方向退役：链问「是不是拐点」，不问买卖）"
+        );
+
+        // (b) 锚不可解（src=56 无分型）⟹ NoChain ⟹ 不准出；v0 基例放行 ⟹ 对照差落账。
+        let d_miss = xd_reverse_decision(VoiceSide::Short, sell1, 0, 56);
+        assert!(reverse_nest_cert_base(&d_miss), "夹具前提：v0 基例对该候选放行");
+        assert!(!ctx.reverse_admit(&d_miss, 0), "(b) NoChain ⟹ 不准出（禁 v0 fallback）");
+
+        // (c) 断链拒：存在性 L0/L1 俱在而证书仅 L0 闭合（ℓ=1），链顶 L1 缺证 ⟹ Reject
+        // ⟹ 不准出——「lvl+1 单级过证不算」同型；旧桥固定 ℓ+1 单级 hit 即准（红→绿）。
+        let cls_c = xd_chain_classification(&[(0, true), (1, true)]);
+        ctx.gate = xd_gate_with_short_certs(&[1], 100, &cls_c); // 仅 ℓ=1（账本级 L0）有证
+        ctx.classification = Some(cls_c);
+        assert!(!ctx.reverse_admit(&d_hit, 0), "(c) 链顶缺环 ⟹ 断链拒（链闭合 vs 单级 hit）");
+
+        // (d) Flat 候选 ⟹ 拒（无方向 ⟹ 无证书，与 v0 基例同语义）。
+        let d_flat = xd_reverse_decision(
+            VoiceSide::Flat,
+            BspBits { sell1: true, buy1: true, ..Default::default() },
+            0,
+            55,
+        );
+        assert!(!ctx.reverse_admit(&d_flat, 0), "(d) Flat ⟹ 无证书拒");
+
+        // (e) depth>0：查询读出弃用，不进统计（F1 锚替代域）。
+        let before = ctx.stats.total;
+        let _ = ctx.reverse_admit(&d_hit, 1);
+        assert_eq!(ctx.stats.total, before, "(e) depth>0 查询不进统计");
+
+        // (g) 因果守卫（迁链新增严格项，旧桥无守卫）：唯一证书 judge_at=200 越过决策
+        // bar=100 ⟹ 整证剔除 ⟹ 零闭合 ⟹ NoChain ⟹ 不准出（红→绿）；同夹具决策
+        // bar=200 守卫内 ⟹ Pass 准出。
+        let cls_g = xd_chain_classification(&[(0, true)]);
+        ctx.gate = xd_gate_with_short_certs(&[1], 200, &cls_g);
+        ctx.classification = Some(cls_g);
+        ctx.cur_bar = 100;
+        assert!(
+            !ctx.reverse_admit(&d_hit, 0),
+            "(g) judge_at 越决策 bar ⟹ 守卫剔除 ⟹ NoChain（新增严格项）"
+        );
+        ctx.cur_bar = 200;
+        assert!(ctx.reverse_admit(&d_hit, 0), "(g′) judge_at ≤ 决策 bar ⟹ Pass 准出");
+
+        // 统计核验：depth-0 查询 = a/a2/b/c/d/g/g′ 共 7；准入 a/a2/g′=3；链在
+        // a/a2/c/g′=4；NoChain b/g=2；flat=1。cross：v0(hit)=true、v0(flat)=false——
+        // agree=a/a2/d/g′=4…（见下逐项）；v0_pass_gate_rej=b/c/g=3。
+        let s = &ctx.stats;
+        assert_eq!(
+            (s.total, s.admitted, s.chain_found, s.chain_none, s.flat_dir),
+            (7, 3, 4, 2, 1),
+            "出场门统计分账（迁链语义）"
+        );
+        assert_eq!(s.admit_rungs[0], 3, "准入侧链深全 0-rung");
+        assert_eq!(s.rej_rungs[0], 1, "(c) 拒绝侧 0-rung");
+        assert_eq!(s.cross_agree, 4, "a/a2/d/g′ 两路一致");
+        assert_eq!(s.cross_v0_pass_gate_rej, 3, "b/c/g = v0 准链拒");
+        assert_eq!(s.cross_v0_rej_gate_pass, 0);
+
+        // (f) 链断以 miss（NoChain）呈现：Short 事件锚齐但终端背书 buy1 ⟹ 装配层基例门
+        // （nest.rs:693 confirm_side）不产证 ⟹ 键域有身份而索引无证 ⟹ 零闭合 ⟹ NoChain
+        // ⟹ 不准出（装配层基例门使 n_delta=false 的 0-rung 证书不存在，链断只能以
+        // miss 呈现——旧测试同构形态迁移）。
+        let mut ctx2 = ExitNestGateCtx::new(&bars, &config);
+        let (fractals, merged) = t3_supplies();
+        let mut g2 = NestChainGate::for_test_with_supplies(
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            std::rc::Rc::new(fractals),
+            std::rc::Rc::new(merged),
+        );
+        g2.absorb_exts(vec![nc_ext_anchored(
+            nc_event(1, Side::Short, (30, 50), 50, 100, true),
+            100,
+            50,
+        )]);
+        // buy1 背书（t3 夹具）⟹ Short 事件过不了基例门 ⟹ 索引无证；src=55 存在位仍在。
+        let cls_f = t3_chain_classification(&[(0, true)]);
+        g2.sync_index(&cls_f);
+        ctx2.gate = g2;
+        ctx2.classification = Some(cls_f);
+        ctx2.cur_bar = 100;
+        assert!(!ctx2.reverse_admit(&d_hit, 0), "(f) 基例门不产证 ⟹ NoChain ⟹ 不准出");
+        assert_eq!(ctx2.stats.chain_none, 1, "链断以 miss（NoChain）落账");
+        assert_eq!(ctx2.stats.admitted, 0);
+        assert_eq!(ctx2.stats.cross_v0_pass_gate_rej, 1, "v0 放行而链（断）拒");
+    }
+
+    /// #76-T2（v1 退出循环集成：门开真链压掉反向退出 / 门关逐字节回归锁）。
+    ///
+    /// 夹具：持多根（depth 0，60% 权重）+ depth-1 卖侧决策（30% 权重 ⟹ 部分减仓不覆盖
+    /// held[0] 多声部快照）⟹ 门关时退出生成器反向项触发（v1 groups 不过滤根域，既有
+    /// 语义）；门开时单调 bars 无分型 ⟹ 链锚不可解（NoChain）⟹ **诚实不准出**（T5b
+    /// (#208) 迁链终态口径），多仓延至窗口终点强平。
+    #[test]
+    fn exit_gate_v1_reverse_exit_suppressed_without_cert() {
+        use super::super::super::strategy::risk::StopInput;
+        use super::super::super::types::{BspBits, Center};
+        let mut config = ThetaConfig::default();
+        config.tick.tick_size = 1.0; // 价格=美元
+        // T5b (#208)：层载派生（门开 ⟹ 投影层必载——生产 π 路径 runner.rs:493 同款；
+        // 层仅链查询读取，门关臂不建 ctx、fill/recognize 零消费 ⟹ 逐字节不变）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let config = super::super::admission::chain_driven_level_projection(&config);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        // 单调上行（无分型 ⟹ 无中枢 ⟹ 无 nest 事件）：全程 low>90 不触多止损。
+        let bars = vec![
+            ohlc_bar(0, 100, 110, 95, 105),
+            ohlc_bar(1, 100, 110, 99, 108), // 开多成交
+            ohlc_bar(2, 105, 115, 100, 110),
+            ohlc_bar(3, 108, 118, 103, 113), // depth-1 卖侧决策成交（部分减仓）
+            ohlc_bar(4, 110, 120, 105, 115), // 门关：反向退出 Close 成交 bar
+            ohlc_bar(5, 112, 122, 107, 117), // 门开：持仓延至本 bar 终点强平
+        ];
+        // 根多：buy1 @ src 0，stop=pivot_low=90（全程不触及）。
+        let entry = buy1_long_decision(0, 90);
+        // depth-1 卖侧：sell1 @ src 2（Short 止损 pivot_high=200 全程不触及）——30% 权重
+        // ⟹ 成交量 < 根多持仓 ⟹ 部分减仓，held[0] 多声部快照保留（退出生成器于 bar3 见
+        // groups[3] 含卖侧决策 ⟹ 反向项成立）。
+        let mut child_sell = buy1_long_decision(2, 90);
+        child_sell.depth = 1;
+        child_sell.bsp = BspBits { sell1: true, ..Default::default() };
+        child_sell.stop_in = StopInput {
+            pivot_low: 0,
+            pivot_high: 200,
+            center: Center { zd: 0, zg: 0, dd: 0, gg: 0, start_index: 0, end_index: 0 },
+        };
+        let decisions = vec![entry, child_sell];
+
+        // (1) 基线（无注入）== 显式门关（线程局部注入 false）——门关逐字节回归锁。
+        let baseline = plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
+        let off = plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        assert_eq!(off.n_orders, baseline.n_orders, "门关 ⟹ n_orders bit-exact");
+        assert_eq!(off.equity_curve, baseline.equity_curve, "门关 ⟹ equity bit-exact");
+        assert_eq!(
+            off.trade_pnls_realized, baseline.trade_pnls_realized,
+            "门关 ⟹ 已实现盈亏 bit-exact"
+        );
+        // 基线前提坐实：门关下反向退出触发（部分减仓记录 @3 + 反向退出 Close @4，非强平）。
+        assert_eq!(baseline.trades.len(), 2, "门关：部分减仓记录 + 反向退出 Close 记录");
+        assert!(!baseline.trades[1].forced_close, "门关：反向退出非强平");
+        assert_eq!(baseline.trades[1].exit_bar, 4, "门关：反向退出 Close 于 bar4 成交");
+
+        // (2) 门开：链恒 NoChain（单调 bars 无分型 ⟹ 锚不可解）⟹ 反向退出被压掉——
+        // 少一笔退出 Close 单；多仓延至窗口终点强平（forced_close=true，exit_bar=5）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let on = plan_and_fill_mtm(&decisions, &bars, 1_000_000.0, &config);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        assert_eq!(
+            on.n_orders + 1,
+            off.n_orders,
+            "门开 ⟹ 反向退出 Close 被压掉（少一单）：on={} off={}",
+            on.n_orders, off.n_orders
+        );
+        assert_eq!(on.trades.len(), 2, "门开：部分减仓记录 + 终点强平记录");
+        assert!(on.trades[1].forced_close, "门开：反向退出被压 ⟹ 终点强平");
+        assert_eq!(on.trades[1].exit_bar, 5, "门开：持仓延至窗口末 bar");
+        assert_eq!(
+            on.trade_pnls_realized.len() + 1,
+            off.trade_pnls_realized.len(),
+            "门开 ⟹ 少一笔反向退出已实现盈亏"
+        );
+    }
+
+    /// #76-T3（dual 退出循环：门关逐字节回归锁 + 门开机器烟）。
+    ///
+    /// 照实登记（探查实锚）：dual 的 depth-0 反向项在当前 recognize_nested 流中
+    /// **结构性难达**——退出生成器（步 3）在开仓循环（步 2）之后运行，任何**成交**的
+    /// 根域反向决策先在步 2 改写 held[0] 快照（record_held_voice），步 3 所见已是新
+    /// 方向声部 ⟹ 反向项恒假（零成交边缘案例除外）。故 dual 的门开行为差在当前流程
+    /// 恒为空集——本测试锁定：(1) 门关 == 基线逐字节（回归命门）；(2) 门开 ==
+    /// 门关逐字节（E1 夹具无根域反向候选触发，门开机器全程空转、NEST_GATE_EXIT
+    /// total=0——门开零操作回归）。反向项语义由 #76-T1/T2 + exit.rs 单测锚定
+    /// （两循环共享同一 `exit_decision_for_nested_cert` 与同一闭包形态）。
+    #[test]
+    fn exit_gate_dual_off_bitexact_on_noop_when_no_reverse_fire() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let classification = e_classification(true);
+        let tower = e_tower();
+        let bars = e1_bars();
+        let baseline = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
+        let off = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+        assert_eq!(off.fill.n_orders, baseline.fill.n_orders, "dual 门关 ⟹ n_orders bit-exact");
+        assert_eq!(off.fill.equity_curve, baseline.fill.equity_curve, "dual 门关 ⟹ equity bit-exact");
+        assert_eq!(off.leg_log.len(), baseline.leg_log.len(), "dual 门关 ⟹ 腿日志 bit-exact");
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let on = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        assert_eq!(
+            on.fill.n_orders, off.fill.n_orders,
+            "门开机器烟：无根域反向触发 ⟹ 门开零操作（n_orders bit-exact）"
+        );
+        assert_eq!(on.fill.equity_curve, off.fill.equity_curve, "门开零操作 ⟹ equity bit-exact");
+        assert_eq!(on.leg_log.len(), off.leg_log.len(), "门开零操作 ⟹ 腿日志 bit-exact");
+        assert_eq!(on.leg_log.len(), 4, "夹具前提：E1 四步形态不变（2 开 + 1 子平 + 1 强平）");
+    }
+
+    /// #76 门开冒烟（截断窗，真实 BTC）：v1/dual 两退出循环在门开/门下各跑一遍，
+    /// 出场侧读数（NEST_GATE_EXIT：反向准出率 + 链深构成 + v0 对照差）如实输出。
+    /// 截断窗 = 前 30_000 bar（E5 同款截断先例）；门开臂跑逐 bar 因果前缀喂法。
+    ///
+    /// T5b (#208)：本 smoke 兼作**出场迁链行为对照面**（出场侧不经 m8，NEST_GATE_EXIT
+    /// 三窗零行）——env `T5B_EXIT_DUMP_PATH` 设置时门开臂逐查询落 dump（装置
+    /// `t5b_exit_dump`，迁移前旧桥读出 / 迁移后链读出同键对齐）。config 经
+    /// `chain_driven_level_projection` 派生（门开 ⟹ 投影层载——生产 π 路径 runner.rs:493
+    /// 同款；层仅链查询读取，fill/recognize 零消费，门关臂行为逐字节不变）。
+    #[test]
+    #[ignore = "真实数据冒烟，需 analysis/data_cache/btc_1m_full.json；显式 --ignored --nocapture"]
+    fn nest_exit_gate_smoke_real_btc() {
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let ds = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("[#76 smoke] BTC 加载失败：{e}（DATA BLOCKER，如实跳过）");
+                return;
+            }
+        };
+        // T5b (#208)：层载派生（门开 ⟹ 层必载，生产同款；门关臂借原 config 零开销）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let config = super::super::admission::chain_driven_level_projection(&config);
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        let n = 30_000.min(ds.bars.len());
+        let bars = &ds.bars[..n];
+        let l0 = parser::parse_layer(bars, &config);
+        let (classification, tower) = classifier::classify_with_tower(&l0, &config);
+        let decisions = strategy::recognize(&classification, bars, &config);
+        eprintln!(
+            "[#76 smoke] bars={} levels={} decisions={}",
+            n,
+            classification.levels.len(),
+            decisions.len()
+        );
+        for on in [false, true] {
+            NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(on)));
+            let fill = plan_and_fill_mtm(&decisions, bars, 1.0e6, &config);
+            eprintln!(
+                "[#76 smoke v1 gate={}] n_orders={} trades={} realized_pnls={}",
+                on,
+                fill.n_orders,
+                fill.trades.len(),
+                fill.trade_pnls_realized.len()
+            );
+            let dual = plan_and_fill_mtm_dual(&classification, &tower, bars, 1.0e6, &config);
+            eprintln!(
+                "[#76 smoke dual gate={}] n_orders={} close_legs={} trades={}",
+                on,
+                dual.fill.n_orders,
+                dual.leg_log.iter().filter(|l| l.close).count(),
+                dual.fill.trades.len()
+            );
+        }
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+    }
+
+    /// #75 诊断（不进 CI）：真实 BTC 截断的终端塔单发派生——逐级打印
+    /// windows/合法 run/视图/事件计数，定位「prefix 零事件」环节（对照 p92 终端通过程）。
+    /// `NEST_GATE_SMOKE_BARS` 截尾窗（默认 50_000）。
+    #[test]
+    #[ignore = "#75 诊断：终端塔单发派生逐环节计数（手工触发，需数据）"]
+    fn nest_gate_diag_terminal_events() {
+        use super::super::data;
+        use classifier::level_view::{
+            assemble_level_view, lower_legs_from, project_extended_windows_carried_only,
+            provide_nest_candidate_events_ext, C2LevelViewConfig, C2VersionTuple,
+            CoordinateWindow, LevelViewMaterial, LevelViewQuery, ProjectionMaterial,
+        };
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("BTC 加载失败：{e}（DATA BLOCKER）");
+                return;
+            }
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars: usize = std::env::var("NEST_GATE_SMOKE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(50_000);
+        // NEST_GATE_SMOKE_START：窗口起点（缺省 = 尾部 n_full-max_bars）。
+        let start: usize = std::env::var("NEST_GATE_SMOKE_START")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| n_full.saturating_sub(max_bars));
+        let end = (start + max_bars).min(n_full);
+        // 切片必须经契约函数（source_index 重置为局部下标，data.rs:113-128）——裸切片保留
+        // 全集偏移会让结构坐标（source_index 域）与窗口 as_of 错位，派生全灭（实证坐实）。
+        let ds_win = ds_full.slice_bar_range(start, end);
+        let bars = &ds_win.bars;
+        let as_of = bars.len() - 1;
+        eprintln!("[diag] window=[{start}..{end})");
+        let l0 = parser::parse_layer(bars, &config);
+        let closes: Vec<f64> = l0.merged_bars.iter().map(|b| b.close as f64).collect();
+        let close_src: Vec<usize> = l0.merged_bars.iter().map(|b| b.source_index).collect();
+        let series = classifier::divergence::compute_macd(&closes, &config.macd);
+        let (_cls, tower) = classifier::classify_with_tower(&l0, &config);
+        eprintln!("[diag] bars={} tower_levels={}", bars.len(), tower.len());
+        for level in 1..tower.len() {
+            let lower = match lower_legs_from(&tower[level - 1]) {
+                Ok(l) => l,
+                Err(e) => {
+                    eprintln!("[diag] L{level} lower_legs_from ERR {e:?}");
+                    continue;
+                }
+            };
+            // pair 失败阶段计数（provide_divergence_pairs 逐字复制，定位零 pair 根因）。
+            let segments: Vec<super::super::super::types::Segment> = lower
+                .iter()
+                .map(|value| {
+                    let (start_price, end_price) = match value.direction {
+                        super::super::super::types::Direction::Up => (value.lo, value.hi),
+                        super::super::super::types::Direction::Down => (value.hi, value.lo),
+                    };
+                    super::super::super::types::Segment {
+                        direction: value.direction,
+                        start_index: value.start_index,
+                        end_index: value.end_index,
+                        start_price,
+                        end_price,
+                    }
+                })
+                .collect();
+            let windows = &tower[level];
+            let (mut n_valid, mut n_runs, mut n_views, mut n_events, mut n_confirmed) =
+                (0usize, 0usize, 0usize, 0usize, 0usize);
+            let (mut n_tail50k, mut n_tail1m) = (0usize, 0usize);
+            let mut hist10 = [0usize; 10];
+            let mut run_start = None;
+            for index in 0..=windows.len() {
+                let valid = index < windows.len()
+                    && project_extended_windows_carried_only(std::slice::from_ref(&windows[index]))
+                        .is_ok();
+                if valid {
+                    n_valid += 1;
+                }
+                match (run_start, valid) {
+                    (None, true) => run_start = Some(index),
+                    (Some(s), false) => {
+                        n_runs += 1;
+                        let projection =
+                            project_extended_windows_carried_only(&windows[s..index]).expect("run 投影");
+                        let centers: Vec<_> =
+                            projection.seeds.iter().map(|seed| seed.center).collect();
+                        let blocks = classifier::decompose::decompose(&centers);
+                        let view = assemble_level_view(
+                            C2LevelViewConfig { enabled: true },
+                            LevelViewQuery {
+                                level: level as u32,
+                                coordinate_window: CoordinateWindow {
+                                    start: projection.seeds.first().expect("非空").start_index,
+                                    end: projection.seeds.last().expect("非空").end_index,
+                                },
+                                as_of,
+                                version: C2VersionTuple::auto_pairing(),
+                            },
+                            LevelViewMaterial {
+                                projection: ProjectionMaterial::ExactThree(&projection),
+                                move_blocks: &blocks,
+                                lower_legs: &lower,
+                                hist: &series.hist,
+                                dif: &series.dif,
+                                close_src: &close_src,
+                            },
+                        );
+                        match view {
+                            Ok(view) => {
+                                n_views += 1;
+                                eprintln!(
+                                    "[diag] L{level} run[{s}..{index}) seeds={} blocks={} trend_completed={} pairs={}",
+                                    projection.seeds.len(),
+                                    blocks.len(),
+                                    blocks
+                                        .iter()
+                                        .filter(|b| matches!(
+                                            b.kind,
+                                            super::super::super::types::MoveKind::Trend
+                                        ) && matches!(
+                                            b.status,
+                                            classifier::decompose::MoveStatus::Completed
+                                        ))
+                                        .count(),
+                                    view.pairs.len(),
+                                );
+                                // pair 失败阶段逐字复制计数（provide_divergence_pairs 同序短路）。
+                                {
+                                    let anchors =
+                                        classifier::divergence::self_anchors(&segments);
+                                    let mut drops = [0usize; 6];
+                                    for block in &blocks {
+                                        let Some(direction) = block.dir else {
+                                            drops[0] += 1;
+                                            continue;
+                                        };
+                                        if block.end_center <= block.start_center
+                                            || block.end_center >= projection.seeds.len()
+                                        {
+                                            drops[1] += 1;
+                                            continue;
+                                        }
+                                        let prev =
+                                            projection.seeds[block.end_center - 1].center;
+                                        let last = projection.seeds[block.end_center].center;
+                                        if classifier::divergence::locate_departure_move_a(
+                                            &segments, &anchors, &prev, &last, direction,
+                                        )
+                                        .is_none()
+                                        {
+                                            drops[2] += 1;
+                                            continue;
+                                        }
+                                        let lo = segments.partition_point(|sg| {
+                                            sg.start_index < last.end_index
+                                        });
+                                        let hi = segments
+                                            .partition_point(|sg| sg.end_index <= as_of);
+                                        if lo > hi {
+                                            drops[3] += 1;
+                                            continue;
+                                        }
+                                        let Some(c_terminal) = segments[lo..hi]
+                                            .iter()
+                                            .find(|sg| sg.direction == direction)
+                                        else {
+                                            drops[3] += 1;
+                                            continue;
+                                        };
+                                        if classifier::divergence::departure_move_c_start(
+                                            &segments,
+                                            &anchors,
+                                            &last,
+                                            direction,
+                                            c_terminal.start_index,
+                                        )
+                                        .is_none()
+                                        {
+                                            drops[4] += 1;
+                                            continue;
+                                        }
+                                        drops[5] += 1;
+                                    }
+                                    eprintln!(
+                                        "[diag] L{level} pair_drops dir_none={} bounds={} locate_a={} c_terminal={} c_start={} reach_end={} legs={} seg_last_end={:?}",
+                                        drops[0],
+                                        drops[1],
+                                        drops[2],
+                                        drops[3],
+                                        drops[4],
+                                        drops[5],
+                                        segments.len(),
+                                        segments.last().map(|sg| sg.end_index),
+                                    );
+                                }
+                                let exts = provide_nest_candidate_events_ext(
+                                    level as u32,
+                                    &projection,
+                                    &blocks,
+                                    &lower,
+                                    &view,
+                                    &series.hist,
+                                    &series.dif,
+                                    &close_src,
+                                    // T1 (#170)：三元锚供给（诊断臂同用真实包含层/分型管）。
+                                    &l0.fractals,
+                                    &l0.merged_bars,
+                                );
+                                n_events += exts.len();
+                                n_confirmed +=
+                                    exts.iter().filter(|e| e.event.divergence_confirmed).count();
+                                for ext in &exts {
+                                    let ts = ext.event.turn_source;
+                                    if ts >= bars.len().saturating_sub(50_000) {
+                                        n_tail50k += 1;
+                                    }
+                                    if ts >= bars.len().saturating_sub(1_000_000) {
+                                        n_tail1m += 1;
+                                    }
+                                    let bucket = (ts * 10 / end.max(1)).min(9);
+                                    hist10[bucket] += 1;
+                                }
+                            }
+                            Err(e) => eprintln!("[diag] L{level} run[{s}..{index}) view ERR {e:?}"),
+                        }
+                        run_start = None;
+                    }
+                    _ => {}
+                }
+            }
+            eprintln!(
+                "[diag] L{level} windows={} valid={} runs={} views={} events={} confirmed={} tail50k={} tail1m={}",
+                windows.len(),
+                n_valid,
+                n_runs,
+                n_views,
+                n_events,
+                n_confirmed,
+                n_tail50k,
+                n_tail1m
+            );
+            eprintln!("[diag] L{level} ts_deciles={hist10:?}");
+        }
+    }
+
+    /// T1 (#170) 锚供给真实数据探针（手工触发，需数据；不进 CI、不进任何生产输出）：
+    /// 终端塔单发逐级 `derive_level_events`（生产 provider 路径 + 真实包含层/分型管供给），
+    /// 统计 confirmed 事件的锚缺失率（`n_anchor_misses` 真实语料实测）与新键域装填规模。
+    /// `T1_PROBE_BARS` 截尾窗（默认 50_000），`T1_PROBE_START` 窗起点（缺省 = 尾部）。
+    #[test]
+    #[ignore = "T1 锚供给真实数据探针（手工触发，需数据）"]
+    fn t1_anchor_supply_real_data_probe() {
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("BTC 加载失败：{e}（DATA BLOCKER）");
+                return;
+            }
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars: usize = std::env::var("T1_PROBE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(50_000);
+        let start: usize = std::env::var("T1_PROBE_START")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| n_full.saturating_sub(max_bars));
+        let end = (start + max_bars).min(n_full);
+        let ds_win = ds_full.slice_bar_range(start, end);
+        let bars = &ds_win.bars;
+        let as_of = bars.len() - 1;
+        let l0 = parser::parse_layer(bars, &config);
+        let (_cls, tower) = classifier::classify_with_tower(&l0, &config);
+        let mut gate = NestChainGate::new(bars, &config);
+        eprintln!("[t1probe] window=[{start}..{end}) tower_levels={}", tower.len());
+        for level in 1..tower.len() {
+            let exts = gate.derive_level_events(&tower, level, as_of);
+            let n = exts.len();
+            let n_conf = exts.iter().filter(|e| e.event.divergence_confirmed).count();
+            let n_conf_miss = exts
+                .iter()
+                .filter(|e| {
+                    e.event.divergence_confirmed
+                        && (e.extreme_price.is_none() || e.group_anchor.is_none())
+                })
+                .count();
+            gate.absorb_exts(exts);
+            eprintln!(
+                "[t1probe] L{level} exts={n} confirmed={n_conf} confirmed_anchor_miss={n_conf_miss}"
+            );
+        }
+        eprintln!(
+            "[t1probe] TOTAL absorbed={} by_triple_anchor_keys={} n_anchor_misses={}（0 = 真实语料锚供给全命中）",
+            gate.events_by_level.iter().map(Vec::len).sum::<usize>(),
+            gate.by_triple_anchor.len(),
+            gate.n_anchor_misses,
+        );
+    }
+
+    /// #75 门开冒烟（小截断实测，不进 CI）：NEST_GATE_STATS/CHAIN/INDEX 三行真链读数
+    ///（拒绝率 + 链深构成 vs 72.7% 单级基线 + L2 对照差）+ 增量喂法成本计数；先跑门关
+    /// 基线分离门的边际成本。`NEST_GATE_SMOKE_BARS` 截尾窗（默认 20_000；>4.6M=全量）。
+    #[test]
+    #[ignore = "门开冒烟：BTC 小截断实测 NEST_GATE 真链读数（手工触发，需数据）"]
+    fn nest_gate_smoke_stats() {
+        use super::super::data;
+        let config = ThetaConfig::default();
+        let ds_full = match data::load_by_symbol("BTC", &config) {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("BTC 加载失败：{e}（DATA BLOCKER，不伪造合成）");
+                return;
+            }
+        };
+        let n_full = ds_full.bars.len();
+        let max_bars: usize = std::env::var("NEST_GATE_SMOKE_BARS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(20_000);
+        let start = n_full.saturating_sub(max_bars);
+        // 切片必须经契约函数（source_index 重置为局部下标，data.rs:113-128）。
+        let mut ds = ds_full.slice_bar_range(start, n_full);
+        ds.symbol = format!("BTC-NGSMOKE-{max_bars}");
+        // 门关基线（bit-exact 路径，分离门的边际成本）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(false)));
+        let t0 = std::time::Instant::now();
+        let _ = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        let wall_off = t0.elapsed();
+        // 门开（真链判定）。
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(Some(true)));
+        let t0 = std::time::Instant::now();
+        let _ = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        let wall_on = t0.elapsed();
+        NEST_CERT_GATE_OVERRIDE.with(|c| c.set(None));
+        eprintln!(
+            "[nest-gate-smoke] bars={} wall_off={:?} wall_on={:?} gate_marginal={:?}",
+            ds.bars.len(),
+            wall_off,
+            wall_on,
+            wall_on.saturating_sub(wall_off),
+        );
+    }
+
     /// ★on2w3 merge skip 神谕深覆盖（debug 构建）：真实 CL 全引擎 run_theta_v0_pi。生产路径 forest_epoch
     /// 稳定（bump 率 2.17%）⟹ merge cand 段大量走 skip；`merge_in_place_split` 内嵌 debug_assert 逐 bar
     /// 对拍 skip vs 强制全量末态——任一 bar 发散立即 panic（O(n²) 修复的 bit-exact 铁律守卫）。
@@ -7893,7 +6531,8 @@ mod tests {
         let fill = pi_theta_fill_loop(
             |i| {
                 let (cls, tower) = classifier_incr.classify_at(i);
-                (cls, tower, classifier_incr.tower_generation(), classifier_incr.forest_epoch())
+                let cl = classifier_incr.tower_confirmed_lens(tower.len());
+                (cls, tower, cl, classifier_incr.tower_generation(), classifier_incr.forest_epoch())
             },
             &ds.bars,
             initial_nav,
@@ -8024,7 +6663,7 @@ mod tests {
             }
             let mut ci = super::super::incremental::IncrementalClassifier::new(&test.bars, &config);
             let fill = pi_theta_fill_loop(
-                |i| { let (c, t) = ci.classify_at(i); (c, t, ci.tower_generation(), ci.forest_epoch()) },
+                |i| { let (c, t) = ci.classify_at(i); let cl = ci.tower_confirmed_lens(t.len()); (c, t, cl, ci.tower_generation(), ci.forest_epoch()) },
                 &test.bars, nav, &config, None,
             );
             let tw = fill.tw_final.expect("π 路径 tw_final=Some");
@@ -8102,7 +6741,8 @@ mod tests {
             let fill = pi_theta_fill_loop(
                 |i| {
                     let (cls, tower) = classifier_incr.classify_at(i);
-                    (cls, tower, classifier_incr.tower_generation(), classifier_incr.forest_epoch())
+                    let cl = classifier_incr.tower_confirmed_lens(tower.len());
+                    (cls, tower, cl, classifier_incr.tower_generation(), classifier_incr.forest_epoch())
                 },
                 &ds.bars,
                 initial_nav,
@@ -9913,19 +8553,21 @@ mod tests {
     fn e_classification(with_child_close_trigger: bool) -> Classification {
         let buy_parent = BspPoint {
             source_index: 12,
+            level_origin: 0,
             bits: BspBits { buy1: true, ..Default::default() },
             pivot_low: 90,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 4, end_index: 12 })),
             struct_break_dir: None,
             force: None,
         };
         let sell_child = BspPoint {
             source_index: 16,
+            level_origin: 0,
             bits: BspBits { sell1: true, ..Default::default() },
             pivot_low: 0,
             pivot_high: 210,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 8, end_index: 16 })),
             struct_break_dir: None,
             force: None,
         };
@@ -9933,10 +8575,11 @@ mod tests {
         if with_child_close_trigger {
             l0.push(BspPoint {
                 source_index: 18,
+                level_origin: 0,
                 bits: BspBits { buy1: true, ..Default::default() },
                 pivot_low: 120,
                 pivot_high: 0,
-                center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 }),
+                center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 })),
                 struct_break_dir: None,
                 force: None,
             });
@@ -9955,10 +8598,11 @@ mod tests {
         let mut c = e_classification(false);
         let buy2_child_close = BspPoint {
             source_index: 18,
+            level_origin: 0, // 三方合并 schema 适配（#110 级别身份）
             bits: BspBits { buy2: true, ..Default::default() },
             pivot_low: 120,
             pivot_high: 0,
-            center: Some(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 }),
+            center: Some(crate::theta_v0::classifier::bsp::OwnerRef::Center(Center { zd: 100, zg: 150, dd: 85, gg: 160, start_index: 12, end_index: 18 })),
             struct_break_dir: None,
             force: None,
         };
@@ -10052,9 +8696,13 @@ mod tests {
     }
 
     /// E2（G5 双层记账同数锁）：E1 中子空腿 realized == TW ShortDiff 事件的父降成本金额。
-    /// TW 接线到位后启用（施工图 §6 E2 原文）；当前 v1 dual 路径 tw_final=None（诚实空）。
+    /// #68② 后 TW 物证已接线（tw_final=Some：ShortDiff **分腿成本基划转** + Realize 平仓入账
+    /// + 腿计数）——但 G5 断言的「ShortDiff(d_cash) 金额 ≡ 子腿 realized」是**另一会计身份**
+    /// （T37 child.P&L≡parent.cost_reduction 的双层记账同数），本接线的 ShortDiff 承载成本基
+    /// 划转、子腿 realized 走 `Realize` 通道入账，二者不经同一事件 ⟹ G5 同数锁是**独立会计
+    /// 裁定**（决策层语义，非 #68② 接线范围），保持 ignore 待裁定后启用。
     #[test]
-    #[ignore = "TW ShortDiff 通道未接线 v1 dual 路径（tw_final=None 诚实空）；G5 同数锁待 TW 接线后启用（施工图 §6 E2）"]
+    #[ignore = "G5 同数锁（TW ShortDiff 事件金额≡子腿 realized 会计身份）需独立裁定；#68② 已接 TW 物证（tw_final=Some），但 ShortDiff 承载成本基划转非父降成本同数——语义差即未接线项"]
     fn e2e_g5_double_entry_same_number() {
         let mut cfg = ThetaConfig::default();
         cfg.tick.tick_size = 1.0;
@@ -10124,6 +8772,7 @@ mod tests {
             levels: vec![LevelState {
                 bsp: Rc::new(vec![BspPoint {
                     source_index: 0,
+                    level_origin: 0,
                     bits: BspBits { buy1: true, ..Default::default() },
                     pivot_low: 90,
                     pivot_high: 0,
@@ -10152,7 +8801,58 @@ mod tests {
         assert_eq!(dual.n_orders, old.n_orders, "订单数一致");
         assert!(old.n_orders > 0, "夹具有效（确有交易，非空对拍）");
         assert_eq!(dual.typed_ledger.len(), old.typed_ledger.len());
-        assert!(dual.tw_final.is_none() && old.tw_final.is_none());
+        assert!(old.tw_final.is_none(), "净额 v1 路径无 TW 接线（诚实 None，不变）");
+        // #68②：dual 路径 TW 已接线（物证账本，不进 equity/pnls/trades 对拍字段——上方逐字节
+        // 断言已锁决策层零漂移；TW 守恒由 dual_tw_wiring_conservation 专测）。
+        assert!(dual.tw_final.is_some(), "dual 路径 TW 账本已接线（#68②）");
         assert!(dual.r_decomp.is_none() && old.r_decomp.is_none());
+    }
+
+    /// #68②/④-b TW 接线守恒（E1 夹具：父多腿 + 子 ShortDiff 空腿共存 → 子平 → 父终点强平）：
+    /// 1. tw_final=Some；2. TW 漂移不变量 `tw()−注资 == ⌊Σ平仓腿 realized⌋`（Realize 唯一漂移
+    ///    构造子；强平 PnL 不入——父腿强平盈亏若入账此式即破，本断言同锁「强平排除」口径）；
+    /// 3. holding>0（快照取强平前，父腿在飞）；4. legacy 腿计数开合平衡归 0；5. stage 恒
+    ///    CostReduction（stage 推进机构未接的诚实镜像）。
+    #[test]
+    fn dual_tw_wiring_conservation() {
+        use super::super::super::strategy::ledger::TStage;
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let classification = e_classification(true);
+        let tower = e_tower();
+        let bars = e1_bars();
+        let dual = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+        let tw = dual.fill.tw_final.expect("#68②：dual 路径 TW 已接线");
+        let realized_sum: f64 = dual.fill.trade_pnls_realized.iter().sum();
+        assert!(realized_sum > 0.0, "夹具有效：子空腿平仓 realized>0");
+        assert_eq!(
+            tw.tw() - 1_000_000,
+            realized_sum as i64,
+            "TW 漂移 == ⌊Σ平仓腿 realized⌋（Realize 唯一漂移构造子；强平 PnL 不入）"
+        );
+        assert!(tw.holding > 0, "强平前快照：父腿成本基在 holding");
+        assert_eq!(tw.withdrawn, 0, "无退本金事件（stage 推进机构未接）");
+        assert_eq!(tw.open_legacy_legs, 0, "ShortDiff 子腿开合平衡（腿计数通道已接）");
+        assert_eq!(tw.stage, TStage::CostReduction, "无推进机构 ⟹ stage 恒 CostReduction（诚实镜像）");
+    }
+
+    /// #68②/④-b TW 腿计数在飞态（截窗到子 ShortDiff 开仓 bar：子腿终点仍在飞）：
+    /// open_legacy_legs==1；无平仓 ⟹ 无 Realize 事件 ⟹ ShortDiff 保 TW 守恒（tw()==注资）；
+    /// holding 承载双腿成本基（q⁺·cost⁺+q⁻·cost⁻ > 0）。
+    #[test]
+    fn dual_tw_legacy_leg_count_open_at_end() {
+        let mut cfg = ThetaConfig::default();
+        cfg.tick.tick_size = 1.0;
+        let classification = e_classification(false);
+        let tower = e_tower();
+        // 截窗到 bar 17（子 ShortDiff 开仓 bar）——子腿尚无退出触发，强平前快照在飞。
+        // （E1 全窗下子腿 @19 另有退出通道平仓——引擎既有行为，非本测试目标。）
+        let bars: Vec<Bar> = e1_bars().into_iter().take(18).collect();
+        let dual = plan_and_fill_mtm_dual(&classification, &tower, &bars, 1_000_000.0, &cfg);
+        let tw = dual.fill.tw_final.expect("#68②：dual 路径 TW 已接线");
+        assert_eq!(tw.open_legacy_legs, 1, "子 ShortDiff 腿在飞 ⟹ legacy 腿计数=1");
+        assert!(dual.fill.trade_pnls_realized.is_empty(), "无平仓（强平不计 realized 口径）");
+        assert_eq!(tw.tw(), 1_000_000, "无 Realize 事件 ⟹ ShortDiff 保 TW 守恒");
+        assert!(tw.holding > 0, "双腿成本基在 holding（q⁺·cost⁺+q⁻·cost⁻）");
     }
 }
