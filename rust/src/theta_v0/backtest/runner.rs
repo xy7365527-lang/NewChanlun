@@ -1104,13 +1104,15 @@ fn t1_core_zero_probe_count() -> u64 {
 }
 
 /// ★#209 终态违例探针：一类全平批末**级余额非零**笔数（release 构建可观测面；debug
-/// 构建由批次边界 debug_assert 先行拦截）。历史对照：#199 测量态 BTC 实测违例=1。
+/// 构建由批次边界 debug_assert 先行拦截）。★#237 起口径 = **批次方向侧**分量余额
+/// （一类卖批查多侧/一类买批查空侧，`balance_side` 按方向拆查）。历史对照：#199 测量态
+/// BTC 实测违例=1。
 fn t1_core_residual_probe_bump() {
     T1_CORE_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
 }
 
-/// 读取级余额违例探针快照（#209 终态见证材料：一类批末 balance(Core{L})≠0 笔数，
-/// 验收口径 = 全窗 0）。
+/// 读取级余额违例探针快照（#209 终态见证材料：一类批末批次方向侧 balance(Core{L})≠0
+/// 笔数——#237 拆查口径，验收口径 = 全窗 0）。
 fn t1_core_residual_probe_count() -> u64 {
     T1_CORE_RESIDUAL_PROBE.with(std::cell::Cell::get)
 }
@@ -1943,8 +1945,10 @@ where
             // 反向关闭：typed 裁决消费 trace 第三分量（#145 T1——组合层决策点已经
             // reverse_exit_type 单源判定，本处不补算；登记腿必在 entry_v 映射 ⟹ 裁决非回退值）。
             // ★#209 断言②批次收集：本步一类 × Core 镜像过的 level（批末硬门检查集，
-            // 见本循环结束点「断言②终态硬门」段）。
-            let mut t1_core_levels: Vec<u32> = Vec::new();
+            // 见本循环结束点「断言②终态硬门」段）。★#237：检查集扩为 (level, 批次方向)
+            // ——批次方向由被关腿方向单源表达（Exit_v δ(γ)=−σ_v：卖批关 Long、买批关
+            // Short），与断言① l.dir 同源同口径。
+            let mut t1_core_levels: Vec<(u32, strategy::voice::VoiceSide)> = Vec::new();
             for (leg, trig, exit_type) in &step_trace.closed {
                 if let Some(open) = open_trades.remove(&leg.id) {
                     // #145 T1 不变量：登记腿必在本步 entry_v 映射（closed ⊆ prev_active ⊆ 本 bar
@@ -1997,13 +2001,15 @@ where
                         strategy::account::reason_of_reverse_close(a, trig.bsp_class, core_residual)
                     }) {
                         // ★#209：一类 × Core 镜像 ⟹ 记录 level（批末断言②硬门检查集）。
+                        // ★#237：连方向一并记录——批次方向=被关腿方向（与断言① l.dir 同源，
+                        // 卖批关 Long 查多侧、买批关 Short 查空侧）。
                         if reason == strategy::account::ActionReason::ReverseType1
                             && matches!(
                                 account_id,
                                 Some(strategy::account::AccountIdentity::Core { .. })
                             )
                         {
-                            t1_core_levels.push(leg.id.level);
+                            t1_core_levels.push((leg.id.level, leg.dir));
                         }
                         account_mirror_close(&mut account_view, &open, leg.id.level, reason, px, i);
                     }
@@ -2018,17 +2024,22 @@ where
             // post 后余额仍含未平同级腿，故硬门不挂单笔粒度（见 account_mirror_post 断言②
             // 注释）。形态 = debug 构建 panic + 违例探针恒在计数（release 可观测），与
             // 断言③同款。历史对照（勿删）：#199 测量态 BTC train 窗实测违例=1。
-            t1_core_levels.sort_unstable();
+            // ★#237 按方向拆查（与断言①同源同口径，用户裁 2026-07-24）：一类卖批 ⇒ 查
+            // 该级**多侧**分量=0（`balance_side(Core{lv}, Long)`）；一类买批 ⇒ 查**空侧**
+            // 分量=0——分侧账禁净额（P_sep：净额 balance 同时掩盖双侧残余，ker N 不可
+            // 识别）。顺父级联 Short 腿归空侧（实例键 position.side，#185 映射不动），
+            // 卖批下合法存活不计入（#234 Q4.3；m3 (1,470) 误报面的账侧同口径收口）。
+            t1_core_levels.sort_unstable_by(|a, b| (a.0, a.1 as u8).cmp(&(b.0, b.1 as u8)));
             t1_core_levels.dedup();
-            for lv in t1_core_levels {
-                let bal =
-                    account_view.balance(strategy::account::AccountIdentity::Core { level: lv });
+            for (lv, side) in t1_core_levels {
+                let bal = account_view
+                    .balance_side(strategy::account::AccountIdentity::Core { level: lv }, side);
                 if bal != 0.0 {
                     t1_core_residual_probe_bump();
                 }
                 debug_assert!(
                     bal == 0.0,
-                    "#209 断言②终态违例：一类全平批末 balance(Core{{{lv}}}) = {bal} ≠ 0——S7 级别内全平是必须"
+                    "#237 断言②终态违例：一类全平批末 balance(Core{{{lv}}} {side:?}侧) = {bal} ≠ 0——S7 级别内全平是必须（按方向拆查）"
                 );
             }
             // 静默离场（§13 AncOK 连带剪/Stale prune，无触发信号）：归属判据抽为
@@ -5248,6 +5259,120 @@ mod tests {
         );
     }
 
+    /// ★#237 塔夹具：L2 空父 B（外缘 Down ⟹ Short）由两条 L1 子段 compose——供 L1 顺父
+    /// 级联 Short 候选的 638 真父附着（sell@8 命中 b0.ρ=8 ⟹ host=b0、父 B=Short）。
+    /// L1/L0 vec 空：子段由 Compose 带出（two_parent_tower/e_tower 同款形态）。
+    fn l2_short_parent_tower() -> Vec<Rc<Vec<LeveledMove>>> {
+        let unit = |si: usize, ei: usize, dir: Direction, lo: i64, hi: i64, ord: u64| {
+            LeveledMove::from_unit(
+                &UnitRange { start_index: si, end_index: ei, direction: dir, lo, hi },
+                ElementId { level: 0, ordinal: ord },
+            )
+        };
+        // b0：L1 (0,8) Short（外缘 15→12 Down）；b1：L1 (8,16) Short（外缘 13→10 Down）。
+        let b0 = LeveledMove::compose(
+            &[unit(0, 4, Direction::Down, 8, 15, 0), unit(4, 8, Direction::Up, 5, 12, 1)],
+            Center { zd: 6, zg: 13, dd: 4, gg: 16, start_index: 0, end_index: 8 },
+            1,
+            ElementId { level: 1, ordinal: 0 },
+        );
+        let b1 = LeveledMove::compose(
+            &[unit(8, 12, Direction::Down, 6, 13, 2), unit(12, 16, Direction::Up, 4, 10, 3)],
+            Center { zd: 5, zg: 12, dd: 3, gg: 14, start_index: 8, end_index: 16 },
+            1,
+            ElementId { level: 1, ordinal: 1 },
+        );
+        let big = LeveledMove::compose(
+            &[b0, b1],
+            Center { zd: 5, zg: 13, dd: 3, gg: 16, start_index: 0, end_index: 16 },
+            2,
+            ElementId { level: 2, ordinal: 0 },
+        ); // 外缘 15→10 Down ⟹ Short
+        vec![Rc::new(Vec::new()), Rc::new(Vec::new()), Rc::new(vec![big])]
+    }
+
+    /// ★#237 断言②**按方向拆查**生产路径见证（与断言①同源同口径，用户裁 2026-07-24）：
+    /// **一类买批末 `balance_side(Core{{L}}, Short)==0`**（空侧查零过）——被批收集的
+    /// 方向键 = 被关腿方向（级联 Short，与断言① `l.dir` 同源）；同 bar 规则3 新开的
+    /// 多侧根镜像在批末检查**之后**（#200 先平后开次序）——「买批⇒多侧不查」由
+    /// 方向键 + 次序双重保证。
+    ///
+    /// 场景（l2_short_parent_tower）：L2 sell1@4 开 L2 根 Short（Short 账）→ L1 sell1@8
+    /// 顺父级联开 Core{{1}} 空侧（FollowParent×Short，638 附着 b0）→ L1 buy1@10 一类
+    /// 买批全平空侧（ReverseType1，批次收集 (1, Short)）＋ 规则3 同 bar 开 L1 根 Long。
+    ///
+    /// **「卖批⇒空侧存活不查」的异侧共存形态 090 如实标注**：同级「多侧＋级联 Short」
+    /// 共存只能经 restore/跨 bar 结构路径形成（任何同级反向候选开仓必先关对方——
+    /// 规则2 方向锁定），runner 合成塔内不可伪造；m3 win9 bar=232810 (1,470) 正是该
+    /// restore 形态的真实生产实例（#233 §5 另案面），其新口径零违例由 m3 全窗承担
+    /// （本票验收 2）。本测试锁的是 π loop 内方向收集/拆查/`balance_side` 消费链
+    /// 真实工作 + 平凡域零违例防回归。
+    #[test]
+    fn t1_core_close_zero_assertion_buy_batch_checks_short_side_only() {
+        use super::super::super::strategy::account::AccountIdentity;
+        use super::super::super::strategy::interp::ExitType;
+        use super::super::super::strategy::voice::VoiceSide;
+        t1_core_zero_probe_reset();
+        let config = ThetaConfig::default();
+        let bars: Vec<Bar> = (0..20).map(px100_bar).collect();
+        let cls = |l1: Vec<BspPoint>, l2: Vec<BspPoint>| Classification {
+            levels: vec![
+                LevelState { bsp: Rc::new(vec![]), ..Default::default() },
+                LevelState { bsp: Rc::new(l1), ..Default::default() },
+                LevelState { bsp: Rc::new(l2), ..Default::default() },
+            ],
+        };
+        let c1 = cls(vec![], vec![sell_at(4, 1)]);
+        let c2 = cls(vec![sell_at(8, 1)], vec![sell_at(4, 1)]);
+        let c3 = cls(vec![sell_at(8, 1), buy1_at(10)], vec![sell_at(4, 1)]);
+        let tower = l2_short_parent_tower();
+        let classify = move |i: usize| {
+            let c = if i >= 9 {
+                c3.clone()
+            } else if i >= 7 {
+                c2.clone()
+            } else if i >= 5 {
+                c1.clone()
+            } else {
+                Classification::default()
+            };
+            (c, tower.clone(), i as u64, i as u64)
+        };
+        let fill = pi_theta_fill_loop(classify, &bars, 1.0e6, &config, None);
+        // 订单轨锚点：L2 根 Short（censored）+ 级联 Short（一类买批平）。一类候选
+        // 「消费即止」（规则2 消费后不落规则3，#200 例外仅二类）⟹ 买批不同 bar 开新根。
+        assert_eq!(fill.typed_ledger.len(), 2, "L2 根 Short + 级联 Short 恰两条 typed");
+        let cascade = fill
+            .typed_ledger
+            .iter()
+            .find(|t| t.exit_type == ExitType::CloseRoot)
+            .expect("级联 Short 一类买批平 typed 存在");
+        assert_eq!(cascade.entry_z.delta, -1, "被一类买批全平的 = 级联 Short（空侧）");
+        assert_eq!(cascade.exit_bar, 9, "一类买批 bar 9 确认 ⟹ 规则2 关空侧腿");
+        let view = &fill.account_view;
+        // 新口径账面事实：买批平空后空侧分量=0（多侧本场景无腿——一类消费即止）。
+        assert_eq!(
+            view.balance_side(AccountIdentity::Core { level: 1 }, VoiceSide::Short),
+            0.0,
+            "一类买批 ⇒ 该级空侧分量=0（S2「该级该方向」良构形式）"
+        );
+        // L2 根 Short 落 Short 账（Ambient×Short 互斥完备：无父反向声部），不入 Core。
+        assert!(
+            view.fills().iter().any(|f| f.order.account() == AccountIdentity::Short),
+            "L2 根 Short ⟹ Short 账开仓成交存在（#185 映射不动）"
+        );
+        assert_eq!(
+            t1_core_zero_probe_count(),
+            1,
+            "一类 Core 平仓一批 ⟹ 断言②评估在生产路径真实触发（探针为凭）"
+        );
+        assert_eq!(
+            t1_core_residual_probe_count(),
+            0,
+            "一类买批只查空侧分量（#237 拆查口径，违例=0）"
+        );
+    }
+
     /// ★#199 断言③后半（CoreResidualCorrection 残余硬门）生产路径触发见证：
     /// 每笔 CoreResidualCorrection 过账前核心残余实测非零（`balance(Core{level})≠0`）——
     /// 「仅残余才纠错」的执行层硬门。debug 构建逐笔核对；探针恒在计数。
@@ -5945,6 +6070,105 @@ mod tests {
         // 释放 carrier + 新世代重登记（蓝图两步形②）后该形态在真实数据显现 2 笔，
         // 上方逐笔标注断言（OpenShort ⟹ Short 账）对这两笔真实成立。
     }
+
+    /// ★#237「死给你看」见证（票面条款，BTC 真实数据，生产 π 路径）：(1,470)
+    /// （FollowParent×Short、parent=(2,107)，m3 win9 bar=232810 旧口径误报腿）的**终结
+    /// 事件**在 m3 轨迹中逐 bar 核实——「不误报 ≠ 不清理」：拆查只是不再把合法存活
+    /// 误报为违例；其合法出场路径（一类买点/父关连清/元素终结/翻向终结，#234 Q4.3）
+    /// 必须在轨迹中真实发生。观测轨 = `voice_verdicts`（#201：每 bar 每持仓声部恰一枚
+    /// 显式裁决，restore 腿同覆盖——该腿不经 open_trades 登记、typed_ledger 可能缺席，
+    /// 裁决轨是其在飞/离场的完整可观测面）+ typed_ledger（若曾登记）。win10 (2,50)
+    /// （FollowParent×Short、parent=(3,11)，#233 §5 同族）一并核对。若全窗扫尽目标腿
+    /// 从未终结（新僵尸），测试失败 = 停手上浮，非掩盖（票面条款）。
+    #[test]
+    #[ignore = "#237 (1,470)/(2,50) 死给你看见证；需 BTC 数据（DATA BLOCKER 不伪造）"]
+    fn m3_follow_parent_short_leg_termination_witness() {
+        use super::super::data;
+        use super::super::incremental::IncrementalClassifier;
+        use super::super::prereg_windows::PREREG_WINDOWS;
+        use super::super::super::strategy::interp::ExitType;
+        let config = ThetaConfig::default();
+        let w = PREREG_WINDOWS.iter().find(|w| w.symbol == "BTC").expect("BTC prereg 窗");
+        let ds = data::load_by_symbol(w.symbol, &config).expect("BTC 数据");
+        // 目标：(1,470)（本票票面腿）与 (2,50)（win10 同族）；自 win9 起逐窗追踪至终结。
+        for target in [ElementId { level: 1, ordinal: 470 }, ElementId { level: 2, ordinal: 50 }] {
+            let mut terminated = false;
+            for win in w.wf_anchored.iter().filter(|win| win.i >= 9) {
+                let test_ds = ds.slice_date_window(win.test_start, win.test_end);
+                if test_ds.bars.is_empty() {
+                    continue;
+                }
+                let bars = &test_ds.bars;
+                let first_px = bars
+                    .iter()
+                    .find(|b| !b.untradable && b.close > 0)
+                    .map(|b| b.close as f64 * config.tick.tick_size)
+                    .unwrap_or(1.0);
+                let nav = (first_px * 1000.0).max(1.0e6);
+                let mut classifier_incr = IncrementalClassifier::new(bars, &config);
+                let fill = pi_theta_fill_loop(
+                    |i| {
+                        let (cls, tower) = classifier_incr.classify_at(i);
+                        let gen = classifier_incr.tower_generation();
+                        let fe = classifier_incr.forest_epoch();
+                        (cls, tower, gen, fe)
+                    },
+                    bars,
+                    nav,
+                    &config,
+                    None,
+                );
+                let verdicts: Vec<_> =
+                    fill.voice_verdicts.iter().filter(|v| v.leg.id == target).collect();
+                let ledger_hits: Vec<_> =
+                    fill.typed_ledger.iter().filter(|t| t.voice_id == target).collect();
+                if verdicts.is_empty() && ledger_hits.is_empty() {
+                    eprintln!("[win{}] {:?} 本窗无轨迹", win.i, target);
+                    continue;
+                }
+                if let (Some(first), Some(last)) = (verdicts.first(), verdicts.last()) {
+                    eprintln!(
+                        "[win{}] {:?} 裁决轨：首现 bar={} 末现 bar={} 末裁决={:?} 记录数={}（窗长 {}）",
+                        win.i, target, first.bar, last.bar, last.exit_type, verdicts.len(), bars.len()
+                    );
+                    for v in verdicts.iter().filter(|v| v.exit_type != ExitType::Hold) {
+                        eprintln!("  非Hold裁决：bar={} exit={:?} dir={:?} parent={:?}", v.bar, v.exit_type, v.leg.dir, v.leg.parent_id);
+                    }
+                }
+                for t in &ledger_hits {
+                    eprintln!(
+                        "[win{}] {:?} typed：entry={} exit={} exit_type={:?} via_prune={} δ={}",
+                        win.i, target, t.entry_bar, t.exit_bar, t.exit_type, t.via_structural_prune, t.entry_z.delta
+                    );
+                }
+                // 终结判定（窗内三路径）：①信号关闭（裁决轨非 Hold——一类买点 CloseRoot 等）；
+                // ②typed 轨非 censored 关条目（含 via_structural_prune 父关连清/翻向终结）；
+                // ③裁决轨中断（末现 bar 远离窗尾——silent_drops 结构离场：父关连清/元素终结/
+                // 翻向终结，§13 剪除腿不进裁决轨）。
+                let n_bars = bars.len();
+                let close_by_signal = verdicts.iter().any(|v| v.exit_type != ExitType::Hold);
+                let close_by_ledger = ledger_hits
+                    .iter()
+                    .any(|t| t.exit_type != ExitType::Hold || t.via_structural_prune);
+                let vanished = verdicts.last().is_some_and(|v| v.bar + 100 < n_bars);
+                if close_by_signal || close_by_ledger || vanished {
+                    eprintln!(
+                        "[win{}] {:?} ★终结确认：信号关闭={} 结构/typed关闭={} 裁决轨消失={}",
+                        win.i, target, close_by_signal, close_by_ledger, vanished
+                    );
+                    terminated = true;
+                    break;
+                }
+                eprintln!("[win{}] {:?} 窗尾仍在飞（censored），续扫下一窗", win.i, target);
+            }
+            assert!(
+                terminated,
+                "{:?} 全窗扫尽未见终结事件——新僵尸，停手上浮（090 不掩盖，票面「死给你看」条款）",
+                target
+            );
+        }
+    }
+
 
     /// ★#198 跨账一致性见证（BTC 真实数据，生产路径）：§13 结构剪枝腿的 typed 归属
     /// 必须与 #197 账户身份一致——`exit_type == CloseShortDiff` ⟺ `account == ShortDiff`。

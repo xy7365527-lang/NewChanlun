@@ -163,20 +163,21 @@ pub fn t1_target_zero_probe_reset() {
     T1_TARGET_RESIDUAL_PROBE.with(|c| c.set(0));
 }
 
-/// 读取断言①探针快照（一类卖 Core 目标评估笔数）。
+/// 读取断言①探针快照（一类批 Core 目标评估笔数）。
 pub fn t1_target_zero_probe_count() -> u64 {
     T1_TARGET_ZERO_PROBE.with(std::cell::Cell::get)
 }
 
-/// ★#209 终态违例探针：一类卖后**级残余非零**笔数（release 构建可观测面；debug 构建
-/// 由断言①挂载点 debug_assert 先行拦截）。历史对照：#199 测量态 BTC 实测违例=1。
+/// ★#209 终态违例探针：一类批后**级残余非零**笔数（release 构建可观测面；debug 构建
+/// 由断言①挂载点 debug_assert 先行拦截）。★#237 起口径 = **批次方向侧**分量残余
+/// （一类卖批查多侧/一类买批查空侧，按方向拆查）。历史对照：#199 测量态 BTC 实测违例=1。
 /// pub 理由同上（lib-target dead_code lint 规避；跨模块消费只经 reset/count）。
 pub fn t1_target_residual_probe_bump() {
     T1_TARGET_RESIDUAL_PROBE.with(|c| c.set(c.get() + 1));
 }
 
-/// 读取级残余违例探针快照（#209 终态见证材料：一类卖后 target_qty(Core{L})≠0 笔数，
-/// 验收口径 = 全窗 0）。
+/// 读取级残余违例探针快照（#209 终态见证材料：一类批后批次方向侧 target_qty(Core{L})≠0
+/// 笔数——#237 拆查口径，验收口径 = 全窗 0）。
 pub fn t1_target_residual_probe_count() -> u64 {
     T1_TARGET_RESIDUAL_PROBE.with(std::cell::Cell::get)
 }
@@ -3376,14 +3377,23 @@ pub(crate) fn pi_theta_step_traced(
             (l, c, exit_type)
         })
         .collect();
-    // ★#199 断言①（#185「建议断言」1，T1 目标态）：一类卖(L) ⟹ target_qty(Core{L})==0——
-    // 一类核心关闭后 sep_legs 无该级核心目标。账户身份经 #197 `account::identity_of`
+    // ★#199 断言①（#185「建议断言」1，T1 目标态）：一类批 ⟹ target_qty(Core{L} 批次方向侧)==0——
+    // 一类核心关闭后 sep_legs 无该级该方向侧核心目标。账户身份经 #197 `account::identity_of`
     // 单源判定（Ambient×Long/FollowParent ⟹ Core{level}；反手开空=Ambient×Short ⟹ Short
     // 账不触发本断言，ID-3「允许当场反手」相容）。探针恒在计数（一类核心关闭评估笔数）。
     //
+    // ★#237 按方向拆查（#234 蓝图依据：出场方向锁定「多头声部由卖点证书平仓；空头声部由
+    // 买点证书平仓」买卖点2.pdf p.4/14 §5.2 ＋ 分侧账禁净额 P_sep，拆查为唯一一致查法；
+    // 用户裁 2026-07-24）：一类卖批 ⇒ 查该级**多侧**分量=0；一类买批 ⇒ 查该级**空侧**
+    // 分量=0——S2「该级该方向」的良构形式。批次方向由被关腿方向单源表达（Exit_v
+    // δ(γ)=−σ_v：卖批关 Long 腿、买批关 Short 腿 ⟺ l.dir 即批次方向）。顺父级联 Short 腿
+    // （FollowParent×Short）归空侧分量：一类卖批下合法存活（同向信号持有/加仓/记录，
+    // 蓝图动作表），不计入卖批残余——m3 win9 bar=232810 (1,470) 误报面收口（#233 §5 另案，
+    // 本票）；其合法出场路径 = 一类买点/元素终结/父关连清/风险强平（#234 Q4.3）。
+    //
     // ★#209 终态硬门（用户裁 A 2026-07-23：S7 级别内全平是必须非应当）：#199 测量态
     // 期满转正——fold 规则2 已修为一类候选关闭该级别**全部**反向命中腿（interp.rs
-    // #209 段），级残余结构性归零。硬门形态 = debug 构建逐笔 panic + 违例探针恒在
+    // #209 段），批次方向侧级残余结构性归零。硬门形态 = debug 构建逐笔 panic + 违例探针恒在
     // 计数（release 下仍可观测），与断言③同款。历史对照（勿删）：#199 测量态 BTC
     // train 窗实测违例=1（L=1 残留 FollowParent 延续腿 277.9 单位，一类只关首条所致）。
     for (l, c, _) in &closed {
@@ -3400,6 +3410,9 @@ pub(crate) fn pi_theta_step_traced(
         let residual: f64 = sep_legs
             .iter()
             .filter(|s| s.id.level == l.level)
+            // ★#237 按方向拆查：只计批次方向侧分量（l.dir ⟺ 批次方向，Exit_v 方向锁定的
+            // 生产同义式）；异侧腿不在本批出场域（卖批不关空侧、买批不关多侧）。
+            .filter(|s| s.side == l.dir)
             .filter(|s| {
                 account::identity_of(s.role_v, s.side, s.id.level)
                     == Some(account::AccountIdentity::Core { level: s.id.level })
@@ -3411,8 +3424,8 @@ pub(crate) fn pi_theta_step_traced(
         }
         debug_assert!(
             residual == 0.0,
-            "#209 断言①终态违例：一类卖后 target_qty(Core{{{}}}) 残余 {residual} ≠ 0——S7 级别内全平是必须",
-            l.level
+            "#237 断言①终态违例：一类批后 target_qty(Core{{{}}} {:?}侧) 残余 {residual} ≠ 0——S7 级别内全平是必须（按方向拆查）",
+            l.level, l.dir
         );
     }
     let closed_ids: std::collections::HashSet<ElementId> =
@@ -6147,6 +6160,28 @@ mod tests {
         sell_classification_at(0, 10, class)
     }
 
+    /// 指定递归结构级别的买候选分类夹具（class=1 一类 / 3 三类）——#237 买批方向
+    /// 拆查测试用（sell_classification_at 镜像；买点 pivot_low/high 方向取反）。
+    fn buy_classification_at(level: u32, source_index: usize, class: u8) -> Classification {
+        let bits = match class {
+            1 => BspBits { buy1: true, ..Default::default() },
+            _ => BspBits { buy3: true, ..Default::default() },
+        };
+        let buy = BspPoint {
+            source_index,
+            bits,
+            pivot_low: 90,
+            pivot_high: 0,
+            center: Some(Center { zd: 100, zg: 200, dd: 90, gg: 210, start_index: 0, end_index: 9 }),
+            struct_break_dir: None,
+            force: None,
+        };
+        let mut levels: Vec<LevelState> =
+            (0..=level).map(|_| LevelState::default()).collect();
+        levels[level as usize].bsp = Rc::new(vec![buy]);
+        Classification { levels }
+    }
+
     /// 两父塔中 compose_a 的 L1 Long 持仓腿（结构身份/坐标与 [`two_parent_tower`] 精确一致）。
     fn held_l1_compose_a() -> ActiveLeg {
         ActiveLeg {
@@ -6313,6 +6348,215 @@ mod tests {
             t1_target_residual_probe_count(),
             0,
             "多腿场景：一类卖后 target_qty(Core{{0}})==0（S7 级别内全平）"
+        );
+    }
+
+    /// ★#237 断言①**按方向拆查**（#234 蓝图依据：出场方向锁定「多头声部由卖点证书平仓；
+    /// 空头声部由买点证书平仓」+ 分侧账禁净额，拆查为唯一一致查法；用户裁 2026-07-24）：
+    /// **一类卖批 ⇒ 查该级多侧分量=0，空侧不查**。同级顺父级联 Short 腿（当 bar
+    /// role_v=FollowParent ⟹ 归 Core{0}，#185 映射不动）在一类卖批下**合法存活**（蓝图
+    /// 动作表：空头声部×卖点 = 同向信号持有/加仓/记录，买卖点2.pdf p.8/14 §11），不计入
+    /// 卖批残余——其合法出场路径为一类买点/元素终结/父关连清/风险强平（#234 Q4.3）。
+    ///
+    /// 场景（two_parent_tower：compose_a Long 父 + compose_b Short 父）：prev_active =
+    /// L0 Long 子腿（a2，父 compose_a）+ L0 Short 子腿（b1，父 compose_b，顺父级联）
+    /// + L1 Short 父腿（compose_b，Ambient×Short⟹Short 账，不入 Core 残余域）。
+    /// 一类卖候选（L0）反向关闭 Long 子腿；Short 子腿同向不关闭（reverse_signal 方向锁定）。
+    ///
+    /// **RED（旧口径）**：残余求和不分方向 ⟹ 存活 Short 腿 q_units 计入 ⟹ 级残余≠0
+    /// panic——m3 win9 bar=232810 (1,470) FollowParent×Short 误报的最小复现（#233 §5
+    /// 另案面，本票收口）。**GREEN（新口径）**：多侧分量=0（卖批查零过）；空侧分量>0
+    /// 但不查（违例探针=0）。
+    #[test]
+    fn t1_target_zero_assertion_sell_batch_checks_long_side_only() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        t1_target_zero_probe_reset();
+        let tower = two_parent_tower();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        // L0 Long 子腿（a2 λ=8 ρ=12，父 compose_a=Long）——一类卖批的关闭对象
+        // （entry_v=Ambient ⟹ Core{0}，断言①评估对象）。
+        let held_long = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 12, lambda: 8,
+            id: eid(0, 2), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: None,
+        };
+        // L0 Short 子腿（b1 λ=16 ρ=20，父 compose_b=Short）——顺父级联空侧腿（当 bar
+        // role_v=FollowParent ⟹ Core{0}），一类卖批下同向持有（m3 (1,470) 同族形态）。
+        let held_short = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 20, lambda: 16,
+            id: eid(0, 4), parent_id: Some(eid(1, 1)), is_boundary_root: false, op_parent: None,
+        };
+        // L1 Short 父腿（compose_b λ=12 ρ=24）——held_short 的 AncOK 父容器。
+        let held_parent_b = ActiveLeg {
+            level: 1, dir: VoiceSide::Short, source_index: 24, lambda: 12,
+            id: eid(1, 1), parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let classification = sell_classification(1);
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let tw_state = TwState::initial();
+        let policy = RiskPolicy::baseline();
+        let entry_v: std::collections::HashMap<ElementId, Vertical> = [
+            (held_long.id, Vertical::Ambient),
+            (held_short.id, Vertical::FollowParent),
+            (held_parent_b.id, Vertical::Ambient),
+        ]
+        .into_iter()
+        .collect();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &entry_v,
+            eta_correction: 0,
+        };
+        let (na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held_long, held_short, held_parent_b], 600.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc), &protocol_hold(),
+        );
+        assert_eq!(trace.closed.len(), 1, "一类卖只关反向 Long 腿（出场方向锁定）");
+        assert_eq!(trace.closed[0].0.id, held_long.id, "被关 = L0 Long 子腿");
+        assert_eq!(trace.closed[0].1.bsp_class, 1, "触发归因 = 一类卖候选");
+        assert!(
+            na.iter().any(|l| l.id == held_short.id),
+            "顺父级联 Short 腿一类卖批下合法存活（空头×卖点=同向持有）"
+        );
+        // 分侧账面事实重算（与断言①残余同源的只读投影）：空侧>0（存活在册）、多侧=0。
+        let side_sum = |side: VoiceSide| -> f64 {
+            trace
+                .sep_legs
+                .iter()
+                .filter(|s| s.id.level == 0 && s.side == side)
+                .filter(|s| {
+                    account::identity_of(s.role_v, s.side, s.id.level)
+                        == Some(account::AccountIdentity::Core { level: 0 })
+                })
+                .map(|s| s.q_units)
+                .sum()
+        };
+        assert!(
+            side_sum(VoiceSide::Short) > 0.0,
+            "空侧分量非零（合法存活腿在册）；实得 {}",
+            side_sum(VoiceSide::Short)
+        );
+        assert_eq!(
+            side_sum(VoiceSide::Long),
+            0.0,
+            "多侧分量=0（一类卖批全平该级该方向，S2「该级该方向」良构形式）"
+        );
+        assert_eq!(
+            t1_target_zero_probe_count(),
+            1,
+            "一类核心关闭一笔 ⟹ 断言①评估在生产路径真实触发（探针为凭）"
+        );
+        assert_eq!(
+            t1_target_residual_probe_count(),
+            0,
+            "一类卖批只查多侧分量：空侧存活不计入（#237 拆查口径，违例=0）"
+        );
+    }
+
+    /// ★#237 断言①按方向拆查**反向对称**（票面验收 1 镜像）：**一类买批 ⇒ 查该级空侧
+    /// 分量=0，多侧不查**。同级多侧腿（FollowParent×Long ⟹ Core{0}）在一类买批下合法
+    /// 存活（多头声部×买点 = 同向信号持有/加仓/记录），不计入买批残余。
+    ///
+    /// 场景（two_parent_tower 镜像）：prev_active = L0 Short 子腿（b1，父 compose_b，
+    /// FollowParent⟹Core{0}，买批关闭对象）+ L0 Long 子腿（a2，父 compose_a，
+    /// FollowParent⟹Core{0}，存活）+ L1 Long 父腿（compose_a，AncOK 父）。一类买候选
+    /// （L0）反向关闭 Short 子腿；Long 子腿同向不关闭。
+    ///
+    /// 旧口径下本场景残余 = 存活 Long 腿 q_units ≠ 0 ⟹ 必违例（与卖批枚 red=残余 300
+    /// panic 同构）；新口径空侧分量=0（买批查零过）、多侧>0 不查（违例探针=0）。
+    #[test]
+    fn t1_target_zero_assertion_buy_batch_checks_short_side_only() {
+        use super::super::ledger::{RiskPolicy, TwState};
+        t1_target_zero_probe_reset();
+        let tower = two_parent_tower();
+        let r = rcfg();
+        let w = PiThetaWeights::from_risk(&r);
+        let reg = super::super::persistent::PersistentRegistry::new();
+        // L0 Short 子腿（b1 λ=16 ρ=20，父 compose_b=Short）——一类买批的关闭对象
+        // （entry_v=FollowParent ⟹ Core{0}，断言①评估对象）。
+        let held_short = ActiveLeg {
+            level: 0, dir: VoiceSide::Short, source_index: 20, lambda: 16,
+            id: eid(0, 4), parent_id: Some(eid(1, 1)), is_boundary_root: false, op_parent: None,
+        };
+        // L0 Long 子腿（a2 λ=8 ρ=12，父 compose_a=Long）——顺父级联多侧腿（当 bar
+        // role_v=FollowParent ⟹ Core{0}），一类买批下同向持有（合法存活）。
+        let held_long = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 12, lambda: 8,
+            id: eid(0, 2), parent_id: Some(eid(1, 0)), is_boundary_root: false, op_parent: None,
+        };
+        // L1 Long 父腿（compose_a λ=0 ρ=12）——held_long 的 AncOK 父容器。
+        let held_parent_a = ActiveLeg {
+            level: 1, dir: VoiceSide::Long, source_index: 12, lambda: 0,
+            id: eid(1, 0), parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let classification = buy_classification_at(0, 10, 1);
+        let (tree, candidates, gamma) =
+            interp::coverage_elements_and_gamma_with_tower(&classification, &tower);
+        let work = ElementView::from_parts(&tree, candidates);
+        let tw_state = TwState::initial();
+        let policy = RiskPolicy::baseline();
+        let entry_v: std::collections::HashMap<ElementId, Vertical> = [
+            (held_short.id, Vertical::FollowParent),
+            (held_long.id, Vertical::FollowParent),
+            (held_parent_a.id, Vertical::Ambient),
+        ]
+        .into_iter()
+        .collect();
+        let twc = TwStepCtx {
+            state: &tw_state,
+            policy: &policy,
+            risk_mode: RiskMode::Normal,
+            entry_v: &entry_v,
+            eta_correction: 0,
+        };
+        let (na, _ps, _o, trace) = pi_theta_step_traced(
+            work, &gamma, &[held_short, held_long, held_parent_a], 600.0, 11, 1000.0, &r, w,
+            KThetaRiskGate::open(), &cfg(), &reg, Some(&twc), &protocol_hold(),
+        );
+        assert_eq!(trace.closed.len(), 1, "一类买只关反向 Short 腿（出场方向锁定）");
+        assert_eq!(trace.closed[0].0.id, held_short.id, "被关 = L0 Short 子腿");
+        assert_eq!(trace.closed[0].1.bsp_class, 1, "触发归因 = 一类买候选");
+        assert!(
+            na.iter().any(|l| l.id == held_long.id),
+            "顺父级联 Long 腿一类买批下合法存活（多头×买点=同向持有）"
+        );
+        // 分侧账面事实重算：多侧>0（存活在册）、空侧=0。
+        let side_sum = |side: VoiceSide| -> f64 {
+            trace
+                .sep_legs
+                .iter()
+                .filter(|s| s.id.level == 0 && s.side == side)
+                .filter(|s| {
+                    account::identity_of(s.role_v, s.side, s.id.level)
+                        == Some(account::AccountIdentity::Core { level: 0 })
+                })
+                .map(|s| s.q_units)
+                .sum()
+        };
+        assert!(
+            side_sum(VoiceSide::Long) > 0.0,
+            "多侧分量非零（合法存活腿在册）；实得 {}",
+            side_sum(VoiceSide::Long)
+        );
+        assert_eq!(
+            side_sum(VoiceSide::Short),
+            0.0,
+            "空侧分量=0（一类买批全平该级该方向，与卖批镜像）"
+        );
+        assert_eq!(
+            t1_target_zero_probe_count(),
+            1,
+            "一类核心关闭一笔 ⟹ 断言①评估在生产路径真实触发（探针为凭）"
+        );
+        assert_eq!(
+            t1_target_residual_probe_count(),
+            0,
+            "一类买批只查空侧分量：多侧存活不计入（#237 拆查口径，违例=0）"
         );
     }
 

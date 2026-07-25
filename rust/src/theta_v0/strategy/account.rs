@@ -343,6 +343,19 @@ impl ParallelAccountLedger {
             .sum()
     }
 
+    /// 按身份 × 声部方向读分量余额（**派生视图**：现算投影，非存储）——★#237 断言门
+    /// 按方向拆查（#234 蓝图依据：分侧账禁净额 P_sep，「多头腿和空头腿先作为两个独立
+    /// 坐标存在」；用户裁 2026-07-24）：一类卖批查**多侧**分量、一类买批查**空侧**分量。
+    /// 顺父级联 Short 腿归空侧（实例键 `key.position.side`，#185 映射不动）；净额
+    /// [`balance`](Self::balance) 口径不动（两派生视图共存，净额 ker N 掩盖面由拆查收口）。
+    pub fn balance_side(&self, account: AccountIdentity, side: VoiceSide) -> f64 {
+        self.instances
+            .values()
+            .filter(|i| i.key.account == account && i.key.position.side == side)
+            .map(|i| i.qty)
+            .sum()
+    }
+
     /// 历史时点余额（**派生视图**：自成交事件日志重放，无快照存储）。
     pub fn balance_as_of(&self, account: AccountIdentity, bar: usize) -> f64 {
         self.fills
@@ -663,5 +676,51 @@ mod tests {
         assert_eq!(inst.cost_basis, 300.0, "余 3 手 @100 的成本基");
         assert_eq!(inst.realized_pnl, 30.0, "空向已实现 = 3 × (100 − 90)");
         assert!(inst.open);
+    }
+
+    /// ★#237 断言②按方向拆查的账面投影（与断言①同源同口径，#234 蓝图依据：分侧账
+    /// 禁净额 P_sep——净额同时掩盖双侧残余，ker N 不可识别；用户裁 2026-07-24）：
+    /// `balance_side` 按（账户 × 声部方向）分量读余额——一类卖批查**多侧**分量、
+    /// 一类买批查**空侧**分量。顺父级联 Short 腿归空侧（实例键 `position.side`，
+    /// #185 映射不动）；净额 `balance` 口径不动（两派生视图共存）。
+    ///
+    /// **RED**：`balance_side` 缺席（编译红）。**GREEN**：分侧投影 + 卖批全平多侧后
+    /// 多侧=0、空侧存活（净额≠0 = 旧口径误报面的最小复现，本票收口）。
+    #[test]
+    fn balance_side_splits_account_balance_by_voice_side() {
+        let mut book = ParallelAccountLedger::new();
+        // Core{0} 双侧在册：多侧 +100（Ambient×Long 根）＋ 空侧 −30（FollowParent×Short
+        // 顺父级联——账户同归 Core{0}、方向由实例键 position.side 表达）。
+        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Long, ActionReason::Open, 100.0, 0), 10.0, 0);
+        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Short, ActionReason::Open, -30.0, 0), 10.0, 0);
+        // 分侧投影：多侧 +100 / 空侧 −30；净额 +70（双侧相互掩盖）。
+        assert_eq!(book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long), 100.0);
+        assert_eq!(book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short), -30.0);
+        assert_eq!(book.balance(AccountIdentity::Core { level: 0 }), 70.0, "净额口径不动（派生视图共存）");
+        // 一类卖批全平多侧（ReverseType1 平多 −100）：多侧分量=0（卖批查零过）、
+        // 空侧 −30 合法存活（不计入卖批）；净额 −30 ≠ 0 = 旧净额口径误报面。
+        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Long, ActionReason::ReverseType1, -100.0, 1), 10.0, 1);
+        assert_eq!(
+            book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Long),
+            0.0,
+            "一类卖批 ⇒ 该级多侧分量=0（S2「该级该方向」良构形式）"
+        );
+        assert_eq!(
+            book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short),
+            -30.0,
+            "顺父级联空侧腿卖批下合法存活（同向信号持有），不计入卖批"
+        );
+        assert_ne!(
+            book.balance(AccountIdentity::Core { level: 0 }),
+            0.0,
+            "净额≠0——旧标量查零在此误报（m3 (1,470) 同型），拆查后由空侧分量承担"
+        );
+        // 一类买批全平空侧（ReverseType1 平空 +30）：空侧分量=0（买批查零过）。
+        book.post(order(AccountIdentity::Core { level: 0 }, 0, VoiceSide::Short, ActionReason::ReverseType1, 30.0, 2), 10.0, 2);
+        assert_eq!(
+            book.balance_side(AccountIdentity::Core { level: 0 }, VoiceSide::Short),
+            0.0,
+            "一类买批 ⇒ 该级空侧分量=0（与卖批镜像）"
+        );
     }
 }
