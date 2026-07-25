@@ -419,6 +419,35 @@ impl PersistentRegistry {
             Some(_) => HeldLegState::LiveDetached,
         }
     }
+
+    /// ★#269 载体翻向**结构事件**显式谓词（翻向守卫事件化，#261 终裁选项 A）：
+    /// `pid` 的 registry 首见方向（I2 机器锁永固）与**当前树元素方向** `tree_eps` 不一致
+    /// ⟺ 树段 upsert 方向冲突（[`FlipGuardProbe::tree_blocked`] 计数的那类事件）在腿存活
+    /// 期间发生——即「载体被 frontier 重组改判为相反方向」的真实结构翻向。
+    ///
+    /// **事件类型枚举**（塔事件流中什么算「该载体的翻向结构事件」）：
+    /// - **算数（唯一一类）：载体元素方向翻转** = 同 `ElementId` 树元素的方向被结构树改判
+    ///   （frontier 重组，leg-2-98 勘察 (3,22) PREG Short→Long 单行形态：无候选参与、无关闭
+    ///   事件、树 upsert 单行）。I2 下同一持久元素方向不变 ⟹ 首见方向 ≠ 当前树方向当且仅当
+    ///   该冲突发生（或正持续）；翻回首见方向则分歧消失、事件不再激活（诚实口径）。
+    /// - **不算：candidate 段 upsert 冲突**（[`FlipGuardProbe::cand_blocked`]）——候选点元素
+    ///   eps=σ（信号方向）与载体 ε（结构方向）的对立是 BSP 构造下**出生即存在的两轴分层**
+    ///   （买点恒附下降段末端 ⟹ σ=−ε 恒真，#264 §2.1），含 χ 域外候选 flip-flop；是状态
+    ///   分层不是事件。
+    /// - **不存在：父元素 destroy+反向重建**——前缀因果塔单调增长，无 destroy 概念
+    ///   （opsem_dump.rs:167 诚实缺席）；「翻向」在本系统唯一可观察形态即树段方向冲突。
+    /// - **不算：载体退出树（Stale）**——归 Stale 四态既有分派（§10 persistent overlay 域），
+    ///   不是翻向事件。
+    ///
+    /// 用事件不用状态轴（#264 未能判定②：ε 轴有 id 重指/Stale 坑——26 笔幸存笔三态未分）：
+    /// 本谓词**不读腿方向 σ**，只读「该载体自身是否发生了方向改判事件」。`pid` 无 registry
+    /// 条目（树元素尚未经 merge 首见登记）⟹ 无事件证据 ⟹ false（诚实缺席，不伪造杀）。
+    pub fn direction_flip_event_active(&self, pid: &ElementId, tree_eps: VoiceSide) -> bool {
+        match self.elements.get(pid) {
+            Some(e) => e.dir != tree_eps,
+            None => false,
+        }
+    }
 }
 
 // ════════════════════════════════════════════════════════════════════════════

@@ -1860,11 +1860,12 @@ fn held_leg_tree_index(
     elements: &[CoverageElement],
     candidate_start: usize,
     leg: &ActiveLeg,
+    registry: &super::persistent::PersistentRegistry,
 ) -> HeldLegMatch {
     let tree_end = candidate_start.min(elements.len());
     let tree = &elements[..tree_end];
     let id_idx = build_tree_id_index(tree);
-    held_leg_tree_index_indexed(tree, leg, &id_idx)
+    held_leg_tree_index_indexed(tree, leg, &id_idx, registry)
 }
 
 /// ponytail: H6 预建 `ElementId → idx` 索引（结构映射查表 O(1)，spec §13）。
@@ -1885,16 +1886,22 @@ fn held_leg_tree_index_indexed(
     tree: &[CoverageElement],
     leg: &ActiveLeg,
     id_idx: &std::collections::HashMap<ElementId, usize>,
+    registry: &super::persistent::PersistentRegistry,
 ) -> HeldLegMatch {
     // 按 ElementId 结构映射匹配（spec §13 p:C_ℓ→C_{ℓ+1}）。
     if let Some(&idx) = id_idx.get(&leg.id) {
-        // ★#233 I2 方向守卫（#227 裁决「父翻向 = 父终结」，anc.pdf §7 I2 同一持久元素方向
-        // 不变）：树元素方向 ≠ 持仓腿方向 ⟹ **翻向**——同一持久元素不存在改向后的延续形态
-        // （声部方向 σ 出生焊死进 posId，蓝图操作词典无「改向」动词：反手/翻转一律关旧开新）。
-        // 旧世代按终结分派（Flipped：进翻向种子，子树经现成 𝒟_x^† 连清；方向盲 ID 对位复活
-        // 废除），新世代经正常候选准入重登记（新 posId/generation）。**frontier 翻向同按终结**
-        // （#227 焊缝规则：守卫不区分 frontier/confirmed——凡方向不一致即终结）。
-        if tree[idx].eps != leg.dir {
+        // ★#269 翻向守卫**事件化**（#261 终裁选项 A，替代 #233 σ/ε 两轴状态对立判据）：
+        // 只在「腿存活期间载体发生真实结构翻向**事件**」才判 Flipped——事件谓词 =
+        // registry 首见方向（I2 机器锁永固）≠ 当前树元素方向 ⟺ 树段 upsert 方向冲突
+        // （载体被 frontier 重组改判），枚举见 [`super::persistent::PersistentRegistry::
+        // direction_flip_event_active`]。**出生对立不再触发**：BSP 构造使买点恒附下降段
+        // 末端、卖点恒附上升段末端 ⟹ σ=−ε 入场即恒真（#264 §2.1 构造性证明），是两轴
+        // 出生分层而非事件——#233 判据（tree.eps ≠ leg.dir）据此 t+1 必剪（wf8 92.3%
+        // 交易持仓恰好 1 bar 的接线缺陷）。事件口径下无事件的出生对立腿 Exact 存活并随
+        // 载体结构方向重登记（`element_as_leg` 以树元素方向重建——#233 前基线语义恢复；
+        // 方向盲复活在事件缺席处合法，在事件在场处仍废除）。**frontier 翻向同按终结**
+        // （#227 焊缝规则保留：守卫不区分 frontier/confirmed——凡翻向事件即终结）。
+        if registry.direction_flip_event_active(&leg.id, tree[idx].eps) {
             return HeldLegMatch::Flipped;
         }
         // ID 命中 ⟹ 同一走势（父延伸也同 ID）。更新 rho/source_index 从当前元素由调用方处理
@@ -1918,13 +1925,15 @@ fn held_leg_tree_index_indexed(
 /// 无需 λ 稳定性 hack（值比较 `(level,λ,eps)` 已弃用，spec §13 结构映射对齐）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum HeldLegMatch {
-    /// ID 命中（跨 bar 同走势，父延伸也同 ID）且**方向一致**（#233 I2 守卫后 Exact 的前提）：
-    /// 当前树元素 idx。
+    /// ID 命中（跨 bar 同走势，父延伸也同 ID）且**无翻向事件**（#269 事件化守卫后 Exact 的
+    /// 前提）：当前树元素 idx。σ/ε 出生对立（树 eps ≠ 腿 σ 但载体未翻向）不再阻碍 Exact
+    /// ——存活腿随载体结构方向重登记（#233 前基线语义）。
     Exact(usize),
-    /// ★#233：ID 命中但**树元素方向 ≠ 持仓腿方向** ⟹ 翻向 = 声部终结（#227 裁决蓝图两步形①，
-    /// anc.pdf §7 I2「同一持久元素方向不变」；**frontier/confirmed 同判**——#227 焊缝规则）。
-    /// 旧世代不得当 Exact 对位（方向盲 ID 对位复活废除——`element_as_leg` 静默改向路径自此
-    /// 不可达），进当 bar 翻向种子，其后代经现成 𝒟_x^† 子树清仓连清。
+    /// ★#269：ID 命中且**载体翻向结构事件激活**（registry 首见方向 ≠ 当前树元素方向 ⟺
+    /// 树段 upsert 方向冲突，frontier/confirmed 同判——#227 焊缝规则保留）⟹ 翻向 = 声部
+    /// 终结（#227 裁决蓝图两步形①，anc.pdf §7 I2「同一持久元素方向不变」）。
+    /// 旧世代不得当 Exact 对位（事件在场时方向盲 ID 对位复活仍废除——`element_as_leg`
+    /// 静默改向路径对翻向载体不可达），进当 bar 翻向种子，其后代经现成 𝒟_x^† 子树清仓连清。
     Flipped,
     /// ID 未匹配（父真失效）：调用方按 is_boundary_root 决定 root/prune。
     Stale,
@@ -2241,7 +2250,9 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // (A_t ∖ 𝒟_x)：持仓腿（除 close 认领）按 ElementId 对位回当前因果树元素；不在树 ⟹ 按
     // is_boundary_root 决定 root/prune（发现 A 修复：Stale 不伪造 parent:None）。
     let closed = close_indices(prev_active, &buckets.close);
-    // ★#233 翻向种子（当 bar 方向翻转的持仓腿 = 旧世代终结，#227 裁决蓝图两步形①）：
+    // ★#269 翻向种子（事件化，#261 终裁）：当 bar 载体翻向**结构事件**激活的持仓腿 = 旧世代
+    // 终结（#227 裁决蓝图两步形①）。事件谓词 = registry 首见方向 ≠ 当前树元素方向（树段
+    // upsert 方向冲突；σ/ε 出生对立非事件，不再产种子——#264 误杀面收口）。
     // 下方 step 调用并入关闭种子，经现成 𝒟_x^† 子树清仓连清其后代（**只作用 A_t 段**——
     // ℬ_x 段反手/新世代候选不连坐，#183 分段/ID-3 反手保护同构）。翻向腿自身与其连清
     // 后代不在 close 桶、不在 next_active ⟹ 自动落 StepTrace.silent_drops 入轨（runner
@@ -2253,7 +2264,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
             continue; // 𝒟_x：本腿关闭，不入 A^raw
         }
         // tree_end 固定 + Stale 追加在 overlay（tree_end 之后）⟹ base 前缀内容不变；每轮重借（NLL）。
-        let m = held_leg_tree_index_indexed(work.tree_prefix(tree_end), leg, &id_idx);
+        let m = held_leg_tree_index_indexed(work.tree_prefix(tree_end), leg, &id_idx, registry);
         match m {
             // Exact（ID 命中=同一走势，父延伸也同 ID）：对位回当前树元素 idx（携真父链）⟹
             // 其子声部腿的 AncOK 祖先齐全。
@@ -2262,11 +2273,11 @@ pub(crate) fn coverage_step_from_buckets_sep(
                     raw.push(idx);
                 }
             }
-            // ★#233 Flipped（树元素方向 ≠ 持仓腿方向 ⟹ 翻向 = 声部终结）：旧世代腿**不保留**
-            // ——不当 Exact 对位、不重注册、不 restore（方向盲 ID 对位复活路径废除；I2：同一
-            // 持久元素方向不变，「父翻向」只能解析为「父反手 = 父关闭 + 新父开」）。进翻向
-            // 种子（子树连清）；新世代元素（树里的新方向同 id）若被 ℬ_x 候选挂为父，经 open
-            // 父注入 restore 的 id_idx 树复用在场（新世代声部重登记路径，蓝图两步形②）。
+            // ★#269 Flipped（载体翻向**事件**激活 ⟹ 翻向 = 声部终结）：旧世代腿**不保留**
+            // ——不当 Exact 对位、不重注册、不 restore（事件在场时方向盲 ID 对位复活路径仍
+            // 废除；I2：同一持久元素方向不变，「父翻向」只能解析为「父反手 = 父关闭 + 新父开」）。
+            // 进翻向种子（子树连清）；新世代元素（树里的新方向同 id）若被 ℬ_x 候选挂为父，
+            // 经 open 父注入 restore 的 id_idx 树复用在场（新世代声部重登记路径，蓝图两步形②）。
             HeldLegMatch::Flipped => {
                 ancok_probe_bump(|p| p.held_flip_terminated += 1);
                 flipped_seeds.push(*leg);
@@ -2348,7 +2359,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
     // open 父注入 restore）。spec §13 `A_{t+1}=AncOK[(A_t∖𝒟_x^†)∪ℬ_x]`——子树清仓 𝒟_x^† 的定义域
     // 是 A_t（持仓腿），ℬ_x 新开腿不经 𝒟_x^†（同 bar 同 carrier 先平后开的反手候选与种子同 id，
     // 误清会禁绝一类/二类反手——#200 基线 typed=2 实证，ID-3「允许当场反手」行为口径）。
-    // ★#233：翻向种子（held 循环 Flipped 分派产出）同只作用 A_t 段——ℬ_x 段的新世代候选
+    // ★#233/#269：翻向种子（held 循环 Flipped 分派产出）同只作用 A_t 段——ℬ_x 段的新世代候选
     // （父翻向同 bar 挂该父的开仓）不连坐，新世代父元素经 open 父注入 restore id_idx 树复用
     // 在场（蓝图两步形②新世代重登记）。
     let a_t_end = raw.len();
@@ -2471,7 +2482,7 @@ pub(crate) fn coverage_step_from_buckets_sep(
         .iter()
         .map(|&i| element_as_leg(&work[i]))
         .collect();
-    // ★#233：翻向种子并入关闭种子（只作用 A_t 段——ℬ_x 段反手/新世代候选不连坐，见上方
+    // ★#233/#269：翻向种子并入关闭种子（只作用 A_t 段——ℬ_x 段反手/新世代候选不连坐，见上方
     // flipped_seeds 注释）。翻向父不在 a_t_legs（旧世代不保留）时，其后代经 exit.rs
     // `subtree_close` 的「父不在 A 数济判据」连坐连清。
     let close_and_flip_seeds: Vec<ActiveLeg> = buckets
@@ -5808,6 +5819,99 @@ mod tests {
         );
         assert_eq!(rev[0].dir, VoiceSide::Short, "新世代腿方向取反手候选（Short），非旧世代 Long");
         assert_eq!(rev[0].source_index, 55, "新世代腿坐标取候选点元素（55），非旧世代 30");
+    }
+
+    /// ★#269 翻向守卫**事件化**两态①：**出生对立无事件 ⟹ 不杀**。
+    /// #264 归因：790 笔 1-bar prune 全死于「σ/ε 出生对立被误判为父翻向」——BSP 构造使买点
+    /// 恒附下降段末端、卖点恒附上升段末端，σ=−ε 在入场时刻即恒真（出生即存在的两轴对立，
+    /// 非事件）。事件口径：载体（registry 首见方向 Short，I2 永固）在腿存活期间**未发生**
+    /// 树段方向冲突（当前树元素 eps 恒 == 首见方向）⟹ 无翻向事件 ⟹ 腿 Exact 存活并随载体
+    /// 结构方向重登记（#233 前基线语义恢复）。
+    ///
+    /// **RED（#233 状态轴守卫）**：tree.eps(Short) ≠ leg.dir(Long) ⟹ Flipped 误杀（t+1 必剪，
+    /// 探针=1、腿不入 next_active）。**GREEN（事件化）**：无事件 ⟹ 存活，探针=0。
+    #[test]
+    fn birth_opposition_without_flip_event_does_not_terminate() {
+        let carrier = eid(0, 900);
+        // 树：载体元素 eps=Short（下降段 = 买点载体），与出生 bar 逐位一致（无重组/无翻向）。
+        let tree_carrier = CoverageElement {
+            lambda: 20, rho: 30, eps: VoiceSide::Short, level: 0,
+            parent: None, attached_dir: None, id: carrier, parent_id: None,
+        };
+        // 持仓腿：买点候选出生 σ=Long（出生对立 σ=−ε 恒真，BSP 构造不变量，#264 §2.1）。
+        let leg = ActiveLeg {
+            level: 0, dir: VoiceSide::Long, source_index: 30, lambda: 30,
+            id: carrier, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let prev = [leg];
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        // registry：载体首见方向 Short（树段 upsert，I2 永固）——腿存活期间零方向冲突事件。
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&[tree_carrier], &prev);
+        ancok_probe_reset();
+        let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&[tree_carrier], 1), &prev, &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        assert_eq!(
+            ancok_probe_snapshot().held_flip_terminated,
+            0,
+            "出生对立非翻向事件——守卫不得开火（#233 状态轴守卫下=1，RED 锚点）"
+        );
+        let legs: Vec<_> = active.iter().filter(|l| l.id == carrier).collect();
+        assert_eq!(
+            legs.len(),
+            1,
+            "无翻向事件 ⟹ 腿 Exact 存活（对位回载体元素）；实得 {active:?}"
+        );
+        assert_eq!(
+            legs[0].dir,
+            VoiceSide::Short,
+            "存活腿随载体结构方向重登记（ε=Short，基线语义），非出生信号 σ=Long"
+        );
+    }
+
+    /// ★#269 翻向守卫**事件化**两态②：**存活期真翻向事件 ⟹ 杀**——即使当前树元素方向与
+    /// 腿 σ **一致**（无 σ/ε 状态对立）。形态 = #264 未能判定②幸存笔 (b) 态「id 重指同向
+    /// 元素」/leg-2-98 (3,22) frontier 重组翻向（PREG Short→Long 单行，无候选参与）：载体
+    /// 首见方向 Long（registry I2 永固），存活期树把同 id 元素改判 Short ⟹ 树段 upsert 方向
+    /// 冲突 = 真实结构翻向**事件** ⟹ 父翻向=父终结（#227 裁决、#233 已结算条款不倒退）。
+    ///
+    /// **RED（#233 状态轴守卫）**：tree.eps(Short) == leg.dir(Short) ⟹ Exact 放行——状态轴
+    /// 读不出「载体从 Long 翻成 Short」（事件盲区，幸存笔 (b) 态豁免机制）。**GREEN**：杀。
+    #[test]
+    fn carrier_flip_event_terminates_even_without_direction_opposition() {
+        let carrier = eid(1, 22);
+        // 树（当前 bar）：载体同 id 元素已被 frontier 重组改判为 Short。
+        let tree_carrier = CoverageElement {
+            lambda: 20, rho: 30, eps: VoiceSide::Short, level: 1,
+            parent: None, attached_dir: None, id: carrier, parent_id: None,
+        };
+        // 持仓腿：卖点候选出生 σ=Short（出生时载体为 Long——出生对立 σ=−ε 同构）。
+        let leg = ActiveLeg {
+            level: 1, dir: VoiceSide::Short, source_index: 30, lambda: 20,
+            id: carrier, parent_id: None, is_boundary_root: true, op_parent: None,
+        };
+        let prev = [leg];
+        let buckets = Buckets { close: vec![], open: vec![], record: vec![] };
+        // registry = 翻向前状态（载体首见方向 Long，I2 守卫下永固）——当前树 eps=Short ≠ 首见
+        // Long ⟺ 树段 upsert 方向冲突（翻向事件）在腿存活期间发生。
+        let pre_flip = [CoverageElement {
+            lambda: 20, rho: 29, eps: VoiceSide::Long, level: 1,
+            parent: None, attached_dir: None, id: carrier, parent_id: None,
+        }];
+        let reg = super::super::persistent::PersistentRegistry::new().merge(&pre_flip, &prev);
+        ancok_probe_reset();
+        let (active, _p, _sep, _idx) = coverage_step_from_buckets_sep(
+            view_split(&[tree_carrier], 1), &prev, &buckets, 1000.0, &cfg(), None, &reg,
+        );
+        assert_eq!(
+            ancok_probe_snapshot().held_flip_terminated,
+            1,
+            "载体真翻向事件 ⟹ 守卫开火一次（#233 状态轴守卫下 tree.eps==leg.dir 放行=0，RED 锚点）"
+        );
+        assert!(
+            !active.iter().any(|l| l.id == carrier),
+            "翻向事件 ⟹ 旧世代腿终结（父翻向=父终结不倒退）；实得 {active:?}"
+        );
     }
 
     /// ★(I-1) open 父注入非膨胀守卫：父 carrier **不在 registry**（既非持仓又非 registry-live）⟹ 子腿
