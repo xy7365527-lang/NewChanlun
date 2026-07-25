@@ -73,6 +73,8 @@ pub mod descend;
 pub mod rmove_compose;
 pub mod recursive_tower;
 pub mod nest;
+/// V3 活假设状态机：NestLifecycleBook sidecar 注册表（三态 + 五钟；#231 重建，spec #232）。
+pub mod nest_lifecycle;
 /// #92/#93 证书索引：确认事件 → typed 证书（身份主键；构建口径 B + CWindow）。
 pub mod nest_index;
 /// p118 关④ 小转大显式分类分支：旁挂联合分类 `NestTurnClass`（四类 partition，纯只读派生）。
