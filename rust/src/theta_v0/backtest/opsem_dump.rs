@@ -253,9 +253,13 @@ impl OpsemDump {
             "\"trade_id\":{},\"voice_id\":{{\"level\":{},\"ordinal\":{}}},",
             self.trade_id_counter, t.voice_id.level, t.voice_id.ordinal,
         ));
+        // #262：generation 明文补打（hash64 混淆致 exit_type×级别×代际分桶缺代际轴，#153 终验B
+        // 重跑实录）——纯追加字段，hash 字段原样保留，既有消费方不受影响。
+        // generation 语义（interp.rs:298）：同 carrier 顺序 campaign 单调递增的高水位代次
+        // （close→reopen +1，首 campaign=0），**不是**父子嵌套代数。
         s.push_str(&format!(
-            "\"position_node_id\":{},\"entry_bar\":{},\"exit_bar\":{},\"entry_px\":{},\"exit_px\":{},\"pnl_raw_unlevered\":{},\"exit_type\":\"{}\",\"via_structural_prune\":{},\"units\":{},",
-            t.position_node_id.hash64(), t.entry_bar, t.exit_bar,
+            "\"position_node_id\":{},\"generation_plain\":{},\"entry_bar\":{},\"exit_bar\":{},\"entry_px\":{},\"exit_px\":{},\"pnl_raw_unlevered\":{},\"exit_type\":\"{}\",\"via_structural_prune\":{},\"units\":{},",
+            t.position_node_id.hash64(), t.position_node_id.generation, t.entry_bar, t.exit_bar,
             t.entry_px, t.exit_px, pnl_raw,
             exit_type_str(t.exit_type), t.via_structural_prune, t.units,
         ));
