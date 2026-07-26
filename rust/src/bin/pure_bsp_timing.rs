@@ -116,7 +116,9 @@ fn main() -> std::process::ExitCode {
         let mut new_buy = false;
         let mut new_sell = false;
         for (lvl, ls) in classification.levels.iter().enumerate() {
-            for p in &ls.bsp {
+            // #311：`LevelState.bsp` 为 `Rc<Vec<BspPoint>>`（classifier/mod.rs:198 的 A1 共享），
+            // `&Rc<Vec<T>>` 不实现 IntoIterator ⟹ 显式 `.iter()` 借元素（非 clone Rc）。
+            for p in ls.bsp.iter() {
                 if seen.insert((lvl, p.source_index, bsp_bits_disc(&p.bits))) {
                     let b = &p.bits;
                     if b.buy1 || b.buy2 || b.buy3 {
