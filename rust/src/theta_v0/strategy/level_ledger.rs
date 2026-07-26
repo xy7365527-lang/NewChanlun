@@ -47,6 +47,68 @@ use super::overlay_state::{side_sign, ClosedVoice, VoiceBook};
 use super::voice::VoiceSide;
 use crate::theta_v0::classifier::recursive_tower::ElementId;
 
+/// P^sep 目标的按「级别 → 声部」归并表（`level → ordinal → (side, q_lots, role_v, parent_id)`）。
+pub(crate) type LevelTargets =
+    BTreeMap<u32, BTreeMap<u64, (VoiceSide, i64, Vertical, Option<ElementId>)>>;
+
+/// ★P^sep 目标构造**单源**（[`LevelLedgerMirror::step`] ② 与 [`level_nets`] 共用）：
+/// `q_v` 取整为手数（`<lot/2` 归 0 ⟹ 剔除，诚实退化，与 [`OverlayState`] 同口径）；同 carrier
+/// 多条 `SepLeg`（`next_active` 的 `ElementId` 唯一 ⟹ 不应发生）取**首条方向**、q 累加
+/// （防御性，同 overlay）。分桶键 = `id.level` ≡ formation_level（M1 口径，零 schema 改动）。
+pub(crate) fn build_level_targets(sep_legs: &[SepLeg], lot: i64) -> LevelTargets {
+    let lot = lot.max(1);
+    let mut target: LevelTargets = BTreeMap::new();
+    for leg in sep_legs {
+        let q = (leg.q_units / lot as f64).round() as i64 * lot;
+        if q <= 0 {
+            continue; // 未达最小手数 ⟹ 不进 P^sep（诚实退化，与 overlay 同口径）
+        }
+        let entry = target
+            .entry(leg.id.level)
+            .or_default()
+            .entry(leg.id.ordinal)
+            .or_insert((leg.side, 0, leg.role_v, leg.parent_id));
+        entry.1 += q;
+    }
+    target
+}
+
+/// ★各级结构净额 `net_ℓ = Σ_{v∈ℓ} σ_v q_v`（level 升序表，`Vec` 保确定序）——LEE M2 归因基准。
+///
+/// 与 [`LevelLedgerMirror::step`] 的 `nets` **构造性同源**：两者都是同一 [`build_level_targets`]
+/// 输出的按级折叠（镜像 rebalance 后各级簿的键与 `(side,q)` 恒等于目标表 ⟹ 折叠结果逐项相等）。
+/// 单源保证 M2 的归因基准与 M1 的镜像账本不会各自漂移（无第二裁决源）。
+pub fn level_nets(sep_legs: &[SepLeg], lot: i64) -> Vec<(u32, i64)> {
+    build_level_targets(sep_legs, lot)
+        .into_iter()
+        .map(|(lvl, book)| {
+            (lvl, book.values().map(|(side, q, _, _)| side_sign(*side) * q).sum::<i64>())
+        })
+        .collect()
+}
+
+/// ★LEE-Net 恒等的 **release 可见**见证读数（#289 影子评审 MED ①）。
+///
+/// M1 的逐 bar 恒等只落 `debug_assert` ⟹ release 跑批零执行；integration 断言取 `force_flat`
+/// 之后（两账均已归零）⟹ 平凡通过。本读数在 fill loop 内**每决策点**累计，release 下同样执行：
+/// 「`max_abs_residual == 0` **且** `max_abs_net > 0`」才构成非平凡证据（前者恒等、后者非空转）。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LeeNetWitness {
+    /// 观测到的决策点数（分母）。
+    pub n_observations: u64,
+    /// `max |Σ_ℓ net_ℓ − N|`（LEE-Net 恒等残差，应**恒 0**——整数手数求和，非 eps 容差）。
+    pub max_abs_residual: i64,
+    /// `max |N|`（**非平凡性证据**：>0 才说明恒等不是在空账上平凡成立）。
+    pub max_abs_net: i64,
+}
+
+impl LeeNetWitness {
+    /// 恒等见证成立：残差恒 0 **且** 曾出现非零净敞口（`max|N| > 0`）。
+    pub fn identity_witnessed(&self) -> bool {
+        self.max_abs_residual == 0 && self.max_abs_net > 0
+    }
+}
+
 /// [`LevelLedgerMirror::step`] 单步产出（LEE-Net 恒等见证）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LevelLedgerStep {
@@ -76,6 +138,8 @@ pub struct LevelLedgerMirror {
     closed: BTreeMap<u32, Vec<ClosedVoice>>,
     /// 上一决策点收盘价（价格 PnL 累计的 P_{t−1}）；None=首步（无 ΔP 可累计）。
     last_px: Option<f64>,
+    /// LEE-Net 恒等的 release 可见见证（#289 MED ①；由 [`observe_lee_net`](Self::observe_lee_net) 累计）。
+    witness: LeeNetWitness,
 }
 
 impl LevelLedgerMirror {
@@ -96,6 +160,22 @@ impl LevelLedgerMirror {
     /// 各级净敞口表（只读；`net_ℓ` 派生缓存）。
     pub fn nets(&self) -> &BTreeMap<u32, i64> {
         &self.nets
+    }
+
+    /// ★LEE-Net 恒等的逐决策点见证登记（#289 MED ①，**release 下同样执行**）：
+    /// 累计 `max |Σ_ℓ net_ℓ − N|` 与 `max |N|`。调用点 = fill loop 内镜像 step 紧后
+    /// （与 M1 的 `debug_assert` 同锚同时点；断言只在 debug 跑，本读数在 release 也跑）。
+    pub fn observe_lee_net(&mut self, overlay_net: i64) {
+        let total = self.total_net();
+        let w = &mut self.witness;
+        w.n_observations += 1;
+        w.max_abs_residual = w.max_abs_residual.max((total - overlay_net).abs());
+        w.max_abs_net = w.max_abs_net.max(overlay_net.abs());
+    }
+
+    /// LEE-Net 恒等见证读数（release 可见；见 [`LeeNetWitness`]）。
+    pub fn lee_net_witness(&self) -> LeeNetWitness {
+        self.witness
     }
 
     /// 有活动簿的级别（升序，确定序）。
@@ -146,22 +226,9 @@ impl LevelLedgerMirror {
         self.last_px = Some(px);
 
         // ── ② rebalance 各级簿 → 目标 P^sep（按 id.level 分桶）。 ──
-        // 目标声部集：q_v 取整为手数（<lot/2 归 0 ⟹ 剔除，与 overlay 同口径）；同 carrier 多条
-        // SepLeg（不应发生，next_active ElementId 唯一保证）取首条方向、q 累加（防御性，同 overlay）。
-        let mut target: BTreeMap<u32, BTreeMap<u64, (VoiceSide, i64, Vertical, Option<ElementId>)>> =
-            BTreeMap::new();
-        for leg in sep_legs {
-            let q = (leg.q_units / lot as f64).round() as i64 * lot;
-            if q <= 0 {
-                continue; // 未达最小手数 ⟹ 不进 P^sep（诚实退化，与 overlay 同口径）
-            }
-            let entry = target
-                .entry(leg.id.level)
-                .or_default()
-                .entry(leg.id.ordinal)
-                .or_insert((leg.side, 0, leg.role_v, leg.parent_id));
-            entry.1 += q;
-        }
+        // 目标构造走 [`build_level_targets`] 单源（与 M2 归因基准 [`level_nets`] 同一函数 ⟹
+        // 两者不会各自漂移；口径细则见该函数注释）。
+        let target = build_level_targets(sep_legs, lot);
 
         // 离场：books 中不在 target 的声部 → 记 exit_v/冻结 pnl_v，移出该级簿。
         for (lvl, book) in self.books.iter_mut() {
@@ -408,6 +475,64 @@ mod tests {
         assert!((sum_ll - sum_ov).abs() < 1e-9, "Σ_ℓ closed pnl ≈ overlay Σ closed pnl");
         assert_eq!(ll.total_net(), ov.net(), "LEE-Net 恒等（强平后归零）");
         assert_eq!(ll.n_active(), 0);
+    }
+
+    /// ★M2 归因基准单源（[`level_nets`] ≡ [`LevelLedgerMirror::nets`]）：同一批 `sep_legs` 下
+    /// 两者逐项相等——含多级、含同 carrier 重复腿（防御合并）、含 sub-lot 剔除三种形态。
+    /// 单源保证 M2 的归因基准不会与 M1 的镜像账本各自漂移（无第二裁决源）。
+    #[test]
+    fn level_nets_matches_mirror_nets_single_source() {
+        let batches: Vec<Vec<SepLeg>> = vec![
+            vec![],
+            vec![leg(eid(1, 0), VoiceSide::Long, 10.0, Vertical::Ambient)],
+            vec![
+                leg(eid(1, 0), VoiceSide::Long, 10.0, Vertical::Ambient),
+                leg(eid(2, 0), VoiceSide::Long, 6.0, Vertical::FollowParent),
+                leg(eid(3, 0), VoiceSide::Short, 4.0, Vertical::FollowParent),
+            ],
+            vec![
+                // 同 carrier 重复腿（防御合并：取首条方向、q 累加）。
+                leg(eid(1, 0), VoiceSide::Long, 4.0, Vertical::Ambient),
+                leg(eid(1, 0), VoiceSide::Short, 6.0, Vertical::ShortDiff),
+                // sub-lot 剔除（0.4 手 round→0）。
+                leg(eid(2, 1), VoiceSide::Long, 0.4, Vertical::Ambient),
+            ],
+            vec![
+                // 同级别多空对冲 ⟹ net_ℓ = 0（该级仍在表内，与镜像同）。
+                leg(eid(2, 0), VoiceSide::Long, 5.0, Vertical::Ambient),
+                leg(eid(2, 1), VoiceSide::Short, 5.0, Vertical::ShortDiff),
+            ],
+        ];
+        for legs in &batches {
+            let mut ll = LevelLedgerMirror::new();
+            ll.step(legs, 100.0, 0, 1);
+            let via_fn = level_nets(legs, 1);
+            let via_mirror: Vec<(u32, i64)> = ll.nets().iter().map(|(&l, &q)| (l, q)).collect();
+            assert_eq!(via_fn, via_mirror, "level_nets ≡ mirror.nets()（legs={legs:?}）");
+        }
+    }
+
+    /// ★LEE-Net 见证非平凡（#289 MED ①）：空账下 `identity_witnessed` 必须 false（平凡通过
+    /// 不算证据）；有非零净敞口且残差恒 0 时才成立。
+    #[test]
+    fn lee_net_witness_requires_nonzero_net() {
+        let mut ll = LevelLedgerMirror::new();
+        assert!(!ll.lee_net_witness().identity_witnessed(), "零观测 ⟹ 见证不成立");
+        // 空账观测（N=0）：残差 0 但量级 0 ⟹ 仍不成立（正是 #289 指出的平凡通过）。
+        ll.observe_lee_net(0);
+        assert!(!ll.lee_net_witness().identity_witnessed(), "N≡0 的空账观测 ⟹ 见证仍不成立");
+        // 真持仓观测：Σ_ℓ net_ℓ = 10 = N ⟹ 残差 0 且量级 10。
+        ll.step(&[leg(eid(1, 0), VoiceSide::Long, 10.0, Vertical::Ambient)], 100.0, 1, 1);
+        ll.observe_lee_net(10);
+        let w = ll.lee_net_witness();
+        assert_eq!(w.max_abs_residual, 0);
+        assert_eq!(w.max_abs_net, 10);
+        assert_eq!(w.n_observations, 2);
+        assert!(w.identity_witnessed(), "残差 0 + max|N|>0 ⟹ 见证成立");
+        // 违例可见：喂错 N ⟹ 残差非零被记录（见证转 false）。
+        ll.observe_lee_net(7);
+        assert_eq!(ll.lee_net_witness().max_abs_residual, 3, "残差如实记录，不吞");
+        assert!(!ll.lee_net_witness().identity_witnessed());
     }
 
     /// ★防御口径一致（同 carrier 多条 SepLeg，不应发生）：取首条方向、q 累加——与

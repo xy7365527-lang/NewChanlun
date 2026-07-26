@@ -67,6 +67,11 @@ pub mod overlay_state;
 /// OverlayState 的同一份 SepLeg 暴露按 `id.level`≡formation_level 分桶的只读镜像账本 Ledger_ℓ；
 /// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（加性细化，认识论 L1）；不改净额主路径，bit-exact。
 pub mod level_ledger;
+/// **LEE M2 订单归因改造 LevelOrderLedger**（multi-level-native-execution-design-20260719 §D M2）。
+///
+/// 物理订单的**量**改由 `Σ_ℓ Δq_ℓ` 生成（各级目标仍每 bar 重估）；`Σ_ℓ Δq_ℓ ≡ ΔN` 整数精确
+/// （无浮点重排）⟹ 订单流与 M0 逐 bar bit-exact，仅归因维度增加。
+pub mod level_order;
 /// 中枢震荡独立候选与有身份 ShortDiff 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。

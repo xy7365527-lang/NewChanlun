@@ -598,6 +598,11 @@ pub struct OverlayRunResult {
     /// overlay 并列的只读旁路，同一 `sep_legs` 按 `id.level`≡formation_level 分桶重放；
     /// LEE-Net 恒等 `Σ_ℓ net_ℓ ≡ N`（`pi_theta_fill_loop_overlay` 内逐 bar debug_assert 同锚）。
     pub level_ledger: super::super::strategy::level_ledger::LevelLedgerMirror,
+    /// ★LEE M2：级别归因见证读数（multi-level-native-execution-design-20260719 §D M2）——
+    /// 物理订单的量由 `Σ_ℓ Δq_ℓ` 生成，本读数是该恒等的 **release 可见**证据：
+    /// `max_abs_order_residual`/`max_abs_held_residual` 恒 0（订单流与 M0 bit-exact + 归因完备）
+    /// **且** `max_abs_order_units`/`max_abs_net_units` > 0（非平凡，非空转）。
+    pub level_order: super::super::strategy::level_order::LevelOrderStats,
     /// 净额执行层 RunResult（同 `run_theta_v0_pi`，净额订单/权益——overlay 是其只读旁路，数字不变）。
     /// ★W1 例外：env `VOICE_EXEC=1` 时本字段承载**声部执行投影**口径（见 `voice_exec` 字段
     /// 注释——fill.n_orders=声部 fill 事件数、equity/trade_pnls/r_decomp=声部账户），
@@ -744,6 +749,8 @@ pub fn run_theta_v0_pi_overlay(
     };
 
     let tw_final = fill.tw_final;
+    // ★LEE M2 见证读数（Copy；fill 其余字段已在上方 RunResult 装配中移动）。
+    let level_order = fill.level_order;
     let account_price_pnl = overlay.account_price_pnl();
     let total_voice_pnl = overlay.total_voice_pnl();
     let reconcile_residual = (account_price_pnl - total_voice_pnl).abs();
@@ -785,6 +792,7 @@ pub fn run_theta_v0_pi_overlay(
         reconcile_residual,
         overlay,
         level_ledger,
+        level_order,
         net_result,
         tw_final,
         voice_exec,
@@ -1123,6 +1131,78 @@ mod tests {
     // BspBits/Center 由本测试模块下方 `use ...types::{BspBits, Center, Tick}` 模块级导入提供。
 
     /// 价格 ~$100（tick_size=1e-8 ⟹ close_tick=1e10）的可交易 bar，逐 bar 微涨（产 PnL）。
+    /// ★结构性非空 fixture（#289 影子评审 MED ② 的前置基础）：确定性伪随机游走 OHLC。
+    ///
+    /// 为什么不能用等差/锯齿合成 bar：`run_theta_v0_pi_overlay` 走**真实**分类器（分型→笔→
+    /// 线段→中枢→BSP），单调或规则锯齿的 `open==high==low==close` 序列产不出买卖点 ⟹ 账户
+    /// 恒空 ⟹ 「分区完备/恒等」类断言全部 `0==0` 平凡通过（这正是 #289 ② 指出的缺陷）。
+    /// 随机游走带真实高低影线才能长出结构。
+    ///
+    /// 确定性：固定种子 LCG（`Math.random` 类不可复现源禁用），同输入逐字节可复现 ⟹
+    /// bit-exact 对拍成立。**不是**数据生成式回测——本 fixture 只用于验证不变量与管线正确性
+    /// （v3 纪律：历史/合成数据只验代码正确性，不作 alpha 声明）。
+    fn random_walk_dataset(symbol: &str, n: usize, vol: i64) -> Dataset {
+        let mut seed: u64 = 0x2026_0726;
+        let mut next = move || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            (seed >> 33) as i64
+        };
+        let mut cur = 10_000_000_000i64;
+        let mut bars: Vec<Bar> = Vec::with_capacity(n);
+        for i in 0..n {
+            cur += (next() % 2001 - 1000) * vol / 1000;
+            cur = cur.max(1_000_000_000);
+            let wick = (next() % 1000).abs() * vol / 2000;
+            bars.push(Bar {
+                source_index: i,
+                timestamp: i as i64,
+                open: cur,
+                high: cur + wick,
+                low: (cur - wick).max(1),
+                close: cur,
+                volume: 1,
+                untradable: false,
+            });
+        }
+        Dataset {
+            symbol: symbol.to_string(),
+            bars,
+            dates: (0..n).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
+            bar_seconds: 60,
+        }
+    }
+
+    /// ★成交序列摘要（FNV-1a 64，逐字节确定性；`extract_signals_bit_exact_digest_guard` 同款
+    /// golden 冻结协议）。覆盖 M2 验收所说的「成交序列」：执行订单数 + 逐笔 TradeRecord +
+    /// 逐笔含强平 PnL + 逐 bar 权益，全部按 IEEE-754 位模式喂入（禁容差比较）。
+    fn order_stream_digest(r: &RunResult) -> u64 {
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut eat = |x: u64| {
+            for b in x.to_le_bytes() {
+                h ^= b as u64;
+                h = h.wrapping_mul(0x100_0000_01b3);
+            }
+        };
+        eat(r.n_orders as u64);
+        eat(r.trades.len() as u64);
+        for t in &r.trades {
+            eat(t.entry_bar as u64);
+            eat(t.exit_bar as u64);
+            eat(t.qty.to_bits());
+            eat(t.long as u64);
+            eat(t.forced_close as u64);
+        }
+        eat(r.trade_pnls_with_forced.len() as u64);
+        for v in &r.trade_pnls_with_forced {
+            eat(v.to_bits());
+        }
+        eat(r.equity_curve.len() as u64);
+        for v in &r.equity_curve {
+            eat(v.to_bits());
+        }
+        h
+    }
+
     fn px100_bar(i: usize) -> Bar {
         let c = 10_000_000_000i64 + (i as i64) * 10_000_000; // px ≈ 100 → 100.x
         mk_bar(i, c, false)
@@ -2210,20 +2290,9 @@ mod tests {
     #[test]
     fn run_theta_v0_pi_overlay_level_ledger_wired() {
         let config = ThetaConfig::default();
-        let bars: Vec<Bar> = (0..60)
-            .map(|i| {
-                let up = ((i / 4) % 2) == 0;
-                let base = 10_000_000_000i64;
-                let step = 250_000_000i64 * ((i % 4) as i64);
-                mk_bar(i, if up { base + step } else { base + 1_000_000_000 - step }, false)
-            })
-            .collect();
-        let ds = Dataset {
-            symbol: "ZZ60OV".to_string(),
-            bars,
-            dates: (0..60).map(|i| format!("2024-02-{:02} 00:00:00", (i % 28) + 1)).collect(),
-            bar_seconds: 60,
-        };
+        // ★#289 MED ②：原 60-bar 等差锯齿 fixture 经真实分类器产 **0 个声部** ⟹ 本测全部断言
+        // 曾是 `0==0` 平凡通过。换结构性非空 fixture（见 `random_walk_dataset` 注释）。
+        let ds = random_walk_dataset("RW2000LL", 2000, 40_000_000);
         let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
         let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
         // 净额路径 bit-exact（镜像接入后公开 API 面仍与纯净额臂一致）。
@@ -2232,6 +2301,25 @@ mod tests {
             ov.net_result.metrics.strat_return, baseline.metrics.strat_return,
             "净额 strat_return bit-exact（镜像不改 cash/units/equity）"
         );
+        // ★#289 影子评审 MED ②：**非空前置**——账空时下面的「分区完备/恒等」全部平凡通过
+        // （0==0），等于没测。先钉死本 fixture 真的产生了声部与非零净敞口。
+        assert!(
+            ov.overlay.closed_voices().len() + ov.overlay.active_voices().count() > 0,
+            "非空前置：本 fixture 须产生至少一个声部（否则下方断言平凡通过）"
+        );
+        assert!(ov.level_ledger.n_closed() > 0, "非空前置：镜像 closed 桶非空");
+        // ★#289 MED ①：LEE-Net 恒等的 release 非平凡证据（loop 内逐决策点累计，非 debug_assert）。
+        let w = ov.level_ledger.lee_net_witness();
+        eprintln!(
+            "LEE_NET_WITNESS obs={} max|Σ_ℓ net_ℓ−N|={} max|N|={} | voices={} closed_buckets={}",
+            w.n_observations, w.max_abs_residual, w.max_abs_net,
+            ov.overlay.closed_voices().len() + ov.overlay.active_voices().count(),
+            ov.level_ledger.n_closed(),
+        );
+        assert!(w.n_observations > 0, "非空前置：见证器逐决策点观测过");
+        assert_eq!(w.max_abs_residual, 0, "LEE-Net 恒等：max|Σ_ℓ net_ℓ − N| == 0（release 可见）");
+        assert!(w.max_abs_net > 0, "非平凡：max|N| > 0（残差 0 不能来自空账）");
+        assert!(w.identity_witnessed(), "LEE-Net 恒等见证成立（残差 0 且 max|N|>0）");
         // 结果包终态一致：分区完备 + LEE-Net 恒等 + 级别封闭。
         assert_eq!(
             ov.level_ledger.n_closed(),
@@ -2254,6 +2342,150 @@ mod tests {
                 "级别封闭：active[{lvl}] 只含 id.level=={lvl}"
             );
         }
+    }
+
+    /// ★★LEE M2 订单归因改造验收（multi-level-native-execution-design-20260719 §D M2）：
+    /// ① **订单流与 M0 逐 bar 相等**——物理订单的量改由 `Σ_ℓ Δq_ℓ` 生成后，与净额臂
+    ///    `run_theta_v0_pi` 的成交序列 bit-exact（n_orders / trades 逐笔 / trade_pnls 逐位 /
+    ///    equity_curve 逐位 / typed_ledger 逐字段）；
+    /// ② **`Σ_ℓ Δq_ℓ == ΔN` 逐决策点**——`max_abs_order_residual == 0`（与 M1 LEE-Net 同锚：
+    ///    两者都在 fill loop 内逐决策点累计，release 同样执行）；
+    /// ③ **归因完备**——`max_abs_held_residual == 0`（`Σ_ℓ held_ℓ ≡ units`，含拒单/部分成交）；
+    /// ④ **非平凡**（#289 MED ① 同款纪律）——`max_abs_order_units > 0` 且 `max_abs_net_units > 0`，
+    ///    否则「残差恒 0」只是空账的平凡通过。
+    #[test]
+    fn lee_m2_order_units_from_level_deltas_bitexact_vs_netting_arm() {
+        let config = ThetaConfig::default();
+        // 规模边界**照实登记**（no silent cap）：本 fixture 取 3000 bar。4000 bar 起会触发
+        // `coverage.rs:2458` 的**既有** debug_assert「next_active 含重复 ElementId（restore 未复用
+        // 现有 idx）」——该缺陷与 M2 无关（停用 M2 订单替换的剥离对照下同样触发），属 persistent
+        // registry restore 路径的既有实现缺口——**本票不修、也未挂票**（跨票域，须由主控挂 ticket 后处理）；
+        // 此处不降低断言强度，只声明覆盖上界。
+        let ds = random_walk_dataset("RW3000M2", 3000, 40_000_000);
+        let baseline = run_theta_v0_pi(&ds, &config, 1.0, 1.0e6);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        // ④ 非平凡前置（先钉死，否则下面的 bit-exact 与残差断言在空账上平凡通过）。
+        let s = ov.level_order;
+        eprintln!(
+            "LEE_M2_WITNESS decisions={} orders={} max|Σ_ℓΔq_ℓ|={} max|p_t|={} \
+             L0_order_resid={} L1_held_resid={} | L2 max|Σ_ℓnet_ℓ−T|={} rescaled={}/{} residual_bucket={} \
+             | m0_orders={} m0_trades={}",
+            s.n_decisions, s.n_orders_generated, s.max_abs_order_units, s.max_abs_net_units,
+            s.max_abs_order_residual, s.max_abs_held_residual,
+            s.max_abs_struct_gap, s.n_rescaled, s.n_decisions, s.n_residual_bucket,
+            baseline.n_orders, baseline.trades.len(),
+        );
+        assert!(s.n_decisions > 0, "非空前置：逐决策点归因跑过");
+        assert!(s.n_orders_generated > 0, "非空前置：由 Σ_ℓ Δq_ℓ 生成过非零订单");
+        assert!(s.max_abs_order_units > 0, "非平凡：max|Σ_ℓ Δq_ℓ| > 0");
+        assert!(s.max_abs_net_units > 0, "非平凡：max|p_t| > 0（持仓归因非空账）");
+        assert!(baseline.n_orders > 0, "非空前置：净额臂本 fixture 真下过单");
+        // ② Σ_ℓ Δq_ℓ == ΔN 逐决策点（release 可见残差，非 debug_assert）。
+        assert_eq!(
+            s.max_abs_order_residual, 0,
+            "M2 恒等：max| |Σ_ℓ Δq_ℓ| − Schedule_Θ qty | == 0（{s:?}）"
+        );
+        // ③ 归因完备：Σ_ℓ held_ℓ ≡ units（拒单/部分成交按计划比例回缩，不失配）。
+        assert_eq!(s.max_abs_held_residual, 0, "M2 归因完备：max|Σ_ℓ held_ℓ − p_t| == 0（{s:?}）");
+        assert!(s.identity_witnessed(), "M2 恒等见证成立（残差 0 且量级 >0）");
+        // ★L2 结构分歧**只登记不断言**（formalization-validity-domain：不把经验读数写成不变量）。
+        // `Σ_ℓ net_ℓ ≠ T` 在本 fixture 上约四成决策点成立（逐腿 q_units 取整 vs p̃ 聚合 lot 量化
+        // 口径不同）。M2 用结构比例缩放吸收它并登记幅度；**这是待裁决口径，不是已解决问题**——
+        // M3（事件门控）/M4（级别 sizing）必须正面处理，届时本读数是其输入。
+        assert!(
+            s.max_abs_struct_gap >= 0 && s.n_rescaled <= s.n_decisions,
+            "L2 读数自洽（只登记口径，不对分歧幅度设阈）"
+        );
+        // ① 订单流与 M0 逐 bar 相等（bit-exact：成交序列不变，仅归因维度增加）。
+        assert_eq!(ov.net_result.n_orders, baseline.n_orders, "M2：执行订单数 bit-exact");
+        assert_eq!(ov.net_result.trades.len(), baseline.trades.len(), "M2：成交笔数 bit-exact");
+        for (a, b) in ov.net_result.trades.iter().zip(baseline.trades.iter()) {
+            assert_eq!(a.entry_bar, b.entry_bar, "M2：成交 entry_bar 逐笔相等");
+            assert_eq!(a.exit_bar, b.exit_bar, "M2：成交 exit_bar 逐笔相等");
+            assert_eq!(a.qty.to_bits(), b.qty.to_bits(), "M2：成交手数逐位相等");
+            assert_eq!(a.long, b.long, "M2：成交方向逐笔相等");
+            assert_eq!(a.forced_close, b.forced_close);
+        }
+        assert_eq!(
+            ov.net_result.trade_pnls_with_forced.len(),
+            baseline.trade_pnls_with_forced.len(),
+            "M2：PnL 行数 bit-exact"
+        );
+        for (a, b) in ov
+            .net_result
+            .trade_pnls_with_forced
+            .iter()
+            .zip(baseline.trade_pnls_with_forced.iter())
+        {
+            assert_eq!(a.to_bits(), b.to_bits(), "M2：逐笔 PnL 逐位相等（浮点无重排）");
+        }
+        assert_eq!(
+            ov.net_result.equity_curve.len(), baseline.equity_curve.len(),
+            "M2：权益曲线长度一致"
+        );
+        for (a, b) in ov.net_result.equity_curve.iter().zip(baseline.equity_curve.iter()) {
+            assert_eq!(a.to_bits(), b.to_bits(), "M2：逐 bar 权益逐位相等");
+        }
+        assert_eq!(
+            ov.net_result.metrics.strat_return.to_bits(),
+            baseline.metrics.strat_return.to_bits(),
+            "M2：strat_return 逐位相等"
+        );
+    }
+
+    /// ★★LEE M2 订单流 **pre-M2 golden 冻结**（对照臂污染的修复）。
+    ///
+    /// 为什么需要冻结 golden：M2 的归因出口**无 env gate、无 Option**（契约就是「物理订单改由
+    /// Σ_ℓ Δq_ℓ 生成」，旁挂式接法不兑现），而 `run_theta_v0_pi` 与 overlay 臂共用同一个
+    /// `pi_theta_fill_loop_overlay` ⟹ 拿 `run_theta_v0_pi` 当 M0 对照臂是**自比**，构造上不可能
+    /// 失败。真正的 M0 参照必须来自**接入 M2 之前**的代码。
+    ///
+    /// golden 取得方式（可复现的剥离对照）：在 `fill.rs::plan_level_attributed_order` 内把
+    /// `*order = plan.into_order(…)` 这一行改为丢弃（保留其余全部计算），此时订单量回落为净额
+    /// `Schedule_Θ` 的量 = M0 行为；跑本 fixture 取 [`order_stream_digest`]，即下方常量。
+    /// 复核/再生同法。摘要不符 ⟹ M2 改动了成交序列（M2 契约破，须回票；**M3 起订单流本就
+    /// 分叉，届时本 golden 应随票废止而非放宽**——设计文档 §D M3「不得借 M2 的 bit-exact 蒙混」）。
+    #[test]
+    fn lee_m2_order_stream_matches_frozen_pre_m2_golden() {
+        /// pre-M2（`*order` 赋值剥离）在 `random_walk_dataset("RW3000M2", 3000, 40_000_000)`
+        /// 上的成交序列摘要。见本测试文档的取得方式。
+        const PRE_M2_ORDER_STREAM_DIGEST: u64 = 0x92f7_a2f6_5ed5_5862;
+        let config = ThetaConfig::default();
+        let ds = random_walk_dataset("RW3000M2", 3000, 40_000_000);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        let digest = order_stream_digest(&ov.net_result);
+        eprintln!("LEE_M2_ORDER_STREAM_DIGEST 0x{digest:016x}");
+        // 非平凡前置：空跑批的摘要是常数，冻结它等于没冻结。
+        assert!(ov.net_result.n_orders > 0, "非空前置：本 fixture 真下过单");
+        assert!(!ov.net_result.trades.is_empty(), "非空前置：真有成交笔");
+        assert_eq!(
+            digest, PRE_M2_ORDER_STREAM_DIGEST,
+            "M2 成交序列与 pre-M2 golden 不符（M2 契约 = 仅归因维度增加，成交序列不变）"
+        );
+    }
+
+    /// ★LEE M2 归因维度可读（「仅归因维度增加」的正面证据，非只证「什么都没变」）：
+    /// 由 `Σ_ℓ Δq_ℓ` 生成订单的同一跑批里，级别归因台账确实按级别分了桶，且
+    /// **不动用** [`LEVEL_ACCOUNT_RESIDUAL`] 残差桶（默认配置下 pan_div 惰性 ⟹ 结构基准恒可归因）。
+    #[test]
+    fn lee_m2_attribution_dimension_is_readable_and_not_residual_only() {
+        use super::super::super::strategy::level_order::LEVEL_ACCOUNT_RESIDUAL;
+        let config = ThetaConfig::default();
+        let ds = random_walk_dataset("RW3000M2D", 3000, 40_000_000);
+        let ov = run_theta_v0_pi_overlay(&ds, &config, 1.0, 1.0e6);
+        let s = ov.level_order;
+        assert!(s.n_orders_generated > 0, "非空前置：有订单可归因");
+        assert_eq!(
+            s.n_residual_bucket, 0,
+            "默认配置（center_oscillation 关）⟹ 结构基准恒可归因，残差桶零动用（{s:?}）"
+        );
+        // 级别身份真的贯穿到订单层：曾出现过至少一个真实级别（非残差桶）承载归因。
+        assert!(
+            ov.level_ledger.levels().next().is_some()
+                || ov.level_ledger.n_closed() > 0,
+            "级别桶非空（归因维度可读）"
+        );
+        assert_ne!(LEVEL_ACCOUNT_RESIDUAL, 0, "残差桶键与真实级别 0 不冲突");
     }
 
     // ──────────────────────────────────────────────────────────────────────

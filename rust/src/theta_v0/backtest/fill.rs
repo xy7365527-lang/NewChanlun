@@ -396,6 +396,59 @@ where
 /// 逐字节一致；真实执行投影走声部簿（pending_voice 队列 + 事件驱动 fill + 开仓冻结 sizing），
 /// 输出层（equity/trade_pnls/trades/n_orders/r_decomp）换为声部账户口径（设计性改变，非回归）。
 /// `voice_exec=None` ⟹ 下列声部分支全部跳过，净额路径逐字节不变（bit-exact 回归锁）。
+/// ★LEE M2 单决策点级别归因（`pi_theta_fill_loop_overlay` 的订单量出口，§D M2）。
+///
+/// 输入本决策点的目标腿 `sep_legs`、账户层物理净目标 `p_star_final`、当前净持仓 `p_t`，
+/// 输出该订单的级别增量 `Δq_ℓ`，并**就地把 `order` 的量换成 `Σ_ℓ Δq_ℓ`**（动作分类不变）。
+///
+/// - 结构基准 `net_ℓ`：`sep_legs` 按 `id.level`≡formation_level 折叠
+///   （[`level_nets`](super::super::strategy::level_ledger::level_nets) 与 M1 镜像 `nets()`
+///   构造性同源，禁第二裁决源）。
+/// - 物理整数目标 `T = p_t + Schedule_Θ 的有符号手数`：p\* 常态落在 lot 网格上
+///   （`feasible_candidates` 全 lot 对齐）⟹ `T ≡ p\*`；仅 pan_div 的账户层
+///   `clamp_position(cap,…)`（cap 非 lot 对齐）可产非网格 p\*，此时 T = 其 lot 可实现化值
+///   ——**照实声明**：这是「lot 可实现物理净目标」，不是 p\* 本身。
+/// - `Δq_ℓ = q_ℓ − held_ℓ`，订单量 `qty = |Σ_ℓ Δq_ℓ|`（i64 求和，**无浮点结合律重排**）。
+/// - 动作分类沿用净额 `Schedule_Θ`（§C.2 伪码末行逐字「沿用 Schedule_Θ 单出口」）。
+///
+/// **能力边界**：`T` 由账户层 `qty_M0` 锚定 ⟹ `|Σ_ℓ Δq_ℓ| ≡ qty_M0` 是**构造性同义反复
+/// （L0）**，不是可证伪结论；真正被数据检验的是 `Σ_ℓ held_ℓ ≡ p_t`（L1，跨延迟/部分/拒单）
+/// 与 `Σ_ℓ net_ℓ` vs `T` 的分歧读数（L2）。详见
+/// [`level_order`](super::super::strategy::level_order) 模块头的证据等级表。
+fn plan_level_attributed_order(
+    level_order: &mut super::super::strategy::level_order::LevelOrderLedger,
+    sep_legs: &[super::super::strategy::coverage::SepLeg],
+    p_star_final: f64,
+    p_t: f64,
+    lot: i64,
+    exec_index: usize,
+    bar: usize,
+    order: &mut Order,
+) -> super::super::strategy::level_order::LevelUnits {
+    // p_t/p\* 均为整数手（apply_fill 只按整数增减 units；𝒦_Θ 全 lot 对齐）。
+    let p_t_i = p_t.round() as i64;
+    let signed_qty_m0 = if p_star_final - p_t >= 0.0 { order.qty } else { -order.qty };
+    let target_total = p_t_i + signed_qty_m0;
+    let basis = super::super::strategy::level_ledger::level_nets(sep_legs, lot);
+    let plan = level_order.plan(&basis, target_total);
+    // 恒等护栏：debug 立即失败 + release 累计残差（#289 MED ① 同款纪律——只有 debug_assert
+    // 的恒等在 release 跑批里零执行，等于没有证据）。
+    debug_assert_eq!(
+        plan.order_units.abs(), order.qty,
+        "M2 订单量构造违例：|Σ_ℓ Δq_ℓ|={} ≠ Schedule_Θ qty={} @bar{}",
+        plan.order_units.abs(), order.qty, bar
+    );
+    debug_assert_eq!(
+        level_order.held_total(), p_t_i,
+        "M2 归因完备违例（L1）：Σ_ℓ held_ℓ={} ≠ p_t={} @bar{}",
+        level_order.held_total(), p_t_i, bar
+    );
+    level_order.observe_decision(&plan, p_t_i, order.qty);
+    // 空仓判据 `p_t_i != 0` ≡ `schedule_order` 的 `!(|p_t|<FLAT_EPS)`（p_t 整数手）。
+    *order = plan.into_order(order.action, p_t_i != 0, exec_index);
+    plan.deltas
+}
+
 pub(super) fn pi_theta_fill_loop_overlay<F>(
     mut classify_at: F,
     bars: &[Bar],
@@ -435,6 +488,15 @@ where
     let mut seen_bsps: std::collections::HashSet<(usize, usize, u8)> = std::collections::HashSet::new();
     // 延迟成交队列（spec:50：订单在 exec_index bar 成交，与 plan_and_fill_mtm 同语义）。
     let mut pending: Vec<Vec<Order>> = vec![Vec::new(); n];
+    // ★LEE M2（multi-level-native-execution-design-20260719 §D M2）：物理订单的**量**由
+    //   `Σ_ℓ Δq_ℓ` 生成的级别归因台账。与 `pending` 严格配对的级别增量队列——同一个 push 分支
+    //   同时入两队 ⟹ 下标恒对齐；成交时按该订单的 Δq_ℓ 比例把**实际**成交量落 held_ℓ，
+    //   维持 `Σ_ℓ held_ℓ ≡ units`（拒单/部分成交同样不失配）。
+    //   M1/M5 的 overlay/镜像是**只读旁路**，本台账不是——它是订单量的生产来源（无 env gate、
+    //   无 Option：M2 的契约就是「物理订单改由 Σ_ℓ Δq_ℓ 生成」，旁挂式接法不兑现该契约）。
+    let mut level_order = super::super::strategy::level_order::LevelOrderLedger::new();
+    let mut pending_attrib: Vec<Vec<super::super::strategy::level_order::LevelUnits>> =
+        vec![Vec::new(); n];
     // 工位 K 性能：tree-prefix 缓存（§16 confirmed prefix immutable；跨 bar 复用 extract_elements）。
     let mut tree_cache = interp::TreeCache::new();
     // ★工位 4h：candidate 段前缀缓存（源(b) O(n²) 真修；caller B merge 路径 gamma-free + 前缀复用）。
@@ -588,13 +650,23 @@ where
         // ── ① 延迟成交：本 bar 到达 exec_index 的挂单 fill（apply_order，先平后开）。 ──
         if !pending[i].is_empty() && !bar.untradable && px > 0.0 {
             let orders = std::mem::take(&mut pending[i]);
-            for o in &orders {
+            let attribs = std::mem::take(&mut pending_attrib[i]);
+            debug_assert_eq!(
+                orders.len(), attribs.len(),
+                "M2 归因队列与订单队列同 push 分支入队 ⟹ 长度必相等 @bar{i}"
+            );
+            for (oi, o) in orders.iter().enumerate() {
                 if o.qty > 0 {
                     let units_before = units;
                     // A'（清单③）：累加本 fill 的费后已实现 PnL（多 fill 同 bar 聚合——推导链第 9 条）。
                     let fill = apply_order(o, px, fee_rate, &mut cash, &mut units, &mut entry_cost, &mut trade_pnls);
                     tw_thread.add_realized(fill.realized);
                     cum_fee += fill.fee;
+                    // ★LEE M2 归因落账：**实际**成交有符号手数（拒单/close_only 上限 ⟹ 可小于
+                    //   请求量）按该订单的 Δq_ℓ 比例回缩落 held_ℓ ⟹ `Σ_ℓ held_ℓ ≡ units` 逐 fill 保持。
+                    //   units 恒为整数手（apply_fill 只按整数 qty/close_qty 增减）⟹ round 无信息损失。
+                    let executed_signed = (units - units_before).round() as i64;
+                    level_order.on_fill(&attribs[oi], executed_signed);
                     if fill.executed_qty > 0.0 {
                         // 轨迹与执行计数只消费真实成交；全拒单不再伪造 L2 执行事实。
                         track_position_transition(&mut trades, &mut pos_entry_bar, units_before, units, i, false);
@@ -961,6 +1033,11 @@ where
                 Some(&twc),
                 &protocol_events,
             );
+            // ★LEE M2：物理净目标 p\* 的单一读点。无 pan_div 覆盖 ⟹ 恒 = `standard_p_star`
+            //   （`pi_theta_step_traced` 的 `LexArgmin_{p∈𝒦_Θ}J_x(p)`）；pan_div 覆盖订单时同步
+            //   改写（下方两处 `schedule_order(target, …)` 分支）——保证 M2 归因读到的目标与
+            //   净额 `Schedule_Θ` 用的目标是同一个（禁第二裁决源）。
+            let mut p_star_final = standard_p_star;
             if pan_div_hist.is_some() {
                 use super::super::strategy::oscillation::{
                     OscillationAction, OscillationApplyResult, OscillationIntent,
@@ -1027,6 +1104,7 @@ where
                             cap,
                             standard_p_star + pan_div_state.signed_live_child_units() as f64,
                         );
+                        p_star_final = target; // ★LEE M2：目标改写同步（禁第二裁决源）
                         order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
                     }
                 } else if !higher_priority && pan_div_state.signed_live_child_units() != 0 {
@@ -1036,9 +1114,24 @@ where
                         cap,
                         standard_p_star + pan_div_state.signed_live_child_units() as f64,
                     );
+                    p_star_final = target; // ★LEE M2：目标改写同步（禁第二裁决源）
                     order = coverage::schedule_order(target, p_t, exec_index.unwrap_or(i));
                 }
             }
+            // ★★LEE M2 订单归因（§D M2）：订单量出口换成 `Σ_ℓ Δq_ℓ`（动作分类仍走净额
+            //    `Schedule_Θ`）。口径、能力边界与三类读数的证据等级见
+            //    [`plan_level_attributed_order`] 与 `strategy::level_order` 模块头——
+            //    **不在此重复**（单源）。M3（clock_ℓ 事件门控）/M4（级别 sizing w_ℓ）本步不做。
+            let order_attrib = plan_level_attributed_order(
+                &mut level_order,
+                &step_trace.sep_legs,
+                p_star_final,
+                p_t,
+                config.risk.default_lot.max(1) as i64,
+                exec_index.unwrap_or(i),
+                i,
+                &mut order,
+            );
             // ── ★M5 overlay 簿步进（多空对冲.pdf p16 关卡10）：sep_legs=P^sep_{t+1} 目标 → hedge-mode
             //    逐声部账本 → ΔN 订单 + 逐声部 pnl_v 累计。只读旁路（不改净额 fill 的 cash/units/
             //    trade_pnls ⟹ 现有臂 bit-exact）。overlay=None（现有臂）⟹ 整段跳过。 ──
@@ -1066,6 +1159,12 @@ where
                         "LEE-Net 恒等违例（M1 加性细化）：Σ_ℓ net_ℓ={} ≠ N={} @bar{}",
                         lstep.total_net, ov.net(), i
                     );
+                    // ★#289 影子评审 MED ①：恒等的 **release 非平凡证据**——上面的
+                    //   debug_assert 在 release 跑批里零执行，integration 断言又取 force_flat 之后
+                    //   （两账均归零 ⟹ 平凡通过）。本读数逐决策点累计 max|Σ_ℓ net_ℓ − N| 与
+                    //   max|N|，release 同样执行；「残差 0 且 max|N|>0」才算见证成立。
+                    let overlay_net = ov.net();
+                    ll.observe_lee_net(overlay_net);
                 }
             }
             // ── ③'' G4 typed ledger（#134）：消费 StepTrace 腿级生命周期事件。 ──
@@ -1349,6 +1448,8 @@ where
                 if let Some(ei) = exec_index {
                     if ei < n {
                         pending[ei].push(order);
+                        // ★LEE M2：订单与其级别增量 Δq_ℓ 同分支入队 ⟹ 成交侧下标恒对齐。
+                        pending_attrib[ei].push(order_attrib);
                     }
                 }
             }
@@ -1450,18 +1551,23 @@ where
         }
     }
 
+    // ── 窗口终点强平锚：末可交易 bar 与其收盘价（#289 LOW-1 单源化——overlay 与 LEE M1 镜像
+    //    两处曾逐字重复同一 `last_i`/`last_px` 推导，任一侧口径改动会静默漂移。单源后
+    //    「同价同 bar」由构造保证，不再靠两段代码碰巧一致）。 ──
+    let forced_flat_anchor = (0..n)
+        .rev()
+        .find(|&j| !bars[j].untradable && bars[j].close > 0)
+        .map(|last_i| (last_i, bars[last_i].close as f64 * config.tick.tick_size));
     // ── ★M5 overlay 窗口终点强平：全部活动声部按末可交易 bar close 离场（记 exit_v/冻结 pnl_v）。
     //    价格 PnL 已在末决策点 step 累计到末价 ⟹ 此处只搬账本行（含浮盈口径，与净额侧同理）。 ──
     if let Some(ov) = overlay.as_deref_mut() {
-        if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
-            let last_px = bars[last_i].close as f64 * config.tick.tick_size;
+        if let Some((last_i, last_px)) = forced_flat_anchor {
             ov.force_flat(last_px, last_i);
         }
     }
     // ── ★LEE M1 镜像窗口终点强平：与 overlay 同价同 bar 按级重排（各级簿清空、closed 分区落账）。 ──
     if let Some(ll) = level_ledger.as_deref_mut() {
-        if let Some(last_i) = (0..n).rev().find(|&j| !bars[j].untradable && bars[j].close > 0) {
-            let last_px = bars[last_i].close as f64 * config.tick.tick_size;
+        if let Some((last_i, last_px)) = forced_flat_anchor {
             ll.force_flat(last_px, last_i);
         }
     }
@@ -1725,6 +1831,7 @@ where
         typed_ledger,
         tw_final: Some(tw_thread.finish()),
         r_decomp: Some(r_decomp),
+        level_order: level_order.stats(),
     }
 }
 
@@ -1752,6 +1859,10 @@ pub(super) struct FillOutput {
     /// LiquidationLoss + 账目守恒残差）。π 路径 [`pi_theta_fill_loop`] 产出；v1 路径
     /// [`plan_and_fill_mtm`] 未接 R 分解 ⟹ `None`（诚实不伪造，v1 是 recognize 旧路径非生产 π）。
     pub(super) r_decomp: Option<super::super::strategy::risk::RDecomposition>,
+    /// ★LEE M2 级别归因见证读数（`Σ_ℓ Δq_ℓ ≡ ΔN` 的 **release 可见**证据）。π 路径
+    /// [`pi_theta_fill_loop_overlay`] 产真值；v1 路径 [`plan_and_fill_mtm`] 无级别归因台账
+    /// ⟹ 全零默认（`identity_witnessed()==false`，诚实不伪造——零决策不是恒等成立的证据）。
+    pub(super) level_order: super::super::strategy::level_order::LevelOrderStats,
 }
 
 /// ★ mark-to-market 闭环 plan+fill（Task A，消除开环单帧）。
@@ -2058,6 +2169,9 @@ pub(super) fn plan_and_fill_mtm(
         typed_ledger: Vec::new(), // v1 无腿级台账（诚实空，非 π 路径）
         tw_final: None,           // v1 无 TW 接线（#124 只接 π 路径，诚实 None）
         r_decomp: None,           // v1 无 R 分解（M6 只接生产 π 路径，诚实 None）
+        // ★LEE M2：v1 recognize 路径无级别归因台账 ⟹ 全零默认（`identity_witnessed()==false`，
+        // 诚实不伪造——零决策不构成恒等成立的证据，同 typed_ledger/tw_final 的诚实空口径）。
+        level_order: Default::default(),
     }
 }
 
@@ -2522,6 +2636,8 @@ pub(super) fn plan_and_fill_mtm_dual(
             typed_ledger: Vec::new(), // 无腿级台账（诚实空，同 v1 净额路径）
             tw_final: Some(tw_thread.finish()),       // #68② TW 已接线（ShortDiff 成本划转 + Realize 平仓入账 + ShortDiff 腿计数；快照取强平前，强平 PnL 不入 TW）
             r_decomp: None,
+            // ★LEE M2：关⑤双账本路径无级别归因台账 ⟹ 全零默认（诚实不伪造）。
+            level_order: Default::default(),
         },
         ledger,
         leg_log,
