@@ -283,11 +283,19 @@ tombstone 写在原位。
   - 本票首个 commit `fa916fe70e` **吞进了并发工位的 #327 块（+547 行）与
     `docs/canonical-coverage-rust-impl.md`（+19 行）**，同时**丢掉了本票自己的 `wverify_run.rs` 改动**；
   - 并发工位随后的 `af17c4d484`（#327 见证锁）因内容已被吞，成了**空 diff commit**。
-  处置：本票**不自行修史**（两个 commit 均未推送，但并发工位正在这棵树上活跃工作，
-  rebase/reset 会破坏其在制品）⟹ 只补一个 pathspec 限定的跟进 commit 把本票自己的
-  `wverify_run.rs` 改动入库，事故与归属如实写在这里，**历史清理交用户裁决**。
-  教训（与 `feedback_commit_check_staged_area` 同型，本次复发）：共享工作区里
-  **`git add` 与 `git commit` 之间必须重查暂存区**，或直接用 `git commit -- <paths>` 绕开共享索引。
+  处置：本票**不自行修史**（并发工位正在这棵树上活跃工作，rebase/reset 会破坏其在制品）。
+  **随后事态又变**：并发工位为收拾自己的空 commit，执行了 `git reset 36092eab8e`
+  （reflog：「撤回 #327 空提交（tree 未变，重做）」）——该 reset **连带把本票的 `fa916fe70e`
+  一起从分支上丢掉了**（工作区改动幸存，未丢代码）。最终本票以两个 **pathspec 限定**的 commit
+  重新入库：
+  - `e971040794`：`wverify_run.rs`（本票口径改动，叠在并发工位已入库的 #327 块之上，不动其一行）
+    + 本报告；
+  - `0e7dc46dd1`：`center_lifecycle.rs` + `opsem_dump.rs`（`fa916fe70e` 的重做）。
+  **历史清理（`fa916fe70e` 的悬挂对象、两工位 commit 的时序）交用户裁决**，本票不动。
+  教训（与 `feedback_commit_check_staged_area` 同型，本次复发且升级）：共享工作区/共享索引里
+  **`git add` 与 `git commit` 之间必须重查暂存区**；更稳的做法是全程用 `git commit -- <paths>`
+  绕开共享索引（本票后两个 commit 即改用此法，未再出事）。另：**commit 之后也要复查 `git log`**
+  ——别的工位的 `reset` 会让你「已经提交」的东西再次消失。
 - 既有脏文件（`CLAUDE.md`、`AGENTS.md`、`.claude/`、`.agents/`、
   `rust/src/bin/p107_level_calib.rs`、`skills-lock.json`、`tmp/fold-r3-experiment/*`、既有
   `.chanlun/**`）**未动不 add**。
