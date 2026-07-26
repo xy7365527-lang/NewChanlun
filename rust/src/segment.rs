@@ -794,3 +794,6 @@ pub fn segments_from_strokes_v1_into(
     finalize_last_segment(segments, strokes, seg_start, seg_dir, min_seg_strokes, n);
     ensure_last_unconfirmed(segments, strokes);
 }
+
+#[cfg(test)] #[path = "segment_tangency_tests.rs"] // 相切口径回归锁（#317），立项事实见其模块头
+mod tests;

@@ -3,7 +3,7 @@
 覆盖 segment_rules_v1.md I11 及第78课核心场景：
   A) I11 硬约束直接验证（退化段检测）
   B) 第一种笔破坏无后续线段形成 → 旧段延续
-  C) 三笔重叠边界情况（相切 vs 重叠）
+  C) 三笔重叠边界情况（严格无重叠 vs 明确重叠；本组无真相切用例）
   D) 段 high/low 覆盖范围验证
   E) assert_segment_theorem_v1 对退化段的捕获
 
@@ -236,7 +236,13 @@ class TestStrokeBreakWithoutSegmentFormation:
 
 
 # =====================================================================
-# C) 三笔重叠边界情况
+# C) 三笔重叠边界情况（严格无重叠 vs 明确重叠）
+#
+# ⚠措辞订正（#317，#302 评审 HIGH-1）：文件头原标题「相切 vs 重叠」是残留——本组用例
+# 构造全为严格不等（严格跳空递减 / 明确重叠），**无精确相切**（相切须
+# max(lows) == min(highs)），故本组对 #246 相切=重合口径切换不敏感。
+# 真相切回归锁见 tests/test_segment_v1_settlement.py::TestTangencyCaliber
+# 与 rust/src/segment.rs 的 `mod tests`。
 # =====================================================================
 
 class TestCharacteristicSequenceFractalTrigger:

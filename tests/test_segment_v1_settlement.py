@@ -18,6 +18,7 @@ from newchan.a_segment_v0 import Segment, BreakEvidence
 from newchan.a_segment_v1 import (
     segments_from_strokes_v1,
     _three_stroke_overlap,
+    _is_fractal_and_gap,
     _FeatureSeqState,
 )
 from newchan.a_assertions import assert_segment_theorem_v1
@@ -326,13 +327,98 @@ class TestThreeStrokeOverlap:
         s3 = _s(10, 15, "up", 30, 22)
         assert _three_stroke_overlap(s1, s2, s3) is False
 
-    def test_overlap_boundary_equal(self):
-        """边界相等 → 无重叠（严格 <）。"""
+    def test_overlap_strict_disjoint(self):
+        """严格分离 → 无重叠（max(lows) > min(highs)，新旧口径一致）。
+
+        ⚠措辞订正（#317，#302 评审 HIGH-1）：本用例原名 `test_overlap_boundary_equal`，
+        docstring/注释把判据表述为「边界相等 → 无重叠（严格 `<`）」——那是被 #246 supersede
+        的旧口径，且本用例数据（max=15、min=10）是**严格分离**、并非相切
+        （相切须 max(lows) == min(highs)），故用例名一并订正。
+        真相切用例见 `TestTangencyCaliber`。本条覆盖严格分离，对口径切换不敏感。
+        """
         s1 = _s(0, 5, "up", 10, 5)
         s2 = _s(5, 10, "down", 15, 10)
         s3 = _s(10, 15, "up", 20, 15)
-        # max(5,10,15) = 15, min(10,15,20) = 10 → 15 >= 10 → False
+        # max(5,10,15) = 15, min(10,15,20) = 10 → 15 > 10 → 严格分离 → False
         assert _three_stroke_overlap(s1, s2, s3) is False
+
+
+# =====================================================================
+# G2) 相切=重合口径回归锁（#317；#302 评审 HIGH-1）
+# =====================================================================
+
+class TestTangencyCaliber:
+    """#246 相切=重合口径在 Python 参考两个谓词上的回归锁。
+
+    立项事实：#288 把 `_three_stroke_overlap` 切为含端点 `<=`、`_is_fractal_and_gap`
+    缺口臂切为严格 `>`，但两侧**零新增相切单测**——把谓词改回旧口径，全套非 slow 仍全绿
+    （rust↔Python parity 的真数据用例依赖 gitignored 的 `.cache/BZ_1min_2024_raw.parquet`，
+    CI/新克隆环境静默 skip）。本类补上这条锁：口径回改，下列用例立刻红并指认到具体谓词。
+
+    诚实边界（090）：期望值是 #246 裁定口径的**人工编码**（相切 ⟹ 有重合 / 相切 ⟹ 无缺口），
+    非 Lean 机器导出。裁定若翻转，这里须同步改。
+    认识论等级 L0（纯定义求值，不依赖市场数据；不构成任何实盘有效声明）。
+    裁定书：chanlun/escalate/tangency-overlap-supersede-84p3-ruling-20260725.md
+    """
+
+    def test_three_stroke_overlap_distinct_triple_tangent(self):
+        """三笔互异真相切（max(lows) == min(highs) == 10）→ 有重合。"""
+        s1 = _s(0, 5, "up", 10, 5)
+        s2 = _s(5, 10, "down", 12, 8)
+        s3 = _s(10, 15, "up", 15, 10)
+        assert max(s1.low, s2.low, s3.low) == min(s1.high, s2.high, s3.high), \
+            "前件：本用例须是真相切，否则断言退化"
+        assert _three_stroke_overlap(s1, s2, s3) is True, \
+            "三笔互异真相切须判有重合——#246 新口径 `<=`；若红，_three_stroke_overlap 被改回旧 `<`"
+
+    def test_three_stroke_overlap_pairwise_tangent(self):
+        """相切由两笔取得、第三笔宽包含（[5,10] / [10,20] / [0,30]）→ 有重合。"""
+        s1 = _s(0, 5, "up", 10, 5)
+        s2 = _s(5, 10, "down", 20, 10)
+        s3 = _s(10, 15, "up", 30, 0)
+        assert max(s1.low, s2.low, s3.low) == min(s1.high, s2.high, s3.high), \
+            "前件：本用例须是真相切，否则断言退化"
+        assert _three_stroke_overlap(s1, s2, s3) is True, \
+            "两笔相切于 10（第三笔宽包含）须判有重合——#246 新口径 `<=`；若红，口径被改回旧 `<`"
+
+    def test_is_fractal_and_gap_up_tangent_no_gap(self):
+        """向上段顶分型，a-b 真相切（b_l == a_h == 10）→ 无缺口。
+
+        先断言分型前件成立——前件不成立时 has_gap 恒 False，断言会退化为同义反复。
+        """
+        a_h, a_l = 10.0, 5.0
+        b_h, b_l = 20.0, 10.0
+        c_h, c_l = 12.0, 6.0
+        assert b_l == a_h, "前件：本用例须是真相切（b_l == a_h）"
+        is_fractal, has_gap = _is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, "up")
+        assert is_fractal is True, "前件：向上段顶分型须成立，否则 has_gap 断言退化"
+        assert has_gap is False, \
+            "向上段 a-b 真相切须判无缺口——#246 新口径严格 `>`；若红，向上臂被改回旧 `>=`"
+
+    def test_is_fractal_and_gap_down_tangent_no_gap(self):
+        """向下段底分型，a-b 真相切（a_l == b_h == 10）→ 无缺口。"""
+        a_h, a_l = 20.0, 10.0
+        b_h, b_l = 10.0, 2.0
+        c_h, c_l = 18.0, 8.0
+        assert a_l == b_h, "前件：本用例须是真相切（a_l == b_h）"
+        is_fractal, has_gap = _is_fractal_and_gap(a_h, a_l, b_h, b_l, c_h, c_l, "down")
+        assert is_fractal is True, "前件：向下段底分型须成立，否则 has_gap 断言退化"
+        assert has_gap is False, \
+            "向下段 a-b 真相切须判无缺口——#246 新口径严格 `>`；若红，向下臂被改回旧 `>=`"
+
+    def test_strict_cases_unchanged(self):
+        """对照组：严格重叠/严格分离/严格跳空在新旧口径下一致，对篡改不敏感。"""
+        assert _three_stroke_overlap(
+            _s(0, 5, "up", 15, 5), _s(5, 10, "down", 12, 8), _s(10, 15, "up", 18, 7)
+        ) is True
+        assert _three_stroke_overlap(
+            _s(0, 5, "up", 10, 5), _s(5, 10, "down", 20, 12), _s(10, 15, "up", 30, 22)
+        ) is False
+
+        is_fractal, has_gap = _is_fractal_and_gap(10.0, 5.0, 20.0, 12.0, 12.0, 6.0, "up")
+        assert is_fractal is True and has_gap is True, "向上段严格跳空（b_l=12 > a_h=10）须有缺口"
+        is_fractal, has_gap = _is_fractal_and_gap(20.0, 12.0, 10.0, 2.0, 18.0, 8.0, "down")
+        assert is_fractal is True and has_gap is True, "向下段严格跳空（a_l=12 > b_h=10）须有缺口"
 
 
 # =====================================================================
