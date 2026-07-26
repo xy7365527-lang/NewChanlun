@@ -796,14 +796,41 @@ mod tests {
         assert!(!b.contains(&a));
     }
 
+    /// ★#312 主缝：`three_stroke_overlap` 的重合真值 == Lean `decide (Overlaps a b)`（fixture 机器导出）。
+    ///
+    /// **退化三笔**：Lean 侧无三笔重合谓词（`Overlaps` 是两区间版），故用第三笔复用第二笔的
+    /// 退化形态 `(a, b, b)` 把三笔谓词降到两区间语义——`max(a.lo,b.lo) <= min(a.hi,b.hi)`，
+    /// 与 `Overlaps a b` 逐字同式，可直接对 Lean 导出值。覆盖 5 条用例（相切两形态 + 严格分离
+    /// 正/反向 + 严格重叠对照）。口径若回改（相切不算重合，旧 `<`），相切两条立刻红。
+    ///
+    /// ⚠诚实边界（#276 MED-1，未闭合）：**三笔互异**区间的相切形态（`max(lows)==min(highs)` 由
+    /// 三条不同区间共同取得）在 Lean 侧仍无见证——该形态的覆盖是下方手填单测
+    /// `three_stroke_overlap_distinct_triple_tangent`，非机器耦合。本测试不冒充覆盖它。
     #[test]
-    fn three_stroke_overlap_tangent_counts() {
-        // ★#246 相切口径：max(lows) == min(highs) 算「有重合区间」（旧 #84 点3 从严不算，已 supersede）。
-        // 三笔区间 [5,10]、[8,12]、[10,15]：max_lo=10, min_hi=10 → 相切于 10。
+    fn three_stroke_overlap_lean_fixture_bit_exact() {
+        for case in super::super::gap_overlap_fixture::gap_overlap_cases() {
+            let sa = stroke(Direction::Up, 0, 4, case.a.0, case.a.1);
+            let sb = stroke(Direction::Up, 4, 8, case.b.0, case.b.1);
+            assert_eq!(
+                three_stroke_overlap(&sa, &sb, &sb),
+                case.overlaps,
+                "{}: three_stroke_overlap(a,b,b) 须 == Lean decide(Overlaps a b)（bit-exact）",
+                case.name
+            );
+        }
+    }
+
+    #[test]
+    fn three_stroke_overlap_distinct_triple_tangent() {
+        // ★#246 相切口径在**三笔互异**形态上的行为（Lean 无对应谓词，期望值手填——#276 MED-1 已知缺角）。
+        // 三笔区间 [5,10]、[8,12]、[10,15]：max_lo=10, min_hi=10 → 相切于 10 ⟹ 有重合（新口径，`<=`）。
         let a = stroke(Direction::Up, 0, 4, 5, 10);
         let b = stroke(Direction::Up, 4, 8, 8, 12);
         let c = stroke(Direction::Down, 8, 12, 15, 10);
-        assert!(three_stroke_overlap(&a, &b, &c)); // 相切 ⟹ 有重合（新口径，`<=`）
+        assert!(
+            three_stroke_overlap(&a, &b, &c),
+            "三笔互异相切（max_lo==min_hi==10）须判有重合——#246 新口径 `<=`；若红，口径被改回旧 `<`"
+        );
     }
 
     #[test]

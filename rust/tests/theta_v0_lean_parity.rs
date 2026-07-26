@@ -434,7 +434,18 @@ fn lean_continuation_hold_bit_exact() {
 //  SegmentFeatureSeq.lean:114；历史：#248 时经 `decide (¬ HasGap ..)` 由
 //  `gap_iff_not_overlap`（:118）互推，090 留痕）。
 //  三笔形态（max(lows)==min(highs)）不适用：Lean 无三笔重合谓词，其相切语义与两区间
-//  形态同构；rust 三笔谓词相切行为由 segment.rs 单测 three_stroke_overlap_tangent_counts 覆盖。
+//  形态同构。
+//
+//  ⚠有效域（#276 影子评审 HIGH-1 → 票 #312，090 诚实边界）：本测试断言的 `Interval::gap` /
+//  `Interval::overlaps` 是**第三份实现**，#246 裁定并未改动它。真正被改口径的两个生产谓词
+//  （`parser::feature_seq::is_fractal_and_gap` / `parser::segment::three_stroke_overlap`）是私有
+//  fn，crate 外调不到，**不在本测试覆盖内**——它们的机器耦合缝在 crate 内：
+//  `parser::gap_overlap_fixture`（读同一份 fixture）+ 两模块的
+//  `*_lean_fixture_bit_exact` 单测（`cargo test --lib`）。本测试绿 ≠ 那两个谓词的口径已锁。
+//
+//  ⚠端点镜像存在于两处（本文件下方 5 组 + `parser::gap_overlap_fixture::gap_overlap_cases`），
+//  且两处都是人工对照（fixture 只导出真值、不导出输入端点）。导出器 `:186-190` 的端点若改，
+//  **必须同改两处**——任一处漏改都不会红。
 // ════════════════════════════════════════════════════════════════════════════
 
 /// rust `Interval::overlaps`/`gap` == Lean `decide(HasGap)`/`decide(¬HasGap)` 逐用例 bit-exact。

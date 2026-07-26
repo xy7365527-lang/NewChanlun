@@ -183,7 +183,10 @@ def fixtureJson : Json :=
     -- 用例：相切两形态（a.high==b.low / b.high==a.low）+ 严格分离（正/反向）+ 严格重叠对照。
     -- 三笔形态（max(lows)==min(highs)）不适用：Lean 形式化层无三笔重合谓词（Overlaps 为两区间版），
     -- 其三笔相切语义与两区间形态 a.high==b.low 同构，已由 tangent_a_high_eq_b_low 覆盖；
-    -- rust 侧 three_stroke_overlap 的相切行为由 rust 单测 three_stroke_overlap_tangent_counts 覆盖。
+    -- rust 侧 three_stroke_overlap 的口径由 crate 内单测 three_stroke_overlap_lean_fixture_bit_exact
+    -- 读本段真值锁定（ticket #312，退化三笔 (a,b,b) 降到两区间语义）；三笔**互异**相切形态在 Lean
+    -- 侧仍无见证（#276 MED-1 已知缺角），rust 侧由手填单测
+    -- three_stroke_overlap_distinct_triple_tangent 覆盖，非机器耦合。
     ("gap_overlap", Json.mkObj [
       ("tangent_a_high_eq_b_low", gapOverlapJson (feOf 5 10 (by omega)) (feOf 10 20 (by omega))),
       ("tangent_b_high_eq_a_low", gapOverlapJson (feOf 10 20 (by omega)) (feOf 5 10 (by omega))),

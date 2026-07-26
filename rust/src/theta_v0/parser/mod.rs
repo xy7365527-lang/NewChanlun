@@ -68,6 +68,11 @@ pub mod tail;
 #[cfg(test)]
 mod profile;
 
+/// #246 相切=重合口径的 Lean fixture 读取点（cfg(test) only，#312 主缝，不入产物）。
+/// `feature_seq::tests` / `segment::tests` 共用——两个私有谓词的期望值由此接机器耦合链。
+#[cfg(test)]
+mod gap_overlap_fixture;
+
 /// 单层解析输出（一个级别的完整 confirmed 结构 + 未完成尾部）。
 ///
 /// 契约锚 `Origin.ChanlunElements.ParseStruct` 的子集（mergedBars/fractals/strokes/segments/tail——

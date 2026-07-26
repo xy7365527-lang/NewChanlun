@@ -487,21 +487,51 @@ mod tests {
         assert!(g); // a_l=12 >= b_h=8
     }
 
+    /// ★#312 主缝：`is_fractal_and_gap` 的缺口真值 == Lean `decide (HasGap a b)`（fixture 机器导出）。
+    ///
+    /// 遍历 Lean 侧 5 条用例 × 向上/向下两分支。期望值**全部从 fixture 读**
+    /// （`gap_overlap_fixture`，禁手填）——口径若回改（相切算缺口，旧 `>=`），相切用例立刻红，
+    /// 且失败信息指认到本谓词与具体形态。
+    ///
+    /// ★如实登记：`ordered()` 定序后 `*_rev` 两条与其正向用例输入逐字相同，本测试实得 **3 组互异
+    /// 输入**（相切 / 严格分离 / 严格重叠）；相切的两个方向由下面 Up / Down 两分支取得，不靠 rev
+    /// 用例（见 `gap_overlap_fixture::GapOverlapCase::ordered` 的副作用登记）。
+    ///
+    /// 定序 + 构造：`ordered()` 取（下方元素, 上方元素）；向上段喂 `(a=下, b=上, c=下)`，向下段喂
+    /// `(a=上, b=下, c=上)`——`c` 复用同一元素只为满足分型前件（`b_h > a_h && b_h > c_h` /
+    /// `b_l < a_l && b_l < c_l`），使 `has_gap` 分支真正被求值（前件不成立时该谓词恒返回 false，
+    /// 断言会退化为同义反复，故先 `assert!(f)` 坐实前件）。
     #[test]
-    fn is_fractal_and_gap_up_tangent_no_gap() {
-        // ★#246 相切口径：向上段 b_l == a_h（a=[5,10] 与 b=[10,20] 相切于 10）算「有重合区间」
-        // ⟹ 无缺口。旧口径（`>=`，Lead #84 点3）下此例 has_gap=true，已被 supersede。
-        let (f, g) = is_fractal_and_gap(10, 5, 20, 10, 8, 3, Direction::Up);
-        assert!(f); // 20 > 10 && 20 > 8：顶分型成立
-        assert!(!g); // b_l=10 == a_h=10：相切 → 无缺口（新口径，严格 `>`）
-    }
-
-    #[test]
-    fn is_fractal_and_gap_down_tangent_no_gap() {
-        // ★#246 相切口径：向下段 a_l == b_h（a=[12,15] 与 b=[3,12] 相切于 12）⟹ 无缺口。
-        let (f, g) = is_fractal_and_gap(15, 12, 12, 3, 18, 14, Direction::Down);
-        assert!(f); // 3 < 12 && 3 < 14：底分型成立
-        assert!(!g); // a_l=12 == b_h=12：相切 → 无缺口（新口径，严格 `>`）
+    fn is_fractal_and_gap_lean_fixture_bit_exact() {
+        for case in super::super::gap_overlap_fixture::gap_overlap_cases() {
+            let ((lo_l, lo_h), (up_l, up_h)) = case.ordered();
+            // 向上段顶分型：b 在上，缺口谓词 = `b_l > a_h`。
+            let (f_up, g_up) =
+                is_fractal_and_gap(lo_h, lo_l, up_h, up_l, lo_h, lo_l, Direction::Up);
+            assert!(
+                f_up,
+                "{}: 向上段前件（顶分型）应成立，否则断言退化",
+                case.name
+            );
+            assert_eq!(
+                g_up, case.has_gap,
+                "{}: is_fractal_and_gap(Up).has_gap 须 == Lean decide(HasGap)（bit-exact）",
+                case.name
+            );
+            // 向下段底分型：b 在下，缺口谓词 = `a_l > b_h`。
+            let (f_dn, g_dn) =
+                is_fractal_and_gap(up_h, up_l, lo_h, lo_l, up_h, up_l, Direction::Down);
+            assert!(
+                f_dn,
+                "{}: 向下段前件（底分型）应成立，否则断言退化",
+                case.name
+            );
+            assert_eq!(
+                g_dn, case.has_gap,
+                "{}: is_fractal_and_gap(Down).has_gap 须 == Lean decide(HasGap)（bit-exact）",
+                case.name
+            );
+        }
     }
 
     #[test]
