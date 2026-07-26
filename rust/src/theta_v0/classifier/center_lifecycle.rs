@@ -35,8 +35,22 @@
 //! ## 段计数口径
 //!
 //! - 段序列 = 自上次一类点同死（或机器构造）起喂入的段；`born_seg_ordinal` = 构成中枢的**第三段**
-//!   （完成重叠那段）在当前段序列中的 1-based 序号。三类破坏**不清**段序列（趋势延续，新中枢自
-//!   后续段滑动窗口出生）；一类同死**清零**段序列。
+//!   （完成重叠那段）在当前段序列中的 1-based 序号。
+//! - **三类破坏（R0′，#331/#330 用户裁定二）**：破坏后**已消费段不再参与新中枢计数**——旧中枢
+//!   出生窗口及其之前的段（`segs[..born_seg_ordinal]`）随该中枢一并消费丢弃，新中枢自其后的段
+//!   （`segs[born_seg_ordinal..]`）滑窗出生；`born_seg_ordinal` 由此变为相对「已消费段丢弃后的
+//!   当前段序列」计数（旧口径下的读数一律作废）。塔消费语义的机器侧对应物 =
+//!   [`super::recursive_tower`] `:793` 游标 `i=j*`（塔窗口扫描游标越过已吸收段后不倒回）。
+//!   ⚠️ **旧口径（已作废，#331 修正）**：本行以下原文「三类破坏不清段序列（趋势延续，新中枢自
+//!   后续段滑动窗口出生）」——2026-07-26 之前的对账读数（含「破坏后段序列不清零」「born_seg_ordinal
+//!   跨破坏连续计数不清零」等假设）据此全部作废，须按新口径重跑。
+//!   ⚠️ **有效域（#331 wf8 实测，如实登记）**：本条只改**计数口径**，**不改窗口选择**——下方滑窗
+//!   恒测「尾 3 段」，尾窗由段序列**末端**定位，丢弃头部不改变任何被测窗口。因此 `born_seg_ordinal`
+//!   的分母变了，出生时点/出生身份不变。wf8 全窗（264,960 bar）实测：`broken` 事件仅 **1 次**、
+//!   `reset` **0 次** ⟹ 本条在该窗的最大爆炸半径 = 1 个事件，L0 时间线（609 born / 1490 broken /
+//!   1502 born si=624）与改前逐条相同。若要让「游标推进」具备窗口调度上的操作内容（破坏后对存活
+//!   后缀做完整前向重扫，而非只测尾窗——报告 §5 R0′ 标题所述），须另行教义裁决，本票未做。
+//! - 一类同死**清零**段序列（不变，R0′ 未改此面）。
 //! - 滑窗：在场中枢缺席时，每新段测试**尾 3 段**窗口（与塔窗口扫描同义——前 3 段不成立则
 //!   第 2/3/4 段仍可成交）；在场中枢存在时不测出生（一中枢一场）。
 
@@ -116,7 +130,9 @@ pub enum CenterLifecycleEvent {
         /// 出生段号：完成重叠的第三段在当前段序列（一类点同死后重新计数）中的 1-based 序号。
         born_seg_ordinal: usize,
     },
-    /// 破坏：本级别确认的三类买卖点 ⟹ 在场中枢死亡（段序列**不清零**）。
+    /// 破坏：本级别确认的三类买卖点 ⟹ 在场中枢死亡（R0′，#331/#330 裁定二：**已消费段
+    /// 丢弃**——`segs[..born_seg_ordinal]` 随死中枢消费，新中枢自 `segs[born_seg_ordinal..]`
+    /// 滑窗出生；⚠️ 旧口径「段序列不清零」已作废，见模块头「段计数口径」）。
     Broken {
         level: u32,
         /// 死亡中枢（出生时刻快照）。
@@ -160,6 +176,11 @@ pub struct CenterEventMachine {
     reset_total: usize,
     /// ★#329：误杀拒绝累计（身份不符 ⟹ 拒杀，状态不动）。
     miskill_total: usize,
+    /// ★#331 R2：**同一在场中枢实例上累计被拒的死亡请求数**（拒杀逃逸阀读数，根因报告 §5 R2
+    /// 「累积拒杀 N 次 ⟹ 该机 `resync()`」）。`Err` 路径 +1；归零点 = 在场实例换人的四处
+    /// （出生 / 破坏放行 / 一类同死 / `resync()`）。**无关点（二类点等）的 `Ok(None)` 不归零**
+    /// ——在场实例没换，此前拒杀历史依旧适用。纯读数，不改任何生死语义。
+    alive_miskills: usize,
 }
 
 impl CenterLifecycleEvent {
@@ -192,6 +213,7 @@ impl CenterEventMachine {
             broken_total: 0,
             reset_total: 0,
             miskill_total: 0,
+            alive_miskills: 0,
         }
     }
 
@@ -212,6 +234,9 @@ impl CenterEventMachine {
         let born_seg_ordinal = n; // 1-based 出生段号 = 完成重叠的第三段在当前段序列中的序号。
         self.alive = Some((center, born_seg_ordinal));
         self.born_total += 1;
+        // ★#331 R2：新在场实例上场 ⟹ 每实例拒杀读数归零（防御性——拒杀只在有在场中枢时发生，
+        // 而在场中枢下场时已归零，故此处理论恒为 0；显式写出以免归零点漏一处）。
+        self.alive_miskills = 0;
         Some(CenterLifecycleEvent::Born { level: self.level, center, born_seg_ordinal })
     }
 
@@ -248,6 +273,7 @@ impl CenterEventMachine {
             };
             self.segs.clear(); // 段序列与在场中枢同死（新中枢从全新段计数）。
             self.reset_total += 1;
+            self.alive_miskills = 0; // ★#331 R2：一类同死 ⟹ 在场实例下场，每实例拒杀读数归零。
             return Ok(Some(CenterLifecycleEvent::Reset {
                 level: self.level,
                 died_center,
@@ -267,11 +293,17 @@ impl CenterEventMachine {
         if let Some(breaker_side) = third {
             // ★#329 身份校验（先于取走在场中枢——拒杀时状态一动不动）。
             self.verify_kill_target(KillTrigger::ThirdClass, source_index, breaker_side, target)?;
-            // 无在场中枢 ⟹ 诚实 no-op（不杀不存在的中枢）；段序列不清零（趋势延续）。
+            // 无在场中枢 ⟹ 诚实 no-op（不杀不存在的中枢）；段序列不动（无死亡，无消费可谈）。
             let Some((center, born_seg_ordinal)) = self.alive.take() else {
+                // 无在场实例 ⟹ 无拒杀可累（`alive_miskills` 此时恒为 0），读数不动。
                 return Ok(None);
             };
+            // ★R0′（#331/#330 用户裁定二）：塔消费语义——已死中枢出生窗口及其之前的段
+            // （`segs[..born_seg_ordinal]`）随该中枢一并消费丢弃，不再参与新中枢计数；只保留
+            // 出生窗口之后（在场期新喂入）的段供后续滑窗（旧口径「不清段序列」已作废，见模块头）。
+            self.segs.drain(..born_seg_ordinal);
             self.broken_total += 1;
+            self.alive_miskills = 0; // ★#331 R2：破坏放行 ⟹ 在场实例下场，每实例拒杀读数归零。
             return Ok(Some(CenterLifecycleEvent::Broken {
                 level: self.level,
                 center,
@@ -280,6 +312,8 @@ impl CenterEventMachine {
                 breaker_side,
             }));
         }
+        // 无一/三类 bit（二类点等无关点）⟹ 在场实例没换，`alive_miskills` **不归零**
+        // （★#331 R2：若在此归零，阀门会被无关点持续打断——wf8 实测 888 次拒杀只放行 4 次）。
         Ok(None)
     }
 
@@ -306,6 +340,7 @@ impl CenterEventMachine {
             return Ok(());
         }
         self.miskill_total += 1;
+        self.alive_miskills += 1; // ★#331 R2：本在场实例上的累计拒杀（归零点见字段文档）。
         Err(CenterMisKill {
             level: self.level,
             trigger,
@@ -318,9 +353,11 @@ impl CenterEventMachine {
 
     /// 工程性再同步（旁路喂数层专用：塔 cascade 失效/水线回缩致已喂前缀不可信时调用）。
     /// 清空段序列与在场中枢，**不产事件**（非教义生死，照实区别于 Reset）。
+    /// ★#331 R2：同批归零每实例拒杀读数（resync 后在场身份已重置，旧拒杀历史不再适用）。
     pub fn resync(&mut self) {
         self.segs.clear();
         self.alive = None;
+        self.alive_miskills = 0;
     }
 
     /// 在场中枢（出生快照 + 出生段号）；None = 当前无在场中枢。
@@ -341,6 +378,14 @@ impl CenterEventMachine {
     /// ★#329：误杀拒绝累计（身份不符被拒的死亡请求数；不含「无在场中枢」的诚实 no-op）。
     pub fn mis_kills(&self) -> usize {
         self.miskill_total
+    }
+
+    /// ★#331 R2：**同一在场中枢实例上累计被拒的死亡请求数**（`Err` 路径 +1；归零点 = 在场实例
+    /// 换人的四处：出生 / 破坏放行 / 一类同死 / `resync()`；无关点的 `Ok(None)` 不归零）。
+    /// 逃逸阀读数——旁路层（opsem_dump.rs）据此判断是否触发工程 resync，本机自身不因此值改变
+    /// 任何生死语义（纯读数，见 [`CenterMisKill`] 拒杀优先于错杀）。
+    pub fn alive_mis_kills(&self) -> usize {
+        self.alive_miskills
     }
 }
 
@@ -458,7 +503,13 @@ mod tests {
     // ──────────────────────────────────────────────────────────────────────
 
     /// ★三类点破在场中枢：born 后确认 buy3 ⟹ Broken（含死中枢/出生段号/触发坐标/方向）；
-    /// 段序列**不清零**（趋势延续，新中枢自后续段滑窗出生，出生段号连续计数）。
+    /// **R0′（#331/#330 用户裁定二）**：破坏后已消费段（`segs[..born_seg_ordinal]`）随死中枢
+    /// 丢弃，`segments_since_reset()` 应为 0；新中枢自后续段滑窗出生，出生段号相对「已消费段
+    /// 丢弃后的当前段序列」重新计数（本例 = 3，非旧口径的 6）。
+    ///
+    /// ⚠️ **旧读数已作废**（#331 修正）：本用例修改前断言「破坏后 `segments_since_reset()==3`
+    /// （不清零）」「新中枢 `born_seg_ordinal==6`（连续计数）」——2026-07-26 之前对账/wf8 产物
+    /// 里依赖这两条断言的读数一律作废，须按 R0′ 口径重跑。
     #[test]
     fn broken_by_third_class_point() {
         let mut m = CenterEventMachine::new(0);
@@ -479,19 +530,24 @@ mod tests {
                 breaker_source_index: 100,
                 breaker_side: Side::Long,
             })),
-            "三类买点 ⟹ broken（段序列不清零）"
+            "三类买点 ⟹ broken（R0′：已消费段随之丢弃）"
         );
         assert_eq!(m.alive_center(), None, "破坏后无在场中枢");
         assert_eq!(m.counts(), (1, 1, 0));
-        assert_eq!(m.segments_since_reset(), 3, "三类破坏不清段序列");
+        assert_eq!(
+            m.segments_since_reset(),
+            0,
+            "R0′：破坏后已消费段（出生窗口及其之前）随死中枢丢弃，段序列归 0（旧口径断言 3 已作废）"
+        );
 
         // 无在场中枢时三类点不产事件（不杀不存在的中枢，诚实 no-op；无在场 ⟹ 身份无可校验对象）。
         assert_eq!(m.push_point(bits_3s(), 200, None), Ok(None), "无在场中枢 ⟹ 三类点无事件");
         assert_eq!(m.counts(), (1, 1, 0));
 
-        // 破坏后续段滑窗再出生：段号连续（不清零），第 6 段完成新重叠。
-        assert_eq!(m.push_segment(unit(12, 16, down(), 30, 40)), None);
-        assert_eq!(m.push_segment(unit(16, 20, up(), 32, 42)), None);
+        // 破坏后新中枢自「已消费段丢弃后的当前段序列」滑窗出生：前 2 段不成交，第 3 段（全新
+        // 计数）完成重叠。
+        assert_eq!(m.push_segment(unit(12, 16, down(), 30, 40)), None, "新序列第 1 段");
+        assert_eq!(m.push_segment(unit(16, 20, up(), 32, 42)), None, "新序列第 2 段");
         let ev2 = m.push_segment(unit(20, 24, down(), 31, 41));
         // (d,e,f)：方向 down/up/down 交替；zd=max(30,32,31)=32 ≤ zg=min(40,42,41)=40 ⟹ 成交。
         assert_eq!(
@@ -499,9 +555,53 @@ mod tests {
             Some(CenterLifecycleEvent::Born {
                 level: 0,
                 center: Center { zd: 32, zg: 40, dd: 30, gg: 42, start_index: 12, end_index: 24 },
-                born_seg_ordinal: 6,
+                born_seg_ordinal: 3,
             }),
-            "破坏后段序列连续 ⟹ 新中枢出生段号 = 6（不清零）"
+            "R0′：新中枢出生段号 = 3（相对已消费段丢弃后的当前段序列重新计数，旧口径断言 6 已作废）"
+        );
+        assert_eq!(m.counts(), (2, 1, 0));
+    }
+
+    /// ★R0′ 片二（#331/#330 用户裁定二）：破坏时段序列**长于**出生窗口——中枢出生于第 3 段
+    /// （`born_seg_ordinal=3`），在场期又续喂到第 5 段（第 4/5 段是趋势延续段，未参与出生判据）。
+    /// 破坏后应只丢弃出生窗口内的段（`segs[..3]`），保留在场期新喂入的第 4/5 段（`segs[3..5]`）；
+    /// 新中枢无需等满 3 个全新段——喂入第 3 个新段（全局第 6 段）即可用「保留的 2 段 + 新 1 段」
+    /// 成交，`born_seg_ordinal` 相对丢弃后的段序列计数为 3。
+    #[test]
+    fn broken_after_alive_period_fed_beyond_birth_window_keeps_trailing_segments() {
+        let mut m = CenterEventMachine::new(0);
+        // 出生窗口（第 1..3 段）：上-下-上，核心 [12,20]。
+        m.push_segment(unit(0, 4, up(), 10, 20));
+        m.push_segment(unit(4, 8, down(), 12, 20));
+        let born = m.push_segment(unit(8, 12, up(), 12, 22));
+        let center = Center { zd: 12, zg: 20, dd: 10, gg: 22, start_index: 0, end_index: 12 };
+        assert_eq!(born, Some(CenterLifecycleEvent::Born { level: 0, center, born_seg_ordinal: 3 }));
+
+        // 在场期续喂第 4/5 段（一中枢一场：不测出生，但段序列照常追加）。
+        m.push_segment(unit(12, 16, down(), 30, 45));
+        m.push_segment(unit(16, 20, up(), 33, 48));
+        assert_eq!(m.segments_since_reset(), 5, "在场期第 4/5 段已喂入（未参与出生判据）");
+
+        // 三类破坏：出生窗口 [第1..3段] 随死中枢丢弃，保留第 4/5 段。
+        let ev = m.push_point(bits_3b(), 200, Some(CenterId::of(&center)));
+        assert!(matches!(ev, Ok(Some(CenterLifecycleEvent::Broken { born_seg_ordinal: 3, .. }))));
+        assert_eq!(
+            m.segments_since_reset(),
+            2,
+            "R0′：只丢弃出生窗口内的段（前 3 段），在场期新喂的第 4/5 段保留"
+        );
+
+        // 第 6 个全局段（= 保留后的第 3 段）到达 ⟹ 与保留的第 4/5 段拼出新中枢，无需等满 3 个
+        // 全新段。方向 down/up/down 交替；zd=max(30,33,31)=33 ≤ zg=min(45,48,41)=41 ⟹ 成交。
+        let ev2 = m.push_segment(unit(20, 24, down(), 31, 41));
+        assert_eq!(
+            ev2,
+            Some(CenterLifecycleEvent::Born {
+                level: 0,
+                center: Center { zd: 33, zg: 41, dd: 30, gg: 48, start_index: 12, end_index: 24 },
+                born_seg_ordinal: 3,
+            }),
+            "R0′：保留段 + 1 新段即可成交，born_seg_ordinal=3（相对丢弃后的段序列）"
         );
         assert_eq!(m.counts(), (2, 1, 0));
     }
@@ -715,6 +815,59 @@ mod tests {
             assert_eq!(m.counts(), (1, 0, 0), "{label}：拒杀不计 broken/reset");
             assert_eq!(m.mis_kills(), 1, "{label}：误杀拒绝单独计数");
         }
+    }
+
+    /// ★R2 片三（#331）：拒杀逃逸阀读数 = **同一在场中枢实例上累计被拒的死亡请求数**
+    /// （根因报告 §5 R2 原文「累积拒杀 N 次 ⟹ 该机 resync()」）。归零点恰为「在场实例换人」的
+    /// 四处：出生（新实例上场）/ 破坏放行 / 一类同死 / `resync()`。**无关点（如二类点）走
+    /// `Ok(None)` 不归零**——在场实例没换，此前的拒杀历史依旧适用（若被无关点打断即归零，
+    /// 阀门在 wf8 实测 888 次拒杀里只放行 4 次 ≈ 形同虚设，见 #331 实测）。
+    /// 纯读数，不改任何生死语义（`mis_kills()` 累计总数不受归零影响）。
+    #[test]
+    fn alive_mis_kills_accumulate_per_instance_and_reset_on_instance_change() {
+        let (mut m, a) = machine_with_alive_a();
+        let stale = CenterId { start_index: 400, zd: 90, zg: 99 };
+        assert_eq!(m.alive_mis_kills(), 0, "前置：无拒杀");
+
+        // 同一在场实例上 3 次误杀（身份不符）⟹ 累计。
+        for (i, src) in [100usize, 101, 102].into_iter().enumerate() {
+            let got = m.push_point(bits_3b(), src, Some(stale));
+            assert!(got.is_err(), "误杀应拒绝");
+            assert_eq!(m.alive_mis_kills(), i + 1, "第 {} 次误杀累加", i + 1);
+        }
+        assert_eq!(m.mis_kills(), 3, "误杀总计数同步累加");
+
+        // 二类点（无载体，不触发身份校验）⟹ Ok(None)，在场实例没换 ⟹ **不归零**。
+        let ev = m.push_point(bits_2b(), 103, None);
+        assert_eq!(ev, Ok(None), "二类点不产事件");
+        assert_eq!(m.alive_mis_kills(), 3, "无关点不换在场实例 ⟹ 累计拒杀不归零");
+        assert_eq!(m.mis_kills(), 3, "总误杀计数不受影响");
+
+        // 用正确目标杀成功 ⟹ 在场实例下场 ⟹ 归零。
+        let ev2 = m.push_point(bits_3b(), 105, Some(CenterId::of(&a)));
+        assert!(
+            matches!(ev2, Ok(Some(CenterLifecycleEvent::Broken { .. }))),
+            "载体身份匹配 ⟹ 破坏放行"
+        );
+        assert_eq!(m.alive_mis_kills(), 0, "杀对 ⟹ 在场实例换人，归零");
+        assert_eq!(m.mis_kills(), 3, "归零只影响每实例读数，不影响累计误杀总数");
+
+        // 一类同死归零。
+        let (mut m1, a1) = machine_with_alive_a();
+        m1.push_point(bits_3b(), 300, Some(stale)).unwrap_err();
+        assert_eq!(m1.alive_mis_kills(), 1);
+        assert!(matches!(
+            m1.push_point(bits_1s(), 301, Some(CenterId::of(&a1))),
+            Ok(Some(CenterLifecycleEvent::Reset { .. }))
+        ));
+        assert_eq!(m1.alive_mis_kills(), 0, "一类同死 ⟹ 归零");
+
+        // resync 归零。
+        let (mut m2, _a2) = machine_with_alive_a();
+        m2.push_point(bits_3b(), 200, Some(stale)).unwrap_err();
+        assert_eq!(m2.alive_mis_kills(), 1);
+        m2.resync();
+        assert_eq!(m2.alive_mis_kills(), 0, "resync 归零");
     }
 
     /// ★身份对「延伸」稳定：`CenterId` 只取 (si,zd,zg)——同一实例外缘 dd/gg 与 ei 随延伸变化时

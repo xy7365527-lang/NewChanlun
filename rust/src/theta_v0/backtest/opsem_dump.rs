@@ -474,21 +474,52 @@ impl OpsemDump {
     //  喂数口径（因果，禁第二判据源——构造算子/投影函数全部复用分类器单一来源）：
     //  - **段序列**：只喂**确认前缀**内的段。L0 段 = `tower[0][..confirmed_lens[0]]`
     //    （parser `segments_confirmed_len` 证书，跨 bar bit-stable，`LeveledMove::from_unit`
-    //    逆恢复 `UnitRange`）；ℓ≥1 段 = `project_to_units_resume(tower[ℓ-1][..w], blocks)`
-    //    增量投影（`blocks` = `levels[ℓ-1].moves`，与分类器内部同函数同输入）。ℓ≥1 水线
-    //    `w = min(confirmed_lens[ℓ-1], parent_len-1)`：单元 i 方向由 ownership 关系 R(i-1)
-    //    定，R(i-1) 冻结 ⟺ i ≤ m-2（decompose 模块头：R_j 冻结 ⟺ j < m-2）⟹ 喂到
-    //    i < m-1 保证已喂段方向永冻、前缀一致。frontier（未确认尾段/临时尾关系）不喂——
-    //    事件机比塔更保守（塔中枢可含 frontier 段），born 时点可能**晚于**塔 new_center
-    //    （对账口径差异，如实列出）。
+    //    逆恢复 `UnitRange`）；ℓ≥1 段 = `project_to_units_resume(tower[ℓ][..w], blocks)`
+    //    增量投影（`blocks` = `levels[ℓ-1].moves`，分类器内部唯一正确配对
+    //    `units_j = project_to_units_resume(tower[j], levels[j-1].moves)`，`mod.rs:2158-2171`）。
+    //
+    //    ★#331/R8（旧口径作废，见下）：旧式喂 `tower[ℓ-1]` 是塔层错一级——事件机 level ℓ 本应
+    //    吃 `tower[ℓ]`（与 `classification.levels[ℓ].centers` 同层输入，见
+    //    `.chanlun/review-results/center-death-identity-rootcause-20260726.md` §2.3），旧式
+    //    `blocks=levels[ℓ-1].moves` 恰与 `tower[ℓ-1]` 不配对（该 `blocks` 本应配 `tower[ℓ]`）。
+    //    改后一次同时修好塔层对齐与 blocks 配对。
+    //
+    //    ℓ≥1 水线（新层重推，#331/#330 裁定一）：确认前缀改用 `confirmed_lens[ℓ]`
+    //    （`incremental.rs:105-113`：`out[ℓ] = tower[ℓ][..out[ℓ]]` 跨 bar bit-stable 下界，
+    //    直接以塔层下标索引，非 `ℓ-1`）；方向冻结界随投影源换层重导——单元 i 方向 =
+    //    `center_own_dir_at(levels[ℓ-1].moves, i)`，i 是**中枢下标**（`decompose.rs:180-188`），
+    //    中枢序列 = `levels[ℓ-1].centers`，与 `tower[ℓ]` 1:1（`recursive_tower.rs` 「与
+    //    upper_moves 1:1 的 centers」）⟹ m = `tower[ℓ].len()`；关系 R(i-1,i) 冻结 ⟺
+    //    i-1 < m-2 ⟺ i < m-1 ⟹ 只能喂到 i ≤ m-2 ⟹ `w ≤ tower[ℓ].len()-1`。故
+    //    `w = min(confirmed_lens[ℓ], tower[ℓ].len().saturating_sub(1))`（旧式
+    //    `w = min(confirmed_lens[ℓ-1], parent_len-1)` 绑在旧层上，已作废，不再适用）。
+    //    frontier（未确认尾段/临时尾关系）不喂——事件机比塔更保守（塔中枢可含 frontier
+    //    段），born 时点可能**晚于**塔 new_center（对账口径差异，如实列出）。
     //  - **买卖点**：`step`（`newly_confirmed_step` append-only diff）的本 bar 新确认点，
     //    修6「定账只消费已确认的点」。
     //  - **事件域**：仅交易活跃区间（与 tower_events 同门）——机器自首个活跃 bar 起从空
     //    段序列开始喂（born_seg_ordinal 是活跃窗内序号，对账口径写明）。
     //  - **resync（工程再同步，非教义生死）**：水线回缩（塔 cascade 失效传播）或级消失
     //    ⟹ 该级机器 `resync()`（清段序列+在场中枢，不产生死事件）+ 落 `kind:"resync"`
-    //    诊断行 + `cl_resync_total` 计数。对账时排除该行。
+    //    诊断行 + `cl_resync_total` 计数。对账时排除该行。R2（#331）逃逸阀 resync 同款计数
+    //    （见下 `MISKILL_ESCAPE_N`）。
+    //  - **R0′（#331/#330 裁定二，center_lifecycle.rs 侧）**：三类破坏后已消费段（旧中枢出生
+    //    窗口及其之前）随之丢弃，不再参与新中枢计数——`born_seg_ordinal` 的分母口径随之变化
+    //    （相对「已消费段丢弃后的当前段序列」计数），旧 wf8 对账读数（假设不清零/ordinal 偏移）
+    //    据此作废。
     // ─────────────────────────────────────────────────────────────────────
+
+    /// ★#331 R2：拒杀逃逸阀阈值——**同一在场中枢实例上**累计拒杀（[`CenterEventMachine::
+    /// alive_mis_kills`](classifier::center_lifecycle::CenterEventMachine::alive_mis_kills)）达此值
+    /// ⟹ 工程 `resync()`，止血 R8/R0′ 修不到的残余结构性锁死（报告 §5 R2 原文即「**累积**拒杀
+    /// N 次 ⟹ 该机 resync()」；同节警告「R2 单独上无效，必须配 R8/R0′」——本次三件套同批落地，
+    /// 此值不是替代修法，是兜底止血）。
+    ///
+    /// 选值理由：D6（点乱序投递）实测陈旧请求仅 4/888 ≈ 0.45%（根因报告 §4.4）——阈值须显著
+    /// 高于该噪声水平，避免把偶发乱序误判成结构性锁死而过早 resync；16 次累计拒杀在 wf8 实测
+    /// 锁死规模（792/51/18/27 条，§4.1）下仍能在有限步内触发逃逸，不放任无限吸收。
+    const MISKILL_ESCAPE_N: usize = 16;
+
     pub(super) fn feed_center_lifecycle(
         &mut self,
         bar: usize,
@@ -529,16 +560,15 @@ impl OpsemDump {
 
         for lvl in 0..n_levels {
             // ── 段水线（确认前缀；ℓ≥1 再按 ownership 方向冻结界收窄）──
+            // ★#331 R8：投影源换层（tower[ℓ-1]→tower[ℓ]）后水线随之重推，见模块头新层推导。
             let w = if lvl == 0 {
                 confirmed_lens.first().copied().unwrap_or(0).min(tower[0].len())
             } else {
-                let parent_len = tower[lvl - 1].len();
                 confirmed_lens
-                    .get(lvl - 1)
+                    .get(lvl)
                     .copied()
                     .unwrap_or(0)
-                    .min(parent_len.saturating_sub(1))
-                    .min(parent_len)
+                    .min(tower[lvl].len().saturating_sub(1))
             };
             // ── 水线回缩（cascade 传播）⟹ 该级工程 resync，重喂新前缀 ──
             if w < self.cl_fed_units[lvl].len() {
@@ -563,10 +593,24 @@ impl OpsemDump {
                         }
                     }
                 } else {
-                    // 单一来源增量投影（mod.rs A3 §2.5 同款调用形；blocks=当前 moves，已喂段
-                    // 方向由水线收窄保证冻结 ⟹ resume 契约「前缀一致」成立）。
+                    // ★#331 R8 配对守卫：`levels[lvl-1].centers` 与 `tower[lvl]` 1:1（塔
+                    // `new_center level=k` 恰为 `levels[k-1].centers`，见根因报告 §2.3/§3
+                    // 「塔 L(k) ≡ classification.levels[k-1].centers」）——锁住本次修的配对，
+                    // 若该不变量被打破需先查 compose_level/compose_level_resume 是否仍保持
+                    // 「每中枢一个 Compose」1:1 产出（recursive_tower.rs:297-336）。
+                    debug_assert_eq!(
+                        classification.levels[lvl - 1].centers.len(),
+                        tower[lvl].len(),
+                        "#331 R8：levels[{}].centers 与 tower[{}] 应 1:1（塔层配对不变量）",
+                        lvl - 1,
+                        lvl
+                    );
+                    // 单一来源增量投影（mod.rs A3 §2.5 同款调用形；投影源 = tower[lvl]（本级
+                    // 输入塔，#331 R8 换层——旧式 tower[lvl-1] 已作废），blocks = levels[lvl-1].moves
+                    // （唯一正确配对，mod.rs:2158-2171）。已喂段方向由水线收窄保证冻结 ⟹ resume
+                    // 契约「前缀一致」成立。
                     classifier::recursive_tower::project_to_units_resume(
-                        &tower[lvl - 1][..w],
+                        &tower[lvl][..w],
                         &classification.levels[lvl - 1].moves,
                         &mut self.cl_fed_units[lvl],
                     );
@@ -600,6 +644,15 @@ impl OpsemDump {
                         Err(mk) => {
                             let _ = self.write_cl_miskill(bar, &mk);
                             self.cl_miskill_total += 1;
+                            // ★#331 R2：拒杀逃逸阀——同一在场实例上累计拒杀达阈值 ⟹ 该级工程
+                            // resync，止血 R8/R0′ 修不到的残余结构性锁死（报告 §5：R2 单独上
+                            // 无效，必须配 R8/R0′；本次三件套同批落地，此处非替代修法，是兜底）。
+                            if self.cl_machines[lvl].alive_mis_kills() >= Self::MISKILL_ESCAPE_N {
+                                self.cl_machines[lvl].resync();
+                                self.cl_fed_units[lvl].clear();
+                                let _ = self.write_cl_resync(bar, lvl as u32, "miskill_escape_valve");
+                                self.cl_resync_total += 1;
+                            }
                         }
                     }
                 }
