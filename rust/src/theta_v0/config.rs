@@ -300,7 +300,10 @@ pub struct ThetaConfig {
     pub voice: VoiceConfig,
     pub risk: RiskConfig,
     pub exec: ExecConfig,
-    /// 中枢震荡配对子腿执行开关。默认关闭：协议证据仍可见，订单/子腿轨 frozen bit-exact。
+    /// 狭义短差（中枢震荡高抛低吸，#274/#292）落点门控。默认关闭：触发证据仍可见（协议轨），
+    /// 短差动作/订单轨 frozen bit-exact。★注释订正（#292 评审尾巴，原「配对子腿」措辞是 S6
+    /// 开空腿对冲形态的残留——该形态已被 ADR 0001 修正案一 修1 废止删除，本字段现口径 =
+    /// 减仓回补（修1 唯一定义），非配对子腿）。
     pub center_oscillation: super::strategy::oscillation::CenterOscillationConfig,
     /// ρ_{ℓ,δ,r}/Γ_{ℓ,δ,r}/GapBuffer 状态函数 override（PDF §3）。空 ⟹ 全用 `risk` 标量。
     pub sizing_profile: SizingProfile,

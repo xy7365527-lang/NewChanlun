@@ -73,6 +73,9 @@ pub mod overlay_state;
 pub mod account;
 /// 中枢震荡独立候选与有身份 ReverseOpen 配对子腿契约（组合 R：DB-B / DB-O3 / DB-S5）。
 pub mod oscillation;
+/// 狭义短差动作本体（SPEC #274 T2，issue #292）：触发 + 减补动作 + 挂起出口二分（回补/终结）+
+/// 无互斥门。消费 T1 中枢生命周期事件（`classifier::center_lifecycle`）+ 次级别买卖点信号。
+pub mod center_oscillation_trade;
 /// 盘整/趋势在线协议状态机与 DA-Q2 协议事件轨（订单 P1..P10 的正交积因子）。
 pub mod protocol;
 pub mod risk;
