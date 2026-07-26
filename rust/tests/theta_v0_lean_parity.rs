@@ -468,8 +468,11 @@ fn lean_continuation_hold_bit_exact() {
 //
 //  ★端点转录漂移已消（#319）：端点唯一权威源是导出器 `:204-208` 的 `feOf` 参数，经
 //  `gapOverlapJson` 机器导出进 fixture；本文件与 `parser::gap_overlap_fixture::gap_overlap_cases`
-//  都改读 fixture 端点，rust 侧零誊写。Lean 端点改 ⟹ fixture 变 ⟹ 两处用例输入同步变，
-//  与导出真值不符即红（此前两处各誊写一份，任一处漏改都不会红）。
+//  都改读 fixture 端点，rust 侧零誊写（此前两处各誊写一份，任一处漏改都不会红——此风险已消）。
+//  ⚠诚实口径（同 `gap_overlap_fixture.rs:141-145`，090）：Lean 端点改不等于本测试必红——
+//  端点变动若改了用例形态或真值，`fixture_endpoints_match_kind` 与两个消费方谓词单测才会红；
+//  若端点变动既不改形态也不改真值（如 `strict_disjoint` 的 `b_low` 11→12），rust 侧**不红也
+//  不该红**——两侧同源于同一份 fixture，此时不存在不一致，红了反而是假阳性。
 // ════════════════════════════════════════════════════════════════════════════
 
 /// rust `Interval::overlaps`/`gap` == Lean `decide(HasGap)`/`decide(¬HasGap)` 逐用例 bit-exact。
@@ -499,7 +502,10 @@ fn lean_gap_overlap_tangent_bit_exact() {
     for (expected, name) in cases {
         // 端点侧不变量（`FeatureElem.valid`：low ≤ high）不在本文件重复断言——
         // crate 内 `parser::gap_overlap_fixture::tests::fixture_endpoints_are_valid_intervals`
-        // 已守同一条不变量（同一份 fixture）；此处接反端点仍会被下面的谓词失配捕获。
+        // 已守同一条不变量（同一份 fixture）；此处接反端点仍会被下面的谓词失配捕获——
+        // 但只对 5 例中的 3 例（两条 tangent + strict_overlap）成立：strict_disjoint /
+        // strict_disjoint_rev 一对互为接反对照，接反后真值不变，不会触发失配。此守卫是
+        // **集合级**（5 例作为一组，覆盖了接反会翻真值的情形）而非逐用例级，如实登记。
         let (a, b) = expected.intervals();
         assert_eq!(
             a.gap(&b),

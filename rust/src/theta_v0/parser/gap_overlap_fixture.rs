@@ -134,7 +134,7 @@ fn from_lean(name: &'static str, kind: GapOverlapKind, l: LeanCase) -> GapOverla
 /// 端点与真值**全部**来自 fixture（#319）；用例名不含具体端点数字——端点已非本文件所有，写进名字
 /// 就是重新引入手抄面。失败信息需要端点时由消费方打印 `case.a` / `case.b`。
 ///
-/// fixture 路径与主缝 `theta_v0_lean_parity.rs:148` 指向**同一个文件**（`include_str!` 编译期内联，
+/// fixture 路径与主缝 `theta_v0_lean_parity.rs:154` 指向**同一个文件**（`include_str!` 编译期内联，
 /// 文件被 `scripts/check_fixture_drift.py` / CI `fixture-drift` job 守护，漂移即红）。
 ///
 /// ★「端点不符即红」沿哪段传（#319 诚实登记，090）：这条链是**两段**接起来的——
