@@ -185,6 +185,8 @@ pub(super) struct OpsemDump {
     cl_fed_units: Vec<Vec<classifier::center::UnitRange>>,
     /// ★#291：工程再同步累计（塔 cascade/水线回缩/级消失 ⟹ 该级 resync；非教义生死，照实单列）。
     cl_resync_total: u64,
+    /// ★#329：误杀拒绝累计（触发点载体身份 ≠ 在场中枢身份 ⟹ 事件机拒杀，落 `kind:"miskill"`）。
+    cl_miskill_total: u64,
 }
 
 #[cfg(test)]
@@ -230,6 +232,7 @@ impl OpsemDump {
             cl_machines: Vec::new(),
             cl_fed_units: Vec::new(),
             cl_resync_total: 0,
+            cl_miskill_total: 0,
         })
     }
 
@@ -495,7 +498,7 @@ impl OpsemDump {
         step: &classifier::Classification,
     ) {
         use classifier::center::UnitRange;
-        use classifier::center_lifecycle::{CenterEventMachine, CenterLifecycleEvent};
+        use classifier::center_lifecycle::{CenterEventMachine, CenterId, CenterLifecycleEvent};
         use classifier::descend::RMove;
 
         // 事件域 = 交易活跃区间（与 write_tower_event 同门）。
@@ -576,10 +579,28 @@ impl OpsemDump {
                 }
             }
             // ── 喂本 bar 新确认买卖点（修6：只消费已确认的点）──
+            //
+            // ★#329 H1：破坏/重置必须校验「杀的是哪个中枢」——触发点自带载体
+            // （`BspPoint.center`：一类 = 被破的最后中枢、三类 = 所离开回抽的中枢）⟹ 取其
+            // [`CenterId`]（si,zd,zg）作 target 传入。身份不符 ⟹ 事件机拒杀并返回误杀证据，
+            // 本层落 `kind:"miskill"` 诊断行（不静默吞——诊断可见性同 resync 先例）。
             if let Some(step_level) = step.levels.get(lvl) {
                 for p in step_level.bsp.iter() {
-                    if let Some(ev) = self.cl_machines[lvl].push_point(p.bits, p.source_index) {
-                        let _ = self.write_cl_event(bar, &ev);
+                    let target = match p.center {
+                        Some(classifier::bsp::OwnerRef::Center(c)) => Some(CenterId::of(&c)),
+                        // 二类锚（`Type1Anchor`）/ 载体缺席 ⟹ 无中枢身份可声明（None ⟹ 有在场
+                        // 中枢时必拒杀；二类点本就不产事件，实测 wf8 零命中）。
+                        _ => None,
+                    };
+                    match self.cl_machines[lvl].push_point(p.bits, p.source_index, target) {
+                        Ok(Some(ev)) => {
+                            let _ = self.write_cl_event(bar, &ev);
+                        }
+                        Ok(None) => {}
+                        Err(mk) => {
+                            let _ = self.write_cl_miskill(bar, &mk);
+                            self.cl_miskill_total += 1;
+                        }
                     }
                 }
             }
@@ -591,6 +612,47 @@ impl OpsemDump {
         use std::io::Write;
         let json =
             format!("{{\"bar\":{bar},\"level\":{level},\"kind\":\"resync\",\"reason\":\"{reason}\"}}\n");
+        self.center_lifecycle_buf.write_all(json.as_bytes())
+    }
+
+    /// ★#329：误杀拒绝诊断行（`kind:"miskill"`）——触发点载体身份 ≠ 在场中枢身份 ⟹ 事件机
+    /// 拒杀，本行是那次拒绝的产物级证据（在场身份 vs 声明身份逐字段并列，缺席写 null）。
+    /// 与 `resync` 同属诊断行（非教义事件），对账时单列。
+    fn write_cl_miskill(
+        &mut self,
+        bar: usize,
+        mk: &classifier::center_lifecycle::CenterMisKill,
+    ) -> std::io::Result<()> {
+        use classifier::center_lifecycle::KillTrigger;
+        use std::io::Write;
+        let trigger = match mk.trigger {
+            KillTrigger::FirstClass => "first",
+            KillTrigger::ThirdClass => "third",
+        };
+        let side = match mk.trigger_side {
+            super::super::types::Side::Long => "Long",
+            super::super::types::Side::Short => "Short",
+        };
+        let (tsi, tzd, tzg) = match mk.target {
+            Some(t) => (t.start_index.to_string(), t.zd.to_string(), t.zg.to_string()),
+            None => ("null".into(), "null".into(), "null".into()),
+        };
+        let json = format!(
+            "{{\"bar\":{bar},\"level\":{lvl},\"kind\":\"miskill\",\"trigger\":\"{trigger}\",\
+             \"src\":{src},\"side\":\"{side}\",\"alive_si\":{asi},\"alive_zd\":{azd},\
+             \"alive_zg\":{azg},\"target_si\":{tsi},\"target_zd\":{tzd},\"target_zg\":{tzg}}}\n",
+            bar = bar,
+            lvl = mk.level,
+            trigger = trigger,
+            src = mk.trigger_source_index,
+            side = side,
+            asi = mk.alive.start_index,
+            azd = mk.alive.zd,
+            azg = mk.alive.zg,
+            tsi = tsi,
+            tzd = tzd,
+            tzg = tzg,
+        );
         self.center_lifecycle_buf.write_all(json.as_bytes())
     }
 

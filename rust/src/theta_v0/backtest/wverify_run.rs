@@ -1615,6 +1615,7 @@ fn center_lifecycle_wf8_events_replay() {
     let mut counts: std::collections::BTreeMap<u64, (usize, usize, usize)> =
         std::collections::BTreeMap::new();
     let mut n_resync = 0usize;
+    let mut n_miskill = 0usize;
     let mut n_lines = 0usize;
     for line in text.lines() {
         if line.is_empty() {
@@ -1651,6 +1652,18 @@ fn center_lifecycle_wf8_events_replay() {
                 e.2 += 1;
             }
             "resync" => n_resync += 1,
+            // ★#329：误杀拒绝诊断行（触发点载体身份 ≠ 在场中枢身份 ⟹ 事件机拒杀）。非教义
+            // 事件，与 resync 同属诊断行，单列不进 born/broken/reset 计数。
+            "miskill" => {
+                assert!(v["alive_si"].as_u64().is_some(), "miskill 行含在场中枢身份 alive_si");
+                assert!(v["alive_zd"].as_i64().is_some(), "miskill 行含在场中枢 alive_zd");
+                assert!(v["alive_zg"].as_i64().is_some(), "miskill 行含在场中枢 alive_zg");
+                assert!(
+                    matches!(v["trigger"].as_str(), Some("first") | Some("third")),
+                    "miskill 触发类 ∈ {{first,third}}"
+                );
+                n_miskill += 1;
+            }
             other => panic!("未知事件类：{other}"),
         }
     }
@@ -1668,7 +1681,8 @@ fn center_lifecycle_wf8_events_replay() {
     }
     assert!(tk >= 1, "wf8 有三类买卖点 ⟹ 破坏事件必现");
     eprintln!(
-        "[#291] wf8 中枢生命周期：born={tb} broken={tk} reset={tr} resync={n_resync}；逐级 {counts:?}"
+        "[#291] wf8 中枢生命周期：born={tb} broken={tk} reset={tr} resync={n_resync} \
+         miskill={n_miskill}（#329 身份校验拒杀）；逐级 {counts:?}"
     );
 }
 

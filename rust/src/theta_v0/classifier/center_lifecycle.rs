@@ -11,6 +11,18 @@
 //! - **一类点同死** = 本级一类点（buy1/sell1）⟹ **段序列与在场中枢同死**，新走势类型的中枢
 //!   从全新段计数（禁横跨走势类型生死边界拼中枢）。
 //!
+//! ## 中枢身份校验（#329 H1，2026-07-26）
+//!
+//! 破坏/重置**必须指名道姓杀哪个中枢**：[`CenterEventMachine::push_point`] 收触发点自带的载体
+//! 身份 [`CenterId`]（`(si, zd, zg)`，由 [`super::bsp::BspPoint::center`] 的 `OwnerRef::Center`
+//! 读出——一类 = 被破的最后中枢、三类 = 所离开回抽的中枢），与在场中枢身份比对；不符 ⟹
+//! [`CenterMisKill`] 显式失败且**状态一动不动**（拒杀优先于错杀，理由见 [`CenterMisKill`]）。
+//!
+//! **为什么非加不可（wf8/BTC 产物级坐实）**：#329 步骤一带探针临时构建在 wf8 全窗测得——
+//! 751 次实际杀中枢里仅 **83 次**（11%）载体身份与在场中枢一致，**668 次**（89%）不一致，
+//! 其中 **300 次**触发点载体与在场中枢的源区间 `[si,ei]` **完全不相交**（铁证不同实例）；
+//! ℓ≥1 的 41 次杀**无一例**身份一致。即：校验前的实装**已经在大规模杀错中枢**。
+//!
 //! ## 边界（票面 #291 范围）
 //!
 //! - **只产出事件，不产出动作**：本机是结构地基（狭义短差减补动作 = #292），事件不触发任何
@@ -28,8 +40,70 @@
 //! - 滑窗：在场中枢缺席时，每新段测试**尾 3 段**窗口（与塔窗口扫描同义——前 3 段不成立则
 //!   第 2/3/4 段仍可成交）；在场中枢存在时不测出生（一中枢一场）。
 
-use super::super::types::{BspBits, Center, Side};
+use super::super::types::{BspBits, Center, Side, Tick};
 use super::center::{center_from_segments, center_from_window, UnitRange};
+
+/// 中枢**实例身份**（#329 H1）：`(出生坐标 si, 核心 ZD, 核心 ZG)` 三元组。
+///
+/// ## 为什么是这三元组（票面「择与既有结构最简一致者」）
+///
+/// 不引入新的实例 id 侧车——身份直接从既有 [`Center`] 读出：
+/// - `start_index`：中枢首单元在 L0 原始 K 序的起点（[`UnitRange`] 文档：所有级别的单元坐标
+///   统一在 L0 K 序）⟹ 跨级别可比，且在本机「一中枢一场」的时间线上唯一标定出生实例。
+/// - `(zd, zg)`：核心区间。**延伸不改核心**（`recursive_tower.rs:265`）⟹ 同一实例被塔延伸后
+///   核心仍相等，身份对「延伸」稳定；而不同实例的核心几乎必异。
+///
+/// 外缘 `dd/gg` 与 `end_index` **不进**身份：二者随延伸/窗口推进而变，进身份会把「同一中枢被
+/// 延伸」误判成「不同中枢」（#291 对账中 si+core 同而 ei/dd/gg 异的 33 例即此面）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CenterId {
+    /// 中枢首单元在 L0 原始 K 序的起点。
+    pub start_index: usize,
+    /// 核心区间下沿 ZD。
+    pub zd: Tick,
+    /// 核心区间上沿 ZG。
+    pub zg: Tick,
+}
+
+impl CenterId {
+    /// 从既有 [`Center`] 读出实例身份（零新增字段）。
+    pub fn of(c: &Center) -> Self {
+        Self { start_index: c.start_index, zd: c.zd, zg: c.zg }
+    }
+}
+
+/// 死亡触发类（#329：误杀证据里区分「三类破坏」与「一类同死」）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KillTrigger {
+    /// 本级一类点（buy1/sell1）⟹ 同死。
+    FirstClass,
+    /// 本级三类点（buy3/sell3）⟹ 破坏。
+    ThirdClass,
+}
+
+/// **误杀拒绝证据**（#329 H1）：触发点声明要杀的中枢身份 ≠ 在场中枢身份 ⟹ 显式失败。
+///
+/// 语义（票面「误杀显式失败」）：本机**不猜**。触发点自带载体（[`super::bsp::BspPoint::center`]
+/// ——一类 = 被破的最后中枢，三类 = 所离开回抽的中枢）；载体身份与在场中枢身份不符时，本机
+/// **不动任何状态**（不杀中枢、不清段序列）并返回本证据，由调用方裁决（诊断/告警/再同步）。
+///
+/// 为什么拒杀优先于错杀：#292 把破坏/重置事件翻译成狭义短差减补动作——**错杀 = 在错误语境
+/// 开火**（真金白银的错误动作），漏动作只是不动。故不确定时一律拒。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CenterMisKill {
+    /// 事件机级别。
+    pub level: u32,
+    /// 触发类（一类同死 / 三类破坏）。
+    pub trigger: KillTrigger,
+    /// 触发点 source_index（确认坐标）。
+    pub trigger_source_index: usize,
+    /// 触发点方向。
+    pub trigger_side: Side,
+    /// 在场中枢身份（本机认为「在场」的那个）。
+    pub alive: CenterId,
+    /// 触发点声明要杀的中枢身份；`None` = 该点无中枢载体（二类锚 / 载体缺席）。
+    pub target: Option<CenterId>,
+}
 
 /// 中枢生命周期事件（#291 三类：born/broken/reset）。事件含级别、中枢区间（ZD/ZG）、出生段号。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,6 +158,22 @@ pub struct CenterEventMachine {
     born_total: usize,
     broken_total: usize,
     reset_total: usize,
+    /// ★#329：误杀拒绝累计（身份不符 ⟹ 拒杀，状态不动）。
+    miskill_total: usize,
+}
+
+impl CenterLifecycleEvent {
+    /// ★#329：本事件**杀掉的中枢身份**（票面「破坏/重置事件携带中枢身份」）。
+    ///
+    /// `Broken` ⟹ 被破坏中枢；`Reset` ⟹ 同死的在场中枢（无在场中枢 ⟹ `None`）；`Born` ⟹ `None`
+    /// （出生不杀）。下游（#292 减补动作）直读身份，不再从 `Center` 逐字段反推。
+    pub fn killed_center_id(&self) -> Option<CenterId> {
+        match self {
+            CenterLifecycleEvent::Born { .. } => None,
+            CenterLifecycleEvent::Broken { center, .. } => Some(CenterId::of(center)),
+            CenterLifecycleEvent::Reset { died_center, .. } => died_center.as_ref().map(CenterId::of),
+        }
+    }
 }
 
 impl CenterEventMachine {
@@ -101,6 +191,7 @@ impl CenterEventMachine {
             born_total: 0,
             broken_total: 0,
             reset_total: 0,
+            miskill_total: 0,
         }
     }
 
@@ -128,7 +219,17 @@ impl CenterEventMachine {
     ///
     /// 一类 bit（buy1/sell1）⟹ `Reset`（段序列清零 + 在场中枢同死；一类优先于三类）；
     /// 否则三类 bit（buy3/sell3）且在场中枢存在 ⟹ `Broken`。二类点不产事件（不在三类事件教义内）。
-    pub fn push_point(&mut self, bits: BspBits, source_index: usize) -> Option<CenterLifecycleEvent> {
+    ///
+    /// ★#329：`target` = 该点自带载体的中枢身份（[`super::bsp::BspPoint::center`] 的
+    /// `OwnerRef::Center` ⟹ [`CenterId::of`]；非中枢载体 ⟹ `None`）。有在场中枢时 `target`
+    /// 必须与之相符，否则 [`Err(CenterMisKill)`](CenterMisKill) 且状态不动（校验体
+    /// `verify_kill_target`）。
+    pub fn push_point(
+        &mut self,
+        bits: BspBits,
+        source_index: usize,
+        target: Option<CenterId>,
+    ) -> Result<Option<CenterLifecycleEvent>, CenterMisKill> {
         // 一类优先（1B/3B 前提冲突互斥，理论不同位；防御性规定，模块头已标注）。
         let first = if bits.buy1 {
             Some(Side::Long)
@@ -138,6 +239,8 @@ impl CenterEventMachine {
             None
         };
         if let Some(trigger_side) = first {
+            // ★#329 身份校验：有在场中枢时，触发点声明的载体身份必须 == 在场中枢身份。
+            self.verify_kill_target(KillTrigger::FirstClass, source_index, trigger_side, target)?;
             let cleared_segments = self.segs.len();
             let (died_center, died_born_seg_ordinal) = match self.alive.take() {
                 Some((c, ord)) => (Some(c), Some(ord)),
@@ -145,14 +248,14 @@ impl CenterEventMachine {
             };
             self.segs.clear(); // 段序列与在场中枢同死（新中枢从全新段计数）。
             self.reset_total += 1;
-            return Some(CenterLifecycleEvent::Reset {
+            return Ok(Some(CenterLifecycleEvent::Reset {
                 level: self.level,
                 died_center,
                 died_born_seg_ordinal,
                 cleared_segments,
                 trigger_source_index: source_index,
                 trigger_side,
-            });
+            }));
         }
         let third = if bits.buy3 {
             Some(Side::Long)
@@ -162,18 +265,55 @@ impl CenterEventMachine {
             None
         };
         if let Some(breaker_side) = third {
+            // ★#329 身份校验（先于取走在场中枢——拒杀时状态一动不动）。
+            self.verify_kill_target(KillTrigger::ThirdClass, source_index, breaker_side, target)?;
             // 无在场中枢 ⟹ 诚实 no-op（不杀不存在的中枢）；段序列不清零（趋势延续）。
-            let (center, born_seg_ordinal) = self.alive.take()?;
+            let Some((center, born_seg_ordinal)) = self.alive.take() else {
+                return Ok(None);
+            };
             self.broken_total += 1;
-            return Some(CenterLifecycleEvent::Broken {
+            return Ok(Some(CenterLifecycleEvent::Broken {
                 level: self.level,
                 center,
                 born_seg_ordinal,
                 breaker_source_index: source_index,
                 breaker_side,
-            });
+            }));
         }
-        None
+        Ok(None)
+    }
+
+    /// ★#329 H1 中枢身份校验：死亡请求必须指名道姓杀哪个中枢。
+    ///
+    /// - **无在场中枢** ⟹ 校验不介入（`Ok(())`）：没有可杀对象，谈不上误杀。三类点走诚实
+    ///   no-op，一类点仍清段序列（同死语义覆盖段序列本身，#291 口径不动）。
+    /// - **有在场中枢** ⟹ `target` 必须恰为在场中枢的 [`CenterId`]。不符（含 `target=None`
+    ///   ——点无中枢载体、无从校验）⟹ [`CenterMisKill`]，计数 +1，**不改任何状态**。
+    ///
+    /// 不猜的理由见 [`CenterMisKill`]：#292 把本机事件翻译成减补动作，错杀 = 在错误语境开火。
+    fn verify_kill_target(
+        &mut self,
+        trigger: KillTrigger,
+        source_index: usize,
+        trigger_side: Side,
+        target: Option<CenterId>,
+    ) -> Result<(), CenterMisKill> {
+        let Some((alive_center, _)) = self.alive else {
+            return Ok(());
+        };
+        let alive = CenterId::of(&alive_center);
+        if target == Some(alive) {
+            return Ok(());
+        }
+        self.miskill_total += 1;
+        Err(CenterMisKill {
+            level: self.level,
+            trigger,
+            trigger_source_index: source_index,
+            trigger_side,
+            alive,
+            target,
+        })
     }
 
     /// 工程性再同步（旁路喂数层专用：塔 cascade 失效/水线回缩致已喂前缀不可信时调用）。
@@ -196,6 +336,11 @@ impl CenterEventMachine {
     /// (born, broken, reset) 累计事件计数（wf8 自证读数）。
     pub fn counts(&self) -> (usize, usize, usize) {
         (self.born_total, self.broken_total, self.reset_total)
+    }
+
+    /// ★#329：误杀拒绝累计（身份不符被拒的死亡请求数；不含「无在场中枢」的诚实 no-op）。
+    pub fn mis_kills(&self) -> usize {
+        self.miskill_total
     }
 }
 
@@ -324,24 +469,24 @@ mod tests {
         assert!(matches!(born, Some(CenterLifecycleEvent::Born { .. })));
 
         // 三类买点确认 ⟹ 在场中枢死亡。
-        let ev = m.push_point(bits_3b(), 100);
+        let ev = m.push_point(bits_3b(), 100, Some(CenterId::of(&center)));
         assert_eq!(
             ev,
-            Some(CenterLifecycleEvent::Broken {
+            Ok(Some(CenterLifecycleEvent::Broken {
                 level: 0,
                 center,
                 born_seg_ordinal: 3,
                 breaker_source_index: 100,
                 breaker_side: Side::Long,
-            }),
+            })),
             "三类买点 ⟹ broken（段序列不清零）"
         );
         assert_eq!(m.alive_center(), None, "破坏后无在场中枢");
         assert_eq!(m.counts(), (1, 1, 0));
         assert_eq!(m.segments_since_reset(), 3, "三类破坏不清段序列");
 
-        // 无在场中枢时三类点不产事件（不杀不存在的中枢，诚实 no-op）。
-        assert_eq!(m.push_point(bits_3s(), 200), None, "无在场中枢 ⟹ 三类点无事件");
+        // 无在场中枢时三类点不产事件（不杀不存在的中枢，诚实 no-op；无在场 ⟹ 身份无可校验对象）。
+        assert_eq!(m.push_point(bits_3s(), 200, None), Ok(None), "无在场中枢 ⟹ 三类点无事件");
         assert_eq!(m.counts(), (1, 1, 0));
 
         // 破坏后续段滑窗再出生：段号连续（不清零），第 6 段完成新重叠。
@@ -380,17 +525,17 @@ mod tests {
         assert_eq!(m.segments_since_reset(), 4);
 
         // 本级一类卖点确认 ⟹ 段序列与在场中枢同死。
-        let ev = m.push_point(bits_1s(), 100);
+        let ev = m.push_point(bits_1s(), 100, Some(CenterId::of(&center)));
         assert_eq!(
             ev,
-            Some(CenterLifecycleEvent::Reset {
+            Ok(Some(CenterLifecycleEvent::Reset {
                 level: 0,
                 died_center: Some(center),
                 died_born_seg_ordinal: Some(3),
                 cleared_segments: 4,
                 trigger_source_index: 100,
                 trigger_side: Side::Short,
-            }),
+            })),
             "一类卖点 ⟹ reset（段序列清零 + 在场中枢同死）"
         );
         assert_eq!(m.alive_center(), None);
@@ -423,17 +568,18 @@ mod tests {
         m.push_segment(unit(0, 4, up(), 0, 4));
         m.push_segment(unit(4, 8, down(), 10, 14));
         assert_eq!(m.segments_since_reset(), 2);
-        let ev = m.push_point(bits_1b(), 50);
+        // 无在场中枢 ⟹ 无可校验对象，target=None 仍产 Reset（清段序列，不杀任何中枢）。
+        let ev = m.push_point(bits_1b(), 50, None);
         assert_eq!(
             ev,
-            Some(CenterLifecycleEvent::Reset {
+            Ok(Some(CenterLifecycleEvent::Reset {
                 level: 0,
                 died_center: None,
                 died_born_seg_ordinal: None,
                 cleared_segments: 2,
                 trigger_source_index: 50,
                 trigger_side: Side::Long,
-            }),
+            })),
             "无在场中枢 ⟹ Reset 仍清零段序列（died=None）"
         );
         assert_eq!(m.segments_since_reset(), 0);
@@ -444,9 +590,10 @@ mod tests {
         m2.push_segment(unit(4, 8, down(), 12, 20));
         m2.push_segment(unit(8, 12, up(), 12, 22));
         let both = BspBits { buy1: true, buy3: true, ..Default::default() };
-        let ev2 = m2.push_point(both, 60);
+        let m2_center = Center { zd: 12, zg: 20, dd: 10, gg: 22, start_index: 0, end_index: 12 };
+        let ev2 = m2.push_point(both, 60, Some(CenterId::of(&m2_center)));
         assert!(
-            matches!(ev2, Some(CenterLifecycleEvent::Reset { .. })),
+            matches!(ev2, Ok(Some(CenterLifecycleEvent::Reset { .. }))),
             "一类+三类同点 ⟹ 一类优先（同死吞没破坏）"
         );
         assert_eq!(m2.counts(), (1, 0, 1));
@@ -459,8 +606,169 @@ mod tests {
         m.push_segment(unit(0, 4, up(), 10, 20));
         m.push_segment(unit(4, 8, down(), 12, 20));
         m.push_segment(unit(8, 12, up(), 12, 22));
-        assert_eq!(m.push_point(bits_2b(), 70), None, "二类点不产事件");
+        // 二类点载体是 Type1Anchor（无中枢身份）⟹ target=None；不产事件 ⟹ 身份校验不触发。
+        assert_eq!(m.push_point(bits_2b(), 70, None), Ok(None), "二类点不产事件");
         assert_eq!(m.counts(), (1, 0, 0));
         assert!(m.alive_center().is_some(), "二类点不动在场中枢");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    //  ★#329 H1：中枢身份校验（多候选下「杀对」与「误杀拒绝」两态）
+    // ──────────────────────────────────────────────────────────────────────
+
+    /// 建一台 L0 机器并出生 A = `{zd:12, zg:20, si:0, ei:12}`（返回机器与 A）。
+    fn machine_with_alive_a() -> (CenterEventMachine, Center) {
+        let mut m = CenterEventMachine::new(0);
+        m.push_segment(unit(0, 4, up(), 10, 20));
+        m.push_segment(unit(4, 8, down(), 12, 20));
+        m.push_segment(unit(8, 12, up(), 12, 22));
+        let a = Center { zd: 12, zg: 20, dd: 10, gg: 22, start_index: 0, end_index: 12 };
+        assert_eq!(m.alive_center(), Some((a, 3)), "前置：A 在场");
+        (m, a)
+    }
+
+    /// ★多候选态①「杀对」：触发点载体身份 == 在场中枢身份 ⟹ 正常 Broken/Reset。
+    ///
+    /// 多候选面按 #291 对账实录构造：候选 B 与 A **si 同、区间异**（`si=0` 同，核心 `[13,19]` 异
+    /// ——67/711 例那一面），候选 C 与 A 完全无关（源区间不相交，wf8 实测 300 例那一面）。
+    /// 本用例证「A 在场、点声明 A」时校验放行且事件逐字段不变。
+    #[test]
+    fn kill_passes_when_point_owner_matches_alive_center() {
+        // 三类破坏：声明 A ⟹ 放行。
+        let (mut m, a) = machine_with_alive_a();
+        let ev = m.push_point(bits_3b(), 100, Some(CenterId::of(&a)));
+        assert_eq!(
+            ev,
+            Ok(Some(CenterLifecycleEvent::Broken {
+                level: 0,
+                center: a,
+                born_seg_ordinal: 3,
+                breaker_source_index: 100,
+                breaker_side: Side::Long,
+            })),
+            "载体身份 == 在场身份 ⟹ 破坏放行（事件逐字段与 #291 口径不变）"
+        );
+        assert_eq!(m.alive_center(), None, "杀对 ⟹ 中枢确实死了");
+        assert_eq!(m.counts(), (1, 1, 0));
+        assert_eq!(m.mis_kills(), 0, "杀对不计误杀");
+
+        // 一类同死：声明 A ⟹ 放行（段序列同清）。
+        let (mut m2, a2) = machine_with_alive_a();
+        let ev2 = m2.push_point(bits_1s(), 200, Some(CenterId::of(&a2)));
+        assert_eq!(
+            ev2,
+            Ok(Some(CenterLifecycleEvent::Reset {
+                level: 0,
+                died_center: Some(a2),
+                died_born_seg_ordinal: Some(3),
+                cleared_segments: 3,
+                trigger_source_index: 200,
+                trigger_side: Side::Short,
+            })),
+            "载体身份 == 在场身份 ⟹ 同死放行"
+        );
+        assert_eq!(m2.segments_since_reset(), 0, "放行的同死照常清段序列");
+        assert_eq!(m2.mis_kills(), 0);
+    }
+
+    /// ★多候选态②「误杀拒绝」：触发点载体身份 ≠ 在场中枢身份 ⟹ 显式失败（Err），**状态不动**。
+    ///
+    /// 三个拒绝面各一：
+    /// - B「si 同区间异」（#291 对账 67 例面）——最刁钻，只差核心；
+    /// - C「源区间完全不相交」（wf8 实测 300 例面）——铁证不同实例；
+    /// - `None`「点无中枢载体」——无从校验 ⟹ 一律拒（不猜）。
+    #[test]
+    fn mis_kill_rejected_when_point_owner_differs_from_alive_center() {
+        let b = Center { zd: 13, zg: 19, dd: 10, gg: 22, start_index: 0, end_index: 12 };
+        let c = Center { zd: 90, zg: 99, dd: 88, gg: 100, start_index: 400, end_index: 460 };
+        let a_id = CenterId {
+            start_index: 0,
+            zd: 12,
+            zg: 20,
+        };
+
+        for (label, target, trigger, bits, side, src) in [
+            ("三类×B(si同核心异)", Some(CenterId::of(&b)), KillTrigger::ThirdClass, bits_3b(), Side::Long, 100usize),
+            ("三类×C(区间不相交)", Some(CenterId::of(&c)), KillTrigger::ThirdClass, bits_3s(), Side::Short, 101),
+            ("三类×无载体", None, KillTrigger::ThirdClass, bits_3b(), Side::Long, 102),
+            ("一类×B(si同核心异)", Some(CenterId::of(&b)), KillTrigger::FirstClass, bits_1b(), Side::Long, 103),
+            ("一类×C(区间不相交)", Some(CenterId::of(&c)), KillTrigger::FirstClass, bits_1s(), Side::Short, 104),
+            ("一类×无载体", None, KillTrigger::FirstClass, bits_1b(), Side::Long, 105),
+        ] {
+            let (mut m, a) = machine_with_alive_a();
+            let got = m.push_point(bits, src, target);
+            assert_eq!(
+                got,
+                Err(CenterMisKill {
+                    level: 0,
+                    trigger,
+                    trigger_source_index: src,
+                    trigger_side: side,
+                    alive: a_id,
+                    target,
+                }),
+                "{label}：载体身份 ≠ 在场身份 ⟹ 误杀显式失败（不静默杀）"
+            );
+            // 拒杀 ⟹ 状态一动不动（中枢仍在场、段序列不清、计数不进）。
+            assert_eq!(m.alive_center(), Some((a, 3)), "{label}：拒杀后 A 仍在场");
+            assert_eq!(m.segments_since_reset(), 3, "{label}：拒杀后段序列不清");
+            assert_eq!(m.counts(), (1, 0, 0), "{label}：拒杀不计 broken/reset");
+            assert_eq!(m.mis_kills(), 1, "{label}：误杀拒绝单独计数");
+        }
+    }
+
+    /// ★身份对「延伸」稳定：`CenterId` 只取 (si,zd,zg)——同一实例外缘 dd/gg 与 ei 随延伸变化时
+    /// 仍判同一中枢（#291 对账「si+core 同、ei/dd/gg 异」33 例面：那不是误杀，不得拒）。
+    #[test]
+    fn center_id_ignores_envelope_and_end_index() {
+        let (mut m, a) = machine_with_alive_a();
+        // 塔侧同一中枢被延伸：ei 推进、外缘放大，核心 (zd,zg) 与出生坐标 si 不变。
+        let extended = Center { zd: 12, zg: 20, dd: 5, gg: 30, start_index: 0, end_index: 44 };
+        assert_eq!(CenterId::of(&extended), CenterId::of(&a), "延伸不改身份（核心不变）");
+        let ev = m.push_point(bits_3b(), 300, Some(CenterId::of(&extended)));
+        assert!(
+            matches!(ev, Ok(Some(CenterLifecycleEvent::Broken { .. }))),
+            "延伸后的同一中枢 ⟹ 身份仍匹配，破坏放行"
+        );
+        assert_eq!(m.mis_kills(), 0);
+    }
+
+    /// ★无在场中枢 ⟹ 身份校验不介入（无可杀对象，不因 target 不符而报误杀）。
+    #[test]
+    fn identity_check_inert_without_alive_center() {
+        let stale = Center { zd: 90, zg: 99, dd: 88, gg: 100, start_index: 400, end_index: 460 };
+        // 三类：诚实 no-op。
+        let mut m = CenterEventMachine::new(0);
+        m.push_segment(unit(0, 4, up(), 0, 4));
+        assert_eq!(m.push_point(bits_3b(), 10, Some(CenterId::of(&stale))), Ok(None));
+        assert_eq!(m.mis_kills(), 0, "无在场中枢 ⟹ 不是误杀");
+        // 一类：仍清段序列，died=None。
+        let ev = m.push_point(bits_1b(), 11, Some(CenterId::of(&stale)));
+        assert!(
+            matches!(ev, Ok(Some(CenterLifecycleEvent::Reset { died_center: None, .. }))),
+            "无在场中枢 ⟹ Reset 仍清段序列且 died=None"
+        );
+        assert_eq!(m.mis_kills(), 0);
+    }
+
+    /// ★事件自带中枢身份（票面「破坏/重置事件携带中枢身份」）：三类事件的 `killed_center_id`
+    /// 直读，下游（#292 减补动作）无需再从 Center 反推。
+    #[test]
+    fn events_expose_killed_center_id() {
+        let (mut m, a) = machine_with_alive_a();
+        let born_ev = CenterLifecycleEvent::Born { level: 0, center: a, born_seg_ordinal: 3 };
+        assert_eq!(born_ev.killed_center_id(), None, "出生不杀中枢 ⟹ 无死亡身份");
+
+        let broken = m.push_point(bits_3b(), 100, Some(CenterId::of(&a))).expect("放行").expect("有事件");
+        assert_eq!(broken.killed_center_id(), Some(CenterId::of(&a)), "破坏事件携带死亡中枢身份");
+
+        let (mut m2, a2) = machine_with_alive_a();
+        let reset = m2.push_point(bits_1s(), 200, Some(CenterId::of(&a2))).expect("放行").expect("有事件");
+        assert_eq!(reset.killed_center_id(), Some(CenterId::of(&a2)), "同死事件携带死亡中枢身份");
+
+        let mut m3 = CenterEventMachine::new(0);
+        m3.push_segment(unit(0, 4, up(), 0, 4));
+        let reset_nodie = m3.push_point(bits_1b(), 5, None).expect("放行").expect("有事件");
+        assert_eq!(reset_nodie.killed_center_id(), None, "无在场中枢的同死 ⟹ 无死亡身份");
     }
 }
